@@ -72,6 +72,8 @@ interface StudioState {
   projection: "editor" | "proposals" | null;
   editor: EditorState | null;
   dragCardId: string | null;
+  /** 对话视角（底部抽屉展开）：NPC 抬手面向用户 */
+  dialogView: boolean;
   flights: Flight[];
   composing: boolean;
   draft: DraftVideo | null;
@@ -81,6 +83,7 @@ interface StudioState {
   meSay: (text: string) => void;
   initGreet: () => void;
   setCamera: (c: CamView) => void;
+  setDialogView: (v: boolean) => void;
 
   openMarket: () => Promise<void>;
   marketSearch: (q: string) => Promise<void>;
@@ -146,6 +149,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   projection: null,
   editor: null,
   dragCardId: null,
+  dialogView: false,
   flights: [],
   composing: false,
   draft: null,
@@ -160,11 +164,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
     get().npcSay("欢迎来到卡片工坊。把你的素材（图片、文本）交给我，我为你炼成卡片；也可以逛逛市场，看看大家都在用什么。");
   },
   setCamera: (camera) => set({ camera }),
+  setDialogView: (dialogView) => set({ dialogView }),
 
   openMarket: async () => {
     if (get().market.open) return;
     const seq = ++marketSeq;
-    set((s) => ({ market: { ...s.market, open: true, loading: true, query: "" } }));
+    // 摊开的卡平放在桌面：切回俯视机位才可读
+    set((s) => ({ market: { ...s.market, open: true, loading: true, query: "" }, camera: { kind: "default" } }));
     get().npcSay("稍等——（从口袋里抽出一叠卡，在桌上哗地摊开）这些是最近社区里最抢手的。想找特定的，直接在下面输入关键词。");
     const items = await searchMarket("");
     if (seq !== marketSeq) return; // 期间发起过新检索，丢弃本次结果
@@ -270,7 +276,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (get().projection) return;
     set({ focus: null, editor: null, spreadOpen: false, camera: { kind: "default" } });
   },
-  closeProjection: () => set({ projection: null, editor: null }),
+  // 点 ✕ 关闭投影窗：与点击空白桌面一致——卡片落下并拉远回默认机位
+  closeProjection: () =>
+    set({ projection: null, editor: null, focus: null, spreadOpen: false, camera: { kind: "default" } }),
   toggleSpread: () =>
     set((s) => ({ spreadOpen: s.deck.length > 0 && !s.spreadOpen })),
   shiftSpread: (dir) =>

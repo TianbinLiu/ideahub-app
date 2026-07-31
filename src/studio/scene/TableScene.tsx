@@ -186,7 +186,7 @@ function Npc() {
 
   useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime;
-    const { market, dialog } = useStudio.getState();
+    const { market, dialog, dialogView } = useStudio.getState();
     const wob = dialog.busy ? Math.sin(t * 7) * 0.12 : 0;
     let lT: [number, number, number];
     let rT: [number, number, number];
@@ -197,6 +197,10 @@ function Npc() {
       // 摊完卡后双手扶在两侧桌沿，不遮挡卡面
       lT = [-1.95, 0.3, -2.5];
       rT = [1.95, 0.3, -2.5];
+    } else if (dialogView) {
+      // 对话视角：抬手到胸前比划（落在上半屏可见区）
+      lT = [-0.72, 0.95 + Math.sin(t * 1.6) * 0.05, -4.1];
+      rT = [0.72, 0.95 + Math.cos(t * 1.4) * 0.05, -4.1];
     } else {
       lT = [-0.8, 0.18 + Math.sin(t * 1.3) * 0.03, -2.55];
       rT = [0.8, 0.18 + Math.cos(t * 1.15) * 0.03, -2.55];
@@ -245,6 +249,11 @@ function Npc() {
         <mesh position={[0.85, 1.62, -5.35]}>
           <sphereGeometry args={[0.24, 14, 14]} />
           <meshStandardMaterial color={sleeve} />
+        </mesh>
+        {/* 胸前徽记（对话视角可见） */}
+        <mesh position={[0, 1.25, -4.9]}>
+          <circleGeometry args={[0.17, 24]} />
+          <meshStandardMaterial color="#0b1020" emissive="#67e8f9" emissiveIntensity={1.6} />
         </mesh>
       </group>
       <mesh ref={lUpper}>
@@ -728,8 +737,8 @@ export default function TableScene() {
       <ambientLight intensity={0.95} />
       <directionalLight position={[4, 10, 7]} intensity={1.35} />
       <pointLight position={[0, 4.5, -2.5]} intensity={50} color="#67e8f9" />
-      {/* NPC 正面补光 + 背景幕墙（让铸卡师不悬在纯黑里） */}
-      <pointLight position={[0, 2.6, -2.2]} intensity={26} color="#8fb8ff" />
+      {/* NPC 正面补光 + 背景幕墙（让铸卡师不悬在纯黑里；对话视角也要够亮） */}
+      <pointLight position={[0, 2.4, -1.8]} intensity={55} color="#8fb8ff" />
       <mesh position={[0, 3.4, -10.5]}>
         <planeGeometry args={[46, 15]} />
         <meshStandardMaterial color="#0e1730" />

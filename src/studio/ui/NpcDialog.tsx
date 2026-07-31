@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useStudio } from "../studioStore";
 import { fileToCover } from "../../mock/frames";
 import { MaterialFile } from "../../mock/ai";
+import { NPC_CAM } from "../scene/layout";
 
 export default function NpcDialog() {
   const messages = useStudio((s) => s.dialog.messages);
@@ -57,10 +58,25 @@ export default function NpcDialog() {
     setText("");
   }
 
+  // 打开对话 → 镜头转向 NPC 侧（看到 NPC 的手与上半身）；关闭 → 拉回默认俯视
+  function openSheet() {
+    const st = useStudio.getState();
+    st.unfocus();
+    st.setDialogView(true);
+    st.setCamera({ kind: "pos", pos: NPC_CAM.pos, look: NPC_CAM.look });
+    setOpen(true);
+  }
+  function closeSheet() {
+    const st = useStudio.getState();
+    st.setDialogView(false);
+    st.setCamera({ kind: "default" });
+    setOpen(false);
+  }
+
   if (!open) {
     return (
       <button
-        onClick={() => setOpen(true)}
+        onClick={openSheet}
         className="absolute inset-x-3 bottom-3 z-10 flex items-center gap-2 rounded-full border border-slate-700/70 bg-panel/90 px-3.5 py-2.5 text-left backdrop-blur"
       >
         <span className={`h-2.5 w-2.5 flex-none rounded-full ${busy ? "animate-pulse bg-amber-400" : "bg-emerald-400"}`} />
@@ -79,12 +95,12 @@ export default function NpcDialog() {
   }
 
   return (
-    <div className="absolute inset-x-0 bottom-0 z-10 flex h-[58%] flex-col rounded-t-2xl border-t border-slate-700/70 bg-panel/95 backdrop-blur">
+    <div className="absolute inset-x-0 bottom-0 z-10 flex h-[52%] flex-col rounded-t-2xl border-t border-slate-700/70 bg-panel/95 backdrop-blur">
       <div className="flex items-center gap-2 border-b border-slate-700/60 px-4 py-2.5">
         <span className={`h-2.5 w-2.5 rounded-full ${busy ? "animate-pulse bg-amber-400" : "bg-emerald-400"}`} />
         <span className="font-semibold text-slate-100">铸卡师</span>
         <span className="text-xs text-slate-400">{busy ? "炼卡中…" : market.open ? "市场摊开中" : "在线"}</span>
-        <button onClick={() => setOpen(false)} className="ml-auto px-2 text-slate-400 hover:text-white">
+        <button onClick={closeSheet} className="ml-auto px-2 text-slate-400 hover:text-white">
           ▾
         </button>
       </div>
@@ -120,7 +136,12 @@ export default function NpcDialog() {
       <div className="flex gap-2 border-t border-slate-700/60 px-3 py-2">
         {market.open ? (
           <button
-            onClick={() => useStudio.getState().closeMarket()}
+            onClick={() => {
+              const st = useStudio.getState();
+              st.closeMarket();
+              // 抽屉仍开着：回到面向 NPC 的对话视角
+              st.setCamera({ kind: "pos", pos: NPC_CAM.pos, look: NPC_CAM.look });
+            }}
             className="rounded-full bg-slate-700/70 px-3 py-1.5 text-xs text-slate-200"
           >
             收起市场

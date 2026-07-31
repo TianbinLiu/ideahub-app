@@ -18,6 +18,12 @@ export function focusCam(x: number, z: number): { pos: [number, number, number];
 /** 悬浮卡的抬升高度 */
 export const FLOAT_Y = 0.85;
 
+/** 对话视角：面向 NPC 侧桌面，画面内是 NPC 的双手与上半身 */
+export const NPC_CAM: { pos: [number, number, number]; look: [number, number, number] } = {
+  pos: [0, 3.2, 3.0],
+  look: [0, -0.6, -5.2],
+};
+
 /** 节点链（用户侧、靠近中线的一排；竖屏可视 x≈±1.55 → 3 张窗口化） */
 export const CHAIN = {
   startX: -1.5,
