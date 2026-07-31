@@ -51,15 +51,17 @@ export function toonify(scene: THREE.Object3D, width = 0.0045) {
     const old = mesh.material as THREE.MeshStandardMaterial;
     mesh.material = new THREE.MeshToonMaterial({ map: old.map, gradientMap: ramp });
     old.dispose();
-    const shell = mesh.isSkinnedMesh
-      ? new THREE.SkinnedMesh(mesh.geometry, outlineMat)
-      : new THREE.Mesh(mesh.geometry, outlineMat);
+    let shell: THREE.Mesh;
+    if (mesh.isSkinnedMesh) {
+      const s = new THREE.SkinnedMesh(mesh.geometry, outlineMat);
+      s.bind(mesh.skeleton, mesh.bindMatrix);
+      s.bindMode = mesh.bindMode;
+      shell = s;
+    } else {
+      shell = new THREE.Mesh(mesh.geometry, outlineMat);
+    }
     shell.userData.__isOutline = true;
     shell.frustumCulled = false;
-    if (mesh.isSkinnedMesh && (shell as THREE.SkinnedMesh).isSkinnedMesh) {
-      (shell as THREE.SkinnedMesh).bind(mesh.skeleton, mesh.bindMatrix);
-      (shell as THREE.SkinnedMesh).bindMode = mesh.bindMode;
-    }
     // 挂本体之下继承全部变换（量化反缩放在 mesh 自身 scale 上）
     mesh.add(shell);
   }
