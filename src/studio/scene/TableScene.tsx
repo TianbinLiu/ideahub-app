@@ -198,9 +198,9 @@ function Npc() {
       lT = [-1.95, 0.3, -2.5];
       rT = [1.95, 0.3, -2.5];
     } else if (dialogView) {
-      // 对话视角：抬手到胸前比划（落在上半屏可见区）
-      lT = [-0.72, 0.95 + Math.sin(t * 1.6) * 0.05, -4.1];
-      rT = [0.72, 0.95 + Math.cos(t * 1.4) * 0.05, -4.1];
+      // 对话视角（俯视 NPC 半场）：双手前伸搭在桌面上，微微起伏
+      lT = [-0.72, 0.22 + Math.sin(t * 1.6) * 0.04, -2.0];
+      rT = [0.72, 0.22 + Math.cos(t * 1.4) * 0.04, -2.0];
     } else {
       lT = [-0.8, 0.18 + Math.sin(t * 1.3) * 0.03, -2.55];
       rT = [0.8, 0.18 + Math.cos(t * 1.15) * 0.03, -2.55];
@@ -212,7 +212,7 @@ function Npc() {
     if (torso.current) torso.current.position.y = Math.sin(t * 1.2) * 0.03;
 
     // 左臂（placeBone 只读取 a/b，不需要 clone）
-    a.set(-0.85, 1.62, -5.35);
+    a.set(-0.85, 1.62, -3.85);
     e.copy(a).add(cur.current.lH).multiplyScalar(0.5);
     e.x -= 0.45;
     e.y += 0.12;
@@ -221,7 +221,7 @@ function Npc() {
     if (lFore.current) placeBone(lFore.current, e, b, d);
     if (lHand.current) lHand.current.position.copy(b);
     // 右臂
-    a.set(0.85, 1.62, -5.35);
+    a.set(0.85, 1.62, -3.85);
     e.copy(a).add(cur.current.rH).multiplyScalar(0.5);
     e.x += 0.45;
     e.y += 0.12;
@@ -236,22 +236,22 @@ function Npc() {
   return (
     <group>
       <group ref={torso}>
-        {/* 躯干（无头，退到俯视画框之外——画面里只留双臂/手） */}
-        <mesh position={[0, 0.9, -5.6]} scale={[1.2, 1, 0.75]}>
+        {/* 躯干（无头）：贴着桌面远边缘，俯视角也能看到上半身 */}
+        <mesh position={[0, 0.9, -4.05]} scale={[1.2, 1, 0.75]}>
           <capsuleGeometry args={[0.62, 0.95, 4, 14]} />
           <meshStandardMaterial color="#1c2745" roughness={0.7} />
         </mesh>
         {/* 双肩 */}
-        <mesh position={[-0.85, 1.62, -5.35]}>
+        <mesh position={[-0.85, 1.62, -3.85]}>
           <sphereGeometry args={[0.24, 14, 14]} />
           <meshStandardMaterial color={sleeve} />
         </mesh>
-        <mesh position={[0.85, 1.62, -5.35]}>
+        <mesh position={[0.85, 1.62, -3.85]}>
           <sphereGeometry args={[0.24, 14, 14]} />
           <meshStandardMaterial color={sleeve} />
         </mesh>
-        {/* 胸前徽记（对话视角可见） */}
-        <mesh position={[0, 1.25, -4.9]}>
+        {/* 胸前徽记（微仰角，俯视可见） */}
+        <mesh position={[0, 1.32, -3.55]} rotation={[-0.6, 0, 0]}>
           <circleGeometry args={[0.17, 24]} />
           <meshStandardMaterial color="#0b1020" emissive="#67e8f9" emissiveIntensity={1.6} />
         </mesh>

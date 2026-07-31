@@ -169,8 +169,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
   openMarket: async () => {
     if (get().market.open) return;
     const seq = ++marketSeq;
-    // 摊开的卡平放在桌面：切回俯视机位才可读
-    set((s) => ({ market: { ...s.market, open: true, loading: true, query: "" }, camera: { kind: "default" } }));
+    // 对话视角本身就是俯视 NPC 半场，摊开的卡直接可读；非对话态则回默认俯视
+    set((s) => ({
+      market: { ...s.market, open: true, loading: true, query: "" },
+      camera: s.dialogView ? s.camera : { kind: "default" },
+    }));
     get().npcSay("稍等——（从口袋里抽出一叠卡，在桌上哗地摊开）这些是最近社区里最抢手的。想找特定的，直接在下面输入关键词。");
     const items = await searchMarket("");
     if (seq !== marketSeq) return; // 期间发起过新检索，丢弃本次结果
@@ -188,7 +191,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set((s) => ({
       market: { ...s.market, open: false },
       marketDetail: null,
-      camera: s.focus ? s.camera : { kind: "default" },
+      camera: s.focus || s.dialogView ? s.camera : { kind: "default" },
     })),
   viewMarketCard: (card, pos, look) => set({ marketDetail: card, camera: { kind: "pos", pos, look } }),
   closeMarketDetail: () => set((s) => ({ marketDetail: null, camera: s.focus ? s.camera : { kind: "default" } })),

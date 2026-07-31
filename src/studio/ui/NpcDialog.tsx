@@ -1,17 +1,22 @@
-// 铸卡师对话：竖屏底部抽屉。收起时是一条气泡栏（显示最新 NPC 消息），点开变全宽抽屉。
+// 铸卡师对话：竖屏底部抽屉。
+// 流程：点气泡栏打开 → 先出「🛒 逛市场 / 📎 添加素材」左右两大选项（悬浮放大高亮、
+// 另一侧缩小），点击后选项消失进入对应界面；镜头同时切到俯视 NPC 半场。
 import { useEffect, useRef, useState } from "react";
 import { useStudio } from "../studioStore";
 import { fileToCover } from "../../mock/frames";
 import { MaterialFile } from "../../mock/ai";
 import { NPC_CAM } from "../scene/layout";
 
+type SheetMode = "choose" | "market" | "forge";
+
 export default function NpcDialog() {
   const messages = useStudio((s) => s.dialog.messages);
   const busy = useStudio((s) => s.dialog.busy);
-  const market = useStudio((s) => s.market);
   const pending = useStudio((s) => s.pendingFiles);
   const projection = useStudio((s) => s.projection);
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<SheetMode>("choose");
+  const [hov, setHov] = useState<"market" | "forge" | null>(null);
   const [seen, setSeen] = useState(0);
   const [text, setText] = useState("");
   const [reading, setReading] = useState(false);
@@ -24,13 +29,44 @@ export default function NpcDialog() {
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length, busy, open]);
+  }, [messages.length, busy, open, mode]);
 
   // 投影窗打开时隐藏对话层，避免遮挡
   if (projection) return null;
 
   const last = messages[messages.length - 1];
   const unread = Math.max(0, messages.length - seen);
+
+  // 打开对话 → 俯视 NPC 半场（看到 NPC 侧桌面 + 贴桌沿的上半身）；关闭 → 拉回默认俯视
+  function openSheet() {
+    const st = useStudio.getState();
+    st.unfocus();
+    st.setDialogView(true);
+    st.setCamera({ kind: "pos", pos: NPC_CAM.pos, look: NPC_CAM.look });
+    setMode(st.market.open ? "market" : "choose");
+    setHov(null);
+    setOpen(true);
+  }
+  function closeSheet() {
+    const st = useStudio.getState();
+    st.setDialogView(false);
+    st.setCamera({ kind: "default" });
+    setOpen(false);
+  }
+  function chooseMarket() {
+    setMode("market");
+    void useStudio.getState().openMarket();
+  }
+  function chooseForge() {
+    setMode("forge");
+    fileRef.current?.click();
+  }
+  function backToChoose() {
+    const st = useStudio.getState();
+    if (st.market.open) st.closeMarket();
+    setHov(null);
+    setMode("choose");
+  }
 
   async function onFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -58,21 +94,6 @@ export default function NpcDialog() {
     setText("");
   }
 
-  // 打开对话 → 镜头转向 NPC 侧（看到 NPC 的手与上半身）；关闭 → 拉回默认俯视
-  function openSheet() {
-    const st = useStudio.getState();
-    st.unfocus();
-    st.setDialogView(true);
-    st.setCamera({ kind: "pos", pos: NPC_CAM.pos, look: NPC_CAM.look });
-    setOpen(true);
-  }
-  function closeSheet() {
-    const st = useStudio.getState();
-    st.setDialogView(false);
-    st.setCamera({ kind: "default" });
-    setOpen(false);
-  }
-
   if (!open) {
     return (
       <button
@@ -94,19 +115,80 @@ export default function NpcDialog() {
     );
   }
 
+  // ── 选项态：两大选项占据窗口左右 ──────────────────────────────
+  if (mode === "choose") {
+    return (
+      <div className="absolute inset-x-0 bottom-0 z-10 flex h-[30%] flex-col rounded-t-2xl border-t border-slate-700/70 bg-panel/95 backdrop-blur">
+        <div className="flex items-center gap-2 px-4 py-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+          <span className="text-sm font-semibold text-slate-100">铸卡师</span>
+          <span className="text-xs text-slate-400">想做点什么？</span>
+          <button onClick={closeSheet} className="ml-auto px-2 text-slate-400 hover:text-white">
+            ▾
+          </button>
+        </div>
+        <div className="flex min-h-0 flex-1 gap-3 px-4 pb-4">
+          {(
+            [
+              { key: "market", icon: "🛒", label: "逛市场", desc: "摊开社区热卡，挑几张收进卡组", onClick: chooseMarket },
+              { key: "forge", icon: "📎", label: "添加素材", desc: "上传图片 / 文本，炼成你的专属卡", onClick: chooseForge },
+            ] as const
+          ).map((opt) => {
+            const active = hov === opt.key;
+            const dimmed = hov != null && !active;
+            return (
+              <button
+                key={opt.key}
+                onMouseEnter={() => setHov(opt.key)}
+                onMouseLeave={() => setHov(null)}
+                onClick={opt.onClick}
+                style={{ flexGrow: active ? 1.7 : dimmed ? 0.65 : 1 }}
+                className={`flex basis-0 flex-col items-center justify-center gap-1.5 rounded-2xl border transition-all duration-300 ${
+                  active
+                    ? "border-brand bg-brand/10 shadow-[0_0_28px_rgba(56,189,248,0.35)]"
+                    : dimmed
+                      ? "scale-95 border-slate-700 opacity-55"
+                      : "border-slate-600/70 bg-ink/40"
+                }`}
+              >
+                <span className={`transition-all duration-300 ${active ? "text-5xl" : "text-4xl"}`}>{opt.icon}</span>
+                <span className={`font-bold ${active ? "text-lg text-brand" : "text-base text-slate-100"}`}>{opt.label}</span>
+                <span className="px-2 text-center text-[11px] leading-4 text-slate-400">{opt.desc}</span>
+              </button>
+            );
+          })}
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          accept="image/*,.txt,.md"
+          className="hidden"
+          onChange={(e) => void onFiles(e.target.files)}
+        />
+      </div>
+    );
+  }
+
+  // ── 市场 / 炼卡态 ────────────────────────────────────────────
   return (
-    <div className="absolute inset-x-0 bottom-0 z-10 flex h-[52%] flex-col rounded-t-2xl border-t border-slate-700/70 bg-panel/95 backdrop-blur">
-      <div className="flex items-center gap-2 border-b border-slate-700/60 px-4 py-2.5">
+    <div className="absolute inset-x-0 bottom-0 z-10 flex h-[42%] flex-col rounded-t-2xl border-t border-slate-700/70 bg-panel/95 backdrop-blur">
+      <div className="flex items-center gap-2 border-b border-slate-700/60 px-3 py-2">
+        <button onClick={backToChoose} className="px-1 text-slate-400 hover:text-white">
+          ‹
+        </button>
         <span className={`h-2.5 w-2.5 rounded-full ${busy ? "animate-pulse bg-amber-400" : "bg-emerald-400"}`} />
-        <span className="font-semibold text-slate-100">铸卡师</span>
-        <span className="text-xs text-slate-400">{busy ? "炼卡中…" : market.open ? "市场摊开中" : "在线"}</span>
+        <span className="text-sm font-semibold text-slate-100">铸卡师 · {mode === "market" ? "市场" : "炼卡"}</span>
+        <span className="text-xs text-slate-400">
+          {busy ? "炼卡中…" : mode === "market" ? "点桌上的卡放大查看" : "补充说明后发送"}
+        </span>
         <button onClick={closeSheet} className="ml-auto px-2 text-slate-400 hover:text-white">
           ▾
         </button>
       </div>
 
-      <div ref={listRef} className="flex-1 space-y-2 overflow-y-auto px-3 py-2.5">
-        {messages.map((m) => (
+      <div ref={listRef} className="flex-1 space-y-2 overflow-y-auto px-3 py-2">
+        {messages.slice(-30).map((m) => (
           <div key={m.id} className={`flex ${m.from === "me" ? "justify-end" : "justify-start"}`}>
             <div
               className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-1.5 text-sm leading-relaxed ${
@@ -120,7 +202,7 @@ export default function NpcDialog() {
         {busy && <div className="pl-1 text-xs text-amber-300/90 pulse-soft">炉火正旺，卡片成形中…</div>}
       </div>
 
-      {pending.length > 0 && (
+      {mode === "forge" && pending.length > 0 && (
         <div className="flex flex-wrap gap-1.5 border-t border-slate-700/60 px-3 py-1.5">
           {pending.map((f) => (
             <span key={f.name} className="flex items-center gap-1 rounded-full bg-slate-700/70 px-2 py-0.5 text-xs text-slate-200">
@@ -133,52 +215,24 @@ export default function NpcDialog() {
         </div>
       )}
 
-      <div className="flex gap-2 border-t border-slate-700/60 px-3 py-2">
-        {market.open ? (
+      <div className="flex gap-2 border-t border-slate-700/60 p-3 pb-4">
+        {mode === "forge" && (
           <button
-            onClick={() => {
-              const st = useStudio.getState();
-              st.closeMarket();
-              // 抽屉仍开着：回到面向 NPC 的对话视角
-              st.setCamera({ kind: "pos", pos: NPC_CAM.pos, look: NPC_CAM.look });
-            }}
-            className="rounded-full bg-slate-700/70 px-3 py-1.5 text-xs text-slate-200"
+            onClick={() => fileRef.current?.click()}
+            disabled={reading}
+            className="flex-none rounded-xl bg-slate-700/70 px-3 py-2 text-sm text-slate-200 disabled:opacity-40"
+            title="继续添加素材"
           >
-            收起市场
-          </button>
-        ) : (
-          <button
-            onClick={() => void useStudio.getState().openMarket()}
-            className="rounded-full bg-slate-700/70 px-3 py-1.5 text-xs text-slate-200"
-          >
-            🛒 逛市场
+            {reading ? "…" : "📎"}
           </button>
         )}
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={market.open || reading}
-          className="rounded-full bg-slate-700/70 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-40"
-        >
-          {reading ? "读取中…" : "📎 添加素材"}
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          multiple
-          accept="image/*,.txt,.md"
-          className="hidden"
-          onChange={(e) => void onFiles(e.target.files)}
-        />
-      </div>
-
-      <div className="flex gap-2 border-t border-slate-700/60 p-3 pb-4">
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.nativeEvent.isComposing) send();
           }}
-          placeholder={market.open ? "搜索市场卡片，如「古风」「侦探」…" : "描述素材或想要的卡片…"}
+          placeholder={mode === "market" ? "搜索市场卡片，如「古风」「侦探」…" : "描述素材或想要的卡片…"}
           className="min-w-0 flex-1 rounded-xl border border-slate-600 bg-ink/70 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
         />
         <button
@@ -189,6 +243,15 @@ export default function NpcDialog() {
           发送
         </button>
       </div>
+
+      <input
+        ref={fileRef}
+        type="file"
+        multiple
+        accept="image/*,.txt,.md"
+        className="hidden"
+        onChange={(e) => void onFiles(e.target.files)}
+      />
     </div>
   );
 }
