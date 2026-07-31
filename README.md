@@ -30,7 +30,7 @@ IdeaHub 的视频平台 App（Web 形态，后续可用 Capacitor 打包 iOS/And
 
 ## 3D 资产
 
-`public/models/dungeon/` 来自 [KayKit Dungeon Remastered](https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0)（Kay Lousberg，**CC0**，商用免署名，LICENSE.txt 随目录附带）。魔法书房场景在 `src/studio/scene/MagicStudy.tsx` 布置；NPC 人物计划换为 VRoid Studio 定制 VRM（待人物设定图）。
+`public/models/study/` 来自 [Poly Haven](https://polyhaven.com)（**CC0**，商用免署名）：哥特书柜/五斗柜、黄铜烛台、古董提灯、高脚杯、精装书组、木桶等扫描模型（1k 贴图），以及 `castle_brick_07` 石墙、`dark_wooden_planks` 木地板 PBR 贴图和 `dikhololo_night` 夜景 HDRI。魔法书房场景在 `src/studio/scene/MagicStudy.tsx` 布置；NPC 人物计划换为 VRoid Studio 定制 VRM（待人物设定图）。
 
 ## 开发
 
