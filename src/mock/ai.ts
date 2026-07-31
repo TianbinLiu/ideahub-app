@@ -1,0 +1,203 @@
+// mock AI 管线：卡片生成 / 市场检索 / 三方案推演。
+// 接口形状按未来 server 端点设计（异步 + 延迟），换成真实 AI 时仅需替换实现。
+import { Card, CardType, Proposal, uid } from "../types";
+import { makeCover, makeFrame } from "./frames";
+import { makeRng, pick } from "./rng";
+
+const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms + Math.random() * 400));
+
+// ── 市场种子卡（模拟社区最热卡片） ─────────────────────────────
+const MARKET_DEFS: Array<{ type: CardType; name: string; summary: string; hot: number; tags: string[] }> = [
+  { type: "character", name: "赛博侦探·凛", summary: "霓虹雨夜中行走的义体侦探，左眼是全息扫描仪，习惯在案发现场点一支电子烟。", hot: 12842, tags: ["赛博朋克", "侦探"] },
+  { type: "character", name: "剑修·白无衣", summary: "青城山下拾剑十年的白衣剑修，剑出无声，斩的是心魔。", hot: 11207, tags: ["古风", "武侠"] },
+  { type: "character", name: "废土信使小满", summary: "背着比自己还高的邮包穿越辐射区的少女，坚信每封信都值得抵达。", hot: 9530, tags: ["废土", "治愈"] },
+  { type: "character", name: "AI 管家 T-7", summary: "一丝不苟的老式管家机器人，关节会漏气，说话像上世纪的电台播音员。", hot: 8114, tags: ["科幻", "幽默"] },
+  { type: "character", name: "食堂阿姨·铁勺王", summary: "手抖界的反叛者——打菜从不手抖，江湖人称铁勺王。", hot: 7642, tags: ["搞笑", "日常"] },
+  { type: "scene", name: "雨夜霓虹街", summary: "永远在下雨的九龙城寨式街道，招牌层层叠叠，积水倒映着整座城市。", hot: 13511, tags: ["赛博朋克", "夜景"] },
+  { type: "scene", name: "云海剑冢", summary: "万剑插土、云海翻涌的古战场，每一柄锈剑都埋着一个名字。", hot: 10099, tags: ["古风", "史诗"] },
+  { type: "scene", name: "废土集市", summary: "由报废飞船残骸搭成的黑市，什么都卖，包括昨天的天气预报。", hot: 8867, tags: ["废土", "市集"] },
+  { type: "scene", name: "深海观测站", summary: "一万米深处的孤独观测站，舷窗外偶尔游过发光的未知生物。", hot: 7208, tags: ["科幻", "悬疑"] },
+  { type: "scene", name: "老式绿皮车厢", summary: "摇晃的绿皮火车穿过九十年代的麦田，车窗上有一层薄薄的灰。", hot: 6931, tags: ["怀旧", "旅途"] },
+  { type: "background", name: "黄昏金", summary: "整体笼罩在落日熔金的暖色氛围里，逆光轮廓带柔和光晕。", hot: 9312, tags: ["氛围", "暖色"] },
+  { type: "background", name: "雨幕青", summary: "冷青色调的连绵雨幕，高光锐利，阴影里泛着蓝。", hot: 8455, tags: ["氛围", "冷色"] },
+  { type: "background", name: "星野紫", summary: "银河横贯天幕的深紫夜空，地景压暗，星光作主光源。", hot: 7770, tags: ["氛围", "夜空"] },
+  { type: "prop", name: "会说谎的罗盘", summary: "永远指向持有者最不想去的方向，但从未错过真正的宝藏。", hot: 6520, tags: ["奇幻", "道具"] },
+  { type: "prop", name: "老式拍立得", summary: "拍出的照片会比现实晚三秒——有时能拍到即将发生的事。", hot: 6118, tags: ["悬疑", "道具"] },
+  { type: "style", name: "水墨留白", summary: "大写意水墨风，浓淡干湿之间大量留白，运镜如卷轴展开。", hot: 10240, tags: ["国风", "艺术"] },
+  { type: "style", name: "胶片颗粒", summary: "35mm 胶片质感，轻微漏光与颗粒噪点，色彩微微偏绿。", hot: 8090, tags: ["复古", "质感"] },
+  { type: "style", name: "像素梦境", summary: "16-bit 像素风渲染，霓虹调色板，运动帧率刻意降到 12fps。", hot: 7333, tags: ["像素", "游戏"] },
+];
+
+let marketCache: Card[] | null = null;
+
+function marketAll(): Card[] {
+  if (!marketCache) {
+    marketCache = MARKET_DEFS.map((d, i) => ({
+      id: `mkt_${i}`,
+      type: d.type,
+      name: d.name,
+      summary: d.summary,
+      hot: d.hot,
+      tags: d.tags,
+      cover: makeCover(`market:${d.name}`, d.name),
+    }));
+  }
+  return marketCache;
+}
+
+/** 市场检索：空词 → 最热；有词 → 名称/简介/标签模糊匹配 */
+export async function searchMarket(query: string): Promise<Card[]> {
+  await delay(500);
+  const all = marketAll();
+  const q = query.trim();
+  const list = q
+    ? all.filter((c) => c.name.includes(q) || c.summary.includes(q) || (c.tags ?? []).some((t) => t.includes(q)))
+    : all;
+  return [...list].sort((a, b) => (b.hot ?? 0) - (a.hot ?? 0)).slice(0, 8);
+}
+
+// ── 素材 → 卡片 ───────────────────────────────────────────────
+export interface MaterialFile {
+  name: string;
+  /** 图片文件的 dataURL（作为真实卡面） */
+  dataUrl: string | null;
+  /** 文本文件的内容片段 */
+  text: string | null;
+}
+
+function matchType(hint: string): CardType | null {
+  if (/人物|角色|主角|char|hero|少女|少年|侦探|机器人/i.test(hint)) return "character";
+  if (/场景|地图|scene|街|城|站|海|山|市|房间/i.test(hint)) return "scene";
+  if (/背景|氛围|天空|光|色调|bg/i.test(hint)) return "background";
+  if (/道具|物品|武器|prop|item/i.test(hint)) return "prop";
+  if (/风格|画风|style|水墨|像素|胶片/i.test(hint)) return "style";
+  return null;
+}
+
+/** 类型推断优先级：文件名 > 文件内容 > 补充说明 */
+function inferType(fileName: string, text: string | null, note: string, isImage: boolean): CardType {
+  for (const h of [fileName, text ?? "", note]) {
+    const t = matchType(h);
+    if (t) return t;
+  }
+  return isImage ? "character" : "scene";
+}
+
+function stemOf(fileName: string): string {
+  const stem = fileName.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+  return stem.length > 12 ? stem.slice(0, 12) : stem || "神秘素材";
+}
+
+/** NPC 铸卡：本地文件 + 补充说明 → 若干张卡（mock：图片用原图作卡面） */
+export async function generateCards(files: MaterialFile[], note: string): Promise<Card[]> {
+  await delay(1200);
+  const cards: Card[] = [];
+  for (const f of files) {
+    const name = stemOf(f.name);
+    const type = inferType(f.name, f.text, note, !!f.dataUrl);
+    const rng = makeRng(`cardgen:${f.name}:${note}`);
+    const flavor = pick(rng, [
+      "由你的素材炼成，气质拿捏得恰到好处。",
+      "铸卡师看了三秒，决定给它加一点戏剧张力。",
+      "封存了素材里最有故事感的一瞬间。",
+      "边角还带着一点炉温，小心烫手。",
+    ]);
+    cards.push({
+      id: uid("card"),
+      type,
+      name,
+      summary: note ? `${note}——${flavor}` : `${(f.text ?? "").slice(0, 40) || flavor}`,
+      cover: f.dataUrl ?? makeCover(`gen:${f.name}:${note}`, name),
+    });
+  }
+  if (cards.length === 0 && note.trim()) {
+    const type = inferType("", null, note, false);
+    const name = note.trim().slice(0, 8);
+    cards.push({
+      id: uid("card"),
+      type,
+      name,
+      summary: `根据描述「${note.trim().slice(0, 60)}」铸成。`,
+      cover: makeCover(`gen:${note}`, name),
+    });
+  }
+  return cards;
+}
+
+// ── 节点 → 三方案推演 ─────────────────────────────────────────
+export interface ProposalContext {
+  /** 第几段（从 0 计） */
+  index: number;
+  materials: Card[];
+  requirement: string;
+  durationMode: "ai" | "manual";
+  durationSec: number;
+  /** 上一段已选方案的画面种子（保证首帧承接上一段尾帧色调） */
+  prevFrameSeed: string | null;
+  /** 已选路径的剧情，用于“沿路径续写” */
+  pathPlots: string[];
+}
+
+const VARIANTS: Array<{ key: string; name: string; open: string[]; turn: string[]; close: string[] }> = [
+  {
+    key: "steady",
+    name: "顺势推进",
+    open: ["镜头缓缓推近，", "画面自上一幕的余韵中醒来，", "光线沿着地平线铺开，"],
+    turn: ["一切都按部就班地发生着，却在细节里埋下伏笔——", "节奏克制而绵密，观众的呼吸被悄悄带走——", "看似平静的推进中，某个微小的异样一闪而过——"],
+    close: ["镜头停在一个欲言又止的瞬间。", "画面在光影交界处缓缓定格。", "最后一帧里，故事把答案藏进了阴影。"],
+  },
+  {
+    key: "clash",
+    name: "风云突变",
+    open: ["毫无预兆地，", "上一幕的平静被瞬间撕开，", "低音鼓点骤起，"],
+    turn: ["冲突在此刻全面爆发，所有铺垫轰然兑现——", "对峙升级，镜头以凌厉的快切逼近核心——", "命运的齿轮咬合出刺耳的声响——"],
+    close: ["尾帧凝固在爆发的最高点。", "画面在碎裂的光斑中戛然而止。", "镜头甩向天空，留下未落地的悬念。"],
+  },
+  {
+    key: "twist",
+    name: "柳暗花明",
+    open: ["谁也没想到，", "镜头轻轻一转，", "故事在此处拐了一个温柔的弯，"],
+    turn: ["真相以完全出乎意料的方式浮出水面——", "一个被忽略的细节此刻成为唯一的钥匙——", "看似绝境之处竟藏着另一条通路——"],
+    close: ["尾帧落在一个会心一笑的瞬间。", "画面亮起久违的暖色，尘埃缓缓落定。", "镜头拉远，新的地平线在雾中显形。"],
+  },
+];
+
+export async function generateProposals(ctx: ProposalContext): Promise<Proposal[]> {
+  await delay(1600);
+  const char = ctx.materials.find((m) => m.type === "character")?.name ?? "主角";
+  const scene = ctx.materials.find((m) => m.type === "scene")?.name ?? "故事发生之地";
+  const bg = ctx.materials.find((m) => m.type === "background")?.name;
+  const prop = ctx.materials.find((m) => m.type === "prop")?.name;
+  const style = ctx.materials.find((m) => m.type === "style")?.name;
+
+  return VARIANTS.map((v) => {
+    const id = uid("prop");
+    const rng = makeRng(`plot:${id}:${v.key}:${ctx.index}`);
+    const sentences: string[] = [];
+    sentences.push(`${pick(rng, v.open)}${char}的身影出现在${scene}。`);
+    if (bg) sentences.push(`整段画面浸在「${bg}」的氛围里。`);
+    if (prop) sentences.push(`那件「${prop}」在此刻显出了它真正的分量。`);
+    if (ctx.requirement.trim()) sentences.push(`按照“${ctx.requirement.trim().slice(0, 50)}”的设想，${pick(rng, v.turn)}`);
+    else sentences.push(pick(rng, v.turn));
+    if (ctx.pathPlots.length > 0) sentences.push(`前${ctx.pathPlots.length}段埋下的线索在这里得到回应。`);
+    sentences.push(pick(rng, v.close));
+    if (style) sentences.push(`（呈现方式：${style}）`);
+
+    const durationSec = ctx.durationMode === "manual" ? ctx.durationSec : 4 + Math.floor(rng() * 5);
+    const title = `第${ctx.index + 1}段 · ${v.name}`;
+    return {
+      id,
+      title,
+      plot: sentences.join(""),
+      // 三个方案的首帧共享上一段尾帧的色调（承接）；尾帧展开各自的新色调
+      firstFrame: makeFrame(`${id}#first`, `${title} · 首帧`, ctx.prevFrameSeed ?? `${id}#first`),
+      lastFrame: makeFrame(`${id}#last`, `${title} · 尾帧`, `${id}#last`),
+      durationSec,
+    };
+  });
+}
+
+/** 合成整片（mock：只是延迟，让合成动画有时间感） */
+export async function composeVideo(): Promise<void> {
+  await delay(2600);
+}

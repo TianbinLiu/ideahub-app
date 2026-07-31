@@ -1,0 +1,156 @@
+// 合成完成后的编辑发布页：标题 / 分类 / 简介 / 封面选择 + 左侧成片预览
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import SegmentPlayer from "../components/SegmentPlayer";
+import { publishVideo } from "../data/videos";
+import { useStudio } from "../studio/studioStore";
+import { VIDEO_CATEGORIES, formatDuration } from "../types";
+
+export default function PublishPage() {
+  const navigate = useNavigate();
+  const draft = useStudio((s) => s.draft);
+  const clearDraft = useStudio((s) => s.clearDraft);
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState(draft?.category ?? "剧情");
+  const [description, setDescription] = useState(draft?.description ?? "");
+  const [cover, setCover] = useState(draft?.cover ?? "");
+  const [err, setErr] = useState("");
+
+  // 仅“直接闯入且无草稿”时送回工坊；发布成功后的 clearDraft 不应抢跳
+  const publishedRef = useRef(false);
+  useEffect(() => {
+    if (!draft && !publishedRef.current) navigate("/studio", { replace: true });
+  }, [draft, navigate]);
+
+  const frameChoices = useMemo(() => {
+    if (!draft) return [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const s of draft.segments) {
+      for (const f of [s.firstFrame, s.lastFrame]) {
+        if (!seen.has(f)) {
+          seen.add(f);
+          out.push(f);
+        }
+      }
+    }
+    return out;
+  }, [draft]);
+
+  if (!draft) return null;
+  const total = draft.segments.reduce((s, x) => s + x.durationSec, 0);
+
+  function publish() {
+    if (!draft) return;
+    if (!title.trim()) {
+      setErr("先给视频起个标题");
+      return;
+    }
+    const item = publishVideo({ title: title.trim(), category, description: description.trim(), cover, segments: draft.segments });
+    publishedRef.current = true;
+    clearDraft();
+    navigate(`/video/${item.id}`, { replace: true });
+  }
+
+  return (
+    <div className="min-h-full">
+      <header className="sticky top-0 z-10 border-b border-slate-800 bg-ink/90 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
+          <Link to="/studio" className="text-slate-400 hover:text-white">
+            ← 返回工坊
+          </Link>
+          <span className="font-bold text-slate-100">发布视频</span>
+          <span className="text-xs text-slate-500">
+            {draft.segments.length} 个节点段 · 共 {formatDuration(total)}
+          </span>
+        </div>
+      </header>
+
+      <main className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1.2fr_1fr]">
+        {/* 成片预览 */}
+        <div>
+          <SegmentPlayer segments={draft.segments} cover={cover || draft.cover} />
+          <div className="mt-2 text-center text-xs text-slate-500">成片预览（各节点段按时间线依次播放）</div>
+        </div>
+
+        {/* 发布表单 */}
+        <div className="space-y-5">
+          <div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300">标题 *</div>
+            <input
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                setErr("");
+              }}
+              maxLength={40}
+              placeholder="给这支视频起个好名字"
+              className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+            />
+            {err && <div className="mt-1 text-xs text-red-400">{err}</div>}
+          </div>
+
+          <div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300">分类</div>
+            <div className="flex flex-wrap gap-2">
+              {VIDEO_CATEGORIES.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCategory(c)}
+                  className={`rounded-full px-3.5 py-1.5 text-sm ${
+                    category === c ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300 hover:bg-slate-700"
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300">简介</div>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={5}
+              maxLength={1000}
+              className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm leading-relaxed text-slate-100 outline-none focus:border-brand"
+            />
+          </div>
+
+          <div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300">封面（从各段首尾帧中选择）</div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {frameChoices.map((f, i) => (
+                <button
+                  key={i}
+                  onClick={() => setCover(f)}
+                  className={`w-28 flex-none overflow-hidden rounded-lg border-2 ${
+                    cover === f ? "border-brand" : "border-transparent opacity-70 hover:opacity-100"
+                  }`}
+                >
+                  <img src={f} alt={`帧${i + 1}`} className="aspect-video w-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-2">
+            <button onClick={publish} className="rounded-xl bg-brand px-6 py-2.5 font-bold text-ink hover:brightness-110">
+              发布
+            </button>
+            <button
+              onClick={() => {
+                clearDraft();
+                navigate("/studio");
+              }}
+              className="rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-400 hover:text-slate-200"
+            >
+              放弃本次合成
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
