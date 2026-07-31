@@ -1,6 +1,6 @@
 // 卡片工坊 3D 场景：长桌 + 中线 + NPC 铸卡师 + 卡组 + 市场平摊 + 节点链 + 拖拽层。
 // 固定机位只露出双方手部/上身与桌面（NPC 不建头部模型）。
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 import { ThreeEvent, advance, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { NodeSlot } from "../../types";
@@ -29,6 +29,7 @@ import {
 } from "./cardTexture";
 import CardMesh from "./CardMesh";
 import MagicStudy from "./MagicStudy";
+import VrmNpc from "./VrmNpc";
 
 // ── 节点链布局：窗口化，溢出的最早节点收到左侧堆 ──────────────
 export interface ChainLayout {
@@ -966,7 +967,7 @@ function DialogTableCards() {
       {/* NPC 手中的推荐卡：正面朝用户、手托着卡下缘，点击查看详情/加入卡组 */}
       {recommend && heldMat && (
         <mesh
-          position={[-0.52, 1.36, -3.38]}
+          position={[-0.66, 1.18, -3.3]}
           rotation={[-0.16, 0.1, 0.04]}
           material={heldMat}
           onClick={(e) => {
@@ -1014,7 +1015,9 @@ export default function TableScene() {
       <Table />
       <TableCatcher />
       <ComposePad />
-      <Npc />
+      <Suspense fallback={<Npc />}>
+        <VrmNpc />
+      </Suspense>
       <UserHands />
       <DeckStack />
       <DeckSpread />
