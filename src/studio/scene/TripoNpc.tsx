@@ -130,7 +130,7 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
     return p;
   }, [gltf, bust]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, dt) => {
     // DEV 调参：优先读 window 挂载的表（StrictMode/HMR 下闭包引用可能不同源）
     const w = (import.meta.env.DEV && (window as unknown as Record<string, unknown>).__tripoPose) as
       | typeof pose
@@ -145,10 +145,11 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
       const v = p2[k] as [number, number, number] | null;
       if (n && v) n.rotation.set(v[0] + (k === "spine1" ? breathe : 0), v[1], v[2]);
     }
-    // 表情 morph：随机间隔眨眼（偶发双眨）+ npcSay 驱动口型 + 说话时浅笑加深
+    // 表情 morph：随机间隔眨眼（偶发双眨）+ npcSay 驱动口型 + 情绪事件驱动笑意 + 胸部压桌
     const mm = morphMesh.current;
     if (mm && mm.morphTargetDictionary && mm.morphTargetInfluences) {
-      const speaking = useStudio.getState().speakingUntil > Date.now();
+      const st = useStudio.getState();
+      const speaking = st.speakingUntil > Date.now();
       const bp = blinkPlan.current;
       let blink = 0;
       if (t >= bp.next) {
@@ -175,8 +176,20 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
       if (dict.blink !== undefined) inf[dict.blink] = blink;
       if (dict.mouthOpen !== undefined)
         inf[dict.mouthOpen] = speaking ? Math.max(0, Math.sin(t * 9.5)) * 0.55 : 0;
-      if (dict.smile !== undefined)
-        inf[dict.smile] = speaking ? 0.5 + Math.sin(t * 1.3) * 0.15 : 0.22;
+      if (dict.smile !== undefined) {
+        // 情绪脉冲优先（入组/出炉笑意拉满；素材不合格/作废收敛），否则说话加深/常态浅笑
+        const moodActive = st.moodUntil > Date.now();
+        const target = moodActive
+          ? st.mood > 0
+            ? 0.25 + st.mood * 0.7
+            : Math.max(0, 0.22 + st.mood * 0.35)
+          : speaking
+            ? 0.5 + Math.sin(t * 1.3) * 0.12
+            : 0.22;
+        inf[dict.smile] += (target - inf[dict.smile]) * Math.min(1, dt * 6);
+      }
+      // 胸部撑桌：squish 常驻 + 呼吸联动（吸气压深、呼气回浅）
+      if (dict.squish !== undefined && bust) inf[dict.squish] = 0.72 + Math.sin(t * 1.1) * 0.18;
     }
     // 持卡：世界空间正立卡跟随左手（不继承手骨旋转，永远面向镜头；可点击查看详情）
     const card = cardMeshRef.current;
@@ -196,7 +209,8 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
 
   return (
     <group>
-      <primitive object={gltf.scene} position={[0, y, bust ? -4.35 : -3.9]} scale={scale} />
+      {/* bust z：胸前缘（局部x0.324×2.3）恰好压上桌沿 rail，配合 squish 形变呈"撑在桌面"贴合 */}
+      <primitive object={gltf.scene} position={[0, y, bust ? -4.28 : -3.9]} scale={scale} />
       <mesh
         ref={cardMeshRef}
         rotation={[-0.18, -0.12, 0.05]}

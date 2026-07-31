@@ -1,6 +1,7 @@
 // 视频详情页：播放器 + 信息 + 分段剧情 + 评论区
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import BranchPlayer from "../components/BranchPlayer";
 import SegmentPlayer from "../components/SegmentPlayer";
 import { addComment, addPlay, getVideo, setLike } from "../data/videos";
 import { VideoComment, formatPlays, relativeTime } from "../types";
@@ -63,7 +64,11 @@ export default function VideoPage() {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-4">
-        <SegmentPlayer segments={video.segments} cover={video.cover} />
+        {video.branchTree ? (
+          <BranchPlayer tree={video.branchTree} cover={video.cover} />
+        ) : (
+          <SegmentPlayer segments={video.segments} cover={video.cover} />
+        )}
 
         <h1 className="mt-4 text-xl font-bold text-slate-100">{video.title}</h1>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-400">
@@ -76,7 +81,11 @@ export default function VideoPage() {
           <span>{formatPlays(plays)}播放</span>
           <span>{relativeTime(video.createdAt)}</span>
           <span className="rounded-full bg-panel px-2.5 py-0.5 text-xs">{video.category}</span>
-          <span className="rounded-full bg-purple-500/15 px-2.5 py-0.5 text-xs text-purple-300">互动分支 · 敬请期待</span>
+          {video.branchTree && (
+            <span className="rounded-full bg-purple-500/15 px-2.5 py-0.5 text-xs text-purple-300">
+              互动视频 · {Object.values(video.branchTree.nodes).filter((n) => n.choices.length > 1).length} 个分支点
+            </span>
+          )}
           <button
             onClick={toggleLike}
             className={`ml-auto rounded-full px-3.5 py-1.5 text-sm ${

@@ -1,6 +1,6 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成
 import { create } from "zustand";
-import { CARD_TYPES, CARD_TYPE_LABELS, Card, CardType, DraftVideo, NodeSlot, Proposal, uid } from "../types";
+import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, CardType, DraftVideo, NodeSlot, Proposal, uid } from "../types";
 import { MaterialFile, composeVideo, generateCards, generateProposals, searchMarket } from "../mock/ai";
 
 export interface DialogMsg {
@@ -57,6 +57,47 @@ export function composable(root: NodeSlot | null): boolean {
   return path[path.length - 1].chosenId != null;
 }
 
+/** 把工坊的 NodeSlot 树转成观众侧互动分支树：
+ *  分支点 = 子层展开过的多个提案（chosen 或有子树的提案才算有效路线）；
+ *  只有一条有效路线时观众无感自动续播；开头固定为根节点的选定提案。 */
+function buildBranchTree(root: NodeSlot | null): BranchTree | undefined {
+  if (!root) return undefined;
+  const validProposals = (slot: NodeSlot): Proposal[] => {
+    const opened = slot.proposals.filter((p) => p.id === slot.chosenId || slot.children[p.id]);
+    return opened.length ? opened : slot.proposals.filter((p) => p.id === slot.chosenId);
+  };
+  const rootChosen = chosenProposal(root);
+  if (!rootChosen) return undefined;
+  const nodes: BranchTree["nodes"] = {};
+  let counter = 0;
+  const build = (slot: NodeSlot, proposal: Proposal): string => {
+    const id = `b${counter++}`;
+    const child = slot.children[proposal.id];
+    const choices: BranchNodeData["choices"] = [];
+    if (child) {
+      for (const p of validProposals(child)) {
+        choices.push({ label: p.title.replace(/^第\d+段 · /, ""), nextId: build(child, p) });
+      }
+    }
+    nodes[id] = {
+      id,
+      segment: {
+        title: proposal.title,
+        plot: proposal.plot,
+        firstFrame: proposal.firstFrame,
+        lastFrame: proposal.lastFrame,
+        durationSec: proposal.durationSec,
+      },
+      choices,
+    };
+    return id;
+  };
+  const rootId = build(root, rootChosen);
+  // 只有一条直线且无任何分岔时没必要带树
+  const hasFork = Object.values(nodes).some((n) => n.choices.length > 1);
+  return hasFork ? { rootId, nodes } : undefined;
+}
+
 interface StudioState {
   deck: Card[];
   spreadOpen: boolean;
@@ -82,6 +123,10 @@ interface StudioState {
   camera: CamView;
   /** NPC 正在说话的截止时间戳（npcSay 设置，驱动 3D 口型） */
   speakingUntil: number;
+  /** 情绪脉冲：-1（不悦收敛）~ 1（笑意拉满），moodUntil 过期后回归常态浅笑 */
+  mood: number;
+  moodUntil: number;
+  setMood: (mood: number, ms: number) => void;
 
   npcSay: (text: string) => void;
   meSay: (text: string) => void;
@@ -164,6 +209,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
   draft: null,
   camera: { kind: "default" },
   speakingUntil: 0,
+  mood: 0,
+  moodUntil: 0,
+  setMood: (mood, ms) => set({ mood, moodUntil: Date.now() + ms }),
 
   npcSay: (text) =>
     set((s) => ({
@@ -243,6 +291,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       flights: [...s.flights, { id: uid("fl"), card, from, delay: 0 }],
     }));
     get().npcSay(`「${card.name}」归你了，好眼光。`);
+    get().setMood(1, 3200);
   },
 
   addFiles: (files) =>
@@ -269,6 +318,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set((s) => ({ dialog: { ...s.dialog, busy: false }, pendingFiles: [] }));
     if (cards.length === 0) {
       get().npcSay("这些素材还差点意思，再补充点描述？");
+      get().setMood(-0.6, 2600);
       return;
     }
     // 立即入组；从 NPC 手边错峰起飞的只是视觉动画
@@ -283,6 +333,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       };
     });
     get().npcSay(`铛——${cards.length} 张新卡出炉，已经飞进你的卡组了。`);
+    get().setMood(1, 4000);
   },
 
   landFlight: (id) =>
@@ -397,6 +448,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         if (curRoot) {
           // 作废：保留表单（finally 会把 generating 复位），用户可直接重试
           get().npcSay("推演期间桌面已经变样，这一炉先作废——按现在的走向重新生成吧。");
+          get().setMood(-0.5, 2200);
           return;
         }
         set({ root: node, spreadOpen: false, focus: { nodeId: node.id }, projection: "proposals", ...editorPatch });
@@ -458,6 +510,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         description: segments.map((sg) => sg.plot).join("\n"),
         cover: segments[0]?.firstFrame ?? "",
         segments,
+        branchTree: buildBranchTree(root),
       },
     });
   },

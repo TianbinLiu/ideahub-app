@@ -81,7 +81,7 @@ function buildSeeds(): VideoItem[] {
       text: c,
       at: now - (ci + 1) * 3600_000 * (vi + 2),
     }));
-    return {
+    const item: VideoItem = {
       id: `seedv_${vi}`,
       title: s.title,
       category: s.category,
@@ -94,6 +94,34 @@ function buildSeeds(): VideoItem[] {
       createdAt: now - (vi + 1) * 86400_000,
       comments,
     };
+    // 首个种子带互动分支树：第 1 段末分岔两条路，殊途同归到同一结局
+    if (vi === 0) {
+      const altBase = `seed:${s.title}:alt`;
+      const alt = {
+        title: "第2段 · 暗巷交易",
+        plot: "她没有追。转身钻进暗巷，把信拍在情报贩子的桌上——「谁在找它，我出双倍。」霓虹在水洼里晃了三晃，一只机械鸦落在她肩头，喉咙里播出一段被剪碎的坐标。",
+        durationSec: 7,
+        firstFrame: makeFrame(`${altBase}#first`, "第2段 · 暗巷交易 · 首帧", `seed:${s.title}:0#last`),
+        lastFrame: makeFrame(`${altBase}#last`, "第2段 · 暗巷交易 · 尾帧", `${altBase}#last`),
+      };
+      item.branchTree = {
+        rootId: "b0",
+        nodes: {
+          b0: {
+            id: "b0",
+            segment: segments[0],
+            choices: [
+              { label: "追上去 · 风云突变", nextId: "b1" },
+              { label: "按兵不动 · 暗巷交易", nextId: "b2" },
+            ],
+          },
+          b1: { id: "b1", segment: segments[1], choices: [{ label: "结局 · 柳暗花明", nextId: "b3" }] },
+          b2: { id: "b2", segment: alt, choices: [{ label: "结局 · 柳暗花明", nextId: "b3" }] },
+          b3: { id: "b3", segment: segments[2], choices: [] },
+        },
+      };
+    }
+    return item;
   });
 }
 
@@ -102,7 +130,15 @@ function load(): VideoItem[] {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const arr = JSON.parse(raw) as VideoItem[];
-      if (Array.isArray(arr) && arr.length > 0) return arr;
+      if (Array.isArray(arr) && arr.length > 0) {
+        // 旧库种子没有分支树：重建种子、保留用户视频（互动播放功能上线迁移）
+        if (!arr.find((v) => v.id === "seedv_0")?.branchTree) {
+          const migrated = [...arr.filter((v) => !isSeed(v)), ...buildSeeds()];
+          save(migrated);
+          return migrated;
+        }
+        return arr;
+      }
     }
   } catch {
     // 解析失败当作空库重建
@@ -163,6 +199,7 @@ export function publishVideo(draft: DraftVideo): VideoItem {
     description: draft.description,
     cover: draft.cover,
     segments: draft.segments,
+    branchTree: draft.branchTree,
     author: ME,
     plays: 0,
     likes: 0,

@@ -46,7 +46,14 @@ export default function PublishPage() {
       setErr("先给视频起个标题");
       return;
     }
-    const item = publishVideo({ title: title.trim(), category, description: description.trim(), cover, segments: draft.segments });
+    const item = publishVideo({
+      title: title.trim(),
+      category,
+      description: description.trim(),
+      cover,
+      segments: draft.segments,
+      branchTree: draft.branchTree,
+    });
     publishedRef.current = true;
     clearDraft();
     navigate(`/video/${item.id}`, { replace: true });

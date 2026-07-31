@@ -59,6 +59,19 @@ export interface VideoSegment {
   durationSec: number;
 }
 
+/** 互动分支树节点：一段视频 + 段尾选项（空数组 = 结局） */
+export interface BranchNodeData {
+  id: string;
+  segment: VideoSegment;
+  choices: Array<{ label: string; nextId: string }>;
+}
+
+/** 互动分支树：扁平存储（允许多路汇合成 DAG） */
+export interface BranchTree {
+  rootId: string;
+  nodes: Record<string, BranchNodeData>;
+}
+
 export interface VideoComment {
   id: string;
   author: string;
@@ -73,6 +86,8 @@ export interface VideoItem {
   description: string;
   cover: string;
   segments: VideoSegment[];
+  /** 互动分支树；无此字段 = 线性播放 */
+  branchTree?: BranchTree;
   author: string;
   plays: number;
   likes: number;
@@ -86,6 +101,7 @@ export interface DraftVideo {
   description: string;
   cover: string;
   segments: VideoSegment[];
+  branchTree?: BranchTree;
 }
 
 export const VIDEO_CATEGORIES = ["剧情", "科幻", "古风", "搞笑", "动画", "其他"];
