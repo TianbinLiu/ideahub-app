@@ -2,7 +2,7 @@
 // 固定机位只露出双方手部/上身与桌面（NPC 不建头部模型）。
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
-import { ThreeEvent, advance, useFrame, useThree } from "@react-three/fiber";
+import { ThreeEvent, advance, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { NodeSlot } from "../../types";
 import { activePath, chosenProposal, composable, placeholderVisible, useStudio, Flight } from "../studioStore";
 import {
@@ -67,28 +67,221 @@ function CameraRig() {
 }
 
 // ── 桌子与环境 ───────────────────────────────────────────────
+// ── 赌桌绒呢桌布：深绿毡面 + 噪点 + 金色印花（边框/庄家弧线/中央法阵/角花） ──
+function makeFeltCloth(): THREE.CanvasTexture {
+  const W = 2048;
+  const H = 896;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#123c2a";
+  ctx.fillRect(0, 0, W, H);
+  const img = ctx.getImageData(0, 0, W, H);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 13;
+    d[i] += n;
+    d[i + 1] += n;
+    d[i + 2] += n;
+  }
+  ctx.putImageData(img, 0, 0);
+  const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.62);
+  vg.addColorStop(0, "rgba(0,0,0,0)");
+  vg.addColorStop(1, "rgba(0,0,0,0.42)");
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+
+  const gold = (a: number) => `rgba(214,178,106,${a})`;
+  const rr = (x: number, y: number, w: number, h: number, r: number) => {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  };
+  // 双重边框
+  ctx.strokeStyle = gold(0.42);
+  ctx.lineWidth = 7;
+  rr(52, 52, W - 104, H - 104, 46);
+  ctx.stroke();
+  ctx.lineWidth = 2.5;
+  rr(84, 84, W - 168, H - 168, 34);
+  ctx.stroke();
+  // 庄家弧线（canvas 顶部 = NPC 侧）
+  ctx.strokeStyle = gold(0.34);
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(W / 2, -H * 0.62, H * 1.02, Math.PI * 0.28, Math.PI * 0.72);
+  ctx.stroke();
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.arc(W / 2, -H * 0.62, H * 1.12, Math.PI * 0.3, Math.PI * 0.7);
+  ctx.stroke();
+  // 中央法阵
+  ctx.strokeStyle = gold(0.3);
+  for (const [r, lw] of [
+    [150, 3.5],
+    [122, 1.6],
+  ] as const) {
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(W / 2 + Math.cos(a) * 122, H / 2 + Math.sin(a) * 122);
+    ctx.lineTo(W / 2 + Math.cos(a) * (i % 2 ? 138 : 150), H / 2 + Math.sin(a) * (i % 2 ? 138 : 150));
+    ctx.stroke();
+  }
+  // 四角菱花
+  ctx.strokeStyle = gold(0.36);
+  ctx.lineWidth = 2.5;
+  for (const [cx, cy] of [
+    [150, 150],
+    [W - 150, 150],
+    [150, H - 150],
+    [W - 150, H - 150],
+  ] as const) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 34);
+    ctx.lineTo(cx + 34, cy);
+    ctx.lineTo(cx, cy + 34);
+    ctx.lineTo(cx - 34, cy);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+function TableCloth() {
+  const cloth = useMemo(() => makeFeltCloth(), []);
+  const [nor, rough] = useLoader(THREE.TextureLoader, [
+    "/models/study/tex/velour_velvet_nor.jpg",
+    "/models/study/tex/velour_velvet_rough.jpg",
+  ]);
+  const maps = useMemo(() => {
+    const mk = (t: THREE.Texture) => {
+      const c = t.clone();
+      c.wrapS = c.wrapT = THREE.RepeatWrapping;
+      c.repeat.set(7, 3);
+      c.needsUpdate = true;
+      return c;
+    };
+    return { n: mk(nor), r: mk(rough) };
+  }, [nor, rough]);
+  useEffect(
+    () => () => {
+      cloth.dispose();
+      maps.n.dispose();
+      maps.r.dispose();
+    },
+    [cloth, maps]
+  );
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.004, 0]}>
+      <planeGeometry args={[15.8, 6.85]} />
+      <meshStandardMaterial map={cloth} normalMap={maps.n} roughnessMap={maps.r} />
+    </mesh>
+  );
+}
+
+// ── 皮革软包护栏（赌桌围边）：四边圆柱 + 四角圆球 ──────────────
+function TableRail() {
+  const [diff, nor, rough] = useLoader(THREE.TextureLoader, [
+    "/models/study/tex/brown_leather_diff.jpg",
+    "/models/study/tex/brown_leather_nor.jpg",
+    "/models/study/tex/brown_leather_rough.jpg",
+  ]);
+  const mat = useMemo(() => {
+    const mk = (t: THREE.Texture, srgb: boolean) => {
+      const c = t.clone();
+      c.wrapS = c.wrapT = THREE.RepeatWrapping;
+      c.repeat.set(9, 1);
+      if (srgb) c.colorSpace = THREE.SRGBColorSpace;
+      c.needsUpdate = true;
+      return c;
+    };
+    return new THREE.MeshStandardMaterial({
+      map: mk(diff, true),
+      normalMap: mk(nor, false),
+      roughnessMap: mk(rough, false),
+      color: "#8a6a4a",
+    });
+  }, [diff, nor, rough]);
+  useEffect(
+    () => () => {
+      mat.map?.dispose();
+      mat.normalMap?.dispose();
+      mat.roughnessMap?.dispose();
+      mat.dispose();
+    },
+    [mat]
+  );
+  const R = 0.17;
+  const y = 0.08;
+  return (
+    <group>
+      {[-TABLE.d / 2 - 0.05, TABLE.d / 2 + 0.05].map((z, i) => (
+        <mesh key={i} material={mat} position={[0, y, z]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[R, R, TABLE.w + 0.5, 14]} />
+        </mesh>
+      ))}
+      {[-TABLE.w / 2 - 0.25, TABLE.w / 2 + 0.25].map((x, i) => (
+        <mesh key={i} material={mat} position={[x, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[R, R, TABLE.d + 0.1, 14]} />
+        </mesh>
+      ))}
+      {[
+        [-TABLE.w / 2 - 0.25, -TABLE.d / 2 - 0.05],
+        [TABLE.w / 2 + 0.25, -TABLE.d / 2 - 0.05],
+        [-TABLE.w / 2 - 0.25, TABLE.d / 2 + 0.05],
+        [TABLE.w / 2 + 0.25, TABLE.d / 2 + 0.05],
+      ].map(([x, z], i) => (
+        <mesh key={i} material={mat} position={[x, y, z]}>
+          <sphereGeometry args={[R, 12, 12]} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 function Table() {
   return (
     <group>
-      {/* 桌面（绒面） */}
+      {/* 桌体（深胡桃木） */}
       <mesh position={[0, -TABLE.thick / 2, 0]}>
         <boxGeometry args={[TABLE.w, TABLE.thick, TABLE.d]} />
-        <meshStandardMaterial color="#152641" roughness={0.92} />
+        <meshStandardMaterial color="#241a10" roughness={0.8} />
       </mesh>
-      {/* 桌沿 */}
+      <TableCloth />
+      <TableRail />
+      {/* 桌沿（木质外框） */}
       {[
         [0, -TABLE.d / 2 - 0.14],
         [0, TABLE.d / 2 + 0.14],
       ].map(([x, z], i) => (
-        <mesh key={i} position={[x, -0.04, z]}>
-          <boxGeometry args={[TABLE.w + 0.6, 0.26, 0.3]} />
-          <meshStandardMaterial color="#2c3c66" roughness={0.6} />
+        <mesh key={i} position={[x, -0.06, z]}>
+          <boxGeometry args={[TABLE.w + 0.6, 0.24, 0.3]} />
+          <meshStandardMaterial color="#2a1d10" roughness={0.65} />
         </mesh>
       ))}
       {[-TABLE.w / 2 - 0.14, TABLE.w / 2 + 0.14].map((x, i) => (
-        <mesh key={i} position={[x, -0.04, 0]}>
-          <boxGeometry args={[0.3, 0.26, TABLE.d + 0.6]} />
-          <meshStandardMaterial color="#2c3c66" roughness={0.6} />
+        <mesh key={i} position={[x, -0.06, 0]}>
+          <boxGeometry args={[0.3, 0.24, TABLE.d + 0.6]} />
+          <meshStandardMaterial color="#2a1d10" roughness={0.65} />
         </mesh>
       ))}
       {/* 桌腿 */}
@@ -100,7 +293,7 @@ function Table() {
       ].map(([x, z], i) => (
         <mesh key={i} position={[x, -1.35, z]}>
           <boxGeometry args={[0.4, 2.1, 0.4]} />
-          <meshStandardMaterial color="#1b2440" />
+          <meshStandardMaterial color="#20160c" />
         </mesh>
       ))}
       <CenterLine />
@@ -378,7 +571,7 @@ function DeckStack() {
       }}
     >
       {/* 卡组虚位标记 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[DECK_POS[0], 0.004, DECK_POS[2]]} material={markerMat}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[DECK_POS[0], 0.009, DECK_POS[2]]} material={markerMat}>
         <planeGeometry args={[CARD.w * 1.1, CARD.h * 1.08]} />
       </mesh>
       {Array.from({ length: shown }, (_, i) => (
