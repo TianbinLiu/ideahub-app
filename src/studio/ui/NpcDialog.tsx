@@ -43,6 +43,7 @@ export default function NpcDialog() {
     st.unfocus();
     st.setDialogView(true);
     st.setCamera({ kind: "pos", pos: NPC_CAM.pos, look: NPC_CAM.look });
+    void st.refreshRecommend();
     setMode(st.market.open ? "market" : "choose");
     setHov(null);
     setOpen(true);

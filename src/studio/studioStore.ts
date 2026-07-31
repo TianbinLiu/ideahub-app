@@ -1,6 +1,6 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成
 import { create } from "zustand";
-import { Card, CardType, DraftVideo, NodeSlot, Proposal, uid } from "../types";
+import { CARD_TYPES, CARD_TYPE_LABELS, Card, CardType, DraftVideo, NodeSlot, Proposal, uid } from "../types";
 import { MaterialFile, composeVideo, generateCards, generateProposals, searchMarket } from "../mock/ai";
 
 export interface DialogMsg {
@@ -74,6 +74,8 @@ interface StudioState {
   dragCardId: string | null;
   /** 对话视角（底部抽屉展开）：NPC 抬手面向用户 */
   dialogView: boolean;
+  /** NPC 手中展示的 AI 推荐卡（按用户卡组缺口 + 市场热度） */
+  recommendCard: Card | null;
   flights: Flight[];
   composing: boolean;
   draft: DraftVideo | null;
@@ -84,6 +86,10 @@ interface StudioState {
   initGreet: () => void;
   setCamera: (c: CamView) => void;
   setDialogView: (v: boolean) => void;
+  /** 计算推荐卡：优先补齐卡组缺失类型中市场最热的一张 */
+  refreshRecommend: () => Promise<void>;
+  /** 查看卡片详情（不移动相机；复用市场详情单） */
+  viewCardDetail: (card: Card) => void;
 
   openMarket: () => Promise<void>;
   marketSearch: (q: string) => Promise<void>;
@@ -150,6 +156,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   editor: null,
   dragCardId: null,
   dialogView: false,
+  recommendCard: null,
   flights: [],
   composing: false,
   draft: null,
@@ -165,6 +172,23 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
   setCamera: (camera) => set({ camera }),
   setDialogView: (dialogView) => set({ dialogView }),
+  refreshRecommend: async () => {
+    const items = await searchMarket("");
+    const { deck, recommendCard } = get();
+    const inDeck = new Set(deck.map((c) => c.id));
+    const missingType = CARD_TYPES.find((t) => !deck.some((c) => c.type === t));
+    const rec =
+      items.find((c) => c.type === missingType && !inDeck.has(c.id)) ??
+      items.find((c) => !inDeck.has(c.id)) ??
+      null;
+    set({ recommendCard: rec });
+    if (rec && rec.id !== recommendCard?.id) {
+      get().npcSay(
+        `我手里这张「${rec.name}」最近在市场很热${missingType ? `，看你卡组正缺${CARD_TYPE_LABELS[missingType]}` : ""}——点它看看？`
+      );
+    }
+  },
+  viewCardDetail: (card) => set({ marketDetail: card }),
 
   openMarket: async () => {
     if (get().market.open) return;
@@ -194,7 +218,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       camera: s.focus || s.dialogView ? s.camera : { kind: "default" },
     })),
   viewMarketCard: (card, pos, look) => set({ marketDetail: card, camera: { kind: "pos", pos, look } }),
-  closeMarketDetail: () => set((s) => ({ marketDetail: null, camera: s.focus ? s.camera : { kind: "default" } })),
+  closeMarketDetail: () =>
+    set((s) => ({ marketDetail: null, camera: s.focus || s.dialogView ? s.camera : { kind: "default" } })),
   addMarketToDeck: (from) => {
     const card = get().marketDetail;
     if (!card) return;
@@ -206,7 +231,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // 立即入组（业务状态不依赖渲染循环），飞行仅作视觉动画
     set((s) => ({
       marketDetail: null,
-      camera: s.focus ? s.camera : { kind: "default" },
+      camera: s.focus || s.dialogView ? s.camera : { kind: "default" },
       deck: [...s.deck, card],
       flights: [...s.flights, { id: uid("fl"), card, from, delay: 0 }],
     }));

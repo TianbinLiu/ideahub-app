@@ -11,14 +11,14 @@ export function CardDetailModal() {
   const deck = useStudio((s) => s.deck);
   if (!card) return null;
   const i = items.findIndex((c) => c.id === card.id);
-  const row = Math.floor(i / MARKET.perRow);
-  const col = i % MARKET.perRow;
-  const rowCount = Math.min(MARKET.perRow, items.length - row * MARKET.perRow);
-  const from: [number, number, number] = [
-    (col - (rowCount - 1) / 2) * MARKET.dx,
-    0.1,
-    MARKET.rowsZ[Math.min(row, MARKET.rowsZ.length - 1)],
-  ];
+  // 不在市场摊开区的卡（如 NPC 手中的推荐卡）：飞行起点用 NPC 手边
+  let from: [number, number, number] = [-0.5, 1.1, -3.3];
+  if (i >= 0) {
+    const row = Math.floor(i / MARKET.perRow);
+    const col = i % MARKET.perRow;
+    const rowCount = Math.min(MARKET.perRow, items.length - row * MARKET.perRow);
+    from = [(col - (rowCount - 1) / 2) * MARKET.dx, 0.1, MARKET.rowsZ[Math.min(row, MARKET.rowsZ.length - 1)]];
+  }
   const inDeck = deck.some((c) => c.id === card.id);
   return (
     <div className="absolute inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-slate-600/70 bg-panel/95 p-4 shadow-2xl backdrop-blur">

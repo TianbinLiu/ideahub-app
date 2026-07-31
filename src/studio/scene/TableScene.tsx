@@ -178,9 +178,13 @@ function Npc() {
   const rFore = useRef<THREE.Mesh>(null);
   const lHand = useRef<THREE.Mesh>(null);
   const rHand = useRef<THREE.Mesh>(null);
+  // 对话视角：躯干前倾（慵懒）、整体下沉
+  const dialogLean = useStudio((s) => s.dialogView && !s.market.open);
   const cur = useRef({
     lH: new THREE.Vector3(-0.95, 0.2, -3.05),
     rH: new THREE.Vector3(0.95, 0.2, -3.05),
+    lE: new THREE.Vector3(-1.1, 0.9, -3.4),
+    rE: new THREE.Vector3(1.1, 0.9, -3.4),
   });
   const tmp = useRef({ a: new THREE.Vector3(), b: new THREE.Vector3(), e: new THREE.Vector3(), d: new THREE.Vector3() });
 
@@ -188,8 +192,12 @@ function Npc() {
     const t = clock.elapsedTime;
     const { market, dialog, dialogView } = useStudio.getState();
     const wob = dialog.busy ? Math.sin(t * 7) * 0.12 : 0;
+    const lazy = dialogView && !market.open && !dialog.busy;
     let lT: [number, number, number];
     let rT: [number, number, number];
+    // 手肘显式目标：慵懒姿态双肘搭在桌面；其余姿态用中点外扩公式
+    let lET: [number, number, number] | null = null;
+    let rET: [number, number, number] | null = null;
     if (dialog.busy) {
       lT = [-0.6, 1.3 + wob, -2.9];
       rT = [0.6, 1.3 - wob, -2.9];
@@ -197,10 +205,12 @@ function Npc() {
       // 摊完卡后双手扶在两侧桌沿，不遮挡卡面
       lT = [-1.95, 0.3, -2.5];
       rT = [1.95, 0.3, -2.5];
-    } else if (dialogView) {
-      // 对话视角（第一人称对坐）：一手在胸前捏牌（手在牌前下缘），一手按在桌面的牌上
-      lT = [-0.55, 1.08, -3.36];
-      rT = [0.85, 0.18 + Math.cos(t * 1.4) * 0.03, -1.6];
+    } else if (lazy) {
+      // 慵懒对坐：左手肘撑桌、小臂立起托着推荐卡下缘；右小臂搭在桌面自己身前
+      lT = [-0.5, 1.12 + Math.sin(t * 1.1) * 0.02, -3.3];
+      rT = [0.6, 0.14, -2.3];
+      lET = [-0.98, 0.16, -3.05];
+      rET = [0.95, 0.15, -3.0];
     } else {
       lT = [-0.8, 0.18 + Math.sin(t * 1.3) * 0.03, -2.55];
       rT = [0.8, 0.18 + Math.cos(t * 1.15) * 0.03, -2.55];
@@ -209,75 +219,87 @@ function Npc() {
     const { a, b, e, d } = tmp.current;
     cur.current.lH.lerp(a.set(...lT), k);
     cur.current.rH.lerp(a.set(...rT), k);
-    if (torso.current) torso.current.position.y = Math.sin(t * 1.2) * 0.03;
+    if (torso.current) torso.current.position.y = Math.sin(t * 1.2) * (lazy ? 0.015 : 0.03);
 
-    // 左臂（placeBone 只读取 a/b，不需要 clone）
-    a.set(-0.85, 1.62, -3.85);
-    e.copy(a).add(cur.current.lH).multiplyScalar(0.5);
-    e.x -= 0.45;
-    e.y += 0.12;
-    if (lUpper.current) placeBone(lUpper.current, a, e, d);
+    const shY = lazy ? 0.98 : 1.08;
+    const shZ = lazy ? -3.5 : -3.72;
+    // 左臂
+    a.set(-0.68, shY, shZ);
+    if (lET) e.set(...lET);
+    else {
+      e.copy(a).add(cur.current.lH).multiplyScalar(0.5);
+      e.x -= 0.42;
+      e.y += 0.12;
+    }
+    cur.current.lE.lerp(e, k);
+    if (lUpper.current) placeBone(lUpper.current, a, cur.current.lE, d);
     b.copy(cur.current.lH);
-    if (lFore.current) placeBone(lFore.current, e, b, d);
+    if (lFore.current) placeBone(lFore.current, cur.current.lE, b, d);
     if (lHand.current) lHand.current.position.copy(b);
     // 右臂
-    a.set(0.85, 1.62, -3.85);
-    e.copy(a).add(cur.current.rH).multiplyScalar(0.5);
-    e.x += 0.45;
-    e.y += 0.12;
-    if (rUpper.current) placeBone(rUpper.current, a, e, d);
+    a.set(0.68, shY, shZ);
+    if (rET) e.set(...rET);
+    else {
+      e.copy(a).add(cur.current.rH).multiplyScalar(0.5);
+      e.x += 0.42;
+      e.y += 0.12;
+    }
+    cur.current.rE.lerp(e, k);
+    if (rUpper.current) placeBone(rUpper.current, a, cur.current.rE, d);
     b.copy(cur.current.rH);
-    if (rFore.current) placeBone(rFore.current, e, b, d);
+    if (rFore.current) placeBone(rFore.current, cur.current.rE, b, d);
     if (rHand.current) rHand.current.position.copy(b);
   });
 
   const sleeve = "#1f2a47";
   const glove = "#3b4a77";
+  const torsoY = dialogLean ? 0.38 : 0.55;
+  const torsoZ = dialogLean ? -3.9 : -4.05;
   return (
     <group>
       <group ref={torso}>
-        {/* 躯干（无头）：贴着桌面远边缘，俯视角也能看到上半身 */}
-        <mesh position={[0, 0.9, -4.05]} scale={[1.2, 1, 0.75]}>
+        {/* 躯干（无头、纤细）：贴着桌面远边缘；对话时前倾下沉，只露胸部以上 */}
+        <mesh position={[0, torsoY, torsoZ]} rotation={[dialogLean ? 0.3 : 0, 0, 0]} scale={[0.98, 1, 0.68]}>
           <capsuleGeometry args={[0.62, 0.95, 4, 14]} />
           <meshStandardMaterial color="#1c2745" roughness={0.7} />
         </mesh>
-        {/* 双肩 */}
-        <mesh position={[-0.85, 1.62, -3.85]}>
-          <sphereGeometry args={[0.24, 14, 14]} />
+        {/* 双肩（窄肩） */}
+        <mesh position={[-0.68, dialogLean ? 0.98 : 1.08, dialogLean ? -3.5 : -3.72]}>
+          <sphereGeometry args={[0.19, 14, 14]} />
           <meshStandardMaterial color={sleeve} />
         </mesh>
-        <mesh position={[0.85, 1.62, -3.85]}>
-          <sphereGeometry args={[0.24, 14, 14]} />
+        <mesh position={[0.68, dialogLean ? 0.98 : 1.08, dialogLean ? -3.5 : -3.72]}>
+          <sphereGeometry args={[0.19, 14, 14]} />
           <meshStandardMaterial color={sleeve} />
         </mesh>
-        {/* 胸前徽记（微仰角，俯视可见） */}
-        <mesh position={[0, 1.32, -3.55]} rotation={[-0.6, 0, 0]}>
-          <circleGeometry args={[0.17, 24]} />
+        {/* 胸前徽记（微仰角） */}
+        <mesh position={[0, dialogLean ? 0.82 : 0.95, dialogLean ? -3.36 : -3.55]} rotation={[-0.6, 0, 0]}>
+          <circleGeometry args={[0.15, 24]} />
           <meshStandardMaterial color="#0b1020" emissive="#67e8f9" emissiveIntensity={1.6} />
         </mesh>
       </group>
       <mesh ref={lUpper}>
-        <cylinderGeometry args={[0.15, 0.17, 1, 10]} />
+        <cylinderGeometry args={[0.11, 0.125, 1, 10]} />
         <meshStandardMaterial color={sleeve} />
       </mesh>
       <mesh ref={lFore}>
-        <cylinderGeometry args={[0.12, 0.15, 1, 10]} />
+        <cylinderGeometry args={[0.09, 0.11, 1, 10]} />
         <meshStandardMaterial color={sleeve} />
       </mesh>
       <mesh ref={rUpper}>
-        <cylinderGeometry args={[0.15, 0.17, 1, 10]} />
+        <cylinderGeometry args={[0.11, 0.125, 1, 10]} />
         <meshStandardMaterial color={sleeve} />
       </mesh>
       <mesh ref={rFore}>
-        <cylinderGeometry args={[0.12, 0.15, 1, 10]} />
+        <cylinderGeometry args={[0.09, 0.11, 1, 10]} />
         <meshStandardMaterial color={sleeve} />
       </mesh>
       <mesh ref={lHand}>
-        <sphereGeometry args={[0.17, 14, 14]} />
+        <sphereGeometry args={[0.13, 14, 14]} />
         <meshStandardMaterial color={glove} />
       </mesh>
       <mesh ref={rHand}>
-        <sphereGeometry args={[0.17, 14, 14]} />
+        <sphereGeometry args={[0.13, 14, 14]} />
         <meshStandardMaterial color={glove} />
       </mesh>
     </group>
@@ -712,35 +734,60 @@ function CaptureHook() {
   return null;
 }
 
-// ── 对话视角的桌面陈设：散摆的牌背 + NPC 手中持的一张牌 ────────
-const DIALOG_CARDS: Array<[number, number, number]> = [
-  [-1.15, -1.9, 0.28],
-  [-0.45, -1.55, -0.14],
-  [0.22, -1.88, 0.1],
-  [0.88, -1.5, -0.26],
-  [0.42, -2.35, 0.06],
-];
-
+// ── 对话视角的桌面：用户真实卡组整齐摊开（正面朝上、可点击）+ NPC 手中的 AI 推荐卡 ──
 function DialogTableCards() {
   const dialogView = useStudio((s) => s.dialogView);
   const marketOpen = useStudio((s) => s.market.open);
-  const backMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ map: cardBackTexture(), transparent: true, side: THREE.DoubleSide }),
-    []
+  const deck = useStudio((s) => s.deck);
+  const recommend = useStudio((s) => s.recommendCard);
+  const heldMat = useMemo(
+    () =>
+      recommend
+        ? new THREE.MeshBasicMaterial({ map: cardFaceTexture(recommend), transparent: true, side: THREE.DoubleSide })
+        : null,
+    [recommend]
   );
-  useEffect(() => () => backMat.dispose(), [backMat]);
+  useEffect(() => {
+    if (heldMat) return () => heldMat.dispose();
+  }, [heldMat]);
   if (!dialogView || marketOpen) return null;
+  const shown = deck.slice(0, 6);
+  const n = shown.length;
   return (
     <group>
-      {DIALOG_CARDS.map(([x, z, rot], i) => (
-        <mesh key={i} rotation={[-Math.PI / 2, 0, rot]} position={[x, 0.012 + i * 0.004, z]} material={backMat} scale={0.72}>
-          <planeGeometry args={[CARD.w, CARD.h]} />
+      {shown.map((card, i) => {
+        const off = i - (n - 1) / 2;
+        const x = off * 0.72;
+        const z = -1.7 - Math.abs(off) * 0.08;
+        return (
+          <CardMesh
+            key={card.id}
+            tex={cardFaceTexture(card)}
+            target={[x, 0.02 + i * 0.004, z]}
+            rotZ={-off * 0.06}
+            scale={0.64}
+            hoverLift
+            onClick={(e) => {
+              e.stopPropagation();
+              useStudio.getState().viewCardDetail(card);
+            }}
+          />
+        );
+      })}
+      {/* NPC 手中的推荐卡：正面朝用户、手托着卡下缘，点击查看详情/加入卡组 */}
+      {recommend && heldMat && (
+        <mesh
+          position={[-0.52, 1.36, -3.38]}
+          rotation={[-0.16, 0.1, 0.04]}
+          material={heldMat}
+          onClick={(e) => {
+            e.stopPropagation();
+            useStudio.getState().viewCardDetail(recommend);
+          }}
+        >
+          <planeGeometry args={[CARD.w * 0.62, CARD.h * 0.62]} />
         </mesh>
-      ))}
-      {/* NPC 左手在胸前持的牌（牌背朝向用户，手在牌前下缘捏着） */}
-      <mesh position={[-0.55, 1.34, -3.52]} rotation={[-0.12, 0.1, 0.06]} material={backMat}>
-        <planeGeometry args={[CARD.w * 0.6, CARD.h * 0.6]} />
-      </mesh>
+      )}
     </group>
   );
 }
