@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="900" height="560" fill="#0d1220"/>
+  <text x="40" y="50" fill="#e8e2d0" font-size="26" font-weight="bold">女巫帽 · 歪戴角度标注 v1</text>
+
+  <!-- 头部基准 -->
+  <g transform="translate(280,300)">
+    <circle cx="0" cy="0" r="90" fill="#F4E9DA" stroke="#5a6078" stroke-width="2"/>
+    <line x1="0" y1="-160" x2="0" y2="120" stroke="#5a6078" stroke-width="1.5" stroke-dasharray="6 6"/>
+    <text x="8" y="115" fill="#5a6078" font-size="13">头部中轴</text>
+
+    <!-- 帽（倾斜 22°，向画面右=角色左侧） -->
+    <g transform="rotate(-22)">
+      <ellipse cx="0" cy="-84" rx="150" ry="34" fill="#123C2A" stroke="#D6B26A" stroke-width="3"/>
+      <path d="M -62,-92 Q -30,-240 34,-268 Q 26,-190 52,-108 Z" fill="#123C2A" stroke="#D6B26A" stroke-width="3"/>
+      <rect x="-58" y="-112" width="116" height="22" fill="#6E4F35"/>
+      <rect x="18" y="-114" width="26" height="26" fill="#D6B26A" rx="3"/>
+    </g>
+    <line x1="0" y1="-84" x2="0" y2="-250" stroke="#67E8F9" stroke-width="1.5" stroke-dasharray="4 5"/>
+    <line x1="0" y1="-84" x2="-62" y2="-236" stroke="#f2c14e" stroke-width="1.5" stroke-dasharray="4 5"/>
+    <path d="M 0,-170 A 86,86 0 0 0 -33,-163" fill="none" stroke="#f2c14e" stroke-width="2.5"/>
+    <text x="-58" y="-178" fill="#f2c14e" font-size="18" font-weight="bold">22°</text>
+  </g>
+
+  <!-- 规格说明 -->
+  <g font-size="15" fill="#c9cede">
+    <text x="520" y="130">① 帽体向【角色左耳】方向倾 22°（画面右）</text>
+    <text x="520" y="165">② 帽檐前缘压到右眉上方 ~1/3 额头处</text>
+    <text x="520" y="200">③ 帽尖后折（不是直立锥形），尖端下垂</text>
+    <text x="520" y="235">④ 帽带：皮革棕 #6E4F35，右侧黄铜方扣 #D6B26A</text>
+    <text x="520" y="270">⑤ 帽带右侧挂 2 枚迷你卡牌吊饰（青边发光 #67E8F9）</text>
+    <text x="520" y="305">⑥ 帽檐直径 ≈ 肩宽 × 1.15；帽体高 ≈ 1.2 头高</text>
+  </g>
+  <text x="520" y="360" fill="#8a90a6" font-size="13">VRoid：帽子用「配饰」网格制作，绕 Z 轴 -22°，</text>
+  <text x="520" y="382" fill="#8a90a6" font-size="13">再绕 X 轴 +6°（帽檐前低后高，遮出慵懒眼神的阴影）。</text>
+</svg>

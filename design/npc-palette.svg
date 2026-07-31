@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="640" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="900" height="640" fill="#0d1220"/>
+  <text x="40" y="52" fill="#e8e2d0" font-size="26" font-weight="bold">铸卡师 · 色板卡 v1（VRoid 选色直接抄 HEX）</text>
+  <text x="40" y="80" fill="#8a90a6" font-size="14">配色与魔法书房场景实测色值对齐：绒呢深绿 / 印花金 / 皮革棕 / 烛光暖 / 魔法紫</text>
+
+  <!-- 主体色块行 -->
+  <g font-size="15">
+    <!-- 服装主色 -->
+    <rect x="40"  y="110" width="150" height="110" rx="10" fill="#123C2A"/>
+    <text x="40"  y="245" fill="#e8e2d0">服装主色 · 祖母绿</text>
+    <text x="40"  y="268" fill="#7ee0b0" font-family="Consolas">#123C2A</text>
+
+    <rect x="215" y="110" width="150" height="110" rx="10" fill="#0B2A1D"/>
+    <text x="215" y="245" fill="#e8e2d0">服装暗部</text>
+    <text x="215" y="268" fill="#7ee0b0" font-family="Consolas">#0B2A1D</text>
+
+    <rect x="390" y="110" width="150" height="110" rx="10" fill="#D6B26A"/>
+    <text x="390" y="245" fill="#e8e2d0">滚边/刺绣 · 印花金</text>
+    <text x="390" y="268" fill="#ffe9b8" font-family="Consolas">#D6B26A</text>
+
+    <rect x="565" y="110" width="150" height="110" rx="10" fill="#4C2A6E"/>
+    <text x="565" y="245" fill="#e8e2d0">内衬/帽里 · 暗紫</text>
+    <text x="565" y="268" fill="#c9a8ff" font-family="Consolas">#4C2A6E</text>
+
+    <rect x="740" y="110" width="120" height="110" rx="10" fill="#6E4F35"/>
+    <text x="740" y="245" fill="#e8e2d0">腰带/护腕 · 皮革棕</text>
+    <text x="740" y="268" fill="#d8b894" font-family="Consolas">#6E4F35</text>
+  </g>
+
+  <g font-size="15">
+    <rect x="40"  y="310" width="150" height="110" rx="10" fill="#E8C87A"/>
+    <text x="40"  y="445" fill="#e8e2d0">发色 · 蜜金（烛光呼应）</text>
+    <text x="40"  y="468" fill="#ffe9b8" font-family="Consolas">#E8C87A</text>
+
+    <rect x="215" y="310" width="150" height="110" rx="10" fill="#B98F4C"/>
+    <text x="215" y="445" fill="#e8e2d0">发色暗部</text>
+    <text x="215" y="468" fill="#ffe9b8" font-family="Consolas">#B98F4C</text>
+
+    <rect x="390" y="310" width="150" height="110" rx="10" fill="#3FA47C"/>
+    <text x="390" y="445" fill="#e8e2d0">瞳色 · 翡翠绿</text>
+    <text x="390" y="468" fill="#7ee0b0" font-family="Consolas">#3FA47C</text>
+
+    <rect x="565" y="310" width="150" height="110" rx="10" fill="#F4E9DA"/>
+    <text x="565" y="445" fill="#e8e2d0">肤色</text>
+    <text x="565" y="468" fill="#ffffff" font-family="Consolas">#F4E9DA</text>
+
+    <rect x="740" y="310" width="120" height="110" rx="10" fill="#67E8F9"/>
+    <text x="740" y="445" fill="#e8e2d0">点缀 · 品牌青（徽记）</text>
+    <text x="740" y="468" fill="#b9f6ff" font-family="Consolas">#67E8F9</text>
+  </g>
+
+  <text x="40" y="530" fill="#8a90a6" font-size="14">赛璐璐上色规则：暗部一档（主色 × 0.62 明度，偏冷 6°），高光一档（+18 明度），不做渐变过渡。</text>
+  <text x="40" y="556" fill="#8a90a6" font-size="14">金属（纽扣/卡扣）用 #D6B26A 底 + #FFF3CF 硬高光；避免纯黑，最深处用 #0A1010。</text>
+  <text x="40" y="598" fill="#5a6078" font-size="13">场景参考：桌布 #123C2A · 印花 rgba(214,178,106) · 砖墙暖橙 · 提灯黄铜 —— 人物站在场景里天然融色。</text>
+</svg>

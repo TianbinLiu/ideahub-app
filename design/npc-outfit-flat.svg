@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="700" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="980" height="700" fill="#0d1220"/>
+  <text x="40" y="50" fill="#e8e2d0" font-size="26" font-weight="bold">庄家连衣裙 · 正/背面平面图 v1（菱形开窗位置锁定）</text>
+
+  <!-- 正面 -->
+  <g transform="translate(120,110)">
+    <text x="60" y="-14" fill="#8a90a6" font-size="16">正面</text>
+    <!-- 裙身 -->
+    <path d="M 40,40 Q 30,20 60,10 L 100,0 L 140,10 Q 170,20 160,40 L 172,120 Q 178,170 160,200 L 168,330 Q 200,420 170,470 L 30,470 Q 0,420 32,330 L 40,200 Q 22,170 28,120 Z" fill="#123C2A" stroke="#D6B26A" stroke-width="3"/>
+    <!-- 领口（船领） -->
+    <path d="M 60,10 Q 100,42 140,10 L 140,26 Q 100,58 60,26 Z" fill="#0B2A1D"/>
+    <!-- 菱形开窗（胸口 1.8 头位置） -->
+    <path d="M 100,78 L 128,116 L 100,154 L 72,116 Z" fill="#0d1220" stroke="#D6B26A" stroke-width="4"/>
+    <text x="150" y="120" fill="#f2c14e" font-size="13">菱形开窗：中心距肩线 68px</text>
+    <text x="150" y="138" fill="#f2c14e" font-size="13">对角线 76×56（竖长横短）</text>
+    <!-- 束腰 -->
+    <rect x="52" y="196" width="96" height="34" fill="#6E4F35" stroke="#D6B26A" stroke-width="2.5" rx="6"/>
+    <circle cx="100" cy="213" r="8" fill="#D6B26A"/>
+    <!-- 前襟金扣 -->
+    <circle cx="100" cy="252" r="5" fill="#D6B26A"/><circle cx="100" cy="282" r="5" fill="#D6B26A"/><circle cx="100" cy="312" r="5" fill="#D6B26A"/>
+    <!-- 裙摆开衩 -->
+    <path d="M 100,470 L 100,360" stroke="#0B2A1D" stroke-width="4"/>
+    <text x="210" y="215" fill="#c9cede" font-size="13">皮革束腰 #6E4F35 + 黄铜圆扣</text>
+    <text x="210" y="300" fill="#c9cede" font-size="13">前襟黄铜扣 ×3</text>
+    <text x="210" y="420" fill="#c9cede" font-size="13">裙摆中开衩（便于坐姿），内衬暗紫 #4C2A6E</text>
+  </g>
+
+  <!-- 背面 -->
+  <g transform="translate(560,110)">
+    <text x="60" y="-14" fill="#8a90a6" font-size="16">背面</text>
+    <path d="M 40,40 Q 30,20 60,10 L 100,0 L 140,10 Q 170,20 160,40 L 172,120 Q 178,170 160,200 L 168,330 Q 200,420 170,470 L 30,470 Q 0,420 32,330 L 40,200 Q 22,170 28,120 Z" fill="#123C2A" stroke="#D6B26A" stroke-width="3"/>
+    <!-- 背部系带 -->
+    <path d="M 76,60 L 124,88 M 124,60 L 76,88 M 76,88 L 124,116 M 124,88 L 76,116 M 76,116 L 124,144" stroke="#D6B26A" stroke-width="3" fill="none"/>
+    <text x="150" y="100" fill="#f2c14e" font-size="13">背部金色交叉系带 ×5 段</text>
+    <!-- 束腰后视 -->
+    <rect x="52" y="196" width="96" height="34" fill="#6E4F35" stroke="#D6B26A" stroke-width="2.5" rx="6"/>
+    <path d="M 100,230 L 88,262 M 100,230 L 112,262" stroke="#6E4F35" stroke-width="5"/>
+    <!-- 后摆燕尾 -->
+    <path d="M 30,470 Q 60,520 100,530 Q 140,520 170,470" fill="#0B2A1D" stroke="#D6B26A" stroke-width="2.5"/>
+    <text x="150" y="510" fill="#c9cede" font-size="13">后摆燕尾加长半头</text>
+  </g>
+
+  <g fill="#8a90a6" font-size="13">
+    <text x="40" y="640">袖：泡泡短袖 + 深绿长手套（肘上 5cm，指尖露出）；手套口金线滚边。</text>
+    <text x="40" y="662">腿：深灰烟色连裤袜 #2A2F3E + 及踝短靴 #1E1712（黄铜侧扣）。</text>
+    <text x="40" y="684">整体：赛璐璐两档上色；金线元素（滚边/系带/纽扣）统一 #D6B26A。</text>
+  </g>
+</svg>
