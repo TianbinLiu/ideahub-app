@@ -1,9 +1,15 @@
-// Tripo v3 图生 3D 铸卡师（AI 生成高模试验版，?npc=tripo 启用）：
-// mixamo 骨架（无表情/物理），每帧摆慵懒对坐姿势——前倾、双臂垂下、左前臂抬起持卡。
+// Tripo 图生 3D 铸卡师（AI 生成高模，?npc=tripo 启用）：
+// mixamo 骨架每帧摆慵懒对坐姿势；引擎侧赛璐璐化（Toon ramp + 反壳描边）；
+// 左手抬起持 AI 推荐卡（卡面挂 LeftHand 骨）。
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
+import { useStudio } from "../studioStore";
+import { cardFaceTexture } from "./cardTexture";
+
+const cardPos = new THREE.Vector3();
 
 const POSE_KEYS = {
   spine1: "mixamorigSpine1",
@@ -12,42 +18,83 @@ const POSE_KEYS = {
   head: "mixamorigHead",
   lArm: "mixamorigLeftArm",
   lFore: "mixamorigLeftForeArm",
+  lHand: "mixamorigLeftHand",
   rArm: "mixamorigRightArm",
   rFore: "mixamorigRightForeArm",
 } as const;
 
+// 赛璐璐化：PBR 材质 → 三阶 Toon ramp（保留原贴图），并给每个 mesh 造反壳描边
+// width 是 mesh 局部空间的法线外扩量——不同模型的量化缩放/场景缩放不同，需按最终屏幕效果各自调
+export function toonify(scene: THREE.Object3D, width = 0.0045) {
+  const ramp = new THREE.DataTexture(
+    new Uint8Array([120, 120, 120, 255, 215, 215, 215, 255, 255, 255, 255, 255]),
+    3,
+    1,
+  );
+  ramp.minFilter = THREE.NearestFilter;
+  ramp.magFilter = THREE.NearestFilter;
+  ramp.needsUpdate = true;
+  const outlineMat = new THREE.MeshBasicMaterial({ color: 0x241a12, side: THREE.BackSide });
+  outlineMat.onBeforeCompile = (s) => {
+    s.vertexShader = s.vertexShader.replace(
+      "#include <skinning_vertex>",
+      `#include <skinning_vertex>\n\ttransformed += objectNormal * ${width.toFixed(5)};`,
+    );
+  };
+  const targets: THREE.SkinnedMesh[] = [];
+  scene.traverse((o) => {
+    const mesh = o as THREE.SkinnedMesh;
+    if (mesh.isMesh && !mesh.userData.__isOutline && !mesh.userData.__toonified) targets.push(mesh);
+  });
+  for (const mesh of targets) {
+    mesh.userData.__toonified = true;
+    const old = mesh.material as THREE.MeshStandardMaterial;
+    mesh.material = new THREE.MeshToonMaterial({ map: old.map, gradientMap: ramp });
+    old.dispose();
+    const shell = mesh.isSkinnedMesh
+      ? new THREE.SkinnedMesh(mesh.geometry, outlineMat)
+      : new THREE.Mesh(mesh.geometry, outlineMat);
+    shell.userData.__isOutline = true;
+    shell.frustumCulled = false;
+    if (mesh.isSkinnedMesh && (shell as THREE.SkinnedMesh).isSkinnedMesh) {
+      (shell as THREE.SkinnedMesh).bind(mesh.skeleton, mesh.bindMatrix);
+      (shell as THREE.SkinnedMesh).bindMode = mesh.bindMode;
+    }
+    // 挂本体之下继承全部变换（量化反缩放在 mesh 自身 scale 上）
+    mesh.add(shell);
+  }
+}
+
 export default function TripoNpc() {
-  const gltf = useLoader(GLTFLoader, "/models/preview/tripo-v3-rigged.glb");
+  const gltf = useLoader(GLTFLoader, "/models/preview/tripo-v3-rigged-opt.glb", (loader) => {
+    (loader as GLTFLoader).setMeshoptDecoder(MeshoptDecoder);
+  });
   const bones = useRef<Record<string, THREE.Object3D | null>>({});
+  const cardMeshRef = useRef<THREE.Mesh | null>(null);
+  const cardIdRef = useRef<string | null>(null);
+  const recommend = useStudio((s) => s.recommendCard);
 
   const { scale, y } = useMemo(() => {
     gltf.scene.traverse((o) => {
       o.frustumCulled = false;
-      const mesh = o as THREE.Mesh;
-      if (mesh.isMesh) {
-        const m = mesh.material as THREE.MeshStandardMaterial;
-        // 昏暗场景补偿：肤色贴图偏灰，抬一点环境响应
-        m.envMapIntensity = 1.4;
-      }
     });
     for (const [k, name] of Object.entries(POSE_KEYS)) bones.current[k] = gltf.scene.getObjectByName(name) ?? null;
+    toonify(gltf.scene, 0.0012);
     // 立正靠 Root 骨自带的 (-90°,0,90°) 修正（勿动）；scene 只转 yaw -90° 面向镜头。
-    // 实测：身高≈0.85 归一化 → scale 4.6；bbox 受 bind pose 干扰，直接用实测值。
     gltf.scene.rotation.set(0, -Math.PI / 2, 0);
     return { scale: 4.6, y: -2.55 };
   }, [gltf]);
 
-  // 姿势表：DEV 下挂 window.__tripoPose 实时调参（javascript_tool 改值立即生效），调定后写死
+  // 实测定稿（俯身对坐·抬头看镜头·右手扶桌·左手抬起持卡）：轴向经 Root(-90°,0,90°) 链，勿按直觉改
   const pose = useMemo(() => {
-    // 实测定稿（俯身对坐·抬头看镜头·右手扶桌·左臂垂放）：轴向经 Root(-90°,0,90°) 链，勿按直觉改
     const p = {
-      lean: 0.28,
       spine1: [0.28, 0, 0],
       spine2: [0, 0, 0],
       neck: [-0.35, 0, 0],
       head: [-0.4, 0, 0],
-      lArm: [-1.05, 0, 0],
-      lFore: [0, 0, 0],
+      lArm: [0.55, 0.35, 0],
+      lFore: [0, 0.25, -1.35],
+      lHand: [0, 0, 0],
       rArm: [0.1, 0, -1.15],
       rFore: [0, 0, 0],
       freeze: false,
@@ -62,7 +109,9 @@ export default function TripoNpc() {
 
   useFrame(({ clock }) => {
     // DEV 调参：优先读 window 挂载的表（StrictMode/HMR 下闭包引用可能不同源）
-    const w = (import.meta.env.DEV && (window as unknown as Record<string, unknown>).__tripoPose) as typeof pose | false;
+    const w = (import.meta.env.DEV && (window as unknown as Record<string, unknown>).__tripoPose) as
+      | typeof pose
+      | false;
     const p2 = w || pose;
     if (p2.freeze) return;
     const t = clock.elapsedTime;
@@ -73,7 +122,37 @@ export default function TripoNpc() {
       const v = p2[k] as [number, number, number];
       if (n && v) n.rotation.set(v[0] + (k === "spine1" ? breathe : 0), v[1], v[2]);
     }
+    // 持卡：世界空间正立卡跟随左手（不继承手骨旋转，永远面向镜头；可点击查看详情）
+    const card = cardMeshRef.current;
+    const hand = b.lHand;
+    if (card && hand) {
+      if (recommend && cardIdRef.current !== recommend.id) {
+        cardIdRef.current = recommend.id;
+        (card.material as THREE.MeshBasicMaterial).map = cardFaceTexture(recommend);
+        (card.material as THREE.MeshBasicMaterial).needsUpdate = true;
+      }
+      card.visible = !!recommend;
+      hand.getWorldPosition(cardPos);
+      card.position.set(cardPos.x - 0.3, cardPos.y + 0.18, cardPos.z + 0.12);
+    }
   });
 
-  return <primitive object={gltf.scene} position={[0, y, -3.9]} scale={scale} />;
+  return (
+    <group>
+      <primitive object={gltf.scene} position={[0, y, -3.9]} scale={scale} />
+      <mesh
+        ref={cardMeshRef}
+        rotation={[-0.18, -0.12, 0.05]}
+        visible={false}
+        onClick={(e) => {
+          e.stopPropagation();
+          const rec = useStudio.getState().recommendCard;
+          if (rec) useStudio.getState().viewCardDetail(rec);
+        }}
+      >
+        <planeGeometry args={[0.62, 0.87]} />
+        <meshBasicMaterial transparent side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
 }

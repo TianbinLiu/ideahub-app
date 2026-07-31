@@ -31,9 +31,11 @@ import CardMesh from "./CardMesh";
 import MagicStudy from "./MagicStudy";
 import VrmNpc from "./VrmNpc";
 import TripoNpc from "./TripoNpc";
+import BustNpc from "./BustNpc";
 
-// ?npc=tripo 时启用 Tripo 图生 3D 高模试验版（默认 VRoid VRM 版）
-const USE_TRIPO_NPC = new URLSearchParams(window.location.search).get("npc") === "tripo";
+// ?npc=tripo|bust 切换 Tripo 图生 3D 试验版（默认 VRoid VRM 版）
+const NPC_VARIANT = new URLSearchParams(window.location.search).get("npc");
+const USE_TRIPO_NPC = NPC_VARIANT === "tripo";
 
 // ── 节点链布局：窗口化，溢出的最早节点收到左侧堆 ──────────────
 export interface ChainLayout {
@@ -968,8 +970,8 @@ function DialogTableCards() {
           />
         );
       })}
-      {/* NPC 手中的推荐卡：正面朝用户、手托着卡下缘，点击查看详情/加入卡组 */}
-      {recommend && heldMat && (
+      {/* NPC 手中的推荐卡：正面朝用户、手托着卡下缘，点击查看详情/加入卡组（Tripo 版卡挂手骨，由 TripoNpc 自绘） */}
+      {recommend && heldMat && !USE_TRIPO_NPC && (
         <mesh
           position={[-0.66, 1.18, -3.3]}
           rotation={[-0.16, 0.1, 0.04]}
@@ -1020,7 +1022,7 @@ export default function TableScene() {
       <TableCatcher />
       <ComposePad />
       <Suspense fallback={<Npc />}>
-        {USE_TRIPO_NPC ? <TripoNpc /> : <VrmNpc />}
+        {NPC_VARIANT === "tripo" ? <TripoNpc /> : NPC_VARIANT === "bust" ? <BustNpc /> : <VrmNpc />}
       </Suspense>
       <UserHands />
       <DeckStack />
