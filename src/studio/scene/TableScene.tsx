@@ -28,6 +28,7 @@ import {
   ringTexture,
 } from "./cardTexture";
 import CardMesh from "./CardMesh";
+import MagicStudy from "./MagicStudy";
 
 // ── 节点链布局：窗口化，溢出的最早节点收到左侧堆 ──────────────
 export interface ChainLayout {
@@ -69,11 +70,6 @@ function CameraRig() {
 function Table() {
   return (
     <group>
-      {/* 地面 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.4, 0]}>
-        <circleGeometry args={[26, 48]} />
-        <meshStandardMaterial color="#060a15" />
-      </mesh>
       {/* 桌面（绒面） */}
       <mesh position={[0, -TABLE.thick / 2, 0]}>
         <boxGeometry args={[TABLE.w, TABLE.thick, TABLE.d]} />
@@ -115,7 +111,7 @@ function Table() {
 function CenterLine() {
   const mat = useRef<THREE.MeshBasicMaterial>(null);
   useFrame(() => {
-    if (mat.current) mat.current.opacity = 0.5 + 0.25 * Math.sin(performance.now() / 700);
+    if (mat.current) mat.current.opacity = 0.32 + 0.16 * Math.sin(performance.now() / 700);
   });
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]}>
@@ -812,17 +808,15 @@ function TableCatcher() {
 export default function TableScene() {
   return (
     <>
-      <color attach="background" args={["#0b1020"]} />
-      <fog attach="fog" args={["#0b1020", 26, 52]} />
-      <ambientLight intensity={0.95} />
-      <directionalLight position={[4, 10, 7]} intensity={1.35} />
-      <pointLight position={[0, 4.5, -2.5]} intensity={50} color="#67e8f9" />
-      {/* NPC 正面补光 + 背景幕墙（让铸卡师不悬在纯黑里；对话视角也要够亮） */}
-      <pointLight position={[0, 2.4, -1.8]} intensity={55} color="#8fb8ff" />
-      <mesh position={[0, 3.4, -10.5]}>
-        <planeGeometry args={[46, 15]} />
-        <meshStandardMaterial color="#0e1730" />
-      </mesh>
+      <color attach="background" args={["#05070f"]} />
+      <fog attach="fog" args={["#05070f", 16, 40]} />
+      {/* 昏暗神秘基调：冷环境光 + 微弱月光，暖烛光/火把在 MagicStudy 内 */}
+      <ambientLight intensity={0.2} color="#aab6ff" />
+      <directionalLight position={[3, 9, -6]} intensity={0.32} color="#7f9dff" />
+      {/* 桌面阅读补光（偏暖微光，保证卡面与 NPC 可读） */}
+      <pointLight position={[0, 4.6, 0.6]} intensity={13} color="#ffd9a8" decay={1.9} />
+      <pointLight position={[0, 2.4, -1.8]} intensity={11} color="#8fb8ff" decay={1.9} />
+      <MagicStudy />
       <CameraRig />
       <Table />
       <TableCatcher />

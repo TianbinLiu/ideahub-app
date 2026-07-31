@@ -28,6 +28,10 @@ IdeaHub 的视频平台 App（Web 形态，后续可用 Capacitor 打包 iOS/And
 
 替换点集中在 `src/mock/ai.ts`（→ server API）与 `src/data/videos.ts`（localStorage → server API）。
 
+## 3D 资产
+
+`public/models/dungeon/` 来自 [KayKit Dungeon Remastered](https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0)（Kay Lousberg，**CC0**，商用免署名，LICENSE.txt 随目录附带）。魔法书房场景在 `src/studio/scene/MagicStudy.tsx` 布置；NPC 人物计划换为 VRoid Studio 定制 VRM（待人物设定图）。
+
 ## 开发
 
 ```bash
