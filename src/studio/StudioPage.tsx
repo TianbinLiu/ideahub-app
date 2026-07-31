@@ -46,7 +46,11 @@ export default function StudioPage() {
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-ink">
-      <Canvas dpr={[1, 2]} camera={{ fov: 42, position: DEFAULT_CAM.pos, near: 0.1, far: 80 }}>
+      <Canvas
+        dpr={[1, 2]}
+        gl={{ preserveDrawingBuffer: true }}
+        camera={{ fov: 42, position: DEFAULT_CAM.pos, near: 0.1, far: 80 }}
+      >
         <TableScene />
       </Canvas>
 

@@ -3,10 +3,10 @@ export const TABLE = { w: 16, d: 7, thick: 0.35 };
 
 export const CARD = { w: 1.1, h: 1.65, lift: 0.02 };
 
-/** 固定机位：只看到双方手部/上身与桌面 */
+/** 固定机位：只看到双方手部/上身与桌面（整桌入画，含卡组与合成台） */
 export const DEFAULT_CAM: { pos: [number, number, number]; look: [number, number, number] } = {
-  pos: [0, 5.4, 7.0],
-  look: [0, -0.6, -1.4],
+  pos: [0, 7.6, 10.2],
+  look: [0, -1.5, -1.0],
 };
 
 /** 节点链（用户侧、靠近中线的一排） */
@@ -25,7 +25,7 @@ export const PROPOSAL_SCALE = 0.82;
 export const DECK_POS: [number, number, number] = [-6.5, 0, 2.35];
 
 /** 卡组展开排（空白卡位下方一排） */
-export const SPREAD = { z: 2.5, dx: 1.25, maxVisible: 5, centerX: -3.6 };
+export const SPREAD = { z: 2.5, dx: 1.25, maxVisible: 5, centerX: -2.7 };
 
 /** 市场平摊（NPC 侧） */
 export const MARKET = { z: -1.55, dx: 1.3, lift: 0.02 };

@@ -8,11 +8,12 @@ import { MARKET } from "../scene/layout";
 export function CardDetailModal() {
   const card = useStudio((s) => s.marketDetail);
   const items = useStudio((s) => s.market.items);
+  const deck = useStudio((s) => s.deck);
   if (!card) return null;
   const i = items.findIndex((c) => c.id === card.id);
   const off = i - (items.length - 1) / 2;
   const from: [number, number, number] = [off * MARKET.dx, 0.1, MARKET.z + Math.abs(off) * 0.07];
-  const inDeck = useStudio.getState().deck.some((c) => c.id === card.id);
+  const inDeck = deck.some((c) => c.id === card.id);
   return (
     <div className="absolute right-[360px] top-1/2 z-20 w-[520px] max-w-[calc(100vw-400px)] -translate-y-1/2 rounded-2xl border border-slate-600/70 bg-panel/95 p-5 shadow-2xl backdrop-blur">
       <div className="flex gap-5">
@@ -77,7 +78,11 @@ export function NodeEditorModal() {
     <div className="absolute left-1/2 top-1/2 z-20 max-h-[88vh] w-[620px] max-w-[calc(100vw-380px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-slate-600/70 bg-panel/95 p-5 shadow-2xl backdrop-blur">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-lg font-bold text-slate-100">铸造节点卡 · 第 {segIndex + 1} 段</h3>
-        <button onClick={() => useStudio.getState().closeEditor()} className="text-slate-400 hover:text-white">
+        <button
+          onClick={() => useStudio.getState().closeEditor()}
+          disabled={editor.generating}
+          className="text-slate-400 hover:text-white disabled:opacity-30"
+        >
           ✕
         </button>
       </div>
@@ -216,7 +221,8 @@ export function NodeEditorModal() {
       <div className="flex justify-end gap-3">
         <button
           onClick={() => useStudio.getState().closeEditor()}
-          className="rounded-xl bg-slate-700/70 px-4 py-2 text-sm text-slate-200 hover:bg-slate-600"
+          disabled={editor.generating}
+          className="rounded-xl bg-slate-700/70 px-4 py-2 text-sm text-slate-200 hover:bg-slate-600 disabled:opacity-40"
         >
           取消
         </button>

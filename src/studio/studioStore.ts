@@ -125,6 +125,11 @@ const DEFAULT_EDITOR: EditorState = {
   generating: false,
 };
 
+// 市场检索的请求序号：过期响应直接丢弃，防止慢请求乱序覆盖新结果
+let marketSeq = 0;
+// 节点生成的全局并发闸：取消编辑器再重开也不允许并发两炉
+let nodeGenInFlight = false;
+
 export const useStudio = create<StudioState>()((set, get) => ({
   deck: [],
   spreadOpen: false,
@@ -155,14 +160,18 @@ export const useStudio = create<StudioState>()((set, get) => ({
 
   openMarket: async () => {
     if (get().market.open) return;
+    const seq = ++marketSeq;
     set((s) => ({ market: { ...s.market, open: true, loading: true, query: "" } }));
     get().npcSay("稍等——（从口袋里抽出一叠卡，在桌上哗地摊开）这些是最近社区里最抢手的。想找特定的，直接在下面输入关键词。");
     const items = await searchMarket("");
+    if (seq !== marketSeq) return; // 期间发起过新检索，丢弃本次结果
     set((s) => ({ market: { ...s.market, items, loading: false } }));
   },
   marketSearch: async (q) => {
+    const seq = ++marketSeq;
     set((s) => ({ market: { ...s.market, loading: true, query: q } }));
     const items = await searchMarket(q);
+    if (seq !== marketSeq) return; // 过期响应
     set((s) => ({ market: { ...s.market, items, loading: false } }));
     get().npcSay(q ? `按「${q}」翻出了 ${items.length} 张，都给你摊开了。` : `这是当下最热的 ${items.length} 张。`);
   },
@@ -177,9 +186,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
       set({ marketDetail: null, camera: { kind: "default" } });
       return;
     }
+    // 立即入组（业务状态不依赖渲染循环），飞行仅作视觉动画
     set((s) => ({
       marketDetail: null,
       camera: { kind: "default" },
+      deck: [...s.deck, card],
       flights: [...s.flights, { id: uid("fl"), card, from, delay: 0 }],
     }));
     get().npcSay(`「${card.name}」归你了，好眼光。`);
@@ -211,25 +222,22 @@ export const useStudio = create<StudioState>()((set, get) => ({
       get().npcSay("这些素材还差点意思，再补充点描述？");
       return;
     }
-    // 从 NPC 手边飞入卡组，错峰起飞
-    set((s) => ({
-      flights: [
-        ...s.flights,
-        ...cards.map((card, i) => ({ id: uid("fl"), card, from: [0.9, 1.25, -3.1] as [number, number, number], delay: i * 0.28 })),
-      ],
-    }));
+    // 立即入组；从 NPC 手边错峰起飞的只是视觉动画
+    set((s) => {
+      const fresh = cards.filter((c) => !s.deck.some((d) => d.id === c.id));
+      return {
+        deck: [...s.deck, ...fresh],
+        flights: [
+          ...s.flights,
+          ...fresh.map((card, i) => ({ id: uid("fl"), card, from: [0.9, 1.25, -3.1] as [number, number, number], delay: i * 0.28 })),
+        ],
+      };
+    });
     get().npcSay(`铛——${cards.length} 张新卡出炉，已经飞进你的卡组了。`);
   },
 
   landFlight: (id) =>
-    set((s) => {
-      const fl = s.flights.find((f) => f.id === id);
-      if (!fl) return {};
-      return {
-        flights: s.flights.filter((f) => f.id !== id),
-        deck: s.deck.some((c) => c.id === fl.card.id) ? s.deck : [...s.deck, fl.card],
-      };
-    }),
+    set((s) => ({ flights: s.flights.filter((f) => f.id !== id) })),
 
   clickPlaceholder: () => {
     const { deck, editor } = get();
@@ -281,6 +289,10 @@ export const useStudio = create<StudioState>()((set, get) => ({
   generateNode: async () => {
     const { editor, deck, root } = get();
     if (!editor || editor.generating) return;
+    if (nodeGenInFlight) {
+      get().npcSay("上一炉还在推演，等它出炉再开新的。");
+      return;
+    }
     const materials = Object.values(editor.slots)
       .map((id) => deck.find((c) => c.id === id))
       .filter((c): c is Card => !!c);
@@ -288,29 +300,52 @@ export const useStudio = create<StudioState>()((set, get) => ({
       get().npcSay("至少放一张素材卡，或写一句视频要求，我才好推演。");
       return;
     }
-    set({ editor: { ...editor, generating: true } });
+    nodeGenInFlight = true;
+    const initiatingEditor = { ...editor, generating: true };
+    set({ editor: initiatingEditor });
+    // 锚点快照：生成期间用户可能改选路径，完成时必须校验挂载点仍一致
     const path = activePath(root);
-    const last = path[path.length - 1];
-    const prev = last ? chosenProposal(last) : null;
-    const proposals = await generateProposals({
-      index: root ? path.length : 0,
-      materials,
-      requirement: editor.requirement,
-      durationMode: editor.durationMode,
-      durationSec: editor.durationSec,
-      prevFrameSeed: prev ? `${prev.id}#last` : null,
-      pathPlots: path.map((n) => chosenProposal(n)?.plot ?? "").filter(Boolean),
-    });
-    const node: NodeSlot = { id: uid("node"), proposals, chosenId: null, children: {} };
-    if (!root) {
-      set({ root: node, editor: null, spreadOpen: false, expandedNodeId: node.id });
-    } else {
-      const path2 = activePath(root);
-      const tail = path2[path2.length - 1];
-      if (tail.chosenId) tail.children[tail.chosenId] = node;
-      set({ root: { ...root }, editor: null, spreadOpen: false, expandedNodeId: node.id });
+    const tail0 = path.length > 0 ? path[path.length - 1] : null;
+    const anchor = tail0 ? { id: tail0.id, chosenId: tail0.chosenId } : null;
+    const prev = tail0 ? chosenProposal(tail0) : null;
+    try {
+      const proposals = await generateProposals({
+        index: root ? path.length : 0,
+        materials,
+        requirement: editor.requirement,
+        durationMode: editor.durationMode,
+        durationSec: editor.durationSec,
+        prevFrameSeed: prev ? `${prev.id}#last` : null,
+        pathPlots: path.map((n) => chosenProposal(n)?.plot ?? "").filter(Boolean),
+      });
+      const node: NodeSlot = { id: uid("node"), proposals, chosenId: null, children: {} };
+      // 只有发起时的编辑器仍然打开才由本次生成负责关闭（取消后重开的新表单不受影响）
+      const editorPatch = get().editor === initiatingEditor ? { editor: null as EditorState | null } : {};
+      const curRoot = get().root;
+      if (!anchor) {
+        if (curRoot) {
+          // 作废：保留表单（finally 会把 generating 复位），用户可直接重试
+          get().npcSay("推演期间桌面已经变样，这一炉先作废——按现在的走向重新生成吧。");
+          return;
+        }
+        set({ root: node, spreadOpen: false, expandedNodeId: node.id, ...editorPatch });
+      } else {
+        const path2 = activePath(curRoot);
+        const tail2 = path2[path2.length - 1];
+        if (!tail2 || tail2.id !== anchor.id || tail2.chosenId !== anchor.chosenId || !tail2.chosenId) {
+          get().npcSay("推演期间你改选了路径，这一炉与新走向对不上，先作废——重新生成即可。");
+          return;
+        }
+        tail2.children[tail2.chosenId] = node;
+        set({ root: curRoot ? { ...curRoot } : curRoot, spreadOpen: false, expandedNodeId: node.id, ...editorPatch });
+      }
+      get().npcSay("三种走向已经推演完毕，摆在桌上了——上、中、下三张，点开看看各自的首尾帧和剧情。");
+    } finally {
+      nodeGenInFlight = false;
+      // 若发起时的编辑器仍开着且未被上面清掉（作废路径），把 generating 复位以便重试
+      const cur = get().editor;
+      if (cur === initiatingEditor) set({ editor: { ...cur, generating: false } });
     }
-    get().npcSay("三种走向已经推演完毕，摆在桌上了——上、中、下三张，点开看看各自的首尾帧和剧情。");
   },
 
   openProposal: (nodeId, proposalId, pos, look) =>

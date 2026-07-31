@@ -1,5 +1,5 @@
 // 平放在桌面上的卡片：位置/透明度朝目标值缓动，支持悬停抬升与选中光环
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { ThreeEvent, useFrame } from "@react-three/fiber";
 import { CARD } from "./layout";
@@ -35,6 +35,7 @@ export default function CardMesh({
   const [hovered, setHovered] = useState(false);
   const state = useRef({
     pos: new THREE.Vector3(...(from ?? target)),
+    tmp: new THREE.Vector3(),
     opacity: from ? 0 : opacity,
     scale,
   });
@@ -55,13 +56,24 @@ export default function CardMesh({
     [ring]
   );
 
+  // 材质随组件卸载释放（纹理归 LRU 缓存统一管理，此处不动 map）
+  useEffect(() => () => mat.dispose(), [mat]);
+  useEffect(() => {
+    if (ringMat) return () => ringMat.dispose();
+  }, [ringMat]);
+
   useFrame((_, dt) => {
     const g = group.current;
     if (!g) return;
-    const k = 1 - Math.exp(-dt * 9);
     const st = state.current;
+    // 已完全隐去且目标仍为隐藏的卡：跳过全部逐帧计算
+    if (opacity === 0 && st.opacity < 0.04) {
+      g.visible = false;
+      return;
+    }
+    const k = 1 - Math.exp(-dt * 9);
     const lift = hoverLift && hovered ? 0.22 : 0;
-    st.pos.lerp(new THREE.Vector3(target[0], target[1] + lift, target[2]), k);
+    st.pos.lerp(st.tmp.set(target[0], target[1] + lift, target[2]), k);
     st.opacity += (opacity - st.opacity) * k;
     st.scale += (scale - st.scale) * k;
     g.position.copy(st.pos);

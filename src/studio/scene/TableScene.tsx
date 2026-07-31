@@ -2,7 +2,7 @@
 // 固定机位只露出双方手部/上身与桌面（NPC 不建头部模型）。
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
-import { ThreeEvent, useFrame } from "@react-three/fiber";
+import { ThreeEvent, advance, useFrame, useThree } from "@react-three/fiber";
 import { NodeSlot } from "../../types";
 import { activePath, chosenProposal, composable, placeholderVisible, useStudio, Flight } from "../studioStore";
 import {
@@ -50,12 +50,12 @@ export function computeChain(root: NodeSlot | null): ChainLayout {
   };
 }
 
-// ── 相机：朝目标位姿缓动 ─────────────────────────────────────
+// ── 相机：朝目标位姿缓动（transient 直读 store，避免订阅延迟一帧） ──
 function CameraRig() {
-  const cam = useStudio((s) => s.camera);
   const look = useRef(new THREE.Vector3(...DEFAULT_CAM.look));
   const tmp = useRef(new THREE.Vector3());
   useFrame(({ camera }, dt) => {
+    const cam = useStudio.getState().camera;
     const target = cam.kind === "default" ? DEFAULT_CAM : cam;
     const k = 1 - Math.exp(-dt * 4.5);
     camera.position.lerp(tmp.current.set(...target.pos), k);
@@ -133,12 +133,13 @@ function ComposePad() {
   const mat = useRef<THREE.MeshStandardMaterial>(null);
   useFrame(() => {
     if (!mat.current) return;
-    mat.current.emissiveIntensity = enabled ? 0.9 + 0.5 * Math.sin(performance.now() / 350) : 0.08;
+    mat.current.emissiveIntensity = enabled ? 0.5 + 0.25 * Math.sin(performance.now() / 350) : 0.08;
   });
   const labelMat = useMemo(
     () => new THREE.MeshBasicMaterial({ map: labelTexture("合成完整视频"), transparent: true, depthWrite: false }),
     []
   );
+  useEffect(() => () => labelMat.dispose(), [labelMat]);
   return (
     <group
       position={COMPOSE_POS}
@@ -204,14 +205,14 @@ function Npc() {
     cur.current.rH.lerp(a.set(...rT), k);
     if (torso.current) torso.current.position.y = Math.sin(t * 1.2) * 0.03;
 
-    // 左臂
+    // 左臂（placeBone 只读取 a/b，不需要 clone）
     a.set(-0.85, 1.62, -4.35);
     e.copy(a).add(cur.current.lH).multiplyScalar(0.5);
     e.x -= 0.45;
     e.y += 0.12;
     if (lUpper.current) placeBone(lUpper.current, a, e, d);
     b.copy(cur.current.lH);
-    if (lFore.current) placeBone(lFore.current, e.clone(), b, d);
+    if (lFore.current) placeBone(lFore.current, e, b, d);
     if (lHand.current) lHand.current.position.copy(b);
     // 右臂
     a.set(0.85, 1.62, -4.35);
@@ -220,7 +221,7 @@ function Npc() {
     e.y += 0.12;
     if (rUpper.current) placeBone(rUpper.current, a, e, d);
     b.copy(cur.current.rH);
-    if (rFore.current) placeBone(rFore.current, e.clone(), b, d);
+    if (rFore.current) placeBone(rFore.current, e, b, d);
     if (rHand.current) rHand.current.position.copy(b);
   });
 
@@ -311,14 +312,14 @@ function StaticBone({
 function UserHands() {
   return (
     <group>
-      <StaticBone a={[-2.1, -0.5, 5.4]} b={[-1.35, 0.02, 3.7]} r={0.17} color="#26334f" />
-      <StaticBone a={[2.1, -0.5, 5.4]} b={[1.35, 0.02, 3.7]} r={0.17} color="#26334f" />
-      <mesh position={[-1.35, 0.06, 3.62]}>
-        <sphereGeometry args={[0.19, 14, 14]} />
+      <StaticBone a={[-1.85, -0.75, 5.5]} b={[-1.25, 0.05, 3.8]} r={0.26} color="#26334f" />
+      <StaticBone a={[1.85, -0.75, 5.5]} b={[1.25, 0.05, 3.8]} r={0.26} color="#26334f" />
+      <mesh position={[-1.25, 0.1, 3.68]}>
+        <sphereGeometry args={[0.27, 16, 16]} />
         <meshStandardMaterial color="#d4a97c" roughness={0.6} />
       </mesh>
-      <mesh position={[1.35, 0.06, 3.62]}>
-        <sphereGeometry args={[0.19, 14, 14]} />
+      <mesh position={[1.25, 0.1, 3.68]}>
+        <sphereGeometry args={[0.27, 16, 16]} />
         <meshStandardMaterial color="#d4a97c" roughness={0.6} />
       </mesh>
     </group>
@@ -338,10 +339,13 @@ function DeckStack() {
     return m;
   }, []);
   const shown = Math.min(deck.length, 24);
-  const countMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ map: labelTexture(`卡组 ${deck.length}`, "#e2e8f0"), transparent: true, depthWrite: false }),
-    [deck.length]
-  );
+  // 复用同一材质只换 map，避免随 deck.length 反复新建材质
+  const countMat = useMemo(() => new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }), []);
+  countMat.map = labelTexture(`卡组 ${deck.length}`, "#e2e8f0");
+  useEffect(() => {
+    const mats = [backMat, markerMat, countMat];
+    return () => mats.forEach((m) => m.dispose());
+  }, [backMat, markerMat, countMat]);
   return (
     <group
       onClick={(e) => {
@@ -521,6 +525,7 @@ function Placeholder({ x }: { x: number }) {
     () => new THREE.MeshBasicMaterial({ map: placeholderTexture(), transparent: true, side: THREE.DoubleSide }),
     []
   );
+  useEffect(() => () => mat.dispose(), [mat]);
   useFrame(() => {
     mat.opacity = 0.6 + 0.3 * Math.sin(performance.now() / 520);
   });
@@ -663,15 +668,50 @@ function Flights() {
   );
 }
 
+// ── DEV 离屏捕帧：手动驱动帧循环，供无合成器环境（隐藏页/E2E）截取 3D 画面 ──
+function CaptureHook() {
+  const gl = useThree((s) => s.gl);
+  const clock = useThree((s) => s.clock);
+  const setFrameloop = useThree((s) => s.setFrameloop);
+  useEffect(() => {
+    (window as unknown as Record<string, unknown>).__r3fCapture = (frames = 60) => {
+      const orig = clock.getDelta.bind(clock);
+      // 伪造 33ms 步长推进动画（真实 rAF 停摆时 dt≈0，缓动永不收敛）
+      clock.getDelta = () => {
+        clock.elapsedTime += 1 / 30;
+        return 1 / 30;
+      };
+      setFrameloop("never");
+      try {
+        for (let i = 0; i < frames; i++) advance(performance.now() + i * 33, true);
+      } finally {
+        clock.getDelta = orig;
+        setFrameloop("always");
+      }
+      return gl.domElement.toDataURL("image/jpeg", 0.85);
+    };
+    return () => {
+      delete (window as unknown as Record<string, unknown>).__r3fCapture;
+    };
+  }, [gl, clock, setFrameloop]);
+  return null;
+}
+
 // ── 场景组装 ─────────────────────────────────────────────────
 export default function TableScene() {
   return (
     <>
       <color attach="background" args={["#0b1020"]} />
-      <fog attach="fog" args={["#0b1020", 16, 34]} />
-      <ambientLight intensity={0.75} />
-      <directionalLight position={[4, 9, 6]} intensity={1.15} />
-      <pointLight position={[0, 4.5, -2.5]} intensity={40} color="#67e8f9" />
+      <fog attach="fog" args={["#0b1020", 26, 52]} />
+      <ambientLight intensity={0.95} />
+      <directionalLight position={[4, 10, 7]} intensity={1.35} />
+      <pointLight position={[0, 4.5, -2.5]} intensity={50} color="#67e8f9" />
+      {/* NPC 正面补光 + 背景幕墙（让铸卡师不悬在纯黑里） */}
+      <pointLight position={[0, 2.6, -2.2]} intensity={26} color="#8fb8ff" />
+      <mesh position={[0, 3.4, -10.5]}>
+        <planeGeometry args={[46, 15]} />
+        <meshStandardMaterial color="#0e1730" />
+      </mesh>
       <CameraRig />
       <Table />
       <ComposePad />
@@ -683,6 +723,7 @@ export default function TableScene() {
       <NodeChainView />
       <Flights />
       <DragLayer />
+      {import.meta.env.DEV && <CaptureHook />}
     </>
   );
 }

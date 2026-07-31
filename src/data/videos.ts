@@ -112,17 +112,31 @@ function load(): VideoItem[] {
   return seeds;
 }
 
-function save(list: VideoItem[]) {
+function isSeed(v: VideoItem): boolean {
+  return v.id.startsWith("seedv_");
+}
+
+function save(list: VideoItem[]): boolean {
   try {
     localStorage.setItem(KEY, JSON.stringify(list));
+    return true;
   } catch {
-    // 配额满：丢弃最旧的非种子视频再试一次
-    const trimmed = [...list].sort((a, b) => b.createdAt - a.createdAt).slice(0, 6);
-    try {
-      localStorage.setItem(KEY, JSON.stringify(trimmed));
-    } catch {
-      /* 放弃持久化，内存态仍可用 */
+    // 配额满：保留种子，从最旧的用户视频开始丢；裁剪结果同步回内存态，避免刷新后“悄悄变少”
+    const seeds = list.filter(isSeed);
+    const users = list.filter((v) => !isSeed(v)).sort((a, b) => b.createdAt - a.createdAt);
+    for (let keep = users.length - 1; keep >= 0; keep--) {
+      const trimmed = [...users.slice(0, keep), ...seeds];
+      try {
+        localStorage.setItem(KEY, JSON.stringify(trimmed));
+        cache = trimmed;
+        console.warn(`[videos] localStorage 已满，丢弃了 ${users.length - keep} 条最旧的用户视频`);
+        return false;
+      } catch {
+        /* 继续减 */
+      }
     }
+    console.warn("[videos] localStorage 持久化失败，本次数据仅保留在内存中");
+    return false;
   }
 }
 
@@ -161,11 +175,12 @@ export function publishVideo(draft: DraftVideo): VideoItem {
   return item;
 }
 
-export function addPlay(id: string) {
+export function addPlay(id: string): number {
   const v = getVideo(id);
-  if (!v) return;
+  if (!v) return 0;
   v.plays += 1;
   save(all());
+  return v.plays;
 }
 
 export function setLike(id: string, on: boolean): number {

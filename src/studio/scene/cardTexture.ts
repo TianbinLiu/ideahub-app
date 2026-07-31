@@ -2,7 +2,28 @@
 import * as THREE from "three";
 import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Proposal } from "../../types";
 
+// LRU 缓存：命中即刷新热度；超限淘汰最冷条目并 dispose（GPU 侧释放，若仍被引用 three 会自动重传）
 const cache = new Map<string, THREE.CanvasTexture>();
+const CACHE_MAX = 160;
+
+function cacheGet(key: string): THREE.CanvasTexture | undefined {
+  const hit = cache.get(key);
+  if (hit) {
+    cache.delete(key);
+    cache.set(key, hit);
+  }
+  return hit;
+}
+
+function cachePut(key: string, tex: THREE.CanvasTexture) {
+  cache.set(key, tex);
+  if (cache.size > CACHE_MAX) {
+    const oldestKey = cache.keys().next().value as string;
+    const oldest = cache.get(oldestKey);
+    cache.delete(oldestKey);
+    oldest?.dispose();
+  }
+}
 
 function roundedPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
@@ -21,7 +42,7 @@ function texFromDraw(
   imgSrcs: string[],
   draw: (ctx: CanvasRenderingContext2D, images: Array<HTMLImageElement | null>) => void
 ): THREE.CanvasTexture {
-  const hit = cache.get(key);
+  const hit = cacheGet(key);
   if (hit) return hit;
   const canvas = document.createElement("canvas");
   canvas.width = w;
@@ -46,7 +67,7 @@ function texFromDraw(
     };
     im.src = src;
   });
-  cache.set(key, tex);
+  cachePut(key, tex);
   return tex;
 }
 

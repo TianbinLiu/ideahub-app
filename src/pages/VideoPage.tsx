@@ -1,5 +1,5 @@
 // 视频详情页：播放器 + 信息 + 分段剧情 + 评论区
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import SegmentPlayer from "../components/SegmentPlayer";
 import { addComment, addPlay, getVideo, setLike } from "../data/videos";
@@ -10,14 +10,18 @@ export default function VideoPage() {
   const video = useMemo(() => (id ? getVideo(id) : null), [id]);
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(video?.likes ?? 0);
+  const [plays, setPlays] = useState(video?.plays ?? 0);
   const [comments, setComments] = useState<VideoComment[]>(video?.comments ?? []);
   const [draft, setDraft] = useState("");
 
+  // per-id 去重：StrictMode 双跑 effect 也只 +1，并把新计数渲染出来
+  const counted = useRef<string | null>(null);
   useEffect(() => {
-    if (id && video) addPlay(id);
-    // 仅进入页面时 +1
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+    if (id && video && counted.current !== id) {
+      counted.current = id;
+      setPlays(addPlay(id));
+    }
+  }, [id, video]);
 
   if (!video) {
     return (
@@ -69,7 +73,7 @@ export default function VideoPage() {
             </span>
             <span className="text-slate-200">{video.author}</span>
           </span>
-          <span>{formatPlays(video.plays)}播放</span>
+          <span>{formatPlays(plays)}播放</span>
           <span>{relativeTime(video.createdAt)}</span>
           <span className="rounded-full bg-panel px-2.5 py-0.5 text-xs">{video.category}</span>
           <span className="rounded-full bg-purple-500/15 px-2.5 py-0.5 text-xs text-purple-300">互动分支 · 敬请期待</span>
