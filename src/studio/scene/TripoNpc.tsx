@@ -67,8 +67,8 @@ export function toonify(scene: THREE.Object3D, width = 0.0045) {
   }
 }
 
-export default function TripoNpc() {
-  const gltf = useLoader(GLTFLoader, "/models/preview/tripo-v3-rigged-opt.glb", (loader) => {
+export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.glb", bust = false }: { url?: string; bust?: boolean }) {
+  const gltf = useLoader(GLTFLoader, url, (loader) => {
     (loader as GLTFLoader).setMeshoptDecoder(MeshoptDecoder);
   });
   const bones = useRef<Record<string, THREE.Object3D | null>>({});
@@ -81,33 +81,48 @@ export default function TripoNpc() {
       o.frustumCulled = false;
     });
     for (const [k, name] of Object.entries(POSE_KEYS)) bones.current[k] = gltf.scene.getObjectByName(name) ?? null;
-    toonify(gltf.scene, 0.0012);
+    toonify(gltf.scene, bust ? 0.003 : 0.0012);
     // 立正靠 Root 骨自带的 (-90°,0,90°) 修正（勿动）；scene 只转 yaw -90° 面向镜头。
     gltf.scene.rotation.set(0, -Math.PI / 2, 0);
-    return { scale: 4.6, y: -2.55 };
+    // 胸像：帽顶→胸底≈1 归一化，目标世界高 2.3，截断底沉桌沿下
+    return bust ? { scale: 2.3, y: -0.45 } : { scale: 4.6, y: -2.55 };
   }, [gltf]);
 
-  // 实测定稿（俯身对坐·抬头看镜头·右手扶桌·左手抬起持卡）：轴向经 Root(-90°,0,90°) 链，勿按直觉改
+  // 实测定稿（俯身对坐·抬头看镜头·右手扶桌/扶帽·左手抬起持卡）：轴向经 Root(-90°,0,90°) 链，勿按直觉改
   const pose = useMemo(() => {
-    const p = {
-      spine1: [0.28, 0, 0],
-      spine2: [0, 0, 0],
-      neck: [-0.35, 0, 0],
-      head: [-0.4, 0, 0],
-      lArm: [0.55, 0.35, 0],
-      lFore: [0, 0.25, -1.35],
-      lHand: [0, 0, 0],
-      rArm: [0.1, 0, -1.15],
-      rFore: [0, 0, 0],
-      freeze: false,
-    };
+    // bust：右臂保持 rest（扶帽姿势烘在模型里，动了会拉扯帽子顶点）；前倾量小
+    const p = bust
+      ? {
+          spine1: [0.06, 0, 0] as [number, number, number] | null,
+          spine2: [0, 0, 0] as [number, number, number] | null,
+          neck: [-0.05, 0, 0] as [number, number, number] | null,
+          head: [-0.04, 0, 0] as [number, number, number] | null,
+          lArm: [1.3, 0.15, 0] as [number, number, number] | null,
+          lFore: [0, 0.1, -2.0] as [number, number, number] | null,
+          lHand: [0, 0, 0] as [number, number, number] | null,
+          rArm: null as [number, number, number] | null,
+          rFore: null as [number, number, number] | null,
+          freeze: false,
+        }
+      : {
+          spine1: [0.28, 0, 0] as [number, number, number] | null,
+          spine2: [0, 0, 0] as [number, number, number] | null,
+          neck: [-0.35, 0, 0] as [number, number, number] | null,
+          head: [-0.4, 0, 0] as [number, number, number] | null,
+          lArm: [0.55, 0.35, 0] as [number, number, number] | null,
+          lFore: [0, 0.25, -1.35] as [number, number, number] | null,
+          lHand: [0, 0, 0] as [number, number, number] | null,
+          rArm: [0.1, 0, -1.15] as [number, number, number] | null,
+          rFore: [0, 0, 0] as [number, number, number] | null,
+          freeze: false,
+        };
     if (import.meta.env.DEV) {
       const w = window as unknown as Record<string, unknown>;
       w.__tripoPose = p;
       w.__tripo = { scene: gltf.scene, bones: bones.current };
     }
     return p;
-  }, [gltf]);
+  }, [gltf, bust]);
 
   useFrame(({ clock }) => {
     // DEV 调参：优先读 window 挂载的表（StrictMode/HMR 下闭包引用可能不同源）
@@ -121,7 +136,7 @@ export default function TripoNpc() {
     const breathe = Math.sin(t * 1.1) * 0.015;
     for (const k of Object.keys(POSE_KEYS) as (keyof typeof POSE_KEYS)[]) {
       const n = b[k];
-      const v = p2[k] as [number, number, number];
+      const v = p2[k] as [number, number, number] | null;
       if (n && v) n.rotation.set(v[0] + (k === "spine1" ? breathe : 0), v[1], v[2]);
     }
     // 持卡：世界空间正立卡跟随左手（不继承手骨旋转，永远面向镜头；可点击查看详情）
@@ -135,7 +150,8 @@ export default function TripoNpc() {
       }
       card.visible = !!recommend;
       hand.getWorldPosition(cardPos);
-      card.position.set(cardPos.x - 0.3, cardPos.y + 0.18, cardPos.z + 0.12);
+      if (bust) card.position.set(cardPos.x + 0.05, cardPos.y + 0.1, cardPos.z + 0.15);
+      else card.position.set(cardPos.x - 0.3, cardPos.y + 0.18, cardPos.z + 0.12);
     }
   });
 

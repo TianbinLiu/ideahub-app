@@ -31,11 +31,10 @@ import CardMesh from "./CardMesh";
 import MagicStudy from "./MagicStudy";
 import VrmNpc from "./VrmNpc";
 import TripoNpc from "./TripoNpc";
-import BustNpc from "./BustNpc";
 
-// ?npc=tripo|bust 切换 Tripo 图生 3D 试验版（默认 VRoid VRM 版）
-const NPC_VARIANT = new URLSearchParams(window.location.search).get("npc");
-const USE_TRIPO_NPC = NPC_VARIANT === "tripo";
+// 默认 = Tripo 胸像骨骼版（用户定稿）；?npc=tripo 全身版 / ?npc=vrm 回退 VRoid VRM 版
+const NPC_VARIANT = new URLSearchParams(window.location.search).get("npc") ?? "bust";
+const USE_TRIPO_NPC = NPC_VARIANT === "tripo" || NPC_VARIANT === "bust";
 
 // ── 节点链布局：窗口化，溢出的最早节点收到左侧堆 ──────────────
 export interface ChainLayout {
@@ -1022,7 +1021,13 @@ export default function TableScene() {
       <TableCatcher />
       <ComposePad />
       <Suspense fallback={<Npc />}>
-        {NPC_VARIANT === "tripo" ? <TripoNpc /> : NPC_VARIANT === "bust" ? <BustNpc /> : <VrmNpc />}
+        {NPC_VARIANT === "tripo" ? (
+          <TripoNpc />
+        ) : NPC_VARIANT === "vrm" ? (
+          <VrmNpc />
+        ) : (
+          <TripoNpc url="/models/preview/tripo-bust-rigged-opt.glb" bust />
+        )}
       </Suspense>
       <UserHands />
       <DeckStack />
