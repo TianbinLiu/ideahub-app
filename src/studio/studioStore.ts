@@ -80,6 +80,8 @@ interface StudioState {
   composing: boolean;
   draft: DraftVideo | null;
   camera: CamView;
+  /** NPC 正在说话的截止时间戳（npcSay 设置，驱动 3D 口型） */
+  speakingUntil: number;
 
   npcSay: (text: string) => void;
   meSay: (text: string) => void;
@@ -161,9 +163,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
   composing: false,
   draft: null,
   camera: { kind: "default" },
+  speakingUntil: 0,
 
   npcSay: (text) =>
-    set((s) => ({ dialog: { ...s.dialog, messages: [...s.dialog.messages, { id: uid("m"), from: "npc", text }] } })),
+    set((s) => ({
+      dialog: { ...s.dialog, messages: [...s.dialog.messages, { id: uid("m"), from: "npc", text }] },
+      // NPC 开口：按文本长度估算说话时长，驱动 3D 口型
+      speakingUntil: Date.now() + Math.min(6000, Math.max(1500, text.length * 110)),
+    })),
   meSay: (text) =>
     set((s) => ({ dialog: { ...s.dialog, messages: [...s.dialog.messages, { id: uid("m"), from: "me", text }] } })),
   initGreet: () => {

@@ -73,6 +73,8 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
   });
   const bones = useRef<Record<string, THREE.Object3D | null>>({});
   const morphMesh = useRef<THREE.Mesh | null>(null);
+  // 随机眨眼时刻表：{ 下次眨眼的动画时钟时刻, 是否双眨 }
+  const blinkPlan = useRef({ next: 2.5, double: false, phase: -1 });
   const cardMeshRef = useRef<THREE.Mesh | null>(null);
   const cardIdRef = useRef<string | null>(null);
   const recommend = useStudio((s) => s.recommendCard);
@@ -87,8 +89,9 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
     toonify(gltf.scene, bust ? 0.003 : 0.0012);
     // 立正靠 Root 骨自带的 (-90°,0,90°) 修正（勿动）；scene 只转 yaw -90° 面向镜头。
     gltf.scene.rotation.set(0, -Math.PI / 2, 0);
-    // 胸像：帽顶→胸底≈1 归一化，目标世界高 2.3，截断底沉桌沿下
-    return bust ? { scale: 2.3, y: -0.45 } : { scale: 4.6, y: -2.55 };
+    // 胸像：帽顶→胸底≈1 归一化，目标世界高 2.3，截断底沉桌沿下；
+    // z 后移让身体前缘退到 rail 之后（-3.9 时胸/帽穿桌穿护栏）
+    return bust ? { scale: 2.3, y: -0.42 } : { scale: 4.6, y: -2.55 };
   }, [gltf]);
 
   // 实测定稿（俯身对坐·抬头看镜头·右手扶桌/扶帽·左手抬起持卡）：轴向经 Root(-90°,0,90°) 链，勿按直觉改
@@ -142,23 +145,38 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
       const v = p2[k] as [number, number, number] | null;
       if (n && v) n.rotation.set(v[0] + (k === "spine1" ? breathe : 0), v[1], v[2]);
     }
-    // 表情 morph：周期眨眼 + 对话时断续口型（Blender 雕的 blink/mouthOpen shape key）
+    // 表情 morph：随机间隔眨眼（偶发双眨）+ npcSay 驱动口型 + 说话时浅笑加深
     const mm = morphMesh.current;
     if (mm && mm.morphTargetDictionary && mm.morphTargetInfluences) {
-      const { dialogView } = useStudio.getState();
-      const cycle = t % 4.3;
-      let blink = cycle > 4.0 ? Math.sin(((cycle - 4.0) / 0.3) * Math.PI) : 0;
+      const speaking = useStudio.getState().speakingUntil > Date.now();
+      const bp = blinkPlan.current;
+      let blink = 0;
+      if (t >= bp.next) {
+        const ph = t - bp.next; // 眨眼动画相位（0.28s 一次闭合）
+        if (ph < 0.28) {
+          blink = Math.sin((ph / 0.28) * Math.PI);
+        } else if (bp.double) {
+          bp.double = false;
+          bp.next = t + 0.25; // 双眨：紧跟第二次
+        } else {
+          // 排下一次：2.2~5.8s 伪随机（按次数哈希，确定性可复现）
+          bp.phase++;
+          const h = Math.abs(Math.sin(bp.phase * 12.9898) * 43758.5453) % 1;
+          bp.next = t + 2.2 + h * 3.6;
+          bp.double = h > 0.78;
+        }
+      }
       if (import.meta.env.DEV) {
         const fb = (window as unknown as Record<string, unknown>).__forceBlink;
         if (typeof fb === "number") blink = fb;
       }
-      const bi = mm.morphTargetDictionary.blink;
-      if (bi !== undefined) mm.morphTargetInfluences[bi] = blink;
-      const mi = mm.morphTargetDictionary.mouthOpen;
-      if (mi !== undefined) {
-        const talking = dialogView && Math.sin(t * 0.53) > 0.1;
-        mm.morphTargetInfluences[mi] = talking ? Math.max(0, Math.sin(t * 2.6)) * 0.5 : 0;
-      }
+      const dict = mm.morphTargetDictionary;
+      const inf = mm.morphTargetInfluences;
+      if (dict.blink !== undefined) inf[dict.blink] = blink;
+      if (dict.mouthOpen !== undefined)
+        inf[dict.mouthOpen] = speaking ? Math.max(0, Math.sin(t * 9.5)) * 0.55 : 0;
+      if (dict.smile !== undefined)
+        inf[dict.smile] = speaking ? 0.5 + Math.sin(t * 1.3) * 0.15 : 0.22;
     }
     // 持卡：世界空间正立卡跟随左手（不继承手骨旋转，永远面向镜头；可点击查看详情）
     const card = cardMeshRef.current;
@@ -178,7 +196,7 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
 
   return (
     <group>
-      <primitive object={gltf.scene} position={[0, y, -3.9]} scale={scale} />
+      <primitive object={gltf.scene} position={[0, y, bust ? -4.35 : -3.9]} scale={scale} />
       <mesh
         ref={cardMeshRef}
         rotation={[-0.18, -0.12, 0.05]}
