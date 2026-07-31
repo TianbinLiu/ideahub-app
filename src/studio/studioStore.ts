@@ -66,10 +66,11 @@ interface StudioState {
   dialog: { messages: DialogMsg[]; busy: boolean };
   pendingFiles: MaterialFile[];
   root: NodeSlot | null;
-  /** 手动重新展开的节点（未选定的新节点始终展开） */
-  expandedNodeId: string | null;
+  /** 聚焦的桌面卡：nodeId=null 表示聚焦虚线占位卡；null=未聚焦（默认俯视机位） */
+  focus: { nodeId: string | null } | null;
+  /** 投影窗内容：editor=四区编辑表单；proposals=三方案选择；卡片悬浮当且仅当投影打开 */
+  projection: "editor" | "proposals" | null;
   editor: EditorState | null;
-  proposalView: { nodeId: string; proposalId: string } | null;
   dragCardId: string | null;
   flights: Flight[];
   composing: boolean;
@@ -94,12 +95,17 @@ interface StudioState {
 
   landFlight: (id: string) => void;
 
-  clickPlaceholder: () => void;
+  focusPlaceholder: (pos: [number, number, number], look: [number, number, number]) => void;
+  focusNode: (nodeId: string, pos: [number, number, number], look: [number, number, number]) => void;
+  /** 点击卡片之外的桌面区域：落卡 + 拉远回默认机位（投影打开时无效） */
+  unfocus: () => void;
+  /** 关闭投影窗（保持聚焦机位，卡片落下；再点空白桌面拉远） */
+  closeProjection: () => void;
   toggleSpread: () => void;
   shiftSpread: (dir: 1 | -1) => void;
   pickDeckCard: (cardId: string) => void;
   setDrag: (cardId: string | null) => void;
-  dropOnPlaceholder: (cardId: string) => void;
+  dropOnPlaceholder: (cardId: string, pos: [number, number, number], look: [number, number, number]) => void;
 
   clearSlot: (type: CardType) => void;
   setRequirement: (v: string) => void;
@@ -108,10 +114,7 @@ interface StudioState {
   closeEditor: () => void;
   generateNode: () => Promise<void>;
 
-  openProposal: (nodeId: string, proposalId: string, camPos: [number, number, number], look: [number, number, number]) => void;
-  closeProposal: () => void;
   chooseProposal: (nodeId: string, proposalId: string) => void;
-  toggleExpand: (nodeId: string) => void;
 
   composeNow: () => Promise<void>;
   clearDraft: () => void;
@@ -139,9 +142,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
   dialog: { messages: [], busy: false },
   pendingFiles: [],
   root: null,
-  expandedNodeId: null,
+  focus: null,
+  projection: null,
   editor: null,
-  proposalView: null,
   dragCardId: null,
   flights: [],
   composing: false,
@@ -175,9 +178,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set((s) => ({ market: { ...s.market, items, loading: false } }));
     get().npcSay(q ? `按「${q}」翻出了 ${items.length} 张，都给你摊开了。` : `这是当下最热的 ${items.length} 张。`);
   },
-  closeMarket: () => set((s) => ({ market: { ...s.market, open: false }, marketDetail: null, camera: { kind: "default" } })),
+  closeMarket: () =>
+    set((s) => ({
+      market: { ...s.market, open: false },
+      marketDetail: null,
+      camera: s.focus ? s.camera : { kind: "default" },
+    })),
   viewMarketCard: (card, pos, look) => set({ marketDetail: card, camera: { kind: "pos", pos, look } }),
-  closeMarketDetail: () => set({ marketDetail: null, camera: { kind: "default" } }),
+  closeMarketDetail: () => set((s) => ({ marketDetail: null, camera: s.focus ? s.camera : { kind: "default" } })),
   addMarketToDeck: (from) => {
     const card = get().marketDetail;
     if (!card) return;
@@ -189,7 +197,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // 立即入组（业务状态不依赖渲染循环），飞行仅作视觉动画
     set((s) => ({
       marketDetail: null,
-      camera: { kind: "default" },
+      camera: s.focus ? s.camera : { kind: "default" },
       deck: [...s.deck, card],
       flights: [...s.flights, { id: uid("fl"), card, from, delay: 0 }],
     }));
@@ -239,14 +247,30 @@ export const useStudio = create<StudioState>()((set, get) => ({
   landFlight: (id) =>
     set((s) => ({ flights: s.flights.filter((f) => f.id !== id) })),
 
-  clickPlaceholder: () => {
-    const { deck, editor } = get();
-    if (editor) return;
+  focusPlaceholder: (pos, look) => {
+    const { deck, projection } = get();
+    if (projection) return;
     if (deck.length === 0) {
       get().npcSay("你的卡组还是空的。先把素材交给我炼卡，或者说「逛市场」看看现成的。");
     }
-    set({ spreadOpen: deck.length > 0, editor: { ...DEFAULT_EDITOR, slots: {} } });
+    // 聚焦期间收起展开排（素材在投影窗内选择），画面只留浮卡
+    set({
+      focus: { nodeId: null },
+      projection: "editor",
+      editor: { ...DEFAULT_EDITOR, slots: {} },
+      spreadOpen: false,
+      camera: { kind: "pos", pos, look },
+    });
   },
+  focusNode: (nodeId, pos, look) => {
+    if (get().projection) return;
+    set({ focus: { nodeId }, projection: "proposals", camera: { kind: "pos", pos, look } });
+  },
+  unfocus: () => {
+    if (get().projection) return;
+    set({ focus: null, editor: null, spreadOpen: false, camera: { kind: "default" } });
+  },
+  closeProjection: () => set({ projection: null, editor: null }),
   toggleSpread: () =>
     set((s) => ({ spreadOpen: s.deck.length > 0 && !s.spreadOpen })),
   shiftSpread: (dir) =>
@@ -254,24 +278,28 @@ export const useStudio = create<StudioState>()((set, get) => ({
   pickDeckCard: (cardId) => {
     const { deck, editor } = get();
     const card = deck.find((c) => c.id === cardId);
-    if (!card) return;
-    if (editor) {
-      set({ editor: { ...editor, slots: { ...editor.slots, [card.type]: card.id } } });
-    } else {
-      set({ editor: { ...DEFAULT_EDITOR, slots: { [card.type]: card.id } } });
-    }
+    if (!card || !editor || editor.generating) return;
+    set({ editor: { ...editor, slots: { ...editor.slots, [card.type]: card.id } } });
   },
   setDrag: (cardId) => set({ dragCardId: cardId }),
-  dropOnPlaceholder: (cardId) => {
+  dropOnPlaceholder: (cardId, pos, look) => {
     const { deck, editor } = get();
     const card = deck.find((c) => c.id === cardId);
     set({ dragCardId: null });
     if (!card) return;
-    if (editor) {
+    if (editor && !editor.generating) {
       set({ editor: { ...editor, slots: { ...editor.slots, [card.type]: card.id } } });
-    } else {
-      set({ editor: { ...DEFAULT_EDITOR, slots: { [card.type]: card.id } } });
+      return;
     }
+    if (get().projection) return;
+    // 拖卡进占位 → 直接进入聚焦编辑（等效点击占位卡并预填素材）
+    set({
+      focus: { nodeId: null },
+      projection: "editor",
+      editor: { ...DEFAULT_EDITOR, slots: { [card.type]: card.id } },
+      spreadOpen: false,
+      camera: { kind: "pos", pos, look },
+    });
   },
 
   clearSlot: (type) =>
@@ -328,7 +356,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
           get().npcSay("推演期间桌面已经变样，这一炉先作废——按现在的走向重新生成吧。");
           return;
         }
-        set({ root: node, spreadOpen: false, expandedNodeId: node.id, ...editorPatch });
+        set({ root: node, spreadOpen: false, focus: { nodeId: node.id }, projection: "proposals", ...editorPatch });
       } else {
         const path2 = activePath(curRoot);
         const tail2 = path2[path2.length - 1];
@@ -337,9 +365,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
           return;
         }
         tail2.children[tail2.chosenId] = node;
-        set({ root: curRoot ? { ...curRoot } : curRoot, spreadOpen: false, expandedNodeId: node.id, ...editorPatch });
+        set({
+          root: curRoot ? { ...curRoot } : curRoot,
+          spreadOpen: false,
+          focus: { nodeId: node.id },
+          projection: "proposals",
+          ...editorPatch,
+        });
       }
-      get().npcSay("三种走向已经推演完毕，摆在桌上了——上、中、下三张，点开看看各自的首尾帧和剧情。");
+      get().npcSay("三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。");
     } finally {
       nodeGenInFlight = false;
       // 若发起时的编辑器仍开着且未被上面清掉（作废路径），把 generating 复位以便重试
@@ -348,22 +382,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
   },
 
-  openProposal: (nodeId, proposalId, pos, look) =>
-    set({ proposalView: { nodeId, proposalId }, camera: { kind: "pos", pos, look } }),
-  closeProposal: () => set({ proposalView: null, camera: { kind: "default" } }),
   chooseProposal: (nodeId, proposalId) => {
     const { root } = get();
     const node = activePath(root).find((n) => n.id === nodeId);
     if (!node) return;
     node.chosenId = proposalId;
-    set({ root: root ? { ...root } : root, expandedNodeId: null, proposalView: null, camera: { kind: "default" } });
+    // 投影关闭 → 卡片带着选定信息落回桌面；机位保持拉近，点空白桌面再拉远
+    set({ root: root ? { ...root } : root, projection: null, editor: null });
   },
-  toggleExpand: (nodeId) =>
-    set((s) => ({
-      expandedNodeId: s.expandedNodeId === nodeId ? null : nodeId,
-      proposalView: null,
-      camera: { kind: "default" },
-    })),
 
   composeNow: async () => {
     const { root, composing } = get();

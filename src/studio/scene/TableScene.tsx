@@ -11,13 +11,13 @@ import {
   COMPOSE_POS,
   DECK_POS,
   DEFAULT_CAM,
+  FLOAT_Y,
   LEFT_STACK,
   MARKET,
-  PROPOSAL_ROWS_Z,
-  PROPOSAL_SCALE,
   SPREAD,
   TABLE,
   chainX,
+  focusCam,
 } from "./layout";
 import {
   cardBackTexture,
@@ -136,7 +136,7 @@ function ComposePad() {
     mat.current.emissiveIntensity = enabled ? 0.5 + 0.25 * Math.sin(performance.now() / 350) : 0.08;
   });
   const labelMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ map: labelTexture("合成完整视频"), transparent: true, depthWrite: false }),
+    () => new THREE.MeshBasicMaterial({ map: labelTexture("合成视频"), transparent: true, depthWrite: false }),
     []
   );
   useEffect(() => () => labelMat.dispose(), [labelMat]);
@@ -149,11 +149,12 @@ function ComposePad() {
       }}
     >
       <mesh>
-        <cylinderGeometry args={[0.52, 0.6, 0.1, 28]} />
+        <cylinderGeometry args={[0.42, 0.5, 0.1, 28]} />
         <meshStandardMaterial ref={mat} color={enabled ? "#7c5c12" : "#2a3350"} emissive="#fbbf24" emissiveIntensity={0.1} />
       </mesh>
-      <mesh position={[0, 0.5, 0.35]} rotation={[-0.55, 0, 0]} material={labelMat}>
-        <planeGeometry args={[2.3, 0.58]} />
+      {/* 俯视机位：标签平贴桌面更易读 */}
+      <mesh position={[-0.2, 0.015, 0.82]} rotation={[-Math.PI / 2, 0, 0]} material={labelMat}>
+        <planeGeometry args={[1.35, 0.34]} />
       </mesh>
     </group>
   );
@@ -190,14 +191,15 @@ function Npc() {
     let lT: [number, number, number];
     let rT: [number, number, number];
     if (dialog.busy) {
-      lT = [-0.55, 1.45 + wob, -3.35];
-      rT = [0.55, 1.45 - wob, -3.35];
+      lT = [-0.6, 1.3 + wob, -2.9];
+      rT = [0.6, 1.3 - wob, -2.9];
     } else if (market.open) {
-      lT = [-1.7, 0.5, -2.0];
-      rT = [1.7, 0.5, -2.0];
+      // 摊完卡后双手扶在两侧桌沿，不遮挡卡面
+      lT = [-1.95, 0.3, -2.5];
+      rT = [1.95, 0.3, -2.5];
     } else {
-      lT = [-0.95, 0.2 + Math.sin(t * 1.3) * 0.03, -3.05];
-      rT = [0.95, 0.2 + Math.cos(t * 1.15) * 0.03, -3.05];
+      lT = [-0.8, 0.18 + Math.sin(t * 1.3) * 0.03, -2.55];
+      rT = [0.8, 0.18 + Math.cos(t * 1.15) * 0.03, -2.55];
     }
     const k = 1 - Math.exp(-dt * 5);
     const { a, b, e, d } = tmp.current;
@@ -206,7 +208,7 @@ function Npc() {
     if (torso.current) torso.current.position.y = Math.sin(t * 1.2) * 0.03;
 
     // 左臂（placeBone 只读取 a/b，不需要 clone）
-    a.set(-0.85, 1.62, -4.35);
+    a.set(-0.85, 1.62, -5.35);
     e.copy(a).add(cur.current.lH).multiplyScalar(0.5);
     e.x -= 0.45;
     e.y += 0.12;
@@ -215,7 +217,7 @@ function Npc() {
     if (lFore.current) placeBone(lFore.current, e, b, d);
     if (lHand.current) lHand.current.position.copy(b);
     // 右臂
-    a.set(0.85, 1.62, -4.35);
+    a.set(0.85, 1.62, -5.35);
     e.copy(a).add(cur.current.rH).multiplyScalar(0.5);
     e.x += 0.45;
     e.y += 0.12;
@@ -230,24 +232,19 @@ function Npc() {
   return (
     <group>
       <group ref={torso}>
-        {/* 躯干（无头） */}
-        <mesh position={[0, 0.95, -4.6]} scale={[1.2, 1, 0.75]}>
+        {/* 躯干（无头，退到俯视画框之外——画面里只留双臂/手） */}
+        <mesh position={[0, 0.9, -5.6]} scale={[1.2, 1, 0.75]}>
           <capsuleGeometry args={[0.62, 0.95, 4, 14]} />
           <meshStandardMaterial color="#1c2745" roughness={0.7} />
         </mesh>
         {/* 双肩 */}
-        <mesh position={[-0.85, 1.62, -4.35]}>
+        <mesh position={[-0.85, 1.62, -5.35]}>
           <sphereGeometry args={[0.24, 14, 14]} />
           <meshStandardMaterial color={sleeve} />
         </mesh>
-        <mesh position={[0.85, 1.62, -4.35]}>
+        <mesh position={[0.85, 1.62, -5.35]}>
           <sphereGeometry args={[0.24, 14, 14]} />
           <meshStandardMaterial color={sleeve} />
-        </mesh>
-        {/* 胸前徽记 */}
-        <mesh position={[0, 1.28, -3.97]}>
-          <circleGeometry args={[0.16, 24]} />
-          <meshStandardMaterial color="#0b1020" emissive="#67e8f9" emissiveIntensity={1.4} />
         </mesh>
       </group>
       <mesh ref={lUpper}>
@@ -312,13 +309,13 @@ function StaticBone({
 function UserHands() {
   return (
     <group>
-      <StaticBone a={[-1.85, -0.75, 5.5]} b={[-1.25, 0.05, 3.8]} r={0.26} color="#26334f" />
-      <StaticBone a={[1.85, -0.75, 5.5]} b={[1.25, 0.05, 3.8]} r={0.26} color="#26334f" />
-      <mesh position={[-1.25, 0.1, 3.68]}>
+      <StaticBone a={[-1.45, -0.7, 5.3]} b={[-1.0, 0.06, 3.6]} r={0.26} color="#26334f" />
+      <StaticBone a={[1.45, -0.7, 5.3]} b={[1.0, 0.06, 3.6]} r={0.26} color="#26334f" />
+      <mesh position={[-1.0, 0.1, 3.5]}>
         <sphereGeometry args={[0.27, 16, 16]} />
         <meshStandardMaterial color="#d4a97c" roughness={0.6} />
       </mesh>
-      <mesh position={[1.25, 0.1, 3.68]}>
+      <mesh position={[1.0, 0.1, 3.5]}>
         <sphereGeometry args={[0.27, 16, 16]} />
         <meshStandardMaterial color="#d4a97c" roughness={0.6} />
       </mesh>
@@ -367,8 +364,8 @@ function DeckStack() {
           <planeGeometry args={[CARD.w, CARD.h]} />
         </mesh>
       ))}
-      <mesh position={[DECK_POS[0], 0.36 + shown * 0.014, DECK_POS[2] + 0.95]} rotation={[-0.6, 0, 0]} material={countMat}>
-        <planeGeometry args={[1.5, 0.38]} />
+      <mesh position={[DECK_POS[0], 0.12, DECK_POS[2] - 0.62]} rotation={[-Math.PI / 2, 0, 0]} material={countMat}>
+        <planeGeometry args={[1.1, 0.3]} />
       </mesh>
     </group>
   );
@@ -432,8 +429,10 @@ function DragLayer() {
       if (!id) return;
       const nearPlaceholder =
         phX != null && Math.abs(dragState.x - phX) < 1.0 && Math.abs(dragState.z - CHAIN.rowZ) < 1.2;
-      if (dragState.moved && nearPlaceholder) st.dropOnPlaceholder(id);
-      else if (!dragState.moved) st.pickDeckCard(id);
+      if (dragState.moved && nearPlaceholder && phX != null) {
+        const cam = focusCam(phX, CHAIN.rowZ);
+        st.dropOnPlaceholder(id, cam.pos, cam.look);
+      } else if (!dragState.moved) st.pickDeckCard(id);
       st.setDrag(null);
     };
     window.addEventListener("pointerup", onUp);
@@ -478,25 +477,28 @@ function MarketFan() {
   const market = useStudio((s) => s.market);
   const detail = useStudio((s) => s.marketDetail);
   if (!market.open) return null;
-  const n = market.items.length;
   return (
     <group>
       {market.items.map((card, i) => {
-        const off = i - (n - 1) / 2;
-        const x = off * MARKET.dx;
-        const z = MARKET.z + Math.abs(off) * 0.07;
+        // 竖屏视野窄：两排各 perRow 张
+        const row = Math.floor(i / MARKET.perRow);
+        const col = i % MARKET.perRow;
+        const rowCount = Math.min(MARKET.perRow, market.items.length - row * MARKET.perRow);
+        const x = (col - (rowCount - 1) / 2) * MARKET.dx;
+        const z = MARKET.rowsZ[Math.min(row, MARKET.rowsZ.length - 1)];
+        const cam = focusCam(x, z);
         return (
           <CardMesh
             key={card.id}
             tex={cardFaceTexture(card)}
             from={[0.9, 0.9, -3.2]}
             target={[x, MARKET.lift + i * 0.004, z]}
-            rotZ={-off * 0.05}
+            rotZ={(col - (rowCount - 1) / 2) * -0.04}
             hoverLift
             ring={detail?.id === card.id ? "#fbbf24" : null}
             onClick={(e) => {
               e.stopPropagation();
-              useStudio.getState().viewMarketCard(card, [x * 0.65, 2.1, z + 2.6], [x, 0, z]);
+              useStudio.getState().viewMarketCard(card, cam.pos, cam.look);
             }}
           />
         );
@@ -526,17 +528,28 @@ function Placeholder({ x }: { x: number }) {
     []
   );
   useEffect(() => () => mat.dispose(), [mat]);
-  useFrame(() => {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame((_, dt) => {
     mat.opacity = 0.6 + 0.3 * Math.sin(performance.now() / 520);
+    const m = ref.current;
+    if (!m) return;
+    // 聚焦占位卡（编辑投影打开）时悬浮
+    const st = useStudio.getState();
+    const floating = st.focus != null && st.focus.nodeId === null && st.projection != null;
+    const targetY = floating ? FLOAT_Y : CARD.lift;
+    m.position.y += (targetY - m.position.y) * (1 - Math.exp(-dt * 9));
+    m.position.x = x;
   });
   return (
     <mesh
+      ref={ref}
       rotation={[-Math.PI / 2, 0, 0]}
       position={[x, CARD.lift, CHAIN.rowZ]}
       material={mat}
       onClick={(e) => {
         e.stopPropagation();
-        useStudio.getState().clickPlaceholder();
+        const cam = focusCam(x, CHAIN.rowZ);
+        useStudio.getState().focusPlaceholder(cam.pos, cam.look);
       }}
     >
       <planeGeometry args={[CARD.w, CARD.h]} />
@@ -546,7 +559,8 @@ function Placeholder({ x }: { x: number }) {
 
 function NodeChainView() {
   const root = useStudio((s) => s.root);
-  const expandedNodeId = useStudio((s) => s.expandedNodeId);
+  const focus = useStudio((s) => s.focus);
+  const projection = useStudio((s) => s.projection);
   const layout = computeChain(root);
   const visibleXs: number[] = [];
 
@@ -576,32 +590,24 @@ function NodeChainView() {
       return;
     }
     visibleXs.push(x);
-    const expanded = node.chosenId == null || expandedNodeId === node.id;
-    node.proposals.forEach((p, j) => {
-      const isChosen = node.chosenId === p.id;
-      const rowZ = PROPOSAL_ROWS_Z[j];
-      const target: [number, number, number] = expanded
-        ? [x, CARD.lift + j * 0.004, rowZ]
-        : [x, CARD.lift, CHAIN.rowZ];
-      const opacity = expanded ? 1 : isChosen ? 1 : 0;
-      cards.push(
-        <CardMesh
-          key={p.id}
-          tex={proposalTexture(p)}
-          target={target}
-          scale={expanded ? PROPOSAL_SCALE : 1}
-          opacity={opacity}
-          hoverLift
-          ring={isChosen ? "#fbbf24" : null}
-          onClick={(e) => {
-            e.stopPropagation();
-            const st = useStudio.getState();
-            if (expanded) st.openProposal(node.id, p.id, [x * 0.7, 2.4, rowZ + 2.7], [x, 0, rowZ]);
-            else st.toggleExpand(node.id);
-          }}
-        />
-      );
-    });
+    // 聚焦中的卡悬浮 + 高亮描边；选定后显示选定方案卡面，未选定（生成中/未选）显示虚框卡面
+    const floating = focus?.nodeId === node.id && projection != null;
+    const y = floating ? FLOAT_Y : CARD.lift;
+    cards.push(
+      <CardMesh
+        key={node.id}
+        tex={chosen ? proposalTexture(chosen) : placeholderTexture()}
+        target={[x, y, CHAIN.rowZ]}
+        hoverLift={!floating}
+        ring={floating ? "#67e8f9" : null}
+        onClick={(e) => {
+          e.stopPropagation();
+          const st = useStudio.getState();
+          const cam = focusCam(x, CHAIN.rowZ);
+          st.focusNode(node.id, cam.pos, cam.look);
+        }}
+      />
+    );
   });
 
   return (
@@ -697,6 +703,22 @@ function CaptureHook() {
   return null;
 }
 
+// ── 空白桌面点击捕获：聚焦且无投影时，点卡片之外拉远回默认机位 ──
+function TableCatcher() {
+  return (
+    <mesh
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, 0.001, 0]}
+      onClick={() => {
+        useStudio.getState().unfocus();
+      }}
+    >
+      <planeGeometry args={[TABLE.w, TABLE.d]} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+    </mesh>
+  );
+}
+
 // ── 场景组装 ─────────────────────────────────────────────────
 export default function TableScene() {
   return (
@@ -714,6 +736,7 @@ export default function TableScene() {
       </mesh>
       <CameraRig />
       <Table />
+      <TableCatcher />
       <ComposePad />
       <Npc />
       <UserHands />
