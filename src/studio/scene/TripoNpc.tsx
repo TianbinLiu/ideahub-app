@@ -72,6 +72,7 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
     (loader as GLTFLoader).setMeshoptDecoder(MeshoptDecoder);
   });
   const bones = useRef<Record<string, THREE.Object3D | null>>({});
+  const morphMesh = useRef<THREE.Mesh | null>(null);
   const cardMeshRef = useRef<THREE.Mesh | null>(null);
   const cardIdRef = useRef<string | null>(null);
   const recommend = useStudio((s) => s.recommendCard);
@@ -79,6 +80,8 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
   const { scale, y } = useMemo(() => {
     gltf.scene.traverse((o) => {
       o.frustumCulled = false;
+      const m = o as THREE.Mesh;
+      if (m.isMesh && m.morphTargetDictionary && !m.userData.__isOutline) morphMesh.current = m;
     });
     for (const [k, name] of Object.entries(POSE_KEYS)) bones.current[k] = gltf.scene.getObjectByName(name) ?? null;
     toonify(gltf.scene, bust ? 0.003 : 0.0012);
@@ -138,6 +141,24 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
       const n = b[k];
       const v = p2[k] as [number, number, number] | null;
       if (n && v) n.rotation.set(v[0] + (k === "spine1" ? breathe : 0), v[1], v[2]);
+    }
+    // 表情 morph：周期眨眼 + 对话时断续口型（Blender 雕的 blink/mouthOpen shape key）
+    const mm = morphMesh.current;
+    if (mm && mm.morphTargetDictionary && mm.morphTargetInfluences) {
+      const { dialogView } = useStudio.getState();
+      const cycle = t % 4.3;
+      let blink = cycle > 4.0 ? Math.sin(((cycle - 4.0) / 0.3) * Math.PI) : 0;
+      if (import.meta.env.DEV) {
+        const fb = (window as unknown as Record<string, unknown>).__forceBlink;
+        if (typeof fb === "number") blink = fb;
+      }
+      const bi = mm.morphTargetDictionary.blink;
+      if (bi !== undefined) mm.morphTargetInfluences[bi] = blink;
+      const mi = mm.morphTargetDictionary.mouthOpen;
+      if (mi !== undefined) {
+        const talking = dialogView && Math.sin(t * 0.53) > 0.1;
+        mm.morphTargetInfluences[mi] = talking ? Math.max(0, Math.sin(t * 2.6)) * 0.5 : 0;
+      }
     }
     // 持卡：世界空间正立卡跟随左手（不继承手骨旋转，永远面向镜头；可点击查看详情）
     const card = cardMeshRef.current;

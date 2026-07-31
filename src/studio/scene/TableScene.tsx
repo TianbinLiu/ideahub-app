@@ -1026,7 +1026,7 @@ export default function TableScene() {
         ) : NPC_VARIANT === "vrm" ? (
           <VrmNpc />
         ) : (
-          <TripoNpc url="/models/preview/tripo-bust-rigged-opt.glb" bust />
+          <TripoNpc url="/models/preview/tripo-bust-face-opt.glb" bust />
         )}
       </Suspense>
       <UserHands />
