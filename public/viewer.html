@@ -1,0 +1,77 @@
+<!doctype html>
+<!-- 临时工具页：AI 生成模型质检查看器（/viewer.html?m=/models/test/gen.glb） -->
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<title>GLB 查看器</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #14101c; }
+  #app { width: 100%; height: 100%; }
+  #hud { position: fixed; top: 8px; left: 8px; color: #cfc7e8; font: 12px/1.5 monospace; white-space: pre; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="hud">loading…</div>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const url = new URL(location.href).searchParams.get("m") || "/models/test/gen.glb";
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x14101c);
+const cam = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.01, 100);
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.getElementById("app").appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(2, 4, 3); scene.add(key);
+const rim = new THREE.DirectionalLight(0x99bbff, 1.0); rim.position.set(-2, 2, -3); scene.add(rim);
+
+const ctl = new OrbitControls(cam, renderer.domElement);
+let stats = "";
+new GLTFLoader().load(url, (g) => {
+  const root = g.scene;
+  scene.add(root);
+  const box = new THREE.Box3().setFromObject(root);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  root.position.sub(center);
+  const d = Math.max(size.x, size.y, size.z);
+  cam.position.set(0, d * 0.1, d * 1.9);
+  ctl.target.set(0, 0, 0);
+  let tris = 0, mats = new Set(), texs = new Set();
+  root.traverse((o) => {
+    if (o.isMesh) {
+      const idx = o.geometry.index;
+      tris += (idx ? idx.count : o.geometry.attributes.position.count) / 3;
+      const ms = Array.isArray(o.material) ? o.material : [o.material];
+      ms.forEach((m) => { mats.add(m.uuid); if (m.map) texs.add(m.map.uuid); });
+    }
+  });
+  stats = `tris: ${Math.round(tris).toLocaleString()}\nmats: ${mats.size} texs: ${texs.size}\nsize: ${size.x.toFixed(2)}×${size.y.toFixed(2)}×${size.z.toFixed(2)}`;
+  document.getElementById("hud").textContent = stats;
+  window.__loaded = true;
+}, undefined, (e) => { document.getElementById("hud").textContent = "ERR " + e; });
+
+// 离屏捕帧钩子：__cap(yawDeg) 转到指定角度渲染一帧并返回 dataURL
+window.__cap = (yaw = 0, pitch = 0) => {
+  const r = cam.position.length();
+  const a = (yaw * Math.PI) / 180, b = (pitch * Math.PI) / 180;
+  cam.position.set(r * Math.sin(a) * Math.cos(b), r * Math.sin(b), r * Math.cos(a) * Math.cos(b));
+  cam.lookAt(0, 0, 0);
+  renderer.render(scene, cam);
+  return renderer.domElement.toDataURL("image/jpeg", 0.9);
+};
+(function loop() { requestAnimationFrame(loop); ctl.update(); renderer.render(scene, cam); })();
+</script>
+</body>
+</html>

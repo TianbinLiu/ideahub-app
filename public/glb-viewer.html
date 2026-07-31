@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>glb-viewer</title>
+<style>body { margin: 0; background: #14161c; }</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<script type="module">
+// 离屏 GLB 多角度快照：?glb=路径&name=前缀 → 渲染 5 视角 POST 到本地 5179 接收器
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+const q = new URLSearchParams(location.search);
+const glb = q.get("glb") || "/models/preview/tripo.glb";
+const prefix = q.get("name") || "glbv";
+
+const W = 750, H = 1100;
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x14161c);
+scene.add(new THREE.HemisphereLight(0xf5efe0, 0x2a2d38, 1.1));
+const key = new THREE.DirectionalLight(0xfff2dd, 2.0); key.position.set(1.4, 2.2, 2.4); scene.add(key);
+const fill = new THREE.DirectionalLight(0xbcd0ff, 0.7); fill.position.set(-2.0, 1.0, -1.6); scene.add(fill);
+
+const cam = new THREE.PerspectiveCamera(32, W / H, 0.01, 100);
+
+new GLTFLoader().load(glb, async (g) => {
+  const root = g.scene;
+  scene.add(root);
+  const box = new THREE.Box3().setFromObject(root);
+  const c = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const r = Math.max(size.x, size.y, size.z);
+  const headY = box.max.y - size.y * 0.12;
+
+  const shots = [];
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    shots.push([`orbit${i}`, [c.x + Math.sin(a) * r * 1.5, c.y + r * 0.05, c.z + Math.cos(a) * r * 1.5], [c.x, c.y, c.z]]);
+  }
+  // 仰角看脸（帽檐低垂时从略低处才能看到脸）：四个方位各一张
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    shots.push([`faceup${i}`, [c.x + Math.sin(a) * r * 0.62, headY - r * 0.28, c.z + Math.cos(a) * r * 0.62], [c.x, headY - r * 0.05, c.z]]);
+  }
+  for (const [tag, pos, look] of shots) {
+    cam.position.set(...pos);
+    cam.lookAt(...look);
+    renderer.render(scene, cam);
+    const d = renderer.domElement.toDataURL("image/jpeg", 0.9);
+    await fetch(`http://localhost:5179/?name=${prefix}_${tag}`, { method: "POST", body: d }).catch(() => {});
+  }
+  document.title = "done:" + prefix;
+}, undefined, (e) => { document.title = "error:" + (e.message || e); });
+</script>
+</body>
+</html>

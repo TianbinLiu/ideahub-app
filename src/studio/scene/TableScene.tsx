@@ -30,6 +30,10 @@ import {
 import CardMesh from "./CardMesh";
 import MagicStudy from "./MagicStudy";
 import VrmNpc from "./VrmNpc";
+import TripoNpc from "./TripoNpc";
+
+// ?npc=tripo 时启用 Tripo 图生 3D 高模试验版（默认 VRoid VRM 版）
+const USE_TRIPO_NPC = new URLSearchParams(window.location.search).get("npc") === "tripo";
 
 // ── 节点链布局：窗口化，溢出的最早节点收到左侧堆 ──────────────
 export interface ChainLayout {
@@ -1016,7 +1020,7 @@ export default function TableScene() {
       <TableCatcher />
       <ComposePad />
       <Suspense fallback={<Npc />}>
-        <VrmNpc />
+        {USE_TRIPO_NPC ? <TripoNpc /> : <VrmNpc />}
       </Suspense>
       <UserHands />
       <DeckStack />
