@@ -198,9 +198,9 @@ function Npc() {
       lT = [-1.95, 0.3, -2.5];
       rT = [1.95, 0.3, -2.5];
     } else if (dialogView) {
-      // 对话视角（俯视 NPC 半场）：双手前伸搭在桌面上，微微起伏
-      lT = [-0.72, 0.22 + Math.sin(t * 1.6) * 0.04, -2.0];
-      rT = [0.72, 0.22 + Math.cos(t * 1.4) * 0.04, -2.0];
+      // 对话视角（第一人称对坐）：一手在胸前捏牌（手在牌前下缘），一手按在桌面的牌上
+      lT = [-0.55, 1.08, -3.36];
+      rT = [0.85, 0.18 + Math.cos(t * 1.4) * 0.03, -1.6];
     } else {
       lT = [-0.8, 0.18 + Math.sin(t * 1.3) * 0.03, -2.55];
       rT = [0.8, 0.18 + Math.cos(t * 1.15) * 0.03, -2.55];
@@ -712,6 +712,39 @@ function CaptureHook() {
   return null;
 }
 
+// ── 对话视角的桌面陈设：散摆的牌背 + NPC 手中持的一张牌 ────────
+const DIALOG_CARDS: Array<[number, number, number]> = [
+  [-1.15, -1.9, 0.28],
+  [-0.45, -1.55, -0.14],
+  [0.22, -1.88, 0.1],
+  [0.88, -1.5, -0.26],
+  [0.42, -2.35, 0.06],
+];
+
+function DialogTableCards() {
+  const dialogView = useStudio((s) => s.dialogView);
+  const marketOpen = useStudio((s) => s.market.open);
+  const backMat = useMemo(
+    () => new THREE.MeshBasicMaterial({ map: cardBackTexture(), transparent: true, side: THREE.DoubleSide }),
+    []
+  );
+  useEffect(() => () => backMat.dispose(), [backMat]);
+  if (!dialogView || marketOpen) return null;
+  return (
+    <group>
+      {DIALOG_CARDS.map(([x, z, rot], i) => (
+        <mesh key={i} rotation={[-Math.PI / 2, 0, rot]} position={[x, 0.012 + i * 0.004, z]} material={backMat} scale={0.72}>
+          <planeGeometry args={[CARD.w, CARD.h]} />
+        </mesh>
+      ))}
+      {/* NPC 左手在胸前持的牌（牌背朝向用户，手在牌前下缘捏着） */}
+      <mesh position={[-0.55, 1.34, -3.52]} rotation={[-0.12, 0.1, 0.06]} material={backMat}>
+        <planeGeometry args={[CARD.w * 0.6, CARD.h * 0.6]} />
+      </mesh>
+    </group>
+  );
+}
+
 // ── 空白桌面点击捕获：聚焦且无投影时，点卡片之外拉远回默认机位 ──
 function TableCatcher() {
   return (
@@ -752,6 +785,7 @@ export default function TableScene() {
       <DeckStack />
       <DeckSpread />
       <MarketFan />
+      <DialogTableCards />
       <NodeChainView />
       <Flights />
       <DragLayer />

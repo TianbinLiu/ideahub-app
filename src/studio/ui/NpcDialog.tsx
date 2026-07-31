@@ -64,6 +64,8 @@ export default function NpcDialog() {
   function backToChoose() {
     const st = useStudio.getState();
     if (st.market.open) st.closeMarket();
+    // 回到对话选项页 → 恢复第一人称对坐视角
+    st.setCamera({ kind: "pos", pos: NPC_CAM.pos, look: NPC_CAM.look });
     setHov(null);
     setMode("choose");
   }

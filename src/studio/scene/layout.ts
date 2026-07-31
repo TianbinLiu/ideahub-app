@@ -18,10 +18,10 @@ export function focusCam(x: number, z: number): { pos: [number, number, number];
 /** 悬浮卡的抬升高度 */
 export const FLOAT_Y = 0.85;
 
-/** 对话视角：仍为俯视，但机位前移到 NPC 半场——看到 NPC 侧桌面 + 贴桌沿的 NPC 上半身 */
+/** 对话视角：日系 CG 式第一人称对坐——下 1/3 桌面（散牌背），对面角色锁骨以下、胸部+双手 */
 export const NPC_CAM: { pos: [number, number, number]; look: [number, number, number] } = {
-  pos: [0, 9.2, 0.2],
-  look: [0, 0, -2.3],
+  pos: [0, 2.15, 2.9],
+  look: [0, -0.55, -4.05],
 };
 
 /** 节点链（用户侧、靠近中线的一排；竖屏可视 x≈±1.55 → 3 张窗口化） */
