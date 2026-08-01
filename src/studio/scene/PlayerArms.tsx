@@ -66,7 +66,8 @@ const RIGS: Record<
   rin: {
     yaw: Math.PI,
     scale: 4.3,
-    y: -2.9,
+    // y -2.9→-2.0：站位抬高让胸口在画面里越过桌沿圆柱线（用户定），世界高度本就超但原值胸埋画框下
+    y: -2.0,
     z: 4.95,
     deckY: -5.55,
     pose: MMD_POSE,
@@ -77,7 +78,7 @@ const RIGS: Record<
   gratia: {
     yaw: Math.PI,
     scale: 4.1,
-    y: -2.9,
+    y: -2.0,
     z: 4.95,
     deckY: -6.05,
     pose: MMD_POSE,
@@ -143,17 +144,22 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     gltf.scene.traverse((o) => {
       o.frustumCulled = false;
     });
+    // MMD 系骨骼 rest 局部旋转非零（Blender 骨自带朝向）——绝对欧拉写入会抹掉 rest 直接炸姿势。
+    // rest 四元数只在该 gltf 首次挂载时捕获并存 userData：useLoader 按 URL 缓存场景，
+    // 换形象再换回会拿到"骨骼停在上次姿势"的缓存场景——那时再 clone 就把姿势误录成 rest（X 臂事故）
+    const ud = gltf.scene.userData as { __restQ?: Record<string, THREE.Quaternion> };
+    const first = !ud.__restQ;
+    if (first) ud.__restQ = {};
     for (const [k, name] of Object.entries(BONES)) {
       const b = gltf.scene.getObjectByName(name) ?? null;
       bones.current[k] = b;
-      // MMD 系骨骼 rest 局部旋转非零（Blender 骨自带朝向）——绝对欧拉写入会抹掉 rest 直接炸姿势。
-      // 记录加载时（未播动画=rest）的四元数，姿势表统一改为"相对 rest 的增量"（Tripo 系 rest≈单位，语义不变）
-      if (b) restQ.current[k] = b.quaternion.clone();
+      if (b && first) ud.__restQ![k] = b.quaternion.clone();
     }
     // 左手骨额外记录：think 里掌心内旋被 keyframe，退出后 FPS 不驱动手骨会卡在内旋态——须显式回 rest
     const lh = gltf.scene.getObjectByName("mixamorigLeftHand");
     bones.current.lHand = lh ?? null;
-    if (lh) restQ.current.lHand = lh.quaternion.clone();
+    if (lh && first) ud.__restQ!.lHand = lh.quaternion.clone();
+    restQ.current = ud.__restQ!;
     toonify(gltf.scene, 0.0012);
     // 朝向修正按 rig 家族：玩家背对镜头面向 NPC（-Z 方向）
     gltf.scene.rotation.set(0, rig.yaw, 0);
