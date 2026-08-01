@@ -75,6 +75,23 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
   const morphMesh = useRef<THREE.Mesh | null>(null);
   // 随机眨眼时刻表：{ 下次眨眼的动画时钟时刻, 是否双眨 }
   const blinkPlan = useRef({ next: 2.5, double: false, phase: -1 });
+  // 演出动画（wave 招手 / deal 发牌）：Blender IK 烘焙，只保留左臂链轨道避免覆盖程序姿势
+  const mixer = useMemo(() => new THREE.AnimationMixer(gltf.scene), [gltf]);
+  const perfActions = useMemo(() => {
+    const out: Record<string, THREE.AnimationAction> = {};
+    for (const name of ["wave", "deal"]) {
+      const clip = THREE.AnimationClip.findByName(gltf.animations, name);
+      if (!clip) continue;
+      clip.tracks = clip.tracks.filter(
+        (tr) => /Left(Arm|ForeArm|Hand)\.quaternion$/.test(tr.name),
+      );
+      const act = mixer.clipAction(clip);
+      act.setLoop(THREE.LoopOnce, 1);
+      out[name] = act;
+    }
+    return out;
+  }, [gltf, mixer]);
+  const prevDialog = useRef(false);
   const cardMeshRef = useRef<THREE.Mesh | null>(null);
   const cardIdRef = useRef<string | null>(null);
   const recommend = useStudio((s) => s.recommendCard);
@@ -191,6 +208,18 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
       // 胸部撑桌：squish 常驻 + 呼吸联动（吸气压深、呼气回浅）
       if (dict.squish !== undefined && bust) inf[dict.squish] = 0.72 + Math.sin(t * 1.1) * 0.18;
     }
+    // 演出触发：进入对话视角→招手；推荐卡刷新→发牌（挥卡）
+    if (bust) {
+      if (st.dialogView && !prevDialog.current && perfActions.wave) {
+        perfActions.deal?.stop();
+        perfActions.wave.reset().play();
+      }
+      prevDialog.current = st.dialogView;
+    }
+    // 演出动画先应用（LoopOnce 播放期间覆盖左臂程序姿势，播完自动交还），
+    // 再读手骨位置更新持卡——发牌挥动时卡精确跟手
+    mixer.update(dt);
+    gltf.scene.updateMatrixWorld(true);
     // 持卡：世界空间正立卡跟随左手（不继承手骨旋转，永远面向镜头；可点击查看详情）
     // 仅对话视角且市场未摊开时展示——默认俯视角不该有卡悬在空中
     const card = cardMeshRef.current;
@@ -200,6 +229,10 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
         cardIdRef.current = recommend.id;
         (card.material as THREE.MeshBasicMaterial).map = cardFaceTexture(recommend);
         (card.material as THREE.MeshBasicMaterial).needsUpdate = true;
+        // 发牌演出：新卡递出时左手挥卡
+        if (bust && st.dialogView && perfActions.deal && !perfActions.wave?.isRunning()) {
+          perfActions.deal.reset().play();
+        }
       }
       card.visible = !!recommend && st.dialogView && !st.market.open;
       hand.getWorldPosition(cardPos);
