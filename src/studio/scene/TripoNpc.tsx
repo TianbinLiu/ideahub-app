@@ -109,6 +109,8 @@ export default function TripoNpc({
   }, [gltf, mixer]);
   const prevDialog = useRef(false);
   const dealWasRunning = useRef(false);
+  // 进对话后延迟俯身：等相机走位到位（~1s）再开始过渡，玩家能完整看到动画
+  const leanPendingAt = useRef(0);
   const cardMeshRef = useRef<THREE.Mesh | null>(null);
   const cardIdRef = useRef<string | null>(null);
   const recommend = useStudio((s) => s.recommendCard);
@@ -241,10 +243,20 @@ export default function TripoNpc({
             : 0.22;
         inf[dict.smile] += (target - inf[dict.smile]) * Math.min(1, dt * 6);
       }
-      // 胸部撑桌：bust 常驻；full 仅对话俯身时启用；其它显式归零（glTF 可能携带非零默认权重）
-      if (dict.squish !== undefined)
-        inf[dict.squish] =
-          bust || (full && st.dialogView) ? 0.72 + Math.sin(t * 1.1) * 0.18 : 0;
+      // 胸部撑桌：bust 常驻；full 跟随 lean 过渡进度渐入（胸贴上桌沿的同时才压扁）
+      if (dict.squish !== undefined) {
+        let squish = 0;
+        if (bust) squish = 0.72 + Math.sin(t * 1.1) * 0.18;
+        else if (full && st.dialogView) {
+          const lb = perfActions.leanBody;
+          const p =
+            lb && (lb.isRunning() || lb.paused)
+              ? Math.min(1, lb.time / Math.max(0.001, lb.getClip().duration))
+              : 0;
+          squish = p * (0.72 + Math.sin(t * 1.1) * 0.18);
+        }
+        inf[dict.squish] = squish;
+      }
     }
     // full 状态机：站立（无动画=rest）↔ 对话（播 lean 过渡：前倾压桌+托腮，clamp 停末帧）
     if (full && perfActions.leanBody) {
@@ -257,12 +269,17 @@ export default function TripoNpc({
       if (st.dialogView && !prevDialog.current) {
         perfActions.wave?.stop();
         perfActions.deal?.stop();
-        playLean(perfActions.leanBody);
-        playLean(perfActions.leanArm);
+        leanPendingAt.current = t + 0.9;
       } else if (!st.dialogView && prevDialog.current) {
+        leanPendingAt.current = 0;
         perfActions.leanBody.stop();
         perfActions.leanArm?.stop();
         perfActions.deal?.stop();
+      }
+      if (leanPendingAt.current > 0 && t >= leanPendingAt.current && st.dialogView) {
+        leanPendingAt.current = 0;
+        playLean(perfActions.leanBody);
+        playLean(perfActions.leanArm);
       }
       // deal 发牌演出结束 → 左手过渡回托腮（重播 leanArm 的过渡段）
       const dealing = !!perfActions.deal?.isRunning();
