@@ -22,7 +22,7 @@ import {
 } from "./layout";
 import { npcModelUrl } from "../quality";
 
-// 购入模型 Milltina 的摆位配置（模块级常量：内联对象会让 TripoNpc 的 memo 每帧重建）
+// 购入模型 Milltina（默认铸卡师）的配置（模块级常量：内联对象会让 TripoNpc 的 memo 每帧重建）
 // FBX 静止姿势是 T-pose；轴向实测：x−=垂臂（z 是水平前摆别用），微量 z 让手贴身
 const MILLTINA_CFG = {
   scale: 3.35,
@@ -33,6 +33,10 @@ const MILLTINA_CFG = {
     lArm: [-1.15, 0, 0.12] as [number, number, number],
     rArm: [-1.15, 0, -0.12] as [number, number, number],
   },
+  // 双马尾/牛耳/缎带/前发弹簧物理（骨链名匹配，忽略大小写与符号）
+  springs: ["twintail", "cowear", "ribbon", "fronthair"],
+  // 白发白裙在烛光暗房过亮：暖灰乘暗；浅色模型描边用固定深紫黑
+  look: { tint: 0xbfb2a4, outlineColor: 0x2a2230 },
 };
 const MILLTINA_MORPHS = { blink: "vrc.blink ", mouthOpen: "vrc.v_aa", smile: "eye_joy" };
 import {
@@ -981,6 +985,10 @@ function CaptureHook() {
   const gl = useThree((s) => s.gl);
   const clock = useThree((s) => s.clock);
   const setFrameloop = useThree((s) => s.setFrameloop);
+  const camera = useThree((s) => s.camera);
+  useEffect(() => {
+    (window as unknown as Record<string, unknown>).__r3fCam = camera;
+  }, [camera]);
   useEffect(() => {
     (window as unknown as Record<string, unknown>).__r3fCapture = (frames = 60) => {
       const orig = clock.getDelta.bind(clock);
@@ -1175,12 +1183,12 @@ export default function TableScene() {
           <TripoNpc />
         ) : NPC_VARIANT === "vrm" ? (
           <VrmNpc />
-        ) : NPC_VARIANT === "milltina" ? (
-          // 购入模型（加密分发）：VRC 规格原生形键，摆位/垂臂姿势用 cfg 配置
-          <TripoNpc url="/models/protected/milltina-opt.glbx?v=m1" cfg={MILLTINA_CFG} morphNames={MILLTINA_MORPHS} />
-        ) : (
-          // 模型按画质分级选档（low/mid/high），版本号在 quality.ts 统一管理
+        ) : NPC_VARIANT === "witch" ? (
+          // 旧自产 Tripo 女巫（降级为调试变体）：模型按画质分级选档
           <TripoNpc url={npcModelUrl()} full />
+        ) : (
+          // 默认铸卡师 = 购入模型 Milltina（加密分发）：VRC 原生形键 + 弹簧骨物理 + 调暗描边
+          <TripoNpc url="/models/protected/milltina-opt.glbx?v=m3" cfg={MILLTINA_CFG} morphNames={MILLTINA_MORPHS} />
         )}
       </Suspense>
       <PlayerHandsSwitch />

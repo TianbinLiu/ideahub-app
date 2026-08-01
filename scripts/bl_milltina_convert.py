@@ -13,6 +13,27 @@ os.makedirs(os.path.dirname(DST), exist_ok=True)
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.fbx(filepath=SRC)
 
+# 穿模修复：衣装是参数化系统——dress/skirt 的 "Apron_set" 形键是穿围裙时的
+# 衣身避让形态（出厂默认 0 → 围裙与裙身互相穿插）。把正确穿搭配置烘进基础形。
+def bake_shape_mix(obj_name, values):
+    o = bpy.data.objects.get(obj_name)
+    if not o or not o.data.shape_keys:
+        return
+    for k in o.data.shape_keys.key_blocks:
+        k.value = values.get(k.name, 0.0)
+    mixed = o.shape_key_add(name="__mix", from_mix=True)
+    coords = [v.co.copy() for v in mixed.data]
+    for k in list(o.data.shape_keys.key_blocks):
+        o.shape_key_remove(k)
+    for v, c in zip(o.data.vertices, coords):
+        v.co = c
+    print(f"已烘穿搭形态: {obj_name} <- {values}")
+
+# 实测："Apron_set"=1 反而会掀开衣身（那是无围裙穿搭的形态），出厂 0 才是围裙正确穿法。
+# 胸口围裙×裙身 z-fight 用围裙自身的 Breasts_Big 微量外扩解决（贴面脱开几毫米）
+bake_shape_mix("Milltina_cloth_apron", {"Breasts_Big": 0.35})
+bake_shape_mix("Milltina_cloth_hat", {"Option_Twin tail": 1.0})
+
 # ── 贴图接线：按材质名归类到四张图 ──
 TEX = {
     "face": os.path.join(TEXDIR, "Milltina_Face.png"),

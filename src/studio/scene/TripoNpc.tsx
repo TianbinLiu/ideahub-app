@@ -9,6 +9,7 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { useStudio } from "../studioStore";
 import { cardFaceTexture } from "./cardTexture";
 import { loaderFor } from "../secureAssets";
+import { SpringBoneSim } from "./springBones";
 
 const cardPos = new THREE.Vector3();
 
@@ -26,7 +27,17 @@ const POSE_KEYS = {
 
 // 赛璐璐化：PBR 材质 → 三阶 Toon ramp（保留原贴图），并给每个 mesh 造反壳描边
 // width 是 mesh 局部空间的法线外扩量——不同模型的量化缩放/场景缩放不同，需按最终屏幕效果各自调
-export function toonify(scene: THREE.Object3D, width = 0.0045, wind?: { amp: number }) {
+export function toonify(
+  scene: THREE.Object3D,
+  width = 0.0045,
+  wind?: { amp: number },
+  look?: {
+    /** 基色乘数：亮色贴图的购入模型在烛光暗房里过亮，用暖灰乘暗融入场景 */
+    tint?: number;
+    /** 描边纯色：浅色（白发）模型上"贴图×暗色"描边会发白，改用固定深色 */
+    outlineColor?: number;
+  },
+) {
   const ramp = new THREE.DataTexture(
     new Uint8Array([120, 120, 120, 255, 215, 215, 215, 255, 255, 255, 255, 255]),
     3,
@@ -38,11 +49,13 @@ export function toonify(scene: THREE.Object3D, width = 0.0045, wind?: { amp: num
   // 描边壳材质：有贴图时用 贴图×暗色 调制——开壳模型手臂贴身折叠时镜头会经袖口
   // 看进身体腔内打到壳背面，纯黑呈"撕裂黑洞"，暗色织物则读作阴影
   const makeOutline = (map: THREE.Texture | null, extraGLSL = "") => {
-    const m = new THREE.MeshBasicMaterial({
-      color: map ? 0x5a4a40 : 0x241a12,
-      side: THREE.BackSide,
-      map: map ?? undefined,
-    });
+    const m = look?.outlineColor
+      ? new THREE.MeshBasicMaterial({ color: look.outlineColor, side: THREE.BackSide })
+      : new THREE.MeshBasicMaterial({
+          color: map ? 0x5a4a40 : 0x241a12,
+          side: THREE.BackSide,
+          map: map ?? undefined,
+        });
     m.onBeforeCompile = (s) => {
       s.uniforms.uWindT = { value: 0 };
       s.vertexShader = s.vertexShader
@@ -82,6 +95,12 @@ export function toonify(scene: THREE.Object3D, width = 0.0045, wind?: { amp: num
     // DoubleSide：开壳模型（袖筒/裙摆）折叠时镜头会看进开口内侧——单面渲染时内壁
     // 透空露出描边壳黑色背面，呈大块黑色"撕裂"；双面让内壁显示织物贴图
     const toonMat = new THREE.MeshToonMaterial({ map: old.map, gradientMap: ramp, side: THREE.DoubleSide });
+    if (look?.tint) toonMat.color.set(look.tint);
+    // 购入模型的透明材质（睫毛/发影 alpha 层）保持透明混合
+    if ((old as THREE.Material).transparent) {
+      toonMat.transparent = true;
+      toonMat.alphaTest = 0.05;
+    }
     if (windGLSL) {
       toonMat.onBeforeCompile = (s) => {
         s.uniforms.uWindT = { value: 0 };
@@ -128,6 +147,10 @@ export default function TripoNpc({
     z: number;
     yaw?: number;
     pose?: Partial<Record<keyof typeof POSE_KEYS, [number, number, number] | null>>;
+    /** 弹簧骨链根名匹配（双马尾/牛耳/缎带物理），忽略大小写与符号 */
+    springs?: string[];
+    /** 外观：调暗乘色 + 描边纯色（浅色模型） */
+    look?: { tint?: number; outlineColor?: number };
   };
   /** 形键名映射（购入模型用原生键名，如 VRC 规格 "vrc.blink "——注意可能带尾随空格） */
   morphNames?: { blink?: string; mouthOpen?: string; smile?: string };
@@ -167,6 +190,7 @@ export default function TripoNpc({
   }, [gltf, mixer]);
   const prevDialog = useRef(false);
   const dealWasRunning = useRef(false);
+  const prevMoodUntil = useRef(0);
   // 进对话后延迟俯身：等相机走位到位（~1s）再开始过渡，玩家能完整看到动画
   const leanPendingAt = useRef(0);
   const cardMeshRef = useRef<THREE.Mesh | null>(null);
@@ -174,6 +198,14 @@ export default function TripoNpc({
   const shadowFeltRef = useRef<THREE.Mesh | null>(null);
   const shadowRailRef = useRef<THREE.Mesh | null>(null);
   const recommend = useStudio((s) => s.recommendCard);
+
+  // 弹簧骨物理（购入模型的双马尾/牛耳/缎带骨链）
+  const springSim = useMemo(() => {
+    if (!cfg?.springs?.length) return null;
+    const sim = new SpringBoneSim(gltf.scene, cfg.springs);
+    if (import.meta.env.DEV) console.log("[springs] joints:", sim.jointCount);
+    return sim.jointCount > 0 ? sim : null;
+  }, [gltf, cfg]);
 
   // 接触阴影贴片：俯拍机位下"压上桌"的重量感全靠它（径向渐变软边椭圆）
   const shadowTex = useMemo(() => {
@@ -201,7 +233,7 @@ export default function TripoNpc({
     for (const [k, name] of Object.entries(POSE_KEYS)) bones.current[k] = gltf.scene.getObjectByName(name) ?? null;
     // full 描边收窄：手臂贴身（托腮/垫胸）时外扩壳会从胸口表面戳出成黑斑，宽度减半；
     // full 开裙摆风摆（布料柔软感）
-    toonify(gltf.scene, cfg ? 0.002 : full ? 0.0009 : bust ? 0.003 : 0.0012, full ? { amp: 0.006 } : undefined);
+    toonify(gltf.scene, cfg ? 0.002 : full ? 0.0009 : bust ? 0.003 : 0.0012, full ? { amp: 0.006 } : undefined, cfg?.look);
     // 立正靠 Root 骨自带的 (-90°,0,90°) 修正（勿动）；scene 只转 yaw -90° 面向镜头。
     // cfg 模型（购入资产）朝向各异，由 cfg.yaw 指定
     gltf.scene.rotation.set(0, cfg?.yaw ?? -Math.PI / 2, 0);
@@ -288,12 +320,12 @@ export default function TripoNpc({
     const b = bones.current;
     const breathe = Math.sin(t * 1.1) * 0.015;
     const st = useStudio.getState();
-    // full：骨骼全程交 lean 动画（站姿=钉第 1 帧、对话=过渡/钉末帧）——程序手动 set 与动画
-    // 混写是"一帧瞬移闪现"的根源（动画首帧 rest 与程序微姿态差一跳）
-    const leanDriving = full;
+    // full/带 lean 动画的购入模型：骨骼全程交 lean 动画（站姿=钉第 1 帧、对话=过渡/钉末帧）
+    // ——程序手动 set 与动画混写是"一帧瞬移闪现"的根源；无动画的 cfg 模型退回 cfg.pose 手动姿势
+    const leanDriving = full || (!!cfg && !!perfActions.leanBody);
     // lean 过渡进度（0 站姿 → 1 伏桌定格）：驱动 squish 接触门控与身体整体前移下沉
     let leanP = 0;
-    if (full && perfActions.leanBody) {
+    if ((full || cfg) && perfActions.leanBody) {
       const lb = perfActions.leanBody;
       if (lb.isRunning() || lb.paused)
         leanP = Math.min(1, lb.time / Math.max(0.001, lb.getClip().duration));
@@ -365,8 +397,8 @@ export default function TripoNpc({
         inf[dict.squish] = squish;
       }
     }
-    // full 状态机：站立（无动画=rest）↔ 对话（播 lean 过渡：前倾压桌+托腮，clamp 停末帧）
-    if (full && perfActions.leanBody) {
+    // full/购入模型状态机：站立（钉 lean f1）↔ 对话（播 lean 过渡，clamp 停末帧）
+    if ((full || cfg) && perfActions.leanBody) {
       const playLean = (a?: THREE.AnimationAction) => {
         if (!a) return;
         a.setLoop(THREE.LoopOnce, 1);
@@ -415,6 +447,18 @@ export default function TripoNpc({
         playLean(perfActions.leanBody);
         playLean(perfActions.leanArm);
       }
+      // 情绪正脉冲（炼卡成功/入组）→ 发牌演出（deal 基于 lean 定格姿势烘焙，无错位）
+      if (
+        st.dialogView &&
+        st.moodUntil !== prevMoodUntil.current &&
+        st.mood > 0 &&
+        leanP > 0.9 &&
+        perfActions.deal &&
+        !perfActions.deal.isRunning()
+      ) {
+        perfActions.deal.reset().play();
+      }
+      prevMoodUntil.current = st.moodUntil;
       // deal 发牌演出结束 → 左手过渡回托腮（重播 leanArm 的过渡段）
       const dealing = !!perfActions.deal?.isRunning();
       if (dealing && perfActions.leanArm?.isRunning()) perfActions.leanArm.stop();
@@ -451,6 +495,11 @@ export default function TripoNpc({
     // dt 钳制：页面从后台切回时 dt 可达 1s+，会把 2s 过渡两帧跳完
     mixer.update(Math.min(dt, 0.05));
     gltf.scene.updateMatrixWorld(true);
+    // 弹簧骨在姿势/动画之后模拟（读最新世界矩阵，回写局部旋转）
+    if (springSim) {
+      springSim.update(dt);
+      gltf.scene.updateMatrixWorld(true);
+    }
     // 持卡：世界空间正立卡跟随左手（不继承手骨旋转，永远面向镜头；可点击查看详情）
     // 仅对话视角且市场未摊开时展示——默认俯视角不该有卡悬在空中
     const card = cardMeshRef.current;
@@ -465,8 +514,8 @@ export default function TripoNpc({
           perfActions.deal.reset().play();
         }
       }
-      // 用户定：full 版不要推荐卡悬浮在手上
-      card.visible = !!recommend && st.dialogView && !st.market.open && !full;
+      // 用户定：full/购入模型都不要推荐卡悬浮在手上
+      card.visible = !!recommend && st.dialogView && !st.market.open && !full && !cfg;
       hand.getWorldPosition(cardPos);
       if (full) card.position.set(cardPos.x + 0.1, cardPos.y + 0.15, cardPos.z + 0.2);
       else if (bust) card.position.set(cardPos.x + 0.05, cardPos.y + 0.1, cardPos.z + 0.15);
