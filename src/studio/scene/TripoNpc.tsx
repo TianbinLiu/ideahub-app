@@ -97,6 +97,14 @@ export default function TripoNpc({
       act.setLoop(THREE.LoopOnce, 1);
       out[name] = act;
     }
+    // lean（全身俯身压桌托腮）拆两层：身体层常驻；手臂层在 wave/deal 演出时让位
+    const leanClip = THREE.AnimationClip.findByName(gltf.animations, "lean");
+    if (leanClip) {
+      const body = leanClip.tracks.filter((tr) => /(Spine|Spine1|Spine2|Neck|Head)\.quaternion$/.test(tr.name));
+      const arm = leanClip.tracks.filter((tr) => /Left(Arm|ForeArm|Hand)\.quaternion$/.test(tr.name));
+      out.leanBody = mixer.clipAction(new THREE.AnimationClip("leanBody", leanClip.duration, body));
+      out.leanArm = mixer.clipAction(new THREE.AnimationClip("leanArm", leanClip.duration, arm));
+    }
     return out;
   }, [gltf, mixer]);
   const prevDialog = useRef(false);
@@ -228,9 +236,26 @@ export default function TripoNpc({
             : 0.22;
         inf[dict.smile] += (target - inf[dict.smile]) * Math.min(1, dt * 6);
       }
-      // 胸部撑桌：squish 仅 bust 压桌姿势启用；其它模式显式归零（glTF 可能携带非零默认权重）
+      // 胸部撑桌：bust/full 压桌姿势启用；其它模式显式归零（glTF 可能携带非零默认权重）
       if (dict.squish !== undefined)
-        inf[dict.squish] = bust ? 0.72 + Math.sin(t * 1.1) * 0.18 : 0;
+        inf[dict.squish] = bust || full ? 0.72 + Math.sin(t * 1.1) * 0.18 : 0;
+    }
+    // full：lean（俯身压桌托腮）双层常驻，钉在末帧；手臂层在演出播放期间让位
+    if (full && perfActions.leanBody) {
+      const pin = (a: THREE.AnimationAction) => {
+        if (!a.isRunning()) {
+          a.reset().play();
+          a.time = a.getClip().duration;
+          a.paused = true;
+        }
+      };
+      pin(perfActions.leanBody);
+      const performing = perfActions.wave?.isRunning() || perfActions.deal?.isRunning();
+      if (performing) {
+        if (perfActions.leanArm?.isRunning()) perfActions.leanArm.stop();
+      } else if (perfActions.leanArm) {
+        pin(perfActions.leanArm);
+      }
     }
     // 演出触发：进入对话视角→招手；推荐卡刷新→发牌（挥卡）
     if (bust || full) {
