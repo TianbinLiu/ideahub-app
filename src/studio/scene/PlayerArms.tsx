@@ -19,8 +19,10 @@ const BONES = {
 } as const;
 
 export default function PlayerArms({ avatar }: { avatar: "m" | "f" }) {
-  // think 版 = 绑骨模型 + Blender IK 烘的"低头看镜头手摸下巴"1 帧动画
-  const gltf = useLoader(GLTFLoader, `/models/preview/player-${avatar}-think-opt.glb`, (loader) => {
+  // think 版 = 绑骨模型 + Blender matrix 法烘的"低头看镜头手摸下巴"1 帧动画
+  // （v2：欧拉直设导出参考系错乱使弯腰过深、头贴桌面——matrix 法重烘 + 浅弯保头在桌沿上；
+  //   url 版本号：重烘后必须升版破 useLoader/HTTP 缓存）
+  const gltf = useLoader(GLTFLoader, `/models/preview/player-${avatar}-think-opt.glb?v=think2`, (loader) => {
     (loader as GLTFLoader).setMeshoptDecoder(MeshoptDecoder);
   });
   const bones = useRef<Record<string, THREE.Object3D | null>>({});
@@ -85,15 +87,19 @@ export default function PlayerArms({ avatar }: { avatar: "m" | "f" }) {
     const breathe = Math.sin(t * 1.15 + 1.7) * 0.01;
     if (deckView && thinkAction) {
       // 思考姿势：钉在 clip 末帧（首 key 是 rest）。paused 的 mixer 只保证首帧写入、
-      // 后续可能跳采样——因此绝不在骨骼上做叠加（会累积卷塌），呼吸改由 group 整体浮动表达
-      if (!thinkAction.isRunning()) {
+      // 后续可能跳采样——因此绝不在骨骼上做叠加（会累积卷塌），呼吸改由 group 整体浮动表达。
+      // 坑：paused 的 action isRunning()===false 但仍占据 mixer 激活位——不先 stop() 彻底
+      // 反激活，二次进入时 reset().play() 不会重新触发首帧采样，骨骼保留退出时的
+      // FPS 低头姿势 → 头埋到桌面
+      if (!thinkAction.isRunning() && !thinkAction.paused) {
+        thinkAction.stop();
         thinkAction.reset().play();
         thinkAction.time = thinkAction.getClip().duration;
         thinkAction.paused = true;
       }
       mixer.update(0.000001);
     } else {
-      if (thinkAction?.isRunning()) thinkAction.stop();
+      if (thinkAction && (thinkAction.isRunning() || thinkAction.paused)) thinkAction.stop();
       for (const k of Object.keys(BONES) as (keyof typeof BONES)[]) {
         const n = bones.current[k];
         const v = p2[k] as [number, number, number] | null;

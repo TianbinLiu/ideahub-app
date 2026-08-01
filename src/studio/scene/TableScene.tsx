@@ -9,6 +9,7 @@ import {
   CARD,
   CHAIN,
   COMPOSE_POS,
+  DECK_CAM,
   DECK_POS,
   DEFAULT_CAM,
   FLOAT_Y,
@@ -59,12 +60,42 @@ export function computeChain(root: NodeSlot | null): ChainLayout {
 }
 
 // ── 相机：朝目标位姿缓动（transient 直读 store，避免订阅延迟一帧） ──
+// 卡组视角例外：直线下冲+视线翻转会晕——改走"玩家前方圆心"的竖直弧线，
+// 半径先收、角度后扫（螺旋收拢），全程 lookAt 玩家，高度从头顶匀滑降到桌面。
 function CameraRig() {
   const look = useRef(new THREE.Vector3(...DEFAULT_CAM.look));
   const tmp = useRef(new THREE.Vector3());
+  const deckAnim = useRef<{ p: number; start: THREE.Vector3 } | null>(null);
+  const prevDeck = useRef(false);
   useFrame(({ camera }, dt) => {
-    const cam = useStudio.getState().camera;
-    const target = cam.kind === "default" ? DEFAULT_CAM : cam;
+    const st = useStudio.getState();
+    const target = st.camera.kind === "default" ? DEFAULT_CAM : st.camera;
+    if (st.deckView && !prevDeck.current) {
+      deckAnim.current = { p: 0, start: camera.position.clone() };
+    }
+    prevDeck.current = st.deckView;
+    if (!st.deckView) deckAnim.current = null;
+    const anim = deckAnim.current;
+    if (anim && st.deckView) {
+      anim.p = Math.min(1, anim.p + dt / 1.8);
+      const p = anim.p * anim.p * (3 - 2 * anim.p);
+      const C = { y: 0.5, z: 4.55 }; // 圆心：玩家胸前方（x=0 竖直平面）
+      const [ex, ey, ez] = DECK_CAM.pos;
+      const a0 = Math.atan2(anim.start.y - C.y, anim.start.z - C.z);
+      const a1 = Math.atan2(ey - C.y, ez - C.z);
+      let da = a1 - a0;
+      while (da > Math.PI) da -= Math.PI * 2;
+      while (da < -Math.PI) da += Math.PI * 2;
+      const a = a0 + da * p;
+      const r0 = Math.hypot(anim.start.y - C.y, anim.start.z - C.z);
+      const r1 = Math.hypot(ey - C.y, ez - C.z);
+      const r = r0 + (r1 - r0) * Math.min(1, p * 1.6); // 半径先收拢再顺弧扫过
+      camera.position.set(anim.start.x * (1 - p) + ex * p, C.y + Math.sin(a) * r, C.z + Math.cos(a) * r);
+      look.current.lerp(tmp.current.set(...DECK_CAM.look), Math.min(1, p * 2.4)); // 视线快速锚定玩家
+      camera.lookAt(look.current);
+      if (anim.p >= 1) deckAnim.current = null;
+      return;
+    }
     const k = 1 - Math.exp(-dt * 4.5);
     camera.position.lerp(tmp.current.set(...target.pos), k);
     look.current.lerp(tmp.current.set(...target.look), k);
@@ -1039,7 +1070,7 @@ export default function TableScene() {
           <VrmNpc />
         ) : (
           // url 带版本号：模型重烘后必须升版破 useLoader/HTTP 缓存
-          <TripoNpc url="/models/preview/npc-full-face-opt.glb?v=lean4" full />
+          <TripoNpc url="/models/preview/npc-full-face-opt.glb?v=lean7" full />
         )}
       </Suspense>
       <PlayerHandsSwitch />

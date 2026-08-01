@@ -97,10 +97,12 @@ export default function TripoNpc({
       act.setLoop(THREE.LoopOnce, 1);
       out[name] = act;
     }
-    // lean（全身俯身压桌托腮）拆两层：身体层常驻；手臂层在 wave/deal 演出时让位
+    // lean（全身俯身压桌托腮）拆两层：身体层（髋/脊柱/颈头/右臂撑桌）常驻；左臂层在 wave/deal 演出时让位
     const leanClip = THREE.AnimationClip.findByName(gltf.animations, "lean");
     if (leanClip) {
-      const body = leanClip.tracks.filter((tr) => /(Spine|Spine1|Spine2|Neck|Head)\.quaternion$/.test(tr.name));
+      const body = leanClip.tracks.filter((tr) =>
+        /(Hips|Spine|Spine1|Spine2|Neck|Head|Right(Arm|ForeArm|Hand))\.quaternion$/.test(tr.name),
+      );
       const arm = leanClip.tracks.filter((tr) => /Left(Arm|ForeArm|Hand)\.quaternion$/.test(tr.name));
       out.leanBody = mixer.clipAction(new THREE.AnimationClip("leanBody", leanClip.duration, body));
       out.leanArm = mixer.clipAction(new THREE.AnimationClip("leanArm", leanClip.duration, arm));
@@ -113,7 +115,26 @@ export default function TripoNpc({
   const leanPendingAt = useRef(0);
   const cardMeshRef = useRef<THREE.Mesh | null>(null);
   const cardIdRef = useRef<string | null>(null);
+  const shadowFeltRef = useRef<THREE.Mesh | null>(null);
+  const shadowRailRef = useRef<THREE.Mesh | null>(null);
   const recommend = useStudio((s) => s.recommendCard);
+
+  // 接触阴影贴片：俯拍机位下"压上桌"的重量感全靠它（径向渐变软边椭圆）
+  const shadowTex = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = 256;
+    c.height = 128;
+    const ctx = c.getContext("2d")!;
+    const g = ctx.createRadialGradient(128, 64, 8, 128, 64, 122);
+    g.addColorStop(0, "rgba(0,0,0,0.60)");
+    g.addColorStop(0.55, "rgba(0,0,0,0.30)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(128, 64, 124, 60, 0, 0, Math.PI * 2);
+    ctx.fill();
+    return new THREE.CanvasTexture(c);
+  }, []);
 
   const { scale, y } = useMemo(() => {
     gltf.scene.traverse((o) => {
@@ -194,6 +215,13 @@ export default function TripoNpc({
     const st = useStudio.getState();
     // full 对话状态：骨骼全交 lean 动画（clamp 暂停后不再重写——手动 set 会把她顶回站姿）
     const leanDriving = full && st.dialogView;
+    // lean 过渡进度（0 站姿 → 1 伏桌定格）：驱动 squish 接触门控与身体整体前移下沉
+    let leanP = 0;
+    if (full && perfActions.leanBody) {
+      const lb = perfActions.leanBody;
+      if (lb.isRunning() || lb.paused)
+        leanP = Math.min(1, lb.time / Math.max(0.001, lb.getClip().duration));
+    }
     if (!leanDriving) {
       for (const k of Object.keys(POSE_KEYS) as (keyof typeof POSE_KEYS)[]) {
         const n = b[k];
@@ -243,17 +271,15 @@ export default function TripoNpc({
             : 0.22;
         inf[dict.smile] += (target - inf[dict.smile]) * Math.min(1, dt * 6);
       }
-      // 胸部撑桌：bust 常驻；full 跟随 lean 过渡进度渐入（胸贴上桌沿的同时才压扁）
+      // 胸部撑桌：bust 常驻；full 只在过渡后段胸口真正贴上桌沿时渐入，且封顶 0.58——
+      // 过早/满值压扁悬空的胸部会显得模型变形
       if (dict.squish !== undefined) {
         let squish = 0;
         if (bust) squish = 0.72 + Math.sin(t * 1.1) * 0.18;
-        else if (full && st.dialogView) {
-          const lb = perfActions.leanBody;
-          const p =
-            lb && (lb.isRunning() || lb.paused)
-              ? Math.min(1, lb.time / Math.max(0.001, lb.getClip().duration))
-              : 0;
-          squish = p * (0.72 + Math.sin(t * 1.1) * 0.18);
+        else if (full) {
+          const contact = Math.min(1, Math.max(0, (leanP - 0.55) / 0.45));
+          const cEase = contact * contact * (3 - 2 * contact);
+          squish = cEase * (0.5 + Math.sin(t * 1.1) * 0.08);
         }
         inf[dict.squish] = squish;
       }
@@ -264,7 +290,13 @@ export default function TripoNpc({
         if (!a) return;
         a.setLoop(THREE.LoopOnce, 1);
         a.clampWhenFinished = true;
-        a.reset().play();
+        // 若正处于倒播/中途——从当前姿势顺播续上，不重置（避免瞬跳回站姿）
+        const mid =
+          (a.isRunning() || a.paused) && a.time > 0.001 && a.time < a.getClip().duration - 0.001;
+        a.timeScale = 1;
+        a.paused = false;
+        if (mid) a.play();
+        else a.reset().play();
       };
       if (st.dialogView && !prevDialog.current) {
         perfActions.wave?.stop();
@@ -272,9 +304,21 @@ export default function TripoNpc({
         leanPendingAt.current = t + 0.9;
       } else if (!st.dialogView && prevDialog.current) {
         leanPendingAt.current = 0;
-        perfActions.leanBody.stop();
-        perfActions.leanArm?.stop();
+        // 退出对话：倒播过渡缓缓直起身（不瞬移回站姿）
+        for (const a of [perfActions.leanBody, perfActions.leanArm]) {
+          if (a && (a.isRunning() || a.paused) && a.time > 0.001) {
+            a.paused = false;
+            a.timeScale = -1.8;
+            a.play();
+          }
+        }
         perfActions.deal?.stop();
+      }
+      // 倒播回到站姿后彻底停掉动画，交还程序驱动（呼吸/微姿态）
+      if (!st.dialogView) {
+        for (const a of [perfActions.leanBody, perfActions.leanArm]) {
+          if (a && a.paused && a.time <= 0.001) a.stop();
+        }
       }
       if (leanPendingAt.current > 0 && t >= leanPendingAt.current && st.dialogView) {
         leanPendingAt.current = 0;
@@ -294,6 +338,19 @@ export default function TripoNpc({
         perfActions.wave.reset().play();
       }
       prevDialog.current = st.dialogView;
+    }
+    // 伏桌时身体整体前移+下沉：关节弯曲只完成一半姿态，剩下靠重心挪——胸口落上桌沿。
+    // 幅度=剪影下缘恰好与护栏顶相切（越过桌沿溢到桌毡会读作"前穿"而非"压在上面"）
+    // （随 leanP 缓动，退出倒播时自动缩回；微幅正弦=伏桌呼吸起伏）
+    if (full) {
+      const le = leanP * leanP * (3 - 2 * leanP);
+      gltf.scene.position.z = -4.35 + 0.22 * le;
+      gltf.scene.position.y = y - 0.02 * le + le * Math.sin(t * 1.1) * 0.01;
+      // 接触阴影渐显：俯拍机位下"重量压上去"的唯一廉价线索
+      const sf = shadowFeltRef.current;
+      const sr = shadowRailRef.current;
+      if (sf) (sf.material as THREE.MeshBasicMaterial).opacity = 0.6 * le;
+      if (sr) (sr.material as THREE.MeshBasicMaterial).opacity = 0.5 * le;
     }
     // 演出动画先应用（LoopOnce 播放期间覆盖左臂程序姿势，播完自动交还），
     // 再读手骨位置更新持卡——发牌挥动时卡精确跟手。
@@ -326,6 +383,19 @@ export default function TripoNpc({
     <group>
       {/* full 站在桌后（落地裙）；bust z：胸前缘恰好压上桌沿 rail，配合 squish 呈"撑在桌面"贴合 */}
       <primitive object={gltf.scene} position={[0, y, full ? -4.35 : bust ? -4.28 : -3.9]} scale={scale} />
+      {/* 伏桌接触阴影：桌毡一片 + 护栏顶一片，透明度随 lean 进度渐入 */}
+      {full && (
+        <>
+          <mesh ref={shadowFeltRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.072, -3.28]} renderOrder={2}>
+            <planeGeometry args={[2.0, 0.9]} />
+            <meshBasicMaterial map={shadowTex} transparent opacity={0} depthWrite={false} />
+          </mesh>
+          <mesh ref={shadowRailRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.262, -3.55]} renderOrder={2}>
+            <planeGeometry args={[1.8, 0.5]} />
+            <meshBasicMaterial map={shadowTex} transparent opacity={0} depthWrite={false} />
+          </mesh>
+        </>
+      )}
       <mesh
         ref={cardMeshRef}
         rotation={[-0.18, -0.12, 0.05]}
