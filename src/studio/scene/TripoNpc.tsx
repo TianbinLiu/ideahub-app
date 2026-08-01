@@ -108,6 +108,7 @@ export default function TripoNpc({
     return out;
   }, [gltf, mixer]);
   const prevDialog = useRef(false);
+  const dealWasRunning = useRef(false);
   const cardMeshRef = useRef<THREE.Mesh | null>(null);
   const cardIdRef = useRef<string | null>(null);
   const recommend = useStudio((s) => s.recommendCard);
@@ -188,12 +189,16 @@ export default function TripoNpc({
     const t = clock.elapsedTime;
     const b = bones.current;
     const breathe = Math.sin(t * 1.1) * 0.015;
-    for (const k of Object.keys(POSE_KEYS) as (keyof typeof POSE_KEYS)[]) {
-      const n = b[k];
-      const v = p2[k] as [number, number, number] | null;
-      if (n && v) n.rotation.set(v[0] + (k === "spine1" ? breathe : 0), v[1], v[2]);
-    }
     const st = useStudio.getState();
+    // full 对话状态：骨骼全交 lean 动画（clamp 暂停后不再重写——手动 set 会把她顶回站姿）
+    const leanDriving = full && st.dialogView;
+    if (!leanDriving) {
+      for (const k of Object.keys(POSE_KEYS) as (keyof typeof POSE_KEYS)[]) {
+        const n = b[k];
+        const v = p2[k] as [number, number, number] | null;
+        if (n && v) n.rotation.set(v[0] + (k === "spine1" ? breathe : 0), v[1], v[2]);
+      }
+    }
     // 表情 morph：随机间隔眨眼（偶发双眨）+ npcSay 驱动口型 + 情绪事件驱动笑意 + 胸部压桌
     const mm = morphMesh.current;
     if (mm && mm.morphTargetDictionary && mm.morphTargetInfluences) {
@@ -236,29 +241,37 @@ export default function TripoNpc({
             : 0.22;
         inf[dict.smile] += (target - inf[dict.smile]) * Math.min(1, dt * 6);
       }
-      // 胸部撑桌：bust/full 压桌姿势启用；其它模式显式归零（glTF 可能携带非零默认权重）
+      // 胸部撑桌：bust 常驻；full 仅对话俯身时启用；其它显式归零（glTF 可能携带非零默认权重）
       if (dict.squish !== undefined)
-        inf[dict.squish] = bust || full ? 0.72 + Math.sin(t * 1.1) * 0.18 : 0;
+        inf[dict.squish] =
+          bust || (full && st.dialogView) ? 0.72 + Math.sin(t * 1.1) * 0.18 : 0;
     }
-    // full：lean（俯身压桌托腮）双层常驻，钉在末帧；手臂层在演出播放期间让位
+    // full 状态机：站立（无动画=rest）↔ 对话（播 lean 过渡：前倾压桌+托腮，clamp 停末帧）
     if (full && perfActions.leanBody) {
-      const pin = (a: THREE.AnimationAction) => {
-        if (!a.isRunning()) {
-          a.reset().play();
-          a.time = a.getClip().duration;
-          a.paused = true;
-        }
+      const playLean = (a?: THREE.AnimationAction) => {
+        if (!a) return;
+        a.setLoop(THREE.LoopOnce, 1);
+        a.clampWhenFinished = true;
+        a.reset().play();
       };
-      pin(perfActions.leanBody);
-      const performing = perfActions.wave?.isRunning() || perfActions.deal?.isRunning();
-      if (performing) {
-        if (perfActions.leanArm?.isRunning()) perfActions.leanArm.stop();
-      } else if (perfActions.leanArm) {
-        pin(perfActions.leanArm);
+      if (st.dialogView && !prevDialog.current) {
+        perfActions.wave?.stop();
+        perfActions.deal?.stop();
+        playLean(perfActions.leanBody);
+        playLean(perfActions.leanArm);
+      } else if (!st.dialogView && prevDialog.current) {
+        perfActions.leanBody.stop();
+        perfActions.leanArm?.stop();
+        perfActions.deal?.stop();
       }
-    }
-    // 演出触发：进入对话视角→招手；推荐卡刷新→发牌（挥卡）
-    if (bust || full) {
+      // deal 发牌演出结束 → 左手过渡回托腮（重播 leanArm 的过渡段）
+      const dealing = !!perfActions.deal?.isRunning();
+      if (dealing && perfActions.leanArm?.isRunning()) perfActions.leanArm.stop();
+      if (!dealing && dealWasRunning.current && st.dialogView) playLean(perfActions.leanArm);
+      dealWasRunning.current = dealing;
+      prevDialog.current = st.dialogView;
+    } else if (bust) {
+      // bust：进入对话→招手
       if (st.dialogView && !prevDialog.current && perfActions.wave) {
         perfActions.deal?.stop();
         perfActions.wave.reset().play();
