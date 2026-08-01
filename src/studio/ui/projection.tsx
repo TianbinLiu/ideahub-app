@@ -22,7 +22,7 @@ export default function ProjectionWindow() {
         }}
       />
       {/* 半透明全息面板：透出后方 3D 桌景，靠模糊保证可读性 */}
-      <div className="absolute inset-x-2 top-[3%] bottom-[35%] flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142b]/60 shadow-[0_0_60px_rgba(103,232,249,0.28)] backdrop-blur-md">
+      <div className="absolute inset-x-2 top-[3%] bottom-[35%] flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142b]/40 shadow-[0_0_60px_rgba(103,232,249,0.28)] backdrop-blur-lg">
         {projection === "editor" ? <EditorPanel /> : <ProposalsPanel />}
       </div>
     </div>
@@ -161,37 +161,32 @@ function EditorPanel() {
             />
           </div>
 
-          {/* ④ 视频时长：单行合一——点「AI 决定」或直接拖滑条即自定义 */}
+          {/* ④ 视频时长：单输入框——留空 = AI 决定，填数字 = 按用户输入（2-15 秒，失焦时收拢） */}
           <div className="flex flex-none items-center gap-2.5">
             <span className="flex-none text-xs font-semibold text-slate-300">视频时长</span>
-            <button
-              onClick={() => useStudio.getState().setDurationMode("ai")}
-              className={`flex-none rounded-full px-2.5 py-1 text-[11px] transition ${
-                editor.durationMode === "ai"
-                  ? "bg-cyan-400/25 font-semibold text-cyan-200 ring-1 ring-cyan-400/60"
-                  : "bg-slate-700/60 text-slate-400"
-              }`}
-            >
-              AI 决定
-            </button>
             <input
-              type="range"
+              type="number"
               min={2}
               max={15}
-              step={1}
-              value={editor.durationSec}
+              value={editor.durationMode === "manual" ? editor.durationSec : ""}
+              placeholder="AI 决定"
               onChange={(e) => {
-                useStudio.getState().setDurationMode("manual");
-                useStudio.getState().setDurationSec(Number(e.target.value));
+                const v = e.target.value;
+                if (v === "") {
+                  useStudio.getState().setDurationMode("ai");
+                } else {
+                  useStudio.getState().setDurationMode("manual");
+                  useStudio.getState().setDurationSec(Number(v));
+                }
               }}
-              className="min-w-0 flex-1 accent-cyan-400"
+              onBlur={() => {
+                if (editor.durationMode === "manual")
+                  useStudio.getState().setDurationSec(Math.min(15, Math.max(2, editor.durationSec || 2)));
+              }}
+              className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-black/30 px-2.5 py-1.5 text-xs text-cyan-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
             />
-            <span
-              className={`w-8 flex-none text-right text-xs tabular-nums ${
-                editor.durationMode === "manual" ? "font-semibold text-cyan-200" : "text-slate-500"
-              }`}
-            >
-              {editor.durationMode === "manual" ? `${editor.durationSec}s` : "auto"}
+            <span className="flex-none text-xs text-slate-400" title="留空由 AI 决定；可填 2-15">
+              秒
             </span>
           </div>
         </div>
