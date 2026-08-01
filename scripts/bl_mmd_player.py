@@ -7,6 +7,8 @@ import sys
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
 SRC, DST = argv[0], argv[1]
+# 可选第 3 参=think 托腮点相对头骨的 z 偏移（脸长的模型要更低，默认 -0.11）
+CHIN_Z = float(argv[2]) if len(argv) > 2 else -0.11
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.preferences.addon_enable(module="bl_ext.user_default.mmd_tools")
@@ -87,12 +89,104 @@ for mesh in meshes:
             mat.blend_method = "CLIP"
         mat.use_backface_culling = False
 
+# ── think 姿势烘焙（卡组视角）：f1 rest → f10 低头歪头+左手托下巴 ──
+# 世界系矩阵摆姿势 + 坐标下降解腕（对 MMD/UE 骨局部轴向免疫，目标按头/肩实际位置
+# 相对推算，两模型通吃）；只 keyframe FPS 姿势表同款 7 骨——退出 deckView 后
+# else 分支逐帧重写它们，不会留残姿势
+if arm is not None and arm.data.bones.get("mixamorig:Head"):
+    from mathutils import Matrix, Vector
+
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode="POSE")
+    pb = arm.pose.bones
+    mw = arm.matrix_world
+    ORDER = ["mixamorig:Spine1", "mixamorig:Neck", "mixamorig:Head",
+             "mixamorig:LeftArm", "mixamorig:LeftForeArm", "mixamorig:LeftHand",
+             "mixamorig:RightArm", "mixamorig:RightForeArm"]
+    for n in ORDER:
+        pb[n].rotation_mode = "XYZ"
+
+    def rot_world(name, axis, angle):
+        """绕世界轴旋转 pose bone（原地，平移不动）——免局部轴向考古"""
+        b = pb[name]
+        loc = b.matrix.to_translation()
+        b.matrix = Matrix.Translation(loc) @ Matrix.Rotation(angle, 4, axis) @ Matrix.Translation(-loc) @ b.matrix
+        bpy.context.view_layer.update()
+
+    def key_pose(frame):
+        bpy.context.view_layer.update()
+        mats = {n: pb[n].matrix.copy() for n in ORDER}
+        bpy.context.scene.frame_set(frame)
+        for n in ORDER:
+            pb[n].matrix = mats[n]
+            bpy.context.view_layer.update()
+        for n in ORDER:
+            pb[n].keyframe_insert(data_path="rotation_euler", frame=frame)
+
+    def solve_arm(tip_name, chain, target, elbow_hint):
+        tip, elbow = pb[tip_name], pb[chain[1]]
+        bones = [pb[chain[0]], pb[chain[1]]]
+
+        def score():
+            bpy.context.view_layer.update()
+            s = ((mw @ tip.head) - target).length
+            s += 0.6 * ((mw @ elbow.head) - elbow_hint).length
+            return s
+
+        cur = score()
+        s = 0.4
+        while s >= 0.02:
+            improved = False
+            for b in bones:
+                for ax in range(3):
+                    for sign in (1.0, -1.0):
+                        old = b.rotation_euler[:]
+                        e = list(old)
+                        e[ax] += sign * s
+                        b.rotation_euler = e
+                        d = score()
+                        if d < cur - 1e-5:
+                            cur = d
+                            improved = True
+                        else:
+                            b.rotation_euler = old
+            if not improved:
+                s *= 0.55
+        return cur
+
+    act = bpy.data.actions.new("think")
+    if arm.animation_data is None:
+        arm.animation_data_create()
+    arm.animation_data.action = act
+    key_pose(1)  # rest
+    # 前倾+低头+歪头（坐标系：脸=-Y、上=+Z、她左=+X；绕世界 +X 正角=前倾）
+    rot_world("mixamorig:Spine1", "X", 0.28)
+    rot_world("mixamorig:Neck", "X", 0.18)
+    rot_world("mixamorig:Head", "X", 0.22)
+    rot_world("mixamorig:Head", "Y", 0.10)
+    head_pos = mw @ pb["mixamorig:Head"].head
+    shoulder = mw @ pb["mixamorig:LeftArm"].head
+    # 托颚线外侧（不是下巴正前/眼侧）：正前大袖挡脸、太高手套压眼——贴颚下缘最自然
+    chin = head_pos + Vector((0.10, -0.10, CHIN_Z))
+    hint = shoulder + Vector((0.10, -0.02, -0.24))
+    res = solve_arm("mixamorig:LeftHand", ["mixamorig:LeftArm", "mixamorig:LeftForeArm"], chin, hint)
+    print(f"THINK solve residual {res:.3f}  chin {[round(v,3) for v in chin]}")
+    # 掌心内旋朝脸（rest 掌朝镜头会读作"打招呼"）：左手绕世界竖轴 -70°
+    rot_world("mixamorig:LeftHand", "Z", -1.2)
+    key_pose(10)
+    tr = arm.animation_data.nla_tracks.new()
+    tr.name = "think"
+    tr.strips.new("think", 1, act)
+    arm.animation_data.action = None
+    bpy.ops.object.mode_set(mode="OBJECT")
+    print("THINK baked")
+
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.export_scene.gltf(
     filepath=DST,
     export_format="GLB",
     export_skins=True,
-    export_animations=False,
+    export_animations=True,
     export_morph=False,
     export_image_format="AUTO",
     export_yup=True,

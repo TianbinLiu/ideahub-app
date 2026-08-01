@@ -37,6 +37,7 @@ const PRUNE = [
   "protected/rin-player-opt.glbx",
   "protected/rin-sword-opt.glbx",
   "protected/gratia-player-opt.glbx",
+  "protected/gratia-rapier-opt.glbx",
   "protected/rin-preview.webp",
   "protected/gratia-preview.webp",
 ];

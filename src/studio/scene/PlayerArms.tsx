@@ -68,7 +68,7 @@ const RIGS: Record<
     scale: 4.3,
     y: -2.9,
     z: 4.95,
-    deckY: -5.3,
+    deckY: -5.55,
     pose: MMD_POSE,
     // 双马尾/后发/刘海/发饰/项链吊坠（裙 180 骨两个可见视角都出画，不接省性能）
     springs: ["馬尾", "後髪", "劉海", "髮飾", "吊墜"],
@@ -79,7 +79,7 @@ const RIGS: Record<
     scale: 4.1,
     y: -2.9,
     z: 4.95,
-    deckY: -5.8,
+    deckY: -6.05,
     pose: MMD_POSE,
     // UE 动骨 dyn_ 前缀：三组发链 + 领带（スカート 260 骨出画不接）
     springs: ["dyn_hair", "tie"],
@@ -87,29 +87,34 @@ const RIGS: Record<
   },
 };
 
-/** 凛的宝石剑（同包道具 PMX 转制）：悬浮在右掌上方缓旋+浮动——
- *  贴合"施法悬手"构图的魔法道具，与全息卡视觉语言一致（握持版四朝向实测都别扭） */
-function RinSword({ scene }: { scene: THREE.Object3D }) {
-  const url = "/models/protected/rin-sword-opt.glbx?v=p1";
-  const swordGltf = useLoader(loaderFor(url), url, (loader) => {
+/** 悬浮法器（试穿档专属道具）：挂右手骨、掌上方缓旋+浮动——贴合"施法悬手"构图的
+ *  魔法道具，与全息卡视觉语言一致（握持版四朝向实测都别扭）。凛=同包宝石剑 PMX、
+ *  Gratia=UE 解包细剑（UEFormat 插件转制） */
+const HOVER_PROPS: Partial<Record<PlayerAvatar, { url: string; y: number; scale: number; outline: number }>> = {
+  rin: { url: "/models/protected/rin-sword-opt.glbx?v=p1", y: 0.17, scale: 0.75, outline: 0.002 },
+  gratia: { url: "/models/protected/gratia-rapier-opt.glbx?v=p1", y: 0.2, scale: 0.32, outline: 0.002 },
+};
+
+function HoverProp({ scene, cfg }: { scene: THREE.Object3D; cfg: NonNullable<(typeof HOVER_PROPS)[PlayerAvatar]> }) {
+  const propGltf = useLoader(loaderFor(cfg.url), cfg.url, (loader) => {
     (loader as GLTFLoader).setMeshoptDecoder(MeshoptDecoder);
   });
-  useMemo(() => toonify(swordGltf.scene, 0.002), [swordGltf]);
+  useMemo(() => toonify(propGltf.scene, cfg.outline), [propGltf, cfg]);
   useEffect(() => {
     const hand = scene.getObjectByName("mixamorigRightHand");
     if (!hand) return;
-    const sword = swordGltf.scene;
-    sword.position.set(0, 0.17, 0.03);
-    sword.scale.setScalar(0.75);
-    hand.add(sword);
+    const prop = propGltf.scene;
+    prop.position.set(0, cfg.y, 0.03);
+    prop.scale.setScalar(cfg.scale);
+    hand.add(prop);
     return () => {
-      hand.remove(sword);
+      hand.remove(prop);
     };
-  }, [swordGltf, scene]);
+  }, [propGltf, scene, cfg]);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    swordGltf.scene.rotation.y = t * 0.9;
-    swordGltf.scene.position.y = 0.17 + Math.sin(t * 1.6) * 0.012;
+    propGltf.scene.rotation.y = t * 0.9;
+    propGltf.scene.position.y = cfg.y + Math.sin(t * 1.6) * 0.012;
   });
   return null;
 }
@@ -145,6 +150,10 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       // 记录加载时（未播动画=rest）的四元数，姿势表统一改为"相对 rest 的增量"（Tripo 系 rest≈单位，语义不变）
       if (b) restQ.current[k] = b.quaternion.clone();
     }
+    // 左手骨额外记录：think 里掌心内旋被 keyframe，退出后 FPS 不驱动手骨会卡在内旋态——须显式回 rest
+    const lh = gltf.scene.getObjectByName("mixamorigLeftHand");
+    bones.current.lHand = lh ?? null;
+    if (lh) restQ.current.lHand = lh.quaternion.clone();
     toonify(gltf.scene, 0.0012);
     // 朝向修正按 rig 家族：玩家背对镜头面向 NPC（-Z 方向）
     gltf.scene.rotation.set(0, rig.yaw, 0);
@@ -157,6 +166,7 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       ...rig.pose,
       y: rig.y,
       z: rig.z,
+      deckY: rig.deckY as number | undefined,
       freeze: false,
     };
     if (import.meta.env.DEV) {
@@ -286,6 +296,9 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
           else n.rotation.set(gv.ePose.x, gv.ePose.y, gv.ePose.z);
         }
       }
+      // think 退出复位：手骨不在 FPS 姿势表里，不显式回 rest 会卡在托腮内旋态
+      const lh = bones.current.lHand;
+      if (lh && restQ.current.lHand) lh.quaternion.copy(restQ.current.lHand);
       // MMD 档卡组视角（无 think 动画）：姿势写入后同样叠加注视镜头，让特写有生命感
       const head2 = bones.current.head;
       if (showSelf && head2) applyGaze(head2, t, camera);
@@ -296,7 +309,7 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       const s = showSelf ? 1 : 0.001;
       if (head.scale.x !== s) head.scale.set(s, s, s);
     }
-    const baseY = showSelf && rig.deckY !== undefined ? rig.deckY : p2.y;
+    const baseY = showSelf && p2.deckY !== undefined ? p2.deckY : p2.y;
     if (group.current) group.current.position.set(0, baseY + (showSelf ? breathe * 0.6 : 0), p2.z);
     // 弹簧骨在姿势之后模拟（读最新世界矩阵，回写局部旋转）
     if (springSim) {
@@ -308,7 +321,7 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
   return (
     <group ref={group} position={[0, pose.y, pose.z]}>
       <primitive object={gltf.scene} scale={rig.scale} />
-      {avatar === "rin" && <RinSword scene={gltf.scene} />}
+      {HOVER_PROPS[avatar] && <HoverProp scene={gltf.scene} cfg={HOVER_PROPS[avatar]!} />}
       {/* 玩家侧补光：烛光都在桌北，肩臂需要一点暖光才可读 */}
       <pointLight position={[0, 4.2, -0.6]} intensity={6} distance={7} color="#ffdbb0" />
     </group>

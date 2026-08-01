@@ -41,8 +41,8 @@ export function npcModelUrl(): string {
 export type PlayerAvatar = "m" | "f" | "rin" | "gratia";
 
 const DEV_AVATAR_URLS: Record<string, string> = {
-  rin: "/models/protected/rin-player-opt.glbx?v=p1",
-  gratia: "/models/protected/gratia-player-opt.glbx?v=p1",
+  rin: "/models/protected/rin-player-opt.glbx?v=p2",
+  gratia: "/models/protected/gratia-player-opt.glbx?v=p2",
 };
 
 export function playerModelUrl(avatar: PlayerAvatar): string {
