@@ -402,9 +402,9 @@ export default function TripoNpc({
     // （随 leanP 缓动，退出倒播时自动缩回；微幅正弦=伏桌呼吸起伏）
     if (full) {
       const le = leanP * leanP * (3 - 2 * leanP);
-      gltf.scene.position.z = -4.35 + 0.22 * le;
+      gltf.scene.position.z = -4.35 + 0.34 * le;
       // 呼吸移到 group（骨骼全程动画驱动，骨上叠加会累积）：站姿轻微、伏桌稍明显
-      gltf.scene.position.y = y - 0.02 * le + Math.sin(t * 1.1) * (0.004 + 0.008 * le);
+      gltf.scene.position.y = y - 0.05 * le + Math.sin(t * 1.1) * (0.004 + 0.008 * le);
       // 接触阴影渐显：俯拍机位下"重量压上去"的唯一廉价线索
       const sf = shadowFeltRef.current;
       const sr = shadowRailRef.current;
