@@ -127,6 +127,11 @@ interface StudioState {
   mood: number;
   moodUntil: number;
   setMood: (mood: number, ms: number) => void;
+  /** 玩家形象（第一人称手臂/选择界面），localStorage 持久化 */
+  playerAvatar: "m" | "f";
+  setPlayerAvatar: (a: "m" | "f") => void;
+  avatarPickerOpen: boolean;
+  setAvatarPickerOpen: (open: boolean) => void;
 
   npcSay: (text: string) => void;
   meSay: (text: string) => void;
@@ -212,6 +217,16 @@ export const useStudio = create<StudioState>()((set, get) => ({
   mood: 0,
   moodUntil: 0,
   setMood: (mood, ms) => set({ mood, moodUntil: Date.now() + ms }),
+  playerAvatar: ((): "m" | "f" => {
+    const v = localStorage.getItem("ideahub-app.avatar");
+    return v === "m" ? "m" : "f";
+  })(),
+  setPlayerAvatar: (a) => {
+    localStorage.setItem("ideahub-app.avatar", a);
+    set({ playerAvatar: a });
+  },
+  avatarPickerOpen: false,
+  setAvatarPickerOpen: (open) => set({ avatarPickerOpen: open }),
 
   npcSay: (text) =>
     set((s) => ({

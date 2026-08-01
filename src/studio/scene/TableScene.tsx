@@ -31,6 +31,7 @@ import CardMesh from "./CardMesh";
 import MagicStudy from "./MagicStudy";
 import VrmNpc from "./VrmNpc";
 import TripoNpc from "./TripoNpc";
+import PlayerArms from "./PlayerArms";
 
 // 默认 = Tripo 胸像骨骼版（用户定稿）；?npc=tripo 全身版 / ?npc=vrm 回退 VRoid VRM 版
 const NPC_VARIANT = new URLSearchParams(window.location.search).get("npc") ?? "bust";
@@ -532,6 +533,16 @@ function StaticBone({
   );
 }
 
+// 玩家手臂：Tripo 3D 形象（男/女可选），加载失败/未就绪时回退旧程序化双手
+function PlayerHandsSwitch() {
+  const avatar = useStudio((s) => s.playerAvatar);
+  return (
+    <Suspense fallback={<UserHands />}>
+      <PlayerArms avatar={avatar} />
+    </Suspense>
+  );
+}
+
 function UserHands() {
   return (
     <group>
@@ -1029,7 +1040,7 @@ export default function TableScene() {
           <TripoNpc url="/models/preview/tripo-bust-face-opt.glb" bust />
         )}
       </Suspense>
-      <UserHands />
+      <PlayerHandsSwitch />
       <DeckStack />
       <DeckSpread />
       <MarketFan />

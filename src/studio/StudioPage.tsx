@@ -8,6 +8,7 @@ import { DEFAULT_CAM, SPREAD } from "./scene/layout";
 import NpcDialog from "./ui/NpcDialog";
 import ProjectionWindow from "./ui/projection";
 import { CardDetailModal, ComposeOverlay } from "./ui/modals";
+import AvatarPicker from "./ui/AvatarPicker";
 
 function useHint(): string {
   const deckLen = useStudio((s) => s.deck.length);
@@ -64,8 +65,17 @@ export default function StudioPage() {
         >
           ← 首页
         </Link>
-        <div className="rounded-full bg-panel/80 px-3 py-1.5 text-xs font-semibold text-brand backdrop-blur">
-          🎴 卡片工坊
+        <div className="pointer-events-auto flex items-center gap-2">
+          <div className="rounded-full bg-panel/80 px-3 py-1.5 text-xs font-semibold text-brand backdrop-blur">
+            🎴 卡片工坊
+          </div>
+          <button
+            onClick={() => useStudio.getState().setAvatarPickerOpen(true)}
+            className="rounded-full bg-panel/80 px-3 py-1.5 text-xs text-slate-300 backdrop-blur"
+            title="选择形象"
+          >
+            👤 形象
+          </button>
         </div>
       </div>
 
@@ -96,6 +106,7 @@ export default function StudioPage() {
       <ProjectionWindow />
       <CardDetailModal />
       <ComposeOverlay />
+      <AvatarPicker />
     </div>
   );
 }
