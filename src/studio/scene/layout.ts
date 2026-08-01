@@ -24,10 +24,10 @@ export const NPC_CAM: { pos: [number, number, number]; look: [number, number, nu
   look: [0, -1.45, -4.1],
 };
 
-/** 卡组浏览视角：镜头移到玩家左侧，拉近拍上半身（思考姿势） */
+/** 卡组浏览视角：像一台摆在玩家前方桌面上的摄像机，仰拍玩家（低头凝视镜头思考） */
 export const DECK_CAM: { pos: [number, number, number]; look: [number, number, number] } = {
-  pos: [-3.4, 1.5, 3.4],
-  look: [0.4, 0.7, 5.2],
+  pos: [0, 0.18, 2.95],
+  look: [0, 0.44, 5.0],
 };
 
 /** 节点链（用户侧、靠近中线的一排；竖屏可视 x≈±1.55 → 3 张窗口化） */
