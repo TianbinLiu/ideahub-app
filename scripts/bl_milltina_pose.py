@@ -38,6 +38,7 @@ def set_torso(vals):
 
 
 def set_arms_down():
+    """先垂臂作为解算初值（从 T-pose 直接解交叉手会跳扭转盆地）"""
     pb["mixamorig:LeftArm"].rotation_euler = (-1.2, 0, 0.10)
     pb["mixamorig:LeftForeArm"].rotation_euler = (0, 0, 0)
     pb["mixamorig:LeftHand"].rotation_euler = (0, 0, 0)
@@ -104,46 +105,49 @@ def key_pose(frame):
 if arm_obj.animation_data is None:
     arm_obj.animation_data_create()
 
-# ── lean：站姿(垂臂) → 前倾托腮（左腕颊侧、右手搭右胸），错峰 55f@24fps ──
+# ── lean：站姿(交叉抱手) → 俯身（左肘撑桌沿+掌托脸颊、右前臂横放桌沿），55f@24fps ──
+# 桌沿在她局部系的位置按引擎滑移(+0.45)反推：b_y≈-0.09、桌沿顶 b_z≈0.836
+# 站姿=双手交叉叠放身前小腹、双肘内收夹住胸侧（用户定稿）
 act = bpy.data.actions.new("lean")
 arm_obj.animation_data.action = act
 ZERO = {n: (0, 0, 0) for n in TORSO}
-# (frame, torso, 左腕=head 相对偏移(her系: +x左, -y前, +z上), 左肘hint, 右腕绝对, 右肘hint)
+STAND_L = ((0.025, -0.115, 0.615), (0.095, -0.045, 0.72))  # 左腕(前叠)/左肘
+STAND_R = ((-0.02, -0.105, 0.60), (-0.095, -0.045, 0.72))  # 右腕/右肘
+# (frame, torso, 左腕绝对, 左肘hint, 右腕绝对, 右肘hint)
 FRAMES = [
-    (1, ZERO, None, None, None, None),
+    (1, ZERO, STAND_L[0], STAND_L[1], STAND_R[0], STAND_R[1]),
     (10, {"mixamorig:Hips": (0, 0, 0), "mixamorig:Spine": (-0.02, 0, 0), "mixamorig:Spine1": (0, 0, 0),
-          "mixamorig:Neck": (0, 0, 0), "mixamorig:Head": (0.05, 0, 0)}, None, None, None, None),
+          "mixamorig:Neck": (0, 0, 0), "mixamorig:Head": (0.05, 0, 0)},
+     STAND_L[0], STAND_L[1], STAND_R[0], STAND_R[1]),
+    # 手臂路径：先向外向前散开（避免扫过身体穿模），再落向各自目标
     (16, {"mixamorig:Hips": (0.02, 0, 0), "mixamorig:Spine": (0.03, 0, 0), "mixamorig:Spine1": (0.025, 0, 0),
           "mixamorig:Neck": (-0.06, 0, 0), "mixamorig:Head": (-0.07, 0, -0.01)},
-     (0.02, -0.02, -0.12), None, (-0.12, -0.06, 0.86), None),
+     (0.11, -0.14, 0.68), (0.13, -0.06, 0.75), (-0.10, -0.13, 0.66), (-0.13, -0.06, 0.74)),
     (22, {"mixamorig:Hips": (0.04, 0, 0), "mixamorig:Spine": (0.06, 0, 0), "mixamorig:Spine1": (0.05, 0, 0),
           "mixamorig:Neck": (-0.11, 0, 0), "mixamorig:Head": (-0.13, 0, -0.025)},
-     (0.04, -0.035, -0.07), (0.15, -0.02, 0.82), (-0.08, -0.09, 0.85), (-0.145, -0.03, 0.81)),
+     (0.13, -0.12, 0.76), (0.16, -0.07, 0.80), (-0.08, -0.10, 0.80), (-0.16, -0.08, 0.82)),
     (28, {"mixamorig:Hips": (0.06, 0, 0), "mixamorig:Spine": (0.09, 0, 0), "mixamorig:Spine1": (0.075, 0, 0),
           "mixamorig:Neck": (-0.17, 0, 0), "mixamorig:Head": (-0.20, 0, -0.04)},
-     (0.045, -0.04, -0.045), (0.14, -0.02, 0.80), (-0.04, -0.10, 0.84), (-0.14, -0.03, 0.80)),
+     (0.10, -0.10, 0.86), (0.17, -0.09, 0.84), (-0.05, -0.095, 0.835), (-0.17, -0.095, 0.845)),
     (40, {"mixamorig:Hips": (0.09, 0, 0), "mixamorig:Spine": (0.125, 0, 0), "mixamorig:Spine1": (0.105, 0, 0),
           "mixamorig:Neck": (-0.25, 0, 0), "mixamorig:Head": (-0.31, 0, -0.08)},
-     (0.05, -0.045, -0.032), (0.145, -0.03, 0.80), (-0.03, -0.105, 0.845), (-0.14, -0.03, 0.80)),
-    (48, {"mixamorig:Hips": (0.11, 0, 0), "mixamorig:Spine": (0.145, 0, 0), "mixamorig:Spine1": (0.12, 0, 0),
-          "mixamorig:Neck": (-0.30, 0, 0), "mixamorig:Head": (-0.37, 0, -0.115)},
-     (0.05, -0.045, -0.030), (0.145, -0.03, 0.795), (-0.03, -0.10, 0.848), (-0.14, -0.03, 0.798)),
-    (55, {"mixamorig:Hips": (0.10, 0, 0), "mixamorig:Spine": (0.135, 0, 0), "mixamorig:Spine1": (0.11, 0, 0),
-          "mixamorig:Neck": (-0.28, 0, 0), "mixamorig:Head": (-0.34, 0, -0.10)},
-     (0.05, -0.045, -0.030), (0.145, -0.03, 0.80), (-0.03, -0.10, 0.845), (-0.14, -0.03, 0.80)),
+     (0.065, -0.095, 0.94), (0.18, -0.10, 0.845), (-0.02, -0.09, 0.84), (-0.17, -0.09, 0.843)),
+    (48, {"mixamorig:Hips": (0.12, 0, 0), "mixamorig:Spine": (0.15, 0, 0), "mixamorig:Spine1": (0.125, 0, 0),
+          "mixamorig:Neck": (-0.30, 0, 0), "mixamorig:Head": (-0.375, 0, -0.115)},
+     (0.058, -0.092, 0.965), (0.185, -0.10, 0.838), (-0.01, -0.09, 0.838), (-0.165, -0.09, 0.84)),
+    (55, {"mixamorig:Hips": (0.11, 0, 0), "mixamorig:Spine": (0.14, 0, 0), "mixamorig:Spine1": (0.115, 0, 0),
+          "mixamorig:Neck": (-0.28, 0, 0), "mixamorig:Head": (-0.35, 0, -0.10)},
+     (0.058, -0.09, 0.96), (0.185, -0.10, 0.840), (-0.01, -0.09, 0.840), (-0.165, -0.09, 0.842)),
 ]
 prevL = None
 prevR = None
 dealL = None
-for fr, torso, l_off, l_eb, r_abs, r_eb in FRAMES:
+for fr, torso, l_abs, l_eb, r_abs, r_eb in FRAMES:
     set_torso(torso)
     if fr == 1:
         set_arms_down()
-        prevL = [list(pb[CHAIN[0]].rotation_euler), list(pb[CHAIN[1]].rotation_euler)]
-        prevR = [list(pb[RCHAIN[0]].rotation_euler), list(pb[RCHAIN[1]].rotation_euler)]
-    if l_off is not None:
-        h = head_pos()
-        dl, prevL = solve_arm(lh, CHAIN, h + Vector(l_off), elbow_hint=l_eb, prev_sol=prevL)
+    if l_abs is not None:
+        dl, prevL = solve_arm(lh, CHAIN, Vector(l_abs), elbow_hint=l_eb, prev_sol=prevL)
         print(f"  f{fr} L residual {dl:.3f}")
     if r_abs is not None:
         dr, prevR = solve_arm(rh, RCHAIN, Vector(r_abs), elbow_hint=r_eb, prev_sol=prevR)
@@ -152,8 +156,10 @@ for fr, torso, l_off, l_eb, r_abs, r_eb in FRAMES:
     if fr == 55:
         dealL = [list(pb[CHAIN[0]].rotation_euler), list(pb[CHAIN[1]].rotation_euler)]
         print("LEAN f55 head:", [round(v, 3) for v in head_pos()])
-        print("LEAN f55 lhand:", [round(v, 3) for v in (mw @ lh.head)])
-        print("LEAN f55 rhand:", [round(v, 3) for v in (mw @ rh.head)])
+        print("LEAN f55 lhand:", [round(v, 3) for v in (mw @ lh.head)],
+              "lElbow:", [round(v, 3) for v in (mw @ pb[CHAIN[1]].head)])
+        print("LEAN f55 rhand:", [round(v, 3) for v in (mw @ rh.head)],
+              "rElbow:", [round(v, 3) for v in (mw @ pb[RCHAIN[1]].head)])
 tr = arm_obj.animation_data.nla_tracks.new()
 tr.name = "lean"
 tr.strips.new("lean", 1, act)

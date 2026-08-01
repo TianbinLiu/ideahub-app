@@ -151,6 +151,10 @@ export default function TripoNpc({
     springs?: string[];
     /** 外观：调暗乘色 + 描边纯色（浅色模型） */
     look?: { tint?: number; outlineColor?: number };
+    /** 半眯眨眼基线（此模型眼睑妆重时调低，默认 0.22） */
+    blinkBase?: number;
+    /** 俯身时身体整体前移/下沉（胸口落上桌沿），随 lean 进度缓动 */
+    leanSlide?: { z: number; y: number };
   };
   /** 形键名映射（购入模型用原生键名，如 VRC 规格 "vrc.blink "——注意可能带尾随空格） */
   morphNames?: { blink?: string; mouthOpen?: string; smile?: string };
@@ -304,7 +308,17 @@ export default function TripoNpc({
     if (import.meta.env.DEV) {
       const w = window as unknown as Record<string, unknown>;
       w.__tripoPose = p;
-      w.__tripo = { scene: gltf.scene, bones: bones.current };
+      w.__tripo = {
+        scene: gltf.scene,
+        bones: bones.current,
+        anims: gltf.animations.map((a) => `${a.name}:${a.tracks.length}`),
+        acts: Object.keys(perfActions),
+        trackSample: gltf.animations.flatMap((a) => a.tracks.slice(0, 4).map((tr) => tr.name)),
+        leanBodyTracks: perfActions.leanBody ? perfActions.leanBody.getClip().tracks.length : -1,
+        leanArmTracks: perfActions.leanArm ? perfActions.leanArm.getClip().tracks.length : -1,
+        perfActions,
+        mixer,
+      };
     }
     return p;
   }, [gltf, bust, full, cfg]);
@@ -370,7 +384,7 @@ export default function TripoNpc({
       const nMouth = morphNames?.mouthOpen ?? "mouthOpen";
       const nSmile = morphNames?.smile ?? "smile";
       if (dict[nBlink] !== undefined)
-        inf[dict[nBlink]] = full || cfg ? Math.max(0.22, blink) : blink;
+        inf[dict[nBlink]] = full || cfg ? Math.max(cfg?.blinkBase ?? 0.22, blink) : blink;
       if (dict[nMouth] !== undefined)
         inf[dict[nMouth]] = speaking ? Math.max(0, Math.sin(t * 9.5)) * 0.55 : 0;
       if (dict[nSmile] !== undefined) {
@@ -427,18 +441,21 @@ export default function TripoNpc({
         }
         perfActions.deal?.stop();
       }
-      // 站姿=钉 lean 第 1 帧（f1 已烘成站姿微姿态）：倒播结束后自然停在 0=站姿；
-      // 首次加载/完全停止时主动钉上。注意 paused 陷阱：必须先 stop() 反激活再重新
-      // play，否则 mixer 不重采样（PlayerArms 同款坑）
+      // 站姿=钉 lean 第 1 帧（f1 已烘成站姿）：用 timeScale=0 的"持续播放"钉帧——
+      // 每帧都采样写入 frame0，彻底规避 paused 只写一次的陷阱类（购入模型上首次
+      // 加载曾因此保持 T-pose）。倒播结束 clamp 到 0 后也重新接管为持续钉帧。
       if (!st.dialogView) {
         for (const a of [perfActions.leanBody, perfActions.leanArm]) {
-          if (a && !a.isRunning() && !a.paused) {
+          if (!a) continue;
+          // 已钉住（timeScale 0 持续播放于 frame0）则跳过；倒播进行中（time>0）也别打断
+          const pinned = a.timeScale === 0 && !a.paused && a.enabled && a.time <= 0.001;
+          const reversing = a.isRunning() && a.timeScale < 0;
+          if (!pinned && !reversing) {
             a.stop();
             a.setLoop(THREE.LoopOnce, 1);
             a.clampWhenFinished = true;
-            a.timeScale = 1;
             a.reset().play();
-            a.paused = true;
+            a.timeScale = 0;
           }
         }
       }
@@ -489,6 +506,11 @@ export default function TripoNpc({
       const sr = shadowRailRef.current;
       if (sf) (sf.material as THREE.MeshBasicMaterial).opacity = 0.6 * le;
       if (sr) (sr.material as THREE.MeshBasicMaterial).opacity = 0.5 * le;
+    } else if (cfg) {
+      // 购入模型：俯身滑移（胸口落上桌沿）+ 站/伏呼吸浮动
+      const le = leanP * leanP * (3 - 2 * leanP);
+      gltf.scene.position.z = cfg.z + (cfg.leanSlide?.z ?? 0) * le;
+      gltf.scene.position.y = y + (cfg.leanSlide?.y ?? 0) * le + Math.sin(t * 1.1) * 0.005;
     }
     // 演出动画先应用（LoopOnce 播放期间覆盖左臂程序姿势，播完自动交还），
     // 再读手骨位置更新持卡——发牌挥动时卡精确跟手。

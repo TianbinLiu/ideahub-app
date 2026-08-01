@@ -37,6 +37,10 @@ const MILLTINA_CFG = {
   springs: ["twintail", "cowear", "ribbon", "fronthair"],
   // 白发白裙在烛光暗房过亮：暖灰乘暗；浅色模型描边用固定深紫黑
   look: { tint: 0xbfb2a4, outlineColor: 0x2a2230 },
+  // 她的眼睑妆重——半眯基线调低（0.22 会像厚眼影）
+  blinkBase: 0.05,
+  // 俯身滑移：Q 版站位靠后，前移 0.45 让胸口落上桌沿
+  leanSlide: { z: 0.45, y: -0.02 },
 };
 const MILLTINA_MORPHS = { blink: "vrc.blink ", mouthOpen: "vrc.v_aa", smile: "eye_joy" };
 import {
@@ -1188,7 +1192,7 @@ export default function TableScene() {
           <TripoNpc url={npcModelUrl()} full />
         ) : (
           // 默认铸卡师 = 购入模型 Milltina（加密分发）：VRC 原生形键 + 弹簧骨物理 + 调暗描边
-          <TripoNpc url="/models/protected/milltina-opt.glbx?v=m3" cfg={MILLTINA_CFG} morphNames={MILLTINA_MORPHS} />
+          <TripoNpc url="/models/protected/milltina-opt.glbx?v=m4" cfg={MILLTINA_CFG} morphNames={MILLTINA_MORPHS} />
         )}
       </Suspense>
       <PlayerHandsSwitch />

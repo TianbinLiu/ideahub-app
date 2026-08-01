@@ -29,9 +29,14 @@ def bake_shape_mix(obj_name, values):
         v.co = c
     print(f"已烘穿搭形态: {obj_name} <- {values}")
 
-# 实测："Apron_set"=1 反而会掀开衣身（那是无围裙穿搭的形态），出厂 0 才是围裙正确穿法。
-# 胸口围裙×裙身 z-fight 用围裙自身的 Breasts_Big 微量外扩解决（贴面脱开几毫米）
-bake_shape_mix("Milltina_cloth_apron", {"Breasts_Big": 0.35})
+# 用户定稿：去掉围裙（外扩后仍与衣身穿模）；dress/skirt 烘 Apron_set=1
+# （无围裙穿搭的衣身形态——衣装参数化系统的配套开关）
+_apron = bpy.data.objects.get("Milltina_cloth_apron")
+if _apron:
+    bpy.data.objects.remove(_apron, do_unlink=True)
+    print("已移除围裙")
+bake_shape_mix("Milltina_cloth_dress", {"Apron_set": 1.0})
+bake_shape_mix("Milltina_cloth_skirt", {"Apron_set": 1.0})
 bake_shape_mix("Milltina_cloth_hat", {"Option_Twin tail": 1.0})
 
 # ── 贴图接线：按材质名归类到四张图 ──
