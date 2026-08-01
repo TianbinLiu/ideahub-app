@@ -34,12 +34,21 @@ export function toonify(scene: THREE.Object3D, width = 0.0045) {
   ramp.minFilter = THREE.NearestFilter;
   ramp.magFilter = THREE.NearestFilter;
   ramp.needsUpdate = true;
-  const outlineMat = new THREE.MeshBasicMaterial({ color: 0x241a12, side: THREE.BackSide });
-  outlineMat.onBeforeCompile = (s) => {
-    s.vertexShader = s.vertexShader.replace(
-      "#include <skinning_vertex>",
-      `#include <skinning_vertex>\n\ttransformed += objectNormal * ${width.toFixed(5)};`,
-    );
+  // 描边壳材质：有贴图时用 贴图×暗色 调制——开壳模型手臂贴身折叠时镜头会经袖口
+  // 看进身体腔内打到壳背面，纯黑呈"撕裂黑洞"，暗色织物则读作阴影
+  const makeOutline = (map: THREE.Texture | null) => {
+    const m = new THREE.MeshBasicMaterial({
+      color: map ? 0x5a4a40 : 0x241a12,
+      side: THREE.BackSide,
+      map: map ?? undefined,
+    });
+    m.onBeforeCompile = (s) => {
+      s.vertexShader = s.vertexShader.replace(
+        "#include <skinning_vertex>",
+        `#include <skinning_vertex>\n\ttransformed += objectNormal * ${width.toFixed(5)};`,
+      );
+    };
+    return m;
   };
   const targets: THREE.SkinnedMesh[] = [];
   scene.traverse((o) => {
@@ -49,16 +58,20 @@ export function toonify(scene: THREE.Object3D, width = 0.0045) {
   for (const mesh of targets) {
     mesh.userData.__toonified = true;
     const old = mesh.material as THREE.MeshStandardMaterial;
-    mesh.material = new THREE.MeshToonMaterial({ map: old.map, gradientMap: ramp });
+    if (old.map) old.map.anisotropy = 8; // 近距斜视角（卡组机位拍脸）贴图不糊
+    // DoubleSide：开壳模型（袖筒/裙摆）折叠时镜头会看进开口内侧——单面渲染时内壁
+    // 透空露出描边壳黑色背面，呈大块黑色"撕裂"；双面让内壁显示织物贴图
+    mesh.material = new THREE.MeshToonMaterial({ map: old.map, gradientMap: ramp, side: THREE.DoubleSide });
     old.dispose();
+    const shellMat = makeOutline(old.map ?? null);
     let shell: THREE.Mesh;
     if (mesh.isSkinnedMesh) {
-      const s = new THREE.SkinnedMesh(mesh.geometry, outlineMat);
+      const s = new THREE.SkinnedMesh(mesh.geometry, shellMat);
       s.bind(mesh.skeleton, mesh.bindMatrix);
       s.bindMode = mesh.bindMode;
       shell = s;
     } else {
-      shell = new THREE.Mesh(mesh.geometry, outlineMat);
+      shell = new THREE.Mesh(mesh.geometry, shellMat);
     }
     shell.userData.__isOutline = true;
     shell.frustumCulled = false;
@@ -143,7 +156,8 @@ export default function TripoNpc({
       if (m.isMesh && m.morphTargetDictionary && !m.userData.__isOutline) morphMesh.current = m;
     });
     for (const [k, name] of Object.entries(POSE_KEYS)) bones.current[k] = gltf.scene.getObjectByName(name) ?? null;
-    toonify(gltf.scene, full ? 0.0016 : bust ? 0.003 : 0.0012);
+    // full 描边收窄：手臂贴身（托腮/垫胸）时外扩壳会从胸口表面戳出成黑斑，宽度减半
+    toonify(gltf.scene, full ? 0.0009 : bust ? 0.003 : 0.0012);
     // 立正靠 Root 骨自带的 (-90°,0,90°) 修正（勿动）；scene 只转 yaw -90° 面向镜头。
     gltf.scene.rotation.set(0, -Math.PI / 2, 0);
     // full：全身落地裙站姿（身高 1 归一化 → 4.35 世界），脚踩地站在桌后
@@ -213,8 +227,9 @@ export default function TripoNpc({
     const b = bones.current;
     const breathe = Math.sin(t * 1.1) * 0.015;
     const st = useStudio.getState();
-    // full 对话状态：骨骼全交 lean 动画（clamp 暂停后不再重写——手动 set 会把她顶回站姿）
-    const leanDriving = full && st.dialogView;
+    // full：骨骼全程交 lean 动画（站姿=钉第 1 帧、对话=过渡/钉末帧）——程序手动 set 与动画
+    // 混写是"一帧瞬移闪现"的根源（动画首帧 rest 与程序微姿态差一跳）
+    const leanDriving = full;
     // lean 过渡进度（0 站姿 → 1 伏桌定格）：驱动 squish 接触门控与身体整体前移下沉
     let leanP = 0;
     if (full && perfActions.leanBody) {
@@ -314,10 +329,19 @@ export default function TripoNpc({
         }
         perfActions.deal?.stop();
       }
-      // 倒播回到站姿后彻底停掉动画，交还程序驱动（呼吸/微姿态）
+      // 站姿=钉 lean 第 1 帧（f1 已烘成站姿微姿态）：倒播结束后自然停在 0=站姿；
+      // 首次加载/完全停止时主动钉上。注意 paused 陷阱：必须先 stop() 反激活再重新
+      // play，否则 mixer 不重采样（PlayerArms 同款坑）
       if (!st.dialogView) {
         for (const a of [perfActions.leanBody, perfActions.leanArm]) {
-          if (a && a.paused && a.time <= 0.001) a.stop();
+          if (a && !a.isRunning() && !a.paused) {
+            a.stop();
+            a.setLoop(THREE.LoopOnce, 1);
+            a.clampWhenFinished = true;
+            a.timeScale = 1;
+            a.reset().play();
+            a.paused = true;
+          }
         }
       }
       if (leanPendingAt.current > 0 && t >= leanPendingAt.current && st.dialogView) {
@@ -345,7 +369,8 @@ export default function TripoNpc({
     if (full) {
       const le = leanP * leanP * (3 - 2 * leanP);
       gltf.scene.position.z = -4.35 + 0.22 * le;
-      gltf.scene.position.y = y - 0.02 * le + le * Math.sin(t * 1.1) * 0.01;
+      // 呼吸移到 group（骨骼全程动画驱动，骨上叠加会累积）：站姿轻微、伏桌稍明显
+      gltf.scene.position.y = y - 0.02 * le + Math.sin(t * 1.1) * (0.004 + 0.008 * le);
       // 接触阴影渐显：俯拍机位下"重量压上去"的唯一廉价线索
       const sf = shadowFeltRef.current;
       const sr = shadowRailRef.current;
@@ -366,12 +391,19 @@ export default function TripoNpc({
         cardIdRef.current = recommend.id;
         (card.material as THREE.MeshBasicMaterial).map = cardFaceTexture(recommend);
         (card.material as THREE.MeshBasicMaterial).needsUpdate = true;
-        // 发牌演出：新卡递出时左手挥卡
-        if ((bust || full) && st.dialogView && perfActions.deal && !perfActions.wave?.isRunning()) {
+        // 发牌演出：新卡递出时左手挥卡（full 等俯身完成后才演，过渡途中不举卡）
+        if (
+          (bust || full) &&
+          st.dialogView &&
+          (!full || leanP > 0.98) &&
+          perfActions.deal &&
+          !perfActions.wave?.isRunning()
+        ) {
           perfActions.deal.reset().play();
         }
       }
-      card.visible = !!recommend && st.dialogView && !st.market.open;
+      // full：俯身过渡完成前不显示手中卡——动画一开始手上就多张卡很出戏
+      card.visible = !!recommend && st.dialogView && !st.market.open && (!full || leanP > 0.98);
       hand.getWorldPosition(cardPos);
       if (full) card.position.set(cardPos.x + 0.1, cardPos.y + 0.15, cardPos.z + 0.2);
       else if (bust) card.position.set(cardPos.x + 0.05, cardPos.y + 0.1, cardPos.z + 0.15);

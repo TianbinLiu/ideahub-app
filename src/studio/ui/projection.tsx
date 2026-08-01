@@ -12,7 +12,7 @@ export default function ProjectionWindow() {
   if (projection === "deck") {
     return (
       <div className="absolute inset-0 z-20">
-        <div className="absolute inset-x-2 top-[42%] bottom-[6%] flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142b]/40 shadow-[0_0_60px_rgba(103,232,249,0.28)] backdrop-blur-lg">
+        <div className="absolute inset-x-2 top-[54%] bottom-[7%] flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142b]/40 shadow-[0_0_60px_rgba(103,232,249,0.28)] backdrop-blur-lg">
           <DeckPanel />
         </div>
       </div>

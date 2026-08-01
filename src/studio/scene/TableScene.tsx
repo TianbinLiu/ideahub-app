@@ -60,15 +60,24 @@ export function computeChain(root: NodeSlot | null): ChainLayout {
 }
 
 // ── 相机：朝目标位姿缓动（transient 直读 store，避免订阅延迟一帧） ──
-// 卡组视角例外：直线下冲+视线翻转会晕——改走"玩家前方圆心"的竖直弧线，
-// 半径先收、角度后扫（螺旋收拢），全程 lookAt 玩家，高度从头顶匀滑降到桌面。
+// RIG_LOOK 提到模块级：自由视角手势（TableCatcher）平移相机时需同步平移视线锚点
+const RIG_LOOK = new THREE.Vector3(...DEFAULT_CAM.look);
 function CameraRig() {
-  const look = useRef(new THREE.Vector3(...DEFAULT_CAM.look));
   const tmp = useRef(new THREE.Vector3());
   const deckAnim = useRef<{ p: number; start: THREE.Vector3 } | null>(null);
   const prevDeck = useRef(false);
+  const lastCamObj = useRef<unknown>(null);
   useFrame(({ camera }, dt) => {
     const st = useStudio.getState();
+    // 自由视角：rig 停止驱动（手势直接挪相机）；任何交互 action 设了新机位对象 → 纠正镜头退出
+    if (st.freeCam) {
+      if (lastCamObj.current === st.camera) {
+        prevDeck.current = st.deckView;
+        return;
+      }
+      useStudio.setState({ freeCam: false });
+    }
+    lastCamObj.current = st.camera;
     const target = st.camera.kind === "default" ? DEFAULT_CAM : st.camera;
     if (st.deckView && !prevDeck.current) {
       deckAnim.current = { p: 0, start: camera.position.clone() };
@@ -77,29 +86,31 @@ function CameraRig() {
     if (!st.deckView) deckAnim.current = null;
     const anim = deckAnim.current;
     if (anim && st.deckView) {
-      anim.p = Math.min(1, anim.p + dt / 1.8);
+      // 滑梯运镜：头顶起点 → 左外侧高点拉远 → 左前低点收进 → 玩家前方桌面机位。
+      // 三次贝塞尔，全程 lookAt 玩家（视线快速锚定后不再翻转）
+      anim.p = Math.min(1, anim.p + dt / 2.2);
       const p = anim.p * anim.p * (3 - 2 * anim.p);
-      const C = { y: 0.5, z: 4.55 }; // 圆心：玩家胸前方（x=0 竖直平面）
+      const P0 = anim.start;
       const [ex, ey, ez] = DECK_CAM.pos;
-      const a0 = Math.atan2(anim.start.y - C.y, anim.start.z - C.z);
-      const a1 = Math.atan2(ey - C.y, ez - C.z);
-      let da = a1 - a0;
-      while (da > Math.PI) da -= Math.PI * 2;
-      while (da < -Math.PI) da += Math.PI * 2;
-      const a = a0 + da * p;
-      const r0 = Math.hypot(anim.start.y - C.y, anim.start.z - C.z);
-      const r1 = Math.hypot(ey - C.y, ez - C.z);
-      const r = r0 + (r1 - r0) * Math.min(1, p * 1.6); // 半径先收拢再顺弧扫过
-      camera.position.set(anim.start.x * (1 - p) + ex * p, C.y + Math.sin(a) * r, C.z + Math.cos(a) * r);
-      look.current.lerp(tmp.current.set(...DECK_CAM.look), Math.min(1, p * 2.4)); // 视线快速锚定玩家
-      camera.lookAt(look.current);
+      const c1x = -5.2;
+      const c1y = Math.max(3.4, P0.y * 0.55);
+      const c1z = 4.8;
+      const c2x = -2.6;
+      const c2y = 1.0;
+      const c2z = 4.0;
+      const u = 1 - p;
+      const bez = (a: number, b: number, c: number, d: number) =>
+        u * u * u * a + 3 * u * u * p * b + 3 * u * p * p * c + p * p * p * d;
+      camera.position.set(bez(P0.x, c1x, c2x, ex), bez(P0.y, c1y, c2y, ey), bez(P0.z, c1z, c2z, ez));
+      RIG_LOOK.lerp(tmp.current.set(...DECK_CAM.look), Math.min(1, p * 2.4));
+      camera.lookAt(RIG_LOOK);
       if (anim.p >= 1) deckAnim.current = null;
       return;
     }
     const k = 1 - Math.exp(-dt * 4.5);
     camera.position.lerp(tmp.current.set(...target.pos), k);
-    look.current.lerp(tmp.current.set(...target.look), k);
-    camera.lookAt(look.current);
+    RIG_LOOK.lerp(tmp.current.set(...target.look), k);
+    camera.lookAt(RIG_LOOK);
   });
   return null;
 }
@@ -1032,11 +1043,85 @@ function DialogTableCards() {
 
 // ── 空白桌面点击捕获：聚焦且无投影时，点卡片之外拉远回默认机位 ──
 function TableCatcher() {
+  const { camera, gl } = useThree();
+  // 自由视角手势状态：首指必须落在空白桌面（r3f 命中本 mesh 才回调=天然的"非互动点"闸门），
+  // 第二指从任意位置计入（捏合缩放）；move/up 用 window 监听避免指针滑出平面丢事件
+  const g = useRef<{ pointers: Map<number, [number, number]>; lastPinch: number | null }>({
+    pointers: new Map(),
+    lastPinch: null,
+  });
+  useEffect(() => {
+    const el = gl.domElement;
+    const right = new THREE.Vector3();
+    const up = new THREE.Vector3();
+    const dir = new THREE.Vector3();
+    const onDown = (e: PointerEvent) => {
+      // 自由视角下任何落在 canvas 上的按下都算拖拽起点（HTML 面板的 target 不是 canvas，
+      // 自然滤掉；互动点的"点按"走 click 通道不受影响——拖拽几乎无位移时 click 照常触发）
+      if (!useStudio.getState().freeCam || e.target !== el) return;
+      g.current.pointers.set(e.pointerId, [e.clientX, e.clientY]);
+      g.current.lastPinch = null;
+    };
+    const onMove = (e: PointerEvent) => {
+      const s = g.current;
+      if (!s.pointers.has(e.pointerId)) return;
+      if (!useStudio.getState().freeCam) {
+        s.pointers.clear();
+        return;
+      }
+      const prev = s.pointers.get(e.pointerId)!;
+      const dx = e.clientX - prev[0];
+      const dy = e.clientY - prev[1];
+      s.pointers.set(e.pointerId, [e.clientX, e.clientY]);
+      if (s.pointers.size === 1) {
+        // 单指拖拽：沿相机右/上轴平移（地图式：画面跟随手指），视线锚点同步平移保持朝向
+        const k = 0.0035 * Math.max(2, camera.position.distanceTo(RIG_LOOK)) * 0.45;
+        right.setFromMatrixColumn(camera.matrix, 0);
+        up.setFromMatrixColumn(camera.matrix, 1);
+        camera.position.addScaledVector(right, -dx * k).addScaledVector(up, dy * k);
+        RIG_LOOK.addScaledVector(right, -dx * k).addScaledVector(up, dy * k);
+      } else if (s.pointers.size === 2) {
+        // 双指捏合：沿视线推拉远近
+        const pts = [...s.pointers.values()];
+        const d = Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]);
+        if (s.lastPinch != null) {
+          dir.subVectors(RIG_LOOK, camera.position).normalize();
+          camera.position.addScaledVector(dir, (d - s.lastPinch) * 0.012);
+        }
+        s.lastPinch = d;
+      }
+    };
+    const onUp = (e: PointerEvent) => {
+      g.current.pointers.delete(e.pointerId);
+      g.current.lastPinch = null;
+    };
+    // 桌面调试便利：滚轮推拉
+    const onWheel = (e: WheelEvent) => {
+      if (!useStudio.getState().freeCam) return;
+      e.preventDefault();
+      dir.subVectors(RIG_LOOK, camera.position).normalize();
+      camera.position.addScaledVector(dir, -e.deltaY * 0.004);
+    };
+    window.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      el.removeEventListener("wheel", onWheel);
+    };
+  }, [camera, gl]);
   return (
     <mesh
       rotation={[-Math.PI / 2, 0, 0]}
       position={[0, 0.001, 0]}
       onClick={() => {
+        // 自由视角下点空白桌面只用于拖拽，不触发落卡/回退
+        if (useStudio.getState().freeCam) return;
         useStudio.getState().unfocus();
       }}
     >
@@ -1070,7 +1155,7 @@ export default function TableScene() {
           <VrmNpc />
         ) : (
           // url 带版本号：模型重烘后必须升版破 useLoader/HTTP 缓存
-          <TripoNpc url="/models/preview/npc-full-face-opt.glb?v=lean7" full />
+          <TripoNpc url="/models/preview/npc-full-face-opt.glb?v=lean8" full />
         )}
       </Suspense>
       <PlayerHandsSwitch />

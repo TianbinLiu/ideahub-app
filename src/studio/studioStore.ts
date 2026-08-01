@@ -115,6 +115,9 @@ interface StudioState {
   /** 卡组浏览视角：镜头拍玩家上半身（思考姿势），卡组投影横滑 */
   deckView: boolean;
   openDeckView: () => void;
+  /** 自由视角：关闭投影窗后进入——镜头不回退，用户拖拽平移/双指缩放；
+   *  触到互动点（其 action 设置了新机位）时自动纠正退出 */
+  freeCam: boolean;
   editor: EditorState | null;
   dragCardId: string | null;
   /** 对话视角（底部抽屉展开）：NPC 抬手面向用户 */
@@ -202,6 +205,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   deck: [],
   spreadOpen: false,
   deckView: false,
+  freeCam: false,
   spreadCenter: 0,
   market: { open: false, items: [], query: "", loading: false },
   marketDetail: null,
@@ -382,9 +386,10 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (get().projection) return;
     set({ focus: null, editor: null, spreadOpen: false, deckView: false, camera: { kind: "default" } });
   },
-  // 点 ✕ 关闭投影窗：与点击空白桌面一致——卡片落下并拉远回默认机位
+  // 点 ✕ 关闭投影窗：镜头不回退——落卡后进入自由视角（拖拽平移/双指缩放，
+  // 触到互动点时才纠正镜头），camera 目标保持原对象引用供 rig 判定
   closeProjection: () =>
-    set({ projection: null, editor: null, focus: null, spreadOpen: false, deckView: false, camera: { kind: "default" } }),
+    set({ projection: null, editor: null, focus: null, spreadOpen: false, deckView: false, freeCam: true }),
   toggleSpread: () =>
     set((s) => ({ spreadOpen: s.deck.length > 0 && !s.spreadOpen })),
   // 点卡组：镜头移到玩家左侧拍上半身（思考姿势），卡组以投影小窗横滑浏览
