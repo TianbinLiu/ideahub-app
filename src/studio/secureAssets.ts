@@ -64,7 +64,7 @@ export class EncryptedGLTFLoader extends GLTFLoader {
   }
 }
 
-/** 按扩展名选 loader：.glbx 走解密、其余走普通 GLTFLoader（同样挂 meshopt） */
+/** 按扩展名选 loader：.glbx 走解密、其余走普通 GLTFLoader（同样挂 meshopt）；兼容 ?v= 版本查询串 */
 export function loaderFor(url: string): typeof GLTFLoader {
-  return url.endsWith(".glbx") ? (EncryptedGLTFLoader as typeof GLTFLoader) : GLTFLoader;
+  return url.includes(".glbx") ? (EncryptedGLTFLoader as typeof GLTFLoader) : GLTFLoader;
 }

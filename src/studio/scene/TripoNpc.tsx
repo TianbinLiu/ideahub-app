@@ -8,6 +8,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { useStudio } from "../studioStore";
 import { cardFaceTexture } from "./cardTexture";
+import { loaderFor } from "../secureAssets";
 
 const cardPos = new THREE.Vector3();
 
@@ -113,12 +114,25 @@ export default function TripoNpc({
   url = "/models/preview/tripo-v3-rigged-opt.glb",
   bust = false,
   full = false,
+  cfg,
+  morphNames,
 }: {
   url?: string;
   bust?: boolean;
   full?: boolean;
+  /** 每模型摆位配置（购入模型比例/朝向各异）：优先于 bust/full 内置值；
+   *  pose 覆盖默认 rest 站姿（如 FBX T-pose 需垂臂） */
+  cfg?: {
+    scale: number;
+    y: number;
+    z: number;
+    yaw?: number;
+    pose?: Partial<Record<keyof typeof POSE_KEYS, [number, number, number] | null>>;
+  };
+  /** 形键名映射（购入模型用原生键名，如 VRC 规格 "vrc.blink "——注意可能带尾随空格） */
+  morphNames?: { blink?: string; mouthOpen?: string; smile?: string };
 }) {
-  const gltf = useLoader(GLTFLoader, url, (loader) => {
+  const gltf = useLoader(loaderFor(url), url, (loader) => {
     (loader as GLTFLoader).setMeshoptDecoder(MeshoptDecoder);
   });
   const bones = useRef<Record<string, THREE.Object3D | null>>({});
@@ -187,20 +201,37 @@ export default function TripoNpc({
     for (const [k, name] of Object.entries(POSE_KEYS)) bones.current[k] = gltf.scene.getObjectByName(name) ?? null;
     // full 描边收窄：手臂贴身（托腮/垫胸）时外扩壳会从胸口表面戳出成黑斑，宽度减半；
     // full 开裙摆风摆（布料柔软感）
-    toonify(gltf.scene, full ? 0.0009 : bust ? 0.003 : 0.0012, full ? { amp: 0.006 } : undefined);
+    toonify(gltf.scene, cfg ? 0.002 : full ? 0.0009 : bust ? 0.003 : 0.0012, full ? { amp: 0.006 } : undefined);
     // 立正靠 Root 骨自带的 (-90°,0,90°) 修正（勿动）；scene 只转 yaw -90° 面向镜头。
-    gltf.scene.rotation.set(0, -Math.PI / 2, 0);
+    // cfg 模型（购入资产）朝向各异，由 cfg.yaw 指定
+    gltf.scene.rotation.set(0, cfg?.yaw ?? -Math.PI / 2, 0);
     // full：全身落地裙站姿（身高 1 归一化 → 4.35 世界），脚踩地站在桌后
     // bust：帽顶→胸底≈1 归一化，目标世界高 2.3，截断底沉桌沿下；
     // z 后移让身体前缘退到 rail 之后（-3.9 时胸/帽穿桌穿护栏）
+    if (cfg) return { scale: cfg.scale, y: cfg.y };
     return full ? { scale: 4.35, y: -2.55 } : bust ? { scale: 2.3, y: -0.42 } : { scale: 4.6, y: -2.55 };
-  }, [gltf, bust, full]);
+  }, [gltf, bust, full, cfg]);
 
   // 实测定稿（俯身对坐·抬头看镜头·右手扶桌/扶帽·左手抬起持卡）：轴向经 Root(-90°,0,90°) 链，勿按直觉改
   const pose = useMemo(() => {
+    // cfg 模型（购入资产）：默认 rest，cfg.pose 覆盖（FBX T-pose 模型需垂臂等）
     // full：站姿保持 rest（扶帽+垂手烘在模型里），仅头颈微动
     // bust：右臂保持 rest（扶帽姿势烘在模型里，动了会拉扯帽子顶点）；前倾量小
-    const p = full
+    const p = cfg
+      ? {
+          spine1: null as [number, number, number] | null,
+          spine2: null as [number, number, number] | null,
+          neck: null as [number, number, number] | null,
+          head: null as [number, number, number] | null,
+          lArm: null as [number, number, number] | null,
+          lFore: null as [number, number, number] | null,
+          lHand: null as [number, number, number] | null,
+          rArm: null as [number, number, number] | null,
+          rFore: null as [number, number, number] | null,
+          freeze: false,
+          ...(cfg.pose ?? {}),
+        }
+      : full
       ? {
           spine1: [0.05, 0, 0] as [number, number, number] | null,
           spine2: null as [number, number, number] | null,
@@ -244,7 +275,7 @@ export default function TripoNpc({
       w.__tripo = { scene: gltf.scene, bones: bones.current };
     }
     return p;
-  }, [gltf, bust, full]);
+  }, [gltf, bust, full, cfg]);
 
   useFrame(({ clock }, dt) => {
     // DEV 调参：优先读 window 挂载的表（StrictMode/HMR 下闭包引用可能不同源）
@@ -302,10 +333,15 @@ export default function TripoNpc({
       const dict = mm.morphTargetDictionary;
       const inf = mm.morphTargetInfluences;
       // full HD 贴图眼睛全开——常驻 0.22 眨眼基线找回"半眯慵懒"设定气质
-      if (dict.blink !== undefined) inf[dict.blink] = full ? Math.max(0.22, blink) : blink;
-      if (dict.mouthOpen !== undefined)
-        inf[dict.mouthOpen] = speaking ? Math.max(0, Math.sin(t * 9.5)) * 0.55 : 0;
-      if (dict.smile !== undefined) {
+      // 形键名映射：自产模型用我们雕的键名，购入模型传原生键名（VRC 规格等）
+      const nBlink = morphNames?.blink ?? "blink";
+      const nMouth = morphNames?.mouthOpen ?? "mouthOpen";
+      const nSmile = morphNames?.smile ?? "smile";
+      if (dict[nBlink] !== undefined)
+        inf[dict[nBlink]] = full || cfg ? Math.max(0.22, blink) : blink;
+      if (dict[nMouth] !== undefined)
+        inf[dict[nMouth]] = speaking ? Math.max(0, Math.sin(t * 9.5)) * 0.55 : 0;
+      if (dict[nSmile] !== undefined) {
         // 情绪脉冲优先（入组/出炉笑意拉满；素材不合格/作废收敛），否则说话加深/常态浅笑
         const moodActive = st.moodUntil > Date.now();
         const target = moodActive
@@ -315,7 +351,7 @@ export default function TripoNpc({
           : speaking
             ? 0.5 + Math.sin(t * 1.3) * 0.12
             : 0.22;
-        inf[dict.smile] += (target - inf[dict.smile]) * Math.min(1, dt * 6);
+        inf[dict[nSmile]] += (target - inf[dict[nSmile]]) * Math.min(1, dt * 6);
       }
       // 胸部软性压桌：bust 版旧形键常驻；full 版=HD 重雕的小幅前缘轻压（无侧鼓），
       // 只在过渡末段胸口贴上桌沿时渐入，随呼吸微起伏
@@ -441,7 +477,11 @@ export default function TripoNpc({
   return (
     <group>
       {/* full 站在桌后（落地裙）；bust z：胸前缘恰好压上桌沿 rail，配合 squish 呈"撑在桌面"贴合 */}
-      <primitive object={gltf.scene} position={[0, y, full ? -4.35 : bust ? -4.28 : -3.9]} scale={scale} />
+      <primitive
+        object={gltf.scene}
+        position={[0, y, cfg ? cfg.z : full ? -4.35 : bust ? -4.28 : -3.9]}
+        scale={scale}
+      />
       {/* 伏桌接触阴影：桌毡一片 + 护栏顶一片，透明度随 lean 进度渐入 */}
       {full && (
         <>
