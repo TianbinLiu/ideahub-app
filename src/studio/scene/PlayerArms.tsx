@@ -6,6 +6,7 @@ import { useFrame, useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { toonify } from "./TripoNpc";
+import { useStudio } from "../studioStore";
 
 const BONES = {
   spine1: "mixamorigSpine1",
@@ -31,8 +32,6 @@ export default function PlayerArms({ avatar }: { avatar: "m" | "f" }) {
     toonify(gltf.scene, 0.0012);
     // 与 NPC 同构：Root 骨自带立正修正；玩家背对镜头面向 NPC（-Z 方向）→ yaw +90°
     gltf.scene.rotation.set(0, Math.PI / 2, 0);
-    // FPS 惯例：隐藏自己的头（缩没 head 骨蒙皮），画面里只留肩臂
-    gltf.scene.getObjectByName("mixamorigHead")?.scale.set(0.001, 0.001, 0.001);
   }, [gltf]);
 
   // DEV 可调姿势表（__playerPose）：双臂前伸伏桌，头微低（避免后脑勺入画）
@@ -48,6 +47,16 @@ export default function PlayerArms({ avatar }: { avatar: "m" | "f" }) {
       rFore: [0.25, 0, 1.6] as [number, number, number] | null,
       y: -2.9,
       z: 4.95,
+      // 卡组浏览视角（实测定稿）：显头、回眸歪头沉思、右手托下颌、左臂横身前
+      think: {
+        spine1: [0.18, 0, 0] as [number, number, number],
+        neck: [0.05, 0.28, 0] as [number, number, number],
+        head: [0.12, 0.4, -0.1] as [number, number, number],
+        lArm: [0.45, 0, -0.4] as [number, number, number],
+        lFore: [0.9, 0.3, -0.3] as [number, number, number],
+        rArm: [0.2, -0.6, 0] as [number, number, number],
+        rFore: [2.3, 0.55, 1.85] as [number, number, number],
+      },
       freeze: false,
     };
     if (import.meta.env.DEV) {
@@ -67,11 +76,19 @@ export default function PlayerArms({ avatar }: { avatar: "m" | "f" }) {
     const p2 = w || pose;
     if (p2.freeze) return;
     const t = clock.elapsedTime;
+    const deckView = useStudio.getState().deckView;
     const breathe = Math.sin(t * 1.15 + 1.7) * 0.01;
+    const src = deckView ? p2.think : p2;
     for (const k of Object.keys(BONES) as (keyof typeof BONES)[]) {
       const n = bones.current[k];
-      const v = p2[k] as [number, number, number] | null;
+      const v = src[k] as [number, number, number] | null;
       if (n && v) n.rotation.set(v[0] + (k === "spine1" ? breathe : 0), v[1], v[2]);
+    }
+    // 头部：默认 FPS 隐藏；卡组浏览视角（镜头拍玩家）恢复显示
+    const head = bones.current.head;
+    if (head) {
+      const s = deckView ? 1 : 0.001;
+      if (head.scale.x !== s) head.scale.set(s, s, s);
     }
     if (group.current) group.current.position.set(0, p2.y, p2.z);
   });

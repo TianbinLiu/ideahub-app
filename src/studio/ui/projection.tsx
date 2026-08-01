@@ -8,6 +8,16 @@ import { activePath, chosenProposal, useStudio } from "../studioStore";
 export default function ProjectionWindow() {
   const projection = useStudio((s) => s.projection);
   if (!projection) return null;
+  // 卡组浏览：小窗横滑，不遮玩家（玩家在画面下半，窗口置顶部）
+  if (projection === "deck") {
+    return (
+      <div className="absolute inset-0 z-20">
+        <div className="absolute inset-x-2 top-[4%] flex h-[44%] flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142b]/40 shadow-[0_0_60px_rgba(103,232,249,0.28)] backdrop-blur-lg">
+          <DeckPanel />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="absolute inset-0 z-20">
       {/* 背景灰化+模糊；底部留出浮卡区域保持清晰 */}
@@ -26,6 +36,45 @@ export default function ProjectionWindow() {
         {projection === "editor" ? <EditorPanel /> : <ProposalsPanel />}
       </div>
     </div>
+  );
+}
+
+// ── 卡组投影：横向滑动浏览（scroll-snap，一屏约 2.2 张） ────────
+function DeckPanel() {
+  const deck = useStudio((s) => s.deck);
+  return (
+    <>
+      <div className="flex items-center justify-between border-b border-cyan-400/20 px-4 py-2.5">
+        <h3 className="text-sm font-bold text-cyan-100">我的卡组 · {deck.length} 张</h3>
+        <button onClick={() => useStudio.getState().closeProjection()} className="text-slate-400 hover:text-white">
+          ✕
+        </button>
+      </div>
+      <div className="flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden px-4 py-3">
+        {deck.map((c) => {
+          const color = CARD_TYPE_COLORS[c.type];
+          return (
+            <div
+              key={c.id}
+              className="relative flex w-[42%] flex-none snap-center flex-col overflow-hidden rounded-xl border bg-black/40"
+              style={{ borderColor: color + "88" }}
+            >
+              <img src={c.cover} alt={c.name} className="min-h-0 w-full flex-1 object-cover" />
+              <div className="p-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-xs font-semibold text-slate-100">{c.name}</span>
+                  <span className="flex-none rounded-full border px-1.5 text-[9px]" style={{ color, borderColor: color }}>
+                    {CARD_TYPE_LABELS[c.type]}
+                  </span>
+                </div>
+                <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-400">{c.summary}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="pb-2 text-center text-[10px] text-slate-500">← 左右滑动浏览 →</div>
+    </>
   );
 }
 

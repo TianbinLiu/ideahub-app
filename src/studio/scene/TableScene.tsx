@@ -584,7 +584,8 @@ function DeckStack() {
     <group
       onClick={(e) => {
         e.stopPropagation();
-        useStudio.getState().toggleSpread();
+        // 点卡组：进入卡组浏览视角（镜头拍玩家思考 + 投影横滑）
+        useStudio.getState().openDeckView();
       }}
     >
       {/* 卡组虚位标记 */}

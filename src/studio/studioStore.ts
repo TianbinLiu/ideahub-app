@@ -2,6 +2,7 @@
 import { create } from "zustand";
 import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, CardType, DraftVideo, NodeSlot, Proposal, uid } from "../types";
 import { MaterialFile, composeVideo, generateCards, generateProposals, searchMarket } from "../mock/ai";
+import { DECK_CAM } from "./scene/layout";
 
 export interface DialogMsg {
   id: string;
@@ -110,7 +111,10 @@ interface StudioState {
   /** 聚焦的桌面卡：nodeId=null 表示聚焦虚线占位卡；null=未聚焦（默认俯视机位） */
   focus: { nodeId: string | null } | null;
   /** 投影窗内容：editor=四区编辑表单；proposals=三方案选择；卡片悬浮当且仅当投影打开 */
-  projection: "editor" | "proposals" | null;
+  projection: "editor" | "proposals" | "deck" | null;
+  /** 卡组浏览视角：镜头拍玩家上半身（思考姿势），卡组投影横滑 */
+  deckView: boolean;
+  openDeckView: () => void;
   editor: EditorState | null;
   dragCardId: string | null;
   /** 对话视角（底部抽屉展开）：NPC 抬手面向用户 */
@@ -197,6 +201,7 @@ let nodeGenInFlight = false;
 export const useStudio = create<StudioState>()((set, get) => ({
   deck: [],
   spreadOpen: false,
+  deckView: false,
   spreadCenter: 0,
   market: { open: false, items: [], query: "", loading: false },
   marketDetail: null,
@@ -375,13 +380,29 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
   unfocus: () => {
     if (get().projection) return;
-    set({ focus: null, editor: null, spreadOpen: false, camera: { kind: "default" } });
+    set({ focus: null, editor: null, spreadOpen: false, deckView: false, camera: { kind: "default" } });
   },
   // 点 ✕ 关闭投影窗：与点击空白桌面一致——卡片落下并拉远回默认机位
   closeProjection: () =>
-    set({ projection: null, editor: null, focus: null, spreadOpen: false, camera: { kind: "default" } }),
+    set({ projection: null, editor: null, focus: null, spreadOpen: false, deckView: false, camera: { kind: "default" } }),
   toggleSpread: () =>
     set((s) => ({ spreadOpen: s.deck.length > 0 && !s.spreadOpen })),
+  // 点卡组：镜头移到玩家左侧拍上半身（思考姿势），卡组以投影小窗横滑浏览
+  openDeckView: () => {
+    const { deck, projection } = get();
+    if (projection) return;
+    if (deck.length === 0) {
+      get().npcSay("你的卡组还是空的。先把素材交给我炼卡，或者说「逛市场」看看现成的。");
+      return;
+    }
+    set({
+      deckView: true,
+      projection: "deck",
+      spreadOpen: false,
+      focus: null,
+      camera: { kind: "pos", pos: DECK_CAM.pos, look: DECK_CAM.look },
+    });
+  },
   shiftSpread: (dir) =>
     set((s) => ({ spreadCenter: Math.min(Math.max(0, s.spreadCenter + dir), Math.max(0, s.deck.length - 1)) })),
   pickDeckCard: (cardId) => {
