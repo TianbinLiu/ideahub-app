@@ -21,7 +21,8 @@ export default function ProjectionWindow() {
           background: "linear-gradient(to bottom, rgba(103,232,249,0.4), rgba(103,232,249,0.04))",
         }}
       />
-      <div className="absolute inset-x-2 top-[3%] bottom-[35%] flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142bf2] shadow-[0_0_60px_rgba(103,232,249,0.28)]">
+      {/* 半透明全息面板：透出后方 3D 桌景，靠模糊保证可读性 */}
+      <div className="absolute inset-x-2 top-[3%] bottom-[35%] flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142b]/60 shadow-[0_0_60px_rgba(103,232,249,0.28)] backdrop-blur-md">
         {projection === "editor" ? <EditorPanel /> : <ProposalsPanel />}
       </div>
     </div>
@@ -54,8 +55,8 @@ function EditorPanel() {
       </div>
 
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden p-3">
-        {/* 左：本段空白首尾帧栏位（生成后由所选方案填充） */}
-        <div className="flex w-[104px] flex-none flex-col gap-2">
+        {/* 左：本段空白首尾帧栏位（生成后由所选方案填充）+ 承接预览，撑满整列 */}
+        <div className="flex w-[124px] flex-none flex-col gap-2">
           {["首帧", "尾帧"].map((label) => (
             <div key={label} className="relative">
               <div className="flex aspect-video w-full items-center justify-center rounded-lg border-2 border-dashed border-cyan-400/30 bg-slate-800/40 text-[10px] text-slate-500">
@@ -65,22 +66,26 @@ function EditorPanel() {
             </div>
           ))}
           <div className="text-center text-[10px] leading-4 text-slate-500">生成后由所选方案决定</div>
-        </div>
-
-        {/* 右：四区 */}
-        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
-          {/* ① 预览图 */}
-          <div>
-            <div className="mb-1 text-xs font-semibold text-slate-300">预览图</div>
+          {/* 承接预览挪到左列底部：与首尾帧同宽，吃掉左列空白 */}
+          <div className="mt-auto">
+            <div className="mb-1 text-[10px] font-semibold text-slate-400">承接画面</div>
             {prev ? (
-              <div className="flex items-center gap-2">
-                <img src={prev.lastFrame} alt="上一段尾帧" className="aspect-video w-24 rounded object-cover" />
-                <span className="text-[11px] leading-4 text-slate-500">本段首帧将承接上一段尾帧</span>
+              <div className="relative">
+                <img src={prev.lastFrame} alt="上一段尾帧" className="aspect-video w-full rounded-lg object-cover" />
+                <span className="absolute inset-x-0 bottom-0 rounded-b-lg bg-black/60 px-1 py-0.5 text-center text-[9px] text-cyan-200">
+                  上一段尾帧 → 本段首帧
+                </span>
               </div>
             ) : (
-              <div className="text-[11px] text-slate-500">首段视频——暂无承接画面</div>
+              <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-slate-800/30 text-[10px] text-slate-500">
+                首段 · 无承接
+              </div>
             )}
           </div>
+        </div>
+
+        {/* 右：素材 / 视频要求（撑满剩余空间）/ 时长一行 */}
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
 
           {/* ② 素材 */}
           <div>
@@ -144,51 +149,50 @@ function EditorPanel() {
             )}
           </div>
 
-          {/* ③ 视频要求 */}
-          <div>
+          {/* ③ 视频要求：flex-1 吃掉全部剩余空白 */}
+          <div className="flex min-h-[72px] flex-1 flex-col">
             <div className="mb-1 text-xs font-semibold text-slate-300">视频要求（剧情补充）</div>
             <textarea
               value={editor.requirement}
               onChange={(e) => useStudio.getState().setRequirement(e.target.value)}
-              rows={2}
               maxLength={300}
               placeholder="例：主角在雨里发现了那封信的真正收件人……"
-              className="w-full rounded-lg border border-slate-600 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
+              className="min-h-0 w-full flex-1 resize-none rounded-lg border border-slate-600 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
             />
           </div>
 
-          {/* ④ 视频时长 */}
-          <div>
-            <div className="mb-1 text-xs font-semibold text-slate-300">视频时长</div>
-            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300">
-              <label className="flex cursor-pointer items-center gap-1">
-                <input type="radio" checked={editor.durationMode === "ai"} onChange={() => useStudio.getState().setDurationMode("ai")} />
-                AI 决定
-              </label>
-              <label className="flex cursor-pointer items-center gap-1">
-                <input
-                  type="radio"
-                  checked={editor.durationMode === "manual"}
-                  onChange={() => useStudio.getState().setDurationMode("manual")}
-                />
-                自定义
-              </label>
-              {editor.durationMode === "manual" && (
-                <span className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min={2}
-                    max={15}
-                    value={editor.durationSec}
-                    onChange={(e) =>
-                      useStudio.getState().setDurationSec(Math.min(15, Math.max(2, Number(e.target.value) || 2)))
-                    }
-                    className="w-14 rounded border border-slate-600 bg-black/30 px-1.5 py-0.5 text-center text-slate-100 outline-none focus:border-cyan-400"
-                  />
-                  秒
-                </span>
-              )}
-            </div>
+          {/* ④ 视频时长：单行合一——点「AI 决定」或直接拖滑条即自定义 */}
+          <div className="flex flex-none items-center gap-2.5">
+            <span className="flex-none text-xs font-semibold text-slate-300">视频时长</span>
+            <button
+              onClick={() => useStudio.getState().setDurationMode("ai")}
+              className={`flex-none rounded-full px-2.5 py-1 text-[11px] transition ${
+                editor.durationMode === "ai"
+                  ? "bg-cyan-400/25 font-semibold text-cyan-200 ring-1 ring-cyan-400/60"
+                  : "bg-slate-700/60 text-slate-400"
+              }`}
+            >
+              AI 决定
+            </button>
+            <input
+              type="range"
+              min={2}
+              max={15}
+              step={1}
+              value={editor.durationSec}
+              onChange={(e) => {
+                useStudio.getState().setDurationMode("manual");
+                useStudio.getState().setDurationSec(Number(e.target.value));
+              }}
+              className="min-w-0 flex-1 accent-cyan-400"
+            />
+            <span
+              className={`w-8 flex-none text-right text-xs tabular-nums ${
+                editor.durationMode === "manual" ? "font-semibold text-cyan-200" : "text-slate-500"
+              }`}
+            >
+              {editor.durationMode === "manual" ? `${editor.durationSec}s` : "auto"}
+            </span>
           </div>
         </div>
       </div>

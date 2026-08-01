@@ -145,10 +145,10 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
       const v = p2[k] as [number, number, number] | null;
       if (n && v) n.rotation.set(v[0] + (k === "spine1" ? breathe : 0), v[1], v[2]);
     }
+    const st = useStudio.getState();
     // 表情 morph：随机间隔眨眼（偶发双眨）+ npcSay 驱动口型 + 情绪事件驱动笑意 + 胸部压桌
     const mm = morphMesh.current;
     if (mm && mm.morphTargetDictionary && mm.morphTargetInfluences) {
-      const st = useStudio.getState();
       const speaking = st.speakingUntil > Date.now();
       const bp = blinkPlan.current;
       let blink = 0;
@@ -192,6 +192,7 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
       if (dict.squish !== undefined && bust) inf[dict.squish] = 0.72 + Math.sin(t * 1.1) * 0.18;
     }
     // 持卡：世界空间正立卡跟随左手（不继承手骨旋转，永远面向镜头；可点击查看详情）
+    // 仅对话视角且市场未摊开时展示——默认俯视角不该有卡悬在空中
     const card = cardMeshRef.current;
     const hand = b.lHand;
     if (card && hand) {
@@ -200,7 +201,7 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
         (card.material as THREE.MeshBasicMaterial).map = cardFaceTexture(recommend);
         (card.material as THREE.MeshBasicMaterial).needsUpdate = true;
       }
-      card.visible = !!recommend;
+      card.visible = !!recommend && st.dialogView && !st.market.open;
       hand.getWorldPosition(cardPos);
       if (bust) card.position.set(cardPos.x + 0.05, cardPos.y + 0.1, cardPos.z + 0.15);
       else card.position.set(cardPos.x - 0.3, cardPos.y + 0.18, cardPos.z + 0.12);
