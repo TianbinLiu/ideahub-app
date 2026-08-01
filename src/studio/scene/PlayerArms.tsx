@@ -34,15 +34,16 @@ const TRIPO_POSE: PoseTable = {
   rArm: [0, -1.38, 0],
   rFore: [0.25, 0, 1.6],
 };
-// MMD 系轴向实测（rest-relative 增量）：臂 -z=前摆、±x=展/收、y=扭转；脊柱 +x=前倾
+// MMD 系轴向实测（rest-relative 增量）：臂 -z=前摆、±x=展/收、y=扭转；脊柱 +x=前倾。
+// 真实体格落地后（scale ~2.5）手臂改前下方搭向桌沿——旧值前平举在平视角度像僵尸手
 const MMD_POSE: PoseTable = {
   spine1: [0.35, 0, 0],
   neck: [0.2, 0, 0],
   head: [0.25, 0, 0],
-  lArm: [-0.42, 0, -0.92],
-  lFore: [0, 0.5, -0.18],
-  rArm: [0.42, 0, -0.92],
-  rFore: [0, -0.5, -0.18],
+  lArm: [-0.6, 0, -0.72],
+  lFore: [0, 0.5, -0.12],
+  rArm: [0.6, 0, -0.72],
+  rFore: [0, -0.5, -0.12],
 };
 
 // 每形象装配参数：MMD 系 glTF 导出后面朝 +Z（Tripo 系是 Root 修正后朝 +X）。
@@ -65,11 +66,12 @@ const RIGS: Record<
   f: { yaw: Math.PI / 2, scale: 4.3, y: -2.9, z: 4.95, pose: TRIPO_POSE },
   rin: {
     yaw: Math.PI,
-    scale: 4.3,
-    // y -2.9→-2.0：站位抬高让胸口在画面里越过桌沿圆柱线（用户定），世界高度本就超但原值胸埋画框下
-    y: -2.0,
-    z: 4.95,
-    deckY: -5.55,
+    // 体格/落地重定（用户平视验收）：scale 按 NPC 体格比例（4.3 是 7.2 单位巨人；场景角色 ~3.4）、
+    // y=地板 -2.41 脚底精确落地（两模型脚底=原点，实测蒙皮包围盒 minY==groupY）；胸口 0.59>桌沿 0.25
+    scale: 2.5,
+    y: -2.41,
+    z: 4.0,
+    deckY: -3.1,
     pose: MMD_POSE,
     // 双马尾/后发/刘海/发饰/项链吊坠（裙 180 骨两个可见视角都出画，不接省性能）
     springs: ["馬尾", "後髪", "劉海", "髮飾", "吊墜"],
@@ -77,10 +79,10 @@ const RIGS: Record<
   },
   gratia: {
     yaw: Math.PI,
-    scale: 4.1,
-    y: -2.0,
-    z: 4.95,
-    deckY: -6.05,
+    scale: 2.21,
+    y: -2.41,
+    z: 4.0,
+    deckY: -3.1,
     pose: MMD_POSE,
     // UE 动骨 dyn_ 前缀：三组发链 + 领带（スカート 260 骨出画不接）
     springs: ["dyn_hair", "tie"],
