@@ -2,3 +2,6 @@ node_modules
 dist
 *.local
 .DS_Store
+# 受保护资产：加密产物与（未来）购买的模型本体都不进公开仓库
+public/models/protected/
+assets-private/

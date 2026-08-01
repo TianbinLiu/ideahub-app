@@ -6,10 +6,11 @@ import { Canvas, useFrame, useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { toonify } from "../scene/TripoNpc";
+import { hasAssetKey, loaderFor } from "../secureAssets";
 
-/** 卡名 → 3D 模型 */
+/** 卡名 → 3D 模型。凛卡是加密管线的端到端示例：构建带密钥时走 .glbx 解密加载 */
 export const CARD_MODELS: Record<string, string> = {
-  "赛博侦探·凛": "/models/cards/rin-opt.glb",
+  "赛博侦探·凛": hasAssetKey() ? "/models/protected/rin-opt.glbx" : "/models/cards/rin-opt.glb",
   "剑修·白无衣": "/models/cards/baiwuyi-opt.glb",
   "废土信使小满": "/models/cards/xiaoman-opt.glb",
   "AI 管家 T-7": "/models/cards/t7-opt.glb",
@@ -17,7 +18,7 @@ export const CARD_MODELS: Record<string, string> = {
 };
 
 function Model({ url }: { url: string }) {
-  const gltf = useLoader(GLTFLoader, url, (l) => {
+  const gltf = useLoader(loaderFor(url), url, (l) => {
     (l as GLTFLoader).setMeshoptDecoder(MeshoptDecoder);
   });
   const group = useRef<THREE.Group>(null);

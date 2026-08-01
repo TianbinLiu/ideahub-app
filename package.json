@@ -6,9 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "protect": "node scripts/protect-asset.mjs",
+    "build:app": "tsc && vite build && node scripts/prune-app-assets.mjs && npx cap sync android",
+    "apk": "npm run build:app && cd android && gradlew assembleDebug"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "@pixiv/three-vrm": "^3.5.5",
     "@react-three/fiber": "^9.3.0",
     "react": "^19.2.0",

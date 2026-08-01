@@ -6,9 +6,17 @@ export type Quality = "low" | "mid" | "high";
 
 const KEY = "ideahub-app.quality";
 
+/** 原生 App 壳内运行（Capacitor 注入全局） */
+export function isNativeApp(): boolean {
+  const w = window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } };
+  return !!w.Capacitor?.isNativePlatform?.();
+}
+
 export function getQuality(): Quality {
   const v = localStorage.getItem(KEY);
-  return v === "low" || v === "high" ? v : "mid";
+  const q: Quality = v === "low" || v === "high" ? v : "mid";
+  // App 包体不含极致档大文件（出包时裁剪），原生端封顶到均衡
+  return q === "high" && isNativeApp() ? "mid" : q;
 }
 
 export function setQuality(q: Quality) {

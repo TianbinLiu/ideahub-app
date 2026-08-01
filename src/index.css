@@ -11,6 +11,24 @@ body,
 body {
   @apply bg-ink text-slate-200;
   font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  /* 移动端：禁下拉刷新/回弹（3D 拖拽手势会误触） */
+  overscroll-behavior: none;
+}
+
+/* 3D 画布：手势全交给应用（拖拽/捏合），浏览器不做滚动/缩放 */
+canvas {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 刘海/挖孔屏安全区：顶栏与底部抽屉避开系统区域 */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* 细滚动条 */

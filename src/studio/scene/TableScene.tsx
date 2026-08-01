@@ -80,6 +80,9 @@ function CameraRig() {
     }
     lastCamObj.current = st.camera;
     const target = st.camera.kind === "default" ? DEFAULT_CAM : st.camera;
+    // 手机竖屏（aspect<0.62）垂直 FOV 固定→水平视野变窄→卡组机位下人脸过大：自动后撤一档
+    const narrowPull =
+      st.deckView && (camera as THREE.PerspectiveCamera).aspect < 0.62 ? -0.3 : 0;
     if (st.deckView && !prevDeck.current) {
       deckAnim.current = { p: 0, start: camera.position.clone() };
     }
@@ -102,14 +105,18 @@ function CameraRig() {
       const u = 1 - p;
       const bez = (a: number, b: number, c: number, d: number) =>
         u * u * u * a + 3 * u * u * p * b + 3 * u * p * p * c + p * p * p * d;
-      camera.position.set(bez(P0.x, c1x, c2x, ex), bez(P0.y, c1y, c2y, ey), bez(P0.z, c1z, c2z, ez));
+      camera.position.set(
+        bez(P0.x, c1x, c2x, ex),
+        bez(P0.y, c1y, c2y, ey),
+        bez(P0.z, c1z, c2z, ez + narrowPull),
+      );
       RIG_LOOK.lerp(tmp.current.set(...DECK_CAM.look), Math.min(1, p * 2.4));
       camera.lookAt(RIG_LOOK);
       if (anim.p >= 1) deckAnim.current = null;
       return;
     }
     const k = 1 - Math.exp(-dt * 4.5);
-    camera.position.lerp(tmp.current.set(...target.pos), k);
+    camera.position.lerp(tmp.current.set(target.pos[0], target.pos[1], target.pos[2] + narrowPull), k);
     RIG_LOOK.lerp(tmp.current.set(...target.look), k);
     camera.lookAt(RIG_LOOK);
   });

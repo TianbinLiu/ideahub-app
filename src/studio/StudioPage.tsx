@@ -118,7 +118,7 @@ export default function StudioPage() {
       </Canvas>
 
       {/* 顶栏（竖屏紧凑） */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between p-3">
+      <div className="safe-top pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between p-3">
         <Link
           to="/"
           className="pointer-events-auto rounded-full bg-panel/80 px-3 py-1.5 text-xs text-slate-300 backdrop-blur"

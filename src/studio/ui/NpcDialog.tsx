@@ -121,7 +121,7 @@ export default function NpcDialog() {
   // ── 选项态：两大选项占据窗口左右 ──────────────────────────────
   if (mode === "choose") {
     return (
-      <div className="absolute inset-x-0 bottom-0 z-10 flex h-[30%] flex-col rounded-t-2xl border-t border-slate-700/70 bg-panel/95 backdrop-blur">
+      <div className="safe-bottom absolute inset-x-0 bottom-0 z-10 flex h-[30%] flex-col rounded-t-2xl border-t border-slate-700/70 bg-panel/95 backdrop-blur">
         <div className="flex items-center gap-2 px-4 py-2">
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
           <span className="text-sm font-semibold text-slate-100">铸卡师</span>
@@ -175,7 +175,7 @@ export default function NpcDialog() {
 
   // ── 市场 / 炼卡态 ────────────────────────────────────────────
   return (
-    <div className="absolute inset-x-0 bottom-0 z-10 flex h-[42%] flex-col rounded-t-2xl border-t border-slate-700/70 bg-panel/95 backdrop-blur">
+    <div className="safe-bottom absolute inset-x-0 bottom-0 z-10 flex h-[42%] flex-col rounded-t-2xl border-t border-slate-700/70 bg-panel/95 backdrop-blur">
       <div className="flex items-center gap-2 border-b border-slate-700/60 px-3 py-2">
         <button onClick={backToChoose} className="px-1 text-slate-400 hover:text-white">
           ‹
