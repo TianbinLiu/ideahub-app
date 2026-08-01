@@ -10,6 +10,7 @@ import { useStudio } from "../studioStore";
 import { cardFaceTexture } from "./cardTexture";
 import { loaderFor } from "../secureAssets";
 import { SpringBoneSim } from "./springBones";
+import { NPC_CAM } from "./layout";
 
 const cardPos = new THREE.Vector3();
 
@@ -197,6 +198,28 @@ export default function TripoNpc({
   const prevMoodUntil = useRef(0);
   // 进对话后延迟俯身：等相机走位到位（~1s）再开始过渡，玩家能完整看到动画
   const leanPendingAt = useRef(0);
+  // 注视镜头系统（购入模型，移植自 PlayerArms）：定格姿势本身凝视 NPC_CAM 方向——
+  // 实际镜头偏离（自由视角拖拽）时，间歇性把头转向镜头再收回（限幅+缓入缓出）。
+  // 头骨全程被 lean 动画驱动：增量必须叠加在 mixer.update 之后；基准四元数在
+  // 钉帧↔settle 状态切换时置空、于定格帧重采样（动画重写头骨后旧基准即失效）
+  const headBase = useRef<THREE.Quaternion | null>(null);
+  const glance = useRef({ nextAt: 4, start: 0, until: 0 });
+  const gazeAnimState = useRef(0);
+  // 状态切换后延迟采样：mixer 对新钉帧/定格动作的首次 setValue 因 PropertyMixer
+  // 双缓冲比较会晚 1-2 帧——立即采样会把 FBX rest 姿势当成基准（头被按回 rest）
+  const gazeWait = useRef(0);
+  const gv = useMemo(
+    () => ({
+      headPos: new THREE.Vector3(),
+      baseDir: new THREE.Vector3(),
+      camDir: new THREE.Vector3(),
+      qDelta: new THREE.Quaternion(),
+      qParent: new THREE.Quaternion(),
+      qTmp: new THREE.Quaternion(),
+      qId: new THREE.Quaternion(),
+    }),
+    [],
+  );
   const cardMeshRef = useRef<THREE.Mesh | null>(null);
   const cardIdRef = useRef<string | null>(null);
   const shadowFeltRef = useRef<THREE.Mesh | null>(null);
@@ -318,12 +341,14 @@ export default function TripoNpc({
         leanArmTracks: perfActions.leanArm ? perfActions.leanArm.getClip().tracks.length : -1,
         perfActions,
         mixer,
+        glance: glance.current,
+        springSim,
       };
     }
     return p;
   }, [gltf, bust, full, cfg]);
 
-  useFrame(({ clock }, dt) => {
+  useFrame(({ clock, camera }, dt) => {
     // DEV 调参：优先读 window 挂载的表（StrictMode/HMR 下闭包引用可能不同源）
     const w = (import.meta.env.DEV && (window as unknown as Record<string, unknown>).__tripoPose) as
       | typeof pose
@@ -516,6 +541,61 @@ export default function TripoNpc({
     // 再读手骨位置更新持卡——发牌挥动时卡精确跟手。
     // dt 钳制：页面从后台切回时 dt 可达 1s+，会把 2s 过渡两帧跳完
     mixer.update(Math.min(dt, 0.05));
+    // ── 头部注视：动画采样之后、世界矩阵/弹簧骨之前叠加限幅转头 ──
+    // 只在动画"定格"态叠加（1=站姿钉 f1、2=对话 clamp 末帧）：过渡/倒播期间动画
+    // 每帧重写头骨会与叠加打架；定格后 mixer 输出恒定不再 setValue，外部写入可留存
+    if (cfg && perfActions.leanBody && b.head) {
+      const lb = perfActions.leanBody;
+      const head = b.head;
+      const pinnedNow = lb.timeScale === 0 && !lb.paused && lb.enabled && lb.time <= 0.001;
+      const settled = lb.paused && lb.time >= lb.getClip().duration - 0.001;
+      const animState = pinnedNow ? 1 : settled ? 2 : 0;
+      if (animState !== gazeAnimState.current) {
+        gazeAnimState.current = animState;
+        headBase.current = null; // 动画状态切换后基准失效，定格姿势落地后重采样
+        gazeWait.current = 2;
+      }
+      if (animState !== 0 && gazeWait.current > 0) gazeWait.current--;
+      else if (animState !== 0) {
+        if (!headBase.current) headBase.current = head.quaternion.clone();
+        else head.quaternion.copy(headBase.current);
+        const gl2 = glance.current;
+        let weight = 0;
+        if (gl2.until === 0 && t >= gl2.nextAt) {
+          gl2.start = t;
+          gl2.until = t + 2.0 + (Math.sin(gl2.nextAt * 7.31) * 0.5 + 0.5) * 1.3;
+        }
+        if (gl2.until > 0) {
+          if (t >= gl2.until) {
+            // 伪随机排下一次注视（确定性可复现）
+            const h = Math.abs(Math.sin(gl2.until * 12.9898) * 43758.5453) % 1;
+            gl2.nextAt = t + 3.5 + h * 4.5;
+            gl2.until = 0;
+          } else {
+            // 缓入缓出：窗口两端 0.5s 渐变
+            const aIn = Math.min(1, (t - gl2.start) / 0.5);
+            const aOut = Math.min(1, (gl2.until - t) / 0.5);
+            const m = Math.min(aIn, aOut);
+            weight = m * m * (3 - 2 * m);
+          }
+        }
+        if (weight > 0.001) {
+          head.updateWorldMatrix(true, false);
+          gv.headPos.setFromMatrixPosition(head.matrixWorld);
+          gv.baseDir.set(NPC_CAM.pos[0], NPC_CAM.pos[1], NPC_CAM.pos[2]).sub(gv.headPos).normalize();
+          gv.camDir.copy(camera.position).sub(gv.headPos).normalize();
+          gv.qDelta.setFromUnitVectors(gv.baseDir, gv.camDir);
+          // 限幅 0.35 rad（比玩家的 0.5 收紧：Q 版大头转太多诡异）
+          const ang = 2 * Math.acos(Math.min(1, Math.abs(gv.qDelta.w)));
+          if (ang > 0.35) gv.qDelta.slerp(gv.qId, 1 - 0.35 / ang);
+          gv.qDelta.slerp(gv.qId, 1 - weight);
+          // 世界系增量 → 头骨局部系：local' = P⁻¹·Δ·P·local
+          head.parent!.getWorldQuaternion(gv.qParent);
+          gv.qTmp.copy(gv.qParent).invert().multiply(gv.qDelta).multiply(gv.qParent);
+          head.quaternion.premultiply(gv.qTmp);
+        }
+      }
+    }
     gltf.scene.updateMatrixWorld(true);
     // 弹簧骨在姿势/动画之后模拟（读最新世界矩阵，回写局部旋转）
     if (springSim) {
