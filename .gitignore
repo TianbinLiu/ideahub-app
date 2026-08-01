@@ -5,3 +5,5 @@ dist
 # 受保护资产：加密产物与（未来）购买的模型本体都不进公开仓库
 public/models/protected/
 assets-private/
+# 签名 keystore 与口令：公开仓库绝不入仓（备份见 android/keystore/README.md）
+android/keystore/

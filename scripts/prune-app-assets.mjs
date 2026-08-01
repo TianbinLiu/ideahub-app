@@ -5,27 +5,39 @@ import path from "node:path";
 import url from "node:url";
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
-const previewDir = path.join(root, "dist", "models", "preview");
+const modelsDir = path.join(root, "dist", "models");
 
 const PRUNE = [
   // 开发源模型（重烘管线的输入，运行时从不加载）
-  "npc-full-rigged.glb",
-  "npc-full-hd-rigged.glb",
-  "player-m-rigged.glb",
-  "player-f-rigged.glb",
-  "player-m-rigged-opt.glb",
-  "player-f-rigged-opt.glb",
-  "player-m.glb",
-  "player-f.glb",
-  "tripo-v3-rigged.glb",
-  "npc-full-face.glb", // 极致档（36MB）
-  "player-m-think.glb", // 极致档（37MB）
-  "player-f-think.glb", // 极致档（26MB）
+  "preview/npc-full-rigged.glb",
+  "preview/npc-full-hd-rigged.glb",
+  "preview/player-m-rigged.glb",
+  "preview/player-f-rigged.glb",
+  "preview/player-m-rigged-opt.glb",
+  "preview/player-f-rigged-opt.glb",
+  "preview/player-m.glb",
+  "preview/player-f.glb",
+  "preview/tripo-v3-rigged.glb",
+  "preview/npc-full-face.glb", // 极致档（36MB）
+  "preview/player-m-think.glb", // 极致档（37MB）
+  "preview/player-f-think.glb", // 极致档（26MB）
+  // 烘焙/试验遗留，src 全局零引用（web 端也不加载，仅占仓库）
+  "preview/tripo-v3.glb",
+  "preview/tripo-v25.glb",
+  "preview/tripo-v25-rigged.glb",
+  "preview/npc-full.glb",
+  "preview/tripo-bust-opt.glb",
+  "preview/npc-full-rigged-opt.glb",
+  // ?npc= URL 调试变体专用（App 内没有地址栏，永不可达；web 调试不受影响）
+  "preview/tripo-v3-rigged-opt.glb", // ?npc=tripo
+  "npc/card-forger.vrm", // ?npc=vrm
+  "preview/npc-full-face-mid.glb", // ?npc=witch
+  "preview/npc-full-face-opt.glb", // ?npc=witch
 ];
 
 let saved = 0;
 for (const f of PRUNE) {
-  const p = path.join(previewDir, f);
+  const p = path.join(modelsDir, f);
   if (fs.existsSync(p)) {
     saved += fs.statSync(p).size;
     fs.rmSync(p);

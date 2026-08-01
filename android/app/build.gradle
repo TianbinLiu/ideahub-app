@@ -1,5 +1,13 @@
 apply plugin: 'com.android.application'
 
+// 签名配置从 android/keystore/keystore.properties 读取（整个 keystore/ 目录被 gitignore，
+// 公开仓库不含任何口令；目录缺失时 release 退化为无签名包并给出警告）
+def keystorePropertiesFile = rootProject.file("keystore/keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
 android {
     namespace = "com.ideahub.branchvideo"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,10 +24,26 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            release {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            // webview 壳应用：原生代码只有 Capacitor 桥，minify 收益小，保持关闭省心
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn("android/keystore/ 缺失：release 包将不签名，无法安装或上架（见 android/keystore/README.md 的换机说明）")
+            }
         }
     }
 }

@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "protect": "node scripts/protect-asset.mjs",
     "build:app": "tsc && vite build && node scripts/prune-app-assets.mjs && npx cap sync android",
-    "apk": "npm run build:app && cd android && gradlew assembleDebug"
+    "apk": "npm run build:app && cd android && gradlew assembleDebug",
+    "apk:release": "npm run build:app && cd android && gradlew assembleRelease",
+    "aab": "npm run build:app && cd android && gradlew bundleRelease"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
