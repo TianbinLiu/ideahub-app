@@ -1,6 +1,6 @@
 // 玩家第一人称手臂：按所选形象（男/女）加载 Tripo 绑骨模型，
 // 摆"双臂前伸伏在桌沿"姿势，身体沉在镜头外、只露前臂与手。
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -10,6 +10,7 @@ import { useStudio } from "../studioStore";
 import { DECK_CAM } from "./layout";
 import { PlayerAvatar, playerModelUrl } from "../quality";
 import { loaderFor } from "../secureAssets";
+import { SpringBoneSim } from "./springBones";
 
 const BONES = {
   spine1: "mixamorigSpine1",
@@ -46,16 +47,72 @@ const MMD_POSE: PoseTable = {
 
 // 每形象装配参数：MMD 系 glTF 导出后面朝 +Z（Tripo 系是 Root 修正后朝 +X）。
 // deckY=卡组视角整体下沉（站姿 MMD 模型比 Tripo think 前倾姿势高得多，脸会出画；
-// Tripo 系有烘焙 think 动画不需要）
+// Tripo 系有烘焙 think 动画不需要）；springs=弹簧骨链根名（中日文骨名直接匹配）
 const RIGS: Record<
   PlayerAvatar,
-  { yaw: number; scale: number; y: number; z: number; deckY?: number; pose: PoseTable }
+  {
+    yaw: number;
+    scale: number;
+    y: number;
+    z: number;
+    deckY?: number;
+    pose: PoseTable;
+    springs?: string[];
+    springOpts?: { stiffness?: number; drag?: number; gravity?: number };
+  }
 > = {
   m: { yaw: Math.PI / 2, scale: 4.3, y: -2.9, z: 4.95, pose: TRIPO_POSE },
   f: { yaw: Math.PI / 2, scale: 4.3, y: -2.9, z: 4.95, pose: TRIPO_POSE },
-  rin: { yaw: Math.PI, scale: 4.3, y: -2.9, z: 4.95, deckY: -5.3, pose: MMD_POSE },
-  gratia: { yaw: Math.PI, scale: 4.1, y: -2.9, z: 4.95, deckY: -5.8, pose: MMD_POSE },
+  rin: {
+    yaw: Math.PI,
+    scale: 4.3,
+    y: -2.9,
+    z: 4.95,
+    deckY: -5.3,
+    pose: MMD_POSE,
+    // 双马尾/后发/刘海/发饰/项链吊坠（裙 180 骨两个可见视角都出画，不接省性能）
+    springs: ["馬尾", "後髪", "劉海", "髮飾", "吊墜"],
+    springOpts: { stiffness: 5, drag: 0.3 },
+  },
+  gratia: {
+    yaw: Math.PI,
+    scale: 4.1,
+    y: -2.9,
+    z: 4.95,
+    deckY: -5.8,
+    pose: MMD_POSE,
+    // UE 动骨 dyn_ 前缀：三组发链 + 领带（スカート 260 骨出画不接）
+    springs: ["dyn_hair", "tie"],
+    springOpts: { stiffness: 6, drag: 0.3 },
+  },
 };
+
+/** 凛的宝石剑（同包道具 PMX 转制）：悬浮在右掌上方缓旋+浮动——
+ *  贴合"施法悬手"构图的魔法道具，与全息卡视觉语言一致（握持版四朝向实测都别扭） */
+function RinSword({ scene }: { scene: THREE.Object3D }) {
+  const url = "/models/protected/rin-sword-opt.glbx?v=p1";
+  const swordGltf = useLoader(loaderFor(url), url, (loader) => {
+    (loader as GLTFLoader).setMeshoptDecoder(MeshoptDecoder);
+  });
+  useMemo(() => toonify(swordGltf.scene, 0.002), [swordGltf]);
+  useEffect(() => {
+    const hand = scene.getObjectByName("mixamorigRightHand");
+    if (!hand) return;
+    const sword = swordGltf.scene;
+    sword.position.set(0, 0.17, 0.03);
+    sword.scale.setScalar(0.75);
+    hand.add(sword);
+    return () => {
+      hand.remove(sword);
+    };
+  }, [swordGltf, scene]);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    swordGltf.scene.rotation.y = t * 0.9;
+    swordGltf.scene.position.y = 0.17 + Math.sin(t * 1.6) * 0.012;
+  });
+  return null;
+}
 
 export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
   // think 版 = 绑骨模型 + Blender matrix 法烘的"低头看镜头手摸下巴"1 帧动画
@@ -136,7 +193,55 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     [],
   );
 
-  useFrame(({ clock, camera }) => {
+  // 头部注视覆盖：以"当前头骨四元数"为底，按目光窗口把头限幅转向实际镜头
+  // （think 分支=mixer 采样后；MMD 分支=姿势写入后——两处共用）
+  function applyGaze(head: THREE.Object3D, t: number, camera: THREE.Camera) {
+    const gl2 = glance.current;
+    let weight = 0;
+    if (gl2.until === 0 && t >= gl2.nextAt) {
+      gl2.start = t;
+      gl2.until = t + 2.0 + (Math.sin(gl2.nextAt * 7.31) * 0.5 + 0.5) * 1.3;
+    }
+    if (gl2.until > 0) {
+      if (t >= gl2.until) {
+        // 伪随机排下一次注视（确定性可复现）
+        const h = Math.abs(Math.sin(gl2.until * 12.9898) * 43758.5453) % 1;
+        gl2.nextAt = t + 3.5 + h * 4.5;
+        gl2.until = 0;
+      } else {
+        // 缓入缓出：窗口两端 0.5s 渐变
+        const aIn = Math.min(1, (t - gl2.start) / 0.5);
+        const aOut = Math.min(1, (gl2.until - t) / 0.5);
+        const m = Math.min(aIn, aOut);
+        weight = m * m * (3 - 2 * m);
+      }
+    }
+    if (weight > 0.001) {
+      head.updateWorldMatrix(true, false);
+      gv.headPos.setFromMatrixPosition(head.matrixWorld);
+      gv.baseDir.set(DECK_CAM.pos[0], DECK_CAM.pos[1], DECK_CAM.pos[2]).sub(gv.headPos).normalize();
+      gv.camDir.copy(camera.position).sub(gv.headPos).normalize();
+      gv.qDelta.setFromUnitVectors(gv.baseDir, gv.camDir);
+      // 限幅 0.5 rad：只转头不拧脖子
+      const ang = 2 * Math.acos(Math.min(1, Math.abs(gv.qDelta.w)));
+      if (ang > 0.5) gv.qDelta.slerp(gv.qId, 1 - 0.5 / ang);
+      gv.qDelta.slerp(gv.qId, 1 - weight);
+      // 世界系增量 → 头骨局部系：local' = P⁻¹·Δ·P·local
+      head.parent!.getWorldQuaternion(gv.qParent);
+      gv.qTmp.copy(gv.qParent).invert().multiply(gv.qDelta).multiply(gv.qParent);
+      head.quaternion.premultiply(gv.qTmp);
+    }
+  }
+
+  // 弹簧骨物理（MMD 移植模型的马尾/后发/刘海/吊坠链）
+  const springSim = useMemo(() => {
+    if (!rig.springs?.length) return null;
+    const sim = new SpringBoneSim(gltf.scene, rig.springs, rig.springOpts);
+    if (import.meta.env.DEV) console.log("[player springs] joints:", sim.jointCount);
+    return sim.jointCount > 0 ? sim : null;
+  }, [gltf, rig]);
+
+  useFrame(({ clock, camera }, dt) => {
     const w = (import.meta.env.DEV && (window as unknown as Record<string, unknown>).__playerPose) as
       | typeof pose
       | false;
@@ -166,41 +271,7 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       if (head) {
         if (!headBase.current) headBase.current = head.quaternion.clone();
         else head.quaternion.copy(headBase.current);
-        const gl2 = glance.current;
-        let weight = 0;
-        if (gl2.until === 0 && t >= gl2.nextAt) {
-          gl2.start = t;
-          gl2.until = t + 2.0 + (Math.sin(gl2.nextAt * 7.31) * 0.5 + 0.5) * 1.3;
-        }
-        if (gl2.until > 0) {
-          if (t >= gl2.until) {
-            // 伪随机排下一次注视（确定性可复现）
-            const h = Math.abs(Math.sin(gl2.until * 12.9898) * 43758.5453) % 1;
-            gl2.nextAt = t + 3.5 + h * 4.5;
-            gl2.until = 0;
-          } else {
-            // 缓入缓出：窗口两端 0.5s 渐变
-            const aIn = Math.min(1, (t - gl2.start) / 0.5);
-            const aOut = Math.min(1, (gl2.until - t) / 0.5);
-            const m = Math.min(aIn, aOut);
-            weight = m * m * (3 - 2 * m);
-          }
-        }
-        if (weight > 0.001) {
-          head.updateWorldMatrix(true, false);
-          gv.headPos.setFromMatrixPosition(head.matrixWorld);
-          gv.baseDir.set(DECK_CAM.pos[0], DECK_CAM.pos[1], DECK_CAM.pos[2]).sub(gv.headPos).normalize();
-          gv.camDir.copy(camera.position).sub(gv.headPos).normalize();
-          gv.qDelta.setFromUnitVectors(gv.baseDir, gv.camDir);
-          // 限幅 0.5 rad：只转头不拧脖子
-          const ang = 2 * Math.acos(Math.min(1, Math.abs(gv.qDelta.w)));
-          if (ang > 0.5) gv.qDelta.slerp(gv.qId, 1 - 0.5 / ang);
-          gv.qDelta.slerp(gv.qId, 1 - weight);
-          // 世界系增量 → 头骨局部系：local' = P⁻¹·Δ·P·local
-          head.parent!.getWorldQuaternion(gv.qParent);
-          gv.qTmp.copy(gv.qParent).invert().multiply(gv.qDelta).multiply(gv.qParent);
-          head.quaternion.premultiply(gv.qTmp);
-        }
+        applyGaze(head, t, camera);
       }
     } else {
       if (thinkAction && (thinkAction.isRunning() || thinkAction.paused)) thinkAction.stop();
@@ -215,6 +286,9 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
           else n.rotation.set(gv.ePose.x, gv.ePose.y, gv.ePose.z);
         }
       }
+      // MMD 档卡组视角（无 think 动画）：姿势写入后同样叠加注视镜头，让特写有生命感
+      const head2 = bones.current.head;
+      if (showSelf && head2) applyGaze(head2, t, camera);
     }
     // 头部：默认 FPS 隐藏；镜头可能拍到玩家时恢复显示
     const head = bones.current.head;
@@ -224,11 +298,17 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     }
     const baseY = showSelf && rig.deckY !== undefined ? rig.deckY : p2.y;
     if (group.current) group.current.position.set(0, baseY + (showSelf ? breathe * 0.6 : 0), p2.z);
+    // 弹簧骨在姿势之后模拟（读最新世界矩阵，回写局部旋转）
+    if (springSim) {
+      gltf.scene.updateMatrixWorld(true);
+      springSim.update(dt);
+    }
   });
 
   return (
     <group ref={group} position={[0, pose.y, pose.z]}>
       <primitive object={gltf.scene} scale={rig.scale} />
+      {avatar === "rin" && <RinSword scene={gltf.scene} />}
       {/* 玩家侧补光：烛光都在桌北，肩臂需要一点暖光才可读 */}
       <pointLight position={[0, 4.2, -0.6]} intensity={6} distance={7} color="#ffdbb0" />
     </group>

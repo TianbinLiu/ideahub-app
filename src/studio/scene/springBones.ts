@@ -41,7 +41,8 @@ export class SpringBoneSim {
     this.stiffness = opts?.stiffness ?? 14;
     this.drag = opts?.drag ?? 0.32;
     this.gravity = opts?.gravity ?? 1.6;
-    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+    // 保留 Unicode 字母数字（MMD 移植模型的骨名是中日文：馬尾/後髪/劉海），只剥符号
+    const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
     const pats = prefixes.map(norm);
     root.traverse((o) => {
       if (!(o as THREE.Bone).isBone) return;

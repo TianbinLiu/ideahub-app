@@ -35,6 +35,7 @@ const PRUNE = [
   "preview/npc-full-face-opt.glb", // ?npc=witch
   // 本地开发试穿档（第三方移植模型，仅限本机 DEV；授权不含分发——绝不允许入包）
   "protected/rin-player-opt.glbx",
+  "protected/rin-sword-opt.glbx",
   "protected/gratia-player-opt.glbx",
   "protected/rin-preview.webp",
   "protected/gratia-preview.webp",

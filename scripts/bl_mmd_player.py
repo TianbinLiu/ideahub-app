@@ -13,7 +13,7 @@ bpy.ops.preferences.addon_enable(module="bl_ext.user_default.mmd_tools")
 # 不导入 PHYSICS：刚体/joint 在引擎无用（裙发物理后续用 springBones 近似）
 bpy.ops.mmd_tools.import_model(filepath=SRC, scale=0.08, types={"MESH", "ARMATURE", "MORPHS"}, clean_model=False)
 
-arm = next(o for o in bpy.data.objects if o.type == "ARMATURE")
+arm = next((o for o in bpy.data.objects if o.type == "ARMATURE"), None)  # 道具 PMX 可无骨架
 meshes = [o for o in bpy.data.objects if o.type == "MESH"]
 
 # ── 骨骼改名：MMD 控制链 → mixamo 约定（three 会把 ':' sanitize 掉 = mixamorigXxx）──
@@ -32,11 +32,12 @@ RENAME = {
     "手首.R": "mixamorig:RightHand",
 }
 renamed = 0
-for jp, mx in RENAME.items():
-    b = arm.data.bones.get(jp)
-    if b:
-        b.name = mx  # 顶点组随骨名自动跟改
-        renamed += 1
+if arm is not None:
+    for jp, mx in RENAME.items():
+        b = arm.data.bones.get(jp)
+        if b:
+            b.name = mx  # 顶点组随骨名自动跟改
+            renamed += 1
 print(f"RENAMED {renamed}/{len(RENAME)}")
 
 for mesh in meshes:
