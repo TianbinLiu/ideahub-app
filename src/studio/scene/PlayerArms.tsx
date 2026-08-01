@@ -8,6 +8,7 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { toonify } from "./TripoNpc";
 import { useStudio } from "../studioStore";
 import { DECK_CAM } from "./layout";
+import { playerModelUrl } from "../quality";
 
 const BONES = {
   spine1: "mixamorigSpine1",
@@ -21,9 +22,8 @@ const BONES = {
 
 export default function PlayerArms({ avatar }: { avatar: "m" | "f" }) {
   // think 版 = 绑骨模型 + Blender matrix 法烘的"低头看镜头手摸下巴"1 帧动画
-  // （v2：欧拉直设导出参考系错乱使弯腰过深、头贴桌面——matrix 法重烘 + 浅弯保头在桌沿上；
-  //   v3：脸部精度提升——减面率 0.28→0.5、贴图 2048；url 版本号：重烘后必须升版破缓存）
-  const gltf = useLoader(GLTFLoader, `/models/preview/player-${avatar}-think-opt.glb?v=think3`, (loader) => {
+  // （欧拉直设导出参考系会错乱使弯腰过深头贴桌面——matrix 法烘焙；模型按画质分级选档）
+  const gltf = useLoader(GLTFLoader, playerModelUrl(avatar), (loader) => {
     (loader as GLTFLoader).setMeshoptDecoder(MeshoptDecoder);
   });
   const bones = useRef<Record<string, THREE.Object3D | null>>({});

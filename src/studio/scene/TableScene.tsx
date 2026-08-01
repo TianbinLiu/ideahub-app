@@ -20,6 +20,7 @@ import {
   chainX,
   focusCam,
 } from "./layout";
+import { npcModelUrl } from "../quality";
 import {
   cardBackTexture,
   cardFaceTexture,
@@ -86,18 +87,18 @@ function CameraRig() {
     if (!st.deckView) deckAnim.current = null;
     const anim = deckAnim.current;
     if (anim && st.deckView) {
-      // 滑梯运镜：头顶起点 → 左外侧高点拉远 → 左前低点收进 → 玩家前方桌面机位。
-      // 三次贝塞尔，全程 lookAt 玩家（视线快速锚定后不再翻转）
-      anim.p = Math.min(1, anim.p + dt / 2.2);
-      const p = anim.p * anim.p * (3 - 2 * anim.p);
+      // 滑梯运镜：头顶起点 → 左外侧高点拉远 → 左前低点收进 → 悬停在玩家前方桌沿高度。
+      // 三次贝塞尔，全程 lookAt 玩家；quintic 缓动 + 控制点收拢 = 起段旋转平缓不晕
+      anim.p = Math.min(1, anim.p + dt / 3.0);
+      const p = anim.p * anim.p * anim.p * (anim.p * (anim.p * 6 - 15) + 10);
       const P0 = anim.start;
       const [ex, ey, ez] = DECK_CAM.pos;
-      const c1x = -5.2;
-      const c1y = Math.max(3.4, P0.y * 0.55);
-      const c1z = 4.8;
-      const c2x = -2.6;
-      const c2y = 1.0;
-      const c2z = 4.0;
+      const c1x = -2.8;
+      const c1y = Math.max(3.2, P0.y * 0.5);
+      const c1z = 3.9;
+      const c2x = -2.3;
+      const c2y = 0.9;
+      const c2z = 3.9;
       const u = 1 - p;
       const bez = (a: number, b: number, c: number, d: number) =>
         u * u * u * a + 3 * u * u * p * b + 3 * u * p * p * c + p * p * p * d;
@@ -1154,8 +1155,8 @@ export default function TableScene() {
         ) : NPC_VARIANT === "vrm" ? (
           <VrmNpc />
         ) : (
-          // url 带版本号：模型重烘后必须升版破 useLoader/HTTP 缓存
-          <TripoNpc url="/models/preview/npc-full-face-opt.glb?v=lean8" full />
+          // 模型按画质分级选档（low/mid/high），版本号在 quality.ts 统一管理
+          <TripoNpc url={npcModelUrl()} full />
         )}
       </Suspense>
       <PlayerHandsSwitch />

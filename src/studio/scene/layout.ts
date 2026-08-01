@@ -24,10 +24,10 @@ export const NPC_CAM: { pos: [number, number, number]; look: [number, number, nu
   look: [0, -1.45, -4.1],
 };
 
-/** 卡组浏览视角：像一台摆在玩家前方桌面上的摄像机，仰拍玩家（低头凝视镜头思考） */
+/** 卡组浏览视角：悬浮在玩家前方、与桌沿同高的摄像机（rail 顶 0.25），仰拍玩家 */
 export const DECK_CAM: { pos: [number, number, number]; look: [number, number, number] } = {
-  pos: [0, 0.18, 2.95],
-  look: [0, 0.44, 5.0],
+  pos: [0, 0.27, 2.9],
+  look: [0, 0.46, 5.0],
 };
 
 /** 节点链（用户侧、靠近中线的一排；竖屏可视 x≈±1.55 → 3 张窗口化） */

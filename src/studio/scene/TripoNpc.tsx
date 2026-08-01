@@ -25,7 +25,7 @@ const POSE_KEYS = {
 
 // 赛璐璐化：PBR 材质 → 三阶 Toon ramp（保留原贴图），并给每个 mesh 造反壳描边
 // width 是 mesh 局部空间的法线外扩量——不同模型的量化缩放/场景缩放不同，需按最终屏幕效果各自调
-export function toonify(scene: THREE.Object3D, width = 0.0045) {
+export function toonify(scene: THREE.Object3D, width = 0.0045, wind?: { amp: number }) {
   const ramp = new THREE.DataTexture(
     new Uint8Array([120, 120, 120, 255, 215, 215, 215, 255, 255, 255, 255, 255]),
     3,
@@ -36,17 +36,21 @@ export function toonify(scene: THREE.Object3D, width = 0.0045) {
   ramp.needsUpdate = true;
   // 描边壳材质：有贴图时用 贴图×暗色 调制——开壳模型手臂贴身折叠时镜头会经袖口
   // 看进身体腔内打到壳背面，纯黑呈"撕裂黑洞"，暗色织物则读作阴影
-  const makeOutline = (map: THREE.Texture | null) => {
+  const makeOutline = (map: THREE.Texture | null, extraGLSL = "") => {
     const m = new THREE.MeshBasicMaterial({
       color: map ? 0x5a4a40 : 0x241a12,
       side: THREE.BackSide,
       map: map ?? undefined,
     });
     m.onBeforeCompile = (s) => {
-      s.vertexShader = s.vertexShader.replace(
-        "#include <skinning_vertex>",
-        `#include <skinning_vertex>\n\ttransformed += objectNormal * ${width.toFixed(5)};`,
-      );
+      s.uniforms.uWindT = { value: 0 };
+      s.vertexShader = s.vertexShader
+        .replace("#include <common>", "#include <common>\nuniform float uWindT;")
+        .replace(
+          "#include <skinning_vertex>",
+          `#include <skinning_vertex>\n\ttransformed += objectNormal * ${width.toFixed(5)};${extraGLSL}`,
+        );
+      if (extraGLSL) ((scene.userData.__windUniforms ??= []) as { value: number }[]).push(s.uniforms.uWindT as { value: number });
     };
     return m;
   };
@@ -59,11 +63,36 @@ export function toonify(scene: THREE.Object3D, width = 0.0045) {
     mesh.userData.__toonified = true;
     const old = mesh.material as THREE.MeshStandardMaterial;
     if (old.map) old.map.anisotropy = 8; // 近距斜视角（卡组机位拍脸）贴图不糊
+    // 布料风摆：腰线以下正弦摆动、越向裙摆越大（用包围盒推导腰/摆位置，
+    // 对量化与非量化 LOD 通用）——"下坠成一条线"的硬裙有了柔软呼吸感
+    let windGLSL = "";
+    if (wind) {
+      mesh.geometry.computeBoundingBox();
+      const bb = mesh.geometry.boundingBox!;
+      const h = bb.max.y - bb.min.y;
+      const waist = bb.min.y + h * 0.5;
+      const hem = bb.min.y + h * 0.06;
+      const amp = h * wind.amp;
+      windGLSL =
+        `\n\tfloat windW = smoothstep(${waist.toFixed(3)}, ${hem.toFixed(3)}, position.y);` +
+        `\n\ttransformed.x += sin(uWindT * 1.3 + position.y * 2.2) * ${amp.toFixed(4)} * windW;` +
+        `\n\ttransformed.z += cos(uWindT * 0.9 + position.x * 2.6) * ${(amp * 0.6).toFixed(4)} * windW;`;
+    }
     // DoubleSide：开壳模型（袖筒/裙摆）折叠时镜头会看进开口内侧——单面渲染时内壁
     // 透空露出描边壳黑色背面，呈大块黑色"撕裂"；双面让内壁显示织物贴图
-    mesh.material = new THREE.MeshToonMaterial({ map: old.map, gradientMap: ramp, side: THREE.DoubleSide });
+    const toonMat = new THREE.MeshToonMaterial({ map: old.map, gradientMap: ramp, side: THREE.DoubleSide });
+    if (windGLSL) {
+      toonMat.onBeforeCompile = (s) => {
+        s.uniforms.uWindT = { value: 0 };
+        s.vertexShader = s.vertexShader
+          .replace("#include <common>", "#include <common>\nuniform float uWindT;")
+          .replace("#include <skinning_vertex>", `#include <skinning_vertex>${windGLSL}`);
+        ((scene.userData.__windUniforms ??= []) as { value: number }[]).push(s.uniforms.uWindT as { value: number });
+      };
+    }
+    mesh.material = toonMat;
     old.dispose();
-    const shellMat = makeOutline(old.map ?? null);
+    const shellMat = makeOutline(old.map ?? null, windGLSL);
     let shell: THREE.Mesh;
     if (mesh.isSkinnedMesh) {
       const s = new THREE.SkinnedMesh(mesh.geometry, shellMat);
@@ -156,8 +185,9 @@ export default function TripoNpc({
       if (m.isMesh && m.morphTargetDictionary && !m.userData.__isOutline) morphMesh.current = m;
     });
     for (const [k, name] of Object.entries(POSE_KEYS)) bones.current[k] = gltf.scene.getObjectByName(name) ?? null;
-    // full 描边收窄：手臂贴身（托腮/垫胸）时外扩壳会从胸口表面戳出成黑斑，宽度减半
-    toonify(gltf.scene, full ? 0.0009 : bust ? 0.003 : 0.0012);
+    // full 描边收窄：手臂贴身（托腮/垫胸）时外扩壳会从胸口表面戳出成黑斑，宽度减半；
+    // full 开裙摆风摆（布料柔软感）
+    toonify(gltf.scene, full ? 0.0009 : bust ? 0.003 : 0.0012, full ? { amp: 0.006 } : undefined);
     // 立正靠 Root 骨自带的 (-90°,0,90°) 修正（勿动）；scene 只转 yaw -90° 面向镜头。
     gltf.scene.rotation.set(0, -Math.PI / 2, 0);
     // full：全身落地裙站姿（身高 1 归一化 → 4.35 世界），脚踩地站在桌后
@@ -363,6 +393,9 @@ export default function TripoNpc({
       }
       prevDialog.current = st.dialogView;
     }
+    // 裙摆风摆时钟
+    const wu = gltf.scene.userData.__windUniforms as { value: number }[] | undefined;
+    if (wu) for (const u of wu) u.value = t;
     // 伏桌时身体整体前移+下沉：关节弯曲只完成一半姿态，剩下靠重心挪——胸口落上桌沿。
     // 幅度=剪影下缘恰好与护栏顶相切（越过桌沿溢到桌毡会读作"前穿"而非"压在上面"）
     // （随 leanP 缓动，退出倒播时自动缩回；微幅正弦=伏桌呼吸起伏）
@@ -391,19 +424,13 @@ export default function TripoNpc({
         cardIdRef.current = recommend.id;
         (card.material as THREE.MeshBasicMaterial).map = cardFaceTexture(recommend);
         (card.material as THREE.MeshBasicMaterial).needsUpdate = true;
-        // 发牌演出：新卡递出时左手挥卡（full 等俯身完成后才演，过渡途中不举卡）
-        if (
-          (bust || full) &&
-          st.dialogView &&
-          (!full || leanP > 0.98) &&
-          perfActions.deal &&
-          !perfActions.wave?.isRunning()
-        ) {
+        // 发牌演出：新卡递出时左手挥卡（用户已砍掉 full 的持卡展示，仅 bust 保留）
+        if (bust && st.dialogView && perfActions.deal && !perfActions.wave?.isRunning()) {
           perfActions.deal.reset().play();
         }
       }
-      // full：俯身过渡完成前不显示手中卡——动画一开始手上就多张卡很出戏
-      card.visible = !!recommend && st.dialogView && !st.market.open && (!full || leanP > 0.98);
+      // 用户定：full 版不要推荐卡悬浮在手上
+      card.visible = !!recommend && st.dialogView && !st.market.open && !full;
       hand.getWorldPosition(cardPos);
       if (full) card.position.set(cardPos.x + 0.1, cardPos.y + 0.15, cardPos.z + 0.2);
       else if (bust) card.position.set(cardPos.x + 0.05, cardPos.y + 0.1, cardPos.z + 0.15);

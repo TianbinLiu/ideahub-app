@@ -1,5 +1,6 @@
 // 卡片工坊页（竖屏优先）：3D 画布 + 投影窗 + NPC 底部抽屉 + 提示条
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { Link, useNavigate } from "react-router-dom";
 import TableScene from "./scene/TableScene";
@@ -9,6 +10,64 @@ import NpcDialog from "./ui/NpcDialog";
 import ProjectionWindow from "./ui/projection";
 import { CardDetailModal, ComposeOverlay } from "./ui/modals";
 import AvatarPicker from "./ui/AvatarPicker";
+import QualityPicker from "./ui/QualityPicker";
+
+// 入场加载过渡：盖住模型/贴图流式加载过程（不然首页跳转进来会看到模型逐个蹦出+卡顿）。
+// 进度来自 THREE.DefaultLoadingManager；资源全命中内存缓存时无事件——1.5s 静默兜底收起。
+function StudioLoader() {
+  const [progress, setProgress] = useState(0);
+  const [phase, setPhase] = useState<"loading" | "fading" | "gone">("loading");
+  const finishedRef = useRef(false);
+  const sawEventRef = useRef(false);
+  useEffect(() => {
+    const mgr = THREE.DefaultLoadingManager;
+    const started = performance.now();
+    const finish = () => {
+      if (finishedRef.current) return;
+      finishedRef.current = true;
+      const wait = Math.max(0, 900 - (performance.now() - started));
+      setTimeout(() => {
+        setProgress(100);
+        setPhase("fading");
+        setTimeout(() => setPhase("gone"), 500);
+      }, wait);
+    };
+    mgr.onProgress = (_url, loaded, total) => {
+      sawEventRef.current = true;
+      if (!finishedRef.current) setProgress(Math.round((loaded / Math.max(1, total)) * 100));
+    };
+    mgr.onLoad = finish;
+    const guard = setTimeout(() => {
+      if (!sawEventRef.current) finish();
+    }, 1500);
+    const hardGuard = setTimeout(finish, 15000);
+    return () => {
+      clearTimeout(guard);
+      clearTimeout(hardGuard);
+      mgr.onLoad = () => {};
+      mgr.onProgress = () => {};
+    };
+  }, []);
+  if (phase === "gone") return null;
+  return (
+    <div
+      className={`absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#05070f] transition-opacity duration-500 ${
+        phase === "fading" ? "pointer-events-none opacity-0" : "opacity-100"
+      }`}
+    >
+      {/* 法阵旋转环 */}
+      <div className="relative mb-6 h-20 w-20">
+        <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-cyan-300/80 border-r-cyan-300/30" style={{ animationDuration: "1.6s" }} />
+        <div className="absolute inset-2 animate-spin rounded-full border border-transparent border-b-amber-300/70" style={{ animationDuration: "2.4s", animationDirection: "reverse" }} />
+        <div className="absolute inset-0 flex items-center justify-center text-2xl">🎴</div>
+      </div>
+      <div className="mb-3 text-sm font-semibold tracking-widest text-slate-200">正在点亮魔法书房…</div>
+      <div className="h-1 w-40 overflow-hidden rounded-full bg-slate-700/60">
+        <div className="h-full rounded-full bg-cyan-300/80 transition-all duration-300" style={{ width: `${Math.max(8, progress)}%` }} />
+      </div>
+    </div>
+  );
+}
 
 function useHint(): string {
   const deckLen = useStudio((s) => s.deck.length);
@@ -35,6 +94,7 @@ export default function StudioPage() {
   const deckLen = useStudio((s) => s.deck.length);
   const shiftSpread = useStudio((s) => s.shiftSpread);
   const hint = useHint();
+  const [qualityOpen, setQualityOpen] = useState(false);
 
   useEffect(() => {
     initGreet();
@@ -76,6 +136,13 @@ export default function StudioPage() {
           >
             👤 形象
           </button>
+          <button
+            onClick={() => setQualityOpen(true)}
+            className="rounded-full bg-panel/80 px-3 py-1.5 text-xs text-slate-300 backdrop-blur"
+            title="画面质量"
+          >
+            ⚙️ 画质
+          </button>
         </div>
       </div>
 
@@ -107,6 +174,8 @@ export default function StudioPage() {
       <CardDetailModal />
       <ComposeOverlay />
       <AvatarPicker />
+      <QualityPicker open={qualityOpen} onClose={() => setQualityOpen(false)} />
+      <StudioLoader />
     </div>
   );
 }
