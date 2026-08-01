@@ -32,6 +32,20 @@ RENAME = {
     "腕.R": "mixamorig:RightArm",
     "ひじ.R": "mixamorig:RightForeArm",
     "手首.R": "mixamorig:RightHand",
+    # settle 动画牵涉的骨也 ASCII 化：three 的轨道名 sanitize 会把 CJK 剥空致绑定失败
+    "センター": "mmdCenter",
+    "足.L": "mixamorig:LeftUpLeg",
+    "ひざ.L": "mixamorig:LeftLeg",
+    "足首.L": "mixamorig:LeftFoot",
+    "足.R": "mixamorig:RightUpLeg",
+    "ひざ.R": "mixamorig:RightLeg",
+    "足首.R": "mixamorig:RightFoot",
+    "足D.L": "mixamorigLeftUpLegD",
+    "ひざD.L": "mixamorigLeftLegD",
+    "足首D.L": "mixamorigLeftFootD",
+    "足D.R": "mixamorigRightUpLegD",
+    "ひざD.R": "mixamorigRightLegD",
+    "足首D.R": "mixamorigRightFootD",
 }
 renamed = 0
 if arm is not None:
@@ -178,8 +192,111 @@ if arm is not None and arm.data.bones.get("mixamorig:Head"):
     tr.name = "think"
     tr.strips.new("think", 1, act)
     arm.animation_data.action = None
-    bpy.ops.object.mode_set(mode="OBJECT")
     print("THINK baked")
+
+    # ── settle：站立 → 撤步弯腰伏桌（用户定稿：像真人一样边弯腰边翘臀、双腿后撤一两步）──
+    # 腿走 MMD 自带 IK（移 足ＩＫ 目标脚真踩地），躯干 rot_world 逐帧绝对角，臂坐标下降
+    # 解到"交叉垫在胸下"；全部 visual matrix 回写 keyframe；センター位置轨引擎侧白名单保留
+    def find_pb(*names):
+        for n in names:
+            if n in pb:
+                return pb[n]
+        return None
+
+    CEN = find_pb("mmdCenter", "センター")
+    LIK = find_pb("足ＩＫ.L", "足IK.L", "左足ＩＫ")
+    RIK = find_pb("足ＩＫ.R", "足IK.R", "右足ＩＫ")
+    HIPS = pb.get("mixamorig:Hips")
+    # 腿链（含 D 变体）绝不打关键帧：pb.matrix 回写对带约束的骨会把"补偿基旋+约束复制"
+    # 叠成两倍旋转（D 腿飞天事故）。只动 IK 目标——glTF 导出按求值后姿势采样自然正确
+    S_ORDER = ([CEN.name] if CEN else []) + (["mixamorig:Hips"] if HIPS else []) + [
+        "mixamorig:Spine1", "mixamorig:Neck", "mixamorig:Head",
+        "mixamorig:LeftArm", "mixamorig:LeftForeArm", "mixamorig:LeftHand",
+        "mixamorig:RightArm", "mixamorig:RightForeArm"]
+    for n in S_ORDER:
+        pb[n].rotation_mode = "XYZ"
+
+    def reset_upper():
+        for n in ["mixamorig:Spine1", "mixamorig:Neck", "mixamorig:Head",
+                  "mixamorig:LeftArm", "mixamorig:LeftForeArm", "mixamorig:LeftHand",
+                  "mixamorig:RightArm", "mixamorig:RightForeArm"]:
+            pb[n].rotation_euler = (0, 0, 0)
+        if HIPS:
+            HIPS.rotation_euler = (0, 0, 0)
+        bpy.context.view_layer.update()
+
+    def key_settle(frame):
+        bpy.context.view_layer.update()
+        mats = {n: pb[n].matrix.copy() for n in S_ORDER}
+        bpy.context.scene.frame_set(frame)
+        for n in S_ORDER:
+            pb[n].matrix = mats[n]
+            bpy.context.view_layer.update()
+        for n in S_ORDER:
+            pb[n].keyframe_insert(data_path="rotation_euler", frame=frame)
+        if CEN:
+            CEN.keyframe_insert(data_path="location", frame=frame)
+        for ik in (LIK, RIK):
+            if ik:
+                ik.keyframe_insert(data_path="location", frame=frame)
+
+    def set_arms_cross(depth):
+        """双臂交叉垫胸下（depth 0..1 渐进）：以折叠后胸口实际位置为世界目标"""
+        bpy.context.view_layer.update()
+        chest = (mw @ pb["mixamorig:Spine1"].head) * 0.35 + (mw @ pb["mixamorig:Neck"].head) * 0.65
+        below = Vector((0, 0, -0.10))  # 胸下缘
+        lt = chest + Vector((-0.07 * depth, -0.02, 0)) + below
+        rt = chest + Vector((0.07 * depth, -0.04, 0)) + below
+        le = chest + Vector((0.17, 0.02, -0.06))
+        re = chest + Vector((-0.17, 0.0, -0.06))
+        solve_arm("mixamorig:LeftHand", ["mixamorig:LeftArm", "mixamorig:LeftForeArm"], lt, le)
+        solve_arm("mixamorig:RightHand", ["mixamorig:RightArm", "mixamorig:RightForeArm"], rt, re)
+
+    act3 = bpy.data.actions.new("settle")
+    arm.animation_data.action = act3
+    # (帧, センター背移+降, 右脚IK后移/抬, 左脚IK后移/抬, 躯干折, 颈, 头, 臀翘, 抱胸深度)
+    # 她背向 = +Y（脸 -Y）；上 = +Z
+    # 脚只撤 ~0.11、重心背移小/下沉大（膝盖微弯）→ 侧影是"L 形伏桌"而非俯卧撑斜坡；
+    # 头 counter 加深（全折 90° 后脸要基本朝前看向对面）
+    SEQ = [
+        (1, (0, 0, 0), (0, 0), (0, 0), 0.0, 0.0, 0.0, 0.0, None),
+        (10, (0, 0.02, -0.02), (0.07, 0.03), (0, 0), 0.22, -0.08, -0.1, 0.04, None),
+        (18, (0, 0.05, -0.05), (0.10, 0), (0.08, 0.03), 0.50, -0.22, -0.26, 0.09, 0.35),
+        (26, (0, 0.08, -0.08), (0.10, 0), (0.12, 0), 0.78, -0.38, -0.44, 0.14, 0.7),
+        (36, (0, 0.10, -0.11), (0.11, 0), (0.12, 0), 1.02, -0.54, -0.64, 0.18, 1.0),
+        (48, (0, 0.11, -0.13), (0.11, 0), (0.12, 0), 1.22, -0.65, -0.78, 0.20, 1.0),
+        (58, (0, 0.108, -0.128), (0.11, 0), (0.12, 0), 1.19, -0.64, -0.76, 0.19, 1.0),
+    ]
+    def move_world(b, world_delta):
+        """pose bone location 是 rest 局部系——世界位移需经 rest 旋转逆变换"""
+        b.location = b.bone.matrix_local.to_3x3().inverted() @ Vector(world_delta)
+
+    for fr, cen, rik, lik, fold, neckA, headA, butt, cross in SEQ:
+        reset_upper()
+        if CEN:
+            move_world(CEN, cen)
+        if RIK:
+            move_world(RIK, (0, rik[0], rik[1]))
+        if LIK:
+            move_world(LIK, (0, lik[0], lik[1]))
+        bpy.context.view_layer.update()
+        if butt and HIPS:
+            rot_world("mixamorig:Hips", "X", butt)  # 骨盆前倾=翘臀（腰キャンセル会抵消到腿）
+        if fold:
+            rot_world("mixamorig:Spine1", "X", fold)
+        if neckA:
+            rot_world("mixamorig:Neck", "X", neckA)
+        if headA:
+            rot_world("mixamorig:Head", "X", headA)
+        if cross is not None:
+            set_arms_cross(cross)
+        key_settle(fr)
+    tr3 = arm.animation_data.nla_tracks.new()
+    tr3.name = "settle"
+    tr3.strips.new("settle", 1, act3)
+    arm.animation_data.action = None
+    bpy.ops.object.mode_set(mode="OBJECT")
+    print("SETTLE baked  ik:", bool(LIK), bool(RIK), " cen:", bool(CEN))
 
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.export_scene.gltf(

@@ -33,14 +33,18 @@ export class SpringBoneSim {
    * @param root 骨架所在场景
    * @param prefixes 链根名匹配（大小写不敏感、忽略非字母数字，如 "twintail"）
    */
+  /** 可选平面碰撞：按尾端位置返回允许的最低 y（桌面/地板），长发垂落时贴面不穿透 */
+  clampY?: (pos: THREE.Vector3) => number;
+
   constructor(
     root: THREE.Object3D,
     prefixes: string[],
-    opts?: { stiffness?: number; drag?: number; gravity?: number },
+    opts?: { stiffness?: number; drag?: number; gravity?: number; clampY?: (pos: THREE.Vector3) => number },
   ) {
     this.stiffness = opts?.stiffness ?? 14;
     this.drag = opts?.drag ?? 0.32;
     this.gravity = opts?.gravity ?? 1.6;
+    this.clampY = opts?.clampY;
     // 保留 Unicode 字母数字（MMD 移植模型的骨名是中日文：馬尾/後髪/劉海），只剥符号
     const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
     const pats = prefixes.map(norm);
@@ -96,6 +100,11 @@ export class SpringBoneSim {
         .add(_from.set(0, -this.gravity * d * 0.1, 0));
       // 归一化到骨长
       _next.sub(_bonePos).normalize().multiplyScalar(j.boneLen).add(_bonePos);
+      // 平面碰撞：垂落的长发贴住桌面/地板（简单 y-clamp，穿模远比长度微差刺眼）
+      if (this.clampY) {
+        const minY = this.clampY(_next);
+        if (_next.y < minY) _next.y = minY;
+      }
       j.prevTail.copy(j.currTail);
       j.currTail.copy(_next);
       // 方向差 → 骨局部旋转：local' = restQuat × rotate(restDir_local → targetDir_local)
