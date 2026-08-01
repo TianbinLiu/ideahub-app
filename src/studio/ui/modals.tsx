@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS } from "../../types";
 import { useStudio } from "../studioStore";
 import { MARKET } from "../scene/layout";
+import CardHologram, { CARD_MODELS } from "./CardHologram";
 
 // ── 市场卡详情：底部滑出单，左预览图右信息 + 加入卡组 ──────────
 export function CardDetailModal() {
@@ -20,10 +21,20 @@ export function CardDetailModal() {
     from = [(col - (rowCount - 1) / 2) * MARKET.dx, 0.1, MARKET.rowsZ[Math.min(row, MARKET.rowsZ.length - 1)]];
   }
   const inDeck = deck.some((c) => c.id === card.id);
+  const modelUrl = CARD_MODELS[card.name];
   return (
     <div className="absolute inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-slate-600/70 bg-panel/95 p-4 shadow-2xl backdrop-blur">
       <div className="flex gap-3.5">
-        <img src={card.cover} alt={card.name} className="h-44 w-[7.5rem] flex-none rounded-xl object-cover" />
+        {modelUrl ? (
+          <div className="relative h-44 w-[7.5rem] flex-none overflow-hidden rounded-xl bg-ink/85">
+            <CardHologram url={modelUrl} />
+            <span className="pointer-events-none absolute inset-x-0 bottom-1 text-center text-[9px] tracking-wide text-cyan-300/90">
+              ✦ 全息实体 3D
+            </span>
+          </div>
+        ) : (
+          <img src={card.cover} alt={card.name} className="h-44 w-[7.5rem] flex-none rounded-xl object-cover" />
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="truncate text-lg font-bold text-slate-100">{card.name}</h3>
