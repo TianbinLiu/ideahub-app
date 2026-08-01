@@ -8,7 +8,8 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { toonify } from "./TripoNpc";
 import { useStudio } from "../studioStore";
 import { DECK_CAM } from "./layout";
-import { playerModelUrl } from "../quality";
+import { PlayerAvatar, playerModelUrl } from "../quality";
+import { loaderFor } from "../secureAssets";
 
 const BONES = {
   spine1: "mixamorigSpine1",
@@ -20,10 +21,49 @@ const BONES = {
   rFore: "mixamorigRightForeArm",
 } as const;
 
-export default function PlayerArms({ avatar }: { avatar: "m" | "f" }) {
+type PoseTable = Record<keyof typeof BONES, [number, number, number] | null>;
+
+// FPS 姿势表按 rig 家族分：Tripo 自产模型 与 MMD 移植模型（骨骼局部轴系不同，实测定稿）
+const TRIPO_POSE: PoseTable = {
+  spine1: [0.6, 0, 0],
+  neck: [0.35, 0, 0],
+  head: [0.35, 0, 0],
+  lArm: [1.55, -0.35, 0],
+  lFore: [0.3, -0.1, 0],
+  rArm: [0, -1.38, 0],
+  rFore: [0.25, 0, 1.6],
+};
+// MMD 系轴向实测（rest-relative 增量）：臂 -z=前摆、±x=展/收、y=扭转；脊柱 +x=前倾
+const MMD_POSE: PoseTable = {
+  spine1: [0.35, 0, 0],
+  neck: [0.2, 0, 0],
+  head: [0.25, 0, 0],
+  lArm: [-0.42, 0, -0.92],
+  lFore: [0, 0.5, -0.18],
+  rArm: [0.42, 0, -0.92],
+  rFore: [0, -0.5, -0.18],
+};
+
+// 每形象装配参数：MMD 系 glTF 导出后面朝 +Z（Tripo 系是 Root 修正后朝 +X）。
+// deckY=卡组视角整体下沉（站姿 MMD 模型比 Tripo think 前倾姿势高得多，脸会出画；
+// Tripo 系有烘焙 think 动画不需要）
+const RIGS: Record<
+  PlayerAvatar,
+  { yaw: number; scale: number; y: number; z: number; deckY?: number; pose: PoseTable }
+> = {
+  m: { yaw: Math.PI / 2, scale: 4.3, y: -2.9, z: 4.95, pose: TRIPO_POSE },
+  f: { yaw: Math.PI / 2, scale: 4.3, y: -2.9, z: 4.95, pose: TRIPO_POSE },
+  rin: { yaw: Math.PI, scale: 4.3, y: -2.9, z: 4.95, deckY: -5.3, pose: MMD_POSE },
+  gratia: { yaw: Math.PI, scale: 4.1, y: -2.9, z: 4.95, deckY: -5.8, pose: MMD_POSE },
+};
+
+export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
   // think 版 = 绑骨模型 + Blender matrix 法烘的"低头看镜头手摸下巴"1 帧动画
   // （欧拉直设导出参考系会错乱使弯腰过深头贴桌面——matrix 法烘焙；模型按画质分级选档）
-  const gltf = useLoader(GLTFLoader, playerModelUrl(avatar), (loader) => {
+  // 开发试穿档（rin/gratia）是加密 glbx，loaderFor 自动切解密加载器；无 think 动画走 FPS 姿势兜底
+  const rig = RIGS[avatar];
+  const modelUrl = playerModelUrl(avatar);
+  const gltf = useLoader(loaderFor(modelUrl), modelUrl, (loader) => {
     (loader as GLTFLoader).setMeshoptDecoder(MeshoptDecoder);
   });
   const bones = useRef<Record<string, THREE.Object3D | null>>({});
@@ -36,29 +76,30 @@ export default function PlayerArms({ avatar }: { avatar: "m" | "f" }) {
     return mixer.clipAction(clip);
   }, [gltf, mixer]);
 
+  const restQ = useRef<Record<string, THREE.Quaternion>>({});
   useMemo(() => {
     gltf.scene.traverse((o) => {
       o.frustumCulled = false;
     });
-    for (const [k, name] of Object.entries(BONES)) bones.current[k] = gltf.scene.getObjectByName(name) ?? null;
+    for (const [k, name] of Object.entries(BONES)) {
+      const b = gltf.scene.getObjectByName(name) ?? null;
+      bones.current[k] = b;
+      // MMD 系骨骼 rest 局部旋转非零（Blender 骨自带朝向）——绝对欧拉写入会抹掉 rest 直接炸姿势。
+      // 记录加载时（未播动画=rest）的四元数，姿势表统一改为"相对 rest 的增量"（Tripo 系 rest≈单位，语义不变）
+      if (b) restQ.current[k] = b.quaternion.clone();
+    }
     toonify(gltf.scene, 0.0012);
-    // 与 NPC 同构：Root 骨自带立正修正；玩家背对镜头面向 NPC（-Z 方向）→ yaw +90°
-    gltf.scene.rotation.set(0, Math.PI / 2, 0);
-  }, [gltf]);
+    // 朝向修正按 rig 家族：玩家背对镜头面向 NPC（-Z 方向）
+    gltf.scene.rotation.set(0, rig.yaw, 0);
+  }, [gltf, rig]);
 
   // DEV 可调姿势表（__playerPose）：双臂前伸伏桌，头微低（避免后脑勺入画）
   const pose = useMemo(() => {
     // 实测定稿（俯视 FPS：无头、肩臂入画、双手悬在桌沿上方作施法/操作势）
     const p = {
-      spine1: [0.6, 0, 0] as [number, number, number] | null,
-      neck: [0.35, 0, 0] as [number, number, number] | null,
-      head: [0.35, 0, 0] as [number, number, number] | null,
-      lArm: [1.55, -0.35, 0] as [number, number, number] | null,
-      lFore: [0.3, -0.1, 0] as [number, number, number] | null,
-      rArm: [0, -1.38, 0] as [number, number, number] | null,
-      rFore: [0.25, 0, 1.6] as [number, number, number] | null,
-      y: -2.9,
-      z: 4.95,
+      ...rig.pose,
+      y: rig.y,
+      z: rig.z,
       freeze: false,
     };
     if (import.meta.env.DEV) {
@@ -73,7 +114,7 @@ export default function PlayerArms({ avatar }: { avatar: "m" | "f" }) {
       };
     }
     return p;
-  }, [gltf, mixer, thinkAction]);
+  }, [gltf, mixer, thinkAction, rig]);
 
   const group = useRef<THREE.Group>(null);
   // 注视镜头系统：思考姿势本身凝视 DECK_CAM 位置——当实际镜头偏离（自由视角拖拽）时，
@@ -89,6 +130,8 @@ export default function PlayerArms({ avatar }: { avatar: "m" | "f" }) {
       qParent: new THREE.Quaternion(),
       qTmp: new THREE.Quaternion(),
       qId: new THREE.Quaternion(),
+      ePose: new THREE.Euler(),
+      qPose: new THREE.Quaternion(),
     }),
     [],
   );
@@ -165,7 +208,12 @@ export default function PlayerArms({ avatar }: { avatar: "m" | "f" }) {
       for (const k of Object.keys(BONES) as (keyof typeof BONES)[]) {
         const n = bones.current[k];
         const v = p2[k] as [number, number, number] | null;
-        if (n && v) n.rotation.set(v[0] + (k === "spine1" ? breathe : 0), v[1], v[2]);
+        if (n && v) {
+          gv.ePose.set(v[0] + (k === "spine1" ? breathe : 0), v[1], v[2]);
+          const rest = restQ.current[k];
+          if (rest) n.quaternion.copy(rest).multiply(gv.qPose.setFromEuler(gv.ePose));
+          else n.rotation.set(gv.ePose.x, gv.ePose.y, gv.ePose.z);
+        }
       }
     }
     // 头部：默认 FPS 隐藏；镜头可能拍到玩家时恢复显示
@@ -174,12 +222,13 @@ export default function PlayerArms({ avatar }: { avatar: "m" | "f" }) {
       const s = showSelf ? 1 : 0.001;
       if (head.scale.x !== s) head.scale.set(s, s, s);
     }
-    if (group.current) group.current.position.set(0, p2.y + (showSelf ? breathe * 0.6 : 0), p2.z);
+    const baseY = showSelf && rig.deckY !== undefined ? rig.deckY : p2.y;
+    if (group.current) group.current.position.set(0, baseY + (showSelf ? breathe * 0.6 : 0), p2.z);
   });
 
   return (
     <group ref={group} position={[0, pose.y, pose.z]}>
-      <primitive object={gltf.scene} scale={4.3} />
+      <primitive object={gltf.scene} scale={rig.scale} />
       {/* 玩家侧补光：烛光都在桌北，肩臂需要一点暖光才可读 */}
       <pointLight position={[0, 4.2, -0.6]} intensity={6} distance={7} color="#ffdbb0" />
     </group>

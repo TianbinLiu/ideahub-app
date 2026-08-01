@@ -1,10 +1,18 @@
 // 玩家形象选择：男/女两张 3D 渲染立卡，选定后场景第一人称手臂随之切换
 import { useStudio } from "../studioStore";
+import type { PlayerAvatar } from "../quality";
 
-const OPTIONS: Array<{ key: "m" | "f"; name: string; desc: string; img: string }> = [
+const OPTIONS: Array<{ key: PlayerAvatar; name: string; desc: string; img: string }> = [
   { key: "f", name: "见习冒险家 · 她", desc: "酒红斗篷 · 绿金束身裙", img: "/avatars/player-f-preview.webp" },
   { key: "m", name: "青年牌手 · 他", desc: "藏蓝长外套 · 金滚边", img: "/avatars/player-m-preview.webp" },
 ];
+// 本地开发试穿档：第三方移植模型，仅 DEV 构建可见（资产走加密 gitignore 目录 + 出包裁剪）
+if (import.meta.env.DEV) {
+  OPTIONS.push(
+    { key: "rin", name: "远坂凛 · 试穿", desc: "本地开发档 · 不入包", img: "/models/protected/rin-preview.webp" },
+    { key: "gratia", name: "Gratia · 试穿", desc: "本地开发档 · 不入包", img: "/models/protected/gratia-preview.webp" },
+  );
+}
 
 export default function AvatarPicker() {
   const open = useStudio((s) => s.avatarPickerOpen);

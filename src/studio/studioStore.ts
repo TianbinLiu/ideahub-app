@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, CardType, DraftVideo, NodeSlot, Proposal, uid } from "../types";
 import { MaterialFile, composeVideo, generateCards, generateProposals, searchMarket } from "../ai";
 import { DECK_CAM } from "./scene/layout";
+import type { PlayerAvatar } from "./quality";
 
 export interface DialogMsg {
   id: string;
@@ -134,9 +135,9 @@ interface StudioState {
   mood: number;
   moodUntil: number;
   setMood: (mood: number, ms: number) => void;
-  /** 玩家形象（第一人称手臂/选择界面），localStorage 持久化 */
-  playerAvatar: "m" | "f";
-  setPlayerAvatar: (a: "m" | "f") => void;
+  /** 玩家形象（第一人称手臂/选择界面），localStorage 持久化；rin/gratia 仅 DEV 构建可选 */
+  playerAvatar: PlayerAvatar;
+  setPlayerAvatar: (a: PlayerAvatar) => void;
   avatarPickerOpen: boolean;
   setAvatarPickerOpen: (open: boolean) => void;
 
@@ -226,8 +227,10 @@ export const useStudio = create<StudioState>()((set, get) => ({
   mood: 0,
   moodUntil: 0,
   setMood: (mood, ms) => set({ mood, moodUntil: Date.now() + ms }),
-  playerAvatar: ((): "m" | "f" => {
+  playerAvatar: ((): PlayerAvatar => {
     const v = localStorage.getItem("ideahub-app.avatar");
+    // 开发试穿档只在 DEV 构建下生效：生产构建里存量 localStorage 值安全回退到默认
+    if (import.meta.env.DEV && (v === "rin" || v === "gratia")) return v;
     return v === "m" ? "m" : "f";
   })(),
   setPlayerAvatar: (a) => {

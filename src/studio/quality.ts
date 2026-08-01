@@ -36,7 +36,17 @@ export function npcModelUrl(): string {
   return `/models/preview/${file}?v=${NPC_VER}`;
 }
 
-export function playerModelUrl(avatar: "m" | "f"): string {
+/** 玩家形象：m/f=自产 Tripo 模型（三档画质）；rin/gratia=本地开发试穿档（DEV-only，
+ *  加密 glbx 走 gitignore 目录、release 出包裁剪——第三方移植模型永不进仓/进分发包） */
+export type PlayerAvatar = "m" | "f" | "rin" | "gratia";
+
+const DEV_AVATAR_URLS: Record<string, string> = {
+  rin: "/models/protected/rin-player-opt.glbx?v=p1",
+  gratia: "/models/protected/gratia-player-opt.glbx?v=p1",
+};
+
+export function playerModelUrl(avatar: PlayerAvatar): string {
+  if (avatar in DEV_AVATAR_URLS) return DEV_AVATAR_URLS[avatar];
   const q = getQuality();
   const suffix = q === "high" ? "think" : q === "mid" ? "think-mid" : "think-opt";
   return `/models/preview/player-${avatar}-${suffix}.glb?v=${PLAYER_VER}`;
