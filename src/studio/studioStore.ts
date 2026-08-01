@@ -1,7 +1,7 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成
 import { create } from "zustand";
 import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, CardType, DraftVideo, NodeSlot, Proposal, uid } from "../types";
-import { MaterialFile, composeVideo, generateCards, generateProposals, searchMarket } from "../mock/ai";
+import { MaterialFile, composeVideo, generateCards, generateProposals, searchMarket } from "../ai";
 import { DECK_CAM } from "./scene/layout";
 
 export interface DialogMsg {

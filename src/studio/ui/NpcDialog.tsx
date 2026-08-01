@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStudio } from "../studioStore";
 import { fileToCover } from "../../mock/frames";
-import { MaterialFile } from "../../mock/ai";
+import { MaterialFile } from "../../ai";
 import { NPC_CAM } from "../scene/layout";
 
 type SheetMode = "choose" | "market" | "forge";
