@@ -67,7 +67,15 @@ export function toonify(scene: THREE.Object3D, width = 0.0045) {
   }
 }
 
-export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.glb", bust = false }: { url?: string; bust?: boolean }) {
+export default function TripoNpc({
+  url = "/models/preview/tripo-v3-rigged-opt.glb",
+  bust = false,
+  full = false,
+}: {
+  url?: string;
+  bust?: boolean;
+  full?: boolean;
+}) {
   const gltf = useLoader(GLTFLoader, url, (loader) => {
     (loader as GLTFLoader).setMeshoptDecoder(MeshoptDecoder);
   });
@@ -103,18 +111,33 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
       if (m.isMesh && m.morphTargetDictionary && !m.userData.__isOutline) morphMesh.current = m;
     });
     for (const [k, name] of Object.entries(POSE_KEYS)) bones.current[k] = gltf.scene.getObjectByName(name) ?? null;
-    toonify(gltf.scene, bust ? 0.003 : 0.0012);
+    toonify(gltf.scene, full ? 0.0016 : bust ? 0.003 : 0.0012);
     // 立正靠 Root 骨自带的 (-90°,0,90°) 修正（勿动）；scene 只转 yaw -90° 面向镜头。
     gltf.scene.rotation.set(0, -Math.PI / 2, 0);
-    // 胸像：帽顶→胸底≈1 归一化，目标世界高 2.3，截断底沉桌沿下；
+    // full：全身落地裙站姿（身高 1 归一化 → 4.35 世界），脚踩地站在桌后
+    // bust：帽顶→胸底≈1 归一化，目标世界高 2.3，截断底沉桌沿下；
     // z 后移让身体前缘退到 rail 之后（-3.9 时胸/帽穿桌穿护栏）
-    return bust ? { scale: 2.3, y: -0.42 } : { scale: 4.6, y: -2.55 };
-  }, [gltf]);
+    return full ? { scale: 4.35, y: -2.55 } : bust ? { scale: 2.3, y: -0.42 } : { scale: 4.6, y: -2.55 };
+  }, [gltf, bust, full]);
 
   // 实测定稿（俯身对坐·抬头看镜头·右手扶桌/扶帽·左手抬起持卡）：轴向经 Root(-90°,0,90°) 链，勿按直觉改
   const pose = useMemo(() => {
+    // full：站姿保持 rest（扶帽+垂手烘在模型里），仅头颈微动
     // bust：右臂保持 rest（扶帽姿势烘在模型里，动了会拉扯帽子顶点）；前倾量小
-    const p = bust
+    const p = full
+      ? {
+          spine1: [0.05, 0, 0] as [number, number, number] | null,
+          spine2: null as [number, number, number] | null,
+          neck: [-0.16, 0, 0] as [number, number, number] | null,
+          head: [-0.2, 0, 0] as [number, number, number] | null,
+          lArm: null as [number, number, number] | null,
+          lFore: null as [number, number, number] | null,
+          lHand: null as [number, number, number] | null,
+          rArm: null as [number, number, number] | null,
+          rFore: null as [number, number, number] | null,
+          freeze: false,
+        }
+      : bust
       ? {
           spine1: [0.06, 0, 0] as [number, number, number] | null,
           spine2: [0, 0, 0] as [number, number, number] | null,
@@ -145,7 +168,7 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
       w.__tripo = { scene: gltf.scene, bones: bones.current };
     }
     return p;
-  }, [gltf, bust]);
+  }, [gltf, bust, full]);
 
   useFrame(({ clock }, dt) => {
     // DEV 调参：优先读 window 挂载的表（StrictMode/HMR 下闭包引用可能不同源）
@@ -205,11 +228,12 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
             : 0.22;
         inf[dict.smile] += (target - inf[dict.smile]) * Math.min(1, dt * 6);
       }
-      // 胸部撑桌：squish 常驻 + 呼吸联动（吸气压深、呼气回浅）
-      if (dict.squish !== undefined && bust) inf[dict.squish] = 0.72 + Math.sin(t * 1.1) * 0.18;
+      // 胸部撑桌：squish 仅 bust 压桌姿势启用；其它模式显式归零（glTF 可能携带非零默认权重）
+      if (dict.squish !== undefined)
+        inf[dict.squish] = bust ? 0.72 + Math.sin(t * 1.1) * 0.18 : 0;
     }
     // 演出触发：进入对话视角→招手；推荐卡刷新→发牌（挥卡）
-    if (bust) {
+    if (bust || full) {
       if (st.dialogView && !prevDialog.current && perfActions.wave) {
         perfActions.deal?.stop();
         perfActions.wave.reset().play();
@@ -230,21 +254,22 @@ export default function TripoNpc({ url = "/models/preview/tripo-v3-rigged-opt.gl
         (card.material as THREE.MeshBasicMaterial).map = cardFaceTexture(recommend);
         (card.material as THREE.MeshBasicMaterial).needsUpdate = true;
         // 发牌演出：新卡递出时左手挥卡
-        if (bust && st.dialogView && perfActions.deal && !perfActions.wave?.isRunning()) {
+        if ((bust || full) && st.dialogView && perfActions.deal && !perfActions.wave?.isRunning()) {
           perfActions.deal.reset().play();
         }
       }
       card.visible = !!recommend && st.dialogView && !st.market.open;
       hand.getWorldPosition(cardPos);
-      if (bust) card.position.set(cardPos.x + 0.05, cardPos.y + 0.1, cardPos.z + 0.15);
+      if (full) card.position.set(cardPos.x + 0.1, cardPos.y + 0.15, cardPos.z + 0.2);
+      else if (bust) card.position.set(cardPos.x + 0.05, cardPos.y + 0.1, cardPos.z + 0.15);
       else card.position.set(cardPos.x - 0.3, cardPos.y + 0.18, cardPos.z + 0.12);
     }
   });
 
   return (
     <group>
-      {/* bust z：胸前缘（局部x0.324×2.3）恰好压上桌沿 rail，配合 squish 形变呈"撑在桌面"贴合 */}
-      <primitive object={gltf.scene} position={[0, y, bust ? -4.28 : -3.9]} scale={scale} />
+      {/* full 站在桌后（落地裙）；bust z：胸前缘恰好压上桌沿 rail，配合 squish 呈"撑在桌面"贴合 */}
+      <primitive object={gltf.scene} position={[0, y, full ? -4.35 : bust ? -4.28 : -3.9]} scale={scale} />
       <mesh
         ref={cardMeshRef}
         rotation={[-0.18, -0.12, 0.05]}

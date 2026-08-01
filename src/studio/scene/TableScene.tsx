@@ -35,7 +35,7 @@ import PlayerArms from "./PlayerArms";
 
 // 默认 = Tripo 胸像骨骼版（用户定稿）；?npc=tripo 全身版 / ?npc=vrm 回退 VRoid VRM 版
 const NPC_VARIANT = new URLSearchParams(window.location.search).get("npc") ?? "bust";
-const USE_TRIPO_NPC = NPC_VARIANT === "tripo" || NPC_VARIANT === "bust";
+const USE_TRIPO_NPC = NPC_VARIANT === "tripo" || NPC_VARIANT === "bust" || NPC_VARIANT === "full";
 
 // ── 节点链布局：窗口化，溢出的最早节点收到左侧堆 ──────────────
 export interface ChainLayout {
@@ -1037,6 +1037,8 @@ export default function TableScene() {
           <TripoNpc />
         ) : NPC_VARIANT === "vrm" ? (
           <VrmNpc />
+        ) : NPC_VARIANT === "full" ? (
+          <TripoNpc url="/models/preview/npc-full-face-opt.glb" full />
         ) : (
           <TripoNpc url="/models/preview/tripo-bust-face-opt.glb" bust />
         )}
