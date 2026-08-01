@@ -18,7 +18,7 @@ export function setQuality(q: Quality) {
 }
 
 // 模型 URL 表：?v= 版本号用于重烘后破缓存（升版本时三档都要动）
-const NPC_VER = "lean10";
+const NPC_VER = "lean13";
 const PLAYER_VER = "think4";
 
 export function npcModelUrl(): string {

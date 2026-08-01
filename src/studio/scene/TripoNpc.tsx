@@ -301,7 +301,8 @@ export default function TripoNpc({
       }
       const dict = mm.morphTargetDictionary;
       const inf = mm.morphTargetInfluences;
-      if (dict.blink !== undefined) inf[dict.blink] = blink;
+      // full HD 贴图眼睛全开——常驻 0.22 眨眼基线找回"半眯慵懒"设定气质
+      if (dict.blink !== undefined) inf[dict.blink] = full ? Math.max(0.22, blink) : blink;
       if (dict.mouthOpen !== undefined)
         inf[dict.mouthOpen] = speaking ? Math.max(0, Math.sin(t * 9.5)) * 0.55 : 0;
       if (dict.smile !== undefined) {
