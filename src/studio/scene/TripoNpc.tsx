@@ -317,10 +317,16 @@ export default function TripoNpc({
             : 0.22;
         inf[dict.smile] += (target - inf[dict.smile]) * Math.min(1, dt * 6);
       }
-      // 胸部压扁形键：bust 版常驻；full 版已停用——"水气球"式压扁在贴桌时呈扭曲
-      // （用户实锤），浅俯身下胸口只轻贴桌沿，接触感交给接触阴影+身体前移
+      // 胸部软性压桌：bust 版旧形键常驻；full 版=HD 重雕的小幅前缘轻压（无侧鼓），
+      // 只在过渡末段胸口贴上桌沿时渐入，随呼吸微起伏
       if (dict.squish !== undefined) {
-        inf[dict.squish] = bust ? 0.72 + Math.sin(t * 1.1) * 0.18 : 0;
+        let squish = 0;
+        if (bust) squish = 0.72 + Math.sin(t * 1.1) * 0.18;
+        else if (full) {
+          const contact = Math.min(1, Math.max(0, (leanP - 0.6) / 0.4));
+          squish = contact * contact * (3 - 2 * contact) * (0.85 + Math.sin(t * 1.1) * 0.1);
+        }
+        inf[dict.squish] = squish;
       }
     }
     // full 状态机：站立（无动画=rest）↔ 对话（播 lean 过渡：前倾压桌+托腮，clamp 停末帧）
