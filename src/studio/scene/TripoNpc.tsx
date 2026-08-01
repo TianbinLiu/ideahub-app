@@ -296,8 +296,9 @@ export default function TripoNpc({
       prevDialog.current = st.dialogView;
     }
     // 演出动画先应用（LoopOnce 播放期间覆盖左臂程序姿势，播完自动交还），
-    // 再读手骨位置更新持卡——发牌挥动时卡精确跟手
-    mixer.update(dt);
+    // 再读手骨位置更新持卡——发牌挥动时卡精确跟手。
+    // dt 钳制：页面从后台切回时 dt 可达 1s+，会把 2s 过渡两帧跳完
+    mixer.update(Math.min(dt, 0.05));
     gltf.scene.updateMatrixWorld(true);
     // 持卡：世界空间正立卡跟随左手（不继承手骨旋转，永远面向镜头；可点击查看详情）
     // 仅对话视角且市场未摊开时展示——默认俯视角不该有卡悬在空中

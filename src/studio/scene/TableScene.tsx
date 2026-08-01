@@ -1038,7 +1038,8 @@ export default function TableScene() {
         ) : NPC_VARIANT === "vrm" ? (
           <VrmNpc />
         ) : (
-          <TripoNpc url="/models/preview/npc-full-face-opt.glb" full />
+          // url 带版本号：模型重烘后必须升版破 useLoader/HTTP 缓存
+          <TripoNpc url="/models/preview/npc-full-face-opt.glb?v=lean4" full />
         )}
       </Suspense>
       <PlayerHandsSwitch />
