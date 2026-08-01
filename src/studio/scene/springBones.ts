@@ -8,9 +8,10 @@ interface Joint {
   child: THREE.Object3D;
   restQuat: THREE.Quaternion;
   restChildPos: THREE.Vector3; // 骨局部系下子骨 rest 位置
-  boneLen: number; // 世界长度
+  boneLen: number; // 尾端球面半径=世界 rest 长度（首次 update 时量定，见下）
   currTail: THREE.Vector3;
   prevTail: THREE.Vector3;
+  inited: boolean; // 尾端状态延迟到首次 update 初始化（那时世界矩阵才可靠）
 }
 
 const _bonePos = new THREE.Vector3();
@@ -42,7 +43,6 @@ export class SpringBoneSim {
     this.gravity = opts?.gravity ?? 1.6;
     const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
     const pats = prefixes.map(norm);
-    root.updateMatrixWorld(true);
     root.traverse((o) => {
       if (!(o as THREE.Bone).isBone) return;
       const n = norm(o.name);
@@ -50,16 +50,18 @@ export class SpringBoneSim {
       // 每根骨与其第一个骨骼子节点构成一个关节（叶骨无子，跳过）
       const child = o.children.find((c) => (c as THREE.Bone).isBone);
       if (!child) return;
-      const childWorld = child.getWorldPosition(new THREE.Vector3());
-      const boneWorld = o.getWorldPosition(new THREE.Vector3());
       this.joints.push({
         bone: o,
         child,
         restQuat: o.quaternion.clone(),
         restChildPos: child.position.clone(),
-        boneLen: childWorld.distanceTo(boneWorld) || 1e-4,
-        currTail: childWorld.clone(),
-        prevTail: childWorld.clone(),
+        // 占位=局部 rest 长度。构造发生在 r3f commit 前（场景缩放/摆位未生效），
+        // 此刻量世界长度不可靠且随挂载时序漂移（StrictMode 二次挂载时已带 3.35×缩放）
+        // ——真正的半径在首次 update 时量定（那时世界矩阵已就绪）。
+        boneLen: child.position.length() || 1e-4,
+        currTail: new THREE.Vector3(),
+        prevTail: new THREE.Vector3(),
+        inited: false,
       });
     });
   }
@@ -76,6 +78,14 @@ export class SpringBoneSim {
       // rest 方向（父骨当前朝向 × rest 局部子位）
       bone.parent!.getWorldQuaternion(_parentQuat);
       _restDirWorld.copy(j.restChildPos).applyQuaternion(j.restQuat).applyQuaternion(_parentQuat).normalize();
+      // 首帧：量定世界 rest 长度（缩放已生效；此时骨还未被本 sim 转过，子骨在 rest 位），
+      // 尾端从 rest 位静止起步——无启动跳变。手感参数按世界量纲调定（模型 scale 3.35）。
+      if (!j.inited) {
+        j.inited = true;
+        j.boneLen = j.child.getWorldPosition(_next).distanceTo(_bonePos) || j.boneLen;
+        j.currTail.copy(_bonePos).addScaledVector(_restDirWorld, j.boneLen);
+        j.prevTail.copy(j.currTail);
+      }
       // 惯性 + 刚度 + 重力
       _inertia.copy(j.currTail).sub(j.prevTail).multiplyScalar(1 - this.drag);
       _next

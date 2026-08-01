@@ -150,6 +150,8 @@ export default function TripoNpc({
     pose?: Partial<Record<keyof typeof POSE_KEYS, [number, number, number] | null>>;
     /** 弹簧骨链根名匹配（双马尾/牛耳/缎带物理），忽略大小写与符号 */
     springs?: string[];
+    /** 弹簧手感（默认 stiffness 14/drag 0.32/gravity 1.6——按模型发型质感调） */
+    springOpts?: { stiffness?: number; drag?: number; gravity?: number };
     /** 外观：调暗乘色 + 描边纯色（浅色模型） */
     look?: { tint?: number; outlineColor?: number };
     /** 半眯眨眼基线（此模型眼睑妆重时调低，默认 0.22） */
@@ -229,7 +231,7 @@ export default function TripoNpc({
   // 弹簧骨物理（购入模型的双马尾/牛耳/缎带骨链）
   const springSim = useMemo(() => {
     if (!cfg?.springs?.length) return null;
-    const sim = new SpringBoneSim(gltf.scene, cfg.springs);
+    const sim = new SpringBoneSim(gltf.scene, cfg.springs, cfg.springOpts);
     if (import.meta.env.DEV) console.log("[springs] joints:", sim.jointCount);
     return sim.jointCount > 0 ? sim : null;
   }, [gltf, cfg]);

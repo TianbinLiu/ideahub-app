@@ -35,6 +35,9 @@ const MILLTINA_CFG = {
   },
   // 双马尾/牛耳/缎带/前发弹簧物理（骨链名匹配，忽略大小写与符号）
   springs: ["twintail", "cowear", "ribbon", "fronthair"],
+  // 垂落卷马尾的手感（捕帧 A/B 调定）：默认 14 几乎刚性；4 起身甩动明显、
+  // 静止 ~1.5s 收敛到呼吸级残摆，无发散无穿模。drag 再低会晃过头
+  springOpts: { stiffness: 4, drag: 0.28 },
   // 白发白裙在烛光暗房过亮：暖灰乘暗；浅色模型描边用固定深紫黑
   look: { tint: 0xbfb2a4, outlineColor: 0x2a2230 },
   // 她的眼睑妆重——半眯基线调低（0.22 会像厚眼影）
