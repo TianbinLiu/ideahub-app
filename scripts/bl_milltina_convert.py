@@ -30,13 +30,41 @@ def bake_shape_mix(obj_name, values):
     print(f"已烘穿搭形态: {obj_name} <- {values}")
 
 # 用户定稿：去掉围裙（外扩后仍与衣身穿模）；dress/skirt 烘 Apron_set=1
-# （无围裙穿搭的衣身形态——衣装参数化系统的配套开关）
 _apron = bpy.data.objects.get("Milltina_cloth_apron")
 if _apron:
     bpy.data.objects.remove(_apron, do_unlink=True)
     print("已移除围裙")
-bake_shape_mix("Milltina_cloth_dress", {"Apron_set": 1.0})
+
+# bra 在裙下完全不可见，唯独蕾丝刺绣会在胸尖穿出裙身（官方靠围裙盖住此区，
+# 我们去围裙后暴露；Shrink 系只缩身体不缩 bra）——直接移除（隐藏实验已验证衣身完好）
+_bra = bpy.data.objects.get("Milltina_cloth_bra")
+if _bra:
+    bpy.data.objects.remove(_bra, do_unlink=True)
+    print("已移除 bra")
+
+# ── 官方防穿模配置（逆向自 Milltina.prefab 的 m_BlendShapeWeights，索引→键名对照 FBX 顺序）──
+# VRChat 不穿模的根源：prefab 把「身体 Shrink 系（衣下身体内缩）+ 全件胸型统一 Cow +
+# 挤压键」配置好了；裸 FBX 全 0 = 身体全尺寸顶穿衣身 → 内衣/皮肤露出。
+# 胸型：官方 prefab 用 Cow（最大档）——用户反馈"像装水气球太下垂"，改一档
+# (Wear bra)Breasts_Big：作者的"穿 bra 支撑形"，更小更挺形状固定；衣身配对键同步
+bake_shape_mix("Milltina_body", {
+    "(Wear bra)Breasts_Big": 1.0,   # 穿 bra 状态的胸型（与 dress 同号配对）
+    "Shrink_Clothes_on": 1.0,       # 衣下身体内缩=物理上不可能穿出
+    # 深弯腰(45°)时腹部皮肤会挤出衣身——腰腹段再收一档（作者自带的分部位 Shrink）
+    "Shrink_Spine_1": 1.0,
+    "Shrink_Spine_2": 1.0,
+    "Shrink_Sock_on": 1.0,
+    "Panty_squeeze": 1.0,
+    "Sock_squeeze": 1.0,
+    "Garters_squeeze": 1.0,
+    "Foot_heel": 1.0,
+})
+bake_shape_mix("Milltina_cloth_dress", {"Apron_set": 1.0, "Breasts_Big": 1.0, "Cuff_shrink": 1.0})
 bake_shape_mix("Milltina_cloth_skirt", {"Apron_set": 1.0})
+bake_shape_mix("Milltina_cloth_panties", {"Panty_squeeze": 1.0, "Option_Tail_set": 1.0})
+bake_shape_mix("Milltina_cloth_garterbelt", {
+    "Panty_squeeze": 1.0, "Foot_heel": 1.0, "Sock_squeeze": 1.0, "Garters_squeeze": 1.0,
+})
 bake_shape_mix("Milltina_cloth_hat", {"Option_Twin tail": 1.0})
 
 # ── 贴图接线：按材质名归类到四张图 ──
@@ -44,7 +72,8 @@ TEX = {
     "face": os.path.join(TEXDIR, "Milltina_Face.png"),
     "body": os.path.join(TEXDIR, "Milltina_Body.png"),
     "hair": os.path.join(TEXDIR, "Milltina_Hair.png"),
-    "costume": os.path.join(TEXDIR, "Milltina_Costume.png"),
+    # 深绿+金滚边重着色版（scripts/recolor_milltina_costume.py 产出，场景色板对齐）
+    "costume": r"C:/Users/tliu7/ideahub/app/assets-private/textures/Milltina_Costume_greengold.png",
 }
 imgs = {k: bpy.data.images.load(v) for k, v in TEX.items()}
 
@@ -121,7 +150,8 @@ KEEP_PATTERNS = [
     r"^vrc\.blink",
     r"^eye_close($|_)",
     r"^eye_joy($|_)",
-    r"^eye_nagomi_1($|_)",
+    r"^eye_nagomi_[12]($|_)",  # 和み两档强度——常驻慵懒半眯用作者原键，不再用 blink 半开 hack
+    r"^brow_nagomi($|_)",  # 配套眉毛放松键（眼+眉才是完整表情）
     r"^eye_smile",
     r"^mouth_smile",
     r"^mouth_up",

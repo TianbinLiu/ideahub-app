@@ -14,6 +14,13 @@ interface Joint {
   inited: boolean; // 尾端状态延迟到首次 update 初始化（那时世界矩阵才可靠）
 }
 
+/** 球形碰撞体：挂在骨骼上随动（世界半径；offset 为骨局部偏移，随骨旋转） */
+export interface SphereCollider {
+  bone: THREE.Object3D;
+  radius: number;
+  offset?: THREE.Vector3;
+}
+
 const _bonePos = new THREE.Vector3();
 const _parentQuat = new THREE.Quaternion();
 const _restDirWorld = new THREE.Vector3();
@@ -22,12 +29,16 @@ const _inertia = new THREE.Vector3();
 const _from = new THREE.Vector3();
 const _to = new THREE.Vector3();
 const _rot = new THREE.Quaternion();
+const _collCenter = new THREE.Vector3();
+const _collOff = new THREE.Vector3();
+const _collQuat = new THREE.Quaternion();
 
 export class SpringBoneSim {
   private joints: Joint[] = [];
   stiffness: number;
   drag: number;
   gravity: number;
+  colliders: SphereCollider[];
 
   /**
    * @param root 骨架所在场景
@@ -39,12 +50,19 @@ export class SpringBoneSim {
   constructor(
     root: THREE.Object3D,
     prefixes: string[],
-    opts?: { stiffness?: number; drag?: number; gravity?: number; clampY?: (pos: THREE.Vector3) => number },
+    opts?: {
+      stiffness?: number;
+      drag?: number;
+      gravity?: number;
+      colliders?: SphereCollider[];
+      clampY?: (pos: THREE.Vector3) => number;
+    },
   ) {
     this.stiffness = opts?.stiffness ?? 14;
     this.drag = opts?.drag ?? 0.32;
     this.gravity = opts?.gravity ?? 1.6;
     this.clampY = opts?.clampY;
+    this.colliders = opts?.colliders ?? [];
     // 保留 Unicode 字母数字（MMD 移植模型的骨名是中日文：馬尾/後髪/劉海），只剥符号
     const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
     const pats = prefixes.map(norm);
@@ -98,6 +116,18 @@ export class SpringBoneSim {
         .add(_inertia)
         .addScaledVector(_restDirWorld, this.stiffness * d)
         .add(_from.set(0, -this.gravity * d * 0.1, 0));
+      // 球形碰撞体：把尾端推出碰撞球面（先碰撞后归长，与 VRM SpringBone 次序一致）
+      for (const c of this.colliders) {
+        c.bone.getWorldPosition(_collCenter);
+        if (c.offset) {
+          c.bone.getWorldQuaternion(_collQuat);
+          _collCenter.add(_collOff.copy(c.offset).applyQuaternion(_collQuat));
+        }
+        const dist = _next.distanceTo(_collCenter);
+        if (dist < c.radius && dist > 1e-6) {
+          _next.sub(_collCenter).multiplyScalar(c.radius / dist).add(_collCenter);
+        }
+      }
       // 归一化到骨长
       _next.sub(_bonePos).normalize().multiplyScalar(j.boneLen).add(_bonePos);
       // 平面碰撞：垂落的长发贴住桌面/地板（简单 y-clamp，穿模远比长度微差刺眼）

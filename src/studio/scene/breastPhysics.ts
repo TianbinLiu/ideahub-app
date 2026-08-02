@@ -1,0 +1,234 @@
+// 胸部软体物理：把 Breast 骨链当弹簧质点模拟，并与外部实体（前臂/桌沿/对侧胸/躯干）
+// 做碰撞推开——挤压/避让由物理解出，而不是逐帧手调旋转参数。
+//
+// 与 springBones 的差别：①rest 姿态每帧从当前骨骼读取（breastLift 先写"被托起"的
+// 目标姿态，物理在其基础上做接触响应）②支持胶囊碰撞体（前臂/桌沿是长条）③左右胸
+// 互为动态碰撞体（根除内侧重叠穿模）④高刚度低重力——胸是软而有形，不是果冻。
+import * as THREE from "three";
+
+export type PhysCollider =
+  | { kind: "sphere"; center: THREE.Vector3; radius: number }
+  | { kind: "capsule"; a: THREE.Vector3; b: THREE.Vector3; radius: number };
+
+interface BJoint {
+  bone: THREE.Object3D;
+  child: THREE.Object3D;
+  restChildPos: THREE.Vector3;
+  /** 根节标记 + rest 局部位置：被顶起时胸根随之上移（真实软组织不是钉死在胸壁上的） */
+  isRoot: boolean;
+  restPos: THREE.Vector3;
+  /** 平滑后的抬升量——直接用瞬时值会形成"顶开→根上移→碰撞变→再顶开"的无阻尼
+   *  正反馈（用户实测：动画中及结束后胸持续抽动） */
+  liftCur: number;
+  /** 本帧 rest 姿态（由 breastLift 写入的目标）——必须先存再写回，否则下一帧把自己的
+   *  输出当 rest 读，旋转会逐帧累积爆炸（实测胸尖被甩到桌沿下方 0.9） */
+  restQuat: THREE.Quaternion;
+  boneLen: number;
+  radius: number; // 该节的"肉半径"（世界），碰撞按球算
+  tail: THREE.Vector3;
+  prevTail: THREE.Vector3;
+  inited: boolean;
+  side: 1 | -1; // +1=L / -1=R，用于左右互斥
+}
+
+const _bonePos = new THREE.Vector3();
+const _parentQ = new THREE.Quaternion();
+const _restDir = new THREE.Vector3();
+const _next = new THREE.Vector3();
+const _inertia = new THREE.Vector3();
+const _from = new THREE.Vector3();
+const _to = new THREE.Vector3();
+const _rot = new THREE.Quaternion();
+const _closest = new THREE.Vector3();
+const _ab = new THREE.Vector3();
+const _ap = new THREE.Vector3();
+const _push = new THREE.Vector3();
+/** 身体横轴（角色未 yaw，世界 X 即她的左右）——左右互斥只在这个方向上解 */
+const _sideAxis = new THREE.Vector3(1, 0, 0);
+const _free = new THREE.Vector3();
+const _up = new THREE.Vector3();
+const _upLocal = new THREE.Vector3();
+
+function closestOnSegment(p: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3, out: THREE.Vector3) {
+  _ab.copy(b).sub(a);
+  _ap.copy(p).sub(a);
+  const denom = _ab.lengthSq();
+  const t = denom > 1e-9 ? Math.min(1, Math.max(0, _ap.dot(_ab) / denom)) : 0;
+  return out.copy(a).addScaledVector(_ab, t);
+}
+
+export class BreastPhysics {
+  private joints: BJoint[] = [];
+  stiffness: number;
+  drag: number;
+  gravity: number;
+  /** 被顶起时胸根跟着上移的比例（0=钉死在胸壁，0.3≈软组织自然跟随） */
+  rootLift: number;
+  /** 抬升上限（世界，锁骨下缘为界）+ 平滑速率（越小越黏，抑制自激） */
+  rootLiftMax: number;
+  rootLiftSmooth: number;
+  private lastRootLift = 0;
+
+  /**
+   * @param root 骨架场景
+   * @param radii 每节肉半径（世界量纲，根→末），长度不足则复用最后一个
+   */
+  constructor(
+    root: THREE.Object3D,
+    opts?: {
+      stiffness?: number;
+      drag?: number;
+      gravity?: number;
+      radii?: number[];
+      rootLift?: number;
+      rootLiftMax?: number;
+      rootLiftSmooth?: number;
+    },
+  ) {
+    this.stiffness = opts?.stiffness ?? 26;
+    this.drag = opts?.drag ?? 0.55;
+    this.gravity = opts?.gravity ?? 0.9;
+    this.rootLift = opts?.rootLift ?? 0;
+    this.rootLiftMax = opts?.rootLiftMax ?? 0.12;
+    this.rootLiftSmooth = opts?.rootLiftSmooth ?? 3;
+    const radii = opts?.radii ?? [0.15, 0.12, 0.09];
+    for (const side of [1, -1] as const) {
+      const base = side === 1 ? "Breast_L" : "Breast_R";
+      let idx = 0;
+      let bone = root.getObjectByName(base);
+      while (bone) {
+        const child = bone.children.find((c) => (c as THREE.Bone).isBone);
+        if (!child) break;
+        this.joints.push({
+          bone,
+          child,
+          restChildPos: child.position.clone(),
+          restQuat: bone.quaternion.clone(),
+          isRoot: idx === 0,
+          restPos: bone.position.clone(),
+          liftCur: 0,
+          boneLen: child.position.length() || 1e-4,
+          radius: radii[Math.min(idx, radii.length - 1)],
+          tail: new THREE.Vector3(),
+          prevTail: new THREE.Vector3(),
+          inited: false,
+          side,
+        });
+        bone = child;
+        idx++;
+      }
+    }
+  }
+
+  get jointCount() {
+    return this.joints.length;
+  }
+
+  /** 供左右互斥用：某侧末端球（世界） */
+  private tipOf(side: 1 | -1): BJoint | null {
+    let last: BJoint | null = null;
+    for (const j of this.joints) if (j.side === side) last = j;
+    return last;
+  }
+
+  /**
+   * @param colliders 外部实体（前臂/桌沿/躯干），世界坐标，每帧由调用方刷新
+   */
+  /**
+   * @param active 仅在接触段（breastLift 每帧写 rest）时驱动；false=复位物理状态并放行骨骼
+   */
+  update(dt: number, colliders: PhysCollider[], active = true) {
+    if (!active) {
+      // 只停驱动、不重置状态：重置会让下次激活时 tail 瞬移（过渡期反复跨阈值=抽动）
+      for (const j of this.joints) {
+        j.liftCur *= 0.9;
+        if (this.rootLift > 0) {
+          _upLocal.set(0, 1, 0).multiplyScalar(j.liftCur / ((j.bone.parent as THREE.Object3D).scale.y || 1));
+          j.bone.position.copy(j.restPos).add(_upLocal);
+        }
+      }
+      return;
+    }
+    const d = Math.min(dt, 0.05);
+    for (const j of this.joints) {
+      const bone = j.bone;
+      bone.getWorldPosition(_bonePos);
+      // 先存 rest（此刻 bone.quaternion 是 breastLift 写入的目标姿态），再算再写回
+      j.restQuat.copy(bone.quaternion);
+      bone.parent!.getWorldQuaternion(_parentQ);
+      _restDir.copy(j.restChildPos).applyQuaternion(j.restQuat).applyQuaternion(_parentQ).normalize();
+      if (!j.inited) {
+        j.inited = true;
+        j.boneLen = j.child.getWorldPosition(_next).distanceTo(_bonePos) || j.boneLen;
+        j.tail.copy(_bonePos).addScaledVector(_restDir, j.boneLen);
+        j.prevTail.copy(j.tail);
+      }
+      // 惯性 + 向 rest 回弹 + 重力
+      _inertia.copy(j.tail).sub(j.prevTail).multiplyScalar(1 - this.drag);
+      _next
+        .copy(j.tail)
+        .add(_inertia)
+        .addScaledVector(_restDir, this.stiffness * d)
+        // 重力与刚度同量纲（不像头发那样再乘 0.1）——胸要能被自重拉到臂上，
+        // gravity/stiffness 之比就是"下垂 vs 回弹"的手感旋钮
+        .add(_from.set(0, -this.gravity * d, 0));
+
+      // 无碰撞的"自由位置"——与求解后的差=接触把它顶开了多少（用于胸根跟随抬升）
+      _free.copy(_next);
+      // 接触求解：推开→归长→再推开（单次求解时归长会把推出的球又拉回穿透位；
+      // 且大 dt 下单帧位移可超过碰撞半径，迭代能救回穿透）
+      const opp = this.tipOf(j.side === 1 ? -1 : 1);
+      for (let iter = 0; iter < 3; iter++) {
+        for (const c of colliders) {
+          if (c.kind === "sphere") _closest.copy(c.center);
+          else closestOnSegment(_next, c.a, c.b, _closest);
+          const minD = c.radius + j.radius;
+          _push.copy(_next).sub(_closest);
+          const dist = _push.length();
+          if (dist < minD && dist > 1e-6)
+            _next.copy(_closest).addScaledVector(_push.divideScalar(dist), minD);
+        }
+        // 左右互斥：只沿身体横轴分离——用任意方向推会把一侧顶到另一侧的上方
+        // （用户实测"左胸滑到右胸上"），横向约束保证两团只会左右让开
+        if (opp && opp.inited && opp !== j) {
+          const minD = j.radius + opp.radius;
+          _push.copy(_next).sub(opp.tail);
+          _push.projectOnVector(_sideAxis); // 仅保留横向分量
+          const dist = _push.length();
+          const wantSign = j.side; // L 向 +x、R 向 -x，绝不越过中线
+          if (dist < minD) {
+            _push.copy(_sideAxis).multiplyScalar(wantSign * (minD - dist) * 0.5);
+            _next.add(_push);
+          }
+        }
+        // 归一化到骨长（角度约束）——再进入下一轮推开
+        _next.sub(_bonePos).normalize().multiplyScalar(j.boneLen).add(_bonePos);
+      }
+      j.prevTail.copy(j.tail);
+      j.tail.copy(_next);
+      // 胸根跟随抬升：被顶开的向上分量→根骨沿躯干上移（真实软组织根部不钉死）。
+      // 必须**平滑+限幅**：瞬时值会正反馈自激（抽动），无上限会窜到锁骨以上
+      if (this.rootLift > 0) {
+        _up.set(0, 1, 0).applyQuaternion(_parentQ);
+        if (j.isRoot) {
+          const raw = Math.max(0, _next.dot(_up) - _free.dot(_up)) * this.rootLift;
+          const target = Math.min(this.rootLiftMax, raw);
+          j.liftCur += (target - j.liftCur) * Math.min(1, d * this.rootLiftSmooth);
+          this.lastRootLift = j.liftCur;
+        } else {
+          // 二节按半量跟随：根骨独走会在胸根与胸壁间折出 90° 直角，
+          // 分摊到下一节才有软组织的弧线过渡
+          j.liftCur += (this.lastRootLift * 0.5 - j.liftCur) * Math.min(1, d * this.rootLiftSmooth);
+        }
+        const pScale = (j.bone.parent as THREE.Object3D).scale.y || 1;
+        _upLocal.set(0, 1, 0).multiplyScalar(j.liftCur / pScale);
+        j.bone.position.copy(j.restPos).add(_upLocal);
+      }
+      _from.copy(j.restChildPos).normalize();
+      _to.copy(_next).sub(_bonePos).applyQuaternion(_parentQ.invert());
+      _to.applyQuaternion(_rot.copy(j.restQuat).invert()).normalize();
+      bone.quaternion.copy(j.restQuat).multiply(_rot.setFromUnitVectors(_from, _to));
+      bone.updateMatrixWorld(false);
+    }
+  }
+}

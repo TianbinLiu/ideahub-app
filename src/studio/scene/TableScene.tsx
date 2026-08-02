@@ -37,7 +37,10 @@ import {
 // FBX 静止姿势是 T-pose；轴向实测：x−=垂臂（z 是水平前摆别用），微量 z 让手贴身
 const MILLTINA_CFG = {
   scale: 3.35,
-  y: -2.55,
+  // 脚底在模型系 z=-0.031、地板 FLOOR_Y=-2.4 → y 必须 =-2.4+0.031*3.35，否则站姿整个
+  // 下半身陷进地板（旧值 -2.55 陷 0.25，被吧台挡住没露馅；俯身自由视角就穿帮）。
+  // leanSlide.y 同步减去这 0.254，俯身态净高度不变
+  y: -2.296,
   z: -4.3,
   yaw: 0,
   pose: {
@@ -49,12 +52,56 @@ const MILLTINA_CFG = {
   // 垂落卷马尾的手感（捕帧 A/B 调定）：默认 14 几乎刚性；4 起身甩动明显、
   // 静止 ~1.5s 收敛到呼吸级残摆，无发散无穿模。drag 再低会晃过头
   springOpts: { stiffness: 4, drag: 0.28 },
-  // 白发白裙在烛光暗房过亮：暖灰乘暗；浅色模型描边用固定深紫黑
-  look: { tint: 0xbfb2a4, outlineColor: 0x2a2230 },
-  // 她的眼睑妆重——半眯基线调低（0.22 会像厚眼影）
-  blinkBase: 0.05,
-  // 俯身滑移：Q 版站位靠后，前移 0.45 让胸口落上桌沿
-  leanSlide: { z: 0.45, y: -0.02 },
+  // 球形碰撞体（世界量纲，站姿实测：头心 y0.873/马尾根距 0.38、胸 y0.05、髋 y-0.29）
+  springColliders: [
+    { bone: "mixamorig:Head", radius: 0.34 },
+    { bone: "mixamorig:Spine1", radius: 0.42, offset: [0, 0.1, 0.04] as [number, number, number] },
+    { bone: "mixamorig:Hips", radius: 0.38 },
+  ],
+  // 衣装/头发暖灰乘暗融入烛光暗房；脸+皮肤单独亮乘色（官方宣传图=亮脸平光，
+  // 全局压暗会把眼白压灰、眼周暗成"眼影"）；浅色模型描边用固定深紫黑
+  look: { tint: 0xbfb2a4, outlineColor: 0x2a2230, faceTint: 0xeae2d8, hairTint: 0xb9bcc4 },
+  // 表情=模型出厂默认脸（官方宣传图即默认脸）+瞬时全闭眨眼；不加任何常驻表情。
+  // 自带 nagomi 慵懒眼可用 restMorphs:{eye_nagomi_1:x, brow_nagomi:x} 随时开
+  blinkBase: 0,
+  smileBase: 0,
+  // 俯身位移（撤步弯腰版）：back=撤步后退量；z/y=落定净位移（深弯腰的胸前伸
+  // 距离大，净前移比旧直立俯身小得多；高度由弯腰角带下来，y 只微调）
+  // y 0.47：桌沿落到她模型系 0.695——左前臂轴 0.711 压进沿面 ~0.01（挤压接触），
+  // 右前臂叠其上 0.743、胸再压臂堆；沿顶<臂<胸三层排开且身体抬升被吧台遮挡
+  leanSlide: { back: 0.42, z: 0.08, y: 0.216 },
+  // 胸部软体物理：Breast 骨链弹簧 + 前臂/桌沿/对侧胸/躯干碰撞——手压、桌沿顶、
+  // 左右互斥全由接触解出（此前逐帧手调旋转永远修不干净三处穿模）
+  breastPhys: {
+    // 软（低刚度）+ 重（大重力）：胸自然垂落到臂圈上，被前臂/桌沿顶回去=真实挤压；
+    // radii 按实测标定——胸尖距臂轴 0.18，半径和须 >0.18 才谈得上接触
+    // drag 0.88：接触点上"重力拉下↔碰撞推上"会自激振荡（0.62 时实测抖动 0.074/帧
+    // 肉眼可见颤动），高阻尼把它压成静态接触
+    // 强回弹+轻重力：胸稳定保持在 lift 给的饱满形状上，只在碰到手臂/桌沿/对侧胸时
+    // 被推开（gravity/stiffness 高会塌，低于 0.1 则毫无软感）
+    stiffness: 20,
+    drag: 0.85,
+    gravity: 1.2,
+    // 半径贴合实际胸型（过大→被躯干球推到体侧摊平，实测 x 被顶到胸根的两倍）
+    radii: [0.13, 0.11, 0.09],
+    // 胸根跟随：0.9 抬得足；上限 0.16（世界≈锁骨下缘，再高会窜到锁骨以上）；
+    // smooth 2.5 低通——瞬时值会正反馈自激成抽动
+    rootLift: 0.9,
+    rootLiftMax: 0.16,
+    rootLiftSmooth: 2.5,
+    armRadius: 0.075,
+    rail: { y: 0.08, z: -3.55, radius: 0.17 },
+    // 躯干球=胸壁：胸挂在它上面才饱满（关掉会塌回身体成平面；0.12 又会顶到体侧）
+    torsoRadius: 0.08,
+  },
+  // 接触托胸：上抬(x−)+外分(splay)+躯干下沉(sink，重量压胸感)。上抬角要克制——
+  // 裙子 Apron_set 形态胸口自带 X 褶皱设计，抬得越猛两团越被顶进褶皱区读作"重叠"
+  // 接触表五轮定稿（Q2 组，倾斜躯干系修正）：臂位锚定**胸根褶线**（Breast 根骨
+  // 沿倾斜躯干轴向下 0.045+胸壁法向外 0.095——用世界 Z 判"下方"会落在乳头位把胸
+  // 往里压），胸垂搭臂圈上被顶起；上旋回轻档（托举靠臂位，不靠强旋硬掰）
+  // 分工定稿：**形状（饱满托起）由 lift 给 rest，物理只做接触避让+微动**——每侧仅 2 个
+  // 弹簧关节撑不出体积，纯靠重力垂落会塌成平面（实测 y 0.56→0.43 胸整个贴回身体）
+  breastLift: { angle: -0.3, childAngle: -0.15, splay: 0.24, sink: 0.06, swell: 0.15 },
 };
 const MILLTINA_MORPHS = { blink: "vrc.blink ", mouthOpen: "vrc.v_aa", smile: "eye_joy" };
 import {
@@ -1285,7 +1332,7 @@ export default function TableScene() {
           <TripoNpc url={npcModelUrl()} full />
         ) : (
           // 默认铸卡师 = 购入模型 Milltina（加密分发）：VRC 原生形键 + 弹簧骨物理 + 调暗描边
-          <TripoNpc url="/models/protected/milltina-opt.glbx?v=m6" cfg={MILLTINA_CFG} morphNames={MILLTINA_MORPHS} />
+          <TripoNpc url="/models/protected/milltina-opt.glbx?v=m7" cfg={MILLTINA_CFG} morphNames={MILLTINA_MORPHS} />
         )}
       </Suspense>
       <PlayerHandsSwitch />

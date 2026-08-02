@@ -1,7 +1,7 @@
 // Tripo 图生 3D 铸卡师（AI 生成高模，?npc=tripo 启用）：
 // mixamo 骨架每帧摆慵懒对坐姿势；引擎侧赛璐璐化（Toon ramp + 反壳描边）；
 // 左手抬起持 AI 推荐卡（卡面挂 LeftHand 骨）。
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { ThreeEvent, useFrame, useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -9,11 +9,17 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { useStudio } from "../studioStore";
 import { cardFaceTexture } from "./cardTexture";
 import { loaderFor } from "../secureAssets";
-import { SpringBoneSim } from "./springBones";
+import { SpringBoneSim, type SphereCollider } from "./springBones";
+import { BreastPhysics, type PhysCollider } from "./breastPhysics";
+import { RigidBoneSim, createRigidBoneSim } from "./rigidBones";
+import { getQuality } from "../quality";
 import { NPC_CAM } from "./layout";
 import { NPC_HEAD, orbit } from "./cameraOrbit";
 
 const cardPos = new THREE.Vector3();
+const _breastQ = new THREE.Quaternion();
+const _breastEuler = new THREE.Euler(); // Breast 骨实测：x−=纯上抬（两侧同）、L y+/R y−=向外
+const _breastDir = new THREE.Vector3();
 
 const POSE_KEYS = {
   spine1: "mixamorigSpine1",
@@ -38,6 +44,19 @@ export function toonify(
     tint?: number;
     /** 描边纯色：浅色（白发）模型上"贴图×暗色"描边会发白，改用固定深色 */
     outlineColor?: number;
+    /** 脸/皮肤专用乘色（动画惯例：脸保持明亮，官方宣传图即亮脸平光）——
+     *  全局 tint 会把眼白/肤色压灰，眼周暗成"眼影"观感 */
+    faceTint?: number;
+    /** faceTint 作用的网格名子串（默认 face+body=脸与皮肤，防脖颈接缝色差） */
+    faceMatch?: string[];
+    /** 头发专用乘色：暖灰全局 tint 会把银白发染成粉米色（官方形象是冷银灰）——
+     *  发色走冷调乘数、衣装保持暖调各自校准 */
+    hairTint?: number;
+    /** hairTint 作用的网格名子串（默认 hair+cow=头发与牛耳/角/尾，同材质防色差） */
+    hairMatch?: string[];
+    /** 不生成描边壳的网格名子串（默认 face）：睫毛/眼线是贴眼浮空 alpha 面片，
+     *  反壳描边=整片实心深色轮廓包住眼睛（"黑眼圈"真凶）；动画惯例脸不描边 */
+    noOutlineMatch?: string[];
   },
 ) {
   const ramp = new THREE.DataTexture(
@@ -48,6 +67,16 @@ export function toonify(
   ramp.minFilter = THREE.NearestFilter;
   ramp.magFilter = THREE.NearestFilter;
   ramp.needsUpdate = true;
+  // 脸部专用近平光 ramp（动画惯例：脸不吃阴影渐变）——眼窝是凹面法线常年背光，
+  // 三档 ramp 的 47% 暗档会把眼周贴图压成"黑眼影圈"（官方宣传图=平光亮脸）
+  const faceRamp = new THREE.DataTexture(
+    new Uint8Array([236, 236, 236, 255, 248, 248, 248, 255, 255, 255, 255, 255]),
+    3,
+    1,
+  );
+  faceRamp.minFilter = THREE.NearestFilter;
+  faceRamp.magFilter = THREE.NearestFilter;
+  faceRamp.needsUpdate = true;
   // 描边壳材质：有贴图时用 贴图×暗色 调制——开壳模型手臂贴身折叠时镜头会经袖口
   // 看进身体腔内打到壳背面，纯黑呈"撕裂黑洞"，暗色织物则读作阴影
   const makeOutline = (map: THREE.Texture | null, extraGLSL = "") => {
@@ -96,8 +125,21 @@ export function toonify(
     }
     // DoubleSide：开壳模型（袖筒/裙摆）折叠时镜头会看进开口内侧——单面渲染时内壁
     // 透空露出描边壳黑色背面，呈大块黑色"撕裂"；双面让内壁显示织物贴图
-    const toonMat = new THREE.MeshToonMaterial({ map: old.map, gradientMap: ramp, side: THREE.DoubleSide });
-    if (look?.tint) toonMat.color.set(look.tint);
+    const nm = mesh.name.toLowerCase();
+    const fm = look?.faceMatch ?? ["face", "body"];
+    const hm = look?.hairMatch ?? ["hair", "cow"];
+    const isFace = look?.faceTint !== undefined && fm.some((s) => nm.includes(s));
+    const toonMat = new THREE.MeshToonMaterial({
+      map: old.map,
+      gradientMap: isFace ? faceRamp : ramp,
+      side: THREE.DoubleSide,
+    });
+    const skinTint = isFace
+      ? look!.faceTint
+      : look?.hairTint !== undefined && hm.some((s) => nm.includes(s))
+        ? look.hairTint
+        : look?.tint;
+    if (skinTint) toonMat.color.set(skinTint);
     // 购入模型的透明材质（睫毛/发影 alpha 层）保持透明混合
     if ((old as THREE.Material).transparent) {
       toonMat.transparent = true;
@@ -114,6 +156,9 @@ export function toonify(
     }
     mesh.material = toonMat;
     old.dispose();
+    // 脸部不描边（隔离实验证实：眼周黑圈=睫毛/眼线 alpha 面片的实心反壳）
+    const noShell = (look ? (look.noOutlineMatch ?? ["face"]) : []).some((s) => nm.includes(s));
+    if (noShell) continue;
     const shellMat = makeOutline(old.map ?? null, windGLSL);
     let shell: THREE.Mesh;
     if (mesh.isSkinnedMesh) {
@@ -153,12 +198,59 @@ export default function TripoNpc({
     springs?: string[];
     /** 弹簧手感（默认 stiffness 14/drag 0.32/gravity 1.6——按模型发型质感调） */
     springOpts?: { stiffness?: number; drag?: number; gravity?: number };
-    /** 外观：调暗乘色 + 描边纯色（浅色模型） */
-    look?: { tint?: number; outlineColor?: number };
-    /** 半眯眨眼基线（此模型眼睑妆重时调低，默认 0.22） */
+    /** 弹簧骨球形碰撞体（防长发/丝带穿身）：骨名 + 世界半径 + 骨局部偏移（世界量纲，只随骨旋转） */
+    springColliders?: Array<{ bone: string; radius: number; offset?: [number, number, number] }>;
+    /** 外观：调暗/脸亮/发冷分调乘色 + 描边纯色（浅色模型）+ 脸部免描边 */
+    look?: {
+      tint?: number;
+      outlineColor?: number;
+      faceTint?: number;
+      faceMatch?: string[];
+      hairTint?: number;
+      hairMatch?: string[];
+      noOutlineMatch?: string[];
+    };
+    /** 半眯眨眼基线（此模型眼睑妆重时调低，默认 0.22；有 restMorphs 时应设 0） */
     blinkBase?: number;
-    /** 俯身时身体整体前移/下沉（胸口落上桌沿），随 lean 进度缓动 */
-    leanSlide?: { z: number; y: number };
+    /** 常驻表情基线：模型自带表情键名→权重（如作者的 eye_nagomi 慵懒眼），
+     *  引擎不再用 blink 半开模拟眯眼——部分闭眼会把眼睑妆压成黑圈 */
+    restMorphs?: Record<string, number>;
+    /** 常态浅笑基线（默认 0.22；restMorphs 已供气质时设 0 防叠加双重眯眼） */
+    smileBase?: number;
+    /** 俯身位移曲线：back=先整体后撤（撤步期，弯腰的横向空间），z/y=落定净位移
+     *  ——90° 级深弯腰的胸前伸距离大，必须先退再弯才能正好落在桌沿上 */
+    leanSlide?: { z: number; y: number; back?: number };
+    /** 胸部软体物理：Breast 骨链弹簧 + 与前臂/桌沿/对侧胸/躯干碰撞——挤压避让由物理
+     *  解出（breastLift 只提供"被托起"的 rest 目标，接触响应交给它） */
+    breastPhys?: {
+      stiffness?: number;
+      drag?: number;
+      gravity?: number;
+      radii?: number[];
+      /** 被顶起时胸根跟随上移的比例（真实软组织根部不钉死）+ 上限（锁骨下缘）+ 平滑速率 */
+      rootLift?: number;
+      rootLiftMax?: number;
+      rootLiftSmooth?: number;
+      /** 前臂碰撞胶囊半径（世界） */
+      armRadius?: number;
+      /** 桌沿圆柱：中心高/z 位/半径（世界，场景固定） */
+      rail?: { y: number; z: number; radius: number };
+      /** 躯干球半径（世界，防胸陷进身体） */
+      torsoRadius?: number;
+    };
+    /** 接触托胸：胸底接触桌沿后 Breast 骨链上旋角（rad，负=抬起；childAngle 为二节；
+     *  splay=向外分开角防两团向中聚拢重叠；sink=接触后身体下沉量（胸被托住不动，
+     *  躯干沉入=重量压在胸上的读感）；swell=受压膨出（胸骨接触相位放大，
+     *  参考图"被压得抬起上翘"的体积表达——纯旋转只会压扁贴身） */
+    breastLift?: {
+      angle: number;
+      childAngle?: number;
+      splay?: number;
+      sink?: number;
+      swell?: number;
+      /** 沿胸骨自身轴向前顶出（臂托胸：胸底搁臂上、体积鼓向臂上前方越过臂线） */
+      push?: number;
+    };
   };
   /** 形键名映射（购入模型用原生键名，如 VRC 规格 "vrc.blink "——注意可能带尾随空格） */
   morphNames?: { blink?: string; mouthOpen?: string; smile?: string };
@@ -167,7 +259,7 @@ export default function TripoNpc({
     (loader as GLTFLoader).setMeshoptDecoder(MeshoptDecoder);
   });
   const bones = useRef<Record<string, THREE.Object3D | null>>({});
-  const morphMesh = useRef<THREE.Mesh | null>(null);
+  const morphMeshes = useRef<THREE.Mesh[]>([]);
   // 随机眨眼时刻表：{ 下次眨眼的动画时钟时刻, 是否双眨 }
   const blinkPlan = useRef({ next: 2.5, double: false, phase: -1 });
   // 演出动画（wave 招手 / deal 发牌）：Blender IK 烘焙，只保留左臂链轨道避免覆盖程序姿势
@@ -201,6 +293,9 @@ export default function TripoNpc({
   const prevMoodUntil = useRef(0);
   // 进对话后延迟俯身：等相机走位到位（~1s）再开始过渡，玩家能完整看到动画
   const leanPendingAt = useRef(0);
+  // 接触托胸的基准四元数/位置缓存（clamp 后 mixer 停写，复合必须基于基准防累积）
+  const breastBase = useRef(new Map<string, THREE.Quaternion>());
+  const breastPosBase = useRef(new Map<string, THREE.Vector3>());
   // 注视镜头系统（购入模型，移植自 PlayerArms）：定格姿势本身凝视 NPC_CAM 方向——
   // 实际镜头偏离（自由视角拖拽）时，间歇性把头转向镜头再收回（限幅+缓入缓出）。
   // 头骨全程被 lean 动画驱动：增量必须叠加在 mixer.update 之后；基准四元数在
@@ -229,13 +324,80 @@ export default function TripoNpc({
   const shadowRailRef = useRef<THREE.Mesh | null>(null);
   const recommend = useStudio((s) => s.recommendCard);
 
-  // 弹簧骨物理（购入模型的双马尾/牛耳/缎带骨链）
+  // 辅助骨物理（购入模型的双马尾/牛耳/缎带骨链）按画质分级：
+  // 极致=MMD 刚体体系（Bullet 胶囊刚体+6DOF 弹簧约束+碰撞，懒加载失败回退）
+  // 流畅/均衡=轻量弹簧骨 + 球形碰撞体
+  const springColliders = useMemo<SphereCollider[]>(() => {
+    const out: SphereCollider[] = [];
+    for (const c of cfg?.springColliders ?? []) {
+      const bone =
+        gltf.scene.getObjectByName(c.bone) ?? gltf.scene.getObjectByName(c.bone.replace(/:/g, ""));
+      if (bone)
+        out.push({ bone, radius: c.radius, offset: c.offset ? new THREE.Vector3(...c.offset) : undefined });
+    }
+    return out;
+  }, [gltf, cfg]);
   const springSim = useMemo(() => {
     if (!cfg?.springs?.length) return null;
-    const sim = new SpringBoneSim(gltf.scene, cfg.springs, cfg.springOpts);
-    if (import.meta.env.DEV) console.log("[springs] joints:", sim.jointCount);
+    const sim = new SpringBoneSim(gltf.scene, cfg.springs, { ...cfg.springOpts, colliders: springColliders });
+    if (import.meta.env.DEV)
+      console.log("[springs] joints:", sim.jointCount, "colliders:", springColliders.length);
+    return sim.jointCount > 0 ? sim : null;
+  }, [gltf, cfg, springColliders]);
+  // 胸部软体物理（Breast 骨链 + 接触碰撞）：挤压/避让由物理解出
+  const breastPhys = useMemo(() => {
+    if (!cfg?.breastPhys) return null;
+    const sim = new BreastPhysics(gltf.scene, cfg.breastPhys);
+    if (import.meta.env.DEV) console.log("[breastPhys] joints:", sim.jointCount);
     return sim.jointCount > 0 ? sim : null;
   }, [gltf, cfg]);
+  const physColliders = useRef<PhysCollider[]>([]);
+  const collBones = useRef<Record<string, THREE.Object3D | null>>({});
+  useEffect(() => {
+    if (!cfg?.breastPhys) return;
+    const g = (n: string) => gltf.scene.getObjectByName(n) ?? null;
+    collBones.current = {
+      lFore: g("mixamorigLeftForeArm"),
+      lHand: g("mixamorigLeftHand"),
+      rFore: g("mixamorigRightForeArm"),
+      rHand: g("mixamorigRightHand"),
+      spine1: g("mixamorigSpine1"),
+    };
+    const bp = cfg.breastPhys;
+    const rail = bp.rail ?? { y: 0.08, z: -3.55, radius: 0.17 };
+    physColliders.current = [
+      { kind: "capsule", a: new THREE.Vector3(), b: new THREE.Vector3(), radius: bp.armRadius ?? 0.075 },
+      { kind: "capsule", a: new THREE.Vector3(), b: new THREE.Vector3(), radius: bp.armRadius ?? 0.075 },
+      {
+        kind: "capsule",
+        a: new THREE.Vector3(-8, rail.y, rail.z),
+        b: new THREE.Vector3(8, rail.y, rail.z),
+        radius: rail.radius,
+      },
+    ];
+    if (bp.torsoRadius)
+      physColliders.current.push({ kind: "sphere", center: new THREE.Vector3(), radius: bp.torsoRadius });
+  }, [gltf, cfg]);
+  const rigidSimRef = useRef<RigidBoneSim | null>(null);
+  useEffect(() => {
+    if (getQuality() !== "high" || !cfg?.springs?.length) return;
+    let dead = false;
+    createRigidBoneSim(gltf.scene, cfg.springs, springColliders)
+      .then((sim) => {
+        if (dead) return sim.dispose();
+        rigidSimRef.current = sim;
+        if (import.meta.env.DEV) {
+          console.log("[rigid] MMD 刚体已启用（极致档）");
+          (window as unknown as Record<string, unknown>).__rigidSim = sim;
+        }
+      })
+      .catch((e) => console.warn("[rigid] Bullet 加载失败，回退弹簧骨", e));
+    return () => {
+      dead = true;
+      rigidSimRef.current?.dispose();
+      rigidSimRef.current = null;
+    };
+  }, [gltf, cfg, springColliders]);
 
   // 接触阴影贴片：俯拍机位下"压上桌"的重量感全靠它（径向渐变软边椭圆）
   const shadowTex = useMemo(() => {
@@ -255,10 +417,11 @@ export default function TripoNpc({
   }, []);
 
   const { scale, y } = useMemo(() => {
+    morphMeshes.current = [];
     gltf.scene.traverse((o) => {
       o.frustumCulled = false;
       const m = o as THREE.Mesh;
-      if (m.isMesh && m.morphTargetDictionary && !m.userData.__isOutline) morphMesh.current = m;
+      if (m.isMesh && m.morphTargetDictionary && !m.userData.__isOutline) morphMeshes.current.push(m);
     });
     for (const [k, name] of Object.entries(POSE_KEYS)) bones.current[k] = gltf.scene.getObjectByName(name) ?? null;
     // full 描边收窄：手臂贴身（托腮/垫胸）时外扩壳会从胸口表面戳出成黑斑，宽度减半；
@@ -379,9 +542,10 @@ export default function TripoNpc({
         if (n && v) n.rotation.set(v[0] + (k === "spine1" ? breathe : 0), v[1], v[2]);
       }
     }
-    // 表情 morph：随机间隔眨眼（偶发双眨）+ npcSay 驱动口型 + 情绪事件驱动笑意 + 胸部压桌
-    const mm = morphMesh.current;
-    if (mm && mm.morphTargetDictionary && mm.morphTargetInfluences) {
+    // 表情 morph：随机间隔眨眼（偶发双眨）+ npcSay 驱动口型 + 情绪事件驱动笑意 + 胸部压桌。
+    // VRC 模型的脸常按材质拆成多个 primitive（面部本体+睫毛/眼线 alpha 层），形键同名
+    // 各自独立——必须全部写入：只写其一=眼线层单独闭合盖在睁开的眼上（"黑眼影圈"根因）
+    {
       const speaking = st.speakingUntil > Date.now();
       const bp = blinkPlan.current;
       let blink = 0;
@@ -404,8 +568,9 @@ export default function TripoNpc({
         const fb = (window as unknown as Record<string, unknown>).__forceBlink;
         if (typeof fb === "number") blink = fb;
       }
-      const dict = mm.morphTargetDictionary;
-      const inf = mm.morphTargetInfluences;
+      for (const mm of morphMeshes.current) {
+      const dict = mm.morphTargetDictionary!;
+      const inf = mm.morphTargetInfluences!;
       // full HD 贴图眼睛全开——常驻 0.22 眨眼基线找回"半眯慵懒"设定气质
       // 形键名映射：自产模型用我们雕的键名，购入模型传原生键名（VRC 规格等）
       const nBlink = morphNames?.blink ?? "blink";
@@ -424,9 +589,19 @@ export default function TripoNpc({
             : Math.max(0, 0.22 + st.mood * 0.35)
           : speaking
             ? 0.5 + Math.sin(t * 1.3) * 0.12
-            : 0.22;
+            : (cfg?.smileBase ?? 0.22);
         inf[dict[nSmile]] += (target - inf[dict[nSmile]]) * Math.min(1, dt * 6);
       }
+      // 常驻表情基线：作者自带键直接置值（DEV 可 __restMorphs 现场调）
+      const rest =
+        (import.meta.env.DEV &&
+          ((window as unknown as Record<string, unknown>).__restMorphs as
+            | Record<string, number>
+            | undefined)) ||
+        cfg?.restMorphs;
+      if (rest)
+        for (const k of Object.keys(rest))
+          if (dict[k] !== undefined) inf[dict[k]] = rest[k];
       // 胸部软性压桌：bust 版旧形键常驻；full 版=HD 重雕的小幅前缘轻压（无侧鼓），
       // 只在过渡末段胸口贴上桌沿时渐入，随呼吸微起伏
       if (dict.squish !== undefined) {
@@ -437,6 +612,7 @@ export default function TripoNpc({
           squish = contact * contact * (3 - 2 * contact) * (0.85 + Math.sin(t * 1.1) * 0.1);
         }
         inf[dict.squish] = squish;
+      }
       }
     }
     // full/购入模型状态机：站立（钉 lean f1）↔ 对话（播 lean 过渡，clamp 停末帧）
@@ -534,16 +710,103 @@ export default function TripoNpc({
       const sr = shadowRailRef.current;
       if (sf) (sf.material as THREE.MeshBasicMaterial).opacity = 0.6 * le;
       if (sr) (sr.material as THREE.MeshBasicMaterial).opacity = 0.5 * le;
-    } else if (cfg) {
-      // 购入模型：俯身滑移（胸口落上桌沿）+ 站/伏呼吸浮动
-      const le = leanP * leanP * (3 - 2 * leanP);
-      gltf.scene.position.z = cfg.z + (cfg.leanSlide?.z ?? 0) * le;
-      gltf.scene.position.y = y + (cfg.leanSlide?.y ?? 0) * le + Math.sin(t * 1.1) * 0.005;
+    }
+    // DEV 可 __breastLift 现场调托胸参数（重叠/悬浮类调参不必每轮改码重载）
+    const bl =
+      (import.meta.env.DEV &&
+        ((window as unknown as Record<string, unknown>).__breastLift as
+          | { angle: number; childAngle?: number; splay?: number; sink?: number; swell?: number; push?: number }
+          | undefined)) ||
+      cfg?.breastLift;
+    if (!full && cfg) {
+      // 购入模型俯身位移（人体弯腰上桌动力学，DEV __leanSlide 现场调）：
+      // ① 撤步期（leanP<0.35）整体后撤 back——深弯腰胸前伸距离大，先退出横向空间
+      // ② 弯腰期（>0.5）从后撤位回收到净位移 z——弯腰本身把胸送到桌沿上方
+      // ③ 接触期（>0.7）躯干下沉 sink——胸被 breastLift 托住，沉入=重量压胸
+      const ls =
+        (import.meta.env.DEV &&
+          ((window as unknown as Record<string, unknown>).__leanSlide as
+            | { z: number; y: number; back?: number }
+            | undefined)) ||
+        cfg.leanSlide;
+      const back = ls?.back ?? 0;
+      const bp = Math.min(1, Math.max(0, leanP / 0.35));
+      const bw = bp * bp * (3 - 2 * bp);
+      const fp = Math.min(1, Math.max(0, (leanP - 0.5) / 0.5));
+      const fw = fp * fp * (3 - 2 * fp);
+      const arc = Math.sin(fw * Math.PI) * 0.06;
+      const cwS = Math.min(1, Math.max(0, (leanP - 0.7) / 0.3));
+      const sink = (bl?.sink ?? 0) * cwS * cwS * (3 - 2 * cwS);
+      gltf.scene.position.z = cfg.z - back * bw + ((ls?.z ?? 0) + back) * fw;
+      gltf.scene.position.y = y + (ls?.y ?? 0) * fw + arc - sink + Math.sin(t * 1.1) * 0.005;
     }
     // 演出动画先应用（LoopOnce 播放期间覆盖左臂程序姿势，播完自动交还），
     // 再读手骨位置更新持卡——发牌挥动时卡精确跟手。
     // dt 钳制：页面从后台切回时 dt 可达 1s+，会把 2s 过渡两帧跳完
     mixer.update(Math.min(dt, 0.05));
+    // ── 接触托胸：胸底落上桌沿后被"托起"（模型自带 Breast 骨链上旋，接触相位渐进）。
+    // 基准四元数缓存：clamp 定格后 mixer 停写，直接乘会逐帧累积——必须存基准再复合
+    if (bl && leanP > 0) {
+      const contact = Math.min(1, Math.max(0, (leanP - 0.7) / 0.3));
+      const cw = contact * contact * (3 - 2 * contact);
+      const bm = breastBase.current;
+      const splay = bl.splay ?? 0;
+      // 全程写（cw=0 时等于写回原动画姿态）：中途清缓存会让物理在阈值处读到自己的
+      // 上一帧输出当 rest，接管瞬间跳变=用户看到的"过渡中抽动"
+      {
+        // 上抬（x−，实测两侧均纯垂直）+ 向外分开（L y+ / R y−，防两团向中聚拢重叠）
+        for (const [name, ang0, sy] of [
+          ["Breast_L", bl.angle, splay],
+          ["Breast_R", bl.angle, -splay],
+          ["Breast_L001", bl.childAngle ?? 0, 0],
+          ["Breast_R001", bl.childAngle ?? 0, 0],
+        ] as const) {
+          const ang = ang0;
+          const bone = gltf.scene.getObjectByName(name);
+          if (!bone) continue;
+          let base = bm.get(name);
+          if (!base) {
+            base = bone.quaternion.clone();
+            bm.set(name, base);
+          }
+          bone.quaternion
+            .copy(base)
+            .multiply(_breastQ.setFromEuler(_breastEuler.set(ang * cw, sy * cw, 0)));
+          // 受压膨出+前顶：根骨接触相位放大 + 沿骨轴（指向胸尖）前推（position 在父系，
+          // 骨自身 Y 轴方向=quaternion×(0,1,0)；基准位置缓存防 clamp 后累积）
+          if (name === "Breast_L" || name === "Breast_R") {
+            bone.scale.setScalar(1 + (bl.swell ?? 0) * cw);
+            if (bl.push) {
+              let pbase = breastPosBase.current.get(name);
+              if (!pbase) {
+                pbase = bone.position.clone();
+                breastPosBase.current.set(name, pbase);
+              }
+              bone.position
+                .copy(pbase)
+                .addScaledVector(_breastDir.set(0, 1, 0).applyQuaternion(bone.quaternion), bl.push * cw);
+            }
+          }
+        }
+      }
+    } else if (breastBase.current.size) breastBase.current.clear();
+    // ── 胸部软体物理：breastLift 给出 rest 目标后，由接触碰撞解出真实挤压/避让 ──
+    if (breastPhys) {
+      const cb = collBones.current;
+      const cols = physColliders.current;
+      gltf.scene.updateMatrixWorld(true);
+      if (cb.lFore && cb.lHand && cols[0]?.kind === "capsule") {
+        cb.lFore.getWorldPosition(cols[0].a);
+        cb.lHand.getWorldPosition(cols[0].b);
+      }
+      if (cb.rFore && cb.rHand && cols[1]?.kind === "capsule") {
+        cb.rFore.getWorldPosition(cols[1].a);
+        cb.rHand.getWorldPosition(cols[1].b);
+      }
+      if (cb.spine1 && cols[3]?.kind === "sphere") cb.spine1.getWorldPosition(cols[3].center);
+      // 全程驱动（breastLift 现已全程写 rest）：阈值处突然接管才是抽动来源
+      breastPhys.update(dt, cols, !!bl && leanP > 0.02);
+    }
     // ── 头部注视：动画采样之后、世界矩阵/弹簧骨之前叠加限幅转头 ──
     // 只在动画"定格"态叠加（1=站姿钉 f1、2=对话 clamp 末帧）：过渡/倒播期间动画
     // 每帧重写头骨会与叠加打架；定格后 mixer 输出恒定不再 setValue，外部写入可留存
@@ -602,9 +865,11 @@ export default function TripoNpc({
     gltf.scene.updateMatrixWorld(true);
     // 发布头部世界坐标：相机绕 NPC 头做球面运动 + 第一人称眼位的注视目标
     if (bones.current.head) bones.current.head.getWorldPosition(NPC_HEAD);
-    // 弹簧骨在姿势/动画之后模拟（读最新世界矩阵，回写局部旋转）
-    if (springSim) {
-      springSim.update(dt);
+    // 辅助骨物理在姿势/动画之后模拟（读最新世界矩阵，回写局部旋转）；
+    // 刚体版就绪前弹簧骨顶着（懒加载期间不裸奔）
+    const physSim = rigidSimRef.current ?? springSim;
+    if (physSim) {
+      physSim.update(dt);
       gltf.scene.updateMatrixWorld(true);
     }
     // 持卡：世界空间正立卡跟随左手（不继承手骨旋转，永远面向镜头；可点击查看详情）
