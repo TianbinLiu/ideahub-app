@@ -80,7 +80,8 @@ const RIGS: Record<
     // y=地板 -2.41 脚底精确落地（两模型脚底=原点，实测蒙皮包围盒 minY==groupY）；胸口 0.59>桌沿 0.25
     scale: 2.5,
     y: -2.41,
-    z: 3.95,
+    // 3.85：深伏时胸要完整越过桌沿（z 3.38）落毡——身位随前倾深度贴近
+    z: 3.85,
     deckY: -3.1,
     thinkDeckOnly: true,
     pose: MMD_POSE,
@@ -103,7 +104,7 @@ const RIGS: Record<
     yaw: Math.PI,
     scale: 2.21,
     y: -2.41,
-    z: 3.95,
+    z: 3.85,
     deckY: -3.1,
     thinkDeckOnly: true,
     pose: MMD_POSE,
@@ -193,10 +194,13 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       bones.current[k] = b;
       if (b && first) ud.__restQ![k] = b.quaternion.clone();
     }
-    // 左手骨额外记录：think 里掌心内旋被 keyframe，退出后 FPS 不驱动手骨会卡在内旋态——须显式回 rest
+    // 双手骨额外记录：think/settle 里手骨被 keyframe，退出后 FPS 不驱动手骨会卡姿势——须显式回 rest
     const lh = gltf.scene.getObjectByName("mixamorigLeftHand");
     bones.current.lHand = lh ?? null;
     if (lh && first) ud.__restQ!.lHand = lh.quaternion.clone();
+    const rh = gltf.scene.getObjectByName("mixamorigRightHand");
+    bones.current.rHand = rh ?? null;
+    if (rh && first) ud.__restQ!.rHand = rh.quaternion.clone();
     restQ.current = ud.__restQ!;
     settleStarted.current = false; // 换形象重挂载：入场过渡重新走一遍
   }, [gltf, rig]);
@@ -391,6 +395,8 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       // think 退出复位：手骨不在 FPS 姿势表里，不显式回 rest 会卡在托腮内旋态
       const lh = bones.current.lHand;
       if (lh && restQ.current.lHand) lh.quaternion.copy(restQ.current.lHand);
+      const rh = bones.current.rHand;
+      if (rh && restQ.current.rHand) rh.quaternion.copy(restQ.current.rHand);
       // MMD 档卡组视角（无 think 动画）：姿势写入后同样叠加注视镜头，让特写有生命感
       const head2 = bones.current.head;
       if (showSelf && head2) applyGaze(head2, t, camera);

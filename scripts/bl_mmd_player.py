@@ -215,14 +215,14 @@ if arm is not None and arm.data.bones.get("mixamorig:Head"):
     S_ORDER = ([CEN.name] if CEN else []) + (["mixamorig:Hips"] if HIPS else []) + [
         "mixamorig:Spine1", "mixamorig:Neck", "mixamorig:Head",
         "mixamorig:LeftArm", "mixamorig:LeftForeArm", "mixamorig:LeftHand",
-        "mixamorig:RightArm", "mixamorig:RightForeArm"]
+        "mixamorig:RightArm", "mixamorig:RightForeArm", "mixamorig:RightHand"]
     for n in S_ORDER:
         pb[n].rotation_mode = "XYZ"
 
     def reset_upper():
         for n in ["mixamorig:Spine1", "mixamorig:Neck", "mixamorig:Head",
                   "mixamorig:LeftArm", "mixamorig:LeftForeArm", "mixamorig:LeftHand",
-                  "mixamorig:RightArm", "mixamorig:RightForeArm"]:
+                  "mixamorig:RightArm", "mixamorig:RightForeArm", "mixamorig:RightHand"]:
             pb[n].rotation_euler = (0, 0, 0)
         if HIPS:
             HIPS.rotation_euler = (0, 0, 0)
@@ -245,28 +245,29 @@ if arm is not None and arm.data.bones.get("mixamorig:Head"):
 
     act3 = bpy.data.actions.new("settle")
     arm.animation_data.action = act3
-    # 终态（用户参考图）：双前臂交叉平贴桌面当枕垫、胸压在前臂上、头低垂惬意靠向手臂、
-    # 右腿伸直承重（髋不下沉）左膝放松前屈、臀翘背弧 ~65°。
-    # 臂目标按 TABLE_Z/EDGE_Y 参数化（Lw=左腕 Le=左肘…；左前臂叠在右前臂之上 z 稍高）
+    # 终态（用户参考图+深伏定稿）：前倾 ~80° 让**整个胸部越过桌沿落在桌毡上**（腰枢轴
+    # 恰在桌沿高度，深折+贴近后胸自然落毡、腹部靠桌沿）；双前臂交叉贴毡在胸前方、
+    # 头低垂靠臂；右腿直承重（髋不降）左膝放松前屈。
+    # 臂目标按 TABLE_Z/EDGE_Y 参数化；左前臂叠右前臂之上（z 间隙 0.017 防叠手互嵌）
     T, E = TABLE_Z, EDGE_Y
-    ARMS1 = {"lw": (0.15, E + 0.02, T + 0.10), "le": (0.19, E + 0.09, T + 0.16),
-             "rw": (-0.14, E + 0.03, T + 0.09), "re": (-0.18, E + 0.09, T + 0.15)}
-    ARMS2 = {"lw": (0.06, E - 0.02, T + 0.05), "le": (0.15, E + 0.02, T + 0.045),
-             "rw": (-0.05, E - 0.02, T + 0.045), "re": (-0.14, E + 0.02, T + 0.04)}
-    ARMS3 = {"lw": (0.0, E - 0.045, T + 0.045), "le": (0.135, E - 0.01, T + 0.04),
-             "rw": (0.0, E - 0.035, T + 0.035), "re": (-0.135, E - 0.005, T + 0.033)}
-    ARMS4 = {"lw": (-0.02, E - 0.05, T + 0.048), "le": (0.13, E - 0.015, T + 0.042),
-             "rw": (0.02, E - 0.04, T + 0.036), "re": (-0.13, E - 0.01, T + 0.033)}
+    ARMS1 = {"lw": (0.15, E - 0.02, T + 0.10), "le": (0.19, E + 0.05, T + 0.16),
+             "rw": (-0.14, E - 0.01, T + 0.09), "re": (-0.18, E + 0.05, T + 0.15)}
+    ARMS2 = {"lw": (0.06, E - 0.10, T + 0.06), "le": (0.15, E - 0.05, T + 0.05),
+             "rw": (-0.05, E - 0.10, T + 0.05), "re": (-0.14, E - 0.05, T + 0.045)}
+    ARMS3 = {"lw": (0.0, E - 0.17, T + 0.052), "le": (0.135, E - 0.12, T + 0.045),
+             "rw": (0.0, E - 0.16, T + 0.035), "re": (-0.135, E - 0.115, T + 0.033)}
+    ARMS4 = {"lw": (-0.02, E - 0.19, T + 0.055), "le": (0.13, E - 0.13, T + 0.048),
+             "rw": (0.02, E - 0.18, T + 0.038), "re": (-0.13, E - 0.125, T + 0.033)}
     # (帧, センター背移+降, 右脚IK后移/抬, 左脚IK后移/抬, 躯干折, 颈, 头, 臀翘, 臂目标)
     # 她背向 = +Y（脸 -Y）；上 = +Z。右腿直承重→髋几乎不降；左脚跟微抬=膝前屈
     SEQ = [
         (1, (0, 0, 0), (0, 0), (0, 0), 0.0, 0.0, 0.0, 0.0, None),
-        (10, (0, 0.02, -0.01), (0.06, 0.03), (0, 0), 0.18, -0.06, -0.07, 0.05, None),
-        (18, (0, 0.05, -0.02), (0.13, 0), (0.02, 0.02), 0.45, -0.13, -0.15, 0.11, ARMS1),
-        (26, (0, 0.08, -0.03), (0.13, 0), (0.04, 0.02), 0.68, -0.19, -0.21, 0.16, ARMS2),
-        (36, (0, 0.10, -0.035), (0.13, 0), (0.04, 0.02), 0.85, -0.24, -0.26, 0.19, ARMS3),
-        (48, (0, 0.10, -0.035), (0.13, 0), (0.04, 0.02), 0.88, -0.25, -0.28, 0.20, ARMS4),
-        (58, (0, 0.098, -0.033), (0.13, 0), (0.04, 0.02), 0.86, -0.245, -0.275, 0.195, ARMS4),
+        (10, (0, 0.02, -0.01), (0.06, 0.03), (0, 0), 0.20, -0.06, -0.07, 0.05, None),
+        (18, (0, 0.05, -0.02), (0.13, 0), (0.02, 0.02), 0.50, -0.13, -0.15, 0.12, ARMS1),
+        (26, (0, 0.08, -0.03), (0.13, 0), (0.04, 0.02), 0.78, -0.19, -0.21, 0.17, ARMS2),
+        (36, (0, 0.10, -0.035), (0.13, 0), (0.04, 0.02), 1.02, -0.25, -0.27, 0.21, ARMS3),
+        (48, (0, 0.10, -0.035), (0.13, 0), (0.04, 0.02), 1.16, -0.28, -0.30, 0.22, ARMS4),
+        (58, (0, 0.098, -0.033), (0.13, 0), (0.04, 0.02), 1.14, -0.275, -0.295, 0.215, ARMS4),
     ]
     def move_world(b, world_delta):
         """pose bone location 是 rest 局部系——世界位移需经 rest 旋转逆变换"""
@@ -294,6 +295,9 @@ if arm is not None and arm.data.bones.get("mixamorig:Head"):
                            Vector(arms["lw"]), Vector(arms["le"]))
             r2 = solve_arm("mixamorig:RightHand", ["mixamorig:RightArm", "mixamorig:RightForeArm"],
                            Vector(arms["rw"]), Vector(arms["re"]))
+            # 掌心拍平：手骨跟随前臂时指尖会扎进桌毡——绕世界 X 负角抬指尖至贴面
+            rot_world("mixamorig:LeftHand", "X", -0.32)
+            rot_world("mixamorig:RightHand", "X", -0.30)
             if fr >= 48:
                 print(f"  settle f{fr} arm residual L {r1:.3f} R {r2:.3f}")
         key_settle(fr)
