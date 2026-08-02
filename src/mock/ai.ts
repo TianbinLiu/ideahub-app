@@ -47,7 +47,9 @@ function marketAll(): Card[] {
 
 /** 市场检索：空词 → 最热；有词 → 名称/简介/标签模糊匹配 */
 export async function searchMarket(query: string): Promise<Card[]> {
-  await delay(500);
+  // 市场卡目前是本地静态种子，不再假装有网络延迟——
+  // 500ms 的 delay 会让「搜索中…」在纯本地数据上闪一下，是白白制造的等待感。
+  // 等接了真实社区接口，延迟自然会回来。
   const all = marketAll();
   const q = query.trim();
   const list = q

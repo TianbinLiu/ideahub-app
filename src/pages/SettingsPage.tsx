@@ -1,7 +1,7 @@
 // 设置页：编辑资料（头像/昵称/简介）、画质、玩家形象、存储用量、退出登录。
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { signOut, updateProfile } from "../data/account";
+import { signOut, updateProfile, isRemoteMode } from "../data/account";
 import { useCurrentUser } from "../hooks/useAccount";
 import { storageEstimate } from "../data/db";
 import { QUALITY_LABELS, getQuality, setQuality, type Quality } from "../studio/quality";
@@ -9,6 +9,8 @@ import { QUALITY_LABELS, getQuality, setQuality, type Quality } from "../studio/
 const AVATARS = ["🦊", "🐺", "🐱", "🦉", "🐙", "🦋", "🌙", "⭐", "🔮", "🎴", "🎬", "🍥"];
 
 export default function SettingsPage() {
+  // 远端模式下作品的权威副本在服务器，本地这份只是缓存——文案不能再说「存在本机」
+  const remote = isRemoteMode();
   const user = useCurrentUser();
   const navigate = useNavigate();
   const [name, setName] = useState(user?.name ?? "");
@@ -103,7 +105,7 @@ export default function SettingsPage() {
       </section>
 
       <section className="mb-6">
-        <h2 className="mb-2.5 text-xs font-semibold text-slate-400">存储</h2>
+        <h2 className="mb-2.5 text-xs font-semibold text-slate-400">{remote ? "本机缓存" : "存储"}</h2>
         <div className="rounded-xl border border-slate-700 bg-panel p-4">
           {storage ? (
             <>
@@ -118,7 +120,9 @@ export default function SettingsPage() {
                 />
               </div>
               <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-                作品与卡片存在本机浏览器数据库中。AI 生成的画面体积较大，空间不足时请删除旧作品。
+                {remote
+                  ? "作品与卡片已同步到服务器，换设备登录同一账号即可看到。这里显示的是本机缓存占用。"
+                  : "作品与卡片存在本机浏览器数据库中。AI 生成的画面体积较大，空间不足时请删除旧作品。"}
               </p>
             </>
           ) : (

@@ -4,16 +4,29 @@ import { Link, useParams } from "react-router-dom";
 import BranchPlayer from "../components/BranchPlayer";
 import SegmentPlayer from "../components/SegmentPlayer";
 import { addComment, addPlay, getVideo, setLike } from "../data/videos";
+import { useVideosVersion } from "../hooks/useVideos";
 import { VideoComment, formatPlays, relativeTime } from "../types";
 
 export default function VideoPage() {
   const { id } = useParams<{ id: string }>();
-  const video = useMemo(() => (id ? getVideo(id) : null), [id]);
+  // 订阅作品库：远端模式下 getVideo() 会在后台补一次详情接口（列表不带 comments），
+  // 回填是原地改同一个对象，不订阅就永远渲染不出来。
+  const version = useVideosVersion();
+  const video = useMemo(() => (id ? getVideo(id) : null), [id, version]);
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(video?.likes ?? 0);
   const [plays, setPlays] = useState(video?.plays ?? 0);
   const [comments, setComments] = useState<VideoComment[]>(video?.comments ?? []);
   const [draft, setDraft] = useState("");
+
+  // 详情回填晚于首帧渲染：把服务端那份同步进来。
+  // 本地已有的乐观值（刚点的赞、刚发的评论）取较大/较长的一边，别被回包覆盖掉。
+  useEffect(() => {
+    if (!video) return;
+    setLikes((v) => Math.max(v, video.likes));
+    setPlays((v) => Math.max(v, video.plays));
+    setComments((cs) => (video.comments.length > cs.length ? video.comments : cs));
+  }, [video, version]);
 
   // per-id 去重：StrictMode 双跑 effect 也只 +1，并把新计数渲染出来
   const counted = useRef<string | null>(null);
