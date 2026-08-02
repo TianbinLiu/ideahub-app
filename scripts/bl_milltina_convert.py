@@ -58,7 +58,12 @@ bake_shape_mix("Milltina_body", {
     "Shrink_Spine_1": 1.0,
     "Shrink_Spine_2": 1.0,
     # 深弯时后腰/臀段皮肤会从衣身后背挤出（用户报"后背穿模"）
-    "Shrink_Hip": 1.0,
+    # Shrink_Hip 同样不能拉满：它的足迹是 z[0.559,0.697]、最大位移 0.1346，拉满会把
+    # 大腿根/髋整圈压成零半径——实测出货网格 z[0.58,0.60) **一个顶点都没有**、
+    # z[0.60,0.62) 的 398 个顶点塌成一点。那才是用户看到的"大腿缺失"。
+    # 但它当初是为"后背穿模"加的，不能直接置 0：置 0 后髋段皮肤到内裤只剩 3~4mm 余量。
+    # 0.25 仍把该段径向收 13~30%，同时大腿→骨盆表面保持连续、无零顶点带。
+    "Shrink_Hip": 0.25,
     # Shrink_Sock_on 不能拉满：它是"换一双更细的袜子时把腿缩进去"的形态，拉满会把
     # 大腿从半径 0.108 削到恒定 0.063（−42%，且不随高度变化=削成一根等粗细棍），
     # 而这套装扮的袜筒外半径本来就有 0.10~0.12、源尺寸的腿装得进去。腿被削细之后
@@ -92,6 +97,7 @@ BREAST_GROUPS = ("Breast_L", "Breast_R", "Breast_L001", "Breast_R001")
 # 这两个判据都只对躯干成立。手臂的外侧方向与身体径向无关，套上去会把手臂顶点朝任意
 # 方向推（实测 tuck 动了 1623 个手臂顶点、最大位移 0.042 模型单位 ≈ 世界 5.6cm），
 # 手臂就从袖子里捅出来（用户实测"手臂与手臂衣服穿模"）。
+LEG_GROUPS = ("Upper_leg_L", "Upper_leg_R", "Lower_leg_L", "Lower_leg_R")
 ARM_GROUPS = (
     "Shoulder_L", "Shoulder_R",
     "Upper_arm_L", "Upper_arm_R", "Lower_arm_L", "Lower_arm_R",
@@ -114,10 +120,18 @@ def weighted_by(obj, names, thresh=0.01, label=""):
 
 def protected_verts(obj):
     """形状敏感、不该被径向收束/塞入动到的区域：胸（贴衣、形状是主体）+ 手臂（判据不成立）。"""
-    return weighted_by(obj, BREAST_GROUPS, 0.01, "胸部") | weighted_by(obj, ARM_GROUPS, 0.3, "手臂")
+    return (
+        weighted_by(obj, BREAST_GROUPS, 0.01, "胸部")
+        | weighted_by(obj, ARM_GROUPS, 0.3, "手臂")
+        | weighted_by(obj, LEG_GROUPS, 0.5, "大腿")
+    )
 
 
-WAIST_Z = (0.42, 0.52, 0.84, 0.90)   # 淡入起 / 满额起 / 满额止 / 淡出止
+# 下界原为 0.42，一路伸进大腿：对躯干是收腰，对大腿就是"连轴带肉缩 28% 并被拽向
+# 中线"（实测 z0.48 半径 0.1241→0.1008、z0.52 0.1343→0.0968，腿心偏移 0.0729→0.0571
+# =两腿并拢）。真正需要收的搭接区是 dress(z≥0.754) 与抬高后 skirt(z≤0.886) 的重叠段，
+# 下界抬到 0.70/满额起 0.76 才既盖得住又不啃大腿。上两个拐点原样保留。
+WAIST_Z = (0.70, 0.76, 0.84, 0.90)   # 淡入起 / 满额起 / 满额止 / 淡出止
 WAIST_SHRINK = 0.72                  # 满额段径向保留比例
 
 def cinch_waist(zr=WAIST_Z, k=WAIST_SHRINK):
