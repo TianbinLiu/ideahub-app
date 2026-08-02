@@ -71,6 +71,8 @@ export interface BranchNodeData {
 /** 互动分支树：扁平存储（允许多路汇合成 DAG） */
 export interface BranchTree {
   rootId: string;
+  /** 开场选择：第一段展开过多个走向时，观众进来先选从哪条开始（缺省=直接播 rootId） */
+  startChoices?: Array<{ label: string; nextId: string }>;
   nodes: Record<string, BranchNodeData>;
 }
 

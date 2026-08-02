@@ -94,10 +94,20 @@ function buildBranchTree(root: NodeSlot | null): BranchTree | undefined {
     };
     return id;
   };
-  const rootId = build(root, rootChosen);
+  // 第一段展开过多个走向 → 开场就让观众选（此前只从 chosen 那条建树，
+  //  用户在第一段辛苦造的另一条走向永远不会被观众看到）
+  const rootOpened = validProposals(root);
+  const startChoices =
+    rootOpened.length > 1
+      ? rootOpened.map((p) => ({
+          label: p.title.replace(/^第\d+段 · /, ""),
+          nextId: build(root, p),
+        }))
+      : undefined;
+  const rootId = startChoices ? startChoices[0].nextId : build(root, rootChosen);
   // 只有一条直线且无任何分岔时没必要带树
-  const hasFork = Object.values(nodes).some((n) => n.choices.length > 1);
-  return hasFork ? { rootId, nodes } : undefined;
+  const hasFork = !!startChoices || Object.values(nodes).some((n) => n.choices.length > 1);
+  return hasFork ? { rootId, nodes, startChoices } : undefined;
 }
 
 interface StudioState {

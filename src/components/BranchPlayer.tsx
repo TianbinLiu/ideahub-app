@@ -50,6 +50,21 @@ export default function BranchPlayer({ tree, cover }: { tree: BranchTree; cover:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [atEnd, nodeId]);
 
+  // 真实视频段：播/停与段内进度同步到 <video>
+  const videoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !seg.videoUrl) return;
+    if (playing) void v.play().catch(() => {});
+    else v.pause();
+  }, [playing, seg.videoUrl]);
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !seg.videoUrl || !v.duration) return;
+    const want = Math.min(v.duration, Math.max(0, time));
+    if (Math.abs(v.currentTime - want) > 0.4) v.currentTime = want;
+  }, [time, seg.videoUrl]);
+
   function goTo(nid: string) {
     setPath((p) => [...p, nid]);
     setNodeId(nid);
@@ -73,6 +88,15 @@ export default function BranchPlayer({ tree, cover }: { tree: BranchTree; cover:
   }
 
   function restart() {
+    // 有开场分支时回到开场选择界面，让观众能换一条开场重看
+    if (tree.startChoices && tree.startChoices.length > 1) {
+      setStarted(false);
+      setPlaying(false);
+      setTime(0);
+      setPath([tree.rootId]);
+      setNodeId(tree.rootId);
+      return;
+    }
     setPath([tree.rootId]);
     setNodeId(tree.rootId);
     setTime(0);
@@ -103,18 +127,44 @@ export default function BranchPlayer({ tree, cover }: { tree: BranchTree; cover:
       {!started ? (
         <>
           <img src={cover} alt="封面" className="h-full w-full object-cover" />
-          <button
-            onClick={() => {
-              setStarted(true);
-              setPlaying(true);
-            }}
-            className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/35"
-          >
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 pl-1 text-3xl text-ink shadow-xl">
-              ▶
-            </span>
-            <span className="rounded-full bg-brand/90 px-3 py-1 text-xs font-medium text-white">互动视频 · 你的选择决定剧情</span>
-          </button>
+          {tree.startChoices && tree.startChoices.length > 1 ? (
+            // 开场分支：创作者在第一段就给了多种走向，观众进来先选
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60 px-6">
+              <div className="text-sm font-medium text-slate-200">选择故事的开场</div>
+              <div className="flex w-full max-w-md flex-col gap-2">
+                {tree.startChoices.map((c) => (
+                  <button
+                    key={c.nextId}
+                    onClick={() => {
+                      setPath([c.nextId]);
+                      setNodeId(c.nextId);
+                      setTime(0);
+                      setStarted(true);
+                      setPlaying(true);
+                    }}
+                    className="rounded-xl bg-white/90 px-4 py-3 text-sm font-medium text-ink transition hover:bg-white"
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setStarted(true);
+                setPlaying(true);
+              }}
+              className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/35"
+            >
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 pl-1 text-3xl text-ink shadow-xl">
+                ▶
+              </span>
+              <span className="rounded-full bg-brand/90 px-3 py-1 text-xs font-medium text-white">
+                互动视频 · 你的选择决定剧情
+              </span>
+            </button>
+          )}
         </>
       ) : (
         <>
@@ -122,9 +172,9 @@ export default function BranchPlayer({ tree, cover }: { tree: BranchTree; cover:
             // 真实生成的片段（Seedance）；无 videoUrl 或加载失败回退首尾帧渐变
             <video
               key={seg.videoUrl}
+              ref={videoRef}
               src={seg.videoUrl}
               className="absolute inset-0 h-full w-full object-cover"
-              autoPlay
               muted
               playsInline
               onError={(e) => {

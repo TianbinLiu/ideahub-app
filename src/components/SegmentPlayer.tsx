@@ -49,6 +49,22 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
   const ease = frac * frac * (3 - 2 * frac);
   const ended = time >= total && !playing;
 
+  // 真实视频段：把播放器的播/停与进度同步到 <video>（否则暂停后视频仍在播、拖动进度不跟随）
+  const videoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !seg?.videoUrl) return;
+    if (playing) void v.play().catch(() => {});
+    else v.pause();
+  }, [playing, seg?.videoUrl]);
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !seg?.videoUrl || !v.duration) return;
+    // 段内进度对齐（拖动/切段时纠偏；容差内不打断正常播放，避免每帧 seek 卡顿）
+    const want = Math.min(v.duration, Math.max(0, local));
+    if (Math.abs(v.currentTime - want) > 0.4) v.currentTime = want;
+  }, [local, seg?.videoUrl]);
+
   function seek(clientX: number) {
     const bar = barRef.current;
     if (!bar) return;
@@ -95,9 +111,9 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
               // 真实生成的片段：直接播（静音自动播放才不被浏览器拦），加载失败自动回退渐变
               <video
                 key={seg.videoUrl}
+                ref={videoRef}
                 src={seg.videoUrl}
                 className="absolute inset-0 h-full w-full object-cover"
-                autoPlay
                 muted
                 playsInline
                 onError={(e) => {
