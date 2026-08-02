@@ -78,6 +78,24 @@ bake_shape_mix("Milltina_cloth_hat", {"Option_Twin tail": 1.0})
 # 而是径向顶出——按相机几何反算暴露段在 z≈0.78~0.87（下肋段）。梯形剖面：中间整段
 # 满额收束，两端羽化防折角。这一段永远在衣身筒内，收紧不影响任何可见轮廓；上界卡在
 # 0.90 以下避开胸型。
+# 胸部豁免：cinch_waist 的径向收束和 tuck_under 的塞入都会破坏形状，而胸部本来就
+# 紧贴衣身内侧（到衣身的内侧距离普遍小于 margin），照做等于把整个胸拍平贴合到裙料壳
+# 上——这就是用户报的"人物胸部扭曲"。用骨骼权重做豁免判据，比按高度猜区间精确得多。
+BREAST_GROUPS = ("Breast_L", "Breast_R", "Breast_L001", "Breast_R001")
+
+
+def breast_weighted(obj, thresh=0.01):
+    """返回受 Breast 骨链影响的顶点索引集合。"""
+    gi = {obj.vertex_groups[n].index for n in BREAST_GROUPS if n in obj.vertex_groups}
+    if not gi:
+        print("胸部豁免: 未找到 Breast 顶点组")
+        return set()
+    out = {v.index for v in obj.data.vertices
+           if any(g.group in gi and g.weight > thresh for g in v.groups)}
+    print(f"胸部豁免: {len(out)} 顶点")
+    return out
+
+
 WAIST_Z = (0.42, 0.52, 0.84, 0.90)   # 淡入起 / 满额起 / 满额止 / 淡出止
 WAIST_SHRINK = 0.72                  # 满额段径向保留比例
 
@@ -86,9 +104,12 @@ def cinch_waist(zr=WAIST_Z, k=WAIST_SHRINK):
     if o is None:
         print("腰部收束: 未找到 Milltina_body")
         return
+    skip = breast_weighted(o)
     z0, z1, z2, z3 = zr
     n = 0
     for v in o.data.vertices:
+        if v.index in skip:
+            continue
         z = v.co.z
         if z <= z0 or z >= z3:
             continue
@@ -129,22 +150,109 @@ def tuck_under(garment_name, zr, margin=0.012, body_name="Milltina_body"):
             tris.append((pv[0], pv[k], pv[k + 1]))
     tree = BVHTree.FromPolygons(vs, tris, all_triangles=True)
     bmi = bm.inverted()
+    skip = breast_weighted(b)
     n = 0
     for v in b.data.vertices:
-        if not (zr[0] <= v.co.z <= zr[1]):
+        if not (zr[0] <= v.co.z <= zr[1]) or v.index in skip:
             continue
         p = bm @ v.co
         loc, nor, _, _ = tree.find_nearest(p, 0.25)
         if loc is None:
             continue
-        if (p - loc).dot(nor) > -margin:   # 在外侧、或内侧余量不足
-            v.co = bmi @ (loc - nor * margin)
+        depth = (p - loc).dot(nor)          # >0 在衣物外侧
+        if depth > -margin:
+            # 沿法线按穿透深度往里推，而不是吸附到最近点：吸附会把顶点的切向位置
+            # 一并改掉，等于让身体去复制衣物表面，形状就没了
+            v.co = bmi @ (p - nor * (depth + margin))
             n += 1
     print(f"收缩包裹: {body_name} ← {garment_name} {n} 顶点 margin={margin}")
 
 
 tuck_under("Milltina_cloth_dress", (0.52, 0.98))
 tuck_under("Milltina_cloth_skirt", (0.30, 0.55))
+
+
+# ── 胸根权重平滑：90° 直角的根源是蒙皮权重梯度不连续 ──
+# 线性混合蒙皮下，若顶点权重在一两圈边环内就从"全归 Spine"跳到"全归 Breast"，
+# 骨头一转就必然折出硬棱。市面上的做法有三层：①把权重过渡摊到 3~5 圈边环
+# ②加中间关节分摊形变梯度 ③按骨骼角度驱动的修正形键（Pose Space Deformation）。
+# 这里做的是第①层——它是根因，且纯几何、不增加运行时开销。运行时那边的
+# 二节跟随（0.85）相当于第②层的简化版。
+def smooth_breast_weights(obj_name="Milltina_body", iters=8, rings=3):
+    o = bpy.data.objects.get(obj_name)
+    if o is None:
+        print("胸根权重平滑: 未找到", obj_name)
+        return
+    gi = [o.vertex_groups[n].index for n in BREAST_GROUPS if n in o.vertex_groups]
+    if not gi:
+        print("胸根权重平滑: 未找到 Breast 顶点组")
+        return
+    me = o.data
+    nbr = [[] for _ in me.vertices]
+    for e in me.edges:
+        a, b = e.vertices
+        nbr[a].append(b)
+        nbr[b].append(a)
+
+    def bw(v):
+        return sum(g.weight for g in v.groups if g.group in gi)
+
+    # 过渡带 = 受 Breast 影响的顶点向外扩 rings 圈（只在带内平滑，胸尖与胸壁本体不动）
+    band = {v.index for v in me.vertices if bw(v) > 1e-4}
+    for _ in range(rings):
+        band |= {n for i in list(band) for n in nbr[i]}
+    idx = sorted(band)
+    w = {i: bw(me.vertices[i]) for i in idx}
+    for _ in range(iters):
+        nw = {}
+        for i in idx:
+            ns = nbr[i]
+            nw[i] = (w[i] + sum(w.get(n, bw(me.vertices[n])) for n in ns)) / (len(ns) + 1)
+        w = nw
+
+    grps = o.vertex_groups
+    for i in idx:
+        v = me.vertices[i]
+        target = min(1.0, max(0.0, w[i]))
+        cur_b = bw(v)
+        others = [(g.group, g.weight) for g in v.groups if g.group not in gi]
+        so = sum(x[1] for x in others)
+        if cur_b > 1e-6:
+            # 按原比例重分配 Breast 侧
+            for g in v.groups:
+                if g.group in gi:
+                    grps[g.group].add([i], g.weight / cur_b * target, 'REPLACE')
+        elif target > 1e-6 and gi:
+            grps[gi[0]].add([i], target, 'REPLACE')
+        if so > 1e-6:
+            for gidx, gw in others:
+                grps[gidx].add([i], gw / so * (1 - target), 'REPLACE')
+    print(f"胸根权重平滑: 过渡带 {len(idx)} 顶点，{iters} 次迭代")
+
+
+smooth_breast_weights()
+
+# 大腿段径向收一档：裙子跟腿之后仍剩一小片捅出来，这一段永远在裙筒内，收紧零代价
+def cinch_thigh(zr=(0.24, 0.32, 0.58, 0.66), k=0.88):
+    o = bpy.data.objects.get("Milltina_body")
+    if o is None:
+        return
+    z0, z1, z2, z3 = zr
+    n = 0
+    for v in o.data.vertices:
+        z = v.co.z
+        if z <= z0 or z >= z3:
+            continue
+        w = (z - z0) / (z1 - z0) if z < z1 else (1.0 if z <= z2 else (z3 - z) / (z3 - z2))
+        f = 1 - (1 - k) * w
+        v.co.x *= f
+        v.co.y *= f
+        n += 1
+    print(f"大腿收束: {n} 顶点 满额×{k}")
+
+
+cinch_thigh()
+
 
 # ── 腰线搭接：衣身下摆绑 Spine、裙腰绑 Hips，深弯时两片沿相反方向走，出厂那点重叠量
 # 不够就在后腰错开出一条缝，露出整圈皮肤（用户报"后背穿模"；VRChat 里由围裙盖住所以
@@ -323,6 +431,59 @@ print("BONES renamed:", len(renamed))
 for r in renamed:
     print("  ", r)
 print("BONES missing:", missing)
+
+# ── 裙身权重下移到大腿：分色渲染实测，深弯撤步时大腿会从裙面中间捅出来。
+# 裙子出厂只绑髋，腿一动裙子不动，穿模是必然的——静态收紧/静态塞入都是治标。
+# 游戏里长裙的标准做法是给裙子加一层裙骨或把下半部分权重分给大腿，让布跟着腿走。
+# 这里做后者：按高度把权重逐渐转给左右大腿骨，左右按到大腿轴的距离软分配，
+# 腰部保持全髋（裙腰不该跟腿摆），下摆保留部分髋权重（不然一迈腿裙子会像裤子一样劈开）。
+def skirt_follow_legs(name="Milltina_cloth_skirt", share=0.65, z_top=0.79, z_bot=0.22):
+    o = bpy.data.objects.get(name)
+    if o is None:
+        print("裙子跟腿: 未找到", name)
+        return
+    bl, br = arm.data.bones.get("mixamorig:LeftUpLeg"), arm.data.bones.get("mixamorig:RightUpLeg")
+    if bl is None or br is None:
+        print("裙子跟腿: 未找到大腿骨")
+        return
+    mw = arm.matrix_world
+    segs = []
+    for b, n in ((bl, "mixamorig:LeftUpLeg"), (br, "mixamorig:RightUpLeg")):
+        segs.append((mw @ b.head_local, mw @ b.tail_local, n))
+    for _, _, n in segs:
+        if n not in o.vertex_groups:
+            o.vertex_groups.new(name=n)
+    grps = o.vertex_groups
+    omw = o.matrix_world
+    n_done = 0
+    for v in o.data.vertices:
+        p = omw @ v.co
+        t = (z_top - v.co.z) / (z_top - z_bot)
+        # 腰段 0 → 大腿段满额；下摆维持满额（穿模就发生在大腿到膝盖这一段）
+        blend = share * min(1.0, max(0.0, (t - 0.10) / 0.40))
+        if blend <= 1e-4:
+            continue
+        ds = []
+        for a, b, _ in segs:
+            ab = b - a
+            u = max(0.0, min(1.0, (p - a).dot(ab) / max(1e-9, ab.length_squared)))
+            ds.append(max(1e-4, (p - (a + ab * u)).length))
+        inv = [1.0 / d ** 2 for d in ds]
+        tot = sum(inv)
+        for k, (_, _, gname) in enumerate(segs):
+            grps[gname].add([v.index], blend * inv[k] / tot, 'REPLACE')
+        # 其余组等比缩到 (1-blend)
+        legi = {grps[gn].index for _, _, gn in segs}
+        others = [(g.group, g.weight) for g in v.groups if g.group not in legi]
+        so = sum(x[1] for x in others)
+        if so > 1e-6:
+            for gi_, gw in others:
+                grps[gi_].add([v.index], gw / so * (1 - blend), 'REPLACE')
+        n_done += 1
+    print(f"裙子跟腿: {n_done} 顶点转移至大腿骨（share={share}）")
+
+
+skirt_follow_legs()
 
 # ── 形键白名单：口型核心 + 眨眼 + 常用表情（体积控制；全集永远在源 FBX 里）──
 KEEP_PATTERNS = [

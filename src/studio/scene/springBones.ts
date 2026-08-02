@@ -2,6 +2,7 @@
 // 提供惯性摆动物理。每关节维护"当前尾端世界位置"，逐帧：惯性外推 + 刚度回弹
 // 向 rest 方向 + 重力下垂，再把尾端方向差转成骨骼局部旋转。
 import * as THREE from "three";
+import { FixedStepper } from "./fixedStep";
 
 interface Joint {
   bone: THREE.Object3D;
@@ -93,8 +94,20 @@ export class SpringBoneSim {
     return this.joints.length;
   }
 
+  private stepper = new FixedStepper();
+
   update(dt: number) {
-    const d = Math.min(dt, 0.05);
+    // 固定步长：操作镜头时 dt 剧烈波动，变 dt 直接喂显式积分会让头发/缎带抖动、拉扯
+    //（用户实测"移动摄像头会让模型扭曲抖动"）。步数为 0 也要跑一次零位移的写回，
+    // 否则骨骼旋转这一帧不被写，动画混合器的 rest 会直接暴露出来。
+    const n = this.stepper.take(dt);
+    for (let i = 0; i < n; i++) this.step(this.stepper.step, true);
+    // 不足一步时只做"把已有尾端重新投影到当前骨骼变换"，绝不推进物理：
+    // 高刷屏上大半帧都凑不满 1/60，若照跑一遍就等于每隔一帧凭空施加一次惯性
+    if (n === 0) this.step(0, false);
+  }
+
+  private step(d: number, integrate: boolean) {
     for (const j of this.joints) {
       const bone = j.bone;
       bone.getWorldPosition(_bonePos);
@@ -110,12 +123,16 @@ export class SpringBoneSim {
         j.prevTail.copy(j.currTail);
       }
       // 惯性 + 刚度 + 重力
-      _inertia.copy(j.currTail).sub(j.prevTail).multiplyScalar(1 - this.drag);
-      _next
-        .copy(j.currTail)
-        .add(_inertia)
-        .addScaledVector(_restDirWorld, this.stiffness * d)
-        .add(_from.set(0, -this.gravity * d * 0.1, 0));
+      if (integrate) {
+        _inertia.copy(j.currTail).sub(j.prevTail).multiplyScalar(1 - this.drag);
+        _next
+          .copy(j.currTail)
+          .add(_inertia)
+          .addScaledVector(_restDirWorld, this.stiffness * d)
+          .add(_from.set(0, -this.gravity * d * 0.1, 0));
+      } else {
+        _next.copy(j.currTail);
+      }
       // 球形碰撞体：把尾端推出碰撞球面（先碰撞后归长，与 VRM SpringBone 次序一致）
       for (const c of this.colliders) {
         c.bone.getWorldPosition(_collCenter);
@@ -135,8 +152,10 @@ export class SpringBoneSim {
         const minY = this.clampY(_next);
         if (_next.y < minY) _next.y = minY;
       }
-      j.prevTail.copy(j.currTail);
-      j.currTail.copy(_next);
+      if (integrate) {
+        j.prevTail.copy(j.currTail);
+        j.currTail.copy(_next);
+      }
       // 方向差 → 骨局部旋转：local' = restQuat × rotate(restDir_local → targetDir_local)
       _from.copy(j.restChildPos).normalize();
       // 世界方向转到"父世界系+restQuat"局部：先去父旋转，再去 restQuat

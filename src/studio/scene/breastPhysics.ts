@@ -5,6 +5,7 @@
 // 目标姿态，物理在其基础上做接触响应）②支持胶囊碰撞体（前臂/桌沿是长条）③左右胸
 // 互为动态碰撞体（根除内侧重叠穿模）④高刚度低重力——胸是软而有形，不是果冻。
 import * as THREE from "three";
+import { FixedStepper } from "./fixedStep";
 
 export type PhysCollider =
   | { kind: "sphere"; center: THREE.Vector3; radius: number }
@@ -141,8 +142,7 @@ export class BreastPhysics {
   /** 固定步长累加器：渲染 dt 在手势缩放/平移时会剧烈波动（1ms↔50ms），显式积分的
    *  弹簧对 dt 极敏感——同一姿势会因帧长忽长忽短而抖动、胸被拉扯变形。物理按固定
    *  1/60 步进、渲染帧只决定跑几步，操作镜头时就完全稳定 */
-  private acc = 0;
-  private static readonly FIXED = 1 / 60;
+  private stepper = new FixedStepper();
   /** 静止吸附阈值（世界位移平方，1m≈2.52 单位）：0.0008/帧≈4.8cm/s，慢到看不出来 */
   private static readonly SLEEP_SQ = 0.0008 * 0.0008;
 
@@ -156,22 +156,19 @@ export class BreastPhysics {
           j.bone.position.copy(j.restPos).add(_upLocal);
         }
       }
-      this.acc = 0;
+      this.stepper.reset();
       return;
     }
     // 固定步长：累加真实 dt，按 1/60 整步消费（上限 3 步防卡顿后暴冲）
-    this.acc = Math.min(this.acc + dt, BreastPhysics.FIXED * 3);
-    let steps = 0;
-    while (this.acc >= BreastPhysics.FIXED && steps < 3) {
-      this.acc -= BreastPhysics.FIXED;
-      steps++;
-      this.step(BreastPhysics.FIXED, colliders);
-    }
-    // 不足一步时也要保证骨骼被写过一次（否则 breastLift 的 rest 会直接暴露）
-    if (steps === 0) this.step(0, colliders);
+    const steps = this.stepper.take(dt);
+    for (let i = 0; i < steps; i++) this.step(this.stepper.step, colliders, true);
+    // 不足一步时仍要写一次骨骼（否则 breastLift 的 rest 会直接暴露），但**不推进物理**：
+    // 高刷屏上大半帧凑不满 1/60，照跑一遍等于每隔一帧凭空施加一次惯性，正是"镜头一动
+    // 模型就抖/变形"的其中一条来源
+    if (steps === 0) this.step(0, colliders, false);
   }
 
-  private step(d: number, colliders: PhysCollider[]) {
+  private step(d: number, colliders: PhysCollider[], integrate: boolean) {
     for (const j of this.joints) {
       const bone = j.bone;
       bone.getWorldPosition(_bonePos);
@@ -186,14 +183,18 @@ export class BreastPhysics {
         j.prevTail.copy(j.tail);
       }
       // 惯性 + 向 rest 回弹 + 重力
-      _inertia.copy(j.tail).sub(j.prevTail).multiplyScalar(1 - this.drag);
-      _next
-        .copy(j.tail)
-        .add(_inertia)
-        .addScaledVector(_restDir, this.stiffness * d)
-        // 重力与刚度同量纲（不像头发那样再乘 0.1）——胸要能被自重拉到臂上，
-        // gravity/stiffness 之比就是"下垂 vs 回弹"的手感旋钮
-        .add(_from.set(0, -this.gravity * d, 0));
+      if (integrate) {
+        _inertia.copy(j.tail).sub(j.prevTail).multiplyScalar(1 - this.drag);
+        _next
+          .copy(j.tail)
+          .add(_inertia)
+          .addScaledVector(_restDir, this.stiffness * d)
+          // 重力与刚度同量纲（不像头发那样再乘 0.1）——胸要能被自重拉到臂上，
+          // gravity/stiffness 之比就是"下垂 vs 回弹"的手感旋钮
+          .add(_from.set(0, -this.gravity * d, 0));
+      } else {
+        _next.copy(j.tail); // 只重投影，不推进
+      }
 
       // 无碰撞的"自由位置"——与求解后的差=接触把它顶开了多少（用于胸根跟随抬升）
       _free.copy(_next);
@@ -232,7 +233,10 @@ export class BreastPhysics {
       // 真实软组织撞上硬物是非弹性的——本帧发生了接触就把动量吃掉大半。
       const corrected = _next.distanceToSquared(_preSolve) > 1e-10;
       // 静止吸附：位移小到看不见就直接归零，彻底断掉残余环流
-      if (_next.distanceToSquared(j.tail) < BreastPhysics.SLEEP_SQ) {
+      if (!integrate) {
+        // 未推进的帧一律不动状态量——碰上它就把速度清零会在高刷屏上把弹性全抹掉
+        _next.copy(j.tail);
+      } else if (_next.distanceToSquared(j.tail) < BreastPhysics.SLEEP_SQ) {
         _next.copy(j.tail); // 下面的旋转写回也用冻结位，否则照样每帧微动
         j.prevTail.copy(j.tail);
       } else {

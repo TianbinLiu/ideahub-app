@@ -87,6 +87,11 @@ function collectColliders(scene: THREE.Object3D): THREE.Object3D[] {
     const m = o as THREE.Mesh;
     if (!m.isMesh || !m.visible) return;
     if (o.userData?.noCam) return;
+    // 角色一律不挡镜头。这不只是手感问题——three 对 SkinnedMesh 做 raycast 会在 CPU 上
+    // 逐三角形重算蒙皮，一个角色两万顶点、场景里好几个，每帧算一遍会让转镜头时的帧时间
+    // 从 1ms 飙到几十 ms。而弹簧骨/胸部物理是按帧长积分的，于是"一转镜头模型就抖、就
+    // 扭曲"（用户实测）。轨道半径下限本来就不让镜头贴到角色身上，不需要它们参与遮挡。
+    if ((m as THREE.SkinnedMesh).isSkinnedMesh || m.morphTargetInfluences) return;
     const mat = m.material as THREE.Material & { opacity?: number; transparent?: boolean };
     if (mat && mat.transparent && (mat.opacity ?? 1) < 0.35) return; // 拾取面/接触阴影/光束
     out.push(o);
