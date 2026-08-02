@@ -87,8 +87,11 @@ export interface IconProps {
 }
 
 export default function Icon({ name, size = 24, filled = false, className = "", style, strokeWidth = 1.75 }: IconProps) {
-  const solid = filled && SOLID[name];
-  const markup = solid ?? OUTLINE[name];
+  // ★ 必须写成三元而不是 `filled && SOLID[name]`：后者在 filled=false 时得到的是
+  //   布尔 false，而 `?? ` 只对 null/undefined 兜底，false 会原样穿过去，
+  //   最后 dangerouslySetInnerHTML 收到 false 就渲染出字面量 "false" —— 图标全空。
+  const solid = filled ? SOLID[name] : undefined;
+  const markup = solid ?? OUTLINE[name] ?? "";
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"

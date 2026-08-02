@@ -58,8 +58,8 @@ export default function TabBar() {
               className="flex min-h-[44px] flex-1 items-center justify-center"
               aria-label="创作"
             >
-              <span className="flex h-9 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-cyan-400 text-ink shadow-lg shadow-brand/25 transition active:scale-95">
-                <Icon name="plus" size={24} strokeWidth={2.5} />
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-brand to-cyan-400 text-ink shadow-lg shadow-brand/30 transition active:scale-95">
+                <Icon name="plus" size={26} strokeWidth={2.75} />
               </span>
             </button>
           ),
