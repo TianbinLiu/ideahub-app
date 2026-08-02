@@ -326,20 +326,20 @@ def deq_head(scale=HEAD_SCALE):
                 d[i] *= 1 - w + w * scale[i]
             v.co = mwi @ (center + d)
             moved += 1
-        # 形键 delta 同步缩放
+        # 形键：对**每一个键块（含 Basis）施加与主网格完全相同的仿射变换**。
+        # 原来的写法分两步——先用"旧 Basis"算 delta 再缩放写回，之后才把 Basis 更新成
+        # 新值——于是每个键的有效 delta 都凭空多出一项 −(缩头位移)：任何表情拉到满权重
+        # 都会把整个头还原回缩放前的大小（用户实测"每次眨眼脸就突出来"，实测公共偏移
+        # 最大 0.0214 模型单位 ≈ 世界 0.072 ≈ 2.9cm）。同一变换施加到所有键块上，
+        # 相对 delta 自然保持一致，不需要任何补偿。
         if o.data.shape_keys:
-            basis = o.data.shape_keys.key_blocks[0]
-            for kb in o.data.shape_keys.key_blocks[1:]:
+            for kb in o.data.shape_keys.key_blocks:
                 for idx, w in wmap.items():
-                    dd = kb.data[idx].co - basis.data[idx].co
+                    world = mw @ kb.data[idx].co
+                    d = world - center
                     for i in range(3):
-                        dd[i] *= 1 - w + w * scale[i]
-                    kb.data[idx].co = basis.data[idx].co + dd
-        # Basis 也要跟上主网格
-        if o.data.shape_keys:
-            kb0 = o.data.shape_keys.key_blocks[0]
-            for idx in wmap:
-                kb0.data[idx].co = o.data.vertices[idx].co
+                        d[i] *= 1 - w + w * scale[i]
+                    kb.data[idx].co = mwi @ (center + d)
     # 骨骼：头骨链同步缩短，注视/表情驱动才不会错位
     prev_mode = bpy.context.object.mode if bpy.context.object else "OBJECT"
     bpy.context.view_layer.objects.active = arm
