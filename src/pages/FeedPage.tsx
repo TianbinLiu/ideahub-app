@@ -1,6 +1,6 @@
 // 首页：TikTok 式全屏上下滑视频流。每屏一支，进入视口自动播放、离开暂停。
 // 互动视频（带 branchTree）在流里播开场段，点"进入互动"跳详情页做分支选择。
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { addPlay, listVideos, setLike } from "../data/videos";
 import { isFollowing, toggleFollow } from "../data/account";
@@ -119,9 +119,22 @@ function FeedItem({ video, active }: { video: VideoItem; active: boolean }) {
 }
 
 export default function FeedPage() {
-  const [videos] = useState(() => listVideos());
+  const user = useCurrentUser();
+  const [feed, setFeed] = useState<"recommend" | "following">("recommend");
+  const all = useMemo(() => listVideos(), []);
+  const videos = useMemo(() => {
+    if (feed !== "following") return all;
+    const set = new Set(user?.following ?? []);
+    return all.filter((v) => set.has(v.author));
+  }, [all, feed, user?.following]);
   const [activeIdx, setActiveIdx] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  // 切流后回到顶部并重置当前屏（否则会停在上一流的滚动位置）
+  useEffect(() => {
+    wrapRef.current?.scrollTo({ top: 0 });
+    setActiveIdx(0);
+  }, [feed]);
 
   // 用 IntersectionObserver 判定当前屏（比 scroll 计算更稳，也不依赖固定高度）
   useEffect(() => {
@@ -142,29 +155,65 @@ export default function FeedPage() {
     return () => io.disconnect();
   }, [videos.length]);
 
+  const tabs = (
+    <div className="safe-top pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center pt-2">
+      <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-black/45 p-1 backdrop-blur">
+        {(["following", "recommend"] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFeed(f)}
+            className={`rounded-full px-4 py-1.5 text-sm transition ${
+              feed === f ? "bg-white/90 font-semibold text-ink" : "text-slate-200"
+            }`}
+          >
+            {f === "following" ? "关注" : "推荐"}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   if (videos.length === 0) {
     return (
-      <div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center gap-3 text-slate-400">
-        <span className="text-4xl">🎬</span>
-        <p className="text-sm">还没有作品</p>
-        <Link to="/studio" className="rounded-full bg-brand px-4 py-2 text-sm font-bold text-ink">
-          去卡片工坊创作
-        </Link>
+      <div className="relative h-[calc(100vh-4rem)]">
+        {tabs}
+        <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
+          <span className="text-4xl">{feed === "following" ? "👀" : "🎬"}</span>
+          <p className="text-sm">
+            {feed === "following"
+              ? user
+                ? "关注的创作者还没有新作品"
+                : "登录后可以关注喜欢的创作者"
+              : "还没有作品"}
+          </p>
+          {feed === "following" ? (
+            <button onClick={() => setFeed("recommend")} className="rounded-full bg-panel px-4 py-2 text-sm text-slate-300">
+              去推荐流看看
+            </button>
+          ) : (
+            <Link to="/studio" className="rounded-full bg-brand px-4 py-2 text-sm font-bold text-ink">
+              去卡片工坊创作
+            </Link>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    <div
-      ref={wrapRef}
-      className="h-[calc(100vh-4rem)] snap-y snap-mandatory overflow-y-auto overscroll-contain"
-      style={{ scrollbarWidth: "none" }}
-    >
-      {videos.map((v, i) => (
-        <div key={v.id} data-idx={i} className="h-full w-full">
-          <FeedItem video={v} active={i === activeIdx} />
-        </div>
-      ))}
+    <div className="relative h-[calc(100vh-4rem)]">
+      {tabs}
+      <div
+        ref={wrapRef}
+        className="h-full snap-y snap-mandatory overflow-y-auto overscroll-contain"
+        style={{ scrollbarWidth: "none" }}
+      >
+        {videos.map((v, i) => (
+          <div key={v.id} data-idx={i} className="h-full w-full">
+            <FeedItem video={v} active={i === activeIdx} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
