@@ -13,7 +13,16 @@ interface Joint {
   currTail: THREE.Vector3;
   prevTail: THREE.Vector3;
   inited: boolean; // 尾端状态延迟到首次 update 初始化（那时世界矩阵才可靠）
+  /** 每链独立的手感参数：刘海和双马尾要的东西完全相反——长发要飘（软、低阻尼），
+   *  刘海要贴着头走（硬、高阻尼）。共用一组参数时刘海跟不上头的快速点头，
+   *  脸就从落后的刘海里钻出来（用户实测：注视/点头时脸捅出刘海）。 */
+  k: number;
+  d: number;
+  g: number;
 }
+
+/** 按链前缀覆盖手感参数（键用与 prefixes 同样的归一化匹配） */
+export type SpringOverrides = Record<string, { stiffness?: number; drag?: number; gravity?: number }>;
 
 /** 球形碰撞体：挂在骨骼上随动（世界半径；offset 为骨局部偏移，随骨旋转） */
 export interface SphereCollider {
@@ -57,6 +66,7 @@ export class SpringBoneSim {
       gravity?: number;
       colliders?: SphereCollider[];
       clampY?: (pos: THREE.Vector3) => number;
+      overrides?: SpringOverrides;
     },
   ) {
     this.stiffness = opts?.stiffness ?? 14;
@@ -67,10 +77,12 @@ export class SpringBoneSim {
     // 保留 Unicode 字母数字（MMD 移植模型的骨名是中日文：馬尾/後髪/劉海），只剥符号
     const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
     const pats = prefixes.map(norm);
+    const ovr = Object.entries(opts?.overrides ?? {}).map(([k, v]) => [norm(k), v] as const);
     root.traverse((o) => {
       if (!(o as THREE.Bone).isBone) return;
       const n = norm(o.name);
       if (!pats.some((p) => n.includes(p))) return;
+      const hit = ovr.find(([k]) => n.includes(k))?.[1];
       // 每根骨与其第一个骨骼子节点构成一个关节（叶骨无子，跳过）
       const child = o.children.find((c) => (c as THREE.Bone).isBone);
       if (!child) return;
@@ -86,6 +98,9 @@ export class SpringBoneSim {
         currTail: new THREE.Vector3(),
         prevTail: new THREE.Vector3(),
         inited: false,
+        k: hit?.stiffness ?? this.stiffness,
+        d: hit?.drag ?? this.drag,
+        g: hit?.gravity ?? this.gravity,
       });
     });
   }
@@ -124,12 +139,12 @@ export class SpringBoneSim {
       }
       // 惯性 + 刚度 + 重力
       if (integrate) {
-        _inertia.copy(j.currTail).sub(j.prevTail).multiplyScalar(1 - this.drag);
+        _inertia.copy(j.currTail).sub(j.prevTail).multiplyScalar(1 - j.d);
         _next
           .copy(j.currTail)
           .add(_inertia)
-          .addScaledVector(_restDirWorld, this.stiffness * d)
-          .add(_from.set(0, -this.gravity * d * 0.1, 0));
+          .addScaledVector(_restDirWorld, j.k * d)
+          .add(_from.set(0, -j.g * d * 0.1, 0));
       } else {
         _next.copy(j.currTail);
       }

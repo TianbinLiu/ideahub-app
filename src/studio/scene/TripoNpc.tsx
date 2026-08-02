@@ -9,7 +9,7 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { useStudio } from "../studioStore";
 import { cardFaceTexture } from "./cardTexture";
 import { loaderFor } from "../secureAssets";
-import { SpringBoneSim, type SphereCollider } from "./springBones";
+import { SpringBoneSim, type SphereCollider, type SpringOverrides } from "./springBones";
 import { BreastPhysics, type PhysCollider } from "./breastPhysics";
 import { RigidBoneSim, createRigidBoneSim } from "./rigidBones";
 import { getQuality } from "../quality";
@@ -206,6 +206,9 @@ export default function TripoNpc({
     springs?: string[];
     /** 弹簧手感（默认 stiffness 14/drag 0.32/gravity 1.6——按模型发型质感调） */
     springOpts?: { stiffness?: number; drag?: number; gravity?: number };
+    /** 按链覆盖弹簧手感：刘海要贴头走（硬+高阻尼），长发要飘（软+低阻尼），
+     *  一组参数满足不了两边 */
+    springOverrides?: SpringOverrides;
     /** 弹簧骨球形碰撞体（防长发/丝带穿身）：骨名 + 世界半径 + 骨局部偏移（世界量纲，只随骨旋转） */
     springColliders?: Array<{ bone: string; radius: number; offset?: [number, number, number] }>;
     /** 外观：调暗/脸亮/发冷分调乘色 + 描边纯色（浅色模型）+ 脸部免描边 */
@@ -355,7 +358,11 @@ export default function TripoNpc({
   }, [gltf, cfg]);
   const springSim = useMemo(() => {
     if (!cfg?.springs?.length) return null;
-    const sim = new SpringBoneSim(gltf.scene, cfg.springs, { ...cfg.springOpts, colliders: springColliders });
+    const sim = new SpringBoneSim(gltf.scene, cfg.springs, {
+      ...cfg.springOpts,
+      colliders: springColliders,
+      overrides: cfg.springOverrides,
+    });
     if (import.meta.env.DEV)
       console.log("[springs] joints:", sim.jointCount, "colliders:", springColliders.length);
     return sim.jointCount > 0 ? sim : null;

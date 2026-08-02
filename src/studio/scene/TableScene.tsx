@@ -53,9 +53,16 @@ const MILLTINA_CFG = {
   // 垂落卷马尾的手感（捕帧 A/B 调定）：默认 14 几乎刚性；4 起身甩动明显、
   // 静止 ~1.5s 收敛到呼吸级残摆，无发散无穿模。drag 再低会晃过头
   springOpts: { stiffness: 4, drag: 0.28 },
+  // 刘海单独调硬：它离脸只有 0.0187 模型单位余量（实测脸最前端距头骨 0.0759），
+  // 用双马尾那套软参数（k=4）时头一点它就落在后面，脸直接从刘海里钻出来。
+  // k=30/drag=0.75 ≈ 近刚性跟随，只留一点点尾随的柔软感；重力也调小免得往下坠。
+  springOverrides: { fronthair: { stiffness: 30, drag: 0.75, gravity: 0.4 } },
   // 球形碰撞体（世界量纲，站姿实测：头心 y0.873/马尾根距 0.38、胸 y0.05、髋 y-0.29）
+  // 头部碰撞球半径必须卡在"脸最前端 0.254"与"刘海骨尾端最近 0.267"之间（世界，实测）：
+  // 原来的 0.34 把 8 个刘海关节里的 6 个常年往外顶——静止穿透会让弹簧一直被推，
+  // 推力方向又随头的转动翻转，点头时就"啵"地弹一下，脸从错位的刘海里露出来。
   springColliders: [
-    { bone: "mixamorig:Head", radius: 0.34 },
+    { bone: "mixamorig:Head", radius: 0.26 },
     { bone: "mixamorig:Spine1", radius: 0.42, offset: [0, 0.1, 0.04] as [number, number, number] },
     { bone: "mixamorig:Hips", radius: 0.38 },
   ],
