@@ -316,7 +316,10 @@ function TableRail() {
   const y = 0.08;
   return (
     <group>
-      {[-TABLE.d / 2 - 0.05, TABLE.d / 2 + 0.05].map((z, i) => (
+      {/* 只保留 NPC 侧长边护栏：玩家侧那根（z=+3.55）顶面高出桌毡 0.25，是玩家伏桌时
+          胸部够不到桌面的物理屏障（blender-mcp 网格检测实证：胸部 356 顶点无一越过它，
+          胸底正好压在护栏顶）。移除后近边只剩高 0.06 的木框，胸可真正落到桌面 */}
+      {[-TABLE.d / 2 - 0.05].map((z, i) => (
         <mesh key={i} material={mat} position={[0, y, z]} rotation={[0, 0, Math.PI / 2]}>
           <cylinderGeometry args={[R, R, TABLE.w + 0.5, 14]} />
         </mesh>
