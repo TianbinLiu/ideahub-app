@@ -146,6 +146,32 @@ def cinch_waist(zr=WAIST_Z, k=WAIST_SHRINK):
 cinch_waist()
 
 
+# ── 牛尾外让：尾巴从裙子背后的开衩出来后是贴着裙面走的，实测余量只有 0.02~0.03
+# 模型单位（裙子是外扩的 A 字形，尾巴却从髋部直垂），等于蹭着布面——裙子一形变就
+# 把尾巴半埋进去，观感就是"尾巴和衣服穿模"。
+# 做法是在绑定姿势里把尾巴网格沿背向（+y）按长度渐变外移：根部为 0（不脱离开衩），
+# 到尖端 0.05。只动网格顶点、不动骨骼与权重，蒙皮关系完全不变——外移量会跟着尾骨
+# 一起旋转，等价于让整条尾巴"搭"在裙面外侧。
+def tail_clearance(gain=0.05, z_root=0.706, z_tip=0.410):
+    span = z_root - z_tip
+    for name in ("Milltina_cow_tail", "Milltina_cloth_tail_ribbon"):
+        o = bpy.data.objects.get(name)
+        if o is None:
+            print(f"牛尾外让: 未找到 {name}")
+            continue
+        n = 0
+        for v in o.data.vertices:
+            t = (z_root - v.co.z) / span
+            if t <= 0:
+                continue
+            v.co.y += gain * min(1.0, t)
+            n += 1
+        print(f"牛尾外让: {name} {n} 顶点，尖端 +{gain}")
+
+
+tail_clearance()
+
+
 # ── 收缩包裹：逐顶点把身体塞回衣身内侧。径向收束是"按比例猜"，总有局部猜不够；
 # 这一步直接对衣身求最近点，凡落在外侧（或贴得太近）的顶点按面法线压进去留出余量，
 # 是几何上确定的解，不用再试比例。姿势变化会让身体相对衣身移动，所以余量给得比
