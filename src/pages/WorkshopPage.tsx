@@ -1,6 +1,7 @@
 // 创意工坊页：管理自己的卡片与卡组——搜索添加市场卡片、建组、增删卡。
 // 与 3D 卡片工坊（/studio）分工：这里是资产管理，那里是创作现场。
 import { useEffect, useMemo, useState } from "react";
+import Icon from "../components/Icon";
 import { Link } from "react-router-dom";
 import { addCards, createDeck, deleteDeck, myCards, myDecks, removeCard, updateDeck } from "../data/account";
 import { useAccountVersion } from "../hooks/useAccount";
@@ -29,7 +30,7 @@ function CardTile({ card, onRemove }: { card: Card; onRemove?: () => void }) {
           onClick={onRemove}
           className="absolute right-1.5 top-1.5 hidden h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs text-slate-200 group-hover:flex"
         >
-          ✕
+          <Icon name="close" size={16} />
         </button>
       )}
     </div>
@@ -124,7 +125,7 @@ export default function WorkshopPage() {
 
           <h2 className="mb-2 text-sm font-semibold text-slate-300">从市场添加</h2>
           <div className="mb-3 flex items-center gap-2 rounded-full border border-slate-700 bg-panel px-4 py-2">
-            <span className="text-slate-500">🔍</span>
+            <Icon name="search" size={17} className="text-slate-500" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}

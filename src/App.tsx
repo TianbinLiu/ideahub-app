@@ -14,10 +14,10 @@ import { readyVideos } from "./data/videos";
 import { readyAccount } from "./data/account";
 import { useCurrentUser } from "./hooks/useAccount";
 
-/** 带底部 TabBar 的页面骨架（内容区留出底栏高度） */
+/** 带底部 TabBar 的页面骨架（内容区留出底栏高度，含系统手势条） */
 function TabLayout() {
   return (
-    <div className="min-h-full pb-16">
+    <div className="min-h-full" style={{ paddingBottom: "var(--tabbar-h)" }}>
       <Outlet />
       <TabBar />
     </div>

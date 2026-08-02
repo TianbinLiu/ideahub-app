@@ -1,5 +1,6 @@
 // 我的页：头像/昵称/简介/统计 + 我的作品·卡片·卡组·关注 四个页签 + 设置入口。
 import { useMemo, useState } from "react";
+import Icon from "../components/Icon";
 import { Link } from "react-router-dom";
 import { listVideos, isMyAuthor } from "../data/videos";
 import { myCards, myDecks, toggleFollow } from "../data/account";
@@ -45,7 +46,7 @@ export default function ProfilePage() {
           to="/settings"
           className="absolute right-4 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-panel text-lg"
         >
-          ⚙️
+          <Icon name="settings" size={20} />
         </Link>
         <div className="flex items-center gap-4">
           <span className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-brand/30 to-panel text-4xl">

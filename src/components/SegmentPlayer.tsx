@@ -1,6 +1,7 @@
 // 分段视频播放器（mock）：每段用首帧→尾帧渐变 + 轻推镜头模拟画面，段落分界处有刻度。
 // 接入真实视频生成后，本组件替换为 <video> 播放合成片即可，外层接口不变。
 import { useEffect, useRef, useState } from "react";
+import Icon from "./Icon";
 import { VideoSegment, formatDuration } from "../types";
 
 export default function SegmentPlayer({ segments, cover }: { segments: VideoSegment[]; cover: string }) {
@@ -9,6 +10,14 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
   const [time, setTime] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
+  const [ctrl, setCtrl] = useState(true);
+
+  // 播放中 3 秒自动收起控制条；暂停时常显（用户正在找按钮）
+  useEffect(() => {
+    if (!ctrl || !playing) return;
+    const t = setTimeout(() => setCtrl(false), 3000);
+    return () => clearTimeout(t);
+  }, [ctrl, playing, time]);
   const total = Math.max(0.001, segments.reduce((s, x) => s + x.durationSec, 0));
 
   useEffect(() => {
@@ -74,11 +83,6 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
     setStarted(true);
   }
 
-  function toggleFullscreen() {
-    if (document.fullscreenElement) void document.exitFullscreen();
-    else void wrapRef.current?.requestFullscreen();
-  }
-
   // 段落分界刻度位置
   const marks: number[] = [];
   let m = 0;
@@ -88,7 +92,11 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
   }
 
   return (
-    <div ref={wrapRef} className="group relative aspect-video w-full select-none overflow-hidden rounded-xl bg-black">
+    <div
+      ref={wrapRef}
+      className="relative aspect-video w-full select-none overflow-hidden rounded-xl bg-black"
+      onClick={() => setCtrl((v) => !v)}
+    >
       {!started ? (
         <>
           <img src={cover} alt="封面" className="h-full w-full object-cover" />
@@ -99,8 +107,8 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
             }}
             className="absolute inset-0 flex items-center justify-center bg-black/30"
           >
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 pl-1 text-3xl text-ink shadow-xl">
-              ▶
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 pl-1 text-ink shadow-xl">
+              <Icon name="play" size={30} filled />
             </span>
           </button>
         </>
@@ -144,33 +152,46 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
               }}
               className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 text-slate-100"
             >
-              <span className="text-4xl">↻</span>
+              <Icon name="replay" size={34} />
               <span className="text-sm">重新播放</span>
             </button>
           )}
-          {/* 控制条 */}
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-8 opacity-0 transition-opacity group-hover:opacity-100">
-            <div
-              ref={barRef}
-              className="relative h-1.5 w-full cursor-pointer rounded-full bg-white/25"
-              onClick={(e) => seek(e.clientX)}
-            >
+          {/* 控制条：点画面唤起/收起，播放中 3 秒自动淡出。
+              原来是 group-hover —— 触屏设备没有 hover 事件，进度条和播放键在真机上完全够不着。 */}
+          <div
+            className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-8 transition-opacity duration-200 ${
+              ctrl ? "opacity-100" : "pointer-events-none opacity-0"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="-my-2 py-2" onClick={(e) => seek(e.clientX)}>
+            <div ref={barRef} className="relative h-1.5 w-full cursor-pointer rounded-full bg-white/25">
               <div className="absolute inset-y-0 left-0 rounded-full bg-brand" style={{ width: `${(time / total) * 100}%` }} />
               {marks.map((mk, i) => (
                 <div key={i} className="absolute top-1/2 h-2.5 w-0.5 -translate-y-1/2 bg-white/70" style={{ left: `${mk * 100}%` }} />
               ))}
             </div>
+            </div>
             <div className="mt-1.5 flex items-center gap-3 text-sm text-slate-100">
-              <button onClick={() => setPlaying((p) => !p && time < total)} className="text-lg">
-                {playing ? "⏸" : "▶"}
+              <button
+                onClick={() => {
+                  // 播完之后再按应该重播。原来是 setPlaying((p) => !p && time < total)，
+                  // time >= total 时整个表达式恒为 false —— 按下去毫无反应。
+                  if (time >= total) {
+                    setTime(0);
+                    setPlaying(true);
+                  } else {
+                    setPlaying((p) => !p);
+                  }
+                }}
+                className="-m-2 p-2"
+                aria-label={playing ? "暂停" : "播放"}
+              >
+                <Icon name={time >= total ? "replay" : playing ? "pause" : "play"} size={20} filled={time < total} />
               </button>
               <span className="text-xs tabular-nums text-slate-300">
                 {formatDuration(time)} / {formatDuration(total)}
               </span>
-              <span className="ml-auto text-xs text-slate-400">{segments.length} 个节点段</span>
-              <button onClick={toggleFullscreen} className="text-base" title="全屏">
-                ⛶
-              </button>
             </div>
           </div>
         </>

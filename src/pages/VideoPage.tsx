@@ -1,5 +1,6 @@
 // 视频详情页：播放器 + 信息 + 分段剧情 + 评论区
 import { useEffect, useMemo, useRef, useState } from "react";
+import Icon from "../components/Icon";
 import { Link, useParams } from "react-router-dom";
 import BranchPlayer from "../components/BranchPlayer";
 import SegmentPlayer from "../components/SegmentPlayer";
@@ -67,7 +68,7 @@ export default function VideoPage() {
       <header className="sticky top-0 z-10 border-b border-slate-800 bg-ink/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
           <Link to="/" className="text-slate-400 hover:text-white">
-            ←
+            <Icon name="back" size={20} />
           </Link>
           <span className="truncate text-sm text-slate-300">{video.title}</span>
           <Link to="/studio" className="ml-auto flex-none rounded-full bg-brand/15 px-3 py-1.5 text-xs text-brand">

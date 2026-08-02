@@ -1,5 +1,6 @@
 // 设置页：编辑资料（头像/昵称/简介）、画质、玩家形象、存储用量、退出登录。
 import { useEffect, useState } from "react";
+import Icon from "../components/Icon";
 import { useNavigate } from "react-router-dom";
 import { signOut, updateProfile, isRemoteMode } from "../data/account";
 import { useCurrentUser } from "../hooks/useAccount";
@@ -38,7 +39,7 @@ export default function SettingsPage() {
     <div className="safe-top min-h-full px-4 pb-10 pt-3">
       <div className="mb-5 flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="text-xl text-slate-400">
-          ←
+          <Icon name="back" size={20} />
         </button>
         <h1 className="text-lg font-bold text-slate-100">设置</h1>
       </div>

@@ -1,0 +1,111 @@
+// 内联 SVG 图标。不装图标库、不用图标字体、不走 CDN——
+// 这个 App 要打包进 Capacitor WebView 离线运行，外链一律不可用。
+//
+// 为什么不用 emoji：emoji 走系统彩色字体（Android=Noto Color Emoji / iOS=Apple Color Emoji /
+// 鸿蒙=HMOS），三套字形完全不同，而且是彩色位图——做不到「随 currentColor 变色」和
+// 「描边→实心」这两件事，而它们正是短视频操作栏最基本的两种状态反馈。
+//
+// 路径取自 Lucide（ISC License, https://lucide.dev）。
+import type { CSSProperties } from "react";
+
+export type IconName =
+  | "home"
+  | "compass"
+  | "cards"
+  | "user"
+  | "plus"
+  | "heart"
+  | "comment"
+  | "bookmark"
+  | "share"
+  | "search"
+  | "close"
+  | "back"
+  | "chevron"
+  | "settings"
+  | "play"
+  | "pause"
+  | "replay"
+  | "check"
+  | "branch";
+
+/** 描边版（默认）。值是 <svg> 的内容，静态字面量，无外部输入。 */
+const OUTLINE: Record<IconName, string> = {
+  home: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  compass:
+    '<circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"/>',
+  cards:
+    '<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+  user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  heart:
+    '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
+  comment: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+  bookmark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+  share: '<path d="m15 17 5-5-5-5"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  back: '<path d="m15 18-6-6 6-6"/>',
+  chevron: '<path d="m9 18 6-6-6-6"/>',
+  settings:
+    '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  play: '<path d="M6 4.5v15l13-7.5z"/>',
+  pause: '<path d="M6 4.5h4v15H6z"/><path d="M14 4.5h4v15h-4z"/>',
+  replay: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  branch:
+    '<path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+};
+
+/**
+ * 实心版。只给需要「未激活→已激活」状态反馈的那几个：
+ * 点赞、收藏、底栏当前页、播放控制。其余没有激活态的沿用描边。
+ */
+const SOLID: Partial<Record<IconName, string>> = {
+  home: '<path d="M11.17 2.47a1.25 1.25 0 0 1 1.66 0l8 6.86c.28.24.44.59.44.95V19a2.5 2.5 0 0 1-2.5 2.5H15a.75.75 0 0 1-.75-.75V14.5a.75.75 0 0 0-.75-.75h-3a.75.75 0 0 0-.75.75v6.25a.75.75 0 0 1-.75.75H5.23A2.5 2.5 0 0 1 2.73 19v-8.72c0-.36.16-.71.44-.95z"/>',
+  user: '<circle cx="12" cy="7.5" r="4.5"/><path d="M4 21a8 8 0 0 1 16 0 1 1 0 0 1-1 1H5a1 1 0 0 1-1-1"/>',
+  heart:
+    '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
+  bookmark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+  cards:
+    '<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m21.6 16.74-8.77 3.98a2 2 0 0 1-1.66 0L2.4 16.74a1 1 0 0 0-.4 1.74l9.17 4.17a2 2 0 0 0 1.66 0L22 18.48a1 1 0 0 0-.4-1.74" opacity=".45"/>',
+  compass:
+    '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m4.24 5.76-1.8 5.41a2 2 0 0 1-1.27 1.27L7.76 16.24l1.8-5.41a2 2 0 0 1 1.27-1.27z"/>',
+  play: '<path d="M6 4.5v15l13-7.5z"/>',
+  pause: '<path d="M6 4.5h4v15H6z"/><path d="M14 4.5h4v15h-4z"/>',
+};
+
+export interface IconProps {
+  name: IconName;
+  /** 像素尺寸，默认 24 */
+  size?: number;
+  /** 实心态（点赞已赞、收藏已收、底栏当前页） */
+  filled?: boolean;
+  className?: string;
+  style?: CSSProperties;
+  strokeWidth?: number;
+}
+
+export default function Icon({ name, size = 24, filled = false, className = "", style, strokeWidth = 1.75 }: IconProps) {
+  const solid = filled && SOLID[name];
+  const markup = solid ?? OUTLINE[name];
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={solid ? "currentColor" : "none"}
+      stroke={solid ? "none" : "currentColor"}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      style={style}
+      aria-hidden="true"
+      focusable="false"
+      // 静态字面量，无外部输入
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  );
+}

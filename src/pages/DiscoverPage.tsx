@@ -1,5 +1,6 @@
 // 分区页：分类网格 + 搜索（视频标题/简介/作者/分类）。
 import { useMemo, useState } from "react";
+import Icon from "../components/Icon";
 import { Link } from "react-router-dom";
 import { listVideos } from "../data/videos";
 import { VIDEO_CATEGORIES, formatDuration, formatPlays } from "../types";
@@ -42,7 +43,7 @@ export default function DiscoverPage() {
   return (
     <div className="safe-top min-h-full px-4 pt-3">
       <div className="mb-4 flex items-center gap-2 rounded-full border border-slate-700 bg-panel px-4 py-2.5">
-        <span className="text-slate-500">🔍</span>
+        <Icon name="search" size={17} className="text-slate-500" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -51,7 +52,7 @@ export default function DiscoverPage() {
         />
         {q && (
           <button onClick={() => setQ("")} className="text-slate-500">
-            ✕
+            <Icon name="close" size={16} />
           </button>
         )}
       </div>
@@ -88,7 +89,8 @@ export default function DiscoverPage() {
               onClick={() => setCat(null)}
               className="rounded-full bg-brand px-3 py-1 text-xs font-medium text-ink"
             >
-              {cat} ✕
+              {cat}
+              <Icon name="close" size={13} className="ml-1 inline-block align-[-2px]" />
             </button>
           )}
           <span className="text-xs text-slate-500">{results.length} 个结果</span>
