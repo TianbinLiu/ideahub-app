@@ -57,6 +57,8 @@ export interface VideoSegment {
   firstFrame: string;
   lastFrame: string;
   durationSec: number;
+  /** 真实生成的视频片段（Seedance）；缺省时播放器回退首尾帧渐变 */
+  videoUrl?: string;
 }
 
 /** 互动分支树节点：一段视频 + 段尾选项（空数组 = 结局） */

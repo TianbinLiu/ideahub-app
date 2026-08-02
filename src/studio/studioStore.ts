@@ -1,7 +1,7 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成
 import { create } from "zustand";
 import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, CardType, DraftVideo, NodeSlot, Proposal, uid } from "../types";
-import { MaterialFile, composeVideo, generateCards, generateProposals, searchMarket } from "../ai";
+import { MaterialFile, composeSegments, composeVideo, generateCards, generateProposals, searchMarket } from "../ai";
 import { DECK_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 
@@ -546,14 +546,20 @@ export const useStudio = create<StudioState>()((set, get) => ({
         lastFrame: p.lastFrame,
         durationSec: p.durationSec,
       }));
+    // 真实 AI 构建：逐段 Seedance 首尾帧生成视频（分钟级，进度播报到对话气泡）；
+    // mock 构建下 composeSegments 直接返回全 undefined，播放器回退首尾帧渐变
+    const urls = await composeSegments(segments, (done, total, status) => {
+      if (status === "生成中") get().npcSay(`正在炼制第 ${done + 1}/${total} 段影像…`);
+    });
+    const withVideo = segments.map((sg, i) => (urls[i] ? { ...sg, videoUrl: urls[i] } : sg));
     set({
       composing: false,
       draft: {
         title: "",
         category: "剧情",
-        description: segments.map((sg) => sg.plot).join("\n"),
-        cover: segments[0]?.firstFrame ?? "",
-        segments,
+        description: withVideo.map((sg) => sg.plot).join("\n"),
+        cover: withVideo[0]?.firstFrame ?? "",
+        segments: withVideo,
         branchTree: buildBranchTree(root),
       },
     });

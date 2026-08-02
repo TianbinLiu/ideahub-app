@@ -118,10 +118,30 @@ export default function BranchPlayer({ tree, cover }: { tree: BranchTree; cover:
         </>
       ) : (
         <>
-          <div className="absolute inset-0" style={{ transform: `scale(${1 + 0.06 * frac})` }}>
-            <img src={seg.firstFrame} alt="" className="absolute inset-0 h-full w-full object-cover" />
-            <img src={seg.lastFrame} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ opacity: ease }} />
-          </div>
+          {seg.videoUrl ? (
+            // 真实生成的片段（Seedance）；无 videoUrl 或加载失败回退首尾帧渐变
+            <video
+              key={seg.videoUrl}
+              src={seg.videoUrl}
+              className="absolute inset-0 h-full w-full object-cover"
+              autoPlay
+              muted
+              playsInline
+              onError={(e) => {
+                (e.currentTarget as HTMLVideoElement).style.display = "none";
+              }}
+            />
+          ) : (
+            <div className="absolute inset-0" style={{ transform: `scale(${1 + 0.06 * frac})` }}>
+              <img src={seg.firstFrame} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <img
+                src={seg.lastFrame}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{ opacity: ease }}
+              />
+            </div>
+          )}
           <div className="absolute left-3 top-3 flex items-center gap-2">
             <span className="rounded-full bg-black/55 px-2.5 py-1 text-xs text-slate-200">{seg.title}</span>
             {forkCount > 0 && (

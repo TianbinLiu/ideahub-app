@@ -90,12 +90,31 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
         </>
       ) : (
         <>
-          {seg && (
-            <div className="absolute inset-0" style={{ transform: `scale(${1 + 0.06 * frac})` }}>
-              <img src={seg.firstFrame} alt="" className="absolute inset-0 h-full w-full object-cover" />
-              <img src={seg.lastFrame} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ opacity: ease }} />
-            </div>
-          )}
+          {seg &&
+            (seg.videoUrl ? (
+              // 真实生成的片段：直接播（静音自动播放才不被浏览器拦），加载失败自动回退渐变
+              <video
+                key={seg.videoUrl}
+                src={seg.videoUrl}
+                className="absolute inset-0 h-full w-full object-cover"
+                autoPlay
+                muted
+                playsInline
+                onError={(e) => {
+                  (e.currentTarget as HTMLVideoElement).style.display = "none";
+                }}
+              />
+            ) : (
+              <div className="absolute inset-0" style={{ transform: `scale(${1 + 0.06 * frac})` }}>
+                <img src={seg.firstFrame} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                <img
+                  src={seg.lastFrame}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover"
+                  style={{ opacity: ease }}
+                />
+              </div>
+            ))}
           {seg && (
             <div className="absolute left-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-xs text-slate-200">
               {seg.title}

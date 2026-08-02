@@ -13,7 +13,9 @@ const BASE = "/api/ark";
 // Seed-2.1-turbo（50 万 tokens）。Seedance 2.0 系列需账户余额>200 元才能开通，暂不可用。
 export const MODELS = {
   image: "doubao-seedream-5-0-260128",
-  video: "doubao-seedance-1-5-pro-251215",
+  // 实测可创建任务的视频模型只有 1.0-pro 系列：1.5-pro 控制台显示"已开通"但 API 报
+  // NotFound（Retiring 状态不受理新任务）、2.0 系列 ModelNotOpen（需余额>200 元）
+  video: "doubao-seedance-1-0-pro-250528",
   chat: "doubao-seed-2-1-turbo-260628",
 };
 

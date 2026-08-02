@@ -5,7 +5,7 @@ import { Card, CardType, Proposal, uid } from "../types";
 import { makeCover, makeFrame } from "../mock/frames";
 import type { MaterialFile, ProposalContext } from "../mock/ai";
 import * as mock from "../mock/ai";
-import { chat, generateImage } from "./arkClient";
+import { chat, generateImage, generateVideo } from "./arkClient";
 
 /** 方舟返回的图片 URL 有时效（约 24h），落地成 dataURL 再入库（草稿存 localStorage） */
 async function toDataUrl(url: string): Promise<string> {
@@ -124,6 +124,36 @@ export async function generateProposals(ctx: ProposalContext): Promise<Proposal[
       }
     }),
   );
+}
+
+/**
+ * 合成：逐段用 Seedance 首尾帧图生视频。段间串行（免费额度并发有限），
+ * 单段失败不阻断整片——该段回退首尾帧渐变播放。
+ */
+export async function composeSegments(
+  segments: Array<{ plot: string; firstFrame: string; lastFrame: string; durationSec: number }>,
+  onProgress?: (done: number, total: number, status: string) => void,
+): Promise<Array<string | undefined>> {
+  const out: Array<string | undefined> = [];
+  for (let i = 0; i < segments.length; i++) {
+    const sg = segments[i];
+    try {
+      onProgress?.(i, segments.length, "生成中");
+      const url = await generateVideo(sg.plot.slice(0, 400), sg.firstFrame, {
+        durationSec: sg.durationSec,
+        lastFrameUrl: sg.lastFrame,
+        onProgress: (s) => onProgress?.(i, segments.length, s),
+      });
+      // 视频较大（数 MB），存 URL 而非 dataURL——localStorage 放不下 base64 视频；
+      // 方舟 URL 24h 有效，超时后播放器自动回退首尾帧渐变
+      out.push(url);
+    } catch (e) {
+      console.warn(`[ai] 第 ${i + 1} 段视频失败，回退首尾帧:`, e);
+      out.push(undefined);
+    }
+  }
+  onProgress?.(segments.length, segments.length, "完成");
+  return out;
 }
 
 export { makeCover };
