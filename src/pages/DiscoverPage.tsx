@@ -32,12 +32,6 @@ export default function DiscoverPage() {
     );
   }, [videos, q, cat]);
 
-  const counts = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const v of videos) m[v.category] = (m[v.category] ?? 0) + 1;
-    return m;
-  }, [videos]);
-
   const searching = !!q.trim() || !!cat;
 
   return (
@@ -60,20 +54,27 @@ export default function DiscoverPage() {
       {!searching && (
         <>
           <h2 className="mb-2.5 text-sm font-semibold text-slate-300">浏览分区</h2>
-          <div className="mb-6 grid grid-cols-2 gap-3">
+          {/* 一行排开的圆形入口。用 overflow-x-auto 而不是 grid：
+              以后加分区也不会换行挤成两排，窄屏上自然变成横滑。
+              -mx-4 px-4 让滑动区贴到屏幕边缘，最后一个不会卡在 padding 里。 */}
+          <div
+            className="mb-6 -mx-4 flex justify-between gap-1 overflow-x-auto px-4 pb-1"
+            style={{ scrollbarWidth: "none" }}
+          >
             {VIDEO_CATEGORIES.map((c) => {
               const st = CAT_STYLE[c] ?? CAT_STYLE.其他;
               return (
                 <button
                   key={c}
                   onClick={() => setCat(c)}
-                  className={`flex items-center gap-3 rounded-2xl bg-gradient-to-br ${st.from} to-panel/40 p-4 text-left transition active:scale-95`}
+                  className="flex w-12 flex-none flex-col items-center gap-1.5 transition active:scale-95"
                 >
-                  <span className="text-2xl">{st.icon}</span>
-                  <div>
-                    <div className="text-sm font-semibold text-slate-100">{c}</div>
-                    <div className="text-[11px] text-slate-400">{counts[c] ?? 0} 支作品</div>
-                  </div>
+                  <span
+                    className={`flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br ${st.from} to-panel text-xl`}
+                  >
+                    {st.icon}
+                  </span>
+                  <span className="w-full truncate text-center text-[11px] text-slate-300">{c}</span>
                 </button>
               );
             })}
