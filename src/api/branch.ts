@@ -60,8 +60,34 @@ export interface ApiDeck {
   _id: string;
   name: string;
   cardIds: string[];
+  /** 是否已分享到创意工坊 */
+  published?: boolean;
+  description?: string;
+  /** 被别人装了多少次 */
+  installs?: number;
+  /** 装来的卡组记住来源 */
+  sourceDeck?: string;
   createdAt: string | number;
   updatedAt?: string | number;
+}
+
+/** 广场里的一条分享卡组（不含完整卡片快照，只有张数和几张封面） */
+export interface ApiSharedDeck {
+  _id: string;
+  name: string;
+  description: string;
+  cardCount: number;
+  covers: string[];
+  types: string[];
+  installs: number;
+  author?: ApiAuthor;
+  publishedAt?: string | number;
+  /** 我是不是已经装过了 */
+  installed?: boolean;
+  /** 是不是我自己发的 */
+  isOwner?: boolean;
+  /** 这套是装来之后再分享的，原作者是谁 */
+  remixOf?: ApiAuthor;
 }
 
 export type VideoFeed = "recommend" | "following";
@@ -265,6 +291,38 @@ export async function updateDeck(
 /** DELETE /api/branch/decks/:id（requireAuth） */
 export async function deleteDeck(id: string): Promise<void> {
   await apiDelete(`/api/branch/decks/${encodeURIComponent(id)}`);
+}
+
+// ── 卡组分享到创意工坊 ────────────────────────────────────
+
+/** POST /api/branch/decks/:id/publish（requireAuth）——发布时服务端会快照卡片内容 */
+export async function publishDeck(id: string, description = ""): Promise<ApiDeck | null> {
+  const res = await apiPost<Record<string, unknown>>(
+    `/api/branch/decks/${encodeURIComponent(id)}/publish`,
+    { description }
+  );
+  return pick<ApiDeck>(res, ["deck", "item", "data"]);
+}
+
+/** DELETE /api/branch/decks/:id/publish（requireAuth） */
+export async function unpublishDeck(id: string): Promise<ApiDeck | null> {
+  const res = await apiDelete<Record<string, unknown>>(`/api/branch/decks/${encodeURIComponent(id)}/publish`);
+  return pick<ApiDeck>(res, ["deck", "item", "data"]);
+}
+
+/** GET /api/branch/decks/shared（optionalAuth）——广场，不登录也能逛 */
+export async function listSharedDecks(q = "", limit = 20): Promise<ApiSharedDeck[]> {
+  const res = await apiGet<Record<string, unknown>>("/api/branch/decks/shared", { query: { q, limit } });
+  return pickList<ApiSharedDeck>(res, ["decks", "items", "data"]);
+}
+
+/** POST /api/branch/decks/:id/install（requireAuth）——把别人的卡组装进我的库 */
+export async function installDeck(id: string): Promise<{ deck: ApiDeck | null; cards: ApiCard[] }> {
+  const res = await apiPost<Record<string, unknown>>(`/api/branch/decks/${encodeURIComponent(id)}/install`);
+  return {
+    deck: pick<ApiDeck>(res, ["deck", "item", "data"]),
+    cards: pickList<ApiCard>(res, ["cards", "items"]),
+  };
 }
 
 // ── 关注（沿用既有 /api/users，契约明确不新建端点）────────

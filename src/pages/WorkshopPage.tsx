@@ -3,7 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import Icon from "../components/Icon";
 import { Link } from "react-router-dom";
-import { addCards, createDeck, deleteDeck, myCards, myDecks, removeCard, updateDeck } from "../data/account";
+import {
+  addCards,
+  browseSharedDecks,
+  createDeck,
+  deleteDeck,
+  installSharedDeck,
+  isRemoteMode,
+  myCards,
+  myDecks,
+  removeCard,
+  shareDeck,
+  updateDeck,
+} from "../data/account";
+import type { ApiSharedDeck } from "../api/branch";
 import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
 import { searchMarket } from "../ai";
 import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType } from "../types";
@@ -49,6 +62,13 @@ export default function WorkshopPage() {
   const [market, setMarket] = useState<Card[]>([]);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+  // 市场：卡片 / 卡组两个来源
+  const [source, setSource] = useState<"cards" | "decks">("cards");
+  const [shared, setShared] = useState<ApiSharedDeck[]>([]);
+  const [sharedLoading, setSharedLoading] = useState(false);
+  const [busyDeck, setBusyDeck] = useState<string | null>(null);
+  const [deckErr, setDeckErr] = useState("");
+  const remote = isRemoteMode();
 
   // 搜索市场卡片（空词=热门）
   useEffect(() => {
@@ -64,6 +84,22 @@ export default function WorkshopPage() {
       alive = false;
     };
   }, [q]);
+
+  // 广场卡组：只在切到「卡组」来源时拉，跟着搜索词走
+  useEffect(() => {
+    if (source !== "decks") return;
+    let alive = true;
+    setSharedLoading(true);
+    void browseSharedDecks(q).then((list) => {
+      if (alive) {
+        setShared(list);
+        setSharedLoading(false);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, [source, q]);
 
   const ownedIds = useMemo(() => new Set(cards.map((c) => c.id)), [cards]);
   const byType = useMemo(() => {
@@ -138,36 +174,110 @@ export default function WorkshopPage() {
             </div>
           )}
 
-          <h2 className="mb-2 text-sm font-semibold text-slate-300">从市场添加</h2>
+          <div className="mb-2 flex items-center gap-3">
+            <h2 className="text-sm font-semibold text-slate-300">从市场添加</h2>
+            <div className="ml-auto flex gap-1 rounded-full bg-panel p-0.5">
+              {(["cards", "decks"] as const).map((sc) => (
+                <button
+                  key={sc}
+                  onClick={() => setSource(sc)}
+                  className={`rounded-full px-3 py-1 text-[11px] transition ${
+                    source === sc ? "bg-brand font-semibold text-ink" : "text-slate-400"
+                  }`}
+                >
+                  {sc === "cards" ? "卡片" : "卡组"}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="mb-3 flex items-center gap-2 rounded-full border border-slate-700 bg-panel px-4 py-2">
             <Icon name="search" size={17} className="text-slate-500" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="搜索卡片名 / 标签"
+              placeholder={source === "cards" ? "搜索卡片名 / 标签" : "搜索别人分享的卡组"}
               className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
             />
           </div>
-          {loading ? (
-            <div className="py-8 text-center text-xs text-slate-500">搜索中…</div>
+
+          {source === "cards" ? (
+            loading ? (
+              <div className="py-8 text-center text-xs text-slate-500">搜索中…</div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2.5 pb-4">
+                {market.map((c) => {
+                  const owned = ownedIds.has(c.id);
+                  return (
+                    <button key={c.id} onClick={() => !owned && addCards([c])} disabled={owned} className="text-left">
+                      <div className={owned ? "opacity-40" : ""}>
+                        <CardTile card={c} />
+                      </div>
+                      <div className="mt-1 text-center text-[10px] text-slate-400">{owned ? "已拥有" : "＋ 添加"}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )
+          ) : !remote ? (
+            <div className="rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
+              登录服务器后可以浏览别人分享的卡组
+            </div>
+          ) : sharedLoading ? (
+            <div className="py-8 text-center text-xs text-slate-500">加载中…</div>
+          ) : shared.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
+              {q ? "没有匹配的卡组" : "还没有人分享卡组——你可以第一个"}
+            </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2.5 pb-4">
-              {market.map((c) => {
-                const owned = ownedIds.has(c.id);
-                return (
-                  <button key={c.id} onClick={() => !owned && addCards([c])} disabled={owned} className="text-left">
-                    <div className={owned ? "opacity-40" : ""}>
-                      <CardTile card={c} />
+            <div className="space-y-2.5 pb-4">
+              {shared.map((d) => (
+                <div key={d._id} className="flex items-center gap-3 rounded-xl border border-slate-700/60 bg-panel p-2.5">
+                  {/* 前四张卡面拼一个缩略 */}
+                  <div className="grid h-14 w-14 shrink-0 grid-cols-2 gap-0.5 overflow-hidden rounded-lg bg-slate-800">
+                    {(d.covers.length ? d.covers : [""]).slice(0, 4).map((cv, i) =>
+                      cv ? (
+                        <img key={i} src={cv} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div key={i} className="bg-slate-700/60" />
+                      ),
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-slate-100">{d.name}</div>
+                    <div className="mt-0.5 truncate text-[11px] text-slate-500">
+                      {d.author?.displayName || d.author?.username || "匿名"} · {d.cardCount} 张
+                      {d.installs > 0 ? ` · ${d.installs} 人装过` : ""}
+                      {d.remixOf ? ` · 改自 @${d.remixOf.displayName || d.remixOf.username}` : ""}
                     </div>
-                    <div className="mt-1 text-center text-[10px] text-slate-400">{owned ? "已拥有" : "＋ 添加"}</div>
+                    {d.description && <div className="mt-0.5 truncate text-[11px] text-slate-400">{d.description}</div>}
+                  </div>
+                  <button
+                    disabled={d.installed || d.isOwner || busyDeck === d._id}
+                    onClick={async () => {
+                      setDeckErr("");
+                      setBusyDeck(d._id);
+                      try {
+                        await installSharedDeck(d._id);
+                        setShared((list) => list.map((x) => (x._id === d._id ? { ...x, installed: true } : x)));
+                      } catch (e) {
+                        setDeckErr(e instanceof Error ? e.message : String(e));
+                      } finally {
+                        setBusyDeck(null);
+                      }
+                    }}
+                    className="min-h-[32px] shrink-0 rounded-full bg-brand px-3 text-[11px] font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+                  >
+                    {d.isOwner ? "我发的" : d.installed ? "已添加" : busyDeck === d._id ? "添加中…" : "＋ 添加"}
                   </button>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
+          {deckErr && <div className="pb-4 text-xs text-rose-400">{deckErr}</div>}
         </>
       ) : (
         <>
+          {deckErr && <div className="mb-2 text-xs text-rose-400">{deckErr}</div>}
           <button
             onClick={() => createDeck(`卡组 ${decks.length + 1}`)}
             className="mb-3 w-full rounded-xl border border-dashed border-slate-600 py-3 text-sm text-slate-300"
@@ -198,6 +308,34 @@ export default function WorkshopPage() {
                     <button onClick={() => deleteDeck(d.id)} className="text-xs text-rose-400">
                       删除
                     </button>
+                  </div>
+
+                  {/* 分享到创意工坊：分享出去后别人能在「从市场添加 · 卡组」里装走整套 */}
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      disabled={busyDeck === d.id || !remote || d.cardIds.length === 0}
+                      onClick={async () => {
+                        setDeckErr("");
+                        setBusyDeck(d.id);
+                        try {
+                          await shareDeck(d.id, !d.published);
+                        } catch (e) {
+                          setDeckErr(e instanceof Error ? e.message : String(e));
+                        } finally {
+                          setBusyDeck(null);
+                        }
+                      }}
+                      className={`inline-flex min-h-[28px] items-center gap-1 rounded-full px-3 text-[11px] font-medium transition disabled:opacity-40 ${
+                        d.published ? "bg-gold/20 text-gold" : "bg-brand/15 text-brand"
+                      }`}
+                    >
+                      <Icon name="share" size={13} />
+                      {busyDeck === d.id ? "处理中…" : d.published ? "已分享 · 取消" : "分享到工坊"}
+                    </button>
+                    {d.published && (d.installs ?? 0) > 0 && (
+                      <span className="text-[11px] text-slate-500">{d.installs} 人装过</span>
+                    )}
+                    {!remote && <span className="text-[11px] text-slate-600">分享需要登录服务器</span>}
                   </div>
                   {inDeck.length > 0 && (
                     <div className="mt-2.5 grid grid-cols-4 gap-2">

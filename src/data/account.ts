@@ -31,6 +31,12 @@ export interface Deck {
   name: string;
   cardIds: string[];
   createdAt: number;
+  /** 是否已分享到创意工坊（仅远端模式有意义） */
+  published?: boolean;
+  /** 被别人装了多少次 */
+  installs?: number;
+  /** 装来的卡组记住来源，避免重复装 */
+  sourceDeck?: string;
 }
 
 interface AccountDB {
@@ -353,6 +359,80 @@ export function deleteDeck(deckId: string): void {
   }
 }
 
+// ── 卡组分享 ──────────────────────────────────────────
+
+/**
+ * 把卡组分享到创意工坊 / 取消分享。
+ * 仅远端模式可用：分享的本质是让别人能看到，离线库没有「别人」。
+ * 服务端在发布时会把卡片内容快照进卡组，所以之后就算发布者删了卡，
+ * 已分享的这套也不会变成空壳。
+ */
+export async function shareDeck(deckId: string, on: boolean): Promise<void> {
+  const d = findDeck(deckId);
+  if (!d) throw new Error("卡组不存在");
+  if (!remoteOn()) throw new Error("分享需要先连接服务器并登录");
+  if (on && d.cardIds.length === 0) throw new Error("空卡组不能分享");
+
+  const id = await resolveDeckId(d.id);
+  if (!id) throw new Error("卡组还没同步到服务器，请稍后再试");
+
+  const remote = on ? await branch.publishDeck(id) : await branch.unpublishDeck(id);
+  d.published = remote?.published ?? on;
+  d.installs = remote?.installs ?? d.installs;
+  persist();
+}
+
+/** 逛广场：别人分享出来的卡组 */
+export async function browseSharedDecks(q = ""): Promise<branch.ApiSharedDeck[]> {
+  if (!remoteOn()) return [];
+  return branch.listSharedDecks(q).catch((e) => {
+    emitApiError("listSharedDecks", e);
+    return [];
+  });
+}
+
+/**
+ * 把别人分享的卡组装进我的库：卡片按快照 upsert 进我的卡库，再建一个我自己的卡组。
+ * 服务端按 {owner, sourceDeck} 幂等，重复装不会长出第二套。
+ */
+export async function installSharedDeck(sharedId: string): Promise<Deck | null> {
+  if (!remoteOn()) throw new Error("需要先连接服务器并登录");
+  const u = currentUser();
+  if (!u || !db) throw new Error("请先登录");
+
+  const { deck, cards } = await branch.installDeck(sharedId);
+  if (!deck) return null;
+
+  // 卡片先落地（卡组要引用它们）
+  const existing = new Set(db.cards.filter((c) => c.ownerId === u.id).map((c) => c.id));
+  for (const c of cards) {
+    if (existing.has(c.cardId)) continue;
+    db.cards.push({
+      id: c.cardId,
+      type: c.type,
+      name: c.name,
+      summary: c.summary,
+      cover: c.cover,
+      hot: c.hot,
+      tags: c.tags,
+      ownerId: u.id,
+      createdAt: toMs(c.createdAt),
+    });
+  }
+
+  const local: Deck = {
+    id: deck._id,
+    ownerId: u.id,
+    name: deck.name,
+    cardIds: Array.isArray(deck.cardIds) ? deck.cardIds : [],
+    createdAt: toMs(deck.createdAt),
+    sourceDeck: deck.sourceDeck,
+  };
+  if (!db.decks.some((d) => d.id === local.id)) db.decks.push(local);
+  persist();
+  return local;
+}
+
 // ── 远端模式实现 ──────────────────────────────────────
 // 卡组的本地临时 id → 服务端 _id。createDeck 是同步返回的（WorkshopPage 立刻用返回的
 // deck.id 去改名/加卡），所以建组请求回来之前必须有一份别名表兜着。
@@ -514,6 +594,9 @@ async function loadRemoteAssets(): Promise<void> {
     name: d.name,
     cardIds: Array.isArray(d.cardIds) ? d.cardIds : [],
     createdAt: toMs(d.createdAt),
+    published: d.published,
+    installs: d.installs,
+    sourceDeck: d.sourceDeck,
   }));
   // 本地按作者名关注，顺手把 名字→userId 登记进 api/branch，让 toggleFollow 能反查
   u.following = following.map((f) => branch.authorName(f));
