@@ -1,0 +1,285 @@
+// 分支视频服务端接口（对应 docs/api-contract.md，挂在 /api/branch）。
+// 这一层只做「HTTP ↔ DTO」，不碰内存 cache / IndexedDB —— 领域侧的分流在 data/*.ts。
+//
+// 服务端字段用 `_id` / ISO 时间字符串，客户端领域模型用 `id` / 毫秒时间戳，
+// 转换统一放在 data/*.ts（因为只有它知道要往哪个 cache 里塞）。
+import type { BranchTree, Card, CardType, DraftVideo, VideoSegment } from "../types";
+import { apiDelete, apiGet, apiPatch, apiPost } from "./client";
+
+// ── DTO ──────────────────────────────────────────────────
+
+/** 列表/详情里 author 会被 populate 成对象；未 populate 时是裸 ObjectId 字符串 */
+export interface ApiAuthor {
+  _id: string;
+  username?: string;
+  displayName?: string;
+  avatarUrl?: string;
+}
+
+export interface ApiComment {
+  _id: string;
+  author: ApiAuthor | string;
+  text: string;
+  createdAt: string | number;
+}
+
+export interface ApiVideo {
+  _id: string;
+  title: string;
+  category: string;
+  description: string;
+  cover: string;
+  segments: VideoSegment[];
+  branchTree?: BranchTree;
+  author: ApiAuthor | string;
+  plays: number;
+  likes: number;
+  commentCount?: number;
+  /** 当前用户是否已赞（列表与详情都带；未登录恒为 false） */
+  liked?: boolean;
+  /** 详情端点返回前 50 条 */
+  comments?: ApiComment[];
+  createdAt: string | number;
+  updatedAt?: string | number;
+}
+
+export interface ApiCard {
+  _id?: string;
+  /** 客户端生成的稳定 id（市场卡为 mkt_*），与本地 Card.id 一一对应 */
+  cardId: string;
+  type: CardType;
+  name: string;
+  summary: string;
+  cover: string;
+  hot?: number;
+  tags?: string[];
+  createdAt?: string | number;
+}
+
+export interface ApiDeck {
+  _id: string;
+  name: string;
+  cardIds: string[];
+  createdAt: string | number;
+  updatedAt?: string | number;
+}
+
+export type VideoFeed = "recommend" | "following";
+
+export interface ListVideosParams {
+  feed?: VideoFeed;
+  category?: string;
+  q?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface ListVideosResult {
+  items: ApiVideo[];
+  nextCursor: string | null;
+}
+
+// ── 作者名 ↔ userId 登记处 ────────────────────────────────
+// 本地领域模型里 VideoItem.author 是「作者名」字符串（离线模式没有 userId 概念），
+// 但关注要打 /api/users/:id/follow。列表映射时把两者登记在这里，
+// data/account.ts 的 toggleFollow 反查即可 —— 避免 account.ts ↔ videos.ts 互相 import 成环。
+const authorIdByName = new Map<string, string>();
+
+export function rememberAuthor(name: string, id: string): void {
+  if (name && id) authorIdByName.set(name, id);
+}
+
+export function authorIdOf(name: string): string | null {
+  return authorIdByName.get(name) ?? null;
+}
+
+/** author 字段 → 展示名（populate 过取 displayName/username，没 populate 只能回退成 id） */
+export function authorName(author: ApiAuthor | string | undefined): string {
+  if (!author) return "匿名";
+  if (typeof author === "string") return author;
+  const name = author.displayName || author.username || author._id || "匿名";
+  rememberAuthor(name, author._id);
+  return name;
+}
+
+/** author 字段 → userId（拿不到返回 null） */
+export function authorId(author: ApiAuthor | string | undefined): string | null {
+  if (!author) return null;
+  if (typeof author === "string") return author;
+  return author._id || null;
+}
+
+// ── 响应取值：字段名以契约为准，对常见别名做兜底 ──────────
+// 契约只写死了列表是 { ok, items, nextCursor }，详情/发布/卡片/卡组的顶层键没逐个列。
+// ★ 待与 server 端确认字段：下面 pick* 的备选键（video/item/data、cards/items…）
+// 一旦服务端定稿就可以收敛成单一键。
+
+function pick<T>(res: unknown, keys: string[]): T | null {
+  if (typeof res !== "object" || res === null) return null;
+  const obj = res as Record<string, unknown>;
+  for (const k of keys) {
+    const v = obj[k];
+    if (v !== undefined && v !== null) return v as T;
+  }
+  return null;
+}
+
+function pickList<T>(res: unknown, keys: string[]): T[] {
+  const v = pick<T[]>(res, keys);
+  return Array.isArray(v) ? v : [];
+}
+
+// ── 视频 ─────────────────────────────────────────────────
+
+/** GET /api/branch/videos（optionalAuth） */
+export async function listVideos(params: ListVideosParams = {}): Promise<ListVideosResult> {
+  const res = await apiGet<Record<string, unknown>>("/api/branch/videos", {
+    query: {
+      feed: params.feed,
+      category: params.category,
+      q: params.q,
+      cursor: params.cursor,
+      limit: params.limit,
+    },
+  });
+  return {
+    items: pickList<ApiVideo>(res, ["items", "videos", "data"]),
+    nextCursor: pick<string>(res, ["nextCursor"]) ?? null,
+  };
+}
+
+/** GET /api/branch/videos/:id（optionalAuth，含前 50 条评论） */
+export async function getVideo(id: string): Promise<ApiVideo | null> {
+  const res = await apiGet<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}`);
+  return pick<ApiVideo>(res, ["video", "item", "data"]);
+}
+
+/**
+ * POST /api/branch/videos（requireAuth）
+ * body 里的 dataURL 首尾帧 / 方舟临时 videoUrl 由**服务端**转存到 Cloudinary，
+ * 因此返回的 video 里 cover/segments 已经是永久 URL —— 调用方要拿返回值回填 cache。
+ * 首尾帧是 1MB 级 base64，超时给到 3 分钟。
+ */
+export async function createVideo(draft: DraftVideo): Promise<ApiVideo | null> {
+  const res = await apiPost<Record<string, unknown>>("/api/branch/videos", draft, { timeoutMs: 180_000 });
+  return pick<ApiVideo>(res, ["video", "item", "data"]);
+}
+
+/** DELETE /api/branch/videos/:id（requireAuth，仅作者） */
+export async function deleteVideo(id: string): Promise<void> {
+  await apiDelete(`/api/branch/videos/${encodeURIComponent(id)}`);
+}
+
+/** POST /api/branch/videos/:id/play（optionalAuth）→ { plays } */
+export async function addPlay(id: string): Promise<number | null> {
+  const res = await apiPost<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}/play`);
+  const plays = pick<number>(res, ["plays"]);
+  return typeof plays === "number" ? plays : null;
+}
+
+export interface LikeResult {
+  likes: number | null;
+  liked: boolean;
+}
+
+/** POST / DELETE /api/branch/videos/:id/like（requireAuth）→ { likes, liked } */
+export async function setLike(id: string, on: boolean): Promise<LikeResult> {
+  const path = `/api/branch/videos/${encodeURIComponent(id)}/like`;
+  const res = on
+    ? await apiPost<Record<string, unknown>>(path)
+    : await apiDelete<Record<string, unknown>>(path);
+  const likes = pick<number>(res, ["likes"]);
+  const liked = pick<boolean>(res, ["liked"]);
+  return { likes: typeof likes === "number" ? likes : null, liked: typeof liked === "boolean" ? liked : on };
+}
+
+/** GET /api/branch/videos/:id/comments（optionalAuth） */
+export async function listComments(id: string): Promise<ApiComment[]> {
+  const res = await apiGet<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}/comments`);
+  return pickList<ApiComment>(res, ["comments", "items", "data"]);
+}
+
+/** POST /api/branch/videos/:id/comments（requireAuth） */
+export async function addComment(id: string, text: string): Promise<ApiComment | null> {
+  const res = await apiPost<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}/comments`, {
+    text,
+  });
+  return pick<ApiComment>(res, ["comment", "item", "data"]);
+}
+
+// ── 卡片 ─────────────────────────────────────────────────
+
+/** GET /api/branch/cards（requireAuth） */
+export async function listCards(): Promise<ApiCard[]> {
+  const res = await apiGet<Record<string, unknown>>("/api/branch/cards");
+  return pickList<ApiCard>(res, ["cards", "items", "data"]);
+}
+
+/** POST /api/branch/cards（requireAuth，按 cardId 幂等）。卡面是 dataURL，超时放宽 */
+export async function addCards(cards: Card[]): Promise<ApiCard[]> {
+  const payload: ApiCard[] = cards.map((c) => ({
+    cardId: c.id,
+    type: c.type,
+    name: c.name,
+    summary: c.summary,
+    cover: c.cover,
+    hot: c.hot,
+    tags: c.tags,
+  }));
+  const res = await apiPost<Record<string, unknown>>(
+    "/api/branch/cards",
+    { cards: payload },
+    { timeoutMs: 120_000 }
+  );
+  return pickList<ApiCard>(res, ["cards", "items", "data"]);
+}
+
+/** DELETE /api/branch/cards/:cardId（requireAuth） */
+export async function removeCard(cardId: string): Promise<void> {
+  await apiDelete(`/api/branch/cards/${encodeURIComponent(cardId)}`);
+}
+
+// ── 卡组 ─────────────────────────────────────────────────
+
+/** GET /api/branch/decks（requireAuth） */
+export async function listDecks(): Promise<ApiDeck[]> {
+  const res = await apiGet<Record<string, unknown>>("/api/branch/decks");
+  return pickList<ApiDeck>(res, ["decks", "items", "data"]);
+}
+
+/** POST /api/branch/decks（requireAuth） */
+export async function createDeck(name: string, cardIds: string[] = []): Promise<ApiDeck | null> {
+  const res = await apiPost<Record<string, unknown>>("/api/branch/decks", { name, cardIds });
+  return pick<ApiDeck>(res, ["deck", "item", "data"]);
+}
+
+/** PATCH /api/branch/decks/:id（requireAuth） */
+export async function updateDeck(
+  id: string,
+  patch: { name?: string; cardIds?: string[] }
+): Promise<ApiDeck | null> {
+  const res = await apiPatch<Record<string, unknown>>(`/api/branch/decks/${encodeURIComponent(id)}`, patch);
+  return pick<ApiDeck>(res, ["deck", "item", "data"]);
+}
+
+/** DELETE /api/branch/decks/:id（requireAuth） */
+export async function deleteDeck(id: string): Promise<void> {
+  await apiDelete(`/api/branch/decks/${encodeURIComponent(id)}`);
+}
+
+// ── 关注（沿用既有 /api/users，契约明确不新建端点）────────
+
+/** POST /api/users/:id/follow（requireAuth，toggle）→ { following } */
+export async function toggleFollowUser(userId: string): Promise<boolean | null> {
+  const res = await apiPost<Record<string, unknown>>(`/api/users/${encodeURIComponent(userId)}/follow`);
+  const following = pick<boolean>(res, ["following"]);
+  return typeof following === "boolean" ? following : null;
+}
+
+/** GET /api/users/:id/following（optionalAuth）→ { following: User[] } */
+export async function listFollowing(userId: string): Promise<ApiAuthor[]> {
+  const res = await apiGet<Record<string, unknown>>(`/api/users/${encodeURIComponent(userId)}/following`, {
+    query: { limit: 100 },
+  });
+  return pickList<ApiAuthor>(res, ["following", "users", "items"]);
+}

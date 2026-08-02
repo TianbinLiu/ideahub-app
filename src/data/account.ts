@@ -1,7 +1,16 @@
-// 账号与用户资产仓（本地账号；接口按未来 server 端点形状设计，替换实现即可接 ideahub-server）。
-// 视频/卡片/卡组都按 ownerId 归属，Profile 与工坊只读当前登录用户的数据。
+// 账号与用户资产仓（用户 / 卡片 / 卡组）。双模式，与 data/videos.ts 同一套路：
+//
+//   远端模式（配了 VITE_API_BASE）：readyAccount() 用 localStorage 里的 JWT 换回当前用户，
+//     再拉 /api/branch/cards 与 /api/branch/decks 填内存；写操作先改内存再后台打 API。
+//   离线模式（没配）：原来的本地账号 + IndexedDB 实现，完整保留。
+//
+// 页面读的全是同步函数（myCards() / currentUser() / isFollowing()…），签名一个没动；
+// 变更仍通过 subscribeAccount + 版本号广播，远端回包回填时也走同一条广播。
 import { Card, uid } from "../types";
 import { idbGet, idbSet } from "./db";
+import { API_ON, emitApiError, getToken, setToken, serverAlive, AUTH_EXPIRED_EVENT } from "../api/client";
+import * as authApi from "../api/auth";
+import * as branch from "../api/branch";
 
 export interface User {
   id: string;
@@ -58,6 +67,26 @@ export function subscribeAccount(fn: () => void): () => void {
 
 export async function readyAccount(): Promise<void> {
   if (db) return;
+  // StrictMode 下 effect 跑两遍，两次都可能在 db 还是 null 时进来 —— 复用同一个 Promise，
+  // 远端模式下才不会连打两次 /api/auth/me + 卡片卡组。
+  if (!readyPromise) {
+    readyPromise = (async () => {
+      if (API_ON) {
+        const ok = await readyRemote();
+        if (ok) return;
+        console.warn("[account] 服务器不可达，本次回退本地账号库");
+      }
+      await readyLocal();
+    })().finally(() => {
+      readyPromise = null;
+    });
+  }
+  await readyPromise;
+}
+
+let readyPromise: Promise<void> | null = null;
+
+async function readyLocal(): Promise<void> {
   db = (await idbGet<AccountDB>(KEY)) ?? { ...EMPTY };
   // 结构兼容（旧版本可能缺字段）
   db.users ??= [];
@@ -66,8 +95,24 @@ export async function readyAccount(): Promise<void> {
   emit();
 }
 
+/**
+ * 本次会话是否真的跑在远端上。
+ * 与 data/videos.ts 的同名开关是一回事：配了 API_BASE 但服务器没起时，
+ * 写操作必须退回 IndexedDB，否则既不落盘也发不出去——这次会话新炼的卡会凭空消失。
+ */
+let remoteLive = false;
+
+function remoteOn(): boolean {
+  return API_ON && remoteLive;
+}
+
+/**
+ * 落库 + 广播。
+ * ★ 真·远端模式不写 IndexedDB：登录态由 JWT 承载，资产由服务端承载，
+ *   把远端副本写进本地账号库只会让下次离线启动读到一份幽灵账号。
+ */
 function persist() {
-  if (db) void idbSet(KEY, db);
+  if (db && !remoteOn()) void idbSet(KEY, db);
   emit();
 }
 
@@ -82,11 +127,23 @@ export function isLoggedIn(): boolean {
 
 const AVATARS = ["🦊", "🐺", "🐱", "🦉", "🐙", "🦋", "🌙", "⭐", "🔮", "🎴"];
 
-/** 登录或注册（本地账号：account 不存在即注册）。密码在本地阶段不校验，留参数位给 server */
+/**
+ * 登录或注册（本地账号：account 不存在即注册）。密码在本地阶段不校验，留参数位给 server。
+ *
+ * ★ 远端模式下 LoginPage 走的是异步的 signInWithPassword / signUpWithPassword，
+ *   不会调到这里。这里只保留一条兜底：已有有效 token 就直接返回当前用户，
+ *   否则 throw——绝不伪造登录态（伪造的后果是进得去工坊、每次写都 401 被踢，更难查）。
+ *   服务器不可达时 remoteOn() 为 false，会落到下面的本地分支，离线照常能用。
+ */
 export function signIn(account: string, name?: string): User {
   if (!db) throw new Error("账号库未装载");
   const acc = account.trim();
   if (!acc) throw new Error("请输入账号");
+  if (remoteOn()) {
+    const cur = currentUser();
+    if (cur) return cur;
+    throw new Error("已连接服务器：请用密码登录");
+  }
   let user = db.users.find((u) => u.account === acc);
   if (!user) {
     user = {
@@ -108,6 +165,14 @@ export function signIn(account: string, name?: string): User {
 export function signOut(): void {
   if (!db) return;
   db.currentId = null;
+  if (remoteOn()) {
+    // JWT 是无状态的，清掉本地 token 就是登出；要踢掉全部设备用 authApi.logoutAllSessions()
+    authApi.logout();
+    db.users = [];
+    db.cards = [];
+    db.decks = [];
+    deckAlias.clear();
+  }
   persist();
 }
 
@@ -116,6 +181,12 @@ export function updateProfile(patch: Partial<Pick<User, "name" | "avatar" | "bio
   if (!u || !db) return;
   Object.assign(u, patch);
   persist();
+  if (remoteOn()) {
+    // 本 app 的头像是 emoji（或 dataURL），服务端字段叫 avatarUrl，直接塞进去
+    void authApi
+      .updateProfile({ displayName: patch.name, bio: patch.bio, avatarUrl: patch.avatar })
+      .catch((e) => emitApiError("updateProfile", e));
+  }
 }
 
 export function toggleFollow(author: string): boolean {
@@ -125,7 +196,33 @@ export function toggleFollow(author: string): boolean {
   if (i >= 0) u.following.splice(i, 1);
   else u.following.push(author);
   persist();
-  return u.following.includes(author);
+  const on = u.following.includes(author);
+  if (remoteOn()) {
+    // 本地模型按「作者名」关注，服务端按 userId。名字→id 由 api/branch 的登记表反查
+    // （videos 列表映射时登记的）。查不到就只在本地生效，等下次拿到 id 再同步。
+    const uid2 = branch.authorIdOf(author);
+    if (!uid2) {
+      console.warn(`[account] 未知作者 id：${author}，关注只在本地生效`);
+      return on;
+    }
+    void branch
+      .toggleFollowUser(uid2)
+      .then((following) => {
+        // 服务端是 toggle，可能与本地乐观值不一致（比如之前就关注过），以服务端为准
+        if (following === null || following === u.following.includes(author)) return;
+        if (following) u.following.push(author);
+        else u.following.splice(u.following.indexOf(author), 1);
+        persist();
+      })
+      .catch((e) => {
+        // 回滚
+        if (on) u.following.splice(u.following.indexOf(author), 1);
+        else u.following.push(author);
+        persist();
+        emitApiError("toggleFollow", e);
+      });
+  }
+  return on;
 }
 
 export function isFollowing(author: string): boolean {
@@ -143,19 +240,32 @@ export function addCards(cards: Card[]): void {
   const u = currentUser();
   if (!u || !db) return;
   const existing = new Set(db.cards.filter((c) => c.ownerId === u.id).map((c) => c.id));
+  const added: Card[] = [];
   for (const c of cards) {
     if (existing.has(c.id)) continue;
     db.cards.push({ ...c, ownerId: u.id, createdAt: Date.now() });
+    added.push(c);
   }
   persist();
+  if (remoteOn() && added.length > 0) {
+    // 服务端按 cardId 幂等，重发不会长出重复卡
+    void branch.addCards(added).catch((e) => emitApiError("addCards", e));
+  }
 }
 
 export function removeCard(cardId: string): void {
   const u = currentUser();
   if (!u || !db) return;
   db.cards = db.cards.filter((c) => !(c.ownerId === u.id && c.id === cardId));
+  const touchedDecks = db.decks.filter((d) => d.cardIds.includes(cardId));
   for (const d of db.decks) d.cardIds = d.cardIds.filter((id) => id !== cardId);
   persist();
+  if (remoteOn()) {
+    void branch.removeCard(cardId).catch((e) => emitApiError("removeCard", e));
+    // 契约没写删卡是否会顺带清理卡组里的引用，这里显式同步一次，幂等且便宜
+    // （走同一条防抖队列，和用户正在改的名字合并成一次 PATCH）
+    for (const d of touchedDecks) queueDeckPatch(d.id, { cardIds: d.cardIds });
+  }
 }
 
 // ── 卡组 ──────────────────────────────────────────────
@@ -168,21 +278,268 @@ export function myDecks(): Deck[] {
 export function createDeck(name: string, cardIds: string[] = []): Deck | null {
   const u = currentUser();
   if (!u || !db) return null;
-  const deck: Deck = { id: uid("deck"), ownerId: u.id, name: name.trim() || "未命名卡组", cardIds, createdAt: Date.now() };
+  const localId = uid("deck");
+  const deck: Deck = { id: localId, ownerId: u.id, name: name.trim() || "未命名卡组", cardIds, createdAt: Date.now() };
   db.decks.push(deck);
   persist();
+  if (remoteOn()) {
+    // 页面拿到的是同步返回的临时 id，POST 还在路上时用户就可能改名/加卡了。
+    // 把这个 Promise 登记进 deckCreating，所有后续同步都先 await 它——否则那些请求
+    // 会拿 deck_xxx 去打 server，撞 isValidId 400 后静默丢改动。
+    const creating = branch
+      .createDeck(deck.name, deck.cardIds)
+      .then((remote) => {
+        if (!remote) return null;
+        deckAlias.set(localId, remote._id);
+        deck.id = remote._id;
+        deck.createdAt = toMs(remote.createdAt);
+        persist();
+        return remote._id;
+      })
+      .catch((e) => {
+        emitApiError("createDeck", e);
+        return null;
+      })
+      .finally(() => {
+        deckCreating.delete(localId);
+      });
+    deckCreating.set(localId, creating);
+  }
   return deck;
 }
 
 export function updateDeck(deckId: string, patch: Partial<Pick<Deck, "name" | "cardIds">>): void {
-  const d = db?.decks.find((x) => x.id === deckId);
+  const d = findDeck(deckId);
   if (!d) return;
   Object.assign(d, patch);
   persist();
+  if (remoteOn()) queueDeckPatch(d.id, patch);
 }
 
 export function deleteDeck(deckId: string): void {
   if (!db) return;
-  db.decks = db.decks.filter((d) => d.id !== deckId);
+  const d = findDeck(deckId);
+  db.decks = db.decks.filter((x) => x !== d);
   persist();
+  if (remoteOn() && d) {
+    const localId = d.id;
+    cancelDeckPatch(localId); // 都要删了，别再把排队中的改名发出去
+    void (async () => {
+      const id = await resolveDeckId(localId);
+      if (!id) return;
+      await branch.deleteDeck(id).catch((e) => emitApiError("deleteDeck", e));
+    })();
+  }
+}
+
+// ── 远端模式实现 ──────────────────────────────────────
+// 卡组的本地临时 id → 服务端 _id。createDeck 是同步返回的（WorkshopPage 立刻用返回的
+// deck.id 去改名/加卡），所以建组请求回来之前必须有一份别名表兜着。
+const deckAlias = new Map<string, string>();
+/** 建组请求在途：localId → Promise<服务端 _id | null> */
+const deckCreating = new Map<string, Promise<string | null>>();
+
+function realDeckId(id: string): string {
+  return deckAlias.get(id) ?? id;
+}
+
+/** 等建组回包后拿服务端 id；建组失败（或压根不是远端建的）返回 null，调用方跳过同步 */
+async function resolveDeckId(localId: string): Promise<string | null> {
+  const pending = deckCreating.get(localId);
+  if (pending) await pending;
+  const real = deckAlias.get(localId) ?? localId;
+  return real.startsWith("deck_") ? null : real;
+}
+
+// 卡组改名是 onChange 直连的（每敲一个字符一次 updateDeck）。不合并的话，
+// 一个五字的名字就是五次 PATCH，还会因为响应乱序把旧名字回写。
+// 按 deck 合并 patch，静默 400ms 后发一次；同一个 deck 的请求串成一条链保证顺序。
+const DECK_PATCH_DEBOUNCE_MS = 400;
+type DeckPatch = Partial<Pick<Deck, "name" | "cardIds">>;
+const deckPatchQueue = new Map<string, { timer: ReturnType<typeof setTimeout>; patch: DeckPatch }>();
+const deckPatchChain = new Map<string, Promise<void>>();
+
+function queueDeckPatch(localId: string, patch: DeckPatch): void {
+  const q = deckPatchQueue.get(localId);
+  if (q) clearTimeout(q.timer);
+  const merged: DeckPatch = { ...(q?.patch ?? {}), ...patch };
+  const timer = setTimeout(() => {
+    deckPatchQueue.delete(localId);
+    const prev = deckPatchChain.get(localId) ?? Promise.resolve();
+    deckPatchChain.set(
+      localId,
+      prev.then(() => flushDeckPatch(localId, merged)).catch(() => {})
+    );
+  }, DECK_PATCH_DEBOUNCE_MS);
+  deckPatchQueue.set(localId, { timer, patch: merged });
+}
+
+function cancelDeckPatch(localId: string): void {
+  const q = deckPatchQueue.get(localId);
+  if (q) clearTimeout(q.timer);
+  deckPatchQueue.delete(localId);
+}
+
+async function flushDeckPatch(localId: string, patch: DeckPatch): Promise<void> {
+  const id = await resolveDeckId(localId);
+  if (!id) return;
+  const body: { name?: string; cardIds?: string[] } = {};
+  // 用户清空输入框时本地是空串（编辑中不跳字），但 server 的 deckName 是 min(1)，
+  // 直接发空串会 400。这里补上和建组一致的默认名。
+  if (typeof patch.name === "string") body.name = patch.name.trim() || "未命名卡组";
+  if (patch.cardIds) body.cardIds = patch.cardIds;
+  if (body.name === undefined && body.cardIds === undefined) return;
+  await branch.updateDeck(id, body).catch((e) => emitApiError("updateDeck", e));
+}
+
+function findDeck(id: string): Deck | null {
+  const real = realDeckId(id);
+  return db?.decks.find((d) => d.id === real || d.id === id) ?? null;
+}
+
+function toMs(v: string | number | undefined): number {
+  if (typeof v === "number") return v;
+  const t = v ? Date.parse(v) : NaN;
+  return Number.isNaN(t) ? Date.now() : t;
+}
+
+function toLocalUser(u: authApi.ApiUser): User {
+  return {
+    id: u._id,
+    account: u.username || u.email || u._id,
+    name: u.displayName || u.username || "我",
+    avatar: u.avatarUrl || AVATARS[0],
+    bio: u.bio ?? "",
+    following: [],
+    createdAt: Date.now(),
+  };
+}
+
+/** 把服务端用户装进内存库并置为当前登录用户 */
+function adoptUser(remote: authApi.ApiUser): User {
+  const user = toLocalUser(remote);
+  db = { users: [user], currentId: user.id, cards: [], decks: [] };
+  return user;
+}
+
+async function readyRemote(): Promise<boolean> {
+  // 先探活：服务器没起就整体回退本地库，别把空库当成"你还没登录"展示给用户
+  if (!(await serverAlive())) return false;
+  remoteLive = true;
+  db = { ...EMPTY, users: [], cards: [], decks: [] };
+  // token 失效（任何请求 401）时把内存里的登录态一起清掉，
+  // 否则页面还以为登录着、每次操作都再撞一次 401。
+  if (typeof window !== "undefined") {
+    window.addEventListener(AUTH_EXPIRED_EVENT, () => {
+      if (!db) return;
+      db.currentId = null;
+      db.users = [];
+      db.cards = [];
+      db.decks = [];
+      deckAlias.clear();
+      emit();
+    });
+  }
+  if (!getToken()) {
+    emit();
+    return true; // 未登录：可以匿名浏览（列表/详情是 optionalAuth）
+  }
+  try {
+    const me = await authApi.fetchMe();
+    // /api/auth/me 不带 displayName/bio/头像，补一条 profile 再落地，
+    // 否则重载后昵称会从「刘天彬」退回 username
+    const profile = await authApi.fetchProfile();
+    adoptUser(profile ? { ...me, ...profile } : me);
+  } catch (e) {
+    setToken(null); // token 过期/损坏，当未登录处理
+    emitApiError("readyAccount", e);
+    emit();
+    return true;
+  }
+  await loadRemoteAssets();
+  emit();
+  return true;
+}
+
+/** 拉当前用户的卡片 / 卡组 / 关注列表（任一失败只影响自己那块） */
+async function loadRemoteAssets(): Promise<void> {
+  const u = currentUser();
+  if (!u || !db) return;
+  const [cards, decks, following] = await Promise.all([
+    branch.listCards().catch((e) => {
+      emitApiError("listCards", e);
+      return [] as branch.ApiCard[];
+    }),
+    branch.listDecks().catch((e) => {
+      emitApiError("listDecks", e);
+      return [] as branch.ApiDeck[];
+    }),
+    branch.listFollowing(u.id).catch(() => [] as branch.ApiAuthor[]),
+  ]);
+  db.cards = cards.map((c) => ({
+    id: c.cardId,
+    type: c.type,
+    name: c.name,
+    summary: c.summary,
+    cover: c.cover,
+    hot: c.hot,
+    tags: c.tags,
+    ownerId: u.id,
+    createdAt: toMs(c.createdAt),
+  }));
+  db.decks = decks.map((d) => ({
+    id: d._id,
+    ownerId: u.id,
+    name: d.name,
+    cardIds: Array.isArray(d.cardIds) ? d.cardIds : [],
+    createdAt: toMs(d.createdAt),
+  }));
+  // 本地按作者名关注，顺手把 名字→userId 登记进 api/branch，让 toggleFollow 能反查
+  u.following = following.map((f) => branch.authorName(f));
+}
+
+// ── 远端登录（新增导出；LoginPage 接上密码框后改调这两个即可）──
+
+/**
+ * 密码登录。远端模式专用——离线模式请继续用同步的 signIn()。
+ * 成功后 token 已由 api/auth 写进 localStorage，这里负责把用户与资产装进内存并广播。
+ */
+export async function signInWithPassword(account: string, password: string): Promise<User> {
+  if (!API_ON) return signIn(account); // 离线模式：退回同步的本地登录
+  const { user } = await authApi.login(account.trim(), password);
+  const local = adoptUser(user);
+  await loadRemoteAssets();
+  emit();
+  return local;
+}
+
+/**
+ * 注册（server 强制 username + email + password，password ≥ 6 位）。
+ * displayName 不在 register 的入参里（controller 只解构 username/email/password/role），
+ * 所以昵称是注册成功后补一次 PUT /api/me/profile——失败也不影响已经建好的账号。
+ */
+export async function signUpWithPassword(
+  input: authApi.RegisterInput & { displayName?: string }
+): Promise<User> {
+  if (!API_ON) return signIn(input.username, input.displayName);
+  const { username, email, password, displayName } = input;
+  const { user } = await authApi.register({ username, email, password });
+  const local = adoptUser(user);
+  if (displayName && displayName !== local.name) {
+    local.name = displayName;
+    void authApi.updateProfile({ displayName }).catch((e) => emitApiError("signUp/profile", e));
+  }
+  emit();
+  return local;
+}
+
+/**
+ * 当前是否真的连着服务器。
+ * ★ 返回的是 remoteOn() 而不是 API_ON：配了地址但服务没起时，登录页必须退回
+ *   本地账号那套（账号+昵称），否则它会一直要求密码、而密码登录又必然打不通，
+ *   用户被彻底挡在门外。readyAccount() 完成后 remoteLive 才确定，
+ *   而 App 是等 ready 之后才渲染路由的，读到的一定是终值。
+ */
+export function isRemoteMode(): boolean {
+  return remoteOn();
 }

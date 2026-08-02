@@ -168,6 +168,11 @@ export default function WorkshopPage() {
                     <input
                       value={d.name}
                       onChange={(e) => updateDeck(d.id, { name: e.target.value })}
+                      // 编辑中允许空串（否则清空输入框会立刻跳字），失焦时补默认名——
+                      // 服务端的 name 是 min(1)，两边都兜一次才不会出现"本地空 / 远端未命名"的分叉
+                      onBlur={(e) => {
+                        if (!e.target.value.trim()) updateDeck(d.id, { name: "未命名卡组" });
+                      }}
                       className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-100 outline-none"
                     />
                     <span className="text-[11px] text-slate-500">{d.cardIds.length} 张</span>

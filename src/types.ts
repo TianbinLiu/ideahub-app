@@ -106,6 +106,12 @@ export interface DraftVideo {
   cover: string;
   segments: VideoSegment[];
   branchTree?: BranchTree;
+  /**
+   * 幂等键：发布时生成一次，重试沿用同一个值。
+   * 服务端转存几段方舟视频要几十秒，客户端超时重发时第一次其实已经落库了——
+   * 没有这个键就会出现同一部作品在库里两份（server 侧 {author, clientId} 唯一索引）。
+   */
+  clientId?: string;
 }
 
 export const VIDEO_CATEGORIES = ["剧情", "科幻", "古风", "搞笑", "动画", "其他"];

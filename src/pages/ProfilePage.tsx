@@ -1,7 +1,7 @@
 // 我的页：头像/昵称/简介/统计 + 我的作品·卡片·卡组·关注 四个页签 + 设置入口。
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { listVideos } from "../data/videos";
+import { listVideos, isMyAuthor } from "../data/videos";
 import { myCards, myDecks, toggleFollow } from "../data/account";
 import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, formatDuration, formatPlays } from "../types";
@@ -24,7 +24,7 @@ export default function ProfilePage() {
     );
   }
 
-  const mine = videos.filter((v) => v.author === "我");
+  const mine = videos.filter((v) => isMyAuthor(v.author));
   const cards = myCards();
   const decks = myDecks();
   const totalPlays = mine.reduce((s, v) => s + v.plays, 0);

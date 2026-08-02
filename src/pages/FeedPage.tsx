@@ -2,7 +2,7 @@
 // 互动视频（带 branchTree）在流里播开场段，点"进入互动"跳详情页做分支选择。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { addPlay, listVideos, setLike } from "../data/videos";
+import { addPlay, isMyAuthor, listVideos, setLike } from "../data/videos";
 import { isFollowing, toggleFollow } from "../data/account";
 import { useCurrentUser } from "../hooks/useAccount";
 import { VideoItem, formatPlays } from "../types";
@@ -18,6 +18,7 @@ function FeedItem({ video, active }: { video: VideoItem; active: boolean }) {
   const navigate = useNavigate();
   const seg = video.segments[0];
   const isInteractive = !!video.branchTree;
+  const mine = isMyAuthor(video.author);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -79,10 +80,10 @@ function FeedItem({ video, active }: { video: VideoItem; active: boolean }) {
       <div className="absolute inset-x-0 bottom-0 px-4 pb-6">
         <div className="mb-2 flex items-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-panel text-lg">
-            {video.author === "我" ? user?.avatar ?? "🎴" : "🎬"}
+            {mine ? user?.avatar ?? "🎴" : "🎬"}
           </span>
           <span className="text-sm font-semibold text-slate-100">@{video.author}</span>
-          {user && video.author !== "我" && (
+          {user && !mine && (
             <button
               onClick={() => setFollowing(toggleFollow(video.author))}
               className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition ${
