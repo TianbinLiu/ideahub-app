@@ -12,6 +12,10 @@ import { PlayerAvatar, playerModelUrl } from "../quality";
 import { loaderFor } from "../secureAssets";
 import { SpringBoneSim } from "./springBones";
 import { PLAYER_HEAD, eyeLook } from "./cameraOrbit";
+import { gazeDelta, type GazeLimits } from "./gazeDelta";
+
+/** 玩家注视限幅：只转头不拧脖子。低头给得比抬头小（低头把脸往刘海里推） */
+const PLAYER_GAZE: GazeLimits = { yaw: 0.5, up: 0.20, down: 0.12 };
 
 const BONES = {
   spine1: "mixamorigSpine1",
@@ -244,6 +248,10 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
   // 注视镜头系统：思考姿势本身凝视 DECK_CAM 位置——当实际镜头偏离（自由视角拖拽）时，
   // 间歇性地把头转向镜头（限幅+缓入缓出），给"角色突然注意到你"的存在感
   const headBase = useRef<THREE.Quaternion | null>(null);
+  /** 上一帧我们写进头骨的值：与本帧读到的比对即可判断 mixer 有没有重写过。
+   *  原来靠"状态切换时置空、下帧重取"，而置空期间头由动画驱动、之后又被按回旧基准，
+   *  来回切就是可见的抽搐（NPC 侧同样的写法已证实是抽搐源）。 */
+  const headWritten = useRef<THREE.Quaternion | null>(null);
   const glance = useRef({ nextAt: 4, start: 0, until: 0 });
   const gv = useMemo(
     () => ({
@@ -260,9 +268,23 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     [],
   );
 
+  /** 取注视基准：与上一帧写入值不同=mixer 刚写过（当前值即新基准）；
+   *  完全相同=mixer 已停写（clamp 定格），沿用旧基准。不需要状态机与等待帧。 */
+  function syncHeadBase(head: THREE.Object3D) {
+    if (!headBase.current) headBase.current = head.quaternion.clone();
+    else if (!headWritten.current || !head.quaternion.equals(headWritten.current))
+      headBase.current.copy(head.quaternion);
+    else head.quaternion.copy(headBase.current);
+  }
+
   // 头部注视覆盖：以"当前头骨四元数"为底，按目光窗口把头限幅转向实际镜头
   // （think 分支=mixer 采样后；MMD 分支=姿势写入后——两处共用）
   function applyGaze(head: THREE.Object3D, t: number, camera: THREE.Camera) {
+    // 基准同步必须在函数内部做：曾经有两个调用点直接 premultiply 而不管基准，
+    // 其中一处还是在动画被冻结（timeScale===0，mixer 停写头骨）时调用的——
+    // 增量每帧往上叠，一个 2~3s 的注视窗口累积上百次，头会一路转出去再弹回来。
+    // 这就是用户报的"镜头到某些位置时头部上下旋转抽搐"。
+    syncHeadBase(head);
     const gl2 = glance.current;
     let weight = 0;
     if (gl2.until === 0 && t >= gl2.nextAt) {
@@ -288,16 +310,16 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       gv.headPos.setFromMatrixPosition(head.matrixWorld);
       gv.baseDir.set(DECK_CAM.pos[0], DECK_CAM.pos[1], DECK_CAM.pos[2]).sub(gv.headPos).normalize();
       gv.camDir.copy(camera.position).sub(gv.headPos).normalize();
-      gv.qDelta.setFromUnitVectors(gv.baseDir, gv.camDir);
-      // 限幅 0.5 rad：只转头不拧脖子
-      const ang = 2 * Math.acos(Math.min(1, Math.abs(gv.qDelta.w)));
-      if (ang > 0.5) gv.qDelta.slerp(gv.qId, 1 - 0.5 / ang);
-      gv.qDelta.slerp(gv.qId, 1 - weight);
+      // 偏航/俯仰分离限幅（见 gazeDelta.ts）：原来的 setFromUnitVectors 在
+      // baseDir 与 camDir 接近反向时旋转轴会整个翻掉，镜头绕到特定位置头就来回甩
+      gazeDelta(gv.baseDir, gv.camDir, PLAYER_GAZE, weight, gv.qDelta);
       // 世界系增量 → 头骨局部系：local' = P⁻¹·Δ·P·local
       head.parent!.getWorldQuaternion(gv.qParent);
       gv.qTmp.copy(gv.qParent).invert().multiply(gv.qDelta).multiply(gv.qParent);
-      head.quaternion.premultiply(gv.qTmp);
+      head.quaternion.copy(headBase.current!).premultiply(gv.qTmp);
     }
+    if (!headWritten.current) headWritten.current = head.quaternion.clone();
+    else headWritten.current.copy(head.quaternion);
   }
 
   // 弹簧骨物理（MMD 移植模型发链，分组不同手感）；垂发用桌面/地板平面碰撞承接
@@ -347,20 +369,16 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
         thinkAction.reset().play();
         thinkAction.time = thinkAction.getClip().duration;
         thinkAction.paused = true;
-        headBase.current = null; // 重新采样后基准失效，下帧重取
       }
       mixer.update(0.000001);
       // ── 头部注视：mixer 采样后以基准四元数为底、按目光窗口叠加限幅转头 ──
       const head = bones.current.head;
       if (head) {
-        if (!headBase.current) headBase.current = head.quaternion.clone();
-        else head.quaternion.copy(headBase.current);
         applyGaze(head, t, camera);
       }
     } else if (settleAction) {
       // ── MMD 档 settle 双态：第一人称眼位=站姿（钉首帧），离开眼位=伏桌（播走位后钉末帧）──
       if (thinkAction && (thinkAction.isRunning() || thinkAction.paused)) thinkAction.stop();
-      headBase.current = null;
       const dur = settleAction.getClip().duration;
       const want = eyeView ? "stand" : "leaned";
       if (settleMode.current !== want) {
@@ -424,7 +442,6 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       if (head2 && settleAction.timeScale === 0) applyGaze(head2, t, camera);
     } else {
       if (thinkAction && (thinkAction.isRunning() || thinkAction.paused)) thinkAction.stop();
-      headBase.current = null;
       for (const k of Object.keys(BONES) as (keyof typeof BONES)[]) {
         const n = bones.current[k];
         const v = p2[k] as [number, number, number] | null;
