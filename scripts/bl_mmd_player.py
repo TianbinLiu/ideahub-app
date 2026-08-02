@@ -3,6 +3,7 @@
 # 因此同一张日文骨→mixamo 映射表通吃；PlayerArms 只驱动 7 根骨 + 手骨备用。
 # 用法: blender --background --python bl_mmd_player.py -- <in.pmx> <out.glb>
 import bpy
+import math
 import sys
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
@@ -140,14 +141,36 @@ if arm is not None and arm.data.bones.get("mixamorig:Head"):
         for n in ORDER:
             pb[n].keyframe_insert(data_path="rotation_euler", frame=frame)
 
+    def bone_len(a, b):
+        return ((mw @ arm.data.bones[a].head_local) - (mw @ arm.data.bones[b].head_local)).length
+
+    def elbow_exact(S, W, pole, U, F):
+        """解析式双骨 IK 肘位：手填的肘坐标在两套骨长下都会够不到（rin 小臂 0.197 /
+        gratia 0.272，上臂 0.256），求解器只能牺牲肘部把它拽回中线 → 小臂对穿。
+        改成只把手填值当极向量方向，肘位由 |肩肘|=U、|肘腕|=F 算出来——必定可达"""
+        d = W - S
+        L = min(max(d.length, abs(U - F) + 1e-4), (U + F) * 0.995)
+        axis = d.normalized()
+        a = (U * U - F * F + L * L) / (2 * L)
+        h = math.sqrt(max(U * U - a * a, 0.0))
+        p = pole - S
+        p = p - axis * p.dot(axis)
+        if p.length < 1e-5:
+            p = Vector((0, 0, 1)) - axis * axis.z
+        return S + axis * a + p.normalized() * h
+
     def solve_arm(tip_name, chain, target, elbow_hint):
         tip, elbow = pb[tip_name], pb[chain[1]]
         bones = [pb[chain[0]], pb[chain[1]]]
+        bpy.context.view_layer.update()
+        # 肩（上臂 head）在求解中不动：转上臂骨不会移动它自己的 head
+        goal = elbow_exact(mw @ pb[chain[0]].head, target, elbow_hint,
+                           bone_len(chain[0], chain[1]), bone_len(chain[1], tip_name))
 
         def score():
             bpy.context.view_layer.update()
             s = ((mw @ tip.head) - target).length
-            s += 0.6 * ((mw @ elbow.head) - elbow_hint).length
+            s += ((mw @ elbow.head) - goal).length
             return s
 
         cur = score()
@@ -190,6 +213,15 @@ if arm is not None and arm.data.bones.get("mixamorig:Head"):
     print(f"THINK solve residual {res:.3f}  chin {[round(v,3) for v in chin]}")
     # 掌心内旋朝脸（rest 掌朝镜头会读作"打招呼"）：左手绕世界竖轴 -70°
     rot_world("mixamorig:LeftHand", "Z", -1.2)
+    # **右臂也必须显式解**：只解左手托腮的话，右臂会留在模型 rest ——
+    # 而这个模型的 rest 是手臂笔直伸向侧面（点卡组后画面里那条横着的胳膊就是它）。
+    # 解成自然垂放身侧，肩相对量给，避免受前倾影响
+    sh_r = mw @ pb["mixamorig:RightArm"].head
+    resr = solve_arm(
+        "mixamorig:RightHand", ["mixamorig:RightArm", "mixamorig:RightForeArm"],
+        sh_r + Vector((-0.16, -0.02, -0.38)), sh_r + Vector((-0.09, 0.02, -0.20)),
+    )
+    print(f"THINK right-arm residual {resr:.3f}")
     key_pose(10)
     tr = arm.animation_data.nla_tracks.new()
     tr.name = "think"
@@ -268,19 +300,42 @@ if arm is not None and arm.data.bones.get("mixamorig:Head"):
     # 两手腕都伸到胸的 x 半宽(0.099)之外，避免上翘的手戳进胸。
     # ARMS0 = 自然垂手站姿（第一人称眼位下的常态）。**该模型的 rest（全部旋转置零）是
     # 曲肘、手抬到近肩高**（实测 f1 腕 z=1.31 vs 肩 1.32）——直接拿它当站姿会让眼位里
-    # 自己的手糊在镜头上。故首帧必须显式解一个垂手姿势；无 "palm" 键=不做掌心拍平
-    ARMS0 = {"lw": (0.175, -0.02, 0.95), "le": (0.135, -0.01, 1.14),
-             "rw": (-0.175, -0.02, 0.95), "re": (-0.135, -0.01, 1.14)}
-    ARMS1 = {"palm": 1, "lw": (-0.10, E - 0.06, T + 0.18), "le": (0.17, E - 0.02, T + 0.20),
-             "rw": (0.10, E + 0.02, T + 0.15), "re": (-0.18, E + 0.06, T + 0.19)}
-    ARMS2 = {"palm": 1, "lw": (-0.12, E - 0.10, T + 0.11), "le": (0.16, E - 0.07, T + 0.11),
-             "rw": (0.12, E + 0.02, T + 0.09), "re": (-0.17, E + 0.05, T + 0.09)}
-    # 右小臂前移到胸前缘正下方（y≈E）而非胸正中：BVH 实测压在胸正中会陷进去 134 面，
-    # 挪到前缘变成"切向搁靠"——净空只有一条手臂厚度时这是唯一的零穿透解
-    ARMS3 = {"palm": 1, "lw": (-0.14, E - 0.150, AW), "le": (0.16, E - 0.120, AW),
-             "rw": (0.14, E - 0.008, AW), "re": (-0.16, E + 0.022, AW)}
-    ARMS4 = {"palm": 1, "lw": (-0.145, E - 0.155, AW), "le": (0.16, E - 0.125, AW),
-             "rw": (0.145, E - 0.006, AW), "re": (-0.16, E + 0.024, AW)}
+    # 自己的手糊在镜头上。故首帧必须显式解一个垂手姿势；无 "palm" 键=不做掌心拍平。
+    # **x 必须推到外套之外**：BVH 实测她的长外套在髋高处外缘达 |x|=0.207，
+    # 手腕放 0.175 会整条手臂埋进裙里（臂×裙 890 对面相交）。K 按体型缩放（TABLE_Z 反映
+    # 引擎 scale：rin 0.964 / gratia 1.090），否则矮缩放的模型手会离身体太远
+    K = TABLE_Z / 0.964
+    # 腕再前移到 -0.075K：贴着大腿正侧垂手会擦进腿网格（gratia 实测 30 面），
+    # 真人垂手本来就略在腿前方
+    ARMS0 = {"lw": (0.262 * K, -0.075 * K, 0.95 * K), "le": (0.20 * K, 0.0, 1.13 * K),
+             "rw": (-0.262 * K, -0.075 * K, 0.95 * K), "re": (-0.20 * K, 0.0, 1.13 * K)}
+    # 抱臂目标必须符合小臂真实长度：实测 肘→腕 = 0.197。旧目标要肘 x=+0.16 同时腕 x=-0.14
+    # （相距 0.30），几何上够不到 → 求解器只能牺牲肘部把它拽到中线，两肘挤在一起、小臂从
+    # 同一点向相反侧扇出，实测 101 面 LeftForeArm×RightForeArm 对穿。改成"肘外展、腕收到
+    # 中线"：FA 就是小臂长，腕 x = ±(spread - FA) 自然落在中线附近。
+    # 左右小臂靠 y 错开一个手臂直径（0.11K > 2×臂半径）保证前后叠放而非同深度对穿。
+    # FA 必须从骨架实测：写死 rin 的 0.195 会让 gratia（同样单位下小臂更长）够不到目标，
+    # 肘部又被拽回中线 —— 实测她的抱臂帧因此出现 132 面对穿
+    FA = ((mw @ arm.data.bones["mixamorig:LeftHand"].head_local)
+          - (mw @ arm.data.bones["mixamorig:LeftForeArm"].head_local)).length
+    print(f"  forearm length {FA:.3f}  K {K:.3f}")
+
+    # 肘位由 FA 反推而非独立给：肘 = 腕 + 小臂长。腕停在中线（inset≈0）——越过中线越多，
+    # 手掌/手甲那截（腕之外还有约 0.1）就越深地插进对侧上臂。gratia 小臂 0.272、手甲又长，
+    # 按固定 spread 给会让右手甲整个埋进左上臂（实测 247 面）
+    def fold_arms(z, inset):
+        return {"palm": 1,
+                "le": (FA + inset, E - 0.115 * K, z), "lw": (inset, E - 0.150 * K, z),
+                "re": (-(FA + inset), E + 0.030 * K, z), "rw": (-inset, E - 0.005 * K, z)}
+
+    # f18 还没开始抱：双臂各在本侧向下前伸（x 区间左右不重叠，天然不可能互穿）
+    ARMS1 = {"palm": 1,
+             "le": (0.235 * K, E + 0.02 * K, T + 0.30), "lw": (0.165 * K, E - 0.09 * K, T + 0.16),
+             "re": (-0.235 * K, E + 0.06 * K, T + 0.30), "rw": (-0.165 * K, E - 0.03 * K, T + 0.16)}
+    ARMS2 = fold_arms(T + 0.17, 0.05)    # 开始合拢，仍悬在桌面上方
+    ARMS3 = fold_arms(AW + 0.035, 0.02)
+    # 小臂+衣袖实测厚 0.098，胸底落在毡面+0.077 处才是"压在臂枕上"且不互穿
+    ARMS4 = fold_arms(AW, -0.005)
     # (帧, センター背移+升, 右脚IK后移/抬, 左脚IK后移/抬, 躯干折, 颈, 头, 臀翘, 臂目标)
     # 她背向 = +Y（脸 -Y）；上 = +Z。
     # ①センター z +0.013：玩家侧护栏已在引擎移除（它顶面高出桌毡 0.25，是胸部够不到
@@ -301,8 +356,18 @@ if arm is not None and arm.data.bones.get("mixamorig:Head"):
         """pose bone location 是 rest 局部系——世界位移需经 rest 旋转逆变换"""
         b.location = b.bone.matrix_local.to_3x3().inverted() @ Vector(world_delta)
 
+    # 手臂解沿帧热启动：坐标下降只是局部最优，每帧从 rest 重解会让相邻帧落进不同构型。
+    # 实测 f36 就这么翻成了"双肘内收贴到一起"（左肘 -0.041 / 右肘 -0.029，相距 0.055），
+    # 两条小臂从同一点向相反侧扇出 → LeftForeArm×RightForeArm 101 面对穿。
+    # 拿上一帧的解当种子，姿态只能连续演化，肘部留在外侧不会中途换边。
+    WARM = ["mixamorig:LeftArm", "mixamorig:LeftForeArm",
+            "mixamorig:RightArm", "mixamorig:RightForeArm"]
+    warm = {}
+
     for fr, cen, rik, lik, fold, neckA, headA, butt, arms in SEQ:
         reset_upper()
+        for n, e in warm.items():
+            pb[n].rotation_euler = e
         if CEN:
             move_world(CEN, cen)
         if RIK:
@@ -326,11 +391,13 @@ if arm is not None and arm.data.bones.get("mixamorig:Head"):
             # 掌心拍平（只对贴桌帧 palm=1；站姿帧不做）：手掌+手指的体积天然垂在腕下
             # （实测 0.081，远超小臂的 0.030），手跟着小臂平躺时必然扎进桌毡。绕世界 X
             # -1.0 把手腕背伸抬起，实测手部最低点降到 0.028 ≈ 小臂下缘 → 指尖不再穿透
+            warm = {n: pb[n].rotation_euler[:] for n in WARM}
             if arms.get("palm"):
                 rot_world("mixamorig:LeftHand", "X", -1.0)
                 rot_world("mixamorig:RightHand", "X", -1.0)
-            if fr >= 48:
-                print(f"  settle f{fr} arm residual L {r1:.3f} R {r2:.3f}")
+            le_x = (mw @ pb["mixamorig:LeftForeArm"].head).x
+            re_x = (mw @ pb["mixamorig:RightForeArm"].head).x
+            print(f"  settle f{fr} res L {r1:.3f} R {r2:.3f}  肘x L{le_x:+.3f} R{re_x:+.3f}")
         key_settle(fr)
     tr3 = arm.animation_data.nla_tracks.new()
     tr3.name = "settle"
