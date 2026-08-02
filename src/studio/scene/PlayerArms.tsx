@@ -126,8 +126,9 @@ const RIGS: Record<
 const HOVER_PROPS: Partial<
   Record<PlayerAvatar, { url: string; pos: [number, number, number]; scale: number; outline: number }>
 > = {
-  rin: { url: "/models/protected/rin-sword-opt.glbx?v=p1", pos: [0.85, 3.0, -0.75], scale: 1.9, outline: 0.002 },
-  gratia: { url: "/models/protected/gratia-rapier-opt.glbx?v=p1", pos: [0.85, 3.0, -0.75], scale: 0.7, outline: 0.002 },
+  // 伏桌后头在前方桌沿上空——法器位外移防怼脸
+  rin: { url: "/models/protected/rin-sword-opt.glbx?v=p1", pos: [1.25, 3.0, -0.45], scale: 1.9, outline: 0.002 },
+  gratia: { url: "/models/protected/gratia-rapier-opt.glbx?v=p1", pos: [1.25, 3.0, -0.45], scale: 0.7, outline: 0.002 },
 };
 
 function HoverProp({ cfg }: { cfg: NonNullable<(typeof HOVER_PROPS)[PlayerAvatar]> }) {
