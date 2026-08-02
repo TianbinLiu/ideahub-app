@@ -46,6 +46,7 @@ const _push = new THREE.Vector3();
 /** 身体横轴（角色未 yaw，世界 X 即她的左右）——左右互斥只在这个方向上解 */
 const _sideAxis = new THREE.Vector3(1, 0, 0);
 const _free = new THREE.Vector3();
+const _preSolve = new THREE.Vector3();
 const _up = new THREE.Vector3();
 const _upLocal = new THREE.Vector3();
 
@@ -137,6 +138,14 @@ export class BreastPhysics {
   /**
    * @param active 仅在接触段（breastLift 每帧写 rest）时驱动；false=复位物理状态并放行骨骼
    */
+  /** 固定步长累加器：渲染 dt 在手势缩放/平移时会剧烈波动（1ms↔50ms），显式积分的
+   *  弹簧对 dt 极敏感——同一姿势会因帧长忽长忽短而抖动、胸被拉扯变形。物理按固定
+   *  1/60 步进、渲染帧只决定跑几步，操作镜头时就完全稳定 */
+  private acc = 0;
+  private static readonly FIXED = 1 / 60;
+  /** 静止吸附阈值（世界位移平方，1m≈2.52 单位）：0.0008/帧≈4.8cm/s，慢到看不出来 */
+  private static readonly SLEEP_SQ = 0.0008 * 0.0008;
+
   update(dt: number, colliders: PhysCollider[], active = true) {
     if (!active) {
       // 只停驱动、不重置状态：重置会让下次激活时 tail 瞬移（过渡期反复跨阈值=抽动）
@@ -147,9 +156,22 @@ export class BreastPhysics {
           j.bone.position.copy(j.restPos).add(_upLocal);
         }
       }
+      this.acc = 0;
       return;
     }
-    const d = Math.min(dt, 0.05);
+    // 固定步长：累加真实 dt，按 1/60 整步消费（上限 3 步防卡顿后暴冲）
+    this.acc = Math.min(this.acc + dt, BreastPhysics.FIXED * 3);
+    let steps = 0;
+    while (this.acc >= BreastPhysics.FIXED && steps < 3) {
+      this.acc -= BreastPhysics.FIXED;
+      steps++;
+      this.step(BreastPhysics.FIXED, colliders);
+    }
+    // 不足一步时也要保证骨骼被写过一次（否则 breastLift 的 rest 会直接暴露）
+    if (steps === 0) this.step(0, colliders);
+  }
+
+  private step(d: number, colliders: PhysCollider[]) {
     for (const j of this.joints) {
       const bone = j.bone;
       bone.getWorldPosition(_bonePos);
@@ -175,6 +197,7 @@ export class BreastPhysics {
 
       // 无碰撞的"自由位置"——与求解后的差=接触把它顶开了多少（用于胸根跟随抬升）
       _free.copy(_next);
+      _preSolve.copy(_next);
       // 接触求解：推开→归长→再推开（单次求解时归长会把推出的球又拉回穿透位；
       // 且大 dt 下单帧位移可超过碰撞半径，迭代能救回穿透）
       const opp = this.tipOf(j.side === 1 ? -1 : 1);
@@ -204,8 +227,19 @@ export class BreastPhysics {
         // 归一化到骨长（角度约束）——再进入下一轮推开
         _next.sub(_bonePos).normalize().multiplyScalar(j.boneLen).add(_bonePos);
       }
-      j.prevTail.copy(j.tail);
-      j.tail.copy(_next);
+      // 接触耗散：推开量原样计入速度会在下一帧被惯性带回去，形成不衰减的极限环
+      //（实测静置后仍有 ~0.005/帧的持续抖动，就是用户说的"胸部一直在抽动"）。
+      // 真实软组织撞上硬物是非弹性的——本帧发生了接触就把动量吃掉大半。
+      const corrected = _next.distanceToSquared(_preSolve) > 1e-10;
+      // 静止吸附：位移小到看不见就直接归零，彻底断掉残余环流
+      if (_next.distanceToSquared(j.tail) < BreastPhysics.SLEEP_SQ) {
+        _next.copy(j.tail); // 下面的旋转写回也用冻结位，否则照样每帧微动
+        j.prevTail.copy(j.tail);
+      } else {
+        j.prevTail.copy(j.tail);
+        if (corrected) j.prevTail.lerp(_next, 0.85);
+        j.tail.copy(_next);
+      }
       // 胸根跟随抬升：被顶开的向上分量→根骨沿躯干上移（真实软组织根部不钉死）。
       // 必须**平滑+限幅**：瞬时值会正反馈自激（抽动），无上限会窜到锁骨以上
       if (this.rootLift > 0) {
@@ -213,12 +247,15 @@ export class BreastPhysics {
         if (j.isRoot) {
           const raw = Math.max(0, _next.dot(_up) - _free.dot(_up)) * this.rootLift;
           const target = Math.min(this.rootLiftMax, raw);
-          j.liftCur += (target - j.liftCur) * Math.min(1, d * this.rootLiftSmooth);
+          // 死区：胸根上移会改变碰撞、碰撞又改变上移量，低通之后仍会剩一个慢速极限环。
+          // 目标变化小于阈值就干脆不动，环路才真正断开。
+          if (Math.abs(target - j.liftCur) > 0.0015)
+            j.liftCur += (target - j.liftCur) * Math.min(1, d * this.rootLiftSmooth);
           this.lastRootLift = j.liftCur;
         } else {
           // 二节按半量跟随：根骨独走会在胸根与胸壁间折出 90° 直角，
           // 分摊到下一节才有软组织的弧线过渡
-          j.liftCur += (this.lastRootLift * 0.5 - j.liftCur) * Math.min(1, d * this.rootLiftSmooth);
+          j.liftCur += (this.lastRootLift * 0.85 - j.liftCur) * Math.min(1, d * this.rootLiftSmooth);
         }
         const pScale = (j.bone.parent as THREE.Object3D).scale.y || 1;
         _upLocal.set(0, 1, 0).multiplyScalar(j.liftCur / pScale);
