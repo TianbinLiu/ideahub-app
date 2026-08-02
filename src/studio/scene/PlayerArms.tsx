@@ -11,7 +11,7 @@ import { DECK_CAM } from "./layout";
 import { PlayerAvatar, playerModelUrl } from "../quality";
 import { loaderFor } from "../secureAssets";
 import { SpringBoneSim } from "./springBones";
-import { PLAYER_HEAD } from "./cameraOrbit";
+import { PLAYER_HEAD, eyeLook } from "./cameraOrbit";
 
 const BONES = {
   spine1: "mixamorigSpine1",
@@ -177,7 +177,8 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     a.clampWhenFinished = true;
     return a;
   }, [gltf, mixer]);
-  const settleStarted = useRef(false);
+  /** settle 当前处于哪个状态：站姿 / 正在播走位 / 已伏桌定格 */
+  const settleMode = useRef<"stand" | "playing" | "leaned" | null>(null);
 
   const restQ = useRef<Record<string, THREE.Quaternion>>({});
   useMemo(() => {
@@ -203,7 +204,7 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     bones.current.rHand = rh ?? null;
     if (rh && first) ud.__restQ!.rHand = rh.quaternion.clone();
     restQ.current = ud.__restQ!;
-    settleStarted.current = false; // 换形象重挂载：入场过渡重新走一遍
+    settleMode.current = null; // 换形象重挂载：按当前机位重新决定站/伏
   }, [gltf, rig]);
   useMemo(() => {
     toonify(gltf.scene, 0.0012);
@@ -318,6 +319,8 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     if (p2.freeze) return;
     const t = clock.elapsedTime;
     const st = useStudio.getState();
+    // 第一人称眼位：相机就在她头骨上 → 站姿 + 隐藏头部（否则相机在颅内）
+    const eyeView = st.camera.kind === "default";
     // 卡组视角、或用户正绕着玩家做球面运动时露脸+保持思考姿势
     const showSelf = st.deckView || st.orbit?.target === "player";
     // MMD 档 think/下沉只属于卡组特写——自由视角应看到伏桌常态姿势（Tripo 系维持 showSelf 语义）
@@ -351,29 +354,64 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
         applyGaze(head, t, camera);
       }
     } else if (settleAction) {
-      // ── MMD 档常态=settle 动画驱动（站立→撤步弯腰伏桌），播完 timeScale=0 钉末帧持续写 ──
+      // ── MMD 档 settle 双态：第一人称眼位=站姿（钉首帧），离开眼位=伏桌（播走位后钉末帧）──
       if (thinkAction && (thinkAction.isRunning() || thinkAction.paused)) thinkAction.stop();
       headBase.current = null;
-      const pinned = settleAction.timeScale === 0 && !settleAction.paused && settleAction.time > 0.001;
-      if (!pinned) {
-        if (settleAction.paused) {
-          // clampWhenFinished 停帧后 mixer 不再写入——转 timeScale0 播放态钉帧（Milltina 方案）
-          settleAction.paused = false;
-          settleAction.timeScale = 0;
-          settleAction.time = settleAction.getClip().duration;
-        } else if (!settleAction.isRunning()) {
+      const dur = settleAction.getClip().duration;
+      const want = eyeView ? "stand" : "leaned";
+      if (settleMode.current !== want) {
+        if (want === "stand") {
+          // 回眼位：直接站直（相机就在她头上，倒放会把镜头一路甩上去）
+          settleAction.stop();
           settleAction.reset().play();
-          if (settleStarted.current) {
-            // 二次进入（think 退出/重挂载后）：直接钉末帧，不重演走位
-            settleAction.time = settleAction.getClip().duration;
-            settleAction.timeScale = 0;
-          } else {
-            settleStarted.current = true;
-            settleAction.timeScale = 1;
-          }
+          settleAction.time = 0;
+          settleAction.timeScale = 0;
+          settleMode.current = "stand";
+        } else if (settleMode.current === "stand") {
+          // 离开眼位：完整播一遍撤步弯腰伏桌。**必须 stop+reset+play 整段重启**——
+          // 站姿是用 timeScale=0 钉住的，那会让 action 在 mixer 里失活，
+          // 单把 timeScale 改回 1 并不会复活（isRunning 仍为 false，随即被判定播完）
+          settleAction.stop();
+          settleAction.reset().play();
+          settleAction.time = 0;
+          settleAction.paused = false;
+          settleAction.timeScale = 1;
+          settleMode.current = "playing";
+        } else if (settleMode.current !== "playing") {
+          settleAction.stop();
+          settleAction.reset().play();
+          settleAction.time = dur;
+          settleAction.timeScale = 0;
+          settleMode.current = "leaned";
         }
       }
-      mixer.update(dt); // 入场播放需真实步进；钉帧态（timeScale0）照常逐帧写
+      if (settleMode.current === "playing") {
+        // 只在真正跑起来之后才认"播完"（time>0 的前提防止启动帧被误判）
+        if (
+          settleAction.paused ||
+          settleAction.time >= dur - 1e-3 ||
+          (settleAction.time > 0 && !settleAction.isRunning())
+        ) {
+          settleAction.paused = false;
+          if (!settleAction.isRunning()) settleAction.reset().play();
+          settleAction.time = dur;
+          settleAction.timeScale = 0;
+          settleMode.current = "leaned";
+        }
+      }
+      // 夹住 dt：它是真实墙钟差，一次卡顿/切回标签页就能让整段撤步弯腰走位一帧演完
+      // （与 CameraRig 滑梯同源的坑）。钉帧态 timeScale=0 时 dt 大小无所谓
+      mixer.update(Math.min(dt, 0.05));
+      if (import.meta.env.DEV) {
+        (window as unknown as Record<string, unknown>).__settleDbg = {
+          mode: settleMode.current,
+          t: +settleAction.time.toFixed(3),
+          ts: settleAction.timeScale,
+          run: settleAction.isRunning(),
+          paused: settleAction.paused,
+          dt: +dt.toFixed(3),
+        };
+      }
       // think 退出复位：手骨不在 settle 轨道里，不显式回 rest 会卡在托腮内旋态
       const lh = bones.current.lHand;
       if (lh && restQ.current.lHand) lh.quaternion.copy(restQ.current.lHand);
@@ -402,9 +440,17 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       const head2 = bones.current.head;
       if (showSelf && head2) applyGaze(head2, t, camera);
     }
+    // 眼位环视：把滑屏累积的偏航/俯仰施加到头骨（脖子跟着转，头发/项链随之摆），
+    // 相机朝向由 CameraRig 用同一组角度求出——两边同源所以永远一致
+    if (eyeView && bones.current.head && restQ.current.head) {
+      gv.ePose.set(-eyeLook.pitch, -eyeLook.yaw, 0, "YXZ");
+      bones.current.head.quaternion
+        .copy(restQ.current.head)
+        .multiply(gv.qPose.setFromEuler(gv.ePose));
+      gv.ePose.order = "XYZ"; // 复用的 Euler，用完还原免得污染姿势写入
+    }
     // 头部：第一人称眼位（默认机位）时必须隐藏，否则相机就在颅内；
     // 其余机位（卡组/节点/对话）一律显示。Tripo 系另按 hideHead 保留旧的 FPS 隐头语义
-    const eyeView = st.camera.kind === "default";
     const head = bones.current.head;
     if (head) {
       const s = eyeView || (rig.hideHead && !showSelf) ? 0.001 : 1;

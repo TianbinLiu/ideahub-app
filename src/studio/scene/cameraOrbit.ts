@@ -29,10 +29,23 @@ export interface OrbitState {
 
 export const orbit: OrbitState = { theta: 0, phi: Math.PI / 2, radius: 3, active: false };
 
+/** 第一人称环视：相对"正对 NPC"基准方向的偏航/俯仰（弧度）。
+ *  同时驱动相机朝向与角色头骨旋转——滑屏 = 转头看向别处 */
+export const eyeLook = { yaw: 0, pitch: 0 };
+/** 颈部活动范围：偏航 ±75°、俯仰 ±42°（超出就成拧脖子了） */
+export const EYE_YAW_LIMIT = 1.31;
+export const EYE_PITCH_LIMIT = 0.73;
+
+export function addEyeLook(dYaw: number, dPitch: number) {
+  eyeLook.yaw = Math.min(EYE_YAW_LIMIT, Math.max(-EYE_YAW_LIMIT, eyeLook.yaw + dYaw));
+  eyeLook.pitch = Math.min(EYE_PITCH_LIMIT, Math.max(-EYE_PITCH_LIMIT, eyeLook.pitch + dPitch));
+}
+
 // DEV 调参/验收后门：控制台可直接读写轨道参数与头部锚点
 if (import.meta.env.DEV) {
   (window as unknown as Record<string, unknown>).__camOrbit = {
     orbit,
+    eyeLook,
     PLAYER_HEAD,
     NPC_HEAD,
     ORBIT_LIMITS,

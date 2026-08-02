@@ -25,7 +25,9 @@ import {
   NPC_HEAD,
   ORBIT_LIMITS,
   PLAYER_HEAD,
+  addEyeLook,
   clampRadiusByScene,
+  eyeLook,
   orbit,
   orbitToPosition,
   syncOrbitFromCamera,
@@ -109,12 +111,21 @@ export function resolveOrbitCenter(
   return o.point ? out.set(o.point[0], o.point[1], o.point[2]) : null;
 }
 
-/** 第一人称眼位：站在玩家头部、朝 NPC 看（默认机位，取代旧的俯视） */
+/** 第一人称眼位：站在玩家头部，基准朝向 NPC，再叠加环视偏航/俯仰（滑屏转头） */
 function eyeCam(pos: THREE.Vector3, look: THREE.Vector3) {
-  look.copy(NPC_HEAD);
+  // 基准方向：头 → NPC，压平到水平面（否则俯仰会被基准的上下分量污染）
+  _dirTmp.copy(NPC_HEAD).sub(PLAYER_HEAD);
+  _dirTmp.y = 0;
+  if (_dirTmp.lengthSq() < 1e-6) _dirTmp.set(0, 0, -1);
+  _dirTmp.normalize();
+  const base = Math.atan2(_dirTmp.x, _dirTmp.z);
+  const yaw = base + eyeLook.yaw;
+  const cp = Math.cos(eyeLook.pitch);
+  _dirTmp.set(Math.sin(yaw) * cp, Math.sin(eyeLook.pitch), Math.cos(yaw) * cp);
   // 眼球略前于头骨中心，避免近裁剪面切到自己的刘海/发丝
-  _dirTmp.copy(NPC_HEAD).sub(PLAYER_HEAD).normalize();
-  pos.copy(PLAYER_HEAD).addScaledVector(_dirTmp, 0.16).setY(PLAYER_HEAD.y + 0.04);
+  pos.copy(PLAYER_HEAD).addScaledVector(_dirTmp, 0.16);
+  pos.y = PLAYER_HEAD.y + 0.04;
+  look.copy(pos).addScaledVector(_dirTmp, 4.0);
 }
 const _dirTmp = new THREE.Vector3();
 
@@ -1145,17 +1156,22 @@ function TableCatcher() {
     const ctrTmp = new THREE.Vector3();
     // 轨道手势只在"投影小窗之外的画布"上起效：HTML 面板的 target 不是 canvas，天然滤掉；
     // 互动点的点按走 click 通道不受影响（几乎无位移的拖拽照常触发 click）
-    const armed = () => !!useStudio.getState().orbit;
+    // 两种拖拽语义：有轨道中心 → 绕圆心球面运动；第一人称眼位 → 转角色的头环视
+    const mode = () => {
+      const st = useStudio.getState();
+      if (st.orbit) return "orbit" as const;
+      return st.camera.kind === "default" ? ("eye" as const) : null;
+    };
     const onDown = (e: PointerEvent) => {
-      if (!armed() || e.target !== el) return;
+      if (!mode() || e.target !== el) return;
       g.current.pointers.set(e.pointerId, [e.clientX, e.clientY]);
       g.current.lastPinch = null;
     };
     const onMove = (e: PointerEvent) => {
       const s = g.current;
       if (!s.pointers.has(e.pointerId)) return;
-      const o = useStudio.getState().orbit;
-      if (!o) {
+      const m = mode();
+      if (!m) {
         s.pointers.clear();
         return;
       }
@@ -1163,6 +1179,12 @@ function TableCatcher() {
       const dx = e.clientX - prev[0];
       const dy = e.clientY - prev[1];
       s.pointers.set(e.pointerId, [e.clientX, e.clientY]);
+      if (m === "eye") {
+        // 眼位环视：滑屏 = 转头（画面跟手，向左滑看向左）
+        if (s.pointers.size === 1) addEyeLook(dx * 0.0042, -dy * 0.0036);
+        return;
+      }
+      const o = useStudio.getState().orbit!;
       const lim = ORBIT_LIMITS[o.target] ?? ORBIT_LIMITS.node;
       if (s.pointers.size === 1) {
         // 单指拖拽 = 绕圆心的球面运动（相机恒定看向圆心）
