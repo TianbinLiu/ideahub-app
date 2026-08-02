@@ -32,13 +32,17 @@ export const orbit: OrbitState = { theta: 0, phi: Math.PI / 2, radius: 3, active
 /** 第一人称环视：相对"正对 NPC"基准方向的偏航/俯仰（弧度）。
  *  同时驱动相机朝向与角色头骨旋转——滑屏 = 转头看向别处 */
 export const eyeLook = { yaw: 0, pitch: 0 };
-/** 颈部活动范围：偏航 ±75°、俯仰 ±42°（超出就成拧脖子了） */
+/** 颈部活动范围：偏航 ±75°。俯仰不对称——低头要能看到自己的身体。
+ *  实测（f 档 rig、scale 4.85 / y −2.4）：头骨世界高 1.475、上胸 0.980，眼点在头骨
+ *  上方 0.04、前方 0.12，从眼到胸前表面的方位是水平线下 ~83°。视野 50°（半角 25°），
+ *  低头 1.20rad(68.8°) 时可看到 93.8° 以下——胸和手都进画。抬头维持原来的 42°。 */
 export const EYE_YAW_LIMIT = 1.31;
-export const EYE_PITCH_LIMIT = 0.73;
+export const EYE_PITCH_DOWN = 1.2;
+export const EYE_PITCH_UP = 0.73;
 
 export function addEyeLook(dYaw: number, dPitch: number) {
   eyeLook.yaw = Math.min(EYE_YAW_LIMIT, Math.max(-EYE_YAW_LIMIT, eyeLook.yaw + dYaw));
-  eyeLook.pitch = Math.min(EYE_PITCH_LIMIT, Math.max(-EYE_PITCH_LIMIT, eyeLook.pitch + dPitch));
+  eyeLook.pitch = Math.min(EYE_PITCH_UP, Math.max(-EYE_PITCH_DOWN, eyeLook.pitch + dPitch));
 }
 
 // DEV 调参/验收后门：控制台可直接读写轨道参数与头部锚点

@@ -180,8 +180,10 @@ function eyeCam(pos: THREE.Vector3, look: THREE.Vector3) {
   const yaw = base + eyeLook.yaw;
   const cp = Math.cos(eyeLook.pitch);
   _dirTmp.set(Math.sin(yaw) * cp, Math.sin(eyeLook.pitch), Math.cos(yaw) * cp);
-  // 眼球略前于头骨中心，避免近裁剪面切到自己的刘海/发丝
-  pos.copy(PLAYER_HEAD).addScaledVector(_dirTmp, 0.16);
+  // 眼球略前于头骨中心，避免近裁剪面切到自己的刘海/发丝。0.16→0.12：前移越多，
+  // 自己的身体越被甩到相机后面，低头就看不见胸（第一人称眼位下头骨已被缩到
+  // 0.001，刘海随之消失，不需要留那么大余量）
+  pos.copy(PLAYER_HEAD).addScaledVector(_dirTmp, 0.12);
   pos.y = PLAYER_HEAD.y + 0.04;
   look.copy(pos).addScaledVector(_dirTmp, 4.0);
 }

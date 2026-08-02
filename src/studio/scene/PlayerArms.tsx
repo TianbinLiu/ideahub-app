@@ -39,6 +39,20 @@ const TRIPO_POSE: PoseTable = {
   rArm: [0, -1.38, 0],
   rFore: [0.25, 0, 1.6],
 };
+// 站姿：这个 rig 的 rest 本身就是站立 A 姿（实测 LeftArm 朝向 (-0.12,+0.22,-0.97)，
+// 即手臂自然垂下），所以站姿=全零增量。TRIPO_POSE 那套 spine1 前倾 0.6rad(34°)
+// 是"趴吧台"的取景姿势——第一人称下它让角色永远弓着背，用户报"没有站立动作"。
+// MMD 档早就有"第一人称=站直 / 离开=伏桌"的双态，这里给 Tripo 档补齐同一语义。
+const TRIPO_STAND: PoseTable = {
+  spine1: [0, 0, 0],
+  neck: [0, 0, 0],
+  head: [0, 0, 0],
+  lArm: [0, 0, 0],
+  lFore: [0.12, 0, 0], // 肘微屈，纯直臂像木偶
+  rArm: [0, 0, 0],
+  rFore: [0.12, 0, 0],
+};
+
 // MMD 系轴向实测（rest-relative 增量）：臂 -z=前摆、±x=展/收、y=扭转；脊柱 +x=前倾。
 // 姿势=弯腰伏桌（用户定稿）：腰弯 ~75°+抬头看向对面，胸部越过桌沿压在桌面上，
 // 双臂内收交叉垫在胸下（腰部枢轴世界高 ≈0.25 恰在桌沿顶——弯平后胸自然落到桌毡）
@@ -75,14 +89,16 @@ const RIGS: Record<
     hideHead?: boolean;
     /** think 生效范围：Tripo=showSelf（含自由视角）；MMD=仅卡组特写（自由视角应看到伏桌常态） */
     thinkDeckOnly?: boolean;
+    /** 第一人称（眼位）下改用的站立姿势；不填则沿用 pose */
+    standPose?: PoseTable;
   }
 > = {
   // 体格/落地重定（与 rin/gratia 同一标尺）：模型脚底=原点、局部身高 0.92，
   // 旧值 scale4.3+y-2.9 = 身高 3.96 单位(1.57m) 且脚陷地 0.5——第一人称眼位只比
   // 桌沿高 7cm（眼位读的是真实头骨，模型矮=视角矮）。
   // 定标：吧台 2.65 单位=1.05m → 1m≈2.52 单位；身高 1.77m=4.46 单位 → scale 4.85
-  m: { yaw: Math.PI / 2, scale: 4.85, y: -2.4, z: 4.95, pose: TRIPO_POSE, hideHead: true },
-  f: { yaw: Math.PI / 2, scale: 4.85, y: -2.4, z: 4.95, pose: TRIPO_POSE, hideHead: true },
+  m: { yaw: Math.PI / 2, scale: 4.85, y: -2.4, z: 4.95, pose: TRIPO_POSE, standPose: TRIPO_STAND, hideHead: true },
+  f: { yaw: Math.PI / 2, scale: 4.85, y: -2.4, z: 4.95, pose: TRIPO_POSE, standPose: TRIPO_STAND, hideHead: true },
   rin: {
     yaw: Math.PI,
     // 体格/落地重定（用户平视验收）：scale 按 NPC 体格比例（4.3 是 7.2 单位巨人；场景角色 ~3.4）、
@@ -442,9 +458,11 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       if (head2 && settleAction.timeScale === 0) applyGaze(head2, t, camera);
     } else {
       if (thinkAction && (thinkAction.isRunning() || thinkAction.paused)) thinkAction.stop();
+      // 第一人称=站直，其余机位维持趴吧台取景姿势（与 MMD 档 settle 双态同语义）
+      const table = eyeView && rig.standPose ? rig.standPose : p2;
       for (const k of Object.keys(BONES) as (keyof typeof BONES)[]) {
         const n = bones.current[k];
-        const v = p2[k] as [number, number, number] | null;
+        const v = table[k] as [number, number, number] | null;
         if (n && v) {
           gv.ePose.set(v[0] + (k === "spine1" ? breathe : 0), v[1], v[2]);
           const rest = restQ.current[k];
