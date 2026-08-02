@@ -83,18 +83,33 @@ bake_shape_mix("Milltina_cloth_hat", {"Option_Twin tail": 1.0})
 # 紧贴衣身内侧（到衣身的内侧距离普遍小于 margin），照做等于把整个胸拍平贴合到裙料壳
 # 上——这就是用户报的"人物胸部扭曲"。用骨骼权重做豁免判据，比按高度猜区间精确得多。
 BREAST_GROUPS = ("Breast_L", "Breast_R", "Breast_L001", "Breast_R001")
+# 手臂同样要豁免：cinch_waist 的"按身体径向缩"和 tuck_under 的"按身体径向外定内外侧"
+# 这两个判据都只对躯干成立。手臂的外侧方向与身体径向无关，套上去会把手臂顶点朝任意
+# 方向推（实测 tuck 动了 1623 个手臂顶点、最大位移 0.042 模型单位 ≈ 世界 5.6cm），
+# 手臂就从袖子里捅出来（用户实测"手臂与手臂衣服穿模"）。
+ARM_GROUPS = (
+    "Shoulder_L", "Shoulder_R",
+    "Upper_arm_L", "Upper_arm_R", "Lower_arm_L", "Lower_arm_R",
+    "Upper_arm_Twist_L", "Upper_arm_Twist_R", "Lower_arm_Twist_L", "Lower_arm_Twist_R",
+    "Hand_L", "Hand_R",
+)
 
 
-def breast_weighted(obj, thresh=0.01):
-    """返回受 Breast 骨链影响的顶点索引集合。"""
-    gi = {obj.vertex_groups[n].index for n in BREAST_GROUPS if n in obj.vertex_groups}
+def weighted_by(obj, names, thresh=0.01, label=""):
+    """返回受给定骨骼组影响超过阈值的顶点索引集合。"""
+    gi = {obj.vertex_groups[n].index for n in names if n in obj.vertex_groups}
     if not gi:
-        print("胸部豁免: 未找到 Breast 顶点组")
+        print(f"{label}豁免: 未找到对应顶点组")
         return set()
     out = {v.index for v in obj.data.vertices
-           if any(g.group in gi and g.weight > thresh for g in v.groups)}
-    print(f"胸部豁免: {len(out)} 顶点")
+           if sum(g.weight for g in v.groups if g.group in gi) > thresh}
+    print(f"{label}豁免: {len(out)} 顶点")
     return out
+
+
+def protected_verts(obj):
+    """形状敏感、不该被径向收束/塞入动到的区域：胸（贴衣、形状是主体）+ 手臂（判据不成立）。"""
+    return weighted_by(obj, BREAST_GROUPS, 0.01, "胸部") | weighted_by(obj, ARM_GROUPS, 0.3, "手臂")
 
 
 WAIST_Z = (0.42, 0.52, 0.84, 0.90)   # 淡入起 / 满额起 / 满额止 / 淡出止
@@ -105,7 +120,7 @@ def cinch_waist(zr=WAIST_Z, k=WAIST_SHRINK):
     if o is None:
         print("腰部收束: 未找到 Milltina_body")
         return
-    skip = breast_weighted(o)
+    skip = protected_verts(o)
     z0, z1, z2, z3 = zr
     n = 0
     for v in o.data.vertices:
@@ -151,7 +166,7 @@ def tuck_under(garment_name, zr, margin=0.012, body_name="Milltina_body"):
             tris.append((pv[0], pv[k], pv[k + 1]))
     tree = BVHTree.FromPolygons(vs, tris, all_triangles=True)
     bmi = bm.inverted()
-    skip = breast_weighted(b)
+    skip = protected_verts(b)
     n = 0
     for v in b.data.vertices:
         if not (zr[0] <= v.co.z <= zr[1]) or v.index in skip:
@@ -178,7 +193,7 @@ def tuck_under(garment_name, zr, margin=0.012, body_name="Milltina_body"):
     print(f"收缩包裹: {body_name} ← {garment_name} {n} 顶点 margin={margin}")
 
 
-tuck_under("Milltina_cloth_dress", (0.52, 0.98))
+tuck_under("Milltina_cloth_dress", (0.52, 0.92))  # 上界避开肩臂
 
 
 # ── 胸根权重平滑：90° 直角的根源是蒙皮权重梯度不连续 ──
