@@ -17,6 +17,14 @@ import { NPC_CAM } from "./layout";
 import { NPC_HEAD, orbit } from "./cameraOrbit";
 
 const cardPos = new THREE.Vector3();
+/** 注视限幅：偏航 17°、抬头 10°、低头 4.5°。低头限得最死——脸前端到刘海外表面只有
+ *  0.0187 模型单位余量（实测），低头正是把脸往刘海里推的方向 */
+const GAZE_YAW = 0.30;
+const GAZE_PITCH_UP = 0.18;
+const GAZE_PITCH_DOWN = 0.08;
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const clamp1 = (v: number) => (v > 1 ? 1 : v < -1 ? -1 : v);
+
 const _breastQ = new THREE.Quaternion();
 const _breastEuler = new THREE.Euler(); // Breast 骨实测：x−=纯上抬（两侧同）、L y+/R y−=向外
 const _breastDir = new THREE.Vector3();
@@ -317,6 +325,9 @@ export default function TripoNpc({
       baseDir: new THREE.Vector3(),
       camDir: new THREE.Vector3(),
       qDelta: new THREE.Quaternion(),
+      qYaw: new THREE.Quaternion(),
+      qPitch: new THREE.Quaternion(),
+      pitchAxis: new THREE.Vector3(),
       qParent: new THREE.Quaternion(),
       qTmp: new THREE.Quaternion(),
       qId: new THREE.Quaternion(),
@@ -844,9 +855,10 @@ export default function TripoNpc({
             gl2.nextAt = t + 3.5 + h * 4.5;
             gl2.until = 0;
           } else {
-            // 缓入缓出：窗口两端 0.5s 渐变
-            const aIn = Math.min(1, (t - gl2.start) / 0.5);
-            const aOut = Math.min(1, (gl2.until - t) / 0.5);
+            // 缓入缓出：窗口两端 0.9s 渐变。原来 0.5s——刘海是弹簧骨（stiffness 4、
+            // drag 0.28），转头太快它跟不上，脸就从落后的刘海里钻出来。拉长渐变让发跟上。
+            const aIn = Math.min(1, (t - gl2.start) / 0.9);
+            const aOut = Math.min(1, (gl2.until - t) / 0.9);
             const m = Math.min(aIn, aOut);
             weight = m * m * (3 - 2 * m);
           }
@@ -856,11 +868,29 @@ export default function TripoNpc({
           gv.headPos.setFromMatrixPosition(head.matrixWorld);
           gv.baseDir.set(NPC_CAM.pos[0], NPC_CAM.pos[1], NPC_CAM.pos[2]).sub(gv.headPos).normalize();
           gv.camDir.copy(camera.position).sub(gv.headPos).normalize();
-          gv.qDelta.setFromUnitVectors(gv.baseDir, gv.camDir);
-          // 限幅 0.35 rad（比玩家的 0.5 收紧：Q 版大头转太多诡异）
-          const ang = 2 * Math.acos(Math.min(1, Math.abs(gv.qDelta.w)));
-          if (ang > 0.35) gv.qDelta.slerp(gv.qId, 1 - 0.35 / ang);
-          gv.qDelta.slerp(gv.qId, 1 - weight * gazeGate.current);
+          // 偏航/俯仰分开构造并分别限幅，不再用 setFromUnitVectors 的任意轴旋转。
+          // 原因（实测）：脸最前端到刘海外表面只有 0.0187 模型单位余量，而脸前端距头骨
+          // 0.0759——绕头骨转 0.35rad(20°) 就位移 0.0266，比余量还大，脸必然捅出刘海。
+          // 而且任意轴旋转会混进 roll（歪脖子）和大量俯仰：低机位相机让头往前下方栽，
+          // 正是"向前抽搐、脸突出来"的方向。低头方向限得最死。
+          const yb = Math.atan2(gv.baseDir.x, gv.baseDir.z);
+          const yc = Math.atan2(gv.camDir.x, gv.camDir.z);
+          let dYaw = yc - yb;
+          if (dYaw > Math.PI) dYaw -= 2 * Math.PI;
+          else if (dYaw < -Math.PI) dYaw += 2 * Math.PI;
+          dYaw = Math.max(-GAZE_YAW, Math.min(GAZE_YAW, dYaw));
+          const dPitch = Math.max(
+            -GAZE_PITCH_DOWN,
+            Math.min(GAZE_PITCH_UP, Math.asin(clamp1(gv.camDir.y)) - Math.asin(clamp1(gv.baseDir.y))),
+          );
+          const w2 = weight * gazeGate.current;
+          gv.qYaw.setFromAxisAngle(WORLD_UP, dYaw * w2);
+          // 俯仰轴 = 水平面内垂直于基准朝向的轴（正角度=抬头）
+          gv.pitchAxis.set(-gv.baseDir.z, 0, gv.baseDir.x);
+          if (gv.pitchAxis.lengthSq() < 1e-8) gv.pitchAxis.set(1, 0, 0);
+          gv.pitchAxis.normalize();
+          gv.qPitch.setFromAxisAngle(gv.pitchAxis, dPitch * w2);
+          gv.qDelta.copy(gv.qYaw).multiply(gv.qPitch);
           // 世界系增量 → 头骨局部系：local' = P⁻¹·Δ·P·local
           head.parent!.getWorldQuaternion(gv.qParent);
           gv.qTmp.copy(gv.qParent).invert().multiply(gv.qDelta).multiply(gv.qParent);
