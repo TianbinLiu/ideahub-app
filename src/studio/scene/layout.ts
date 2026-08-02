@@ -4,7 +4,8 @@ export const TABLE = { w: 16, d: 7, thick: 0.35 };
 
 export const CARD = { w: 1.1, h: 1.65, lift: 0.02 };
 
-/** 默认俯视机位（竖屏）：从用户头顶前上方向下看 */
+/** 旧的俯视机位。**默认机位已改为第一人称眼位**（CameraRig 里按玩家头骨动态求值，
+ *  见 eyeCam）；这里只留作 RIG_LOOK 的初值与模型未加载完时的兜底 */
 export const DEFAULT_CAM: { pos: [number, number, number]; look: [number, number, number] } = {
   pos: [0, 9.8, 3.0],
   look: [0, 0, 0.25],

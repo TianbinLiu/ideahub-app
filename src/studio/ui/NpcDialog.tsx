@@ -14,18 +14,14 @@ export default function NpcDialog() {
   const busy = useStudio((s) => s.dialog.busy);
   const pending = useStudio((s) => s.pendingFiles);
   const projection = useStudio((s) => s.projection);
-  const [open, setOpen] = useState(false);
+  // 对话框默认隐藏：可见性由 store 的 dialogView 决定，只有点击 3D 里的 NPC 才唤起
+  const open = useStudio((s) => s.dialogView);
   const [mode, setMode] = useState<SheetMode>("choose");
   const [hov, setHov] = useState<"market" | "forge" | null>(null);
-  const [seen, setSeen] = useState(0);
   const [text, setText] = useState("");
   const [reading, setReading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (open) setSeen(messages.length);
-  }, [open, messages.length]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
@@ -34,25 +30,15 @@ export default function NpcDialog() {
   // 投影窗打开时隐藏对话层，避免遮挡
   if (projection) return null;
 
-  const last = messages[messages.length - 1];
-  const unread = Math.max(0, messages.length - seen);
 
-  // 打开对话 → 俯视 NPC 半场（看到 NPC 侧桌面 + 贴桌沿的上半身）；关闭 → 拉回默认俯视
-  function openSheet() {
-    const st = useStudio.getState();
-    st.unfocus();
-    st.setDialogView(true);
-    st.setCamera({ kind: "pos", pos: NPC_CAM.pos, look: NPC_CAM.look });
-    void st.refreshRecommend();
-    setMode(st.market.open ? "market" : "choose");
-    setHov(null);
-    setOpen(true);
-  }
+  // 关闭对话 → 相机回第一人称眼位，轨道解除
   function closeSheet() {
     const st = useStudio.getState();
     st.setDialogView(false);
     st.setCamera({ kind: "default" });
-    setOpen(false);
+    useStudio.setState({ orbit: null });
+    setMode("choose");
+    setHov(null);
   }
   function chooseMarket() {
     setMode("market");
@@ -97,26 +83,8 @@ export default function NpcDialog() {
     setText("");
   }
 
-  if (!open) {
-    return (
-      <button
-        onClick={openSheet}
-        className="absolute inset-x-3 bottom-3 z-10 flex items-center gap-2 rounded-full border border-slate-700/70 bg-panel/90 px-3.5 py-2.5 text-left backdrop-blur"
-      >
-        <span className={`h-2.5 w-2.5 flex-none rounded-full ${busy ? "animate-pulse bg-amber-400" : "bg-emerald-400"}`} />
-        <span className="flex-none text-sm font-semibold text-slate-100">铸卡师</span>
-        <span className="min-w-0 flex-1 truncate text-xs text-slate-400">
-          {busy ? "炼卡中…" : last ? last.text : "把素材交给我，或逛逛市场"}
-        </span>
-        {unread > 0 && (
-          <span className="flex h-5 min-w-5 flex-none items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-ink">
-            {unread}
-          </span>
-        )}
-        <span className="flex-none text-slate-500">▴</span>
-      </button>
-    );
-  }
+  // 默认隐藏：不再有常驻气泡栏，点击 3D 里的铸卡师才唤起（用户定稿）
+  if (!open) return null;
 
   // ── 选项态：两大选项占据窗口左右 ──────────────────────────────
   if (mode === "choose") {

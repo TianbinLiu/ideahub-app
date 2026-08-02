@@ -3,7 +3,7 @@
 // 左手抬起持 AI 推荐卡（卡面挂 LeftHand 骨）。
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
-import { useFrame, useLoader } from "@react-three/fiber";
+import { ThreeEvent, useFrame, useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { useStudio } from "../studioStore";
@@ -11,6 +11,7 @@ import { cardFaceTexture } from "./cardTexture";
 import { loaderFor } from "../secureAssets";
 import { SpringBoneSim } from "./springBones";
 import { NPC_CAM } from "./layout";
+import { NPC_HEAD, orbit } from "./cameraOrbit";
 
 const cardPos = new THREE.Vector3();
 
@@ -599,6 +600,8 @@ export default function TripoNpc({
       }
     }
     gltf.scene.updateMatrixWorld(true);
+    // 发布头部世界坐标：相机绕 NPC 头做球面运动 + 第一人称眼位的注视目标
+    if (bones.current.head) bones.current.head.getWorldPosition(NPC_HEAD);
     // 弹簧骨在姿势/动画之后模拟（读最新世界矩阵，回写局部旋转）
     if (springSim) {
       springSim.update(dt);
@@ -630,10 +633,16 @@ export default function TripoNpc({
   return (
     <group>
       {/* full 站在桌后（落地裙）；bust z：胸前缘恰好压上桌沿 rail，配合 squish 呈"撑在桌面"贴合 */}
+      {/* 点击 NPC 建模 = 进入对话（对话框默认隐藏，只由此唤起）；轨道拖拽末尾的 click 不误触 */}
       <primitive
         object={gltf.scene}
         position={[0, y, cfg ? cfg.z : full ? -4.35 : bust ? -4.28 : -3.9]}
         scale={scale}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          e.stopPropagation();
+          if (orbit.active) return;
+          useStudio.getState().openNpcDialog();
+        }}
       />
       {/* 伏桌接触阴影：桌毡一片 + 护栏顶一片，透明度随 lean 进度渐入 */}
       {full && (

@@ -21,6 +21,15 @@ import {
   focusCam,
 } from "./layout";
 import { npcModelUrl } from "../quality";
+import {
+  NPC_HEAD,
+  ORBIT_LIMITS,
+  PLAYER_HEAD,
+  clampRadiusByScene,
+  orbit,
+  orbitToPosition,
+  syncOrbitFromCamera,
+} from "./cameraOrbit";
 
 // 购入模型 Milltina（默认铸卡师）的配置（模块级常量：内联对象会让 TripoNpc 的 memo 每帧重建）
 // FBX 静止姿势是 T-pose；轴向实测：x−=垂臂（z 是水平前摆别用），微量 z 让手贴身
@@ -86,25 +95,66 @@ export function computeChain(root: NodeSlot | null): ChainLayout {
 }
 
 // ── 相机：朝目标位姿缓动（transient 直读 store，避免订阅延迟一帧） ──
-// RIG_LOOK 提到模块级：自由视角手势（TableCatcher）平移相机时需同步平移视线锚点
+// RIG_LOOK 提到模块级：手势层需要读取当前视线锚点
 const RIG_LOOK = new THREE.Vector3(...DEFAULT_CAM.look);
+
+/** 解析当前轨道圆心（player/npc 每帧跟随头骨，node 用点击时记下的卡片坐标） */
+export function resolveOrbitCenter(
+  o: { target: "node" | "player" | "npc"; point?: [number, number, number] } | null,
+  out: THREE.Vector3,
+): THREE.Vector3 | null {
+  if (!o) return null;
+  if (o.target === "player") return out.copy(PLAYER_HEAD);
+  if (o.target === "npc") return out.copy(NPC_HEAD);
+  return o.point ? out.set(o.point[0], o.point[1], o.point[2]) : null;
+}
+
+/** 第一人称眼位：站在玩家头部、朝 NPC 看（默认机位，取代旧的俯视） */
+function eyeCam(pos: THREE.Vector3, look: THREE.Vector3) {
+  look.copy(NPC_HEAD);
+  // 眼球略前于头骨中心，避免近裁剪面切到自己的刘海/发丝
+  _dirTmp.copy(NPC_HEAD).sub(PLAYER_HEAD).normalize();
+  pos.copy(PLAYER_HEAD).addScaledVector(_dirTmp, 0.16).setY(PLAYER_HEAD.y + 0.04);
+}
+const _dirTmp = new THREE.Vector3();
+
 function CameraRig() {
   const tmp = useRef(new THREE.Vector3());
+  const ctr = useRef(new THREE.Vector3());
+  const eyeP = useRef(new THREE.Vector3());
+  const eyeL = useRef(new THREE.Vector3());
   const deckAnim = useRef<{ p: number; start: THREE.Vector3 } | null>(null);
   const prevDeck = useRef(false);
   const lastCamObj = useRef<unknown>(null);
-  useFrame(({ camera }, dt) => {
+  useFrame(({ camera, scene, clock }, dt) => {
     const st = useStudio.getState();
-    // 自由视角：rig 停止驱动（手势直接挪相机）；任何交互 action 设了新机位对象 → 纠正镜头退出
-    if (st.freeCam) {
-      if (lastCamObj.current === st.camera) {
-        prevDeck.current = st.deckView;
-        return;
-      }
-      useStudio.setState({ freeCam: false });
+    // 新机位落位（点击互动点）→ 交还脚本运镜控制权
+    if (lastCamObj.current !== st.camera) {
+      lastCamObj.current = st.camera;
+      orbit.active = false;
     }
-    lastCamObj.current = st.camera;
-    const target = st.camera.kind === "default" ? DEFAULT_CAM : st.camera;
+    const center = resolveOrbitCenter(st.orbit, ctr.current);
+    // ── 用户已接管：纯球面轨道驱动，脚本运镜让位 ──
+    if (orbit.active && center) {
+      const lim = ORBIT_LIMITS[st.orbit!.target] ?? ORBIT_LIMITS.node;
+      const safe = clampRadiusByScene(scene, center, orbit.radius, lim.min, clock.elapsedTime);
+      const keep = orbit.radius;
+      orbit.radius = safe;
+      orbitToPosition(center, tmp.current);
+      orbit.radius = keep; // 只在渲染时收敛，不污染用户的缩放意图
+      camera.position.copy(tmp.current);
+      RIG_LOOK.copy(center);
+      camera.lookAt(RIG_LOOK);
+      prevDeck.current = st.deckView;
+      return;
+    }
+    let target: { pos: readonly [number, number, number] | number[]; look: readonly [number, number, number] | number[] };
+    if (st.camera.kind === "default") {
+      eyeCam(eyeP.current, eyeL.current);
+      target = { pos: [eyeP.current.x, eyeP.current.y, eyeP.current.z], look: [eyeL.current.x, eyeL.current.y, eyeL.current.z] };
+    } else {
+      target = st.camera;
+    }
     // 手机竖屏（aspect<0.62）垂直 FOV 固定→水平视野变窄→卡组机位下人脸过大：自动后撤一档
     const narrowPull =
       st.deckView && (camera as THREE.PerspectiveCamera).aspect < 0.62 ? -0.3 : 0;
@@ -115,35 +165,35 @@ function CameraRig() {
     if (!st.deckView) deckAnim.current = null;
     const anim = deckAnim.current;
     if (anim && st.deckView) {
-      // 滑梯运镜：头顶起点 → 左外侧高点拉远 → 左前低点收进 → 悬停在玩家前方桌沿高度。
-      // 三次贝塞尔，全程 lookAt 玩家；quintic 缓动 + 控制点收拢 = 起段旋转平缓不晕
-      anim.p = Math.min(1, anim.p + dt / 3.0);
+      // 滑梯运镜：从眼位出发，绕到玩家左外侧拉远 → 一路下滑 → 收进玩家正前方、
+      // 悬停在桌面高度。三次贝塞尔 + quintic 缓动；全程 lookAt 角色头部（而非固定点，
+      // 这样她的头随姿势动镜头也始终盯着她）
+      // dt 取自真实墙钟：一次卡顿/切回标签页就可能是几百毫秒甚至数秒，不夹住会让
+      // 整段滑梯瞬移到终点（离屏捕帧下必现，真机偶发）
+      anim.p = Math.min(1, anim.p + Math.min(dt, 0.05) / 3.0);
       const p = anim.p * anim.p * anim.p * (anim.p * (anim.p * 6 - 15) + 10);
       const P0 = anim.start;
       const [ex, ey, ez] = DECK_CAM.pos;
-      const c1x = -2.8;
-      const c1y = Math.max(3.2, P0.y * 0.5);
-      const c1z = 3.9;
-      const c2x = -2.3;
-      const c2y = 0.9;
-      const c2z = 3.9;
       const u = 1 - p;
       const bez = (a: number, b: number, c: number, d: number) =>
         u * u * u * a + 3 * u * u * p * b + 3 * u * p * p * c + p * p * p * d;
       camera.position.set(
-        bez(P0.x, c1x, c2x, ex),
-        bez(P0.y, c1y, c2y, ey),
-        bez(P0.z, c1z, c2z, ez + narrowPull),
+        bez(P0.x, -2.6, -2.2, ex),
+        bez(P0.y, Math.max(1.9, P0.y + 1.2), 0.62, ey),
+        bez(P0.z, P0.z + 0.5, 3.5, ez + narrowPull),
       );
-      RIG_LOOK.lerp(tmp.current.set(...DECK_CAM.look), Math.min(1, p * 2.4));
+      RIG_LOOK.lerp(PLAYER_HEAD, Math.min(1, p * 2.4));
       camera.lookAt(RIG_LOOK);
       if (anim.p >= 1) deckAnim.current = null;
+      syncOrbitFromCamera(camera.position, center ?? PLAYER_HEAD);
       return;
     }
     const k = 1 - Math.exp(-dt * 4.5);
     camera.position.lerp(tmp.current.set(target.pos[0], target.pos[1], target.pos[2] + narrowPull), k);
-    RIG_LOOK.lerp(tmp.current.set(...target.look), k);
+    RIG_LOOK.lerp(tmp.current.set(target.look[0], target.look[1], target.look[2]), k);
     camera.lookAt(RIG_LOOK);
+    // 脚本运镜期间持续同步球面参数：用户随时接管都不跳变
+    if (center) syncOrbitFromCamera(camera.position, center);
   });
   return null;
 }
@@ -1092,20 +1142,20 @@ function TableCatcher() {
   });
   useEffect(() => {
     const el = gl.domElement;
-    const right = new THREE.Vector3();
-    const up = new THREE.Vector3();
-    const dir = new THREE.Vector3();
+    const ctrTmp = new THREE.Vector3();
+    // 轨道手势只在"投影小窗之外的画布"上起效：HTML 面板的 target 不是 canvas，天然滤掉；
+    // 互动点的点按走 click 通道不受影响（几乎无位移的拖拽照常触发 click）
+    const armed = () => !!useStudio.getState().orbit;
     const onDown = (e: PointerEvent) => {
-      // 自由视角下任何落在 canvas 上的按下都算拖拽起点（HTML 面板的 target 不是 canvas，
-      // 自然滤掉；互动点的"点按"走 click 通道不受影响——拖拽几乎无位移时 click 照常触发）
-      if (!useStudio.getState().freeCam || e.target !== el) return;
+      if (!armed() || e.target !== el) return;
       g.current.pointers.set(e.pointerId, [e.clientX, e.clientY]);
       g.current.lastPinch = null;
     };
     const onMove = (e: PointerEvent) => {
       const s = g.current;
       if (!s.pointers.has(e.pointerId)) return;
-      if (!useStudio.getState().freeCam) {
+      const o = useStudio.getState().orbit;
+      if (!o) {
         s.pointers.clear();
         return;
       }
@@ -1113,20 +1163,28 @@ function TableCatcher() {
       const dx = e.clientX - prev[0];
       const dy = e.clientY - prev[1];
       s.pointers.set(e.pointerId, [e.clientX, e.clientY]);
+      const lim = ORBIT_LIMITS[o.target] ?? ORBIT_LIMITS.node;
       if (s.pointers.size === 1) {
-        // 单指拖拽：沿相机右/上轴平移（地图式：画面跟随手指），视线锚点同步平移保持朝向
-        const k = 0.0035 * Math.max(2, camera.position.distanceTo(RIG_LOOK)) * 0.45;
-        right.setFromMatrixColumn(camera.matrix, 0);
-        up.setFromMatrixColumn(camera.matrix, 1);
-        camera.position.addScaledVector(right, -dx * k).addScaledVector(up, dy * k);
-        RIG_LOOK.addScaledVector(right, -dx * k).addScaledVector(up, dy * k);
+        // 单指拖拽 = 绕圆心的球面运动（相机恒定看向圆心）
+        if (!orbit.active) {
+          const c = resolveOrbitCenter(o, ctrTmp);
+          if (c) syncOrbitFromCamera(camera.position, c);
+          orbit.active = true;
+        }
+        orbit.theta -= dx * 0.006;
+        // 极角夹在 [12°, 168°]：不允许翻过头顶/脚底导致画面翻转
+        orbit.phi = Math.min(Math.PI - 0.21, Math.max(0.21, orbit.phi - dy * 0.006));
       } else if (s.pointers.size === 2) {
-        // 双指捏合：沿视线推拉远近
+        // 双指捏合 = 改变球面半径（保留缩放功能）；下限由 ORBIT_LIMITS + 场景碰撞双重兜底
         const pts = [...s.pointers.values()];
         const d = Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]);
         if (s.lastPinch != null) {
-          dir.subVectors(RIG_LOOK, camera.position).normalize();
-          camera.position.addScaledVector(dir, (d - s.lastPinch) * 0.012);
+          if (!orbit.active) {
+            const c = resolveOrbitCenter(o, ctrTmp);
+            if (c) syncOrbitFromCamera(camera.position, c);
+            orbit.active = true;
+          }
+          orbit.radius = Math.min(lim.max, Math.max(lim.min, orbit.radius - (d - s.lastPinch) * 0.012));
         }
         s.lastPinch = d;
       }
@@ -1135,12 +1193,18 @@ function TableCatcher() {
       g.current.pointers.delete(e.pointerId);
       g.current.lastPinch = null;
     };
-    // 桌面调试便利：滚轮推拉
+    // 桌面调试便利：滚轮 = 轨道半径推拉
     const onWheel = (e: WheelEvent) => {
-      if (!useStudio.getState().freeCam) return;
+      const o = useStudio.getState().orbit;
+      if (!o) return;
       e.preventDefault();
-      dir.subVectors(RIG_LOOK, camera.position).normalize();
-      camera.position.addScaledVector(dir, -e.deltaY * 0.004);
+      const lim = ORBIT_LIMITS[o.target] ?? ORBIT_LIMITS.node;
+      if (!orbit.active) {
+        const c = resolveOrbitCenter(o, ctrTmp);
+        if (c) syncOrbitFromCamera(camera.position, c);
+        orbit.active = true;
+      }
+      orbit.radius = Math.min(lim.max, Math.max(lim.min, orbit.radius + e.deltaY * 0.004));
     };
     window.addEventListener("pointerdown", onDown);
     window.addEventListener("pointermove", onMove);
@@ -1159,9 +1223,10 @@ function TableCatcher() {
     <mesh
       rotation={[-Math.PI / 2, 0, 0]}
       position={[0, 0.001, 0]}
+      userData={{ noCam: true }}
       onClick={() => {
-        // 自由视角下点空白桌面只用于拖拽，不触发落卡/回退
-        if (useStudio.getState().freeCam) return;
+        // 轨道拖拽期间点空白桌面不触发落卡/回退（拖拽末尾的 click 误伤）
+        if (orbit.active) return;
         useStudio.getState().unfocus();
       }}
     >

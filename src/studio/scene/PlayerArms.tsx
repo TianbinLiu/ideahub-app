@@ -11,6 +11,7 @@ import { DECK_CAM } from "./layout";
 import { PlayerAvatar, playerModelUrl } from "../quality";
 import { loaderFor } from "../secureAssets";
 import { SpringBoneSim } from "./springBones";
+import { PLAYER_HEAD } from "./cameraOrbit";
 
 const BONES = {
   spine1: "mixamorigSpine1",
@@ -317,8 +318,8 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     if (p2.freeze) return;
     const t = clock.elapsedTime;
     const st = useStudio.getState();
-    // 卡组视角或自由视角都露脸+保持思考姿势（自由视角下用户可能拖到能看到自己的位置）
-    const showSelf = st.deckView || st.freeCam;
+    // 卡组视角、或用户正绕着玩家做球面运动时露脸+保持思考姿势
+    const showSelf = st.deckView || st.orbit?.target === "player";
     // MMD 档 think/下沉只属于卡组特写——自由视角应看到伏桌常态姿势（Tripo 系维持 showSelf 语义）
     const thinkActive = rig.thinkDeckOnly ? st.deckView : showSelf;
     const breathe = Math.sin(t * 1.15 + 1.7) * 0.01;
@@ -401,11 +402,15 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       const head2 = bones.current.head;
       if (showSelf && head2) applyGaze(head2, t, camera);
     }
-    // 头部：Tripo 系 FPS 隐头（防后脑勺入画），拍到玩家时恢复；MMD 系常显
+    // 头部：第一人称眼位（默认机位）时必须隐藏，否则相机就在颅内；
+    // 其余机位（卡组/节点/对话）一律显示。Tripo 系另按 hideHead 保留旧的 FPS 隐头语义
+    const eyeView = st.camera.kind === "default";
     const head = bones.current.head;
     if (head) {
-      const s = rig.hideHead && !showSelf ? 0.001 : 1;
+      const s = eyeView || (rig.hideHead && !showSelf) ? 0.001 : 1;
       if (head.scale.x !== s) head.scale.set(s, s, s);
+      // 眼位锚点：头骨世界坐标（隐藏用的是 scale，世界位置依然有效）
+      head.getWorldPosition(PLAYER_HEAD);
     }
     // deckY 下沉只在卡组特写（挂到 showSelf 会让自由视角浏览时角色突然沉降）
     const baseY = st.deckView && p2.deckY !== undefined ? p2.deckY : p2.y;

@@ -2,7 +2,7 @@
 import { create } from "zustand";
 import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, CardType, DraftVideo, NodeSlot, Proposal, uid } from "../types";
 import { MaterialFile, composeSegments, composeVideo, generateCards, generateProposals, searchMarket } from "../ai";
-import { DECK_CAM } from "./scene/layout";
+import { DECK_CAM, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 
 export interface DialogMsg {
@@ -126,9 +126,12 @@ interface StudioState {
   /** 卡组浏览视角：镜头拍玩家上半身（思考姿势），卡组投影横滑 */
   deckView: boolean;
   openDeckView: () => void;
-  /** 自由视角：关闭投影窗后进入——镜头不回退，用户拖拽平移/双指缩放；
-   *  触到互动点（其 action 设置了新机位）时自动纠正退出 */
-  freeCam: boolean;
+  /** 相机轨道中心：非 null 时，在投影窗之外的画布上拖拽 = 绕该中心做球面运动
+   *  （相机始终看向圆心）。node=节点卡坐标；player/npc=对应角色头部（每帧动态解析）。
+   *  取代了旧的"自由视角平移"——球面运动更可控且天然不会飞出场景 */
+  orbit: { target: "node" | "player" | "npc"; point?: [number, number, number] } | null;
+  /** 点击 3D 场景里的 NPC：切对话机位 + 弹出对话框（对话框默认隐藏） */
+  openNpcDialog: () => void;
   editor: EditorState | null;
   dragCardId: string | null;
   /** 对话视角（底部抽屉展开）：NPC 抬手面向用户 */
@@ -216,7 +219,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   deck: [],
   spreadOpen: false,
   deckView: false,
-  freeCam: false,
+  orbit: null,
   spreadCenter: 0,
   market: { open: false, items: [], query: "", loading: false },
   marketDetail: null,
@@ -389,20 +392,39 @@ export const useStudio = create<StudioState>()((set, get) => ({
       editor: { ...DEFAULT_EDITOR, slots: {} },
       spreadOpen: false,
       camera: { kind: "pos", pos, look },
+      // 绕节点卡本身做球面运动（look 是卡片处，即圆心）
+      orbit: { target: "node", point: look },
     });
   },
   focusNode: (nodeId, pos, look) => {
     if (get().projection) return;
-    set({ focus: { nodeId }, projection: "proposals", camera: { kind: "pos", pos, look } });
+    set({
+      focus: { nodeId },
+      projection: "proposals",
+      camera: { kind: "pos", pos, look },
+      orbit: { target: "node", point: look },
+    });
   },
   unfocus: () => {
     if (get().projection) return;
-    set({ focus: null, editor: null, spreadOpen: false, deckView: false, camera: { kind: "default" } });
+    set({ focus: null, editor: null, spreadOpen: false, deckView: false, camera: { kind: "default" }, orbit: null });
   },
-  // 点 ✕ 关闭投影窗：镜头不回退——落卡后进入自由视角（拖拽平移/双指缩放，
-  // 触到互动点时才纠正镜头），camera 目标保持原对象引用供 rig 判定
+  // 点 ✕ 关闭投影窗：卡组档保留玩家头部轨道（可继续绕角色看），
+  // 节点卡档回第一人称眼位（旧的"自由平移视角"已按用户要求取消）
   closeProjection: () =>
-    set({ projection: null, editor: null, focus: null, spreadOpen: false, deckView: false, freeCam: true }),
+    set((s) =>
+      s.projection === "deck"
+        ? { projection: null, editor: null, focus: null, spreadOpen: false }
+        : {
+            projection: null,
+            editor: null,
+            focus: null,
+            spreadOpen: false,
+            deckView: false,
+            camera: { kind: "default" },
+            orbit: null,
+          },
+    ),
   toggleSpread: () =>
     set((s) => ({ spreadOpen: s.deck.length > 0 && !s.spreadOpen })),
   // 点卡组：镜头移到玩家左侧拍上半身（思考姿势），卡组以投影小窗横滑浏览
@@ -419,7 +441,24 @@ export const useStudio = create<StudioState>()((set, get) => ({
       spreadOpen: false,
       focus: null,
       camera: { kind: "pos", pos: DECK_CAM.pos, look: DECK_CAM.look },
+      // 滑梯运镜落位后绕玩家头部球面运动
+      orbit: { target: "player" },
     });
+  },
+  // 点 3D 里的 NPC：切对话机位 + 弹出对话框（对话框默认隐藏，只由此处唤起）
+  openNpcDialog: () => {
+    const st = get();
+    if (st.projection) return;
+    set({
+      focus: null,
+      editor: null,
+      spreadOpen: false,
+      deckView: false,
+      dialogView: true,
+      camera: { kind: "pos", pos: NPC_CAM.pos, look: NPC_CAM.look },
+      orbit: { target: "npc" },
+    });
+    void st.refreshRecommend();
   },
   shiftSpread: (dir) =>
     set((s) => ({ spreadCenter: Math.min(Math.max(0, s.spreadCenter + dir), Math.max(0, s.deck.length - 1)) })),
