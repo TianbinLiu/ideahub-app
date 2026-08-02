@@ -9,7 +9,8 @@ import { chat, generateImage } from "./arkClient";
 
 /** 方舟返回的图片 URL 有时效（约 24h），落地成 dataURL 再入库（草稿存 localStorage） */
 async function toDataUrl(url: string): Promise<string> {
-  const res = await fetch(url);
+  // 方舟产物在 TOS 域且无 CORS 头——经 dev 服务器同源代取（生产走后端）
+  const res = await fetch(`/api/asset?url=${encodeURIComponent(url)}`);
   if (!res.ok) throw new Error(`取图失败 ${res.status}`);
   const blob = await res.blob();
   return await new Promise<string>((resolve, reject) => {

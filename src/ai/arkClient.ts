@@ -8,11 +8,13 @@ export const AI_REAL = typeof __AI_REAL__ !== "undefined" && __AI_REAL__;
 
 const BASE = "/api/ark";
 
-// 模型 ID（方舟控制台"开通管理"里的主力模型；如有更新版以控制台为准）
+// 模型 ID（2026-08-01 实测于本账号：GET /api/v3/models 取活跃 ID + 控制台开通状态）
+// 选型依据=已开通且有免费额度：Seedream 5.0-lite（50 张）、Seedance 1.5-pro（200 万 tokens）、
+// Seed-2.1-turbo（50 万 tokens）。Seedance 2.0 系列需账户余额>200 元才能开通，暂不可用。
 export const MODELS = {
-  image: "doubao-seedream-4-0-250828",
-  video: "doubao-seedance-1-0-lite-i2v-250428",
-  chat: "doubao-seed-1-6-250615",
+  image: "doubao-seedream-5-0-260128",
+  video: "doubao-seedance-1-5-pro-251215",
+  chat: "doubao-seed-2-1-turbo-260628",
 };
 
 async function arkFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -49,21 +51,37 @@ export async function generateImage(
   return url;
 }
 
-/** Seedance 首帧图生视频：创建任务 → 轮询 → 返回视频 URL */
+/**
+ * Seedance 图生视频：创建任务 → 轮询 → 返回视频 URL。
+ * 传 lastFrameUrl 则走"首尾帧"模式（我们的方案卡正好有首尾帧，画面收束更可控）。
+ * 参数用独立字段（新版 API；旧版塞在 prompt 里的 `--resolution` 已废弃）。
+ */
 export async function generateVideo(
   prompt: string,
   firstFrameUrl: string,
-  opts?: { durationSec?: number; onProgress?: (status: string) => void },
+  opts?: {
+    durationSec?: number;
+    lastFrameUrl?: string;
+    onProgress?: (status: string) => void;
+  },
 ): Promise<string> {
-  const text = `${prompt} --resolution 720p --duration ${Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5)))} --watermark false`;
+  const content: Array<Record<string, unknown>> = [
+    { type: "text", text: prompt },
+    { type: "image_url", image_url: { url: firstFrameUrl }, role: "first_frame" },
+  ];
+  if (opts?.lastFrameUrl) {
+    content.push({ type: "image_url", image_url: { url: opts.lastFrameUrl }, role: "last_frame" });
+  }
   const created = await arkFetch<{ id: string }>("/contents/generations/tasks", {
     method: "POST",
     body: JSON.stringify({
       model: MODELS.video,
-      content: [
-        { type: "text", text },
-        { type: "image_url", image_url: { url: firstFrameUrl }, role: "first_frame" },
-      ],
+      content,
+      resolution: "720p",
+      ratio: "16:9",
+      duration: Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5))),
+      generate_audio: false, // 无声更省 tokens（0.008 vs 0.016 元/千），配乐后续再说
+      watermark: false,
     }),
   });
   const id = created.id;
