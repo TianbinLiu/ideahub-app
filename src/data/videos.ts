@@ -1,6 +1,11 @@
-// 视频仓库：localStorage 持久化 + 首次进入生成种子视频（mock，后续换 server API）
+// 视频仓库：IndexedDB 持久化 + 首次进入生成种子视频（mock，后续换 server API）。
+// 曾用 localStorage，但真实 AI 首尾帧是 1MB 级 base64，一支 2 段视频≈4MB 直接撑爆
+// 5MB 配额 → 用户视频被配额兜底静默丢弃（首页永远看不到自己的作品）。
+// 读仍是同步（内存 cache），启动 await readyVideos() 装载；写异步落 IndexedDB。
 import { DraftVideo, VideoComment, VideoItem, uid } from "../types";
 import { makeFrame } from "../mock/frames";
+import { idbGet, idbSet } from "./db";
+import { currentUser } from "./account";
 
 const KEY = "ideahub-app.videos.v1";
 export const ME = "我";
@@ -125,61 +130,52 @@ function buildSeeds(): VideoItem[] {
   });
 }
 
-function load(): VideoItem[] {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const arr = JSON.parse(raw) as VideoItem[];
-      if (Array.isArray(arr) && arr.length > 0) {
-        // 旧库种子没有分支树：重建种子、保留用户视频（互动播放功能上线迁移）
-        if (!arr.find((v) => v.id === "seedv_0")?.branchTree) {
-          const migrated = [...arr.filter((v) => !isSeed(v)), ...buildSeeds()];
-          save(migrated);
-          return migrated;
+/** 启动装载：IndexedDB 优先；首次运行把旧 localStorage 库搬过来后清掉旧键 */
+export async function readyVideos(): Promise<void> {
+  if (cache) return;
+  let arr = await idbGet<VideoItem[]>(KEY);
+  if (!arr || !Array.isArray(arr) || arr.length === 0) {
+    // 迁移：旧版 localStorage 库（可能已被配额裁剪，能救多少救多少）
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const legacy = JSON.parse(raw) as VideoItem[];
+        if (Array.isArray(legacy) && legacy.length > 0) {
+          arr = legacy;
+          console.info(`[videos] 已从 localStorage 迁移 ${legacy.length} 条到 IndexedDB`);
         }
-        return arr;
       }
+    } catch {
+      /* 旧库损坏就当空库 */
     }
-  } catch {
-    // 解析失败当作空库重建
   }
-  const seeds = buildSeeds();
-  save(seeds);
-  return seeds;
+  if (!arr || arr.length === 0) {
+    arr = buildSeeds();
+  } else if (!arr.find((v) => v.id === "seedv_0")?.branchTree) {
+    // 旧库种子没有分支树：重建种子、保留用户视频
+    arr = [...arr.filter((v) => !isSeed(v)), ...buildSeeds()];
+  }
+  cache = arr;
+  await idbSet(KEY, arr);
+  localStorage.removeItem(KEY); // 迁移完成，旧键不再使用（避免两处数据打架）
 }
 
 function isSeed(v: VideoItem): boolean {
   return v.id.startsWith("seedv_");
 }
 
-function save(list: VideoItem[]): boolean {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(list));
-    return true;
-  } catch {
-    // 配额满：保留种子，从最旧的用户视频开始丢；裁剪结果同步回内存态，避免刷新后“悄悄变少”
-    const seeds = list.filter(isSeed);
-    const users = list.filter((v) => !isSeed(v)).sort((a, b) => b.createdAt - a.createdAt);
-    for (let keep = users.length - 1; keep >= 0; keep--) {
-      const trimmed = [...users.slice(0, keep), ...seeds];
-      try {
-        localStorage.setItem(KEY, JSON.stringify(trimmed));
-        cache = trimmed;
-        console.warn(`[videos] localStorage 已满，丢弃了 ${users.length - keep} 条最旧的用户视频`);
-        return false;
-      } catch {
-        /* 继续减 */
-      }
-    }
-    console.warn("[videos] localStorage 持久化失败，本次数据仅保留在内存中");
-    return false;
-  }
+/** 异步落库（IndexedDB 配额充足，不再需要"丢最旧用户视频"的兜底裁剪） */
+function save(list: VideoItem[]): void {
+  void idbSet(KEY, list);
 }
 
 let cache: VideoItem[] | null = null;
 
 function all(): VideoItem[] {
-  if (!cache) cache = load();
+  if (!cache) {
+    console.warn("[videos] 尚未 readyVideos()，返回空库");
+    return [];
+  }
   return cache;
 }
 
@@ -200,7 +196,7 @@ export function publishVideo(draft: DraftVideo): VideoItem {
     cover: draft.cover,
     segments: draft.segments,
     branchTree: draft.branchTree,
-    author: ME,
+    author: currentUser()?.name ?? ME,
     plays: 0,
     likes: 0,
     createdAt: Date.now(),

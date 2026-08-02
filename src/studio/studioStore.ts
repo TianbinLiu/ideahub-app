@@ -4,6 +4,7 @@ import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, CardTyp
 import { MaterialFile, composeSegments, composeVideo, generateCards, generateProposals, searchMarket } from "../ai";
 import { DECK_CAM, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
+import { addCards as saveCardsToAccount } from "../data/account";
 
 export interface DialogMsg {
   id: string;
@@ -318,6 +319,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   addMarketToDeck: (from) => {
     const card = get().marketDetail;
     if (!card) return;
+    saveCardsToAccount([card]); // 市场收藏同样归入账号资产
     if (get().deck.some((c) => c.id === card.id)) {
       get().npcSay(`「${card.name}」已经在你的卡组里了。`);
       set({ marketDetail: null, camera: { kind: "default" } });
@@ -355,6 +357,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set((s) => ({ dialog: { ...s.dialog, busy: true } }));
     get().npcSay("收到，让我看看成色……（炉火升起）");
     const cards = await generateCards(pendingFiles, trimmed);
+    saveCardsToAccount(cards); // 炼出的卡归入账号资产（创意工坊/Profile 可见）
     set((s) => ({ dialog: { ...s.dialog, busy: false }, pendingFiles: [] }));
     if (cards.length === 0) {
       get().npcSay("这些素材还差点意思，再补充点描述？");
