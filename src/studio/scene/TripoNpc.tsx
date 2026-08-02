@@ -298,14 +298,19 @@ export default function TripoNpc({
   const breastPosBase = useRef(new Map<string, THREE.Vector3>());
   // 注视镜头系统（购入模型，移植自 PlayerArms）：定格姿势本身凝视 NPC_CAM 方向——
   // 实际镜头偏离（自由视角拖拽）时，间歇性把头转向镜头再收回（限幅+缓入缓出）。
-  // 头骨全程被 lean 动画驱动：增量必须叠加在 mixer.update 之后；基准四元数在
-  // 钉帧↔settle 状态切换时置空、于定格帧重采样（动画重写头骨后旧基准即失效）
+  // 头骨全程被 lean 动画驱动：增量必须叠加在 mixer.update 之后。
+  //
+  // 基准怎么取：原来靠"动画状态切换时置空 + 等 2 帧重采样"，但状态判定依赖
+  // lb.time/paused 这些会在边界反复横跳的量，一横跳就重采样、重采样期间头由动画
+  // 驱动、之后又被按回旧基准——表现为头时不时向前抽一下并撞进刘海（用户实测）。
+  // 改成精确判定：记下我们上一帧写进去的值，若这一帧读到的与它不同，说明 mixer
+  // 刚写过，当前值就是新基准；若完全相同，说明 mixer 已停写（clamp 定格），沿用
+  // 旧基准。这样无论动画在不在写都不会跳，也不需要任何状态机和等待帧。
   const headBase = useRef<THREE.Quaternion | null>(null);
+  const headWritten = useRef<THREE.Quaternion | null>(null);
   const glance = useRef({ nextAt: 4, start: 0, until: 0 });
-  const gazeAnimState = useRef(0);
-  // 状态切换后延迟采样：mixer 对新钉帧/定格动作的首次 setValue 因 PropertyMixer
-  // 双缓冲比较会晚 1-2 帧——立即采样会把 FBX rest 姿势当成基准（头被按回 rest）
-  const gazeWait = useRef(0);
+  /** 注视整体权重的缓变门（0=交还动画，1=允许叠加），防状态切换处硬跳 */
+  const gazeGate = useRef(0);
   const gv = useMemo(
     () => ({
       headPos: new THREE.Vector3(),
@@ -816,14 +821,15 @@ export default function TripoNpc({
       const pinnedNow = lb.timeScale === 0 && !lb.paused && lb.enabled && lb.time <= 0.001;
       const settled = lb.paused && lb.time >= lb.getClip().duration - 0.001;
       const animState = pinnedNow ? 1 : settled ? 2 : 0;
-      if (animState !== gazeAnimState.current) {
-        gazeAnimState.current = animState;
-        headBase.current = null; // 动画状态切换后基准失效，定格姿势落地后重采样
-        gazeWait.current = 2;
-      }
-      if (animState !== 0 && gazeWait.current > 0) gazeWait.current--;
-      else if (animState !== 0) {
+      // 门限缓变：过渡段交还动画、钉帧/定格段允许叠加，中间用 ~0.35s 过渡不硬跳
+      const gateTarget = animState !== 0 ? 1 : 0;
+      gazeGate.current += (gateTarget - gazeGate.current) * Math.min(1, dt * 3);
+      if (gazeGate.current > 0.001) {
+        // 基准取值：与上一帧写入值比对——不同=mixer 刚写过，当前值即新基准；
+        // 相同=mixer 已停写（clamp 定格），沿用旧基准。不需要状态机与等待帧。
         if (!headBase.current) headBase.current = head.quaternion.clone();
+        else if (!headWritten.current || !head.quaternion.equals(headWritten.current))
+          headBase.current.copy(head.quaternion);
         else head.quaternion.copy(headBase.current);
         const gl2 = glance.current;
         let weight = 0;
@@ -854,12 +860,15 @@ export default function TripoNpc({
           // 限幅 0.35 rad（比玩家的 0.5 收紧：Q 版大头转太多诡异）
           const ang = 2 * Math.acos(Math.min(1, Math.abs(gv.qDelta.w)));
           if (ang > 0.35) gv.qDelta.slerp(gv.qId, 1 - 0.35 / ang);
-          gv.qDelta.slerp(gv.qId, 1 - weight);
+          gv.qDelta.slerp(gv.qId, 1 - weight * gazeGate.current);
           // 世界系增量 → 头骨局部系：local' = P⁻¹·Δ·P·local
           head.parent!.getWorldQuaternion(gv.qParent);
           gv.qTmp.copy(gv.qParent).invert().multiply(gv.qDelta).multiply(gv.qParent);
-          head.quaternion.premultiply(gv.qTmp);
+          head.quaternion.copy(headBase.current!).premultiply(gv.qTmp);
         }
+        // 记下本帧写入值：下一帧靠它判断 mixer 有没有重写头骨
+        if (!headWritten.current) headWritten.current = head.quaternion.clone();
+        else headWritten.current.copy(head.quaternion);
       }
     }
     gltf.scene.updateMatrixWorld(true);

@@ -48,6 +48,7 @@ const _push = new THREE.Vector3();
 const _sideAxis = new THREE.Vector3(1, 0, 0);
 const _free = new THREE.Vector3();
 const _preSolve = new THREE.Vector3();
+const _scaleTmp = new THREE.Vector3();
 const _up = new THREE.Vector3();
 const _upLocal = new THREE.Vector3();
 
@@ -152,7 +153,9 @@ export class BreastPhysics {
       for (const j of this.joints) {
         j.liftCur *= 0.9;
         if (this.rootLift > 0) {
-          _upLocal.set(0, 1, 0).multiplyScalar(j.liftCur / ((j.bone.parent as THREE.Object3D).scale.y || 1));
+          _upLocal.set(0, 1, 0).multiplyScalar(
+            j.liftCur / (_scaleTmp.setFromMatrixScale((j.bone.parent as THREE.Object3D).matrixWorld).y || 1),
+          );
           j.bone.position.copy(j.restPos).add(_upLocal);
         }
       }
@@ -196,7 +199,10 @@ export class BreastPhysics {
         _next.copy(j.tail); // 只重投影，不推进
       }
 
-      // 无碰撞的"自由位置"——与求解后的差=接触把它顶开了多少（用于胸根跟随抬升）
+      // 先归长再取"自由位置"。此前 _free 拍在归长之前，而 stiffness*d 的径向增量
+      // （20/60=0.333）高达骨长的 66%，会被归长整个吃掉——于是 raw 量到的主要是
+      //"归长退回了多少"而不是"接触顶开了多少"，一个碰撞体都没碰到也会常驻一份抬升。
+      _next.sub(_bonePos).normalize().multiplyScalar(j.boneLen).add(_bonePos);
       _free.copy(_next);
       _preSolve.copy(_next);
       // 接触求解：推开→归长→再推开（单次求解时归长会把推出的球又拉回穿透位；
@@ -261,7 +267,11 @@ export class BreastPhysics {
           // 分摊到下一节才有软组织的弧线过渡
           j.liftCur += (this.lastRootLift * 0.85 - j.liftCur) * Math.min(1, d * this.rootLiftSmooth);
         }
-        const pScale = (j.bone.parent as THREE.Object3D).scale.y || 1;
+        // liftCur 是**世界**量纲（由世界坐标点积得出），写进 bone.position 却是父骨的
+        // 局部系——必须除父骨的**世界**缩放。原来只除了 parent.scale.y（局部），整模型
+        // 的 scale 3.35 完全没被除掉，抬升实际放大 3.35 倍：胸根被平移到超过自身骨长，
+        // 锁骨到胸之间的皮肤被拉成锥形（用户看到的"扭曲"而非"抖动"）。
+        const pScale = _scaleTmp.setFromMatrixScale((j.bone.parent as THREE.Object3D).matrixWorld).y || 1;
         _upLocal.set(0, 1, 0).multiplyScalar(j.liftCur / pScale);
         j.bone.position.copy(j.restPos).add(_upLocal);
       }

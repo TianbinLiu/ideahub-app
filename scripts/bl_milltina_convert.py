@@ -1,6 +1,7 @@
 # Milltina FBX → GLB 转换：接贴图、人形骨改名为 mixamo 约定（复用整套演出管线）、
 # 精选形键白名单（738→常用集，控制导出体积）。购买资产——产物只进 gitignore 目录。
 import bpy
+from mathutils import Vector
 import re
 
 SRC = r"C:/Users/tliu7/Downloads/Milltina_ミルティナ__ver1.01.1/Milltina(ミルティナ)_ver1.01.1/FBX/Milltina.fbx"
@@ -156,20 +157,28 @@ def tuck_under(garment_name, zr, margin=0.012, body_name="Milltina_body"):
         if not (zr[0] <= v.co.z <= zr[1]) or v.index in skip:
             continue
         p = bm @ v.co
-        loc, nor, _, _ = tree.find_nearest(p, 0.25)
+        loc, nor, _, _ = tree.find_nearest(p, 0.12)
         if loc is None:
             continue
-        depth = (p - loc).dot(nor)          # >0 在衣物外侧
-        if depth > -margin:
-            # 沿法线按穿透深度往里推，而不是吸附到最近点：吸附会把顶点的切向位置
-            # 一并改掉，等于让身体去复制衣物表面，形状就没了
-            v.co = bmi @ (p - nor * (depth + margin))
-            n += 1
+        # 内外侧判定不能直接信 find_nearest 给的面法线：这个资产的裙子是双层带内衬，
+        # z0.30~0.55 段 55% 的面法线朝内，取到内衬面就会把离裙布 10~16cm 的大腿判成
+        # "在裙子外面"，然后一路投影到裙面上（实测位移中位数 13.4cm、957 个顶点超
+        # 10cm）——腿一摆两张重合面立刻分离，正面大片捅出裙子。按身体径向外强制法线朝向。
+        radial = Vector((p.x, p.y, 0.0))
+        if radial.length < 1e-6:
+            continue
+        radial.normalize()
+        n2 = nor if nor.dot(radial) >= 0 else -nor
+        depth = (p - loc).dot(n2)           # >0 在衣物外侧
+        # 上限：真穿模不会有十几厘米深，超了一定是判反了，宁可不动
+        if depth <= -margin or depth > 0.03:
+            continue
+        v.co = bmi @ (p - n2 * (depth + margin))
+        n += 1
     print(f"收缩包裹: {body_name} ← {garment_name} {n} 顶点 margin={margin}")
 
 
 tuck_under("Milltina_cloth_dress", (0.52, 0.98))
-tuck_under("Milltina_cloth_skirt", (0.30, 0.55))
 
 
 # ── 胸根权重平滑：90° 直角的根源是蒙皮权重梯度不连续 ──
@@ -178,13 +187,13 @@ tuck_under("Milltina_cloth_skirt", (0.30, 0.55))
 # ②加中间关节分摊形变梯度 ③按骨骼角度驱动的修正形键（Pose Space Deformation）。
 # 这里做的是第①层——它是根因，且纯几何、不增加运行时开销。运行时那边的
 # 二节跟随（0.85）相当于第②层的简化版。
-def smooth_breast_weights(obj_name="Milltina_body", iters=8, rings=3):
+def smooth_breast_weights(obj_name="Milltina_body", iters=6, rings=3, core=0.95):
     o = bpy.data.objects.get(obj_name)
     if o is None:
         print("胸根权重平滑: 未找到", obj_name)
         return
-    gi = [o.vertex_groups[n].index for n in BREAST_GROUPS if n in o.vertex_groups]
-    if not gi:
+    names = [n for n in BREAST_GROUPS if n in o.vertex_groups]
+    if not names:
         print("胸根权重平滑: 未找到 Breast 顶点组")
         return
     me = o.data
@@ -194,64 +203,53 @@ def smooth_breast_weights(obj_name="Milltina_body", iters=8, rings=3):
         nbr[a].append(b)
         nbr[b].append(a)
 
-    def bw(v):
-        return sum(g.weight for g in v.groups if g.group in gi)
+    gi_all = {o.vertex_groups[n].index for n in names}
+    touched = set()
+    # 逐组独立平滑：合起来平滑会把"原本胸权重为 0 的邻居"一并赋值，而赋给哪一侧是
+    # 没有依据的——实测赋给 Breast_L 会让右侧和背部的胸壁顶点跟着左胸骨走，站姿下
+    # 表现为胸被跨侧牵拉、下垂拉长（用户实测）。分组做就天然不串边。
+    for gname in names:
+        gidx = o.vertex_groups[gname].index
+        w0 = {}
+        for v in me.vertices:
+            w0[v.index] = next((g.weight for g in v.groups if g.group == gidx), 0.0)
+        seed = {i for i, w in w0.items() if w > 1e-4}
+        if not seed:
+            continue
+        band = set(seed)
+        for _ in range(rings):
+            band |= {n for i in list(band) for n in nbr[i]}
+        w = {i: w0[i] for i in band}
+        for _ in range(iters):
+            nw = {}
+            for i in band:
+                ns = [n for n in nbr[i]]
+                nw[i] = (w[i] + sum(w.get(n, w0.get(n, 0.0)) for n in ns)) / (len(ns) + 1)
+            # 主体钉住：只软化边界，不然整团权重被摊薄，骨头转起来带不动胸
+            for i in band:
+                if w0[i] >= core:
+                    nw[i] = w0[i]
+            w = nw
+        grp = o.vertex_groups[gname]
+        for i in band:
+            grp.add([i], min(1.0, max(0.0, w[i])), 'REPLACE')
+        touched |= band
 
-    # 过渡带 = 受 Breast 影响的顶点向外扩 rings 圈（只在带内平滑，胸尖与胸壁本体不动）
-    band = {v.index for v in me.vertices if bw(v) > 1e-4}
-    for _ in range(rings):
-        band |= {n for i in list(band) for n in nbr[i]}
-    idx = sorted(band)
-    w = {i: bw(me.vertices[i]) for i in idx}
-    for _ in range(iters):
-        nw = {}
-        for i in idx:
-            ns = nbr[i]
-            nw[i] = (w[i] + sum(w.get(n, bw(me.vertices[n])) for n in ns)) / (len(ns) + 1)
-        w = nw
-
-    grps = o.vertex_groups
-    for i in idx:
+    # 归一化：胸侧定了之后，其余组等比缩到 1-b
+    for i in touched:
         v = me.vertices[i]
-        target = min(1.0, max(0.0, w[i]))
-        cur_b = bw(v)
-        others = [(g.group, g.weight) for g in v.groups if g.group not in gi]
+        b = sum(g.weight for g in v.groups if g.group in gi_all)
+        b = min(1.0, b)
+        others = [(g.group, g.weight) for g in v.groups if g.group not in gi_all]
         so = sum(x[1] for x in others)
-        if cur_b > 1e-6:
-            # 按原比例重分配 Breast 侧
-            for g in v.groups:
-                if g.group in gi:
-                    grps[g.group].add([i], g.weight / cur_b * target, 'REPLACE')
-        elif target > 1e-6 and gi:
-            grps[gi[0]].add([i], target, 'REPLACE')
         if so > 1e-6:
-            for gidx, gw in others:
-                grps[gidx].add([i], gw / so * (1 - target), 'REPLACE')
-    print(f"胸根权重平滑: 过渡带 {len(idx)} 顶点，{iters} 次迭代")
+            for gidx_, gw in others:
+                o.vertex_groups[gidx_].add([i], gw / so * (1 - b), 'REPLACE')
+    print(f"胸根权重平滑: 过渡带 {len(touched)} 顶点，逐组 {iters} 次迭代")
 
 
 smooth_breast_weights()
 
-# 大腿段径向收一档：裙子跟腿之后仍剩一小片捅出来，这一段永远在裙筒内，收紧零代价
-def cinch_thigh(zr=(0.24, 0.32, 0.58, 0.66), k=0.88):
-    o = bpy.data.objects.get("Milltina_body")
-    if o is None:
-        return
-    z0, z1, z2, z3 = zr
-    n = 0
-    for v in o.data.vertices:
-        z = v.co.z
-        if z <= z0 or z >= z3:
-            continue
-        w = (z - z0) / (z1 - z0) if z < z1 else (1.0 if z <= z2 else (z3 - z) / (z3 - z2))
-        f = 1 - (1 - k) * w
-        v.co.x *= f
-        v.co.y *= f
-        n += 1
-    print(f"大腿收束: {n} 顶点 满额×{k}")
-
-
-cinch_thigh()
 
 
 # ── 腰线搭接：衣身下摆绑 Spine、裙腰绑 Hips，深弯时两片沿相反方向走，出厂那点重叠量
@@ -286,7 +284,10 @@ def overlap_seam(name, mode, span, grow, xmax=None):
 # 垫住开衩，透过开衩看到的是衣身绿而不是皮肤。
 
 overlap_seam("Milltina_cloth_skirt", "up", 0.09, 0.10)
-overlap_seam("Milltina_cloth_dress", "down", 0.12, 0.22, xmax=0.13)
+# 衣身下摆不再往下拉：它的选区（躯干段最低点往上 span）实际覆盖到 z 0.754~0.874，
+# 也就是胸下缘到胸部——往下拉 0.22 等于把整个胸拽长了（用户实测"站立时胸部被下垂
+# 拉长"）。后腰缝真正的修法是 cinch_waist + tuck_under，这一步已经多余。
+# overlap_seam("Milltina_cloth_dress", "down", 0.12, 0.22, xmax=0.13)
 
 # ── 去 Q 版：等比缩头（实测原始 4.86 头身=典型 Q 版；正常成年 6.5~7）──
 # 只缩头不改躯干/四肢：身高、臂长、胸位全不变 → 已标定的接触坐标与烘焙姿势继续有效。
@@ -432,58 +433,6 @@ for r in renamed:
     print("  ", r)
 print("BONES missing:", missing)
 
-# ── 裙身权重下移到大腿：分色渲染实测，深弯撤步时大腿会从裙面中间捅出来。
-# 裙子出厂只绑髋，腿一动裙子不动，穿模是必然的——静态收紧/静态塞入都是治标。
-# 游戏里长裙的标准做法是给裙子加一层裙骨或把下半部分权重分给大腿，让布跟着腿走。
-# 这里做后者：按高度把权重逐渐转给左右大腿骨，左右按到大腿轴的距离软分配，
-# 腰部保持全髋（裙腰不该跟腿摆），下摆保留部分髋权重（不然一迈腿裙子会像裤子一样劈开）。
-def skirt_follow_legs(name="Milltina_cloth_skirt", share=0.65, z_top=0.79, z_bot=0.22):
-    o = bpy.data.objects.get(name)
-    if o is None:
-        print("裙子跟腿: 未找到", name)
-        return
-    bl, br = arm.data.bones.get("mixamorig:LeftUpLeg"), arm.data.bones.get("mixamorig:RightUpLeg")
-    if bl is None or br is None:
-        print("裙子跟腿: 未找到大腿骨")
-        return
-    mw = arm.matrix_world
-    segs = []
-    for b, n in ((bl, "mixamorig:LeftUpLeg"), (br, "mixamorig:RightUpLeg")):
-        segs.append((mw @ b.head_local, mw @ b.tail_local, n))
-    for _, _, n in segs:
-        if n not in o.vertex_groups:
-            o.vertex_groups.new(name=n)
-    grps = o.vertex_groups
-    omw = o.matrix_world
-    n_done = 0
-    for v in o.data.vertices:
-        p = omw @ v.co
-        t = (z_top - v.co.z) / (z_top - z_bot)
-        # 腰段 0 → 大腿段满额；下摆维持满额（穿模就发生在大腿到膝盖这一段）
-        blend = share * min(1.0, max(0.0, (t - 0.10) / 0.40))
-        if blend <= 1e-4:
-            continue
-        ds = []
-        for a, b, _ in segs:
-            ab = b - a
-            u = max(0.0, min(1.0, (p - a).dot(ab) / max(1e-9, ab.length_squared)))
-            ds.append(max(1e-4, (p - (a + ab * u)).length))
-        inv = [1.0 / d ** 2 for d in ds]
-        tot = sum(inv)
-        for k, (_, _, gname) in enumerate(segs):
-            grps[gname].add([v.index], blend * inv[k] / tot, 'REPLACE')
-        # 其余组等比缩到 (1-blend)
-        legi = {grps[gn].index for _, _, gn in segs}
-        others = [(g.group, g.weight) for g in v.groups if g.group not in legi]
-        so = sum(x[1] for x in others)
-        if so > 1e-6:
-            for gi_, gw in others:
-                grps[gi_].add([v.index], gw / so * (1 - blend), 'REPLACE')
-        n_done += 1
-    print(f"裙子跟腿: {n_done} 顶点转移至大腿骨（share={share}）")
-
-
-skirt_follow_legs()
 
 # ── 形键白名单：口型核心 + 眨眼 + 常用表情（体积控制；全集永远在源 FBX 里）──
 KEEP_PATTERNS = [

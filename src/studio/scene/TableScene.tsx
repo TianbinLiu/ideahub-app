@@ -1333,7 +1333,7 @@ export default function TableScene() {
           <TripoNpc url={npcModelUrl()} full />
         ) : (
           // 默认铸卡师 = 购入模型 Milltina（加密分发）：VRC 原生形键 + 弹簧骨物理 + 调暗描边
-          <TripoNpc url="/models/protected/milltina-opt.glbx?v=m9" cfg={MILLTINA_CFG} morphNames={MILLTINA_MORPHS} />
+          <TripoNpc url="/models/protected/milltina-opt.glbx?v=m10" cfg={MILLTINA_CFG} morphNames={MILLTINA_MORPHS} />
         )}
       </Suspense>
       <PlayerHandsSwitch />
