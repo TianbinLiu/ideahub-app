@@ -5,7 +5,8 @@
 //    所以远端模式必须多两个输入框——少了它们就永远拿不到 token，
 //    工坊里每一次写都会 401。
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import Icon from "../components/Icon";
 import { isRemoteMode, signIn, signInWithPassword, signUpWithPassword } from "../data/account";
 
 const INPUT =
@@ -58,7 +59,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="safe-top flex min-h-full flex-col items-center justify-center px-6 py-10">
+    <div className="safe-top relative flex min-h-full flex-col items-center justify-center px-6 py-10">
+      {/* 登录页不在 TabLayout 里（没有底栏），必须自带出口——
+          否则用户点了「创意工坊」Tab 被弹到这里就出不去了 */}
+      <button
+        onClick={() => navigate(-1)}
+        className="absolute left-3 top-3 flex h-10 w-10 items-center justify-center rounded-full text-slate-400"
+        aria-label="返回"
+      >
+        <Icon name="back" size={22} />
+      </button>
+
       <div className="mb-8 text-center">
         <div className="text-5xl">🎬</div>
         <h1 className="mt-3 text-2xl font-bold text-slate-100">分支视频</h1>
@@ -137,6 +148,10 @@ export default function LoginPage() {
         >
           {busy ? "处理中…" : remote ? (mode === "in" ? "登录" : "注册") : "登录 / 注册"}
         </button>
+
+        <Link to="/" className="block py-2 text-center text-sm text-slate-400">
+          先随便逛逛
+        </Link>
 
         <p className="pt-1 text-center text-[11px] leading-relaxed text-slate-500">
           {remote ? (

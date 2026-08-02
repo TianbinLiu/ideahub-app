@@ -55,14 +55,9 @@ export default function App() {
       <Route element={<TabLayout />}>
         <Route path="/" element={<FeedPage />} />
         <Route path="/discover" element={<DiscoverPage />} />
-        <Route
-          path="/workshop"
-          element={
-            <RequireAuth>
-              <WorkshopPage />
-            </RequireAuth>
-          }
-        />
+        {/* 一级 Tab 不做硬登录墙：未登录时页面自己显示软提示（与 /me 一致）。
+            硬弹到登录页会让底栏的一个入口变成「点进去就出不来」。 */}
+        <Route path="/workshop" element={<WorkshopPage />} />
         <Route path="/me" element={<ProfilePage />} />
       </Route>
       <Route path="/login" element={<LoginPage />} />

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Icon from "../components/Icon";
 import { Link } from "react-router-dom";
 import { addCards, createDeck, deleteDeck, myCards, myDecks, removeCard, updateDeck } from "../data/account";
-import { useAccountVersion } from "../hooks/useAccount";
+import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
 import { searchMarket } from "../ai";
 import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType } from "../types";
 
@@ -39,6 +39,9 @@ function CardTile({ card, onRemove }: { card: Card; onRemove?: () => void }) {
 
 export default function WorkshopPage() {
   useAccountVersion(); // 账号库变更时重算列表
+  // 一级 Tab 不做硬登录墙：未登录就地给软提示，而不是被路由弹去登录页出不来。
+  // ★ 这个判断必须放在下面所有 hook 之后再 return，否则登录前后 hook 数量不一致会直接崩。
+  const me = useCurrentUser();
   const cards = myCards();
   const decks = myDecks();
   const [tab, setTab] = useState<"cards" | "decks">("cards");
@@ -68,6 +71,18 @@ export default function WorkshopPage() {
     for (const c of cards) m[c.type] = (m[c.type] ?? 0) + 1;
     return m;
   }, [cards]);
+
+  if (!me) {
+    return (
+      <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-4 px-6">
+        <Icon name="cards" size={44} className="text-slate-600" />
+        <p className="text-center text-sm text-slate-400">登录后可以收藏卡片、组建卡组</p>
+        <Link to="/login?next=/workshop" className="rounded-full bg-brand px-6 py-2.5 text-sm font-bold text-ink">
+          登录 / 注册
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="safe-top min-h-full px-4 pt-3">

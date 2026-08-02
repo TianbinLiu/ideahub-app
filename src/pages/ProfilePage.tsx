@@ -1,13 +1,16 @@
 // 我的页：头像/昵称/简介/统计 + 我的作品·卡片·卡组·关注 四个页签 + 设置入口。
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import Icon from "../components/Icon";
+import Avatar from "../components/Avatar";
+import { fileToSquareImage } from "../utils/image";
 import { Link } from "react-router-dom";
 import { listVideos, isMyAuthor } from "../data/videos";
-import { myCards, myDecks, toggleFollow } from "../data/account";
+import { myCards, myDecks, toggleFollow, setAvatarImage } from "../data/account";
 import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, formatDuration, formatPlays } from "../types";
 
 export default function ProfilePage() {
+  const avatarRef = useRef<HTMLInputElement>(null);
   useAccountVersion();
   const user = useCurrentUser();
   const [tab, setTab] = useState<"videos" | "cards" | "decks" | "following">("videos");
@@ -49,9 +52,33 @@ export default function ProfilePage() {
           <Icon name="settings" size={20} />
         </Link>
         <div className="flex items-center gap-4">
-          <span className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-brand/30 to-panel text-4xl">
-            {user.avatar}
-          </span>
+          {/* 点头像直接换：不用先钻进设置页 */}
+          <button
+            onClick={() => avatarRef.current?.click()}
+            className="relative shrink-0 rounded-full transition active:scale-95"
+            aria-label="更换头像"
+          >
+            <Avatar name={user.name} src={user.avatar} size={80} />
+            <span className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full border-2 border-ink bg-brand text-ink">
+              <Icon name="plus" size={13} strokeWidth={2.5} />
+            </span>
+          </button>
+          <input
+            ref={avatarRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (!f) return;
+              try {
+                await setAvatarImage(await fileToSquareImage(f, 256));
+              } catch (err) {
+                console.warn("[profile] 头像更换失败:", err);
+              }
+            }}
+          />
           <div className="min-w-0 flex-1">
             <div className="truncate text-xl font-bold text-slate-100">{user.name}</div>
             <div className="mt-0.5 text-xs text-slate-500">@{user.account}</div>

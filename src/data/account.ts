@@ -189,6 +189,27 @@ export function updateProfile(patch: Partial<Pick<User, "name" | "avatar" | "bio
   }
 }
 
+/**
+ * 设置头像为一张本地图片。
+ * 图片已在调用方压成 256px 见方的几十 KB（utils/image.ts）。
+ *  - 离线模式：dataURL 直接进 IndexedDB，够小，不会撑爆配额；
+ *  - 远端模式：走 /api/me/avatar 转存 Cloudinary，拿永久 URL —— 不把 base64 塞进 User 文档，
+ *    否则每次拉列表都要把它带一遍。
+ * 上传失败时保留本地 dataURL 并把错误抛给页面，用户至少这台设备上看得到自己的头像。
+ */
+export async function setAvatarImage(img: { dataUrl: string; blob: Blob }): Promise<void> {
+  const u = currentUser();
+  if (!u || !db) throw new Error("请先登录");
+  u.avatar = img.dataUrl; // 先乐观显示
+  persist();
+  if (!remoteOn()) return;
+  const url = await authApi.uploadAvatar(img.blob);
+  if (url) {
+    u.avatar = url;
+    persist();
+  }
+}
+
 export function toggleFollow(author: string): boolean {
   const u = currentUser();
   if (!u || !db) return false;

@@ -1,8 +1,10 @@
 // 设置页：编辑资料（头像/昵称/简介）、画质、玩家形象、存储用量、退出登录。
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Icon from "../components/Icon";
 import { useNavigate } from "react-router-dom";
-import { signOut, updateProfile, isRemoteMode } from "../data/account";
+import { setAvatarImage, signOut, updateProfile, isRemoteMode } from "../data/account";
+import Avatar from "../components/Avatar";
+import { fileToSquareImage } from "../utils/image";
 import { useCurrentUser } from "../hooks/useAccount";
 import { storageEstimate } from "../data/db";
 import { QUALITY_LABELS, getQuality, setQuality, type Quality } from "../studio/quality";
@@ -19,6 +21,9 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [storage, setStorage] = useState<{ usedMB: number; quotaMB: number } | null>(null);
   const [quality, setQ] = useState<Quality>(() => getQuality());
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarErr, setAvatarErr] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void storageEstimate().then(setStorage);
@@ -27,6 +32,23 @@ export default function SettingsPage() {
   if (!user) {
     navigate("/login?next=/settings", { replace: true });
     return null;
+  }
+
+  async function pickAvatar(file: File | undefined) {
+    if (!file) return;
+    setAvatarErr("");
+    setAvatarBusy(true);
+    try {
+      // 压成 256px 见方再存/上传：手机相册原图动辄几 MB，
+      // 离线模式会挤爆 IndexedDB，远端模式白占 Cloudinary 流量
+      const img = await fileToSquareImage(file, 256);
+      await setAvatarImage(img);
+    } catch (e) {
+      setAvatarErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAvatarBusy(false);
+      if (fileRef.current) fileRef.current.value = ""; // 允许重选同一张
+    }
   }
 
   function save() {
@@ -46,19 +68,56 @@ export default function SettingsPage() {
 
       <section className="mb-6">
         <h2 className="mb-2.5 text-xs font-semibold text-slate-400">头像</h2>
-        <div className="grid grid-cols-6 gap-2">
-          {AVATARS.map((a) => (
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="relative shrink-0 rounded-full transition active:scale-95"
+            aria-label="更换头像"
+          >
+            <Avatar name={user.name} src={user.avatar} size={72} />
+            <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-ink bg-brand text-ink">
+              <Icon name="plus" size={14} strokeWidth={2.5} />
+            </span>
+          </button>
+          <div className="min-w-0 flex-1">
             <button
-              key={a}
-              onClick={() => updateProfile({ avatar: a })}
-              className={`flex aspect-square items-center justify-center rounded-xl text-2xl transition ${
-                user.avatar === a ? "bg-brand/25 ring-2 ring-brand" : "bg-panel"
-              }`}
+              onClick={() => fileRef.current?.click()}
+              disabled={avatarBusy}
+              className="rounded-xl bg-panel px-4 py-2 text-sm text-slate-100 disabled:opacity-60"
             >
-              {a}
+              {avatarBusy ? "处理中…" : "从相册选择"}
             </button>
-          ))}
+            <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+              自动裁成正方形并压到 256px，不会上传原图。
+            </p>
+            {avatarErr && <p className="mt-1 text-[11px] text-rose-400">{avatarErr}</p>}
+          </div>
         </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => void pickAvatar(e.target.files?.[0])}
+        />
+
+        {/* 不想上传照片的用户仍可用 emoji（新账号的默认值也是 emoji） */}
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs text-slate-500">或选一个 emoji</summary>
+          <div className="mt-2 grid grid-cols-6 gap-2">
+            {AVATARS.map((a) => (
+              <button
+                key={a}
+                onClick={() => updateProfile({ avatar: a })}
+                className={`flex aspect-square items-center justify-center rounded-xl text-2xl transition ${
+                  user.avatar === a ? "bg-brand/25 ring-2 ring-brand" : "bg-panel"
+                }`}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+        </details>
       </section>
 
       <section className="mb-6 space-y-3">

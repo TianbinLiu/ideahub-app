@@ -8,7 +8,7 @@
 //   3. 注册强制要 username + email + password（password ≥ 6），没有"手机号即账号"的口子；
 //      手机号登录走的是另一套 /api/auth/otp（authOtp.routes），本文件暂不封装。
 //   ——以上若 server 端后续加了别名字段，改这一处即可，data/account.ts 不用动。
-import { apiGet, apiPost, apiPut, setToken } from "./client";
+import { API_BASE, apiGet, apiPost, apiPut, getToken, setToken } from "./client";
 
 /** server 的 serializeAuthUser 输出；displayName/bio 只有 /api/me/profile 那条返回带 */
 export interface ApiUser {
@@ -69,6 +69,26 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
  * /api/auth/me 只返回登录态需要的字段，昵称/简介/头像要从这条拿。
  * 拿不到就返回 null，调用方沿用 /api/auth/me 那份（昵称退回 username，不致命）。
  */
+/**
+ * POST /api/me/avatar（requireAuth，multipart 字段名 avatar）
+ * 服务端转存 Cloudinary 后写回 user.avatarUrl，这里返回那个永久 URL。
+ * 走裸 fetch 而不是 apiPost —— multipart 的 Content-Type 必须由浏览器带 boundary 生成，
+ * 手动设成 application/json 会让 multer 解析不出文件。
+ */
+export async function uploadAvatar(blob: Blob, filename = "avatar.webp"): Promise<string | null> {
+  const fd = new FormData();
+  fd.append("avatar", blob, filename);
+  const token = getToken();
+  const res = await fetch(`${API_BASE}/api/me/avatar`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  });
+  const data = (await res.json().catch(() => ({}))) as { avatarUrl?: string; message?: string; error?: string };
+  if (!res.ok) throw new Error(data.message || data.error || `头像上传失败（HTTP ${res.status}）`);
+  return data.avatarUrl ?? null;
+}
+
 export async function fetchProfile(): Promise<ApiUser | null> {
   try {
     const res = await apiGet<{ user?: ApiUser }>("/api/me/profile");

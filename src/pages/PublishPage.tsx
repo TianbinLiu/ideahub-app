@@ -1,6 +1,7 @@
 // 合成完成后的编辑发布页：标题 / 分类 / 简介 / 封面选择 + 左侧成片预览
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import Icon from "../components/Icon";
 import SegmentPlayer from "../components/SegmentPlayer";
 import { publishVideo } from "../data/videos";
 import { useStudio } from "../studio/studioStore";
@@ -63,8 +64,9 @@ export default function PublishPage() {
     <div className="min-h-full">
       <header className="sticky top-0 z-10 border-b border-slate-800 bg-ink/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-          <Link to="/studio" className="text-slate-400 hover:text-white">
-            ← 返回工坊
+          <Link to="/studio" className="flex items-center gap-1 text-slate-400 hover:text-white">
+            <Icon name="back" size={18} />
+            返回工坊
           </Link>
           <span className="font-bold text-slate-100">发布视频</span>
           <span className="text-xs text-slate-500">
