@@ -67,6 +67,73 @@ bake_shape_mix("Milltina_cloth_garterbelt", {
 })
 bake_shape_mix("Milltina_cloth_hat", {"Option_Twin tail": 1.0})
 
+# ── 去 Q 版：等比缩头（实测原始 4.86 头身=典型 Q 版；正常成年 6.5~7）──
+# 只缩头不改躯干/四肢：身高、臂长、胸位全不变 → 已标定的接触坐标与烘焙姿势继续有效。
+# 网格顶点与形键 delta 同步缩放（形键是相对偏移，不跟着缩会让眨眼/口型幅度失配）。
+# 无头量测结论（非等比）：她的腿比例其实正常（胯高/身高 0.530≈真人 0.53），
+# Q 感主因是**头横向过宽**（头宽/头长 0.853 vs 真人 0.644）——等比缩放改不了这一项。
+# 纵 0.865 把头身比 6.05→6.84，横 0.90 收窄脸型；身高与脚底不变 ⇒ 已标定坐标全部继续有效。
+HEAD_SCALE = (0.90, 0.90, 0.865)  # (世界X 横, 世界Y 深, 世界Z 纵)
+
+def deq_head(scale=HEAD_SCALE):
+    arm = next(o for o in bpy.data.objects if o.type == "ARMATURE")
+    hb = arm.data.bones.get("mixamorig:Head") or arm.data.bones.get("Head")
+    if hb is None:
+        print("去Q版: 未找到 Head 骨，跳过")
+        return
+    center = arm.matrix_world @ hb.head_local  # 以颈根为缩放中心，脖子接缝不动
+    moved = 0
+    for o in bpy.data.objects:
+        if o.type != "MESH":
+            continue
+        gi = {g.index for g in o.vertex_groups if g.name in ("mixamorig:Head", "Head")}
+        if not gi:
+            continue
+        mw, mwi = o.matrix_world, o.matrix_world.inverted()
+        # 权重 w 作为渐变系数：脖子处 w 小→几乎不缩，头顶 w=1→全缩（无硬接缝）
+        wmap = {}
+        for v in o.data.vertices:
+            w = sum(g.weight for g in v.groups if g.group in gi)
+            if w <= 0.01:
+                continue
+            w = min(1.0, w)
+            wmap[v.index] = w
+            world = mw @ v.co
+            d = world - center
+            for i in range(3):
+                d[i] *= 1 - w + w * scale[i]
+            v.co = mwi @ (center + d)
+            moved += 1
+        # 形键 delta 同步缩放
+        if o.data.shape_keys:
+            basis = o.data.shape_keys.key_blocks[0]
+            for kb in o.data.shape_keys.key_blocks[1:]:
+                for idx, w in wmap.items():
+                    dd = kb.data[idx].co - basis.data[idx].co
+                    for i in range(3):
+                        dd[i] *= 1 - w + w * scale[i]
+                    kb.data[idx].co = basis.data[idx].co + dd
+        # Basis 也要跟上主网格
+        if o.data.shape_keys:
+            kb0 = o.data.shape_keys.key_blocks[0]
+            for idx in wmap:
+                kb0.data[idx].co = o.data.vertices[idx].co
+    # 骨骼：头骨链同步缩短，注视/表情驱动才不会错位
+    prev_mode = bpy.context.object.mode if bpy.context.object else "OBJECT"
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode="EDIT")
+    for eb in arm.data.edit_bones:
+        if eb.name in ("mixamorig:Head", "Head"):
+            t = eb.tail - eb.head
+            for i in range(3):
+                t[i] *= scale[i]
+            eb.tail = eb.head + t
+    bpy.ops.object.mode_set(mode="OBJECT")
+    print(f"去Q版: 头缩放 {tuple(scale)}，{moved} 顶点")
+
+
+deq_head()
+
 # ── 贴图接线：按材质名归类到四张图 ──
 TEX = {
     "face": os.path.join(TEXDIR, "Milltina_Face.png"),

@@ -73,8 +73,12 @@ const RIGS: Record<
     thinkDeckOnly?: boolean;
   }
 > = {
-  m: { yaw: Math.PI / 2, scale: 4.3, y: -2.9, z: 4.95, pose: TRIPO_POSE, hideHead: true },
-  f: { yaw: Math.PI / 2, scale: 4.3, y: -2.9, z: 4.95, pose: TRIPO_POSE, hideHead: true },
+  // 体格/落地重定（与 rin/gratia 同一标尺）：模型脚底=原点、局部身高 0.92，
+  // 旧值 scale4.3+y-2.9 = 身高 3.96 单位(1.57m) 且脚陷地 0.5——第一人称眼位只比
+  // 桌沿高 7cm（眼位读的是真实头骨，模型矮=视角矮）。
+  // 定标：吧台 2.65 单位=1.05m → 1m≈2.52 单位；身高 1.77m=4.46 单位 → scale 4.85
+  m: { yaw: Math.PI / 2, scale: 4.85, y: -2.4, z: 4.95, pose: TRIPO_POSE, hideHead: true },
+  f: { yaw: Math.PI / 2, scale: 4.85, y: -2.4, z: 4.95, pose: TRIPO_POSE, hideHead: true },
   rin: {
     yaw: Math.PI,
     // 体格/落地重定（用户平视验收）：scale 按 NPC 体格比例（4.3 是 7.2 单位巨人；场景角色 ~3.4）、
