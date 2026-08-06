@@ -12,6 +12,10 @@ interface Joint {
   boneLen: number; // 尾端球面半径=世界 rest 长度（首次 update 时量定，见下）
   currTail: THREE.Vector3;
   prevTail: THREE.Vector3;
+  /** 最近一次积分步写入的局部旋转：不足一步的渲染帧原样重放（见 update 注释） */
+  lastQuat: THREE.Quaternion;
+  /** 上一积分步的骨骼世界 y：微小垂直平移（呼吸起伏）做惯性中和（见 step 注释） */
+  prevBoneY: number;
   inited: boolean; // 尾端状态延迟到首次 update 初始化（那时世界矩阵才可靠）
   /** 每链独立的手感参数：刘海和双马尾要的东西完全相反——长发要飘（软、低阻尼），
    *  刘海要贴着头走（硬、高阻尼）。共用一组参数时刘海跟不上头的快速点头，
@@ -19,6 +23,8 @@ interface Joint {
   k: number;
   d: number;
   g: number;
+  /** 命中 overrides 的链参数按链定制，setParams 整体换手感时不动它们 */
+  ovr: boolean;
 }
 
 /** 按链前缀覆盖手感参数（键用与 prefixes 同样的归一化匹配） */
@@ -97,10 +103,13 @@ export class SpringBoneSim {
         boneLen: child.position.length() || 1e-4,
         currTail: new THREE.Vector3(),
         prevTail: new THREE.Vector3(),
+        lastQuat: new THREE.Quaternion(),
+        prevBoneY: 0,
         inited: false,
         k: hit?.stiffness ?? this.stiffness,
         d: hit?.drag ?? this.drag,
         g: hit?.gravity ?? this.gravity,
+        ovr: !!hit,
       });
     });
   }
@@ -109,20 +118,47 @@ export class SpringBoneSim {
     return this.joints.length;
   }
 
+  /** 运行时整体换手感（直立/伏桌切换用）。此前外部直接改 sim.stiffness 等字段，
+   *  但关节在构造时已把参数快照进 j.k/j.d/j.g——那是三行永远不生效的死代码。
+   *  overrides 命中的链保持按链定制值不被覆盖。 */
+  setParams(o: { stiffness?: number; drag?: number; gravity?: number }) {
+    this.stiffness = o.stiffness ?? 14;
+    this.drag = o.drag ?? 0.32;
+    this.gravity = o.gravity ?? 1.6;
+    for (const j of this.joints) {
+      if (j.ovr) continue;
+      j.k = this.stiffness;
+      j.d = this.drag;
+      j.g = this.gravity;
+    }
+  }
+
   private stepper = new FixedStepper();
 
   update(dt: number) {
     // 固定步长：操作镜头时 dt 剧烈波动，变 dt 直接喂显式积分会让头发/缎带抖动、拉扯
-    //（用户实测"移动摄像头会让模型扭曲抖动"）。步数为 0 也要跑一次零位移的写回，
-    // 否则骨骼旋转这一帧不被写，动画混合器的 rest 会直接暴露出来。
+    //（用户实测"移动摄像头会让模型扭曲抖动"）。
     const n = this.stepper.take(dt);
-    for (let i = 0; i < n; i++) this.step(this.stepper.step, true);
-    // 不足一步时只做"把已有尾端重新投影到当前骨骼变换"，绝不推进物理：
-    // 高刷屏上大半帧都凑不满 1/60，若照跑一遍就等于每隔一帧凭空施加一次惯性
-    if (n === 0) this.step(0, false);
+    for (let i = 0; i < n; i++) this.step(this.stepper.step);
+    // 不足一步的帧**重放上一积分步的旋转**，绝不重算几何：
+    // 旧实现是"把尾端重新投影到当前骨骼变换"再重解一遍旋转——链上父子一步延迟
+    // 耦合让重投影解与积分解从链根就系统性分岔（实测根骨差 1°、到第 5 节放大成
+    // 25°），高刷屏上积分帧/重投影帧交替渲染 = 头发在两个姿势间高频翻转（抽搐）。
+    // 原样重放与积分帧严格一致；同时也把动画混合器每帧写回的 rest 姿势盖掉
+    // （NPC 的 idle 动画每帧都在写发链骨），骨骼这一帧绝不会暴露 rest。
+    if (n === 0) this.hold();
   }
 
-  private step(d: number, integrate: boolean) {
+  /** 不足一步的渲染帧：把每个关节最近一次积分算出的局部旋转原样写回 */
+  private hold() {
+    for (const j of this.joints) {
+      if (!j.inited) continue; // 首次积分前没有可重放的解，保持现状（rest/动画帧）
+      j.bone.quaternion.copy(j.lastQuat);
+      j.bone.updateMatrixWorld(false);
+    }
+  }
+
+  private step(d: number) {
     for (const j of this.joints) {
       const bone = j.bone;
       bone.getWorldPosition(_bonePos);
@@ -136,18 +172,31 @@ export class SpringBoneSim {
         j.boneLen = j.child.getWorldPosition(_next).distanceTo(_bonePos) || j.boneLen;
         j.currTail.copy(_bonePos).addScaledVector(_restDirWorld, j.boneLen);
         j.prevTail.copy(j.currTail);
+        j.prevBoneY = _bonePos.y;
       }
-      // 惯性 + 刚度 + 重力
-      if (integrate) {
-        _inertia.copy(j.currTail).sub(j.prevTail).multiplyScalar(1 - j.d);
-        _next
-          .copy(j.currTail)
-          .add(_inertia)
-          .addScaledVector(_restDirWorld, j.k * d)
-          .add(_from.set(0, -j.g * d * 0.1, 0));
-      } else {
-        _next.copy(j.currTail);
+      // 呼吸中和：角色整体的呼吸起伏（±2mm 级垂直正弦）会经球面约束把垂直激励
+      // 转成切向运动，被链条共振放大成发梢持续画圈（实测冻结起伏立即完全静止、
+      // 恢复即复现 0.37 幅度进动，刚度/阻尼都压不住）。微小垂直位移让尾端状态
+      // 跟随参考系平移（不产生相对速度=不注入能量）；单步超过阈值的大位移
+      // （姿势切换/跳跃）不中和，甩发的自然物理保留。
+      const dy = _bonePos.y - j.prevBoneY;
+      if (Math.abs(dy) < 0.05) {
+        j.currTail.y += dy;
+        j.prevTail.y += dy;
       }
+      j.prevBoneY = _bonePos.y;
+      // 惯性 + 刚度 + 重力。
+      // 刚度是**朝 rest 目标点的比例趋近**（每步走剩余距离的 min(1, k·dt)），
+      // 不是旧版"恒定速率 k·dt 朝 rest 方向"——恒速注入与位置无关，在平衡点
+      // 两侧等幅翻转，永不衰减。比例趋近在平衡点注入趋零，静止真正收敛为静止；
+      // 远离 rest 时时间常数 ≈1/k 秒，手感量级不变。
+      _inertia.copy(j.currTail).sub(j.prevTail).multiplyScalar(1 - j.d);
+      _to.copy(_bonePos).addScaledVector(_restDirWorld, j.boneLen); // rest 目标点（复用 _to 暂存）
+      _next
+        .copy(j.currTail)
+        .add(_inertia)
+        .addScaledVector(_to.sub(j.currTail), Math.min(1, j.k * d))
+        .add(_from.set(0, -j.g * d * 0.1, 0));
       // 球形碰撞体：把尾端推出碰撞球面（先碰撞后归长，与 VRM SpringBone 次序一致）
       for (const c of this.colliders) {
         c.bone.getWorldPosition(_collCenter);
@@ -163,20 +212,27 @@ export class SpringBoneSim {
       // 归一化到骨长
       _next.sub(_bonePos).normalize().multiplyScalar(j.boneLen).add(_bonePos);
       // 平面碰撞：垂落的长发贴住桌面/地板（简单 y-clamp，穿模远比长度微差刺眼）
+      let clamped = false;
       if (this.clampY) {
         const minY = this.clampY(_next);
-        if (_next.y < minY) _next.y = minY;
+        if (_next.y < minY) {
+          _next.y = minY;
+          clamped = true;
+        }
       }
-      if (integrate) {
-        j.prevTail.copy(j.currTail);
-        j.currTail.copy(_next);
-      }
+      j.prevTail.copy(j.currTail);
+      j.currTail.copy(_next);
+      // 接触吸附：位置被平面硬钳而 verlet 历史还带着下落速度，下一步惯性就成了
+      // 反弹动量——贴桌发梢会逐帧弹跳不衰减。钳制帧把 y 速度清零（prev.y 对齐），
+      // 水平惯性保留：发梢仍可沿桌面滑动，只是不再上下弹。胸部物理同款思路。
+      if (clamped) j.prevTail.y = _next.y;
       // 方向差 → 骨局部旋转：local' = restQuat × rotate(restDir_local → targetDir_local)
       _from.copy(j.restChildPos).normalize();
       // 世界方向转到"父世界系+restQuat"局部：先去父旋转，再去 restQuat
       _to.copy(_next).sub(_bonePos).applyQuaternion(_parentQuat.invert());
       _to.applyQuaternion(_rot.copy(j.restQuat).invert()).normalize();
       bone.quaternion.copy(j.restQuat).multiply(_rot.setFromUnitVectors(_from, _to));
+      j.lastQuat.copy(bone.quaternion);
       bone.updateMatrixWorld(false);
     }
   }

@@ -349,7 +349,12 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
         upright: g.uprightOpts,
       }))
       .filter((s) => s.sim.jointCount > 0);
-    if (import.meta.env.DEV) console.log("[player springs] joints:", sims.map((s) => s.sim.jointCount).join("+"));
+    if (import.meta.env.DEV) {
+      console.log("[player springs] joints:", sims.map((s) => s.sim.jointCount).join("+"));
+      // E2E/调参挂钩：浏览器控制台可直接量测骨骼、实时改弹簧参数（setParams 每帧应用）
+      (window as unknown as Record<string, unknown>).__playerGltf = gltf.scene;
+      (window as unknown as Record<string, unknown>).__playerSprings = sims;
+    }
     return sims.length ? sims : null;
   }, [gltf, rig]);
 
@@ -385,8 +390,13 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
         thinkAction.reset().play();
         thinkAction.time = thinkAction.getClip().duration;
         thinkAction.paused = true;
+        // 钉帧采样**只做这一次**。此前每帧 mixer.update：钉帧动画每帧把弹簧骨链
+        // 重写回 rest 姿势，与随后的弹簧解交替出现在渲染里（实测马尾尾骨 72% 帧
+        // 反转运动方向、在两个姿势间高频跳变）——就是"头发一直抽搐"。
+        // 采样一次后骨骼交由弹簧/注视接管；身体骨无人再写，保持钉帧姿势不变。
+        mixer.update(0.000001);
+        gltf.scene.updateMatrixWorld(true);
       }
-      mixer.update(0.000001);
       // ── 头部注视：mixer 采样后以基准四元数为底、按目光窗口叠加限幅转头 ──
       const head = bones.current.head;
       if (head) {
@@ -500,14 +510,14 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     // deckY 下沉只在卡组特写（挂到 showSelf 会让自由视角浏览时角色突然沉降）
     const baseY = st.deckView && p2.deckY !== undefined ? p2.deckY : p2.y;
     if (group.current) group.current.position.set(0, baseY + (showSelf ? breathe * 0.6 : 0), p2.z);
-    // 弹簧骨在姿势之后模拟（读最新世界矩阵，回写局部旋转）；直立态（think）切保形参数
+    // 弹簧骨在姿势之后模拟（读最新世界矩阵，回写局部旋转）。
+    // upright 参数只在 think 动画真实生效（真·直立特写）时切换——MMD 档卡组视角
+    // 走的是 settle 伏桌姿势，thinkActive 虽为 true 但姿势没直立，仍该用垂坠参数
     if (springSims) {
       gltf.scene.updateMatrixWorld(true);
+      const upright = thinkActive && !!thinkAction;
       for (const s of springSims) {
-        const o = thinkActive && s.upright ? s.upright : s.base;
-        s.sim.stiffness = o.stiffness ?? 14;
-        s.sim.drag = o.drag ?? 0.32;
-        s.sim.gravity = o.gravity ?? 1.6;
+        s.sim.setParams(upright && s.upright ? s.upright : s.base);
         s.sim.update(dt);
       }
     }
