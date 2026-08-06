@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AI_REAL, generateCover } from "../ai";
 import { VideoSegment, formatDuration } from "../types";
+// （CoverSection 在下方定义，供发布页与作品编辑页共用同一套封面来源）
 
 /** 统一导出尺寸：16:9、720p 级别——够 Feed 卡片与详情页用，再大只是拖慢 localStorage */
 const OUT_W = 1280;
@@ -226,6 +227,122 @@ export function FrameCaptureDialog({
         </button>
       </div>
     </Dialog>
+  );
+}
+
+// ── 封面区（发布页/编辑页共用）：预览 + 截帧/上传/AI 三入口 + 首尾帧候选条 ──
+export function CoverSection({
+  cover,
+  onCover,
+  segments,
+}: {
+  cover: string;
+  onCover: (dataUrl: string) => void;
+  /** 截帧时间轴与首尾帧候选的来源（多 P 时传全部 P 的段拼接） */
+  segments: VideoSegment[];
+}) {
+  const [frameDlg, setFrameDlg] = useState(false);
+  const [aiDlg, setAiDlg] = useState(false);
+  const [coverErr, setCoverErr] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const frameChoices = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const s of segments) {
+      for (const f of [s.firstFrame, s.lastFrame]) {
+        if (!seen.has(f)) {
+          seen.add(f);
+          out.push(f);
+        }
+      }
+    }
+    return out;
+  }, [segments]);
+
+  return (
+    <div>
+      <div className="mb-1.5 text-sm font-semibold text-slate-300">封面</div>
+      {/* 当前封面预览：截帧/上传/AI 的产物不在下方候选条里，必须有个地方能看到选中的是什么 */}
+      {cover ? (
+        <img src={cover} alt="当前封面" className="mb-2 aspect-video w-full rounded-xl border border-slate-700 object-cover" />
+      ) : (
+        <div className="mb-2 flex aspect-video w-full items-center justify-center rounded-xl border border-dashed border-slate-700 text-xs text-slate-500">
+          还没选封面——截一帧、传一张，或让 AI 画一张
+        </div>
+      )}
+      <div className="mb-2 flex flex-wrap gap-2">
+        <button
+          onClick={() => setFrameDlg(true)}
+          className="rounded-xl bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700"
+        >
+          🎞 从成片截帧
+        </button>
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="rounded-xl bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700"
+        >
+          🖼 本地上传
+        </button>
+        <button
+          onClick={() => setAiDlg(true)}
+          className="rounded-xl bg-panel px-3.5 py-2 text-xs text-cyan-200 ring-1 ring-cyan-400/40 hover:bg-slate-700"
+        >
+          ✨ AI 封面（改图/生成）
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = ""; // 同一文件可重复选择
+            if (!f) return;
+            setCoverErr("");
+            void fileToCoverDataUrl(f).then((url) => {
+              if (url) onCover(url);
+              else setCoverErr("这张图读不出来，换一张试试（仅支持图片文件）");
+            });
+          }}
+        />
+      </div>
+      {coverErr && <div className="mb-2 text-xs text-red-400">{coverErr}</div>}
+      <div className="mb-1 text-xs text-slate-500">或从各段首尾帧中选择：</div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {frameChoices.map((f, i) => (
+          <button
+            key={i}
+            onClick={() => onCover(f)}
+            className={`w-28 flex-none overflow-hidden rounded-lg border-2 ${
+              cover === f ? "border-brand" : "border-transparent opacity-70 hover:opacity-100"
+            }`}
+          >
+            <img src={f} alt={`帧${i + 1}`} className="aspect-video w-full object-cover" />
+          </button>
+        ))}
+      </div>
+
+      {frameDlg && (
+        <FrameCaptureDialog
+          segments={segments}
+          onCancel={() => setFrameDlg(false)}
+          onConfirm={(url) => {
+            onCover(url);
+            setFrameDlg(false);
+          }}
+        />
+      )}
+      {aiDlg && (
+        <AiCoverDialog
+          currentCover={cover}
+          onCancel={() => setAiDlg(false)}
+          onConfirm={(url) => {
+            onCover(url);
+            setAiDlg(false);
+          }}
+        />
+      )}
+    </div>
   );
 }
 

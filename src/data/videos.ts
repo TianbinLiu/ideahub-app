@@ -10,7 +10,7 @@
 //
 // IndexedDB 而不是 localStorage 的原因（保留原注释）：真实 AI 首尾帧是 1MB 级 base64，
 // 一支 2 段视频≈4MB 直接撑爆 5MB 配额 → 用户视频被配额兜底静默丢弃（首页永远看不到自己的作品）。
-import { DraftVideo, VideoComment, VideoItem, uid } from "../types";
+import { DraftVideo, NodeSlot, VideoComment, VideoItem, VideoPart, uid } from "../types";
 import { makeFrame } from "../mock/frames";
 import { idbGet, idbSet } from "./db";
 import { currentUser } from "./account";
@@ -280,6 +280,105 @@ export function isMyAuthor(author: string): boolean {
   return !!me && author === me.name;
 }
 
+/** 统一读 P 列表：老数据（无 parts）视作单 P，顶层 segments/branchTree 即 P1 */
+export function partsOf(v: VideoItem): VideoPart[] {
+  if (v.parts && v.parts.length > 0) return v.parts;
+  return [{ name: "P1", segments: v.segments, branchTree: v.branchTree }];
+}
+
+/** 作品元信息编辑（标题/分类/简介/封面）。远端模式乐观更新 + 后台 PATCH，
+ *  服务端未实现该端点时 toast 报错、本地值保留到下次刷新——诚实降级而非静默丢失。 */
+export function updateVideoMeta(
+  id: string,
+  patch: Partial<Pick<VideoItem, "title" | "category" | "description" | "cover">>,
+): VideoItem | null {
+  const v = find(id);
+  if (!v) return null;
+  Object.assign(v, patch);
+  save(all());
+  if (remoteOn()) {
+    void branch
+      .updateVideo(realId(v.id), patch)
+      .then((remote) => {
+        if (remote?.cover) v.cover = remote.cover; // 服务端可能把 dataURL 封面转存成永久 URL
+        emitVideos();
+      })
+      .catch((e) => emitApiError("updateVideo", e));
+  }
+  emitVideos();
+  return v;
+}
+
+/** 整组替换 P 列表（重制某 P / 新增 P / 删除 P / 改名都走这一个入口）。
+ *  顶层 segments/branchTree 恒镜像 parts[0]：Feed 与旧读者只认顶层字段。 */
+export function setVideoParts(id: string, parts: VideoPart[]): VideoItem | null {
+  const v = find(id);
+  if (!v || parts.length === 0) return null;
+  v.parts = parts;
+  v.segments = parts[0].segments;
+  v.branchTree = parts[0].branchTree;
+  save(all());
+  if (remoteOn()) {
+    void branch
+      .updateVideo(realId(v.id), { parts, segments: v.segments, branchTree: v.branchTree })
+      .then((remote) => {
+        // 服务端会把方舟临时 videoUrl/dataURL 帧转存成永久地址，必须回填
+        if (remote?.parts?.length) {
+          v.parts = remote.parts;
+          v.segments = remote.parts[0].segments;
+          v.branchTree = remote.parts[0].branchTree;
+          emitVideos();
+        }
+      })
+      .catch((e) => emitApiError("updateVideo", e));
+  }
+  emitVideos();
+  return v;
+}
+
+// ── 工坊源工程（NodeSlot 树）────────────────────────────────
+// 发布的作品只带成片（segments/branchTree），回工坊"重制"需要当时的节点树
+// （三方案、未选走向、挂载关系）。按 videoId → partIndex 存 IndexedDB，
+// 纯本地：服务端契约不含工程文件，跨设备重制退化为"从成片重建"（见 studioStore）。
+const PROJ_KEY = "ideahub-app.projects.v1";
+type ProjectMap = Record<string, Record<number, NodeSlot>>;
+
+async function projMap(): Promise<ProjectMap> {
+  return (await idbGet<ProjectMap>(PROJ_KEY)) ?? {};
+}
+
+export async function loadProject(videoId: string, partIndex: number): Promise<NodeSlot | null> {
+  const map = await projMap();
+  // 远端模式发布后 id 会从本地临时值换成服务端 _id，两个键都认
+  return map[realId(videoId)]?.[partIndex] ?? map[videoId]?.[partIndex] ?? null;
+}
+
+export function saveProject(videoId: string, partIndex: number, root: NodeSlot): void {
+  void projMap().then((map) => {
+    const key = realId(videoId);
+    map[key] = { ...(map[key] ?? {}), [partIndex]: root };
+    void idbSet(PROJ_KEY, map);
+  });
+}
+
+/** 删除某 P 后，其后各 P 的源工程下标前移一位（否则重制打开的是别人家的树） */
+export function shiftProjectsAfterDelete(videoId: string, deletedIndex: number): void {
+  void projMap().then((map) => {
+    const key = realId(videoId);
+    const cur = map[key] ?? map[videoId];
+    if (!cur) return;
+    const next: Record<number, NodeSlot> = {};
+    for (const [k, tree] of Object.entries(cur)) {
+      const i = Number(k);
+      if (i === deletedIndex) continue;
+      next[i > deletedIndex ? i - 1 : i] = tree;
+    }
+    map[key] = next;
+    if (key !== videoId) delete map[videoId];
+    void idbSet(PROJ_KEY, map);
+  });
+}
+
 export function publishVideo(draft: DraftVideo): VideoItem {
   // 幂等键跟着草稿走：pushPublish 超时后进待发队列，flushPending 重发的是同一个 draft，
   // 服务端认这个键返回首次那条，不会重复落库
@@ -427,6 +526,7 @@ function toVideoItem(v: branch.ApiVideo): VideoItem {
     cover: v.cover,
     segments: Array.isArray(v.segments) ? v.segments : [],
     branchTree: v.branchTree,
+    parts: Array.isArray(v.parts) && v.parts.length > 0 ? v.parts : undefined,
     author: branch.authorName(v.author),
     plays: v.plays ?? 0,
     likes: v.likes ?? 0,
@@ -484,6 +584,7 @@ async function loadDetail(item: VideoItem): Promise<void> {
     item.likes = v.likes ?? item.likes;
     item.segments = Array.isArray(v.segments) ? v.segments : item.segments;
     item.branchTree = v.branchTree ?? item.branchTree;
+    if (Array.isArray(v.parts) && v.parts.length > 0) item.parts = v.parts;
     if (Array.isArray(v.comments)) item.comments = v.comments.map(toComment);
     if (v.liked) likedIds.add(id);
     emitVideos();

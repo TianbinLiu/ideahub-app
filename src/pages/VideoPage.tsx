@@ -1,10 +1,10 @@
-// 视频详情页：播放器 + 信息 + 分段剧情 + 评论区
+// 视频详情页：播放器（多 P 可切换）+ 信息 + 分段剧情 + 评论区
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../components/Icon";
 import { Link, useParams } from "react-router-dom";
 import BranchPlayer from "../components/BranchPlayer";
 import SegmentPlayer from "../components/SegmentPlayer";
-import { addComment, addPlay, getVideo, setLike } from "../data/videos";
+import { addComment, addPlay, getVideo, isMyAuthor, partsOf, setLike } from "../data/videos";
 import { useVideosVersion } from "../hooks/useVideos";
 import { VideoComment, formatPlays, relativeTime } from "../types";
 
@@ -19,6 +19,10 @@ export default function VideoPage() {
   const [plays, setPlays] = useState(video?.plays ?? 0);
   const [comments, setComments] = useState<VideoComment[]>(video?.comments ?? []);
   const [draft, setDraft] = useState("");
+  // 多 P：老作品 partsOf 归一成单 P，pi 越界（编辑删 P 后）自动夹回
+  const parts = useMemo(() => (video ? partsOf(video) : []), [video, version]);
+  const [pi, setPi] = useState(0);
+  const part = parts[Math.min(pi, Math.max(0, parts.length - 1))] ?? null;
 
   // 详情回填晚于首帧渲染：把服务端那份同步进来。
   // 本地已有的乐观值（刚点的赞、刚发的评论）取较大/较长的一边，别被回包覆盖掉。
@@ -71,18 +75,46 @@ export default function VideoPage() {
             <Icon name="back" size={20} />
           </Link>
           <span className="truncate text-sm text-slate-300">{video.title}</span>
-          <Link to="/studio" className="ml-auto flex-none rounded-full bg-brand/15 px-3 py-1.5 text-xs text-brand">
-            🎴 我也要创作
-          </Link>
+          {isMyAuthor(video.author) ? (
+            <Link
+              to={`/edit/${video.id}`}
+              className="ml-auto flex-none rounded-full bg-amber-500/15 px-3 py-1.5 text-xs text-amber-300"
+            >
+              ✏️ 编辑
+            </Link>
+          ) : (
+            <Link to="/studio" className="ml-auto flex-none rounded-full bg-brand/15 px-3 py-1.5 text-xs text-brand">
+              🎴 我也要创作
+            </Link>
+          )}
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-4">
-        {video.branchTree ? (
-          <BranchPlayer tree={video.branchTree} cover={video.cover} />
-        ) : (
-          <SegmentPlayer segments={video.segments} cover={video.cover} />
+        {/* 多 P 选集：单 P 不显示（绝大多数作品），有分集才占这一行 */}
+        {parts.length > 1 && (
+          <div className="mb-2.5 flex gap-2 overflow-x-auto pb-0.5">
+            {parts.map((p, i) => (
+              <button
+                key={i}
+                onClick={() => setPi(i)}
+                className={`flex-none rounded-lg px-3 py-1.5 text-xs ${
+                  i === Math.min(pi, parts.length - 1)
+                    ? "bg-brand font-semibold text-ink"
+                    : "bg-panel text-slate-300 hover:bg-slate-700"
+                }`}
+              >
+                {p.name || `P${i + 1}`}
+              </button>
+            ))}
+          </div>
         )}
+        {part &&
+          (part.branchTree ? (
+            <BranchPlayer key={`b${pi}`} tree={part.branchTree} cover={video.cover} />
+          ) : (
+            <SegmentPlayer key={`s${pi}`} segments={part.segments} cover={video.cover} />
+          ))}
 
         <h1 className="mt-4 text-xl font-bold text-slate-100">{video.title}</h1>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-400">
@@ -95,9 +127,9 @@ export default function VideoPage() {
           <span>{formatPlays(plays)}播放</span>
           <span>{relativeTime(video.createdAt)}</span>
           <span className="rounded-full bg-panel px-2.5 py-0.5 text-xs">{video.category}</span>
-          {video.branchTree && (
+          {part?.branchTree && (
             <span className="rounded-full bg-purple-500/15 px-2.5 py-0.5 text-xs text-purple-300">
-              互动视频 · {Object.values(video.branchTree.nodes).filter((n) => n.choices.length > 1).length} 个分支点
+              互动视频 · {Object.values(part.branchTree.nodes).filter((n) => n.choices.length > 1).length} 个分支点
             </span>
           )}
           <button
@@ -116,11 +148,13 @@ export default function VideoPage() {
           </p>
         )}
 
-        {/* 分段剧情 */}
+        {/* 分段剧情（跟随当前选中的 P） */}
         <section className="mt-6">
-          <h2 className="mb-3 text-base font-bold text-slate-200">分段剧情 · {video.segments.length} 个节点</h2>
+          <h2 className="mb-3 text-base font-bold text-slate-200">
+            {parts.length > 1 ? `${part?.name ?? ""} · ` : ""}分段剧情 · {part?.segments.length ?? 0} 个节点
+          </h2>
           <div className="space-y-3">
-            {video.segments.map((seg, i) => (
+            {(part?.segments ?? []).map((seg, i) => (
               <div key={i} className="flex gap-3 rounded-xl bg-panel/60 p-3">
                 <div className="flex w-40 flex-none flex-col gap-1.5">
                   <img src={seg.firstFrame} alt="首帧" className="aspect-video w-full rounded-lg object-cover" />

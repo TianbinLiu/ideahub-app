@@ -8,6 +8,7 @@ import SettingsPage from "./pages/SettingsPage";
 import LoginPage from "./pages/LoginPage";
 import VideoPage from "./pages/VideoPage";
 import PublishPage from "./pages/PublishPage";
+import EditPage from "./pages/EditPage";
 import StudioPage from "./studio/StudioPage";
 import TabBar from "./components/TabBar";
 import { readyVideos } from "./data/videos";
@@ -76,6 +77,14 @@ export default function App() {
         element={
           <RequireAuth>
             <PublishPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/edit/:id"
+        element={
+          <RequireAuth>
+            <EditPage />
           </RequireAuth>
         }
       />

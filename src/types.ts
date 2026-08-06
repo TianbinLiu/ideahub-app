@@ -78,6 +78,13 @@ export interface BranchTree {
   nodes: Record<string, BranchNodeData>;
 }
 
+/** 一部作品的一个 P（分集）：各自独立的一条成片（线性段序列 + 可选互动分支树） */
+export interface VideoPart {
+  name: string;
+  segments: VideoSegment[];
+  branchTree?: BranchTree;
+}
+
 export interface VideoComment {
   id: string;
   author: string;
@@ -94,6 +101,9 @@ export interface VideoItem {
   segments: VideoSegment[];
   /** 互动分支树；无此字段 = 线性播放 */
   branchTree?: BranchTree;
+  /** 多 P（分集）。缺省 = 单 P 老数据；有值时 segments/branchTree 恒为 parts[0] 的镜像
+   *  （首页 Feed 与旧读者只认顶层字段，双写保证它们继续工作） */
+  parts?: VideoPart[];
   author: string;
   plays: number;
   likes: number;

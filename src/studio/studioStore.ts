@@ -1,10 +1,11 @@
-// 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成
+// 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
-import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, CardType, DraftVideo, NodeSlot, Proposal, uid } from "../types";
+import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, CardType, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
 import { MaterialFile, composeSegments, composeVideo, generateCards, generateProposals, searchMarket } from "../ai";
 import { DECK_CAM, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { addCards as saveCardsToAccount } from "../data/account";
+import { getVideo, loadProject, partsOf } from "../data/videos";
 
 export interface DialogMsg {
   id: string;
@@ -115,6 +116,63 @@ function buildBranchTree(root: NodeSlot | null, videoByProposal?: Record<string,
   return hasFork ? { rootId, nodes, startChoices } : undefined;
 }
 
+// ── 已发布作品 → 工坊节点树重建 ─────────────────────────────
+// 首选 IndexedDB 里的源工程（发布时随手保存，含三方案与未选走向）；
+// 没有源工程（老作品/换设备）时从成片反推：能还原结构，还原不了未选的方案。
+
+function segToProposal(index: number, seg: VideoSegment): Proposal {
+  return {
+    id: uid("prop"),
+    title: seg.title || `第${index + 1}段`,
+    plot: seg.plot,
+    firstFrame: seg.firstFrame,
+    lastFrame: seg.lastFrame,
+    durationSec: seg.durationSec,
+  };
+}
+
+/** 线性成片 → 单链节点树（每节点一个已选方案） */
+function slotFromSegments(segments: VideoSegment[]): NodeSlot | null {
+  let next: NodeSlot | null = null;
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const p = segToProposal(i, segments[i]);
+    const node: NodeSlot = { id: uid("node"), proposals: [p], chosenId: p.id, children: {} };
+    if (next) node.children[p.id] = next;
+    next = node;
+  }
+  return next;
+}
+
+/** 互动分支树 → 节点树。BranchTree 是允许殊途同归的 DAG，而工坊模型是树——
+ *  汇合节点会按路径展开成多份可独立编辑的拷贝（编辑后自然不再共享，符合直觉）。 */
+function slotFromBranchTree(tree: BranchTree, depthIndex = 0): NodeSlot | null {
+  const build = (ids: string[], depth: number, seen: Set<string>): NodeSlot | null => {
+    const proposals: Proposal[] = [];
+    const children: NodeSlot["children"] = {};
+    for (const bid of ids) {
+      const bn = tree.nodes[bid];
+      if (!bn || seen.has(bid)) continue; // 环兜底（正常数据不该有）
+      const p = segToProposal(depth, bn.segment);
+      proposals.push(p);
+      if (bn.choices.length > 0) {
+        const child = build(bn.choices.map((c) => c.nextId), depth + 1, new Set(seen).add(bid));
+        if (child) children[p.id] = child;
+      }
+    }
+    if (proposals.length === 0) return null;
+    return { id: uid("node"), proposals, chosenId: proposals[0].id, children };
+  };
+  return build(tree.startChoices?.map((c) => c.nextId) ?? [tree.rootId], depthIndex, new Set());
+}
+
+/** 回炉编辑的目标：composeNow 出的草稿将保存进该作品的该 P，而不是新建作品 */
+export interface EditTarget {
+  videoId: string;
+  partIndex: number;
+  videoTitle: string;
+  partName: string;
+}
+
 interface StudioState {
   deck: Card[];
   spreadOpen: boolean;
@@ -207,6 +265,15 @@ interface StudioState {
 
   composeNow: () => Promise<void>;
   clearDraft: () => void;
+
+  /** 非 null = 回炉编辑模式（工坊顶部亮横幅，发布页变"保存修改"） */
+  editTarget: EditTarget | null;
+  /** 重制已发布作品的某一 P：载入源工程（无则从成片重建）并进入编辑模式 */
+  startEditPart: (videoId: string, partIndex: number) => Promise<boolean>;
+  /** 为已发布作品新增一 P：空桌面开工，合成后追加到该作品 */
+  startNewPart: (videoId: string) => boolean;
+  /** 退出编辑模式（不动作品本身；桌面清空回到全新创作） */
+  exitEdit: () => void;
 }
 
 const DEFAULT_EDITOR: EditorState = {
@@ -681,6 +748,54 @@ export const useStudio = create<StudioState>()((set, get) => ({
     });
   },
   clearDraft: () => set({ draft: null }),
+
+  editTarget: null,
+  startEditPart: async (videoId, partIndex) => {
+    const video = getVideo(videoId);
+    if (!video) return false;
+    const part = partsOf(video)[partIndex];
+    if (!part) return false;
+    const saved = await loadProject(videoId, partIndex);
+    const root =
+      saved ?? (part.branchTree ? slotFromBranchTree(part.branchTree) : slotFromSegments(part.segments));
+    set({
+      root,
+      editTarget: { videoId: video.id, partIndex, videoTitle: video.title, partName: part.name },
+      draft: null,
+      focus: null,
+      projection: null,
+      editor: null,
+      spreadOpen: false,
+      camera: { kind: "default" },
+      orbit: null,
+    });
+    get().npcSay(
+      saved
+        ? `《${video.title}》${part.name} 的工程已经铺回桌面——原来的三方案和没选的走向都在。改完点合成，就会更新到作品里。`
+        : `没找到这部作品的源工程（可能是老作品或换了设备），我按成片把节点树还原出来了——每段只有当时选定的方案。改完点合成即可更新作品。`,
+    );
+    return true;
+  },
+  startNewPart: (videoId) => {
+    const video = getVideo(videoId);
+    if (!video) return false;
+    const n = partsOf(video).length;
+    set({
+      root: null,
+      editTarget: { videoId: video.id, partIndex: n, videoTitle: video.title, partName: `P${n + 1}` },
+      draft: null,
+      focus: null,
+      projection: null,
+      editor: null,
+      spreadOpen: false,
+      camera: { kind: "default" },
+      orbit: null,
+    });
+    get().npcSay(`来给《${video.title}》添第 ${n + 1} P。桌面已清空，从占位卡开始铸第一段吧。`);
+    return true;
+  },
+  exitEdit: () =>
+    set({ editTarget: null, root: null, draft: null, focus: null, projection: null, editor: null }),
 }));
 
 // DEV 调试/E2E 挂钩：让自动化脚本能拿到与组件同实例的 store

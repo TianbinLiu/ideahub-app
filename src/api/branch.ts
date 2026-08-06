@@ -3,7 +3,7 @@
 //
 // 服务端字段用 `_id` / ISO 时间字符串，客户端领域模型用 `id` / 毫秒时间戳，
 // 转换统一放在 data/*.ts（因为只有它知道要往哪个 cache 里塞）。
-import type { BranchTree, Card, CardType, DraftVideo, VideoSegment } from "../types";
+import type { BranchTree, Card, CardType, DraftVideo, VideoPart, VideoSegment } from "../types";
 import { apiDelete, apiGet, apiPatch, apiPost } from "./client";
 
 // ── DTO ──────────────────────────────────────────────────
@@ -31,6 +31,8 @@ export interface ApiVideo {
   cover: string;
   segments: VideoSegment[];
   branchTree?: BranchTree;
+  /** 多 P（分集）；老作品/未升级服务端缺省 */
+  parts?: VideoPart[];
   author: ApiAuthor | string;
   plays: number;
   likes: number;
@@ -194,6 +196,20 @@ export async function createVideo(draft: DraftVideo): Promise<ApiVideo | null> {
 /** DELETE /api/branch/videos/:id（requireAuth，仅作者） */
 export async function deleteVideo(id: string): Promise<void> {
   await apiDelete(`/api/branch/videos/${encodeURIComponent(id)}`);
+}
+
+/**
+ * PATCH /api/branch/videos/:id（requireAuth，仅作者）——作品编辑（标题/封面/分集等）。
+ * 与 updateDeck 同一套 PATCH 约定；服务端未实现该端点时调用方会收到 ApiError，
+ * 由 data 层降级为"仅本地生效"并 toast。segments 可能带 1MB 级 base64 帧，超时同 create。
+ */
+export async function updateVideo(id: string, patch: Partial<ApiVideo>): Promise<ApiVideo | null> {
+  const res = await apiPatch<Record<string, unknown>>(
+    `/api/branch/videos/${encodeURIComponent(id)}`,
+    patch,
+    { timeoutMs: 180_000 },
+  );
+  return pick<ApiVideo>(res, ["video", "item", "data"]);
 }
 
 /** POST /api/branch/videos/:id/play（optionalAuth）→ { plays } */

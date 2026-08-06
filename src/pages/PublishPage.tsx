@@ -1,10 +1,12 @@
-// 合成完成后的编辑发布页：标题 / 分类 / 简介 / 封面选择 + 左侧成片预览
+// 合成完成后的编辑发布页：标题 / 分类 / 简介 / 封面选择 + 左侧成片预览。
+// 两种模式：全新发布（默认）/ 回炉编辑（studioStore.editTarget 非 null）——
+// 后者把本次合成保存为既有作品的对应 P，并同步元信息，不新建作品。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AiCoverDialog, FrameCaptureDialog, fileToCoverDataUrl } from "../components/CoverPicker";
+import { CoverSection } from "../components/CoverPicker";
 import Icon from "../components/Icon";
 import SegmentPlayer from "../components/SegmentPlayer";
-import { publishVideo } from "../data/videos";
+import { getVideo, partsOf, publishVideo, saveProject, setVideoParts, updateVideoMeta } from "../data/videos";
 import { useStudio } from "../studio/studioStore";
 import { VIDEO_CATEGORIES, formatDuration } from "../types";
 
@@ -12,37 +14,20 @@ export default function PublishPage() {
   const navigate = useNavigate();
   const draft = useStudio((s) => s.draft);
   const clearDraft = useStudio((s) => s.clearDraft);
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState(draft?.category ?? "剧情");
-  const [description, setDescription] = useState(draft?.description ?? "");
-  const [cover, setCover] = useState(draft?.cover ?? "");
+  const editTarget = useStudio((s) => s.editTarget);
+  // 编辑模式的目标作品。getVideo 返回 cache 里的同一对象，取初值用，不需要订阅
+  const editingVideo = useMemo(() => (editTarget ? getVideo(editTarget.videoId) : null), [editTarget]);
+  const [title, setTitle] = useState(editingVideo?.title ?? "");
+  const [category, setCategory] = useState(editingVideo?.category ?? draft?.category ?? "剧情");
+  const [description, setDescription] = useState(editingVideo?.description ?? draft?.description ?? "");
+  const [cover, setCover] = useState(editingVideo?.cover ?? draft?.cover ?? "");
   const [err, setErr] = useState("");
-  // 封面工坊弹窗与本地上传（对标 website 的 PublishUpload：截帧 / 上传 / AI）
-  const [frameDlg, setFrameDlg] = useState(false);
-  const [aiDlg, setAiDlg] = useState(false);
-  const [coverErr, setCoverErr] = useState("");
-  const fileRef = useRef<HTMLInputElement>(null);
 
   // 仅“直接闯入且无草稿”时送回工坊；发布成功后的 clearDraft 不应抢跳
   const publishedRef = useRef(false);
   useEffect(() => {
     if (!draft && !publishedRef.current) navigate("/studio", { replace: true });
   }, [draft, navigate]);
-
-  const frameChoices = useMemo(() => {
-    if (!draft) return [];
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const s of draft.segments) {
-      for (const f of [s.firstFrame, s.lastFrame]) {
-        if (!seen.has(f)) {
-          seen.add(f);
-          out.push(f);
-        }
-      }
-    }
-    return out;
-  }, [draft]);
 
   if (!draft) return null;
   const total = draft.segments.reduce((s, x) => s + x.durationSec, 0);
@@ -53,6 +38,26 @@ export default function PublishPage() {
       setErr("先给视频起个标题");
       return;
     }
+    // 源工程随发布落库：回工坊"重制"时才有完整节点树（三方案/未选走向）可还原
+    const root = useStudio.getState().root;
+    if (editTarget && editingVideo) {
+      const parts = partsOf(editingVideo).slice();
+      const part = { name: editTarget.partName, segments: draft.segments, branchTree: draft.branchTree };
+      if (editTarget.partIndex < parts.length) parts[editTarget.partIndex] = part;
+      else parts.push(part);
+      setVideoParts(editingVideo.id, parts);
+      updateVideoMeta(editingVideo.id, {
+        title: title.trim(),
+        category,
+        description: description.trim(),
+        cover,
+      });
+      if (root) saveProject(editingVideo.id, editTarget.partIndex, root);
+      publishedRef.current = true;
+      useStudio.getState().exitEdit(); // 一并清掉草稿与编辑态
+      navigate(`/video/${editingVideo.id}`, { replace: true });
+      return;
+    }
     const item = publishVideo({
       title: title.trim(),
       category,
@@ -61,6 +66,7 @@ export default function PublishPage() {
       segments: draft.segments,
       branchTree: draft.branchTree,
     });
+    if (root) saveProject(item.id, 0, root);
     publishedRef.current = true;
     clearDraft();
     navigate(`/video/${item.id}`, { replace: true });
@@ -74,7 +80,7 @@ export default function PublishPage() {
             <Icon name="back" size={18} />
             返回工坊
           </Link>
-          <span className="font-bold text-slate-100">发布视频</span>
+          <span className="font-bold text-slate-100">{editTarget ? "更新作品" : "发布视频"}</span>
           <span className="text-xs text-slate-500">
             {draft.segments.length} 个节点段 · 共 {formatDuration(total)}
           </span>
@@ -84,6 +90,13 @@ export default function PublishPage() {
       <main className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1.2fr_1fr]">
         {/* 成片预览 */}
         <div>
+          {editTarget && (
+            <div className="mb-3 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3.5 py-2.5 text-xs leading-5 text-amber-200">
+              🛠 本次合成将保存为《{editTarget.videoTitle}》的 {editTarget.partName}
+              {editingVideo && editTarget.partIndex >= partsOf(editingVideo).length ? "（新增一 P）" : "（覆盖原内容）"}
+              ，不会新建作品。
+            </div>
+          )}
           <SegmentPlayer segments={draft.segments} cover={cover || draft.cover} />
           <div className="mt-2 text-center text-xs text-slate-500">成片预览（各节点段按时间线依次播放）</div>
           {/* 每段的来历必须可见：真实 Seedance 影像还是首尾帧渐变回退。
@@ -160,72 +173,11 @@ export default function PublishPage() {
             />
           </div>
 
-          <div>
-            <div className="mb-1.5 text-sm font-semibold text-slate-300">封面</div>
-            {/* 当前封面预览：截帧/上传/AI 的产物不在下方候选条里，必须有个地方能看到选中的是什么 */}
-            {cover ? (
-              <img src={cover} alt="当前封面" className="mb-2 aspect-video w-full rounded-xl border border-slate-700 object-cover" />
-            ) : (
-              <div className="mb-2 flex aspect-video w-full items-center justify-center rounded-xl border border-dashed border-slate-700 text-xs text-slate-500">
-                还没选封面——截一帧、传一张，或让 AI 画一张
-              </div>
-            )}
-            <div className="mb-2 flex flex-wrap gap-2">
-              <button
-                onClick={() => setFrameDlg(true)}
-                className="rounded-xl bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700"
-              >
-                🎞 从成片截帧
-              </button>
-              <button
-                onClick={() => fileRef.current?.click()}
-                className="rounded-xl bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700"
-              >
-                🖼 本地上传
-              </button>
-              <button
-                onClick={() => setAiDlg(true)}
-                className="rounded-xl bg-panel px-3.5 py-2 text-xs text-cyan-200 ring-1 ring-cyan-400/40 hover:bg-slate-700"
-              >
-                ✨ AI 封面（改图/生成）
-              </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = ""; // 同一文件可重复选择
-                  if (!f) return;
-                  setCoverErr("");
-                  void fileToCoverDataUrl(f).then((url) => {
-                    if (url) setCover(url);
-                    else setCoverErr("这张图读不出来，换一张试试（仅支持图片文件）");
-                  });
-                }}
-              />
-            </div>
-            {coverErr && <div className="mb-2 text-xs text-red-400">{coverErr}</div>}
-            <div className="mb-1 text-xs text-slate-500">或从各段首尾帧中选择：</div>
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {frameChoices.map((f, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCover(f)}
-                  className={`w-28 flex-none overflow-hidden rounded-lg border-2 ${
-                    cover === f ? "border-brand" : "border-transparent opacity-70 hover:opacity-100"
-                  }`}
-                >
-                  <img src={f} alt={`帧${i + 1}`} className="aspect-video w-full object-cover" />
-                </button>
-              ))}
-            </div>
-          </div>
+          <CoverSection cover={cover} onCover={setCover} segments={draft.segments} />
 
           <div className="flex items-center gap-3 pt-2">
             <button onClick={publish} className="rounded-xl bg-brand px-6 py-2.5 font-bold text-ink hover:brightness-110">
-              发布
+              {editTarget ? "保存修改" : "发布"}
             </button>
             <button
               onClick={() => {
@@ -239,27 +191,6 @@ export default function PublishPage() {
           </div>
         </div>
       </main>
-
-      {frameDlg && (
-        <FrameCaptureDialog
-          segments={draft.segments}
-          onCancel={() => setFrameDlg(false)}
-          onConfirm={(url) => {
-            setCover(url);
-            setFrameDlg(false);
-          }}
-        />
-      )}
-      {aiDlg && (
-        <AiCoverDialog
-          currentCover={cover}
-          onCancel={() => setAiDlg(false)}
-          onConfirm={(url) => {
-            setCover(url);
-            setAiDlg(false);
-          }}
-        />
-      )}
     </div>
   );
 }
