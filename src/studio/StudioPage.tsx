@@ -77,10 +77,13 @@ function useHint(): string {
   const projection = useStudio((s) => s.projection);
   const focus = useStudio((s) => s.focus);
   const marketOpen = useStudio((s) => s.market.open);
+  const spreadOpen = useStudio((s) => s.spreadOpen);
   if (projection === "editor") return "填入素材与要求，AI 将推演三种走向";
   if (projection === "proposals") return "点开投影中的方案卡，选定后卡片落回桌面";
+  if (projection === "decks") return "选一套卡组摊上桌面（全部卡片也算一套）";
   if (focus) return "点击卡片之外的桌面区域可拉远视角";
   if (marketOpen) return "点桌上的市场卡放大查看，喜欢就收进卡组";
+  if (spreadOpen) return "拖卡片到虚线卡位铸段 · 单点看详情 · 点卡组堆换一套";
   if (!root && deckLen === 0) return "先把素材交给铸卡师炼卡，或让 TA 摊开市场";
   if (!root) return "点击虚线卡位，铸造第一段视频节点";
   if (placeholderVisible(root) && composable(root)) return "点虚线卡位延展下一段，或点金色圆台合成完整视频";
@@ -94,6 +97,8 @@ export default function StudioPage() {
   const editTarget = useStudio((s) => s.editTarget);
   const initGreet = useStudio((s) => s.initGreet);
   const spreadOpen = useStudio((s) => s.spreadOpen);
+  const projection = useStudio((s) => s.projection);
+  const activeDeck = useStudio((s) => s.activeDeck);
   const deckLen = useStudio((s) => s.deck.length);
   const shiftSpread = useStudio((s) => s.shiftSpread);
   const hint = useHint();
@@ -185,6 +190,19 @@ export default function StudioPage() {
       <div className="pointer-events-none absolute inset-x-0 bottom-16 flex justify-center px-4">
         <div className="rounded-full bg-panel/75 px-4 py-1.5 text-center text-xs text-slate-300 backdrop-blur">{hint}</div>
       </div>
+
+      {/* 摊开态右上角悬浮"收起卡组"：紧挨顶栏（生成/合成入口一侧），
+          不收起也不挡路，但用户想清桌面时要一眼找得到 */}
+      {spreadOpen && !projection && (
+        <div className="safe-top absolute right-3 top-14 z-10">
+          <button
+            onClick={() => useStudio.getState().closeDeckSpread()}
+            className="pointer-events-auto rounded-full border border-slate-600/70 bg-panel/85 px-3 py-1.5 text-xs text-slate-200 backdrop-blur hover:bg-slate-700"
+          >
+            ✕ 收起卡组{activeDeck ? ` · ${activeDeck.name}` : ""}
+          </button>
+        </div>
+      )}
 
       {/* 卡组展开翻页箭头 */}
       {spreadOpen && deckLen > SPREAD.maxVisible && (

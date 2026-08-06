@@ -4,7 +4,7 @@ import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, CardTyp
 import { MaterialFile, composeSegments, composeVideo, generateCards, generateProposals, searchMarket } from "../ai";
 import { DECK_CAM, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { addCards as saveCardsToAccount } from "../data/account";
+import { addCards as saveCardsToAccount, myCards, myDecks } from "../data/account";
 import { getVideo, loadProject, partsOf } from "../data/videos";
 
 export interface DialogMsg {
@@ -184,11 +184,19 @@ interface StudioState {
   root: NodeSlot | null;
   /** 聚焦的桌面卡：nodeId=null 表示聚焦虚线占位卡；null=未聚焦（默认俯视机位） */
   focus: { nodeId: string | null } | null;
-  /** 投影窗内容：editor=四区编辑表单；proposals=三方案选择；卡片悬浮当且仅当投影打开 */
-  projection: "editor" | "proposals" | "deck" | null;
-  /** 卡组浏览视角：镜头拍玩家上半身（思考姿势），卡组投影横滑 */
+  /** 投影窗内容：editor=四区编辑表单；proposals=三方案选择；decks=卡组选择；
+   *  卡片悬浮当且仅当投影打开 */
+  projection: "editor" | "proposals" | "decks" | null;
+  /** 卡组选择视角：镜头拍玩家上半身（思考姿势），投影里选一套卡组 */
   deckView: boolean;
+  /** 点卡组堆：进入"选卡组"投影（两段式第一步；摊开态下再点=切换卡组） */
   openDeckView: () => void;
+  /** 当前摊在桌面的卡组：id=null 表示"全部卡片"；null=尚未选过（默认全部） */
+  activeDeck: { id: string | null; name: string } | null;
+  /** 选定卡组（两段式第二步）：回第一人称，把该卡组的卡平铺上桌 */
+  pickDeckToTable: (deckId: string | null, name: string) => void;
+  /** 收起桌面上摊开的卡组（右上角悬浮按钮） */
+  closeDeckSpread: () => void;
   /** 相机轨道中心：非 null 时，在投影窗之外的画布上拖拽 = 绕该中心做球面运动
    *  （相机始终看向圆心）。node=节点卡坐标；player/npc=对应角色头部（每帧动态解析）。
    *  取代了旧的"自由视角平移"——球面运动更可控且天然不会飞出场景 */
@@ -487,35 +495,31 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (get().projection) return;
     set({ focus: null, editor: null, spreadOpen: false, deckView: false, camera: { kind: "default" }, orbit: null });
   },
-  // 点 ✕ 关闭投影窗：卡组档保留玩家头部轨道（可继续绕角色看），
-  // 节点卡档回第一人称眼位（旧的"自由平移视角"已按用户要求取消）
+  // 点 ✕ 关闭投影窗：一律回第一人称眼位（卡组选择关掉=没选，没理由留在角色特写）
   closeProjection: () =>
-    set((s) =>
-      s.projection === "deck"
-        ? { projection: null, editor: null, focus: null, spreadOpen: false }
-        : {
-            projection: null,
-            editor: null,
-            focus: null,
-            spreadOpen: false,
-            deckView: false,
-            camera: { kind: "default" },
-            orbit: null,
-          },
-    ),
+    set({
+      projection: null,
+      editor: null,
+      focus: null,
+      spreadOpen: false,
+      deckView: false,
+      camera: { kind: "default" },
+      orbit: null,
+    }),
   toggleSpread: () =>
     set((s) => ({ spreadOpen: s.deck.length > 0 && !s.spreadOpen })),
-  // 点卡组：镜头移到玩家左侧拍上半身（思考姿势），卡组以投影小窗横滑浏览
+  // 点卡组堆：镜头移到玩家左侧拍上半身（思考姿势），投影里选一套卡组。
+  // 两段式第一步——选中后 pickDeckToTable 回第一人称把卡摊上桌
   openDeckView: () => {
-    const { deck, projection } = get();
+    const { projection } = get();
     if (projection) return;
-    if (deck.length === 0) {
-      get().npcSay("你的卡组还是空的。先把素材交给我炼卡，或者说「逛市场」看看现成的。");
+    if (myCards().length === 0 && get().deck.length === 0) {
+      get().npcSay("你还没有卡。先把素材交给我炼卡，或者说「逛市场」看看现成的。");
       return;
     }
     set({
       deckView: true,
-      projection: "deck",
+      projection: "decks",
       spreadOpen: false,
       focus: null,
       camera: { kind: "pos", pos: DECK_CAM.pos, look: DECK_CAM.look },
@@ -523,6 +527,38 @@ export const useStudio = create<StudioState>()((set, get) => ({
       orbit: { target: "player" },
     });
   },
+  activeDeck: null,
+  pickDeckToTable: (deckId, name) => {
+    let cards: Card[];
+    if (deckId === null) {
+      cards = myCards();
+      // 会话里刚炼/刚收但还没进账号库的卡（未登录兜底）也别弄丢
+      const have = new Set(cards.map((c) => c.id));
+      cards = [...cards, ...get().deck.filter((c) => !have.has(c.id))];
+    } else {
+      const d = myDecks().find((x) => x.id === deckId);
+      const byId = new Map(myCards().map((c) => [c.id, c]));
+      cards = (d?.cardIds ?? []).map((id) => byId.get(id)).filter((c): c is Card => !!c);
+    }
+    if (cards.length === 0) {
+      get().npcSay(`「${name}」还是空的——去创意工坊给它添几张卡吧。`);
+      return;
+    }
+    set({
+      activeDeck: { id: deckId, name },
+      deck: cards,
+      spreadOpen: true,
+      spreadCenter: 0,
+      projection: null,
+      editor: null,
+      deckView: false,
+      focus: null,
+      camera: { kind: "default" },
+      orbit: null,
+    });
+    get().npcSay(`「${name}」的 ${cards.length} 张卡摊好了——拖到虚线卡位铸段，单点看详情；想换一套就再点卡组堆。`);
+  },
+  closeDeckSpread: () => set({ spreadOpen: false }),
   // 点 3D 里的 NPC：切对话机位 + 弹出对话框（对话框默认隐藏，只由此处唤起）
   openNpcDialog: () => {
     const st = get();

@@ -1,19 +1,21 @@
 // 全息投影窗：悬浮卡上方的主交互面板（占据视觉大部分空间，背景灰化模糊）
 // editor = 左侧空白首尾帧栏位 + 右侧四区（预览图/素材/视频要求/视频时长）
 // proposals = 三个投影节点卡（点开看首尾帧与小说式剧情，选定后落卡）
-import { useState } from "react";
-import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType } from "../../types";
+// decks = 卡组选择（两段式第一步；选中后回第一人称把该组卡摊上桌）
+import { useMemo, useState } from "react";
+import { myCards, myDecks } from "../../data/account";
+import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType } from "../../types";
 import { activePath, chosenProposal, useStudio } from "../studioStore";
 
 export default function ProjectionWindow() {
   const projection = useStudio((s) => s.projection);
   if (!projection) return null;
-  // 卡组浏览：小窗横滑，置于屏幕中间偏下（上部留给玩家上半身）
-  if (projection === "deck") {
+  // 卡组选择：小窗置于屏幕中间偏下（上部留给玩家上半身）
+  if (projection === "decks") {
     return (
       <div className="absolute inset-0 z-20">
         <div className="absolute inset-x-2 top-[54%] bottom-[7%] flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142b]/40 shadow-[0_0_60px_rgba(103,232,249,0.28)] backdrop-blur-lg">
-          <DeckPanel />
+          <DeckPickPanel />
         </div>
       </div>
     );
@@ -39,41 +41,96 @@ export default function ProjectionWindow() {
   );
 }
 
-// ── 卡组投影：横向滑动浏览（scroll-snap，一屏约 2.2 张） ────────
-function DeckPanel() {
-  const deck = useStudio((s) => s.deck);
+// ── 卡组选择投影：全部卡片 + 我的卡组（封面拼贴），点选即摊上桌 ──
+function DeckPickPanel() {
+  const activeDeck = useStudio((s) => s.activeDeck);
+  const { decks, cardById, allCount } = useMemo(() => {
+    const cards = myCards();
+    return {
+      decks: myDecks(),
+      cardById: new Map<string, Card>(cards.map((c) => [c.id, c])),
+      allCount: cards.length,
+    };
+  }, []);
+
+  const Row = ({
+    name,
+    count,
+    covers,
+    active,
+    onPick,
+  }: {
+    name: string;
+    count: number;
+    covers: string[];
+    active: boolean;
+    onPick: () => void;
+  }) => (
+    <button
+      onClick={onPick}
+      className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition-colors ${
+        active ? "border-gold/70 bg-gold/10" : "border-slate-600/60 hover:border-cyan-400/50"
+      }`}
+    >
+      {/* 封面拼贴：最多 4 张斜叠，空组给占位底 */}
+      <div className="relative h-16 w-14 flex-none">
+        {covers.length === 0 && <div className="absolute inset-0 rounded-lg bg-slate-800/70" />}
+        {covers.slice(0, 4).map((c, i) => (
+          <img
+            key={i}
+            src={c}
+            alt=""
+            className="absolute h-14 w-10 rounded-md border border-black/40 object-cover"
+            style={{ left: i * 5, top: i * 2, transform: `rotate(${(i - 1.5) * 5}deg)` }}
+          />
+        ))}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-semibold text-slate-100">{name}</span>
+          {active && <span className="flex-none rounded-full bg-gold/20 px-1.5 text-[10px] text-gold">当前</span>}
+        </div>
+        <div className="mt-0.5 text-[11px] text-slate-400">{count} 张卡</div>
+      </div>
+      <span className="flex-none text-xs text-cyan-300">摊上桌 ›</span>
+    </button>
+  );
+
   return (
     <>
       <div className="flex items-center justify-between border-b border-cyan-400/20 px-4 py-2.5">
-        <h3 className="text-sm font-bold text-cyan-100">我的卡组 · {deck.length} 张</h3>
+        <h3 className="text-sm font-bold text-cyan-100">选择卡组</h3>
         <button onClick={() => useStudio.getState().closeProjection()} className="text-slate-400 hover:text-white">
           ✕
         </button>
       </div>
-      <div className="flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden px-4 py-3">
-        {deck.map((c) => {
-          const color = CARD_TYPE_COLORS[c.type];
-          return (
-            <div
-              key={c.id}
-              className="relative flex w-[42%] flex-none snap-center flex-col overflow-hidden rounded-xl border bg-black/40"
-              style={{ borderColor: color + "88" }}
-            >
-              <img src={c.cover} alt={c.name} className="min-h-0 w-full flex-1 object-cover" />
-              <div className="p-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="truncate text-xs font-semibold text-slate-100">{c.name}</span>
-                  <span className="flex-none rounded-full border px-1.5 text-[9px]" style={{ color, borderColor: color }}>
-                    {CARD_TYPE_LABELS[c.type]}
-                  </span>
-                </div>
-                <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-400">{c.summary}</p>
-              </div>
-            </div>
-          );
-        })}
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+        <Row
+          name="全部卡片"
+          count={allCount}
+          covers={[...cardById.values()].slice(0, 4).map((c) => c.cover)}
+          active={activeDeck?.id === null || activeDeck === null}
+          onPick={() => useStudio.getState().pickDeckToTable(null, "全部卡片")}
+        />
+        {decks.map((d) => (
+          <Row
+            key={d.id}
+            name={d.name}
+            count={d.cardIds.length}
+            covers={d.cardIds.map((id) => cardById.get(id)?.cover).filter((c): c is string => !!c)}
+            active={activeDeck?.id === d.id}
+            onPick={() => useStudio.getState().pickDeckToTable(d.id, d.name)}
+          />
+        ))}
+        {decks.length === 0 && (
+          <div className="py-3 text-center text-[11px] leading-5 text-slate-500">
+            还没有建过卡组——发布作品会自动生成《作品》卡组，
+            <br />
+            也可以在「创意工坊」页手动组一套。
+          </div>
+        )}
       </div>
-      <div className="pb-2 text-center text-[10px] text-slate-500">← 左右滑动浏览 →</div>
+      <div className="pb-2 text-center text-[10px] text-slate-500">选一套摊上桌面，拖卡铸段 · 单点看详情</div>
     </>
   );
 }

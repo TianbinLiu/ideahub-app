@@ -762,6 +762,8 @@ function UserHands() {
 // ── 卡组（堆叠；空组只剩虚位标记） ────────────────────────────
 function DeckStack() {
   const deck = useStudio((s) => s.deck);
+  const spreadOpen = useStudio((s) => s.spreadOpen);
+  const activeDeck = useStudio((s) => s.activeDeck);
   const backMat = useMemo(
     () => new THREE.MeshBasicMaterial({ map: cardBackTexture(), transparent: true, side: THREE.DoubleSide }),
     []
@@ -774,7 +776,11 @@ function DeckStack() {
   const shown = Math.min(deck.length, 24);
   // 复用同一材质只换 map，避免随 deck.length 反复新建材质
   const countMat = useMemo(() => new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }), []);
-  countMat.map = labelTexture(`卡组 ${deck.length}`, "#e2e8f0");
+  // 摊开态下这堆就是"切换卡组"的入口，标签要说人话；平时显示当前卡组名/张数
+  countMat.map = labelTexture(
+    spreadOpen ? "切换卡组" : activeDeck ? `${activeDeck.name.slice(0, 6)} ${deck.length}` : `卡组 ${deck.length}`,
+    "#e2e8f0",
+  );
   useEffect(() => {
     const mats = [backMat, markerMat, countMat];
     return () => mats.forEach((m) => m.dispose());
@@ -783,7 +789,8 @@ function DeckStack() {
     <group
       onClick={(e) => {
         e.stopPropagation();
-        // 点卡组：进入卡组浏览视角（镜头拍玩家思考 + 投影横滑）
+        // 点卡组堆：进入"选卡组"视角（镜头拍玩家思考 + 卡组选择投影）；
+        // 摊开态下再点 = 切换卡组，回到同一个选择步骤
         useStudio.getState().openDeckView();
       }}
     >
@@ -869,7 +876,15 @@ function DragLayer() {
       if (dragState.moved && nearPlaceholder && phX != null) {
         const cam = focusCam(phX, CHAIN.rowZ);
         st.dropOnPlaceholder(id, cam.pos, cam.look);
-      } else if (!dragState.moved) st.pickDeckCard(id);
+      } else if (!dragState.moved) {
+        // 单击（没拖动）：编辑器开着=选入素材槽；否则打开卡片详情
+        if (st.editor && !st.editor.generating) {
+          st.pickDeckCard(id);
+        } else {
+          const c = st.deck.find((x) => x.id === id);
+          if (c) st.viewCardDetail(c);
+        }
+      }
       st.setDrag(null);
     };
     window.addEventListener("pointerup", onUp);
