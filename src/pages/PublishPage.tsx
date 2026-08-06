@@ -1,6 +1,7 @@
 // 合成完成后的编辑发布页：标题 / 分类 / 简介 / 封面选择 + 左侧成片预览
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { AiCoverDialog, FrameCaptureDialog, fileToCoverDataUrl } from "../components/CoverPicker";
 import Icon from "../components/Icon";
 import SegmentPlayer from "../components/SegmentPlayer";
 import { publishVideo } from "../data/videos";
@@ -16,6 +17,11 @@ export default function PublishPage() {
   const [description, setDescription] = useState(draft?.description ?? "");
   const [cover, setCover] = useState(draft?.cover ?? "");
   const [err, setErr] = useState("");
+  // 封面工坊弹窗与本地上传（对标 website 的 PublishUpload：截帧 / 上传 / AI）
+  const [frameDlg, setFrameDlg] = useState(false);
+  const [aiDlg, setAiDlg] = useState(false);
+  const [coverErr, setCoverErr] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
 
   // 仅“直接闯入且无草稿”时送回工坊；发布成功后的 clearDraft 不应抢跳
   const publishedRef = useRef(false);
@@ -155,7 +161,53 @@ export default function PublishPage() {
           </div>
 
           <div>
-            <div className="mb-1.5 text-sm font-semibold text-slate-300">封面（从各段首尾帧中选择）</div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300">封面</div>
+            {/* 当前封面预览：截帧/上传/AI 的产物不在下方候选条里，必须有个地方能看到选中的是什么 */}
+            {cover ? (
+              <img src={cover} alt="当前封面" className="mb-2 aspect-video w-full rounded-xl border border-slate-700 object-cover" />
+            ) : (
+              <div className="mb-2 flex aspect-video w-full items-center justify-center rounded-xl border border-dashed border-slate-700 text-xs text-slate-500">
+                还没选封面——截一帧、传一张，或让 AI 画一张
+              </div>
+            )}
+            <div className="mb-2 flex flex-wrap gap-2">
+              <button
+                onClick={() => setFrameDlg(true)}
+                className="rounded-xl bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700"
+              >
+                🎞 从成片截帧
+              </button>
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="rounded-xl bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700"
+              >
+                🖼 本地上传
+              </button>
+              <button
+                onClick={() => setAiDlg(true)}
+                className="rounded-xl bg-panel px-3.5 py-2 text-xs text-cyan-200 ring-1 ring-cyan-400/40 hover:bg-slate-700"
+              >
+                ✨ AI 封面（改图/生成）
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = ""; // 同一文件可重复选择
+                  if (!f) return;
+                  setCoverErr("");
+                  void fileToCoverDataUrl(f).then((url) => {
+                    if (url) setCover(url);
+                    else setCoverErr("这张图读不出来，换一张试试（仅支持图片文件）");
+                  });
+                }}
+              />
+            </div>
+            {coverErr && <div className="mb-2 text-xs text-red-400">{coverErr}</div>}
+            <div className="mb-1 text-xs text-slate-500">或从各段首尾帧中选择：</div>
             <div className="flex gap-2 overflow-x-auto pb-1">
               {frameChoices.map((f, i) => (
                 <button
@@ -187,6 +239,27 @@ export default function PublishPage() {
           </div>
         </div>
       </main>
+
+      {frameDlg && (
+        <FrameCaptureDialog
+          segments={draft.segments}
+          onCancel={() => setFrameDlg(false)}
+          onConfirm={(url) => {
+            setCover(url);
+            setFrameDlg(false);
+          }}
+        />
+      )}
+      {aiDlg && (
+        <AiCoverDialog
+          currentCover={cover}
+          onCancel={() => setAiDlg(false)}
+          onConfirm={(url) => {
+            setCover(url);
+            setAiDlg(false);
+          }}
+        />
+      )}
     </div>
   );
 }

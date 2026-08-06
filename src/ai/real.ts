@@ -175,6 +175,15 @@ export async function generateProposals(
   });
 }
 
+/** 封面工坊：按用户要求出封面。refDataUrl 给了就是"改当前封面"（Seedream 图生图，
+ *  2026-08-06 实测 base64 dataURL 参考图可用，约 27s）；不给就是文生图全新生成。 */
+export async function generateCover(req: string, refDataUrl?: string): Promise<string> {
+  const prompt = refDataUrl
+    ? `在参考图的基础上修改这张视频封面：${req}。除要求之外保持主体、构图与整体风格不变。高细节，氛围光，无文字无水印。横版 16:9 画面。`
+    : `视频封面图：${req}。高细节，电影感构图，氛围光，无文字无水印。横版 16:9 画面。`;
+  return await genImageAsDataUrl(prompt, refDataUrl ? [refDataUrl] : undefined, FRAME_SIZE);
+}
+
 /** 单段合成结果：url 缺席时 error 说明原因；修复过占位帧时带回新帧供草稿/节点同步 */
 export interface SegmentResult {
   url?: string;
