@@ -62,7 +62,10 @@ function DeckPickPanel() {
     if (useStudio.getState().activeDeck || useStudio.getState().pickDeck(null, "全部卡片")) setView("cards");
   };
 
-  // 卡组以"封面卡"的样子出现（竖版卡面 + 底部渐变压名），与桌面上的实体卡同一视觉语言
+  // 卡组渲染成一张真正的卡牌：与 3D 桌面卡同一套卡面语言（cardTexture 的 512×768
+  // 版式）——固定 2:3 长宽比、深蓝卡底、粗彩边、内嵌圆角画窗、名称栏 + 张数徽章；
+  // 身后再垫两层错位卡边，暗示"这是一摞卡"。比例由外层 aspect 容器强制，
+  // 与封面图是否加载/是横是竖完全无关。
   const DeckTile = ({
     name,
     count,
@@ -76,26 +79,42 @@ function DeckPickPanel() {
     active: boolean;
     onPick: () => void;
   }) => (
-    <button
-      onClick={onPick}
-      className={`relative overflow-hidden rounded-xl border text-left transition-colors ${
-        active ? "border-gold/80 ring-1 ring-gold/50" : "border-slate-600/60 hover:border-cyan-400/60"
-      }`}
-    >
-      {cover ? (
-        <img src={cover} alt={name} className="aspect-[3/4] w-full object-cover" />
-      ) : (
-        <div className="flex aspect-[3/4] w-full items-center justify-center bg-slate-800/70 text-3xl">🎴</div>
-      )}
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent px-1.5 pb-1.5 pt-5">
-        <div className="truncate text-[11px] font-semibold text-slate-100">{name}</div>
-        <div className="text-[10px] text-slate-400">{count} 张卡</div>
+    <button onClick={onPick} className="group relative block w-full text-left">
+      {/* 叠牌暗示：身后两张错位的"卡背"边 */}
+      <div className="absolute inset-0 translate-x-1.5 translate-y-1 rotate-[2.5deg] rounded-xl border border-slate-600/50 bg-[#101a33]" />
+      <div className="absolute inset-0 translate-x-0.5 translate-y-0.5 rotate-[1deg] rounded-xl border border-slate-600/60 bg-[#0e1730]" />
+      {/* 本体：固定 2:3 的卡牌 */}
+      <div
+        className={`relative aspect-[2/3] w-full overflow-hidden rounded-xl border-[3px] bg-[#0d1428] shadow-[0_4px_14px_rgba(0,0,0,0.45)] transition-colors ${
+          active ? "border-gold" : "border-slate-500/80 group-hover:border-cyan-400/80"
+        }`}
+      >
+        <div className="absolute inset-0 flex flex-col p-1.5">
+          {/* 画窗：占卡面上部 ~62%（与 3D 卡面同版式），内嵌独立圆角 */}
+          <div className="relative min-h-0 flex-[0_0_62%] overflow-hidden rounded-lg bg-[#16203d]">
+            {cover ? (
+              <img src={cover} alt={name} className="absolute inset-0 h-full w-full object-cover" />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-2xl opacity-60">🎴</div>
+            )}
+          </div>
+          {/* 名称栏 */}
+          <div className="mt-1.5 min-h-0 flex-1">
+            <div className="line-clamp-2 text-[11px] font-bold leading-4 text-slate-100">{name}</div>
+          </div>
+          {/* 底部徽章行（对应 3D 卡面的类型章位置） */}
+          <div className="flex items-center justify-between pb-0.5">
+            <span
+              className={`rounded-full border px-1.5 py-px text-[9px] font-semibold ${
+                active ? "border-gold text-gold" : "border-cyan-400/70 text-cyan-300"
+              }`}
+            >
+              {count} 张
+            </span>
+            {active && <span className="text-[9px] font-bold text-gold">★ 当前</span>}
+          </div>
+        </div>
       </div>
-      {active && (
-        <span className="absolute right-1 top-1 rounded-full bg-gold/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
-          当前
-        </span>
-      )}
     </button>
   );
 
