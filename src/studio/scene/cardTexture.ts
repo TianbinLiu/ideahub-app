@@ -96,83 +96,86 @@ const H = 768;
 
 const SERIF_CANVAS = `'Songti SC','STSong','SimSun','Noto Serif SC',serif`;
 
-/** 素材卡卡面：塔罗版式（生成边框 + 满窗封面 + 牌匾题名 + 类型宝石徽记） */
+/** 素材卡卡面：塔罗细边版式——封面全幅铺满（卡片≈图片本身），纤细生成边框
+ *  screen 叠加发光，底部一条渐变里放单行题名，类型是左上角小宝石徽记。
+ *  与 2D 的 TarotCard 组件共用同一张框图与 TAROT_LAYOUT 常量。 */
 export function cardFaceTexture(card: Card): THREE.CanvasTexture {
   const color = CARD_TYPE_COLORS[card.type];
   const L = TAROT_LAYOUT;
   return texFromDraw(`card:${card.id}`, W, H, [card.cover, TAROT_FRAME_URL], (ctx, [cover, frame]) => {
-    // 卡底
-    roundedPath(ctx, 0, 0, W, H, 30);
-    ctx.fillStyle = "#0a0f22";
+    // 卡底 + 圆角裁剪：封面全幅时不裁剪会把圆角画成方角
+    roundedPath(ctx, 0, 0, W, H, 26);
+    ctx.fillStyle = "#05070f";
     ctx.fill();
-    // 封面铺满画窗
-    const wx = L.win.left * W;
-    const wy = L.win.top * H;
-    const ww = L.win.width * W;
-    const wh = L.win.height * H;
-    if (cover) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(wx, wy, ww, wh);
-      ctx.clip();
-      drawImageCover(ctx, cover, wx, wy, ww, wh);
-      ctx.restore();
-    }
-    // 魔法边框叠加：画窗区是纯黑，screen 混合让封面完整透出、边框纹饰点亮
+    ctx.save();
+    roundedPath(ctx, 0, 0, W, H, 26);
+    ctx.clip();
+    if (cover) drawImageCover(ctx, cover, 0, 0, W, H);
+    // 纤细魔法边框：框图内部纯黑，screen 混合下黑=透明，只有金线发光
     if (frame) {
-      ctx.save();
       ctx.globalCompositeOperation = "screen";
       ctx.drawImage(frame, 0, 0, W, H);
-      ctx.restore();
-    } else {
-      // 框图未就绪的一两帧：先给个细边撑住卡形
-      roundedPath(ctx, 4, 4, W - 8, H - 8, 28);
-      ctx.lineWidth = 6;
-      ctx.strokeStyle = "#8a6d3b";
-      ctx.stroke();
+      ctx.globalCompositeOperation = "source-over";
     }
-    // 类型宝石徽记：画窗左上角（特别标注，不吃画面）
-    const br = W * 0.068;
-    const bx = wx + br + W * 0.012;
-    const by = wy + br + W * 0.012;
+    // 底部渐变字幕条（题名区，占卡面 ~13%）
+    const gy = L.banner.top * H;
+    const g = ctx.createLinearGradient(0, gy - H * 0.04, 0, H);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(0.45, "rgba(0,0,0,0.45)");
+    g.addColorStop(1, "rgba(0,0,0,0.85)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, gy - H * 0.04, W, H - gy + H * 0.04);
+    ctx.restore();
+    // 类型宝石徽记：左上角一枚小章
+    const br = W * 0.0525;
+    const bx = W * 0.045 + br;
+    const by = H * 0.032 + br;
     ctx.beginPath();
     ctx.arc(bx, by, br, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(6,10,25,0.82)";
+    ctx.fillStyle = "rgba(4,7,18,0.72)";
     ctx.fill();
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3;
     ctx.strokeStyle = color;
     ctx.shadowColor = color;
-    ctx.shadowBlur = 14;
+    ctx.shadowBlur = 10;
     ctx.stroke();
     ctx.shadowBlur = 0;
-    ctx.font = `700 ${Math.round(br * 1.1)}px ${SERIF_CANVAS}`;
+    ctx.font = `700 ${Math.round(br * 1.15)}px ${SERIF_CANVAS}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = color;
-    ctx.fillText(TYPE_GLYPH[card.type], bx, by + 2);
-    // 塔罗式题名：牌匾区居中、衬线、拉字距、淡金
+    ctx.fillText(TYPE_GLYPH[card.type], bx, by + 1);
+    // 单行题名：名称 + 小号副题（类型/热度）同行居中，衬线拉字距
     const name = card.name.length > 7 ? card.name.slice(0, 7) + "…" : card.name;
-    const cy = (L.banner.top + L.banner.height / 2) * H;
-    ctx.font = `700 52px ${SERIF_CANVAS}`;
-    const canSpace = "letterSpacing" in ctx;
-    if (canSpace) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "8px";
-    ctx.fillStyle = "#fde9c8";
-    ctx.shadowColor = "rgba(251,191,36,0.4)";
-    ctx.shadowBlur = 10;
-    ctx.fillText(name, W / 2, cy - 16);
-    ctx.shadowBlur = 0;
-    // 副题：类型全称 + 热度
-    ctx.font = `500 26px ${SERIF_CANVAS}`;
-    if (canSpace) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "10px";
-    ctx.fillStyle = "rgba(253,230,190,0.62)";
     const sub =
       card.hot != null
         ? `${CARD_TYPE_LABELS[card.type]} · ${card.hot >= 10000 ? (card.hot / 10000).toFixed(1) + "万" : card.hot}`
         : CARD_TYPE_LABELS[card.type];
-    ctx.fillText(sub, W / 2, cy + 40);
-    if (canSpace) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px";
+    const canSpace = "letterSpacing" in ctx;
+    const cx2 = ctx as CanvasRenderingContext2D & { letterSpacing: string };
+    ctx.font = `700 40px ${SERIF_CANVAS}`;
+    if (canSpace) cx2.letterSpacing = "5px";
+    const w1 = ctx.measureText(name).width;
+    ctx.font = `500 22px ${SERIF_CANVAS}`;
+    if (canSpace) cx2.letterSpacing = "3px";
+    const w2 = ctx.measureText(sub).width;
+    const gap = 16;
+    const startX = (W - (w1 + gap + w2)) / 2;
+    const ty = H * 0.945;
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
+    ctx.font = `700 40px ${SERIF_CANVAS}`;
+    if (canSpace) cx2.letterSpacing = "5px";
+    ctx.fillStyle = "#fde9c8";
+    ctx.shadowColor = "rgba(251,191,36,0.4)";
+    ctx.shadowBlur = 8;
+    ctx.fillText(name, Math.max(20, startX), ty);
+    ctx.shadowBlur = 0;
+    ctx.font = `500 22px ${SERIF_CANVAS}`;
+    if (canSpace) cx2.letterSpacing = "3px";
+    ctx.fillStyle = "rgba(253,230,190,0.6)";
+    ctx.fillText(sub, Math.max(20, startX) + w1 + gap, ty);
+    if (canSpace) cx2.letterSpacing = "0px";
   });
 }
 
