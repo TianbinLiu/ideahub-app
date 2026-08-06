@@ -80,6 +80,33 @@ export default function PublishPage() {
         <div>
           <SegmentPlayer segments={draft.segments} cover={cover || draft.cover} />
           <div className="mt-2 text-center text-xs text-slate-500">成片预览（各节点段按时间线依次播放）</div>
+          {/* 每段的来历必须可见：真实 Seedance 影像还是首尾帧渐变回退。
+              此前两者在预览里长得都"会动"，用户分不清哪些是真生成的 */}
+          <div className="mt-3 space-y-1.5">
+            {draft.segments.map((sg, i) => (
+              <div key={i} className="flex items-center gap-2 rounded-lg bg-panel/60 px-3 py-1.5 text-xs">
+                <span className="flex-none text-slate-500">第 {i + 1} 段</span>
+                <span className="min-w-0 flex-1 truncate text-slate-300">{sg.title}</span>
+                {sg.videoUrl ? (
+                  <span className="flex-none rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300">
+                    ✓ Seedance 真实影像
+                  </span>
+                ) : (
+                  <span
+                    className="flex-none rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300"
+                    title="该段视频生成失败或处于演示模式，播放时用首尾帧渐变代替"
+                  >
+                    ⚠ 渐变回退
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+          {draft.segments.some((sg) => sg.videoUrl) && (
+            <div className="mt-2 text-center text-[11px] leading-4 text-slate-500">
+              真实影像链接约 24 小时有效——尽快发布，服务端会转存为长期地址
+            </div>
+          )}
         </div>
 
         {/* 发布表单 */}

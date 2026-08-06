@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { Link, useNavigate } from "react-router-dom";
 import TableScene from "./scene/TableScene";
+import { AI_REAL } from "../ai";
 import { composable, placeholderVisible, useStudio } from "./studioStore";
 import { DEFAULT_CAM, SPREAD } from "./scene/layout";
 import NpcDialog from "./ui/NpcDialog";
@@ -126,6 +127,14 @@ export default function StudioPage() {
           ← 首页
         </Link>
         <div className="pointer-events-auto flex items-center gap-2">
+          {/* 真实/演示一目了然：此前跑在没配 Key 的目录里全程 mock，
+              用户以为在测 Seedance，实际产物全是本地占位——必须把模式亮出来 */}
+          <div
+            className={`rounded-full bg-panel/80 px-3 py-1.5 text-xs backdrop-blur ${AI_REAL ? "text-emerald-300" : "text-amber-300"}`}
+            title={AI_REAL ? "已连接火山方舟：剧情/首尾帧/视频均真实生成" : "未配置 ARK_API_KEY：产物为本地模拟，仅演示流程"}
+          >
+            {AI_REAL ? "● 真实 AI" : "○ 演示模式"}
+          </div>
           <div className="rounded-full bg-panel/80 px-3 py-1.5 text-xs font-semibold text-brand backdrop-blur">
             🎴 卡片工坊
           </div>

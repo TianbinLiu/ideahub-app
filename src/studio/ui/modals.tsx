@@ -82,10 +82,13 @@ export function CardDetailModal() {
 }
 
 // ── 合成进度遮罩 ─────────────────────────────────────────────
+// mock 构建（秒级完成）轮播氛围文案；真实 AI 构建显示 Seedance 逐段真实状态——
+// 真合成每段约 1 分钟，假轮播只会让人以为卡死了。
 const COMPOSE_STEPS = ["对齐各段首尾帧…", "渲染分镜与转场…", "拼接时间线…", "混录声画节奏…"];
 
 export function ComposeOverlay() {
   const composing = useStudio((s) => s.composing);
+  const composeStatus = useStudio((s) => s.composeStatus);
   const [step, setStep] = useState(0);
   useEffect(() => {
     if (!composing) return;
@@ -100,7 +103,12 @@ export function ComposeOverlay() {
         <div className="shimmer h-full w-full" />
       </div>
       <div className="mt-5 text-lg font-semibold text-slate-100">正在合成完整视频</div>
-      <div className="mt-1.5 text-sm text-slate-400">{COMPOSE_STEPS[step]}</div>
+      <div className="mt-1.5 text-sm text-slate-400">{composeStatus || COMPOSE_STEPS[step]}</div>
+      {composeStatus && (
+        <div className="mt-3 max-w-72 text-center text-xs leading-5 text-slate-500">
+          Seedance 正在逐段生成真实影像，每段约 1 分钟——可以先泡杯茶。
+        </div>
+      )}
     </div>
   );
 }

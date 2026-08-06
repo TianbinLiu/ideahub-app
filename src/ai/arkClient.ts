@@ -19,19 +19,33 @@ export const MODELS = {
   chat: "doubao-seed-2-1-turbo-260628",
 };
 
-async function arkFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Ark ${path} ${res.status}: ${body.slice(0, 300)}`);
+/** 带超时的 Ark 请求。fetch 没有默认超时——网络一卡整个工坊就"假死"在加载态。
+ *  429（限流，请求未被受理）自动退避重试一次；其他错误直接抛给上层做回退/播报。 */
+async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${BASE}${path}`, {
+      ...init,
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    }).catch((e) => {
+      throw new Error(`Ark ${path} 网络失败: ${e instanceof Error ? e.message : e}`);
+    });
+    if (res.status === 429 && attempt === 0) {
+      await new Promise((r) => setTimeout(r, 2500 + Math.random() * 1500));
+      continue;
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Ark ${path} ${res.status}: ${body.slice(0, 300)}`);
+    }
+    return (await res.json()) as T;
   }
-  return (await res.json()) as T;
 }
 
-/** Seedream 文/图生图。imageRefs 传参考图（首帧承接上一段尾帧色调等） */
+/** Seedream 文/图生图。imageRefs 传参考图（首帧承接上一段尾帧色调等）。
+ *  size 实测约束（2026-08-06）：'2k'/'3k'/'4k' 或显式 WIDTHxHEIGHT，且总像素 ≥ 3,686,400
+ *  （= 2560×1440）。喂给 16:9 视频的帧必须用 16:9 画布——方形 2K 会被 Seedance 裁切。 */
+export const FRAME_SIZE = "2560x1440"; // 16:9 最小合法面积，出图最快
 export async function generateImage(
   prompt: string,
   opts?: { size?: string; imageRefs?: string[] },
@@ -44,10 +58,11 @@ export async function generateImage(
     watermark: false,
   };
   if (opts?.imageRefs?.length) body.image = opts.imageRefs.length === 1 ? opts.imageRefs[0] : opts.imageRefs;
-  const out = await arkFetch<{ data: Array<{ url: string }> }>("/images/generations", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+  const out = await arkFetch<{ data: Array<{ url: string }> }>(
+    "/images/generations",
+    { method: "POST", body: JSON.stringify(body) },
+    100_000, // 实测 2K 一张 21-25s，高峰留余量
+  );
   const url = out.data?.[0]?.url;
   if (!url) throw new Error("Seedream 未返回图片");
   return url;
@@ -74,27 +89,41 @@ export async function generateVideo(
   if (opts?.lastFrameUrl) {
     content.push({ type: "image_url", image_url: { url: opts.lastFrameUrl }, role: "last_frame" });
   }
-  const created = await arkFetch<{ id: string }>("/contents/generations/tasks", {
-    method: "POST",
-    body: JSON.stringify({
-      model: MODELS.video,
-      content,
-      resolution: "720p",
-      ratio: "16:9",
-      duration: Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5))),
-      generate_audio: false, // 无声更省 tokens（0.008 vs 0.016 元/千），配乐后续再说
-      watermark: false,
-    }),
-  });
+  // 实测（2026-08-06，本账号）：720p/6s 首尾帧任务创建 1.5s、生成约 35-60s；
+  // base64 dataURL 与 https URL 两种帧输入均被受理。
+  const created = await arkFetch<{ id: string }>(
+    "/contents/generations/tasks",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        model: MODELS.video,
+        content,
+        resolution: "720p",
+        ratio: "16:9",
+        duration: Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5))),
+        generate_audio: false, // 无声更省 tokens（0.008 vs 0.016 元/千），配乐后续再说
+        watermark: false,
+      }),
+    },
+    30_000,
+  );
   const id = created.id;
+  const t0 = Date.now();
+  let pollFails = 0;
   for (let i = 0; i < 120; i++) {
     await new Promise((r) => setTimeout(r, 5000));
-    const st = await arkFetch<{
-      status: string;
-      content?: { video_url?: string };
-      error?: { message?: string };
-    }>(`/contents/generations/tasks/${id}`);
-    opts?.onProgress?.(st.status);
+    let st: { status: string; content?: { video_url?: string }; error?: { message?: string } };
+    try {
+      st = await arkFetch(`/contents/generations/tasks/${id}`, undefined, 20_000);
+      pollFails = 0;
+    } catch (e) {
+      // 单次查询抖动不放弃整个任务（视频已在云端排队生成，白扔太亏）
+      if (++pollFails >= 5) throw e;
+      continue;
+    }
+    const sec = Math.round((Date.now() - t0) / 1000);
+    const label = st.status === "queued" ? "排队中" : st.status === "running" ? "生成中" : st.status;
+    opts?.onProgress?.(`${label} ${sec}s`);
     if (st.status === "succeeded") {
       const url = st.content?.video_url;
       if (!url) throw new Error("Seedance 任务成功但无视频 URL");
@@ -107,18 +136,25 @@ export async function generateVideo(
   throw new Error("Seedance 任务超时（10 分钟）");
 }
 
-/** 豆包对话（剧情文案生成） */
+/** 豆包对话（剧情文案生成）。
+ *  thinking 必须显式关闭：seed-2.1 默认开深度思考，实测同一请求 52s → 10s——
+ *  这就是"生成按钮卡住近一分钟毫无动静"的主要来源。 */
 export async function chat(system: string, user: string): Promise<string> {
-  const out = await arkFetch<{ choices: Array<{ message: { content: string } }> }>("/chat/completions", {
-    method: "POST",
-    body: JSON.stringify({
-      model: MODELS.chat,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      max_tokens: 800,
-    }),
-  });
+  const out = await arkFetch<{ choices: Array<{ message: { content: string } }> }>(
+    "/chat/completions",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        model: MODELS.chat,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        max_tokens: 800,
+        thinking: { type: "disabled" },
+      }),
+    },
+    60_000,
+  );
   return out.choices?.[0]?.message?.content ?? "";
 }

@@ -29,6 +29,8 @@ export interface EditorState {
   durationMode: "ai" | "manual";
   durationSec: number;
   generating: boolean;
+  /** 生成期间的实时阶段播报（真实 AI 全程约 1-1.5 分钟，没进度=卡死体感） */
+  progress: string;
 }
 
 /** 活动路径：从根沿 chosenId 一路向右（未选方案的子树自然被收起） */
@@ -62,8 +64,9 @@ export function composable(root: NodeSlot | null): boolean {
 
 /** 把工坊的 NodeSlot 树转成观众侧互动分支树：
  *  分支点 = 子层展开过的多个提案（chosen 或有子树的提案才算有效路线）；
- *  只有一条有效路线时观众无感自动续播；开头固定为根节点的选定提案。 */
-function buildBranchTree(root: NodeSlot | null): BranchTree | undefined {
+ *  只有一条有效路线时观众无感自动续播；开头固定为根节点的选定提案。
+ *  videoByProposal：合成出的真实视频按提案挂载（只有活动路径有，其余分支渐变回退） */
+function buildBranchTree(root: NodeSlot | null, videoByProposal?: Record<string, string>): BranchTree | undefined {
   if (!root) return undefined;
   const validProposals = (slot: NodeSlot): Proposal[] => {
     const opened = slot.proposals.filter((p) => p.id === slot.chosenId || slot.children[p.id]);
@@ -90,6 +93,7 @@ function buildBranchTree(root: NodeSlot | null): BranchTree | undefined {
         firstFrame: proposal.firstFrame,
         lastFrame: proposal.lastFrame,
         durationSec: proposal.durationSec,
+        videoUrl: videoByProposal?.[proposal.id],
       },
       choices,
     };
@@ -141,6 +145,8 @@ interface StudioState {
   recommendCard: Card | null;
   flights: Flight[];
   composing: boolean;
+  /** 合成的实时阶段（真实 AI：第 n/N 段 · 排队/生成 Xs），空串=未在合成或 mock 构建 */
+  composeStatus: string;
   draft: DraftVideo | null;
   camera: CamView;
   /** NPC 正在说话的截止时间戳（npcSay 设置，驱动 3D 口型） */
@@ -209,6 +215,7 @@ const DEFAULT_EDITOR: EditorState = {
   durationMode: "ai",
   durationSec: 6,
   generating: false,
+  progress: "",
 };
 
 // 市场检索的请求序号：过期响应直接丢弃，防止慢请求乱序覆盖新结果
@@ -235,6 +242,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   recommendCard: null,
   flights: [],
   composing: false,
+  composeStatus: "",
   draft: null,
   camera: { kind: "default" },
   speakingUntil: 0,
@@ -519,26 +527,37 @@ export const useStudio = create<StudioState>()((set, get) => ({
       return;
     }
     nodeGenInFlight = true;
-    const initiatingEditor = { ...editor, generating: true };
-    set({ editor: initiatingEditor });
+    // live 始终指向本次生成挂在 store 上的最新编辑器对象——进度更新会换对象，
+    // 不能再拿发起时的引用做"表单还开着吗"的同一性判断
+    let live: EditorState = { ...editor, generating: true, progress: "" };
+    set({ editor: live });
+    const patchLive = (patch: Partial<EditorState>) => {
+      if (get().editor !== live) return false; // 表单已被用户关闭/换新，别去打扰
+      live = { ...live, ...patch };
+      set({ editor: live });
+      return true;
+    };
     // 锚点快照：生成期间用户可能改选路径，完成时必须校验挂载点仍一致
     const path = activePath(root);
     const tail0 = path.length > 0 ? path[path.length - 1] : null;
     const anchor = tail0 ? { id: tail0.id, chosenId: tail0.chosenId } : null;
     const prev = tail0 ? chosenProposal(tail0) : null;
     try {
-      const proposals = await generateProposals({
-        index: root ? path.length : 0,
-        materials,
-        requirement: editor.requirement,
-        durationMode: editor.durationMode,
-        durationSec: editor.durationSec,
-        prevFrameSeed: prev ? `${prev.id}#last` : null,
-        pathPlots: path.map((n) => chosenProposal(n)?.plot ?? "").filter(Boolean),
-      });
+      const proposals = await generateProposals(
+        {
+          index: root ? path.length : 0,
+          materials,
+          requirement: editor.requirement,
+          durationMode: editor.durationMode,
+          durationSec: editor.durationSec,
+          prevFrameSeed: prev ? `${prev.id}#last` : null,
+          pathPlots: path.map((n) => chosenProposal(n)?.plot ?? "").filter(Boolean),
+        },
+        (status) => patchLive({ progress: status }),
+      );
       const node: NodeSlot = { id: uid("node"), proposals, chosenId: null, children: {} };
       // 只有发起时的编辑器仍然打开才由本次生成负责关闭（取消后重开的新表单不受影响）
-      const editorPatch = get().editor === initiatingEditor ? { editor: null as EditorState | null } : {};
+      const editorPatch = get().editor === live ? { editor: null as EditorState | null } : {};
       const curRoot = get().root;
       if (!anchor) {
         if (curRoot) {
@@ -564,12 +583,22 @@ export const useStudio = create<StudioState>()((set, get) => ({
           ...editorPatch,
         });
       }
-      get().npcSay("三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。");
+      const degraded = proposals.filter((p) => p.degraded).length;
+      get().npcSay(
+        degraded > 0
+          ? `三种走向推演完毕，但有 ${degraded} 个方案的首尾帧没画出来（先用占位图顶着，合成前我会重画）。点开看看剧情，选定一个。`
+          : "三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。",
+      );
+    } catch (e) {
+      // 此前任何异常都会静默炸掉整个 Promise——按钮复位却没有任何解释，像"点了没反应"
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn("[studio] 推演失败:", e);
+      get().npcSay(`这一炉推演失败了：${msg.slice(0, 120)}——歇口气再点一次「生成」。`);
+      get().setMood(-0.6, 2600);
     } finally {
       nodeGenInFlight = false;
-      // 若发起时的编辑器仍开着且未被上面清掉（作废路径），把 generating 复位以便重试
-      const cur = get().editor;
-      if (cur === initiatingEditor) set({ editor: { ...cur, generating: false } });
+      // 若发起时的编辑器仍开着且未被上面清掉（作废/失败路径），复位以便重试
+      patchLive({ generating: false, progress: "" });
     }
   },
 
@@ -585,34 +614,69 @@ export const useStudio = create<StudioState>()((set, get) => ({
   composeNow: async () => {
     const { root, composing } = get();
     if (composing || !composable(root)) return;
-    set({ composing: true });
+    set({ composing: true, composeStatus: "" });
     await composeVideo();
     const path = activePath(root);
-    const segments = path
-      .map((n) => chosenProposal(n))
-      .filter((p): p is Proposal => !!p)
-      .map((p) => ({
-        title: p.title,
-        plot: p.plot,
-        firstFrame: p.firstFrame,
-        lastFrame: p.lastFrame,
-        durationSec: p.durationSec,
-      }));
-    // 真实 AI 构建：逐段 Seedance 首尾帧生成视频（分钟级，进度播报到对话气泡）；
-    // mock 构建下 composeSegments 直接返回全 undefined，播放器回退首尾帧渐变
-    const urls = await composeSegments(segments, (done, total, status) => {
-      if (status === "生成中") get().npcSay(`正在炼制第 ${done + 1}/${total} 段影像…`);
+    const chosen = path.map((n) => chosenProposal(n)).filter((p): p is Proposal => !!p);
+    const segments = chosen.map((p) => ({
+      title: p.title,
+      plot: p.plot,
+      firstFrame: p.firstFrame,
+      lastFrame: p.lastFrame,
+      durationSec: p.durationSec,
+      degraded: p.degraded,
+    }));
+    // 真实 AI 构建：逐段 Seedance 首尾帧生成视频（每段约 1 分钟，真实进度打到合成遮罩）；
+    // mock 构建下 composeSegments 返回空结果，播放器回退首尾帧渐变
+    const results = await composeSegments(segments, (done, total, status) => {
+      if (done >= total) return;
+      set({ composeStatus: `第 ${done + 1}/${total} 段 · ${status}` });
+      if (status === "任务创建中…") get().npcSay(`正在炼制第 ${done + 1}/${total} 段影像…`);
     });
-    const withVideo = segments.map((sg, i) => (urls[i] ? { ...sg, videoUrl: urls[i] } : sg));
+    const videoByProposal: Record<string, string> = {};
+    const withVideo = segments.map((sg, i) => {
+      const r = results[i] ?? {};
+      // 合成前重画过的真帧同步回节点方案：草稿、分支树、后续续作都以真帧为准
+      if (r.firstFrame && r.lastFrame) {
+        chosen[i].firstFrame = r.firstFrame;
+        chosen[i].lastFrame = r.lastFrame;
+        delete chosen[i].degraded;
+      }
+      if (r.url) videoByProposal[chosen[i].id] = r.url;
+      return {
+        title: sg.title,
+        plot: sg.plot,
+        firstFrame: chosen[i].firstFrame,
+        lastFrame: chosen[i].lastFrame,
+        durationSec: sg.durationSec,
+        ...(r.url ? { videoUrl: r.url } : {}),
+      };
+    });
+    // 成片里有几段是真影像、几段回退，必须明说——此前静默回退渐变，
+    // 用户拿到一片"会动的幻灯片"还以为是 Seedance 的产物
+    const failed = results
+      .map((r, i) => (r?.url ? null : { i, reason: r?.error }))
+      .filter((x): x is { i: number; reason: string | undefined } => !!x);
+    if (failed.length === 0) {
+      get().npcSay(`${segments.length} 段影像全部真实炼成，去发布页看看成片吧。`);
+    } else {
+      const why = failed[0].reason ? `（第 ${failed[0].i + 1} 段：${failed[0].reason.slice(0, 100)}）` : "";
+      get().npcSay(
+        `成片出炉，但 ${failed.length}/${segments.length} 段影像没炼成，先用首尾帧渐变顶着${why}。回工坊重新合成可再试。`,
+      );
+      get().setMood(-0.4, 2600);
+    }
     set({
       composing: false,
+      composeStatus: "",
+      root: root ? { ...root } : root,
       draft: {
         title: "",
         category: "剧情",
         description: withVideo.map((sg) => sg.plot).join("\n"),
         cover: withVideo[0]?.firstFrame ?? "",
         segments: withVideo,
-        branchTree: buildBranchTree(root),
+        branchTree: buildBranchTree(root, videoByProposal),
       },
     });
   },

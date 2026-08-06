@@ -254,7 +254,7 @@ function EditorPanel() {
           disabled={editor.generating}
           className="flex-1 rounded-xl bg-brand/90 py-2 text-sm font-bold text-ink disabled:opacity-60"
         >
-          {editor.generating ? "AI 正在推演三种走向…" : "生成"}
+          {editor.generating ? editor.progress || "AI 正在推演三种走向…" : "生成"}
         </button>
       </div>
     </>
@@ -299,6 +299,11 @@ function ProposalsPanel() {
                     <span className="truncate text-sm font-semibold text-slate-100">{p.title}</span>
                     <span className="flex-none rounded-full bg-slate-700/70 px-1.5 text-[10px] text-slate-300">{p.durationSec}s</span>
                     {isChosen && <span className="flex-none rounded-full bg-gold/20 px-1.5 text-[10px] text-gold">✓ 当前选定</span>}
+                    {p.degraded && (
+                      <span className="flex-none rounded-full bg-amber-500/15 px-1.5 text-[10px] text-amber-300" title="Seedream 当时没出图，先用占位图；合成前会自动重画真帧">
+                        ⚠ 占位帧
+                      </span>
+                    )}
                   </div>
                   <p className={`novel-text mt-1 text-xs text-slate-300 ${expanded ? "" : "line-clamp-2"}`}>{p.plot}</p>
                 </div>

@@ -40,6 +40,8 @@ export interface Proposal {
   firstFrame: string;
   lastFrame: string;
   durationSec: number;
+  /** 真实 AI 构建下 Seedream 没出图、帧是本地占位图（合成前会先重画真帧） */
+  degraded?: boolean;
 }
 
 /** 节点：一次生成的三方案 + 已选方案 + 按方案分叉的子树 */

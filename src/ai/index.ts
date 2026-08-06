@@ -5,13 +5,17 @@ import * as mock from "../mock/ai";
 import * as real from "./real";
 
 export type { MaterialFile, ProposalContext } from "../mock/ai";
+export type { SegmentResult } from "./real";
 
 export const searchMarket = mock.searchMarket; // 市场是社区数据，暂留种子实现
 export const generateCards = AI_REAL ? real.generateCards : mock.generateCards;
-export const generateProposals = AI_REAL ? real.generateProposals : mock.generateProposals;
+/** mock 构建忽略 onProgress（本地 2 秒内出结果，无进度可报） */
+export const generateProposals: typeof real.generateProposals = AI_REAL
+  ? real.generateProposals
+  : (ctx) => mock.generateProposals(ctx);
 export const composeVideo = mock.composeVideo; // 合成动画节奏（真实生成由 composeSegments 负责）
-/** 逐段 Seedance 生成（仅真实 AI 构建可用；mock 构建返回全 undefined = 首尾帧渐变） */
+/** 逐段 Seedance 生成（仅真实 AI 构建可用；mock 构建返回空结果 = 首尾帧渐变） */
 export const composeSegments: typeof real.composeSegments = AI_REAL
   ? real.composeSegments
-  : async (segs) => segs.map(() => undefined);
+  : async (segs) => segs.map(() => ({}));
 export { AI_REAL };
