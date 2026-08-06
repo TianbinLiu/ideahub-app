@@ -51,6 +51,8 @@ export interface NodeSlot {
   chosenId: string | null;
   /** key = proposalId；未选中方案的后续子树被收起保留在这里 */
   children: Record<string, NodeSlot | undefined>;
+  /** 本节点生成时用的素材卡快照——发布时聚合成"本片卡组"，观众可收入复刻 */
+  materials?: Card[];
 }
 
 export interface VideoSegment {
@@ -85,6 +87,13 @@ export interface VideoPart {
   branchTree?: BranchTree;
 }
 
+/** 随作品发布的卡组：内嵌完整卡片（自包含——观众一键收入自己的账号，
+ *  再进工坊就能用同一套素材生成相似的视频） */
+export interface VideoDeck {
+  name: string;
+  cards: Card[];
+}
+
 export interface VideoComment {
   id: string;
   author: string;
@@ -104,6 +113,8 @@ export interface VideoItem {
   /** 多 P（分集）。缺省 = 单 P 老数据；有值时 segments/branchTree 恒为 parts[0] 的镜像
    *  （首页 Feed 与旧读者只认顶层字段，双写保证它们继续工作） */
   parts?: VideoPart[];
+  /** 本片卡组（生成本片所用素材卡的快照），观众可一键收入 */
+  deck?: VideoDeck;
   author: string;
   plays: number;
   likes: number;
@@ -118,6 +129,8 @@ export interface DraftVideo {
   cover: string;
   segments: VideoSegment[];
   branchTree?: BranchTree;
+  /** 合成时聚合的素材卡组（name 由发布页按最终标题定） */
+  deck?: VideoDeck;
   /**
    * 幂等键：发布时生成一次，重试沿用同一个值。
    * 服务端转存几段方舟视频要几十秒，客户端超时重发时第一次其实已经落库了——

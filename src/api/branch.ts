@@ -3,7 +3,7 @@
 //
 // 服务端字段用 `_id` / ISO 时间字符串，客户端领域模型用 `id` / 毫秒时间戳，
 // 转换统一放在 data/*.ts（因为只有它知道要往哪个 cache 里塞）。
-import type { BranchTree, Card, CardType, DraftVideo, VideoPart, VideoSegment } from "../types";
+import type { BranchTree, Card, CardType, DraftVideo, VideoDeck, VideoPart, VideoSegment } from "../types";
 import { apiDelete, apiGet, apiPatch, apiPost } from "./client";
 
 // ── DTO ──────────────────────────────────────────────────
@@ -33,6 +33,8 @@ export interface ApiVideo {
   branchTree?: BranchTree;
   /** 多 P（分集）；老作品/未升级服务端缺省 */
   parts?: VideoPart[];
+  /** 本片卡组（素材快照）；未升级服务端缺省 */
+  deck?: VideoDeck;
   author: ApiAuthor | string;
   plays: number;
   likes: number;

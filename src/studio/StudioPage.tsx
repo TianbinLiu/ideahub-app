@@ -5,6 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { Link, useNavigate } from "react-router-dom";
 import TableScene from "./scene/TableScene";
 import { AI_REAL } from "../ai";
+import { myCards } from "../data/account";
 import { composable, placeholderVisible, useStudio } from "./studioStore";
 import { DEFAULT_CAM, SPREAD } from "./scene/layout";
 import NpcDialog from "./ui/NpcDialog";
@@ -101,6 +102,15 @@ export default function StudioPage() {
   useEffect(() => {
     initGreet();
   }, [initGreet]);
+
+  // 进工坊时空卡组自动装入账号里的卡：收藏/收入的卡组此前只躺在创意工坊页，
+  // 到了铸卡桌面却两手空空——观众"用这套卡去创作"的闭环在这一步接上
+  useEffect(() => {
+    if (useStudio.getState().deck.length === 0) {
+      const cards = myCards();
+      if (cards.length > 0) useStudio.setState({ deck: cards });
+    }
+  }, []);
 
   // 仅在“合成刚结束”那一刻跳转发布页，避免回到工坊被再次弹走
   const prevComposing = useRef(false);

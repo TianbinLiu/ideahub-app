@@ -6,6 +6,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { CoverSection } from "../components/CoverPicker";
 import Icon from "../components/Icon";
 import SegmentPlayer from "../components/SegmentPlayer";
+import { addCards, createDeck } from "../data/account";
 import { getVideo, partsOf, publishVideo, saveProject, setVideoParts, updateVideoMeta } from "../data/videos";
 import { useStudio } from "../studio/studioStore";
 import { VIDEO_CATEGORIES, formatDuration } from "../types";
@@ -40,6 +41,10 @@ export default function PublishPage() {
     }
     // 源工程随发布落库：回工坊"重制"时才有完整节点树（三方案/未选走向）可还原
     const root = useStudio.getState().root;
+    // 本片卡组定名（合成时聚合了素材/派生卡，名字要等最终标题定下来）
+    const deck = draft.deck?.cards.length
+      ? { name: `《${title.trim()}》卡组`, cards: draft.deck.cards }
+      : undefined;
     if (editTarget && editingVideo) {
       const parts = partsOf(editingVideo).slice();
       const part = { name: editTarget.partName, segments: draft.segments, branchTree: draft.branchTree };
@@ -51,6 +56,8 @@ export default function PublishPage() {
         category,
         description: description.trim(),
         cover,
+        // 编辑保存也刷新卡组（重制后素材可能换了）；无卡组的老作品保持原样
+        ...(deck ? { deck } : {}),
       });
       if (root) saveProject(editingVideo.id, editTarget.partIndex, root);
       publishedRef.current = true;
@@ -65,8 +72,14 @@ export default function PublishPage() {
       cover,
       segments: draft.segments,
       branchTree: draft.branchTree,
+      deck,
     });
     if (root) saveProject(item.id, 0, root);
+    // 同名卡组落进作者自己的创意工坊（派生场景卡先入账号卡库，卡组引用才不悬空）
+    if (deck) {
+      addCards(deck.cards);
+      createDeck(deck.name, deck.cards.map((c) => c.id));
+    }
     publishedRef.current = true;
     clearDraft();
     navigate(`/video/${item.id}`, { replace: true });

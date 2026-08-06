@@ -622,7 +622,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
         },
         (status) => patchLive({ progress: status }),
       );
-      const node: NodeSlot = { id: uid("node"), proposals, chosenId: null, children: {} };
+      // 素材快照存进节点：发布时聚合成"本片卡组"，观众可收入同款素材复刻
+      const node: NodeSlot = { id: uid("node"), proposals, chosenId: null, children: {}, materials };
       // 只有发起时的编辑器仍然打开才由本次生成负责关闭（取消后重开的新表单不受影响）
       const editorPatch = get().editor === live ? { editor: null as EditorState | null } : {};
       const curRoot = get().root;
@@ -733,6 +734,23 @@ export const useStudio = create<StudioState>()((set, get) => ({
       );
       get().setMood(-0.4, 2600);
     }
+    // 本片卡组：活动路径各节点素材卡的并集；一张素材都没用（纯文字要求）时
+    // 按段派生场景卡——保证每部作品都有可分享的卡组，观众能"用同款素材复刻"
+    const seenCard = new Set<string>();
+    const deckCards = path
+      .flatMap((n) => n.materials ?? [])
+      .filter((c) => (seenCard.has(c.id) ? false : (seenCard.add(c.id), true)));
+    if (deckCards.length === 0) {
+      deckCards.push(
+        ...withVideo.map((sg, i) => ({
+          id: uid("card"),
+          type: "scene" as const,
+          name: sg.title.replace(/^第\d+段 · /, "").slice(0, 8) || `场景${i + 1}`,
+          summary: sg.plot.slice(0, 60),
+          cover: sg.firstFrame,
+        })),
+      );
+    }
     set({
       composing: false,
       composeStatus: "",
@@ -744,6 +762,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         cover: withVideo[0]?.firstFrame ?? "",
         segments: withVideo,
         branchTree: buildBranchTree(root, videoByProposal),
+        deck: { name: "", cards: deckCards },
       },
     });
   },

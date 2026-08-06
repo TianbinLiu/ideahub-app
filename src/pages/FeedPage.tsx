@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { addPlay, isLiked, isMyAuthor, listVideos, setLike } from "../data/videos";
-import { isFollowing, toggleFollow } from "../data/account";
+import { isCollected, isFollowing, toggleCollect, toggleFollow } from "../data/account";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
 import Avatar from "../components/Avatar";
+import CommentSheet from "../components/CommentSheet";
 import Icon, { type IconName } from "../components/Icon";
 import { VideoItem, formatPlays } from "../types";
 
@@ -53,7 +54,9 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
   // 初值从库里取：划走再划回来时点赞态不该丢（isLiked 之前一直没人调用）
   const [liked, setLiked] = useState(() => isLiked(video.id));
   const [likes, setLikes] = useState(video.likes);
-  const [saved, setSaved] = useState(false);
+  // 收藏挂账号库：此前是组件本地假状态——划走即丢、也谈不上"取消收藏"
+  const [saved, setSaved] = useState(() => isCollected(video.id));
+  const [cmtOpen, setCmtOpen] = useState(false);
   const [following, setFollowing] = useState(() => isFollowing(video.author));
   const [paused, setPaused] = useState(false);
   const [burst, setBurst] = useState<{ x: number; y: number; k: number } | null>(null);
@@ -200,16 +203,33 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
       )}
 
       {/* 右侧竖排操作：赞 / 评论 / 收藏 / 分享 —— 播放量下沉到信息区。
-          原来第三格是个纯展示的 div，长得像按钮但点不动，占的正是市面 App 放收藏的位置。 */}
+          pointer 事件在这里截住：点操作键不该同时触发画面的暂停/解静音/双击点赞 */}
       <div
         className="absolute right-2 z-10 flex flex-col items-center gap-4"
         style={{ bottom: "calc(var(--tabbar-h) + 1.25rem)" }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
       >
         <RailBtn icon="heart" filled={liked} tint="text-rose-500" label={String(likes)} onClick={toggleLike} />
-        <RailBtn icon="comment" label={String(video.comments.length)} onClick={() => navigate(`/video/${video.id}`)} />
-        <RailBtn icon="bookmark" filled={saved} tint="text-gold" label="收藏" onClick={() => setSaved((v) => !v)} />
+        {/* 评论就地滑出抽屉（对标短视频 App），不再跳详情页打断刷视频的节奏 */}
+        <RailBtn icon="comment" label={String(video.comments.length)} onClick={() => setCmtOpen(true)} />
+        <RailBtn
+          icon="bookmark"
+          filled={saved}
+          tint="text-gold"
+          label={saved ? "已收藏" : "收藏"}
+          onClick={() => {
+            if (!user) {
+              navigate("/login?next=/");
+              return;
+            }
+            setSaved(toggleCollect(video.id));
+          }}
+        />
         <RailBtn icon="share" label="分享" onClick={share} />
       </div>
+
+      {cmtOpen && <CommentSheet video={video} onClose={() => setCmtOpen(false)} />}
 
       {/* 左下信息 */}
       <div

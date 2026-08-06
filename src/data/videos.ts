@@ -290,7 +290,7 @@ export function partsOf(v: VideoItem): VideoPart[] {
  *  服务端未实现该端点时 toast 报错、本地值保留到下次刷新——诚实降级而非静默丢失。 */
 export function updateVideoMeta(
   id: string,
-  patch: Partial<Pick<VideoItem, "title" | "category" | "description" | "cover">>,
+  patch: Partial<Pick<VideoItem, "title" | "category" | "description" | "cover" | "deck">>,
 ): VideoItem | null {
   const v = find(id);
   if (!v) return null;
@@ -391,6 +391,7 @@ export function publishVideo(draft: DraftVideo): VideoItem {
     cover: draft.cover,
     segments: draft.segments,
     branchTree: draft.branchTree,
+    deck: draft.deck,
     author: currentUser()?.name ?? ME,
     plays: 0,
     likes: 0,
@@ -527,6 +528,7 @@ function toVideoItem(v: branch.ApiVideo): VideoItem {
     segments: Array.isArray(v.segments) ? v.segments : [],
     branchTree: v.branchTree,
     parts: Array.isArray(v.parts) && v.parts.length > 0 ? v.parts : undefined,
+    deck: v.deck?.cards?.length ? v.deck : undefined,
     author: branch.authorName(v.author),
     plays: v.plays ?? 0,
     likes: v.likes ?? 0,
@@ -585,6 +587,7 @@ async function loadDetail(item: VideoItem): Promise<void> {
     item.segments = Array.isArray(v.segments) ? v.segments : item.segments;
     item.branchTree = v.branchTree ?? item.branchTree;
     if (Array.isArray(v.parts) && v.parts.length > 0) item.parts = v.parts;
+    if (v.deck?.cards?.length) item.deck = v.deck;
     if (Array.isArray(v.comments)) item.comments = v.comments.map(toComment);
     if (v.liked) likedIds.add(id);
     emitVideos();

@@ -1,15 +1,87 @@
 // 视频详情页：播放器（多 P 可切换）+ 信息 + 分段剧情 + 评论区
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../components/Icon";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import BranchPlayer from "../components/BranchPlayer";
 import SegmentPlayer from "../components/SegmentPlayer";
+import { addCards, myCards } from "../data/account";
 import { addComment, addPlay, getVideo, isMyAuthor, partsOf, setLike } from "../data/videos";
+import { useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
-import { VideoComment, formatPlays, relativeTime } from "../types";
+import { useStudio } from "../studio/studioStore";
+import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoComment, formatPlays, relativeTime } from "../types";
+
+/** 本片卡组：卡片横滑条 + 收入/去创作。收入 = 卡片拷进观众账号；
+ *  去创作 = 顺手并进工坊桌面卡组并跳工坊（工坊卡组是会话态，必须显式合并） */
+function VideoDeckSection({ video, loggedIn, onGo }: { video: NonNullable<ReturnType<typeof getVideo>>; loggedIn: boolean; onGo: () => void }) {
+  const deck = video.deck!;
+  const [got, setGot] = useState(() => {
+    const mine = new Set(myCards().map((c) => c.id));
+    return deck.cards.every((c) => mine.has(c.id));
+  });
+
+  function collect(): boolean {
+    if (!loggedIn) return false;
+    addCards(deck.cards);
+    setGot(true);
+    return true;
+  }
+
+  return (
+    <section className="mt-6">
+      <h2 className="mb-3 text-base font-bold text-slate-200">
+        本片卡组
+        <span className="ml-2 text-xs font-normal text-slate-500">
+          {deck.name || `${deck.cards.length} 张`} · 收入后可用同款素材生成相似视频
+        </span>
+      </h2>
+      <div className="flex gap-2.5 overflow-x-auto pb-1">
+        {deck.cards.map((c) => (
+          <div key={c.id} className="w-24 flex-none overflow-hidden rounded-xl border bg-panel/60" style={{ borderColor: CARD_TYPE_COLORS[c.type] + "66" }}>
+            <img src={c.cover} alt={c.name} className="aspect-[2/3] w-full object-cover" />
+            <div className="p-1.5">
+              <div className="flex items-center gap-1">
+                <span className="truncate text-[11px] font-semibold text-slate-200">{c.name}</span>
+                <span className="flex-none rounded-full border px-1 text-[9px]" style={{ color: CARD_TYPE_COLORS[c.type], borderColor: CARD_TYPE_COLORS[c.type] }}>
+                  {CARD_TYPE_LABELS[c.type].slice(0, 2)}
+                </span>
+              </div>
+              <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-slate-500">{c.summary}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2.5 flex gap-2">
+        <button
+          onClick={collect}
+          disabled={got}
+          className="rounded-xl bg-panel px-4 py-2 text-sm text-slate-200 ring-1 ring-slate-700 disabled:opacity-50"
+          title={loggedIn ? "" : "登录后可收入卡组"}
+        >
+          {got ? "✓ 已在我的卡组" : "收入我的卡组"}
+        </button>
+        <button
+          onClick={() => {
+            collect(); // 未登录时静默跳过（/studio 的登录墙会接手，登录后卡组仍在会话里）
+            // 并进工坊桌面（去重），进门就能直接拖卡铸节点
+            useStudio.setState((s) => ({
+              deck: [...s.deck, ...deck.cards.filter((c) => !s.deck.some((d) => d.id === c.id))],
+            }));
+            onGo();
+          }}
+          className="flex-1 rounded-xl bg-brand/90 px-4 py-2 text-sm font-bold text-ink"
+        >
+          🎴 用这套卡去创作
+        </button>
+      </div>
+    </section>
+  );
+}
 
 export default function VideoPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const user = useCurrentUser();
   // 订阅作品库：远端模式下 getVideo() 会在后台补一次详情接口（列表不带 comments），
   // 回填是原地改同一个对象，不订阅就永远渲染不出来。
   const version = useVideosVersion();
@@ -147,6 +219,10 @@ export default function VideoPage() {
             {video.description}
           </p>
         )}
+
+        {/* 本片卡组：作者生成本片所用素材卡的快照。观众收入后用同一套素材
+            进工坊，就能生成相似走向的视频——创作的可复刻性是卡片生态的闭环 */}
+        {video.deck && video.deck.cards.length > 0 && <VideoDeckSection video={video} loggedIn={!!user} onGo={() => navigate("/studio")} />}
 
         {/* 分段剧情（跟随当前选中的 P） */}
         <section className="mt-6">

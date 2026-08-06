@@ -22,6 +22,8 @@ export interface User {
   bio: string;
   /** 关注的用户 id/作者名（本地账号阶段用作者名，接 server 后换 id） */
   following: string[];
+  /** 收藏的视频 id（老账号可能缺字段，读写处 ??= 兜底） */
+  collects?: string[];
   createdAt: number;
 }
 
@@ -254,6 +256,24 @@ export function toggleFollow(author: string): boolean {
 
 export function isFollowing(author: string): boolean {
   return currentUser()?.following.includes(author) ?? false;
+}
+
+// ── 视频收藏 ──────────────────────────────────────────
+// 此前首页的"收藏"是组件本地 useState——点亮之后划走再回来就灭了，
+// 也谈不上"取消收藏"。收藏是账号资产，落账号库并广播。
+export function toggleCollect(videoId: string): boolean {
+  const u = currentUser();
+  if (!u || !db) return false;
+  u.collects ??= [];
+  const i = u.collects.indexOf(videoId);
+  if (i >= 0) u.collects.splice(i, 1);
+  else u.collects.push(videoId);
+  persist();
+  return u.collects.includes(videoId);
+}
+
+export function isCollected(videoId: string): boolean {
+  return currentUser()?.collects?.includes(videoId) ?? false;
 }
 
 // ── 卡片 ──────────────────────────────────────────────
