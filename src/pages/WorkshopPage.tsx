@@ -7,6 +7,7 @@ import {
   addCards,
   browseSharedDecks,
   createDeck,
+  deckCoverOf,
   deleteDeck,
   installSharedDeck,
   isRemoteMode,
@@ -288,9 +289,16 @@ export default function WorkshopPage() {
             {decks.map((d) => {
               const inDeck = cards.filter((c) => d.cardIds.includes(c.id));
               const open = editing === d.id;
+              const cover = deckCoverOf(d);
               return (
                 <div key={d.id} className="rounded-xl border border-slate-700/60 bg-panel p-3">
                   <div className="flex items-center gap-2">
+                    {/* 封面卡缩略：卡组的"脸"，与 3D 工坊选卡组窗里的展示一致 */}
+                    {cover ? (
+                      <img src={cover.cover} alt={cover.name} className="h-11 w-8 flex-none rounded-md object-cover" />
+                    ) : (
+                      <div className="flex h-11 w-8 flex-none items-center justify-center rounded-md bg-slate-800 text-sm">🎴</div>
+                    )}
                     <input
                       value={d.name}
                       onChange={(e) => updateDeck(d.id, { name: e.target.value })}
@@ -346,22 +354,38 @@ export default function WorkshopPage() {
                   )}
                   {open && (
                     <div className="mt-3 border-t border-slate-700/60 pt-2.5">
-                      <div className="mb-1.5 text-[11px] text-slate-400">点击卡片加入/移出</div>
+                      <div className="mb-1.5 text-[11px] text-slate-400">点击卡片加入/移出 · 组内卡片左上角可设为卡组封面</div>
                       <div className="grid grid-cols-4 gap-2">
                         {cards.map((c) => {
                           const on = d.cardIds.includes(c.id);
+                          const isCover = on && cover?.id === c.id;
                           return (
-                            <button
-                              key={c.id}
-                              onClick={() =>
-                                updateDeck(d.id, {
-                                  cardIds: on ? d.cardIds.filter((x) => x !== c.id) : [...d.cardIds, c.id],
-                                })
-                              }
-                              className={on ? "ring-2 ring-brand rounded-xl" : "opacity-60"}
-                            >
-                              <CardTile card={c} />
-                            </button>
+                            <div key={c.id} className="relative">
+                              <button
+                                onClick={() =>
+                                  updateDeck(d.id, {
+                                    cardIds: on ? d.cardIds.filter((x) => x !== c.id) : [...d.cardIds, c.id],
+                                  })
+                                }
+                                className={`block w-full ${on ? "ring-2 ring-brand rounded-xl" : "opacity-60"}`}
+                              >
+                                <CardTile card={c} />
+                              </button>
+                              {on && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateDeck(d.id, { coverCardId: c.id });
+                                  }}
+                                  title={isCover ? "当前封面卡" : "设为卡组封面"}
+                                  className={`absolute left-1 top-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                                    isCover ? "bg-gold text-ink" : "bg-black/65 text-slate-200 hover:bg-black/85"
+                                  }`}
+                                >
+                                  {isCover ? "★ 封面" : "设封面"}
+                                </button>
+                              )}
+                            </div>
                           );
                         })}
                       </div>

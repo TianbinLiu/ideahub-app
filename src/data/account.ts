@@ -32,6 +32,8 @@ export interface Deck {
   ownerId: string;
   name: string;
   cardIds: string[];
+  /** 封面卡 id（卡组编辑页指定）；未设时取组内第一张，见 deckCoverOf */
+  coverCardId?: string;
   createdAt: number;
   /** 是否已分享到创意工坊（仅远端模式有意义） */
   published?: boolean;
@@ -355,12 +357,21 @@ export function createDeck(name: string, cardIds: string[] = []): Deck | null {
   return deck;
 }
 
-export function updateDeck(deckId: string, patch: Partial<Pick<Deck, "name" | "cardIds">>): void {
+export function updateDeck(deckId: string, patch: Partial<Pick<Deck, "name" | "cardIds" | "coverCardId">>): void {
   const d = findDeck(deckId);
   if (!d) return;
   Object.assign(d, patch);
   persist();
   if (remoteOn()) queueDeckPatch(d.id, patch);
+}
+
+/** 卡组封面：指定的封面卡缺省/被移出时回退组内第一张（保证永远有脸可认） */
+export function deckCoverOf(d: Deck): Card | null {
+  if (!db) return null;
+  const owned = db.cards.filter((c) => c.ownerId === d.ownerId);
+  const byId = new Map(owned.map((c) => [c.id, c]));
+  const coverId = d.coverCardId && d.cardIds.includes(d.coverCardId) ? d.coverCardId : d.cardIds[0];
+  return (coverId && byId.get(coverId)) || null;
 }
 
 export function deleteDeck(deckId: string): void {
@@ -476,7 +487,7 @@ async function resolveDeckId(localId: string): Promise<string | null> {
 // 一个五字的名字就是五次 PATCH，还会因为响应乱序把旧名字回写。
 // 按 deck 合并 patch，静默 400ms 后发一次；同一个 deck 的请求串成一条链保证顺序。
 const DECK_PATCH_DEBOUNCE_MS = 400;
-type DeckPatch = Partial<Pick<Deck, "name" | "cardIds">>;
+type DeckPatch = Partial<Pick<Deck, "name" | "cardIds" | "coverCardId">>;
 const deckPatchQueue = new Map<string, { timer: ReturnType<typeof setTimeout>; patch: DeckPatch }>();
 const deckPatchChain = new Map<string, Promise<void>>();
 
@@ -504,12 +515,13 @@ function cancelDeckPatch(localId: string): void {
 async function flushDeckPatch(localId: string, patch: DeckPatch): Promise<void> {
   const id = await resolveDeckId(localId);
   if (!id) return;
-  const body: { name?: string; cardIds?: string[] } = {};
+  const body: { name?: string; cardIds?: string[]; coverCardId?: string } = {};
   // 用户清空输入框时本地是空串（编辑中不跳字），但 server 的 deckName 是 min(1)，
   // 直接发空串会 400。这里补上和建组一致的默认名。
   if (typeof patch.name === "string") body.name = patch.name.trim() || "未命名卡组";
   if (patch.cardIds) body.cardIds = patch.cardIds;
-  if (body.name === undefined && body.cardIds === undefined) return;
+  if (patch.coverCardId) body.coverCardId = patch.coverCardId;
+  if (body.name === undefined && body.cardIds === undefined && body.coverCardId === undefined) return;
   await branch.updateDeck(id, body).catch((e) => emitApiError("updateDeck", e));
 }
 

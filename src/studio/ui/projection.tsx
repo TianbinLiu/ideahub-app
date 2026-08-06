@@ -3,7 +3,7 @@
 // proposals = 三个投影节点卡（点开看首尾帧与小说式剧情，选定后落卡）
 // decks = 卡组选择（两段式第一步；选中后回第一人称把该组卡摊上桌）
 import { useMemo, useState } from "react";
-import { myCards, myDecks } from "../../data/account";
+import { deckCoverOf, myCards, myDecks } from "../../data/account";
 import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType } from "../../types";
 import { activePath, chosenProposal, useStudio } from "../studioStore";
 
@@ -62,46 +62,40 @@ function DeckPickPanel() {
     if (useStudio.getState().activeDeck || useStudio.getState().pickDeck(null, "全部卡片")) setView("cards");
   };
 
-  const Row = ({
+  // 卡组以"封面卡"的样子出现（竖版卡面 + 底部渐变压名），与桌面上的实体卡同一视觉语言
+  const DeckTile = ({
     name,
     count,
-    covers,
+    cover,
     active,
     onPick,
   }: {
     name: string;
     count: number;
-    covers: string[];
+    cover: string | null;
     active: boolean;
     onPick: () => void;
   }) => (
     <button
       onClick={onPick}
-      className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition-colors ${
-        active ? "border-gold/70 bg-gold/10" : "border-slate-600/60 hover:border-cyan-400/50"
+      className={`relative overflow-hidden rounded-xl border text-left transition-colors ${
+        active ? "border-gold/80 ring-1 ring-gold/50" : "border-slate-600/60 hover:border-cyan-400/60"
       }`}
     >
-      {/* 封面拼贴：最多 4 张斜叠，空组给占位底 */}
-      <div className="relative h-16 w-14 flex-none">
-        {covers.length === 0 && <div className="absolute inset-0 rounded-lg bg-slate-800/70" />}
-        {covers.slice(0, 4).map((c, i) => (
-          <img
-            key={i}
-            src={c}
-            alt=""
-            className="absolute h-14 w-10 rounded-md border border-black/40 object-cover"
-            style={{ left: i * 5, top: i * 2, transform: `rotate(${(i - 1.5) * 5}deg)` }}
-          />
-        ))}
+      {cover ? (
+        <img src={cover} alt={name} className="aspect-[3/4] w-full object-cover" />
+      ) : (
+        <div className="flex aspect-[3/4] w-full items-center justify-center bg-slate-800/70 text-3xl">🎴</div>
+      )}
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent px-1.5 pb-1.5 pt-5">
+        <div className="truncate text-[11px] font-semibold text-slate-100">{name}</div>
+        <div className="text-[10px] text-slate-400">{count} 张卡</div>
       </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-semibold text-slate-100">{name}</span>
-          {active && <span className="flex-none rounded-full bg-gold/20 px-1.5 text-[10px] text-gold">当前</span>}
-        </div>
-        <div className="mt-0.5 text-[11px] text-slate-400">{count} 张卡</div>
-      </div>
-      <span className="flex-none text-xs text-cyan-300">查看卡片 ›</span>
+      {active && (
+        <span className="absolute right-1 top-1 rounded-full bg-gold/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
+          当前
+        </span>
+      )}
     </button>
   );
 
@@ -133,33 +127,35 @@ function DeckPickPanel() {
 
       {view === "decks" ? (
         <>
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
-            <Row
-              name="全部卡片"
-              count={allCount}
-              covers={[...cardById.values()].slice(0, 4).map((c) => c.cover)}
-              active={activeDeck?.id === null}
-              onPick={() => {
-                if (useStudio.getState().pickDeck(null, "全部卡片")) setView("cards");
-              }}
-            />
-            {decks.map((d) => (
-              <Row
-                key={d.id}
-                name={d.name}
-                count={d.cardIds.length}
-                covers={d.cardIds.map((id) => cardById.get(id)?.cover).filter((c): c is string => !!c)}
-                active={activeDeck?.id === d.id}
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            <div className="grid grid-cols-3 gap-2.5">
+              <DeckTile
+                name="全部卡片"
+                count={allCount}
+                cover={[...cardById.values()][0]?.cover ?? null}
+                active={activeDeck?.id === null}
                 onPick={() => {
-                  if (useStudio.getState().pickDeck(d.id, d.name)) setView("cards");
+                  if (useStudio.getState().pickDeck(null, "全部卡片")) setView("cards");
                 }}
               />
-            ))}
+              {decks.map((d) => (
+                <DeckTile
+                  key={d.id}
+                  name={d.name}
+                  count={d.cardIds.length}
+                  cover={deckCoverOf(d)?.cover ?? null}
+                  active={activeDeck?.id === d.id}
+                  onPick={() => {
+                    if (useStudio.getState().pickDeck(d.id, d.name)) setView("cards");
+                  }}
+                />
+              ))}
+            </div>
             {decks.length === 0 && (
               <div className="py-3 text-center text-[11px] leading-5 text-slate-500">
                 还没有建过卡组——发布作品会自动生成《作品》卡组，
                 <br />
-                也可以在「创意工坊」页手动组一套。
+                也可以在「创意工坊」页手动组一套（编辑时可指定封面卡）。
               </div>
             )}
           </div>

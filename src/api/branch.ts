@@ -64,6 +64,8 @@ export interface ApiDeck {
   _id: string;
   name: string;
   cardIds: string[];
+  /** 封面卡 id（未升级服务端缺省） */
+  coverCardId?: string;
   /** 是否已分享到创意工坊 */
   published?: boolean;
   description?: string;
@@ -300,7 +302,7 @@ export async function createDeck(name: string, cardIds: string[] = []): Promise<
 /** PATCH /api/branch/decks/:id（requireAuth） */
 export async function updateDeck(
   id: string,
-  patch: { name?: string; cardIds?: string[] }
+  patch: { name?: string; cardIds?: string[]; coverCardId?: string }
 ): Promise<ApiDeck | null> {
   const res = await apiPatch<Record<string, unknown>>(`/api/branch/decks/${encodeURIComponent(id)}`, patch);
   return pick<ApiDeck>(res, ["deck", "item", "data"]);
