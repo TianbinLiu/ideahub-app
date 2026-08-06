@@ -762,7 +762,6 @@ function UserHands() {
 // ── 卡组（堆叠；空组只剩虚位标记） ────────────────────────────
 function DeckStack() {
   const deck = useStudio((s) => s.deck);
-  const spreadOpen = useStudio((s) => s.spreadOpen);
   const activeDeck = useStudio((s) => s.activeDeck);
   const backMat = useMemo(
     () => new THREE.MeshBasicMaterial({ map: cardBackTexture(), transparent: true, side: THREE.DoubleSide }),
@@ -776,9 +775,9 @@ function DeckStack() {
   const shown = Math.min(deck.length, 24);
   // 复用同一材质只换 map，避免随 deck.length 反复新建材质
   const countMat = useMemo(() => new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }), []);
-  // 摊开态下这堆就是"切换卡组"的入口，标签要说人话；平时显示当前卡组名/张数
+  // 选过卡组后标签亮出组名（截断防溢出）；卡组/卡片的切换都在小窗右上角
   countMat.map = labelTexture(
-    spreadOpen ? "切换卡组" : activeDeck ? `${activeDeck.name.slice(0, 6)} ${deck.length}` : `卡组 ${deck.length}`,
+    activeDeck ? `${activeDeck.name.slice(0, 6)} ${deck.length}` : `卡组 ${deck.length}`,
     "#e2e8f0",
   );
   useEffect(() => {
