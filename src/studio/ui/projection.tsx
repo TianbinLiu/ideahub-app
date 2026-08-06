@@ -4,6 +4,7 @@
 // decks = 卡组选择（两段式第一步；选中后回第一人称把该组卡摊上桌）
 import { useMemo, useState } from "react";
 import { deckCoverOf, myCards, myDecks } from "../../data/account";
+import TarotCard from "../../components/TarotCard";
 import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType } from "../../types";
 import { activePath, chosenProposal, useStudio } from "../studioStore";
 
@@ -62,10 +63,9 @@ function DeckPickPanel() {
     if (useStudio.getState().activeDeck || useStudio.getState().pickDeck(null, "全部卡片")) setView("cards");
   };
 
-  // 卡组渲染成一张真正的卡牌：与 3D 桌面卡同一套卡面语言（cardTexture 的 512×768
-  // 版式）——固定 2:3 长宽比、深蓝卡底、粗彩边、内嵌圆角画窗、名称栏 + 张数徽章；
-  // 身后再垫两层错位卡边，暗示"这是一摞卡"。比例由外层 aspect 容器强制，
-  // 与封面图是否加载/是横是竖完全无关。
+  // 卡组渲染成一张塔罗式实体卡牌（Seedream 生成的魔法边框，见 TarotCard）：
+  // 固定 2:3 比例、封面卡铺满画窗、组名按塔罗版式压在题名牌匾；
+  // 身后垫两层错位卡边暗示"这是一摞卡"。
   const DeckTile = ({
     name,
     count,
@@ -81,40 +81,14 @@ function DeckPickPanel() {
   }) => (
     <button onClick={onPick} className="group relative block w-full text-left">
       {/* 叠牌暗示：身后两张错位的"卡背"边 */}
-      <div className="absolute inset-0 translate-x-1.5 translate-y-1 rotate-[2.5deg] rounded-xl border border-slate-600/50 bg-[#101a33]" />
-      <div className="absolute inset-0 translate-x-0.5 translate-y-0.5 rotate-[1deg] rounded-xl border border-slate-600/60 bg-[#0e1730]" />
-      {/* 本体：固定 2:3 的卡牌 */}
-      <div
-        className={`relative aspect-[2/3] w-full overflow-hidden rounded-xl border-[3px] bg-[#0d1428] shadow-[0_4px_14px_rgba(0,0,0,0.45)] transition-colors ${
-          active ? "border-gold" : "border-slate-500/80 group-hover:border-cyan-400/80"
-        }`}
-      >
-        <div className="absolute inset-0 flex flex-col p-1.5">
-          {/* 画窗：占卡面上部 ~62%（与 3D 卡面同版式），内嵌独立圆角 */}
-          <div className="relative min-h-0 flex-[0_0_62%] overflow-hidden rounded-lg bg-[#16203d]">
-            {cover ? (
-              <img src={cover} alt={name} className="absolute inset-0 h-full w-full object-cover" />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-2xl opacity-60">🎴</div>
-            )}
-          </div>
-          {/* 名称栏 */}
-          <div className="mt-1.5 min-h-0 flex-1">
-            <div className="line-clamp-2 text-[11px] font-bold leading-4 text-slate-100">{name}</div>
-          </div>
-          {/* 底部徽章行（对应 3D 卡面的类型章位置） */}
-          <div className="flex items-center justify-between pb-0.5">
-            <span
-              className={`rounded-full border px-1.5 py-px text-[9px] font-semibold ${
-                active ? "border-gold text-gold" : "border-cyan-400/70 text-cyan-300"
-              }`}
-            >
-              {count} 张
-            </span>
-            {active && <span className="text-[9px] font-bold text-gold">★ 当前</span>}
-          </div>
-        </div>
-      </div>
+      <div className="absolute inset-0 translate-x-1.5 translate-y-1 rotate-[2.5deg] rounded-xl border border-amber-700/40 bg-[#101a33]" />
+      <div className="absolute inset-0 translate-x-0.5 translate-y-0.5 rotate-[1deg] rounded-xl border border-amber-700/50 bg-[#0e1730]" />
+      <TarotCard cover={cover} title={name} sub={`${count} 张`} active={active} />
+      {active && (
+        <span className="absolute right-1 top-1 rounded-full bg-gold/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
+          ★ 当前
+        </span>
+      )}
     </button>
   );
 
@@ -182,29 +156,16 @@ function DeckPickPanel() {
         </>
       ) : (
         <>
-          <div className="flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden px-4 py-3">
-            {deck.map((c) => {
-              const color = CARD_TYPE_COLORS[c.type];
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => useStudio.getState().viewCardDetail(c)}
-                  className="relative flex w-[42%] flex-none snap-center flex-col overflow-hidden rounded-xl border bg-black/40 text-left"
-                  style={{ borderColor: color + "88" }}
-                >
-                  <img src={c.cover} alt={c.name} className="min-h-0 w-full flex-1 object-cover" />
-                  <div className="p-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate text-xs font-semibold text-slate-100">{c.name}</span>
-                      <span className="flex-none rounded-full border px-1.5 text-[9px]" style={{ color, borderColor: color }}>
-                        {CARD_TYPE_LABELS[c.type]}
-                      </span>
-                    </div>
-                    <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-400">{c.summary}</p>
-                  </div>
-                </button>
-              );
-            })}
+          <div className="flex min-h-0 flex-1 snap-x snap-mandatory items-center gap-3 overflow-x-auto overflow-y-hidden px-4 py-3">
+            {deck.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => useStudio.getState().viewCardDetail(c)}
+                className="w-[38%] flex-none snap-center text-left"
+              >
+                <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} size="md" />
+              </button>
+            ))}
             {deck.length === 0 && (
               <div className="flex w-full items-center justify-center text-xs text-slate-500">这套卡组还没有卡</div>
             )}

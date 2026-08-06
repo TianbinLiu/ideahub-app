@@ -20,25 +20,13 @@ import {
 import type { ApiSharedDeck } from "../api/branch";
 import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
 import { searchMarket } from "../ai";
+import TarotCard from "../components/TarotCard";
 import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType } from "../types";
 
 function CardTile({ card, onRemove }: { card: Card; onRemove?: () => void }) {
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-slate-700/60 bg-panel">
-      {card.cover ? (
-        <img src={card.cover} alt={card.name} className="aspect-[3/4] w-full object-cover" />
-      ) : (
-        <div className="flex aspect-[3/4] w-full items-center justify-center bg-slate-800 text-3xl">🎴</div>
-      )}
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2">
-        <div className="truncate text-xs font-medium text-slate-100">{card.name}</div>
-        <span
-          className="mt-0.5 inline-block rounded px-1.5 py-0.5 text-[9px]"
-          style={{ color: CARD_TYPE_COLORS[card.type], background: CARD_TYPE_COLORS[card.type] + "22" }}
-        >
-          {CARD_TYPE_LABELS[card.type]}
-        </span>
-      </div>
+    <div className="group relative">
+      <TarotCard cover={card.cover || null} title={card.name} sub={CARD_TYPE_LABELS[card.type]} type={card.type} />
       {onRemove && (
         <button
           onClick={onRemove}

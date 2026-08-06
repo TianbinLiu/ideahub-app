@@ -9,7 +9,8 @@ import { addComment, addPlay, getVideo, isMyAuthor, partsOf, setLike } from "../
 import { useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
 import { useStudio } from "../studio/studioStore";
-import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoComment, formatPlays, relativeTime } from "../types";
+import TarotCard from "../components/TarotCard";
+import { CARD_TYPE_LABELS, VideoComment, formatPlays, relativeTime } from "../types";
 
 /** 本片卡组：卡片横滑条 + 收入/去创作。收入 = 卡片拷进观众账号；
  *  去创作 = 顺手并进工坊桌面卡组并跳工坊（工坊卡组是会话态，必须显式合并） */
@@ -37,17 +38,8 @@ function VideoDeckSection({ video, loggedIn, onGo }: { video: NonNullable<Return
       </h2>
       <div className="flex gap-2.5 overflow-x-auto pb-1">
         {deck.cards.map((c) => (
-          <div key={c.id} className="w-24 flex-none overflow-hidden rounded-xl border bg-panel/60" style={{ borderColor: CARD_TYPE_COLORS[c.type] + "66" }}>
-            <img src={c.cover} alt={c.name} className="aspect-[2/3] w-full object-cover" />
-            <div className="p-1.5">
-              <div className="flex items-center gap-1">
-                <span className="truncate text-[11px] font-semibold text-slate-200">{c.name}</span>
-                <span className="flex-none rounded-full border px-1 text-[9px]" style={{ color: CARD_TYPE_COLORS[c.type], borderColor: CARD_TYPE_COLORS[c.type] }}>
-                  {CARD_TYPE_LABELS[c.type].slice(0, 2)}
-                </span>
-              </div>
-              <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-slate-500">{c.summary}</p>
-            </div>
+          <div key={c.id} className="w-24 flex-none">
+            <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} />
           </div>
         ))}
       </div>

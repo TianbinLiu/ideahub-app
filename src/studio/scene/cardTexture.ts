@@ -1,5 +1,8 @@
 // 卡面 canvas 纹理：圆角、类型配色、封面图异步载入后重绘。全部纹理按 key 缓存。
+// 素材卡走塔罗版式：Seedream 生成的魔法边框 + 画窗铺满封面 + 牌匾衬线题名，
+// 与 2D 的 TarotCard 组件共用同一张框图和同一组画窗/牌匾常量。
 import * as THREE from "three";
+import { TAROT_FRAME_URL, TAROT_LAYOUT, TYPE_GLYPH } from "../../components/TarotCard";
 import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Proposal } from "../../types";
 
 // LRU 缓存：命中即刷新热度；超限淘汰最冷条目并 dispose（GPU 侧释放，若仍被引用 three 会自动重传）
@@ -91,55 +94,85 @@ function drawImageCover(
 const W = 512;
 const H = 768;
 
-/** 素材卡卡面 */
+const SERIF_CANVAS = `'Songti SC','STSong','SimSun','Noto Serif SC',serif`;
+
+/** 素材卡卡面：塔罗版式（生成边框 + 满窗封面 + 牌匾题名 + 类型宝石徽记） */
 export function cardFaceTexture(card: Card): THREE.CanvasTexture {
   const color = CARD_TYPE_COLORS[card.type];
-  const label = CARD_TYPE_LABELS[card.type];
-  return texFromDraw(`card:${card.id}`, W, H, [card.cover], (ctx, [cover]) => {
-    roundedPath(ctx, 4, 4, W - 8, H - 8, 34);
-    ctx.fillStyle = "#0d1428";
+  const L = TAROT_LAYOUT;
+  return texFromDraw(`card:${card.id}`, W, H, [card.cover, TAROT_FRAME_URL], (ctx, [cover, frame]) => {
+    // 卡底
+    roundedPath(ctx, 0, 0, W, H, 30);
+    ctx.fillStyle = "#0a0f22";
     ctx.fill();
-    ctx.lineWidth = 8;
-    ctx.strokeStyle = color;
-    ctx.stroke();
-
-    // 封面区
-    ctx.save();
-    roundedPath(ctx, 26, 26, W - 52, H * 0.62, 20);
-    ctx.clip();
-    if (cover) drawImageCover(ctx, cover, 26, 26, W - 52, H * 0.62);
-    else {
-      ctx.fillStyle = "#16203d";
-      ctx.fillRect(26, 26, W - 52, H * 0.62);
+    // 封面铺满画窗
+    const wx = L.win.left * W;
+    const wy = L.win.top * H;
+    const ww = L.win.width * W;
+    const wh = L.win.height * H;
+    if (cover) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(wx, wy, ww, wh);
+      ctx.clip();
+      drawImageCover(ctx, cover, wx, wy, ww, wh);
+      ctx.restore();
     }
-    ctx.restore();
-
-    // 名称
-    ctx.font = "700 44px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillStyle = "#f1f5f9";
-    const name = card.name.length > 8 ? card.name.slice(0, 8) + "…" : card.name;
-    ctx.fillText(name, 32, H * 0.62 + 88);
-
-    // 类型章
-    ctx.font = "600 30px 'PingFang SC','Microsoft YaHei',sans-serif";
-    const tw = ctx.measureText(label).width + 36;
-    roundedPath(ctx, 32, H - 96, tw, 52, 26);
-    ctx.fillStyle = color + "33";
+    // 魔法边框叠加：画窗区是纯黑，screen 混合让封面完整透出、边框纹饰点亮
+    if (frame) {
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.drawImage(frame, 0, 0, W, H);
+      ctx.restore();
+    } else {
+      // 框图未就绪的一两帧：先给个细边撑住卡形
+      roundedPath(ctx, 4, 4, W - 8, H - 8, 28);
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = "#8a6d3b";
+      ctx.stroke();
+    }
+    // 类型宝石徽记：画窗左上角（特别标注，不吃画面）
+    const br = W * 0.068;
+    const bx = wx + br + W * 0.012;
+    const by = wy + br + W * 0.012;
+    ctx.beginPath();
+    ctx.arc(bx, by, br, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(6,10,25,0.82)";
     ctx.fill();
+    ctx.lineWidth = 4;
     ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 14;
     ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.font = `700 ${Math.round(br * 1.1)}px ${SERIF_CANVAS}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
     ctx.fillStyle = color;
-    ctx.fillText(label, 50, H - 59);
-
-    // 热度
-    if (card.hot != null) {
-      ctx.font = "500 26px 'PingFang SC','Microsoft YaHei',sans-serif";
-      ctx.fillStyle = "#fbbf24dd";
-      ctx.textAlign = "right";
-      ctx.fillText(`🔥 ${card.hot >= 10000 ? (card.hot / 10000).toFixed(1) + "万" : card.hot}`, W - 40, H - 62);
-      ctx.textAlign = "left";
-    }
+    ctx.fillText(TYPE_GLYPH[card.type], bx, by + 2);
+    // 塔罗式题名：牌匾区居中、衬线、拉字距、淡金
+    const name = card.name.length > 7 ? card.name.slice(0, 7) + "…" : card.name;
+    const cy = (L.banner.top + L.banner.height / 2) * H;
+    ctx.font = `700 52px ${SERIF_CANVAS}`;
+    const canSpace = "letterSpacing" in ctx;
+    if (canSpace) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "8px";
+    ctx.fillStyle = "#fde9c8";
+    ctx.shadowColor = "rgba(251,191,36,0.4)";
+    ctx.shadowBlur = 10;
+    ctx.fillText(name, W / 2, cy - 16);
+    ctx.shadowBlur = 0;
+    // 副题：类型全称 + 热度
+    ctx.font = `500 26px ${SERIF_CANVAS}`;
+    if (canSpace) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "10px";
+    ctx.fillStyle = "rgba(253,230,190,0.62)";
+    const sub =
+      card.hot != null
+        ? `${CARD_TYPE_LABELS[card.type]} · ${card.hot >= 10000 ? (card.hot / 10000).toFixed(1) + "万" : card.hot}`
+        : CARD_TYPE_LABELS[card.type];
+    ctx.fillText(sub, W / 2, cy + 40);
+    if (canSpace) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
   });
 }
 
