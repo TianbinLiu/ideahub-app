@@ -64,6 +64,6 @@ unitypackage。**包内没有任何授权文件**，用户口述 BOOTH 购入、
 
 ## 其余待办
 
-- 摇摆骨参数是照抄 rin/gratia 的，未按本模型体格调过
 - 没有 think/settle 动画（Unity 的 .anim 不在 FBX 里），目前靠姿势表驱动
-- 30MB 未优化，需降面/压贴图分出三档画质
+- 18.5MB 未分档，需降面/压贴图出 mid/opt 两档（Blender 已接通，可做）
+- 双马尾在侧视角仍有一点点前探，可再调 stiffness
