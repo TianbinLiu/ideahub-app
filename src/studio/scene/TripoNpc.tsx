@@ -11,6 +11,7 @@ import { cardFaceTexture } from "./cardTexture";
 import { loaderFor } from "../secureAssets";
 import { SpringBoneSim, type SphereCollider, type SpringOverrides } from "./springBones";
 import { BreastPhysics, type PhysCollider } from "./breastPhysics";
+import { applyCameraFade } from "./cameraFade";
 import { RigidBoneSim, createRigidBoneSim } from "./rigidBones";
 import { getQuality } from "../quality";
 import { NPC_CAM } from "./layout";
@@ -447,6 +448,9 @@ export default function TripoNpc({
     // full 描边收窄：手臂贴身（托腮/垫胸）时外扩壳会从胸口表面戳出成黑斑，宽度减半；
     // full 开裙摆风摆（布料柔软感）
     toonify(gltf.scene, cfg ? 0.002 : full ? 0.0009 : bust ? 0.003 : 0.0012, full ? { amp: 0.006 } : undefined, cfg?.look);
+    // 相机穿模淡出：镜头贴近/穿过角色时近处片元网点渐隐（自由视角/环绕镜头穿身不再糊脸）
+    applyCameraFade(gltf.scene);
+    if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__npcGltf = gltf;
     // 立正靠 Root 骨自带的 (-90°,0,90°) 修正（勿动）；scene 只转 yaw -90° 面向镜头。
     // cfg 模型（购入资产）朝向各异，由 cfg.yaw 指定
     gltf.scene.rotation.set(0, cfg?.yaw ?? -Math.PI / 2, 0);

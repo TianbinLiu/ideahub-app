@@ -72,10 +72,15 @@ const MILLTINA_CFG = {
     { bone: "mixamorig:Head", radius: 0.26 },
     { bone: "mixamorig:Spine1", radius: 0.42, offset: [0, 0.1, 0.04] as [number, number, number] },
     { bone: "mixamorig:Hips", radius: 0.38 },
-    // 胸球挂在 Breast 骨上（随胸物理动态走）：领结飘带垂在胸口，躯干球（Spine1）
-    // 覆盖不到前凸的胸——站姿飘带整条沉进裙面（用户实测）。半径=肉半径 0.13+布厚余量
-    { bone: "Breast_L", radius: 0.155, offset: [0, 0, 0.02] as [number, number, number] },
-    { bone: "Breast_R", radius: 0.155, offset: [0, 0, 0.02] as [number, number, number] },
+    // 胸球挂在 Breast 骨上（随胸物理动态走）：裙摆/围裙带擦过胸前时被托在布料外。
+    // 前偏 0.05：球面要探到布料表面（胸尖前凸 ~0.15），0.02 时球面还埋在布里
+    { bone: "Breast_L", radius: 0.155, offset: [0, 0, 0.05] as [number, number, number] },
+    { bone: "Breast_R", radius: 0.155, offset: [0, 0, 0.05] as [number, number, number] },
+    // 上胸中缝球（挂 Neck，随弯腰跟转）：领结 RibbonA/B 是**短飘带**（尾端世界 y0.85
+    // 站姿实测），远够不到胸球（球顶 y0.67）——穿模位置在领口下方的上胸中缝，那里只有
+    // Spine1 大球边缘擦过、托不住。球心=Neck 下前方（站姿 ≈0,0.80,-4.24），前缘 z-4.11
+    // 恰在布料外一线，飘带全程被托着贴布下垂
+    { bone: "mixamorigNeck", radius: 0.13, offset: [0, -0.167, 0.106] as [number, number, number] },
   ],
   // 衣装/头发暖灰乘暗融入烛光暗房；脸+皮肤单独亮乘色（官方宣传图=亮脸平光，
   // 全局压暗会把眼白压灰、眼周暗成"眼影"）；浅色模型描边用固定深紫黑

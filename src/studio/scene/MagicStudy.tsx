@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
+import { applyCameraFade } from "./cameraFade";
 
 const FLOOR_Y = -2.4;
 const M = (s: string) => `/models/study/${s}/${s}.gltf`;
@@ -36,7 +37,11 @@ const ROOM: PropSpec[] = [
 
 function Prop({ spec }: { spec: PropSpec }) {
   const gltf = useLoader(GLTFLoader, M(spec.n));
-  const obj = useMemo(() => gltf.scene.clone(true), [gltf]);
+  const obj = useMemo(() => {
+    const o = gltf.scene.clone(true);
+    applyCameraFade(o); // 自由视角镜头穿过柜子/烛台时近处网点淡出，不再糊满屏
+    return o;
+  }, [gltf]);
   return <primitive object={obj} position={spec.p} rotation={[0, spec.ry ?? 0, 0]} scale={spec.s ?? 1} />;
 }
 
