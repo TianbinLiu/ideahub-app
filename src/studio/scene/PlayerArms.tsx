@@ -10,7 +10,7 @@ import { useStudio } from "../studioStore";
 import { DECK_CAM } from "./layout";
 import { PlayerAvatar, playerModelUrl } from "../quality";
 import { loaderFor } from "../secureAssets";
-import { SpringBoneSim } from "./springBones";
+import { SpringBoneSim, type SphereCollider } from "./springBones";
 import { PLAYER_HEAD, eyeLook, eyeRise } from "./cameraOrbit";
 import { gazeDelta, type GazeLimits } from "./gazeDelta";
 
@@ -85,6 +85,9 @@ const RIGS: Record<
       opts: { stiffness?: number; drag?: number; gravity?: number };
       uprightOpts?: { stiffness?: number; drag?: number; gravity?: number };
     }>;
+    /** 弹簧骨球形碰撞体（NPC Milltina 同款配方：防长发/裙链穿头穿身）。
+     *  骨名 + 世界半径 + 骨局部偏移（世界量纲，只随骨旋转）。 */
+    springColliders?: Array<{ bone: string; radius: number; offset?: [number, number, number] }>;
     /** FPS 隐头（Tripo 系防后脑勺入画）；MMD 系弯腰伏桌姿势头在画内，隐头会露白色颈桩 */
     hideHead?: boolean;
     /** think 生效范围：Tripo=showSelf（含自由视角）；MMD=仅卡组特写（自由视角应看到伏桌常态） */
@@ -124,6 +127,15 @@ const RIGS: Record<
       // 长裙：弯腰后硬裙会随骨盆水平后戳成"木板"——垂坠弹簧近似布料（180 骨，实测可负担）
       { prefixes: ["裙"], opts: { stiffness: 1.5, drag: 0.35, gravity: 20 } },
     ],
+    // 球形碰撞体（NPC Milltina 同款配方；Blender 实测本模型，世界量纲=局部×2.5）：
+    // 头球 0.36 卡在"后脑网格 0.37"内侧且小于"马尾根距 0.39"——球过大会把发根
+    // 常年顶出造成弹跳（NPC 调参时踩过的坑）。Spine1 与 Hips 骨同点（腰部），
+    // 胸球沿骨轴上移 0.35 到胸口
+    springColliders: [
+      { bone: "mixamorig:Head", radius: 0.36 },
+      { bone: "mixamorig:Spine1", radius: 0.4, offset: [0, 0.35, 0.03] as [number, number, number] },
+      { bone: "mixamorig:Hips", radius: 0.36 },
+    ],
   },
   gratia: {
     yaw: Math.PI,
@@ -142,6 +154,12 @@ const RIGS: Record<
       },
       { prefixes: ["dyn_hairside", "tie"], opts: { stiffness: 5, drag: 0.3, gravity: 1.6 } },
       { prefixes: ["スカート", "dyn_backskirt"], opts: { stiffness: 1.5, drag: 0.35, gravity: 20 } },
+    ],
+    // 同名骨存在则生效（UE 转制骨架若命名不同会自动跳过，不报错）
+    springColliders: [
+      { bone: "mixamorig:Head", radius: 0.36 },
+      { bone: "mixamorig:Spine1", radius: 0.4, offset: [0, 0.35, 0.03] as [number, number, number] },
+      { bone: "mixamorig:Hips", radius: 0.36 },
     ],
   },
 };
@@ -338,19 +356,26 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     else headWritten.current.copy(head.quaternion);
   }
 
-  // 弹簧骨物理（MMD 移植模型发链，分组不同手感）；垂发用桌面/地板平面碰撞承接
+  // 弹簧骨物理（MMD 移植模型发链，分组不同手感）；垂发用桌面/地板平面碰撞承接，
+  // 头/胸/髋球形碰撞体防穿模（NPC 同款配方，骨名解析容错冒号剥离）
   const springSims = useMemo(() => {
     if (!rig.springGroups?.length) return null;
     const clampY = (p: THREE.Vector3) => (p.z < 3.42 ? 0.03 : -2.38);
+    const colliders: SphereCollider[] = [];
+    for (const c of rig.springColliders ?? []) {
+      const bone = gltf.scene.getObjectByName(c.bone) ?? gltf.scene.getObjectByName(c.bone.replace(/:/g, ""));
+      if (bone)
+        colliders.push({ bone, radius: c.radius, offset: c.offset ? new THREE.Vector3(...c.offset) : undefined });
+    }
     const sims = rig.springGroups
       .map((g) => ({
-        sim: new SpringBoneSim(gltf.scene, g.prefixes, { ...g.opts, clampY }),
+        sim: new SpringBoneSim(gltf.scene, g.prefixes, { ...g.opts, clampY, colliders }),
         base: g.opts,
         upright: g.uprightOpts,
       }))
       .filter((s) => s.sim.jointCount > 0);
     if (import.meta.env.DEV) {
-      console.log("[player springs] joints:", sims.map((s) => s.sim.jointCount).join("+"));
+      console.log("[player springs] joints:", sims.map((s) => s.sim.jointCount).join("+"), "colliders:", colliders.length);
       // E2E/调参挂钩：浏览器控制台可直接量测骨骼、实时改弹簧参数（setParams 每帧应用）
       (window as unknown as Record<string, unknown>).__playerGltf = gltf.scene;
       (window as unknown as Record<string, unknown>).__playerSprings = sims;
