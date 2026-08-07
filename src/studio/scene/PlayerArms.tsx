@@ -11,7 +11,7 @@ import { DECK_CAM } from "./layout";
 import { PlayerAvatar, playerModelUrl } from "../quality";
 import { loaderFor } from "../secureAssets";
 import { SpringBoneSim } from "./springBones";
-import { PLAYER_HEAD, eyeLook } from "./cameraOrbit";
+import { PLAYER_HEAD, eyeLook, eyeRise } from "./cameraOrbit";
 import { gazeDelta, type GazeLimits } from "./gazeDelta";
 
 /** 玩家注视限幅：只转头不拧脖子。低头给得比抬头小（低头把脸往刘海里推） */
@@ -492,6 +492,13 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     // 眼位环视：把滑屏累积的偏航/俯仰施加到头骨（脖子跟着转，头发/项链随之摆），
     // 相机朝向由 CameraRig 用同一组角度求出——两边同源所以永远一致
     if (eyeView && bones.current.head && restQ.current.head) {
+      // 升空俯瞰时环视角平滑衰减回正：头此刻是可见的，带着累积偏转会
+      // 歪着脖子扎进头发里（实测穿模来源）；回正后头发与头姿态一致
+      if (eyeRise.v > 0.02) {
+        const decay = Math.exp(-dt * 6);
+        eyeLook.yaw *= decay;
+        eyeLook.pitch *= decay;
+      }
       gv.ePose.set(-eyeLook.pitch, -eyeLook.yaw, 0, "YXZ");
       bones.current.head.quaternion
         .copy(restQ.current.head)

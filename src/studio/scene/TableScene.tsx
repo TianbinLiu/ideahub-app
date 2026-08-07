@@ -1307,9 +1307,12 @@ function TableCatcher() {
       const dy = e.clientY - prev[1];
       s.pointers.set(e.pointerId, [e.clientX, e.clientY]);
       if (m === "eye") {
-        // 眼位环视：滑屏 = 转头（画面跟手，向左滑看向左）
-        if (s.pointers.size === 1) addEyeLook(dx * 0.0042, -dy * 0.0036);
-        else if (s.pointers.size === 2) {
+        // 眼位环视：滑屏 = 转头（画面跟手，向左滑看向左）。
+        // 升空俯瞰态不再转头——头此刻可见，跟手转脖子会与头发穿插（实测），
+        // 而且俯瞰下"转头"语义本身就不成立
+        if (s.pointers.size === 1) {
+          if (eyeRise.v < 0.12) addEyeLook(dx * 0.0042, -dy * 0.0036);
+        } else if (s.pointers.size === 2) {
           // 双指捏合 = 升空俯瞰：指距缩小（缩小视角）→ 相机缓缓升到头顶俯瞰全桌；
           // 指距放大最多回到第一人称眼位（addEyeRise 内部 0 下限）
           const pts = [...s.pointers.values()];
