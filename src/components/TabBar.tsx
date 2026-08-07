@@ -1,7 +1,7 @@
 // 短视频 App 式底栏：首页 / 分区 / ➕创作 / 创意工坊 / 我的。
 // 中间 ➕ 直达卡片工坊（未登录先去登录页）——这个产品的创作方式只有一种，
 // 不照抄抖音「拍摄/相册/直播」那层选择面板，多一层就是纯损耗。
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router";
 import { useCurrentUser } from "../hooks/useAccount";
 import Icon, { type IconName } from "./Icon";
 

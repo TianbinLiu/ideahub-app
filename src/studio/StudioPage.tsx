@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import TableScene from "./scene/TableScene";
 import { composable, placeholderVisible, useStudio } from "./studioStore";
 import { DEFAULT_CAM, SPREAD } from "./scene/layout";

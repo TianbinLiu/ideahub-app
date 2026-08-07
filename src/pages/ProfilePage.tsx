@@ -3,7 +3,7 @@ import { useMemo, useState, useRef } from "react";
 import Icon from "../components/Icon";
 import Avatar from "../components/Avatar";
 import { fileToSquareImage } from "../utils/image";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { listVideos, isMyAuthor } from "../data/videos";
 import { myCards, myDecks, toggleFollow, setAvatarImage } from "../data/account";
 import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";

@@ -1,7 +1,7 @@
 // 设置页：编辑资料（头像/昵称/简介）、画质、玩家形象、存储用量、退出登录。
 import { useEffect, useRef, useState } from "react";
 import Icon from "../components/Icon";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { setAvatarImage, signOut, updateProfile, isRemoteMode } from "../data/account";
 import Avatar from "../components/Avatar";
 import { fileToSquareImage } from "../utils/image";

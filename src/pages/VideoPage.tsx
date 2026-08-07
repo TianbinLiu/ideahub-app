@@ -1,7 +1,7 @@
 // 视频详情页：播放器 + 信息 + 分段剧情 + 评论区
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../components/Icon";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router";
 import BranchPlayer from "../components/BranchPlayer";
 import SegmentPlayer from "../components/SegmentPlayer";
 import { addComment, addPlay, getVideo, setLike } from "../data/videos";

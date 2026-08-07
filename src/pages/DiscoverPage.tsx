@@ -1,7 +1,7 @@
 // 分区页：分类网格 + 搜索（视频标题/简介/作者/分类）。
 import { useMemo, useState } from "react";
 import Icon from "../components/Icon";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { listVideos } from "../data/videos";
 import { VIDEO_CATEGORIES, formatDuration, formatPlays } from "../types";
 
