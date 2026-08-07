@@ -9,7 +9,7 @@ import { useVideosVersion } from "../hooks/useVideos";
 import Avatar from "../components/Avatar";
 import CommentSheet from "../components/CommentSheet";
 import Icon, { type IconName } from "../components/Icon";
-import { VideoItem, formatPlays } from "../types";
+import { VideoItem, formatDuration, formatPlays } from "../types";
 
 /** 声音开关全流共享：一条视频上解除静音，后面每条都该有声（对标抖音/TikTok） */
 let soundOn = typeof sessionStorage !== "undefined" && sessionStorage.getItem("feed.sound") === "1";
@@ -82,6 +82,36 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
   useEffect(() => () => {
     if (bufTimer.current != null) clearTimeout(bufTimer.current);
   }, []);
+  // 播放进度（对标抖音底部细进度条）：常驻可见，拖动跳转，拖动中中央显示大字时间
+  const [prog, setProg] = useState({ t: 0, d: 0 });
+  const [scrub, setScrub] = useState<number | null>(null); // 拖动中的目标比例；null=未拖
+  const barRef = useRef<HTMLDivElement>(null);
+  const ratioAt = (clientX: number) => {
+    const r = barRef.current?.getBoundingClientRect();
+    if (!r || r.width === 0) return 0;
+    return Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+  };
+  function scrubStart(e: React.PointerEvent) {
+    e.stopPropagation();
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* 合成事件/已失效指针没有可捕获的 pointerId——拖动本身不受影响 */
+    }
+    setScrub(ratioAt(e.clientX));
+  }
+  function scrubMove(e: React.PointerEvent) {
+    if (scrub == null) return;
+    e.stopPropagation();
+    setScrub(ratioAt(e.clientX));
+  }
+  function scrubEnd(e: React.PointerEvent) {
+    if (scrub == null) return;
+    e.stopPropagation();
+    const v = videoRef.current;
+    if (v && prog.d > 0) v.currentTime = scrub * prog.d;
+    setScrub(null);
+  }
   const countedRef = useRef(false);
   const tapRef = useRef<{ x: number; y: number; t: number; last: number }>({ x: 0, y: 0, t: 0, last: 0 });
   const user = useCurrentUser();
@@ -108,6 +138,7 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
       v.pause();
       v.currentTime = 0;
       bufferOff(); // 划走的屏不留缓冲灯
+      setScrub(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, video.id]);
@@ -197,6 +228,8 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
           onPlaying={bufferOff}
           onCanPlay={bufferOff}
           onSeeked={bufferOff}
+          onLoadedMetadata={(e) => setProg({ t: e.currentTarget.currentTime, d: e.currentTarget.duration || 0 })}
+          onTimeUpdate={(e) => setProg({ t: e.currentTarget.currentTime, d: e.currentTarget.duration || 0 })}
         />
       ) : (
         <img src={video.cover} alt={video.title} className="absolute inset-0 h-full w-full object-cover" />
@@ -206,13 +239,59 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
       <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/55 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black/80 via-black/35 to-transparent" />
 
-      {/* 缓冲提示：抖音式底缘细线，从中心拉宽淡出循环。位置在底栏上缘＝画面视觉底边 */}
-      {active && buffering && !paused && (
+      {/* 缓冲提示（元数据未就绪、还没有进度条时的独立形态）：底缘细线从中心拉宽淡出 */}
+      {active && buffering && !paused && prog.d === 0 && (
         <div
           className="pointer-events-none absolute inset-x-0 z-10 flex justify-center"
           style={{ bottom: "var(--tabbar-h)" }}
         >
           <div className="feed-buffer-line" />
+        </div>
+      )}
+
+      {/* 进度条（对标抖音）：底缘常驻细条 + 右下角小字 当前/总时长；
+          可拖动跳转，拖动中变粗并在画面中央显示大字时间；缓冲时进度条位置改播脉冲线 */}
+      {active && seg?.videoUrl && wantSrc && prog.d > 0 && (
+        <div className="absolute inset-x-0 z-20" style={{ bottom: "calc(var(--tabbar-h) - 0.375rem)" }}>
+          <div className="mb-0.5 flex justify-end pr-3">
+            <span className="text-[10px] tabular-nums text-white/70 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
+              {formatDuration((scrub != null ? scrub : prog.t / prog.d) * prog.d)} / {formatDuration(prog.d)}
+            </span>
+          </div>
+          <div
+            ref={barRef}
+            className="relative mx-2 h-5 touch-none"
+            onPointerDown={scrubStart}
+            onPointerMove={scrubMove}
+            onPointerUp={scrubEnd}
+            onPointerCancel={scrubEnd}
+          >
+            {buffering && scrub == null ? (
+              <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center">
+                <div className="feed-buffer-line" />
+              </div>
+            ) : (
+              <div
+                className={`absolute inset-x-0 top-1/2 -translate-y-1/2 overflow-hidden rounded-full bg-white/25 transition-[height] ${
+                  scrub != null ? "h-[5px]" : "h-[2.5px]"
+                }`}
+              >
+                <div
+                  className="h-full rounded-full bg-white/90"
+                  style={{ width: `${(scrub != null ? scrub : prog.t / prog.d) * 100}%` }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 拖动进度时的中央大字时间（抖音式） */}
+      {scrub != null && prog.d > 0 && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+          <div className="text-2xl font-semibold tabular-nums text-white [text-shadow:0_2px_8px_rgba(0,0,0,.7)]">
+            {formatDuration(scrub * prog.d)} <span className="text-white/55">/ {formatDuration(prog.d)}</span>
+          </div>
         </div>
       )}
 

@@ -251,7 +251,7 @@ function EditorPanel() {
             <div className="mb-1 flex items-baseline justify-between">
               <span className="text-xs font-semibold text-slate-300">素材</span>
               {slotCards.length > 0 && (
-                <span className="text-[10px] tabular-nums text-slate-500">{slotCards.length}/8 张 · 同类型可多张</span>
+                <span className="text-[10px] tabular-nums text-slate-500">{slotCards.length}/20 张 · 同类型可多张</span>
               )}
             </div>
             <div className="grid grid-cols-5 gap-1.5">

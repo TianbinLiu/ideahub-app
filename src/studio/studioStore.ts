@@ -582,8 +582,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const card = deck.find((c) => c.id === cardId);
     if (!card || !editor || editor.generating) return;
     if (editor.slots.includes(card.id)) return;
-    if (editor.slots.length >= 8) {
-      get().npcSay("一炉最多放 8 张素材卡，先撤下几张再加。");
+    if (editor.slots.length >= 20) {
+      get().npcSay("一炉最多放 20 张素材卡，先撤下几张再加。");
       return;
     }
     set({ editor: { ...editor, slots: [...editor.slots, card.id] } });
@@ -595,7 +595,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set({ dragCardId: null });
     if (!card) return;
     if (editor && !editor.generating) {
-      if (!editor.slots.includes(card.id) && editor.slots.length < 8)
+      if (!editor.slots.includes(card.id) && editor.slots.length < 20)
         set({ editor: { ...editor, slots: [...editor.slots, card.id] } });
       return;
     }
