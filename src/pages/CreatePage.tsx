@@ -19,7 +19,9 @@ interface Mode {
   tag: string;
   desc: string;
   bullets: string[];
-  /** 卡面渐变 + 边框 */
+  /** 卡面封面（Seedream 生成，public/create/）：各自贴合该模式的气质 */
+  cover: string;
+  /** 边框点缀色 */
   skin: string;
   cta: string;
   go: (nav: ReturnType<typeof useNavigate>) => void;
@@ -33,7 +35,8 @@ const MODES: Mode[] = [
     tag: "完整作品",
     desc: "在 3D 铸卡桌面上摆素材卡，AI 每段推演三种走向，你挑着往下铺剧情。",
     bullets: ["素材卡组驱动，人物场景全片一致", "每段三选一，可分叉可回溯", "成片自动派生卡组，观众能复刻"],
-    skin: "from-amber-400/30 via-amber-500/10 to-transparent border-amber-400/45",
+    cover: "/create/studio.jpg",
+    skin: "border-amber-400/45",
     cta: "进铸卡桌面",
     go: (nav) => nav("/studio"),
   },
@@ -44,7 +47,8 @@ const MODES: Mode[] = [
     tag: "自己写分镜",
     desc: "一屏一张节点卡：左右翻页换段落，上下翻页换走向，逐段生成、逐段确认。",
     bullets: ["节点卡就是工坊的节点卡，只是没有 3D 桌面", "一段一结账，不满意只重炼这一段", "也能让 AI 就地推演三种走向"],
-    skin: "from-cyan-400/30 via-cyan-500/10 to-transparent border-cyan-400/45",
+    cover: "/create/workflow.jpg",
+    skin: "border-cyan-400/45",
     cta: "开一条工作流",
     go: (nav) => {
       useFlow.getState().seedSolo("workflow");
@@ -58,7 +62,8 @@ const MODES: Mode[] = [
     tag: "几秒出片",
     desc: "只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。",
     bullets: ["无需素材卡，开箱即用", "起拍画面 AI 代笔", "满意就发布，不满意就重炼"],
-    skin: "from-fuchsia-400/30 via-fuchsia-500/10 to-transparent border-fuchsia-400/45",
+    cover: "/create/simple.jpg",
+    skin: "border-fuchsia-400/45",
     cta: "写一句话出片",
     go: (nav) => {
       useFlow.getState().seedSolo("simple");
@@ -81,8 +86,8 @@ export default function CreatePage() {
   return (
     <div className="fixed inset-0 flex flex-col bg-ink">
       <header className="safe-top flex flex-none items-center gap-3 px-4 py-3">
-        {/* 直接回首页而不是 navigate(-1)：这一页常从登录重定向落地（历史里
-            上一条是登录页），也可能是首个历史记录，后退会退出应用而不是回首页 */}
+        {/* 直接回首页而不是 navigate(-1)：这一页常从登录重定向落地（历史里上一条
+            是登录页），也可能本身就是首个历史记录，后退会退出应用而不是回首页 */}
         <button onClick={() => navigate("/")} className="flex items-center gap-1 text-slate-300">
           <Icon name="back" size={20} />
         </button>
@@ -90,73 +95,86 @@ export default function CreatePage() {
         <span className="flex-1 text-right text-xs text-slate-500">左右滑动挑一种</span>
       </header>
 
-      {/* 横向卡片轨：一屏一张，松手吸附 */}
-      <div
-        ref={railRef}
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          setAt(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)));
-        }}
-        className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden"
-        style={{ scrollbarWidth: "none" }}
-      >
-        {MODES.map((m) => (
-          <div key={m.key} className="flex h-full w-full flex-none snap-center items-stretch px-4 pb-3">
-            <div className={`flex w-full flex-col rounded-3xl border bg-gradient-to-b p-5 ${m.skin}`}>
-              <div className="text-5xl">{m.emoji}</div>
-              <div className="mt-3 flex items-center gap-2">
-                <span className="text-2xl font-bold text-slate-50">{m.title}</span>
-                <span className="rounded-full bg-black/35 px-2 py-0.5 text-[10px] text-slate-300">{m.tag}</span>
+      {/* 卡片轨 + 贴左右边缘垂直居中的翻页箭头 */}
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={railRef}
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            setAt(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)));
+          }}
+          className="flex h-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden"
+          style={{ scrollbarWidth: "none" }}
+        >
+          {MODES.map((m, i) => (
+            <div key={m.key} className="flex h-full w-full flex-none snap-center items-stretch px-4 pb-3">
+              <div className={`relative w-full overflow-hidden rounded-3xl border ${m.skin}`}>
+                <img
+                  src={m.cover}
+                  alt=""
+                  loading={i === 0 ? "eager" : "lazy"}
+                  decoding="async"
+                  className="absolute inset-0 h-full w-full object-cover object-top"
+                />
+                {/* 压字暗层：三张封面明暗差别很大（简约模式下半是浅紫底），统一盖一层
+                    墨色渐变保证白字可读。收敛得快是有意的——底部 38% 压成实底给文字，
+                    62% 以上完全透明，画面主体（悬浮卡/全息面板/猫）不被糊掉 */}
+                <div className="absolute inset-0 bg-gradient-to-t from-ink from-38% via-ink/80 via-50% to-transparent to-62%" />
+                <div className="relative flex h-full flex-col justify-end p-5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{m.emoji}</span>
+                    <span className="text-2xl font-bold text-slate-50">{m.title}</span>
+                    <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] text-slate-200">{m.tag}</span>
+                  </div>
+                  <p className="mt-2.5 text-sm leading-relaxed text-slate-200">{m.desc}</p>
+                  <ul className="mt-3 space-y-1.5">
+                    {m.bullets.map((b) => (
+                      <li key={b} className="flex gap-2 text-xs leading-relaxed text-slate-400">
+                        <span className="flex-none">·</span>
+                        <span>{b}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    onClick={() => m.go(navigate)}
+                    className="mt-4 w-full rounded-2xl bg-white/90 py-3 text-sm font-bold text-ink transition active:scale-[0.98]"
+                  >
+                    {m.cta} ›
+                  </button>
+                </div>
               </div>
-              <p className="mt-2.5 text-sm leading-relaxed text-slate-200">{m.desc}</p>
-              <ul className="mt-4 space-y-2">
-                {m.bullets.map((b) => (
-                  <li key={b} className="flex gap-2 text-xs leading-relaxed text-slate-300">
-                    <span className="flex-none text-slate-500">·</span>
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="flex-1" />
-              <button
-                onClick={() => m.go(navigate)}
-                className="w-full rounded-2xl bg-white/90 py-3 text-sm font-bold text-ink transition active:scale-[0.98]"
-              >
-                {m.cta} ›
-              </button>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      {/* 页点 + 左右翻页 */}
-      <div className="safe-bottom flex flex-none items-center justify-center gap-4 py-3">
         <button
           onClick={() => scrollTo(Math.max(0, at - 1))}
           disabled={at === 0}
-          className="text-slate-400 disabled:opacity-25"
+          className="absolute left-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition disabled:pointer-events-none disabled:opacity-0"
           aria-label="上一个"
         >
-          <Icon name="back" size={20} />
+          <Icon name="back" size={22} />
         </button>
-        <div className="flex items-center gap-2">
-          {MODES.map((m, i) => (
-            <button
-              key={m.key}
-              onClick={() => scrollTo(i)}
-              aria-label={m.title}
-              className={`h-2 rounded-full transition-all ${i === at ? "w-6 bg-brand" : "w-2 bg-slate-600"}`}
-            />
-          ))}
-        </div>
         <button
           onClick={() => scrollTo(Math.min(MODES.length - 1, at + 1))}
           disabled={at === MODES.length - 1}
-          className="text-slate-400 disabled:opacity-25"
+          className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition disabled:pointer-events-none disabled:opacity-0"
           aria-label="下一个"
         >
-          <Icon name="chevron" size={20} />
+          <Icon name="chevron" size={22} />
         </button>
+      </div>
+
+      {/* 页点：翻页箭头已经贴在轨道两侧，这里只留位置指示 */}
+      <div className="safe-bottom flex flex-none items-center justify-center gap-2 py-3">
+        {MODES.map((m, i) => (
+          <button
+            key={m.key}
+            onClick={() => scrollTo(i)}
+            aria-label={m.title}
+            className={`h-2 rounded-full transition-all ${i === at ? "w-6 bg-brand" : "w-2 bg-slate-600"}`}
+          />
+        ))}
       </div>
     </div>
   );
