@@ -7,7 +7,7 @@ import type { MaterialFile, ProposalContext } from "../mock/ai";
 import * as mock from "../mock/ai";
 import { tierOf } from "../data/economy";
 import { idbSet } from "../data/db";
-import { FRAME_SIZE, chat, generate3dModel, generateImage, generateVideo } from "./arkClient";
+import { FRAME_SIZE, chat, chatVision, generate3dModel, generateImage, generateVideo } from "./arkClient";
 
 /** 方舟返回的图片 URL 有时效（约 24h），落地成 dataURL 再入库（草稿存 localStorage） */
 async function toDataUrl(url: string): Promise<string> {
@@ -207,16 +207,32 @@ export async function deriveDeckCards(
     '你是卡牌游戏的铸卡师。对照"已有素材卡"清单，从视频剧情中提炼出尚未有卡的可复用创作素材，输出 JSON 数组（0~8 张）：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：剧情中每个主要角色若未被已有卡覆盖（注意同一角色可能换了称呼），各出一张 character 卡，缺几个补几张；已有卡覆盖的实体绝对不要再出——例如已有人物卡「义肢少女」时，剧情里这位少女无论被叫作"电玩少女""机械臂少女"还是换了新造型，都不得再为她出卡。主要场景/地点同理，每处未覆盖的出一张 scene 卡。整体色调氛围未覆盖时至多一张 background 卡；画风鲜明且没有风格卡时至多一张 style 卡；剧情关键道具可出 prop 卡。所有实体都已被覆盖时输出 []。只输出 JSON。',
     `已有素材卡：${existingDesc}\n剧情（按段）：${segments.map((s) => s.plot).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从剧情推断）"}`,
   );
-  const defs = JSON.parse(raw.replace(/```json|```/g, "").trim()) as Array<{
-    type?: CardType;
-    name?: string;
-    summary?: string;
-    imagePrompt?: string;
-  }>;
+  const defs = JSON.parse(raw.replace(/```json|```/g, "").trim()) as CardDef[];
   if (!Array.isArray(defs)) throw new Error("卡组提炼 JSON 结构不符");
+  return await mintCards(defs, styleHint, existing, onProgress);
+}
+
+/** 模型吐出的卡定义（提炼与视频提卡共用一套结构） */
+interface CardDef {
+  type?: CardType;
+  name?: string;
+  summary?: string;
+  imagePrompt?: string;
+}
+
+/**
+ * 按卡定义批量铸卡面（Seedream，每张一次图生成）。
+ * 与已有卡重名的先剔掉——既避免重复出卡，也省下那张卡面的图钱。
+ */
+async function mintCards(
+  defs: CardDef[],
+  styleHint: string,
+  existing: Array<Pick<Card, "type" | "name" | "summary">>,
+  onProgress?: (status: string) => void,
+): Promise<Card[]> {
   if (defs.length === 0) return []; // 已有卡把实体全覆盖了：无需补卡，合法结果
   // 模型偶尔把已有实体换个叫法再提出来（"义肢少女"→"义肢电玩少女"）——
-  // 同类型且已有卡名字符 ≥80% 落进新名的，判定同一实体直接丢弃，还省一张卡面的图钱
+  // 同类型且已有卡名字符 ≥80% 落进新名的，判定同一实体直接丢弃
   const isDupOfExisting = (name: string, type: CardType) =>
     existing.some((c) => {
       if (c.type !== type) return false;
@@ -248,10 +264,38 @@ export async function deriveDeckCards(
       console.warn(`[ai] 派生卡「${d.name}」卡面失败:`, e);
     }
     done++;
-    onProgress?.(`绘制卡组卡面 ${done}/${jobs.length}…`);
+    onProgress?.(`绘制卡面 ${done}/${jobs.length}…`);
   });
   if (out.length === 0) throw new Error("派生卡面全部失败");
   return out;
+}
+
+/**
+ * 从用户上传的本地视频提炼卡组：抽好的帧交给视觉模型认人认景，再逐个铸卡面。
+ * 帧是调用方抽的（浏览器 canvas 抽帧比传整个视频便宜得多，也不用后端转码）。
+ * 已有卡照例报给模型，重复实体不再出卡。
+ */
+export async function extractCardsFromVideo(
+  frames: string[],
+  note: string,
+  existing: Array<Pick<Card, "type" | "name" | "summary">> = [],
+  onProgress?: (status: string) => void,
+): Promise<Card[]> {
+  onProgress?.(`看片识别中（${frames.length} 帧）…`);
+  const existingDesc =
+    existing.length > 0
+      ? existing.map((c) => `${TYPE_LABEL[c.type]}「${c.name}」`).join("、")
+      : "（无）";
+  const raw = await chatVision(
+    '你是卡牌游戏的铸卡师。用户给你一段视频里按时间顺序抽的若干帧。请辨认画面里可复用的创作素材，输出 JSON 数组（0~8 张）：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：出现的每个主要角色各出一张 character 卡；主要场景/地点各出一张 scene 卡；整体色调氛围至多一张 background 卡；画风鲜明时至多一张 style 卡；关键道具可出 prop 卡。已有卡覆盖的实体绝对不要再出。只输出 JSON。',
+    `已有卡：${existingDesc}\n用户补充说明：${note || "无"}\n以下是这段视频按时间顺序的抽帧：`,
+    frames,
+  );
+  const defs = JSON.parse(raw.replace(/```json|```/g, "").trim()) as CardDef[];
+  if (!Array.isArray(defs)) throw new Error("视频提卡 JSON 结构不符");
+  // 画风由模型自己在 style 卡里判断，这里不再额外注入风格提示
+  const styleHint = defs.find((d) => d.type === "style")?.name ?? "";
+  return await mintCards(defs, styleHint, existing, onProgress);
 }
 
 /**

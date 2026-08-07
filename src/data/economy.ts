@@ -60,6 +60,25 @@ export function segTokens(durationSec: number, tierId?: string): number {
   return Math.round(base * tierOf(tierId).mult);
 }
 
+/**
+ * 一次图像生成（Seedream 卡面/设定帧）的 token 等价。
+ * 折算依据：Seedream 5.0 约 0.2 元/张，标准档视频 15 元/M token ⇒ 0.2/15 M ≈ 13.3k。
+ * 与视频 token 同量纲，用户看到的就是同一把尺子。
+ */
+export const IMAGE_TOKENS = 13_300;
+
+/** 视觉模型看图（每帧）的 token 等价：豆包 seed-2.1 图文输入远比出图便宜，取一个保守值 */
+export const VISION_FRAME_TOKENS = 900;
+
+/**
+ * 上传视频提炼卡组的预估：看 N 帧 + 最多铸 M 张卡面。
+ * 张数是上限而非确数（模型认出几个实体就出几张，重复的还会被剔掉），
+ * 所以 UI 必须说"最多"，并按实际出卡张数结算。
+ */
+export function extractCost(frameCount: number, maxCards: number): number {
+  return frameCount * VISION_FRAME_TOKENS + maxCards * IMAGE_TOKENS;
+}
+
 /** 整片合成的 token 估算：只算还没有真视频的段 */
 export function composeCost(segments: Array<Pick<VideoSegment, "durationSec" | "videoUrl" | "videoTier">>): number {
   return segments.filter((s) => !s.videoUrl).reduce((sum, s) => sum + segTokens(s.durationSec, s.videoTier), 0);

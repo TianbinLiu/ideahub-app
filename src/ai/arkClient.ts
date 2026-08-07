@@ -191,6 +191,35 @@ export async function generate3dModel(
   throw new Error("Seed3D 任务超时（10 分钟）");
 }
 
+/** 豆包看图说话：同一个 chat 模型收 OpenAI 式的多模态 content 数组。
+ *  2026-08-07 实测 doubao-seed-2-1-turbo 认 base64 dataURL 图，单图约 3.7s。
+ *  images 是抽帧的 dataURL；帧数越多越贵也越慢，调用方自己控制在个位数。 */
+export async function chatVision(system: string, text: string, images: string[]): Promise<string> {
+  const out = await arkFetch<{ choices: Array<{ message: { content: string } }> }>(
+    "/chat/completions",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        model: MODELS.chat,
+        messages: [
+          { role: "system", content: system },
+          {
+            role: "user",
+            content: [
+              { type: "text", text },
+              ...images.map((url) => ({ type: "image_url", image_url: { url } })),
+            ],
+          },
+        ],
+        max_tokens: 1200,
+        thinking: { type: "disabled" },
+      }),
+    },
+    120_000,
+  );
+  return out.choices?.[0]?.message?.content ?? "";
+}
+
 /** 豆包对话（剧情文案生成）。
  *  thinking 必须显式关闭：seed-2.1 默认开深度思考，实测同一请求 52s → 10s——
  *  这就是"生成按钮卡住近一分钟毫无动静"的主要来源。 */

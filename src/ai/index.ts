@@ -36,6 +36,18 @@ export const deriveDeckCards: typeof real.deriveDeckCards = AI_REAL
         }))
         .filter((c) => !have.has(c.name));
     };
+/** 上传本地视频提炼卡组（抽帧 → 视觉模型识别 → 铸卡面）；
+ *  mock 构建直接把抽帧当卡面出场景卡，好歹能走通流程 */
+export const extractCardsFromVideo: typeof real.extractCardsFromVideo = AI_REAL
+  ? real.extractCardsFromVideo
+  : async (frames, note) =>
+      frames.slice(0, 3).map((f, i) => ({
+        id: `card_vid_${Date.now().toString(36)}_${i}`,
+        type: "scene" as const,
+        name: `${(note || "视频").slice(0, 4)}片段${i + 1}`,
+        summary: "演示模式：直接用抽帧当卡面，未经 AI 识别",
+        cover: f,
+      }));
 /** 3D 风格视频角色卡自动建模（Seed3D，约 2.4 元/张）；mock 构建为空操作 */
 export const deriveCharacterModels: typeof real.deriveCharacterModels = AI_REAL
   ? real.deriveCharacterModels

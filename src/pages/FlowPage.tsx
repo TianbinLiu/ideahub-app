@@ -1,49 +1,44 @@
-// 工作流页：一条竖排的节点流水线，逐段生成、逐段确认。
+// 工作流页：一屏一个节点卡，横向切节点、纵向切走向。
 //
-// 为什么不做 2D 画布（对标 libTV / 桌面版树画布）：手机上双指缩放 + 拖拽定位一个
-// 210px 卡片是折磨，而这条产品线本来就是竖屏优先。树形结构在工坊那边已经存在，
-// 到了工作流只剩一条"活动路径"要跑——竖排列表恰好就是它的形状。
+// 这就是工坊的节点卡，只是脱掉了 3D 桌面：一个节点持有若干走向方案，左右箭头/横划
+// 换节点，上下箭头/竖划换走向——与工坊里点节点卡看三种走向是同一件事。
 //
 // 三种入口共用本页：
-//   工坊模式 → startFlow() 把活动路径铺进来（节点带素材卡与方案 id）
-//   工作流模式 → seedSolo("workflow")，空节点自己写
-//   简约模式 → seedSolo("simple")，只有一个节点，UI 收到最简
+//   工坊模式 → startFlow() 把活动路径整卡搬进来（含全部走向、素材卡、档位）
+//   工作流模式 → seedSolo("workflow")，可现场让 AI 推演三种走向
+//   简约模式 → seedSolo("simple")，单节点单走向，UI 收到最简
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
 import Icon from "../components/Icon";
 import { AI_REAL } from "../ai";
-import { VIDEO_TIERS, fmtTokens, segTokens } from "../data/economy";
 import { walletOf } from "../data/account";
-import { FlowNode, flowCost, useFlow } from "../studio/flowStore";
+import { VIDEO_TIERS, fmtTokens, segTokens, tierOf } from "../data/economy";
+import { FlowNode, chosenOf, flowCost, nodeDone, nodeVideo, useFlow } from "../studio/flowStore";
 import { useStudio } from "../studio/studioStore";
-import { useMediaUrl } from "../utils/mediaUrl";
 import { formatDuration } from "../types";
+import { useMediaUrl } from "../utils/mediaUrl";
 
 const DURATIONS = [3, 5, 6, 8, 10];
+/** 触发换节点/换走向的滑动阈值（px）；低于它按点击处理 */
+const SWIPE = 48;
 
-/** 单个节点卡：折叠时只是一行缩略图，展开后是这一段的全部可调项 + 生成/确认动作 */
-function NodeCard({
-  node,
-  index,
-  total,
-  active,
-  onOpen,
-}: {
-  node: FlowNode;
-  index: number;
-  total: number;
-  active: boolean;
-  onOpen: () => void;
-}) {
-  const { mode, busy, updateNode, removeNode, moveNode, addAnn, removeAnn, genNode, setCursor } = useFlow();
+/** 一屏一个节点：预览 + 走向切换 + 本段可调项 + 生成/确认 */
+function NodeScreen({ node, index, total }: { node: FlowNode; index: number; total: number }) {
+  const { mode, busy, updateNode, updateProposal, shiftProposal, genNode, deriveProposals, addAnn, removeAnn, shiftCursor } =
+    useFlow();
   const simple = mode === "simple";
-  const vsrc = useMediaUrl(node.videoUrl, { forCapture: true });
+  const prop = chosenOf(node);
+  const video = nodeVideo(node);
+  const done = nodeDone(node);
+  const realVideo = video && !video.startsWith("mock:") ? video : undefined;
+  const vsrc = useMediaUrl(realVideo, { forCapture: true });
   const vref = useRef<HTMLVideoElement>(null);
   const [annOpen, setAnnOpen] = useState<{ frame: string; atSec: number } | null>(null);
+  const [sheet, setSheet] = useState(false); // 底部「本段设置」抽屉
 
-  const cost = segTokens(node.durationSec, node.videoTier);
-  const done = node.status === "done";
+  const cost = segTokens(prop.durationSec, node.videoTier);
+  const pIdx = node.proposals.findIndex((p) => p.id === node.chosenId);
 
   /** 从预览播放器截当前帧去圈选（视频经代理取流，画布不会被跨域污染） */
   function openAnnotator() {
@@ -55,249 +50,273 @@ function NodeCard({
       c.height = 720;
       drawCover(c.getContext("2d")!, v, 1280, 720);
       setAnnOpen({ frame: c.toDataURL("image/jpeg", 0.9), atSec: v.currentTime });
-    } else if (node.firstFrame) {
-      setAnnOpen({ frame: node.firstFrame, atSec: 0 });
+    } else if (prop.firstFrame) {
+      setAnnOpen({ frame: prop.firstFrame, atSec: 0 });
     }
   }
 
+  // 手势：在预览区上横划换节点、竖划换走向（输入框区域不参与，见 data-noswipe）
+  const drag = useRef<{ x: number; y: number } | null>(null);
+  const swipe = {
+    onPointerDown: (e: React.PointerEvent) => {
+      if ((e.target as HTMLElement).closest("[data-noswipe]")) return;
+      drag.current = { x: e.clientX, y: e.clientY };
+    },
+    onPointerUp: (e: React.PointerEvent) => {
+      const d = drag.current;
+      drag.current = null;
+      if (!d || busy) return;
+      const dx = e.clientX - d.x;
+      const dy = e.clientY - d.y;
+      if (Math.abs(dx) < SWIPE && Math.abs(dy) < SWIPE) return;
+      if (Math.abs(dx) >= Math.abs(dy)) shiftCursor(dx < 0 ? 1 : -1);
+      else if (node.proposals.length > 1) shiftProposal(node.id, dy < 0 ? 1 : -1);
+    },
+  };
+
   return (
-    <div className="relative pl-9">
-      {/* 左侧序号 + 连接线：一眼看出这是第几段、和上下段是连着的 */}
-      <div className="absolute left-0 top-0 flex h-full w-9 flex-col items-center">
-        <div
-          className={`z-10 flex h-7 w-7 flex-none items-center justify-center rounded-full text-[11px] font-bold ${
-            done
-              ? "bg-emerald-500/85 text-ink"
-              : node.status === "generating"
-                ? "bg-brand text-ink"
-                : node.status === "failed"
-                  ? "bg-rose-500/85 text-white"
-                  : active
-                    ? "bg-slate-200 text-ink"
-                    : "bg-slate-700 text-slate-300"
-          }`}
-        >
-          {done ? "✓" : index + 1}
+    <div className="flex h-full flex-col">
+      {/* ── 预览区（手势区）── */}
+      <div className="relative flex min-h-0 flex-1 items-center justify-center bg-black" {...swipe}>
+        {done && vsrc ? (
+          <video ref={vref} src={vsrc} muted playsInline controls className="max-h-full max-w-full" />
+        ) : prop.firstFrame ? (
+          <img src={prop.firstFrame} alt="" className="max-h-full max-w-full" />
+        ) : (
+          <div className="px-8 text-center text-xs leading-relaxed text-slate-500">
+            {node.status === "generating" ? node.progress || "生成中…" : "还没有画面——在下面写清楚这一段要拍什么"}
+          </div>
+        )}
+
+        {/* 左右换节点 */}
+        {index > 0 && (
+          <button
+            onClick={() => shiftCursor(-1)}
+            className="absolute left-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white"
+            aria-label="上一段"
+          >
+            <Icon name="back" size={22} />
+          </button>
+        )}
+        {index < total - 1 && (
+          <button
+            onClick={() => shiftCursor(1)}
+            className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white"
+            aria-label="下一段"
+          >
+            <Icon name="chevron" size={22} />
+          </button>
+        )}
+
+        {/* 换走向：贴底居中的一枚药丸，⌃/⌄ 与"上下划"的手势方向对得上。
+            不放右侧竖列——那里正是"下一段"箭头的位置，两组控件会叠在一起 */}
+        {node.proposals.length > 1 && (
+          <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/55 px-2 py-1">
+            <button
+              onClick={() => shiftProposal(node.id, -1)}
+              className="flex h-6 w-6 rotate-90 items-center justify-center text-white"
+              aria-label="上一个走向"
+            >
+              <Icon name="back" size={15} />
+            </button>
+            {node.proposals.map((p, i) => (
+              <span
+                key={p.id}
+                className={`h-1.5 rounded-full ${i === pIdx ? "w-4 bg-brand" : "w-1.5"} ${
+                  i === pIdx ? "" : node.videoByProposal[p.id] ? "bg-emerald-400/70" : "bg-white/35"
+                }`}
+              />
+            ))}
+            <button
+              onClick={() => shiftProposal(node.id, 1)}
+              className="flex h-6 w-6 rotate-90 items-center justify-center text-white"
+              aria-label="下一个走向"
+            >
+              <Icon name="chevron" size={15} />
+            </button>
+          </div>
+        )}
+
+        {/* 状态角标 */}
+        <div className="pointer-events-none absolute left-3 top-3 flex flex-col items-start gap-1">
+          <span className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-slate-200">
+            第 {index + 1}/{total} 段
+            {node.proposals.length > 1 && ` · 走向 ${pIdx + 1}/${node.proposals.length}`}
+          </span>
+          {done && <span className="rounded-full bg-emerald-500/85 px-2 py-0.5 text-[11px] text-ink">✓ 已出片</span>}
+          {node.status === "generating" && (
+            <span className="animate-pulse rounded-full bg-brand px-2 py-0.5 text-[11px] font-semibold text-ink">
+              {node.progress || "生成中…"}
+            </span>
+          )}
+          {node.status === "failed" && (
+            <span className="max-w-[70vw] truncate rounded-full bg-rose-500/85 px-2 py-0.5 text-[11px] text-white">
+              ✗ {node.error}
+            </span>
+          )}
         </div>
-        {index < total - 1 && <div className="w-px flex-1 bg-slate-700" />}
       </div>
 
-      <div
-        className={`mb-3 overflow-hidden rounded-2xl border ${
-          active ? "border-brand/60 bg-panel" : "border-slate-700/60 bg-panel/60"
-        }`}
-      >
-        {/* 预览区：出片后放视频，否则放设定首帧 */}
-        <button onClick={onOpen} className="block w-full text-left">
-          {done && vsrc ? (
-            <video
-              ref={vref}
-              src={vsrc}
-              muted
-              playsInline
-              controls={active}
-              className="aspect-video w-full bg-black object-cover"
-            />
-          ) : node.firstFrame ? (
-            <img src={node.firstFrame} alt="" className="aspect-video w-full object-cover" />
-          ) : (
-            <div className="flex aspect-video w-full items-center justify-center border-b border-dashed border-slate-600 bg-slate-800/40 text-xs text-slate-500">
-              {node.status === "generating" ? "生成中…" : "还没有画面"}
-            </div>
-          )}
-        </button>
+      {/* ── 本段内容 ── */}
+      <div className="flex-none space-y-2 border-t border-slate-800 bg-ink px-4 pb-3 pt-2.5" data-noswipe>
+        {!simple && (
+          <input
+            value={prop.title}
+            onChange={(e) => updateProposal(node.id, { title: e.target.value })}
+            maxLength={24}
+            placeholder="这一段叫什么"
+            className="w-full bg-transparent text-sm font-bold text-slate-100 outline-none placeholder:text-slate-600"
+          />
+        )}
+        <textarea
+          value={prop.plot}
+          onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
+          rows={simple ? 3 : 2}
+          maxLength={400}
+          placeholder={
+            simple
+              ? "想拍什么？例：雨夜的东京街头，霓虹灯牌下一只黑猫慢慢走过积水，倒影闪烁"
+              : "这一段的画面与剧情（会直接作为生成提示词）"
+          }
+          className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+        />
 
-        <div className="p-3">
-          <div className="flex items-center gap-2">
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-100">
-              {node.title || `第 ${index + 1} 段`}
-            </span>
-            {node.status === "generating" ? (
-              <span className="flex-none animate-pulse text-[11px] text-brand">{node.progress || "生成中…"}</span>
-            ) : done ? (
-              <span className="flex-none text-[11px] text-emerald-300">
-                {node.videoUrl ? "✓ 已出片" : "✓ 已完成（演示帧）"}
-              </span>
-            ) : node.status === "failed" ? (
-              <span className="flex-none text-[11px] text-rose-300">✗ 失败</span>
-            ) : (
-              <span className="flex-none text-[11px] text-slate-500">
-                {node.durationSec}s · {fmtTokens(cost)}
-              </span>
+        {/* 圈选标注缩略 */}
+        {node.anns.length > 0 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+            {node.anns.map((a) => (
+              <div key={a.id} className="relative w-24 flex-none overflow-hidden rounded-lg bg-panel">
+                <img src={a.frame} alt="" className="h-12 w-full object-cover" />
+                <div className="truncate px-1 py-0.5 text-[9px] text-slate-300" title={a.req}>
+                  {a.req}
+                </div>
+                <button
+                  onClick={() => removeAnn(node.id, a.id)}
+                  className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-[9px] text-slate-200"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setSheet(true)}
+            className="flex-none rounded-lg bg-panel px-2.5 py-2 text-[11px] text-slate-300"
+          >
+            ⚙ {prop.durationSec}s · {tierOf(node.videoTier).label}
+          </button>
+          {done && (
+            <button
+              onClick={openAnnotator}
+              disabled={busy}
+              className="flex-none rounded-lg bg-panel px-2.5 py-2 text-[11px] text-slate-300 disabled:opacity-40"
+            >
+              ⭕ 圈选改画面
+            </button>
+          )}
+          <button
+            onClick={() => void genNode(node.id)}
+            disabled={busy || !prop.plot.trim()}
+            className="min-w-0 flex-1 rounded-lg bg-brand py-2 text-xs font-bold text-ink disabled:opacity-40"
+          >
+            {node.status === "generating"
+              ? node.progress || "生成中…"
+              : done
+                ? `♻ 重新生成（${fmtTokens(cost)}）`
+                : `⚡ 生成本段（${fmtTokens(cost)}）`}
+          </button>
+        </div>
+
+        {done && index < total - 1 && (
+          <button
+            onClick={() => shiftCursor(1)}
+            disabled={busy}
+            className="w-full rounded-lg border border-emerald-400/40 bg-emerald-500/15 py-2 text-xs font-bold text-emerald-200 disabled:opacity-40"
+          >
+            ✓ 这段满意，去下一段
+          </button>
+        )}
+      </div>
+
+      {/* ── 本段设置抽屉 ── */}
+      {sheet && (
+        <div className="fixed inset-0 z-40 flex items-end bg-black/70" onClick={() => setSheet(false)}>
+          <div className="safe-bottom w-full space-y-3 rounded-t-2xl bg-ink p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-slate-100">第 {index + 1} 段设置</span>
+              <button onClick={() => setSheet(false)} className="text-slate-400">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="w-10 flex-none text-[11px] text-slate-400">时长</span>
+              {DURATIONS.map((d) => (
+                <button
+                  key={d}
+                  onClick={() => updateProposal(node.id, { durationSec: d })}
+                  className={`rounded-lg px-2.5 py-1.5 text-[11px] ${prop.durationSec === d ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+                >
+                  {d}s
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="w-10 flex-none text-[11px] text-slate-400">画质</span>
+              {VIDEO_TIERS.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => updateNode(node.id, { videoTier: t.id })}
+                  title={t.desc}
+                  className={`rounded-lg px-2.5 py-1.5 text-[11px] ${node.videoTier === t.id ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+                >
+                  {t.label} · {fmtTokens(segTokens(prop.durationSec, t.id))}
+                </button>
+              ))}
+            </div>
+
+            {index > 0 && (
+              <label className="flex items-center gap-2 text-[11px] text-slate-400">
+                <input
+                  type="checkbox"
+                  checked={node.chain}
+                  onChange={(e) => updateNode(node.id, { chain: e.target.checked })}
+                  className="accent-brand"
+                />
+                从上一段的真实结尾画面接着拍
+              </label>
+            )}
+
+            {!!node.materials?.length && (
+              <div className="flex flex-wrap gap-1">
+                <span className="w-10 flex-none text-[11px] text-slate-400">素材</span>
+                {node.materials.map((c) => (
+                  <span key={c.id} className="rounded-full bg-panel px-2 py-0.5 text-[10px] text-slate-300">
+                    {c.name}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {!simple && (
+              <button
+                onClick={() => {
+                  setSheet(false);
+                  void deriveProposals(node.id);
+                }}
+                disabled={busy}
+                className="w-full rounded-xl bg-panel py-2.5 text-xs font-semibold text-slate-200 disabled:opacity-40"
+              >
+                🔮 让 AI 就这一段推演三种走向（可上下切换挑一个）
+              </button>
             )}
           </div>
-          {!active && node.plot && (
-            <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-400">{node.plot}</p>
-          )}
-          {node.error && active && (
-            <p className="mt-1.5 rounded-lg bg-rose-500/10 px-2 py-1 text-[11px] text-rose-300">{node.error}</p>
-          )}
-
-          {active && (
-            <div className="mt-2.5 space-y-2.5">
-              {/* ── 这一段拍什么 ── */}
-              {!simple && (
-                <input
-                  value={node.title}
-                  onChange={(e) => updateNode(node.id, { title: e.target.value })}
-                  maxLength={24}
-                  placeholder="这一段叫什么"
-                  className="w-full rounded-lg border border-slate-700 bg-ink px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
-                />
-              )}
-              <textarea
-                value={node.plot}
-                onChange={(e) => updateNode(node.id, { plot: e.target.value })}
-                rows={simple ? 4 : 3}
-                maxLength={400}
-                placeholder={
-                  simple
-                    ? "想拍什么？例：雨夜的东京街头，霓虹灯牌下一只黑猫慢慢走过积水，倒影闪烁"
-                    : "这一段的画面与剧情（会直接作为生成提示词）"
-                }
-                className="w-full resize-none rounded-lg border border-slate-700 bg-ink px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
-              />
-
-              {/* ── 时长 ── */}
-              <div className="flex items-center gap-1.5">
-                <span className="flex-none text-[11px] text-slate-400">时长</span>
-                {DURATIONS.map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => updateNode(node.id, { durationSec: d })}
-                    className={`rounded-lg px-2 py-1 text-[11px] ${
-                      node.durationSec === d ? "bg-brand text-ink" : "bg-slate-700/60 text-slate-300"
-                    }`}
-                  >
-                    {d}s
-                  </button>
-                ))}
-              </div>
-
-              {/* ── 档位 ── */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="flex-none text-[11px] text-slate-400">画质</span>
-                {VIDEO_TIERS.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => updateNode(node.id, { videoTier: t.id })}
-                    title={t.desc}
-                    className={`rounded-lg px-2 py-1 text-[11px] ${
-                      node.videoTier === t.id ? "bg-brand text-ink" : "bg-slate-700/60 text-slate-300"
-                    }`}
-                  >
-                    {t.label} · {fmtTokens(segTokens(node.durationSec, t.id))}
-                  </button>
-                ))}
-              </div>
-
-              {/* ── 衔接上一段 ── */}
-              {index > 0 && (
-                <label className="flex items-center gap-2 text-[11px] text-slate-400">
-                  <input
-                    type="checkbox"
-                    checked={node.chain}
-                    onChange={(e) => updateNode(node.id, { chain: e.target.checked })}
-                    className="accent-brand"
-                  />
-                  从上一段的真实结尾画面接着拍（关掉则用本段自己的起拍图）
-                </label>
-              )}
-
-              {/* ── 素材卡（工坊带过来的） ── */}
-              {!!node.materials?.length && (
-                <div className="flex flex-wrap gap-1">
-                  {node.materials.map((c) => (
-                    <span key={c.id} className="rounded-full bg-slate-700/60 px-2 py-0.5 text-[10px] text-slate-300">
-                      {c.name}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* ── 圈选标注列表 ── */}
-              {node.anns.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {node.anns.map((a) => (
-                    <div key={a.id} className="relative w-32 flex-none overflow-hidden rounded-lg border border-slate-700 bg-ink">
-                      <img src={a.frame} alt="" className="h-16 w-full object-cover" />
-                      <div className="truncate px-1.5 py-1 text-[10px] text-slate-300" title={a.req}>
-                        {a.req}
-                      </div>
-                      <button
-                        onClick={() => removeAnn(node.id, a.id)}
-                        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-[10px] text-slate-200"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* ── 动作区 ── */}
-              <div className="flex flex-wrap gap-1.5">
-                {done && (
-                  <button
-                    onClick={openAnnotator}
-                    disabled={busy}
-                    className="rounded-lg bg-slate-700/60 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
-                  >
-                    ⭕ 圈选此帧改画面
-                  </button>
-                )}
-                {!simple && (
-                  <>
-                    <button
-                      onClick={() => moveNode(node.id, -1)}
-                      disabled={busy || index === 0}
-                      className="rounded-lg bg-slate-700/60 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-30"
-                    >
-                      ◀ 前移
-                    </button>
-                    <button
-                      onClick={() => moveNode(node.id, 1)}
-                      disabled={busy || index === total - 1}
-                      className="rounded-lg bg-slate-700/60 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-30"
-                    >
-                      后移 ▶
-                    </button>
-                    <button
-                      onClick={() => removeNode(node.id)}
-                      disabled={busy || total <= 1}
-                      className="rounded-lg bg-rose-500/15 px-2.5 py-1.5 text-[11px] text-rose-300 disabled:opacity-30"
-                    >
-                      🗑 删除
-                    </button>
-                  </>
-                )}
-              </div>
-
-              <button
-                onClick={() => void genNode(node.id)}
-                disabled={busy || !node.plot.trim()}
-                className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
-              >
-                {node.status === "generating"
-                  ? node.progress || "生成中…"
-                  : done
-                    ? `♻ 按修改重新生成本段（${fmtTokens(cost)}）`
-                    : `⚡ 生成第 ${index + 1} 段（${fmtTokens(cost)}）`}
-              </button>
-
-              {done && index < total - 1 && (
-                <button
-                  onClick={() => setCursor(index + 1)}
-                  disabled={busy}
-                  className="w-full rounded-xl border border-emerald-400/40 bg-emerald-500/15 py-2 text-sm font-bold text-emerald-200 disabled:opacity-40"
-                >
-                  ✓ 这段满意，去下一段
-                </button>
-              )}
-            </div>
-          )}
         </div>
-      </div>
+      )}
 
       {annOpen && (
         <FrameAnnotator
@@ -316,7 +335,7 @@ function NodeCard({
 
 export default function FlowPage() {
   const navigate = useNavigate();
-  const { nodes, cursor, mode, origin, busy, err, setCursor, addNode, reset } = useFlow();
+  const { nodes, cursor, mode, origin, busy, err, setCursor, addNode, removeNode, moveNode, reset } = useFlow();
   const [finalizing, setFinalizing] = useState("");
   const simple = mode === "simple";
 
@@ -328,11 +347,12 @@ export default function FlowPage() {
     if (nodes.length === 0 && !leavingRef.current) navigate("/create", { replace: true });
   }, [nodes.length, navigate]);
 
-  const allDone = nodes.length > 0 && nodes.every((n) => n.status === "done");
+  const allDone = nodes.length > 0 && nodes.every(nodeDone);
   const remain = useMemo(() => flowCost(nodes), [nodes]);
   const wallet = walletOf();
+  const node = nodes[Math.min(cursor, nodes.length - 1)];
 
-  if (nodes.length === 0) return null;
+  if (nodes.length === 0 || !node) return null;
 
   /** 全部满意 → 组稿（回写真帧 + 提炼卡组）→ 进剪辑页 */
   async function toCut() {
@@ -354,69 +374,109 @@ export default function FlowPage() {
   }
 
   return (
-    <div className="min-h-full pb-24">
-      <header className="safe-top sticky top-0 z-10 border-b border-slate-800 bg-ink/90 backdrop-blur">
-        <div className="mx-auto flex max-w-lg items-center gap-3 px-4 py-3">
-          <button
-            onClick={() => navigate(origin === "studio" ? "/studio" : "/create")}
-            className="flex items-center gap-1 text-slate-400 hover:text-white"
-          >
-            <Icon name="back" size={18} />
-          </button>
-          <span className="font-bold text-slate-100">{simple ? "简约模式" : "工作流"}</span>
-          <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
-            {simple ? "一个节点，一条短片" : `${nodes.length} 段 · 已完成 ${nodes.filter((n) => n.status === "done").length}`}
-            {AI_REAL && remain > 0 && ` · 剩余约 ${fmtTokens(remain)}`}
-          </span>
-          <button
-            onClick={() => void toCut()}
-            disabled={!allDone || busy || !!finalizing}
-            className="flex-none rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink disabled:opacity-35"
-          >
-            {finalizing || "去剪辑 ›"}
-          </button>
-        </div>
+    <div className="fixed inset-0 flex flex-col bg-ink">
+      <header className="safe-top flex flex-none items-center gap-2.5 px-4 py-2.5">
+        <button
+          onClick={() => navigate(origin === "studio" ? "/studio" : "/create")}
+          className="flex-none text-slate-300"
+        >
+          <Icon name="back" size={20} />
+        </button>
+        <span className="flex-none text-sm font-bold text-slate-100">{simple ? "简约模式" : "工作流"}</span>
+        <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">
+          {simple ? "一个节点，一条短片" : `${nodes.length} 段 · 已出片 ${nodes.filter(nodeDone).length}`}
+          {AI_REAL && remain > 0 && ` · 剩余约 ${fmtTokens(remain)}`}
+        </span>
+        <button
+          onClick={() => void toCut()}
+          disabled={!allDone || busy || !!finalizing}
+          className="flex-none rounded-full bg-brand px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-35"
+        >
+          {finalizing || "去剪辑 ›"}
+        </button>
       </header>
 
-      <main className="mx-auto max-w-lg px-4 pt-3">
-        {err && (
-          <div className="mb-3 flex items-start gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
-            <span className="min-w-0 flex-1">{err}</span>
-            <button onClick={() => useFlow.setState({ err: "" })} className="flex-none">
-              <Icon name="close" size={14} />
+      {err && (
+        <div className="mx-4 mb-1.5 flex flex-none items-start gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+          <span className="min-w-0 flex-1">{err}</span>
+          <button onClick={() => useFlow.setState({ err: "" })} className="flex-none">
+            <Icon name="close" size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* 一屏一个节点（key 让切节点时播放器彻底重建，不残留上一段的画面） */}
+      <div className="min-h-0 flex-1">
+        <NodeScreen key={node.id} node={node} index={cursor} total={nodes.length} />
+      </div>
+
+      {/* ── 底部节点条：整条流水线的缩略 + 增删换序 ── */}
+      {!simple && (
+        <div className="safe-bottom flex-none border-t border-slate-800 bg-[#141821] px-3 pb-3 pt-2">
+          <div className="flex items-center gap-1.5 overflow-x-auto">
+            {nodes.map((n, i) => {
+              const p = chosenOf(n);
+              return (
+                <button
+                  key={n.id}
+                  onClick={() => setCursor(i)}
+                  className={`relative h-11 w-16 flex-none overflow-hidden rounded-lg border-2 ${
+                    i === cursor ? "border-brand" : "border-transparent"
+                  }`}
+                >
+                  {p.firstFrame ? (
+                    <img src={p.firstFrame} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center bg-panel text-[10px] text-slate-500">
+                      {i + 1}
+                    </span>
+                  )}
+                  {nodeDone(n) && (
+                    <span className="absolute right-0.5 top-0.5 rounded-full bg-emerald-500/90 px-1 text-[8px] text-ink">
+                      ✓
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => addNode()}
+              disabled={busy}
+              className="h-11 w-11 flex-none rounded-lg border border-dashed border-slate-600 text-slate-400 disabled:opacity-40"
+              aria-label="加一段"
+            >
+              ＋
             </button>
           </div>
-        )}
-
-        {nodes.map((n, i) => (
-          <NodeCard
-            key={n.id}
-            node={n}
-            index={i}
-            total={nodes.length}
-            active={i === cursor}
-            onOpen={() => setCursor(i)}
-          />
-        ))}
-
-        {!simple && (
-          <button
-            onClick={() => addNode()}
-            disabled={busy}
-            className="ml-9 w-[calc(100%-2.25rem)] rounded-2xl border border-dashed border-slate-600 py-3 text-xs text-slate-400 hover:border-brand disabled:opacity-40"
-          >
-            ＋ 加一段
-          </button>
-        )}
-
-        <div className="mt-4 space-y-1 text-center text-[11px] leading-relaxed text-slate-500">
-          <p>
-            总时长 {formatDuration(nodes.reduce((s, n) => s + n.durationSec, 0))}
-            {AI_REAL && wallet && ` · 余额 ${fmtTokens(wallet.plan + wallet.addon)}`}
-          </p>
-          <p>{allDone ? "全部段落已完成，去剪辑页排顺序、加音频、导出成片。" : "一段一段来：满意了再往下走，不满意就在画面上圈出来重炼。"}</p>
+          <div className="mt-1.5 flex items-center gap-1.5 text-[10px]">
+            <button
+              onClick={() => moveNode(node.id, -1)}
+              disabled={busy || cursor === 0}
+              className="rounded bg-panel px-2 py-1 text-slate-300 disabled:opacity-30"
+            >
+              ◀ 前移
+            </button>
+            <button
+              onClick={() => moveNode(node.id, 1)}
+              disabled={busy || cursor === nodes.length - 1}
+              className="rounded bg-panel px-2 py-1 text-slate-300 disabled:opacity-30"
+            >
+              后移 ▶
+            </button>
+            <button
+              onClick={() => removeNode(node.id)}
+              disabled={busy || nodes.length <= 1}
+              className="rounded bg-rose-500/15 px-2 py-1 text-rose-300 disabled:opacity-30"
+            >
+              🗑 删除本段
+            </button>
+            <span className="min-w-0 flex-1 truncate text-right text-slate-500">
+              总时长 {formatDuration(nodes.reduce((s, n) => s + chosenOf(n).durationSec, 0))}
+              {AI_REAL && wallet && ` · 余额 ${fmtTokens(wallet.plan + wallet.addon)}`}
+            </span>
+          </div>
         </div>
-      </main>
+      )}
     </div>
   );
 }

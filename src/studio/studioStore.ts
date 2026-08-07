@@ -7,7 +7,7 @@ import type { PlayerAvatar } from "./quality";
 import { addCards as saveCardsToAccount, myCards, myDecks, walletOf } from "../data/account";
 import { DEFAULT_TIER, composeCost, fmtTokens } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
-import { FlowNode, useFlow } from "./flowStore";
+import { FlowNode, chosenOf, nodeVideo, useFlow } from "./flowStore";
 import { getVideo, loadProject, partsOf } from "../data/videos";
 
 export interface DialogMsg {
@@ -776,25 +776,24 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (!composable(root)) return false;
     const path = activePath(root);
     const chosen = path.map((n) => chosenProposal(n)).filter((p): p is Proposal => !!p);
+    // 整个节点卡（三种走向都带上）搬进工作流：工作流里的节点就是工坊的节点卡，
+    // 只是换成横向切节点、纵向切走向的手机形态——用户在那边还能改选走向
     const nodes: FlowNode[] = chosen.map((p, i) => ({
       id: uid("fn"),
-      title: p.title,
-      plot: p.plot,
-      firstFrame: p.firstFrame,
-      lastFrame: p.lastFrame,
-      durationSec: p.durationSec,
+      proposals: path[i].proposals,
+      chosenId: p.id,
       videoTier: path[i]?.videoTier ?? DEFAULT_TIER,
       materials: path[i]?.materials,
-      proposalId: p.id,
       // 承接判定：本段设定首帧就是上一段的设定尾帧（AI 顺接铸出来的），才让上一段的
       // 真实结尾顶替起拍帧；用户上传过自定义开头帧的段保持独立起拍
       chain: i > 0 && p.firstFrame === chosen[i - 1].lastFrame,
+      videoByProposal: {},
       status: "idle",
       anns: [],
     }));
     useFlow.getState().seed(nodes, { mode: "workflow", origin: "studio" });
     // 整片预算只做知会不做拦截：工作流是一段一结账，钱不够也能先炼前几段
-    const cost = composeCost(nodes.map((n) => ({ durationSec: n.durationSec, videoTier: n.videoTier })));
+    const cost = composeCost(chosen.map((p, i) => ({ durationSec: p.durationSec, videoTier: nodes[i].videoTier })));
     const w = walletOf();
     get().npcSay(
       AI_REAL && cost > 0
@@ -811,25 +810,32 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // 真实帧回写节点树：占位帧的重画、尾帧续作的真实结尾——节点卡、分支树、
     // 日后回炉编辑都以真帧为准（节点卡显示的就是视频里实际的画面）
     const path = root ? activePath(root) : [];
-    const byId = new Map<string, Proposal>();
-    for (const slot of path) for (const p of slot.proposals) byId.set(p.id, p);
     const videoByProposal: Record<string, string> = {};
     const segments: VideoSegment[] = nodes.map((n) => {
-      const p = n.proposalId ? byId.get(n.proposalId) : undefined;
-      if (p) {
-        p.firstFrame = n.firstFrame;
-        p.lastFrame = n.lastFrame;
-        delete p.degraded;
-        if (n.videoUrl) videoByProposal[p.id] = n.videoUrl;
+      const p = chosenOf(n);
+      const video = nodeVideo(n);
+      const real = video && !video.startsWith("mock:") ? video : undefined;
+      // 按方案 id 认领它所属的节点槽：用户可能在工作流里改选了走向，
+      // 那就把工坊的选定一并改过去（未选走向的子树照旧收在 children 里）
+      const slot = path.find((s) => s.proposals.some((q) => q.id === p.id));
+      if (slot) {
+        const orig = slot.proposals.find((q) => q.id === p.id);
+        if (orig) {
+          orig.firstFrame = p.firstFrame;
+          orig.lastFrame = p.lastFrame;
+          delete orig.degraded;
+        }
+        slot.chosenId = p.id;
+        if (real) videoByProposal[p.id] = real;
       }
       return {
-        title: n.title,
-        plot: n.plot,
-        firstFrame: n.firstFrame,
-        lastFrame: n.lastFrame,
-        durationSec: n.durationSec,
+        title: p.title,
+        plot: p.plot,
+        firstFrame: p.firstFrame,
+        lastFrame: p.lastFrame,
+        durationSec: p.durationSec,
         videoTier: n.videoTier,
-        ...(n.videoUrl ? { videoUrl: n.videoUrl } : {}),
+        ...(real ? { videoUrl: real } : {}),
       };
     });
     // 本片卡组：素材卡并集 + AI 从剧情提炼的派生卡（角色/场景/背景/画风，

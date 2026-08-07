@@ -21,6 +21,7 @@ import type { ApiSharedDeck } from "../api/branch";
 import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
 import { searchMarket } from "../ai";
 import TarotCard from "../components/TarotCard";
+import VideoCardExtractor from "../components/VideoCardExtractor";
 import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType } from "../types";
 
 function CardTile({ card, onRemove, to }: { card: Card; onRemove?: () => void; to?: string }) {
@@ -60,6 +61,8 @@ export default function WorkshopPage() {
   const [sharedLoading, setSharedLoading] = useState(false);
   const [busyDeck, setBusyDeck] = useState<string | null>(null);
   const [deckErr, setDeckErr] = useState("");
+  // 上传本地视频提卡的抽屉
+  const [extractOpen, setExtractOpen] = useState(false);
   const remote = isRemoteMode();
 
   // 搜索市场卡片（空词=热门）
@@ -161,10 +164,23 @@ export default function WorkshopPage() {
             </div>
           )}
           {cards.length === 0 && (
-            <div className="mb-5 rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
-              还没有卡片——去 3D 工坊炼卡，或从下面的市场添加
+            <div className="mb-3 rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
+              还没有卡片——从视频提取、去 3D 工坊炼卡，或从下面的市场添加
             </div>
           )}
+
+          {/* 从本地视频提卡：手里已经有片子的人不必从零铸卡，抽帧让 AI 认人认景直接出卡 */}
+          <button
+            onClick={() => setExtractOpen(true)}
+            className="mb-5 flex w-full items-center gap-3 rounded-xl border border-cyan-400/35 bg-gradient-to-r from-cyan-400/15 to-transparent px-3.5 py-3 text-left"
+          >
+            <span className="text-2xl">🎬</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-slate-100">从视频提取卡片</span>
+              <span className="block text-[11px] text-slate-400">上传本地视频，AI 认出里面的角色/场景/画风，直接铸成卡</span>
+            </span>
+            <Icon name="chevron" size={18} />
+          </button>
 
           <div className="mb-2 flex items-center gap-3">
             <h2 className="text-sm font-semibold text-slate-300">从市场添加</h2>
@@ -395,6 +411,7 @@ export default function WorkshopPage() {
           </div>
         </>
       )}
+      {extractOpen && <VideoCardExtractor onClose={() => setExtractOpen(false)} />}
     </div>
   );
 }
