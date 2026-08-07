@@ -64,8 +64,8 @@ function DeckPickPanel() {
   };
 
   // 卡组渲染成一张塔罗式实体卡牌（Seedream 生成的魔法边框，见 TarotCard）：
-  // 固定 2:3 比例、封面卡铺满画窗、组名按塔罗版式压在题名牌匾；
-  // 身后垫两层错位卡边暗示"这是一摞卡"。
+  // 高度吃满面板、宽度由 2:3 比例导出——**整张卡永远完整可见**，不需要上下滚动
+  // （旧的三列纵向网格在矮窗口里会把卡截成半张）。身后垫两层错位卡边暗示"一摞卡"。
   const DeckTile = ({
     name,
     count,
@@ -79,7 +79,11 @@ function DeckPickPanel() {
     active: boolean;
     onPick: () => void;
   }) => (
-    <button onClick={onPick} className="group relative block w-full text-left">
+    <button
+      onClick={onPick}
+      className="group relative h-[94%] flex-none snap-center text-left"
+      style={{ aspectRatio: "2/3" }}
+    >
       {/* 叠牌暗示：身后两张错位的"卡背"边 */}
       <div className="absolute inset-0 translate-x-1.5 translate-y-1 rotate-[2.5deg] rounded-xl border border-amber-700/40 bg-[#101a33]" />
       <div className="absolute inset-0 translate-x-0.5 translate-y-0.5 rotate-[1deg] rounded-xl border border-amber-700/50 bg-[#0e1730]" />
@@ -120,48 +124,49 @@ function DeckPickPanel() {
 
       {view === "decks" ? (
         <>
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            <div className="grid grid-cols-3 gap-2.5">
+          {/* 横滑整卡：卡高吃满面板，宽度按 2:3 导出——不需要上下滚动就能看到整张卡 */}
+          <div className="flex min-h-0 flex-1 snap-x snap-mandatory items-center gap-3.5 overflow-x-auto overflow-y-hidden px-4 py-2">
+            <DeckTile
+              name="全部卡片"
+              count={allCount}
+              cover={[...cardById.values()][0]?.cover ?? null}
+              active={activeDeck?.id === null}
+              onPick={() => {
+                if (useStudio.getState().pickDeck(null, "全部卡片")) setView("cards");
+              }}
+            />
+            {decks.map((d) => (
               <DeckTile
-                name="全部卡片"
-                count={allCount}
-                cover={[...cardById.values()][0]?.cover ?? null}
-                active={activeDeck?.id === null}
+                key={d.id}
+                name={d.name}
+                count={d.cardIds.length}
+                cover={deckCoverOf(d)?.cover ?? null}
+                active={activeDeck?.id === d.id}
                 onPick={() => {
-                  if (useStudio.getState().pickDeck(null, "全部卡片")) setView("cards");
+                  if (useStudio.getState().pickDeck(d.id, d.name)) setView("cards");
                 }}
               />
-              {decks.map((d) => (
-                <DeckTile
-                  key={d.id}
-                  name={d.name}
-                  count={d.cardIds.length}
-                  cover={deckCoverOf(d)?.cover ?? null}
-                  active={activeDeck?.id === d.id}
-                  onPick={() => {
-                    if (useStudio.getState().pickDeck(d.id, d.name)) setView("cards");
-                  }}
-                />
-              ))}
-            </div>
+            ))}
             {decks.length === 0 && (
-              <div className="py-3 text-center text-[11px] leading-5 text-slate-500">
+              <div className="flex-none py-3 pl-2 text-[11px] leading-5 text-slate-500">
                 还没有建过卡组——发布作品会自动生成《作品》卡组，
                 <br />
                 也可以在「创意工坊」页手动组一套（编辑时可指定封面卡）。
               </div>
             )}
           </div>
-          <div className="pb-2 text-center text-[10px] text-slate-500">点选一套查看卡片 · 它同时会成为铸段的素材池</div>
+          <div className="pb-2 text-center text-[10px] text-slate-500">← 左右滑动选一套 → 它同时会成为铸段的素材池</div>
         </>
       ) : (
         <>
-          <div className="flex min-h-0 flex-1 snap-x snap-mandatory items-center gap-3 overflow-x-auto overflow-y-hidden px-4 py-3">
+          {/* 与卡组视图同款：卡高吃满面板、宽按 2:3 导出，整卡永远完整可见 */}
+          <div className="flex min-h-0 flex-1 snap-x snap-mandatory items-center gap-3 overflow-x-auto overflow-y-hidden px-4 py-2">
             {deck.map((c) => (
               <button
                 key={c.id}
                 onClick={() => useStudio.getState().viewCardDetail(c)}
-                className="w-[38%] flex-none snap-center text-left"
+                className="h-[94%] flex-none snap-center text-left"
+                style={{ aspectRatio: "2/3" }}
               >
                 <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} size="md" />
               </button>
