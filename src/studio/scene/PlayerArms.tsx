@@ -498,14 +498,18 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
         .multiply(gv.qPose.setFromEuler(gv.ePose));
       gv.ePose.order = "XYZ"; // 复用的 Euler，用完还原免得污染姿势写入
     }
-    // 头部：第一人称眼位（默认机位）时必须隐藏，否则相机就在颅内；
-    // 其余机位（卡组/节点/对话）一律显示。Tripo 系另按 hideHead 保留旧的 FPS 隐头语义
+    // 头部：只有相机真的贴在头骨上（颅内视角）才隐藏——按**相机与头的实际距离**
+    // 判定而不是按视角模式。第一人称眼位相机距头 ~0.13 → 隐藏；双指捏合升空后
+    // 距离迅速拉开 → 头部随即显示，从头顶俯瞰时角色是完整的。
+    // Tripo 系的 hideHead（防后脑勺入画）同样吃距离闸：镜头拉开后没有入画问题。
     const head = bones.current.head;
     if (head) {
-      const s = eyeView || (rig.hideHead && !showSelf) ? 0.001 : 1;
-      if (head.scale.x !== s) head.scale.set(s, s, s);
       // 眼位锚点：头骨世界坐标（隐藏用的是 scale，世界位置依然有效）
       head.getWorldPosition(PLAYER_HEAD);
+      const camDist = camera.position.distanceTo(PLAYER_HEAD);
+      const wantHide = camDist < 1.0 && (eyeView || (rig.hideHead && !showSelf));
+      const s = wantHide ? 0.001 : 1;
+      if (head.scale.x !== s) head.scale.set(s, s, s);
     }
     // deckY 下沉只在卡组特写（挂到 showSelf 会让自由视角浏览时角色突然沉降）
     const baseY = st.deckView && p2.deckY !== undefined ? p2.deckY : p2.y;
