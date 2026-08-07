@@ -7,10 +7,11 @@ import TableScene from "./scene/TableScene";
 import { AI_REAL } from "../ai";
 import { myCards } from "../data/account";
 import { composable, placeholderVisible, useStudio } from "./studioStore";
+import { useFlow } from "./flowStore";
 import { DEFAULT_CAM, SPREAD } from "./scene/layout";
 import NpcDialog from "./ui/NpcDialog";
 import ProjectionWindow from "./ui/projection";
-import { CardDetailModal, ComposeOverlay } from "./ui/modals";
+import { CardDetailModal } from "./ui/modals";
 import AvatarPicker from "./ui/AvatarPicker";
 import QualityPicker from "./ui/QualityPicker";
 
@@ -86,14 +87,12 @@ function useHint(): string {
   if (spreadOpen) return "拖卡片到虚线卡位铸段 · 单点看详情";
   if (!root && deckLen === 0) return "先把素材交给铸卡师炼卡，或让 TA 摊开市场";
   if (!root) return "点击虚线卡位，铸造第一段视频节点";
-  if (placeholderVisible(root) && composable(root)) return "点虚线卡位延展下一段，或点金色圆台合成完整视频";
+  if (placeholderVisible(root) && composable(root)) return "点虚线卡位延展下一段，或点金色圆台进入工作流生成视频";
   return "点击节点卡可重新查看三种走向";
 }
 
 export default function StudioPage() {
   const navigate = useNavigate();
-  const draft = useStudio((s) => s.draft);
-  const composing = useStudio((s) => s.composing);
   const editTarget = useStudio((s) => s.editTarget);
   const initGreet = useStudio((s) => s.initGreet);
   const spreadOpen = useStudio((s) => s.spreadOpen);
@@ -115,13 +114,14 @@ export default function StudioPage() {
     }
   }, []);
 
-  // 仅在“合成刚结束”那一刻跳剪辑页（选帧圈物修改/整段重生成/合并导出），
-  // 避免回到工坊被再次弹走；发布页由剪辑页合并后进入
-  const prevComposing = useRef(false);
+  // 点金色圆台 → 铺成工作流后跳 /flow（逐段生成逐段确认，全部满意才进剪辑页）。
+  // 只在"节点数从 0 变成有"的那一刻跳，避免从工作流返回工坊时又被弹走
+  const flowLen = useFlow((s) => s.nodes.length);
+  const prevFlowLen = useRef(flowLen);
   useEffect(() => {
-    if (prevComposing.current && !composing && draft) navigate("/cut");
-    prevComposing.current = composing;
-  }, [composing, draft, navigate]);
+    if (prevFlowLen.current === 0 && flowLen > 0) navigate("/flow");
+    prevFlowLen.current = flowLen;
+  }, [flowLen, navigate]);
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-ink">
@@ -174,7 +174,7 @@ export default function StudioPage() {
       {editTarget && (
         <div className="safe-top pointer-events-none absolute inset-x-0 top-14 flex justify-center px-4">
           <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-500/15 px-3.5 py-1.5 text-xs text-amber-200 backdrop-blur">
-            <span className="truncate">🛠 正在编辑《{editTarget.videoTitle}》· {editTarget.partName}——合成后保存到该作品</span>
+            <span className="truncate">🛠 正在编辑《{editTarget.videoTitle}》· {editTarget.partName}——生成后保存到该作品</span>
             <button
               onClick={() => useStudio.getState().exitEdit()}
               className="flex-none rounded-full bg-black/30 px-2 py-0.5 text-amber-100 hover:bg-black/50"
@@ -211,7 +211,6 @@ export default function StudioPage() {
       <NpcDialog />
       <ProjectionWindow />
       <CardDetailModal />
-      <ComposeOverlay />
       <AvatarPicker />
       <QualityPicker open={qualityOpen} onClose={() => setQualityOpen(false)} />
       <StudioLoader />

@@ -12,6 +12,8 @@ import EditPage from "./pages/EditPage";
 import CardDetailPage from "./pages/CardDetailPage";
 import DeckDetailPage from "./pages/DeckDetailPage";
 import CutPage from "./pages/CutPage";
+import CreatePage from "./pages/CreatePage";
+import FlowPage from "./pages/FlowPage";
 import StudioPage from "./studio/StudioPage";
 import TabBar from "./components/TabBar";
 import { readyVideos } from "./data/videos";
@@ -70,10 +72,26 @@ export default function App() {
       <Route path="/card/:id" element={<CardDetailPage />} />
       <Route path="/deck/:id" element={<DeckDetailPage />} />
       <Route
+        path="/create"
+        element={
+          <RequireAuth>
+            <CreatePage />
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/studio"
         element={
           <RequireAuth>
             <StudioPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/flow"
+        element={
+          <RequireAuth>
+            <FlowPage />
           </RequireAuth>
         }
       />

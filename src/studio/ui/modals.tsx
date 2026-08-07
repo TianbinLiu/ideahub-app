@@ -1,5 +1,4 @@
-// 市场卡详情（竖屏底部详情单）与合成进度遮罩
-import { useEffect, useState } from "react";
+// 市场卡详情（竖屏底部详情单）
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS } from "../../types";
 import { useStudio } from "../studioStore";
 import { MARKET } from "../scene/layout";
@@ -78,38 +77,6 @@ export function CardDetailModal() {
           {inDeck ? "已在卡组" : "加入我的卡组"}
         </button>
       </div>
-    </div>
-  );
-}
-
-// ── 合成进度遮罩 ─────────────────────────────────────────────
-// mock 构建（秒级完成）轮播氛围文案；真实 AI 构建显示 Seedance 逐段真实状态——
-// 真合成每段约 1 分钟，假轮播只会让人以为卡死了。
-const COMPOSE_STEPS = ["对齐各段首尾帧…", "渲染分镜与转场…", "拼接时间线…", "混录声画节奏…"];
-
-export function ComposeOverlay() {
-  const composing = useStudio((s) => s.composing);
-  const composeStatus = useStudio((s) => s.composeStatus);
-  const [step, setStep] = useState(0);
-  useEffect(() => {
-    if (!composing) return;
-    setStep(0);
-    const t = setInterval(() => setStep((v) => (v + 1) % COMPOSE_STEPS.length), 750);
-    return () => clearInterval(t);
-  }, [composing]);
-  if (!composing) return null;
-  return (
-    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-ink/85 backdrop-blur">
-      <div className="h-1.5 w-64 overflow-hidden rounded-full bg-slate-700">
-        <div className="shimmer h-full w-full" />
-      </div>
-      <div className="mt-5 text-lg font-semibold text-slate-100">正在合成完整视频</div>
-      <div className="mt-1.5 text-sm text-slate-400">{composeStatus || COMPOSE_STEPS[step]}</div>
-      {composeStatus && (
-        <div className="mt-3 max-w-72 text-center text-xs leading-5 text-slate-500">
-          Seedance 正在逐段生成真实影像，每段约 1 分钟——可以先泡杯茶。
-        </div>
-      )}
     </div>
   );
 }

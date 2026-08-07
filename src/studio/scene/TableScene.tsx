@@ -564,15 +564,14 @@ function CenterLine() {
 // ── 合成按钮（中线右端的发光圆台） ────────────────────────────
 function ComposePad() {
   const root = useStudio((s) => s.root);
-  const composing = useStudio((s) => s.composing);
-  const enabled = composable(root) && !composing;
+  const enabled = composable(root);
   const mat = useRef<THREE.MeshStandardMaterial>(null);
   useFrame(() => {
     if (!mat.current) return;
     mat.current.emissiveIntensity = enabled ? 0.5 + 0.25 * Math.sin(performance.now() / 350) : 0.08;
   });
   const labelMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ map: labelTexture("合成视频"), transparent: true, depthWrite: false }),
+    () => new THREE.MeshBasicMaterial({ map: labelTexture("生成视频"), transparent: true, depthWrite: false }),
     []
   );
   useEffect(() => () => labelMat.dispose(), [labelMat]);
@@ -581,7 +580,8 @@ function ComposePad() {
       position={COMPOSE_POS}
       onClick={(e) => {
         e.stopPropagation();
-        if (enabled) void useStudio.getState().composeNow();
+        // 不再一把梭合成整片：铺成工作流，去 /flow 逐段生成逐段确认
+        if (enabled) useStudio.getState().startFlow();
       }}
     >
       <mesh>

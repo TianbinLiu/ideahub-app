@@ -1,6 +1,6 @@
 // 短视频 App 式底栏：首页 / 分区 / ➕创作 / 创意工坊 / 我的。
-// 中间 ➕ 直达卡片工坊（未登录先去登录页）——这个产品的创作方式只有一种，
-// 不照抄抖音「拍摄/相册/直播」那层选择面板，多一层就是纯损耗。
+// 中间 ➕ 进创作岔路口（未登录先去登录页）：工坊 / 工作流 / 简约三种方式差别足够大
+// ——工坊要摆卡推演剧情，简约是一句话出片——直接把人扔进其中一种都是错的默认。
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useCurrentUser } from "../hooks/useAccount";
 import Icon, { type IconName } from "./Icon";
@@ -54,7 +54,7 @@ export default function TabBar() {
           ) : (
             <button
               key="create"
-              onClick={() => navigate(user ? "/studio" : "/login?next=/studio")}
+              onClick={() => navigate(user ? "/create" : "/login?next=/create")}
               className="flex min-h-[44px] flex-1 items-center justify-center"
               aria-label="创作"
             >

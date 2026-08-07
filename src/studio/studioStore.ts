@@ -1,11 +1,13 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
 import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
-import { AI_REAL, MaterialFile, composeSegments, composeVideo, deriveCharacterModels, deriveDeckCards, generateCards, generateProposals, refineFrame, searchMarket } from "../ai";
+import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateProposals, refineFrame, searchMarket } from "../ai";
 import { DECK_CAM, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, walletOf } from "../data/account";
-import { DEFAULT_TIER, composeCost, fmtTokens, segTokens } from "../data/economy";
+import { addCards as saveCardsToAccount, myCards, myDecks, walletOf } from "../data/account";
+import { DEFAULT_TIER, composeCost, fmtTokens } from "../data/economy";
+// 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
+import { FlowNode, useFlow } from "./flowStore";
 import { getVideo, loadProject, partsOf } from "../data/videos";
 
 export interface DialogMsg {
@@ -215,9 +217,6 @@ interface StudioState {
   /** NPC 手中展示的 AI 推荐卡（按用户卡组缺口 + 市场热度） */
   recommendCard: Card | null;
   flights: Flight[];
-  composing: boolean;
-  /** 合成的实时阶段（真实 AI：第 n/N 段 · 排队/生成 Xs），空串=未在合成或 mock 构建 */
-  composeStatus: string;
   draft: DraftVideo | null;
   camera: CamView;
   /** NPC 正在说话的截止时间戳（npcSay 设置，驱动 3D 口型） */
@@ -286,7 +285,11 @@ interface StudioState {
 
   chooseProposal: (nodeId: string, proposalId: string) => void;
 
-  composeNow: () => Promise<void>;
+  /** 点金色圆台：把活动路径铺成工作流（不立即出片），由 /flow 逐段生成逐段确认。
+   *  返回 false = 路径还没选完，不能开工 */
+  startFlow: () => boolean;
+  /** 工作流全部跑完 → 组稿：真帧回写节点树 + 提炼本片卡组 + 生成草稿（进剪辑页） */
+  finalizeFromFlow: (nodes: FlowNode[], onProgress?: (status: string) => void) => Promise<boolean>;
   clearDraft: () => void;
 
   /** 非 null = 回炉编辑模式（工坊顶部亮横幅，发布页变"保存修改"） */
@@ -333,8 +336,6 @@ export const useStudio = create<StudioState>()((set, get) => ({
   dialogView: false,
   recommendCard: null,
   flights: [],
-  composing: false,
-  composeStatus: "",
   draft: null,
   camera: { kind: "default" },
   speakingUntil: 0,
@@ -770,110 +771,97 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set({ root: root ? { ...root } : root, projection: null, editor: null });
   },
 
-  composeNow: async () => {
-    const { root, composing } = get();
-    if (composing || !composable(root)) return;
+  startFlow: () => {
+    const { root } = get();
+    if (!composable(root)) return false;
     const path = activePath(root);
     const chosen = path.map((n) => chosenProposal(n)).filter((p): p is Proposal => !!p);
-    const segments = chosen.map((p, i) => ({
+    const nodes: FlowNode[] = chosen.map((p, i) => ({
+      id: uid("fn"),
       title: p.title,
       plot: p.plot,
       firstFrame: p.firstFrame,
       lastFrame: p.lastFrame,
       durationSec: p.durationSec,
-      degraded: p.degraded,
-      videoTier: path[i]?.videoTier,
+      videoTier: path[i]?.videoTier ?? DEFAULT_TIER,
+      materials: path[i]?.materials,
+      proposalId: p.id,
+      // 承接判定：本段设定首帧就是上一段的设定尾帧（AI 顺接铸出来的），才让上一段的
+      // 真实结尾顶替起拍帧；用户上传过自定义开头帧的段保持独立起拍
+      chain: i > 0 && p.firstFrame === chosen[i - 1].lastFrame,
+      status: "idle",
+      anns: [],
     }));
-    // 余额门槛：合成前把整片 token 报给用户，不够先拦下（免得炼到一半没钱尴尬）。
-    // 只对真实 AI 构建收费——mock 构建不产生真实资源消耗。
-    const cost = composeCost(segments);
-    if (AI_REAL && cost > 0 && !canAfford(cost)) {
-      const w = walletOf();
-      get().npcSay(
-        `合成这部片约需 ${fmtTokens(cost)} token，你的余额只剩 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))}` +
-          `——去「我的」页充值或订阅套餐，回来再点合成。`,
-      );
-      get().setMood(-0.3, 2400);
-      return;
-    }
-    set({ composing: true, composeStatus: "" });
-    await composeVideo();
-    // 真实 AI 构建：逐段 Seedance 首尾帧生成视频（每段约 1 分钟，真实进度打到合成遮罩）；
-    // mock 构建下 composeSegments 返回空结果，播放器回退首尾帧渐变
-    const results = await composeSegments(segments, (done, total, status) => {
-      if (done >= total) return;
-      set({ composeStatus: `第 ${done + 1}/${total} 段 · ${status}` });
-      if (status === "任务创建中…") get().npcSay(`正在炼制第 ${done + 1}/${total} 段影像…`);
-    });
-    // 计费：按成功炼成的段扣 token（先套餐后 add-on）——与方舟"成功才计费"同一口径
-    if (AI_REAL) {
-      for (let i = 0; i < results.length; i++) {
-        if (results[i]?.url) spendTokens(segTokens(segments[i].durationSec, segments[i].videoTier));
-      }
-    }
+    useFlow.getState().seed(nodes, { mode: "workflow", origin: "studio" });
+    // 整片预算只做知会不做拦截：工作流是一段一结账，钱不够也能先炼前几段
+    const cost = composeCost(nodes.map((n) => ({ durationSec: n.durationSec, videoTier: n.videoTier })));
+    const w = walletOf();
+    get().npcSay(
+      AI_REAL && cost > 0
+        ? `${nodes.length} 段已铺成工作流，整片约需 ${fmtTokens(cost)} token（余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))}）。一段一段炼，满意了再往下走。`
+        : `${nodes.length} 段已铺成工作流——从第一段开始炼，满意了再往下走。`,
+    );
+    return true;
+  },
+
+  finalizeFromFlow: async (nodes, onProgress) => {
+    if (nodes.length === 0) return false;
+    const { root } = get();
+    const say = (s: string) => onProgress?.(s);
+    // 真实帧回写节点树：占位帧的重画、尾帧续作的真实结尾——节点卡、分支树、
+    // 日后回炉编辑都以真帧为准（节点卡显示的就是视频里实际的画面）
+    const path = root ? activePath(root) : [];
+    const byId = new Map<string, Proposal>();
+    for (const slot of path) for (const p of slot.proposals) byId.set(p.id, p);
     const videoByProposal: Record<string, string> = {};
-    const withVideo = segments.map((sg, i) => {
-      const r = results[i] ?? {};
-      // "真实帧"同步回节点方案：占位帧的重画、尾帧续作的真实结尾/起拍帧——
-      // 草稿、分支树、后续续作都以真帧为准（节点卡显示的就是视频里实际的画面）
-      if (r.firstFrame) chosen[i].firstFrame = r.firstFrame;
-      if (r.lastFrame) chosen[i].lastFrame = r.lastFrame;
-      if (r.firstFrame && r.lastFrame) delete chosen[i].degraded;
-      if (r.url) videoByProposal[chosen[i].id] = r.url;
+    const segments: VideoSegment[] = nodes.map((n) => {
+      const p = n.proposalId ? byId.get(n.proposalId) : undefined;
+      if (p) {
+        p.firstFrame = n.firstFrame;
+        p.lastFrame = n.lastFrame;
+        delete p.degraded;
+        if (n.videoUrl) videoByProposal[p.id] = n.videoUrl;
+      }
       return {
-        title: sg.title,
-        plot: sg.plot,
-        firstFrame: chosen[i].firstFrame,
-        lastFrame: chosen[i].lastFrame,
-        durationSec: sg.durationSec,
-        videoTier: sg.videoTier,
-        ...(r.url ? { videoUrl: r.url } : {}),
+        title: n.title,
+        plot: n.plot,
+        firstFrame: n.firstFrame,
+        lastFrame: n.lastFrame,
+        durationSec: n.durationSec,
+        videoTier: n.videoTier,
+        ...(n.videoUrl ? { videoUrl: n.videoUrl } : {}),
       };
     });
-    // 成片里有几段是真影像、几段回退，必须明说——此前静默回退渐变，
-    // 用户拿到一片"会动的幻灯片"还以为是 Seedance 的产物
-    const failed = results
-      .map((r, i) => (r?.url ? null : { i, reason: r?.error }))
-      .filter((x): x is { i: number; reason: string | undefined } => !!x);
-    if (failed.length === 0) {
-      get().npcSay(`${segments.length} 段影像全部真实炼成，去发布页看看成片吧。`);
-    } else {
-      const why = failed[0].reason ? `（第 ${failed[0].i + 1} 段：${failed[0].reason.slice(0, 100)}）` : "";
-      get().npcSay(
-        `成片出炉，但 ${failed.length}/${segments.length} 段影像没炼成，先用首尾帧渐变顶着${why}。回工坊重新合成可再试。`,
-      );
-      get().setMood(-0.4, 2600);
-    }
     // 本片卡组：素材卡并集 + AI 从剧情提炼的派生卡（角色/场景/背景/画风，
     // 卡面跟随视频画风）。派生失败时兜底按段出场景卡——每部作品都必须有
     // 可分享的卡组，观众才能"用同款素材复刻"
     const seenCard = new Set<string>();
-    const deckCards = path
+    const deckCards = nodes
       .flatMap((n) => n.materials ?? [])
       .filter((c) => (seenCard.has(c.id) ? false : (seenCard.add(c.id), true)));
     try {
       const styleHint = deckCards.find((c) => c.type === "style")?.name ?? "";
-      // 把节点里已用的素材卡报给 AI：已覆盖的实体不重复提炼，只补剧情里缺卡的角色/场景
+      // 把已用的素材卡报给 AI：已覆盖的实体不重复提炼，只补剧情里缺卡的角色/场景
+      say("提炼本片卡组…");
       const derived = await deriveDeckCards(
-        withVideo.map((sg) => ({ title: sg.title, plot: sg.plot, firstFrame: sg.firstFrame })),
+        segments.map((sg) => ({ title: sg.title, plot: sg.plot, firstFrame: sg.firstFrame })),
         styleHint,
         deckCards.map((c) => ({ type: c.type, name: c.name, summary: c.summary })),
-        (s) => set({ composeStatus: s }),
+        say,
       );
       const names = new Set(deckCards.map((c) => c.name));
       const fresh = derived.filter((c) => !names.has(c.name));
       deckCards.push(...fresh);
-      // 3D 画风的作品：给派生的角色卡自动铸 3D 建模（Seed3D，上限 2 张）。
-      // 依据 = 风格卡名 + 各节点的视频要求快照 + 分段剧情里的 3D 语汇
-      const styleBlob = [styleHint, ...path.map((n) => n.requirement ?? ""), ...withVideo.map((s) => s.plot)].join(" ");
+      // 3D 画风的作品：给派生的角色卡自动铸 3D 建模（Seed3D，上限 2 张）
+      const styleBlob = [styleHint, ...path.map((n) => n.requirement ?? ""), ...segments.map((s) => s.plot)].join(" ");
       if (/3d|三维|立体感|cg|建模|皮克斯|pixar|渲染/i.test(styleBlob)) {
-        await deriveCharacterModels(fresh, 2, (s) => set({ composeStatus: s }));
+        await deriveCharacterModels(fresh, 2, say);
       }
     } catch (e) {
       console.warn("[studio] 卡组提炼回退按段场景卡:", e);
       if (deckCards.length === 0) {
         deckCards.push(
-          ...withVideo.map((sg, i) => ({
+          ...segments.map((sg, i) => ({
             id: uid("card"),
             type: "scene" as const,
             name: sg.title.replace(/^第\d+段 · /, "").slice(0, 8) || `场景${i + 1}`,
@@ -884,19 +872,18 @@ export const useStudio = create<StudioState>()((set, get) => ({
       }
     }
     set({
-      composing: false,
-      composeStatus: "",
       root: root ? { ...root } : root,
       draft: {
         title: "",
         category: "剧情",
-        description: withVideo.map((sg) => sg.plot).join("\n"),
-        cover: withVideo[0]?.firstFrame ?? "",
-        segments: withVideo,
-        branchTree: buildBranchTree(root, videoByProposal),
+        description: segments.map((sg) => sg.plot).join("\n"),
+        cover: segments[0]?.firstFrame ?? "",
+        segments,
+        branchTree: root ? buildBranchTree(root, videoByProposal) : undefined,
         deck: { name: "", cards: deckCards },
       },
     });
+    return true;
   },
   clearDraft: () => set({ draft: null }),
 

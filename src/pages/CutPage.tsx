@@ -1,12 +1,14 @@
-// 剪辑页（合成后、发布前的必经站）：轻量视频剪辑器——
-//   ▸ 时间轴：视频轨（片段=可选中的缩略图块，宽度∝时长）+ 音频轨（本地上传 BGM）
-//   ▸ 片段操作：✂️ 在播放头处分割 / 🗑 删除 / 拖拽（或◀▶）改变前后顺序
-//   ▸ 圈选标注：暂停在任意帧 → ⭕ 在画面上圈出物体 + 写要求 → 存进标注列表（可反复）
-//   ▸ ✨ 重新生成：按"所有被圈过的帧"的要求逐段改帧+重拍（一键批量）
-//   ▸ 🎬 合并导出：按时间轴顺序/裁剪范围把全部片段重编码成一条 webm（混入音频轨），
-//     发布后即完整单文件成片（不可再修改）
+// 剪辑页（发布前的必经站）：全屏三段式布局，对标剪映/CapCut 的手机剪辑器——
+//   顶栏：‹ 返回 · ? 说明 · 导出分辨率 · 下一步
+//   中区：预览画面 + 时间码 + 播放键（画面之外全黑，注意力全在片子上）
+//   底部：工具面板，三个页签
+//        剪辑 —— 缩略图时间轴：选中/✂️分割/🗑删除/拖拽或◀▶换序
+//        圈选 —— ⭕在任意帧圈出物体写要求，跨帧跨段累积，一键按全部要求重生成
+//        音频 —— 本地 BGM，音量可调，合并时混进成片
+// 最后「下一步」把时间轴按顺序与裁剪范围重编码成单条视频，进发布页。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import FrameAnnotator, { drawCover, loadImg } from "../components/FrameAnnotator";
 import Icon from "../components/Icon";
 import { refineFrame, regenSegment } from "../ai";
 import { canAfford, spendTokens, walletOf } from "../data/account";
@@ -16,11 +18,10 @@ import { useStudio } from "../studio/studioStore";
 import { VideoSegment, formatDuration, uid } from "../types";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 
-/** 时间轴上的一个片段：引用草稿段 + 裁剪范围（分割/裁剪产生子片段） */
+/** 时间轴上的一个片段：引用草稿段 + 裁剪范围（分割产生的子片段各占一段区间） */
 interface Clip {
   id: string;
   segIndex: number;
-  /** 源视频内的起止秒（分割产生的子片段各占一半区间） */
   start: number;
   end: number;
 }
@@ -34,135 +35,15 @@ interface Ann {
   req: string;
 }
 
+const RESOLUTIONS = [
+  { id: "720", label: "720P", w: 1280, h: 720, note: "与素材同分辨率，最快" },
+  { id: "1080", label: "1080P", w: 1920, h: 1080, note: "由 720P 素材放大，文件更大但不会更清晰" },
+];
+
+type Tab = "cut" | "mark" | "audio";
+
 function clipDur(c: Clip): number {
   return Math.max(0.1, c.end - c.start);
-}
-
-/** object-cover 画到画布 */
-function drawCover(ctx: CanvasRenderingContext2D, src: HTMLVideoElement | HTMLImageElement, w: number, h: number) {
-  const sw = src instanceof HTMLVideoElement ? src.videoWidth : src.naturalWidth;
-  const sh = src instanceof HTMLVideoElement ? src.videoHeight : src.naturalHeight;
-  if (!sw || !sh) return;
-  const s = Math.max(w / sw, h / sh);
-  ctx.drawImage(src, (w - sw * s) / 2, (h - sh * s) / 2, sw * s, sh * s);
-}
-
-function loadImg(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const i = new Image();
-    i.onload = () => resolve(i);
-    i.onerror = reject;
-    i.src = src;
-  });
-}
-
-/** 圈选编辑器弹窗：在选定帧上拖拽画红圈 + 写要求 → 存为标注（不立即生成） */
-function Annotator({
-  frame,
-  onSave,
-  onClose,
-}: {
-  frame: string;
-  onSave: (annotatedDataUrl: string, req: string) => void;
-  onClose: () => void;
-}) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imgRef = useRef<HTMLImageElement | null>(null);
-  const [ellipse, setEllipse] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
-  const dragRef = useRef<{ x: number; y: number } | null>(null);
-  const [req, setReq] = useState("");
-
-  useEffect(() => {
-    void loadImg(frame).then((img) => {
-      imgRef.current = img;
-      redraw(null);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frame]);
-
-  function redraw(el: typeof ellipse) {
-    const c = canvasRef.current;
-    const img = imgRef.current;
-    if (!c || !img) return;
-    const ctx = c.getContext("2d")!;
-    ctx.drawImage(img, 0, 0, c.width, c.height);
-    if (el) {
-      ctx.strokeStyle = "#ff2d2d";
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.ellipse(
-        (el.x0 + el.x1) / 2,
-        (el.y0 + el.y1) / 2,
-        Math.max(12, Math.abs(el.x1 - el.x0) / 2),
-        Math.max(12, Math.abs(el.y1 - el.y0) / 2),
-        0,
-        0,
-        Math.PI * 2,
-      );
-      ctx.stroke();
-    }
-  }
-
-  function toCanvasXY(e: React.PointerEvent): { x: number; y: number } {
-    const c = canvasRef.current!;
-    const r = c.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width) * c.width, y: ((e.clientY - r.top) / r.height) * c.height };
-  }
-
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-700 bg-ink p-3.5" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-sm font-bold text-slate-100">⭕ 圈选要修改的物体</span>
-          <button onClick={onClose} className="text-slate-400">
-            <Icon name="close" size={18} />
-          </button>
-        </div>
-        <canvas
-          ref={canvasRef}
-          width={1280}
-          height={720}
-          className="w-full touch-none rounded-lg"
-          onPointerDown={(e) => {
-            try {
-              e.currentTarget.setPointerCapture(e.pointerId);
-            } catch {
-              /* 合成事件无有效 pointerId */
-            }
-            dragRef.current = toCanvasXY(e);
-          }}
-          onPointerMove={(e) => {
-            if (!dragRef.current) return;
-            const p = toCanvasXY(e);
-            const el = { x0: dragRef.current.x, y0: dragRef.current.y, x1: p.x, y1: p.y };
-            setEllipse(el);
-            redraw(el);
-          }}
-          onPointerUp={() => {
-            dragRef.current = null;
-          }}
-        />
-        <textarea
-          value={req}
-          onChange={(e) => setReq(e.target.value)}
-          rows={2}
-          maxLength={160}
-          placeholder="例：删除圈中的路人 / 把圈中的伞换成红色油纸伞 / 圈中的招牌改成中文"
-          className="mt-2 w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
-        />
-        <button
-          onClick={() => {
-            if (!ellipse || !req.trim()) return;
-            onSave(canvasRef.current!.toDataURL("image/jpeg", 0.9), req.trim());
-          }}
-          disabled={!ellipse || !req.trim()}
-          className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
-        >
-          存入标注（稍后一键重新生成）
-        </button>
-      </div>
-    </div>
-  );
 }
 
 export default function CutPage() {
@@ -170,22 +51,24 @@ export default function CutPage() {
   const draft = useStudio((s) => s.draft);
   const segs = draft?.segments ?? [];
 
-  // 时间轴片段（初始 = 每段一个整片段）
   const [clips, setClips] = useState<Clip[]>([]);
   const [sel, setSel] = useState<string | null>(null);
   const [anns, setAnns] = useState<Ann[]>([]);
   const [annOpen, setAnnOpen] = useState<{ segIndex: number; atSec: number; frame: string } | null>(null);
-  // 音频轨：本地上传 BGM（合并导出时混入成片；循环补齐、音量可调）
   const [audio, setAudio] = useState<{ name: string; url: string; volume: number } | null>(null);
+  const [tab, setTab] = useState<Tab>("cut");
+  const [resId, setResId] = useState("720");
+  const [resOpen, setResOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const dragClip = useRef<string | null>(null);
 
-  // 预览播放器：播放当前片段的源视频（代理 blob 供圈选截帧），越界即跳下一片段
+  // 预览播放器：播当前片段的源视频（代理 blob 供圈选截帧），到出点自动跳下一片段
   const vref = useRef<HTMLVideoElement>(null);
   const [activeIdx, setActiveIdx] = useState(0);
   const [srcMap, setSrcMap] = useState<Record<number, string>>({});
-  const [t, setT] = useState(0); // 当前片段源视频内的秒
+  const [, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
   const pendingSeek = useRef<number | null>(null);
 
@@ -210,24 +93,41 @@ export default function CutPage() {
     return () => {
       alive = false;
     };
-    // 只在进入页面时初始化一次（重新生成后 srcMap 单独刷新）
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!draft]);
 
-  const total = clips.reduce((s, c) => s + clipDur(c), 0);
-  const active = clips[Math.min(activeIdx, Math.max(0, clips.length - 1))] ?? null;
+  // 渲染用的片段列表：过滤掉指向不存在段的 clip。
+  // 合并导出会把草稿换成"单段成片"，而 clips 还指着旧段号——zustand 的外部 store
+  // 更新会同步重渲染本页，抢在 navigate 生效之前，于是 segs[c.segIndex] 为 undefined
+  // 直接崩在 .firstFrame 上（实测控制台捕获到）。稳态下 view 与 clips 完全相同。
+  const view = useMemo(() => clips.filter((c) => segs[c.segIndex]), [clips, segs]);
+  const total = view.reduce((s, c) => s + clipDur(c), 0);
+  const active = view[Math.min(activeIdx, Math.max(0, view.length - 1))] ?? null;
   const activeSeg: VideoSegment | undefined = active ? segs[active.segIndex] : undefined;
-  const playhead = clips.slice(0, activeIdx).reduce((s, c) => s + clipDur(c), 0) + (active ? Math.max(0, t - active.start) : 0);
+  const res = RESOLUTIONS.find((r) => r.id === resId) ?? RESOLUTIONS[0];
+  const annBySeg = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const a of anns) m.set(a.segIndex, (m.get(a.segIndex) ?? 0) + 1);
+    return m;
+  }, [anns]);
+  const annCost = useMemo(
+    () => [...annBySeg.keys()].reduce((s, i) => s + (segs[i] ? segTokens(segs[i].durationSec, segs[i].videoTier) : 0), 0),
+    [annBySeg, segs],
+  );
 
   if (!draft) return null;
 
-  /** 播放头跳到全局秒：定位片段 + 片内偏移 */
+  /** 当前播放头（全局秒）：前面片段时长之和 + 片内偏移 */
+  const playhead =
+    view.slice(0, activeIdx).reduce((s, c) => s + clipDur(c), 0) +
+    (active ? Math.max(0, (vref.current?.currentTime ?? active.start) - active.start) : 0);
+
   function seekGlobal(sec: number) {
     let acc = 0;
-    for (let i = 0; i < clips.length; i++) {
-      const d = clipDur(clips[i]);
-      if (sec < acc + d || i === clips.length - 1) {
-        const local = clips[i].start + Math.min(d, Math.max(0, sec - acc));
+    for (let i = 0; i < view.length; i++) {
+      const d = clipDur(view[i]);
+      if (sec < acc + d || i === view.length - 1) {
+        const local = view[i].start + Math.min(d, Math.max(0, sec - acc));
         if (i === activeIdx && vref.current) vref.current.currentTime = local;
         else {
           pendingSeek.current = local;
@@ -239,7 +139,18 @@ export default function CutPage() {
     }
   }
 
-  /** ✂️ 在播放头处把选中片段一分为二 */
+  function togglePlay() {
+    const v = vref.current;
+    if (!v) return;
+    if (v.paused) {
+      void v.play();
+      setPlaying(true);
+    } else {
+      v.pause();
+      setPlaying(false);
+    }
+  }
+
   function splitAtPlayhead() {
     if (!active || !vref.current) return;
     const cur = vref.current.currentTime;
@@ -294,10 +205,11 @@ export default function CutPage() {
     if (busy || anns.length === 0) return;
     const bySeg = new Map<number, Ann[]>();
     for (const a of anns) bySeg.set(a.segIndex, [...(bySeg.get(a.segIndex) ?? []), a]);
-    const cost = [...bySeg.keys()].reduce((s, i) => s + segTokens(segs[i].durationSec, segs[i].videoTier), 0);
-    if (!canAfford(cost)) {
+    if (!canAfford(annCost)) {
       const w = walletOf();
-      setErr(`重生成 ${bySeg.size} 段约需 ${fmtTokens(cost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`);
+      setErr(
+        `重生成 ${bySeg.size} 段约需 ${fmtTokens(annCost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
+      );
       return;
     }
     setErr("");
@@ -327,7 +239,6 @@ export default function CutPage() {
         if (lastFrame) seg.lastFrame = lastFrame;
         spendTokens(segTokens(seg.durationSec, seg.videoTier));
         nextSegs[segIndex] = seg;
-        // 刷新该段的预览流
         void resolveMediaUrl(url, { forCapture: true }).then((u) => u && setSrcMap((m) => ({ ...m, [segIndex]: u })));
       }
       useStudio.setState({ draft: { ...draft!, segments: nextSegs } });
@@ -346,8 +257,8 @@ export default function CutPage() {
     let audioCtx: AudioContext | null = null;
     try {
       const canvas = document.createElement("canvas");
-      canvas.width = 1280;
-      canvas.height = 720;
+      canvas.width = res.w;
+      canvas.height = res.h;
       const ctx = canvas.getContext("2d")!;
       const stream = canvas.captureStream(30);
       let mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm";
@@ -367,7 +278,10 @@ export default function CutPage() {
         srcN.start();
         mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus") ? "video/webm;codecs=vp9,opus" : "video/webm";
       }
-      const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6_000_000 });
+      const rec = new MediaRecorder(stream, {
+        mimeType: mime,
+        videoBitsPerSecond: res.id === "1080" ? 10_000_000 : 6_000_000,
+      });
       const chunks: Blob[] = [];
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) chunks.push(e.data);
@@ -376,10 +290,10 @@ export default function CutPage() {
         rec.onstop = () => r();
       });
       rec.start(250);
-      for (let i = 0; i < clips.length; i++) {
-        const clip = clips[i];
+      for (let i = 0; i < view.length; i++) {
+        const clip = view[i];
         const seg = segs[clip.segIndex];
-        setBusy(`合并中 · 片段 ${i + 1}/${clips.length}`);
+        setBusy(`合并中 · 片段 ${i + 1}/${view.length}`);
         if (seg.videoUrl) {
           const src = srcMap[clip.segIndex] ?? (await resolveMediaUrl(seg.videoUrl, { forCapture: true }));
           if (!src) throw new Error(`片段 ${i + 1} 视频取不到`);
@@ -387,21 +301,21 @@ export default function CutPage() {
           v.muted = true;
           v.playsInline = true;
           v.src = src;
-          await new Promise<void>((res, rej) => {
-            v.oncanplaythrough = () => res();
-            v.onerror = () => rej(new Error(`片段 ${i + 1} 加载失败`));
+          await new Promise<void>((resolve, reject) => {
+            v.oncanplaythrough = () => resolve();
+            v.onerror = () => reject(new Error(`片段 ${i + 1} 加载失败`));
             v.load();
           });
           v.currentTime = clip.start;
-          await new Promise<void>((res) => {
-            v.onseeked = () => res();
+          await new Promise<void>((resolve) => {
+            v.onseeked = () => resolve();
           });
           await v.play();
-          await new Promise<void>((res) => {
+          await new Promise<void>((resolve) => {
             const draw = () => {
               if (v.ended || v.currentTime >= clip.end) {
                 v.pause();
-                res();
+                resolve();
                 return;
               }
               drawCover(ctx, v, canvas.width, canvas.height);
@@ -413,7 +327,7 @@ export default function CutPage() {
           const [a, b] = await Promise.all([loadImg(seg.firstFrame), loadImg(seg.lastFrame)]);
           const t0 = performance.now();
           const dur = clipDur(clip) * 1000;
-          await new Promise<void>((res) => {
+          await new Promise<void>((resolve) => {
             const draw = () => {
               const p = Math.min(1, (performance.now() - t0) / dur);
               drawCover(ctx, a, canvas.width, canvas.height);
@@ -421,7 +335,7 @@ export default function CutPage() {
               drawCover(ctx, b, canvas.width, canvas.height);
               ctx.globalAlpha = 1;
               if (p >= 1) {
-                res();
+                resolve();
                 return;
               }
               requestAnimationFrame(draw);
@@ -436,9 +350,9 @@ export default function CutPage() {
       const blob = new Blob(chunks, { type: mime });
       const key = `merged:${uid("mv")}`;
       if (!(await idbSet(key, blob))) throw new Error("成片写入本地库失败（存储配额？）");
-      const orderedPlots = [...new Set(clips.map((c) => segs[c.segIndex].plot))];
-      const first = segs[clips[0].segIndex];
-      const last = segs[clips[clips.length - 1].segIndex];
+      const orderedPlots = [...new Set(view.map((c) => segs[c.segIndex].plot))];
+      const first = segs[view[0].segIndex];
+      const last = segs[view[view.length - 1].segIndex];
       const merged: VideoSegment = {
         title: "成片",
         plot: orderedPlots.join("\n"),
@@ -458,33 +372,65 @@ export default function CutPage() {
     }
   }
 
-  const annBySeg = useMemo(() => {
-    const m = new Map<number, number>();
-    for (const a of anns) m.set(a.segIndex, (m.get(a.segIndex) ?? 0) + 1);
-    return m;
-  }, [anns]);
+  const TABS: Array<{ id: Tab; label: string; badge?: number }> = [
+    { id: "cut", label: "剪辑" },
+    { id: "mark", label: "圈选", badge: anns.length || undefined },
+    { id: "audio", label: "音频", badge: audio ? 1 : undefined },
+  ];
 
   return (
-    <div className="min-h-full pb-10">
-      <header className="sticky top-0 z-10 border-b border-slate-800 bg-ink/90 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
-          <button onClick={() => navigate("/studio")} className="flex items-center gap-1 text-slate-400 hover:text-white">
-            <Icon name="back" size={18} />
-            回工坊
+    <div className="fixed inset-0 flex flex-col bg-black">
+      {/* ── 顶栏 ── */}
+      <header className="safe-top flex flex-none items-center gap-3 px-4 py-3">
+        <button onClick={() => navigate(-1)} className="text-slate-200">
+          <Icon name="back" size={22} />
+        </button>
+        <button
+          onClick={() => setHelpOpen(true)}
+          className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-500 text-xs text-slate-300"
+          aria-label="使用说明"
+        >
+          ?
+        </button>
+        <div className="flex-1" />
+        <div className="relative">
+          <button
+            onClick={() => setResOpen((v) => !v)}
+            className="flex items-center gap-1 rounded-lg bg-slate-700/70 px-3 py-1.5 text-sm font-semibold text-slate-100"
+          >
+            {res.label}
+            <span className="text-[10px]">▾</span>
           </button>
-          <span className="font-bold text-slate-100">剪辑成片</span>
-          <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
-            {clips.length} 个片段 · 共 {formatDuration(total)}
-            {busy && <span className="ml-2 text-brand">{busy}</span>}
-          </span>
+          {resOpen && (
+            <div className="absolute right-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-xl border border-slate-700 bg-ink">
+              {RESOLUTIONS.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => {
+                    setResId(r.id);
+                    setResOpen(false);
+                  }}
+                  className={`block w-full px-3 py-2 text-left ${r.id === resId ? "bg-slate-700/50" : ""}`}
+                >
+                  <div className="text-xs font-semibold text-slate-100">{r.label}</div>
+                  <div className="text-[10px] text-slate-400">{r.note}</div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+        <button
+          onClick={() => void mergeAndGo()}
+          disabled={!!busy}
+          className="rounded-lg bg-brand px-4 py-1.5 text-sm font-bold text-ink disabled:opacity-45"
+        >
+          下一步
+        </button>
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-3 px-4 pt-3">
-        {err && <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{err}</div>}
-
-        {/* ── 预览播放器 ── */}
-        <div className="overflow-hidden rounded-2xl border border-slate-700/60 bg-black">
+      {/* ── 预览区 ── */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 items-center justify-center">
           {activeSeg?.videoUrl ? (
             srcMap[active!.segIndex] ? (
               <video
@@ -493,7 +439,7 @@ export default function CutPage() {
                 src={srcMap[active!.segIndex]}
                 muted
                 playsInline
-                className="aspect-video w-full object-cover"
+                className="max-h-full max-w-full"
                 onLoadedMetadata={(e) => {
                   const v = e.currentTarget;
                   v.currentTime = pendingSeek.current ?? active!.start;
@@ -505,8 +451,8 @@ export default function CutPage() {
                   setT(v.currentTime);
                   // 到达片段出点：跳下一片段接着播（时间轴顺序），最后一个则停
                   if (active && v.currentTime >= active.end - 0.03) {
-                    if (activeIdx + 1 < clips.length) {
-                      pendingSeek.current = clips[activeIdx + 1].start;
+                    if (activeIdx + 1 < view.length) {
+                      pendingSeek.current = view[activeIdx + 1].start;
                       setActiveIdx(activeIdx + 1);
                     } else {
                       v.pause();
@@ -514,238 +460,294 @@ export default function CutPage() {
                     }
                   }
                 }}
-                onClick={(e) => {
-                  const v = e.currentTarget;
-                  if (v.paused) {
-                    void v.play();
-                    setPlaying(true);
-                  } else {
-                    v.pause();
-                    setPlaying(false);
-                  }
-                }}
+                onClick={togglePlay}
               />
             ) : (
-              <div className="flex aspect-video w-full items-center justify-center text-xs text-slate-500">视频载入中…</div>
+              <span className="text-xs text-slate-500">视频载入中…</span>
             )
           ) : activeSeg ? (
-            <img src={activeSeg.firstFrame} alt="" className="aspect-video w-full object-cover" />
+            <img src={activeSeg.firstFrame} alt="" className="max-h-full max-w-full" />
           ) : null}
         </div>
 
-        {/* 播放头进度 + 全局拖动 */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              const v = vref.current;
-              if (!v) return;
-              if (v.paused) {
-                void v.play();
-                setPlaying(true);
-              } else {
-                v.pause();
-                setPlaying(false);
-              }
-            }}
-            className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-panel text-slate-200"
-          >
-            <Icon name={playing ? "pause" : "play"} size={16} filled />
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={Math.max(0.01, total)}
-            step={0.03}
-            value={Math.min(playhead, total)}
-            onChange={(e) => seekGlobal(Number(e.target.value))}
-            className="min-w-0 flex-1 accent-brand"
-          />
-          <span className="flex-none text-[11px] tabular-nums text-slate-400">
-            {formatDuration(playhead)}/{formatDuration(total)}
+        {/* 时间码 + 播放键（对齐参考稿：时间码贴左，播放键居中） */}
+        <div className="relative flex flex-none items-center px-4 py-2.5">
+          <span className="text-sm tabular-nums text-white">
+            {formatDuration(playhead)}
+            <span className="text-slate-500"> / {formatDuration(total)}</span>
           </span>
+          <button
+            onClick={togglePlay}
+            className="absolute left-1/2 -translate-x-1/2 text-white"
+            aria-label={playing ? "暂停" : "播放"}
+          >
+            <Icon name={playing ? "pause" : "play"} size={26} filled />
+          </button>
         </div>
 
-        {/* ── 时间轴 · 视频轨（拖拽换序 / 点击选中）── */}
-        <div>
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-300">🎞 视频轨</span>
-            <span className="text-[10px] text-slate-500">拖拽换序 · 点击选中后可分割/删除/圈选</span>
-          </div>
-          <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-700/60 bg-panel p-1.5">
-            {clips.map((c, i) => {
-              const seg = segs[c.segIndex];
-              const isSel = sel === c.id;
-              const isActive = i === activeIdx;
-              const nAnn = annBySeg.get(c.segIndex) ?? 0;
-              return (
-                <div
-                  key={c.id}
-                  draggable
-                  onDragStart={() => {
-                    dragClip.current = c.id;
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    const from = dragClip.current;
-                    if (!from || from === c.id) return;
-                    setClips((cs) => {
-                      const fi = cs.findIndex((x) => x.id === from);
-                      const ti = cs.findIndex((x) => x.id === c.id);
-                      if (fi < 0 || ti < 0) return cs;
-                      const next = cs.slice();
-                      const [moved] = next.splice(fi, 1);
-                      next.splice(ti, 0, moved);
-                      return next;
-                    });
-                  }}
-                  onDragEnd={() => {
-                    dragClip.current = null;
-                  }}
-                  onClick={() => {
-                    setSel(c.id);
-                    pendingSeek.current = c.start;
-                    setActiveIdx(i);
-                  }}
-                  style={{ width: `${Math.max(11, (clipDur(c) / Math.max(0.01, total)) * 100)}%` }}
-                  className={`relative min-w-[68px] flex-none cursor-grab overflow-hidden rounded-lg border-2 ${
-                    isSel ? "border-brand" : isActive ? "border-cyan-400/70" : "border-transparent"
-                  }`}
-                >
-                  <img src={seg.firstFrame} alt="" className="h-14 w-full object-cover" draggable={false} />
-                  <span className="absolute left-1 top-0.5 rounded bg-black/65 px-1 text-[9px] text-slate-200">
-                    段{c.segIndex + 1} · {clipDur(c).toFixed(1)}s
-                  </span>
-                  {nAnn > 0 && (
-                    <span className="absolute right-1 top-0.5 rounded-full bg-rose-500/90 px-1 text-[9px] font-bold text-white">
-                      ⭕{nAnn}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          {/* 选中片段工具条 */}
-          {sel && (
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-              <button onClick={splitAtPlayhead} className="rounded-lg bg-panel px-2.5 py-1.5 text-[11px] text-slate-200">
-                ✂️ 播放头处分割
-              </button>
-              <button onClick={openAnnotator} className="rounded-lg bg-panel px-2.5 py-1.5 text-[11px] text-slate-200">
-                ⭕ 圈选此帧
-              </button>
-              <button onClick={() => moveClip(sel, -1)} className="rounded-lg bg-panel px-2.5 py-1.5 text-[11px] text-slate-200">
-                ◀ 前移
-              </button>
-              <button onClick={() => moveClip(sel, 1)} className="rounded-lg bg-panel px-2.5 py-1.5 text-[11px] text-slate-200">
-                后移 ▶
-              </button>
-              <button
-                onClick={() => removeClip(sel)}
-                disabled={clips.length <= 1}
-                className="rounded-lg bg-rose-500/15 px-2.5 py-1.5 text-[11px] text-rose-300 disabled:opacity-40"
-              >
-                🗑 删除片段
-              </button>
-            </div>
-          )}
-        </div>
+        {/* 全局播放头 */}
+        <input
+          type="range"
+          min={0}
+          max={Math.max(0.01, total)}
+          step={0.03}
+          value={Math.min(playhead, total)}
+          onChange={(e) => seekGlobal(Number(e.target.value))}
+          className="mx-4 mb-2 flex-none accent-brand"
+        />
 
-        {/* ── 时间轴 · 音频轨 ── */}
-        <div>
-          <div className="mb-1 text-xs font-semibold text-slate-300">🎵 音频轨</div>
-          {audio ? (
-            <div className="flex items-center gap-2.5 rounded-xl border border-slate-700/60 bg-panel px-3 py-2">
-              <span className="min-w-0 flex-1 truncate text-xs text-slate-200">{audio.name}</span>
-              <span className="flex-none text-[10px] text-slate-500">音量</span>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={audio.volume}
-                onChange={(e) => setAudio({ ...audio, volume: Number(e.target.value) })}
-                className="w-24 flex-none accent-brand"
-              />
-              <button
-                onClick={() => {
-                  URL.revokeObjectURL(audio.url);
-                  setAudio(null);
-                }}
-                className="flex-none text-rose-300"
-              >
-                <Icon name="close" size={15} />
-              </button>
-            </div>
-          ) : (
-            <label className="flex cursor-pointer items-center justify-center rounded-xl border border-dashed border-slate-600 py-2.5 text-xs text-slate-400 hover:border-brand">
-              ＋ 添加音频（BGM，合并时混入成片；短于成片自动循环）
-              <input
-                type="file"
-                accept="audio/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (f) setAudio({ name: f.name, url: URL.createObjectURL(f), volume: 0.8 });
-                }}
-              />
-            </label>
-          )}
-        </div>
-
-        {/* ── 标注列表 ── */}
-        {anns.length > 0 && (
-          <div>
-            <div className="mb-1 text-xs font-semibold text-slate-300">⭕ 圈选标注（{anns.length}）</div>
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {anns.map((a) => (
-                <div key={a.id} className="relative w-36 flex-none overflow-hidden rounded-lg border border-slate-700/60 bg-panel">
-                  <img src={a.frame} alt="" className="h-20 w-full object-cover" />
-                  <div className="truncate px-1.5 py-1 text-[10px] text-slate-300" title={a.req}>
-                    段{a.segIndex + 1} @{a.atSec.toFixed(1)}s · {a.req}
-                  </div>
-                  <button
-                    onClick={() => setAnns((l) => l.filter((x) => x.id !== a.id))}
-                    className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-[10px] text-slate-200"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
+        {busy && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/70">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-600 border-t-brand" />
+              <span className="px-6 text-center text-xs text-slate-200">{busy}</span>
             </div>
           </div>
         )}
+      </div>
 
-        {/* ── 底部动作 ── */}
-        <button
-          onClick={() => void regenerateAll()}
-          disabled={!!busy || anns.length === 0}
-          className="w-full rounded-2xl bg-cyan-500/85 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
-          title={anns.length ? `涉及 ${annBySeg.size} 段，约 ${fmtTokens([...annBySeg.keys()].reduce((s, i) => s + segTokens(segs[i].durationSec, segs[i].videoTier), 0))} token` : "先在画面上圈选"}
-        >
-          {busy && busy.includes("段") ? busy : `✨ 按 ${anns.length} 处圈选重新生成视频`}
-        </button>
-        <button
-          onClick={() => void mergeAndGo()}
-          disabled={!!busy}
-          className="w-full rounded-2xl bg-brand py-3 text-sm font-bold text-ink disabled:opacity-50"
-        >
-          {busy && busy.includes("合并") ? busy : "🎬 合并导出为一整条视频，去发布"}
-        </button>
-        <p className="text-center text-[11px] leading-relaxed text-slate-500">
-          合并按时间轴顺序与裁剪范围导出单条完整视频（含音频轨）；发布后作品不可再修改。
-        </p>
-      </main>
+      {/* ── 底部工具面板 ── */}
+      <div className="safe-bottom flex max-h-[46%] flex-none flex-col border-t border-slate-800 bg-[#141821]">
+        <div className="flex flex-none items-center justify-center gap-7 px-4 pt-3">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`relative pb-1.5 text-sm ${
+                tab === t.id ? "border-b-2 border-brand font-bold text-white" : "text-slate-400"
+              }`}
+            >
+              {t.label}
+              {t.badge != null && (
+                <span className="absolute -right-3.5 -top-0.5 rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
+                  {t.badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
+          {err && (
+            <div className="mb-2.5 flex items-start gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+              <span className="min-w-0 flex-1">{err}</span>
+              <button onClick={() => setErr("")} className="flex-none">
+                <Icon name="close" size={14} />
+              </button>
+            </div>
+          )}
+
+          {tab === "cut" && (
+            <>
+              <div className="mb-1.5 flex items-center justify-between text-[10px] text-slate-500">
+                <span>{view.length} 个片段 · 共 {formatDuration(total)}</span>
+                <span>拖拽换序 · 点击选中</span>
+              </div>
+              <div className="flex gap-1 overflow-x-auto rounded-xl bg-black/40 p-1.5">
+                {view.map((c, i) => {
+                  const seg = segs[c.segIndex];
+                  const isSel = sel === c.id;
+                  const isActive = i === activeIdx;
+                  const nAnn = annBySeg.get(c.segIndex) ?? 0;
+                  return (
+                    <div
+                      key={c.id}
+                      draggable
+                      onDragStart={() => {
+                        dragClip.current = c.id;
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        const from = dragClip.current;
+                        if (!from || from === c.id) return;
+                        setClips((cs) => {
+                          const fi = cs.findIndex((x) => x.id === from);
+                          const ti = cs.findIndex((x) => x.id === c.id);
+                          if (fi < 0 || ti < 0) return cs;
+                          const next = cs.slice();
+                          const [moved] = next.splice(fi, 1);
+                          next.splice(ti, 0, moved);
+                          return next;
+                        });
+                      }}
+                      onDragEnd={() => {
+                        dragClip.current = null;
+                      }}
+                      onClick={() => {
+                        setSel(c.id);
+                        pendingSeek.current = c.start;
+                        setActiveIdx(i);
+                      }}
+                      style={{ width: `${Math.max(11, (clipDur(c) / Math.max(0.01, total)) * 100)}%` }}
+                      className={`relative min-w-[68px] flex-none cursor-grab overflow-hidden rounded-lg border-2 ${
+                        isSel ? "border-brand" : isActive ? "border-cyan-400/70" : "border-transparent"
+                      }`}
+                    >
+                      <img src={seg.firstFrame} alt="" className="h-14 w-full object-cover" draggable={false} />
+                      <span className="absolute left-1 top-0.5 rounded bg-black/65 px-1 text-[9px] text-slate-200">
+                        段{c.segIndex + 1} · {clipDur(c).toFixed(1)}s
+                      </span>
+                      {nAnn > 0 && (
+                        <span className="absolute right-1 top-0.5 rounded-full bg-rose-500/90 px-1 text-[9px] font-bold text-white">
+                          ⭕{nAnn}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <button
+                  onClick={splitAtPlayhead}
+                  disabled={!sel}
+                  className="rounded-lg bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
+                >
+                  ✂️ 播放头处分割
+                </button>
+                <button
+                  onClick={() => sel && moveClip(sel, -1)}
+                  disabled={!sel}
+                  className="rounded-lg bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
+                >
+                  ◀ 前移
+                </button>
+                <button
+                  onClick={() => sel && moveClip(sel, 1)}
+                  disabled={!sel}
+                  className="rounded-lg bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
+                >
+                  后移 ▶
+                </button>
+                <button
+                  onClick={() => sel && removeClip(sel)}
+                  disabled={!sel || view.length <= 1}
+                  className="rounded-lg bg-rose-500/15 px-2.5 py-1.5 text-[11px] text-rose-300 disabled:opacity-35"
+                >
+                  🗑 删除片段
+                </button>
+              </div>
+              {!sel && <p className="mt-1.5 text-[10px] text-slate-500">先点上面的片段选中，再用这排按钮</p>}
+            </>
+          )}
+
+          {tab === "mark" && (
+            <>
+              <button
+                onClick={openAnnotator}
+                disabled={!!busy}
+                className="w-full rounded-xl bg-slate-700/70 py-2.5 text-sm font-semibold text-slate-100 disabled:opacity-40"
+              >
+                ⭕ 圈选当前这一帧
+              </button>
+              <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+                拖动上面的进度条到想改的画面，圈出物体写要求。可跨帧跨段圈多处，最后一次性重新生成。
+              </p>
+              {anns.length > 0 && (
+                <>
+                  <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1">
+                    {anns.map((a) => (
+                      <div key={a.id} className="relative w-32 flex-none overflow-hidden rounded-lg bg-black/40">
+                        <img src={a.frame} alt="" className="h-16 w-full object-cover" />
+                        <div className="truncate px-1.5 py-1 text-[10px] text-slate-300" title={a.req}>
+                          段{a.segIndex + 1} · {a.req}
+                        </div>
+                        <button
+                          onClick={() => setAnns((l) => l.filter((x) => x.id !== a.id))}
+                          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-[10px] text-slate-200"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => void regenerateAll()}
+                    disabled={!!busy}
+                    className="mt-2 w-full rounded-xl bg-cyan-500/85 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
+                  >
+                    ✨ 按 {anns.length} 处圈选重新生成（{annBySeg.size} 段 · {fmtTokens(annCost)}）
+                  </button>
+                </>
+              )}
+            </>
+          )}
+
+          {tab === "audio" &&
+            (audio ? (
+              <div className="flex items-center gap-2.5 rounded-xl bg-black/40 px-3 py-2.5">
+                <span className="min-w-0 flex-1 truncate text-xs text-slate-200">🎵 {audio.name}</span>
+                <span className="flex-none text-[10px] text-slate-500">音量</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={audio.volume}
+                  onChange={(e) => setAudio({ ...audio, volume: Number(e.target.value) })}
+                  className="w-24 flex-none accent-brand"
+                />
+                <button
+                  onClick={() => {
+                    URL.revokeObjectURL(audio.url);
+                    setAudio(null);
+                  }}
+                  className="flex-none text-rose-300"
+                >
+                  <Icon name="close" size={15} />
+                </button>
+              </div>
+            ) : (
+              <>
+                <label className="flex cursor-pointer items-center justify-center rounded-xl border border-dashed border-slate-600 py-3 text-xs text-slate-400 hover:border-brand">
+                  ＋ 添加本地音频作为 BGM
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = "";
+                      if (f) setAudio({ name: f.name, url: URL.createObjectURL(f), volume: 0.8 });
+                    }}
+                  />
+                </label>
+                <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+                  合并时混进成片；短于成片会自动循环。AI 生成的画面本身没有声音。
+                </p>
+              </>
+            ))}
+        </div>
+      </div>
 
       {annOpen && (
-        <Annotator
+        <FrameAnnotator
           frame={annOpen.frame}
+          hint="先存起来，圈完所有要改的地方再一次性重新生成"
           onClose={() => setAnnOpen(null)}
           onSave={(frame, req) => {
             setAnns((l) => [...l, { id: uid("ann"), segIndex: annOpen.segIndex, atSec: annOpen.atSec, frame, req }]);
             setAnnOpen(null);
           }}
         />
+      )}
+
+      {helpOpen && (
+        <div className="fixed inset-0 z-40 flex items-end bg-black/70" onClick={() => setHelpOpen(false)}>
+          <div className="w-full rounded-t-2xl bg-ink p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm font-bold text-slate-100">怎么用这个剪辑页</span>
+              <button onClick={() => setHelpOpen(false)} className="text-slate-400">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+            <ul className="space-y-1.5 text-xs leading-relaxed text-slate-300">
+              <li>· <b>剪辑</b>：点片段选中，可在播放头处分割、删除、拖拽换序。分割只影响导出范围，不花 token。</li>
+              <li>· <b>圈选</b>：拖进度条到要改的画面，圈出物体写要求；可圈多处，最后一次性重新生成——这一步才计费。</li>
+              <li>· <b>音频</b>：加一段本地 BGM，导出时混进成片。</li>
+              <li>· <b>下一步</b>：按时间轴顺序导出成一整条视频，进发布页。发布后作品不可再修改。</li>
+            </ul>
+          </div>
+        </div>
       )}
     </div>
   );
