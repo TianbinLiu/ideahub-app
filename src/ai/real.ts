@@ -191,7 +191,7 @@ export async function deriveDeckCards(
       ? existing.map((c) => `${TYPE_LABEL[c.type]}「${c.name}」(${(c.summary ?? "").slice(0, 24)})`).join("、")
       : "（无）";
   const raw = await chat(
-    '你是卡牌游戏的铸卡师。对照"已有素材卡"清单，从视频剧情中提炼出尚未有卡的可复用创作素材，输出 JSON 数组（0~8 张）：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：剧情中每个主要角色若未被已有卡覆盖（注意同一角色可能换了称呼），各出一张 character 卡，缺几个补几张；已有卡覆盖的实体绝对不要再出。主要场景/地点同理，每处未覆盖的出一张 scene 卡。整体色调氛围未覆盖时至多一张 background 卡；画风鲜明且没有风格卡时至多一张 style 卡；剧情关键道具可出 prop 卡。所有实体都已被覆盖时输出 []。只输出 JSON。',
+    '你是卡牌游戏的铸卡师。对照"已有素材卡"清单，从视频剧情中提炼出尚未有卡的可复用创作素材，输出 JSON 数组（0~8 张）：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：剧情中每个主要角色若未被已有卡覆盖（注意同一角色可能换了称呼），各出一张 character 卡，缺几个补几张；已有卡覆盖的实体绝对不要再出——例如已有人物卡「义肢少女」时，剧情里这位少女无论被叫作"电玩少女""机械臂少女"还是换了新造型，都不得再为她出卡。主要场景/地点同理，每处未覆盖的出一张 scene 卡。整体色调氛围未覆盖时至多一张 background 卡；画风鲜明且没有风格卡时至多一张 style 卡；剧情关键道具可出 prop 卡。所有实体都已被覆盖时输出 []。只输出 JSON。',
     `已有素材卡：${existingDesc}\n剧情（按段）：${segments.map((s) => s.plot).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从剧情推断）"}`,
   );
   const defs = JSON.parse(raw.replace(/```json|```/g, "").trim()) as Array<{
@@ -202,9 +202,20 @@ export async function deriveDeckCards(
   }>;
   if (!Array.isArray(defs)) throw new Error("卡组提炼 JSON 结构不符");
   if (defs.length === 0) return []; // 已有卡把实体全覆盖了：无需补卡，合法结果
+  // 模型偶尔把已有实体换个叫法再提出来（"义肢少女"→"义肢电玩少女"）——
+  // 同类型且已有卡名字符 ≥80% 落进新名的，判定同一实体直接丢弃，还省一张卡面的图钱
+  const isDupOfExisting = (name: string, type: CardType) =>
+    existing.some((c) => {
+      if (c.type !== type) return false;
+      const chars = [...new Set(c.name.split(""))];
+      return chars.filter((ch) => name.includes(ch)).length / chars.length >= 0.8;
+    });
   const out: Card[] = [];
   let done = 0;
-  const jobs = defs.slice(0, 8).filter((d) => d.name && TYPE_LABEL[d.type as CardType]);
+  const jobs = defs
+    .slice(0, 8)
+    .filter((d) => d.name && TYPE_LABEL[d.type as CardType] && !isDupOfExisting(d.name, d.type as CardType));
+  if (jobs.length === 0) return []; // 提出来的全是已有实体的换皮：等于无需补卡
   await mapLimit(jobs, 3, async (d) => {
     const type = d.type as CardType;
     try {
