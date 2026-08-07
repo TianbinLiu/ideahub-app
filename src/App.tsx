@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useLocation } from "react-router";
 import FeedPage from "./pages/FeedPage";
 import DiscoverPage from "./pages/DiscoverPage";
 import WorkshopPage from "./pages/WorkshopPage";

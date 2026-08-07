@@ -2,7 +2,7 @@
 // 与 3D 卡片工坊（/studio）分工：这里是资产管理，那里是创作现场。
 import { useEffect, useMemo, useState } from "react";
 import Icon from "../components/Icon";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import {
   addCards,
   browseSharedDecks,

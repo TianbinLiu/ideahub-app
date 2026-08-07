@@ -5,7 +5,7 @@
 //    所以远端模式必须多两个输入框——少了它们就永远拿不到 token，
 //    工坊里每一次写都会 401。
 import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import Icon from "../components/Icon";
 import { isRemoteMode, signIn, signInWithPassword, signUpWithPassword } from "../data/account";
 

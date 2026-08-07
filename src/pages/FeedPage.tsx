@@ -1,7 +1,7 @@
 // 首页：TikTok 式全屏上下滑视频流。每屏一支，进入视口自动播放、离开暂停。
 // 互动视频（带 branchTree）在流里播开场段，点"进入互动"跳详情页做分支选择。
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import { addPlay, isLiked, isMyAuthor, listVideos, setLike } from "../data/videos";
 import { isFollowing, toggleFollow } from "../data/account";
 import { useCurrentUser } from "../hooks/useAccount";

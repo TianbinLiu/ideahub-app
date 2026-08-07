@@ -1,6 +1,6 @@
 // 合成完成后的编辑发布页：标题 / 分类 / 简介 / 封面选择 + 左侧成片预览
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import Icon from "../components/Icon";
 import SegmentPlayer from "../components/SegmentPlayer";
 import { publishVideo } from "../data/videos";
