@@ -245,6 +245,9 @@ export default function TripoNpc({
       rail?: { y: number; z: number; radius: number };
       /** 躯干球半径（世界，防胸陷进身体） */
       torsoRadius?: number;
+      /** 中缝保留：尾端与胸中线横距 ≥ 站姿 × 此系数（>1=比站姿更开，露出门襟扣子；
+       *  0=关）。挤压时两团被前臂推向中线会把脊柱权重的门襟整条吞掉 */
+      medialKeep?: number;
     };
     /** 接触托胸：胸底接触桌沿后 Breast 骨链上旋角（rad，负=抬起；childAngle 为二节；
      *  splay=向外分开角防两团向中聚拢重叠；sink=接触后身体下沉量（胸被托住不动，

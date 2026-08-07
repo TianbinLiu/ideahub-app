@@ -72,6 +72,10 @@ const MILLTINA_CFG = {
     { bone: "mixamorig:Head", radius: 0.26 },
     { bone: "mixamorig:Spine1", radius: 0.42, offset: [0, 0.1, 0.04] as [number, number, number] },
     { bone: "mixamorig:Hips", radius: 0.38 },
+    // 胸球挂在 Breast 骨上（随胸物理动态走）：领结飘带垂在胸口，躯干球（Spine1）
+    // 覆盖不到前凸的胸——站姿飘带整条沉进裙面（用户实测）。半径=肉半径 0.13+布厚余量
+    { bone: "Breast_L", radius: 0.155, offset: [0, 0, 0.02] as [number, number, number] },
+    { bone: "Breast_R", radius: 0.155, offset: [0, 0, 0.02] as [number, number, number] },
   ],
   // 衣装/头发暖灰乘暗融入烛光暗房；脸+皮肤单独亮乘色（官方宣传图=亮脸平光，
   // 全局压暗会把眼白压灰、眼周暗成"眼影"）；浅色模型描边用固定深紫黑
@@ -108,6 +112,9 @@ const MILLTINA_CFG = {
     rail: { y: 0.08, z: -3.55, radius: 0.17 },
     // 躯干球=胸壁：胸挂在它上面才饱满（关掉会塌回身体成平面；0.12 又会顶到体侧）
     torsoRadius: 0.08,
+    // 中缝保留 1.05：弯腰挤压时两团横距比站姿再开 5%，门襟扣子从沟里露出来；
+    // 深度（前凸/托起）不受限——保留"陷进沟里"的凹陷感，只是不再整条埋没
+    medialKeep: 1.05,
   },
   // 接触托胸：上抬(x−)+外分(splay)+躯干下沉(sink，重量压胸感)。上抬角要克制——
   // 裙子 Apron_set 形态胸口自带 X 褶皱设计，抬得越猛两团越被顶进褶皱区读作"重叠"
