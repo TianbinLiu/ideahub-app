@@ -51,6 +51,9 @@ export const MARKET = { rowsZ: [-1.0, -2.35], perRow: 4, dx: 0.95, lift: 0.02 };
 /** 溢出节点的左侧收起堆（贴左缘露半张=「收起」） */
 export const LEFT_STACK: [number, number, number] = [-1.85, 0, 0.95];
 
+/** 溢出节点的右侧收起堆：聚焦早期节点时窗口左移，其后的节点收到右缘 */
+export const RIGHT_STACK: [number, number, number] = [1.85, 0, 0.95];
+
 /** 合成按钮：中线右端（竖屏可视范围内） */
 export const COMPOSE_POS: [number, number, number] = [1.5, 0.03, 0];
 

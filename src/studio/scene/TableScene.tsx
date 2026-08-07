@@ -15,6 +15,7 @@ import {
   FLOAT_Y,
   LEFT_STACK,
   MARKET,
+  RIGHT_STACK,
   SPREAD,
   TABLE,
   chainX,
@@ -134,24 +135,37 @@ import PlayerArms from "./PlayerArms";
 const NPC_VARIANT = new URLSearchParams(window.location.search).get("npc") ?? "full";
 const USE_TRIPO_NPC = NPC_VARIANT === "tripo" || NPC_VARIANT === "full";
 
-// ── 节点链布局：窗口化，溢出的最早节点收到左侧堆 ──────────────
+// ── 节点链布局：窗口化 + 焦点跟随 ─────────────────────────────
+// 节点多于 maxVisible 时溢出的收到左右两侧的收起堆；窗口默认贴链尾，
+// 但**聚焦中的节点必须平摊在窗口内**——聚焦窗外节点时窗口平移把它居中
+// （被挤出去的后段节点收到右侧堆）。堆里的卡可点击聚焦，窗口随之跟过去。
 export interface ChainLayout {
-  items: Array<{ node: NodeSlot; x: number | null; stackIndex: number }>;
+  items: Array<{ node: NodeSlot; x: number | null; stack: "left" | "right" | null; stackIndex: number }>;
   placeholderX: number | null;
 }
 
-export function computeChain(root: NodeSlot | null): ChainLayout {
+export function computeChain(root: NodeSlot | null, focusId?: string | null): ChainLayout {
   const path = activePath(root);
   const ph = placeholderVisible(root);
   const total = path.length + (ph ? 1 : 0);
-  const start = Math.max(0, total - CHAIN.maxVisible);
+  let start = Math.max(0, total - CHAIN.maxVisible);
+  if (focusId) {
+    const fi = path.findIndex((n) => n.id === focusId);
+    if (fi >= 0 && (fi < start || fi >= start + CHAIN.maxVisible)) {
+      // 以聚焦节点为中心平移窗口（夹在链两端之间）
+      start = Math.min(Math.max(0, fi - Math.floor((CHAIN.maxVisible - 1) / 2)), Math.max(0, total - CHAIN.maxVisible));
+    }
+  }
+  const end = start + CHAIN.maxVisible;
   return {
     items: path.map((node, i) => ({
       node,
-      x: i < start ? null : chainX(i - start),
+      x: i >= start && i < end ? chainX(i - start) : null,
+      stack: i < start ? ("left" as const) : i >= end ? ("right" as const) : null,
       stackIndex: i,
     })),
-    placeholderX: ph ? chainX(path.length - start) : null,
+    // 空白占位卡永远排在链尾：窗口没覆盖到链尾时它随尾段一起收进右堆（不渲染）
+    placeholderX: ph && path.length >= start && path.length < end ? chainX(path.length - start) : null,
   };
 }
 
@@ -1013,32 +1027,40 @@ function NodeChainView() {
   const root = useStudio((s) => s.root);
   const focus = useStudio((s) => s.focus);
   const projection = useStudio((s) => s.projection);
-  const layout = computeChain(root);
+  // 焦点跟随：聚焦节点保证平摊在窗口内（点堆中的卡时窗口平移过去）
+  const layout = computeChain(root, focus?.nodeId ?? null);
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__chainDbg = layout;
   const visibleXs: number[] = [];
 
   const cards: ReactNode[] = [];
-  let stackCount = 0;
-  layout.items.forEach(({ node, x }) => {
+  let leftCount = 0;
+  let rightCount = 0;
+  layout.items.forEach(({ node, x, stack }) => {
     const chosen = chosenProposal(node);
+    const tex = chosen ? proposalTexture(chosen) : placeholderTexture();
     if (x == null) {
-      // 左侧收起堆
-      if (chosen) {
-        const y = 0.012 + stackCount * 0.02;
-        cards.push(
-          <CardMesh
-            key={node.id}
-            tex={proposalTexture(chosen)}
-            target={[LEFT_STACK[0], y, LEFT_STACK[2]]}
-            rotZ={stackCount * 0.05 - 0.04}
-            scale={0.92}
-            onClick={(e) => {
-              e.stopPropagation();
-              useStudio.getState().npcSay("更早的节点先收在左边了，长片树图浏览会在后续版本开放。");
-            }}
-          />
-        );
-        stackCount++;
-      }
+      // 左右收起堆：可点击——窗口平移让该节点平摊到桌面中区，镜头跟随聚焦
+      const isLeft = stack === "left";
+      const idx = isLeft ? leftCount++ : rightCount++;
+      const base = isLeft ? LEFT_STACK : RIGHT_STACK;
+      cards.push(
+        <CardMesh
+          key={node.id}
+          tex={tex}
+          target={[base[0], 0.012 + idx * 0.02, base[2]]}
+          rotZ={idx * 0.05 - 0.04}
+          scale={0.92}
+          onClick={(e) => {
+            e.stopPropagation();
+            const st = useStudio.getState();
+            if (st.projection) return; // 投影开着时与平摊卡一致：不抢焦
+            const nx = computeChain(st.root, node.id).items.find((it) => it.node.id === node.id)?.x;
+            if (nx == null) return;
+            const cam = focusCam(nx, CHAIN.rowZ);
+            st.focusNode(node.id, cam.pos, cam.look);
+          }}
+        />
+      );
       return;
     }
     visibleXs.push(x);
@@ -1048,7 +1070,7 @@ function NodeChainView() {
     cards.push(
       <CardMesh
         key={node.id}
-        tex={chosen ? proposalTexture(chosen) : placeholderTexture()}
+        tex={tex}
         target={[x, y, CHAIN.rowZ]}
         hoverLift={!floating}
         ring={floating ? "#67e8f9" : null}
@@ -1070,7 +1092,10 @@ function NodeChainView() {
         if (next == null) return null;
         return <Beam key={i} x1={x} x2={next} z={CHAIN.rowZ} />;
       })}
-      {stackCount > 0 && visibleXs.length > 0 && <Beam x1={LEFT_STACK[0]} x2={visibleXs[0]} z={CHAIN.rowZ} />}
+      {leftCount > 0 && visibleXs.length > 0 && <Beam x1={LEFT_STACK[0]} x2={visibleXs[0]} z={CHAIN.rowZ} />}
+      {rightCount > 0 && visibleXs.length > 0 && (
+        <Beam x1={visibleXs[visibleXs.length - 1]} x2={RIGHT_STACK[0]} z={CHAIN.rowZ} />
+      )}
       {cards}
       {layout.placeholderX != null && <Placeholder x={layout.placeholderX} />}
     </group>
