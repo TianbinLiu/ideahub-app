@@ -822,8 +822,13 @@ function DeckStack() {
         useStudio.getState().openDeckView();
       }}
     >
-      {/* 卡组虚位标记 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[DECK_POS[0], 0.009, DECK_POS[2]]} material={markerMat}>
+      {/* 卡组虚位标记（与节点链同一缩放档，桌面尺度统一） */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[DECK_POS[0], 0.009, DECK_POS[2]]}
+        scale={CHAIN.scale}
+        material={markerMat}
+      >
         <planeGeometry args={[CARD.w * 1.1, CARD.h * 1.08]} />
       </mesh>
       {Array.from({ length: shown }, (_, i) => (
@@ -831,12 +836,18 @@ function DeckStack() {
           key={i}
           rotation={[-Math.PI / 2, 0, ((i * 37) % 11) * 0.012 - 0.06]}
           position={[DECK_POS[0], 0.012 + i * 0.014, DECK_POS[2]]}
+          scale={CHAIN.scale}
           material={backMat}
         >
           <planeGeometry args={[CARD.w, CARD.h]} />
         </mesh>
       ))}
-      <mesh position={[DECK_POS[0], 0.12, DECK_POS[2] - 0.62]} rotation={[-Math.PI / 2, 0, 0]} material={countMat}>
+      <mesh
+        position={[DECK_POS[0], 0.12, DECK_POS[2] - 0.62 * CHAIN.scale]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        scale={CHAIN.scale}
+        material={countMat}
+      >
         <planeGeometry args={[1.1, 0.3]} />
       </mesh>
     </group>

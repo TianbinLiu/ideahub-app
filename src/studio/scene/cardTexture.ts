@@ -243,37 +243,25 @@ export function placeholderTexture(): THREE.CanvasTexture {
 }
 
 /** 卡背（卡组堆叠顶面） */
+/** 卡背：Seedream 生成的塔罗魔法纹饰背面（星月徽记 + 对称卷草金纹，无任何文字）。
+ *  旧版是程序画的菱形格 + 居中"卡"字——像占位符不像收藏级卡牌。 */
 export function cardBackTexture(): THREE.CanvasTexture {
-  return texFromDraw("back", W, H, [], (ctx) => {
-    roundedPath(ctx, 4, 4, W - 8, H - 8, 34);
-    const g = ctx.createLinearGradient(0, 0, W, H);
-    g.addColorStop(0, "#111a33");
-    g.addColorStop(1, "#1e2b52");
-    ctx.fillStyle = g;
-    ctx.fill();
-    ctx.lineWidth = 8;
-    ctx.strokeStyle = "#334e8c";
-    ctx.stroke();
-    // 菱形纹样
-    ctx.strokeStyle = "#2b3f70";
-    ctx.lineWidth = 2;
-    for (let x = -H; x < W + H; x += 46) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x + H, H);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(x + H, 0);
-      ctx.lineTo(x, H);
+  return texFromDraw("back", W, H, ["/cards/tarot-back.jpg"], (ctx, [back]) => {
+    ctx.save();
+    roundedPath(ctx, 0, 0, W, H, 26);
+    ctx.clip();
+    if (back) {
+      drawImageCover(ctx, back, 0, 0, W, H);
+    } else {
+      // 图未就绪的一两帧：纯深蓝底 + 细金边撑住卡形
+      ctx.fillStyle = "#0d1428";
+      ctx.fillRect(0, 0, W, H);
+      roundedPath(ctx, 5, 5, W - 10, H - 10, 24);
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = "#8a6d3b";
       ctx.stroke();
     }
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = "700 130px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillStyle = "#67e8f966";
-    ctx.fillText("卡", W / 2, H / 2);
-    ctx.textAlign = "left";
-    ctx.textBaseline = "alphabetic";
+    ctx.restore();
   });
 }
 
