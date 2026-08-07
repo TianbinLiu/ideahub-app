@@ -23,6 +23,7 @@ import {
 import { npcModelUrl } from "../quality";
 import {
   NPC_HEAD,
+  NPC_SCREEN,
   ORBIT_LIMITS,
   PLAYER_HEAD,
   addEyeLook,
@@ -1333,6 +1334,22 @@ function TableCatcher() {
 }
 
 // ── 场景组装 ─────────────────────────────────────────────────
+/** NPC 头顶 → 屏幕坐标投影（供 DOM 侧对话气泡跟随角色，见 cameraOrbit.NPC_SCREEN） */
+function NpcScreenAnchor() {
+  const v = useMemo(() => new THREE.Vector3(), []);
+  useFrame(({ camera }) => {
+    v.copy(NPC_HEAD);
+    v.y += 0.5; // 锚在头顶上方一点，气泡不压脸
+    v.project(camera);
+    NPC_SCREEN.visible = v.z < 1;
+    // 夹进安全区：镜头切换的瞬间投影可能飞出屏幕，气泡钉在边缘比消失更可读。
+    // y 下限 0.3——气泡以锚点为底向上生长约 25% 屏高，下限太低气泡顶会出屏
+    NPC_SCREEN.x = Math.min(0.86, Math.max(0.14, (v.x + 1) / 2));
+    NPC_SCREEN.y = Math.min(0.78, Math.max(0.3, (1 - v.y) / 2));
+  });
+  return null;
+}
+
 export default function TableScene() {
   return (
     <>
@@ -1370,6 +1387,7 @@ export default function TableScene() {
       <NodeChainView />
       <Flights />
       <DragLayer />
+      <NpcScreenAnchor />
       {import.meta.env.DEV && <CaptureHook />}
     </>
   );

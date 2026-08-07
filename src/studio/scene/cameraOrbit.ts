@@ -10,6 +10,9 @@ export const PLAYER_HEAD = new THREE.Vector3(0, 0.7, 3.6);
 export const PLAYER_FACE = new THREE.Vector3(0, 0, -1);
 /** NPC 头部世界坐标（TripoNpc 每帧写入） */
 export const NPC_HEAD = new THREE.Vector3(0, 0.9, -4.3);
+/** NPC 头顶的屏幕投影（TableScene 的锚点组件每帧写入；0~1 归一化坐标）。
+ *  DOM 侧的对话气泡用 rAF 直读此对象定位——不走 React 状态，60fps 跟随零重渲。 */
+export const NPC_SCREEN = { x: 0.5, y: 0.3, visible: false };
 
 /** 各轨道模式的距离约束（世界单位）：min 兼作"不许钻进模型内部"的硬下限 */
 export const ORBIT_LIMITS: Record<string, { min: number; max: number }> = {
