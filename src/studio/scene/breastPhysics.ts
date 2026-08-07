@@ -18,6 +18,8 @@ interface BJoint {
   /** 根节标记 + rest 局部位置：被顶起时胸根随之上移（真实软组织不是钉死在胸壁上的） */
   isRoot: boolean;
   restPos: THREE.Vector3;
+  /** 初始（站姿）时该节尾端到胸中线的横向距离——中缝保留的基准 */
+  restLat: number;
   /** 平滑后的抬升量——直接用瞬时值会形成"顶开→根上移→碰撞变→再顶开"的无阻尼
    *  正反馈（用户实测：动画中及结束后胸持续抽动） */
   liftCur: number;
@@ -51,6 +53,8 @@ const _preSolve = new THREE.Vector3();
 const _scaleTmp = new THREE.Vector3();
 const _up = new THREE.Vector3();
 const _upLocal = new THREE.Vector3();
+const _centerA = new THREE.Vector3();
+const _centerB = new THREE.Vector3();
 
 function closestOnSegment(p: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3, out: THREE.Vector3) {
   _ab.copy(b).sub(a);
@@ -70,6 +74,15 @@ export class BreastPhysics {
   /** 抬升上限（世界，锁骨下缘为界）+ 平滑速率（越小越黏，抑制自激） */
   rootLiftMax: number;
   rootLiftSmooth: number;
+  /**
+   * 中缝保留：两侧尾端与胸中线的横向距离 ≥ 站姿距离 × 此系数。
+   * 弯腰托腮时前臂胶囊会把两团一起往中间挤——左右互斥只防"重叠"、不防"合拢"，
+   * 胸口正中的门襟/扣子（权重在脊柱上，不随胸动）就被两团整条吞进沟里
+   * （2026-08-07 用户实测）。0=关闭。
+   */
+  medialKeep: number;
+  private rootL: THREE.Object3D | null = null;
+  private rootR: THREE.Object3D | null = null;
   private lastRootLift = 0;
 
   /**
@@ -86,6 +99,7 @@ export class BreastPhysics {
       rootLift?: number;
       rootLiftMax?: number;
       rootLiftSmooth?: number;
+      medialKeep?: number;
     },
   ) {
     this.stiffness = opts?.stiffness ?? 26;
@@ -94,6 +108,7 @@ export class BreastPhysics {
     this.rootLift = opts?.rootLift ?? 0;
     this.rootLiftMax = opts?.rootLiftMax ?? 0.12;
     this.rootLiftSmooth = opts?.rootLiftSmooth ?? 3;
+    this.medialKeep = opts?.medialKeep ?? 0.85;
     const radii = opts?.radii ?? [0.15, 0.12, 0.09];
     for (const side of [1, -1] as const) {
       const base = side === 1 ? "Breast_L" : "Breast_R";
@@ -102,6 +117,10 @@ export class BreastPhysics {
       while (bone) {
         const child = bone.children.find((c) => (c as THREE.Bone).isBone);
         if (!child) break;
+        if (idx === 0) {
+          if (side === 1) this.rootL = bone;
+          else this.rootR = bone;
+        }
         this.joints.push({
           bone,
           child,
@@ -109,6 +128,7 @@ export class BreastPhysics {
           restQuat: bone.quaternion.clone(),
           isRoot: idx === 0,
           restPos: bone.position.clone(),
+          restLat: 0,
           liftCur: 0,
           boneLen: child.position.length() || 1e-4,
           radius: radii[Math.min(idx, radii.length - 1)],
@@ -121,6 +141,14 @@ export class BreastPhysics {
         idx++;
       }
     }
+  }
+
+  /** 胸中线的世界 X（两根骨中点）；单侧模型返回 null（约束自动失效） */
+  private centerX(): number | null {
+    if (!this.rootL || !this.rootR) return null;
+    this.rootL.getWorldPosition(_centerA);
+    this.rootR.getWorldPosition(_centerB);
+    return (_centerA.x + _centerB.x) / 2;
   }
 
   get jointCount() {
@@ -172,6 +200,7 @@ export class BreastPhysics {
   }
 
   private step(d: number, colliders: PhysCollider[], integrate: boolean) {
+    const cx = this.centerX(); // 本步的胸中线（世界 X），中缝保留的参照
     for (const j of this.joints) {
       const bone = j.bone;
       bone.getWorldPosition(_bonePos);
@@ -184,6 +213,9 @@ export class BreastPhysics {
         j.boneLen = j.child.getWorldPosition(_next).distanceTo(_bonePos) || j.boneLen;
         j.tail.copy(_bonePos).addScaledVector(_restDir, j.boneLen);
         j.prevTail.copy(j.tail);
+        // 首帧是站姿（lean 钉第 1 帧）：此刻的横向距离就是"该有的中缝宽度"基准
+        const cx = this.centerX();
+        if (cx != null) j.restLat = Math.max(0, (j.tail.x - cx) * j.side);
       }
       // 惯性 + 向 rest 回弹 + 重力
       if (integrate) {
@@ -230,6 +262,13 @@ export class BreastPhysics {
             _push.copy(_sideAxis).multiplyScalar(wantSign * (minD - dist) * 0.5);
             _next.add(_push);
           }
+        }
+        // 中缝保留：互斥只防"重叠"，防不了两团被前臂一起挤向中线"合拢"——
+        // 弯腰托腮时胸口门襟/扣子（权重在脊柱，不随胸动）就被整条吞进沟里。
+        // 各侧尾端到中线的横距不得小于站姿的 medialKeep 倍，给中缝衣物留出位置。
+        if (this.medialKeep > 0 && j.restLat > 0 && cx != null) {
+          const minLat = j.restLat * this.medialKeep;
+          if ((_next.x - cx) * j.side < minLat) _next.x = cx + j.side * minLat;
         }
         // 归一化到骨长（角度约束）——再进入下一轮推开
         _next.sub(_bonePos).normalize().multiplyScalar(j.boneLen).add(_bonePos);
