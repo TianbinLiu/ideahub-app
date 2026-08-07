@@ -115,10 +115,11 @@ export default function StudioPage() {
     }
   }, []);
 
-  // 仅在“合成刚结束”那一刻跳转发布页，避免回到工坊被再次弹走
+  // 仅在“合成刚结束”那一刻跳剪辑页（选帧圈物修改/整段重生成/合并导出），
+  // 避免回到工坊被再次弹走；发布页由剪辑页合并后进入
   const prevComposing = useRef(false);
   useEffect(() => {
-    if (prevComposing.current && !composing && draft) navigate("/publish");
+    if (prevComposing.current && !composing && draft) navigate("/cut");
     prevComposing.current = composing;
   }, [composing, draft, navigate]);
 

@@ -40,6 +40,12 @@ export const deriveDeckCards: typeof real.deriveDeckCards = AI_REAL
 export const deriveCharacterModels: typeof real.deriveCharacterModels = AI_REAL
   ? real.deriveCharacterModels
   : async () => {};
+/** 设定图按要求改图（方案选帧改图/剪辑页圈选修改）；mock 原图返回 */
+export const refineFrame: typeof real.refineFrame = AI_REAL ? real.refineFrame : async (_req, ref) => ref;
+/** 剪辑页单段重生成；mock 返回空 URL（渐变回退） */
+export const regenSegment: typeof real.regenSegment = AI_REAL
+  ? real.regenSegment
+  : async () => ({ url: "" });
 /** 逐段 Seedance 生成（仅真实 AI 构建可用；mock 构建返回空结果 = 首尾帧渐变） */
 export const composeSegments: typeof real.composeSegments = AI_REAL
   ? real.composeSegments

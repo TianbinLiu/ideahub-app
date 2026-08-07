@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
 import { VideoSegment, formatDuration } from "../types";
+import { useMediaUrl } from "../utils/mediaUrl";
 
 export default function SegmentPlayer({ segments, cover }: { segments: VideoSegment[]; cover: string }) {
   const [playing, setPlaying] = useState(false);
@@ -59,6 +60,8 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
   const ended = time >= total && !playing;
 
   // 真实视频段：把播放器的播/停与进度同步到 <video>（否则暂停后视频仍在播、拖动进度不跟随）
+  // 地址经统一解析：idb: 合并成片 / TOS 远端代理
+  const segSrc = useMediaUrl(seg?.videoUrl);
   const videoRef = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const v = videoRef.current;
@@ -115,12 +118,12 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
       ) : (
         <>
           {seg &&
-            (seg.videoUrl ? (
+            (seg.videoUrl && segSrc ? (
               // 真实生成的片段：直接播（静音自动播放才不被浏览器拦），加载失败自动回退渐变
               <video
-                key={seg.videoUrl}
+                key={segSrc}
                 ref={videoRef}
-                src={seg.videoUrl}
+                src={segSrc}
                 className="absolute inset-0 h-full w-full object-cover"
                 muted
                 playsInline

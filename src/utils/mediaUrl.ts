@@ -1,0 +1,72 @@
+// 播放器统一的媒体 URL 解析：
+//   idb:<key>       —— 剪辑页合并导出的整条视频存 IndexedDB blob，播放时换 objectURL
+//   http(s)（播放）—— 原样直连：<video> 播放不受 CORS 限制，走代理反而引入 502/全量下载延迟
+//   http(s)（截帧）—— forCapture 时经 /api/asset 代理取 blob（canvas 抽帧才不被跨域污染），
+//                     大文件代理偶发 502，失败自动重试一次
+import { useEffect, useState } from "react";
+import { idbGet } from "../data/db";
+
+const objectUrlCache = new Map<string, string>();
+
+export async function resolveMediaUrl(url: string | undefined, opts?: { forCapture?: boolean }): Promise<string | null> {
+  if (!url) return null;
+  if (url.startsWith("idb:")) {
+    const hit = objectUrlCache.get(url);
+    if (hit) return hit;
+    const blob = await idbGet<Blob>(url.slice(4));
+    if (!blob) return null;
+    const obj = URL.createObjectURL(blob);
+    objectUrlCache.set(url, obj);
+    return obj;
+  }
+  if (!/^https?:\/\//.test(url) || url.startsWith(`${location.origin}/`)) return url;
+  if (!opts?.forCapture) return url; // 纯播放：直连最快最稳
+  const cacheKey = `cap:${url}`;
+  const hit = objectUrlCache.get(cacheKey);
+  if (hit) return hit;
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`/api/asset?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(120_000) }).catch(
+      (e) => {
+        if (attempt === 0) return null;
+        throw e;
+      },
+    );
+    if (!res || !res.ok) {
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 1200));
+        continue; // 代理对大文件偶发 502/网络抖动：歇口气重试一次
+      }
+      throw new Error(`取媒体失败 ${res?.status ?? "网络错误"}`);
+    }
+    const blob = await res.blob();
+    const obj = URL.createObjectURL(blob);
+    objectUrlCache.set(cacheKey, obj);
+    return obj;
+  }
+}
+
+/** 组件用：异步解析媒体地址，解析完成前返回 null（调用方先出封面顶着）。
+ *  forCapture=true 时经代理取 blob（供 canvas 截帧）；播放场景不要传。 */
+export function useMediaUrl(url: string | undefined, opts?: { forCapture?: boolean }): string | null {
+  const forCapture = !!opts?.forCapture;
+  const sync = (u: string | undefined) =>
+    u && !u.startsWith("idb:") && !(forCapture && /^https?:\/\//.test(u) && !u.startsWith(`${location.origin}/`))
+      ? u
+      : null;
+  const [real, setReal] = useState<string | null>(() => sync(url));
+  useEffect(() => {
+    let alive = true;
+    setReal(sync(url));
+    if (!url) return;
+    void resolveMediaUrl(url, { forCapture })
+      .then((r) => {
+        if (alive) setReal(r);
+      })
+      .catch((e) => console.warn("[media] 解析失败:", url.slice(0, 60), e));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url, forCapture]);
+  return real;
+}

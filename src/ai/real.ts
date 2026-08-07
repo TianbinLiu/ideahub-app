@@ -318,6 +318,46 @@ export async function deriveCharacterModels(
   }
 }
 
+/**
+ * 设定图（分镜首/尾帧）按要求改图：Seedream 图生图，保持构图与画风只改要求之处。
+ * 方案卡里"选帧改图"、剪辑页"圈选修改"都走这里（后者把红圈标注画进参考图，
+ * 提示词里指明按标注处理并抹掉标记）。
+ */
+export async function refineFrame(req: string, refDataUrl: string): Promise<string> {
+  return await genImageAsDataUrl(
+    `在参考图基础上修改这张视频分镜帧：${req}。除要求之外保持人物、构图、光线与整体画风完全一致。高细节，无文字无水印。横版 16:9 画面。`,
+    [refDataUrl],
+    FRAME_SIZE,
+  );
+}
+
+/**
+ * 剪辑页单段重生成：沿用该段首尾帧，把用户的修改要求并进提示词重拍。
+ * 返回新视频 URL 与真实尾帧（供展示/后续合并）。
+ */
+export async function regenSegment(
+  seg: { plot: string; firstFrame: string; lastFrame: string; durationSec: number; videoTier?: string },
+  extraReq: string,
+  onProgress?: (status: string) => void,
+): Promise<{ url: string; lastFrame?: string }> {
+  const tier = tierOf(seg.videoTier);
+  const prompt = `${seg.plot.slice(0, 320)}。修改要求（必须满足）：${extraReq.slice(0, 160)}`;
+  const url = await generateVideo(prompt, await shrinkFrameFor720p(seg.firstFrame), {
+    durationSec: seg.durationSec,
+    lastFrameUrl: tier.flf ? await shrinkFrameFor720p(seg.lastFrame) : undefined,
+    model: tier.model,
+    onProgress: (s) => onProgress?.(`${tier.label}档 · ${s}`),
+  });
+  let lastFrame: string | undefined;
+  try {
+    onProgress?.("捕获真实尾帧…");
+    lastFrame = await captureVideoTail(url);
+  } catch (e) {
+    console.warn("[ai] 重生成段尾帧捕获失败:", e);
+  }
+  return { url, lastFrame };
+}
+
 /** 封面工坊：按用户要求出封面。refDataUrl 给了就是"改当前封面"（Seedream 图生图，
  *  2026-08-06 实测 base64 dataURL 参考图可用，约 27s）；不给就是文生图全新生成。 */
 export async function generateCover(req: string, refDataUrl?: string): Promise<string> {

@@ -54,6 +54,22 @@ export default function EditPage() {
       </div>
     );
   }
+  // 合并发布的成片不可修改（产品定案）：只能用同款卡组回工坊重新生成
+  if (video.merged) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-slate-400">
+        <span className="text-3xl">🔒</span>
+        <div className="text-center text-sm leading-relaxed">
+          《{video.title}》已合并发布，成片不可修改。
+          <br />
+          想调整内容，请用同款卡组回工坊重新生成一部。
+        </div>
+        <Link to="/studio" className="rounded-full bg-brand px-5 py-2 text-sm font-bold text-ink">
+          🎴 去工坊再创作
+        </Link>
+      </div>
+    );
+  }
   if (!isMyAuthor(video.author)) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">

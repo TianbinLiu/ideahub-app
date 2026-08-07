@@ -11,6 +11,7 @@ import Avatar from "../components/Avatar";
 import CommentSheet from "../components/CommentSheet";
 import Icon, { type IconName } from "../components/Icon";
 import { VideoItem, formatDuration, formatPlays } from "../types";
+import { useMediaUrl } from "../utils/mediaUrl";
 
 /** 声音开关全流共享：一条视频上解除静音，后面每条都该有声（对标抖音/TikTok） */
 let soundOn = typeof sessionStorage !== "undefined" && sessionStorage.getItem("feed.sound") === "1";
@@ -109,15 +110,40 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
   function scrubEnd(e: React.PointerEvent) {
     if (scrub == null) return;
     e.stopPropagation();
+    // 全局进度 → 段 + 段内偏移；跨段时切段并挂起待 seek（新元素 loadedmetadata 后落位）
+    const target = scrub * durTotal;
+    let acc = 0;
+    let j = 0;
+    let local = 0;
+    for (let k = 0; k < video.segments.length; k++) {
+      const d = video.segments[k].durationSec;
+      if (target < acc + d || k === video.segments.length - 1) {
+        j = k;
+        local = Math.max(0, target - acc);
+        break;
+      }
+      acc += d;
+    }
     const v = videoRef.current;
-    if (v && prog.d > 0) v.currentTime = scrub * prog.d;
+    if (j === si && v) v.currentTime = Math.min(local, v.duration || local);
+    else {
+      pendingSeek.current = local;
+      setSi(j);
+    }
     setScrub(null);
   }
   const countedRef = useRef(false);
   const tapRef = useRef<{ x: number; y: number; t: number; last: number }>({ x: 0, y: 0, t: 0, last: 0 });
   const user = useCurrentUser();
   const navigate = useNavigate();
-  const seg = video.segments[0];
+  // 多段顺序连播：si=当前段（播完切下一段，最后一段回到 0 循环）。
+  // 新作品经剪辑页合并成单条视频后天然只有一段；这里保证老的多段作品也能播完整
+  const [si, setSi] = useState(0);
+  const seg = video.segments[Math.min(si, video.segments.length - 1)];
+  const multiSeg = video.segments.length > 1;
+  const durTotal = video.segments.reduce((s, x) => s + x.durationSec, 0);
+  const durBefore = video.segments.slice(0, si).reduce((s, x) => s + x.durationSec, 0);
+  const pendingSeek = useRef<number | null>(null);
   const isInteractive = !!video.branchTree;
   const mine = isMyAuthor(video.author);
   // 付费未解锁：流里只出封面（不给白嫖流量费），点它去详情页解锁
@@ -127,6 +153,8 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
   // 只有当前屏和相邻一屏挂 src：全部同时挂会在首屏并发拉 N 条流，
   // 而且 Android WebView 的硬解码器通常只有 4-8 个，超了直接黑屏。
   const wantSrc = dist <= 1;
+  // 媒体地址解析：idb: 合并视频 / TOS 远端经代理取 blob；解析完成前出封面
+  const resolvedSrc = useMediaUrl(!locked && wantSrc ? seg?.videoUrl : undefined);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -143,6 +171,7 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
       v.currentTime = 0;
       bufferOff(); // 划走的屏不留缓冲灯
       setScrub(null);
+      setSi(0); // 划走归零：回来从头看
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, video.id]);
@@ -231,13 +260,14 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
             <span className="text-[11px] text-white/70">付费作品 · 点击进入解锁</span>
           </button>
         </>
-      ) : seg?.videoUrl && wantSrc ? (
+      ) : resolvedSrc && wantSrc ? (
         <video
+          key={`${video.id}:${si}`}
           ref={videoRef}
-          src={seg.videoUrl}
-          poster={video.cover}
+          src={resolvedSrc}
+          poster={si === 0 ? video.cover : seg?.firstFrame}
           className="absolute inset-0 h-full w-full object-cover"
-          loop
+          loop={!multiSeg}
           muted={muted}
           playsInline
           preload={active ? "auto" : "metadata"}
@@ -247,7 +277,22 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
           onPlaying={bufferOff}
           onCanPlay={bufferOff}
           onSeeked={bufferOff}
-          onLoadedMetadata={(e) => setProg({ t: e.currentTarget.currentTime, d: e.currentTarget.duration || 0 })}
+          onEnded={() => {
+            // 播完切下一段；最后一段回到开头循环（对齐单段 loop 行为）
+            if (multiSeg) setSi((s) => (s + 1 < video.segments.length ? s + 1 : 0));
+          }}
+          onLoadedMetadata={(e) => {
+            const v = e.currentTarget;
+            if (pendingSeek.current != null) {
+              v.currentTime = Math.min(pendingSeek.current, v.duration || pendingSeek.current);
+              pendingSeek.current = null;
+            }
+            setProg({ t: v.currentTime, d: v.duration || 0 });
+          }}
+          onLoadedData={(e) => {
+            // 段间切换的新元素要接着播（autoPlay 属性在解除静音后可能被拦，走显式 play）
+            if (active && !paused) void e.currentTarget.play().catch(() => {});
+          }}
           onTimeUpdate={(e) => setProg({ t: e.currentTarget.currentTime, d: e.currentTarget.duration || 0 })}
         />
       ) : (
@@ -274,7 +319,7 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
         <div className="absolute inset-x-0 z-20" style={{ bottom: "calc(var(--tabbar-h) - 0.375rem)" }}>
           <div className="mb-0.5 flex justify-end pr-3">
             <span className="text-[10px] tabular-nums text-white/70 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
-              {formatDuration((scrub != null ? scrub : prog.t / prog.d) * prog.d)} / {formatDuration(prog.d)}
+              {formatDuration(scrub != null ? scrub * durTotal : durBefore + prog.t)} / {formatDuration(durTotal)}
             </span>
           </div>
           <div
@@ -297,7 +342,7 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
               >
                 <div
                   className="h-full rounded-full bg-white/90"
-                  style={{ width: `${(scrub != null ? scrub : prog.t / prog.d) * 100}%` }}
+                  style={{ width: `${(scrub != null ? scrub : Math.min(1, (durBefore + prog.t) / durTotal)) * 100}%` }}
                 />
               </div>
             )}
@@ -306,10 +351,10 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
       )}
 
       {/* 拖动进度时的中央大字时间（抖音式） */}
-      {scrub != null && prog.d > 0 && (
+      {scrub != null && durTotal > 0 && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
           <div className="text-2xl font-semibold tabular-nums text-white [text-shadow:0_2px_8px_rgba(0,0,0,.7)]">
-            {formatDuration(scrub * prog.d)} <span className="text-white/55">/ {formatDuration(prog.d)}</span>
+            {formatDuration(scrub * durTotal)} <span className="text-white/55">/ {formatDuration(durTotal)}</span>
           </div>
         </div>
       )}

@@ -494,7 +494,11 @@ function EditorPanel() {
 function ProposalsPanel() {
   const focus = useStudio((s) => s.focus);
   const root = useStudio((s) => s.root);
+  const frameRefining = useStudio((s) => s.frameRefining);
   const [openId, setOpenId] = useState<string | null>(null);
+  // 选帧改图小窗：哪个方案的哪一帧 + 修改要求
+  const [refine, setRefine] = useState<{ pid: string; which: "first" | "last" } | null>(null);
+  const [refineReq, setRefineReq] = useState("");
   const path = activePath(root);
   const node = focus?.nodeId ? path.find((n) => n.id === focus.nodeId) : null;
   if (!node) return null;
@@ -571,6 +575,65 @@ function ProposalsPanel() {
               </button>
               {expanded && (
                 <div className="mt-2 space-y-2">
+                  {/* 选帧改图：对设定图不满意时点开小窗，让 AI 按要求重画（图生图保持画风） */}
+                  <div className="flex gap-2">
+                    {(["first", "last"] as const).map((w) => {
+                      const busyKey = `${p.id}:${w}`;
+                      const on = refine?.pid === p.id && refine.which === w;
+                      return (
+                        <div key={w} className="min-w-0 flex-1">
+                          <div className="relative">
+                            <img
+                              src={w === "first" ? p.firstFrame : p.lastFrame}
+                              alt={w === "first" ? "首帧" : "尾帧"}
+                              className={`aspect-video w-full rounded object-cover ${frameRefining === busyKey ? "opacity-50" : ""}`}
+                            />
+                            <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[9px] text-cyan-200">
+                              {w === "first" ? "首帧" : "尾帧"}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setRefine(on ? null : { pid: p.id, which: w });
+                              setRefineReq("");
+                            }}
+                            disabled={!!frameRefining}
+                            className={`mt-1 w-full rounded border py-1 text-[11px] disabled:opacity-40 ${
+                              on ? "border-cyan-400 bg-cyan-400/10 text-cyan-100" : "border-cyan-400/40 text-cyan-200"
+                            }`}
+                          >
+                            {frameRefining === busyKey ? "AI 重画中…" : "✨ AI 改图"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {refine?.pid === p.id && (
+                    <div className="rounded-lg bg-black/30 p-2">
+                      <textarea
+                        value={refineReq}
+                        onChange={(e) => setRefineReq(e.target.value)}
+                        rows={2}
+                        maxLength={160}
+                        placeholder="例：把伞换成红色 / 去掉背景里的路人 / 光线改成黄昏"
+                        className="w-full resize-none rounded border border-slate-600 bg-black/30 px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
+                      />
+                      <button
+                        onClick={() =>
+                          void useStudio
+                            .getState()
+                            .refineProposalFrame(node.id, p.id, refine.which, refineReq)
+                            .then((ok) => {
+                              if (ok) setRefine(null);
+                            })
+                        }
+                        disabled={!refineReq.trim() || !!frameRefining}
+                        className="mt-1.5 w-full rounded-lg bg-cyan-500/80 py-1.5 text-xs font-bold text-ink disabled:opacity-40"
+                      >
+                        {frameRefining ? "重画中…" : `按要求重画${refine.which === "first" ? "首" : "尾"}帧`}
+                      </button>
+                    </div>
+                  )}
                   {switching && (
                     <div className="rounded bg-amber-500/10 px-2 py-1 text-[10px] text-amber-300">
                       ⚠ 更换方案后，原方案已延展的后续节点将被收起（切回可恢复）

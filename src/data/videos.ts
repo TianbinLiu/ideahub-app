@@ -393,6 +393,7 @@ export function publishVideo(draft: DraftVideo): VideoItem {
     branchTree: draft.branchTree,
     deck: draft.deck,
     pricing: draft.pricing,
+    merged: draft.merged,
     author: currentUser()?.name ?? ME,
     plays: 0,
     likes: 0,

@@ -135,6 +135,8 @@ export interface VideoItem {
   /** 付费设置：mode=paid 时 partPrices[i] 为第 i 个 P 的解锁价（token）。
    *  缺省 = 免费。观众解锁扣 token，平台抽成后其余进创作者 add-on 余额 */
   pricing?: VideoPricing;
+  /** 剪辑页合并导出的整条视频：发布后不可再修改（只能用同款卡组重新生成） */
+  merged?: boolean;
   author: string;
   plays: number;
   likes: number;
@@ -153,6 +155,8 @@ export interface DraftVideo {
   deck?: VideoDeck;
   /** 发布页选定的付费设置（免费/付费+每 P 价） */
   pricing?: VideoPricing;
+  /** 剪辑页已合并成单条视频（segments 长度为 1，videoUrl 为 idb: 指针） */
+  merged?: boolean;
   /**
    * 幂等键：发布时生成一次，重试沿用同一个值。
    * 服务端转存几段方舟视频要几十秒，客户端超时重发时第一次其实已经落库了——

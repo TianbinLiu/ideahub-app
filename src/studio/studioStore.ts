@@ -1,7 +1,7 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
 import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
-import { AI_REAL, MaterialFile, composeSegments, composeVideo, deriveCharacterModels, deriveDeckCards, generateCards, generateProposals, searchMarket } from "../ai";
+import { AI_REAL, MaterialFile, composeSegments, composeVideo, deriveCharacterModels, deriveDeckCards, generateCards, generateProposals, refineFrame, searchMarket } from "../ai";
 import { DECK_CAM, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, walletOf } from "../data/account";
@@ -271,6 +271,10 @@ interface StudioState {
   dropOnPlaceholder: (cardId: string, pos: [number, number, number], look: [number, number, number]) => void;
 
   clearSlot: (cardId: string) => void;
+  /** 正在 AI 改图的帧（`${proposalId}:first|last`）；null=空闲 */
+  frameRefining: string | null;
+  /** 方案设定图选帧改图：Seedream 图生图按要求重画首/尾帧并回写方案 */
+  refineProposalFrame: (nodeId: string, proposalId: string, which: "first" | "last", req: string) => Promise<boolean>;
   setVideoTier: (id: string) => void;
   /** 上传/清除本段开头帧（null=恢复默认承接上一节点尾帧） */
   setStartFrame: (dataUrl: string | null) => void;
@@ -624,6 +628,30 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set((s) =>
       s.editor ? { editor: { ...s.editor, slots: s.editor.slots.filter((id) => id !== cardId) } } : {},
     ),
+
+  frameRefining: null,
+  refineProposalFrame: async (nodeId, proposalId, which, req) => {
+    const { root, frameRefining } = get();
+    if (frameRefining || !req.trim()) return false;
+    const node = activePath(root).find((n) => n.id === nodeId);
+    const prop = node?.proposals.find((p) => p.id === proposalId);
+    if (!node || !prop) return false;
+    set({ frameRefining: `${proposalId}:${which}` });
+    try {
+      const next = await refineFrame(req.trim(), which === "first" ? prop.firstFrame : prop.lastFrame);
+      if (which === "first") prop.firstFrame = next;
+      else prop.lastFrame = next;
+      set({ root: root ? { ...root } : root });
+      get().npcSay(`${which === "first" ? "首" : "尾"}帧已按你的要求重画好了。`);
+      return true;
+    } catch (e) {
+      get().npcSay(`改图没成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}`);
+      get().setMood(-0.4, 2200);
+      return false;
+    } finally {
+      set({ frameRefining: null });
+    }
+  },
   setRequirement: (v) => set((s) => (s.editor ? { editor: { ...s.editor, requirement: v } } : {})),
   setDurationMode: (m) => set((s) => (s.editor ? { editor: { ...s.editor, durationMode: m } } : {})),
   setDurationSec: (v) => set((s) => (s.editor ? { editor: { ...s.editor, durationSec: v } } : {})),

@@ -87,6 +87,7 @@ export default function PublishPage() {
       segments: draft.segments,
       branchTree: draft.branchTree,
       deck,
+      merged: draft.merged,
       ...(paid && price > 0 ? { pricing: { mode: "paid" as const, partPrices: [price] } } : {}),
     });
     if (root) saveProject(item.id, 0, root);

@@ -11,6 +11,7 @@ import PublishPage from "./pages/PublishPage";
 import EditPage from "./pages/EditPage";
 import CardDetailPage from "./pages/CardDetailPage";
 import DeckDetailPage from "./pages/DeckDetailPage";
+import CutPage from "./pages/CutPage";
 import StudioPage from "./studio/StudioPage";
 import TabBar from "./components/TabBar";
 import { readyVideos } from "./data/videos";
@@ -73,6 +74,14 @@ export default function App() {
         element={
           <RequireAuth>
             <StudioPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/cut"
+        element={
+          <RequireAuth>
+            <CutPage />
           </RequireAuth>
         }
       />

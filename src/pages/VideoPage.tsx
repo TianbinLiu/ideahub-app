@@ -148,7 +148,16 @@ export default function VideoPage() {
             <Icon name="back" size={20} />
           </Link>
           <span className="truncate text-sm text-slate-300">{video.title}</span>
-          {isMyAuthor(video.author) ? (
+          {isMyAuthor(video.author) && video.merged ? (
+            // 合并发布的成片不可修改：只能用同款卡组回工坊重新生成
+            <Link
+              to="/studio"
+              title="合并发布的成片不可修改，可用同款卡组重新生成"
+              className="ml-auto flex-none rounded-full bg-slate-700/60 px-3 py-1.5 text-xs text-slate-300"
+            >
+              🔒 成片已定 · 用卡组再创作
+            </Link>
+          ) : isMyAuthor(video.author) ? (
             <Link
               to={`/edit/${video.id}`}
               className="ml-auto flex-none rounded-full bg-amber-500/15 px-3 py-1.5 text-xs text-amber-300"
