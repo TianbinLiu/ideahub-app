@@ -45,7 +45,7 @@ export type PlayerAvatar = "m" | "f" | "rin" | "gratia" | "tsumire";
 const DEV_AVATAR_URLS: Record<string, string> = {
   rin: "/models/protected/rin-player-opt.glbx?v=p3",
   gratia: "/models/protected/gratia-player-opt.glbx?v=p3",
-  tsumire: "/models/protected/tsumire-player.glbx?v=t1",
+  tsumire: "/models/protected/tsumire-player.glbx?v=t2",
 };
 
 export function playerModelUrl(avatar: PlayerAvatar): string {

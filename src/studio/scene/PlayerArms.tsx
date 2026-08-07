@@ -1,6 +1,6 @@
 // 玩家第一人称手臂：按所选形象（男/女）加载 Tripo 绑骨模型，
 // 摆"双臂前伸伏在桌沿"姿势，身体沉在镜头外、只露前臂与手。
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -121,6 +121,11 @@ const RIGS: Record<
     thinkDeckOnly?: boolean;
     /** 第一人称（眼位）下改用的站立姿势；不填则沿用 pose */
     standPose?: PoseTable;
+    /** 踩脚凳高度（世界单位）：矮个角色垫高用。
+     *  桌沿在 y=0.25，胸口要越过它才够得着牌桌——Tsumire 身高 3.88 单位时胸口只有
+     *  0.02，比桌沿还低 0.23，不垫高就是"趴在桌腿边"。垫高后角色整体上移，
+     *  脚下渲染一只木凳补上视觉逻辑（不然人悬空）。 */
+    standOn?: number;
   }
 > = {
   // 体格/落地重定（与 rin/gratia 同一标尺）：模型脚底=原点、局部身高 0.92，
@@ -200,21 +205,42 @@ const RIGS: Record<
     pose: TSUMIRE_POSE,
     standPose: TSUMIRE_STAND,
     hideHead: true,
-    // 摇摆骨：这个模型自带完整物理骨链（后发 4 节 ×3 股、双马尾 3 节、裙 8 片 ×3 节、
-    // 尾巴 6 节、缎带）——名字里的 haiir 是原作者的拼写，别"修正"成 hair
+    // 垫 0.55 单位（≈22cm）：胸口 0.02 → 0.57，与 rin 的 0.59 同档，稳稳越过桌沿 0.25
+    standOn: 0.55,
+    // 摇摆骨分四组。这个模型自带完整物理骨链（后发 4 节 ×3 股、双马尾 3 节、
+    // 裙 8 片 ×3 节、尾巴 6 节、缎带、猫耳）——名字里的 haiir 是原作者的拼写，
+    // 别"修正"成 hair，改了就匹配不上。
     springGroups: [
+      // 及腰长发：重力主导垂坠（重力项 ×0.1 衰减，gravity/10 ≥ stiffness 才垂得下来）
       {
-        prefixes: ["haiir_back", "twintail_", "Tail"],
+        prefixes: ["haiir_back"],
         opts: { stiffness: 2.5, drag: 0.35, gravity: 12 },
         uprightOpts: { stiffness: 5, drag: 0.3, gravity: 1.6 },
       },
+      // 双马尾：比后发硬一档。它们挂在耳侧、离胸口很近，全垂坠会被胸口碰撞球顶着
+      // 往前甩到身前（实测踩到）——保形为主、只让发梢微垂
+      {
+        prefixes: ["twintail_"],
+        opts: { stiffness: 4.5, drag: 0.35, gravity: 5 },
+        uprightOpts: { stiffness: 6, drag: 0.3, gravity: 1.6 },
+      },
+      // 猫尾：保形，不能垂。原作造型是向后翘的弧线，一旦按重力垂直挂下来就会
+      // 从裙子中间穿出去（实测：笔直插到膝盖下方）
+      { prefixes: ["Tail"], opts: { stiffness: 6, drag: 0.3, gravity: 1.2 } },
+      // 刘海/侧发/缎带/猫耳：贴脸贴头的短链，任何垂坠残态都会帘住脸，刚性保形
       { prefixes: ["Hair_Front", "Hair_Side", "ribbon", "Ear"], opts: { stiffness: 5, drag: 0.3, gravity: 1.6 } },
+      // 百褶裙 8 片：垂坠弹簧近似布料
       { prefixes: ["Skirt"], opts: { stiffness: 1.5, drag: 0.35, gravity: 20 } },
     ],
+    // 碰撞球半径按**本模型实测网格半径**给，不是照抄 rin——rin 那套（头 0.36/
+    // 胸 0.4/胯 0.36）对这个体格偏大，会把发链常年顶在球面上，表现就是双马尾
+    // 被推到身前。实测该模型各高度带的水平半径中位数：
+    //   头部带(脸身) 0.297 · 胸部带(衣物) 0.262 · 胯部带(衣物) 0.288
+    // 头球取颅骨半径而不是头发半径（0.418），否则发根直接被顶出去。
     springColliders: [
-      { bone: "mixamorig:Head", radius: 0.36 },
-      { bone: "mixamorig:Spine1", radius: 0.4, offset: [0, 0.35, 0.03] as [number, number, number] },
-      { bone: "mixamorig:Hips", radius: 0.36 },
+      { bone: "mixamorig:Head", radius: 0.3 },
+      { bone: "mixamorig:Spine1", radius: 0.27, offset: [0, 0.22, 0.02] as [number, number, number] },
+      { bone: "mixamorig:Hips", radius: 0.29 },
     ],
   },
 };
@@ -241,6 +267,39 @@ function HoverProp({ cfg }: { cfg: NonNullable<(typeof HOVER_PROPS)[PlayerAvatar
     propGltf.scene.position.set(cfg.pos[0], cfg.pos[1] + Math.sin(t * 1.6) * 0.03, cfg.pos[2]);
   });
   return <primitive object={propGltf.scene} position={cfg.pos} scale={cfg.scale} />;
+}
+
+/** 踩脚凳：矮个角色垫高用的圆木凳（程序化，不额外加载资源）。
+ *  挂在玩家 group 之下，所以跟着角色的位置与朝向走；坐标以"角色脚底"为 0 向下建。
+ *  用深木色 + 高粗糙度，与书房的木地板/木柜同材质语言。 */
+function FootStool({ height }: { height: number }) {
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#4a3626", roughness: 0.85 }), []);
+  useEffect(() => () => mat.dispose(), [mat]);
+  const r = height * 1.15; // 座面半径：略宽于高度，看着稳
+  const legR = height * 0.09;
+  const legY = -height / 2;
+  const legOff = r * 0.62;
+  return (
+    <group position={[0, -0.02, 0]}>
+      {/* 座面 */}
+      <mesh position={[0, -height * 0.12, 0]} material={mat}>
+        <cylinderGeometry args={[r, r * 0.94, height * 0.22, 20]} />
+      </mesh>
+      {/* 三条腿（三点着地不会晃） */}
+      {[0, 1, 2].map((i) => {
+        const a = (i / 3) * Math.PI * 2 + Math.PI / 6;
+        return (
+          <mesh key={i} position={[Math.sin(a) * legOff, legY, Math.cos(a) * legOff]} material={mat}>
+            <cylinderGeometry args={[legR, legR * 1.15, height * 0.78, 10]} />
+          </mesh>
+        );
+      })}
+      {/* 横撑：三条腿之间的加固环，低模也要有结构感 */}
+      <mesh position={[0, -height * 0.72, 0]} rotation={[Math.PI / 2, 0, 0]} material={mat}>
+        <torusGeometry args={[legOff, legR * 0.5, 6, 18]} />
+      </mesh>
+    </group>
+  );
 }
 
 export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
@@ -599,7 +658,7 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       if (head.scale.x !== s) head.scale.set(s, s, s);
     }
     // deckY 下沉只在卡组特写（挂到 showSelf 会让自由视角浏览时角色突然沉降）
-    const baseY = st.deckView && p2.deckY !== undefined ? p2.deckY : p2.y;
+    const baseY = (st.deckView && p2.deckY !== undefined ? p2.deckY : p2.y) + (rig.standOn ?? 0);
     if (group.current) group.current.position.set(0, baseY + (showSelf ? breathe * 0.6 : 0), p2.z);
     // 弹簧骨在姿势之后模拟（读最新世界矩阵，回写局部旋转）。
     // upright 参数只在 think 动画真实生效（真·直立特写）时切换——MMD 档卡组视角
@@ -615,8 +674,9 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
   });
 
   return (
-    <group ref={group} position={[0, pose.y, pose.z]}>
+    <group ref={group} position={[0, pose.y + (rig.standOn ?? 0), pose.z]}>
       <primitive object={gltf.scene} scale={rig.scale} />
+      {rig.standOn ? <FootStool height={rig.standOn} /> : null}
       {HOVER_PROPS[avatar] && <HoverProp cfg={HOVER_PROPS[avatar]!} />}
       {/* 玩家侧补光：烛光都在桌北，肩臂需要一点暖光才可读 */}
       <pointLight position={[0, 4.2, -0.6]} intensity={6} distance={7} color="#ffdbb0" />
