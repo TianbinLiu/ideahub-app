@@ -7,6 +7,7 @@ import { CoverSection } from "../components/CoverPicker";
 import Icon from "../components/Icon";
 import SegmentPlayer from "../components/SegmentPlayer";
 import { addCards, createDeck } from "../data/account";
+import { PLATFORM_CUT, fmtTokens } from "../data/economy";
 import { getVideo, partsOf, publishVideo, saveProject, setVideoParts, updateVideoMeta } from "../data/videos";
 import { useStudio } from "../studio/studioStore";
 import { VIDEO_CATEGORIES, formatDuration } from "../types";
@@ -22,6 +23,13 @@ export default function PublishPage() {
   const [category, setCategory] = useState(editingVideo?.category ?? draft?.category ?? "剧情");
   const [description, setDescription] = useState(editingVideo?.description ?? draft?.description ?? "");
   const [cover, setCover] = useState(editingVideo?.cover ?? draft?.cover ?? "");
+  // 付费设置：编辑模式取本 P 已有定价；全新发布默认免费
+  const [paid, setPaid] = useState(
+    (editingVideo?.pricing?.partPrices?.[editTarget?.partIndex ?? 0] ?? 0) > 0,
+  );
+  const [price, setPrice] = useState<number>(
+    editingVideo?.pricing?.partPrices?.[editTarget?.partIndex ?? 0] || 5000,
+  );
   const [err, setErr] = useState("");
 
   // 仅“直接闯入且无草稿”时送回工坊；发布成功后的 clearDraft 不应抢跳
@@ -51,11 +59,17 @@ export default function PublishPage() {
       if (editTarget.partIndex < parts.length) parts[editTarget.partIndex] = part;
       else parts.push(part);
       setVideoParts(editingVideo.id, parts);
+      // 每 P 独立定价：本次编辑只改当前 P 的价，其余 P 保持原价
+      const basePrices = editingVideo.pricing?.partPrices ?? [];
+      const partPrices = parts.map((_, i) =>
+        i === editTarget.partIndex ? (paid ? price : 0) : (basePrices[i] ?? 0),
+      );
       updateVideoMeta(editingVideo.id, {
         title: title.trim(),
         category,
         description: description.trim(),
         cover,
+        pricing: partPrices.some((p) => p > 0) ? { mode: "paid", partPrices } : { mode: "free", partPrices },
         // 编辑保存也刷新卡组（重制后素材可能换了）；无卡组的老作品保持原样
         ...(deck ? { deck } : {}),
       });
@@ -73,6 +87,7 @@ export default function PublishPage() {
       segments: draft.segments,
       branchTree: draft.branchTree,
       deck,
+      ...(paid && price > 0 ? { pricing: { mode: "paid" as const, partPrices: [price] } } : {}),
     });
     if (root) saveProject(item.id, 0, root);
     // 同名卡组落进作者自己的创意工坊（派生场景卡先入账号卡库，卡组引用才不悬空）
@@ -187,6 +202,46 @@ export default function PublishPage() {
           </div>
 
           <CoverSection cover={cover} onCover={setCover} segments={draft.segments} />
+
+          {/* 付费设置：免费 / 付费（本 P 的解锁价，观众用 token 解锁，平台抽成后进你的 add-on） */}
+          <div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300">观看权限</div>
+            <div className="flex gap-2">
+              {(["free", "paid"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setPaid(m === "paid")}
+                  className={`rounded-full px-3.5 py-1.5 text-sm ${
+                    (m === "paid") === paid ? "bg-gold font-semibold text-ink" : "bg-panel text-slate-300 hover:bg-slate-700"
+                  }`}
+                >
+                  {m === "free" ? "免费观看" : "付费解锁"}
+                </button>
+              ))}
+            </div>
+            {paid && (
+              <div className="mt-2.5 flex items-center gap-2.5 rounded-xl border border-gold/30 bg-gold/5 px-3.5 py-2.5">
+                <span className="flex-none text-xs text-slate-300">
+                  本 P 解锁价{editTarget ? `（P${(editTarget.partIndex ?? 0) + 1}）` : ""}
+                </span>
+                <input
+                  type="number"
+                  min={100}
+                  step={100}
+                  value={price}
+                  onChange={(e) => setPrice(Math.max(0, Number(e.target.value) || 0))}
+                  className="w-28 rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-sm tabular-nums text-gold outline-none focus:border-gold"
+                />
+                <span className="flex-none text-xs text-slate-400">token</span>
+                <span className="ml-auto flex-none text-[11px] text-slate-500">
+                  你到手 {fmtTokens(Math.floor(price * (1 - PLATFORM_CUT)))}（平台抽 {Math.round(PLATFORM_CUT * 100)}%）
+                </span>
+              </div>
+            )}
+            <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+              付费收益进入你的 add-on token，可直接用于生成视频——多 P 作品可在各 P 编辑时分别定价。
+            </p>
+          </div>
 
           <div className="flex items-center gap-3 pt-2">
             <button onClick={publish} className="rounded-xl bg-brand px-6 py-2.5 font-bold text-ink hover:brightness-110">

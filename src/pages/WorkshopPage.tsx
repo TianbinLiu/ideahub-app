@@ -23,10 +23,13 @@ import { searchMarket } from "../ai";
 import TarotCard from "../components/TarotCard";
 import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType } from "../types";
 
-function CardTile({ card, onRemove }: { card: Card; onRemove?: () => void }) {
+function CardTile({ card, onRemove, to }: { card: Card; onRemove?: () => void; to?: string }) {
+  const face = (
+    <TarotCard cover={card.cover || null} title={card.name} sub={CARD_TYPE_LABELS[card.type]} type={card.type} />
+  );
   return (
     <div className="group relative">
-      <TarotCard cover={card.cover || null} title={card.name} sub={CARD_TYPE_LABELS[card.type]} type={card.type} />
+      {to ? <Link to={to}>{face}</Link> : face}
       {onRemove && (
         <button
           onClick={onRemove}
@@ -153,7 +156,7 @@ export default function WorkshopPage() {
           {cards.length > 0 && (
             <div className="mb-5 grid grid-cols-3 gap-2.5">
               {cards.map((c) => (
-                <CardTile key={c.id} card={c} onRemove={() => removeCard(c.id)} />
+                <CardTile key={c.id} card={c} to={`/card/${c.id}`} onRemove={() => removeCard(c.id)} />
               ))}
             </div>
           )}
@@ -281,12 +284,14 @@ export default function WorkshopPage() {
               return (
                 <div key={d.id} className="rounded-xl border border-slate-700/60 bg-panel p-3">
                   <div className="flex items-center gap-2">
-                    {/* 封面卡缩略：卡组的"脸"，与 3D 工坊选卡组窗里的展示一致 */}
-                    {cover ? (
-                      <img src={cover.cover} alt={cover.name} className="h-11 w-8 flex-none rounded-md object-cover" />
-                    ) : (
-                      <div className="flex h-11 w-8 flex-none items-center justify-center rounded-md bg-slate-800 text-sm">🎴</div>
-                    )}
+                    {/* 封面卡缩略：点它进卡组详情页（标题/简介/卡片全览） */}
+                    <Link to={`/deck/${d.id}`} className="flex-none">
+                      {cover ? (
+                        <img src={cover.cover} alt={cover.name} className="h-11 w-8 rounded-md object-cover" />
+                      ) : (
+                        <div className="flex h-11 w-8 items-center justify-center rounded-md bg-slate-800 text-sm">🎴</div>
+                      )}
+                    </Link>
                     <input
                       value={d.name}
                       onChange={(e) => updateDeck(d.id, { name: e.target.value })}

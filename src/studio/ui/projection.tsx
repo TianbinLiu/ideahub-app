@@ -4,11 +4,36 @@
 // decks = 卡组选择（两段式第一步；选中后回第一人称把该组卡摊上桌）
 import { useMemo, useState } from "react";
 import { deckCoverOf, myCards, myDecks } from "../../data/account";
+import { VIDEO_TIERS, fmtTokens, segTokens } from "../../data/economy";
 import TarotCard from "../../components/TarotCard";
 import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType } from "../../types";
 import { activePath, chosenProposal, useStudio } from "../studioStore";
 import { computeChain } from "../scene/TableScene";
 import { CHAIN, focusCam } from "../scene/layout";
+
+/** 本地图 → 开头帧 dataURL：超宽的压到 1600px（Seedream 参考图/Seedance 首帧都收 dataURL，
+ *  原图 base64 动辄 5MB+，白白撑大草稿） */
+async function fileToFrameDataUrl(file: File): Promise<string> {
+  const raw = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = raw;
+  });
+  const maxW = 1600;
+  if (img.width <= maxW) return raw;
+  const c = document.createElement("canvas");
+  c.width = maxW;
+  c.height = Math.round((img.height * maxW) / img.width);
+  c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.87);
+}
 
 export default function ProjectionWindow() {
   const projection = useStudio((s) => s.projection);
@@ -213,32 +238,64 @@ function EditorPanel() {
       </div>
 
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden p-3">
-        {/* 左：本段空白首尾帧栏位（生成后由所选方案填充）+ 承接预览，撑满整列 */}
+        {/* 左：开头帧（默认承接上一段尾帧，可上传本地图替换）+ 尾帧占位，撑满整列 */}
         <div className="flex w-[124px] flex-none flex-col gap-2">
-          {["首帧", "尾帧"].map((label) => (
-            <div key={label} className="relative">
-              <div className="flex aspect-video w-full items-center justify-center rounded-lg border-2 border-dashed border-cyan-400/30 bg-slate-800/40 text-[10px] text-slate-500">
-                空白
-              </div>
-              <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[10px] text-cyan-200">{label}</span>
+          {(() => {
+            const effStart = editor.startFrame ?? prev?.lastFrame ?? null;
+            return (
+              <>
+                <div className="relative">
+                  {effStart ? (
+                    <img src={effStart} alt="开头帧" className="aspect-video w-full rounded-lg object-cover" />
+                  ) : (
+                    <div className="flex aspect-video w-full items-center justify-center rounded-lg border-2 border-dashed border-cyan-400/30 bg-slate-800/40 text-[10px] text-slate-500">
+                      AI 自拟
+                    </div>
+                  )}
+                  <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[10px] text-cyan-200">开头帧</span>
+                  {effStart && (
+                    <span className="absolute inset-x-0 bottom-0 rounded-b-lg bg-black/60 px-1 py-0.5 text-center text-[9px] text-cyan-200">
+                      {editor.startFrame ? "已用你上传的图" : "承接上一段尾帧"}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-1">
+                  <label className="flex-1 cursor-pointer rounded-lg border border-slate-600 py-1 text-center text-[10px] text-slate-300 hover:border-cyan-400">
+                    上传本地图
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={editor.generating}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!f) return;
+                        void fileToFrameDataUrl(f).then((d) => useStudio.getState().setStartFrame(d));
+                      }}
+                    />
+                  </label>
+                  {editor.startFrame && (
+                    <button
+                      onClick={() => useStudio.getState().setStartFrame(null)}
+                      className="rounded-lg border border-slate-600 px-1.5 text-[10px] text-slate-400"
+                      title={prev ? "恢复为承接上一段尾帧" : "清除上传的开头帧"}
+                    >
+                      恢复
+                    </button>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+          <div className="relative">
+            <div className="flex aspect-video w-full items-center justify-center rounded-lg border-2 border-dashed border-cyan-400/30 bg-slate-800/40 text-[10px] text-slate-500">
+              空白
             </div>
-          ))}
-          <div className="text-center text-[10px] leading-4 text-slate-500">生成后由所选方案决定</div>
-          {/* 承接预览挪到左列底部：与首尾帧同宽，吃掉左列空白 */}
-          <div className="mt-auto">
-            <div className="mb-1 text-[10px] font-semibold text-slate-400">承接画面</div>
-            {prev ? (
-              <div className="relative">
-                <img src={prev.lastFrame} alt="上一段尾帧" className="aspect-video w-full rounded-lg object-cover" />
-                <span className="absolute inset-x-0 bottom-0 rounded-b-lg bg-black/60 px-1 py-0.5 text-center text-[9px] text-cyan-200">
-                  上一段尾帧 → 本段首帧
-                </span>
-              </div>
-            ) : (
-              <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-slate-800/30 text-[10px] text-slate-500">
-                首段 · 无承接
-              </div>
-            )}
+            <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[10px] text-cyan-200">尾帧</span>
+          </div>
+          <div className="text-center text-[10px] leading-4 text-slate-500">
+            尾帧由所选方案决定；视频将从开头帧无缝续拍
           </div>
         </div>
 
@@ -376,6 +433,39 @@ function EditorPanel() {
             <span className="flex-none text-xs text-slate-400" title="留空由 AI 决定；可填 2-15">
               秒
             </span>
+          </div>
+
+          {/* ⑤ 生成档位：Seedance 模型分级，按档位×时长预估本段合成 token 消耗 */}
+          <div className="flex-none">
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="text-xs font-semibold text-slate-300">视频档位</span>
+              <span className="text-[10px] text-slate-500">合成本段预计消耗</span>
+            </div>
+            <div className="flex gap-1.5">
+              {VIDEO_TIERS.map((t) => {
+                const est = segTokens(editor.durationMode === "manual" ? editor.durationSec : 6, t.id);
+                const on = editor.videoTier === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => useStudio.getState().setVideoTier(t.id)}
+                    disabled={editor.generating}
+                    title={t.desc}
+                    className={`flex-1 rounded-lg border px-1 py-1 text-center transition ${
+                      on
+                        ? "border-cyan-400 bg-cyan-400/10 text-cyan-100"
+                        : "border-slate-600 text-slate-400 hover:border-slate-400"
+                    }`}
+                  >
+                    <div className="text-[11px] font-semibold">{t.label}</div>
+                    <div className="tabular-nums text-[9px] opacity-80">
+                      {editor.durationMode === "manual" ? "" : "约 "}
+                      {fmtTokens(est)} token
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

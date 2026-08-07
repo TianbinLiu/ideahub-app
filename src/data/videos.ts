@@ -290,7 +290,7 @@ export function partsOf(v: VideoItem): VideoPart[] {
  *  服务端未实现该端点时 toast 报错、本地值保留到下次刷新——诚实降级而非静默丢失。 */
 export function updateVideoMeta(
   id: string,
-  patch: Partial<Pick<VideoItem, "title" | "category" | "description" | "cover" | "deck">>,
+  patch: Partial<Pick<VideoItem, "title" | "category" | "description" | "cover" | "deck" | "pricing">>,
 ): VideoItem | null {
   const v = find(id);
   if (!v) return null;
@@ -392,6 +392,7 @@ export function publishVideo(draft: DraftVideo): VideoItem {
     segments: draft.segments,
     branchTree: draft.branchTree,
     deck: draft.deck,
+    pricing: draft.pricing,
     author: currentUser()?.name ?? ME,
     plays: 0,
     likes: 0,

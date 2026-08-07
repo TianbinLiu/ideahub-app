@@ -136,6 +136,10 @@ export interface ProposalContext {
   durationSec: number;
   /** 上一段已选方案的画面种子（保证首帧承接上一段尾帧色调） */
   prevFrameSeed: string | null;
+  /** 本段的确定开头帧（dataURL）：默认=上一节点已选方案的尾帧，
+   *  用户也可在节点卡里上传本地图替换。有值时三个方案共用它当首帧，
+   *  视频直接从这一画面继续（真正的段间无缝衔接） */
+  startFrame: string | null;
   /** 已选路径的剧情，用于“沿路径续写” */
   pathPlots: string[];
 }
@@ -191,8 +195,9 @@ export async function generateProposals(ctx: ProposalContext): Promise<Proposal[
       id,
       title,
       plot: sentences.join(""),
-      // 三个方案的首帧共享上一段尾帧的色调（承接）；尾帧展开各自的新色调
-      firstFrame: makeFrame(`${id}#first`, `${title} · 首帧`, ctx.prevFrameSeed ?? `${id}#first`),
+      // 有确定开头帧（上一段尾帧/用户上传）时直接沿用——mock 也保持"无缝衔接"语义；
+      // 否则三个方案的首帧共享上一段尾帧的色调（承接）
+      firstFrame: ctx.startFrame ?? makeFrame(`${id}#first`, `${title} · 首帧`, ctx.prevFrameSeed ?? `${id}#first`),
       lastFrame: makeFrame(`${id}#last`, `${title} · 尾帧`, `${id}#last`),
       durationSec,
     };

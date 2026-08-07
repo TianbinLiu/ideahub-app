@@ -13,10 +13,12 @@ const BASE = "/api/ark";
 // Seed-2.1-turbo（50 万 tokens）。Seedance 2.0 系列需账户余额>200 元才能开通，暂不可用。
 export const MODELS = {
   image: "doubao-seedream-5-0-260128",
-  // 实测可创建任务的视频模型只有 1.0-pro 系列：1.5-pro 控制台显示"已开通"但 API 报
-  // NotFound（Retiring 状态不受理新任务）、2.0 系列 ModelNotOpen（需余额>200 元）
+  // 默认视频模型 = 标准档；档位目录见 data/economy VIDEO_TIERS，
+  // generateVideo 可传 opts.model 覆盖（节点卡里用户选档）
   video: "doubao-seedance-1-0-pro-250528",
   chat: "doubao-seed-2-1-turbo-260628",
+  // 3D 建模：2.4 元/次出带纹理+PBR 的 3D 文件（2026-08-06 /models 列表确认在册）
+  model3d: "doubao-seed3d-2-0-260328",
 };
 
 /** 带超时的 Ark 请求。fetch 没有默认超时——网络一卡整个工坊就"假死"在加载态。
@@ -79,6 +81,8 @@ export async function generateVideo(
   opts?: {
     durationSec?: number;
     lastFrameUrl?: string;
+    /** 覆盖默认视频模型（节点卡选档：极速/标准/高清） */
+    model?: string;
     onProgress?: (status: string) => void;
   },
 ): Promise<string> {
@@ -96,7 +100,7 @@ export async function generateVideo(
     {
       method: "POST",
       body: JSON.stringify({
-        model: MODELS.video,
+        model: opts?.model ?? MODELS.video,
         content,
         resolution: "720p",
         ratio: "16:9",
@@ -134,6 +138,56 @@ export async function generateVideo(
     }
   }
   throw new Error("Seedance 任务超时（10 分钟）");
+}
+
+/**
+ * Seed3D 图生 3D 建模：与视频同一个 tasks 端点（异步任务），输入一张主体图，
+ * 产出带纹理+PBR 材质的 3D 文件 URL（TOS 域 24h 时效，调用方要落地转存）。
+ * 3D 风格视频的派生角色卡用它自动挂建模（约 2.4 元/次，只对 3D 画风开）。
+ */
+export async function generate3dModel(
+  imageUrl: string,
+  onProgress?: (status: string) => void,
+): Promise<string> {
+  const created = await arkFetch<{ id: string }>(
+    "/contents/generations/tasks",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        model: MODELS.model3d,
+        content: [{ type: "image_url", image_url: { url: imageUrl } }],
+      }),
+    },
+    30_000,
+  );
+  const t0 = Date.now();
+  let pollFails = 0;
+  // 实测建模比视频慢（数分钟量级），上限放到 10 分钟
+  for (let i = 0; i < 120; i++) {
+    await new Promise((r) => setTimeout(r, 5000));
+    let st: {
+      status: string;
+      content?: { file_url?: string; video_url?: string; url?: string };
+      error?: { message?: string };
+    };
+    try {
+      st = await arkFetch(`/contents/generations/tasks/${created.id}`, undefined, 20_000);
+      pollFails = 0;
+    } catch (e) {
+      if (++pollFails >= 5) throw e;
+      continue;
+    }
+    onProgress?.(`建模${st.status === "running" ? "生成中" : st.status} ${Math.round((Date.now() - t0) / 1000)}s`);
+    if (st.status === "succeeded") {
+      const url = st.content?.file_url ?? st.content?.url ?? st.content?.video_url;
+      if (!url) throw new Error("Seed3D 任务成功但未返回文件 URL");
+      return url;
+    }
+    if (st.status === "failed" || st.status === "cancelled") {
+      throw new Error(`Seed3D 任务${st.status}: ${st.error?.message ?? ""}`);
+    }
+  }
+  throw new Error("Seed3D 任务超时（10 分钟）");
 }
 
 /** 豆包对话（剧情文案生成）。

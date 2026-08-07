@@ -1,10 +1,11 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
 import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
-import { MaterialFile, composeSegments, composeVideo, deriveDeckCards, generateCards, generateProposals, searchMarket } from "../ai";
+import { AI_REAL, MaterialFile, composeSegments, composeVideo, deriveCharacterModels, deriveDeckCards, generateCards, generateProposals, searchMarket } from "../ai";
 import { DECK_CAM, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { addCards as saveCardsToAccount, myCards, myDecks } from "../data/account";
+import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, walletOf } from "../data/account";
+import { DEFAULT_TIER, composeCost, fmtTokens, segTokens } from "../data/economy";
 import { getVideo, loadProject, partsOf } from "../data/videos";
 
 export interface DialogMsg {
@@ -30,6 +31,10 @@ export interface EditorState {
   requirement: string;
   durationMode: "ai" | "manual";
   durationSec: number;
+  /** 本段 Seedance 档位（极速/标准/高清）——决定合成 token 消耗，见 data/economy */
+  videoTier: string;
+  /** 用户上传的本段开头帧（dataURL）；null=沿用上一节点尾帧（无上节点则 AI 自拟） */
+  startFrame: string | null;
   generating: boolean;
   /** 生成期间的实时阶段播报（真实 AI 全程约 1-1.5 分钟，没进度=卡死体感） */
   progress: string;
@@ -266,6 +271,9 @@ interface StudioState {
   dropOnPlaceholder: (cardId: string, pos: [number, number, number], look: [number, number, number]) => void;
 
   clearSlot: (cardId: string) => void;
+  setVideoTier: (id: string) => void;
+  /** 上传/清除本段开头帧（null=恢复默认承接上一节点尾帧） */
+  setStartFrame: (dataUrl: string | null) => void;
   setRequirement: (v: string) => void;
   setDurationMode: (m: "ai" | "manual") => void;
   setDurationSec: (v: number) => void;
@@ -292,6 +300,8 @@ const DEFAULT_EDITOR: EditorState = {
   requirement: "",
   durationMode: "ai",
   durationSec: 6,
+  videoTier: DEFAULT_TIER,
+  startFrame: null,
   generating: false,
   progress: "",
 };
@@ -617,6 +627,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
   setRequirement: (v) => set((s) => (s.editor ? { editor: { ...s.editor, requirement: v } } : {})),
   setDurationMode: (m) => set((s) => (s.editor ? { editor: { ...s.editor, durationMode: m } } : {})),
   setDurationSec: (v) => set((s) => (s.editor ? { editor: { ...s.editor, durationSec: v } } : {})),
+  setVideoTier: (id) => set((s) => (s.editor ? { editor: { ...s.editor, videoTier: id } } : {})),
+  setStartFrame: (dataUrl) => set((s) => (s.editor ? { editor: { ...s.editor, startFrame: dataUrl } } : {})),
   closeEditor: () => set({ editor: null }),
 
   generateNode: async () => {
@@ -658,12 +670,23 @@ export const useStudio = create<StudioState>()((set, get) => ({
           durationMode: editor.durationMode,
           durationSec: editor.durationSec,
           prevFrameSeed: prev ? `${prev.id}#last` : null,
+          // 段间无缝衔接：开头帧 = 用户上传的本地图 > 上一节点已选方案的尾帧 > 无（AI 自拟）
+          startFrame: editor.startFrame ?? prev?.lastFrame ?? null,
           pathPlots: path.map((n) => chosenProposal(n)?.plot ?? "").filter(Boolean),
         },
         (status) => patchLive({ progress: status }),
       );
-      // 素材快照存进节点：发布时聚合成"本片卡组"，观众可收入同款素材复刻
-      const node: NodeSlot = { id: uid("node"), proposals, chosenId: null, children: {}, materials };
+      // 素材快照存进节点：发布时聚合成"本片卡组"，观众可收入同款素材复刻；
+      // 档位随节点走，合成该段时按它选 Seedance 模型与计费
+      const node: NodeSlot = {
+        id: uid("node"),
+        proposals,
+        chosenId: null,
+        children: {},
+        materials,
+        videoTier: editor.videoTier,
+        requirement: editor.requirement,
+      };
       // 只有发起时的编辑器仍然打开才由本次生成负责关闭（取消后重开的新表单不受影响）
       const editorPatch = get().editor === live ? { editor: null as EditorState | null } : {};
       const curRoot = get().root;
@@ -722,18 +745,31 @@ export const useStudio = create<StudioState>()((set, get) => ({
   composeNow: async () => {
     const { root, composing } = get();
     if (composing || !composable(root)) return;
-    set({ composing: true, composeStatus: "" });
-    await composeVideo();
     const path = activePath(root);
     const chosen = path.map((n) => chosenProposal(n)).filter((p): p is Proposal => !!p);
-    const segments = chosen.map((p) => ({
+    const segments = chosen.map((p, i) => ({
       title: p.title,
       plot: p.plot,
       firstFrame: p.firstFrame,
       lastFrame: p.lastFrame,
       durationSec: p.durationSec,
       degraded: p.degraded,
+      videoTier: path[i]?.videoTier,
     }));
+    // 余额门槛：合成前把整片 token 报给用户，不够先拦下（免得炼到一半没钱尴尬）。
+    // 只对真实 AI 构建收费——mock 构建不产生真实资源消耗。
+    const cost = composeCost(segments);
+    if (AI_REAL && cost > 0 && !canAfford(cost)) {
+      const w = walletOf();
+      get().npcSay(
+        `合成这部片约需 ${fmtTokens(cost)} token，你的余额只剩 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))}` +
+          `——去「我的」页充值或订阅套餐，回来再点合成。`,
+      );
+      get().setMood(-0.3, 2400);
+      return;
+    }
+    set({ composing: true, composeStatus: "" });
+    await composeVideo();
     // 真实 AI 构建：逐段 Seedance 首尾帧生成视频（每段约 1 分钟，真实进度打到合成遮罩）；
     // mock 构建下 composeSegments 返回空结果，播放器回退首尾帧渐变
     const results = await composeSegments(segments, (done, total, status) => {
@@ -741,6 +777,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
       set({ composeStatus: `第 ${done + 1}/${total} 段 · ${status}` });
       if (status === "任务创建中…") get().npcSay(`正在炼制第 ${done + 1}/${total} 段影像…`);
     });
+    // 计费：按成功炼成的段扣 token（先套餐后 add-on）——与方舟"成功才计费"同一口径
+    if (AI_REAL) {
+      for (let i = 0; i < results.length; i++) {
+        if (results[i]?.url) spendTokens(segTokens(segments[i].durationSec, segments[i].videoTier));
+      }
+    }
     const videoByProposal: Record<string, string> = {};
     const withVideo = segments.map((sg, i) => {
       const r = results[i] ?? {};
@@ -757,6 +799,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         firstFrame: chosen[i].firstFrame,
         lastFrame: chosen[i].lastFrame,
         durationSec: sg.durationSec,
+        videoTier: sg.videoTier,
         ...(r.url ? { videoUrl: r.url } : {}),
       };
     });
@@ -791,7 +834,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
         (s) => set({ composeStatus: s }),
       );
       const names = new Set(deckCards.map((c) => c.name));
-      deckCards.push(...derived.filter((c) => !names.has(c.name)));
+      const fresh = derived.filter((c) => !names.has(c.name));
+      deckCards.push(...fresh);
+      // 3D 画风的作品：给派生的角色卡自动铸 3D 建模（Seed3D，上限 2 张）。
+      // 依据 = 风格卡名 + 各节点的视频要求快照 + 分段剧情里的 3D 语汇
+      const styleBlob = [styleHint, ...path.map((n) => n.requirement ?? ""), ...withVideo.map((s) => s.plot)].join(" ");
+      if (/3d|三维|立体感|cg|建模|皮克斯|pixar|渲染/i.test(styleBlob)) {
+        await deriveCharacterModels(fresh, 2, (s) => set({ composeStatus: s }));
+      }
     } catch (e) {
       console.warn("[studio] 卡组提炼回退按段场景卡:", e);
       if (deckCards.length === 0) {

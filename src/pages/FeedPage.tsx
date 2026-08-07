@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { addPlay, isLiked, isMyAuthor, listVideos, setLike } from "../data/videos";
-import { isCollected, isFollowing, toggleCollect, toggleFollow } from "../data/account";
+import { hasPurchased, isCollected, isFollowing, toggleCollect, toggleFollow } from "../data/account";
+import { fmtTokens } from "../data/economy";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
 import Avatar from "../components/Avatar";
@@ -119,6 +120,9 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
   const seg = video.segments[0];
   const isInteractive = !!video.branchTree;
   const mine = isMyAuthor(video.author);
+  // 付费未解锁：流里只出封面（不给白嫖流量费），点它去详情页解锁
+  const lockPrice = video.pricing?.mode === "paid" ? (video.pricing.partPrices[0] ?? 0) : 0;
+  const locked = lockPrice > 0 && !mine && !hasPurchased(video.id, 0);
 
   // 只有当前屏和相邻一屏挂 src：全部同时挂会在首屏并发拉 N 条流，
   // 而且 Android WebView 的硬解码器通常只有 4-8 个，超了直接黑屏。
@@ -211,8 +215,23 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
       onPointerDown={onDown}
       onPointerUp={onUp}
     >
-      {/* 画面：有真实视频用 video，否则封面兜底。远处的屏只放封面图，不挂视频源 */}
-      {seg?.videoUrl && wantSrc ? (
+      {/* 画面：有真实视频用 video，否则封面兜底。远处的屏只放封面图，不挂视频源；
+          付费未解锁只出封面 + 解锁引导 */}
+      {locked ? (
+        <>
+          <img src={video.cover} alt={video.title} className="absolute inset-0 h-full w-full object-cover blur-[3px] brightness-[.45]" />
+          <button
+            onClick={() => navigate(`/video/${video.id}`)}
+            className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2"
+          >
+            <span className="text-3xl">🔒</span>
+            <span className="rounded-full bg-gold px-4 py-1.5 text-sm font-bold text-ink">
+              ⚡ {fmtTokens(lockPrice)} token 解锁
+            </span>
+            <span className="text-[11px] text-white/70">付费作品 · 点击进入解锁</span>
+          </button>
+        </>
+      ) : seg?.videoUrl && wantSrc ? (
         <video
           ref={videoRef}
           src={seg.videoUrl}

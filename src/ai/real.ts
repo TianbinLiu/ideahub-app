@@ -5,7 +5,9 @@ import { Card, CardType, Proposal, uid } from "../types";
 import { makeCover, makeFrame } from "../mock/frames";
 import type { MaterialFile, ProposalContext } from "../mock/ai";
 import * as mock from "../mock/ai";
-import { FRAME_SIZE, chat, generateImage, generateVideo } from "./arkClient";
+import { tierOf } from "../data/economy";
+import { idbSet } from "../data/db";
+import { FRAME_SIZE, chat, generate3dModel, generateImage, generateVideo } from "./arkClient";
 
 /** 方舟返回的图片 URL 有时效（约 24h），落地成 dataURL 再入库（草稿存 localStorage） */
 async function toDataUrl(url: string): Promise<string> {
@@ -116,6 +118,10 @@ export async function generateProposals(
     const raw = await chat(
       "你是互动视频编剧。基于素材与要求，为同一段视频写 3 个不同走向（顺势推进/风云突变/柳暗花明），输出 JSON 数组：[{\"title\":\"12字内标题\",\"plot\":\"80-120字剧情，画面感强，小说式\",\"durationSec\":4到9的整数}]。只输出 JSON。",
       `这是第${ctx.index + 1}段。素材：${mats}\n要求：${ctx.requirement || "无"}\n已定前情：${ctx.pathPlots.join(" / ") || "无"}${
+        ctx.startFrame
+          ? "\n注意：本段开头画面已经确定（上一段的收尾画面），剧情必须从那一瞬间直接继续——人物、场景、天气、光线都要连贯，不要另起炉灶。"
+          : ""
+      }${
         ctx.durationMode === "manual" ? `\n用户指定时长：${ctx.durationSec}秒（durationSec 用这个值）` : ""
       }`,
     );
@@ -133,35 +139,42 @@ export async function generateProposals(
     id: uid("prop"),
     durationSec: ctx.durationMode === "manual" ? ctx.durationSec : Math.min(9, Math.max(4, p.durationSec || 5)),
   }));
-  const refs = ctx.prevFrameSeed?.startsWith("data:") ? [ctx.prevFrameSeed] : undefined;
+  // 段间无缝衔接：开头帧已定（上一段尾帧/用户上传的本地图）时，三个方案共用它当首帧，
+  // 只需给每个方案画一张尾帧（图量减半），且尾帧以开头帧作参考图保持人物与画风一致。
+  const startFrame = ctx.startFrame?.startsWith("data:") ? ctx.startFrame : null;
+  const refs = startFrame ? [startFrame] : ctx.prevFrameSeed?.startsWith("data:") ? [ctx.prevFrameSeed] : undefined;
   // 顺序固定为 [方案0首帧, 方案0尾帧, 方案1首帧, …]，与最终 results[pi*2] 取值对应
-  const jobs = three.flatMap((p) => (["first", "last"] as const).map((which) => ({ p, which })));
+  const jobs = three.flatMap((p) =>
+    (startFrame ? (["last"] as const) : (["first", "last"] as const)).map((which) => ({ p, which })),
+  );
   let doneCount = 0;
-  onProgress?.(`剧情就绪，绘制首尾帧 0/${jobs.length}…`);
+  onProgress?.(startFrame ? `承接上段尾帧，绘制收尾画面 0/${jobs.length}…` : `剧情就绪，绘制首尾帧 0/${jobs.length}…`);
   const results = await mapLimit(jobs, 3, async ({ p, which }) => {
-    const prompts = framePrompts(p.plot, !!refs && which === "first");
+    const prompts = framePrompts(p.plot, !!refs);
     const prompt = which === "first" ? prompts.first : prompts.last;
-    const useRefs = which === "first" ? refs : undefined;
+    // 有确定开头帧时尾帧也带它当参考（人物/画风连贯）；否则仅首帧带上一段色调参考
+    const useRefs = which === "first" || startFrame ? refs : undefined;
     let frame: string | null = null;
     try {
       frame = await genImageAsDataUrl(prompt, useRefs, FRAME_SIZE);
     } catch {
       try {
         // 带参考图失败可能是参考图本身不被受理——去掉参考图再试一次
-        frame = await genImageAsDataUrl(which === "first" ? framePrompts(p.plot, false).first : prompt, undefined, FRAME_SIZE);
+        frame = await genImageAsDataUrl(framePrompts(p.plot, false)[which], undefined, FRAME_SIZE);
       } catch (e2) {
         console.warn(`[ai] ${p.title} ${which} 帧两次失败:`, e2);
       }
     }
     doneCount++;
-    onProgress?.(`绘制首尾帧 ${doneCount}/${jobs.length}…`);
+    onProgress?.(`绘制画面 ${doneCount}/${jobs.length}…`);
     return frame;
   });
 
+  const per = startFrame ? 1 : 2;
   return three.map((p, pi) => {
     const title = `第${ctx.index + 1}段 · ${p.title}`;
-    const firstFrame = results[pi * 2];
-    const lastFrame = results[pi * 2 + 1];
+    const firstFrame = startFrame ?? results[pi * per];
+    const lastFrame = results[pi * per + (startFrame ? 0 : 1)];
     const degraded = !firstFrame || !lastFrame;
     return {
       id: p.id,
@@ -219,12 +232,18 @@ export async function deriveDeckCards(
   await mapLimit(jobs, 3, async (d) => {
     const type = d.type as CardType;
     try {
-      const cover = await genImageAsDataUrl(
-        `${TYPE_LABEL[type]}：${d.name}。${d.imagePrompt ?? d.summary ?? ""}。${styleHint ? `画风：${styleHint}。` : ""}${STYLE_SUFFIX}`,
-        undefined,
-        "1728x2304",
-      );
-      out.push({ id: uid("card"), type, name: d.name!.slice(0, 8), summary: (d.summary ?? "").slice(0, 60), cover });
+      // 完整生成提示词随卡保存（生成蓝图）：卡片详情页展示，
+      // 后续用它就能复刻出与卡面一致的画面/建模
+      const genPrompt = `${TYPE_LABEL[type]}：${d.name}。${d.imagePrompt ?? d.summary ?? ""}。${styleHint ? `画风：${styleHint}。` : ""}${STYLE_SUFFIX}`;
+      const cover = await genImageAsDataUrl(genPrompt, undefined, "1728x2304");
+      out.push({
+        id: uid("card"),
+        type,
+        name: d.name!.slice(0, 8),
+        summary: (d.summary ?? "").slice(0, 60),
+        cover,
+        genPrompt,
+      });
     } catch (e) {
       console.warn(`[ai] 派生卡「${d.name}」卡面失败:`, e);
     }
@@ -233,6 +252,70 @@ export async function deriveDeckCards(
   });
   if (out.length === 0) throw new Error("派生卡面全部失败");
   return out;
+}
+
+/**
+ * Seed3D 产物是 zip 包（实测 2026-08-07：包内单个自包含 pbr/mesh_textured_pbr.glb，36MB 级）。
+ * 浏览器侧按中央目录定位 .glb 条目并 DecompressionStream 解出 GLB blob——
+ * 不引 JSZip，standard deflate 足够。
+ */
+async function glbFromArkZip(zipUrl: string): Promise<Blob> {
+  const res = await fetch(`/api/asset?url=${encodeURIComponent(zipUrl)}`, { signal: AbortSignal.timeout(180_000) });
+  if (!res.ok) throw new Error(`取建模包失败 ${res.status}`);
+  const buf = new Uint8Array(await res.arrayBuffer());
+  const u16 = (i: number) => buf[i] | (buf[i + 1] << 8);
+  const u32 = (i: number) => (buf[i] | (buf[i + 1] << 8) | (buf[i + 2] << 16) | (buf[i + 3] << 24)) >>> 0;
+  // 中央目录（PK\x01\x02）里 size/offset 恒可信（本地头可能用 data descriptor 置零）
+  for (let i = 0; i + 46 <= buf.length; i++) {
+    if (buf[i] !== 0x50 || buf[i + 1] !== 0x4b || buf[i + 2] !== 0x01 || buf[i + 3] !== 0x02) continue;
+    const method = u16(i + 10);
+    const compSize = u32(i + 20);
+    const nameLen = u16(i + 28);
+    const extraLen = u16(i + 30);
+    const commentLen = u16(i + 32);
+    const localOff = u32(i + 42);
+    const name = new TextDecoder().decode(buf.subarray(i + 46, i + 46 + nameLen));
+    if (name.toLowerCase().endsWith(".glb")) {
+      // 本地头：PK\x03\x04 + 26 字节定长 + 名字/扩展区，数据紧随其后
+      const lnLen = u16(localOff + 26);
+      const lexLen = u16(localOff + 28);
+      const dataStart = localOff + 30 + lnLen + lexLen;
+      const raw = buf.subarray(dataStart, dataStart + compSize);
+      if (method === 0) return new Blob([raw], { type: "model/gltf-binary" });
+      const stream = new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      return new Blob([await new Response(stream).arrayBuffer()], { type: "model/gltf-binary" });
+    }
+    i += 45 + nameLen + extraLen + commentLen;
+  }
+  throw new Error("建模包里没有 .glb 文件");
+}
+
+/**
+ * 3D 风格视频的角色卡自动建模：Seed3D 按卡面出带纹理+PBR 的 3D 文件（约 2.4 元/张）。
+ * GLB 36MB 级——存 IndexedDB blob 仓（key=model3d:<cardId>），卡上只挂 `idb:` 指针
+ * （塞 dataURL 会把嵌进作品的卡组 JSON 撑到几十 MB）。CardHologram 会解析该指针。
+ * 上限 maxCount 张、单张失败不阻断其余（建模挂了卡本身还在）。
+ */
+export async function deriveCharacterModels(
+  cards: Card[],
+  maxCount = 2,
+  onProgress?: (status: string) => void,
+): Promise<void> {
+  const targets = cards.filter((c) => c.type === "character" && !c.modelUrl).slice(0, maxCount);
+  for (let i = 0; i < targets.length; i++) {
+    const card = targets[i];
+    try {
+      onProgress?.(`为「${card.name}」铸造 3D 建模 ${i + 1}/${targets.length}…`);
+      const url = await generate3dModel(card.cover, (s) => onProgress?.(`「${card.name}」${s}`));
+      onProgress?.(`「${card.name}」建模下载解包中…`);
+      const blob = await glbFromArkZip(url);
+      const key = `model3d:${card.id}`;
+      if (!(await idbSet(key, blob))) throw new Error("建模落库失败（存储配额？）");
+      card.modelUrl = `idb:${key}`;
+    } catch (e) {
+      console.warn(`[ai] 角色卡「${card.name}」建模失败（跳过）:`, e);
+    }
+  }
 }
 
 /** 封面工坊：按用户要求出封面。refDataUrl 给了就是"改当前封面"（Seedream 图生图，
@@ -260,7 +343,15 @@ export interface SegmentResult {
  * 拿占位渐变图去让 Seedance 动起来，产出的"视频"与剧情毫无关系。
  */
 export async function composeSegments(
-  segments: Array<{ plot: string; firstFrame: string; lastFrame: string; durationSec: number; degraded?: boolean }>,
+  segments: Array<{
+    plot: string;
+    firstFrame: string;
+    lastFrame: string;
+    durationSec: number;
+    degraded?: boolean;
+    /** 该段选用的 Seedance 档位（data/economy VIDEO_TIERS 的 id）；缺省=标准档 */
+    videoTier?: string;
+  }>,
   onProgress?: (done: number, total: number, status: string) => void,
 ): Promise<SegmentResult[]> {
   const out: SegmentResult[] = [];
@@ -281,10 +372,13 @@ export async function composeSegments(
         res.lastFrame = last;
       }
       onProgress?.(i, segments.length, "任务创建中…");
+      const tier = tierOf(sg.videoTier);
       const url = await generateVideo(sg.plot.slice(0, 400), first, {
         durationSec: sg.durationSec,
-        lastFrameUrl: last,
-        onProgress: (s) => onProgress?.(i, segments.length, s),
+        // 极速档（pro-fast）不支持首尾帧任务（实测 400 task_type flf2v）——只给首帧起拍
+        lastFrameUrl: tier.flf ? last : undefined,
+        model: tier.model,
+        onProgress: (s) => onProgress?.(i, segments.length, `${tier.label}档 · ${s}`),
       });
       // 视频较大（数 MB），存 URL 而非 dataURL——localStorage 放不下 base64 视频；
       // 方舟 URL 24h 有效，超时后播放器自动回退首尾帧渐变

@@ -5,7 +5,8 @@ import Avatar from "../components/Avatar";
 import { fileToSquareImage } from "../utils/image";
 import { Link } from "react-router-dom";
 import { listVideos, isMyAuthor } from "../data/videos";
-import { myCards, myDecks, toggleFollow, setAvatarImage } from "../data/account";
+import { buyPlan, myCards, myDecks, rechargeAddon, setAvatarImage, toggleFollow, walletOf } from "../data/account";
+import { PLANS, RECHARGE_PACKS, fmtTokens } from "../data/economy";
 import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, formatDuration, formatPlays } from "../types";
 
@@ -14,7 +15,9 @@ export default function ProfilePage() {
   useAccountVersion();
   const user = useCurrentUser();
   const [tab, setTab] = useState<"videos" | "cards" | "decks" | "following">("videos");
+  const [walletOpen, setWalletOpen] = useState(false);
   const videos = useMemo(() => listVideos(), []);
+  const wallet = walletOf();
 
   if (!user) {
     return (
@@ -101,7 +104,29 @@ export default function ProfilePage() {
             <span className="ml-1 text-xs text-slate-500">关注</span>
           </div>
         </div>
+
+        {/* token 钱包：生成视频/解锁付费内容的通货。套餐额度优先扣，add-on 直充/创作收益不过期 */}
+        {wallet && (
+          <button
+            onClick={() => setWalletOpen(true)}
+            className="mt-3 flex w-full items-center gap-3 rounded-xl border border-slate-700/60 bg-panel px-3.5 py-2.5 text-left"
+          >
+            <span className="text-xl">⚡</span>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-bold tabular-nums text-slate-100">
+                {fmtTokens(wallet.plan + wallet.addon)} <span className="text-xs font-normal text-slate-500">token</span>
+              </div>
+              <div className="text-[11px] text-slate-500">
+                套餐 {fmtTokens(wallet.plan)} · 直充 {fmtTokens(wallet.addon)} ·{" "}
+                {PLANS.find((p) => p.id === wallet.planId)?.name ?? "免费版"}
+              </div>
+            </div>
+            <span className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink">充值 / 套餐</span>
+          </button>
+        )}
       </div>
+
+      {walletOpen && wallet && <WalletSheet onClose={() => setWalletOpen(false)} />}
 
       {/* 页签 */}
       <div className="mt-4 flex border-b border-slate-800">
@@ -148,7 +173,7 @@ export default function ProfilePage() {
           (cards.length ? (
             <div className="grid grid-cols-3 gap-2 pb-4">
               {cards.map((c) => (
-                <div key={c.id} className="relative overflow-hidden rounded-lg border border-slate-700/60">
+                <Link key={c.id} to={`/card/${c.id}`} className="relative block overflow-hidden rounded-lg border border-slate-700/60">
                   {c.cover ? (
                     <img src={c.cover} alt={c.name} className="aspect-[3/4] w-full object-cover" />
                   ) : (
@@ -160,7 +185,7 @@ export default function ProfilePage() {
                       {CARD_TYPE_LABELS[c.type]}
                     </span>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           ) : (
@@ -173,7 +198,7 @@ export default function ProfilePage() {
               {decks.map((d) => (
                 <Link
                   key={d.id}
-                  to="/workshop"
+                  to={`/deck/${d.id}`}
                   className="flex items-center gap-3 rounded-xl border border-slate-700/60 bg-panel p-3"
                 >
                   <span className="text-2xl">🗂️</span>
@@ -215,6 +240,81 @@ export default function ProfilePage() {
           ) : (
             <Empty text="还没有关注任何创作者" cta="去首页逛逛" to="/" />
           ))}
+      </div>
+    </div>
+  );
+}
+
+/** 钱包抽屉：余额 + 套餐订阅 + 直充包。演示环境模拟支付——点了立即到账 */
+function WalletSheet({ onClose }: { onClose: () => void }) {
+  useAccountVersion();
+  const wallet = walletOf();
+  if (!wallet) return null;
+  return (
+    <div className="fixed inset-0 z-40 flex items-end bg-black/60" onClick={onClose}>
+      <div
+        className="max-h-[82vh] w-full overflow-y-auto rounded-t-2xl border-t border-slate-700 bg-ink p-4 pb-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-base font-bold text-slate-100">⚡ Token 钱包</h3>
+          <button onClick={onClose} className="text-slate-400">
+            <Icon name="close" size={20} />
+          </button>
+        </div>
+
+        <div className="mb-4 grid grid-cols-2 gap-2">
+          <div className="rounded-xl bg-panel p-3">
+            <div className="text-lg font-bold tabular-nums text-slate-100">{fmtTokens(wallet.plan)}</div>
+            <div className="text-[11px] text-slate-500">套餐 token · 优先扣减</div>
+          </div>
+          <div className="rounded-xl bg-panel p-3">
+            <div className="text-lg font-bold tabular-nums text-gold">{fmtTokens(wallet.addon)}</div>
+            <div className="text-[11px] text-slate-500">add-on token · 直充/创作收益</div>
+          </div>
+        </div>
+
+        <div className="mb-1.5 text-xs font-semibold text-slate-300">订阅套餐（额度立即发放，演示模拟支付）</div>
+        <div className="mb-4 space-y-2">
+          {PLANS.map((p) => {
+            const current = wallet.planId === p.id;
+            return (
+              <div key={p.id} className="flex items-center gap-3 rounded-xl border border-slate-700/60 bg-panel p-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-slate-100">
+                    {p.name}
+                    {current && <span className="ml-1.5 rounded bg-brand/20 px-1.5 py-0.5 text-[9px] text-brand">当前</span>}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    {fmtTokens(p.monthlyTokens)} token/月 · {p.desc}
+                  </div>
+                </div>
+                <button
+                  onClick={() => buyPlan(p.id)}
+                  disabled={p.price === 0 && current}
+                  className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+                >
+                  {p.price === 0 ? (current ? "已领取" : "领取") : `¥${p.price}/月`}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mb-1.5 text-xs font-semibold text-slate-300">直充 add-on（永不过期，套餐扣完才用它）</div>
+        <div className="grid grid-cols-3 gap-2">
+          {RECHARGE_PACKS.map((pk) => (
+            <button
+              key={pk.tokens}
+              onClick={() => rechargeAddon(pk.tokens)}
+              className="rounded-xl border border-slate-700/60 bg-panel p-3 text-center"
+            >
+              <div className="text-sm font-bold tabular-nums text-slate-100">{fmtTokens(pk.tokens)}</div>
+              <div className="mt-0.5 text-[11px] text-gold">¥{pk.price}</div>
+            </button>
+          ))}
+        </div>
+        <p className="mt-3 text-center text-[10px] text-slate-600">演示环境为模拟支付，点击即到账；正式环境将接入支付网关</p>
       </div>
     </div>
   );

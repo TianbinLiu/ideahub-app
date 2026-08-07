@@ -1,12 +1,42 @@
 // 市场热门卡 3D 实体化：详情单左侧的全息展台（自转 + 浮动 + 光环底座）。
 // 无映射的卡由调用方回退封面图。
-import { Suspense, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
+import { idbGet } from "../../data/db";
 import { toonify } from "../scene/TripoNpc";
 import { hasAssetKey, loaderFor } from "../secureAssets";
+
+/** `idb:` 指针 → objectURL：Seed3D 派生建模（36MB 级 GLB）存 IndexedDB blob 仓，
+ *  卡片 JSON 里只有指针。其余 URL 原样通过。 */
+function useResolvedModelUrl(url: string): string | null {
+  const [real, setReal] = useState<string | null>(url.startsWith("idb:") ? null : url);
+  useEffect(() => {
+    if (!url.startsWith("idb:")) {
+      setReal(url);
+      return;
+    }
+    let alive = true;
+    let obj: string | null = null;
+    setReal(null);
+    void idbGet<Blob>(url.slice(4)).then((blob) => {
+      if (!alive) return;
+      if (!blob) {
+        console.warn("[hologram] 建模 blob 不在本机库:", url);
+        return;
+      }
+      obj = URL.createObjectURL(blob);
+      setReal(obj);
+    });
+    return () => {
+      alive = false;
+      if (obj) URL.revokeObjectURL(obj);
+    };
+  }, [url]);
+  return real;
+}
 
 /** 卡名 → 3D 模型。凛卡是加密管线的端到端示例：构建带密钥时走 .glbx 解密加载 */
 export const CARD_MODELS: Record<string, string> = {
@@ -49,14 +79,13 @@ function Model({ url }: { url: string }) {
 }
 
 export default function CardHologram({ url }: { url: string }) {
+  const real = useResolvedModelUrl(url);
   return (
     <Canvas dpr={[1, 2]} camera={{ fov: 30, position: [0, 0.3, 3.6] }} gl={{ alpha: true }}>
       <hemisphereLight args={["#e8f8ff", "#1a2436", 1.5]} />
       <directionalLight position={[2, 3, 2]} intensity={1.7} color="#fff2dd" />
       <directionalLight position={[-2, 1, -2]} intensity={0.6} color="#67e8f9" />
-      <Suspense fallback={null}>
-        <Model url={url} />
-      </Suspense>
+      <Suspense fallback={null}>{real && <Model url={real} />}</Suspense>
       {/* 全息底座光环 */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.87, 0]}>
         <ringGeometry args={[0.55, 0.78, 48]} />

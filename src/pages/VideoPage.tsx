@@ -4,7 +4,9 @@ import Icon from "../components/Icon";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import BranchPlayer from "../components/BranchPlayer";
 import SegmentPlayer from "../components/SegmentPlayer";
-import { addCards, myCards } from "../data/account";
+import { addCards, hasPurchased, myCards, purchasePart, walletOf } from "../data/account";
+import { useAccountVersion } from "../hooks/useAccount";
+import { fmtTokens } from "../data/economy";
 import { addComment, addPlay, getVideo, isMyAuthor, partsOf, setLike } from "../data/videos";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
@@ -38,9 +40,10 @@ function VideoDeckSection({ video, loggedIn, onGo }: { video: NonNullable<Return
       </h2>
       <div className="flex gap-2.5 overflow-x-auto pb-1">
         {deck.cards.map((c) => (
-          <div key={c.id} className="w-24 flex-none">
+          // 点卡看详情：不在观众账号库里的卡经路由 state 带过去（详情页优先查账号库）
+          <Link key={c.id} to={`/card/${c.id}`} state={{ card: c }} className="w-24 flex-none">
             <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} />
-          </div>
+          </Link>
         ))}
       </div>
       <div className="mt-2.5 flex gap-2">
@@ -86,7 +89,13 @@ export default function VideoPage() {
   // 多 P：老作品 partsOf 归一成单 P，pi 越界（编辑删 P 后）自动夹回
   const parts = useMemo(() => (video ? partsOf(video) : []), [video, version]);
   const [pi, setPi] = useState(0);
-  const part = parts[Math.min(pi, Math.max(0, parts.length - 1))] ?? null;
+  const piSafe = Math.min(pi, Math.max(0, parts.length - 1));
+  const part = parts[piSafe] ?? null;
+  // 付费墙：本 P 定价 > 0 且 观众≠作者 且 未购 → 用封面顶住播放器，解锁后放行
+  useAccountVersion(); // 购买/余额变化即时反映
+  const partPrice = video?.pricing?.mode === "paid" ? (video.pricing.partPrices[piSafe] ?? 0) : 0;
+  const locked = !!video && partPrice > 0 && !isMyAuthor(video.author) && !hasPurchased(video.id, piSafe);
+  const [payErr, setPayErr] = useState("");
 
   // 详情回填晚于首帧渲染：把服务端那份同步进来。
   // 本地已有的乐观值（刚点的赞、刚发的评论）取较大/较长的一边，别被回包覆盖掉。
@@ -174,7 +183,42 @@ export default function VideoPage() {
           </div>
         )}
         {part &&
-          (part.branchTree ? (
+          (locked ? (
+            // 付费墙：封面 + 解锁按钮。解锁扣观众 token（先套餐后 add-on），创作者分成进 add-on
+            <div className="relative overflow-hidden rounded-xl">
+              <img src={video.cover} alt={video.title} className="aspect-video w-full object-cover blur-[2px] brightness-50" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5">
+                <span className="text-2xl">🔒</span>
+                <div className="text-sm font-semibold text-slate-100">
+                  本 P 为付费内容 · <span className="tabular-nums text-gold">{fmtTokens(partPrice)} token</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setPayErr("");
+                    if (!user) {
+                      navigate(`/login?next=/video/${video.id}`);
+                      return;
+                    }
+                    if (!purchasePart(video.id, piSafe, partPrice, video.author)) {
+                      const w = walletOf();
+                      setPayErr(
+                        `余额不足（现有 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))}）——去「我的」页充值`,
+                      );
+                    }
+                  }}
+                  className="rounded-full bg-gold px-5 py-2 text-sm font-bold text-ink active:scale-95"
+                >
+                  ⚡ 解锁观看
+                </button>
+                {payErr && (
+                  <Link to="/me" className="text-xs text-rose-300 underline">
+                    {payErr}
+                  </Link>
+                )}
+                <span className="text-[10px] text-slate-400">解锁后永久可看 · 收益归创作者（平台抽成 30%）</span>
+              </div>
+            </div>
+          ) : part.branchTree ? (
             <BranchPlayer key={`b${pi}`} tree={part.branchTree} cover={video.cover} />
           ) : (
             <SegmentPlayer key={`s${pi}`} segments={part.segments} cover={video.cover} />

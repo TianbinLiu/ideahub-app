@@ -31,6 +31,8 @@ export interface Card {
   tags?: string[];
   /** 3D 建模文件（glb/glbx）：有值则卡详情显示全息实体预览（3D 风格视频的角色卡） */
   modelUrl?: string;
+  /** 铸卡时的完整文生图提示词（生成蓝图）——具体到能让 AI 复刻出与卡面一致的画面/建模 */
+  genPrompt?: string;
 }
 
 /** 一个节点生成出的候选方案（视频片段提案） */
@@ -55,6 +57,10 @@ export interface NodeSlot {
   children: Record<string, NodeSlot | undefined>;
   /** 本节点生成时用的素材卡快照——发布时聚合成"本片卡组"，观众可收入复刻 */
   materials?: Card[];
+  /** 本节点选定的 Seedance 档位（合成该段视频时用），见 data/economy VIDEO_TIERS */
+  videoTier?: string;
+  /** 生成时的视频要求快照（画风检测、卡组提炼的风格依据） */
+  requirement?: string;
 }
 
 export interface VideoSegment {
@@ -65,6 +71,8 @@ export interface VideoSegment {
   durationSec: number;
   /** 真实生成的视频片段（Seedance）；缺省时播放器回退首尾帧渐变 */
   videoUrl?: string;
+  /** 该段选用的 Seedance 档位 id（见 data/economy VIDEO_TIERS）；缺省=标准档 */
+  videoTier?: string;
 }
 
 /** 互动分支树节点：一段视频 + 段尾选项（空数组 = 结局） */
@@ -96,6 +104,13 @@ export interface VideoDeck {
   cards: Card[];
 }
 
+/** 作品付费设置 */
+export interface VideoPricing {
+  mode: "free" | "paid";
+  /** 每个 P 的解锁价（token），与 parts 对齐；单 P 作品长度为 1 */
+  partPrices: number[];
+}
+
 export interface VideoComment {
   id: string;
   author: string;
@@ -117,6 +132,9 @@ export interface VideoItem {
   parts?: VideoPart[];
   /** 本片卡组（生成本片所用素材卡的快照），观众可一键收入 */
   deck?: VideoDeck;
+  /** 付费设置：mode=paid 时 partPrices[i] 为第 i 个 P 的解锁价（token）。
+   *  缺省 = 免费。观众解锁扣 token，平台抽成后其余进创作者 add-on 余额 */
+  pricing?: VideoPricing;
   author: string;
   plays: number;
   likes: number;
@@ -133,6 +151,8 @@ export interface DraftVideo {
   branchTree?: BranchTree;
   /** 合成时聚合的素材卡组（name 由发布页按最终标题定） */
   deck?: VideoDeck;
+  /** 发布页选定的付费设置（免费/付费+每 P 价） */
+  pricing?: VideoPricing;
   /**
    * 幂等键：发布时生成一次，重试沿用同一个值。
    * 服务端转存几段方舟视频要几十秒，客户端超时重发时第一次其实已经落库了——

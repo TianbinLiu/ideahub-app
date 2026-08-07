@@ -1,0 +1,72 @@
+// Token 经济：套餐目录 / 充值包 / Seedance 档位 / 成本估算 / 平台抽成。
+// token 与方舟视频 token 同量纲（720p 24fps：时长×1280×720×24/1024/秒），
+// 档位系数按各模型单价相对标准档（1.0-pro 15元/M）折算——用户看到的数字
+// 就是真实资源消耗，不做虚拟汇率。
+import { VideoSegment } from "../types";
+
+/** 观看付费的平台抽成比例（其余进创作者 add-on 余额） */
+export const PLATFORM_CUT = 0.3;
+
+/** 订阅套餐（演示环境模拟支付；套餐 token 按月发放，优先扣减） */
+export interface TokenPlan {
+  id: string;
+  name: string;
+  /** 元/月；0=免费 */
+  price: number;
+  monthlyTokens: number;
+  desc: string;
+}
+
+export const PLANS: TokenPlan[] = [
+  { id: "free", name: "免费版", price: 0, monthlyTokens: 300_000, desc: "注册即得，每月刷新" },
+  { id: "std", name: "标准套餐", price: 30, monthlyTokens: 2_000_000, desc: "约可生成 15 段标准档视频" },
+  { id: "pro", name: "专业套餐", price: 98, monthlyTokens: 8_000_000, desc: "重度创作，约 60 段标准档" },
+];
+
+/** 直充包：到账进 add-on（永不过期，套餐扣完才动它） */
+export const RECHARGE_PACKS = [
+  { tokens: 200_000, price: 6 },
+  { tokens: 1_000_000, price: 25 },
+  { tokens: 5_000_000, price: 98 },
+];
+
+/** Seedance 档位：id 持久化在 VideoSegment.videoTier / EditorState.videoTier */
+export interface VideoTier {
+  id: string;
+  label: string;
+  model: string;
+  /** token 消耗系数（相对标准档；按模型单价折算） */
+  mult: number;
+  /** 是否支持首尾帧模式（flf2v）。实测 pro-fast 只收首帧：报 task_type flf2v not support */
+  flf: boolean;
+  desc: string;
+}
+
+export const VIDEO_TIERS: VideoTier[] = [
+  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 0.3, flf: false, desc: "省 token · 首帧起拍，不锁尾帧" },
+  { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, desc: "首尾帧可控（默认）" },
+  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 1.6, flf: true, desc: "新一代模型 · 需在方舟控制台开通 2.0 系列" },
+];
+
+export const DEFAULT_TIER = "std";
+
+export function tierOf(id: string | undefined): VideoTier {
+  return VIDEO_TIERS.find((t) => t.id === id) ?? VIDEO_TIERS[1];
+}
+
+/** 一段 720p 视频的 token 估算（方舟公式：时长×宽×高×帧率/1024，×档位系数） */
+export function segTokens(durationSec: number, tierId?: string): number {
+  const base = (Math.max(3, Math.min(10, durationSec)) * 1280 * 720 * 24) / 1024;
+  return Math.round(base * tierOf(tierId).mult);
+}
+
+/** 整片合成的 token 估算：只算还没有真视频的段 */
+export function composeCost(segments: Array<Pick<VideoSegment, "durationSec" | "videoUrl" | "videoTier">>): number {
+  return segments.filter((s) => !s.videoUrl).reduce((sum, s) => sum + segTokens(s.durationSec, s.videoTier), 0);
+}
+
+export function fmtTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}k`;
+  return String(Math.round(n));
+}

@@ -9,6 +9,8 @@ import LoginPage from "./pages/LoginPage";
 import VideoPage from "./pages/VideoPage";
 import PublishPage from "./pages/PublishPage";
 import EditPage from "./pages/EditPage";
+import CardDetailPage from "./pages/CardDetailPage";
+import DeckDetailPage from "./pages/DeckDetailPage";
 import StudioPage from "./studio/StudioPage";
 import TabBar from "./components/TabBar";
 import { readyVideos } from "./data/videos";
@@ -64,6 +66,8 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/video/:id" element={<VideoPage />} />
+      <Route path="/card/:id" element={<CardDetailPage />} />
+      <Route path="/deck/:id" element={<DeckDetailPage />} />
       <Route
         path="/studio"
         element={

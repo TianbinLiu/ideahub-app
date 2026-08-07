@@ -7,6 +7,7 @@
 // 页面读的全是同步函数（myCards() / currentUser() / isFollowing()…），签名一个没动；
 // 变更仍通过 subscribeAccount + 版本号广播，远端回包回填时也走同一条广播。
 import { Card, uid } from "../types";
+import { PLANS, PLATFORM_CUT } from "./economy";
 import { idbGet, idbSet } from "./db";
 import { API_ON, emitApiError, getToken, setToken, serverAlive, AUTH_EXPIRED_EVENT } from "../api/client";
 import * as authApi from "../api/auth";
@@ -24,6 +25,12 @@ export interface User {
   following: string[];
   /** 收藏的视频 id（老账号可能缺字段，读写处 ??= 兜底） */
   collects?: string[];
+  /** token 钱包：plan=套餐额度（每月发放，优先扣），addon=直充/创作收益（不过期） */
+  wallet?: { plan: number; addon: number };
+  /** 当前订阅套餐 id（data/economy PLANS）；缺省=free */
+  planId?: string;
+  /** 已解锁的付费内容，键 `${videoId}:${partIndex}` */
+  purchases?: string[];
   createdAt: number;
 }
 
@@ -31,6 +38,8 @@ export interface Deck {
   id: string;
   ownerId: string;
   name: string;
+  /** 卡组详情页展示的简介（卡组编辑处填写） */
+  intro?: string;
   cardIds: string[];
   /** 封面卡 id（卡组编辑页指定）；未设时取组内第一张，见 deckCoverOf */
   coverCardId?: string;
@@ -278,6 +287,96 @@ export function isCollected(videoId: string): boolean {
   return currentUser()?.collects?.includes(videoId) ?? false;
 }
 
+// ── token 钱包 ────────────────────────────────────────
+// 演示环境的模拟支付：充值/购套餐直接到账（真实支付网关接入前的占位实现）。
+// 扣减规则（产品定案）：先扣套餐 token（每月刷新会作废），再扣 add-on（永久有效）。
+function ensureWallet(u: User): NonNullable<User["wallet"]> {
+  if (!u.wallet) {
+    // 老账号/新账号首次触达：发免费套餐的当月额度
+    u.wallet = { plan: PLANS[0].monthlyTokens, addon: 0 };
+    u.planId ??= "free";
+  }
+  return u.wallet;
+}
+
+/** 当前用户钱包快照（未登录返回 null） */
+export function walletOf(): { plan: number; addon: number; planId: string } | null {
+  const u = currentUser();
+  if (!u || !db) return null;
+  const w = ensureWallet(u);
+  return { plan: w.plan, addon: w.addon, planId: u.planId ?? "free" };
+}
+
+/** 余额是否够付 n token */
+export function canAfford(n: number): boolean {
+  const w = walletOf();
+  return !!w && w.plan + w.addon >= n;
+}
+
+/** 扣 token：先套餐后 add-on。不足时不扣、返回 null；成功返回扣减明细 */
+export function spendTokens(n: number): { plan: number; addon: number } | null {
+  const u = currentUser();
+  if (!u || !db || n <= 0) return n === 0 ? { plan: 0, addon: 0 } : null;
+  const w = ensureWallet(u);
+  if (w.plan + w.addon < n) return null;
+  const fromPlan = Math.min(w.plan, n);
+  const fromAddon = n - fromPlan;
+  w.plan -= fromPlan;
+  w.addon -= fromAddon;
+  persist();
+  return { plan: fromPlan, addon: fromAddon };
+}
+
+/** 直充：进 add-on（演示支付即时到账） */
+export function rechargeAddon(tokens: number): void {
+  const u = currentUser();
+  if (!u || !db || tokens <= 0) return;
+  ensureWallet(u).addon += tokens;
+  persist();
+}
+
+/** 订阅/续费套餐：套餐额度立即发放（叠加剩余额度），记住档位 */
+export function buyPlan(planId: string): boolean {
+  const u = currentUser();
+  const plan = PLANS.find((p) => p.id === planId);
+  if (!u || !db || !plan) return false;
+  ensureWallet(u).plan += plan.monthlyTokens;
+  u.planId = plan.id;
+  persist();
+  return true;
+}
+
+/** 给创作者进账（观看付费分成）：按作者名找本地账号，找不到则静默丢弃 */
+function creditAuthorAddon(authorName: string, tokens: number): void {
+  if (!db || tokens <= 0) return;
+  const author = db.users.find((x) => x.name === authorName || x.account === authorName);
+  if (!author) return;
+  ensureWallet(author).addon += tokens;
+  persist();
+}
+
+// ── 付费内容解锁 ──────────────────────────────────────
+export function hasPurchased(videoId: string, partIndex: number): boolean {
+  return currentUser()?.purchases?.includes(`${videoId}:${partIndex}`) ?? false;
+}
+
+/**
+ * 解锁付费 P：扣观众 token（先套餐后 add-on）→ 记购买 → 创作者按 1-抽成 进账 add-on。
+ * 返回 false = 余额不足（页面引导去充值）。
+ */
+export function purchasePart(videoId: string, partIndex: number, price: number, authorName: string): boolean {
+  const u = currentUser();
+  if (!u || !db) return false;
+  const key = `${videoId}:${partIndex}`;
+  u.purchases ??= [];
+  if (u.purchases.includes(key)) return true;
+  if (price > 0 && !spendTokens(price)) return false;
+  u.purchases.push(key);
+  if (price > 0) creditAuthorAddon(authorName, Math.floor(price * (1 - PLATFORM_CUT)));
+  persist();
+  return true;
+}
+
 // ── 卡片 ──────────────────────────────────────────────
 export function myCards(): Card[] {
   const u = currentUser();
@@ -300,6 +399,16 @@ export function addCards(cards: Card[]): void {
     // 服务端按 cardId 幂等，重发不会长出重复卡
     void branch.addCards(added).catch((e) => emitApiError("addCards", e));
   }
+}
+
+/** 更新自己的卡（挂 3D 建模指针、补生成蓝图等）。远端同步依赖服务端 upsert，暂本地生效 */
+export function updateCard(cardId: string, patch: Partial<Pick<Card, "modelUrl" | "genPrompt" | "summary" | "tags">>): void {
+  const u = currentUser();
+  if (!u || !db) return;
+  const c = db.cards.find((x) => x.ownerId === u.id && x.id === cardId);
+  if (!c) return;
+  Object.assign(c, patch);
+  persist();
 }
 
 export function removeCard(cardId: string): void {
@@ -357,7 +466,7 @@ export function createDeck(name: string, cardIds: string[] = []): Deck | null {
   return deck;
 }
 
-export function updateDeck(deckId: string, patch: Partial<Pick<Deck, "name" | "cardIds" | "coverCardId">>): void {
+export function updateDeck(deckId: string, patch: Partial<Pick<Deck, "name" | "intro" | "cardIds" | "coverCardId">>): void {
   const d = findDeck(deckId);
   if (!d) return;
   Object.assign(d, patch);
@@ -678,4 +787,23 @@ export async function signUpWithPassword(
  */
 export function isRemoteMode(): boolean {
   return remoteOn();
+}
+
+// DEV 调试/E2E 挂钩：与 studioStore 的 __studio 同款——自动化脚本要读写
+// 与组件同一实例的账号模块（动态 import 拿到的是幽灵实例）
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as Record<string, unknown>).__account = {
+    currentUser,
+    walletOf,
+    myCards,
+    myDecks,
+    signIn,
+    updateCard,
+    spendTokens,
+    rechargeAddon,
+    buyPlan,
+    purchasePart,
+    hasPurchased,
+    debug: () => ({ hasDb: !!db, currentId: db?.currentId ?? null, users: db?.users.length ?? -1, remote: remoteOn() }),
+  };
 }

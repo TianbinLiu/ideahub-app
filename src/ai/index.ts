@@ -36,6 +36,10 @@ export const deriveDeckCards: typeof real.deriveDeckCards = AI_REAL
         }))
         .filter((c) => !have.has(c.name));
     };
+/** 3D 风格视频角色卡自动建模（Seed3D，约 2.4 元/张）；mock 构建为空操作 */
+export const deriveCharacterModels: typeof real.deriveCharacterModels = AI_REAL
+  ? real.deriveCharacterModels
+  : async () => {};
 /** 逐段 Seedance 生成（仅真实 AI 构建可用；mock 构建返回空结果 = 首尾帧渐变） */
 export const composeSegments: typeof real.composeSegments = AI_REAL
   ? real.composeSegments
