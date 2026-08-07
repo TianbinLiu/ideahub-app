@@ -2,31 +2,38 @@
 // 互动视频（带 branchTree）在流里播开场段，点"进入互动"跳详情页做分支选择。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { addPlay, isLiked, isMyAuthor, listVideos, setLike } from "../data/videos";
+import { addPlay, isLiked, isMyAuthor, isSaved, listVideos, setLike, setSave } from "../data/videos";
 import { isFollowing, toggleFollow } from "../data/account";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
 import Avatar from "../components/Avatar";
 import Icon, { type IconName } from "../components/Icon";
-import { VideoItem, formatPlays } from "../types";
+import CharacterPerch from "../components/CharacterPerch";
+import { VideoItem } from "../types";
 
 /** 声音开关全流共享：一条视频上解除静音，后面每条都该有声（对标抖音/TikTok） */
 let soundOn = typeof sessionStorage !== "undefined" && sessionStorage.getItem("feed.sound") === "1";
 
 /** 右侧操作栏单键。固定 28×28 的 SVG + 至少 56px 高，间距由盒模型保证——
  *  原来用 emoji 时三个字形高度各不相同（🤍 方、💬 带气泡尾、▶️ 带彩色底板），
- *  所以怎么调 gap 都对不齐。 */
+ *  所以怎么调 gap 都对不齐。
+ *
+ *  激活态会有个角色小人跳上来坐在图标上（见 CharacterPerch）。只在激活时出现，
+ *  平时保持干净——首页是全出血视频，常驻装饰都在跟内容抢注意力。 */
 function RailBtn({
   icon,
   filled,
   tint,
   label,
+  perch,
   onClick,
 }: {
   icon: IconName;
   filled?: boolean;
   tint?: string;
   label?: string;
+  /** true 时，激活（filled）状态会有角色跳上来坐在图标上 */
+  perch?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -34,13 +41,17 @@ function RailBtn({
       onClick={onClick}
       className="flex min-h-[56px] w-14 flex-col items-center justify-center gap-1 transition active:scale-90"
     >
-      <Icon
-        name={icon}
-        size={28}
-        filled={filled}
-        className={filled && tint ? tint : "text-white"}
-        style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,.55))" }}
-      />
+      {/* relative 容器只包图标：小人要相对【图标】定位，包住文字的话会偏高 */}
+      <span className="relative flex items-center justify-center">
+        {perch && filled && <CharacterPerch size={28} />}
+        <Icon
+          name={icon}
+          size={28}
+          filled={filled}
+          className={filled && tint ? tint : "text-white"}
+          style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,.55))" }}
+        />
+      </span>
       {label !== undefined && (
         <span className="text-[11px] tabular-nums text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">{label}</span>
       )}
@@ -53,7 +64,9 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
   // 初值从库里取：划走再划回来时点赞态不该丢（isLiked 之前一直没人调用）
   const [liked, setLiked] = useState(() => isLiked(video.id));
   const [likes, setLikes] = useState(video.likes);
-  const [saved, setSaved] = useState(false);
+  // 初值从库里取：划走再划回来时收藏态不该丢（与点赞同理）
+  const [saved, setSaved] = useState(() => isSaved(video.id));
+  const [saves, setSaves] = useState(video.saves ?? 0);
   const [following, setFollowing] = useState(() => isFollowing(video.author));
   const [paused, setPaused] = useState(false);
   const [burst, setBurst] = useState<{ x: number; y: number; k: number } | null>(null);
@@ -199,60 +212,76 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
         </div>
       )}
 
-      {/* 右侧竖排操作：赞 / 评论 / 收藏 / 分享 —— 播放量下沉到信息区。
-          原来第三格是个纯展示的 div，长得像按钮但点不动，占的正是市面 App 放收藏的位置。 */}
+      {/* 右侧竖排操作：头像+关注 / 赞 / 评论 / 收藏 / 分享。
+          对齐 TikTok：头像带 + 号在最上方（原来在左下角），四个按钮一律显示【数字】而非文字标签——
+          「收藏」「分享」这种字在一列数字里会打断竖向的节奏，也说不出量级。
+          播放量下沉：TikTok 不在视频上显示播放量，它属于作者后台而非观众决策信息。 */}
       <div
         className="absolute right-2 z-10 flex flex-col items-center gap-4"
         style={{ bottom: "calc(var(--tabbar-h) + 1.25rem)" }}
       >
-        <RailBtn icon="heart" filled={liked} tint="text-rose-500" label={String(likes)} onClick={toggleLike} />
+        {/* 头像 + 关注：未关注时下挂一个 + 号，点了变对勾后淡出（TikTok 同款反馈） */}
+        <div className="relative mb-1">
+          <button onClick={() => navigate(`/video/${video.id}`)} className="block active:scale-95">
+            <span className="block rounded-full ring-2 ring-white/90">
+              <Avatar name={video.author} src={mine ? user?.avatar : undefined} size={44} />
+            </span>
+          </button>
+          {user && !mine && !following && (
+            <button
+              onClick={() => setFollowing(toggleFollow(video.author))}
+              aria-label="关注"
+              className="absolute -bottom-2 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-rose-500 text-white transition active:scale-90"
+            >
+              <Icon name="plus" size={12} strokeWidth={3} />
+            </button>
+          )}
+        </div>
+
+        <RailBtn icon="heart" filled={liked} tint="text-rose-500" label={String(likes)} perch onClick={toggleLike} />
         <RailBtn icon="comment" label={String(video.comments.length)} onClick={() => navigate(`/video/${video.id}`)} />
-        <RailBtn icon="bookmark" filled={saved} tint="text-gold" label="收藏" onClick={() => setSaved((v) => !v)} />
-        <RailBtn icon="share" label="分享" onClick={share} />
+        <RailBtn
+          icon="bookmark"
+          filled={saved}
+          tint="text-gold"
+          label={String(saves)}
+          perch
+          onClick={() => {
+            const on = !saved;
+            setSaved(on);
+            setSaves(setSave(video.id, on));
+            navigator.vibrate?.(10);
+          }}
+        />
+        <RailBtn icon="share" label={String(video.shares ?? 0)} onClick={share} />
       </div>
 
-      {/* 左下信息 */}
+      {/* 左下信息：作者名 + 标题 + 简介。
+          按 TikTok 精简掉了三样——头像/关注（移到右侧栏顶部）、#分类胶囊、▶播放量。
+          分类不再单独做胶囊：TikTok 把话题写进描述文字里（#fyp #messy），
+          单独的胶囊在全出血画面上会切出一个突兀的实心块。 */}
       <div
         className="absolute inset-x-0 bottom-0 z-10 pl-4 pr-20"
         style={{ paddingBottom: "calc(var(--tabbar-h) + 0.75rem)" }}
       >
-        <div className="mb-2 flex items-center gap-2">
-          <Avatar name={video.author} src={mine ? user?.avatar : undefined} size={36} />
-          <span className="text-sm font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
-            @{video.author}
-          </span>
-          {user && !mine && (
-            <button
-              onClick={() => setFollowing(toggleFollow(video.author))}
-              className={`min-h-[28px] rounded-full px-3 text-[12px] font-medium transition active:scale-95 ${
-                following ? "bg-white/20 text-white" : "bg-brand text-ink"
-              }`}
-            >
-              {following ? "已关注" : "关注"}
-            </button>
-          )}
+        <div className="mb-1.5 text-sm font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
+          @{video.author}
         </div>
         <div className="mb-1 text-base font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.7)]">{video.title}</div>
         <p className="line-clamp-2 text-xs leading-relaxed text-white/85 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
-          {video.description}
+          {video.description} <span className="text-white/70">#{video.category}</span>
         </p>
-        <div className="mt-2 flex items-center gap-2 text-[11px] text-white/80">
-          <span className="rounded-full bg-white/15 px-2 py-0.5">#{video.category}</span>
-          <span className="inline-flex items-center gap-1 tabular-nums">
-            <Icon name="play" size={11} filled />
-            {formatPlays(video.plays)}
-          </span>
-          {isInteractive && (
-            <button
-              onClick={() => navigate(`/video/${video.id}`)}
-              className="ml-auto inline-flex min-h-[28px] items-center gap-1 rounded-full bg-gold/90 px-3 font-semibold text-ink active:scale-95"
-            >
-              <Icon name="branch" size={13} strokeWidth={2.25} />
-              互动 · 你来选
-            </button>
-          )}
-        </div>
+        {isInteractive && (
+          <button
+            onClick={() => navigate(`/video/${video.id}`)}
+            className="mt-2 inline-flex min-h-[28px] items-center gap-1 rounded-full bg-gold/90 px-3 text-[11px] font-semibold text-ink active:scale-95"
+          >
+            <Icon name="branch" size={13} strokeWidth={2.25} />
+            互动 · 你来选
+          </button>
+        )}
       </div>
+
     </section>
   );
 }

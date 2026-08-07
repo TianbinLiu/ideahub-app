@@ -4,6 +4,7 @@
 import { NavLink, useLocation, useNavigate } from "react-router";
 import { useCurrentUser } from "../hooks/useAccount";
 import Icon, { type IconName } from "./Icon";
+import CharacterPerch from "./CharacterPerch";
 
 const TABS: ReadonlyArray<{ to: string; icon: IconName; label: string } | null> = [
   { to: "/", icon: "home", label: "首页" },
@@ -46,7 +47,11 @@ export default function TabBar() {
             >
               {({ isActive }) => (
                 <>
-                  <Icon name={t.icon} size={23} filled={isActive} />
+                  {/* relative 只包图标：小人相对【图标】定位，包住文字会偏高 */}
+                  <span className="relative flex items-center justify-center">
+                    {isActive && <CharacterPerch size={23} />}
+                    <Icon name={t.icon} size={23} filled={isActive} />
+                  </span>
                   <span>{t.label}</span>
                 </>
               )}

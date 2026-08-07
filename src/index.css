@@ -95,3 +95,22 @@ canvas {
 .heart-burst {
   animation: heart-burst 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
+
+/* 角色小人「跳上去坐稳」：轻微过冲 + 落定，只在激活瞬间播一次。
+   用 scale+translateY 而不是 top/height —— 后者会触发布局重排，
+   而右侧栏在视频滚动中本就吃紧，动画必须只走合成层。 */
+@keyframes perch-pop {
+  0%   { transform: translateX(-50%) translateY(6px) scale(0.4); opacity: 0; }
+  55%  { transform: translateX(-50%) translateY(-2px) scale(1.12); opacity: 1; }
+  78%  { transform: translateX(-50%) translateY(0) scale(0.96); }
+  100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+}
+.perch-pop {
+  animation: perch-pop 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+/* 尊重系统的「减少动态效果」设置：直接显示终态，不做弹跳 */
+@media (prefers-reduced-motion: reduce) {
+  .perch-pop { animation: none; opacity: 1; transform: translateX(-50%); }
+}
