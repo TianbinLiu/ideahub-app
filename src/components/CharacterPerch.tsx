@@ -28,6 +28,12 @@ import { memo } from "react";
  * 双腿垂到图标正面（bottom 取图标尺寸的比例），形成「坐在图标上」的关系。
  * bottom 用比例而非固定 px —— 24px 的 Tab 图标与 28px 的右栏图标若共用固定偏移，
  * 会一个悬空一个陷进去。
+ *
+ * ★ 0.78 这个值是量出来的，不是估的：
+ *   原先取 0.52，实测小人压掉了图标【46%】的高度 —— 底栏「首页」那格看过去
+ *   只剩一个小人，房子图标完全认不出来，旁边三个 Tab 却是清晰图标。
+ *   图标是导航控件，盖掉它等于把功能换成了装饰。取 0.78 后重叠约 22%，
+ *   只有双腿搭在图标顶沿，图标下方 3/4 的识别特征完整保留。
  */
 function CharacterPerchImpl({ size = 28, className = "" }: { size?: number; className?: string }) {
   // 小人明显比图标宽（1.45×）：这是「特色化」而非点缀，太小就只是个看不清的斑点。
@@ -37,7 +43,7 @@ function CharacterPerchImpl({ size = 28, className = "" }: { size?: number; clas
   return (
     <span
       className={`perch-pop pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 ${className}`}
-      style={{ bottom: `${Math.round(size * 0.52)}px`, width: w }}
+      style={{ bottom: `${Math.round(size * 0.78)}px`, width: w }}
       aria-hidden
     >
       <svg viewBox="0 0 40 30" width={w} height={Math.round((w * 30) / 40)}>
