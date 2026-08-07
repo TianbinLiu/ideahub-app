@@ -28,8 +28,10 @@ import {
   ORBIT_LIMITS,
   PLAYER_HEAD,
   addEyeLook,
+  addEyeRise,
   clampRadiusByScene,
   eyeLook,
+  eyeRise,
   orbit,
   orbitToPosition,
   syncOrbitFromCamera,
@@ -203,6 +205,8 @@ function eyeCam(pos: THREE.Vector3, look: THREE.Vector3) {
   look.copy(pos).addScaledVector(_dirTmp, 4.0);
 }
 const _dirTmp = new THREE.Vector3();
+const _riseP = new THREE.Vector3();
+const _riseL = new THREE.Vector3();
 
 function CameraRig() {
   const tmp = useRef(new THREE.Vector3());
@@ -237,6 +241,16 @@ function CameraRig() {
     let target: { pos: readonly [number, number, number] | number[]; look: readonly [number, number, number] | number[] };
     if (st.camera.kind === "default") {
       eyeCam(eyeP.current, eyeL.current);
+      // 升空俯瞰混合：双指捏合把 eyeRise 从 0（眼位）推到 1（头顶正上方俯瞰全桌），
+      // 平滑插值——捏合过程中相机沿"眼位→头顶"的弧线缓缓升起
+      const r = eyeRise.v;
+      if (r > 0.001) {
+        const e2 = r * r * (3 - 2 * r);
+        _riseP.set(PLAYER_HEAD.x * (1 - e2), 8.6, PLAYER_HEAD.z * (1 - e2) + 0.9 * e2);
+        _riseL.set(0, 0, 0.35);
+        eyeP.current.lerp(_riseP, e2);
+        eyeL.current.lerp(_riseL, e2);
+      }
       target = { pos: [eyeP.current.x, eyeP.current.y, eyeP.current.z], look: [eyeL.current.x, eyeL.current.y, eyeL.current.z] };
     } else {
       target = st.camera;
@@ -1011,6 +1025,7 @@ function Placeholder({ x }: { x: number }) {
       ref={ref}
       rotation={[-Math.PI / 2, 0, 0]}
       position={[x, CARD.lift, CHAIN.rowZ]}
+      scale={CHAIN.scale}
       material={mat}
       onClick={(e) => {
         e.stopPropagation();
@@ -1049,7 +1064,7 @@ function NodeChainView() {
           tex={tex}
           target={[base[0], 0.012 + idx * 0.02, base[2]]}
           rotZ={idx * 0.05 - 0.04}
-          scale={0.92}
+          scale={CHAIN.scale * 0.94}
           onClick={(e) => {
             e.stopPropagation();
             const st = useStudio.getState();
@@ -1072,6 +1087,7 @@ function NodeChainView() {
         key={node.id}
         tex={tex}
         target={[x, y, CHAIN.rowZ]}
+        scale={CHAIN.scale}
         hoverLift={!floating}
         ring={floating ? "#67e8f9" : null}
         onClick={(e) => {
@@ -1282,6 +1298,14 @@ function TableCatcher() {
       if (m === "eye") {
         // 眼位环视：滑屏 = 转头（画面跟手，向左滑看向左）
         if (s.pointers.size === 1) addEyeLook(dx * 0.0042, -dy * 0.0036);
+        else if (s.pointers.size === 2) {
+          // 双指捏合 = 升空俯瞰：指距缩小（缩小视角）→ 相机缓缓升到头顶俯瞰全桌；
+          // 指距放大最多回到第一人称眼位（addEyeRise 内部 0 下限）
+          const pts = [...s.pointers.values()];
+          const d = Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]);
+          if (s.lastPinch != null) addEyeRise((s.lastPinch - d) * 0.0035);
+          s.lastPinch = d;
+        }
         return;
       }
       const o = useStudio.getState().orbit!;
@@ -1315,10 +1339,17 @@ function TableCatcher() {
       g.current.pointers.delete(e.pointerId);
       g.current.lastPinch = null;
     };
-    // 桌面调试便利：滚轮 = 轨道半径推拉
+    // 桌面调试便利：滚轮 = 轨道半径推拉；第一人称下 = 升空俯瞰（与双指捏合同源）
     const onWheel = (e: WheelEvent) => {
-      const o = useStudio.getState().orbit;
-      if (!o) return;
+      const st = useStudio.getState();
+      const o = st.orbit;
+      if (!o) {
+        if (st.camera.kind === "default") {
+          e.preventDefault();
+          addEyeRise(e.deltaY * 0.0011);
+        }
+        return;
+      }
       e.preventDefault();
       const lim = ORBIT_LIMITS[o.target] ?? ORBIT_LIMITS.node;
       if (!orbit.active) {

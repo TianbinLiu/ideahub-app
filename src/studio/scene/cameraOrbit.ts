@@ -14,6 +14,14 @@ export const NPC_HEAD = new THREE.Vector3(0, 0.9, -4.3);
  *  DOM 侧的对话气泡用 rAF 直读此对象定位——不走 React 状态，60fps 跟随零重渲。 */
 export const NPC_SCREEN = { x: 0.5, y: 0.3, visible: false };
 
+/** 第一人称的"升空俯瞰"程度：0=眼位，1=头顶正上方俯瞰全桌。
+ *  双指捏合（缩小视角）/滚轮下滚驱动升高；反向操作最多回到眼位（0 下限）。 */
+export const eyeRise = { v: 0 };
+
+export function addEyeRise(d: number) {
+  eyeRise.v = Math.min(1, Math.max(0, eyeRise.v + d));
+}
+
 /** 各轨道模式的距离约束（世界单位）：min 兼作"不许钻进模型内部"的硬下限 */
 export const ORBIT_LIMITS: Record<string, { min: number; max: number }> = {
   node: { min: 1.1, max: 7.0 },
@@ -53,6 +61,7 @@ if (import.meta.env.DEV) {
   (window as unknown as Record<string, unknown>).__camOrbit = {
     orbit,
     eyeLook,
+    eyeRise,
     PLAYER_HEAD,
     NPC_HEAD,
     ORBIT_LIMITS,

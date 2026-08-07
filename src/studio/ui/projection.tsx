@@ -7,6 +7,8 @@ import { deckCoverOf, myCards, myDecks } from "../../data/account";
 import TarotCard from "../../components/TarotCard";
 import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType } from "../../types";
 import { activePath, chosenProposal, useStudio } from "../studioStore";
+import { computeChain } from "../scene/TableScene";
+import { CHAIN, focusCam } from "../scene/layout";
 
 export default function ProjectionWindow() {
   const projection = useStudio((s) => s.projection);
@@ -370,14 +372,46 @@ function ProposalsPanel() {
   const focus = useStudio((s) => s.focus);
   const root = useStudio((s) => s.root);
   const [openId, setOpenId] = useState<string | null>(null);
-  const node = focus?.nodeId ? activePath(root).find((n) => n.id === focus.nodeId) : null;
+  const path = activePath(root);
+  const node = focus?.nodeId ? path.find((n) => n.id === focus.nodeId) : null;
   if (!node) return null;
+  const idx = path.findIndex((n) => n.id === node.id);
+
+  // ‹› 切换聚焦节点：桌面窗口随焦点实时平移（computeChain 焦点跟随），镜头跟到新卡位
+  function go(dir: 1 | -1) {
+    const st = useStudio.getState();
+    const target = path[idx + dir];
+    if (!target) return;
+    const nx = computeChain(st.root, target.id).items.find((it) => it.node.id === target.id)?.x;
+    if (nx == null) return;
+    const cam = focusCam(nx, CHAIN.rowZ);
+    st.switchFocusNode(target.id, cam.pos, cam.look);
+    setOpenId(null);
+  }
 
   return (
     <>
-      <div className="flex items-center justify-between border-b border-cyan-400/20 px-4 py-2.5">
-        <h3 className="text-sm font-bold text-cyan-100">选择本段走向 · 三选一</h3>
-        <button onClick={() => useStudio.getState().closeProjection()} className="text-slate-400 hover:text-white">
+      <div className="flex items-center gap-2 border-b border-cyan-400/20 px-3 py-2.5">
+        <button
+          onClick={() => go(-1)}
+          disabled={idx <= 0}
+          aria-label="上一段"
+          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-slate-700/60 text-slate-200 disabled:opacity-25"
+        >
+          ‹
+        </button>
+        <h3 className="min-w-0 flex-1 truncate text-center text-sm font-bold text-cyan-100">
+          第 {idx + 1}/{path.length} 段 · 选择走向
+        </h3>
+        <button
+          onClick={() => go(1)}
+          disabled={idx >= path.length - 1}
+          aria-label="下一段"
+          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-slate-700/60 text-slate-200 disabled:opacity-25"
+        >
+          ›
+        </button>
+        <button onClick={() => useStudio.getState().closeProjection()} className="flex-none text-slate-400 hover:text-white">
           ✕
         </button>
       </div>

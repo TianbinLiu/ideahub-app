@@ -251,6 +251,9 @@ interface StudioState {
 
   focusPlaceholder: (pos: [number, number, number], look: [number, number, number]) => void;
   focusNode: (nodeId: string, pos: [number, number, number], look: [number, number, number]) => void;
+  /** 方案窗内 ‹› 切换聚焦节点：focusNode 有"投影打开即拒绝"的闸门，
+   *  窗内切换必须绕过它——保持 proposals 投影开着，只换焦点与机位 */
+  switchFocusNode: (nodeId: string, pos: [number, number, number], look: [number, number, number]) => void;
   /** 点击卡片之外的桌面区域：落卡 + 拉远回默认机位（投影打开时无效） */
   unfocus: () => void;
   /** 关闭投影窗（保持聚焦机位，卡片落下；再点空白桌面拉远） */
@@ -492,6 +495,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
       orbit: { target: "node", point: look },
     });
   },
+  switchFocusNode: (nodeId, pos, look) =>
+    set({
+      focus: { nodeId },
+      projection: "proposals",
+      camera: { kind: "pos", pos, look },
+      orbit: { target: "node", point: look },
+    }),
   unfocus: () => {
     if (get().projection) return;
     set({ focus: null, editor: null, spreadOpen: false, deckView: false, camera: { kind: "default" }, orbit: null });

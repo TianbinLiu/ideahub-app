@@ -33,10 +33,12 @@ export const DECK_CAM: { pos: [number, number, number]; look: [number, number, n
 
 /** 节点链（用户侧、靠近中线的一排；竖屏可视 x≈±1.55 → 3 张窗口化） */
 export const CHAIN = {
-  startX: -1.5,
-  dx: 1.35,
+  startX: -1.6,
+  dx: 0.8,
   rowZ: 0.95,
-  maxVisible: 3,
+  maxVisible: 5,
+  /** 链上节点卡缩放：原尺寸桌面只摆得下 3 张，缩小后同段桌面平摊 5 张 */
+  scale: 0.66,
 };
 
 /** 卡组位置（用户左手边） */
