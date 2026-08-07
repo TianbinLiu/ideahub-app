@@ -345,7 +345,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   playerAvatar: ((): PlayerAvatar => {
     const v = localStorage.getItem("ideahub-app.avatar");
     // 开发试穿档只在 DEV 构建下生效：生产构建里存量 localStorage 值安全回退到默认
-    if (import.meta.env.DEV && (v === "rin" || v === "gratia")) return v;
+    if (import.meta.env.DEV && (v === "rin" || v === "gratia" || v === "tsumire")) return v;
     return v === "m" ? "m" : "f";
   })(),
   setPlayerAvatar: (a) => {

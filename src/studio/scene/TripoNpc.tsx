@@ -85,7 +85,7 @@ export function toonify(
   faceRamp.needsUpdate = true;
   // 描边壳材质：有贴图时用 贴图×暗色 调制——开壳模型手臂贴身折叠时镜头会经袖口
   // 看进身体腔内打到壳背面，纯黑呈"撕裂黑洞"，暗色织物则读作阴影
-  const makeOutline = (map: THREE.Texture | null, extraGLSL = "") => {
+  const makeOutline = (map: THREE.Texture | null, extraGLSL = "", alphaTest = 0) => {
     const m = look?.outlineColor
       ? new THREE.MeshBasicMaterial({ color: look.outlineColor, side: THREE.BackSide })
       : new THREE.MeshBasicMaterial({
@@ -93,6 +93,7 @@ export function toonify(
           side: THREE.BackSide,
           map: map ?? undefined,
         });
+  if (alphaTest > 0) m.alphaTest = alphaTest; // 反壳同样要裁切，否则发丝空隙被实心壳填死
     m.onBeforeCompile = (s) => {
       s.uniforms.uWindT = { value: 0 };
       s.vertexShader = s.vertexShader
@@ -151,6 +152,10 @@ export function toonify(
       toonMat.transparent = true;
       toonMat.alphaTest = 0.05;
     }
+    // alpha 裁切必须原样带过来。glTF 的 alphaMode:"MASK" 映射成 alphaTest>0 而
+    // transparent 仍是 false——只判 transparent 会整个漏掉这类材质，于是"靠贴图
+    // 切出形状"的发片/睫毛整片实心渲染，多层发片叠起来糊成一坨（接 Tsumire 实测）
+    if (old.alphaTest > 0) toonMat.alphaTest = old.alphaTest;
     if (windGLSL) {
       toonMat.onBeforeCompile = (s) => {
         s.uniforms.uWindT = { value: 0 };
@@ -165,7 +170,7 @@ export function toonify(
     // 脸部不描边（隔离实验证实：眼周黑圈=睫毛/眼线 alpha 面片的实心反壳）
     const noShell = (look ? (look.noOutlineMatch ?? ["face"]) : []).some((s) => nm.includes(s));
     if (noShell) continue;
-    const shellMat = makeOutline(old.map ?? null, windGLSL);
+    const shellMat = makeOutline(old.map ?? null, windGLSL, old.alphaTest);
     let shell: THREE.Mesh;
     if (mesh.isSkinnedMesh) {
       const s = new THREE.SkinnedMesh(mesh.geometry, shellMat);

@@ -69,6 +69,33 @@ const MMD_POSE: PoseTable = {
 // 每形象装配参数：MMD 系 glTF 导出后面朝 +Z（Tripo 系是 Root 修正后朝 +X）。
 // deckY=卡组视角整体下沉（站姿 MMD 模型比 Tripo think 前倾姿势高得多，脸会出画；
 // Tripo 系有烘焙 think 动画不需要）；springs=弹簧骨链根名（中日文骨名直接匹配）
+// Tsumire（BOOTH 购入的 VRChat 档）：rest 是**T-pose**——双臂水平外展。
+// 这和 Tripo 档（rest 即 A 姿，站姿=全零）根本不同：这里站姿必须把手臂主动压下来，
+// 否则角色会像稻草人一样平举双臂。数值为 rest-relative 增量，实测定稿。
+// 轴向实测（从 GLB 直接解算骨骼世界基向量，不靠猜）：这套骨架**局部 Y 沿骨延伸**，
+// 而左右臂的**局部 X 才是"抬手/垂手"轴**（左臂局部X→世界(0,0,-1)、右臂→(0,0,1)，
+// 两侧都对应绕世界 Z 转），局部 Z 是前后摆。第一版误用 Z 让手臂朝镜头平伸出去。
+// 两臂同为正值不是笔误——左右骨的局部 X 指向相反，正转都得到"垂下"。
+const TSUMIRE_STAND: PoseTable = {
+  spine1: [0, 0, 0],
+  neck: [0, 0, 0],
+  head: [0, 0, 0],
+  lArm: [1.35, 0, 0], // 从 T 姿水平压到贴身（77°，留一点腋下间隙不贴死）
+  lFore: [0.15, 0, 0], // 肘微屈，纯直臂像木偶
+  rArm: [1.35, 0, 0],
+  rFore: [0.15, 0, 0],
+};
+// 伏桌取景姿势：腰前倾 + 手臂放下再前伸搭上桌沿
+const TSUMIRE_POSE: PoseTable = {
+  spine1: [0.6, 0, 0],
+  neck: [0.35, 0, 0],
+  head: [0.35, 0, 0],
+  lArm: [1.15, 0, 0],
+  lFore: [0.5, 0, 0],
+  rArm: [1.15, 0, 0],
+  rFore: [0.5, 0, 0],
+};
+
 const RIGS: Record<
   PlayerAvatar,
   {
@@ -156,6 +183,34 @@ const RIGS: Record<
       { prefixes: ["スカート", "dyn_backskirt"], opts: { stiffness: 1.5, drag: 0.35, gravity: 20 } },
     ],
     // 同名骨存在则生效（UE 转制骨架若命名不同会自动跳过，不报错）
+    springColliders: [
+      { bone: "mixamorig:Head", radius: 0.36 },
+      { bone: "mixamorig:Spine1", radius: 0.4, offset: [0, 0.35, 0.03] as [number, number, number] },
+      { bone: "mixamorig:Hips", radius: 0.36 },
+    ],
+  },
+
+  // Tsumire（BOOTH 购入 VRChat 角色，FBX→GLB 后骨名已改成 mixamo 规范）。
+  // 定标：局部身高 0.95、脚底=原点；按"1m≈2.52 单位"折算 1.55m ⇒ 3.9 单位 ⇒ scale 4.1
+  tsumire: {
+    yaw: Math.PI,
+    scale: 4.1,
+    y: -2.41,
+    z: 4.95,
+    pose: TSUMIRE_POSE,
+    standPose: TSUMIRE_STAND,
+    hideHead: true,
+    // 摇摆骨：这个模型自带完整物理骨链（后发 4 节 ×3 股、双马尾 3 节、裙 8 片 ×3 节、
+    // 尾巴 6 节、缎带）——名字里的 haiir 是原作者的拼写，别"修正"成 hair
+    springGroups: [
+      {
+        prefixes: ["haiir_back", "twintail_", "Tail"],
+        opts: { stiffness: 2.5, drag: 0.35, gravity: 12 },
+        uprightOpts: { stiffness: 5, drag: 0.3, gravity: 1.6 },
+      },
+      { prefixes: ["Hair_Front", "Hair_Side", "ribbon", "Ear"], opts: { stiffness: 5, drag: 0.3, gravity: 1.6 } },
+      { prefixes: ["Skirt"], opts: { stiffness: 1.5, drag: 0.35, gravity: 20 } },
+    ],
     springColliders: [
       { bone: "mixamorig:Head", radius: 0.36 },
       { bone: "mixamorig:Spine1", radius: 0.4, offset: [0, 0.35, 0.03] as [number, number, number] },

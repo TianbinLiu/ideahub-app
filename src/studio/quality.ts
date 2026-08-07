@@ -36,13 +36,16 @@ export function npcModelUrl(): string {
   return `/models/preview/${file}?v=${NPC_VER}`;
 }
 
-/** 玩家形象：m/f=自产 Tripo 模型（三档画质）；rin/gratia=本地开发试穿档（DEV-only，
- *  加密 glbx 走 gitignore 目录、release 出包裁剪——第三方移植模型永不进仓/进分发包） */
-export type PlayerAvatar = "m" | "f" | "rin" | "gratia";
+/** 玩家形象：m/f=自产 Tripo 模型（三档画质）；其余=本地开发试穿档（DEV-only，
+ *  加密 glbx 走 gitignore 目录、release 出包裁剪——第三方移植模型永不进仓/进分发包）。
+ *  tsumire 是 BOOTH 购入的 VRChat 角色（银发猫耳），FBX→GLB 后把骨名改成了 mixamo 规范，
+ *  因此走的是与自产模型完全相同的取骨路径（见 design/README-tsumire.md）。 */
+export type PlayerAvatar = "m" | "f" | "rin" | "gratia" | "tsumire";
 
 const DEV_AVATAR_URLS: Record<string, string> = {
   rin: "/models/protected/rin-player-opt.glbx?v=p3",
   gratia: "/models/protected/gratia-player-opt.glbx?v=p3",
+  tsumire: "/models/protected/tsumire-player.glbx?v=t1",
 };
 
 export function playerModelUrl(avatar: PlayerAvatar): string {

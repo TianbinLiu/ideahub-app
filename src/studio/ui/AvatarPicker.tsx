@@ -11,6 +11,7 @@ if (import.meta.env.DEV) {
   OPTIONS.push(
     { key: "rin", name: "远坂凛 · 试穿", desc: "本地开发档 · 不入包", img: "/models/protected/rin-preview.webp" },
     { key: "gratia", name: "Gratia · 试穿", desc: "本地开发档 · 不入包", img: "/models/protected/gratia-preview.webp" },
+    { key: "tsumire", name: "Tsumire · 猫耳", desc: "本地开发档 · 不入包", img: "/models/protected/tsumire-preview.webp" },
   );
 }
 
