@@ -175,6 +175,47 @@ export async function generateProposals(
   });
 }
 
+/** 从成片剧情提炼"本片卡组"：豆包分类型出卡（主要角色/场景/氛围底色/画风），
+ *  Seedream 逐张出竖版卡面。视频是什么画风，卡面就跟什么画风（styleHint 注入）。 */
+export async function deriveDeckCards(
+  segments: Array<{ title: string; plot: string; firstFrame: string }>,
+  styleHint: string,
+  onProgress?: (status: string) => void,
+): Promise<Card[]> {
+  onProgress?.("提炼本片卡组…");
+  const raw = await chat(
+    '你是卡牌游戏的铸卡师。从视频剧情中提炼可复用的创作素材卡，输出 JSON 数组（2~5 张）：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：出现的主要角色必须各有一张 character 卡；主要场景一张 scene 卡；整体色调/氛围可给一张 background 卡；画风鲜明时给一张 style 卡。只输出 JSON。',
+    `剧情（按段）：${segments.map((s) => s.plot).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从剧情推断）"}`,
+  );
+  const defs = JSON.parse(raw.replace(/```json|```/g, "").trim()) as Array<{
+    type?: CardType;
+    name?: string;
+    summary?: string;
+    imagePrompt?: string;
+  }>;
+  if (!Array.isArray(defs) || defs.length === 0) throw new Error("卡组提炼 JSON 结构不符");
+  const out: Card[] = [];
+  let done = 0;
+  const jobs = defs.slice(0, 5).filter((d) => d.name && TYPE_LABEL[d.type as CardType]);
+  await mapLimit(jobs, 3, async (d) => {
+    const type = d.type as CardType;
+    try {
+      const cover = await genImageAsDataUrl(
+        `${TYPE_LABEL[type]}：${d.name}。${d.imagePrompt ?? d.summary ?? ""}。${styleHint ? `画风：${styleHint}。` : ""}${STYLE_SUFFIX}`,
+        undefined,
+        "1728x2304",
+      );
+      out.push({ id: uid("card"), type, name: d.name!.slice(0, 8), summary: (d.summary ?? "").slice(0, 60), cover });
+    } catch (e) {
+      console.warn(`[ai] 派生卡「${d.name}」卡面失败:`, e);
+    }
+    done++;
+    onProgress?.(`绘制卡组卡面 ${done}/${jobs.length}…`);
+  });
+  if (out.length === 0) throw new Error("派生卡面全部失败");
+  return out;
+}
+
 /** 封面工坊：按用户要求出封面。refDataUrl 给了就是"改当前封面"（Seedream 图生图，
  *  2026-08-06 实测 base64 dataURL 参考图可用，约 27s）；不给就是文生图全新生成。 */
 export async function generateCover(req: string, refDataUrl?: string): Promise<string> {

@@ -29,6 +29,8 @@ export interface Card {
   /** 市场热度（使用次数） */
   hot?: number;
   tags?: string[];
+  /** 3D 建模文件（glb/glbx）：有值则卡详情显示全息实体预览（3D 风格视频的角色卡） */
+  modelUrl?: string;
 }
 
 /** 一个节点生成出的候选方案（视频片段提案） */

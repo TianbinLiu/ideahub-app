@@ -21,7 +21,8 @@ export function CardDetailModal() {
     from = [(col - (rowCount - 1) / 2) * MARKET.dx, 0.1, MARKET.rowsZ[Math.min(row, MARKET.rowsZ.length - 1)]];
   }
   const inDeck = deck.some((c) => c.id === card.id);
-  const modelUrl = CARD_MODELS[card.name];
+  // 卡自带建模（3D 风格视频派生的角色卡）优先；市场种子卡走静态映射表
+  const modelUrl = card.modelUrl ?? CARD_MODELS[card.name];
   return (
     <div className="absolute inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-slate-600/70 bg-panel/95 p-4 shadow-2xl backdrop-blur">
       <div className="flex gap-3.5">

@@ -1,7 +1,7 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
 import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, CardType, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
-import { MaterialFile, composeSegments, composeVideo, generateCards, generateProposals, searchMarket } from "../ai";
+import { MaterialFile, composeSegments, composeVideo, deriveDeckCards, generateCards, generateProposals, searchMarket } from "../ai";
 import { DECK_CAM, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { addCards as saveCardsToAccount, myCards, myDecks } from "../data/account";
@@ -770,22 +770,35 @@ export const useStudio = create<StudioState>()((set, get) => ({
       );
       get().setMood(-0.4, 2600);
     }
-    // 本片卡组：活动路径各节点素材卡的并集；一张素材都没用（纯文字要求）时
-    // 按段派生场景卡——保证每部作品都有可分享的卡组，观众能"用同款素材复刻"
+    // 本片卡组：素材卡并集 + AI 从剧情提炼的派生卡（角色/场景/背景/画风，
+    // 卡面跟随视频画风）。派生失败时兜底按段出场景卡——每部作品都必须有
+    // 可分享的卡组，观众才能"用同款素材复刻"
     const seenCard = new Set<string>();
     const deckCards = path
       .flatMap((n) => n.materials ?? [])
       .filter((c) => (seenCard.has(c.id) ? false : (seenCard.add(c.id), true)));
-    if (deckCards.length === 0) {
-      deckCards.push(
-        ...withVideo.map((sg, i) => ({
-          id: uid("card"),
-          type: "scene" as const,
-          name: sg.title.replace(/^第\d+段 · /, "").slice(0, 8) || `场景${i + 1}`,
-          summary: sg.plot.slice(0, 60),
-          cover: sg.firstFrame,
-        })),
+    try {
+      const styleHint = deckCards.find((c) => c.type === "style")?.name ?? "";
+      const derived = await deriveDeckCards(
+        withVideo.map((sg) => ({ title: sg.title, plot: sg.plot, firstFrame: sg.firstFrame })),
+        styleHint,
+        (s) => set({ composeStatus: s }),
       );
+      const names = new Set(deckCards.map((c) => c.name));
+      deckCards.push(...derived.filter((c) => !names.has(c.name)));
+    } catch (e) {
+      console.warn("[studio] 卡组提炼回退按段场景卡:", e);
+      if (deckCards.length === 0) {
+        deckCards.push(
+          ...withVideo.map((sg, i) => ({
+            id: uid("card"),
+            type: "scene" as const,
+            name: sg.title.replace(/^第\d+段 · /, "").slice(0, 8) || `场景${i + 1}`,
+            summary: sg.plot.slice(0, 60),
+            cover: sg.firstFrame,
+          })),
+        );
+      }
     }
     set({
       composing: false,

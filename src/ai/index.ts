@@ -19,6 +19,19 @@ export const composeVideo = mock.composeVideo; // 合成动画节奏（真实生
 export const generateCover: typeof real.generateCover = AI_REAL
   ? real.generateCover
   : async (req) => makeFrame(`cover:${req}:${Math.random()}`, `${req.slice(0, 10) || "封面"} · 演示`);
+
+/** 本片卡组提炼：真实构建 AI 分类型出卡（角色/场景/背景/画风）；
+ *  mock 构建退化为按段派生场景卡（首帧当卡面） */
+export const deriveDeckCards: typeof real.deriveDeckCards = AI_REAL
+  ? real.deriveDeckCards
+  : async (segments) =>
+      segments.map((sg, i) => ({
+        id: `card_drv_${Date.now().toString(36)}_${i}`,
+        type: "scene" as const,
+        name: sg.title.replace(/^第\d+段 · /, "").slice(0, 8) || `场景${i + 1}`,
+        summary: sg.plot.slice(0, 60),
+        cover: sg.firstFrame,
+      }));
 /** 逐段 Seedance 生成（仅真实 AI 构建可用；mock 构建返回空结果 = 首尾帧渐变） */
 export const composeSegments: typeof real.composeSegments = AI_REAL
   ? real.composeSegments
