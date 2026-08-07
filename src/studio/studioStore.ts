@@ -786,12 +786,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const videoByProposal: Record<string, string> = {};
     const withVideo = segments.map((sg, i) => {
       const r = results[i] ?? {};
-      // 合成前重画过的真帧同步回节点方案：草稿、分支树、后续续作都以真帧为准
-      if (r.firstFrame && r.lastFrame) {
-        chosen[i].firstFrame = r.firstFrame;
-        chosen[i].lastFrame = r.lastFrame;
-        delete chosen[i].degraded;
-      }
+      // "真实帧"同步回节点方案：占位帧的重画、尾帧续作的真实结尾/起拍帧——
+      // 草稿、分支树、后续续作都以真帧为准（节点卡显示的就是视频里实际的画面）
+      if (r.firstFrame) chosen[i].firstFrame = r.firstFrame;
+      if (r.lastFrame) chosen[i].lastFrame = r.lastFrame;
+      if (r.firstFrame && r.lastFrame) delete chosen[i].degraded;
       if (r.url) videoByProposal[chosen[i].id] = r.url;
       return {
         title: sg.title,

@@ -109,7 +109,8 @@ export async function generateVideo(
         watermark: false,
       }),
     },
-    30_000,
+    // 创建请求体带 2-3MB base64 首尾帧，慢网下 30s 会掐死在上传半途（2026-08-07 实测连超两次）
+    120_000,
   );
   const id = created.id;
   const t0 = Date.now();
@@ -158,7 +159,7 @@ export async function generate3dModel(
         content: [{ type: "image_url", image_url: { url: imageUrl } }],
       }),
     },
-    30_000,
+    120_000, // 同视频任务：请求体带 MB 级 base64 卡面，慢网 30s 不够上传
   );
   const t0 = Date.now();
   let pollFails = 0;

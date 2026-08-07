@@ -327,12 +327,75 @@ export async function generateCover(req: string, refDataUrl?: string): Promise<s
   return await genImageAsDataUrl(prompt, refDataUrl ? [refDataUrl] : undefined, FRAME_SIZE);
 }
 
-/** 单段合成结果：url 缺席时 error 说明原因；修复过占位帧时带回新帧供草稿/节点同步 */
+/** 单段合成结果：url 缺席时 error 说明原因；firstFrame/lastFrame 带回"真实"帧
+ *  （占位帧重画、尾帧续作的真实结尾）供草稿/节点同步 */
 export interface SegmentResult {
   url?: string;
   error?: string;
   firstFrame?: string;
   lastFrame?: string;
+}
+
+/**
+ * 帧压到 720p 再喂 Seedance：输出就是 720p，2560×1440 的 dataURL（1-1.5MB/张）
+ * 白白撑大创建请求体——慢网上行时 2-3MB 的 POST 会超时挂死（2026-08-07 实测）。
+ * 压后单帧 ~200KB，画质对 720p 输出无损失。非 dataURL / 压缩失败原样返回。
+ */
+async function shrinkFrameFor720p(dataUrl: string): Promise<string> {
+  if (!dataUrl.startsWith("data:image/")) return dataUrl;
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = dataUrl;
+    });
+    if (img.width <= 1280) return dataUrl;
+    const c = document.createElement("canvas");
+    c.width = 1280;
+    c.height = Math.round((img.height * 1280) / img.width);
+    c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.85);
+  } catch {
+    return dataUrl;
+  }
+}
+
+/**
+ * 取生成视频的真实最后一帧（经 /api/asset 代理拿 blob，避免 TOS 域画布污染）。
+ * 为什么必须捕获而不是信"设定尾帧"：极速档（pro-fast）不支持尾帧锁定，视频真实
+ * 结尾和 Seedream 画的设定尾帧必然有偏差；哪怕 flf2v 也只是"逼近"。下一段若从
+ * 设定尾帧起拍，段间就会跳变（2026-08-07《发条镇小骑士》用户实测发现）。
+ */
+async function captureVideoTail(videoUrl: string): Promise<string> {
+  const res = await fetch(`/api/asset?url=${encodeURIComponent(videoUrl)}`, {
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!res.ok) throw new Error(`取视频失败 ${res.status}`);
+  const blobUrl = URL.createObjectURL(await res.blob());
+  try {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.preload = "auto";
+    video.src = blobUrl;
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error("视频元数据加载失败"));
+    });
+    video.currentTime = Math.max(0, video.duration - 0.05);
+    await new Promise<void>((resolve, reject) => {
+      video.onseeked = () => resolve();
+      video.onerror = () => reject(new Error("视频 seek 失败"));
+      setTimeout(() => reject(new Error("视频 seek 超时")), 15_000);
+    });
+    const c = document.createElement("canvas");
+    c.width = video.videoWidth || 1280;
+    c.height = video.videoHeight || 720;
+    c.getContext("2d")!.drawImage(video, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.9);
+  } finally {
+    URL.revokeObjectURL(blobUrl);
+  }
 }
 
 /**
@@ -355,11 +418,18 @@ export async function composeSegments(
   onProgress?: (done: number, total: number, status: string) => void,
 ): Promise<SegmentResult[]> {
   const out: SegmentResult[] = [];
+  // 衔接判定要对照"原始设定帧"：后面会用真实尾帧顶替首帧，不能拿改过的值比
+  const origFirst = segments.map((s) => s.firstFrame);
+  const origLast = segments.map((s) => s.lastFrame);
+  // 上一段视频的真实结尾帧：本段承接上一段时用它顶替设定首帧（视频级无缝衔接）
+  let carryTail: string | null = null;
   for (let i = 0; i < segments.length; i++) {
     const sg = segments[i];
     const res: SegmentResult = {};
     let first = sg.firstFrame;
     let last = sg.lastFrame;
+    const prevTail = carryTail;
+    carryTail = null;
     try {
       if (sg.degraded) {
         onProgress?.(i, segments.length, "首尾帧此前未出图，正在重画…");
@@ -371,18 +441,34 @@ export async function composeSegments(
         res.firstFrame = first;
         res.lastFrame = last;
       }
+      // 尾帧续作：本段设定首帧 = 上一段设定尾帧（承接关系）时，改用上一段视频的
+      // 真实结尾起拍——设定尾帧只是分镜蓝图，视频（尤其极速档）不一定拍到那儿。
+      // 用户上传过自定义开头帧（首帧≠上段设定尾帧）则尊重用户，不顶替。
+      if (prevTail && i > 0 && origFirst[i] === origLast[i - 1]) {
+        first = prevTail;
+        res.firstFrame = prevTail;
+      }
       onProgress?.(i, segments.length, "任务创建中…");
       const tier = tierOf(sg.videoTier);
-      const url = await generateVideo(sg.plot.slice(0, 400), first, {
+      const url = await generateVideo(sg.plot.slice(0, 400), await shrinkFrameFor720p(first), {
         durationSec: sg.durationSec,
         // 极速档（pro-fast）不支持首尾帧任务（实测 400 task_type flf2v）——只给首帧起拍
-        lastFrameUrl: tier.flf ? last : undefined,
+        lastFrameUrl: tier.flf ? await shrinkFrameFor720p(last) : undefined,
         model: tier.model,
         onProgress: (s) => onProgress?.(i, segments.length, `${tier.label}档 · ${s}`),
       });
       // 视频较大（数 MB），存 URL 而非 dataURL——localStorage 放不下 base64 视频；
       // 方舟 URL 24h 有效，超时后播放器自动回退首尾帧渐变
       res.url = url;
+      // 捕获真实尾帧：回填节点/草稿（卡面显示真实结尾），并作为下一段的起拍帧
+      try {
+        onProgress?.(i, segments.length, "捕获本段真实尾帧…");
+        const tail = await captureVideoTail(url);
+        res.lastFrame = tail;
+        carryTail = tail;
+      } catch (e2) {
+        console.warn(`[ai] 第 ${i + 1} 段真实尾帧捕获失败（下一段沿用设定帧）:`, e2);
+      }
     } catch (e) {
       res.error = e instanceof Error ? e.message : String(e);
       console.warn(`[ai] 第 ${i + 1} 段视频失败，回退首尾帧:`, e);

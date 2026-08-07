@@ -647,3 +647,8 @@ async function flushPending(): Promise<void> {
   await idbSet(PENDING_KEY, left);
   if (left.length !== list.length) emitVideos();
 }
+
+// DEV 调试/E2E 挂钩：与 __studio/__account 同款——自动化要读写与组件同实例的作品库
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as Record<string, unknown>).__videos = { getVideo, listVideos, partsOf, setVideoParts, updateVideoMeta };
+}
