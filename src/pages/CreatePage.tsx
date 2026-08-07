@@ -23,6 +23,8 @@ interface Mode {
   cover: string;
   /** 边框点缀色 */
   skin: string;
+  /** 封面本身偏亮：压字层改用白色 + 深色文字，否则"可爱"会被暗层压成"沉闷" */
+  light?: boolean;
   cta: string;
   go: (nav: ReturnType<typeof useNavigate>) => void;
 }
@@ -64,6 +66,7 @@ const MODES: Mode[] = [
     bullets: ["无需素材卡，开箱即用", "起拍画面 AI 代笔", "满意就发布，不满意就重炼"],
     cover: "/create/simple.jpg",
     skin: "border-fuchsia-400/45",
+    light: true,
     cta: "写一句话出片",
     go: (nav) => {
       useFlow.getState().seedSolo("simple");
@@ -116,20 +119,36 @@ export default function CreatePage() {
                   decoding="async"
                   className="absolute inset-0 h-full w-full object-cover object-top"
                 />
-                {/* 压字暗层：三张封面明暗差别很大（简约模式下半是浅紫底），统一盖一层
-                    墨色渐变保证白字可读。收敛得快是有意的——底部 38% 压成实底给文字，
-                    62% 以上完全透明，画面主体（悬浮卡/全息面板/猫）不被糊掉 */}
-                <div className="absolute inset-0 bg-gradient-to-t from-ink from-38% via-ink/80 via-50% to-transparent to-62%" />
+                {/* 压字层：跟着封面明暗走。收敛得快是有意的——底部 38% 压成实底给
+                    文字，62% 以上完全透明，画面主体（悬浮塔罗牌/全息面板/猫）不被糊掉 */}
+                <div
+                  className={`absolute inset-0 bg-gradient-to-t to-transparent to-62% ${
+                    m.light ? "from-[#fdf7fb] from-38% via-[#fdf7fb]/85 via-50%" : "from-ink from-38% via-ink/80 via-50%"
+                  }`}
+                />
                 <div className="relative flex h-full flex-col justify-end p-5">
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">{m.emoji}</span>
-                    <span className="text-2xl font-bold text-slate-50">{m.title}</span>
-                    <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] text-slate-200">{m.tag}</span>
+                    <span className={`text-2xl font-bold ${m.light ? "text-slate-900" : "text-slate-50"}`}>
+                      {m.title}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] ${
+                        m.light ? "bg-black/10 text-slate-700" : "bg-white/15 text-slate-200"
+                      }`}
+                    >
+                      {m.tag}
+                    </span>
                   </div>
-                  <p className="mt-2.5 text-sm leading-relaxed text-slate-200">{m.desc}</p>
+                  <p className={`mt-2.5 text-sm leading-relaxed ${m.light ? "text-slate-700" : "text-slate-200"}`}>
+                    {m.desc}
+                  </p>
                   <ul className="mt-3 space-y-1.5">
                     {m.bullets.map((b) => (
-                      <li key={b} className="flex gap-2 text-xs leading-relaxed text-slate-400">
+                      <li
+                        key={b}
+                        className={`flex gap-2 text-xs leading-relaxed ${m.light ? "text-slate-600" : "text-slate-400"}`}
+                      >
                         <span className="flex-none">·</span>
                         <span>{b}</span>
                       </li>
@@ -137,7 +156,9 @@ export default function CreatePage() {
                   </ul>
                   <button
                     onClick={() => m.go(navigate)}
-                    className="mt-4 w-full rounded-2xl bg-white/90 py-3 text-sm font-bold text-ink transition active:scale-[0.98]"
+                    className={`mt-4 w-full rounded-2xl py-3 text-sm font-bold transition active:scale-[0.98] ${
+                      m.light ? "bg-ink text-white" : "bg-white/90 text-ink"
+                    }`}
                   >
                     {m.cta} ›
                   </button>
