@@ -180,12 +180,19 @@ export async function generateProposals(
 export async function deriveDeckCards(
   segments: Array<{ title: string; plot: string; firstFrame: string }>,
   styleHint: string,
+  existing: Array<Pick<Card, "type" | "name" | "summary">> = [],
   onProgress?: (status: string) => void,
 ): Promise<Card[]> {
   onProgress?.("提炼本片卡组…");
+  // 把已有素材卡报给模型：同一实体（哪怕剧情里换了叫法）不许重复出卡，
+  // 只补剧情里出现但还没有卡的角色/场景——每类都可以出多张
+  const existingDesc =
+    existing.length > 0
+      ? existing.map((c) => `${TYPE_LABEL[c.type]}「${c.name}」(${(c.summary ?? "").slice(0, 24)})`).join("、")
+      : "（无）";
   const raw = await chat(
-    '你是卡牌游戏的铸卡师。从视频剧情中提炼可复用的创作素材卡，输出 JSON 数组（2~5 张）：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：出现的主要角色必须各有一张 character 卡；主要场景一张 scene 卡；整体色调/氛围可给一张 background 卡；画风鲜明时给一张 style 卡。只输出 JSON。',
-    `剧情（按段）：${segments.map((s) => s.plot).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从剧情推断）"}`,
+    '你是卡牌游戏的铸卡师。对照"已有素材卡"清单，从视频剧情中提炼出尚未有卡的可复用创作素材，输出 JSON 数组（0~8 张）：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：剧情中每个主要角色若未被已有卡覆盖（注意同一角色可能换了称呼），各出一张 character 卡，缺几个补几张；已有卡覆盖的实体绝对不要再出。主要场景/地点同理，每处未覆盖的出一张 scene 卡。整体色调氛围未覆盖时至多一张 background 卡；画风鲜明且没有风格卡时至多一张 style 卡；剧情关键道具可出 prop 卡。所有实体都已被覆盖时输出 []。只输出 JSON。',
+    `已有素材卡：${existingDesc}\n剧情（按段）：${segments.map((s) => s.plot).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从剧情推断）"}`,
   );
   const defs = JSON.parse(raw.replace(/```json|```/g, "").trim()) as Array<{
     type?: CardType;
@@ -193,10 +200,11 @@ export async function deriveDeckCards(
     summary?: string;
     imagePrompt?: string;
   }>;
-  if (!Array.isArray(defs) || defs.length === 0) throw new Error("卡组提炼 JSON 结构不符");
+  if (!Array.isArray(defs)) throw new Error("卡组提炼 JSON 结构不符");
+  if (defs.length === 0) return []; // 已有卡把实体全覆盖了：无需补卡，合法结果
   const out: Card[] = [];
   let done = 0;
-  const jobs = defs.slice(0, 5).filter((d) => d.name && TYPE_LABEL[d.type as CardType]);
+  const jobs = defs.slice(0, 8).filter((d) => d.name && TYPE_LABEL[d.type as CardType]);
   await mapLimit(jobs, 3, async (d) => {
     const type = d.type as CardType;
     try {

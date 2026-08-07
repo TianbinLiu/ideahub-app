@@ -1,6 +1,6 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
-import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, CardType, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
+import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
 import { MaterialFile, composeSegments, composeVideo, deriveDeckCards, generateCards, generateProposals, searchMarket } from "../ai";
 import { DECK_CAM, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
@@ -25,7 +25,8 @@ export interface Flight {
 }
 
 export interface EditorState {
-  slots: Partial<Record<CardType, string>>;
+  /** 已选素材卡 id，同类型可放多张（两位主角就放两张人物卡），先选先排 */
+  slots: string[];
   requirement: string;
   durationMode: "ai" | "manual";
   durationSec: number;
@@ -264,7 +265,7 @@ interface StudioState {
   setDrag: (cardId: string | null) => void;
   dropOnPlaceholder: (cardId: string, pos: [number, number, number], look: [number, number, number]) => void;
 
-  clearSlot: (type: CardType) => void;
+  clearSlot: (cardId: string) => void;
   setRequirement: (v: string) => void;
   setDurationMode: (m: "ai" | "manual") => void;
   setDurationSec: (v: number) => void;
@@ -287,7 +288,7 @@ interface StudioState {
 }
 
 const DEFAULT_EDITOR: EditorState = {
-  slots: {},
+  slots: [],
   requirement: "",
   durationMode: "ai",
   durationSec: 6,
@@ -479,7 +480,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set({
       focus: { nodeId: null },
       projection: "editor",
-      editor: { ...DEFAULT_EDITOR, slots: {} },
+      editor: { ...DEFAULT_EDITOR, slots: [] },
       spreadOpen: false,
       camera: { kind: "pos", pos, look },
       // 绕节点卡本身做球面运动（look 是卡片处，即圆心）
@@ -580,7 +581,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const { deck, editor } = get();
     const card = deck.find((c) => c.id === cardId);
     if (!card || !editor || editor.generating) return;
-    set({ editor: { ...editor, slots: { ...editor.slots, [card.type]: card.id } } });
+    if (editor.slots.includes(card.id)) return;
+    if (editor.slots.length >= 8) {
+      get().npcSay("一炉最多放 8 张素材卡，先撤下几张再加。");
+      return;
+    }
+    set({ editor: { ...editor, slots: [...editor.slots, card.id] } });
   },
   setDrag: (cardId) => set({ dragCardId: cardId }),
   dropOnPlaceholder: (cardId, pos, look) => {
@@ -589,7 +595,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set({ dragCardId: null });
     if (!card) return;
     if (editor && !editor.generating) {
-      set({ editor: { ...editor, slots: { ...editor.slots, [card.type]: card.id } } });
+      if (!editor.slots.includes(card.id) && editor.slots.length < 8)
+        set({ editor: { ...editor, slots: [...editor.slots, card.id] } });
       return;
     }
     if (get().projection) return;
@@ -597,19 +604,16 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set({
       focus: { nodeId: null },
       projection: "editor",
-      editor: { ...DEFAULT_EDITOR, slots: { [card.type]: card.id } },
+      editor: { ...DEFAULT_EDITOR, slots: [card.id] },
       spreadOpen: false,
       camera: { kind: "pos", pos, look },
     });
   },
 
-  clearSlot: (type) =>
-    set((s) => {
-      if (!s.editor) return {};
-      const slots = { ...s.editor.slots };
-      delete slots[type];
-      return { editor: { ...s.editor, slots } };
-    }),
+  clearSlot: (cardId) =>
+    set((s) =>
+      s.editor ? { editor: { ...s.editor, slots: s.editor.slots.filter((id) => id !== cardId) } } : {},
+    ),
   setRequirement: (v) => set((s) => (s.editor ? { editor: { ...s.editor, requirement: v } } : {})),
   setDurationMode: (m) => set((s) => (s.editor ? { editor: { ...s.editor, durationMode: m } } : {})),
   setDurationSec: (v) => set((s) => (s.editor ? { editor: { ...s.editor, durationSec: v } } : {})),
@@ -622,7 +626,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       get().npcSay("上一炉还在推演，等它出炉再开新的。");
       return;
     }
-    const materials = Object.values(editor.slots)
+    const materials = editor.slots
       .map((id) => deck.find((c) => c.id === id))
       .filter((c): c is Card => !!c);
     if (materials.length === 0 && !editor.requirement.trim()) {
@@ -779,9 +783,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
       .filter((c) => (seenCard.has(c.id) ? false : (seenCard.add(c.id), true)));
     try {
       const styleHint = deckCards.find((c) => c.type === "style")?.name ?? "";
+      // 把节点里已用的素材卡报给 AI：已覆盖的实体不重复提炼，只补剧情里缺卡的角色/场景
       const derived = await deriveDeckCards(
         withVideo.map((sg) => ({ title: sg.title, plot: sg.plot, firstFrame: sg.firstFrame })),
         styleHint,
+        deckCards.map((c) => ({ type: c.type, name: c.name, summary: c.summary })),
         (s) => set({ composeStatus: s }),
       );
       const names = new Set(deckCards.map((c) => c.name));

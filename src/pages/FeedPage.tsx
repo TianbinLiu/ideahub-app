@@ -61,6 +61,27 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
   const [paused, setPaused] = useState(false);
   const [burst, setBurst] = useState<{ x: number; y: number; k: number } | null>(null);
   const [muted, setMuted] = useState(!soundOn);
+  // 缓冲提示（对标抖音底缘细线）：waiting 后延迟 200ms 才亮，
+  // 微卡顿（解码抖一下就恢复）不闪灯，真加载才提示
+  const [buffering, setBuffering] = useState(false);
+  const bufTimer = useRef<number | undefined>(undefined);
+  const bufferOn = () => {
+    if (bufTimer.current != null) return;
+    bufTimer.current = window.setTimeout(() => {
+      bufTimer.current = undefined;
+      setBuffering(true);
+    }, 200);
+  };
+  const bufferOff = () => {
+    if (bufTimer.current != null) {
+      clearTimeout(bufTimer.current);
+      bufTimer.current = undefined;
+    }
+    setBuffering(false);
+  };
+  useEffect(() => () => {
+    if (bufTimer.current != null) clearTimeout(bufTimer.current);
+  }, []);
   const countedRef = useRef(false);
   const tapRef = useRef<{ x: number; y: number; t: number; last: number }>({ x: 0, y: 0, t: 0, last: 0 });
   const user = useCurrentUser();
@@ -86,7 +107,9 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
     } else {
       v.pause();
       v.currentTime = 0;
+      bufferOff(); // 划走的屏不留缓冲灯
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, video.id]);
 
   function likeOn() {
@@ -168,6 +191,12 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
           muted={muted}
           playsInline
           preload={active ? "auto" : "metadata"}
+          onWaiting={bufferOn}
+          onStalled={bufferOn}
+          onSeeking={bufferOn}
+          onPlaying={bufferOff}
+          onCanPlay={bufferOff}
+          onSeeked={bufferOff}
         />
       ) : (
         <img src={video.cover} alt={video.title} className="absolute inset-0 h-full w-full object-cover" />
@@ -176,6 +205,16 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
       {/* 上下定高遮罩：只压住文字所在的两条带，中间画面保持干净 */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/55 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black/80 via-black/35 to-transparent" />
+
+      {/* 缓冲提示：抖音式底缘细线，从中心拉宽淡出循环。位置在底栏上缘＝画面视觉底边 */}
+      {active && buffering && !paused && (
+        <div
+          className="pointer-events-none absolute inset-x-0 z-10 flex justify-center"
+          style={{ bottom: "var(--tabbar-h)" }}
+        >
+          <div className="feed-buffer-line" />
+        </div>
+      )}
 
       {/* 暂停指示 */}
       {paused && (

@@ -192,6 +192,9 @@ function EditorPanel() {
   const [pickerType, setPickerType] = useState<CardType | null>(null);
   if (!editor) return null;
 
+  const slotCards = editor.slots
+    .map((id) => deck.find((c) => c.id === id))
+    .filter((c): c is (typeof deck)[number] => !!c);
   const path = activePath(root);
   const prev = path.length > 0 ? chosenProposal(path[path.length - 1]) : null;
   const segIndex = root ? path.length : 0;
@@ -242,19 +245,23 @@ function EditorPanel() {
         {/* 右：素材 / 视频要求（撑满剩余空间）/ 时长一行 */}
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
 
-          {/* ② 素材 */}
+          {/* ② 素材：已选卡在前（同类型可多张——双主角就放两张人物卡），
+              五个类型追加按钮常驻在后 */}
           <div>
-            <div className="mb-1 text-xs font-semibold text-slate-300">素材</div>
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="text-xs font-semibold text-slate-300">素材</span>
+              {slotCards.length > 0 && (
+                <span className="text-[10px] tabular-nums text-slate-500">{slotCards.length}/8 张 · 同类型可多张</span>
+              )}
+            </div>
             <div className="grid grid-cols-5 gap-1.5">
-              {CARD_TYPES.map((type) => {
-                const cardId = editor.slots[type];
-                const card = deck.find((c) => c.id === cardId);
-                const color = CARD_TYPE_COLORS[type];
-                return card ? (
-                  <div key={type} className="relative overflow-hidden rounded border" style={{ borderColor: color }}>
+              {slotCards.map((card) => {
+                const color = CARD_TYPE_COLORS[card.type];
+                return (
+                  <div key={card.id} className="relative overflow-hidden rounded border" style={{ borderColor: color }}>
                     <img src={card.cover} alt={card.name} className="aspect-[2/3] w-full object-cover" />
                     <button
-                      onClick={() => useStudio.getState().clearSlot(type)}
+                      onClick={() => useStudio.getState().clearSlot(card.id)}
                       className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-[9px] text-slate-300"
                     >
                       ✕
@@ -263,11 +270,17 @@ function EditorPanel() {
                       {card.name}
                     </div>
                   </div>
-                ) : (
+                );
+              })}
+              {CARD_TYPES.map((type) => {
+                const color = CARD_TYPE_COLORS[type];
+                return (
                   <button
                     key={type}
                     onClick={() => setPickerType(pickerType === type ? null : type)}
-                    className="flex aspect-[2/3] flex-col items-center justify-center rounded border border-dashed text-[10px]"
+                    className={`flex aspect-[2/3] flex-col items-center justify-center rounded border border-dashed text-[10px] ${
+                      pickerType === type ? "bg-white/10" : ""
+                    }`}
                     style={{ borderColor: color + "77", color }}
                   >
                     ＋{CARD_TYPE_LABELS[type].slice(0, 2)}
@@ -277,8 +290,13 @@ function EditorPanel() {
             </div>
             {pickerType && (
               <div className="mt-1.5 rounded-lg bg-black/30 p-1.5">
-                <div className="mb-1 text-[10px] text-slate-400">
-                  从卡组选择{CARD_TYPE_LABELS[pickerType]}（也可直接点下方桌面展开的卡）
+                <div className="mb-1 flex items-baseline justify-between">
+                  <span className="text-[10px] text-slate-400">
+                    点选加入{CARD_TYPE_LABELS[pickerType]}，再点撤下——可连选多张
+                  </span>
+                  <button onClick={() => setPickerType(null)} className="text-[10px] text-cyan-300">
+                    完成
+                  </button>
                 </div>
                 <div className="flex gap-1.5 overflow-x-auto pb-0.5">
                   {deck.filter((c) => c.type === pickerType).length === 0 && (
@@ -286,19 +304,34 @@ function EditorPanel() {
                   )}
                   {deck
                     .filter((c) => c.type === pickerType)
-                    .map((c) => (
-                      <button
-                        key={c.id}
-                        onClick={() => {
-                          useStudio.getState().pickDeckCard(c.id);
-                          setPickerType(null);
-                        }}
-                        className="w-14 flex-none overflow-hidden rounded border border-slate-600"
-                      >
-                        <img src={c.cover} alt={c.name} className="aspect-[2/3] w-full object-cover" />
-                        <div className="truncate bg-black/70 px-0.5 text-center text-[9px] text-slate-300">{c.name}</div>
-                      </button>
-                    ))}
+                    .map((c) => {
+                      const on = editor.slots.includes(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() =>
+                            on ? useStudio.getState().clearSlot(c.id) : useStudio.getState().pickDeckCard(c.id)
+                          }
+                          className={`relative w-14 flex-none overflow-hidden rounded border ${
+                            on ? "border-gold" : "border-slate-600"
+                          }`}
+                        >
+                          <img
+                            src={c.cover}
+                            alt={c.name}
+                            className={`aspect-[2/3] w-full object-cover ${on ? "opacity-55" : ""}`}
+                          />
+                          {on && (
+                            <span className="absolute inset-0 flex items-center justify-center text-base text-gold">
+                              ✓
+                            </span>
+                          )}
+                          <div className="truncate bg-black/70 px-0.5 text-center text-[9px] text-slate-300">
+                            {c.name}
+                          </div>
+                        </button>
+                      );
+                    })}
                 </div>
               </div>
             )}

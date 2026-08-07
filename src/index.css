@@ -95,3 +95,16 @@ canvas {
 .heart-burst {
   animation: heart-burst 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
+
+/* 首页视频缓冲提示（对标抖音/TikTok）：底缘细线从中心拉宽并淡出，循环 */
+@keyframes feed-buffer {
+  0% { width: 16%; opacity: 0; }
+  35% { opacity: 0.85; }
+  100% { width: 90%; opacity: 0; }
+}
+.feed-buffer-line {
+  height: 3px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.8);
+  animation: feed-buffer 0.9s ease-out infinite;
+}
