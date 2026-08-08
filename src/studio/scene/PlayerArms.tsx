@@ -11,7 +11,7 @@ import { DECK_CAM } from "./layout";
 import { PlayerAvatar, playerModelUrl } from "../quality";
 import { loaderFor } from "../secureAssets";
 import { SpringBoneSim, type SphereCollider } from "./springBones";
-import { PLAYER_HEAD, PLAYER_TORSO, eyeLimits, eyeLook, eyeRise, playerEye } from "./cameraOrbit";
+import { PLAYER_HEAD, PLAYER_TORSO, eyeLimits, eyeLook, eyeRise, pitchDownAt, playerEye } from "./cameraOrbit";
 import { gazeDelta, type GazeLimits } from "./gazeDelta";
 import { cullSkinBackfaces } from "./cameraFade";
 import { FaceDriver, TSUMIRE_FACE, TRIPO_FACE, moodExpression, type Expression, type FaceRecipe } from "./faceExpr";
@@ -20,6 +20,13 @@ import { FaceDriver, TSUMIRE_FACE, TRIPO_FACE, moodExpression, type Expression, 
 const PLAYER_GAZE: GazeLimits = { yaw: 0.5, up: 0.20, down: 0.12 };
 
 const _torsoTmp = new THREE.Vector3();
+
+/** 描边反壳沿法线的**局部空间**外扩量。它同时喂给 toonify 和自身剔除半径的推导，
+ *  必须是共享常量：写成两个字面量的话，改了描边宽度而没改剔除半径就会裂出裸壳带。 */
+const OUTLINE_W = 0.0012;
+/** "相机贴在自己身上"的判定门限（到头骨的距离）。藏头与自身剔除**共用这一个数**。
+ *  ⚠ 所有剔除半径都必须小于它：球在门限翻转的那一帧必须是空的，否则就是一帧硬跳变。 */
+const SELF_GATE = 1.0;
 
 const BONES = {
   spine1: "mixamorigSpine1",
@@ -351,10 +358,15 @@ function FootStool({ height }: { height: number }) {
  *  TableScene.eyeCam 与 rig.eyeOffset）。把相机移到眼睛表面后，即使**关掉本函数**
  *  低头画面也是干净的——这是隔离实验确认过的，别再把这里当成修穿模的地方。
  *
- *  留着它的理由只有一个：保证任何姿势/机位下都不会有自身几何捅进近裁剪面(0.1)。
- *  所以半径给得很小（本体 0.12 刚过近裁剪面，反壳 0.25——反壳是世界尺度的等距外扩，
- *  贴太近会在屏幕上糊成黑块）。距离取视空间径向距离 length(mvPosition.xyz)，
- *  天然是以相机为心的球，不需要额外的世界坐标 uniform。 */
+ *  留着它的理由：保证任何姿势/机位下都不会有自身几何捅进近裁剪面，以及藏头时那根
+ *  塌缩三角面片不入画。距离取视空间径向距离 length(mvPosition.xyz)，天然是以相机
+ *  为心的球，不需要额外的世界坐标 uniform。
+ *
+ *  **半径有两条硬约束，改任何一个之前先读它们**（具体数值一律在帧循环里推导，
+ *  这里不复述——历史上就是注释里的数字先烂掉、倒挂才有机可乘）：
+ *    1) 反壳半径 = 本体半径 + 反壳世界外扩量。反壳是本体沿法线等距外推的复制体，
+ *       小于这个值就会裂出"本体已剔除、它的壳还在画"的裸壳带 = 贴身时一层实心内壁。
+ *    2) 两个半径都必须 < SELF_GATE。球在门限翻转时要是非空的，就是一帧描边爆闪。 */
 function applySelfCull(root: THREE.Object3D) {
   const mats: THREE.Material[] = [];
   root.traverse((o) => {
@@ -461,7 +473,7 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
   useMemo(() => {
     // 传 look 才能让 noOutlineMatch 生效：不传时 toonify 里的 noShell 判据退化成空数组，
     // 连脸都会套上反向外壳（黑眼圈/黑嘴的真凶）
-    toonify(gltf.scene, 0.0012, undefined, rig.outlineSkip ? { noOutlineMatch: rig.outlineSkip } : undefined);
+    toonify(gltf.scene, OUTLINE_W, undefined, rig.outlineSkip ? { noOutlineMatch: rig.outlineSkip } : undefined);
     // ⚠ 玩家模型**不接 applyCameraFade**（试过，是回退）：藏头把头骨缩到 0.001 会
     // 拉出一根横贯视野的塌缩三角面片，硬剔除时它直接消失，一旦改成网点淡出就变成
     // 半透明纱铺满全屏（实测整个房间被网点糊住）。玩家侧一律用 applySelfCull 的硬剔除。
@@ -590,7 +602,11 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     eyeLimits.pitchDown = rig.eyePitchDown ?? 1.2;
     playerEye.forward = rig.eyeOffset?.[0] ?? 0.12;
     playerEye.up = rig.eyeOffset?.[1] ?? 0.04;
-    if (eyeLook.pitch < -eyeLimits.pitchDown) eyeLook.pitch = -eyeLimits.pitchDown;
+    // 收敛要走**耦合后**的下限（pitchDownAt），不是裸的 eyeLimits.pitchDown：
+    // 后者是偏航为 0 时的值，用它收敛等于放过"先转头低头、再换形象"这条路径——
+    // 换完形象姿态仍停在锥形限幅之外，正是穿模的那个角落
+    const lim = pitchDownAt(eyeLook.yaw);
+    if (eyeLook.pitch < -lim) eyeLook.pitch = -lim;
     return () => {
       eyeLimits.pitchDown = 1.2;
       playerEye.forward = 0.12;
@@ -834,24 +850,32 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
         PLAYER_TORSO.copy(PLAYER_HEAD).setY(PLAYER_HEAD.y - 0.25);
       }
       const camDist = camera.position.distanceTo(PLAYER_HEAD);
-      const wantHide = camDist < 1.0 && (eyeView || (rig.hideHead && !showSelf));
+      const wantHide = camDist < SELF_GATE && (eyeView || (rig.hideHead && !showSelf));
       const s = wantHide ? 0.001 : 1;
       if (head.scale.x !== s) head.scale.set(s, s, s);
-      // 自身近距剔除（见 applySelfCull）：只在"相机贴在自己身上"时开。
-      const selfOn = camDist < 1.0;
+      // 自身近距剔除（见 applySelfCull）与藏头**同开同关**：这套剔除本来就是藏头的
+      // 善后（头骨缩到 0.001 会拉出一根横贯视野的塌缩三角面片），藏头没发生时它没有
+      // 存在理由。以前它自己按距离开关，于是卡组特写/绕玩家旋转（camera.kind="pos"、
+      // 头并没有藏）也会翻真——实测轨道最小半径下 camDist 全程 0.70~0.95 < 1.0，
+      // 把角色的描边整片吞掉，领口/领结/背带的黑线全没了，赛璐璐质感被抹平。
+      const selfOn = wantHide;
       // 本体半径：0.12 只够护住近裁剪面；用户要"看不到角色内部构造"，就得把整段
       // 贴身距离都剔掉——0.45 覆盖到胸口（第一人称眼到胸 0.67）而不吃到桌面
       const baseR = selfOn ? (rig.selfCullR ?? 0.45) : 0;
-      // ⚠ 反壳半径**必须 ≥ 本体半径**，这是不变量不是调参。
-      // 反壳是 BackSide 的实心复制体（toonify 的 makeOutline，无贴图时纯色 0x241a12、
-      // 有贴图时 贴图×0x5a4a40 的棕），本体被剔除而壳没被剔除时，镜头看到的就是
-      // 一层实心内壁——用户报的"第一人称低头又穿模"正是这个：本体 0.45 而壳 0.25，
-      // 中间裂出一条 0.25~0.45 的裸壳带。实测射线：同一像素上 shirt d=0.390 已剔除、
-      // 它的壳 d=0.390 仍在画；截图里那些大块棕色面就是壳材质的 0x5a4a40。
-      // 所以这里从 baseR 派生而不是另写一个常量——各写各的迟早会再次倒挂。
-      // 取 1.2 而不是恰好等于 baseR：第一人称能看到的自己身体基本都在这个球内，
-      // 描边是世界尺度的等距外扩，贴到 0.5 米内会在屏幕上糊成黑块，一律不描边更干净。
-      const shellR = selfOn ? Math.max(baseR, 1.2) : 0;
+      // 反壳半径是**推导出来的，不是一个可调参数**。反壳是本体表面沿法线外推
+      // shellOut 的一份 BackSide 复制体（toonify.makeOutline，有贴图时是 贴图×0x5a4a40
+      // 的棕）。要让同一块表面的本体与壳同时消失：
+      //     本体片元在 d 处、被剔除 ⟺ d < baseR
+      //     它的壳片元在 d+shellOut 处、被剔除 ⟺ d < shellR − shellOut
+      // 两者对齐即 shellR = baseR + shellOut。
+      // 坑一：壳 0.25 < 本体 0.45，裂出 [0.25,0.45) 的裸壳带，贴身时是一层实心棕色
+      //       内壁（实测同一像素 shirt d=0.390 已剔除、它的壳 d=0.390 仍在画）。
+      // 坑二：修的时候把壳一刀提到 1.2 想"干脆整个关掉描边"，结果 1.2 > SELF_GATE，
+      //       门限翻转那一帧描边整体开关；而且它顺手把卡组特写的描边也吞了。
+      const shellOut = OUTLINE_W * rig.scale; // 世界外扩量 = 局部宽度 × 模型缩放
+      const shellR = selfOn ? baseR + shellOut : 0;
+      if (import.meta.env.DEV && shellR >= SELF_GATE)
+        console.error("[selfCull] 剔除半径越过门限，camDist 跨 SELF_GATE 时会爆闪", { shellR, SELF_GATE });
       for (const m of selfCullMats.current) {
         const u = m.userData.__selfCullR as { value: number } | undefined;
         if (u) u.value = m.userData.__isShell ? shellR : baseR;
