@@ -4,14 +4,17 @@
 import { NavLink, useLocation, useNavigate } from "react-router";
 import { useCurrentUser } from "../hooks/useAccount";
 import Icon, { type IconName } from "./Icon";
-import CharacterPerch from "./CharacterPerch";
+import CharacterPerch, { type PerchPose } from "./CharacterPerch";
 
-const TABS: ReadonlyArray<{ to: string; icon: IconName; label: string } | null> = [
-  { to: "/", icon: "home", label: "首页" },
-  { to: "/discover", icon: "compass", label: "分区" },
+// pose 决定激活时角色的姿势【和】动效（见 CharacterPerch）。
+// 每个 Tab 各不相同：挥手 / 张望 / 欢呼 / 托下巴 ——
+// 四个 Tab 共用一套的话，切 Tab 的反馈就完全分不出切到了哪。
+const TABS: ReadonlyArray<{ to: string; icon: IconName; label: string; pose: PerchPose } | null> = [
+  { to: "/", icon: "home", label: "首页", pose: "home" },
+  { to: "/discover", icon: "compass", label: "分区", pose: "explore" },
   null, // 中间 ➕ 占位
-  { to: "/workshop", icon: "cards", label: "创意工坊" },
-  { to: "/me", icon: "user", label: "我的" },
+  { to: "/workshop", icon: "cards", label: "创意工坊", pose: "studio" },
+  { to: "/me", icon: "user", label: "我的", pose: "mine" },
 ];
 
 export default function TabBar() {
@@ -49,7 +52,7 @@ export default function TabBar() {
                 <>
                   {/* relative 只包图标：小人相对【图标】定位，包住文字会偏高 */}
                   <span className="relative flex items-center justify-center">
-                    {isActive && <CharacterPerch size={23} />}
+                    {isActive && <CharacterPerch pose={t.pose} size={23} />}
                     <Icon name={t.icon} size={23} filled={isActive} />
                   </span>
                   <span>{t.label}</span>

@@ -8,7 +8,7 @@ import { useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
 import Avatar from "../components/Avatar";
 import Icon, { type IconName } from "../components/Icon";
-import CharacterPerch from "../components/CharacterPerch";
+import CharacterPerch, { type PerchPose } from "../components/CharacterPerch";
 import { VideoItem } from "../types";
 
 /** 声音开关全流共享：一条视频上解除静音，后面每条都该有声（对标抖音/TikTok） */
@@ -32,8 +32,9 @@ function RailBtn({
   filled?: boolean;
   tint?: string;
   label?: string;
-  /** true 时，激活（filled）状态会有角色跳上来坐在图标上 */
-  perch?: boolean;
+  /** 给了姿势名，激活（filled）时角色就跳上来坐在图标上。
+   *  姿势同时决定动效：点赞是张臂蹦高，收藏是升起后晃两下（见 CharacterPerch）。 */
+  perch?: PerchPose;
   onClick: () => void;
 }) {
   return (
@@ -43,7 +44,7 @@ function RailBtn({
     >
       {/* relative 容器只包图标：小人要相对【图标】定位，包住文字的话会偏高 */}
       <span className="relative flex items-center justify-center">
-        {perch && filled && <CharacterPerch size={28} />}
+        {perch && filled && <CharacterPerch pose={perch} size={28} />}
         <Icon
           name={icon}
           size={28}
@@ -243,14 +244,14 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
           )}
         </div>
 
-        <RailBtn icon="heart" filled={liked} tint="text-rose-500" label={String(likes)} perch onClick={toggleLike} />
+        <RailBtn icon="heart" filled={liked} tint="text-rose-500" label={String(likes)} perch="like" onClick={toggleLike} />
         <RailBtn icon="comment" label={String(video.comments.length)} onClick={() => navigate(`/video/${video.id}`)} />
         <RailBtn
           icon="bookmark"
           filled={saved}
           tint="text-gold"
           label={String(saves)}
-          perch
+          perch="save"
           onClick={() => {
             const on = !saved;
             setSaved(on);

@@ -96,21 +96,113 @@ canvas {
   animation: heart-burst 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-/* 角色小人「跳上去坐稳」：轻微过冲 + 落定，只在激活瞬间播一次。
-   用 scale+translateY 而不是 top/height —— 后者会触发布局重排，
-   而右侧栏在视频滚动中本就吃紧，动画必须只走合成层。 */
-@keyframes perch-pop {
-  0%   { transform: translateX(-50%) translateY(6px) scale(0.4); opacity: 0; }
-  55%  { transform: translateX(-50%) translateY(-2px) scale(1.12); opacity: 1; }
-  78%  { transform: translateX(-50%) translateY(0) scale(0.96); }
+/* ── 激活态角色（见 components/CharacterPerch.tsx）────────────────────────
+   所有关键帧都必须自带 translateX(-50%)：水平居中来自 Tailwind 的
+   -translate-x-1/2，而 animation 的 transform 会整条覆盖掉它，
+   漏写就会让角色整体右移半个身位。
+
+   一律只动 transform / opacity（合成层），不碰 top/height ——
+   右侧栏在视频滚动中本就吃紧，动画触发重排会直接掉帧。 */
+
+.perch-pop {
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+  --perch-glow: 255 255 255; /* 兜底：调用方没给色时不至于让整条 background 失效 */
+}
+
+/* ① 同色辉光：铺在角色【背后】，颜色取该图标的激活色（赞=玫红 藏=金 Tab=青）。
+      角色是彩色厚涂、图标是单色描边，两种视觉语言并排放着必然突兀；
+      让两者共享一个色相是把它们绑成一个整体最省力的一招。 */
+.perch-pop::before {
+  content: "";
+  position: absolute;
+  inset: 12% 0 0 0;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(var(--perch-glow) / 0.5), rgb(var(--perch-glow) / 0) 72%);
+}
+
+/* ② 接触阴影：投在【图标】上，制造承重与接触感。
+      没有这层，角色就是一张悬在图标上方的贴纸——这正是"不融洽"的主因。
+      bottom 取负值，让阴影落到角色之外、图标身上。 */
+.perch-pop::after {
+  content: "";
+  position: absolute;
+  left: 24%;
+  right: 24%;
+  bottom: -8%;
+  height: 16%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 74%);
+}
+
+/* ── 每个动作一套动效 ─────────────────────────────────────────────────
+   六处共用一套动画时，点赞和切 Tab 的反馈完全一样，角色就退化成一个
+   到处乱贴的水印。动效呼应各自的姿势：张臂就蹦得高、挥手就左右摇、
+   张望就从侧面探进来、托下巴就安静地落座。 */
+
+/* 点赞：双臂张开——弹得最高，落定后再补一个小回弹 */
+@keyframes perch-like {
+  0%   { transform: translateX(-50%) translateY(10px) scale(0.45); opacity: 0; }
+  45%  { transform: translateX(-50%) translateY(-7px) scale(1.18); opacity: 1; }
+  65%  { transform: translateX(-50%) translateY(0) scale(0.94); }
+  82%  { transform: translateX(-50%) translateY(-2px) scale(1.04); }
   100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
 }
-.perch-pop {
-  animation: perch-pop 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  transform-origin: 50% 100%;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+.perch-like { animation: perch-like 460ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* 收藏：双手合拢——从下方升起后左右晃两下才停，像把东西收好 */
+@keyframes perch-save {
+  0%   { transform: translateX(-50%) translateY(16px) scale(0.9); opacity: 0; }
+  55%  { transform: translateX(-50%) translateY(-3px) scale(1.02); opacity: 1; }
+  75%  { transform: translateX(-50%) translateY(0) rotate(-5deg); }
+  90%  { transform: translateX(-50%) translateY(0) rotate(3deg); }
+  100% { transform: translateX(-50%) translateY(0) rotate(0deg); opacity: 1; }
 }
-/* 尊重系统的「减少动态效果」设置：直接显示终态，不做弹跳 */
+.perch-save { animation: perch-save 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* 首页：挥手——弹入后左右摇摆三下，呼应挥手动作 */
+@keyframes perch-home {
+  0%   { transform: translateX(-50%) translateY(8px) scale(0.5); opacity: 0; }
+  40%  { transform: translateX(-50%) translateY(-3px) scale(1.12); opacity: 1; }
+  58%  { transform: translateX(-50%) rotate(-9deg); }
+  74%  { transform: translateX(-50%) rotate(6deg); }
+  88%  { transform: translateX(-50%) rotate(-3deg); }
+  100% { transform: translateX(-50%) rotate(0deg); opacity: 1; }
+}
+.perch-home { animation: perch-home 560ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* 分区：向前指、张望——从左侧探进来 */
+@keyframes perch-explore {
+  0%   { transform: translateX(-50%) translate(-15px, 4px) scale(0.7); opacity: 0; }
+  55%  { transform: translateX(-50%) translate(3px, -2px) scale(1.08); opacity: 1; }
+  78%  { transform: translateX(-50%) translate(-1px, 0) scale(0.98); }
+  100% { transform: translateX(-50%) translate(0, 0) scale(1); opacity: 1; }
+}
+.perch-explore { animation: perch-explore 480ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* 创意工坊：双手举高欢呼——二段跳，六个里最活跃 */
+@keyframes perch-studio {
+  0%   { transform: translateX(-50%) translateY(12px) scale(0.5); opacity: 0; }
+  35%  { transform: translateX(-50%) translateY(-11px) scale(1.16); opacity: 1; }
+  52%  { transform: translateX(-50%) translateY(0) scale(0.95); }
+  68%  { transform: translateX(-50%) translateY(-5px) scale(1.06); }
+  84%  { transform: translateX(-50%) translateY(0) scale(0.98); }
+  100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+}
+.perch-studio { animation: perch-studio 620ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* 我的：托下巴——不蹦，安静地从上方轻轻落座 */
+@keyframes perch-mine {
+  0%   { transform: translateX(-50%) translateY(-6px) scale(1.06); opacity: 0; }
+  60%  { transform: translateX(-50%) translateY(1px) scale(0.99); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+}
+.perch-mine { animation: perch-mine 420ms ease-out both; }
+
+/* 尊重系统的「减少动态效果」设置：直接显示终态，不做弹跳。
+   辉光与接触阴影是静态的，保留——它们表达的是位置关系而非动效。 */
 @media (prefers-reduced-motion: reduce) {
-  .perch-pop { animation: none; opacity: 1; transform: translateX(-50%); }
+  .perch-pop { animation: none !important; opacity: 1; transform: translateX(-50%); }
 }
