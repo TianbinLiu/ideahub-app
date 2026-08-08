@@ -1,0 +1,5 @@
+tool/
+*.obj
+*.glb
+py_log.txt
+runner.py
