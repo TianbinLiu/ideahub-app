@@ -59,6 +59,11 @@ export class SpringBoneSim {
   /**
    * @param root 骨架所在场景
    * @param prefixes 链根名匹配（大小写不敏感、忽略非字母数字，如 "twintail"）
+   *
+   * ⚠️ 匹配是**子串**判断而不是前缀判断，很容易误伤：归一化会剥掉下划线和点，
+   * 于是 "twintail_L" → "twintaill" 里含有 "tail"——给猫尾链写 prefixes:["Tail"]
+   * 会连双马尾一起收进来。同一根骨被两套 sim 每帧各写一遍就是抽搐
+   * （2026-08-07 接 Tsumire 时踩到）。这种时候用 opts.exclude 排掉。
    */
   /** 可选平面碰撞：按尾端位置返回允许的最低 y（桌面/地板），长发垂落时贴面不穿透 */
   clampY?: (pos: THREE.Vector3) => number;
@@ -73,6 +78,9 @@ export class SpringBoneSim {
       colliders?: SphereCollider[];
       clampY?: (pos: THREE.Vector3) => number;
       overrides?: SpringOverrides;
+      /** 反向排除：命中 prefixes 但也命中这里的骨不收（同样是归一化子串匹配）。
+       *  用来化解 prefixes 之间的误伤，见构造函数注释 */
+      exclude?: string[];
     },
   ) {
     this.stiffness = opts?.stiffness ?? 14;
@@ -83,11 +91,13 @@ export class SpringBoneSim {
     // 保留 Unicode 字母数字（MMD 移植模型的骨名是中日文：馬尾/後髪/劉海），只剥符号
     const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
     const pats = prefixes.map(norm);
+    const excl = (opts?.exclude ?? []).map(norm);
     const ovr = Object.entries(opts?.overrides ?? {}).map(([k, v]) => [norm(k), v] as const);
     root.traverse((o) => {
       if (!(o as THREE.Bone).isBone) return;
       const n = norm(o.name);
       if (!pats.some((p) => n.includes(p))) return;
+      if (excl.some((p) => n.includes(p))) return;
       const hit = ovr.find(([k]) => n.includes(k))?.[1];
       // 每根骨与其第一个骨骼子节点构成一个关节（叶骨无子，跳过）
       const child = o.children.find((c) => (c as THREE.Bone).isBone);
@@ -116,6 +126,11 @@ export class SpringBoneSim {
 
   get jointCount() {
     return this.joints.length;
+  }
+
+  /** 本 sim 实际驱动的骨名（供上层自检"同一根骨被多组驱动"） */
+  boneNames(): string[] {
+    return this.joints.map((j) => j.bone.name);
   }
 
   /** 运行时整体换手感（直立/伏桌切换用）。此前外部直接改 sim.stiffness 等字段，

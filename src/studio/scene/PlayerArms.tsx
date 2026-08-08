@@ -109,6 +109,8 @@ const RIGS: Record<
      *  uprightOpts=直立态（卡组 think）参数——伏桌垂坠参数在直立特写会让长发帘住脸 */
     springGroups?: Array<{
       prefixes: string[];
+      /** 反向排除：prefixes 之间会误伤时用（匹配是归一化子串，见 SpringBoneSim 注释） */
+      exclude?: string[];
       opts: { stiffness?: number; drag?: number; gravity?: number };
       uprightOpts?: { stiffness?: number; drag?: number; gravity?: number };
     }>;
@@ -226,7 +228,9 @@ const RIGS: Record<
       },
       // 猫尾：保形，不能垂。原作造型是向后翘的弧线，一旦按重力垂直挂下来就会
       // 从裙子中间穿出去（实测：笔直插到膝盖下方）
-      { prefixes: ["Tail"], opts: { stiffness: 6, drag: 0.3, gravity: 1.2 } },
+      // exclude 双马尾：归一化后 "twintail_L"→"twintaill" 含子串 "tail"，不排掉的话
+      // 这 6 根骨会同时被本组和双马尾组驱动，两套 sim 每帧互相覆写 = 头发抽搐
+      { prefixes: ["Tail"], exclude: ["twintail"], opts: { stiffness: 6, drag: 0.3, gravity: 1.2 } },
       // 刘海/侧发/缎带/猫耳：贴脸贴头的短链，任何垂坠残态都会帘住脸，刚性保形
       { prefixes: ["Hair_Front", "Hair_Side", "ribbon", "Ear"], opts: { stiffness: 5, drag: 0.3, gravity: 1.6 } },
       // 百褶裙 8 片：垂坠弹簧近似布料
@@ -483,13 +487,21 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     }
     const sims = rig.springGroups
       .map((g) => ({
-        sim: new SpringBoneSim(gltf.scene, g.prefixes, { ...g.opts, clampY, colliders }),
+        sim: new SpringBoneSim(gltf.scene, g.prefixes, { ...g.opts, exclude: g.exclude, clampY, colliders }),
         base: g.opts,
         upright: g.uprightOpts,
       }))
       .filter((s) => s.sim.jointCount > 0);
     if (import.meta.env.DEV) {
       console.log("[player springs] joints:", sims.map((s) => s.sim.jointCount).join("+"), "colliders:", colliders.length);
+      // 自检：同一根骨被多组驱动 = 每帧互相覆写 = 抽搐。子串匹配很容易误伤，
+      // 与其等肉眼发现不如开发期直接喊出来
+      const own = new Map<string, string[]>();
+      sims.forEach((s, gi) =>
+        s.sim.boneNames().forEach((n) => own.set(n, [...(own.get(n) ?? []), rig.springGroups![gi].prefixes.join("/")])),
+      );
+      const dup = [...own].filter(([, gs]) => gs.length > 1);
+      if (dup.length) console.error("[player springs] ⚠ 骨被多组重复驱动（会抽搐）:", dup);
       // E2E/调参挂钩：浏览器控制台可直接量测骨骼、实时改弹簧参数（setParams 每帧应用）
       (window as unknown as Record<string, unknown>).__playerGltf = gltf.scene;
       (window as unknown as Record<string, unknown>).__playerSprings = sims;
