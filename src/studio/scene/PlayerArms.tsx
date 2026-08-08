@@ -258,8 +258,13 @@ const RIGS: Record<
       // 正面完全看不见耳朵（把耳骨按回 restQuat 立刻就立起来了，与官方效果图一致）。
       // 猫尾那条是"保形不能垂"，耳朵比它更极端：干脆当刚性头饰
       { prefixes: ["Hair_Front", "Hair_Side", "ribbon"], opts: { stiffness: 5, drag: 0.3, gravity: 1.6 } },
-      // 百褶裙 8 片：垂坠弹簧近似布料
-      { prefixes: ["Skirt"], opts: { stiffness: 1.5, drag: 0.35, gravity: 20 } },
+      // 百褶裙 8 片。**不能照抄 rin 那套 1.5/20**（那是 MMD 长裙的"重力主导垂坠"配方）：
+      // 这条背带裙是有廓形的百褶短裙，重力压倒刚度会把裙摆整个拉塌贴在腿上，
+      // 露出底下的内裤与大腿——站姿侧/正、伏桌三个机位全部走光（实测渲图确认）。
+      // 8/8 是刚度与重力等量的一档：裙褶自然、三个机位都完整遮住。
+      // 判别要点：这类穿帮**静态量测查不出来**，建模上裙子本来盖得好好的
+      //（Blender 里 341 个内裤顶点 0 暴露），是弹簧把它拉塌的，只能靠渲图看。
+      { prefixes: ["Skirt"], opts: { stiffness: 8, drag: 0.35, gravity: 8 } },
     ],
     // 碰撞球半径按**本模型实测网格半径**给，不是照抄 rin——rin 那套（头 0.36/
     // 胸 0.4/胯 0.36）对这个体格偏大，会把发链常年顶在球面上，表现就是双马尾
@@ -729,7 +734,12 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     } else {
       if (thinkAction && (thinkAction.isRunning() || thinkAction.paused)) thinkAction.stop();
       // 第一人称=站直，其余机位维持趴吧台取景姿势（与 MMD 档 settle 双态同语义）
-      const table = eyeView && rig.standPose ? rig.standPose : p2;
+      // DEV 姿势热改：`window.__poseOverride = { lArm:[x,y,z], ... }` 就地覆盖，
+      // 调姿势要靠反复看画面，每试一组都改代码重载太慢（与 __playerSprings 同一思路）
+      const base = eyeView && rig.standPose ? rig.standPose : p2;
+      const table = import.meta.env.DEV
+        ? { ...base, ...((window as unknown as Record<string, unknown>).__poseOverride as PoseTable | undefined) }
+        : base;
       for (const k of Object.keys(BONES) as (keyof typeof BONES)[]) {
         const n = bones.current[k];
         const v = table[k] as [number, number, number] | null;
