@@ -12,8 +12,21 @@ float _cfBayer4(vec2 a){ return _cfBayer2(0.5 * a) * 0.25 + _cfBayer2(a); }
  * 给 root 下所有网格材质注入"近相机淡出"。
  * @param near 视距 ≤ near 完全消失（世界单位）
  * @param far  视距 ≥ far 完全不受影响；near→far 之间网点渐隐
+ *
+ * 默认档 0.55/1.45 是加强过的（原 0.32/0.85 太弱，镜头挨近 NPC 时还能看到
+ * 皮肤内表面）。上沿 1.45 的依据：卡组特写机位距角色 1.92，留 0.47 余量，
+ * 正常观看不会被网点吃到。**玩家模型不要用这个**，见 PlayerArms 的说明。
  */
-export function applyCameraFade(root: THREE.Object3D, near = 0.32, far = 0.85): void {
+export function applyCameraFade(root: THREE.Object3D, near = 0.55, far = 1.45): void {
+  // DEV 热改：window.__camFade = { near, far } 可整体覆盖（调虚化强度必须看画面，
+  // 而 near/far 是编译进 GLSL 常量的，改一次要重编译，不做钩子就只能反复重载）
+  if (import.meta.env.DEV) {
+    const ov = (window as unknown as Record<string, unknown>).__camFade as { near?: number; far?: number } | undefined;
+    if (ov) {
+      near = ov.near ?? near;
+      far = ov.far ?? far;
+    }
+  }
   root.traverse((o) => {
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;

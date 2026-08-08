@@ -128,7 +128,7 @@ const RIGS: Record<
     /** 第一人称眼点相对**头骨**的前移/上移（世界单位）。不填 [0.12, 0.04]。
      *  头骨在颈椎顶端不在眼睛处，头身比越夸张差得越远——量法见 TableScene.eyeCam */
     eyeOffset?: [number, number];
-    /** 近裁剪面兜底剔除半径（世界单位），见 applySelfCull。不填 0.12 */
+    /** 第一人称自身剔除半径（世界单位），见 applySelfCull。不填 0.45 */
     selfCullR?: number;
     /** 不生成描边反壳的网格名子串。脸部必须排除：睫毛/眼线/嘴是贴脸的 alpha 面片，
      *  反壳（BackSide 实心）会把它们整片包成深色轮廓——观感就是"黑眼圈 + 嘴成黑洞"
@@ -454,6 +454,9 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     // 传 look 才能让 noOutlineMatch 生效：不传时 toonify 里的 noShell 判据退化成空数组，
     // 连脸都会套上反向外壳（黑眼圈/黑嘴的真凶）
     toonify(gltf.scene, 0.0012, undefined, rig.outlineSkip ? { noOutlineMatch: rig.outlineSkip } : undefined);
+    // ⚠ 玩家模型**不接 applyCameraFade**（试过，是回退）：藏头把头骨缩到 0.001 会
+    // 拉出一根横贯视野的塌缩三角面片，硬剔除时它直接消失，一旦改成网点淡出就变成
+    // 半透明纱铺满全屏（实测整个房间被网点糊住）。玩家侧一律用 applySelfCull 的硬剔除。
     selfCullMats.current = applySelfCull(gltf.scene);
     // 朝向修正按 rig 家族：玩家背对镜头面向 NPC（-Z 方向）
     gltf.scene.rotation.set(0, rig.yaw, 0);
@@ -792,7 +795,9 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       // 本体半径按 rig 给（默认 0.34，够切掉塌缩头几何又不吃到胸口）；
       // 反壳半径固定 1.2——第一人称能看到的自己身体基本都在这个球内，一律不描边。
       const selfOn = camDist < 1.0;
-      const baseR = selfOn ? (rig.selfCullR ?? 0.12) : 0;
+      // 0.12 只够护住近裁剪面；用户要"看不到角色内部构造"，就得把整段
+      // 贴身距离都剔掉——0.45 覆盖到胸口（第一人称眼到胸 0.67）而不吃到桌面
+      const baseR = selfOn ? (rig.selfCullR ?? 0.45) : 0;
       for (const m of selfCullMats.current) {
         const u = m.userData.__selfCullR as { value: number } | undefined;
         if (u) u.value = m.userData.__isShell ? (selfOn ? 0.25 : 0) : baseR;
