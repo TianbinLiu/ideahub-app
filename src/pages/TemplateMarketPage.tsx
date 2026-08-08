@@ -3,7 +3,7 @@
 // 与创意工坊的卡片市场刻意做成两个页面：卡片是"素材"（要自己组装成剧情），
 // 模板是"成品配方"（一句话就出片）。混在一起会让新用户分不清该点哪个。
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import Icon from "../components/Icon";
 import { useSocialVersion } from "../components/SocialPanel";
 import { browseTemplates, myTemplates, subscribeTemplates, templatesVersion } from "../data/templates";

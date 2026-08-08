@@ -1,7 +1,7 @@
 // 卡片详情页：大卡面 + 类型/标签 + 简介 + 生成蓝图（具体到可复刻卡面的完整提示词）
 // + 3D 建模全息预览（有 modelUrl 的角色卡）。创意工坊/我的/卡组详情点卡进来。
 import { useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView } from "../components/SocialPanel";

@@ -1,7 +1,7 @@
 // 视频详情页：播放器（多 P 可切换）+ 信息 + 分段剧情 + 评论区
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../components/Icon";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router";
 import BranchPlayer from "../components/BranchPlayer";
 import SegmentPlayer from "../components/SegmentPlayer";
 import { addCards, hasPurchased, myCards, purchasePart, walletOf } from "../data/account";

@@ -8,7 +8,7 @@
 //   工作流模式 → seedSolo("workflow")，可现场让 AI 推演三种走向
 //   简约模式 → seedSolo("simple")，单节点单走向，UI 收到最简
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
 import Icon from "../components/Icon";
 import VideoTemplateExtractor from "../components/VideoTemplateExtractor";

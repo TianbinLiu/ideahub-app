@@ -140,6 +140,10 @@ export interface VideoItem {
   author: string;
   plays: number;
   likes: number;
+  /** 收藏数。可选：接服务端的作品可能没有这个计数，缺失时 UI 不显示数字 */
+  saves?: number;
+  /** 分享数。同上 */
+  shares?: number;
   createdAt: number;
   comments: VideoComment[];
 }

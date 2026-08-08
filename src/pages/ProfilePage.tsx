@@ -4,7 +4,7 @@ import Icon from "../components/Icon";
 import DeckCard from "../components/DeckCard";
 import Avatar from "../components/Avatar";
 import { fileToSquareImage } from "../utils/image";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { listVideos, isMyAuthor } from "../data/videos";
 import { buyPlan, deckCoverOf, myCards, myDecks, rechargeAddon, setAvatarImage, toggleFollow, walletOf } from "../data/account";
 import { PLANS, RECHARGE_PACKS, fmtTokens } from "../data/economy";

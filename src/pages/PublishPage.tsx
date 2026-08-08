@@ -2,7 +2,7 @@
 // 两种模式：全新发布（默认）/ 回炉编辑（studioStore.editTarget 非 null）——
 // 后者把本次合成保存为既有作品的对应 P，并同步元信息，不新建作品。
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import { CoverSection } from "../components/CoverPicker";
 import Icon from "../components/Icon";
 import SegmentPlayer from "../components/SegmentPlayer";

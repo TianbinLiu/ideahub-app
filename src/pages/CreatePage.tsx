@@ -8,7 +8,7 @@
 //   工作流模式 —— 直接在节点卡上写分镜（也能让 AI 就地推演三种走向）→ 剪辑 → 发布
 //   简约模式  —— 单节点，一句话出一条几秒短片 → 剪辑 → 发布
 import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
 import { useFlow } from "../studio/flowStore";
 

@@ -7,7 +7,7 @@
 //        音频 —— 本地 BGM，音量可调，合并时混进成片
 // 最后「下一步」把时间轴按顺序与裁剪范围重编码成单条视频，进发布页。
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import FrameAnnotator, { drawCover, loadImg } from "../components/FrameAnnotator";
 import Icon from "../components/Icon";
 import { refineFrame, regenSegment } from "../ai";

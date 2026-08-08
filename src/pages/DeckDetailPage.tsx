@@ -1,7 +1,7 @@
 // 卡组详情页：标题/简介/封面卡 + 卡片网格（点卡进卡片详情）。
 // 内置编辑模式：改标题、写简介、设封面卡、增删卡——工坊列表里的"编辑"也跳这里。
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router";
 import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView } from "../components/SocialPanel";

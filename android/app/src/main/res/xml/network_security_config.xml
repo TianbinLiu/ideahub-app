@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 全局禁明文 HTTP（App 内容走 Capacitor 的 https://localhost，外呼一律 HTTPS）；
+     只信系统 CA，不信用户装的证书——抓包代理装的用户级 CA 无法解出 App 流量 -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

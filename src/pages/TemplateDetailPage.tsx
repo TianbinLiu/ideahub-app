@@ -3,7 +3,7 @@
 // 配方是明着给的，不藏——用户看得见"为什么这个模板出片像"，才知道该不该用它，
 // 也才能照着改出自己的版本。这与卡片详情页展示「生成蓝图」是同一个主张。
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router";
 import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";

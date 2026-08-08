@@ -35,6 +35,8 @@ const SEEDS: Array<{
   author: string;
   plays: number;
   likes: number;
+  saves: number;
+  shares: number;
   comments: string[];
   segs: SeedSegDef[];
 }> = [
@@ -45,6 +47,8 @@ const SEEDS: Array<{
     author: "光影铸造者",
     plays: 48213,
     likes: 3120,
+    saves: 786,
+    shares: 512,
     comments: ["首尾帧衔接得太丝滑了", "这个城市的雨我能看一年", "等分支功能上线！想看另一个结局"],
     segs: [
       { title: "第1段 · 顺势推进", plot: "镜头缓缓推近，赛博侦探·凛的身影出现在雨夜霓虹街。整段画面浸在「雨幕青」的氛围里。积水倒映的招牌次第熄灭，一封没有署名的信躺在她的掌心。镜头停在一个欲言又止的瞬间。", durationSec: 6 },
@@ -59,6 +63,8 @@ const SEEDS: Array<{
     author: "墨白",
     plays: 30877,
     likes: 2455,
+    saves: 604,
+    shares: 388,
     comments: ["水墨运镜绝了", "第三段的留白看哭了"],
     segs: [
       { title: "第1段 · 顺势推进", plot: "光线沿着地平线铺开，剑修·白无衣的身影出现在云海剑冢。万柄锈剑在云涛中沉默，他解下背上的旧剑，插进空着的那个位置。画面在光影交界处缓缓定格。（呈现方式：水墨留白）", durationSec: 7 },
@@ -73,6 +79,8 @@ const SEEDS: Array<{
     author: "废土行者",
     plays: 19452,
     likes: 1201,
+    saves: 341,
+    shares: 205,
     comments: ["小满好可爱", "会说谎的罗盘是全片最佳配角"],
     segs: [
       { title: "第1段 · 顺势推进", plot: "画面自上一幕的余韵中醒来，废土信使小满的身影出现在废土集市。整段画面浸在「黄昏金」的氛围里。她的邮包比人还高，摊主们却都认得那抹橘色。镜头停在一个欲言又止的瞬间。", durationSec: 6 },
@@ -108,6 +116,8 @@ function buildSeeds(): VideoItem[] {
       author: s.author,
       plays: s.plays,
       likes: s.likes,
+      saves: s.saves,
+      shares: s.shares,
       createdAt: now - (vi + 1) * 86400_000,
       comments,
     };
@@ -187,8 +197,14 @@ async function readyLocal(): Promise<void> {
   }
   if (!arr || arr.length === 0) {
     arr = buildSeeds();
-  } else if (!arr.find((v) => v.id === "seedv_0")?.branchTree) {
-    // 旧库种子没有分支树：重建种子、保留用户视频
+  } else if (
+    !arr.find((v) => v.id === "seedv_0")?.branchTree ||
+    // 旧库种子没有 saves/shares（这两个字段是后加的）：同样重建。
+    // 不做这一步的话，老用户设备上的演示作品会一直显示「收藏 0 / 分享 0」——
+    // 字段是 optional，读不到不报错，属于静默降级，只能靠迁移补。
+    arr.find((v) => v.id === "seedv_0")?.saves === undefined
+  ) {
+    // 旧库种子缺字段：重建种子、保留用户视频
     arr = [...arr.filter((v) => !isSeed(v)), ...buildSeeds()];
   }
   cache = arr;
@@ -397,6 +413,8 @@ export function publishVideo(draft: DraftVideo): VideoItem {
     author: currentUser()?.name ?? ME,
     plays: 0,
     likes: 0,
+    saves: 0,
+    shares: 0,
     createdAt: Date.now(),
     comments: [],
   };
@@ -425,6 +443,31 @@ export function addPlay(id: string): number {
       .catch((e) => emitApiError("addPlay", e)); // 播放计数丢一次无所谓，不回滚
   }
   return v.plays;
+}
+
+/** 本地收藏态（与点赞的 likedIds 同构） */
+const savedIds = new Set<string>();
+
+export function isSaved(id: string): boolean {
+  return savedIds.has(id);
+}
+
+/**
+ * 收藏 / 取消收藏，返回最新收藏数。
+ *
+ * ★ 只做本地持久化：服务端目前没有收藏端点（branch API 只有 like）。
+ *   所以换设备后收藏态不会跟着走 —— 等服务端补了 /saves 再把这里接上，
+ *   接法照 setLike 的 remoteOn() 分支即可。
+ */
+export function setSave(id: string, on: boolean): number {
+  const v = find(id);
+  if (!v) return 0;
+  v.saves = Math.max(0, (v.saves ?? 0) + (on ? 1 : -1));
+  if (on) savedIds.add(id);
+  else savedIds.delete(id);
+  save(all());
+  emitVideos();
+  return v.saves;
 }
 
 export function setLike(id: string, on: boolean): number {

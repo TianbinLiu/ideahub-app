@@ -2,7 +2,7 @@
 // 改名、删除、回工坊重制某一 P、新增一 P。成片内容的修改都发生在工坊
 // （startEditPart / startNewPart 载入编辑态后跳 /studio），本页只管"壳"。
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router";
 import { CoverSection } from "../components/CoverPicker";
 import Icon from "../components/Icon";
 import {
