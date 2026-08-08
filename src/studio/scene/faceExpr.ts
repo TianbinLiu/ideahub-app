@@ -51,14 +51,16 @@ export interface FaceRecipe {
   /** 表情 → 形键权重。**不必给全九种**，缺的退回 neutral */
   expr: Partial<Record<Expression, Record<string, number>>>;
   /**
-   * 表情里**同样在动眼睑**的形键。眨眼时它们会被按 (1−眨眼量) 让开。
+   * 手动指定"同样在动眼睑、眨眼时要让开"的形键。**通常不要填**——默认由几何自动推导
+   * （见 FaceDriver 构造里的重叠分析）。只有在自动推导失效时才用它兜底。
    *
-   * ⚠ 和 blink 的重复键是同一类坑：形键叠加，闭眼形状加起来超过 1 就会让眼睑冲过
-   * 闭合位、拉成一张平面（白片）。实测抓到一次真实眨眼的瞬间，玩家脸上同时施加：
-   *     Blink=1.000 ＋ ジト目=0.500（think 的半眯眼）＋ たれ目=0.120（rest 的垂眼）
-   * 合计 **1.62 倍**眼睑位移。卡组视角的表情恰好是 think，所以那里必现。
-   *
-   * 让开而不是取 max：取 max 会在眨眼中途把表情的眯眼量整个抹掉，睁开时又突然跳回来。
+   * 为什么必须让开：形键叠加，闭眼形状加起来超过 1 就会让眼睑冲过闭合位、拉成一张
+   * 平面（用户报的"眨眼时眼睛位置有一块白色"）。实测抓一次真实眨眼的瞬间：
+   *     Blink=1.000 ＋ ジト目=0.500 ＋ たれ目=0.120 → 合计 1.62 倍
+   * 为什么不能手写清单：手写必然漏。实测玩家主脸上与眨眼区域的重叠率——
+   *     まばたき 100% ／ **笑顔 98%** ／ >< 59% ／ つり目 50% ／ ジト目 42% ／ たれ目 30%
+   * 「笑顔」几乎和眨眼动同一片眼睑，而它在 rest 就常驻 0.16、joy 时拉到 1.0，
+   * 是最容易叠爆的一个——我手写了三轮都没把它列进去。所以改成量出来。
    */
   eyeShapes?: string[];
   /** 常驻基线（角色的"底色"气质）。表情表里同名的键会覆盖它 */
@@ -71,8 +73,6 @@ export interface FaceRecipe {
 export const TSUMIRE_FACE: FaceRecipe = {
   blink: ["Blink", "まばたき"],
   visemes: { aa: "vrc.v_aa", ih: "vrc.v_ih", ou: "vrc.v_ou", e: "vrc.v_e", oh: "vrc.v_oh", sil: "vrc.v_sil" },
-  // 配方里所有会动眼睑的键（眨眼时让开，见 eyeShapes 注释）
-  eyeShapes: ["ジト目", "たれ目", "つり目", "><", "ウインク_L"],
   // 常态留一点笑意和垂眼，纯 rest 的脸在特写下像木偶
   rest: { 笑顔: 0.16, たれ目: 0.12 },
   expr: {
@@ -95,7 +95,6 @@ export const TSUMIRE_FACE: FaceRecipe = {
 export const MILLTINA_FACE: FaceRecipe = {
   blink: ["vrc.blink", "eye_close"],
   visemes: { aa: "vrc.v_aa", ih: "vrc.v_ih", ou: "vrc.v_ou", e: "vrc.v_e", oh: "vrc.v_oh", sil: "vrc.v_sil" },
-  eyeShapes: ["eye_nagomi_1", "eye_nagomi_2", "eye_joy", "eye_close_L"],
   rest: { eye_nagomi_1: 0.22 },
   expr: {
     smile: { eye_nagomi_1: 0.55 },
@@ -156,7 +155,59 @@ export class FaceDriver {
       }
     });
     this.blinkKey = recipe.blink.find((k) => this.slots.has(norm(k))) ?? null;
-    this.eyeShapeSet = new Set((recipe.eyeShapes ?? []).map(norm));
+    this.eyeShapeSet = recipe.eyeShapes
+      ? new Set(recipe.eyeShapes.map(norm))
+      : this.deriveEyeShapes(root);
+  }
+
+  /**
+   * 量出"哪些形键和眨眼动的是同一片眼睑"：对配方真正用到的每个键，算它在**眨眼位移
+   * 非零的那批顶点**上的覆盖率，超过 25% 就判定为眼睑形状、眨眼时要让开。
+   *
+   * 为什么要算而不是写死：手写清单必然漏。实测玩家主脸上「笑顔」与眨眼区域重叠 98%
+   * （几乎是同一片眼睑），而它在 rest 常驻 0.16、joy 拉到 1.0——手写了三轮都没列进去，
+   * 每次都是用户再报一次"还有白块"才发现。换模型/换配方后这套自己会重算。
+   *
+   * 开销：只遍历配方点名的键（十几个）× 眨眼动到的顶点（几千），一次性，实测可忽略。
+   */
+  private deriveEyeShapes(root: THREE.Object3D): Set<string> {
+    const out = new Set<string>();
+    if (!this.blinkKey) return out;
+    const want = new Set<string>();
+    for (const m of Object.values(this.recipe.expr)) for (const k of Object.keys(m)) want.add(norm(k));
+    for (const k of Object.keys(this.recipe.rest ?? {})) want.add(norm(k));
+    const bn = norm(this.blinkKey);
+    const v = new THREE.Vector3();
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.morphTargetDictionary || mesh.userData.__isOutline) return;
+      const ma = mesh.geometry.morphAttributes.position;
+      if (!ma) return;
+      // 键名在字典里是原样大小写，先建一张归一化索引
+      const byNorm = new Map<string, number>();
+      for (const [name, i] of Object.entries(mesh.morphTargetDictionary)) byNorm.set(norm(name), i);
+      const bi = byNorm.get(bn);
+      if (bi === undefined || !ma[bi]) return;
+      const blinkAttr = ma[bi];
+      const moved: number[] = [];
+      for (let i = 0; i < blinkAttr.count; i++) {
+        v.fromBufferAttribute(blinkAttr, i);
+        if (v.lengthSq() > 1e-10) moved.push(i);
+      }
+      if (!moved.length) return;
+      for (const k of want) {
+        if (out.has(k)) continue;
+        const ki = byNorm.get(k);
+        if (ki === undefined || !ma[ki]) continue;
+        let hit = 0;
+        for (const i of moved) {
+          v.fromBufferAttribute(ma[ki], i);
+          if (v.lengthSq() > 1e-10) hit++;
+        }
+        if (hit / moved.length > 0.25) out.add(k);
+      }
+    });
+    return out;
   }
 
   /** 这个模型到底认识几个形键（0 = 没有表情能力，调用方可据此跳过） */
@@ -167,6 +218,11 @@ export class FaceDriver {
   /** 配方点名了但模型里没有的形键。低画质档会裁掉用不上的形键（见 design/make-lod.mjs），
    *  裁多了的表现是"某个表情悄悄没效果"——不报错、不崩，只是脸不动。这个自查把它
    *  变成 DEV 控制台里一条明确的告警。 */
+  /** DEV 自查：实际判定为"眨眼时要让开"的键 */
+  eyeShapes(): string[] {
+    return [...this.eyeShapeSet];
+  }
+
   missingKeys(): string[] {
     // 眨眼是"候选名取其一"，所以只有**一个都没命中**才算缺
     const want = new Set<string>(this.blinkKey ? [] : this.recipe.blink.slice(0, 1));
