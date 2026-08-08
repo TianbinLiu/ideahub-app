@@ -50,6 +50,17 @@ export interface FaceRecipe {
   visemes: Partial<Record<Viseme, string>>;
   /** 表情 → 形键权重。**不必给全九种**，缺的退回 neutral */
   expr: Partial<Record<Expression, Record<string, number>>>;
+  /**
+   * 表情里**同样在动眼睑**的形键。眨眼时它们会被按 (1−眨眼量) 让开。
+   *
+   * ⚠ 和 blink 的重复键是同一类坑：形键叠加，闭眼形状加起来超过 1 就会让眼睑冲过
+   * 闭合位、拉成一张平面（白片）。实测抓到一次真实眨眼的瞬间，玩家脸上同时施加：
+   *     Blink=1.000 ＋ ジト目=0.500（think 的半眯眼）＋ たれ目=0.120（rest 的垂眼）
+   * 合计 **1.62 倍**眼睑位移。卡组视角的表情恰好是 think，所以那里必现。
+   *
+   * 让开而不是取 max：取 max 会在眨眼中途把表情的眯眼量整个抹掉，睁开时又突然跳回来。
+   */
+  eyeShapes?: string[];
   /** 常驻基线（角色的"底色"气质）。表情表里同名的键会覆盖它 */
   rest?: Record<string, number>;
 }
@@ -60,6 +71,8 @@ export interface FaceRecipe {
 export const TSUMIRE_FACE: FaceRecipe = {
   blink: ["Blink", "まばたき"],
   visemes: { aa: "vrc.v_aa", ih: "vrc.v_ih", ou: "vrc.v_ou", e: "vrc.v_e", oh: "vrc.v_oh", sil: "vrc.v_sil" },
+  // 配方里所有会动眼睑的键（眨眼时让开，见 eyeShapes 注释）
+  eyeShapes: ["ジト目", "たれ目", "つり目", "><", "ウインク_L"],
   // 常态留一点笑意和垂眼，纯 rest 的脸在特写下像木偶
   rest: { 笑顔: 0.16, たれ目: 0.12 },
   expr: {
@@ -82,6 +95,7 @@ export const TSUMIRE_FACE: FaceRecipe = {
 export const MILLTINA_FACE: FaceRecipe = {
   blink: ["vrc.blink", "eye_close"],
   visemes: { aa: "vrc.v_aa", ih: "vrc.v_ih", ou: "vrc.v_ou", e: "vrc.v_e", oh: "vrc.v_oh", sil: "vrc.v_sil" },
+  eyeShapes: ["eye_nagomi_1", "eye_nagomi_2", "eye_joy", "eye_close_L"],
   rest: { eye_nagomi_1: 0.22 },
   expr: {
     smile: { eye_nagomi_1: 0.55 },
@@ -122,6 +136,8 @@ export class FaceDriver {
   /** 实际使用的眨眼键：recipe.blink 里第一个这个模型真有的。见 FaceRecipe.blink 的注释——
    *  多个候选名是备选而非相加，全写会把位移叠成两倍、眼睑冲过闭合位拉成白片。 */
   private blinkKey: string | null = null;
+  /** recipe.eyeShapes 的归一化集合，flush 每帧要查 */
+  private eyeShapeSet = new Set<string>();
   /** DEV 钩子：钉住闭眼幅度做回归对照（`__playerFace.forceBlink = 0.6`）。
    *  眨眼是每 2~6 秒才发生一次、只持续 0.28 秒的瞬时动作，靠等它自然出现来截图
    *  既不可复现也漏得掉中间态——"眼睛变白片"那次就出在中间态上。 */
@@ -140,6 +156,7 @@ export class FaceDriver {
       }
     });
     this.blinkKey = recipe.blink.find((k) => this.slots.has(norm(k))) ?? null;
+    this.eyeShapeSet = new Set((recipe.eyeShapes ?? []).map(norm));
   }
 
   /** 这个模型到底认识几个形键（0 = 没有表情能力，调用方可据此跳过） */
@@ -223,8 +240,13 @@ export class FaceDriver {
   }
 
   private flush(blink: number, speaking: boolean) {
-    // 先按表情权重写，再叠眨眼与口型——这两者是"盖在表情之上"的瞬时动作
-    for (const [name, v] of this.cur) this.write(name, v);
+    // 先按表情权重写，再叠眨眼与口型——这两者是"盖在表情之上"的瞬时动作。
+    // **动眼睑的表情键要为眨眼让开**（见 FaceRecipe.eyeShapes）：形键叠加，
+    // 闭眼形状加起来超过 1 就会把眼睑推过闭合位、拉成一张白片。
+    const eyeFade = 1 - blink;
+    for (const [name, v] of this.cur) {
+      this.write(name, this.eyeShapeSet.has(norm(name)) ? v * eyeFade : v);
+    }
 
     if (this.blinkKey) {
       // 取 max 而不是覆盖：eye_joy 这种本身就闭眼的表情，眨眼不该把它拉回睁眼
