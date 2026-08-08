@@ -27,6 +27,7 @@ import {
   NPC_SCREEN,
   ORBIT_LIMITS,
   PLAYER_HEAD,
+  playerEye,
   addEyeLook,
   addEyeRise,
   clampRadiusByScene,
@@ -207,15 +208,25 @@ function eyeCam(pos: THREE.Vector3, look: THREE.Vector3) {
   const base = Math.atan2(_dirTmp.x, _dirTmp.z);
   const yaw = base + eyeLook.yaw;
   const cp = Math.cos(eyeLook.pitch);
+  // 眼点沿**水平朝向**前移（下一行先存起来），视线方向另算。
+  // 曾经是沿视线方向前移，于是水平分量被乘上 cos(pitch)——低头 1.2rad 时
+  // cos=0.36，0.34 的前移缩水成 0.12，相机重新退回颅骨内部，低头照样穿模。
+  // 眼睛在颅内的位置不随俯仰变化，这里也不该变。
+  _eyeFwd.set(Math.sin(yaw), 0, Math.cos(yaw));
   _dirTmp.set(Math.sin(yaw) * cp, Math.sin(eyeLook.pitch), Math.cos(yaw) * cp);
-  // 眼球略前于头骨中心，避免近裁剪面切到自己的刘海/发丝。0.16→0.12：前移越多，
-  // 自己的身体越被甩到相机后面，低头就看不见胸（第一人称眼位下头骨已被缩到
-  // 0.001，刘海随之消失，不需要留那么大余量）
-  pos.copy(PLAYER_HEAD).addScaledVector(_dirTmp, 0.12);
-  pos.y = PLAYER_HEAD.y + 0.04;
+  // 眼点 = 头骨中心 + 前移。**这个前移量必须按角色标定**：PLAYER_HEAD 取的是
+  // mixamorig:Head 骨的世界坐标，而人形骨架里这根骨在颈椎顶端（下巴/耳根高度），
+  // 眼睛还在它前方一截。头身比越夸张差得越远——Tsumire 实测头骨 z=4.948、
+  // 脸部网格前表面 z≈4.63（差 0.32），而躯干皮肤 body002 跨 z 4.61~5.15，
+  // 也就是说沿用旧的 0.12 会让相机**卡在颅骨内部**，往下看射线立刻从下巴/脖子
+  // 内侧穿出去 = 用户报的"第一人称低头穿模"。前移到眼睛表面后同一机位是干净的：
+  // 桌沿、地板、圆凳，画面下缘是自己的裙子和袖口。
+  pos.copy(PLAYER_HEAD).addScaledVector(_eyeFwd, playerEye.forward);
+  pos.y = PLAYER_HEAD.y + playerEye.up;
   look.copy(pos).addScaledVector(_dirTmp, 4.0);
 }
 const _dirTmp = new THREE.Vector3();
+const _eyeFwd = new THREE.Vector3();
 const _riseP = new THREE.Vector3();
 const _riseL = new THREE.Vector3();
 
@@ -265,6 +276,16 @@ function CameraRig() {
       target = { pos: [eyeP.current.x, eyeP.current.y, eyeP.current.z], look: [eyeL.current.x, eyeL.current.y, eyeL.current.z] };
     } else {
       target = st.camera;
+    }
+    // 第一人称把近裁剪面从 0.1 收到 0.03：眼点就在自己领口上方 6cm，0.1 的近面
+    // 会把领口整片切掉——想"低头看见自己身体"就必须让它更近。实测 Tsumire 领口顶
+    // 距眼 0.062，0.1 切、0.03 不切。只在眼位切换，其他视角维持 0.1 保住远景深度
+    // 精度（far=80，0.03 会把比值推到 2667）。
+    const wantNear = st.camera.kind === "default" && eyeRise.v < 0.5 ? 0.03 : 0.1;
+    const persp = camera as THREE.PerspectiveCamera;
+    if (persp.near !== wantNear) {
+      persp.near = wantNear;
+      persp.updateProjectionMatrix();
     }
     // 手机竖屏（aspect<0.62）垂直 FOV 固定→水平视野变窄→卡组机位下人脸过大：自动后撤一档
     const narrowPull =

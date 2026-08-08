@@ -59,6 +59,10 @@ export const EYE_PITCH_UP = 0.73;
  *  大片黑。所以每套 rig 按自己的体型标一个安全下限（见 PlayerArms 的 eyePitchDown）。 */
 export const eyeLimits = { pitchDown: EYE_PITCH_DOWN };
 
+/** 第一人称眼点相对**头骨**的偏移（世界单位），由 PlayerArms 按当前 rig 写入。
+ *  见 TableScene.eyeCam 的注释：头骨不在眼睛处，前移量必须按角色体型标定。 */
+export const playerEye = { forward: 0.12, up: 0.04 };
+
 export function addEyeLook(dYaw: number, dPitch: number) {
   eyeLook.yaw = Math.min(EYE_YAW_LIMIT, Math.max(-EYE_YAW_LIMIT, eyeLook.yaw + dYaw));
   eyeLook.pitch = Math.min(EYE_PITCH_UP, Math.max(-eyeLimits.pitchDown, eyeLook.pitch + dPitch));
@@ -70,6 +74,7 @@ if (import.meta.env.DEV) {
     orbit,
     eyeLook,
     eyeLimits,
+    playerEye,
     eyeRise,
     PLAYER_HEAD,
     NPC_HEAD,

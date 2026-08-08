@@ -11,7 +11,7 @@ import { DECK_CAM } from "./layout";
 import { PlayerAvatar, playerModelUrl } from "../quality";
 import { loaderFor } from "../secureAssets";
 import { SpringBoneSim, type SphereCollider } from "./springBones";
-import { PLAYER_HEAD, eyeLimits, eyeLook, eyeRise } from "./cameraOrbit";
+import { PLAYER_HEAD, eyeLimits, eyeLook, eyeRise, playerEye } from "./cameraOrbit";
 import { gazeDelta, type GazeLimits } from "./gazeDelta";
 
 /** 玩家注视限幅：只转头不拧脖子。低头给得比抬头小（低头把脸往刘海里推） */
@@ -125,7 +125,10 @@ const RIGS: Record<
     standPose?: PoseTable;
     /** 第一人称低头下限（弧度）。不填用全局默认 1.2 */
     eyePitchDown?: number;
-    /** 第一人称"自身近距剔除"半径（世界单位），见 applySelfCull。不填 0.34 */
+    /** 第一人称眼点相对**头骨**的前移/上移（世界单位）。不填 [0.12, 0.04]。
+     *  头骨在颈椎顶端不在眼睛处，头身比越夸张差得越远——量法见 TableScene.eyeCam */
+    eyeOffset?: [number, number];
+    /** 近裁剪面兜底剔除半径（世界单位），见 applySelfCull。不填 0.12 */
     selfCullR?: number;
     /** 不生成描边反壳的网格名子串。脸部必须排除：睫毛/眼线/嘴是贴脸的 alpha 面片，
      *  反壳（BackSide 实心）会把它们整片包成深色轮廓——观感就是"黑眼圈 + 嘴成黑洞"
@@ -215,6 +218,13 @@ const RIGS: Record<
     pose: TSUMIRE_POSE,
     standPose: TSUMIRE_STAND,
     hideHead: true,
+    // 眼位实测（站姿收敛后，均为"前表面距头骨"）：脸 0.32 / 衬衫领口 0.246 /
+    // 背带裙 0.333 / 鞋 0.395——这个头身比下**裙子比脸还靠前**。
+    // 取 0.26 = 脸表面后方 0.06，正好是眼球中心的解剖位置（脸在第一人称被藏掉，
+    // 相机在脸皮内侧无妨），离领口顶 0.062、配 near=0.03 不切。
+    // 沿用默认 0.12 相机会卡在颅骨里（body002 跨 z 4.61~5.15），低头必穿模；
+    // 给到 0.34 又会越过裙子前表面，低头只看得到地板看不见自己。
+    eyeOffset: [0.26, 0.04],
     // 这个模型的脸网格叫「平面001/_1/_2/_3」（建模软件自动命名），认不出语义；
     // 四片共用 tex_face.png，按贴图名排除最稳
     outlineSkip: ["tex_face"],
@@ -321,19 +331,17 @@ function FootStool({ height }: { height: number }) {
   );
 }
 
-/** 第一人称"自身近距剔除"：把玩家自己网格上**距相机近于 R 的片元**直接 discard。
+/** 第一人称"自身近距剔除"兜底：把玩家自己网格上**距相机近于 R 的片元** discard。
  *
- *  为什么需要：第一人称隐藏头部靠把头骨缩到 0.001，这只对"头是独立网格"的模型干净
- *  （Tripo 档如此）。头颈皮肤与躯干同属一个网格时（Tsumire 的 body002），头权重顶点
- *  被塌到头骨原点、也就是相机所在处，拉出一根穿过相机的尖刺——实测低头到底时画面
- *  下缘 body002 距相机仅 0.06，比近裁剪面(0.1)还近，看到的全是皮肤/衣物内表面。
- *  之前是靠收紧低头角度回避，代价是低头看不到自己身体；改成按距离剔除后角度可以放开。
- *  （VRChat 圈的 Blackout / Blackbody 系着色器解决的是同一件事，思路一致。）
+ *  ⚠ 这不是低头穿模的主修法。真因是**眼点位置**：PLAYER_HEAD 是 mixamorig:Head 骨，
+ *  而这根骨在颈椎顶端不在眼睛处，旧的 +0.12 前移让相机卡在颅骨内部（见
+ *  TableScene.eyeCam 与 rig.eyeOffset）。把相机移到眼睛表面后，即使**关掉本函数**
+ *  低头画面也是干净的——这是隔离实验确认过的，别再把这里当成修穿模的地方。
  *
- *  两档半径：本体用小半径只切掉贴在眼前的塌缩几何；描边反壳用大半径整个关掉——
- *  反壳是**世界尺度**的等距外扩，贴近时在屏幕上会糊成大片黑，自己身体这么近不该有描边。
- *  距离取视空间径向距离（length(mvPosition.xyz)），恰好是以眼点为心的球，
- *  跟着相机走，不需要额外的世界坐标 uniform。 */
+ *  留着它的理由只有一个：保证任何姿势/机位下都不会有自身几何捅进近裁剪面(0.1)。
+ *  所以半径给得很小（本体 0.12 刚过近裁剪面，反壳 0.25——反壳是世界尺度的等距外扩，
+ *  贴太近会在屏幕上糊成黑块）。距离取视空间径向距离 length(mvPosition.xyz)，
+ *  天然是以相机为心的球，不需要额外的世界坐标 uniform。 */
 function applySelfCull(root: THREE.Object3D) {
   const mats: THREE.Material[] = [];
   root.traverse((o) => {
@@ -351,7 +359,6 @@ function applySelfCull(root: THREE.Object3D) {
       const uR = { value: 0 };
       mat.userData.__selfCullR = uR;
       mat.userData.__isShell = shell;
-      mat.userData.__side0 = mat.side; // 第一人称期间临时改单面，退出时还原
       mats.push(mat);
       const prev = mat.onBeforeCompile;
       mat.onBeforeCompile = (sh, renderer) => {
@@ -551,9 +558,13 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
   // 低头下限跟着当前 rig 走（换形象即时生效；离场恢复默认，免得污染别的角色）
   useEffect(() => {
     eyeLimits.pitchDown = rig.eyePitchDown ?? 1.2;
+    playerEye.forward = rig.eyeOffset?.[0] ?? 0.12;
+    playerEye.up = rig.eyeOffset?.[1] ?? 0.04;
     if (eyeLook.pitch < -eyeLimits.pitchDown) eyeLook.pitch = -eyeLimits.pitchDown;
     return () => {
       eyeLimits.pitchDown = 1.2;
+      playerEye.forward = 0.12;
+      playerEye.up = 0.04;
     };
   }, [rig]);
 
@@ -770,18 +781,10 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       // 本体半径按 rig 给（默认 0.34，够切掉塌缩头几何又不吃到胸口）；
       // 反壳半径固定 1.2——第一人称能看到的自己身体基本都在这个球内，一律不描边。
       const selfOn = camDist < 1.0;
-      const baseR = selfOn ? (rig.selfCullR ?? 0.34) : 0;
+      const baseR = selfOn ? (rig.selfCullR ?? 0.12) : 0;
       for (const m of selfCullMats.current) {
         const u = m.userData.__selfCullR as { value: number } | undefined;
-        if (u) u.value = m.userData.__isShell ? (selfOn ? 1.2 : 0) : baseR;
-        if (m.userData.__isShell) continue;
-        // 第一人称期间强制单面。转换脚本给所有材质开了 doubleSided（发丝/裙摆这类
-        // 薄片需要），代价是低头时**衣服和皮肤的内表面照样被画出来**——实测低头到底
-        // 整个下半屏是衬衫内侧的白色大片。切成单面后同一机位看到的是自己的背带裙
-        // 和两侧袖子，也就是"低头看见自己身体和手"该有的样子。
-        // 只在贴身机位改，镜头拉开立刻还原，不影响第三人称下薄片的双面渲染。
-        const want = selfOn ? THREE.FrontSide : (m.userData.__side0 as THREE.Side);
-        if (m.side !== want) m.side = want; // side 不进程序缓存键，无需 needsUpdate
+        if (u) u.value = m.userData.__isShell ? (selfOn ? 0.25 : 0) : baseR;
       }
     }
     // deckY 下沉只在卡组特写（挂到 showSelf 会让自由视角浏览时角色突然沉降）
