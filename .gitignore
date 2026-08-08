@@ -7,3 +7,18 @@ public/models/protected/
 assets-private/
 # 签名 keystore 与口令：公开仓库绝不入仓（备份见 android/keystore/README.md）
 android/keystore/
+
+# ── 密钥 ────────────────────────────────────────────────────────────────
+# .env.local 本来就被上面的 *.local 兜住了，但那是【碰巧】——
+# 有人建一个 .env 就会被直接提交上去。这里显式挡住整个 .env 家族，
+# 只放行模板 .env.example（它不含真实值）。
+.env
+.env.*
+!.env.example
+
+# ── Claude Code ─────────────────────────────────────────────────────────
+# .claude/skills/ 与 .claude/launch.json 是【团队共享】配置，必须入库 ——
+# 新成员克隆后就带着工程规则 skill 和调试配置，不用手工再配一遍。
+# 只挡两样：本机工作区，和可能含个人 token 的本地设置覆盖。
+.claude/worktrees/
+.claude/settings.local.json
