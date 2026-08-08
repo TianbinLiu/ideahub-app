@@ -217,11 +217,12 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
           「收藏」「分享」这种字在一列数字里会打断竖向的节奏，也说不出量级。
           播放量下沉：TikTok 不在视频上显示播放量，它属于作者后台而非观众决策信息。 */}
       <div
-        /* gap-9 而不是更紧凑的 gap-4：激活态的小人会从图标顶沿向上探出约 41px，
+        /* gap-10 而不是更紧凑的 gap-4：激活态的角色会从图标顶沿向上探出约 45px，
            gap-4（16px）时它正好压住【上一个按钮的计数数字】——实测收藏后评论数「3」
            整个消失。计数是信息，装饰盖掉信息就是回退。
-           所需间距 = 小人向上溢出量 - 两侧内边距 ≈ 33px，取 gap-9（36px）留 3px 余量。 */
-        className="absolute right-2 z-10 flex flex-col items-center gap-9"
+           取值靠量：gap-9（36px）时仍有 1px 重叠，gap-10（40px）后归零。
+           换角色贴图（改高度）时要重新量一遍，别照抄这个数。 */
+        className="absolute right-2 z-10 flex flex-col items-center gap-10"
         style={{ bottom: "calc(var(--tabbar-h) + 1.25rem)" }}
       >
         {/* 头像 + 关注：未关注时下挂一个 + 号，点了变对勾后淡出（TikTok 同款反馈） */}
