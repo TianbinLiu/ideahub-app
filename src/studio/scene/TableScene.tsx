@@ -147,7 +147,6 @@ import PlayerArms from "./PlayerArms";
 
 // 默认 = 全身版（站立↔对话俯身状态机，用户定稿）；?npc=tripo 早期全身试验版 / ?npc=vrm 回退 VRM
 const NPC_VARIANT = new URLSearchParams(window.location.search).get("npc") ?? "full";
-const USE_TRIPO_NPC = NPC_VARIANT === "tripo" || NPC_VARIANT === "full";
 
 // ── 节点链布局：窗口化 + 焦点跟随 ─────────────────────────────
 // 节点多于 maxVisible 时溢出的收到左右两侧的收起堆；窗口默认贴链尾，
@@ -1223,22 +1222,11 @@ function CaptureHook() {
   return null;
 }
 
-// ── 对话视角的桌面：用户真实卡组整齐摊开（正面朝上、可点击）+ NPC 手中的 AI 推荐卡 ──
+// ── 对话视角的桌面：用户真实卡组整齐摊开（正面朝上、可点击）──
 function DialogTableCards() {
   const dialogView = useStudio((s) => s.dialogView);
   const marketOpen = useStudio((s) => s.market.open);
   const deck = useStudio((s) => s.deck);
-  const recommend = useStudio((s) => s.recommendCard);
-  const heldMat = useMemo(
-    () =>
-      recommend
-        ? new THREE.MeshBasicMaterial({ map: cardFaceTexture(recommend), transparent: true, side: THREE.DoubleSide })
-        : null,
-    [recommend]
-  );
-  useEffect(() => {
-    if (heldMat) return () => heldMat.dispose();
-  }, [heldMat]);
   if (!dialogView || marketOpen) return null;
   const shown = deck.slice(0, 6);
   const n = shown.length;
@@ -1263,20 +1251,6 @@ function DialogTableCards() {
           />
         );
       })}
-      {/* NPC 手中的推荐卡：正面朝用户、手托着卡下缘，点击查看详情/加入卡组（Tripo 版卡挂手骨，由 TripoNpc 自绘） */}
-      {recommend && heldMat && !USE_TRIPO_NPC && (
-        <mesh
-          position={[-0.66, 1.18, -3.3]}
-          rotation={[-0.16, 0.1, 0.04]}
-          material={heldMat}
-          onClick={(e) => {
-            e.stopPropagation();
-            useStudio.getState().viewCardDetail(recommend);
-          }}
-        >
-          <planeGeometry args={[CARD.w * 0.62, CARD.h * 0.62]} />
-        </mesh>
-      )}
     </group>
   );
 }

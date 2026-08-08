@@ -11,7 +11,7 @@ import { DECK_CAM } from "./layout";
 import { PlayerAvatar, playerModelUrl } from "../quality";
 import { loaderFor } from "../secureAssets";
 import { SpringBoneSim, type SphereCollider } from "./springBones";
-import { PLAYER_HEAD, eyeLook, eyeRise } from "./cameraOrbit";
+import { PLAYER_HEAD, eyeLimits, eyeLook, eyeRise } from "./cameraOrbit";
 import { gazeDelta, type GazeLimits } from "./gazeDelta";
 
 /** 玩家注视限幅：只转头不拧脖子。低头给得比抬头小（低头把脸往刘海里推） */
@@ -123,6 +123,9 @@ const RIGS: Record<
     thinkDeckOnly?: boolean;
     /** 第一人称（眼位）下改用的站立姿势；不填则沿用 pose */
     standPose?: PoseTable;
+    /** 第一人称低头下限（弧度）。不填用全局默认 1.2。见 cameraOrbit 的 eyeLimits：
+     *  头颈皮肤与躯干共网格的模型，低头过头会把近裁剪面捅进自己身体里 */
+    eyePitchDown?: number;
     /** 不生成描边反壳的网格名子串。脸部必须排除：睫毛/眼线/嘴是贴脸的 alpha 面片，
      *  反壳（BackSide 实心）会把它们整片包成深色轮廓——观感就是"黑眼圈 + 嘴成黑洞"
      *  （toonify 注释里 NPC 早验证过；玩家侧一直没传 look 所以默认值没生效）。 */
@@ -211,6 +214,10 @@ const RIGS: Record<
     pose: TSUMIRE_POSE,
     standPose: TSUMIRE_STAND,
     hideHead: true,
+    // 实测：−0.9 起画面下缘的 body002 就进到近裁剪面(0.1)以内、−1.2 时只剩 0.06；
+    // −0.7 虽不穿模但描边反壳在这个距离糊成大片黑。0.6 时桌面铺满画幅、
+    // 自己的肩膀只在最下缘露一线，是这个体型的干净上限
+    eyePitchDown: 0.6,
     // 这个模型的脸网格叫「平面001/_1/_2/_3」（建模软件自动命名），认不出语义；
     // 四片共用 tex_face.png，按贴图名排除最稳
     outlineSkip: ["tex_face"],
@@ -486,6 +493,15 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     if (!headWritten.current) headWritten.current = head.quaternion.clone();
     else headWritten.current.copy(head.quaternion);
   }
+
+  // 低头下限跟着当前 rig 走（换形象即时生效；离场恢复默认，免得污染别的角色）
+  useEffect(() => {
+    eyeLimits.pitchDown = rig.eyePitchDown ?? 1.2;
+    if (eyeLook.pitch < -eyeLimits.pitchDown) eyeLook.pitch = -eyeLimits.pitchDown;
+    return () => {
+      eyeLimits.pitchDown = 1.2;
+    };
+  }, [rig]);
 
   // 弹簧骨物理（MMD 移植模型发链，分组不同手感）；垂发用桌面/地板平面碰撞承接，
   // 头/胸/髋球形碰撞体防穿模（NPC 同款配方，骨名解析容错冒号剥离）

@@ -51,9 +51,17 @@ export const EYE_YAW_LIMIT = 1.31;
 export const EYE_PITCH_DOWN = 1.2;
 export const EYE_PITCH_UP = 0.73;
 
+/** 低头下限按角色换算：**这个值不能全局共用**。第一人称隐藏头部靠把头骨缩到 0.001，
+ *  而这只对"头是独立网格"的模型干净（Tripo 档就是）；头颈皮肤与躯干同属一个网格时
+ *  （Tsumire 的 body002），头权重顶点被塌到头骨原点、也就是相机所在处，留下一根尖刺，
+ *  低头到一定角度就把近裁剪面(0.1)捅穿——实测 −1.2 时画面下缘 body002 距相机仅
+ *  0.06~0.07，看到的全是衣物/皮肤内表面。另外描边反壳是世界尺度的，贴太近时会糊成
+ *  大片黑。所以每套 rig 按自己的体型标一个安全下限（见 PlayerArms 的 eyePitchDown）。 */
+export const eyeLimits = { pitchDown: EYE_PITCH_DOWN };
+
 export function addEyeLook(dYaw: number, dPitch: number) {
   eyeLook.yaw = Math.min(EYE_YAW_LIMIT, Math.max(-EYE_YAW_LIMIT, eyeLook.yaw + dYaw));
-  eyeLook.pitch = Math.min(EYE_PITCH_UP, Math.max(-EYE_PITCH_DOWN, eyeLook.pitch + dPitch));
+  eyeLook.pitch = Math.min(EYE_PITCH_UP, Math.max(-eyeLimits.pitchDown, eyeLook.pitch + dPitch));
 }
 
 // DEV 调参/验收后门：控制台可直接读写轨道参数与头部锚点
@@ -61,6 +69,7 @@ if (import.meta.env.DEV) {
   (window as unknown as Record<string, unknown>).__camOrbit = {
     orbit,
     eyeLook,
+    eyeLimits,
     eyeRise,
     PLAYER_HEAD,
     NPC_HEAD,

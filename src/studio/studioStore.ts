@@ -1,6 +1,6 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
-import { BranchNodeData, BranchTree, CARD_TYPES, Card, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
+import { BranchNodeData, BranchTree, Card, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateProposals, refineFrame, searchMarket } from "../ai";
 import { DECK_CAM, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
@@ -215,7 +215,6 @@ interface StudioState {
   /** 对话视角（底部抽屉展开）：NPC 抬手面向用户 */
   dialogView: boolean;
   /** NPC 手中展示的 AI 推荐卡（按用户卡组缺口 + 市场热度） */
-  recommendCard: Card | null;
   flights: Flight[];
   draft: DraftVideo | null;
   camera: CamView;
@@ -237,7 +236,6 @@ interface StudioState {
   setCamera: (c: CamView) => void;
   setDialogView: (v: boolean) => void;
   /** 计算推荐卡：优先补齐卡组缺失类型中市场最热的一张 */
-  refreshRecommend: () => Promise<void>;
   /** 查看卡片详情（不移动相机；复用市场详情单） */
   viewCardDetail: (card: Card) => void;
 
@@ -334,7 +332,6 @@ export const useStudio = create<StudioState>()((set, get) => ({
   editor: null,
   dragCardId: null,
   dialogView: false,
-  recommendCard: null,
   flights: [],
   draft: null,
   camera: { kind: "default" },
@@ -369,18 +366,6 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
   setCamera: (camera) => set({ camera }),
   setDialogView: (dialogView) => set({ dialogView }),
-  refreshRecommend: async () => {
-    const items = await searchMarket("");
-    const { deck } = get();
-    const inDeck = new Set(deck.map((c) => c.id));
-    const missingType = CARD_TYPES.find((t) => !deck.some((c) => c.type === t));
-    const rec =
-      items.find((c) => c.type === missingType && !inDeck.has(c.id)) ??
-      items.find((c) => !inDeck.has(c.id)) ??
-      null;
-    set({ recommendCard: rec });
-    // 不再主动吆喝推荐卡：市场那套玩法已经撤掉，这句话指向一个不存在的功能
-  },
   viewCardDetail: (card) => set({ marketDetail: card }),
 
   openMarket: async () => {
@@ -584,7 +569,6 @@ export const useStudio = create<StudioState>()((set, get) => ({
       camera: { kind: "pos", pos: NPC_CAM.pos, look: NPC_CAM.look },
       orbit: { target: "npc" },
     });
-    void st.refreshRecommend();
   },
   shiftSpread: (dir) =>
     set((s) => ({ spreadCenter: Math.min(Math.max(0, s.spreadCenter + dir), Math.max(0, s.deck.length - 1)) })),

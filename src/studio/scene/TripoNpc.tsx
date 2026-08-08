@@ -7,7 +7,6 @@ import { ThreeEvent, useFrame, useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { useStudio } from "../studioStore";
-import { cardFaceTexture } from "./cardTexture";
 import { loaderFor } from "../secureAssets";
 import { SpringBoneSim, type SphereCollider, type SpringOverrides } from "./springBones";
 import { BreastPhysics, type PhysCollider } from "./breastPhysics";
@@ -18,7 +17,6 @@ import { NPC_CAM } from "./layout";
 import { NPC_HEAD, orbit } from "./cameraOrbit";
 import { gazeDelta, type GazeLimits } from "./gazeDelta";
 
-const cardPos = new THREE.Vector3();
 /** NPC 注视限幅：偏航 17°、抬头 10°、低头 4.6°。低头限得最死——脸前端到刘海外表面
  *  只有 0.0187 模型单位余量（实测），低头正是把脸往刘海里推的方向 */
 const NPC_GAZE: GazeLimits = { yaw: 0.30, up: 0.18, down: 0.08 };
@@ -346,11 +344,8 @@ export default function TripoNpc({
     }),
     [],
   );
-  const cardMeshRef = useRef<THREE.Mesh | null>(null);
-  const cardIdRef = useRef<string | null>(null);
   const shadowFeltRef = useRef<THREE.Mesh | null>(null);
   const shadowRailRef = useRef<THREE.Mesh | null>(null);
-  const recommend = useStudio((s) => s.recommendCard);
 
   // 辅助骨物理（购入模型的双马尾/牛耳/缎带骨链）按画质分级：
   // 极致=MMD 刚体体系（Bullet 胶囊刚体+6DOF 弹簧约束+碰撞，懒加载失败回退）
@@ -910,27 +905,6 @@ export default function TripoNpc({
       physSim.update(dt);
       gltf.scene.updateMatrixWorld(true);
     }
-    // 持卡：世界空间正立卡跟随左手（不继承手骨旋转，永远面向镜头；可点击查看详情）
-    // 仅对话视角且市场未摊开时展示——默认俯视角不该有卡悬在空中
-    const card = cardMeshRef.current;
-    const hand = b.lHand;
-    if (card && hand) {
-      if (recommend && cardIdRef.current !== recommend.id) {
-        cardIdRef.current = recommend.id;
-        (card.material as THREE.MeshBasicMaterial).map = cardFaceTexture(recommend);
-        (card.material as THREE.MeshBasicMaterial).needsUpdate = true;
-        // 发牌演出：新卡递出时左手挥卡（用户已砍掉 full 的持卡展示，仅 bust 保留）
-        if (bust && st.dialogView && perfActions.deal && !perfActions.wave?.isRunning()) {
-          perfActions.deal.reset().play();
-        }
-      }
-      // 用户定：full/购入模型都不要推荐卡悬浮在手上
-      card.visible = !!recommend && st.dialogView && !st.market.open && !full && !cfg;
-      hand.getWorldPosition(cardPos);
-      if (full) card.position.set(cardPos.x + 0.1, cardPos.y + 0.15, cardPos.z + 0.2);
-      else if (bust) card.position.set(cardPos.x + 0.05, cardPos.y + 0.1, cardPos.z + 0.15);
-      else card.position.set(cardPos.x - 0.3, cardPos.y + 0.18, cardPos.z + 0.12);
-    }
   });
 
   return (
@@ -960,19 +934,6 @@ export default function TripoNpc({
           </mesh>
         </>
       )}
-      <mesh
-        ref={cardMeshRef}
-        rotation={[-0.18, -0.12, 0.05]}
-        visible={false}
-        onClick={(e) => {
-          e.stopPropagation();
-          const rec = useStudio.getState().recommendCard;
-          if (rec) useStudio.getState().viewCardDetail(rec);
-        }}
-      >
-        <planeGeometry args={[0.62, 0.87]} />
-        <meshBasicMaterial transparent side={THREE.DoubleSide} />
-      </mesh>
     </group>
   );
 }
