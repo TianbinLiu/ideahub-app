@@ -11,52 +11,12 @@ import { addCards, canAfford, myCards, spendTokens, walletOf } from "../data/acc
 import { IMAGE_TOKENS, VISION_FRAME_TOKENS, extractCost, fmtTokens } from "../data/economy";
 import { Card, CARD_TYPE_LABELS } from "../types";
 import Icon from "./Icon";
+import { sampleFrames } from "./videoFrames";
 import TarotCard from "./TarotCard";
 
 /** 提炼上限：与 real.ts 的 defs.slice(0, 8) 保持一致 */
 const MAX_CARDS = 8;
 const FRAME_CHOICES = [4, 6, 8];
-/** 喂给视觉模型的帧宽：640px 足够认清主体，再大只是白白撑请求体 */
-const FRAME_W = 640;
-
-/** 按时间均匀抽 n 帧（首尾各让开 5%，避免抽到黑场/片头） */
-async function sampleFrames(file: File, n: number, onProgress: (i: number) => void): Promise<string[]> {
-  const url = URL.createObjectURL(file);
-  try {
-    const v = document.createElement("video");
-    v.muted = true;
-    v.playsInline = true;
-    v.preload = "auto";
-    v.src = url;
-    await new Promise<void>((resolve, reject) => {
-      v.onloadedmetadata = () => resolve();
-      v.onerror = () => reject(new Error("这个视频浏览器解不开（换 mp4/webm 试试）"));
-    });
-    const dur = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 1;
-    const c = document.createElement("canvas");
-    const out: string[] = [];
-    for (let i = 0; i < n; i++) {
-      const t = dur * (0.05 + (0.9 * i) / Math.max(1, n - 1));
-      v.currentTime = Math.min(dur - 0.01, t);
-      await new Promise<void>((resolve, reject) => {
-        v.onseeked = () => resolve();
-        v.onerror = () => reject(new Error("视频抽帧失败"));
-        setTimeout(() => reject(new Error("视频抽帧超时")), 15_000);
-      });
-      if (!c.width) {
-        c.width = FRAME_W;
-        c.height = Math.round((v.videoHeight / Math.max(1, v.videoWidth)) * FRAME_W) || 360;
-      }
-      c.getContext("2d")!.drawImage(v, 0, 0, c.width, c.height);
-      out.push(c.toDataURL("image/jpeg", 0.8));
-      onProgress(i + 1);
-    }
-    return out;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
 export default function VideoCardExtractor({ onClose }: { onClose: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [frameN, setFrameN] = useState(6);

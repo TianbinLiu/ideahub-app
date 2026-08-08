@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
+import SocialPanel, { useCountView } from "../components/SocialPanel";
 import { deckCoverOf, myCards, myDecks, updateDeck } from "../data/account";
 import { useAccountVersion } from "../hooks/useAccount";
 import { CARD_TYPE_LABELS } from "../types";
@@ -13,6 +14,7 @@ export default function DeckDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const [editing, setEditing] = useState(false);
+  useCountView("deck", id);
   const deck = myDecks().find((d) => d.id === id) ?? null;
   const cards = myCards();
 
@@ -140,6 +142,8 @@ export default function DeckDetailPage() {
           空卡组——点右上角「编辑」挑几张卡进来
         </div>
       )}
+
+      <SocialPanel kind="deck" id={deck.id} />
     </div>
   );
 }

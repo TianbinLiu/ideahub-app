@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
+import SocialPanel, { useCountView } from "../components/SocialPanel";
 import CardHologram, { CARD_MODELS } from "../studio/ui/CardHologram";
 import { myCards, myDecks } from "../data/account";
 import { useAccountVersion } from "../hooks/useAccount";
@@ -29,6 +30,7 @@ export default function CardDetailPage() {
   const nav = useNavigate();
   const loc = useLocation();
   const [copied, setCopied] = useState(false);
+  useCountView("card", id);
   // 优先账号库；不在库里（比如看别人作品的卡组）用路由 state 里带来的卡
   const card = useMemo<Card | null>(() => {
     const mine = myCards().find((c) => c.id === id);
@@ -138,6 +140,8 @@ export default function CardDetailPage() {
       >
         🎬 去 3D 工坊用这张卡创作
       </Link>
+
+      <SocialPanel kind="card" id={card.id} />
     </div>
   );
 }

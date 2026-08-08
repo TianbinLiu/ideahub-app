@@ -216,12 +216,20 @@ export default function WorkshopPage() {
                 {market.map((c) => {
                   const owned = ownedIds.has(c.id);
                   return (
-                    <button key={c.id} onClick={() => !owned && addCards([c])} disabled={owned} className="text-left">
-                      <div className={owned ? "opacity-40" : ""}>
+                    <div key={c.id}>
+                      {/* 卡面点进详情（看简介/生成蓝图/点赞收藏评论），下面那行才是"添加"。
+                          此前整块都是添加按钮，市场卡根本没有可看详情的入口 */}
+                      <Link to={`/card/${c.id}`} state={{ card: c }} className={`block ${owned ? "opacity-40" : ""}`}>
                         <CardTile card={c} />
-                      </div>
-                      <div className="mt-1 text-center text-[10px] text-slate-400">{owned ? "已拥有" : "＋ 添加"}</div>
-                    </button>
+                      </Link>
+                      <button
+                        onClick={() => !owned && addCards([c])}
+                        disabled={owned}
+                        className="mt-1 w-full text-center text-[10px] text-slate-400 disabled:text-slate-600"
+                      >
+                        {owned ? "已拥有" : "＋ 添加"}
+                      </button>
+                    </div>
                   );
                 })}
               </div>

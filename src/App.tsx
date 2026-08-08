@@ -11,12 +11,16 @@ import PublishPage from "./pages/PublishPage";
 import EditPage from "./pages/EditPage";
 import CardDetailPage from "./pages/CardDetailPage";
 import DeckDetailPage from "./pages/DeckDetailPage";
+import TemplateDetailPage from "./pages/TemplateDetailPage";
+import TemplateMarketPage from "./pages/TemplateMarketPage";
 import CutPage from "./pages/CutPage";
 import CreatePage from "./pages/CreatePage";
 import FlowPage from "./pages/FlowPage";
 import StudioPage from "./studio/StudioPage";
 import TabBar from "./components/TabBar";
 import { readyVideos } from "./data/videos";
+import { readySocial } from "./data/social";
+import { readyTemplates } from "./data/templates";
 import { readyAccount } from "./data/account";
 import { useCurrentUser } from "./hooks/useAccount";
 
@@ -42,7 +46,7 @@ export default function App() {
   // 数据层是 IndexedDB（异步）：装载完成前不渲染路由，避免各页读到空库
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    void Promise.all([readyVideos(), readyAccount()]).then(() => setReady(true));
+    void Promise.all([readyVideos(), readyAccount(), readySocial(), readyTemplates()]).then(() => setReady(true));
   }, []);
 
   if (!ready) {
@@ -71,6 +75,8 @@ export default function App() {
       <Route path="/video/:id" element={<VideoPage />} />
       <Route path="/card/:id" element={<CardDetailPage />} />
       <Route path="/deck/:id" element={<DeckDetailPage />} />
+      <Route path="/template/:id" element={<TemplateDetailPage />} />
+      <Route path="/templates" element={<TemplateMarketPage />} />
       <Route
         path="/create"
         element={

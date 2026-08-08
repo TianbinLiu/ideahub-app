@@ -8,11 +8,13 @@
 //   工作流模式 → seedSolo("workflow")，可现场让 AI 推演三种走向
 //   简约模式 → seedSolo("simple")，单节点单走向，UI 收到最简
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
 import Icon from "../components/Icon";
+import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 import { AI_REAL } from "../ai";
 import { walletOf } from "../data/account";
+import { myTemplates } from "../data/templates";
 import { VIDEO_TIERS, fmtTokens, segTokens, tierOf } from "../data/economy";
 import { FlowNode, chosenOf, flowCost, nodeDone, nodeVideo, useFlow } from "../studio/flowStore";
 import { useStudio } from "../studio/studioStore";
@@ -23,10 +25,41 @@ const DURATIONS = [3, 5, 6, 8, 10];
 /** 触发换节点/换走向的滑动阈值（px）；低于它按点击处理 */
 const SWIPE = 48;
 
+/** 套模板后的"一句话"输入：配方负责像不像，用户只负责换谁来演。
+ *  下面把填好的分镜实时显示出来——让用户看得见这句话到底变成了什么，
+ *  而不是把提示词藏起来当黑箱（黑箱一旦出片不对，用户无从下手）。 */
+function TemplateSubjectBox() {
+  const { template, subject, setSubject, nodes, cursor } = useFlow();
+  const [open, setOpen] = useState(false);
+  if (!template) return null;
+  const plot = nodes[Math.min(cursor, nodes.length - 1)]?.proposals.find((p) => p.id === nodes[cursor]?.chosenId)?.plot ?? "";
+  return (
+    <div className="space-y-1.5">
+      <input
+        value={subject}
+        onChange={(e) => setSubject(e.target.value)}
+        maxLength={60}
+        placeholder="一句话：换成谁来演？例：一只戴墨镜的柴犬"
+        className="w-full rounded-lg border border-brand/50 bg-panel px-2.5 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+      />
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center gap-1 text-[10px] text-slate-500">
+        <Icon name="chevron" size={10} className={open ? "rotate-90" : ""} />
+        {open ? "收起" : "看看这句话变成了什么"}
+      </button>
+      {open && (
+        <p className="max-h-24 overflow-y-auto whitespace-pre-wrap rounded-lg bg-black/30 px-2.5 py-1.5 text-[10px] leading-relaxed text-slate-400">
+          {plot || "先写那句话"}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** 一屏一个节点：预览 + 走向切换 + 本段可调项 + 生成/确认 */
 function NodeScreen({ node, index, total }: { node: FlowNode; index: number; total: number }) {
   const { mode, busy, updateNode, updateProposal, shiftProposal, genNode, deriveProposals, addAnn, removeAnn, shiftCursor } =
     useFlow();
+  const tpl = useFlow((s) => s.template);
   const simple = mode === "simple";
   const prop = chosenOf(node);
   const video = nodeVideo(node);
@@ -168,18 +201,24 @@ function NodeScreen({ node, index, total }: { node: FlowNode; index: number; tot
             className="w-full bg-transparent text-sm font-bold text-slate-100 outline-none placeholder:text-slate-600"
           />
         )}
-        <textarea
-          value={prop.plot}
-          onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
-          rows={simple ? 3 : 2}
-          maxLength={400}
-          placeholder={
-            simple
-              ? "想拍什么？例：雨夜的东京街头，霓虹灯牌下一只黑猫慢慢走过积水，倒影闪烁"
-              : "这一段的画面与剧情（会直接作为生成提示词）"
-          }
-          className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
-        />
+        {tpl ? (
+          /* 套了模板：用户只需要说"换成谁/什么主题"，其余由配方补齐。
+             剧情框仍然可展开查看/微调——模板是起点不是牢笼 */
+          <TemplateSubjectBox />
+        ) : (
+          <textarea
+            value={prop.plot}
+            onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
+            rows={simple ? 3 : 2}
+            maxLength={400}
+            placeholder={
+              simple
+                ? "想拍什么？例：雨夜的东京街头，霓虹灯牌下一只黑猫慢慢走过积水，倒影闪烁"
+                : "这一段的画面与剧情（会直接作为生成提示词）"
+            }
+            className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+          />
+        )}
 
         {/* 圈选标注缩略 */}
         {node.anns.length > 0 && (
@@ -337,6 +376,8 @@ export default function FlowPage() {
   const navigate = useNavigate();
   const { nodes, cursor, mode, origin, busy, err, setCursor, addNode, removeNode, moveNode, reset } = useFlow();
   const [finalizing, setFinalizing] = useState("");
+  const [tplExtract, setTplExtract] = useState(false);
+  const tpl = useFlow((s) => s.template);
   const simple = mode === "simple";
 
   // 直接输地址进来（或热更新丢了状态）：没节点就回创作入口，别停在空白页。
@@ -395,6 +436,58 @@ export default function FlowPage() {
           {finalizing || "去剪辑 ›"}
         </button>
       </header>
+
+      {/* 简约模式的模板栏：套上模板 = 配方负责画风与分镜，用户只写一句话 */}
+      {simple && (
+        <div className="mx-4 mb-1.5 flex flex-none items-center gap-2 rounded-xl border border-slate-700/70 bg-panel px-3 py-2">
+          {tpl ? (
+            <>
+              <span className="flex-none text-xs">🧪</span>
+              <Link to={`/template/${tpl.id}`} className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-100">
+                {tpl.title}
+              </Link>
+              <span className="flex-none text-[10px] text-slate-500">{nodes.length} 段</span>
+              {/* 出片了、模板是自己提取的、还没发布 → 就地引导发布（详情页的作者区管标题/简介） */}
+              {allDone && myTemplates().some((x) => x.id === tpl.id && !x.published) ? (
+                <Link
+                  to={`/template/${tpl.id}`}
+                  className="flex-none rounded-full bg-gold/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+                >
+                  发布模板
+                </Link>
+              ) : (
+                <button onClick={() => navigate("/templates")} className="flex-none text-[11px] text-brand">
+                  换
+                </button>
+              )}
+              <button
+                onClick={() => useFlow.getState().seedSolo("simple")}
+                className="flex-none text-[11px] text-slate-500"
+              >
+                不用
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="min-w-0 flex-1 truncate text-[11px] text-slate-400">
+                套个模板？一句话就能出同类视频
+              </span>
+              <button
+                onClick={() => navigate("/templates")}
+                className="flex-none rounded-full bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-100"
+              >
+                模板市场
+              </button>
+              <button
+                onClick={() => setTplExtract(true)}
+                className="flex-none rounded-full bg-brand/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+              >
+                提取模板
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {err && (
         <div className="mx-4 mb-1.5 flex flex-none items-start gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
@@ -476,6 +569,12 @@ export default function FlowPage() {
             </span>
           </div>
         </div>
+      )}
+      {tplExtract && (
+        <VideoTemplateExtractor
+          onClose={() => setTplExtract(false)}
+          onDone={(t) => useFlow.getState().applyTemplate(t)}
+        />
       )}
     </div>
   );

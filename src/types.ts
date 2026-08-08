@@ -144,6 +144,38 @@ export interface VideoItem {
   comments: VideoComment[];
 }
 
+/** 视频模板的"生成配方"：把一次成功生成里可复用的部分固化下来。
+ *  用户套模板后只需要说一句话（换成谁/换个主题），其余全部由配方补齐。 */
+export interface TemplateRecipe {
+  /** 画风/镜头/质感等固定要求，每次生成都原样拼进提示词——模板"像不像"主要靠它 */
+  styleHint: string;
+  /** 分镜骨架：每段一条。用 {{主题}} 占位，套用时替换成用户那句话 */
+  beats: string[];
+  /** 单段时长与 Seedance 档位（精度要求高的模板会指定高档） */
+  durationSec: number;
+  videoTier: string;
+  /** 起拍画面的文生图模板，同样支持 {{主题}} */
+  framePrompt: string;
+}
+
+/** 视频模板 = 卡组 + 生成配方。发布后进模板市场，别人一句话就能复刻同类视频 */
+export interface VideoTemplate {
+  id: string;
+  title: string;
+  intro: string;
+  /** 封面（dataURL 或站内路径） */
+  cover: string;
+  author: string;
+  createdAt: number;
+  /** 模板自带素材卡：套用时直接作为本次生成的素材 */
+  cards: Card[];
+  recipe: TemplateRecipe;
+  /** 来源视频的画面特征摘要（提取模板时由 AI 写），详情页展示，也帮用户判断像不像 */
+  source?: string;
+  /** 已发布到模板市场 */
+  published: boolean;
+}
+
 export interface DraftVideo {
   title: string;
   category: string;

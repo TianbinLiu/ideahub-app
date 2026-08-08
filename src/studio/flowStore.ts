@@ -14,7 +14,7 @@ import { create } from "zustand";
 import { AI_REAL, composeSegments, generateCover, generateProposals, refineFrame } from "../ai";
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { DEFAULT_TIER, fmtTokens, segTokens, tierOf } from "../data/economy";
-import { Card, Proposal, uid } from "../types";
+import { Card, Proposal, TemplateRecipe, VideoTemplate, uid } from "../types";
 
 /** 画面圈选标注：某一帧上圈出的物体 + 修改要求（重生成时并入提示词并改设定帧） */
 export interface FlowAnn {
@@ -61,6 +61,12 @@ export function nodeDone(node: FlowNode): boolean {
   return !!node.videoByProposal[node.chosenId];
 }
 
+/** 把配方里的 {{主题}} 换成用户那句话（与 data/templates 的 fillBeat 同义，
+ *  这里再写一份是为了不让 flowStore 依赖模板库——它只认配方里的字符串） */
+function fillSubject(text: string, subject: string): string {
+  return text.replace(/\{\{\s*主题\s*\}\}/g, subject.trim() || "主角");
+}
+
 export function blankProposal(i: number): Proposal {
   return { id: uid("prop"), title: `第 ${i + 1} 段`, plot: "", firstFrame: "", lastFrame: "", durationSec: 5 };
 }
@@ -96,9 +102,18 @@ interface FlowState {
   busy: boolean;
   err: string;
 
+  /** 套用中的模板：简约模式"一句话出片"的依据。null = 没套模板 */
+  template: { id: string; title: string; recipe: TemplateRecipe; cards: Card[] } | null;
+  /** 用户那句话，替换配方里的 {{主题}} */
+  subject: string;
+
   seed: (nodes: FlowNode[], opts: { mode: FlowMode; origin: "studio" | "solo" }) => void;
   /** 工作流/简约模式的空白起手：一个待填的节点 */
   seedSolo: (mode: FlowMode) => void;
+  /** 套模板：按配方的分镜骨架铺节点、挂上模板卡组，之后只等用户写那句话 */
+  applyTemplate: (t: VideoTemplate) => void;
+  /** 写那句话：立刻把配方里的 {{主题}} 填成它，各段剧情随之成形 */
+  setSubject: (subject: string) => void;
   reset: () => void;
 
   /** 改当前走向的内容（标题/剧情/时长/帧） */
@@ -130,11 +145,63 @@ export const useFlow = create<FlowState>()((set, get) => ({
   origin: "solo",
   busy: false,
   err: "",
+  template: null,
+  subject: "",
 
   seed: (nodes, opts) => set({ nodes, cursor: 0, mode: opts.mode, origin: opts.origin, busy: false, err: "" }),
   seedSolo: (mode) =>
-    set({ nodes: [newFlowNode(0, { chain: false })], cursor: 0, mode, origin: "solo", busy: false, err: "" }),
-  reset: () => set({ nodes: [], cursor: 0, busy: false, err: "" }),
+    set({
+      nodes: [newFlowNode(0, { chain: false })],
+      cursor: 0,
+      mode,
+      origin: "solo",
+      busy: false,
+      err: "",
+      template: null,
+      subject: "",
+    }),
+
+  applyTemplate: (t) =>
+    set({
+      // 一个 beat 一段。段与段之间沿用尾帧续作（chain），模板才有连贯性
+      nodes: t.recipe.beats.map((_, i) =>
+        newFlowNode(i, {
+          chain: i > 0,
+          materials: t.cards.length ? t.cards : undefined,
+          videoTier: t.recipe.videoTier,
+        }),
+      ),
+      cursor: 0,
+      mode: "simple",
+      origin: "solo",
+      busy: false,
+      err: "",
+      template: { id: t.id, title: t.title, recipe: t.recipe, cards: t.cards },
+      subject: "",
+    }),
+
+  setSubject: (subject) =>
+    set((s) => {
+      const rec = s.template?.recipe;
+      if (!rec) return { subject };
+      // 每段剧情 = 骨架填空 + 画风要求。画风每段都带一份而不是只写一次——
+      // Seedance 是按段独立调用的，只在第一段写画风，后面几段会各画各的
+      return {
+        subject,
+        nodes: s.nodes.map((n, i) => {
+          const beat = fillSubject(rec.beats[i] ?? rec.beats[rec.beats.length - 1] ?? "", subject);
+          const plot = subject.trim() ? `${beat}\n画面要求：${rec.styleHint}` : "";
+          return {
+            ...n,
+            proposals: n.proposals.map((p) =>
+              p.id === n.chosenId ? { ...p, plot, title: `${s.template!.title} · 第 ${i + 1} 段`, durationSec: rec.durationSec } : p,
+            ),
+          };
+        }),
+      };
+    }),
+
+  reset: () => set({ nodes: [], cursor: 0, busy: false, err: "", template: null, subject: "" }),
 
   updateNode: (nodeId, patch) => set((s) => ({ nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, ...patch } : n)) })),
 
@@ -301,7 +368,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const tier = tierOf(node.videoTier);
       if (!first) {
         prog("绘制起拍画面…");
-        first = await generateCover(prop.plot.slice(0, 200));
+        // 套了模板就用配方里的起拍提示词：它专门为"这个模板长什么样"写过，
+        // 比从剧情正文截前 200 字更贴（剧情前半段常常是动作描述而非画面描述）
+        const tplFrame = get().template?.recipe.framePrompt;
+        first = await generateCover(
+          tplFrame ? fillSubject(tplFrame, get().subject) : prop.plot.slice(0, 200),
+        );
       }
       if (!last && tier.flf) {
         prog("绘制结束画面…");

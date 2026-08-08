@@ -299,6 +299,71 @@ export async function extractCardsFromVideo(
 }
 
 /**
+ * 视频 → **模板**：比提卡多一步——除了认出素材，还要把"这类视频为什么长这样"
+ * 总结成可复用的配方（画风/镜头/节奏 + 分镜骨架 + 起拍画面提示词）。
+ *
+ * 分两次调模型而不是一次出全部：认卡和总结配方是两种任务，混在一个 JSON 里模型
+ * 容易顾此失彼（实测会把画风描述塞进卡简介、或者只出卡不出配方）。先总结配方拿到
+ * styleHint，再把它喂给铸卡环节，卡面画风才与模板一致。
+ */
+export async function extractTemplateFromVideo(
+  frames: string[],
+  note: string,
+  onProgress?: (status: string) => void,
+): Promise<{
+  title: string;
+  intro: string;
+  source: string;
+  recipe: { styleHint: string; beats: string[]; framePrompt: string; durationSec: number };
+  cards: Card[];
+}> {
+  onProgress?.(`分析画面风格（${frames.length} 帧）…`);
+  const raw = await chatVision(
+    '你是短视频导演，正在把一段参考视频拆解成可复用的"生成模板"。看完这些按时间顺序抽的帧，输出 JSON：{"title":"模板名，不超过12字","intro":"40字内说明这个模板能做什么样的片子","source":"40字内客观描述参考画面的视觉特征","styleHint":"120字内的画面质感与运镜要求，越具体越好：胶片/数码、光比、色调、景深、镜头运动、剪辑节奏、人物动作幅度，以及明确禁止什么","beats":["分镜骨架，每段一条，1~3条。必须用 {{主题}} 占位代表主角或主体，其余描述固定不变"],"framePrompt":"起拍画面的文生图提示词，同样用 {{主题}} 占位，60字内"}。规则：styleHint 与 beats 里都不要出现参考视频里的具体角色名——模板要能换任何人来演，角色位置一律写 {{主题}}。只输出 JSON。',
+    `用户补充说明：${note || "无"}
+以下是参考视频按时间顺序的抽帧：`,
+    frames,
+  );
+  const t = JSON.parse(raw.replace(/```json|```/g, "").trim()) as {
+    title?: string;
+    intro?: string;
+    source?: string;
+    styleHint?: string;
+    beats?: string[];
+    framePrompt?: string;
+  };
+  const styleHint = (t.styleHint ?? "").trim();
+  const beats = (Array.isArray(t.beats) ? t.beats : []).filter((b) => typeof b === "string" && b.trim()).slice(0, 3);
+  if (!styleHint || beats.length === 0) throw new Error("模板配方 JSON 结构不符（缺 styleHint 或 beats）");
+
+  // 素材卡：沿用提卡那一套，但把刚总结出的画风喂进去，卡面与模板同调
+  onProgress?.("提炼模板素材卡…");
+  const rawCards = await chatVision(
+    '你是卡牌游戏的铸卡师。用户给你一段参考视频的抽帧，这段视频将被做成"可换主角的模板"。请辨认画面里**与具体主角无关、可复用**的创作素材，输出 JSON 数组（0~6 张）：[{"type":"scene|background|prop|style","name":"不超过8字","summary":"30字内简介","imagePrompt":"卡面文生图描述，60字内"}]。规则：主要场景/地点各出一张 scene 卡；整体色调氛围至多一张 background 卡；画风鲜明时至多一张 style 卡；标志性道具可出 prop 卡。**绝对不要出 character 卡**——主角是模板使用者自己指定的。只输出 JSON。',
+    `这段视频的画风要求是：${styleHint}
+用户补充说明：${note || "无"}
+以下是抽帧：`,
+    frames,
+  );
+  const defs = JSON.parse(rawCards.replace(/```json|```/g, "").trim()) as CardDef[];
+  const cards = Array.isArray(defs) ? await mintCards(defs.filter((d) => d.type !== "character"), styleHint, [], onProgress) : [];
+
+  return {
+    title: (t.title ?? "").trim() || "未命名模板",
+    intro: (t.intro ?? "").trim(),
+    source: (t.source ?? "").trim(),
+    recipe: {
+      styleHint,
+      beats,
+      framePrompt: (t.framePrompt ?? "").trim() || `{{主题}}，${styleHint.slice(0, 40)}，无文字无水印。`,
+      // 模板段数由 beats 决定，单段时长给 5 秒（Seedance 的甜点，够一个完整动作）
+      durationSec: 5,
+    },
+    cards,
+  };
+}
+
+/**
  * Seed3D 产物是 zip 包（实测 2026-08-07：包内单个自包含 pbr/mesh_textured_pbr.glb，36MB 级）。
  * 浏览器侧按中央目录定位 .glb 条目并 DecompressionStream 解出 GLB blob——
  * 不引 JSZip，standard deflate 足够。
