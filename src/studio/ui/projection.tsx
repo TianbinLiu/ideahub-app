@@ -7,6 +7,7 @@ import { deckCoverOf, myCards, myDecks } from "../../data/account";
 import { VIDEO_TIERS, fmtTokens, segTokens } from "../../data/economy";
 import TarotCard from "../../components/TarotCard";
 import DeckCard from "../../components/DeckCard";
+import Icon from "../../components/Icon";
 import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType } from "../../types";
 import { activePath, chosenProposal, useStudio } from "../studioStore";
 import { computeChain } from "../scene/TableScene";
@@ -42,8 +43,12 @@ export default function ProjectionWindow() {
   // 卡组选择：小窗置于屏幕中间偏下（上部留给玩家上半身）
   if (projection === "decks") {
     return (
-      <div className="absolute inset-0 z-20">
-        <div className="absolute inset-x-2 top-[54%] bottom-[7%] flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142b]/40 shadow-[0_0_60px_rgba(103,232,249,0.28)] backdrop-blur-lg">
+      // pointer-events-none 是功能而非样式：这层 inset-0 原来把整屏的指针事件全吃了，
+      // 于是"在小窗外面拖拽"什么也不会发生。放行后事件落到 canvas，TableCatcher 的
+      // 轨道手势接管，绕玩家上半身转（openDeckView 已设 orbit:{target:"player"}）。
+      // 小窗自身必须 pointer-events-auto 把事件收回来，否则卡片就点不动了。
+      <div className="pointer-events-none absolute inset-0 z-20">
+        <div className="pointer-events-auto absolute inset-x-2 top-[54%] bottom-[7%] flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142b]/40 shadow-[0_0_60px_rgba(103,232,249,0.28)] backdrop-blur-lg">
           <DeckPickPanel />
         </div>
       </div>
@@ -77,6 +82,7 @@ function DeckPickPanel() {
   const activeDeck = useStudio((s) => s.activeDeck);
   const deck = useStudio((s) => s.deck);
   const [view, setView] = useState<"decks" | "cards">("decks");
+  const [q, setQ] = useState("");
   const { decks, cardById, allCount } = useMemo(() => {
     const cards = myCards();
     return {
@@ -85,6 +91,17 @@ function DeckPickPanel() {
       allCount: cards.length,
     };
   }, []);
+
+  // 一个搜索框同时管两个视图：卡组视图搜卡组名，卡片视图搜卡名/类型。
+  // 切视图时不清空——用户输"雨夜"翻遍卡组没找到、切到卡片继续找是自然动作
+  const kw = q.trim().toLowerCase();
+  const shownDecks = kw ? decks.filter((d) => d.name.toLowerCase().includes(kw)) : decks;
+  const shownCards = kw
+    ? deck.filter((c) => (c.name + CARD_TYPE_LABELS[c.type]).toLowerCase().includes(kw))
+    : deck;
+  // 「全部卡片」是固定入口不是数据，但搜索时也得能被过滤掉，否则搜不到的关键词
+  // 下面还孤零零挂着它，看着像"搜到了一个结果"
+  const showAllTile = !kw || "全部卡片".includes(kw);
 
   const showCards = () => {
     // 还没选过卡组时点「卡片」= 看全部卡片
@@ -120,25 +137,42 @@ function DeckPickPanel() {
         </button>
       </div>
 
+      <div className="flex flex-none items-center gap-2 border-b border-cyan-400/10 px-4 py-1.5">
+        <Icon name="search" size={13} className="flex-none text-cyan-300/60" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={view === "decks" ? "搜卡组名…" : "搜卡名 / 类型…"}
+          className="min-w-0 flex-1 bg-transparent text-[12px] text-cyan-50 outline-none placeholder:text-slate-500"
+        />
+        {q && (
+          <button onClick={() => setQ("")} className="flex-none text-[11px] text-slate-400 hover:text-slate-200">
+            ✕
+          </button>
+        )}
+      </div>
+
       {view === "decks" ? (
         <>
           {/* 横滑整卡：卡高吃满面板，宽度按 2:3 导出——不需要上下滚动就能看到整张卡 */}
           <div className="flex min-h-0 flex-1 snap-x snap-mandatory items-center gap-3.5 overflow-x-auto overflow-y-hidden px-4 py-2">
-            <button
-              onClick={() => {
-                if (useStudio.getState().pickDeck(null, "全部卡片")) setView("cards");
-              }}
-              className="h-[94%] flex-none snap-center text-left"
-              style={{ aspectRatio: "2/3" }}
-            >
-              <DeckCard
-                name="全部卡片"
-                count={allCount}
-                cover={[...cardById.values()][0]?.cover ?? null}
-                active={activeDeck?.id === null}
-              />
-            </button>
-            {decks.map((d) => (
+            {showAllTile && (
+              <button
+                onClick={() => {
+                  if (useStudio.getState().pickDeck(null, "全部卡片")) setView("cards");
+                }}
+                className="h-[94%] flex-none snap-center text-left"
+                style={{ aspectRatio: "2/3" }}
+              >
+                <DeckCard
+                  name="全部卡片"
+                  count={allCount}
+                  cover={[...cardById.values()][0]?.cover ?? null}
+                  active={activeDeck?.id === null}
+                />
+              </button>
+            )}
+            {shownDecks.map((d) => (
               <button
                 key={d.id}
                 onClick={() => {
@@ -155,21 +189,26 @@ function DeckPickPanel() {
                 />
               </button>
             ))}
-            {decks.length === 0 && (
+            {decks.length === 0 && !kw && (
               <div className="flex-none py-3 pl-2 text-[11px] leading-5 text-slate-500">
                 还没有建过卡组——发布作品会自动生成《作品》卡组，
                 <br />
                 也可以在「创意工坊」页手动组一套（编辑时可指定封面卡）。
               </div>
             )}
+            {kw && shownDecks.length === 0 && !showAllTile && (
+              <div className="flex w-full items-center justify-center text-[11px] text-slate-500">
+                没有叫「{q}」的卡组
+              </div>
+            )}
           </div>
-          <div className="pb-2 text-center text-[10px] text-slate-500">← 左右滑动选一套 → 它同时会成为铸段的素材池</div>
+          <div className="pb-2 text-center text-[10px] text-slate-500">← 左右滑动选一套 → 它同时会成为铸段的素材池 · 窗外拖拽可转视角</div>
         </>
       ) : (
         <>
           {/* 与卡组视图同款：卡高吃满面板、宽按 2:3 导出，整卡永远完整可见 */}
           <div className="flex min-h-0 flex-1 snap-x snap-mandatory items-center gap-3 overflow-x-auto overflow-y-hidden px-4 py-2">
-            {deck.map((c) => (
+            {shownCards.map((c) => (
               <button
                 key={c.id}
                 onClick={() => useStudio.getState().viewCardDetail(c)}
@@ -179,11 +218,13 @@ function DeckPickPanel() {
                 <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} size="md" />
               </button>
             ))}
-            {deck.length === 0 && (
-              <div className="flex w-full items-center justify-center text-xs text-slate-500">这套卡组还没有卡</div>
+            {shownCards.length === 0 && (
+              <div className="flex w-full items-center justify-center text-xs text-slate-500">
+                {kw ? `这套卡组里没有匹配「${q}」的卡` : "这套卡组还没有卡"}
+              </div>
             )}
           </div>
-          <div className="pb-2 text-center text-[10px] text-slate-500">← 左右滑动浏览 · 单击查看详情 → 右上角可换卡组</div>
+          <div className="pb-2 text-center text-[10px] text-slate-500">← 左右滑动浏览 · 单击查看详情 · 窗外拖拽可转视角</div>
         </>
       )}
     </>

@@ -26,7 +26,9 @@ import {
   NPC_HEAD,
   NPC_SCREEN,
   ORBIT_LIMITS,
+  ORBIT_MIN_Y,
   PLAYER_HEAD,
+  PLAYER_TORSO,
   playerEye,
   addEyeLook,
   addEyeRise,
@@ -193,7 +195,8 @@ export function resolveOrbitCenter(
   out: THREE.Vector3,
 ): THREE.Vector3 | null {
   if (!o) return null;
-  if (o.target === "player") return out.copy(PLAYER_HEAD);
+  // 玩家用**上半身**中心而不是头骨：绕头转时身体被甩到画面外，转到侧后方只剩一颗头
+  if (o.target === "player") return out.copy(PLAYER_TORSO);
   if (o.target === "npc") return out.copy(NPC_HEAD);
   return o.point ? out.set(o.point[0], o.point[1], o.point[2]) : null;
 }
@@ -252,6 +255,13 @@ function CameraRig() {
       const safe = clampRadiusByScene(scene, center, orbit.radius, lim.min, clock.elapsedTime);
       const keep = orbit.radius;
       orbit.radius = safe;
+      // 相机始终留在桌面之上：往下拖会让它沉进桌板，画面被木头糊死还看不出发生了
+      // 什么。做法是**夹极角**而不是夹相机的 Y——夹 Y 会把相机从球面上拽下来：水平
+      // 距离原样、垂直骤降，实测 phi=2.93/半径 2.2 时实际距离只剩 0.85，直接怼进
+      // 角色胸口。极角上限按当前半径现解（拉远时同一个 phi 高得多，写死角度会近处
+      // 不够、远处白丢行程），解完仍在球面上，半径不变。
+      const cosMax = (ORBIT_MIN_Y - center.y) / safe;
+      if (cosMax < 1) orbit.phi = Math.min(orbit.phi, Math.acos(Math.max(-1, cosMax)));
       orbitToPosition(center, tmp.current);
       orbit.radius = keep; // 只在渲染时收敛，不污染用户的缩放意图
       camera.position.copy(tmp.current);

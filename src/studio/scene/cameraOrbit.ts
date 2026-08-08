@@ -6,6 +6,13 @@ import * as THREE from "three";
 
 /** 玩家头骨世界坐标（PlayerArms 每帧写入） */
 export const PLAYER_HEAD = new THREE.Vector3(0, 0.7, 3.6);
+/** 玩家**上半身**中心 = spine1 与头骨的中点（PlayerArms 每帧写入）。
+ *  轨道圆心用它而不是头骨：绕头顶转时身体被甩到画面下缘外，转到侧后方就只剩一颗
+ *  头飘着；以上半身为心则整个胸像始终居中，正是"围着角色上半身转"的观感。 */
+export const PLAYER_TORSO = new THREE.Vector3(0, 0.45, 3.6);
+/** 轨道相机的最低高度（世界 Y）。桌面 TABLE 顶在 y=0，低于它相机就钻到桌板下面，
+ *  画面被木头糊死；留 12cm 余量避免贴着桌面产生 z-fighting 般的擦边。 */
+export const ORBIT_MIN_Y = 0.12;
 /** 玩家视线朝向（头骨前方，供第一人称眼位定朝向） */
 export const PLAYER_FACE = new THREE.Vector3(0, 0, -1);
 /** NPC 头部世界坐标（TripoNpc 每帧写入） */
@@ -77,8 +84,10 @@ if (import.meta.env.DEV) {
     playerEye,
     eyeRise,
     PLAYER_HEAD,
+    PLAYER_TORSO,
     NPC_HEAD,
     ORBIT_LIMITS,
+    ORBIT_MIN_Y,
   };
 }
 

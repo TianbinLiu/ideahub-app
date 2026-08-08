@@ -11,12 +11,14 @@ import { DECK_CAM } from "./layout";
 import { PlayerAvatar, playerModelUrl } from "../quality";
 import { loaderFor } from "../secureAssets";
 import { SpringBoneSim, type SphereCollider } from "./springBones";
-import { PLAYER_HEAD, eyeLimits, eyeLook, eyeRise, playerEye } from "./cameraOrbit";
+import { PLAYER_HEAD, PLAYER_TORSO, eyeLimits, eyeLook, eyeRise, playerEye } from "./cameraOrbit";
 import { gazeDelta, type GazeLimits } from "./gazeDelta";
 import { cullSkinBackfaces } from "./cameraFade";
 
 /** 玩家注视限幅：只转头不拧脖子。低头给得比抬头小（低头把脸往刘海里推） */
 const PLAYER_GAZE: GazeLimits = { yaw: 0.5, up: 0.20, down: 0.12 };
+
+const _torsoTmp = new THREE.Vector3();
 
 const BONES = {
   spine1: "mixamorigSpine1",
@@ -791,6 +793,15 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     if (head) {
       // 眼位锚点：头骨世界坐标（隐藏用的是 scale，世界位置依然有效）
       head.getWorldPosition(PLAYER_HEAD);
+      // 轨道锚点：上半身中心 = spine1 与头的中点。没有 spine1 的 rig 退化成头骨
+      // 稍下方一点，别整个塌回头骨——那就等于没做
+      const sp1 = bones.current.spine1;
+      if (sp1) {
+        sp1.getWorldPosition(_torsoTmp);
+        PLAYER_TORSO.addVectors(PLAYER_HEAD, _torsoTmp).multiplyScalar(0.5);
+      } else {
+        PLAYER_TORSO.copy(PLAYER_HEAD).setY(PLAYER_HEAD.y - 0.25);
+      }
       const camDist = camera.position.distanceTo(PLAYER_HEAD);
       const wantHide = camDist < 1.0 && (eyeView || (rig.hideHead && !showSelf));
       const s = wantHide ? 0.001 : 1;
