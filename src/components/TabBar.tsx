@@ -4,14 +4,41 @@
 import { NavLink, useLocation, useNavigate } from "react-router";
 import { useCurrentUser } from "../hooks/useAccount";
 import Icon, { type IconName } from "./Icon";
+import CharacterPerch, { usePerchBurst, type PerchPose } from "./CharacterPerch";
 
-const TABS: ReadonlyArray<{ to: string; icon: IconName; label: string } | null> = [
-  { to: "/", icon: "home", label: "首页" },
-  { to: "/discover", icon: "compass", label: "分区" },
+// pose 决定激活时角色的姿势【和】动效（见 CharacterPerch）。
+// 每个 Tab 各不相同：挥手 / 张望 / 欢呼 / 托下巴 ——
+// 四个 Tab 共用一套的话，切 Tab 的反馈就完全分不出切到了哪。
+const TABS: ReadonlyArray<{ to: string; icon: IconName; label: string; pose: PerchPose } | null> = [
+  { to: "/", icon: "home", label: "首页", pose: "home" },
+  { to: "/discover", icon: "compass", label: "分区", pose: "explore" },
   null, // 中间 ➕ 占位
-  { to: "/workshop", icon: "cards", label: "创意工坊" },
-  { to: "/me", icon: "user", label: "我的" },
+  { to: "/workshop", icon: "cards", label: "创意工坊", pose: "studio" },
+  { to: "/me", icon: "user", label: "我的", pose: "mine" },
 ];
+
+type Tab = NonNullable<(typeof TABS)[number]>;
+
+/** 单个 Tab 的内容。
+ *  ★ 必须拆成独立组件：usePerchBurst 是 Hook，而 NavLink 的 children 是
+ *    render prop（每次渲染都是新调用），在里面调 Hook 违反 Hook 规则。 */
+function TabInner({ tab, isActive }: { tab: Tab; isActive: boolean }) {
+  // 切【到】这个 Tab 的那一下演一次；停在这个 Tab 上不会一直杵着（见 usePerchBurst）。
+  // ref 初值取当前值，所以应用启动时停在首页也不会平白演一遍。
+  const perchOn = usePerchBurst(isActive);
+  return (
+    <>
+      {/* relative 只包图标：角色相对【图标】定位，包住文字会偏高。
+          isolate：角色用负 z-index 沉到图标下面，需要独立层叠上下文兜住。 */}
+      <span className="relative isolate flex items-center justify-center">
+        {/* key={perchOn}：快速来回切 Tab 时若不换 key，元素不重挂载，动画不会重播 */}
+        {perchOn > 0 && <CharacterPerch key={perchOn} pose={tab.pose} size={23} />}
+        <Icon name={tab.icon} size={23} filled={isActive} />
+      </span>
+      <span>{tab.label}</span>
+    </>
+  );
+}
 
 export default function TabBar() {
   const navigate = useNavigate();
@@ -44,12 +71,7 @@ export default function TabBar() {
                 }`
               }
             >
-              {({ isActive }) => (
-                <>
-                  <Icon name={t.icon} size={23} filled={isActive} />
-                  <span>{t.label}</span>
-                </>
-              )}
+              {({ isActive }) => <TabInner tab={t} isActive={isActive} />}
             </NavLink>
           ) : (
             <button

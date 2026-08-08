@@ -95,3 +95,157 @@ canvas {
 .heart-burst {
   animation: heart-burst 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
+
+/* ── 激活态角色（见 components/CharacterPerch.tsx）────────────────────────
+   所有关键帧都必须自带 translateX(-50%)：水平居中来自 Tailwind 的
+   -translate-x-1/2，而 animation 的 transform 会整条覆盖掉它，
+   漏写就会让角色整体右移半个身位。
+
+   一律只动 transform / opacity（合成层），不碰 top/height ——
+   右侧栏在视频滚动中本就吃紧，动画触发重排会直接掉帧。 */
+
+.perch-pop {
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+  --perch-glow: 255 255 255; /* 兜底：调用方没给色时不至于让整条 background 失效 */
+}
+
+/* ① 同色辉光：铺在角色【背后】，颜色取该图标的激活色（赞=玫红 藏=金 Tab=青）。
+      角色是彩色厚涂、图标是单色描边，两种视觉语言并排放着必然突兀；
+      让两者共享一个色相是把它们绑成一个整体最省力的一招。 */
+.perch-pop::before {
+  content: "";
+  position: absolute;
+  inset: 12% 0 0 0;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(var(--perch-glow) / 0.5), rgb(var(--perch-glow) / 0) 72%);
+}
+
+/* ② 接触阴影：投在【图标】上，制造承重与接触感。
+      没有这层，角色就是一张悬在图标上方的贴纸——这正是"不融洽"的主因。
+      bottom 取负值，让阴影落到角色之外、图标身上。 */
+.perch-pop::after {
+  content: "";
+  position: absolute;
+  left: 24%;
+  right: 24%;
+  bottom: -8%;
+  height: 16%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 74%);
+}
+
+/* ── 逐帧精灵图：角色【自己】在动 ──────────────────────────────────────
+   每个姿势是一条 8 帧动画，横向排在一张精灵图里，靠 background-position 逐格平移。
+   只靠容器缩放位移的话，看到的永远是"一张画弹出来了"，而不是角色在动。
+
+   动画的具体参数（时长/延迟/steps/位移终点）都由 CharacterPerch.tsx 内联给出，
+   因为它们要用到帧数和单格宽度；这里只留与尺寸无关的关键帧本体。 */
+.perch-art {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  background-position-x: 0;
+}
+@keyframes perch-run {
+  from { background-position-x: 0; }
+  to   { background-position-x: var(--sheet-shift); }
+}
+
+/* ── 每个动作一套进出场 ───────────────────────────────────────────────
+   统一节奏（占 --perch-ms 的比例）：
+     0–12% 冒出 · 12–18% 落定 · 18–72% 停住让逐帧动画演 · 72–100% 缩回消失
+   进场和退场按姿势各不相同：六处共用一套时，点赞和切 Tab 的反馈完全一样，
+   角色就退化成一个到处乱贴的水印。
+
+   ★ 每条关键帧都必须自带 translateX(-50%)：水平居中来自 Tailwind 的
+     -translate-x-1/2，而 animation 的 transform 会整条覆盖掉它，
+     漏写就会让角色整体右移半个身位。
+   ★ 一律只动 transform / opacity（合成层）：右侧栏在视频滚动中本就吃紧，
+     动画触发重排会直接掉帧。 */
+.perch-pop {
+  animation-fill-mode: both;
+}
+.perch-like,
+.perch-save,
+.perch-home,
+.perch-explore,
+.perch-studio,
+.perch-mine {
+  animation-duration: var(--perch-ms);
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 点赞：张臂大笑——弹得最高，收尾时先蹲一下再缩回去 */
+@keyframes perch-like {
+  0%   { transform: translateX(-50%) translateY(10px) scale(0.45); opacity: 0; }
+  12%  { transform: translateX(-50%) translateY(-7px) scale(1.18); opacity: 1; }
+  18%  { transform: translateX(-50%) translateY(0) scale(0.97); }
+  24%, 72% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  82%  { transform: translateX(-50%) translateY(-4px) scale(1.06); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(11px) scale(0.4); opacity: 0; }
+}
+.perch-like { animation-name: perch-like; }
+
+/* 收藏：双手合拢——升起时晃两下，收尾直接沉下去，像把东西收进口袋 */
+@keyframes perch-save {
+  0%   { transform: translateX(-50%) translateY(16px) scale(0.9); opacity: 0; }
+  12%  { transform: translateX(-50%) translateY(-3px) scale(1.03); opacity: 1; }
+  16%  { transform: translateX(-50%) translateY(0) rotate(-5deg); }
+  21%  { transform: translateX(-50%) translateY(0) rotate(3deg); }
+  26%, 74% { transform: translateX(-50%) translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(14px) scale(0.85); opacity: 0; }
+}
+.perch-save { animation-name: perch-save; }
+
+/* 首页：挥手——弹入后左右摇三下，退场再摇一下才缩走 */
+@keyframes perch-home {
+  0%   { transform: translateX(-50%) translateY(8px) scale(0.5); opacity: 0; }
+  10%  { transform: translateX(-50%) translateY(-3px) scale(1.12); opacity: 1; }
+  14%  { transform: translateX(-50%) rotate(-9deg); }
+  18%  { transform: translateX(-50%) rotate(6deg); }
+  22%, 72% { transform: translateX(-50%) rotate(0deg) scale(1); opacity: 1; }
+  84%  { transform: translateX(-50%) rotate(-7deg) scale(1.02); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(10px) scale(0.45); opacity: 0; }
+}
+.perch-home { animation-name: perch-home; }
+
+/* 分区：向前指、搭凉棚远眺——从左侧探进来，也从左侧退出去 */
+@keyframes perch-explore {
+  0%   { transform: translateX(-50%) translate(-15px, 4px) scale(0.7); opacity: 0; }
+  12%  { transform: translateX(-50%) translate(3px, -2px) scale(1.08); opacity: 1; }
+  18%, 74% { transform: translateX(-50%) translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translateX(-50%) translate(-13px, 6px) scale(0.68); opacity: 0; }
+}
+.perch-explore { animation-name: perch-explore; }
+
+/* 创意工坊：双手举高欢呼——二段跳进场，退场再蹦一次才落下 */
+@keyframes perch-studio {
+  0%   { transform: translateX(-50%) translateY(12px) scale(0.5); opacity: 0; }
+  8%   { transform: translateX(-50%) translateY(-11px) scale(1.16); opacity: 1; }
+  13%  { transform: translateX(-50%) translateY(0) scale(0.95); }
+  17%  { transform: translateX(-50%) translateY(-5px) scale(1.06); }
+  22%, 72% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  84%  { transform: translateX(-50%) translateY(-8px) scale(1.08); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(13px) scale(0.42); opacity: 0; }
+}
+.perch-studio { animation-name: perch-studio; }
+
+/* 我的：托下巴——不蹦，从上方轻轻落座，也轻轻淡出 */
+@keyframes perch-mine {
+  0%   { transform: translateX(-50%) translateY(-6px) scale(1.06); opacity: 0; }
+  14%  { transform: translateX(-50%) translateY(1px) scale(0.99); opacity: 1; }
+  20%, 76% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(-5px) scale(1.04); opacity: 0; }
+}
+.perch-mine { animation-name: perch-mine; }
+
+/* 尊重系统的「减少动态效果」设置：不做位移和翻页，静静显示 A 帧后由
+   卸载定时器收走。辉光与接触阴影保留——它们表达的是位置关系而非动效。 */
+@media (prefers-reduced-motion: reduce) {
+  .perch-pop,
+  .perch-art { animation: none !important; }
+  .perch-pop { opacity: 1; transform: translateX(-50%); }
+}
