@@ -167,8 +167,14 @@ export function toonify(
     }
     mesh.material = toonMat;
     old.dispose();
-    // 脸部不描边（隔离实验证实：眼周黑圈=睫毛/眼线 alpha 面片的实心反壳）
-    const noShell = (look ? (look.noOutlineMatch ?? ["face"]) : []).some((s) => nm.includes(s));
+    // 脸部不描边（隔离实验证实：眼周黑圈=睫毛/眼线 alpha 面片的实心反壳）。
+    // 匹配串同时对**网格名和 baseColor 贴图名**生效：移植模型的网格常是
+    // 建模软件自动命名（Tsumire 的脸就叫「平面001/_1/_2/_3」），按名字挑既认不出
+    // 语义、重导一次就可能变；贴图名是稳定的语义锚点（tex_face.png）。
+    const texNm = (old.map?.name ?? "").toLowerCase();
+    const noShell = (look ? (look.noOutlineMatch ?? ["face"]) : []).some(
+      (s) => nm.includes(s) || (!!texNm && texNm.includes(s))
+    );
     if (noShell) continue;
     const shellMat = makeOutline(old.map ?? null, windGLSL, old.alphaTest);
     let shell: THREE.Mesh;

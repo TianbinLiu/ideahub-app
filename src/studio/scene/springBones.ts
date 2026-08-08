@@ -47,6 +47,9 @@ const _to = new THREE.Vector3();
 const _rot = new THREE.Quaternion();
 const _collCenter = new THREE.Vector3();
 const _collOff = new THREE.Vector3();
+const _hitCenter = new THREE.Vector3();
+const _hitN = new THREE.Vector3();
+const _vel = new THREE.Vector3();
 const _collQuat = new THREE.Quaternion();
 
 export class SpringBoneSim {
@@ -213,6 +216,8 @@ export class SpringBoneSim {
         .addScaledVector(_to.sub(j.currTail), Math.min(1, j.k * d))
         .add(_from.set(0, -j.g * d * 0.1, 0));
       // 球形碰撞体：把尾端推出碰撞球面（先碰撞后归长，与 VRM SpringBone 次序一致）
+      let hit = false;
+      let deepest = 0;
       for (const c of this.colliders) {
         c.bone.getWorldPosition(_collCenter);
         if (c.offset) {
@@ -222,6 +227,12 @@ export class SpringBoneSim {
         const dist = _next.distanceTo(_collCenter);
         if (dist < c.radius && dist > 1e-6) {
           _next.sub(_collCenter).multiplyScalar(c.radius / dist).add(_collCenter);
+          // 记下穿得最深的那颗，下面按它的法线消速（多球同时接触时它最主导）
+          if (c.radius - dist >= deepest) {
+            deepest = c.radius - dist;
+            hit = true;
+            _hitCenter.copy(_collCenter);
+          }
         }
       }
       // 归一化到骨长
@@ -241,6 +252,22 @@ export class SpringBoneSim {
       // 反弹动量——贴桌发梢会逐帧弹跳不衰减。钳制帧把 y 速度清零（prev.y 对齐），
       // 水平惯性保留：发梢仍可沿桌面滑动，只是不再上下弹。胸部物理同款思路。
       if (clamped) j.prevTail.y = _next.y;
+      // 球面接触消速：与上面平面钳制同一个道理，之前只修了平面。
+      // 把尾端推出球面是**位置硬改**，而 verlet 的速度是 (curr-prev) 反推出来的——
+      // 这段推出位移下一步原样变成朝外的惯性，弹开→重力/刚度拉回→再穿→再推，
+      // 每步注入一次能量，成了不衰减的自持振荡（实测：贴着头/胸/胯球的后发、双马尾、
+      // 侧发一直抖，离球远的猫尾/缎带/猫耳/短刘海全静止；加阻尼无效，因为注入量
+      // 取决于穿透深度而不是速度）。这里只清掉沿法线的速度分量，切向保留——
+      // 发梢仍能贴着球面滑动，只是不再被弹开。
+      if (hit) {
+        _hitN.copy(j.currTail).sub(_hitCenter);
+        const len = _hitN.length();
+        if (len > 1e-6) {
+          _hitN.multiplyScalar(1 / len);
+          _vel.copy(j.currTail).sub(j.prevTail);
+          j.prevTail.addScaledVector(_hitN, _vel.dot(_hitN));
+        }
+      }
       // 方向差 → 骨局部旋转：local' = restQuat × rotate(restDir_local → targetDir_local)
       _from.copy(j.restChildPos).normalize();
       // 世界方向转到"父世界系+restQuat"局部：先去父旋转，再去 restQuat

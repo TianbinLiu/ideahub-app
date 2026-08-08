@@ -1,6 +1,6 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
-import { BranchNodeData, BranchTree, CARD_TYPES, CARD_TYPE_LABELS, Card, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
+import { BranchNodeData, BranchTree, CARD_TYPES, Card, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateProposals, refineFrame, searchMarket } from "../ai";
 import { DECK_CAM, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
@@ -371,7 +371,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   setDialogView: (dialogView) => set({ dialogView }),
   refreshRecommend: async () => {
     const items = await searchMarket("");
-    const { deck, recommendCard } = get();
+    const { deck } = get();
     const inDeck = new Set(deck.map((c) => c.id));
     const missingType = CARD_TYPES.find((t) => !deck.some((c) => c.type === t));
     const rec =
@@ -379,11 +379,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       items.find((c) => !inDeck.has(c.id)) ??
       null;
     set({ recommendCard: rec });
-    if (rec && rec.id !== recommendCard?.id) {
-      get().npcSay(
-        `我手里这张「${rec.name}」最近在市场很热${missingType ? `，看你卡组正缺${CARD_TYPE_LABELS[missingType]}` : ""}——点它看看？`
-      );
-    }
+    // 不再主动吆喝推荐卡：市场那套玩法已经撤掉，这句话指向一个不存在的功能
   },
   viewCardDetail: (card) => set({ marketDetail: card }),
 

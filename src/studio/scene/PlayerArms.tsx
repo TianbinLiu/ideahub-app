@@ -123,6 +123,10 @@ const RIGS: Record<
     thinkDeckOnly?: boolean;
     /** 第一人称（眼位）下改用的站立姿势；不填则沿用 pose */
     standPose?: PoseTable;
+    /** 不生成描边反壳的网格名子串。脸部必须排除：睫毛/眼线/嘴是贴脸的 alpha 面片，
+     *  反壳（BackSide 实心）会把它们整片包成深色轮廓——观感就是"黑眼圈 + 嘴成黑洞"
+     *  （toonify 注释里 NPC 早验证过；玩家侧一直没传 look 所以默认值没生效）。 */
+    outlineSkip?: string[];
     /** 踩脚凳高度（世界单位）：矮个角色垫高用。
      *  桌沿在 y=0.25，胸口要越过它才够得着牌桌——Tsumire 身高 3.88 单位时胸口只有
      *  0.02，比桌沿还低 0.23，不垫高就是"趴在桌腿边"。垫高后角色整体上移，
@@ -207,6 +211,9 @@ const RIGS: Record<
     pose: TSUMIRE_POSE,
     standPose: TSUMIRE_STAND,
     hideHead: true,
+    // 这个模型的脸网格叫「平面001/_1/_2/_3」（建模软件自动命名），认不出语义；
+    // 四片共用 tex_face.png，按贴图名排除最稳
+    outlineSkip: ["tex_face"],
     // 垫 0.55 单位（≈22cm）：胸口 0.02 → 0.57，与 rin 的 0.59 同档，稳稳越过桌沿 0.25
     standOn: 0.55,
     // 摇摆骨分四组。这个模型自带完整物理骨链（后发 4 节 ×3 股、双马尾 3 节、
@@ -232,7 +239,11 @@ const RIGS: Record<
       // 这 6 根骨会同时被本组和双马尾组驱动，两套 sim 每帧互相覆写 = 头发抽搐
       { prefixes: ["Tail"], exclude: ["twintail"], opts: { stiffness: 6, drag: 0.3, gravity: 1.2 } },
       // 刘海/侧发/缎带/猫耳：贴脸贴头的短链，任何垂坠残态都会帘住脸，刚性保形
-      { prefixes: ["Hair_Front", "Hair_Side", "ribbon", "Ear"], opts: { stiffness: 5, drag: 0.3, gravity: 1.6 } },
+      // 猫耳**不进弹簧**：它在这套骨架里只有单独一根骨（无子链），弹簧解的是
+      // "骨→尾端方向"，单根骨遇上任何重力都会整只向下折——实测直接折平贴在头侧，
+      // 正面完全看不见耳朵（把耳骨按回 restQuat 立刻就立起来了，与官方效果图一致）。
+      // 猫尾那条是"保形不能垂"，耳朵比它更极端：干脆当刚性头饰
+      { prefixes: ["Hair_Front", "Hair_Side", "ribbon"], opts: { stiffness: 5, drag: 0.3, gravity: 1.6 } },
       // 百褶裙 8 片：垂坠弹簧近似布料
       { prefixes: ["Skirt"], opts: { stiffness: 1.5, drag: 0.35, gravity: 20 } },
     ],
@@ -367,7 +378,9 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     settleMode.current = null; // 换形象重挂载：按当前机位重新决定站/伏
   }, [gltf, rig]);
   useMemo(() => {
-    toonify(gltf.scene, 0.0012);
+    // 传 look 才能让 noOutlineMatch 生效：不传时 toonify 里的 noShell 判据退化成空数组，
+    // 连脸都会套上反向外壳（黑眼圈/黑嘴的真凶）
+    toonify(gltf.scene, 0.0012, undefined, rig.outlineSkip ? { noOutlineMatch: rig.outlineSkip } : undefined);
     // 朝向修正按 rig 家族：玩家背对镜头面向 NPC（-Z 方向）
     gltf.scene.rotation.set(0, rig.yaw, 0);
   }, [gltf, rig]);
@@ -490,8 +503,23 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
         sim: new SpringBoneSim(gltf.scene, g.prefixes, { ...g.opts, exclude: g.exclude, clampY, colliders }),
         base: g.opts,
         upright: g.uprightOpts,
+        // 这组骨是否挂在头骨下：第一人称隐藏头部用的是**把头骨缩到 0.001**
+        //（骨可见性对蒙皮无效，只能靠缩放塌掉顶点），于是头下的发/耳链在一个
+        // 千分之一尺度的世界里解方向——骨长趋零而重力是绝对世界量，解完全退化。
+        // 头藏着时这些链本来就不可见，直接停算：既省算力，也不会在镜头拉开、
+        // 头骨恢复 1 的瞬间从一个乱掉的状态往回弹
+        onHead: false as boolean,
       }))
       .filter((s) => s.sim.jointCount > 0);
+    const headBone =
+      gltf.scene.getObjectByName(BONES.head) ?? gltf.scene.getObjectByName(BONES.head.replace(/:/g, ""));
+    if (headBone)
+      for (const s of sims) {
+        const first = s.sim.boneNames()[0];
+        let node = first ? (gltf.scene.getObjectByName(first) as THREE.Object3D | null) : null;
+        while (node && node !== headBone) node = node.parent;
+        s.onHead = node === headBone;
+      }
     if (import.meta.env.DEV) {
       console.log("[player springs] joints:", sims.map((s) => s.sim.jointCount).join("+"), "colliders:", colliders.length);
       // 自检：同一根骨被多组驱动 = 每帧互相覆写 = 抽搐。子串匹配很容易误伤，
@@ -678,7 +706,9 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     if (springSims) {
       gltf.scene.updateMatrixWorld(true);
       const upright = thinkActive && !!thinkAction;
+      const headHidden = !!bones.current.head && bones.current.head.scale.x < 0.5;
       for (const s of springSims) {
+        if (s.onHead && headHidden) continue; // 见 onHead 注释：藏头时头下的链停算
         s.sim.setParams(upright && s.upright ? s.upright : s.base);
         s.sim.update(dt);
       }
