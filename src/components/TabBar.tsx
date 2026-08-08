@@ -4,7 +4,7 @@
 import { NavLink, useLocation, useNavigate } from "react-router";
 import { useCurrentUser } from "../hooks/useAccount";
 import Icon, { type IconName } from "./Icon";
-import CharacterPerch, { type PerchPose } from "./CharacterPerch";
+import CharacterPerch, { usePerchBurst, type PerchPose } from "./CharacterPerch";
 
 // pose 决定激活时角色的姿势【和】动效（见 CharacterPerch）。
 // 每个 Tab 各不相同：挥手 / 张望 / 欢呼 / 托下巴 ——
@@ -16,6 +16,27 @@ const TABS: ReadonlyArray<{ to: string; icon: IconName; label: string; pose: Per
   { to: "/workshop", icon: "cards", label: "创意工坊", pose: "studio" },
   { to: "/me", icon: "user", label: "我的", pose: "mine" },
 ];
+
+type Tab = NonNullable<(typeof TABS)[number]>;
+
+/** 单个 Tab 的内容。
+ *  ★ 必须拆成独立组件：usePerchBurst 是 Hook，而 NavLink 的 children 是
+ *    render prop（每次渲染都是新调用），在里面调 Hook 违反 Hook 规则。 */
+function TabInner({ tab, isActive }: { tab: Tab; isActive: boolean }) {
+  // 切【到】这个 Tab 的那一下演一次；停在这个 Tab 上不会一直杵着（见 usePerchBurst）。
+  // ref 初值取当前值，所以应用启动时停在首页也不会平白演一遍。
+  const perchOn = usePerchBurst(isActive);
+  return (
+    <>
+      {/* relative 只包图标：角色相对【图标】定位，包住文字会偏高 */}
+      <span className="relative flex items-center justify-center">
+        {perchOn && <CharacterPerch pose={tab.pose} size={23} />}
+        <Icon name={tab.icon} size={23} filled={isActive} />
+      </span>
+      <span>{tab.label}</span>
+    </>
+  );
+}
 
 export default function TabBar() {
   const navigate = useNavigate();
@@ -48,16 +69,7 @@ export default function TabBar() {
                 }`
               }
             >
-              {({ isActive }) => (
-                <>
-                  {/* relative 只包图标：小人相对【图标】定位，包住文字会偏高 */}
-                  <span className="relative flex items-center justify-center">
-                    {isActive && <CharacterPerch pose={t.pose} size={23} />}
-                    <Icon name={t.icon} size={23} filled={isActive} />
-                  </span>
-                  <span>{t.label}</span>
-                </>
-              )}
+              {({ isActive }) => <TabInner tab={t} isActive={isActive} />}
             </NavLink>
           ) : (
             <button

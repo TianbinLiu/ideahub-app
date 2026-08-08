@@ -1,43 +1,48 @@
-// 「角色趴坐在图标上」——激活态才出现的二次元 Q 版角色。
+// 「角色跳上图标演一下再收回去」——激活瞬间播一次的二次元 Q 版角色。
 //
 // 形象即创作入口 /create 三张封面里的同一位角色：
 //   银白长发 · 薄荷绿挑染 · 金色五角星发饰 · 青蓝大眼 · 藏蓝短披风 + 金色圆扣 + 白立领
 //
-// ★ 为什么只在激活时出现（而不是常驻）：
-//   右侧栏 4 个按钮 + 底栏 4 个 Tab = 8 个位置。全挂角色会把画面塞满，
-//   而首页是全出血视频，任何常驻装饰都在跟内容抢注意力。
+// ★ 是【一次性演出】而不是常驻标记：
+//   早先跟着 filled 常驻，于是点完赞角色就一直杵在心形上方，
+//   既挡视频又让"激活态"这件事被说了两遍（实心红心已经说过了）。
+//   现在改成：冒出来 → 做一套动作 → 缩回图标后面消失，全程 PERCH_MS。
+//   角色的职责是【对这次操作的即时反应】，不是状态显示。
 //
-// ★ 为什么是位图而不是内联 SVG（这里推翻过两版手写矢量）：
-//   目标画风是渐变上色 + 发丝高光 + 线稿描边的日系手绘感。这种质感来自逐像素的
-//   明暗过渡，手写 path 只能拼平涂色块——问题不在画得不够细，而在方向本身错了。
-//   现改为用项目自带的 Seedream 生成，绿幕抠图后作贴图。
+// ★ 真的在动，而不是整张图在位移：
+//   每个姿势有 A/B 两帧（如挥手抬到头顶、指路改成搭凉棚），播放时硬切来回翻，
+//   这才是角色在动。只靠容器做缩放位移的话，看到的永远是"一张画弹出来了"。
+//   两帧按【头部锚点】对齐生成（见 public/perch/README.md）——
+//   按包围盒对齐会因为 B 帧手臂张得更开而让整个人左右乱窜。
 //
-// ★ 每个动作一张图、一套动效（pose 同时决定贴图和动画）：
-//   六处共用一张图 + 一套动画时，点赞和切 Tab 的反馈完全一样，
-//   角色就退化成一个到处乱贴的水印。姿势和动效由【同一个 pose】派生，
-//   而不是拆成两个 prop——拆开就总有一天会配出「挥手的图 + 蹦跳的动画」。
+// ★ 每个动作一张图、一套动效（pose 同时决定贴图、翻页帧和进出场动画）：
+//   六处共用一套时，点赞和切 Tab 的反馈完全一样，角色就退化成到处乱贴的水印。
+//   姿势与动效由【同一个 pose】派生，而不是拆成两个 prop——
+//   拆开就总有一天会配出「挥手的图 + 蹦跳的动画」。
 //
-// ★ 怎么让角色和图标「长在一起」而不是浮在上面：
-//   角色是彩色厚涂、图标是单色描边，两种视觉语言并排放着必然突兀。
-//   靠三件事把它们绑在一起（都在 index.css 的 .perch-pop 伪元素里）：
-//     ① 接触阴影：角色脚下一团投在【图标上】的软阴影，制造承重与接触感；
-//     ② 同色辉光：角色背后一圈该图标激活色的辉光（赞=玫红、藏=金、Tab=青），
-//        让两者共享一个色相，而不是各说各话；
-//     ③ 重叠：双手压在图标顶沿上，而不是悬在半空。
+// ★ 怎么让角色和图标「长在一起」（都在 index.css 的 .perch-pop 伪元素里）：
+//   ① 接触阴影：角色脚下一团投在【图标上】的软阴影，制造承重与接触感；
+//   ② 同色辉光：角色背后一圈该图标激活色的辉光（赞=玫红、藏=金、Tab=青）；
+//   ③ 重叠 26%：双手压在图标顶沿上，而不是悬在半空。
 //
 // 资源生成方式与踩过的坑记录在 public/perch/README.md。
-import { memo, type CSSProperties } from "react";
+import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 
 export type PerchPose = "like" | "save" | "home" | "explore" | "studio" | "mine";
 
-/** 各姿势贴图的原始尺寸（生成脚本按 160 宽等比缩放，高度略有差异）。换图时同步改。 */
+/** 一次演出的总时长。★ 这是唯一真源：CSS 用 --perch-ms 拿到它算各阶段，
+ *  卸载定时器也用它。别在 index.css 里另写一个写死的秒数，两边一定会漂。 */
+export const PERCH_MS = 1600;
+
+/** 各姿势 A 帧的原始尺寸（生成脚本按 160 宽等比缩放，高度略有差异）。换图时同步改。
+ *  B 帧与 A 帧同尺寸——生成时就用同一个裁切框，保证翻页不跳。 */
 const ART: Record<PerchPose, { w: number; h: number }> = {
   like: { w: 160, h: 159 },
   save: { w: 160, h: 159 },
-  home: { w: 160, h: 159 },
-  explore: { w: 160, h: 158 },
-  studio: { w: 160, h: 160 },
-  mine: { w: 160, h: 161 },
+  home: { w: 160, h: 156 },
+  explore: { w: 160, h: 149 },
+  studio: { w: 160, h: 159 },
+  mine: { w: 160, h: 153 },
 };
 
 /** 辉光色 = 该图标的激活色，以 "r g b" 给出供 CSS 拼 alpha。
@@ -52,20 +57,40 @@ const GLOW: Record<PerchPose, string> = {
 };
 
 /**
- * 趴坐在图标顶部的角色。
+ * 「激活的那一下」播一次演出。返回本帧是否该渲染角色。
+ *
+ * ★ 只认 false→true 的【跳变】，不认「当前为 true」：
+ *   否则滑回一条早就点过赞的视频、或者应用启动时停在首页 Tab，
+ *   角色都会莫名其妙地演一遍。用 ref 存上一帧的值来区分这两种情况。
+ *   ref 初值取传入值，所以挂载时不会触发。
+ */
+export function usePerchBurst(active: boolean): boolean {
+  const [show, setShow] = useState(false);
+  const prev = useRef(active);
+  useEffect(() => {
+    const was = prev.current;
+    prev.current = active;
+    if (!active || was) return;
+    setShow(true);
+    const t = setTimeout(() => setShow(false), PERCH_MS);
+    return () => clearTimeout(t);
+  }, [active]);
+  return show;
+}
+
+/**
+ * 趴坐在图标顶部演一段的角色。调用方负责用 usePerchBurst 控制挂载/卸载。
  *
  * 定位约定：调用方给父元素 `relative`，本组件绝对定位到图标【上边缘】，
  * 双手压到图标正面（bottom 取图标尺寸的比例），形成「捧住图标」的关系。
  * bottom 用比例而非固定 px —— 23px 的 Tab 图标与 28px 的右栏图标若共用固定偏移，
  * 会一个悬空一个陷进去。
  *
- * ★ 0.74 这个值是量出来的，不是估的：
- *   最早取 0.52，实测角色压掉了图标【46%】的高度 —— 底栏「首页」那格看过去
- *   只剩一个角色，房子图标完全认不出来。图标是导航控件，盖掉它等于把功能
- *   换成了装饰。之后收到 0.78（重叠 22%），图标是清楚了，但角色又变成悬在
- *   半空的贴纸。现取 0.74（重叠 26%）：双手实打实压在图标顶沿，
- *   图标下方约 3/4 的识别特征仍然完整。
- *   注意重叠比例只由 bottom 与图标高度决定，与角色自身大小无关。
+ * ★ 0.74 这个值是量出来的，不是估的，调过三轮：
+ *   0.52（重叠 46%）图标被盖到认不出——图标是导航控件，盖掉它等于把功能换成装饰；
+ *   0.78（22%）图标清楚了，但角色变成悬在半空的贴纸；
+ *   现取 0.74（26%）：双手实打实压在图标顶沿，图标下方约 3/4 的识别特征仍然完整。
+ *   注意重叠比例只由 bottom 与图标高度决定，与角色贴图大小无关。
  */
 function CharacterPerchImpl({
   pose,
@@ -80,23 +105,36 @@ function CharacterPerchImpl({
   // 角色坐在图标【上方】而非覆盖其上，宽一点不伤图标辨识。
   const w = Math.round(size * 1.75);
   const art = ART[pose];
+  const h = Math.round((w * art.h) / art.w);
+
+  // ★ B 帧没就位就不翻页：翻到一张还没下载完的图 = 角色凭空消失一帧，
+  //   比不做动作更糟。没就位时退化为"只播进出场"，是可接受的降级。
+  const [flip, setFlip] = useState(false);
 
   return (
     <span
       className={`perch-pop perch-${pose} pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 ${className}`}
-      style={{ bottom: `${Math.round(size * 0.74)}px`, width: w, "--perch-glow": GLOW[pose] } as CSSProperties}
+      style={
+        {
+          bottom: `${Math.round(size * 0.74)}px`,
+          width: w,
+          height: h,
+          "--perch-ms": `${PERCH_MS}ms`,
+          "--perch-glow": GLOW[pose],
+        } as CSSProperties
+      }
       aria-hidden
     >
-      {/* 不做预加载：底栏总有一个 Tab 处于激活态，首屏就会渲染本组件并拉取贴图。
-          但六张图是分开的，点赞用的 like.png 首屏并不会加载——首次点赞会有一帧空白。
-          这属于可接受范围：动画本身有 380ms 入场，图基本在动画结束前就位。 */}
+      <img className={`perch-f${flip ? " perch-fa" : ""}`} src={`/perch/${pose}.png`} alt="" width={w} height={h} draggable={false} />
       <img
-        src={`/perch/${pose}.png`}
+        className={`perch-f${flip ? " perch-fb" : ""}`}
+        src={`/perch/${pose}-b.png`}
         alt=""
         width={w}
-        height={Math.round((w * art.h) / art.w)}
+        height={h}
         draggable={false}
-        decoding="async"
+        style={flip ? undefined : { opacity: 0 }}
+        onLoad={() => setFlip(true)}
       />
     </span>
   );

@@ -8,7 +8,7 @@ import { useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
 import Avatar from "../components/Avatar";
 import Icon, { type IconName } from "../components/Icon";
-import CharacterPerch, { type PerchPose } from "../components/CharacterPerch";
+import CharacterPerch, { usePerchBurst, type PerchPose } from "../components/CharacterPerch";
 import { VideoItem } from "../types";
 
 /** 声音开关全流共享：一条视频上解除静音，后面每条都该有声（对标抖音/TikTok） */
@@ -18,8 +18,9 @@ let soundOn = typeof sessionStorage !== "undefined" && sessionStorage.getItem("f
  *  原来用 emoji 时三个字形高度各不相同（🤍 方、💬 带气泡尾、▶️ 带彩色底板），
  *  所以怎么调 gap 都对不齐。
  *
- *  激活态会有个角色小人跳上来坐在图标上（见 CharacterPerch）。只在激活时出现，
- *  平时保持干净——首页是全出血视频，常驻装饰都在跟内容抢注意力。 */
+ *  点亮的【那一下】会有个角色跳上来演一段再缩回去（见 CharacterPerch）。
+ *  是一次性演出而不是常驻标记——常驻既挡视频，也让"已激活"被说两遍
+ *  （实心红心/金书签已经说过了）。 */
 function RailBtn({
   icon,
   filled,
@@ -32,11 +33,13 @@ function RailBtn({
   filled?: boolean;
   tint?: string;
   label?: string;
-  /** 给了姿势名，激活（filled）时角色就跳上来坐在图标上。
-   *  姿势同时决定动效：点赞是张臂蹦高，收藏是升起后晃两下（见 CharacterPerch）。 */
+  /** 给了姿势名，【激活的那一下】角色跳上来演一段再缩回去。
+   *  姿势同时决定贴图、翻页帧和进出场动画（见 CharacterPerch）。 */
   perch?: PerchPose;
   onClick: () => void;
 }) {
+  // 只在 false→true 的跳变时播一次；划回一条早就点过赞的视频不该重播（见 usePerchBurst）
+  const perchOn = usePerchBurst(!!filled);
   return (
     <button
       onClick={onClick}
@@ -44,7 +47,7 @@ function RailBtn({
     >
       {/* relative 容器只包图标：小人要相对【图标】定位，包住文字的话会偏高 */}
       <span className="relative flex items-center justify-center">
-        {perch && filled && <CharacterPerch pose={perch} size={28} />}
+        {perch && perchOn && <CharacterPerch pose={perch} size={28} />}
         <Icon
           name={icon}
           size={28}

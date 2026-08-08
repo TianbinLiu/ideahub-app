@@ -137,72 +137,135 @@ canvas {
   background: radial-gradient(closest-side, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 74%);
 }
 
-/* ── 每个动作一套动效 ─────────────────────────────────────────────────
-   六处共用一套动画时，点赞和切 Tab 的反馈完全一样，角色就退化成一个
-   到处乱贴的水印。动效呼应各自的姿势：张臂就蹦得高、挥手就左右摇、
-   张望就从侧面探进来、托下巴就安静地落座。 */
+/* ── 两帧翻页：角色【自己】在动 ────────────────────────────────────────
+   每个姿势有 A/B 两帧（挥手抬到头顶、指路改成搭凉棚……），演出期间硬切来回翻。
+   只靠容器缩放位移的话，看到的永远是"一张画弹出来了"，而不是角色在动。
 
-/* 点赞：双臂张开——弹得最高，落定后再补一个小回弹 */
+   ★ 用 0%/49.99% 这种陡峭关键帧做硬切，不用 cross-fade：
+     两帧叠化会同时看见两组手臂，糊成一团重影。定格动画就该是硬切。
+   ★ fill 用 both（在下面和容器一起设）：
+     backwards 保证延迟期间 B 是隐的——否则等翻页开始前 B 会一直盖在 A 上；
+     forwards 让翻页结束后停在 B 帧，退场那段就用 B，不必再写一组收尾关键帧。 */
+.perch-f {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+@keyframes perch-flip-a {
+  0%, 49.99% { opacity: 1; }
+  50%, 100%  { opacity: 0; }
+}
+@keyframes perch-flip-b {
+  0%, 49.99% { opacity: 0; }
+  50%, 100%  { opacity: 1; }
+}
+/* 时序全部由 --perch-ms 推导（唯一真源在 CharacterPerch.tsx 的 PERCH_MS）：
+   18% 进场结束才开始翻，每轮 18%，翻 3 轮 → 正好在 72% 处停下，留出退场。 */
+.perch-fa,
+.perch-fb {
+  animation-duration: calc(var(--perch-ms) * 0.18);
+  animation-delay: calc(var(--perch-ms) * 0.18);
+  animation-iteration-count: 3;
+  animation-timing-function: linear;
+}
+.perch-fa { animation-name: perch-flip-a; }
+.perch-fb { animation-name: perch-flip-b; }
+
+/* ── 每个动作一套进出场 ───────────────────────────────────────────────
+   统一节奏（占 --perch-ms 的比例）：
+     0–12% 冒出 · 12–18% 落定 · 18–72% 停住让翻页演 · 72–100% 缩回消失
+   进场和退场按姿势各不相同：六处共用一套时，点赞和切 Tab 的反馈完全一样，
+   角色就退化成一个到处乱贴的水印。
+
+   ★ 每条关键帧都必须自带 translateX(-50%)：水平居中来自 Tailwind 的
+     -translate-x-1/2，而 animation 的 transform 会整条覆盖掉它，
+     漏写就会让角色整体右移半个身位。
+   ★ 一律只动 transform / opacity（合成层）：右侧栏在视频滚动中本就吃紧，
+     动画触发重排会直接掉帧。 */
+.perch-pop > .perch-f,
+.perch-pop {
+  animation-fill-mode: both;
+}
+.perch-like,
+.perch-save,
+.perch-home,
+.perch-explore,
+.perch-studio,
+.perch-mine {
+  animation-duration: var(--perch-ms);
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 点赞：张臂大笑——弹得最高，收尾时先蹲一下再缩回去 */
 @keyframes perch-like {
   0%   { transform: translateX(-50%) translateY(10px) scale(0.45); opacity: 0; }
-  45%  { transform: translateX(-50%) translateY(-7px) scale(1.18); opacity: 1; }
-  65%  { transform: translateX(-50%) translateY(0) scale(0.94); }
-  82%  { transform: translateX(-50%) translateY(-2px) scale(1.04); }
-  100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  12%  { transform: translateX(-50%) translateY(-7px) scale(1.18); opacity: 1; }
+  18%  { transform: translateX(-50%) translateY(0) scale(0.97); }
+  24%, 72% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  82%  { transform: translateX(-50%) translateY(-4px) scale(1.06); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(11px) scale(0.4); opacity: 0; }
 }
-.perch-like { animation: perch-like 460ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.perch-like { animation-name: perch-like; }
 
-/* 收藏：双手合拢——从下方升起后左右晃两下才停，像把东西收好 */
+/* 收藏：双手合拢——升起时晃两下，收尾直接沉下去，像把东西收进口袋 */
 @keyframes perch-save {
   0%   { transform: translateX(-50%) translateY(16px) scale(0.9); opacity: 0; }
-  55%  { transform: translateX(-50%) translateY(-3px) scale(1.02); opacity: 1; }
-  75%  { transform: translateX(-50%) translateY(0) rotate(-5deg); }
-  90%  { transform: translateX(-50%) translateY(0) rotate(3deg); }
-  100% { transform: translateX(-50%) translateY(0) rotate(0deg); opacity: 1; }
+  12%  { transform: translateX(-50%) translateY(-3px) scale(1.03); opacity: 1; }
+  16%  { transform: translateX(-50%) translateY(0) rotate(-5deg); }
+  21%  { transform: translateX(-50%) translateY(0) rotate(3deg); }
+  26%, 74% { transform: translateX(-50%) translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(14px) scale(0.85); opacity: 0; }
 }
-.perch-save { animation: perch-save 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.perch-save { animation-name: perch-save; }
 
-/* 首页：挥手——弹入后左右摇摆三下，呼应挥手动作 */
+/* 首页：挥手——弹入后左右摇三下，退场再摇一下才缩走 */
 @keyframes perch-home {
   0%   { transform: translateX(-50%) translateY(8px) scale(0.5); opacity: 0; }
-  40%  { transform: translateX(-50%) translateY(-3px) scale(1.12); opacity: 1; }
-  58%  { transform: translateX(-50%) rotate(-9deg); }
-  74%  { transform: translateX(-50%) rotate(6deg); }
-  88%  { transform: translateX(-50%) rotate(-3deg); }
-  100% { transform: translateX(-50%) rotate(0deg); opacity: 1; }
+  10%  { transform: translateX(-50%) translateY(-3px) scale(1.12); opacity: 1; }
+  14%  { transform: translateX(-50%) rotate(-9deg); }
+  18%  { transform: translateX(-50%) rotate(6deg); }
+  22%, 72% { transform: translateX(-50%) rotate(0deg) scale(1); opacity: 1; }
+  84%  { transform: translateX(-50%) rotate(-7deg) scale(1.02); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(10px) scale(0.45); opacity: 0; }
 }
-.perch-home { animation: perch-home 560ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.perch-home { animation-name: perch-home; }
 
-/* 分区：向前指、张望——从左侧探进来 */
+/* 分区：向前指、搭凉棚远眺——从左侧探进来，也从左侧退出去 */
 @keyframes perch-explore {
   0%   { transform: translateX(-50%) translate(-15px, 4px) scale(0.7); opacity: 0; }
-  55%  { transform: translateX(-50%) translate(3px, -2px) scale(1.08); opacity: 1; }
-  78%  { transform: translateX(-50%) translate(-1px, 0) scale(0.98); }
-  100% { transform: translateX(-50%) translate(0, 0) scale(1); opacity: 1; }
+  12%  { transform: translateX(-50%) translate(3px, -2px) scale(1.08); opacity: 1; }
+  18%, 74% { transform: translateX(-50%) translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translateX(-50%) translate(-13px, 6px) scale(0.68); opacity: 0; }
 }
-.perch-explore { animation: perch-explore 480ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.perch-explore { animation-name: perch-explore; }
 
-/* 创意工坊：双手举高欢呼——二段跳，六个里最活跃 */
+/* 创意工坊：双手举高欢呼——二段跳进场，退场再蹦一次才落下 */
 @keyframes perch-studio {
   0%   { transform: translateX(-50%) translateY(12px) scale(0.5); opacity: 0; }
-  35%  { transform: translateX(-50%) translateY(-11px) scale(1.16); opacity: 1; }
-  52%  { transform: translateX(-50%) translateY(0) scale(0.95); }
-  68%  { transform: translateX(-50%) translateY(-5px) scale(1.06); }
-  84%  { transform: translateX(-50%) translateY(0) scale(0.98); }
-  100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  8%   { transform: translateX(-50%) translateY(-11px) scale(1.16); opacity: 1; }
+  13%  { transform: translateX(-50%) translateY(0) scale(0.95); }
+  17%  { transform: translateX(-50%) translateY(-5px) scale(1.06); }
+  22%, 72% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  84%  { transform: translateX(-50%) translateY(-8px) scale(1.08); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(13px) scale(0.42); opacity: 0; }
 }
-.perch-studio { animation: perch-studio 620ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.perch-studio { animation-name: perch-studio; }
 
-/* 我的：托下巴——不蹦，安静地从上方轻轻落座 */
+/* 我的：托下巴——不蹦，从上方轻轻落座，也轻轻淡出 */
 @keyframes perch-mine {
   0%   { transform: translateX(-50%) translateY(-6px) scale(1.06); opacity: 0; }
-  60%  { transform: translateX(-50%) translateY(1px) scale(0.99); opacity: 1; }
-  100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  14%  { transform: translateX(-50%) translateY(1px) scale(0.99); opacity: 1; }
+  20%, 76% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(-5px) scale(1.04); opacity: 0; }
 }
-.perch-mine { animation: perch-mine 420ms ease-out both; }
+.perch-mine { animation-name: perch-mine; }
 
-/* 尊重系统的「减少动态效果」设置：直接显示终态，不做弹跳。
-   辉光与接触阴影是静态的，保留——它们表达的是位置关系而非动效。 */
+/* 尊重系统的「减少动态效果」设置：不做位移和翻页，静静显示 A 帧后由
+   卸载定时器收走。辉光与接触阴影保留——它们表达的是位置关系而非动效。 */
 @media (prefers-reduced-motion: reduce) {
-  .perch-pop { animation: none !important; opacity: 1; transform: translateX(-50%); }
+  .perch-pop,
+  .perch-f { animation: none !important; }
+  .perch-pop { opacity: 1; transform: translateX(-50%); }
+  .perch-fb { opacity: 0 !important; }
 }
