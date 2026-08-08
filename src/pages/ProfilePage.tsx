@@ -1,11 +1,12 @@
 // 我的页：头像/昵称/简介/统计 + 我的作品·卡片·卡组·关注 四个页签 + 设置入口。
 import { useMemo, useState, useRef } from "react";
 import Icon from "../components/Icon";
+import DeckCard from "../components/DeckCard";
 import Avatar from "../components/Avatar";
 import { fileToSquareImage } from "../utils/image";
 import { Link } from "react-router-dom";
 import { listVideos, isMyAuthor } from "../data/videos";
-import { buyPlan, myCards, myDecks, rechargeAddon, setAvatarImage, toggleFollow, walletOf } from "../data/account";
+import { buyPlan, deckCoverOf, myCards, myDecks, rechargeAddon, setAvatarImage, toggleFollow, walletOf } from "../data/account";
 import { PLANS, RECHARGE_PACKS, fmtTokens } from "../data/economy";
 import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, formatDuration, formatPlays } from "../types";
@@ -192,21 +193,14 @@ export default function ProfilePage() {
             <Empty text="还没有卡片" cta="去创意工坊" to="/workshop" />
           ))}
 
+        {/* 卡组也按"一叠牌"呈现（与 3D 工坊选卡组同一套视觉），不再是文件夹行。
+            右侧留一点余量给卡背的错位偏移，免得贴着栅格边被裁掉 */}
         {tab === "decks" &&
           (decks.length ? (
-            <div className="space-y-2 pb-4">
+            <div className="grid grid-cols-3 gap-x-3.5 gap-y-4 pb-4 pr-1.5">
               {decks.map((d) => (
-                <Link
-                  key={d.id}
-                  to={`/deck/${d.id}`}
-                  className="flex items-center gap-3 rounded-xl border border-slate-700/60 bg-panel p-3"
-                >
-                  <span className="text-2xl">🗂️</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-slate-100">{d.name}</div>
-                    <div className="text-[11px] text-slate-500">{d.cardIds.length} 张卡</div>
-                  </div>
-                  <span className="text-slate-600">›</span>
+                <Link key={d.id} to={`/deck/${d.id}`} className="block">
+                  <DeckCard name={d.name} count={d.cardIds.length} cover={deckCoverOf(d)?.cover ?? null} />
                 </Link>
               ))}
             </div>

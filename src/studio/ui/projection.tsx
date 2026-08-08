@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { deckCoverOf, myCards, myDecks } from "../../data/account";
 import { VIDEO_TIERS, fmtTokens, segTokens } from "../../data/economy";
 import TarotCard from "../../components/TarotCard";
+import DeckCard from "../../components/DeckCard";
 import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType } from "../../types";
 import { activePath, chosenProposal, useStudio } from "../studioStore";
 import { computeChain } from "../scene/TableScene";
@@ -93,36 +94,6 @@ function DeckPickPanel() {
   // 卡组渲染成一张塔罗式实体卡牌（Seedream 生成的魔法边框，见 TarotCard）：
   // 高度吃满面板、宽度由 2:3 比例导出——**整张卡永远完整可见**，不需要上下滚动
   // （旧的三列纵向网格在矮窗口里会把卡截成半张）。身后垫两层错位卡边暗示"一摞卡"。
-  const DeckTile = ({
-    name,
-    count,
-    cover,
-    active,
-    onPick,
-  }: {
-    name: string;
-    count: number;
-    cover: string | null;
-    active: boolean;
-    onPick: () => void;
-  }) => (
-    <button
-      onClick={onPick}
-      className="group relative h-[94%] flex-none snap-center text-left"
-      style={{ aspectRatio: "2/3" }}
-    >
-      {/* 叠牌暗示：身后两张错位的"卡背"边 */}
-      <div className="absolute inset-0 translate-x-1.5 translate-y-1 rotate-[2.5deg] rounded-xl border border-amber-700/40 bg-[#101a33]" />
-      <div className="absolute inset-0 translate-x-0.5 translate-y-0.5 rotate-[1deg] rounded-xl border border-amber-700/50 bg-[#0e1730]" />
-      <TarotCard cover={cover} title={name} sub={`${count} 张`} active={active} />
-      {active && (
-        <span className="absolute right-1 top-1 rounded-full bg-gold/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
-          ★ 当前
-        </span>
-      )}
-    </button>
-  );
-
   return (
     <>
       <div className="flex items-center gap-2 border-b border-cyan-400/20 px-4 py-2.5">
@@ -153,26 +124,36 @@ function DeckPickPanel() {
         <>
           {/* 横滑整卡：卡高吃满面板，宽度按 2:3 导出——不需要上下滚动就能看到整张卡 */}
           <div className="flex min-h-0 flex-1 snap-x snap-mandatory items-center gap-3.5 overflow-x-auto overflow-y-hidden px-4 py-2">
-            <DeckTile
-              name="全部卡片"
-              count={allCount}
-              cover={[...cardById.values()][0]?.cover ?? null}
-              active={activeDeck?.id === null}
-              onPick={() => {
+            <button
+              onClick={() => {
                 if (useStudio.getState().pickDeck(null, "全部卡片")) setView("cards");
               }}
-            />
+              className="h-[94%] flex-none snap-center text-left"
+              style={{ aspectRatio: "2/3" }}
+            >
+              <DeckCard
+                name="全部卡片"
+                count={allCount}
+                cover={[...cardById.values()][0]?.cover ?? null}
+                active={activeDeck?.id === null}
+              />
+            </button>
             {decks.map((d) => (
-              <DeckTile
+              <button
                 key={d.id}
-                name={d.name}
-                count={d.cardIds.length}
-                cover={deckCoverOf(d)?.cover ?? null}
-                active={activeDeck?.id === d.id}
-                onPick={() => {
+                onClick={() => {
                   if (useStudio.getState().pickDeck(d.id, d.name)) setView("cards");
                 }}
-              />
+                className="h-[94%] flex-none snap-center text-left"
+                style={{ aspectRatio: "2/3" }}
+              >
+                <DeckCard
+                  name={d.name}
+                  count={d.cardIds.length}
+                  cover={deckCoverOf(d)?.cover ?? null}
+                  active={activeDeck?.id === d.id}
+                />
+              </button>
             ))}
             {decks.length === 0 && (
               <div className="flex-none py-3 pl-2 text-[11px] leading-5 text-slate-500">
