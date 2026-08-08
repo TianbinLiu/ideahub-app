@@ -39,7 +39,10 @@ function Prop({ spec }: { spec: PropSpec }) {
   const gltf = useLoader(GLTFLoader, M(spec.n));
   const obj = useMemo(() => {
     const o = gltf.scene.clone(true);
-    applyCameraFade(o); // 自由视角镜头穿过柜子/烛台时近处网点淡出，不再糊满屏
+    // 家具的参数和角色不同，故不吃默认值：柜子/烛台是**视线障碍**，要早点让开
+    // 并且让干净（floor=0 淡到全无）；角色的默认带很窄、还留 24% 半透，那是为了
+    // "穿模后仍看得到半透明的衣服"，套到家具上就成了糊在镜头前擦不掉的一层。
+    applyCameraFade(o, 0.35, 1.0, 0.3, 0);
     return o;
   }, [gltf]);
   return <primitive object={obj} position={spec.p} rotation={[0, spec.ry ?? 0, 0]} scale={spec.s ?? 1} />;

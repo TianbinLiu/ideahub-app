@@ -13,6 +13,7 @@ import { loaderFor } from "../secureAssets";
 import { SpringBoneSim, type SphereCollider } from "./springBones";
 import { PLAYER_HEAD, eyeLimits, eyeLook, eyeRise, playerEye } from "./cameraOrbit";
 import { gazeDelta, type GazeLimits } from "./gazeDelta";
+import { cullSkinBackfaces } from "./cameraFade";
 
 /** 玩家注视限幅：只转头不拧脖子。低头给得比抬头小（低头把脸往刘海里推） */
 const PLAYER_GAZE: GazeLimits = { yaw: 0.5, up: 0.20, down: 0.12 };
@@ -458,6 +459,9 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     // 拉出一根横贯视野的塌缩三角面片，硬剔除时它直接消失，一旦改成网点淡出就变成
     // 半透明纱铺满全屏（实测整个房间被网点糊住）。玩家侧一律用 applySelfCull 的硬剔除。
     selfCullMats.current = applySelfCull(gltf.scene);
+    // 但**皮肤背面剔除要**：它不注入着色器，跟上面那个回退无关。第三人称绕到玩家
+    // 身上时同样会看到对面那层皮肤的内侧，单面渲染让这事从根上不成立。
+    cullSkinBackfaces(gltf.scene);
     // 朝向修正按 rig 家族：玩家背对镜头面向 NPC（-Z 方向）
     gltf.scene.rotation.set(0, rig.yaw, 0);
   }, [gltf, rig]);
