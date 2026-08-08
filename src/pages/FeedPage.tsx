@@ -45,9 +45,12 @@ function RailBtn({
       onClick={onClick}
       className="flex min-h-[56px] w-14 flex-col items-center justify-center gap-1 transition active:scale-90"
     >
-      {/* relative 容器只包图标：小人要相对【图标】定位，包住文字的话会偏高 */}
-      <span className="relative flex items-center justify-center">
-        {perch && perchOn && <CharacterPerch pose={perch} size={28} />}
+      {/* relative 容器只包图标：角色要相对【图标】定位，包住文字的话会偏高。
+          isolate：角色用负 z-index 沉到图标下面，必须有独立层叠上下文兜住，
+          否则它会一路穿到整条右侧栏背后，跑到别的按钮和计数下面去。 */}
+      <span className="relative isolate flex items-center justify-center">
+        {/* key={perchOn}：连点两下时若不换 key，元素不重挂载，CSS 动画不会重播 */}
+        {perch && perchOn > 0 && <CharacterPerch key={perchOn} pose={perch} size={28} />}
         <Icon
           name={icon}
           size={28}

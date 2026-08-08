@@ -21,9 +21,11 @@
 //   拆开就总有一天会配出「挥手的图 + 蹦跳的动画」。
 //
 // ★ 怎么让角色和图标「长在一起」（都在 index.css 的 .perch-pop 伪元素里）：
-//   ① 接触阴影：角色脚下一团投在【图标上】的软阴影，制造承重与接触感；
-//   ② 同色辉光：角色背后一圈该图标激活色的辉光（赞=玫红、藏=金、Tab=青）；
-//   ③ 重叠 26%：双手压在图标顶沿上，而不是悬在半空。
+//   ① 画在图标【下面】：角色从图标后面探出来抱住它，两者立刻有了前后关系。
+//      盖在图标上时，一个厚涂人物压住一个单色图标，视觉上非常突兀。
+//   ② 接触阴影：角色脚下一团投在图标上的软阴影，制造承重与接触感；
+//   ③ 同色辉光：角色背后一圈该图标激活色的辉光（赞=玫红、藏=金、Tab=青）；
+//   ④ 重叠 32%：埋进图标后面，而不是悬在半空。
 //
 // 资源生成方式与踩过的坑记录在 public/perch/README.md。
 import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
@@ -57,25 +59,51 @@ const GLOW: Record<PerchPose, string> = {
 };
 
 /**
- * 「激活的那一下」播一次演出。返回本帧是否该渲染角色。
+ * 「激活的那一下」播一次演出。返回演出编号：0 = 不显示，>0 = 第 n 次。
+ * 调用方要把它当 `key` 用，见下面第 3 条。
  *
  * ★ 只认 false→true 的【跳变】，不认「当前为 true」：
  *   否则滑回一条早就点过赞的视频、或者应用启动时停在首页 Tab，
- *   角色都会莫名其妙地演一遍。用 ref 存上一帧的值来区分这两种情况。
+ *   角色都会莫名其妙地演一遍。用 ref 存上一次的值来区分这两种情况。
  *   ref 初值取传入值，所以挂载时不会触发。
+ *
+ * ★ 定时器存在 ref 里，不用 effect 的 cleanup 管 —— 这里修过一个真 bug：
+ *   原来 `return () => clearTimeout(t)` 挂在 [active] 上。true→false 时
+ *   cleanup 先把隐藏定时器清掉，随后那次 effect 又因为 `!active` 直接 return，
+ *   【不再补新定时器】，于是角色永远停在显示态、再也不消失。
+ *   快速反复点收藏必现。定时器的生命周期本来就不该和 active 的变化绑定。
+ *
+ * ★ 取消激活立刻收回，不等演完：
+ *   快速点两下收藏，期望看到的是"冒出来又缩回去"，而不是第二下没反应。
+ *
+ * ★ 返回递增编号而不是 boolean，是为了让调用方拿它做 key：
+ *   连续两次激活之间若没经过隐藏态，show 一直是 true，组件不重挂载，
+ *   CSS 动画就不会重头播——表现为"快速连点没有反应"。
+ *   编号变化会强制 React 重建元素，动画随之重播。
  */
-export function usePerchBurst(active: boolean): boolean {
-  const [show, setShow] = useState(false);
+export function usePerchBurst(active: boolean): number {
+  const [token, setToken] = useState(0);
   const prev = useRef(active);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
   useEffect(() => {
     const was = prev.current;
     prev.current = active;
-    if (!active || was) return;
-    setShow(true);
-    const t = setTimeout(() => setShow(false), PERCH_MS);
-    return () => clearTimeout(t);
+    if (!active) {
+      clearTimeout(timer.current);
+      setToken(0);
+      return;
+    }
+    if (was) return; // 本来就是激活态：挂载、或与本组件无关的重渲染
+    setToken((t) => t + 1);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setToken(0), PERCH_MS);
   }, [active]);
-  return show;
+
+  // 卸载时清掉在途定时器（滑走的视频、切走的 Tab）
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  return token;
 }
 
 /**
@@ -86,10 +114,18 @@ export function usePerchBurst(active: boolean): boolean {
  * bottom 用比例而非固定 px —— 23px 的 Tab 图标与 28px 的右栏图标若共用固定偏移，
  * 会一个悬空一个陷进去。
  *
- * ★ 0.74 这个值是量出来的，不是估的，调过三轮：
- *   0.52（重叠 46%）图标被盖到认不出——图标是导航控件，盖掉它等于把功能换成装饰；
+ * ★ 角色画在图标【下面】（-z-10 + 调用方给容器 isolate）：
+ *   盖在图标上时，一个厚涂人物突然压住一个单色图标，视觉上非常突兀；
+ *   压在图标后面则读成"从图标后面探出来"，两者立刻有了前后关系。
+ *   isolate 必不可少：不给容器建独立层叠上下文的话，负 z-index 会一路穿到
+ *   整条右侧栏的背后，跑到别的按钮和计数文字下面去。
+ *
+ * ★ 0.68 这个值是量出来的，不是估的，调过四轮：
+ *   0.52（重叠 46%）角色盖在图标上时把图标糊掉，认不出是什么；
  *   0.78（22%）图标清楚了，但角色变成悬在半空的贴纸；
- *   现取 0.74（26%）：双手实打实压在图标顶沿，图标下方约 3/4 的识别特征仍然完整。
+ *   0.74（26%）好一些，但角色仍压在图标前面；
+ *   现在角色改到图标【后面】，遮挡不再是约束，于是收到 0.68（重叠 32%）——
+ *   埋得更深，"从后面探出来"的关系更明确，向上占的空间也更小。
  *   注意重叠比例只由 bottom 与图标高度决定，与角色贴图大小无关。
  */
 function CharacterPerchImpl({
@@ -113,10 +149,10 @@ function CharacterPerchImpl({
 
   return (
     <span
-      className={`perch-pop perch-${pose} pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 ${className}`}
+      className={`perch-pop perch-${pose} pointer-events-none absolute left-1/2 -z-10 -translate-x-1/2 ${className}`}
       style={
         {
-          bottom: `${Math.round(size * 0.74)}px`,
+          bottom: `${Math.round(size * 0.68)}px`,
           width: w,
           height: h,
           "--perch-ms": `${PERCH_MS}ms`,

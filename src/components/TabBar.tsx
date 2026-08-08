@@ -28,9 +28,11 @@ function TabInner({ tab, isActive }: { tab: Tab; isActive: boolean }) {
   const perchOn = usePerchBurst(isActive);
   return (
     <>
-      {/* relative 只包图标：角色相对【图标】定位，包住文字会偏高 */}
-      <span className="relative flex items-center justify-center">
-        {perchOn && <CharacterPerch pose={tab.pose} size={23} />}
+      {/* relative 只包图标：角色相对【图标】定位，包住文字会偏高。
+          isolate：角色用负 z-index 沉到图标下面，需要独立层叠上下文兜住。 */}
+      <span className="relative isolate flex items-center justify-center">
+        {/* key={perchOn}：快速来回切 Tab 时若不换 key，元素不重挂载，动画不会重播 */}
+        {perchOn > 0 && <CharacterPerch key={perchOn} pose={tab.pose} size={23} />}
         <Icon name={tab.icon} size={23} filled={isActive} />
       </span>
       <span>{tab.label}</span>
