@@ -137,44 +137,26 @@ canvas {
   background: radial-gradient(closest-side, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 74%);
 }
 
-/* ── 两帧翻页：角色【自己】在动 ────────────────────────────────────────
-   每个姿势有 A/B 两帧（挥手抬到头顶、指路改成搭凉棚……），演出期间硬切来回翻。
+/* ── 逐帧精灵图：角色【自己】在动 ──────────────────────────────────────
+   每个姿势是一条 8 帧动画，横向排在一张精灵图里，靠 background-position 逐格平移。
    只靠容器缩放位移的话，看到的永远是"一张画弹出来了"，而不是角色在动。
 
-   ★ 用 0%/49.99% 这种陡峭关键帧做硬切，不用 cross-fade：
-     两帧叠化会同时看见两组手臂，糊成一团重影。定格动画就该是硬切。
-   ★ fill 用 both（在下面和容器一起设）：
-     backwards 保证延迟期间 B 是隐的——否则等翻页开始前 B 会一直盖在 A 上；
-     forwards 让翻页结束后停在 B 帧，退场那段就用 B，不必再写一组收尾关键帧。 */
-.perch-f {
+   动画的具体参数（时长/延迟/steps/位移终点）都由 CharacterPerch.tsx 内联给出，
+   因为它们要用到帧数和单格宽度；这里只留与尺寸无关的关键帧本体。 */
+.perch-art {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  background-repeat: no-repeat;
+  background-position-x: 0;
 }
-@keyframes perch-flip-a {
-  0%, 49.99% { opacity: 1; }
-  50%, 100%  { opacity: 0; }
+@keyframes perch-run {
+  from { background-position-x: 0; }
+  to   { background-position-x: var(--sheet-shift); }
 }
-@keyframes perch-flip-b {
-  0%, 49.99% { opacity: 0; }
-  50%, 100%  { opacity: 1; }
-}
-/* 时序全部由 --perch-ms 推导（唯一真源在 CharacterPerch.tsx 的 PERCH_MS）：
-   18% 进场结束才开始翻，每轮 18%，翻 3 轮 → 正好在 72% 处停下，留出退场。 */
-.perch-fa,
-.perch-fb {
-  animation-duration: calc(var(--perch-ms) * 0.18);
-  animation-delay: calc(var(--perch-ms) * 0.18);
-  animation-iteration-count: 3;
-  animation-timing-function: linear;
-}
-.perch-fa { animation-name: perch-flip-a; }
-.perch-fb { animation-name: perch-flip-b; }
 
 /* ── 每个动作一套进出场 ───────────────────────────────────────────────
    统一节奏（占 --perch-ms 的比例）：
-     0–12% 冒出 · 12–18% 落定 · 18–72% 停住让翻页演 · 72–100% 缩回消失
+     0–12% 冒出 · 12–18% 落定 · 18–72% 停住让逐帧动画演 · 72–100% 缩回消失
    进场和退场按姿势各不相同：六处共用一套时，点赞和切 Tab 的反馈完全一样，
    角色就退化成一个到处乱贴的水印。
 
@@ -183,7 +165,6 @@ canvas {
      漏写就会让角色整体右移半个身位。
    ★ 一律只动 transform / opacity（合成层）：右侧栏在视频滚动中本就吃紧，
      动画触发重排会直接掉帧。 */
-.perch-pop > .perch-f,
 .perch-pop {
   animation-fill-mode: both;
 }
@@ -265,7 +246,6 @@ canvas {
    卸载定时器收走。辉光与接触阴影保留——它们表达的是位置关系而非动效。 */
 @media (prefers-reduced-motion: reduce) {
   .perch-pop,
-  .perch-f { animation: none !important; }
+  .perch-art { animation: none !important; }
   .perch-pop { opacity: 1; transform: translateX(-50%); }
-  .perch-fb { opacity: 0 !important; }
 }

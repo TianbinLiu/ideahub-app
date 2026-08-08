@@ -10,10 +10,12 @@
 //   角色的职责是【对这次操作的即时反应】，不是状态显示。
 //
 // ★ 真的在动，而不是整张图在位移：
-//   每个姿势有 A/B 两帧（如挥手抬到头顶、指路改成搭凉棚），播放时硬切来回翻，
-//   这才是角色在动。只靠容器做缩放位移的话，看到的永远是"一张画弹出来了"。
-//   两帧按【头部锚点】对齐生成（见 public/perch/README.md）——
-//   按包围盒对齐会因为 B 帧手臂张得更开而让整个人左右乱窜。
+//   每个姿势是一条 8 帧的逐帧动画（精灵图），播放时角色本身在动作。
+//   只靠容器做缩放位移的话，看到的永远是"一张画弹出来了"。
+//   8 帧不是画出来的，也不是两帧插值出来的，而是把 A/B 两帧丢给 Seedance
+//   走【首尾帧】模式生成中间动作再抽帧 —— 插值只能让手臂"融化"着平移，
+//   视频模型会生成合理的运动弧线（手臂沿弧线抬起、头发跟着甩）。
+//   详见 public/perch/README.md。
 //
 // ★ 每个动作一张图、一套动效（pose 同时决定贴图、翻页帧和进出场动画）：
 //   六处共用一套时，点赞和切 Tab 的反馈完全一样，角色就退化成到处乱贴的水印。
@@ -36,15 +38,16 @@ export type PerchPose = "like" | "save" | "home" | "explore" | "studio" | "mine"
  *  卸载定时器也用它。别在 index.css 里另写一个写死的秒数，两边一定会漂。 */
 export const PERCH_MS = 1600;
 
-/** 各姿势 A 帧的原始尺寸（生成脚本按 160 宽等比缩放，高度略有差异）。换图时同步改。
- *  B 帧与 A 帧同尺寸——生成时就用同一个裁切框，保证翻页不跳。 */
-const ART: Record<PerchPose, { w: number; h: number }> = {
-  like: { w: 160, h: 159 },
-  save: { w: 160, h: 159 },
-  home: { w: 160, h: 156 },
-  explore: { w: 160, h: 149 },
-  studio: { w: 160, h: 159 },
-  mine: { w: 160, h: 153 },
+/** 各姿势精灵图的单格尺寸与帧数。生成脚本会打印这张表，换图时照抄过来。
+ *  ★ 同一姿势的各帧【必须】同尺寸：生成时用所有帧包围盒的并集做统一裁切框，
+ *    否则逐帧之间角色会缩放跳变。 */
+const SHEET: Record<PerchPose, { w: number; h: number; frames: number }> = {
+  like: { w: 160, h: 159, frames: 8 },
+  save: { w: 160, h: 160, frames: 8 },
+  home: { w: 160, h: 159, frames: 8 },
+  explore: { w: 160, h: 159, frames: 8 },
+  studio: { w: 160, h: 160, frames: 8 },
+  mine: { w: 160, h: 160, frames: 8 },
 };
 
 /** 辉光色 = 该图标的激活色，以 "r g b" 给出供 CSS 拼 alpha。
@@ -138,14 +141,19 @@ function CharacterPerchImpl({
   className?: string;
 }) {
   // 1.75×：小于这个比例，脸上的眼睛/腮红会缩到看不清，角色就退回成一个彩色斑点。
-  // 角色坐在图标【上方】而非覆盖其上，宽一点不伤图标辨识。
   const w = Math.round(size * 1.75);
-  const art = ART[pose];
+  const art = SHEET[pose];
   const h = Math.round((w * art.h) / art.w);
 
-  // ★ B 帧没就位就不翻页：翻到一张还没下载完的图 = 角色凭空消失一帧，
-  //   比不做动作更糟。没就位时退化为"只播进出场"，是可接受的降级。
-  const [flip, setFlip] = useState(false);
+  // 逐帧播放：18% 处进场结束才开始，占满到 72%，剩下交给退场。
+  // 时序全部由 PERCH_MS 推导，不写死秒数（唯一真源见上面 PERCH_MS 注释）。
+  const runMs = Math.round(PERCH_MS * 0.54);
+  const delayMs = Math.round(PERCH_MS * 0.18);
+  // ★ steps 用 frames-1、位移终点用 (frames-1)*w，不是 frames*w：
+  //   steps(n, end) 在动画【结束瞬间】才跳到终值。若终值取 frames*w，
+  //   那一跳会落到精灵图外面 —— 配上 forwards 就是退场全程显示空白。
+  //   取 frames-1 后，播放中依次显示第 0..n-2 格，结束停在最后一格。
+  const steps = art.frames - 1;
 
   return (
     <span
@@ -161,16 +169,18 @@ function CharacterPerchImpl({
       }
       aria-hidden
     >
-      <img className={`perch-f${flip ? " perch-fa" : ""}`} src={`/perch/${pose}.png`} alt="" width={w} height={h} draggable={false} />
-      <img
-        className={`perch-f${flip ? " perch-fb" : ""}`}
-        src={`/perch/${pose}-b.png`}
-        alt=""
-        width={w}
-        height={h}
-        draggable={false}
-        style={flip ? undefined : { opacity: 0 }}
-        onLoad={() => setFlip(true)}
+      {/* 精灵图用 background 而不是 <img>：一张图放 8 帧，靠 background-position
+          逐格平移。用 <img> 的话得叠 8 个元素来回切 opacity，DOM 和内存都更亏。 */}
+      <span
+        className="perch-art"
+        style={
+          {
+            backgroundImage: `url(/perch/${pose}.webp)`,
+            backgroundSize: `${art.frames * w}px 100%`,
+            animation: `perch-run ${runMs}ms steps(${steps}) ${delayMs}ms 1 forwards`,
+            "--sheet-shift": `-${steps * w}px`,
+          } as CSSProperties
+        }
       />
     </span>
   );
