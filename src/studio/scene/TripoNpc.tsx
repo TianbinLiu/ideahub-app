@@ -7,6 +7,7 @@ import { ThreeEvent, useFrame, useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { useStudio } from "../studioStore";
+import { FaceDriver, TRIPO_FACE, moodExpression, type Expression, type FaceRecipe } from "./faceExpr";
 import { loaderFor } from "../secureAssets";
 import { SpringBoneSim, type SphereCollider, type SpringOverrides } from "./springBones";
 import { BreastPhysics, type PhysCollider } from "./breastPhysics";
@@ -196,7 +197,7 @@ export default function TripoNpc({
   bust = false,
   full = false,
   cfg,
-  morphNames,
+  face: faceRecipe,
 }: {
   url?: string;
   bust?: boolean;
@@ -274,15 +275,15 @@ export default function TripoNpc({
     };
   };
   /** 形键名映射（购入模型用原生键名，如 VRC 规格 "vrc.blink "——注意可能带尾随空格） */
-  morphNames?: { blink?: string; mouthOpen?: string; smile?: string };
+  /** 表情配方（见 faceExpr.ts）。不传时用自产模型那套 blink/mouthOpen/smile 键名 */
+  face?: FaceRecipe;
 }) {
   const gltf = useLoader(loaderFor(url), url, (loader) => {
     (loader as GLTFLoader).setMeshoptDecoder(MeshoptDecoder);
   });
   const bones = useRef<Record<string, THREE.Object3D | null>>({});
   const morphMeshes = useRef<THREE.Mesh[]>([]);
-  // 随机眨眼时刻表：{ 下次眨眼的动画时钟时刻, 是否双眨 }
-  const blinkPlan = useRef({ next: 2.5, double: false, phase: -1 });
+  const face = useRef<FaceDriver | null>(null);
   // 演出动画（wave 招手 / deal 发牌）：Blender IK 烘焙，只保留左臂链轨道避免覆盖程序姿势
   const mixer = useMemo(() => new THREE.AnimationMixer(gltf.scene), [gltf]);
   const perfActions = useMemo(() => {
@@ -444,6 +445,7 @@ export default function TripoNpc({
   }, []);
 
   const { scale, y } = useMemo(() => {
+    face.current = null;
     morphMeshes.current = [];
     gltf.scene.traverse((o) => {
       o.frustumCulled = false;
@@ -456,7 +458,15 @@ export default function TripoNpc({
     toonify(gltf.scene, cfg ? 0.002 : full ? 0.0009 : bust ? 0.003 : 0.0012, full ? { amp: 0.006 } : undefined, cfg?.look);
     // 相机穿模淡出：镜头贴近/穿过角色时近处片元网点渐隐（自由视角/环绕镜头穿身不再糊脸）
     applyCameraFade(gltf.scene);
-    if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__npcGltf = gltf;
+    // 表情驱动器：必须在 toonify **之后**建——反壳是 toonify 复制出来的网格，
+    // 提前建会把壳也收进形键槽位（壳没有 morphTargetInfluences，写入即崩）
+    const fd = new FaceDriver(gltf.scene, faceRecipe ?? TRIPO_FACE);
+    face.current = fd.size > 0 ? fd : null;
+    if (import.meta.env.DEV) {
+      const w = window as unknown as Record<string, unknown>;
+      w.__npcGltf = gltf;
+      w.__npcFace = face.current;
+    }
     // 立正靠 Root 骨自带的 (-90°,0,90°) 修正（勿动）；scene 只转 yaw -90° 面向镜头。
     // cfg 模型（购入资产）朝向各异，由 cfg.yaw 指定
     gltf.scene.rotation.set(0, cfg?.yaw ?? -Math.PI / 2, 0);
@@ -572,66 +582,29 @@ export default function TripoNpc({
         if (n && v) n.rotation.set(v[0] + (k === "spine1" ? breathe : 0), v[1], v[2]);
       }
     }
-    // 表情 morph：随机间隔眨眼（偶发双眨）+ npcSay 驱动口型 + 情绪事件驱动笑意 + 胸部压桌。
-    // VRC 模型的脸常按材质拆成多个 primitive（面部本体+睫毛/眼线 alpha 层），形键同名
-    // 各自独立——必须全部写入：只写其一=眼线层单独闭合盖在睁开的眼上（"黑眼影圈"根因）
+    // 表情：交给 FaceDriver（配方见 faceExpr.ts）。老实现只写 blink/mouthOpen/smile
+    // 三个键、内联在这里，96 个形键用了 3 个；现在按场景语义选表情、驱动器负责翻译。
     {
       const speaking = st.speakingUntil > Date.now();
-      const bp = blinkPlan.current;
-      let blink = 0;
-      if (t >= bp.next) {
-        const ph = t - bp.next; // 眨眼动画相位（0.28s 一次闭合）
-        if (ph < 0.28) {
-          blink = Math.sin((ph / 0.28) * Math.PI);
-        } else if (bp.double) {
-          bp.double = false;
-          bp.next = t + 0.25; // 双眨：紧跟第二次
-        } else {
-          // 排下一次：2.2~5.8s 伪随机（按次数哈希，确定性可复现）
-          bp.phase++;
-          const h = Math.abs(Math.sin(bp.phase * 12.9898) * 43758.5453) % 1;
-          bp.next = t + 2.2 + h * 3.6;
-          bp.double = h > 0.78;
+      const fd = face.current;
+      if (fd) {
+        // 情绪脉冲优先（入组/出炉笑意拉满、素材不合格收敛），其次"正在说话"给点笑意，
+        // 再不然回常态——rest 基线本身就带浅笑，不需要在这里再兜一次
+        fd.setExpression(moodExpression(st.mood, st.moodUntil > Date.now()) ?? (speaking ? "smile" : "neutral"));
+        fd.update(dt, t, speaking);
+      }
+      // DEV：__forceExpr 直接钉住某个表情，__forceBlink 保留给闭眼幅度回归
+      if (import.meta.env.DEV) {
+        const fe = (window as unknown as Record<string, unknown>).__forceExpr as Expression | undefined;
+        if (fe && fd) {
+          fd.setExpression(fe);
+          fd.update(dt, t, speaking);
         }
       }
-      if (import.meta.env.DEV) {
-        const fb = (window as unknown as Record<string, unknown>).__forceBlink;
-        if (typeof fb === "number") blink = fb;
-      }
-      for (const mm of morphMeshes.current) {
+    }
+    for (const mm of morphMeshes.current) {
       const dict = mm.morphTargetDictionary!;
       const inf = mm.morphTargetInfluences!;
-      // full HD 贴图眼睛全开——常驻 0.22 眨眼基线找回"半眯慵懒"设定气质
-      // 形键名映射：自产模型用我们雕的键名，购入模型传原生键名（VRC 规格等）
-      const nBlink = morphNames?.blink ?? "blink";
-      const nMouth = morphNames?.mouthOpen ?? "mouthOpen";
-      const nSmile = morphNames?.smile ?? "smile";
-      if (dict[nBlink] !== undefined)
-        inf[dict[nBlink]] = full || cfg ? Math.max(cfg?.blinkBase ?? 0.22, blink) : blink;
-      if (dict[nMouth] !== undefined)
-        inf[dict[nMouth]] = speaking ? Math.max(0, Math.sin(t * 9.5)) * 0.55 : 0;
-      if (dict[nSmile] !== undefined) {
-        // 情绪脉冲优先（入组/出炉笑意拉满；素材不合格/作废收敛），否则说话加深/常态浅笑
-        const moodActive = st.moodUntil > Date.now();
-        const target = moodActive
-          ? st.mood > 0
-            ? 0.25 + st.mood * 0.7
-            : Math.max(0, 0.22 + st.mood * 0.35)
-          : speaking
-            ? 0.5 + Math.sin(t * 1.3) * 0.12
-            : (cfg?.smileBase ?? 0.22);
-        inf[dict[nSmile]] += (target - inf[dict[nSmile]]) * Math.min(1, dt * 6);
-      }
-      // 常驻表情基线：作者自带键直接置值（DEV 可 __restMorphs 现场调）
-      const rest =
-        (import.meta.env.DEV &&
-          ((window as unknown as Record<string, unknown>).__restMorphs as
-            | Record<string, number>
-            | undefined)) ||
-        cfg?.restMorphs;
-      if (rest)
-        for (const k of Object.keys(rest))
-          if (dict[k] !== undefined) inf[dict[k]] = rest[k];
       // 胸部软性压桌：bust 版旧形键常驻；full 版=HD 重雕的小幅前缘轻压（无侧鼓），
       // 只在过渡末段胸口贴上桌沿时渐入，随呼吸微起伏
       if (dict.squish !== undefined) {
@@ -642,7 +615,6 @@ export default function TripoNpc({
           squish = contact * contact * (3 - 2 * contact) * (0.85 + Math.sin(t * 1.1) * 0.1);
         }
         inf[dict.squish] = squish;
-      }
       }
     }
     // full/购入模型状态机：站立（钉 lean f1）↔ 对话（播 lean 过渡，clamp 停末帧）

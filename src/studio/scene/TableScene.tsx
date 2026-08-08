@@ -133,7 +133,7 @@ const MILLTINA_CFG = {
   // 弹簧关节撑不出体积，纯靠重力垂落会塌成平面（实测 y 0.56→0.43 胸整个贴回身体）
   breastLift: { angle: -0.3, childAngle: -0.15, splay: 0.24, sink: 0.06, swell: 0.15 },
 };
-const MILLTINA_MORPHS = { blink: "vrc.blink ", mouthOpen: "vrc.v_aa", smile: "eye_joy" };
+
 import {
   cardBackTexture,
   cardFaceTexture,
@@ -146,6 +146,7 @@ import CardMesh from "./CardMesh";
 import MagicStudy from "./MagicStudy";
 import VrmNpc from "./VrmNpc";
 import TripoNpc from "./TripoNpc";
+import { MILLTINA_FACE } from "./faceExpr";
 import PlayerArms from "./PlayerArms";
 
 // 默认 = 全身版（站立↔对话俯身状态机，用户定稿）；?npc=tripo 早期全身试验版 / ?npc=vrm 回退 VRM
@@ -1463,7 +1464,7 @@ export default function TableScene() {
           <TripoNpc url={npcModelUrl()} full />
         ) : (
           // 默认铸卡师 = 购入模型 Milltina（加密分发）：VRC 原生形键 + 弹簧骨物理 + 调暗描边
-          <TripoNpc url="/models/protected/milltina-opt.glbx?v=m15" cfg={MILLTINA_CFG} morphNames={MILLTINA_MORPHS} />
+          <TripoNpc url="/models/protected/milltina-opt.glbx?v=m15" cfg={MILLTINA_CFG} face={MILLTINA_FACE} />
         )}
       </Suspense>
       <PlayerHandsSwitch />

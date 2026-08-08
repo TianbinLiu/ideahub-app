@@ -14,6 +14,7 @@ import { SpringBoneSim, type SphereCollider } from "./springBones";
 import { PLAYER_HEAD, PLAYER_TORSO, eyeLimits, eyeLook, eyeRise, playerEye } from "./cameraOrbit";
 import { gazeDelta, type GazeLimits } from "./gazeDelta";
 import { cullSkinBackfaces } from "./cameraFade";
+import { FaceDriver, TSUMIRE_FACE, TRIPO_FACE, moodExpression, type Expression, type FaceRecipe } from "./faceExpr";
 
 /** 玩家注视限幅：只转头不拧脖子。低头给得比抬头小（低头把脸往刘海里推） */
 const PLAYER_GAZE: GazeLimits = { yaw: 0.5, up: 0.20, down: 0.12 };
@@ -142,14 +143,16 @@ const RIGS: Record<
      *  0.02，比桌沿还低 0.23，不垫高就是"趴在桌腿边"。垫高后角色整体上移，
      *  脚下渲染一只木凳补上视觉逻辑（不然人悬空）。 */
     standOn?: number;
+    /** 表情配方（见 faceExpr.ts）。不填=这套 rig 没有可用形键，表情系统整个跳过 */
+    face?: FaceRecipe;
   }
 > = {
   // 体格/落地重定（与 rin/gratia 同一标尺）：模型脚底=原点、局部身高 0.92，
   // 旧值 scale4.3+y-2.9 = 身高 3.96 单位(1.57m) 且脚陷地 0.5——第一人称眼位只比
   // 桌沿高 7cm（眼位读的是真实头骨，模型矮=视角矮）。
   // 定标：吧台 2.65 单位=1.05m → 1m≈2.52 单位；身高 1.77m=4.46 单位 → scale 4.85
-  m: { yaw: Math.PI / 2, scale: 4.85, y: -2.4, z: 4.95, pose: TRIPO_POSE, standPose: TRIPO_STAND, hideHead: true },
-  f: { yaw: Math.PI / 2, scale: 4.85, y: -2.4, z: 4.95, pose: TRIPO_POSE, standPose: TRIPO_STAND, hideHead: true },
+  m: { yaw: Math.PI / 2, scale: 4.85, y: -2.4, z: 4.95, pose: TRIPO_POSE, standPose: TRIPO_STAND, hideHead: true, face: TRIPO_FACE },
+  f: { yaw: Math.PI / 2, scale: 4.85, y: -2.4, z: 4.95, pose: TRIPO_POSE, standPose: TRIPO_STAND, hideHead: true, face: TRIPO_FACE },
   rin: {
     yaw: Math.PI,
     // 体格/落地重定（用户平视验收）：scale 按 NPC 体格比例（4.3 是 7.2 单位巨人；场景角色 ~3.4）、
@@ -214,6 +217,7 @@ const RIGS: Record<
   // Tsumire（BOOTH 购入 VRChat 角色，FBX→GLB 后骨名已改成 mixamo 规范）。
   // 定标：局部身高 0.95、脚底=原点；按"1m≈2.52 单位"折算 1.55m ⇒ 3.9 单位 ⇒ scale 4.1
   tsumire: {
+    face: TSUMIRE_FACE,
     yaw: Math.PI,
     scale: 4.1,
     y: -2.41,
@@ -428,6 +432,7 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
   const settleMode = useRef<"stand" | "playing" | "leaned" | null>(null);
 
   const restQ = useRef<Record<string, THREE.Quaternion>>({});
+  const face = useRef<FaceDriver | null>(null);
   useMemo(() => {
     gltf.scene.traverse((o) => {
       o.frustumCulled = false;
@@ -464,6 +469,12 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     // 但**皮肤背面剔除要**：它不注入着色器，跟上面那个回退无关。第三人称绕到玩家
     // 身上时同样会看到对面那层皮肤的内侧，单面渲染让这事从根上不成立。
     cullSkinBackfaces(gltf.scene);
+    // 表情驱动器：建在 toonify 之后（反壳没有 morphTargetInfluences，收进槽位即崩）
+    if (rig.face) {
+      const fd = new FaceDriver(gltf.scene, rig.face);
+      face.current = fd.size > 0 ? fd : null;
+    } else face.current = null;
+    if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__playerFace = face.current;
     // 朝向修正按 rig 家族：玩家背对镜头面向 NPC（-Z 方向）
     gltf.scene.rotation.set(0, rig.yaw, 0);
   }, [gltf, rig]);
@@ -647,6 +658,22 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     const showSelf = st.deckView || st.orbit?.target === "player";
     // MMD 档 think/下沉只属于卡组特写——自由视角应看到伏桌常态姿势（Tripo 系维持 showSelf 语义）
     const thinkActive = rig.thinkDeckOnly ? st.deckView : showSelf;
+    // 表情：第一人称下头骨被缩到 0.001（脸看不见），驱动器仍照跑——省下来的那点开销
+    // 不值得为它引入"进出第一人称要不要重置形键"的状态；而绕到侧面时脸必须已经在位。
+    if (face.current) {
+      const fd = face.current;
+      // 优先级：DEV 强制 > NPC 情绪脉冲（好消息一起高兴/坏消息一起沮丧）> 场景状态
+      let e: Expression | null = null;
+      if (import.meta.env.DEV) {
+        e = ((window as unknown as Record<string, unknown>).__forcePlayerExpr as Expression | undefined) ?? null;
+      }
+      e ??= moodExpression(st.mood, st.moodUntil > Date.now());
+      // 选卡组 / 铸段编辑 = 在琢磨，给思考脸；其余回常态（rest 自带浅笑）
+      e ??= st.deckView || st.projection === "editor" ? "think" : "neutral";
+      fd.setExpression(e);
+      // 玩家不说话（对话是 NPC 单向），口型恒闭
+      fd.update(dt, t, false);
+    }
     const breathe = Math.sin(t * 1.15 + 1.7) * 0.01;
     if (thinkActive && thinkAction) {
       // 思考姿势：钉在 clip 末帧（首 key 是 rest）。paused 的 mixer 只保证首帧写入、
