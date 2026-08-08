@@ -32,15 +32,22 @@ npm run dev                    # http://localhost:5173
 ```
 src/
   ai/          方舟（Seedream 生图 / Seedance 生视频 / 豆包对话）客户端与真假实现切换
+  api/         与 server 的 HTTP 调用
   components/  通用组件
-  data/        本地库（IndexedDB）与远端数据源，含种子数据与迁移
+  data/        本地库（IndexedDB）与账号库，含种子数据与迁移
   hooks/
+  mock/        无后端时的假数据
   pages/       路由页面（hash 路由）
-  store/       zustand
+  studio/      创作/工坊相关
+  utils/
 public/
   create/      创作入口三张封面（角色设定的唯一出处）
   perch/       激活态角色的逐帧精灵图 + 生成流程说明
+  cards/       卡牌素材
   models/      3D 模型（protected/ 下的加密产物不入仓）
+  avatars/
+design/        ★ 建模/出图的【离线工具与素材】，不参与 App 构建
+               （角色转换、LOD 生成、封面生成脚本 + 参考图 + 授权笔记）
 ```
 
 ## 约定
@@ -61,6 +68,7 @@ public/
 | `VITE_API_BASE` 指了远端 | 首页空白（本地库被跳过） | 本地开发注释掉它 |
 | 方舟提示词含敏感词 | 整个请求 400，不是降级 | 见 `AGENTS.md` 本仓小节 |
 | 新增数据字段没写迁移 | 老设备读到 `undefined`，静默显示 0 | 在 `src/data/videos.ts` 的迁移分支里加条件 |
+| 以为 `design/` 里的模型可以随便打包 | —— | 那是 BOOTH 购入的第三方素材，出厂分发需先取得授权，见下 |
 
 ## 相关文档
 
@@ -68,3 +76,4 @@ public/
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
 - [`public/perch/README.md`](public/perch/README.md) — 角色动画资源怎么生成、踩过什么坑
+- [`design/README-tsumire.md`](design/README-tsumire.md) — 购入模型的接入笔记与**授权结论**（上线前必读）
