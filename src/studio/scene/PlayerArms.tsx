@@ -474,7 +474,11 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       const fd = new FaceDriver(gltf.scene, rig.face);
       face.current = fd.size > 0 ? fd : null;
     } else face.current = null;
-    if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__playerFace = face.current;
+    if (import.meta.env.DEV) {
+      (window as unknown as Record<string, unknown>).__playerFace = face.current;
+      const miss = face.current?.missingKeys() ?? [];
+      if (miss.length) console.warn("[表情] 玩家模型缺形键（低画质档可能裁过头）:", miss.join(", "));
+    }
     // 朝向修正按 rig 家族：玩家背对镜头面向 NPC（-Z 方向）
     gltf.scene.rotation.set(0, rig.yaw, 0);
   }, [gltf, rig]);

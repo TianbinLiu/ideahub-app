@@ -42,21 +42,35 @@ export function npcModelUrl(): string {
  *  因此走的是与自产模型完全相同的取骨路径（见 design/README-tsumire.md）。 */
 export type PlayerAvatar = "m" | "f" | "rin" | "gratia" | "tsumire";
 
-const DEV_AVATAR_URLS: Record<string, string> = {
+/** 移植档的三档产物。**给全三档的才写成数组**，只有一个文件的写字符串——
+ *  rin/gratia 当初只烘了 opt 一档，硬编个"三档同文件"只会让人以为调了画质有用。
+ *  三档顺序 = [low, mid, high]，与 Quality 的档位一一对应。 */
+const DEV_AVATAR_URLS: Record<string, string | [string, string, string]> = {
   rin: "/models/protected/rin-player-opt.glbx?v=p3",
   gratia: "/models/protected/gratia-player-opt.glbx?v=p3",
-  tsumire: "/models/protected/tsumire-player.glbx?v=t2",
+  // Tsumire 是默认形象，三档齐全（见 design/make-lod.mjs）。实测体积：
+  // 13.62MB → mid 7.58MB（贴图 4096²→2048²）→ low 4.01MB（贴图 1024² + 裁掉
+  // 94 个表情系统用不上的形键）。**不减面**：减面会让形键失效，表情系统就没了。
+  tsumire: [
+    "/models/protected/tsumire-player-low.glbx?v=t3",
+    "/models/protected/tsumire-player-mid.glbx?v=t3",
+    "/models/protected/tsumire-player.glbx?v=t2",
+  ],
 };
 
 export function playerModelUrl(avatar: PlayerAvatar): string {
-  if (avatar in DEV_AVATAR_URLS) return DEV_AVATAR_URLS[avatar];
   const q = getQuality();
+  const dev = DEV_AVATAR_URLS[avatar];
+  if (dev) return typeof dev === "string" ? dev : dev[q === "low" ? 0 : q === "mid" ? 1 : 2];
   const suffix = q === "high" ? "think" : q === "mid" ? "think-mid" : "think-opt";
   return `/models/preview/player-${avatar}-${suffix}.glb?v=${PLAYER_VER}`;
 }
 
+// 文案照实写。默认形象 Tsumire 的三档实测：4.0MB / 7.6MB / 13.6MB，差别全在贴图
+// 分辨率——**面数三档相同**（减面会让形键失效，表情就没了，见 design/make-lod.mjs）。
+// 旧文案写"低面数/中等面数"是自产 Tripo 模型的口径，套到移植档上是不实的。
 export const QUALITY_LABELS: Record<Quality, { name: string; desc: string }> = {
-  low: { name: "流畅", desc: "低面数 · 压缩贴图 · 加载最快" },
-  mid: { name: "均衡", desc: "中等面数 · 2K 贴图（推荐）" },
-  high: { name: "极致", desc: "全精度网格 · 原始贴图 · 体积大加载慢" },
+  low: { name: "流畅", desc: "1K 贴图 · 精简表情 · 加载最快（≈4MB）" },
+  mid: { name: "均衡", desc: "2K 贴图 · 完整表情（推荐，≈8MB）" },
+  high: { name: "极致", desc: "4K 原始贴图 · 完整表情 · 加载慢（≈14MB）" },
 };

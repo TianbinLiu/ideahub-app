@@ -127,6 +127,17 @@ export class FaceDriver {
     return this.slots.size;
   }
 
+  /** 配方点名了但模型里没有的形键。低画质档会裁掉用不上的形键（见 design/make-lod.mjs），
+   *  裁多了的表现是"某个表情悄悄没效果"——不报错、不崩，只是脸不动。这个自查把它
+   *  变成 DEV 控制台里一条明确的告警。 */
+  missingKeys(): string[] {
+    const want = new Set<string>(this.recipe.blink);
+    for (const n of Object.values(this.recipe.visemes)) if (n) want.add(n);
+    for (const m of Object.values(this.recipe.expr)) for (const k of Object.keys(m)) want.add(k);
+    for (const k of Object.keys(this.recipe.rest ?? {})) want.add(k);
+    return [...want].filter((k) => !this.slots.has(norm(k)));
+  }
+
   setExpression(e: Expression) {
     this.expr = e;
   }

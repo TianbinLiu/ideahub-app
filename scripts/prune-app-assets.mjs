@@ -21,6 +21,9 @@ const PRUNE = [
   "preview/npc-full-face.glb", // 极致档（36MB）
   "preview/player-m-think.glb", // 极致档（37MB）
   "preview/player-f-think.glb", // 极致档（26MB）
+  // 默认形象的极致档（13.6MB）。原生端 getQuality() 硬把 high 封顶到 mid，
+  // 这个文件在 App 里永远不会被请求；mid(7.6MB)/low(4.1MB) 两档留在包里
+  "protected/tsumire-player.glbx",
   // 烘焙/试验遗留，src 全局零引用（web 端也不加载，仅占仓库）
   "preview/tripo-v3.glb",
   "preview/tripo-v25.glb",

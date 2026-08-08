@@ -466,6 +466,8 @@ export default function TripoNpc({
       const w = window as unknown as Record<string, unknown>;
       w.__npcGltf = gltf;
       w.__npcFace = face.current;
+      const miss = face.current?.missingKeys() ?? [];
+      if (miss.length) console.warn("[表情] NPC 模型缺形键（低画质档可能裁过头）:", miss.join(", "));
     }
     // 立正靠 Root 骨自带的 (-90°,0,90°) 修正（勿动）；scene 只转 yaw -90° 面向镜头。
     // cfg 模型（购入资产）朝向各异，由 cfg.yaw 指定
