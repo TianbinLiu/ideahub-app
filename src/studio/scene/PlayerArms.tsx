@@ -152,6 +152,8 @@ const RIGS: Record<
     standOn?: number;
     /** 表情配方（见 faceExpr.ts）。不填=这套 rig 没有可用形键，表情系统整个跳过 */
     face?: FaceRecipe;
+    /** 判定"哪些网格算脸"的子串（同时匹配网格名与贴图名）。不填按贴图名 tex_face */
+    faceMatch?: string[];
   }
 > = {
   // 体格/落地重定（与 rin/gratia 同一标尺）：模型脚底=原点、局部身高 0.92，
@@ -473,7 +475,15 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
   useMemo(() => {
     // 传 look 才能让 noOutlineMatch 生效：不传时 toonify 里的 noShell 判据退化成空数组，
     // 连脸都会套上反向外壳（黑眼圈/黑嘴的真凶）
-    toonify(gltf.scene, OUTLINE_W, undefined, rig.outlineSkip ? { noOutlineMatch: rig.outlineSkip } : undefined);
+    // 脸走"不吃光"：闭眼时眼睑法线朝上、接到的总光照远多于朝前的脸颊，toon 着色会把
+    // 它推到最亮档糊成一块硬边奶白板（用户连报四次的那个）。贴图上眼睑与脸颊只差 12
+    // 的亮度（234.7 vs 222.7），是光照把它放大的——实测改成不吃光后当场消失，睁眼
+    // 观感不变。faceMatch 用**贴图名**而不是网格名：这套移植模型的脸叫「平面001」。
+    toonify(gltf.scene, OUTLINE_W, undefined, {
+      ...(rig.outlineSkip ? { noOutlineMatch: rig.outlineSkip } : {}),
+      faceMatch: rig.faceMatch ?? ["tex_face"],
+      faceUnlit: true,
+    });
     // ⚠ 玩家模型**不接 applyCameraFade**（试过，是回退）：藏头把头骨缩到 0.001 会
     // 拉出一根横贯视野的塌缩三角面片，硬剔除时它直接消失，一旦改成网点淡出就变成
     // 半透明纱铺满全屏（实测整个房间被网点糊住）。玩家侧一律用 applySelfCull 的硬剔除。

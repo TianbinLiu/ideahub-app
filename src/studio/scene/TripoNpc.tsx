@@ -62,6 +62,14 @@ export function toonify(
     /** 不生成描边壳的网格名子串（默认 face）：睫毛/眼线是贴眼浮空 alpha 面片，
      *  反壳描边=整片实心深色轮廓包住眼睛（"黑眼圈"真凶）；动画惯例脸不描边 */
     noOutlineMatch?: string[];
+    /** 脸**完全不吃光**（改用 MeshBasicMaterial 直出贴图色）。
+     *
+     *  比 faceRamp 更彻底，专治"闭眼时眼睑糊成一块白板"：眼睑闭合后法线朝上，
+     *  接到的**总光照**比朝前的脸颊多得多，而平光 ramp 只压得住单个光源的明暗档、
+     *  压不住多光源的总和——实测贴图上眼睑与脸颊只差 12 的亮度（234.7 vs 222.7），
+     *  渲染后却被放大成一块硬边奶白板（用户连报四次的那个）。改成不吃光后当场消失，
+     *  睁眼观感不受影响。这也正是动画脸的通行画法：脸只用贴图，不参与光照。 */
+    faceUnlit?: boolean;
   },
 ) {
   const ramp = new THREE.DataTexture(
@@ -134,14 +142,22 @@ export function toonify(
     const nm = mesh.name.toLowerCase();
     const fm = look?.faceMatch ?? ["face", "body"];
     const hm = look?.hairMatch ?? ["hair", "cow"];
-    const isFace = look?.faceTint !== undefined && fm.some((s) => nm.includes(s));
-    const toonMat = new THREE.MeshToonMaterial({
-      map: old.map,
-      gradientMap: isFace ? faceRamp : ramp,
-      side: THREE.DoubleSide,
-    });
+    // 脸的判定同时看**网格名和贴图名**——与下面 noShell 同一套理由：移植模型的网格名
+    // 常是建模软件自动命名（Tsumire 的脸就叫「平面001」），贴图名才是稳定的语义锚点。
+    // 也不再要求 look.faceTint 存在：faceRamp / faceUnlit 是各自独立的选项，
+    // 之前绑在一起导致玩家档（只传了 noOutlineMatch）的脸从来没吃到任何脸部特殊处理。
+    const texNmEarly = (old.map?.name ?? "").toLowerCase();
+    const isFace = !!look && fm.some((s) => nm.includes(s) || (!!texNmEarly && texNmEarly.includes(s)));
+    const toonMat: THREE.MeshToonMaterial | THREE.MeshBasicMaterial =
+      isFace && look?.faceUnlit
+        ? new THREE.MeshBasicMaterial({ map: old.map, side: THREE.DoubleSide })
+        : new THREE.MeshToonMaterial({
+            map: old.map,
+            gradientMap: isFace ? faceRamp : ramp,
+            side: THREE.DoubleSide,
+          });
     const skinTint = isFace
-      ? look!.faceTint
+      ? look?.faceTint
       : look?.hairTint !== undefined && hm.some((s) => nm.includes(s))
         ? look.hairTint
         : look?.tint;
