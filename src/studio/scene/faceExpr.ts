@@ -32,7 +32,19 @@ export type Expression =
 export type Viseme = "aa" | "ih" | "ou" | "e" | "oh" | "sil";
 
 export interface FaceRecipe {
-  /** 眨眼形键（可多个；同时闭合的眼线/睫毛层各是一个键） */
+  /**
+   * 眨眼形键的**候选名，按优先级排列——只会用上第一个存在的那个**。
+   *
+   * ⚠ 不是"全部一起写"。morph target 是**叠加**的，而 VRC 模型普遍同时带两套等价的
+   * 闭眼键（英文 Blink 给 VRChat、日文 まばたき 给 MMD；NPC 那边是 vrc.blink 与
+   * eye_close）。两个都写满 = 2 倍位移，眼睑几何直接冲过闭合位被拉成一张平面——
+   * 用户报的"眨眼时眼睛位置有一块白色"就是这个。实测对照：
+   *     只 Blink=1 → 干净闭眼 ／ 只 まばたき=1 → 干净闭眼
+   *     两个都=1   → 眼部拉成惨白平面 ／ 各 0.5（合计 1.0）→ 干净闭眼
+   *
+   * "同一个闭眼要写到多个网格"是另一回事，那由 write() 按名字广播解决（VRC 的脸按
+   * 材质拆成多个 primitive，同名形键各自独立）。**多个键名永远是备选，不是相加。**
+   */
   blink: string[];
   /** 口型形键。缺省的档位说话时自动跳过 */
   visemes: Partial<Record<Viseme, string>>;
@@ -107,6 +119,13 @@ export class FaceDriver {
   private blinkAt = { next: 1.5, phase: 0, double: false };
   private viseme: Viseme = "sil";
   private visemeAt = 0;
+  /** 实际使用的眨眼键：recipe.blink 里第一个这个模型真有的。见 FaceRecipe.blink 的注释——
+   *  多个候选名是备选而非相加，全写会把位移叠成两倍、眼睑冲过闭合位拉成白片。 */
+  private blinkKey: string | null = null;
+  /** DEV 钩子：钉住闭眼幅度做回归对照（`__playerFace.forceBlink = 0.6`）。
+   *  眨眼是每 2~6 秒才发生一次、只持续 0.28 秒的瞬时动作，靠等它自然出现来截图
+   *  既不可复现也漏得掉中间态——"眼睛变白片"那次就出在中间态上。 */
+  forceBlink: number | null = null;
 
   constructor(root: THREE.Object3D, private recipe: FaceRecipe) {
     root.traverse((o) => {
@@ -120,6 +139,7 @@ export class FaceDriver {
         else this.slots.set(k, [[m, idx]]);
       }
     });
+    this.blinkKey = recipe.blink.find((k) => this.slots.has(norm(k))) ?? null;
   }
 
   /** 这个模型到底认识几个形键（0 = 没有表情能力，调用方可据此跳过） */
@@ -131,7 +151,8 @@ export class FaceDriver {
    *  裁多了的表现是"某个表情悄悄没效果"——不报错、不崩，只是脸不动。这个自查把它
    *  变成 DEV 控制台里一条明确的告警。 */
   missingKeys(): string[] {
-    const want = new Set<string>(this.recipe.blink);
+    // 眨眼是"候选名取其一"，所以只有**一个都没命中**才算缺
+    const want = new Set<string>(this.blinkKey ? [] : this.recipe.blink.slice(0, 1));
     for (const n of Object.values(this.recipe.visemes)) if (n) want.add(n);
     for (const m of Object.values(this.recipe.expr)) for (const k of Object.keys(m)) want.add(k);
     for (const k of Object.keys(this.recipe.rest ?? {})) want.add(k);
@@ -196,6 +217,8 @@ export class FaceDriver {
       this.viseme = "sil";
     }
 
+    if (import.meta.env.DEV && this.forceBlink != null) blink = this.forceBlink;
+
     this.flush(blink, speaking);
   }
 
@@ -203,10 +226,10 @@ export class FaceDriver {
     // 先按表情权重写，再叠眨眼与口型——这两者是"盖在表情之上"的瞬时动作
     for (const [name, v] of this.cur) this.write(name, v);
 
-    for (const b of this.recipe.blink) {
+    if (this.blinkKey) {
       // 取 max 而不是覆盖：eye_joy 这种本身就闭眼的表情，眨眼不该把它拉回睁眼
-      const base = this.cur.get(b) ?? this.recipe.rest?.[b] ?? 0;
-      this.write(b, Math.max(base, blink));
+      const base = this.cur.get(this.blinkKey) ?? this.recipe.rest?.[this.blinkKey] ?? 0;
+      this.write(this.blinkKey, Math.max(base, blink));
     }
 
     for (const [v, name] of Object.entries(this.recipe.visemes)) {
