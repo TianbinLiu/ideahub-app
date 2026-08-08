@@ -838,15 +838,23 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
       const s = wantHide ? 0.001 : 1;
       if (head.scale.x !== s) head.scale.set(s, s, s);
       // 自身近距剔除（见 applySelfCull）：只在"相机贴在自己身上"时开。
-      // 本体半径按 rig 给（默认 0.34，够切掉塌缩头几何又不吃到胸口）；
-      // 反壳半径固定 1.2——第一人称能看到的自己身体基本都在这个球内，一律不描边。
       const selfOn = camDist < 1.0;
-      // 0.12 只够护住近裁剪面；用户要"看不到角色内部构造"，就得把整段
+      // 本体半径：0.12 只够护住近裁剪面；用户要"看不到角色内部构造"，就得把整段
       // 贴身距离都剔掉——0.45 覆盖到胸口（第一人称眼到胸 0.67）而不吃到桌面
       const baseR = selfOn ? (rig.selfCullR ?? 0.45) : 0;
+      // ⚠ 反壳半径**必须 ≥ 本体半径**，这是不变量不是调参。
+      // 反壳是 BackSide 的实心复制体（toonify 的 makeOutline，无贴图时纯色 0x241a12、
+      // 有贴图时 贴图×0x5a4a40 的棕），本体被剔除而壳没被剔除时，镜头看到的就是
+      // 一层实心内壁——用户报的"第一人称低头又穿模"正是这个：本体 0.45 而壳 0.25，
+      // 中间裂出一条 0.25~0.45 的裸壳带。实测射线：同一像素上 shirt d=0.390 已剔除、
+      // 它的壳 d=0.390 仍在画；截图里那些大块棕色面就是壳材质的 0x5a4a40。
+      // 所以这里从 baseR 派生而不是另写一个常量——各写各的迟早会再次倒挂。
+      // 取 1.2 而不是恰好等于 baseR：第一人称能看到的自己身体基本都在这个球内，
+      // 描边是世界尺度的等距外扩，贴到 0.5 米内会在屏幕上糊成黑块，一律不描边更干净。
+      const shellR = selfOn ? Math.max(baseR, 1.2) : 0;
       for (const m of selfCullMats.current) {
         const u = m.userData.__selfCullR as { value: number } | undefined;
-        if (u) u.value = m.userData.__isShell ? (selfOn ? 0.25 : 0) : baseR;
+        if (u) u.value = m.userData.__isShell ? shellR : baseR;
       }
     }
     // deckY 下沉只在卡组特写（挂到 showSelf 会让自由视角浏览时角色突然沉降）

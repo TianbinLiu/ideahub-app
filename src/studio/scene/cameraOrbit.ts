@@ -70,9 +70,33 @@ export const eyeLimits = { pitchDown: EYE_PITCH_DOWN };
  *  见 TableScene.eyeCam 的注释：头骨不在眼睛处，前移量必须按角色体型标定。 */
 export const playerEye = { forward: 0.12, up: 0.04 };
 
+/** 偏航与俯仰**不是两个独立的限幅**，可用范围是一个锥形而不是矩形。
+ *
+ *  把它们各自夹一遍，等于允许"头转到 75° 极限的同时下巴贴到胸口"这个角落——
+ *  真实颈椎做不到这个组合，模型上也立刻穿帮：实测转头 75° 时眼点被推到肩膀正上方，
+ *  下方最近的衣物只剩 0.16（正前方时是 0.54），自身剔除球（0.45）把近处肩布挖掉，
+ *  于是看穿到衣服另一侧的**内表面**。
+ *
+ *  用"屏幕射线命中布料背面的条数"量化边界（0=只看到外表面，即正常）：
+ *    偏航 0    俯仰 −1.2 → 背面 0 / 正面 3   ← 正前方大幅度低头完全干净，必须保留
+ *    偏航 −1.3 俯仰 −1.2 → 背面 3
+ *    偏航 −1.3 俯仰 −1.0 → 背面 4
+ *    偏航 −1.3 俯仰 −0.85 → 背面 1
+ *    偏航 −1.3 俯仰 −0.70 → 背面 0   ← 干净边界
+ *  0.70/1.20 = 0.58，取 0.55 留一点余量。 */
+const YAW_PITCH_COUPLING = 0.45;
+
+/** 当前偏航下允许的低头量。偏航为 0 时是完整的 pitchDown，转到极限时收到 55% */
+export function pitchDownAt(yaw: number): number {
+  const t = Math.min(1, Math.abs(yaw) / EYE_YAW_LIMIT);
+  return eyeLimits.pitchDown * (1 - YAW_PITCH_COUPLING * t);
+}
+
 export function addEyeLook(dYaw: number, dPitch: number) {
   eyeLook.yaw = Math.min(EYE_YAW_LIMIT, Math.max(-EYE_YAW_LIMIT, eyeLook.yaw + dYaw));
-  eyeLook.pitch = Math.min(EYE_PITCH_UP, Math.max(-eyeLimits.pitchDown, eyeLook.pitch + dPitch));
+  // 先夹偏航再按新偏航算低头上限：这样"先低头到底再转头"也会被逐步抬起来，
+  // 而不是留下一个只能靠转头进入、进去了就出不来的穿帮姿态
+  eyeLook.pitch = Math.min(EYE_PITCH_UP, Math.max(-pitchDownAt(eyeLook.yaw), eyeLook.pitch + dPitch));
 }
 
 // DEV 调参/验收后门：控制台可直接读写轨道参数与头部锚点
@@ -88,6 +112,8 @@ if (import.meta.env.DEV) {
     NPC_HEAD,
     ORBIT_LIMITS,
     ORBIT_MIN_Y,
+    pitchDownAt,
+    EYE_YAW_LIMIT,
   };
 }
 
