@@ -62,6 +62,10 @@ const M = {
 };
 
 export const VOICES: PresetVoice[] = [
+  // ★ 默认。用户实听定的：清冷高雅 + 御姐指令 + **不压音高** + 语速 -10。
+  //   压音高（pitch -6/-9/-12）那几档全被否了——压低确实更沉，但人声开始发闷、
+  //   带电子味，御姐感反而没了。所以低沉只靠音色本身与语速，不靠 pitch。
+  { name: "清冷高雅 2.0", id: "ICL_uranus_zh_female_qinglenggaoya_tob", expressive: true, rate: -10, why: "名字就是清冷，气质最贴铸卡师" },
   // ── 混音配方（把几把 1.0 嗓子调和成一把新的）──
   // 放最前面是因为它们**调不出来的味道单音色给不了**：单音色是别人调好的成品，
   // 混音才是你自己那一把。语速统一给 -20（≈0.8 倍），成熟感主要来自慢。
@@ -127,13 +131,12 @@ export const VOICES: PresetVoice[] = [
   //   邪魅女王…），而不是"通用场景"那种按用途命名的播音腔。之前几轮我一直在
   //   「通用场景」里翻，找错了地方——是用户发来的一张第三方混音截图里出现了
   //   「病娇姐姐」才把我指到这儿的。
-  { name: "清冷高雅 2.0", id: "ICL_uranus_zh_female_qinglenggaoya_tob", expressive: true, pitch: -6, rate: -20, why: "名字就是清冷，气质最贴铸卡师" },
-  { name: "成熟姐姐 2.0", id: "ICL_uranus_zh_female_chengshujiejie_tob", expressive: true, pitch: -6, rate: -20, why: "年龄感更足，压得住场" },
-  { name: "成熟温柔 2.0", id: "ICL_uranus_zh_female_chengshuwenrou_tob", expressive: true, pitch: -6, rate: -20, why: "成熟但不冷，留一点温度" },
-  { name: "理性圆子 2.0", id: "ICL_uranus_zh_female_lixingyuanzi_tob", expressive: true, pitch: -6, rate: -20, why: "讲道理的口吻，最像手艺人" },
-  { name: "邪魅女王 2.0", id: "ICL_uranus_zh_female_xiemeinvwang_tob", expressive: true, pitch: -6, rate: -20, why: "更强的气场，偏危险感" },
-  { name: "温柔女神 2.0", id: "ICL_uranus_zh_female_wenrounvshen_tob", expressive: true, pitch: -6, rate: -20, why: "端庄柔和" },
-  { name: "病娇姐姐 2.0", id: "ICL_uranus_zh_female_bingjiaojiejie_tob", expressive: true, pitch: -6, rate: -20, why: "低语感强，适合演绎「她知道你不知道的事」" },
+  { name: "成熟姐姐 2.0", id: "ICL_uranus_zh_female_chengshujiejie_tob", expressive: true, rate: -10, why: "年龄感更足，压得住场" },
+  { name: "成熟温柔 2.0", id: "ICL_uranus_zh_female_chengshuwenrou_tob", expressive: true, rate: -10, why: "成熟但不冷，留一点温度" },
+  { name: "理性圆子 2.0", id: "ICL_uranus_zh_female_lixingyuanzi_tob", expressive: true, rate: -10, why: "讲道理的口吻，最像手艺人" },
+  { name: "邪魅女王 2.0", id: "ICL_uranus_zh_female_xiemeinvwang_tob", expressive: true, rate: -10, why: "更强的气场，偏危险感" },
+  { name: "温柔女神 2.0", id: "ICL_uranus_zh_female_wenrounvshen_tob", expressive: true, rate: -10, why: "端庄柔和" },
+  { name: "病娇姐姐 2.0", id: "ICL_uranus_zh_female_bingjiaojiejie_tob", expressive: true, rate: -10, why: "低语感强，适合演绎「她知道你不知道的事」" },
 ];
 
 /**
