@@ -613,7 +613,13 @@ export default function TripoNpc({
       if (fd) {
         // 情绪脉冲优先（入组/出炉笑意拉满、素材不合格收敛），其次"正在说话"给点笑意，
         // 再不然回常态——rest 基线本身就带浅笑，不需要在这里再兜一次
-        fd.setExpression(moodExpression(st.mood, st.moodUntil > Date.now()) ?? (speaking ? "smile" : "neutral"));
+        // ★ 聊天回复不注入笑意。npcSay 每句都出声，而"正在说话"原本一律给 smile；
+        //   播报是低频的，这个问题一直被掩盖着。接上闲聊后句数涨十几倍，一个
+        //   "神情淡漠"的角色会变成全程微笑——还会**笑着说**「这个话头我接不住」。
+        fd.setExpression(
+          moodExpression(st.mood, st.moodUntil > Date.now()) ??
+            (speaking && st.speakTone !== "chat" ? "smile" : "neutral"),
+        );
         fd.update(dt, t, speaking, voicing ? SPEECH : null);
       }
       // DEV：__forceExpr 直接钉住某个表情，__forceBlink 保留给闭眼幅度回归

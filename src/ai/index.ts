@@ -85,3 +85,11 @@ export const composeSegments: typeof real.composeSegments = AI_REAL
   ? real.composeSegments
   : async (segs) => segs.map(() => ({}));
 export { AI_REAL };
+
+export type { NpcChatContext } from "../mock/ai";
+/** ★ 必须标 typeof：既有导出全这么写，为的就是强制真假两侧同签名。
+ *  直接写三元会推断成联合类型，调用点编译不过。 */
+export const npcChat: typeof real.npcChat = AI_REAL ? real.npcChat : mock.npcChat;
+/** 降级应答：**永远是本地实现**。余额不足/请求失败时用它——这样 mock 那套规则
+ *  不是"只有开发看得到的死代码"，真实用户路径也会走到，不会慢慢腐烂。 */
+export const npcChatOffline: typeof real.npcChat = mock.npcChat;

@@ -212,3 +212,43 @@ export async function generateProposals(ctx: ProposalContext): Promise<Proposal[
 export async function composeVideo(): Promise<void> {
   await delay(2600);
 }
+
+// ── NPC 闲聊（离线/降级应答）────────────────────────────────
+// 这套**不是只有开发看得到的死代码**：余额不足、请求失败时真实用户也会走到它
+// （见 ai/index.ts 的 npcChatOffline），所以它必须一直能用、也必须在人设里。
+export interface NpcChatContext {
+  text: string;
+  history: Array<{ role: "user" | "assistant"; content: string }>;
+  system: string;
+  deskBlock: string;
+}
+
+/** 关键词 → 固定应答。命中一条就用它，命中不了走轮转池。 */
+const CHAT_RULES: Array<[RegExp, string[]]> = [
+  [/你好|您好|在吗|hi|hello/i, ["（抬眼）在。", "炉子还热着。说吧。"]],
+  [/你是谁|你叫什么|名字/, ["铸卡师。这屋子里只有我一个，你不会叫错。"]],
+  [/你是(不是)?(ai|人工智能|机器人)/i, ["是。声音也是合成的。还有别的要问吗。"]],
+  [/累|难受|烦|不开心|压力/, ["（停下手里的活）嗯。手上有活的时候会好一点。"]],
+  [/谢谢|感谢/, ["不用。炉子不空着就行。"]],
+  [/再见|拜拜|走了/, ["门在那边。素材记得带回来。"]],
+  [/多少钱|贵|收费|额度/, ["炼一张要烧一次炉。具体数目写在你按之前那行小字上。"]],
+  [/几点|今天|日期|天气|新闻/, ["外面的事我不知道。我出不去这间屋子。"]],
+];
+
+/** 轮转池：按已说过的句数取模，避免连着重复同一句 */
+const CHAT_POOL = [
+  "（把一张卡翻过来又扣回去）说下去。",
+  "嗯。",
+  "这我记下了。",
+  "（拨了拨炉火）继续。",
+  "桌上还空着。想炼什么，直接说。",
+  "我听着。",
+];
+
+export async function npcChat(ctx: NpcChatContext): Promise<{ text: string; tokens: number }> {
+  await delay(300); // 一点点延迟，否则"秒回"反而像假的
+  for (const [re, lines] of CHAT_RULES) {
+    if (re.test(ctx.text)) return { text: lines[ctx.history.length % lines.length], tokens: 0 };
+  }
+  return { text: CHAT_POOL[ctx.history.length % CHAT_POOL.length], tokens: 0 };
+}

@@ -223,6 +223,39 @@ export async function chatVision(system: string, text: string, images: string[])
 /** 豆包对话（剧情文案生成）。
  *  thinking 必须显式关闭：seed-2.1 默认开深度思考，实测同一请求 52s → 10s——
  *  这就是"生成按钮卡住近一分钟毫无动静"的主要来源。 */
+/** 一轮对话。role 用方舟/OpenAI 的标准取值 */
+export interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/**
+ * 多轮对话。chat() 是它的单轮特例——**没有把 chat 改签名**，因为它有三个调用点
+ * （real.ts 的炼卡文案 / 三方案剧情 / 卡组提炼），那三处都是一问一答的工具调用，
+ * 塞历史进去只会污染输出。聊天是另一回事，单开一个入口更干净。
+ *
+ * max_tokens 给 400 而不是 chat 的 800：闲聊回复长了念不完也读不完
+ * （NPC 气泡只有三行高），而且长回复更容易漂出人设。
+ */
+export async function chatTurns(system: string, turns: ChatTurn[]): Promise<string> {
+  const out = await arkFetch<{ choices: Array<{ message: { content: string } }> }>(
+    "/chat/completions",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        model: MODELS.chat,
+        messages: [{ role: "system", content: system }, ...turns],
+        max_tokens: 400,
+        // 与 chat() 同理：turbo 开 thinking 会把推理过程也算进 max_tokens，
+        // 正文被挤没，返回空串
+        thinking: { type: "disabled" },
+      }),
+    },
+    45_000, // 聊天要的是快；超过这个时长不如直接告诉用户炉子哑了
+  );
+  return out.choices?.[0]?.message?.content ?? "";
+}
+
 export async function chat(system: string, user: string): Promise<string> {
   const out = await arkFetch<{ choices: Array<{ message: { content: string } }> }>(
     "/chat/completions",

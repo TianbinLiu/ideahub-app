@@ -16,10 +16,13 @@ import TokenCost from "../../components/TokenCost";
 import { NPC_SCREEN } from "../scene/cameraOrbit";
 import { setVoiceEnabled, voiceEnabled, voiceStatus, voiceSupported } from "../speech";
 import { useBackGuard } from "../backGuards";
+import { routeIntent, searchKeyword } from "../npcIntent";
+import { CHAT_TURN_TOKENS } from "../../data/economy";
 
 export default function NpcDialog() {
   const messages = useStudio((s) => s.dialog.messages);
   const busy = useStudio((s) => s.dialog.busy);
+  const thinking = useStudio((s) => s.dialog.thinking);
   const projection = useStudio((s) => s.projection);
   const marketOpen = useStudio((s) => s.market.open);
   // 对话默认隐藏：可见性由 store 的 dialogView 决定，只有点击 3D 里的 NPC 才唤起
@@ -28,6 +31,8 @@ export default function NpcDialog() {
   const [forgeOpen, setForgeOpen] = useState(false);
   // 声音开关存 localStorage（跨会话），这里只是把它镜像成可重渲的本地态
   const [voice, setVoice] = useState(voiceEnabled);
+  /** 从聊天窗抬进炼卡窗时带过去的描述 */
+  const [forgeInit, setForgeInit] = useState("");
 
   // 气泡跟随 NPC 头顶投影：rAF 直接写 DOM，不走 React 状态（零重渲 60fps 跟随）
   const anchorRef = useRef<HTMLDivElement>(null);
@@ -103,7 +108,7 @@ export default function NpcDialog() {
             )}
           </div>
           <div className="max-h-24 overflow-y-auto whitespace-pre-wrap text-[13px] leading-relaxed text-slate-100">
-            {busy ? "炉火正旺，卡片成形中…" : lastNpc?.text ?? "……"}
+            {busy ? "炉火正旺，卡片成形中…" : thinking ? "……" : (lastNpc?.text ?? "……")}
           </div>
         </div>
         {/* 气泡尾巴：指向角色 */}
@@ -160,8 +165,27 @@ export default function NpcDialog() {
       {/* ── 市场搜索条：钉在屏幕上方，桌面的卡全程可见 ── */}
       {marketOpen && <MarketTopBar />}
 
-      {historyOpen && <HistorySheet onClose={() => setHistoryOpen(false)} />}
-      {forgeOpen && <ForgeForm onClose={() => setForgeOpen(false)} />}
+      {historyOpen && (
+        <HistorySheet
+          onClose={() => setHistoryOpen(false)}
+          // 路由判到"炼卡"时不直接花钱，只把用户抬到那个**已经会报价**的三步窗，
+          // 并把他刚打的那句话预填进描述里
+          onOpenForge={(desc) => {
+            setHistoryOpen(false);
+            setForgeInit(desc);
+            setForgeOpen(true);
+          }}
+        />
+      )}
+      {forgeOpen && (
+        <ForgeForm
+          initialDesc={forgeInit}
+          onClose={() => {
+            setForgeOpen(false);
+            setForgeInit("");
+          }}
+        />
+      )}
     </>
   );
 }
@@ -199,19 +223,50 @@ function MarketTopBar() {
   );
 }
 
-// ── 历史对话记录窗 ─────────────────────────────────────────────
-function HistorySheet({ onClose }: { onClose: () => void }) {
+// ── 炉边：和铸卡师说话的地方 ───────────────────────────────────
+//
+// 这里原来叫「对话记录」，只是一个只读的历史列表 + 一个**被劫持的**输入行：
+// 市场开着时它是搜索框，否则打一句话就**直接炼一张卡**（约 13.7k token，
+// 全 app 唯一一个免确认花钱的入口）。现在它是真的聊天窗。
+//
+// ★ 路由放在这一层而不是 store：forge 档要打开的 ForgeForm 是 NpcDialog 的组件
+//   state，store 够不到它（backGuards 的注释也写着这些开关不搬进 store）。
+function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenForge: (desc: string) => void }) {
   const messages = useStudio((s) => s.dialog.messages);
   const busy = useStudio((s) => s.dialog.busy);
+  const thinking = useStudio((s) => s.dialog.thinking);
   const [text, setText] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
-  }, [messages.length]);
+  }, [messages.length, thinking]);
 
   function send() {
-    if (!text.trim()) return;
-    void useStudio.getState().sendToNpc(text);
+    const t = text.trim();
+    if (!t) return;
+    const st = useStudio.getState();
+    switch (routeIntent(t)) {
+      case "crisis":
+        st.meSay(t, "chat");
+        st.crisisReply();
+        break;
+      case "help":
+        st.meSay(t, "chat");
+        st.helpReply();
+        break;
+      case "forge":
+        // 只开窗预填，**不扣费**——扣费按钮仍在那个窗里，由用户手指按下
+        onOpenForge(t);
+        break;
+      case "market":
+        st.meSay(t, "chat");
+        void (st.market.open
+          ? st.marketSearch(searchKeyword(t))
+          : st.openMarket().then(() => st.marketSearch(searchKeyword(t))));
+        break;
+      default:
+        void st.chatToNpc(t);
+    }
     setText("");
   }
 
@@ -222,42 +277,94 @@ function HistorySheet({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-slate-700/60 px-3.5 py-2.5">
-          <span className="text-sm font-semibold text-slate-100">对话记录</span>
-          <span className="text-[11px] text-slate-500">{messages.length} 条</span>
-          <button onClick={onClose} className="ml-auto -m-1 p-1 text-slate-400 hover:text-white">
+          <span className="text-sm font-semibold text-slate-100">炉边</span>
+          {/* ★ 合规角标必须在这儿也有一份：这个 z-30 的窗盖住了 3D 气泡上那枚，
+              而用户在聊天窗里停留时间最长——显式标识不能在最主要的界面上消失 */}
+          <span className="rounded bg-slate-700/80 px-1 text-[9px] leading-4 text-slate-400">AI 合成语音</span>
+          <button onClick={onClose} className="-m-2 ml-auto p-2 text-slate-400 hover:text-white">
             ✕
           </button>
         </div>
+
         <div ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2.5">
-          {messages.map((m) => (
-            <div key={m.id} className={`flex ${m.from === "me" ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-1.5 text-sm leading-relaxed ${
-                  m.from === "me" ? "bg-brand/20 text-sky-100" : "bg-slate-700/60 text-slate-200"
-                }`}
-              >
+          {messages.map((m) =>
+            // sys = 居中细线服务条，不是气泡：明确"这不是角色在说话"
+            m.kind === "sys" ? (
+              <div key={m.id} className="px-4 py-1 text-center text-[11px] leading-relaxed text-amber-200/80">
                 {m.text}
               </div>
+            ) : (
+              <div key={m.id} className={`flex ${m.from === "me" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-1.5 text-sm leading-relaxed ${
+                    m.from === "me"
+                      ? "bg-brand/20 text-sky-100"
+                      : m.kind === "act"
+                        ? "border-l-2 border-amber-400/50 bg-slate-700/40 text-slate-300"
+                        : "bg-slate-700/60 text-slate-200"
+                  }`}
+                >
+                  {m.text}
+                </div>
+              </div>
+            ),
+          )}
+          {thinking && (
+            <div className="flex justify-start">
+              <div className="flex gap-1 rounded-2xl bg-slate-700/60 px-3 py-2.5">
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className="dot-typing h-1.5 w-1.5 rounded-full bg-slate-400"
+                    style={{ animationDelay: `${i * 0.15}s` }}
+                  />
+                ))}
+              </div>
             </div>
-          ))}
+          )}
           {busy && <div className="pl-1 text-xs text-amber-300/90 pulse-soft">炉火正旺，卡片成形中…</div>}
         </div>
-        <div className="flex gap-2 border-t border-slate-700/60 p-2.5">
+
+        {/* 复用 TokenCost 而不是手写：演示模式下它自己会说"不消耗 token"，
+            余额不足时自带去充值的出路 */}
+        <TokenCost tokens={CHAT_TURN_TOKENS} note="每说一句扣一次" className="px-3 pt-1.5" />
+        <div className="flex gap-2 px-2.5 pb-2.5 pt-1.5">
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
+            // ★ maxLength 是前端唯一能真正省钱的地方：粘贴十万字就是一次十万 token
+            //   的输入，而 400 的报价对它完全失真
+            maxLength={500}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.nativeEvent.isComposing) send();
             }}
-            placeholder="和铸卡师聊聊…"
+            placeholder="和铸卡师说点什么…"
             className="min-w-0 flex-1 rounded-xl border border-slate-600 bg-ink/70 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
           />
           <button
             onClick={send}
-            disabled={busy || !text.trim()}
+            disabled={busy || thinking || !text.trim()}
             className="rounded-xl bg-brand/80 px-4 py-2 text-sm font-semibold text-ink disabled:opacity-40"
           >
             发送
+          </button>
+        </div>
+
+        {/* 输入行不再炼卡了，"打字就出卡"的肌肉记忆需要一条回路。
+            两颗都先关本窗：市场把卡摊在桌面上、ForgeForm 同样是 z-30，两个 z-30
+            叠在一起谁在上由 DOM 顺序决定，很难看 */}
+        <div className="flex gap-2 border-t border-slate-700/60 px-2.5 py-2">
+          <button
+            onClick={() => {
+              onClose();
+              void useStudio.getState().openMarket();
+            }}
+            className="flex-1 rounded-lg bg-slate-700/60 py-1.5 text-xs text-slate-300"
+          >
+            🛒 逛市场
+          </button>
+          <button onClick={() => onOpenForge("")} className="flex-1 rounded-lg bg-slate-700/60 py-1.5 text-xs text-slate-300">
+            📎 递素材
           </button>
         </div>
       </div>
@@ -294,12 +401,14 @@ const TYPE_COVER: Record<CardType, string> = {
   style: "/cardtype/style.webp",
 };
 
-function ForgeForm({ onClose }: { onClose: () => void }) {
+function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initialDesc?: string }) {
   const pending = useStudio((s) => s.pendingFiles);
   const busy = useStudio((s) => s.dialog.busy);
   const [step, setStep] = useState<ForgeStep>("type");
   const [type, setType] = useState<CardType | null>(null);
-  const [desc, setDesc] = useState("");
+  // 从聊天窗抬过来时带着用户刚打的那句话。**step 仍停在 "type"**——让用户自己挑
+  // 卡种正是这个三步窗存在的理由，别为了少点一次就跳过它
+  const [desc, setDesc] = useState(initialDesc);
   const [reading, setReading] = useState(false);
   const [err, setErr] = useState("");
   const [preview, setPreview] = useState<Card[] | null>(null);

@@ -262,3 +262,11 @@ canvas {
   .perch-art { animation: none !important; }
   .perch-pop { opacity: 1; transform: translateX(-50%); }
 }
+
+/* 铸卡师"正在斟酌"的三点。只动 transform/opacity：这窗盖在实时渲染的 3D 画面上，
+   任何触发重排的动画都会把帧率拖下去。 */
+@keyframes dotTyping {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+  30% { transform: translateY(-3px); opacity: 1; }
+}
+.dot-typing { animation: dotTyping 1.1s ease-in-out infinite; }

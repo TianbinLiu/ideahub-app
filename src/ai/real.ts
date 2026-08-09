@@ -7,7 +7,7 @@ import type { MaterialFile, ProposalContext } from "../mock/ai";
 import * as mock from "../mock/ai";
 import { tierOf } from "../data/economy";
 import { idbSet } from "../data/db";
-import { FRAME_SIZE, chat, chatVision, generate3dModel, generateImage, generateVideo } from "./arkClient";
+import { FRAME_SIZE, chat, chatTurns, chatVision, generate3dModel, generateImage, generateVideo } from "./arkClient";
 
 /** 方舟返回的图片 URL 有时效（约 24h），落地成 dataURL 再入库（草稿存 localStorage） */
 async function toDataUrl(url: string): Promise<string> {
@@ -740,3 +740,38 @@ export async function composeSegments(
 }
 
 export { makeCover };
+
+/**
+ * NPC 闲聊。system 与桌面数据块由调用方（studio/npcPersona）给，这里只管发和收。
+ *
+ * 三层清洗，每一层都有具体理由：
+ * · 剥尖括号标签 —— 模型偶尔会吐 <cot>/<suggest> 之类，而 <cot> 会被 TTS 当成
+ *   语音标签解析（见 vite.config 的 use_tag_parser），漏出去就是她念出标签内容
+ * · 剥 markdown 星号 —— 会被逐字念成"星星"
+ * · 截到 3 句 / 90 字 —— 气泡只有三行高，且长回复更容易漂出人设
+ */
+export async function npcChat(ctx: {
+  text: string;
+  history: Array<{ role: "user" | "assistant"; content: string }>;
+  system: string;
+  deskBlock: string;
+}): Promise<{ text: string; tokens: number }> {
+  const raw = await chatTurns(ctx.system, [
+    { role: "user", content: ctx.deskBlock },
+    ...ctx.history,
+    { role: "user", content: ctx.text },
+  ]);
+  const clean = clipSentences(
+    raw.replace(/<[^>]*>/g, "").replace(/[*_`#]/g, "").replace(/\s+/g, " ").trim(),
+    90,
+  );
+  return { text: clean || "（没说话）", tokens: 0 };
+}
+
+/** 按句号截断，宁可短不要断在半句。找不到句读就直接截并补省略号。 */
+function clipSentences(t: string, max: number): string {
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const i = Math.max(cut.lastIndexOf("。"), cut.lastIndexOf("！"), cut.lastIndexOf("？"));
+  return i > 20 ? cut.slice(0, i + 1) : cut + "…";
+}

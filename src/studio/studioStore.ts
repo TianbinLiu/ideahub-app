@@ -1,20 +1,35 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
 import { BranchNodeData, BranchTree, Card, CardType, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
-import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateProposals, refineFrame, searchMarket } from "../ai";
+import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateProposals, npcChat, npcChatOffline, refineFrame, searchMarket } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, walletOf } from "../data/account";
-import { DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, fmtTokens, forgeCardCount, forgeCost, forgeSettle, proposalsCost } from "../data/economy";
+import { CHAT_TURN_TOKENS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, fmtTokens, proposalsCost } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { FlowNode, chosenOf, nodeVideo, useFlow } from "./flowStore";
 import { SPEAK_MOOD, speak, stopSpeaking } from "./speech";
+import { CRISIS_LINE, HELP_LINE, NPC_SYSTEM, chatFailLine, chatWindow, deskBlock } from "./npcPersona";
 import { getVideo, loadProject, partsOf } from "../data/videos";
 
 export interface DialogMsg {
   id: string;
   from: "npc" | "me";
   text: string;
+  /**
+   * 消息分档。**这是安全边界，不是样式开关。**
+   *   chat = 闲聊往返（**只有它进模型上下文**，见 npcPersona.chatWindow）
+   *   act  = 她做事时的播报（出炉了 / 摊开市场了）
+   *   sys  = 系统服务条（余额、危机资源）——不是她在说话
+   * 缺省 undefined = 今天的普通气泡，所以既有 28 处 npcSay 零改动、零视觉回归。
+   * 过滤器写成**严格白名单** kind === "chat"，永远别改成 kind !== "sys"：
+   * 一个字符的改动，播报（含别人发布的卡名）就从"隔离"变成"注入开放"。
+   */
+  kind?: "chat" | "act" | "sys";
+  /** 降级/离线应答（余额不足或请求失败）。不进上下文，也不出声。 */
+  offline?: boolean;
+  /** 被内容安全拦下的那一次。用于 UI 提示，不进上下文。 */
+  blocked?: boolean;
 }
 
 export type CamView =
@@ -188,7 +203,12 @@ interface StudioState {
   spreadCenter: number;
   market: { open: boolean; items: Card[]; query: string; loading: boolean; page: number };
   marketDetail: Card | null;
-  dialog: { messages: DialogMsg[]; busy: boolean };
+  /** busy = 正在炼卡（只有 forgeCards 设它）；thinking = 正在等聊天回复。
+   *  两者分开：TableScene 读 busy 决定她"慵懒对坐"的姿态，聊天不该打断它。
+   *  messages **有意不持久化**——退出工坊即散，不是没来得及做。 */
+  dialog: { messages: DialogMsg[]; busy: boolean; thinking: boolean };
+  /** 最近一次开口是"做事播报"还是"闲聊"。见 TripoNpc：播报可带笑意，闲聊不行。 */
+  speakTone: "act" | "chat";
   pendingFiles: MaterialFile[];
   root: NodeSlot | null;
   /** 聚焦的桌面卡：nodeId=null 表示聚焦虚线占位卡；null=未聚焦（默认俯视机位） */
@@ -231,8 +251,8 @@ interface StudioState {
   avatarPickerOpen: boolean;
   setAvatarPickerOpen: (open: boolean) => void;
 
-  npcSay: (text: string) => void;
-  meSay: (text: string) => void;
+  npcSay: (text: string, kind?: DialogMsg["kind"]) => void;
+  meSay: (text: string, kind?: DialogMsg["kind"]) => void;
   initGreet: () => void;
   setCamera: (c: CamView) => void;
   setDialogView: (v: boolean) => void;
@@ -252,6 +272,14 @@ interface StudioState {
   addFiles: (files: MaterialFile[]) => void;
   removeFile: (name: string) => void;
   sendToNpc: (text: string) => Promise<void>;
+  /** 闲聊往返。路由在 UI 层（npcIntent），这里只管"聊"这一档。 */
+  chatToNpc: (text: string) => Promise<void>;
+  /** 聊天专用出口：kind:"chat"、清 mood 脉冲、过 chatSeq 闸再出声 */
+  npcReply: (text: string, opts?: { offline?: boolean; blocked?: boolean; seq?: number }) => void;
+  /** 心理危机：本地常量、不调模型、不出声、不扣费、不进上下文 */
+  crisisReply: () => void;
+  /** 帮助档：本地文案，0 token */
+  helpReply: () => void;
   /** 只炼不收：生成的卡进预览槽，落账/入组要等 acceptForge。
    *  失败抛出——素材窗要把原因显示在窗里，吞掉就成了"点了没反应"。 */
   forgeCards: (files: MaterialFile[], note: string, type: CardType | null) => Promise<Card[]>;
@@ -331,6 +359,9 @@ const DEFAULT_EDITOR: EditorState = {
 
 // 市场检索的请求序号：过期响应直接丢弃，防止慢请求乱序覆盖新结果
 let marketSeq = 0;
+/** 聊天世代号。照 marketSeq 那套：过期回调可以照记消息，但**一定不出声**
+ *  ——否则用户发完就切页面，她会在首页开口。 */
+let chatSeq = 0;
 // 节点生成的全局并发闸：取消编辑器再重开也不允许并发两炉
 let nodeGenInFlight = false;
 
@@ -403,7 +434,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
   spreadCenter: 0,
   market: { open: false, items: [], query: "", loading: false, page: 0 },
   marketDetail: null,
-  dialog: { messages: [], busy: false },
+  dialog: { messages: [], busy: false, thinking: false },
+  speakTone: "act",
   pendingFiles: [],
   root: null,
   focus: null,
@@ -431,7 +463,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   avatarPickerOpen: false,
   setAvatarPickerOpen: (open) => set({ avatarPickerOpen: open }),
 
-  npcSay: (text) => {
+  npcSay: (text, kind) => {
     // 先真出声。speak() 成功时口型由音频包络驱动（见 speech.ts / SPEECH），
     // speakingUntil 只作兜底：浏览器没有合成器、用户关了声音、或者念到一半被打断时，
     // 嘴仍然按字数估的时长动一动——总比一句话弹出来而人一动不动强。
@@ -441,12 +473,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
     SPEAK_MOOD.until = get().moodUntil;
     speak(text);
     set((s) => ({
-      dialog: { ...s.dialog, messages: [...s.dialog.messages, { id: uid("m"), from: "npc", text }] },
+      speakTone: "act",
+      dialog: { ...s.dialog, messages: [...s.dialog.messages, { id: uid("m"), from: "npc", text, kind }] },
       speakingUntil: Date.now() + Math.min(6000, Math.max(1500, text.length * 110)),
     }));
   },
-  meSay: (text) =>
-    set((s) => ({ dialog: { ...s.dialog, messages: [...s.dialog.messages, { id: uid("m"), from: "me", text }] } })),
+  meSay: (text, kind) =>
+    set((s) => ({ dialog: { ...s.dialog, messages: [...s.dialog.messages, { id: uid("m"), from: "me", text, kind }] } })),
   initGreet: () => {
     if (get().dialog.messages.length > 0) return;
     get().npcSay("欢迎来到卡片工坊。把你的素材（图片、文本）交给我，我为你炼成卡片；也可以逛逛市场，看看大家都在用什么。");
@@ -463,7 +496,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       market: { ...s.market, open: true, loading: true, query: "", page: 0 },
       camera: { kind: "default" },
     }));
-    get().npcSay("稍等——（从口袋里抽出一叠卡，在桌上哗地摊开）这些是最近社区里最抢手的。想找特定的，直接在下面输入关键词。");
+    // ★「下面」是假的：MarketTopBar 钉在 top-12，搜索框在**上面**
+    get().npcSay("（抽出一叠卡摊在桌上）社区里最近热的。要找特定的，上面那条写词。", "act");
     const items = await searchMarket("");
     if (seq !== marketSeq) return; // 期间发起过新检索，丢弃本次结果
     set((s) => ({ market: { ...s.market, items, loading: false } }));
@@ -474,7 +508,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const items = await searchMarket(q);
     if (seq !== marketSeq) return; // 过期响应
     set((s) => ({ market: { ...s.market, items, loading: false } }));
-    get().npcSay(q ? `按「${q}」翻出了 ${items.length} 张，都给你摊开了。` : `这是当下最热的 ${items.length} 张。`);
+    // 0 张时不能说"翻出了 0 张，都给你摊开了"——自相矛盾
+    get().npcSay(
+      q ? (items.length ? `按「${q}」翻出 ${items.length} 张。` : `「${q}」没有。换个词。`) : `当下最热的 ${items.length} 张。`,
+      "act",
+    );
   },
   shiftMarket: (d) =>
     set((s) => {
@@ -520,35 +558,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
   removeFile: (name) => set((s) => ({ pendingFiles: s.pendingFiles.filter((f) => f.name !== name) })),
 
   sendToNpc: async (text) => {
-    const { market, dialog, pendingFiles } = get();
-    if (dialog.busy) return;
-    const trimmed = text.trim();
-    if (market.open) {
-      if (!trimmed) return;
-      get().meSay(trimmed);
-      await get().marketSearch(trimmed);
-      return;
-    }
-    if (!trimmed && pendingFiles.length === 0) return;
-    // 对话框里直接打字炼卡是**快捷通道**：不选卡种、不预览，炼完就收。
-    // 需要挑卡种/看过再收的走素材窗（forgeCards → acceptForge）。
-    // 快捷通道同样要收钱：它和素材窗走的是同一个 generateCards，以前这条路
-    // 一分不扣——每张卡白送一次豆包 + 一次 Seedream
-    const quickCost = forgeCost(forgeCardCount(pendingFiles.length, !!trimmed));
-    if (AI_REAL && !canAfford(quickCost)) {
-      get().npcSay(`炼一张卡约 ${fmtTokens(quickCost)} token，余额不够了——去「我的」页充值。`);
-      return;
-    }
-    let cards: Card[];
-    try {
-      cards = await get().forgeCards(pendingFiles, trimmed, null);
-    } catch {
-      return; // forgeCards 已经让铸卡师把失败原因说出来了
-    }
-    set({ pendingFiles: [] });
-    if (cards.length === 0) return;
-    if (AI_REAL) spendTokens(forgeSettle(cards.length, cards.filter((c) => c.genPrompt).length));
-    get().acceptForge(cards);
+    // ★ 这里曾经做两件不该它做的事，都删了：
+    //   ① 市场开着就把这句话当搜索词——市场早就有自己的搜索条（NpcDialog 的
+    //      MarketTopBar），这是历史遗留，删掉不丢功能；
+    //   ② 否则就把这句话当素材描述**直接炼一张卡**——全 app 唯一一个免确认花钱的
+    //      入口，而且恰好挂在那个 placeholder 写着"和铸卡师聊聊…"的输入框上。
+    // 现在它只做一件事：聊天。要搜要炼，由 UI 层的 npcIntent 路由到各自的确认口。
+    await get().chatToNpc(text);
   },
 
   forgeCards: async (files, note, type) => {
@@ -592,6 +608,84 @@ export const useStudio = create<StudioState>()((set, get) => ({
     });
     get().npcSay(`${cards.length} 张新卡飞进你的卡组了。`);
     get().setMood(1, 4000);
+  },
+
+  npcReply: (text, opts) => {
+    // ★ 清掉 acceptForge 留下的 4 秒 joy 脉冲——"收完卡就打字"是最常见的下一个动作，
+    //   不清的话她会笑意拉满地说"这个话头我接不住"
+    set({ speakTone: "chat", mood: 0, moodUntil: 0 });
+    // 降级应答与被拦下的那次都不出声：前者不是她说的话，后者不该被念出来
+    if (!opts?.offline && !opts?.blocked && (opts?.seq === undefined || opts.seq === chatSeq)) {
+      SPEAK_MOOD.v = 0;
+      SPEAK_MOOD.until = 0;
+      speak(text);
+    }
+    set((s) => ({
+      dialog: {
+        ...s.dialog,
+        messages: [
+          ...s.dialog.messages,
+          { id: uid("m"), from: "npc", text, kind: "chat", offline: opts?.offline, blocked: opts?.blocked },
+        ],
+      },
+    }));
+  },
+
+  crisisReply: () => {
+    stopSpeaking(); // 这句不出声：清冷慵懒的合成嗓念自杀干预热线，可能被读成戏谑
+    set((s) => ({
+      speakTone: "chat",
+      mood: 0,
+      moodUntil: 0,
+      dialog: {
+        ...s.dialog,
+        messages: [...s.dialog.messages, { id: uid("m"), from: "npc", text: CRISIS_LINE, kind: "sys" }],
+      },
+    }));
+  },
+
+  helpReply: () => get().npcSay(HELP_LINE, "chat"),
+
+  chatToNpc: async (text) => {
+    const t = text.trim().slice(0, 500);
+    if (!t) return;
+    const s0 = get();
+    if (s0.dialog.thinking) return set({ notice: { text: "让我把上一句说完", at: Date.now() } });
+    if (s0.dialog.busy) return set({ notice: { text: "上一炉还在炼，等它出炉再说", at: Date.now() } });
+    // ★ 闸门通过之后才掐上一句。放在闸门前，被拒绝的那一次也会把她正念着的话掐掉
+    stopSpeaking();
+    const seq = ++chatSeq;
+    get().meSay(t, "chat");
+    set((st) => ({ dialog: { ...st.dialog, thinking: true } }));
+
+    // ★ 余额不足 → **降级不封口**。聊天是这个角色存在感的唯一来源；余额为 0 就变哑巴，
+    //   用户只会以为 app 坏了——而他刚花完钱，正是最需要被解释的时刻
+    const paid = AI_REAL && canAfford(CHAT_TURN_TOKENS);
+    const w = walletOf();
+    const desk = {
+      deckCount: s0.deck.length,
+      segCount: s0.draft?.segments.length ?? 0,
+      recentCards: s0.deck.slice(-3).map((c) => c.name),
+      marketOpen: s0.market.open,
+      editing: !!s0.editTarget,
+      lowBalance: (w?.plan ?? 0) + (w?.addon ?? 0) < CHAT_TURN_TOKENS * 10,
+    };
+    try {
+      const { text: reply } = await (paid ? npcChat : npcChatOffline)({
+        text: t,
+        history: chatWindow(s0.dialog.messages),
+        system: NPC_SYSTEM,
+        deskBlock: deskBlock(desk),
+      });
+      if (paid) spendTokens(CHAT_TURN_TOKENS); // 成功才扣，与 refineProposalFrame 同口径
+      get().npcReply(reply, { offline: !paid, seq });
+    } catch (e) {
+      console.warn("[studio] 对话失败:", e); // ★ 技术细节只进 console，不进台词
+      const f = chatFailLine(e);
+      get().npcReply(f.text, { blocked: f.blocked, offline: !f.blocked, seq });
+    } finally {
+      set((st) => ({ dialog: { ...st.dialog, thinking: false } }));
+    }
   },
 
   landFlight: (id) =>
@@ -1093,6 +1187,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   notice: null,
 
   exitDialog: () => {
+    chatSeq++; // 在途回复回来时只记消息不出声（不清 messages：跨"退出再进"存活是对的）
     // 关掉对话就把话掐了——不然离开工坊后台还在念上一句（原在 NpcDialog.closeAll）
     stopSpeaking();
     set({ dialogView: false, camera: { kind: "default" }, orbit: null });

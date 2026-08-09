@@ -74,6 +74,16 @@ export const VISION_FRAME_TOKENS = 900;
  *  与 VISION_FRAME_TOKENS 同量级——真正贵的是出图，这一项只是别装作免费。 */
 export const CARD_META_TOKENS = 400;
 
+/**
+ * 一次闲聊往返的 token 等价。**不复用 CARD_META_TOKENS**——那是"一次极短的 JSON
+ * 抽取"（几十字输入），闲聊要背 ~600 字人设 + ~1000 字历史，输入量是它的十几倍；
+ * 共用一个常量，以后谁改了卡片提示词就会把聊天报价一起改掉。
+ *
+ * ⚠ doubao-seed-2-1-turbo 的实际单价**没有实测过**，400 是按同一把尺子估的保守值。
+ * 上线前必须照方舟账单校一次。它只是"常驻价签"；真实结算走接口返回的用量。
+ */
+export const CHAT_TURN_TOKENS = 400;
+
 /** 会炼出几张卡：**一份素材 = 一张卡**，一份素材都没有但写了描述也出一张。 */
 export function forgeCardCount(fileCount: number, hasNote: boolean): number {
   return fileCount > 0 ? fileCount : hasNote ? 1 : 0;
