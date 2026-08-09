@@ -94,6 +94,11 @@ function vowelOf(ch: string): Viseme {
   return VOWELS[(c * 2654435761) % VOWELS.length];
 }
 
+/** 剥掉 `<cot text=…>` 包裹，只留会被念出来的部分。标签语法见 vite.config 的 use_tag_parser */
+function spokenOf(t: string): string {
+  return t.replace(/<cot\s+text=[^>]*>/g, "").replace(/<\/cot>/g, "");
+}
+
 function syllables(text: string): Syl[] {
   const out: Syl[] = [];
   const t = text.replace(/\s+/g, " ").trim();
@@ -201,6 +206,7 @@ async function speakCloud(text: string, sy: Syl[], me: number): Promise<boolean>
         voice: ENV_VOICE || voice.id,
         mix: voice.mix,
         rate: voice.rate,
+        expressive: voice.expressive,
         emotion: emotionFor(voice, SPEAK_MOOD.v, SPEAK_MOOD.until > Date.now()),
         instruct: currentInstruct(),
       }),
@@ -279,7 +285,10 @@ export function speak(text: string): boolean {
   if (!voiceEnabled()) return false;
   const clean = text.replace(/[（(][^）)]*[）)]/g, " ").trim(); // 括号里的旁白不念
   if (!clean) return false;
-  const sy = syllables(clean);
+  // ★ 音节表要按**真正会被念出来的字**建，不能包含 <cot text=…> 标记——
+  //   标记只影响演绎、不出声，算进去会让音节数虚高，而云端是拿
+  //   buf.duration / 总权重 均分时间轴的，虚高多少口型就慢多少，肉眼可见地对不上。
+  const sy = syllables(spokenOf(clean));
   if (!sy.length) return false;
 
   stopSpeaking();
@@ -391,7 +400,8 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
     SPEECH,
     speak,
     stopSpeaking,
-    plan: (t: string) => syllables(t),
+    // 与 speak() 走同一条路（先剥 cot 标签），否则这个调试视图会和真实行为不一致
+    plan: (t: string) => syllables(spokenOf(t)),
     voice: () => pickVoice(),
     status: voiceStatus,
     cloud: TTS_REAL,

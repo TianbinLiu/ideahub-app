@@ -76,7 +76,7 @@ const ttsPlugin = (apiKey: string) => ({
           req.on("data", (c) => chunks.push(Buffer.from(c as Uint8Array)));
           req.on("end", () => ok());
         });
-        const { text, voice, emotion, instruct, mix, rate } = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
+        const { text, voice, emotion, instruct, mix, rate, expressive } = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
           text: string;
           voice?: string;
           emotion?: string;
@@ -86,6 +86,13 @@ const ttsPlugin = (apiKey: string) => ({
           mix?: Array<{ id: string; w: number }>;
           /** speech_rate：[-50,100] 线性，0=1.0 倍 */
           rate?: number;
+          /**
+           * 表现力增强版（2.0 的 ICL 音色才有）。**这是 <cot> 标签生效的前提**：
+           * 不传它就走 seed-tts-2.0-standard，标签会被**当成正文念出来**——
+           * 实测同一句台词，不开 expressive 时音频 164KB、开了 59KB，
+           * 那多出来的三倍就是在念"cot text 等于 声音压低像在耳边低语"。
+           */
+          expressive?: boolean;
         };
         // ★ 混音只吃 **1.0** 音色，speaker 要固定写成 custom_mix_bigtts，
         //   真正的音色放进 mix_speaker。2.0 的 uranus 混不进去（55000000）。
@@ -108,6 +115,7 @@ const ttsPlugin = (apiKey: string) => ({
               // 官方限制文本 ≤1024 字节（UTF-8），且建议 <300 字符
               text: String(text ?? "").slice(0, 300),
               speaker,
+              ...(expressive && !mixed ? { model: "seed-tts-2.0-expressive" } : {}),
               ...(mixed
                 ? {
                     mix_speaker: {
@@ -128,6 +136,10 @@ const ttsPlugin = (apiKey: string) => ({
                 // 《AI 生成合成内容标识办法》（2025-09-01 施行）要求音频类加显式标识；
                 // 火山原生支持"在合成结尾增加音频节奏标识"。上架硬性义务，不是可选项
                 aigc_watermark: true,
+                // 台词里可以直接写 <cot text=心理活动>这一句</cot>，描述不会被念出来，
+                // 只影响这一句的语速与情绪。官方限制：**单句连标签控制在 64 字以内**，
+                // 且"生效范围是单句"——长台词要拆句、每句各挂各的，一个标签罩不住全段
+                ...(expressive && !mixed ? { use_tag_parser: true } : {}),
                 // 括号里的旁白（"（从口袋里抽出一叠卡）"）不该念出来
                 max_length_to_filter_parenthesis: 100,
                 ...(is20 && instruct ? { context_texts: [instruct] } : {}),

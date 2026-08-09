@@ -36,6 +36,13 @@ export interface PresetVoice {
   mix?: Array<{ id: string; w: number }>;
   /** 语速。V3 的 speech_rate 是 [-50,100] 线性刻度：0=1.0 倍、-50=0.5 倍、100=2.0 倍 */
   rate?: number;
+  /**
+   * 支持"表现力增强版 + 语音标签"。只有 2.0 的 **ICL_** 那一档（角色扮演）有；
+   * 通用场景的 *_uranus_bigtts 与全部 1.0/混音都没有。
+   * 开了之后台词里可以写 `<cot text=心理活动>这一句</cot>`——描述不会被念出来，
+   * 只影响这一句怎么说。**没开却写了标签，标签会被原样念出来**（实测）。
+   */
+  expressive?: boolean;
 }
 
 /** 1.0 音色 ID。**逐个从官方列表核对过，别凭显示名推**——后缀 moon/mars 没有规律
@@ -118,13 +125,13 @@ export const VOICES: PresetVoice[] = [
   //   邪魅女王…），而不是"通用场景"那种按用途命名的播音腔。之前几轮我一直在
   //   「通用场景」里翻，找错了地方——是用户发来的一张第三方混音截图里出现了
   //   「病娇姐姐」才把我指到这儿的。
-  { name: "清冷高雅 2.0", id: "ICL_uranus_zh_female_qinglenggaoya_tob", why: "名字就是清冷，气质最贴铸卡师" },
-  { name: "成熟姐姐 2.0", id: "ICL_uranus_zh_female_chengshujiejie_tob", why: "年龄感更足，压得住场" },
-  { name: "成熟温柔 2.0", id: "ICL_uranus_zh_female_chengshuwenrou_tob", why: "成熟但不冷，留一点温度" },
-  { name: "理性圆子 2.0", id: "ICL_uranus_zh_female_lixingyuanzi_tob", why: "讲道理的口吻，最像手艺人" },
-  { name: "邪魅女王 2.0", id: "ICL_uranus_zh_female_xiemeinvwang_tob", why: "更强的气场，偏危险感" },
-  { name: "温柔女神 2.0", id: "ICL_uranus_zh_female_wenrounvshen_tob", why: "端庄柔和" },
-  { name: "病娇姐姐 2.0", id: "ICL_uranus_zh_female_bingjiaojiejie_tob", why: "低语感强，适合演绎「她知道你不知道的事」" },
+  { name: "清冷高雅 2.0", id: "ICL_uranus_zh_female_qinglenggaoya_tob", expressive: true, why: "名字就是清冷，气质最贴铸卡师" },
+  { name: "成熟姐姐 2.0", id: "ICL_uranus_zh_female_chengshujiejie_tob", expressive: true, why: "年龄感更足，压得住场" },
+  { name: "成熟温柔 2.0", id: "ICL_uranus_zh_female_chengshuwenrou_tob", expressive: true, why: "成熟但不冷，留一点温度" },
+  { name: "理性圆子 2.0", id: "ICL_uranus_zh_female_lixingyuanzi_tob", expressive: true, why: "讲道理的口吻，最像手艺人" },
+  { name: "邪魅女王 2.0", id: "ICL_uranus_zh_female_xiemeinvwang_tob", expressive: true, why: "更强的气场，偏危险感" },
+  { name: "温柔女神 2.0", id: "ICL_uranus_zh_female_wenrounvshen_tob", expressive: true, why: "端庄柔和" },
+  { name: "病娇姐姐 2.0", id: "ICL_uranus_zh_female_bingjiaojiejie_tob", expressive: true, why: "低语感强，适合演绎「她知道你不知道的事」" },
 ];
 
 /**
