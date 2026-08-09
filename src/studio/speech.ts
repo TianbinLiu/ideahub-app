@@ -65,6 +65,7 @@ if (typeof window !== "undefined" && "speechSynthesis" in window) {
 /** 语音能力现状。UI 要能把"我关的"和"这台机器没中文语音包"分开讲清楚，
  *  否则用户开着开关却听不见声音，只会以为功能坏了。 */
 export function voiceStatus(): "ok" | "no-voice" | "unsupported" {
+  if (TTS_REAL) return "ok"; // 云端嗓子不依赖系统语音包
   if (!voiceSupported()) return "unsupported";
   return pickVoice() ? "ok" : "no-voice";
 }
@@ -126,6 +127,15 @@ export function stopSpeaking() {
   session++;
   if (raf) cancelAnimationFrame(raf);
   raf = 0;
+  if (curSrc) {
+    // onended 里有 session 判断，这里 stop 触发的那次会因为 session 已经 ++ 而跳过
+    try {
+      curSrc.stop();
+    } catch {
+      /* 还没 start 或已经停了 */
+    }
+    curSrc = null;
+  }
   SPEECH.active = false;
   SPEECH.level = 0;
   SPEECH.viseme = "sil";
@@ -151,15 +161,103 @@ export function cancelPendingStop() {
   stopTimer = 0;
 }
 
+// ── 云端 TTS（豆包 openspeech）────────────────────────────────
+// 有凭据时优先走它：拿到的是**真实音频**，于是
+//   ① 口型幅度用 AnalyserNode 量出来的 RMS，不再是估的包络
+//   ② 音节时长用 buffer.duration 精确均分，不再靠 onboundary 猜语速
+//   ③ 手机 WebView 里也有声（安卓自带 TTS 引擎常常 getVoices() 返回空数组，
+//      那是浏览器合成器在真机上最大的坑）
+// 凭据没配就 404 → 静默退回浏览器合成器。
+declare const __TTS_REAL__: boolean;
+const TTS_REAL = typeof __TTS_REAL__ !== "undefined" && __TTS_REAL__;
+const TTS_VOICE = import.meta.env.VITE_TTS_VOICE as string | undefined;
+
+let audioCtx: AudioContext | null = null;
+let curSrc: AudioBufferSourceNode | null = null;
+
+function ctx(): AudioContext {
+  audioCtx ??= new AudioContext();
+  // 自动播放策略：没有用户手势时 AudioContext 会挂在 suspended。进工坊本身是
+  // 点进来的，通常已经解锁；resume 是幂等的，挂了也不影响后面的退回逻辑
+  void audioCtx.resume();
+  return audioCtx;
+}
+
+/** 云端合成 + 播放 + 用真实响度驱动口型。返回 false 表示没走成，调用方退回浏览器合成器 */
+async function speakCloud(text: string, sy: Syl[], me: number): Promise<boolean> {
+  try {
+    const res = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, voice: TTS_VOICE }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) return false; // 404=没配凭据，502=上游报错，都退回本地合成
+    const buf = await ctx().decodeAudioData(await res.arrayBuffer());
+    if (session !== me) return true; // 期间被打断：别再播了，但也别退回去重播一遍
+
+    const src = ctx().createBufferSource();
+    src.buffer = buf;
+    const analyser = ctx().createAnalyser();
+    // 1024 点 ≈ 43ms@24kHz，够跟上音节又不会抖
+    analyser.fftSize = 1024;
+    src.connect(analyser);
+    analyser.connect(ctx().destination);
+    curSrc = src;
+
+    // ★ 有真实音频，音节表就不用猜语速了：总时长精确均分
+    const total = sy.reduce((a, x) => a + x.w, 0) || 1;
+    const secPerSyl = buf.duration / total;
+    const data = new Uint8Array(analyser.fftSize);
+    const t0 = performance.now();
+
+    SPEECH.active = true;
+    const tick = () => {
+      if (session !== me) return;
+      analyser.getByteTimeDomainData(data);
+      // RMS：128 是静音中线，除以 128 归一化到 0~1；×3.2 是把说话的
+      // 典型 RMS（0.08~0.25）拉到可见幅度，再夹住
+      let acc = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = (data[i] - 128) / 128;
+        acc += v * v;
+      }
+      SPEECH.level = Math.min(1, Math.sqrt(acc / data.length) * 3.2);
+      // 元音口型仍来自文本（音频里没有音素信息），但**时间轴是真的**
+      const el = (performance.now() - t0) / 1000;
+      let a = 0;
+      let cur: Syl | null = null;
+      for (const x of sy) {
+        const d = x.w * secPerSyl;
+        if (el < a + d) {
+          cur = x;
+          break;
+        }
+        a += d;
+      }
+      SPEECH.viseme = cur && !cur.pause ? cur.v : "sil";
+      if (cur?.pause) SPEECH.level = 0;
+      raf = requestAnimationFrame(tick);
+    };
+    src.onended = () => {
+      if (session === me) stopSpeaking();
+    };
+    src.start();
+    raf = requestAnimationFrame(tick);
+    return true;
+  } catch (e) {
+    console.warn("[tts] 云端合成失败，退回浏览器合成器:", e);
+    return false;
+  }
+}
+
 /**
  * 念一句话并驱动口型。没有语音能力/用户关掉了声音 → 直接返回 false，
  * 调用方退回原来的"按字数估时长"路径（见 studioStore.npcSay）。
  */
 export function speak(text: string): boolean {
   cancelPendingStop(); // 新台词到了，之前排队的"延迟掐音"作废
-  if (!voiceSupported() || !voiceEnabled()) return false;
-  const voice = pickVoice();
-  if (!voice) return false; // 没有中文嗓子：宁可不出声，也不要拿英文声念汉字
+  if (!voiceEnabled()) return false;
   const clean = text.replace(/[（(][^）)]*[）)]/g, " ").trim(); // 括号里的旁白不念
   if (!clean) return false;
   const sy = syllables(clean);
@@ -167,6 +265,23 @@ export function speak(text: string): boolean {
 
   stopSpeaking();
   const me = ++session;
+
+  // 云端优先：有真实音频，口型才是量出来的而不是估的
+  if (TTS_REAL) {
+    void speakCloud(clean, sy, me).then((ok) => {
+      if (!ok && session === me) speakLocal(clean, sy, me);
+    });
+    return true;
+  }
+  return speakLocal(clean, sy, me);
+}
+
+/** 浏览器内置合成器。没有中文嗓子就不出声——拿 en-US 的嗓子念汉字只会得到
+ *  静音或拼读，比不出声更糟。 */
+function speakLocal(clean: string, sy: Syl[], me: number): boolean {
+  if (!voiceSupported()) return false;
+  const voice = pickVoice();
+  if (!voice) return false;
 
   const u = new SpeechSynthesisUtterance(clean);
   u.voice = voice;
@@ -260,6 +375,7 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
     plan: (t: string) => syllables(t),
     voice: () => pickVoice(),
     status: voiceStatus,
+    cloud: TTS_REAL,
     voices: () => (voiceSupported() ? window.speechSynthesis.getVoices().map((v) => `${v.name} [${v.lang}]`) : []),
   };
 }
