@@ -43,8 +43,18 @@ const DEFAULT_IDS = [
 ];
 
 const ids = (process.argv[3]?.split(",").map((s) => s.trim()).filter(Boolean) ?? DEFAULT_IDS);
+/** 第 4 个参数：语音指令；第 5 个：pitch。产物文件名会带上后缀便于 A/B */
+const INSTRUCT = process.argv[4] || "";
+const PITCH = Number(process.argv[5] || 0) || 0;
+const suffix = (INSTRUCT ? "__instructed" : "") + (PITCH ? `__pitch${PITCH}` : "");
 
-async function synth(speaker) {
+/**
+ * 语音指令（2.0 专属）。一句自然语言就能改演绎方式，比换音色的调节幅度大得多——
+ * 官方示例是 "你可以用特别特别痛心的语气说话吗?"、"你能用骄傲的语气来说话吗？"。
+ * 这是"预置音色都不对味"时**第一个该试的杠杆**，不是换音色。
+ * ⚠ 只对 2.0 音色生效，且只有列表第一个值有效；该字段不计费。
+ */
+async function synth(speaker, instruct, pitch) {
   // 1.0 音色（moon/mars）与 2.0 音色（uranus）是**两个计费商品、两个 resource id**，
   // 各自要在控制台单独开通。本账号实测 1.0 未开通（45000030 requested resource not granted）
   const resourceId = /uranus/.test(speaker) ? "seed-tts-2.0" : "seed-tts-1.0";
@@ -61,9 +71,14 @@ async function synth(speaker) {
       req_params: {
         text: LINE,
         speaker,
-        audio_params: { format: "mp3", sample_rate: 24000 },
+        audio_params: { format: "mp3", sample_rate: 24000, bit_rate: 64000 },
         // additions 的类型是 jsonstring（不是 object），传错会被忽略
-        additions: JSON.stringify({ aigc_watermark: true }),
+        additions: JSON.stringify({
+          aigc_watermark: true,
+          ...(instruct && /uranus/.test(speaker) ? { context_texts: [instruct] } : {}),
+          // pitch 范围 [-12,12]，负值压低音域 = 更成熟
+          ...(pitch ? { post_process: { pitch } } : {}),
+        }),
       },
     }),
   });
@@ -89,8 +104,8 @@ const outDir = resolve(ROOT, "design/tts-samples");
 mkdirSync(outDir, { recursive: true });
 for (const id of ids) {
   try {
-    const buf = await synth(id);
-    writeFileSync(resolve(outDir, `${id}.mp3`), buf);
+    const buf = await synth(id, INSTRUCT, PITCH);
+    writeFileSync(resolve(outDir, `${id}${suffix}.mp3`), buf);
     console.log(`OK   ${id}  ${Math.round(buf.length / 1024)}KB`);
   } catch (e) {
     console.log(`FAIL ${id}  ${e.message}`);

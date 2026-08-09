@@ -44,9 +44,44 @@ export const VOICES: PresetVoice[] = [
   { name: "温柔淑女 2.0", id: "zh_female_wenroushunv_uranus_bigtts", why: "冷静但不硬，想要柔一点选它" },
   { name: "清新女声 2.0", id: "zh_female_qingxinnvsheng_uranus_bigtts", why: "干净中性，最不抢戏的保底" },
   { name: "小何 2.0", id: "zh_female_xiaohe_uranus_bigtts", why: "自然口语感，像真人在说话" },
+  { name: "古风少御 2.0", id: "zh_female_gufengshaoyu_uranus_bigtts", why: "少女与御姐之间，古风底子，二次元感最强" },
+  { name: "Vivi 2.0", id: "zh_female_vv_uranus_bigtts", why: "2.0 旗舰嗓，自然度最高，可配方言" },
+  { name: "顾姐 2.0", id: "zh_female_gujie_uranus_bigtts", why: "更硬的姐系，压得住场" },
+  { name: "魅力女友 2.0", id: "zh_female_meilinvyou_uranus_bigtts", why: "低音域，气声偏多" },
+  { name: "TVB女声 2.0", id: "zh_female_tvbnv_uranus_bigtts", why: "港剧配音腔，端着的成熟感" },
 ];
 
 export const DEFAULT_VOICE = VOICES[0].id;
+
+/**
+ * 语调指令（2.0 音色专属的 context_texts）。一句自然语言就能改演绎方式，
+ * **调节幅度比换音色大得多**——同一把嗓子加上"用成熟冷静克制的语气"之后，
+ * 出来的音频与原味逐字节不同（2026-08-09 md5 对照确认，不是心理作用）。
+ *
+ * 所以"预置音色都不对味"时，**第一个该拧的旋钮是这里，不是换音色**。
+ * 官方示例："你能用骄傲的语气来说话吗？"、"你可以说慢一点吗？"
+ * 该字段不计费；只对 2.0 音色生效，1.0 音色收到会忽略。
+ */
+export const DEFAULT_INSTRUCT =
+  "请用成熟、冷静、克制的语气说话，语速放慢一些，像一位手艺人在平静地陈述事实，不要活泼，不要上扬的尾音。";
+
+const INSTRUCT_KEY = "ideahub-app.voiceInstruct";
+
+export function currentInstruct(): string {
+  try {
+    return localStorage.getItem(INSTRUCT_KEY) ?? DEFAULT_INSTRUCT;
+  } catch {
+    return DEFAULT_INSTRUCT;
+  }
+}
+
+export function setInstruct(v: string) {
+  try {
+    localStorage.setItem(INSTRUCT_KEY, v);
+  } catch {
+    /* 隐私模式 */
+  }
+}
 
 const KEY = "ideahub-app.voiceId";
 

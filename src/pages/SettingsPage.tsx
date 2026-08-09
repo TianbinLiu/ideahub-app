@@ -8,7 +8,7 @@ import { fileToSquareImage } from "../utils/image";
 import { useCurrentUser } from "../hooks/useAccount";
 import { storageEstimate } from "../data/db";
 import { QUALITY_LABELS, getQuality, isNativeApp, setQuality, type Quality } from "../studio/quality";
-import { VOICES, currentVoice, setVoice, type PresetVoice } from "../studio/voices";
+import { DEFAULT_INSTRUCT, VOICES, currentInstruct, currentVoice, setInstruct, setVoice, type PresetVoice } from "../studio/voices";
 
 const AVATARS = ["🦊", "🐺", "🐱", "🦉", "🐙", "🦋", "🌙", "⭐", "🔮", "🎴", "🎬", "🍥"];
 
@@ -227,6 +227,7 @@ function VoiceSection() {
   const [id, setId] = useState(() => currentVoice().id);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const [instruct, setIns] = useState(currentInstruct);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   async function preview(v: PresetVoice) {
@@ -238,7 +239,11 @@ function VoiceSection() {
       const res = await fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: "欢迎来到卡片工坊，把你的素材交给我，我为你炼成卡片。", voice: v.id }),
+        body: JSON.stringify({
+          text: "欢迎来到卡片工坊，把你的素材交给我，我为你炼成卡片。",
+          voice: v.id,
+          instruct,
+        }),
       });
       if (res.status === 404) {
         setErr("还没配置云端语音：把 TTS_APPID / TTS_TOKEN 填进 .env.local 并重启 dev 服务器");
@@ -284,6 +289,39 @@ function VoiceSection() {
         ))}
       </div>
       {err && <p className="mt-2 text-[11px] text-rose-300">{err}</p>}
+
+      {/* 语调指令。**这个旋钮比换音色管用**——同一把嗓子加上一句"用成熟冷静的
+          语气"，出来的音频与原味逐字节不同。所以放在音色列表下面，紧挨着试听。 */}
+      <div className="mt-3">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-400">语调指令</span>
+          {instruct !== DEFAULT_INSTRUCT && (
+            <button
+              onClick={() => {
+                setIns(DEFAULT_INSTRUCT);
+                setInstruct(DEFAULT_INSTRUCT);
+              }}
+              className="text-[11px] text-slate-500 underline"
+            >
+              恢复默认
+            </button>
+          )}
+        </div>
+        <textarea
+          value={instruct}
+          onChange={(e) => {
+            setIns(e.target.value);
+            setInstruct(e.target.value);
+          }}
+          rows={3}
+          maxLength={120}
+          placeholder="用一句话描述你想要的语气，例如：请用成熟冷静的语气，语速放慢"
+          className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
+        />
+        <p className="mt-1 text-[11px] text-slate-500">
+          改完点上面任意音色即可听到效果 · 这一段不计费 · 只对 2.0 音色生效
+        </p>
+      </div>
     </section>
   );
 }
