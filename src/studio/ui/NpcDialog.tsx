@@ -9,8 +9,8 @@ import { useStudio } from "../studioStore";
 import { fileToCover } from "../../mock/frames";
 import { AI_REAL, MaterialFile } from "../../ai";
 import { canAfford, spendTokens, walletOf } from "../../data/account";
-import { forgeCost, fmtTokens } from "../../data/economy";
-import { Card, CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType } from "../../types";
+import { forgeCardCount, forgeCost, fmtTokens } from "../../data/economy";
+import { Card, CARD_TYPES, CARD_TYPE_LABELS, CardType } from "../../types";
 import TarotCard from "../../components/TarotCard";
 import { NPC_SCREEN } from "../scene/cameraOrbit";
 import { setVoiceEnabled, stopSpeaking, voiceEnabled, voiceStatus, voiceSupported } from "../speech";
@@ -271,6 +271,17 @@ const TYPE_HINT: Record<CardType, string> = {
   style: "画风与镜头语言的基调",
 };
 
+/** 卡种封面：看板娘亲自比划着推销每一类卡（design/gen-cardtype-covers.mjs 出的图）。
+ *  她就是创作入口三张封面里那位、也是工坊里的铸卡师——全 app 同一个人。
+ *  640×960 webp，五张合计 258KB；想换姿势/换构图重跑那个脚本，别手改图。 */
+const TYPE_COVER: Record<CardType, string> = {
+  character: "/cardtype/character.webp",
+  scene: "/cardtype/scene.webp",
+  background: "/cardtype/background.webp",
+  prop: "/cardtype/prop.webp",
+  style: "/cardtype/style.webp",
+};
+
 function ForgeForm({ onClose }: { onClose: () => void }) {
   const pending = useStudio((s) => s.pendingFiles);
   const busy = useStudio((s) => s.dialog.busy);
@@ -286,9 +297,8 @@ function ForgeForm({ onClose }: { onClose: () => void }) {
   // 不一起清掉，下次打开就莫名其妙带着上一轮的素材，两者行为还对不上。
   useEffect(() => () => useStudio.setState({ pendingFiles: [] }), []);
 
-  const imgN = pending.filter((f) => f.dataUrl).length;
-  const txtN = pending.length - imgN;
-  const cost = forgeCost(imgN, txtN, !!desc.trim());
+  const cardN = forgeCardCount(pending.length, !!desc.trim());
+  const cost = forgeCost(cardN);
   const wallet = walletOf();
   const canForge = pending.length > 0 || !!desc.trim();
 
@@ -328,12 +338,8 @@ function ForgeForm({ onClose }: { onClose: () => void }) {
         setErr("这批素材没能炼出卡，补充点描述再试？");
         return;
       }
-      // 按**实际出卡**结算：预估是"一份素材一张卡"的上限，模型少出几张就少收几张。
-      // 图片素材那张不烧 Seedream（原图即卡面），所以要分开数。
-      if (AI_REAL) {
-        const withImg = cards.filter((_, i) => !!pending[i]?.dataUrl).length;
-        spendTokens(forgeCost(withImg, cards.length - withImg, false));
-      }
+      // 按**实际出卡**结算：预估是"一份素材一张卡"的上限，模型少出几张就少收几张
+      if (AI_REAL) spendTokens(forgeCost(cards.length));
       setPreview(cards);
       setStep("preview");
     } catch (e) {
@@ -389,31 +395,25 @@ function ForgeForm({ onClose }: { onClose: () => void }) {
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-1">
           {/* ── 1 选卡种 ── */}
           {step === "type" && (
-            <div className="space-y-1.5">
+            // 卡牌网格而不是一行一项：这一步选的就是"卡"，用列表选卡是在用文字描述图像。
+            // 三列——竖屏 375px 下每格约 97px 宽、145px 高（2:3），看板娘的手势还认得出；
+            // 四列会把她压到 70px，姿势就糊成一团了
+            <div className="grid grid-cols-3 gap-2.5">
               {CARD_TYPES.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => {
-                    setType(t);
-                    setStep("input");
-                  }}
-                  className="flex w-full items-center gap-2.5 rounded-xl border border-slate-600/70 bg-ink/50 px-3 py-2.5 text-left hover:border-brand"
-                >
-                  <span className="h-6 w-6 flex-none rounded-md" style={{ background: CARD_TYPE_COLORS[t] }} />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-slate-100">{CARD_TYPE_LABELS[t]}</span>
-                    <span className="block truncate text-[11px] text-slate-400">{TYPE_HINT[t]}</span>
-                  </span>
+                <button key={t} onClick={() => { setType(t); setStep("input"); }} className="group text-left">
+                  <TarotCard cover={TYPE_COVER[t]} title={CARD_TYPE_LABELS[t]} type={t} active={type === t} />
+                  <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-slate-500 group-hover:text-slate-300">
+                    {TYPE_HINT[t]}
+                  </p>
                 </button>
               ))}
-              <button
-                onClick={() => {
-                  setType(null);
-                  setStep("input");
-                }}
-                className="w-full rounded-xl border border-dashed border-slate-600 px-3 py-2.5 text-xs text-slate-400 hover:border-brand hover:text-brand"
-              >
-                🎲 让铸卡师看着办（按素材自动判断）
+              {/* 第六格：交给铸卡师判断。做成同尺寸的虚线卡位，与上面五张排成一个 2×3 的整块 */}
+              <button onClick={() => { setType(null); setStep("input"); }} className="group text-left">
+                <div className="flex aspect-[2/3] w-full flex-col items-center justify-center gap-1 rounded-[5%] border border-dashed border-slate-600 bg-ink/40 px-1 text-center group-hover:border-brand">
+                  <span className="text-xl">🎲</span>
+                  <span className="text-[10px] leading-tight text-slate-400 group-hover:text-brand">让铸卡师<br />看着办</span>
+                </div>
+                <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-slate-500">按素材自动判断类型</p>
               </button>
             </div>
           )}
@@ -466,8 +466,7 @@ function ForgeForm({ onClose }: { onClose: () => void }) {
               </div>
               {AI_REAL && canForge && (
                 <p className="mt-1.5 text-[11px] text-slate-500">
-                  预估 {fmtTokens(cost)} token
-                  {imgN > 0 ? `（${imgN} 张图直接当卡面，不额外出图）` : ""} · 按实际出卡张数结算 · 每次重炼都会再扣
+                  预估 {fmtTokens(cost)} token（{cardN} 张卡，每张都要出一次卡面）· 按实际出卡张数结算 · 每次重炼都会再扣
                 </p>
               )}
             </>

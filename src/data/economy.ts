@@ -74,16 +74,19 @@ export const VISION_FRAME_TOKENS = 900;
  *  与 VISION_FRAME_TOKENS 同量级——真正贵的是出图，这一项只是别装作免费。 */
 export const CARD_META_TOKENS = 400;
 
+/** 会炼出几张卡：**一份素材 = 一张卡**，一份素材都没有但写了描述也出一张。 */
+export function forgeCardCount(fileCount: number, hasNote: boolean): number {
+  return fileCount > 0 ? fileCount : hasNote ? 1 : 0;
+}
+
 /**
- * 素材炼卡的预估：**一份素材 = 一张卡**，纯描述（没传文件）也出一张。
- * 图片素材直接拿用户原图当卡面，不烧 Seedream；文本素材/纯描述才要出图。
- * 这个不对称是 real.generateCards 的实际行为（见 `if (!f?.dataUrl)`），
- * 报价必须跟着它走，否则传 6 张图会被报成 6 倍价钱而白白吓退用户。
+ * 素材炼卡的预估：每张卡 = 一次豆包文案 + **一次 Seedream 出图**。
+ * 旧版按"图片素材直接当卡面、不烧 Seedream"算，是半价；现在卡面一律由
+ * Seedream 画（图片素材降级为参考图，见 real.forgeCover），那条捷径没有了，
+ * 报价必须跟着涨——报低了就是替用户做主花他的钱。
  */
-export function forgeCost(imageFiles: number, textFiles: number, hasNote: boolean): number {
-  const cards = imageFiles + textFiles + (imageFiles + textFiles === 0 && hasNote ? 1 : 0);
-  const covers = textFiles + (imageFiles + textFiles === 0 && hasNote ? 1 : 0);
-  return cards * CARD_META_TOKENS + covers * IMAGE_TOKENS;
+export function forgeCost(cardCount: number): number {
+  return cardCount * (CARD_META_TOKENS + IMAGE_TOKENS);
 }
 
 /**

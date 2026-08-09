@@ -56,7 +56,40 @@ const TYPE_LABEL: Record<CardType, string> = {
   style: "画风示意卡面",
 };
 
-/** 素材炼卡：图片素材保留原图作卡面；文本/纯描述素材用 Seedream 生成卡面；
+/**
+ * 卡面一律由 Seedream 画。**图片素材不再直接当卡面**，而是作为 Seedream 的参考图——
+ * 用户交上来的常常是随手拍/截图，直接贴上去与整副塔罗牌的画风完全对不上；
+ * 让模型照着它重画一张，人物特征和配色留住了，画风也统一了。
+ *
+ * 参考图走 dataURL：arkClient.generateImage 把 imageRefs 原样塞进 body.image，
+ * 方舟收 dataURL（design/gen-create-covers.mjs 一直这么喂定妆照）。传 http URL
+ * 也行，但用户的素材本来就在本地，转存一趟没有意义。
+ *
+ * 出图失败时兜底顺序：用户原图 > mock 占位图。原图至少是"用户认得的东西"。
+ */
+async function forgeCover(
+  type: CardType,
+  name: string,
+  summary: string,
+  note: string,
+  f: MaterialFile | undefined,
+): Promise<string> {
+  const ref = f?.dataUrl ? [f.dataUrl] : undefined;
+  const prompt =
+    (ref
+      ? "参考图是用户提供的素材：请保留其中主体的外形特征、服饰与配色，重新绘制成一张卡面，不要照抄构图。"
+      : "") +
+    `${TYPE_LABEL[type]}：${name}。${summary}${note ? ` 要求：${note}` : ""}。${STYLE_SUFFIX}`;
+  try {
+    // 竖版 3:4，与卡面文案一致（默认 2K 是方形，白白裁掉上下）
+    return await genImageAsDataUrl(prompt, ref, "1728x2304");
+  } catch (e) {
+    console.warn("[ai] 卡面出图失败，退回素材原图:", e);
+    return f?.dataUrl ?? "";
+  }
+}
+
+/** 素材炼卡：卡面全部由 Seedream 生成（图片素材作参考图）；
  *  名称/简介/类型交给豆包精炼。
  *  forcedType = 用户在素材窗里选定的卡种：给了就**锁死**，模型只负责起名写简介，
  *  不再有"选了人物卡却回来一张场景卡"的落差。 */
@@ -82,19 +115,12 @@ export async function generateCards(files: MaterialFile[], note: string, forcedT
         const summary = parsed.summary?.slice(0, 60) || card.summary;
         // forcedType 优先于模型返回：提示词里已经写死了，但模型偶尔仍会自作主张
         const type = forcedType ?? (parsed.type && TYPE_LABEL[parsed.type] ? parsed.type : card.type);
-        // 卡面：图片素材保留原图（用户的图就是卡面）；否则 Seedream 生成
-        let cover = card.cover;
-        if (!f?.dataUrl) {
-          cover = await genImageAsDataUrl(
-            `${TYPE_LABEL[type]}：${name}。${summary}${note ? ` 要求：${note}` : ""}。${STYLE_SUFFIX}`,
-            undefined,
-            "1728x2304", // 竖版 3:4，与卡面文案一致（默认 2K 是方形，白白裁掉上下）
-          );
-        }
-        return { ...card, name, summary, type, cover };
+        return { ...card, name, summary, type, cover: await forgeCover(type, name, summary, note, f) };
       } catch (e) {
-        console.warn("[ai] 炼卡回退 mock:", e);
-        return card;
+        // 文案精炼失败不该连卡面一起赔进去：mock 已经给了名字和简介，
+        // 拿它们照样能出图。以前这里一 catch 整张卡退回 mock 占位面
+        console.warn("[ai] 卡片文案回退 mock:", e);
+        return { ...card, cover: await forgeCover(card.type, card.name, card.summary, note, f) };
       }
     }),
   );
