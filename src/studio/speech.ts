@@ -199,6 +199,8 @@ async function speakCloud(text: string, sy: Syl[], me: number): Promise<boolean>
       body: JSON.stringify({
         text,
         voice: ENV_VOICE || voice.id,
+        mix: voice.mix,
+        rate: voice.rate,
         emotion: emotionFor(voice, SPEAK_MOOD.v, SPEAK_MOOD.until > Date.now()),
         instruct: currentInstruct(),
       }),

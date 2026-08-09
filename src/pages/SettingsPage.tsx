@@ -242,6 +242,8 @@ function VoiceSection() {
         body: JSON.stringify({
           text: "欢迎来到卡片工坊，把你的素材交给我，我为你炼成卡片。",
           voice: v.id,
+          mix: v.mix,
+          rate: v.rate,
           instruct,
         }),
       });
@@ -281,7 +283,11 @@ function VoiceSection() {
             }`}
           >
             <div className="min-w-0">
-              <div className="text-sm text-slate-100">{v.name}</div>
+              <div className="flex items-center gap-1.5 text-sm text-slate-100">
+                {v.name}
+                {/* 混音项与单音色不同：语调指令对它无效（那是 2.0 专属） */}
+                {v.mix && <span className="rounded bg-slate-700 px-1 text-[10px] text-slate-400">调和</span>}
+              </div>
               <div className="truncate text-[11px] text-slate-500">{v.why}</div>
             </div>
             <span className="ml-2 flex-none text-brand">{busy === v.id ? "…" : id === v.id ? "✓" : "▶"}</span>
@@ -319,7 +325,7 @@ function VoiceSection() {
           className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
         />
         <p className="mt-1 text-[11px] text-slate-500">
-          改完点上面任意音色即可听到效果 · 这一段不计费 · 只对 2.0 音色生效
+          改完点上面任意音色即可听到效果 · 这一段不计费 · **只对 2.0 单音色生效**，「调和」那几条用不了
         </p>
       </div>
     </section>

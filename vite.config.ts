@@ -76,15 +76,24 @@ const ttsPlugin = (apiKey: string) => ({
           req.on("data", (c) => chunks.push(Buffer.from(c as Uint8Array)));
           req.on("end", () => ok());
         });
-        const { text, voice, emotion, instruct } = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
+        const { text, voice, emotion, instruct, mix, rate } = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
           text: string;
           voice?: string;
           emotion?: string;
           /** 2.0 专属的"语音指令"：一句自然语言，如"你能用更冷静的语气说吗" */
           instruct?: string;
+          /** 混音配方（权重这里再归一化一次，接口要求和为 1） */
+          mix?: Array<{ id: string; w: number }>;
+          /** speech_rate：[-50,100] 线性，0=1.0 倍 */
+          rate?: number;
         };
-        const speaker = voice || "zh_female_gaolengyujie_uranus_bigtts";
-        const is20 = /uranus/.test(speaker);
+        // ★ 混音只吃 **1.0** 音色，speaker 要固定写成 custom_mix_bigtts，
+        //   真正的音色放进 mix_speaker。2.0 的 uranus 混不进去（55000000）。
+        //   反直觉的一点：本账号 1.0 **单音色**调不动（45000030），混音却调得动。
+        const mixed = mix && mix.length > 0;
+        const speaker = mixed ? "custom_mix_bigtts" : voice || "zh_female_gaolengyujie_uranus_bigtts";
+        const is20 = !mixed && /uranus/.test(speaker);
+        const sum = mixed ? mix.reduce((a, m) => a + m.w, 0) || 1 : 1;
         const up = await fetch("https://openspeech.bytedance.com/api/v3/tts/unidirectional/sse", {
           method: "POST",
           headers: {
@@ -99,9 +108,17 @@ const ttsPlugin = (apiKey: string) => ({
               // 官方限制文本 ≤1024 字节（UTF-8），且建议 <300 字符
               text: String(text ?? "").slice(0, 300),
               speaker,
+              ...(mixed
+                ? {
+                    mix_speaker: {
+                      speakers: mix.map((m) => ({ source_speaker: m.id, mix_factor: +(m.w / sum).toFixed(3) })),
+                    },
+                  }
+                : {}),
               audio_params: {
                 format: "mp3",
                 sample_rate: 24000,
+                ...(rate ? { speech_rate: rate } : {}),
                 // 不主动设 bit_rate 的话 mp3 会掉到 8k，音质损耗很明显（官方注解）
                 bit_rate: 64000,
                 ...(emotion ? { emotion, emotion_scale: 4 } : {}),
@@ -139,7 +156,9 @@ const ttsPlugin = (apiKey: string) => ({
         if (!parts.length) {
           // 把最常见的失败翻成人话——原始 message 全是英文且指向不明
           const hint =
-            errCode === 45000030
+            errCode === 55000000
+              ? "音色与 resource id 对不上——混音只支持 1.0 音色，2.0（uranus）混不了"
+              : errCode === 45000030
               ? `资源未开通：控制台要单独开通${is20 ? "「豆包语音合成模型2.0」" : "「大模型语音合成」(1.0)"}`
               : /quota/.test(errMsg)
                 ? "额度用完了，去控制台看试用/正式版用量"

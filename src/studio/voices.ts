@@ -29,9 +29,72 @@ export interface PresetVoice {
   why: string;
   /** 支持的情感（多情感音色才有）。key 是我们的语义，值是官方 emotion 参数 */
   emotions?: Record<"happy" | "excited" | "sad" | "cold", string>;
+  /**
+   * 混音配方：把 2~3 把 **1.0** 嗓子按权重调和成一把新的。给了它就忽略 id。
+   * 权重不必自己归一化——发出去之前会归一（接口硬要求和为 1）。
+   */
+  mix?: Array<{ id: string; w: number }>;
+  /** 语速。V3 的 speech_rate 是 [-50,100] 线性刻度：0=1.0 倍、-50=0.5 倍、100=2.0 倍 */
+  rate?: number;
 }
 
+/** 1.0 音色 ID。**逐个从官方列表核对过，别凭显示名推**——后缀 moon/mars 没有规律
+ *  （知性女声是 mars、高冷御姐是 moon），内部名还会和显示名对不上
+ *  （「柔美女友」内部叫 sajiaonvyou、「撒娇学妹」内部叫 yuanqinvyou）。 */
+const M = {
+  御姐: "zh_female_gaolengyujie_moon_bigtts",
+  女友: "zh_female_meilinvyou_moon_bigtts",
+  知性: "zh_female_zhixingnvsheng_mars_bigtts",
+  古风少御: "zh_female_gufengshaoyu_mars_bigtts",
+  温柔淑女: "zh_female_wenroushunv_mars_bigtts",
+  柔美女友: "zh_female_sajiaonvyou_moon_bigtts",
+  俏皮女声: "zh_female_qiaopinvsheng_mars_bigtts",
+  温柔小雅: "zh_female_wenrouxiaoya_moon_bigtts",
+};
+
 export const VOICES: PresetVoice[] = [
+  // ── 混音配方（把几把 1.0 嗓子调和成一把新的）──
+  // 放最前面是因为它们**调不出来的味道单音色给不了**：单音色是别人调好的成品，
+  // 混音才是你自己那一把。语速统一给 -20（≈0.8 倍），成熟感主要来自慢。
+  {
+    name: "混音 · 御姐+知性+女友",
+    id: "mix-yujie-zhixing-nvyou",
+    why: "冷底子 + 讲道理的口吻 + 一点气声（推荐先听这个）",
+    mix: [{ id: M.御姐, w: 5 }, { id: M.知性, w: 3 }, { id: M.女友, w: 2 }],
+    rate: -20,
+  },
+  {
+    name: "混音 · 古风少御+御姐",
+    id: "mix-gufeng-yujie",
+    why: "二次元底子最重的一版，古风味 + 清冷",
+    mix: [{ id: M.古风少御, w: 5 }, { id: M.御姐, w: 5 }],
+    rate: -20,
+  },
+  {
+    name: "混音 · 古风少御+知性+柔美",
+    id: "mix-gufeng-zhixing-roumei",
+    why: "同上再柔一档，不那么拒人",
+    mix: [{ id: M.古风少御, w: 4 }, { id: M.知性, w: 4 }, { id: M.柔美女友, w: 2 }],
+    rate: -20,
+  },
+  {
+    name: "混音 · 御姐+温柔淑女+小雅",
+    id: "mix-yujie-shunv-xiaoya",
+    why: "成熟但收着，适合长台词",
+    mix: [{ id: M.御姐, w: 4 }, { id: M.温柔淑女, w: 4 }, { id: M.温柔小雅, w: 2 }],
+    rate: -20,
+  },
+  {
+    name: "混音 · 俏皮+御姐+女友",
+    id: "mix-qiaopi-yujie-nvyou",
+    // 用户找来的第二套组合的火山近似版：调皮公主只有 2.0、混不进来，
+    // 用 1.0 里气质最接近的「俏皮女声」顶上
+    why: "偏活泼一档（你找的那套组合的近似版）",
+    mix: [{ id: M.俏皮女声, w: 0.8 }, { id: M.御姐, w: 0.82 }, { id: M.女友, w: 0.28 }],
+    rate: -20,
+  },
+
+  // ── 单音色（2.0）──
   {
     name: "高冷御姐 2.0",
     id: "zh_female_gaolengyujie_uranus_bigtts",
