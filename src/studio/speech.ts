@@ -10,6 +10,7 @@
 // AudioContext + AnalyserNode 得到**真实的响度包络**，SPEECH.level 直接用 RMS——
 // 那才是真口型。下面这套是在"只有文本、没有音频流"的前提下能做到的最好近似。
 import type { Viseme } from "./scene/faceExpr";
+import { currentVoice, emotionFor } from "./voices";
 
 /** 每帧被 TripoNpc 直读的口型状态。走模块单例而不是 React 状态：
  *  说话时每秒要更新几十次，进 store 就是每秒几十次全场景重渲。 */
@@ -170,7 +171,12 @@ export function cancelPendingStop() {
 // 凭据没配就 404 → 静默退回浏览器合成器。
 declare const __TTS_REAL__: boolean;
 const TTS_REAL = typeof __TTS_REAL__ !== "undefined" && __TTS_REAL__;
-const TTS_VOICE = import.meta.env.VITE_TTS_VOICE as string | undefined;
+/** env 里的音色只作**兜底默认**；用户在设置页选过就以用户为准（voices.currentVoice） */
+const ENV_VOICE = import.meta.env.VITE_TTS_VOICE as string | undefined;
+
+/** 当前该用什么心情念。由 npcSay 在调用前写入——把 store 的 mood 传进来会让
+ *  speech.ts 反向依赖 store（依赖方向要求 data → store → 组件），所以只传一个数。 */
+export const SPEAK_MOOD = { v: 0, until: 0 };
 
 let audioCtx: AudioContext | null = null;
 let curSrc: AudioBufferSourceNode | null = null;
@@ -185,11 +191,16 @@ function ctx(): AudioContext {
 
 /** 云端合成 + 播放 + 用真实响度驱动口型。返回 false 表示没走成，调用方退回浏览器合成器 */
 async function speakCloud(text: string, sy: Syl[], me: number): Promise<boolean> {
+  const voice = currentVoice();
   try {
     const res = await fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, voice: TTS_VOICE }),
+      body: JSON.stringify({
+        text,
+        voice: ENV_VOICE || voice.id,
+        emotion: emotionFor(voice, SPEAK_MOOD.v, SPEAK_MOOD.until > Date.now()),
+      }),
       signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) return false; // 404=没配凭据，502=上游报错，都退回本地合成

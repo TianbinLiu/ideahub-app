@@ -8,6 +8,7 @@ import { fileToSquareImage } from "../utils/image";
 import { useCurrentUser } from "../hooks/useAccount";
 import { storageEstimate } from "../data/db";
 import { QUALITY_LABELS, getQuality, isNativeApp, setQuality, type Quality } from "../studio/quality";
+import { VOICES, currentVoice, setVoice, type PresetVoice } from "../studio/voices";
 
 const AVATARS = ["🦊", "🐺", "🐱", "🦉", "🐙", "🦋", "🌙", "⭐", "🔮", "🎴", "🎬", "🍥"];
 
@@ -141,6 +142,8 @@ export default function SettingsPage() {
         </button>
       </section>
 
+      <VoiceSection />
+
       <section className="mb-6">
         <h2 className="mb-2.5 text-xs font-semibold text-slate-400">画面质量（3D 工坊）</h2>
         <p className="mb-2 text-[11px] text-slate-500">首次进工坊会按你的设备自动选一档 · 这里是唯一的修改入口（工坊顶栏已不再放画质按钮）</p>
@@ -213,5 +216,74 @@ export default function SettingsPage() {
         退出登录
       </button>
     </div>
+  );
+}
+
+// ── 铸卡师的声音 ──────────────────────────────────────────────
+// 音色全部是火山官方预置（见 studio/voices.ts 的三条选型原则）。
+// 试听直接打 /api/tts —— 它是**唯一**能证明"凭据配对了、音色能用、额度还有"的
+// 动作，比让用户回工坊触发一句台词再猜哪里错了快得多。
+function VoiceSection() {
+  const [id, setId] = useState(() => currentVoice().id);
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  async function preview(v: PresetVoice) {
+    setId(v.id);
+    setVoice(v.id);
+    setErr("");
+    setBusy(v.id);
+    try {
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "欢迎来到卡片工坊，把你的素材交给我，我为你炼成卡片。", voice: v.id }),
+      });
+      if (res.status === 404) {
+        setErr("还没配置云端语音：把 TTS_APPID / TTS_TOKEN 填进 .env.local 并重启 dev 服务器");
+        return;
+      }
+      if (!res.ok) {
+        setErr(await res.text());
+        return;
+      }
+      audioRef.current?.pause();
+      const a = new Audio(URL.createObjectURL(await res.blob()));
+      audioRef.current = a;
+      await a.play();
+    } catch (e) {
+      setErr(String(e).slice(0, 160));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <section className="mb-6">
+      <h2 className="mb-1 text-xs font-semibold text-slate-400">铸卡师的声音</h2>
+      <p className="mb-2.5 text-[11px] text-slate-500">
+        点一下即试听并选定。没配云端语音时退回系统内置合成器（需装中文语音包）。
+      </p>
+      <div className="space-y-2">
+        {VOICES.map((v) => (
+          <button
+            key={v.id}
+            onClick={() => void preview(v)}
+            disabled={!!busy}
+            className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left disabled:opacity-60 ${
+              id === v.id ? "border-brand bg-brand/10" : "border-slate-700 bg-panel"
+            }`}
+          >
+            <div className="min-w-0">
+              <div className="text-sm text-slate-100">{v.name}</div>
+              <div className="truncate text-[11px] text-slate-500">{v.why}</div>
+            </div>
+            <span className="ml-2 flex-none text-brand">{busy === v.id ? "…" : id === v.id ? "✓" : "▶"}</span>
+          </button>
+        ))}
+      </div>
+      {err && <p className="mt-2 text-[11px] text-rose-300">{err}</p>}
+    </section>
   );
 }

@@ -63,10 +63,11 @@ const ttsPlugin = (appid: string, token: string) => ({
           req.on("data", (c) => chunks.push(Buffer.from(c as Uint8Array)));
           req.on("end", () => ok());
         });
-        const { text, voice, speed } = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
+        const { text, voice, speed, emotion } = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
           text: string;
           voice?: string;
           speed?: number;
+          emotion?: string;
         };
         const up = await fetch("https://openspeech.bytedance.com/api/v1/tts", {
           method: "POST",
@@ -76,23 +77,39 @@ const ttsPlugin = (appid: string, token: string) => ({
             app: { appid, token: "x", cluster: "volcano_tts" },
             user: { uid: "ideahub" },
             audio: {
-              voice_type: voice || "zh_female_linjianvhai_moon_bigtts",
+              voice_type: voice || "zh_female_shuangkuaisisi_emo_v2_mars_bigtts",
               encoding: "mp3",
               speed_ratio: speed ?? 1.0,
               rate: 24000,
+              // 多情感音色要 enable_emotion=true 才认 emotion；普通音色收到这两个字段
+              // 会忽略，所以无脑带上即可（官方参数表 audio.emotion / enable_emotion）
+              ...(emotion ? { emotion, enable_emotion: true } : {}),
             },
             request: {
               // reqid 每次必须是新的 UUID，复用会被判成重放
               reqid: globalThis.crypto.randomUUID(),
+              // 官方限制文本 ≤1024 字节（UTF-8），且建议 <300 字符
               text: String(text ?? "").slice(0, 300),
-              operation: "query",
+              operation: "query", // HTTP 非流式只能 query
+              // ★ 合规：《AI 生成合成内容标识办法》（2025-09-01 施行）要求音频类
+              //   加显式标识。火山原生支持"在合成结尾增加音频节奏标识"，开着。
+              extra_param: JSON.stringify({ aigc_watermark: true }),
             },
           }),
         });
         const j = (await up.json()) as { code?: number; data?: string; message?: string };
         if (!up.ok || j.code !== 3000 || !j.data) {
+          // 把最常见的三种失败翻译成人话——原始 message 全是英文且指向不明
+          const hint =
+            j.code === 3050
+              ? "音色不存在：/api/tts 走的是 V1 接口，**不支持 2.0（uranus）音色**，换一个 1.0 音色"
+              : /quota exceeded/.test(j.message ?? "")
+                ? "试用额度用完了，去控制台开通正式版"
+                : /requested grant not found/.test(j.message ?? "")
+                  ? "鉴权失败：检查 .env.local 的 TTS_APPID / TTS_TOKEN"
+                  : "";
           res.statusCode = 502;
-          return res.end(`tts ${up.status} ${j.code ?? ""} ${j.message ?? ""}`.slice(0, 200));
+          return res.end(`tts ${up.status} code=${j.code ?? "?"} ${hint || j.message || ""}`.slice(0, 240));
         }
         res.setHeader("Content-Type", "audio/mpeg");
         res.setHeader("Cache-Control", "no-store");

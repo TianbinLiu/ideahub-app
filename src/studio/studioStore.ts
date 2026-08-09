@@ -8,7 +8,7 @@ import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendToken
 import { DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, fmtTokens, forgeCardCount, forgeCost, forgeSettle, proposalsCost } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { FlowNode, chosenOf, nodeVideo, useFlow } from "./flowStore";
-import { speak, stopSpeaking } from "./speech";
+import { SPEAK_MOOD, speak, stopSpeaking } from "./speech";
 import { getVideo, loadProject, partsOf } from "../data/videos";
 
 export interface DialogMsg {
@@ -435,6 +435,10 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // 先真出声。speak() 成功时口型由音频包络驱动（见 speech.ts / SPEECH），
     // speakingUntil 只作兜底：浏览器没有合成器、用户关了声音、或者念到一半被打断时，
     // 嘴仍然按字数估的时长动一动——总比一句话弹出来而人一动不动强。
+    // 多情感音色要按心情换语气：把当前 mood 递过去（不能让 speech.ts 反向 import
+    // store——依赖方向是 data → store → 组件）
+    SPEAK_MOOD.v = get().mood;
+    SPEAK_MOOD.until = get().moodUntil;
     speak(text);
     set((s) => ({
       dialog: { ...s.dialog, messages: [...s.dialog.messages, { id: uid("m"), from: "npc", text }] },
