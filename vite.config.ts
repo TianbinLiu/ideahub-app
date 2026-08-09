@@ -36,15 +36,28 @@ const arkFetchPlugin = () => ({
 /**
  * 豆包语音合成（openspeech）代理。**与方舟是两套完全不同的东西**——不同域名
  * （openspeech.bytedance.com vs ark.cn-beijing.volces.com）、不同鉴权、不同控制台，
- * ARK_API_KEY 在这里一点用都没有，必须另外开通、另外配 TTS_APPID / TTS_TOKEN。
+ * ARK_API_KEY 在这里一点用都没有，必须另外开通、另配 TTS_API_KEY。
  *
- * 走自写 middleware 而不是 server.proxy：V1 的鉴权头是
- *   Authorization: Bearer;<token>          ← **是分号不是空格**，写错报 requested grant not found
- * 而且 appid/cluster 要塞进 body，proxy 改不了 body。
+ * 走 V3 SSE（api/v3/tts/unidirectional/sse），协议 2026-08-09 实测确认过，不是照文档猜：
+ *   请求头 X-Api-Key + X-Api-Resource-Id
+ *   响应是 text/event-stream，每帧两行——
+ *     event: 352                    ← TTSResponse（音频）；153 = SessionFailed
+ *     data: {"code":0,"message":"","data":"<base64 mp3 分片>","sentence":…}
+ *   所有帧的 data 按序 base64 解码首尾相接就是完整 mp3。一条 25 字台词回 18 帧 ≈49KB。
+ *
+ * ★ 为什么不是 V1：V1 要的是**旧版控制台**的 appid + access_token
+ *   （Authorization: Bearer;<token>），而新版控制台只发一个 API Key。手上是新版 key，
+ *   V1 那条路根本走不通。V3 顺带还解锁了 2.0 音色与 context_texts 语音指令。
+ *
+ * ★ resource id 决定**用哪代模型、也决定计费商品**，两代要在控制台各自开通：
+ *     seed-tts-2.0 → 只能调 2.0 音色（*_uranus_*）
+ *     seed-tts-1.0 → 只能调 1.0 音色（*_moon_* / *_mars_*）
+ *   本账号实测 1.0 **未开通**（45000030 requested resource not granted），2.0 可用。
+ *   所以音色清单（src/studio/voices.ts）只收 2.0。
  *
  * 没配密钥就 404，前端据此自动退回浏览器内置合成器（见 src/studio/speech.ts）。
  */
-const ttsPlugin = (appid: string, token: string) => ({
+const ttsPlugin = (apiKey: string) => ({
   name: "doubao-tts",
   configureServer(server: { middlewares: { use: (fn: unknown) => void } }) {
     server.middlewares.use(async (
@@ -53,7 +66,7 @@ const ttsPlugin = (appid: string, token: string) => ({
       next: () => void,
     ) => {
       if (req.url !== "/api/tts" || req.method !== "POST") return next();
-      if (!appid || !token) {
+      if (!apiKey) {
         res.statusCode = 404;
         return res.end("tts not configured");
       }
@@ -63,57 +76,82 @@ const ttsPlugin = (appid: string, token: string) => ({
           req.on("data", (c) => chunks.push(Buffer.from(c as Uint8Array)));
           req.on("end", () => ok());
         });
-        const { text, voice, speed, emotion } = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
+        const { text, voice, emotion, instruct } = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
           text: string;
           voice?: string;
-          speed?: number;
           emotion?: string;
+          /** 2.0 专属的"语音指令"：一句自然语言，如"你能用更冷静的语气说吗" */
+          instruct?: string;
         };
-        const up = await fetch("https://openspeech.bytedance.com/api/v1/tts", {
+        const speaker = voice || "zh_female_gaolengyujie_uranus_bigtts";
+        const is20 = /uranus/.test(speaker);
+        const up = await fetch("https://openspeech.bytedance.com/api/v3/tts/unidirectional/sse", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer;${token}` },
+          headers: {
+            "Content-Type": "application/json",
+            "X-Api-Key": apiKey,
+            "X-Api-Resource-Id": is20 ? "seed-tts-2.0" : "seed-tts-1.0",
+            "X-Api-Connect-Id": globalThis.crypto.randomUUID(),
+          },
           body: JSON.stringify({
-            // token 这一项官方原话是"无实际鉴权作用的 fake token"，真正的鉴权在 header
-            app: { appid, token: "x", cluster: "volcano_tts" },
             user: { uid: "ideahub" },
-            audio: {
-              voice_type: voice || "zh_female_shuangkuaisisi_emo_v2_mars_bigtts",
-              encoding: "mp3",
-              speed_ratio: speed ?? 1.0,
-              rate: 24000,
-              // 多情感音色要 enable_emotion=true 才认 emotion；普通音色收到这两个字段
-              // 会忽略，所以无脑带上即可（官方参数表 audio.emotion / enable_emotion）
-              ...(emotion ? { emotion, enable_emotion: true } : {}),
-            },
-            request: {
-              // reqid 每次必须是新的 UUID，复用会被判成重放
-              reqid: globalThis.crypto.randomUUID(),
+            req_params: {
               // 官方限制文本 ≤1024 字节（UTF-8），且建议 <300 字符
               text: String(text ?? "").slice(0, 300),
-              operation: "query", // HTTP 非流式只能 query
-              // ★ 合规：《AI 生成合成内容标识办法》（2025-09-01 施行）要求音频类
-              //   加显式标识。火山原生支持"在合成结尾增加音频节奏标识"，开着。
-              extra_param: JSON.stringify({ aigc_watermark: true }),
+              speaker,
+              audio_params: {
+                format: "mp3",
+                sample_rate: 24000,
+                // 不主动设 bit_rate 的话 mp3 会掉到 8k，音质损耗很明显（官方注解）
+                bit_rate: 64000,
+                ...(emotion ? { emotion, emotion_scale: 4 } : {}),
+              },
+              // ★ additions 的类型是 **jsonstring**（不是 object），传成对象会被整个忽略
+              additions: JSON.stringify({
+                // 《AI 生成合成内容标识办法》（2025-09-01 施行）要求音频类加显式标识；
+                // 火山原生支持"在合成结尾增加音频节奏标识"。上架硬性义务，不是可选项
+                aigc_watermark: true,
+                // 括号里的旁白（"（从口袋里抽出一叠卡）"）不该念出来
+                max_length_to_filter_parenthesis: 100,
+                ...(is20 && instruct ? { context_texts: [instruct] } : {}),
+              }),
             },
           }),
         });
-        const j = (await up.json()) as { code?: number; data?: string; message?: string };
-        if (!up.ok || j.code !== 3000 || !j.data) {
-          // 把最常见的三种失败翻译成人话——原始 message 全是英文且指向不明
+        const sse = await up.text();
+        const parts: Buffer[] = [];
+        let errCode = 0;
+        let errMsg = "";
+        for (const line of sse.split("\n")) {
+          if (!line.startsWith("data:")) continue;
+          let j: { code?: number; message?: string; data?: string };
+          try {
+            j = JSON.parse(line.slice(5).trim());
+          } catch {
+            continue;
+          }
+          if (j.code && j.code !== 0) {
+            errCode = j.code;
+            errMsg = j.message ?? "";
+          }
+          if (typeof j.data === "string" && j.data) parts.push(Buffer.from(j.data, "base64"));
+        }
+        if (!parts.length) {
+          // 把最常见的失败翻成人话——原始 message 全是英文且指向不明
           const hint =
-            j.code === 3050
-              ? "音色不存在：/api/tts 走的是 V1 接口，**不支持 2.0（uranus）音色**，换一个 1.0 音色"
-              : /quota exceeded/.test(j.message ?? "")
-                ? "试用额度用完了，去控制台开通正式版"
-                : /requested grant not found/.test(j.message ?? "")
-                  ? "鉴权失败：检查 .env.local 的 TTS_APPID / TTS_TOKEN"
+            errCode === 45000030
+              ? `资源未开通：控制台要单独开通${is20 ? "「豆包语音合成模型2.0」" : "「大模型语音合成」(1.0)"}`
+              : /quota/.test(errMsg)
+                ? "额度用完了，去控制台看试用/正式版用量"
+                : errCode === 45000001 || up.status === 401 || up.status === 403
+                  ? "鉴权失败：检查 .env.local 的 TTS_API_KEY"
                   : "";
           res.statusCode = 502;
-          return res.end(`tts ${up.status} code=${j.code ?? "?"} ${hint || j.message || ""}`.slice(0, 240));
+          return res.end(`tts ${up.status} code=${errCode || "?"} ${hint || errMsg}`.slice(0, 240));
         }
         res.setHeader("Content-Type", "audio/mpeg");
         res.setHeader("Cache-Control", "no-store");
-        res.end(Buffer.from(j.data, "base64"));
+        res.end(Buffer.concat(parts));
       } catch (e) {
         res.statusCode = 502;
         res.end(String(e).slice(0, 200));
@@ -160,15 +198,14 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const arkKey = env.ARK_API_KEY ?? "";
   // 豆包语音（openspeech）：与 ARK_API_KEY 是两套凭据，见 ttsPlugin 的注释
-  const ttsAppid = env.TTS_APPID ?? "";
-  const ttsToken = env.TTS_TOKEN ?? "";
+  const ttsKey = env.TTS_API_KEY ?? "";
   return {
-    plugins: [react(), arkFetchPlugin(), ttsPlugin(ttsAppid, ttsToken), cspPlugin()],
+    plugins: [react(), arkFetchPlugin(), ttsPlugin(ttsKey), cspPlugin()],
     define: {
       // 客户端只知道"有没有钥匙"，不知道钥匙本身
       __AI_REAL__: JSON.stringify(arkKey.length > 0),
       // 同理：客户端只知道"有没有云端嗓子"，不知道凭据本身
-      __TTS_REAL__: JSON.stringify(ttsAppid.length > 0 && ttsToken.length > 0),
+      __TTS_REAL__: JSON.stringify(ttsKey.length > 0),
     },
     build: {
       // 显式关闭 sourcemap：生产包不携带源码映射（默认虽同为 false，此处固化意图防误开）

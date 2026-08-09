@@ -226,14 +226,19 @@ async function speakCloud(text: string, sy: Syl[], me: number): Promise<boolean>
     const tick = () => {
       if (session !== me) return;
       analyser.getByteTimeDomainData(data);
-      // RMS：128 是静音中线，除以 128 归一化到 0~1；×3.2 是把说话的
-      // 典型 RMS（0.08~0.25）拉到可见幅度，再夹住
+      // RMS：128 是静音中线，除以 128 归一化到 0~1，再乘增益。
+      // ★ 增益 7.5 是**量出来的**，不是拍的：拿高冷御姐念一句 7.13 秒的台词，
+      //   离线 decodeAudioData 后按 1024 样本切窗算 RMS，剔掉静音窗后
+      //   p50=0.054 / p90=0.110 / p95=0.120 / max=0.141。
+      //   7.5 让 p90 落在 0.82、峰值刚好夹到 1.0——轻音节嘴微张、重音节张满。
+      //   之前那个 3.2 是照"典型 RMS 0.08~0.25"猜的，实测偏了一倍多，
+      //   结果 p90 只到 0.35，嘴几乎不动。换音色若明显偏响/偏轻再重量一次。
       let acc = 0;
       for (let i = 0; i < data.length; i++) {
         const v = (data[i] - 128) / 128;
         acc += v * v;
       }
-      SPEECH.level = Math.min(1, Math.sqrt(acc / data.length) * 3.2);
+      SPEECH.level = Math.min(1, Math.sqrt(acc / data.length) * 7.5);
       // 元音口型仍来自文本（音频里没有音素信息），但**时间轴是真的**
       const el = (performance.now() - t0) / 1000;
       let a = 0;
