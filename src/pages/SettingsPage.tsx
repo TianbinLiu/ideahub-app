@@ -244,6 +244,7 @@ function VoiceSection() {
           voice: v.id,
           mix: v.mix,
           rate: v.rate,
+          pitch: v.pitch,
           expressive: v.expressive,
           instruct,
         }),

@@ -36,6 +36,8 @@ export interface PresetVoice {
   mix?: Array<{ id: string; w: number }>;
   /** 语速。V3 的 speech_rate 是 [-50,100] 线性刻度：0=1.0 倍、-50=0.5 倍、100=2.0 倍 */
   rate?: number;
+  /** 音高。post_process.pitch 范围 [-12,12]，负值压低音域 = 更低沉 */
+  pitch?: number;
   /**
    * 支持"表现力增强版 + 语音标签"。只有 2.0 的 **ICL_** 那一档（角色扮演）有；
    * 通用场景的 *_uranus_bigtts 与全部 1.0/混音都没有。
@@ -125,13 +127,13 @@ export const VOICES: PresetVoice[] = [
   //   邪魅女王…），而不是"通用场景"那种按用途命名的播音腔。之前几轮我一直在
   //   「通用场景」里翻，找错了地方——是用户发来的一张第三方混音截图里出现了
   //   「病娇姐姐」才把我指到这儿的。
-  { name: "清冷高雅 2.0", id: "ICL_uranus_zh_female_qinglenggaoya_tob", expressive: true, why: "名字就是清冷，气质最贴铸卡师" },
-  { name: "成熟姐姐 2.0", id: "ICL_uranus_zh_female_chengshujiejie_tob", expressive: true, why: "年龄感更足，压得住场" },
-  { name: "成熟温柔 2.0", id: "ICL_uranus_zh_female_chengshuwenrou_tob", expressive: true, why: "成熟但不冷，留一点温度" },
-  { name: "理性圆子 2.0", id: "ICL_uranus_zh_female_lixingyuanzi_tob", expressive: true, why: "讲道理的口吻，最像手艺人" },
-  { name: "邪魅女王 2.0", id: "ICL_uranus_zh_female_xiemeinvwang_tob", expressive: true, why: "更强的气场，偏危险感" },
-  { name: "温柔女神 2.0", id: "ICL_uranus_zh_female_wenrounvshen_tob", expressive: true, why: "端庄柔和" },
-  { name: "病娇姐姐 2.0", id: "ICL_uranus_zh_female_bingjiaojiejie_tob", expressive: true, why: "低语感强，适合演绎「她知道你不知道的事」" },
+  { name: "清冷高雅 2.0", id: "ICL_uranus_zh_female_qinglenggaoya_tob", expressive: true, pitch: -6, rate: -20, why: "名字就是清冷，气质最贴铸卡师" },
+  { name: "成熟姐姐 2.0", id: "ICL_uranus_zh_female_chengshujiejie_tob", expressive: true, pitch: -6, rate: -20, why: "年龄感更足，压得住场" },
+  { name: "成熟温柔 2.0", id: "ICL_uranus_zh_female_chengshuwenrou_tob", expressive: true, pitch: -6, rate: -20, why: "成熟但不冷，留一点温度" },
+  { name: "理性圆子 2.0", id: "ICL_uranus_zh_female_lixingyuanzi_tob", expressive: true, pitch: -6, rate: -20, why: "讲道理的口吻，最像手艺人" },
+  { name: "邪魅女王 2.0", id: "ICL_uranus_zh_female_xiemeinvwang_tob", expressive: true, pitch: -6, rate: -20, why: "更强的气场，偏危险感" },
+  { name: "温柔女神 2.0", id: "ICL_uranus_zh_female_wenrounvshen_tob", expressive: true, pitch: -6, rate: -20, why: "端庄柔和" },
+  { name: "病娇姐姐 2.0", id: "ICL_uranus_zh_female_bingjiaojiejie_tob", expressive: true, pitch: -6, rate: -20, why: "低语感强，适合演绎「她知道你不知道的事」" },
 ];
 
 /**
@@ -160,7 +162,7 @@ export const DEFAULT_VOICE = VOICES[0].id;
  * 该字段不计费；只对 2.0 音色生效，1.0 音色收到会忽略。
  */
 export const DEFAULT_INSTRUCT =
-  "请用成熟、冷静、克制的语气说话，语速放慢一些，像一位手艺人在平静地陈述事实，不要活泼，不要上扬的尾音。";
+  "你的语气要没有情绪：平铺直叙，像在读一份清单，不做任何抑扬顿挫，句尾一律下沉不上扬，音色低沉、气息稳，不要亲切、不要热情、不要笑意。";
 
 const INSTRUCT_KEY = "ideahub-app.voiceInstruct";
 

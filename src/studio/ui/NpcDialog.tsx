@@ -74,6 +74,12 @@ export default function NpcDialog() {
           <div className="mb-0.5 flex items-center gap-1.5">
             <span className={`h-2 w-2 rounded-full ${busy ? "animate-pulse bg-amber-400" : "bg-emerald-400"}`} />
             <span className="text-[11px] font-semibold text-slate-300">铸卡师</span>
+            {/* ★ 合规：《AI 生成合成内容标识办法》第 4 条的**显式标识**。
+                火山原生的做法（aigc_watermark）是在每句话末尾加一串"滴滴"提示音，
+                NPC 对话里每说一句响一次，没法听。第 4 条同时允许"在交互场景界面
+                添加显著的提示标识"——所以改由这枚角标承担，音频里只留隐式元数据。
+                别为了清爽把它删了，这是上架硬性义务。 */}
+            <span className="rounded bg-slate-700/80 px-1 text-[9px] leading-4 text-slate-400">AI 合成语音</span>
             {voiceSupported() && (
               <button
                 onClick={() => {

@@ -76,7 +76,7 @@ const ttsPlugin = (apiKey: string) => ({
           req.on("data", (c) => chunks.push(Buffer.from(c as Uint8Array)));
           req.on("end", () => ok());
         });
-        const { text, voice, emotion, instruct, mix, rate, expressive } = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
+        const { text, voice, emotion, instruct, mix, rate, pitch, expressive } = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
           text: string;
           voice?: string;
           emotion?: string;
@@ -86,6 +86,8 @@ const ttsPlugin = (apiKey: string) => ({
           mix?: Array<{ id: string; w: number }>;
           /** speech_rate：[-50,100] 线性，0=1.0 倍 */
           rate?: number;
+          /** post_process.pitch：[-12,12]，负值压低音域 = 更低沉 */
+          pitch?: number;
           /**
            * 表现力增强版（2.0 的 ICL 音色才有）。**这是 <cot> 标签生效的前提**：
            * 不传它就走 seed-tts-2.0-standard，标签会被**当成正文念出来**——
@@ -133,9 +135,22 @@ const ttsPlugin = (apiKey: string) => ({
               },
               // ★ additions 的类型是 **jsonstring**（不是 object），传成对象会被整个忽略
               additions: JSON.stringify({
+                ...(pitch ? { post_process: { pitch } } : {}),
                 // 《AI 生成合成内容标识办法》（2025-09-01 施行）要求音频类加显式标识；
                 // 火山原生支持"在合成结尾增加音频节奏标识"。上架硬性义务，不是可选项
-                aigc_watermark: true,
+                // ★ 合规标识：**不用 aigc_watermark**。它的官方描述是"在合成结尾增加
+                //   音频节奏标识"——实测就是台词念完后那一串"滴滴"声（多出约 0.6 秒、
+                //   5KB），每说一句响一次，NPC 对话里完全没法听。
+                //   改走《AI 生成合成内容标识办法》允许的另一条路：
+                //     · 隐式标识 → aigc_metadata 写进音频文件头（第 5 条要求的）
+                //     · 显式标识 → 第 4 条允许"在交互场景界面添加显著的提示标识"
+                //       代替音频内的提示音，所以由对话气泡上的「AI 合成语音」角标承担
+                //   两条都占住了，既合规又不吵。
+                aigc_metadata: {
+                  enable: true,
+                  content_producer: "ideahub",
+                  produce_id: "npc-voice",
+                },
                 // 台词里可以直接写 <cot text=心理活动>这一句</cot>，描述不会被念出来，
                 // 只影响这一句的语速与情绪。官方限制：**单句连标签控制在 64 字以内**，
                 // 且"生效范围是单句"——长台词要拆句、每句各挂各的，一个标签罩不住全段

@@ -206,6 +206,7 @@ async function speakCloud(text: string, sy: Syl[], me: number): Promise<boolean>
         voice: ENV_VOICE || voice.id,
         mix: voice.mix,
         rate: voice.rate,
+        pitch: voice.pitch,
         expressive: voice.expressive,
         emotion: emotionFor(voice, SPEAK_MOOD.v, SPEAK_MOOD.until > Date.now()),
         instruct: currentInstruct(),
