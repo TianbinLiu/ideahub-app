@@ -8,6 +8,7 @@ import { addCards as saveCardsToAccount, myCards, myDecks, walletOf } from "../d
 import { DEFAULT_TIER, composeCost, fmtTokens } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { FlowNode, chosenOf, nodeVideo, useFlow } from "./flowStore";
+import { speak } from "./speech";
 import { getVideo, loadProject, partsOf } from "../data/videos";
 
 export interface DialogMsg {
@@ -357,12 +358,16 @@ export const useStudio = create<StudioState>()((set, get) => ({
   avatarPickerOpen: false,
   setAvatarPickerOpen: (open) => set({ avatarPickerOpen: open }),
 
-  npcSay: (text) =>
+  npcSay: (text) => {
+    // 先真出声。speak() 成功时口型由音频包络驱动（见 speech.ts / SPEECH），
+    // speakingUntil 只作兜底：浏览器没有合成器、用户关了声音、或者念到一半被打断时，
+    // 嘴仍然按字数估的时长动一动——总比一句话弹出来而人一动不动强。
+    speak(text);
     set((s) => ({
       dialog: { ...s.dialog, messages: [...s.dialog.messages, { id: uid("m"), from: "npc", text }] },
-      // NPC 开口：按文本长度估算说话时长，驱动 3D 口型
       speakingUntil: Date.now() + Math.min(6000, Math.max(1500, text.length * 110)),
-    })),
+    }));
+  },
   meSay: (text) =>
     set((s) => ({ dialog: { ...s.dialog, messages: [...s.dialog.messages, { id: uid("m"), from: "me", text }] } })),
   initGreet: () => {

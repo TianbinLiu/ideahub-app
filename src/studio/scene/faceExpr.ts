@@ -132,6 +132,13 @@ export class FaceDriver {
   private blinkAt = { next: 1.5, phase: 0, double: false };
   private viseme: Viseme = "sil";
   private visemeAt = 0;
+  /** 当前口型张幅 0~1。有真实语音时来自 speech.ts 的包络，否则恒 1（老的机械开合） */
+  private mouthLevel = 1;
+  /** 口型的平滑值**单独存**，不能混进 cur。cur 每帧被表情循环按"目标权重"拉向 0，
+   *  而口型不在表情表里 → 目标恒为 0；于是它每帧先被拽下来、再被 flush 推上去一点，
+   *  最后停在一个**随帧率变化**的平衡点上。实测（dt 大到让表情系数吃满时）只剩
+   *  0.262 = 0.75×0.35，60fps 下又是 0.64——同一句台词在不同机器上嘴张得不一样大。 */
+  private visCur = new Map<string, number>();
   /** 实际使用的眨眼键：recipe.blink 里第一个这个模型真有的。见 FaceRecipe.blink 的注释——
    *  多个候选名是备选而非相加，全写会把位移叠成两倍、眼睑冲过闭合位拉成白片。 */
   private blinkKey: string | null = null;
@@ -245,8 +252,10 @@ export class FaceDriver {
    * @param dt 帧间隔（秒）
    * @param t  连续时间（秒），眨眼/口型的相位源
    * @param speaking 正在说话 → 走 viseme 口型；否则闭嘴
+   * @param mouth 外部口型源（speech.ts 的实时包络）。给了就照着走；不给就退回
+   *        内置的伪随机节奏——没有语音能力的环境下嘴总得动，但那不是真口型。
    */
-  update(dt: number, t: number, speaking: boolean) {
+  update(dt: number, t: number, speaking: boolean, mouth?: { level: number; viseme: Viseme } | null) {
     const want = this.weightsFor(this.expr);
     // 表情切换要有过渡：瞬切在特写下像跳帧。0.18s 左右到位
     const k = Math.min(1, dt * 5.5);
@@ -280,7 +289,13 @@ export class FaceDriver {
     // 老实现是 mouthOpen 走一条 sin，观感是机械地开合。真实说话是元音在变，
     // 换 viseme 才有"在说话"的感觉；没有音素流所以用确定性哈希造节奏。
     const VOWELS: Viseme[] = ["aa", "ih", "ou", "e", "oh"];
-    if (speaking) {
+    if (mouth) {
+      // 真实语音在播：口型与张幅都跟着它。此时**不要**再跑伪随机节奏，
+      // 两者叠在一起就是嘴自己抖自己的，跟声音对不上反而比不动更假。
+      this.viseme = mouth.viseme;
+      this.mouthLevel = mouth.level;
+    } else if (speaking) {
+      this.mouthLevel = 1;
       if (t >= this.visemeAt) {
         const h = Math.abs(Math.sin(t * 78.233) * 43758.5453) % 1;
         this.viseme = VOWELS[Math.floor(h * VOWELS.length)];
@@ -288,14 +303,15 @@ export class FaceDriver {
       }
     } else {
       this.viseme = "sil";
+      this.mouthLevel = 1;
     }
 
     if (import.meta.env.DEV && this.forceBlink != null) blink = this.forceBlink;
 
-    this.flush(blink, speaking);
+    this.flush(blink, speaking || !!mouth, dt);
   }
 
-  private flush(blink: number, speaking: boolean) {
+  private flush(blink: number, speaking: boolean, dt: number) {
     // 先按表情权重写，再叠眨眼与口型——这两者是"盖在表情之上"的瞬时动作。
     // **动眼睑的表情键要为眨眼让开**（见 FaceRecipe.eyeShapes）：形键叠加，
     // 闭眼形状加起来超过 1 就会把眼睑推过闭合位、拉成一张白片。
@@ -310,15 +326,15 @@ export class FaceDriver {
       this.write(this.blinkKey, Math.max(base, blink));
     }
 
+    // 口型也要平滑：直接跳变会让嘴每 100ms 硬切一次形状。收敛按 dt 算（≈45ms 到位）——
+    // 固定系数会让张嘴幅度跟着帧率走，见 visCur 的注释
+    const vk = 1 - Math.exp(-dt * 22);
     for (const [v, name] of Object.entries(this.recipe.visemes)) {
       if (!name) continue;
-      const on = speaking ? (v === this.viseme ? 0.75 : 0) : v === "sil" ? 0 : 0;
-      // 口型也要平滑：直接跳变会让嘴每 100ms 硬切一次形状
-      const key = " vis:" + v; // 前缀避免与表情键重名
-      const from = this.cur.get(key) ?? 0;
-      const nv = from + (on - from) * 0.35;
-      if (nv < 1e-3 && on === 0) this.cur.delete(key);
-      else this.cur.set(key, nv);
+      const on = speaking && v === this.viseme ? 0.75 * this.mouthLevel : 0;
+      const from = this.visCur.get(v) ?? 0;
+      const nv = from + (on - from) * vk;
+      this.visCur.set(v, nv);
       this.write(name, nv);
     }
   }

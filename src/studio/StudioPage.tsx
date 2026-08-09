@@ -15,6 +15,7 @@ import { CardDetailModal } from "./ui/modals";
 import AvatarPicker from "./ui/AvatarPicker";
 import AvatarSwapButton from "./ui/AvatarSwapButton";
 import QualityPicker from "./ui/QualityPicker";
+import { cancelPendingStop, stopSpeakingSoon } from "./speech";
 
 // 入场加载过渡：盖住模型/贴图流式加载过程（不然首页跳转进来会看到模型逐个蹦出+卡顿）。
 // 进度来自 THREE.DefaultLoadingManager；资源全命中内存缓存时无事件——1.5s 静默兜底收起。
@@ -105,7 +106,13 @@ export default function StudioPage() {
   const [qualityOpen, setQualityOpen] = useState(false);
 
   useEffect(() => {
+    cancelPendingStop();
     initGreet();
+    // 离开工坊必须掐掉语音：SpeechSynthesis 是全局队列，路由切走了它照念不误，
+    // 用户会在首页听见铸卡师的声音从虚空里传来。
+    // 用 Soon 版而非直接 stop：StrictMode 会 mount→cleanup→mount，直接掐会让
+    // dev 下的开场白永远发不出声（见 speech.ts）
+    return stopSpeakingSoon;
   }, [initGreet]);
 
   // 进工坊时空卡组自动装入账号里的卡：收藏/收入的卡组此前只躺在创意工坊页，

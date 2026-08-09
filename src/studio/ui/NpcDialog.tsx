@@ -13,6 +13,7 @@ import { forgeCost, fmtTokens } from "../../data/economy";
 import { Card, CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType } from "../../types";
 import TarotCard from "../../components/TarotCard";
 import { NPC_SCREEN } from "../scene/cameraOrbit";
+import { setVoiceEnabled, stopSpeaking, voiceEnabled, voiceStatus, voiceSupported } from "../speech";
 
 export default function NpcDialog() {
   const messages = useStudio((s) => s.dialog.messages);
@@ -23,6 +24,8 @@ export default function NpcDialog() {
   const open = useStudio((s) => s.dialogView);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [forgeOpen, setForgeOpen] = useState(false);
+  // 声音开关存 localStorage（跨会话），这里只是把它镜像成可重渲的本地态
+  const [voice, setVoice] = useState(voiceEnabled);
 
   // 气泡跟随 NPC 头顶投影：rAF 直接写 DOM，不走 React 状态（零重渲 60fps 跟随）
   const anchorRef = useRef<HTMLDivElement>(null);
@@ -51,6 +54,8 @@ export default function NpcDialog() {
     const st = useStudio.getState();
     if (st.market.open) st.closeMarket();
     st.setDialogView(false);
+    // 关掉对话就把话掐了——不然离开工坊后台还在念上一句
+    stopSpeaking();
     st.setCamera({ kind: "default" });
     useStudio.setState({ orbit: null });
     setHistoryOpen(false);
@@ -71,7 +76,27 @@ export default function NpcDialog() {
           <div className="mb-0.5 flex items-center gap-1.5">
             <span className={`h-2 w-2 rounded-full ${busy ? "animate-pulse bg-amber-400" : "bg-emerald-400"}`} />
             <span className="text-[11px] font-semibold text-slate-300">铸卡师</span>
-            <button onClick={closeAll} className="ml-auto -m-1 p-1 text-xs text-slate-500 hover:text-white" aria-label="结束对话">
+            {voiceSupported() && (
+              <button
+                onClick={() => {
+                  const next = !voice;
+                  setVoiceEnabled(next);
+                  setVoice(next);
+                }}
+                className="ml-auto -m-1 p-1 text-xs text-slate-500 hover:text-white"
+                title={
+                  voiceStatus() === "no-voice"
+                    ? "系统没有中文语音包，暂时发不出声（嘴型仍会动）"
+                    : voice
+                      ? "关闭语音"
+                      : "开启语音"
+                }
+                aria-label={voice ? "关闭语音" : "开启语音"}
+              >
+                {voice && voiceStatus() === "ok" ? "🔊" : "🔇"}
+              </button>
+            )}
+            <button onClick={closeAll} className={`${voiceSupported() ? "" : "ml-auto "}-m-1 p-1 text-xs text-slate-500 hover:text-white`} aria-label="结束对话">
               ✕
             </button>
           </div>

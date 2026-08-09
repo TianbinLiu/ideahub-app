@@ -8,6 +8,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { useStudio } from "../studioStore";
 import { FaceDriver, TRIPO_FACE, moodExpression, type Expression, type FaceRecipe } from "./faceExpr";
+import { SPEECH } from "../speech";
 import { loaderFor } from "../secureAssets";
 import { SpringBoneSim, type SphereCollider, type SpringOverrides } from "./springBones";
 import { BreastPhysics, type PhysCollider } from "./breastPhysics";
@@ -603,20 +604,23 @@ export default function TripoNpc({
     // 表情：交给 FaceDriver（配方见 faceExpr.ts）。老实现只写 blink/mouthOpen/smile
     // 三个键、内联在这里，96 个形键用了 3 个；现在按场景语义选表情、驱动器负责翻译。
     {
-      const speaking = st.speakingUntil > Date.now();
+      // 真在出声就以音频为准（speech.ts 的实时包络），否则退回按字数估的时长——
+      // 浏览器没有语音能力/用户关了声音时，嘴仍然要动，只是对不上具体音节
+      const voicing = SPEECH.active;
+      const speaking = voicing || st.speakingUntil > Date.now();
       const fd = face.current;
       if (fd) {
         // 情绪脉冲优先（入组/出炉笑意拉满、素材不合格收敛），其次"正在说话"给点笑意，
         // 再不然回常态——rest 基线本身就带浅笑，不需要在这里再兜一次
         fd.setExpression(moodExpression(st.mood, st.moodUntil > Date.now()) ?? (speaking ? "smile" : "neutral"));
-        fd.update(dt, t, speaking);
+        fd.update(dt, t, speaking, voicing ? SPEECH : null);
       }
       // DEV：__forceExpr 直接钉住某个表情，__forceBlink 保留给闭眼幅度回归
       if (import.meta.env.DEV) {
         const fe = (window as unknown as Record<string, unknown>).__forceExpr as Expression | undefined;
         if (fe && fd) {
           fd.setExpression(fe);
-          fd.update(dt, t, speaking);
+          fd.update(dt, t, speaking, voicing ? SPEECH : null);
         }
       }
     }
