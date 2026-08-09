@@ -12,6 +12,27 @@ export function isNativeApp(): boolean {
   return !!w.Capacitor?.isNativePlatform?.();
 }
 
+/**
+ * MMD 刚体辅助骨模拟（Bullet/ammo.js）的总开关。**默认关**。
+ *
+ * 为什么要从画质档里拆出来：画质档量的是**贴图分辨率与下载体积**（1K/2K/4K，
+ * 三档面数相同），和"跑不跑得动一套刚体物理"是两个毫不相干的轴。以前用
+ * `getQuality() === "high"` 当刚体的开关，在"画质要用户手动选"的年代还算凑合
+ * ——没人会误开。改成按机型自动定档之后，任何一块像样的显卡都会落 high，
+ * 于是这条路径被**静默打开**，而它是坏的：NPC 的双马尾会横着飞出去、
+ * 领结从领口翘起来抽动（2026-08-09 用户报，A/B 复现：high 坏 / mid 好）。
+ *
+ * 在把刚体调稳之前，它只由这个显式开关控制，与画质彻底解绑。
+ * 调试：localStorage.setItem("ideahub-app.rigidBones","on") 后刷新。
+ */
+export function rigidBonesEnabled(): boolean {
+  try {
+    return localStorage.getItem("ideahub-app.rigidBones") === "on";
+  } catch {
+    return false; // 隐私模式下 localStorage 会抛
+  }
+}
+
 /** 用户到底有没有自己定过档。**不能拿 getQuality() === "mid" 当"没设过"**——
  *  那是缺省值，用户主动选了均衡也是 "mid"，两者必须分得开，否则每次进工坊
  *  都会把用户手动挑的档位当成"还没定"再自动改一遍。 */

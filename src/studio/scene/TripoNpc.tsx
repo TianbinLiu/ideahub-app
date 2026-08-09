@@ -14,7 +14,7 @@ import { SpringBoneSim, type SphereCollider, type SpringOverrides } from "./spri
 import { BreastPhysics, type PhysCollider } from "./breastPhysics";
 import { applyCameraFade } from "./cameraFade";
 import { RigidBoneSim, createRigidBoneSim } from "./rigidBones";
-import { getQuality } from "../quality";
+import { rigidBonesEnabled } from "../quality";
 import { NPC_CAM } from "./layout";
 import { NPC_HEAD, orbit } from "./cameraOrbit";
 import { gazeDelta, type GazeLimits } from "./gazeDelta";
@@ -425,14 +425,15 @@ export default function TripoNpc({
   }, [gltf, cfg]);
   const rigidSimRef = useRef<RigidBoneSim | null>(null);
   useEffect(() => {
-    if (getQuality() !== "high" || !cfg?.springs?.length) return;
+    // 与画质档解绑：刚体调稳之前只由显式开关控制，见 quality.rigidBonesEnabled 的注释
+    if (!rigidBonesEnabled() || !cfg?.springs?.length) return;
     let dead = false;
     createRigidBoneSim(gltf.scene, cfg.springs, springColliders)
       .then((sim) => {
         if (dead) return sim.dispose();
         rigidSimRef.current = sim;
         if (import.meta.env.DEV) {
-          console.log("[rigid] MMD 刚体已启用（极致档）");
+          console.log("[rigid] MMD 刚体已启用（localStorage 开关）");
           (window as unknown as Record<string, unknown>).__rigidSim = sim;
         }
       })
