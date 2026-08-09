@@ -10,7 +10,7 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
-import { useFlow } from "../studio/flowStore";
+import { flowDirty, useFlow } from "../studio/flowStore";
 
 interface Mode {
   key: string;
@@ -27,6 +27,8 @@ interface Mode {
   light?: boolean;
   cta: string;
   go: (nav: ReturnType<typeof useNavigate>) => void;
+  /** true = 这条路会调 seedSolo 整表覆盖工作流，进去前得先问在途进度怎么办 */
+  resets?: boolean;
 }
 
 const MODES: Mode[] = [
@@ -52,6 +54,7 @@ const MODES: Mode[] = [
     cover: "/create/workflow.jpg",
     skin: "border-cyan-400/45",
     cta: "开一条工作流",
+    resets: true,
     go: (nav) => {
       useFlow.getState().seedSolo("workflow");
       nav("/flow");
@@ -68,6 +71,7 @@ const MODES: Mode[] = [
     skin: "border-fuchsia-400/45",
     light: true,
     cta: "写一句话出片",
+    resets: true,
     go: (nav) => {
       useFlow.getState().seedSolo("simple");
       nav("/flow");
@@ -79,6 +83,11 @@ export default function CreatePage() {
   const navigate = useNavigate();
   const railRef = useRef<HTMLDivElement>(null);
   const [at, setAt] = useState(0);
+  // 在途工作流保护：seedSolo 是整表覆盖，直接进会静默抹掉已出片的段（每段真金白银 +
+  // 几分钟）与手敲的剧情，而且 origin 会从 "studio" 翻成 "solo"——工作流页的返回键
+  // 从此回 /create 而不是工坊，那棵节点树就再也走不回去了。
+  const [pending, setPending] = useState<Mode | null>(null);
+  const flowNodes = useFlow((s) => s.nodes);
 
   function scrollTo(i: number) {
     const rail = railRef.current;
@@ -155,7 +164,7 @@ export default function CreatePage() {
                     ))}
                   </ul>
                   <button
-                    onClick={() => m.go(navigate)}
+                    onClick={() => (m.resets && flowDirty(flowNodes) ? setPending(m) : m.go(navigate))}
                     className={`mt-4 w-full rounded-2xl py-3 text-sm font-bold transition active:scale-[0.98] ${
                       m.light ? "bg-ink text-white" : "bg-white/90 text-ink"
                     }`}
@@ -197,6 +206,43 @@ export default function CreatePage() {
           />
         ))}
       </div>
+
+      {pending && (
+        <div className="absolute inset-0 z-30 flex items-end justify-center bg-black/65 p-4" onClick={() => setPending(null)}>
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-700 bg-panel p-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-bold text-slate-100">已经有一条工作流在跑</h3>
+            <p className="mt-2 text-xs leading-relaxed text-slate-300">
+              {flowNodes.length} 段
+              {(() => {
+                const done = flowNodes.filter((n) => Object.keys(n.videoByProposal).length > 0).length;
+                return done > 0 ? <span className="text-emerald-300">，其中 {done} 段已出片</span> : null;
+              })()}
+              。开新的一条会把它丢掉，已出片的段要重新花 token 再炼一次。
+            </p>
+            <div className="mt-3.5 flex flex-col gap-2">
+              <button onClick={() => navigate("/flow")} className="rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
+                回去接着炼
+              </button>
+              <button
+                onClick={() => {
+                  const m = pending;
+                  setPending(null);
+                  m.go(navigate);
+                }}
+                className="rounded-xl border border-rose-500/40 bg-rose-500/10 py-2.5 text-sm font-semibold text-rose-300"
+              >
+                开一条新的{pending.title}（丢弃上面那条）
+              </button>
+              <button onClick={() => setPending(null)} className="rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200">
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

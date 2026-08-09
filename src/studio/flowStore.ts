@@ -38,6 +38,10 @@ export interface FlowNode {
   chain: boolean;
   /** 各走向各自的成片：换走向不丢已经炼好的那条 */
   videoByProposal: Record<string, string>;
+  /** 用户在工作流里亲手改过这一段的文案（updateProposal 置位）。
+   *  重铺前的脏检查靠它区分"工坊铺过来的原文"与"用户自己敲的字"——前者重铺即可复现，
+   *  后者补不回来。setSubject 走模板配方覆盖，不算用户逐字敲的，故不置位。 */
+  edited?: boolean;
   /** 只描述"当前正在发生什么"，出片与否看 videoByProposal（见 nodeDone） */
   status: "idle" | "generating" | "failed";
   error?: string;
@@ -89,6 +93,26 @@ export function newFlowNode(i: number, patch: Partial<FlowNode> = {}): FlowNode 
 /** 整条流水线还需要多少 token（当前走向已出片的段不再计费） */
 export function flowCost(nodes: FlowNode[]): number {
   return nodes.filter((n) => !nodeDone(n)).reduce((s, n) => s + segTokens(chosenOf(n).durationSec, n.videoTier), 0);
+}
+
+/** 这条流水线里有没有「重铺一次就白费」的东西。seed/seedSolo 都是整表覆盖，调用方
+ *  先问这个，为真就必须让用户确认——此前法阵按第二次会静默抹掉这些，且连页面都不跳。
+ *
+ *  ★ 判定刻意区分"这段内容是谁写的"：工坊铺过来的 plot 本来就出自节点树，重铺会原样
+ *    再来一遍，什么都没丢——按 plot 非空一刀切的话，「回工坊改个走向再点法阵」这条最
+ *    正常的路每次都要弹窗。所以只认真正补不回来的东西：已出片的段（真金白银 + 几分钟）、
+ *    圈选标注、正在炼的段，以及用户在工作流里**亲手改过**的节点（edited）。
+ *    solo 起手的节点没有节点树兜底，写了字就算数。 */
+export function flowDirty(nodes: FlowNode[] = useFlow.getState().nodes): boolean {
+  const solo = useFlow.getState().origin === "solo";
+  return nodes.some(
+    (n) =>
+      Object.keys(n.videoByProposal).length > 0 ||
+      n.anns.length > 0 ||
+      n.status === "generating" ||
+      n.edited ||
+      (solo && chosenOf(n).plot.trim().length > 0),
+  );
 }
 
 interface FlowState {
@@ -148,7 +172,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
   template: null,
   subject: "",
 
-  seed: (nodes, opts) => set({ nodes, cursor: 0, mode: opts.mode, origin: opts.origin, busy: false, err: "" }),
+  // ★ template/subject 必须一起清：工坊铺过来的是 workflow 模式的节点，而模板栏只在
+  //   simple 模式渲染。留着上一轮简约模式的模板，NodeScreen 会把剧情编辑框换成模板的
+  //   「一句话」输入框，且没有「不用」可点；在那里打字会走 setSubject，把工坊 AI 推演
+  //   出来的剧情/标题/时长按模板配方整个覆盖掉。（seedSolo 与 reset 本来就清了）
+  seed: (nodes, opts) =>
+    set({ nodes, cursor: 0, mode: opts.mode, origin: opts.origin, busy: false, err: "", template: null, subject: "" }),
   seedSolo: (mode) =>
     set({
       nodes: [newFlowNode(0, { chain: false })],
@@ -206,13 +235,22 @@ export const useFlow = create<FlowState>()((set, get) => ({
   updateNode: (nodeId, patch) => set((s) => ({ nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, ...patch } : n)) })),
 
   updateProposal: (nodeId, patch) =>
-    set((s) => ({
-      nodes: s.nodes.map((n) =>
-        n.id === nodeId
-          ? { ...n, proposals: n.proposals.map((p) => (p.id === n.chosenId ? { ...p, ...patch } : p)) }
-          : n,
-      ),
-    })),
+    set((s) => {
+      // 只有改到"用户写的东西"才置 edited：genNode 内部也用这个 action 回填首尾帧
+      // （patchProp），那属于生成产物，不该让一个失败的生成把节点标成"用户改过"
+      const authored = "title" in patch || "plot" in patch || "durationSec" in patch;
+      return {
+        nodes: s.nodes.map((n) =>
+          n.id === nodeId
+            ? {
+                ...n,
+                ...(authored ? { edited: true } : {}),
+                proposals: n.proposals.map((p) => (p.id === n.chosenId ? { ...p, ...patch } : p)),
+              }
+            : n,
+        ),
+      };
+    }),
 
   chooseProposal: (nodeId, proposalId) =>
     set((s) => ({ nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, chosenId: proposalId, anns: [] } : n)) })),

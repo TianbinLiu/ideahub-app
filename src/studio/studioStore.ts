@@ -7,7 +7,7 @@ import type { PlayerAvatar } from "./quality";
 import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, walletOf } from "../data/account";
 import { CHAT_TURN_TOKENS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, fmtTokens, proposalsCost } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
-import { FlowNode, chosenOf, nodeVideo, useFlow } from "./flowStore";
+import { FlowNode, chosenOf, flowDirty, nodeVideo, useFlow } from "./flowStore";
 import { SPEAK_MOOD, speak, stopSpeaking } from "./speech";
 import { CRISIS_LINE, HELP_LINE, NPC_SYSTEM, chatFailLine, chatWindow, deskBlock } from "./npcPersona";
 import { getVideo, loadProject, partsOf } from "../data/videos";
@@ -320,8 +320,13 @@ interface StudioState {
   chooseProposal: (nodeId: string, proposalId: string) => void;
 
   /** 点金色圆台：把活动路径铺成工作流（不立即出片），由 /flow 逐段生成逐段确认。
-   *  返回 false = 路径还没选完，不能开工 */
-  startFlow: () => boolean;
+   *  返回 false = 没开工（路径没选完，或在途工作流需要用户先确认，见 flowConfirm）。
+   *  force=true 由确认弹层调用，跳过脏检查。 */
+  startFlow: (opts?: { force?: boolean }) => boolean;
+  /** 非 null = 桌面上有在途工作流，法阵被按下但还没决定是「回去接着炼」还是「重铺」。
+   *  StudioPage 据此弹确认层——重铺会抹掉已出片的段（真金白银）、圈选标注与手敲的剧情。 */
+  flowConfirm: boolean;
+  setFlowConfirm: (v: boolean) => void;
   /** 工作流全部跑完 → 组稿：真帧回写节点树 + 提炼本片卡组 + 生成草稿（进剪辑页） */
   finalizeFromFlow: (nodes: FlowNode[], onProgress?: (status: string) => void) => Promise<boolean>;
   clearDraft: () => void;
@@ -994,9 +999,19 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set({ root: root ? { ...root } : root, projection: null, editor: null });
   },
 
-  startFlow: () => {
+  flowConfirm: false,
+  setFlowConfirm: (v) => set({ flowConfirm: v }),
+
+  startFlow: (opts) => {
     const { root } = get();
     if (!composable(root)) return false;
+    // ★ 在途工作流保护：seed() 是整表覆盖，直接铺会抹掉已出片的段（每段真金白银 +
+    //   几分钟）、圈选标注与手敲的剧情，而且 StudioPage 只在 0→N 时才跳转，所以第二次
+    //   按法阵在界面上等于"点了没反应"——钱和进度却已经没了。交给用户决定。
+    if (!opts?.force && flowDirty()) {
+      set({ flowConfirm: true });
+      return false;
+    }
     const path = activePath(root);
     const chosen = path.map((n) => chosenProposal(n)).filter((p): p is Proposal => !!p);
     // 整个节点卡（三种走向都带上）搬进工作流：工作流里的节点就是工坊的节点卡，
@@ -1015,6 +1030,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       anns: [],
     }));
     useFlow.getState().seed(nodes, { mode: "workflow", origin: "studio" });
+    set({ flowConfirm: false });
     // 整片预算只做知会不做拦截：工作流是一段一结账，钱不够也能先炼前几段
     const cost = composeCost(chosen.map((p, i) => ({ durationSec: p.durationSec, videoTier: nodes[i].videoTier })));
     const w = walletOf();
@@ -1046,9 +1062,19 @@ export const useStudio = create<StudioState>()((set, get) => ({
         if (orig) {
           orig.firstFrame = p.firstFrame;
           orig.lastFrame = p.lastFrame;
+          // ★ 文案与时长也必须回写，不能只回写帧：下面的 branchTree 是从**节点树**建的
+          //   （buildBranchTree 读 proposal.title/plot/durationSec），而 segments 用的是
+          //   工作流里改过的值。只回帧的话，同一支视频线性播放显示新文案、走分支显示旧
+          //   文案，观众看到两套说法。（orig 与 p 常常是同一个对象——startFlow 是按引用
+          //   把 proposals 递过去的——那时这几行是无害的自赋值；用户在工作流里改过之后
+          //   flowStore 的 updateProposal 会换新对象，这才真正需要搬回来）
+          orig.title = p.title;
+          orig.plot = p.plot;
+          orig.durationSec = p.durationSec;
           delete orig.degraded;
         }
         slot.chosenId = p.id;
+        slot.videoTier = n.videoTier;
         if (real) videoByProposal[p.id] = real;
       }
       return {

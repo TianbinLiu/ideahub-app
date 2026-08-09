@@ -13,6 +13,7 @@ import { canAfford, spendTokens } from "../data/account";
 import { ONE_IMAGE, fmtTokens } from "../data/economy";
 import TokenCost from "./TokenCost";
 import { VideoSegment, formatDuration } from "../types";
+import { useMediaUrl } from "../utils/mediaUrl";
 // （CoverSection 在下方定义，供发布页与作品编辑页共用同一套封面来源）
 
 /** 统一导出尺寸：16:9、720p 级别——够 Feed 卡片与详情页用，再大只是拖慢 localStorage */
@@ -106,11 +107,19 @@ export function FrameCaptureDialog({
   }, [at, segments]);
   const ease = frac * frac * (3 - 2 * frac);
 
-  // 真实视频段经同源代理播放；拖时间轴时同步 seek
-  const proxied = seg?.videoUrl ? `/api/asset?url=${encodeURIComponent(seg.videoUrl)}` : null;
+  // ★ 必须走 useMediaUrl 而不是自己拼 /api/asset：合并之后成片存在 IndexedDB 里，
+  //   段的 videoUrl 是 `idb:merged:<key>`，塞进只认 http 的代理会 400，<video> 报
+  //   onError，用户看到的是「链接可能已过期」——而链接根本没过期，是协议不对，于是
+  //   发布页的「从成片截帧」对**每一支合成好的作品**都必然失败。
+  //   useMediaUrl 认得 idb:（换 objectURL）与 http(s)（forCapture 时代理成同源 blob，
+  //   canvas 抽帧才不会被跨域污染）。
+  const hasVideo = !!seg?.videoUrl;
+  const mediaUrl = useMediaUrl(seg?.videoUrl, { forCapture: true });
+  // 解析完成前不要按"渐变段"处理：那会拿首尾帧合成一张假封面顶替真实画面
+  const resolving = hasVideo && !mediaUrl;
   useEffect(() => {
     const v = videoRef.current;
-    if (!v || !proxied) return;
+    if (!v || !mediaUrl) return;
     if (Math.abs(v.currentTime - local) > 0.08) {
       try {
         v.currentTime = Math.min(local, Number.isFinite(v.duration) ? v.duration : local);
@@ -118,7 +127,7 @@ export function FrameCaptureDialog({
         /* metadata 未就绪时 seek 抛错，onLoadedMetadata 后会再对齐 */
       }
     }
-  }, [local, proxied]);
+  }, [local, mediaUrl]);
 
   async function capture() {
     if (!seg || busy) return;
@@ -130,7 +139,8 @@ export function FrameCaptureDialog({
       canvas.height = OUT_H;
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("canvas 不可用");
-      if (proxied) {
+      if (hasVideo) {
+        if (!mediaUrl) throw new Error("成片还在载入，稍等一下再截");
         const v = videoRef.current;
         if (!v) throw new Error("视频未就绪");
         // seek 未完成就 drawImage 会画出旧帧/空帧：等 seeked（已对齐则立即通过）
@@ -170,11 +180,11 @@ export function FrameCaptureDialog({
   return (
     <Dialog title="从成片截取封面帧" onClose={onCancel}>
       <div className="overflow-hidden rounded-xl border border-slate-700 bg-black">
-        {proxied ? (
+        {mediaUrl ? (
           <video
-            key={proxied}
+            key={mediaUrl}
             ref={videoRef}
-            src={proxied}
+            src={mediaUrl}
             preload="auto"
             muted
             playsInline
@@ -185,9 +195,11 @@ export function FrameCaptureDialog({
                 /* 忽略 */
               }
             }}
-            onError={() => setErr("视频加载失败（链接可能已过期，重新合成可恢复）")}
+            onError={() => setErr("成片解码失败——换「本地上传」或下面各段的首尾帧")}
             className="aspect-video w-full object-cover"
           />
+        ) : resolving ? (
+          <div className="flex aspect-video w-full items-center justify-center text-xs text-slate-500">载入成片…</div>
         ) : (
           seg && (
             <div className="relative aspect-video w-full">
@@ -223,7 +235,7 @@ export function FrameCaptureDialog({
         </button>
         <button
           onClick={() => void capture()}
-          disabled={busy}
+          disabled={busy || resolving}
           className="flex-1 rounded-xl bg-brand py-2 text-sm font-bold text-ink disabled:opacity-50"
         >
           {busy ? "截取中…" : "用这一帧作封面"}
