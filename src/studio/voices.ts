@@ -49,7 +49,34 @@ export const VOICES: PresetVoice[] = [
   { name: "顾姐 2.0", id: "zh_female_gujie_uranus_bigtts", why: "更硬的姐系，压得住场" },
   { name: "魅力女友 2.0", id: "zh_female_meilinvyou_uranus_bigtts", why: "低音域，气声偏多" },
   { name: "TVB女声 2.0", id: "zh_female_tvbnv_uranus_bigtts", why: "港剧配音腔，端着的成熟感" },
+
+  // ── 角色扮演档（ICL_uranus_*_tob）──
+  // ★ 这一档才是二次元人设音色的正经产地：名字直接写着人设（清冷高雅/成熟姐姐/
+  //   邪魅女王…），而不是"通用场景"那种按用途命名的播音腔。之前几轮我一直在
+  //   「通用场景」里翻，找错了地方——是用户发来的一张第三方混音截图里出现了
+  //   「病娇姐姐」才把我指到这儿的。
+  { name: "清冷高雅 2.0", id: "ICL_uranus_zh_female_qinglenggaoya_tob", why: "名字就是清冷，气质最贴铸卡师" },
+  { name: "成熟姐姐 2.0", id: "ICL_uranus_zh_female_chengshujiejie_tob", why: "年龄感更足，压得住场" },
+  { name: "成熟温柔 2.0", id: "ICL_uranus_zh_female_chengshuwenrou_tob", why: "成熟但不冷，留一点温度" },
+  { name: "理性圆子 2.0", id: "ICL_uranus_zh_female_lixingyuanzi_tob", why: "讲道理的口吻，最像手艺人" },
+  { name: "邪魅女王 2.0", id: "ICL_uranus_zh_female_xiemeinvwang_tob", why: "更强的气场，偏危险感" },
+  { name: "温柔女神 2.0", id: "ICL_uranus_zh_female_wenrounvshen_tob", why: "端庄柔和" },
+  { name: "病娇姐姐 2.0", id: "ICL_uranus_zh_female_bingjiaojiejie_tob", why: "低语感强，适合演绎「她知道你不知道的事」" },
 ];
+
+/**
+ * 关于**混音**（把两三把嗓子按权重调和成一把新的）——2026-08-09 实测两条路都堵死：
+ *   · 拿 2.0 音色混 → 55000000 "resource ID is mismatched with speaker related resource"
+ *   · 拿 1.0 音色混 → 45000030 "requested resource not granted"（本账号 1.0 未开通）
+ * 官方参数表也写着 mix_speaker「仅适用于豆包语音合成模型1.0的音色」。
+ * 所以想用混音必须先在控制台开通「大模型语音合成」(1.0)，且只能混 1.0 音色
+ * ——2.0 这批（本文件里全部）一个都混不了。
+ *
+ * 真要混的话调用形态是：req_params.speaker = "custom_mix_bigtts"，
+ * 另给 req_params.mix_speaker.speakers = [{source_speaker, mix_factor}, …]，
+ * 最多 3 个，**mix_factor 之和必须等于 1**（第三方 UI 上的滑杆通常是自动归一化的，
+ * 照抄滑杆读数会报错）。
+ */
 
 export const DEFAULT_VOICE = VOICES[0].id;
 
