@@ -2,11 +2,11 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import TableScene from "./scene/TableScene";
 import { AI_REAL } from "../ai";
 import { myCards } from "../data/account";
-import { composable, placeholderVisible, useStudio } from "./studioStore";
+import { backLabelOf, composable, placeholderVisible, useStudio } from "./studioStore";
 import { useFlow } from "./flowStore";
 import { DEFAULT_CAM, SPREAD } from "./scene/layout";
 import NpcDialog from "./ui/NpcDialog";
@@ -14,8 +14,11 @@ import ProjectionWindow from "./ui/projection";
 import { CardDetailModal } from "./ui/modals";
 import AvatarPicker from "./ui/AvatarPicker";
 import AvatarSwapButton from "./ui/AvatarSwapButton";
-import QualityPicker from "./ui/QualityPicker";
 import { cancelPendingStop, stopSpeakingSoon } from "./speech";
+import { useStudioBack } from "./useStudioBack";
+import { autoQualityOnFirstVisit, QUALITY_LABELS, type Quality } from "./quality";
+import Icon from "../components/Icon";
+import { MARKET } from "./scene/layout";
 
 // 入场加载过渡：盖住模型/贴图流式加载过程（不然首页跳转进来会看到模型逐个蹦出+卡顿）。
 // 进度来自 THREE.DefaultLoadingManager；资源全命中内存缓存时无事件——1.5s 静默兜底收起。
@@ -95,6 +98,60 @@ function useHint(): string {
   return "点击节点卡可重新查看三种走向";
 }
 
+// ── 市场翻页箭头：屏幕两侧竖直居中，56px 热区（比卡组那对 36px 的大一圈，
+//    因为它在 3D 画布上、周围没有别的可点物，够大才不会误触到桌面）──
+function MarketArrow({ dir, disabled, side }: { dir: 1 | -1; disabled: boolean; side: "left" | "right" }) {
+  return (
+    <button
+      onClick={() => useStudio.getState().shiftMarket(dir)}
+      disabled={disabled}
+      aria-label={dir < 0 ? "上一页" : "下一页"}
+      className={`absolute top-[46%] z-10 flex h-14 w-14 items-center justify-center rounded-full bg-panel/75 text-2xl text-slate-200 backdrop-blur transition-opacity disabled:opacity-25 ${
+        side === "left" ? "left-2" : "right-2"
+      }`}
+    >
+      {dir < 0 ? "‹" : "›"}
+    </button>
+  );
+}
+
+/** 瞬时提示条。key 用 notice.at，同一句话连按两次也会重新播一遍动画 */
+function Toast({ notice }: { notice: { text: string; at: number } | null }) {
+  const [shown, setShown] = useState<{ text: string; at: number } | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    setShown(notice);
+    const t = setTimeout(() => setShown(null), 2400);
+    return () => clearTimeout(t);
+  }, [notice]);
+  if (!shown) return null;
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-24 z-40 flex justify-center px-6">
+      <div className="rounded-full bg-black/75 px-4 py-2 text-center text-xs text-slate-100 backdrop-blur">
+        {shown.text}
+      </div>
+    </div>
+  );
+}
+
+/** 自动定档只提示一次，且**不给"改一下"的按钮**——改画质在设置页，
+ *  这里再放一个入口就又回到"画质散落在两处"的老问题上了 */
+function AutoQualityHint({ q }: { q: Quality }) {
+  const [gone, setGone] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setGone(true), 4200);
+    return () => clearTimeout(t);
+  }, []);
+  if (gone) return null;
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-24 z-30 flex justify-center px-6">
+      <div className="rounded-full bg-black/70 px-3.5 py-1.5 text-center text-[11px] text-slate-300 backdrop-blur">
+        已按你的设备自动选择「{QUALITY_LABELS[q].name}」画质 · 可在「我的 → 设置」里改
+      </div>
+    </div>
+  );
+}
+
 export default function StudioPage() {
   const navigate = useNavigate();
   const editTarget = useStudio((s) => s.editTarget);
@@ -103,7 +160,17 @@ export default function StudioPage() {
   const deckLen = useStudio((s) => s.deck.length);
   const shiftSpread = useStudio((s) => s.shiftSpread);
   const hint = useHint();
-  const [qualityOpen, setQualityOpen] = useState(false);
+  const onBack = useStudioBack();
+  // 按钮文案随当前层级变——去掉对话气泡的 ✕ 之后，"按返回能退出什么"全靠它说
+  const backLabel = useStudio(backLabelOf);
+  const notice = useStudio((s) => s.notice);
+  const marketOpen = useStudio((s) => s.market.open);
+  const marketLen = useStudio((s) => s.market.items.length);
+  const marketPage = useStudio((s) => s.market.page);
+
+  // 首次进工坊按机型定档。用 useState 初始化器而不是 useEffect：模型 URL 在首帧
+  // 渲染时就按 getQuality() 取好了，放进 effect 就晚了一帧、这次进入还是旧档
+  const [autoQ] = useState(autoQualityOnFirstVisit);
 
   useEffect(() => {
     cancelPendingStop();
@@ -143,15 +210,22 @@ export default function StudioPage() {
         <TableScene />
       </Canvas>
 
-      {/* 顶栏（竖屏紧凑） */}
-      <div className="safe-top pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between p-3">
-        <Link
-          to="/"
-          className="pointer-events-auto rounded-full bg-panel/80 px-3 py-1.5 text-xs text-slate-300 backdrop-blur"
+      {/* 顶栏。返回按钮是**层层退出**的唯一入口：有浮层先关浮层、在对话里先退对话、
+          在卡组视角先退卡组，都没有了才回首页（见 studioStore.backStepOf）。
+          热区 48px：原来的「← 首页」是 px-3 py-1.5 的小胶囊（约 24px 高），
+          手机上够不着；44px 是移动端热区下限，这里给到 48。
+          ⚠ safe-top 写在 @tailwind utilities 之后，同特异性下会**覆盖** p-3 的
+          padding-top——所以竖排间距靠 pt-* 单独给，别指望 p-3 */}
+      <div className="safe-top pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between px-3 pb-3 pt-3">
+        <button
+          onClick={onBack}
+          className="pointer-events-auto flex h-12 items-center gap-1 rounded-full bg-panel/85 pl-2.5 pr-4 text-slate-200 backdrop-blur active:bg-panel"
+          aria-label={backLabel}
         >
-          ← 首页
-        </Link>
-        <div className="pointer-events-auto flex items-center gap-2">
+          <Icon name="back" size={20} />
+          <span className="text-xs">{backLabel}</span>
+        </button>
+        <div className="pointer-events-auto flex items-center gap-2 pt-2">
           {/* 只在演示模式亮牌。「● 真实 AI」是常态，天天挂在那儿只是噪音；
               而没配 Key 时全程 mock——用户以为在测 Seedance、产物却全是本地占位，
               这一条必须留着。标题栏的「🎴 卡片工坊」也去掉了：画面本身就是工坊 */}
@@ -163,19 +237,12 @@ export default function StudioPage() {
               ○ 演示模式
             </div>
           )}
-          <button
-            onClick={() => setQualityOpen(true)}
-            className="rounded-full bg-panel/80 px-3 py-1.5 text-xs text-slate-300 backdrop-blur"
-            title="画面质量"
-          >
-            ⚙️ 画质
-          </button>
         </div>
       </div>
 
       {/* 回炉编辑横幅：不亮出来的话，用户忘了自己在编辑模式，合成时会疑惑为什么没有新作品 */}
       {editTarget && (
-        <div className="safe-top pointer-events-none absolute inset-x-0 top-14 flex justify-center px-4">
+        <div className="safe-top pointer-events-none absolute inset-x-0 top-[4.5rem] flex justify-center px-4">
           <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-500/15 px-3.5 py-1.5 text-xs text-amber-200 backdrop-blur">
             <span className="truncate">🛠 正在编辑《{editTarget.videoTitle}》· {editTarget.partName}——生成后保存到该作品</span>
             <button
@@ -192,6 +259,24 @@ export default function StudioPage() {
       <div className="pointer-events-none absolute inset-x-0 bottom-16 flex justify-center px-4">
         <div className="rounded-full bg-panel/75 px-4 py-1.5 text-center text-xs text-slate-300 backdrop-blur">{hint}</div>
       </div>
+
+      {/* 市场翻页箭头：市场种子有 19 张，一页摆 6 张 → 4 页。放在屏幕两侧竖直居中，
+          与卡组展开排那对箭头（左下角）错开位置，不会打架 */}
+      {marketOpen && marketLen > MARKET.perPage && (
+        <>
+          <MarketArrow dir={-1} disabled={marketPage === 0} side="left" />
+          <MarketArrow dir={1} disabled={(marketPage + 1) * MARKET.perPage >= marketLen} side="right" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-28 flex justify-center">
+            <span className="rounded-full bg-black/45 px-2.5 py-0.5 text-[11px] text-slate-300 backdrop-blur">
+              {marketPage + 1} / {Math.ceil(marketLen / MARKET.perPage)}
+            </span>
+          </div>
+        </>
+      )}
+
+      {/* 返回被拒绝之类的瞬时提示（投影窗盖着时铸卡师说话用户看不见，只能走这里） */}
+      <Toast notice={notice} />
+      {autoQ && <AutoQualityHint q={autoQ} />}
 
       {/* 卡组展开翻页箭头 */}
       {spreadOpen && deckLen > SPREAD.maxVisible && (
@@ -216,7 +301,6 @@ export default function StudioPage() {
       <CardDetailModal />
       <AvatarPicker />
       <AvatarSwapButton />
-      <QualityPicker open={qualityOpen} onClose={() => setQualityOpen(false)} />
       <StudioLoader />
     </div>
   );

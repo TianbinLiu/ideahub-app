@@ -2,13 +2,13 @@
 import { create } from "zustand";
 import { BranchNodeData, BranchTree, Card, CardType, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateProposals, refineFrame, searchMarket } from "../ai";
-import { DECK_CAM, NPC_CAM } from "./scene/layout";
+import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { addCards as saveCardsToAccount, myCards, myDecks, walletOf } from "../data/account";
 import { DEFAULT_TIER, composeCost, fmtTokens } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { FlowNode, chosenOf, nodeVideo, useFlow } from "./flowStore";
-import { speak } from "./speech";
+import { speak, stopSpeaking } from "./speech";
 import { getVideo, loadProject, partsOf } from "../data/videos";
 
 export interface DialogMsg {
@@ -186,7 +186,7 @@ interface StudioState {
   deck: Card[];
   spreadOpen: boolean;
   spreadCenter: number;
-  market: { open: boolean; items: Card[]; query: string; loading: boolean };
+  market: { open: boolean; items: Card[]; query: string; loading: boolean; page: number };
   marketDetail: Card | null;
   dialog: { messages: DialogMsg[]; busy: boolean };
   pendingFiles: MaterialFile[];
@@ -242,6 +242,8 @@ interface StudioState {
 
   openMarket: () => Promise<void>;
   marketSearch: (q: string) => Promise<void>;
+  /** 市场翻页（照卡组展开排的 shiftSpread 那套；d=±1）。夹在合法页内，不循环 */
+  shiftMarket: (d: number) => void;
   closeMarket: () => void;
   viewMarketCard: (card: Card, camPos: [number, number, number], look: [number, number, number]) => void;
   closeMarketDetail: () => void;
@@ -304,6 +306,16 @@ interface StudioState {
   startNewPart: (videoId: string) => boolean;
   /** 退出编辑模式（不动作品本身；桌面清空回到全新创作） */
   exitEdit: () => void;
+
+  // ── 返回栈 ────────────────────────────────────────────────
+  /** 返回被拒绝之类的瞬时提示。★ 不用 npcSay：投影窗打开时 NpcDialog 整个
+   *  `if (projection) return null`，铸卡师说了用户根本看不见。
+   *  带 at 时间戳是为了让"同一句话连按两次"也能重新触发定时器（对象引用变了）。 */
+  notice: { text: string; at: number } | null;
+  /** 退出对话模式：掐语音 + 回第一人称眼位 + 解轨道。原来散在 NpcDialog.closeAll() 里 */
+  exitDialog: () => void;
+  /** 返回按钮/安卓返回键的唯一决策点。true = 这次返回已被工坊消费，调用方别再退路由 */
+  goBack: () => boolean;
 }
 
 const DEFAULT_EDITOR: EditorState = {
@@ -322,13 +334,74 @@ let marketSeq = 0;
 // 节点生成的全局并发闸：取消编辑器再重开也不允许并发两炉
 let nodeGenInFlight = false;
 
+/**
+ * 返回栈的层级。**这是返回优先级的唯一定义**——goBack() 与顶栏按钮文案都读它，
+ * 两边不会慢慢走偏。
+ *
+ * 排序依据不是"最近打开的先关"（store 里没有打开时序，也不该为此新增），而是两条
+ * 可判定的客观依据：
+ *   A 视觉遮挡——谁盖在谁上面就先关谁。工坊 z 层是既定的：
+ *     canvas 0 < NPC 气泡 10 < 投影窗 20 < 记录窗/素材窗/换形象 30 < 形象选择 40
+ *   B 打开路径的包含关系——市场只能从对话里开、卡片详情只能从市场里开，那就先关里层
+ *
+ * 推翻过两级，写下来免得有人再加回去：
+ *   · eyeRise（双指升空俯瞰）不进栈：它是 scene/cameraOrbit 的模块级单例、非响应式，
+ *     顶栏拿不到它做文案；而且同一个捏合手势就能降回来。塞进来会出现"屏幕上什么
+ *     浮层都没有、按返回却像没反应"。它已随 camera.kind==="default" 自动复位。
+ *   · editTarget（回炉编辑横幅）不进栈：那是**任务上下文**不是**视觉层**，横幅上
+ *     自带「退出」。用户按返回是想离开工坊，不是想放弃编辑目标。
+ */
+export type BackStep =
+  | "avatar"
+  | "cardDetail"
+  | "projectionBusy"
+  | "projection"
+  | "market"
+  | "dialog"
+  | "deck"
+  | "focus"
+  | "spread"
+  | "home";
+
+export function backStepOf(s: StudioState): BackStep {
+  if (s.avatarPickerOpen) return "avatar";
+  if (s.marketDetail) return "cardDetail";
+  if (s.projection) return s.projection === "editor" && s.editor?.generating ? "projectionBusy" : "projection";
+  if (s.market.open) return "market";
+  if (s.dialogView) return "dialog";
+  if (s.deckView) return "deck";
+  if (s.focus || s.camera.kind !== "default") return "focus";
+  if (s.spreadOpen) return "spread";
+  return "home";
+}
+
+/** 返回按钮上的文案：**按钮自己说出它会做什么**。去掉对话气泡的 ✕ 之后，
+ *  这是"按返回可以退出对话"最主要的可发现性来源。 */
+export function backLabelOf(s: StudioState): string {
+  const step = backStepOf(s);
+  if (step === "projectionBusy") return "推演中";
+  if (step === "projection")
+    return s.projection === "decks" ? "退出卡组" : s.projection === "editor" ? "取消铸段" : "收起方案";
+  const map: Record<Exclude<BackStep, "projection" | "projectionBusy">, string> = {
+    avatar: "返回",
+    cardDetail: "返回",
+    market: "收起市场",
+    dialog: "退出对话",
+    deck: "退出卡组",
+    focus: "拉远视角",
+    spread: "收起卡组",
+    home: "首页",
+  };
+  return map[step as Exclude<BackStep, "projection" | "projectionBusy">] ?? "返回";
+}
+
 export const useStudio = create<StudioState>()((set, get) => ({
   deck: [],
   spreadOpen: false,
   deckView: false,
   orbit: null,
   spreadCenter: 0,
-  market: { open: false, items: [], query: "", loading: false },
+  market: { open: false, items: [], query: "", loading: false, page: 0 },
   marketDetail: null,
   dialog: { messages: [], busy: false },
   pendingFiles: [],
@@ -383,7 +456,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const seq = ++marketSeq;
     // 摊开的卡平放在桌面：对话平视角下不可读，统一切回俯视机位
     set((s) => ({
-      market: { ...s.market, open: true, loading: true, query: "" },
+      market: { ...s.market, open: true, loading: true, query: "", page: 0 },
       camera: { kind: "default" },
     }));
     get().npcSay("稍等——（从口袋里抽出一叠卡，在桌上哗地摊开）这些是最近社区里最抢手的。想找特定的，直接在下面输入关键词。");
@@ -393,12 +466,18 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
   marketSearch: async (q) => {
     const seq = ++marketSeq;
-    set((s) => ({ market: { ...s.market, loading: true, query: q } }));
+    set((s) => ({ market: { ...s.market, loading: true, query: q, page: 0 } })); // 换了词就回第一页
     const items = await searchMarket(q);
     if (seq !== marketSeq) return; // 过期响应
     set((s) => ({ market: { ...s.market, items, loading: false } }));
     get().npcSay(q ? `按「${q}」翻出了 ${items.length} 张，都给你摊开了。` : `这是当下最热的 ${items.length} 张。`);
   },
+  shiftMarket: (d) =>
+    set((s) => {
+      const last = Math.max(0, Math.ceil(s.market.items.length / MARKET.perPage) - 1);
+      return { market: { ...s.market, page: Math.min(last, Math.max(0, s.market.page + d)) } };
+    }),
+
   closeMarket: () =>
     set((s) => ({
       market: { ...s.market, open: false },
@@ -960,6 +1039,54 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
   exitEdit: () =>
     set({ editTarget: null, root: null, draft: null, focus: null, projection: null, editor: null }),
+
+  notice: null,
+
+  exitDialog: () => {
+    // 关掉对话就把话掐了——不然离开工坊后台还在念上一句（原在 NpcDialog.closeAll）
+    stopSpeaking();
+    set({ dialogView: false, camera: { kind: "default" }, orbit: null });
+  },
+
+  goBack: () => {
+    switch (backStepOf(get())) {
+      case "avatar":
+        set({ avatarPickerOpen: false });
+        return true;
+      case "cardDetail":
+        get().closeMarketDetail();
+        return true;
+      case "projectionBusy":
+        // 消费掉但不关：这一炉真烧 token，退出等于把用户丢给一个看不见进度的后台任务。
+        // 与投影窗里 ✕/取消 的 disabled={editor.generating} 是同一条规则
+        set({ notice: { text: "这一炉还在推演，等它出炉再退出", at: Date.now() } });
+        return true;
+      case "projection":
+      case "deck":
+        // ★ 一律走 closeProjection：离开卡组要同时做三件事——deckView=false（否则
+        //   TableScene 的 deckAnim/deckCamArrived 悬着、换形象按钮不撤）、camera 换成
+        //   **新的** {kind:"default"} 对象（CameraRig 用引用相等判断是否交还运镜控制权
+        //   并 resetEyeRise，复用同一个常量对象会让它永远不触发）、orbit=null（否则
+        //   TableCatcher 的 mode() 仍返回 "orbit"，第一人称下拖拽会绕一个已经不存在的
+        //   圆心转）。这三件已经在 closeProjection 里配好了，别在这里重写。
+        get().closeProjection();
+        return true;
+      case "market":
+        get().closeMarket();
+        return true;
+      case "dialog":
+        get().exitDialog();
+        return true;
+      case "focus":
+        get().unfocus();
+        return true;
+      case "spread":
+        set({ spreadOpen: false });
+        return true;
+      case "home":
+        return false;
+    }
+  },
 }));
 
 // DEV 调试/E2E 挂钩：让自动化脚本能拿到与组件同实例的 store

@@ -51,7 +51,9 @@ export default function ProfilePage() {
       <div className="relative px-4 pt-3">
         <Link
           to="/settings"
-          className="absolute right-4 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-panel text-lg"
+          /* 44px 是移动端热区下限，原来的 h-9 w-9（36px）在手机上要点两三次才中 */
+          className="absolute right-4 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-panel text-lg"
+          aria-label="设置"
         >
           <Icon name="settings" size={20} />
         </Link>

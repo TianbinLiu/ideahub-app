@@ -55,7 +55,9 @@ export async function searchMarket(query: string): Promise<Card[]> {
   const list = q
     ? all.filter((c) => c.name.includes(q) || c.summary.includes(q) || (c.tags ?? []).some((t) => t.includes(q)))
     : all;
-  return [...list].sort((a, b) => (b.hot ?? 0) - (a.hot ?? 0)).slice(0, 8);
+  // 不再 slice(0, 8)：8 是"一屏摆得下几张"的旧口径，把另外 10 张种子卡直接扔了。
+  // 现在桌面分页展示（见 layout.MARKET.perPage），取全量交给 UI 翻页。
+  return [...list].sort((a, b) => (b.hot ?? 0) - (a.hot ?? 0));
 }
 
 // ── 素材 → 卡片 ───────────────────────────────────────────────

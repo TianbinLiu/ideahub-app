@@ -48,7 +48,34 @@ export const DECK_POS: [number, number, number] = [-1.5, 0, 2.75];
 export const SPREAD = { z: 2.75, dx: 1.05, maxVisible: 3, centerX: 0.2 };
 
 /** 市场平摊（NPC 侧，两排各 4 张，扑克式轻微重叠） */
-export const MARKET = { rowsZ: [-1.0, -2.35], perRow: 4, dx: 0.95, lift: 0.02 };
+/**
+ * 市场平摊：**先量后定**。旧值 perRow:4 / dx:0.95 / 原尺寸卡在竖屏 375×812 下
+ * 一排四张根本放不下——把四角投到屏幕坐标算出来：前排一张卡就占 52.4% 屏宽，
+ * 四张连间距要 2.2 个屏宽，结果 8 张里有 4 张被切，最外侧那两张各只剩三成在屏内
+ * （左起第一张的屏幕 x 范围是 -0.441~0.189）。
+ *
+ * 改成一排三张 + 卡缩到 0.55：卡宽 1.1×0.55=0.605 世界单位，前排换算 28.8% 屏宽
+ * （≈108px，还点得动也看得清封面）；三张连间距横跨 2×0.66+0.605=1.93 世界单位
+ * ≈92% 屏宽，两侧各留 4% 边。后排因为更远，一张约 84px。
+ *
+ * 每页 6 张（2 排 × 3 列），多出来的靠左右箭头翻页——市场种子就有 18 张，
+ * 旧代码在 searchMarket 里 slice(0,8) 把另外 10 张直接扔了。
+ */
+export const MARKET = { rowsZ: [-1.05, -2.2], perRow: 3, dx: 0.66, lift: 0.02, scale: 0.55, perPage: 6 };
+
+/** 市场卡在桌上的位置。**本页内的下标**（0 ~ perPage-1），不是全局下标。
+ *  抽出来是因为这段算式原本有两份：TableScene 的 MarketFan 摆卡、modals 的详情单
+ *  算飞卡起点。分页之后两边一个用页内下标、一个用全局下标就会当场错位——
+ *  第二页点任何一张卡，卡都从第一页那个位置飞出来。 */
+export function marketSlot(i: number, countOnPage: number): { x: number; z: number } {
+  const row = Math.floor(i / MARKET.perRow);
+  const col = i % MARKET.perRow;
+  const rowCount = Math.min(MARKET.perRow, countOnPage - row * MARKET.perRow);
+  return {
+    x: (col - (rowCount - 1) / 2) * MARKET.dx,
+    z: MARKET.rowsZ[Math.min(row, MARKET.rowsZ.length - 1)],
+  };
+}
 
 /** 溢出节点的左侧收起堆（贴左缘露半张=「收起」） */
 export const LEFT_STACK: [number, number, number] = [-1.85, 0, 0.95];

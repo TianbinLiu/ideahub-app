@@ -12,11 +12,92 @@ export function isNativeApp(): boolean {
   return !!w.Capacitor?.isNativePlatform?.();
 }
 
+/** 用户到底有没有自己定过档。**不能拿 getQuality() === "mid" 当"没设过"**——
+ *  那是缺省值，用户主动选了均衡也是 "mid"，两者必须分得开，否则每次进工坊
+ *  都会把用户手动挑的档位当成"还没定"再自动改一遍。 */
+export function qualityChosen(): boolean {
+  const v = localStorage.getItem(KEY);
+  return v === "low" || v === "mid" || v === "high";
+}
+
 export function getQuality(): Quality {
   const v = localStorage.getItem(KEY);
   const q: Quality = v === "low" || v === "high" ? v : "mid";
   // App 包体不含极致档大文件（出包时裁剪），原生端封顶到均衡
   return q === "high" && isNativeApp() ? "mid" : q;
+}
+
+// ── 首次进工坊：按机型自动定档 ────────────────────────────────
+//
+// 为什么要自动定档：三档的差别全在贴图分辨率（4K / 2K / 1K，13.6 / 7.6 / 4.0MB），
+// 差的是**显存和首屏下载**，不是帧率。低端机拿到 4K 贴图的表现是"加载半天然后
+// 上下文丢失、画面白掉"，而用户根本不知道有画质这回事——默认给 mid 对红米是灾难、
+// 对旗舰又是白白牺牲。所以第一次进来先猜一次，之后用户在设置里改了就永远听用户的。
+//
+// 判据按**可靠性**排序，命中即止：
+//   1. GPU 型号（WebGL UNMASKED_RENDERER_WEBGL）——最准，直接对应显存带宽
+//   2. deviceMemory ——安卓 Chrome 都有，iOS Safari 恒为 undefined
+//   3. hardwareConcurrency ——最后的粗筛，只能分出"极弱"
+// 全都问不出来就落 mid（现有默认），宁可保守。
+
+/** 取 GPU 名称。隐私模式/新版浏览器可能打码或直接不给扩展，返回 "" */
+function gpuName(): string {
+  try {
+    const c = document.createElement("canvas");
+    const gl = (c.getContext("webgl2") ?? c.getContext("webgl")) as WebGLRenderingContext | null;
+    if (!gl) return "";
+    const ext = gl.getExtension("WEBGL_debug_renderer_info");
+    const n = ext ? (gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) as string) : "";
+    // 用完即毁：留着一个额外的 WebGL 上下文，安卓上很容易顶掉主画布的那个
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
+    return (n || "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+/** 按机型猜一个档位。纯函数式判断，可在 DEV 控制台直接调用核对 */
+export function detectQuality(): { q: Quality; why: string } {
+  const g = gpuName();
+  if (g) {
+    // 桌面独显先判：web 版也会在电脑上跑，而 RTX/RX/Arc 这类卡走到下面的
+    // 移动 GPU 名单里一个都不命中，会白白落回 mid。实测本机 renderer 串是
+    // "ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 Laptop GPU (0x000028E0) Direct3D11…)"
+    if (/geforce|radeon (rx|pro)|intel\(r\) arc|quadro|apple m\d/.test(g)) return { q: "high", why: `GPU=${g}` };
+    // Adreno 7xx/8xx、Mali-G7xx/G8xx（Immortalis）、Apple A15 以后：吃得下 4K
+    if (/adreno \(tm\) (7|8)\d\d|adreno (7|8)\d\d|immortalis|mali-g7\d\d|mali-g8\d\d|apple a1[5-9]/.test(g))
+      return { q: "high", why: `GPU=${g}` };
+    // Adreno 5xx 及以下、Mali-G5x/T 系列、PowerVR：1K 贴图都嫌吃力
+    if (/adreno \(tm\) [1-5]\d\d|adreno [1-5]\d\d|mali-t\d|mali-g5|mali-g3|powervr|swiftshader|llvmpipe/.test(g))
+      return { q: "low", why: `GPU=${g}` };
+    return { q: "mid", why: `GPU=${g}（未在名单内）` };
+  }
+  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  if (typeof mem === "number") {
+    if (mem >= 8) return { q: "high", why: `deviceMemory=${mem}GB` };
+    if (mem <= 3) return { q: "low", why: `deviceMemory=${mem}GB` };
+    return { q: "mid", why: `deviceMemory=${mem}GB` };
+  }
+  const cores = navigator.hardwareConcurrency;
+  // 只用来抓"极弱"：核心数和 GPU 能力相关性很弱，多核低端机比比皆是，
+  // 所以这一层**只往下调**，不敢往上调
+  if (typeof cores === "number" && cores <= 4) return { q: "low", why: `hardwareConcurrency=${cores}` };
+  return { q: "mid", why: "问不出机型，落保守默认" };
+}
+
+/**
+ * 首次进工坊时定档。**只在用户从没设过的时候动手**，设过就一个字不改。
+ * 返回自动选中的档位（已经设过则返回 null，调用方据此决定要不要提示）。
+ * 注意不走 setQuality()——那个函数会 location.reload()，而这里是在工坊挂载时
+ * 调用的，重载一次等于把刚进来的用户又踢回加载页。写进 localStorage 就够了：
+ * 模型 URL 是在渲染时按 getQuality() 现取的，本次进入就已经是新档位。
+ */
+export function autoQualityOnFirstVisit(): Quality | null {
+  if (qualityChosen()) return null;
+  const { q, why } = detectQuality();
+  localStorage.setItem(KEY, q);
+  console.info(`[quality] 首次进工坊自动定档 ${q}（${why}）`);
+  return q;
 }
 
 export function setQuality(q: Quality) {

@@ -7,7 +7,7 @@ import Avatar from "../components/Avatar";
 import { fileToSquareImage } from "../utils/image";
 import { useCurrentUser } from "../hooks/useAccount";
 import { storageEstimate } from "../data/db";
-import { QUALITY_LABELS, getQuality, setQuality, type Quality } from "../studio/quality";
+import { QUALITY_LABELS, getQuality, isNativeApp, setQuality, type Quality } from "../studio/quality";
 
 const AVATARS = ["🦊", "🐺", "🐱", "🦉", "🐙", "🦋", "🌙", "⭐", "🔮", "🎴", "🎬", "🍥"];
 
@@ -21,6 +21,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [storage, setStorage] = useState<{ usedMB: number; quotaMB: number } | null>(null);
   const [quality, setQ] = useState<Quality>(() => getQuality());
+  const native = isNativeApp();
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarErr, setAvatarErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -142,25 +143,36 @@ export default function SettingsPage() {
 
       <section className="mb-6">
         <h2 className="mb-2.5 text-xs font-semibold text-slate-400">画面质量（3D 工坊）</h2>
+        <p className="mb-2 text-[11px] text-slate-500">首次进工坊会按你的设备自动选一档 · 这里是唯一的修改入口（工坊顶栏已不再放画质按钮）</p>
         <div className="space-y-2">
-          {(Object.keys(QUALITY_LABELS) as Quality[]).map((q) => (
-            <button
-              key={q}
-              onClick={() => {
-                setQ(q);
-                if (q !== getQuality()) setQuality(q);
-              }}
-              className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left ${
-                quality === q ? "border-brand bg-brand/10" : "border-slate-700 bg-panel"
-              }`}
-            >
-              <div>
-                <div className="text-sm text-slate-100">{QUALITY_LABELS[q].name}</div>
-                <div className="text-[11px] text-slate-500">{QUALITY_LABELS[q].desc}</div>
-              </div>
-              {quality === q && <span className="text-brand">✓</span>}
-            </button>
-          ))}
+          {(Object.keys(QUALITY_LABELS) as Quality[]).map((q) => {
+            // 原生壳里"极致"档的大文件在出包时被裁掉了（scripts/prune-app-assets.mjs），
+            // getQuality() 会把它降回 mid。于是老代码 `if (q !== getQuality())` 永远成立
+            // ——点一次「极致」就 reload 一次、回来还是 mid，用户以为按钮坏了，实际是在
+            // 无限重载。直接把这一档在原生端禁掉，并把原因写在档位说明里。
+            const blocked = q === "high" && native;
+            return (
+              <button
+                key={q}
+                disabled={blocked}
+                onClick={() => {
+                  setQ(q);
+                  if (q !== getQuality()) setQuality(q);
+                }}
+                className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left disabled:opacity-45 ${
+                  quality === q ? "border-brand bg-brand/10" : "border-slate-700 bg-panel"
+                }`}
+              >
+                <div>
+                  <div className="text-sm text-slate-100">{QUALITY_LABELS[q].name}</div>
+                  <div className="text-[11px] text-slate-500">
+                    {blocked ? "App 安装包不含 4K 贴图，请在网页版使用" : QUALITY_LABELS[q].desc}
+                  </div>
+                </div>
+                {quality === q && !blocked && <span className="text-brand">✓</span>}
+              </button>
+            );
+          })}
         </div>
       </section>
 

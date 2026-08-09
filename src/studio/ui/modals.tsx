@@ -1,23 +1,25 @@
 // 市场卡详情（竖屏底部详情单）
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS } from "../../types";
 import { useStudio } from "../studioStore";
-import { MARKET } from "../scene/layout";
+import { MARKET, marketSlot } from "../scene/layout";
 import CardHologram, { CARD_MODELS } from "./CardHologram";
 
 // ── 市场卡详情：底部滑出单，左预览图右信息 + 加入卡组 ──────────
 export function CardDetailModal() {
   const card = useStudio((s) => s.marketDetail);
   const items = useStudio((s) => s.market.items);
+  const page = useStudio((s) => s.market.page);
   const deck = useStudio((s) => s.deck);
   if (!card) return null;
-  const i = items.findIndex((c) => c.id === card.id);
+  const gi = items.findIndex((c) => c.id === card.id);
   // 不在市场摊开区的卡（如 NPC 手中的推荐卡）：飞行起点用 NPC 手边
   let from: [number, number, number] = [-0.5, 1.1, -3.3];
-  if (i >= 0) {
-    const row = Math.floor(i / MARKET.perRow);
-    const col = i % MARKET.perRow;
-    const rowCount = Math.min(MARKET.perRow, items.length - row * MARKET.perRow);
-    from = [(col - (rowCount - 1) / 2) * MARKET.dx, 0.1, MARKET.rowsZ[Math.min(row, MARKET.rowsZ.length - 1)]];
+  // 桌面是**分页**摆的，所以要把全局下标换算成页内下标——直接拿全局下标算位置，
+  // 第二页点任何一张卡都会从第一页那个坑里飞出来
+  if (gi >= 0 && Math.floor(gi / MARKET.perPage) === page) {
+    const start = page * MARKET.perPage;
+    const { x, z } = marketSlot(gi - start, Math.min(MARKET.perPage, items.length - start));
+    from = [x, 0.1, z];
   }
   const inDeck = deck.some((c) => c.id === card.id);
   // 卡自带建模（3D 风格视频派生的角色卡）优先；市场种子卡走静态映射表

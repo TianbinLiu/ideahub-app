@@ -15,6 +15,7 @@ import {
   FLOAT_Y,
   LEFT_STACK,
   MARKET,
+  marketSlot,
   RIGHT_STACK,
   SPREAD,
   TABLE,
@@ -1139,15 +1140,16 @@ function MarketFan() {
   const market = useStudio((s) => s.market);
   const detail = useStudio((s) => s.marketDetail);
   if (!market.open) return null;
+  // 只摆本页那 6 张。以前是把 searchMarket 返回的 8 张全铺出去——那 8 是
+  // "一屏摆得下几张"的旧口径，既切了卡又把另外 11 张种子卡藏了起来
+  const start = market.page * MARKET.perPage;
+  const page = market.items.slice(start, start + MARKET.perPage);
   return (
     <group>
-      {market.items.map((card, i) => {
-        // 竖屏视野窄：两排各 perRow 张
-        const row = Math.floor(i / MARKET.perRow);
+      {page.map((card, i) => {
+        const { x, z } = marketSlot(i, page.length);
         const col = i % MARKET.perRow;
-        const rowCount = Math.min(MARKET.perRow, market.items.length - row * MARKET.perRow);
-        const x = (col - (rowCount - 1) / 2) * MARKET.dx;
-        const z = MARKET.rowsZ[Math.min(row, MARKET.rowsZ.length - 1)];
+        const rowCount = Math.min(MARKET.perRow, page.length - Math.floor(i / MARKET.perRow) * MARKET.perRow);
         const cam = focusCam(x, z);
         return (
           <CardMesh
@@ -1156,6 +1158,7 @@ function MarketFan() {
             from={[0.9, 0.9, -3.2]}
             target={[x, MARKET.lift + i * 0.004, z]}
             rotZ={(col - (rowCount - 1) / 2) * -0.04}
+            scale={MARKET.scale}
             hoverLift
             ring={detail?.id === card.id ? "#fbbf24" : null}
             onClick={(e) => {

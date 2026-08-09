@@ -13,7 +13,8 @@ import { forgeCardCount, forgeCost, fmtTokens } from "../../data/economy";
 import { Card, CARD_TYPES, CARD_TYPE_LABELS, CardType } from "../../types";
 import TarotCard from "../../components/TarotCard";
 import { NPC_SCREEN } from "../scene/cameraOrbit";
-import { setVoiceEnabled, stopSpeaking, voiceEnabled, voiceStatus, voiceSupported } from "../speech";
+import { setVoiceEnabled, voiceEnabled, voiceStatus, voiceSupported } from "../speech";
+import { useBackGuard } from "../backGuards";
 
 export default function NpcDialog() {
   const messages = useStudio((s) => s.dialog.messages);
@@ -45,22 +46,18 @@ export default function NpcDialog() {
     return () => cancelAnimationFrame(raf);
   }, [open]);
 
+  // 退出对话的动作已经搬进 store.exitDialog()，由顶栏返回按钮统一触发——
+  // 气泡右上角那个 ✕ 只有 ~14px，手机上根本按不准，删了。
+  // 记录窗/素材窗则各自压进返回栈（useBackGuard），按返回先关它们。
+  // ⚠ 必须写在下面两个早返回**之前**：Hook 不能出现在条件之后，
+  // 否则投影窗一开（projection → return null）本次渲染就少调两个 Hook，
+  // React 直接抛 "Rendered more hooks than during the previous render"
+  useBackGuard(historyOpen, () => setHistoryOpen(false));
+  useBackGuard(forgeOpen, () => setForgeOpen(false));
+
   // 投影窗打开时隐藏对话层，避免遮挡
   if (projection) return null;
   if (!open) return null;
-
-  // 关闭对话 → 相机回第一人称眼位，轨道解除
-  function closeAll() {
-    const st = useStudio.getState();
-    if (st.market.open) st.closeMarket();
-    st.setDialogView(false);
-    // 关掉对话就把话掐了——不然离开工坊后台还在念上一句
-    stopSpeaking();
-    st.setCamera({ kind: "default" });
-    useStudio.setState({ orbit: null });
-    setHistoryOpen(false);
-    setForgeOpen(false);
-  }
 
   const lastNpc = [...messages].reverse().find((m) => m.from === "npc");
 
@@ -83,7 +80,8 @@ export default function NpcDialog() {
                   setVoiceEnabled(next);
                   setVoice(next);
                 }}
-                className="ml-auto -m-1 p-1 text-xs text-slate-500 hover:text-white"
+                // ml-auto 原来挂在 ✕ 上（✕ 没了要移回来），热区从 -m-1 p-1 放大到 p-2
+                className="-m-2 ml-auto p-2 text-xs text-slate-500 hover:text-white"
                 title={
                   voiceStatus() === "no-voice"
                     ? "系统没有中文语音包，暂时发不出声（嘴型仍会动）"
@@ -96,9 +94,6 @@ export default function NpcDialog() {
                 {voice && voiceStatus() === "ok" ? "🔊" : "🔇"}
               </button>
             )}
-            <button onClick={closeAll} className={`${voiceSupported() ? "" : "ml-auto "}-m-1 p-1 text-xs text-slate-500 hover:text-white`} aria-label="结束对话">
-              ✕
-            </button>
           </div>
           <div className="max-h-24 overflow-y-auto whitespace-pre-wrap text-[13px] leading-relaxed text-slate-100">
             {busy ? "炉火正旺，卡片成形中…" : lastNpc?.text ?? "……"}
@@ -115,6 +110,7 @@ export default function NpcDialog() {
                 st.closeMarket();
                 st.npcSay("市场先收起来了。还想做点什么？");
               }}
+              title="也可以按左上角的返回"
               className="rounded-full border border-slate-600/70 bg-panel/90 px-3 py-1.5 text-xs text-slate-200 backdrop-blur hover:border-brand hover:text-brand"
             >
               ‹ 收起市场
@@ -142,6 +138,15 @@ export default function NpcDialog() {
           >
             💬 记录
           </button>
+        </div>
+        {/* 去掉 ✕ 之后要补一条出口指引，否则用户会以为自己被关在对话里了。
+            **不要写死"退出对话"**——市场开着的时候顶栏那颗按钮写的是「收起市场」，
+            两边对不上反而更迷惑。这里只指路，具体做什么由按钮自己说。
+            垫一层半透明底：它正好压在角色身上，纯文字在浅色头发上会看不见 */}
+        <div className="mt-1.5 flex justify-center">
+          <span className="pointer-events-none rounded-full bg-black/45 px-2 py-0.5 text-[10px] text-slate-400 backdrop-blur">
+            左上角的返回按钮可逐层退出
+          </span>
         </div>
       </div>
 
