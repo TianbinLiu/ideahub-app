@@ -25,6 +25,8 @@ import { npcModelUrl } from "../quality";
 import {
   NPC_HEAD,
   NPC_SCREEN,
+  PLAYER_SCREEN,
+  deckCamArrived,
   ORBIT_LIMITS,
   ORBIT_MIN_Y,
   PLAYER_HEAD,
@@ -294,6 +296,9 @@ function CameraRig() {
       RIG_LOOK.copy(center);
       camera.lookAt(RIG_LOOK);
       prevDeck.current = st.deckView;
+      // 用户中途接管轨道：镜头由手指控制、本来就是"稳定的"，按钮该出现。
+      // **漏掉这条分支是最容易犯的错**——运镜途中拖一下镜头，按钮就永久不出现了
+      deckCamArrived.v = st.deckView;
       return;
     }
     let target: { pos: readonly [number, number, number] | number[]; look: readonly [number, number, number] | number[] };
@@ -337,9 +342,13 @@ function CameraRig() {
       st.deckView && (camera as THREE.PerspectiveCamera).aspect < 0.62 ? -0.3 : 0;
     if (st.deckView && !prevDeck.current) {
       deckAnim.current = { p: 0, start: camera.position.clone() };
+      deckCamArrived.v = false; // 滑梯起飞：按钮先撤，落位再出
     }
     prevDeck.current = st.deckView;
-    if (!st.deckView) deckAnim.current = null;
+    if (!st.deckView) {
+      deckAnim.current = null;
+      deckCamArrived.v = false; // 离开卡组视角
+    }
     const anim = deckAnim.current;
     if (anim && st.deckView) {
       // 滑梯运镜：从眼位出发，绕到玩家左外侧拉远 → 一路下滑 → 收进玩家正前方、
@@ -361,10 +370,14 @@ function CameraRig() {
       );
       RIG_LOOK.lerp(PLAYER_HEAD, Math.min(1, p * 2.4));
       camera.lookAt(RIG_LOOK);
-      if (anim.p >= 1) deckAnim.current = null;
+      if (anim.p >= 1) {
+        deckAnim.current = null;
+        deckCamArrived.v = true; // 滑梯到位
+      }
       syncOrbitFromCamera(camera.position, center ?? PLAYER_HEAD);
       return;
     }
+    if (st.deckView) deckCamArrived.v = true;
     const k = 1 - Math.exp(-dt * 4.5);
     camera.position.lerp(tmp.current.set(target.pos[0], target.pos[1], target.pos[2] + narrowPull), k);
     RIG_LOOK.lerp(tmp.current.set(target.look[0], target.look[1], target.look[2]), k);
@@ -1551,6 +1564,27 @@ function TableCatcher() {
 
 // ── 场景组装 ─────────────────────────────────────────────────
 /** NPC 头顶 → 屏幕坐标投影（供 DOM 侧对话气泡跟随角色，见 cameraOrbit.NPC_SCREEN） */
+/** 玩家头侧的屏幕锚点（供"换形象"按钮定位）。
+ *
+ *  横向偏移放在**屏幕空间**而不是世界空间：卡组机位实测只有 0.87m 焦距，一整张脸
+ *  就铺满画面（±0.2 单位 = ±0.22 屏宽），世界系里"贴着轮廓外侧"的量换算过来直接
+ *  飞出屏幕；而且用户还能绕上半身转，世界固定偏移一转到侧面就叠回脸上。投影完头骨
+ *  再加一个定值屏偏移，则镜头怎么动按钮都稳定挂在头右侧。 */
+const HEAD_SIDE_SCREEN = 0.3; // 屏宽比例：0.3 ≈ 头中心到右侧发梢外缘
+function PlayerScreenAnchor() {
+  const v = useMemo(() => new THREE.Vector3(), []);
+  useFrame(({ camera }) => {
+    v.copy(PLAYER_HEAD);
+    v.project(camera);
+    PLAYER_SCREEN.visible = v.z < 1;
+    // x 上限 0.88 = 1 - 半个按钮(22/375) - 安全边距；y 上限 0.46 是硬约束：
+    // 卡组小窗从 top-[54%] 一直铺到底（ui/projection.tsx），越过就被压在窗后点不到
+    PLAYER_SCREEN.x = Math.min(0.88, Math.max(0.12, (v.x + 1) / 2 + HEAD_SIDE_SCREEN));
+    PLAYER_SCREEN.y = Math.min(0.46, Math.max(0.14, (1 - v.y) / 2 + 0.06));
+  });
+  return null;
+}
+
 function NpcScreenAnchor() {
   const v = useMemo(() => new THREE.Vector3(), []);
   useFrame(({ camera }) => {
@@ -1604,6 +1638,7 @@ export default function TableScene() {
       <Flights />
       <DragLayer />
       <NpcScreenAnchor />
+      <PlayerScreenAnchor />
       {import.meta.env.DEV && <CaptureHook />}
     </>
   );

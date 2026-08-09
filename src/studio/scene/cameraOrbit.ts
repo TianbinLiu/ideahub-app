@@ -21,6 +21,15 @@ export const NPC_HEAD = new THREE.Vector3(0, 0.9, -4.3);
  *  DOM 侧的对话气泡用 rAF 直读此对象定位——不走 React 状态，60fps 跟随零重渲。 */
 export const NPC_SCREEN = { x: 0.5, y: 0.3, visible: false };
 
+/** 玩家上半身旁的屏幕锚点（TableScene 每帧写；0~1 归一化）。与 NPC_SCREEN 同一套
+ *  做法：3D 锚点投影到屏幕，DOM 侧用 rAF 直读定位——不走 React 状态，跟随零重渲。 */
+export const PLAYER_SCREEN = { x: 0.5, y: 0.4, visible: false };
+
+/** 卡组运镜是否已经落位。滑梯运镜的进度是 CameraRig 的局部 ref，外部读不到，
+ *  而"换形象"按钮必须等镜头停稳才出现——运镜途中它会在屏幕上乱飞。
+ *  盒子形态与 eyeRise 一致（模块级可变单例，避免 React 状态引发的重渲）。 */
+export const deckCamArrived = { v: false };
+
 /** 第一人称的"升空俯瞰"程度：0=眼位，1=头顶正上方俯瞰全桌。
  *  双指捏合（缩小视角）/滚轮下滚驱动升高；反向操作最多回到眼位（0 下限）。 */
 export const eyeRise = { v: 0 };
@@ -134,6 +143,8 @@ if (import.meta.env.DEV) {
     PLAYER_HEAD,
     PLAYER_TORSO,
     NPC_HEAD,
+    PLAYER_SCREEN,
+    deckCamArrived,
     ORBIT_LIMITS,
     ORBIT_MIN_Y,
     pitchDownAt,

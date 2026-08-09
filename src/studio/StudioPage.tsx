@@ -13,6 +13,7 @@ import NpcDialog from "./ui/NpcDialog";
 import ProjectionWindow from "./ui/projection";
 import { CardDetailModal } from "./ui/modals";
 import AvatarPicker from "./ui/AvatarPicker";
+import AvatarSwapButton from "./ui/AvatarSwapButton";
 import QualityPicker from "./ui/QualityPicker";
 
 // 入场加载过渡：盖住模型/贴图流式加载过程（不然首页跳转进来会看到模型逐个蹦出+卡顿）。
@@ -144,24 +145,17 @@ export default function StudioPage() {
           ← 首页
         </Link>
         <div className="pointer-events-auto flex items-center gap-2">
-          {/* 真实/演示一目了然：此前跑在没配 Key 的目录里全程 mock，
-              用户以为在测 Seedance，实际产物全是本地占位——必须把模式亮出来 */}
-          <div
-            className={`rounded-full bg-panel/80 px-3 py-1.5 text-xs backdrop-blur ${AI_REAL ? "text-emerald-300" : "text-amber-300"}`}
-            title={AI_REAL ? "已连接火山方舟：剧情/首尾帧/视频均真实生成" : "未配置 ARK_API_KEY：产物为本地模拟，仅演示流程"}
-          >
-            {AI_REAL ? "● 真实 AI" : "○ 演示模式"}
-          </div>
-          <div className="rounded-full bg-panel/80 px-3 py-1.5 text-xs font-semibold text-brand backdrop-blur">
-            🎴 卡片工坊
-          </div>
-          <button
-            onClick={() => useStudio.getState().setAvatarPickerOpen(true)}
-            className="rounded-full bg-panel/80 px-3 py-1.5 text-xs text-slate-300 backdrop-blur"
-            title="选择形象"
-          >
-            👤 形象
-          </button>
+          {/* 只在演示模式亮牌。「● 真实 AI」是常态，天天挂在那儿只是噪音；
+              而没配 Key 时全程 mock——用户以为在测 Seedance、产物却全是本地占位，
+              这一条必须留着。标题栏的「🎴 卡片工坊」也去掉了：画面本身就是工坊 */}
+          {!AI_REAL && (
+            <div
+              className="rounded-full bg-panel/80 px-3 py-1.5 text-xs text-amber-300 backdrop-blur"
+              title="未配置 ARK_API_KEY：产物为本地模拟，仅演示流程"
+            >
+              ○ 演示模式
+            </div>
+          )}
           <button
             onClick={() => setQualityOpen(true)}
             className="rounded-full bg-panel/80 px-3 py-1.5 text-xs text-slate-300 backdrop-blur"
@@ -214,6 +208,7 @@ export default function StudioPage() {
       <ProjectionWindow />
       <CardDetailModal />
       <AvatarPicker />
+      <AvatarSwapButton />
       <QualityPicker open={qualityOpen} onClose={() => setQualityOpen(false)} />
       <StudioLoader />
     </div>
