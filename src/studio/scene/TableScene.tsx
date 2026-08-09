@@ -136,6 +136,9 @@ const MILLTINA_CFG = {
 
 import {
   cardBackTexture,
+  composePlateTexture,
+  composeSigilTexture,
+  runeRingTexture,
   cardFaceTexture,
   labelTexture,
   placeholderTexture,
@@ -592,20 +595,73 @@ function CenterLine() {
   );
 }
 
-// ── 合成按钮（中线右端的发光圆台） ────────────────────────────
+// ── 合成法阵（中线右端）────────────────────────────────────
+// 旧版是一块 #7c5c12 的土棕圆柱 + 白字"生成视频"平板。问题不在配色深浅，而在**它不属于
+// 这个场景**：桌毡是金线法阵、卡是塔罗魔法框、烛台是黄铜，整间屋子都是"刻在暗处的金"，
+// 只有它是一块塑料感纯色块。改成桌毡中央法阵的**子阵**——同一支金（214,178,106）、
+// 同样的同心环与 24 等分射线，让它读作"桌面法阵的一个节点"而不是贴上去的按钮。
+//
+// 状态表达也重做了。旧版无论能不能点都写死"生成视频"，圆台暗着也不解释为什么，
+// 用户只能瞎试；现在铭牌副题随状态换文案，把前置条件说出来。
 function ComposePad() {
   const root = useStudio((s) => s.root);
   const enabled = composable(root);
-  const mat = useRef<THREE.MeshStandardMaterial>(null);
-  useFrame(() => {
-    if (!mat.current) return;
-    mat.current.emissiveIntensity = enabled ? 0.5 + 0.25 * Math.sin(performance.now() / 350) : 0.08;
-  });
-  const labelMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ map: labelTexture("生成视频"), transparent: true, depthWrite: false }),
-    []
+  const base = useRef<THREE.MeshStandardMaterial>(null);
+  const ring = useRef<THREE.Mesh>(null);
+  const beam = useRef<THREE.Mesh>(null);
+
+  const sigilMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        map: composeSigilTexture(enabled),
+        transparent: true,
+        depthWrite: false,
+        // 加色混合：刻纹读作"嵌在黄铜里的光"，而不是印上去的漆
+        blending: enabled ? THREE.AdditiveBlending : THREE.NormalBlending,
+      }),
+    [enabled],
   );
-  useEffect(() => () => labelMat.dispose(), [labelMat]);
+  const runeMat = useMemo(
+    () => new THREE.MeshBasicMaterial({ map: runeRingTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
+    [],
+  );
+  const plateMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        map: composePlateTexture(
+          enabled ? "生成成片" : "尚未就绪",
+          enabled ? "点亮法阵 · 逐段推演成片" : "先为当前段选定一个方案",
+          enabled,
+        ),
+        transparent: true,
+        depthWrite: false,
+      }),
+    [enabled],
+  );
+  useEffect(() => () => sigilMat.dispose(), [sigilMat]);
+  useEffect(() => () => runeMat.dispose(), [runeMat]);
+  useEffect(() => () => plateMat.dispose(), [plateMat]);
+
+  useFrame((_, dt) => {
+    const t = performance.now();
+    // 台座呼吸：可合成时金光起伏，否则近乎熄灭
+    // 只给极轻的呼吸。**发光的必须是刻纹不是台面**：这屋子从桌毡到卡框到烛台，
+    // 全是"暗底 + 细金线"，台面一亮就成了一枚金币，把旁边桌毡那圈细刻线整个压住
+    // （第一版给到 0.45 就是这个下场）。
+    if (base.current) base.current.emissiveIntensity = enabled ? 0.10 + 0.05 * Math.sin(t / 380) : 0.02;
+    // 符文环缓转——**只在可合成时转**。转动是这里唯一的动效，克制到底：
+    // 暗房里一个持续闪烁的东西会一直抢注意力，而"缓慢旋转"读作蓄势，不吵
+    if (ring.current) {
+      ring.current.visible = enabled;
+      if (enabled) ring.current.rotation.z += dt * 0.35;
+    }
+    if (beam.current) {
+      beam.current.visible = enabled;
+      const m = beam.current.material as THREE.MeshBasicMaterial;
+      if (enabled) m.opacity = 0.1 + 0.06 * Math.sin(t / 520);
+    }
+  });
+
   return (
     <group
       position={COMPOSE_POS}
@@ -615,13 +671,41 @@ function ComposePad() {
         if (enabled) useStudio.getState().startFlow();
       }}
     >
+      {/* 台座：黄铜而不是土棕。金属度拉高、粗糙度中等，才吃得到烛光的高光 */}
       <mesh>
-        <cylinderGeometry args={[0.42, 0.5, 0.1, 28]} />
-        <meshStandardMaterial ref={mat} color={enabled ? "#7c5c12" : "#2a3350"} emissive="#fbbf24" emissiveIntensity={0.1} />
+        <cylinderGeometry args={[0.46, 0.52, 0.055, 40]} />
+        <meshStandardMaterial
+          ref={base}
+          color={enabled ? "#241d10" : "#161c2c"}
+          metalness={0.82}
+          roughness={0.34}
+          emissive="#d6b26a"
+          emissiveIntensity={0.02}
+        />
       </mesh>
-      {/* 俯视机位：标签平贴桌面更易读 */}
-      <mesh position={[-0.2, 0.015, 0.82]} rotation={[-Math.PI / 2, 0, 0]} material={labelMat}>
-        <planeGeometry args={[1.35, 0.34]} />
+      {/* 顶面法阵刻纹：贴在台座上方 1mm，避免与台面 z-fighting */}
+      <mesh position={[0, 0.029, 0]} rotation={[-Math.PI / 2, 0, 0]} material={sigilMat}>
+        <planeGeometry args={[0.92, 0.92]} />
+      </mesh>
+      {/* 缓转符文环：比台座略大一圈，浮在桌面上方一点，转起来才看得出是"环" */}
+      <mesh ref={ring} position={[0, 0.033, 0]} rotation={[-Math.PI / 2, 0, 0]} material={runeMat}>
+        <planeGeometry args={[1.24, 1.24]} />
+      </mesh>
+      {/* 竖直光柱：加色混合的淡金，暗示"阵已通" */}
+      <mesh ref={beam} position={[0, 0.42, 0]}>
+        <cylinderGeometry args={[0.2, 0.42, 0.82, 20, 1, true]} />
+        <meshBasicMaterial
+          color="#f0cf8e"
+          transparent
+          opacity={0.12}
+          side={THREE.BackSide}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+      {/* 铭牌平贴桌面：俯视机位下平贴比立牌好读，且不会挡住后面的节点卡 */}
+      <mesh position={[-0.16, 0.006, 0.86]} rotation={[-Math.PI / 2, 0, 0]} material={plateMat}>
+        <planeGeometry args={[1.42, 0.44]} />
       </mesh>
     </group>
   );

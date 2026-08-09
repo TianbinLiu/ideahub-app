@@ -293,3 +293,115 @@ export function ringTexture(color: string): THREE.CanvasTexture {
     ctx.shadowBlur = 0;
   });
 }
+
+// ── 合成圆台（"生成成片"法阵）────────────────────────────────
+// 与桌毡同一套语汇：金 rgba(214,178,106) + 同心环 + 等分射线。
+// 旧版是一块 #7c5c12 的土棕圆柱 + 白字平板，跟这个场景毫无关系——桌毡、塔罗卡框、
+// 黄铜烛台都是金色刻线，只有它是塑料感的纯色块。
+const SIGIL_GOLD = (a: number) => `rgba(214,178,106,${a})`;
+
+/** 圆台顶面的法阵刻纹（透明底，叠在台面材质上）。
+ *  @param enabled 已可合成＝金色刻线；未就绪＝冷灰，亮度差本身就是状态提示 */
+export function composeSigilTexture(enabled: boolean): THREE.CanvasTexture {
+  const S = 512;
+  const ink = enabled ? SIGIL_GOLD : (a: number) => `rgba(120,140,178,${a * 0.55})`;
+  return texFromDraw(`composeSigil:${enabled}`, S, S, [], (ctx) => {
+    const c = S / 2;
+    // 三道同心环：外框粗、内两道细，与桌毡中央法阵同构
+    for (const [r, lw, a] of [
+      [S * 0.46, 5, 0.5],
+      [S * 0.38, 2, 0.34],
+      [S * 0.17, 2.5, 0.42],
+    ] as const) {
+      ctx.strokeStyle = ink(a);
+      ctx.lineWidth = lw;
+      ctx.beginPath();
+      ctx.arc(c, c, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // 24 等分射线，长短相间——与桌毡的 24 根一致，视觉上像是同一个阵的子阵
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = ink(0.4);
+    for (let i = 0; i < 24; i++) {
+      const t = (i / 24) * Math.PI * 2;
+      const r0 = S * 0.38;
+      const r1 = S * (i % 2 ? 0.42 : 0.46);
+      ctx.beginPath();
+      ctx.moveTo(c + Math.cos(t) * r0, c + Math.sin(t) * r0);
+      ctx.lineTo(c + Math.cos(t) * r1, c + Math.sin(t) * r1);
+      ctx.stroke();
+    }
+    // 中心六芒——"成片"的落点。用两枚叠置三角而不是实心圆：实心圆在俯视机位上
+    // 会和台面高光糊成一坨，线稿在暗房里才立得住
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = ink(0.62);
+    for (const off of [0, Math.PI / 3]) {
+      ctx.beginPath();
+      for (let i = 0; i < 3; i++) {
+        const t = off + (i / 3) * Math.PI * 2 - Math.PI / 2;
+        const x = c + Math.cos(t) * S * 0.135;
+        const y = c + Math.sin(t) * S * 0.135;
+        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    }
+  });
+}
+
+/** 绕台缓转的符文环（透明底）。只在可合成时显示，转动是"蓄势待发"的唯一动效——
+ *  比呼吸灯克制，暗房里也不会喧宾夺主 */
+export function runeRingTexture(): THREE.CanvasTexture {
+  const S = 512;
+  return texFromDraw("runeRing", S, S, [], (ctx) => {
+    const c = S / 2;
+    const glyphs = "✦◇⟡✧◈⟐";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "600 26px 'PingFang SC','Microsoft YaHei',serif";
+    for (let i = 0; i < 18; i++) {
+      const t = (i / 18) * Math.PI * 2;
+      const r = S * 0.44;
+      ctx.fillStyle = SIGIL_GOLD(0.28 + 0.22 * Math.abs(Math.sin(i * 1.7)));
+      ctx.save();
+      ctx.translate(c + Math.cos(t) * r, c + Math.sin(t) * r);
+      ctx.rotate(t + Math.PI / 2);
+      ctx.fillText(glyphs[i % glyphs.length], 0, 0);
+      ctx.restore();
+    }
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+  });
+}
+
+/** 台前的黄铜铭牌：主标题 + 小字副题。
+ *  副题**随状态换文案**——旧版无论能不能点都写死"生成视频"，圆台暗着也不说为什么，
+ *  用户只能瞎试。铭牌是这里唯一能讲清前置条件的地方。 */
+export function composePlateTexture(title: string, sub: string, enabled: boolean): THREE.CanvasTexture {
+  const W2 = 640;
+  const H2 = 200;
+  const ink = enabled ? "#e8c98a" : "#7c8aa8";
+  return texFromDraw(`composePlate:${title}:${sub}:${enabled}`, W2, H2, [], (ctx) => {
+    // 底板：深色半透 + 上下两道金线（塔罗牌匾同款处理）
+    ctx.fillStyle = enabled ? "rgba(24,18,8,0.62)" : "rgba(14,18,30,0.55)";
+    roundedPath(ctx, 8, 26, W2 - 16, H2 - 52, 14);
+    ctx.fill();
+    ctx.strokeStyle = enabled ? SIGIL_GOLD(0.55) : "rgba(120,140,178,0.3)";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "#000000aa";
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = ink;
+    ctx.font = "700 62px 'PingFang SC','Microsoft YaHei',serif";
+    ctx.fillText(title, W2 / 2, H2 / 2 - 18);
+    ctx.shadowBlur = 4;
+    ctx.fillStyle = enabled ? SIGIL_GOLD(0.72) : "rgba(140,160,196,0.7)";
+    ctx.font = "500 30px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.fillText(sub, W2 / 2, H2 / 2 + 40);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+  });
+}

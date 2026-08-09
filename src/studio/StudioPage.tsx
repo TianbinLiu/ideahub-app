@@ -87,7 +87,9 @@ function useHint(): string {
   if (spreadOpen) return "拖卡片到虚线卡位铸段 · 单点看详情";
   if (!root && deckLen === 0) return "先把素材交给铸卡师炼卡，或让 TA 摊开市场";
   if (!root) return "点击虚线卡位，铸造第一段视频节点";
-  if (placeholderVisible(root) && composable(root)) return "点虚线卡位延展下一段，或点金色圆台进入工作流生成视频";
+  // 「金色圆台」这个说法在圆台改成法阵后就对不上了（它现在暗着的时候是冷灰的）；
+  // 统一叫「法阵」，与台前铭牌上的「生成成片 · 点亮法阵」同一套词
+  if (placeholderVisible(root) && composable(root)) return "点虚线卡位延展下一段 · 点亮法阵可逐段推演成片";
   return "点击节点卡可重新查看三种走向";
 }
 
