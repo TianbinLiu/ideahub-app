@@ -25,8 +25,30 @@ export const NPC_SCREEN = { x: 0.5, y: 0.3, visible: false };
  *  双指捏合（缩小视角）/滚轮下滚驱动升高；反向操作最多回到眼位（0 下限）。 */
 export const eyeRise = { v: 0 };
 
+/**
+ * 升空到这个程度就**停止环视、并把已累积的偏航/俯仰衰减回正**。
+ *
+ * ⚠ 这是一个门限，不是两个。历史上"能不能转头"用 0.12、"要不要回正"用 0.02，
+ * 中间 0.02~0.12 那条缝里两件事同时成立：拖的时候 addEyeLook 在加、松手后衰减赢，
+ * 于是**每次滑动松手视角都弹回初始朝向**（用户报的"点不到视野外的卡组"就是它）。
+ * 更糟的是滚轮一格 `deltaY=100 × 0.0011 = 0.11` 正好落在缝里，一下滚轮就进入死区。
+ * 不变式：**能转头 ⟺ 不回正，死区必须为空。**
+ *
+ * 0.12 这个值的安全性依赖另外三个常量（PlayerArms 的 SELF_GATE=1.0、升空目标高 8.6、
+ * quintic 混合）：反解 e2=smoothstep(0.12)=0.040 → 相机离头约 7.6×0.040=0.30 < 1.0，
+ * 头此时仍藏着。改任何一个都要重算——CameraRig 里有 DEV 断言盯着。
+ */
+export const EYE_RISE_LOOK_OFF = 0.12;
+
 export function addEyeRise(d: number) {
   eyeRise.v = Math.min(1, Math.max(0, eyeRise.v + d));
+}
+
+/** 复位升空量。**必须有人调**：eyeRise 是模块级单例、切路由不复位，而它在
+ *  0.02~0.228 之间是一种"环视被切断、头还藏着、画面又没明显变化"的哑态——
+ *  用户没有任何线索却怎么拖都不动。切回默认机位时一并清掉。 */
+export function resetEyeRise() {
+  eyeRise.v = 0;
 }
 
 /** 各轨道模式的距离约束（世界单位）：min 兼作"不许钻进模型内部"的硬下限 */
@@ -107,6 +129,8 @@ if (import.meta.env.DEV) {
     eyeLimits,
     playerEye,
     eyeRise,
+    EYE_RISE_LOOK_OFF,
+    resetEyeRise,
     PLAYER_HEAD,
     PLAYER_TORSO,
     NPC_HEAD,

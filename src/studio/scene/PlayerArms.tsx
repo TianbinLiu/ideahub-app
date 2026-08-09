@@ -11,7 +11,7 @@ import { DECK_CAM } from "./layout";
 import { PlayerAvatar, playerModelUrl } from "../quality";
 import { loaderFor } from "../secureAssets";
 import { SpringBoneSim, type SphereCollider } from "./springBones";
-import { PLAYER_HEAD, PLAYER_TORSO, eyeLimits, eyeLook, eyeRise, pitchDownAt, playerEye } from "./cameraOrbit";
+import { PLAYER_HEAD, PLAYER_TORSO, eyeLimits, eyeLook, pitchDownAt, playerEye } from "./cameraOrbit";
 import { gazeDelta, type GazeLimits } from "./gazeDelta";
 import { cullSkinBackfaces } from "./cameraFade";
 import { FaceDriver, TSUMIRE_FACE, TRIPO_FACE, moodExpression, type Expression, type FaceRecipe } from "./faceExpr";
@@ -841,13 +841,10 @@ export default function PlayerArms({ avatar }: { avatar: PlayerAvatar }) {
     // 眼位环视：把滑屏累积的偏航/俯仰施加到头骨（脖子跟着转，头发/项链随之摆），
     // 相机朝向由 CameraRig 用同一组角度求出——两边同源所以永远一致
     if (eyeView && bones.current.head && restQ.current.head) {
-      // 升空俯瞰时环视角平滑衰减回正：头此刻是可见的，带着累积偏转会
-      // 歪着脖子扎进头发里（实测穿模来源）；回正后头发与头姿态一致
-      if (eyeRise.v > 0.02) {
-        const decay = Math.exp(-dt * 6);
-        eyeLook.yaw *= decay;
-        eyeLook.pitch *= decay;
-      }
+      // 回正**不在这里做**（已挪到 CameraRig）：eyeLook 驱动的是相机朝向，不只是脖子；
+      // 挂在"有 head 骨"这个守卫里意味着模型没加载好/rig 无头骨时，环视输入照样被
+      // 闸门掐断、而回正永不发生——用户被锁在歪着的俯瞰态且没有纠正手段。
+      // 闸门与回正必须同处一地、同一门限、无条件。
       gv.ePose.set(-eyeLook.pitch, -eyeLook.yaw, 0, "YXZ");
       bones.current.head.quaternion
         .copy(restQ.current.head)

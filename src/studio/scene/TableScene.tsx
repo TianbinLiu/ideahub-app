@@ -35,6 +35,8 @@ import {
   clampRadiusByScene,
   eyeLook,
   eyeRise,
+  EYE_RISE_LOOK_OFF,
+  resetEyeRise,
   orbit,
   orbitToPosition,
   syncOrbitFromCamera,
@@ -237,6 +239,22 @@ const _eyeFwd = new THREE.Vector3();
 const _riseP = new THREE.Vector3();
 const _riseL = new THREE.Vector3();
 
+// EYE_RISE_LOOK_OFF 的安全性依赖**另外三个文件里的常量**：PlayerArms 的 SELF_GATE
+// （藏头闸=相机离头 1.0）、下面升空目标高 8.6、以及 quintic 混合曲线。任何一个被单边
+// 改动，门限就可能滑到"头已经露出来了但还允许环视"的区间——那正是当初歪脖子扎进
+// 头发的成因。这条断言把这层隐含耦合摆到明处（本仓最近三次事故都是成对量单边改）。
+if (import.meta.env.DEV) {
+  const r = EYE_RISE_LOOK_OFF;
+  const e2 = r * r * r * (r * (r * 6 - 15) + 10); // 与下面升空混合用的同一条 quintic
+  const camDistAtGate = 7.6 * e2; // 眼点→头顶俯瞰点的距离尺度，实测约 7.6
+  if (camDistAtGate >= 1.0)
+    console.error(
+      "[eyeRise] 环视门限已越过藏头闸：门限处相机离头 " +
+        camDistAtGate.toFixed(2) +
+        " ≥ SELF_GATE(1.0)，头会露出来而环视还开着。调小 EYE_RISE_LOOK_OFF 或重算。",
+    );
+}
+
 function CameraRig() {
   const tmp = useRef(new THREE.Vector3());
   const ctr = useRef(new THREE.Vector3());
@@ -251,6 +269,10 @@ function CameraRig() {
     if (lastCamObj.current !== st.camera) {
       lastCamObj.current = st.camera;
       orbit.active = false;
+      // 回到第一人称就把升空量清零：eyeRise 是模块级单例、切路由不复位，
+      // 而它停在 0.12~0.228 之间是哑态（环视被切断、头还藏着、画面没明显变化），
+      // 用户没有任何线索却怎么拖都不动。见 resetEyeRise 的注释。
+      if (st.camera.kind === "default") resetEyeRise();
     }
     const center = resolveOrbitCenter(st.orbit, ctr.current);
     // ── 用户已接管：纯球面轨道驱动，脚本运镜让位 ──
@@ -276,6 +298,15 @@ function CameraRig() {
     }
     let target: { pos: readonly [number, number, number] | number[]; look: readonly [number, number, number] | number[] };
     if (st.camera.kind === "default") {
+      // 升空到门限之上就把环视角衰减回正——**与环视闸门同一个门限、无条件执行**。
+      // 理由见 EYE_RISE_LOOK_OFF：两个门限留缝就是"滑一下松手视角自己弹回去"。
+      // dt 故意不夹：指数衰减对任意 dt 无条件稳定（本文件别处夹 dt 是别的原因，
+      // 别顺手"修好"它）。
+      if (eyeRise.v >= EYE_RISE_LOOK_OFF) {
+        const decay = Math.exp(-dt * 6);
+        eyeLook.yaw *= decay;
+        eyeLook.pitch *= decay;
+      }
       eyeCam(eyeP.current, eyeL.current);
       // 升空俯瞰混合：双指捏合把 eyeRise 从 0（眼位）推到 1（头顶正上方俯瞰全桌），
       // 平滑插值——捏合过程中相机沿"眼位→头顶"的弧线缓缓升起
@@ -1376,9 +1407,13 @@ function TableCatcher() {
   const { camera, gl } = useThree();
   // 自由视角手势状态：首指必须落在空白桌面（r3f 命中本 mesh 才回调=天然的"非互动点"闸门），
   // 第二指从任意位置计入（捏合缩放）；move/up 用 window 监听避免指针滑出平面丢事件
-  const g = useRef<{ pointers: Map<number, [number, number]>; lastPinch: number | null }>({
+  // moved = 本次手势的累计位移（像素）。**click 护栏必须自己记**：R3F 的 onClick 判据是
+  // "按下时命中的对象里包含本对象"，与拖了多远无关（它那个 2px 阈值只用在 miss 分支），
+  // 所以一次横扫全屏的滑动照样会补一发 click 打到桌面上 → unfocus() → 视角/卡组状态被清。
+  const g = useRef<{ pointers: Map<number, [number, number]>; lastPinch: number | null; moved: number }>({
     pointers: new Map(),
     lastPinch: null,
+    moved: 0,
   });
   useEffect(() => {
     const el = gl.domElement;
@@ -1395,6 +1430,7 @@ function TableCatcher() {
       if (!mode() || e.target !== el) return;
       g.current.pointers.set(e.pointerId, [e.clientX, e.clientY]);
       g.current.lastPinch = null;
+      g.current.moved = 0;
     };
     const onMove = (e: PointerEvent) => {
       const s = g.current;
@@ -1407,13 +1443,15 @@ function TableCatcher() {
       const prev = s.pointers.get(e.pointerId)!;
       const dx = e.clientX - prev[0];
       const dy = e.clientY - prev[1];
+      s.moved += Math.hypot(dx, dy);
       s.pointers.set(e.pointerId, [e.clientX, e.clientY]);
       if (m === "eye") {
         // 眼位环视：滑屏 = 转头（画面跟手，向左滑看向左）。
         // 升空俯瞰态不再转头——头此刻可见，跟手转脖子会与头发穿插（实测），
         // 而且俯瞰下"转头"语义本身就不成立
         if (s.pointers.size === 1) {
-          if (eyeRise.v < 0.12) addEyeLook(dx * 0.0042, -dy * 0.0036);
+          // 门限与回正共用同一个常量，见 EYE_RISE_LOOK_OFF 的注释：死区必须为空
+          if (eyeRise.v < EYE_RISE_LOOK_OFF) addEyeLook(dx * 0.0042, -dy * 0.0036);
         } else if (s.pointers.size === 2) {
           // 双指捏合 = 升空俯瞰：指距缩小（缩小视角）→ 相机缓缓升到头顶俯瞰全桌；
           // 指距放大最多回到第一人称眼位（addEyeRise 内部 0 下限）
@@ -1496,6 +1534,12 @@ function TableCatcher() {
       onClick={() => {
         // 轨道拖拽期间点空白桌面不触发落卡/回退（拖拽末尾的 click 误伤）
         if (orbit.active) return;
+        // 第一人称走的是 eye 分支，orbit.active 恒为 false——上面那条守卫拦不住它，
+        // 于是每次环视滑动都会被补一发 click 打到这里。按**本次手势累计位移**拦：
+        // 8px 取自"手指点按的抖动上限"，比 R3F 自己用的 2px 宽一档（触屏抖动更大）。
+        // 只拦本平面的 unfocus，卡组堆/NPC/法阵/节点卡的 onClick 一律不动——
+        // "互动点仍然点得到"由此在构造上成立。
+        if (g.current.moved > 8) return;
         useStudio.getState().unfocus();
       }}
     >
