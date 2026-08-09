@@ -90,13 +90,15 @@ function stemOf(fileName: string): string {
   return stem.length > 12 ? stem.slice(0, 12) : stem || "神秘素材";
 }
 
-/** NPC 铸卡：本地文件 + 补充说明 → 若干张卡（mock：图片用原图作卡面） */
-export async function generateCards(files: MaterialFile[], note: string): Promise<Card[]> {
+/** NPC 铸卡：本地文件 + 补充说明 → 若干张卡（mock：图片用原图作卡面）。
+ *  forcedType 是用户在素材窗第一步选定的卡种——给了就不再猜。类型猜错是
+ *  最常见的重炼理由（"白裙少女"被当成场景），把选择权交回用户比调正则实在。 */
+export async function generateCards(files: MaterialFile[], note: string, forcedType?: CardType | null): Promise<Card[]> {
   await delay(1200);
   const cards: Card[] = [];
   for (const f of files) {
     const name = stemOf(f.name);
-    const type = inferType(f.name, f.text, note, !!f.dataUrl);
+    const type = forcedType ?? inferType(f.name, f.text, note, !!f.dataUrl);
     const rng = makeRng(`cardgen:${f.name}:${note}`);
     const flavor = pick(rng, [
       "由你的素材炼成，气质拿捏得恰到好处。",
@@ -113,7 +115,7 @@ export async function generateCards(files: MaterialFile[], note: string): Promis
     });
   }
   if (cards.length === 0 && note.trim()) {
-    const type = inferType("", null, note, false);
+    const type = forcedType ?? inferType("", null, note, false);
     const name = note.trim().slice(0, 8);
     cards.push({
       id: uid("card"),

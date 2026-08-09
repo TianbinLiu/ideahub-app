@@ -57,16 +57,20 @@ const TYPE_LABEL: Record<CardType, string> = {
 };
 
 /** 素材炼卡：图片素材保留原图作卡面；文本/纯描述素材用 Seedream 生成卡面；
- *  名称/简介/类型交给豆包精炼 */
-export async function generateCards(files: MaterialFile[], note: string): Promise<Card[]> {
-  const base = await mock.generateCards(files, note); // 结构/兜底沿用 mock 推断
+ *  名称/简介/类型交给豆包精炼。
+ *  forcedType = 用户在素材窗里选定的卡种：给了就**锁死**，模型只负责起名写简介，
+ *  不再有"选了人物卡却回来一张场景卡"的落差。 */
+export async function generateCards(files: MaterialFile[], note: string, forcedType?: CardType | null): Promise<Card[]> {
+  const base = await mock.generateCards(files, note, forcedType); // 结构/兜底沿用 mock 推断
   return await Promise.all(
     base.map(async (card, i) => {
       const f = files[i] as MaterialFile | undefined;
       try {
         // 文案精炼：名称 + 一句话简介 + 类型校正
         const meta = await chat(
-          "你是卡牌游戏的铸卡师。根据素材信息输出 JSON：{\"name\":\"不超过8字的卡名\",\"summary\":\"一句30字内有故事感的简介\",\"type\":\"character|scene|background|prop|style\"}。只输出 JSON。",
+          forcedType
+            ? `你是卡牌游戏的铸卡师。用户已指定这是一张【${TYPE_LABEL[forcedType]}】，不要改类型。输出 JSON：{"name":"不超过8字的卡名","summary":"一句30字内有故事感的简介","type":"${forcedType}"}。只输出 JSON。`
+            : "你是卡牌游戏的铸卡师。根据素材信息输出 JSON：{\"name\":\"不超过8字的卡名\",\"summary\":\"一句30字内有故事感的简介\",\"type\":\"character|scene|background|prop|style\"}。只输出 JSON。",
           `文件名: ${f?.name ?? "无"}\n文本内容: ${(f?.text ?? "").slice(0, 300) || "无"}\n用户补充: ${note || "无"}\n是否图片素材: ${f?.dataUrl ? "是" : "否"}`,
         );
         const parsed = JSON.parse(meta.replace(/```json|```/g, "").trim()) as {
@@ -76,7 +80,8 @@ export async function generateCards(files: MaterialFile[], note: string): Promis
         };
         const name = parsed.name?.slice(0, 8) || card.name;
         const summary = parsed.summary?.slice(0, 60) || card.summary;
-        const type = parsed.type && TYPE_LABEL[parsed.type] ? parsed.type : card.type;
+        // forcedType 优先于模型返回：提示词里已经写死了，但模型偶尔仍会自作主张
+        const type = forcedType ?? (parsed.type && TYPE_LABEL[parsed.type] ? parsed.type : card.type);
         // 卡面：图片素材保留原图（用户的图就是卡面）；否则 Seedream 生成
         let cover = card.cover;
         if (!f?.dataUrl) {

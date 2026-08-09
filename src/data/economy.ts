@@ -70,6 +70,22 @@ export const IMAGE_TOKENS = 13_300;
 /** 视觉模型看图（每帧）的 token 等价：豆包 seed-2.1 图文输入远比出图便宜，取一个保守值 */
 export const VISION_FRAME_TOKENS = 900;
 
+/** 每张卡的文案精炼（豆包一次短对话）token 等价。图文输入按保守值给，
+ *  与 VISION_FRAME_TOKENS 同量级——真正贵的是出图，这一项只是别装作免费。 */
+export const CARD_META_TOKENS = 400;
+
+/**
+ * 素材炼卡的预估：**一份素材 = 一张卡**，纯描述（没传文件）也出一张。
+ * 图片素材直接拿用户原图当卡面，不烧 Seedream；文本素材/纯描述才要出图。
+ * 这个不对称是 real.generateCards 的实际行为（见 `if (!f?.dataUrl)`），
+ * 报价必须跟着它走，否则传 6 张图会被报成 6 倍价钱而白白吓退用户。
+ */
+export function forgeCost(imageFiles: number, textFiles: number, hasNote: boolean): number {
+  const cards = imageFiles + textFiles + (imageFiles + textFiles === 0 && hasNote ? 1 : 0);
+  const covers = textFiles + (imageFiles + textFiles === 0 && hasNote ? 1 : 0);
+  return cards * CARD_META_TOKENS + covers * IMAGE_TOKENS;
+}
+
 /**
  * 上传视频提炼卡组的预估：看 N 帧 + 最多铸 M 张卡面。
  * 张数是上限而非确数（模型认出几个实体就出几张，重复的还会被剔掉），

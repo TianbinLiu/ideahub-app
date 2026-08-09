@@ -1,6 +1,6 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
-import { BranchNodeData, BranchTree, Card, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
+import { BranchNodeData, BranchTree, Card, CardType, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateProposals, refineFrame, searchMarket } from "../ai";
 import { DECK_CAM, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
@@ -249,6 +249,11 @@ interface StudioState {
   addFiles: (files: MaterialFile[]) => void;
   removeFile: (name: string) => void;
   sendToNpc: (text: string) => Promise<void>;
+  /** 只炼不收：生成的卡进预览槽，落账/入组要等 acceptForge。
+   *  失败抛出——素材窗要把原因显示在窗里，吞掉就成了"点了没反应"。 */
+  forgeCards: (files: MaterialFile[], note: string, type: CardType | null) => Promise<Card[]>;
+  /** 收下这批卡：归入账号资产 + 入组 + 从铸卡师手边飞过来 */
+  acceptForge: (cards: Card[]) => void;
 
   landFlight: (id: string) => void;
 
@@ -437,17 +442,47 @@ export const useStudio = create<StudioState>()((set, get) => ({
       return;
     }
     if (!trimmed && pendingFiles.length === 0) return;
-    get().meSay(trimmed || `（递上 ${pendingFiles.length} 份素材）`);
+    // 对话框里直接打字炼卡是**快捷通道**：不选卡种、不预览，炼完就收。
+    // 需要挑卡种/看过再收的走素材窗（forgeCards → acceptForge）。
+    let cards: Card[];
+    try {
+      cards = await get().forgeCards(pendingFiles, trimmed, null);
+    } catch {
+      return; // forgeCards 已经让铸卡师把失败原因说出来了
+    }
+    set({ pendingFiles: [] });
+    if (cards.length === 0) return;
+    get().acceptForge(cards);
+  },
+
+  forgeCards: async (files, note, type) => {
+    get().meSay(note || `（递上 ${files.length} 份素材）`);
     set((s) => ({ dialog: { ...s.dialog, busy: true } }));
     get().npcSay("收到，让我看看成色……（炉火升起）");
-    const cards = await generateCards(pendingFiles, trimmed);
-    saveCardsToAccount(cards); // 炼出的卡归入账号资产（创意工坊/Profile 可见）
-    set((s) => ({ dialog: { ...s.dialog, busy: false }, pendingFiles: [] }));
-    if (cards.length === 0) {
-      get().npcSay("这些素材还差点意思，再补充点描述？");
-      get().setMood(-0.6, 2600);
-      return;
+    try {
+      const cards = await generateCards(files, note, type);
+      if (cards.length === 0) {
+        get().npcSay("这些素材还差点意思，再补充点描述？");
+        get().setMood(-0.6, 2600);
+      } else {
+        get().npcSay(`铛——${cards.length} 张卡的形已经出来了，你先过目。`);
+      }
+      return cards;
+    } catch (e) {
+      // 真实 AI 会因为余额/审核/网络失败。以前这里直接 throw 到无人接手的
+      // Promise 上，界面只剩一个转不停的"炼卡中…"；现在由铸卡师说出来
+      const msg = (e instanceof Error ? e.message : String(e)).slice(0, 80);
+      get().npcSay(`炉子炸了……${msg}`);
+      get().setMood(-0.8, 3000);
+      throw e;
+    } finally {
+      set((s) => ({ dialog: { ...s.dialog, busy: false } }));
     }
+  },
+
+  acceptForge: (cards) => {
+    if (cards.length === 0) return;
+    saveCardsToAccount(cards); // 收下才归入账号资产（创意工坊/Profile 可见）
     // 立即入组；从 NPC 手边错峰起飞的只是视觉动画
     set((s) => {
       const fresh = cards.filter((c) => !s.deck.some((d) => d.id === c.id));
@@ -459,7 +494,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         ],
       };
     });
-    get().npcSay(`铛——${cards.length} 张新卡出炉，已经飞进你的卡组了。`);
+    get().npcSay(`${cards.length} 张新卡飞进你的卡组了。`);
     get().setMood(1, 4000);
   },
 
