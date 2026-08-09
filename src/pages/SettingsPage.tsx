@@ -8,7 +8,7 @@ import { fileToSquareImage } from "../utils/image";
 import { useCurrentUser } from "../hooks/useAccount";
 import { storageEstimate } from "../data/db";
 import { QUALITY_LABELS, getQuality, isNativeApp, setQuality, type Quality } from "../studio/quality";
-import { DEFAULT_INSTRUCT, VOICES, currentInstruct, currentVoice, setInstruct, setVoice, type PresetVoice } from "../studio/voices";
+import { DEFAULT_INSTRUCT, VOICES, currentInstruct, currentRate, currentVoice, rateLabel, setInstruct, setRate, setVoice, type PresetVoice } from "../studio/voices";
 
 const AVATARS = ["🦊", "🐺", "🐱", "🦉", "🐙", "🦋", "🌙", "⭐", "🔮", "🎴", "🎬", "🍥"];
 
@@ -228,6 +228,8 @@ function VoiceSection() {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const [instruct, setIns] = useState(currentInstruct);
+  // null = 跟随音色默认；滑杆一动就变成显式值
+  const [rate, setRateState] = useState<number | null>(currentRate);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   async function preview(v: PresetVoice) {
@@ -243,7 +245,7 @@ function VoiceSection() {
           text: "欢迎来到卡片工坊，把你的素材交给我，我为你炼成卡片。",
           voice: v.id,
           mix: v.mix,
-          rate: v.rate,
+          rate: rate ?? v.rate,
           pitch: v.pitch,
           expressive: v.expressive,
           instruct,
@@ -298,6 +300,46 @@ function VoiceSection() {
       </div>
       {err && <p className="mt-2 text-[11px] text-rose-300">{err}</p>}
 
+      {/* 语速。和语调指令一起构成"挑完音色之后的两个旋钮"：
+          这个管快慢、那个管语气。放在音色列表和语调指令中间，顺序即调参顺序。 */}
+      <div className="mt-3">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-400">语速</span>
+          <span className="text-[11px] text-slate-500">
+            {rate === null ? `跟随音色（${rateLabel(currentVoice().rate ?? 0)}）` : rateLabel(rate)}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={-30}
+          max={20}
+          step={5}
+          value={rate ?? currentVoice().rate ?? 0}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            setRateState(v);
+            setRate(v);
+          }}
+          className="w-full accent-brand"
+        />
+        <div className="mt-0.5 flex justify-between text-[10px] text-slate-600">
+          <span>0.70× 慢</span>
+          <span>1.00×</span>
+          <span>1.20× 快</span>
+        </div>
+        {rate !== null && (
+          <button
+            onClick={() => {
+              setRateState(null);
+              setRate(null);
+            }}
+            className="mt-1 text-[11px] text-slate-500 underline"
+          >
+            恢复跟随音色
+          </button>
+        )}
+      </div>
+
       {/* 语调指令。**这个旋钮比换音色管用**——同一把嗓子加上一句"用成熟冷静的
           语气"，出来的音频与原味逐字节不同。所以放在音色列表下面，紧挨着试听。 */}
       <div className="mt-3">
@@ -327,7 +369,7 @@ function VoiceSection() {
           className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
         />
         <p className="mt-1 text-[11px] text-slate-500">
-          改完点上面任意音色即可听到效果 · 这一段不计费 · **只对 2.0 单音色生效**，「调和」那几条用不了
+          语速与语调改完，点上面任意音色即刻试听 · 语调这一段不计费 · **只对 2.0 单音色生效**，「调和」那几条用不了
         </p>
       </div>
     </section>

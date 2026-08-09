@@ -10,7 +10,7 @@
 // AudioContext + AnalyserNode 得到**真实的响度包络**，SPEECH.level 直接用 RMS——
 // 那才是真口型。下面这套是在"只有文本、没有音频流"的前提下能做到的最好近似。
 import type { Viseme } from "./scene/faceExpr";
-import { currentInstruct, currentVoice, emotionFor } from "./voices";
+import { currentInstruct, currentRate, currentVoice, emotionFor } from "./voices";
 
 /** 每帧被 TripoNpc 直读的口型状态。走模块单例而不是 React 状态：
  *  说话时每秒要更新几十次，进 store 就是每秒几十次全场景重渲。 */
@@ -205,7 +205,8 @@ async function speakCloud(text: string, sy: Syl[], me: number): Promise<boolean>
         text,
         voice: ENV_VOICE || voice.id,
         mix: voice.mix,
-        rate: voice.rate,
+        // 用户在设置页手调过就以用户为准，没调过跟随音色自带的默认
+        rate: currentRate() ?? voice.rate,
         pitch: voice.pitch,
         expressive: voice.expressive,
         emotion: emotionFor(voice, SPEAK_MOOD.v, SPEAK_MOOD.until > Date.now()),

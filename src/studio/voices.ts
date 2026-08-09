@@ -180,6 +180,36 @@ export const DEFAULT_INSTRUCT =
   "说话带着见惯风浪的从容和一点漫不经心的疏离，尾音自然下沉。" +
   "情绪是内敛的——有起伏，但克制，不外放、不甜、不撒娇、不刻意亲切。";
 
+/**
+ * 用户手调的语速，覆盖音色自带的 rate。null = 跟随音色默认。
+ *
+ * 刻度就是接口的 speech_rate：**倍速 = 1 + r/100**（官方锚点 -50→0.5 倍、
+ * 0→1.0 倍、100→2.0 倍，全程线性）。UI 上只放 -30~+20 这一段——
+ * 再慢会拖成念稿、再快御姐的"从容"就没了，实测两头都不好听。
+ */
+const RATE_KEY = "ideahub-app.voiceRate";
+
+export function currentRate(): number | null {
+  try {
+    const v = localStorage.getItem(RATE_KEY);
+    return v === null ? null : Number(v);
+  } catch {
+    return null;
+  }
+}
+
+export function setRate(v: number | null) {
+  try {
+    if (v === null) localStorage.removeItem(RATE_KEY);
+    else localStorage.setItem(RATE_KEY, String(v));
+  } catch {
+    /* 隐私模式 */
+  }
+}
+
+/** speech_rate → 人看得懂的倍速文案 */
+export const rateLabel = (r: number) => `${(1 + r / 100).toFixed(2)}×`;
+
 const INSTRUCT_KEY = "ideahub-app.voiceInstruct";
 
 export function currentInstruct(): string {
