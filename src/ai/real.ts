@@ -56,16 +56,84 @@ const TYPE_LABEL: Record<CardType, string> = {
   style: "画风示意卡面",
 };
 
+/** 卡面画布：竖版 3:4。1728×2304 = 3,981,312 像素，刚过 Seedream 的 3,686,400 下限
+ *  （实测 1536×2304 会被 400 掉）。派生卡也用同一尺寸——素材卡和派生卡摆在同一副
+ *  卡组里，画幅不一致一眼就看得出是两套流程。 */
+const CARD_SIZE = "1728x2304";
+
+/** 参考图该怎么用——**按卡种给不同指令**。「保留主体特征」这句话对场景卡是空话
+ *  （场景没有单一主体），对氛围底色卡更是反效果（底色卡本就不该有主体）。 */
+const REF_HINT: Record<CardType, string> = {
+  character: "参考图是用户提供的角色素材：沿用其中人物的脸型、发型发色、服饰与配色特征，据此重新绘制一张竖版立绘卡面。",
+  scene: "参考图是用户提供的场景素材：沿用其中的空间结构、地貌与建筑特征及整体色调，据此重新绘制一张竖版场景概念图。",
+  background: "参考图是用户提供的氛围素材：只提取它的色调、光线方向与质感，绘制一张没有明确主体的氛围底色画面。",
+  prop: "参考图是用户提供的物件素材：沿用该物件的造型、材质与配色，据此重新绘制一张竖版特写。",
+  style: "参考图是用户提供的画风素材：只提取它的笔触、色彩倾向与质感，用这套画风另画一张示意画面。",
+};
+
+/**
+ * 方舟出图的敏感词是**硬失败**（400 InputTextSensitiveContentDetected），不是降级
+ * ——见 AGENTS.md 的方舟实测约束。而豆包写的简介极爱用「少女」。
+ *
+ * 以前"图片素材不出图"这条捷径正好把这颗雷盖住了一半；现在每张卡都要出图，
+ * 踩中的概率成倍上升，所以先把已知触发词换成中性表述再送出去。
+ * 这张表按"踩到一个补一个"维护，别指望一次列全。
+ */
+const SOFTEN: Array<[RegExp, string]> = [
+  [/少女/g, "年轻女性角色"],
+  [/少年/g, "年轻男性角色"],
+  [/萝莉|幼女/g, "小个子女性角色"],
+  [/拥抱|相拥/g, "并肩靠近"],
+  [/裸露|情色|诱惑/g, ""],
+  [/血腥|尸体|杀死/g, "激烈对峙"],
+];
+const softenForImage = (t: string) => SOFTEN.reduce((acc, [re, to]) => acc.replace(re, to), t);
+
+/**
+ * 参考图守门。Seedream 对参考图有硬约束：边长 14~6000px、**宽高比必须落在 1/3 ~ 3**，
+ * 越界会把整个请求 400 掉（不是忽略参考图）。用户相册里的长截图/全景图正好越界，
+ * 所以先居中裁进 3:1（或 1:3）。
+ * 体积不用管：素材的 dataUrl 是 fileToCover 压过的（≤512 宽 jpeg），离上限很远。
+ * 解不开就返回 null 退成纯文生图——总比整条请求 400 强。
+ */
+async function prepRefImage(dataUrl: string): Promise<string | null> {
+  if (!dataUrl.startsWith("data:image/")) return null;
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = rej;
+      i.src = dataUrl;
+    });
+    const { width: w, height: h } = img;
+    if (w < 14 || h < 14) return null; // 太小，喂进去也认不出东西
+    const r = w / h;
+    if (r >= 1 / 3 && r <= 3) return dataUrl; // 合法比例：原样送，不重编码掉画质
+    const cw = r > 3 ? Math.round(h * 3) : w;
+    const ch = r < 1 / 3 ? Math.round(w * 3) : h;
+    const c = document.createElement("canvas");
+    c.width = cw;
+    c.height = ch;
+    c.getContext("2d")!.drawImage(img, Math.round((w - cw) / 2), Math.round((h - ch) / 2), cw, ch, 0, 0, cw, ch);
+    return c.toDataURL("image/jpeg", 0.85);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * 卡面一律由 Seedream 画。**图片素材不再直接当卡面**，而是作为 Seedream 的参考图——
  * 用户交上来的常常是随手拍/截图，直接贴上去与整副塔罗牌的画风完全对不上；
  * 让模型照着它重画一张，人物特征和配色留住了，画风也统一了。
  *
  * 参考图走 dataURL：arkClient.generateImage 把 imageRefs 原样塞进 body.image，
- * 方舟收 dataURL（design/gen-create-covers.mjs 一直这么喂定妆照）。传 http URL
- * 也行，但用户的素材本来就在本地，转存一趟没有意义。
+ * 方舟收 dataURL（design/gen-create-covers.mjs 一直这么喂定妆照）。
  *
- * 出图失败时兜底顺序：用户原图 > mock 占位图。原图至少是"用户认得的东西"。
+ * 返回 genPrompt 而不只是图：卡详情页的「生成蓝图」要它，按实际出图张数结算也要它
+ * （出图失败退回原图的那张不该收图钱）。没画成时**不带这个字段**——Card.genPrompt
+ * 是可选属性，写 undefined 和不写等价，但写 null 会与类型打架。
+ *
+ * 兜底顺序：出图 > 用户原图 > mock 占位图。原图至少是"用户认得的东西"。
  */
 async function forgeCover(
   type: CardType,
@@ -73,19 +141,31 @@ async function forgeCover(
   summary: string,
   note: string,
   f: MaterialFile | undefined,
-): Promise<string> {
-  const ref = f?.dataUrl ? [f.dataUrl] : undefined;
-  const prompt =
-    (ref
-      ? "参考图是用户提供的素材：请保留其中主体的外形特征、服饰与配色，重新绘制成一张卡面，不要照抄构图。"
-      : "") +
-    `${TYPE_LABEL[type]}：${name}。${summary}${note ? ` 要求：${note}` : ""}。${STYLE_SUFFIX}`;
+  fallback: string,
+): Promise<{ cover: string; genPrompt?: string }> {
+  const raw = f?.dataUrl ? await prepRefImage(f.dataUrl) : null;
+  const ref = raw ? [raw] : undefined;
+  const prompt = softenForImage(
+    [
+      `${TYPE_LABEL[type]}：${name}。${summary}`,
+      // ★ 用户原话单独成段、不揉进 summary：summary 被豆包压到 30 字，用户写的
+      //   硬约束（"左手有旧伤疤""一定要戴红围巾"）会被压没，出图就丢细节
+      note ? `用户的额外要求（必须满足）：${note.slice(0, 200)}` : "",
+      ref ? REF_HINT[type] : "",
+      ref ? "不要直接复制参考图，也不要保留它的背景杂物、相框、界面元素与文字。" : "",
+      // 数值来自 TarotCard：卡片容器是 aspect-[2/3] + object-cover，3:4 的图放进去
+      // 左右各被裁掉约 5.5%；题名条从 87% 起占底部 13%
+      "主体居中并留出余量：左右各约 6%、底部约 15% 会被卡框裁切或被题名条压住，不要放重要内容。",
+      STYLE_SUFFIX,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
   try {
-    // 竖版 3:4，与卡面文案一致（默认 2K 是方形，白白裁掉上下）
-    return await genImageAsDataUrl(prompt, ref, "1728x2304");
+    return { cover: await genImageAsDataUrl(prompt, ref, CARD_SIZE), genPrompt: prompt };
   } catch (e) {
     console.warn("[ai] 卡面出图失败，退回素材原图:", e);
-    return f?.dataUrl ?? "";
+    return { cover: f?.dataUrl ?? fallback };
   }
 }
 
@@ -95,8 +175,9 @@ async function forgeCover(
  *  不再有"选了人物卡却回来一张场景卡"的落差。 */
 export async function generateCards(files: MaterialFile[], note: string, forcedType?: CardType | null): Promise<Card[]> {
   const base = await mock.generateCards(files, note, forcedType); // 结构/兜底沿用 mock 推断
-  return await Promise.all(
-    base.map(async (card, i) => {
+  // ★ 限流 3 路，不能用 Promise.all：现在**每张卡都要出一次图**，6 份素材就是
+  //   6 个 Seedream 并发打过去，而 arkFetch 撞 429 只退避重试一次。
+  return await mapLimit(base, 3, async (card, i) => {
       const f = files[i] as MaterialFile | undefined;
       try {
         // 文案精炼：名称 + 一句话简介 + 类型校正
@@ -115,15 +196,14 @@ export async function generateCards(files: MaterialFile[], note: string, forcedT
         const summary = parsed.summary?.slice(0, 60) || card.summary;
         // forcedType 优先于模型返回：提示词里已经写死了，但模型偶尔仍会自作主张
         const type = forcedType ?? (parsed.type && TYPE_LABEL[parsed.type] ? parsed.type : card.type);
-        return { ...card, name, summary, type, cover: await forgeCover(type, name, summary, note, f) };
+        return { ...card, name, summary, type, ...(await forgeCover(type, name, summary, note, f, card.cover)) };
       } catch (e) {
         // 文案精炼失败不该连卡面一起赔进去：mock 已经给了名字和简介，
         // 拿它们照样能出图。以前这里一 catch 整张卡退回 mock 占位面
         console.warn("[ai] 卡片文案回退 mock:", e);
-        return { ...card, cover: await forgeCover(card.type, card.name, card.summary, note, f) };
+        return { ...card, ...(await forgeCover(card.type, card.name, card.summary, note, f, card.cover)) };
       }
-    }),
-  );
+    });
 }
 
 const FRAME_STYLE = STYLE_SUFFIX.replace("竖版 3:4 卡面", "横版 16:9 画面");

@@ -9,6 +9,9 @@
 //   smoothstep 透明度在 canvas 上合成，保证截出来的就是播放器里看到的画面。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AI_REAL, generateCover } from "../ai";
+import { canAfford, spendTokens } from "../data/account";
+import { ONE_IMAGE, fmtTokens } from "../data/economy";
+import TokenCost from "./TokenCost";
 import { VideoSegment, formatDuration } from "../types";
 // （CoverSection 在下方定义，供发布页与作品编辑页共用同一套封面来源）
 
@@ -366,10 +369,18 @@ export function AiCoverDialog({
   async function run(withRef: boolean) {
     const trimmed = req.trim();
     if (!trimmed || busy) return;
+    // 这里以前既没有余额门槛也不扣费——一次 Seedream 白送。真实 AI 下改一版
+    // 封面就是一张图的钱，改十版就是十张
+    if (AI_REAL && !canAfford(ONE_IMAGE)) {
+      setErr(`余额不够（需要 ${fmtTokens(ONE_IMAGE)} token），去「我的」页充值`);
+      return;
+    }
     setBusy(true);
     setErr("");
     try {
-      setResult(await generateCover(trimmed, withRef ? currentCover : undefined));
+      const url = await generateCover(trimmed, withRef ? currentCover : undefined);
+      if (AI_REAL) spendTokens(ONE_IMAGE); // 出图成功才扣
+      setResult(url);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -394,6 +405,7 @@ export function AiCoverDialog({
           <div className="mb-1 text-[10px] text-slate-500">
             {AI_REAL ? "Seedream 真实生成，约 20-30 秒" : "演示模式：产物为本地占位图"}
           </div>
+          <TokenCost tokens={ONE_IMAGE} note="每生成一版都会扣一次" className="mb-1.5" />
           <textarea
             value={req}
             onChange={(e) => setReq(e.target.value)}

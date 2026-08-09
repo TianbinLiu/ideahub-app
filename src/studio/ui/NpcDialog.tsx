@@ -9,9 +9,10 @@ import { useStudio } from "../studioStore";
 import { fileToCover } from "../../mock/frames";
 import { AI_REAL, MaterialFile } from "../../ai";
 import { canAfford, spendTokens, walletOf } from "../../data/account";
-import { forgeCardCount, forgeCost, fmtTokens } from "../../data/economy";
+import { forgeCardCount, forgeCost, forgeSettle, fmtTokens } from "../../data/economy";
 import { Card, CARD_TYPES, CARD_TYPE_LABELS, CardType } from "../../types";
 import TarotCard from "../../components/TarotCard";
+import TokenCost from "../../components/TokenCost";
 import { NPC_SCREEN } from "../scene/cameraOrbit";
 import { setVoiceEnabled, voiceEnabled, voiceStatus, voiceSupported } from "../speech";
 import { useBackGuard } from "../backGuards";
@@ -343,8 +344,13 @@ function ForgeForm({ onClose }: { onClose: () => void }) {
         setErr("这批素材没能炼出卡，补充点描述再试？");
         return;
       }
-      // 按**实际出卡**结算：预估是"一份素材一张卡"的上限，模型少出几张就少收几张
-      if (AI_REAL) spendTokens(forgeCost(cards.length));
+      // 按**实际出卡 + 实际出图**结算：预估是"一份素材一张卡、每张都出图"的上限，
+      // 模型少出几张就少收几张；出图失败退回用户原图的那张（没有 genPrompt）只收文案钱
+      if (AI_REAL) {
+        const minted = cards.filter((c) => c.genPrompt).length;
+        spendTokens(forgeSettle(cards.length, minted));
+        if (minted < cards.length) setErr(`有 ${cards.length - minted} 张没画成卡面，先用你的原图顶上（这几张不收图钱）`);
+      }
       setPreview(cards);
       setStep("preview");
     } catch (e) {
@@ -469,10 +475,13 @@ function ForgeForm({ onClose }: { onClose: () => void }) {
                   className="w-full resize-none rounded-xl border border-slate-600 bg-ink/70 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                 />
               </div>
-              {AI_REAL && canForge && (
-                <p className="mt-1.5 text-[11px] text-slate-500">
-                  预估 {fmtTokens(cost)} token（{cardN} 张卡，每张都要出一次卡面）· 按实际出卡张数结算 · 每次重炼都会再扣
-                </p>
+              {canForge && (
+                <TokenCost
+                  tokens={cost}
+                  upper
+                  note={`${cardN} 张卡 · 每张一次卡面 · 每次重炼都会再扣`}
+                  className="mt-1.5"
+                />
               )}
             </>
           )}

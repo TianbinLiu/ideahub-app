@@ -4,8 +4,8 @@ import { BranchNodeData, BranchTree, Card, CardType, DraftVideo, NodeSlot, Propo
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateProposals, refineFrame, searchMarket } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { addCards as saveCardsToAccount, myCards, myDecks, walletOf } from "../data/account";
-import { DEFAULT_TIER, composeCost, fmtTokens } from "../data/economy";
+import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, walletOf } from "../data/account";
+import { DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, fmtTokens, forgeCardCount, forgeCost, forgeSettle, proposalsCost } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { FlowNode, chosenOf, nodeVideo, useFlow } from "./flowStore";
 import { speak, stopSpeaking } from "./speech";
@@ -528,6 +528,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (!trimmed && pendingFiles.length === 0) return;
     // 对话框里直接打字炼卡是**快捷通道**：不选卡种、不预览，炼完就收。
     // 需要挑卡种/看过再收的走素材窗（forgeCards → acceptForge）。
+    // 快捷通道同样要收钱：它和素材窗走的是同一个 generateCards，以前这条路
+    // 一分不扣——每张卡白送一次豆包 + 一次 Seedream
+    const quickCost = forgeCost(forgeCardCount(pendingFiles.length, !!trimmed));
+    if (AI_REAL && !canAfford(quickCost)) {
+      get().npcSay(`炼一张卡约 ${fmtTokens(quickCost)} token，余额不够了——去「我的」页充值。`);
+      return;
+    }
     let cards: Card[];
     try {
       cards = await get().forgeCards(pendingFiles, trimmed, null);
@@ -536,6 +543,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
     set({ pendingFiles: [] });
     if (cards.length === 0) return;
+    if (AI_REAL) spendTokens(forgeSettle(cards.length, cards.filter((c) => c.genPrompt).length));
     get().acceptForge(cards);
   },
 
@@ -736,9 +744,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const node = activePath(root).find((n) => n.id === nodeId);
     const prop = node?.proposals.find((p) => p.id === proposalId);
     if (!node || !prop) return false;
+    // 改一次图 = 一张 Seedream。以前这里既不看余额也不扣费，用户改十版是白送十张
+    if (AI_REAL && !canAfford(ONE_IMAGE)) {
+      get().npcSay(`改图要 ${fmtTokens(ONE_IMAGE)} token，余额不够了——去「我的」页充值。`);
+      return false;
+    }
     set({ frameRefining: `${proposalId}:${which}` });
     try {
       const next = await refineFrame(req.trim(), which === "first" ? prop.firstFrame : prop.lastFrame);
+      if (AI_REAL) spendTokens(ONE_IMAGE); // 出图成功才扣
       if (which === "first") prop.firstFrame = next;
       else prop.lastFrame = next;
       set({ root: root ? { ...root } : root });
@@ -773,6 +787,17 @@ export const useStudio = create<StudioState>()((set, get) => ({
       get().npcSay("至少放一张素材卡，或写一句视频要求，我才好推演。");
       return;
     }
+    // 三方案推演 = 1 次豆包 + 最多 6 张 Seedream。以前这一步一分钱不收，
+    // 而它是工坊里用得最频繁的操作。有确定开头帧时三个方案共用它、只画尾帧，
+    // 图量减半，报价也跟着减半
+    const propCost = proposalsCost(!!editor.startFrame);
+    if (AI_REAL && !canAfford(propCost)) {
+      const w = walletOf();
+      get().npcSay(
+        `推演一次约 ${fmtTokens(propCost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不够——去「我的」页充值。`,
+      );
+      return;
+    }
     nodeGenInFlight = true;
     // live 始终指向本次生成挂在 store 上的最新编辑器对象——进度更新会换对象，
     // 不能再拿发起时的引用做"表单还开着吗"的同一性判断
@@ -790,6 +815,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const anchor = tail0 ? { id: tail0.id, chosenId: tail0.chosenId } : null;
     const prev = tail0 ? chosenProposal(tail0) : null;
     try {
+      if (AI_REAL) spendTokens(propCost); // 推演真跑起来才扣
       const proposals = await generateProposals(
         {
           index: root ? path.length : 0,
@@ -947,6 +973,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
     try {
       const styleHint = deckCards.find((c) => c.type === "style")?.name ?? "";
       // 把已用的素材卡报给 AI：已覆盖的实体不重复提炼，只补剧情里缺卡的角色/场景
+      // 派生卡组与 3D 建模以前**完全免费**，而 3D 建模是全 app 最贵的单次操作
+      // （seed3d 约 2.4 元/次 ≈ 160k token）。这里在真实 AI 下按上限预扣门槛、
+      // 按实际产出结算——余额不够就跳过派生，成片本身照出，不该被卡住
+      const canDerive = !AI_REAL || canAfford(deckCardsCost());
+      if (!canDerive) say("余额不足，跳过卡组提炼（成片不受影响）");
+      if (!canDerive) throw new Error("skip-derive");
       say("提炼本片卡组…");
       const derived = await deriveDeckCards(
         segments.map((sg) => ({ title: sg.title, plot: sg.plot, firstFrame: sg.firstFrame })),
@@ -957,13 +989,27 @@ export const useStudio = create<StudioState>()((set, get) => ({
       const names = new Set(deckCards.map((c) => c.name));
       const fresh = derived.filter((c) => !names.has(c.name));
       deckCards.push(...fresh);
-      // 3D 画风的作品：给派生的角色卡自动铸 3D 建模（Seed3D，上限 2 张）
+      if (AI_REAL && fresh.length > 0) spendTokens(deckCardsCost(fresh.length)); // 按实际出卡结算
+      // 3D 画风的作品：给派生的角色卡自动铸 3D 建模（Seed3D，上限 2 张）。
+      // ★ 这条正则是**静默触发**的——剧情里出现"渲染"两个字就会去铸模。以前还不收钱，
+      //   现在至少要看得起：余额不够就跳过，并明确说出来
       const styleBlob = [styleHint, ...path.map((n) => n.requirement ?? ""), ...segments.map((s) => s.plot)].join(" ");
       if (/3d|三维|立体感|cg|建模|皮克斯|pixar|渲染/i.test(styleBlob)) {
-        await deriveCharacterModels(fresh, 2, say);
+        const want = Math.min(2, fresh.filter((c) => c.type === "character").length);
+        if (want > 0) {
+          if (AI_REAL && !canAfford(want * MODEL3D_TOKENS)) {
+            say(`3D 建模需 ${fmtTokens(want * MODEL3D_TOKENS)} token，余额不足，跳过`);
+          } else {
+            say(`这是 3D 画风，顺便铸 ${want} 个建模（${fmtTokens(want * MODEL3D_TOKENS)} token）…`);
+            const before = fresh.filter((c) => c.modelUrl).length;
+            await deriveCharacterModels(fresh, 2, say);
+            const minted = fresh.filter((c) => c.modelUrl).length - before;
+            if (AI_REAL && minted > 0) spendTokens(minted * MODEL3D_TOKENS);
+          }
+        }
       }
     } catch (e) {
-      console.warn("[studio] 卡组提炼回退按段场景卡:", e);
+      if (!(e instanceof Error && e.message === "skip-derive")) console.warn("[studio] 卡组提炼回退按段场景卡:", e);
       if (deckCards.length === 0) {
         deckCards.push(
           ...segments.map((sg, i) => ({

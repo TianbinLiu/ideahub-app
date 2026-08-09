@@ -103,6 +103,36 @@ export function composeCost(segments: Array<Pick<VideoSegment, "durationSec" | "
   return segments.filter((s) => !s.videoUrl).reduce((sum, s) => sum + segTokens(s.durationSec, s.videoTier), 0);
 }
 
+/**
+ * 一次 seed3d 建模的 token 等价。折算依据：doubao-seed3d-2.0 约 **2.4 元/次**
+ * （带纹理 + PBR），标准档视频 15 元/M ⇒ 2.4/15 M = 160k。
+ * 这是全 app **最贵的单次操作**——12 张 Seedream 的钱。它以前一分不收也一句提示
+ * 没有，还由一条正则（/3d|三维|立体感|cg|建模|渲染/）静默触发。
+ */
+export const MODEL3D_TOKENS = 160_000;
+
+/** 三方案推演：1 次豆包写剧情 + 每个方案的首尾帧。
+ *  有确定开头帧时三个方案共用它，只画尾帧——图量减半，报价也得跟着减半，
+ *  否则用户会看到"接着上一段做反而更贵"。 */
+export function proposalsCost(hasStartFrame: boolean): number {
+  return CARD_META_TOKENS + 3 * (hasStartFrame ? 1 : 2) * IMAGE_TOKENS;
+}
+
+/** 单张图的重画：方案设定图改图（refineFrame）、AI 封面（generateCover） */
+export const ONE_IMAGE = IMAGE_TOKENS;
+
+/** 成片派生卡组：最多 8 张，每张一次文案 + 一次卡面。
+ *  与 extractCost 一样给的是**上限**——重复实体会被剔掉，按实际出卡结算。 */
+export function deckCardsCost(maxCards = 8): number {
+  return maxCards * (CARD_META_TOKENS + IMAGE_TOKENS);
+}
+
+/** 素材炼卡的**实际**结算：只有真画出卡面的那几张收图钱，
+ *  出图失败退回用户原图的那张只收文案钱。 */
+export function forgeSettle(cardCount: number, mintedCovers: number): number {
+  return cardCount * CARD_META_TOKENS + mintedCovers * IMAGE_TOKENS;
+}
+
 export function fmtTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}k`;

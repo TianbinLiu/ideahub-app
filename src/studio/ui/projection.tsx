@@ -10,6 +10,8 @@ import DeckCard from "../../components/DeckCard";
 import Icon from "../../components/Icon";
 import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType } from "../../types";
 import { activePath, chosenProposal, useStudio } from "../studioStore";
+import TokenCost from "../../components/TokenCost";
+import { proposalsCost } from "../../data/economy";
 import { computeChain } from "../scene/TableScene";
 import { CHAIN, focusCam } from "../scene/layout";
 
@@ -492,7 +494,15 @@ function EditorPanel() {
         </div>
       </div>
 
-      <div className="flex gap-2 border-t border-cyan-400/20 p-3">
+      <div className="border-t border-cyan-400/20 px-3 pb-3 pt-2">
+        {/* 推演一次 = 1 次豆包写剧情 + 最多 6 张 Seedream 首尾帧。
+            这一步是工坊里用得最频繁的付费操作，以前一个字的提示都没有 */}
+        <TokenCost
+          tokens={proposalsCost(!!editor.startFrame)}
+          note={editor.startFrame ? "承接上段尾帧，三个方案共用开头帧，只画尾帧" : undefined}
+          className="mb-2"
+        />
+        <div className="flex gap-2">
         <button
           onClick={() => useStudio.getState().closeProjection()}
           disabled={editor.generating}
@@ -507,6 +517,7 @@ function EditorPanel() {
         >
           {editor.generating ? editor.progress || "AI 正在推演三种走向…" : "生成"}
         </button>
+        </div>
       </div>
     </>
   );

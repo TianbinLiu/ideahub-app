@@ -13,7 +13,7 @@
 import { create } from "zustand";
 import { AI_REAL, composeSegments, generateCover, generateProposals, refineFrame } from "../ai";
 import { canAfford, spendTokens, walletOf } from "../data/account";
-import { DEFAULT_TIER, fmtTokens, segTokens, tierOf } from "../data/economy";
+import { DEFAULT_TIER, fmtTokens, segTokens, tierOf, proposalsCost } from "../data/economy";
 import { Card, Proposal, TemplateRecipe, VideoTemplate, uid } from "../types";
 
 /** 画面圈选标注：某一帧上圈出的物体 + 修改要求（重生成时并入提示词并改设定帧） */
@@ -239,7 +239,20 @@ export const useFlow = create<FlowState>()((set, get) => ({
       set({ err: "先写一句要拍什么（或从工坊带素材卡过来），我才好推演走向" });
       return false;
     }
+    // 与工坊的 generateNode 同一口径：1 次豆包 + 最多 6 张 Seedream。
+    // 这里以前既没有余额门槛也不扣费
+    // 承接上一段尾帧时三个方案共用同一张开头帧，只画尾帧——图量减半，报价同步减半
+    const prevOfCost = idx > 0 ? chosenOf(s0.nodes[idx - 1]) : null;
+    const propCost = proposalsCost(!!(node.chain && prevOfCost?.lastFrame));
+    if (AI_REAL && !canAfford(propCost)) {
+      const w = walletOf();
+      set({
+        err: `推演一次约 ${fmtTokens(propCost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
+      });
+      return false;
+    }
     set({ busy: true, err: "" });
+    if (AI_REAL) spendTokens(propCost);
     get().updateNode(nodeId, { status: "generating", progress: "推演三种走向…" });
     try {
       const prevNode = get().nodes[idx - 1];

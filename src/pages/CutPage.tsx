@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import FrameAnnotator, { drawCover, loadImg } from "../components/FrameAnnotator";
 import Icon from "../components/Icon";
-import { refineFrame, regenSegment } from "../ai";
+import { AI_REAL, refineFrame, regenSegment } from "../ai";
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
 import { fmtTokens, segTokens } from "../data/economy";
@@ -205,7 +205,7 @@ export default function CutPage() {
     if (busy || anns.length === 0) return;
     const bySeg = new Map<number, Ann[]>();
     for (const a of anns) bySeg.set(a.segIndex, [...(bySeg.get(a.segIndex) ?? []), a]);
-    if (!canAfford(annCost)) {
+    if (AI_REAL && !canAfford(annCost)) {
       const w = walletOf();
       setErr(
         `重生成 ${bySeg.size} 段约需 ${fmtTokens(annCost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
@@ -237,7 +237,9 @@ export default function CutPage() {
         const { url, lastFrame } = await regenSegment(seg, reqAll, (s) => setBusy(`第 ${segIndex + 1} 段 · ${s}`));
         seg.videoUrl = url;
         if (lastFrame) seg.lastFrame = lastFrame;
-        spendTokens(segTokens(seg.durationSec, seg.videoTier));
+        // ★ 必须判 AI_REAL：演示模式下根本没调方舟，却照样扣本地余额，
+        //   用户在 mock 里点几次就"没钱"了，还查不出钱花在哪
+        if (AI_REAL) spendTokens(segTokens(seg.durationSec, seg.videoTier));
         nextSegs[segIndex] = seg;
         void resolveMediaUrl(url, { forCapture: true }).then((u) => u && setSrcMap((m) => ({ ...m, [segIndex]: u })));
       }
