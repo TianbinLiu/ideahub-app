@@ -8,6 +8,12 @@
 // 状态：
 //   虚框 = 首尾帧还没齐（还没推演，或只承接到开头帧）
 //   实框 = 首尾帧都有了 —— 此时封面在两帧之间渐变轮播，一眼看出这段"从哪到哪"
+//
+// 两处在用（同一张卡的两种场合，所以是同一个组件而不是抄一份）：
+//   铸段编辑器 —— 尾帧还不存在（由所选方案决定），只能换开头帧
+//   方案台选定的那一行 —— 首尾帧都在，两帧都能换成本地图（传 onPickLastFile 才出现那一排）
+// 换进来的帧会上锁（Proposal.pinned），AI「按修改重画」时不动它；卡里另给一个"清掉 · 交回
+// AI 画"的出口，否则用户上传错一张就再也回不到 AI 自拟。
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -15,8 +21,10 @@ import { createPortal } from "react-dom";
 const HOLD_MS = 2600;
 const FADE_MS = 900;
 
-/** 首尾帧交替：返回当前该显示哪一帧（渐变本身交给 CSS opacity 过渡） */
-function useFrameCycle(enabled: boolean): boolean {
+/** 首尾帧交替：返回当前该显示哪一帧（渐变本身交给 CSS opacity 过渡）。
+ *  导出给 PlanBoard 复用——方案台上未选中的行只是"一张会轮播的小卡"，不需要整个 FrameCard
+ *  的放大层与上传按钮，但轮播节奏必须与选中行、与桌面节点卡完全一致。 */
+export function useFrameCycle(enabled: boolean): boolean {
   const [showLast, setShowLast] = useState(false);
   useEffect(() => {
     if (!enabled) {
@@ -30,7 +38,7 @@ function useFrameCycle(enabled: boolean): boolean {
 }
 
 /** 卡面：两张图叠着，只切 opacity（合成层，不触发重排——与本仓动画约定一致） */
-function CardFace({
+export function CardFace({
   first,
   last,
   showLast,
@@ -75,6 +83,13 @@ export default function FrameCard({
   onResetStart,
   /** 有没有"可恢复"的上传图 */
   uploaded,
+  /** 给了才有"换结束帧"那一排（铸段阶段尾帧还不存在，所以那边不传）。
+   *  clear=true 表示"清掉这一帧交回 AI"——方案台上换过的帧会上锁，不清掉 AI 不会重画它 */
+  onPickLastFile,
+  onClearFrame,
+  pinned,
+  /** 卡下面那行说明；null = 不要（方案台的行里位置很紧） */
+  caption,
 }: {
   firstFrame: string | null;
   lastFrame: string | null;
@@ -83,6 +98,10 @@ export default function FrameCard({
   onPickFile: (f: File) => void;
   onResetStart: () => void;
   uploaded: boolean;
+  onPickLastFile?: (f: File) => void;
+  onClearFrame?: (which: "first" | "last") => void;
+  pinned?: { first?: boolean; last?: boolean };
+  caption?: string | null;
 }) {
   const [zoom, setZoom] = useState(false);
   const complete = !!firstFrame && !!lastFrame;
@@ -90,6 +109,7 @@ export default function FrameCard({
   // 放大态里独立跑一轮，别和小卡共用——放大是为了看清，节奏该一样但互不打断
   const showLastBig = useFrameCycle(complete && zoom);
   const fileRef = useRef<HTMLInputElement>(null);
+  const lastFileRef = useRef<HTMLInputElement>(null);
 
   // 放大时锁掉背景滚动，并支持 Esc 退出（点卡外区域也能退，见遮罩的 onClick）
   useEffect(() => {
@@ -108,7 +128,7 @@ export default function FrameCard({
         onClick={() => setZoom(true)}
         className={`group relative w-full overflow-hidden rounded-xl border-2 ${border} bg-slate-800/40 transition active:scale-[0.98]`}
         style={{ aspectRatio: "2 / 3" }}
-        title="点开看大图 / 换开头帧"
+        title={onPickLastFile ? "点开看大图 / 换首尾帧" : "点开看大图 / 换开头帧"}
       >
         {firstFrame || lastFrame ? (
           <CardFace first={firstFrame} last={lastFrame} showLast={showLast} className="absolute inset-0" />
@@ -122,12 +142,14 @@ export default function FrameCard({
           {complete ? "首尾帧" : firstFrame ? "开头帧" : "待推演"}
         </span>
         <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-1.5 pb-1 pt-3 text-[9px] leading-tight text-slate-300">
-          {complete ? "首尾帧轮播 · 点开看大图" : originNote}
+          {complete ? "首尾帧轮播 · 点开换图" : originNote}
         </span>
       </button>
-      <div className="text-center text-[10px] leading-4 text-slate-500">
-        {complete ? "视频将在这两帧之间生成" : "尾帧由所选方案决定；视频从开头帧无缝续拍"}
-      </div>
+      {caption !== null && (
+        <div className="text-center text-[10px] leading-4 text-slate-500">
+          {caption ?? (complete ? "视频将在这两帧之间生成" : "尾帧由所选方案决定；视频从开头帧无缝续拍")}
+        </div>
+      )}
 
       {/* ── 放大态：在**窗口**里居中铺开，点卡外区域收回 ──
           ★ 必须 portal 到 body：投影面板带 backdrop-blur，而 backdrop-filter 会给
@@ -187,6 +209,33 @@ export default function FrameCard({
                     </button>
                   )}
                 </div>
+                {onPickLastFile && (
+                  <button
+                    onClick={() => lastFileRef.current?.click()}
+                    disabled={!canEdit}
+                    className="w-full rounded-xl border border-slate-600 py-2.5 text-xs text-slate-200 hover:border-cyan-400 disabled:opacity-40"
+                  >
+                    上传本地图作结束帧
+                  </button>
+                )}
+                {/* 换过的帧被锁住（AI 重画方案时不动它）。要让 AI 重新画就得先把它清掉——
+                    没有这个出口，用户上传错一张图就永远没办法回到"AI 自拟" */}
+                {onClearFrame && (pinned?.first || pinned?.last) && (
+                  <div className="flex gap-2">
+                    {(["first", "last"] as const)
+                      .filter((w) => pinned?.[w])
+                      .map((w) => (
+                        <button
+                          key={w}
+                          onClick={() => onClearFrame(w)}
+                          disabled={!canEdit}
+                          className="flex-1 rounded-xl border border-slate-700 py-2 text-[11px] text-slate-400 hover:border-slate-500 disabled:opacity-40"
+                        >
+                          清掉{w === "first" ? "开头" : "结束"}帧 · 交回 AI 画
+                        </button>
+                      ))}
+                  </div>
+                )}
                 <button
                   onClick={() => setZoom(false)}
                   className="w-full rounded-xl bg-slate-700/70 py-2.5 text-xs text-slate-200"
@@ -203,6 +252,17 @@ export default function FrameCard({
                   const f = e.target.files?.[0];
                   e.target.value = "";
                   if (f) onPickFile(f);
+                }}
+              />
+              <input
+                ref={lastFileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) onPickLastFile?.(f);
                 }}
               />
             </div>

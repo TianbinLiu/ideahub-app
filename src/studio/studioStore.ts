@@ -1,11 +1,11 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
 import { BranchNodeData, BranchTree, Card, CardType, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
-import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateProposals, npcChat, npcChatOffline, refineFrame, searchMarket } from "../ai";
+import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, npcChat, npcChatOffline, refineFrame, searchMarket } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, walletOf } from "../data/account";
-import { CHAT_TURN_TOKENS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, fmtTokens, proposalsCost, segTokens } from "../data/economy";
+import { CHAT_TURN_TOKENS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, fmtTokens, proposalRedrawCost, proposalsCost, segTokens } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { FlowNode, FlowTemplate, chosenOf, flowDirty, nodeVideo, useFlow } from "./flowStore";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, saveDraft } from "../data/drafts";
@@ -77,17 +77,59 @@ export function chosenProposal(node: NodeSlot): Proposal | null {
   return node.proposals.find((p) => p.id === node.chosenId) ?? null;
 }
 
-/** 虚线空白卡位是否可见：无节点，或路径末端已选定 */
+/**
+ * 这一套方案出片了吗。
+ * ★ mock 构建（没配 ARK_API_KEY）下 Seedance 不返回地址，用 "mock:" 占位——与 flowStore 的
+ *   videoByProposal 同一套约定。所以"出片了吗"问这个函数，"能不能播"问 realVideoOf()：
+ *   把 "mock:" 交给播放器会得到一个报错的 <video>，而把它当成"没出片"会让演示模式下整条
+ *   流水线永远推进不下去。
+ */
+export function proposalDone(p: Proposal | null | undefined): boolean {
+  return !!p?.videoUrl;
+}
+
+/** 能真正播/截帧的地址（滤掉 mock 占位串） */
+export function realVideoOf(p: Proposal | null | undefined): string | undefined {
+  return p?.videoUrl && !p.videoUrl.startsWith("mock:") ? p.videoUrl : undefined;
+}
+
+/** 这张开头帧不是本方案自己画的（用户上传的，或承接上一段的真实结尾）→ 重画时不许动它 */
+function keepFirstFrame(p: Proposal, prev: Proposal | null): boolean {
+  return !!p.pinned?.first || !!(prev?.lastFrame && p.firstFrame === prev.lastFrame);
+}
+
+/** 「按修改重画这一套」的报价。★ regenProposal 扣钱走的是同一个函数（铁律六） */
+export function proposalRedrawCostOf(p: Proposal, prev: Proposal | null): number {
+  return proposalRedrawCost(keepFirstFrame(p, prev), !!p.pinned?.last);
+}
+
+/** 「重新推演三套」跑起来时占用 nodeGen 的那个 key。
+ *  nodeGen 本来是按方案 id 记的，而重推时新方案还不存在——拿节点 id 顶上，UI 据此把进度
+ *  日志显示在整个方案台上方（重推真实 AI 下要一分钟出头，没有进度就是"卡死"体感）。
+ *  ★ 拼串的规则只放这一处：store 写、UI 读，两边各拼一次必然有一天对不上。 */
+export const rederiveKey = (nodeId: string) => `rederive:${nodeId}`;
+
+/**
+ * 虚线空白卡位是否可见 = **能不能开下一段**。
+ *
+ * ★ 门槛从"末段选定了方案"提到"末段选定了方案**并且炼出了视频**"。
+ *   老规则允许一路只挑方案、把出片全攒到最后一起炼，代价有两条：
+ *     ① 段与段要靠前一段的**真实尾帧**承接起拍，攒着炼时后面每段接的都是设定帧
+ *        （AI 画的示意图），衔接会断；
+ *     ② 第 1 段的人物/画风不对，用户往往铺完五段才发现，前面挑的方案全作废。
+ *   现在必须一段一段落地：选方案（便宜）→ 出片（贵）→ 才开下一张卡。
+ */
 export function placeholderVisible(root: NodeSlot | null): boolean {
   if (!root) return true;
   const path = activePath(root);
-  return path[path.length - 1].chosenId != null;
+  return proposalDone(chosenProposal(path[path.length - 1]));
 }
 
+/** 法阵能不能点：活动路径上每一段都已出片（同上——逐段落地之后，整片其实已经炼完，
+ *  法阵剩下的活是把它铺成工作流交给剪辑页） */
 export function composable(root: NodeSlot | null): boolean {
   if (!root) return false;
-  const path = activePath(root);
-  return path[path.length - 1].chosenId != null;
+  return activePath(root).every((n) => proposalDone(chosenProposal(n)));
 }
 
 /** 把工坊的 NodeSlot 树转成观众侧互动分支树：
@@ -155,6 +197,10 @@ function segToProposal(index: number, seg: VideoSegment): Proposal {
     firstFrame: seg.firstFrame,
     lastFrame: seg.lastFrame,
     durationSec: seg.durationSec,
+    // ★ 成片地址必须带回来：这一段**已经花钱炼过了**（作品都发布了）。丢掉它的后果是
+    //   回炉编辑时每段都显示"没出片"——法阵点不亮、下一段的卡位也不亮，而且再走一遍
+    //   工作流会把整片重炼一次，用户为同样的画面付第二次钱。
+    ...(seg.videoUrl ? { videoUrl: seg.videoUrl } : {}),
   };
 }
 
@@ -335,6 +381,18 @@ interface StudioState {
   frameRefining: string | null;
   /** 方案设定图选帧改图：Seedream 图生图按要求重画首/尾帧并回写方案 */
   refineProposalFrame: (nodeId: string, proposalId: string, which: "first" | "last", req: string) => Promise<boolean>;
+
+  // ── 方案台（与工作流共用 PlanBoard 组件，见 ui/PlanBoard.tsx）────────
+  /** 改某一套方案的标题/剧情/时长（只有选定的那一套可改，见 PlanBoard） */
+  patchProposal: (nodeId: string, proposalId: string, patch: Partial<Proposal>) => void;
+  /** 在方案卡上换首/尾帧：dataUrl 为本地图（上锁，AI 重画时不动它）；空串 = 清掉交回 AI */
+  setProposalFrame: (nodeId: string, proposalId: string, which: "first" | "last", dataUrl: string) => void;
+  /** 按用户改过的剧情/换过的帧，让 AI 重画**这一套**的画面（不重写剧情——那是用户刚敲的字） */
+  regenProposal: (nodeId: string, proposalId: string) => Promise<boolean>;
+  /** 重新推演这一节点的三套方案（要求不变，换一批走向）。已出片或已延展子树的旧方案保留 */
+  regenNodeProposals: (nodeId: string) => Promise<boolean>;
+  /** 正在按修改重画的方案 id；null=空闲 */
+  proposalRegen: string | null;
   setVideoTier: (id: string) => void;
   /** 上传/清除本段开头帧（null=恢复默认承接上一节点尾帧） */
   setStartFrame: (dataUrl: string | null) => void;
@@ -925,6 +983,146 @@ export const useStudio = create<StudioState>()((set, get) => ({
       set({ frameRefining: null });
     }
   },
+  patchProposal: (nodeId, proposalId, patch) => {
+    const { root } = get();
+    const node = activePath(root).find((n) => n.id === nodeId);
+    const p = node?.proposals.find((q) => q.id === proposalId);
+    if (!p) return;
+    Object.assign(p, patch);
+    set({ root: root ? { ...root } : root });
+  },
+
+  setProposalFrame: (nodeId, proposalId, which, dataUrl) => {
+    const { root } = get();
+    const node = activePath(root).find((n) => n.id === nodeId);
+    const p = node?.proposals.find((q) => q.id === proposalId);
+    if (!p) return;
+    if (which === "first") p.firstFrame = dataUrl;
+    else p.lastFrame = dataUrl;
+    // 上锁：AI「按修改重画」时不动用户自己上传的帧（见 Proposal.pinned）
+    p.pinned = { ...p.pinned, [which]: dataUrl ? true : undefined };
+    delete p.degraded; // 换过的帧不再是"Seedream 没出图的占位帧"
+    set({ root: root ? { ...root } : root });
+  },
+
+  proposalRegen: null,
+  regenProposal: async (nodeId, proposalId) => {
+    const { root, proposalRegen, frameRefining, nodeGen } = get();
+    if (proposalRegen || frameRefining || nodeGen) return false;
+    const path = activePath(root);
+    const idx = path.findIndex((n) => n.id === nodeId);
+    const node = path[idx];
+    const p = node?.proposals.find((q) => q.id === proposalId);
+    if (!node || !p) return false;
+    if (!p.plot.trim()) {
+      set({ notice: { text: "这一套还没有剧情——先写点什么，我才知道要画成什么样", at: Date.now() } });
+      return false;
+    }
+    // 承接上一段真实结尾的开头帧、以及用户自己上传的帧，一律不动
+    const prev = idx > 0 ? chosenProposal(path[idx - 1]) : null;
+    const keepFirst = keepFirstFrame(p, prev);
+    const keepLast = !!p.pinned?.last;
+    const cost = proposalRedrawCostOf(p, prev);
+    if (cost === 0) {
+      get().npcSay("首尾帧都是你自己换的图，没有可让我重画的地方——想重画就先在卡里清掉那一帧。");
+      return false;
+    }
+    if (AI_REAL && !canAfford(cost)) {
+      get().npcSay(`重画这一套要 ${fmtTokens(cost)} token，余额不够了——去「我的」页充值。`);
+      return false;
+    }
+    set({ proposalRegen: proposalId });
+    try {
+      let first = p.firstFrame;
+      if (!keepFirst) first = await generateCover(p.plot.slice(0, 200));
+      // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味
+      const last = keepLast ? p.lastFrame : await generateCover(`${p.plot.slice(0, 180)} 的结束瞬间`, first || undefined);
+      if (AI_REAL) spendTokens(cost); // 出图成功才扣，与 refineProposalFrame 同口径
+      p.firstFrame = first;
+      p.lastFrame = last;
+      delete p.degraded;
+      const cur = get().root;
+      set({ root: cur ? { ...cur } : cur });
+      get().npcSay("按你的改动重画好了。不满意就再改剧情、或者直接换成你自己的图。");
+      return true;
+    } catch (e) {
+      get().npcSay(`重画没成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}`);
+      get().setMood(-0.4, 2200);
+      return false;
+    } finally {
+      set({ proposalRegen: null });
+    }
+  },
+
+  regenNodeProposals: async (nodeId) => {
+    const { root, nodeGen, proposalRegen } = get();
+    if (nodeGenInFlight || nodeGen || proposalRegen) {
+      get().npcSay("上一炉还在跑，等它出炉再说。");
+      return false;
+    }
+    const path = activePath(root);
+    const idx = path.findIndex((n) => n.id === nodeId);
+    const node = path[idx];
+    if (!node) return false;
+    const prev = idx > 0 ? chosenProposal(path[idx - 1]) : null;
+    // 起拍帧沿用原来那一套的（承接上一段的真实结尾）——重推的是"走向"，不是"从哪起拍"
+    const startFrame = prev?.lastFrame ?? null;
+    const propCost = proposalsCost(!!startFrame);
+    if (AI_REAL && !canAfford(propCost)) {
+      const w = walletOf();
+      get().npcSay(
+        `重推一次约 ${fmtTokens(propCost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不够——去「我的」页充值。`,
+      );
+      return false;
+    }
+    nodeGenInFlight = true;
+    const key = rederiveKey(nodeId);
+    set({ nodeGen: { proposalId: key, steps: [] } });
+    const log = createGenLog((steps) => set({ nodeGen: { proposalId: key, steps } }));
+    log.begin("重新推演三套走向");
+    try {
+      if (AI_REAL) spendTokens(propCost);
+      const fresh = await generateProposals(
+        {
+          index: idx,
+          materials: node.materials ?? [],
+          requirement: node.requirement ?? chosenProposal(node)?.plot ?? "",
+          durationMode: "manual",
+          durationSec: chosenProposal(node)?.durationSec ?? 6,
+          prevFrameSeed: prev ? `${prev.id}#last` : null,
+          startFrame,
+          pathPlots: path
+            .slice(0, idx)
+            .map((n) => chosenProposal(n)?.plot ?? "")
+            .filter(Boolean),
+        },
+        (status) => log.detail(status),
+      );
+      log.end();
+      // ★ 只留"丢了就补不回来"的旧方案：已出片的（真金白银）和已经往下铺过节点的
+      //   （children 挂在方案 id 上，方案没了那棵子树就成了孤儿）
+      const cur = get().root;
+      const live = activePath(cur).find((n) => n.id === nodeId) ?? node;
+      const keep = live.proposals.filter((q) => proposalDone(q) || live.children[q.id]);
+      const keepIds = new Set(keep.map((q) => q.id));
+      for (const id of Object.keys(live.children)) if (!keepIds.has(id)) delete live.children[id];
+      live.proposals = [...fresh, ...keep];
+      // 重推完是"摊开等挑"：chosenId 归零，虚线卡位随之收起（末段没选定就开不了下一段）
+      live.chosenId = null;
+      set({ root: cur ? { ...cur } : cur, nodeGen: null });
+      get().npcSay("换了一批走向，投影在你面前了——点开挑一套。");
+      return true;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log.fail(`失败：${msg.slice(0, 80)}`);
+      set({ nodeGen: null, notice: { text: `重推没成：${msg.slice(0, 60)}`, at: Date.now() } });
+      return false;
+    } finally {
+      nodeGenInFlight = false;
+      set({ nodeGen: null });
+    }
+  },
+
   setRequirement: (v) => set((s) => (s.editor ? { editor: { ...s.editor, requirement: v } } : {})),
   setDurationMode: (m) => set((s) => (s.editor ? { editor: { ...s.editor, durationMode: m } } : {})),
   setDurationSec: (v) => set((s) => (s.editor ? { editor: { ...s.editor, durationSec: v } } : {})),
@@ -1051,8 +1249,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const node = activePath(root).find((n) => n.id === nodeId);
     if (!node) return;
     node.chosenId = proposalId;
-    // 投影关闭 → 卡片带着选定信息落回桌面；机位保持拉近，点空白桌面再拉远
-    set({ root: root ? { ...root } : root, projection: null, editor: null });
+    // ★ 选定后**不再关投影**。挑方案不是这一段的终点：挑完还要在方案台上换首尾帧、改剧情，
+    //   然后炼出本段视频——不炼出来就开不了下一张卡（见 placeholderVisible）。
+    //   以前一选定就把窗关掉、卡片落回桌面，用户下一步该干什么全靠猜（而"该干的事"正好
+    //   在那扇被关掉的窗里）。想收起来点 ✕ 就是了。
+    set({ root: root ? { ...root } : root, editor: null });
   },
 
   flowConfirm: false,
@@ -1083,7 +1284,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
             lastFrame: p.lastFrame,
             durationSec: p.durationSec,
             videoTier: slot.videoTier ?? DEFAULT_TIER,
-            ...(p.videoUrl ? { videoUrl: p.videoUrl } : {}),
+            // 必须过 realVideoOf：mock 构建下 videoUrl 是 "mock:" 占位串，交给剪辑页的
+            // <video> 只会得到一个报错的播放器（resolveMediaUrl 会把未知 scheme 原样透出）
+            ...(realVideoOf(p) ? { videoUrl: realVideoOf(p) } : {}),
           },
         ],
         deck: { name: "", cards: slot.materials ?? [] },
@@ -1158,7 +1361,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       const i = path.findIndex((n) => n.id === slot.id);
       const prev = i > 0 ? path[i - 1] : null;
       const prevProp = prev ? chosenProposal(prev) : null;
-      const carry = prevProp?.videoUrl && prop.firstFrame === prevProp.lastFrame ? prevProp.lastFrame : null;
+      const carry = proposalDone(prevProp) && prop.firstFrame === prevProp!.lastFrame ? prevProp!.lastFrame : null;
       const res = await generateSegment(
         {
           plot: prop.plot,
@@ -1173,14 +1376,18 @@ export const useStudio = create<StudioState>()((set, get) => ({
       );
       log.end();
       if (res.url && AI_REAL) spendTokens(cost);
-      // 就地改方案：真帧顶替设定帧，videoUrl 落在方案上供两个模式共用
+      // 就地改方案：真帧顶替设定帧，videoUrl 落在方案上供两个模式共用。
+      // mock 构建没有真视频：占位串让 proposalDone 成立（否则演示模式下永远开不了下一张卡），
+      // 需要"能播的地址"的地方一律走 realVideoOf 把它滤掉
       prop.firstFrame = res.firstFrame;
       prop.lastFrame = res.lastFrame;
-      prop.videoUrl = res.url;
+      prop.videoUrl = res.url || "mock:";
       delete prop.degraded;
       const cur = get().root;
       set({ root: cur ? { ...cur } : cur, nodeGen: null });
-      get().npcSay("这一段炼好了——点节点卡上的「编辑本段」可以圈画面改细节，改完的尾帧会成为下一段的起拍画面。");
+      get().npcSay(
+        "这一段炼好了——下一段的虚线卡位已经亮起来了。想改细节就点「编辑本段」圈画面，改完的尾帧就是下一段的起拍画面。",
+      );
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -1192,7 +1399,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
 
   startFlow: (opts) => {
     const { root } = get();
-    if (!composable(root)) return false;
+    // ★ 这里的门槛是"末段选定了方案"，而不是 composable（那条要求整片都已出片）。
+    //   两者刻意分开：法阵亮不亮看 composable（逐段落地的规则，见 placeholderVisible），
+    //   但「把节点树铺成工作流」本身只需要一条选完的路径——openWorkDraft 用工作流模式打开
+    //   一条还没出片的老草稿走的就是这里，用 composable 把关会让那条路径直接铺不出来，
+    //   用户落在一个 0 节点的工作流页上（然后被弹回 /create，看着像草稿丢了）。
+    const path0 = activePath(root);
+    if (path0.length === 0 || path0[path0.length - 1].chosenId == null) return false;
     // ★ 在途工作流保护：seed() 是整表覆盖，直接铺会抹掉已出片的段（每段真金白银 +
     //   几分钟）、圈选标注与手敲的剧情，而且 StudioPage 只在 0→N 时才跳转，所以第二次
     //   按法阵在界面上等于"点了没反应"——钱和进度却已经没了。交给用户决定。
@@ -1208,6 +1421,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
       id: uid("fn"),
       proposals: path[i].proposals,
       chosenId: p.id,
+      // 工坊里已经挑定过了：工作流那边直接是"已选定"态，按钮写「生成本段」而不是
+      // 「重新生成方案」（见 flowStore.FlowNode.plan）
+      plan: "picked" as const,
+      // 用户当初在铸段编辑器里写的那句要求：工作流里「重新生成方案」要拿它再推一次，
+      // 缺了它用户就只能拿 AI 写的剧情当自己的要求，越推越偏
+      requirement: path[i]?.requirement ?? "",
       videoTier: path[i]?.videoTier ?? DEFAULT_TIER,
       materials: path[i]?.materials,
       // 承接判定：本段设定首帧就是上一段的设定尾帧（AI 顺接铸出来的），才让上一段的
@@ -1368,8 +1587,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
   saveWorkDraft: async (opts) => {
     const { root, deck, editTarget, workDraftId } = get();
     const f = useFlow.getState();
-    const nodes = f.nodes;
-    if (!root && nodes.length === 0) return null; // 空白桌面没什么可存的
+    // ★ 简约模式不进草稿库：它只有一段、写一句话就出片，一路直通剪辑与发布，中间没有
+    //   "回来接着做"的状态。给它存草稿只会在个人页堆一串一次性半成品，而每条都带 1MB 级
+    //   的帧，把真正需要草稿的工坊/工作流那 20 条上限挤掉（data/drafts.MAX_DRAFTS）。
+    //   写在这里而不是只在 FlowPage 上藏掉按钮：存盘是"规则"，规则只该有一处实现（铁律六）。
+    const nodes = f.mode === "simple" ? [] : f.nodes;
+    if (!root && nodes.length === 0) return null; // 空白桌面 / 简约模式：没什么可存的
     // 首段：工作流侧优先——那边的帧被真实成片的截帧顶替过，更接近成品
     const head = nodes.length > 0 ? chosenOf(nodes[0]) : root ? chosenProposal(root) : null;
     const coverFrame = head?.firstFrame;
@@ -1401,7 +1624,17 @@ export const useStudio = create<StudioState>()((set, get) => ({
   openWorkDraft: (d, mode) => {
     // 工坊侧：草稿里没有节点树（纯工作流/简约模式起手的）就按流水线现搭一棵，
     // 否则「用工坊模式打开」会落到一张空桌子上——用户点的那条草稿像是丢了
-    const flowNodes = (d.flow?.nodes ?? []) as FlowNode[];
+    //
+    // ★ 老草稿补字段：plan/requirement 是"方案台"这一版才有的。补在这里而不是靠读取处
+    //   到处 ?? 兜底——老设备读到 undefined 会静默降级（见 AGENTS.md 数据层那一节）。
+    //   plan 按"多方案即已选定"补：那时的节点确实是选好的，缺省成 picking 会让用户打开
+    //   旧草稿发现每段都要重挑一遍。requirement 退回当前方案的剧情，正是旧版推演时当作
+    //   requirement 用的东西，行为不变。
+    const flowNodes = ((d.flow?.nodes ?? []) as FlowNode[]).map((n) => ({
+      ...n,
+      plan: n.plan ?? (n.proposals.length > 1 ? ("picked" as const) : undefined),
+      requirement: n.requirement ?? chosenOf(n).plot,
+    }));
     const root = d.root ?? (flowNodes.length > 0 ? rootFromFlowNodes(flowNodes) : null);
     set({
       root,
