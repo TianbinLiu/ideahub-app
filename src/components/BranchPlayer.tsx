@@ -2,7 +2,7 @@
 // 段尾多选项 → 暂停出分支选择；单选项 → 无缝续播；无选项 → 结局（重看/回上一分支点）。
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icon";
-import { BranchTree, formatDuration } from "../types";
+import { BranchTree, aspectCss, formatDuration } from "../types";
 
 export default function BranchPlayer({ tree, cover }: { tree: BranchTree; cover: string }) {
   const [nodeId, setNodeId] = useState(tree.rootId);
@@ -129,7 +129,9 @@ export default function BranchPlayer({ tree, cover }: { tree: BranchTree; cover:
   return (
     <div
       ref={wrapRef}
-      className="relative aspect-video w-full select-none overflow-hidden rounded-xl bg-black"
+      /* 与 SegmentPlayer 同理：播放框跟着当前段的画幅，竖屏作品才不会被裁掉上下 */
+      style={{ aspectRatio: aspectCss(seg.aspect), maxHeight: "72vh" }}
+      className="relative mx-auto w-full max-w-full select-none overflow-hidden rounded-xl bg-black"
       onClick={() => setCtrl((v) => !v)}
     >
       {!started ? (

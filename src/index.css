@@ -372,3 +372,11 @@ canvas {
   30% { transform: translateY(-3px); opacity: 1; }
 }
 .dot-typing { animation: dotTyping 1.1s ease-in-out infinite; }
+
+/* 首页沉浸/全屏：底栏（TabBar）跟着一起消失。
+   底栏挂在 TabLayout 上、不归 FeedPage 渲染，跨层只能靠 body 上的这个标记。
+   真·全屏成功时浏览器本来就只画全屏元素，这条是给「requestFullscreen 被拒/
+   WebView 不支持」的降级路径兜底的——那时底栏还实实在在压在画面上。 */
+body[data-immersive="1"] [data-tabbar] {
+  display: none;
+}

@@ -1,5 +1,6 @@
 // 占位画面生成器：canvas 绘制“伪 AI 生成”的首尾帧 / 卡片封面。
 // 同一 seed 永远得到同一画面；hueSeed 用于让相邻片段共享色调（首尾帧续接感）。
+import { VideoAspect, aspectOf } from "../types";
 import { makeRng, pick } from "./rng";
 
 const PALETTES: Array<[string, string, string]> = [
@@ -84,10 +85,13 @@ function drawBase(
   ctx.fillRect(0, 0, w, h);
 }
 
-/** 640x360 视频帧占位图（jpeg dataURL） */
-export function makeFrame(seed: string, label: string, hueSeed?: string): string {
-  const w = 640;
-  const h = 360;
+/** 视频帧占位图（jpeg dataURL）：横屏 640x360 / 竖屏 360x640 */
+export function makeFrame(seed: string, label: string, hueSeed?: string, aspect?: VideoAspect): string {
+  // 占位帧也得跟着画幅走：竖屏作品配一张 16:9 占位图，播放器一算比例就当成横屏，
+  // 首页给它上下留黑边——演示模式下看起来就像"竖屏根本没生效"
+  const portrait = aspectOf(aspect).id === "portrait";
+  const w = portrait ? 360 : 640;
+  const h = portrait ? 640 : 360;
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;

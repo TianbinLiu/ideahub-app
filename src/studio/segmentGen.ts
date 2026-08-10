@@ -12,7 +12,7 @@
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
 import { composeSegments, generateCover, refineFrame } from "../ai";
 import { tierOf } from "../data/economy";
-import { CARD_TYPE_LABELS, type Card } from "../types";
+import { CARD_TYPE_LABELS, type Card, type VideoAspect } from "../types";
 
 export interface SegmentAnn {
   atSec: number;
@@ -26,6 +26,8 @@ export interface SegmentGenInput {
   lastFrame: string;
   durationSec: number;
   videoTier: string;
+  /** 画幅（竖/横）。补画的设定帧、出片任务都按它走；缺省=横屏（老节点） */
+  aspect?: VideoAspect;
   /** 画面圈选修改要求 */
   anns: SegmentAnn[];
   /** 上一段的真实尾帧：非空则顶替本段起拍帧（段间无缝衔接） */
@@ -78,6 +80,7 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
     const edited = await refineFrame(
       `${a.req}。参考图中红色圈线标注了目标物体：只对该物体做上述处理，并彻底去掉红色圈线本身`,
       a.frame,
+      input.aspect,
     );
     if (a.atSec < half) first = edited;
     else last = edited;
@@ -91,18 +94,27 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   const mats = materialHint(input.materials);
   if (!first) {
     prog("绘制起拍画面…");
-    first = await generateCover(`${input.framePrompt || input.plot.slice(0, 200)}${mats}`);
+    first = await generateCover(`${input.framePrompt || input.plot.slice(0, 200)}${mats}`, undefined, input.aspect);
   }
   if (!last && tier.flf) {
     prog("绘制结束画面…");
-    last = await generateCover(`${input.plot.slice(0, 180)} 的结束瞬间${mats}`);
+    last = await generateCover(`${input.plot.slice(0, 180)} 的结束瞬间${mats}`, undefined, input.aspect);
   }
 
   // ④ 出片。圈选要求并进提示词——只改设定帧不够，Seedance 得知道这一段要拍成什么样
   const reqs = input.anns.map((a) => a.req).join("；");
   const plot = `${reqs ? `${input.plot}。修改要求（必须满足）：${reqs}` : input.plot}${mats}`;
   const [res] = await composeSegments(
-    [{ plot, firstFrame: first, lastFrame: last, durationSec: input.durationSec, videoTier: input.videoTier }],
+    [
+      {
+        plot,
+        firstFrame: first,
+        lastFrame: last,
+        durationSec: input.durationSec,
+        videoTier: input.videoTier,
+        aspect: input.aspect,
+      },
+    ],
     (_d, _t, status) => prog(status),
   );
   if (res?.error) throw new Error(res.error);

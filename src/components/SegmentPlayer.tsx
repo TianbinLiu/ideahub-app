@@ -2,7 +2,7 @@
 // 接入真实视频生成后，本组件替换为 <video> 播放合成片即可，外层接口不变。
 import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
-import { VideoSegment, formatDuration } from "../types";
+import { VideoSegment, aspectCss, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 
 export default function SegmentPlayer({ segments, cover }: { segments: VideoSegment[]; cover: string }) {
@@ -97,7 +97,10 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
   return (
     <div
       ref={wrapRef}
-      className="relative aspect-video w-full select-none overflow-hidden rounded-xl bg-black"
+      /* 播放框跟着作品画幅：写死 aspect-video 的话，竖屏作品在详情页会被
+         object-cover 裁掉上下大半。竖屏框很高，限一下高度免得把整页顶开 */
+      style={{ aspectRatio: aspectCss(segments[0]?.aspect), maxHeight: "72vh" }}
+      className="relative mx-auto w-full max-w-full select-none overflow-hidden rounded-xl bg-black"
       onClick={() => setCtrl((v) => !v)}
     >
       {!started ? (

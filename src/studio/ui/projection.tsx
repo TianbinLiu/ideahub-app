@@ -11,7 +11,7 @@ import DeckCard from "../../components/DeckCard";
 import GenTrace from "../../components/GenTrace";
 import FrameCard from "./FrameCard";
 import Icon from "../../components/Icon";
-import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType, NodeSlot, Proposal } from "../../types";
+import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType, NodeSlot, Proposal, VIDEO_ASPECTS, aspectCss, aspectOf } from "../../types";
 import { activePath, chosenProposal, useStudio } from "../studioStore";
 import TokenCost from "../../components/TokenCost";
 import { proposalsCost } from "../../data/economy";
@@ -419,7 +419,42 @@ function EditorPanel() {
             </span>
           </div>
 
-          {/* ⑤ 生成档位：Seedance 模型分级，按档位×时长预估本段合成 token 消耗 */}
+          {/* ⑤ 画幅：竖屏/横屏。放在档位【之前】——它决定设定帧画在什么画布上，
+              是这一炉最先落地的东西，推演完再想换就等于整段重画。
+              小方块是等比示意图，不写数字：用户要判断的是"手机全屏还是电影感"，
+              9:16/16:9 这种写法在这一步反而要多想一步 */}
+          <div className="flex-none">
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="text-xs font-semibold text-slate-300">画幅</span>
+              <span className="text-[10px] text-slate-500">{aspectOf(editor.aspect).desc}</span>
+            </div>
+            <div className="flex gap-1.5">
+              {VIDEO_ASPECTS.map((a) => {
+                const on = editor.aspect === a.id;
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => useStudio.getState().setAspect(a.id)}
+                    disabled={editor.generating}
+                    title={a.desc}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-1 py-1.5 transition ${
+                      on
+                        ? "border-cyan-400 bg-cyan-400/10 text-cyan-100"
+                        : "border-slate-600 text-slate-400 hover:border-slate-400"
+                    }`}
+                  >
+                    <span
+                      className={`block rounded-[2px] border-2 ${on ? "border-cyan-300" : "border-slate-500"}`}
+                      style={{ width: a.id === "portrait" ? 9 : 16, height: a.id === "portrait" ? 16 : 9 }}
+                    />
+                    <span className="text-[11px] font-semibold">{a.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ⑥ 生成档位：Seedance 模型分级，按档位×时长预估本段合成 token 消耗 */}
           <div className="flex-none">
             <div className="mb-1 flex items-baseline justify-between">
               <span className="text-xs font-semibold text-slate-300">视频档位</span>
@@ -496,6 +531,8 @@ function ProposalsPanel() {
   const node = focus?.nodeId ? path.find((n) => n.id === focus.nodeId) : null;
   if (!node) return null;
   const idx = path.findIndex((n) => n.id === node.id);
+  // 设定帧缩略图的框跟本段画幅走：一律 16:9 的话，竖屏帧会被 object-cover 裁成一条
+  const frameBox = { aspectRatio: aspectCss(node.aspect) };
 
   // ‹› 切换聚焦节点：桌面窗口随焦点实时平移（computeChain 焦点跟随），镜头跟到新卡位
   function go(dir: 1 | -1) {
@@ -549,8 +586,8 @@ function ProposalsPanel() {
             >
               <button className="flex w-full items-start gap-2 text-left" onClick={() => setOpenId(expanded ? null : p.id)}>
                 <div className="flex w-[88px] flex-none flex-col gap-1">
-                  <img src={p.firstFrame} alt="首帧" className="aspect-video w-full rounded object-cover" />
-                  <img src={p.lastFrame} alt="尾帧" className="aspect-video w-full rounded object-cover" />
+                  <img src={p.firstFrame} alt="首帧" style={frameBox} className="w-full rounded object-cover" />
+                  <img src={p.lastFrame} alt="尾帧" style={frameBox} className="w-full rounded object-cover" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
@@ -579,7 +616,8 @@ function ProposalsPanel() {
                             <img
                               src={w === "first" ? p.firstFrame : p.lastFrame}
                               alt={w === "first" ? "首帧" : "尾帧"}
-                              className={`aspect-video w-full rounded object-cover ${frameRefining === busyKey ? "opacity-50" : ""}`}
+                              style={frameBox}
+                              className={`w-full rounded object-cover ${frameRefining === busyKey ? "opacity-50" : ""}`}
                             />
                             <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[9px] text-cyan-200">
                               {w === "first" ? "首帧" : "尾帧"}

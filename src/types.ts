@@ -19,6 +19,85 @@ export const CARD_TYPE_COLORS: Record<CardType, string> = {
   style: "#34d399",
 };
 
+/** 画幅：一条视频拍成竖的还是横的。竖屏对齐首页全屏流，横屏是影视/横版观感 */
+export type VideoAspect = "portrait" | "landscape";
+
+export interface AspectSpec {
+  id: VideoAspect;
+  label: string;
+  /** Seedance 的 ratio 参数（出片画幅由它决定，不是靠提示词求来的） */
+  ratio: "9:16" | "16:9";
+  /**
+   * Seedream 设定帧的画布。实测约束（2026-08-06）：显式 WIDTHxHEIGHT 时总像素须
+   * ≥ 3,686,400（= 2560×1440），且**画布比例必须与视频画幅一致**——拿方形/横版帧
+   * 去喂竖屏视频任务，Seedance 会自己裁一刀，人物常被裁掉半个头。
+   * 两个取值都正好是那个像素下限，出图最快。
+   */
+  frameSize: string;
+  /**
+   * 720p 档的**标称**出片像素（剪辑页合并画布、封面画布按它走）。
+   * ⚠ 方舟实际吐出来的略小：2026-08-10 实测竖屏 720p 是 **704×1248**（编码器把两边
+   * 对齐到 16 的倍数），不是 720×1280。比例 0.5641 vs 0.5625，差 0.3%，合并时按
+   * object-cover 口径裁掉约 1px——可以忽略，但别拿这两个数去做相等判断。
+   */
+  w: number;
+  h: number;
+  /** 提示词里对画幅的说法：Seedream 只认提示词的构图暗示，尺寸参数管不到构图 */
+  promptHint: string;
+  desc: string;
+}
+
+export const VIDEO_ASPECTS: AspectSpec[] = [
+  {
+    id: "portrait",
+    label: "竖屏",
+    ratio: "9:16",
+    frameSize: "1440x2560",
+    w: 720,
+    h: 1280,
+    promptHint: "竖版 9:16 手机全屏画面，主体居中偏上，上下留出呼吸空间",
+    desc: "首页全屏铺满（短视频默认）",
+  },
+  {
+    id: "landscape",
+    label: "横屏",
+    ratio: "16:9",
+    frameSize: "2560x1440",
+    w: 1280,
+    h: 720,
+    promptHint: "横版 16:9 画面",
+    desc: "影视横构图，首页上下留黑边，可点全屏转屏看",
+  },
+];
+
+/** 新建作品的默认画幅。首页是竖屏全屏流，默认竖屏才不用条条都留黑边 */
+export const DEFAULT_ASPECT: VideoAspect = "portrait";
+
+/**
+ * 读画幅。★ 没有这个字段的一律当**横屏**，不要图省事写成 DEFAULT_ASPECT：
+ * 画幅可选之前所有出片都是写死 16:9 的，把它们当竖屏，首页就会按"铺满"渲染，
+ * 等于又把老作品裁了一遍——正是这次要修的那个毛病。
+ */
+export function aspectOf(id: string | null | undefined): AspectSpec {
+  return VIDEO_ASPECTS.find((a) => a.id === id) ?? VIDEO_ASPECTS[1];
+}
+
+/** CSS `aspect-ratio` 的值（"9 / 16"）。缩略图框与播放器容器统一走这里，
+ *  免得十几处各写各的 `aspect-video`，改画幅时漏掉一半。 */
+export function aspectCss(id: string | null | undefined): string {
+  return aspectOf(id).ratio.replace(":", " / ");
+}
+
+/**
+ * 由真实像素判画幅。**播放端以它为准**——存的 aspect 字段可能缺（老作品）、
+ * 可能过时（改了设置没重新出片）、也可能被服务端当未知字段丢掉，只有解码出来的
+ * 宽高不会骗人。
+ * 正方形算横屏：竖屏容器里把 1:1 铺满要切掉一半画面，留黑边才是对的。
+ */
+export function aspectFromSize(w: number, h: number): VideoAspect {
+  return w > 0 && h > 0 && h > w ? "portrait" : "landscape";
+}
+
 export interface Card {
   id: string;
   type: CardType;
@@ -64,6 +143,8 @@ export interface NodeSlot {
   materials?: Card[];
   /** 本节点选定的 Seedance 档位（合成该段视频时用），见 data/economy VIDEO_TIERS */
   videoTier?: string;
+  /** 本节点选定的画幅（竖屏/横屏）；缺省=横屏（老数据，见 aspectOf） */
+  aspect?: VideoAspect;
   /** 生成时的视频要求快照（画风检测、卡组提炼的风格依据） */
   requirement?: string;
 }
@@ -78,6 +159,13 @@ export interface VideoSegment {
   videoUrl?: string;
   /** 该段选用的 Seedance 档位 id（见 data/economy VIDEO_TIERS）；缺省=标准档 */
   videoTier?: string;
+  /**
+   * 该段出片时的画幅；缺省=横屏（老数据）。
+   * ★ 播放端只把它当**提示**用（首帧还没解码出来时先按它排版），真正的判据是
+   *   `<video>` 的 videoWidth/videoHeight——用户上传/换过的段、以及服务端可能
+   *   丢掉未知字段的情况，都只有真实解码尺寸靠得住。
+   */
+  aspect?: VideoAspect;
 }
 
 /** 互动分支树节点：一段视频 + 段尾选项（空数组 = 结局） */
@@ -163,6 +251,8 @@ export interface TemplateRecipe {
   /** 单段时长与 Seedance 档位（精度要求高的模板会指定高档） */
   durationSec: number;
   videoTier: string;
+  /** 模板拍出来是竖的还是横的；缺省=横屏（配方也是老数据） */
+  aspect?: VideoAspect;
   /** 起拍画面的文生图模板，同样支持 {{主题}} */
   framePrompt: string;
 }
