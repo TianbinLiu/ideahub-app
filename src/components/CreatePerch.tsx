@@ -32,6 +32,23 @@ const SHEET: Record<CreatePose, { w: number; h: number; frames: number }> = {
 
 const REACTIONS: CreatePose[] = ["wave", "peek", "cheer", "nap"];
 
+/**
+ * 开机就把五张图解好码。
+ * ★ 光靠"元素一直挂着"还不够保险：opacity:0 的元素浏览器可能推迟解码，
+ *   等真要显示时才解，那一下仍然可能空一帧。decode() 是显式的、解完才 resolve。
+ *   失败不管——那只是回到"可能闪一下"，不该因此报错。
+ */
+let decoded = false;
+function preloadPoses(): void {
+  if (decoded || typeof Image === "undefined") return;
+  decoded = true;
+  for (const p of Object.keys(SHEET) as CreatePose[]) {
+    const img = new Image();
+    img.src = `/createbtn/${p}.webp`;
+    void img.decode?.().catch(() => {});
+  }
+}
+
 /** 待机循环一轮的时长。★ 慢，而且幅度小 —— 它在底栏上一直播，
  *  快了或幅度大了就从"她在那儿待着"变成"有东西在抽搐"，很快招人烦。 */
 const IDLE_MS = 1800;
@@ -56,8 +73,9 @@ const GAP_MAX_MS = 15000;
  *
  * @param pathKey 路由路径。变化时立刻演一个（切 Tab 的即时反馈）
  */
-function useCreatePet(pathKey: string): { pose: CreatePose; reacting: boolean } {
+function useCreatePet(pathKey: string): CreatePose {
   const [pose, setPose] = useState<CreatePose>("idle");
+  useEffect(preloadPoses, []);
   const gap = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const back = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const last = useRef<CreatePose>("idle");
@@ -107,7 +125,7 @@ function useCreatePet(pathKey: string): { pose: CreatePose; reacting: boolean } 
     back.current = setTimeout(() => setPose("idle"), REACT_MS * 2);
   }, [pathKey]);
 
-  return { pose, reacting: pose !== "idle" };
+  return pose;
 }
 
 /**
@@ -126,18 +144,8 @@ function CreatePerchImpl({
   width?: number;
   bottom?: number;
 }) {
-  const { pose, reacting } = useCreatePet(pathKey);
-  const art = SHEET[pose];
-  const h = Math.round((width * art.h) / art.w);
-
-  // ★ 循环与来回都用 steps(frames)、位移终点取 frames*w（不是 frames-1）：
-  //   steps(n) 只在动画【结束瞬间】跳到终值，而 alternate 到点就回卷、永远跑不到，
-  //   所以取 frames 格才能把 16 帧全放出来。
-  //   （一次性播完就定格的那种才要用 frames-1，否则最后一跳会落到精灵图外面变空白——
-  //     见 MascotStage 的同款注释。这里没有一次性播完的分支。）
-  const steps = art.frames;
-  const shift = steps * width;
-  const ms = reacting ? REACT_MS : IDLE_MS;
+  const pose = useCreatePet(pathKey);
+  const h = Math.round((width * SHEET[pose].h) / SHEET[pose].w);
 
   return (
     <span
@@ -152,21 +160,50 @@ function CreatePerchImpl({
       }
       aria-hidden
     >
-      <span
-        // key 跟着 pose 走：只改 background-image 的话 CSS 动画不会重新起一次，
-        // 换动作时会停在上一个动作的进度上
-        key={pose}
-        className="perch-art"
-        style={
-          {
-            backgroundImage: `url(/createbtn/${pose}.webp)`,
-            backgroundSize: `${art.frames * width}px 100%`,
-            // 待机无限循环；反应正播一次 + 倒播一次（2 迭代 alternate），停回第 0 帧
-            animation: `perch-run ${ms}ms steps(${steps}) ${reacting ? "2" : "infinite"} alternate`,
-            "--sheet-shift": `-${shift}px`,
-          } as CSSProperties
-        }
-      />
+      {/*
+        ★★ 五张图**全部常驻挂载**，靠 opacity 切换，绝不按 pose 换 key 重挂载。
+          第一版是 key={pose} 换一次挂一次，真机上每次换动作会闪一帧空白 ——
+          新元素第一次绘制时那张 webp 还没解码好，于是先画了一帧"什么都没有"。
+          图一直挂着就一直是解码好的，切换只是改 opacity，不会有那一帧。
+          （顺带：动画从 none → 有值才会起一次，所以不重挂载也能让新动作从头播。）
+
+        ★★ steps 用 `jump-none` + 位移终点取 (frames-1)*w，这两件事必须成对：
+          原来写的是 steps(frames) + 终点 frames*w —— 终点那一格**落在精灵图外面**，
+          正常播放时到不了，但 alternate 每次回卷的**那一瞬间**恰好取到它，
+          于是每个来回都闪一帧空白。这就是"切换黑屏一帧"的另一半原因。
+          jump-none 的取值是 k/(frames-1)，k=0..frames-1 —— 正好是第 0..15 帧，
+          每帧等时长，两端都落在图内，回卷点是合法的第 15 帧。
+      */}
+      {(Object.keys(SHEET) as CreatePose[]).map((p) => {
+        const art = SHEET[p];
+        const on = p === pose;
+        const shift = (art.frames - 1) * width;
+        const ms = p === "idle" ? IDLE_MS : REACT_MS;
+        return (
+          <span
+            key={p}
+            className="perch-art"
+            style={
+              {
+                backgroundImage: `url(/createbtn/${p}.webp)`,
+                backgroundSize: `${art.frames * width}px 100%`,
+                opacity: on ? 1 : 0,
+                // ★ 待机用 alternate-**reverse**：它从末帧起播。
+                //   四个反应动作的第 0 帧就是 idle 的**末帧**（生成时 aFrom 复用的），
+                //   而反应正播+倒播结束时停在自己的第 0 帧 —— 也就是 idle 的末帧。
+                //   待机若从第 0 帧起播，交接处就会跳一下（用户报的"首尾切换不衔接"）。
+                //   反过来从末帧起播，两边严丝合缝。
+                animation: on
+                  ? `perch-run ${ms}ms steps(${art.frames}, jump-none) ${
+                      p === "idle" ? "infinite alternate-reverse" : "2 alternate"
+                    }`
+                  : "none",
+                "--sheet-shift": `-${shift}px`,
+              } as CSSProperties
+            }
+          />
+        );
+      })}
     </span>
   );
 }

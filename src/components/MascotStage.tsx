@@ -94,11 +94,17 @@ function MascotStageImpl({
   const h = Math.round((width * art.h) / art.w);
   const ms = LOOP_MS[pose];
 
-  // ★ 循环用 steps(frames)、一次性用 steps(frames-1)，两者的位移终点也不同：
-  //   steps(n, end) 只在动画【结束瞬间】跳到终值。一次性若取 frames 格，
-  //   最后那一跳会落到精灵图外面，配上 forwards 就是定格在一片空白。
-  //   循环则相反——它永远跑不到终值（到点就回卷），取 frames 格才能把 8 帧都放出来。
-  const steps = loop ? art.frames : art.frames - 1;
+  // ★★ steps 一律用 `jump-none`，位移终点一律取 (frames-1)*width —— 循环与一次性同一套。
+  //   jump-none 的取值是 k/(frames-1)（k=0..frames-1），正好落在第 0..N-1 帧上，
+  //   每帧等时长、两端都在图内。
+  //
+  //   原来是「循环用 steps(frames) + 终点 frames*w，一次性用 steps(frames-1) + 终点
+  //   (frames-1)*w」两套规则，两套各有毛病：
+  //     · 循环那套的终点**落在精灵图外面**。正常播放到不了，但 alternate 每次回卷的
+  //       那一瞬间恰好取到它 —— 于是每个来回闪一帧空白（真机上肉眼可见）。
+  //     · 一次性那套的最后一帧只在结束瞬间出现，等于白画了一帧。
+  //   jump-none 把两者一并解决，也省掉了"这里该用哪套"这个必然有人搞错的分叉。
+  const shiftEnd = (art.frames - 1) * width;
 
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
@@ -121,8 +127,8 @@ function MascotStageImpl({
             backgroundImage: `url(/mascot/${pose}.webp)`,
             backgroundSize: `${art.frames * width}px 100%`,
             // 关键帧与 perch 共用 perch-run（都是"横向平移背景"）——抄第二条必然会漂
-            animation: `perch-run ${ms}ms steps(${steps}) ${loop ? "infinite alternate" : "1 forwards"}`,
-            "--sheet-shift": `-${steps * width}px`,
+            animation: `perch-run ${ms}ms steps(${art.frames}, jump-none) ${loop ? "infinite alternate" : "1 forwards"}`,
+            "--sheet-shift": `-${shiftEnd}px`,
           } as CSSProperties
         }
       />

@@ -30,9 +30,20 @@ canvas {
   --tabbar-h: calc(3.5rem + env(safe-area-inset-bottom, 0px));
 }
 
-/* 刘海/挖孔屏安全区：顶栏与底部抽屉避开系统区域 */
+/* 刘海/挖孔屏安全区：顶栏与底部抽屉避开系统区域。
+   全 app 共 25 处引用，是"离屏幕边缘多远"的**唯一**开关 —— 想整体调呼吸感就改这里。
+
+   ★ 顶部额外 +10px：`env(safe-area-inset-top)` 只保证"不被状态栏盖住"，
+     它给出的正好是状态栏底沿（本机实测 41px），内容紧贴着它排下来是**零留白** ——
+     标题和状态栏的电量图标之间没有一丝空气，看着就是"糊在屏幕顶上"。
+     系统安全区管的是遮挡，留白是设计问题，得自己加。
+
+   ★ 底部**刻意不加**：`--tabbar-h` 是按 `3.5rem + env(safe-area-inset-bottom)` 算的，
+     而 TabBar 自己挂 `.safe-bottom`。这里一加，底栏就比内容区让出的高度更高，
+     每页最后一行会被系统手势条盖住 —— 这个坑上面 --tabbar-h 的注释里记过一次了。
+     真要加就得两处一起改。底部本来还有 16px 系统内边距，不缺这点空气。 */
 .safe-top {
-  padding-top: env(safe-area-inset-top, 0px);
+  padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
 }
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
