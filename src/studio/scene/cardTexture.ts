@@ -24,6 +24,9 @@ function cachePut(key: string, tex: THREE.CanvasTexture) {
     const oldestKey = cache.keys().next().value as string;
     const oldest = cache.get(oldestKey);
     cache.delete(oldestKey);
+    // ★ 轮播登记要跟着一起摘掉：被淘汰的贴图马上要 dispose，还留在 fading 里的话
+    //   每帧都会继续往一张已经释放的贴图上画（既浪费又会一直标 needsUpdate）
+    fading.delete(oldestKey);
     oldest?.dispose();
   }
 }
@@ -180,47 +183,123 @@ export function cardFaceTexture(card: Card): THREE.CanvasTexture {
 }
 
 /** 节点/方案卡：首帧+尾帧上下拼作卡面 */
-export function proposalTexture(p: Proposal): THREE.CanvasTexture {
-  return texFromDraw(`prop:${p.id}`, W, H, [p.firstFrame, p.lastFrame], (ctx, [first, last]) => {
+// ── 节点卡卡面：首尾帧轮播 ──────────────────────────────────
+// 以前是把首帧、尾帧上下摞成两个小格。两格各占不到半张卡，桌面机位下每格只有几十像素高，
+// 画面基本看不出内容——等于用整张卡面换了两张缩略图。改成整幅封面在两帧之间渐变轮播：
+// 同样看得到"从哪到哪"，但每一帧都占满卡面。
+//
+// 只在渐变那 0.9s 里重绘画布，停留期直接跳过（见 tickCardFades）——否则每张卡每帧都要
+// 重画 512×768，桌上摆五六张就能把视频流那点余量吃干净。
+const FADE_HOLD_MS = 2600;
+const FADE_MS = 900;
+
+interface FadingCard {
+  tex: THREE.CanvasTexture;
+  ctx: CanvasRenderingContext2D;
+  /** 画好装饰（边框/题名条/文字）的离屏层，封面区镂空——每帧只需重画封面 + 贴这一层 */
+  decor: HTMLCanvasElement;
+  imgs: Array<HTMLImageElement | null>;
+  /** 上一次画的混合系数，变化不足 1% 就不重绘（停留期完全静默） */
+  lastT: number;
+}
+const fading = new Map<string, FadingCard>();
+
+/** 由 TableScene 的渲染循环每帧调用一次，推进所有轮播卡面 */
+export function tickCardFades(nowMs: number): void {
+  if (fading.size === 0) return;
+  const period = (FADE_HOLD_MS + FADE_MS) * 2;
+  const phase = nowMs % period;
+  // 0→停留首帧, 1→渐变到尾帧, 2→停留尾帧, 3→渐变回首帧
+  let t: number;
+  if (phase < FADE_HOLD_MS) t = 0;
+  else if (phase < FADE_HOLD_MS + FADE_MS) t = (phase - FADE_HOLD_MS) / FADE_MS;
+  else if (phase < FADE_HOLD_MS * 2 + FADE_MS) t = 1;
+  else t = 1 - (phase - (FADE_HOLD_MS * 2 + FADE_MS)) / FADE_MS;
+  const e = t * t * (3 - 2 * t); // smoothstep：线性淡入淡出中段会显得"平"
+  for (const c of fading.values()) {
+    if (Math.abs(e - c.lastT) < 0.01) continue;
+    c.lastT = e;
+    const [first, last] = c.imgs;
+    const ctx = c.ctx;
+    ctx.clearRect(0, 0, W, H);
+    ctx.save();
     roundedPath(ctx, 4, 4, W - 8, H - 8, 34);
-    ctx.fillStyle = "#0d1428";
-    ctx.fill();
-    ctx.lineWidth = 8;
-    ctx.strokeStyle = "#38bdf8";
-    ctx.stroke();
-
-    const frameH = (H - 190) / 2;
-    ctx.save();
-    roundedPath(ctx, 24, 24, W - 48, frameH, 16);
     ctx.clip();
-    if (first) drawImageCover(ctx, first, 24, 24, W - 48, frameH);
-    else {
-      ctx.fillStyle = "#16203d";
-      ctx.fillRect(24, 24, W - 48, frameH);
+    ctx.fillStyle = "#16203d";
+    ctx.fillRect(0, 0, W, H);
+    if (first) {
+      ctx.globalAlpha = 1 - e;
+      drawImageCover(ctx, first, 0, 0, W, H);
     }
-    ctx.restore();
-    ctx.save();
-    roundedPath(ctx, 24, 36 + frameH, W - 48, frameH, 16);
-    ctx.clip();
-    if (last) drawImageCover(ctx, last, 24, 36 + frameH, W - 48, frameH);
-    else {
-      ctx.fillStyle = "#16203d";
-      ctx.fillRect(24, 36 + frameH, W - 48, frameH);
+    if (last) {
+      ctx.globalAlpha = first ? e : 1;
+      drawImageCover(ctx, last, 0, 0, W, H);
     }
+    ctx.globalAlpha = 1;
     ctx.restore();
+    ctx.drawImage(c.decor, 0, 0);
+    c.tex.needsUpdate = true;
+  }
+}
 
-    ctx.font = "500 22px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillStyle = "#ffffffcc";
-    ctx.fillText("首", 40, 60);
-    ctx.fillText("尾", 40, 72 + frameH);
+export function proposalTexture(p: Proposal): THREE.CanvasTexture {
+  // ★ 缓存键带上首尾帧指纹：重炼这一段会换掉 firstFrame/lastFrame，只按 p.id 缓存
+  //   会让桌面上的卡永远停在旧画面（改之前就有这个问题，逐节点出片之后更容易撞上）
+  const fp = `${p.firstFrame.length}x${p.lastFrame.length}`;
+  const key = `prop:${p.id}:${fp}`;
+  const hit = cacheGet(key);
+  if (hit) return hit;
 
-    ctx.font = "700 36px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillStyle = "#f1f5f9";
-    ctx.fillText(p.title, 32, H - 92);
-    ctx.font = "500 26px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillStyle = "#94a3b8";
-    ctx.fillText(`${p.durationSec}s`, 32, H - 44);
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+
+  // 装饰层：边框 + 底部渐变字幕条 + 题名/时长。画一次，之后每帧只贴不重画
+  const decor = document.createElement("canvas");
+  decor.width = W;
+  decor.height = H;
+  const dc = decor.getContext("2d")!;
+  roundedPath(dc, 4, 4, W - 8, H - 8, 34);
+  dc.lineWidth = 8;
+  dc.strokeStyle = "#38bdf8";
+  dc.stroke();
+  const g = dc.createLinearGradient(0, H - 200, 0, H);
+  g.addColorStop(0, "rgba(0,0,0,0)");
+  g.addColorStop(0.5, "rgba(0,0,0,0.6)");
+  g.addColorStop(1, "rgba(0,0,0,0.9)");
+  dc.fillStyle = g;
+  dc.fillRect(0, H - 200, W, 200);
+  dc.font = "700 36px 'PingFang SC','Microsoft YaHei',sans-serif";
+  dc.fillStyle = "#f1f5f9";
+  dc.fillText(p.title, 32, H - 92);
+  dc.font = "500 26px 'PingFang SC','Microsoft YaHei',sans-serif";
+  dc.fillStyle = "#94a3b8";
+  dc.fillText(`${p.durationSec}s`, 32, H - 44);
+
+  const entry: FadingCard = { tex, ctx, decor, imgs: [null, null], lastT: -1 };
+  // 先出一版静态的（图还没解码完时不能是空白卡）
+  ctx.fillStyle = "#16203d";
+  ctx.fillRect(0, 0, W, H);
+  ctx.drawImage(decor, 0, 0);
+  tex.needsUpdate = true;
+
+  [p.firstFrame, p.lastFrame].forEach((src, i) => {
+    if (!src) return;
+    const im = new Image();
+    im.onload = () => {
+      entry.imgs[i] = im;
+      entry.lastT = -1; // 逼它下一 tick 重绘
+    };
+    im.src = src;
   });
+  // 两帧齐了才轮播；只有一帧时 tick 里 e 的变化照样会重绘，但画的始终是那一张
+  fading.set(key, entry);
+  cachePut(key, tex);
+  return tex;
 }
 
 /** 虚线空白节点卡位 */

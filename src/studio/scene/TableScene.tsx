@@ -149,6 +149,7 @@ import {
   placeholderTexture,
   proposalTexture,
   ringTexture,
+  tickCardFades,
 } from "./cardTexture";
 import CardMesh from "./CardMesh";
 import MagicStudy from "./MagicStudy";
@@ -277,6 +278,8 @@ function CameraRig() {
   const lastCamObj = useRef<unknown>(null);
   useFrame(({ camera, scene, clock }, dt) => {
     const st = useStudio.getState();
+    // 节点卡卡面的首尾帧轮播（渐变期才真重绘，停留期内部直接返回）
+    tickCardFades(clock.elapsedTime * 1000);
     // 新机位落位（点击互动点）→ 交还脚本运镜控制权
     if (lastCamObj.current !== st.camera) {
       lastCamObj.current = st.camera;

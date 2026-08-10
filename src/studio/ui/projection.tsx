@@ -9,6 +9,7 @@ import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, segTokens } from "../../data/econ
 import TarotCard from "../../components/TarotCard";
 import DeckCard from "../../components/DeckCard";
 import GenTrace from "../../components/GenTrace";
+import FrameCard from "./FrameCard";
 import Icon from "../../components/Icon";
 import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType, NodeSlot, Proposal } from "../../types";
 import { activePath, chosenProposal, useStudio } from "../studioStore";
@@ -264,65 +265,22 @@ function EditorPanel() {
       </div>
 
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden p-3">
-        {/* 左：开头帧（默认承接上一段尾帧，可上传本地图替换）+ 尾帧占位，撑满整列 */}
+        {/* 左：首尾帧卡（原来是开头帧图 / 上传按钮 / 尾帧占位三块，合成一张——
+            它和桌面上的节点卡是同一个东西的两种形态，点开看大图、换开头帧都在卡里做） */}
         <div className="flex w-[124px] flex-none flex-col gap-2">
-          {(() => {
-            const effStart = editor.startFrame ?? prev?.lastFrame ?? null;
-            return (
-              <>
-                <div className="relative">
-                  {effStart ? (
-                    <img src={effStart} alt="开头帧" className="aspect-video w-full rounded-lg object-cover" />
-                  ) : (
-                    <div className="flex aspect-video w-full items-center justify-center rounded-lg border-2 border-dashed border-cyan-400/30 bg-slate-800/40 text-[10px] text-slate-500">
-                      AI 自拟
-                    </div>
-                  )}
-                  <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[10px] text-cyan-200">开头帧</span>
-                  {effStart && (
-                    <span className="absolute inset-x-0 bottom-0 rounded-b-lg bg-black/60 px-1 py-0.5 text-center text-[9px] text-cyan-200">
-                      {editor.startFrame ? "已用你上传的图" : "承接上一段尾帧"}
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-1">
-                  <label className="flex-1 cursor-pointer rounded-lg border border-slate-600 py-1 text-center text-[10px] text-slate-300 hover:border-cyan-400">
-                    上传本地图
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      disabled={editor.generating}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        e.target.value = "";
-                        if (!f) return;
-                        void fileToFrameDataUrl(f).then((d) => useStudio.getState().setStartFrame(d));
-                      }}
-                    />
-                  </label>
-                  {editor.startFrame && (
-                    <button
-                      onClick={() => useStudio.getState().setStartFrame(null)}
-                      className="rounded-lg border border-slate-600 px-1.5 text-[10px] text-slate-400"
-                      title={prev ? "恢复为承接上一段尾帧" : "清除上传的开头帧"}
-                    >
-                      恢复
-                    </button>
-                  )}
-                </div>
-              </>
-            );
-          })()}
-          <div className="relative">
-            <div className="flex aspect-video w-full items-center justify-center rounded-lg border-2 border-dashed border-cyan-400/30 bg-slate-800/40 text-[10px] text-slate-500">
-              空白
-            </div>
-            <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[10px] text-cyan-200">尾帧</span>
-          </div>
-          <div className="text-center text-[10px] leading-4 text-slate-500">
-            尾帧由所选方案决定；视频将从开头帧无缝续拍
-          </div>
+          <FrameCard
+            firstFrame={editor.startFrame ?? prev?.lastFrame ?? null}
+            /* 铸段阶段尾帧还不存在——它由所选方案决定，所以这里恒为 null，卡是虚框。
+               推演完成后节点卡上两帧齐了，卡自然变实框并开始轮播 */
+            lastFrame={null}
+            originNote={
+              editor.startFrame ? "已用你上传的图" : prev?.lastFrame ? "承接上一段尾帧" : "AI 将自拟开头帧"
+            }
+            canEdit={!editor.generating}
+            uploaded={!!editor.startFrame}
+            onPickFile={(f) => void fileToFrameDataUrl(f).then((d) => useStudio.getState().setStartFrame(d))}
+            onResetStart={() => useStudio.getState().setStartFrame(null)}
+          />
         </div>
 
         {/* 右：素材 / 视频要求（撑满剩余空间）/ 时长一行 */}

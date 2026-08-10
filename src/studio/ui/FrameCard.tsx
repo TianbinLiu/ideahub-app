@@ -1,0 +1,214 @@
+// 铸段编辑器里的「首尾帧卡」：把原来分开的三块（开头帧图 / 上传本地图 / 尾帧占位）
+// 合成一张卡。
+//
+// 为什么合成一张：那三块讲的本来就是同一件事——这一段视频长什么样。分开摆时，
+// 左栏被切成三个小格子，每格都小到看不清画面，"上传的图会变成哪一帧"也要靠文字解释。
+// 合成一张卡之后，它和桌面上的节点卡是同一个东西的两种形态，点开就能看大图。
+//
+// 状态：
+//   虚框 = 首尾帧还没齐（还没推演，或只承接到开头帧）
+//   实框 = 首尾帧都有了 —— 此时封面在两帧之间渐变轮播，一眼看出这段"从哪到哪"
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+
+/** 一轮 = 停留 + 渐变。停留 2.6s 是量出来的：再短像闪烁，再长会让人以为是张静态图 */
+const HOLD_MS = 2600;
+const FADE_MS = 900;
+
+/** 首尾帧交替：返回当前该显示哪一帧（渐变本身交给 CSS opacity 过渡） */
+function useFrameCycle(enabled: boolean): boolean {
+  const [showLast, setShowLast] = useState(false);
+  useEffect(() => {
+    if (!enabled) {
+      setShowLast(false);
+      return;
+    }
+    const t = setInterval(() => setShowLast((v) => !v), HOLD_MS + FADE_MS);
+    return () => clearInterval(t);
+  }, [enabled]);
+  return showLast;
+}
+
+/** 卡面：两张图叠着，只切 opacity（合成层，不触发重排——与本仓动画约定一致） */
+function CardFace({
+  first,
+  last,
+  showLast,
+  className = "",
+}: {
+  first: string | null;
+  last: string | null;
+  showLast: boolean;
+  className?: string;
+}) {
+  const both = !!first && !!last;
+  return (
+    <div className={`relative overflow-hidden ${className}`}>
+      {first && (
+        <img
+          src={first}
+          alt="开头帧"
+          className="absolute inset-0 h-full w-full object-cover transition-opacity ease-in-out"
+          style={{ opacity: both && showLast ? 0 : 1, transitionDuration: `${FADE_MS}ms` }}
+        />
+      )}
+      {last && (
+        <img
+          src={last}
+          alt="尾帧"
+          className="absolute inset-0 h-full w-full object-cover transition-opacity ease-in-out"
+          style={{ opacity: both ? (showLast ? 1 : 0) : 1, transitionDuration: `${FADE_MS}ms` }}
+        />
+      )}
+    </div>
+  );
+}
+
+export default function FrameCard({
+  firstFrame,
+  lastFrame,
+  /** 开头帧的来历说明（"承接上一段尾帧" / "已用你上传的图"） */
+  originNote,
+  /** 能否换开头帧；生成中要禁掉 */
+  canEdit,
+  onPickFile,
+  onResetStart,
+  /** 有没有"可恢复"的上传图 */
+  uploaded,
+}: {
+  firstFrame: string | null;
+  lastFrame: string | null;
+  originNote: string;
+  canEdit: boolean;
+  onPickFile: (f: File) => void;
+  onResetStart: () => void;
+  uploaded: boolean;
+}) {
+  const [zoom, setZoom] = useState(false);
+  const complete = !!firstFrame && !!lastFrame;
+  const showLast = useFrameCycle(complete);
+  // 放大态里独立跑一轮，别和小卡共用——放大是为了看清，节奏该一样但互不打断
+  const showLastBig = useFrameCycle(complete && zoom);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // 放大时锁掉背景滚动，并支持 Esc 退出（点卡外区域也能退，见遮罩的 onClick）
+  useEffect(() => {
+    if (!zoom) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setZoom(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoom]);
+
+  const border = complete ? "border-solid border-cyan-400/70" : "border-dashed border-cyan-400/35";
+
+  return (
+    <>
+      {/* ── 小卡（左栏原位）── */}
+      <button
+        onClick={() => setZoom(true)}
+        className={`group relative w-full overflow-hidden rounded-xl border-2 ${border} bg-slate-800/40 transition active:scale-[0.98]`}
+        style={{ aspectRatio: "2 / 3" }}
+        title="点开看大图 / 换开头帧"
+      >
+        {firstFrame || lastFrame ? (
+          <CardFace first={firstFrame} last={lastFrame} showLast={showLast} className="absolute inset-0" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-[10px] text-slate-500">
+            AI 自拟首尾帧
+          </div>
+        )}
+        {/* 角标：这张卡现在是什么状态 */}
+        <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] text-cyan-200">
+          {complete ? "首尾帧" : firstFrame ? "开头帧" : "待推演"}
+        </span>
+        <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-1.5 pb-1 pt-3 text-[9px] leading-tight text-slate-300">
+          {complete ? "首尾帧轮播 · 点开看大图" : originNote}
+        </span>
+      </button>
+      <div className="text-center text-[10px] leading-4 text-slate-500">
+        {complete ? "视频将在这两帧之间生成" : "尾帧由所选方案决定；视频从开头帧无缝续拍"}
+      </div>
+
+      {/* ── 放大态：在**窗口**里居中铺开，点卡外区域收回 ──
+          ★ 必须 portal 到 body：投影面板带 backdrop-blur，而 backdrop-filter 会给
+            position:fixed 的后代造一个包含块——留在原地的话 inset-0 只铺满那块面板，
+            卡片会被面板边缘裁掉，也谈不上"在窗口中居中"。 */}
+      {zoom &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm"
+            onClick={() => setZoom(false)}
+          >
+            <div
+              className="flex max-h-full flex-col items-center gap-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 按高度定尺寸：卡是 2:3 的竖版，按宽度撑会在矮窗口里顶出屏幕 */}
+              <div
+                className={`relative overflow-hidden rounded-2xl border-2 ${border} bg-slate-900 shadow-[0_0_60px_rgba(103,232,249,0.25)]`}
+                style={{ aspectRatio: "2 / 3", height: "58vh", maxWidth: "86vw" }}
+              >
+              {firstFrame || lastFrame ? (
+                <CardFace
+                  first={firstFrame}
+                  last={lastFrame}
+                  showLast={showLastBig}
+                  className="absolute inset-0"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-xs text-slate-500">
+                  还没有画面——AI 会在推演时自拟首尾帧
+                </div>
+              )}
+              <span className="absolute left-2 top-2 rounded bg-black/65 px-2 py-0.5 text-[11px] text-cyan-200">
+                {complete ? "首尾帧轮播" : firstFrame ? "开头帧" : "待推演"}
+              </span>
+            </div>
+
+              <div className="w-full space-y-2" style={{ maxWidth: "86vw" }}>
+                <div className="text-center text-[11px] text-slate-400">
+                  {complete ? "视频将在这两帧之间生成" : originNote}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    disabled={!canEdit}
+                    className="flex-1 rounded-xl border border-slate-600 py-2.5 text-xs text-slate-200 hover:border-cyan-400 disabled:opacity-40"
+                  >
+                    上传本地图作开头帧
+                  </button>
+                  {uploaded && (
+                    <button
+                      onClick={onResetStart}
+                      disabled={!canEdit}
+                      className="rounded-xl border border-slate-600 px-3 py-2.5 text-xs text-slate-400 disabled:opacity-40"
+                    >
+                      恢复
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={() => setZoom(false)}
+                  className="w-full rounded-xl bg-slate-700/70 py-2.5 text-xs text-slate-200"
+                >
+                  收起
+                </button>
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) onPickFile(f);
+                }}
+              />
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
