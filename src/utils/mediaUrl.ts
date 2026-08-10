@@ -1,9 +1,13 @@
 // 播放器统一的媒体 URL 解析：
 //   idb:<key>       —— 剪辑页合并导出的整条视频存 IndexedDB blob，播放时换 objectURL
 //   http(s)（播放）—— 原样直连：<video> 播放不受 CORS 限制，走代理反而引入 502/全量下载延迟
-//   http(s)（截帧）—— forCapture 时经 /api/asset 代理取 blob（canvas 抽帧才不被跨域污染），
+//   http(s)（截帧）—— forCapture 时经代理取 blob（canvas 抽帧才不被跨域污染），
 //                     大文件代理偶发 502，失败自动重试一次
+//
+// ★ 代理地址不在这里拼，走 ai/arkClient 的 fetchArkAsset：dev 是 vite 中间件、
+//   打包后是服务端，两条路径不同，而这条规则以前有四份拷贝、真机上一起坏（见那边的注释）。
 import { useEffect, useState } from "react";
+import { fetchArkAsset } from "../ai/arkClient";
 import { idbGet } from "../data/db";
 
 const objectUrlCache = new Map<string, string>();
@@ -25,12 +29,10 @@ export async function resolveMediaUrl(url: string | undefined, opts?: { forCaptu
   const hit = objectUrlCache.get(cacheKey);
   if (hit) return hit;
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(`/api/asset?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(120_000) }).catch(
-      (e) => {
-        if (attempt === 0) return null;
-        throw e;
-      },
-    );
+    const res = await fetchArkAsset(url, 120_000).catch((e) => {
+      if (attempt === 0) return null;
+      throw e;
+    });
     if (!res || !res.ok) {
       if (attempt === 0) {
         await new Promise((r) => setTimeout(r, 1200));

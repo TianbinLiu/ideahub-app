@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.ideahub.branchvideo",
-  appName: "分支视频",
+  appName: "启梦",
   webDir: "dist",
   server: {
     androidScheme: "https",

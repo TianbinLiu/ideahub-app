@@ -6,6 +6,7 @@ import { NavLink, useLocation, useNavigate } from "react-router";
 import { useCurrentUser } from "../hooks/useAccount";
 import Icon, { type IconName } from "./Icon";
 import CharacterPerch, { usePerchBurst, type PerchPose } from "./CharacterPerch";
+import CreatePerch from "./CreatePerch";
 
 // pose 决定激活时角色的姿势【和】动效（见 CharacterPerch）。
 // 每个 Tab 各不相同：挥手 / 张望 / 欢呼 / 托下巴 ——
@@ -44,8 +45,14 @@ function TabInner({ tab, isActive }: { tab: Tab; isActive: boolean }) {
 export default function TabBar() {
   const navigate = useNavigate();
   const user = useCurrentUser();
+  const path = useLocation().pathname;
   // 首页是全出血视频，底栏浮在渐变上而不是压一条实心板（对标抖音/TikTok/Reels）
-  const onFeed = useLocation().pathname === "/";
+  const onFeed = path === "/";
+  // ➕ 上那只宠物的动作由它自己的定时器驱动（见 CreatePerch），这里只把当前路径递给它
+  // ——切 Tab 时立刻演一个。
+  // ★ TabLayout 是常驻布局，切 Tab 时 TabBar 不重挂载，所以宠物的定时器不会被打断。
+  //   （若哪天把 TabBar 挪进各个页面里，每次切换都会重挂载，自发动作的节奏就没了，
+  //     而且"上一次在哪一页"也会丢，变成进任何页面都演一遍。）
 
   return (
     <nav
@@ -81,8 +88,27 @@ export default function TabBar() {
               className="flex min-h-[44px] flex-1 items-center justify-center"
               aria-label="创作"
             >
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-brand to-cyan-400 text-ink shadow-lg shadow-brand/30 transition active:scale-95">
-                <Icon name="plus" size={26} strokeWidth={2.75} />
+              {/* relative 只包圆钮：宠物相对【按钮】定位。
+                  isolate：她用负 z-index 沉到按钮下面（"从按钮后面抱住它"），
+                  不给独立层叠上下文兜住的话，负 z-index 会一路穿到整条底栏背后。 */}
+              <span className="relative isolate flex items-center justify-center">
+                {/* 常驻宠物：一直轻轻呼吸，每隔几秒自己演一个动作，切 Tab 也立刻演一个。
+                    ★ 48 / 26 这两个数是在真机上量出来的，不是估的（试过 22 / 26 / 30）：
+                      22 —— 她整个人陷进按钮里，**手被完全盖住**，只剩"探个头"，
+                            "抱住/搭手"这层关系读不出来；
+                      30 —— 手离按钮太远，变回一张悬在上方的贴纸，没有接触感；
+                      26 —— 手实打实搭在按钮上沿，身子压在后面。取这个。
+                    整体约 48×76（其中按钮 34），比第一版的 48+113 收敛了一大截。 */}
+                <CreatePerch pathKey={path} width={48} bottom={26} />
+                {/* ★ 按钮本身按工坊主题重画：品牌青渐变 + 一圈金色符文环 + 青色辉光。
+                    原来是一颗纯青蓝的实心圆钮（安卓 FAB 的默认长相），和 app 里
+                    "魔法书房 / 金色符文法阵 / 塔罗牌"那套视觉没有任何关系。
+                    缩到 34 是为了给宠物让位；加号仍是矢量，18px 下依然锐利。 */}
+                <span className="relative flex h-[34px] w-[34px] items-center justify-center rounded-full bg-gradient-to-br from-brand to-cyan-400 text-ink shadow-[0_0_14px_rgba(34,211,238,0.5)] ring-1 ring-gold/70 transition active:scale-90">
+                  {/* 内圈高光：让实心圆读成"一枚有厚度的印记"，而不是一块色卡 */}
+                  <span className="pointer-events-none absolute inset-[3px] rounded-full bg-gradient-to-b from-white/35 to-transparent" />
+                  <Icon name="plus" size={18} strokeWidth={3} className="relative" />
+                </span>
               </span>
             </button>
           ),

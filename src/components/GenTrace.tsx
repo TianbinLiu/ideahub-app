@@ -14,11 +14,15 @@ export default function GenTrace({
   steps,
   running,
   className = "",
+  expanded,
 }: {
   steps: GenStep[];
   /** 整条流程还在跑：跑着时默认展开，跑完自动收起（不占地方，但还能点开回看） */
   running: boolean;
   className?: string;
+  /** 给了就是受控常开，并且不渲染「生成过程 ▸」那一行。
+   *  出片浮层用它——那一屏本来就只有这份日志，再摆一个折叠开关是多余的一次点击 */
+  expanded?: boolean;
 }) {
   const [open, setOpen] = useState(true);
   const wasRunning = useRef(running);
@@ -38,21 +42,25 @@ export default function GenTrace({
 
   if (steps.length === 0) return null;
   const doneCount = steps.filter((s) => s.status === "done").length;
+  const controlled = expanded !== undefined;
+  const show = controlled ? expanded : open;
 
   return (
     <div className={className}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-[11px] text-slate-500"
-      >
-        <span className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
-        生成过程
-        <span className="text-slate-600">
-          {running ? `· ${doneCount}/${steps.length} 步` : `· 共 ${steps.length} 步`}
-        </span>
-      </button>
+      {!controlled && (
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-1.5 text-[11px] text-slate-500"
+        >
+          <span className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
+          生成过程
+          <span className="text-slate-600">
+            {running ? `· ${doneCount}/${steps.length} 步` : `· 共 ${steps.length} 步`}
+          </span>
+        </button>
+      )}
 
-      {open && (
+      {show && (
         <div className="relative mt-1.5 flex flex-col">
           {/* 竖线：垫在所有状态点后面，首尾各让开半个点 */}
           <div className="pointer-events-none absolute bottom-2.5 left-[3px] top-2.5 w-px bg-white/10" />

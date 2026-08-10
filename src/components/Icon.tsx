@@ -12,6 +12,9 @@ export type IconName =
   | "home"
   | "compass"
   | "cards"
+  | "card"
+  | "grid"
+  | "lock"
   | "user"
   | "plus"
   | "heart"
@@ -36,6 +39,12 @@ const OUTLINE: Record<IconName, string> = {
     '<circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"/>',
   cards:
     '<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+  // 单张卡（个人页「卡片」页签）：与上面的 cards（一叠）刻意分开——
+  // 两个页签挨在一起用同一个图标，等于没有图标
+  card: '<rect width="12" height="20" x="6" y="2" rx="2"/><path d="M9 7.5h6"/>',
+  // 九宫格（个人页「作品」页签，对标 TikTok 的栅格图标）
+  grid: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/>',
+  lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
   heart:
