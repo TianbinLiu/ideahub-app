@@ -331,63 +331,17 @@ canvas {
   animation: drop-ring 1.6s ease-in-out infinite;
 }
 
-/* ── 底栏 ➕ 上的看板娘（见 components/CreatePerch.tsx）────────────────────
-   与上面六个挂件共用 .perch-pop（辉光 + 接触阴影）与 perch-run（翻页），
-   只有进出场编排是自己的一套。
+/* ── 底栏 ➕ 上的宠物（见 components/CreatePerch.tsx）──────────────────────
+   与右栏/Tab 那六个挂件共用 .perch-pop（辉光 + 接触阴影）与 perch-run（翻页），
+   但**没有自己的进出场编排** —— 她是常驻的，不存在"进场/退场"这回事。
 
-   ★ 这四套的差别落在**动作**上，不像上面那样按"哪个图标"分：
-     她们表达的是同一件事（来创作），随机抽一套演，靠动作与表情的差异让人多看一眼。
-     所以每套的进出场必须跟着贴图的动作走 —— 招手的从侧面探进来、欢呼的往上蹦、
-     变魔术的原地绽开。共用一套的话，随机换图就只是"换了张贴纸"。
+   第一版给了四套 create-invite/cheer/pull/magic 的进出场关键帧，那是把她当成
+   「切 Tab 才蹦一下的挂件」在做；实际要的是宠物：一直在，只是时不时换个动作。
+   动作全部由贴图逐帧承担（idle 循环 + 四个反应来回播），容器本身不动。
 
-   ★ 同样：每条关键帧都必须自带 translateX(-50%)（水平居中来自 Tailwind 的
-     -translate-x-1/2，animation 的 transform 会整条覆盖掉它），
-     且只动 transform / opacity —— 底栏浮在首页视频上，触发重排就是掉帧。 */
-.create-perch {
-  animation-duration: var(--perch-ms);
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* 招手：从右侧探进来，站定后微微左右晃，退场往回缩 */
-@keyframes create-invite {
-  0%   { transform: translateX(-50%) translate(14px, 10px) scale(0.55); opacity: 0; }
-  11%  { transform: translateX(-50%) translate(-3px, -5px) scale(1.1); opacity: 1; }
-  16%  { transform: translateX(-50%) translate(0, 0) rotate(3deg) scale(0.98); }
-  21%  { transform: translateX(-50%) rotate(-3deg); }
-  26%, 74% { transform: translateX(-50%) translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
-  100% { transform: translateX(-50%) translate(12px, 12px) scale(0.5); opacity: 0; }
-}
-.create-invite { animation-name: create-invite; }
-
-/* 欢呼：二段跳上来，退场前再蹦一次（动作本身就是把手举高，起伏最大） */
-@keyframes create-cheer {
-  0%   { transform: translateX(-50%) translateY(14px) scale(0.5); opacity: 0; }
-  8%   { transform: translateX(-50%) translateY(-12px) scale(1.16); opacity: 1; }
-  13%  { transform: translateX(-50%) translateY(0) scale(0.95); }
-  17%  { transform: translateX(-50%) translateY(-6px) scale(1.06); }
-  22%, 72% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
-  84%  { transform: translateX(-50%) translateY(-9px) scale(1.08); opacity: 1; }
-  100% { transform: translateX(-50%) translateY(15px) scale(0.42); opacity: 0; }
-}
-.create-cheer { animation-name: create-cheer; }
-
-/* 招手示意「过来」：从左侧滑进来并前倾，退场向左退走——和"把人往这边拽"同向 */
-@keyframes create-pull {
-  0%   { transform: translateX(-50%) translate(-18px, 6px) scale(0.66); opacity: 0; }
-  12%  { transform: translateX(-50%) translate(4px, -3px) scale(1.09); opacity: 1; }
-  18%, 74% { transform: translateX(-50%) translate(0, 0) scale(1); opacity: 1; }
-  100% { transform: translateX(-50%) translate(-15px, 8px) scale(0.62); opacity: 0; }
-}
-.create-pull { animation-name: create-pull; }
-
-/* 变魔术：不蹦，原地绽开——动作是"掌心亮起光球"，位移会把那点戏抢掉 */
-@keyframes create-magic {
-  0%   { transform: translateX(-50%) translateY(6px) scale(0.34); opacity: 0; }
-  14%  { transform: translateX(-50%) translateY(0) scale(1.07); opacity: 1; }
-  20%, 76% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
-  100% { transform: translateX(-50%) translateY(4px) scale(0.36); opacity: 0; }
-}
-.create-magic { animation-name: create-magic; }
+   容器不加 animation-name，所以 .perch-pop 的 animation-fill-mode 不会生效，
+   只留下伪元素的辉光与接触阴影 —— 那两条正是"她的手压在按钮上"的视觉依据。
+   减少动态效果的用户由文件末尾那条 media query 兜住（.perch-art 一并停掉，定在第 0 帧）。 */
 
 /* 尊重系统的「减少动态效果」设置：不做位移和翻页，静静显示 A 帧后由
    卸载定时器收走。辉光与接触阴影保留——它们表达的是位置关系而非动效。 */

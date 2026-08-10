@@ -32,21 +32,56 @@ export default function ForgeOverlay({
   const [animDone, setAnimDone] = useState(false);
   useEffect(() => {
     if (phase !== "done" || !animDone) return;
-    const t = setTimeout(onClose, 900);
+    // 1200ms 而不是 900：演完之后接的是 forged-hold 循环（举着牌、光在涨落），
+    // 收太快就等于没接。
+    const t = setTimeout(onClose, 1200);
     return () => clearTimeout(t);
     // onClose 每次渲染都是新函数，放进依赖会让定时器不断重建、永远不触发
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, animDone]);
 
+  /**
+   * ★ 演出是「入场演一次 → 原地循环」两段，不是一套动作无限重播。
+   *   原来出片全程只播 forge 一套、`infinite alternate`：手臂张开→收回→再张开→…
+   *   —— 把已经聚好的法术又扔回远处重来一遍，在剧情上讲不通。
+   *   现在：forge-in 把手从远处收到胸前聚成球（一次）→ forge 停在胸前揉搓（循环）。
+   *   炼成同理：forged 举牌（一次）→ forged-hold 举着不动只有光在涨落（循环）。
+   *   两段的画面接得上，靠的是生成时后一段的 A 帧就是前一段的 B 帧（design 的 aFrom），
+   *   不是靠这里做淡入淡出。
+   *
+   * ★ intro 要按 phase 重置：失败后重试会从 forging 再来一遍，不重置的话
+   *   第二次就直接从循环段开始，"把手收过来"那一下永远看不到了。
+   */
+  const [introDone, setIntroDone] = useState(false);
+  useEffect(() => setIntroDone(false), [phase]);
+
   const title = phase === "done" ? "本段炼成" : phase === "failed" ? "这一炉没成" : "炼制中…";
+  // key 必须跟着 pose 走：只改 background-image 的话 CSS 动画不会重新起一次，
+  // 换段时会停在上一段的进度上
+  //
+  // ★ 失败态**不循环**：她得停下来。让"揉搓"在炉子已经炸了之后还转个不停，
+  //   等于画面在说"还在炼"，而文案在说"没成"——两边打架。这里让 forge 播一遍就定住。
+  const stage =
+    phase === "failed"
+      ? { pose: "forge" as const, loop: false, onDone: undefined }
+      : phase === "done"
+        ? introDone
+          ? { pose: "forged-hold" as const, loop: true, onDone: undefined }
+          : {
+              pose: "forged" as const,
+              loop: false,
+              onDone: () => {
+                setIntroDone(true);
+                setAnimDone(true);
+              },
+            }
+        : introDone
+          ? { pose: "forge" as const, loop: true, onDone: undefined }
+          : { pose: "forge-in" as const, loop: false, onDone: () => setIntroDone(true) };
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/85 px-6 backdrop-blur-sm">
-      {phase === "done" ? (
-        <MascotStage pose="forged" width={250} loop={false} onDone={() => setAnimDone(true)} />
-      ) : (
-        <MascotStage pose="forge" width={250} loop={phase === "forging"} />
-      )}
+      <MascotStage key={stage.pose} pose={stage.pose} width={250} loop={stage.loop} onDone={stage.onDone} />
 
       <div
         className={`mt-1 text-sm font-bold ${

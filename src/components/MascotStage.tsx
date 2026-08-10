@@ -13,7 +13,15 @@
 import { memo, useEffect, useRef, type CSSProperties } from "react";
 import SpriteToggle from "./SpriteToggle";
 
-export type MascotPose = "handover" | "handover-glad" | "receive" | "forge" | "forged" | "cardbtn";
+export type MascotPose =
+  | "handover"
+  | "handover-glad"
+  | "receive"
+  | "forge-in"
+  | "forge"
+  | "forged"
+  | "forged-hold"
+  | "cardbtn";
 
 /** 各精灵图的单格尺寸与帧数。★ 生成脚本跑完会打印这张表，换图时照抄过来——
  *  高度写错不会报错，只会让角色被拉扁，而这种失真很难一眼看出来。 */
@@ -24,12 +32,20 @@ const SHEET: Record<MascotPose, { w: number; h: number; frames: number }> = {
   handover: { w: 420, h: 407, frames: 16 },
   "handover-glad": { w: 420, h: 405, frames: 16 },
   receive: { w: 420, h: 402, frames: 16 },
-  // ★ forge 也是 16 帧，而且是这几套里【最需要】的：它在整个出片过程（几十秒到几分钟）
-  //   里循环播，是用户盯得最久的一段动画。8 帧摊在 1500ms 里只有 5.3fps，
-  //   真机上就是一格一格地顿——用户报的「点了生成本段之后动画太卡」说的正是它。
-  //   同屏的 handover 早就是 16 帧了，两者一对比更刺眼。
-  forge: { w: 420, h: 362, frames: 16 },
-  forged: { w: 420, h: 391, frames: 8 },
+  // ── 出片与炼成：各拆成「入场一次 + 原地循环」两段 ──────────────────────
+  // ★ 为什么要拆：原来出片全程只播一套 forge，用 infinite alternate 循环 ——
+  //   手臂张开→收回→再张开→再收回。可"把手已经聚好的法术又扔回远处再来一遍"
+  //   在剧情上讲不通（用户原话：一个动画循环播放导致不符合逻辑）。
+  //   现在是：forge-in 把手从远处收到胸前聚成球（**只播一次**），
+  //   接上 forge 停在胸前**小幅揉搓**那颗球（循环）。揉搓本身就是来回的动作，
+  //   所以它才配用 alternate 循环；幅度也必须小，大了就退回成原来那个毛病。
+  // ★ 炼成同理：forged 举牌演一次，接 forged-hold 循环。原来 forged 播完定格在末帧，
+  //   用户看到的就是"一张静态图片"。
+  // ★ 两段的衔接靠生成时的 aFrom（后一段的 A 帧就是前一段的 B 帧），不是靠 CSS 淡入。
+  "forge-in": { w: 420, h: 371, frames: 16 },
+  forge: { w: 420, h: 370, frames: 16 },
+  forged: { w: 420, h: 396, frames: 16 },
+  "forged-hold": { w: 420, h: 380, frames: 16 },
   // 素材按钮那颗小人。Q 版、单格小得多——按钮里只有 ~40px 净高，
   // 正片那 420px 的脸缩到这个尺寸就是一团糊（见 design/gen-mascot-sprites.mjs）
   cardbtn: { w: 180, h: 197, frames: 8 },
@@ -40,10 +56,12 @@ const LOOP_MS: Record<MascotPose, number> = {
   handover: 900,        // 伸手：一次性播完就停住等卡
   "handover-glad": 520, // 只有表情在变，要快，慢了像卡顿
   receive: 1100,        // 收回并捧住
-  // 16 帧 / 1200ms ≈ 13fps（原来是 8 帧 /1500ms ≈ 5.3fps）。
-  // 再快就把"缓缓张开法阵"演成了甩手，再慢帧率又掉回去——法阵本身在转，慢一点也不显呆。
-  forge: 1200,
-  forged: 1100,
+  "forge-in": 1300,     // 手从远处收到胸前：一次性，慢一点才看得清"聚起来"这件事
+  // 揉搓那一段。16 帧 / 900ms ≈ 18fps —— 它在出片全程循环播，是用户盯得最久的动画，
+  // 而且动作幅度小，快一点才像"在使劲搓"而不是"在发呆"。
+  forge: 900,
+  forged: 1100,         // 举牌那一下：一次性
+  "forged-hold": 1400,  // 举着不动、只有光在涨落：慢，才不像在抽搐
   cardbtn: 420,
 };
 

@@ -1,121 +1,169 @@
-// 底栏中间 ➕ 上的看板娘：每次切 Tab 随机换一套动作演一遍。
+// 底栏 ➕ 上的看板娘 —— 一只**常驻的 app 宠物**。
 //
-// 目的很直白 —— 把注意力从"我在浏览"拉到"我可以创作"。➕ 是全 app 唯一的主 CTA，
-// 但一颗静止的圆钮在四个会动的 Tab 中间反而最容易被忽略。
+// 她一直在那儿轻轻呼吸，每隔几秒自己挑一个动作演一遍（挥手 / 探头 / 欢呼 / 打盹），
+// 切 Tab 也会立刻演一个。目的很直白：➕ 是全 app 唯一的主 CTA，却是底栏里唯一不会动的
+// 东西，在四个会变实心的 Tab 中间反而最容易被忽略。
 //
-// ★ 她手里【不拿加号】，加号仍然是那枚矢量图标（Icon 的 plus）。
-//   位图画的加号缩到 26px 一定比矢量糊，而且出图提示词里写死了"无任何文字与符号"
-//   （文生图写符号本来就不稳，见 design/lib/sprite-pipeline.mjs 的 Q_STAGE）。
-//   「Q 版看板娘 + 加号」是**两个元素合成一颗按钮**，不是把加号画进贴图里 ——
-//   这也正是 CharacterPerch 那六个挂件与图标"长在一起"的同一套做法。
+// ★ 与第一版的区别（第一版理解错了需求，记下来免得改回去）：
+//   第一版是"切 Tab 才蹦一下的一次性挂件"，人比按钮还大、从底栏往上戳出 60px。
+//   要的其实是**宠物**：按钮缩小、她在按钮背后搭着手，两者加起来占原来那么大，
+//   而且**自己会时不时动**。前者是"操作反馈"（那是 CharacterPerch 的活），
+//   后者是"陪着你"——两件事，别混。
 //
-// ★ 与 components/CharacterPerch 的分工：
-//   那边是"对这一次操作的即时反应"，姿势与 Tab 一一对应、固定不变；
-//   这边是"招揽"，姿势**刻意随机**——一套固定动作看三次就成了背景板。
-//   两者共用 index.css 里的 .perch-pop（辉光 + 接触阴影）与 perch-run（翻页关键帧）：
-//   都是"从图标后面探出来的 Q 版挂件"，抄第二套迟早会漂（铁律六）。
-//
-// 资源与生成方式：public/createbtn/README.md + design/gen-createbtn-sprites.mjs。
+// ★ 她与按钮的关系靠三件事成立（前两件在 index.css 的 .perch-pop 伪元素里）：
+//   ① 接触阴影：她手下投在按钮上的一团软阴影，制造承重感；
+//   ② 同色辉光：背后一圈按钮的品牌青，让厚涂角色与矢量图标共享一个色相；
+//   ③ 重叠：她的手实打实压在按钮上沿（贴图里手就画在最下沿，见
+//      design/gen-createbtn-sprites.mjs 的构图要求）。
+//   加号本身**不画进贴图**——它是矢量 Icon，缩到 18px 也清晰。
 import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 
-export type CreatePose = "invite" | "cheer" | "pull" | "magic";
-
-/** 一次演出的总时长。★ 唯一真源：CSS 用 --perch-ms 拿它推各阶段，卸载定时器也用它。 */
-export const CREATE_PERCH_MS = 1900;
+export type CreatePose = "idle" | "wave" | "peek" | "cheer" | "nap";
 
 /** 生成脚本跑完会打印这张表，换图时照抄过来。
  *  ★ 高度写错不报错，只会把角色拉扁——这种失真很难一眼看出来。 */
 const SHEET: Record<CreatePose, { w: number; h: number; frames: number }> = {
-  invite: { w: 200, h: 228, frames: 12 },
-  cheer: { w: 200, h: 200, frames: 12 },
-  pull: { w: 200, h: 243, frames: 12 },
-  magic: { w: 200, h: 193, frames: 12 },
+  idle: { w: 200, h: 209, frames: 16 },
+  wave: { w: 200, h: 209, frames: 16 },
+  peek: { w: 200, h: 205, frames: 16 },
+  cheer: { w: 200, h: 195, frames: 16 },
+  nap: { w: 200, h: 197, frames: 16 },
 };
 
-const POSES = Object.keys(SHEET) as CreatePose[];
+const REACTIONS: CreatePose[] = ["wave", "peek", "cheer", "nap"];
+
+/** 待机循环一轮的时长。★ 慢，而且幅度小 —— 它在底栏上一直播，
+ *  快了或幅度大了就从"她在那儿待着"变成"有东西在抽搐"，很快招人烦。 */
+const IDLE_MS = 1800;
+/** 反应动作单程时长。来回一趟 = 两倍 */
+const REACT_MS = 900;
+/** 两次自发动作之间的间隔（随机取值）。太密像多动症，太疏就等于没有 */
+const GAP_MIN_MS = 7000;
+const GAP_MAX_MS = 15000;
 
 /**
- * 切 Tab 时换一套并演一遍。返回 { token, pose }：token 0 = 不显示，>0 = 第 n 次。
- * 调用方要把 token 当 `key` 用（同 usePerchBurst：不换 key 元素不重挂载，动画不重播）。
+ * 宠物的状态机：平时 idle，时不时演一个反应动作再回到 idle。
  *
- * ★ 只认路径的【变化】，不认"当前在哪一页"：挂载时不演（进 app 就蹦一下太吵），
- *   与本组件无关的重渲染也不演。用 ref 存上一次的路径来区分。
+ * ★ 反应是**正播完再倒播回来**（animation-direction: alternate + 2 次迭代），
+ *   结束时正好停在第 0 帧 —— 也就是 idle 的起始姿势，切回 idle 循环时接得上。
+ *   只正播一次的话会定格在动作的顶点（比如手一直举在头顶），下一帧切回 idle 就是跳变。
+ *   生成时四个反应的 A 端点都用 aFrom 复用了 idle 的末帧，所以"第 0 帧 = 待机姿势"
+ *   这件事在贴图层面也成立（见 design/gen-createbtn-sprites.mjs）。
  *
- * ★ 定时器存 ref、不用 effect 的 cleanup 管 —— CharacterPerch 在这儿修过一个真 bug：
- *   cleanup 会在下一次 effect 之前把隐藏定时器清掉，而那次 effect 若提前 return，
- *   就【不再补新定时器】，角色于是永远停在显示态。定时器的生命周期本来就不该
- *   和依赖项的变化绑定。
+ * ★ 定时器一律存 ref、不用 effect 的 cleanup 管 —— CharacterPerch 在这儿修过一个真 bug：
+ *   cleanup 会在下一次 effect 之前把定时器清掉，而那次 effect 若提前 return 就不再补新的，
+ *   状态机于是永远停在某一格。
  *
- * ★ 换姿势时排除当前这一套：`Math.random() * 4` 有 1/4 概率抽到同一套，
- *   而"换了一套"正是这个功能的全部意义——连着两次一样，用户只会觉得是同一张图。
+ * @param pathKey 路由路径。变化时立刻演一个（切 Tab 的即时反馈）
  */
-export function useCreateBurst(pathKey: string): { token: number; pose: CreatePose } {
-  const [token, setToken] = useState(0);
-  const [pose, setPose] = useState<CreatePose>(() => POSES[Math.floor(Math.random() * POSES.length)]);
-  const prev = useRef(pathKey);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+function useCreatePet(pathKey: string): { pose: CreatePose; reacting: boolean } {
+  const [pose, setPose] = useState<CreatePose>("idle");
+  const gap = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const back = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const last = useRef<CreatePose>("idle");
+  const prevPath = useRef(pathKey);
 
   useEffect(() => {
-    if (prev.current === pathKey) return;
-    prev.current = pathKey;
-    setPose((cur) => {
-      const rest = POSES.filter((p) => p !== cur);
+    let alive = true;
+    /** ★ 排除上一次那套：直接 random 有 1/4 概率抽到同一个，
+     *  而"她换了个动作"正是这个功能的全部意义 */
+    const pick = () => {
+      const rest = REACTIONS.filter((p) => p !== last.current);
       return rest[Math.floor(Math.random() * rest.length)];
-    });
-    setToken((t) => t + 1);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToken(0), CREATE_PERCH_MS);
+    };
+    const react = () => {
+      if (!alive) return;
+      const next = pick();
+      last.current = next;
+      setPose(next);
+      clearTimeout(back.current);
+      back.current = setTimeout(() => {
+        if (!alive) return;
+        setPose("idle");
+        schedule();
+      }, REACT_MS * 2); // 来回一趟
+    };
+    const schedule = () => {
+      clearTimeout(gap.current);
+      gap.current = setTimeout(react, GAP_MIN_MS + Math.random() * (GAP_MAX_MS - GAP_MIN_MS));
+    };
+    schedule();
+    return () => {
+      alive = false;
+      clearTimeout(gap.current);
+      clearTimeout(back.current);
+    };
+  }, []);
+
+  // 切 Tab：不等自发的那一轮，立刻演一个
+  useEffect(() => {
+    if (prevPath.current === pathKey) return;
+    prevPath.current = pathKey;
+    const rest = REACTIONS.filter((p) => p !== last.current);
+    const next = rest[Math.floor(Math.random() * rest.length)];
+    last.current = next;
+    setPose(next);
+    clearTimeout(back.current);
+    back.current = setTimeout(() => setPose("idle"), REACT_MS * 2);
   }, [pathKey]);
 
-  useEffect(() => () => clearTimeout(timer.current), []);
-
-  return { token, pose };
+  return { pose, reacting: pose !== "idle" };
 }
 
 /**
- * 趴在 ➕ 按钮后面演一段的 Q 版角色。调用方负责用 useCreateBurst 控制挂载/卸载，
- * 并给父元素 `relative isolate`（角色用负 z-index 沉到按钮下面，需要独立层叠上下文兜住）。
- *
- * ★ bottom 取按钮直径的 0.72（重叠 28%）：与 CharacterPerch 的 0.68 同一个量级，
- *   但这颗按钮是**实心亮色**的圆钮而不是描边图标，盖多了会把品牌色那一圈吃掉。
- *   重叠比例只由 bottom 与按钮尺寸决定，与贴图大小无关。
+ * 趴在 ➕ 按钮后面的 Q 版角色。调用方给父元素 `relative isolate`
+ * （她用负 z-index 沉到按钮下面，需要独立层叠上下文兜住，否则会一路穿到整条底栏背后）。
  */
-function CreatePerchImpl({ pose, size = 48 }: { pose: CreatePose; size?: number }) {
+function CreatePerchImpl({
+  pathKey,
+  /** 角色渲染宽度。按钮直径由调用方决定，两者的重叠靠 bottom 调 */
+  width = 48,
+  /** 她的手落在离容器底多高的地方。★ 真机上量出来的，见 TabBar 里的取值说明：
+   *  小了手被按钮盖住（只剩探头），大了变成悬空贴纸。 */
+  bottom = 26,
+}: {
+  pathKey: string;
+  width?: number;
+  bottom?: number;
+}) {
+  const { pose, reacting } = useCreatePet(pathKey);
   const art = SHEET[pose];
-  // 1.33×：比 CharacterPerch 的 1.75× 收敛得多——那边的宿主是 23px 的线性图标，
-  // 这边是 48px 的实心圆钮，同样倍率会让角色高到把首页视频挡掉一大块。
-  const w = Math.round(size * 1.33);
-  const h = Math.round((w * art.h) / art.w);
+  const h = Math.round((width * art.h) / art.w);
 
-  // 时序全部由 CREATE_PERCH_MS 推导，不写死秒数（唯一真源见上）
-  const runMs = Math.round(CREATE_PERCH_MS * 0.54);
-  const delayMs = Math.round(CREATE_PERCH_MS * 0.18);
-  // ★ steps 用 frames-1、位移终点用 (frames-1)*w：steps(n) 在动画【结束瞬间】才跳到
-  //   终值，取 frames 格那一跳会落到精灵图外面，配上 forwards 就是退场全程空白。
-  const steps = art.frames - 1;
+  // ★ 循环与来回都用 steps(frames)、位移终点取 frames*w（不是 frames-1）：
+  //   steps(n) 只在动画【结束瞬间】跳到终值，而 alternate 到点就回卷、永远跑不到，
+  //   所以取 frames 格才能把 16 帧全放出来。
+  //   （一次性播完就定格的那种才要用 frames-1，否则最后一跳会落到精灵图外面变空白——
+  //     见 MascotStage 的同款注释。这里没有一次性播完的分支。）
+  const steps = art.frames;
+  const shift = steps * width;
+  const ms = reacting ? REACT_MS : IDLE_MS;
 
   return (
     <span
-      className={`perch-pop create-perch create-${pose} pointer-events-none absolute left-1/2 -z-10 -translate-x-1/2`}
+      className="perch-pop create-perch pointer-events-none absolute left-1/2 -z-10 -translate-x-1/2"
       style={
         {
-          bottom: `${Math.round(size * 0.72)}px`,
-          width: w,
+          bottom: `${bottom}px`,
+          width,
           height: h,
-          "--perch-ms": `${CREATE_PERCH_MS}ms`,
-          "--perch-glow": "34 211 238", // cyan-400，与 ➕ 的品牌渐变同色相
+          "--perch-glow": "34 211 238", // cyan-400，与按钮的品牌渐变同色相
         } as CSSProperties
       }
       aria-hidden
     >
       <span
+        // key 跟着 pose 走：只改 background-image 的话 CSS 动画不会重新起一次，
+        // 换动作时会停在上一个动作的进度上
+        key={pose}
         className="perch-art"
         style={
           {
             backgroundImage: `url(/createbtn/${pose}.webp)`,
-            backgroundSize: `${art.frames * w}px 100%`,
-            animation: `perch-run ${runMs}ms steps(${steps}) ${delayMs}ms 1 forwards`,
-            "--sheet-shift": `-${steps * w}px`,
+            backgroundSize: `${art.frames * width}px 100%`,
+            // 待机无限循环；反应正播一次 + 倒播一次（2 迭代 alternate），停回第 0 帧
+            animation: `perch-run ${ms}ms steps(${steps}) ${reacting ? "2" : "infinite"} alternate`,
+            "--sheet-shift": `-${shift}px`,
           } as CSSProperties
         }
       />
@@ -123,6 +171,6 @@ function CreatePerchImpl({ pose, size = 48 }: { pose: CreatePose; size?: number 
   );
 }
 
-/** memo：底栏在首页滚动/播放中频繁重渲染，角色无状态，不必跟着重画 */
+/** memo：底栏在首页滚动/播放中频繁重渲染，宠物的状态只由自己的定时器驱动 */
 export const CreatePerch = memo(CreatePerchImpl);
 export default CreatePerch;
