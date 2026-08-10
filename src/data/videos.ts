@@ -664,32 +664,97 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     emitApiError("publishVideo", e);
     // PublishPage 发完就 clearDraft() 了，作品只剩内存里这一份——存进待发队列，
     // 下次启动重试，不让一次网络抖动吃掉用户几十分钟的生成。
-    void queuePending(draft);
+    // ★ 连失败原因一起存：个人页要把它显示出来。只存不显示等于没存
+    //   （2026-08-10 就是这么"消失"了一条作品）。
+    void queuePending(draft, e);
   }
 }
 
-async function queuePending(draft: DraftVideo): Promise<void> {
-  const list = (await idbGet<DraftVideo[]>(PENDING_KEY)) ?? [];
-  await idbSet(PENDING_KEY, [...list, draft].slice(-5)); // 只留最近 5 条，别把配额吃光
+async function queuePending(draft: DraftVideo, error: unknown): Promise<void> {
+  const list = await readPending();
+  // 同一条（clientId 幂等键）只留一份，反复重试不会堆成一摞
+  const rest = list.filter((p) => p.draft.clientId !== draft.clientId);
+  await writePending([...rest, { draft, error: errText(error), at: Date.now() }].slice(-5)); // 只留最近 5 条，别把配额吃光
 }
 
-/** 启动时重试待发队列（成功的移出队列，失败的留着下次再试） */
+/**
+ * 待发队列的**可见**镜像。页面读它来告诉用户"有 N 条没传上去"。
+ *
+ * ★★ 这一条是踩过之后补的，不是设计得漂亮：原来 flushPending 里是个空 `catch {}`，
+ *   发布失败**一声不吭**。而远端模式下 save() 直接 return（作品只活在内存里），
+ *   于是用户的表现是：辛苦几十分钟生成的作品「过一会儿自己没了」——没有报错、
+ *   没有日志、连个入口都没有。真实事故：2026-08-10，nginx 的 client_max_body_size
+ *   默认 1m 把 4.9MB 的发布请求在网络层掐断（浏览器只看到 Failed to fetch），
+ *   作品连着三张派生卡一起"消失"。
+ *   失败可以，但必须**响且局部**（铁律八）：留在队列里、能看见、能重试、说得出原因。
+ */
+export interface PendingPublish {
+  draft: DraftVideo;
+  /** 上一次失败的原因，直接给用户看 */
+  error: string;
+  at: number;
+}
+
+let pendingMirror: PendingPublish[] = [];
+
+/** 老版本存的是裸 DraftVideo[]，读的时候归一 */
+async function readPending(): Promise<PendingPublish[]> {
+  const raw = (await idbGet<unknown[]>(PENDING_KEY)) ?? [];
+  return raw.map((x) =>
+    x && typeof x === "object" && "draft" in x
+      ? (x as PendingPublish)
+      : { draft: x as DraftVideo, error: "上次没传上去", at: 0 },
+  );
+}
+
+async function writePending(list: PendingPublish[]): Promise<void> {
+  pendingMirror = list;
+  await idbSet(PENDING_KEY, list);
+  emitVideos();
+}
+
+/** 页面同步读：还有几条没传上去 */
+export function pendingPublishes(): PendingPublish[] {
+  return pendingMirror;
+}
+
+function errText(e: unknown): string {
+  const m = e instanceof Error ? e.message : String(e);
+  // "网络不可用" 在这条路上十有八九是包太大被网关掐了（body 里带着 MB 级的 base64 帧），
+  // 直接说"网络不好"会让人一直重试同一件必然失败的事
+  if (/网络不可用|Failed to fetch|NETWORK/i.test(m)) return "上传被拒（作品体积较大，可能是服务器的请求体上限）";
+  if (/请求超时|TIMEOUT/i.test(m)) return "上传超时（网络太慢或作品太大）";
+  return m.slice(0, 120);
+}
+
+/** 启动时重试待发队列（成功的移出队列，失败的留着并记下原因） */
 async function flushPending(): Promise<void> {
-  const list = (await idbGet<DraftVideo[]>(PENDING_KEY)) ?? [];
+  const list = await readPending();
   if (list.length === 0) return;
-  const left: DraftVideo[] = [];
-  for (const draft of list) {
+  const left: PendingPublish[] = [];
+  for (const p of list) {
     try {
-      const v = await branch.createVideo(draft);
-      if (v && cache) {
-        cache = [toVideoItem(v), ...cache];
-      }
-    } catch {
-      left.push(draft);
+      const v = await branch.createVideo(p.draft);
+      if (v && cache) cache = [toVideoItem(v), ...cache];
+    } catch (e) {
+      // ★ 不再是空 catch：原因要留住，用户和排查的人都靠它
+      console.warn("[videos] 待发作品重试失败:", errText(e));
+      left.push({ ...p, error: errText(e), at: Date.now() });
     }
   }
-  await idbSet(PENDING_KEY, left);
-  if (left.length !== list.length) emitVideos();
+  await writePending(left);
+}
+
+/** 手动重试（个人页那条横幅上的按钮）。返回还剩几条没传上去 */
+export async function retryPendingPublishes(): Promise<number> {
+  await flushPending();
+  return pendingMirror.length;
+}
+
+/** 放弃某一条（用户自己决定不要了）。★ 必须给这条出路：
+ *  否则一条永远传不上去的作品会把横幅永久钉在个人页上。 */
+export async function dropPendingPublish(clientId: string): Promise<void> {
+  await writePending(pendingMirror.filter((p) => p.draft.clientId !== clientId));
 }
 
 // DEV 调试/E2E 挂钩：与 __studio/__account 同款——自动化要读写与组件同实例的作品库
