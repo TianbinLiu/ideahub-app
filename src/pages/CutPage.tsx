@@ -49,6 +49,7 @@ function clipDur(c: Clip): number {
 export default function CutPage() {
   const navigate = useNavigate();
   const draft = useStudio((s) => s.draft);
+  const segEdit = useStudio((s) => s.segEdit);
   const segs = draft?.segments ?? [];
 
   const [clips, setClips] = useState<Clip[]>([]);
@@ -384,7 +385,18 @@ export default function CutPage() {
     <div className="fixed inset-0 flex flex-col bg-black">
       {/* ── 顶栏 ── */}
       <header className="safe-top flex flex-none items-center gap-3 px-4 py-3">
-        <button onClick={() => navigate(-1)} className="text-slate-200">
+        <button
+          onClick={() => {
+            // 单段编辑的返回 = 放弃这次改动（不写回方案），得先把单段草稿清掉，
+            // 否则那份一段的 draft 会被后面的组稿流程当成真草稿
+            if (segEdit) {
+              leftRef.current = true;
+              useStudio.getState().closeSegmentEdit(false);
+              navigate("/studio");
+            } else navigate(-1);
+          }}
+          className="text-slate-200"
+        >
           <Icon name="back" size={22} />
         </button>
         <button
@@ -421,13 +433,29 @@ export default function CutPage() {
             </div>
           )}
         </div>
-        <button
-          onClick={() => void mergeAndGo()}
-          disabled={!!busy}
-          className="rounded-lg bg-brand px-4 py-1.5 text-sm font-bold text-ink disabled:opacity-45"
-        >
-          下一步
-        </button>
+        {/* 单段编辑模式（从节点卡的「编辑本段」进来）不合并不发片：
+            改完写回这一段的方案，并把改好的尾帧交给下一段当起拍帧，然后回工坊 */}
+        {segEdit ? (
+          <button
+            onClick={() => {
+              leftRef.current = true;
+              useStudio.getState().closeSegmentEdit(true);
+              navigate("/studio");
+            }}
+            disabled={!!busy}
+            className="rounded-lg bg-brand px-4 py-1.5 text-sm font-bold text-ink disabled:opacity-45"
+          >
+            保存本段
+          </button>
+        ) : (
+          <button
+            onClick={() => void mergeAndGo()}
+            disabled={!!busy}
+            className="rounded-lg bg-brand px-4 py-1.5 text-sm font-bold text-ink disabled:opacity-45"
+          >
+            下一步
+          </button>
+        )}
       </header>
 
       {/* ── 预览区 ── */}

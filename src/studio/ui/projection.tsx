@@ -3,12 +3,14 @@
 // proposals = 三个投影节点卡（点开看首尾帧与小说式剧情，选定后落卡）
 // decks = 卡组选择（两段式第一步；选中后回第一人称把该组卡摊上桌）
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import { deckCoverOf, myCards, myDecks } from "../../data/account";
-import { VIDEO_TIERS, fmtTokens, segTokens } from "../../data/economy";
+import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, segTokens } from "../../data/economy";
 import TarotCard from "../../components/TarotCard";
 import DeckCard from "../../components/DeckCard";
+import GenTrace from "../../components/GenTrace";
 import Icon from "../../components/Icon";
-import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType } from "../../types";
+import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType, NodeSlot, Proposal } from "../../types";
 import { activePath, chosenProposal, useStudio } from "../studioStore";
 import TokenCost from "../../components/TokenCost";
 import { proposalsCost } from "../../data/economy";
@@ -672,6 +674,13 @@ function ProposalsPanel() {
                       ⚠ 更换方案后，原方案已延展的后续节点将被收起（切回可恢复）
                     </div>
                   )}
+                  {/* ── 单独炼这一段 ──
+                      用户可以只挑几段先炼出来看效果（人物对不对、画风稳不稳），
+                      剩下的留到最后一起炼。出片写在方案的 videoUrl 上，工作流那边直接认，
+                      不会重复收费。炼完可以进编辑页圈画面改细节——改好的尾帧就是下一段的起拍帧 */}
+                  {isChosen && (
+                    <SegmentActions node={node} proposal={p} />
+                  )}
                   {isChosen ? (
                     <button
                       onClick={() => useStudio.getState().closeProjection()}
@@ -695,5 +704,52 @@ function ProposalsPanel() {
         <div className="pb-1 text-center text-[10px] text-slate-500">选定后其余方案收起，卡片将落回桌面</div>
       </div>
     </>
+  );
+}
+
+/**
+ * 节点卡上的单段出片区：炼本段 / 重炼 / 进编辑页。
+ * 「编辑本段」去的就是剪辑页（与工作流跑完后进的是同一页），只带这一段——
+ * 在那里可以拖到任意一帧圈出物体写修改要求，重新生成后新的尾帧会顶替设定尾帧，
+ * 下一段就从这一帧接着拍。
+ */
+function SegmentActions({ node, proposal }: { node: NodeSlot; proposal: Proposal }) {
+  const navigate = useNavigate();
+  const nodeGen = useStudio((s) => s.nodeGen);
+  const mine = nodeGen?.proposalId === proposal.id;
+  const busy = !!nodeGen;
+  const done = !!proposal.videoUrl;
+  const cost = segTokens(proposal.durationSec, node.videoTier ?? DEFAULT_TIER);
+
+  return (
+    <div className="space-y-1.5">
+      {mine && <GenTrace steps={nodeGen!.steps} running className="rounded-lg bg-black/25 px-2 py-1.5" />}
+      <div className="flex gap-1.5">
+        <button
+          onClick={() => void useStudio.getState().genNodeVideo(node.id, proposal.id)}
+          disabled={busy || !proposal.plot.trim()}
+          className="flex-1 rounded-lg border border-cyan-400/50 bg-cyan-500/15 py-2 text-xs font-bold text-cyan-100 disabled:opacity-40"
+        >
+          {mine ? "炼制中…" : done ? `♻ 重炼本段（${fmtTokens(cost)}）` : `⚡ 生成本段视频（${fmtTokens(cost)}）`}
+        </button>
+        {done && (
+          <button
+            onClick={() => {
+              useStudio.getState().openSegmentEdit(node.id, proposal.id);
+              navigate("/cut");
+            }}
+            disabled={busy}
+            className="flex-none rounded-lg border border-slate-500/60 bg-slate-700/50 px-3 py-2 text-xs font-semibold text-slate-100 disabled:opacity-40"
+          >
+            ✂ 编辑本段
+          </button>
+        )}
+      </div>
+      {done && (
+        <div className="text-center text-[10px] text-emerald-300/80">
+          ✓ 本段已出片——最后点法阵时只会炼还没出片的段
+        </div>
+      )}
+    </div>
   );
 }

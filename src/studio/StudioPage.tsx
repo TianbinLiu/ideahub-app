@@ -248,6 +248,19 @@ export default function StudioPage() {
     prevFlowLen.current = flowLen;
   }, [flowLen, navigate]);
 
+  // 存草稿
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  const hasRoot = useStudio((s) => s.root != null);
+  const hasWork = hasRoot || flowLen > 0;
+  async function saveNow() {
+    setSaveState("saving");
+    const meta = await useStudio.getState().saveWorkDraft({ from: "studio" });
+    setSaveState(meta ? "saved" : "failed");
+    // 失败必须说出来：配额满/隐私模式下写不进去，静默"保存成功"会让用户放心关页面
+    if (!meta) useStudio.setState({ notice: { text: "草稿保存失败（存储空间不足或隐私模式）", at: Date.now() } });
+    setTimeout(() => setSaveState("idle"), 2200);
+  }
+
   return (
     <div className="relative h-full w-full overflow-hidden bg-ink">
       <Canvas
@@ -274,6 +287,23 @@ export default function StudioPage() {
           <span className="text-xs">{backLabel}</span>
         </button>
         <div className="pointer-events-auto flex items-center gap-2 pt-2">
+          {/* 存草稿：桌面上有东西才亮。工坊侧此前完全没有落盘手段——摆了半天卡、
+              推演了几炉，刷新一下全没（两个 store 都是纯内存单例） */}
+          {hasWork && (
+            <button
+              onClick={() => void saveNow()}
+              disabled={saveState === "saving"}
+              className="rounded-full bg-panel/85 px-3 py-1.5 text-xs text-slate-200 backdrop-blur disabled:opacity-50"
+            >
+              {saveState === "saving"
+                ? "保存中…"
+                : saveState === "saved"
+                  ? "已保存 ✓"
+                  : saveState === "failed"
+                    ? "保存失败"
+                    : "存草稿"}
+            </button>
+          )}
           {/* 只在演示模式亮牌。「● 真实 AI」是常态，天天挂在那儿只是噪音；
               而没配 Key 时全程 mock——用户以为在测 Seedance、产物却全是本地占位，
               这一条必须留着。标题栏的「🎴 卡片工坊」也去掉了：画面本身就是工坊 */}

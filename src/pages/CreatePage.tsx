@@ -11,6 +11,7 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
 import { flowDirty, useFlow } from "../studio/flowStore";
+import { useStudio } from "../studio/studioStore";
 
 interface Mode {
   key: string;
@@ -57,6 +58,9 @@ const MODES: Mode[] = [
     resets: true,
     go: (nav) => {
       useFlow.getState().seedSolo("workflow");
+      // 这是"另起一摊活"：断开与上一条草稿的关联，否则在新工作流里点保存会把
+      // 之前那条草稿原地覆盖掉
+      useStudio.getState().newWorkDraft();
       nav("/flow");
     },
   },
@@ -74,6 +78,7 @@ const MODES: Mode[] = [
     resets: true,
     go: (nav) => {
       useFlow.getState().seedSolo("simple");
+      useStudio.getState().newWorkDraft();
       nav("/flow");
     },
   },

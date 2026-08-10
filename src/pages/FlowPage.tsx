@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
+import GenTrace from "../components/GenTrace";
 import Icon from "../components/Icon";
 import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 import { AI_REAL } from "../ai";
@@ -192,6 +193,8 @@ function NodeScreen({ node, index, total }: { node: FlowNode; index: number; tot
 
       {/* ── 本段内容 ── */}
       <div className="flex-none space-y-2 border-t border-slate-800 bg-ink px-4 pb-3 pt-2.5" data-noswipe>
+        {/* 出片过程日志：跑着时展开，跑完自动收起但留着可回看 */}
+        <GenTrace steps={node.steps ?? []} running={node.status === "generating"} />
         {!simple && (
           <input
             value={prop.title}
@@ -377,6 +380,8 @@ export default function FlowPage() {
   const { nodes, cursor, mode, origin, busy, err, setCursor, addNode, removeNode, moveNode, reset } = useFlow();
   const [finalizing, setFinalizing] = useState("");
   const [tplExtract, setTplExtract] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  const [genningAll, setGenningAll] = useState(false);
   const tpl = useFlow((s) => s.template);
   const simple = mode === "simple";
 
@@ -388,12 +393,54 @@ export default function FlowPage() {
     if (nodes.length === 0 && !leavingRef.current) navigate("/create", { replace: true });
   }, [nodes.length, navigate]);
 
+  // ★ 自动存盘只挂在"又炼出一段"这一个事件上，不做定时/每次改动都存：
+  //   一段视频是几十秒 + 真金白银，丢了补不回来；而草稿正文带整份首尾帧 base64，
+  //   一条几 MB，频繁写盘会拖慢主线程还费配额。改文字这种廉价改动交给手动按钮。
+  //   写在 FlowPage 而不是 flowStore：flowStore 绝不 import studioStore（互相 import
+  //   在 Vite 下会拿到半初始化的模块），而这一页两边都拿得到。
+  const doneCount = nodes.filter(nodeDone).length;
+  const prevDone = useRef(doneCount);
+  useEffect(() => {
+    if (doneCount > prevDone.current) void useStudio.getState().saveWorkDraft({ from: "flow" });
+    prevDone.current = doneCount;
+  }, [doneCount]);
+
   const allDone = nodes.length > 0 && nodes.every(nodeDone);
   const remain = useMemo(() => flowCost(nodes), [nodes]);
   const wallet = walletOf();
   const node = nodes[Math.min(cursor, nodes.length - 1)];
 
   if (nodes.length === 0 || !node) return null;
+
+  /** 把还没出片的段一次炼完。
+   *  用户可以先挑几段炼出来看效果（人物对不对、画风稳不稳），剩下的攒到这里一起跑——
+   *  已出片的段直接跳过，不重炼也不重复收费。串行是必须的：段与段要靠**前一段的真实
+   *  尾帧**承接起拍，并行跑出来的后一段接的是设定帧，衔接就断了。 */
+  async function genRest() {
+    if (busy || genningAll) return;
+    setGenningAll(true);
+    try {
+      // 每轮都从 store 现取：上一段出片后会改写下一段的起拍帧
+      for (;;) {
+        const pending = useFlow.getState().nodes.find((n) => !nodeDone(n));
+        if (!pending) break;
+        const ok = await useFlow.getState().genNode(pending.id);
+        if (!ok) break; // 失败就停在这一段，错误已经写进 err 条，别把余额继续烧下去
+      }
+    } finally {
+      setGenningAll(false);
+    }
+  }
+
+  /** 存盘。失败要说出来：配额满/隐私模式下 IndexedDB 写不进去，
+   *  静默"保存成功"会让用户放心地关掉页面，然后什么都没了（铁律八） */
+  async function saveNow() {
+    setSaveState("saving");
+    const meta = await useStudio.getState().saveWorkDraft({ from: "flow" });
+    setSaveState(meta ? "saved" : "failed");
+    if (!meta) useFlow.setState({ err: "草稿保存失败（存储空间不足或浏览器隐私模式）" });
+    setTimeout(() => setSaveState("idle"), 2200);
+  }
 
   /** 全部满意 → 组稿（回写真帧 + 提炼卡组）→ 进剪辑页 */
   async function toCut() {
@@ -428,13 +475,34 @@ export default function FlowPage() {
           {simple ? "一个节点，一条短片" : `${nodes.length} 段 · 已出片 ${nodes.filter(nodeDone).length}`}
           {AI_REAL && remain > 0 && ` · 剩余约 ${fmtTokens(remain)}`}
         </span>
+        {/* 手动存盘。自动保存只在"炼完一段"那种昂贵节点触发（见下面的 effect），
+            纯改文字不会自动存——想留住就点这里 */}
         <button
-          onClick={() => void toCut()}
-          disabled={!allDone || busy || !!finalizing}
-          className="flex-none rounded-full bg-brand px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-35"
+          onClick={() => void saveNow()}
+          disabled={saveState === "saving"}
+          className="flex-none rounded-full bg-slate-700/80 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-50"
         >
-          {finalizing || "去剪辑 ›"}
+          {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存 ✓" : saveState === "failed" ? "保存失败" : "存草稿"}
         </button>
+        {/* 还有没出片的段就先给「炼完剩余」——这条路正是"先挑几段试效果，其余最后一起炼"。
+            全部出片后才换成去剪辑 */}
+        {!allDone && nodes.length > 0 ? (
+          <button
+            onClick={() => void genRest()}
+            disabled={busy || genningAll}
+            className="flex-none rounded-full bg-brand px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-35"
+          >
+            {genningAll || busy ? "炼制中…" : `⚡ 炼完剩余 ${nodes.filter((n) => !nodeDone(n)).length} 段`}
+          </button>
+        ) : (
+          <button
+            onClick={() => void toCut()}
+            disabled={!allDone || busy || !!finalizing}
+            className="flex-none rounded-full bg-brand px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-35"
+          >
+            {finalizing || "去剪辑 ›"}
+          </button>
+        )}
       </header>
 
       {/* 简约模式的模板栏：套上模板 = 配方负责画风与分镜，用户只写一句话 */}
