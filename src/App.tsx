@@ -21,6 +21,7 @@ import TabBar from "./components/TabBar";
 import { readyVideos } from "./data/videos";
 import { readySocial } from "./data/social";
 import { readyTemplates } from "./data/templates";
+import { readyDrafts } from "./data/drafts";
 import { readyAccount } from "./data/account";
 import { useCurrentUser } from "./hooks/useAccount";
 
@@ -46,7 +47,9 @@ export default function App() {
   // 数据层是 IndexedDB（异步）：装载完成前不渲染路由，避免各页读到空库
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    void Promise.all([readyVideos(), readyAccount(), readySocial(), readyTemplates()]).then(() => setReady(true));
+    void Promise.all([readyVideos(), readyAccount(), readySocial(), readyTemplates(), readyDrafts()]).then(() =>
+      setReady(true),
+    );
   }, []);
 
   if (!ready) {

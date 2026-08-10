@@ -13,6 +13,36 @@ export interface SquareImage {
 const MAX_INPUT_BYTES = 20 * 1024 * 1024;
 
 /**
+ * 把一张 dataURL 缩到 maxW 宽以内，用作列表缩略图。
+ * 草稿列表必须用它：AI 出的首帧是 1MB 级的 base64，个人页一屏十几张草稿直接拿原图
+ * 当封面，光解码就能卡住主线程，草稿索引也会大到每次读写都肉眼可见地慢。
+ * 失败（空串/坏图）时返回空串——调用方显示占位即可，不该为了一张缩略图让保存失败。
+ */
+export async function shrinkDataUrl(src: string, maxW = 320, quality = 0.72): Promise<string> {
+  if (!src || !src.startsWith("data:image")) return "";
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = () => rej(new Error("解码失败"));
+      im.src = src;
+    });
+    const w = Math.min(maxW, img.naturalWidth || maxW);
+    const h = Math.round((img.naturalHeight / Math.max(1, img.naturalWidth)) * w) || Math.round(w * 0.5625);
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    if (!ctx) return "";
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, w, h);
+    return c.toDataURL("image/jpeg", quality);
+  } catch {
+    return "";
+  }
+}
+
+/**
  * 读一张本地图片，居中裁成正方形并缩到 size×size。
  * 用 createImageBitmap 的 imageOrientation:"from-image" 让浏览器按 EXIF 摆正——
  * 手机竖拍的照片不这样处理会躺倒。

@@ -11,10 +11,12 @@
 // 为什么逐段而不是一把梭：一段视频 1 分钟起、几万 token 起，整片炼完才发现第 1 段
 // 人物就不对，等于全片重来。逐段确认让用户在最便宜的时候止损。
 import { create } from "zustand";
-import { AI_REAL, composeSegments, generateCover, generateProposals, refineFrame } from "../ai";
+import { AI_REAL, generateProposals } from "../ai";
 import { canAfford, spendTokens, walletOf } from "../data/account";
-import { DEFAULT_TIER, fmtTokens, segTokens, tierOf, proposalsCost } from "../data/economy";
+import { DEFAULT_TIER, fmtTokens, segTokens, proposalsCost } from "../data/economy";
 import { Card, Proposal, TemplateRecipe, VideoTemplate, uid } from "../types";
+import { GenStep, createGenLog, splitStatus } from "./genLog";
+import { generateSegment } from "./segmentGen";
 
 /** 画面圈选标注：某一帧上圈出的物体 + 修改要求（重生成时并入提示词并改设定帧） */
 export interface FlowAnn {
@@ -38,15 +40,24 @@ export interface FlowNode {
   chain: boolean;
   /** 各走向各自的成片：换走向不丢已经炼好的那条 */
   videoByProposal: Record<string, string>;
+  /** 用户在工作流里亲手改过这一段的文案（updateProposal 置位）。
+   *  重铺前的脏检查靠它区分"工坊铺过来的原文"与"用户自己敲的字"——前者重铺即可复现，
+   *  后者补不回来。setSubject 走模板配方覆盖，不算用户逐字敲的，故不置位。 */
+  edited?: boolean;
   /** 只描述"当前正在发生什么"，出片与否看 videoByProposal（见 nodeDone） */
   status: "idle" | "generating" | "failed";
   error?: string;
-  /** 生成期实时阶段（"标准档 · 排队中…"） */
+  /** 生成期实时阶段（"标准档 · 排队中…"）——按钮上那一行，取 steps 的当前步 */
   progress?: string;
+  /** 出片过程的分步日志（见 genLog.ts）。跑完保留，用户能回看这一段是怎么出来的 */
+  steps?: GenStep[];
   anns: FlowAnn[];
 }
 
 export type FlowMode = "workflow" | "simple";
+
+/** 套用中的模板快照（草稿要整份存下来，所以单独成型） */
+export type FlowTemplate = { id: string; title: string; recipe: TemplateRecipe; cards: Card[] } | null;
 
 export function chosenOf(node: FlowNode): Proposal {
   return node.proposals.find((p) => p.id === node.chosenId) ?? node.proposals[0];
@@ -91,6 +102,26 @@ export function flowCost(nodes: FlowNode[]): number {
   return nodes.filter((n) => !nodeDone(n)).reduce((s, n) => s + segTokens(chosenOf(n).durationSec, n.videoTier), 0);
 }
 
+/** 这条流水线里有没有「重铺一次就白费」的东西。seed/seedSolo 都是整表覆盖，调用方
+ *  先问这个，为真就必须让用户确认——此前法阵按第二次会静默抹掉这些，且连页面都不跳。
+ *
+ *  ★ 判定刻意区分"这段内容是谁写的"：工坊铺过来的 plot 本来就出自节点树，重铺会原样
+ *    再来一遍，什么都没丢——按 plot 非空一刀切的话，「回工坊改个走向再点法阵」这条最
+ *    正常的路每次都要弹窗。所以只认真正补不回来的东西：已出片的段（真金白银 + 几分钟）、
+ *    圈选标注、正在炼的段，以及用户在工作流里**亲手改过**的节点（edited）。
+ *    solo 起手的节点没有节点树兜底，写了字就算数。 */
+export function flowDirty(nodes: FlowNode[] = useFlow.getState().nodes): boolean {
+  const solo = useFlow.getState().origin === "solo";
+  return nodes.some(
+    (n) =>
+      Object.keys(n.videoByProposal).length > 0 ||
+      n.anns.length > 0 ||
+      n.status === "generating" ||
+      n.edited ||
+      (solo && chosenOf(n).plot.trim().length > 0),
+  );
+}
+
 interface FlowState {
   nodes: FlowNode[];
   /** 横向游标：当前展示第几个节点 */
@@ -103,7 +134,7 @@ interface FlowState {
   err: string;
 
   /** 套用中的模板：简约模式"一句话出片"的依据。null = 没套模板 */
-  template: { id: string; title: string; recipe: TemplateRecipe; cards: Card[] } | null;
+  template: FlowTemplate;
   /** 用户那句话，替换配方里的 {{主题}} */
   subject: string;
 
@@ -148,7 +179,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
   template: null,
   subject: "",
 
-  seed: (nodes, opts) => set({ nodes, cursor: 0, mode: opts.mode, origin: opts.origin, busy: false, err: "" }),
+  // ★ template/subject 必须一起清：工坊铺过来的是 workflow 模式的节点，而模板栏只在
+  //   simple 模式渲染。留着上一轮简约模式的模板，NodeScreen 会把剧情编辑框换成模板的
+  //   「一句话」输入框，且没有「不用」可点；在那里打字会走 setSubject，把工坊 AI 推演
+  //   出来的剧情/标题/时长按模板配方整个覆盖掉。（seedSolo 与 reset 本来就清了）
+  seed: (nodes, opts) =>
+    set({ nodes, cursor: 0, mode: opts.mode, origin: opts.origin, busy: false, err: "", template: null, subject: "" }),
   seedSolo: (mode) =>
     set({
       nodes: [newFlowNode(0, { chain: false })],
@@ -206,13 +242,22 @@ export const useFlow = create<FlowState>()((set, get) => ({
   updateNode: (nodeId, patch) => set((s) => ({ nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, ...patch } : n)) })),
 
   updateProposal: (nodeId, patch) =>
-    set((s) => ({
-      nodes: s.nodes.map((n) =>
-        n.id === nodeId
-          ? { ...n, proposals: n.proposals.map((p) => (p.id === n.chosenId ? { ...p, ...patch } : p)) }
-          : n,
-      ),
-    })),
+    set((s) => {
+      // 只有改到"用户写的东西"才置 edited：genNode 内部也用这个 action 回填首尾帧
+      // （patchProp），那属于生成产物，不该让一个失败的生成把节点标成"用户改过"
+      const authored = "title" in patch || "plot" in patch || "durationSec" in patch;
+      return {
+        nodes: s.nodes.map((n) =>
+          n.id === nodeId
+            ? {
+                ...n,
+                ...(authored ? { edited: true } : {}),
+                proposals: n.proposals.map((p) => (p.id === n.chosenId ? { ...p, ...patch } : p)),
+              }
+            : n,
+        ),
+      };
+    }),
 
   chooseProposal: (nodeId, proposalId) =>
     set((s) => ({ nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, chosenId: proposalId, anns: [] } : n)) })),
@@ -354,71 +399,65 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
     const patchNode = (p: Partial<FlowNode>) => get().updateNode(id, p);
     const patchProp = (p: Partial<Proposal>) => get().updateProposal(id, p);
-    const prog = (t: string) => patchNode({ progress: t });
+    // 分步日志 + 按钮上那一行：两者同源，避免"日志说在渲染、按钮还写着准备中"
+    const log = createGenLog((steps) => {
+      const cur = steps[steps.length - 1];
+      patchNode({ steps, progress: cur && cur.status === "running" ? (cur.detail ?? cur.title) : "" });
+    });
+    /** ai 层报上来的平铺短句 → 归一成「步骤 / 细节」，同一件事的读秒折进同一步 */
+    const prog = (t: string) => {
+      const { title, detail, terminal } = splitStatus(t);
+      if (terminal) return log.end();
+      const cur = log.steps[log.steps.length - 1];
+      if (!cur || cur.status !== "running" || cur.title !== title) log.begin(title);
+      if (detail) log.detail(detail);
+    };
     set({ busy: true, err: "" });
-    patchNode({ status: "generating", progress: "准备中…", error: undefined });
+    patchNode({ status: "generating", progress: "准备中…", error: undefined, steps: [] });
     try {
-      let first = prop.firstFrame;
-      let last = prop.lastFrame;
-      // ① 圈选标注 → 改设定帧：落在前半段的圈选改首帧、后半段改尾帧；
-      //    同一帧的多条标注串行叠加（上一次的产物当下一次的底图）
-      const half = prop.durationSec / 2;
-      for (let k = 0; k < node.anns.length; k++) {
-        const a = node.anns[k];
-        prog(`按圈选改画面 ${k + 1}/${node.anns.length}…`);
-        const edited = await refineFrame(
-          `${a.req}。参考图中红色圈线标注了目标物体：只对该物体做上述处理，并彻底去掉红色圈线本身`,
-          a.frame,
-        );
-        if (a.atSec < half) first = edited;
-        else last = edited;
-      }
-      // ② 承接上一段的真实结尾起拍（上一段出片后其尾帧已被真实截帧顶替）
+      // 承接判定：上一段真出过片，它的尾帧才是"真实结尾"，才配顶替本段起拍帧
       const prevNode = get().nodes[idx - 1];
       const prevProp = prevNode ? chosenOf(prevNode) : null;
-      if (node.chain && prevNode && nodeDone(prevNode) && prevProp?.lastFrame) first = prevProp.lastFrame;
-      // ③ 没有设定帧就先画一张（简约模式/新建节点的常态）
-      const tier = tierOf(node.videoTier);
-      if (!first) {
-        prog("绘制起拍画面…");
-        // 套了模板就用配方里的起拍提示词：它专门为"这个模板长什么样"写过，
-        // 比从剧情正文截前 200 字更贴（剧情前半段常常是动作描述而非画面描述）
-        const tplFrame = get().template?.recipe.framePrompt;
-        first = await generateCover(
-          tplFrame ? fillSubject(tplFrame, get().subject) : prop.plot.slice(0, 200),
-        );
-      }
-      if (!last && tier.flf) {
-        prog("绘制结束画面…");
-        last = await generateCover(`${prop.plot.slice(0, 180)} 的结束瞬间`);
-      }
-      patchProp({ firstFrame: first, lastFrame: last });
-      // ④ 出片（composeSegments 单段调用：自带档位分派、真实尾帧捕获、失败原因回传）
-      const reqs = node.anns.map((a) => a.req).join("；");
-      const plot = reqs ? `${prop.plot}。修改要求（必须满足）：${reqs}` : prop.plot;
-      const [res] = await composeSegments(
-        [{ plot, firstFrame: first, lastFrame: last, durationSec: prop.durationSec, videoTier: node.videoTier }],
-        (_d, _t, status) => prog(status),
+      const carry = node.chain && prevNode && nodeDone(prevNode) ? prevProp?.lastFrame : null;
+      // 套了模板就用配方里的起拍提示词：它专门为"这个模板长什么样"写过，
+      // 比从剧情正文截前 200 字更贴（剧情前半段常常是动作描述而非画面描述）
+      const tplFrame = get().template?.recipe.framePrompt;
+      const res = await generateSegment(
+        {
+          plot: prop.plot,
+          firstFrame: prop.firstFrame,
+          lastFrame: prop.lastFrame,
+          durationSec: prop.durationSec,
+          videoTier: node.videoTier,
+          anns: node.anns,
+          carryFrame: carry,
+          framePrompt: tplFrame ? fillSubject(tplFrame, get().subject) : undefined,
+        },
+        prog,
       );
-      if (res?.error) throw new Error(res.error);
-      if (res?.url && AI_REAL) spendTokens(cost);
-      // 真实帧顶替设定帧：节点卡显示的就是视频里实际的画面，也是下一段的起拍帧
+      log.end();
+      if (res.url && AI_REAL) spendTokens(cost);
+      // 真实帧顶替设定帧：节点卡显示的就是视频里实际的画面，也是下一段的起拍帧。
+      // videoUrl 同时挂在方案上——工坊侧的节点卡读的就是它（两个模式共用同一份出片）
       patchProp({
-        ...(res?.firstFrame ? { firstFrame: res.firstFrame } : {}),
-        ...(res?.lastFrame ? { lastFrame: res.lastFrame } : {}),
+        firstFrame: res.firstFrame,
+        lastFrame: res.lastFrame,
+        videoUrl: res.url,
         degraded: undefined,
       });
       patchNode({
         status: "idle",
         progress: "",
         // mock 构建没有真视频：占位串让 nodeDone 成立，播放器回退首尾帧渐变
-        videoByProposal: { ...get().nodes[idx].videoByProposal, [node.chosenId]: res?.url || "mock:" },
+        videoByProposal: { ...get().nodes[idx].videoByProposal, [node.chosenId]: res.url || "mock:" },
         anns: [],
       });
       set({ busy: false });
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      // 失败也留在日志里：卡在哪一步、跑了多久，比一句"生成失败"有用得多
+      log.fail(`失败：${msg.slice(0, 80)}`);
       patchNode({ status: "failed", progress: "", error: msg.slice(0, 160) });
       set({ busy: false, err: `第 ${idx + 1} 段生成失败：${msg.slice(0, 120)}` });
       return false;

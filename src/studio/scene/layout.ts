@@ -13,7 +13,12 @@ export const DEFAULT_CAM: { pos: [number, number, number]; look: [number, number
 
 /** 聚焦某张桌面卡时的拉近机位：卡片落在画面下部 1/3（上方留给投影窗与光束） */
 export function focusCam(x: number, z: number): { pos: [number, number, number]; look: [number, number, number] } {
-  return { pos: [x * 0.75, 5.15, z + 2.0], look: [x, 0.45, z - 2.3] };
+  // 坐标算不出来时退到桌心而不是把 NaN 传下去：NaN 进了 camera.position 之后
+  // 每次 lerp 都会继续污染，画面全黑却不报任何错，比直接崩还难查。
+  // （消费端 TableScene 也挡了一道——这里是产出端，两头都不该放 NaN 过去）
+  const fx = Number.isFinite(x) ? x : 0;
+  const fz = Number.isFinite(z) ? z : 0;
+  return { pos: [fx * 0.75, 5.15, fz + 2.0], look: [fx, 0.45, fz - 2.3] };
 }
 
 /** 悬浮卡的抬升高度 */

@@ -115,6 +115,54 @@ function MarketArrow({ dir, disabled, side }: { dir: 1 | -1; disabled: boolean; 
   );
 }
 
+/** 法阵二次确认：桌面上已经有一条在途工作流时，重铺会把已出片的段（每段真金白银 +
+ *  几分钟）、圈选标注、手敲的剧情全部抹掉。此前这一步是静默执行的，而且 flowLen 不是
+ *  0→N，StudioPage 也不会跳页——用户看到的是"点了没反应"，钱和进度却没了。
+ *  顺带补上工坊里唯一的「回到在途工作流」入口（以前只能靠法阵，而法阵正是清空它的那个）。 */
+function FlowConfirm({ onResume, onRebuild }: { onResume: () => void; onRebuild: () => void }) {
+  const open = useStudio((s) => s.flowConfirm);
+  const nodes = useFlow((s) => s.nodes);
+  if (!open) return null;
+  const done = nodes.filter((n) => Object.keys(n.videoByProposal).length > 0).length;
+  const anns = nodes.reduce((s, n) => s + n.anns.length, 0);
+  return (
+    <div
+      className="absolute inset-0 z-30 flex items-end justify-center bg-black/65 p-4"
+      onClick={() => useStudio.getState().setFlowConfirm(false)}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border border-slate-700 bg-panel p-4 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-sm font-bold text-slate-100">已经有一条工作流在跑</h3>
+        <p className="mt-2 text-xs leading-relaxed text-slate-300">
+          {nodes.length} 段
+          {done > 0 && <span className="text-emerald-300">，其中 {done} 段已出片</span>}
+          {anns > 0 && <span className="text-amber-300">，{anns} 条圈选要求</span>}
+          。重新铺一条会把这些全部丢掉，已出片的段要重新花 token 再炼一次。
+        </p>
+        <div className="mt-3.5 flex flex-col gap-2">
+          <button onClick={onResume} className="rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
+            回去接着炼
+          </button>
+          <button
+            onClick={onRebuild}
+            className="rounded-xl border border-rose-500/40 bg-rose-500/10 py-2.5 text-sm font-semibold text-rose-300"
+          >
+            按现在的走向重铺（丢弃上面这些）
+          </button>
+          <button
+            onClick={() => useStudio.getState().setFlowConfirm(false)}
+            className="rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200"
+          >
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** 瞬时提示条。key 用 notice.at，同一句话连按两次也会重新播一遍动画 */
 function Toast({ notice }: { notice: { text: string; at: number } | null }) {
   const [shown, setShown] = useState<{ text: string; at: number } | null>(null);
@@ -200,6 +248,19 @@ export default function StudioPage() {
     prevFlowLen.current = flowLen;
   }, [flowLen, navigate]);
 
+  // 存草稿
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  const hasRoot = useStudio((s) => s.root != null);
+  const hasWork = hasRoot || flowLen > 0;
+  async function saveNow() {
+    setSaveState("saving");
+    const meta = await useStudio.getState().saveWorkDraft({ from: "studio" });
+    setSaveState(meta ? "saved" : "failed");
+    // 失败必须说出来：配额满/隐私模式下写不进去，静默"保存成功"会让用户放心关页面
+    if (!meta) useStudio.setState({ notice: { text: "草稿保存失败（存储空间不足或隐私模式）", at: Date.now() } });
+    setTimeout(() => setSaveState("idle"), 2200);
+  }
+
   return (
     <div className="relative h-full w-full overflow-hidden bg-ink">
       <Canvas
@@ -226,6 +287,23 @@ export default function StudioPage() {
           <span className="text-xs">{backLabel}</span>
         </button>
         <div className="pointer-events-auto flex items-center gap-2 pt-2">
+          {/* 存草稿：桌面上有东西才亮。工坊侧此前完全没有落盘手段——摆了半天卡、
+              推演了几炉，刷新一下全没（两个 store 都是纯内存单例） */}
+          {hasWork && (
+            <button
+              onClick={() => void saveNow()}
+              disabled={saveState === "saving"}
+              className="rounded-full bg-panel/85 px-3 py-1.5 text-xs text-slate-200 backdrop-blur disabled:opacity-50"
+            >
+              {saveState === "saving"
+                ? "保存中…"
+                : saveState === "saved"
+                  ? "已保存 ✓"
+                  : saveState === "failed"
+                    ? "保存失败"
+                    : "存草稿"}
+            </button>
+          )}
           {/* 只在演示模式亮牌。「● 真实 AI」是常态，天天挂在那儿只是噪音；
               而没配 Key 时全程 mock——用户以为在测 Seedance、产物却全是本地占位，
               这一条必须留着。标题栏的「🎴 卡片工坊」也去掉了：画面本身就是工坊 */}
@@ -273,6 +351,19 @@ export default function StudioPage() {
           </div>
         </>
       )}
+
+      {/* 法阵二次确认。重铺走 force 分支，此时 flowLen 是 N→N、上面那个 0→N 的跳转
+          效应不会触发，所以要自己跳 */}
+      <FlowConfirm
+        onResume={() => {
+          useStudio.getState().setFlowConfirm(false);
+          navigate("/flow");
+        }}
+        onRebuild={() => {
+          useStudio.getState().setFlowConfirm(false);
+          if (useStudio.getState().startFlow({ force: true })) navigate("/flow");
+        }}
+      />
 
       {/* 返回被拒绝之类的瞬时提示（投影窗盖着时铸卡师说话用户看不见，只能走这里） */}
       <Toast notice={notice} />

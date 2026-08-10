@@ -627,6 +627,18 @@ async function shrinkFrameFor720p(dataUrl: string): Promise<string> {
  * 结尾和 Seedream 画的设定尾帧必然有偏差；哪怕 flf2v 也只是"逼近"。下一段若从
  * 设定尾帧起拍，段间就会跳变（2026-08-07《发条镇小骑士》用户实测发现）。
  */
+/** 给"等某个媒体事件"的 Promise 套一层超时。计时器本身在后台页也会被节流，
+ *  但**一定会**触发，所以最坏情况是晚一点报错，而不是永远挂着。 */
+function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    p,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(msg)), ms);
+    }),
+  ]).finally(() => clearTimeout(timer)) as Promise<T>;
+}
+
 async function captureVideoTail(videoUrl: string): Promise<string> {
   const res = await fetch(`/api/asset?url=${encodeURIComponent(videoUrl)}`, {
     signal: AbortSignal.timeout(120_000),
@@ -638,16 +650,29 @@ async function captureVideoTail(videoUrl: string): Promise<string> {
     video.muted = true;
     video.preload = "auto";
     video.src = blobUrl;
-    await new Promise<void>((resolve, reject) => {
-      video.onloadedmetadata = () => resolve();
-      video.onerror = () => reject(new Error("视频元数据加载失败"));
-    });
+    // ★ 这两步都必须带超时。浏览器把页面切到后台时会挂起媒体元素的加载与解码，
+    //   loadedmetadata / seeked 都不会再来——而出片要跑几十秒到几分钟，用户切出去
+    //   看别的几乎是必然。以前 metadata 这一步是**无超时**的 await，一旦切后台就永久
+    //   卡在「捕获本段真实尾帧…」，flowStore 的 busy 永远为 true、整页按钮全禁用，
+    //   两个 store 又都没有持久化，只能刷新重来（草稿全丢）。
+    //   超时不是灾难：调用方 catch 住就用设定尾帧顶上，成片本身不受影响。
+    await withTimeout(
+      new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error("视频元数据加载失败"));
+      }),
+      15_000,
+      "视频元数据加载超时",
+    );
     video.currentTime = Math.max(0, video.duration - 0.05);
-    await new Promise<void>((resolve, reject) => {
-      video.onseeked = () => resolve();
-      video.onerror = () => reject(new Error("视频 seek 失败"));
-      setTimeout(() => reject(new Error("视频 seek 超时")), 15_000);
-    });
+    await withTimeout(
+      new Promise<void>((resolve, reject) => {
+        video.onseeked = () => resolve();
+        video.onerror = () => reject(new Error("视频 seek 失败"));
+      }),
+      15_000,
+      "视频 seek 超时",
+    );
     const c = document.createElement("canvas");
     c.width = video.videoWidth || 1280;
     c.height = video.videoHeight || 720;

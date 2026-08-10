@@ -4,18 +4,24 @@ import Icon from "../components/Icon";
 import DeckCard from "../components/DeckCard";
 import Avatar from "../components/Avatar";
 import { fileToSquareImage } from "../utils/image";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { listVideos, isMyAuthor } from "../data/videos";
+import { deleteDraft, loadDraft, renameDraft, type DraftMode, type WorkDraftMeta } from "../data/drafts";
+import { useDrafts } from "../hooks/useDrafts";
+import { useStudio } from "../studio/studioStore";
 import { buyPlan, deckCoverOf, myCards, myDecks, rechargeAddon, setAvatarImage, toggleFollow, walletOf } from "../data/account";
 import { PLANS, RECHARGE_PACKS, fmtTokens } from "../data/economy";
 import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
-import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, formatDuration, formatPlays } from "../types";
+import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, formatDuration, formatPlays, relativeTime } from "../types";
 
 export default function ProfilePage() {
   const avatarRef = useRef<HTMLInputElement>(null);
   useAccountVersion();
   const user = useCurrentUser();
-  const [tab, setTab] = useState<"videos" | "cards" | "decks" | "following">("videos");
+  const [tab, setTab] = useState<"videos" | "drafts" | "cards" | "decks" | "following">("videos");
+  const drafts = useDrafts();
+  /** 点开草稿后弹的「用哪个模式打开」选择层 */
+  const [pickDraft, setPickDraft] = useState<WorkDraftMeta | null>(null);
   const [walletOpen, setWalletOpen] = useState(false);
   const videos = useMemo(() => listVideos(), []);
   const wallet = walletOf();
@@ -40,6 +46,7 @@ export default function ProfilePage() {
 
   const TABS = [
     { key: "videos", label: "作品", n: mine.length },
+    { key: "drafts", label: "草稿", n: drafts.length },
     { key: "cards", label: "卡片", n: cards.length },
     { key: "decks", label: "卡组", n: decks.length },
     { key: "following", label: "关注", n: user.following.length },
@@ -172,6 +179,43 @@ export default function ProfilePage() {
             <Empty text="还没有发布作品" cta="去创作" to="/studio" />
           ))}
 
+        {/* 草稿：还没发布的半成品。点一张先问用哪个模式打开——同一份内容，
+            工坊是 3D 桌面上的节点树，工作流是逐段流水线，两个入口都能接着干 */}
+        {tab === "drafts" &&
+          (drafts.length ? (
+            <div className="space-y-2 pb-4">
+              {drafts.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => setPickDraft(d)}
+                  className="flex w-full items-center gap-3 rounded-xl border border-slate-700/60 bg-panel p-2.5 text-left active:bg-slate-800"
+                >
+                  {d.thumb ? (
+                    <img src={d.thumb} alt="" className="h-16 w-24 flex-none rounded-lg object-cover" />
+                  ) : (
+                    <div className="flex h-16 w-24 flex-none items-center justify-center rounded-lg bg-slate-800 text-xl">
+                      🎬
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-slate-100">{d.title}</div>
+                    <div className="mt-0.5 text-[11px] text-slate-400">
+                      {d.segCount} 段
+                      {d.doneCount > 0 && <span className="text-emerald-400"> · 已出片 {d.doneCount}</span>}
+                      {d.doneCount === d.segCount && d.segCount > 0 && (
+                        <span className="text-emerald-400"> · 可去剪辑</span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 text-[10px] text-slate-500">{relativeTime(d.updatedAt)}改过</div>
+                  </div>
+                  <span className="flex-none text-slate-500">›</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <Empty text="还没有草稿——工坊和工作流里都能存" cta="去创作" to="/create" />
+          ))}
+
         {tab === "cards" &&
           (cards.length ? (
             <div className="grid grid-cols-3 gap-2 pb-4">
@@ -236,6 +280,107 @@ export default function ProfilePage() {
           ) : (
             <Empty text="还没有关注任何创作者" cta="去首页逛逛" to="/" />
           ))}
+      </div>
+
+      {pickDraft && <DraftSheet meta={pickDraft} onClose={() => setPickDraft(null)} />}
+    </div>
+  );
+}
+
+/**
+ * 草稿操作单：选模式打开 / 重命名 / 删除。
+ * 两个模式都列出来而不是直接进上次那个——用户存的时候在工作流里，再打开时想去桌面上
+ * 改剧情是很正常的需求；上次用的那个标成「上次」，省得每次都要想。
+ */
+function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onClose: () => void }) {
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [name, setName] = useState(meta.title);
+
+  async function open(mode: DraftMode) {
+    setBusy("打开中…");
+    const full = await loadDraft(meta.id);
+    if (!full) {
+      // 索引里有、正文没了（配额清理/手动清过库）：把这条索引也清掉，别让用户对着点不开的卡片反复点
+      setBusy("这条草稿的内容已丢失，已从列表移除");
+      await deleteDraft(meta.id);
+      setTimeout(onClose, 1600);
+      return;
+    }
+    useStudio.getState().openWorkDraft(full, mode);
+    navigate(mode === "studio" ? "/studio" : "/flow");
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-end bg-black/60" onClick={onClose}>
+      <div
+        className="w-full rounded-t-2xl border-t border-slate-700 bg-ink p-4 pb-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {renaming ? (
+          <div className="flex gap-2">
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={40}
+              className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand"
+            />
+            <button
+              onClick={() => void renameDraft(meta.id, name).then(() => setRenaming(false))}
+              className="rounded-xl bg-brand px-4 text-sm font-bold text-ink"
+            >
+              改名
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <h3 className="min-w-0 flex-1 truncate text-base font-bold text-slate-100">{meta.title}</h3>
+            <button onClick={() => setRenaming(true)} className="flex-none text-xs text-slate-400">
+              重命名
+            </button>
+          </div>
+        )}
+        <p className="mt-1 text-[11px] text-slate-500">
+          {meta.segCount} 段 · 已出片 {meta.doneCount} · {relativeTime(meta.updatedAt)}改过
+        </p>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            onClick={() => void open("studio")}
+            disabled={!!busy}
+            className="rounded-xl border border-amber-400/40 bg-amber-500/10 p-3 text-left disabled:opacity-50"
+          >
+            <div className="text-sm font-bold text-amber-200">🎴 工坊模式</div>
+            <div className="mt-0.5 text-[10px] leading-relaxed text-slate-400">
+              3D 桌面摆卡、推演走向{meta.lastMode === "studio" && " · 上次"}
+            </div>
+          </button>
+          <button
+            onClick={() => void open("flow")}
+            disabled={!!busy}
+            className="rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3 text-left disabled:opacity-50"
+          >
+            <div className="text-sm font-bold text-cyan-200">🧩 工作流模式</div>
+            <div className="mt-0.5 text-[10px] leading-relaxed text-slate-400">
+              一屏一段、逐段生成{meta.lastMode === "flow" && " · 上次"}
+            </div>
+          </button>
+        </div>
+        {busy && <div className="mt-2 text-center text-xs text-slate-400">{busy}</div>}
+
+        <div className="mt-3 flex gap-2">
+          <button onClick={onClose} className="flex-1 rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200">
+            取消
+          </button>
+          <button
+            onClick={() => void deleteDraft(meta.id).then(onClose)}
+            className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-300"
+          >
+            删除
+          </button>
+        </div>
       </div>
     </div>
   );

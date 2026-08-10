@@ -46,6 +46,11 @@ export interface Proposal {
   durationSec: number;
   /** 真实 AI 构建下 Seedream 没出图、帧是本地占位图（合成前会先重画真帧） */
   degraded?: boolean;
+  /** 这个走向已经炼出来的那段视频。
+   *  ★ 挂在方案上而不是某个 store 里，是为了让工坊与工作流看到同一份出片——
+   *  工坊节点卡上单独生成的、工作流里逐段生成的，都写在这里；换走向时各走向的成片
+   *  互不覆盖（与 flowStore 的 videoByProposal 同义，那边是按 store 形状的镜像）。 */
+  videoUrl?: string;
 }
 
 /** 节点：一次生成的三方案 + 已选方案 + 按方案分叉的子树 */

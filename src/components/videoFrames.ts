@@ -16,9 +16,19 @@ export async function sampleFrames(file: File, n: number, onProgress: (i: number
     v.playsInline = true;
     v.preload = "auto";
     v.src = url;
+    // 超时是必需的：页面切到后台时浏览器挂起媒体加载，loadedmetadata 永远不来。
+    // 没有它这里就是个无超时的 await——调用方（提取卡片/提取模板）会永久转圈。
     await new Promise<void>((resolve, reject) => {
-      v.onloadedmetadata = () => resolve();
-      v.onerror = () => reject(new Error("这个视频浏览器解不开（换 mp4/webm 试试）"));
+      const t = setTimeout(() => reject(new Error("视频加载超时（应用切到后台会暂停解码，回到前台再试）")), 15_000);
+      const ok = () => {
+        clearTimeout(t);
+        resolve();
+      };
+      v.onloadedmetadata = ok;
+      v.onerror = () => {
+        clearTimeout(t);
+        reject(new Error("这个视频浏览器解不开（换 mp4/webm 试试）"));
+      };
     });
     const dur = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 1;
     const c = document.createElement("canvas");

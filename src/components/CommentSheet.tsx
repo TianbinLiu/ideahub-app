@@ -1,6 +1,13 @@
 // 首页评论抽屉：对标短视频 App——评论在视频下方滑出，视频继续播放，
 // 不打断沉浸流（此前评论键直接跳详情页，滑视频的节奏被整个打碎）。
+//
+// ★ 必须 portal 到 body，不能留在 FeedPage 里靠 z-index 压底栏：FeedPage 的根是
+//   `fixed inset-0 z-0`，position+z-index 会**开一个新的层叠上下文**，里面的元素
+//   无论写多大的 z 都只能在这个 z-0 的盒子里排，而 TabBar 是它的兄弟节点、z-40。
+//   结果就是输入框和「发送」整行都被底栏盖住——实测点下去命中的是底栏的「创作」，
+//   直接跳去 /create，评论在手机上根本发不出来（只有回车能提交）。
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { addComment } from "../data/videos";
 import { VideoComment, VideoItem, relativeTime } from "../types";
 import Icon from "./Icon";
@@ -19,10 +26,12 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
     setDraft("");
   }
 
-  return (
-    // 整层拦截 pointer/click：抽屉内的滑动与点击不能落到底下的播放器手势上
+  return createPortal(
+    // 整层拦截 pointer/click：抽屉内的滑动与点击不能落到底下的播放器手势上。
+    // portal 之后 DOM 上已经不在播放器里了，但 React 合成事件仍沿**组件树**冒泡到
+    // FeedItem 的 onPointerDown/onPointerUp，所以这三个 stopPropagation 照旧需要。
     <div
-      className="absolute inset-0 z-30"
+      className="fixed inset-0 z-50"
       onPointerDown={(e) => e.stopPropagation()}
       onPointerUp={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
@@ -71,6 +80,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -169,6 +169,15 @@ export interface ChainLayout {
   placeholderX: number | null;
 }
 
+/** 机位坐标是不是能用：三元组齐全且都是有限数。
+ *  NaN 一旦进了 camera.position，之后所有 lerp 都会被污染成 NaN，画面直接黑掉，
+ *  而且不会报错——比缺字段更难查，所以一并挡在这里。 */
+function camOk(c: unknown): c is { pos: number[]; look: number[] } {
+  const v = c as { pos?: unknown; look?: unknown };
+  const ok3 = (a: unknown) => Array.isArray(a) && a.length >= 3 && a.every((n) => typeof n === "number" && Number.isFinite(n));
+  return ok3(v?.pos) && ok3(v?.look);
+}
+
 export function computeChain(root: NodeSlot | null, focusId?: string | null): ChainLayout {
   const path = activePath(root);
   const ph = placeholderVisible(root);
@@ -326,7 +335,12 @@ function CameraRig() {
       }
       target = { pos: [eyeP.current.x, eyeP.current.y, eyeP.current.z], look: [eyeL.current.x, eyeL.current.y, eyeL.current.z] };
     } else {
-      target = st.camera;
+      // ★ 机位来路不明就退回眼位，别信任 st.camera 的形状。
+      //   下面直接取 target.pos[0..2]：只要有谁产出一个缺坐标或带 NaN 的 kind:"pos"
+      //   （少传 focusNode 的 pos/look、算 x 时拿到 undefined、草稿里存进过脏值……），
+      //   这里每帧抛一次错，整个 3D 页白屏且**自己好不了**——渲染循环挂了就没人再去
+      //   改状态。一次 isFinite 换掉一类不可恢复的崩溃，很划算。
+      target = camOk(st.camera) ? st.camera : { pos: [eyeP.current.x, eyeP.current.y, eyeP.current.z], look: [eyeL.current.x, eyeL.current.y, eyeL.current.z] };
     }
     // 第一人称把近裁剪面从 0.1 收到 0.03：眼点就在自己领口上方 6cm，0.1 的近面
     // 会把领口整片切掉——想"低头看见自己身体"就必须让它更近。实测 Tsumire 领口顶
