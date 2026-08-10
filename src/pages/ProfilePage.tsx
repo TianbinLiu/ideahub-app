@@ -16,7 +16,14 @@ import Icon, { type IconName } from "../components/Icon";
 import DeckCard from "../components/DeckCard";
 import Avatar from "../components/Avatar";
 import { fileToSquareImage } from "../utils/image";
-import { dropPendingPublish, isMyAuthor, listVideos, pendingPublishes, retryPendingPublishes } from "../data/videos";
+import {
+  dropPendingPublish,
+  isMyAuthor,
+  listVideos,
+  pendingPublishes,
+  publishUploadStatus,
+  retryPendingPublishes,
+} from "../data/videos";
 import { deleteDraft, loadDraft, renameDraft, type DraftMode, type WorkDraftMeta } from "../data/drafts";
 import { useDrafts } from "../hooks/useDrafts";
 import { useStudio } from "../studio/studioStore";
@@ -539,8 +546,28 @@ function PendingBanner() {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const list = pendingPublishes();
-  if (list.length === 0) return null;
+  const up = publishUploadStatus();
+  if (list.length === 0 && !up) return null;
   const first = list[0];
+
+  // 正在传：只显示进度，别把失败原因和进度混在一起说
+  if (up) {
+    return (
+      <div className="mx-3 mt-3 rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3">
+        <div className="text-xs font-semibold text-cyan-200">
+          正在上传「{up.title}」 {up.done}/{up.total}
+        </div>
+        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-black/30">
+          <div
+            className="h-full rounded-full bg-cyan-400 transition-all duration-300"
+            style={{ width: `${Math.round((up.done / Math.max(1, up.total)) * 100)}%` }}
+          />
+        </div>
+        <p className="mt-1 text-[10px] text-slate-400">{up.label} · 成片和画面要逐个传上去，别人才看得到</p>
+      </div>
+    );
+  }
+  if (!first) return null;
   return (
     <div className="mx-3 mt-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-3">
       <div className="flex items-center gap-2">

@@ -13,6 +13,7 @@
 import { DraftVideo, NodeSlot, VideoComment, VideoItem, VideoPart, uid } from "../types";
 import { makeFrame } from "../mock/frames";
 import { idbGet, idbSet } from "./db";
+import { materializeDraft, type MaterializeError } from "./publishAssets";
 import { currentUser } from "./account";
 import { API_ON, emitApiError } from "../api/client";
 import * as branch from "../api/branch";
@@ -648,8 +649,17 @@ async function loadDetail(item: VideoItem): Promise<void> {
  * 所以回包里的 cover/segments 必须回填——否则 24h 后视频链接就失效了。
  */
 async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
+  let sending = draft;
   try {
-    const v = await branch.createVideo(draft);
+    // ★ 先把本机资产（base64 帧/卡面、idb: 成片）传成永久 URL，再发那个几 KB 的 JSON。
+    //   不做这一步的话：请求体 MB 级被网关掐断，而且**就算发出去别人也放不出来**
+    //   ——服务端存下的 videoUrl 是一个指向"发布者手机上某处"的 idb: 键。
+    sending = await materializeDraft(draft, (done, total, label) => {
+      uploadStatus = { title: draft.title, done, total, label };
+      emitVideos();
+    });
+    uploadStatus = null;
+    const v = await branch.createVideo(sending);
     if (!v) return;
     idAlias.set(item.id, v._id);
     item.id = v._id;
@@ -661,12 +671,15 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     detailed.add(v._id);
     emitVideos();
   } catch (e) {
+    uploadStatus = null;
     emitApiError("publishVideo", e);
     // PublishPage 发完就 clearDraft() 了，作品只剩内存里这一份——存进待发队列，
     // 下次启动重试，不让一次网络抖动吃掉用户几十分钟的生成。
     // ★ 连失败原因一起存：个人页要把它显示出来。只存不显示等于没存
     //   （2026-08-10 就是这么"消失"了一条作品）。
-    void queuePending(draft, e);
+    // ★ 存的是**已经传到哪儿**的那份（materialize 半途失败时挂在错误上），
+    //   重试只补没传完的，不把已经上行过的几 MB 再走一遍。
+    void queuePending((e as MaterializeError).partial ?? sending, e);
   }
 }
 
@@ -696,6 +709,15 @@ export interface PendingPublish {
 }
 
 let pendingMirror: PendingPublish[] = [];
+
+/** 正在上传的资产进度（发布/重试时）。null = 没在传。
+ *  ★ 必须让它可见：一条 5MB 的作品在慢网上要传一两分钟，没有进度用户只会以为卡死了。 */
+let uploadStatus: { title: string; done: number; total: number; label: string } | null = null;
+
+/** 页面同步读：现在正在传什么 */
+export function publishUploadStatus(): typeof uploadStatus {
+  return uploadStatus;
+}
 
 /** 老版本存的是裸 DraftVideo[]，读的时候归一 */
 async function readPending(): Promise<PendingPublish[]> {
@@ -733,13 +755,21 @@ async function flushPending(): Promise<void> {
   if (list.length === 0) return;
   const left: PendingPublish[] = [];
   for (const p of list) {
+    let sending = p.draft;
     try {
-      const v = await branch.createVideo(p.draft);
+      // 重试同样要先实体化：队列里存的可能还带着没传完的本机资产
+      sending = await materializeDraft(p.draft, (done, total, label) => {
+        uploadStatus = { title: p.draft.title, done, total, label };
+        emitVideos();
+      });
+      uploadStatus = null;
+      const v = await branch.createVideo(sending);
       if (v && cache) cache = [toVideoItem(v), ...cache];
     } catch (e) {
+      uploadStatus = null;
       // ★ 不再是空 catch：原因要留住，用户和排查的人都靠它
       console.warn("[videos] 待发作品重试失败:", errText(e));
-      left.push({ ...p, error: errText(e), at: Date.now() });
+      left.push({ draft: (e as MaterializeError).partial ?? sending, error: errText(e), at: Date.now() });
     }
   }
   await writePending(left);
