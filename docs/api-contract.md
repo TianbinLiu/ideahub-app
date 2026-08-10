@@ -164,6 +164,47 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
 ★ 与 `ARK_API_KEY` 是**两套凭据**：不同域名（openspeech vs ark）、不同鉴权、不同控制台。
 方舟没有 TTS。控制台要开通的是 **2.0**（`seed-tts-2.0`），1.0 是另一件商品。
 
+## 火山方舟代理（App 整条 AI 出片管线）
+
+挂载点：`app.use("/api/ark", require("./routes/ark.routes"))`。凭据是服务端 `.env` 的 `ARK_API_KEY`。
+
+| 方法 | 路径 | 鉴权 | 限流 | 说明 |
+|---|---|---|---|---|
+| GET | `/api/ark/health` | 无 | — | `{ ok, ark: boolean }`，只说配没配 key |
+| POST | `/api/ark/images/generations` | required | 30/min | Seedream 出图（卡面 / 首尾帧） |
+| POST | `/api/ark/contents/generations/tasks` | required | 30/min | Seedance 出视频 / Seed3D 建模（同一个异步任务端点） |
+| GET | `/api/ark/contents/generations/tasks/:id` | required | 90/min | 轮询任务状态（每 5s 一次，一段视频最多 120 次，所以单独一个桶） |
+| POST | `/api/ark/chat/completions` | required | 30/min | 豆包对话 / 看图说话 |
+| GET | `/api/ark/asset?url=…` | required | 90/min | 取方舟产物（图片 / 视频 / 3D zip），域名限 `*.volces.com`、`*.volccdn.com` |
+
+请求体与响应**原样透传**方舟 v3（含错误码：`400` 敏感词、`429` 限流——客户端对这两者的
+处置完全不同，聚合成 502 会把区分抹掉）。`POST /api/ark` 的 body 上限放宽到 50MB
+（Seedance 任务带 base64 首尾帧），闸门同 `/api/branch`：先验 JWT 签名再决定给多大缓冲区。
+
+**这是白名单转发，不是通用反向代理**：只有上表这几条上游路径可达，且 `model` 必须在
+`ALLOWED_MODELS` 里（对应 `app/src/ai/arkClient.ts` 的 `MODELS` 与
+`app/src/data/economy.ts` 的 `VIDEO_TIERS`）。**App 新增视频档位 = 服务端要补一行** ——
+每加一个模型都是一笔新单价，应该有人明确点头。回归测试见 `server/tests/arkProxy.spec.js`。
+
+状态码约定（客户端据此决策，见 `app/src/ai/arkClient.ts`）：
+
+- `501` 服务端没配 `ARK_API_KEY` → 提示"这台服务器没有配置方舟密钥"
+- `401` 掉登录 → 提示重新登录
+- **响应不是 JSON**（`Content-Type` 不含 json）→ 提示"这台服务器没有 `/api/ark` 代理"
+
+★ **最后这一条不是防御性编程，是修一个真故障。** 真机上 Capacitor 的本地静态服务器
+对未命中路径做 **SPA 回退**：`POST https://localhost/api/ark/...` 拿回的是 **200 + index.html**
+而不是 404。于是 `res.ok` 为真、`res.json()` 一头撞进 `<!doctype html>`，用户看到的是
+「第 1 段生成失败：Unexpected token '<', "<!doctype"... is not valid JSON」，
+工坊 NPC 对话同时哑火（走同一条路）。**判断"这台服务器有没有这个能力"要看
+`Content-Type` 或专门的健康端点，永远不要信状态码**（`/api/tts` 当年栽的是同一条）。
+
+★ 与 `TTS_API_KEY` 是**两套凭据**：不同域名、不同鉴权、不同控制台。互换一定 401。
+
+⚠ 已知边界：花钱的闸门目前只有 `requireAuth` + 按账号限流。App 里那套 token 钱包
+（`app/src/data/economy.ts`）是**客户端记账**，服务端不校验余额——改客户端就能绕过。
+要真正收费上线，得把钱包搬到服务端并在这条路由上扣费。
+
 ## 客户端接入约定
 
 - `app/src/api/client.ts` 统一封装：`API_BASE`（`VITE_API_BASE`，缺省时走本地 IndexedDB 离线模式）、

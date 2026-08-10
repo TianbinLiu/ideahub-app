@@ -7,14 +7,23 @@ import type { MaterialFile, ProposalContext } from "../mock/ai";
 import * as mock from "../mock/ai";
 import { tierOf } from "../data/economy";
 import { idbSet } from "../data/db";
-import { FRAME_SIZE, chat, chatTurns, chatVision, generate3dModel, generateImage, generateVideo } from "./arkClient";
+import {
+  FRAME_SIZE,
+  chat,
+  chatTurns,
+  chatVision,
+  fetchArkAsset,
+  generate3dModel,
+  generateImage,
+  generateVideo,
+} from "./arkClient";
 
 /** 方舟返回的图片 URL 有时效（约 24h），落地成 dataURL 再入库（草稿存 localStorage） */
 async function toDataUrl(url: string): Promise<string> {
-  // 方舟产物在 TOS 域且无 CORS 头——经 dev 服务器同源代取（生产走后端）
-  const res = await fetch(`/api/asset?url=${encodeURIComponent(url)}`, {
-    signal: AbortSignal.timeout(60_000),
-  });
+  // 方舟产物在 TOS 域且无 CORS 头——经代理同源代取（dev 是 vite 中间件，打包后是服务端）。
+  // ★ 代理地址与鉴权只有 fetchArkAsset 一处实现：以前这里、glbFromArkZip、
+  //   captureVideoTail、utils/mediaUrl 各写了一份同源 `/api/asset`，真机上四处一起坏。
+  const res = await fetchArkAsset(url, 60_000);
   if (!res.ok) throw new Error(`取图失败 ${res.status}`);
   const blob = await res.blob();
   return await new Promise<string>((resolve, reject) => {
@@ -480,7 +489,7 @@ export async function extractTemplateFromVideo(
  * 不引 JSZip，standard deflate 足够。
  */
 async function glbFromArkZip(zipUrl: string): Promise<Blob> {
-  const res = await fetch(`/api/asset?url=${encodeURIComponent(zipUrl)}`, { signal: AbortSignal.timeout(180_000) });
+  const res = await fetchArkAsset(zipUrl, 180_000);
   if (!res.ok) throw new Error(`取建模包失败 ${res.status}`);
   const buf = new Uint8Array(await res.arrayBuffer());
   const u16 = (i: number) => buf[i] | (buf[i + 1] << 8);
@@ -640,9 +649,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
 }
 
 async function captureVideoTail(videoUrl: string): Promise<string> {
-  const res = await fetch(`/api/asset?url=${encodeURIComponent(videoUrl)}`, {
-    signal: AbortSignal.timeout(120_000),
-  });
+  const res = await fetchArkAsset(videoUrl, 120_000);
   if (!res.ok) throw new Error(`取视频失败 ${res.status}`);
   const blobUrl = URL.createObjectURL(await res.blob());
   try {

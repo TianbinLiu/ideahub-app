@@ -10,7 +10,8 @@
 //   （同一张定妆照出的图，见 design/gen-mascot-sprites.mjs）。Q 版放大到这个尺寸就是一团糊。
 //
 // 资源生成方式与踩过的坑：design/gen-mascot-sprites.mjs + public/perch/README.md。
-import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useRef, type CSSProperties } from "react";
+import SpriteToggle from "./SpriteToggle";
 
 export type MascotPose = "handover" | "handover-glad" | "receive" | "forge" | "forged" | "cardbtn";
 
@@ -23,7 +24,11 @@ const SHEET: Record<MascotPose, { w: number; h: number; frames: number }> = {
   handover: { w: 420, h: 407, frames: 16 },
   "handover-glad": { w: 420, h: 405, frames: 16 },
   receive: { w: 420, h: 402, frames: 16 },
-  forge: { w: 420, h: 394, frames: 8 },
+  // ★ forge 也是 16 帧，而且是这几套里【最需要】的：它在整个出片过程（几十秒到几分钟）
+  //   里循环播，是用户盯得最久的一段动画。8 帧摊在 1500ms 里只有 5.3fps，
+  //   真机上就是一格一格地顿——用户报的「点了生成本段之后动画太卡」说的正是它。
+  //   同屏的 handover 早就是 16 帧了，两者一对比更刺眼。
+  forge: { w: 420, h: 362, frames: 16 },
   forged: { w: 420, h: 391, frames: 8 },
   // 素材按钮那颗小人。Q 版、单格小得多——按钮里只有 ~40px 净高，
   // 正片那 420px 的脸缩到这个尺寸就是一团糊（见 design/gen-mascot-sprites.mjs）
@@ -35,7 +40,9 @@ const LOOP_MS: Record<MascotPose, number> = {
   handover: 900,        // 伸手：一次性播完就停住等卡
   "handover-glad": 520, // 只有表情在变，要快，慢了像卡顿
   receive: 1100,        // 收回并捧住
-  forge: 1500,
+  // 16 帧 / 1200ms ≈ 13fps（原来是 8 帧 /1500ms ≈ 5.3fps）。
+  // 再快就把"缓缓张开法阵"演成了甩手，再慢帧率又掉回去——法阵本身在转，慢一点也不显呆。
+  forge: 1200,
   forged: 1100,
   cardbtn: 420,
 };
@@ -112,45 +119,10 @@ export default MascotStage;
 /**
  * 素材按钮上的那颗 Q 版小人：收起态躲在牌后面只露眼睛，展开态举牌得意大笑。
  *
- * ★ 两个状态是**同一条 8 帧序列的两端**，不是两张图：
- *   正播 = 展开（从牌后探出来把牌举到脸侧），倒播 = 收起（缩回牌后面），
- *   各自靠 fill-mode: forwards 定格在末态。做成两张静态图的话，切换只能靠淡入淡出，
- *   那是"换了张贴纸"，不是"她动了一下"。
- *
- * ★ 首次挂载不播：进页面时按钮本来就是收起态，播一遍倒放等于凭空缩回去一次。
+ * 两个状态是**同一条 8 帧序列的两端**（正播=展开，倒播=收起），这条规则连同它的
+ * 四个坑收在 components/SpriteToggle 里——分区页六个分区图标用的是同一条规则。
+ * 这里只负责"用哪张图、多快"。
  */
 export function MaterialButtonArt({ open, size = 40 }: { open: boolean; size?: number }) {
-  const art = SHEET.cardbtn;
-  const h = Math.round((size * art.h) / art.w);
-  const steps = art.frames - 1;
-  const shift = steps * size;
-
-  const mounted = useRef(false);
-  const [animate, setAnimate] = useState(false);
-  useEffect(() => {
-    if (mounted.current) setAnimate(true);
-    mounted.current = true;
-  }, [open]);
-
-  return (
-    <span className="pointer-events-none relative block" style={{ width: size, height: h }} aria-hidden>
-      <span
-        // 换 key 才会重新起一次动画：同一个元素上只改 direction，CSS 不会重播
-        key={open ? "open" : "closed"}
-        className="mascot-art"
-        style={
-          {
-            backgroundImage: "url(/mascot/cardbtn.webp)",
-            backgroundSize: `${art.frames * size}px 100%`,
-            // 没在动的时候直接按状态定格，不指望动画的 fill 去兜底
-            backgroundPositionX: animate ? undefined : open ? `-${shift}px` : "0px",
-            animation: animate
-              ? `perch-run ${LOOP_MS.cardbtn}ms steps(${steps}) 1 forwards ${open ? "normal" : "reverse"}`
-              : undefined,
-            "--sheet-shift": `-${shift}px`,
-          } as CSSProperties
-        }
-      />
-    </span>
-  );
+  return <SpriteToggle src="/mascot/cardbtn.webp" sheet={SHEET.cardbtn} size={size} ms={LOOP_MS.cardbtn} on={open} />;
 }

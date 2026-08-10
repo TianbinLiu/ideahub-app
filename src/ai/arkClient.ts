@@ -1,12 +1,66 @@
 // 火山方舟（Ark v3）客户端：Seedream 图片生成 / Seedance 视频生成 / 豆包对话。
-// 走 /api/ark 开发代理（vite.config.ts 注入 Key，浏览器不接触密钥）。
-// __AI_REAL__ 由构建期注入：.env.local 有 ARK_API_KEY 时为 true，否则上层回退 mock。
+//
+// ★★ 端点有两处实现，按"有没有 vite dev 服务器"二选一，**绝不写同源相对路径**：
+//   dev  → `/api/ark`，由 vite.config.ts 的代理注入 .env.local 里的 ARK_API_KEY
+//   打包 → `${API_BASE}/api/ark`，由 ideahub-server 的 ark.routes.js 注入服务端的 key
+//
+//   真机上写同源相对路径**不会**得到 404 —— Capacitor 的本地静态服务器对任何未命中的
+//   路径做 SPA 回退，原样吐 index.html 并且**状态码 200**（真机 CDP 实测）。于是
+//   `res.ok` 为真，`res.json()` 一头撞进 `<!doctype html>`，用户看到的是
+//     「第 1 段生成失败：Unexpected token '<', "<!doctype"... is not valid JSON」
+//   ——出片与工坊 NPC 对话同时坏掉，因为它们走的是同一条路。
+//   /api/tts 当年也栽在这条上（见 studio/speech.ts 的同款警告），别再改回去。
+//
+// 密钥永远不进前端包：APK 解一下就拿到了（铁律三）。
+import { API_BASE, API_ON, getToken } from "../api/client";
 
 declare const __AI_REAL__: boolean;
 
-export const AI_REAL = typeof __AI_REAL__ !== "undefined" && __AI_REAL__;
+/**
+ * 「这台机器上 AI 到底是真的吗」。
+ *
+ * ★ 两种模式的判据不一样，因为密钥在两个地方：
+ *   dev  —— 构建期注入的 __AI_REAL__（.env.local 里有没有 ARK_API_KEY）；
+ *   打包 —— 构建期**无从得知服务端配了什么**，能确定的只有"有没有服务端可问"。
+ *           所以看 API_ON。没配 VITE_API_BASE 的离线演示包因此老老实实走 mock，
+ *           而不是兴高采烈地去打一个根本不存在的端点（那正是这次故障的形状）。
+ *   服务端配了地址却没配 key 的情况由 arkFetch 翻成人话（501 → "这台服务器没配方舟密钥"）。
+ */
+export const AI_REAL = import.meta.env.DEV
+  ? typeof __AI_REAL__ !== "undefined" && __AI_REAL__
+  : API_ON;
 
-const BASE = "/api/ark";
+const BASE = import.meta.env.DEV ? "/api/ark" : `${API_BASE}/api/ark`;
+
+/**
+ * 取方舟产物（图片/视频/3D zip）的**唯一**入口。
+ *
+ * 方舟产物在 TOS 域且不带 CORS 头，浏览器直连读不到二进制，而三件事都需要二进制：
+ * 落地成 dataURL 入库、canvas 抽真实尾帧（直连会污染画布，toDataURL 直接抛）、
+ * 解 Seed3D 的 zip。dev 由 vite 中间件代取，打包后由服务端代取。
+ *
+ * ★ 收在这一个函数里，是因为它原来有四份拷贝（real.ts 三处 + utils/mediaUrl.ts 一处），
+ *   全都写死了同源 `/api/asset` —— 也就是说这条"真机 200+HTML"的坑当时有四个入口，
+ *   而 blob 出来是 HTML 时没有任何报错，只表现为"出片卡在捕获尾帧""封面是黑的"。
+ *   路径与鉴权的规则只能有一处（铁律六）。
+ */
+export async function fetchArkAsset(url: string, timeoutMs: number): Promise<Response> {
+  // dev 的中间件挂在 /api/asset（vite.config.ts）；服务端挂在 /api/ark/asset（同一个路由文件）
+  const endpoint = import.meta.env.DEV ? "/api/asset" : `${BASE}/asset`;
+  const token = getToken();
+  const res = await fetch(`${endpoint}?url=${encodeURIComponent(url)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  // ★ 同上：真机上不存在的端点回 200 + text/html，`res.ok` 骗得过所有调用方。
+  //   HTML 当 blob 交给 <video> / DecompressionStream / FileReader，全都是静默失败
+  //   （异常被上层 catch 吞掉），只表现为"卡在捕获尾帧""封面是黑的"。在这里就掐断。
+  const ct = res.headers.get("content-type") ?? "";
+  if (res.ok && ct.includes("text/html")) {
+    throw new Error(`取产物失败：${API_BASE || "本机"} 上没有 /api/ark/asset 代理，请更新服务端`);
+  }
+  return res;
+}
 
 // 模型 ID（2026-08-01 实测于本账号：GET /api/v3/models 取活跃 ID + 控制台开通状态）
 // 选型依据=已开通且有免费额度：Seedream 5.0-lite（50 张）、Seedance 1.5-pro（200 万 tokens）、
@@ -24,11 +78,18 @@ export const MODELS = {
 /** 带超时的 Ark 请求。fetch 没有默认超时——网络一卡整个工坊就"假死"在加载态。
  *  429（限流，请求未被受理）自动退避重试一次；其他错误直接抛给上层做回退/播报。 */
 async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000): Promise<T> {
+  // 服务端的 /api/ark 是 requireAuth 的（每次调用都真烧钱，不能裸奔）。
+  // dev 走 vite 代理，那里不认这个头，带上也无害。
+  const token = getToken();
   for (let attempt = 0; ; attempt++) {
     const res = await fetch(`${BASE}${path}`, {
       ...init,
       signal: AbortSignal.timeout(timeoutMs),
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.headers ?? {}),
+      },
     }).catch((e) => {
       throw new Error(`Ark ${path} 网络失败: ${e instanceof Error ? e.message : e}`);
     });
@@ -36,8 +97,26 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
       await new Promise((r) => setTimeout(r, 2500 + Math.random() * 1500));
       continue;
     }
+
+    // ★ 先看 Content-Type，再看状态码 —— 顺序不能反。
+    //   真机上打到一个不存在的端点会拿到 **200 + text/html**（Capacitor 的 SPA 回退），
+    //   状态码判断在这里完全失灵。直接 res.json() 的话，抛出来的是
+    //   「Unexpected token '<'」这种和病因毫无关系的话，用户和排查的人都被带偏。
+    //   这里把它翻成一句能直接行动的提示。
+    const ct = res.headers.get("content-type") ?? "";
+    if (!ct.includes("json")) {
+      if (res.status === 501) throw new Error("这台服务器没有配置方舟密钥（服务端 .env 的 ARK_API_KEY）");
+      throw new Error(
+        `AI 服务不可用：${API_BASE || "本机"} 上没有 /api/ark 代理` +
+          `（返回的是 ${ct.split(";")[0] || "未知类型"}，不是 JSON）。请更新服务端后重试。`,
+      );
+    }
     if (!res.ok) {
       const body = await res.text().catch(() => "");
+      // 服务端把方舟的错误原样透传，所以这里既可能是方舟的 400，也可能是代理自己的
+      // 401/403/429/501 —— 都带 message，原样抛给上层做回退与播报（铁律八）
+      if (res.status === 501) throw new Error("这台服务器没有配置方舟密钥（服务端 .env 的 ARK_API_KEY）");
+      if (res.status === 401) throw new Error("登录态失效，重新登录后再试");
       throw new Error(`Ark ${path} ${res.status}: ${body.slice(0, 300)}`);
     }
     return (await res.json()) as T;

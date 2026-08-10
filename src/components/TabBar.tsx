@@ -6,6 +6,7 @@ import { NavLink, useLocation, useNavigate } from "react-router";
 import { useCurrentUser } from "../hooks/useAccount";
 import Icon, { type IconName } from "./Icon";
 import CharacterPerch, { usePerchBurst, type PerchPose } from "./CharacterPerch";
+import CreatePerch, { useCreateBurst } from "./CreatePerch";
 
 // pose 决定激活时角色的姿势【和】动效（见 CharacterPerch）。
 // 每个 Tab 各不相同：挥手 / 张望 / 欢呼 / 托下巴 ——
@@ -44,8 +45,14 @@ function TabInner({ tab, isActive }: { tab: Tab; isActive: boolean }) {
 export default function TabBar() {
   const navigate = useNavigate();
   const user = useCurrentUser();
+  const path = useLocation().pathname;
   // 首页是全出血视频，底栏浮在渐变上而不是压一条实心板（对标抖音/TikTok/Reels）
-  const onFeed = useLocation().pathname === "/";
+  const onFeed = path === "/";
+  // ➕ 上的看板娘：每换一个 Tab 随机抽一套演一遍（见 CreatePerch）。
+  // ★ TabLayout 是常驻布局，切 Tab 时 TabBar 不重挂载——所以这个 hook 看得见路径变化。
+  //   （若哪天把 TabBar 挪进各个页面里，每次切换都会重挂载，"上一次是哪一页"就丢了，
+  //     首次挂载不演的判断随之失效，变成进任何页面都蹦一下。）
+  const { token: createBurst, pose: createPose } = useCreateBurst(path);
 
   return (
     <nav
@@ -81,8 +88,15 @@ export default function TabBar() {
               className="flex min-h-[44px] flex-1 items-center justify-center"
               aria-label="创作"
             >
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-brand to-cyan-400 text-ink shadow-lg shadow-brand/30 transition active:scale-95">
-                <Icon name="plus" size={26} strokeWidth={2.75} />
+              {/* relative 只包圆钮：角色相对【按钮】定位。
+                  isolate：角色用负 z-index 沉到按钮下面（"从按钮后面探出来"），
+                  不给独立层叠上下文兜住的话，负 z-index 会一路穿到整条底栏背后。 */}
+              <span className="relative isolate flex items-center justify-center">
+                {/* key={createBurst}：连着切两次 Tab 时若不换 key，元素不重挂载，动画不会重播 */}
+                {createBurst > 0 && <CreatePerch key={createBurst} pose={createPose} size={48} />}
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-brand to-cyan-400 text-ink shadow-lg shadow-brand/30 transition active:scale-95">
+                  <Icon name="plus" size={26} strokeWidth={2.75} />
+                </span>
               </span>
             </button>
           ),

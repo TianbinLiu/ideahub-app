@@ -1,15 +1,23 @@
 # mascot 看板娘贴图（工作流页）
 
-屏幕中央的三段演出，见 [`src/components/MascotStage.tsx`](../../src/components/MascotStage.tsx)。
+屏幕中央的演出，见 [`src/components/MascotStage.tsx`](../../src/components/MascotStage.tsx)。
 
-| 文件 | 用在哪 | 动作 | 单格 |
-| --- | --- | --- | --- |
-| `handover.webp` | 拖素材卡时的落点提示 | 双手从桌面向前伸出、掌心摊开成接取姿势，笑意展开 | 420px |
-| `forge.webp` | 出片过程中循环播 | 闭眼专注，双手在桌上把青蓝光团张开成旋转的金色符文法阵 | 420px |
-| `forged.webp` | 本段炼成的那一下 | 把成形的发光塔罗牌举到脸侧，表情从惊喜转为开怀大笑 | 420px |
-| `cardbtn.webp` | 「生成本段」旁那颗素材按钮 | **Q 版**：躲在竖起的牌后只露眼睛 → 探身把牌举到脸侧得意大笑 | 180px |
+| 文件 | 用在哪 | 动作 | 单格 | 帧 |
+| --- | --- | --- | --- | --- |
+| `handover.webp` | 拖素材卡时的落点提示 | 双手从桌面向前伸出、掌心摊开成接取姿势，笑意展开 | 420px | 16 |
+| `handover-glad.webp` | 卡片进落点圈的那一下 | 手一动不动，只有表情转成开心鼓励 | 420px | 16 |
+| `receive.webp` | 松手收下 | 双手收回、把牌捧在胸前，笑得很开心 | 420px | 16 |
+| `forge.webp` | 出片过程中循环播 | 闭眼专注，双手在桌上把青蓝光团张开成旋转的金色符文法阵 | 420px | 16 |
+| `forged.webp` | 本段炼成的那一下 | 把成形的发光塔罗牌举到脸侧，表情从惊喜转为开怀大笑 | 420px | 8 |
+| `cardbtn.webp` | 「生成本段」旁那颗素材按钮 | **Q 版**：躲在竖起的牌后只露眼睛 → 探身把牌举到脸侧得意大笑 | 180px | 8 |
 
-都是 8 帧横排，靠 `background-position` 逐格平移；总计约 740KB。
+横排的逐格精灵图，靠 `background-position` 平移；总计约 1.9MB。
+
+★ **帧数按"看多久"给，不是一刀切。** 一次性播完就收场的（`forged`、`cardbtn`）8 帧够用；
+**循环播或者要停住等操作的必须给 16**——`forge` 在整个出片过程（几十秒到几分钟）里一直转，
+8 帧摊在 1500ms 里只有 5.3fps，真机上就是一格一格地顿（用户报过"生成本段之后动画太卡"）。
+反过来，**"停住之后还在呼吸"这件事不靠帧数**：那是 CSS transform 的 60fps
+（`MascotStage` 的 `breathe`），堆帧堆不出来，只会把包撑大。
 
 ★ `cardbtn` 与另外三张的用法不同：它不是"播一段动画"，而是**一条序列的两端各当一个状态**——
 正播 = 展开素材库，倒播 = 收起，两端靠 `animation-fill-mode: forwards` 定格
@@ -40,9 +48,13 @@ IMGTOOLS=/path/to/tools node design/gen-mascot-sprites.mjs . [handover,forge,for
 脚本跑完会打印各姿势的单格宽高，照抄进 `MascotStage.tsx` 的 `SHEET`——
 高度写错不报错，只会把角色拉扁。
 
-流水线与 `perch` 那套同源（先读 [`../perch/README.md`](../perch/README.md)）：
-Seedream 出 A/B 两个端点姿势 → Seedance **首尾帧**模式补中间动作 → 抽 8 帧 →
+流水线本体在 [`design/lib/sprite-pipeline.mjs`](../../design/lib/sprite-pipeline.mjs)，
+与 `perch` 那套同源（先读 [`../perch/README.md`](../perch/README.md)）：
+Seedream 出 A/B 两个端点姿势 → Seedance **首尾帧**模式补中间动作 → 抽 N 帧 →
 绿幕抠图 → 所有帧包围盒的**并集**做统一裁切框 → 缩放拼接。
+
+★ 绿幕阈值只有那一份。同一条流水线现在有三个调用方（本目录、`../discover/`、`../createbtn/`），
+调阈值就只调 `sprite-pipeline.mjs`；抄第二份的结局一定是三份各自漂（铁律六）。
 
 ## 这次新踩的三个坑
 
