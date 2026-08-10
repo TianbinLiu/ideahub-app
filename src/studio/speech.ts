@@ -11,6 +11,7 @@
 // 那才是真口型。下面这套是在"只有文本、没有音频流"的前提下能做到的最好近似。
 import type { Viseme } from "./scene/faceExpr";
 import { currentInstruct, currentRate, currentVoice, emotionFor } from "./voices";
+import { API_BASE, getToken } from "../api/client";
 
 /** 每帧被 TripoNpc 直读的口型状态。走模块单例而不是 React 状态：
  *  说话时每秒要更新几十次，进 store 就是每秒几十次全场景重渲。 */
@@ -66,7 +67,7 @@ if (typeof window !== "undefined" && "speechSynthesis" in window) {
 /** 语音能力现状。UI 要能把"我关的"和"这台机器没中文语音包"分开讲清楚，
  *  否则用户开着开关却听不见声音，只会以为功能坏了。 */
 export function voiceStatus(): "ok" | "no-voice" | "unsupported" {
-  if (TTS_REAL) return "ok"; // 云端嗓子不依赖系统语音包
+  if (cloudOn) return "ok"; // 云端嗓子不依赖系统语音包
   if (!voiceSupported()) return "unsupported";
   return pickVoice() ? "ok" : "no-voice";
 }
@@ -173,9 +174,27 @@ export function cancelPendingStop() {
 //   ② 音节时长用 buffer.duration 精确均分，不再靠 onboundary 猜语速
 //   ③ 手机 WebView 里也有声（安卓自带 TTS 引擎常常 getVoices() 返回空数组，
 //      那是浏览器合成器在真机上最大的坑）
-// 凭据没配就 404 → 静默退回浏览器合成器。
+// 凭据没配就 404/501 → 静默退回浏览器合成器。
+//
+// ★ 端点有两处实现，按有没有配 API_BASE 二选一：
+//     配了 → 服务端 routes/tts.routes.js（**APK 唯一能走通的那条**）
+//     没配 → vite.config.ts 的 dev 中间件（本地无后端时也能试听）
+//   打成 APK 后 vite 中间件根本不存在，工坊 NPC 于是全程哑巴——这就是把它搬去
+//   服务端的原因。密钥也不能进前端包：APK 解一下就拿到了。
 declare const __TTS_REAL__: boolean;
-const TTS_REAL = typeof __TTS_REAL__ !== "undefined" && __TTS_REAL__;
+/** 构建期就知道的那部分：dev 中间件配没配密钥 */
+const TTS_DEV = typeof __TTS_REAL__ !== "undefined" && __TTS_REAL__;
+const TTS_URL = `${API_BASE}/api/tts`;
+
+/**
+ * 现在还能不能走云端嗓子。
+ *
+ * ★ 不能再用构建期常量：端点搬到服务端之后，"服务端配没配密钥"在打包时根本无从得知。
+ *   所以先乐观地开着（只要接了服务端就试一次），由第一次请求的**结果**来关：
+ *   404/501 = 这台服务器没配 → 本次会话永久退回浏览器合成器，不再每句话白跑一趟。
+ *   502（上游偶发失败）不关：那是可恢复的，关掉会让人整场都听不到好嗓子。
+ */
+let cloudOn = TTS_DEV || API_BASE.length > 0;
 /** env 里的音色只作**兜底默认**；用户在设置页选过就以用户为准（voices.currentVoice） */
 const ENV_VOICE = import.meta.env.VITE_TTS_VOICE as string | undefined;
 
@@ -198,9 +217,12 @@ function ctx(): AudioContext {
 async function speakCloud(text: string, sy: Syl[], me: number): Promise<boolean> {
   const voice = currentVoice();
   try {
-    const res = await fetch("/api/tts", {
+    // 服务端那条要带 token（端点是收费的，裸奔等于把账单挂到公网上）；
+    // dev 中间件不校验，多带一个头也无妨
+    const tk = getToken();
+    const res = await fetch(TTS_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(tk ? { Authorization: `Bearer ${tk}` } : {}) },
       body: JSON.stringify({
         text,
         voice: ENV_VOICE || voice.id,
@@ -214,7 +236,13 @@ async function speakCloud(text: string, sy: Syl[], me: number): Promise<boolean>
       }),
       signal: AbortSignal.timeout(20_000),
     });
-    if (!res.ok) return false; // 404=没配凭据，502=上游报错，都退回本地合成
+    if (!res.ok) {
+      // ★ 只有"这台服务器根本没这功能"才永久关掉：404（没挂路由）/501（没配密钥）/
+      //   401·403（没登录，工坊本来就要登录，走到这儿说明 token 掉了）。
+      //   502/504 是上游偶发失败，关掉会让人整场都听不到好嗓子——重试下一句即可。
+      if (res.status === 404 || res.status === 501 || res.status === 401 || res.status === 403) cloudOn = false;
+      return false; // 一律退回本地合成
+    }
     const buf = await ctx().decodeAudioData(await res.arrayBuffer());
     if (session !== me) return true; // 期间被打断：别再播了，但也别退回去重播一遍
 
@@ -297,7 +325,7 @@ export function speak(text: string): boolean {
   const me = ++session;
 
   // 云端优先：有真实音频，口型才是量出来的而不是估的
-  if (TTS_REAL) {
+  if (cloudOn) {
     void speakCloud(clean, sy, me).then((ok) => {
       if (!ok && session === me) speakLocal(clean, sy, me);
     });
@@ -406,7 +434,7 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
     plan: (t: string) => syllables(spokenOf(t)),
     voice: () => pickVoice(),
     status: voiceStatus,
-    cloud: TTS_REAL,
+    cloud: () => cloudOn, // 取函数：它会被第一次失败改掉，取值会拿到一个过期的快照
     voices: () => (voiceSupported() ? window.speechSynthesis.getVoices().map((v) => `${v.name} [${v.lang}]`) : []),
   };
 }

@@ -28,6 +28,44 @@ const MARKET_DEFS: Array<{ type: CardType; name: string; summary: string; hot: n
   { type: "style", name: "像素梦境", summary: "16-bit 像素风渲染，霓虹调色板，运动帧率刻意降到 12fps。", hot: 7333, tags: ["像素", "游戏"] },
 ];
 
+/**
+ * 市场卡按主题成套。素材卡是拿来配着用的——单张「雨幕青」没什么意思，
+ * 「侦探 + 雨夜街 + 雨幕青 + 拍立得」才是一条能直接开拍的线。
+ * 工坊的卡组广场与新账号的初始卡组都读这张表（见 data/account.ts）。
+ */
+export const MARKET_DECKS: Array<{ id: string; name: string; intro: string; cards: string[] }> = [
+  {
+    id: "mktdeck_rain",
+    name: "雨夜霓虹",
+    intro: "赛博雨夜的一整套：义体侦探、永雨长街、冷青调子，外加一台会拍到未来的相机。",
+    cards: ["赛博侦探·凛", "雨夜霓虹街", "雨幕青", "老式拍立得"],
+  },
+  {
+    id: "mktdeck_sword",
+    name: "云海剑冢",
+    intro: "白衣剑修与万剑埋骨之地，配大写意水墨——开拍即是一卷徐徐展开的国风短片。",
+    cards: ["剑修·白无衣", "云海剑冢", "水墨留白"],
+  },
+  {
+    id: "mktdeck_waste",
+    name: "废土信使",
+    intro: "橘色邮包穿过辐射区，落日熔金，罗盘永远指着最不想去的方向。治愈向废土。",
+    cards: ["废土信使小满", "废土集市", "黄昏金", "会说谎的罗盘"],
+  },
+  {
+    id: "mktdeck_deep",
+    name: "深海孤站",
+    intro: "一万米深处的老式管家与舷窗外的未知生物，星野紫压着整片画面。悬疑科幻。",
+    cards: ["AI 管家 T-7", "深海观测站", "星野紫"],
+  },
+  {
+    id: "mktdeck_retro",
+    name: "绿皮车厢",
+    intro: "九十年代的麦田与摇晃的车厢，胶片颗粒，食堂阿姨也在这趟车上。怀旧日常。",
+    cards: ["老式绿皮车厢", "胶片颗粒", "食堂阿姨·铁勺王"],
+  },
+];
+
 let marketCache: Card[] | null = null;
 
 function marketAll(): Card[] {
@@ -39,10 +77,20 @@ function marketAll(): Card[] {
       summary: d.summary,
       hot: d.hot,
       tags: d.tags,
-      cover: makeCover(`market:${d.name}`, d.name),
+      // 真实卡面（Seedream 出，见 design/gen-market-cards.mjs）。
+      // ★ 文件名按【下标】绑定，所以**绝不要往 MARKET_DEFS 中间插卡**——
+      //   插一张，它后面每张卡的图都会错位一格（图是剑修、字是侦探）。
+      //   要加卡就往数组末尾追加，然后只跑新增的那几张。
+      cover: `/cards/market/mkt_${i}.webp`,
     }));
   }
   return marketCache;
+}
+
+/** 按名字取市场卡（卡组表里存的是名字，比下标经得起改动） */
+export function marketCardsByName(names: string[]): Card[] {
+  const all = marketAll();
+  return names.map((n) => all.find((c) => c.name === n)).filter((c): c is Card => !!c);
 }
 
 /** 市场检索：空词 → 最热；有词 → 名称/简介/标签模糊匹配 */

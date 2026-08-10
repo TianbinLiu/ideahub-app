@@ -255,11 +255,74 @@ canvas {
 }
 .perch-mine { animation-name: perch-mine; }
 
+/* ── 屏幕中央的看板娘演出（见 components/MascotStage.tsx）──────────────────
+   翻页复用上面那条 perch-run：都是"横向平移背景"，抄第二条关键帧迟早会漂。
+   与 .perch-art 的区别只有定位——这里是独立的一块演出区，不贴在图标上。 */
+.mascot-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+  background-position-x: 0;
+}
+
+/* 素材按钮加卡时抖那一下。只动 transform（合成层）：这一下发生在出片页，
+   底下常常正播着预览视频，触发重排会直接掉帧 */
+@keyframes mat-shake {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  15% { transform: translateX(-3px) rotate(-8deg); }
+  32% { transform: translateX(3px) rotate(7deg); }
+  50% { transform: translateX(-2px) rotate(-5deg); }
+  68% { transform: translateX(2px) rotate(4deg); }
+  84% { transform: translateX(-1px) rotate(-2deg); }
+}
+.mat-shake {
+  animation: mat-shake 560ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+/* 看板娘「停住但还活着」的呼吸层（见 MascotStage 的 breathe）。
+   ★ 伸手等卡时姿势必须固定，否则用户等不到一个稳定的落点；但定格一帧就成了贴纸。
+     所以姿势由精灵图定死，起伏交给 transform —— 合成层动画，稳 60fps，且不占包体。
+     ★ 起伏与摇摆必须写在【同一条】关键帧里：两条动画都改 transform 的话，
+       后声明的那条会整个覆盖前一条（transform 是单一属性，不会自动合成），
+       表现为只剩摇摆、呼吸没了。停点取不等距（38%/62%），避开机械的正弦感。 */
+@keyframes mascot-breathe {
+  0%   { transform: translateY(0) scale(1) rotate(-0.45deg); }
+  38%  { transform: translateY(-1.6%) scale(1.013) rotate(0.15deg); }
+  62%  { transform: translateY(-1.1%) scale(1.009) rotate(0.45deg); }
+  100% { transform: translateY(0) scale(1) rotate(-0.45deg); }
+}
+.mascot-breathe {
+  transform-origin: 50% 92%; /* 支点放在桌沿附近：从头顶缩放会让她整个人上下平移 */
+  animation: mascot-breathe 5.2s ease-in-out infinite;
+}
+
+/* 素材窗口从屏幕上方落下。只动 transform/opacity（合成层） */
+@keyframes sheet-down {
+  from { transform: translateY(-16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.sheet-down {
+  animation: sheet-down 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 拖拽落点的呼吸圈：告诉用户"松手就在这" */
+@keyframes drop-ring {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.05); opacity: 0.95; }
+}
+.drop-ring {
+  animation: drop-ring 1.6s ease-in-out infinite;
+}
+
 /* 尊重系统的「减少动态效果」设置：不做位移和翻页，静静显示 A 帧后由
    卸载定时器收走。辉光与接触阴影保留——它们表达的是位置关系而非动效。 */
 @media (prefers-reduced-motion: reduce) {
   .perch-pop,
-  .perch-art { animation: none !important; }
+  .perch-art,
+  .mascot-art,
+  .mat-shake,
+  .drop-ring { animation: none !important; }
   .perch-pop { opacity: 1; transform: translateX(-50%); }
 }
 

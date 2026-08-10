@@ -80,7 +80,89 @@
 | GET | `/api/me/profile` | 本次新增，对称于既有的 PUT，返回 `username/displayName/bio/avatarUrl/role/createdAt`。缺了它换设备登录后昵称会退回 username |
 | PUT | `/api/me/profile` | `{ displayName?, bio?, avatarUrl? }`，返回更新后的 user |
 
-手机号登录是另一套 `/api/auth/otp`（authOtp.routes），客户端暂未封装。
+### 登录方式按出口 IP 分流
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/auth/capabilities` | 无需鉴权。服务端用 `detectRegion(req)` 认**请求的出口 IP**，返回 `{ region, country, emailPasswordEnabled, oauthEnabled, phoneEnabled, providers[] }`。大陆 IP 关掉 `oauthEnabled`（Google 在墙内点了只会转圈）；短信通道没真配则 `phoneEnabled=false`（不摆发不出码的死按钮）。可用 `AUTH_FORCE_OAUTH` / `AUTH_FORCE_OAUTH_IN_CN` 强制覆盖 |
+
+★ **客户端不得自行判断地区**：判据（国家库 + 上面两个强制开关）全在服务端，两边各判一次
+必然分叉，而且客户端那份还能被随便改。探测失败就退到最小集（邮箱 + 密码）。
+
+### 验证码（authOtp.routes）
+
+| 方法 | 路径 | body → 返回 |
+|---|---|---|
+| POST | `/api/auth/email/register/start` | `{ email, username, password }` → `{ ok }`。**只发码，不建号** |
+| POST | `/api/auth/email/register/verify` | `+{ code }` → `201 { ok, token, user }`，验码通过才真正建号并登录 |
+| POST | `/api/auth/email/reset/start` | `{ email }` → `{ ok }` |
+| POST | `/api/auth/email/reset/verify` | `{ email, code, newPassword }` → `{ ok, token, user }` |
+| POST | `/api/auth/phone/login/start` | `{ phone }` → `{ ok }`。真发短信、真扣费，限流 5/分钟 |
+| POST | `/api/auth/phone/login/verify` | `{ phone, code }` → `{ ok, token, user }`，该号没注册过则**自动建号**（登录即注册） |
+
+⚠️ **这几条返回的 `user` 用的是 `id`，不是 `_id`** —— authOtp.controller 里是手写的对象字面量，
+与 auth.controller 的 `serializeAuthUser` 不是同一套。客户端在 `api/auth.ts` 里归一，
+不要让上层去认两种形状。
+
+### 第三方登录回跳（含 App 深链）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/auth/oauth/:provider?next=<目标>` | `provider` ∈ 服务端 `providers`（google / github）。授权完成后 302 带 token 回 `next` |
+
+`next` 只接受两类值，其余一律被 `safeNextPath()` 打回 `/`：
+
+1. **站内路径**（`/` 开头，且排除 `//`、`/\` 与控制字符）→ 回跳
+   `CLIENT_BASE_URL/oauth/callback?token=…&next=<路径>`
+2. **App 深链**：**完全等于** `${APP_OAUTH_SCHEME}://oauth` → 直接 302 到该深链，
+   形如 `ideahub://oauth?token=…`（回 App 时不再带 `next`）
+
+★ 深链是**严格等值**匹配，不是前缀匹配 —— `ideahub://oauth@evil.com/` 这类写法必须落回第 1 类，
+否则等于把开放重定向从另一个门放回来。`APP_OAUTH_SCHEME` 留空则该特性整体关闭。
+
+★ 为什么 App 不能直接在 WebView 里登：Google 对嵌入式 WebView 的授权请求一律返回
+`disallowed_useragent`（反钓鱼策略，措辞绕不过）。所以 App 侧必须
+**系统浏览器跑授权页 → 服务端深链回 App**。三处 scheme 要一致：
+server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
+`android/app/src/main/AndroidManifest.xml` 的 intent-filter。
+
+★ Google Cloud Console 里登记的授权回调**只有服务端那一个**
+（`<SERVER_BASE_URL>/api/auth/oauth/google/callback`）。自定义 scheme 不需要、也不能
+登记到 Google —— 它是服务端拿到 token **之后**自己发起的第二跳。
+
+## 语音合成（工坊 NPC 的嗓子）
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/api/tts/health` | 无 | `{ ok, tts: boolean }` —— 这台服务器配没配 `TTS_API_KEY`。不回密钥本身 |
+| POST | `/api/tts` | **必须** | 合成一句台词，回 `audio/mpeg`。按用户限流 30 次/分钟 |
+
+请求体（除 `text` 外都可省）：
+
+```jsonc
+{
+  "text": "≤300 字，超出截断",
+  "voice": "zh_female_gaolengyujie_uranus_bigtts",  // 只允许 [A-Za-z0-9_.-]{1,64}，非法值回落默认音色
+  "mix":   [{ "id": "…", "w": 0.6 }],               // 混音配方，权重服务端再归一化；只吃 1.0 音色
+  "emotion": "happy", "instruct": "用更冷静的语气",
+  "rate": 0,        // [-50,100]，0 = 1.0 倍
+  "pitch": -1,      // [-12,12]
+  "expressive": true // 2.0 ICL 音色专属；<cot> 标签生效的前提
+}
+```
+
+状态码约定（客户端据此决策，见 `app/src/studio/speech.ts`）：
+
+- `501` 服务端没配密钥、`404` 没挂路由、`401/403` 掉登录 → **本会话永久关掉云端合成**，退回浏览器内置合成器
+- `502/504` 上游偶发失败 → 只是这一句没出声，不关云端（下一句照常重试）
+- `400` 空文本
+
+★ **这个端点必须在服务端，不能只留在 app 仓 `vite.config.ts` 的 dev 中间件里**：
+打成 APK 后 vite 不存在，`/api/tts` 无人应答，工坊 NPC 全程哑巴（安卓 WebView 的
+`speechSynthesis.getVoices()` 常年返回空数组，退回本地也没声）。密钥更不能进前端包。
+
+★ 与 `ARK_API_KEY` 是**两套凭据**：不同域名（openspeech vs ark）、不同鉴权、不同控制台。
+方舟没有 TTS。控制台要开通的是 **2.0**（`seed-tts-2.0`），1.0 是另一件商品。
 
 ## 客户端接入约定
 

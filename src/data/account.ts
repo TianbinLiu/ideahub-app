@@ -7,6 +7,8 @@
 // 页面读的全是同步函数（myCards() / currentUser() / isFollowing()…），签名一个没动；
 // 变更仍通过 subscribeAccount + 版本号广播，远端回包回填时也走同一条广播。
 import { Card, uid } from "../types";
+// data → mock 是既有方向（data/videos.ts 也从 mock/frames 取种子帧），不成环
+import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
 import { PLANS, PLATFORM_CUT } from "./economy";
 import { idbGet, idbSet } from "./db";
 import { API_ON, emitApiError, getToken, setToken, serverAlive, AUTH_EXPIRED_EVENT } from "../api/client";
@@ -111,7 +113,40 @@ async function readyLocal(): Promise<void> {
   db.users ??= [];
   db.cards ??= [];
   db.decks ??= [];
+  if (db.currentId) seedStarterAssets(db.currentId);
   emit();
+}
+
+/**
+ * 给空手的本地账号铺一套开箱素材：市场那 18 张种子卡按主题成组（见 mock/ai 的 MARKET_DECKS）。
+ *
+ * ★ 只在【这个人一张卡一个组都没有】时铺，且只在离线模式：
+ *   远端账号的资产以服务端为准，往里塞本地种子会在下次同步时变成幽灵卡。
+ *   判据用"这个人的库是空的"而不是"这是个新用户"——老账号（比如升级前建的）
+ *   同样两手空空，进工作流点开素材库只会看到一句"还没有素材卡"，没法试。
+ * ★ 不落 persist()：调用方（readyLocal / signIn）自己会写盘，这里重复写一次没意义。
+ */
+function seedStarterAssets(userId: string): void {
+  if (!db || remoteOn()) return;
+  const mine = db.cards.some((c) => c.ownerId === userId) || db.decks.some((d) => d.ownerId === userId);
+  if (mine) return;
+  const now = Date.now();
+  const owned = new Map<string, Card>();
+  for (const def of MARKET_DECKS) {
+    const cards = marketCardsByName(def.cards);
+    if (cards.length === 0) continue;
+    for (const c of cards) if (!owned.has(c.id)) owned.set(c.id, c);
+    db.decks.push({
+      id: `deck_seed_${def.id}`,
+      ownerId: userId,
+      name: def.name,
+      intro: def.intro,
+      cardIds: cards.map((c) => c.id),
+      coverCardId: cards[0].id,
+      createdAt: now,
+    });
+  }
+  for (const c of owned.values()) db.cards.push({ ...c, ownerId: userId, createdAt: now });
 }
 
 /**
@@ -177,6 +212,7 @@ export function signIn(account: string, name?: string): User {
     db.users.push(user);
   }
   db.currentId = user.id;
+  seedStarterAssets(user.id); // 新账号开箱即有素材，否则工作流的素材库是空的，没法试
   persist();
   return user;
 }
@@ -522,12 +558,40 @@ export async function shareDeck(deckId: string, on: boolean): Promise<void> {
   persist();
 }
 
-/** 逛广场：别人分享出来的卡组 */
+/**
+ * 逛广场：别人分享出来的卡组。
+ *
+ * ★ 离线模式返回**主题种子卡组**而不是空数组：卡片那一侧本来就是本地种子
+ *   （mock/ai 的 MARKET_DEFS，注释直说是"模拟社区最热卡片"），卡组这一侧却恒空，
+ *   于是工坊的「卡组」来源在没有服务器时永远是一片空白，连功能都没法试。
+ *   两侧用同一套种子才自洽。
+ */
 export async function browseSharedDecks(q = ""): Promise<branch.ApiSharedDeck[]> {
-  if (!remoteOn()) return [];
+  if (!remoteOn()) return seedSharedDecks(q);
   return branch.listSharedDecks(q).catch((e) => {
     emitApiError("listSharedDecks", e);
     return [];
+  });
+}
+
+function seedSharedDecks(q: string): branch.ApiSharedDeck[] {
+  const key = q.trim();
+  const installed = new Set(db?.decks.map((d) => d.sourceDeck).filter(Boolean) ?? []);
+  return MARKET_DECKS.filter(
+    (d) => !key || d.name.includes(key) || d.intro.includes(key) || d.cards.some((n) => n.includes(key)),
+  ).map((d) => {
+    const cards = marketCardsByName(d.cards);
+    return {
+      _id: d.id,
+      name: d.name,
+      description: d.intro,
+      cardCount: cards.length,
+      covers: cards.slice(0, 3).map((c) => c.cover),
+      types: [...new Set(cards.map((c) => c.type))],
+      // 热度取组内卡热度之和，好让广场有个稳定且说得通的排序依据
+      installs: Math.round(cards.reduce((s, c) => s + (c.hot ?? 0), 0) / 100),
+      installed: installed.has(d.id),
+    };
   });
 }
 
@@ -536,8 +600,34 @@ export async function browseSharedDecks(q = ""): Promise<branch.ApiSharedDeck[]>
  * 服务端按 {owner, sourceDeck} 幂等，重复装不会长出第二套。
  */
 export async function installSharedDeck(sharedId: string): Promise<Deck | null> {
-  if (!remoteOn()) throw new Error("需要先连接服务器并登录");
-  const u = currentUser();
+  const u0 = currentUser();
+  if (!remoteOn()) {
+    // 离线：装的是上面那套主题种子卡组，卡片直接进本地卡库（按 sourceDeck 去重）
+    if (!u0 || !db) throw new Error("请先登录");
+    const def = MARKET_DECKS.find((d) => d.id === sharedId);
+    if (!def) throw new Error("卡组不存在");
+    const exist = db.decks.find((d) => d.ownerId === u0.id && d.sourceDeck === sharedId);
+    if (exist) return exist;
+    const cards = marketCardsByName(def.cards);
+    const have = new Set(db.cards.filter((c) => c.ownerId === u0.id).map((c) => c.id));
+    for (const c of cards) {
+      if (!have.has(c.id)) db.cards.push({ ...c, ownerId: u0.id, createdAt: Date.now() });
+    }
+    const deck: Deck = {
+      id: uid("deck"),
+      ownerId: u0.id,
+      name: def.name,
+      intro: def.intro,
+      cardIds: cards.map((c) => c.id),
+      coverCardId: cards[0]?.id,
+      createdAt: Date.now(),
+      sourceDeck: sharedId,
+    };
+    db.decks.push(deck);
+    persist();
+    return deck;
+  }
+  const u = u0;
   if (!u || !db) throw new Error("请先登录");
 
   const { deck, cards } = await branch.installDeck(sharedId);
@@ -776,6 +866,44 @@ export async function signUpWithPassword(
   }
   emit();
   return local;
+}
+
+/**
+ * 把一个已经拿到 token 的服务端用户落成登录态。
+ * signInWithPassword / 验证码 / 第三方三条路的收尾是同一件事——装用户、拉资产、广播，
+ * 抄三遍必然有一条会忘了 loadRemoteAssets（表现为登录成功但卡库是空的）。
+ */
+async function finishRemoteSignIn(remote: authApi.ApiUser): Promise<User> {
+  const local = adoptUser(remote);
+  await loadRemoteAssets();
+  emit();
+  return local;
+}
+
+/** 邮箱验证码注册：验码通过即建号并登录（server 侧 /email/register/verify） */
+export async function registerWithEmailOtp(
+  input: authApi.RegisterInput & { code: string; displayName?: string },
+): Promise<User> {
+  const { user } = await authApi.emailRegisterVerify(input);
+  const local = await finishRemoteSignIn(user);
+  const nick = input.displayName?.trim();
+  if (nick && nick !== local.name) {
+    local.name = nick;
+    void authApi.updateProfile({ displayName: nick }).catch((e) => emitApiError("signUp/profile", e));
+    emit();
+  }
+  return local;
+}
+
+/** 手机号验证码登录（登录即注册） */
+export async function signInWithPhoneOtp(phone: string, code: string): Promise<User> {
+  const { user } = await authApi.phoneLoginVerify(phone, code);
+  return finishRemoteSignIn(user);
+}
+
+/** 第三方登录深链回来只有 token，用它换用户并落地 */
+export async function signInWithOauthToken(token: string): Promise<User> {
+  return finishRemoteSignIn(await authApi.adoptToken(token));
 }
 
 /**

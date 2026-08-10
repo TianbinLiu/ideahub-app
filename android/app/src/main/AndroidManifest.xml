@@ -12,8 +12,13 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!-- ★ 冷启动就锁竖屏，不能只靠 JS。人横着手机点图标时，Activity 会先按
+             系统方向起来，等 WebView 载完 JS 再转回竖屏 —— 用户看到的是"开屏歪了一下"。
+             这里定基线，工坊页进去时再由 useOrientationLock 运行时解锁（运行时的
+             setRequestedOrientation 覆盖 manifest，退出工坊会重新锁回来）。 -->
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:screenOrientation="portrait"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
@@ -23,6 +28,21 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- 第三方登录的回程。Google 明确拒绝在应用内 WebView 里跑授权页
+                 （disallowed_useragent），所以授权必须交给系统浏览器，登完由服务端
+                 302 到 ideahub://oauth?token=… 把人送回来，@capacitor/app 的
+                 appUrlOpen 事件接住（见 src/utils/oauth.ts）。
+                 ★ scheme 改名要三处同步：这里、utils/oauth.ts 的 APP_SCHEME、
+                   服务端 oauth.routes.js 的回跳白名单。
+                 ★ 上面的 launchMode="singleTask" 是这条链路能成立的前提：
+                   否则回程会再开一个 Activity 实例，回到的是一个全新的空 WebView。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ideahub" android:host="oauth" />
             </intent-filter>
 
         </activity>

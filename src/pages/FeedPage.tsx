@@ -255,6 +255,15 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
     togglePlay();
   }
 
+  /** 作者主页：自己的作品进「我的」，别人的进 /u/<作者名>（本地模型的身份就是作者名） */
+  const authorHref = mine ? "/me" : `/u/${encodeURIComponent(video.author)}`;
+  /** 画面上的按钮要把 pointer 截住：不截的话点一下既跳转、又顺带触发了
+   *  外层 section 的单击（暂停/解除静音）——手指抬起来时视频已经停了 */
+  const stopTap = {
+    onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
+    onPointerUp: (e: React.PointerEvent) => e.stopPropagation(),
+  };
+
   function share() {
     const url = `${location.origin}${location.pathname}#/video/${video.id}`;
     if (navigator.share) void navigator.share({ title: video.title, url }).catch(() => {});
@@ -423,9 +432,15 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
         onPointerDown={(e) => e.stopPropagation()}
         onPointerUp={(e) => e.stopPropagation()}
       >
-        {/* 头像 + 关注：未关注时下挂一个 + 号，点了变对勾后淡出（TikTok 同款反馈） */}
+        {/* 头像 + 关注：未关注时下挂一个 + 号，点了变对勾后淡出（TikTok 同款反馈）。
+            点头像去【作者主页】而不是作品详情页——这是 TikTok/抖音的通用心智，
+            也是唯一能走到别人主页的入口。详情页改由下方标题进入。 */}
         <div className="relative mb-1">
-          <button onClick={() => navigate(`/video/${video.id}`)} className="block active:scale-95">
+          <button
+            onClick={() => navigate(authorHref)}
+            aria-label={`${video.author} 的主页`}
+            className="block active:scale-95"
+          >
             <span className="block rounded-full ring-2 ring-white/90">
               <Avatar name={video.author} src={mine ? user?.avatar : undefined} size={44} />
             </span>
@@ -475,10 +490,25 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
         className="absolute inset-x-0 bottom-0 z-10 pl-4 pr-20"
         style={{ paddingBottom: "calc(var(--tabbar-h) + 0.75rem)" }}
       >
-        <div className="mb-1.5 text-sm font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
+        <button
+          {...stopTap}
+          onClick={() => navigate(authorHref)}
+          className="mb-1.5 block max-w-full truncate text-left text-sm font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,.6)] active:opacity-70"
+        >
           @{video.author}
-        </div>
-        <div className="mb-1 text-base font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.7)]">{video.title}</div>
+        </button>
+        {/* 标题接管了原来头像那个「进详情页」的职责。详情页不是可有可无的：
+            本片卡组、分段剧情、多 P 选集都只在那儿，头像改指主页后必须另留一个门 */}
+        <button
+          {...stopTap}
+          onClick={() => navigate(`/video/${video.id}`)}
+          className="mb-1 block max-w-full text-left text-base font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.7)] active:opacity-70"
+        >
+          <span className="line-clamp-2">
+            {video.title}
+            <Icon name="chevron" size={14} className="ml-0.5 inline-block align-[-2px] text-white/60" />
+          </span>
+        </button>
         <p className="line-clamp-2 text-xs leading-relaxed text-white/85 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
           {video.description} <span className="text-white/70">#{video.category}</span>
         </p>

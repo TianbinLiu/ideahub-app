@@ -42,7 +42,8 @@ src/
   utils/
 public/
   create/      创作入口三张封面（角色设定的唯一出处）
-  perch/       激活态角色的逐帧精灵图 + 生成流程说明
+  perch/       激活态角色的逐帧精灵图（Q 版，50px 图标挂件）+ 生成流程说明
+  mascot/      工作流页屏幕中央的看板娘逐帧演出（二次元正片，交卡/炼卡/炼成三段）
   cards/       卡牌素材
   models/      3D 模型（protected/ 下的加密产物不入仓）
   avatars/
@@ -92,4 +93,5 @@ design/        ★ 建模/出图的【离线工具与素材】，不参与 App �
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
 - [`public/perch/README.md`](public/perch/README.md) — 角色动画资源怎么生成、踩过什么坑
+- [`public/mascot/README.md`](public/mascot/README.md) — 工作流页看板娘三段演出的出图流水线与坑
 - [`design/README-tsumire.md`](design/README-tsumire.md) — 购入模型的接入笔记与**授权结论**（上线前必读）
