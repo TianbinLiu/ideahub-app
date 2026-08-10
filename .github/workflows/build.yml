@@ -1,0 +1,46 @@
+# PR 门禁：只做一件事——`npm run build`（= `tsc && vite build`）必须通过。
+#
+# 为什么加：这个仓库在 PR #1 之前没有任何 CI，能不能合进 main 全靠人记得在本地跑一遍
+# 构建。漏跑一次就可能把编译不过的代码带进 main，而 main 是出 APK 的分支。
+#
+# 为什么只跑 build 不跑测试：仓库目前没有测试套件，编不编得过是唯一能自动判定的事。
+# `tsc` 那一半价值最大——类型错误是这个仓库最常见的、也是本地最容易漏跑的失败。
+name: build
+
+on:
+  pull_request:
+    branches: [main]
+  # 直推 main 的历史提交也跑一遍：这个仓库以前是直接往 main 推的，
+  # 不是所有改动都会走 PR
+  push:
+    branches: [main]
+
+# 同一分支连续 push 时取消上一轮，别让队列越积越长
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # 跟开发机对齐（本地 v24.15.0）。不写死小版本，拿 24.x 最新
+          node-version: "24"
+          cache: npm
+
+      # 用 ci 而不是 install：严格按 package-lock.json 装，锁文件与 package.json
+      # 对不上时直接失败，而不是悄悄改锁文件
+      - run: npm ci
+
+      # ★ 构建不需要 .env.local，也不需要 public/models/protected/——两者都被
+      #   gitignore 挡着，CI 上根本不存在，这是**有意为之**：
+      #   · 缺 ARK_API_KEY 只会让 __AI_REAL__ 变成 false（AI 走 mock），不影响编译；
+      #   · protected/ 下的加密模型是运行时资产，不进 Vite 模块图。
+      #   已实测：把 .env.local 挪开后 `npm run build` 照样退出 0。
+      #   所以这里不要为了"让 CI 更真实"去塞任何密钥——它对构建结果没有影响。
+      - run: npm run build
