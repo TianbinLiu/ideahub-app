@@ -679,7 +679,7 @@ export default function FlowPage() {
             <>
               {/* 节点条 = 进度轨：已出片的和当前这段可以点，再往后是锁着的。
                   真正的拦截在 flowStore.clampCursor，这里画出"为什么点不动" */}
-              <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+              <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto">
                 {nodes.map((n, i) => {
                   const p = chosenOf(n);
                   const locked = frontier >= 0 && i > frontier;

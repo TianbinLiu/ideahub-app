@@ -242,7 +242,7 @@ export default function MaterialSheet({
           ) : (
             <>
               <div className="mb-1.5 text-[11px] text-slate-500">拖一整组 = 组里的卡全加进来</div>
-              <div className={rail(decks.length)} style={{ touchAction: "pan-x", scrollbarWidth: "none" }}>
+              <div className={`${rail(decks.length)} no-scrollbar`} style={{ touchAction: "pan-x" }}>
                 {decks.map((d) => {
                   const list = d.cardIds.map((id) => byId.get(id)).filter((c): c is Card => !!c);
                   // 封面 = 卡组封面卡的真实卡面（未指定时取组内第一张，见 deckCoverOf）
@@ -265,7 +265,7 @@ export default function MaterialSheet({
         ) : cards.length === 0 ? (
           <p className="py-7 text-center text-xs text-slate-600">没有匹配的卡片</p>
         ) : (
-          <div className={rail(cards.length)} style={{ touchAction: "pan-x", scrollbarWidth: "none" }}>
+          <div className={`${rail(cards.length)} no-scrollbar`} style={{ touchAction: "pan-x" }}>
             {cards.map((c) => (
               <div
                 key={c.id}
@@ -406,7 +406,7 @@ export function MaterialStrip({ materials, onRemove }: { materials: Card[]; onRe
           从上面的素材库往屏幕中间拖一张下来
         </div>
       ) : (
-        <div className="flex gap-2.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+        <div className="no-scrollbar flex gap-2.5 overflow-x-auto pb-0.5">
           {materials.map((c) => (
             <div key={c.id} className="relative w-[70px] flex-none">
               <TarotCard cover={c.cover || null} title={c.name} type={c.type} />

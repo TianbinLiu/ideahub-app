@@ -336,6 +336,11 @@ export function isCollected(videoId: string): boolean {
 //   往返，也让报价旁边的"余额不足"能立刻亮起来）。它被绕过不会造成任何损失——
 //   服务端不认它。
 //
+// ★★ 镜像**只由服务端的权威值写入**（syncRemoteWallet：/api/ark 的响应头 +
+//   GET /api/me/wallet），自己一分钱都不记。第一版让 spendTokens 乐观地减镜像，
+//   真机上当场双扣：调用点都是「成功才扣」，在 await 之后才调，而那时响应头早就把
+//   扣过费的权威值写进来了。详见 spendTokens 的注释。
+//
 // ★ 为什么保留同步签名：walletOf/canAfford/spendTokens 有 25 处调用点，
 //   全是同步的（组件渲染期、store 的判断分支里）。改成 async 是一次波及九个文件的
 //   重构，而收益为零——权威判断本来就不在这里。所以：
@@ -406,21 +411,22 @@ export function canAfford(n: number): boolean {
 /**
  * 扣 token：先套餐后 add-on。不足时不扣、返回 null；成功返回扣减明细。
  *
- * ★ 远端模式下这**不是**真扣款，只是把镜像先减下去，好让余额数字立刻动
- *   （否则用户点完要等下一个响应头回来才看到变化，会以为没扣）。
- *   真扣款在服务端，权威值随 /api/ark 的响应头覆盖回来。
+ * ★★ 远端模式下这是**空操作**（只回一个形状，不动镜像）。真扣款在服务端，
+ *   而**镜像永远只由服务端的权威值写入**（/api/ark 的响应头、GET /api/me/wallet）。
+ *
+ *   最初这里写成"乐观地把镜像先减下去，好让数字立刻动"，真机实测当场翻车：
+ *   全 app 的调用点都遵循「成功才扣」的老约定，也就是在 await 之后才调 spendTokens，
+ *   而那时响应头**早就把扣过费的权威值写进镜像了** —— 于是同一笔钱在镜像上减了两遍。
+ *   实测：聊一句之后服务端 299,600、App 显示 299.2k，差的正好是那 400。
+ *   （2026-08-10 真机 CDP 实测；服务端流水只有一条 ark_spend -400，扣费本身没问题。）
+ *
+ *   "让数字立刻动"这个诉求本来就已经由响应头满足了 —— 它带回来的还是**真数**，
+ *   比乐观值更好。镜像自己记账不但没有收益，还必然和权威值打架。
  */
 export function spendTokens(n: number): { plan: number; addon: number } | null {
   if (remoteOn()) {
     if (!currentUser() || n < 0) return null;
-    if (n === 0) return { plan: 0, addon: 0 };
-    const w = remoteWallet;
-    if (!w) return { plan: 0, addon: n }; // 镜像未知：先不动，等响应头
-    const fromPlan = Math.min(w.plan, n);
-    const fromAddon = Math.min(w.addon, n - fromPlan);
-    remoteWallet = { ...w, plan: w.plan - fromPlan, addon: w.addon - fromAddon };
-    emit();
-    return { plan: fromPlan, addon: fromAddon };
+    return { plan: Math.min(remoteWallet?.plan ?? 0, n), addon: 0 };
   }
   const u = currentUser();
   if (!u || !db || n <= 0) return n === 0 ? { plan: 0, addon: 0 } : null;

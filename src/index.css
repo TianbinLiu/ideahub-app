@@ -38,6 +38,22 @@ canvas {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* 藏滚动条。
+   ★ 只写 `scrollbar-width: none` 是不够的 —— 那是标准属性，桌面 Chrome 认，
+     但**安卓 WebView 上不生效**（真机实测 2026-08-10：计算样式里根本读不到这个属性，
+     于是下面那条 6px 的 ::-webkit-scrollbar 照常画出来，分区页的图标行底下
+     多出一条扎眼的浅灰横条）。必须两条都写。
+   ★ 这条规则原来以内联 style 的形式散在 7 个文件里（分区行、素材库三条横轨、
+     创作入口、首页、工作流节点条），也就是说这个毛病在 APK 上有七个入口，
+     而在开发机上一个都看不见。收成一处（铁律六）。 */
+.no-scrollbar {
+  scrollbar-width: none; /* 标准属性：桌面 Chrome / Firefox */
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* 安卓 WebView 认的是这条 */
+}
+
 /* 细滚动条 */
 ::-webkit-scrollbar {
   width: 6px;

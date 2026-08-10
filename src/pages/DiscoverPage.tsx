@@ -95,8 +95,7 @@ export default function DiscoverPage() {
           窄屏上自然变成横滑。-mx-4 px-4 让滑动区贴到屏幕边缘，最后一个不会卡在 padding 里。
           pt-1/pb-1 是给选中那一下的放大留的余量，否则 scale 会被滚动容器裁掉。 */}
       <div
-        className="mb-5 -mx-4 flex justify-between gap-1 overflow-x-auto px-4 pb-1 pt-1"
-        style={{ scrollbarWidth: "none" }}
+        className="no-scrollbar mb-5 -mx-4 flex justify-between gap-1 overflow-x-auto px-4 pb-1 pt-1"
       >
         {VIDEO_CATEGORIES.map((c) => {
           const art = CAT_ART[c] ?? CAT_ART.其他;

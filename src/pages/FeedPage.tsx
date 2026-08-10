@@ -642,8 +642,7 @@ export default function FeedPage() {
       {tabs}
       <div
         ref={wrapRef}
-        className="h-full snap-y snap-mandatory overflow-y-auto overscroll-contain"
-        style={{ scrollbarWidth: "none" }}
+        className="no-scrollbar h-full snap-y snap-mandatory overflow-y-auto overscroll-contain"
       >
         {videos.map((v, i) => {
           const dist = Math.abs(i - activeIdx);
