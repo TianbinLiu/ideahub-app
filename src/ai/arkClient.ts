@@ -13,6 +13,18 @@
 //
 // 密钥永远不进前端包：APK 解一下就拿到了（铁律三）。
 import { API_BASE, API_ON, getToken } from "../api/client";
+import { syncRemoteWallet } from "../data/account";
+
+/** 把响应头上的权威余额同步进本地镜像。头部缺失（CORS 没放行/dev 代理）时什么都不做。 */
+function syncWalletFromHeaders(h: Headers): void {
+  const plan = h.get("X-Wallet-Plan");
+  const addon = h.get("X-Wallet-Addon");
+  if (plan === null || addon === null) return;
+  const p = Number(plan);
+  const a = Number(addon);
+  if (!Number.isFinite(p) || !Number.isFinite(a)) return;
+  syncRemoteWallet({ plan: p, addon: a });
+}
 
 declare const __AI_REAL__: boolean;
 
@@ -93,6 +105,12 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
     }).catch((e) => {
       throw new Error(`Ark ${path} 网络失败: ${e instanceof Error ? e.message : e}`);
     });
+    // ★ 每个响应都带着服务端的权威余额（扣费/退款都发生在那边）。趁这一趟同步回来，
+    //   省掉一次 GET /api/me/wallet，也避免在两次请求之间显示旧余额。
+    //   头部读不到时通常是 CORS 没放行 exposedHeaders —— 那不是致命的，
+    //   只是余额要等下一次 refreshRemoteWallet 才更新，所以这里静默跳过。
+    syncWalletFromHeaders(res.headers);
+
     if (res.status === 429 && attempt === 0) {
       await new Promise((r) => setTimeout(r, 2500 + Math.random() * 1500));
       continue;
@@ -117,6 +135,16 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
       // 401/403/429/501 —— 都带 message，原样抛给上层做回退与播报（铁律八）
       if (res.status === 501) throw new Error("这台服务器没有配置方舟密钥（服务端 .env 的 ARK_API_KEY）");
       if (res.status === 401) throw new Error("登录态失效，重新登录后再试");
+      // 402 = 服务端钱包判定余额不足，**方舟根本没被调用**（服务端在转发之前就拦了）。
+      // 本地镜像放行了它才会走到这里：镜像慢了半拍、或者被人改过。
+      // 把服务端说的实数带出去，比本地那个可能已经不对的数字可信。
+      if (res.status === 402) {
+        const need = Number(/"need":\s*(\d+)/.exec(body)?.[1] ?? 0);
+        const have = Number(/"balance":\s*(\d+)/.exec(body)?.[1] ?? 0);
+        throw new Error(
+          `token 余额不足：这一步需要 ${need || "更多"}，余额 ${have}——去「我的」页充值`,
+        );
+      }
       throw new Error(`Ark ${path} ${res.status}: ${body.slice(0, 300)}`);
     }
     return (await res.json()) as T;

@@ -27,6 +27,7 @@ import {
   myCards,
   myDecks,
   rechargeAddon,
+  refreshRemoteWallet,
   setAvatarImage,
   toggleFollow,
   walletOf,
@@ -717,11 +718,25 @@ function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onClose: () => voi
   );
 }
 
-/** 钱包抽屉：余额 + 套餐订阅 + 直充包。演示环境模拟支付——点了立即到账 */
+/** 钱包抽屉：余额 + 套餐订阅 + 直充包。演示环境模拟支付——点了立即到账。
+ *
+ *  ★ 余额的权威值在服务端（2026-08 把钱包从 IndexedDB 搬过去了）。打开抽屉时主动拉一次：
+ *    平时靠每个 /api/ark 响应头顺带同步就够了，但"换台设备充了值"这种情况没有响应头
+ *    可搭便车，不主动拉就会一直显示旧数字。 */
 function WalletSheet({ onClose }: { onClose: () => void }) {
   useAccountVersion();
+  useEffect(() => {
+    void refreshRemoteWallet();
+  }, []);
   const wallet = walletOf();
-  if (!wallet) return null;
+  // 远端模式下镜像可能还在路上。★ 不能 return null —— 那会表现成"点了钱包没反应"，
+  // 而用户完全没法区分"在加载"和"坏了"
+  if (!wallet)
+    return (
+      <Sheet onClose={onClose}>
+        <div className="py-10 text-center text-sm text-slate-500">正在读取余额…</div>
+      </Sheet>
+    );
   return (
     <Sheet onClose={onClose}>
       <div className="mb-3 flex items-center justify-between">

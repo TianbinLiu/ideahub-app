@@ -201,9 +201,62 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
 
 ★ 与 `TTS_API_KEY` 是**两套凭据**：不同域名、不同鉴权、不同控制台。互换一定 401。
 
-⚠ 已知边界：花钱的闸门目前只有 `requireAuth` + 按账号限流。App 里那套 token 钱包
-（`app/src/data/economy.ts`）是**客户端记账**，服务端不校验余额——改客户端就能绕过。
-要真正收费上线，得把钱包搬到服务端并在这条路由上扣费。
+### 扣费
+
+**先扣钱、再转发；上游没受理就原路退回。** 顺序不能反：先转发再扣钱的话，余额不足的
+请求已经把钱花掉了；而"先查余额、转发、再扣"更糟——查和扣之间的窗口正是并发双花的入口。
+所以服务端的口径是「条件原子扣减成功 = 拿到了这次调用的许可」。
+
+| 端点 | 计费 |
+|---|---|
+| `POST /images/generations` | 13,300（一次 Seedream 出图） |
+| `POST /chat/completions` | 400（一次豆包往返） |
+| `POST /contents/generations/tasks`（Seedance） | `时长×1280×720×24/1024 × 档位系数`（极速 0.3 / 标准 1 / 高清 1.6） |
+| `POST /contents/generations/tasks`（Seed3D） | 160,000 |
+| `GET /contents/generations/tasks/:id` | **0**（轮询高频，按次收会把一段片的价格翻几倍） |
+| `GET /asset` | **0** |
+
+- 余额不足 → **402** `{ code: "INSUFFICIENT_TOKENS", need, balance }`，**方舟根本不会被调用**
+- 上游非 2xx（400 敏感词 / 429 限流 / 5xx / 501 没配 key）→ 扣掉的原路退回 **addon**
+  （不退回 plan：plan 跨月作废，月末退回去几小时后就蒸发了）
+- ⚠ 任务**被受理之后**才失败（Seedance 排队跑完报 failed）**不退**——那时算力已经消耗、
+  方舟也已经向我们计费。刻意为之，不是遗漏。
+- 每个响应都带 `X-Wallet-Plan` / `X-Wallet-Addon`（CORS `exposedHeaders` 已放行），
+  App 的钱包镜像据此同步，省掉一次 `GET /api/me/wallet`
+
+★ **定价表两边都有，必须一起改**：服务端 `src/config/tokens.js` 是**结算**口径，
+App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216k、余额掉了 243k"，
+用户会觉得被偷了钱。已知的两处不一致写在 `tokens.js` 的 `priceOf` 注释里。
+
+## AI token 钱包
+
+挂载点：`app.use("/api/me/wallet", require("./routes/wallet.routes"))`，全部 `requireAuth`。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/me/wallet` | `{ wallet: { plan, addon, planId }, plans }`。顺带完成初始化与跨月刷新 |
+| GET | `/api/me/wallet/ledger?limit=` | token 流水（"我的钱花哪儿了"） |
+| POST | `/api/me/wallet/recharge` | `{ tokens }`，只收在册面额（200k / 1M / 5M） |
+| POST | `/api/me/wallet/plan` | `{ planId }`，free / std / pro |
+
+- `plan` = 当月套餐额度，**跨月刷新、未用完作废**；`addon` = 直充与退款，**永不过期**。扣减先 plan 后 addon
+- 用户文档**刻意没有 `tokenWallet` 的 schema default**：有没有这个字段就是"要不要初始化"的
+  判据本身（`{$exists:false}` 条件原子更新抢占初始化并补一条 `grant` 流水）。给了 default，
+  老账号读出来就凭空有余额、却没有对应流水，账本和余额从第一天起就对不上
+- 三条不变量（并发不超付 / 没受理必须退 / 月度刷新只发生一次）见
+  `server/src/services/tokenWallet.service.js` 的文件头，回归测试见 `server/tests/tokenWallet.spec.js`
+
+⚠ **充值与购套餐仍是模拟支付**（没有接真实支付网关）。把钱包从客户端搬到服务端
+**没有堵上"自己给自己发 token"这个洞** —— 有一个有效登录态就能调。搬过来的意义是：
+口径唯一、有流水可审计、有每日上限兜底（`DAILY_RECHARGE_CAP` / `DAILY_PLAN_BUYS`），
+接支付回调时只改一处。**别看到"已经在服务端了"就以为可以开门收钱。**
+
+### 客户端那份钱包是镜像，不是账本
+
+`app/src/data/account.ts` 的 `walletOf/canAfford/spendTokens` 在远端模式下只负责
+**显示余额**与**按下按钮之前提前拦一道**，被绕过不会造成任何损失（服务端不认它）。
+25 处调用点因此保持同步签名不变；权威值随 `/api/ark` 的响应头覆盖回来，最多短暂偏差且自愈。
+离线模式（没配 `VITE_API_BASE`）下它仍然是唯一账本——那种包本来就不出网。
 
 ## 客户端接入约定
 

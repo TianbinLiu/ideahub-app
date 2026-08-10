@@ -14,6 +14,7 @@ import { idbGet, idbSet } from "./db";
 import { API_ON, emitApiError, getToken, setToken, serverAlive, AUTH_EXPIRED_EVENT } from "../api/client";
 import * as authApi from "../api/auth";
 import * as branch from "../api/branch";
+import * as walletApi from "../api/wallet";
 
 export interface User {
   id: string;
@@ -324,8 +325,50 @@ export function isCollected(videoId: string): boolean {
 }
 
 // ── token 钱包 ────────────────────────────────────────
-// 演示环境的模拟支付：充值/购套餐直接到账（真实支付网关接入前的占位实现）。
-// 扣减规则（产品定案）：先扣套餐 token（每月刷新会作废），再扣 add-on（永久有效）。
+//
+// ★★ 远端模式下，这里的钱包是**镜像，不是账本**。
+//   权威值在服务端（server 仓 services/tokenWallet.service.js），扣费发生在
+//   /api/ark 转发之前的条件原子扣减里。以前不是这样——钱包记在这台机器的
+//   IndexedDB 里，改一行前端就能把余额写成无限，而每次方舟调用都是真金白银
+//   （一段视频约 1.9 元、一张图约 0.6 元）。2026-08 搬走了。
+//
+//   镜像的职责只有两条：**显示余额**、**按下按钮之前提前拦一道**（省一次必然失败的
+//   往返，也让报价旁边的"余额不足"能立刻亮起来）。它被绕过不会造成任何损失——
+//   服务端不认它。
+//
+// ★ 为什么保留同步签名：walletOf/canAfford/spendTokens 有 25 处调用点，
+//   全是同步的（组件渲染期、store 的判断分支里）。改成 async 是一次波及九个文件的
+//   重构，而收益为零——权威判断本来就不在这里。所以：
+//     · walletOf()     读镜像
+//     · canAfford()    读镜像（乐观）
+//     · spendTokens()  远端模式下【乐观扣减镜像】，真值随下一个响应头覆盖回来
+//   真值的来源是每个 /api/ark 响应上的 X-Wallet-Plan / X-Wallet-Addon
+//   （见 ai/arkClient.ts 的 syncWalletFromHeaders），所以最多短暂偏差，且自愈。
+//
+// 离线模式（没配 API_BASE）下，下面这套仍然是**唯一**的账本——那种包本来就不出网，
+// 也就不存在"骗谁的钱"。
+
+/** 远端模式的钱包镜像。null = 还没取到（未登录/请求未回来） */
+let remoteWallet: { plan: number; addon: number; planId: string } | null = null;
+
+/** 用服务端的权威值覆盖镜像。由 /api/ark 的响应头与 GET /api/me/wallet 调用 */
+export function syncRemoteWallet(next: { plan: number; addon: number; planId?: string } | null): void {
+  if (!next) return;
+  remoteWallet = { plan: next.plan, addon: next.addon, planId: next.planId ?? remoteWallet?.planId ?? "free" };
+  emit();
+}
+
+/** 从服务端拉一次余额（登录后、进「我的」页时）。失败只广播，不阻断页面 */
+export async function refreshRemoteWallet(): Promise<void> {
+  if (!remoteOn() || !getToken()) return;
+  try {
+    const r = await walletApi.fetchWallet();
+    syncRemoteWallet(r.wallet);
+  } catch (e) {
+    emitApiError("refreshWallet", e);
+  }
+}
+
 function ensureWallet(u: User): NonNullable<User["wallet"]> {
   if (!u.wallet) {
     // 老账号/新账号首次触达：发免费套餐的当月额度
@@ -335,22 +378,50 @@ function ensureWallet(u: User): NonNullable<User["wallet"]> {
   return u.wallet;
 }
 
-/** 当前用户钱包快照（未登录返回 null） */
+/** 当前用户钱包快照（未登录返回 null）。远端模式读镜像，离线模式读本地账本 */
 export function walletOf(): { plan: number; addon: number; planId: string } | null {
+  if (remoteOn()) return currentUser() ? remoteWallet : null;
   const u = currentUser();
   if (!u || !db) return null;
   const w = ensureWallet(u);
   return { plan: w.plan, addon: w.addon, planId: u.planId ?? "free" };
 }
 
-/** 余额是否够付 n token */
+/**
+ * 余额是否够付 n token。
+ * ★ 远端模式下这是**乐观判断**：镜像还没取到（null）时一律放行，让请求打出去，
+ *   由服务端回 402 说了算。宁可多一次往返，也不能因为镜像慢了半拍就把功能锁死
+ *   ——那会表现成"明明有余额却说不够"，而且刷新也好不了。
+ */
 export function canAfford(n: number): boolean {
+  if (remoteOn()) {
+    if (!currentUser()) return false;
+    if (!remoteWallet) return true; // 还不知道，交给服务端判
+    return remoteWallet.plan + remoteWallet.addon >= n;
+  }
   const w = walletOf();
   return !!w && w.plan + w.addon >= n;
 }
 
-/** 扣 token：先套餐后 add-on。不足时不扣、返回 null；成功返回扣减明细 */
+/**
+ * 扣 token：先套餐后 add-on。不足时不扣、返回 null；成功返回扣减明细。
+ *
+ * ★ 远端模式下这**不是**真扣款，只是把镜像先减下去，好让余额数字立刻动
+ *   （否则用户点完要等下一个响应头回来才看到变化，会以为没扣）。
+ *   真扣款在服务端，权威值随 /api/ark 的响应头覆盖回来。
+ */
 export function spendTokens(n: number): { plan: number; addon: number } | null {
+  if (remoteOn()) {
+    if (!currentUser() || n < 0) return null;
+    if (n === 0) return { plan: 0, addon: 0 };
+    const w = remoteWallet;
+    if (!w) return { plan: 0, addon: n }; // 镜像未知：先不动，等响应头
+    const fromPlan = Math.min(w.plan, n);
+    const fromAddon = Math.min(w.addon, n - fromPlan);
+    remoteWallet = { ...w, plan: w.plan - fromPlan, addon: w.addon - fromAddon };
+    emit();
+    return { plan: fromPlan, addon: fromAddon };
+  }
   const u = currentUser();
   if (!u || !db || n <= 0) return n === 0 ? { plan: 0, addon: 0 } : null;
   const w = ensureWallet(u);
@@ -363,8 +434,23 @@ export function spendTokens(n: number): { plan: number; addon: number } | null {
   return { plan: fromPlan, addon: fromAddon };
 }
 
-/** 直充：进 add-on（演示支付即时到账） */
+/**
+ * 直充：进 add-on。
+ * ★ 保持同步签名（ProfilePage 是 onClick 直调）：远端模式下发出请求就返回，
+ *   成功后用服务端返回的权威值覆盖镜像，失败走 emitApiError 广播
+ *   ——与本文件其它"同步接口 + 后台异步写"的路径同一套路。
+ *   ⚠ 服务端那边仍是**模拟支付**，搬过去并没有堵上"自己给自己发 token"，
+ *     只是把口径收成一处、有流水、有每日上限。真堵上要接支付回调。
+ */
 export function rechargeAddon(tokens: number): void {
+  if (remoteOn()) {
+    if (!currentUser() || tokens <= 0) return;
+    void walletApi
+      .rechargeWallet(tokens)
+      .then((r) => syncRemoteWallet(r.wallet))
+      .catch((e) => emitApiError("rechargeAddon", e));
+    return;
+  }
   const u = currentUser();
   if (!u || !db || tokens <= 0) return;
   ensureWallet(u).addon += tokens;
@@ -373,6 +459,14 @@ export function rechargeAddon(tokens: number): void {
 
 /** 订阅/续费套餐：套餐额度立即发放（叠加剩余额度），记住档位 */
 export function buyPlan(planId: string): boolean {
+  if (remoteOn()) {
+    if (!currentUser() || !PLANS.some((p) => p.id === planId)) return false;
+    void walletApi
+      .buyWalletPlan(planId)
+      .then((r) => syncRemoteWallet(r.wallet))
+      .catch((e) => emitApiError("buyPlan", e));
+    return true;
+  }
   const u = currentUser();
   const plan = PLANS.find((p) => p.id === planId);
   if (!u || !db || !plan) return false;
@@ -751,6 +845,10 @@ function toLocalUser(u: authApi.ApiUser): User {
 function adoptUser(remote: authApi.ApiUser): User {
   const user = toLocalUser(remote);
   db = { users: [user], currentId: user.id, cards: [], decks: [] };
+  // 钱包镜像跟着登录态走：换了人就必须重取，否则新登录的账号会先看到上一个人的余额。
+  // 不 await —— 余额是个数字，晚半秒显示出来没关系，但不能拖慢登录跳转。
+  remoteWallet = null;
+  void refreshRemoteWallet();
   return user;
 }
 
@@ -769,6 +867,8 @@ async function readyRemote(): Promise<boolean> {
       db.cards = [];
       db.decks = [];
       deckAlias.clear();
+      // 掉线也要把钱包镜像清掉：留着的话下一个人登进来会先看到上一个人的余额
+      remoteWallet = null;
       emit();
     });
   }
