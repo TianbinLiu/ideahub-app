@@ -181,6 +181,13 @@ export function cancelPendingStop() {
 //     没配 → vite.config.ts 的 dev 中间件（本地无后端时也能试听）
 //   打成 APK 后 vite 中间件根本不存在，工坊 NPC 于是全程哑巴——这就是把它搬去
 //   服务端的原因。密钥也不能进前端包：APK 解一下就拿到了。
+//
+// ★★ 千万别改回同源 `/api/tts`。真机上那样**不会**得到 404 —— Capacitor 的本地
+//   静态服务器对任何未命中的路径做 SPA 回退，原样吐 index.html 并且**状态码 200**
+//   （真机 CDP 实测：POST https://localhost/api/tts → 200）。于是 `res.ok` 为真、
+//   所有"没配就退回本地合成器"的判断全部失灵，代码兴高采烈地把一段 HTML 交给
+//   decodeAudioData，抛异常、被 catch 吞掉，最后表现成"点了没反应"。
+//   这就是它当初能安静地坏掉这么久的原因：没有 404、没有报错、没有日志。
 declare const __TTS_REAL__: boolean;
 /** 构建期就知道的那部分：dev 中间件配没配密钥 */
 const TTS_DEV = typeof __TTS_REAL__ !== "undefined" && __TTS_REAL__;

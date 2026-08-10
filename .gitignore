@@ -15,6 +15,11 @@ android/keystore/
 .env
 .env.*
 !.env.example
+# ★ .env.production 是例外，必须入仓：里面只有一个公网 API 地址（没有任何密钥），
+#   而它决定了 APK 连哪台服务器。不入仓的话，换台机器/新 worktree 打出来的包会
+#   悄悄回落到 .env.local 的 localhost:4000 —— 在手机上指向手机自己，全线断连
+#   却还能靠离线模式跑起来，极难发现。密钥仍然只准待在 .env.local 与服务端。
+!.env.production
 
 # ── Claude Code ─────────────────────────────────────────────────────────
 # .claude/skills/ 与 .claude/launch.json 是【团队共享】配置，必须入库 ——

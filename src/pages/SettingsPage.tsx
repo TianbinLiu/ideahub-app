@@ -227,8 +227,10 @@ export default function SettingsPage() {
 // 动作，比让用户回工坊触发一句台词再猜哪里错了快得多。
 //
 // ★ 必须走 API_BASE 而不是同源 /api/tts。真机上 WebView 的源是 https://localhost，
-//   同源打过去只会拿到 404（那里没有任何服务），于是"点一下没反应"——这正是
-//   用户报的那条。dev 时 API_BASE 是空串，同源就落回 vite 的 dev 中间件。
+//   而 Capacitor 的本地静态服务器对未命中的路径做 SPA 回退：POST /api/tts 拿回的是
+//   **200 + index.html**，不是 404（真机 CDP 实测）。于是下面按 404 分支的判断永远
+//   不成立，代码把一段 HTML 当音频塞进 <audio> 去播——静悄悄地失败，这正是用户报的
+//   "点一下无法试听"。dev 时 API_BASE 是空串，同源就落回 vite 的 dev 中间件。
 const PREVIEW_LINE = "欢迎来到卡片工坊，把你的素材交给我，我为你炼成卡片。";
 
 function VoiceSection() {
