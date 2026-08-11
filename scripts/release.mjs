@@ -56,7 +56,19 @@ function buildTools() {
 }
 
 function run(cmd, args) {
+  // ★ Windows 上 apksigner 是个 .bat：Node 20 起不允许直接 spawn 批处理文件（EINVAL），
+  //   必须过 shell。过 shell 就得自己加引号——路径里有 "Program Files" 这种空格。
+  const isBat = cmd.endsWith(".bat") || cmd.endsWith(".cmd");
+  if (isBat) {
+    const q = (x) => `"${x}"`;
+    return execFileSync(q(cmd), args.map(q), { encoding: "utf8", shell: true, maxBuffer: 32 * 1024 * 1024 });
+  }
   return execFileSync(cmd, args, { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
+}
+
+/** 过 shell 跑（gh 这类在 Windows 上是 .cmd 包装） */
+function runShell(cmd, args) {
+  return execFileSync(cmd, args.map((x) => `"${x}"`), { encoding: "utf8", shell: true, maxBuffer: 32 * 1024 * 1024 });
 }
 
 /** 从 build.gradle 读版本号 —— 以**源码**为准，不让人在命令行上另填一遍 */
@@ -70,7 +82,8 @@ function readVersion() {
 
 async function publishedManifest() {
   try {
-    const res = await fetch(MANIFEST_URL, { redirect: "follow" });
+    // 加个随机串：GitHub 的 /latest 跳转与资产都走 CDN，不绕开缓存会读到上一版
+    const res = await fetch(`${MANIFEST_URL}?cb=${Date.now()}`, { redirect: "follow" });
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -113,8 +126,19 @@ async function main() {
   console.log(`✓ 签名与历史版本一致`);
 
   // ── 4. versionCode 必须比线上那版大 ─────────────────────
+  //    ★ 例外：这个 tag 已经发过了（上次跑到一半失败，这次是原地重跑）——
+  //      那就不是"要发一个新版"，而是"把上次那一版验证完"，不该被递增检查挡住。
+  let exists = false;
+  try {
+    runShell("gh", ["release", "view", tag, "--repo", REPO]);
+    exists = true;
+  } catch {
+    /* 不存在 */
+  }
   const live = await publishedManifest();
-  if (live) {
+  if (exists) {
+    console.log(`✓ ${tag} 已经发过了 —— 本次是重跑，只做验证`);
+  } else if (live) {
     console.log(`✓ 线上当前是 ${live.versionName}(${live.versionCode})`);
     if (versionCode <= live.versionCode) {
       die(`versionCode ${versionCode} 不大于线上的 ${live.versionCode} —— 发出去也没人会收到更新。\n` +
@@ -151,24 +175,39 @@ async function main() {
   }
 
   // ── 6. 发布 ──────────────────────────────────────────────
-  console.log(`\n正在发布 ${tag}…`);
-  run("gh", ["release", "create", tag,
-    path.join(out, apkAsset),
-    path.join(out, `qimeng-${versionName}-play-store.aab`),
-    path.join(out, "latest.json"),
-    "--title", `启梦 ${versionName}`,
-    "--notes", notes || `启梦 ${versionName}`,
-    "--repo", REPO]);
+  //    tag 已存在就跳过创建直接去验证（第 4 步算过了）
+  if (exists) {
+    console.log(`\n${tag} 已存在，跳过创建，直接验证`);
+  } else {
+    console.log(`\n正在发布 ${tag}…`);
+    runShell("gh", ["release", "create", tag,
+      path.join(out, apkAsset),
+      path.join(out, `qimeng-${versionName}-play-store.aab`),
+      path.join(out, "latest.json"),
+      "--title", `启梦 ${versionName}`,
+      "--notes", notes || `启梦 ${versionName}`,
+      "--repo", REPO]);
+  }
 
   // ── 7. ★ 回头验证：从公网真的拉一遍，确认老用户能看到、能下 ──
   //    这一步才是这个脚本存在的意义 —— 前面每一条都可能"看着对但线上是错的"。
   console.log("\n验证更新链…");
-  await new Promise((r) => setTimeout(r, 3000)); // 给 GitHub 一点时间让 /latest 指过来
-  const check = await publishedManifest();
+  // ★ 重试而不是"睡 3 秒看一眼"：GitHub 把 /latest 指到新 Release 要几秒到几十秒。
+  //   一次就判失败的话，每次发版都会"自检失败但其实是好的" —— 人很快会开始无视
+  //   这个检查，那它就白写了。最多等 60 秒，仍不对才是真出事。
+  let check = null;
+  for (let i = 0; i < 12; i++) {
+    await new Promise((r) => setTimeout(r, 5000));
+    check = await publishedManifest();
+    if (check?.versionCode === versionCode) break;
+    process.stdout.write(`  等 /latest 指过来…（${(i + 1) * 5}s）\r`);
+  }
+  console.log("");
   if (!check) die("发完了，但 /releases/latest/download/latest.json 拉不到 —— 老用户收不到这次更新");
   if (check.versionCode !== versionCode) {
-    die(`发完了，但固定地址返回的还是 ${check.versionName}(${check.versionCode})。\n` +
-        `多半是这个 Release 被标成了 draft 或 pre-release（/latest 会跳过它们）。`);
+    die(`等了 60 秒，固定地址返回的还是 ${check.versionName}(${check.versionCode})。\n` +
+        `多半是这个 Release 被标成了 draft 或 pre-release（/latest 会跳过它们），\n` +
+        `或者漏传了 latest.json 这个资产。`);
   }
   const head = await fetch(check.apkUrl, { method: "HEAD", redirect: "follow" });
   if (!head.ok) die(`清单里的 apkUrl 下不动（HTTP ${head.status}）：${check.apkUrl}`);
