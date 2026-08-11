@@ -7,7 +7,10 @@
 //     ③ Release 里有个叫 latest.json 的资产，且这个 Release 不是 draft/pre-release
 //                              —— 缺一样：/releases/latest/download/latest.json 404，
 //                                 客户端安静地什么都不做
-//     ④ 清单里的 sha256 与 apkUrl 和真实文件对得上
+//     ④ **App 实际打的那个清单地址**（服务端转的那份）也指到了新版
+//                              —— 只验上游等于验了一条没人走的路：服务端没部署/挂了/
+//                                 缓存没过期，照样"发布成功"，而所有人收不到更新
+//     ⑤ 清单里的 sha256 与 apkUrl 和真实文件对得上
 //                              —— 对不上：下完校验不过被丢弃，用户看到"更新失败"
 //   四件事全靠人记，迟早漏一件；而漏了之后**你不会知道**——你手上的 App 是好的，
 //   坏的是所有已经装了旧版的人。所以这里逐条检查，最后再从公网**真的拉一遍**清单核对。
@@ -34,7 +37,15 @@ const DRY = process.argv.includes("--dry");
 const EXPECTED_CERT_SHA256 = "6e8cb908797eb3ebb9f75b1de191ab9087a71a70cef588bbcb55dbad6b3ea461";
 
 const REPO = "TianbinLiu/ideahub-app";
+/** 上游清单（发布产物本身）。这是**权威**那一份 */
 const MANIFEST_URL = `https://github.com/${REPO}/releases/latest/download/latest.json`;
+/**
+ * App 里实际写死的清单地址（.env.production 的 VITE_UPDATE_MANIFEST）。
+ * ★ 必须**也验它**：用户的 App 打的是这个地址，不是上面那个。
+ *   只验 GitHub 而不验这里，等于验了一条没人走的路 —— 服务端挂了/没部署/缓存没过期，
+ *   照样"发布成功"，而所有人收不到更新。
+ */
+const APP_MANIFEST_URL = "https://api.ideahubs.org/api/app/latest.json";
 
 const APK = path.join(root, "android/app/build/outputs/apk/sideload/release/app-sideload-release.apk");
 const AAB = path.join(root, "android/app/build/outputs/bundle/playRelease/app-play-release.aab");
@@ -80,16 +91,18 @@ function readVersion() {
   return { versionCode: Number(code[1]), versionName: name[1] };
 }
 
-async function publishedManifest() {
+async function readManifest(url) {
   try {
     // 加个随机串：GitHub 的 /latest 跳转与资产都走 CDN，不绕开缓存会读到上一版
-    const res = await fetch(`${MANIFEST_URL}?cb=${Date.now()}`, { redirect: "follow" });
+    const res = await fetch(`${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}`, { redirect: "follow" });
     if (!res.ok) return null;
     return await res.json();
   } catch {
     return null; // 第一次发布，或者网络不通 —— 都不该阻断，但下面会提示
   }
 }
+
+const publishedManifest = () => readManifest(MANIFEST_URL);
 
 const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 
@@ -209,8 +222,27 @@ async function main() {
         `多半是这个 Release 被标成了 draft 或 pre-release（/latest 会跳过它们），\n` +
         `或者漏传了 latest.json 这个资产。`);
   }
-  const head = await fetch(check.apkUrl, { method: "HEAD", redirect: "follow" });
-  if (!head.ok) die(`清单里的 apkUrl 下不动（HTTP ${head.status}）：${check.apkUrl}`);
+  // ★★ 再验一遍**用户实际会打的那个地址**（服务端转发的那份，缓存 60 秒）。
+  //    只验上游等于验了一条没人走的路。
+  console.log("验证 App 实际访问的清单地址…");
+  let app = null;
+  for (let i = 0; i < 12; i++) {
+    app = await readManifest(APP_MANIFEST_URL);
+    if (app?.versionCode === versionCode) break;
+    process.stdout.write(`  等服务端缓存过期…（${(i + 1) * 10}s）`);
+    await new Promise((r) => setTimeout(r, 10000));
+  }
+  console.log("");
+  if (!app) die(`App 用的清单地址拉不到：${APP_MANIFEST_URL}
+服务端是不是没部署这个端点？`);
+  if (app.versionCode !== versionCode) {
+    die(`App 用的清单地址还停在 ${app.versionName}(${app.versionCode})。
+` +
+        `服务端缓存最多 60 秒，等了两分钟还没变说明它拉不到上游。`);
+  }
+
+  const head = await fetch(app.apkUrl, { method: "HEAD", redirect: "follow" });
+  if (!head.ok) die(`清单里的 apkUrl 下不动（HTTP ${head.status}）：${app.apkUrl}`);
   const len = Number(head.headers.get("content-length") || 0);
   if (len && len !== manifest.sizeBytes) {
     die(`apkUrl 指向的文件大小对不上（清单 ${manifest.sizeBytes} / 实际 ${len}）`);
