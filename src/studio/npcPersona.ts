@@ -68,7 +68,6 @@ export interface DeskSnapshot {
   segCount: number;
   recentCards: string[];
   marketOpen: boolean;
-  editing: boolean;
   lowBalance: boolean;
 }
 
@@ -90,7 +89,6 @@ export function deskBlock(d: DeskSnapshot): string {
     `卡组 ${d.deckCount} 张；桌面已铸 ${d.segCount} 段`,
     d.recentCards.length ? `最近收下：${d.recentCards.map(s).join("、")}` : "",
     d.marketOpen ? "市场摊开着" : "",
-    d.editing ? "正在回炉编辑" : "",
     d.lowBalance ? "额度见底" : "",
     "</桌面数据>",
   ]

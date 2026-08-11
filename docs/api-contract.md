@@ -41,9 +41,10 @@
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| GET | `/api/branch/videos` | optional | 列表。query：`feed=recommend\|following`、`category`、`q`、`cursor`、`limit`(默认 12)。返回 `{ ok, items, nextCursor }`；`items[].liked` 表示当前用户是否已赞 |
-| POST | `/api/branch/videos` | required | 发布。body=DraftVideo（title/category/description/cover/segments/branchTree/**clientId**）。**服务端负责把 body 里的外链资源转存**（见下）。带 `clientId` 时按 `{author, clientId}` 幂等：重发返回首次那条、状态码 200（首发是 201） |
-| GET | `/api/branch/videos/:id` | optional | 详情（含 comments 前 50 条） |
+| GET | `/api/branch/videos` | optional | 列表。query：`feed=recommend\|following`、`category`、`q`、`cursor`、`limit`(默认 12)。返回 `{ ok, items, nextCursor }`；`items[].liked` 表示当前用户是否已赞。**只返回公开作品 + 自己的作品**（见下「可见性」） |
+| POST | `/api/branch/videos` | required | 发布。body=DraftVideo（title/category/description/cover/segments/branchTree/**deck**/**visibility**/**clientId**）。**服务端负责把 body 里的外链资源转存**（见下）。带 `clientId` 时按 `{author, clientId}` 幂等：重发返回首次那条、状态码 200（首发是 201） |
+| GET | `/api/branch/videos/:id` | optional | 详情（含 comments 前 50 条）。非作者访问 private 作品返回 **404**（不是 403） |
+| PATCH | `/api/branch/videos/:id` | required | 作品编辑，仅作者。body `{ title?, category?, description?, visibility? }`，**至少给一个字段**（空对象 400）。segments / branchTree / deck 一律被 strip —— 发布即定稿 |
 | DELETE | `/api/branch/videos/:id` | required | 仅作者可删 |
 | POST | `/api/branch/videos/:id/play` | optional | 播放计数 +1，返回 `{ ok, plays }` |
 | POST | `/api/branch/videos/:id/like` | required | 点赞，返回 `{ ok, likes, liked: true }` |
@@ -59,6 +60,36 @@
 | DELETE | `/api/branch/decks/:id` | required | 删组 |
 
 关注沿用既有 `/api/users/:id/follow` 与 `Follow` 模型，不新建。
+
+## 可见性（`visibility`）
+
+`BranchVideo.visibility` ∈ `"public" | "private"`，默认 `public`。`private` = 仅作者自己可见。
+
+判定规则**只有一条**，服务端在下面每一处都用它（改一处必须改全部）：
+
+- Mongo 查询：`{ $or: [{ visibility: { $ne: "private" } }, { author: 我 }] }`（未登录时只有前半）
+- 内存判定：`doc.visibility !== "private" || 是作者`
+
+★ **必须写成 `!== "private"` 而不是 `=== "public"`**：这个字段是后加的，存量作品这一项是
+`undefined`，按等值判会把库里所有老作品从首页上抹掉——而且一点错都不报。
+响应里的 `visibility` 已经归一过（`undefined` → `"public"`），客户端不用判缺省。
+
+挡的地方不止详情：`GET /videos`（含 `q` 搜索）、`GET /videos/:id`、`POST /:id/play`、
+`POST|DELETE /:id/like`、`GET|POST /:id/comments` **全部**按同一条规则挡，
+非作者一律 404。只挡详情等于给私密作品留了个探测旁路。
+
+## 随作品发布的卡组（`deck`）
+
+`{ name, cards: [{ cardId, type, name, summary, cover, tags }] }`，**内嵌快照**，
+不是对 `BranchCard` 的引用——作者事后删掉自己库里的卡，已发布作品里的卡组不能跟着少张。
+
+- 客户端 `Card.id` 落库统一叫 `cardId`（与 `BranchCard` 对齐），两个名字服务端都收
+- `cards[].cover` 与帧字段走同一套转存（dataURL → Cloudinary）
+- 无卡组时响应里**没有** `deck` 键，不会给一个空对象
+
+★ 这个字段在 2026-08-10 之前是**发得出、存不下**的：`publishBody` 的 zod schema 没声明它，
+`z.object` 默认 strip 未声明字段，于是客户端发了、服务端 201 了、读回来是空的。
+往 DraftVideo 里加字段时记得同步这份 schema。
 
 ## 资源转存（关键）
 
@@ -240,8 +271,8 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
 |---|---|---|
 | GET | `/api/me/wallet` | `{ wallet: { plan, addon, planId }, plans }`。顺带完成初始化与跨月刷新 |
 | GET | `/api/me/wallet/ledger?limit=` | token 流水（"我的钱花哪儿了"） |
-| POST | `/api/me/wallet/recharge` | `{ tokens }`，只收在册面额（200k / 1M / 5M） |
-| POST | `/api/me/wallet/plan` | `{ planId }`，free / std / pro |
+| POST | `/api/me/wallet/recharge` | **已改为下单**（见下「充值」）。`{ tokens }` → **202** + 订单，余额不变 |
+| POST | `/api/me/wallet/plan` | **已改为下单**。`{ planId }` → **202** + 订单，余额不变 |
 
 - `plan` = 当月套餐额度，**跨月刷新、未用完作废**；`addon` = 直充与退款，**永不过期**。扣减先 plan 后 addon
 - 用户文档**刻意没有 `tokenWallet` 的 schema default**：有没有这个字段就是"要不要初始化"的
@@ -250,10 +281,56 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
 - 三条不变量（并发不超付 / 没受理必须退 / 月度刷新只发生一次）见
   `server/src/services/tokenWallet.service.js` 的文件头，回归测试见 `server/tests/tokenWallet.spec.js`
 
-⚠ **充值与购套餐仍是模拟支付**（没有接真实支付网关）。把钱包从客户端搬到服务端
-**没有堵上"自己给自己发 token"这个洞** —— 有一个有效登录态就能调。搬过来的意义是：
-口径唯一、有流水可审计、有每日上限兜底（`DAILY_RECHARGE_CAP` / `DAILY_PLAN_BUYS`），
-接支付回调时只改一处。**别看到"已经在服务端了"就以为可以开门收钱。**
+## 充值（订单 + 回调）
+
+挂载点：`app.use("/api/pay", require("./routes/pay.routes"))`。
+
+发币的口子**只有一个**：渠道回调结算（`services/payment/order.service.js` 的 `applyCallback`）。
+钱包路由的 `/recharge` 与 `/plan` 曾经是"调一下就到账"，也就是任何有登录态的人都能
+给自己发 token；现在它们只下单，返回 **202 Accepted** —— 用 202 不用 200 是因为
+"请求收下了"和"余额变多了"是两回事，老客户端拿 200 会把余额刷成新的然后又掉回去。
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/api/pay/config` | 无 | `{ channels, payable, mock, packs, plans }`。`payable=false` = 现在收不了钱，UI 必须说出来 |
+| POST | `/api/pay/orders` | required | `{ kind: "recharge", tokens } \| { kind: "plan", planId }` → 201 `{ order, payParams, payable }` |
+| GET | `/api/pay/orders/:orderNo` | required | 查单（仅本人）。客户端付款后轮询它等 `status: "settled"` |
+| GET | `/api/pay/orders?limit=` | required | 我的订单列表 |
+| POST | `/api/pay/orders/:orderNo/close` | required | 用户取消（仅未支付的） |
+| POST | `/api/pay/callback/:channel` | **无** | 渠道异步通知。安全**全靠** adapter 验签 |
+| POST | `/api/pay/mock/pay` | required | 仅 `PAY_ALLOW_MOCK=1` 时存在，演示用 |
+
+订单状态：`created → paid → settled`，或 `closed` / `failed`（都是终态）。
+
+### 三条不变量
+
+- **O1 一笔订单只发一次币。** 支付回调**必然重复**（渠道重试、运维重推、网络抖动补发）。
+  靠 status 判"处理过没有"不够——读到 paid 再写 settled 中间有并发窗口。
+  用**条件原子更新**抢 `settledAt: null → now`，只有抢到的那一条才真的 credit。
+  重复回调返回 200（回失败渠道会一直推）。
+- **O2 金额以订单快照为准。** 商品、价格、数量全读下单那一刻写进订单的快照，
+  绝不读回调体里的同名字段——那是外部输入。实付 < 应付不发币。
+- **O3 未注册的渠道一律 400。** 没有 adapter 就没有验签；把未知渠道当成功处理，
+  等于任何人 POST 一下就白拿 token。
+
+回归测试 `server/tests/payOrder.spec.js`（24 条）。
+
+### ⚠ 现在一个真实渠道都没接
+
+`services/payment/channels.js` 的注册表是空的，所以下单能下、但没人会把订单推进到
+settled。这是**故意**的：宁可"充不了值"，也不要留一个谁调谁得 token 的口子。
+接渠道 = 写一个 adapter（`verify` 验签是它唯一也是全部的职责）+ 注册，路由与结算不用动。
+
+`PAY_ALLOW_MOCK=1` 打开演示用假渠道（**没有验签**）。默认关；生产环境开着会被启动自检
+直接拒绝（`config/preflight.js`）。
+
+### 价目表两边必须一致
+
+`server/src/services/payment/order.service.js` 的 `RECHARGE_PACKS` 与
+`server/src/config/tokens.js` 的 `PLANS`，必须和 **app 仓 `src/data/economy.ts`** 逐条相等。
+app 那份是【报价】（按下按钮前给用户看的），server 这份是【结算】（真扣钱的）。
+对不上就是"页面写 ¥25、扣了 ¥15"。两仓不在一个 CI 里，`payOrder.spec.js` 末尾把 app 那份
+抄了一遍钉住，改价时会红。金额一律**整数分**。
 
 ### 客户端那份钱包是镜像，不是账本
 

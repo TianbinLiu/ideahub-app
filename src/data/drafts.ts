@@ -1,9 +1,9 @@
 // 在途工程草稿库。
 //
-// 与 data/videos.ts 里那套「源工程」（saveProject/loadProject）的区别：那个是**已发布
-// 作品**的节点树备份，为的是回炉重制；这里存的是**还没发布**的半成品——出到一半的
-// 工作流、摆到一半的桌面。此前这部分完全没有落盘，两个 store 都是纯内存单例，刷新一次
-// 就全没了（出片要几分钟、真金白银，丢一次很贵）。
+// 存的是**还没发布**的半成品——出到一半的工作流、摆到一半的桌面。此前这部分完全没有
+// 落盘，两个 store 都是纯内存单例，刷新一次就全没了（出片要几分钟、真金白银，丢一次很贵）。
+// 已发布的作品不在这里，也不可回炉：成片一经发布即定稿，编辑页只改壳。
+// （data/videos.ts 里曾有一套「源工程」备份专供回炉，2026-08 随回炉一起删了。）
 //
 // ★ 一份草稿同时装工坊侧与工作流侧，因为这两个模式本来就是同一份内容的两个视图：
 //   工坊是 3D 桌面上的 NodeSlot 树，工作流是它活动路径铺开的逐段流水线。用户从哪边
@@ -41,8 +41,9 @@ export interface WorkDraft {
   /** 工坊侧：节点树 + 桌面卡组 */
   root: NodeSlot | null;
   deck: Card[];
-  /** 回炉编辑模式的目标（重制已发布作品时才有） */
-  editTarget: unknown;
+  /** ★ 曾经存过 editTarget（回炉编辑已发布作品的目标）。回炉功能已删，字段一并去掉。
+   *  老草稿正文里可能还带着这个键 —— 读的时候直接忽略即可，无需迁移：
+   *  多一个用不上的键既不会让 openWorkDraft 出错，也不占多少空间。 */
   /** 工作流侧流水线 */
   flow: FlowSnapshot | null;
 }
@@ -120,7 +121,6 @@ export async function saveDraft(input: {
   lastMode: DraftMode;
   root: NodeSlot | null;
   deck: Card[];
-  editTarget: unknown;
   flow: FlowSnapshot | null;
   /** 用来生成缩略图的原始画面（首段首帧），可为空 */
   coverFrame?: string;
@@ -142,7 +142,6 @@ export async function saveDraft(input: {
     lastMode: input.lastMode,
     root: input.root,
     deck: input.deck,
-    editTarget: input.editTarget,
     flow: input.flow,
   };
   if (!(await idbSet(bodyKey(id), body))) return null;

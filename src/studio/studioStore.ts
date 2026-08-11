@@ -13,7 +13,6 @@ import { GenStep, createGenLog, splitStatus } from "./genLog";
 import { generateSegment } from "./segmentGen";
 import { SPEAK_MOOD, speak, stopSpeaking } from "./speech";
 import { CRISIS_LINE, HELP_LINE, NPC_SYSTEM, chatFailLine, chatWindow, deskBlock } from "./npcPersona";
-import { getVideo, loadProject, partsOf } from "../data/videos";
 
 export interface DialogMsg {
   id: string;
@@ -187,68 +186,14 @@ function buildBranchTree(root: NodeSlot | null, videoByProposal?: Record<string,
   return hasFork ? { rootId, nodes, startChoices } : undefined;
 }
 
-// ── 已发布作品 → 工坊节点树重建 ─────────────────────────────
-// 首选 IndexedDB 里的源工程（发布时随手保存，含三方案与未选走向）；
-// 没有源工程（老作品/换设备）时从成片反推：能还原结构，还原不了未选的方案。
-
-function segToProposal(index: number, seg: VideoSegment): Proposal {
-  return {
-    id: uid("prop"),
-    title: seg.title || `第${index + 1}段`,
-    plot: seg.plot,
-    firstFrame: seg.firstFrame,
-    lastFrame: seg.lastFrame,
-    durationSec: seg.durationSec,
-    // ★ 成片地址必须带回来：这一段**已经花钱炼过了**（作品都发布了）。丢掉它的后果是
-    //   回炉编辑时每段都显示"没出片"——法阵点不亮、下一段的卡位也不亮，而且再走一遍
-    //   工作流会把整片重炼一次，用户为同样的画面付第二次钱。
-    ...(seg.videoUrl ? { videoUrl: seg.videoUrl } : {}),
-  };
-}
-
-/** 线性成片 → 单链节点树（每节点一个已选方案） */
-function slotFromSegments(segments: VideoSegment[]): NodeSlot | null {
-  let next: NodeSlot | null = null;
-  for (let i = segments.length - 1; i >= 0; i--) {
-    const p = segToProposal(i, segments[i]);
-    // 画幅从成片段读回：回炉重制时接着拍的段才不会横竖打架
-    const node: NodeSlot = {
-      id: uid("node"),
-      proposals: [p],
-      chosenId: p.id,
-      children: {},
-      videoTier: segments[i].videoTier,
-      aspect: segments[i].aspect,
-    };
-    if (next) node.children[p.id] = next;
-    next = node;
-  }
-  return next;
-}
-
-/** 互动分支树 → 节点树。BranchTree 是允许殊途同归的 DAG，而工坊模型是树——
- *  汇合节点会按路径展开成多份可独立编辑的拷贝（编辑后自然不再共享，符合直觉）。 */
-function slotFromBranchTree(tree: BranchTree, depthIndex = 0): NodeSlot | null {
-  const build = (ids: string[], depth: number, seen: Set<string>): NodeSlot | null => {
-    const proposals: Proposal[] = [];
-    const children: NodeSlot["children"] = {};
-    for (const bid of ids) {
-      const bn = tree.nodes[bid];
-      if (!bn || seen.has(bid)) continue; // 环兜底（正常数据不该有）
-      const p = segToProposal(depth, bn.segment);
-      proposals.push(p);
-      if (bn.choices.length > 0) {
-        const child = build(bn.choices.map((c) => c.nextId), depth + 1, new Set(seen).add(bid));
-        if (child) children[p.id] = child;
-      }
-    }
-    if (proposals.length === 0) return null;
-    // 同一层的各走向本来就是同一段的不同拍法，画幅取第一个能读到的即可
-    const aspect = ids.map((bid) => tree.nodes[bid]?.segment.aspect).find(Boolean);
-    return { id: uid("node"), proposals, chosenId: proposals[0].id, children, aspect };
-  };
-  return build(tree.startChoices?.map((c) => c.nextId) ?? [tree.rootId], depthIndex, new Set());
-}
+// ★ 这里原来有 segToProposal / slotFromSegments / slotFromBranchTree 三个助手：
+//   把【已发布作品的成片】反推回工坊的节点树，供回炉重制用。
+//   回炉功能已删（见下面那段注释），这三个也跟着一起拿掉。
+//   往工坊里铺内容只剩两条路：新开一摊，或者 openWorkDraft 打开一条草稿。
+//
+//   ⚠ 删掉的那一版里有两处别人后补的修正（成片 videoUrl 要带回来、画幅要从段里读），
+//     都只在回炉路径上生效。万一以后回炉重新做起来，别从头写——去 git 历史里捞
+//     （合并 origin/main 到本分支的那一次冲突解决，2026-08-11）。
 
 /**
  * 工作流的逐段流水线 → 工坊的节点树。
@@ -275,13 +220,13 @@ function rootFromFlowNodes(nodes: FlowNode[]): NodeSlot | null {
   return slots[0];
 }
 
-/** 回炉编辑的目标：composeNow 出的草稿将保存进该作品的该 P，而不是新建作品 */
-export interface EditTarget {
-  videoId: string;
-  partIndex: number;
-  videoTitle: string;
-  partName: string;
-}
+// ★ 这里原来有 EditTarget / startEditPart / startNewPart —— 「回炉编辑已发布作品」的一整套。
+//   2026-08 产品定案删掉：**作品一经发布就不能回炉**。
+//   删掉的理由不是嫌它复杂，是它在"已经有人看过/收藏过这条作品"之后仍然允许换掉成片，
+//   于是同一个链接下的内容会变，而观众那边没有任何提示。要改内容 = 重新发一条。
+//   服务端同步收窄：PATCH /api/branch/videos/:id 只收 title/category/description/visibility，
+//   片段与卡组一律 strip（docs/api-contract.md）。草稿不受影响 —— 那是**还没发布**的半成品，
+//   继续编辑天经地义，走的是 openWorkDraft 那条路。
 
 interface StudioState {
   deck: Card[];
@@ -459,15 +404,6 @@ interface StudioState {
   /** 这摊活已经发布成作品了：删掉对应草稿并断开关联 */
   retireWorkDraft: () => Promise<void>;
 
-  /** 非 null = 回炉编辑模式（工坊顶部亮横幅，发布页变"保存修改"） */
-  editTarget: EditTarget | null;
-  /** 重制已发布作品的某一 P：载入源工程（无则从成片重建）并进入编辑模式 */
-  startEditPart: (videoId: string, partIndex: number) => Promise<boolean>;
-  /** 为已发布作品新增一 P：空桌面开工，合成后追加到该作品 */
-  startNewPart: (videoId: string) => boolean;
-  /** 退出编辑模式（不动作品本身；桌面清空回到全新创作） */
-  exitEdit: () => void;
-
   // ── 返回栈 ────────────────────────────────────────────────
   /** 返回被拒绝之类的瞬时提示。★ 不用 npcSay：投影窗打开时 NpcDialog 整个
    *  `if (projection) return null`，铸卡师说了用户根本看不见。
@@ -521,8 +457,6 @@ let nodeGenInFlight = false;
  *   · eyeRise（双指升空俯瞰）不进栈：它是 scene/cameraOrbit 的模块级单例、非响应式，
  *     顶栏拿不到它做文案；而且同一个捏合手势就能降回来。塞进来会出现"屏幕上什么
  *     浮层都没有、按返回却像没反应"。它已随 camera.kind==="default" 自动复位。
- *   · editTarget（回炉编辑横幅）不进栈：那是**任务上下文**不是**视觉层**，横幅上
- *     自带「退出」。用户按返回是想离开工坊，不是想放弃编辑目标。
  */
 export type BackStep =
   | "avatar"
@@ -809,7 +743,6 @@ export const useStudio = create<StudioState>()((set, get) => ({
       segCount: s0.draft?.segments.length ?? 0,
       recentCards: s0.deck.slice(-3).map((c) => c.name),
       marketOpen: s0.market.open,
-      editing: !!s0.editTarget,
       lowBalance: (w?.plan ?? 0) + (w?.addon ?? 0) < CHAT_TURN_TOKENS * 10,
     };
     try {
@@ -1625,7 +1558,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
 
   saveWorkDraft: async (opts) => {
-    const { root, deck, editTarget, workDraftId } = get();
+    const { root, deck, workDraftId } = get();
     const f = useFlow.getState();
     // ★ 简约模式不进草稿库：它只有一段、写一句话就出片，一路直通剪辑与发布，中间没有
     //   "回来接着做"的状态。给它存草稿只会在个人页堆一串一次性半成品，而每条都带 1MB 级
@@ -1648,7 +1581,6 @@ export const useStudio = create<StudioState>()((set, get) => ({
       lastMode: opts?.from ?? (nodes.length > 0 ? "flow" : "studio"),
       root,
       deck,
-      editTarget,
       flow:
         nodes.length > 0
           ? { nodes, cursor: f.cursor, mode: f.mode, origin: f.origin, template: f.template, subject: f.subject }
@@ -1684,7 +1616,6 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set({
       root,
       deck: d.deck ?? [],
-      editTarget: (d.editTarget as EditTarget | null) ?? null,
       workDraftId: d.id,
       // 视图层一律回到干净状态：草稿存的是内容，不是"上次停在哪个浮层"
       draft: null,
@@ -1716,54 +1647,6 @@ export const useStudio = create<StudioState>()((set, get) => ({
       useFlow.getState().reset();
     }
   },
-
-  editTarget: null,
-  startEditPart: async (videoId, partIndex) => {
-    const video = getVideo(videoId);
-    if (!video) return false;
-    const part = partsOf(video)[partIndex];
-    if (!part) return false;
-    const saved = await loadProject(videoId, partIndex);
-    const root =
-      saved ?? (part.branchTree ? slotFromBranchTree(part.branchTree) : slotFromSegments(part.segments));
-    set({
-      root,
-      editTarget: { videoId: video.id, partIndex, videoTitle: video.title, partName: part.name },
-      draft: null,
-      focus: null,
-      projection: null,
-      editor: null,
-      spreadOpen: false,
-      camera: { kind: "default" },
-      orbit: null,
-    });
-    get().npcSay(
-      saved
-        ? `《${video.title}》${part.name} 的工程已经铺回桌面——原来的三方案和没选的走向都在。改完点合成，就会更新到作品里。`
-        : `没找到这部作品的源工程（可能是老作品或换了设备），我按成片把节点树还原出来了——每段只有当时选定的方案。改完点合成即可更新作品。`,
-    );
-    return true;
-  },
-  startNewPart: (videoId) => {
-    const video = getVideo(videoId);
-    if (!video) return false;
-    const n = partsOf(video).length;
-    set({
-      root: null,
-      editTarget: { videoId: video.id, partIndex: n, videoTitle: video.title, partName: `P${n + 1}` },
-      draft: null,
-      focus: null,
-      projection: null,
-      editor: null,
-      spreadOpen: false,
-      camera: { kind: "default" },
-      orbit: null,
-    });
-    get().npcSay(`来给《${video.title}》添第 ${n + 1} P。桌面已清空，从占位卡开始铸第一段吧。`);
-    return true;
-  },
-  exitEdit: () =>
-    set({ editTarget: null, root: null, draft: null, focus: null, projection: null, editor: null }),
 
   notice: null,
 

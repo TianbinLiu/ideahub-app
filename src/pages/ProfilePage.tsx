@@ -38,7 +38,10 @@ import {
   setAvatarImage,
   toggleFollow,
   walletOf,
+  type RechargeResult,
 } from "../data/account";
+import { fetchOrder, fetchPayConfig } from "../api/wallet";
+import { API_ON } from "../api/client";
 import { PLANS, RECHARGE_PACKS, fmtTokens } from "../data/economy";
 import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
@@ -434,9 +437,12 @@ export default function ProfilePage() {
                       已出片 {d.doneCount}/{d.segCount}
                     </div>
                   </div>
+                  {/* ★ 这里原来写的是「仅自己可见」——和已发布作品的可见性设置**是同一个词**，
+                      于是用户以为自己有一条设成私密的作品，跑去找哪儿能改（真事，2026-08-10）。
+                      草稿的"没人看得到"是它还没发布，不是一个可切换的选项，用词必须分开。 */}
                   <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/65 px-1 py-0.5 text-[9px] text-white">
                     <Icon name="lock" size={9} strokeWidth={2.5} />
-                    仅自己可见
+                    未发布
                   </span>
                 </button>
               ))}
@@ -622,11 +628,18 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
               <Icon name="play" size={12} filled />
               {formatPlays(v.plays)}
             </span>
-            {v.branchTree && (
+            {/* 私密作品要在墙上一眼认得出来：否则作者只会看到"这条怎么没人看"，
+                而它压根就没出现在任何人的首页里。改回公开在作品编辑页 */}
+            {v.visibility === "private" ? (
+              <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/70 px-1 py-0.5 text-[9px] text-white">
+                <Icon name="lock" size={9} strokeWidth={2.5} />
+                仅自己可见
+              </span>
+            ) : v.branchTree ? (
               <span className="absolute left-1 top-1 rounded bg-brand/90 px-1 py-0.5 text-[9px] font-semibold text-ink">
                 互动
               </span>
-            )}
+            ) : null}
             {paid && (
               <span className="absolute right-1 top-1 rounded bg-gold/90 px-1 py-0.5 text-[9px] font-bold text-ink">
                 付费
@@ -805,16 +818,112 @@ function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onClose: () => voi
   );
 }
 
-/** 钱包抽屉：余额 + 套餐订阅 + 直充包。演示环境模拟支付——点了立即到账。
+/** 钱包抽屉：余额 + 套餐订阅 + 直充包。
  *
  *  ★ 余额的权威值在服务端（2026-08 把钱包从 IndexedDB 搬过去了）。打开抽屉时主动拉一次：
  *    平时靠每个 /api/ark 响应头顺带同步就够了，但"换台设备充了值"这种情况没有响应头
- *    可搭便车，不主动拉就会一直显示旧数字。 */
+ *    可搭便车，不主动拉就会一直显示旧数字。
+ *
+ *  ★★ 买东西**不再是点一下就到账**。远端模式下按钮只负责下单，真正发币发生在
+ *    支付渠道回调服务端之后。而且现在一个渠道都没接，所以正常路径就是
+ *    「下单成功 + 没法付款」—— 这话必须原样说给用户，不能拿个 200 冒充充值成功。 */
 function WalletSheet({ onClose }: { onClose: () => void }) {
   useAccountVersion();
+  const [busy, setBusy] = useState(false);
+  const [order, setOrder] = useState<{ text: string; orderNo?: string; tone: "ok" | "warn" | "bad" } | null>(
+    null,
+  );
+  // 服务端有没有可用的支付渠道。null = 还没问到（离线模式问不到，按"能买"处理，
+  // 因为离线模式的加数是本地行为，本来就立即生效）
+  const [payable, setPayable] = useState<boolean | null>(null);
+  /** 正在盯的订单号（下完单就开始轮询，结算/失败/超时都会停） */
+  const [watching, setWatching] = useState<string | null>(null);
+
   useEffect(() => {
     void refreshRemoteWallet();
+    if (!API_ON) return;
+    void fetchPayConfig()
+      .then((c) => setPayable(c.payable))
+      .catch(() => setPayable(null)); // 问不到就不下结论，别误报成"不能买"
   }, []);
+
+  /**
+   * 盯着订单等结算。
+   *
+   * ★ 为什么必须有：付款发生在**别的地方**（渠道的收银台、甚至另一台设备），
+   *   回到 app 时没有任何东西会通知我们。不轮询的话余额要等到下次打开钱包
+   *   （或下一次 /api/ark 响应捎回 X-Wallet-* 头）才更新 —— 用户付完钱回来一看
+   *   余额没变，只会以为钱丢了。
+   * ★ 4 秒一次、最多 2 分钟：再久就不是"刚付完"而是异步补单了，那种情况下次进
+   *   钱包自然会看到。定时器在依赖变化和卸载时都清掉，抽屉关了不留后台轮询。
+   */
+  useEffect(() => {
+    if (!watching) return;
+    let stop = false;
+    let n = 0;
+    const timer = window.setInterval(() => {
+      if (stop) return;
+      n += 1;
+      if (n > 30) {
+        window.clearInterval(timer);
+        return;
+      }
+      void fetchOrder(watching)
+        .then(async (r) => {
+          if (stop) return;
+          if (r.order.status === "settled") {
+            window.clearInterval(timer);
+            setWatching(null);
+            await refreshRemoteWallet();
+            setOrder({ text: `已到账 ${fmtTokens(r.order.grantedTokens)} token`, tone: "ok" });
+          } else if (r.order.status === "failed" || r.order.status === "closed") {
+            window.clearInterval(timer);
+            setWatching(null);
+            setOrder({
+              text: r.order.status === "failed" ? "支付未成功，额度未到账" : "订单已关闭",
+              orderNo: r.order.orderNo,
+              tone: "bad",
+            });
+          }
+        })
+        .catch(() => {
+          /* 单次查单失败不结束轮询：网络抖一下不该让用户以为充值失败了 */
+        });
+    }, 4000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
+  }, [watching]);
+
+  /** 下单并把结果如实显示出来。到账了才刷新余额 */
+  async function submit(run: () => Promise<RechargeResult>) {
+    setBusy(true);
+    setOrder(null);
+    try {
+      const r = await run();
+      if (!r.ok) {
+        setOrder({ text: r.message, tone: "bad" });
+      } else if (r.credited) {
+        setOrder({ text: "已到账", tone: "ok" });
+      } else {
+        setOrder({
+          text: r.payable
+            ? `${r.message}。付款完成后额度会自动到账，这里的余额也会跟着更新。`
+            : "订单已创建，但本服务还没接入支付渠道，暂时无法完成付款——额度不会到账。",
+          orderNo: r.orderNo,
+          tone: r.payable ? "warn" : "bad",
+        });
+        if (r.payable === false) setPayable(false);
+        // 能付的才值得盯：一个渠道都没接时轮询到天荒地老也不会变
+        if (r.payable && r.orderNo) setWatching(r.orderNo);
+      }
+      await refreshRemoteWallet();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const wallet = walletOf();
   // 远端模式下镜像可能还在路上。★ 不能 return null —— 那会表现成"点了钱包没反应"，
   // 而用户完全没法区分"在加载"和"坏了"
@@ -844,7 +953,26 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      <div className="mb-1.5 text-xs font-semibold text-slate-300">订阅套餐（额度立即发放，演示模拟支付）</div>
+      {/* ★ 下单结果必须如实显示。远端模式下点这些按钮**只是下单**，钱一分没付、
+          余额一分没变；而且现在服务端一个支付渠道都没接，这单根本付不了。
+          原来这里写的是"额度立即发放，演示模拟支付"、点完就刷新余额 ——
+          接了真订单之后那句话就成了谎话（铁律八：宁可难看，不要骗人）。 */}
+      {order && (
+        <div
+          className={`mb-3 rounded-xl border px-3 py-2.5 text-[11px] leading-relaxed ${
+            order.tone === "warn"
+              ? "border-amber-400/40 bg-amber-500/10 text-amber-200"
+              : order.tone === "bad"
+                ? "border-rose-500/40 bg-rose-500/10 text-rose-200"
+                : "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
+          }`}
+        >
+          {order.text}
+          {order.orderNo && <div className="mt-1 font-mono text-[10px] opacity-70">订单号 {order.orderNo}</div>}
+        </div>
+      )}
+
+      <div className="mb-1.5 text-xs font-semibold text-slate-300">订阅套餐</div>
       <div className="mb-4 space-y-2">
         {PLANS.map((p) => {
           const current = wallet.planId === p.id;
@@ -860,8 +988,8 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
               <button
-                onClick={() => buyPlan(p.id)}
-                disabled={p.price === 0 && current}
+                onClick={() => void submit(() => buyPlan(p.id))}
+                disabled={busy || (p.price === 0 && current)}
                 className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
               >
                 {p.price === 0 ? (current ? "已领取" : "领取") : `¥${p.price}/月`}
@@ -876,15 +1004,20 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         {RECHARGE_PACKS.map((pk) => (
           <button
             key={pk.tokens}
-            onClick={() => rechargeAddon(pk.tokens)}
-            className="rounded-xl border border-slate-700/60 bg-panel p-3 text-center"
+            onClick={() => void submit(() => rechargeAddon(pk.tokens))}
+            disabled={busy}
+            className="rounded-xl border border-slate-700/60 bg-panel p-3 text-center disabled:opacity-50"
           >
             <div className="text-sm font-bold tabular-nums text-slate-100">{fmtTokens(pk.tokens)}</div>
             <div className="mt-0.5 text-[11px] text-gold">¥{pk.price}</div>
           </button>
         ))}
       </div>
-      <p className="mt-3 text-center text-[10px] text-slate-600">演示环境为模拟支付，点击即到账；正式环境将接入支付网关</p>
+      <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-600">
+        {payable === false
+          ? "本服务尚未接入支付渠道，下单后无法完成付款"
+          : "付款成功后额度自动到账；若长时间未到账请在订单里核对"}
+      </p>
     </Sheet>
   );
 }

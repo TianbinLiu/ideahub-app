@@ -152,16 +152,11 @@ export default function VideoPage() {
             <Icon name="back" size={20} />
           </Link>
           <span className="truncate text-sm text-slate-300">{video.title}</span>
-          {isMyAuthor(video.author) && video.merged ? (
-            // 合并发布的成片不可修改：只能用同款卡组回工坊重新生成
-            <Link
-              to="/studio"
-              title="合并发布的成片不可修改，可用同款卡组重新生成"
-              className="ml-auto flex-none rounded-full bg-slate-700/60 px-3 py-1.5 text-xs text-slate-300"
-            >
-              🔒 成片已定 · 用卡组再创作
-            </Link>
-          ) : isMyAuthor(video.author) ? (
+          {/* ★ 这里原来对「合并发布的成片」（video.merged）单独走一条"不可修改"的分支，
+              把作者挡在编辑页外面 —— 连改个标题、把作品设成仅自己可见都做不到。
+              现在**所有**作品的成片都不可修改（发布即定稿），编辑页本身就只改壳，
+              这个特例没有存在意义了，一视同仁给编辑入口。 */}
+          {isMyAuthor(video.author) ? (
             <Link
               to={`/edit/${video.id}`}
               className="ml-auto flex-none rounded-full bg-amber-500/15 px-3 py-1.5 text-xs text-amber-300"

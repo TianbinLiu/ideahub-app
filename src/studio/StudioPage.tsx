@@ -204,7 +204,6 @@ function AutoQualityHint({ q }: { q: Quality }) {
 
 export default function StudioPage() {
   const navigate = useNavigate();
-  const editTarget = useStudio((s) => s.editTarget);
   const initGreet = useStudio((s) => s.initGreet);
   const spreadOpen = useStudio((s) => s.spreadOpen);
   const deckLen = useStudio((s) => s.deck.length);
@@ -320,20 +319,6 @@ export default function StudioPage() {
         </div>
       </div>
 
-      {/* 回炉编辑横幅：不亮出来的话，用户忘了自己在编辑模式，合成时会疑惑为什么没有新作品 */}
-      {editTarget && (
-        <div className="safe-top pointer-events-none absolute inset-x-0 top-[4.5rem] flex justify-center px-4">
-          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-500/15 px-3.5 py-1.5 text-xs text-amber-200 backdrop-blur">
-            <span className="truncate">🛠 正在编辑《{editTarget.videoTitle}》· {editTarget.partName}——生成后保存到该作品</span>
-            <button
-              onClick={() => useStudio.getState().exitEdit()}
-              className="flex-none rounded-full bg-black/30 px-2 py-0.5 text-amber-100 hover:bg-black/50"
-            >
-              退出
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* 提示条（NPC 气泡栏上方） */}
       <div className="pointer-events-none absolute inset-x-0 bottom-16 flex justify-center px-4">
