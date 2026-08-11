@@ -355,6 +355,16 @@ export interface VideoItem {
   authorAvatar?: string;
   plays: number;
   likes: number;
+  /**
+   * 服务端算的**评论总数**。
+   *
+   * ★★ 不能拿 `comments.length` 当评论数：列表接口**根本不返回 comments**
+   *   （只有详情接口返回，且只有前 50 条）。首页那一栏原来读的就是它 ——
+   *   于是**凡是你没点进去过的作品，评论数一律显示 0**，哪怕底下有几十条。
+   *   真机上就是这么发现的：服务端 commentCount=1，首页显示 0。
+   * ★ 缺省（老服务端不返回）时调用方退回 comments.length，别写死 0。
+   */
+  commentCount?: number;
   /** 收藏数。可选：接服务端的作品可能没有这个计数，缺失时 UI 不显示数字 */
   saves?: number;
   /** 分享数。同上 */

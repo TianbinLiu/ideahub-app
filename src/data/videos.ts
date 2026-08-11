@@ -935,6 +935,9 @@ export async function addReply(
 
   // 回复插在列表最后（评论区按「顶层倒序、楼中楼正序」渲染），顶层插在最前
   v.comments = cmt.parentId ? [...v.comments, cmt] : [cmt, ...v.comments];
+  // ★ 计数跟着动：它是**服务端的总数**，不是这几条的长度（见 commentCountOf）。
+  //   不同步的话，刚发完一条，首页那一栏还是旧数字，要等下次拉列表才对得上。
+  if (typeof v.commentCount === "number") v.commentCount += 1;
   save(all());
   emitVideos();
   return { comment: cmt, droppedMentions };
@@ -995,7 +998,13 @@ export async function removeComment(videoId: string, commentId: string): Promise
     if (!landed) throw new Error("这台服务器还不支持删除评论（需要升级服务端）");
   }
 
+  const before = v.comments.length;
   v.comments = v.comments.filter((c) => c.id !== commentId && c.parentId !== commentId);
+  // ★ 删一条顶层评论会连带删掉它的回复，所以减的是**实际少了几条**，不是 1。
+  //   夹一个 0 下限：本地只有前 50 条，真实总数可能更大，但绝不能减成负数。
+  if (typeof v.commentCount === "number") {
+    v.commentCount = Math.max(0, v.commentCount - (before - v.comments.length));
+  }
   save(all());
   emitVideos();
 }
@@ -1142,9 +1151,20 @@ function toVideoItem(v: branch.ApiVideo): VideoItem {
     authorAvatar: branch.authorAvatar(v.author) ?? undefined,
     plays: v.plays ?? 0,
     likes: v.likes ?? 0,
+    // ★ 列表接口不带 comments、只带 commentCount —— 不接这个字段的话，
+    //   首页那一栏对**没点进去过的作品**永远显示 0（见 VideoItem.commentCount）
+    commentCount: typeof v.commentCount === "number" ? v.commentCount : undefined,
     createdAt: toMs(v.createdAt),
     comments: Array.isArray(v.comments) ? v.comments.map(toComment) : [],
   };
+}
+
+/**
+ * 这条作品有多少评论。**唯一实现** —— 首页右栏、评论抽屉标题都走它。
+ * 服务端算的那个数优先；老服务端不返回时才退回"已经拉下来的这几条"。
+ */
+export function commentCountOf(v: VideoItem): number {
+  return typeof v.commentCount === "number" ? v.commentCount : v.comments.length;
 }
 
 async function readyRemote(): Promise<boolean> {
@@ -1291,6 +1311,23 @@ export async function fetchAuthorWorks(userId: string, limit = 30): Promise<Auth
   }
 }
 
+/**
+ * 确保这条作品的评论已经拉下来（首页的评论抽屉用）。
+ *
+ * ★★ 这是在修一个真 bug：**列表接口不返回 comments**，只有详情接口返回。
+ *   而 `loadDetail` 只有 `getVideo()`（详情页）会触发 —— 首页的评论抽屉直接读
+ *   `video.comments`，于是**凡是没点进过详情页的作品，点开评论永远是"还没有评论，
+ *   抢个沙发"**，哪怕底下真有几十条。真机上抓到的：服务端 commentCount=1、
+ *   详情接口也确实返回了那条，首页抽屉里却是空的。
+ * ★ 复用 loadDetail（内部按 `detailed` 去重），不另开一条取详情的路（铁律六）。
+ *   拿到之后它会 emitVideos，订阅了 videosVersion 的抽屉自己会重渲染。
+ */
+export function ensureComments(videoId: string): void {
+  if (!remoteOn()) return; // 离线模式评论就在本地库里，没什么可等的
+  const hit = find(videoId);
+  if (hit) void loadDetail(hit);
+}
+
 async function loadDetail(item: VideoItem): Promise<void> {
   const id = realId(item.id);
   if (detailed.has(id) || id.startsWith("v_")) return; // v_* = 还没落地的本地临时 id
@@ -1306,6 +1343,7 @@ async function loadDetail(item: VideoItem): Promise<void> {
     if (Array.isArray(v.parts) && v.parts.length > 0) item.parts = v.parts;
     if (v.deck?.cards?.length) item.deck = v.deck;
     if (Array.isArray(v.comments)) item.comments = v.comments.map(toComment);
+    if (typeof v.commentCount === "number") item.commentCount = v.commentCount;
     if (v.liked) likedIds.add(id);
     emitVideos();
   } catch (e) {

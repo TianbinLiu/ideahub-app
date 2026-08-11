@@ -10,6 +10,7 @@ import {
   PLAY_MIN_SEC,
   addPlay,
   authorAvatarOf,
+  commentCountOf,
   hasCountedPlay,
   isLiked,
   isMyAuthor,
@@ -641,7 +642,9 @@ function FeedItem({
           />
           <RailBtn icon="heart" filled={liked} tint="text-rose-500" label={String(likes)} perch="like" onClick={toggleLike} />
           {/* 评论就地滑出抽屉（对标短视频 App），不跳详情页打断刷视频的节奏 */}
-          <RailBtn icon="comment" label={String(video.comments.length)} onClick={() => setCmtOpen(true)} />
+          {/* ★ 走 commentCountOf，不读 comments.length：列表接口不返回 comments，
+              直接读长度的话，没点进去过的作品评论数永远是 0（真机上抓到的） */}
+          <RailBtn icon="comment" label={String(commentCountOf(video))} onClick={() => setCmtOpen(true)} />
           <RailBtn
             icon="bookmark"
             filled={saved}
