@@ -20,7 +20,7 @@
 //   补进内存 cache，与 videos.ts 的 loadDetail 是同一招。
 import { idbGet, idbSet } from "./db";
 import { currentUser } from "./account";
-import { readyVideos, remoteOn } from "./videos";
+import { readyVideos, realId, remoteOn } from "./videos";
 import * as branch from "../api/branch";
 import { uid } from "../types";
 
@@ -56,8 +56,20 @@ export const DANMAKU_COLORS = ["#ffffff", "#ff6b81", "#ffd166", "#4ade80", "#38b
 let store: Record<string, DanmakuItem[]> = {};
 let version = 0;
 const subs = new Set<() => void>();
-/** 远端模式：已经拉过（或正在拉）的作品，避免每一拍都打一次请求 */
-const fetched = new Set<string>();
+/**
+ * 远端模式：作品 id → 上一次开拉的时刻。避免每一拍都打一次请求。
+ *
+ * ★★ 原来这是个**永久** Set：一条作品的弹幕整个会话只拉一次，之后再也不拉。
+ *   于是"在你发送之前就已经打开这条作品的人，永远看不到你这条" —— 用户报的
+ *   "别人也看不到"就是它。弹幕的意思是"见证当下"，一次性快照配不上这个语义。
+ * ★ 改成带 TTL 的 Map。**前提是 loadRemote 改成按 id 归并**（见下）：
+ *   还按整段替换的话，多拉几次只会把"刚发出去还没被服务端列表带回来的那条"
+ *   多冲掉几次，等于把丢弹幕的概率放大 N 倍。
+ */
+const fetchedAt = new Map<string, number>();
+/** 隔多久允许再拉一次。首页是上下甩着刷的，一次划动会掠过好几条作品，
+ *  取小了就是一串没意义的请求；30s 是"隔一会儿回来能看到新弹幕"的下限 */
+const REFETCH_MS = 30_000;
 /** 服务端说"这条作品的弹幕被截断了" —— 要让用户知道，别假装就这么多 */
 const truncatedIds = new Set<string>();
 
@@ -149,29 +161,52 @@ export async function readyDanmaku(): Promise<void> {
  *   渲染层订阅了 danmakuVersion，会自己把新到的放出来。
  */
 export function danmakuOf(videoId: string): DanmakuItem[] {
-  if (remoteOn() && !fetched.has(videoId)) void loadRemote(videoId);
-  return store[videoId] ?? [];
+  const rid = realId(videoId);
+  if (remoteOn()) {
+    const last = fetchedAt.get(rid);
+    if (last === undefined || Date.now() - last > REFETCH_MS) void loadRemote(rid);
+  }
+  return store[rid] ?? [];
 }
 
 /** 服务端截断过这条作品的弹幕吗（UI 要如实说明） */
 export function isTruncated(videoId: string): boolean {
-  return truncatedIds.has(videoId);
+  return truncatedIds.has(realId(videoId));
 }
 
-async function loadRemote(videoId: string): Promise<void> {
-  if (fetched.has(videoId)) return;
-  fetched.add(videoId);
+async function loadRemote(rid: string): Promise<void> {
+  const last = fetchedAt.get(rid);
+  if (last !== undefined && Date.now() - last <= REFETCH_MS) return;
+  fetchedAt.set(rid, Date.now());
   // 本地临时 id（还没落库的作品）问服务端没有意义，只会得到一串 400
-  if (videoId.startsWith("v_") || videoId.startsWith("seedv_")) return;
+  if (rid.startsWith("v_") || rid.startsWith("seedv_")) return;
   try {
-    const page = await branch.listDanmaku(videoId);
-    store = { ...store, [videoId]: page.items.map(fromApi) };
-    if (page.truncated) truncatedIds.add(videoId);
+    const page = await branch.listDanmaku(rid);
+    store = { ...store, [rid]: merge(store[rid], page.items.map(fromApi)) };
+    if (page.truncated) truncatedIds.add(rid);
     emit();
   } catch (e) {
-    fetched.delete(videoId); // 失败允许下次重试（划走再划回来就会再问一次）
+    fetchedAt.delete(rid); // 失败允许下次重试（划走再划回来就会再问一次）
     console.warn("[danmaku] 拉取失败:", e instanceof Error ? e.message : e);
   }
+}
+
+/**
+ * 把远端那一页并进本地已有的那份，**按 id 去重**，不是整段替换。
+ *
+ * ★★ 原来这里是 `store[videoId] = page.items.map(fromApi)` —— 整段替换。
+ *   于是只要一次 GET 还在路上、而用户此时发出一条并且 POST 先回来，
+ *   后到的 GET 就会把刚发的那条从内存里**抹掉**（那一页是发送之前的快照）。
+ *   这不是纯理论竞态：DanmakuInput 在按下发送的同一拍里会 setDanmakuOn(true)，
+ *   弹幕显示原本关着时，正是这一下才让 DanmakuLayer 第一次挂载并触发首次 GET，
+ *   于是 GET 与 POST 同一拍发出，谁先回是掷硬币。
+ *   归并之后谁先回都不会丢，也就不必再去猜时序。
+ * ★ 远端那份是权威：同 id 以远端为准（比如服务端把颜色归一了）。
+ */
+function merge(local: DanmakuItem[] | undefined, remote: DanmakuItem[]): DanmakuItem[] {
+  const byId = new Map(remote.map((d) => [d.id, d]));
+  for (const d of local ?? []) if (!byId.has(d.id)) byId.set(d.id, d);
+  return [...byId.values()].sort((a, b) => a.at - b.at);
 }
 
 function fromApi(d: branch.ApiDanmaku): DanmakuItem {
@@ -208,11 +243,17 @@ export async function sendDanmaku(
   if (!body) return null;
   // 颜色只发/存"不是默认色"的那些：默认白由渲染层兜底，存一堆 #ffffff 纯占地方
   const tint = color && color !== DANMAKU_COLORS[0] ? color : undefined;
-  const second = Math.max(0, Math.round(at * 100) / 100); // 服务端收 number，两位小数够用
+  // ★ floor 不是 round：round 会**向上**越界（17.236 → 17.24），而渲染层判的是
+  //   `d.at <= 当前播放位置`。暂停着发的时候播放位置不再前进，越界那 0.004 秒
+  //   就足以让自己刚发的这条被判成"还没到"，屏幕上什么都不出现。
+  const second = Math.max(0, Math.floor(at * 100) / 100); // 服务端收 number，两位小数够用
+
+  // ★ 刚发布还没落库的作品在 cache 里是本地临时 id（v_*），拿它去 POST 会吃 400
+  const rid = realId(videoId);
 
   let item: DanmakuItem;
   if (remoteOn()) {
-    const remote = await branch.addDanmaku(videoId, { at: second, text: body, color: tint });
+    const remote = await branch.addDanmaku(rid, { at: second, text: body, color: tint });
     if (!remote) throw new Error("发送失败，请重试");
     item = fromApi(remote);
     item.mine = true; // 自己刚发的，服务端也会这么标；这里钉一下免得回包缺字段
@@ -220,8 +261,8 @@ export async function sendDanmaku(
     item = { id: uid("dm"), at: second, text: body, color: tint, mine: true, createdAt: Date.now() };
   }
 
-  const list = [...(store[videoId] ?? []), item].sort((a, b) => a.at - b.at);
-  store = { ...store, [videoId]: list };
+  const list = [...(store[rid] ?? []), item].sort((a, b) => a.at - b.at);
+  store = { ...store, [rid]: list };
   if (!remoteOn()) void idbSet(KEY, store); // 远端那份不落本地盘：服务端才是权威
   emit();
   return item;

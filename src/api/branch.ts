@@ -16,11 +16,40 @@ export interface ApiAuthor {
   avatarUrl?: string;
 }
 
+/**
+ * 评论正文里**真的解析到人**的一个 @提及。
+ *
+ * ★★ 服务端只回**解析成功**的那些：`@张三` 打错了、那个人不存在，就不在这张表里。
+ *   客户端据此只把命中的那几个渲染成链接，没命中的原样留成灰字 —— 这是**故意**的
+ *   反静默失败设计（铁律八）：用户一眼就能看出自己那一 @ 到底有没有落地。
+ *   所以客户端**绝不能**自己拿正则再扫一遍正文去补链接 —— 那等于把服务端没认出来的
+ *   人也画成链接，用户以为通知发出去了，实际没有。
+ * ★ 令牌是 **@username** 不是 @displayName：`username` 唯一且不可改，`displayName`
+ *   可空、不唯一、随时能改（renameMyVideos 那个坑就是身份挂在会变的字段上导致的）。
+ */
+export interface ApiCommentMention {
+  /** 正文里出现的原始令牌（可能带 @，也可能只有裸 username，调用方两种都要认） */
+  token?: string;
+  /** 被提及者的用户 id */
+  userId: string;
+  username: string;
+  /** 展示名；老服务端/没设过的人会缺，UI 退回 username */
+  displayName?: string;
+}
+
 export interface ApiComment {
   _id: string;
   author: ApiAuthor | string;
   text: string;
   createdAt: string | number;
+  /** 被回复的顶层评论 id；顶层评论为 null。★ 后加的，老服务端不返回（undefined） */
+  parentId?: string | null;
+  /** 这条评论的赞数 / 我赞过没有。同样是后加的，读到 undefined 按 0 / false 处理 */
+  likes?: number;
+  liked?: boolean;
+  /** 解析成功的 @提及。★ 后加的：老服务端不返回（undefined）——按「这条没有提及」
+   *  处理即可，正文照旧是纯文本，不能因为缺字段就抛错（铁律七：要能对着老服务端降级） */
+  mentions?: ApiCommentMention[];
 }
 
 export interface ApiVideo {
@@ -49,6 +78,21 @@ export interface ApiVideo {
   updatedAt?: string | number;
 }
 
+/**
+ * 一个实体（卡片/卡组）的**全局**互动计数与热度，由服务端算。
+ * 未升级的服务端不会带这个字段 —— 调用方一律判 undefined 后退回本地计数（铁律：向下兼容）。
+ */
+export interface ApiAssetStats {
+  views: number;
+  likes: number;
+  bookmarks: number;
+  /** 服务端 utils/hotScore.js 算出来的分，客户端不重算（重算必然分叉） */
+  heat: number;
+  /** 我赞过没有 / 我收藏过没有（未登录恒 false） */
+  liked?: boolean;
+  bookmarked?: boolean;
+}
+
 export interface ApiCard {
   _id?: string;
   /** 客户端生成的稳定 id（市场卡为 mkt_*），与本地 Card.id 一一对应 */
@@ -57,9 +101,29 @@ export interface ApiCard {
   name: string;
   summary: string;
   cover: string;
+  /** ⚠ 客户端发上去的种子值，**不是**热度。真热度看 stats.heat */
   hot?: number;
   tags?: string[];
+  /** 3D 建模指针（可能是设备本地的 idb:*，分享/安装时服务端会剥掉） */
+  modelUrl?: string;
+  /** 生成蓝图 */
+  genPrompt?: string;
+  /** 已分享到创意工坊 */
+  published?: boolean;
+  publishedAt?: string | number;
+  /** 分享时写的一句话推荐 */
+  description?: string;
+  stats?: ApiAssetStats;
   createdAt?: string | number;
+}
+
+/** 广场里的一条分享卡片 */
+export interface ApiSharedCard extends ApiCard {
+  author?: ApiAuthor;
+  /** 我库里已经有这张了 */
+  installed?: boolean;
+  /** 是不是我自己发的 */
+  isOwner?: boolean;
 }
 
 export interface ApiDeck {
@@ -70,11 +134,13 @@ export interface ApiDeck {
   coverCardId?: string;
   /** 是否已分享到创意工坊 */
   published?: boolean;
+  /** 卡组简介，对应本地 Deck.intro（广场那行显示的就是它） */
   description?: string;
   /** 被别人装了多少次 */
   installs?: number;
   /** 装来的卡组记住来源 */
   sourceDeck?: string;
+  stats?: ApiAssetStats;
   createdAt: string | number;
   updatedAt?: string | number;
 }
@@ -89,6 +155,7 @@ export interface ApiSharedDeck {
   types: string[];
   installs: number;
   author?: ApiAuthor;
+  stats?: ApiAssetStats;
   publishedAt?: string | number;
   /** 我是不是已经装过了 */
   installed?: boolean;
@@ -106,11 +173,29 @@ export interface ListVideosParams {
   q?: string;
   cursor?: string;
   limit?: number;
+  /**
+   * 只要这个作者的作品（值是 **userId**，不是作者名）。
+   *
+   * ★★ 这是**后加**的筛选条件，老服务端的 zod `listQuery` 会把它 **strip 掉然后照常
+   *   返回推荐流** —— 不是报错、不是空表，而是"一批别人的作品"。所以调用方**必须**
+   *   自己再按 authorId 过一遍，并据此判断服务端到底认没认这个参数
+   *   （见 data/videos.fetchAuthorWorks）。只发不验的话，别人的主页上会摆着一堆
+   *   根本不是他发的作品，而且一个错都不报。
+   */
+  author?: string;
 }
 
 export interface ListVideosResult {
   items: ApiVideo[];
   nextCursor: string | null;
+  /**
+   * 服务端**真正生效了的** author 过滤（没按作者筛时不带这个键）。
+   *
+   * ★ 这是能力探针：老服务端不认 `author` 参数，zod 把它 strip 掉之后**照常返回
+   *   推荐流**，光看内容分不出「筛过、这人没作品」和「没筛、这页恰好空」。
+   *   判这个键在不在（形状），不判状态码 —— Capacitor 那边状态码恒 200。
+   */
+  author?: string;
 }
 
 // ── 作者名 ↔ userId 登记处 ────────────────────────────────
@@ -127,6 +212,11 @@ export function authorIdOf(name: string): string | null {
   return authorIdByName.get(name) ?? null;
 }
 
+/** 换账号时清空。这张表是追加式的，留着上一个账号那批条目会让 toggleFollow 反查到别人 */
+export function forgetAuthors(): void {
+  authorIdByName.clear();
+}
+
 /** author 字段 → 展示名（populate 过取 displayName/username，没 populate 只能回退成 id） */
 export function authorName(author: ApiAuthor | string | undefined): string {
   if (!author) return "匿名";
@@ -141,6 +231,12 @@ export function authorId(author: ApiAuthor | string | undefined): string | null 
   if (!author) return null;
   if (typeof author === "string") return author;
   return author._id || null;
+}
+
+/** author 字段 → 头像 URL（没 populate / 没设过头像时返回 null，由 UI 退回字母底） */
+export function authorAvatar(author: ApiAuthor | string | undefined): string | null {
+  if (!author || typeof author === "string") return null;
+  return author.avatarUrl || null;
 }
 
 // ── 响应取值：字段名以契约为准，对常见别名做兜底 ──────────
@@ -174,11 +270,13 @@ export async function listVideos(params: ListVideosParams = {}): Promise<ListVid
       q: params.q,
       cursor: params.cursor,
       limit: params.limit,
+      author: params.author,
     },
   });
   return {
     items: pickList<ApiVideo>(res, ["items", "videos", "data"]),
     nextCursor: pick<string>(res, ["nextCursor"]) ?? null,
+    author: pick<string>(res, ["author"]) ?? undefined,
   };
 }
 
@@ -251,12 +349,39 @@ export async function listComments(id: string): Promise<ApiComment[]> {
   return pickList<ApiComment>(res, ["comments", "items", "data"]);
 }
 
-/** POST /api/branch/videos/:id/comments（requireAuth） */
-export async function addComment(id: string, text: string): Promise<ApiComment | null> {
-  const res = await apiPost<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}/comments`, {
-    text,
-  });
+/**
+ * POST /api/branch/videos/:id/comments（requireAuth）
+ *
+ * @param parentId 有值 = 这是一条回复。**必须是服务端 id**：本地乐观 id（`cmt_*`）
+ *   会被服务端的 zod `length(24)` / isValidId 判否，整条评论 400 发不出去。
+ *   门禁在 data/videos.ts 的 addReply 一处（铁律六）。
+ * ★ 老服务端会把 parentId strip 掉，于是回复落成顶层评论 —— 这是**能接受**的降级
+ *   （内容还在、位置不对），比整条发不出去好。
+ */
+export async function addComment(id: string, text: string, parentId?: string): Promise<ApiComment | null> {
+  const res = await apiPost<Record<string, unknown>>(
+    `/api/branch/videos/${encodeURIComponent(id)}/comments`,
+    parentId ? { text, parentId } : { text },
+  );
   return pick<ApiComment>(res, ["comment", "item", "data"]);
+}
+
+export interface CommentLikeResult {
+  likes: number | null;
+  liked: boolean;
+}
+
+/** POST / DELETE /api/branch/videos/:id/comments/:commentId/like（requireAuth） */
+export async function setCommentLike(
+  videoId: string,
+  commentId: string,
+  on: boolean,
+): Promise<CommentLikeResult> {
+  const path = `/api/branch/videos/${encodeURIComponent(videoId)}/comments/${encodeURIComponent(commentId)}/like`;
+  const res = on ? await apiPost<Record<string, unknown>>(path) : await apiDelete<Record<string, unknown>>(path);
+  const likes = pick<number>(res, ["likes"]);
+  const liked = pick<boolean>(res, ["liked"]);
+  return { likes: typeof likes === "number" ? likes : null, liked: typeof liked === "boolean" ? liked : on };
 }
 
 // ── 弹幕 ─────────────────────────────────────────────────
@@ -318,6 +443,12 @@ export async function addCards(cards: Card[]): Promise<ApiCard[]> {
     cover: c.cover,
     hot: c.hot,
     tags: c.tags,
+    // ★ 这两个 2026-08-11 之前漏在这里（以及 zod schema、模型、快照里），
+    //   于是卡片详情页当卖点展示的「3D 全息」与「生成蓝图」换台设备登录就没了，
+    //   而且全程不报错。modelUrl 这里原样上传（本地指针也传）——它是**我自己**
+    //   那份记录的一部分；发布给别人时由服务端 shareableModelUrl 剥掉。
+    modelUrl: c.modelUrl,
+    genPrompt: c.genPrompt,
   }));
   const res = await apiPost<Record<string, unknown>>(
     "/api/branch/cards",
@@ -346,10 +477,10 @@ export async function createDeck(name: string, cardIds: string[] = []): Promise<
   return pick<ApiDeck>(res, ["deck", "item", "data"]);
 }
 
-/** PATCH /api/branch/decks/:id（requireAuth） */
+/** PATCH /api/branch/decks/:id（requireAuth）。description = 本地的 Deck.intro */
 export async function updateDeck(
   id: string,
-  patch: { name?: string; cardIds?: string[]; coverCardId?: string }
+  patch: { name?: string; cardIds?: string[]; coverCardId?: string; description?: string }
 ): Promise<ApiDeck | null> {
   const res = await apiPatch<Record<string, unknown>>(`/api/branch/decks/${encodeURIComponent(id)}`, patch);
   return pick<ApiDeck>(res, ["deck", "item", "data"]);
@@ -362,11 +493,15 @@ export async function deleteDeck(id: string): Promise<void> {
 
 // ── 卡组分享到创意工坊 ────────────────────────────────────
 
-/** POST /api/branch/decks/:id/publish（requireAuth）——发布时服务端会快照卡片内容 */
-export async function publishDeck(id: string, description = ""): Promise<ApiDeck | null> {
+/**
+ * POST /api/branch/decks/:id/publish（requireAuth）——发布时服务端会快照卡片内容。
+ * ★ description 省略时**不发这个键**：服务端只在字段真的给了的时候才覆盖，
+ *   发一个空串等于把用户在卡组详情页写好的简介一键清空（而且不报错）。
+ */
+export async function publishDeck(id: string, description?: string): Promise<ApiDeck | null> {
   const res = await apiPost<Record<string, unknown>>(
     `/api/branch/decks/${encodeURIComponent(id)}/publish`,
-    { description }
+    description === undefined ? {} : { description }
   );
   return pick<ApiDeck>(res, ["deck", "item", "data"]);
 }
@@ -390,6 +525,93 @@ export async function installDeck(id: string): Promise<{ deck: ApiDeck | null; c
     deck: pick<ApiDeck>(res, ["deck", "item", "data"]),
     cards: pickList<ApiCard>(res, ["cards", "items"]),
   };
+}
+
+// ── 卡片分享到创意工坊 ────────────────────────────────────
+// 与卡组那套同语义，但没有快照：一张卡就是它自己，别人装走时按 { owner, cardId } 复制。
+
+/** POST /api/branch/cards/:cardId/publish（requireAuth，仅卡主）。
+ *  服务端会拒绝挂着第三方版权模型的卡（400），并剥掉 idb: 这类设备本地指针 */
+export async function publishCard(cardId: string, description?: string): Promise<ApiCard | null> {
+  const res = await apiPost<Record<string, unknown>>(
+    `/api/branch/cards/${encodeURIComponent(cardId)}/publish`,
+    description === undefined ? {} : { description }
+  );
+  return pick<ApiCard>(res, ["card", "item", "data"]);
+}
+
+/** DELETE /api/branch/cards/:cardId/publish（requireAuth） */
+export async function unpublishCard(cardId: string): Promise<ApiCard | null> {
+  const res = await apiDelete<Record<string, unknown>>(
+    `/api/branch/cards/${encodeURIComponent(cardId)}/publish`
+  );
+  return pick<ApiCard>(res, ["card", "item", "data"]);
+}
+
+/** GET /api/branch/cards/shared（optionalAuth）——卡片广场，不登录也能逛 */
+export async function listSharedCards(q = "", limit = 20): Promise<ApiSharedCard[]> {
+  const res = await apiGet<Record<string, unknown>>("/api/branch/cards/shared", { query: { q, limit } });
+  return pickList<ApiSharedCard>(res, ["cards", "items", "data"]);
+}
+
+/** POST /api/branch/cards/:cardId/install（requireAuth，幂等） */
+export async function installCard(cardId: string): Promise<ApiCard | null> {
+  const res = await apiPost<Record<string, unknown>>(`/api/branch/cards/${encodeURIComponent(cardId)}/install`);
+  return pick<ApiCard>(res, ["card", "item", "data"]);
+}
+
+// ── 卡片/卡组的互动与热度 ─────────────────────────────────
+// key：卡片是 cardId（客户端稳定 id），卡组是服务端 _id。见 server 仓 BranchAssetStat 的说明。
+
+export type AssetKind = "card" | "deck";
+
+/**
+ * 从响应里取 stats。
+ * ★★ 取不到就返回 null，**绝不编一个 0 出来**：老服务端没有这些端点，而 Capacitor 的
+ *   本地静态服务器对未命中路径回的是 **200 + index.html**（不是 404），`res.ok` 恒真。
+ *   靠状态码判"这台服务器有没有这个能力"必然误判，只能看"回来的东西里有没有这个形状"。
+ */
+function pickStats(res: unknown): ApiAssetStats | null {
+  const raw = pick<Record<string, unknown>>(res, ["stats", "data"]);
+  if (!raw || typeof raw !== "object") return null;
+  const heat = raw.heat;
+  const views = raw.views;
+  if (typeof heat !== "number" || typeof views !== "number") return null;
+  return raw as unknown as ApiAssetStats;
+}
+
+function assetPath(kind: AssetKind, key: string, tail: string): string {
+  return `/api/branch/assets/${kind}/${encodeURIComponent(key)}/${tail}`;
+}
+
+/** GET /api/branch/assets/:kind/:key/stats（optionalAuth） */
+export async function getAssetStats(kind: AssetKind, key: string): Promise<ApiAssetStats | null> {
+  return pickStats(await apiGet<Record<string, unknown>>(assetPath(kind, key, "stats")));
+}
+
+/** POST /api/branch/assets/:kind/:key/view（optionalAuth，服务端限流 60/分钟） */
+export async function addAssetView(kind: AssetKind, key: string): Promise<ApiAssetStats | null> {
+  return pickStats(await apiPost<Record<string, unknown>>(assetPath(kind, key, "view")));
+}
+
+/** POST / DELETE /api/branch/assets/:kind/:key/like（requireAuth） */
+export async function setAssetLike(kind: AssetKind, key: string, on: boolean): Promise<ApiAssetStats | null> {
+  const path = assetPath(kind, key, "like");
+  return pickStats(
+    on ? await apiPost<Record<string, unknown>>(path) : await apiDelete<Record<string, unknown>>(path)
+  );
+}
+
+/** POST / DELETE /api/branch/assets/:kind/:key/bookmark（requireAuth） */
+export async function setAssetBookmark(
+  kind: AssetKind,
+  key: string,
+  on: boolean
+): Promise<ApiAssetStats | null> {
+  const path = assetPath(kind, key, "bookmark");
+  return pickStats(
+    on ? await apiPost<Record<string, unknown>>(path) : await apiDelete<Record<string, unknown>>(path)
+  );
 }
 
 // ── 关注（沿用既有 /api/users，契约明确不新建端点）────────

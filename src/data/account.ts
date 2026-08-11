@@ -187,6 +187,18 @@ export function isLoggedIn(): boolean {
   return !!currentUser();
 }
 
+/**
+ * 账号**名** → 账号 id。给 data/social.ts 的历史数据迁移用（它以前按名字记点赞）。
+ * ★ 只查本机装载着的用户：离线模式下那就是全部账号；远端模式下只有当前登录这一个
+ *   （其余人的名字本来也不该出现在这台设备的互动记录里）。查不到返回 null，
+ *   调用方保留原值 —— 迁移宁可留一条匹配不上的旧记录，也不能把用户的赞抹掉。
+ */
+export function userIdOfName(name: string): string | null {
+  const n = String(name || "").trim();
+  if (!n || !db) return null;
+  return db.users.find((u) => u.name === n || u.account === n)?.id ?? null;
+}
+
 const AVATARS = ["🦊", "🐺", "🐱", "🦉", "🐙", "🦋", "🌙", "⭐", "🔮", "🎴"];
 
 /**
@@ -710,10 +722,63 @@ export async function shareDeck(deckId: string, on: boolean): Promise<void> {
   const id = await resolveDeckId(d.id);
   if (!id) throw new Error("卡组还没同步到服务器，请稍后再试");
 
-  const remote = on ? await branch.publishDeck(id) : await branch.unpublishDeck(id);
+  // ★ 把简介一起带上：广场那行显示的就是它。以前这里是 publishDeck(id)（不带简介），
+  //   而 PATCH 那条路又从来没发过 description —— 两条路都不发，于是"写了简介、
+  //   分享出去还是空的"。带 undefined 表示"这次不改"，服务端保留原值。
+  const intro = d.intro?.trim();
+  const remote = on ? await branch.publishDeck(id, intro || undefined) : await branch.unpublishDeck(id);
   d.published = remote?.published ?? on;
   d.installs = remote?.installs ?? d.installs;
   persist();
+}
+
+/**
+ * 把一张卡分享到创意工坊 / 取消分享。仅远端模式可用（离线库没有「别人」）。
+ *
+ * ★ 服务端会**拒绝**挂着第三方版权模型的卡（400），并把 `idb:` 这类设备本地指针
+ *   从别人拿到的那份里剥掉。调用方（CardDetailPage）在按钮旁边先把这件事说清楚，
+ *   见 types.ts 的 publishableModelUrl。
+ */
+export async function shareCard(cardId: string, on: boolean): Promise<void> {
+  const u = currentUser();
+  if (!u || !db) throw new Error("请先登录");
+  if (!remoteOn()) throw new Error("分享需要先连接服务器并登录");
+  const c = db.cards.find((x) => x.ownerId === u.id && x.id === cardId);
+  if (!c) throw new Error("这张卡不在你的库里");
+
+  const remote = on ? await branch.publishCard(cardId) : await branch.unpublishCard(cardId);
+  c.published = remote?.published ?? on;
+  persist();
+}
+
+/**
+ * 逛卡片广场：别人分享出来的卡。
+ * ★ 离线模式返回本地市场种子（mock/ai 的 MARKET_DEFS 由 searchMarket 提供），
+ *   这里直接返回空数组即可 —— 工坊页的「卡片」来源本来就走 searchMarket，
+ *   这条只服务于「别人真的分享出来的卡」。
+ * ★★ 失败**不吞**，抛给调用方：以前这里 catch 掉、emitApiError、返回 []，
+ *   而全 app 没有任何地方监听 emitApiError（铁律八）—— 工坊页看到空数组就
+ *   整块不渲染，用户面对的是"社区分享的卡怎么没了"，没有任何线索也没得重试。
+ */
+export async function browseSharedCards(q = ""): Promise<branch.ApiSharedCard[]> {
+  if (!remoteOn()) return [];
+  return branch.listSharedCards(q);
+}
+
+/** 把别人分享的一张卡装进我的库（服务端按 { owner, cardId } 幂等） */
+export async function installSharedCard(cardId: string): Promise<Card | null> {
+  const u = currentUser();
+  if (!u || !db) throw new Error("请先登录");
+  if (!remoteOn()) throw new Error("需要先连接服务器并登录");
+
+  const remote = await branch.installCard(cardId);
+  if (!remote) return null;
+  const local = toLocalCard(remote);
+  if (!db.cards.some((c) => c.ownerId === u.id && c.id === local.id)) {
+    db.cards.push({ ...local, ownerId: u.id, createdAt: toMs(remote.createdAt) });
+  }
+  persist();
+  return local;
 }
 
 /**
@@ -726,10 +791,8 @@ export async function shareDeck(deckId: string, on: boolean): Promise<void> {
  */
 export async function browseSharedDecks(q = ""): Promise<branch.ApiSharedDeck[]> {
   if (!remoteOn()) return seedSharedDecks(q);
-  return branch.listSharedDecks(q).catch((e) => {
-    emitApiError("listSharedDecks", e);
-    return [];
-  });
+  // 失败抛给调用方，理由同 browseSharedCards：吞掉就是一块凭空消失的区域
+  return branch.listSharedDecks(q);
 }
 
 function seedSharedDecks(q: string): branch.ApiSharedDeck[] {
@@ -795,24 +858,16 @@ export async function installSharedDeck(sharedId: string): Promise<Deck | null> 
   const existing = new Set(db.cards.filter((c) => c.ownerId === u.id).map((c) => c.id));
   for (const c of cards) {
     if (existing.has(c.cardId)) continue;
-    db.cards.push({
-      id: c.cardId,
-      type: c.type,
-      name: c.name,
-      summary: c.summary,
-      cover: c.cover,
-      hot: c.hot,
-      tags: c.tags,
-      ownerId: u.id,
-      createdAt: toMs(c.createdAt),
-    });
+    db.cards.push({ ...toLocalCard(c), ownerId: u.id, createdAt: toMs(c.createdAt) });
   }
 
   const local: Deck = {
     id: deck._id,
     ownerId: u.id,
     name: deck.name,
+    intro: deck.description || undefined,
     cardIds: Array.isArray(deck.cardIds) ? deck.cardIds : [],
+    coverCardId: deck.coverCardId || undefined,
     createdAt: toMs(deck.createdAt),
     sourceDeck: deck.sourceDeck,
   };
@@ -844,7 +899,7 @@ async function resolveDeckId(localId: string): Promise<string | null> {
 // 一个五字的名字就是五次 PATCH，还会因为响应乱序把旧名字回写。
 // 按 deck 合并 patch，静默 400ms 后发一次；同一个 deck 的请求串成一条链保证顺序。
 const DECK_PATCH_DEBOUNCE_MS = 400;
-type DeckPatch = Partial<Pick<Deck, "name" | "cardIds" | "coverCardId">>;
+type DeckPatch = Partial<Pick<Deck, "name" | "intro" | "cardIds" | "coverCardId">>;
 const deckPatchQueue = new Map<string, { timer: ReturnType<typeof setTimeout>; patch: DeckPatch }>();
 const deckPatchChain = new Map<string, Promise<void>>();
 
@@ -872,13 +927,18 @@ function cancelDeckPatch(localId: string): void {
 async function flushDeckPatch(localId: string, patch: DeckPatch): Promise<void> {
   const id = await resolveDeckId(localId);
   if (!id) return;
-  const body: { name?: string; cardIds?: string[]; coverCardId?: string } = {};
+  const body: { name?: string; cardIds?: string[]; coverCardId?: string; description?: string } = {};
   // 用户清空输入框时本地是空串（编辑中不跳字），但 server 的 deckName 是 min(1)，
   // 直接发空串会 400。这里补上和建组一致的默认名。
   if (typeof patch.name === "string") body.name = patch.name.trim() || "未命名卡组";
   if (patch.cardIds) body.cardIds = patch.cardIds;
   if (patch.coverCardId) body.coverCardId = patch.coverCardId;
-  if (body.name === undefined && body.cardIds === undefined && body.coverCardId === undefined) return;
+  // ★ 卡组简介本地叫 intro、服务端叫 description，是同一个东西。
+  //   这里以前压根没发 —— 于是用户在卡组详情页写的简介永远到不了服务端，
+  //   广场那行简介恒为空，而且一点错都不报（铁律八的典型形态）。
+  //   允许发空串：那是用户真的把简介删了。
+  if (typeof patch.intro === "string") body.description = patch.intro.trim().slice(0, 200);
+  if (Object.keys(body).length === 0) return;
   await branch.updateDeck(id, body).catch((e) => emitApiError("updateDeck", e));
 }
 
@@ -893,6 +953,27 @@ function toMs(v: string | number | undefined): number {
   return Number.isNaN(t) ? Date.now() : t;
 }
 
+/**
+ * 服务端卡片 → 本地 Card。**只有这一处映射**（拉列表 / 装卡组 / 装单卡三条路共用）：
+ * 抄第二遍必然漏字段，而漏字段在这里的表现是"卡还在，但 3D 建模和生成蓝图没了"——
+ * 不报错，只是内容凭空少了一块。
+ */
+function toLocalCard(c: branch.ApiCard): Card {
+  return {
+    id: c.cardId,
+    type: c.type,
+    name: c.name,
+    summary: c.summary,
+    cover: c.cover,
+    hot: c.hot,
+    tags: c.tags,
+    modelUrl: c.modelUrl || undefined,
+    genPrompt: c.genPrompt || undefined,
+    published: c.published,
+    shareNote: c.description || undefined,
+  };
+}
+
 function toLocalUser(u: authApi.ApiUser): User {
   return {
     id: u._id,
@@ -903,6 +984,29 @@ function toLocalUser(u: authApi.ApiUser): User {
     following: [],
     createdAt: Date.now(),
   };
+}
+
+/**
+ * 补一条 /api/me/profile 再落地。
+ *
+ * ★★ 这是在修一个真 bug（2026-08-11 用户报）：退出重登之后，首页右侧那个头像退回
+ *   按名字哈希出来的**字母底**，非得重启 App 才恢复。
+ *   原因在服务端的 `serializeAuthUser`：登录/注册/验证码/第三方四条路回的都是
+ *   `{_id, username, email, role, avatarUrl, hasPassword}` —— **没有 displayName**。
+ *   于是 `toLocalUser` 把 name 取成了 username，而作品列表里的 `author` 是服务端
+ *   populate 出来的 displayName，两者对不上 → `isMyAuthor` 判否 → 首页那个
+ *   `src={mine ? user?.avatar : undefined}` 传了 undefined → 退回字母底，
+ *   顺带作者链接也指向 `/u/username` 那个不存在的人。
+ *   重启之所以"好了"：冷启动走的是 adoptFromToken，那条路**补了 profile**。
+ *
+ * ★ 所以补 profile 不能只写在冷启动那一条路上 —— 四条登录路必须共用同一个收尾
+ *   （铁律六：一件事只有一处实现）。
+ * ★ profile 拿不到（断网/服务端老版本）就用登录回包那份，不阻断登录：
+ *   昵称退回 username 是**可见的降级**，登不进去才是故障。
+ */
+async function hydrateProfile(remote: authApi.ApiUser): Promise<authApi.ApiUser> {
+  const profile = await authApi.fetchProfile();
+  return profile ? { ...remote, ...profile } : remote;
 }
 
 /** 把服务端用户装进内存库并置为当前登录用户 */
@@ -973,8 +1077,7 @@ async function adoptFromToken(): Promise<boolean> {
     const me = await authApi.fetchMe();
     // /api/auth/me 不带 displayName/bio/头像，补一条 profile 再落地，
     // 否则重载后昵称会从「刘天彬」退回 username
-    const profile = await authApi.fetchProfile();
-    adoptUser(profile ? { ...me, ...profile } : me);
+    adoptUser(await hydrateProfile(me));
     return true;
   } catch (e) {
     emitApiError("readyAccount", e);
@@ -1073,22 +1176,16 @@ async function loadRemoteAssets(): Promise<void> {
     }),
     branch.listFollowing(u.id).catch(() => [] as branch.ApiAuthor[]),
   ]);
-  db.cards = cards.map((c) => ({
-    id: c.cardId,
-    type: c.type,
-    name: c.name,
-    summary: c.summary,
-    cover: c.cover,
-    hot: c.hot,
-    tags: c.tags,
-    ownerId: u.id,
-    createdAt: toMs(c.createdAt),
-  }));
+  db.cards = cards.map((c) => ({ ...toLocalCard(c), ownerId: u.id, createdAt: toMs(c.createdAt) }));
   db.decks = decks.map((d) => ({
     id: d._id,
     ownerId: u.id,
     name: d.name,
+    // 服务端字段叫 description，本地叫 intro —— 同一段文字（卡组详情页写的简介）。
+    // 这里以前没映射，于是换台设备登录简介就没了
+    intro: d.description || undefined,
     cardIds: Array.isArray(d.cardIds) ? d.cardIds : [],
+    coverCardId: d.coverCardId || undefined,
     createdAt: toMs(d.createdAt),
     published: d.published,
     installs: d.installs,
@@ -1107,10 +1204,9 @@ async function loadRemoteAssets(): Promise<void> {
 export async function signInWithPassword(account: string, password: string): Promise<User> {
   if (!API_ON) return signIn(account); // 离线模式：退回同步的本地登录
   const { user } = await authApi.login(account.trim(), password);
-  const local = adoptUser(user);
-  await loadRemoteAssets();
-  emit();
-  return local;
+  // ★ 走公共收尾（补 profile + 拉资产 + 广播），别在这里抄一遍：
+  //   原来这条路自己 adoptUser 了，于是四条登录路里只有它漏了补 profile。
+  return finishRemoteSignIn(user);
 }
 
 /**
@@ -1124,7 +1220,9 @@ export async function signUpWithPassword(
   if (!API_ON) return signIn(input.username, input.displayName);
   const { username, email, password, displayName } = input;
   const { user } = await authApi.register({ username, email, password });
-  const local = adoptUser(user);
+  // ★ 走同一个收尾。新号确实没有资产也没有 displayName，但"四条登录路里有一条不一样"
+  //   正是上一个 bug 的成因，不留第二份实现（铁律六）。
+  const local = await finishRemoteSignIn(user);
   if (displayName && displayName !== local.name) {
     local.name = displayName;
     void authApi.updateProfile({ displayName }).catch((e) => emitApiError("signUp/profile", e));
@@ -1135,11 +1233,12 @@ export async function signUpWithPassword(
 
 /**
  * 把一个已经拿到 token 的服务端用户落成登录态。
- * signInWithPassword / 验证码 / 第三方三条路的收尾是同一件事——装用户、拉资产、广播，
- * 抄三遍必然有一条会忘了 loadRemoteAssets（表现为登录成功但卡库是空的）。
+ * signInWithPassword / 验证码 / 第三方三条路的收尾是同一件事——补资料、装用户、拉资产、
+ * 广播，抄三遍必然有一条会漏（`loadRemoteAssets` 漏了是"登录成功但卡库空的"，
+ * `hydrateProfile` 漏了是"首页头像退回字母底"——两样都真发生过）。
  */
 async function finishRemoteSignIn(remote: authApi.ApiUser): Promise<User> {
-  const local = adoptUser(remote);
+  const local = adoptUser(await hydrateProfile(remote));
   await loadRemoteAssets();
   emit();
   return local;

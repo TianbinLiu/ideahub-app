@@ -25,14 +25,58 @@
 
 ### BranchCard（用户卡片）
 ```
-{ _id, owner: ObjectId(User), cardId, type, name, summary, cover, hot?, tags?, createdAt }
+{ _id, owner: ObjectId(User), cardId, type, name, summary, cover, hot?, tags?,
+  modelUrl?, genPrompt?,                       // 3D 建模指针 / 生成蓝图
+  published?, publishedAt?, description?,      // 分享到创意工坊
+  createdAt }
 ```
 `cardId` 是客户端生成的稳定 id（市场卡为 `mkt_*`），`{ owner, cardId }` 唯一索引。
 
+⚠ **`hot` 不是热度**。它是客户端发上来的种子值（`mock/ai.ts` 里手打的 18 个数字），
+没有任何东西会去加它。真热度看下面的「卡片/卡组的互动与热度」。保留这个字段只为向下兼容。
+
+⚠ **同一个 `cardId` 会有 N 份文档**（唯一索引是 `{owner, cardId}`，每个装过它的人各一份）。
+所以任何「这张卡的计数」都必须按 **cardId 聚合**，不能挂在某一份文档上——挂上去的话
+每个安装者看到的都是自己那份的 0，表现出来就是数据丢了。
+同理，「哪一份是权威的」也只有一条规则：`{publishedAt: 1, _id: 1}` 最早发布的那份
+（controller 里的 `AUTHORITATIVE_SORT`）。广场展示与 install 必须取同一份，否则
+用户看到的卡和装到的卡不是一张。
+
 ### BranchDeck（卡组）
 ```
-{ _id, owner: ObjectId(User), name, cardIds: [String], createdAt, updatedAt }
+{ _id, owner: ObjectId(User), name, cardIds: [String], coverCardId?,
+  published?, publishedAt?, description?,      // 分享到创意工坊
+  cards?,                                      // 发布瞬间的卡片快照（自包含）
+  installs?, sourceDeck?,                      // 被装走次数 / 装来的记住来源
+  createdAt, updatedAt }
 ```
+
+### BranchComment（评论，含楼中楼与 @提及）
+```
+{ _id, video, author, text, parent?, likes, mentions?: [{ user, token }], createdAt }
+```
+`mentions` 是**服务端解析并解析成功的**那些 @（存下来，隔天再读也还能高亮）。
+★ 客户端**不许**自己再解析一遍正文来高亮：那样会把服务端没认出来的 @ 也画成链接，
+用户就看不出自己那个 @ 到底有没有生效了。没解析出来的 `@xxx` 保持纯文本，这是**故意的**。
+`parent` = 被回复的评论（顶层评论没有这个字段）。**判据是「有没有 parent」**，
+不是拿它和某个哨兵值比——历史评论这一项是 `undefined`。
+回复只有两层：回复一条回复时服务端会把 `parent` 归到它的顶层父评论
+（`parent.parent || parent._id`），通知仍然发给被回复的那个人。
+
+### BranchCommentLike（评论点赞去重）
+`{ user, comment }` 唯一索引。与 BranchLike 同构——计数由本表 `countDocuments` 回写，
+不做裸 `$inc`，避免并发下漂移。
+
+### BranchAssetStat / BranchAssetLike / BranchAssetView（卡片与卡组的互动）
+```
+BranchAssetStat  { kind: "card"|"deck", key, views, likes, bookmarks }   唯一 {kind, key}
+BranchAssetLike  { user, kind, key, action: "like"|"bookmark" }          唯一 {user, kind, key, action}
+BranchAssetView  { kind, key, viewer, expiresAt }                        唯一 {kind, key, viewer} + TTL
+```
+`key`：卡片是 **`cardId`**（理由见上），卡组是发布出去那条的 `_id`。
+`viewer` 是 `u:<userId>:<UTC日>` 或 `a:<sha256(日+pepper+ip) 前32位>`——**不存原始 IP**，
+每日换盐，所以昨天的匿名行关联不到今天。它是浏览量的**真正的门**：限流只减慢速度，
+挡不住刷（60/分钟乘一小时也够把热度顶上去）。
 
 ### BranchLike（点赞去重）
 `{ user, video }` 唯一索引。
@@ -45,7 +89,7 @@
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| GET | `/api/branch/videos` | optional | 列表。query：`feed=recommend\|following`、`category`、`q`、`cursor`、`limit`(默认 12)。返回 `{ ok, items, nextCursor }`；`items[].liked` 表示当前用户是否已赞。**只返回公开作品 + 自己的作品**（见下「可见性」） |
+| GET | `/api/branch/videos` | optional | 列表。query：`feed=recommend\|following`、`category`、`q`、`author`(用户 id)、`cursor`、`limit`(默认 12)。返回 `{ ok, items, nextCursor, author? }`；`items[].liked` 表示当前用户是否已赞。**只返回公开作品 + 自己的作品**（见下「可见性」）。★ `author` 生效时会**原样回显**在响应里 —— 老服务端会把这个 query strip 掉然后照常回推荐流，客户端只能靠"这个键在不在"分辨"按作者筛过、这人没作品"与"压根没筛"，判内容或判状态码都分不出来 |
 | POST | `/api/branch/videos` | required | 发布。body=DraftVideo（title/category/description/cover/segments/branchTree/**deck**/**visibility**/**clientId**）。**服务端负责把 body 里的外链资源转存**（见下）。带 `clientId` 时按 `{author, clientId}` 幂等：重发返回首次那条、状态码 200（首发是 201） |
 | GET | `/api/branch/videos/:id` | optional | 详情（含 comments 前 50 条）。非作者访问 private 作品返回 **404**（不是 403） |
 | PATCH | `/api/branch/videos/:id` | required | 作品编辑，仅作者。body `{ title?, category?, description?, visibility? }`，**至少给一个字段**（空对象 400）。segments / branchTree / deck 一律被 strip —— 发布即定稿 |
@@ -53,19 +97,113 @@
 | POST | `/api/branch/videos/:id/play` | optional | 播放计数 +1，返回 `{ ok, plays }` |
 | POST | `/api/branch/videos/:id/like` | required | 点赞，返回 `{ ok, likes, liked: true }` |
 | DELETE | `/api/branch/videos/:id/like` | required | 取消，返回 `{ ok, likes, liked: false }` |
-| GET | `/api/branch/videos/:id/comments` | optional | 评论列表 |
-| POST | `/api/branch/videos/:id/comments` | required | 发评论 `{ text }` |
+| GET | `/api/branch/videos/:id/comments` | optional | 评论列表。每条带 `parentId` / `likes` / `liked` |
+| POST | `/api/branch/videos/:id/comments` | required | 发评论 `{ text, parentId? }`。带 `parentId` = 回复。正文里的 `@username` 由**服务端**解析并回写到 `mentions`。限流 **20/分钟按账号**（`branch:comment` 桶，与弹幕分开） |
+| POST | `/api/branch/videos/:id/comments/:commentId/like` | required | 评论点赞 → `{ ok, likes, liked: true }` |
+| DELETE | `/api/branch/videos/:id/comments/:commentId/like` | required | 取消 → `{ ok, likes, liked: false }` |
 | GET | `/api/branch/videos/:id/danmaku` | optional | 弹幕列表（见下「弹幕」）。query `limit`(默认 200，上限 500)。返回 `{ ok, items, truncated }` |
 | POST | `/api/branch/videos/:id/danmaku` | required | 发弹幕 `{ at, text, color? }` → 201 `{ ok, danmaku }`。限流 **30/分钟**（按账号） |
 | GET | `/api/branch/cards` | required | 我的卡片 |
 | POST | `/api/branch/cards` | required | 批量新增 `{ cards: Card[] }`（按 cardId 幂等） |
 | DELETE | `/api/branch/cards/:cardId` | required | 删除一张 |
+| GET | `/api/branch/cards/shared` | optional | 创意工坊的卡片广场。**必须注册在 `/cards/:cardId` 之前** |
+| POST | `/api/branch/cards/:cardId/publish` | required | 分享到工坊 `{ description? }`（仅作者）。挂第三方版权模型的卡 **400** |
+| DELETE | `/api/branch/cards/:cardId/publish` | required | 取消分享 |
+| POST | `/api/branch/cards/:cardId/install` | required | 装走一张（按 `{owner, cardId}` 幂等：首次 201，之后 200 + `alreadyInstalled`） |
 | GET | `/api/branch/decks` | required | 我的卡组 |
 | POST | `/api/branch/decks` | required | 建组 `{ name, cardIds? }` |
-| PATCH | `/api/branch/decks/:id` | required | 改名/改卡 `{ name?, cardIds? }` |
+| PATCH | `/api/branch/decks/:id` | required | 改名/改卡 `{ name?, cardIds?, coverCardId?, description? }` |
 | DELETE | `/api/branch/decks/:id` | required | 删组 |
+| GET | `/api/branch/decks/shared` | optional | 卡组广场。**必须注册在 `/decks/:id` 之前** |
+| POST | `/api/branch/decks/:id/publish` | required | 分享整套 `{ description? }`。组里有第三方版权模型的卡 **400 并说明是哪张** |
+| DELETE | `/api/branch/decks/:id/publish` | required | 取消分享 |
+| POST | `/api/branch/decks/:id/install` | required | 整套装走，原组 `installs` +1 |
+| POST | `/api/branch/assets/:kind/:key/view` | optional | 浏览 +1。限流 **60/分钟**，且同一访客同一天只计一次 |
+| POST\|DELETE | `/api/branch/assets/:kind/:key/like` | required | 点赞/取消。限流按**账号**（换出口比换账号便宜） |
+| POST\|DELETE | `/api/branch/assets/:kind/:key/bookmark` | required | 收藏/取消。与 like 共用一个限流桶 |
+| GET | `/api/branch/assets/:kind/:key/stats` | optional | `{ views, likes, bookmarks, heat, liked, bookmarked }` |
+
+`:kind` ∈ `card` \| `deck`。写端点会先校验这个 key 真的对应一张卡/一套组，对不上返回 **404** ——
+不校验的话随便编个 key 就能凭空造出一行谁也够不着、也删不掉的计数。
+读端点 `/stats` 故意不校验：它不写库，造不出任何行，而客户端手里合法地存在只在本机有的 `cardId`。
 
 关注沿用既有 `/api/users/:id/follow` 与 `Follow` 模型，不新建。
+
+## 热度（`heat`）
+
+**只有一个公式**，实现在 server 的 `src/utils/hotScore.js`：
+
+```
+likes×6 + comments×4 + bookmarks×3 + min(views, 5000)×0.04
+```
+
+权重是从 `ideas.controller.js` 的 `getIdeaHotScore` 原样搬过来的（那边现在也调用这个 util，
+全仓就这一份）。卡片/卡组的 `comments` 恒为 0 —— 服务端没有卡片评论表，评论只存在客户端。
+
+★ 客户端 `data/social.ts` 里有一份**镜像**（`heatFormula`），只在离线或对着老服务端时用。
+两份必须**权重与入参都相等**：入参不等的话，联网那一刻数字会当着用户的面跳一截。
+（同价目表的处境——两仓不在一个 CI 里，只能各留一份，改一边必须改另一边。）
+
+## 通知（分支视频）
+
+沿用既有的 `/api/notifications`（列表 / `unread-count` / `:id/read` / `read-all`），新增：
+
+- `Notification.type` 增加 `BRANCH_LIKE`、`BRANCH_COMMENT`、`BRANCH_COMMENT_REPLY`、`BRANCH_COMMENT_LIKE`、`BRANCH_MENTION`
+- `Notification.videoId`（ref `BranchVideo`）。★ **不要复用 `ideaId`** —— 它 ref 的是 `Idea`，
+  塞一个 BranchVideo 的 id 进去不会报错，只会 populate 成 `null`，标题和跳转地址一起没了，全程零日志。
+- 列表接口的 `actorId` 现在 populate `username displayName avatarUrl role`，并额外 populate
+  `videoId` 的 `title cover visibility`
+- `read-all` 接受可选的 `type` 过滤（与列表接口同样的逗号分隔写法）。**不传时行为一个字节都没变**。
+  ★ App 的消息页只显示上面四种 BRANCH_*，所以它必须传这个过滤 —— 不传的话用户点一下「全部已读」，
+  会把网站那边他**从没看过**的通知一起标成已读。
+
+去重与限流（都在 server 一处实现，见 `notifyBranch` / `NOTIF_DEDUP_KEYS`）：
+- `BRANCH_LIKE` 按 `{userId, actorId, videoId, type}` 24 小时内只发一条 —— 点赞是幂等 upsert，
+  但「取消再点」会删行再插行，不去重的话一个循环就能把对方的通知箱刷爆。
+- `BRANCH_COMMENT_LIKE` 的去重键额外带 `commentId`（否则赞了同一作品下的第二条评论就不通知了）。
+- 评论与回复**不去重**：每一条都是新内容，压掉就是真的丢消息。
+- **弹幕不发通知**。弹幕的回包刻意不带作者（只有一个 `mine` 布尔），发通知等于把它去匿名化。
+- **`BRANCH_MENTION` 不去重**：@ 永远搭在一条**新评论**上，按 24 小时去重的话，一段正常对话
+  从第二轮起就再也不提醒了 —— 那是丢消息，不是防刷。刷的成本由另外三道闸门管：
+  评论 20/分钟（按账号）、单条评论最多 10 个有效 @、以及下面那条「一条评论只通知你一次」。
+- **一条评论只给同一个人发一条通知**。作品作者被 @ 时只收 `BRANCH_COMMENT`，
+  被回复的人被 @ 时只收 `BRANCH_COMMENT_REPLY` —— 结构性的那条信息更全（它同时说明了
+  "这是回给你的 / 这是你作品下的"），@ 让位。判重在 `addComment` 里一个 `notified` 集合上。
+- **拉黑了就通不过**：所有 BRANCH_* 通知统一在 `notifyBranch` 里过一次 `hasAnyBlockBetween`。
+  少了这一道，被拉黑的人就能靠 @ 把消息塞进对方的通知箱 —— 而拉黑对用户的承诺正是"这个人碰不到我"。
+- **@ 也受可见性约束**：只有**看得见这条作品**的人才会收到 `BRANCH_MENTION`。
+  否则在私密作品下 @ 一个人，就等于告诉他"存在这么一条你看不到的作品"，@ 成了探针。
+
+## @提及（`@username`）
+
+token 是 **`@username`**，不是 `@昵称` —— `username` 唯一且不可变，`displayName` 既不唯一也能随便改，
+拿它当身份就是本仓已经栽过一次的那种坑（见 `data/videos.ts` 的 `renameMyVideos`）。
+解析在 server 的 `utils/mentionParser.js` 一处，正则 `/(?<![\w@])@([A-Za-z0-9_-]{1,32})/g`：
+
+- 前置的 `(?<![\w@])` 是为了让 `someone@example.com` 里的 `@example` **不**算提及
+  （否则粘一个邮箱地址进去就会给一个陌生人发通知）；
+- 大小写不敏感靠 collation（`utils/username.js` 的 `CI_COLLATION`，与 `username_ci` 索引同一份）；
+- 32 是 `username` 的长度上限，两个数字必须相等，否则超长用户名会**永远 @ 不到**且不报错；
+- 非 ASCII 的 `@中文名` 解析不了（CJK 没有词边界，贪婪匹配会把半句话吞成一个 token）。
+  它会保持纯文本 —— 用户看得见它没变成链接，这是**故意**的降级方式。
+
+★ App 侧必须有 @ 自动补全（`components/MentionInput.tsx`）：这个 App 从头到尾显示的是
+`displayName`，`username` 一处都不露脸。没有补全的话用户根本不知道该打什么，
+每一次 @ 都会静悄悄地谁也通知不到。补全用的就是下面这条搜索接口。
+
+## 找人 `GET /api/users/search`
+
+query `q`、`limit`(默认 8，上限 20)。返回 `{ ok, users: [{ _id, username, displayName, avatarUrl }] }`。
+
+- **必须同时匹配 `displayName`**：App 里满屏显示的都是它，只按 `username` 匹配的结果是
+  "用户搜自己每天看到的那个名字，一个人都搜不到"，而接口 200 + `users: []` —— 看着就像查无此人。
+- 回包**只加不减**：`_id`/`username` 是官网客户端已经在读的，删任何一个都会当场打断它。
+- `q` 一律走 `utils/regex` 的 `searchRegex`（转义 + 截断）。自己 `new RegExp(q)` 是本仓真出过事的 ReDoS 口子。
+- 精确命中（`username` 等值）**单独发一条查询**，不与模糊那条合并后再 `limit` ——
+  合并的话，一群把昵称改成你账号名的人可以把那一页占满，账号真叫这个名字的人一行都取不回来。
+- 超时返回 **503**，不返回空列表：`users: []` 会让"服务器没查完"和"查无此人"在界面上长得一模一样。
+- 限流按 **IP**（`users:search`，120/分钟）。这条是 `optionalAuth`，按账号限流等于没限
+  —— 攻击者不带 token 就绕过去了。
 
 ## 可见性（`visibility`）
 

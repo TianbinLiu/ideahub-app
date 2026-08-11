@@ -9,21 +9,51 @@ import { idbGet } from "../../data/db";
 import { toonify } from "../scene/TripoNpc";
 import { loaderFor } from "../secureAssets";
 
-/** `idb:` 指针 → objectURL：Seed3D 派生建模（36MB 级 GLB）存 IndexedDB blob 仓，
- *  卡片 JSON 里只有指针。其余 URL 原样通过。 */
-function useResolvedModelUrl(url: string): string | null {
-  const [real, setReal] = useState<string | null>(url.startsWith("idb:") ? null : url);
+/** 一次全息预览要用的模型：`url` 为 null 就是**没有可显示的建模**，调用方不要画那个框 */
+export interface HologramModel {
+  url: string | null;
+  /** 还在从本机 blob 仓里取。true 时先别下"没有建模"的结论 */
+  loading: boolean;
+}
+
+/**
+ * 卡上的 modelUrl → 真正能喂给 three 的地址。
+ *
+ * `idb:` 指针 → objectURL：Seed3D 派生建模（36MB 级 GLB）存 IndexedDB blob 仓，
+ * 卡片 JSON 里只有指针。其余 URL 原样通过。
+ *
+ * ★★ **取不到 blob 时必须让调用方知道**，不能只 console.warn。2026-08 起 modelUrl
+ *   会跟着卡片存到服务端（自己那份记录的一部分），于是「在 A 手机上炼的卡，在 B 手机
+ *   上打开」这条路真实存在：指针在、blob 不在。老代码在这种情况下照样把那个
+ *   「✦ 全息实体 3D 建模」的框画出来，里面**永远是空的** —— 答应了又不给，
+ *   比一开始就不显示更糟（在 modelUrl 还被服务端 strip 掉的年代，这个框压根不会出现）。
+ *   现在返回 url=null，由调用方退回封面图 / 不画这一栏。
+ */
+export function useHologramModel(raw: string | undefined | null): HologramModel {
+  const url = raw || "";
+  const isPointer = url.startsWith("idb:");
+  const [real, setReal] = useState<string | null>(isPointer ? null : url || null);
+  const [loading, setLoading] = useState(isPointer);
   useEffect(() => {
+    if (!url) {
+      setReal(null);
+      setLoading(false);
+      return;
+    }
     if (!url.startsWith("idb:")) {
       setReal(url);
+      setLoading(false);
       return;
     }
     let alive = true;
     let obj: string | null = null;
     setReal(null);
+    setLoading(true);
     void idbGet<Blob>(url.slice(4)).then((blob) => {
       if (!alive) return;
+      setLoading(false);
       if (!blob) {
+        // 别人的设备炼的（或本机缓存被清了）：这台机器上永远取不到，当作"没有建模"
         console.warn("[hologram] 建模 blob 不在本机库:", url);
         return;
       }
@@ -35,7 +65,7 @@ function useResolvedModelUrl(url: string): string | null {
       if (obj) URL.revokeObjectURL(obj);
     };
   }, [url]);
-  return real;
+  return { url: real, loading };
 }
 
 /**
@@ -87,14 +117,16 @@ function Model({ url }: { url: string }) {
   );
 }
 
+/** 全息展台。`url` 必须是**已经解析过**的地址（走 useHologramModel 拿） */
 export default function CardHologram({ url }: { url: string }) {
-  const real = useResolvedModelUrl(url);
   return (
     <Canvas dpr={[1, 2]} camera={{ fov: 30, position: [0, 0.3, 3.6] }} gl={{ alpha: true }}>
       <hemisphereLight args={["#e8f8ff", "#1a2436", 1.5]} />
       <directionalLight position={[2, 3, 2]} intensity={1.7} color="#fff2dd" />
       <directionalLight position={[-2, 1, -2]} intensity={0.6} color="#67e8f9" />
-      <Suspense fallback={null}>{real && <Model url={real} />}</Suspense>
+      <Suspense fallback={null}>
+        <Model url={url} />
+      </Suspense>
       {/* 全息底座光环 */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.87, 0]}>
         <ringGeometry args={[0.55, 0.78, 48]} />

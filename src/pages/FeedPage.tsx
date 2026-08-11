@@ -6,7 +6,18 @@ import { Link, useNavigate } from "react-router";
 // **计数**用 videos 的 saves（TikTok 版式右栏要显示数字）。
 // videos 那套的 savedIds 是模块级 Set，刷新即丢，单用它收藏态会莫名消失；
 // 账号库那套又不维护计数，单用它右栏没数字可显示。
-import { PLAY_MIN_SEC, addPlay, hasCountedPlay, isLiked, isMyAuthor, listVideos, setLike, setSave } from "../data/videos";
+import {
+  PLAY_MIN_SEC,
+  addPlay,
+  authorAvatarOf,
+  hasCountedPlay,
+  isLiked,
+  isMyAuthor,
+  listVideos,
+  profileHref,
+  setLike,
+  setSave,
+} from "../data/videos";
 import { danmakuNeedsLogin, danmakuOn, subscribeDanmaku } from "../data/danmaku";
 import { hasPurchased, isCollected, isFollowing, toggleCollect, toggleFollow } from "../data/account";
 import { fmtTokens } from "../data/economy";
@@ -365,8 +376,9 @@ function FeedItem({
     togglePlay();
   }
 
-  /** 作者主页：自己的作品进「我的」，别人的进 /u/<作者名>（本地模型的身份就是作者名） */
-  const authorHref = mine ? "/me" : `/u/${encodeURIComponent(video.author)}`;
+  /** 作者主页：自己的作品进「我的」，别人的按 userId 进 /user/<id>（拿不到 id 才退回名字）。
+   *  规则本体在 data/videos.profileHref 一处——评论里的 @提及、分区页搜人也走它（铁律六） */
+  const authorHref = profileHref({ id: video.authorId, name: video.author });
   /** 画面上的按钮要把 pointer 截住：不截的话点一下既跳转、又顺带触发了
    *  外层 section 的单击（暂停/解除静音）——手指抬起来时视频已经停了 */
   const stopTap = {
@@ -595,7 +607,8 @@ function FeedItem({
               className="block active:scale-95"
             >
               <span className="block rounded-full ring-2 ring-white/90">
-                <Avatar name={video.author} src={mine ? user?.avatar : undefined} size={44} />
+                {/* 「自己的用活的那份、别人的用快照」这条规则收在 videos.authorAvatarOf 一处 */}
+                <Avatar name={video.author} src={authorAvatarOf(video)} size={44} />
               </span>
             </button>
             {user && !mine && !following && (

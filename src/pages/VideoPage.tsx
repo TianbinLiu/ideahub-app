@@ -1,14 +1,28 @@
 // 视频详情页：播放器（多 P 可切换）+ 信息 + 分段剧情 + 评论区
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../components/Icon";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import BranchPlayer from "../components/BranchPlayer";
 import SegmentPlayer from "../components/SegmentPlayer";
 import Avatar from "../components/Avatar";
 import { addCards, hasPurchased, myCards, purchasePart, walletOf } from "../data/account";
 import { useAccountVersion } from "../hooks/useAccount";
 import { fmtTokens } from "../data/economy";
-import { addComment, addPlay, getVideo, isMyAuthor, partsOf, setLike } from "../data/videos";
+import {
+  addComment,
+  addPlay,
+  authorAvatarOf,
+  fetchVideoById,
+  getVideo,
+  isMyAuthor,
+  partsOf,
+  profileHref,
+  setLike,
+  type VideoLookup,
+} from "../data/videos";
+import { markNotificationRead } from "../data/notifications";
+import MentionInput from "../components/MentionInput";
+import MentionText from "../components/MentionText";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
 import { useStudio } from "../studio/studioStore";
@@ -77,6 +91,7 @@ function VideoDeckSection({ video, loggedIn, onGo }: { video: NonNullable<Return
 export default function VideoPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const loc = useLocation();
   const user = useCurrentUser();
   // 订阅作品库：远端模式下 getVideo() 会在后台补一次详情接口（列表不带 comments），
   // 回填是原地改同一个对象，不订阅就永远渲染不出来。
@@ -87,6 +102,8 @@ export default function VideoPage() {
   const [plays, setPlays] = useState(video?.plays ?? 0);
   const [comments, setComments] = useState<VideoComment[]>(video?.comments ?? []);
   const [draft, setDraft] = useState("");
+  const [busyComment, setBusyComment] = useState(false);
+  const [commentErr, setCommentErr] = useState("");
   // 多 P：老作品 partsOf 归一成单 P，pi 越界（编辑删 P 后）自动夹回
   const parts = useMemo(() => (video ? partsOf(video) : []), [video, version]);
   const [pi, setPi] = useState(0);
@@ -116,13 +133,96 @@ export default function VideoPage() {
     }
   }, [id, video]);
 
+  /**
+   * 内存里没有这一条时**去问服务端**。
+   *
+   * ★★ 这是本页最要紧的一段：内存 cache 只有推荐流的前 30 条，而进到这一页的路
+   *   （通知里的 @、别人主页的作品墙、分享出去的链接）指向的作品**基本都不在里面**。
+   *   原来这里直接画「视频不存在或已删除」—— 服务端从来没被问过，那句话是编的。
+   * ★ 结果分四档（见 data/videos.VideoLookup）：查证之前一律显示"正在打开"，
+   *   只有服务端真的说了"没有"才敢说不存在；超时/断网说的是"没打开"，不是"已删除"。
+   */
+  const [lookup, setLookup] = useState<VideoLookup | null>(null);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    if (!id) return;
+    let alive = true;
+    setLookup(null);
+    void fetchVideoById(id).then((r) => {
+      if (alive) setLookup(r);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [id, retry]);
+
+  /**
+   * 从通知点进来的那一条：**打开成功了才标已读**。
+   *
+   * ★★ 原来是在消息页点下去的那一瞬间就标已读的。可这一跳很可能落在
+   *   「视频不存在」上（就是上面在修的那个 bug），于是用户既没看到内容、
+   *   红点也没了 —— 唯一的入口就这么消失了。已读的含义是"这条我处理过了"，
+   *   在真的把人送到目标之前不该先把它划掉。
+   * ★ 反过来也要**保证会标**：这里跑到了就说明内容真的展示出来了。
+   */
+  const readMarked = useRef<string | null>(null);
+  const fromNotification = (loc.state as { fromNotification?: string } | null)?.fromNotification;
+  useEffect(() => {
+    if (!video || !fromNotification || readMarked.current === fromNotification) return;
+    readMarked.current = fromNotification;
+    void markNotificationRead(fromNotification);
+  }, [video, fromNotification]);
+
   if (!video) {
+    // ★ 还没问出结果：不下任何结论。转圈比一句错的结论好
+    if (!lookup) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
+          <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-700 border-t-brand" />
+          <div className="text-xs">正在打开这条作品…</div>
+        </div>
+      );
+    }
+    const text =
+      lookup.status === "missing"
+        ? "这条作品不存在，或已被作者删除"
+        : lookup.status === "offline"
+          ? "这台设备上没有这条作品 · 当前是离线模式"
+          : `没能打开这条作品：${lookup.status === "failed" ? lookup.error : ""}`;
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
-        <div>视频不存在或已删除</div>
-        <Link to="/" className="text-brand">
-          返回首页
-        </Link>
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center text-slate-400">
+        <div className={lookup.status === "failed" ? "text-sm text-rose-300" : "text-sm"}>{text}</div>
+        {lookup.status === "failed" && (
+          <>
+            {/* 失败可以，但要能自己重试 —— 而且这一条**没被标已读**，消息页那个红点还在 */}
+            <button
+              onClick={() => setRetry((n) => n + 1)}
+              className="rounded-full bg-panel px-5 py-2 text-sm font-semibold text-slate-100 ring-1 ring-slate-700"
+            >
+              重试
+            </button>
+            <p className="text-[11px] leading-relaxed text-slate-600">
+              内容可能还在，只是这次没取到（网络或服务器的问题）
+            </p>
+          </>
+        )}
+        {/* ★ 这一屏没有顶栏，所以「回去」必须自己给一个：从消息页点进来的人
+            最想做的就是退回去再点一次，而不是被扔回首页从头找。 */}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => {
+              const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+              if (idx > 0) navigate(-1);
+              else navigate("/");
+            }}
+            className="text-slate-300"
+          >
+            返回
+          </button>
+          <Link to="/" className="text-brand">
+            返回首页
+          </Link>
+        </div>
       </div>
     );
   }
@@ -134,11 +234,24 @@ export default function VideoPage() {
     setLikes(setLike(video.id, on));
   }
 
-  function submitComment() {
-    if (!video || !draft.trim()) return;
-    const cmt = addComment(video.id, draft.trim());
-    if (cmt) setComments((cs) => [cmt, ...cs]);
-    setDraft("");
+  /**
+   * ★ 真等回包再清空输入框，口径与 CommentSheet / DanmakuInput 一致：
+   *   评论会失败（限流 / 登录过期 / 作品还没同步上去），而全 app 没有任何地方监听
+   *   emitApiError —— 清空了输入框又不说原因，用户打的字就凭空没了（铁律八）。
+   */
+  async function submitComment() {
+    if (!video || busyComment || !draft.trim()) return;
+    setBusyComment(true);
+    setCommentErr("");
+    try {
+      const cmt = await addComment(video.id, draft.trim());
+      if (cmt) setComments((cs) => [cmt, ...cs]);
+      setDraft("");
+    } catch (e) {
+      setCommentErr(e instanceof Error ? e.message : "评论没发出去，请重试");
+    } finally {
+      setBusyComment(false);
+    }
   }
 
   return (
@@ -237,10 +350,11 @@ export default function VideoPage() {
           {/* 作者可点：从详情页也要能走到创作者主页，否则「看看 TA 还发过什么」
               只有首页头像一条路 */}
           <Link
-            to={isMyAuthor(video.author) ? "/me" : `/u/${encodeURIComponent(video.author)}`}
+            // 有 authorId 就按 id 跳（名字会变、会重名，见 profileHref）
+            to={profileHref({ id: video.authorId, name: video.author })}
             className="flex items-center gap-2 active:opacity-70"
           >
-            <Avatar name={video.author} size={32} />
+            <Avatar name={video.author} src={authorAvatarOf(video)} size={32} />
             <span className="text-slate-200">{video.author}</span>
           </Link>
           <span>{formatPlays(plays)}播放</span>
@@ -279,23 +393,25 @@ export default function VideoPage() {
         <section className="mt-6 pb-16">
           <h2 className="mb-3 text-base font-bold text-slate-200">评论 {comments.length}</h2>
           <div className="flex gap-2">
-            <input
+            {/* @提及补全与首页评论抽屉是**同一份实现**（铁律六）：分叉了就会出现
+                "抽屉里能 @ 出来、这里 @ 不出来"这种只有用户才发现得了的差异 */}
+            <MentionInput
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.nativeEvent.isComposing) submitComment();
-              }}
-              placeholder="发一条友善的评论"
-              className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+              onChange={setDraft}
+              onEnter={() => void submitComment()}
+              placeholder="说点什么，@ 可以叫上别人"
+              className="rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
             <button
-              onClick={submitComment}
-              disabled={!draft.trim()}
+              onClick={() => void submitComment()}
+              disabled={!draft.trim() || busyComment}
               className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-ink disabled:opacity-40"
             >
-              发布
+              {busyComment ? "发布中…" : "发布"}
             </button>
           </div>
+          {/* 失败就地说清楚，并且**不清空输入框**——用户打的字还在，改一下就能再发 */}
+          {commentErr && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{commentErr}</p>}
           <div className="mt-4 space-y-4">
             {comments.map((c) => (
               <div key={c.id} className="flex gap-3">
@@ -306,7 +422,10 @@ export default function VideoPage() {
                   <div className="text-xs text-slate-500">
                     {c.author} · {relativeTime(c.at)}
                   </div>
-                  <div className="mt-0.5 text-sm text-slate-200">{c.text}</div>
+                  {/* 解析到人的 @ 才是链接，打错的留成普通文字（见 MentionText 顶部） */}
+                  <div className="mt-0.5 text-sm text-slate-200">
+                    <MentionText text={c.text} mentions={c.mentions} />
+                  </div>
                 </div>
               </div>
             ))}

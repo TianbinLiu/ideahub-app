@@ -7,7 +7,6 @@
 // 互动数据（浏览/点赞/收藏/评论）不在这里，走 data/social.ts 的旁路存储。
 import { idbGet, idbSet } from "./db";
 import { currentUser } from "./account";
-import { seedStats } from "./social";
 import { Card, VideoTemplate, uid } from "../types";
 
 const KEY = "templates.v1";
@@ -85,7 +84,9 @@ const SEEDS: VideoTemplate[] = [
 export async function readyTemplates(): Promise<void> {
   const saved = await idbGet<VideoTemplate[]>(KEY);
   if (saved) mine = saved;
-  for (const t of SEEDS) seedStats("template", t.id, { views: 1200 + t.title.length * 137, likes: 40 + t.title.length * 3 });
+  // ★ 这里以前给两个种子模板灌了一份假的浏览量/点赞（seedStats，2026-08-11 删）。
+  //   假数字画在屏幕上与真互动长得一模一样，而同一个页面上还摆着服务端算的真热度 ——
+  //   并排放一个编的和一个真的就是骗人（铁律八）。宁可从 0 开始。
   emit();
 }
 
