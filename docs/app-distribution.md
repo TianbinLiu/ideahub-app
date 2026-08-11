@@ -31,60 +31,34 @@ play 渠道**不该**有任何输出。
 
 ---
 
-## 发一版的完整流程
-
-### 1. 涨版本号
-
-`android/app/build.gradle`：
-
-```groovy
-versionCode 3      // 必须 +1。Android 只认这个整数判新旧
-versionName "1.2"  // 给人看的
-```
-
-**`versionCode` 不涨 = 所有人的更新检查都判不出有新版**，这是最容易漏的一步。
-
-### 2. 出包
+## 发一版
 
 ```bash
-npm run apk:release
+# 1. 改 android/app/build.gradle 的 versionCode（必须 +1）与 versionName
+# 2. 写这一版的更新说明（会原样显示在用户的更新弹窗里）
+#    → RELEASE_NOTES.md
+# 3. 出两个包
+npm run apk:release        # 直装版（sideload 渠道，带自更新）
+npm run aab                # 上架版（play 渠道，无自更新）
+# 4. 发布 + 自检
+npm run release
 ```
 
-产物：`android/app/build/outputs/apk/sideload/release/app-sideload-release.apk`
+`npm run release`（[`scripts/release.mjs`](../scripts/release.mjs)）**不只是上传**，
+它把"这次更新到底能不能到老用户手里"逐条查一遍，任何一条不过就当场停下：
 
-★ 必须是 **release** 包，用 `android/keystore/` 里那把固定的密钥签名。
-debug 包和 release 包签名不同，**互相覆盖不了** —— 用户会看到「应用未安装」，
-而那个提示完全看不出原因，只能先卸载。所以：**发给别人的永远只发 release 包**。
+| 查什么 | 不查会怎样 |
+|---|---|
+| APK 里的版本号 == 源码里的 | 改了 build.gradle 但忘了重新出包 → **发了个旧包** |
+| 签名证书指纹 == 历史版本 | 换过 keystore → 老用户点更新，装到最后只说「应用未安装」 |
+| versionCode > 线上那一版 | 不涨 → 所有人的更新检查都判不出有新版，**等于没发** |
+| 发布**之后**再从公网拉一遍 `latest.json` | Release 被标成 draft/pre-release，或漏传 `latest.json` → 固定地址 404，客户端安静地什么都不做 |
+| 清单里的 `apkUrl` 真能下、大小与 sha256 对得上 | 下完校验不过被丢弃，用户看到「更新失败」 |
 
-### 3. 算 sha256
+★ 这五件事**互相独立、错了都不报错**，而且漏了之后**你不会知道** —— 你手上的 App 是好的，
+坏的是所有已经装了旧版的人。所以它必须是脚本查，不是人记。
 
-```bash
-node -e "const c=require('crypto'),f=require('fs');console.log(c.createHash('sha256').update(f.readFileSync(process.argv[1])).digest('hex'))" <apk 路径>
-```
-
-### 4. 发 GitHub Release
-
-```bash
-gh release create v1.2 <apk> latest.json --title "启梦 1.2" --notes "..."
-```
-
-`latest.json` 的格式：
-
-```json
-{
-  "versionCode": 3,
-  "versionName": "1.2",
-  "apkUrl": "https://github.com/TianbinLiu/ideahub-app/releases/download/v1.2/qimeng-1.2.apk",
-  "sizeBytes": 59116950,
-  "sha256": "……",
-  "notes": "这一版改了什么，会原样显示在更新弹窗里"
-}
-```
-
-App 拉的是 `…/releases/latest/download/latest.json` —— 这个地址**永远指向最新一版**，
-所以每次发版只要传一个同名的 `latest.json` 上去，代码和配置都不用动。
-
----
+跑完会打印实际生效的清单地址与安装包地址，照着点一下就能确认。
 
 ## 别人装了之后怎么收到更新
 

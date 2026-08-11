@@ -11,7 +11,8 @@
     "build:app": "tsc && vite build && node scripts/prune-app-assets.mjs && npx cap sync android",
     "apk": "npm run build:app && cd android && gradlew assembleSideloadDebug",
     "apk:release": "npm run build:app && cd android && gradlew assembleSideloadRelease",
-    "aab": "npm run build:app && cd android && gradlew bundlePlayRelease"
+    "aab": "npm run build:app && cd android && gradlew bundlePlayRelease",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
