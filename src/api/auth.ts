@@ -214,15 +214,24 @@ export function oauthStartUrl(provider: string, redirect: string): string {
   return u.toString();
 }
 
-/** 深链回来只有 token，用它换回用户并落地登录态 */
+/**
+ * 深链回来只有 token，用它换回用户并落地登录态。
+ *
+ * ★★ 换不回用户时**不要清 token**。这里原来写的是
+ *   `setToken(null) // 换不回用户说明这个 token 不可用`——推理是错的：
+ *   "换不回用户"有两种成因，只有一种意味着 token 不可用。
+ *     · 服务端说它不行（401）—— api/client.ts 的 request() 已经清掉并广播了；
+ *     · **我们没够着服务端**（断网/超时/5xx）—— token 完全有效，
+ *       这时候扔掉它，等于让刚在浏览器里登完的用户把整个 OAuth 流程重走一遍。
+ *   移动端最常见的恰恰是后者（深链切回 App 的那一瞬网络还没恢复）。
+ *   留着它：下次启动会验证，data/account 的自愈钩子也会在联网后自动认领。
+ *
+ * ★ 与 data/account.ts 的 adoptFromToken 是**同一条规则**：token 只在服务端
+ *   明确否定它时才丢。改一处就要改另一处（铁律六）。
+ */
 export async function adoptToken(token: string): Promise<ApiUser> {
   setToken(token);
-  try {
-    return await fetchMe();
-  } catch (e) {
-    setToken(null); // 换不回用户说明这个 token 不可用，别留一个假登录态
-    throw e;
-  }
+  return await fetchMe();
 }
 
 /** 本地登出：server 端无状态 JWT，清掉 token 即可（要踢掉全部设备用 /api/auth/logout-all） */

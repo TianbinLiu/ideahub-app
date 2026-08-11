@@ -16,7 +16,14 @@ import Icon, { type IconName } from "../components/Icon";
 import DeckCard from "../components/DeckCard";
 import Avatar from "../components/Avatar";
 import { fileToSquareImage } from "../utils/image";
-import { isMyAuthor, listVideos } from "../data/videos";
+import {
+  dropPendingPublish,
+  isMyAuthor,
+  listVideos,
+  pendingPublishes,
+  publishUploadStatus,
+  retryPendingPublishes,
+} from "../data/videos";
 import { deleteDraft, loadDraft, renameDraft, type DraftMode, type WorkDraftMeta } from "../data/drafts";
 import { useDrafts } from "../hooks/useDrafts";
 import { useStudio } from "../studio/studioStore";
@@ -395,6 +402,10 @@ export default function ProfilePage() {
       </div>
 
       <div className="pb-6">
+        {/* ★ 没传上去的作品必须在这儿露头。远端模式下 videos 的 save() 直接 return
+            （作品只活在内存里），发布失败又只进了一个看不见的队列 —— 于是用户的表现是
+            「辛苦几十分钟的作品过一会儿自己没了」。失败可以，但要响且局部（铁律八）。 */}
+        {activeTab === "works" && self && <PendingBanner />}
         {activeTab === "works" &&
           (works.length ? (
             <WorkGrid items={works} />
@@ -521,6 +532,82 @@ export default function ProfilePage() {
  * 不写标题只写播放量 —— 标题在这个尺寸下只能显示四五个字，
  * 反倒把封面压掉一条；要看标题点进去就有。
  */
+/**
+ * 「有作品没传上去」的横幅。
+ *
+ * ★ 为什么非要有它：发布走的是「同步返回乐观条目 + 后台打 API」，而远端模式下
+ *   本地不落盘。后台那一步失败时，作品只剩内存里一份，重启就没了 —— 用户看到的是
+ *   "作品自己消失"，没有任何提示可循。队列本来就存着，缺的只是一个入口。
+ * ★ 必须给「不要了」这条出路：一条永远传不上去的作品（比如体积超了网关上限）
+ *   会把这条横幅永久钉在这儿。
+ */
+function PendingBanner() {
+  useVideosVersion();
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const list = pendingPublishes();
+  const up = publishUploadStatus();
+  if (list.length === 0 && !up) return null;
+  const first = list[0];
+
+  // 正在传：只显示进度，别把失败原因和进度混在一起说
+  if (up) {
+    return (
+      <div className="mx-3 mt-3 rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3">
+        <div className="text-xs font-semibold text-cyan-200">
+          正在上传「{up.title}」 {up.done}/{up.total}
+        </div>
+        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-black/30">
+          <div
+            className="h-full rounded-full bg-cyan-400 transition-all duration-300"
+            style={{ width: `${Math.round((up.done / Math.max(1, up.total)) * 100)}%` }}
+          />
+        </div>
+        <p className="mt-1 text-[10px] text-slate-400">{up.label} · 成片和画面要逐个传上去，别人才看得到</p>
+      </div>
+    );
+  }
+  if (!first) return null;
+  return (
+    <div className="mx-3 mt-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-3">
+      <div className="flex items-center gap-2">
+        <span className="flex-none text-sm">⚠️</span>
+        <span className="min-w-0 flex-1 text-xs font-semibold text-amber-200">
+          {list.length} 条作品还没传到服务器
+        </span>
+      </div>
+      <p className="mt-1 text-[11px] leading-relaxed text-amber-100/80">
+        「{first.draft.title}」{first.error}
+      </p>
+      <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+        内容还在这台设备上，没有丢。修好网络或服务器后点重试即可。
+      </p>
+      <div className="mt-2 flex gap-2">
+        <button
+          onClick={() => {
+            setBusy(true);
+            setNote("");
+            void retryPendingPublishes()
+              .then((left) => setNote(left === 0 ? "全部上传成功" : `还剩 ${left} 条没成功`))
+              .finally(() => setBusy(false));
+          }}
+          disabled={busy}
+          className="flex-1 rounded-lg bg-amber-400/90 py-2 text-xs font-bold text-ink disabled:opacity-50"
+        >
+          {busy ? "重试中…" : "立即重试"}
+        </button>
+        <button
+          onClick={() => void dropPendingPublish(first.draft.clientId ?? "")}
+          className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300"
+        >
+          不要了
+        </button>
+      </div>
+      {note && <div className="mt-1.5 text-center text-[11px] text-amber-200">{note}</div>}
+    </div>
+  );
+}
+
 function WorkGrid({ items }: { items: VideoItem[] }) {
   return (
     <div className="grid grid-cols-3 gap-[2px]">

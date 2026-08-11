@@ -11,7 +11,10 @@ import { Card, uid } from "../types";
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
 import { PLANS, PLATFORM_CUT } from "./economy";
 import { idbGet, idbSet } from "./db";
-import { API_ON, emitApiError, getToken, setToken, serverAlive, AUTH_EXPIRED_EVENT } from "../api/client";
+// ★ 刻意不再 import setToken：token 的生命周期只有两个主人 ——
+//   api/client.ts（服务端回 401 时清）与 api/auth.ts（用户显式登出）。
+//   业务层一插手就会出现"网络抖一下把人登出"这种破坏性降级（见 adoptFromToken）。
+import { API_ON, emitApiError, getToken, resetServerProbe, serverAlive, AUTH_EXPIRED_EVENT } from "../api/client";
 import * as authApi from "../api/auth";
 import * as branch from "../api/branch";
 import * as walletApi from "../api/wallet";
@@ -97,6 +100,10 @@ export async function readyAccount(): Promise<void> {
         const ok = await readyRemote();
         if (ok) return;
         console.warn("[account] 服务器不可达，本次回退本地账号库");
+        // ★ 关键：开机那一刻没网 ≠ 这一整次会话都该是离线的。
+        //   探活结论整个会话只算一次，不重探的话网回来了也永远不会回到远端模式
+        //   （真机实测：飞行模式冷启动 → 关飞行模式 → 等 120 秒仍是未登录）。
+        armOnlineRetry();
       }
       await readyLocal();
     })().finally(() => {
@@ -882,21 +889,122 @@ async function readyRemote(): Promise<boolean> {
     emit();
     return true; // 未登录：可以匿名浏览（列表/详情是 optionalAuth）
   }
+  const ok = await adoptFromToken();
+  if (!ok) {
+    // 没认出用户但 token 还留着（见 adoptFromToken）：挂上自愈钩子，
+    // 网络回来或 App 回到前台时再试一次，别逼用户重开 App
+    armOnlineRetry();
+    return true;
+  }
+  await loadRemoteAssets();
+  emit();
+  return true;
+}
+
+/**
+ * 用手里的 token 把当前用户装载进来。成功 true，失败 false。
+ *
+ * ★★ 失败时**绝不动 token**。这里原来写的是 `setToken(null) // token 过期/损坏`，
+ *   而那一行对唯一该生效的场景是**冗余**的、对其余场景是**破坏性**的：
+ *     · 真的过期（401）—— api/client.ts 的 request() 早就清过 token 并广播了
+ *       AUTH_EXPIRED，根本轮不到这里；
+ *     · 断网 / 超时 / 服务端 5xx —— 抛的是 status 0 的 NETWORK/TIMEOUT，
+ *       却被当成"token 坏了"，**把用户的登录态销毁掉**。
+ *   实测（2026-08-10 真机）：手机 WiFi 掉了一下，重开 App 就变成未登录，
+ *   而 localStorage 里那个 token 其实一直有效——用户得重新输账号密码。
+ *   一次网络抖动 = 强制登出，这是"静默且全局"的破坏（铁律八）。
+ *
+ * ★ 认不出用户时不要伪造登录态：宁可这一次会话显示未登录（token 还在，下次能恢复），
+ *   也不能让页面以为登录着，然后每个写操作都撞一次 401。
+ */
+async function adoptFromToken(): Promise<boolean> {
   try {
     const me = await authApi.fetchMe();
     // /api/auth/me 不带 displayName/bio/头像，补一条 profile 再落地，
     // 否则重载后昵称会从「刘天彬」退回 username
     const profile = await authApi.fetchProfile();
     adoptUser(profile ? { ...me, ...profile } : me);
+    return true;
   } catch (e) {
-    setToken(null); // token 过期/损坏，当未登录处理
     emitApiError("readyAccount", e);
     emit();
-    return true;
+    return false;
   }
-  await loadRemoteAssets();
-  emit();
-  return true;
+}
+
+/**
+ * 联网自愈：手里有 token 却没进到"远端 + 已登录"这个状态时，隔一会儿自己再试。
+ *
+ * 两种失败形态都靠它兜：
+ *   A 已在远端、但 fetchMe 失败 → 只需重新认领用户；
+ *   B **压根没进远端**（启动瞬间没网，serverAlive 探活失败）→ 整个会话被钉在离线模式，
+ *     必须重探 + 重新初始化。这一种最狠：videos/account 两个模块各自的 remoteLive
+ *     都是 false，光认领用户没用，所以探通之后直接 reload —— 让两边一起干净重来。
+ *     （在"离线回退 + 手里有 token"这个状态下没有什么在途状态值得保，reload 是安全的。）
+ *
+ * ★★ **不能只靠 `online` 事件**。真机实测（2026-08-10，安卓 WebView）：WiFi 关掉、
+ *   所有请求都 Failed to fetch 的时候 `navigator.onLine` 仍然是 true，浏览器从头到尾
+ *   不认为自己离线过，`online` 一次都不派发。所以主力是**定时退避重试**，
+ *   事件只当顺风车（回到前台时提前试一次）。
+ *
+ * ★ 退避 + 有限次数：弱网下无限重试会堆出一串并发请求，每次失败还都要走完整超时。
+ *   5s→15s→45s→120s→300s 覆盖"等电梯""过隧道"这类真实时长。
+ */
+const HEAL_DELAYS_MS = [5_000, 15_000, 45_000, 120_000, 300_000];
+let healTimer: ReturnType<typeof setTimeout> | undefined;
+let healStep = 0;
+let selfHealArmed = false;
+
+function armOnlineRetry(): void {
+  if (selfHealArmed || typeof window === "undefined") return;
+  if (!API_ON || !getToken()) return; // 没配服务端 / 本来就没登录过，没什么可恢复的
+  selfHealArmed = true;
+  healStep = 0;
+
+  const stop = () => {
+    clearTimeout(healTimer);
+    window.removeEventListener("online", kick);
+    document.removeEventListener("visibilitychange", kick);
+    selfHealArmed = false;
+  };
+
+  const attempt = async () => {
+    if (!getToken() || currentUser()) return stop(); // 用户登出了，或已经好了
+    if (remoteOn()) {
+      // 形态 A：只是没认领上
+      if (await adoptFromToken()) {
+        stop();
+        await loadRemoteAssets();
+        emit();
+        return;
+      }
+    } else {
+      // 形态 B：会话被钉在离线模式。重探，通了就整体重来
+      resetServerProbe();
+      if (await serverAlive()) {
+        stop();
+        window.location.reload();
+        return;
+      }
+    }
+    schedule();
+  };
+
+  function schedule() {
+    clearTimeout(healTimer);
+    if (healStep >= HEAL_DELAYS_MS.length) return stop(); // 试到头了，等下次启动
+    healTimer = setTimeout(() => void attempt(), HEAL_DELAYS_MS[healStep++]);
+  }
+
+  function kick() {
+    if (document.visibilityState === "hidden") return; // 后台试没意义
+    clearTimeout(healTimer);
+    void attempt();
+  }
+
+  window.addEventListener("online", kick);
+  document.addEventListener("visibilitychange", kick);
+  schedule();
 }
 
 /** 拉当前用户的卡片 / 卡组 / 关注列表（任一失败只影响自己那块） */
