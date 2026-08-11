@@ -86,7 +86,11 @@ export async function materializeDraft(draft: DraftVideo, onProgress?: UploadPro
   });
   const total = jobs.length;
   let done = 0;
-  const tick = (label: string) => onProgress?.(++done, total, label);
+  /** ★ 在每个文件**开始传之前**报，不是传完才报。
+   *  原来写成传完才报，于是最长的那个（1.5MB 成片要十几秒）全程零反馈 ——
+   *  正好是最需要告诉用户"在动"的那一段。真机实测踩到过。 */
+  const begin = (label: string) => onProgress?.(done, total, label);
+  const finish = () => { done++; };
 
   if (total === 0) return draft; // 全是 URL（离线模式合成的、或重试时已经传过）
 
@@ -95,27 +99,32 @@ export async function materializeDraft(draft: DraftVideo, onProgress?: UploadPro
   //   手机上行本来就窄，一次网络抖动重传 5MB 很容易让人以为又坏了。
   const out: DraftVideo = { ...draft, segments: draft.segments.slice(), deck: draft.deck };
   try {
+    if (draft.cover?.startsWith("data:")) begin("封面");
     out.cover = await imageToUrl(draft.cover, "cover");
-    if (draft.cover?.startsWith("data:")) tick("封面");
+    if (draft.cover?.startsWith("data:")) finish();
 
     for (let i = 0; i < draft.segments.length; i++) {
       const s = out.segments[i];
+      if (s.firstFrame?.startsWith("data:")) begin(`第${i + 1}段起始帧`);
       const firstFrame = await imageToUrl(s.firstFrame, `seg${i + 1}-first`);
-      if (s.firstFrame?.startsWith("data:")) tick(`第${i + 1}段起始帧`);
+      if (s.firstFrame?.startsWith("data:")) finish();
       out.segments[i] = { ...s, firstFrame };
+      if (s.lastFrame?.startsWith("data:")) begin(`第${i + 1}段结束帧`);
       const lastFrame = await imageToUrl(s.lastFrame, `seg${i + 1}-last`);
-      if (s.lastFrame?.startsWith("data:")) tick(`第${i + 1}段结束帧`);
+      if (s.lastFrame?.startsWith("data:")) finish();
       out.segments[i] = { ...out.segments[i], lastFrame };
+      if (s.videoUrl?.startsWith("idb:")) begin(`第${i + 1}段成片（较大，请稍候）`);
       const videoUrl = await videoToUrl(s.videoUrl);
-      if (s.videoUrl?.startsWith("idb:")) tick(`第${i + 1}段成片`);
+      if (s.videoUrl?.startsWith("idb:")) finish();
       out.segments[i] = { ...out.segments[i], videoUrl };
     }
 
     if (out.deck?.cards.length) {
       const cards = out.deck.cards.slice();
       for (let i = 0; i < cards.length; i++) {
+        if (cards[i].cover?.startsWith("data:")) begin(`卡面「${cards[i].name}」`);
         const url = await imageToUrl(cards[i].cover, `card-${cards[i].id}`);
-        if (cards[i].cover?.startsWith("data:")) tick(`卡面「${cards[i].name}」`);
+        if (cards[i].cover?.startsWith("data:")) finish();
         cards[i] = { ...cards[i], cover: url };
         out.deck = { ...out.deck, cards };
       }

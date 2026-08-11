@@ -752,6 +752,11 @@ function errText(e: unknown): string {
 /** 启动时重试待发队列（成功的移出队列，失败的留着并记下原因） */
 async function flushPending(): Promise<void> {
   const list = await readPending();
+  // ★ 先把镜像填上再开始传：镜像原来只在 writePending 时才写，于是从启动到第一个
+  //   上传结束之间（成片就要十几秒）个人页什么都不显示——用户眼里又是"作品没了"。
+  //   真机实测踩到过：队列里明明有 1 条，横幅却是空的。
+  pendingMirror = list;
+  emitVideos();
   if (list.length === 0) return;
   const left: PendingPublish[] = [];
   for (const p of list) {
