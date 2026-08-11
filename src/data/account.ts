@@ -447,46 +447,87 @@ export function spendTokens(n: number): { plan: number; addon: number } | null {
   return { plan: fromPlan, addon: fromAddon };
 }
 
-/**
- * 直充：进 add-on。
- * ★ 保持同步签名（ProfilePage 是 onClick 直调）：远端模式下发出请求就返回，
- *   成功后用服务端返回的权威值覆盖镜像，失败走 emitApiError 广播
- *   ——与本文件其它"同步接口 + 后台异步写"的路径同一套路。
- *   ⚠ 服务端那边仍是**模拟支付**，搬过去并没有堵上"自己给自己发 token"，
- *     只是把口径收成一处、有流水、有每日上限。真堵上要接支付回调。
- */
-export function rechargeAddon(tokens: number): void {
-  if (remoteOn()) {
-    if (!currentUser() || tokens <= 0) return;
-    void walletApi
-      .rechargeWallet(tokens)
-      .then((r) => syncRemoteWallet(r.wallet))
-      .catch((e) => emitApiError("rechargeAddon", e));
-    return;
-  }
-  const u = currentUser();
-  if (!u || !db || tokens <= 0) return;
-  ensureWallet(u).addon += tokens;
-  persist();
+// ── 充值 ─────────────────────────────────────────────────
+// ★★ 远端模式下充值**不再是同步的**，这两个函数因此改成了 async。
+//   服务端 2026-08 把发币口从「调 /api/me/wallet/recharge 就到账」改成了
+//   「下单 → 渠道回调 → 结算发币」。原因：前者只要有个有效登录态就能给自己发 token。
+//   于是"发出请求就返回、顺手把镜像刷成新值"这套写法现在是**骗人**的：
+//   请求成功只意味着订单建好了，钱一分没付，余额一分没变。
+//
+//   ⚠ 而且**现在一个真实支付渠道都没接**。下的单没人会把它推进到 settled
+//     （除非服务端开了演示用的 mock 渠道）。UI 必须如实说"还没到账"，
+//     绝不能因为 HTTP 200 就显示充值成功——那是最典型的静默错（铁律八）。
+//
+//   离线模式不受影响：那边没有服务端也没有真钱，直接加数就是它的全部语义。
+
+/** 充值/购套餐的结果。远端模式恒为 pending，直到渠道回调结算 */
+export interface RechargeResult {
+  ok: boolean;
+  /** true = 额度已经到账（只可能是离线模式，或订单已结算） */
+  credited: boolean;
+  /** 远端模式下的订单号，UI 拿它轮询 */
+  orderNo?: string;
+  /** 服务端有没有可用的支付渠道。false = 这单根本付不了 */
+  payable?: boolean;
+  message: string;
 }
 
-/** 订阅/续费套餐：套餐额度立即发放（叠加剩余额度），记住档位 */
-export function buyPlan(planId: string): boolean {
+/** 直充：进 add-on */
+export async function rechargeAddon(tokens: number): Promise<RechargeResult> {
   if (remoteOn()) {
-    if (!currentUser() || !PLANS.some((p) => p.id === planId)) return false;
-    void walletApi
-      .buyWalletPlan(planId)
-      .then((r) => syncRemoteWallet(r.wallet))
-      .catch((e) => emitApiError("buyPlan", e));
-    return true;
+    if (!currentUser() || tokens <= 0) return { ok: false, credited: false, message: "请先登录" };
+    try {
+      const r = await walletApi.createRechargeOrder(tokens);
+      return {
+        ok: true,
+        credited: false,
+        orderNo: r.order.orderNo,
+        payable: r.payable,
+        message: r.payable ? "订单已创建，请完成支付" : "服务端还没接入支付渠道，暂时无法充值",
+      };
+    } catch (e) {
+      emitApiError("rechargeAddon", e);
+      return { ok: false, credited: false, message: e instanceof Error ? e.message : "下单失败" };
+    }
   }
   const u = currentUser();
+  if (!u || !db || tokens <= 0) return { ok: false, credited: false, message: "请先登录" };
+  ensureWallet(u).addon += tokens;
+  persist();
+  return { ok: true, credited: true, message: "已到账" };
+}
+
+/** 订阅/续费套餐：额度叠加在剩余额度上（不没收没花完的），记住档位 */
+export async function buyPlan(planId: string): Promise<RechargeResult> {
   const plan = PLANS.find((p) => p.id === planId);
-  if (!u || !db || !plan) return false;
+  if (!plan) return { ok: false, credited: false, message: "未知套餐" };
+  if (remoteOn()) {
+    if (!currentUser()) return { ok: false, credited: false, message: "请先登录" };
+    try {
+      const r = await walletApi.createPlanOrder(planId);
+      return {
+        ok: true,
+        credited: false,
+        orderNo: r.order.orderNo,
+        payable: r.payable,
+        message: r.payable ? "订单已创建，请完成支付" : "服务端还没接入支付渠道，暂时无法订阅",
+      };
+    } catch (e) {
+      emitApiError("buyPlan", e);
+      return { ok: false, credited: false, message: e instanceof Error ? e.message : "下单失败" };
+    }
+  }
+  const u = currentUser();
+  if (!u || !db) return { ok: false, credited: false, message: "请先登录" };
   ensureWallet(u).plan += plan.monthlyTokens;
   u.planId = plan.id;
   persist();
-  return true;
+  return { ok: true, credited: true, message: "已到账" };
+}
+
+/** 订单结算后刷新镜像。UI 轮询到 settled 时调 */
+export async function refreshWalletAfterOrder(): Promise<void> {
+  await refreshRemoteWallet();
 }
 
 /** 给创作者进账（观看付费分成）：按作者名找本地账号，找不到则静默丢弃 */

@@ -267,8 +267,8 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
 |---|---|---|
 | GET | `/api/me/wallet` | `{ wallet: { plan, addon, planId }, plans }`。顺带完成初始化与跨月刷新 |
 | GET | `/api/me/wallet/ledger?limit=` | token 流水（"我的钱花哪儿了"） |
-| POST | `/api/me/wallet/recharge` | `{ tokens }`，只收在册面额（200k / 1M / 5M） |
-| POST | `/api/me/wallet/plan` | `{ planId }`，free / std / pro |
+| POST | `/api/me/wallet/recharge` | **已改为下单**（见下「充值」）。`{ tokens }` → **202** + 订单，余额不变 |
+| POST | `/api/me/wallet/plan` | **已改为下单**。`{ planId }` → **202** + 订单，余额不变 |
 
 - `plan` = 当月套餐额度，**跨月刷新、未用完作废**；`addon` = 直充与退款，**永不过期**。扣减先 plan 后 addon
 - 用户文档**刻意没有 `tokenWallet` 的 schema default**：有没有这个字段就是"要不要初始化"的
@@ -277,10 +277,56 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
 - 三条不变量（并发不超付 / 没受理必须退 / 月度刷新只发生一次）见
   `server/src/services/tokenWallet.service.js` 的文件头，回归测试见 `server/tests/tokenWallet.spec.js`
 
-⚠ **充值与购套餐仍是模拟支付**（没有接真实支付网关）。把钱包从客户端搬到服务端
-**没有堵上"自己给自己发 token"这个洞** —— 有一个有效登录态就能调。搬过来的意义是：
-口径唯一、有流水可审计、有每日上限兜底（`DAILY_RECHARGE_CAP` / `DAILY_PLAN_BUYS`），
-接支付回调时只改一处。**别看到"已经在服务端了"就以为可以开门收钱。**
+## 充值（订单 + 回调）
+
+挂载点：`app.use("/api/pay", require("./routes/pay.routes"))`。
+
+发币的口子**只有一个**：渠道回调结算（`services/payment/order.service.js` 的 `applyCallback`）。
+钱包路由的 `/recharge` 与 `/plan` 曾经是"调一下就到账"，也就是任何有登录态的人都能
+给自己发 token；现在它们只下单，返回 **202 Accepted** —— 用 202 不用 200 是因为
+"请求收下了"和"余额变多了"是两回事，老客户端拿 200 会把余额刷成新的然后又掉回去。
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/api/pay/config` | 无 | `{ channels, payable, mock, packs, plans }`。`payable=false` = 现在收不了钱，UI 必须说出来 |
+| POST | `/api/pay/orders` | required | `{ kind: "recharge", tokens } \| { kind: "plan", planId }` → 201 `{ order, payParams, payable }` |
+| GET | `/api/pay/orders/:orderNo` | required | 查单（仅本人）。客户端付款后轮询它等 `status: "settled"` |
+| GET | `/api/pay/orders?limit=` | required | 我的订单列表 |
+| POST | `/api/pay/orders/:orderNo/close` | required | 用户取消（仅未支付的） |
+| POST | `/api/pay/callback/:channel` | **无** | 渠道异步通知。安全**全靠** adapter 验签 |
+| POST | `/api/pay/mock/pay` | required | 仅 `PAY_ALLOW_MOCK=1` 时存在，演示用 |
+
+订单状态：`created → paid → settled`，或 `closed` / `failed`（都是终态）。
+
+### 三条不变量
+
+- **O1 一笔订单只发一次币。** 支付回调**必然重复**（渠道重试、运维重推、网络抖动补发）。
+  靠 status 判"处理过没有"不够——读到 paid 再写 settled 中间有并发窗口。
+  用**条件原子更新**抢 `settledAt: null → now`，只有抢到的那一条才真的 credit。
+  重复回调返回 200（回失败渠道会一直推）。
+- **O2 金额以订单快照为准。** 商品、价格、数量全读下单那一刻写进订单的快照，
+  绝不读回调体里的同名字段——那是外部输入。实付 < 应付不发币。
+- **O3 未注册的渠道一律 400。** 没有 adapter 就没有验签；把未知渠道当成功处理，
+  等于任何人 POST 一下就白拿 token。
+
+回归测试 `server/tests/payOrder.spec.js`（24 条）。
+
+### ⚠ 现在一个真实渠道都没接
+
+`services/payment/channels.js` 的注册表是空的，所以下单能下、但没人会把订单推进到
+settled。这是**故意**的：宁可"充不了值"，也不要留一个谁调谁得 token 的口子。
+接渠道 = 写一个 adapter（`verify` 验签是它唯一也是全部的职责）+ 注册，路由与结算不用动。
+
+`PAY_ALLOW_MOCK=1` 打开演示用假渠道（**没有验签**）。默认关；生产环境开着会被启动自检
+直接拒绝（`config/preflight.js`）。
+
+### 价目表两边必须一致
+
+`server/src/services/payment/order.service.js` 的 `RECHARGE_PACKS` 与
+`server/src/config/tokens.js` 的 `PLANS`，必须和 **app 仓 `src/data/economy.ts`** 逐条相等。
+app 那份是【报价】（按下按钮前给用户看的），server 这份是【结算】（真扣钱的）。
+对不上就是"页面写 ¥25、扣了 ¥15"。两仓不在一个 CI 里，`payOrder.spec.js` 末尾把 app 那份
+抄了一遍钉住，改价时会红。金额一律**整数分**。
 
 ### 客户端那份钱包是镜像，不是账本
 
