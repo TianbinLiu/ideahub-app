@@ -22,7 +22,7 @@ import { myTemplates } from "../data/templates";
 import { VIDEO_TIERS, fmtTokens, segTokens, tierOf } from "../data/economy";
 import { FlowNode, chosenOf, flowCost, frontierOf, nodeDone, nodeVideo, useFlow } from "../studio/flowStore";
 import { useStudio } from "../studio/studioStore";
-import { formatDuration } from "../types";
+import { VIDEO_ASPECTS, aspectCss, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 
 const DURATIONS = [3, 5, 6, 8, 10];
@@ -296,7 +296,7 @@ function NodeScreen({
             onClick={() => setSheet(true)}
             className="flex-none rounded-lg bg-panel px-2.5 py-2 text-[11px] text-slate-300"
           >
-            ⚙ {prop.durationSec}s · {tierOf(node.videoTier).label}
+            ⚙ {prop.durationSec}s · {tierOf(node.videoTier).label} · {aspectOf(node.aspect).label}
           </button>
           {done && (
             <button
@@ -402,6 +402,29 @@ function NodeScreen({
                   className={`rounded-lg px-2.5 py-1.5 text-[11px] ${prop.durationSec === d ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
                 >
                   {d}s
+                </button>
+              ))}
+            </div>
+
+            {/* 画幅：已出片的段不给改——改了这一段的成片还是老画幅，
+                用户以为改完就变了，直到剪辑页合并才发现这一段被裁/补了边 */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="w-10 flex-none text-[11px] text-slate-400">画幅</span>
+              {VIDEO_ASPECTS.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => updateNode(node.id, { aspect: a.id })}
+                  disabled={done}
+                  title={done ? "这一段已出片，改画幅要重新生成才生效" : a.desc}
+                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${
+                    node.aspect === a.id ? "bg-brand text-ink" : "bg-panel text-slate-300"
+                  }`}
+                >
+                  <span
+                    className={`block rounded-[2px] border-2 ${node.aspect === a.id ? "border-ink/70" : "border-slate-400"}`}
+                    style={{ width: a.id === "portrait" ? 8 : 14, height: a.id === "portrait" ? 14 : 8 }}
+                  />
+                  {a.label}
                 </button>
               ))}
             </div>
@@ -689,7 +712,10 @@ export default function FlowPage() {
                       onClick={() => setCursor(i)}
                       disabled={locked}
                       aria-label={`第 ${i + 1} 段${locked ? "（还没轮到）" : ""}`}
-                      className={`relative h-11 w-16 flex-none overflow-hidden rounded-lg border-2 ${
+                      /* 定高不定宽：缩略图按本段画幅撑出宽度，横竖一眼能分出来
+                         （写死 16:9 的话，竖屏段在这条里被裁得只剩腰） */
+                      style={{ aspectRatio: aspectCss(n.aspect) }}
+                      className={`relative h-11 flex-none overflow-hidden rounded-lg border-2 ${
                         i === cursor ? "border-brand" : "border-transparent"
                       }`}
                     >

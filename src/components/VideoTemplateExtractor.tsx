@@ -11,9 +11,20 @@ import { AI_REAL, extractTemplateFromVideo } from "../ai";
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { IMAGE_TOKENS, VISION_FRAME_TOKENS, fmtTokens } from "../data/economy";
 import { saveTemplate } from "../data/templates";
-import { VideoTemplate } from "../types";
+import { VideoAspect, VideoTemplate, aspectFromSize } from "../types";
 import Icon from "./Icon";
 import { sampleFrames } from "./videoFrames";
+
+/** 参考视频是竖是横，抽帧本身就带着（canvas 按源比例截的）——照抄它，
+ *  套模板出来的片子才和用户拿来当参考的那条视频一个形状。 */
+function aspectOfFrame(dataUrl: string): Promise<VideoAspect> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(aspectFromSize(img.naturalWidth, img.naturalHeight));
+    img.onerror = () => resolve("landscape");
+    img.src = dataUrl;
+  });
+}
 
 /** 模板素材卡上限：与 real.ts 的提示词（0~6 张）保持一致 */
 const MAX_CARDS = 6;
@@ -77,7 +88,7 @@ export default function VideoTemplateExtractor({
         // 封面用第一帧：它是参考视频自己的画面，最能代表模板长什么样
         cover: frames[0] ?? "",
         cards: r.cards,
-        recipe: { ...r.recipe, videoTier: "hd" },
+        recipe: { ...r.recipe, videoTier: "hd", aspect: await aspectOfFrame(frames[0] ?? "") },
         source: r.source,
       });
       setGot(tpl);

@@ -30,7 +30,9 @@ export type IconName =
   | "pause"
   | "replay"
   | "check"
-  | "branch";
+  | "branch"
+  | "expand"
+  | "shrink";
 
 /** 描边版（默认）。值是 <svg> 的内容，静态字面量，无外部输入。 */
 const OUTLINE: Record<IconName, string> = {
@@ -64,6 +66,12 @@ const OUTLINE: Record<IconName, string> = {
   check: '<path d="M20 6 9 17l-5-5"/>',
   branch:
     '<path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  // 四角外扩/内收：全屏与退出全屏。刻意不用「手机转一圈」那类图标——
+  // 竖屏视频点它并不转屏，只是把边角的按钮文案收起来
+  expand:
+    '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
+  shrink:
+    '<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>',
 };
 
 /**

@@ -18,7 +18,8 @@ export const composeVideo = mock.composeVideo; // 合成动画节奏（真实生
 /** 封面工坊：mock 构建出本地占位帧（带演示水标语义），真实构建走 Seedream */
 export const generateCover: typeof real.generateCover = AI_REAL
   ? real.generateCover
-  : async (req) => makeFrame(`cover:${req}:${Math.random()}`, `${req.slice(0, 10) || "封面"} · 演示`);
+  : async (req, _ref, aspect) =>
+      makeFrame(`cover:${req}:${Math.random()}`, `${req.slice(0, 10) || "封面"} · 演示`, undefined, aspect);
 
 /** 本片卡组提炼：真实构建 AI 对照已有素材卡，只补剧情里缺卡的实体（每类可多张）；
  *  mock 构建退化为按段派生场景卡（首帧当卡面），同名已有卡跳过 */

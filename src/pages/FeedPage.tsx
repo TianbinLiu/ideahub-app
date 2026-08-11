@@ -10,16 +10,27 @@ import { addPlay, isLiked, isMyAuthor, listVideos, setLike, setSave } from "../d
 import { hasPurchased, isCollected, isFollowing, toggleCollect, toggleFollow } from "../data/account";
 import { fmtTokens } from "../data/economy";
 import { useCurrentUser } from "../hooks/useAccount";
+import { requestLandscape } from "../hooks/useOrientationLock";
 import { useVideosVersion } from "../hooks/useVideos";
 import Avatar from "../components/Avatar";
 import CommentSheet from "../components/CommentSheet";
 import Icon, { type IconName } from "../components/Icon";
 import CharacterPerch, { usePerchBurst, type PerchPose } from "../components/CharacterPerch";
-import { VideoItem, formatDuration } from "../types";
+import { VideoAspect, VideoItem, aspectFromSize, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 
 /** 声音开关全流共享：一条视频上解除静音，后面每条都该有声（对标抖音/TikTok） */
 let soundOn = typeof sessionStorage !== "undefined" && sessionStorage.getItem("feed.sound") === "1";
+
+/**
+ * 画面怎么塞进这一屏。
+ * 横屏（含正方）留黑边**不裁**，竖屏铺满——不做"与屏幕比例差多少"的相对判断：
+ * 手机高矮不一（18:9 到 21:9 都有），相对阈值会让同一条 9:16 的片子在瘦长手机上
+ * 被判成"该留黑边"，看着就像竖屏功能没生效。绝对判据只有一条线，行为可预期。
+ */
+function fitOf(a: VideoAspect): "contain" | "cover" {
+  return a === "landscape" ? "contain" : "cover";
+}
 
 /** 右侧操作栏单键。固定 28×28 的 SVG + 至少 56px 高，间距由盒模型保证——
  *  原来用 emoji 时三个字形高度各不相同（🤍 方、💬 带气泡尾、▶️ 带彩色底板），
@@ -34,6 +45,7 @@ function RailBtn({
   tint,
   label,
   perch,
+  className = "",
   onClick,
 }: {
   icon: IconName;
@@ -43,6 +55,7 @@ function RailBtn({
   /** 给了姿势名，【激活的那一下】角色跳上来演一段再缩回去。
    *  姿势同时决定贴图、翻页帧和进出场动画（见 CharacterPerch）。 */
   perch?: PerchPose;
+  className?: string;
   onClick: () => void;
 }) {
   // 只在 false→true 的跳变时播一次；划回一条早就点过赞的视频不该重播（见 usePerchBurst）
@@ -50,7 +63,7 @@ function RailBtn({
   return (
     <button
       onClick={onClick}
-      className="flex min-h-[56px] w-14 flex-col items-center justify-center gap-1 transition active:scale-90"
+      className={`flex min-h-[56px] w-14 flex-col items-center justify-center gap-1 transition active:scale-90 ${className}`}
     >
       {/* relative 容器只包图标：角色要相对【图标】定位，包住文字的话会偏高。
           isolate：角色用负 z-index 沉到图标下面，必须有独立层叠上下文兜住，
@@ -73,7 +86,23 @@ function RailBtn({
   );
 }
 
-function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; dist: number }) {
+function FeedItem({
+  video,
+  active,
+  dist,
+  immersive,
+  onEnterFull,
+  onAspect,
+}: {
+  video: VideoItem;
+  active: boolean;
+  dist: number;
+  /** 沉浸/全屏态由 FeedPage 持有：关注/推荐页签、底栏、退出键都不归本组件管 */
+  immersive: boolean;
+  onEnterFull: () => void;
+  /** 把本屏的真实画幅报上去：转不转屏、全屏键写什么字都看它 */
+  onAspect: (a: VideoAspect) => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   // 初值从库里取：划走再划回来时点赞态不该丢（isLiked 之前一直没人调用）
   const [liked, setLiked] = useState(() => isLiked(video.id));
@@ -178,6 +207,17 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
   const wantSrc = dist <= 1;
   // 媒体地址解析：idb: 合并视频 / TOS 远端经代理取 blob；解析完成前出封面
   const resolvedSrc = useMediaUrl(!locked && wantSrc ? seg?.videoUrl : undefined);
+
+  // 画幅：段上存的只是**排版提示**（画面还没解码时先按它铺），拿到真实宽高就改用真值。
+  // 存的字段会缺（画幅可选之前的老作品）、会过时（改了设置没重新出片），也可能被
+  // 服务端当未知字段丢掉——只有解码出来的像素不会骗人。
+  const [detected, setDetected] = useState<VideoAspect | null>(null);
+  useEffect(() => setDetected(null), [si, video.id]); // 换段/换作品都要重新判
+  const shownAspect = detected ?? aspectOf(seg?.aspect).id;
+  const fit = fitOf(shownAspect);
+  useEffect(() => {
+    if (active) onAspect(shownAspect);
+  }, [active, shownAspect, onAspect]);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -298,7 +338,10 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
           ref={videoRef}
           src={resolvedSrc}
           poster={si === 0 ? video.cover : seg?.firstFrame}
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full"
+          // ★ 横屏片一律 contain：以前写死 object-cover，16:9 的片子在 9:16 的屏上
+          //   左右各要切掉 40% 以上——人物经常只剩半张脸。留黑边才是完整画面。
+          style={{ objectFit: fit }}
           loop={!multiSeg}
           muted={muted}
           playsInline
@@ -315,6 +358,8 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
           }}
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
+            // 真实解码尺寸一到手就以它为准（0 = 还没解出来，别拿去判）
+            if (v.videoWidth && v.videoHeight) setDetected(aspectFromSize(v.videoWidth, v.videoHeight));
             if (pendingSeek.current != null) {
               v.currentTime = Math.min(pendingSeek.current, v.duration || pendingSeek.current);
               pendingSeek.current = null;
@@ -328,12 +373,17 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
           onTimeUpdate={(e) => setProg({ t: e.currentTarget.currentTime, d: e.currentTarget.duration || 0 })}
         />
       ) : (
-        <img src={video.cover} alt={video.title} className="absolute inset-0 h-full w-full object-cover" />
+        <img src={video.cover} alt={video.title} className="absolute inset-0 h-full w-full" style={{ objectFit: fit }} />
       )}
 
-      {/* 上下定高遮罩：只压住文字所在的两条带，中间画面保持干净 */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/55 to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black/80 via-black/35 to-transparent" />
+      {/* 上下定高遮罩：只压住文字所在的两条带，中间画面保持干净。
+          沉浸态下没有文字要压，压边只会把画面上下两头压暗 */}
+      {!immersive && (
+        <>
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/55 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black/80 via-black/35 to-transparent" />
+        </>
+      )}
 
       {/* 缓冲提示（元数据未就绪、还没有进度条时的独立形态）：底缘细线从中心拉宽淡出 */}
       {active && buffering && !paused && prog.d === 0 && (
@@ -347,7 +397,7 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
 
       {/* 进度条（对标抖音）：底缘常驻细条 + 右下角小字 当前/总时长；
           可拖动跳转，拖动中变粗并在画面中央显示大字时间；缓冲时进度条位置改播脉冲线 */}
-      {active && seg?.videoUrl && wantSrc && prog.d > 0 && (
+      {active && !immersive && seg?.videoUrl && wantSrc && prog.d > 0 && (
         <div className="absolute inset-x-0 z-20" style={{ bottom: "calc(var(--tabbar-h) - 0.375rem)" }}>
           <div className="mb-0.5 flex justify-end pr-3">
             <span className="text-[10px] tabular-nums text-white/70 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
@@ -422,62 +472,77 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
           播放量下沉：TikTok 不在视频上显示播放量，它属于作者后台而非观众决策信息。
           pointer 事件在这里截住：点操作键不该同时触发画面的暂停/解静音/双击点赞 */}
       <div
-        /* gap-10 而不是更紧凑的 gap-4：激活态的角色会从图标顶沿向上探出约 45px，
-           gap-4（16px）时它正好压住【上一个按钮的计数数字】——实测收藏后评论数「3」
-           整个消失。计数是信息，装饰盖掉信息就是回退。
-           取值靠量：gap-9（36px）时仍有 1px 重叠，gap-10（40px）后归零。
-           换角色贴图（改高度）时要重新量一遍，别照抄这个数。 */
-        className="absolute right-2 z-10 flex flex-col items-center gap-10"
+        className={`absolute right-2 z-10 flex flex-col items-center ${immersive ? "hidden" : ""}`}
         style={{ bottom: "calc(var(--tabbar-h) + 1.25rem)" }}
         onPointerDown={(e) => e.stopPropagation()}
         onPointerUp={(e) => e.stopPropagation()}
       >
-        {/* 头像 + 关注：未关注时下挂一个 + 号，点了变对勾后淡出（TikTok 同款反馈）。
-            点头像去【作者主页】而不是作品详情页——这是 TikTok/抖音的通用心智，
-            也是唯一能走到别人主页的入口。详情页改由下方标题进入。 */}
-        <div className="relative mb-1">
-          <button
-            onClick={() => navigate(authorHref)}
-            aria-label={`${video.author} 的主页`}
-            className="block active:scale-95"
-          >
-            <span className="block rounded-full ring-2 ring-white/90">
-              <Avatar name={video.author} src={mine ? user?.avatar : undefined} size={44} />
-            </span>
-          </button>
-          {user && !mine && !following && (
+        <div
+          /* gap-10 而不是更紧凑的 gap-4：激活态的角色会从图标顶沿向上探出约 45px，
+             gap-4（16px）时它正好压住【上一个按钮的计数数字】——实测收藏后评论数「3」
+             整个消失。计数是信息，装饰盖掉信息就是回退。
+             取值靠量：gap-9（36px）时仍有 1px 重叠，gap-10（40px）后归零。
+             换角色贴图（改高度）时要重新量一遍，别照抄这个数。 */
+          className="flex flex-col items-center gap-10"
+        >
+          {/* 头像 + 关注：未关注时下挂一个 + 号，点了变对勾后淡出（TikTok 同款反馈）。
+              点头像去【作者主页】而不是作品详情页——这是 TikTok/抖音的通用心智，
+              也是唯一能走到别人主页的入口。详情页改由下方标题进入。 */}
+          <div className="relative mb-1">
             <button
-              onClick={() => setFollowing(toggleFollow(video.author))}
-              aria-label="关注"
-              className="absolute -bottom-2 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-rose-500 text-white transition active:scale-90"
+              onClick={() => navigate(authorHref)}
+              aria-label={`${video.author} 的主页`}
+              className="block active:scale-95"
             >
-              <Icon name="plus" size={12} strokeWidth={3} />
+              <span className="block rounded-full ring-2 ring-white/90">
+                <Avatar name={video.author} src={mine ? user?.avatar : undefined} size={44} />
+              </span>
             </button>
-          )}
+            {user && !mine && !following && (
+              <button
+                onClick={() => setFollowing(toggleFollow(video.author))}
+                aria-label="关注"
+                className="absolute -bottom-2 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-rose-500 text-white transition active:scale-90"
+              >
+                <Icon name="plus" size={12} strokeWidth={3} />
+              </button>
+            )}
+          </div>
+
+          <RailBtn icon="heart" filled={liked} tint="text-rose-500" label={String(likes)} perch="like" onClick={toggleLike} />
+          {/* 评论就地滑出抽屉（对标短视频 App），不跳详情页打断刷视频的节奏 */}
+          <RailBtn icon="comment" label={String(video.comments.length)} onClick={() => setCmtOpen(true)} />
+          <RailBtn
+            icon="bookmark"
+            filled={saved}
+            tint="text-gold"
+            label={String(saves)}
+            perch="save"
+            onClick={() => {
+              // 收藏要认人：未登录先去登录，否则"收藏了"只是一个划走就没的错觉
+              if (!user) {
+                navigate("/login?next=/");
+                return;
+              }
+              const on = toggleCollect(video.id); // 账号库为准
+              setSaved(on);
+              setSaves(setSave(video.id, on)); // 只借它维护计数
+              navigator.vibrate?.(10);
+            }}
+          />
+          <RailBtn icon="share" label={String(video.shares ?? 0)} onClick={share} />
         </div>
 
-        <RailBtn icon="heart" filled={liked} tint="text-rose-500" label={String(likes)} perch="like" onClick={toggleLike} />
-        {/* 评论就地滑出抽屉（对标短视频 App），不跳详情页打断刷视频的节奏 */}
-        <RailBtn icon="comment" label={String(video.comments.length)} onClick={() => setCmtOpen(true)} />
+        {/* 全屏键挂在整栏最下面：它没有角色演出、也没有计数，用不着上面那 40px 的避让
+            （gap-10 是为了不让角色盖住上一个按钮的数字，见上）。整栏是 bottom 定位的
+            flex-col，多出这一枚，上面五个自然被顶上去——正是它腾出来的位置。
+            两种画幅点下去做的事不同，字也就不同：横屏转屏占满，竖屏收起边角元素。 */}
         <RailBtn
-          icon="bookmark"
-          filled={saved}
-          tint="text-gold"
-          label={String(saves)}
-          perch="save"
-          onClick={() => {
-            // 收藏要认人：未登录先去登录，否则"收藏了"只是一个划走就没的错觉
-            if (!user) {
-              navigate("/login?next=/");
-              return;
-            }
-            const on = toggleCollect(video.id); // 账号库为准
-            setSaved(on);
-            setSaves(setSave(video.id, on)); // 只借它维护计数
-            navigator.vibrate?.(10);
-          }}
+          icon="expand"
+          label={shownAspect === "landscape" ? "转屏" : "全屏"}
+          className="mt-6"
+          onClick={onEnterFull}
         />
-        <RailBtn icon="share" label={String(video.shares ?? 0)} onClick={share} />
       </div>
 
       {cmtOpen && <CommentSheet video={video} onClose={() => setCmtOpen(false)} />}
@@ -487,7 +552,7 @@ function FeedItem({ video, active, dist }: { video: VideoItem; active: boolean; 
           分类不再单独做胶囊：TikTok 把话题写进描述文字里（#fyp #messy），
           单独的胶囊在全出血画面上会切出一个突兀的实心块。 */}
       <div
-        className="absolute inset-x-0 bottom-0 z-10 pl-4 pr-20"
+        className={`absolute inset-x-0 bottom-0 z-10 pl-4 pr-20 ${immersive ? "hidden" : ""}`}
         style={{ paddingBottom: "calc(var(--tabbar-h) + 0.75rem)" }}
       >
         <button
@@ -539,7 +604,62 @@ export default function FeedPage() {
   }, [all, feed, user?.following]);
   const [activeIdx, setActiveIdx] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const firstRun = useRef(true);
+  // 沉浸/全屏态。放在页面这层而不是单条视频里：关注/推荐页签、底部 TabBar、退出键
+  // 都不归 FeedItem 管，而它们必须一起消失
+  const [immersive, setImmersive] = useState(false);
+  const [activeAspect, setActiveAspect] = useState<VideoAspect>("portrait");
+
+  const enterFull = async () => {
+    // 真·全屏优先：它才能一并遮住系统/浏览器界面，也是安卓返回键能退出的那一层。
+    // 不支持或被拒都不致命——下面的沉浸态照样把边角元素收起来
+    try {
+      await rootRef.current?.requestFullscreen?.();
+    } catch {
+      /* WebView 版本老 / 被策略拒绝：降级成"只收边角元素"，仍比什么都不做强 */
+    }
+    setImmersive(true);
+  };
+  const exitFull = () => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    setImmersive(false);
+  };
+
+  // 转屏只对横屏片做，且必须在进入全屏之后——两个平台都只允许全屏态下锁方向。
+  // 跟着 activeAspect 走：全屏里划到一条竖屏片，屏幕转回来，不然竖片横躺着看。
+  // ★ 只表达意图，不自己去锁：真正下手的是 useOrientationLock（App 级的全局竖屏锁）。
+  //   它每次切路由都会 lock(portrait)，这里再各自锁一次必然打架——真机上就是
+  //   "点了转屏没反应"。方向只能有一个主人。
+  useEffect(() => {
+    requestLandscape(immersive && activeAspect === "landscape");
+  }, [immersive, activeAspect]);
+
+  // 用安卓返回键 / Esc / 系统手势退出全屏时把沉浸态一起收掉，
+  // 否则页面停在"什么按钮都没有"的样子，只剩那一枚退出键能脱身
+  useEffect(() => {
+    const onChange = () => {
+      if (!document.fullscreenElement) setImmersive(false);
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  // 底栏在 TabLayout 里、不归本页渲染——用 body 上的标记让它一起隐身（见 index.css）。
+  // 离开首页/卸载必须清掉，否则底栏在别的页面也跟着消失
+  useEffect(() => {
+    if (immersive) document.body.dataset.immersive = "1";
+    else delete document.body.dataset.immersive;
+  }, [immersive]);
+  useEffect(
+    () => () => {
+      delete document.body.dataset.immersive;
+      // 横屏请求也必须撤：不撤的话离开首页后整个 App 还锁在横屏里
+      requestLandscape(false);
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    },
+    [],
+  );
 
   // 切流后回到顶部并重置当前屏（首次挂载不算切流，否则会覆盖掉恢复的位置）
   useEffect(() => {
@@ -585,7 +705,7 @@ export default function FeedPage() {
     };
   }, [videos.length]);
 
-  const tabs = (
+  const tabs = immersive ? null : (
     <div className="safe-top pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center pt-2">
       {/* 纯文字 + 下划线：胶囊底色在全出血画面上会切出一个实心矩形，
           抖音/TikTok/小红书四家一致用的是文字态 */}
@@ -638,8 +758,22 @@ export default function FeedPage() {
   return (
     // fixed inset-0 而不是 h-[calc(100vh-4rem)]：视频要全出血到屏幕边缘（底栏浮在渐变上），
     // 同时绕开 100vh 在 WebView 地址栏伸缩时导致 snap 错位的老问题
-    <div className="fixed inset-0 z-0 bg-black">
+    <div ref={rootRef} className="fixed inset-0 z-0 bg-black">
       {tabs}
+
+      {/* 退出键：沉浸态下唯一留在画面上的控件，必须常驻——真全屏没申请成功时
+          既没有 Esc 也没有系统返回可用，没有它用户就困在这一屏里了。
+          压到半透明，不抢画面 */}
+      {immersive && (
+        <button
+          onClick={exitFull}
+          aria-label="退出全屏"
+          className="safe-top absolute right-3 top-0 z-30 mt-3 flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white/80 backdrop-blur-sm transition active:scale-90"
+        >
+          <Icon name="shrink" size={22} />
+        </button>
+      )}
+
       <div
         ref={wrapRef}
         className="no-scrollbar h-full snap-y snap-mandatory overflow-y-auto overscroll-contain"
@@ -649,7 +783,16 @@ export default function FeedPage() {
           return (
             <div key={v.id} data-idx={i} className="h-full w-full">
               {/* 远处的屏保留同样的 data-idx 和高度（snap 与 IO 都依赖它），只是不渲染内容 */}
-              {dist <= 2 ? <FeedItem video={v} active={i === activeIdx} dist={dist} /> : null}
+              {dist <= 2 ? (
+                <FeedItem
+                  video={v}
+                  active={i === activeIdx}
+                  dist={dist}
+                  immersive={immersive}
+                  onEnterFull={() => void enterFull()}
+                  onAspect={setActiveAspect}
+                />
+              ) : null}
             </div>
           );
         })}
