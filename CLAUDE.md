@@ -111,6 +111,7 @@ design/        ★ 建模/出图的【离线工具与素材】，不参与 App �
 |---|---|---|
 | `.env.local` 没配 | AI 功能静默走 mock，不报错 | `cp .env.example .env.local` |
 | 新 worktree 缺 `.env.local` | 同上（gitignore 不会带过去） | 手动复制 |
+| 新 worktree 缺 `public/models/protected/` | **出包直接少东西且不报错**：工坊里铸卡师不见了（milltina 是加密分发的默认 NPC），凛卡的 3D 预览也没了。dev 下同样静默——只是模型 404，画面上就是"人没出来" | 同样手动从主仓复制。出包前用 `ls dist/models/protected/` 确认 `milltina-opt.glbx` 在（2026-08-11 就是这么发出去一个没有铸卡师的包的） |
 | `VITE_API_BASE` 指了远端 | 首页空白（本地库被跳过） | 本地开发注释掉它 |
 | 方舟提示词含敏感词 | 整个请求 400，不是降级 | 见 `AGENTS.md` 本仓小节 |
 | 新增数据字段没写迁移 | 老设备读到 `undefined`，静默显示 0 | 在 `src/data/videos.ts` 的迁移分支里加条件 |

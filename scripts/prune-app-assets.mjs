@@ -3,7 +3,9 @@
 // ★★ 2026-08-11 起「极致」档（4K 贴图）**留在包里**了。
 //   原来它也被裁掉，于是 App 里那一档是灰的、点不动，设置页只能写一句
 //   "App 安装包不含 4K 贴图" —— 用户看到的是一个摆在那里但永远不能用的选项。
-//   代价是包体从 ~56MB 涨到 ~152MB（三个自产模型：NPC 34.9 + 形象 f 25.5 + m 35.5）。
+//   代价是包体从 56MB 涨到 94MB（两个自产的玩家形象：f 25.5 + m 35.5，压缩后约 38MB）。
+//   ⚠️ 不含 NPC —— 默认铸卡师是购入的 milltina，单文件、不分画质；
+//   npc-full-face 那三档只服务 `?npc=witch` 调试变体，仍然全裁。
 //   评估过"按需下载"（本文件原来的注释就是这么写的），选了直接装进包：
 //   自更新是整包替换，按需下载省下的那份流量，在每次更新时又以另一种形式还回去了，
 //   而且多一条会失败的网络路径。
@@ -30,9 +32,13 @@ const PRUNE = [
   "preview/player-m.glb",
   "preview/player-f.glb",
   "preview/tripo-v3-rigged.glb",
-  // ★ 这里原来还裁掉三个「极致」档模型（npc-full-face / player-m-think /
-  //   player-f-think，共 96MB）。2026-08-11 起**不再裁**，见文件头的说明 ——
+  // ★ 这里原来还裁掉两个**真正在用**的「极致」档模型（player-f-think 25.5MB /
+  //   player-m-think 35.5MB）。2026-08-11 起不再裁，见文件头的说明 ——
   //   裁了它们，App 里的「极致」就是一个永远点不动的灰选项。
+  // ⚠️ npc-full-face.glb（34.9MB）**仍然裁掉**，别看它名字像正主：
+  //   默认铸卡师是下面那个购入的 milltina（单文件、不分画质），
+  //   npcModelUrl() 只喂 `?npc=witch` 这个调试变体，而 App 里没有地址栏、永不可达。
+  //   它的 -mid/-opt 两档也在下面的调试变体那一组里裁着，三档要留一起留。
   // 默认形象的极致档（13.6MB）：tsumire 是 BOOTH 购入的第三方模型、DEV-only，
   // 授权不含分发，永远不入包（下面"本地开发试穿档"那一组是同一个理由）
   "protected/tsumire-player.glbx",
@@ -46,6 +52,7 @@ const PRUNE = [
   // ?npc= URL 调试变体专用（App 内没有地址栏，永不可达；web 调试不受影响）
   "preview/tripo-v3-rigged-opt.glb", // ?npc=tripo
   "npc/card-forger.vrm", // ?npc=vrm
+  "preview/npc-full-face.glb", // ?npc=witch 的极致档（34.9MB）
   "preview/npc-full-face-mid.glb", // ?npc=witch
   "preview/npc-full-face-opt.glb", // ?npc=witch
   // 本地开发试穿档（第三方移植模型，仅限本机 DEV；授权不含分发——绝不允许入包）
