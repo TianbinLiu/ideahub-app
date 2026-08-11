@@ -25,7 +25,8 @@ npm run dev                    # http://localhost:5173
 `npm run build` = `tsc && vite build`，**提交前必须通过**。
 
 出安装包：`npm run apk`（debug，自己测）/ `npm run apk:release`（**发给别人的只发这个**）/ `npm run aab`（上架）。
-发版与应用内更新的完整流程见 [`docs/app-distribution.md`](docs/app-distribution.md)。
+发版走 `npm run release` —— 它会**自检"这次更新能不能到老用户手里"**（签名、版本号、
+清单可达性），任何一条不过就当场停下。完整流程见 [`docs/app-distribution.md`](docs/app-distribution.md)。
 签名 keystore 不在仓库里，见 `android/keystore/README.md`。
 
 ## 目录
