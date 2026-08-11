@@ -69,8 +69,7 @@ export default function PublishPage() {
     publishedRef.current = true;
     clearDraft();
     // 发布成功 → 退休对应的在途草稿：它已经变成作品了，留在草稿列表里只是噪音，
-    // 而且草稿正文带整份帧，白占配额。作品侧的源工程刚在上面 saveProject 存过，
-    // 想再改走「重制」那条路，不依赖这条草稿
+    // 而且草稿正文带整份帧，白占配额。作品已经定稿、不能回炉，这条草稿也就没有留的理由了
     void useStudio.getState().retireWorkDraft();
     navigate(`/video/${item.id}`, { replace: true });
   }

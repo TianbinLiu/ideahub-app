@@ -1,6 +1,6 @@
 // mock AI 管线：卡片生成 / 市场检索 / 三方案推演。
 // 接口形状按未来 server 端点设计（异步 + 延迟），换成真实 AI 时仅需替换实现。
-import { Card, CardType, Proposal, uid } from "../types";
+import { Card, CardType, Proposal, VideoAspect, uid } from "../types";
 import { makeCover, makeFrame } from "./frames";
 import { makeRng, pick } from "./rng";
 
@@ -194,6 +194,8 @@ export interface ProposalContext {
   startFrame: string | null;
   /** 已选路径的剧情，用于“沿路径续写” */
   pathPlots: string[];
+  /** 本段画幅（竖/横）：决定设定帧的画布与构图提示词；缺省=横屏 */
+  aspect?: VideoAspect;
 }
 
 const VARIANTS: Array<{ key: string; name: string; open: string[]; turn: string[]; close: string[] }> = [
@@ -249,8 +251,9 @@ export async function generateProposals(ctx: ProposalContext): Promise<Proposal[
       plot: sentences.join(""),
       // 有确定开头帧（上一段尾帧/用户上传）时直接沿用——mock 也保持"无缝衔接"语义；
       // 否则三个方案的首帧共享上一段尾帧的色调（承接）
-      firstFrame: ctx.startFrame ?? makeFrame(`${id}#first`, `${title} · 首帧`, ctx.prevFrameSeed ?? `${id}#first`),
-      lastFrame: makeFrame(`${id}#last`, `${title} · 尾帧`, `${id}#last`),
+      firstFrame:
+        ctx.startFrame ?? makeFrame(`${id}#first`, `${title} · 首帧`, ctx.prevFrameSeed ?? `${id}#first`, ctx.aspect),
+      lastFrame: makeFrame(`${id}#last`, `${title} · 尾帧`, `${id}#last`, ctx.aspect),
       durationSec,
     };
   });

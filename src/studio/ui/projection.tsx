@@ -1,6 +1,7 @@
 // 全息投影窗：悬浮卡上方的主交互面板（占据视觉大部分空间，背景灰化模糊）
 // editor = 左侧空白首尾帧栏位 + 右侧四区（预览图/素材/视频要求/视频时长）
-// proposals = 三个投影节点卡（点开看首尾帧与小说式剧情，选定后落卡）
+// proposals = 方案台：三套走向一行一套（左首尾帧卡 / 右剧情），挑定一套后就地改图改剧情、
+//             炼出本段视频——**炼出来才能开下一张卡**（见 studioStore.placeholderVisible）
 // decks = 卡组选择（两段式第一步；选中后回第一人称把该组卡摊上桌）
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
@@ -10,37 +11,22 @@ import TarotCard from "../../components/TarotCard";
 import DeckCard from "../../components/DeckCard";
 import GenTrace from "../../components/GenTrace";
 import FrameCard from "./FrameCard";
+import PlanBoard from "./PlanBoard";
 import Icon from "../../components/Icon";
-import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType, NodeSlot, Proposal } from "../../types";
-import { activePath, chosenProposal, useStudio } from "../studioStore";
+import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType, NodeSlot, Proposal, VIDEO_ASPECTS, aspectCss, aspectOf } from "../../types";
+import {
+  activePath,
+  chosenProposal,
+  proposalDone,
+  proposalRedrawCostOf,
+  rederiveKey,
+  useStudio,
+} from "../studioStore";
 import TokenCost from "../../components/TokenCost";
 import { proposalsCost } from "../../data/economy";
+import { fileToFrameDataUrl } from "../../utils/image";
 import { computeChain } from "../scene/TableScene";
 import { CHAIN, focusCam } from "../scene/layout";
-
-/** 本地图 → 开头帧 dataURL：超宽的压到 1600px（Seedream 参考图/Seedance 首帧都收 dataURL，
- *  原图 base64 动辄 5MB+，白白撑大草稿） */
-async function fileToFrameDataUrl(file: File): Promise<string> {
-  const raw = await new Promise<string>((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result as string);
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const i = new Image();
-    i.onload = () => resolve(i);
-    i.onerror = reject;
-    i.src = raw;
-  });
-  const maxW = 1600;
-  if (img.width <= maxW) return raw;
-  const c = document.createElement("canvas");
-  c.width = maxW;
-  c.height = Math.round((img.height * maxW) / img.width);
-  c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-  return c.toDataURL("image/jpeg", 0.87);
-}
 
 export default function ProjectionWindow() {
   const projection = useStudio((s) => s.projection);
@@ -419,7 +405,42 @@ function EditorPanel() {
             </span>
           </div>
 
-          {/* ⑤ 生成档位：Seedance 模型分级，按档位×时长预估本段合成 token 消耗 */}
+          {/* ⑤ 画幅：竖屏/横屏。放在档位【之前】——它决定设定帧画在什么画布上，
+              是这一炉最先落地的东西，推演完再想换就等于整段重画。
+              小方块是等比示意图，不写数字：用户要判断的是"手机全屏还是电影感"，
+              9:16/16:9 这种写法在这一步反而要多想一步 */}
+          <div className="flex-none">
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="text-xs font-semibold text-slate-300">画幅</span>
+              <span className="text-[10px] text-slate-500">{aspectOf(editor.aspect).desc}</span>
+            </div>
+            <div className="flex gap-1.5">
+              {VIDEO_ASPECTS.map((a) => {
+                const on = editor.aspect === a.id;
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => useStudio.getState().setAspect(a.id)}
+                    disabled={editor.generating}
+                    title={a.desc}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-1 py-1.5 transition ${
+                      on
+                        ? "border-cyan-400 bg-cyan-400/10 text-cyan-100"
+                        : "border-slate-600 text-slate-400 hover:border-slate-400"
+                    }`}
+                  >
+                    <span
+                      className={`block rounded-[2px] border-2 ${on ? "border-cyan-300" : "border-slate-500"}`}
+                      style={{ width: a.id === "portrait" ? 9 : 16, height: a.id === "portrait" ? 16 : 9 }}
+                    />
+                    <span className="text-[11px] font-semibold">{a.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ⑥ 生成档位：Seedance 模型分级，按档位×时长预估本段合成 token 消耗 */}
           <div className="flex-none">
             <div className="mb-1 flex items-baseline justify-between">
               <span className="text-xs font-semibold text-slate-300">视频档位</span>
@@ -483,19 +504,24 @@ function EditorPanel() {
   );
 }
 
-// ── 三方案投影：上中下三张节点卡 ──────────────────────────────
+// ── 方案台投影：三套走向，一行一套 ────────────────────────────
 function ProposalsPanel() {
   const focus = useStudio((s) => s.focus);
   const root = useStudio((s) => s.root);
   const frameRefining = useStudio((s) => s.frameRefining);
-  const [openId, setOpenId] = useState<string | null>(null);
-  // 选帧改图小窗：哪个方案的哪一帧 + 修改要求
-  const [refine, setRefine] = useState<{ pid: string; which: "first" | "last" } | null>(null);
-  const [refineReq, setRefineReq] = useState("");
+  const proposalRegen = useStudio((s) => s.proposalRegen);
+  const nodeGen = useStudio((s) => s.nodeGen);
   const path = activePath(root);
   const node = focus?.nodeId ? path.find((n) => n.id === focus.nodeId) : null;
   if (!node) return null;
   const idx = path.findIndex((n) => n.id === node.id);
+  const prev = idx > 0 ? chosenProposal(path[idx - 1]) : null;
+  const chosen = chosenProposal(node);
+  const done = proposalDone(chosen);
+  // 承接判定：本段的设定首帧就是上一段的设定尾帧（AI 顺接铸出来的）→ 这张开头帧不是本段
+  // 自己画的，AI 重画方案时不该动它
+  const carried = !!(prev?.lastFrame && chosen?.firstFrame === prev.lastFrame);
+  const busy = !!nodeGen || !!frameRefining || !!proposalRegen;
 
   // ‹› 切换聚焦节点：桌面窗口随焦点实时平移（computeChain 焦点跟随），镜头跟到新卡位
   function go(dir: 1 | -1) {
@@ -506,7 +532,6 @@ function ProposalsPanel() {
     if (nx == null) return;
     const cam = focusCam(nx, CHAIN.rowZ);
     st.switchFocusNode(target.id, cam.pos, cam.look);
-    setOpenId(null);
   }
 
   return (
@@ -521,7 +546,7 @@ function ProposalsPanel() {
           ‹
         </button>
         <h3 className="min-w-0 flex-1 truncate text-center text-sm font-bold text-cyan-100">
-          第 {idx + 1}/{path.length} 段 · 选择走向
+          第 {idx + 1}/{path.length} 段 · {node.chosenId ? (done ? "已出片" : "已选定走向") : "选择走向"}
         </h3>
         <button
           onClick={() => go(1)}
@@ -535,158 +560,126 @@ function ProposalsPanel() {
           ✕
         </button>
       </div>
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
-        {node.proposals.map((p) => {
-          const isChosen = node.chosenId === p.id;
-          const expanded = openId === p.id;
-          const switching = node.chosenId != null && !isChosen && node.children[node.chosenId] != null;
-          return (
-            <div
-              key={p.id}
-              className={`rounded-xl border p-2.5 transition-colors ${
-                isChosen ? "border-gold/80 bg-gold/5" : expanded ? "border-cyan-400/60 bg-cyan-400/5" : "border-slate-600/60"
-              }`}
-            >
-              <button className="flex w-full items-start gap-2 text-left" onClick={() => setOpenId(expanded ? null : p.id)}>
-                <div className="flex w-[88px] flex-none flex-col gap-1">
-                  <img src={p.firstFrame} alt="首帧" className="aspect-video w-full rounded object-cover" />
-                  <img src={p.lastFrame} alt="尾帧" className="aspect-video w-full rounded object-cover" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="truncate text-sm font-semibold text-slate-100">{p.title}</span>
-                    <span className="flex-none rounded-full bg-slate-700/70 px-1.5 text-[10px] text-slate-300">{p.durationSec}s</span>
-                    {isChosen && <span className="flex-none rounded-full bg-gold/20 px-1.5 text-[10px] text-gold">✓ 当前选定</span>}
-                    {p.degraded && (
-                      <span className="flex-none rounded-full bg-amber-500/15 px-1.5 text-[10px] text-amber-300" title="Seedream 当时没出图，先用占位图；合成前会自动重画真帧">
-                        ⚠ 占位帧
-                      </span>
-                    )}
-                  </div>
-                  <p className={`novel-text mt-1 text-xs text-slate-300 ${expanded ? "" : "line-clamp-2"}`}>{p.plot}</p>
-                </div>
-              </button>
-              {expanded && (
-                <div className="mt-2 space-y-2">
-                  {/* 选帧改图：对设定图不满意时点开小窗，让 AI 按要求重画（图生图保持画风） */}
-                  <div className="flex gap-2">
-                    {(["first", "last"] as const).map((w) => {
-                      const busyKey = `${p.id}:${w}`;
-                      const on = refine?.pid === p.id && refine.which === w;
-                      return (
-                        <div key={w} className="min-w-0 flex-1">
-                          <div className="relative">
-                            <img
-                              src={w === "first" ? p.firstFrame : p.lastFrame}
-                              alt={w === "first" ? "首帧" : "尾帧"}
-                              className={`aspect-video w-full rounded object-cover ${frameRefining === busyKey ? "opacity-50" : ""}`}
-                            />
-                            <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[9px] text-cyan-200">
-                              {w === "first" ? "首帧" : "尾帧"}
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => {
-                              setRefine(on ? null : { pid: p.id, which: w });
-                              setRefineReq("");
-                            }}
-                            disabled={!!frameRefining}
-                            className={`mt-1 w-full rounded border py-1 text-[11px] disabled:opacity-40 ${
-                              on ? "border-cyan-400 bg-cyan-400/10 text-cyan-100" : "border-cyan-400/40 text-cyan-200"
-                            }`}
-                          >
-                            {frameRefining === busyKey ? "AI 重画中…" : "✨ AI 改图"}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {refine?.pid === p.id && (
-                    <div className="rounded-lg bg-black/30 p-2">
-                      <textarea
-                        value={refineReq}
-                        onChange={(e) => setRefineReq(e.target.value)}
-                        rows={2}
-                        maxLength={160}
-                        placeholder="例：把伞换成红色 / 去掉背景里的路人 / 光线改成黄昏"
-                        className="w-full resize-none rounded border border-slate-600 bg-black/30 px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                      />
-                      <button
-                        onClick={() =>
-                          void useStudio
-                            .getState()
-                            .refineProposalFrame(node.id, p.id, refine.which, refineReq)
-                            .then((ok) => {
-                              if (ok) setRefine(null);
-                            })
-                        }
-                        disabled={!refineReq.trim() || !!frameRefining}
-                        className="mt-1.5 w-full rounded-lg bg-cyan-500/80 py-1.5 text-xs font-bold text-ink disabled:opacity-40"
-                      >
-                        {frameRefining ? "重画中…" : `按要求重画${refine.which === "first" ? "首" : "尾"}帧`}
-                      </button>
-                    </div>
-                  )}
-                  {switching && (
-                    <div className="rounded bg-amber-500/10 px-2 py-1 text-[10px] text-amber-300">
-                      ⚠ 更换方案后，原方案已延展的后续节点将被收起（切回可恢复）
-                    </div>
-                  )}
-                  {/* ── 单独炼这一段 ──
-                      用户可以只挑几段先炼出来看效果（人物对不对、画风稳不稳），
-                      剩下的留到最后一起炼。出片写在方案的 videoUrl 上，工作流那边直接认，
-                      不会重复收费。炼完可以进编辑页圈画面改细节——改好的尾帧就是下一段的起拍帧 */}
-                  {isChosen && (
-                    <SegmentActions node={node} proposal={p} />
-                  )}
-                  {isChosen ? (
-                    <button
-                      onClick={() => useStudio.getState().closeProjection()}
-                      className="w-full rounded-lg bg-emerald-500/80 py-2 text-sm font-bold text-ink"
-                    >
-                      保持当前选择
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => useStudio.getState().chooseProposal(node.id, p.id)}
-                      className="w-full rounded-lg bg-gold/90 py-2 text-sm font-bold text-ink"
-                    >
-                      选定此方案
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-        <div className="pb-1 text-center text-[10px] text-slate-500">选定后其余方案收起，卡片将落回桌面</div>
+      {/* 重推三套的进度：真实 AI 下一分钟出头（1 次豆包 + 最多 6 张 Seedream）。
+          它占的是 nodeGen，但没有对应的方案 id，所以进度条挂在整个方案台上方而不是某一行 */}
+      {nodeGen?.proposalId === rederiveKey(node.id) && (
+        <GenTrace steps={nodeGen.steps} running className="mx-3 mt-2 rounded-lg bg-black/25 px-2 py-1.5" />
+      )}
+
+      {/* 方案台：与工作流页共用同一个组件（铁律六）。工坊这边的"未选定"天然就是
+          chosenId === null——不需要另一套标记 */}
+      <div className="min-h-0 flex-1">
+        <PlanBoard
+          dense
+          proposals={node.proposals}
+          pickedId={node.chosenId}
+          isDone={proposalDone}
+          busy={busy}
+          regenId={proposalRegen}
+          onPick={(id) => useStudio.getState().chooseProposal(node.id, id)}
+          onPatch={(id, patch) => useStudio.getState().patchProposal(node.id, id, patch)}
+          onFrame={(id, which, dataUrl) => useStudio.getState().setProposalFrame(node.id, id, which, dataUrl)}
+          onRegen={(id) => void useStudio.getState().regenProposal(node.id, id)}
+          regenCost={(p) => proposalRedrawCostOf(p, prev)}
+          onRederive={() => void useStudio.getState().regenNodeProposals(node.id)}
+          rederiveCost={proposalsCost(!!prev?.lastFrame)}
+          carriedFrom={carried}
+          // 预览卡的框跟本段画幅走：写死一个比例，另一种画幅的帧会被裁掉一大半
+          frameAspect={aspectCss(node.aspect)}
+          switchWarn={(p) =>
+            node.chosenId != null && node.chosenId !== p.id && node.children[node.chosenId] != null
+              ? "⚠ 换成这一套，原方案已延展的后续节点会被收起（切回可恢复）"
+              : null
+          }
+          actions={(p) => <PickedActions node={node} proposal={p} />}
+        />
+      </div>
+      <div className="flex-none border-t border-cyan-400/15 px-3 py-1.5 text-center text-[10px] leading-4 text-slate-500">
+        {!node.chosenId
+          ? "挑一套 → 可换首尾帧/改剧情 → 炼出本段视频，桌面上才会亮出下一段的卡位"
+          : done
+            ? "本段已出片 · 桌面上下一段的虚线卡位已亮起"
+            : "炼出本段视频才能开下一段（段与段靠上一段的真实尾帧承接起拍）"}
       </div>
     </>
   );
 }
 
 /**
- * 节点卡上的单段出片区：炼本段 / 重炼 / 进编辑页。
- * 「编辑本段」去的就是剪辑页（与工作流跑完后进的是同一页），只带这一段——
- * 在那里可以拖到任意一帧圈出物体写修改要求，重新生成后新的尾帧会顶替设定尾帧，
- * 下一段就从这一帧接着拍。
+ * 方案台上「选定的那一套」底下那排活儿：AI 改图 / 炼本段 / 进编辑页。
+ *
+ * 为什么塞在这里而不是做进 PlanBoard：AI 改图（按文字要求图生图）与「编辑本段」（去剪辑页
+ * 圈画面）都要认工坊的节点树，工作流页没有对应的东西。PlanBoard 收一个 actions 插槽，
+ * 组件本身保持只认 proposals（两边共用的前提）。
+ *
+ * 「编辑本段」去的就是剪辑页（与工作流跑完后进的是同一页），只带这一段——在那里可以拖到
+ * 任意一帧圈出物体写修改要求，重新生成后新的尾帧会顶替设定尾帧，下一段就从这一帧接着拍。
  */
-function SegmentActions({ node, proposal }: { node: NodeSlot; proposal: Proposal }) {
+function PickedActions({ node, proposal }: { node: NodeSlot; proposal: Proposal }) {
   const navigate = useNavigate();
   const nodeGen = useStudio((s) => s.nodeGen);
+  const frameRefining = useStudio((s) => s.frameRefining);
+  const proposalRegen = useStudio((s) => s.proposalRegen);
+  const [refine, setRefine] = useState<"first" | "last" | null>(null);
+  const [refineReq, setRefineReq] = useState("");
   const mine = nodeGen?.proposalId === proposal.id;
-  const busy = !!nodeGen;
-  const done = !!proposal.videoUrl;
+  const busy = !!nodeGen || !!frameRefining || !!proposalRegen;
+  const done = proposalDone(proposal);
   const cost = segTokens(proposal.durationSec, node.videoTier ?? DEFAULT_TIER);
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5 border-t border-slate-700/60 pt-1.5">
+      {/* AI 改图：图生图按一句要求重画某一帧（保画风）。与"上传本地图"是两条不同的路——
+          一条是"让 AI 改成这样"，一条是"就用我这张" */}
+      <div className="flex gap-1.5">
+        {(["first", "last"] as const).map((w) => (
+          <button
+            key={w}
+            onClick={() => {
+              setRefine(refine === w ? null : w);
+              setRefineReq("");
+            }}
+            disabled={busy}
+            className={`flex-1 rounded border py-1 text-[10px] disabled:opacity-40 ${
+              refine === w ? "border-cyan-400 bg-cyan-400/10 text-cyan-100" : "border-cyan-400/40 text-cyan-200"
+            }`}
+          >
+            {frameRefining === `${proposal.id}:${w}` ? "重画中…" : `✨ AI 改${w === "first" ? "首" : "尾"}帧`}
+          </button>
+        ))}
+      </div>
+      {refine && (
+        <div className="rounded-lg bg-black/30 p-2">
+          <textarea
+            value={refineReq}
+            onChange={(e) => setRefineReq(e.target.value)}
+            rows={2}
+            maxLength={160}
+            placeholder="例：把伞换成红色 / 去掉背景里的路人 / 光线改成黄昏"
+            className="w-full resize-none rounded border border-slate-600 bg-black/30 px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
+          />
+          <button
+            onClick={() =>
+              void useStudio
+                .getState()
+                .refineProposalFrame(node.id, proposal.id, refine, refineReq)
+                .then((ok) => {
+                  if (ok) setRefine(null);
+                })
+            }
+            disabled={!refineReq.trim() || busy}
+            className="mt-1.5 w-full rounded-lg bg-cyan-500/80 py-1.5 text-xs font-bold text-ink disabled:opacity-40"
+          >
+            {frameRefining ? "重画中…" : `按要求重画${refine === "first" ? "首" : "尾"}帧`}
+          </button>
+        </div>
+      )}
       {mine && <GenTrace steps={nodeGen!.steps} running className="rounded-lg bg-black/25 px-2 py-1.5" />}
       <div className="flex gap-1.5">
         <button
           onClick={() => void useStudio.getState().genNodeVideo(node.id, proposal.id)}
           disabled={busy || !proposal.plot.trim()}
-          className="flex-1 rounded-lg border border-cyan-400/50 bg-cyan-500/15 py-2 text-xs font-bold text-cyan-100 disabled:opacity-40"
+          className="flex-1 rounded-lg bg-brand/90 py-2 text-xs font-bold text-ink disabled:opacity-40"
         >
           {mine ? "炼制中…" : done ? `♻ 重炼本段（${fmtTokens(cost)}）` : `⚡ 生成本段视频（${fmtTokens(cost)}）`}
         </button>
@@ -697,17 +690,12 @@ function SegmentActions({ node, proposal }: { node: NodeSlot; proposal: Proposal
               navigate("/cut");
             }}
             disabled={busy}
-            className="flex-none rounded-lg border border-slate-500/60 bg-slate-700/50 px-3 py-2 text-xs font-semibold text-slate-100 disabled:opacity-40"
+            className="flex-none rounded-lg border border-slate-500/60 bg-slate-700/50 px-2.5 py-2 text-xs font-semibold text-slate-100 disabled:opacity-40"
           >
-            ✂ 编辑本段
+            ✂ 编辑
           </button>
         )}
       </div>
-      {done && (
-        <div className="text-center text-[10px] text-emerald-300/80">
-          ✓ 本段已出片——最后点法阵时只会炼还没出片的段
-        </div>
-      )}
     </div>
   );
 }

@@ -668,6 +668,10 @@ function CenterLine() {
 function ComposePad() {
   const root = useStudio((s) => s.root);
   const enabled = composable(root);
+  // 亮不起来时要说清缺什么：末段还没挑方案，还是挑了没炼。以前一律写"先为当前段选定一个
+  // 方案"，而现在选定之后还要炼出本段视频才算就绪——照旧那句话用户会以为按钮坏了
+  const tail = activePath(root).at(-1);
+  const picked = !!tail?.chosenId;
   const base = useRef<THREE.MeshStandardMaterial>(null);
   const ring = useRef<THREE.Mesh>(null);
   const beam = useRef<THREE.Mesh>(null);
@@ -691,14 +695,14 @@ function ComposePad() {
     () =>
       new THREE.MeshBasicMaterial({
         map: composePlateTexture(
-          enabled ? "生成成片" : "尚未就绪",
-          enabled ? "点亮法阵 · 逐段推演成片" : "先为当前段选定一个方案",
+          enabled ? "整片就绪" : "尚未就绪",
+          enabled ? "点亮法阵 · 去剪辑成片" : picked ? "先炼出当前段的视频" : "先为当前段挑定一套方案",
           enabled,
         ),
         transparent: true,
         depthWrite: false,
       }),
-    [enabled],
+    [enabled, picked],
   );
   useEffect(() => () => sigilMat.dispose(), [sigilMat]);
   useEffect(() => () => runeMat.dispose(), [runeMat]);

@@ -11,7 +11,11 @@
 {
   _id, title, category, description, cover,      // cover=图片 URL（Cloudinary）
   clientId,                                       // 客户端幂等键（可选），{author, clientId} 唯一（partial index）
-  segments: [{ title, plot, firstFrame, lastFrame, durationSec, videoUrl? }],
+  segments: [{ title, plot, firstFrame, lastFrame, durationSec, videoUrl?, videoTier?, aspect? }],
+  // aspect: "portrait" | "landscape"，该段出片时的画幅。**缺省一律按 landscape 读**
+  // （画幅可选之前的老数据全是写死的 16:9）。它只是播放端的排版提示——真正的判据是
+  // 视频解码出来的宽高，所以服务端**丢掉这个字段不会让画面出错**，只会让首帧解码前
+  // 那一瞬按横屏排版、解码后跳一下。videoTier 同理，只是创作侧的档位快照。
   branchTree?: { rootId, startChoices?, nodes },
   author: ObjectId(User), plays, likes, commentCount,
   createdAt, updatedAt

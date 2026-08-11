@@ -12,20 +12,31 @@ import { AI_REAL, generateCover } from "../ai";
 import { canAfford, spendTokens } from "../data/account";
 import { ONE_IMAGE, fmtTokens } from "../data/economy";
 import TokenCost from "./TokenCost";
-import { VideoSegment, formatDuration } from "../types";
+import { VideoAspect, VideoSegment, aspectCss, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 // （CoverSection 在下方定义，供发布页与作品编辑页共用同一套封面来源）
 
-/** 统一导出尺寸：16:9、720p 级别——够 Feed 卡片与详情页用，再大只是拖慢 localStorage */
-const OUT_W = 1280;
-const OUT_H = 720;
+/** 统一导出尺寸：720p 级别，**画幅跟作品走**（横 1280×720 / 竖 720×1280）。
+ *  以前写死 16:9：竖屏作品的封面会被裁成横的，首页在视频解码出来之前先按这张
+ *  横封面留黑边，等真视频一到又跳成铺满——闪那么一下，看着像是坏了。 */
+function coverSize(aspect: VideoAspect | undefined): { w: number; h: number } {
+  const a = aspectOf(aspect);
+  return { w: a.w, h: a.h };
+}
 
-/** 任意图源按 object-cover 口径画满 16:9 画布 */
-function drawCover(ctx: CanvasRenderingContext2D, src: CanvasImageSource, sw: number, sh: number) {
-  const scale = Math.max(OUT_W / sw, OUT_H / sh);
+/** 任意图源按 object-cover 口径画满目标画布 */
+function drawCover(
+  ctx: CanvasRenderingContext2D,
+  src: CanvasImageSource,
+  sw: number,
+  sh: number,
+  outW: number,
+  outH: number,
+) {
+  const scale = Math.max(outW / sw, outH / sh);
   const w = sw * scale;
   const h = sh * scale;
-  ctx.drawImage(src, (OUT_W - w) / 2, (OUT_H - h) / 2, w, h);
+  ctx.drawImage(src, (outW - w) / 2, (outH - h) / 2, w, h);
 }
 
 function loadImg(src: string): Promise<HTMLImageElement> {
@@ -37,18 +48,19 @@ function loadImg(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/** 本地上传：压到 16:9 1280 宽 jpeg dataURL（任意比例居中裁满，与其余封面同规格） */
-export async function fileToCoverDataUrl(file: File): Promise<string | null> {
+/** 本地上传：压成本作品画幅的 720p jpeg dataURL（任意比例居中裁满，与其余封面同规格） */
+export async function fileToCoverDataUrl(file: File, aspect?: VideoAspect): Promise<string | null> {
   if (!file.type.startsWith("image/")) return null;
   const url = URL.createObjectURL(file);
   try {
     const img = await loadImg(url);
+    const out = coverSize(aspect);
     const canvas = document.createElement("canvas");
-    canvas.width = OUT_W;
-    canvas.height = OUT_H;
+    canvas.width = out.w;
+    canvas.height = out.h;
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
-    drawCover(ctx, img, img.naturalWidth, img.naturalHeight);
+    drawCover(ctx, img, img.naturalWidth, img.naturalHeight, out.w, out.h);
     return canvas.toDataURL("image/jpeg", 0.85);
   } catch {
     return null;
@@ -106,6 +118,8 @@ export function FrameCaptureDialog({
     return { seg: segments[0], local: 0, frac: 0 };
   }, [at, segments]);
   const ease = frac * frac * (3 - 2 * frac);
+  // 预览框跟着本段画幅：框写死 16:9 而画面是竖的，用户截出来的东西和预览里看到的不是一回事
+  const box = { aspectRatio: aspectCss(seg?.aspect) };
 
   // ★ 必须走 useMediaUrl 而不是自己拼 /api/asset：合并之后成片存在 IndexedDB 里，
   //   段的 videoUrl 是 `idb:merged:<key>`，塞进只认 http 的代理会 400，<video> 报
@@ -134,9 +148,10 @@ export function FrameCaptureDialog({
     setBusy(true);
     setErr("");
     try {
+      const out = coverSize(seg.aspect);
       const canvas = document.createElement("canvas");
-      canvas.width = OUT_W;
-      canvas.height = OUT_H;
+      canvas.width = out.w;
+      canvas.height = out.h;
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("canvas 不可用");
       if (hasVideo) {
@@ -160,13 +175,13 @@ export function FrameCaptureDialog({
             }
           });
         }
-        drawCover(ctx, v, v.videoWidth || OUT_W, v.videoHeight || OUT_H);
+        drawCover(ctx, v, v.videoWidth || out.w, v.videoHeight || out.h, out.w, out.h);
       } else {
         // 渐变段：按播放器同款 smoothstep 合成这一刻的画面
         const [first, last] = await Promise.all([loadImg(seg.firstFrame), loadImg(seg.lastFrame)]);
-        drawCover(ctx, first, first.naturalWidth, first.naturalHeight);
+        drawCover(ctx, first, first.naturalWidth, first.naturalHeight, out.w, out.h);
         ctx.globalAlpha = ease;
-        drawCover(ctx, last, last.naturalWidth, last.naturalHeight);
+        drawCover(ctx, last, last.naturalWidth, last.naturalHeight, out.w, out.h);
         ctx.globalAlpha = 1;
       }
       onConfirm(canvas.toDataURL("image/jpeg", 0.85));
@@ -196,13 +211,14 @@ export function FrameCaptureDialog({
               }
             }}
             onError={() => setErr("成片解码失败——换「本地上传」或下面各段的首尾帧")}
-            className="aspect-video w-full object-cover"
+            style={box}
+            className="w-full object-cover"
           />
         ) : resolving ? (
-          <div className="flex aspect-video w-full items-center justify-center text-xs text-slate-500">载入成片…</div>
+          <div style={box} className="flex w-full items-center justify-center text-xs text-slate-500">载入成片…</div>
         ) : (
           seg && (
-            <div className="relative aspect-video w-full">
+            <div style={box} className="relative w-full">
               <img src={seg.firstFrame} alt="" className="absolute inset-0 h-full w-full object-cover" />
               <img src={seg.lastFrame} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ opacity: ease }} />
             </div>
@@ -260,6 +276,10 @@ export function CoverSection({
   const [aiDlg, setAiDlg] = useState(false);
   const [coverErr, setCoverErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  // 整部作品的画幅取第一段（各段本该一致，见 CutPage 的同款取法）：
+  // 上传/AI 生成的封面都按它出，预览框也按它排版
+  const aspect = segments[0]?.aspect;
+  const box = { aspectRatio: aspectCss(aspect) };
   const frameChoices = useMemo(() => {
     const seen = new Set<string>();
     const out: string[] = [];
@@ -279,9 +299,17 @@ export function CoverSection({
       <div className="mb-1.5 text-sm font-semibold text-slate-300">封面</div>
       {/* 当前封面预览：截帧/上传/AI 的产物不在下方候选条里，必须有个地方能看到选中的是什么 */}
       {cover ? (
-        <img src={cover} alt="当前封面" className="mb-2 aspect-video w-full rounded-xl border border-slate-700 object-cover" />
+        <img
+          src={cover}
+          alt="当前封面"
+          style={box}
+          className="mb-2 w-full rounded-xl border border-slate-700 object-cover"
+        />
       ) : (
-        <div className="mb-2 flex aspect-video w-full items-center justify-center rounded-xl border border-dashed border-slate-700 text-xs text-slate-500">
+        <div
+          style={box}
+          className="mb-2 flex w-full items-center justify-center rounded-xl border border-dashed border-slate-700 text-xs text-slate-500"
+        >
           还没选封面——截一帧、传一张，或让 AI 画一张
         </div>
       )}
@@ -314,7 +342,7 @@ export function CoverSection({
             e.target.value = ""; // 同一文件可重复选择
             if (!f) return;
             setCoverErr("");
-            void fileToCoverDataUrl(f).then((url) => {
+            void fileToCoverDataUrl(f, aspect).then((url) => {
               if (url) onCover(url);
               else setCoverErr("这张图读不出来，换一张试试（仅支持图片文件）");
             });
@@ -332,7 +360,7 @@ export function CoverSection({
               cover === f ? "border-brand" : "border-transparent opacity-70 hover:opacity-100"
             }`}
           >
-            <img src={f} alt={`帧${i + 1}`} className="aspect-video w-full object-cover" />
+            <img src={f} alt={`帧${i + 1}`} style={box} className="w-full object-cover" />
           </button>
         ))}
       </div>
@@ -350,6 +378,7 @@ export function CoverSection({
       {aiDlg && (
         <AiCoverDialog
           currentCover={cover}
+          aspect={aspect}
           onCancel={() => setAiDlg(false)}
           onConfirm={(url) => {
             onCover(url);
@@ -364,14 +393,18 @@ export function CoverSection({
 // ── ③ AI 封面：改当前封面 / 全新生成 ─────────────────────────
 export function AiCoverDialog({
   currentCover,
+  aspect,
   onCancel,
   onConfirm,
 }: {
   /** 当前选定的封面 dataURL；作为"按要求修改"的参考图 */
   currentCover: string;
+  /** 本作品画幅：竖屏作品要出竖封面，否则首页得给封面留黑边 */
+  aspect?: VideoAspect;
   onCancel: () => void;
   onConfirm: (dataUrl: string) => void;
 }) {
+  const box = { aspectRatio: aspectCss(aspect) };
   const [req, setReq] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -390,7 +423,7 @@ export function AiCoverDialog({
     setBusy(true);
     setErr("");
     try {
-      const url = await generateCover(trimmed, withRef ? currentCover : undefined);
+      const url = await generateCover(trimmed, withRef ? currentCover : undefined, aspect);
       if (AI_REAL) spendTokens(ONE_IMAGE); // 出图成功才扣
       setResult(url);
     } catch (e) {
@@ -406,9 +439,9 @@ export function AiCoverDialog({
         <div className="w-32 flex-none">
           <div className="mb-1 text-[10px] text-slate-500">当前封面（参考图）</div>
           {currentCover ? (
-            <img src={currentCover} alt="当前封面" className="aspect-video w-full rounded-lg object-cover" />
+            <img src={currentCover} alt="当前封面" style={box} className="w-full rounded-lg object-cover" />
           ) : (
-            <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-slate-800 text-[10px] text-slate-500">
+            <div style={box} className="flex w-full items-center justify-center rounded-lg bg-slate-800 text-[10px] text-slate-500">
               未选封面
             </div>
           )}
@@ -432,7 +465,7 @@ export function AiCoverDialog({
       {result && (
         <div className="mt-3">
           <div className="mb-1 text-[10px] text-slate-500">生成结果</div>
-          <img src={result} alt="AI 生成封面" className="aspect-video w-full rounded-xl object-cover" />
+          <img src={result} alt="AI 生成封面" style={box} className="w-full rounded-xl object-cover" />
         </div>
       )}
       {err && <div className="mt-2 text-xs text-red-400">生成失败：{err.slice(0, 140)}</div>}

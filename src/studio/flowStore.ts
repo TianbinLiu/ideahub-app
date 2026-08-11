@@ -10,11 +10,18 @@
 //
 // 为什么逐段而不是一把梭：一段视频 1 分钟起、几万 token 起，整片炼完才发现第 1 段
 // 人物就不对，等于全片重来。逐段确认让用户在最便宜的时候止损。
+//
+// ★ 一段的推进是**三拍**，不是一拍（见 FlowNode.plan）：
+//     写要求 →「生成本段」先推演三套方案（各带首尾帧预览）→ 挑一套（可改帧改剧情）
+//           →「生成本段」才真去炼视频
+//   三套方案以前藏在「本段设置」抽屉里的一枚小按钮后面，绝大多数用户根本没见过它，
+//   于是工作流退化成"写一句话直接出片"——最贵的那一步（出片）反而没有选择余地。
+//   现在它是主路径：便宜的一步（推演 ~80k token）摆在前面挑，贵的一步（出片）挑完再走。
 import { create } from "zustand";
-import { AI_REAL, generateProposals } from "../ai";
+import { AI_REAL, generateCover, generateProposals } from "../ai";
 import { canAfford, spendTokens, walletOf } from "../data/account";
-import { DEFAULT_TIER, fmtTokens, segTokens, proposalsCost } from "../data/economy";
-import { Card, Proposal, TemplateRecipe, VideoTemplate, uid } from "../types";
+import { DEFAULT_TIER, fmtTokens, proposalRedrawCost, proposalsCost, segTokens } from "../data/economy";
+import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
 import { generateSegment } from "./segmentGen";
 
@@ -33,9 +40,29 @@ export interface FlowNode {
   /** 走向方案：工坊铸的三选一，或工作流现场推演/手写的若干个 */
   proposals: Proposal[];
   chosenId: string;
+  /**
+   * 方案台状态。**这是「生成本段」按钮到底干什么的唯一依据**：
+   *   undefined —— 还没推演过（或简约模式/模板这种单方案节点）→ 点「生成本段」先推演三套
+   *   "picking" —— 三套方案摊在屏幕上等用户挑 → 按钮变「重新生成方案」，不许出片
+   *   "picked"  —— 用户挑定了一套 → 按钮变回「生成本段」，这才真去炼视频
+   *
+   * ★ 用 undefined 兼容老草稿：那些节点当年就是选好的，缺省成 "picking" 会让用户
+   *   打开旧草稿发现每段都要重挑一遍（见 planOf 的兜底）。
+   */
+  plan?: "picking" | "picked";
+  /**
+   * 用户对这一段的原始输入（"这一段要拍什么"）。
+   * ★ 与 proposal.plot 刻意分开：plot 是 AI 写出来的那一套的剧情（用户还能在方案卡上
+   *   逐字改），requirement 是**用户自己的话**——「重新生成方案」要原样再喂给 AI 一次。
+   *   合成一个字段的话，用户改了某一套的剧情再重新推演，就等于拿 AI 的文字当自己的要求，
+   *   越推越偏。
+   */
+  requirement?: string;
   /** 本段素材卡快照（工坊带过来的） */
   materials?: Card[];
   videoTier: string;
+  /** 本段画幅（竖/横）。整片理应同一个画幅，所以新节点继承上一段的取值 */
+  aspect: VideoAspect;
   /** 首帧承接上一段的真实结尾（用户换过图就置 false，尊重用户） */
   chain: boolean;
   /** 各走向各自的成片：换走向不丢已经炼好的那条 */
@@ -49,6 +76,9 @@ export interface FlowNode {
   error?: string;
   /** 生成期实时阶段（"标准档 · 排队中…"）——按钮上那一行，取 steps 的当前步 */
   progress?: string;
+  /** 正在按修改重画本方案的画面（方案台上那一枚按钮转圈用）。
+   *  ★ 不靠 progress 文案 includes("重画") 反推状态——那种判断改一次文案就静默失效。 */
+  regenning?: boolean;
   /** 出片过程的分步日志（见 genLog.ts）。跑完保留，用户能回看这一段是怎么出来的 */
   steps?: GenStep[];
   anns: FlowAnn[];
@@ -72,6 +102,34 @@ export function nodeDone(node: FlowNode): boolean {
   return !!node.videoByProposal[node.chosenId];
 }
 
+/** 方案台状态（带老草稿兜底）：多方案却没有 plan 字段的节点是旧版数据，那时的方案都是
+ *  选定过的，按 "picked" 算——否则打开旧草稿会要求每段重挑一遍。 */
+export function planOf(node: FlowNode): "picking" | "picked" | null {
+  return node.plan ?? (node.proposals.length > 1 ? "picked" : null);
+}
+
+/** 三套方案摊着等挑？这期间不许出片（出片按钮变「重新生成方案」） */
+export function nodePicking(node: FlowNode): boolean {
+  return planOf(node) === "picking";
+}
+
+/** 用户对这一段的原话（老草稿没有这个字段，退回当前方案的剧情——
+ *  那正是旧版 deriveProposals 当作 requirement 用的东西，行为不变） */
+export function requirementOf(node: FlowNode): string {
+  return node.requirement ?? chosenOf(node).plot;
+}
+
+/** 这张开头帧不是本方案自己画的（用户上传的，或承接上一段的真实结尾）→ 重画时不许动它 */
+function keepFirstFrame(node: FlowNode, p: Proposal, prev: Proposal | null): boolean {
+  return !!p.pinned?.first || !!(node.chain && prev?.lastFrame && p.firstFrame === prev.lastFrame);
+}
+
+/** 「按修改重画这一套」的报价。★ regenProposal 扣钱走的是同一个函数——
+ *  按钮上的数字与实际扣款分两处算必然分叉（铁律六） */
+export function redrawCost(node: FlowNode, p: Proposal, prev: Proposal | null): number {
+  return proposalRedrawCost(keepFirstFrame(node, p, prev), !!p.pinned?.last);
+}
+
 /** 把配方里的 {{主题}} 换成用户那句话（与 data/templates 的 fillBeat 同义，
  *  这里再写一份是为了不让 flowStore 依赖模板库——它只认配方里的字符串） */
 function fillSubject(text: string, subject: string): string {
@@ -88,7 +146,9 @@ export function newFlowNode(i: number, patch: Partial<FlowNode> = {}): FlowNode 
     id: uid("fn"),
     proposals: [p],
     chosenId: p.id,
+    requirement: "",
     videoTier: DEFAULT_TIER,
+    aspect: DEFAULT_ASPECT,
     chain: i > 0,
     videoByProposal: {},
     status: "idle",
@@ -173,11 +233,19 @@ interface FlowState {
   /** 改当前走向的内容（标题/剧情/时长/帧） */
   updateProposal: (nodeId: string, patch: Partial<Proposal>) => void;
   updateNode: (nodeId: string, patch: Partial<FlowNode>) => void;
+  /** 改用户对这一段的原话（「重新生成方案」的依据） */
+  setRequirement: (nodeId: string, v: string) => void;
   chooseProposal: (nodeId: string, proposalId: string) => void;
   /** 纵向切走向：dir=1 下一个 */
   shiftProposal: (nodeId: string, dir: 1 | -1) => void;
-  /** 让 AI 就地推演三种走向（与工坊节点卡同一套逻辑），追加到本节点 */
+  /** 让 AI 就地推演三种走向（与工坊节点卡同一套逻辑），整台替换本节点的方案 */
   deriveProposals: (nodeId: string) => Promise<boolean>;
+  /** 在方案卡上换掉首/尾帧：dataUrl 为本地图（上锁，AI 重画时不动它）；
+   *  空串 = 清掉这一帧交回 AI（解锁） */
+  setFrame: (nodeId: string, which: "first" | "last", dataUrl: string) => void;
+  /** 按用户改过的剧情/换过的帧，让 AI 重画**这一套**方案的画面（不重写剧情——
+   *  那是用户刚敲的字，重写等于把它抹了） */
+  regenProposal: (nodeId: string) => Promise<boolean>;
 
   /** 在末尾追加一段。★ 上一段没出片时拒绝（见 canAdvance 那段注释） */
   addNode: () => void;
@@ -233,6 +301,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
           chain: i > 0,
           materials: t.cards.length ? t.cards : undefined,
           videoTier: t.recipe.videoTier,
+          // 配方没写画幅 = 画幅可选之前存的老模板，那时一律 16:9
+          aspect: t.recipe.aspect ?? "landscape",
         }),
       ),
       cursor: 0,
@@ -287,8 +357,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
       };
     }),
 
+  setRequirement: (nodeId, v) =>
+    set((s) => ({ nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, requirement: v, edited: true } : n)) })),
+
+  // 挑定一套 = 方案台落定：按钮从「重新生成方案」变回「生成本段」，这一套的帧与剧情
+  // 从此可以逐字改（见 PlanBoard）。anns 清空同 shiftProposal：换了一套戏，对旧画面
+  // 提的圈选要求不再适用
   chooseProposal: (nodeId, proposalId) =>
-    set((s) => ({ nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, chosenId: proposalId, anns: [] } : n)) })),
+    set((s) => ({
+      nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, chosenId: proposalId, plan: "picked", anns: [] } : n)),
+    })),
 
   shiftProposal: (nodeId, dir) =>
     set((s) => ({
@@ -297,7 +375,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
         const i = n.proposals.findIndex((p) => p.id === n.chosenId);
         const j = (i + dir + n.proposals.length) % n.proposals.length;
         // 换走向 = 换了一段戏，之前对旧走向画面提的圈选要求不再适用
-        return { ...n, chosenId: n.proposals[j].id, anns: [] };
+        return { ...n, chosenId: n.proposals[j].id, plan: "picked", anns: [] };
       }),
     })),
 
@@ -308,7 +386,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const node = s0.nodes[idx];
     if (!node) return false;
     const cur = chosenOf(node);
-    if (!cur.plot.trim() && !node.materials?.length) {
+    // 推演的依据是**用户那句话**，不是某一套方案的剧情（见 FlowNode.requirement）
+    const req = requirementOf(node);
+    if (!req.trim() && !node.materials?.length) {
       set({ err: "先写一句要拍什么（或从工坊带素材卡过来），我才好推演走向" });
       return false;
     }
@@ -334,12 +414,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
         {
           index: idx,
           materials: node.materials ?? [],
-          requirement: cur.plot,
+          requirement: req,
           durationMode: "manual",
           durationSec: cur.durationSec,
           prevFrameSeed: prev ? `${prev.id}#last` : null,
           // 段间衔接：承接上一段已选走向的尾帧
           startFrame: node.chain && prev ? prev.lastFrame || null : null,
+          aspect: node.aspect,
           pathPlots: get()
             .nodes.slice(0, idx)
             .map((n) => chosenOf(n).plot)
@@ -347,11 +428,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
         },
         (status) => get().updateNode(nodeId, { progress: status }),
       );
-      // 已经炼出成片、或用户手写过内容的旧走向保留在后面，AI 的新走向排前面
-      const keep = node.proposals.filter((p) => node.videoByProposal[p.id] || p.plot.trim());
+      // ★ 只保留**已经炼出成片**的旧走向（真金白银 + 几分钟，丢了补不回来）。
+      //   以前是"有剧情就留"，那在"三套方案摊开挑一套"的流程下等于每重推一次方案台
+      //   就多三行——推三次屏幕上就是九套，用户根本分不清哪三套是新的。
+      const keep = node.proposals.filter((p) => node.videoByProposal[p.id]);
       get().updateNode(nodeId, {
         proposals: [...fresh, ...keep],
         chosenId: fresh[0].id,
+        // 推完是"摊开等挑"，不是"帮你选好了"：这一步之后按钮写「重新生成方案」
+        plan: "picking",
         status: "idle",
         progress: "",
         anns: [],
@@ -366,13 +451,100 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
   },
 
+  setFrame: (nodeId, which, dataUrl) =>
+    set((s) => ({
+      nodes: s.nodes.map((n) => {
+        if (n.id !== nodeId) return n;
+        const on = !!dataUrl;
+        return {
+          ...n,
+          // 用户亲手指定开头帧 = 这一段不再从上一段的真实结尾起拍（尊重用户，与
+          // FlowNode.chain 的注释同一条规则）。清掉时不自动恢复 chain——把它交还给
+          // 「本段设置」里的开关，别替用户翻回去
+          ...(which === "first" && on ? { chain: false } : {}),
+          proposals: n.proposals.map((p) =>
+            p.id === n.chosenId
+              ? {
+                  ...p,
+                  [which === "first" ? "firstFrame" : "lastFrame"]: dataUrl,
+                  pinned: { ...p.pinned, [which]: on || undefined },
+                  // 换过的帧不再是"Seedream 没出图的占位帧"
+                  degraded: undefined,
+                }
+              : p,
+          ),
+        };
+      }),
+    })),
+
+  regenProposal: async (nodeId) => {
+    const s0 = get();
+    if (s0.busy) return false;
+    const idx = s0.nodes.findIndex((n) => n.id === nodeId);
+    const node = s0.nodes[idx];
+    if (!node) return false;
+    const prop = chosenOf(node);
+    if (!prop.plot.trim()) {
+      set({ err: "这一套方案还没有剧情——先写点什么，我才知道要画成什么样" });
+      return false;
+    }
+    // 承接上一段真实结尾的那张开头帧、以及用户自己上传的帧，一律不动（见 Proposal.pinned）
+    const prevNode = s0.nodes[idx - 1];
+    const prev = prevNode ? chosenOf(prevNode) : null;
+    const keepFirst = keepFirstFrame(node, prop, prev);
+    const keepLast = !!prop.pinned?.last;
+    const cost = redrawCost(node, prop, prev);
+    if (cost === 0) {
+      set({ err: "首尾帧都是你自己换的图，没有可让 AI 重画的部分（想重画就先在卡里清掉那一帧）" });
+      return false;
+    }
+    if (AI_REAL && !canAfford(cost)) {
+      const w = walletOf();
+      set({
+        err: `重画这一套约 ${fmtTokens(cost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
+      });
+      return false;
+    }
+    set({ busy: true, err: "" });
+    get().updateNode(nodeId, { status: "generating", progress: "按修改重画画面…", regenning: true });
+    try {
+      // ★ 必须把本段画幅递下去：Seedream 的画布比例得与视频画幅一致，缺了它重画出来的
+      //   帧是横的，喂给竖屏 Seedance 任务会被静默裁一刀（人物常被裁掉半个头）。
+      //   见 CLAUDE.md「改了画幅却发现出片还是横的」那一条
+      let first = prop.firstFrame;
+      if (!keepFirst) first = await generateCover(prop.plot.slice(0, 200), undefined, node.aspect);
+      let last = prop.lastFrame;
+      if (!keepLast) {
+        get().updateNode(nodeId, { progress: "重画结束画面…" });
+        // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味
+        last = await generateCover(`${prop.plot.slice(0, 180)} 的结束瞬间`, first || undefined, node.aspect);
+      }
+      if (AI_REAL) spendTokens(cost); // 出图成功才扣，与 refineProposalFrame 同口径
+      get().updateProposal(nodeId, { firstFrame: first, lastFrame: last, degraded: undefined });
+      get().updateNode(nodeId, { status: "idle", progress: "", regenning: false });
+      set({ busy: false });
+      return true;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      get().updateNode(nodeId, { status: "idle", progress: "", regenning: false });
+      set({ busy: false, err: `重画失败：${msg.slice(0, 120)}` });
+      return false;
+    }
+  },
+
   addNode: () =>
     set((s) => {
       const prev = s.nodes[s.nodes.length - 1];
       // 顺序门禁：只能在末尾追加，且上一段必须已出片
       if (prev && !nodeDone(prev)) return { err: "先把这一段炼出来，再加下一段" };
       const i = s.nodes.length;
-      const node = newFlowNode(i, { chain: !!prev, videoTier: prev?.videoTier ?? DEFAULT_TIER });
+      // 画幅跟着上一段：一部片里前三段竖、第四段横，剪辑页合并只有一块画布，
+      // 那一段必然被裁或补边
+      const node = newFlowNode(i, {
+        chain: !!prev,
+        videoTier: prev?.videoTier ?? DEFAULT_TIER,
+        aspect: prev?.aspect ?? DEFAULT_ASPECT,
+      });
       if (prev) node.proposals[0].durationSec = chosenOf(prev).durationSec;
       return { nodes: [...s.nodes, node], cursor: i, err: "" };
     }),
@@ -426,6 +598,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
     if (idx < 0) return false;
     const node = s0.nodes[idx];
     const prop = chosenOf(node);
+    // ★ 方案台还摊着就不许出片：不然屏幕上三套并排、用户点一下按钮却按 fresh[0] 炼了
+    //   一段几万 token 的视频——他从来没选过那一套
+    if (nodePicking(node)) {
+      set({ err: "先从三套方案里挑一套（点方案卡），再生成本段" });
+      return false;
+    }
     if (!prop.plot.trim()) {
       set({ err: "先写清楚这一段要拍什么" });
       return false;
@@ -470,6 +648,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
           lastFrame: prop.lastFrame,
           durationSec: prop.durationSec,
           videoTier: node.videoTier,
+          aspect: node.aspect,
           anns: node.anns,
           carryFrame: carry,
           framePrompt: tplFrame ? fillSubject(tplFrame, get().subject) : undefined,
@@ -486,7 +665,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
       patchProp({
         firstFrame: res.firstFrame,
         lastFrame: res.lastFrame,
-        videoUrl: res.url,
+        // mock 构建下 Seedance 不返回地址：这里和 videoByProposal 用同一个 "mock:" 占位串，
+        // 否则同一段在工作流里算"已出片"、回工坊却算"没出片"（工坊读的是 proposal.videoUrl），
+        // 于是演示模式下桌面永远开不出下一张卡。需要"能播的地址"的地方走 realVideoOf 过滤
+        videoUrl: res.url || "mock:",
         degraded: undefined,
       });
       patchNode({

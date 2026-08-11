@@ -1,12 +1,18 @@
-// 工作流页：一屏一个节点卡，横向切节点、纵向切走向。
+// 工作流页：一屏一个节点卡，横向切节点。
 //
-// 这就是工坊的节点卡，只是脱掉了 3D 桌面：一个节点持有若干走向方案，左右箭头/横划
-// 换节点，上下箭头/竖划换走向——与工坊里点节点卡看三种走向是同一件事。
+// 这就是工坊的节点卡，只是脱掉了 3D 桌面：一个节点持有若干走向方案，横向切节点。
+//
+// ★ 一段的推进是**三拍**（见 flowStore 的 FlowNode.plan）：
+//     写要求 →「生成本段」先推演三套方案（方案台，各带首尾帧预览卡）→ 挑一套（可换帧、
+//     改剧情、让 AI 按修改重画）→「生成本段」才真去炼视频。
+//   所以中间那块大屏幕在不同时刻是三种东西：方案台 / 起拍画面 / 成片播放器。
+//   出片浮层（ForgeOverlay）只在第三拍开——推演也会把 status 置成 generating，跟着它走
+//   会让"挑方案"这一步莫名其妙弹出炼卡动画。
 //
 // 三种入口共用本页：
-//   工坊模式 → startFlow() 把活动路径整卡搬进来（含全部走向、素材卡、档位）
-//   工作流模式 → seedSolo("workflow")，可现场让 AI 推演三种走向
-//   简约模式 → seedSolo("simple")，单节点单走向，UI 收到最简
+//   工坊模式 → startFlow() 把活动路径整卡搬进来（含全部走向、素材卡、档位，且每段都已出片）
+//   工作流模式 → seedSolo("workflow")，方案台是主路径
+//   简约模式 → seedSolo("simple")，单节点单走向、不推演方案、**不存草稿**，UI 收到最简
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import ForgeOverlay, { type ForgePhase } from "../components/ForgeOverlay";
@@ -19,10 +25,22 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 import { AI_REAL } from "../ai";
 import { walletOf } from "../data/account";
 import { myTemplates } from "../data/templates";
-import { VIDEO_TIERS, fmtTokens, segTokens, tierOf } from "../data/economy";
-import { FlowNode, chosenOf, flowCost, frontierOf, nodeDone, nodeVideo, useFlow } from "../studio/flowStore";
+import { VIDEO_TIERS, fmtTokens, proposalsCost, segTokens, tierOf } from "../data/economy";
+import {
+  FlowNode,
+  chosenOf,
+  flowCost,
+  frontierOf,
+  nodeDone,
+  nodeVideo,
+  planOf,
+  redrawCost,
+  requirementOf,
+  useFlow,
+} from "../studio/flowStore";
+import PlanBoard from "../studio/ui/PlanBoard";
 import { useStudio } from "../studio/studioStore";
-import { formatDuration } from "../types";
+import { VIDEO_ASPECTS, aspectCss, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 
 const DURATIONS = [3, 5, 6, 8, 10];
@@ -59,7 +77,7 @@ function TemplateSubjectBox() {
   );
 }
 
-/** 一屏一个节点：预览 + 走向切换 + 本段可调项 + 生成/确认 */
+/** 一屏一个节点：大屏幕（方案台/画面/成片）+ 本段要求 + 可调项 + 主按钮 */
 function NodeScreen({
   node,
   index,
@@ -83,15 +101,21 @@ function NodeScreen({
     err,
     updateNode,
     updateProposal,
+    setRequirement,
+    chooseProposal,
     shiftProposal,
     genNode,
     deriveProposals,
+    regenProposal,
+    setFrame,
     addAnn,
     removeAnn,
     shiftCursor,
     addNode,
   } = useFlow();
   const tpl = useFlow((s) => s.template);
+  // 上一段的选定走向：决定本段能否承接真实结尾起拍（也决定推演报价——共用开头帧时图量减半）
+  const prevProp = useFlow((s) => (index > 0 ? chosenOf(s.nodes[index - 1]) : null));
   const simple = mode === "simple";
   const prop = chosenOf(node);
   const video = nodeVideo(node);
@@ -101,20 +125,53 @@ function NodeScreen({
   const vref = useRef<HTMLVideoElement>(null);
   const [annOpen, setAnnOpen] = useState<{ frame: string; atSec: number } | null>(null);
   const [sheet, setSheet] = useState(false); // 底部「本段设置」抽屉
-  /** 出片浮层。只由「生成本段」这一个入口开——推演走向也会把 status 置成 generating，
-   *  跟着 status 走的话点"推演三种走向"会莫名其妙弹出炼卡动画 */
+  /** 出片浮层。只由「出片」这一拍开——推演方案也会把 status 置成 generating，
+   *  跟着 status 走的话"挑方案"这一步会莫名其妙弹出炼卡动画 */
   const [forge, setForge] = useState<ForgePhase | null>(null);
+  // 出片之后大屏幕默认放成片；想回去看/改方案就翻回方案台（改完可以重炼）
+  const [showPlan, setShowPlan] = useState(false);
   const matCount = node.materials?.length ?? 0;
 
-  async function runGen() {
+  // ── 方案台三态（见 flowStore.FlowNode.plan）──
+  const plan = simple ? null : planOf(node);
+  const picking = plan === "picking";
+  const carried = !!(node.chain && prevProp?.lastFrame);
+  const cost = segTokens(prop.durationSec, node.videoTier);
+  const propCost = proposalsCost(carried);
+  const req = requirementOf(node);
+  const generating = node.status === "generating";
+  /** 主按钮这一下干什么：没方案台先推演，摊开着就重推，挑定了才真出片。
+   *  **这是唯一的推进入口**——三套方案原来藏在「本段设置」抽屉的一枚小按钮后面，
+   *  绝大多数用户没见过它，于是最贵的一步（出片）反而没有选择余地。 */
+  const stage: "derive" | "rederive" | "film" = simple || plan === "picked" ? "film" : picking ? "rederive" : "derive";
+  const mainCost = stage === "film" ? cost : propCost;
+  const mainDisabled =
+    busy || generating || (stage === "film" ? !prop.plot.trim() : !req.trim() && !node.materials?.length);
+  const mainLabel = generating
+    ? node.progress || "生成中…"
+    : stage === "rederive"
+      ? `♻ 重新生成方案（${fmtTokens(propCost)}）`
+      : stage === "derive"
+        ? `⚡ 生成本段（${fmtTokens(propCost)}）`
+        : done
+          ? `♻ 重新生成（${fmtTokens(cost)}）`
+          : `⚡ 生成本段（${fmtTokens(cost)}）`;
+
+  async function onMain() {
     if (busy) return;
+    if (stage !== "film") {
+      // 推演不开炼卡浮层（见 forge 的注释）；方案台自己会显示"待挑方案"
+      setShowPlan(false);
+      void deriveProposals(node.id);
+      return;
+    }
     setForge("forging");
     const ok = await genNode(node.id);
     setForge(ok ? "done" : "failed");
   }
 
-  const cost = segTokens(prop.durationSec, node.videoTier);
-  const pIdx = node.proposals.findIndex((p) => p.id === node.chosenId);
+  // 大屏幕放什么：成片 > 方案台 > 起拍画面 > 一句"还没有画面"
+  const boardOn = plan != null && (!done || showPlan);
 
   /** 从预览播放器截当前帧去圈选（视频经代理取流，画布不会被跨域污染） */
   function openAnnotator() {
@@ -152,123 +209,137 @@ function NodeScreen({
 
   return (
     <div className="flex h-full flex-col">
-      {/* ── 预览区（手势区）── */}
-      <div className="relative flex min-h-0 flex-1 items-center justify-center bg-black" {...swipe}>
-        {done && vsrc ? (
+      {/* ── 段导航条 + 状态 ──
+          ★ 换节点从"压在画面上的两枚半透明箭头"挪到这里，状态角标也一并搬过来：方案台铺满
+            大屏幕之后，那两枚箭头正好落在方案卡的首尾帧上，点方案会误触换段。
+            顺序门禁的表达（锁图标 + 说明"为什么点不动"）原样保留，真正的拦截仍在
+            flowStore.clampCursor。 */}
+      <div className="flex flex-none items-center gap-2 px-3 py-1.5">
+        <button
+          onClick={() => shiftCursor(-1)}
+          disabled={index === 0 || busy}
+          aria-label="上一段"
+          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 disabled:opacity-25"
+        >
+          <Icon name="back" size={15} />
+        </button>
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5">
+          <span className="flex-none text-[11px] text-slate-300">
+            {total > 1 ? `第 ${index + 1}/${total} 段` : "本段"}
+          </span>
+          {done && <span className="flex-none rounded-full bg-emerald-500/85 px-1.5 text-[10px] text-ink">✓ 已出片</span>}
+          {picking && <span className="flex-none rounded-full bg-gold/20 px-1.5 text-[10px] text-gold">待挑方案</span>}
+          {generating && (
+            <span className="min-w-0 flex-1 animate-pulse truncate rounded-full bg-brand px-1.5 text-[10px] font-semibold text-ink">
+              {node.progress || "生成中…"}
+            </span>
+          )}
+          {node.status === "failed" && (
+            <span className="min-w-0 flex-1 truncate rounded-full bg-rose-500/85 px-1.5 text-[10px] text-white">
+              ✗ {node.error}
+            </span>
+          )}
+        </div>
+        {/* 出片后大屏幕默认放成片，这枚开关把方案台翻回来（改帧改剧情再重炼） */}
+        {done && plan != null && (
+          <button
+            onClick={() => setShowPlan((v) => !v)}
+            className="flex-none rounded-full bg-panel px-2.5 py-1 text-[10px] text-slate-300"
+          >
+            {showPlan ? "看成片" : "看方案"}
+          </button>
+        )}
+        <button
+          onClick={() => shiftCursor(1)}
+          disabled={index >= total - 1 || !done || busy}
+          title={index >= total - 1 ? "没有下一段了" : done ? "下一段" : "先把这一段炼出来"}
+          aria-label={done ? "下一段" : "下一段（本段还没出片）"}
+          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 disabled:opacity-25"
+        >
+          <Icon name={done || index >= total - 1 ? "chevron" : "lock"} size={done || index >= total - 1 ? 15 : 13} />
+        </button>
+      </div>
+
+      {/* ── 大屏幕：方案台 / 成片 / 起拍画面（手势区）── */}
+      <div
+        className={`relative min-h-0 flex-1 ${boardOn ? "bg-[#0b0f18]" : "flex items-center justify-center bg-black"}`}
+        {...swipe}
+      >
+        {boardOn ? (
+          /* 方案台自己要吃竖向滚动与点击，横划换段在这里会打架 —— data-noswipe 关掉手势 */
+          <div className="absolute inset-0" data-noswipe>
+            <PlanBoard
+              proposals={node.proposals}
+              pickedId={picking ? null : node.chosenId}
+              isDone={(p) => !!node.videoByProposal[p.id]}
+              busy={busy || generating}
+              regenId={node.regenning ? node.chosenId : null}
+              onPick={(id) => chooseProposal(node.id, id)}
+              onPatch={(_id, patch) => updateProposal(node.id, patch)}
+              onFrame={(_id, which, dataUrl) => setFrame(node.id, which, dataUrl)}
+              onRegen={() => void regenProposal(node.id)}
+              regenCost={(p) => redrawCost(node, p, prevProp)}
+              onRederive={() => void deriveProposals(node.id)}
+              rederiveCost={propCost}
+              carriedFrom={carried}
+              // 预览卡的框跟本段画幅走：写死一个比例，另一种画幅的帧会被裁掉一大半
+              frameAspect={aspectCss(node.aspect)}
+            />
+          </div>
+        ) : done && vsrc ? (
           <video ref={vref} src={vsrc} muted playsInline controls className="max-h-full max-w-full" />
         ) : prop.firstFrame ? (
           <img src={prop.firstFrame} alt="" className="max-h-full max-w-full" />
         ) : (
           <div className="px-8 text-center text-xs leading-relaxed text-slate-500">
-            {node.status === "generating" ? node.progress || "生成中…" : "还没有画面——在下面写清楚这一段要拍什么"}
+            {generating
+              ? node.progress || "生成中…"
+              : simple
+                ? "还没有画面——在下面写清楚这一段要拍什么"
+                : "还没有画面——在下面写清楚这一段要拍什么，点「生成本段」先看三套方案"}
           </div>
         )}
-
-        {/* 左右换节点 */}
-        {index > 0 && (
-          <button
-            onClick={() => shiftCursor(-1)}
-            className="absolute left-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white"
-            aria-label="上一段"
-          >
-            <Icon name="back" size={22} />
-          </button>
-        )}
-        {/* 顺序门禁：本段没出片就过不去（真正的拦截在 flowStore.clampCursor，
-            这里只是把"为什么点不动"画出来——否则用户会以为按钮坏了） */}
-        {index < total - 1 && (
-          <button
-            onClick={() => shiftCursor(1)}
-            disabled={!done}
-            title={done ? "下一段" : "先把这一段炼出来"}
-            className={`absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white ${
-              done ? "" : "opacity-40"
-            }`}
-            aria-label={done ? "下一段" : "下一段（本段还没出片）"}
-          >
-            <Icon name={done ? "chevron" : "lock"} size={done ? 22 : 17} />
-          </button>
-        )}
-
-        {/* 换走向：贴底居中的一枚药丸，⌃/⌄ 与"上下划"的手势方向对得上。
-            不放右侧竖列——那里正是"下一段"箭头的位置，两组控件会叠在一起 */}
-        {node.proposals.length > 1 && (
-          <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/55 px-2 py-1">
-            <button
-              onClick={() => shiftProposal(node.id, -1)}
-              className="flex h-6 w-6 rotate-90 items-center justify-center text-white"
-              aria-label="上一个走向"
-            >
-              <Icon name="back" size={15} />
-            </button>
-            {node.proposals.map((p, i) => (
-              <span
-                key={p.id}
-                className={`h-1.5 rounded-full ${i === pIdx ? "w-4 bg-brand" : "w-1.5"} ${
-                  i === pIdx ? "" : node.videoByProposal[p.id] ? "bg-emerald-400/70" : "bg-white/35"
-                }`}
-              />
-            ))}
-            <button
-              onClick={() => shiftProposal(node.id, 1)}
-              className="flex h-6 w-6 rotate-90 items-center justify-center text-white"
-              aria-label="下一个走向"
-            >
-              <Icon name="chevron" size={15} />
-            </button>
-          </div>
-        )}
-
-        {/* 状态角标 */}
-        <div className="pointer-events-none absolute left-3 top-3 flex flex-col items-start gap-1">
-          <span className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-slate-200">
-            第 {index + 1}/{total} 段
-            {node.proposals.length > 1 && ` · 走向 ${pIdx + 1}/${node.proposals.length}`}
-          </span>
-          {done && <span className="rounded-full bg-emerald-500/85 px-2 py-0.5 text-[11px] text-ink">✓ 已出片</span>}
-          {node.status === "generating" && (
-            <span className="animate-pulse rounded-full bg-brand px-2 py-0.5 text-[11px] font-semibold text-ink">
-              {node.progress || "生成中…"}
-            </span>
-          )}
-          {node.status === "failed" && (
-            <span className="max-w-[70vw] truncate rounded-full bg-rose-500/85 px-2 py-0.5 text-[11px] text-white">
-              ✗ {node.error}
-            </span>
-          )}
-        </div>
       </div>
 
       {/* ── 本段内容 ── */}
       <div className="flex-none space-y-2 border-t border-slate-800 bg-ink px-4 pb-3 pt-2.5" data-noswipe>
         {/* 出片过程日志：跑着时展开，跑完自动收起但留着可回看 */}
-        <GenTrace steps={node.steps ?? []} running={node.status === "generating"} />
-        {!simple && (
-          <input
-            value={prop.title}
-            onChange={(e) => updateProposal(node.id, { title: e.target.value })}
-            maxLength={24}
-            placeholder="这一段叫什么"
-            className="w-full bg-transparent text-sm font-bold text-slate-100 outline-none placeholder:text-slate-600"
-          />
-        )}
+        <GenTrace steps={node.steps ?? []} running={generating} />
+        {/* 标题不在这里改了——它是"某一套方案"的标题，跟剧情一起放在方案台那一行里改，
+            两处都能改同一个字段只会让人不知道哪个说了算 */}
         {tpl ? (
           /* 套了模板：用户只需要说"换成谁/什么主题"，其余由配方补齐。
              剧情框仍然可展开查看/微调——模板是起点不是牢笼 */
           <TemplateSubjectBox />
-        ) : (
+        ) : simple ? (
           <textarea
             value={prop.plot}
             onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
-            rows={simple ? 3 : 2}
+            rows={3}
             maxLength={400}
-            placeholder={
-              simple
-                ? "想拍什么？例：雨夜的东京街头，霓虹灯牌下一只黑猫慢慢走过积水，倒影闪烁"
-                : "这一段的画面与剧情（会直接作为生成提示词）"
-            }
+            placeholder="想拍什么？例：雨夜的东京街头，霓虹灯牌下一只黑猫慢慢走过积水，倒影闪烁"
             className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
           />
+        ) : (
+          /* 工作流：这一栏是**用户自己的话**（推演三套方案的依据），不是某一套的剧情。
+             改了它再点「重新生成方案」就按新要求重推——各套的剧情在方案台里逐字改 */
+          <div className="space-y-1">
+            <textarea
+              value={req}
+              onChange={(e) => setRequirement(node.id, e.target.value)}
+              rows={2}
+              maxLength={400}
+              placeholder="这一段要拍什么？（AI 会按它推演三套走向）"
+              className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+            />
+            <p className="text-[10px] leading-4 text-slate-500">
+              {picking
+                ? "改完这句话可以「重新生成方案」；挑定一套之后按钮才变回「生成本段」"
+                : plan === "picked"
+                  ? "已挑定一套 · 在上面的方案台里换首尾帧、改剧情"
+                  : "点「生成本段」先出三套方案（各带首尾帧预览），挑定后再炼视频"}
+            </p>
+          </div>
         )}
 
         {/* 圈选标注缩略 */}
@@ -296,7 +367,7 @@ function NodeScreen({
             onClick={() => setSheet(true)}
             className="flex-none rounded-lg bg-panel px-2.5 py-2 text-[11px] text-slate-300"
           >
-            ⚙ {prop.durationSec}s · {tierOf(node.videoTier).label}
+            ⚙ {prop.durationSec}s · {tierOf(node.videoTier).label} · {aspectOf(node.aspect).label}
           </button>
           {done && (
             <button
@@ -310,15 +381,14 @@ function NodeScreen({
             </button>
           )}
           <button
-            onClick={() => void runGen()}
-            disabled={busy || !prop.plot.trim()}
-            className="min-w-0 flex-1 rounded-lg bg-brand py-2 text-xs font-bold text-ink disabled:opacity-40"
+            onClick={() => void onMain()}
+            disabled={mainDisabled}
+            title={AI_REAL ? `预计消耗 ${fmtTokens(mainCost)} token` : undefined}
+            className={`min-w-0 flex-1 rounded-lg py-2 text-xs font-bold disabled:opacity-40 ${
+              stage === "rederive" ? "bg-gold/90 text-ink" : "bg-brand text-ink"
+            }`}
           >
-            {node.status === "generating"
-              ? node.progress || "生成中…"
-              : done
-                ? `♻ 重新生成（${fmtTokens(cost)}）`
-                : `⚡ 生成本段（${fmtTokens(cost)}）`}
+            {mainLabel}
           </button>
           {/* 素材入口。就贴在「生成本段」旁边，因为它改的正是这一段要炼成什么样。
               图案是 Q 版看板娘抱着牌：收起时躲在牌后只露眼睛，展开时把牌举起来大笑，
@@ -406,6 +476,29 @@ function NodeScreen({
               ))}
             </div>
 
+            {/* 画幅：已出片的段不给改——改了这一段的成片还是老画幅，
+                用户以为改完就变了，直到剪辑页合并才发现这一段被裁/补了边 */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="w-10 flex-none text-[11px] text-slate-400">画幅</span>
+              {VIDEO_ASPECTS.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => updateNode(node.id, { aspect: a.id })}
+                  disabled={done}
+                  title={done ? "这一段已出片，改画幅要重新生成才生效" : a.desc}
+                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${
+                    node.aspect === a.id ? "bg-brand text-ink" : "bg-panel text-slate-300"
+                  }`}
+                >
+                  <span
+                    className={`block rounded-[2px] border-2 ${node.aspect === a.id ? "border-ink/70" : "border-slate-400"}`}
+                    style={{ width: a.id === "portrait" ? 8 : 14, height: a.id === "portrait" ? 14 : 8 }}
+                  />
+                  {a.label}
+                </button>
+              ))}
+            </div>
+
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="w-10 flex-none text-[11px] text-slate-400">画质</span>
               {VIDEO_TIERS.map((t) => (
@@ -443,18 +536,8 @@ function NodeScreen({
               </div>
             )}
 
-            {!simple && (
-              <button
-                onClick={() => {
-                  setSheet(false);
-                  void deriveProposals(node.id);
-                }}
-                disabled={busy}
-                className="w-full rounded-xl bg-panel py-2.5 text-xs font-semibold text-slate-200 disabled:opacity-40"
-              >
-                🔮 让 AI 就这一段推演三种走向（可上下切换挑一个）
-              </button>
-            )}
+            {/* 推演三套方案的入口以前就藏在这里，绝大多数用户没找到它——现在它是屏幕中间
+                那块方案台 + 底部主按钮的主路径，抽屉里只留真正的"设置"（时长/画质/承接） */}
           </div>
         </div>
       )}
@@ -501,12 +584,16 @@ export default function FlowPage() {
   //   一条几 MB，频繁写盘会拖慢主线程还费配额。改文字这种廉价改动交给手动按钮。
   //   写在 FlowPage 而不是 flowStore：flowStore 绝不 import studioStore（互相 import
   //   在 Vite 下会拿到半初始化的模块），而这一页两边都拿得到。
+  //   ★ 简约模式不落草稿：它只有一段、几十秒就出片，一路直通剪辑与发布，中间没有"回来
+  //     接着做"的状态可言。给它存草稿只会在个人页堆一串一次性的半成品，而每条都带 1MB
+  //     级的帧，把真正需要草稿的工坊/工作流那 20 条上限挤掉（见 data/drafts.MAX_DRAFTS）。
   const doneCount = nodes.filter(nodeDone).length;
   const prevDone = useRef(doneCount);
   useEffect(() => {
+    if (simple) return;
     if (doneCount > prevDone.current) void useStudio.getState().saveWorkDraft({ from: "flow" });
     prevDone.current = doneCount;
-  }, [doneCount]);
+  }, [doneCount, simple]);
 
   const allDone = nodes.length > 0 && nodes.every(nodeDone);
   /** 还没出片的第一段 = 用户最远能走到的地方（-1 表示全出片了，随便看） */
@@ -560,15 +647,23 @@ export default function FlowPage() {
           {simple ? "一个节点，一条短片" : `${nodes.length} 段 · 已出片 ${nodes.filter(nodeDone).length}`}
           {AI_REAL && remain > 0 && ` · 剩余约 ${fmtTokens(remain)}`}
         </span>
-        {/* 手动存盘。自动保存只在"炼完一段"那种昂贵节点触发（见下面的 effect），
-            纯改文字不会自动存——想留住就点这里 */}
-        <button
-          onClick={() => void saveNow()}
-          disabled={saveState === "saving"}
-          className="flex-none rounded-full bg-slate-700/80 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-50"
-        >
-          {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存 ✓" : saveState === "failed" ? "保存失败" : "存草稿"}
-        </button>
+        {/* 手动存盘。自动保存只在"炼完一段"那种昂贵节点触发（见上面的 effect），
+            纯改文字不会自动存——想留住就点这里。简约模式没有这颗按钮（它不进草稿库） */}
+        {!simple && (
+          <button
+            onClick={() => void saveNow()}
+            disabled={saveState === "saving"}
+            className="flex-none rounded-full bg-slate-700/80 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-50"
+          >
+            {saveState === "saving"
+              ? "保存中…"
+              : saveState === "saved"
+                ? "已保存 ✓"
+                : saveState === "failed"
+                  ? "保存失败"
+                  : "存草稿"}
+          </button>
+        )}
         {/* 收口按钮：全部出片后把各段并成一条片子（去剪辑页合并）。
             这里原来是「⚡ 炼完剩余 N 段」——那条路与"逐段确认"是对着干的：
             它让用户在没看过第一段效果之前，就把后面几段的钱一次性烧掉。
@@ -689,7 +784,10 @@ export default function FlowPage() {
                       onClick={() => setCursor(i)}
                       disabled={locked}
                       aria-label={`第 ${i + 1} 段${locked ? "（还没轮到）" : ""}`}
-                      className={`relative h-11 w-16 flex-none overflow-hidden rounded-lg border-2 ${
+                      /* 定高不定宽：缩略图按本段画幅撑出宽度，横竖一眼能分出来
+                         （写死 16:9 的话，竖屏段在这条里被裁得只剩腰） */
+                      style={{ aspectRatio: aspectCss(n.aspect) }}
+                      className={`relative h-11 flex-none overflow-hidden rounded-lg border-2 ${
                         i === cursor ? "border-brand" : "border-transparent"
                       }`}
                     >
@@ -700,10 +798,16 @@ export default function FlowPage() {
                           {i + 1}
                         </span>
                       )}
-                      {nodeDone(n) && (
+                      {nodeDone(n) ? (
                         <span className="absolute right-0.5 top-0.5 rounded-full bg-emerald-500/90 px-1 text-[8px] text-ink">
                           ✓
                         </span>
+                      ) : (
+                        planOf(n) === "picking" && (
+                          <span className="absolute right-0.5 top-0.5 rounded-full bg-gold/90 px-1 text-[8px] text-ink">
+                            ⋯
+                          </span>
+                        )
                       )}
                       {locked && (
                         <span className="absolute inset-0 flex items-center justify-center bg-black/55">
