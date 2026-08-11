@@ -85,18 +85,30 @@ WebView 的 origin 是 `https://localhost`，在 Web 层 `fetch` GitHub 上的�
 
 ---
 
-## 用户在国内、GitHub 太慢怎么办
-
-把 `latest.json` 和 APK 换到自己的服务器上（`ideahubs.org` 在阿里云 ECS，国内快得多），
-然后改 `.env.production` 的这一行：
+## 更新源现在长什么样
 
 ```
-VITE_UPDATE_MANIFEST=https://ideahubs.org/app/latest.json
+App（构建期常量 VITE_UPDATE_MANIFEST）
+  └→ https://api.ideahubs.org/api/app/latest.json      ← 自己的服务器，国内秒回
+       └→ 转一手 + 缓存 60 秒
+            └→ https://github.com/…/releases/latest/download/latest.json   ← 权威那份
+                 apkUrl → GitHub Release 上的 95MB APK
 ```
 
-格式不变。改完要重新出包才生效（它是构建期常量）。
+**为什么清单要经服务端转一手**（`ideahub-server` 的 `src/routes/appRelease.routes.js`）：
 
----
+1. **国内快**。App 每次冷启动都要拉它比版本号，直连 GitHub 常超时，而超时的后果是
+   **静默的** —— 用户永远收不到更新提示，也没有任何症状可看。
+2. **下载源以后能换，不用重新出包**。`VITE_UPDATE_MANIFEST` 是构建期常量，发出去就
+   钉死在每个用户的包里了。清单在服务端就等于留了个开关：想把 APK 挪到 OSS/CDN，
+   在服务端配 `APP_APK_BASE=https://cdn.example.com/app/`，**已经装了 App 的人下次
+   检查更新就拿到新地址**。
+
+服务端**不重算任何东西**（版本号、sha256 的唯一出处仍是发版脚本生成的那份），
+上游挂了就发一天以内的旧清单而不是 5xx —— 回 502 等于让所有人再也收不到更新。
+
+★ APK 本身仍在 GitHub。95MB 走自己的 ECS 要花出网带宽（100 人各更新一次 ≈ 9.6GB），
+值不值得看用户量；要搬的时候按上面那个开关来，App 侧一行都不用动。
 
 ## 这套**盖不到**什么
 
