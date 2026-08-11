@@ -1,7 +1,16 @@
-// 创作者主页（对标 TikTok 个人页）。一套实现同时服务两个入口：
+// 创作者主页（对标 TikTok 个人页）。一套实现同时服务三个入口：
 //
-//   /me         我的主页 —— 多出 设置 / 钱包 / 草稿 / 卡片 / 卡组 / 收藏
-//   /u/:author  别人的主页 —— 关注 + 分享主页（首页点作者头像进的就是它）
+//   /me           我的主页 —— 多出 设置 / 钱包 / 草稿 / 卡片 / 卡组 / 收藏
+//   /user/:userId 别人的主页（**正路**）—— 关注 + 分享主页
+//   /u/:author    别人的主页（老路径，按展示名）—— 分享出去的链接、老包缓存、
+//                 已经发出去的评论里都还带着它，必须继续能开
+//
+// ★★ 别人的主页**要真的去问服务端**（getUser + fetchAuthorWorks），不能只拿
+//   `listVideos()` 去筛。远端模式下那份 cache 只有推荐流的前 30 条 —— 从搜索结果
+//   点一个陌生人进来，筛出来必然是 0 条，页面就会显示「作品 0 / 获赞 0 / 播放 0」
+//   加一句「TA 还没有发布作品」。那是**编出来的空状态**：真相是"App 从来没问过
+//   服务器这个人的事"（铁律八）。所以下面把「在问」「问不到」「真的没有」画成
+//   三种不同的样子，一种都不能省。
 //
 // ★ 不拆成两个组件：版式、统计口径、作品栅格三样必须永远一致（铁律六）。
 //   拆开之后「获赞怎么算」「封面上放什么」就会各写一遍，改一处漏一处。
@@ -9,21 +18,28 @@
 // 版式抄 TikTok 那套竖排居中：头像 → @账号 → 三连统计 → 动作按钮 → 简介 →
 // 图标页签 → 3 列贴边栅格。旧版是左对齐的资料卡 + 文字页签，与首页的
 // 短视频形态完全不搭，而且首页压根没有入口能走到"别人"的主页。
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import Icon, { type IconName } from "../components/Icon";
 import DeckCard from "../components/DeckCard";
 import Avatar from "../components/Avatar";
 import AvatarPicker from "../components/AvatarPicker";
 import {
+  authorIdOfName,
   dropPendingPublish,
+  fetchAuthorWorks,
   isMyAuthor,
   listVideos,
   pendingPublishes,
+  profileHref,
   publishUploadStatus,
+  rememberAuthorId,
+  remoteOn,
   retryPendingPublishes,
+  type AuthorWorks,
 } from "../data/videos";
+import { getUser, userDisplayName, type ApiUserProfile } from "../api/users";
 import { deleteDraft, loadDraft, renameDraft, type DraftMode, type WorkDraftMeta } from "../data/drafts";
 import { useDrafts } from "../hooks/useDrafts";
 import { useStudio } from "../studio/studioStore";
@@ -42,6 +58,7 @@ import {
 import { fetchOrder, fetchPayConfig } from "../api/wallet";
 import { API_ON } from "../api/client";
 import { PLANS, RECHARGE_PACKS, fmtTokens } from "../data/economy";
+import { notificationsState, refreshUnreadCount, subscribeNotifications } from "../data/notifications";
 import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoItem, formatPlays, relativeTime } from "../types";
@@ -51,8 +68,71 @@ type TabKey = "works" | "drafts" | "cards" | "decks" | "collects";
 /** 顶栏内容高度。页签要 sticky 到它下面，两处必须用同一个数，所以提成常量 */
 const HEADER_H = "2.75rem"; // h-11 = 44px，移动端热区下限
 
+/** 陌生人主页的远端状态。★ 四件事分开记，页面才画得出四种不同的样子 */
+interface Stranger {
+  /** 还在问（问出结果之前不许下任何结论） */
+  loading: boolean;
+  profile: ApiUserProfile | null;
+  /** 服务端明确说没有这个人（注销/id 不对） */
+  missing: boolean;
+  /** 这台服务器没有这个端点（判的是响应形状，不是状态码） */
+  unsupported: boolean;
+  /** 没问出结果的原因，直接给用户看；空串 = 没出错 */
+  error: string;
+  /** 他的作品（含"服务端认没认 author 参数"），null = 这一趟没问 */
+  works: AuthorWorks | null;
+}
+
+const STRANGER_IDLE: Stranger = {
+  loading: false,
+  profile: null,
+  missing: false,
+  unsupported: false,
+  error: "",
+  works: null,
+};
+
+/**
+ * 去服务端把这个人和他的作品取回来。
+ *
+ * ★ 资料与作品**一起发、分开判**：作品拉挂了不该把整页判成"查无此人"，
+ *   反过来也一样。两条各有各的降级说法。
+ * ★ 拿到资料就把「展示名 → userId」登记进去：关注打的是 /api/users/:id/follow，
+ *   而本地 following 存的是作者名，不登记的话在陌生人主页点关注只会在本地亮一下
+ *   （见 data/videos.rememberAuthorId）。
+ */
+function useStranger(userId: string | null, reloadKey: number): Stranger {
+  const [s, setS] = useState<Stranger>(STRANGER_IDLE);
+  useEffect(() => {
+    if (!userId || !remoteOn()) {
+      setS(STRANGER_IDLE);
+      return;
+    }
+    let alive = true;
+    setS({ ...STRANGER_IDLE, loading: true });
+    void Promise.all([getUser(userId), fetchAuthorWorks(userId)]).then(([p, w]) => {
+      if (!alive) return;
+      if (p.status === "ok") rememberAuthorId(userDisplayName(p.user), p.user._id);
+      setS({
+        loading: false,
+        profile: p.status === "ok" ? p.user : null,
+        missing: p.status === "missing",
+        unsupported: p.status === "unsupported",
+        error: p.status === "failed" ? p.error : "",
+        works: w,
+      });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [userId, reloadKey]);
+  return s;
+}
+
 export default function ProfilePage() {
-  const { author: routeAuthor } = useParams<{ author?: string }>();
+  const { author: routeAuthor, userId: routeUserId } = useParams<{ author?: string; userId?: string }>();
+  const [searchParams] = useSearchParams();
+  const loc = useLocation();
   const navigate = useNavigate();
   // 版本号订阅要在最前面：关注/收藏/钱包都是原地改对象，不订阅拿不到变更
   const accV = useAccountVersion();
@@ -68,17 +148,62 @@ export default function ProfilePage() {
   const [toast, setToast] = useState("");
   const toastTimer = useRef<number | undefined>(undefined);
 
-  // /u/<我自己> 也走「我的」那套：同一个人不该因为从哪个入口进来就少半页功能。
-  // 未登录时 routeAuthor 一律按"别人"处理，否则会把陌生人的主页顶成登录墙。
-  const self = !routeAuthor || (!!user && isMyAuthor(routeAuthor));
-  const display = self ? (user?.name ?? "") : routeAuthor!;
-  const handle = self ? (user?.account ?? "") : routeAuthor!;
+  // /u/<我自己>、/user/<我自己的 id> 也走「我的」那套：同一个人不该因为从哪个入口
+  // 进来就少半页功能。未登录时一律按"别人"处理，否则会把陌生人的主页顶成登录墙。
+  const self =
+    (!routeAuthor && !routeUserId) ||
+    (!!user && ((!!routeUserId && routeUserId === user.id) || (!!routeAuthor && isMyAuthor(routeAuthor))));
+
+  /**
+   * 这个陌生人的 userId。
+   * ★ 老路径 `/u/:展示名` 进来时先去登记处反查一次（列表映射时登记的）：查得到就
+   *   升级成 id 那条路，于是老链接也能享受"真的去问服务端"。查不到只能按名字尽力而为
+   *   —— 那种情况下页面必须说清楚"没能确认这是谁"，绝不假装作品是 0。
+   */
+  const strangerId = self ? null : (routeUserId ?? (routeAuthor ? authorIdOfName(routeAuthor) : null));
+  /** 重试计数：远端失败时用户点「重试」，靠它重跑那个 effect */
+  const [reloadKey, setReloadKey] = useState(0);
+  const stranger = useStranger(strangerId, reloadKey);
+
+  /** 链接里带过来的名字（profileHref 的 `?name=`）：只用来在问到服务端之前有个东西可显示 */
+  const nameHint = searchParams.get("name") ?? routeAuthor ?? "";
+  const display = self
+    ? (user?.name ?? "")
+    : stranger.profile
+      ? userDisplayName(stranger.profile)
+      : nameHint;
+  const handle = self ? (user?.account ?? "") : (stranger.profile?.username ?? nameHint);
 
   const videos = useMemo(() => listVideos(), [videoV]);
-  const works = useMemo(
-    () => videos.filter((v) => (self ? isMyAuthor(v.author) : v.author === display)),
+  /** 本地库里名字对得上的那些。远端问到了就不用它，问不到时它至少不是空白 */
+  const localWorks = useMemo(
+    () => videos.filter((v) => (self ? isMyAuthor(v.author) : !!display && v.author === display)),
     [videos, self, display],
   );
+  /** 远端那份到手了没（partial = 服务端没认 author 参数，只能算"刷到的那些"） */
+  const remoteWorks =
+    stranger.works && (stranger.works.status === "ok" || stranger.works.status === "partial")
+      ? stranger.works.items
+      : null;
+  // ★ 服务端说了"这就是全部"（ok）时**以它为准**，哪怕是空的 —— 那才是事实。
+  //   只有在没问到 / 问到的不完整（partial 且一条都没筛出来）时才退回本地那份，
+  //   总比一片空白强，代价是页面必须说清楚"这不是全部"（见 StrangerWorks）。
+  const works = self
+    ? localWorks
+    : stranger.works?.status === "ok"
+      ? stranger.works.items
+      : remoteWorks && remoteWorks.length > 0
+        ? remoteWorks
+        : localWorks;
+  /**
+   * 这份作品列表**是不是权威的**。
+   * ★ 只有它为真时，页面才敢说「TA 还没有发布作品」「获赞 0」这类话 ——
+   *   否则那些数字是"我们没问到"，不是"他没有"。
+   * ★ 离线模式也算权威：那时本地库就是这台设备的全部世界（也压根走不到一个
+   *   "本地没有他任何作品"的陌生人主页——入口都是从本地那几条作品点进来的）。
+   *   在那儿显示「—」只会把一个本来准确的数字变成问号。
+   */
+  const worksKnown = self || !remoteOn() || stranger.works?.status === "ok";
   // accV 是必需的依赖，不是保险：collects 是原地 push/splice 的同一个数组，
   // 只写 user?.collects 的话取消收藏后这份 memo 永远不会重算
   const collects = useMemo(() => {
@@ -92,9 +217,39 @@ export default function ProfilePage() {
     [works],
   );
 
-  // 换个人看时页签回到「作品」：停在上一个人的「卡组」上会让人以为这人只发过卡组
-  useEffect(() => setTab("works"), [display, self]);
+  // 换个人看时页签回到「作品」：停在上一个人的「卡组」上会让人以为这人只发过卡组。
+  // ★ 依赖是**路由上的身份**而不是 display：display 会在资料到货那一拍从"链接里带的名字"
+  //   变成"服务端的名字"，跟着它复位会把用户刚点开的页签又弹回去。
+  useEffect(() => setTab("works"), [strangerId, routeAuthor, self]);
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+
+  // 铃铛上的红点。★ 不做 setInterval 轮询：后台/最小化的 WebView 会把定时器节流到
+  //   几乎不跑，轮询既不生效又白耗电。改成"每次进这一页 + 每次 App 恢复"各问一次，
+  //   而且 hidden 时直接不问（那一发看不见结果，还可能被推迟到恢复之后才真正发出）。
+  const notif = useSyncExternalStore(subscribeNotifications, notificationsState);
+  useEffect(() => {
+    if (!self) return;
+    const tick = () => {
+      if (document.visibilityState === "hidden") return;
+      void refreshUnreadCount();
+    };
+    // ★ 首次进页面**不看可见性**（与 NotificationsPage 同一条理由）：那一次不是轮询，
+    //   是用户刚打开这一页。罩上 guard 的话，窗口恰好被判 hidden 时红点就不出现，
+    //   而且要等到下一次 visibilitychange 才补 —— 用户看到的是"有人赞了我却没提示"。
+    void refreshUnreadCount();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refreshUnreadCount();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", tick);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", tick);
+    };
+    // ★ 依赖写 user?.id 而不是 user：currentUser() 是**原地改**的同一个对象，
+    //   但换个人登录时 id 会变，那时必须重问一次（否则红点还挂着上一个人的未读数）
+  }, [self, user?.id]);
+  const unread = self ? notif.unread : 0;
 
   function flash(msg: string) {
     setToast(msg);
@@ -121,10 +276,14 @@ export default function ProfilePage() {
   const totalLikes = works.reduce((s, v) => s + v.likes, 0);
   const totalPlays = works.reduce((s, v) => s + v.plays, 0);
 
-  // ★ 三连统计里没有「粉丝」：契约里没有 followers 端点（api/branch 只有
-  //   follow / following 两个），本地能算出的"粉丝"只有"我关注了没"这 0/1 两种值。
-  //   把它摆在 TikTok 三连的正中间，一个 48213 播放的创作者会显示「粉丝 0」——
-  //   那不是克制，是误导。等 server 补了计数再把这一栏换回来。
+  // ★★ 数不出来的时候写「—」，**不写 0**。
+  //   0 是一个结论（"这个人没有作品/没人赞过他"），而我们这一趟可能压根没问出结果 ——
+  //   一个 48213 播放的创作者显示「获赞 0」不是克制，是骗人（铁律八）。
+  const num = (n: number) => (worksKnown ? formatPlays(n) : "—");
+  // ★ 「粉丝」这一栏原来是没有的：那时本地只能算出"我关注了没"这 0/1 两种值。
+  //   现在 GET /api/users/:id 真的回了 followerCount，就照实显示；老服务端不返回时
+  //   这一栏整个不出现（而不是显示 0）。
+  const followers = stranger.profile?.followerCount;
   const stats: Array<{ label: string; value: string; onTap?: () => void }> = self
     ? [
         { label: "关注", value: String(user!.following.length), onTap: () => setFollowListOpen(true) },
@@ -132,9 +291,10 @@ export default function ProfilePage() {
         { label: "播放", value: formatPlays(totalPlays) },
       ]
     : [
-        { label: "作品", value: String(works.length) },
-        { label: "获赞", value: formatPlays(totalLikes) },
-        { label: "播放", value: formatPlays(totalPlays) },
+        ...(typeof followers === "number" ? [{ label: "粉丝", value: formatPlays(followers) }] : []),
+        { label: "作品", value: worksKnown ? String(works.length) : "—" },
+        { label: "获赞", value: num(totalLikes) },
+        { label: "播放", value: num(totalPlays) },
       ];
 
   const TAB_META: Record<TabKey, { icon: IconName; label: string; n: number }> = {
@@ -151,8 +311,19 @@ export default function ProfilePage() {
     : (["works", "decks"] as TabKey[]).filter((k) => k === "works" || TAB_META[k].n > 0);
   const activeTab = tabKeys.includes(tab) ? tab : "works";
 
+  /**
+   * 这一页**对外**的地址（分享 / 登录后回跳都用它）。
+   * ★ 拿得到 userId 就发 id 那条：名字会改，改完之后老链接指向的是"一个叫这个名字的人"，
+   *   而不是"这个人"。名字仍带在 `?name=` 里，只为让打开的人在问到服务端之前有东西可看。
+   */
+  const publicHref = (() => {
+    const id = self ? user?.id : strangerId;
+    if (id) return `/user/${encodeURIComponent(id)}${display ? `?name=${encodeURIComponent(display)}` : ""}`;
+    return `/u/${encodeURIComponent(display)}`;
+  })();
+
   function shareProfile() {
-    const url = `${location.origin}${location.pathname}#/u/${encodeURIComponent(display)}`;
+    const url = `${location.origin}${location.pathname}#${publicHref}`;
     if (navigator.share) {
       void navigator.share({ title: `${display} 的主页`, url }).catch(() => {});
       return;
@@ -166,7 +337,8 @@ export default function ProfilePage() {
 
   function onFollow() {
     if (!user) {
-      navigate(`/login?next=${encodeURIComponent(`/u/${display}`)}`);
+      // 回跳回**这一页**（含 ?name=），不是回一个按名字拼出来的地址
+      navigate(`/login?next=${encodeURIComponent(`${loc.pathname}${loc.search}`)}`);
       return;
     }
     toggleFollow(display);
@@ -209,14 +381,30 @@ export default function ProfilePage() {
             </span>
           )}
           {self ? (
-            <Link
-              to="/settings"
-              /* 44px 是移动端热区下限，原来的 h-9 w-9（36px）在手机上要点两三次才中 */
-              className="flex h-11 w-11 items-center justify-center text-slate-300"
-              aria-label="设置"
-            >
-              <Icon name="settings" size={21} />
-            </Link>
+            <div className="flex items-center">
+              {/* 通知入口。★ 放这儿而不是底栏加一格：TabBar 是五格，底缘那 100px 的
+                  几何是承重的（CLAUDE.md「动了首页底缘任何一个元素」那条）。 */}
+              <Link
+                to="/notifications"
+                className="relative flex h-11 w-11 items-center justify-center text-slate-300"
+                aria-label={unread > 0 ? `消息（${unread} 条未读）` : "消息"}
+              >
+                <Icon name="bell" size={21} filled={unread > 0} />
+                {unread > 0 && (
+                  // 只画一个点不写数字：未读上到两位数时数字会把 44px 热区撑破，
+                  // 而"有几条"进了页面第一眼就看得到
+                  <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-ink" />
+                )}
+              </Link>
+              <Link
+                to="/settings"
+                /* 44px 是移动端热区下限，原来的 h-9 w-9（36px）在手机上要点两三次才中 */
+                className="flex h-11 w-11 items-center justify-center text-slate-300"
+                aria-label="设置"
+              >
+                <Icon name="settings" size={21} />
+              </Link>
+            </div>
           ) : (
             <button
               onClick={shareProfile}
@@ -247,7 +435,10 @@ export default function ProfilePage() {
             </button>
           ) : (
             <>
-              <Avatar name={display} size={92} />
+              {/* ★ 用他**真的头像**。原来这里死写 `<Avatar name={display} />`（不传 src），
+                  于是搜索结果里明明刚显示过他的头像，点进来却退回一个字母底 ——
+                  头像在 Link 的那一跳里被丢掉了，用户会怀疑是不是进错了人。 */}
+              <Avatar name={display} src={stranger.profile?.avatarUrl} size={92} />
               {/* 未关注时头像下挂一个 + —— 与首页右侧栏的关注反馈同款，
                   从头像点进来的人不用再去找按钮 */}
               {!following && (
@@ -263,19 +454,29 @@ export default function ProfilePage() {
           )}
         </div>
 
-        <div className="mt-3.5 max-w-full truncate text-lg font-bold text-slate-100">{display}</div>
+        {/* ★ 名字还没问到时（老链接里连名字都没带）显示一个占位，别显示空白 —— 空白
+            会让人以为页面坏了。真名到货后这一行会自己变成他的名字。 */}
+        <div className="mt-3.5 max-w-full truncate text-lg font-bold text-slate-100">
+          {display || (stranger.loading ? "加载中…" : stranger.missing ? "这个用户不存在" : "未知用户")}
+        </div>
         {/* ★ 这里跟的是**当前昵称**，不是登录账号。
             原来显示的是 user.account（注册时定下的登录标识，改昵称不会变），于是用户
             改完名一看："我的名字下面怎么还挂着旧名字？" —— 他把它当成了一个没刷新的
             名字字段，而不是登录账号（2026-08-11 用户报）。
             这个 app 没有"可公开展示、且独立于昵称"的 handle 概念，摆一个只在这里出现、
             又永远不跟着改的字符串，除了制造困惑没有别的作用。
-            登录账号仍然存在，只是不在这儿露脸。 */}
-        <div className="mt-0.5 max-w-full truncate text-xs text-slate-500">@{display}</div>
+            登录账号仍然存在，只是不在这儿露脸。
+            ★ 别人的主页这里跟的是**服务端那份 username**（handle）：那才是 @ 他时要打的
+            那一串，而 App 里别处从来没露过（搜人结果那一行是唯一一处）。问不到时退回
+            展示名，不编。 */}
+        <div className="mt-0.5 max-w-full truncate text-xs text-slate-500">@{self ? display : handle || display}</div>
 
-        {/* 三连统计：竖线分隔，数字大、标签小（TikTok 同款视觉层级） */}
+        {/* 统计：竖线分隔，数字大、标签小（TikTok 同款视觉层级）。
+            ★ 别人的主页可能有四栏（多一个「粉丝」），每格得从 84px 收到 70px ——
+              4×84=336 已经超过 375px 屏减去两侧 px-5 之后的 335px，会把最后一栏挤出屏幕。 */}
         <div className="mt-3.5 flex items-stretch">
           {stats.map((s, i) => {
+            const cell = stats.length > 3 ? "min-w-[70px]" : "min-w-[84px]";
             const body = (
               <>
                 <span className="text-[17px] font-bold tabular-nums text-slate-100">{s.value}</span>
@@ -286,11 +487,11 @@ export default function ProfilePage() {
               <div key={s.label} className="flex items-center">
                 {i > 0 && <span className="h-6 w-px bg-slate-700/70" />}
                 {s.onTap ? (
-                  <button onClick={s.onTap} className="flex min-w-[84px] flex-col items-center px-2 active:opacity-70">
+                  <button onClick={s.onTap} className={`flex ${cell} flex-col items-center px-2 active:opacity-70`}>
                     {body}
                   </button>
                 ) : (
-                  <span className="flex min-w-[84px] flex-col items-center px-2">{body}</span>
+                  <span className={`flex ${cell} flex-col items-center px-2`}>{body}</span>
                 )}
               </div>
             );
@@ -336,11 +537,16 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* 简介。别人的主页本地拿不到 bio（账号库里只有当前用户），
-            与其留一片空白，不如把从作品里算得出来的东西说出来 */}
+        {/* 简介。★ 别人的 bio 现在**真的问得到**了（GET /api/users/:id 就带着它），
+            不用再拿"从作品里算得出来的东西"去填那片空白。问不到（老服务端 / 没设过）
+            时才退回那句从作品算出来的概览 —— 它是真的，只是没那么有用。 */}
         {self ? (
           <p className="mt-3.5 whitespace-pre-wrap text-center text-sm leading-relaxed text-slate-300">
             {user!.bio || <span className="text-slate-600">还没有简介——去设置里写一句吧</span>}
+          </p>
+        ) : stranger.profile?.bio ? (
+          <p className="mt-3.5 whitespace-pre-wrap text-center text-sm leading-relaxed text-slate-300">
+            {stranger.profile.bio}
           </p>
         ) : (
           works.length > 0 && (
@@ -423,12 +629,20 @@ export default function ProfilePage() {
             「辛苦几十分钟的作品过一会儿自己没了」。失败可以，但要响且局部（铁律八）。 */}
         {activeTab === "works" && self && <PendingBanner />}
         {activeTab === "works" &&
-          (works.length ? (
-            <WorkGrid items={works} />
-          ) : self ? (
-            <Empty text="还没有发布作品" cta="去创作" to="/create" />
+          (self ? (
+            works.length ? (
+              <WorkGrid items={works} />
+            ) : (
+              <Empty text="还没有发布作品" cta="去创作" to="/create" />
+            )
           ) : (
-            <Empty text="TA 还没有发布作品" />
+            <StrangerWorks
+              stranger={stranger}
+              works={works}
+              worksKnown={worksKnown}
+              hasId={!!strangerId}
+              onRetry={() => setReloadKey((n) => n + 1)}
+            />
           ))}
 
         {/* 草稿：还没发布的半成品。点一张先问用哪个模式打开——同一份内容，
@@ -630,6 +844,83 @@ function PendingBanner() {
   );
 }
 
+/**
+ * 别人主页的「作品」页签。
+ *
+ * ★★ 这里的每一支都对应一件**不同的事实**，一支都不能省着不画（铁律八）：
+ *     正在问        → 转圈。还没问出结果之前不下任何结论。
+ *     查无此人      → 说人话。别拿"没有作品"去暗示"这人不存在"。
+ *     问不出结果    → 红字 + 重试。网络故障不是"他没发过作品"。
+ *     这台服务器不支持按作者取 → 说明白只能显示"刷到的那些"，不是全部。
+ *     链接里只有名字 → 说明白没能确认这是谁 —— 这条是老 `/u/:名字` 链接遇上
+ *                      "这个人没在本次会话里出现过"时的实情。
+ *     离线          → 说明白要连服务器。
+ *     真的一条都没有 → 这时候才敢说「TA 还没有发布作品」。
+ *   原来这一整块只有最后那一句，于是上面每一种情况都被显示成"这个创作者什么都没发过"。
+ */
+function StrangerWorks({
+  stranger,
+  works,
+  worksKnown,
+  hasId,
+  onRetry,
+}: {
+  stranger: Stranger;
+  works: VideoItem[];
+  worksKnown: boolean;
+  hasId: boolean;
+  onRetry: () => void;
+}) {
+  if (stranger.loading) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-16 text-slate-500">
+        <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-700 border-t-brand" />
+        <span className="text-xs">正在打开 TA 的主页…</span>
+      </div>
+    );
+  }
+  if (stranger.missing) {
+    return <Empty text="找不到这个用户 —— 可能已经注销了" />;
+  }
+  const worksErr = stranger.works?.status === "failed" ? stranger.works.error : "";
+  const err = stranger.error || worksErr;
+  if (err && works.length === 0) {
+    return (
+      <div className="py-16 text-center">
+        <p className="px-8 text-sm leading-relaxed text-rose-300">没打开 TA 的主页：{err}</p>
+        <p className="mt-1 px-8 text-[11px] text-slate-600">这不代表 TA 没有作品，只是这次没取到</p>
+        <button
+          onClick={onRetry}
+          className="mt-4 rounded-full bg-panel px-5 py-2 text-sm font-semibold text-slate-100 ring-1 ring-slate-700"
+        >
+          重试
+        </button>
+      </div>
+    );
+  }
+  // 拿到了一些、但不完整：先把有的摆出来，再在下面挑明"这不是全部"
+  const note = worksKnown
+    ? ""
+    : stranger.unsupported
+      ? "这台服务器还没有用户主页接口 · 服务端升级后即可看到完整资料"
+      : stranger.works?.status === "partial"
+        ? "这台服务器还不支持按作者取作品 · 下面只是本次刷到的那些，不是全部"
+        : stranger.works?.status === "offline"
+          ? "TA 的作品需要连上服务器 · 当前是离线模式"
+          : !hasId
+            ? "这个链接里只有名字，没法向服务器确认是谁 · 下面只是本次刷到的那些"
+            : "";
+  if (works.length === 0) {
+    return <Empty text={worksKnown ? "TA 还没有发布作品" : note || "没能取到 TA 的作品"} />;
+  }
+  return (
+    <>
+      <WorkGrid items={works} />
+      {note && <p className="px-4 pt-3 text-center text-[11px] leading-relaxed text-slate-500">{note}</p>}
+    </>
+  );
+}
+
 function WorkGrid({ items }: { items: VideoItem[] }) {
   return (
     <div className="grid grid-cols-3 gap-[2px]">
@@ -716,7 +1007,13 @@ function FollowingSheet({
       <div className="space-y-1">
         {names.map((a) => (
           <div key={a} className="flex items-center gap-3 rounded-xl p-2">
-            <Link to={`/u/${encodeURIComponent(a)}`} onClick={onClose} className="flex min-w-0 flex-1 items-center gap-3">
+            {/* 关注列表里存的是**作者名**（本地模型的历史包袱）。能反查到 id 就按 id 跳，
+                反查不到才退回名字 —— 规则仍然只有 profileHref 那一处 */}
+            <Link
+              to={profileHref({ id: authorIdOfName(a), name: a })}
+              onClick={onClose}
+              className="flex min-w-0 flex-1 items-center gap-3"
+            >
               <Avatar name={a} size={40} />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium text-slate-100">{a}</span>

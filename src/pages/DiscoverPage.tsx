@@ -9,11 +9,13 @@
 // ★ 分区图标是 Q 版看板娘 + 该分区的道具，一张精灵图的两端各当一个状态
 //   （未选中 = 道具收着、神情安静；选中 = 道具亮出来、表情张扬），
 //   与工作流页「生成本段」旁那颗素材按钮是同一套做法（见 components/SpriteToggle）。
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../components/Icon";
+import Avatar from "../components/Avatar";
 import SpriteToggle, { type SpriteSheet } from "../components/SpriteToggle";
 import { Link } from "react-router";
-import { listVideos } from "../data/videos";
+import { listVideos, profileHref, remoteOn } from "../data/videos";
+import { searchUsers, userDisplayName, type ApiUserLite } from "../api/users";
 import { VIDEO_CATEGORIES, VideoItem, formatDuration, formatPlays } from "../types";
 
 /**
@@ -53,14 +55,62 @@ function sortVideos(list: VideoItem[], by: Sort): VideoItem[] {
   return [...list].sort((a, b) => b.plays - a.plays || b.likes - a.likes);
 }
 
+/** 搜人的防抖。300ms：比 @提及补全（250ms）略松一点——这里一次搜的是整屏结果，
+ *  用户是"打完一个词看看"，不是"边打边挑人"。不防抖就是每敲一个字一次请求。 */
+const USER_DEBOUNCE_MS = 300;
+/** 一次列几个人。这一段在分区页顶部，超过 6 行就把「浏览分区」整个挤出首屏 */
+const USER_LIMIT = 6;
+
 export default function DiscoverPage() {
   const [videos] = useState(() => listVideos());
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>("new");
 
+  // ── 搜人 ────────────────────────────────────────────────
+  // ★ 与视频筛选是**两条独立的路**：视频那份是内存 cache 里同步过一遍，人这份必须问服务端
+  //   （本地压根没有用户表）。所以离线时视频照搜不误，人这一段要如实说搜不了。
+  const [users, setUsers] = useState<ApiUserLite[]>([]);
+  const [userBusy, setUserBusy] = useState(false);
+  /** 出错原因，直接显示给用户。全 app 没有任何地方监听 emitApiError，吞掉就是永远空白（铁律八） */
+  const [userErr, setUserErr] = useState("");
+  /** 这台服务器认不认搜人端点（判响应形状，不是状态码——见 api/users.ts） */
+  const [userSupported, setUserSupported] = useState(true);
+  const key = q.trim();
+  const canSearchUsers = remoteOn();
+  // 竞态守门：打字快时后发的请求可能先回来，只认最后那一发
+  const seq = useRef(0);
+
+  useEffect(() => {
+    if (!canSearchUsers || !key) {
+      setUsers([]);
+      setUserErr("");
+      setUserBusy(false);
+      return;
+    }
+    const mine = ++seq.current;
+    setUserBusy(true);
+    const timer = window.setTimeout(() => {
+      void searchUsers(key, USER_LIMIT)
+        .then((r) => {
+          if (seq.current !== mine) return;
+          setUsers(r.users);
+          setUserSupported(r.supported);
+          setUserErr("");
+        })
+        .catch((e) => {
+          if (seq.current !== mine) return;
+          setUsers([]);
+          setUserErr(e instanceof Error ? e.message : String(e));
+        })
+        .finally(() => {
+          if (seq.current === mine) setUserBusy(false);
+        });
+    }, USER_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [key, canSearchUsers]);
+
   const results = useMemo(() => {
-    const key = q.trim();
     const hit = videos.filter(
       (v) =>
         (!cat || v.category === cat) &&
@@ -71,7 +121,7 @@ export default function DiscoverPage() {
           v.category.includes(key)),
     );
     return sortVideos(hit, sort);
-  }, [videos, q, cat, sort]);
+  }, [videos, key, cat, sort]);
 
   return (
     <div className="safe-top min-h-full px-4 pt-3">
@@ -80,7 +130,7 @@ export default function DiscoverPage() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="搜索视频 / 作者 / 分区"
+          placeholder="搜索视频 / 分区 / 用户"
           className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
         />
         {q && (
@@ -89,6 +139,68 @@ export default function DiscoverPage() {
           </button>
         )}
       </div>
+
+      {/* 用户结果：只在真的输入了东西时才占位置（没输入时这一页的主干是「浏览分区」）。
+          ★ 四种状态都得画出来，少画一种就变成"用户看到空白自己去猜"（与消息页同一条理由，铁律八）：
+            离线 / 这台服务器没有这个端点 / 出错 / 真的没这个人。 */}
+      {key && (
+        <section className="mb-5">
+          <h2 className="mb-2 text-sm font-semibold text-slate-300">用户</h2>
+          {!canSearchUsers ? (
+            // ★ 绝不能画成一个空列表：那等于说"查无此人"，而事实是"根本没查"。
+            //   措辞不说死成"这个版本没有服务器"——!remoteOn() 也包括「配了地址但连不上」。
+            <p className="rounded-xl bg-panel/60 px-3 py-2.5 text-xs leading-relaxed text-slate-400">
+              搜人需要连上服务器 · 当前是离线模式（视频和分区照常能搜）
+            </p>
+          ) : userErr ? (
+            <p className="rounded-xl bg-panel/60 px-3 py-2.5 text-xs leading-relaxed text-rose-300">
+              搜人失败：{userErr}
+            </p>
+          ) : !userSupported ? (
+            <p className="rounded-xl bg-panel/60 px-3 py-2.5 text-xs leading-relaxed text-slate-400">
+              这台服务器还没有搜人功能 · 服务端升级后即可使用，App 不用重装
+            </p>
+          ) : userBusy ? (
+            <p className="px-1 py-2 text-xs text-slate-500">正在找人…</p>
+          ) : users.length === 0 ? (
+            <p className="px-1 py-2 text-xs leading-relaxed text-slate-500">
+              没有找到「{key}」这个用户
+              {/* ★ 这里**不要**再补一句"用户要按账号搜（字母/数字）"：
+                  搜人端点是 `$or: [username, displayName]` 的**子串**匹配
+                  （users.controller.js 的 searchUsers，tests/userSearch.spec.js S1 钉了
+                  "李小明"/"小明" 都搜得到），中文昵称本来就搜得到。
+                  在真的查无此人时甩这么一句，等于给用户一个假的失败原因，
+                  还会让他从此不再用昵称找人 —— 与 MentionInput 里那句不是一回事：
+                  那边说的是 @提及**令牌**只能是 ASCII username，那是真的。 */}
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {users.map((u) => (
+                <li key={u._id}>
+                  <Link
+                    // ★★ 跳转按 **_id**，不是名字：搜出来的人多半**不在**内存那 30 条推荐流里，
+                    //   按名字进去的那一页只会拿本地库去筛 —— 筛出 0 条，页面就成了
+                    //   「作品 0 / 还没有作品」这种编出来的空状态。而老服务端连 displayName
+                    //   都不返回，那时退回的 username 与任何一条缓存作品都对不上，
+                    //   点进去甚至是另一个人的主页（都是静默的）。
+                    //   带上 name 只是让目标页在问到服务端之前有个名字可显示。
+                    to={profileHref({ id: u._id, name: userDisplayName(u) })}
+                    className="flex items-center gap-3 rounded-xl px-1 py-1.5 active:opacity-70"
+                  >
+                    <Avatar name={userDisplayName(u)} src={u.avatarUrl} size={38} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-slate-100">{userDisplayName(u)}</span>
+                      {/* @username 一并显示：这是 @ 别人时要打的那串，App 里别处从来没露过 */}
+                      <span className="block truncate text-[11px] text-slate-500">@{u.username}</span>
+                    </span>
+                    <Icon name="back" size={16} className="flex-none rotate-180 text-slate-600" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <h2 className="mb-2 text-sm font-semibold text-slate-300">浏览分区</h2>
       {/* 一行排开的入口。用 overflow-x-auto 而不是 grid：以后加分区也不会换行挤成两排，

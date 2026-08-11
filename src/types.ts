@@ -105,13 +105,49 @@ export interface Card {
   summary: string;
   /** dataURL 封面 */
   cover: string;
-  /** 市场热度（使用次数） */
+  /**
+   * ⚠ **不是热度**。这是 mock/ai.ts 里手打的 18 个种子数字，从来没有任何东西会去加它。
+   * 真热度（全局、服务端算）走 data/social.ts 的 heatOf()。这个字段只在离线包里
+   * 给市场卡当个"不至于全是 0"的门面，展示时必须说清它是种子值。
+   */
   hot?: number;
   tags?: string[];
   /** 3D 建模文件（glb/glbx）：有值则卡详情显示全息实体预览（3D 风格视频的角色卡） */
   modelUrl?: string;
   /** 铸卡时的完整文生图提示词（生成蓝图）——具体到能让 AI 复刻出与卡面一致的画面/建模 */
   genPrompt?: string;
+  /** 已分享到创意工坊（仅远端模式有意义） */
+  published?: boolean;
+  /** 分享时写的一句话推荐（对应服务端 BranchCard.description） */
+  shareNote?: string;
+}
+
+// ── 3D 建模能不能跟着卡分享出去 ────────────────────────────────
+//
+// ★★ 两件性质不同的事，一处判完：
+//  1) `idb:model3d:*` 是**这台设备**的 IndexedDB 指针，别人拿到就是死链。放行的后果
+//     不是报错，是"卡片详情页答应了全息预览、实际什么都不显示"——比不给更糟。
+//  2) `/models/protected/` 下除 milltina（委托定制的自有资产）以外是 BOOTH 购入的
+//     第三方素材（rin / gratia / tsumire），**再配布需要授权**（design/README-tsumire.md）。
+//     加密拦不住版权——解密密钥就在同一个包里。
+//
+// ⚠ server 仓 controllers/branchAsset.controller.js 里有一份同语义的
+//   shareableModelUrl()／isThirdPartyModel()，那份是**权威**（真正决定发不发得出去）；
+//   这份只负责在按下按钮之前把原因说给用户听。两仓不在一个 CI 里，只能各留一份
+//   （同定价表的处境），改规则时两边一起改。
+const THIRD_PARTY_MODEL_RE = /\/models\/protected\//i;
+const OWN_WORK_MODEL_RE = /milltina/i;
+
+export function isThirdPartyModel(url: string | undefined | null): boolean {
+  const s = String(url || "");
+  return THIRD_PARTY_MODEL_RE.test(s) && !OWN_WORK_MODEL_RE.test(s);
+}
+
+/** 能跟着卡片发出去的 modelUrl；不能就返回 null（调用方据此如实告诉用户） */
+export function publishableModelUrl(url: string | undefined | null): string | null {
+  const s = String(url || "").trim();
+  if (!/^https?:\/\//i.test(s)) return null;
+  return isThirdPartyModel(s) ? null : s;
 }
 
 /** 一个节点生成出的候选方案（视频片段提案） */
@@ -209,11 +245,41 @@ export interface VideoPricing {
   partPrices: number[];
 }
 
+/**
+ * 评论里**解析成功**的一个 @提及（领域模型，服务端 DTO 见 api/branch.ApiCommentMention）。
+ *
+ * ★★ 只装"服务端确认过确有其人"的那些。谁该收到通知由**服务端**说了算（它自己解析正文，
+ *   不信客户端报上来的名单），客户端拿回来的这张表就是"哪几 @ 真的落地了"。
+ *   渲染时只把这几个画成链接、打错的那个原样留成普通文字 —— 用户看得见自己 @ 中没中，
+ *   这是这个功能唯一的反静默失败手段（铁律八）。
+ */
+export interface CommentMention {
+  /** 正文里出现的原始令牌（`@username`）。服务端可能回裸 username，取用前统一补 @ */
+  token: string;
+  userId: string;
+  username: string;
+  /** 展示名；缺省时 UI 退回 username */
+  displayName?: string;
+}
+
 export interface VideoComment {
   id: string;
   author: string;
   text: string;
   at: number;
+  /** 解析成功的 @提及。★ 缺省（老服务端 / 离线库里的存量评论）= 这条没有提及，
+   *  按「有没有」判，绝不写成等值判 —— 那会把存量评论整批算错 */
+  mentions?: CommentMention[];
+  /**
+   * 被回复的**顶层**评论 id；顶层评论为 null/undefined。
+   *
+   * ★ 判「这条是不是回复」一律看**有无**，别和哨兵值比：这三个字段是 2026-08 后加的，
+   *   老服务端返回的评论、离线库里的存量评论读出来都是 undefined。写成等值判会把
+   *   存量评论整批归到某一类里，而且一个错都不报，只是评论区忽然少了一半。
+   */
+  parentId?: string | null;
+  likes?: number;
+  liked?: boolean;
 }
 
 export interface VideoItem {
@@ -252,6 +318,17 @@ export interface VideoItem {
    *   而不是按名字模糊匹配（那会误伤重名的别人）。
    */
   authorId?: string;
+  /**
+   * 作者头像 URL（远端模式由服务端 populate 的 `author.avatarUrl` 带下来）。
+   *
+   * ★ 加它之前，首页那一栏头像**只有自己的作品**才可能显示图（写死成
+   *   `src={mine ? user?.avatar : undefined}`），别人的作品一律是字母底 ——
+   *   于是"头像不对"这件事有两个独立成因，修了登录态那个还剩一个。
+   *   头像跟着作者走，就该跟着作品的作者字段一起下发。
+   * ★ 它是**快照**，会过时（作者换了头像，缓存里这条还是旧的）。所以自己的作品
+   *   一律优先用 `currentUser().avatar` 那份活的，这个只做别人的兜底。
+   */
+  authorAvatar?: string;
   plays: number;
   likes: number;
   /** 收藏数。可选：接服务端的作品可能没有这个计数，缺失时 UI 不显示数字 */

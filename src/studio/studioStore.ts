@@ -1340,6 +1340,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
           aspect: slot.aspect,
           anns: [],
           carryFrame: carry,
+          // ★ 本段素材卡要真的进提示词。工作流那侧（flowStore 的同一处调用）早就修过这条，
+          //   工坊这侧一直漏着：用户在这一段挂了人物卡、点「生成本段视频」，
+          //   **出片其实完全不认识那张卡** —— 卡片对画面零影响，而界面上它就摆在那儿。
+          //   同一条规则两份实现，修了一份忘了另一份（铁律六）。
+          materials: slot.materials,
         },
         prog,
       );

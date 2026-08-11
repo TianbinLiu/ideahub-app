@@ -10,12 +10,12 @@
 //
 // IndexedDB 而不是 localStorage 的原因（保留原注释）：真实 AI 首尾帧是 1MB 级 base64，
 // 一支 2 段视频≈4MB 直接撑爆 5MB 配额 → 用户视频被配额兜底静默丢弃（首页永远看不到自己的作品）。
-import { DraftVideo, VideoComment, VideoItem, VideoPart, uid } from "../types";
+import { CommentMention, DraftVideo, VideoComment, VideoItem, VideoPart, uid } from "../types";
 import { makeFrame } from "../mock/frames";
 import { idbGet, idbSet } from "./db";
 import { materializeDraft, type MaterializeError } from "./publishAssets";
 import { currentUser, readyAccount, subscribeAccount } from "./account";
-import { API_ON, emitApiError } from "../api/client";
+import { API_ON, ApiError, emitApiError } from "../api/client";
 import * as branch from "../api/branch";
 
 const KEY = "ideahub-app.videos.v1";
@@ -224,8 +224,17 @@ if (typeof window !== "undefined") {
     cacheOwnerName = null;
     nextCursor = null;
     detailed.clear();
+    // ★ 旁路表同样是**隐私边界**（与 cache 同一条理由）：它装的是按 id 单取回来的
+    //   作品，其中可能有上一个账号自己的私密作品——服务端只对作者本人返回它。
+    byId.clear();
     likedIds.clear();
+    // ★ 收藏态也是**跟人走**的。漏掉它的话，换个账号登进来右侧那串收藏还亮着上一个人的
+    //   —— 与点赞态同一类问题，只是当初加 savedIds 时没跟着补进这张清单。
+    savedIds.clear();
     idAlias.clear();
+    // ★ 名字→userId 的登记处也要忘掉：它是**追加式**的，重名时后写的会盖掉先写的，
+    //   留着上一个账号那批条目，toggleFollow 反查出来的可能是另一个人的 id。
+    branch.forgetAuthors();
     remoteLive = false;
     emitVideos();
     void readyVideos();
@@ -360,10 +369,24 @@ function all(): VideoItem[] {
   return cache;
 }
 
+/**
+ * 「按 id 单独取回来的」那些作品。**不进 cache**。
+ *
+ * ★★ cache 就是首页 `listVideos()` 读的那一份。按 id 取回来的作品来自
+ *   通知深链、别人的主页、@ 提及 —— 把它们塞进 cache，用户退回首页会发现
+ *   推荐流里混进了几条自己从没刷到过的片子（逛一次别人的主页点开六条，
+ *   首页就多六条）。`fetchAuthorWorks` 上面那条注释早就写明了这条规矩，
+ *   fetchVideoById 却往 cache 里塞 —— 同一条规则两种做法（铁律六）。
+ * ★ 分开存之后 find() 要两边都查：详情页、评论、点赞走的都是它。
+ *   同一个 id 以 cache 那份为准（首页那份是权威，它会被列表刷新覆盖）。
+ */
+const byId = new Map<string, VideoItem>();
+
 /** 内部查找：不触发远端详情预取（避免 addPlay/setLike 顺手打一堆详情请求） */
 function find(id: string): VideoItem | null {
   const real = realId(id);
-  return all().find((v) => v.id === real || v.id === id) ?? null;
+  const inFeed = all().find((v) => v.id === real || v.id === id);
+  return inFeed ?? byId.get(real) ?? byId.get(id) ?? null;
 }
 
 export function listVideos(): VideoItem[] {
@@ -387,6 +410,80 @@ export function isMyAuthor(author: string): boolean {
   if (author === ME) return true;
   const me = currentUser();
   return !!me && author === me.name;
+}
+
+/**
+ * 「点这个人 → 去哪个页面」。**只有这一处实现**（首页 Feed / 详情页 / 关注列表 /
+ * 评论里的 @提及 / 分区页搜人共用）。
+ *
+ * ★★ 有 userId 就走 `/user/:id`，没有才退回 `/u/:展示名`。
+ *   为什么必须以 id 为准：展示名**可变、可重名**（renameMyVideos 那个坑就是拿名字
+ *   当身份栽的）。两个人叫同一个名字时按名字进去只能进到其中一个；而搜人结果里
+ *   老服务端可能不返回 displayName，那时退回的 `username` 与任何一条缓存作品的
+ *   author 都对不上 —— 目标页会**静默**变成另一个人（或一个空壳）。
+ * ★ 名字仍然带着走（`?name=`）：目标页在问到服务端之前总得先显示点什么，
+ *   顶栏空着一秒钟比显示一个名字更难看。它只是**显示用**，身份始终是路径里那个 id。
+ * ★ `/u/:展示名` 这条老路**必须继续能用**：分享出去的链接、老包里的缓存、
+ *   已经发出去的评论里都还带着它。ProfilePage 两条都认（拿名字先去登记处反查 id）。
+ * ★ 自己一律走 `/me`：`/u/<我自己>` 也能开，但少了钱包/草稿那半页功能，
+ *   而"从哪个入口进来"不该决定我能看到自己的多少东西。
+ * ★ 合并的理由（铁律六）：这条规则原来在 FeedPage / VideoPage / ProfilePage 各写了一遍。
+ *   正因为合成了一处，这次"改成按 id 跳"才是一个文件的事。
+ */
+export function profileHref(target: string | { id?: string | null; name: string }): string {
+  const name = typeof target === "string" ? target : target.name;
+  const id = typeof target === "string" ? null : (target.id ?? null);
+  const me = currentUser();
+  // ★★ 手上有 id 时**只认 id**，绝不再拿名字兜一道：`isMyAuthor` 比的是展示名，
+  //   而展示名可以重名 —— 一个与我同名的陌生人会被这一句直接送进 `/me`，
+  //   用户点了别人的头像却打开了自己的主页（还带着钱包/草稿那半页）。
+  //   这正是本轮"改成按 id 跳"要消灭的那类错认，用名字做 fallback 等于把它留了个后门。
+  if (id) {
+    if (me && id === me.id) return "/me";
+    const q = name ? `?name=${encodeURIComponent(name)}` : "";
+    return `/user/${encodeURIComponent(id)}${q}`;
+  }
+  // 没有 id 才只能按名字判（老 `/u/:展示名` 那条路本来就只有名字可用）
+  if (isMyAuthor(name)) return "/me";
+  return `/u/${encodeURIComponent(name)}`;
+}
+
+/**
+ * 展示名 → userId（拿不到返回 null）。
+ *
+ * ★ 登记处在 api/branch（列表映射时登记的），这里只是把它转出去给页面用 ——
+ *   页面不该直接认识 api 层的登记表，而 `videos → branch` 这个方向本来就存在。
+ * ★ 用途：老的 `/u/:展示名` 链接进来时先把它升级成 id，能升就走 id 那条路
+ *   （见 ProfilePage）。查不到只说明这个人没在本次会话的列表里出现过。
+ */
+export function authorIdOfName(name: string): string | null {
+  return branch.authorIdOf(name);
+}
+
+/**
+ * 把「展示名 → userId」登记进去（拉到别人的资料时调）。
+ *
+ * ★ 为什么必须登记：关注走的是 `/api/users/:id/follow`，而本地账号模型里
+ *   `following` 存的是**作者名**，account.toggleFollow 靠这张表反查 id。
+ *   不登记的话，从搜索结果直接进到一个陌生人的主页时点「关注」——本地亮了、
+ *   服务端一个请求都没发（account 里那句 `未知作者 id` 的 warn），换台设备就没了。
+ */
+export function rememberAuthorId(name: string, id: string): void {
+  branch.rememberAuthor(name, id);
+}
+
+/**
+ * 这条作品的作者头像该拿哪一份。**只有这一处实现**（首页 Feed / 详情页共用）。
+ *
+ * ★ 自己的作品用**活的**那份（currentUser().avatar）：刚在「我的」里换完头像，
+ *   退回去看到的必须是新的，而 `video.authorAvatar` 是发布那一刻的快照。
+ *   别人的作品用快照（服务端 populate 的 author.avatarUrl）。两个都没有就返回
+ *   undefined，由 Avatar 退回按名字哈希的字母底。
+ * ★ 原来这条规则只写在 FeedPage 里，详情页那边漏了（`src={video.authorAvatar}`），
+ *   于是换完头像自己的详情页还是旧图 —— 一条规则两处实现必然分叉（铁律六）。
+ */
+export function authorAvatarOf(v: VideoItem): string | undefined {
+  return (isMyAuthor(v.author) ? currentUser()?.avatar : undefined) || v.authorAvatar;
 }
 
 /** 统一读 P 列表：老数据（无 parts）视作单 P，顶层 segments/branchTree 即 P1 */
@@ -660,30 +757,183 @@ export function setLike(id: string, on: boolean): number {
   return v.likes;
 }
 
-export function addComment(id: string, text: string): VideoComment | null {
+/**
+ * 这条评论在**这次会话里**拿不到服务端 id —— 不能当回复的父楼，也不能远端点赞。
+ *
+ * ★ 判据只有这一处（铁律六）：本地 id 是 `uid("cmt")` = `cmt_*`，服务端 id 是 24 位
+ *   ObjectId；拿本地 id 去当 parentId 或点赞目标，服务端的 zod `length(24)` 会 400。
+ * ★ 必须带上 `remoteOn()`：离线模式下**所有**评论的 id 都是 `cmt_*`，不带这个条件
+ *   会把离线模式的「回复」按钮整个锁死 —— 而那时压根没有服务端可撞。
+ */
+export function commentPending(c: VideoComment): boolean {
+  return remoteOn() && c.id.startsWith("cmt_");
+}
+
+/**
+ * 这条作品在**服务端**的 id；还没落库（`v_*` 本地 id）就返回 null。
+ *
+ * ★ 评论/评论点赞都要先过这一关：拿 `v_xxx` 去打 `/api/branch/videos/v_xxx/comments`
+ *   必然被 isValidId 判否吃 400。判据只有这一处（铁律六）。
+ */
+function serverVideoId(v: VideoItem): string | null {
+  const rid = realId(v.id);
+  return rid.startsWith("v_") ? null : rid;
+}
+
+/**
+ * 服务端的 mentions → 领域模型。
+ *
+ * ★ 逐条校形状：`userId` / `username` 缺一不可（前者用来跳转、后者是令牌本体），
+ *   不合格的直接丢掉而不是补个空串 —— 补出来的是一个点了跳到空主页的假链接。
+ * ★ token 统一补上 `@`：服务端 mentionParser 内部存的是**裸 username**（还 lowercase 过），
+ *   而正文里出现的一定带 @。渲染层要拿它去正文里定位，两边形状必须先对齐。
+ * ★ 老服务端不返回 mentions（undefined）→ 返回 undefined，表示"这条没有提及"，
+ *   而不是抛错也不是空数组（空数组和"没这个字段"在语义上是一回事，但 undefined
+ *   能让下游少存一个空对象）。
+ * ★ 存量数据怎么判：这是**给既有评论新加的字段**，老服务端与离线库里的存量评论
+ *   一律读到 undefined。所以判据只能是「有没有」（Array.isArray + 非空），
+ *   绝不写成 `mentions === []` / `=== undefined` 这类等值判 —— 后加字段用等值判
+ *   会把整批存量数据判进某一类里，而且一个错都不报（visibility 那次就是这么塌的）。
+ */
+function toMentions(raw: branch.ApiCommentMention[] | undefined): CommentMention[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const list: CommentMention[] = [];
+  for (const m of raw) {
+    if (!m || typeof m !== "object") continue;
+    const userId = typeof m.userId === "string" ? m.userId : "";
+    const username = typeof m.username === "string" ? m.username : "";
+    if (!userId || !username) continue;
+    const rawToken = typeof m.token === "string" && m.token.trim() ? m.token.trim() : username;
+    list.push({
+      token: rawToken.startsWith("@") ? rawToken : `@${rawToken}`,
+      userId,
+      username,
+      displayName: typeof m.displayName === "string" && m.displayName ? m.displayName : undefined,
+    });
+  }
+  return list.length > 0 ? list : undefined;
+}
+
+function toCommentFields(remote: branch.ApiComment): VideoComment {
+  return {
+    id: remote._id,
+    author: branch.authorName(remote.author),
+    text: remote.text,
+    at: toMs(remote.createdAt),
+    mentions: toMentions(remote.mentions),
+    // ★ 老服务端把 parentId strip 掉了（返回 undefined）——调用方据此保留本地那份意图，
+    //   不要写成 null 把"这是条回复"抹掉。内容还在、缩进不对，是可接受的降级。
+    parentId: remote.parentId,
+    likes: typeof remote.likes === "number" ? remote.likes : 0,
+    liked: remote.liked === true,
+  };
+}
+
+export function addComment(id: string, text: string): Promise<VideoComment | null> {
+  return addReply(id, null, text);
+}
+
+/**
+ * 发一条评论或回复。`parentId` 为 null 就是顶层评论。
+ *
+ * ★★ **不做乐观插入，真等回包**，口径与 DanmakuInput/sendDanmaku 完全一致。
+ *   原来的写法是先插进列表、失败再悄悄删掉并 emitApiError —— 而全 app 没有任何地方
+ *   监听 emitApiError（铁律八）：用户眼睁睁看着自己刚发的那条评论出现、然后消失，
+ *   连一句"为什么"都没有。而这条路失败是**常态**：新加的 20/分钟限流、回复
+ *   拿了个还没落库的父 id、作品自己还没同步上去，都会 400。
+ *   现在失败一律 throw 给调用方，由评论区就地显示红字并**留着用户打的字**。
+ * ★ 只有这**一个**实现：顶层评论就是 parentId=null 的回复，两条路分开写的话
+ *   等待、报错、落盘这三段就得各写一遍（铁律六）。
+ */
+export async function addReply(
+  id: string,
+  parentId: string | null,
+  text: string,
+): Promise<VideoComment | null> {
   const v = find(id);
   if (!v) return null;
-  const cmt: VideoComment = { id: uid("cmt"), author: currentUser()?.name ?? ME, text, at: Date.now() };
-  v.comments = [cmt, ...v.comments];
-  save(all());
+  const body = text.trim();
+  if (!body) return null;
+
+  let cmt: VideoComment = {
+    id: uid("cmt"),
+    author: currentUser()?.name ?? ME,
+    text: body,
+    at: Date.now(),
+    parentId: parentId ?? null,
+    likes: 0,
+    liked: false,
+  };
+
   if (remoteOn()) {
+    const vid = serverVideoId(v);
+    // 说人话而不是让它去撞 400：这两种情况下这条评论**谁都看不到**，
+    // 发出去等于骗人（离线模式另说，那时全库本来就只有自己）。
+    if (!vid) throw new Error("这条作品还没同步到服务器，稍后再来评论");
+    if (parentId && parentId.startsWith("cmt_")) {
+      throw new Error("这条评论还在发送中，等它发出去之后再回复");
+    }
+    const remote = await branch.addComment(vid, body, parentId ?? undefined);
+    // ★ 回包里没有评论那个形状 = 这台服务器没有这个端点（Capacitor 的静态服务器对
+    //   未命中路径回 **200 + index.html**，状态码判不出来）。这时把本地那条插进列表
+    //   就是"看着发出去了、其实谁都收不到"，必须说出来。
+    if (!remote) throw new Error("服务器没有正常返回这条评论，请稍后重试");
+    const fields = toCommentFields(remote);
+    // 老服务端没回 parentId：保留本地那份意图（降级成"位置不对"而不是"不见了"）
+    cmt = { ...fields, parentId: fields.parentId ?? cmt.parentId };
+  }
+
+  // 回复插在列表最后（评论区按「顶层倒序、楼中楼正序」渲染），顶层插在最前
+  v.comments = cmt.parentId ? [...v.comments, cmt] : [cmt, ...v.comments];
+  save(all());
+  emitVideos();
+  return cmt;
+}
+
+/**
+ * 给评论点赞 / 取消，返回最新赞数。
+ *
+ * ★ 幂等判断与 setLike 一模一样、也是同一个理由：评论区可以反复开合，
+ *   不判"已经是这个状态了"的话同一条评论能被无限点赞、数字一路刷上去。
+ *   这里的状态源是评论对象自己的 `liked`（服务端每次列表/详情都会带回来），
+ *   所以不需要 setLike 那样再落一份本机盘。
+ * ★ 离线模式照常在本地生效：那份评论本来就只有这台设备看得到，没有骗人的问题。
+ */
+export function setCommentLike(videoId: string, commentId: string, on: boolean): number {
+  const v = find(videoId);
+  if (!v) return 0;
+  const cmt = v.comments.find((c) => c.id === commentId);
+  if (!cmt) return 0;
+  if (on === !!cmt.liked) return cmt.likes ?? 0; // 已经是这个状态：一个数都不动
+  const before = { likes: cmt.likes ?? 0, liked: !!cmt.liked };
+  cmt.liked = on;
+  cmt.likes = Math.max(0, before.likes + (on ? 1 : -1));
+  save(all());
+  const vid = remoteOn() ? serverVideoId(v) : null;
+  // 还没落库的本地临时 id（cmt_* / v_*）打上去只会吃 400，跳过远端那一步
+  if (vid && !commentPending(cmt)) {
     void branch
-      .addComment(realId(v.id), text)
-      .then((remote) => {
-        if (!remote) return;
-        // 原地把临时 id 换成服务端 id（页面已经拿着这个对象在渲染了，不能换引用）
-        cmt.id = remote._id;
-        cmt.author = branch.authorName(remote.author);
-        cmt.at = toMs(remote.createdAt);
+      .setCommentLike(vid, commentId, on)
+      .then((r) => {
+        cmt.liked = r.liked;
+        if (r.likes !== null && r.likes !== cmt.likes) cmt.likes = r.likes;
+        save(all()); // ★ 服务端的权威值也要落盘，否则下次冷启动读回来的还是乐观值
         emitVideos();
       })
       .catch((e) => {
-        v.comments = v.comments.filter((c) => c.id !== cmt.id);
+        // 回滚：显示"已赞"但服务端没记上，用户下次打开会发现赞没了，更莫名其妙
+        cmt.likes = before.likes;
+        cmt.liked = before.liked;
+        // ★★ 回滚也**必须落盘**：只改内存的话，下次冷启动从 IndexedDB 读回来的是
+        //   那个乐观值（看起来赞成功了），而上面 `on === !!cmt.liked` 的幂等短路
+        //   会让这条评论**再也点不上赞** —— 一个永久卡住且无从察觉的状态。
+        save(all());
         emitVideos();
-        emitApiError("addComment", e);
+        emitApiError("setCommentLike", e);
       });
   }
-  return cmt;
+  emitVideos();
+  return cmt.likes;
 }
 
 /** 当前用户是否已赞。远端模式由列表/详情的 liked 字段填充，离线模式读本机那份（见 loadLiked） */
@@ -740,7 +990,14 @@ export function feedCursor(): string | null {
   return nextCursor;
 }
 
-function realId(id: string): string {
+/**
+ * 本地临时 id → 服务端真实 id。
+ *
+ * ★ 导出给 danmaku.ts 用：刚发布、上传还没回来的作品在 cache 里仍是 `v_*`，
+ *   拿它去打 `/api/branch/videos/v_xxx/danmaku` 会被服务端的 isValidId 判否，
+ *   直接 400。依赖方向仍是单向的（videos 不认识 danmaku）。
+ */
+export function realId(id: string): string {
   return idAlias.get(id) ?? id;
 }
 
@@ -751,7 +1008,9 @@ function toMs(v: string | number | undefined): number {
 }
 
 function toComment(c: branch.ApiComment): VideoComment {
-  return { id: c._id, author: branch.authorName(c.author), text: c.text, at: toMs(c.createdAt) };
+  // 楼中楼/点赞三项是后加的：老服务端读到 undefined，这里落成 null/0/false
+  const cmt = toCommentFields(c);
+  return { ...cmt, parentId: cmt.parentId ?? null };
 }
 
 function toVideoItem(v: branch.ApiVideo): VideoItem {
@@ -770,6 +1029,7 @@ function toVideoItem(v: branch.ApiVideo): VideoItem {
     author: branch.authorName(v.author),
     // ★ 名字会变，id 不会。改名时靠它精确认出"我自己那些作品"（见 subscribeAccount）
     authorId: branch.authorId(v.author) ?? undefined,
+    authorAvatar: branch.authorAvatar(v.author) ?? undefined,
     plays: v.plays ?? 0,
     likes: v.likes ?? 0,
     createdAt: toMs(v.createdAt),
@@ -795,6 +1055,75 @@ async function readyRemote(): Promise<boolean> {
   return true;
 }
 
+/**
+ * 「按 id 把这一条作品拿到手」的四种结局。
+ *
+ * ★★ `missing` 与 `failed` **必须分开**：把一次超时画成「视频不存在或已删除」，
+ *   用户会以为作者把片子删了（然后不会再点第二次）。而这条路上最常见的入口是
+ *   通知里那条 @ ——点进去看到"已删除"，他就再也不会去找了（铁律八）。
+ * ★ `offline` 是第三件事：离线模式下服务端根本没被问过，只能说"这台设备上没有"。
+ */
+export type VideoLookup =
+  | { status: "ok"; video: VideoItem }
+  | { status: "missing" }
+  | { status: "failed"; error: string }
+  | { status: "offline" };
+
+/** 同一个 id 的在途请求只留一发（详情页与深链预取可能同时问同一条） */
+const inflightVideo = new Map<string, Promise<VideoLookup>>();
+
+/**
+ * 按 id 拿一条作品：内存里有就直接给，没有就**问服务端要**。
+ *
+ * ★★ 这是 App 里「按 id 取作品」的**唯一**实现（铁律六）。深链冷启动
+ *   （prefetchDeepLink）与 App 内跳转（VideoPage）走的是同一条路 ——
+ *   原来只有冷启动那一条：它在 App 启动时读一次 `location.hash`，App 内
+ *   `navigate()` 过去永远触发不到。表现是：**被 @ 的人点开通知就是「视频不存在」**，
+ *   因为被 @ 的多半是路过的第三个人，他的推荐流里本来就没有这支片子。
+ * ★ 返回的是 cache 里那个**对象引用**：页面订阅 videosVersion 后，
+ *   loadDetail 的原地回填（评论等）照样能到 UI。
+ */
+export function fetchVideoById(id: string): Promise<VideoLookup> {
+  const hit = find(id);
+  if (hit) {
+    if (remoteOn()) void loadDetail(hit); // 与 getVideo 同一条补详情的路
+    return Promise.resolve({ status: "ok", video: hit });
+  }
+  // 离线模式：没有服务端可问。**不能**说成"已删除"——我们压根没问过任何人
+  if (!remoteOn()) return Promise.resolve({ status: "offline" });
+  const rid = realId(id);
+  // `v_*` 是还没落库的本地临时 id，服务端不认（isValidId 会 400）。它不在 cache 里
+  // 就是真的没有了（比如换了账号），别白打一发请求
+  if (rid.startsWith("v_")) return Promise.resolve({ status: "missing" });
+  const running = inflightVideo.get(rid);
+  if (running) return running;
+  const p = (async (): Promise<VideoLookup> => {
+    try {
+      const v = await branch.getVideo(rid);
+      // ★ 回包里没有作品那个形状 = 这台服务器没有这个端点（Capacitor 的静态服务器对
+      //   未命中路径回 200 + index.html，状态码判不出来）。这不是"没有这条作品"。
+      if (!v || typeof v._id !== "string") {
+        return { status: "failed", error: "服务器没有正常返回这条作品" };
+      }
+      const item = toVideoItem(v);
+      // ★ 存进旁路表，**不进 cache** —— 理由见 byId 的说明（进了就是往首页推荐流里掺东西）
+      byId.set(item.id, item);
+      detailed.add(v._id);
+      emitVideos();
+      return { status: "ok", video: item };
+    } catch (e) {
+      // 404 = 服务端明确说没有（私密作品对别人也是 404，见 server 的 visibleTo）；
+      // 400 = 这个 id 根本不合法，同样不可能存在。其余（超时/断网/5xx）都是"没问出结果"
+      if (e instanceof ApiError && (e.status === 404 || e.status === 400)) return { status: "missing" };
+      return { status: "failed", error: e instanceof Error ? e.message : String(e) };
+    } finally {
+      inflightVideo.delete(rid);
+    }
+  })();
+  inflightVideo.set(rid, p);
+  return p;
+}
+
 async function prefetchDeepLink(): Promise<void> {
   if (typeof location === "undefined") return;
   // 用的是 HashRouter（Capacitor 里 file:// 下只有 hash 路由能用），路由在 hash 里；
@@ -803,14 +1132,52 @@ async function prefetchDeepLink(): Promise<void> {
   const m = /^\/video\/([^/?#]+)/.exec(route);
   const id = m?.[1];
   if (!id || !cache || cache.some((v) => v.id === id)) return;
+  // ★ 走同一条 fetchVideoById（铁律六）。这里**不看结果**：详情页装载时会自己再问一次
+  //   （同一个 id 的在途请求是复用的），失败原因由它画出来 —— 启动路径上没有
+  //   任何地方能把这句话说给用户听，在这儿吞掉是对的。
+  await fetchVideoById(id);
+}
+
+/** 某个作者的作品列表：四种结局分开，页面据此画出四种不同的状态 */
+export type AuthorWorks =
+  | { status: "ok"; items: VideoItem[] }
+  /** 服务端**没认**那个 author 参数（老服务端 zod 会把它 strip 掉然后照常回推荐流）。
+   *  items 是从回包里筛出来的、确实属于他的那几条 —— 不完整，页面必须说明白 */
+  | { status: "partial"; items: VideoItem[] }
+  | { status: "failed"; error: string }
+  | { status: "offline" };
+
+/**
+ * 拉某个人发过的作品。
+ *
+ * ★★ **不往 cache 里塞**。cache 就是首页 listVideos() 读的那一份 —— 逛一次别人的
+ *   主页就把他 30 条作品塞进去，用户退回首页会发现推荐流里全是这个人。
+ *   页面拿这份数组自己渲染即可；点进某一条时 VideoPage 会用 fetchVideoById 单独取。
+ * ★★ 老服务端**不认** `author` 参数：zod 默认 strip 未声明字段，于是它会**照常返回
+ *   推荐流**（不是空表、不是 400）。所以这里拿回来必须自己按 authorId 再过一遍，
+ *   并且用"回包里有没有别人的作品"来判断服务端到底认没认 —— 这是判**形状/内容**，
+ *   不是判状态码（Capacitor 那条坑：状态码永远 200）。
+ *   不这么判的话，别人的主页上会摆着一堆根本不是他发的作品，而且一个错都不报。
+ */
+export async function fetchAuthorWorks(userId: string, limit = 30): Promise<AuthorWorks> {
+  if (!remoteOn()) return { status: "offline" };
+  if (!userId) return { status: "failed", error: "不知道这是谁（链接里没有用户 id）" };
   try {
-    const v = await branch.getVideo(id);
-    if (v) {
-      cache = [toVideoItem(v), ...cache];
-      detailed.add(v._id);
-    }
-  } catch {
-    /* 深链取不到就走原来的"视频不存在"分支 */
+    const res = await branch.listVideos({ author: userId, limit });
+    const items = res.items.map(toVideoItem);
+    const mine = items.filter((v) => v.authorId === userId);
+    // ★★ 判的是服务端**回显的 author 键**（判形状），不是回包内容（猜内容）。
+    //   老服务端 strip 掉 author 之后照常回推荐流，于是"混没混别人的作品"这个判据
+    //   在**空回包**上恒等于"认了"（0 === 0）——别人的主页会照着空数组斩钉截铁地
+    //   写「TA 还没有发布作品」，而真相是我们压根没问过这个人。
+    //   反过来，把空回包一律当成"看不全"也不行：真的一条没发过的人就永远显示成
+    //   "拉取不完整"，同样不说实话。回显键把这两种空分得开。
+    // ★ 上面那行按 authorId 再过一遍留着当第二道保险：万一以后回显对了而过滤写错，
+    //   宁可少显示，也不能把别人的作品摆到这个人的主页上。
+    const honored = res.author === userId;
+    return honored ? { status: "ok", items: mine } : { status: "partial", items: mine };
+  } catch (e) {
+    return { status: "failed", error: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -862,6 +1229,7 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     if (v.branchTree) item.branchTree = v.branchTree;
     item.author = branch.authorName(v.author);
     item.authorId = branch.authorId(v.author) ?? item.authorId;
+    item.authorAvatar = branch.authorAvatar(v.author) ?? item.authorAvatar;
     item.createdAt = toMs(v.createdAt);
     detailed.add(v._id);
     emitVideos();

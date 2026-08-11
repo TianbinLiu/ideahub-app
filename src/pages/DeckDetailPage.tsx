@@ -4,19 +4,23 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
-import SocialPanel, { useCountView } from "../components/SocialPanel";
-import { deckCoverOf, myCards, myDecks, updateDeck } from "../data/account";
+import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
+import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
+import { deckCoverOf, isRemoteMode, myCards, myDecks, shareDeck, updateDeck } from "../data/account";
+import { formatHeat, heatOf } from "../data/social";
 import { useAccountVersion } from "../hooks/useAccount";
 import { CARD_TYPE_LABELS } from "../types";
 
 export default function DeckDetailPage() {
   useAccountVersion();
+  useSocialVersion(); // 热度到货后重渲染（服务端计数是懒加载的）
   const { id } = useParams();
   const nav = useNavigate();
   const [editing, setEditing] = useState(false);
   useCountView("deck", id);
   const deck = myDecks().find((d) => d.id === id) ?? null;
   const cards = myCards();
+  const heat = heatOf("deck", deck?.id ?? "");
 
   if (!deck) {
     return (
@@ -85,14 +89,27 @@ export default function DeckDetailPage() {
               <p className="text-xs leading-relaxed text-slate-400">
                 {deck.intro?.trim() || "还没有简介——点右上角「编辑」写一段。"}
               </p>
-              <div className="mt-2 text-[11px] text-slate-500">
-                {deck.cardIds.length} 张卡
-                {deck.published ? ` · 已分享${(deck.installs ?? 0) > 0 ? ` · ${deck.installs} 人装过` : ""}` : ""}
+              <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-500">
+                <span>{deck.cardIds.length} 张卡</span>
+                {/* 热度：远端模式是服务端算的全局值，离线/老服务端退回本机计数并说明 */}
+                <span className="text-gold">🔥 {formatHeat(heat.heat)}</span>
+                {heat.source === "local" && <span className="text-slate-600">本机计数</span>}
               </div>
             </>
           )}
         </div>
       </div>
+
+      {/* 分享到创意工坊。★ 原来这里只有一句被动的「· 已分享」文字 ——
+          看得到状态却改不了，用户得回工坊列表里找那个按钮 */}
+      <WorkshopShareBar
+        kind="deck"
+        className="mb-4"
+        published={!!deck.published}
+        installs={deck.installs ?? 0}
+        disabledReason={shareBlockReason({ remote: isRemoteMode(), cardCount: deck.cardIds.length })}
+        onToggle={(next) => shareDeck(deck.id, next)}
+      />
 
       {/* 卡片网格：查看态点卡进详情；编辑态点卡加入/移出、可设封面 */}
       {editing ? (

@@ -7,7 +7,7 @@ import { Link, useNavigate } from "react-router";
 import Icon from "../components/Icon";
 import { useSocialVersion } from "../components/SocialPanel";
 import { browseTemplates, myTemplates, subscribeTemplates, templatesVersion } from "../data/templates";
-import { statsOf } from "../data/social";
+import { readSocial } from "../data/social";
 import { useFlow } from "../studio/flowStore";
 import { VideoTemplate } from "../types";
 
@@ -20,7 +20,9 @@ function fmt(n: number): string {
 }
 
 export function TemplateCard({ t, onPick }: { t: VideoTemplate; onPick?: () => void }) {
-  const s = statsOf("template", t.id);
+  // 走唯一入口 readSocial（模板没有服务端实体，这里恒是本机计数）。
+  // ★ 别在这儿读 likedBy.length —— 数字从哪来只该由 data/social 说了算
+  const s = readSocial("template", t.id);
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-700/70 bg-panel">
       <Link to={`/template/${t.id}`} className="block">
@@ -34,7 +36,7 @@ export function TemplateCard({ t, onPick }: { t: VideoTemplate; onPick?: () => v
                 <Icon name="play" size={10} /> {fmt(s.views)}
               </span>
               <span className="flex items-center gap-0.5">
-                <Icon name="heart" size={10} /> {fmt(s.likedBy.length)}
+                <Icon name="heart" size={10} /> {fmt(s.likes)}
               </span>
               <span>{t.recipe.beats.length} 段</span>
             </div>

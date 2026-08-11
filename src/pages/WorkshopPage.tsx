@@ -5,10 +5,12 @@ import Icon from "../components/Icon";
 import { Link } from "react-router";
 import {
   addCards,
+  browseSharedCards,
   browseSharedDecks,
   createDeck,
   deckCoverOf,
   deleteDeck,
+  installSharedCard,
   installSharedDeck,
   isRemoteMode,
   myCards,
@@ -17,12 +19,67 @@ import {
   shareDeck,
   updateDeck,
 } from "../data/account";
-import type { ApiSharedDeck } from "../api/branch";
+import type { ApiSharedCard, ApiSharedDeck } from "../api/branch";
 import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
 import { searchMarket } from "../ai";
 import TarotCard from "../components/TarotCard";
 import VideoCardExtractor from "../components/VideoCardExtractor";
+import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType } from "../types";
+
+/**
+ * 广场（卡片 / 卡组两处）的取数：加载中 / 出错 / 结果，**一份实现**。
+ *
+ * ★ 卡片广场原来什么状态都没有：拉失败 → data 层吞掉错误返回 [] → 这一整块
+ *   直接不渲染。用户看到的是"社区分享的卡"凭空消失，没有原因也没得重试（铁律八）。
+ *   卡组广场当时只有个"加载中…"。既然两边要的是同一件事，就别写两遍（铁律六）。
+ * ★ `enabled` 为 false 时不发请求也不显示任何状态（例：离线、或没切到这个来源）。
+ */
+function usePlaza<T>(enabled: boolean, load: () => Promise<T[]>, deps: unknown[]) {
+  const [items, setItems] = useState<T[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!enabled) {
+      setItems([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
+    let alive = true;
+    setLoading(true);
+    setError("");
+    void load()
+      .then((list) => {
+        if (alive) setItems(list);
+      })
+      .catch((e) => {
+        if (alive) setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+    // load 每次渲染都是新函数，依赖只认调用方声明的那几个 + 重试计数
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, tick, ...deps]);
+  return { items, setItems, loading, error, reload: () => setTick((n) => n + 1) };
+}
+
+/** 广场取数失败时的那一行：说清楚 + 能重试。两个广场共用 */
+function PlazaError({ error, onRetry }: { error: string; onRetry: () => void }) {
+  return (
+    <div className="mb-3 flex items-center gap-3 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2.5">
+      <span className="min-w-0 flex-1 text-[11px] leading-relaxed text-rose-300">没取到：{error}</span>
+      <button onClick={onRetry} className="flex-none rounded-full bg-panel px-3 py-1 text-[11px] text-slate-200">
+        重试
+      </button>
+    </div>
+  );
+}
 
 function CardTile({ card, onRemove, to }: { card: Card; onRemove?: () => void; to?: string }) {
   const face = (
@@ -43,6 +100,21 @@ function CardTile({ card, onRemove, to }: { card: Card; onRemove?: () => void; t
   );
 }
 
+/** 广场里的一条分享卡 → 本地 Card 形状。只为渲染卡面与跳详情页，**不落库**
+ *  （真正落库的映射在 data/account.ts 的 toLocalCard，那才是唯一一处） */
+function toLocalShape(c: ApiSharedCard): Card {
+  return {
+    id: c.cardId,
+    type: c.type,
+    name: c.name,
+    summary: c.summary,
+    cover: c.cover,
+    tags: c.tags,
+    modelUrl: c.modelUrl || undefined,
+    genPrompt: c.genPrompt || undefined,
+  };
+}
+
 export default function WorkshopPage() {
   useAccountVersion(); // 账号库变更时重算列表
   // 一级 Tab 不做硬登录墙：未登录就地给软提示，而不是被路由弹去登录页出不来。
@@ -57,10 +129,10 @@ export default function WorkshopPage() {
   const [editing, setEditing] = useState<string | null>(null);
   // 市场：卡片 / 卡组两个来源
   const [source, setSource] = useState<"cards" | "decks">("cards");
-  const [shared, setShared] = useState<ApiSharedDeck[]>([]);
-  const [sharedLoading, setSharedLoading] = useState(false);
   const [busyDeck, setBusyDeck] = useState<string | null>(null);
   const [deckErr, setDeckErr] = useState("");
+  const [busyCard, setBusyCard] = useState<string | null>(null);
+  const [cardErr, setCardErr] = useState("");
   // 上传本地视频提卡的抽屉
   const [extractOpen, setExtractOpen] = useState(false);
   const remote = isRemoteMode();
@@ -80,21 +152,14 @@ export default function WorkshopPage() {
     };
   }, [q]);
 
-  // 广场卡组：只在切到「卡组」来源时拉，跟着搜索词走
-  useEffect(() => {
-    if (source !== "decks") return;
-    let alive = true;
-    setSharedLoading(true);
-    void browseSharedDecks(q).then((list) => {
-      if (alive) {
-        setShared(list);
-        setSharedLoading(false);
-      }
-    });
-    return () => {
-      alive = false;
-    };
-  }, [source, q]);
+  // 社区分享的卡片：只有真连着服务器才有（离线库里没有「别人」），跟着搜索词走
+  const cardPlaza = usePlaza<ApiSharedCard>(source === "cards" && remote, () => browseSharedCards(q), [q]);
+  const sharedCards = cardPlaza.items;
+  const setSharedCards = cardPlaza.setItems;
+  // 广场卡组：只在切到「卡组」来源时拉，跟着搜索词走（离线时 data 层给种子卡组）
+  const deckPlaza = usePlaza<ApiSharedDeck>(source === "decks", () => browseSharedDecks(q), [q]);
+  const shared = deckPlaza.items;
+  const setShared = deckPlaza.setItems;
 
   const ownedIds = useMemo(() => new Set(cards.map((c) => c.id)), [cards]);
   const byType = useMemo(() => {
@@ -212,6 +277,64 @@ export default function WorkshopPage() {
             loading ? (
               <div className="py-8 text-center text-xs text-slate-500">搜索中…</div>
             ) : (
+              <>
+                {/* 社区分享的卡：别人在卡片详情页按下「分享到创意工坊」之后落在这里。
+                    ★ 没有这一段的话"分享卡片"就是个死路 —— 发得出去，谁都看不到。
+                    与下面那批是两种东西：这批是真人分享的，下面那批是本地种子市场。 */}
+                {/* 只有"这块现在空着"时才画状态：换搜索词重拉时上一批还在，
+                    再画一遍标题就成了两个「社区分享的卡」 */}
+                {remote && sharedCards.length === 0 && (cardPlaza.loading || cardPlaza.error) && (
+                  <>
+                    <div className="mb-1.5 text-[11px] text-slate-400">社区分享的卡</div>
+                    {cardPlaza.error ? (
+                      <PlazaError error={cardPlaza.error} onRetry={cardPlaza.reload} />
+                    ) : (
+                      <div className="mb-3 py-4 text-center text-xs text-slate-500">加载中…</div>
+                    )}
+                  </>
+                )}
+                {remote && sharedCards.length > 0 && (
+                  <>
+                    <div className="mb-1.5 text-[11px] text-slate-400">社区分享的卡</div>
+                    <div className="mb-4 grid grid-cols-3 gap-2.5">
+                      {sharedCards.map((c) => {
+                        const owned = ownedIds.has(c.cardId) || c.installed || c.isOwner;
+                        return (
+                          <div key={c.cardId}>
+                            <Link
+                              to={`/card/${c.cardId}`}
+                              state={{ card: toLocalShape(c) }}
+                              className={`block ${owned ? "opacity-40" : ""}`}
+                            >
+                              <CardTile card={toLocalShape(c)} />
+                            </Link>
+                            <button
+                              onClick={async () => {
+                                setCardErr("");
+                                setBusyCard(c.cardId);
+                                try {
+                                  await installSharedCard(c.cardId);
+                                  setSharedCards((list) =>
+                                    list.map((x) => (x.cardId === c.cardId ? { ...x, installed: true } : x)),
+                                  );
+                                } catch (e) {
+                                  setCardErr(e instanceof Error ? e.message : String(e));
+                                } finally {
+                                  setBusyCard(null);
+                                }
+                              }}
+                              disabled={owned || busyCard === c.cardId}
+                              className="mt-1 w-full text-center text-[10px] text-slate-400 disabled:text-slate-600"
+                            >
+                              {c.isOwner ? "我发的" : owned ? "已拥有" : busyCard === c.cardId ? "添加中…" : "＋ 添加"}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {cardErr && <div className="mb-3 text-xs text-rose-400">{cardErr}</div>}
+                  </>
+                )}
               <div className="grid grid-cols-3 gap-2.5 pb-4">
                 {market.map((c) => {
                   const owned = ownedIds.has(c.id);
@@ -233,12 +356,15 @@ export default function WorkshopPage() {
                   );
                 })}
               </div>
+              </>
             )
           ) : !remote ? (
             <div className="rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
               登录服务器后可以浏览别人分享的卡组
             </div>
-          ) : sharedLoading ? (
+          ) : deckPlaza.error ? (
+            <PlazaError error={deckPlaza.error} onRetry={deckPlaza.reload} />
+          ) : deckPlaza.loading ? (
             <div className="py-8 text-center text-xs text-slate-500">加载中…</div>
           ) : shared.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
@@ -335,33 +461,17 @@ export default function WorkshopPage() {
                     </button>
                   </div>
 
-                  {/* 分享到创意工坊：分享出去后别人能在「从市场添加 · 卡组」里装走整套 */}
-                  <div className="mt-2 flex items-center gap-2">
-                    <button
-                      disabled={busyDeck === d.id || !remote || d.cardIds.length === 0}
-                      onClick={async () => {
-                        setDeckErr("");
-                        setBusyDeck(d.id);
-                        try {
-                          await shareDeck(d.id, !d.published);
-                        } catch (e) {
-                          setDeckErr(e instanceof Error ? e.message : String(e));
-                        } finally {
-                          setBusyDeck(null);
-                        }
-                      }}
-                      className={`inline-flex min-h-[28px] items-center gap-1 rounded-full px-3 text-[11px] font-medium transition disabled:opacity-40 ${
-                        d.published ? "bg-gold/20 text-gold" : "bg-brand/15 text-brand"
-                      }`}
-                    >
-                      <Icon name="share" size={13} />
-                      {busyDeck === d.id ? "处理中…" : d.published ? "已分享 · 取消" : "分享到工坊"}
-                    </button>
-                    {d.published && (d.installs ?? 0) > 0 && (
-                      <span className="text-[11px] text-slate-500">{d.installs} 人装过</span>
-                    )}
-                    {!remote && <span className="text-[11px] text-slate-600">分享需要登录服务器</span>}
-                  </div>
+                  {/* 分享到创意工坊：分享出去后别人能在「从市场添加 · 卡组」里装走整套。
+                      ★ 三处调用点（这里、卡组详情页、卡片详情页）共用同一个组件，
+                        禁用规则与错误显示只有一份实现 */}
+                  <WorkshopShareBar
+                    kind="deck"
+                    className="mt-2"
+                    published={!!d.published}
+                    installs={d.installs ?? 0}
+                    disabledReason={shareBlockReason({ remote, cardCount: d.cardIds.length })}
+                    onToggle={(next) => shareDeck(d.id, next)}
+                  />
                   {inDeck.length > 0 && (
                     <div className="mt-2.5 grid grid-cols-4 gap-2">
                       {inDeck.map((c) => (

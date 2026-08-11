@@ -4,11 +4,13 @@ import { useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
-import SocialPanel, { useCountView } from "../components/SocialPanel";
-import CardHologram, { CARD_MODELS } from "../studio/ui/CardHologram";
-import { myCards, myDecks } from "../data/account";
+import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
+import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
+import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
+import { isRemoteMode, myCards, myDecks, shareCard } from "../data/account";
+import { formatHeat, heatOf } from "../data/social";
+import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, publishableModelUrl } from "../types";
 import { useAccountVersion } from "../hooks/useAccount";
-import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card } from "../types";
 
 /** 老卡/素材卡没存生成蓝图时，按派生管线同款格式现场拼一份——照着它就能复刻同风格卡面 */
 function blueprintOf(card: Card): string {
@@ -24,20 +26,47 @@ function blueprintOf(card: Card): string {
   return `${label[card.type]}：${card.name}。${card.summary}${tags}二次元厚涂插画风，高细节，电影感构图，氛围光，无文字无水印。竖版 3:4 卡面。`;
 }
 
+/**
+ * 分享前必须先说清楚的那句话：这张卡的 3D 建模能不能跟着走。
+ *
+ * ★ 不说的话就是骗人：卡片详情页把「全息实体 3D 建模」当卖点画在最上面，
+ *   而工坊里现炼的建模是 `idb:model3d:*`——**这台设备**的 IndexedDB 指针，
+ *   别人拿到就是个死链。判据收在 types.ts 的 publishableModelUrl 一处
+ *   （服务端还有一份权威的同规则，见那边的注释）。
+ * ★ 这里只剩"能分享，但建模带不走"这一档**提醒**。「第三方版权模型」那一档是
+ *   **拦截**，归 shareBlockReason 管（写在这儿的话按钮还是亮的，按下去必然 400）。
+ */
+function shareModelNote(card: Card): string | null {
+  const raw = card.modelUrl;
+  if (!raw) return null;
+  if (publishableModelUrl(raw)) return null;
+  return "注意：这张卡的 3D 建模只存在这台设备上，分享出去的那份不会带建模。";
+}
+
 export default function CardDetailPage() {
-  useAccountVersion();
+  const accountV = useAccountVersion();
+  useSocialVersion(); // 热度到货后重渲染（服务端计数是懒加载的）
   const { id } = useParams();
   const nav = useNavigate();
   const loc = useLocation();
   const [copied, setCopied] = useState(false);
   useCountView("card", id);
   // 优先账号库；不在库里（比如看别人作品的卡组）用路由 state 里带来的卡
+  // ★ 依赖里带上 accountV：账号库是原地改对象的单例，不把版本号写进依赖，
+  //   "刚把这张卡加进库"之后这里还会拿着路由 state 里那份只读副本。
   const card = useMemo<Card | null>(() => {
     const mine = myCards().find((c) => c.id === id);
     if (mine) return mine;
     const passed = (loc.state as { card?: Card } | null)?.card;
     return passed && passed.id === id ? passed : (passed ?? null);
-  }, [id, loc.state]);
+  }, [id, loc.state, accountV]);
+  // ★ 这一页也会渲染**别人的**卡（工坊市场点进来时卡是由路由 state 带过来的），
+  //   所以分享条必须按"这张卡在不在我库里"开门，不能只看有没有登录。
+  const owned = useMemo(() => myCards().some((c) => c.id === id), [id, accountV]);
+  const heat = heatOf("card", id ?? "");
+  // ★ hook 必须在下面那个 `if (!card) return` 之前跑完，否则卡在不在库里会改变
+  //   hook 数量，切换时直接崩。所以这里用 card?.，不是 card.
+  const model = useHologramModel(card?.modelUrl ?? (card ? CARD_MODELS[card.name] : undefined));
 
   if (!card) {
     return (
@@ -52,7 +81,6 @@ export default function CardDetailPage() {
   }
 
   const color = CARD_TYPE_COLORS[card.type];
-  const modelUrl = card.modelUrl ?? CARD_MODELS[card.name];
   const inDecks = myDecks().filter((d) => d.cardIds.includes(card.id));
   const blueprint = blueprintOf(card);
 
@@ -70,9 +98,13 @@ export default function CardDetailPage() {
         <div className="w-44">
           <TarotCard cover={card.cover || null} title={card.name} sub={CARD_TYPE_LABELS[card.type]} type={card.type} />
         </div>
-        {modelUrl && (
+        {/* ★ 判据是 model.url（**解析得到的**地址），不是 card.modelUrl（指针）：
+            自己在另一台设备上炼的卡，指针会跟着账号同步过来、blob 不会 ——
+            照着指针画这个框，用户得到的是一个**永远填不满的空全息框**。
+            取不到就当作"这张卡没有建模"，与从来没有建模的卡表现一致。 */}
+        {model.url && (
           <div className="relative w-44 overflow-hidden rounded-2xl bg-ink/85">
-            <CardHologram url={modelUrl} />
+            <CardHologram url={model.url} />
             <span className="pointer-events-none absolute inset-x-0 bottom-1.5 text-center text-[10px] tracking-wide text-cyan-300/90">
               ✦ 全息实体 3D 建模
             </span>
@@ -85,7 +117,12 @@ export default function CardDetailPage() {
         <span className="rounded-full border px-2 py-0.5 text-xs" style={{ color, borderColor: color }}>
           {CARD_TYPE_LABELS[card.type]}
         </span>
-        {card.hot != null && <span className="text-xs text-gold">🔥 {card.hot >= 10000 ? (card.hot / 10000).toFixed(1) + "万" : card.hot}</span>}
+        {/* ★ 热度以前读的是 card.hot —— 那是 mock/ai.ts 里手打的 18 个常数，
+            从来没有任何东西会去加它，等于把一个假数字当社区热度展示了一年。
+            现在走 social.heatOf：远端模式是服务端算的全局值，离线/老服务端
+            退回本机计数，并在旁边如实标出来。 */}
+        <span className="text-xs text-gold">🔥 {formatHeat(heat.heat)}</span>
+        {heat.source === "local" && <span className="text-[10px] text-slate-600">本机计数</span>}
       </div>
       {card.tags && card.tags.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1">
@@ -133,6 +170,16 @@ export default function CardDetailPage() {
           </div>
         </div>
       )}
+
+      {/* 分享到创意工坊。只对**自己库里**的卡开放（这一页也渲染别人的卡） */}
+      <WorkshopShareBar
+        kind="card"
+        className="mb-4"
+        published={!!card.published}
+        disabledReason={shareBlockReason({ remote: isRemoteMode(), owned, modelUrl: card.modelUrl })}
+        note={shareModelNote(card)}
+        onToggle={(next) => shareCard(card.id, next)}
+      />
 
       <Link
         to="/studio"

@@ -5,6 +5,7 @@ import DiscoverPage from "./pages/DiscoverPage";
 import WorkshopPage from "./pages/WorkshopPage";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
+import NotificationsPage from "./pages/NotificationsPage";
 import LoginPage from "./pages/LoginPage";
 import OauthCallbackPage from "./pages/OauthCallbackPage";
 import VideoPage from "./pages/VideoPage";
@@ -143,13 +144,34 @@ export default function App() {
         <Route path="/me" element={<ProfilePage />} />
         {/* 创作者主页（首页点头像进的就是它）。放在 TabLayout 里而不是全屏页：
             短视频 App 的个人页都留着底栏，逛完一个作者能直接切回首页继续刷。
-            与 /me 同一个组件——是不是我自己由组件按作者名判断（见 ProfilePage） */}
+            与 /me 同一个组件——是不是我自己由组件判断（见 ProfilePage）。
+
+            ★★ 两条路由指向同一个组件，**身份以 id 那条为准**：
+              /user/:id  新路径。展示名可变、可重名，拿它当身份必然出错（两个同名的人
+                         只能进到其中一个；老服务端不返回 displayName 时退回的 username
+                         与任何一条缓存作品都对不上，于是静默进错人的主页）。
+              /u/:author 老路径，**必须留着**：分享出去的链接、老包缓存、已经发出去的
+                         评论里都还带着它。ProfilePage 会先拿名字去登记处反查 id，
+                         查得到就当 id 那条用。 */}
+        <Route path="/user/:userId" element={<ProfilePage />} />
         <Route path="/u/:author" element={<ProfilePage />} />
       </Route>
       <Route path="/login" element={<LoginPage />} />
       {/* 第三方登录的 web 回程（原生端走自定义 scheme，不经过这条路由） */}
       <Route path="/oauth/callback" element={<OauthCallbackPage />} />
       <Route path="/settings" element={<SettingsPage />} />
+      {/* 通知：与 /settings 一样是**全屏推入**页，不进 TabLayout。
+          ★ 刻意不给底栏加第六格：TabBar 是五格，而底缘那 100px 里进度条 / 时长文字 /
+            右侧栏 / 看板娘的位置是互相咬着算出来的（CLAUDE.md 有整段说明），
+            动底栏等于把那几个数全部重算。入口放在个人页顶栏的铃铛上。 */}
+      <Route
+        path="/notifications"
+        element={
+          <RequireAuth>
+            <NotificationsPage />
+          </RequireAuth>
+        }
+      />
       <Route path="/video/:id" element={<VideoPage />} />
       <Route path="/card/:id" element={<CardDetailPage />} />
       <Route path="/deck/:id" element={<DeckDetailPage />} />

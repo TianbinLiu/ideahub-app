@@ -122,10 +122,22 @@ export default function DanmakuLayer({
   // ★ 用户自己刚发的那条要立刻飘出来。
   //   它的 at 就是"现在"，而游标已经走过这个点了 —— 只靠上面那个 (cursor, time] 区间
   //   是**永远扫不到**的，表现就是"点了发送，屏幕上什么都没有"。
+  //
+  // ★★ 自己那条**不看 at 与游标的相对位置**，只看"是不是刚发的"。
+  //   原来这里和别人的弹幕共用一个 `at ± 2秒` 的窗口，那等于在赌"POST 往返 < 2 秒"：
+  //   弱网 / 冷启动首次 TLS 握手 / 服务端冷启动时往返轻松超过 2 秒，游标早已跑过，
+  //   这条就被静默丢掉，而且**再没有第二次机会**（version 不会再变，时间轴那条 effect
+  //   的区间又是 (from, time]，at 已落在 from 之前）。用户看到的就是"发了，没出现"。
+  //   判据里必须同时要求 mine：fromApi 在 createdAt 解析失败时会回退成 Date.now()，
+  //   只看新鲜度的话，一批远端老弹幕会被当成"刚发的"一次性全放出来。
   useEffect(() => {
     const at = cursor.current;
     launch(
-      danmakuOf(videoId).filter((d) => !shown.current.has(d.id) && d.at <= at && d.at > at - 2),
+      danmakuOf(videoId).filter(
+        (d) =>
+          !shown.current.has(d.id) &&
+          (isMyDanmaku(d) && Date.now() - d.createdAt < 15_000 ? true : d.at <= at && d.at > at - 2),
+      ),
       at,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
