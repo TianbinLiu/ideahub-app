@@ -14,7 +14,7 @@
 //   方案台选定的那一行 —— 首尾帧都在，两帧都能换成本地图（传 onPickLastFile 才出现那一排）
 // 换进来的帧会上锁（Proposal.pinned），AI「按修改重画」时不动它；卡里另给一个"清掉 · 交回
 // AI 画"的出口，否则用户上传错一张就再也回不到 AI 自拟。
-import { useEffect, useRef, useState } from "react";
+import { CSSProperties, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 /** 一轮 = 停留 + 渐变。停留 2.6s 是量出来的：再短像闪烁，再长会让人以为是张静态图 */
@@ -43,15 +43,18 @@ export function CardFace({
   last,
   showLast,
   className = "",
+  style,
 }: {
   first: string | null;
   last: string | null;
   showLast: boolean;
   className?: string;
+  /** 给调用方定框形用（画幅不同，卡的比例也不同——见 PlanBoard.frameAspect） */
+  style?: CSSProperties;
 }) {
   const both = !!first && !!last;
   return (
-    <div className={`relative overflow-hidden ${className}`}>
+    <div className={`relative overflow-hidden ${className}`} style={style}>
       {first && (
         <img
           src={first}
@@ -90,6 +93,7 @@ export default function FrameCard({
   pinned,
   /** 卡下面那行说明；null = 不要（方案台的行里位置很紧） */
   caption,
+  aspectRatio = "2 / 3",
 }: {
   firstFrame: string | null;
   lastFrame: string | null;
@@ -102,6 +106,9 @@ export default function FrameCard({
   onClearFrame?: (which: "first" | "last") => void;
   pinned?: { first?: boolean; last?: boolean };
   caption?: string | null;
+  /** 卡的框形（CSS aspect-ratio）。缺省 2/3 = 塔罗卡的形；方案台按本段**画幅**传，
+   *  否则竖屏帧会被裁成一条、横屏帧只剩中间一块（见 PlanBoard.frameAspect） */
+  aspectRatio?: string;
 }) {
   const [zoom, setZoom] = useState(false);
   const complete = !!firstFrame && !!lastFrame;
@@ -127,7 +134,7 @@ export default function FrameCard({
       <button
         onClick={() => setZoom(true)}
         className={`group relative w-full overflow-hidden rounded-xl border-2 ${border} bg-slate-800/40 transition active:scale-[0.98]`}
-        style={{ aspectRatio: "2 / 3" }}
+        style={{ aspectRatio }}
         title={onPickLastFile ? "点开看大图 / 换首尾帧" : "点开看大图 / 换开头帧"}
       >
         {firstFrame || lastFrame ? (
@@ -168,7 +175,7 @@ export default function FrameCard({
               {/* 按高度定尺寸：卡是 2:3 的竖版，按宽度撑会在矮窗口里顶出屏幕 */}
               <div
                 className={`relative overflow-hidden rounded-2xl border-2 ${border} bg-slate-900 shadow-[0_0_60px_rgba(103,232,249,0.25)]`}
-                style={{ aspectRatio: "2 / 3", height: "58vh", maxWidth: "86vw" }}
+                style={{ aspectRatio, height: "58vh", maxWidth: "86vw" }}
               >
               {firstFrame || lastFrame ? (
                 <CardFace

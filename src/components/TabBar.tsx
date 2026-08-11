@@ -56,6 +56,9 @@ export default function TabBar() {
 
   return (
     <nav
+      /* data-tabbar：首页进沉浸/全屏时 body[data-immersive] 靠它把底栏一并收掉
+         （见 index.css）。底栏不归 FeedPage 渲染，只能这样跨层通知 */
+      data-tabbar
       className={`safe-bottom fixed inset-x-0 bottom-0 z-40 ${
         onFeed
           ? "bg-gradient-to-t from-black/85 via-black/45 to-transparent"

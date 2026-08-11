@@ -48,6 +48,13 @@ export interface PlanBoardProps {
   rederiveCost?: number;
   /** 上一段的真实结尾（本段承接它起拍）：卡面上要说清这张开头帧是哪来的 */
   carriedFrom?: boolean;
+  /**
+   * 预览卡的框形（CSS aspect-ratio 值，如 "9 / 16"）。**跟本段画幅走**——
+   * 写死一个比例的话，另一种画幅的帧会被 object-cover 裁掉一大半：横屏帧塞进竖卡等于
+   * 只看得到中间一条，而挑方案恰恰是靠"这一段从哪到哪"的构图来挑的。
+   * 缺省 2/3 是塔罗卡的形（与桌面节点卡同款），给没有画幅概念的调用方用。
+   */
+  frameAspect?: string;
   /** 未选定行的额外提示（工坊：换方案会收起已延展的子树） */
   switchWarn?: (p: Proposal) => string | null;
   /** 选定行底部的自定义操作区（工坊把「AI 改图」「生成本段视频」塞在这里）*/
@@ -70,6 +77,7 @@ export default function PlanBoard({
   onRederive,
   rederiveCost,
   carriedFrom,
+  frameAspect = "2 / 3",
   switchWarn,
   actions,
   dense,
@@ -162,6 +170,7 @@ export default function PlanBoard({
                       onClearFrame={(w) => onFrame(p.id, w, "")}
                       pinned={p.pinned}
                       caption={null}
+                      aspectRatio={frameAspect}
                     />
                     <div className="text-center text-[9px] leading-3 text-slate-500">点开卡片换图</div>
                   </div>
@@ -232,7 +241,7 @@ export default function PlanBoard({
                   disabled={busy}
                   className="flex w-full items-start gap-2.5 text-left disabled:opacity-60"
                 >
-                  <PreviewCard first={p.firstFrame} last={p.lastFrame} width={cardW} />
+                  <PreviewCard first={p.firstFrame} last={p.lastFrame} width={cardW} aspect={frameAspect} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-slate-100">
@@ -262,7 +271,17 @@ export default function PlanBoard({
 
 /** 未选定行的小卡：只看不点（整行才是按钮），但轮播照跑——"这一段从哪到哪"是挑方案的
  *  主要依据，静态首帧根本看不出走向 */
-function PreviewCard({ first, last, width }: { first: string; last: string; width: number }) {
+function PreviewCard({
+  first,
+  last,
+  width,
+  aspect,
+}: {
+  first: string;
+  last: string;
+  width: number;
+  aspect: string;
+}) {
   const both = !!first && !!last;
   const showLast = useFrameCycle(both);
   return (
@@ -272,10 +291,14 @@ function PreviewCard({ first, last, width }: { first: string; last: string; widt
           first={first || null}
           last={last || null}
           showLast={showLast}
-          className="aspect-[2/3] w-full rounded-lg border border-slate-600/70 bg-slate-800/40"
+          style={{ aspectRatio: aspect }}
+          className="w-full rounded-lg border border-slate-600/70 bg-slate-800/40"
         />
       ) : (
-        <div className="flex aspect-[2/3] w-full items-center justify-center rounded-lg border border-dashed border-slate-600 bg-slate-800/40 text-[9px] text-slate-500">
+        <div
+          style={{ aspectRatio: aspect }}
+          className="flex w-full items-center justify-center rounded-lg border border-dashed border-slate-600 bg-slate-800/40 text-[9px] text-slate-500"
+        >
           无预览帧
         </div>
       )}

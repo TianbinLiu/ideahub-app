@@ -15,7 +15,7 @@ import { canAfford, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
 import { fmtTokens, segTokens } from "../data/economy";
 import { useStudio } from "../studio/studioStore";
-import { VideoSegment, formatDuration, uid } from "../types";
+import { VideoSegment, aspectOf, formatDuration, uid } from "../types";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 
 /** 时间轴上的一个片段：引用草稿段 + 裁剪范围（分割产生的子片段各占一段区间） */
@@ -35,10 +35,18 @@ interface Ann {
   req: string;
 }
 
+/** 导出档位。存的是【长边】像素而不是写死的 w×h：竖屏 720P 是 720×1280，
+ *  横屏是 1280×720——写死 1280×720 的话，竖屏成片会被 drawCover 拦腰裁成横的。 */
 const RESOLUTIONS = [
-  { id: "720", label: "720P", w: 1280, h: 720, note: "与素材同分辨率，最快" },
-  { id: "1080", label: "1080P", w: 1920, h: 1080, note: "由 720P 素材放大，文件更大但不会更清晰" },
+  { id: "720", label: "720P", long: 1280, note: "与素材同分辨率，最快" },
+  { id: "1080", label: "1080P", long: 1920, note: "由 720P 素材放大，文件更大但不会更清晰" },
 ];
+
+/** 档位 + 画幅 → 输出画布尺寸 */
+function outSize(long: number, portrait: boolean): { w: number; h: number } {
+  const short = Math.round((long * 9) / 16);
+  return portrait ? { w: short, h: long } : { w: long, h: short };
+}
 
 type Tab = "cut" | "mark" | "audio";
 
@@ -106,6 +114,10 @@ export default function CutPage() {
   const active = view[Math.min(activeIdx, Math.max(0, view.length - 1))] ?? null;
   const activeSeg: VideoSegment | undefined = active ? segs[active.segIndex] : undefined;
   const res = RESOLUTIONS.find((r) => r.id === resId) ?? RESOLUTIONS[0];
+  // 整条成片的画幅取第一段：时间轴上各段本该是同一个画幅（铸段时就跟着上一段走），
+  // 真混排了也只能挑一个——合并只有一块画布，另一种必然被裁或补边
+  const portrait = aspectOf(segs[0]?.aspect).id === "portrait";
+  const out = outSize(res.long, portrait);
   const annBySeg = useMemo(() => {
     const m = new Map<number, number>();
     for (const a of anns) m.set(a.segIndex, (m.get(a.segIndex) ?? 0) + 1);
@@ -191,10 +203,13 @@ export default function CutPage() {
     if (activeSeg?.videoUrl && v && v.videoWidth) {
       v.pause();
       setPlaying(false);
+      // 标注底图要按本段画幅截：截成 16:9 再拿去图生图，改回来的设定帧也是 16:9，
+      // 竖屏段就此被悄悄改横
+      const shot = outSize(1280, portrait);
       const c = document.createElement("canvas");
-      c.width = 1280;
-      c.height = 720;
-      drawCover(c.getContext("2d")!, v, 1280, 720);
+      c.width = shot.w;
+      c.height = shot.h;
+      drawCover(c.getContext("2d")!, v, shot.w, shot.h);
       setAnnOpen({ segIndex: active.segIndex, atSec: v.currentTime, frame: c.toDataURL("image/jpeg", 0.9) });
     } else if (activeSeg) {
       setAnnOpen({ segIndex: active.segIndex, atSec: active.start, frame: activeSeg.firstFrame });
@@ -229,6 +244,7 @@ export default function CutPage() {
           const edited = await refineFrame(
             `${a.req}。参考图中红色圈线标注了目标物体：只对该物体做上述处理，并彻底去掉红色圈线本身`,
             a.frame,
+            seg.aspect,
           );
           if (a.atSec < half) seg.firstFrame = edited;
           else seg.lastFrame = edited;
@@ -260,8 +276,8 @@ export default function CutPage() {
     let audioCtx: AudioContext | null = null;
     try {
       const canvas = document.createElement("canvas");
-      canvas.width = res.w;
-      canvas.height = res.h;
+      canvas.width = out.w;
+      canvas.height = out.h;
       const ctx = canvas.getContext("2d")!;
       const stream = canvas.captureStream(30);
       let mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm";
@@ -363,6 +379,9 @@ export default function CutPage() {
         lastFrame: last.lastFrame,
         durationSec: Math.round(total),
         videoUrl: `idb:${key}`,
+        // 合并后就只剩这一段了：画幅必须跟着走，否则首页拿不到画幅提示，
+        // 而且回炉重制时新拍的段会退回默认画幅
+        aspect: segs[0]?.aspect,
       };
       leftRef.current = true;
       useStudio.setState({ draft: { ...draft!, segments: [merged], branchTree: undefined, merged: true } });
@@ -426,7 +445,12 @@ export default function CutPage() {
                   }}
                   className={`block w-full px-3 py-2 text-left ${r.id === resId ? "bg-slate-700/50" : ""}`}
                 >
-                  <div className="text-xs font-semibold text-slate-100">{r.label}</div>
+                  <div className="text-xs font-semibold text-slate-100">
+                    {r.label}
+                    <span className="ml-1 font-normal tabular-nums text-slate-400">
+                      {outSize(r.long, portrait).w}×{outSize(r.long, portrait).h}
+                    </span>
+                  </div>
                   <div className="text-[10px] text-slate-400">{r.note}</div>
                 </button>
               ))}

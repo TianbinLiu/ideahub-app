@@ -1,6 +1,6 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
-import { BranchNodeData, BranchTree, Card, CardType, DraftVideo, NodeSlot, Proposal, VideoSegment, uid } from "../types";
+import { BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, uid } from "../types";
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, npcChat, npcChatOffline, refineFrame, searchMarket } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
@@ -54,6 +54,8 @@ export interface EditorState {
   durationSec: number;
   /** 本段 Seedance 档位（极速/标准/高清）——决定合成 token 消耗，见 data/economy */
   videoTier: string;
+  /** 本段画幅（竖屏/横屏）。开面板时继承路径上一段，整片才不会横竖混着来 */
+  aspect: VideoAspect;
   /** 用户上传的本段开头帧（dataURL）；null=沿用上一节点尾帧（无上节点则 AI 自拟） */
   startFrame: string | null;
   generating: boolean;
@@ -209,7 +211,15 @@ function slotFromSegments(segments: VideoSegment[]): NodeSlot | null {
   let next: NodeSlot | null = null;
   for (let i = segments.length - 1; i >= 0; i--) {
     const p = segToProposal(i, segments[i]);
-    const node: NodeSlot = { id: uid("node"), proposals: [p], chosenId: p.id, children: {} };
+    // 画幅从成片段读回：回炉重制时接着拍的段才不会横竖打架
+    const node: NodeSlot = {
+      id: uid("node"),
+      proposals: [p],
+      chosenId: p.id,
+      children: {},
+      videoTier: segments[i].videoTier,
+      aspect: segments[i].aspect,
+    };
     if (next) node.children[p.id] = next;
     next = node;
   }
@@ -233,7 +243,9 @@ function slotFromBranchTree(tree: BranchTree, depthIndex = 0): NodeSlot | null {
       }
     }
     if (proposals.length === 0) return null;
-    return { id: uid("node"), proposals, chosenId: proposals[0].id, children };
+    // 同一层的各走向本来就是同一段的不同拍法，画幅取第一个能读到的即可
+    const aspect = ids.map((bid) => tree.nodes[bid]?.segment.aspect).find(Boolean);
+    return { id: uid("node"), proposals, chosenId: proposals[0].id, children, aspect };
   };
   return build(tree.startChoices?.map((c) => c.nextId) ?? [tree.rootId], depthIndex, new Set());
 }
@@ -254,6 +266,7 @@ function rootFromFlowNodes(nodes: FlowNode[]): NodeSlot | null {
     children: {},
     materials: n.materials,
     videoTier: n.videoTier,
+    aspect: n.aspect,
   }));
   for (let i = 0; i < slots.length - 1; i++) {
     const cid = slots[i].chosenId;
@@ -394,6 +407,7 @@ interface StudioState {
   /** 正在按修改重画的方案 id；null=空闲 */
   proposalRegen: string | null;
   setVideoTier: (id: string) => void;
+  setAspect: (a: VideoAspect) => void;
   /** 上传/清除本段开头帧（null=恢复默认承接上一节点尾帧） */
   setStartFrame: (dataUrl: string | null) => void;
   setRequirement: (v: string) => void;
@@ -471,10 +485,19 @@ const DEFAULT_EDITOR: EditorState = {
   durationMode: "ai",
   durationSec: 6,
   videoTier: DEFAULT_TIER,
+  aspect: DEFAULT_ASPECT,
   startFrame: null,
   generating: false,
   progress: "",
 };
+
+/** 新开一次铸段面板。画幅继承路径上最后一段：一部片里横竖混着来，剪辑页合并时
+ *  只能挑一个画布，另一种画幅的段必然被裁或补边——默认延续是唯一不出事的选择。 */
+function freshEditor(root: NodeSlot | null, slots: string[]): EditorState {
+  const path = activePath(root);
+  const prev = path[path.length - 1];
+  return { ...DEFAULT_EDITOR, slots, aspect: prev?.aspect ?? DEFAULT_ASPECT };
+}
 
 // 市场检索的请求序号：过期响应直接丢弃，防止慢请求乱序覆盖新结果
 let marketSeq = 0;
@@ -811,7 +834,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set((s) => ({ flights: s.flights.filter((f) => f.id !== id) })),
 
   focusPlaceholder: (pos, look) => {
-    const { deck, projection } = get();
+    const { deck, projection, root } = get();
     if (projection) return;
     if (deck.length === 0) {
       get().npcSay("你的卡组还是空的。先把素材交给我炼卡，或者说「逛市场」看看现成的。");
@@ -820,7 +843,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set({
       focus: { nodeId: null },
       projection: "editor",
-      editor: { ...DEFAULT_EDITOR, slots: [] },
+      editor: freshEditor(root, []),
       spreadOpen: false,
       camera: { kind: "pos", pos, look },
       // 绕节点卡本身做球面运动（look 是卡片处，即圆心）
@@ -943,7 +966,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set({
       focus: { nodeId: null },
       projection: "editor",
-      editor: { ...DEFAULT_EDITOR, slots: [card.id] },
+      editor: freshEditor(get().root, [card.id]),
       spreadOpen: false,
       camera: { kind: "pos", pos, look },
     });
@@ -968,7 +991,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
     set({ frameRefining: `${proposalId}:${which}` });
     try {
-      const next = await refineFrame(req.trim(), which === "first" ? prop.firstFrame : prop.lastFrame);
+      // 画幅跟节点走：改一次图就把竖屏方案的帧重画成横版，出片时又要被裁一刀
+      const next = await refineFrame(req.trim(), which === "first" ? prop.firstFrame : prop.lastFrame, node.aspect);
       if (AI_REAL) spendTokens(ONE_IMAGE); // 出图成功才扣
       if (which === "first") prop.firstFrame = next;
       else prop.lastFrame = next;
@@ -1033,10 +1057,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
     set({ proposalRegen: proposalId });
     try {
+      // ★ 必须把本段画幅递下去：Seedream 的画布比例得与视频画幅一致，缺了它重画出来的帧
+      //   是横的，喂给竖屏 Seedance 任务会被静默裁一刀（人物常被裁掉半个头）。
+      //   见 CLAUDE.md「改了画幅却发现出片还是横的」那一条
       let first = p.firstFrame;
-      if (!keepFirst) first = await generateCover(p.plot.slice(0, 200));
+      if (!keepFirst) first = await generateCover(p.plot.slice(0, 200), undefined, node.aspect);
       // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味
-      const last = keepLast ? p.lastFrame : await generateCover(`${p.plot.slice(0, 180)} 的结束瞬间`, first || undefined);
+      const last = keepLast
+        ? p.lastFrame
+        : await generateCover(`${p.plot.slice(0, 180)} 的结束瞬间`, first || undefined, node.aspect);
       if (AI_REAL) spendTokens(cost); // 出图成功才扣，与 refineProposalFrame 同口径
       p.firstFrame = first;
       p.lastFrame = last;
@@ -1091,6 +1120,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
           durationSec: chosenProposal(node)?.durationSec ?? 6,
           prevFrameSeed: prev ? `${prev.id}#last` : null,
           startFrame,
+          // 重推的是"走向"，画幅照原节点——换一批剧情不该顺手把片子从竖的变成横的
+          aspect: node.aspect,
           pathPlots: path
             .slice(0, idx)
             .map((n) => chosenProposal(n)?.plot ?? "")
@@ -1127,6 +1158,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   setDurationMode: (m) => set((s) => (s.editor ? { editor: { ...s.editor, durationMode: m } } : {})),
   setDurationSec: (v) => set((s) => (s.editor ? { editor: { ...s.editor, durationSec: v } } : {})),
   setVideoTier: (id) => set((s) => (s.editor ? { editor: { ...s.editor, videoTier: id } } : {})),
+  setAspect: (a) => set((s) => (s.editor ? { editor: { ...s.editor, aspect: a } } : {})),
   setStartFrame: (dataUrl) => set((s) => (s.editor ? { editor: { ...s.editor, startFrame: dataUrl } } : {})),
   closeEditor: () => set({ editor: null }),
 
@@ -1183,6 +1215,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
           prevFrameSeed: prev ? `${prev.id}#last` : null,
           // 段间无缝衔接：开头帧 = 用户上传的本地图 > 上一节点已选方案的尾帧 > 无（AI 自拟）
           startFrame: editor.startFrame ?? prev?.lastFrame ?? null,
+          aspect: editor.aspect,
           pathPlots: path.map((n) => chosenProposal(n)?.plot ?? "").filter(Boolean),
         },
         (status) => patchLive({ progress: status }),
@@ -1196,6 +1229,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         children: {},
         materials,
         videoTier: editor.videoTier,
+        aspect: editor.aspect,
         requirement: editor.requirement,
       };
       // 只有发起时的编辑器仍然打开才由本次生成负责关闭（取消后重开的新表单不受影响）
@@ -1284,6 +1318,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
             lastFrame: p.lastFrame,
             durationSec: p.durationSec,
             videoTier: slot.videoTier ?? DEFAULT_TIER,
+            aspect: slot.aspect,
             // 必须过 realVideoOf：mock 构建下 videoUrl 是 "mock:" 占位串，交给剪辑页的
             // <video> 只会得到一个报错的播放器（resolveMediaUrl 会把未知 scheme 原样透出）
             ...(realVideoOf(p) ? { videoUrl: realVideoOf(p) } : {}),
@@ -1369,6 +1404,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
           lastFrame: prop.lastFrame,
           durationSec: prop.durationSec,
           videoTier: slot.videoTier ?? DEFAULT_TIER,
+          aspect: slot.aspect,
           anns: [],
           carryFrame: carry,
         },
@@ -1428,6 +1464,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // 缺了它用户就只能拿 AI 写的剧情当自己的要求，越推越偏
       requirement: path[i]?.requirement ?? "",
       videoTier: path[i]?.videoTier ?? DEFAULT_TIER,
+      // 老节点树没有 aspect：那时写死 16:9，当横屏读（见 types.aspectOf）
+      aspect: path[i]?.aspect ?? "landscape",
       materials: path[i]?.materials,
       // 承接判定：本段设定首帧就是上一段的设定尾帧（AI 顺接铸出来的），才让上一段的
       // 真实结尾顶替起拍帧；用户上传过自定义开头帧的段保持独立起拍
@@ -1489,6 +1527,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         }
         slot.chosenId = p.id;
         slot.videoTier = n.videoTier;
+        slot.aspect = n.aspect;
         if (real) videoByProposal[p.id] = real;
       }
       return {
@@ -1498,6 +1537,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         lastFrame: p.lastFrame,
         durationSec: p.durationSec,
         videoTier: n.videoTier,
+        aspect: n.aspect,
         ...(real ? { videoUrl: real } : {}),
       };
     });
@@ -1625,16 +1665,21 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // 工坊侧：草稿里没有节点树（纯工作流/简约模式起手的）就按流水线现搭一棵，
     // 否则「用工坊模式打开」会落到一张空桌子上——用户点的那条草稿像是丢了
     //
-    // ★ 老草稿补字段：plan/requirement 是"方案台"这一版才有的。补在这里而不是靠读取处
-    //   到处 ?? 兜底——老设备读到 undefined 会静默降级（见 AGENTS.md 数据层那一节）。
-    //   plan 按"多方案即已选定"补：那时的节点确实是选好的，缺省成 picking 会让用户打开
-    //   旧草稿发现每段都要重挑一遍。requirement 退回当前方案的剧情，正是旧版推演时当作
-    //   requirement 用的东西，行为不变。
-    const flowNodes = ((d.flow?.nodes ?? []) as FlowNode[]).map((n) => ({
-      ...n,
-      plan: n.plan ?? (n.proposals.length > 1 ? ("picked" as const) : undefined),
-      requirement: n.requirement ?? chosenOf(n).plot,
-    }));
+    // ★ 老草稿补字段（一处补齐，别靠读取处到处 ?? 兜底——老设备读到 undefined 会静默降级，
+    //   见 AGENTS.md 数据层那一节）：
+    //     · aspect ——「画幅可选」之前的草稿没有它，而 FlowNode.aspect 是必填；不补会一路
+    //       传到方舟的 ratio 参数上。缺省按**横屏**（那时所有出片都写死 16:9，见 aspectOf）
+    //     · plan ——「方案台」这一版才有。按"多方案即已选定"补：那时的节点确实是选好的，
+    //       缺省成 picking 会让用户打开旧草稿发现每段都要重挑一遍
+    //     · requirement —— 退回当前方案的剧情，正是旧版推演时当作 requirement 用的东西
+    const flowNodes = ((d.flow?.nodes ?? []) as FlowNode[]).map(
+      (n): FlowNode => ({
+        ...n,
+        aspect: n.aspect ?? "landscape",
+        plan: n.plan ?? (n.proposals.length > 1 ? ("picked" as const) : undefined),
+        requirement: n.requirement ?? chosenOf(n).plot,
+      }),
+    );
     const root = d.root ?? (flowNodes.length > 0 ? rootFromFlowNodes(flowNodes) : null);
     set({
       root,

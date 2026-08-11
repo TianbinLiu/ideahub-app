@@ -153,8 +153,8 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
 
 /** Seedream 文/图生图。imageRefs 传参考图（首帧承接上一段尾帧色调等）。
  *  size 实测约束（2026-08-06）：'2k'/'3k'/'4k' 或显式 WIDTHxHEIGHT，且总像素 ≥ 3,686,400
- *  （= 2560×1440）。喂给 16:9 视频的帧必须用 16:9 画布——方形 2K 会被 Seedance 裁切。 */
-export const FRAME_SIZE = "2560x1440"; // 16:9 最小合法面积，出图最快
+ *  （= 2560×1440）。喂给视频的帧必须用**与视频画幅一致**的画布——比例不符会被 Seedance
+ *  裁切；两个画幅各自的合法画布见 types.VIDEO_ASPECTS[].frameSize。 */
 export async function generateImage(
   prompt: string,
   opts?: { size?: string; imageRefs?: string[] },
@@ -190,6 +190,8 @@ export async function generateVideo(
     lastFrameUrl?: string;
     /** 覆盖默认视频模型（节点卡选档：极速/标准/高清） */
     model?: string;
+    /** 画幅（"9:16" 竖 / "16:9" 横）。缺省横屏 = 本参数出现之前的写死值 */
+    ratio?: string;
     onProgress?: (status: string) => void;
   },
 ): Promise<string> {
@@ -210,7 +212,9 @@ export async function generateVideo(
         model: opts?.model ?? MODELS.video,
         content,
         resolution: "720p",
-        ratio: "16:9",
+        // 画幅只由这个参数决定：提示词里写"竖版"没用，首尾帧是竖的也没用——
+        // ratio 不改，方舟一律按 16:9 出片，再把竖版帧裁进去
+        ratio: opts?.ratio ?? "16:9",
         duration: Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5))),
         generate_audio: false, // 无声更省 tokens（0.008 vs 0.016 元/千），配乐后续再说
         watermark: false,

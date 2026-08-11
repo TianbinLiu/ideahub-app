@@ -1,14 +1,13 @@
 // 真实 AI 管线（火山方舟）：素材炼卡（Seedream 卡面/封面）+ 三方案推演
 // （豆包写剧情 + Seedream 首尾帧，首帧用上一段尾帧作参考图承接色调）。
 // 每个环节失败都回退到 mock 同款产物——AI 网络抖动不阻断工坊流程。
-import { Card, CardType, Proposal, uid } from "../types";
+import { Card, CardType, Proposal, VideoAspect, aspectOf, uid } from "../types";
 import { makeCover, makeFrame } from "../mock/frames";
 import type { MaterialFile, ProposalContext } from "../mock/ai";
 import * as mock from "../mock/ai";
 import { tierOf } from "../data/economy";
 import { idbSet } from "../data/db";
 import {
-  FRAME_SIZE,
   chat,
   chatTurns,
   chatVision,
@@ -215,12 +214,17 @@ export async function generateCards(files: MaterialFile[], note: string, forcedT
     });
 }
 
-const FRAME_STYLE = STYLE_SUFFIX.replace("竖版 3:4 卡面", "横版 16:9 画面");
+/** 设定帧的画风尾巴。画幅得写进提示词：size 参数只决定画布，构图还是靠这句话——
+ *  竖版画布配"横版构图"的提示词，出来的是一张上下大片空白的横构图。 */
+function frameStyle(aspect?: VideoAspect): string {
+  return STYLE_SUFFIX.replace("竖版 3:4 卡面", aspectOf(aspect).promptHint);
+}
 
-function framePrompts(plot: string, withRef: boolean): { first: string; last: string } {
+function framePrompts(plot: string, withRef: boolean, aspect?: VideoAspect): { first: string; last: string } {
+  const style = frameStyle(aspect);
   return {
-    first: `电影分镜首帧：${plot.slice(0, 100)}。${withRef ? "延续参考图的色调与光线氛围。" : ""}${FRAME_STYLE}`,
-    last: `电影分镜尾帧（这段剧情的收束瞬间）：${plot.slice(-100)}。${FRAME_STYLE}`,
+    first: `电影分镜首帧：${plot.slice(0, 100)}。${withRef ? "延续参考图的色调与光线氛围。" : ""}${style}`,
+    last: `电影分镜尾帧（这段剧情的收束瞬间）：${plot.slice(-100)}。${style}`,
   };
 }
 
@@ -268,19 +272,21 @@ export async function generateProposals(
     (startFrame ? (["last"] as const) : (["first", "last"] as const)).map((which) => ({ p, which })),
   );
   let doneCount = 0;
+  // 设定帧的画布必须跟本段画幅走：横版帧喂竖屏视频任务会被 Seedance 裁一刀
+  const frameSize = aspectOf(ctx.aspect).frameSize;
   onProgress?.(startFrame ? `承接上段尾帧，绘制收尾画面 0/${jobs.length}…` : `剧情就绪，绘制首尾帧 0/${jobs.length}…`);
   const results = await mapLimit(jobs, 3, async ({ p, which }) => {
-    const prompts = framePrompts(p.plot, !!refs);
+    const prompts = framePrompts(p.plot, !!refs, ctx.aspect);
     const prompt = which === "first" ? prompts.first : prompts.last;
     // 有确定开头帧时尾帧也带它当参考（人物/画风连贯）；否则仅首帧带上一段色调参考
     const useRefs = which === "first" || startFrame ? refs : undefined;
     let frame: string | null = null;
     try {
-      frame = await genImageAsDataUrl(prompt, useRefs, FRAME_SIZE);
+      frame = await genImageAsDataUrl(prompt, useRefs, frameSize);
     } catch {
       try {
         // 带参考图失败可能是参考图本身不被受理——去掉参考图再试一次
-        frame = await genImageAsDataUrl(framePrompts(p.plot, false)[which], undefined, FRAME_SIZE);
+        frame = await genImageAsDataUrl(framePrompts(p.plot, false, ctx.aspect)[which], undefined, frameSize);
       } catch (e2) {
         console.warn(`[ai] ${p.title} ${which} 帧两次失败:`, e2);
       }
@@ -300,8 +306,9 @@ export async function generateProposals(
       id: p.id,
       title,
       plot: p.plot,
-      firstFrame: firstFrame ?? makeFrame(`${p.id}#first`, `${title} · 首帧`, ctx.prevFrameSeed ?? `${p.id}#first`),
-      lastFrame: lastFrame ?? makeFrame(`${p.id}#last`, `${title} · 尾帧`, `${p.id}#last`),
+      firstFrame:
+        firstFrame ?? makeFrame(`${p.id}#first`, `${title} · 首帧`, ctx.prevFrameSeed ?? `${p.id}#first`, ctx.aspect),
+      lastFrame: lastFrame ?? makeFrame(`${p.id}#last`, `${title} · 尾帧`, `${p.id}#last`, ctx.aspect),
       durationSec: p.durationSec,
       ...(degraded ? { degraded: true } : {}),
     };
@@ -552,11 +559,12 @@ export async function deriveCharacterModels(
  * 方案卡里"选帧改图"、剪辑页"圈选修改"都走这里（后者把红圈标注画进参考图，
  * 提示词里指明按标注处理并抹掉标记）。
  */
-export async function refineFrame(req: string, refDataUrl: string): Promise<string> {
+export async function refineFrame(req: string, refDataUrl: string, aspect?: VideoAspect): Promise<string> {
+  const spec = aspectOf(aspect);
   return await genImageAsDataUrl(
-    `在参考图基础上修改这张视频分镜帧：${req}。除要求之外保持人物、构图、光线与整体画风完全一致。高细节，无文字无水印。横版 16:9 画面。`,
+    `在参考图基础上修改这张视频分镜帧：${req}。除要求之外保持人物、构图、光线与整体画风完全一致。高细节，无文字无水印。${spec.promptHint}。`,
     [refDataUrl],
-    FRAME_SIZE,
+    spec.frameSize,
   );
 }
 
@@ -565,7 +573,14 @@ export async function refineFrame(req: string, refDataUrl: string): Promise<stri
  * 返回新视频 URL 与真实尾帧（供展示/后续合并）。
  */
 export async function regenSegment(
-  seg: { plot: string; firstFrame: string; lastFrame: string; durationSec: number; videoTier?: string },
+  seg: {
+    plot: string;
+    firstFrame: string;
+    lastFrame: string;
+    durationSec: number;
+    videoTier?: string;
+    aspect?: VideoAspect;
+  },
   extraReq: string,
   onProgress?: (status: string) => void,
 ): Promise<{ url: string; lastFrame?: string }> {
@@ -575,6 +590,8 @@ export async function regenSegment(
     durationSec: seg.durationSec,
     lastFrameUrl: tier.flf ? await shrinkFrameFor720p(seg.lastFrame) : undefined,
     model: tier.model,
+    // 重拍必须沿用原画幅：这里漏了它，圈选改一次画面就把竖屏段悄悄拍成横屏
+    ratio: aspectOf(seg.aspect).ratio,
     onProgress: (s) => onProgress?.(`${tier.label}档 · ${s}`),
   });
   let lastFrame: string | undefined;
@@ -589,11 +606,12 @@ export async function regenSegment(
 
 /** 封面工坊：按用户要求出封面。refDataUrl 给了就是"改当前封面"（Seedream 图生图，
  *  2026-08-06 实测 base64 dataURL 参考图可用，约 27s）；不给就是文生图全新生成。 */
-export async function generateCover(req: string, refDataUrl?: string): Promise<string> {
+export async function generateCover(req: string, refDataUrl?: string, aspect?: VideoAspect): Promise<string> {
+  const spec = aspectOf(aspect);
   const prompt = refDataUrl
-    ? `在参考图的基础上修改这张视频封面：${req}。除要求之外保持主体、构图与整体风格不变。高细节，氛围光，无文字无水印。横版 16:9 画面。`
-    : `视频封面图：${req}。高细节，电影感构图，氛围光，无文字无水印。横版 16:9 画面。`;
-  return await genImageAsDataUrl(prompt, refDataUrl ? [refDataUrl] : undefined, FRAME_SIZE);
+    ? `在参考图的基础上修改这张视频封面：${req}。除要求之外保持主体、构图与整体风格不变。高细节，氛围光，无文字无水印。${spec.promptHint}。`
+    : `视频封面图：${req}。高细节，电影感构图，氛围光，无文字无水印。${spec.promptHint}。`;
+  return await genImageAsDataUrl(prompt, refDataUrl ? [refDataUrl] : undefined, spec.frameSize);
 }
 
 /** 单段合成结果：url 缺席时 error 说明原因；firstFrame/lastFrame 带回"真实"帧
@@ -609,6 +627,9 @@ export interface SegmentResult {
  * 帧压到 720p 再喂 Seedance：输出就是 720p，2560×1440 的 dataURL（1-1.5MB/张）
  * 白白撑大创建请求体——慢网上行时 2-3MB 的 POST 会超时挂死（2026-08-07 实测）。
  * 压后单帧 ~200KB，画质对 720p 输出无损失。非 dataURL / 压缩失败原样返回。
+ *
+ * ★ 按【长边】压而不是按宽度：竖屏帧是 1440×2560，按宽度限 1280 只会压到
+ *   1280×2276——比 720p 竖屏（720×1280）大三倍，等于这层优化对竖屏白做。
  */
 async function shrinkFrameFor720p(dataUrl: string): Promise<string> {
   if (!dataUrl.startsWith("data:image/")) return dataUrl;
@@ -619,10 +640,12 @@ async function shrinkFrameFor720p(dataUrl: string): Promise<string> {
       i.onerror = reject;
       i.src = dataUrl;
     });
-    if (img.width <= 1280) return dataUrl;
+    const long = Math.max(img.width, img.height);
+    if (long <= 1280) return dataUrl;
+    const k = 1280 / long;
     const c = document.createElement("canvas");
-    c.width = 1280;
-    c.height = Math.round((img.height * 1280) / img.width);
+    c.width = Math.round(img.width * k);
+    c.height = Math.round(img.height * k);
     c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
     return c.toDataURL("image/jpeg", 0.85);
   } catch {
@@ -706,6 +729,8 @@ export async function composeSegments(
     degraded?: boolean;
     /** 该段选用的 Seedance 档位（data/economy VIDEO_TIERS 的 id）；缺省=标准档 */
     videoTier?: string;
+    /** 该段画幅（竖/横）；缺省=横屏 */
+    aspect?: VideoAspect;
   }>,
   onProgress?: (done: number, total: number, status: string) => void,
 ): Promise<SegmentResult[]> {
@@ -725,10 +750,11 @@ export async function composeSegments(
     try {
       if (sg.degraded) {
         onProgress?.(i, segments.length, "首尾帧此前未出图，正在重画…");
-        const prompts = framePrompts(sg.plot, false);
+        const prompts = framePrompts(sg.plot, false, sg.aspect);
+        const frameSize = aspectOf(sg.aspect).frameSize;
         [first, last] = await Promise.all([
-          genImageAsDataUrl(prompts.first, undefined, FRAME_SIZE),
-          genImageAsDataUrl(prompts.last, undefined, FRAME_SIZE),
+          genImageAsDataUrl(prompts.first, undefined, frameSize),
+          genImageAsDataUrl(prompts.last, undefined, frameSize),
         ]);
         res.firstFrame = first;
         res.lastFrame = last;
@@ -747,6 +773,7 @@ export async function composeSegments(
         // 极速档（pro-fast）不支持首尾帧任务（实测 400 task_type flf2v）——只给首帧起拍
         lastFrameUrl: tier.flf ? await shrinkFrameFor720p(last) : undefined,
         model: tier.model,
+        ratio: aspectOf(sg.aspect).ratio,
         onProgress: (s) => onProgress?.(i, segments.length, `${tier.label}档 · ${s}`),
       });
       // 视频较大（数 MB），存 URL 而非 dataURL——localStorage 放不下 base64 视频；

@@ -21,7 +21,7 @@ import { create } from "zustand";
 import { AI_REAL, generateCover, generateProposals } from "../ai";
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { DEFAULT_TIER, fmtTokens, proposalRedrawCost, proposalsCost, segTokens } from "../data/economy";
-import { Card, Proposal, TemplateRecipe, VideoTemplate, uid } from "../types";
+import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
 import { generateSegment } from "./segmentGen";
 
@@ -61,6 +61,8 @@ export interface FlowNode {
   /** 本段素材卡快照（工坊带过来的） */
   materials?: Card[];
   videoTier: string;
+  /** 本段画幅（竖/横）。整片理应同一个画幅，所以新节点继承上一段的取值 */
+  aspect: VideoAspect;
   /** 首帧承接上一段的真实结尾（用户换过图就置 false，尊重用户） */
   chain: boolean;
   /** 各走向各自的成片：换走向不丢已经炼好的那条 */
@@ -146,6 +148,7 @@ export function newFlowNode(i: number, patch: Partial<FlowNode> = {}): FlowNode 
     chosenId: p.id,
     requirement: "",
     videoTier: DEFAULT_TIER,
+    aspect: DEFAULT_ASPECT,
     chain: i > 0,
     videoByProposal: {},
     status: "idle",
@@ -298,6 +301,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
           chain: i > 0,
           materials: t.cards.length ? t.cards : undefined,
           videoTier: t.recipe.videoTier,
+          // 配方没写画幅 = 画幅可选之前存的老模板，那时一律 16:9
+          aspect: t.recipe.aspect ?? "landscape",
         }),
       ),
       cursor: 0,
@@ -415,6 +420,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
           prevFrameSeed: prev ? `${prev.id}#last` : null,
           // 段间衔接：承接上一段已选走向的尾帧
           startFrame: node.chain && prev ? prev.lastFrame || null : null,
+          aspect: node.aspect,
           pathPlots: get()
             .nodes.slice(0, idx)
             .map((n) => chosenOf(n).plot)
@@ -502,13 +508,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
     set({ busy: true, err: "" });
     get().updateNode(nodeId, { status: "generating", progress: "按修改重画画面…", regenning: true });
     try {
+      // ★ 必须把本段画幅递下去：Seedream 的画布比例得与视频画幅一致，缺了它重画出来的
+      //   帧是横的，喂给竖屏 Seedance 任务会被静默裁一刀（人物常被裁掉半个头）。
+      //   见 CLAUDE.md「改了画幅却发现出片还是横的」那一条
       let first = prop.firstFrame;
-      if (!keepFirst) first = await generateCover(prop.plot.slice(0, 200));
+      if (!keepFirst) first = await generateCover(prop.plot.slice(0, 200), undefined, node.aspect);
       let last = prop.lastFrame;
       if (!keepLast) {
         get().updateNode(nodeId, { progress: "重画结束画面…" });
         // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味
-        last = await generateCover(`${prop.plot.slice(0, 180)} 的结束瞬间`, first || undefined);
+        last = await generateCover(`${prop.plot.slice(0, 180)} 的结束瞬间`, first || undefined, node.aspect);
       }
       if (AI_REAL) spendTokens(cost); // 出图成功才扣，与 refineProposalFrame 同口径
       get().updateProposal(nodeId, { firstFrame: first, lastFrame: last, degraded: undefined });
@@ -529,7 +538,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 顺序门禁：只能在末尾追加，且上一段必须已出片
       if (prev && !nodeDone(prev)) return { err: "先把这一段炼出来，再加下一段" };
       const i = s.nodes.length;
-      const node = newFlowNode(i, { chain: !!prev, videoTier: prev?.videoTier ?? DEFAULT_TIER });
+      // 画幅跟着上一段：一部片里前三段竖、第四段横，剪辑页合并只有一块画布，
+      // 那一段必然被裁或补边
+      const node = newFlowNode(i, {
+        chain: !!prev,
+        videoTier: prev?.videoTier ?? DEFAULT_TIER,
+        aspect: prev?.aspect ?? DEFAULT_ASPECT,
+      });
       if (prev) node.proposals[0].durationSec = chosenOf(prev).durationSec;
       return { nodes: [...s.nodes, node], cursor: i, err: "" };
     }),
@@ -633,6 +648,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
           lastFrame: prop.lastFrame,
           durationSec: prop.durationSec,
           videoTier: node.videoTier,
+          aspect: node.aspect,
           anns: node.anns,
           carryFrame: carry,
           framePrompt: tplFrame ? fillSubject(tplFrame, get().subject) : undefined,
