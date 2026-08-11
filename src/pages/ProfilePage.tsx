@@ -357,8 +357,14 @@ export default function ProfilePage() {
           )
         )}
 
-        {/* token 钱包：生成视频/解锁付费内容的通货。套餐额度优先扣，add-on 直充/创作收益不过期 */}
-        {wallet && (
+        {/* token 钱包：生成视频/解锁付费内容的通货。套餐额度优先扣，add-on 直充/创作收益不过期。
+            ★ 入口按 `self` 显示而**不是** `wallet &&`：远端模式下 walletOf() 在
+              /api/me/wallet 那一发请求失败时就一直是 null（refreshRemoteWallet 把错误吞进
+              无人监听的 emitApiError），于是弱网下冷启动一次失败 = 整个会话看不到余额、
+              也点不到充值，界面上还看不出出过错。而唯一的重试入口恰恰在抽屉里，
+              抽屉又因为 wallet 为 null 挂载不了——死锁。
+              现在余额读不到时按钮照样在，点开就会重新拉一次（WalletSheet 的 effect）。 */}
+        {self && (
           <button
             onClick={() => setWalletOpen(true)}
             className="mt-4 flex w-full items-center gap-3 rounded-xl border border-slate-700/60 bg-panel px-3.5 py-2.5 text-left"
@@ -366,11 +372,24 @@ export default function ProfilePage() {
             <span className="text-xl">⚡</span>
             <div className="min-w-0 flex-1">
               <div className="text-sm font-bold tabular-nums text-slate-100">
-                {fmtTokens(wallet.plan + wallet.addon)} <span className="text-xs font-normal text-slate-500">token</span>
+                {wallet ? (
+                  <>
+                    {fmtTokens(wallet.plan + wallet.addon)}{" "}
+                    <span className="text-xs font-normal text-slate-500">token</span>
+                  </>
+                ) : (
+                  "余额读取中…"
+                )}
               </div>
               <div className="text-[11px] text-slate-500">
-                套餐 {fmtTokens(wallet.plan)} · 直充 {fmtTokens(wallet.addon)} ·{" "}
-                {PLANS.find((p) => p.id === wallet.planId)?.name ?? "免费版"}
+                {wallet ? (
+                  <>
+                    套餐 {fmtTokens(wallet.plan)} · 直充 {fmtTokens(wallet.addon)} ·{" "}
+                    {PLANS.find((p) => p.id === wallet.planId)?.name ?? "免费版"}
+                  </>
+                ) : (
+                  "点开重试"
+                )}
               </div>
             </div>
             <span className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink">充值 / 套餐</span>
@@ -519,7 +538,7 @@ export default function ProfilePage() {
       </div>
 
       {pickDraft && <DraftSheet meta={pickDraft} onClose={() => setPickDraft(null)} />}
-      {walletOpen && wallet && <WalletSheet onClose={() => setWalletOpen(false)} />}
+      {walletOpen && <WalletSheet onClose={() => setWalletOpen(false)} />}
       {followListOpen && user && (
         <FollowingSheet names={user.following} videos={videos} onClose={() => setFollowListOpen(false)} />
       )}

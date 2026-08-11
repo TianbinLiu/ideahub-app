@@ -490,6 +490,11 @@ export async function rechargeAddon(tokens: number): Promise<RechargeResult> {
       return { ok: false, credited: false, message: e instanceof Error ? e.message : "下单失败" };
     }
   }
+  // ★ 「配了服务端、但这次启动没连上」**不等于**「这是个没有真钱的离线演示包」。
+  //   这台机器的钱包权威值在服务端，这里直接加数只会得到一个联网后必然蒸发的假余额，
+  //   而 UI 会照实显示绿色「已到账」——用户以为充上了，重启发现钱没了（铁律八）。
+  //   只有真正没配 VITE_API_BASE 的离线包才允许走下面的本地加数。
+  if (API_ON) return { ok: false, credited: false, message: "当前未连接服务器，暂时无法充值，请联网后重试" };
   const u = currentUser();
   if (!u || !db || tokens <= 0) return { ok: false, credited: false, message: "请先登录" };
   ensureWallet(u).addon += tokens;
@@ -517,6 +522,11 @@ export async function buyPlan(planId: string): Promise<RechargeResult> {
       return { ok: false, credited: false, message: e instanceof Error ? e.message : "下单失败" };
     }
   }
+  // ★ 「配了服务端、但这次启动没连上」**不等于**「这是个没有真钱的离线演示包」。
+  //   这台机器的钱包权威值在服务端，这里直接加数只会得到一个联网后必然蒸发的假余额，
+  //   而 UI 会照实显示绿色「已到账」——用户以为充上了，重启发现钱没了（铁律八）。
+  //   只有真正没配 VITE_API_BASE 的离线包才允许走下面的本地加数。
+  if (API_ON) return { ok: false, credited: false, message: "当前未连接服务器，暂时无法订阅，请联网后重试" };
   const u = currentUser();
   if (!u || !db) return { ok: false, credited: false, message: "请先登录" };
   ensureWallet(u).plan += plan.monthlyTokens;

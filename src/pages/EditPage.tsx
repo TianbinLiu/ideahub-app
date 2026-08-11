@@ -14,6 +14,7 @@ import { CoverSection } from "../components/CoverPicker";
 import Icon from "../components/Icon";
 import VisibilityPicker from "../components/VisibilityPicker";
 import { deleteVideoItem, getVideo, isMyAuthor, partsOf, updateVideoMeta } from "../data/videos";
+import { coverToPermanentUrl } from "../data/publishAssets";
 import { useVideosVersion } from "../hooks/useVideos";
 import { VIDEO_CATEGORIES, formatDuration } from "../types";
 
@@ -30,6 +31,8 @@ export default function EditPage() {
   const [cover, setCover] = useState(video?.cover ?? "");
   const [visibility, setVisibility] = useState<"public" | "private">(video?.visibility ?? "public");
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const [confirmDel, setConfirmDel] = useState(false);
 
@@ -70,21 +73,48 @@ export default function EditPage() {
     );
   }
 
-  function save() {
+  /**
+   * 保存。
+   *
+   * ★★ 换封面必须**先把图传成永久 URL 再保存**。
+   *   CoverSection 吐出来的是 dataURL（截帧 / 本地上传 / AI 生成都是），几百 KB 到 1MB。
+   *   直接塞进 PATCH 会撞上网关 1MB 的请求体上限，而且撞了只表现成 fetch failed；
+   *   服务端那边也明确只收 http(s) URL。走和发布同一条路（publishAssets），不另写一套。
+   *
+   * ★ 传失败/存失败就**不许显示「✓ 已保存」**。原来这里是无条件 setSaved(true)，
+   *   于是远端模式下换封面永远显示保存成功、实际一次都没存上，重启就变回去
+   *   ——AI 封面还是真花了 token 的（铁律八）。
+   */
+  async function save() {
     if (!video) return;
     if (!title.trim()) {
       setErr("标题不能为空");
       return;
     }
-    updateVideoMeta(video.id, {
-      title: title.trim(),
-      category,
-      description: description.trim(),
-      cover,
-      visibility,
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1800);
+    setSaving(true);
+    setErr("");
+    try {
+      let coverUrl = cover;
+      if (cover && cover.startsWith("data:")) {
+        setBusy("正在上传封面…");
+        coverUrl = await coverToPermanentUrl(cover);
+        setCover(coverUrl); // 回填，避免用户再点一次又传一遍
+      }
+      updateVideoMeta(video.id, {
+        title: title.trim(),
+        category,
+        description: description.trim(),
+        cover: coverUrl,
+        visibility,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1800);
+    } catch (e) {
+      setErr(e instanceof Error ? `封面上传失败：${e.message}` : "保存失败，请重试");
+    } finally {
+      setBusy("");
+      setSaving(false);
+    }
   }
 
   function remove() {
@@ -197,9 +227,14 @@ export default function EditPage() {
           <VisibilityPicker value={visibility} onChange={setVisibility} />
 
           <div className="flex items-center gap-3 pt-2">
-            <button onClick={save} className="rounded-xl bg-brand px-6 py-2.5 font-bold text-ink hover:brightness-110">
-              保存修改
+            <button
+              onClick={() => void save()}
+              disabled={saving}
+              className="rounded-xl bg-brand px-6 py-2.5 font-bold text-ink hover:brightness-110 disabled:opacity-50"
+            >
+              {saving ? "保存中…" : "保存修改"}
             </button>
+            {busy && <span className="text-sm text-slate-400">{busy}</span>}
             {saved && <span className="text-sm text-emerald-300">✓ 已保存</span>}
           </div>
 

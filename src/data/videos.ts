@@ -14,7 +14,7 @@ import { DraftVideo, VideoComment, VideoItem, VideoPart, uid } from "../types";
 import { makeFrame } from "../mock/frames";
 import { idbGet, idbSet } from "./db";
 import { materializeDraft, type MaterializeError } from "./publishAssets";
-import { currentUser } from "./account";
+import { currentUser, subscribeAccount } from "./account";
 import { API_ON, emitApiError } from "../api/client";
 import * as branch from "../api/branch";
 
@@ -153,6 +153,44 @@ function buildSeeds(): VideoItem[] {
   });
 }
 
+// ── 换人就换库 ───────────────────────────────────────────
+//
+// ★★ 这段是**隐私边界**，不是性能优化。
+//   服务端的列表是按「公开的 + 你自己的」算出来的（见 api-contract.md 的可见性一节），
+//   所以 cache 里可能躺着**当前这个账号的私密作品**。而 cache 是模块级单例、
+//   readyVideos 又是 `if (cache) return`，登出/换号都不会重来一次 ——
+//   于是 A 退出、B 登录之后，B 的首页里会出现 A 的私密作品，点开还能播
+//   （segments 已经是 Cloudinary 永久 URL，不用再问服务端要）。
+//   反过来也错：B 自己的私密作品此时反而不在 cache 里，他会觉得作品丢了。
+//
+// ★ 为什么放在 videos.ts 而不是在 signOut 里调：`videos → account` 这个方向已经存在
+//   （上面 import 了 currentUser），反过来再 import 回去就是两个 data 模块互相 import，
+//   Vite 下会拿到半初始化的模块（CLAUDE.md 里对 store 写过同一条，data 层同理）。
+//   所以由**本模块**订阅账号变更，依赖方向保持单向。
+let cacheOwner: string | null = null;
+
+function ownerKey(): string {
+  const u = currentUser();
+  return u ? `${u.id}` : "";
+}
+
+if (typeof window !== "undefined") {
+  subscribeAccount(() => {
+    const now = ownerKey();
+    if (cacheOwner === null || now === cacheOwner) return; // 还没装载过，或还是同一个人
+    // 换人了：把上一个人的东西全部忘掉，并立刻重新装载
+    cache = null;
+    cacheOwner = null;
+    nextCursor = null;
+    detailed.clear();
+    likedIds.clear();
+    idAlias.clear();
+    remoteLive = false;
+    emitVideos();
+    void readyVideos();
+  });
+}
+
 /**
  * 启动装载。远端模式先拉服务端；拉不动（断网/服务端没起）就退回本地库，
  * 让用户至少还能看见种子和自己的离线作品，而不是白屏。
@@ -171,6 +209,7 @@ export async function readyVideos(): Promise<void> {
       await readyLocal();
     })().finally(() => {
       readyPromise = null;
+      cacheOwner = ownerKey(); // 记下这份 cache 是给谁装的，换人时才知道要清
     });
   }
   await readyPromise;
@@ -303,11 +342,18 @@ export function partsOf(v: VideoItem): VideoPart[] {
   return [{ name: "P1", segments: v.segments, branchTree: v.branchTree }];
 }
 
-/** 作品元信息编辑（标题/分类/简介/封面/可见性）。远端模式乐观更新 + 后台 PATCH，
- *  服务端未实现该端点时 toast 报错、本地值保留到下次刷新——诚实降级而非静默丢失。
+/** 作品元信息编辑（标题/分类/简介/封面/可见性）。远端模式乐观更新 + 后台 PATCH。
  *
- *  ★ 发上去的**只有服务端认的那四个字段**。cover / deck / pricing 会被服务端 strip，
- *    整包发过去不会报错、只是那几项静默不生效；挑出来发，至少能对得上"发了什么、存了什么"。 */
+ *  ★★ 失败要**把乐观值改回去**，不能只 emitApiError 就算了。
+ *    这条最要命的是可见性：用户点「仅自己可见」→ 本地立刻显示私密 → PATCH 因为
+ *    电梯里超时/token 刚过期/服务端 5xx 挂了 → 服务端上这支作品**仍然是公开的**，
+ *    还在所有人的首页和直链里，而用户看到的是"已经设为私密了"。
+ *    这是最坏的一种失败：用户以为自己藏起来了，其实没有（铁律八）。
+ *    回滚之后 UI 会自己弹回「公开」——和服务端一致，用户至少能看出没成功。
+ *
+ *  ★ 发上去的**只有服务端认的那四个字段**（title/category/description/visibility）。
+ *    deck / pricing 会被服务端 strip；cover 走另一条路（EditPage 先把它传成永久 URL
+ *    再随 patch 发，见下面的 remotePatch.cover）。 */
 export function updateVideoMeta(
   id: string,
   patch: Partial<
@@ -316,6 +362,14 @@ export function updateVideoMeta(
 ): VideoItem | null {
   const v = find(id);
   if (!v) return null;
+  // 回滚用的快照：只记这次真要发给服务端的那几项，别的（deck/pricing）本来就只在本地
+  const before: Partial<VideoItem> = {
+    title: v.title,
+    category: v.category,
+    description: v.description,
+    cover: v.cover,
+    visibility: v.visibility,
+  };
   Object.assign(v, patch);
   save(all());
   if (remoteOn()) {
@@ -324,12 +378,23 @@ export function updateVideoMeta(
     if (patch.category !== undefined) remotePatch.category = patch.category;
     if (patch.description !== undefined) remotePatch.description = patch.description;
     if (patch.visibility !== undefined) remotePatch.visibility = patch.visibility;
+    // 封面只在已经是永久 URL 时才发：dataURL 是 MB 级的，直接 PATCH 会撞上网关的
+    // 请求体上限（1MB），而且撞了也只是 fetch failed，看不出是因为太大
+    if (patch.cover !== undefined && /^https?:\/\//.test(patch.cover)) remotePatch.cover = patch.cover;
     // 空 patch 服务端会 400（"至少给一个字段"），别为纯本地字段白跑一趟
     if (Object.keys(remotePatch).length > 0) {
       void branch
         .updateVideo(realId(v.id), remotePatch)
-        .then(() => emitVideos())
-        .catch((e) => emitApiError("updateVideo", e));
+        .then((remote) => {
+          if (remote?.cover) v.cover = remote.cover;
+          emitVideos();
+        })
+        .catch((e) => {
+          Object.assign(v, before); // ★ 撤回，别让界面继续显示一个服务端根本不认的状态
+          save(all());
+          emitVideos();
+          emitApiError("updateVideo", e);
+        });
     }
   }
   emitVideos();
@@ -744,7 +809,16 @@ async function flushPending(): Promise<void> {
       });
       uploadStatus = null;
       const v = await branch.createVideo(sending);
-      if (v && cache) cache = [toVideoItem(v), ...cache];
+      // ★ 去重再塞：这条**很可能已经在 cache 里了**。
+      //   进队列的典型原因是"POST 超时但服务端其实已经落库"（server 的 clientId 幂等
+      //   就是为这个场景写的），重试时服务端认幂等键返回首次那条、状态码 200。
+      //   无条件 unshift 的话个人页会出现两张一模一样的作品卡，而它们是**同一个 _id**
+      //   ——用户删掉"多出来的那条"，deleteVideoItem 按 id 过滤，两条一起没，
+      //   服务端那条也真删了。表现就是"想删重复的，结果作品整个没了"。
+      if (v && cache) {
+        const item = toVideoItem(v);
+        cache = [item, ...cache.filter((x) => x.id !== item.id)];
+      }
     } catch (e) {
       uploadStatus = null;
       // ★ 不再是空 catch：原因要留住，用户和排查的人都靠它

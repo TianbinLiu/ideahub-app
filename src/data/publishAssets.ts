@@ -153,4 +153,16 @@ export function localAssetCount(draft: DraftVideo): number {
   return n;
 }
 
+/**
+ * 单张封面 dataURL → 永久 URL。作品编辑页换封面时用。
+ *
+ * ★ 与发布路径共用同一个 imageToUrl（铁律六）：换封面和发封面走两套上传逻辑的话，
+ *   尺寸上限、失败文案、以及"已经是 URL 就别重传"这三件事必然会分叉。
+ * ★ 失败直接抛，调用方**不许**在这种情况下显示"已保存"——服务端的 PATCH 只收
+ *   http(s) URL，dataURL 发过去要么被 schema 拒、要么撞网关 1MB 上限。
+ */
+export async function coverToPermanentUrl(cover: string): Promise<string> {
+  return imageToUrl(cover, "cover");
+}
+
 export { isPermanentUrl };
