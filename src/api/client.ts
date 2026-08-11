@@ -221,6 +221,19 @@ export function serverAlive(): Promise<boolean> {
   return probe;
 }
 
+/**
+ * 忘掉上一次探活结论，下次 serverAlive() 重新探。
+ *
+ * ★ 为什么需要：探活结论**整个会话只算一次**，这在"启动时确实连不上"的场景下是对的，
+ *   但它也意味着**开机那一刻没网 = 这一整次会话都是离线的**，哪怕两秒后网就回来了。
+ *   真机实测（2026-08-10）：飞行模式下冷启动，关掉飞行模式后等了 120 秒仍然是离线态、
+ *   用户仍然显示未登录 —— 因为没有任何东西会去重探。
+ *   给它一个显式的重置口，由 data/account 的联网自愈来调（见那边的 armOnlineRetry）。
+ */
+export function resetServerProbe(): void {
+  probe = null;
+}
+
 export function apiPost<T>(path: string, body?: unknown, opts?: RequestOptions): Promise<T> {
   return request<T>("POST", path, body, opts);
 }
