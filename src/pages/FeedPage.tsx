@@ -1,12 +1,13 @@
 // 首页：TikTok 式全屏上下滑视频流。每屏一支，进入视口自动播放、离开暂停。
 // 互动视频（带 branchTree）在流里播开场段，点"进入互动"跳详情页做分支选择。
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 // 收藏取两边之长：**状态**用账号库（挂在用户对象上，刷新/换账号都还在），
 // **计数**用 videos 的 saves（TikTok 版式右栏要显示数字）。
 // videos 那套的 savedIds 是模块级 Set，刷新即丢，单用它收藏态会莫名消失；
 // 账号库那套又不维护计数，单用它右栏没数字可显示。
-import { addPlay, isLiked, isMyAuthor, listVideos, setLike, setSave } from "../data/videos";
+import { PLAY_MIN_SEC, addPlay, hasCountedPlay, isLiked, isMyAuthor, listVideos, setLike, setSave } from "../data/videos";
+import { danmakuNeedsLogin, danmakuOn, subscribeDanmaku } from "../data/danmaku";
 import { hasPurchased, isCollected, isFollowing, toggleCollect, toggleFollow } from "../data/account";
 import { fmtTokens } from "../data/economy";
 import { useCurrentUser } from "../hooks/useAccount";
@@ -14,6 +15,9 @@ import { requestLandscape } from "../hooks/useOrientationLock";
 import { useVideosVersion } from "../hooks/useVideos";
 import Avatar from "../components/Avatar";
 import CommentSheet from "../components/CommentSheet";
+import DanmakuGlyph from "../components/DanmakuGlyph";
+import DanmakuInput from "../components/DanmakuInput";
+import DanmakuLayer from "../components/DanmakuLayer";
 import Icon, { type IconName } from "../components/Icon";
 import CharacterPerch, { usePerchBurst, type PerchPose } from "../components/CharacterPerch";
 import { VideoAspect, VideoItem, aspectFromSize, aspectOf, formatDuration } from "../types";
@@ -41,6 +45,7 @@ function fitOf(a: VideoAspect): "contain" | "cover" {
  *  （实心红心/金书签已经说过了）。 */
 function RailBtn({
   icon,
+  glyph,
   filled,
   tint,
   label,
@@ -48,7 +53,10 @@ function RailBtn({
   className = "",
   onClick,
 }: {
-  icon: IconName;
+  icon?: IconName;
+  /** icon 的替代：自带排版的标记（发弹幕那个「弹」字方框，见 DanmakuGlyph）。
+   *  它的主体是汉字，做不成 Icon 那种 stroke 描边的 path —— 描边汉字在 28px 上糊成一团 */
+  glyph?: ReactNode;
   filled?: boolean;
   tint?: string;
   label?: string;
@@ -63,7 +71,19 @@ function RailBtn({
   return (
     <button
       onClick={onClick}
-      className={`flex min-h-[56px] w-14 flex-col items-center justify-center gap-1 transition active:scale-90 ${className}`}
+      /* ★ mt-8 挂在【有角色演出的键】自己身上，而不是整栏一个大 gap。
+         激活态的角色会从图标顶沿向上探出约 45px，压住**上一个键的计数数字**
+         （实测收藏后评论数「3」整个消失，计数是信息，装饰盖掉信息就是回退）。
+         需要的净空是 40px：整栏 gap-2（8px）+ 这里的 mt-8（32px）正好。
+         取值靠量：净空 36px 时仍有 1px 重叠，40px 后归零；换角色贴图要重新量。
+
+         为什么不像原来那样整栏 gap-10 一刀切：加上发弹幕键之后，一刀切要 608px，
+         而现在这样是 512px（都是量出来的）。整栏底沿在 104px，608 那一版在
+         640 高的小屏上会顶出屏幕，**被 section 的 overflow-hidden 把头像裁掉**。
+         只有会探头的两个键需要让位，其余四个不需要。 */
+      className={`flex min-h-[56px] w-14 flex-col items-center justify-center gap-1 transition active:scale-90 ${
+        perch ? "mt-8" : ""
+      } ${className}`}
     >
       {/* relative 容器只包图标：角色要相对【图标】定位，包住文字的话会偏高。
           isolate：角色用负 z-index 沉到图标下面，必须有独立层叠上下文兜住，
@@ -71,13 +91,22 @@ function RailBtn({
       <span className="relative isolate flex items-center justify-center">
         {/* key={perchOn}：连点两下时若不换 key，元素不重挂载，CSS 动画不会重播 */}
         {perch && perchOn > 0 && <CharacterPerch key={perchOn} pose={perch} size={28} />}
-        <Icon
-          name={icon}
-          size={28}
-          filled={filled}
-          className={filled && tint ? tint : "text-white"}
-          style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,.55))" }}
-        />
+        {glyph ? (
+          <span
+            className={`flex h-7 items-center justify-center ${filled && tint ? tint : "text-white"}`}
+            style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,.55))" }}
+          >
+            {glyph}
+          </span>
+        ) : (
+          <Icon
+            name={icon!}
+            size={28}
+            filled={filled}
+            className={filled && tint ? tint : "text-white"}
+            style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,.55))" }}
+          />
+        )}
       </span>
       {label !== undefined && (
         <span className="text-[11px] tabular-nums text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">{label}</span>
@@ -111,6 +140,10 @@ function FeedItem({
   const [saved, setSaved] = useState(() => isCollected(video.id));
   const [saves, setSaves] = useState(video.saves ?? 0);
   const [cmtOpen, setCmtOpen] = useState(false);
+  const [dmOpen, setDmOpen] = useState(false);
+  // 弹幕总开关是**用户级**偏好，不跟作品走：在这一条上关掉，划到下一条也该是关的。
+  // 订阅而不是 useState(danmakuOn())，否则同屏三个 FeedItem 的开关会各说各话
+  const dmOn = useSyncExternalStore(subscribeDanmaku, danmakuOn, () => true);
   const [following, setFollowing] = useState(() => isFollowing(video.author));
   const [paused, setPaused] = useState(false);
   const [burst, setBurst] = useState<{ x: number; y: number; k: number } | null>(null);
@@ -184,6 +217,19 @@ function FeedItem({
     }
     setScrub(null);
   }
+  /**
+   * 播放量：**真看够 PLAY_MIN_SEC 秒**才记，而且一次会话只记一次（去重在 videos.ts）。
+   *
+   * ★ 原来是「这一屏成了当前屏」就 addPlay，两头都不对：
+   *   ① 首页是甩着刷的，一划掠过三四屏，每屏都会短暂成为当前屏 —— 一趟甩下来
+   *      给四条作品各记一次播放，而用户一条都没看清；
+   *   ② FeedItem 划出两屏就卸载，划回来重挂载又是新的 countedRef ——
+   *      上下蹭十趟播放量就涨十次，作者页那个「播放」数字直接失真。
+   * ★ 累计用的是 **currentTime 的增量**而不是墙上时钟：暂停、切后台、缓冲的时候
+   *   currentTime 不走，那些时间本来就不该算成"看过"。单次增量夹到 1 秒以内，
+   *   拖进度条跳过去的那一大段不会被当成看过了。
+   */
+  const watchRef = useRef({ prev: 0, sum: 0 });
   const countedRef = useRef(false);
   const tapRef = useRef<{ x: number; y: number; t: number; last: number }>({ x: 0, y: 0, t: 0, last: 0 });
   const user = useCurrentUser();
@@ -225,10 +271,10 @@ function FeedItem({
     if (active) {
       setPaused(false);
       void v.play().catch(() => {});
-      if (!countedRef.current) {
-        countedRef.current = true;
-        addPlay(video.id);
-      }
+      // 这一屏重新开始计时。本会话已经记过的就不用再数了（去重的权威在 videos.ts，
+      // 这里问一句只是为了省掉后面每帧的累加）
+      watchRef.current = { prev: v.currentTime, sum: 0 };
+      countedRef.current = hasCountedPlay(video.id);
     } else {
       v.pause();
       v.currentTime = 0;
@@ -370,7 +416,20 @@ function FeedItem({
             // 段间切换的新元素要接着播（autoPlay 属性在解除静音后可能被拦，走显式 play）
             if (active && !paused) void e.currentTarget.play().catch(() => {});
           }}
-          onTimeUpdate={(e) => setProg({ t: e.currentTarget.currentTime, d: e.currentTarget.duration || 0 })}
+          onTimeUpdate={(e) => {
+            const t = e.currentTarget.currentTime;
+            setProg({ t, d: e.currentTarget.duration || 0 });
+            if (countedRef.current || !active) return;
+            // 单次增量夹在 [0,1]：拖进度条一跳几十秒、或者切段后 currentTime 归零，
+            // 都不该被算成"看过了"
+            const w = watchRef.current;
+            w.sum += Math.min(1, Math.max(0, t - w.prev));
+            w.prev = t;
+            if (w.sum >= PLAY_MIN_SEC) {
+              countedRef.current = true;
+              addPlay(video.id);
+            }
+          }}
         />
       ) : (
         <img src={video.cover} alt={video.title} className="absolute inset-0 h-full w-full" style={{ objectFit: fit }} />
@@ -383,6 +442,19 @@ function FeedItem({
           <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/55 to-transparent" />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black/80 via-black/35 to-transparent" />
         </>
+      )}
+
+      {/* 弹幕层。挂在画面上、排在右侧栏**前面**：两者同为 z-10，同层级下后来者居上，
+          反过来的话弹幕会盖住点赞/收藏那一列（它自己是 pointer-events-none，
+          挡不住点击，但视觉上压着一列图标一样难受）。
+          沉浸态下顶上没有页签了，轨道可以往上提一截。 */}
+      {active && dmOn && !locked && (
+        <DanmakuLayer
+          videoId={video.id}
+          time={durBefore + prog.t}
+          paused={paused}
+          top={`calc(env(safe-area-inset-top, 0px) + ${immersive ? 20 : 62}px)`}
+        />
       )}
 
       {/* 缓冲提示（元数据未就绪、还没有进度条时的独立形态）：底缘细线从中心拉宽淡出 */}
@@ -473,17 +545,23 @@ function FeedItem({
           pointer 事件在这里截住：点操作键不该同时触发画面的暂停/解静音/双击点赞 */}
       <div
         className={`absolute right-2 z-10 flex flex-col items-center ${immersive ? "hidden" : ""}`}
-        style={{ bottom: "calc(var(--tabbar-h) + 1.25rem)" }}
+        /* ★ 3rem 是量出来的，不是估的。底缘那一串东西的位置是死的：
+             进度条容器 bottom = var(--tabbar-h) - 0.375rem（离屏幕底 50px），
+             容器里自上而下是「时长文字 14px + 2px + 进度条 20px」——
+             也就是说**时长文字的顶沿在离屏幕底 86px 处**。
+             原值 1.25rem 让整栏底沿落在 76px，全屏键（min-h 56px）正好压在
+             76–86px 这一段上，把时长的右半截盖掉了（用户报的就是这个）。
+             取 3rem → 底沿 104px，比时长文字顶沿再高 18px，留出一指的空气。
+             改进度条的排版时这两个数要一起重新算。 */
+        style={{ bottom: "calc(var(--tabbar-h) + 3rem)" }}
         onPointerDown={(e) => e.stopPropagation()}
         onPointerUp={(e) => e.stopPropagation()}
       >
         <div
-          /* gap-10 而不是更紧凑的 gap-4：激活态的角色会从图标顶沿向上探出约 45px，
-             gap-4（16px）时它正好压住【上一个按钮的计数数字】——实测收藏后评论数「3」
-             整个消失。计数是信息，装饰盖掉信息就是回退。
-             取值靠量：gap-9（36px）时仍有 1px 重叠，gap-10（40px）后归零。
-             换角色贴图（改高度）时要重新量一遍，别照抄这个数。 */
-          className="flex flex-col items-center gap-10"
+          /* gap-2 是**基准**净空；会探头的键（点赞/收藏）自己再加 mt-8 补到 40px，
+             见 RailBtn 里的说明。按键本身 min-h 56px、内容只有 46px，
+             所以 8px 的 gap 读出来其实是 18px 的空气，不挤。 */
+          className="flex flex-col items-center gap-2"
         >
           {/* 头像 + 关注：未关注时下挂一个 + 号，点了变对勾后淡出（TikTok 同款反馈）。
               点头像去【作者主页】而不是作品详情页——这是 TikTok/抖音的通用心智，
@@ -509,6 +587,23 @@ function FeedItem({
             )}
           </div>
 
+          {/* 发弹幕：排在点赞上面（B 站同位）。它是"参与"而不是"表态"，
+              和下面四个计数键不是一类，所以不显示数字，只写字。
+              弹幕显示关掉时这里划一道斜杠——不然用户会以为发出去的弹幕没生效 */}
+          <RailBtn
+            glyph={<DanmakuGlyph size={26} off={!dmOn} />}
+            label="发弹幕"
+            onClick={() => {
+              // ★ 在这儿挡住未登录，而不是让 POST 去吃 401：client.ts 收到 401 会把用户
+              //   **直接登出**，"我只是想发条弹幕，怎么账号退了"是最莫名其妙的一种失败。
+              //   （与上面收藏键同一条处理。）
+              if (danmakuNeedsLogin()) {
+                navigate("/login?next=/");
+                return;
+              }
+              setDmOpen(true);
+            }}
+          />
           <RailBtn icon="heart" filled={liked} tint="text-rose-500" label={String(likes)} perch="like" onClick={toggleLike} />
           {/* 评论就地滑出抽屉（对标短视频 App），不跳详情页打断刷视频的节奏 */}
           <RailBtn icon="comment" label={String(video.comments.length)} onClick={() => setCmtOpen(true)} />
@@ -533,9 +628,9 @@ function FeedItem({
           <RailBtn icon="share" label={String(video.shares ?? 0)} onClick={share} />
         </div>
 
-        {/* 全屏键挂在整栏最下面：它没有角色演出、也没有计数，用不着上面那 40px 的避让
-            （gap-10 是为了不让角色盖住上一个按钮的数字，见上）。整栏是 bottom 定位的
-            flex-col，多出这一枚，上面五个自然被顶上去——正是它腾出来的位置。
+        {/* 全屏键挂在整栏最下面：它不属于"对这条作品做点什么"那一组，
+            所以比组内间距再多留一截（mt-6 = 24px，是组内基准 8px 的三倍）把它分出去。
+            整栏是 bottom 定位的 flex-col，多出这一枚，上面几个自然被顶上去。
             两种画幅点下去做的事不同，字也就不同：横屏转屏占满，竖屏收起边角元素。 */}
         <RailBtn
           icon="expand"
@@ -546,6 +641,15 @@ function FeedItem({
       </div>
 
       {cmtOpen && <CommentSheet video={video} onClose={() => setCmtOpen(false)} />}
+      {/* 发弹幕时视频**不暂停**：弹幕的意思就是"此刻"，停下来发就名不副实了。
+          附在哪一秒由输入条按下发送时现取（getTime），不是打开时定死的 */}
+      {dmOpen && (
+        <DanmakuInput
+          videoId={video.id}
+          getTime={() => durBefore + (videoRef.current?.currentTime ?? prog.t)}
+          onClose={() => setDmOpen(false)}
+        />
+      )}
 
       {/* 左下信息：作者名 + 标题 + 简介。
           按 TikTok 精简掉了三样——头像/关注（移到右侧栏顶部）、#分类胶囊、▶播放量。

@@ -1,0 +1,50 @@
+[
+  {
+    "key": "smile",
+    "label": "微笑",
+    "src": "/avatars/mascot-smile.webp",
+    "bytes": 11898
+  },
+  {
+    "key": "focus",
+    "label": "认真",
+    "src": "/avatars/mascot-focus.webp",
+    "bytes": 13724
+  },
+  {
+    "key": "hi",
+    "label": "打招呼",
+    "src": "/avatars/mascot-hi.webp",
+    "bytes": 12476
+  },
+  {
+    "key": "laugh",
+    "label": "大笑",
+    "src": "/avatars/mascot-laugh.webp",
+    "bytes": 11466
+  },
+  {
+    "key": "wonder",
+    "label": "好奇",
+    "src": "/avatars/mascot-wonder.webp",
+    "bytes": 14626
+  },
+  {
+    "key": "cheer",
+    "label": "欢呼",
+    "src": "/avatars/mascot-cheer.webp",
+    "bytes": 12676
+  },
+  {
+    "key": "joy",
+    "label": "庆祝",
+    "src": "/avatars/mascot-joy.webp",
+    "bytes": 12394
+  },
+  {
+    "key": "nap",
+    "label": "打盹",
+    "src": "/avatars/mascot-nap.webp",
+    "bytes": 11566
+  }
+]

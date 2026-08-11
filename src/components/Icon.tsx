@@ -32,7 +32,9 @@ export type IconName =
   | "check"
   | "branch"
   | "expand"
-  | "shrink";
+  | "shrink"
+  | "pen"
+  | "send";
 
 /** 描边版（默认）。值是 <svg> 的内容，静态字面量，无外部输入。 */
 const OUTLINE: Record<IconName, string> = {
@@ -72,6 +74,10 @@ const OUTLINE: Record<IconName, string> = {
     '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
   shrink:
     '<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>',
+  // 铅笔（弹幕键上那支小笔）
+  pen: '<path d="M21.17 6.81a1 1 0 0 0-3.98-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.63l4.35-1.33a2 2 0 0 0 .83-.5z"/><path d="m15 5 4 4"/>',
+  // 纸飞机（发弹幕的发送键）
+  send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
 };
 
 /**
