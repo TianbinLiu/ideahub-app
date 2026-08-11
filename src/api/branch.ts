@@ -19,22 +19,42 @@ export interface ApiAuthor {
 /**
  * 评论正文里**真的解析到人**的一个 @提及。
  *
- * ★★ 服务端只回**解析成功**的那些：`@张三` 打错了、那个人不存在，就不在这张表里。
- *   客户端据此只把命中的那几个渲染成链接，没命中的原样留成灰字 —— 这是**故意**的
- *   反静默失败设计（铁律八）：用户一眼就能看出自己那一 @ 到底有没有落地。
- *   所以客户端**绝不能**自己拿正则再扫一遍正文去补链接 —— 那等于把服务端没认出来的
- *   人也画成链接，用户以为通知发出去了，实际没有。
- * ★ 令牌是 **@username** 不是 @displayName：`username` 唯一且不可改，`displayName`
- *   可空、不唯一、随时能改（renameMyVideos 那个坑就是身份挂在会变的字段上导致的）。
+ * ★★ 服务端只回**核对通过**的那些：`@张三` 打错了、那个人不存在、或者客户端报上来的
+ *   span 与正文对不上，就不在这张表里。客户端据此只把命中的那几个渲染成链接，
+ *   没命中的原样留成灰字 —— 这是**故意**的反静默失败设计（铁律八）：用户一眼就能
+ *   看出自己那一 @ 到底有没有落地。所以客户端**绝不能**自己拿正则再扫一遍正文去补链接。
+ * ★★ 身份是 **userId**，显示是**当前** displayName（服务端现查，不是发评论那一刻的快照）。
+ *   `token`/正文里那段名字只是"当时打出来的字面"，不承担身份 —— 详见 utils/mention.ts 顶部。
  */
 export interface ApiCommentMention {
-  /** 正文里出现的原始令牌（可能带 @，也可能只有裸 username，调用方两种都要认） */
+  /** 正文里出现的原始令牌（可能带 @，也可能只有裸 username，调用方两种都要认）。
+   *  ★ 只在没有 offset/length 时用来定位（老服务端 / 手打 `@username` 的兜底路径）。 */
   token?: string;
   /** 被提及者的用户 id */
   userId: string;
   username: string;
   /** 展示名；老服务端/没设过的人会缺，UI 退回 username */
   displayName?: string;
+  /** 正文里那一段的位置：offset = `@` 的下标，length = 名字长度（不含 `@`）。
+   *  ★ 后加字段，老服务端不返回 —— 调用方判「两个都是 number」，缺了退回 token 定位。 */
+  offset?: number;
+  length?: number;
+}
+
+/**
+ * 发评论时报上去的「这一段是谁」。
+ *
+ * ★★ 服务端**不盲信**这份名单（盲信 = 谁都能给任意人发通知），而是逐条核对
+ *   `text[offset] === '@'` 且 `text.slice(offset+1, offset+1+length)` 等于该用户
+ *   当前的 displayName/username。核不过的**那一条**被丢掉，不是整条评论 400。
+ * ★ 老服务端的 zod 会把这个键整个 strip 掉 —— 不报错、也不 400，只是那些 @ 全部
+ *   落不了地。调用方必须自己比对回包里的 mentions 有没有认下来（见 data/videos.addReply），
+ *   否则就是"发出去了、对方永远收不到"的静默失败（铁律七 + 铁律八）。
+ */
+export interface MentionSpanPayload {
+  userId: string;
+  offset: number;
+  length: number;
 }
 
 export interface ApiComment {
@@ -357,13 +377,51 @@ export async function listComments(id: string): Promise<ApiComment[]> {
  *   门禁在 data/videos.ts 的 addReply 一处（铁律六）。
  * ★ 老服务端会把 parentId strip 掉，于是回复落成顶层评论 —— 这是**能接受**的降级
  *   （内容还在、位置不对），比整条发不出去好。
+ *
+ * @param mentions 补全面板挑中的那几个人在**最终正文**里的位置。空数组时不发这个键 ——
+ *   发一个空数组只是给老服务端多一个要 strip 的字段，没有任何意义。
  */
-export async function addComment(id: string, text: string, parentId?: string): Promise<ApiComment | null> {
+export async function addComment(
+  id: string,
+  text: string,
+  parentId?: string,
+  mentions?: MentionSpanPayload[],
+): Promise<ApiComment | null> {
+  const body: Record<string, unknown> = { text };
+  if (parentId) body.parentId = parentId;
+  if (mentions && mentions.length > 0) body.mentions = mentions;
   const res = await apiPost<Record<string, unknown>>(
     `/api/branch/videos/${encodeURIComponent(id)}/comments`,
-    parentId ? { text, parentId } : { text },
+    body,
   );
   return pick<ApiComment>(res, ["comment", "item", "data"]);
+}
+
+/**
+ * 这次删除到底有没有落地。
+ *
+ * ★★ 判据是**回包形状**（`ok: true`），不是状态码：Capacitor 的本地静态服务器对未命中
+ *   路径回 **200 + index.html**，`res.ok` 恒真（CLAUDE.md 里 `/api/ark` 那条坑）。
+ *   只看状态码的话，"这台服务器没有删除端点"会伪装成"删成功了" —— 界面上那条评论
+ *   消失了，刷新一下又回来，用户完全不知道发生了什么（铁律八）。
+ * ★ 老服务端返回 404 时 apiDelete 会**抛** ApiError，走不到这里 —— 那条路由调用方
+ *   catch 后原样把 message 说给用户看。
+ */
+function deleteLanded(res: unknown): boolean {
+  return typeof res === "object" && res !== null && (res as Record<string, unknown>).ok === true;
+}
+
+/**
+ * DELETE /api/branch/videos/:id/comments/:commentId（requireAuth）
+ *
+ * 允许：评论作者本人 **或** 作品作者。无权时服务端回 403/404，这里原样抛给调用方。
+ * @returns false = 这台服务器没有这个端点（回包形状不对），调用方必须说出来
+ */
+export async function removeComment(videoId: string, commentId: string): Promise<boolean> {
+  const res = await apiDelete<unknown>(
+    `/api/branch/videos/${encodeURIComponent(videoId)}/comments/${encodeURIComponent(commentId)}`,
+  );
+  return deleteLanded(res);
 }
 
 export interface CommentLikeResult {
@@ -423,6 +481,22 @@ export async function addDanmaku(
     body,
   );
   return pick<ApiDanmaku>(res, ["danmaku", "item", "data"]);
+}
+
+/**
+ * DELETE /api/branch/videos/:id/danmaku/:danmakuId（requireAuth）
+ *
+ * 允许：弹幕作者本人 **或** 作品作者。
+ * ★ 无权删时服务端回 403/404，而且**回包里不会带作者信息** —— 弹幕对外是匿名的
+ *   （契约里只回一个 mine 布尔），错误信息里漏一个用户名出来就等于把它去匿名化。
+ *   这一层什么都不做，只是别在 UI 上自己编一句"这是 xxx 发的"。
+ * @returns false = 这台服务器没有这个端点（回包形状不对）
+ */
+export async function removeDanmaku(videoId: string, danmakuId: string): Promise<boolean> {
+  const res = await apiDelete<unknown>(
+    `/api/branch/videos/${encodeURIComponent(videoId)}/danmaku/${encodeURIComponent(danmakuId)}`,
+  );
+  return deleteLanded(res);
 }
 
 // ── 卡片 ─────────────────────────────────────────────────

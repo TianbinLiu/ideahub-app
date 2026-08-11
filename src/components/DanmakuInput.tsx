@@ -8,18 +8,103 @@
 //
 // ★ 附在哪一秒是**按下发送的那一刻**取的，不是打开输入条的那一刻。
 //   打字要好几秒，按开条的时间点存，弹幕会飘在一段你根本没在看的画面上。
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
   DANMAKU_COLORS,
   DANMAKU_MAX_LEN,
+  type DanmakuItem,
   danmakuIsShared,
+  danmakuOf,
   danmakuOn,
+  danmakuVersion,
+  isMyDanmaku,
+  removeDanmaku,
   sendDanmaku,
   setDanmakuOn,
+  subscribeDanmaku,
 } from "../data/danmaku";
 import DanmakuGlyph from "./DanmakuGlyph";
 import Icon from "./Icon";
+
+/** 秒 → `1:23`。弹幕列表要让人认出"这条挂在哪一秒"，光一个小数没法对应到画面 */
+function clock(sec: number): string {
+  const s = Math.max(0, Math.floor(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/**
+ * 「我发过的」里的一条。
+ *
+ * ★★ 这是**唯一**能稳定点到自己弹幕的地方：飘着的那一层是 `pointer-events-none`
+ *   而且一直在动，去点画面上飞过去的字要么点不中、要么点到播放器的暂停手势上。
+ * ★ 二次确认 + 失败红字，口径与 CommentDelete 一致（删除不可撤销，而失败是常态：
+ *   无权、老服务端没这个端点、断网。catch 之后不响 = 用户点了没反应，铁律八）。
+ */
+function MyDanmakuRow({ videoId, item }: { videoId: string; item: DanmakuItem }) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function del() {
+    if (busy) return;
+    setBusy(true);
+    setErr("");
+    try {
+      // 删完 data 层会 emit，外层订阅了 danmakuVersion —— 这一行会自己从列表里消失，
+      // 飘着的那一层也同步不再画它（"只删服务端、界面还飘着"是这里最要避免的）
+      await removeDanmaku(videoId, item.id);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "没能删掉，请重试");
+      setBusy(false);
+    }
+  }
+
+  return (
+    // ★ flex-wrap + 错误占整行（与 CommentDelete 同一版式）。
+    //   错误文案可以很长（"这台服务器还不支持删除弹幕（需要升级服务端）" ≈ 240px），
+    //   放在同一行当兄弟节点的话，375px 的屏上会把「确认删除 / 取消」两个键挤出可视区 ——
+    //   用户看得见原因，却点不到重试也点不到取消。
+    <li className="flex flex-wrap items-center gap-2 py-1">
+      <span className="w-9 flex-none text-right text-[10px] tabular-nums text-slate-500">{clock(item.at)}</span>
+      <span className="min-w-0 flex-1 truncate text-xs" style={{ color: item.color || DANMAKU_COLORS[0] }}>
+        {item.text}
+      </span>
+      {err && <span className="order-last w-full text-[10px] leading-relaxed text-rose-300">{err}</span>}
+      {confirming ? (
+        <>
+          <button
+            onClick={() => void del()}
+            disabled={busy}
+            className="flex-none text-[11px] font-semibold text-rose-400 active:opacity-60 disabled:opacity-40"
+          >
+            {busy ? "删除中…" : "确认删除"}
+          </button>
+          <button
+            onClick={() => {
+              setConfirming(false);
+              setErr("");
+            }}
+            className="flex-none text-[11px] text-slate-500 active:opacity-60"
+          >
+            取消
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={() => {
+            setErr("");
+            setConfirming(true);
+          }}
+          aria-label="删除这条弹幕"
+          className="-m-1 flex-none p-1 text-slate-500 active:opacity-60"
+        >
+          <Icon name="close" size={14} />
+        </button>
+      )}
+    </li>
+  );
+}
 
 export default function DanmakuInput({
   videoId,
@@ -37,7 +122,16 @@ export default function DanmakuInput({
   const [on, setOn] = useState(danmakuOn);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  /** 「我发过的」展开着没有。默认收起：绝大多数时候用户是来发的，不是来删的 */
+  const [mineOpen, setMineOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // ★ 订阅弹幕库：发一条 / 删一条 / 远端那一页到货都会 emit，这一段列表要跟着变。
+  //   不订阅的话删完那一行还留在屏幕上，用户会以为没删掉、再点一次（然后吃一个 404）。
+  useSyncExternalStore(subscribeDanmaku, danmakuVersion, () => 0);
+  // ★ 认的是服务端给的 mine 标记（弹幕不返回作者，只有这一个布尔），
+  //   离线模式下是本地发的那些 —— 两种模式同一条判据（data/danmaku.isMyDanmaku）
+  const mine = danmakuOf(videoId).filter(isMyDanmaku);
 
   // 自动聚焦拉起键盘：少一次点击。autoFocus 属性在 portal 里不一定生效（元素先挂载
   // 后移动），显式调一次稳
@@ -86,6 +180,32 @@ export default function DanmakuInput({
         className="border-t border-slate-700/60 bg-panel/95 backdrop-blur"
         style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
       >
+        {/* 「我发过的」：删自己弹幕的**唯一**入口。
+            ★★ 为什么不做成"点飘着的那条弹幕来删"：弹幕层是 pointer-events-none
+              （不然它会把播放器的暂停/点赞手势整片吃掉），而且那些字一直在动 ——
+              手机上根本点不准。放在发弹幕的面板里，是用户想到"我那条发错了"时
+              最自然会打开的地方。
+            一条都没有就不显示这一行：摆一个永远空的入口比不摆更糟（CLAUDE.md）。 */}
+        {mine.length > 0 && (
+          <div className="border-b border-slate-700/40 px-4 pt-2.5">
+            <button
+              onClick={() => setMineOpen((v) => !v)}
+              className="flex w-full items-center gap-1.5 pb-2 text-[11px] text-slate-400 active:opacity-60"
+            >
+              <span>我发过的 {mine.length} 条</span>
+              <span className={`transition ${mineOpen ? "rotate-180" : ""}`}>▾</span>
+            </button>
+            {mineOpen && (
+              // 最多占三行高：这面板是从底部升起来的，再高就把视频整块盖住了
+              <ul className="max-h-28 overflow-y-auto pb-2">
+                {mine.map((d) => (
+                  <MyDanmakuRow key={d.id} videoId={videoId} item={d} />
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
         {/* 样式行：默认收起。展开后是颜色色板 —— 弹幕的"样式"在移动端就只有颜色，
             字号/位置那些放进来只会把这一条挤成一个设置页 */}
         {styleOpen && (
