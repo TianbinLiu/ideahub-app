@@ -552,13 +552,19 @@ function FeedItem({
           分类不再单独做胶囊：TikTok 把话题写进描述文字里（#fyp #messy），
           单独的胶囊在全出血画面上会切出一个突兀的实心块。 */}
       <div
-        className={`absolute inset-x-0 bottom-0 z-10 pl-4 pr-20 ${immersive ? "hidden" : ""}`}
+        /* ★ pointer-events-none：这个块 inset-x-0 满宽、还有 200 多 px 高，DOM 里又排在
+           右侧栏后面——不关掉命中，它会把**盖在它矩形内的右侧栏按钮整个吃掉**。
+           2026-08-10 真机实测：分享键与全屏键点了毫无反应，elementFromPoint 落在这个 div 上。
+           （pr-20 只是内边距，盒子该多宽还是多宽，挡不住。）
+           ⚠ 浏览器里用 el.click() 测**发现不了**这个问题——那是绕过命中测试直接派发。
+           交互键各自 pointer-events-auto 收回点击；描述文字保持穿透，点它就是点画面暂停。 */
+        className={`pointer-events-none absolute inset-x-0 bottom-0 z-10 pl-4 pr-20 ${immersive ? "hidden" : ""}`}
         style={{ paddingBottom: "calc(var(--tabbar-h) + 0.75rem)" }}
       >
         <button
           {...stopTap}
           onClick={() => navigate(authorHref)}
-          className="mb-1.5 block max-w-full truncate text-left text-sm font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,.6)] active:opacity-70"
+          className="pointer-events-auto mb-1.5 block max-w-full truncate text-left text-sm font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,.6)] active:opacity-70"
         >
           @{video.author}
         </button>
@@ -567,7 +573,7 @@ function FeedItem({
         <button
           {...stopTap}
           onClick={() => navigate(`/video/${video.id}`)}
-          className="mb-1 block max-w-full text-left text-base font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.7)] active:opacity-70"
+          className="pointer-events-auto mb-1 block max-w-full text-left text-base font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.7)] active:opacity-70"
         >
           <span className="line-clamp-2">
             {video.title}
@@ -580,7 +586,7 @@ function FeedItem({
         {isInteractive && (
           <button
             onClick={() => navigate(`/video/${video.id}`)}
-            className="mt-2 inline-flex min-h-[28px] items-center gap-1 rounded-full bg-gold/90 px-3 text-[11px] font-semibold text-ink active:scale-95"
+            className="pointer-events-auto mt-2 inline-flex min-h-[28px] items-center gap-1 rounded-full bg-gold/90 px-3 text-[11px] font-semibold text-ink active:scale-95"
           >
             <Icon name="branch" size={13} strokeWidth={2.25} />
             互动 · 你来选
