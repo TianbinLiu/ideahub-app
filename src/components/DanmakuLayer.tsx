@@ -132,6 +132,14 @@ export default function DanmakuLayer({
   //   只看新鲜度的话，一批远端老弹幕会被当成"刚发的"一次性全放出来。
   useEffect(() => {
     const at = cursor.current;
+    // ★★ 先把**已经从库里删掉**的那几条从画面上撤下来。
+    //   删弹幕只同步 store 是不够的：已经排上轨道的那条还挂在 live 里，会照旧飘完
+    //   剩下的七八秒 —— 用户在面板里点了"确认删除"，一抬头它还在画面上走，
+    //   只会以为没删掉、再点一次（然后吃一个 404）。data/danmaku.removeDanmaku
+    //   的注释里说的"只删服务端不同步内存"，在渲染层这一段同样成立。
+    //   判据是"id 还在不在库里"：merge() 只并不删，所以消失只可能是被删了。
+    const alive = new Set(danmakuOf(videoId).map((d) => d.id));
+    setLive((prev) => (prev.some((b) => !alive.has(b.id)) ? prev.filter((b) => alive.has(b.id)) : prev));
     launch(
       danmakuOf(videoId).filter(
         (d) =>

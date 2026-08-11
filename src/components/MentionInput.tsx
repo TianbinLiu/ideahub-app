@@ -2,12 +2,17 @@
 // 详情页 VideoPage 的评论框）——铁律六：补全规则、防抖、插入光标位置这三件事一旦分叉，
 // 就会出现"抽屉里能 @ 出来、详情页 @ 不出来"这种只有用户才发现得了的差异。
 //
-// ★★ 为什么这个补全是**功能的一部分**而不是锦上添花：
-//   提及的令牌是 **@username**（服务端 mentionParser 认的就是它；`username` 唯一且不可改，
-//   `displayName` 可空、不唯一、随时能改——身份不能挂在会变的字段上）。
-//   而这个 App 从头到尾显示的都是 displayName，`username` **一次都没露过**。
-//   没有这个补全，用户在 @ 后面只能凭猜，猜错就是"发出去了、对方收不到"——
-//   而正文里那一 @ 看起来一切正常。这正是铁律八要消灭的那类静默失败。
+// ★★ 面板插进正文的是**显示名**（displayName || username），不是 @username。
+//   2026-08 的产品决定：昵称叫「我是王桑」的人必须能被 `@我是王桑` 叫到。
+//   身份不靠这段名字承担 —— 面板同时记住"这一次挑的是哪个 userId"（picks），
+//   提交时由 data/videos.addReply 按最终正文把它落成 span 报给服务端，服务端再核对。
+//   完整的取舍写在 utils/mention.ts 顶部。
+//
+// ★★ 为什么这个补全是**功能的一部分**而不是锦上添花：中文没有词边界，
+//   `@我是王桑你看看这个` 是切不出「我是王桑」的（贪婪匹配会吃掉整句）。所以
+//   "用户到底 @ 的是谁"这件事**只有补全面板知道**——不从面板里选，服务端就只剩
+//   `@username` 那条 ASCII 兜底路可走，而这个 App 从头到尾显示的都是 displayName，
+//   username 一次都没露过。没有补全 = 每一次 @ 都静悄悄地谁也通知不到（铁律八）。
 //
 // ★ 离线模式不出补全面板：那时这台机器上只有你一个人，面板永远是空的，
 //   摆一个永远查不到人的搜索框比不摆更糟（CLAUDE.md「界面上摆一个永远点不动的选项」）。
@@ -15,13 +20,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Avatar from "./Avatar";
 import { searchUsers, userDisplayName, type ApiUserLite } from "../api/users";
 import { remoteOn } from "../data/videos";
-// ★ 令牌规则（字符集 / 长度上限 / 前置边界）与 MentionText 共用**同一份**
-//   （utils/mention.ts）：两边问的是同一个问题「服务端会把这一段认成一次提及吗」。
-//   这一轮给它加长度上限时才发现规则原来抄了两份 —— 一改就得改两处（铁律六）。
-import { MENTION_NAME_MAX, MENTION_PREV_BLOCK, isMentionName } from "../utils/mention";
-
-/** 中日韩字。只用来判"用户是不是在拿中文昵称当 @ 的对象"，好给一句提示 */
-const CJK = /[一-鿿㐀-䶿]/;
+// ★ `@` 的前置边界规则与 MentionText 共用**同一份**（utils/mention.ts）。
+import { MENTION_PREV_BLOCK, type MentionPick } from "../utils/mention";
 
 /** 防抖。250ms：短于一次连击的间隔，又不至于让人觉得列表"卡了一下才出来"。
  *  ★ 不防抖的话每敲一个字母就是一次请求，而 `/api/users/search` 那条查询是**全表扫**
@@ -32,27 +32,60 @@ const CJK = /[一-鿿㐀-䶿]/;
 const DEBOUNCE_MS = 250;
 /** 一次最多列几个。手机上超过 6 行面板就会盖住半屏评论 */
 const LIMIT = 6;
+/**
+ * 光标前那一段查询词最多取多长。
+ *
+ * ★ 这不是"名字上限"，是**别把整句话当查询词发出去**：`@` 后面用户可能一直打下去，
+ *   而服务端的 searchRegex 会截断、查全表。24 个字符足够覆盖任何昵称，
+ *   超过就当他不是在 @ 人（面板收起来，正文照旧是纯文本）。
+ */
+const QUERY_MAX = 24;
 
 /** 光标前那个正在输入的 @查询。返回 null = 现在不该弹面板 */
 function mentionQueryAt(value: string, caret: number): { at: number; q: string } | null {
   const head = value.slice(0, caret);
   const at = head.lastIndexOf("@");
   if (at < 0) return null;
-  // ★★ 这个 `@` 前面贴着字母/数字/_/@ 的话，服务端**根本不会**把它当成一次提及
-  //   （mentionParser 的 `(?<![\w@])`，那条断言是用来挡 `bob@example.com` 的）。
-  //   不判这一下的后果最坏：用户打 "cc@ali" → 面板照样弹 → 他从里面挑了一个人 →
-  //   插进去变成 "cc@alice " → 发出去，服务端一个提及都没解析到，对方**永远收不到**。
-  //   也就是补全面板亲手把用户带进了铁律八要消灭的那种静默失败。不弹面板才是实情。
+  // ★ 这个 `@` 前面贴着字母/数字/_/@ 的话不弹面板 —— 那是**邮箱**的形状
+  //   （`bob@example.com`）。服务端的 ASCII 兜底解析用同一条前置断言把它挡在外面。
+  //   走 span 那条路的话服务端其实认（它只核对 text[offset]==='@' 与名字），
+  //   但在一个邮箱地址中间弹出"选个人"的面板是纯粹的噪音，而用户想真的 @ 人时
+  //   只要在 @ 前面留个空格就行 —— 代价小，误弹的频率高。
   if (at > 0 && MENTION_PREV_BLOCK.test(head[at - 1])) return null;
   const q = head.slice(at + 1);
   // 光标就贴在 @ 后面（q 为空）不查：空 q 服务端也只会回空表，白打一次请求
   if (q.length < 1) return null;
+  // 打得太长 = 他在写正文，不是在挑人
+  if (q.length > QUERY_MAX) return null;
+  // ★ 换行/制表符出现在查询词里说明这个 @ 早就结束了（多行输入时）
+  if (/[\n\r\t]/.test(q)) return null;
+  // ★★ 查询词**以空白结尾 = 这一次 @ 已经打完了**，面板必须收起来。
+  //   查询词里允许有空格（显示名本来就可以带空格，`@我是 王桑` 要搜得到），
+  //   但结尾那一下空格是"名字到此为止"的信号。漏了这一条的后果是一个**闭环**：
+  //   insert() 插进去的 token 自带尾随空格（`@我是王桑 `），光标停在空格之后 →
+  //   查询词变成 `"我是王桑 "` → searchUsers 里 `q.trim()` 又把它还原成 `"我是王桑"`
+  //   → 服务端 exactDisplay 那一发照样命中 → **刚挑完人，面板 250ms 后自己又弹回来**，
+  //   而面板开着时的回车是"选中这个人"不是"发送"（见 onKeyDown）——
+  //   用户挑完人按回车，评论发不出去，只会把同一个人再插一遍。
+  //   （原来这条是靠 `isMentionName(query)` 顺带挡住的：空格不在 `[A-Za-z0-9_-]` 里。
+  //     这一轮为了让中文昵称能搜而删掉了那道门禁，就必须把这半条规则单独补回来。）
+  if (/\s$/.test(q)) return null;
   return { at, q };
 }
 
 export interface MentionInputProps {
   value: string;
   onChange: (v: string) => void;
+  /**
+   * 从面板里挑中了一个人。
+   *
+   * ★★ 调用方要把这些 pick **攒起来**、在提交时原样交给 data 层
+   *   （`addReply(..., picks)`）。为什么不是在这里就把 offset 算好交出去：
+   *   用户挑完人还会接着编辑正文（在前面加字、删字），插入那一刻算的下标会整体漂掉。
+   *   所以这里只交出"是谁 + 当时打进去的名字"，真正的定位在**按下发送的那一刻**
+   *   由 utils/mention.resolveMentionSpans 按最终正文重算（那里写了完整理由）。
+   */
+  onPick?: (pick: MentionPick) => void;
   /** 回车提交。★ 面板开着时**不会**触发——那一下回车是"选中这个人"，不是"发送" */
   onEnter?: () => void;
   placeholder?: string;
@@ -67,6 +100,7 @@ export interface MentionInputProps {
 export default function MentionInput({
   value,
   onChange,
+  onPick,
   onEnter,
   placeholder,
   className = "",
@@ -86,9 +120,6 @@ export default function MentionInput({
   const found = mentionQueryAt(value, caret);
   const query = found?.q ?? "";
   const active = found !== null;
-  // 字符集 + 长度一起判：超过 MENTION_NAME_MAX 的串服务端只会截前 32 个字去查，
-  // 谁都匹配不上（见 utils/mention.ts）——那种查询查出来的人插进去也是白插
-  const canSearch = query.length > 0 && isMentionName(query);
 
   // ★ 竞态守门：输入快时后发的请求可能先回来。用一个自增序号，只认最后一次那发的结果，
   //   否则面板会闪回上一个词的候选人（而用户以为那就是当前词的结果，@ 错人）。
@@ -100,43 +131,20 @@ export default function MentionInput({
       setNote("");
       return;
     }
-    if (!canSearch) {
-      setUsers([]);
-      // ★ 两种"打了也白打"要分开说，说错等于给用户一个假原因：
-      //   · 中文昵称必然 @ 不中 —— 服务端只认 ASCII 的 username。
-      //   · 超过 32 个字符的令牌服务端只截前 32 个去查，同样匹配不到人。
-      //   与其让用户打完、发出去、再靠"没变成链接"去发现失败，不如现在就说清楚。
-      setNote(
-        query.length > MENTION_NAME_MAX
-          ? `账号最多 ${MENTION_NAME_MAX} 个字符，再往后打就 @ 不到人了`
-          : CJK.test(query)
-            ? "@ 的是对方的账号（字母/数字/_/-），不是昵称"
-            : "",
-      );
-      return;
-    }
     const mine = ++seq.current;
     const timer = window.setTimeout(() => {
       void searchUsers(query, LIMIT)
         .then((r) => {
           if (seq.current !== mine) return;
-          // ★★ 账号本身超过 32 个字符的人**不能列进来**：列了、用户挑了、插进正文，
-          //   服务端解析时只截到前 32 个字符 —— 匹配不到任何人，那条提及就凭空消失了
-          //   （评论发成功、正文里 @ 得好好的、对方永远收不到，正是铁律八要消灭的
-          //   那类静默失败）。丢掉也不能不吭声，下面把"丢了几个"说出来。
-          const usable = r.users.filter((u) => u.username.length <= MENTION_NAME_MAX);
-          const dropped = r.users.length - usable.length;
-          setUsers(usable);
+          // ★★ 这里原来会把 username 超过 32 个字符的人**过滤掉**：那时令牌是
+          //   `@username`，服务端正则只截前 32 个字符，列出来也 @ 不到。
+          //   现在插进正文的是显示名、身份靠 span 报上去，与 username 的长度再无关系 ——
+          //   继续过滤只会平白让一部分人搜不出来。
+          setUsers(r.users);
           setHi(0);
           // 老服务端 / SPA 回退：说清楚是"这台服务器没有这个能力"，
           // 不要伪装成"查无此人"——后者会让用户以为对方注销了
-          setNote(
-            !r.supported
-              ? "这台服务器还不支持搜人，@ 可能收不到"
-              : dropped > 0
-                ? `有 ${dropped} 个账号超过 ${MENTION_NAME_MAX} 个字符，@ 不到他们`
-                : "",
-          );
+          setNote(r.supported ? "" : "这台服务器还不支持搜人，@ 可能收不到");
         })
         .catch((e) => {
           if (seq.current !== mine) return;
@@ -147,7 +155,7 @@ export default function MentionInput({
         });
     }, DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [query, canSearch, active]);
+  }, [query, active]);
 
   // 换了查询词就复位 Esc 的效果：用户重新打字显然是想再看候选
   useEffect(() => setDismissed(false), [query]);
@@ -166,9 +174,16 @@ export default function MentionInput({
     if (!hit) return;
     const before = value.slice(0, hit.at);
     const after = value.slice(pos);
-    // 尾随空格是刻意的：不加的话下一次输入会被并进用户名里（`@alice好棒` 解析成 `alice好棒`）
-    const token = `@${u.username} `;
+    // ★ 插的是**显示名**（与用户在整个 App 里看到的那个名字一致）。
+    //   尾随空格是刻意的：`@我是王桑好棒` 读起来分不出名字到哪儿结束 ——
+    //   服务端按 span 核对不受影响，但正文是给人读的。
+    const name = userDisplayName(u);
+    const token = `@${name} `;
     onChange(before + token + after);
+    // ★ 身份在这里就记下来（userId），不靠事后从正文里猜 —— 猜不出来正是这一轮要修的问题。
+    //   顺带把插入位置也交出去：两个人**同名**时，这是提交时唯一能分辨"这一处是谁"的信息
+    //   （见 MentionPick.at）。它只是提示，最终仍以提交那一刻的正文为准。
+    onPick?.({ userId: u._id, name, at: hit.at });
     setUsers([]);
     setNote("");
     const next = before.length + token.length;
@@ -236,8 +251,9 @@ export default function MentionInput({
                     <Avatar name={userDisplayName(u)} src={u.avatarUrl} size={28} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm text-slate-100">{userDisplayName(u)}</span>
-                      {/* ★ @username 必须显示出来：用户认得的是昵称，而真正被插进去、
-                          真正决定"通知发给谁"的是这一行。不显示就等于让人蒙着眼睛选。 */}
+                      {/* ★ @username 仍然显示出来，但它现在只是**消歧**用的：插进正文的是
+                          上面那个显示名，而显示名不唯一 —— 两个「我是王桑」摆在一起时，
+                          用户只能靠这一行认出哪个才是他要 @ 的人。 */}
                       <span className="block truncate text-[11px] text-slate-500">@{u.username}</span>
                     </span>
                   </button>

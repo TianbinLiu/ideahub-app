@@ -53,8 +53,14 @@
 
 ### BranchComment（评论，含楼中楼与 @提及）
 ```
-{ _id, video, author, text, parent?, likes, mentions?: [{ user, token }], createdAt }
+{ _id, video, author, text, parent?, likes,
+  mentions?: [{ user, token, offset, length }], createdAt }
 ```
+`offset` = 正文里那个 `@` 的下标，`length` = 名字长度（不含 `@`），即
+`text.slice(offset, offset + 1 + length) === '@' + 当时打出来的名字`。
+★ `offset`/`length` 是**后加**的，存量行没有 —— 判「有没有」，不要给默认值：
+0 是合法 offset，给了默认值就分不出「老数据」和「@ 在正文开头」。
+
 `mentions` 是**服务端解析并解析成功的**那些 @（存下来，隔天再读也还能高亮）。
 ★ 客户端**不许**自己再解析一遍正文来高亮：那样会把服务端没认出来的 @ 也画成链接，
 用户就看不出自己那个 @ 到底有没有生效了。没解析出来的 `@xxx` 保持纯文本，这是**故意的**。
@@ -98,9 +104,11 @@ BranchAssetView  { kind, key, viewer, expiresAt }                        唯一 
 | POST | `/api/branch/videos/:id/like` | required | 点赞，返回 `{ ok, likes, liked: true }` |
 | DELETE | `/api/branch/videos/:id/like` | required | 取消，返回 `{ ok, likes, liked: false }` |
 | GET | `/api/branch/videos/:id/comments` | optional | 评论列表。每条带 `parentId` / `likes` / `liked` |
-| POST | `/api/branch/videos/:id/comments` | required | 发评论 `{ text, parentId? }`。带 `parentId` = 回复。正文里的 `@username` 由**服务端**解析并回写到 `mentions`。限流 **20/分钟按账号**（`branch:comment` 桶，与弹幕分开） |
+| POST | `/api/branch/videos/:id/comments` | required | 发评论 `{ text, parentId?, mentions? }`。带 `parentId` = 回复。`mentions` 见下「@提及」。限流 **20/分钟按账号**（`branch:comment` 桶，与弹幕分开） |
 | POST | `/api/branch/videos/:id/comments/:commentId/like` | required | 评论点赞 → `{ ok, likes, liked: true }` |
 | DELETE | `/api/branch/videos/:id/comments/:commentId/like` | required | 取消 → `{ ok, likes, liked: false }` |
+| DELETE | `/api/branch/videos/:id/comments/:commentId` | required | 删评论。**评论作者本人 或 作品作者**。连带删：回复、评论赞、指向它的通知；重算 `commentCount`。→ `{ ok, removed, commentCount }`。限流 30/分钟按账号 |
+| DELETE | `/api/branch/videos/:id/danmaku/:danmakuId` | required | 删弹幕。**弹幕作者本人 或 作品作者**。→ `{ ok: true }`。限流 30/分钟按账号。★ 无权时回**裸 403**，回包与文案里**绝不能出现作者信息** —— 否则对每条弹幕试删一次，就等于给整面匿名弹幕墙开了一个逐条查作者的接口 |
 | GET | `/api/branch/videos/:id/danmaku` | optional | 弹幕列表（见下「弹幕」）。query `limit`(默认 200，上限 500)。返回 `{ ok, items, truncated }` |
 | POST | `/api/branch/videos/:id/danmaku` | required | 发弹幕 `{ at, text, color? }` → 201 `{ ok, danmaku }`。限流 **30/分钟**（按账号） |
 | GET | `/api/branch/cards` | required | 我的卡片 |
@@ -174,22 +182,66 @@ likes×6 + comments×4 + bookmarks×3 + min(views, 5000)×0.04
 - **@ 也受可见性约束**：只有**看得见这条作品**的人才会收到 `BRANCH_MENTION`。
   否则在私密作品下 @ 一个人，就等于告诉他"存在这么一条你看不到的作品"，@ 成了探针。
 
-## @提及（`@username`）
+## @提及（`@显示名`）
 
-token 是 **`@username`**，不是 `@昵称` —— `username` 唯一且不可变，`displayName` 既不唯一也能随便改，
-拿它当身份就是本仓已经栽过一次的那种坑（见 `data/videos.ts` 的 `renameMyVideos`）。
-解析在 server 的 `utils/mentionParser.js` 一处，正则 `/(?<![\w@])@([A-Za-z0-9_-]{1,32})/g`：
+**@ 的是显示名**（`@我是王桑`），不是注册名。用户在界面上从头到尾看到的就是 `displayName`，
+`username` 一处都不露脸 —— 只能 `@tianbinliu` 等于这个功能对普通用户不存在。
 
-- 前置的 `(?<![\w@])` 是为了让 `someone@example.com` 里的 `@example` **不**算提及
-  （否则粘一个邮箱地址进去就会给一个陌生人发通知）；
-- 大小写不敏感靠 collation（`utils/username.js` 的 `CI_COLLATION`，与 `username_ci` 索引同一份）；
-- 32 是 `username` 的长度上限，两个数字必须相等，否则超长用户名会**永远 @ 不到**且不报错；
-- 非 ASCII 的 `@中文名` 解析不了（CJK 没有词边界，贪婪匹配会把半句话吞成一个 token）。
-  它会保持纯文本 —— 用户看得见它没变成链接，这是**故意**的降级方式。
+### 身份与显示是**两件事**，分开存
 
-★ App 侧必须有 @ 自动补全（`components/MentionInput.tsx`）：这个 App 从头到尾显示的是
-`displayName`，`username` 一处都不露脸。没有补全的话用户根本不知道该打什么，
-每一次 @ 都会静悄悄地谁也通知不到。补全用的就是下面这条搜索接口。
+- **身份 = `userId`**。落库、发通知、跳主页，全都只认它。
+- **显示 = 当下的 `displayName`**。渲染时按 `userId` 现查 —— 所以**作者改名之后，
+  已经发出去的那些 @ 会跟着显示新名字**，不需要回填历史数据。
+- 正文里那段名字只是"当时打出来的字面"，**不承担身份**。它会过时，这没关系。
+
+这样就绕开了「拿可变字段当身份」那个老坑（`data/videos.ts` 的 `renameMyVideos` 收拾过一次）：
+可变的只有显示，身份那一半仍然钉在 id 上。
+
+### 中文没有词边界 —— 不靠正则猜，靠**客户端报范围、服务端核对**
+
+`@我是王桑你看看` 用正则切不出「我是王桑」（贪婪会吃掉整句；试前缀等于一句话查 N 次库）。
+所以选人由**补全面板**完成，客户端把「哪一段是谁」一起发上来：
+
+```
+POST /videos/:id/comments  { text, parentId?, mentions?: [{ userId, offset, length }] }   // ≤20 条
+```
+
+服务端**不盲信**这份名单（盲信 = 谁都能给任意人发通知），而是逐条核对，
+**任何一条不过就丢掉那一条**（不是整条评论 400）：
+
+1. `userId` 存在
+2. `text[offset] === '@'`
+3. `text.slice(offset+1, offset+1+length)` 等于该用户**当下**的 `displayName` 或 `username`
+   （只折 ASCII 大小写；不能用 `toLowerCase()`，`'İ'` 折完会变成两个码位，长度一变校验先错且不报错）
+4. 按 `userId` 去重 → 丢掉相互重叠的 span → 封顶 10 条
+
+第 3 条是全部安全性所在：它保证「客户端声称 @ 了谁」与「正文里真的写着那个人的名字」一致，
+所以伪造不出一个正文里根本没出现的提及。**上限必须作用在合并之后**，否则多报 span 就是
+绕过收件箱封顶的口子。
+
+### 仍然保留 ASCII `@username` 自动解析
+
+手打 `@tianbinliu`（不经补全面板）、以及**老客户端**（不发 `mentions`）都靠它。
+正则 `/(?<![\w@])@([A-Za-z0-9_-]{1,32})/g`，前置断言是为了让 `someone@example.com` 里的
+`@example` **不**算提及（否则粘个邮箱就给陌生人发通知 —— ideas 那条线上表现为凭空发出一封邀请）。
+两条路的结果合并去重。
+
+### 回包与渲染
+
+`toCommentPayload().mentions[] = { token, userId, username, displayName, offset, length }`，
+`displayName` 是**现查**值。渲染端把 `[offset, offset+1+length)` 这一段**替换**成
+`'@' + 当前 displayName` —— 这就是改名同步的落地方式。
+
+- `offset`/`length` 是**后加**的键，老服务端不返回 → 客户端退回按 `token` 子串匹配。
+- 服务端保证返回的 span **两两不重叠、按 offset 升序**。
+- 存量评论行没有 span，服务端用 `token` 反查补一个 —— 反查**必须带与正则同样的前后边界判断**，
+  否则 `bob@alice.com` 里那截 `@alice` 会被反查命中，客户端照 span 一替换，
+  用户写的邮箱地址就被当面改写成别人的昵称、还变成一个链接。
+- 客户端**不许**自己再解析一遍正文来补链接：那样会把服务端没认下来的 @ 也画成链接，
+  用户就看不出自己那一 @ 到底有没有生效。没解析上的 `@xxx` 保持纯文本，**这是故意的**。
+
+★ App 侧必须有 @ 自动补全（`components/MentionInput.tsx`），补全用的就是下面这条搜索接口。
+没有补全，用户不知道该打什么，每一次 @ 都会静悄悄地谁也通知不到。
 
 ## 找人 `GET /api/users/search`
 
@@ -219,8 +271,10 @@ query `q`、`limit`(默认 8，上限 20)。返回 `{ ok, users: [{ _id, usernam
 响应里的 `visibility` 已经归一过（`undefined` → `"public"`），客户端不用判缺省。
 
 挡的地方不止详情：`GET /videos`（含 `q` 搜索）、`GET /videos/:id`、`POST /:id/play`、
-`POST|DELETE /:id/like`、`GET|POST /:id/comments`、`GET|POST /:id/danmaku` **全部**按
-同一条规则挡，非作者一律 404。只挡详情等于给私密作品留了个探测旁路。
+`POST|DELETE /:id/like`、`GET|POST /:id/comments`、`DELETE /:id/comments/:commentId`、
+`POST|DELETE /:id/comments/:commentId/like`、`GET|POST /:id/danmaku`、
+`DELETE /:id/danmaku/:danmakuId` **全部**按同一条规则挡，非作者一律 404。
+只挡详情等于给私密作品留了个探测旁路 —— 新加任何一条子端点都要进这张表。
 服务端这几处收敛在 `branchVideo.controller.js` 的 `assertVisible()` 一个函数里
 （原来是各写各的，加一条子端点就多抄一遍）。
 

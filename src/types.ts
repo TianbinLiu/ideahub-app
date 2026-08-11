@@ -248,23 +248,47 @@ export interface VideoPricing {
 /**
  * 评论里**解析成功**的一个 @提及（领域模型，服务端 DTO 见 api/branch.ApiCommentMention）。
  *
- * ★★ 只装"服务端确认过确有其人"的那些。谁该收到通知由**服务端**说了算（它自己解析正文，
- *   不信客户端报上来的名单），客户端拿回来的这张表就是"哪几 @ 真的落地了"。
+ * ★★ 只装"服务端确认过确有其人"的那些。谁该收到通知由**服务端**说了算 —— 客户端可以
+ *   报上来"这一段是谁"（span），但服务端会拿正文逐条核对（见 utils/mention.ts），
+ *   核不过的丢掉。客户端拿回来的这张表就是"哪几 @ 真的落地了"。
  *   渲染时只把这几个画成链接、打错的那个原样留成普通文字 —— 用户看得见自己 @ 中没中，
  *   这是这个功能唯一的反静默失败手段（铁律八）。
+ * ★★ `displayName` 是服务端**现查**的当前值，不是发评论那一刻的快照。渲染端据此把正文里
+ *   [offset, offset+1+length) 那一段**换成**当前名字 —— 这就是"改名之后已经发出去的
+ *   那些 @ 跟着显示新名字"的实现方式（身份是 userId，显示是当前 displayName）。
  */
 export interface CommentMention {
-  /** 正文里出现的原始令牌（`@username`）。服务端可能回裸 username，取用前统一补 @ */
+  /** 正文里出现的原始令牌（`@username`）。服务端可能回裸 username，取用前统一补 @。
+   *  ★ 只在**没有 span** 时用来定位（老数据 / 老服务端 / 手打 `@username` 的兜底路径）。 */
   token: string;
   userId: string;
   username: string;
   /** 展示名；缺省时 UI 退回 username */
   displayName?: string;
+  /**
+   * 正文里这一段的位置：`offset` = 那个 `@` 的下标，`length` = 名字长度（不含 `@`，
+   * 按 UTF-16 code unit 计，与服务端 `String.slice` 同口径）。
+   *
+   * ★ 后加字段：老服务端、以及本轮之前发出去的评论都**没有**它 —— 判据只能是
+   *   「两个都是 number」这种有无判，缺了就退回按 token 在正文里找（见 MentionText）。
+   *   写成等值判会把整批存量评论算进某一类里，而且一个错都不报。
+   */
+  offset?: number;
+  length?: number;
 }
 
 export interface VideoComment {
   id: string;
+  /** 作者**展示名**（会变、会重名，只用来显示） */
   author: string;
+  /**
+   * 作者的 userId。判「这条是不是我发的」（决定给不给删除入口）就靠它。
+   *
+   * ★ 后加字段：老服务端不 populate 作者、离线库里的存量评论也没有它 —— 读到
+   *   undefined 时**退回按展示名判**，绝不写成 `authorId === me.id` 一刀切，
+   *   那会把所有存量评论判成"不是我的"，用户连自己刚发的都删不掉（而且不报错）。
+   */
+  authorId?: string;
   text: string;
   at: number;
   /** 解析成功的 @提及。★ 缺省（老服务端 / 离线库里的存量评论）= 这条没有提及，

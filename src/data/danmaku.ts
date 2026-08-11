@@ -274,6 +274,43 @@ export function isMyDanmaku(d: DanmakuItem): boolean {
   return d.mine === true;
 }
 
+/**
+ * 删一条弹幕。
+ *
+ * ★★ **真等回包再从内存里拿掉**，与 sendDanmaku 同一个 idiom：只删服务端不同步内存的话，
+ *   那条弹幕还在屏幕上飘着，用户会以为没删掉、再点一次（然后收到一个 404）；
+ *   反过来只删内存不等服务端，刷新一下它又飘回来了 —— 两种都是不解释的失败（铁律八）。
+ * ★ 谁能删由**服务端**说了算（弹幕作者本人或作品作者）。这里不自己判、也判不了：
+ *   弹幕回包刻意不带作者，本机只知道 `mine`。无权时服务端回 403/404，
+ *   原样抛给调用方显示 —— 而且服务端的错误信息里**不会**带上作者是谁（那会把
+ *   匿名的弹幕墙去匿名化），UI 也别自己编一句。
+ * @throws 失败时抛出（message 可直接给用户看）
+ */
+export async function removeDanmaku(videoId: string, danmakuId: string): Promise<void> {
+  const rid = realId(videoId);
+  const list = store[rid];
+  if (!list || !list.some((d) => d.id === danmakuId)) return; // 已经不在了，当作删成功
+
+  if (remoteOn()) {
+    // 本地临时 id（还没落库的作品/弹幕）打上去只会吃 400
+    if (rid.startsWith("v_") || rid.startsWith("seedv_")) throw new Error("这条作品还没同步到服务器，稍后再试");
+    if (danmakuId.startsWith("dm_")) throw new Error("这条弹幕还在发送中，等它发出去之后再删");
+    // ★ 形状判"这台服务器认不认这个端点"，不判状态码（Capacitor 的 SPA 回退恒 200 + index.html）
+    const landed = await branch.removeDanmaku(rid, danmakuId);
+    if (!landed) throw new Error("这台服务器还不支持删除弹幕（需要升级服务端）");
+  }
+
+  // ★★ 这里**必须重新读 store[rid]**，不能用上面那个 await 之前捞的 `list`：
+  //   一次 DELETE 往返要两三百毫秒，而 danmakuOf 每一拍都可能踢一次 loadRemote ——
+  //   拿旧快照 filter 完整段写回去，就等于把这期间到货的别人那批弹幕又抹掉一次
+  //   （而且 fetchedAt 已经打过点，30 秒内不会再拉，屏幕上就是"半分钟没人说话"）。
+  //   这正是 merge() 那段注释里"整段替换"的坑，sendDanmaku 也是在 await 之后才读的。
+  const fresh = store[rid] ?? [];
+  store = { ...store, [rid]: fresh.filter((d) => d.id !== danmakuId) };
+  if (!remoteOn()) void idbSet(KEY, store); // 远端那份不落本地盘：服务端才是权威
+  emit();
+}
+
 /** 发弹幕要不要先登录（远端模式下服务端是 requireAuth）。
  *  ★ 在 UI 上挡住，而不是让它 401 —— client.ts 收到 401 会把用户**直接登出**，
  *    "我只是想发条弹幕，怎么账号退了"是最莫名其妙的一种失败。 */
@@ -313,6 +350,7 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).__danmaku = {
     danmakuOf,
     sendDanmaku,
+    removeDanmaku,
     danmakuOn,
     setDanmakuOn,
     danmakuIsShared,

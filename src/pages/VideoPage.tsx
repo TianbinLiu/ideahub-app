@@ -21,6 +21,8 @@ import {
   type VideoLookup,
 } from "../data/videos";
 import { markNotificationRead } from "../data/notifications";
+import type { MentionPick } from "../utils/mention";
+import CommentDelete from "../components/CommentDelete";
 import MentionInput from "../components/MentionInput";
 import MentionText from "../components/MentionText";
 import { useCurrentUser } from "../hooks/useAccount";
@@ -102,8 +104,12 @@ export default function VideoPage() {
   const [plays, setPlays] = useState(video?.plays ?? 0);
   const [comments, setComments] = useState<VideoComment[]>(video?.comments ?? []);
   const [draft, setDraft] = useState("");
+  /** 从补全面板挑过的人。★ 只攒不算位置——理由与 CommentSheet 同一条（见那里） */
+  const [picks, setPicks] = useState<MentionPick[]>([]);
   const [busyComment, setBusyComment] = useState(false);
   const [commentErr, setCommentErr] = useState("");
+  /** 评论发出去了、但有几个 @ 服务端没认下来。黄字：评论本身是成功的 */
+  const [mentionWarn, setMentionWarn] = useState("");
   // 多 P：老作品 partsOf 归一成单 P，pi 越界（编辑删 P 后）自动夹回
   const parts = useMemo(() => (video ? partsOf(video) : []), [video, version]);
   const [pi, setPi] = useState(0);
@@ -243,10 +249,17 @@ export default function VideoPage() {
     if (!video || busyComment || !draft.trim()) return;
     setBusyComment(true);
     setCommentErr("");
+    setMentionWarn("");
     try {
-      const cmt = await addComment(video.id, draft.trim());
-      if (cmt) setComments((cs) => [cmt, ...cs]);
+      const posted = await addComment(video.id, draft.trim(), picks);
+      if (posted) setComments((cs) => [posted.comment, ...cs]);
       setDraft("");
+      setPicks([]);
+      // ★★ 与 CommentSheet 同一条口径：@ 没落地必须说出来，否则就是"@ 了、对方永远
+      //   收不到"的静默失败（老服务端会把 mentions 整个 strip 掉，且不报错）。
+      if (posted && posted.droppedMentions > 0) {
+        setMentionWarn(`有 ${posted.droppedMentions} 个 @ 没能送达（对方不会收到通知）`);
+      }
     } catch (e) {
       setCommentErr(e instanceof Error ? e.message : "评论没发出去，请重试");
     } finally {
@@ -398,6 +411,7 @@ export default function VideoPage() {
             <MentionInput
               value={draft}
               onChange={setDraft}
+              onPick={(p) => setPicks((ps) => [...ps, p])}
               onEnter={() => void submitComment()}
               placeholder="说点什么，@ 可以叫上别人"
               className="rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
@@ -412,6 +426,7 @@ export default function VideoPage() {
           </div>
           {/* 失败就地说清楚，并且**不清空输入框**——用户打的字还在，改一下就能再发 */}
           {commentErr && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{commentErr}</p>}
+          {mentionWarn && <p className="mt-1.5 text-[11px] leading-relaxed text-amber-300/90">{mentionWarn}</p>}
           <div className="mt-4 space-y-4">
             {comments.map((c) => (
               <div key={c.id} className="flex gap-3">
@@ -426,6 +441,10 @@ export default function VideoPage() {
                   <div className="mt-0.5 text-sm text-slate-200">
                     <MentionText text={c.text} mentions={c.mentions} />
                   </div>
+                  {/* 删除入口与首页评论抽屉共用同一份实现（铁律六）。
+                      ★ 本页的 comments 是 video.comments 的**快照**，data 层删完要把
+                        快照换掉，否则那条评论还留在屏幕上（下次 version 变了才消失）。 */}
+                  <CommentDelete videoId={video.id} comment={c} onDeleted={() => setComments([...video.comments])} />
                 </div>
               </div>
             ))}

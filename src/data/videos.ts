@@ -17,6 +17,7 @@ import { materializeDraft, type MaterializeError } from "./publishAssets";
 import { currentUser, readyAccount, subscribeAccount } from "./account";
 import { API_ON, ApiError, emitApiError } from "../api/client";
 import * as branch from "../api/branch";
+import { resolveMentionSpans, type MentionPick } from "../utils/mention";
 
 const KEY = "ideahub-app.videos.v1";
 /** 远端模式下发布失败的作品暂存处（不混进离线主库 KEY，避免两种模式的数据互相污染） */
@@ -783,10 +784,13 @@ function serverVideoId(v: VideoItem): string | null {
 /**
  * 服务端的 mentions → 领域模型。
  *
- * ★ 逐条校形状：`userId` / `username` 缺一不可（前者用来跳转、后者是令牌本体），
- *   不合格的直接丢掉而不是补个空串 —— 补出来的是一个点了跳到空主页的假链接。
+ * ★ 逐条校形状：`userId`（身份，点进去是谁）+ 至少一个能显示的名字，缺了就丢掉
+ *   而不是补个空串 —— 补出来的是一个点了跳到空主页的假链接。
  * ★ token 统一补上 `@`：服务端 mentionParser 内部存的是**裸 username**（还 lowercase 过），
- *   而正文里出现的一定带 @。渲染层要拿它去正文里定位，两边形状必须先对齐。
+ *   而正文里出现的一定带 @。渲染层在**没有 span** 时拿它去正文里定位，两边形状必须先对齐。
+ * ★ offset/length 是本轮新加的 span：**两个都必须是合法数字**才算数（offset ≥ 0、length ≥ 1）。
+ *   只收到半个（老服务端只实现了一半、或中间层裁过字段）就当作没有 span，退回 token 定位 ——
+ *   带着半个 span 去切正文只会切出一段乱码，而且不报错。
  * ★ 老服务端不返回 mentions（undefined）→ 返回 undefined，表示"这条没有提及"，
  *   而不是抛错也不是空数组（空数组和"没这个字段"在语义上是一回事，但 undefined
  *   能让下游少存一个空对象）。
@@ -802,13 +806,27 @@ function toMentions(raw: branch.ApiCommentMention[] | undefined): CommentMention
     if (!m || typeof m !== "object") continue;
     const userId = typeof m.userId === "string" ? m.userId : "";
     const username = typeof m.username === "string" ? m.username : "";
-    if (!userId || !username) continue;
+    const displayName = typeof m.displayName === "string" && m.displayName ? m.displayName : undefined;
+    // ★★ 必须的只有两样：**userId**（身份，决定点进去是谁）与**一个能显示的名字**。
+    //   原来这里要求 `username` 必须有 —— 那是"令牌就是 @username"时代的判据。
+    //   现在显示取的是 displayName，只有 username 缺失就整条丢掉的话，那一 @ 会从
+    //   蓝字退回白字，用户会以为自己 @ 错了人（其实通知早就发出去了）。
+    if (!userId || (!username && !displayName)) continue;
     const rawToken = typeof m.token === "string" && m.token.trim() ? m.token.trim() : username;
+    const hasSpan =
+      typeof m.offset === "number" &&
+      Number.isInteger(m.offset) &&
+      m.offset >= 0 &&
+      typeof m.length === "number" &&
+      Number.isInteger(m.length) &&
+      m.length >= 1;
     list.push({
       token: rawToken.startsWith("@") ? rawToken : `@${rawToken}`,
       userId,
       username,
-      displayName: typeof m.displayName === "string" && m.displayName ? m.displayName : undefined,
+      displayName,
+      offset: hasSpan ? m.offset : undefined,
+      length: hasSpan ? m.length : undefined,
     });
   }
   return list.length > 0 ? list : undefined;
@@ -818,6 +836,9 @@ function toCommentFields(remote: branch.ApiComment): VideoComment {
   return {
     id: remote._id,
     author: branch.authorName(remote.author),
+    // ★ 后加字段：老服务端不 populate 作者（author 是裸 id 字符串）时拿不到，
+    //   落 undefined 由 canDeleteComment 退回按展示名判
+    authorId: branch.authorId(remote.author) ?? undefined,
     text: remote.text,
     at: toMs(remote.createdAt),
     mentions: toMentions(remote.mentions),
@@ -829,8 +850,23 @@ function toCommentFields(remote: branch.ApiComment): VideoComment {
   };
 }
 
-export function addComment(id: string, text: string): Promise<VideoComment | null> {
-  return addReply(id, null, text);
+/**
+ * 一次成功的发评论的结果。
+ *
+ * ★★ 为什么不只返回评论本身：客户端报上去的 @（span）可能**一条都没落地** ——
+ *   老服务端的 zod 直接把 `mentions` 键 strip 掉（不报错、不 400），
+ *   或者某一条核对没过（用户在插入之后把名字改花了）。
+ *   评论确实发出去了，但那几个 @ 谁也通知不到 —— 不说出来就是铁律八的静默失败。
+ *   所以把"报了几个、服务端认下来几个"一起交给 UI，由它就地写一行黄字。
+ */
+export interface PostedComment {
+  comment: VideoComment;
+  /** 报上去了但服务端**没有**认下来的 @ 个数。> 0 时 UI 必须说出来 */
+  droppedMentions: number;
+}
+
+export function addComment(id: string, text: string, picks: MentionPick[] = []): Promise<PostedComment | null> {
+  return addReply(id, null, text, picks);
 }
 
 /**
@@ -844,12 +880,17 @@ export function addComment(id: string, text: string): Promise<VideoComment | nul
  *   现在失败一律 throw 给调用方，由评论区就地显示红字并**留着用户打的字**。
  * ★ 只有这**一个**实现：顶层评论就是 parentId=null 的回复，两条路分开写的话
  *   等待、报错、落盘这三段就得各写一遍（铁律六）。
+ * ★★ `picks` = 补全面板里挑过的人。**span 在这里、按最终正文重新定位**（铁律六：
+ *   两个评论口共用这一处，别在各自的页面里各算一遍）。为什么不能直接用插入时算的
+ *   offset：用户挑完人还会继续编辑正文，下标会整体漂掉，服务端核对不过就静默丢掉 ——
+ *   理由与做法写在 utils/mention.resolveMentionSpans。
  */
 export async function addReply(
   id: string,
   parentId: string | null,
   text: string,
-): Promise<VideoComment | null> {
+  picks: MentionPick[] = [],
+): Promise<PostedComment | null> {
   const v = find(id);
   if (!v) return null;
   const body = text.trim();
@@ -858,12 +899,17 @@ export async function addReply(
   let cmt: VideoComment = {
     id: uid("cmt"),
     author: currentUser()?.name ?? ME,
+    authorId: currentUser()?.id,
     text: body,
     at: Date.now(),
     parentId: parentId ?? null,
     likes: 0,
     liked: false,
   };
+  // ★ 用 **trim 之后**的正文定位：发上去的是 body，服务端核对的也是 body。
+  //   拿未 trim 的 text 算，开头有空格时整批 offset 都会差几位，核对全过不了。
+  const spans = remoteOn() ? resolveMentionSpans(body, picks) : [];
+  let droppedMentions = 0;
 
   if (remoteOn()) {
     const vid = serverVideoId(v);
@@ -873,7 +919,7 @@ export async function addReply(
     if (parentId && parentId.startsWith("cmt_")) {
       throw new Error("这条评论还在发送中，等它发出去之后再回复");
     }
-    const remote = await branch.addComment(vid, body, parentId ?? undefined);
+    const remote = await branch.addComment(vid, body, parentId ?? undefined, spans);
     // ★ 回包里没有评论那个形状 = 这台服务器没有这个端点（Capacitor 的静态服务器对
     //   未命中路径回 **200 + index.html**，状态码判不出来）。这时把本地那条插进列表
     //   就是"看着发出去了、其实谁都收不到"，必须说出来。
@@ -881,13 +927,77 @@ export async function addReply(
     const fields = toCommentFields(remote);
     // 老服务端没回 parentId：保留本地那份意图（降级成"位置不对"而不是"不见了"）
     cmt = { ...fields, parentId: fields.parentId ?? cmt.parentId };
+    // ★★ 逐条比对"我报了谁"与"服务端认下来谁"。只数**我报上去的那些**：
+    //   服务端另外靠 `@username` 兜底解析出来的人是白赚的，不能算进"丢了几个"。
+    const landed = new Set((cmt.mentions ?? []).map((m) => m.userId));
+    droppedMentions = spans.filter((s) => !landed.has(s.userId)).length;
   }
 
   // 回复插在列表最后（评论区按「顶层倒序、楼中楼正序」渲染），顶层插在最前
   v.comments = cmt.parentId ? [...v.comments, cmt] : [cmt, ...v.comments];
   save(all());
   emitVideos();
-  return cmt;
+  return { comment: cmt, droppedMentions };
+}
+
+/**
+ * 这条评论我能不能删。**只有这一处实现**（CommentSheet 与 VideoPage 共用，铁律六）。
+ *
+ * 规则与服务端一致：**评论作者本人** 或 **作品作者**（作者要能清理自己作品下的内容）。
+ * 服务端才是权威 —— 这里只决定"给不给按钮"，真删还是它说了算。
+ *
+ * ★ 判"是不是我发的"优先用 `authorId`（名字会变、会重名），拿不到才退回展示名。
+ *   authorId 是**后加**字段：老服务端不 populate 作者、离线库里的存量评论也没有它，
+ *   一律读到 undefined。写成 `c.authorId === me.id` 一刀切会把所有存量评论判成
+ *   "不是我的" —— 用户连自己刚发的都删不掉，而且一个错都不报。
+ * ★ 还没拿到服务端 id 的评论（`cmt_*`）不给删：那个 id 打上去只会吃 400。
+ *   离线模式除外 —— 那边所有评论都是 `cmt_*`，而且本来就只在这台设备上。
+ */
+export function canDeleteComment(videoId: string, c: VideoComment): boolean {
+  const v = find(videoId);
+  if (!v) return false;
+  if (commentPending(c)) return false;
+  const me = currentUser();
+  if (me && c.authorId) {
+    if (c.authorId === me.id) return true;
+  } else if (isMyAuthor(c.author)) {
+    return true;
+  }
+  // 作品作者可删自己作品下的任何一条
+  if (v.authorId && me) return v.authorId === me.id;
+  return isMyAuthor(v.author);
+}
+
+/**
+ * 删一条评论（连带它的回复）。
+ *
+ * ★★ **真等回包**，与 addReply / sendDanmaku 同一个 idiom：失败直接抛，由调用方就地
+ *   写红字。这里最不能做的是"本地先删、后台再打接口、失败了 emitApiError 就算完" ——
+ *   全 app 没有任何地方监听 emitApiError（铁律八），那样用户会看到评论消失、
+ *   下次刷新又回来了，全程零解释。
+ * ★ 连带删**回复**（parentId === commentId）：服务端会一起删，本地不跟着删的话，
+ *   界面上会剩下一堆没有上文的孤儿（buildThreads 会把它们提到顶层，更莫名其妙）。
+ *   两边删的是同一批，判据也是同一条（parentId 相等）。
+ * @throws 失败时抛出，message 可直接给用户看
+ */
+export async function removeComment(videoId: string, commentId: string): Promise<void> {
+  const v = find(videoId);
+  if (!v) throw new Error("这条作品不在这台设备上，刷新一下再试");
+  const cmt = v.comments.find((c) => c.id === commentId);
+  if (!cmt) return; // 已经不在了：当作删成功，重复点两下不该报错
+
+  if (remoteOn()) {
+    const vid = serverVideoId(v);
+    if (!vid) throw new Error("这条作品还没同步到服务器，稍后再试");
+    if (commentPending(cmt)) throw new Error("这条评论还在发送中，等它发出去之后再删");
+    // ★ 形状判"这台服务器认不认这个端点"，不判状态码（Capacitor 的 SPA 回退恒 200）
+    const landed = await branch.removeComment(vid, commentId);
+    if (!landed) throw new Error("这台服务器还不支持删除评论（需要升级服务端）");
+  }
+
+  v.comments = v.comments.filter((c) => c.id !== commentId && c.parentId !== commentId);
+  save(all());
+  emitVideos();
 }
 
 /**
@@ -1366,5 +1476,15 @@ export async function dropPendingPublish(clientId: string): Promise<void> {
 
 // DEV 调试/E2E 挂钩：与 __studio/__account 同款——自动化要读写与组件同实例的作品库
 if (import.meta.env.DEV && typeof window !== "undefined") {
-  (window as unknown as Record<string, unknown>).__videos = { getVideo, listVideos, partsOf, updateVideoMeta, deleteVideoItem };
+  (window as unknown as Record<string, unknown>).__videos = {
+    getVideo,
+    listVideos,
+    partsOf,
+    updateVideoMeta,
+    deleteVideoItem,
+    // E2E 要能驱动"发带 @ 的评论 / 删评论"这两条新路（真机上补全面板不好点）
+    addReply,
+    removeComment,
+    canDeleteComment,
+  };
 }

@@ -10,6 +10,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { addReply, commentPending, setCommentLike } from "../data/videos";
 import { VideoComment, VideoItem, relativeTime } from "../types";
+import type { MentionPick } from "../utils/mention";
+import CommentDelete from "./CommentDelete";
 import Icon from "./Icon";
 import MentionInput from "./MentionInput";
 import MentionText from "./MentionText";
@@ -55,15 +57,27 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
   // video.comments 由 addReply 原地换新数组，本地 state 拿快照驱动渲染
   const [list, setList] = useState<VideoComment[]>(video.comments);
   const [draft, setDraft] = useState("");
+  /**
+   * 这一条草稿里从补全面板挑过的人（userId + 当时插进去的名字）。
+   *
+   * ★ 只攒不算：正文还会被继续编辑，位置要等**按下发送那一刻**由 data 层按最终正文
+   *   重新定位（utils/mention.resolveMentionSpans 写了为什么）。挑了之后又把那段字
+   *   删掉的，定位时自然找不到、自动丢弃 —— 这里不必费心清理。
+   */
+  const [picks, setPicks] = useState<MentionPick[]>([]);
   /** 正在回复谁（null = 发顶层评论）。存整条是为了在输入区显示"回复 @某某" */
   const [replyTo, setReplyTo] = useState<VideoComment | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  /** 评论发出去了、但有几个 @ 服务端没认下来（老服务端 / 核对没过）。黄字，不是红字 */
+  const [warn, setWarn] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     setList(video.comments);
     setReplyTo(null);
     setErr("");
+    setWarn("");
+    setPicks([]);
   }, [video]);
 
   const threads = useMemo(() => buildThreads(list), [list]);
@@ -80,11 +94,19 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
     if (!text) return;
     setBusy(true);
     setErr("");
+    setWarn("");
     try {
-      await addReply(video.id, replyTo?.parentId || replyTo?.id || null, text);
+      const posted = await addReply(video.id, replyTo?.parentId || replyTo?.id || null, text, picks);
       setList([...video.comments]);
       setDraft("");
+      setPicks([]);
       setReplyTo(null);
+      // ★★ 评论发出去了、@ 却一个都没落地时**必须说出来**：老服务端会把 mentions 整个
+      //   strip 掉（不报错），核对没过的也会被丢掉。不说的话就是"@ 了、对方永远收不到"
+      //   的静默失败（铁律八）。这是黄字不是红字 —— 评论本身是成功的。
+      if (posted && posted.droppedMentions > 0) {
+        setWarn(`有 ${posted.droppedMentions} 个 @ 没能送达（对方不会收到通知）`);
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "评论没发出去，请重试");
     } finally {
@@ -133,13 +155,17 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
           <div className="mt-0.5 text-sm leading-relaxed text-slate-200">
             <MentionText text={c.text} mentions={c.mentions} onNavigate={onClose} />
           </div>
-          <button
-            onClick={() => startReply(c)}
-            disabled={pending}
-            className="mt-1 text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40"
-          >
-            {pending ? "发送中…" : "回复"}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => startReply(c)}
+              disabled={pending}
+              className="mt-1 text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40"
+            >
+              {pending ? "发送中…" : "回复"}
+            </button>
+            {/* 删除入口与详情页共用同一份实现（能不能删、二次确认、失败红字都在里面） */}
+            <CommentDelete videoId={video.id} comment={c} onDeleted={() => setList([...video.comments])} />
+          </div>
         </div>
         {/* 心 + 数字。热区给到 32px 宽——评论行密，小了会点到隔壁那条 */}
         <button
@@ -202,14 +228,16 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
           )}
           {/* 失败就地说清楚，并且**不清空输入框**——用户打的字还在，改一下就能再发 */}
           {err && <p className="mb-1.5 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+          {warn && <p className="mb-1.5 text-[11px] leading-relaxed text-amber-300/90">{warn}</p>}
           <div className="flex gap-2">
             {/* isComposing / 回车提交这些细节都在 MentionInput 里（两个评论口共用一份，
                 铁律六）。placeholder 里那个「回复 @昵称」是**说明文字**，不是提及令牌 ——
-                真正的提及要从补全面板里选，插进正文的是 @username */}
+                真正的提及要从补全面板里选（插进正文的是对方的显示名，身份走 picks） */}
             <MentionInput
               inputRef={inputRef}
               value={draft}
               onChange={setDraft}
+              onPick={(p) => setPicks((ps) => [...ps, p])}
               onEnter={() => void submit()}
               placeholder={replyTo ? `回复 @${replyTo.author}` : "说点什么，@ 可以叫上别人"}
               className="rounded-full border border-slate-700 bg-black/30 px-4 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
