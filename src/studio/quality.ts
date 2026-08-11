@@ -175,7 +175,7 @@ export function playerModelUrl(avatar: PlayerAvatar): string {
 //
 // ★ 括号里是**玩家形象**三档的实测体积（默认形象 f；选 m 各档再大 1–10MB）：
 //     流畅 2.4MB ｜ 均衡 3.3MB ｜ 极致 25.5MB
-//   画质**只影响玩家形象这一个模型**：默认铸卡师是购入的 milltina，单文件、不分档
+//   画质**只影响玩家形象这一个模型**：默认铸卡师是委托定制的 milltina，单文件、不分档
 //   （npcModelUrl 那三档只服务 `?npc=witch` 调试变体，出包时全裁）。
 //   旧文案写的 4/8/14MB 是开发试穿档 Tsumire 一个模型的数，普通用户根本用不到它，
 //   摆在这儿等于报了个假价。

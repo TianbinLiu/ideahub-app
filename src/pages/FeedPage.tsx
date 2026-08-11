@@ -23,8 +23,21 @@ import CharacterPerch, { usePerchBurst, type PerchPose } from "../components/Cha
 import { VideoAspect, VideoItem, aspectFromSize, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 
-/** 声音开关全流共享：一条视频上解除静音，后面每条都该有声（对标抖音/TikTok） */
-let soundOn = typeof sessionStorage !== "undefined" && sessionStorage.getItem("feed.sound") === "1";
+/**
+ * 带声音的自动播放被浏览器拒过一次吗。
+ *
+ * ★★ 默认**有声**。原生壳里不需要任何前置手势 —— 冷启动、一次触摸都没有的情况下
+ *   解除静音并 play()，实测直接成功（Capacitor 的 WebView 关掉了
+ *   mediaPlaybackRequiresUserGesture）。所以 App 里**不该有**"点击开启声音"
+ *   这种提示：有没有声音是手机音量键的事，多一句话只会让人以为哪儿设错了。
+ *
+ * ★ 这个开关只为**网页版**兜底：桌面/移动浏览器的自动播放策略确实会拒绝带声音的
+ *   自动播放（NotAllowedError）。被拒一次就整条流先静音，等用户第一次碰屏幕再开 ——
+ *   全程不出文案，因为在那个环境里用户本来就知道"网页要点一下才有声"。
+ * ★ 模块级而不是每个 FeedItem 各存一份：被拒是**浏览器**的态度，不是某一条视频的，
+ *   划到下一条不该再撞一次墙。
+ */
+let autoplayBlocked = false;
 
 /**
  * 画面怎么塞进这一屏。
@@ -147,7 +160,8 @@ function FeedItem({
   const [following, setFollowing] = useState(() => isFollowing(video.author));
   const [paused, setPaused] = useState(false);
   const [burst, setBurst] = useState<{ x: number; y: number; k: number } | null>(null);
-  const [muted, setMuted] = useState(!soundOn);
+  // 默认有声。只有"这个浏览器已经拒过一次带声音的自动播放"时才先静音（见 autoplayBlocked）
+  const [muted, setMuted] = useState(autoplayBlocked);
   // 缓冲提示（对标抖音底缘细线）：waiting 后延迟 200ms 才亮，
   // 微卡顿（解码抖一下就恢复）不闪灯，真加载才提示
   const [buffering, setBuffering] = useState(false);
@@ -270,7 +284,16 @@ function FeedItem({
     if (!v) return;
     if (active) {
       setPaused(false);
-      void v.play().catch(() => {});
+      // ★ 先按**有声**起播。被浏览器拒了（只会发生在网页版）就静音重试 ——
+      //   静音自动播放是任何浏览器都允许的，所以这一步不会再失败；
+      //   同时记下这台浏览器的态度，后面每一条都直接先静音，别一条条撞墙。
+      //   不弹任何提示：原生壳里根本走不到这儿，网页版用户也知道要点一下。
+      void v.play().catch(() => {
+        autoplayBlocked = true;
+        v.muted = true;
+        setMuted(true);
+        void v.play().catch(() => {});
+      });
       // 这一屏重新开始计时。本会话已经记过的就不用再数了（去重的权威在 videos.ts，
       // 这里问一句只是为了省掉后面每帧的累加）
       watchRef.current = { prev: v.currentTime, sum: 0 };
@@ -331,10 +354,11 @@ function FeedItem({
       return;
     }
     tapRef.current.last = now;
-    // 首次单击只解除静音——正好满足浏览器"必须有用户手势"的解锁要求
-    if (muted && !soundOn) {
-      soundOn = true;
-      sessionStorage.setItem("feed.sound", "1");
+    // ★ 只有"被浏览器拒过、正静着音"的时候，首次单击才拿去解除静音（正好满足
+    //   浏览器"必须有用户手势"的解锁要求）。原生壳里 muted 一开始就是 false，
+    //   这一段走不到 —— 点一下就是暂停，符合直觉。
+    if (muted) {
+      autoplayBlocked = false;
       setMuted(false);
       return;
     }
@@ -531,12 +555,10 @@ function FeedItem({
         />
       )}
 
-      {/* 静音提示：解除之前明确告诉用户点一下有声 */}
-      {active && muted && (
-        <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/55 px-3 py-1.5 text-xs text-white/90 backdrop-blur">
-          点击开启声音
-        </div>
-      )}
+      {/* ★ 这里原来常驻一句「点击开启声音」。删掉了：原生壳里视频**本来就有声**
+          （实测冷启动零手势即可带声播放），那句话只会让人以为哪儿设错了 ——
+          有没有声音是手机音量键的事。网页版被自动播放策略拦下时也不再出文案，
+          第一次碰屏幕就自动开声（见 onUp）。 */}
 
       {/* 右侧竖排操作：头像+关注 / 赞 / 评论 / 收藏 / 分享。
           对齐 TikTok：头像带 + 号在最上方（原来在左下角），四个按钮一律显示【数字】而非文字标签——

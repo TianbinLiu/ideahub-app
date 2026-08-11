@@ -264,7 +264,14 @@ export default function ProfilePage() {
         </div>
 
         <div className="mt-3.5 max-w-full truncate text-lg font-bold text-slate-100">{display}</div>
-        {handle !== display && <div className="mt-0.5 text-xs text-slate-500">@{handle}</div>}
+        {/* ★ 这里跟的是**当前昵称**，不是登录账号。
+            原来显示的是 user.account（注册时定下的登录标识，改昵称不会变），于是用户
+            改完名一看："我的名字下面怎么还挂着旧名字？" —— 他把它当成了一个没刷新的
+            名字字段，而不是登录账号（2026-08-11 用户报）。
+            这个 app 没有"可公开展示、且独立于昵称"的 handle 概念，摆一个只在这里出现、
+            又永远不跟着改的字符串，除了制造困惑没有别的作用。
+            登录账号仍然存在，只是不在这儿露脸。 */}
+        <div className="mt-0.5 max-w-full truncate text-xs text-slate-500">@{display}</div>
 
         {/* 三连统计：竖线分隔，数字大、标签小（TikTok 同款视觉层级） */}
         <div className="mt-3.5 flex items-stretch">

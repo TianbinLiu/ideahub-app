@@ -45,7 +45,8 @@ import {
   syncOrbitFromCamera,
 } from "./cameraOrbit";
 
-// 购入模型 Milltina（默认铸卡师）的配置（模块级常量：内联对象会让 TripoNpc 的 memo 每帧重建）
+// 委托定制模型 Milltina（默认铸卡师，**自有版权**）的配置
+// （模块级常量：内联对象会让 TripoNpc 的 memo 每帧重建）
 // FBX 静止姿势是 T-pose；轴向实测：x−=垂臂（z 是水平前摆别用），微量 z 让手贴身
 const MILLTINA_CFG = {
   scale: 3.35,
@@ -1649,7 +1650,9 @@ export default function TableScene() {
           // 旧自产 Tripo 女巫（降级为调试变体）：模型按画质分级选档
           <TripoNpc url={npcModelUrl()} full />
         ) : (
-          // 默认铸卡师 = 购入模型 Milltina（加密分发）：VRC 原生形键 + 弹簧骨物理 + 调暗描边
+          // 默认铸卡师 = 委托定制的 Milltina（**自有版权，随包发布**；加密只是防直接取用，
+          // 不是"不能发"——别和 protected/ 下那些第三方版权模型混为一谈，见 prune-app-assets）：
+          // VRC 原生形键 + 弹簧骨物理 + 调暗描边
           <TripoNpc url="/models/protected/milltina-opt.glbx?v=m15" cfg={MILLTINA_CFG} face={MILLTINA_FACE} />
         )}
       </Suspense>
