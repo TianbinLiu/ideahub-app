@@ -131,6 +131,16 @@ export function proposalsCost(hasStartFrame: boolean): number {
 /** 单张图的重画：方案设定图改图（refineFrame）、AI 封面（generateCover） */
 export const ONE_IMAGE = IMAGE_TOKENS;
 
+/**
+ * 「按修改重画一套方案」的报价：用户自己上传的帧、以及承接上一段真实结尾的那张开头帧
+ * 一律不动（见 Proposal.pinned），剩下几张才重画。
+ * ★ 只能有这一处实现——按钮上的报价和真正扣的钱分开算，必然分叉，而"界面写 13.3k、
+ *   实际扣 26.6k"这种事用户当场发现不了（铁律六）。
+ */
+export function proposalRedrawCost(keepFirst: boolean, keepLast: boolean): number {
+  return ((keepFirst ? 0 : 1) + (keepLast ? 0 : 1)) * ONE_IMAGE;
+}
+
 /** 成片派生卡组：最多 8 张，每张一次文案 + 一次卡面。
  *  与 extractCost 一样给的是**上限**——重复实体会被剔掉，按实际出卡结算。 */
 export function deckCardsCost(maxCards = 8): number {

@@ -43,6 +43,34 @@ export async function shrinkDataUrl(src: string, maxW = 320, quality = 0.72): Pr
 }
 
 /**
+ * 本地图 → 设定帧 dataURL（不裁剪，只把超宽的压下来）。
+ * Seedream 的参考图与 Seedance 的首/尾帧都收 dataURL，而手机相册原图动辄 5MB+ base64，
+ * 直接塞进方案会白白撑大草稿正文（一条草稿本来就有 1MB 级的帧）。
+ * ★ 这份实现原来长在 studio/ui/projection.tsx 里，方案台也要用同一条规则（铁律六），
+ *   所以提到这里；两处若各写一份，压缩阈值改一边就会分叉。
+ */
+export async function fileToFrameDataUrl(file: File, maxW = 1600, quality = 0.87): Promise<string> {
+  const raw = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = raw;
+  });
+  if (img.width <= maxW) return raw;
+  const c = document.createElement("canvas");
+  c.width = maxW;
+  c.height = Math.round((img.height * maxW) / img.width);
+  c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", quality);
+}
+
+/**
  * 读一张本地图片，居中裁成正方形并缩到 size×size。
  * 用 createImageBitmap 的 imageOrientation:"from-image" 让浏览器按 EXIF 摆正——
  * 手机竖拍的照片不这样处理会躺倒。

@@ -84,8 +84,8 @@ function useHint(): string {
   const focus = useStudio((s) => s.focus);
   const marketOpen = useStudio((s) => s.market.open);
   const spreadOpen = useStudio((s) => s.spreadOpen);
-  if (projection === "editor") return "填入素材与要求，AI 将推演三种走向";
-  if (projection === "proposals") return "点开投影中的方案卡，选定后卡片落回桌面";
+  if (projection === "editor") return "填入素材与要求，AI 将推演三套走向";
+  if (projection === "proposals") return "挑一套方案 → 可换首尾帧/改剧情 → 炼出本段视频";
   if (projection === "decks") return "小窗右上角可在「卡组 / 卡片」间切换，单击卡片看详情";
   if (focus) return "点击卡片之外的桌面区域可拉远视角";
   if (marketOpen) return "点桌上的市场卡放大查看，喜欢就收进卡组";
@@ -93,9 +93,11 @@ function useHint(): string {
   if (!root && deckLen === 0) return "先把素材交给铸卡师炼卡，或让 TA 摊开市场";
   if (!root) return "点击虚线卡位，铸造第一段视频节点";
   // 「金色圆台」这个说法在圆台改成法阵后就对不上了（它现在暗着的时候是冷灰的）；
-  // 统一叫「法阵」，与台前铭牌上的「生成成片 · 点亮法阵」同一套词
-  if (placeholderVisible(root) && composable(root)) return "点虚线卡位延展下一段 · 点亮法阵可逐段推演成片";
-  return "点击节点卡可重新查看三种走向";
+  // 统一叫「法阵」，与台前铭牌上的「点亮法阵」同一套词
+  if (placeholderVisible(root) && composable(root)) return "点虚线卡位延展下一段 · 点亮法阵去剪辑成片";
+  // 虚线卡位没亮 = 当前段还没挑方案或还没出片：把"下一段为什么开不了"说清楚，
+  // 不然用户只会觉得桌面少了个卡位
+  return "点击节点卡：挑定方案并炼出本段视频，才能延展下一段";
 }
 
 // ── 市场翻页箭头：屏幕两侧竖直居中，56px 热区（比卡组那对 36px 的大一圈，
