@@ -24,7 +24,8 @@ npm run dev                    # http://localhost:5173
 
 `npm run build` = `tsc && vite build`，**提交前必须通过**。
 
-出安装包：`npm run apk`（debug）/ `npm run apk:release` / `npm run aab`。
+出安装包：`npm run apk`（debug，自己测）/ `npm run apk:release`（**发给别人的只发这个**）/ `npm run aab`（上架）。
+发版与应用内更新的完整流程见 [`docs/app-distribution.md`](docs/app-distribution.md)。
 签名 keystore 不在仓库里，见 `android/keystore/README.md`。
 
 ## 目录
@@ -46,7 +47,7 @@ public/
   mascot/      工作流页屏幕中央的看板娘逐帧演出（二次元正片，交卡/炼卡/炼成三段）
   cards/       卡牌素材
   models/      3D 模型（protected/ 下的加密产物不入仓）
-  avatars/
+  avatars/     官方 Q 版看板娘头像（「我的」页换头像用，从 createbtn 精灵图里裁的）
 design/        ★ 建模/出图的【离线工具与素材】，不参与 App 构建
                （角色转换、LOD 生成、封面生成脚本 + 参考图 + 授权笔记）
 ```
@@ -74,6 +75,22 @@ design/        ★ 建模/出图的【离线工具与素材】，不参与 App �
   底部节点条三条路共用）加 `addNode` 的追加门槛，工坊是 `studioStore.placeholderVisible`
   （虚线卡位亮不亮）加 `composable`（法阵亮不亮）。UI 上的 disabled/锁图标只是把"为什么
   点不动"画出来，别在那里另写一遍判断。
+- **互动计数一律要能防刷**。首页是上下甩着刷的，"进入视口就 +1""重挂载就重来"这类写法
+  等于给用户做了个刷量按钮。已经收口的两条：**播放**要真看够 `PLAY_MIN_SEC`（3 秒，
+  按 `currentTime` 增量累计，不是墙上时钟）且一次会话只记一次（`videos.addPlay` 里去重，
+  sessionStorage 存名单，刷新也不重置）；**点赞**在 `videos.setLike` 里做幂等，
+  而它成立的前提是**离线模式把 likedIds 落盘**（不落盘的话刷新一次爱心就变回空心，
+  同一条能无限点）。新加互动（收藏/投币之类）先想清楚"反复做同一件事会怎样"。
+- **弹幕走服务端**（`data/danmaku.ts` ↔ `/api/branch/videos/:id/danmaku`，契约见
+  `docs/api-contract.md`「弹幕」）。三条别踩：
+  ① 读接口是**同步**的（`danmakuOf`）——渲染层每一拍都要问，远端那份靠"按作品懒加载
+  + 到货后 emit"补进内存 cache（与 `videos.loadDetail` 同一招）；
+  ② 发弹幕**不做乐观插入**，真等回包。乐观发送时一旦失败，用户会亲眼看着自己那条飘过去
+  然后永远消失，而全 app **没有任何地方监听 `emitApiError`**——那就是静默失败（铁律八）；
+  ③ 「这次会话到底在不在远端上」只有一处判断：`videos.remoteOn()`。别在别的 data 模块里
+  各探一次，否则弱网冷启动会出现"视频退了本地库、弹幕还在打远端"这种半边天。
+  离线模式（没配 `VITE_API_BASE` 或服务端没起）退回 IndexedDB，此时输入条会明说
+  "只存在这台设备上"——接上服务端时那句话必须消失，否则是另一种骗人。
 - **简约模式不进草稿库**（`saveWorkDraft` 里挡掉）：它只有一段、写一句话就出片、直通发布，
   中间没有"回来接着做"的状态；而草稿一条带 1MB 级的帧，塞进去只会把真正需要草稿的
   工坊/工作流挤出 20 条上限。
@@ -94,6 +111,7 @@ design/        ★ 建模/出图的【离线工具与素材】，不参与 App �
 |---|---|---|
 | `.env.local` 没配 | AI 功能静默走 mock，不报错 | `cp .env.example .env.local` |
 | 新 worktree 缺 `.env.local` | 同上（gitignore 不会带过去） | 手动复制 |
+| 新 worktree 缺 `public/models/protected/` | **出包直接少东西且不报错**：工坊里铸卡师不见了（milltina 是加密分发的默认 NPC），凛卡的 3D 预览也没了。dev 下同样静默——只是模型 404，画面上就是"人没出来" | 同样手动从主仓复制。出包前用 `ls dist/models/protected/` 确认 `milltina-opt.glbx` 在（2026-08-11 就是这么发出去一个没有铸卡师的包的） |
 | `VITE_API_BASE` 指了远端 | 首页空白（本地库被跳过） | 本地开发注释掉它 |
 | 方舟提示词含敏感词 | 整个请求 400，不是降级 | 见 `AGENTS.md` 本仓小节 |
 | 新增数据字段没写迁移 | 老设备读到 `undefined`，静默显示 0 | 在 `src/data/videos.ts` 的迁移分支里加条件 |
@@ -101,11 +119,19 @@ design/        ★ 建模/出图的【离线工具与素材】，不参与 App �
 | 后加的字段用 `=== "预期值"` 判 | 存量数据那一项是 `undefined`，被整批判成"不是"——首页突然空了，且不报错 | 一律判**否定**（`!== "private"`）。`visibility` 踩过，规则写在 `docs/api-contract.md`「可见性」一节 |
 | 两仓价目表各写各的 | 页面报价 ¥25、实际扣 ¥15，用户觉得被偷钱 | `src/data/economy.ts` 是**报价**，server 的 `payment/order.service.js` + `config/tokens.js` 是**结算**，必须逐条相等。server 的 `payOrder.spec.js` 末尾钉了一份 |
 | 以为 `design/` 里的模型可以随便打包 | —— | 那是 BOOTH 购入的第三方素材，出厂分发需先取得授权，见下 |
+| 把 `public/models/protected/` 当成"都是不能发的" | 两个方向都出过事：把**自有**的 milltina 裁掉 → 进工坊看不到铸卡师且不报错；把**第三方**的 rin 留下 → 版权素材随包发出去了 | 那个目录装的是"要加密的"，不是"不能发的"，两件事。**自有、必须发**：`milltina-opt.glbx`（委托定制的默认铸卡师）。**第三方、绝不能发**：rin（远坂凛，含卡牌全息那份）、gratia、tsumire。加密拦不住版权 —— 解密密钥就在同一个包里 |
 | 铸卡师不出声 | 嘴在动但没声音 | 系统没装中文语音包。Win11：设置→时间和语言→语音→添加语音→中文(简体，中国)，装完**完全退出浏览器**再开（语音表在进程启动时枚举一次）。⚠「讲述人→添加自然语音」里的晓晓/云希浏览器拿不到 |
 | 以为 `ARK_API_KEY` 能用来做 TTS | —— | 方舟没有 TTS（实测 129 个模型里一个都没有）。语音合成是 openspeech 另一条产品线，另配 `TTS_APPID`/`TTS_TOKEN`，见 `.env.example` |
 | 前端把服务端接口写成同源相对路径（`/api/ark`、`/api/asset`、`/api/tts`） | 真机上"出片第 1 段就失败：`Unexpected token '<',"<!doctype"...`"、工坊 NPC 不回话、试听没声音 | 这些端点在 dev 是 `vite.config.ts` 的中间件/代理，**APK 里根本不存在**；而 Capacitor 的本地静态服务器对未命中路径做 SPA 回退，返回 **200 + index.html** 不是 404，于是 `res.ok` 恒真、`res.json()` 撞上 HTML。一律走 `API_BASE`（`src/api/client.ts`），并且判断"这台服务器有没有这个能力"要看 `Content-Type` 或专门的健康端点（`GET /api/ark/health`），**永远不要信状态码** |
 | 自己调 `screen.orientation.lock` / `ScreenOrientation.lock` 转屏 | 浏览器里像是好了，**真机上点了没反应** | 方向只有一个主人：`hooks/useOrientationLock`。它每次切路由就 `lock(portrait)`，加上 manifest 的 `screenOrientation="portrait"`，native 那层早把 activity 钉死了，Web 的 `screen.orientation.lock` 盖不过去。要横屏调 `requestLandscape(true)` 表达意图，退出时**必须**传 `false`（首页全屏转屏就走这条路） |
 | 改了画幅却发现出片还是横的 | 竖屏设定帧被裁成横的，或视频照样 16:9 | 画幅要**三处同时改**才生效，缺一处就被方舟静默裁掉：Seedance 的 `ratio` 参数、Seedream 的画布尺寸（竖屏 `1440x2560`，比例不符会被裁）、提示词里的构图措辞（尺寸参数管不到构图）。三者收在 `types.VIDEO_ASPECTS` 一处，别在调用点各写各的。另：720p 竖屏方舟实际吐 **704×1248**（对齐到 16 的倍数），不是 720×1280 |
+| 动了首页底缘任何一个元素的位置 | 别的元素被**悄悄盖住**：右侧栏的全屏键压住时长文字、底栏的看板娘压住进度条 —— 两件都真发生过，而且都不报错，只是信息看不见了 | 底缘 100px 里叠着四样东西，位置是联动的：进度条容器 `bottom = var(--tabbar-h) - 0.375rem`（离底 50px）→ 时长文字顶沿在 86px → 右侧栏 `bottom = var(--tabbar-h) + 3rem`（104px）。底栏自己 56px 高，任何挂件都不许往上戳。改一个就把这几个数一起重算，别只看自己那一块 |
+| 右侧操作栏加了新按钮 | 小屏（640 高）上最上面的头像被 section 的 `overflow-hidden` **裁掉** | 整栏是 bottom 定位的 flex-col，加一个键就往上长 64px。现值 512px + 底 104px = 616px，640 屏还剩 24px。再加键就得先减间距（`RailBtn` 的 `mt-8` 只给有角色演出的键，基准 gap-2） |
+| 拿**名字**当身份判「这条是不是我发的」 | 用户改完昵称回首页：右侧头像退回字母底、点进去还是旧名字的主页，重启才好 | `VideoItem.author` 是**显示名**，会变。缓存里那些作品的 author 还是旧值，`isMyAuthor` 就判否了。改名时按 `authorId` 精确改写缓存（`videos.ts` 的 `renameMyVideos`），别按旧名字模糊匹配——会误伤重名的别人 |
+| 界面上摆一个永远点不动的选项 | 「极致」画质在 App 里是灰的，说明写着"安装包不含 4K 贴图" —— 用户只会觉得功能坏了 | 要么让它真能用（现在 4K 随包发布），要么别显示。同理：设置页那个「已用 xx MB」原来只是个用户看不懂也做不了事的数字，现在配了真能清的「清理缓存」 |
+| 出包时忘了涨 `versionCode` | 已经装了的人**永远收不到这次更新** —— 更新检查靠这个整数判新旧，不涨就等于没发 | 每次 `npm run apk:release` 前先改 `android/app/build.gradle`，见 `docs/app-distribution.md` |
+| 把 debug 包发给别人装 | 下次发 release 包时对方装不上，只提示「应用未安装」，看不出是签名不同 | 发给别人的永远只发 `npm run apk:release` 的产物；debug 包只留在自己机器上 |
+| 把 `REQUEST_INSTALL_PACKAGES` 挪进 `src/main/` | 本地一切正常，**上架审核被拒**（Google Play 禁止应用自装 APK），而那时离改动早过去很久了 | 自更新的权限与代码只准待在 `android/app/src/sideload/`；`src/play/AndroidManifest.xml` 里那条 `tools:node="remove"` 是兜底，别删 |
 | 全屏浮层写了 `fixed inset-0` 却只铺满一小块 | 浮层被某个祖先裁掉、点不到或压不住底栏 | 祖先上有 `backdrop-blur`（`backdrop-filter`）或 `transform`/`filter` —— 它们会给 `position: fixed` 后代造**包含块**，`inset-0` 于是相对那个盒子而不是视口；`position+z-index` 还会另开层叠上下文，压不过外面的兄弟节点。解法一律是 `createPortal` 到 `body`（评论抽屉、首尾帧卡放大层都栽在这条上，各修过一次） |
 | 在**看不见的**窗口里测（最小化/被挡住/标签页在后台） | 三类假故障：① `scrollTo({behavior:"smooth"})` 完全不动、scroll 事件一次都不触发（轮播翻页、首页上下滑看起来全坏）② `<video>` 不加载不解码，`loadedmetadata`/`seeked` 永不到达（出片卡在「捕获本段真实尾帧…」、剪辑页卡在「合并中」）③ rAF 被节流到 ~1 帧/500ms，Three.js 画布是黑的 | 先查 `document.visibilityState`，是 `hidden` 就别下结论。自动化测试必须让窗口真正可见（CDP 截图能骗过去，rAF 和媒体解码骗不过去）。代码侧的对策是**等媒体事件一律带超时**（见 `ai/real.ts` 的 `withTimeout`）——否则用户在几分钟的出片过程里切出去，回来就是永久卡死 |
 
@@ -114,6 +140,9 @@ design/        ★ 建模/出图的【离线工具与素材】，不参与 App �
 - [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — 从零到能跑
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
+- [`docs/app-distribution.md`](docs/app-distribution.md) — 发包给别人装、应用内更新怎么走
 - [`public/perch/README.md`](public/perch/README.md) — 角色动画资源怎么生成、踩过什么坑
+- [`public/createbtn/README.md`](public/createbtn/README.md) — 底栏 ➕ 上那只常驻宠物（含并排版式的取值）
+- [`public/avatars/README.md`](public/avatars/README.md) — 官方 Q 版看板娘头像怎么裁、选了之后存的是什么
 - [`public/mascot/README.md`](public/mascot/README.md) — 工作流页看板娘三段演出的出图流水线与坑
 - [`design/README-tsumire.md`](design/README-tsumire.md) — 购入模型的接入笔记与**授权结论**（上线前必读）

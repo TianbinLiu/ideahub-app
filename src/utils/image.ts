@@ -70,35 +70,33 @@ export async function fileToFrameDataUrl(file: File, maxW = 1600, quality = 0.87
   return c.toDataURL("image/jpeg", quality);
 }
 
+/** 源图上要取的那块方形区域（像素）。三个头像入口最后都收敛到这一个形状 */
+export interface SquareCrop {
+  x: number;
+  y: number;
+  side: number;
+}
+
 /**
- * 读一张本地图片，居中裁成正方形并缩到 size×size。
- * 用 createImageBitmap 的 imageOrientation:"from-image" 让浏览器按 EXIF 摆正——
- * 手机竖拍的照片不这样处理会躺倒。
+ * 把一张已经解好码的图按 crop 裁成 size×size 并编码。
+ *
+ * ★ 三个入口（选本地图 / 手动圈定 / 选官方头像）共用这一段：编码格式、质量、
+ *   兜底逻辑只有一份。分开写的话总有一天会出现"官方头像是 png、上传的是 webp"
+ *   这种一眼看不出来、体积却差三倍的分叉（铁律六）。
  */
-export async function fileToSquareImage(file: File, size = 256, quality = 0.85): Promise<SquareImage> {
-  if (!file.type.startsWith("image/")) throw new Error("请选择图片文件");
-  if (file.size > MAX_INPUT_BYTES) throw new Error("图片太大了（超过 20MB）");
-
-  let bitmap: ImageBitmap;
-  try {
-    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-  } catch {
-    // Safari 老版本不支持 options，退回默认
-    bitmap = await createImageBitmap(file);
-  }
-
-  const side = Math.min(bitmap.width, bitmap.height);
-  const sx = (bitmap.width - side) / 2;
-  const sy = (bitmap.height - side) / 2;
-
+async function encodeSquare(
+  src: CanvasImageSource & { width: number; height: number },
+  crop: SquareCrop,
+  size: number,
+  quality: number,
+): Promise<SquareImage> {
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("无法处理图片");
   ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, size, size);
-  bitmap.close?.();
+  ctx.drawImage(src, crop.x, crop.y, crop.side, crop.side, 0, 0, size, size);
 
   // webp 体积明显更小；不支持的浏览器 toBlob 会回退成 png，用 type 反查真实结果
   const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/webp", quality));
@@ -117,4 +115,69 @@ export async function fileToSquareImage(file: File, size = 256, quality = 0.85):
   });
 
   return { dataUrl, blob: finalBlob, bytes: finalBlob.size };
+}
+
+/**
+ * 读一张本地图片解码出来。
+ * 用 createImageBitmap 的 imageOrientation:"from-image" 让浏览器按 EXIF 摆正——
+ * 手机竖拍的照片不这样处理会躺倒。
+ */
+export async function decodeImageFile(file: File): Promise<ImageBitmap> {
+  if (!file.type.startsWith("image/")) throw new Error("请选择图片文件");
+  if (file.size > MAX_INPUT_BYTES) throw new Error("图片太大了（超过 20MB）");
+  try {
+    return await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    // Safari 老版本不支持 options，退回默认
+    return await createImageBitmap(file);
+  }
+}
+
+/** 居中裁成正方形并缩到 size×size（不让用户圈选时的默认口径） */
+export async function fileToSquareImage(file: File, size = 256, quality = 0.85): Promise<SquareImage> {
+  const bitmap = await decodeImageFile(file);
+  try {
+    const side = Math.min(bitmap.width, bitmap.height);
+    return await encodeSquare(bitmap, { x: (bitmap.width - side) / 2, y: (bitmap.height - side) / 2, side }, size, quality);
+  } finally {
+    bitmap.close?.();
+  }
+}
+
+/** 按用户圈定的区域裁（头像裁切框，见 components/AvatarPicker）。
+ *  bitmap 由调用方持有并负责释放——裁切界面要一边预览一边反复调它 */
+export async function cropSquareImage(
+  bitmap: ImageBitmap,
+  crop: SquareCrop,
+  size = 256,
+  quality = 0.85,
+): Promise<SquareImage> {
+  return encodeSquare(bitmap, crop, size, quality);
+}
+
+/**
+ * 站内静态图（官方看板娘头像）→ 与上传图**完全同构**的 SquareImage。
+ *
+ * ★ 为什么绕这一圈，而不是直接把 "/avatars/mascot-x.webp" 写进 user.avatar：
+ *   头像在远端模式下要 PUT 给服务端（avatarUrl 字段）。塞一个**站内相对路径**上去，
+ *   服务端存的就是一个只有本 app 解得开的字符串，别的客户端、后台、以后的网页版
+ *   拿到都是坏图；服务端那边校不校验 URL 我们也管不着（契约里没写）。
+ *   走同一条上传路径就永远只有一种东西：一张真图。选官方头像和上传自己的图，
+ *   在数据层是同一件事（铁律六）。
+ */
+export async function urlToSquareImage(url: string, size = 256, quality = 0.85): Promise<SquareImage> {
+  const res = await fetch(url);
+  // ★ 判 Content-Type 而不是只判 res.ok：Capacitor 的本地静态服务器对未命中的路径
+  //   做 SPA 回退，返回 **200 + index.html**（CLAUDE.md 里记过这条）。只看状态码的话，
+  //   一张漏打包的头像会变成"createImageBitmap 解不开 HTML"这种查不出源头的报错。
+  const type = res.headers.get("content-type") ?? "";
+  if (!res.ok || !type.startsWith("image/")) throw new Error("头像素材读取失败（这张图可能没打进包里）");
+  const blob = await res.blob();
+  const bitmap = await createImageBitmap(blob);
+  try {
+    const side = Math.min(bitmap.width, bitmap.height);
+    return await encodeSquare(bitmap, { x: (bitmap.width - side) / 2, y: (bitmap.height - side) / 2, side }, size, quality);
+  } finally {
+    bitmap.close?.();
+  }
 }

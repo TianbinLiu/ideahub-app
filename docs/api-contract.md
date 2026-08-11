@@ -37,6 +37,10 @@
 ### BranchLike（点赞去重）
 `{ user, video }` 唯一索引。
 
+### BranchDanmaku（弹幕）
+`{ video, author, at, text, color }` + timestamps。索引 `{video, at}`（播放端按时间轴取）
+与 `{video, createdAt}`（取最新 N 条）。字段口径见下「弹幕」。
+
 ## 端点
 
 | 方法 | 路径 | 鉴权 | 说明 |
@@ -51,6 +55,8 @@
 | DELETE | `/api/branch/videos/:id/like` | required | 取消，返回 `{ ok, likes, liked: false }` |
 | GET | `/api/branch/videos/:id/comments` | optional | 评论列表 |
 | POST | `/api/branch/videos/:id/comments` | required | 发评论 `{ text }` |
+| GET | `/api/branch/videos/:id/danmaku` | optional | 弹幕列表（见下「弹幕」）。query `limit`(默认 200，上限 500)。返回 `{ ok, items, truncated }` |
+| POST | `/api/branch/videos/:id/danmaku` | required | 发弹幕 `{ at, text, color? }` → 201 `{ ok, danmaku }`。限流 **30/分钟**（按账号） |
 | GET | `/api/branch/cards` | required | 我的卡片 |
 | POST | `/api/branch/cards` | required | 批量新增 `{ cards: Card[] }`（按 cardId 幂等） |
 | DELETE | `/api/branch/cards/:cardId` | required | 删除一张 |
@@ -75,8 +81,38 @@
 响应里的 `visibility` 已经归一过（`undefined` → `"public"`），客户端不用判缺省。
 
 挡的地方不止详情：`GET /videos`（含 `q` 搜索）、`GET /videos/:id`、`POST /:id/play`、
-`POST|DELETE /:id/like`、`GET|POST /:id/comments` **全部**按同一条规则挡，
-非作者一律 404。只挡详情等于给私密作品留了个探测旁路。
+`POST|DELETE /:id/like`、`GET|POST /:id/comments`、`GET|POST /:id/danmaku` **全部**按
+同一条规则挡，非作者一律 404。只挡详情等于给私密作品留了个探测旁路。
+服务端这几处收敛在 `branchVideo.controller.js` 的 `assertVisible()` 一个函数里
+（原来是各写各的，加一条子端点就多抄一遍）。
+
+## 弹幕
+
+B 站式弹幕：一句话 + 它该在**视频第几秒**飘过去。与评论是两件事，各自一张表
+（`BranchDanmaku`）—— 评论按发布时间倒序读完就行，弹幕脱开 `at` 就什么都不是。
+
+**字段**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `at` | number | 出现在**全片累计秒**（多段作品要把前面几段时长加上，与播放器进度条同口径）。`0 ≤ at ≤ 86400` |
+| `text` | string | 正文，trim 后 **1–40 字**。40 是契约值，客户端的 `DANMAKU_MAX_LEN` 必须与它相等 |
+| `color` | string? | `#rrggbb`，**只收这一种格式**。缺省/空串 = 客户端默认色（白） |
+| `mine` | boolean | 响应字段。这条是不是当前请求者发的 |
+
+★ `color` 会原样进客户端的 `style.color`。收任意字符串等于把一段用户可控的文本
+喂进 CSS，所以服务端用 `/^#[0-9a-f]{6}$/i` 钉死，不合格直接 400。
+
+★ **响应里没有作者**，只有 `mine`。弹幕在这套心智里是匿名的：挂上 username，
+一条作品的弹幕墙就成了"谁在什么时间看了这个视频"的公开记录。客户端要作者信息的
+唯一用途是给自己发的那条描个边，一个布尔就够。
+
+**采样口径**：`GET` 先按 `createdAt` 倒序取最新的 `limit` 条，再**按 `at` 升序**返回。
+不是"按 at 取前 N 条"——那样一条爆火作品的前 10 秒会被老弹幕占满、后发的永远看不见。
+返回值里的 `truncated` 明说这是不是全部；没有这个标记，客户端分不出
+"这条作品就这么多弹幕"和"被我们截断了"。
+
+★ 返回**必须是 `at` 升序**：播放端是按游标扫时间轴放的，乱序会整段漏放。
 
 ## 随作品发布的卡组（`deck`）
 

@@ -1,9 +1,16 @@
 # Google Play 上架清单（分支视频 / com.ideahub.branchvideo）
 
 > 状态标记：✅ 已就绪 ｜ 🔧 需要动手 ｜ 💰 需要花钱
-> 出包命令：`npm run aab`（上架用 AAB）/ `npm run apk:release`（本地安装验证用 APK）
-> 当前产物：release APK **54MB** / AAB **53MB**（debug 曾 119MB——已扩充出包裁剪，
-> 剔除了零引用的烘焙遗留模型与 App 内不可达的 `?npc=` 调试模型共 ~100MB）
+> 出包命令：`npm run aab`（**上架用**，play 渠道）/ `npm run apk:release`（直装版，sideload 渠道）
+> 当前产物：直装版 APK **94MB** / 上架 AAB **93MB**（实测；61MB 的模型压缩后约 38MB）
+> （其中 61MB 是「极致」档玩家形象的 4K 贴图模型 —— 2026-08-11 起随包发布，见
+> `scripts/prune-app-assets.mjs`。裁剪仍然剔除零引用的烘焙遗留模型与不可分发的购入素材。）
+>
+> ⚠️ **两个渠道不是一回事**：直装版带「应用内自更新」（下载 APK 并拉起安装器），
+> 而 Google Play **禁止**这种行为。隔离靠 product flavor 做在构建里，不靠人记得删，
+> 细节见 [`app-distribution.md`](app-distribution.md)。上传 Play 前确认 AAB 里
+> 没有 `REQUEST_INSTALL_PACKAGES`：
+> `aapt2 dump permissions <aab 解出来的 base.apk> | grep INSTALL` 应当无输出。
 
 ## 一、账号与资质
 
@@ -31,9 +38,10 @@
 - 快速方案：用铸卡师 Milltina 半身特写截图（工坊对话视角，模型清晰、有辨识度）裁成方形，
   加深色圆角背景导出 512×512；再用 Android Studio 的 Image Asset 工具
   （或 https://icon.kitchen 在线生成）一键产出全套 mipmap 尺寸替换。
-- 注意：Milltina 是 BOOTH 购入模型，**商店图标/截图属于对外宣传物料，
-  上架前确认该模型授权条款允许用于应用商店展示**（App 内嵌入已确认可授权，宣传用途要单独核对）。
-  如条款不允许，改用自产的女巫 NPC（`?npc=witch`）或卡片全息投影画面做图标。
+- ✅ Milltina 是**委托定制、我们自有版权**的模型（不是 BOOTH 购入 —— 这条 2026-08-11 更正过），
+  所以拿它做图标、商店截图、任何对外宣传物料都没有授权问题。
+- ⚠️ 反过来要小心的是这几个：`protected/` 下的 rin（远坂凛）、gratia，以及 tsumire（BOOTH 购入）
+  —— **第三方版权，不入包也不做宣传物料**。出包裁剪已经全部剔除（`scripts/prune-app-assets.mjs`）。
 
 ### 4. 商店截图 🔧（至少 2 张手机截图，建议 4-8 张）
 - 要求：手机截图 16:9 或 9:16，边长 320-3840px；可选 7"/10" 平板图。
@@ -72,13 +80,15 @@
 缺任何一个时 `npm run build:app` 产物里模型加载会失败——出包后先装真机看一眼工坊 NPC 是否正常。
 
 ### 9. 版本号递增
-- 每次上传新包必须递增 `android/app/build.gradle` 里的 `versionCode`（当前 1），
-  `versionName` 是给用户看的展示版本（当前 "1.0"），按需更新。
+- 每次上传新包必须递增 `android/app/build.gradle` 里的 `versionCode`（当前 5），
+  `versionName` 是给用户看的展示版本（当前 "1.4"），按需更新。
+- ⚠️ 直装版和上架版**共用同一个 versionCode**。直装版的自更新就是靠它判新旧，
+  所以别为了上架单独调它（详见 `app-distribution.md`）。
 
 ### 10. 出包与验证
 ```
-npm run aab          → android/app/build/outputs/bundle/release/app-release.aab（传 Play Console）
-npm run apk:release  → android/app/build/outputs/apk/release/app-release.apk（真机安装自测）
+npm run aab          → android/app/build/outputs/bundle/playRelease/app-play-release.aab（传 Play Console）
+npm run apk:release  → android/app/build/outputs/apk/sideload/release/app-sideload-release.apk（直装版）
 ```
 - release 签名自动从 `android/keystore/keystore.properties` 读取，目录缺失会构建成无签名包并警告。
 - 上传 AAB 后 Console 会显示 Play 按设备拆分后的实际下载体积（远小于 APK）。

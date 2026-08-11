@@ -7,10 +7,13 @@ import Avatar from "../components/Avatar";
 import { fileToSquareImage } from "../utils/image";
 import { useCurrentUser } from "../hooks/useAccount";
 import { storageEstimate } from "../data/db";
-import { QUALITY_LABELS, getQuality, isNativeApp, setQuality, type Quality } from "../studio/quality";
+import { planSweep, runSweep, type SweepPlan } from "../data/cacheSweep";
+import { QUALITY_LABELS, getQuality, setQuality, type Quality } from "../studio/quality";
 import { DEFAULT_INSTRUCT, VOICES, currentInstruct, currentRate, currentVoice, rateLabel, setInstruct, setRate, setVoice, type PresetVoice } from "../studio/voices";
 import { speak } from "../studio/speech";
 import { API_BASE, getToken } from "../api/client";
+import { checkUpdate, currentVersion, selfUpdateSupported, type UpdateInfo } from "../data/appUpdate";
+import UpdateSheet from "../components/UpdateSheet";
 
 const AVATARS = ["🦊", "🐺", "🐱", "🦉", "🐙", "🦋", "🌙", "⭐", "🔮", "🎴", "🎬", "🍥"];
 
@@ -24,7 +27,6 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [storage, setStorage] = useState<{ usedMB: number; quotaMB: number } | null>(null);
   const [quality, setQ] = useState<Quality>(() => getQuality());
-  const native = isNativeApp();
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarErr, setAvatarErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -151,30 +153,26 @@ export default function SettingsPage() {
         <p className="mb-2 text-[11px] text-slate-500">首次进工坊会按你的设备自动选一档 · 这里是唯一的修改入口（工坊顶栏已不再放画质按钮）</p>
         <div className="space-y-2">
           {(Object.keys(QUALITY_LABELS) as Quality[]).map((q) => {
-            // 原生壳里"极致"档的大文件在出包时被裁掉了（scripts/prune-app-assets.mjs），
-            // getQuality() 会把它降回 mid。于是老代码 `if (q !== getQuality())` 永远成立
-            // ——点一次「极致」就 reload 一次、回来还是 mid，用户以为按钮坏了，实际是在
-            // 无限重载。直接把这一档在原生端禁掉，并把原因写在档位说明里。
-            const blocked = q === "high" && native;
+            // ★ 这里原来把「极致」在原生端禁掉了，因为那时 4K 素材在出包时被裁掉、
+            //   getQuality() 会把 high 降回 mid ——「点一次 reload 一次、回来还是均衡」
+            //   的死循环。2026-08-11 起 4K 随包发布（见 scripts/prune-app-assets.mjs），
+            //   封顶和这里的禁用一起取消。三档现在在 App 里都是真的能用的。
             return (
               <button
                 key={q}
-                disabled={blocked}
                 onClick={() => {
                   setQ(q);
                   if (q !== getQuality()) setQuality(q);
                 }}
-                className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left disabled:opacity-45 ${
+                className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left ${
                   quality === q ? "border-brand bg-brand/10" : "border-slate-700 bg-panel"
                 }`}
               >
                 <div>
                   <div className="text-sm text-slate-100">{QUALITY_LABELS[q].name}</div>
-                  <div className="text-[11px] text-slate-500">
-                    {blocked ? "App 安装包不含 4K 贴图，请在网页版使用" : QUALITY_LABELS[q].desc}
-                  </div>
+                  <div className="text-[11px] text-slate-500">{QUALITY_LABELS[q].desc}</div>
                 </div>
-                {quality === q && !blocked && <span className="text-brand">✓</span>}
+                {quality === q && <span className="text-brand">✓</span>}
               </button>
             );
           })}
@@ -198,15 +196,18 @@ export default function SettingsPage() {
               </div>
               <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
                 {remote
-                  ? "作品与卡片已同步到服务器，换设备登录同一账号即可看到。这里显示的是本机缓存占用。"
-                  : "作品与卡片存在本机浏览器数据库中。AI 生成的画面体积较大，空间不足时请删除旧作品。"}
+                  ? "作品与卡片已同步到服务器，换设备登录同一账号即可看到；这里是它们在本机的副本，加上生成过程中的中间文件。"
+                  : "作品与卡片存在本机数据库里。AI 生成的画面体积较大，空间不足时请删除旧作品。"}
               </p>
+              <CacheSweeper onDone={() => void storageEstimate().then(setStorage)} />
             </>
           ) : (
             <span className="text-xs text-slate-500">读取中…</span>
           )}
         </div>
       </section>
+
+      <VersionSection />
 
       <button
         onClick={() => {
@@ -391,5 +392,108 @@ function VoiceSection() {
         </p>
       </div>
     </section>
+  );
+}
+
+// ── 版本与更新 ────────────────────────────────────────────────
+//
+// ★ 只在**侧载渠道**出现。上架包由商店负责更新，摆一个"检查更新"在那里
+//   就是一颗点了没反应的按钮（原生那边直接 reject，见 android 的 play 渠道空壳）。
+// ★ 手动检查失败要把原因说出来 —— 和启动时那次静默检查不同：用户主动点了，
+//   "已是最新"和"根本没查成"必须分得开（铁律八）。
+function VersionSection() {
+  const [ver, setVer] = useState<{ versionCode: number; versionName: string } | null>(null);
+  const [supported, setSupported] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const [info, setInfo] = useState<UpdateInfo | null>(null);
+
+  useEffect(() => {
+    void currentVersion().then(setVer);
+    void selfUpdateSupported().then(setSupported);
+  }, []);
+
+  if (!ver) return null; // 浏览器里跑：没有版本号可显示，整段不出现
+
+  return (
+    <section className="mb-6">
+      <h2 className="mb-2.5 text-xs font-semibold text-slate-400">版本</h2>
+      <div className="flex items-center gap-3 rounded-xl border border-slate-700 bg-panel p-4">
+        <div className="min-w-0 flex-1">
+          <div className="text-sm text-slate-100">
+            {ver.versionName} <span className="text-[11px] text-slate-500">（{ver.versionCode}）</span>
+          </div>
+          <div className="text-[11px] text-slate-500">{note || (supported ? "可以检查有没有新版本" : "由应用商店负责更新")}</div>
+        </div>
+        {supported && (
+          <button
+            onClick={() => {
+              setBusy(true);
+              setNote("");
+              void checkUpdate(false)
+                .then((r) => {
+                  if (r) setInfo(r);
+                  else setNote("已经是最新版本");
+                })
+                .catch((e) => setNote(e instanceof Error ? e.message : "检查失败"))
+                .finally(() => setBusy(false));
+            }}
+            disabled={busy}
+            className="flex-none rounded-full bg-slate-700 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-50"
+          >
+            {busy ? "检查中…" : "检查更新"}
+          </button>
+        )}
+      </div>
+      {info && <UpdateSheet info={info} onClose={() => setInfo(null)} />}
+    </section>
+  );
+}
+
+// ── 清理缓存 ──────────────────────────────────────────────────
+//
+// ★ 为什么要有这颗按钮：光显示"已用 300MB"是一条**用户看不懂、也做不了任何事**的信息 ——
+//   只会让人担心，却给不出下一步。要么让它可操作，要么别显示。
+// ★ 清的只有"没人引用的中间文件"（判据与安全边界见 data/cacheSweep.ts）：
+//   未发布的草稿、还没传上去的作品，一个都不碰。所以文案敢把话说死。
+// ★ 没得清的时候明说"没有可清理的"，不做成一颗点了假装忙一下的按钮。
+function CacheSweeper({ onDone }: { onDone: () => void }) {
+  const [plan, setPlan] = useState<SweepPlan | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    void planSweep().then(setPlan);
+  }, []);
+
+  if (!plan) return <p className="mt-2 text-[11px] text-slate-600">正在算可清理的空间…</p>;
+
+  const mb = plan.bytes / 1048576;
+  if (plan.keys.length === 0) {
+    return <p className="mt-2 text-[11px] text-slate-600">{note || "没有可清理的中间文件"}</p>;
+  }
+
+  return (
+    <div className="mt-3">
+      <button
+        onClick={() => {
+          setBusy(true);
+          void runSweep(plan)
+            .then((n) => {
+              setNote(`已清理 ${n} 个文件`);
+              setPlan({ keys: [], bytes: 0 });
+              onDone();
+            })
+            .finally(() => setBusy(false));
+        }}
+        disabled={busy}
+        className="w-full rounded-xl border border-slate-600 py-2 text-xs text-slate-200 disabled:opacity-50"
+      >
+        {busy ? "清理中…" : `清理缓存（可释放 ${mb < 1 ? "<1" : mb.toFixed(0)} MB）`}
+      </button>
+      <p className="mt-1.5 text-[11px] leading-relaxed text-slate-600">
+        只删生成过程中留下的、已经没人用的中间文件。未发布的草稿和还没传上去的作品不会动。
+      </p>
+    </div>
   );
 }

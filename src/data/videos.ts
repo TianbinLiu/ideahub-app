@@ -14,13 +14,17 @@ import { DraftVideo, VideoComment, VideoItem, VideoPart, uid } from "../types";
 import { makeFrame } from "../mock/frames";
 import { idbGet, idbSet } from "./db";
 import { materializeDraft, type MaterializeError } from "./publishAssets";
-import { currentUser, subscribeAccount } from "./account";
+import { currentUser, readyAccount, subscribeAccount } from "./account";
 import { API_ON, emitApiError } from "../api/client";
 import * as branch from "../api/branch";
 
 const KEY = "ideahub-app.videos.v1";
 /** 远端模式下发布失败的作品暂存处（不混进离线主库 KEY，避免两种模式的数据互相污染） */
 const PENDING_KEY = "ideahub-app.videos.pending.v1";
+/** 本机点赞态。★ 离线模式下服务端不存在，不落这一份的话"我赞过没有"每次刷新就归零 */
+const LIKED_KEY = "ideahub-app.liked.v1";
+/** 本会话已计过播放的作品（sessionStorage 镜像，见 addPlay） */
+const PLAYED_KEY = "ideahub-app.played.v1";
 export const ME = "我";
 
 interface SeedSegDef {
@@ -168,19 +172,56 @@ function buildSeeds(): VideoItem[] {
 //   Vite 下会拿到半初始化的模块（CLAUDE.md 里对 store 写过同一条，data 层同理）。
 //   所以由**本模块**订阅账号变更，依赖方向保持单向。
 let cacheOwner: string | null = null;
+/** 上一次看到的当前用户显示名。用来发现"同一个人改了名"（见下） */
+let cacheOwnerName: string | null = null;
 
 function ownerKey(): string {
   const u = currentUser();
   return u ? `${u.id}` : "";
 }
 
+/**
+ * 改名之后，把内存里**我自己那些作品**的作者名改过来。
+ *
+ * ★★ 这是在修一个真 bug（2026-08-11 用户报）：改完名回到首页，右侧那个头像变回
+ *   字母底、点进去还是旧名字的主页，非得重启 App 才好。
+ *   原因是"这条是不是我发的"一直靠比**名字**（isMyAuthor），而缓存里那些作品的
+ *   author 还留着改名前的值 —— 于是 `mine` 判否：头像不再用我的头像（退回按名字
+ *   哈希出来的字母底），链接也指向 `/u/旧名字`，那个页面当然显示旧名字。
+ *   重启之所以"好了"，只是因为重新从服务端拉了一次列表，author 是新的了。
+ * ★ 按 **authorId** 改，不按旧名字匹配：重名的别人不该被顺手改掉。
+ *   离线模式没有 id，但那边 author 恒为 ME（"我"），本来就不受改名影响。
+ */
+function renameMyVideos(newName: string): void {
+  const me = currentUser();
+  if (!cache || !me) return;
+  let touched = 0;
+  for (const v of cache) {
+    if (v.authorId && v.authorId === me.id && v.author !== newName) {
+      v.author = newName;
+      touched++;
+    }
+  }
+  if (touched > 0) emitVideos();
+}
+
 if (typeof window !== "undefined") {
   subscribeAccount(() => {
     const now = ownerKey();
-    if (cacheOwner === null || now === cacheOwner) return; // 还没装载过，或还是同一个人
+    if (cacheOwner !== null && now === cacheOwner) {
+      // 还是同一个人 —— 但他可能改了名字
+      const name = currentUser()?.name ?? null;
+      if (name && name !== cacheOwnerName) {
+        cacheOwnerName = name;
+        renameMyVideos(name);
+      }
+      return;
+    }
+    if (cacheOwner === null) return; // 还没装载过
     // 换人了：把上一个人的东西全部忘掉，并立刻重新装载
     cache = null;
     cacheOwner = null;
+    cacheOwnerName = null;
     nextCursor = null;
     detailed.clear();
     likedIds.clear();
@@ -207,9 +248,13 @@ export async function readyVideos(): Promise<void> {
         console.warn("[videos] 远端拉取失败，本次回退本地库");
       }
       await readyLocal();
+      // 装完库再补点赞态：离线模式下它只在本机有一份，不读回来的话
+      // 每次冷启动"我赞过没有"都归零，点赞数就能被反复刷（见 setLike）
+      await loadLiked();
     })().finally(() => {
       readyPromise = null;
       cacheOwner = ownerKey(); // 记下这份 cache 是给谁装的，换人时才知道要清
+      cacheOwnerName = currentUser()?.name ?? null; // 改名时靠它发现"名字变了"
     });
   }
   await readyPromise;
@@ -263,7 +308,15 @@ function isSeed(v: VideoItem): boolean {
  */
 let remoteLive = false;
 
-function remoteOn(): boolean {
+/**
+ * 本次会话到底跑不跑在服务端上。
+ *
+ * ★ 导出给别的 data 模块用（danmaku.ts）：这是**一条判断**，不是两条 ——
+ *   "配了 API_BASE 而且服务端真的应答了"。各模块各探一次的话，弱网冷启动时
+ *   会出现"视频退了本地库、弹幕还在打远端"这种半边天，而且两边谁对谁错说不清（铁律六）。
+ *   前提是调用方在 readyVideos() 之后再问（danmaku.ts 显式 await 了它）。
+ */
+export function remoteOn(): boolean {
   return API_ON && remoteLive;
 }
 
@@ -451,6 +504,8 @@ export function publishVideo(draft: DraftVideo): VideoItem {
     merged: draft.merged,
     visibility: draft.visibility ?? "public",
     author: currentUser()?.name ?? ME,
+    // 刚发布、还没落库的这条也要带上 id，否则改名时它是唯一漏改的一条
+    authorId: currentUser()?.id,
     plays: 0,
     likes: 0,
     saves: 0,
@@ -466,9 +521,64 @@ export function publishVideo(draft: DraftVideo): VideoItem {
   return item;
 }
 
+/**
+ * 一次「播放」至少要看这么久。
+ *
+ * ★ 这个门槛不是为了好看，是因为首页是**上下甩着刷**的：手指一划就掠过三四屏，
+ *   每一屏都会短暂地成为"当前屏"并起播。按"进入视口就 +1"算，随手甩一趟能给
+ *   五条作品各记一次播放，而这五条用户一眼都没看清。
+ * ★ 3 秒是短视频行业的常用口径（抖音/B 站的"有效播放"都在 3s 上下）。
+ *   再长会把真正的"划过来看一眼觉得不错"也判掉。
+ */
+export const PLAY_MIN_SEC = 3;
+
+/**
+ * 本会话已经计过播放的作品。
+ *
+ * ★★ 这是**防刷**，不是省一次网络请求。原来 FeedPage 每次 FeedItem 重挂载都会
+ *   addPlay 一次，而 FeedItem 在划出 2 屏后就卸载 —— 也就是说「上划两下再划回来」
+ *   就是 +1，来回蹭十次播放量就涨十次。作者主页那三个数字里的「播放」直接失真。
+ *   （social.ts 的 viewed 对详情页浏览量做的是同一件事，口径要一致。）
+ * ★ 用 sessionStorage 而不是内存 Set：内存 Set 一刷新就空，刷新键本身就成了刷量按钮。
+ *   也**刻意不做永久持久化** —— 明天再来看一遍本来就该算一次新的播放。
+ * ★ 上限 300 条：刷得再久也不该让这份名单无限长（sessionStorage 也有配额）。
+ *   超了丢最早的，代价是"这一会话里刷了 300 条之后回头再看第 1 条会再记一次"，
+ *   可以接受。
+ */
+const PLAYED_MAX = 300;
+const played: string[] = readPlayed();
+
+function readPlayed(): string[] {
+  try {
+    const raw = sessionStorage.getItem(PLAYED_KEY);
+    const arr = raw ? (JSON.parse(raw) as unknown) : null;
+    return Array.isArray(arr) ? (arr as string[]) : [];
+  } catch {
+    return []; // 隐私模式/配额异常：退回"本会话不去重"，也好过整个模块挂掉
+  }
+}
+
+function markPlayed(rid: string): void {
+  played.push(rid);
+  if (played.length > PLAYED_MAX) played.splice(0, played.length - PLAYED_MAX);
+  try {
+    sessionStorage.setItem(PLAYED_KEY, JSON.stringify(played));
+  } catch {
+    /* 存不下就只在内存里去重，功能不降级到"完全不去重" */
+  }
+}
+
+/** 这一会话里已经给它记过播放了吗（页面用来决定还要不要起那个 3 秒计时器） */
+export function hasCountedPlay(id: string): boolean {
+  return played.includes(realId(id));
+}
+
 export function addPlay(id: string): number {
   const v = find(id);
   if (!v) return 0;
+  const rid = realId(v.id);
+  if (played.includes(rid)) return v.plays; // 本会话已经记过，反复看不再涨
+  markPlayed(rid);
   v.plays += 1;
   save(all());
   if (remoteOn()) {
@@ -513,17 +623,25 @@ export function setSave(id: string, on: boolean): number {
 export function setLike(id: string, on: boolean): number {
   const v = find(id);
   if (!v) return 0;
+  const rid = realId(v.id);
+  // ★★ 幂等：已经是这个状态就一个数都不动。
+  //   这是**防刷**。离线模式下 isLiked 以前恒 false（likedIds 只由服务端回包填），
+  //   而 FeedItem 划出两屏就卸载 —— 划回来点赞态归零、爱心又变成空心，
+  //   于是同一条作品可以反复点赞，每点一次 likes 就 +1，一路刷到天上去。
+  //   下面的 likedIds 落盘是这条判断能成立的前提：不落盘，刷新一次它照样归零。
+  if (on === likedIds.has(rid)) return v.likes;
   const before = v.likes;
   v.likes = Math.max(0, v.likes + (on ? 1 : -1));
+  if (on) likedIds.add(rid);
+  else likedIds.delete(rid);
+  saveLiked();
   save(all());
   if (remoteOn()) {
-    if (on) likedIds.add(realId(v.id));
-    else likedIds.delete(realId(v.id));
     void branch
-      .setLike(realId(v.id), on)
+      .setLike(rid, on)
       .then((r) => {
-        if (r.liked) likedIds.add(realId(v.id));
-        else likedIds.delete(realId(v.id));
+        if (r.liked) likedIds.add(rid);
+        else likedIds.delete(rid);
         if (r.likes !== null && r.likes !== v.likes) {
           v.likes = r.likes;
           emitVideos();
@@ -533,8 +651,8 @@ export function setLike(id: string, on: boolean): number {
         // 点赞是要登录的，401 会被 client 转成登出——这里把乐观值回滚，
         // 免得 UI 显示"已赞"但服务端没记上。
         v.likes = before;
-        if (on) likedIds.delete(realId(v.id));
-        else likedIds.add(realId(v.id));
+        if (on) likedIds.delete(rid);
+        else likedIds.add(rid);
         emitVideos();
         emitApiError("setLike", e);
       });
@@ -568,9 +686,43 @@ export function addComment(id: string, text: string): VideoComment | null {
   return cmt;
 }
 
-/** 当前用户是否已赞（远端模式由列表/详情的 liked 字段填充；离线模式恒 false） */
+/** 当前用户是否已赞。远端模式由列表/详情的 liked 字段填充，离线模式读本机那份（见 loadLiked） */
 export function isLiked(id: string): boolean {
   return likedIds.has(realId(id));
+}
+
+/**
+ * 本机点赞态的持久化 —— **只在离线模式做**。
+ *
+ * ★ 为什么必须有：离线模式下没有任何东西会告诉我们"这条我赞过"，likedIds 是个
+ *   纯内存 Set，刷新即空。空了之后 setLike 的幂等判断就形同虚设（见那里的说明），
+ *   点赞数可以被无限刷。
+ * ★ 为什么远端模式**不**存：那边每个列表/详情回包都带 liked，服务端才是权威。
+ *   本机再存一份，只会在"换台设备取消了赞"之后拿着一份过期的 true 去挡住重新点赞。
+ * ★ 连 owner 一起存：换账号后这份不该被算到新账号头上（对齐上面 cacheOwner 那段
+ *   隐私边界的处理）。owner 对不上就当没有，下次写入自然会覆盖成新人的。
+ */
+interface LikedStore {
+  owner: string;
+  ids: string[];
+}
+
+async function loadLiked(): Promise<void> {
+  if (remoteOn()) return;
+  // ★ 必须先等账号库装完。App 是 Promise.all([readyVideos(), readyAccount(), …])
+  //   并发起的，谁先完成不确定；账号还没装好时 ownerKey() 是空串，和存下来的 owner
+  //   对不上，这份点赞态就被**静默丢掉**了 —— 表现是冷启动后爱心全空、点赞又能刷，
+  //   而且时灵时不灵（跟两个 IndexedDB 读的快慢有关），最难查的那一类。
+  //   readyAccount() 自己是幂等的（内部复用同一个 Promise），重复 await 不多花一次读。
+  await readyAccount();
+  const saved = await idbGet<LikedStore>(LIKED_KEY);
+  if (!saved || !Array.isArray(saved.ids) || saved.owner !== ownerKey()) return;
+  for (const id of saved.ids) likedIds.add(id);
+}
+
+function saveLiked(): void {
+  if (remoteOn()) return;
+  void idbSet(LIKED_KEY, { owner: ownerKey(), ids: [...likedIds] });
 }
 
 // ── 远端模式实现 ─────────────────────────────────────────
@@ -616,6 +768,8 @@ function toVideoItem(v: branch.ApiVideo): VideoItem {
     deck: v.deck?.cards?.length ? v.deck : undefined,
     visibility: v.visibility === "private" ? "private" : "public",
     author: branch.authorName(v.author),
+    // ★ 名字会变，id 不会。改名时靠它精确认出"我自己那些作品"（见 subscribeAccount）
+    authorId: branch.authorId(v.author) ?? undefined,
     plays: v.plays ?? 0,
     likes: v.likes ?? 0,
     createdAt: toMs(v.createdAt),
@@ -707,6 +861,7 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     if (Array.isArray(v.segments) && v.segments.length > 0) item.segments = v.segments;
     if (v.branchTree) item.branchTree = v.branchTree;
     item.author = branch.authorName(v.author);
+    item.authorId = branch.authorId(v.author) ?? item.authorId;
     item.createdAt = toMs(v.createdAt);
     detailed.add(v._id);
     emitVideos();

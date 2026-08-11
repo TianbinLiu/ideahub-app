@@ -7,7 +7,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { idbGet } from "../../data/db";
 import { toonify } from "../scene/TripoNpc";
-import { hasAssetKey, loaderFor } from "../secureAssets";
+import { loaderFor } from "../secureAssets";
 
 /** `idb:` 指针 → objectURL：Seed3D 派生建模（36MB 级 GLB）存 IndexedDB blob 仓，
  *  卡片 JSON 里只有指针。其余 URL 原样通过。 */
@@ -38,9 +38,18 @@ function useResolvedModelUrl(url: string): string | null {
   return real;
 }
 
-/** 卡名 → 3D 模型。凛卡是加密管线的端到端示例：构建带密钥时走 .glbx 解密加载 */
+/**
+ * 卡名 → 3D 模型。没有映射的卡不显示全息实体，调用方各自有 `modelUrl ? … : …` 的兜底。
+ *
+ * ★★ 「赛博侦探·凛」这一条 2026-08-11 删了：它挂的是**有版权的第三方模型**，
+ *   不能随包分发（也不该躺在一个公开仓库里）。卡本身留着 —— 卡面、简介都是原创，
+ *   只是没有 3D 预览了。
+ *   ⚠️ 别因为"加密了就没事"再把它加回来：.glbx 只是让文件不能被直接打开，
+ *   解密密钥就在同一个包里，分发的仍然是那个模型。
+ *   当初这条被写成"加密管线的端到端示例"，示例价值不值得拿版权去换；
+ *   要留示例，用一个自有模型走同一条 .glbx 路径即可。
+ */
 export const CARD_MODELS: Record<string, string> = {
-  "赛博侦探·凛": hasAssetKey() ? "/models/protected/rin-opt.glbx" : "/models/cards/rin-opt.glb",
   "剑修·白无衣": "/models/cards/baiwuyi-opt.glb",
   "废土信使小满": "/models/cards/xiaoman-opt.glb",
   "AI 管家 T-7": "/models/cards/t7-opt.glb",

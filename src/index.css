@@ -136,6 +136,23 @@ canvas {
   animation: feed-buffer 0.9s ease-out infinite;
 }
 
+/* ── 弹幕（见 components/DanmakuLayer.tsx）──────────────────────────────
+   起终点由组件按"容器宽 + 这条弹幕估算宽"算好后用自定义属性传进来 ——
+   两个值都是 px，写不进关键帧里（同一条规则要给几十条宽度各异的弹幕用）。
+
+   ★ 只动 transform。同屏可能有十几条在飘，而底下还有一路在解码的视频，
+     动 left 就是每帧十几次重排，真机上直接掉帧（CLAUDE.md 的约定）。 */
+@keyframes danmaku-run {
+  from { transform: translateX(var(--dm-from)); }
+  to   { transform: translateX(var(--dm-to)); }
+}
+.danmaku-run {
+  animation-name: danmaku-run;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  will-change: transform;
+}
+
 /* ── 激活态角色（见 components/CharacterPerch.tsx）────────────────────────
    所有关键帧都必须自带 translateX(-50%)：水平居中来自 Tailwind 的
    -translate-x-1/2，而 animation 的 transform 会整条覆盖掉它，
@@ -363,6 +380,22 @@ canvas {
   .mat-shake,
   .drop-ring { animation: none !important; }
   .perch-pop { opacity: 1; transform: translateX(-50%); }
+
+  /* 弹幕改成"字幕"：不横飘，在左上角原地淡入淡出。
+     ★ 不能写 animation: none —— 那样它既不动、也**永远不会触发 animationend**，
+       而移除是挂在 animationend 上的，弹幕会一条条堆在容器左边不走，越堆越多。
+       必须换成另一条同样会自己结束的动画。 */
+  .danmaku-run {
+    animation-name: danmaku-hold !important;
+    transform: translateX(12px);
+  }
+}
+/* 淡出点取在 40%：弹幕的时长是按"飘完一屏"算的（7–9 秒），原地杵那么久会把
+   同一条轨道上的下一条压在身上（轨道调度是按恒速走位算的，见 DanmakuLayer） */
+@keyframes danmaku-hold {
+  0% { opacity: 0; }
+  6%, 30% { opacity: 1; }
+  40%, 100% { opacity: 0; }
 }
 
 /* 铸卡师"正在斟酌"的三点。只动 transform/opacity：这窗盖在实时渲染的 3D 画面上，

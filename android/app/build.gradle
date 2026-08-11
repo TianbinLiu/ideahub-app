@@ -15,8 +15,12 @@ android {
         applicationId "com.ideahub.branchvideo"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // ★ 每发一版给别人装，versionCode 必须 +1。
+        //   Android 只认这个整数判"新旧"：不涨的话，任何自动更新检查都判不出有新版，
+        //   而且同号覆盖安装虽然能装（签名相同即可），装完用户也说不清自己在哪一版。
+        //   versionName 是给人看的，versionCode 是给系统看的，两个都要动。
+        versionCode 5
+        versionName "1.4"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -34,6 +38,32 @@ android {
             }
         }
     }
+    /**
+     * 分发渠道。★★ 存在的唯一理由：**自更新只能出现在侧载包里**。
+     *
+     * Google Play 的「设备与网络滥用」政策禁止应用自己下载安装 APK。所以
+     * REQUEST_INSTALL_PACKAGES 权限与整个 AppUpdaterPlugin 的实现都放在
+     * src/sideload/ 下，play 渠道拿到的是 src/play/ 里那个会 reject 的空壳。
+     *
+     * 不用 flavor 而是"上架前记得手动删掉"的话，那是一颗只在审核时才炸的雷 ——
+     * 而那时候离改动早就过去很久了。
+     *
+     * 出包命令见 package.json：
+     *   npm run apk / apk:release → sideload 渠道（发给人装，带自更新）
+     *   npm run aab               → play 渠道（上架，无自更新）
+     */
+    flavorDimensions += "distribution"
+    productFlavors {
+        sideload {
+            dimension "distribution"
+            // 侧载包在设置里能一眼认出来（同一个 applicationId，不影响覆盖安装）
+            versionNameSuffix ""
+        }
+        play {
+            dimension "distribution"
+        }
+    }
+
     buildTypes {
         release {
             // webview 壳应用：原生代码只有 Capacitor 桥，minify 收益小，保持关闭省心

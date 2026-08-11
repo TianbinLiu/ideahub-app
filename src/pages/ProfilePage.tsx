@@ -15,7 +15,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import Icon, { type IconName } from "../components/Icon";
 import DeckCard from "../components/DeckCard";
 import Avatar from "../components/Avatar";
-import { fileToSquareImage } from "../utils/image";
+import AvatarPicker from "../components/AvatarPicker";
 import {
   dropPendingPublish,
   isMyAuthor,
@@ -35,7 +35,6 @@ import {
   myDecks,
   rechargeAddon,
   refreshRemoteWallet,
-  setAvatarImage,
   toggleFollow,
   walletOf,
   type RechargeResult,
@@ -60,10 +59,10 @@ export default function ProfilePage() {
   const videoV = useVideosVersion();
   const user = useCurrentUser();
   const drafts = useDrafts();
-  const avatarRef = useRef<HTMLInputElement>(null);
 
   const [tab, setTab] = useState<TabKey>("works");
   const [pickDraft, setPickDraft] = useState<WorkDraftMeta | null>(null);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
   const [followListOpen, setFollowListOpen] = useState(false);
   const [toast, setToast] = useState("");
@@ -198,9 +197,17 @@ export default function ProfilePage() {
               <Icon name="back" size={22} />
             </button>
           )}
-          <span className="min-w-0 flex-1 truncate text-center text-[15px] font-semibold text-slate-100">
-            @{handle}
-          </span>
+          {/* ★ 自己的主页顶栏不再写 @账号：底下的资料区已经把名字和 @账号都列了一遍，
+              顶栏那一行等于把同一个信息说两遍，还把整页最贵的那条视觉带占满了。
+              别人的主页保留 —— 作品墙一长就滚到看不见头像，那时候顶栏是唯一还能
+              回答"这是谁的主页"的地方。 */}
+          {self ? (
+            <span className="flex-1" />
+          ) : (
+            <span className="min-w-0 flex-1 truncate text-center text-[15px] font-semibold text-slate-100">
+              @{handle}
+            </span>
+          )}
           {self ? (
             <Link
               to="/settings"
@@ -226,9 +233,10 @@ export default function ProfilePage() {
       <div className="flex flex-col items-center px-5 pt-1">
         <div className="relative">
           {self ? (
-            // 点头像直接换：不用先钻进设置页
+            // 点头像直接换：不用先钻进设置页。开的是选择器（官方看板娘 + 自定义），
+            // 不再是直接弹系统相册 —— 新用户手里往往没有合适的图
             <button
-              onClick={() => avatarRef.current?.click()}
+              onClick={() => setAvatarOpen(true)}
               className="block rounded-full transition active:scale-95"
               aria-label="更换头像"
             >
@@ -254,30 +262,16 @@ export default function ProfilePage() {
             </>
           )}
         </div>
-        {/* 只在自己的主页挂：别人的主页上它虽然看不见，但仍在无障碍树里
-            报出一个「选择文件」按钮，读屏用户会读到一个根本按不动的控件 */}
-        {self && (
-          <input
-            ref={avatarRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={async (e) => {
-              const f = e.target.files?.[0];
-              e.target.value = "";
-              if (!f) return;
-              try {
-                await setAvatarImage(await fileToSquareImage(f, 256));
-              } catch (err) {
-                console.warn("[profile] 头像更换失败:", err);
-                flash("头像上传失败，本机仍会显示新头像");
-              }
-            }}
-          />
-        )}
 
         <div className="mt-3.5 max-w-full truncate text-lg font-bold text-slate-100">{display}</div>
-        {handle !== display && <div className="mt-0.5 text-xs text-slate-500">@{handle}</div>}
+        {/* ★ 这里跟的是**当前昵称**，不是登录账号。
+            原来显示的是 user.account（注册时定下的登录标识，改昵称不会变），于是用户
+            改完名一看："我的名字下面怎么还挂着旧名字？" —— 他把它当成了一个没刷新的
+            名字字段，而不是登录账号（2026-08-11 用户报）。
+            这个 app 没有"可公开展示、且独立于昵称"的 handle 概念，摆一个只在这里出现、
+            又永远不跟着改的字符串，除了制造困惑没有别的作用。
+            登录账号仍然存在，只是不在这儿露脸。 */}
+        <div className="mt-0.5 max-w-full truncate text-xs text-slate-500">@{display}</div>
 
         {/* 三连统计：竖线分隔，数字大、标签小（TikTok 同款视觉层级） */}
         <div className="mt-3.5 flex items-stretch">
@@ -537,6 +531,9 @@ export default function ProfilePage() {
           ))}
       </div>
 
+      {avatarOpen && user && (
+        <AvatarPicker name={display} current={user.avatar} onClose={() => setAvatarOpen(false)} onError={flash} />
+      )}
       {pickDraft && <DraftSheet meta={pickDraft} onClose={() => setPickDraft(null)} />}
       {walletOpen && <WalletSheet onClose={() => setWalletOpen(false)} />}
       {followListOpen && user && (

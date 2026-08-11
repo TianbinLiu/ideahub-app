@@ -259,6 +259,47 @@ export async function addComment(id: string, text: string): Promise<ApiComment |
   return pick<ApiComment>(res, ["comment", "item", "data"]);
 }
 
+// ── 弹幕 ─────────────────────────────────────────────────
+
+/** 服务端的一条弹幕。★ **没有 author** —— 弹幕是匿名的，只回 `mine`
+ *  （契约 docs/api-contract.md「弹幕」写了为什么）。 */
+export interface ApiDanmaku {
+  _id: string;
+  /** 全片累计秒 */
+  at: number;
+  text: string;
+  /** #rrggbb；空串 = 用客户端默认色 */
+  color?: string;
+  mine?: boolean;
+  createdAt?: string | number;
+}
+
+export interface DanmakuPage {
+  items: ApiDanmaku[];
+  /** 服务端截断了没有。截断了要让用户知道，别假装"这条作品就这么多弹幕" */
+  truncated: boolean;
+}
+
+/** GET /api/branch/videos/:id/danmaku（optionalAuth）。返回已按 at 升序 */
+export async function listDanmaku(id: string, limit?: number): Promise<DanmakuPage> {
+  const res = await apiGet<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}/danmaku`, {
+    query: { limit },
+  });
+  return { items: pickList<ApiDanmaku>(res, ["items", "danmaku", "data"]), truncated: pick<boolean>(res, ["truncated"]) === true };
+}
+
+/** POST /api/branch/videos/:id/danmaku（requireAuth） */
+export async function addDanmaku(
+  id: string,
+  body: { at: number; text: string; color?: string },
+): Promise<ApiDanmaku | null> {
+  const res = await apiPost<Record<string, unknown>>(
+    `/api/branch/videos/${encodeURIComponent(id)}/danmaku`,
+    body,
+  );
+  return pick<ApiDanmaku>(res, ["danmaku", "item", "data"]);
+}
+
 // ── 卡片 ─────────────────────────────────────────────────
 
 /** GET /api/branch/cards（requireAuth） */

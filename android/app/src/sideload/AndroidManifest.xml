@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- sideload 渠道专属：允许应用自己拉起 APK 安装器。
+     ★ 这条权限**只在这里**声明，绝不能挪进 src/main/ —— 上架包（play 渠道）带上它
+       会直接撞 Google Play 的「设备与网络滥用」政策，而且要到审核被拒才知道。
+       src/play/AndroidManifest.xml 里还额外用 tools:node="remove" 兜了一道底。 -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+</manifest>
