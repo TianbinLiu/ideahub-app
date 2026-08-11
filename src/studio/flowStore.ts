@@ -154,6 +154,29 @@ export function newFlowNode(i: number, patch: Partial<FlowNode> = {}): FlowNode 
   };
 }
 
+/**
+ * 「还没出片的第一段」的下标；全部出片时为 -1。
+ * 这是顺序门禁的唯一依据：光标只能停在它或它之前。
+ */
+export function frontierOf(nodes: FlowNode[]): number {
+  return nodes.findIndex((n) => !nodeDone(n));
+}
+
+/**
+ * 顺序门禁：把目标下标夹到「已出片的段」或「第一段还没出片的段」上。
+ *
+ * ★ 规则只在这一处实现（铁律六）：左右箭头、横划手势、底部节点条三条路都走
+ *   setCursor/shiftCursor，写在 UI 里必然漏掉其中一条——手势那条尤其容易忘。
+ * ★ 为什么要门禁：段与段是靠**上一段的真实尾帧**承接起拍的，跳着填的话后面几段
+ *   接的是设定帧，衔接直接断掉；而且用户会在还没看到第一段效果之前，
+ *   就把钱花在第三段上。
+ */
+function clampCursor(nodes: FlowNode[], to: number): number {
+  const target = Math.max(0, Math.min(to, nodes.length - 1));
+  const frontier = frontierOf(nodes);
+  return frontier < 0 ? target : Math.min(target, frontier);
+}
+
 /** 整条流水线还需要多少 token（当前走向已出片的段不再计费） */
 export function flowCost(nodes: FlowNode[]): number {
   return nodes.filter((n) => !nodeDone(n)).reduce((s, n) => s + segTokens(chosenOf(n).durationSec, n.videoTier), 0);
@@ -221,14 +244,19 @@ interface FlowState {
    *  那是用户刚敲的字，重写等于把它抹了） */
   regenProposal: (nodeId: string) => Promise<boolean>;
 
-  addNode: (afterId?: string) => void;
+  /** 在末尾追加一段。★ 上一段没出片时拒绝（见 canAdvance 那段注释） */
+  addNode: () => void;
   removeNode: (id: string) => void;
-  moveNode: (id: string, dir: 1 | -1) => void;
   setCursor: (i: number) => void;
   shiftCursor: (dir: 1 | -1) => void;
 
   addAnn: (nodeId: string, ann: Omit<FlowAnn, "id">) => void;
   removeAnn: (nodeId: string, annId: string) => void;
+
+  /** 给这一段挂素材卡（拖一整个卡组进来就是整组）。按 id 去重，返回**真正新增**的张数——
+   *  调用方靠它决定要不要抖那一下：一张没加还抖，等于骗用户说加上了 */
+  addMaterials: (nodeId: string, cards: Card[]) => number;
+  removeMaterial: (nodeId: string, cardId: string) => void;
 
   /** 生成/重生成某节点：先按圈选改设定帧，再承接上一段真尾帧起拍，最后出片 */
   genNode: (id: string) => Promise<boolean>;
@@ -495,14 +523,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
   },
 
-  addNode: (afterId) =>
+  addNode: () =>
     set((s) => {
-      const at = afterId ? s.nodes.findIndex((n) => n.id === afterId) : s.nodes.length - 1;
-      const i = at < 0 ? s.nodes.length : at + 1;
-      const prev = s.nodes[i - 1];
+      const prev = s.nodes[s.nodes.length - 1];
+      // 顺序门禁：只能在末尾追加，且上一段必须已出片
+      if (prev && !nodeDone(prev)) return { err: "先把这一段炼出来，再加下一段" };
+      const i = s.nodes.length;
       const node = newFlowNode(i, { chain: !!prev, videoTier: prev?.videoTier ?? DEFAULT_TIER });
       if (prev) node.proposals[0].durationSec = chosenOf(prev).durationSec;
-      return { nodes: [...s.nodes.slice(0, i), node, ...s.nodes.slice(i)], cursor: i };
+      return { nodes: [...s.nodes, node], cursor: i, err: "" };
     }),
 
   removeNode: (id) =>
@@ -510,21 +539,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
       if (s.nodes.length <= 1) return {};
       const i = s.nodes.findIndex((n) => n.id === id);
       const nodes = s.nodes.filter((n) => n.id !== id);
-      return { nodes, cursor: Math.min(s.cursor, nodes.length - 1, Math.max(0, i)) };
+      return { nodes, cursor: clampCursor(nodes, Math.max(0, i)) };
     }),
 
-  moveNode: (id, dir) =>
-    set((s) => {
-      const i = s.nodes.findIndex((n) => n.id === id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= s.nodes.length) return {};
-      const nodes = s.nodes.slice();
-      [nodes[i], nodes[j]] = [nodes[j], nodes[i]];
-      return { nodes, cursor: j };
-    }),
-
-  setCursor: (i) => set((s) => ({ cursor: Math.max(0, Math.min(i, s.nodes.length - 1)) })),
-  shiftCursor: (dir) => set((s) => ({ cursor: Math.max(0, Math.min(s.cursor + dir, s.nodes.length - 1)) })),
+  setCursor: (i) => set((s) => ({ cursor: clampCursor(s.nodes, i) })),
+  shiftCursor: (dir) => set((s) => ({ cursor: clampCursor(s.nodes, s.cursor + dir) })),
 
   addAnn: (nodeId, ann) =>
     set((s) => ({
@@ -533,6 +552,28 @@ export const useFlow = create<FlowState>()((set, get) => ({
   removeAnn: (nodeId, annId) =>
     set((s) => ({
       nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, anns: n.anns.filter((a) => a.id !== annId) } : n)),
+    })),
+
+  addMaterials: (nodeId, cards) => {
+    // set 的更新函数是同步跑的，所以出了 set 之后 added 已经是终值
+    let added = 0;
+    set((s) => ({
+      nodes: s.nodes.map((n) => {
+        if (n.id !== nodeId) return n;
+        const have = new Set((n.materials ?? []).map((c) => c.id));
+        const fresh = cards.filter((c) => !have.has(c.id));
+        added = fresh.length;
+        return fresh.length ? { ...n, materials: [...(n.materials ?? []), ...fresh] } : n;
+      }),
+    }));
+    return added;
+  },
+
+  removeMaterial: (nodeId, cardId) =>
+    set((s) => ({
+      nodes: s.nodes.map((n) =>
+        n.id === nodeId ? { ...n, materials: (n.materials ?? []).filter((c) => c.id !== cardId) } : n,
+      ),
     })),
 
   genNode: async (id) => {
@@ -595,6 +636,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
           anns: node.anns,
           carryFrame: carry,
           framePrompt: tplFrame ? fillSubject(tplFrame, get().subject) : undefined,
+          // 本段素材卡要真的进提示词。此前它只喂给「推演三种走向」，
+          // 用户在这一段挂了人物卡再点生成，出片其实完全不认识那张卡
+          materials: node.materials,
         },
         prog,
       );

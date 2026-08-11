@@ -4,6 +4,7 @@ import Icon from "../components/Icon";
 import { Link, useNavigate, useParams } from "react-router";
 import BranchPlayer from "../components/BranchPlayer";
 import SegmentPlayer from "../components/SegmentPlayer";
+import Avatar from "../components/Avatar";
 import { addCards, hasPurchased, myCards, purchasePart, walletOf } from "../data/account";
 import { useAccountVersion } from "../hooks/useAccount";
 import { fmtTokens } from "../data/economy";
@@ -142,7 +143,10 @@ export default function VideoPage() {
 
   return (
     <div className="min-h-full">
-      <header className="sticky top-0 z-10 border-b border-slate-800 bg-ink/90 backdrop-blur">
+      {/* ★ safe-top 挂在 header 自己身上、不挂页面根：header 是 sticky top-0，
+          安全区留白必须【在它内部】，否则它会滑到状态栏底下（ProfilePage 那条注释同理）。
+          原来这三页压根没挂，顶栏文案直接压在状态栏上。 */}
+      <header className="safe-top sticky top-0 z-10 border-b border-slate-800 bg-ink/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
           <Link to="/" className="text-slate-400 hover:text-white">
             <Icon name="back" size={20} />
@@ -235,12 +239,15 @@ export default function VideoPage() {
 
         <h1 className="mt-4 text-xl font-bold text-slate-100">{video.title}</h1>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-400">
-          <span className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand/25 font-bold text-brand">
-              {video.author.charAt(0)}
-            </span>
+          {/* 作者可点：从详情页也要能走到创作者主页，否则「看看 TA 还发过什么」
+              只有首页头像一条路 */}
+          <Link
+            to={isMyAuthor(video.author) ? "/me" : `/u/${encodeURIComponent(video.author)}`}
+            className="flex items-center gap-2 active:opacity-70"
+          >
+            <Avatar name={video.author} size={32} />
             <span className="text-slate-200">{video.author}</span>
-          </span>
+          </Link>
           <span>{formatPlays(plays)}播放</span>
           <span>{relativeTime(video.createdAt)}</span>
           <span className="rounded-full bg-panel px-2.5 py-0.5 text-xs">{video.category}</span>
@@ -269,29 +276,9 @@ export default function VideoPage() {
             进工坊，就能生成相似走向的视频——创作的可复刻性是卡片生态的闭环 */}
         {video.deck && video.deck.cards.length > 0 && <VideoDeckSection video={video} loggedIn={!!user} onGo={() => navigate("/studio")} />}
 
-        {/* 分段剧情（跟随当前选中的 P） */}
-        <section className="mt-6">
-          <h2 className="mb-3 text-base font-bold text-slate-200">
-            {parts.length > 1 ? `${part?.name ?? ""} · ` : ""}分段剧情 · {part?.segments.length ?? 0} 个节点
-          </h2>
-          <div className="space-y-3">
-            {(part?.segments ?? []).map((seg, i) => (
-              <div key={i} className="flex gap-3 rounded-xl bg-panel/60 p-3">
-                <div className="flex w-40 flex-none flex-col gap-1.5">
-                  <img src={seg.firstFrame} alt="首帧" className="aspect-video w-full rounded-lg object-cover" />
-                  <img src={seg.lastFrame} alt="尾帧" className="aspect-video w-full rounded-lg object-cover" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="font-semibold text-brand">{seg.title}</span>
-                    <span className="text-xs text-slate-500">{seg.durationSec}s</span>
-                  </div>
-                  <p className="novel-text mt-1.5 text-sm text-slate-300">{seg.plot}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+        {/* 这里原来有一段「分段剧情 · N 个节点」：逐段列首尾帧 + 小说体剧情。
+            移除的理由是它把成片又用图文复述了一遍——观众已经看完视频了，
+            而首尾帧属于创作侧的中间产物（要看去工坊/剪辑页）。 */}
 
         {/* 评论区 */}
         <section className="mt-6 pb-16">

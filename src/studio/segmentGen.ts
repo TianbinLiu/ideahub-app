@@ -12,6 +12,7 @@
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
 import { composeSegments, generateCover, refineFrame } from "../ai";
 import { tierOf } from "../data/economy";
+import { CARD_TYPE_LABELS, type Card } from "../types";
 
 export interface SegmentAnn {
   atSec: number;
@@ -31,6 +32,24 @@ export interface SegmentGenInput {
   carryFrame?: string | null;
   /** 没有设定首帧时补画用的提示词；缺省用剧情前 200 字 */
   framePrompt?: string;
+  /** 本段挂的素材卡：名字与简介拼进提示词，画面与出片都得认这些设定 */
+  materials?: Card[];
+}
+
+/**
+ * 素材卡 → 一句提示词后缀。
+ *
+ * ★ 只走文字，不把卡面当参考图：generateCover 的 ref 语义是「在这张图基础上改」，
+ *   喂一张竖版塔罗卡面进去，出来的是一张被改过的卡，不是一个有这个角色的场景。
+ *   要做到形象级一致得另开一条图生图路径，那是另一件事。
+ */
+function materialHint(materials?: Card[]): string {
+  if (!materials?.length) return "";
+  const list = materials
+    .slice(0, 8) // 再多提示词就被稀释了，模型开始各记各的
+    .map((c) => `${CARD_TYPE_LABELS[c.type]}「${c.name}」${c.summary ? `（${c.summary.slice(0, 40)}）` : ""}`)
+    .join("；");
+  return `。本段固定素材设定（必须严格遵守，不得改动其外形与身份）：${list}`;
 }
 
 export interface SegmentGenResult {
@@ -69,18 +88,19 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
 
   // ③ 补画缺失的设定帧
   const tier = tierOf(input.videoTier);
+  const mats = materialHint(input.materials);
   if (!first) {
     prog("绘制起拍画面…");
-    first = await generateCover(input.framePrompt || input.plot.slice(0, 200));
+    first = await generateCover(`${input.framePrompt || input.plot.slice(0, 200)}${mats}`);
   }
   if (!last && tier.flf) {
     prog("绘制结束画面…");
-    last = await generateCover(`${input.plot.slice(0, 180)} 的结束瞬间`);
+    last = await generateCover(`${input.plot.slice(0, 180)} 的结束瞬间${mats}`);
   }
 
   // ④ 出片。圈选要求并进提示词——只改设定帧不够，Seedance 得知道这一段要拍成什么样
   const reqs = input.anns.map((a) => a.req).join("；");
-  const plot = reqs ? `${input.plot}。修改要求（必须满足）：${reqs}` : input.plot;
+  const plot = `${reqs ? `${input.plot}。修改要求（必须满足）：${reqs}` : input.plot}${mats}`;
   const [res] = await composeSegments(
     [{ plot, firstFrame: first, lastFrame: last, durationSec: input.durationSec, videoTier: input.videoTier }],
     (_d, _t, status) => prog(status),

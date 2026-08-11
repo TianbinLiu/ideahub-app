@@ -122,7 +122,10 @@ export default function EditPage() {
 
   return (
     <div className="min-h-full">
-      <header className="sticky top-0 z-10 border-b border-slate-800 bg-ink/90 backdrop-blur">
+      {/* ★ safe-top 挂在 header 自己身上、不挂页面根：header 是 sticky top-0，
+          安全区留白必须【在它内部】，否则它会滑到状态栏底下（ProfilePage 那条注释同理）。
+          原来这三页压根没挂，顶栏文案直接压在状态栏上。 */}
+      <header className="safe-top sticky top-0 z-10 border-b border-slate-800 bg-ink/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
           <Link to={`/video/${video.id}`} className="flex items-center gap-1 text-slate-400 hover:text-white">
             <Icon name="back" size={18} />

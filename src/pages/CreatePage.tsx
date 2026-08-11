@@ -126,8 +126,7 @@ export default function CreatePage() {
             const el = e.currentTarget;
             setAt(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)));
           }}
-          className="flex h-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden"
-          style={{ scrollbarWidth: "none" }}
+          className="no-scrollbar flex h-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden"
         >
           {MODES.map((m, i) => (
             <div key={m.key} className="flex h-full w-full flex-none snap-center items-stretch px-4 pb-3">

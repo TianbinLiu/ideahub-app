@@ -121,6 +121,110 @@ export async function updateProfile(patch: ProfilePatch): Promise<ApiUser | null
   return res.user ?? null;
 }
 
+// ── 登录能力（按 IP 判地区）────────────────────────────────────────────
+// server 的 GET /api/auth/capabilities 用 detectRegion(req) 认出口 IP 的国家，
+// 据此决定这台设备能看到哪几种登录方式：
+//   · 中国大陆出口 → oauthEnabled=false（Google 在墙内点了也只是转圈）
+//   · 短信通道没真配 → phoneEnabled=false（免得摆一个发不出码的死按钮）
+// ★ 前端【不要】自己判地区：判据（国家库、强制开关 AUTH_FORCE_OAUTH*）都在服务端，
+//   两边各判一次必然分叉，而且客户端判的那份还能被随便改。
+export interface AuthCapabilities {
+  region: string;
+  country: string;
+  emailPasswordEnabled: boolean;
+  oauthEnabled: boolean;
+  phoneEnabled: boolean;
+  providers: string[];
+}
+
+/** 取不到（离线/老服务端）时返回 null，调用方退回"只给邮箱密码"这个最小集 */
+export async function fetchCapabilities(): Promise<AuthCapabilities | null> {
+  try {
+    const r = await apiGet<Partial<AuthCapabilities> & { ok?: boolean }>("/api/auth/capabilities", { auth: false });
+    return {
+      region: r.region ?? "",
+      country: r.country ?? "",
+      emailPasswordEnabled: r.emailPasswordEnabled !== false,
+      oauthEnabled: !!r.oauthEnabled,
+      phoneEnabled: !!r.phoneEnabled,
+      providers: Array.isArray(r.providers) ? r.providers : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ── 邮箱验证码注册 / 手机验证码登录 ──────────────────────────────────
+// ★ 这几条端点返回的 user 用的是 `id` 而不是 `_id`（authOtp.controller 里手写的
+//   对象字面量，与 auth.controller 的 serializeAuthUser 不是同一套）。归一放在这里，
+//   别让 data/account.ts 去认两种形状。
+type OtpUser = { id?: string; _id?: string; username?: string; email?: string; role?: string };
+
+function readOtpAuth(res: { token?: string; user?: OtpUser }): AuthResult {
+  const u = res.user;
+  const id = u?._id ?? u?.id;
+  if (!res.token || !id) throw new Error("服务端未返回 token/user");
+  setToken(res.token);
+  return { token: res.token, user: { _id: id, username: u?.username ?? "", email: u?.email, role: u?.role } };
+}
+
+/** POST /api/auth/email/register/start —— 只发码，不建号 */
+export async function emailRegisterStart(input: RegisterInput): Promise<void> {
+  await apiPost("/api/auth/email/register/start", input, { auth: false });
+}
+
+/** POST /api/auth/email/register/verify —— 验码通过才真正建号并登录 */
+export async function emailRegisterVerify(input: RegisterInput & { code: string }): Promise<AuthResult> {
+  return readOtpAuth(await apiPost<{ token?: string; user?: OtpUser }>("/api/auth/email/register/verify", input, { auth: false }));
+}
+
+/** POST /api/auth/email/reset/start */
+export async function emailResetStart(email: string): Promise<void> {
+  await apiPost("/api/auth/email/reset/start", { email }, { auth: false });
+}
+
+/** POST /api/auth/email/reset/verify —— 改完密码直接给登录态 */
+export async function emailResetVerify(email: string, code: string, newPassword: string): Promise<AuthResult> {
+  return readOtpAuth(
+    await apiPost<{ token?: string; user?: OtpUser }>("/api/auth/email/reset/verify", { email, code, newPassword }, { auth: false }),
+  );
+}
+
+/** POST /api/auth/phone/login/start —— 会真发短信、真扣费，server 侧限流 5/分钟 */
+export async function phoneLoginStart(phone: string): Promise<void> {
+  await apiPost("/api/auth/phone/login/start", { phone }, { auth: false });
+}
+
+/** POST /api/auth/phone/login/verify —— 该号没注册过则自动建号（登录即注册） */
+export async function phoneLoginVerify(phone: string, code: string): Promise<AuthResult> {
+  return readOtpAuth(
+    await apiPost<{ token?: string; user?: OtpUser }>("/api/auth/phone/login/verify", { phone, code }, { auth: false }),
+  );
+}
+
+/**
+ * 第三方登录的起跳地址。
+ * ★ 这个地址【不能】在应用内 WebView 里打开：Google 对嵌入式 WebView 的 OAuth 请求
+ *   直接返 disallowed_useragent（是策略，不是 bug）。必须交给系统浏览器，
+ *   登完由服务端深链回 App —— 见 utils/oauth.ts。
+ */
+export function oauthStartUrl(provider: string, redirect: string): string {
+  const u = new URL(`${API_BASE}/api/auth/oauth/${encodeURIComponent(provider)}`);
+  u.searchParams.set("next", redirect);
+  return u.toString();
+}
+
+/** 深链回来只有 token，用它换回用户并落地登录态 */
+export async function adoptToken(token: string): Promise<ApiUser> {
+  setToken(token);
+  try {
+    return await fetchMe();
+  } catch (e) {
+    setToken(null); // 换不回用户说明这个 token 不可用，别留一个假登录态
+    throw e;
+  }
+}
+
 /** 本地登出：server 端无状态 JWT，清掉 token 即可（要踢掉全部设备用 /api/auth/logout-all） */
 export function logout(): void {
   setToken(null);

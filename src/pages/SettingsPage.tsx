@@ -9,6 +9,8 @@ import { useCurrentUser } from "../hooks/useAccount";
 import { storageEstimate } from "../data/db";
 import { QUALITY_LABELS, getQuality, isNativeApp, setQuality, type Quality } from "../studio/quality";
 import { DEFAULT_INSTRUCT, VOICES, currentInstruct, currentRate, currentVoice, rateLabel, setInstruct, setRate, setVoice, type PresetVoice } from "../studio/voices";
+import { speak } from "../studio/speech";
+import { API_BASE, getToken } from "../api/client";
 
 const AVATARS = ["🦊", "🐺", "🐱", "🦉", "🐙", "🦋", "🌙", "⭐", "🔮", "🎴", "🎬", "🍥"];
 
@@ -223,6 +225,14 @@ export default function SettingsPage() {
 // 音色全部是火山官方预置（见 studio/voices.ts 的三条选型原则）。
 // 试听直接打 /api/tts —— 它是**唯一**能证明"凭据配对了、音色能用、额度还有"的
 // 动作，比让用户回工坊触发一句台词再猜哪里错了快得多。
+//
+// ★ 必须走 API_BASE 而不是同源 /api/tts。真机上 WebView 的源是 https://localhost，
+//   而 Capacitor 的本地静态服务器对未命中的路径做 SPA 回退：POST /api/tts 拿回的是
+//   **200 + index.html**，不是 404（真机 CDP 实测）。于是下面按 404 分支的判断永远
+//   不成立，代码把一段 HTML 当音频塞进 <audio> 去播——静悄悄地失败，这正是用户报的
+//   "点一下无法试听"。dev 时 API_BASE 是空串，同源就落回 vite 的 dev 中间件。
+const PREVIEW_LINE = "欢迎来到卡片工坊，把你的素材交给我，我为你炼成卡片。";
+
 function VoiceSection() {
   const [id, setId] = useState(() => currentVoice().id);
   const [busy, setBusy] = useState("");
@@ -238,11 +248,12 @@ function VoiceSection() {
     setErr("");
     setBusy(v.id);
     try {
-      const res = await fetch("/api/tts", {
+      const tk = getToken();
+      const res = await fetch(`${API_BASE}/api/tts`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(tk ? { Authorization: `Bearer ${tk}` } : {}) },
         body: JSON.stringify({
-          text: "欢迎来到卡片工坊，把你的素材交给我，我为你炼成卡片。",
+          text: PREVIEW_LINE,
           voice: v.id,
           mix: v.mix,
           rate: rate ?? v.rate,
@@ -251,16 +262,23 @@ function VoiceSection() {
           instruct,
         }),
       });
-      if (res.status === 404) {
-        setErr("还没配置云端语音：把 TTS_APPID / TTS_TOKEN 填进 .env.local 并重启 dev 服务器");
+      // ★ 这台服务器就是没有云端嗓子（404 没挂路由 / 501 没配密钥 / 401 掉登录）：
+      //   **真的退回系统合成器**，而不是只弹一句错误。上面那行小字向用户承诺过
+      //   "没配云端语音时退回系统内置合成器"，此前根本没实现——点一下静悄悄，
+      //   跟坏了一模一样。
+      if (res.status === 404 || res.status === 501 || res.status === 401 || res.status === 403) {
+        if (!speak(PREVIEW_LINE)) setErr("这台设备既没有云端语音，系统也没装中文语音包，试听不了");
         return;
       }
       if (!res.ok) {
-        setErr(await res.text());
+        setErr(`云端语音没出声（${res.status}）：稍后再试，或到火山控制台看额度`);
         return;
       }
       audioRef.current?.pause();
-      const a = new Audio(URL.createObjectURL(await res.blob()));
+      const url = URL.createObjectURL(await res.blob());
+      const a = new Audio(url);
+      // 试听一次几十 KB，切着音色连点十几下就是十几个悬着的 blob——播完就放掉
+      a.addEventListener("ended", () => URL.revokeObjectURL(url), { once: true });
       audioRef.current = a;
       await a.play();
     } catch (e) {
