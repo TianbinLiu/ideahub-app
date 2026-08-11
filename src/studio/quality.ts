@@ -43,10 +43,12 @@ export function qualityChosen(): boolean {
 
 export function getQuality(): Quality {
   const v = localStorage.getItem(KEY);
-  const q: Quality = v === "low" || v === "high" ? v : "mid";
-  // App 包体不含极致档大文件（出包时裁剪），原生端封顶到均衡
-  return q === "high" && isNativeApp() ? "mid" : q;
+  return v === "low" || v === "high" ? v : "mid";
 }
+// ★ 这里原来有一行「原生端把 high 封顶到 mid」：那时候极致档的大文件在出包时被裁掉了，
+//   App 里请求它必然 404。2026-08-11 起 4K 素材随包发布（scripts/prune-app-assets.mjs），
+//   封顶随之取消 —— 留着它的话，用户在设置里点「极致」会重载一次、回来还是均衡，
+//   看着就像按钮坏了（这个死循环真出现过，见 SettingsPage 里 blocked 那段的原注释）。
 
 // ── 首次进工坊：按机型自动定档 ────────────────────────────────
 //
@@ -168,11 +170,19 @@ export function playerModelUrl(avatar: PlayerAvatar): string {
   return `/models/preview/player-${avatar}-${suffix}.glb?v=${PLAYER_VER}`;
 }
 
-// 文案照实写。默认形象 Tsumire 的三档实测：4.0MB / 7.6MB / 13.6MB，差别全在贴图
-// 分辨率——**面数三档相同**（减面会让形键失效，表情就没了，见 design/make-lod.mjs）。
-// 旧文案写"低面数/中等面数"是自产 Tripo 模型的口径，套到移植档上是不实的。
+// 文案照实写。三档的差别**全在贴图分辨率**，面数是一样的
+//（减面会让形键失效，表情系统就没了，见 design/make-lod.mjs）。
+//
+// ★ 括号里的体积是**这一档要加载的两个模型**（铸卡师 NPC + 玩家形象）合计的实测值，
+//   不是某一个文件：
+//     流畅 1.15 + 2.44 ≈ 3.6MB ｜ 均衡 2.11 + 3.29 ≈ 5.4MB ｜ 极致 34.9 + 25.5 ≈ 60MB
+//   （玩家形象按默认的 f 算，选 m 各档再多 1–10MB。）
+//   旧文案写的 4/8/14MB 是开发试穿档 Tsumire 一个模型的数，普通用户根本用不到它，
+//   摆在这儿等于报了个假价。
+// ★ 2026-08-11 起三档在 App 里都能用：4K 素材随包发布，不再是"点不动的灰选项"。
+//   所以这里说的是**加载耗时与显存**，不是下载流量 —— 文件就在本机。
 export const QUALITY_LABELS: Record<Quality, { name: string; desc: string }> = {
-  low: { name: "流畅", desc: "1K 贴图 · 精简表情 · 加载最快（≈4MB）" },
-  mid: { name: "均衡", desc: "2K 贴图 · 完整表情（推荐，≈8MB）" },
-  high: { name: "极致", desc: "4K 原始贴图 · 完整表情 · 加载慢（≈14MB）" },
+  low: { name: "流畅", desc: "1K 贴图 · 加载最快（≈4MB）· 老手机选它" },
+  mid: { name: "均衡", desc: "2K 贴图（推荐，≈5MB）" },
+  high: { name: "极致", desc: "4K 原始贴图 · 最清楚但加载慢、吃显存（≈60MB）" },
 };

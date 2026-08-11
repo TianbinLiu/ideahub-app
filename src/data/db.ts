@@ -71,6 +71,22 @@ export async function idbDel(key: string): Promise<void> {
   }
 }
 
+/** 库里现在有哪些键。清理缓存要靠它找出"没人引用的大文件"（见 data/cacheSweep.ts） */
+export async function idbKeys(): Promise<string[]> {
+  try {
+    const db = await open();
+    return await new Promise<string[]>((resolve) => {
+      const tx = db.transaction(STORE, "readonly");
+      const req = tx.objectStore(STORE).getAllKeys();
+      req.onsuccess = () => resolve((req.result as IDBValidKey[]).map(String));
+      req.onerror = () => resolve([]);
+    });
+  } catch (e) {
+    console.warn("[db] 列键失败:", e);
+    return [];
+  }
+}
+
 /** 存储用量估算（设置页展示） */
 export async function storageEstimate(): Promise<{ usedMB: number; quotaMB: number } | null> {
   if (!navigator.storage?.estimate) return null;

@@ -172,19 +172,56 @@ function buildSeeds(): VideoItem[] {
 //   Vite 下会拿到半初始化的模块（CLAUDE.md 里对 store 写过同一条，data 层同理）。
 //   所以由**本模块**订阅账号变更，依赖方向保持单向。
 let cacheOwner: string | null = null;
+/** 上一次看到的当前用户显示名。用来发现"同一个人改了名"（见下） */
+let cacheOwnerName: string | null = null;
 
 function ownerKey(): string {
   const u = currentUser();
   return u ? `${u.id}` : "";
 }
 
+/**
+ * 改名之后，把内存里**我自己那些作品**的作者名改过来。
+ *
+ * ★★ 这是在修一个真 bug（2026-08-11 用户报）：改完名回到首页，右侧那个头像变回
+ *   字母底、点进去还是旧名字的主页，非得重启 App 才好。
+ *   原因是"这条是不是我发的"一直靠比**名字**（isMyAuthor），而缓存里那些作品的
+ *   author 还留着改名前的值 —— 于是 `mine` 判否：头像不再用我的头像（退回按名字
+ *   哈希出来的字母底），链接也指向 `/u/旧名字`，那个页面当然显示旧名字。
+ *   重启之所以"好了"，只是因为重新从服务端拉了一次列表，author 是新的了。
+ * ★ 按 **authorId** 改，不按旧名字匹配：重名的别人不该被顺手改掉。
+ *   离线模式没有 id，但那边 author 恒为 ME（"我"），本来就不受改名影响。
+ */
+function renameMyVideos(newName: string): void {
+  const me = currentUser();
+  if (!cache || !me) return;
+  let touched = 0;
+  for (const v of cache) {
+    if (v.authorId && v.authorId === me.id && v.author !== newName) {
+      v.author = newName;
+      touched++;
+    }
+  }
+  if (touched > 0) emitVideos();
+}
+
 if (typeof window !== "undefined") {
   subscribeAccount(() => {
     const now = ownerKey();
-    if (cacheOwner === null || now === cacheOwner) return; // 还没装载过，或还是同一个人
+    if (cacheOwner !== null && now === cacheOwner) {
+      // 还是同一个人 —— 但他可能改了名字
+      const name = currentUser()?.name ?? null;
+      if (name && name !== cacheOwnerName) {
+        cacheOwnerName = name;
+        renameMyVideos(name);
+      }
+      return;
+    }
+    if (cacheOwner === null) return; // 还没装载过
     // 换人了：把上一个人的东西全部忘掉，并立刻重新装载
     cache = null;
     cacheOwner = null;
+    cacheOwnerName = null;
     nextCursor = null;
     detailed.clear();
     likedIds.clear();
@@ -217,6 +254,7 @@ export async function readyVideos(): Promise<void> {
     })().finally(() => {
       readyPromise = null;
       cacheOwner = ownerKey(); // 记下这份 cache 是给谁装的，换人时才知道要清
+      cacheOwnerName = currentUser()?.name ?? null; // 改名时靠它发现"名字变了"
     });
   }
   await readyPromise;
@@ -466,6 +504,8 @@ export function publishVideo(draft: DraftVideo): VideoItem {
     merged: draft.merged,
     visibility: draft.visibility ?? "public",
     author: currentUser()?.name ?? ME,
+    // 刚发布、还没落库的这条也要带上 id，否则改名时它是唯一漏改的一条
+    authorId: currentUser()?.id,
     plays: 0,
     likes: 0,
     saves: 0,
@@ -728,6 +768,8 @@ function toVideoItem(v: branch.ApiVideo): VideoItem {
     deck: v.deck?.cards?.length ? v.deck : undefined,
     visibility: v.visibility === "private" ? "private" : "public",
     author: branch.authorName(v.author),
+    // ★ 名字会变，id 不会。改名时靠它精确认出"我自己那些作品"（见 subscribeAccount）
+    authorId: branch.authorId(v.author) ?? undefined,
     plays: v.plays ?? 0,
     likes: v.likes ?? 0,
     createdAt: toMs(v.createdAt),
@@ -819,6 +861,7 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     if (Array.isArray(v.segments) && v.segments.length > 0) item.segments = v.segments;
     if (v.branchTree) item.branchTree = v.branchTree;
     item.author = branch.authorName(v.author);
+    item.authorId = branch.authorId(v.author) ?? item.authorId;
     item.createdAt = toMs(v.createdAt);
     detailed.add(v._id);
     emitVideos();

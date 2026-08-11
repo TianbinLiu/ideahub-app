@@ -1,9 +1,16 @@
 # Google Play 上架清单（分支视频 / com.ideahub.branchvideo）
 
 > 状态标记：✅ 已就绪 ｜ 🔧 需要动手 ｜ 💰 需要花钱
-> 出包命令：`npm run aab`（上架用 AAB）/ `npm run apk:release`（本地安装验证用 APK）
-> 当前产物：release APK **54MB** / AAB **53MB**（debug 曾 119MB——已扩充出包裁剪，
-> 剔除了零引用的烘焙遗留模型与 App 内不可达的 `?npc=` 调试模型共 ~100MB）
+> 出包命令：`npm run aab`（**上架用**，play 渠道）/ `npm run apk:release`（直装版，sideload 渠道）
+> 当前产物：直装版 APK ≈ **152MB** / 上架 AAB ≈ **150MB**
+> （其中 96MB 是「极致」档的 4K 贴图模型 —— 2026-08-11 起随包发布，见
+> `scripts/prune-app-assets.mjs`。裁剪仍然剔除零引用的烘焙遗留模型与不可分发的购入素材。）
+>
+> ⚠️ **两个渠道不是一回事**：直装版带「应用内自更新」（下载 APK 并拉起安装器），
+> 而 Google Play **禁止**这种行为。隔离靠 product flavor 做在构建里，不靠人记得删，
+> 细节见 [`app-distribution.md`](app-distribution.md)。上传 Play 前确认 AAB 里
+> 没有 `REQUEST_INSTALL_PACKAGES`：
+> `aapt2 dump permissions <aab 解出来的 base.apk> | grep INSTALL` 应当无输出。
 
 ## 一、账号与资质
 
@@ -72,13 +79,15 @@
 缺任何一个时 `npm run build:app` 产物里模型加载会失败——出包后先装真机看一眼工坊 NPC 是否正常。
 
 ### 9. 版本号递增
-- 每次上传新包必须递增 `android/app/build.gradle` 里的 `versionCode`（当前 1），
-  `versionName` 是给用户看的展示版本（当前 "1.0"），按需更新。
+- 每次上传新包必须递增 `android/app/build.gradle` 里的 `versionCode`（当前 4），
+  `versionName` 是给用户看的展示版本（当前 "1.3"），按需更新。
+- ⚠️ 直装版和上架版**共用同一个 versionCode**。直装版的自更新就是靠它判新旧，
+  所以别为了上架单独调它（详见 `app-distribution.md`）。
 
 ### 10. 出包与验证
 ```
-npm run aab          → android/app/build/outputs/bundle/release/app-release.aab（传 Play Console）
-npm run apk:release  → android/app/build/outputs/apk/release/app-release.apk（真机安装自测）
+npm run aab          → android/app/build/outputs/bundle/playRelease/app-play-release.aab（传 Play Console）
+npm run apk:release  → android/app/build/outputs/apk/sideload/release/app-sideload-release.apk（直装版）
 ```
 - release 签名自动从 `android/keystore/keystore.properties` 读取，目录缺失会构建成无签名包并警告。
 - 上传 AAB 后 Console 会显示 Play 按设备拆分后的实际下载体积（远小于 APK）。

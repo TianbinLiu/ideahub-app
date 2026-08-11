@@ -1,5 +1,17 @@
-// App 出包前裁剪 dist：开发源模型与"极致"档大文件不进 APK（包体从 ~250MB 降到 ~60MB）。
-// 极致档在 App 内禁用（QualityPicker 有对应提示）；后续可改为按需下载。
+// App 出包前裁剪 dist：**开发源模型**与不可分发的第三方素材不进 APK。
+//
+// ★★ 2026-08-11 起「极致」档（4K 贴图）**留在包里**了。
+//   原来它也被裁掉，于是 App 里那一档是灰的、点不动，设置页只能写一句
+//   "App 安装包不含 4K 贴图" —— 用户看到的是一个摆在那里但永远不能用的选项。
+//   代价是包体从 ~56MB 涨到 ~152MB（三个自产模型：NPC 34.9 + 形象 f 25.5 + m 35.5）。
+//   评估过"按需下载"（本文件原来的注释就是这么写的），选了直接装进包：
+//   自更新是整包替换，按需下载省下的那份流量，在每次更新时又以另一种形式还回去了，
+//   而且多一条会失败的网络路径。
+//
+// ★ 仍然裁掉的两类，判据不同，别混：
+//   ① 开发源模型 / 重烘管线的输入 —— 运行时**从来不加载**，纯占地方；
+//   ② 第三方购入素材（protected/ 下的 rin / gratia / tsumire）—— DEV-only 试穿档，
+//      授权不含分发，**绝不允许入包**（见 design/README-tsumire.md 的授权结论）。
 import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
@@ -18,11 +30,11 @@ const PRUNE = [
   "preview/player-m.glb",
   "preview/player-f.glb",
   "preview/tripo-v3-rigged.glb",
-  "preview/npc-full-face.glb", // 极致档（36MB）
-  "preview/player-m-think.glb", // 极致档（37MB）
-  "preview/player-f-think.glb", // 极致档（26MB）
-  // 默认形象的极致档（13.6MB）。原生端 getQuality() 硬把 high 封顶到 mid，
-  // 这个文件在 App 里永远不会被请求；mid(7.6MB)/low(4.1MB) 两档留在包里
+  // ★ 这里原来还裁掉三个「极致」档模型（npc-full-face / player-m-think /
+  //   player-f-think，共 96MB）。2026-08-11 起**不再裁**，见文件头的说明 ——
+  //   裁了它们，App 里的「极致」就是一个永远点不动的灰选项。
+  // 默认形象的极致档（13.6MB）：tsumire 是 BOOTH 购入的第三方模型、DEV-only，
+  // 授权不含分发，永远不入包（下面"本地开发试穿档"那一组是同一个理由）
   "protected/tsumire-player.glbx",
   // 烘焙/试验遗留，src 全局零引用（web 端也不加载，仅占仓库）
   "preview/tripo-v3.glb",
