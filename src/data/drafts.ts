@@ -41,8 +41,9 @@ export interface WorkDraft {
   /** 工坊侧：节点树 + 桌面卡组 */
   root: NodeSlot | null;
   deck: Card[];
-  /** 回炉编辑模式的目标（重制已发布作品时才有） */
-  editTarget: unknown;
+  /** ★ 曾经存过 editTarget（回炉编辑已发布作品的目标）。回炉功能已删，字段一并去掉。
+   *  老草稿正文里可能还带着这个键 —— 读的时候直接忽略即可，无需迁移：
+   *  多一个用不上的键既不会让 openWorkDraft 出错，也不占多少空间。 */
   /** 工作流侧流水线 */
   flow: FlowSnapshot | null;
 }
@@ -120,7 +121,6 @@ export async function saveDraft(input: {
   lastMode: DraftMode;
   root: NodeSlot | null;
   deck: Card[];
-  editTarget: unknown;
   flow: FlowSnapshot | null;
   /** 用来生成缩略图的原始画面（首段首帧），可为空 */
   coverFrame?: string;
@@ -142,7 +142,6 @@ export async function saveDraft(input: {
     lastMode: input.lastMode,
     root: input.root,
     deck: input.deck,
-    editTarget: input.editTarget,
     flow: input.flow,
   };
   if (!(await idbSet(bodyKey(id), body))) return null;

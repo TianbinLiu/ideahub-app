@@ -137,6 +137,10 @@ export interface VideoItem {
   parts?: VideoPart[];
   /** 本片卡组（生成本片所用素材卡的快照），观众可一键收入 */
   deck?: VideoDeck;
+  /** 可见性：private = 仅自己可见（别人的列表/详情里都不出现）。
+   *  缺省视作 public —— 这个字段是后加的，老作品没有它，判定必须写成
+   *  `!== "private"` 而不是 `=== "public"`（服务端同一条规则，见 api-contract.md） */
+  visibility?: "public" | "private";
   /** 付费设置：mode=paid 时 partPrices[i] 为第 i 个 P 的解锁价（token）。
    *  缺省 = 免费。观众解锁扣 token，平台抽成后其余进创作者 add-on 余额 */
   pricing?: VideoPricing;
@@ -194,6 +198,8 @@ export interface DraftVideo {
   branchTree?: BranchTree;
   /** 合成时聚合的素材卡组（name 由发布页按最终标题定） */
   deck?: VideoDeck;
+  /** 发布时选的可见性；缺省 public */
+  visibility?: "public" | "private";
   /** 发布页选定的付费设置（免费/付费+每 P 价） */
   pricing?: VideoPricing;
   /** 剪辑页已合并成单条视频（segments 长度为 1，videoUrl 为 idb: 指针） */

@@ -37,9 +37,10 @@
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| GET | `/api/branch/videos` | optional | 列表。query：`feed=recommend\|following`、`category`、`q`、`cursor`、`limit`(默认 12)。返回 `{ ok, items, nextCursor }`；`items[].liked` 表示当前用户是否已赞 |
-| POST | `/api/branch/videos` | required | 发布。body=DraftVideo（title/category/description/cover/segments/branchTree/**clientId**）。**服务端负责把 body 里的外链资源转存**（见下）。带 `clientId` 时按 `{author, clientId}` 幂等：重发返回首次那条、状态码 200（首发是 201） |
-| GET | `/api/branch/videos/:id` | optional | 详情（含 comments 前 50 条） |
+| GET | `/api/branch/videos` | optional | 列表。query：`feed=recommend\|following`、`category`、`q`、`cursor`、`limit`(默认 12)。返回 `{ ok, items, nextCursor }`；`items[].liked` 表示当前用户是否已赞。**只返回公开作品 + 自己的作品**（见下「可见性」） |
+| POST | `/api/branch/videos` | required | 发布。body=DraftVideo（title/category/description/cover/segments/branchTree/**deck**/**visibility**/**clientId**）。**服务端负责把 body 里的外链资源转存**（见下）。带 `clientId` 时按 `{author, clientId}` 幂等：重发返回首次那条、状态码 200（首发是 201） |
+| GET | `/api/branch/videos/:id` | optional | 详情（含 comments 前 50 条）。非作者访问 private 作品返回 **404**（不是 403） |
+| PATCH | `/api/branch/videos/:id` | required | 作品编辑，仅作者。body `{ title?, category?, description?, visibility? }`，**至少给一个字段**（空对象 400）。segments / branchTree / deck 一律被 strip —— 发布即定稿 |
 | DELETE | `/api/branch/videos/:id` | required | 仅作者可删 |
 | POST | `/api/branch/videos/:id/play` | optional | 播放计数 +1，返回 `{ ok, plays }` |
 | POST | `/api/branch/videos/:id/like` | required | 点赞，返回 `{ ok, likes, liked: true }` |
@@ -55,6 +56,36 @@
 | DELETE | `/api/branch/decks/:id` | required | 删组 |
 
 关注沿用既有 `/api/users/:id/follow` 与 `Follow` 模型，不新建。
+
+## 可见性（`visibility`）
+
+`BranchVideo.visibility` ∈ `"public" | "private"`，默认 `public`。`private` = 仅作者自己可见。
+
+判定规则**只有一条**，服务端在下面每一处都用它（改一处必须改全部）：
+
+- Mongo 查询：`{ $or: [{ visibility: { $ne: "private" } }, { author: 我 }] }`（未登录时只有前半）
+- 内存判定：`doc.visibility !== "private" || 是作者`
+
+★ **必须写成 `!== "private"` 而不是 `=== "public"`**：这个字段是后加的，存量作品这一项是
+`undefined`，按等值判会把库里所有老作品从首页上抹掉——而且一点错都不报。
+响应里的 `visibility` 已经归一过（`undefined` → `"public"`），客户端不用判缺省。
+
+挡的地方不止详情：`GET /videos`（含 `q` 搜索）、`GET /videos/:id`、`POST /:id/play`、
+`POST|DELETE /:id/like`、`GET|POST /:id/comments` **全部**按同一条规则挡，
+非作者一律 404。只挡详情等于给私密作品留了个探测旁路。
+
+## 随作品发布的卡组（`deck`）
+
+`{ name, cards: [{ cardId, type, name, summary, cover, tags }] }`，**内嵌快照**，
+不是对 `BranchCard` 的引用——作者事后删掉自己库里的卡，已发布作品里的卡组不能跟着少张。
+
+- 客户端 `Card.id` 落库统一叫 `cardId`（与 `BranchCard` 对齐），两个名字服务端都收
+- `cards[].cover` 与帧字段走同一套转存（dataURL → Cloudinary）
+- 无卡组时响应里**没有** `deck` 键，不会给一个空对象
+
+★ 这个字段在 2026-08-10 之前是**发得出、存不下**的：`publishBody` 的 zod schema 没声明它，
+`z.object` 默认 strip 未声明字段，于是客户端发了、服务端 201 了、读回来是空的。
+往 DraftVideo 里加字段时记得同步这份 schema。
 
 ## 资源转存（关键）
 

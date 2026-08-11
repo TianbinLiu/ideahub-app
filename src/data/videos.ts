@@ -10,7 +10,7 @@
 //
 // IndexedDB 而不是 localStorage 的原因（保留原注释）：真实 AI 首尾帧是 1MB 级 base64，
 // 一支 2 段视频≈4MB 直接撑爆 5MB 配额 → 用户视频被配额兜底静默丢弃（首页永远看不到自己的作品）。
-import { DraftVideo, NodeSlot, VideoComment, VideoItem, VideoPart, uid } from "../types";
+import { DraftVideo, VideoComment, VideoItem, VideoPart, uid } from "../types";
 import { makeFrame } from "../mock/frames";
 import { idbGet, idbSet } from "./db";
 import { materializeDraft, type MaterializeError } from "./publishAssets";
@@ -303,98 +303,71 @@ export function partsOf(v: VideoItem): VideoPart[] {
   return [{ name: "P1", segments: v.segments, branchTree: v.branchTree }];
 }
 
-/** 作品元信息编辑（标题/分类/简介/封面）。远端模式乐观更新 + 后台 PATCH，
- *  服务端未实现该端点时 toast 报错、本地值保留到下次刷新——诚实降级而非静默丢失。 */
+/** 作品元信息编辑（标题/分类/简介/封面/可见性）。远端模式乐观更新 + 后台 PATCH，
+ *  服务端未实现该端点时 toast 报错、本地值保留到下次刷新——诚实降级而非静默丢失。
+ *
+ *  ★ 发上去的**只有服务端认的那四个字段**。cover / deck / pricing 会被服务端 strip，
+ *    整包发过去不会报错、只是那几项静默不生效；挑出来发，至少能对得上"发了什么、存了什么"。 */
 export function updateVideoMeta(
   id: string,
-  patch: Partial<Pick<VideoItem, "title" | "category" | "description" | "cover" | "deck" | "pricing">>,
+  patch: Partial<
+    Pick<VideoItem, "title" | "category" | "description" | "cover" | "deck" | "pricing" | "visibility">
+  >,
 ): VideoItem | null {
   const v = find(id);
   if (!v) return null;
   Object.assign(v, patch);
   save(all());
   if (remoteOn()) {
-    void branch
-      .updateVideo(realId(v.id), patch)
-      .then((remote) => {
-        if (remote?.cover) v.cover = remote.cover; // 服务端可能把 dataURL 封面转存成永久 URL
-        emitVideos();
-      })
-      .catch((e) => emitApiError("updateVideo", e));
-  }
-  emitVideos();
-  return v;
-}
-
-/** 整组替换 P 列表（重制某 P / 新增 P / 删除 P / 改名都走这一个入口）。
- *  顶层 segments/branchTree 恒镜像 parts[0]：Feed 与旧读者只认顶层字段。 */
-export function setVideoParts(id: string, parts: VideoPart[]): VideoItem | null {
-  const v = find(id);
-  if (!v || parts.length === 0) return null;
-  v.parts = parts;
-  v.segments = parts[0].segments;
-  v.branchTree = parts[0].branchTree;
-  save(all());
-  if (remoteOn()) {
-    void branch
-      .updateVideo(realId(v.id), { parts, segments: v.segments, branchTree: v.branchTree })
-      .then((remote) => {
-        // 服务端会把方舟临时 videoUrl/dataURL 帧转存成永久地址，必须回填
-        if (remote?.parts?.length) {
-          v.parts = remote.parts;
-          v.segments = remote.parts[0].segments;
-          v.branchTree = remote.parts[0].branchTree;
-          emitVideos();
-        }
-      })
-      .catch((e) => emitApiError("updateVideo", e));
-  }
-  emitVideos();
-  return v;
-}
-
-// ── 工坊源工程（NodeSlot 树）────────────────────────────────
-// 发布的作品只带成片（segments/branchTree），回工坊"重制"需要当时的节点树
-// （三方案、未选走向、挂载关系）。按 videoId → partIndex 存 IndexedDB，
-// 纯本地：服务端契约不含工程文件，跨设备重制退化为"从成片重建"（见 studioStore）。
-const PROJ_KEY = "ideahub-app.projects.v1";
-type ProjectMap = Record<string, Record<number, NodeSlot>>;
-
-async function projMap(): Promise<ProjectMap> {
-  return (await idbGet<ProjectMap>(PROJ_KEY)) ?? {};
-}
-
-export async function loadProject(videoId: string, partIndex: number): Promise<NodeSlot | null> {
-  const map = await projMap();
-  // 远端模式发布后 id 会从本地临时值换成服务端 _id，两个键都认
-  return map[realId(videoId)]?.[partIndex] ?? map[videoId]?.[partIndex] ?? null;
-}
-
-export function saveProject(videoId: string, partIndex: number, root: NodeSlot): void {
-  void projMap().then((map) => {
-    const key = realId(videoId);
-    map[key] = { ...(map[key] ?? {}), [partIndex]: root };
-    void idbSet(PROJ_KEY, map);
-  });
-}
-
-/** 删除某 P 后，其后各 P 的源工程下标前移一位（否则重制打开的是别人家的树） */
-export function shiftProjectsAfterDelete(videoId: string, deletedIndex: number): void {
-  void projMap().then((map) => {
-    const key = realId(videoId);
-    const cur = map[key] ?? map[videoId];
-    if (!cur) return;
-    const next: Record<number, NodeSlot> = {};
-    for (const [k, tree] of Object.entries(cur)) {
-      const i = Number(k);
-      if (i === deletedIndex) continue;
-      next[i > deletedIndex ? i - 1 : i] = tree;
+    const remotePatch: branch.VideoMetaPatch = {};
+    if (patch.title !== undefined) remotePatch.title = patch.title;
+    if (patch.category !== undefined) remotePatch.category = patch.category;
+    if (patch.description !== undefined) remotePatch.description = patch.description;
+    if (patch.visibility !== undefined) remotePatch.visibility = patch.visibility;
+    // 空 patch 服务端会 400（"至少给一个字段"），别为纯本地字段白跑一趟
+    if (Object.keys(remotePatch).length > 0) {
+      void branch
+        .updateVideo(realId(v.id), remotePatch)
+        .then(() => emitVideos())
+        .catch((e) => emitApiError("updateVideo", e));
     }
-    map[key] = next;
-    if (key !== videoId) delete map[videoId];
-    void idbSet(PROJ_KEY, map);
-  });
+  }
+  emitVideos();
+  return v;
 }
+
+/**
+ * 删除作品（仅作者）。本地先删、服务端后删——删除是用户明确要的动作，
+ * 等一个网络往返再消失只会让人以为没点上。
+ * 服务端删失败会 toast，下次 readyVideos 拉回来时那条会重新出现（本地不是权威）。
+ */
+export function deleteVideoItem(id: string): void {
+  const v = find(id);
+  if (!v) return;
+  const rid = realId(v.id);
+  const list = all().filter((x) => x.id !== v.id);
+  cache = list;
+  save(list);
+  emitVideos();
+  if (remoteOn()) {
+    void branch.deleteVideo(rid).catch((e) => emitApiError("deleteVideo", e));
+  }
+}
+
+// ★ 这里原来有 setVideoParts（整组替换 P 列表：重制某 P / 新增 P / 删除 P / 改名）
+//   和 shiftProjectsAfterDelete。两个都随「作品发布后不可回炉」删掉了，
+//   而且删掉之前它们的远端分支**从来没生效过**：服务端的 BranchVideo 压根没有
+//   parts 字段，PATCH 上去只会被 strip，改动只活在本地 cache 里，刷新一次就打回原形。
+//   ——静默且全局的坏失败（铁律八）。多 P 的【读】路径（partsOf / VideoPage 选集条）保留，
+//   老作品里已有的分集照常播；只是不能再增删改了。
+
+// ★ 这里原来还有一套「工坊源工程」（PROJ_KEY / saveProject / loadProject）：
+//   发布时把当时的节点树——三方案、没选的走向、挂载关系——按 videoId+partIndex
+//   存进 IndexedDB，供回炉重制时铺回桌面。回炉删掉之后 loadProject 没有任何调用方了，
+//   而 saveProject 仍在每次发布时写一棵**带首尾帧 dataURL 的树**进去，MB 级、只增不减，
+//   跟草稿正文抢的是同一份配额。写了没人读 = 纯占地方，所以一并删。
+//   老设备上遗留的 "ideahub-app.projects.v1" 不主动清理：清它要在启动路径上多一次
+//   IndexedDB 往返，而它下次装新版后就再也不会变大了，不值当。
 
 export function publishVideo(draft: DraftVideo): VideoItem {
   // 幂等键跟着草稿走：pushPublish 超时后进待发队列，flushPending 重发的是同一个 draft，
@@ -411,6 +384,7 @@ export function publishVideo(draft: DraftVideo): VideoItem {
     deck: draft.deck,
     pricing: draft.pricing,
     merged: draft.merged,
+    visibility: draft.visibility ?? "public",
     author: currentUser()?.name ?? ME,
     plays: 0,
     likes: 0,
@@ -575,6 +549,7 @@ function toVideoItem(v: branch.ApiVideo): VideoItem {
     branchTree: v.branchTree,
     parts: Array.isArray(v.parts) && v.parts.length > 0 ? v.parts : undefined,
     deck: v.deck?.cards?.length ? v.deck : undefined,
+    visibility: v.visibility === "private" ? "private" : "public",
     author: branch.authorName(v.author),
     plays: v.plays ?? 0,
     likes: v.likes ?? 0,
@@ -794,5 +769,5 @@ export async function dropPendingPublish(clientId: string): Promise<void> {
 
 // DEV 调试/E2E 挂钩：与 __studio/__account 同款——自动化要读写与组件同实例的作品库
 if (import.meta.env.DEV && typeof window !== "undefined") {
-  (window as unknown as Record<string, unknown>).__videos = { getVideo, listVideos, partsOf, setVideoParts, updateVideoMeta };
+  (window as unknown as Record<string, unknown>).__videos = { getVideo, listVideos, partsOf, updateVideoMeta, deleteVideoItem };
 }

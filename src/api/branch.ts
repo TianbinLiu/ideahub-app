@@ -35,6 +35,8 @@ export interface ApiVideo {
   parts?: VideoPart[];
   /** 本片卡组（素材快照）；未升级服务端缺省 */
   deck?: VideoDeck;
+  /** 可见性；服务端已归一（老数据的 undefined 会返回 "public"），未升级服务端缺省 */
+  visibility?: "public" | "private";
   author: ApiAuthor | string;
   plays: number;
   likes: number;
@@ -203,16 +205,18 @@ export async function deleteVideo(id: string): Promise<void> {
 }
 
 /**
- * PATCH /api/branch/videos/:id（requireAuth，仅作者）——作品编辑（标题/封面/分集等）。
- * 与 updateDeck 同一套 PATCH 约定；服务端未实现该端点时调用方会收到 ApiError，
- * 由 data 层降级为"仅本地生效"并 toast。segments 可能带 1MB 级 base64 帧，超时同 create。
+ * PATCH /api/branch/videos/:id（requireAuth，仅作者）——作品编辑。
+ *
+ * ★ 服务端只收 title / category / description / visibility 四个字段，其余一律 strip：
+ *   片段与卡组是「发布那一刻的样子」，改了就意味着已经看过、已经收藏过的人看到的东西变了。
+ *   所以这里的入参也收窄成那四个 —— 传 segments 过去不会报错、只是**静默不生效**，
+ *   类型上挡住比运行时纳闷强（契约见 docs/api-contract.md「端点」表）。
+ * 服务端未实现该端点时调用方会收到 ApiError，由 data 层降级为"仅本地生效"并 toast。
  */
-export async function updateVideo(id: string, patch: Partial<ApiVideo>): Promise<ApiVideo | null> {
-  const res = await apiPatch<Record<string, unknown>>(
-    `/api/branch/videos/${encodeURIComponent(id)}`,
-    patch,
-    { timeoutMs: 180_000 },
-  );
+export type VideoMetaPatch = Partial<Pick<ApiVideo, "title" | "category" | "description" | "visibility">>;
+
+export async function updateVideo(id: string, patch: VideoMetaPatch): Promise<ApiVideo | null> {
+  const res = await apiPatch<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}`, patch);
   return pick<ApiVideo>(res, ["video", "item", "data"]);
 }
 

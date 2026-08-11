@@ -434,9 +434,12 @@ export default function ProfilePage() {
                       已出片 {d.doneCount}/{d.segCount}
                     </div>
                   </div>
+                  {/* ★ 这里原来写的是「仅自己可见」——和已发布作品的可见性设置**是同一个词**，
+                      于是用户以为自己有一条设成私密的作品，跑去找哪儿能改（真事，2026-08-10）。
+                      草稿的"没人看得到"是它还没发布，不是一个可切换的选项，用词必须分开。 */}
                   <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/65 px-1 py-0.5 text-[9px] text-white">
                     <Icon name="lock" size={9} strokeWidth={2.5} />
-                    仅自己可见
+                    未发布
                   </span>
                 </button>
               ))}
@@ -622,11 +625,18 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
               <Icon name="play" size={12} filled />
               {formatPlays(v.plays)}
             </span>
-            {v.branchTree && (
+            {/* 私密作品要在墙上一眼认得出来：否则作者只会看到"这条怎么没人看"，
+                而它压根就没出现在任何人的首页里。改回公开在作品编辑页 */}
+            {v.visibility === "private" ? (
+              <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/70 px-1 py-0.5 text-[9px] text-white">
+                <Icon name="lock" size={9} strokeWidth={2.5} />
+                仅自己可见
+              </span>
+            ) : v.branchTree ? (
               <span className="absolute left-1 top-1 rounded bg-brand/90 px-1 py-0.5 text-[9px] font-semibold text-ink">
                 互动
               </span>
-            )}
+            ) : null}
             {paid && (
               <span className="absolute right-1 top-1 rounded bg-gold/90 px-1 py-0.5 text-[9px] font-bold text-ink">
                 付费

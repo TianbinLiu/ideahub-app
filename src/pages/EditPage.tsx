@@ -1,20 +1,20 @@
-// 作品编辑页（仅作者可进）：改标题/分类/简介/封面（四种来源），管理多 P——
-// 改名、删除、回工坊重制某一 P、新增一 P。成片内容的修改都发生在工坊
-// （startEditPart / startNewPart 载入编辑态后跳 /studio），本页只管"壳"。
+// 作品编辑页（仅作者可进）：改标题 / 分类 / 简介 / 封面 / 可见性，以及删除整部作品。
+//
+// ★ 这里**不能改内容**。原来还有「🛠 工坊重制某一 P」「＋ 新增一 P」「删除某一 P」，
+//   2026-08 一并删掉，两条理由各自都成立：
+//     1. 产品定案：作品一经发布不可回炉。已经有人看过、收藏过这条作品之后再换掉成片，
+//        同一个链接下的内容就变了，而观众那边没有任何提示。
+//     2. 它本来就没生效过。服务端的 BranchVideo **压根没有 parts 字段**，
+//        分集的增删改只写进了本地 cache，刷新一次就打回原形——
+//        典型的"静默且全局"的坏失败（铁律八）。与其留个假按钮不如拿掉。
+//   多 P 的**读**路径保留（VideoPage 的选集条），老作品里已有的分集照常播。
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { CoverSection } from "../components/CoverPicker";
 import Icon from "../components/Icon";
-import {
-  getVideo,
-  isMyAuthor,
-  partsOf,
-  setVideoParts,
-  shiftProjectsAfterDelete,
-  updateVideoMeta,
-} from "../data/videos";
+import VisibilityPicker from "../components/VisibilityPicker";
+import { deleteVideoItem, getVideo, isMyAuthor, partsOf, updateVideoMeta } from "../data/videos";
 import { useVideosVersion } from "../hooks/useVideos";
-import { useStudio } from "../studio/studioStore";
 import { VIDEO_CATEGORIES, formatDuration } from "../types";
 
 export default function EditPage() {
@@ -28,9 +28,10 @@ export default function EditPage() {
   const [category, setCategory] = useState(video?.category ?? "剧情");
   const [description, setDescription] = useState(video?.description ?? "");
   const [cover, setCover] = useState(video?.cover ?? "");
-  const [partNames, setPartNames] = useState<string[]>(parts.map((p) => p.name));
+  const [visibility, setVisibility] = useState<"public" | "private">(video?.visibility ?? "public");
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
+  const [confirmDel, setConfirmDel] = useState(false);
 
   // 深链刚进来时 video 可能还没就绪（远端补详情）；就绪后把表单初值补上。
   // 只在"表单还是空白"时回填，避免覆盖用户已输入的内容。
@@ -40,8 +41,14 @@ export default function EditPage() {
     setCategory((c) => (c !== "剧情" ? c : video.category));
     setDescription((d) => (d ? d : video.description));
     setCover((c) => (c ? c : video.cover));
-    setPartNames((ns) => (ns.length === parts.length ? ns : parts.map((p) => p.name)));
-  }, [video, parts]);
+  }, [video]);
+
+  // ★ 可见性单独同步，且**不能**用上面那种"空了才填"的写法：
+  //   它的合法值里就有一个是默认值，"是不是空"分辨不出"用户还没改"和"用户选了公开"。
+  //   改用「作品 id 变了就重置」——同一部作品内不覆盖用户的选择。
+  useEffect(() => {
+    setVisibility(video?.visibility ?? "public");
+  }, [video?.id, video?.visibility]);
 
   // 截帧/候选帧覆盖整部作品：多 P 全拼进时间轴
   const allSegments = useMemo(() => parts.flatMap((p) => p.segments), [parts]);
@@ -51,22 +58,6 @@ export default function EditPage() {
       <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
         <div>作品不存在或已删除</div>
         <Link to="/" className="text-brand">返回首页</Link>
-      </div>
-    );
-  }
-  // 合并发布的成片不可修改（产品定案）：只能用同款卡组回工坊重新生成
-  if (video.merged) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-slate-400">
-        <span className="text-3xl">🔒</span>
-        <div className="text-center text-sm leading-relaxed">
-          《{video.title}》已合并发布，成片不可修改。
-          <br />
-          想调整内容，请用同款卡组回工坊重新生成一部。
-        </div>
-        <Link to="/studio" className="rounded-full bg-brand px-5 py-2 text-sm font-bold text-ink">
-          🎴 去工坊再创作
-        </Link>
       </div>
     );
   }
@@ -85,37 +76,22 @@ export default function EditPage() {
       setErr("标题不能为空");
       return;
     }
-    updateVideoMeta(video.id, { title: title.trim(), category, description: description.trim(), cover });
-    // P 名有改动才整组回写（setVideoParts 会镜像 parts[0] 到顶层字段）
-    if (parts.some((p, i) => (partNames[i] ?? p.name) !== p.name)) {
-      setVideoParts(video.id, parts.map((p, i) => ({ ...p, name: partNames[i]?.trim() || p.name })));
-    }
+    updateVideoMeta(video.id, {
+      title: title.trim(),
+      category,
+      description: description.trim(),
+      cover,
+      visibility,
+    });
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   }
 
-  function remakePart(i: number) {
+  function remove() {
     if (!video) return;
-    void useStudio
-      .getState()
-      .startEditPart(video.id, i)
-      .then((ok) => {
-        if (ok) navigate("/studio");
-        else setErr("载入该 P 失败，稍后再试");
-      });
-  }
-
-  function addPart() {
-    if (!video) return;
-    if (useStudio.getState().startNewPart(video.id)) navigate("/studio");
-  }
-
-  function deletePart(i: number) {
-    if (!video || parts.length <= 1) return;
-    if (!window.confirm(`删除 ${partNames[i] || parts[i].name}？该 P 的成片将从作品中移除（不可撤销）。`)) return;
-    setVideoParts(video.id, parts.filter((_, j) => j !== i).map((p, j2) => ({ ...p, name: partNames.filter((_, j) => j !== i)[j2] || p.name })));
-    shiftProjectsAfterDelete(video.id, i);
-    setPartNames((ns) => ns.filter((_, j) => j !== i));
+    deleteVideoItem(video.id);
+    // 回个人页而不是回作品页——那条作品已经没了，跳回去只会看到"作品不存在"
+    navigate("/me", { replace: true });
   }
 
   const totalOf = (i: number) => parts[i].segments.reduce((s, x) => s + x.durationSec, 0);
@@ -137,60 +113,42 @@ export default function EditPage() {
       </header>
 
       <main className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1.2fr_1fr]">
-        {/* 左：P 管理 */}
+        {/* 左：内容一览（只读） */}
         <div>
-          <h2 className="mb-2 text-sm font-semibold text-slate-300">分集（P）管理</h2>
+          <h2 className="mb-2 text-sm font-semibold text-slate-300">作品内容</h2>
           <div className="space-y-2.5">
             {parts.map((p, i) => (
               <div key={i} className="rounded-xl bg-panel/60 p-3">
                 <div className="flex items-center gap-2">
-                  <input
-                    value={partNames[i] ?? p.name}
-                    onChange={(e) => setPartNames((ns) => ns.map((n, j) => (j === i ? e.target.value : n)))}
-                    maxLength={20}
-                    aria-label={`第 ${i + 1} P 名称`}
-                    className="w-28 flex-none rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-sm text-slate-100 outline-none focus:border-brand"
-                  />
+                  <span className="flex-none rounded-lg bg-slate-800 px-2.5 py-1 text-sm text-slate-300">
+                    {p.name}
+                  </span>
                   <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
                     {p.segments.length} 段 · {formatDuration(totalOf(i))}
                     {p.branchTree ? " · 互动分支" : ""}
                   </span>
-                  <button
-                    onClick={() => remakePart(i)}
-                    className="flex-none rounded-lg bg-brand/15 px-3 py-1.5 text-xs text-brand hover:bg-brand/25"
-                    title="回工坊载入这一 P 的节点树，编辑后重新合成"
-                  >
-                    🛠 工坊重制
-                  </button>
-                  {parts.length > 1 && (
-                    <button
-                      onClick={() => deletePart(i)}
-                      className="flex-none rounded-lg bg-red-500/10 px-2.5 py-1.5 text-xs text-red-300 hover:bg-red-500/20"
-                    >
-                      删除
-                    </button>
-                  )}
                 </div>
                 <div className="mt-2 flex gap-1.5 overflow-x-auto">
                   {p.segments.map((sg, si) => (
-                    <img key={si} src={sg.firstFrame} alt={sg.title} className="h-12 w-[85px] flex-none rounded object-cover" />
+                    <img
+                      key={si}
+                      src={sg.firstFrame}
+                      alt={sg.title}
+                      className="h-12 w-[85px] flex-none rounded object-cover"
+                    />
                   ))}
                 </div>
               </div>
             ))}
           </div>
-          <button
-            onClick={addPart}
-            className="mt-3 w-full rounded-xl border border-dashed border-slate-600 py-2.5 text-sm text-slate-300 hover:border-brand hover:text-brand"
-          >
-            ＋ 新增一 P（进工坊制作）
-          </button>
-          <p className="mt-2 text-[11px] leading-4 text-slate-500">
-            重制/新增都会打开卡片工坊并进入编辑模式，合成后自动保存回本作品；顶部横幅可随时退出。
+          <p className="mt-3 rounded-xl border border-slate-700/60 bg-panel/40 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-400">
+            🔒 成片内容已定稿，发布后不能再改。
+            想调整剧情或画面，请用同一套卡组重新做一部——
+            <Link to="/studio" className="text-brand">去工坊再创作</Link>。
           </p>
         </div>
 
-        {/* 右：元信息 + 封面 */}
+        {/* 右：元信息 + 封面 + 可见性 */}
         <div className="space-y-5">
           <div>
             <div className="mb-1.5 text-sm font-semibold text-slate-300">标题 *</div>
@@ -236,11 +194,49 @@ export default function EditPage() {
 
           <CoverSection cover={cover} onCover={setCover} segments={allSegments} />
 
+          <VisibilityPicker value={visibility} onChange={setVisibility} />
+
           <div className="flex items-center gap-3 pt-2">
             <button onClick={save} className="rounded-xl bg-brand px-6 py-2.5 font-bold text-ink hover:brightness-110">
               保存修改
             </button>
             {saved && <span className="text-sm text-emerald-300">✓ 已保存</span>}
+          </div>
+
+          {/* 删除放最后、要二次确认：这是本页唯一不可撤销的动作。
+              ★ 不用 window.confirm —— Capacitor 的 WebView 里它是个系统弹窗，
+              样式与整个 app 割裂，而且在部分机型上会被当成"网页弹窗"直接拦掉。 */}
+          <div className="mt-2 border-t border-slate-800 pt-4">
+            {confirmDel ? (
+              <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3.5">
+                <div className="text-sm font-bold text-rose-200">删除《{video.title}》？</div>
+                <p className="mt-1 text-[11px] leading-relaxed text-rose-200/70">
+                  成片、评论和点赞会一起消失，不能撤销。
+                  {visibility === "private" && "只是暂时不想让人看到的话，选「仅自己可见」就够了。"}
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => setConfirmDel(false)}
+                    className="flex-1 rounded-xl bg-slate-700/70 py-2 text-sm text-slate-200"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={remove}
+                    className="rounded-xl bg-rose-500 px-4 py-2 text-sm font-bold text-white hover:brightness-110"
+                  >
+                    确认删除
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDel(true)}
+                className="text-sm text-rose-400 hover:text-rose-300"
+              >
+                删除这部作品
+              </button>
+            )}
           </div>
         </div>
       </main>
