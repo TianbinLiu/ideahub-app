@@ -22,6 +22,8 @@ import TabBar from "./components/TabBar";
 import { readyVideos } from "./data/videos";
 import { readySocial } from "./data/social";
 import { readyDanmaku } from "./data/danmaku";
+import { checkUpdateForPrompt, type UpdateInfo } from "./data/appUpdate";
+import UpdateSheet from "./components/UpdateSheet";
 import { readyTemplates } from "./data/templates";
 import { readyDrafts } from "./data/drafts";
 import { readyAccount } from "./data/account";
@@ -71,6 +73,27 @@ function OrientationGuard() {
   return null;
 }
 
+/**
+ * 启动时查一次有没有新版（只在自己发出去的侧载包里，见 data/appUpdate）。
+ *
+ * ★ 延后 3 秒再查：开屏那几秒 CPU 和网络都在抢着装作品库、拉首页第一条视频的流，
+ *   这时候插一发下载清单只会让首屏更慢；而"有新版"这件事晚三秒说完全不影响。
+ * ★ 查不到一律安静收场（没网、清单还没发都会走到这儿）。手动检查那条路
+ *   （设置页）才会把失败原因显示出来 —— 两种场景对"安静"的容忍度不一样。
+ */
+function UpdateGate() {
+  const [info, setInfo] = useState<UpdateInfo | null>(null);
+  const [closed, setClosed] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void checkUpdateForPrompt().then(setInfo);
+    }, 3000);
+    return () => clearTimeout(t);
+  }, []);
+  if (!info || closed) return null;
+  return <UpdateSheet info={info} onClose={() => setClosed(true)} />;
+}
+
 /** 需要登录的路由：未登录跳登录页并带回跳地址 */
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useCurrentUser();
@@ -109,6 +132,7 @@ export default function App() {
       {/* 挂在路由树里（需要 useNavigate / useLocation），但不渲染任何东西 */}
       <OauthDeepLinkBridge />
       <OrientationGuard />
+      <UpdateGate />
       <Routes>
       <Route element={<TabLayout />}>
         <Route path="/" element={<FeedPage />} />

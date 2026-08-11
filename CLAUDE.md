@@ -24,7 +24,8 @@ npm run dev                    # http://localhost:5173
 
 `npm run build` = `tsc && vite build`，**提交前必须通过**。
 
-出安装包：`npm run apk`（debug）/ `npm run apk:release` / `npm run aab`。
+出安装包：`npm run apk`（debug，自己测）/ `npm run apk:release`（**发给别人的只发这个**）/ `npm run aab`（上架）。
+发版与应用内更新的完整流程见 [`docs/app-distribution.md`](docs/app-distribution.md)。
 签名 keystore 不在仓库里，见 `android/keystore/README.md`。
 
 ## 目录
@@ -124,6 +125,9 @@ design/        ★ 建模/出图的【离线工具与素材】，不参与 App �
 | 改了画幅却发现出片还是横的 | 竖屏设定帧被裁成横的，或视频照样 16:9 | 画幅要**三处同时改**才生效，缺一处就被方舟静默裁掉：Seedance 的 `ratio` 参数、Seedream 的画布尺寸（竖屏 `1440x2560`，比例不符会被裁）、提示词里的构图措辞（尺寸参数管不到构图）。三者收在 `types.VIDEO_ASPECTS` 一处，别在调用点各写各的。另：720p 竖屏方舟实际吐 **704×1248**（对齐到 16 的倍数），不是 720×1280 |
 | 动了首页底缘任何一个元素的位置 | 别的元素被**悄悄盖住**：右侧栏的全屏键压住时长文字、底栏的看板娘压住进度条 —— 两件都真发生过，而且都不报错，只是信息看不见了 | 底缘 100px 里叠着四样东西，位置是联动的：进度条容器 `bottom = var(--tabbar-h) - 0.375rem`（离底 50px）→ 时长文字顶沿在 86px → 右侧栏 `bottom = var(--tabbar-h) + 3rem`（104px）。底栏自己 56px 高，任何挂件都不许往上戳。改一个就把这几个数一起重算，别只看自己那一块 |
 | 右侧操作栏加了新按钮 | 小屏（640 高）上最上面的头像被 section 的 `overflow-hidden` **裁掉** | 整栏是 bottom 定位的 flex-col，加一个键就往上长 64px。现值 512px + 底 104px = 616px，640 屏还剩 24px。再加键就得先减间距（`RailBtn` 的 `mt-8` 只给有角色演出的键，基准 gap-2） |
+| 出包时忘了涨 `versionCode` | 已经装了的人**永远收不到这次更新** —— 更新检查靠这个整数判新旧，不涨就等于没发 | 每次 `npm run apk:release` 前先改 `android/app/build.gradle`，见 `docs/app-distribution.md` |
+| 把 debug 包发给别人装 | 下次发 release 包时对方装不上，只提示「应用未安装」，看不出是签名不同 | 发给别人的永远只发 `npm run apk:release` 的产物；debug 包只留在自己机器上 |
+| 把 `REQUEST_INSTALL_PACKAGES` 挪进 `src/main/` | 本地一切正常，**上架审核被拒**（Google Play 禁止应用自装 APK），而那时离改动早过去很久了 | 自更新的权限与代码只准待在 `android/app/src/sideload/`；`src/play/AndroidManifest.xml` 里那条 `tools:node="remove"` 是兜底，别删 |
 | 全屏浮层写了 `fixed inset-0` 却只铺满一小块 | 浮层被某个祖先裁掉、点不到或压不住底栏 | 祖先上有 `backdrop-blur`（`backdrop-filter`）或 `transform`/`filter` —— 它们会给 `position: fixed` 后代造**包含块**，`inset-0` 于是相对那个盒子而不是视口；`position+z-index` 还会另开层叠上下文，压不过外面的兄弟节点。解法一律是 `createPortal` 到 `body`（评论抽屉、首尾帧卡放大层都栽在这条上，各修过一次） |
 | 在**看不见的**窗口里测（最小化/被挡住/标签页在后台） | 三类假故障：① `scrollTo({behavior:"smooth"})` 完全不动、scroll 事件一次都不触发（轮播翻页、首页上下滑看起来全坏）② `<video>` 不加载不解码，`loadedmetadata`/`seeked` 永不到达（出片卡在「捕获本段真实尾帧…」、剪辑页卡在「合并中」）③ rAF 被节流到 ~1 帧/500ms，Three.js 画布是黑的 | 先查 `document.visibilityState`，是 `hidden` 就别下结论。自动化测试必须让窗口真正可见（CDP 截图能骗过去，rAF 和媒体解码骗不过去）。代码侧的对策是**等媒体事件一律带超时**（见 `ai/real.ts` 的 `withTimeout`）——否则用户在几分钟的出片过程里切出去，回来就是永久卡死 |
 
@@ -132,6 +136,7 @@ design/        ★ 建模/出图的【离线工具与素材】，不参与 App �
 - [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — 从零到能跑
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
+- [`docs/app-distribution.md`](docs/app-distribution.md) — 发包给别人装、应用内更新怎么走
 - [`public/perch/README.md`](public/perch/README.md) — 角色动画资源怎么生成、踩过什么坑
 - [`public/createbtn/README.md`](public/createbtn/README.md) — 底栏 ➕ 上那只常驻宠物（含并排版式的取值）
 - [`public/avatars/README.md`](public/avatars/README.md) — 官方 Q 版看板娘头像怎么裁、选了之后存的是什么

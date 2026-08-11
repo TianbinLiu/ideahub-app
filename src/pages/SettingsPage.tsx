@@ -11,6 +11,8 @@ import { QUALITY_LABELS, getQuality, isNativeApp, setQuality, type Quality } fro
 import { DEFAULT_INSTRUCT, VOICES, currentInstruct, currentRate, currentVoice, rateLabel, setInstruct, setRate, setVoice, type PresetVoice } from "../studio/voices";
 import { speak } from "../studio/speech";
 import { API_BASE, getToken } from "../api/client";
+import { checkUpdate, currentVersion, selfUpdateSupported, type UpdateInfo } from "../data/appUpdate";
+import UpdateSheet from "../components/UpdateSheet";
 
 const AVATARS = ["🦊", "🐺", "🐱", "🦉", "🐙", "🦋", "🌙", "⭐", "🔮", "🎴", "🎬", "🍥"];
 
@@ -208,6 +210,8 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      <VersionSection />
+
       <button
         onClick={() => {
           signOut();
@@ -390,6 +394,61 @@ function VoiceSection() {
           语速与语调改完，点上面任意音色即刻试听 · 语调这一段不计费 · **只对 2.0 单音色生效**，「调和」那几条用不了
         </p>
       </div>
+    </section>
+  );
+}
+
+// ── 版本与更新 ────────────────────────────────────────────────
+//
+// ★ 只在**侧载渠道**出现。上架包由商店负责更新，摆一个"检查更新"在那里
+//   就是一颗点了没反应的按钮（原生那边直接 reject，见 android 的 play 渠道空壳）。
+// ★ 手动检查失败要把原因说出来 —— 和启动时那次静默检查不同：用户主动点了，
+//   "已是最新"和"根本没查成"必须分得开（铁律八）。
+function VersionSection() {
+  const [ver, setVer] = useState<{ versionCode: number; versionName: string } | null>(null);
+  const [supported, setSupported] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const [info, setInfo] = useState<UpdateInfo | null>(null);
+
+  useEffect(() => {
+    void currentVersion().then(setVer);
+    void selfUpdateSupported().then(setSupported);
+  }, []);
+
+  if (!ver) return null; // 浏览器里跑：没有版本号可显示，整段不出现
+
+  return (
+    <section className="mb-6">
+      <h2 className="mb-2.5 text-xs font-semibold text-slate-400">版本</h2>
+      <div className="flex items-center gap-3 rounded-xl border border-slate-700 bg-panel p-4">
+        <div className="min-w-0 flex-1">
+          <div className="text-sm text-slate-100">
+            {ver.versionName} <span className="text-[11px] text-slate-500">（{ver.versionCode}）</span>
+          </div>
+          <div className="text-[11px] text-slate-500">{note || (supported ? "可以检查有没有新版本" : "由应用商店负责更新")}</div>
+        </div>
+        {supported && (
+          <button
+            onClick={() => {
+              setBusy(true);
+              setNote("");
+              void checkUpdate(false)
+                .then((r) => {
+                  if (r) setInfo(r);
+                  else setNote("已经是最新版本");
+                })
+                .catch((e) => setNote(e instanceof Error ? e.message : "检查失败"))
+                .finally(() => setBusy(false));
+            }}
+            disabled={busy}
+            className="flex-none rounded-full bg-slate-700 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-50"
+          >
+            {busy ? "检查中…" : "检查更新"}
+          </button>
+        )}
+      </div>
+      {info && <UpdateSheet info={info} onClose={() => setInfo(null)} />}
     </section>
   );
 }
