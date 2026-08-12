@@ -27,10 +27,58 @@
 ```
 { _id, owner: ObjectId(User), cardId, type, name, summary, cover, hot?, tags?,
   modelUrl?, genPrompt?,                       // 3D 建模指针 / 生成蓝图
+  views?: [{ url, kind, note? }],              // 形象参考图（0~3 张），见下
   published?, publishedAt?, description?,      // 分享到创意工坊
   createdAt }
 ```
 `cardId` 是客户端生成的稳定 id（市场卡为 `mkt_*`），`{ owner, cardId }` 唯一索引。
+
+#### `views` —— 卡片的形象参考图
+
+`{ url: string, kind: "face" | "body" | "detail", note?: string }`，**最多 3 张**。
+它是"多图参考"的载体：客户端推演三套方案时把这些图当 Seedream 的参考图，
+人物形象因此被烤进首尾帧，出片仍旧只按首尾帧走（Seedance 请求形状一个字没变 ——
+方舟规定「图生视频-首帧 / 首尾帧 / 全模态参考生视频是 3 种**互斥**场景，不可混用」）。
+
+- **`url` 只收 http(s)，不收 dataURL。** 一张卡 3 张 dataURL 会把随作品发布的卡组快照
+  （`deck.cards`）撑爆 —— `modelUrl` 当年正是为这件事改成 `idb:` 指针的。客户端在
+  `data/cardViews.ts` 里先走 `/api/uploads/image` 转存拿永久 URL 再发上来。
+- **上限 3 不是拍脑袋**：方舟提示词指南「不建议用满素材上限，过多素材会导致模型难以
+  判断特征优先级」。人物卡的推荐组合是 `face`（大头照）+ `body`（全身照）两张。
+  ⚠ 同一个人的**多角度视图是反效果**（指南原文：模型易将其识别为多个不同主体，
+  加剧 ID 漂移），所以客户端 UI 不给"多角度"这种引导 —— 服务端也不要在文档/示例里写。
+- **缺省与空数组是同一个意思**：老卡这一项是 `undefined`，新服务端对老卡回的是 `[]`，
+  两者在客户端 `types.viewsOf()` 里都归一成 `[{ kind: "body", url: cover }]`（卡面即全身参考）。
+  判据是**数组里有没有内容**，不是"这个键在不在"。
+  ★ 系统里**没有**"这张卡明确地不要任何参考图"这个状态，这是有意的：删掉附加参考图
+  ≠ 让这张卡失去自己的长相，卡面本来就是它的形象。想加这个状态就得先改 `viewsOf`，
+  而那会让新服务端返回的**每一张老卡**（回的都是 `[]`）一夜之间失去卡面兜底 ——
+  改之前先想清楚这一点。
+- **归一只在客户端做一次**：服务端**不要**替老卡补 `cover`。补了就是第二处实现，
+  两边一旦分叉，"详情页看到的参考图"和"喂给 Seedream 的参考图"会不是同一批，且看不出来。
+- **五处一起加，漏一处就是"发得出、存不下、读回来是空的，零报错"**（`deck` 当年就这么丢的）：
+  `schemas/branchAsset.schemas.js` 的 `cardItem`（`z.object` 默认 strip 未声明字段）、
+  `models/BranchCard.js`、`models/BranchDeck.js` 的 `snapshotCardSchema`、
+  controller 的 `toCardPayload`，以及 app 的 `api/branch.ts` `ApiCard`。
+  ⚠ 还有**第六、第七处**：作品自带的卡组快照是另一套 schema —— `models/BranchVideo.js`
+  的 `deckCardSchema` 与 `branchVideo.controller` 里那份字段白名单（见下面「随作品发布的
+  卡组」）。第一版就是只改了 `BranchDeck` 那份，作品里的卡组照样把 `views` 丢了。
+
+#### `PATCH /api/branch/cards/:cardId`
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| PATCH | `/api/branch/cards/:cardId` | required | 改自己的一张卡，body `{ views }`（**必填**，其余字段一律 strip）。返回 `{ ok, card }`；卡不在（别人的 / 只存在于本地）→ 404 |
+
+★ **为什么不能复用 `POST /cards`**：那条是**新增**语义，controller 用的是
+`$setOnInsert`（"已存在的字段一个不动"）。拿它去改卡会 201 得漂漂亮亮、库里一个字节
+都没变；而客户端 `loadRemoteAssets()` 每次登录都用服务端那份**整体覆盖**本地卡库 ——
+于是用户加的参考图在下一次冷启动时**无声消失**。这是丢数据，不是"暂未同步"。
+用例钉在 server 的 `branchAssetPublish.spec.js` A12c（先证明 POST 改不动，再证明 PATCH 改得动）。
+
+★ `views` 必填而不是可选：可选的话，一个拼错字段名的调用会拿到 200 +「改好了」，
+而库里什么都没发生。客户端必须 await 并把失败显示出来（`data/cardViews.ts` 不吞错）——
+全 app 没有任何地方监听 `emitApiError`，fire-and-forget 在这里等于静默丢数据。
 
 ⚠ **`hot` 不是热度**。它是客户端发上来的种子值（`mock/ai.ts` 里手打的 18 个数字），
 没有任何东西会去加它。真热度看下面的「卡片/卡组的互动与热度」。保留这个字段只为向下兼容。
@@ -308,11 +356,17 @@ B 站式弹幕：一句话 + 它该在**视频第几秒**飘过去。与评论�
 
 ## 随作品发布的卡组（`deck`）
 
-`{ name, cards: [{ cardId, type, name, summary, cover, tags }] }`，**内嵌快照**，
+`{ name, cards: [{ cardId, type, name, summary, cover, tags, views? }] }`，**内嵌快照**，
 不是对 `BranchCard` 的引用——作者事后删掉自己库里的卡，已发布作品里的卡组不能跟着少张。
 
 - 客户端 `Card.id` 落库统一叫 `cardId`（与 `BranchCard` 对齐），两个名字服务端都收
 - `cards[].cover` 与帧字段走同一套转存（dataURL → Cloudinary）
+- `cards[].views` 已经是永久 URL（客户端在加图那一刻就转存过了），**不需要**再转存一遍。
+  ⚠ 这份快照是**作品**的，不是 `BranchDeck` 的那份 —— 两套 schema 各存各的，
+  要声明的是 `models/BranchVideo.js` 的 `deckCardSchema` **加上** controller
+  `transferDraftAssets` 里那份**字段白名单**（`deckCardBody` 是 `.loose()`，zod 放行，
+  真正丢字段的是这两处）。漏掉的表现：观众把这套卡组装走之后卡还在、形象参考没了，
+  炼出来的人物不是同一个人，而且一点错都不报。用例：`branchVideoVisibility.spec.js` V3b
 - 无卡组时响应里**没有** `deck` 键，不会给一个空对象
 
 ★ 这个字段在 2026-08-10 之前是**发得出、存不下**的：`publishBody` 的 zod schema 没声明它，
@@ -449,6 +503,33 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
 `app/src/data/economy.ts` 的 `VIDEO_TIERS`）。**App 新增视频档位 = 服务端要补一行** ——
 每加一个模型都是一笔新单价，应该有人明确点头。回归测试见 `server/tests/arkProxy.spec.js`。
 
+### 视频档位与模型能力（写死在两边的表里，不靠运行时探测）
+
+| 档位 id | label | 模型 | 系数 mult | 首尾帧 | 参考图 | 最短时长 | 套餐门槛 |
+|---|---|---|---|---|---|---|---|
+| `fast` | 极速 | `doubao-seedance-1-0-pro-fast-251015` | 0.3 | ✗ | ✗ | 3s | — |
+| `std` | 标准 | `doubao-seedance-1-0-pro-250528` | 1 | ✓ | ✗ | 3s | — |
+| `hd` | 高清 | `doubao-seedance-2-0-mini-260615` | 1.6 | ✓ | ✓ | 3s | — |
+| `ultra` | 电影级 | `doubao-seedance-2-5-260628` | 4.7 | ✓ | ✓ | **4s** | **仅付费套餐** |
+
+- **参考图（全模态参考生视频）只有 2.5 与 2.0 系列有**；1.0/1.5 完全不支持。没人验证过
+  1.0 收到 `reference_image` 是 400 还是**静默忽略** —— 若是忽略，用户就"加了图、多付了钱、
+  画面一点没变、零报错"。所以 App 侧按 `VideoTier.refImg` 做硬白名单，不满足**降级回
+  首尾帧模式并把原因说出来**，不指望方舟报错。
+- **首帧 / 首尾帧 / 参考生视频是三种互斥场景**（方舟文档原文），不可混用：给了
+  `reference_image` 就一张首尾帧都不能带。
+- **2.5 在首帧/首尾帧任务上只接受 `ratio: "adaptive"`**（2.0 系列没有这条限制）；参考生
+  视频任务上才能给具体宽高比。规则收在 `app/src/ai/arkClient.ts` 的 `ratioFor()` 一处。
+- **2.5 的参考任务必须显式传 `omni_reference_task_type: "reference"`**：不传就是 `auto`，
+  而 auto 判错是**异步失败** —— 任务已受理、钱已经扣了，几十秒后才 failed（受理后失败不退，
+  见下）。显式传则在提交时同步 400，一分钱不花。
+- **2.5 的时长区间是 [4,30]**，给 3 秒同步 400。App 的时长下限写在 `VideoTier.minSec`，
+  报价（`segTokens`）与出片（`composeSegments`）用同一个 `clampDuration`。
+- **`ultra` 仅付费套餐可用**：App 侧免费版**看得见但点不动，并写出原因**（藏起来用户
+  不知道有这回事），判断只有 `app/src/data/account.ts` 的 `tierBlockReason` 一处。
+  ⚠ 客户端禁用只是提示，**不是安全边界** —— 服务端必须按当前用户的套餐再挡一次，
+  免费版调 2.5 直接拒并给出可读原因。
+
 状态码约定（客户端据此决策，见 `app/src/ai/arkClient.ts`）：
 
 - `501` 服务端没配 `ARK_API_KEY` → 提示"这台服务器没有配置方舟密钥"
@@ -474,7 +555,7 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
 |---|---|
 | `POST /images/generations` | 13,300（一次 Seedream 出图） |
 | `POST /chat/completions` | 400（一次豆包往返） |
-| `POST /contents/generations/tasks`（Seedance） | `时长×1280×720×24/1024 × 档位系数`（极速 0.3 / 标准 1 / 高清 1.6） |
+| `POST /contents/generations/tasks`（Seedance） | `时长×1280×720×24/1024 × 档位系数`（极速 0.3 / 标准 1 / 高清 1.6 / 电影级 4.7） |
 | `POST /contents/generations/tasks`（Seed3D） | 160,000 |
 | `GET /contents/generations/tasks/:id` | **0**（轮询高频，按次收会把一段片的价格翻几倍） |
 | `GET /asset` | **0** |
@@ -490,6 +571,12 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
 ★ **定价表两边都有，必须一起改**：服务端 `src/config/tokens.js` 是**结算**口径，
 App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216k、余额掉了 243k"，
 用户会觉得被偷了钱。已知的两处不一致写在 `tokens.js` 的 `priceOf` 注释里。
+两张表的 **key 集合与数值必须逐条相等**，服务端有一条测试钉着（加档位漏一边就会红）。
+
+⚠ `电影级` 的 4.7 = **70 元/百万 token ÷ 15**（标准档 1.0-pro 15 元/M = 1）。这个 70
+**不是从方舟官方价目表页读到的**（那页抓不到内容），是两个独立来源互相印证：另一来源
+报「720P 每秒约 1.51 元」，而 1 秒 720p24 = 21,600 token ⇒ 1.51/0.0216 ≈ 69.9 元/M。
+上线前必须照**控制台实际账单**校一次。
 
 ## AI token 钱包
 

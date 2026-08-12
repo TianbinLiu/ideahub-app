@@ -113,6 +113,13 @@ export interface ApiAssetStats {
   bookmarked?: boolean;
 }
 
+/** 卡片的一张形象参考图（对应本地 types.CardView）。**只收 http(s) URL**，不收 dataURL */
+export interface ApiCardView {
+  url: string;
+  kind: "face" | "body" | "detail";
+  note?: string;
+}
+
 export interface ApiCard {
   _id?: string;
   /** 客户端生成的稳定 id（市场卡为 mkt_*），与本地 Card.id 一一对应 */
@@ -121,6 +128,14 @@ export interface ApiCard {
   name: string;
   summary: string;
   cover: string;
+  /**
+   * 形象参考图（0~3 张）。
+   * ★ 服务端五处要一起加，漏一处就是"发得出、存不下、读回来是空的，零报错"：
+   *   `schemas/branchAsset.schemas.js` 的 cardItem（`z.object` 默认 strip 未声明字段）、
+   *   `models/BranchCard.js`、`models/BranchDeck.js` 的 snapshotCardSchema、
+   *   controller 的 `toCardPayload`，以及这里。`deck` 字段当年就是这么丢的。
+   */
+  views?: ApiCardView[];
   /** ⚠ 客户端发上去的种子值，**不是**热度。真热度看 stats.heat */
   hot?: number;
   tags?: string[];
@@ -523,6 +538,10 @@ export async function addCards(cards: Card[]): Promise<ApiCard[]> {
     //   那份记录的一部分；发布给别人时由服务端 shareableModelUrl 剥掉。
     modelUrl: c.modelUrl,
     genPrompt: c.genPrompt,
+    // ★ 只发 http(s) 的那几张。views 的不变量是"只存 URL"（见 types.CardView），
+    //   而 viewsOf() 给老卡兜底出来的那张 url 可能是 dataURL 卡面 —— 那是**读**用的，
+    //   发上去只会被服务端当成一张几百 KB 的 base64 存进文档（或按 512KB 规则丢掉）。
+    views: httpViews(c.views),
   }));
   const res = await apiPost<Record<string, unknown>>(
     "/api/branch/cards",
@@ -530,6 +549,32 @@ export async function addCards(cards: Card[]): Promise<ApiCard[]> {
     { timeoutMs: 120_000 }
   );
   return pickList<ApiCard>(res, ["cards", "items", "data"]);
+}
+
+/** 过滤出能发给服务端的那几张参考图。**唯一实现**：新增卡与改卡两条路共用 */
+function httpViews(views: Card["views"]): ApiCardView[] | undefined {
+  if (!Array.isArray(views)) return undefined;
+  const out = views
+    .filter((v) => !!v && /^https?:\/\//i.test(v.url))
+    .map((v) => ({ url: v.url, kind: v.kind, ...(v.note ? { note: v.note } : {}) }));
+  return out.length > 0 ? out : [];
+}
+
+/**
+ * PATCH /api/branch/cards/:cardId（requireAuth）—— 改一张已有卡的形象参考图。
+ *
+ * ★★ 为什么必须单开一条，不能复用 POST /cards：那条是**新增**语义，服务端用的是
+ *   `$setOnInsert`（"已存在的字段一个不动"，见 branchAsset.controller）。拿它去改卡
+ *   会 201 得漂漂亮亮、库里一个字节都没变 —— 而本地 `loadRemoteAssets` 每次登录都
+ *   `db.cards = 服务端那份`，于是用户加的参考图在下一次冷启动时**无声消失**。
+ * ★ 调用方必须 await 并把失败**显示出来**（见 data/cardViews.ts）：全 app 没有任何
+ *   地方监听 emitApiError，fire-and-forget 在这里等于静默丢数据（铁律八）。
+ */
+export async function updateCardViews(cardId: string, views: Card["views"]): Promise<ApiCard | null> {
+  const res = await apiPatch<Record<string, unknown>>(`/api/branch/cards/${encodeURIComponent(cardId)}`, {
+    views: httpViews(views) ?? [],
+  });
+  return pick<ApiCard>(res, ["card", "item", "data"]);
 }
 
 /** DELETE /api/branch/cards/:cardId（requireAuth） */

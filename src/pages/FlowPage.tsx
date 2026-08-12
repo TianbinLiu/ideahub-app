@@ -23,15 +23,17 @@ import { MaterialButtonArt } from "../components/MascotStage";
 import MaterialSheet, { MaterialStrip } from "../components/MaterialSheet";
 import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 import { AI_REAL } from "../ai";
-import { walletOf } from "../data/account";
+import { tierBlockReason, walletOf } from "../data/account";
 import { myTemplates } from "../data/templates";
-import { VIDEO_TIERS, fmtTokens, proposalsCost, segTokens, tierOf } from "../data/economy";
+import { VIDEO_TIERS, clampDuration, fmtTokens, modelLabel, proposalsCost, tierOf } from "../data/economy";
 import {
   FlowNode,
   chosenOf,
   flowCost,
   frontierOf,
+  nodeCost,
   nodeDone,
+  nodeRefOn,
   nodeVideo,
   planOf,
   redrawCost,
@@ -97,6 +99,7 @@ function NodeScreen({
 }) {
   const {
     mode,
+    nodes, // 档位选择器要问 nodeCost（整段报价），它需要整张表
     busy,
     err,
     updateNode,
@@ -136,8 +139,22 @@ function NodeScreen({
   const plan = simple ? null : planOf(node);
   const picking = plan === "picking";
   const carried = !!(node.chain && prevProp?.lastFrame);
-  const cost = segTokens(prop.durationSec, node.videoTier);
+  // ★ 报价问 store 的 nodeCost，与真正扣钱的 genNode 同一处实现：它算的是"出片 +
+  //   这一段还得补画几张设定帧"，而简约模式恰恰是两张帧都没有的那条路（铁律六）
+  const cost = useFlow((s) => nodeCost(s.nodes, index, s.mode));
   const propCost = proposalsCost(carried);
+  /**
+   * 这一段会不会走「参考生视频」（卡片形象 + 一句话直出，不画设定帧）。
+   * 与出片时的判定同一个函数 —— 界面说"直接用卡片形象"、实际却画了张设定帧，
+   * 用户只会觉得卡片没生效。
+   *
+   * ★ 问 store 的 nodeRefOn 而不是自己拼一遍参数：**承接帧也算一票**（首尾帧与参考图
+   *   互斥）。在这里漏传 carryFrame 的话，套模板的简约模式从第 2 段起就会写着
+   *   "直接用卡片形象、不画设定帧"，实际却在承接上一段真实尾帧并按文字补画结束帧。
+   */
+  const refOn = useFlow((s) => nodeRefOn(s.nodes, index, s.mode));
+  /** 当前套餐点不动的档位各是为什么（空 = 都能选）。判断在 data/account 一处 */
+  const tierBlocks = VIDEO_TIERS.map((t) => tierBlockReason(t)).filter((r): r is string => !!r);
   const req = requirementOf(node);
   const generating = node.status === "generating";
   /** 主按钮这一下干什么：没方案台先推演，摊开着就重推，挑定了才真出片。
@@ -312,14 +329,29 @@ function NodeScreen({
              剧情框仍然可展开查看/微调——模板是起点不是牢笼 */
           <TemplateSubjectBox />
         ) : simple ? (
-          <textarea
-            value={prop.plot}
-            onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
-            rows={3}
-            maxLength={400}
-            placeholder="想拍什么？例：雨夜的东京街头，霓虹灯牌下一只黑猫慢慢走过积水，倒影闪烁"
-            className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
-          />
+          <div className="space-y-1">
+            <textarea
+              value={prop.plot}
+              onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
+              rows={3}
+              maxLength={400}
+              placeholder="想拍什么？例：雨夜的东京街头，霓虹灯牌下一只黑猫慢慢走过积水，倒影闪烁"
+              className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+            />
+            {/* ★ 挂了卡就必须说清"这些卡到底怎么参与出片"，因为两种做法的结果差很多：
+                支持参考图的档位是把卡的形象图**直接交给 Seedance**（一句话直出，不画设定帧，
+                也就更便宜）；不支持的档位只能先按文字重画一张设定帧再出片，形象是"照着描述
+                画的"而不是"照着卡片用的"。悄悄换一种做法 = 用户以为卡片没生效（铁律八） */}
+            {matCount > 0 && (
+              <p className="text-[10px] leading-4 text-slate-500">
+                {refOn
+                  ? `直接把素材卡的形象参考图交给「${tierOf(node.videoTier).label}」档出片，不再画设定帧（更快也更省）`
+                  : tierOf(node.videoTier).refImg
+                    ? "素材卡上还没有形象参考图（去卡片详情页加几张），这次只能先按描述画一张设定帧再出片"
+                    : `「${tierOf(node.videoTier).label}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」`}
+              </p>
+            )}
+          </div>
         ) : (
           /* 工作流：这一栏是**用户自己的话**（推演三套方案的依据），不是某一套的剧情。
              改了它再点「重新生成方案」就按新要求重推——各套的剧情在方案台里逐字改 */
@@ -367,7 +399,10 @@ function NodeScreen({
             onClick={() => setSheet(true)}
             className="flex-none rounded-lg bg-panel px-2.5 py-2 text-[11px] text-slate-300"
           >
-            ⚙ {prop.durationSec}s · {tierOf(node.videoTier).label} · {aspectOf(node.aspect).label}
+            {/* 时长显示的是**真正会发出去**的秒数（2.5 不收 3 秒，见 clampDuration）——
+                写 3 秒却出 4 秒的片，用户对不上账 */}
+            ⚙ {clampDuration(prop.durationSec, node.videoTier)}s · {tierOf(node.videoTier).label} ·{" "}
+            {aspectOf(node.aspect).label}
           </button>
           {done && (
             <button
@@ -465,15 +500,22 @@ function NodeScreen({
 
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="w-10 flex-none text-[11px] text-slate-400">时长</span>
-              {DURATIONS.map((d) => (
-                <button
-                  key={d}
-                  onClick={() => updateProposal(node.id, { durationSec: d })}
-                  className={`rounded-lg px-2.5 py-1.5 text-[11px] ${prop.durationSec === d ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
-                >
-                  {d}s
-                </button>
-              ))}
+              {DURATIONS.map((d) => {
+                // ★ 短于本档下限的时长直接禁掉并说明：Seedance 2.5 的合法区间是 [4,30]，
+                //   3 秒发过去是同步 400，用户只会觉得"这一档坏了"（见 VideoTier.minSec）
+                const tooShort = d < tierOf(node.videoTier).minSec;
+                return (
+                  <button
+                    key={d}
+                    onClick={() => updateProposal(node.id, { durationSec: d })}
+                    disabled={tooShort}
+                    title={tooShort ? `「${tierOf(node.videoTier).label}」最短 ${tierOf(node.videoTier).minSec} 秒` : undefined}
+                    className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${prop.durationSec === d ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+                  >
+                    {d}s
+                  </button>
+                );
+              })}
             </div>
 
             {/* 画幅：已出片的段不给改——改了这一段的成片还是老画幅，
@@ -501,16 +543,44 @@ function NodeScreen({
 
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="w-10 flex-none text-[11px] text-slate-400">画质</span>
-              {VIDEO_TIERS.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => updateNode(node.id, { videoTier: t.id })}
-                  title={t.desc}
-                  className={`rounded-lg px-2.5 py-1.5 text-[11px] ${node.videoTier === t.id ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
-                >
-                  {t.label} · {fmtTokens(segTokens(prop.durationSec, t.id))}
-                </button>
-              ))}
+              {VIDEO_TIERS.map((t) => {
+                const block = tierBlockReason(t);
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => updateNode(node.id, { videoTier: t.id })}
+                    disabled={!!block}
+                    title={block ?? `${t.desc}（${t.model}）`}
+                    className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${node.videoTier === t.id ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+                  >
+                    {/* ★ 与主按钮同一把尺子（nodeCost，只是把档位换成这一档）：光报 segTokens
+                        会漏掉"这一档还得补画几张设定帧"，而简约模式正是两张都要补的那条路 ——
+                        于是抽屉里写 108k、外面按钮写 134.6k，用户在**比价**的这一步被少报 */}
+                    {t.label} · {fmtTokens(nodeCost(nodes, index, mode, t.id))}
+                  </button>
+                );
+              })}
+            </div>
+            {/* ★ 点不动就必须写出为什么。只把按钮灰掉的话，用户只会觉得"这功能坏了"
+                （CLAUDE.md「界面上摆一个永远点不动的选项」）。title 在手机上没有 hover，
+                所以原因得**印在页面上**，不能只挂在 title 里 */}
+            {tierBlocks.length > 0 && (
+              <p className="text-[10px] leading-4 text-amber-300/80">
+                {tierBlocks.join("；")}
+                　
+                <Link to="/me" className="underline">
+                  去升级
+                </Link>
+              </p>
+            )}
+            {/* ★ 把**真正会被调用的那个模型**写出来。「极速/标准/高清」只说了画质档次，
+                没说这一段到底交给谁去生成 —— 而不同世代的模型（1.0 / 2.0）观感差别很大，
+                用户对不上账时无从判断。这里显示的是 tierOf(...).model 推导出来的名字，
+                与发给方舟的 id 同源，不会出现"界面写着一个、实际跑另一个"。
+                title 里给完整 id，要查证的人一眼能看到。 */}
+            <div className="text-[10px] text-slate-500" title={tierOf(node.videoTier).model}>
+              本段模型：{modelLabel(tierOf(node.videoTier).model)}
+              <span className="ml-1 opacity-70">· {tierOf(node.videoTier).desc}</span>
             </div>
 
             {index > 0 && (
@@ -598,7 +668,7 @@ export default function FlowPage() {
   const allDone = nodes.length > 0 && nodes.every(nodeDone);
   /** 还没出片的第一段 = 用户最远能走到的地方（-1 表示全出片了，随便看） */
   const frontier = frontierOf(nodes);
-  const remain = useMemo(() => flowCost(nodes), [nodes]);
+  const remain = useMemo(() => flowCost(nodes, mode), [nodes, mode]);
   const wallet = walletOf();
   const node = nodes[Math.min(cursor, nodes.length - 1)];
 

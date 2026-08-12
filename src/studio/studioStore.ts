@@ -1,11 +1,11 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
 import { BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, uid } from "../types";
-import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, npcChat, npcChatOffline, refineFrame, searchMarket } from "../ai";
+import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, npcChat, npcChatOffline, prepareMaterialRefs, refineFrame, searchMarket } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, walletOf } from "../data/account";
-import { CHAT_TURN_TOKENS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, fmtTokens, proposalRedrawCost, proposalsCost, segTokens } from "../data/economy";
+import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, tierBlockReason, walletOf } from "../data/account";
+import { CHAT_TURN_TOKENS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, tierOf } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { FlowNode, FlowTemplate, chosenOf, flowDirty, nodeVideo, useFlow } from "./flowStore";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, saveDraft } from "../data/drafts";
@@ -924,8 +924,17 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
     set({ frameRefining: `${proposalId}:${which}` });
     try {
+      // ★ 带上素材卡的形象参考图：改一帧最常见的写法就是"让她换个表情/转个身"，
+      //   而这类改动最容易把脸改跑。被改的那张帧恒为 <图片1>，所以绑定句 offset = 1。
+      //   （没采用哪张、为什么只锁一个角色，由 npcSay 说出来 —— 这一条路没有步骤日志）
+      const mat = await prepareMaterialRefs(node.materials, (n) => get().npcSay(n));
       // 画幅跟节点走：改一次图就把竖屏方案的帧重画成横版，出片时又要被裁一刀
-      const next = await refineFrame(req.trim(), which === "first" ? prop.firstFrame : prop.lastFrame, node.aspect);
+      const next = await refineFrame(
+        `${req.trim()}${mat.bind(1)}`,
+        which === "first" ? prop.firstFrame : prop.lastFrame,
+        node.aspect,
+        mat.refs.length > 0 ? mat.refs : undefined,
+      );
       if (AI_REAL) spendTokens(ONE_IMAGE); // 出图成功才扣
       if (which === "first") prop.firstFrame = next;
       else prop.lastFrame = next;
@@ -993,12 +1002,22 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // ★ 必须把本段画幅递下去：Seedream 的画布比例得与视频画幅一致，缺了它重画出来的帧
       //   是横的，喂给竖屏 Seedance 任务会被静默裁一刀（人物常被裁掉半个头）。
       //   见 CLAUDE.md「改了画幅却发现出片还是横的」那一条
+      // 素材卡的形象参考图一并带上：重画的是这一段的设定帧，人物当然还得是同一个人
+      const mat = await prepareMaterialRefs(node.materials, (n) => get().npcSay(n));
+      const refUrls = mat.refs.length > 0 ? mat.refs : undefined;
       let first = p.firstFrame;
-      if (!keepFirst) first = await generateCover(p.plot.slice(0, 200), undefined, node.aspect);
-      // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味
+      // 首帧没有底图 → 素材卡的图就是 <图片1>，offset = 0
+      if (!keepFirst) first = await generateCover(`${p.plot.slice(0, 200)}${mat.bind(0)}`, undefined, node.aspect, refUrls);
+      // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味。
+      // 有底图时它占 <图片1>，素材卡从 <图片2> 起 → offset = 1
       const last = keepLast
         ? p.lastFrame
-        : await generateCover(`${p.plot.slice(0, 180)} 的结束瞬间`, first || undefined, node.aspect);
+        : await generateCover(
+            `${p.plot.slice(0, 180)} 的结束瞬间${mat.bind(first ? 1 : 0)}`,
+            first || undefined,
+            node.aspect,
+            refUrls,
+          );
       if (AI_REAL) spendTokens(cost); // 出图成功才扣，与 refineProposalFrame 同口径
       p.firstFrame = first;
       p.lastFrame = last;
@@ -1304,7 +1323,22 @@ export const useStudio = create<StudioState>()((set, get) => ({
       set({ notice: { text: "这个方案还没有剧情，先选定或改一下再炼", at: Date.now() } });
       return false;
     }
-    const cost = segTokens(prop.durationSec, slot.videoTier ?? DEFAULT_TIER);
+    // 付费档位门禁：与工作流同一处判断（data/account.tierBlockReason）
+    const blocked = tierBlockReason(tierOf(slot.videoTier ?? DEFAULT_TIER));
+    if (blocked) {
+      set({ notice: { text: blocked, at: Date.now() } });
+      return false;
+    }
+    // ★ 报价 = 出片 + 还得补画的设定帧。工坊这条路上首尾帧几乎总是齐的（方案台推演时
+    //   就画好了），所以数值通常与旧的 segTokens 相同；但"帧缺了一张"时旧写法会少报
+    //   一张出图的钱，而少报和多报一样是骗人。工坊不走参考生视频（见 refAllowed）
+    const cost = segmentCost({
+      durationSec: prop.durationSec,
+      tierId: slot.videoTier ?? DEFAULT_TIER,
+      hasFirstFrame: !!prop.firstFrame,
+      hasLastFrame: !!prop.lastFrame,
+      refMode: false,
+    });
     if (AI_REAL && !canAfford(cost)) {
       const w = walletOf();
       set({

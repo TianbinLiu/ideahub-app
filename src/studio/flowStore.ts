@@ -18,12 +18,12 @@
 //   于是工作流退化成"写一句话直接出片"——最贵的那一步（出片）反而没有选择余地。
 //   现在它是主路径：便宜的一步（推演 ~80k token）摆在前面挑，贵的一步（出片）挑完再走。
 import { create } from "zustand";
-import { AI_REAL, generateCover, generateProposals } from "../ai";
-import { canAfford, spendTokens, walletOf } from "../data/account";
-import { DEFAULT_TIER, fmtTokens, proposalRedrawCost, proposalsCost, segTokens } from "../data/economy";
+import { AI_REAL, generateCover, generateProposals, prepareMaterialRefs } from "../ai";
+import { canAfford, spendTokens, tierBlockReason, walletOf } from "../data/account";
+import { DEFAULT_TIER, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, tierOf } from "../data/economy";
 import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
-import { generateSegment } from "./segmentGen";
+import { generateSegment, refVideoOn } from "./segmentGen";
 
 /** 画面圈选标注：某一帧上圈出的物体 + 修改要求（重生成时并入提示词并改设定帧） */
 export interface FlowAnn {
@@ -180,9 +180,67 @@ function clampCursor(nodes: FlowNode[], to: number): number {
   return frontier < 0 ? target : Math.min(target, frontier);
 }
 
-/** 整条流水线还需要多少 token（当前走向已出片的段不再计费） */
-export function flowCost(nodes: FlowNode[]): number {
-  return nodes.filter((n) => !nodeDone(n)).reduce((s, n) => s + segTokens(chosenOf(n).durationSec, n.videoTier), 0);
+/**
+ * 「炼这一段」要多少 token —— **唯一实现**，按钮上的报价与 genNode 真扣的钱都问它。
+ * 出片本身之外还要算上"这一段还得补画几张设定帧"（简约模式两张都得画），
+ * 走参考生视频则一张都不画（见 economy.segmentCost 与 segmentGen.refVideoOn）。
+ *
+ * ★ tierOverride 是给**档位选择器**用的："换成这一档要多少"。选档那一排原来直接问
+ *   segTokens，于是同一屏上出现两个数：抽屉里写「标准 · 108k」、按钮上写「134.6k」。
+ *   而简约模式正是两张设定帧都要补画的那条路，少报的 13.3k–26.6k 恰恰落在用户
+ *   **正在比价**的这一步（CLAUDE.md：报价与结算不一致，用户会觉得被偷钱）。
+ */
+export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOverride?: string): number {
+  const node = nodes[idx];
+  if (!node) return 0;
+  const prop = chosenOf(node);
+  const carry = nodeCarry(nodes, idx);
+  return segmentCost({
+    durationSec: prop.durationSec,
+    tierId: tierOverride ?? node.videoTier,
+    hasFirstFrame: !!(prop.firstFrame || carry),
+    hasLastFrame: !!prop.lastFrame,
+    refMode: nodeRefOn(nodes, idx, mode, tierOverride),
+  });
+}
+
+/** 本段承接的上一段**真实**尾帧（没有就是 null）。
+ *  承接只有在上一段真出片时才成立 —— 与 genNode 里的 carry 判定同一条件。 */
+function nodeCarry(nodes: FlowNode[], idx: number): string | null {
+  const node = nodes[idx];
+  const prev = idx > 0 ? nodes[idx - 1] : undefined;
+  if (!node || !node.chain || !prev || !nodeDone(prev)) return null;
+  return chosenOf(prev).lastFrame || null;
+}
+
+/**
+ * 这一段会不会走**参考生视频** —— 报价（nodeCost）、界面上那句说明（FlowPage）、
+ * 真正出片（genNode → segmentGen）问的必须是同一处。
+ *
+ * ★ 关键是**承接帧也要算进去**：套模板的简约模式是多段 chain 的，第 2 段自己没有
+ *   设定首帧、但会承接上一段的真实尾帧，于是实际走的是首尾帧模式。少传 carry 的话，
+ *   界面会写着"直接把卡的形象交给 Seedance 出片、不画设定帧"，实际却按文字重画了一张
+ *   设定帧 —— 用户只会觉得卡片没生效，而这正是这个功能要消灭的那种误会。
+ */
+export function nodeRefOn(nodes: FlowNode[], idx: number, mode: FlowMode, tierOverride?: string): boolean {
+  const node = nodes[idx];
+  if (!node) return false;
+  const prop = chosenOf(node);
+  return refVideoOn({
+    // tierOverride：档位选择器问的是"换成这一档会怎样"，而参考生视频能不能走本身就看档位
+    videoTier: tierOverride ?? node.videoTier,
+    materials: node.materials,
+    firstFrame: prop.firstFrame,
+    carryFrame: nodeCarry(nodes, idx),
+    anns: node.anns,
+    refAllowed: mode === "simple",
+  });
+}
+
+/** 整条流水线还需要多少 token（当前走向已出片的段不再计费）。
+ *  逐段问 nodeCost —— 顶栏那个总数与每一段按钮上的数字必须是同一把尺子。 */
+export function flowCost(nodes: FlowNode[], mode: FlowMode): number {
+  return nodes.reduce((s, n, i) => (nodeDone(n) ? s : s + nodeCost(nodes, i, mode)), 0);
 }
 
 /** 这条流水线里有没有「重铺一次就白费」的东西。seed/seedSolo 都是整表覆盖，调用方
@@ -511,13 +569,31 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // ★ 必须把本段画幅递下去：Seedream 的画布比例得与视频画幅一致，缺了它重画出来的
       //   帧是横的，喂给竖屏 Seedance 任务会被静默裁一刀（人物常被裁掉半个头）。
       //   见 CLAUDE.md「改了画幅却发现出片还是横的」那一条
+      // 素材卡的形象参考图一并带上（与工坊 regenProposal 同一口径）：重画的是这一段的
+      // 设定帧，人物当然还得是同一个人。哪张没采用要说出来 —— ★ 但**不能当场发**：
+      // progress 只有一行，紧接着的"重画结束画面…"在同一个同步块里就把它盖了（保留首帧
+      // 只重画尾帧时正是这条路），React 连画都没画过。挂在后面那几行的行尾才看得见（铁律八）
+      const notes: string[] = [];
+      const mat = await prepareMaterialRefs(node.materials, (n) => notes.push(n));
+      const noteTail = notes.length ? `（${notes.join("；")}）` : "";
+      const refUrls = mat.refs.length > 0 ? mat.refs : undefined;
       let first = prop.firstFrame;
-      if (!keepFirst) first = await generateCover(prop.plot.slice(0, 200), undefined, node.aspect);
+      // 首帧没有底图 → 素材卡的图就是 <图片1>，offset = 0
+      if (!keepFirst) {
+        get().updateNode(nodeId, { progress: `重画起始画面…${noteTail}` });
+        first = await generateCover(`${prop.plot.slice(0, 200)}${mat.bind(0)}`, undefined, node.aspect, refUrls);
+      }
       let last = prop.lastFrame;
       if (!keepLast) {
-        get().updateNode(nodeId, { progress: "重画结束画面…" });
-        // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味
-        last = await generateCover(`${prop.plot.slice(0, 180)} 的结束瞬间`, first || undefined, node.aspect);
+        get().updateNode(nodeId, { progress: `重画结束画面…${noteTail}` });
+        // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味。
+        // 有底图时它占 <图片1>，素材卡从 <图片2> 起 → offset = 1
+        last = await generateCover(
+          `${prop.plot.slice(0, 180)} 的结束瞬间${mat.bind(first ? 1 : 0)}`,
+          first || undefined,
+          node.aspect,
+          refUrls,
+        );
       }
       if (AI_REAL) spendTokens(cost); // 出图成功才扣，与 refineProposalFrame 同口径
       get().updateProposal(nodeId, { firstFrame: first, lastFrame: last, degraded: undefined });
@@ -608,7 +684,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
       set({ err: "先写清楚这一段要拍什么" });
       return false;
     }
-    const cost = segTokens(prop.durationSec, node.videoTier);
+    // 付费档位的门禁。UI 上那一档本来就点不动，会走到这里的是"草稿里存着这一档、
+    // 而套餐后来降了"这种存量情况 —— 与其让它飞到服务端换一句 403，不如当场说人话。
+    // ★ 判断本身在 data/account.tierBlockReason，这里只是调用点（铁律六）
+    const blocked = tierBlockReason(tierOf(node.videoTier));
+    if (blocked) {
+      set({ err: blocked });
+      return false;
+    }
+    const cost = nodeCost(s0.nodes, idx, s0.mode);
     if (AI_REAL && !canAfford(cost)) {
       const w = walletOf();
       set({
@@ -655,6 +739,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
           // 本段素材卡要真的进提示词。此前它只喂给「推演三种走向」，
           // 用户在这一段挂了人物卡再点生成，出片其实完全不认识那张卡
           materials: node.materials,
+          // ★ 只有简约模式允许"卡片形象 + 一句话直出"：它按产品定义就没有方案推演、
+          //   没有首尾帧。工作流/工坊那两条路整个建立在首尾帧上（方案台预览、段间承接），
+          //   而首尾帧与参考图在方舟是互斥场景。真正的判定在 segmentGen.refVideoOn，
+          //   报价（nodeCost）问的是同一个函数
+          refAllowed: get().mode === "simple",
         },
         prog,
       );

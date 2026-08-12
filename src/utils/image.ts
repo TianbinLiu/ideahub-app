@@ -70,6 +70,59 @@ export async function fileToFrameDataUrl(file: File, maxW = 1600, quality = 0.87
   return c.toDataURL("image/jpeg", quality);
 }
 
+/**
+ * Seedream 参考图的**硬**约束：边长 14~6000px、宽高比必须落在 1/3 ~ 3。
+ * 越界不是"忽略这张图"，是把**整个请求 400 掉**。
+ * ai/real.ts 的 prepRefImage 也钉着这两个数（那边管的是出图那一刻的兜底，
+ * 这边管的是入库那一刻的预防）—— 改了要一起改。
+ */
+export const REF_MIN_SIDE = 14;
+export const REF_MAX_RATIO = 3;
+
+export interface RefImage {
+  blob: Blob;
+  /** 原图比例越界，已居中裁进 3:1（或 1:3）。★ 必须告诉用户，不能默默改人家的图 */
+  cropped: boolean;
+}
+
+/**
+ * 本地图 → **卡片形象参考图**（多图参考功能用）。
+ *
+ * ★ 出参是 Blob 不是 dataURL：卡片的 views 只存 https URL（见 types.CardView），
+ *   这张 Blob 是拿去 `api/uploads` 转存的。存 dataURL 会把随作品发布的卡组快照撑爆。
+ * ★ 长边压到 1024：参考图只用来让模型**认特征**，不是出片素材；再大只是白白拖慢
+ *   手机上行（既有的素材图走 fileToCover 才 512 宽就够认脸了），1024 是给全身照的
+ *   衣服纹样留的余量。
+ * ★ 比例越界就**居中裁**并把 cropped 报上去，而不是静默裁或直接拒：手机全景/长截图
+ *   正好越界，直接拒等于这个功能对相册里一半的图不存在；静默裁则是当面改用户的图。
+ */
+export async function fileToRefImage(file: File, maxLong = 1024, quality = 0.85): Promise<RefImage> {
+  const bitmap = await decodeImageFile(file);
+  try {
+    const { width: w, height: h } = bitmap;
+    if (w < REF_MIN_SIDE || h < REF_MIN_SIDE) throw new Error("这张图太小了，AI 认不出里面的东西");
+    const r = w / h;
+    // 越界时按"能容下的最大居中矩形"裁：宽的裁宽、长的裁高
+    const cw = r > REF_MAX_RATIO ? Math.round(h * REF_MAX_RATIO) : w;
+    const ch = r < 1 / REF_MAX_RATIO ? Math.round(w * REF_MAX_RATIO) : h;
+    const cropped = cw !== w || ch !== h;
+    const k = Math.min(1, maxLong / Math.max(cw, ch));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(cw * k));
+    canvas.height = Math.max(1, Math.round(ch * k));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("无法处理图片");
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bitmap, Math.round((w - cw) / 2), Math.round((h - ch) / 2), cw, ch, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob>((res, rej) =>
+      canvas.toBlob((b) => (b ? res(b) : rej(new Error("图片编码失败"))), "image/jpeg", quality),
+    );
+    return { blob, cropped };
+  } finally {
+    bitmap.close?.();
+  }
+}
+
 /** 源图上要取的那块方形区域（像素）。三个头像入口最后都收敛到这一个形状 */
 export interface SquareCrop {
   x: number;

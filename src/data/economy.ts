@@ -30,6 +30,20 @@ export const RECHARGE_PACKS = [
   { tokens: 5_000_000, price: 98 },
 ];
 
+/**
+ * Seedance 2.5 的档位系数。**只有这一处**，两仓对账就对这一个数
+ * （server 的 `config/tokens.js` VIDEO_MULT 必须逐条相等）。
+ *
+ * 折算口径与其它档位一致：元/百万 token ÷ 15（标准档 1.0-pro = 15 元/M = 1）。
+ * Seedance 2.5 = **70 元/百万 token**（不含视频输入）⇒ 70/15 ≈ 4.67，取 4.7。
+ * 交叉验证：另一来源报「720P 每秒约 1.51 元」，而 1 秒 720p24 = 1280×720×24/1024
+ * = 21,600 token = 0.0216M ⇒ 1.51/0.0216 ≈ 69.9 元/M，与 70 吻合。
+ *
+ * ⚠ 这个数**不是从方舟官方价目表页面读到的**（那页抓不到内容），是两个独立来源互相
+ *   印证得来的。上线前必须照**控制台实际账单**校一次；真实结算永远以账单为准。
+ */
+const ULTRA_MULT = 4.7;
+
 /** Seedance 档位：id 持久化在 VideoSegment.videoTier / EditorState.videoTier */
 export interface VideoTier {
   id: string;
@@ -39,13 +53,51 @@ export interface VideoTier {
   mult: number;
   /** 是否支持首尾帧模式（flf2v）。实测 pro-fast 只收首帧：报 task_type flf2v not support */
   flf: boolean;
+  /**
+   * 是否支持**参考图**（全模态参考生视频：多张形象图 + 一句话直出，不需要设定帧）。
+   *
+   * ★ 写死在表里，**不靠运行时探测**：`reference_image` 只有 Seedance 2.5 与 2.0 系列
+   *   支持，1.0/1.5 完全没有这个能力。而"1.0 收到 reference_image 会 400 还是**静默忽略**"
+   *   没有人验证过 —— 如果是忽略，那就是"用户挂了卡、多付了钱、画面一点没变、零报错"，
+   *   本仓最怕的形状。所以由这个标志做**硬白名单**（见 studio/segmentGen 的 refVideoOn），
+   *   不满足就退回首尾帧模式**并把原因说出来**。
+   * ★ 三个 1.x 档位显式写 false，不留 undefined —— 留空就得到处 `?? false`，那是第二处默认值。
+   */
+  refImg: boolean;
+  /**
+   * 只有付费套餐能选。免费版**看得见但选不了**，并写出原因（藏起来用户不知道有这回事）。
+   * ★ 这只是界面提示，**不是安全边界** —— 真正的拦截在服务端按当前用户套餐判。
+   *   判断本身只有一处：data/account.tierBlockReason。
+   */
+  paidOnly?: boolean;
+  /**
+   * 这一档允许的最短时长（秒）。★ Seedance 2.5 的合法区间是 **[4,30]**，而时长按钮上
+   * 第一个选项就是 3 秒 —— 直接发过去是同步 400 InvalidParameter，用户只会觉得"这档坏了"。
+   * 收在档位表里，**报价（segTokens）与出片（composeSegments）用的是同一个 clampDuration**。
+   */
+  minSec: number;
   desc: string;
 }
 
 export const VIDEO_TIERS: VideoTier[] = [
-  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 0.3, flf: false, desc: "省 token · 首帧起拍，不锁尾帧" },
-  { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, desc: "首尾帧可控（默认）" },
-  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 1.6, flf: true, desc: "新一代模型 · 需在方舟控制台开通 2.0 系列" },
+  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 0.3, flf: false, refImg: false, minSec: 3, desc: "省 token · 首帧起拍，不锁尾帧" },
+  { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, minSec: 3, desc: "首尾帧可控（默认）" },
+  // ★ desc 是给**用户**看的，不是给运维看的。原来这里写的是「需在方舟控制台开通 2.0 系列」——
+  //   那是部署方的事，终端用户既看不懂也做不了（CLAUDE.md 那条「界面上摆一个用户看不懂
+  //   也做不了事的东西」）。开通与否的后果由服务端 ALLOWED_MODELS 与方舟的 ModelNotOpen 负责。
+  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 1.6, flf: true, refImg: true, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片" },
+  {
+    id: "ultra",
+    label: "电影级",
+    model: "doubao-seedance-2-5-260628",
+    mult: ULTRA_MULT,
+    flf: true,
+    refImg: true,
+    paidOnly: true,
+    // 2.5 的时长区间是 [4,30]，3 秒会被同步 400（见 VideoTier.minSec）
+    minSec: 4,
+    desc: "最新一代 · 画面与运镜最好，单段消耗约标准档 4.7 倍（仅付费套餐）",
+  },
 ];
 
 export const DEFAULT_TIER = "std";
@@ -54,9 +106,41 @@ export function tierOf(id: string | undefined): VideoTier {
   return VIDEO_TIERS.find((t) => t.id === id) ?? VIDEO_TIERS[1];
 }
 
+/**
+ * 模型 id → 给人看的名字（`doubao-seedance-2-0-mini-260615` → `Seedance 2.0 mini`）。
+ *
+ * ★ **从 id 推导，不另外维护一张对照表**。手写一张 `{id: 名字}` 的表，加档位时忘了补
+ *   就是"界面上写着标准档、实际跑的是另一个模型"——而这种错没有任何症状，只会让人
+ *   在对不上账时怀疑是自己记错了。推导出来的名字永远跟着真正发出去的那个 id 走。
+ * ★ 认不出来就**原样返回 id**，不返回"未知模型"：id 本身就是最准确的信息，
+ *   宁可显示得难看一点，也不能把它藏起来。
+ * ★ 尾巴上那串日期（`-260615`）是方舟的版本戳，对用户没有意义，去掉；
+ *   要查证的人看档位说明里的完整 id（title）。
+ */
+export function modelLabel(modelId: string): string {
+  const s = String(modelId || "")
+    .replace(/^doubao-/, "")
+    .replace(/-\d{6,8}$/, "");
+  const m = /^([a-z0-9]+)-(\d+)-(\d+)(?:-(.+))?$/.exec(s);
+  if (!m) return modelId;
+  const family = m[1].charAt(0).toUpperCase() + m[1].slice(1);
+  const variant = m[4] ? ` ${m[4].replace(/-/g, " ")}` : "";
+  return `${family} ${m[2]}.${m[3]}${variant}`;
+}
+
+/**
+ * 真正会发给方舟的时长（秒）。上限 10 是本 app 的产品约束，下限跟着档位走
+ * （见 VideoTier.minSec —— 2.5 不收 3 秒）。
+ * ★ 报价与出片必须用同一个函数：只在出片那侧夹一下的话，用户看到的是 3 秒的价、
+ *   拿到的是 4 秒的片，差 33% 且无从察觉。
+ */
+export function clampDuration(durationSec: number, tierId?: string): number {
+  return Math.max(tierOf(tierId).minSec, Math.min(10, Math.round(durationSec)));
+}
+
 /** 一段 720p 视频的 token 估算（方舟公式：时长×宽×高×帧率/1024，×档位系数） */
 export function segTokens(durationSec: number, tierId?: string): number {
-  const base = (Math.max(3, Math.min(10, durationSec)) * 1280 * 720 * 24) / 1024;
+  const base = (clampDuration(durationSec, tierId) * 1280 * 720 * 24) / 1024;
   return Math.round(base * tierOf(tierId).mult);
 }
 
@@ -106,6 +190,30 @@ export function forgeCost(cardCount: number): number {
  */
 export function extractCost(frameCount: number, maxCards: number): number {
   return frameCount * VISION_FRAME_TOKENS + maxCards * IMAGE_TOKENS;
+}
+
+/**
+ * 「炼一段」的**整笔**报价：出片 + 这一段还得现补几张设定帧。
+ *
+ * ★ 补帧条件与 studio/segmentGen 的第③步同源（缺首帧就画首帧；flf 档缺尾帧再画一张），
+ *   这里只是把它折成钱。此前界面只报 segTokens，而简约模式恰恰是**两张帧都没有**的
+ *   那条路 —— 用户看到 108k，实际还烧掉两张 Seedream（26.6k），差价没人说过一个字。
+ * ★ 走**参考生视频**（refMode）时一张设定帧都不画，省下的钱必须从报价里也去掉：
+ *   界面报一个用不上的价，和报低了一样是骗人。
+ */
+export function segmentCost(o: {
+  durationSec: number;
+  tierId?: string;
+  /** 已经有起拍帧（自己的设定首帧，或承接上一段的真实尾帧） */
+  hasFirstFrame: boolean;
+  /** 已经有结束帧 */
+  hasLastFrame: boolean;
+  /** 这一段走参考生视频（多图直出，不画设定帧） */
+  refMode: boolean;
+}): number {
+  const tier = tierOf(o.tierId);
+  const draws = o.refMode ? 0 : (o.hasFirstFrame ? 0 : 1) + (tier.flf && !o.hasLastFrame ? 1 : 0);
+  return segTokens(o.durationSec, o.tierId) + draws * IMAGE_TOKENS;
 }
 
 /** 整片合成的 token 估算：只算还没有真视频的段 */

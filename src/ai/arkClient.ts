@@ -145,6 +145,16 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
           `token 余额不足：这一步需要 ${need || "更多"}，余额 ${have}——去「我的」页充值`,
         );
       }
+      // 403 = 服务端的套餐门禁（PLAN_REQUIRED，见 server config/tokens.js 的 paidOnlyDenial）。
+      // ★ message 是服务端拼好的**整句话**，原样带出去：这里既不重拼一遍文案（那是第二处
+      //   实现，两边措辞一分叉就没人知道以哪份为准），也不能让它裹在 JSON 里交给上层——
+      //   下面那句 `Ark <path> 403: {…}` 光是前缀就 80 多字符，而 flowStore 还要
+      //   `slice(0, 120)`，真正的原因（"仅对付费套餐开放"）正好被截在外面，
+      //   用户看到的是一串带 doubao 型号的花括号（铁律八：失败要响，也要看得懂）。
+      if (res.status === 403) {
+        const msg = /"message"\s*:\s*"([^"]+)"/.exec(body)?.[1];
+        throw new Error(msg || "这一档不对当前套餐开放，去「我的」页升级套餐后再试");
+      }
       throw new Error(`Ark ${path} ${res.status}: ${body.slice(0, 300)}`);
     }
     return (await res.json()) as T;
@@ -177,10 +187,47 @@ export async function generateImage(
   return url;
 }
 
+/** 这个模型是不是 Seedance 2.5（下面三条 2.5 专属规则都按它分叉） */
+function isSeedance25(model: string): boolean {
+  return /seedance-2-5/.test(model);
+}
+
+/**
+ * 支持 `reference_image`（全模态参考生视频）的模型。
+ * 实测/文档：**只有 Seedance 2.5 与 2.0 系列**，1.0/1.5 完全没有这个能力。
+ * ★ 这是**协议层的兜底白名单**，业务层的那道在 data/economy 的 `VideoTier.refImg`。
+ *   两道不是重复：一道按"用户选的档位"决定要不要走参考模式（不行就降级并说出原因），
+ *   这一道按"真正发出去的 model id"确认这条请求发出去有没有意义 —— 因为**没人验证过
+ *   1.0 收到 reference_image 是 400 还是静默忽略**，而如果是忽略，用户就付了钱、
+ *   加了图、画面一点没变、零报错。宁可在这里响亮地炸掉。
+ */
+function supportsRefImage(model: string): boolean {
+  return /seedance-2-[05]/.test(model);
+}
+
+/**
+ * 这次任务该用什么 `ratio` —— **唯一实现**。
+ *
+ * ★ Seedance 2.5 在「首帧 / 首尾帧生视频」任务上**只接受 `adaptive`**，给具体宽高比
+ *   直接 400（2.0 系列没有这条限制）。而 `VIDEO_ASPECTS[].ratio` 写死的是 "9:16"/"16:9"，
+ *   拿 2.5 走首尾帧必踩。2.5 首帧模式下「自动保持输出视频和首帧图片的宽高比一致」，
+ *   所以 adaptive 是安全的 —— 画幅由我们喂进去的那张帧决定，与画布尺寸天然一致。
+ * ★ 参考生视频任务上 2.5 可以给具体 ratio（那时没有首帧可跟随，反而必须说清楚）。
+ * ★ 收在这一个函数里，别在调用点各写各的：这就是 CLAUDE.md「画幅要三处同时改」
+ *   那条坑的新变体 —— 漏一处的表现是"出片被静默裁一刀"，没有任何报错。
+ */
+export function ratioFor(model: string, mode: "frames" | "reference", want = "16:9"): string {
+  return mode === "frames" && isSeedance25(model) ? "adaptive" : want;
+}
+
 /**
  * Seedance 图生视频：创建任务 → 轮询 → 返回视频 URL。
- * 传 lastFrameUrl 则走"首尾帧"模式（我们的方案卡正好有首尾帧，画面收束更可控）。
+ * 传 lastFrameUrl 则走"首尾帧"模式（我们的方案卡正好有首尾帧，画面收束更可控）；
+ * 传 refImages 则走"全模态参考生视频"（多张形象图 + 一句话直出，不需要设定帧）。
  * 参数用独立字段（新版 API；旧版塞在 prompt 里的 `--resolution` 已废弃）。
+ *
+ * ★ **首尾帧与参考图互斥**：方舟文档写死「图生视频-首帧、图生视频-首尾帧、全模态
+ *   参考生视频为 3 种互斥场景，不可混用」。所以 refImages 非空时首尾帧一张都不拼。
  */
 export async function generateVideo(
   prompt: string,
@@ -188,18 +235,41 @@ export async function generateVideo(
   opts?: {
     durationSec?: number;
     lastFrameUrl?: string;
-    /** 覆盖默认视频模型（节点卡选档：极速/标准/高清） */
+    /** 覆盖默认视频模型（节点卡选档：极速/标准/高清/电影级） */
     model?: string;
-    /** 画幅（"9:16" 竖 / "16:9" 横）。缺省横屏 = 本参数出现之前的写死值 */
+    /** 画幅（"9:16" 竖 / "16:9" 横）。缺省横屏 = 本参数出现之前的写死值。
+     *  最终发出去的值由 ratioFor 决定（2.5 首尾帧任务会被改成 adaptive） */
     ratio?: string;
+    /**
+     * 参考图（全模态参考生视频）。非空 = **不拼首尾帧**（互斥）。
+     * 张数上限：2.5 是 1–30，2.0 系列是 1–9；调用方（prepareMaterialRefs）本来就
+     * 只给 3 张以内，这里不再截。
+     */
+    refImages?: string[];
     onProgress?: (status: string) => void;
   },
 ): Promise<string> {
-  const content: Array<Record<string, unknown>> = [
-    { type: "text", text: prompt },
-    { type: "image_url", image_url: { url: firstFrameUrl }, role: "first_frame" },
-  ];
-  if (opts?.lastFrameUrl) {
+  const model = opts?.model ?? MODELS.video;
+  const refs = opts?.refImages ?? [];
+  const mode: "frames" | "reference" = refs.length > 0 ? "reference" : "frames";
+  if (mode === "reference" && !supportsRefImage(model)) {
+    // 响亮地失败：静默忽略参考图 = 用户付了钱、加了图、画面没变、零报错（铁律八）
+    throw new Error(`模型 ${model} 不支持参考生视频，不该走到这里（能力表见 data/economy 的 VideoTier.refImg）`);
+  }
+  if (mode === "frames" && !firstFrameUrl) {
+    throw new Error("出片缺少起拍画面：既没有首帧也没有参考图");
+  }
+  const content: Array<Record<string, unknown>> =
+    mode === "reference"
+      ? [
+          { type: "text", text: prompt },
+          ...refs.map((url) => ({ type: "image_url", image_url: { url }, role: "reference_image" })),
+        ]
+      : [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: firstFrameUrl }, role: "first_frame" },
+        ];
+  if (mode === "frames" && opts?.lastFrameUrl) {
     content.push({ type: "image_url", image_url: { url: opts.lastFrameUrl }, role: "last_frame" });
   }
   // 实测（2026-08-06，本账号）：720p/6s 首尾帧任务创建 1.5s、生成约 35-60s；
@@ -209,15 +279,20 @@ export async function generateVideo(
     {
       method: "POST",
       body: JSON.stringify({
-        model: opts?.model ?? MODELS.video,
+        model,
         content,
         resolution: "720p",
         // 画幅只由这个参数决定：提示词里写"竖版"没用，首尾帧是竖的也没用——
-        // ratio 不改，方舟一律按 16:9 出片，再把竖版帧裁进去
-        ratio: opts?.ratio ?? "16:9",
+        // ratio 不改，方舟一律按 16:9 出片，再把竖版帧裁进去。
+        // 2.5 的首尾帧任务只收 adaptive，那条规则收在 ratioFor 里
+        ratio: ratioFor(model, mode, opts?.ratio ?? "16:9"),
         duration: Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5))),
         generate_audio: false, // 无声更省 tokens（0.008 vs 0.016 元/千），配乐后续再说
         watermark: false,
+        // ★ 仅 2.5：不显式传就是 `auto`，而 auto **判错是异步失败** —— 任务已受理、
+        //   钱已经花了，几十秒后才 failed（而且不退，见 api-contract「被受理之后才失败不退」）。
+        //   显式写 "reference" 判错会在**提交时同步 400**，一分钱不花。
+        ...(mode === "reference" && isSeedance25(model) ? { omni_reference_task_type: "reference" } : {}),
       }),
     },
     // 创建请求体带 2-3MB base64 首尾帧，慢网下 30s 会掐死在上传半途（2026-08-07 实测连超两次）

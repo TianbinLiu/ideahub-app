@@ -75,6 +75,16 @@ export const extractTemplateFromVideo: typeof real.extractTemplateFromVideo = AI
 export const deriveCharacterModels: typeof real.deriveCharacterModels = AI_REAL
   ? real.deriveCharacterModels
   : async () => {};
+/**
+ * 素材卡 → Seedream 参考图 + 绑定句（多图参考）。
+ *
+ * ★ mock 构建返回空：mock 的"出图"是本地画的占位帧（mock/frames），根本没有参考图这回事。
+ *   返回空 refs + 空绑定句，调用点因此**一份代码两种构建都能跑**，不用到处 `if (AI_REAL)`。
+ */
+export const prepareMaterialRefs: typeof real.prepareMaterialRefs = AI_REAL
+  ? real.prepareMaterialRefs
+  : async () => ({ refs: [], bind: () => "" });
+export type { MaterialRefs } from "./real";
 /** 设定图按要求改图（方案选帧改图/剪辑页圈选修改）；mock 原图返回 */
 export const refineFrame: typeof real.refineFrame = AI_REAL ? real.refineFrame : async (_req, ref) => ref;
 /** 剪辑页单段重生成；mock 返回空 URL（渐变回退） */
@@ -85,6 +95,8 @@ export const regenSegment: typeof real.regenSegment = AI_REAL
 export const composeSegments: typeof real.composeSegments = AI_REAL
   ? real.composeSegments
   : async (segs) => segs.map(() => ({}));
+/** 视频提示词的字数上限。两种构建下都是同一个数——拼提示词的那一处要按它给尾巴留位 */
+export { VIDEO_PROMPT_MAX } from "./real";
 export { AI_REAL };
 
 export type { NpcChatContext } from "../mock/ai";
