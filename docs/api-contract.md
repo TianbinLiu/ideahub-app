@@ -27,10 +27,58 @@
 ```
 { _id, owner: ObjectId(User), cardId, type, name, summary, cover, hot?, tags?,
   modelUrl?, genPrompt?,                       // 3D 建模指针 / 生成蓝图
+  views?: [{ url, kind, note? }],              // 形象参考图（0~3 张），见下
   published?, publishedAt?, description?,      // 分享到创意工坊
   createdAt }
 ```
 `cardId` 是客户端生成的稳定 id（市场卡为 `mkt_*`），`{ owner, cardId }` 唯一索引。
+
+#### `views` —— 卡片的形象参考图
+
+`{ url: string, kind: "face" | "body" | "detail", note?: string }`，**最多 3 张**。
+它是"多图参考"的载体：客户端推演三套方案时把这些图当 Seedream 的参考图，
+人物形象因此被烤进首尾帧，出片仍旧只按首尾帧走（Seedance 请求形状一个字没变 ——
+方舟规定「图生视频-首帧 / 首尾帧 / 全模态参考生视频是 3 种**互斥**场景，不可混用」）。
+
+- **`url` 只收 http(s)，不收 dataURL。** 一张卡 3 张 dataURL 会把随作品发布的卡组快照
+  （`deck.cards`）撑爆 —— `modelUrl` 当年正是为这件事改成 `idb:` 指针的。客户端在
+  `data/cardViews.ts` 里先走 `/api/uploads/image` 转存拿永久 URL 再发上来。
+- **上限 3 不是拍脑袋**：方舟提示词指南「不建议用满素材上限，过多素材会导致模型难以
+  判断特征优先级」。人物卡的推荐组合是 `face`（大头照）+ `body`（全身照）两张。
+  ⚠ 同一个人的**多角度视图是反效果**（指南原文：模型易将其识别为多个不同主体，
+  加剧 ID 漂移），所以客户端 UI 不给"多角度"这种引导 —— 服务端也不要在文档/示例里写。
+- **缺省与空数组是同一个意思**：老卡这一项是 `undefined`，新服务端对老卡回的是 `[]`，
+  两者在客户端 `types.viewsOf()` 里都归一成 `[{ kind: "body", url: cover }]`（卡面即全身参考）。
+  判据是**数组里有没有内容**，不是"这个键在不在"。
+  ★ 系统里**没有**"这张卡明确地不要任何参考图"这个状态，这是有意的：删掉附加参考图
+  ≠ 让这张卡失去自己的长相，卡面本来就是它的形象。想加这个状态就得先改 `viewsOf`，
+  而那会让新服务端返回的**每一张老卡**（回的都是 `[]`）一夜之间失去卡面兜底 ——
+  改之前先想清楚这一点。
+- **归一只在客户端做一次**：服务端**不要**替老卡补 `cover`。补了就是第二处实现，
+  两边一旦分叉，"详情页看到的参考图"和"喂给 Seedream 的参考图"会不是同一批，且看不出来。
+- **五处一起加，漏一处就是"发得出、存不下、读回来是空的，零报错"**（`deck` 当年就这么丢的）：
+  `schemas/branchAsset.schemas.js` 的 `cardItem`（`z.object` 默认 strip 未声明字段）、
+  `models/BranchCard.js`、`models/BranchDeck.js` 的 `snapshotCardSchema`、
+  controller 的 `toCardPayload`，以及 app 的 `api/branch.ts` `ApiCard`。
+  ⚠ 还有**第六、第七处**：作品自带的卡组快照是另一套 schema —— `models/BranchVideo.js`
+  的 `deckCardSchema` 与 `branchVideo.controller` 里那份字段白名单（见下面「随作品发布的
+  卡组」）。第一版就是只改了 `BranchDeck` 那份，作品里的卡组照样把 `views` 丢了。
+
+#### `PATCH /api/branch/cards/:cardId`
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| PATCH | `/api/branch/cards/:cardId` | required | 改自己的一张卡，body `{ views }`（**必填**，其余字段一律 strip）。返回 `{ ok, card }`；卡不在（别人的 / 只存在于本地）→ 404 |
+
+★ **为什么不能复用 `POST /cards`**：那条是**新增**语义，controller 用的是
+`$setOnInsert`（"已存在的字段一个不动"）。拿它去改卡会 201 得漂漂亮亮、库里一个字节
+都没变；而客户端 `loadRemoteAssets()` 每次登录都用服务端那份**整体覆盖**本地卡库 ——
+于是用户加的参考图在下一次冷启动时**无声消失**。这是丢数据，不是"暂未同步"。
+用例钉在 server 的 `branchAssetPublish.spec.js` A12c（先证明 POST 改不动，再证明 PATCH 改得动）。
+
+★ `views` 必填而不是可选：可选的话，一个拼错字段名的调用会拿到 200 +「改好了」，
+而库里什么都没发生。客户端必须 await 并把失败显示出来（`data/cardViews.ts` 不吞错）——
+全 app 没有任何地方监听 `emitApiError`，fire-and-forget 在这里等于静默丢数据。
 
 ⚠ **`hot` 不是热度**。它是客户端发上来的种子值（`mock/ai.ts` 里手打的 18 个数字），
 没有任何东西会去加它。真热度看下面的「卡片/卡组的互动与热度」。保留这个字段只为向下兼容。
@@ -308,11 +356,17 @@ B 站式弹幕：一句话 + 它该在**视频第几秒**飘过去。与评论�
 
 ## 随作品发布的卡组（`deck`）
 
-`{ name, cards: [{ cardId, type, name, summary, cover, tags }] }`，**内嵌快照**，
+`{ name, cards: [{ cardId, type, name, summary, cover, tags, views? }] }`，**内嵌快照**，
 不是对 `BranchCard` 的引用——作者事后删掉自己库里的卡，已发布作品里的卡组不能跟着少张。
 
 - 客户端 `Card.id` 落库统一叫 `cardId`（与 `BranchCard` 对齐），两个名字服务端都收
 - `cards[].cover` 与帧字段走同一套转存（dataURL → Cloudinary）
+- `cards[].views` 已经是永久 URL（客户端在加图那一刻就转存过了），**不需要**再转存一遍。
+  ⚠ 这份快照是**作品**的，不是 `BranchDeck` 的那份 —— 两套 schema 各存各的，
+  要声明的是 `models/BranchVideo.js` 的 `deckCardSchema` **加上** controller
+  `transferDraftAssets` 里那份**字段白名单**（`deckCardBody` 是 `.loose()`，zod 放行，
+  真正丢字段的是这两处）。漏掉的表现：观众把这套卡组装走之后卡还在、形象参考没了，
+  炼出来的人物不是同一个人，而且一点错都不报。用例：`branchVideoVisibility.spec.js` V3b
 - 无卡组时响应里**没有** `deck` 键，不会给一个空对象
 
 ★ 这个字段在 2026-08-10 之前是**发得出、存不下**的：`publishBody` 的 zod schema 没声明它，

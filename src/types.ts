@@ -98,6 +98,54 @@ export function aspectFromSize(w: number, h: number): VideoAspect {
   return w > 0 && h > 0 && h > w ? "portrait" : "landscape";
 }
 
+/**
+ * 卡片的一张**形象参考图**。人物/道具/场景卡可以带多张，AI 出设定帧时把它们
+ * 当 Seedream 的参考图，形象因此被"烤进"首尾帧，再由 Seedance 按首尾帧出片。
+ *
+ * ★★ 只存 **URL**，不存 dataURL。一张卡 3 张 dataURL 会把随作品发布的卡组快照
+ *   （VideoDeck.cards 整份塞进一个 JSON POST）撑爆 —— `modelUrl` 当年正是为这件事
+ *   改成 `idb:` 指针的。本地新加的图先走 `api/uploads` 转存拿 https URL
+ *   （唯一入口 data/cardViews.ts）。
+ * ★ `kind` 不是装饰。方舟提示词指南原文：「人物参考使用大头照 + 全身照即可，
+ *   **不建议使用人物多视图**。多视图素材包含同一人物的不同角度，模型易将其识别为
+ *   多个不同主体，反而加剧 ID 漂移问题。」所以人物卡的推荐组合是 face + body 两张，
+ *   UI 文案和取图顺序都按这条走 —— **不要**把用户往"三视图/多角度"上引导。
+ *   道具/场景卡没有这个问题（它们不承担"主体身份"），多角度反而有帮助。
+ */
+export interface CardView {
+  /** http(s) 永久地址。★ 不接受 dataURL，理由见上 */
+  url: string;
+  kind: "face" | "body" | "detail";
+  /** 这张图的说明（例如"原图过长，已居中裁成 3:1"），详情页放大时显示 */
+  note?: string;
+}
+
+/**
+ * 一张卡最多带几张形象参考图。
+ * ★ 3 不是拍脑袋：方舟指南「不建议用满素材上限，**过多素材会导致模型难以判断
+ *   特征优先级**」。人物卡有 face+body 两张就够，留一张给道具/细节。
+ */
+export const MAX_CARD_VIEWS = 3;
+
+/**
+ * 读一张卡的形象参考图。**全仓唯一的归一处**（铁律六）。
+ *
+ * ★ `views` 是后加字段，老卡读出来是 `undefined` —— 一律归一成「卡面就是它的
+ *   全身参考」（`[{ kind:"body", url: cover }]`）。这样下游（提示词拼装、详情页、
+ *   发布快照）永远不用判 undefined，也不会出现"老卡突然没有形象参考"这种**静默**差异。
+ *   判据是数组**有没有内容**，不是拿它和某个值比 —— 后加字段用等值判会把存量数据
+ *   整批算错且一点不报（见 docs/api-contract.md「可见性」那条）。
+ * ★ 放在 types.ts 而不是 data/：它是纯归一，ai/ studio/ pages/ data/ 四层都要用；
+ *   放进 data/ 会让 ai 层为了一个纯函数反向依赖数据层。
+ * ★ 兜底那张的 url 可能是 dataURL（本地铸的卡，cover 就是 dataURL）—— 这**只读**，
+ *   不许原样写回 `views`（写回就破坏了"views 只存 URL"这条不变量）。
+ */
+export function viewsOf(card: Pick<Card, "views" | "cover">): CardView[] {
+  const list = Array.isArray(card.views) ? card.views.filter((v) => !!v && typeof v.url === "string" && !!v.url) : [];
+  if (list.length > 0) return list.slice(0, MAX_CARD_VIEWS);
+  return card.cover ? [{ kind: "body", url: card.cover }] : [];
+}
+
 export interface Card {
   id: string;
   type: CardType;
@@ -105,6 +153,9 @@ export interface Card {
   summary: string;
   /** dataURL 封面 */
   cover: string;
+  /** 形象参考图（0~3 张）。★ 缺省 ≠ 没有参考：读它**只能**走 viewsOf()，
+   *  那里把老卡归一成"卡面即全身参考"。直接读这个字段等于给老卡判了个"无参考" */
+  views?: CardView[];
   /**
    * ⚠ **不是热度**。这是 mock/ai.ts 里手打的 18 个种子数字，从来没有任何东西会去加它。
    * 真热度（全局、服务端算）走 data/social.ts 的 heatOf()。这个字段只在离线包里

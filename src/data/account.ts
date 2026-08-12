@@ -608,13 +608,32 @@ export function addCards(cards: Card[]): void {
 }
 
 /** 更新自己的卡（挂 3D 建模指针、补生成蓝图等）。远端同步依赖服务端 upsert，暂本地生效 */
-export function updateCard(cardId: string, patch: Partial<Pick<Card, "modelUrl" | "genPrompt" | "summary" | "tags">>): void {
+export function updateCard(
+  cardId: string,
+  patch: Partial<Pick<Card, "modelUrl" | "genPrompt" | "summary" | "tags" | "views">>,
+): void {
   const u = currentUser();
   if (!u || !db) return;
   const c = db.cards.find((x) => x.ownerId === u.id && x.id === cardId);
   if (!c) return;
   Object.assign(c, patch);
   persist();
+}
+
+/**
+ * 改一张卡的形象参考图（本地 + 远端）。**唯一入口**。
+ *
+ * ★★ 为什么这条必须 async 且必须把远端失败抛出去：`loadRemoteAssets()` 每次登录
+ *   都拿服务端那份**整体覆盖** `db.cards`。只写本地的话，用户加的参考图在下一次
+ *   冷启动时无声消失 —— 比"加不上"糟得多。所以远端模式下"没同步成功"必须当场
+ *   告诉用户（调用方 data/cardViews.ts 把它变成详情页上的红字）。
+ * ★ 本地先落盘再打网络：图已经传成永久 URL 了，界面该立刻显示出来；同步失败时
+ *   本地这份也别回滚（回滚等于把刚上传的图丢掉），只是如实说"只在这台设备上"。
+ */
+export async function setCardViews(cardId: string, views: Card["views"]): Promise<void> {
+  updateCard(cardId, { views });
+  if (!remoteOn()) return;
+  await branch.updateCardViews(cardId, views);
 }
 
 export function removeCard(cardId: string): void {
@@ -969,6 +988,13 @@ function toLocalCard(c: branch.ApiCard): Card {
     tags: c.tags,
     modelUrl: c.modelUrl || undefined,
     genPrompt: c.genPrompt || undefined,
+    // ★ 原样收下，不替 undefined 补 []（新服务端对老卡回的就是 []，两者到了
+    //   viewsOf() 里是**同一个意思**：没有挂过图 → 拿卡面当全身参考兜底）。
+    //   曾经这里的注释声称"[] = 明确地没有参考图，与 undefined 是两回事" —— 那是
+    //   **实现里并不存在**的区分（viewsOf 只判有没有内容）。注释与代码不符比没有注释
+    //   更危险：下一个人照着它把 viewsOf 改成严判，全部远端卡片会一夜之间失去卡面兜底。
+    //   产品上也该是现在这样：删掉附加参考图 ≠ 让这张卡失去自己的长相。
+    views: Array.isArray(c.views) ? c.views : undefined,
     published: c.published,
     shareNote: c.description || undefined,
   };

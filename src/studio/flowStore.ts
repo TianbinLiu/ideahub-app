@@ -18,7 +18,7 @@
 //   于是工作流退化成"写一句话直接出片"——最贵的那一步（出片）反而没有选择余地。
 //   现在它是主路径：便宜的一步（推演 ~80k token）摆在前面挑，贵的一步（出片）挑完再走。
 import { create } from "zustand";
-import { AI_REAL, generateCover, generateProposals } from "../ai";
+import { AI_REAL, generateCover, generateProposals, prepareMaterialRefs } from "../ai";
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { DEFAULT_TIER, fmtTokens, proposalRedrawCost, proposalsCost, segTokens } from "../data/economy";
 import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
@@ -511,13 +511,31 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // ★ 必须把本段画幅递下去：Seedream 的画布比例得与视频画幅一致，缺了它重画出来的
       //   帧是横的，喂给竖屏 Seedance 任务会被静默裁一刀（人物常被裁掉半个头）。
       //   见 CLAUDE.md「改了画幅却发现出片还是横的」那一条
+      // 素材卡的形象参考图一并带上（与工坊 regenProposal 同一口径）：重画的是这一段的
+      // 设定帧，人物当然还得是同一个人。哪张没采用要说出来 —— ★ 但**不能当场发**：
+      // progress 只有一行，紧接着的"重画结束画面…"在同一个同步块里就把它盖了（保留首帧
+      // 只重画尾帧时正是这条路），React 连画都没画过。挂在后面那几行的行尾才看得见（铁律八）
+      const notes: string[] = [];
+      const mat = await prepareMaterialRefs(node.materials, (n) => notes.push(n));
+      const noteTail = notes.length ? `（${notes.join("；")}）` : "";
+      const refUrls = mat.refs.length > 0 ? mat.refs : undefined;
       let first = prop.firstFrame;
-      if (!keepFirst) first = await generateCover(prop.plot.slice(0, 200), undefined, node.aspect);
+      // 首帧没有底图 → 素材卡的图就是 <图片1>，offset = 0
+      if (!keepFirst) {
+        get().updateNode(nodeId, { progress: `重画起始画面…${noteTail}` });
+        first = await generateCover(`${prop.plot.slice(0, 200)}${mat.bind(0)}`, undefined, node.aspect, refUrls);
+      }
       let last = prop.lastFrame;
       if (!keepLast) {
-        get().updateNode(nodeId, { progress: "重画结束画面…" });
-        // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味
-        last = await generateCover(`${prop.plot.slice(0, 180)} 的结束瞬间`, first || undefined, node.aspect);
+        get().updateNode(nodeId, { progress: `重画结束画面…${noteTail}` });
+        // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味。
+        // 有底图时它占 <图片1>，素材卡从 <图片2> 起 → offset = 1
+        last = await generateCover(
+          `${prop.plot.slice(0, 180)} 的结束瞬间${mat.bind(first ? 1 : 0)}`,
+          first || undefined,
+          node.aspect,
+          refUrls,
+        );
       }
       if (AI_REAL) spendTokens(cost); // 出图成功才扣，与 refineProposalFrame 同口径
       get().updateProposal(nodeId, { firstFrame: first, lastFrame: last, degraded: undefined });

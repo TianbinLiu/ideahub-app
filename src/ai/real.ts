@@ -1,7 +1,17 @@
 // 真实 AI 管线（火山方舟）：素材炼卡（Seedream 卡面/封面）+ 三方案推演
 // （豆包写剧情 + Seedream 首尾帧，首帧用上一段尾帧作参考图承接色调）。
 // 每个环节失败都回退到 mock 同款产物——AI 网络抖动不阻断工坊流程。
-import { Card, CardType, Proposal, VideoAspect, aspectOf, uid } from "../types";
+import {
+  CARD_TYPE_LABELS,
+  Card,
+  CardType,
+  Proposal,
+  VideoAspect,
+  aspectOf,
+  uid,
+  viewsOf,
+  type CardView,
+} from "../types";
 import { makeCover, makeFrame } from "../mock/frames";
 import type { MaterialFile, ProposalContext } from "../mock/ai";
 import * as mock from "../mock/ai";
@@ -97,36 +107,184 @@ const SOFTEN: Array<[RegExp, string]> = [
 ];
 const softenForImage = (t: string) => SOFTEN.reduce((acc, [re, to]) => acc.replace(re, to), t);
 
+/** 解一张图出来量尺寸。crossOrigin 只对 http(s) 有意义：不带它画到 canvas 上会污染画布 */
+function loadImg(src: string, crossOrigin?: string): Promise<HTMLImageElement> {
+  return new Promise((res, rej) => {
+    const i = new Image();
+    if (crossOrigin) i.crossOrigin = crossOrigin;
+    i.onload = () => res(i);
+    i.onerror = () => rej(new Error("图片解码失败"));
+    i.src = src;
+  });
+}
+
 /**
  * 参考图守门。Seedream 对参考图有硬约束：边长 14~6000px、**宽高比必须落在 1/3 ~ 3**，
  * 越界会把整个请求 400 掉（不是忽略参考图）。用户相册里的长截图/全景图正好越界，
  * 所以先居中裁进 3:1（或 1:3）。
  * 体积不用管：素材的 dataUrl 是 fileToCover 压过的（≤512 宽 jpeg），离上限很远。
- * 解不开就返回 null 退成纯文生图——总比整条请求 400 强。
+ * 解不开就返回 null——调用方据此**逐张**处理（见 prepareMaterialRefs）。
+ *
+ * ★ 也收 http(s)：卡片的形象参考图（types.CardView）只存永久 URL，方舟的 image 参数
+ *   本来就同时吃 URL 和 base64。比例合法时**原样把 URL 送出去**，既不下载也不重编码
+ *   （手机上白跑一趟流量，还会掉一次画质）。只有越界那一张才需要拉下来裁，而跨域图
+ *   进 canvas 要 CORS —— 拿不到就返回 null，由调用方如实报"这张没采用"。
+ * ★ 返回 null **不等于**可以当没事发生。单张参考图时退成纯文生图还算合理，多张时
+ *   "4 张里坏 1 张"用户完全看不出是哪张失效了 —— 所以现在没有任何调用方允许静默吞掉它。
  */
-async function prepRefImage(dataUrl: string): Promise<string | null> {
-  if (!dataUrl.startsWith("data:image/")) return null;
+/**
+ * dataURL 参考图的长边上限。★ 只对 **dataURL** 生效：它是要走**手机上行**的 base64，
+ * 而一张卡面是 1728×2304（1MB 级 base64）—— 一次出图带 3 张就是 3MB 的 POST，
+ * 正是 2026-08-07 实测会在慢网上超时挂死的量级（同 shrinkFrameFor720p 的教训）。
+ * 参考图只用来让模型认特征，1024 长边足够。http URL 不缩：方舟自己去取，不花我们的流量。
+ */
+const REF_MAX_LONG = 1024;
+
+async function prepRefImage(src: string): Promise<string | null> {
+  const isData = src.startsWith("data:image/");
+  const isHttp = /^https?:\/\//i.test(src);
+  if (!isData && !isHttp) return null;
   try {
-    const img = await new Promise<HTMLImageElement>((res, rej) => {
-      const i = new Image();
-      i.onload = () => res(i);
-      i.onerror = rej;
-      i.src = dataUrl;
-    });
+    // 先不带 crossOrigin 量一遍：量尺寸不需要 CORS，绝大多数图到这一步就结束了
+    const img = await loadImg(src);
     const { width: w, height: h } = img;
     if (w < 14 || h < 14) return null; // 太小，喂进去也认不出东西
     const r = w / h;
-    if (r >= 1 / 3 && r <= 3) return dataUrl; // 合法比例：原样送，不重编码掉画质
     const cw = r > 3 ? Math.round(h * 3) : w;
     const ch = r < 1 / 3 ? Math.round(w * 3) : h;
+    const needCrop = cw !== w || ch !== h;
+    const long = Math.max(cw, ch);
+    const needShrink = isData && long > REF_MAX_LONG;
+    if (!needCrop && !needShrink) return src; // 合法且不大：原样送，不重编码掉画质
+    // 要真正读像素了。跨域图必须重新用 crossOrigin 加载一次，否则 toDataURL 抛安全错
+    const drawable = isHttp ? await loadImg(src, "anonymous") : img;
+    const k = needShrink ? REF_MAX_LONG / long : 1;
     const c = document.createElement("canvas");
-    c.width = cw;
-    c.height = ch;
-    c.getContext("2d")!.drawImage(img, Math.round((w - cw) / 2), Math.round((h - ch) / 2), cw, ch, 0, 0, cw, ch);
+    c.width = Math.max(1, Math.round(cw * k));
+    c.height = Math.max(1, Math.round(ch * k));
+    c.getContext("2d")!
+      .drawImage(drawable, Math.round((w - cw) / 2), Math.round((h - ch) / 2), cw, ch, 0, 0, c.width, c.height);
     return c.toDataURL("image/jpeg", 0.85);
   } catch {
     return null;
   }
+}
+
+// ── 素材卡 → Seedream 参考图 ────────────────────────────────────────
+//
+// ★★ 这一段是"多图参考"的全部实现，三条规则写死在这里，别在调用点各写一遍：
+//
+// 【规则一】**设定帧只锁一张人物卡的形象**（第一张人物卡＝主角），其余人物卡仍走纯文字。
+//   AGENTS.md 的方舟实测约束：「一张图里画多个角色一律被拒」。挂两张人物卡就把两张脸
+//   一起喂进去的话，用户会在"绘制起拍画面"处收到一个 400，而错误信息与"你挂了两张
+//   人物卡"毫无表面关联 —— 这种查不出源头的失败必须在代码里提前挡掉，并**当场说出来**。
+//
+// 【规则二】总共最多 MAX_REF_IMAGES 张。方舟指南：「不建议用满素材上限，过多素材会导致
+//   模型难以判断特征优先级」。人物卡最多占 2 张（大头照 + 全身），剩下的给道具/场景。
+//
+// 【规则三】人物卡取图顺序 face → body → detail，**不是**多角度。方舟指南原文：
+//   「人物参考使用大头照 + 全身照即可，不建议使用人物多视图。多视图素材包含同一人物的
+//   不同角度，模型易将其识别为多个不同主体，反而加剧 ID 漂移问题。」
+//   道具/场景卡不受这条约束（它们不承担"主体身份"），但也各只取一张，把配额留给主角。
+
+/** 一次生成最多附几张**素材卡**参考图（承接帧另算，见 prepareMaterialRefs 的 offset） */
+const MAX_REF_IMAGES = 3;
+/** 主角人物卡最多占几张：大头照 + 全身照，正好是方舟推荐的那一组 */
+const MAX_CHAR_REFS = 2;
+
+const KIND_ORDER: Record<CardView["kind"], number> = { face: 0, body: 1, detail: 2 };
+/** 每种图在绑定句里代表"哪部分特征"——说清楚模型才知道该从哪张图取什么 */
+const KIND_FEATURE: Record<CardView["kind"], string> = {
+  face: "面部特征与发型发色",
+  body: "服装、体型与整体配色",
+  detail: "标志性细节",
+};
+
+export interface MaterialRefs {
+  /** 附给 Seedream 的参考图地址（dataURL 或 https）。顺序即 `<图片N>` 的顺序 */
+  refs: string[];
+  /**
+   * 绑定句。`offset` = 这批图**前面**已经有几张参考图（承接帧占的位置），
+   * `<图片N>` 的编号要从 offset+1 起算，否则模型会去看错的那张图。
+   * 没有可用参考图时返回空串。
+   */
+  bind: (offset?: number) => string;
+}
+
+/**
+ * 素材卡 → 参考图 + 绑定句。
+ *
+ * `onNote` 是**反静默失败**的那一半：哪张图没采用、为什么只锁了一个角色，
+ * 都要写进生成步骤日志给用户看（铁律八）。
+ */
+export async function prepareMaterialRefs(
+  materials: Card[] | undefined,
+  onNote?: (note: string) => void,
+): Promise<MaterialRefs> {
+  const empty: MaterialRefs = { refs: [], bind: () => "" };
+  if (!materials?.length) return empty;
+
+  const chars = materials.filter((c) => c.type === "character");
+  const hero = chars[0];
+  if (chars.length > 1) {
+    // 规则一：说出来。不说的话用户只知道"另一个角色长得不像"，永远猜不到是配额问题
+    onNote?.(
+      `挂了 ${chars.length} 张人物卡，只把「${hero.name}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定`,
+    );
+  }
+
+  type Pick = { card: Card; view: CardView };
+  const picks: Pick[] = [];
+  if (hero) {
+    const sorted = viewsOf(hero).slice().sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
+    for (const view of sorted.slice(0, MAX_CHAR_REFS)) picks.push({ card: hero, view });
+  }
+  for (const card of materials) {
+    if (picks.length >= MAX_REF_IMAGES) break;
+    if (card.type === "character") continue; // 主角已经占了位，其余人物卡只走文字
+    const view = viewsOf(card)[0];
+    if (view) picks.push({ card, view });
+  }
+
+  // 逐张守门。★ 一张坏图会把**整条**请求 400 掉，所以不能"一起送出去看运气"；
+  //   而坏掉的那张必须点名，否则多图之下没人知道是哪张没生效
+  const prepared = await mapLimit(picks.slice(0, MAX_REF_IMAGES), 3, async (p) => ({
+    ...p,
+    url: await prepRefImage(p.view.url),
+  }));
+  const good = prepared.filter((p): p is Pick & { url: string } => !!p.url);
+  prepared.forEach((p, i) => {
+    if (!p.url) onNote?.(`第 ${i + 1} 张参考图未采用（「${p.card.name}」，比例越界或读不出来）`);
+  });
+  if (good.length === 0) return empty;
+
+  return {
+    refs: good.map((p) => p.url),
+    bind: (offset = 0) => {
+      const parts: string[] = [];
+      const heroPicks = good.filter((p) => p.card === hero);
+      if (heroPicks.length > 0 && hero) {
+        const feats = heroPicks
+          .map((p) => `<图片${offset + good.indexOf(p) + 1}>的${KIND_FEATURE[p.view.kind]}`)
+          .join("、");
+        parts.push(
+          `将${feats}定义为角色「${hero.name}」${hero.summary ? `（设定：${hero.summary.slice(0, 40)}）` : ""}，本段画面中该角色的长相、发色与服装必须与之完全一致`,
+        );
+      }
+      for (const p of good) {
+        if (p.card === hero) continue;
+        parts.push(
+          `<图片${offset + good.indexOf(p) + 1}>是${CARD_TYPE_LABELS[p.card.type]}「${p.card.name}」的实物参考，画面中出现它时必须与之一致`,
+        );
+      }
+      if (parts.length === 0) return "";
+      // ★ 必须过 softenForImage：绑定句里带着卡的 name/summary，而那两样是豆包写的，
+      //   极爱用「少女」这类词 —— 敏感词在方舟是整条请求 400，不是降级（见上面 SOFTEN 表）
+      return softenForImage(
+        `。参考图说明：${parts.join("；")}。参考图只用于锁定形象，不要照抄它们的构图、背景、边框与文字`,
+      );
+    },
+  };
 }
 
 /**
@@ -220,10 +378,14 @@ function frameStyle(aspect?: VideoAspect): string {
   return STYLE_SUFFIX.replace("竖版 3:4 卡面", aspectOf(aspect).promptHint);
 }
 
+/** `withRef` 专指**承接帧**（上一段的尾帧）在不在。素材卡的参考图不走这里 ——
+ *  它们由 prepareMaterialRefs 的绑定句负责，两者语义完全不同：
+ *  承接帧是"接着这一画面往下拍"，素材卡是"这个角色长这样"。
+ *  ★ 承接帧一律排在参考图数组的**第一位**，所以这里可以写死 `<图片1>`。 */
 function framePrompts(plot: string, withRef: boolean, aspect?: VideoAspect): { first: string; last: string } {
   const style = frameStyle(aspect);
   return {
-    first: `电影分镜首帧：${plot.slice(0, 100)}。${withRef ? "延续参考图的色调与光线氛围。" : ""}${style}`,
+    first: `电影分镜首帧：${plot.slice(0, 100)}。${withRef ? "延续<图片1>的色调与光线氛围。" : ""}${style}`,
     last: `电影分镜尾帧（这段剧情的收束瞬间）：${plot.slice(-100)}。${style}`,
   };
 }
@@ -266,7 +428,23 @@ export async function generateProposals(
   // 段间无缝衔接：开头帧已定（上一段尾帧/用户上传的本地图）时，三个方案共用它当首帧，
   // 只需给每个方案画一张尾帧（图量减半），且尾帧以开头帧作参考图保持人物与画风一致。
   const startFrame = ctx.startFrame?.startsWith("data:") ? ctx.startFrame : null;
-  const refs = startFrame ? [startFrame] : ctx.prevFrameSeed?.startsWith("data:") ? [ctx.prevFrameSeed] : undefined;
+  const frameRefs = startFrame
+    ? [startFrame]
+    : ctx.prevFrameSeed?.startsWith("data:")
+      ? [ctx.prevFrameSeed]
+      : [];
+  // ★★ 素材卡的形象参考图在这里并进来。**只在这一步生效**：多图喂 Seedream 把人物
+  //   形象烤进首尾帧，出片仍旧只是"按首尾帧拍"（generateVideo 一个字没改）。
+  //   方舟文档写死：「图生视频-首帧、图生视频-首尾帧、全模态参考生视频为 3 种互斥场景，
+  //   不可混用」—— 所以"首尾帧 + 多图一起喂给 Seedance"在方舟上根本做不到。
+  // ★ 承接帧排在前面：段间承接是这条管线里优先级最高的一件事，把它挪到后面等于
+  //   让"接着上一画面拍"和"这个角色长这样"抢同一个位置。
+  // ★ 提示先攒着，**不当场发**：`progress` 是一行会被下一条盖掉的状态文字，而下一条
+  //   （下面那句"绘制首尾帧 0/N"）就在同一个同步块里发出去 —— React 连画都没画过它，
+  //   等于这句话根本没说过（铁律八：失败要"响"，写进一个没人看得见的地方不算响）。
+  //   攒到开画前最后一发，它会一直挂到第一张图回来（实测 20s+），用户才真读得到。
+  const matNotes: string[] = [];
+  const mat = await prepareMaterialRefs(ctx.materials, (n) => matNotes.push(n));
   // 顺序固定为 [方案0首帧, 方案0尾帧, 方案1首帧, …]，与最终 results[pi*2] 取值对应
   const jobs = three.flatMap((p) =>
     (startFrame ? (["last"] as const) : (["first", "last"] as const)).map((which) => ({ p, which })),
@@ -275,17 +453,24 @@ export async function generateProposals(
   // 设定帧的画布必须跟本段画幅走：横版帧喂竖屏视频任务会被 Seedance 裁一刀
   const frameSize = aspectOf(ctx.aspect).frameSize;
   onProgress?.(startFrame ? `承接上段尾帧，绘制收尾画面 0/${jobs.length}…` : `剧情就绪，绘制首尾帧 0/${jobs.length}…`);
+  // 参考图的实情放在开画前最后一发（理由见上）：哪张没采用、为什么只锁了一个角色，
+  // 都要在这几十秒里看得见 —— 这两件事一旦没说，用户只会觉得"AI 画得不像"
+  if (matNotes.length) onProgress?.(matNotes.join("；"));
   const results = await mapLimit(jobs, 3, async ({ p, which }) => {
-    const prompts = framePrompts(p.plot, !!refs, ctx.aspect);
-    const prompt = which === "first" ? prompts.first : prompts.last;
     // 有确定开头帧时尾帧也带它当参考（人物/画风连贯）；否则仅首帧带上一段色调参考
-    const useRefs = which === "first" || startFrame ? refs : undefined;
+    const withFrameRef = (which === "first" || !!startFrame) && frameRefs.length > 0;
+    const useRefs = [...(withFrameRef ? frameRefs : []), ...mat.refs];
+    const prompts = framePrompts(p.plot, withFrameRef, ctx.aspect);
+    // 绑定句里的 <图片N> 要跳过承接帧占的那一位，否则模型会去看错的那张图
+    const prompt = (which === "first" ? prompts.first : prompts.last) + mat.bind(withFrameRef ? frameRefs.length : 0);
     let frame: string | null = null;
     try {
-      frame = await genImageAsDataUrl(prompt, useRefs, frameSize);
+      frame = await genImageAsDataUrl(prompt, useRefs.length > 0 ? useRefs : undefined, frameSize);
     } catch {
       try {
-        // 带参考图失败可能是参考图本身不被受理——去掉参考图再试一次
+        // 带参考图失败可能是参考图本身不被受理——去掉参考图再试一次。
+        // ★ 说出来：退成纯文生图意味着这一帧**没有**用上你挂的卡，闷声重试等于骗人
+        if (useRefs.length > 0) onProgress?.("参考图未被受理，该帧改用纯文字重画");
         frame = await genImageAsDataUrl(framePrompts(p.plot, false, ctx.aspect)[which], undefined, frameSize);
       } catch (e2) {
         console.warn(`[ai] ${p.title} ${which} 帧两次失败:`, e2);
@@ -559,11 +744,18 @@ export async function deriveCharacterModels(
  * 方案卡里"选帧改图"、剪辑页"圈选修改"都走这里（后者把红圈标注画进参考图，
  * 提示词里指明按标注处理并抹掉标记）。
  */
-export async function refineFrame(req: string, refDataUrl: string, aspect?: VideoAspect): Promise<string> {
+export async function refineFrame(
+  req: string,
+  refDataUrl: string,
+  aspect?: VideoAspect,
+  /** 素材卡的形象参考图（prepareMaterialRefs 出的 refs）。★ 被改的那张帧恒为 `<图片1>`，
+   *  这些排在它后面，绑定句的 offset 因此是 1 —— 调用方自己把 bind(1) 拼进 req。 */
+  extraRefs?: string[],
+): Promise<string> {
   const spec = aspectOf(aspect);
   return await genImageAsDataUrl(
-    `在参考图基础上修改这张视频分镜帧：${req}。除要求之外保持人物、构图、光线与整体画风完全一致。高细节，无文字无水印。${spec.promptHint}。`,
-    [refDataUrl],
+    `在<图片1>的基础上修改这张视频分镜帧：${req}。除要求之外保持人物、构图、光线与整体画风完全一致。高细节，无文字无水印。${spec.promptHint}。`,
+    [refDataUrl, ...(extraRefs ?? [])],
     spec.frameSize,
   );
 }
@@ -606,12 +798,24 @@ export async function regenSegment(
 
 /** 封面工坊：按用户要求出封面。refDataUrl 给了就是"改当前封面"（Seedream 图生图，
  *  2026-08-06 实测 base64 dataURL 参考图可用，约 27s）；不给就是文生图全新生成。 */
-export async function generateCover(req: string, refDataUrl?: string, aspect?: VideoAspect): Promise<string> {
+export async function generateCover(
+  req: string,
+  refDataUrl?: string,
+  aspect?: VideoAspect,
+  /**
+   * 素材卡的形象参考图（prepareMaterialRefs 出的 refs）。
+   * ★ 排在 refDataUrl **之后**：refDataUrl 是"在这张图基础上改"，语义最强，恒为 `<图片1>`。
+   *   所以绑定句的 offset = refDataUrl ? 1 : 0，由调用方拼进 req —— 编号错位比不给参考图更糟，
+   *   模型会拿着另一张图去"保持一致"。
+   */
+  extraRefs?: string[],
+): Promise<string> {
   const spec = aspectOf(aspect);
   const prompt = refDataUrl
-    ? `在参考图的基础上修改这张视频封面：${req}。除要求之外保持主体、构图与整体风格不变。高细节，氛围光，无文字无水印。${spec.promptHint}。`
+    ? `在<图片1>的基础上修改这张视频封面：${req}。除要求之外保持主体、构图与整体风格不变。高细节，氛围光，无文字无水印。${spec.promptHint}。`
     : `视频封面图：${req}。高细节，电影感构图，氛围光，无文字无水印。${spec.promptHint}。`;
-  return await genImageAsDataUrl(prompt, refDataUrl ? [refDataUrl] : undefined, spec.frameSize);
+  const refs = [...(refDataUrl ? [refDataUrl] : []), ...(extraRefs ?? [])];
+  return await genImageAsDataUrl(prompt, refs.length > 0 ? refs : undefined, spec.frameSize);
 }
 
 /** 单段合成结果：url 缺席时 error 说明原因；firstFrame/lastFrame 带回"真实"帧

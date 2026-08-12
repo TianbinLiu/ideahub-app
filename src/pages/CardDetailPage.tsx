@@ -1,6 +1,8 @@
-// 卡片详情页：大卡面 + 类型/标签 + 简介 + 生成蓝图（具体到可复刻卡面的完整提示词）
-// + 3D 建模全息预览（有 modelUrl 的角色卡）。创意工坊/我的/卡组详情点卡进来。
-import { useMemo, useState } from "react";
+// 卡片详情页：大卡面 + 类型/标签 + 简介 + 形象参考图（多图）+ 生成蓝图
+// （具体到可复刻卡面的完整提示词）+ 3D 建模全息预览（有 modelUrl 的角色卡）。
+// 创意工坊/我的/卡组详情点卡进来。
+import { useRef, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
@@ -8,8 +10,17 @@ import SocialPanel, { useCountView, useSocialVersion } from "../components/Socia
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
 import { isRemoteMode, myCards, myDecks, shareCard } from "../data/account";
+import { addCardView, removeCardView } from "../data/cardViews";
 import { formatHeat, heatOf } from "../data/social";
-import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, publishableModelUrl } from "../types";
+import {
+  CARD_TYPE_COLORS,
+  CARD_TYPE_LABELS,
+  Card,
+  CardView,
+  MAX_CARD_VIEWS,
+  publishableModelUrl,
+  viewsOf,
+} from "../types";
 import { useAccountVersion } from "../hooks/useAccount";
 
 /** 老卡/素材卡没存生成蓝图时，按派生管线同款格式现场拼一份——照着它就能复刻同风格卡面 */
@@ -41,6 +52,194 @@ function shareModelNote(card: Card): string | null {
   if (!raw) return null;
   if (publishableModelUrl(raw)) return null;
   return "注意：这张卡的 3D 建模只存在这台设备上，分享出去的那份不会带建模。";
+}
+
+// ── 形象参考图（多图参考）─────────────────────────────────────────
+//
+// 这几张图是**喂给 AI 的**，不是相册：推演三套方案时它们被当作 Seedream 的参考图，
+// 人物形象因此被烤进首尾帧，出片再按首尾帧拍（见 ai/real.prepareMaterialRefs）。
+// 所以这一块的文案要说"AI 会怎么用"，不能只当图库摆着。
+
+const KIND_LABEL: Record<CardView["kind"], string> = { face: "面部特写", body: "全身/主视图", detail: "细节" };
+
+/**
+ * 加图时能选哪几种，按卡种给。
+ * ★ 人物卡只给「面部特写 / 全身」两种，**不给"多角度"这种引导**：方舟提示词指南原文
+ *   「人物参考使用大头照 + 全身照即可，不建议使用人物多视图。多视图素材包含同一人物的
+ *   不同角度，模型易将其识别为多个不同主体，反而加剧 ID 漂移问题。」
+ *   道具/场景卡没有这个问题（它们不是"主体身份"），所以给「主视图 / 细节」。
+ */
+function kindsFor(type: Card["type"]): Array<CardView["kind"]> {
+  return type === "character" ? ["face", "body"] : ["body", "detail"];
+}
+
+function hintFor(type: Card["type"]): string {
+  return type === "character"
+    ? "AI 画这一段的首尾帧时会照着这些图锁人物形象。放「面部特写 + 全身」各一张就够 —— 同一个人的多角度视图反而会被模型当成好几个人，越堆越不像。"
+    : "AI 画这一段的首尾帧时会照着这些图还原它的造型与配色。不同角度、不同细节都可以放。";
+}
+
+function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
+  const views = viewsOf(card);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const kindRef = useRef<CardView["kind"]>("body");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [note, setNote] = useState("");
+  const [zoom, setZoom] = useState<number | null>(null);
+
+  // ★★ "要不要画成图库"的判据是**卡上有没有真的挂图**（`card.views` 非空），
+  //   不是 viewsOf() 的长度。两者只在一种情况下不同，而那种情况恰好会丢东西：
+  //   用户挂了 3 张、删到只剩 1 张自己传的照片时 viewsOf() 长度也是 1 ——
+  //   按长度判就把那张图藏了，它既看不见也点不开、更删不掉（放大层是唯一的删除入口）。
+  //   老卡兜底出来的那一张则相反：它就是上面的大卡面，重复摆一遍是个空功能。
+  const hung = Array.isArray(card.views) && card.views.length > 0;
+
+  // 兜底那一张（= 没真挂过图）时，只在"我能往里加图"的前提下画整块：
+  //   ① 别人的卡：加不了图，那一张又是大卡面，整块就是个空功能；
+  //   ② 离线模式：加不了图（views 只收永久 URL，本地没有服务器可转存），
+  //      摆一个永远点不动的入口是本仓明令禁止的（CLAUDE.md「极致画质」那条）。
+  if (!hung && (!owned || !isRemoteMode())) return null;
+
+  const full = views.length >= MAX_CARD_VIEWS;
+  const gallery = hung;
+
+  const pick = (kind: CardView["kind"]) => {
+    kindRef.current = kind;
+    setErr("");
+    setNote("");
+    fileRef.current?.click();
+  };
+
+  const onFile = async (file: File | undefined) => {
+    if (!file || busy) return;
+    setBusy(true);
+    setErr("");
+    setNote("");
+    try {
+      const res = await addCardView(card.id, file, kindRef.current);
+      if (res.note) setNote(res.note);
+    } catch (e) {
+      // ★ 失败必须显示。这条路会走网络（转存 + 同步），catch 后不响的话用户看到的是
+      //   "点了没反应"，还会以为图加上了（铁律八：全 app 没有地方监听 emitApiError）
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRemove = async (i: number) => {
+    if (busy) return;
+    setBusy(true);
+    setErr("");
+    setNote("");
+    try {
+      await removeCardView(card.id, i);
+      setZoom(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-300">
+          🖼 形象参考{gallery ? `（${views.length}/${MAX_CARD_VIEWS}）` : ""}
+        </span>
+        {/* ★ 离线模式**明说做不了**，而不是摆一排点了就报错的按钮：这些图必须先转存成
+            永久地址才能给 AI 用（views 不收 dataURL），而离线模式没有服务器可转存。
+            摆一个永远点不动的选项是本仓明令禁止的（CLAUDE.md「极致画质」那条）。 */}
+        {owned && !isRemoteMode() && <span className="text-[10px] text-slate-500">离线模式下加不了参考图</span>}
+        {owned && isRemoteMode() && !full && (
+          <div className="flex gap-1.5">
+            {kindsFor(card.type).map((k) => (
+              <button
+                key={k}
+                disabled={busy}
+                onClick={() => pick(k)}
+                className="rounded-full bg-slate-700/70 px-2.5 py-1 text-[11px] text-slate-200 disabled:opacity-50"
+              >
+                + {KIND_LABEL[k]}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {gallery && (
+        // 横滑小图：宽内容必须自己滚，别让整页横向滚（见 CLAUDE.md 底缘那几条的同类教训）
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+          {views.map((v, i) => (
+            <button
+              key={`${v.url}#${i}`}
+              onClick={() => setZoom(i)}
+              className="relative h-24 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-700 bg-ink/60"
+            >
+              <img src={v.url} alt={KIND_LABEL[v.kind]} className="h-full w-full object-cover" loading="lazy" />
+              <span className="absolute inset-x-0 bottom-0 bg-ink/75 py-0.5 text-center text-[9px] text-slate-300">
+                {KIND_LABEL[v.kind]}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <p className="mt-2 text-[10px] leading-relaxed text-slate-500">{hintFor(card.type)}</p>
+      {owned && full && (
+        <p className="mt-1 text-[10px] text-slate-500">
+          已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。
+        </p>
+      )}
+      {note && <p className="mt-1 text-[11px] text-amber-400">{note}</p>}
+      {err && <p className="mt-1 text-[11px] text-rose-400">{err}</p>}
+      {busy && <p className="mt-1 text-[11px] text-slate-400">处理中…</p>}
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = ""; // 同一张图连选两次也要能触发
+          void onFile(f);
+        }}
+      />
+
+      {/* ★ 必须 portal 到 body：这一页的祖先里有 backdrop-blur / transform 的容器，
+          它们会给 position:fixed 后代造包含块，`inset-0` 于是只铺满那个盒子。
+          评论抽屉与首尾帧放大层都栽过这一条（CLAUDE.md 有记）。 */}
+      {zoom !== null &&
+        views[zoom] &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[70] flex flex-col items-center justify-center gap-3 bg-black/90 p-6"
+            onClick={() => setZoom(null)}
+          >
+            <img src={views[zoom].url} alt="" className="max-h-[70vh] max-w-full rounded-lg object-contain" />
+            <div className="text-xs text-slate-300">{KIND_LABEL[views[zoom].kind]}</div>
+            {views[zoom].note && <div className="max-w-xs text-center text-[11px] text-amber-400">{views[zoom].note}</div>}
+            {owned && (
+              <button
+                disabled={busy}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void onRemove(zoom);
+                }}
+                className="rounded-full bg-rose-500/90 px-4 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+              >
+                删掉这张
+              </button>
+            )}
+            <div className="text-[10px] text-slate-500">点任意处关闭</div>
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
 }
 
 export default function CardDetailPage() {
@@ -134,6 +333,9 @@ export default function CardDetailPage() {
         </div>
       )}
       <p className="mb-4 text-sm leading-relaxed text-slate-300">{card.summary}</p>
+
+      {/* 形象参考图：AI 画设定帧时真的会照着它们锁形象，不是相册 */}
+      <CardViewsSection card={card} owned={owned} />
 
       {/* 生成蓝图：铸卡时的完整提示词——照着它 AI 就能复刻出与卡面一致的画面/建模 */}
       <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
