@@ -45,13 +45,38 @@ export interface VideoTier {
 export const VIDEO_TIERS: VideoTier[] = [
   { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 0.3, flf: false, desc: "省 token · 首帧起拍，不锁尾帧" },
   { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, desc: "首尾帧可控（默认）" },
-  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 1.6, flf: true, desc: "新一代模型 · 需在方舟控制台开通 2.0 系列" },
+  // ★ desc 是给**用户**看的，不是给运维看的。原来这里写的是「需在方舟控制台开通 2.0 系列」——
+  //   那是部署方的事，终端用户既看不懂也做不了（CLAUDE.md 那条「界面上摆一个用户看不懂
+  //   也做不了事的东西」）。开通与否的后果由服务端 ALLOWED_MODELS 与方舟的 ModelNotOpen 负责。
+  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 1.6, flf: true, desc: "新一代模型 · 画面更稳、细节更多" },
 ];
 
 export const DEFAULT_TIER = "std";
 
 export function tierOf(id: string | undefined): VideoTier {
   return VIDEO_TIERS.find((t) => t.id === id) ?? VIDEO_TIERS[1];
+}
+
+/**
+ * 模型 id → 给人看的名字（`doubao-seedance-2-0-mini-260615` → `Seedance 2.0 mini`）。
+ *
+ * ★ **从 id 推导，不另外维护一张对照表**。手写一张 `{id: 名字}` 的表，加档位时忘了补
+ *   就是"界面上写着标准档、实际跑的是另一个模型"——而这种错没有任何症状，只会让人
+ *   在对不上账时怀疑是自己记错了。推导出来的名字永远跟着真正发出去的那个 id 走。
+ * ★ 认不出来就**原样返回 id**，不返回"未知模型"：id 本身就是最准确的信息，
+ *   宁可显示得难看一点，也不能把它藏起来。
+ * ★ 尾巴上那串日期（`-260615`）是方舟的版本戳，对用户没有意义，去掉；
+ *   要查证的人看档位说明里的完整 id（title）。
+ */
+export function modelLabel(modelId: string): string {
+  const s = String(modelId || "")
+    .replace(/^doubao-/, "")
+    .replace(/-\d{6,8}$/, "");
+  const m = /^([a-z0-9]+)-(\d+)-(\d+)(?:-(.+))?$/.exec(s);
+  if (!m) return modelId;
+  const family = m[1].charAt(0).toUpperCase() + m[1].slice(1);
+  const variant = m[4] ? ` ${m[4].replace(/-/g, " ")}` : "";
+  return `${family} ${m[2]}.${m[3]}${variant}`;
 }
 
 /** 一段 720p 视频的 token 估算（方舟公式：时长×宽×高×帧率/1024，×档位系数） */

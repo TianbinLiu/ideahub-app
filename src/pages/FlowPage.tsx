@@ -25,7 +25,7 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 import { AI_REAL } from "../ai";
 import { walletOf } from "../data/account";
 import { myTemplates } from "../data/templates";
-import { VIDEO_TIERS, fmtTokens, proposalsCost, segTokens, tierOf } from "../data/economy";
+import { VIDEO_TIERS, fmtTokens, modelLabel, proposalsCost, segTokens, tierOf } from "../data/economy";
 import {
   FlowNode,
   chosenOf,
@@ -505,12 +505,21 @@ function NodeScreen({
                 <button
                   key={t.id}
                   onClick={() => updateNode(node.id, { videoTier: t.id })}
-                  title={t.desc}
+                  title={`${t.desc}（${t.model}）`}
                   className={`rounded-lg px-2.5 py-1.5 text-[11px] ${node.videoTier === t.id ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
                 >
                   {t.label} · {fmtTokens(segTokens(prop.durationSec, t.id))}
                 </button>
               ))}
+            </div>
+            {/* ★ 把**真正会被调用的那个模型**写出来。「极速/标准/高清」只说了画质档次，
+                没说这一段到底交给谁去生成 —— 而不同世代的模型（1.0 / 2.0）观感差别很大，
+                用户对不上账时无从判断。这里显示的是 tierOf(...).model 推导出来的名字，
+                与发给方舟的 id 同源，不会出现"界面写着一个、实际跑另一个"。
+                title 里给完整 id，要查证的人一眼能看到。 */}
+            <div className="text-[10px] text-slate-500" title={tierOf(node.videoTier).model}>
+              本段模型：{modelLabel(tierOf(node.videoTier).model)}
+              <span className="ml-1 opacity-70">· {tierOf(node.videoTier).desc}</span>
             </div>
 
             {index > 0 && (

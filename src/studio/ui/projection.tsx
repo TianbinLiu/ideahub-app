@@ -6,7 +6,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { deckCoverOf, myCards, myDecks } from "../../data/account";
-import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, segTokens } from "../../data/economy";
+import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, modelLabel, segTokens, tierOf } from "../../data/economy";
 import TarotCard from "../../components/TarotCard";
 import DeckCard from "../../components/DeckCard";
 import GenTrace from "../../components/GenTrace";
@@ -455,7 +455,7 @@ function EditorPanel() {
                     key={t.id}
                     onClick={() => useStudio.getState().setVideoTier(t.id)}
                     disabled={editor.generating}
-                    title={t.desc}
+                    title={`${t.desc}（${t.model}）`}
                     className={`flex-1 rounded-lg border px-1 py-1 text-center transition ${
                       on
                         ? "border-cyan-400 bg-cyan-400/10 text-cyan-100"
@@ -470,6 +470,16 @@ function EditorPanel() {
                   </button>
                 );
               })}
+            </div>
+            {/* ★ 写出**真正会被调用的那个模型**。「极速/标准/高清」只说了画质档次，
+                没说这一段交给谁生成 —— 而 1.0 与 2.0 的观感差别很大，用户对不上账时
+                无从判断。名字由 tierOf(...).model 推导，与发给方舟的 id 同源，
+                不会出现"界面写着一个、实际跑另一个"。完整 id 放在 title 里。 */}
+            <div
+              className="mt-1 text-center text-[9px] text-slate-500"
+              title={tierOf(editor.videoTier).model}
+            >
+              模型：{modelLabel(tierOf(editor.videoTier).model)}
             </div>
           </div>
         </div>
