@@ -4,8 +4,8 @@ import { BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DraftVideo,
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, npcChat, npcChatOffline, prepareMaterialRefs, refineFrame, searchMarket } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, walletOf } from "../data/account";
-import { CHAT_TURN_TOKENS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, fmtTokens, proposalRedrawCost, proposalsCost, segTokens } from "../data/economy";
+import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, tierBlockReason, walletOf } from "../data/account";
+import { CHAT_TURN_TOKENS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, tierOf } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { FlowNode, FlowTemplate, chosenOf, flowDirty, nodeVideo, useFlow } from "./flowStore";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, saveDraft } from "../data/drafts";
@@ -1323,7 +1323,22 @@ export const useStudio = create<StudioState>()((set, get) => ({
       set({ notice: { text: "这个方案还没有剧情，先选定或改一下再炼", at: Date.now() } });
       return false;
     }
-    const cost = segTokens(prop.durationSec, slot.videoTier ?? DEFAULT_TIER);
+    // 付费档位门禁：与工作流同一处判断（data/account.tierBlockReason）
+    const blocked = tierBlockReason(tierOf(slot.videoTier ?? DEFAULT_TIER));
+    if (blocked) {
+      set({ notice: { text: blocked, at: Date.now() } });
+      return false;
+    }
+    // ★ 报价 = 出片 + 还得补画的设定帧。工坊这条路上首尾帧几乎总是齐的（方案台推演时
+    //   就画好了），所以数值通常与旧的 segTokens 相同；但"帧缺了一张"时旧写法会少报
+    //   一张出图的钱，而少报和多报一样是骗人。工坊不走参考生视频（见 refAllowed）
+    const cost = segmentCost({
+      durationSec: prop.durationSec,
+      tierId: slot.videoTier ?? DEFAULT_TIER,
+      hasFirstFrame: !!prop.firstFrame,
+      hasLastFrame: !!prop.lastFrame,
+      refMode: false,
+    });
     if (AI_REAL && !canAfford(cost)) {
       const w = walletOf();
       set({

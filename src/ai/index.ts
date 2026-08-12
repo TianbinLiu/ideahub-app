@@ -95,6 +95,8 @@ export const regenSegment: typeof real.regenSegment = AI_REAL
 export const composeSegments: typeof real.composeSegments = AI_REAL
   ? real.composeSegments
   : async (segs) => segs.map(() => ({}));
+/** 视频提示词的字数上限。两种构建下都是同一个数——拼提示词的那一处要按它给尾巴留位 */
+export { VIDEO_PROMPT_MAX } from "./real";
 export { AI_REAL };
 
 export type { NpcChatContext } from "../mock/ai";

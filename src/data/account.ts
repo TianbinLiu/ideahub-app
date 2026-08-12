@@ -9,7 +9,7 @@
 import { Card, uid } from "../types";
 // data → mock 是既有方向（data/videos.ts 也从 mock/frames 取种子帧），不成环
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
-import { PLANS, PLATFORM_CUT } from "./economy";
+import { PLANS, PLATFORM_CUT, fmtTokens, type VideoTier } from "./economy";
 import { idbGet, idbSet } from "./db";
 // ★ 刻意不再 import setToken：token 的生命周期只有两个主人 ——
 //   api/client.ts（服务端回 401 时清）与 api/auth.ts（用户显式登出）。
@@ -375,9 +375,23 @@ export function isCollected(videoId: string): boolean {
 /** 远端模式的钱包镜像。null = 还没取到（未登录/请求未回来） */
 let remoteWallet: { plan: number; addon: number; planId: string } | null = null;
 
+/**
+ * 镜像里的 planId 是不是**服务端说过的**。
+ *
+ * ★ 为什么需要这一位：/api/ark 的响应头只带 plan/addon 两个数字，**不带套餐**，
+ *   于是下面那行只能把 planId 填成 "free"。余额是数字、填错会被下一个响应头改回来；
+ *   套餐不是——填错就变成"我们单方面认定这人是免费版"。在只用它显示余额的年代这没关系，
+ *   自从 tierBlockReason 拿它当**门禁判据**，猜错的代价就是**付费用户被挡在自己买过的
+ *   档位外面**（提示还写着"免费版整月额度"），而且 refreshRemoteWallet 那一发失败时
+ *   （它把错误吞进 emitApiError，全 app 没人监听）不会自愈，只能去「我的」页或重登。
+ *   所以"没确认过"必须与"确认是 free"分开，前者一律放行、交给服务端判。
+ */
+let planIdConfirmed = false;
+
 /** 用服务端的权威值覆盖镜像。由 /api/ark 的响应头与 GET /api/me/wallet 调用 */
 export function syncRemoteWallet(next: { plan: number; addon: number; planId?: string } | null): void {
   if (!next) return;
+  if (next.planId) planIdConfirmed = true;
   remoteWallet = { plan: next.plan, addon: next.addon, planId: next.planId ?? remoteWallet?.planId ?? "free" };
   emit();
 }
@@ -425,6 +439,30 @@ export function canAfford(n: number): boolean {
   }
   const w = walletOf();
   return !!w && w.plan + w.addon >= n;
+}
+
+/**
+ * 「这一档现在能不能用」——**唯一实现**。返回 null = 能用，否则是一句给用户看的原因。
+ *
+ * ★ 为什么放在 account 而不是 economy：判据是**当前用户的套餐**，而 economy 是纯目录
+ *   （account 已经 import 它，反过来会成环）。UI 与 store 都调这一处：
+ *   档位按钮禁用要它、genNode 出片前也要它，两边各写一遍必然分叉（铁律六）。
+ * ★ 这只是**提示**，不是安全边界。客户端禁用一个按钮拦不住改过的包，真正的拦截在
+ *   服务端（按 JWT 里的用户查套餐，免费版调 2.5 直接拒）。
+ * ★ 套餐还不知道（远端模式镜像没回来 / 未登录）时**放行**，与 canAfford 同一套乐观口径：
+ *   宁可让请求打出去由服务端说了算，也不能因为镜像慢半拍就把付费用户的档位锁死
+ *   ——那会表现成"我明明买了套餐却点不动"，而且刷新也好不了。
+ */
+export function tierBlockReason(tier: Pick<VideoTier, "label" | "paidOnly">): string | null {
+  if (!tier.paidOnly) return null;
+  const w = walletOf();
+  if (!w) return null; // 还不知道套餐，交给服务端判
+  // 远端模式下镜像里的 planId 可能是**我们自己填的** "free"（响应头只带余额不带套餐，
+  // 见 planIdConfirmed）。没被服务端确认过就等同于"还不知道"，一律放行。
+  if (remoteOn() && !planIdConfirmed) return null;
+  if (w.planId !== "free") return null;
+  // 说清楚"为什么"，不是只把按钮灰掉：免费版每月 300k，而这一档最短的一段就要 30 万+
+  return `「${tier.label}」单段消耗超过免费版整月额度（${fmtTokens(PLANS[0].monthlyTokens)}），升级套餐后可用`;
 }
 
 /**
@@ -1042,6 +1080,7 @@ function adoptUser(remote: authApi.ApiUser): User {
   // 钱包镜像跟着登录态走：换了人就必须重取，否则新登录的账号会先看到上一个人的余额。
   // 不 await —— 余额是个数字，晚半秒显示出来没关系，但不能拖慢登录跳转。
   remoteWallet = null;
+  planIdConfirmed = false; // 换了人，上一个人的套餐更不能拿来判门禁
   void refreshRemoteWallet();
   return user;
 }

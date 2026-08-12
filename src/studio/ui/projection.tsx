@@ -5,8 +5,8 @@
 // decks = 卡组选择（两段式第一步；选中后回第一人称把该组卡摊上桌）
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { deckCoverOf, myCards, myDecks } from "../../data/account";
-import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, modelLabel, segTokens, tierOf } from "../../data/economy";
+import { deckCoverOf, myCards, myDecks, tierBlockReason } from "../../data/account";
+import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, modelLabel, segTokens, segmentCost, tierOf } from "../../data/economy";
 import TarotCard from "../../components/TarotCard";
 import DeckCard from "../../components/DeckCard";
 import GenTrace from "../../components/GenTrace";
@@ -236,6 +236,8 @@ function EditorPanel() {
   const path = activePath(root);
   const prev = path.length > 0 ? chosenProposal(path[path.length - 1]) : null;
   const segIndex = root ? path.length : 0;
+  /** 当前套餐点不动的档位各是为什么（空 = 都能选）。判断在 data/account 一处 */
+  const tierBlocks = VIDEO_TIERS.map((t) => tierBlockReason(t)).filter((r): r is string => !!r);
 
   return (
     <>
@@ -450,13 +452,16 @@ function EditorPanel() {
               {VIDEO_TIERS.map((t) => {
                 const est = segTokens(editor.durationMode === "manual" ? editor.durationSec : 6, t.id);
                 const on = editor.videoTier === t.id;
+                // 付费档位门禁：判断只有一处（data/account.tierBlockReason），
+                // 这里只负责把它画出来 —— 灰着但不说为什么等于告诉用户"功能坏了"
+                const block = tierBlockReason(t);
                 return (
                   <button
                     key={t.id}
                     onClick={() => useStudio.getState().setVideoTier(t.id)}
-                    disabled={editor.generating}
-                    title={`${t.desc}（${t.model}）`}
-                    className={`flex-1 rounded-lg border px-1 py-1 text-center transition ${
+                    disabled={editor.generating || !!block}
+                    title={block ?? `${t.desc}（${t.model}）`}
+                    className={`flex-1 rounded-lg border px-1 py-1 text-center transition disabled:opacity-40 ${
                       on
                         ? "border-cyan-400 bg-cyan-400/10 text-cyan-100"
                         : "border-slate-600 text-slate-400 hover:border-slate-400"
@@ -471,6 +476,8 @@ function EditorPanel() {
                 );
               })}
             </div>
+            {/* 原因印在页面上，不能只挂 title：工坊这块投影在手机上同样没有 hover */}
+            {tierBlocks.length > 0 && <p className="mt-1 text-[9px] leading-[13px] text-amber-300/80">{tierBlocks.join("；")}</p>}
             {/* ★ 写出**真正会被调用的那个模型**。「极速/标准/高清」只说了画质档次，
                 没说这一段交给谁生成 —— 而 1.0 与 2.0 的观感差别很大，用户对不上账时
                 无从判断。名字由 tierOf(...).model 推导，与发给方舟的 id 同源，
@@ -635,7 +642,15 @@ function PickedActions({ node, proposal }: { node: NodeSlot; proposal: Proposal 
   const mine = nodeGen?.proposalId === proposal.id;
   const busy = !!nodeGen || !!frameRefining || !!proposalRegen;
   const done = proposalDone(proposal);
-  const cost = segTokens(proposal.durationSec, node.videoTier ?? DEFAULT_TIER);
+  // ★ 与 studioStore.genNodeVideo 真扣的钱同一个函数：出片 + 还得补画的设定帧。
+  //   按钮上的数字和实际扣款分两处算必然分叉（铁律六）
+  const cost = segmentCost({
+    durationSec: proposal.durationSec,
+    tierId: node.videoTier ?? DEFAULT_TIER,
+    hasFirstFrame: !!proposal.firstFrame,
+    hasLastFrame: !!proposal.lastFrame,
+    refMode: false, // 工坊不走参考生视频：它的整条链路建立在首尾帧上
+  });
 
   return (
     <div className="space-y-1.5 border-t border-slate-700/60 pt-1.5">

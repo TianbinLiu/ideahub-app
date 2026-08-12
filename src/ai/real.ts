@@ -15,7 +15,7 @@ import {
 import { makeCover, makeFrame } from "../mock/frames";
 import type { MaterialFile, ProposalContext } from "../mock/ai";
 import * as mock from "../mock/ai";
-import { tierOf } from "../data/economy";
+import { clampDuration, tierOf } from "../data/economy";
 import { idbSet } from "../data/db";
 import {
   chat,
@@ -779,7 +779,8 @@ export async function regenSegment(
   const tier = tierOf(seg.videoTier);
   const prompt = `${seg.plot.slice(0, 320)}。修改要求（必须满足）：${extraReq.slice(0, 160)}`;
   const url = await generateVideo(prompt, await shrinkFrameFor720p(seg.firstFrame), {
-    durationSec: seg.durationSec,
+    // 同 composeSegments：时长按档位夹，报价与出片同源
+    durationSec: clampDuration(seg.durationSec, seg.videoTier),
     lastFrameUrl: tier.flf ? await shrinkFrameFor720p(seg.lastFrame) : undefined,
     model: tier.model,
     // 重拍必须沿用原画幅：这里漏了它，圈选改一次画面就把竖屏段悄悄拍成横屏
@@ -918,6 +919,17 @@ async function captureVideoTail(videoUrl: string): Promise<string> {
 }
 
 /**
+ * 发给 Seedance 的提示词上限（字符）。再长模型开始各记各的，前面的要求被稀释。
+ *
+ * ★ 提出来是因为**截断从哪一头下手是有讲究的**：提示词的尾巴挂着素材设定与参考图
+ *   绑定句（「将<图片1>的面部特征定义为角色「XX」」），而参考生视频模式下"谁是谁"
+ *   全靠那句话 —— 从尾巴切掉的话，参考图照样发出去、绑定句没了，模型只会把它们
+ *   当风格图用：**卡挂了、片出了、人物一点都不像、零报错**。所以拼提示词的那一处
+ *   （studio/segmentGen）按这个数**先给尾巴留位**，这里的 slice 只是最后一道硬顶。
+ */
+export const VIDEO_PROMPT_MAX = 400;
+
+/**
  * 合成：逐段用 Seedance 首尾帧图生视频。段间串行（免费额度并发有限），
  * 单段失败不阻断整片——该段回退首尾帧渐变播放，但失败原因必须带回给 UI 播报
  * （此前只 console.warn，用户拿到一堆渐变还以为是"生成好的视频"）。
@@ -935,6 +947,12 @@ export async function composeSegments(
     videoTier?: string;
     /** 该段画幅（竖/横）；缺省=横屏 */
     aspect?: VideoAspect;
+    /**
+     * 参考生视频用的形象参考图（prepareMaterialRefs 出的 refs）。非空 =
+     * **这一段不走首尾帧**（方舟：三种场景互斥）。由 studio/segmentGen 的 refVideoOn
+     * 决定要不要给，这里只负责发出去。
+     */
+    refImages?: string[];
   }>,
   onProgress?: (done: number, total: number, status: string) => void,
 ): Promise<SegmentResult[]> {
@@ -972,10 +990,15 @@ export async function composeSegments(
       }
       onProgress?.(i, segments.length, "任务创建中…");
       const tier = tierOf(sg.videoTier);
-      const url = await generateVideo(sg.plot.slice(0, 400), await shrinkFrameFor720p(first), {
-        durationSec: sg.durationSec,
+      // 参考生视频：多张形象图 + 一句话直出，**首尾帧一张都不给**（三种场景互斥）
+      const refMode = !!sg.refImages?.length;
+      const url = await generateVideo(sg.plot.slice(0, VIDEO_PROMPT_MAX), refMode ? "" : await shrinkFrameFor720p(first), {
+        // ★ 时长按档位夹（2.5 不收 3 秒）。与 economy.segTokens 用的是同一个函数 ——
+        //   只在这一侧夹的话，界面报 3 秒的价、方舟出 4 秒的片
+        durationSec: clampDuration(sg.durationSec, sg.videoTier),
         // 极速档（pro-fast）不支持首尾帧任务（实测 400 task_type flf2v）——只给首帧起拍
-        lastFrameUrl: tier.flf ? await shrinkFrameFor720p(last) : undefined,
+        lastFrameUrl: !refMode && tier.flf ? await shrinkFrameFor720p(last) : undefined,
+        refImages: sg.refImages,
         model: tier.model,
         ratio: aspectOf(sg.aspect).ratio,
         onProgress: (s) => onProgress?.(i, segments.length, `${tier.label}档 · ${s}`),
