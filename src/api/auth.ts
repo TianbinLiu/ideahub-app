@@ -15,6 +15,17 @@ export interface ApiUser {
   _id: string;
   username: string;
   email?: string;
+  /**
+   * 服务端角色（"user" / "admin" / …）。
+   *
+   * ★★ 这是**服务端的权威值**，App 侧只读不写：server 的 requireAuth 每次请求都
+   *   从库里重读 role（不信 JWT 里的快照），所以后台把某个人升成 admin 之后
+   *   **立刻生效**，用户不需要重新登录 —— 前端也就不必为它做任何"刷新登录态"的动作。
+   * ★★ 四条登录路（密码 / 邮箱验证码 / 手机验证码 / 第三方）与 GET /api/auth/me
+   *   都由 serializeAuthUser 带它；但 **GET /api/me/profile 那条不保证带**
+   *   （两套序列化函数，见本文件顶部第 2 条）。合并两份用户资料时别让缺失的
+   *   role 把真值抹掉 —— data/account.ts 的 hydrateProfile 里有一条专门的防线。
+   */
   role?: string;
   avatarUrl?: string;
   hasPassword?: boolean;

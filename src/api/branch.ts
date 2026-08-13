@@ -86,6 +86,19 @@ export interface ApiVideo {
   deck?: VideoDeck;
   /** 可见性；服务端已归一（老数据的 undefined 会返回 "public"），未升级服务端缺省 */
   visibility?: "public" | "private";
+  /**
+   * 被平台下架了。**有这个键 = 已下架**；没下架时服务端根本不发这个键。
+   *
+   * ★★ 只有**作者本人与管理员**读得到 —— 服务端的可见性过滤刻意让作者仍然读得到自己
+   *   被下架的作品，并带上原因。理由写在服务端那边：直接从作者眼前抹掉比下架更糟，
+   *   他只会以为系统吞了自己的作品，然后**原样再发一遍**。
+   *   所以 App 这一侧必须把它接住并显示出来，接不住就等于服务端那份用心白费了。
+   * ★ 不带 `by`（是谁下的架）：把审核员透给被处理的用户等于把他摆到被骚扰的位置。
+   * ★ 与 `visibility` 是**两个独立开关**，互不顶替：visibility 是作者自己的，
+   *   takedown 是平台的、作者改不动（服务端 updateVideo 的 zod 不声明它，塞进去会被 strip）。
+   * ★ 老服务端没有这个键 —— 缺省一律当"没下架"（铁律七）。
+   */
+  takedown?: { at?: string | number; reason?: string };
   author: ApiAuthor | string;
   plays: number;
   likes: number;

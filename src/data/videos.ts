@@ -1145,6 +1145,9 @@ function toVideoItem(v: branch.ApiVideo): VideoItem {
     parts: Array.isArray(v.parts) && v.parts.length > 0 ? v.parts : undefined,
     deck: v.deck?.cards?.length ? v.deck : undefined,
     visibility: v.visibility === "private" ? "private" : "public",
+    // ★ 判据是"这个键在不在"，不是它里面某个值等不等于什么：服务端没下架时压根不发它，
+    //   而 `takedown: null` 这种坏数据的失败方向必须是"作品照常"而不是"作品被判成已下架"
+    takedown: v.takedown && typeof v.takedown === "object" ? { at: toMs(v.takedown.at ?? 0), reason: String(v.takedown.reason ?? "") } : undefined,
     author: branch.authorName(v.author),
     // ★ 名字会变，id 不会。改名时靠它精确认出"我自己那些作品"（见 subscribeAccount）
     authorId: branch.authorId(v.author) ?? undefined,

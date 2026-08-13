@@ -459,17 +459,19 @@ export default function ProfilePage() {
         <div className="mt-3.5 max-w-full truncate text-lg font-bold text-slate-100">
           {display || (stranger.loading ? "加载中…" : stranger.missing ? "这个用户不存在" : "未知用户")}
         </div>
-        {/* ★ 这里跟的是**当前昵称**，不是登录账号。
-            原来显示的是 user.account（注册时定下的登录标识，改昵称不会变），于是用户
-            改完名一看："我的名字下面怎么还挂着旧名字？" —— 他把它当成了一个没刷新的
-            名字字段，而不是登录账号（2026-08-11 用户报）。
-            这个 app 没有"可公开展示、且独立于昵称"的 handle 概念，摆一个只在这里出现、
-            又永远不跟着改的字符串，除了制造困惑没有别的作用。
-            登录账号仍然存在，只是不在这儿露脸。
-            ★ 别人的主页这里跟的是**服务端那份 username**（handle）：那才是 @ 他时要打的
-            那一串，而 App 里别处从来没露过（搜人结果那一行是唯一一处）。问不到时退回
-            展示名，不编。 */}
-        <div className="mt-0.5 max-w-full truncate text-xs text-slate-500">@{self ? display : handle || display}</div>
+        {/* ★★ 这一行**一律是 username**（句柄），自己的主页和别人的主页同一条口径。
+            上一版这里对自己人显示的是**昵称**、对别人显示的是 username —— 同一个位置
+            两种含义，而且用户在别人主页上学到的"@ 他要打这一串"，回到自己主页就不成立了
+            （仓库主人点名的那处不一致）。
+            ⚠ 这里曾经反复过一轮：2026-08-11 有用户反馈"改完昵称，名字底下还挂着旧名字"，
+            当时的结论是"这个 app 没有可公开展示的 handle 概念，摆着只会制造困惑"，
+            于是换成了昵称。现在 handle 概念**真的有了**（@ 的令牌就是 username，
+            见 utils/mention.ts），所以那句话的前提不再成立 —— 这一行现在回答的是
+            "别人要怎么 @ 我"，不是"我叫什么"（我叫什么写在上面那一行，加粗那个）。
+            ★ `handle` 自己的主页取 user.account（远端登录时它就是 username，
+            见 data/account.toLocalUser），别人的取服务端那份 username；两边都问不到时
+            才退回展示名 —— 不编。 */}
+        <div className="mt-0.5 max-w-full truncate text-xs text-slate-500">@{handle || display}</div>
 
         {/* 统计：竖线分隔，数字大、标签小（TikTok 同款视觉层级）。
             ★ 别人的主页可能有四栏（多一个「粉丝」），每格得从 84px 收到 70px ——
@@ -937,7 +939,18 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
             </span>
             {/* 私密作品要在墙上一眼认得出来：否则作者只会看到"这条怎么没人看"，
                 而它压根就没出现在任何人的首页里。改回公开在作品编辑页 */}
-            {v.visibility === "private" ? (
+            {/* ★★ 下架排在私密**前面**：两者可以同时成立，而"被平台下架"是作者更需要知道的
+                那一个 —— 私密是他自己设的，下架不是。只显示"仅自己可见"会让他以为是自己
+                手滑设错了，改回公开之后发现还是没人看，再也找不到原因。
+                这一栏只有作者自己看得到（别人的接口回包里根本没有这条作品）。 */}
+            {v.takedown ? (
+              <span
+                className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-rose-600/90 px-1 py-0.5 text-[9px] font-semibold text-white"
+                title={v.takedown.reason ? `下架原因：${v.takedown.reason}` : undefined}
+              >
+                已下架
+              </span>
+            ) : v.visibility === "private" ? (
               <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/70 px-1 py-0.5 text-[9px] text-white">
                 <Icon name="lock" size={9} strokeWidth={2.5} />
                 仅自己可见

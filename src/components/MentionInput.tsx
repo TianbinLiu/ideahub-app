@@ -2,23 +2,24 @@
 // 详情页 VideoPage 的评论框）——铁律六：补全规则、防抖、插入光标位置这三件事一旦分叉，
 // 就会出现"抽屉里能 @ 出来、详情页 @ 不出来"这种只有用户才发现得了的差异。
 //
-// ★★ 面板插进正文的是**显示名**（displayName || username），不是 @username。
-//   2026-08 的产品决定：昵称叫「我是王桑」的人必须能被 `@我是王桑` 叫到。
-//   身份不靠这段名字承担 —— 面板同时记住"这一次挑的是哪个 userId"（picks），
-//   提交时由 data/videos.addReply 按最终正文把它落成 span 报给服务端，服务端再核对。
-//   完整的取舍写在 utils/mention.ts 顶部。
+// ★★ 面板插进正文的是 **@username**（句柄），与候选格子第二行画的那一串逐字相等。
+//   username 不可改、天然唯一，所以"我该在 @ 后面打什么"有一个永远不变的答案。
+//   身份仍然不靠这段字面承担 —— 面板同时记住"这一次挑的是哪个 userId"（picks），
+//   提交时由 data/videos.addReply 按最终正文把它落成 span 报给服务端，服务端再核对；
+//   而**渲染**时显示的是对方**当下的显示名**（见 MentionText），所以改名照样同步。
+//   一句话：**打的是句柄，看到的是名字**。完整取舍写在 utils/mention.ts 顶部。
 //
-// ★★ 为什么这个补全是**功能的一部分**而不是锦上添花：中文没有词边界，
-//   `@我是王桑你看看这个` 是切不出「我是王桑」的（贪婪匹配会吃掉整句）。所以
-//   "用户到底 @ 的是谁"这件事**只有补全面板知道**——不从面板里选，服务端就只剩
-//   `@username` 那条 ASCII 兜底路可走，而这个 App 从头到尾显示的都是 displayName，
-//   username 一次都没露过。没有补全 = 每一次 @ 都静悄悄地谁也通知不到（铁律八）。
+// ★★ 为什么这个补全仍然是**功能的一部分**而不是锦上添花：这个 App 从头到尾显示的都是
+//   displayName，`username` 除了这块面板与搜人结果之外**一次都没露过**（见 UserRow）。
+//   没有补全，用户根本无从知道该在 @ 后面打哪一串 —— 每一次 @ 都会静悄悄地
+//   谁也通知不到（铁律八）。另外 username 允许是非 ASCII（注册侧只校验长度），
+//   那种账号服务端的兜底正则解析不到，只能靠面板报上去的 span。
 //
 // ★ 离线模式不出补全面板：那时这台机器上只有你一个人，面板永远是空的，
 //   摆一个永远查不到人的搜索框比不摆更糟（CLAUDE.md「界面上摆一个永远点不动的选项」）。
 import { useCallback, useEffect, useRef, useState } from "react";
-import Avatar from "./Avatar";
-import { searchUsers, userDisplayName, type ApiUserLite } from "../api/users";
+import UserRow from "./UserRow";
+import { searchUsers, type ApiUserLite } from "../api/users";
 import { remoteOn } from "../data/videos";
 // ★ `@` 的前置边界规则与 MentionText 共用**同一份**（utils/mention.ts）。
 import { MENTION_PREV_BLOCK, type MentionPick } from "../utils/mention";
@@ -35,8 +36,9 @@ const LIMIT = 6;
 /**
  * 光标前那一段查询词最多取多长。
  *
- * ★ 这不是"名字上限"，是**别把整句话当查询词发出去**：`@` 后面用户可能一直打下去，
- *   而服务端的 searchRegex 会截断、查全表。24 个字符足够覆盖任何昵称，
+ * ★ 这不是"名字上限"，也不是"句柄上限"（username 最长 32），是**别把整句话当查询词
+ *   发出去**：`@` 后面用户可能一直打下去，而服务端的 searchRegex 会截断、查全表。
+ *   服务端是**子串**匹配，不必打全 —— 24 个字符足够认出任何一个昵称或句柄；
  *   超过就当他不是在 @ 人（面板收起来，正文照旧是纯文本）。
  */
 const QUERY_MAX = 24;
@@ -136,10 +138,11 @@ export default function MentionInput({
       void searchUsers(query, LIMIT)
         .then((r) => {
           if (seq.current !== mine) return;
-          // ★★ 这里原来会把 username 超过 32 个字符的人**过滤掉**：那时令牌是
-          //   `@username`，服务端正则只截前 32 个字符，列出来也 @ 不到。
-          //   现在插进正文的是显示名、身份靠 span 报上去，与 username 的长度再无关系 ——
-          //   继续过滤只会平白让一部分人搜不出来。
+          // ★★ 这里**不按 username 长度过滤候选人**（2026-08 删掉过一道 32 字符的门禁，
+          //   这一轮令牌改回 username 也不加回来）：服务端兜底正则的 `{1,32}` 与注册侧的
+          //   MAX_USERNAME_LEN 是同一个数，长到 @ 不动的 username 根本存不进库；
+          //   而万一哪天存进去了，span 那条路照样定位得到。在这儿镜像一份 32 只会变成
+          //   第二处实现 —— 服务端放宽之后，这里会静默地把一批人从搜索结果里抹掉。
           setUsers(r.users);
           setHi(0);
           // 老服务端 / SPA 回退：说清楚是"这台服务器没有这个能力"，
@@ -174,16 +177,18 @@ export default function MentionInput({
     if (!hit) return;
     const before = value.slice(0, hit.at);
     const after = value.slice(pos);
-    // ★ 插的是**显示名**（与用户在整个 App 里看到的那个名字一致）。
-    //   尾随空格是刻意的：`@我是王桑好棒` 读起来分不出名字到哪儿结束 ——
-    //   服务端按 span 核对不受影响，但正文是给人读的。
-    const name = userDisplayName(u);
-    const token = `@${name} `;
+    // ★★ 插的是 **username**（句柄），与候选格子第二行画的那一串**逐字相等** ——
+    //   这一条是这一轮修的东西：上一版格子里写 `@username`、插进去的却是显示名。
+    //   ★ 尾随空格是刻意的：`@alice好棒` 读起来分不出句柄到哪儿结束，而服务端的
+    //     ASCII 兜底解析也要靠这个边界（`@alice好棒` 里 `好` 不是令牌字符，其实切得出来，
+    //     但 `@alice2` 就会被当成另一个人）。span 那条路不受影响，正文是给人读的。
+    const handle = u.username;
+    const token = `@${handle} `;
     onChange(before + token + after);
-    // ★ 身份在这里就记下来（userId），不靠事后从正文里猜 —— 猜不出来正是这一轮要修的问题。
-    //   顺带把插入位置也交出去：两个人**同名**时，这是提交时唯一能分辨"这一处是谁"的信息
+    // ★ 身份在这里就记下来（userId），不靠事后从正文里猜。顺带把插入位置也交出去：
+    //   同一个句柄在正文里出现两次时，这是提交时唯一能分辨"用户挑的是哪一处"的信息
     //   （见 MentionPick.at）。它只是提示，最终仍以提交那一刻的正文为准。
-    onPick?.({ userId: u._id, name, at: hit.at });
+    onPick?.({ userId: u._id, name: handle, at: hit.at });
     setUsers([]);
     setNote("");
     const next = before.length + token.length;
@@ -248,14 +253,9 @@ export default function MentionInput({
                       i === hi ? "bg-slate-700/60" : ""
                     }`}
                   >
-                    <Avatar name={userDisplayName(u)} src={u.avatarUrl} size={28} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm text-slate-100">{userDisplayName(u)}</span>
-                      {/* ★ @username 仍然显示出来，但它现在只是**消歧**用的：插进正文的是
-                          上面那个显示名，而显示名不唯一 —— 两个「我是王桑」摆在一起时，
-                          用户只能靠这一行认出哪个才是他要 @ 的人。 */}
-                      <span className="block truncate text-[11px] text-slate-500">@{u.username}</span>
-                    </span>
+                    {/* ★ 与分区页搜人结果**同一个组件**（铁律六）：这一行第二排画的
+                        `@username` 就是 insert() 插进正文的那一串，两处不许各画各的 */}
+                    <UserRow user={u} size={28} />
                   </button>
                 </li>
               ))}

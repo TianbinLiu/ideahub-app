@@ -2,12 +2,15 @@
 // 这一层只做「HTTP ↔ DTO」，不碰任何 cache —— 调用方（@提及补全、分区页搜人）自己管状态。
 //
 // ★★ 为什么 App 里必须有这个能力：整个 App 从头到尾显示的都是 **displayName**，
-//   `username` 一个字都没露过。而 @提及的令牌是 **@username**（服务端 mentionParser 认的
-//   就是它，`username` 唯一、`displayName` 可空可改可重名 —— 身份不能挂在会变的字段上，
-//   data/videos.ts 的 renameMyVideos 已经为此栽过一次）。
-//   两件事合起来的后果是：没有补全的话，用户根本无从知道该在 @ 后面打什么，
+//   `username` 只在两个地方露过脸 —— @补全面板与这一页的搜人结果，而它们画的是**同一个
+//   组件**（components/UserRow）。而 @提及的令牌就是 **@username**（2026-08 定的：
+//   它不可改、天然唯一，当公开句柄最稳；完整取舍见 utils/mention.ts 顶部）。
+//   两件事合起来的后果是：没有这个检索接口，用户根本无从知道该在 @ 后面打什么，
 //   于是每一次提及都"发出去了、对方收不到"—— 正是铁律八禁止的那类静默失败。
 //   所以这个模块是 @提及功能的一部分，不是锦上添花。
+//
+// ★ 身份仍然只认 **userId**（`displayName` 可空可改可重名，data/videos.ts 的
+//   renameMyVideos 已经为此栽过一次）。令牌是句柄、身份是 id、显示是当下的名字，三件事。
 import { ApiError, apiGet } from "./client";
 
 /** 检索结果里的一个人。★ displayName/avatarUrl 是**后加**的：老服务端的

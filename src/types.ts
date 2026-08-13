@@ -128,22 +128,133 @@ export interface CardView {
 export const MAX_CARD_VIEWS = 3;
 
 /**
+ * 卡面画布：竖版 3:4。1728×2304 = 3,981,312 像素。
+ *
+ * ★ 放 types.ts 是因为它有**两个**读者：ai/real.ts（真的发给方舟）与 data/economy.ts
+ *   （按输出像素分档报价）。抄成两份的话，哪天有人只改了出图那侧，报价就会静默按
+ *   另一个像素档算 —— 而这正是"页面报价 ≠ 实际扣费"的标准形状。
+ * ★ 这个数同时卡在两条线之间，改之前先把两边都算一遍：
+ *   下限 —— Seedream 4.5 / 5.0 要求 ≥ 3,686,400（实测 1536×2304 会被 400 掉）；
+ *   分档 —— 5.0-pro 的输出图 > 236 万像素就从 0.30 元/张跳到 0.60 元/张。
+ *   398 万同时"过得了下限"和"落在贵的那一档"，是有意的取舍（见 economy.IMAGE_TIERS）。
+ */
+export const CARD_SIZE = "1728x2304";
+
+// ── 图位表：每种卡该有哪几张参考图 ──────────────────────────────
+//
+// ★★ 为什么是二维 `(type, kind)` 而不是给每类新开一批 kind 值：
+//   `kind` 是**跨仓枚举**（server 的 branchAsset.schemas.js 用 z.enum 钉着三个值）。
+//   新增取值 = 老服务端整批 400 → `emitApiError` 没人监听 → 静默丢卡。而"场景卡的
+//   body 读作全景、道具卡的 body 读作净底主视图"这件事，**存储层根本不需要知道**。
+//   所以枚举一个字不改，改的只是"同一个值在不同 type 下读作什么"——存量卡 100%
+//   原样合法，零迁移脚本、零部署顺序约束。
+//
+// ★ 顺序是**重要性降序**，不是随便排的。铸卡档位取这个列表的前 K 个
+//   （见 data/economy.slotsFor），所以 `[0]` 必须是"这张卡只能有一张图时该是哪张"，
+//   也就是能直接当卡面的那张。人物卡因此是 body 打头而不是 face ——
+//   最低档只出一张图时，全身立绘既是卡面又是形象参考，大头照没法当卡面。
+//
+// ★ 非人物卡只给两格：出片管线一段最多带 MAX_REF_IMAGES(3) 张参考图，而主角人物卡
+//   按方舟指南就占掉 2 张 —— 再多的格子在绝大多数编排下都排不进去，画了等于收钱
+//   却让画面一个像素不变，正是 VideoTier.refImg 白名单当年在防的形状。
+//   （第 2 格是**有用**的：prepareMaterialRefs 的第二轮分配会在预算有余时喂它。
+//    别照 2026-08-11 之前那句"只读 viewsOf()[0] 一张"去砍格子。）
+
+export interface CardSlot {
+  kind: CardView["kind"];
+  /** 界面上的名字。★ 按类型给：对一把剑说"全身"是胡话 */
+  label: string;
+  /** 这张图负责锁住什么——绑定句和铸卡提示词都从这里长出来 */
+  locks: string;
+}
+
+export const CARD_SLOTS: Record<CardType, readonly CardSlot[]> = {
+  character: [
+    { kind: "body", label: "全身立绘", locks: "服装、体型与整体配色" },
+    { kind: "face", label: "面部特写", locks: "面部特征与发型发色" },
+    { kind: "detail", label: "标志性细节", locks: "随身物、纹样或疤痕" },
+  ],
+  scene: [
+    { kind: "body", label: "全景主视图", locks: "空间结构、地貌与建筑轮廓及整体色调" },
+    { kind: "detail", label: "局部特征", locks: "局部材质与陈设特征" },
+  ],
+  background: [
+    { kind: "body", label: "色光基调", locks: "整体色调、光比与光线方向" },
+    { kind: "detail", label: "质感特写", locks: "颗粒、笔触与材质质感" },
+  ],
+  prop: [
+    { kind: "body", label: "净底主视图", locks: "造型、比例、材质与配色" },
+    { kind: "detail", label: "局部细节", locks: "局部纹样与磨损" },
+  ],
+  style: [
+    { kind: "body", label: "画风样张", locks: "笔触、线条、上色方式与质感" },
+    { kind: "detail", label: "笔触特写", locks: "线条与颗粒的近距离质感" },
+  ],
+};
+
+/**
+ * 卡面兜底那张算哪个槽 —— 五类一律 `body`（卡面就是这张卡的主图）。
+ * ★ 与 viewsOf() 原来写死的 "body" 完全相同，兜底行为一个字没变。
+ */
+export function primarySlotOf(type: CardType): CardView["kind"] {
+  return CARD_SLOTS[type][0].kind;
+}
+
+/**
+ * 把任意一个 kind 归一到"这种卡真有的那个槽"。**total 函数，永不返回 undefined**。
+ *
+ * ★ 入参是 `unknown` 而不是 `CardView["kind"]`：服务端返回的 JSON 被原样当
+ *   `CardView[]` 收下（data/account.ts 那条），编译期类型在那里是**声明出来的谎**。
+ *   写成窄类型等于假装校验过了。
+ * ★ 认不出就退到主槽，不是丢掉：丢掉会让"老卡的 face 图"凭空消失，
+ *   而用户只会看到"我传过的图没了"。
+ */
+export function normalizeSlot(type: CardType, raw: unknown): CardView["kind"] {
+  return CARD_SLOTS[type].some((s) => s.kind === raw) ? (raw as CardView["kind"]) : primarySlotOf(type);
+}
+
+/** 这种卡的某个槽叫什么。找不到就退主槽的名字（与 normalizeSlot 同源） */
+export function slotLabel(type: CardType, kind: unknown): string {
+  const k = normalizeSlot(type, kind);
+  return (CARD_SLOTS[type].find((s) => s.kind === k) ?? CARD_SLOTS[type][0]).label;
+}
+
+/**
+ * 卡片详情页那段"铸卡时的完整提示词"的标题。
+ * ★ 显式表，**不要**拿 CARD_TYPE_LABELS 切字符串拼出来："人物卡"→"人物"看着能用，
+ *   哪天有人把某一类改名（比如背景卡→氛围卡），切出来的就是"氛围信息"还是"氛围卡信息"
+ *   全看那一刀切在哪 —— 而且不报错。
+ */
+export const CARD_INFO_LABELS: Record<CardType, string> = {
+  character: "人物信息",
+  scene: "场景信息",
+  background: "背景信息",
+  prop: "道具信息",
+  style: "画风信息",
+};
+
+/**
  * 读一张卡的形象参考图。**全仓唯一的归一处**（铁律六）。
  *
  * ★ `views` 是后加字段，老卡读出来是 `undefined` —— 一律归一成「卡面就是它的
- *   全身参考」（`[{ kind:"body", url: cover }]`）。这样下游（提示词拼装、详情页、
- *   发布快照）永远不用判 undefined，也不会出现"老卡突然没有形象参考"这种**静默**差异。
- *   判据是数组**有没有内容**，不是拿它和某个值比 —— 后加字段用等值判会把存量数据
- *   整批算错且一点不报（见 docs/api-contract.md「可见性」那条）。
+ *   主图参考」（`[{ kind: primarySlotOf(type), url: cover }]`）。这样下游（提示词拼装、
+ *   详情页、发布快照）永远不用判 undefined，也不会出现"老卡突然没有形象参考"这种
+ *   **静默**差异。判据是数组**有没有内容**，不是拿它和某个值比 —— 后加字段用等值判
+ *   会把存量数据整批算错且一点不报（见 docs/api-contract.md「可见性」那条）。
+ * ★ 每张都过 normalizeSlot：老数据里可能有"场景卡上挂着 face"这种组合（今天的
+ *   kindsFor 就允许过一阵），不归一的话下游按 face 去拼绑定句，会对着一片天空说
+ *   "这是它的面部特征"。
  * ★ 放在 types.ts 而不是 data/：它是纯归一，ai/ studio/ pages/ data/ 四层都要用；
  *   放进 data/ 会让 ai 层为了一个纯函数反向依赖数据层。
  * ★ 兜底那张的 url 可能是 dataURL（本地铸的卡，cover 就是 dataURL）—— 这**只读**，
  *   不许原样写回 `views`（写回就破坏了"views 只存 URL"这条不变量）。
  */
-export function viewsOf(card: Pick<Card, "views" | "cover">): CardView[] {
+export function viewsOf(card: Pick<Card, "views" | "cover" | "type">): CardView[] {
   const list = Array.isArray(card.views) ? card.views.filter((v) => !!v && typeof v.url === "string" && !!v.url) : [];
-  if (list.length > 0) return list.slice(0, MAX_CARD_VIEWS);
-  return card.cover ? [{ kind: "body", url: card.cover }] : [];
+  if (list.length > 0) {
+    return list.slice(0, MAX_CARD_VIEWS).map((v) => ({ ...v, kind: normalizeSlot(card.type, v.kind) }));
+  }
+  return card.cover ? [{ kind: primarySlotOf(card.type), url: card.cover }] : [];
 }
 
 export interface Card {
@@ -165,8 +276,14 @@ export interface Card {
   tags?: string[];
   /** 3D 建模文件（glb/glbx）：有值则卡详情显示全息实体预览（3D 风格视频的角色卡） */
   modelUrl?: string;
-  /** 铸卡时的完整文生图提示词（生成蓝图）——具体到能让 AI 复刻出与卡面一致的画面/建模 */
+  /** 铸卡时的完整文生图提示词（详情页的「<类型>信息」）——具体到能让 AI 复刻出与卡面一致的画面/建模 */
   genPrompt?: string;
+  /**
+   * 铸这张卡时用的出图档位（data/economy.IMAGE_TIERS 的 id）。
+   * ★ 缺省 = 老卡，一律当默认档读（imageTierOf 的兜底）；**不要**拿它和某个值等值判，
+   *   存量卡这一项全是 undefined，等值判会把它们整批算成"另一档"且一点不报。
+   */
+  imageTier?: string;
   /** 已分享到创意工坊（仅远端模式有意义） */
   published?: boolean;
   /** 分享时写的一句话推荐（对应服务端 BranchCard.description） */
@@ -375,6 +492,15 @@ export interface VideoItem {
    *  缺省视作 public —— 这个字段是后加的，老作品没有它，判定必须写成
    *  `!== "private"` 而不是 `=== "public"`（服务端同一条规则，见 api-contract.md） */
   visibility?: "public" | "private";
+  /**
+   * 被平台下架了（管理员操作）。**有值 = 已下架**，缺省 = 没下架。
+   *
+   * ★ 只有作者本人和管理员的接口回包里会出现它 —— 别人根本读不到这条作品。
+   * ★ 与 `visibility` 是两个**互不顶替**的开关：作者把 visibility 改回 public 也没用。
+   * ★ 作者必须**看得见它、并且看得见原因**：作品从他眼前凭空消失只会让他原样再发一遍，
+   *   而那正是下架想避免的事。
+   */
+  takedown?: { at: number; reason: string };
   /** 付费设置：mode=paid 时 partPrices[i] 为第 i 个 P 的解锁价（token）。
    *  缺省 = 免费。观众解锁扣 token，平台抽成后其余进创作者 add-on 余额 */
   pricing?: VideoPricing;

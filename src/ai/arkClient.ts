@@ -14,6 +14,7 @@
 // 密钥永远不进前端包：APK 解一下就拿到了（铁律三）。
 import { API_BASE, API_ON, getToken } from "../api/client";
 import { syncRemoteWallet } from "../data/account";
+import { DEFAULT_IMAGE_TIER, imageTierOf } from "../data/economy";
 
 /** 把响应头上的权威余额同步进本地镜像。头部缺失（CORS 没放行/dev 代理）时什么都不做。 */
 function syncWalletFromHeaders(h: Headers): void {
@@ -75,10 +76,26 @@ export async function fetchArkAsset(url: string, timeoutMs: number): Promise<Res
 }
 
 // 模型 ID（2026-08-01 实测于本账号：GET /api/v3/models 取活跃 ID + 控制台开通状态）
-// 选型依据=已开通且有免费额度：Seedream 5.0-lite（50 张）、Seedance 1.5-pro（200 万 tokens）、
-// Seed-2.1-turbo（50 万 tokens）。Seedance 2.0 系列需账户余额>200 元才能开通，暂不可用。
+// 选型依据=已开通且有免费额度：Seedance 1.5-pro（200 万 tokens）、Seed-2.1-turbo（50 万 tokens）。
+// Seedance 2.0 系列需账户余额>200 元才能开通，暂不可用。
+// ★ 出图那一条 2026-08-11 起改由**价目表**决定（见下），不再是这里挑一个"有免费额度的"
+//   —— 免费额度会用完，单价不会消失，而报价必须等于实收。
 export const MODELS = {
-  image: "doubao-seedream-5-0-260128",
+  /**
+   * 默认出图模型 —— **直接读报价那侧的默认档**（economy.IMAGE_TIERS 里
+   * DEFAULT_IMAGE_TIER 那一条），不写字面量。
+   *
+   * ★ 非铸卡路径（补设定帧、三套方案的首尾帧、AI 封面、成片提炼卡组）的报价就是
+   *   `economy.IMAGE_TOKENS`，而那个数的定义是「默认档那个模型的单价」。两边各写
+   *   一个 model id 的话，只要有人改了一边，就变成"按 A 报价、按 B 扣费" ——
+   *   而这种错没有任何症状：界面正常、日志干净，只有火山账单知道。
+   *   2026-08-11 之前正是这个局面：报价折的是 0.20 元（Seedream 4.0）的价，
+   *   实际一直在调 `doubao-seedream-5-0-260128`，而后者的单价在方舟公开价目里
+   *   **查不到**（server 的 config/tokens.js 因此专门留了一张 LEGACY 表垫着，
+   *   把差价吃在我们自己这边）。
+   * ★ 铸卡路径**不读这个值**：它按用户选的出图档位走（generateImage 的 opts.model）。
+   */
+  image: imageTierOf(DEFAULT_IMAGE_TIER).model,
   // 默认视频模型 = 标准档；档位目录见 data/economy VIDEO_TIERS，
   // generateVideo 可传 opts.model 覆盖（节点卡里用户选档）
   video: "doubao-seedance-1-0-pro-250528",
@@ -161,16 +178,28 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
   }
 }
 
-/** Seedream 文/图生图。imageRefs 传参考图（首帧承接上一段尾帧色调等）。
- *  size 实测约束（2026-08-06）：'2k'/'3k'/'4k' 或显式 WIDTHxHEIGHT，且总像素 ≥ 3,686,400
- *  （= 2560×1440）。喂给视频的帧必须用**与视频画幅一致**的画布——比例不符会被 Seedance
- *  裁切；两个画幅各自的合法画布见 types.VIDEO_ASPECTS[].frameSize。 */
+/**
+ * Seedream 文/图生图。imageRefs 传参考图（首帧承接上一段尾帧色调等）。
+ * `model` 缺省 = MODELS.image；铸卡路径按用户选的出图档位覆盖它
+ * （档位目录见 data/economy.IMAGE_TIERS，**报价与出图读同一张表**）。
+ *
+ * size：'2k'/'3k'/'4k' 或显式 WIDTHxHEIGHT。像素区间**按模型各不相同**
+ * （2026-08-11 拿真 key 探出来的：发必然 400 的尺寸、读报错文案，零成本）：
+ *   4.0     ≥ 921,600    ≤ 16,777,216
+ *   4.5     ≥ 3,686,400  ≤ 16,777,216
+ *   5.0     ≥ 3,686,400
+ *   5.0-pro ≥ 921,600    ≤ 4,624,220
+ * ★ 那条 3,686,400 是 4.5 / 5.0 **专属**，不是 Seedream 的通则（这里的老注释写错过，
+ *   照着它选尺寸会在 pro 上把 4,624,220 的上限撞穿）。各处实际用的画布只有两个来源：
+ *   卡面 types.CARD_SIZE、设定帧 types.VIDEO_ASPECTS[].frameSize —— 后者必须与视频
+ *   画幅一致，比例不符会被 Seedance 裁一刀。
+ */
 export async function generateImage(
   prompt: string,
-  opts?: { size?: string; imageRefs?: string[] },
+  opts?: { size?: string; imageRefs?: string[]; model?: string },
 ): Promise<string> {
   const body: Record<string, unknown> = {
-    model: MODELS.image,
+    model: opts?.model ?? MODELS.image,
     prompt,
     size: opts?.size ?? "2K",
     response_format: "url",
@@ -180,7 +209,12 @@ export async function generateImage(
   const out = await arkFetch<{ data: Array<{ url: string }> }>(
     "/images/generations",
     { method: "POST", body: JSON.stringify(body) },
-    100_000, // 实测 2K 一张 21-25s，高峰留余量
+    // ★ 必须 > 服务端的 T_CREATE（ideahub-server routes/ark.routes.js = 150s）。
+    //   顶档 5.0-pro 实测一张 1296×1728 要 **73.6 秒**（5.0 是 21-25s），高峰再翻一倍
+    //   就顶到 100s 那条老线上 —— 而客户端先超时的后果不是"重试一次"：
+    //   AbortSignal 掐断的只有我们这一头，服务端那条请求**照样跑完**并按 2xx 计费不退，
+    //   用户却收到一句"没画成"。宁可多等 20 秒，也不能报一句假话（铁律五/八）。
+    170_000,
   );
   const url = out.data?.[0]?.url;
   if (!url) throw new Error("Seedream 未返回图片");

@@ -5,6 +5,7 @@ import DiscoverPage from "./pages/DiscoverPage";
 import WorkshopPage from "./pages/WorkshopPage";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
+import AdminPage from "./pages/AdminPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import LoginPage from "./pages/LoginPage";
 import OauthCallbackPage from "./pages/OauthCallbackPage";
@@ -160,6 +161,19 @@ export default function App() {
       {/* 第三方登录的 web 回程（原生端走自定义 scheme，不经过这条路由） */}
       <Route path="/oauth/callback" element={<OauthCallbackPage />} />
       <Route path="/settings" element={<SettingsPage />} />
+      {/* 管理后台。全屏推入页，入口在设置页（非管理员看不见那一行）。
+          ★★ 两道门缺一不可：RequireAuth 管"没登录"（带 next 回跳），
+            AdminPage 自己管"登录了但不是管理员" —— 直接输 hash 进来会看到一句
+            能读懂的解释 + 返回首页，**不是白屏、也不是不声不响地跳走**。
+          ★ 真正的门在服务端（requireRole("admin")）；这两道只决定看不看得见。 */}
+      <Route
+        path="/admin"
+        element={
+          <RequireAuth>
+            <AdminPage />
+          </RequireAuth>
+        }
+      />
       {/* 通知：与 /settings 一样是**全屏推入**页，不进 TabLayout。
           ★ 刻意不给底栏加第六格：TabBar 是五格，而底缘那 100px 里进度条 / 时长文字 /
             右侧栏 / 看板娘的位置是互相咬着算出来的（CLAUDE.md 有整段说明），

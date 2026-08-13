@@ -26,6 +26,7 @@ import {
 } from "../data/danmaku";
 import DanmakuGlyph from "./DanmakuGlyph";
 import Icon from "./Icon";
+import ReportButton from "./ReportButton";
 
 /** 秒 → `1:23`。弹幕列表要让人认出"这条挂在哪一秒"，光一个小数没法对应到画面 */
 function clock(sec: number): string {
@@ -106,6 +107,26 @@ function MyDanmakuRow({ videoId, item }: { videoId: string; item: DanmakuItem })
   );
 }
 
+/**
+ * 「本片弹幕」里的一条（别人发的）。举报入口挂在这儿。
+ *
+ * ★★ 和「我发过的」删除入口是**同一条理由**：飘着的那一层是 `pointer-events-none`
+ *   （不然它会把播放器的暂停/点赞手势整片吃掉），而且那些字一直在动 —— 手机上
+ *   根本点不准。想举报一条弹幕，只有在这份静态列表里点得到。
+ * ★ 举报本身（理由表、重复举报的说法、失败红字）走共用的 ReportButton，不在这里另写。
+ */
+function OtherDanmakuRow({ videoId, item }: { videoId: string; item: DanmakuItem }) {
+  return (
+    <li className="flex items-center gap-2 py-1">
+      <span className="w-9 flex-none text-right text-[10px] tabular-nums text-slate-500">{clock(item.at)}</span>
+      <span className="min-w-0 flex-1 truncate text-xs" style={{ color: item.color || DANMAKU_COLORS[0] }}>
+        {item.text}
+      </span>
+      <ReportButton targetType="danmaku" targetId={item.id} videoId={videoId} className="flex-none" />
+    </li>
+  );
+}
+
 export default function DanmakuInput({
   videoId,
   /** 现在播到全片第几秒。传取值函数而不是数值：数值会被闭包定在打开的那一瞬间 */
@@ -124,6 +145,8 @@ export default function DanmakuInput({
   const [err, setErr] = useState("");
   /** 「我发过的」展开着没有。默认收起：绝大多数时候用户是来发的，不是来删的 */
   const [mineOpen, setMineOpen] = useState(false);
+  /** 「本片弹幕」展开着没有。同样默认收起（这是举报入口，更低频） */
+  const [allOpen, setAllOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // ★ 订阅弹幕库：发一条 / 删一条 / 远端那一页到货都会 emit，这一段列表要跟着变。
@@ -131,7 +154,11 @@ export default function DanmakuInput({
   useSyncExternalStore(subscribeDanmaku, danmakuVersion, () => 0);
   // ★ 认的是服务端给的 mine 标记（弹幕不返回作者，只有这一个布尔），
   //   离线模式下是本地发的那些 —— 两种模式同一条判据（data/danmaku.isMyDanmaku）
-  const mine = danmakuOf(videoId).filter(isMyDanmaku);
+  const all = danmakuOf(videoId);
+  const mine = all.filter(isMyDanmaku);
+  /** 别人发的。★ 只在真跑在服务端上时才列出来：离线库里的弹幕没有"别人"，
+   *  也没有人收举报，摆一份永远举报不出去的列表比不摆更糟 */
+  const others = danmakuIsShared() ? all.filter((d) => !isMyDanmaku(d)) : [];
 
   // 自动聚焦拉起键盘：少一次点击。autoFocus 属性在 portal 里不一定生效（元素先挂载
   // 后移动），显式调一次稳
@@ -200,6 +227,28 @@ export default function DanmakuInput({
               <ul className="max-h-28 overflow-y-auto pb-2">
                 {mine.map((d) => (
                   <MyDanmakuRow key={d.id} videoId={videoId} item={d} />
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* 「本片弹幕」：举报别人弹幕的**唯一**入口（理由见 OtherDanmakuRow 顶部）。
+            一条都没有就不显示这一行，与上面「我发过的」同一条规矩。 */}
+        {others.length > 0 && (
+          <div className="border-b border-slate-700/40 px-4 pt-2.5">
+            <button
+              onClick={() => setAllOpen((v) => !v)}
+              className="flex w-full items-center gap-1.5 pb-2 text-[11px] text-slate-400 active:opacity-60"
+            >
+              <span>本片弹幕 {others.length} 条</span>
+              <span className={`transition ${allOpen ? "rotate-180" : ""}`}>▾</span>
+            </button>
+            {allOpen && (
+              // 与「我发过的」同一个高度上限：这面板是从底部升起来的，再高就把视频盖住了
+              <ul className="max-h-28 overflow-y-auto pb-2">
+                {others.map((d) => (
+                  <OtherDanmakuRow key={d.id} videoId={videoId} item={d} />
                 ))}
               </ul>
             )}

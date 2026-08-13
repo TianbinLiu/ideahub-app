@@ -2,7 +2,10 @@
 //
 // ★★ 为什么单开一个模块而不是把这几行摊在详情页里：这里有三条不变量，散在 UI 里
 //   必然分叉（铁律六）——
-//     ① `CardView.url` 永远是 http(s)，绝不是 dataURL（见 types.CardView 的理由）；
+//     ① `CardView.url` 永远是 http(s)，绝不是 dataURL（见 types.CardView 的理由）。
+//        唯一的例外是**转存失败后留在本机的那几张**（离线模式则是常态，见
+//        data/account.addCards 的 ★）—— 所以下面 materializedViews 逐张补传，
+//        而不是假定它们已经是 URL；
 //     ② 上限 3 张（方舟指南：过多素材会让模型判断不出特征优先级）；
 //     ③ 老卡第一次加图时必须**先把卡面兑成一条 view**，否则加完这一张，
 //        原本靠 viewsOf() 兜底的"卡面即全身参考"就凭空没了 —— 用户看到的是
@@ -11,10 +14,10 @@
 // ★ 全程 async 且失败一律**抛**，不吞。上传失败、服务端没同步上都要显示成红字
 //   （详情页负责画）——全 app 没有任何地方监听 emitApiError，这里 catch 掉就是静默丢图。
 import { isRemoteMode, myCards, setCardViews } from "./account";
-import { coverToPermanentUrl } from "./publishAssets";
+import { coverToPermanentUrl, toPermanentUrl } from "./publishAssets";
 import { uploadImage, MAX_IMAGE_BYTES } from "../api/uploads";
 import { fileToRefImage } from "../utils/image";
-import { MAX_CARD_VIEWS, viewsOf, type Card, type CardView } from "../types";
+import { MAX_CARD_VIEWS, primarySlotOf, viewsOf, type Card, type CardView } from "../types";
 
 /** 加图/删图的结果：新的 views + 一句要说给用户听的话（没有就没有） */
 export interface CardViewsResult {
@@ -35,13 +38,47 @@ function findMine(cardId: string): Card {
  * ★ 兑现时卡面若还是 dataURL（本地铸的卡都是），先转存成永久 URL 再写进去。
  *   直接把 dataURL 塞进 views 会同时破坏两件事：随作品发布的卡组快照体积（几百 KB × N），
  *   以及"views 只存 URL"这条让下游可以无脑当 <img src> / Seedream 参考图用的不变量。
+ * ★★ 已有的 views 也要逐张过一遍，**不能直接 slice() 回传**。那样写等于假定
+ *   "views 里恒为 http URL"，而这个假定不成立：收卡那一层（data/account.addCards）
+ *   转存失败时，库里留着的就是 dataURL。slice 回去的这一份紧接着要经
+ *   `branch.updateCardViews → httpViews` 过滤，dataURL 全被剔掉 —— 用户只是"加了一张
+ *   参考图"，服务端上那几张却又被**删了一遍**。所以这里顺手补传：这条路同时是转存
+ *   失败之后**唯一的自愈入口**（用户下次加图时，之前没传上去的那几张一起补上）。
+ * ★ 串行补传，同 publishAssets.materializeDraft 的理由：手机上行窄，MB 级请求并发
+ *   只会互相拖慢、还更容易一起超时。这里最多两张，代价可忽略。
  */
 async function materializedViews(card: Card): Promise<CardView[]> {
-  if (Array.isArray(card.views)) return card.views.slice();
+  const kept = card.views;
+  if (Array.isArray(kept)) {
+    const out: CardView[] = [];
+    for (const v of kept) {
+      if (!v?.url) continue;
+      if (!v.url.startsWith("data:")) {
+        out.push(v);
+        continue;
+      }
+      // ★★ 逐张 catch，**不许让老图的失败打断这一次加图**。
+      //   这条路是"account.addCards 转存失败"之后的**自愈入口**，而它补传的正是那批
+      //   失败过的图。其中至少一类是确定性失败（那张 dataURL 本身超过 5MB —— imageToUrl
+      //   直接抛"太大"，重试多少次都一样）。整条 throw 的后果是：用户点「+ 面部特写」，
+      //   新图其实已经传上去了（流量花了、图也存了），页面红字报的却是**另一张**图
+      //   "card-xxx-body 太大"，新图被丢弃，而且重试永远同样结果 —— 自愈入口把自己堵死了。
+      //   失败的那张原样留着（httpViews 会在写出去时滤掉它），下次再试。
+      try {
+        out.push({ ...v, url: await toPermanentUrl(v.url, `card-${card.id}-${v.kind}`) });
+      } catch {
+        out.push(v);
+      }
+    }
+    return out;
+  }
   if (!card.cover) return [];
   const url = card.cover.startsWith("data:") ? await coverToPermanentUrl(card.cover) : card.cover;
-  // kind 沿用 viewsOf() 的归一口径：卡面画的是整个主体，算全身照
-  return [{ kind: "body", url }];
+  // kind 沿用 viewsOf() 的归一口径：卡面就是这张卡的主图。
+  // ★ 这里原来写死 "body"，那是"卡面算哪个图位"的**第二处实现** —— 图位表哪天调整
+  //   （比如给某一类换个打头的 kind），它不会跟着变，兑现出来的那张就会被 normalizeSlot
+  //   归到别处，绑定句于是对着一张全景说"这是它的面部特征"。统一走 primarySlotOf。
+  return [{ kind: primarySlotOf(card.type), url }];
 }
 
 /** 远端模式才能加图：本地没有服务器可以把图转存成永久地址，而 views 不收 dataURL */
@@ -84,14 +121,19 @@ export async function addCardView(cardId: string, file: File, kind: CardView["ki
  *   而那会让新服务端返回的每一张老卡（回的就是 `[]`）一夜之间失去兜底。
  *
  * ★ 这里故意**不**走 materializedViews：删图不该触发一次上传。老卡兑现出来的
- *   那条本来就是要被删掉的卡面，先传上去再删净是白花流量。剩下的一律是 http URL
- *   （不变量①），顺手再滤一道，免得把兜底的 dataURL 写回库里。
+ *   那条本来就是要被删掉的卡面，先传上去再删净是白花流量。
+ * ★★ 要滤掉的**只有兜底出来的那张卡面**（`card.views` 不是数组 = 这张卡从没挂过图，
+ *   viewsOf 拿 cover 兜出来的那条 dataURL 不许写进库里）。真正存过的 dataURL 必须留着：
+ *   离线模式下库里存的本来就是 dataURL，远端模式下则是转存失败留下的那几张
+ *   （见 data/account.addCards）—— 原来这里一律按 `^https?:` 滤，于是**删掉第 3 张
+ *   会把另外两张一起抹掉**，而那两张是用户付过钱画出来的，全程一个字都不会说。
  */
 export async function removeCardView(cardId: string, index: number): Promise<CardViewsResult> {
   const card = findMine(cardId);
   const base = viewsOf(card);
   if (index < 0 || index >= base.length) throw new Error("这张图已经不在了");
-  const views = base.filter((_, i) => i !== index).filter((v) => /^https?:\/\//i.test(v.url));
+  const stored = Array.isArray(card.views);
+  const views = base.filter((_, i) => i !== index).filter((v) => stored || /^https?:\/\//i.test(v.url));
   await setCardViews(cardId, views);
   return { views };
 }

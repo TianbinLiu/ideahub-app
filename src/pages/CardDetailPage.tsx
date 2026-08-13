@@ -1,9 +1,13 @@
-// 卡片详情页：大卡面 + 类型/标签 + 简介 + 形象参考图（多图）+ 生成蓝图
-// （具体到可复刻卡面的完整提示词）+ 3D 建模全息预览（有 modelUrl 的角色卡）。
+// 卡片详情页：大卡面 + 类型/标签 + 简介 + 形象参考图（多图）+「<类型>信息」
+// （铸卡时的完整提示词，具体到可复刻卡面）+ 3D 建模全息预览（有 modelUrl 的角色卡）。
 // 创意工坊/我的/卡组详情点卡进来。
 import { useRef, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
+// ★ 出片管线的规则一律**从管线本身取**，这一页不再抄一份（铁律六）。
+//   抄的那份漏过规则一（只有第一张人物卡进参考图），于是「出片用」这个标签会对着
+//   一张从来不进模型的图亮起来 —— 用户为它多付了钱，界面还告诉他钱花在了出片上。
+import { MAX_CHAR_REFS, MAX_REF_IMAGES, TYPE_LABEL, cardStyleSuffix, refUsedFlags } from "../ai/real";
 import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
@@ -13,28 +17,36 @@ import { isRemoteMode, myCards, myDecks, shareCard } from "../data/account";
 import { addCardView, removeCardView } from "../data/cardViews";
 import { formatHeat, heatOf } from "../data/social";
 import {
+  CARD_INFO_LABELS,
+  CARD_SLOTS,
   CARD_TYPE_COLORS,
   CARD_TYPE_LABELS,
   Card,
+  CardType,
   CardView,
   MAX_CARD_VIEWS,
   publishableModelUrl,
+  slotLabel,
   viewsOf,
 } from "../types";
 import { useAccountVersion } from "../hooks/useAccount";
 
-/** 老卡/素材卡没存生成蓝图时，按派生管线同款格式现场拼一份——照着它就能复刻同风格卡面 */
-function blueprintOf(card: Card): string {
+/**
+ * 老卡/素材卡没存这段信息时（字段仍叫 genPrompt，跨仓字段不改名），
+ * 按派生管线同款格式现场拼一份——照着它就能复刻同风格卡面。
+ *
+ * ★★ 类型名与画风尾巴**必须**从 ai/real.ts 取（TYPE_LABEL / cardStyleSuffix），
+ *   这里一个字都不许自己写。手抄的那份已经分叉过一次，而且分叉得毫无声响：
+ *   real.ts 改成「画风卡一个画风词都不拼」之后，这里还在给没有 genPrompt 的画风卡
+ *   （mock 市场种子里的「水墨留白」「胶片颗粒」「像素梦境」全都没有）拼上
+ *   "二次元厚涂插画风"，而下面那行文案写着"把它交给 AI 即可生成与卡面一致的画面"
+ *   并配了复制按钮 —— 用户照做拿回来的是厚涂而不是水墨，全程零报错（铁律六）。
+ * ★ frameWord 传 "卡面"：这段文字复刻的是**卡面**那一张，与 real.forgePrimary 同参。
+ */
+function cardInfoOf(card: Card): string {
   if (card.genPrompt) return card.genPrompt;
-  const label: Record<Card["type"], string> = {
-    character: "人物立绘卡面",
-    scene: "场景概念图卡面",
-    background: "氛围底色卡面",
-    prop: "道具特写卡面",
-    style: "画风示意卡面",
-  };
   const tags = card.tags?.length ? `关键词：${card.tags.join("、")}。` : "";
-  return `${label[card.type]}：${card.name}。${card.summary}${tags}二次元厚涂插画风，高细节，电影感构图，氛围光，无文字无水印。竖版 3:4 卡面。`;
+  return `${TYPE_LABEL[card.type]}：${card.name}。${card.summary}${tags}${cardStyleSuffix(card.type, "卡面")}`;
 }
 
 /**
@@ -60,27 +72,74 @@ function shareModelNote(card: Card): string | null {
 // 人物形象因此被烤进首尾帧，出片再按首尾帧拍（见 ai/real.prepareMaterialRefs）。
 // 所以这一块的文案要说"AI 会怎么用"，不能只当图库摆着。
 
-const KIND_LABEL: Record<CardView["kind"], string> = { face: "面部特写", body: "全身/主视图", detail: "细节" };
+// ★ 图位（哪种卡有哪几张图、每张叫什么、锁住什么）**只有 types.CARD_SLOTS 一处**
+//   （铁律六）。这一页原来另有一份一维的 KIND_LABEL + kindsFor：于是一把剑的主视图
+//   被叫成"全身"、一张场景卡还能加"面部特写"。两份都删了，名字一律 slotLabel(type, kind)。
 
 /**
- * 加图时能选哪几种，按卡种给。
- * ★ 人物卡只给「面部特写 / 全身」两种，**不给"多角度"这种引导**：方舟提示词指南原文
- *   「人物参考使用大头照 + 全身照即可，不建议使用人物多视图。多视图素材包含同一人物的
- *   不同角度，模型易将其识别为多个不同主体，反而加剧 ID 漂移问题。」
- *   道具/场景卡没有这个问题（它们不是"主体身份"），所以给「主视图 / 细节」。
+ * 每个图位锁住什么。★ 按 CARD_SLOTS 拼，不再手写两句话去盖五种卡。
+ * ★ 开头那句原来是"AI 画这一段的首尾帧时会照着这些图"——它把**所有**图位都说成会进
+ *   模型，而下面 pipelineNoteFor 紧接着说的是"只取前几张"，两句话摆在一起自相矛盾，
+ *   且矛盾的那半句正是花了钱的那半句。这句只交代"每格是干什么用的"，
+ *   "哪几格真被喂进去"一律归 pipelineNoteFor 说（铁律六：一条规则只有一处口径）。
  */
-function kindsFor(type: Card["type"]): Array<CardView["kind"]> {
-  return type === "character" ? ["face", "body"] : ["body", "detail"];
+function hintFor(type: CardType): string {
+  const parts = CARD_SLOTS[type].map((s) => `${s.label}锁${s.locks}`).join("；");
+  return `每个图位各锁住一件事：${parts}。`;
 }
 
-function hintFor(type: Card["type"]): string {
-  return type === "character"
-    ? "AI 画这一段的首尾帧时会照着这些图锁人物形象。放「面部特写 + 全身」各一张就够 —— 同一个人的多角度视图反而会被模型当成好几个人，越堆越不像。"
-    : "AI 画这一段的首尾帧时会照着这些图还原它的造型与配色。不同角度、不同细节都可以放。";
+// ── 哪几张真会进出片管线 ────────────────────────────────────────
+//
+// ★★ 必须如实标出来（铁律八）。出片管线**不是每张都用**：
+//   不标的话，用户为一张"画面一个像素都不会变"的图付了钱还以为有用 —— 顶档铸卡
+//   给人物卡出的最后一张就是这个处境（data/economy.slotsFor 的注释是同一件事）。
+//
+// ★★ 判"哪几张真进模型"的**唯一实现**是 ai/real.refUsedFlags（与真正喂图的
+//   prepareMaterialRefs 同源同模块）。这一页原来照抄了一份 MAX_CHAR_REFS +
+//   REF_KIND_ORDER + refUsedFlags，而且抄漏了规则一 —— 卡组里第二张人物卡点进详情，
+//   前两张图上明晃晃贴着「出片用」，它在管线里却连一张都收不到。三份拷贝已删。
+//
+// ⚠ 详情页只有**单卡视角**（不知道这张卡将来会和谁挂在同一段里），所以调
+//   refUsedFlags(card) 不传 ctx —— 得到的是"它是这一段唯一那张卡"时的乐观结果。
+//   两处会让这个乐观结果落空：① 它不是这一段的第一张人物卡（规则一）；
+//   ② 一段最多带 MAX_REF_IMAGES 张，排在后面的整张卡都带不上（规则二）。
+//   这两件事都必须由 pipelineNoteFor 当着用户的面说出来，不能只靠生成日志事后补票。
+
+/**
+ * 图位旁边那句实情。只说"取几张、取哪几张、什么情况下一张都不取"。
+ * ★ 非人物卡那句里的图位名按**这张卡真正的第 1 张**报，不按图位表的 [0] 报：
+ *   管线取的是 viewsOf()[0]（存储顺序），老卡里排头的未必就是主视图 ——
+ *   照表念一遍在那种卡上就是指着 A 说 B。
+ * ★★ 人物卡那句里"只有第一张人物卡"是**必须写出来的那半句**（这里原来写的是
+ *   "每张人物卡最多取 2 张"，那是规则一的第二个、错的版本）：用户挂了两张人物卡、
+ *   发现配角不像，读到旧那句会判断参考图已经生效、问题出在提示词，于是反复重炼、
+ *   加图、换更贵的档位 —— 每一轮都真扣钱，而配角的参考图从头到尾一张都没进过模型。
+ */
+function pipelineNoteFor(type: CardType, views: CardView[]): string {
+  if (type !== "character") {
+    const first = views[0] ? slotLabel(type, views[0].kind) : CARD_SLOTS[type][0].label;
+    return (
+      `出片时这类卡先保证第 1 张（${first}）喂给 AI；同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，` +
+      `预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。` +
+      `预算不够时**先被丢的就是各卡的第 2 张**，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。`
+    );
+  }
+  return (
+    `出片时一段里只有「第一张人物卡」能带形象参考图：它最多取 ${MAX_CHAR_REFS} 张（优先${slotLabel(
+      "character",
+      "face",
+    )} + ${slotLabel("character", "body")}）；同一段里的其余人物卡一张都不带，只按文字设定参与` +
+    `——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按"这张卡就是那第一张人物卡"标的：` +
+    `它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。` +
+    `${slotLabel("character", "detail")}这一格铸卡不会自动出图（只能自己传），三张挂满时它也排在最后，出片轮不到它。`
+  );
 }
 
 function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
   const views = viewsOf(card);
+  // ★ 不传 ctx = 单卡视角（详情页不知道它将来和谁挂同一段）。乐观结果落空的两种情况
+  //   由 pipelineNoteFor 明说，见本节顶部那段 ⚠
+  const used = refUsedFlags(card);
   const fileRef = useRef<HTMLInputElement>(null);
   const kindRef = useRef<CardView["kind"]>("body");
   const [busy, setBusy] = useState(false);
@@ -145,8 +204,8 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
 
   return (
     <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-xs font-semibold text-slate-300">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="shrink-0 text-xs font-semibold text-slate-300">
           🖼 形象参考{gallery ? `（${views.length}/${MAX_CARD_VIEWS}）` : ""}
         </span>
         {/* ★ 离线模式**明说做不了**，而不是摆一排点了就报错的按钮：这些图必须先转存成
@@ -154,15 +213,17 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
             摆一个永远点不动的选项是本仓明令禁止的（CLAUDE.md「极致画质」那条）。 */}
         {owned && !isRemoteMode() && <span className="text-[10px] text-slate-500">离线模式下加不了参考图</span>}
         {owned && isRemoteMode() && !full && (
-          <div className="flex gap-1.5">
-            {kindsFor(card.type).map((k) => (
+          // ★ flex-wrap：图位按卡种给，人物卡有三个（全身立绘/面部特写/标志性细节），
+          //   一行排不下时要往下折，不能顶破这张卡片
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {CARD_SLOTS[card.type].map((s) => (
               <button
-                key={k}
+                key={s.kind}
                 disabled={busy}
-                onClick={() => pick(k)}
+                onClick={() => pick(s.kind)}
                 className="rounded-full bg-slate-700/70 px-2.5 py-1 text-[11px] text-slate-200 disabled:opacity-50"
               >
-                + {KIND_LABEL[k]}
+                + {s.label}
               </button>
             ))}
           </div>
@@ -178,9 +239,23 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
               onClick={() => setZoom(i)}
               className="relative h-24 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-700 bg-ink/60"
             >
-              <img src={v.url} alt={KIND_LABEL[v.kind]} className="h-full w-full object-cover" loading="lazy" />
+              <img
+                src={v.url}
+                alt={slotLabel(card.type, v.kind)}
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+              {/* ★ 贴在图上的那两个字就是"这张钱花得值不值"：出片管线只吃前几张，
+                  剩下的画得再好也进不了模型（判据在 ai/real.refUsedFlags，理由见本节顶部） */}
+              <span
+                className={`absolute inset-x-0 top-0 py-0.5 text-center text-[9px] ${
+                  used[i] ? "bg-brand/85 font-semibold text-ink" : "bg-ink/80 text-slate-400"
+                }`}
+              >
+                {used[i] ? "出片用" : "仅展示"}
+              </span>
               <span className="absolute inset-x-0 bottom-0 bg-ink/75 py-0.5 text-center text-[9px] text-slate-300">
-                {KIND_LABEL[v.kind]}
+                {slotLabel(card.type, v.kind)}
               </span>
             </button>
           ))}
@@ -188,6 +263,9 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
       )}
 
       <p className="mt-2 text-[10px] leading-relaxed text-slate-500">{hintFor(card.type)}</p>
+      {/* ★ 铁律八：出片管线只吃前几张，剩下的画了也进不了模型。不说的话，用户为一张
+          "画面一个像素都不会变"的图付了钱还以为有用 */}
+      <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{pipelineNoteFor(card.type, views)}</p>
       {owned && full && (
         <p className="mt-1 text-[10px] text-slate-500">
           已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。
@@ -220,7 +298,16 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
             onClick={() => setZoom(null)}
           >
             <img src={views[zoom].url} alt="" className="max-h-[70vh] max-w-full rounded-lg object-contain" />
-            <div className="text-xs text-slate-300">{KIND_LABEL[views[zoom].kind]}</div>
+            <div className="text-xs text-slate-300">
+              {slotLabel(card.type, views[zoom].kind)}
+              {/* ★ 放大层是 portal 到 body 的整屏浮层，图下那段说明这时看不见 —— 所以
+                  "可能让位"这半句必须在这里也说一次，否则用户读到的就是一句无条件的
+                  "会喂给 AI"（人物卡排在别人后面、或一段挂满 3 张时都不成立）。
+                  这里不重判规则（used 仍来自 ai/real.refUsedFlags），只是把口径说全 */}
+              <span className={`ml-2 text-[11px] ${used[zoom] ? "text-brand" : "text-slate-500"}`}>
+                {used[zoom] ? "· 出片时会喂给 AI（同一段挂的卡多时可能让位）" : "· 只在这一页展示，出片用不到"}
+              </span>
+            </div>
             {views[zoom].note && <div className="max-w-xs text-center text-[11px] text-amber-400">{views[zoom].note}</div>}
             {owned && (
               <button
@@ -281,7 +368,7 @@ export default function CardDetailPage() {
 
   const color = CARD_TYPE_COLORS[card.type];
   const inDecks = myDecks().filter((d) => d.cardIds.includes(card.id));
-  const blueprint = blueprintOf(card);
+  const cardInfo = cardInfoOf(card);
 
   return (
     <div className="safe-top min-h-full px-4 pb-8 pt-3">
@@ -337,13 +424,14 @@ export default function CardDetailPage() {
       {/* 形象参考图：AI 画设定帧时真的会照着它们锁形象，不是相册 */}
       <CardViewsSection card={card} owned={owned} />
 
-      {/* 生成蓝图：铸卡时的完整提示词——照着它 AI 就能复刻出与卡面一致的画面/建模 */}
+      {/* 「<类型>信息」：铸卡时的完整提示词——照着它 AI 就能复刻出与卡面一致的画面/建模。
+          ★ 标题按卡种叫（人物信息/场景信息/…），表在 types.CARD_INFO_LABELS 一处 */}
       <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
         <div className="mb-1.5 flex items-center justify-between">
-          <span className="text-xs font-semibold text-slate-300">🧬 生成蓝图</span>
+          <span className="text-xs font-semibold text-slate-300">🧬 {CARD_INFO_LABELS[card.type]}</span>
           <button
             onClick={() => {
-              void navigator.clipboard?.writeText(blueprint).then(() => {
+              void navigator.clipboard?.writeText(cardInfo).then(() => {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 1500);
               });
@@ -353,9 +441,15 @@ export default function CardDetailPage() {
             {copied ? "已复制 ✓" : "复制"}
           </button>
         </div>
-        <p className="whitespace-pre-wrap break-all text-xs leading-relaxed text-slate-400">{blueprint}</p>
+        <p className="whitespace-pre-wrap break-all text-xs leading-relaxed text-slate-400">{cardInfo}</p>
+        {/* ★ 老卡/素材卡没存 genPrompt，上面那段是 cardInfoOf 现拼的 —— 那就不能说
+            "这是铸造时使用的提示词"（铁律五：没有的事不许说成有）。照着它出的图会像，
+            但不等于当初那一张 */}
         <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-          这是铸造这张卡时使用的完整生成提示词。把它交给 AI（或在工坊中使用本卡），即可生成与卡面一致的
+          {card.genPrompt
+            ? "这是铸造这张卡时使用的完整生成提示词。"
+            : "这张卡没留下铸造时的提示词（老卡/素材卡），上面是按同款格式现补的一份。"}
+          把它交给 AI（或在工坊中使用本卡），即可生成与卡面一致的
           {card.type === "character" ? "角色画面 / 3D 建模" : "画面"}。
         </p>
       </div>

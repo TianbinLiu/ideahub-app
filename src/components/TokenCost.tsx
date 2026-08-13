@@ -8,7 +8,7 @@
 // 单次操作，以前静默触发、静默免费）。收成一个组件，这三件就只会漏一次。
 import { Link } from "react-router";
 import { AI_REAL } from "../ai";
-import { canAfford, walletOf } from "../data/account";
+import { billingExempt, canAfford, walletOf } from "../data/account";
 import { fmtTokens } from "../data/economy";
 
 export default function TokenCost({
@@ -28,6 +28,19 @@ export default function TokenCost({
   if (!AI_REAL) {
     return (
       <p className={`text-[11px] text-amber-300/80 ${className}`}>○ 演示模式：本地模拟，不消耗 token</p>
+    );
+  }
+  // ★★ 管理员免扣费**必须说出来**。服务端对 admin 放行（wallet.debit 不扣），
+  //   前端的 canAfford 也跟着放行（否则就是反向假特权：权限最大的人反被自己这边
+  //   拦住，还看到一句与事实相反的"余额不足"）。但只放行不说明是另一半错误 ——
+  //   管理员会把"这一步免费"当成产品事实，然后按这个印象去定价、去回答用户（铁律八）。
+  //   所以这一档单独出一行：花的是特权额度，不是不花钱。
+  if (billingExempt()) {
+    return (
+      <p className={`text-[11px] text-brand ${className}`}>
+        管理员免扣费：这一步{upper ? "最多" : "约"}值 {fmtTokens(tokens)} token，不从你的钱包里扣
+        {note ? ` · ${note}` : ""}
+      </p>
     );
   }
   const w = walletOf();
