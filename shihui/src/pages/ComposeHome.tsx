@@ -30,7 +30,8 @@ export function ComposeHome() {
           今日免费画面 {left} 段 · ✨{points}
         </span>
       </header>
-      <p className="px-5 pb-4 text-sm text-mist">每写好一句，就为这一句画一段画面。</p>
+      {/* 预期管理（评审确认）：门不该在孩子最兴奋的发布瞬间才第一次出现 */}
+      <p className="px-5 pb-4 text-sm text-mist">每写好一句，就为这一句画一段画面。写完发布时需要家长确认哦。</p>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-5 pb-20">
         {MODES.map((m) => (
