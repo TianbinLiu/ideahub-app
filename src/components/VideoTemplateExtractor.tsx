@@ -9,7 +9,7 @@
 import { useRef, useState } from "react";
 import { AI_REAL, extractTemplateFromVideo } from "../ai";
 import { canAfford, spendTokens, walletOf } from "../data/account";
-import { IMAGE_TOKENS, VISION_FRAME_TOKENS, fmtTokens } from "../data/economy";
+import { TEMPLATE_MAX_CARDS, fmtTokens, templateCost, templateSettle } from "../data/economy";
 import { saveTemplate } from "../data/templates";
 import { VideoAspect, VideoTemplate, aspectFromSize } from "../types";
 import Icon from "./Icon";
@@ -26,14 +26,10 @@ function aspectOfFrame(dataUrl: string): Promise<VideoAspect> {
   });
 }
 
-/** 模板素材卡上限：与 real.ts 的提示词（0~6 张）保持一致 */
-const MAX_CARDS = 6;
+// 上限与报价式子都在 economy 里（TEMPLATE_MAX_CARDS / templateCost）：
+// 这儿曾经自带一个 `MAX_CARDS = 6`，而 real.ts 的 mintCards 切的是 8 ——
+// 模型多认出两张，那两张卡面就是白收的钱。别再把这个数抄回来。
 const FRAME_CHOICES = [4, 6, 8];
-
-/** 看帧要两遍（配方 + 素材），所以视觉部分按 2× 计 */
-function templateCost(frameCount: number): number {
-  return frameCount * VISION_FRAME_TOKENS * 2 + MAX_CARDS * IMAGE_TOKENS;
-}
 
 export default function VideoTemplateExtractor({
   onClose,
@@ -51,7 +47,7 @@ export default function VideoTemplateExtractor({
   const [got, setGot] = useState<VideoTemplate | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const estimate = templateCost(frameN);
+  const estimate = templateCost(frameN, TEMPLATE_MAX_CARDS);
   const wallet = walletOf();
 
   async function pick(f: File) {
@@ -80,8 +76,8 @@ export default function VideoTemplateExtractor({
     try {
       setBusy("分析中…");
       const r = await extractTemplateFromVideo(frames, note, (st) => setBusy(st));
-      // 实际结算：看帧固定，卡面按真出的张数收
-      if (AI_REAL) spendTokens(frames.length * VISION_FRAME_TOKENS * 2 + r.cards.length * IMAGE_TOKENS);
+      // 实际结算：看帧固定，卡面按真出的张数收（与上面 templateCost 同一条式子）
+      if (AI_REAL) spendTokens(templateSettle(frames.length, r.cards.length));
       const tpl = saveTemplate({
         title: r.title,
         intro: r.intro,

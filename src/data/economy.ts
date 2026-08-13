@@ -432,13 +432,65 @@ export function forgeSettle(mintedPerCard: number[], tierId?: string): number | 
   return mintedPerCard.reduce((sum, n) => sum + CARD_META_TOKENS + n * per, 0);
 }
 
+// ── 一次铸卡最多出几张 ────────────────────────────────────────
+//
+// ★★ 这个上限**同时**决定三件事，而三者必须永远相等：
+//   ① 报价：本文件的 extractCost / templateCost / deckCardsCost 按它算"最多花多少"；
+//   ② 模型实际会返回几张：交给豆包的提示词里那句「输出 JSON 数组（0~N 张）」——
+//      模型看到的是这个数，它决定实际出几张；
+//   ③ 客户端实际会铸几张：ai/real.ts 的 mintCards 切掉多余的那一刀。
+//   一旦分叉就是 CLAUDE.md 里「页面报 ¥25、实际扣 ¥15」那条事故：报小了用户被多扣，
+//   报大了是吓唬人，而**两种都不报错、界面上什么症状都没有**。
+//
+// ★★ 2026-08-13 之前这个 8 在仓里有四份（本文件一份、mintCards 的 slice 一份、
+//   两句提示词各一份），组件里还另有一份 MAX_CARDS。模板那条路当时**已经是错的**：
+//   提示词写 0~6、mintCards 却切 8、界面按 6 报价 —— 模型多认出两张，
+//   那两张卡面的钱就是白收的。所以这里不是"以后可能会分叉"，是已经分叉过了。
+//
+// ★ 因此上限是**带牌子的类型**（CardMintCap），不是裸 number：报价函数与 mintCards
+//   都只收它，`extractCost(n, 8)` / `mintSpec(12, …)` 这类手写数字**编译不过**。
+//   要改上限只能改下面这两个常量 —— 提示词由 mintSpec 从同一个值插值出来，
+//   slice 用的也是同一个值，改一处三处一起动，漏不掉。
+declare const CARD_MINT_CAP: unique symbol;
+export type CardMintCap = number & { readonly [CARD_MINT_CAP]: true };
+
+/** 成片派生卡组 / 上传视频提卡：一次最多出几张。 */
+export const DECK_MAX_CARDS = 8 as CardMintCap;
+
+/** 上传视频提**模板**时顺带出的素材卡上限。比提卡少是有原因的：模板不出 character 卡
+ *  （主角由套模板的人自己指定），能复用的只剩场景/氛围/道具/画风四类。 */
+export const TEMPLATE_MAX_CARDS = 6 as CardMintCap;
+
+/** 看帧 + 铸卡面 —— 报价与结算共用这一条式子，两边分开写就会各自漂。 */
+function visionCardsTokens(frameCount: number, cards: number, visionPasses = 1): number {
+  return frameCount * VISION_FRAME_TOKENS * visionPasses + cards * IMAGE_TOKENS;
+}
+
 /**
- * 上传视频提炼卡组的预估：看 N 帧 + 最多铸 M 张卡面。
+ * 上传视频提炼卡组的预估：看 N 帧 + 最多铸 cap 张卡面。
  * 张数是上限而非确数（模型认出几个实体就出几张，重复的还会被剔掉），
- * 所以 UI 必须说"最多"，并按实际出卡张数结算。
+ * 所以 UI 必须说"最多"，并用 extractSettle 按实际出卡张数结算。
+ * ★ 第二个参数只收 CardMintCap：这里能手写数字的话，就又有了一处会和提示词分叉的 8。
  */
-export function extractCost(frameCount: number, maxCards: number): number {
-  return frameCount * VISION_FRAME_TOKENS + maxCards * IMAGE_TOKENS;
+export function extractCost(frameCount: number, cap: CardMintCap): number {
+  return visionCardsTokens(frameCount, cap);
+}
+
+/** 视频提卡的**实际结算**：看帧照收（已经看过了），卡面按真出了几张收。 */
+export function extractSettle(frameCount: number, minted: number): number {
+  return visionCardsTokens(frameCount, minted);
+}
+
+/** 视频提**模板**的预估。看帧要两遍（总结配方 + 认素材卡），所以视觉部分 2×。
+ *  ★ 这式子原来长在 VideoTemplateExtractor 里，那里同时还自带一个 `MAX_CARDS = 6`——
+ *    正是上面说的那处分叉。搬到这里是为了让它和 mintCards 读同一个 cap。 */
+export function templateCost(frameCount: number, cap: CardMintCap): number {
+  return visionCardsTokens(frameCount, cap, 2);
+}
+
+/** 视频提模板的实际结算：同样按真出了几张卡面收。 */
+export function templateSettle(frameCount: number, minted: number): number {
+  return visionCardsTokens(frameCount, minted, 2);
 }
 
 /**
@@ -508,16 +560,6 @@ export function proposalRedrawCost(keepFirst: boolean, keepLast: boolean): numbe
 //   所以下面这几个常量/函数的存在意义是：**让 UI 有东西可报**（FlowPage 顶栏与
 //   「完成视频」旁那句话），而结算侧（studioStore.finalizeFromFlow）读同一份。
 
-/**
- * 一次派生最多出几张卡。
- *
- * ⚠ 这个 8 在仓里**还有两处**，都在 `ai/real.ts`（不归本轮改）：`mintCards` 的
- *   `defs.slice(0, 8)`，以及提示词里那句「输出 JSON 数组（0~8 张）」。三处必须相等 ——
- *   这里报小了就是少报价（用户被多扣），报大了则是吓唬人。改那两处的人请回来改这里。
- *   （没有在这一轮把它们收成一处：那要动 ai 层的签名，与本轮的改动范围无关。）
- */
-export const DECK_MAX_CARDS = 8;
-
 /** 派生卡组时最多顺带铸几个 3D 建模（只给派生出来的角色卡铸）。
  *  studioStore.finalizeFromFlow 传给 deriveCharacterModels 的上限读的就是它。 */
 export const DECK_MAX_3D = 2;
@@ -539,10 +581,21 @@ export function styleWants3d(text: string): boolean {
   return STYLE_3D_RE.test(String(text || ""));
 }
 
+/** 一张派生卡的单价：一次豆包文案 + 一次 Seedream 卡面。报价与结算共用。 */
+const DECK_CARD_TOKENS = CARD_META_TOKENS + IMAGE_TOKENS;
+
 /** 成片派生卡组：最多 DECK_MAX_CARDS 张，每张一次文案 + 一次卡面。
- *  与 extractCost 一样给的是**上限**——重复实体会被剔掉，按实际出卡结算。 */
-export function deckCardsCost(maxCards = DECK_MAX_CARDS): number {
-  return maxCards * (CARD_META_TOKENS + IMAGE_TOKENS);
+ *  与 extractCost 一样给的是**上限**——重复实体会被剔掉，按 deckCardsSettle 结算。 */
+export function deckCardsCost(cap: CardMintCap = DECK_MAX_CARDS): number {
+  return cap * DECK_CARD_TOKENS;
+}
+
+/** 派生卡组的**实际结算**：按真出了几张收。
+ *  ★ 与 deckCardsCost 分成两个函数（同 forgeCost / forgeSettle）是因为参数类型不同：
+ *    报价只能拿上限常量，结算拿的是运行期数出来的张数。合成一个的话，那个
+ *    `CardMintCap` 牌子就得摘掉，"界面按 8 报价、实际切 12 张"又能编过了。 */
+export function deckCardsSettle(minted: number): number {
+  return minted * DECK_CARD_TOKENS;
 }
 
 /** 派生角色卡顺带铸 3D 建模的上限报价。★ 与实际结算（按 minted 张数）同一个单价。 */

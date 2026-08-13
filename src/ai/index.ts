@@ -1,6 +1,7 @@
 // AI 管线统一出口：.env.local 配了 ARK_API_KEY（真实 AI）走火山方舟，
 // 否则走 mock——store/UI 只 import 这里，实现可整体切换。
 import { AI_REAL } from "./arkClient";
+import { DECK_MAX_CARDS } from "../data/economy";
 import * as mock from "../mock/ai";
 import { makeFrame } from "../mock/frames";
 import * as real from "./real";
@@ -27,7 +28,10 @@ export const deriveDeckCards: typeof real.deriveDeckCards = AI_REAL
   ? real.deriveDeckCards
   : async (segments, _styleHint, existing = []) => {
       const have = new Set(existing.map((c) => c.name));
+      // ★ 演示模式也照上限切：这里不花钱（spendTokens 被 AI_REAL 挡着），但界面那句
+      //   "最多 N 张"两种模式共用一份文案，出到第 9 张就成了当场打脸。
       return segments
+        .slice(0, DECK_MAX_CARDS)
         .map((sg, i) => ({
           id: `card_drv_${Date.now().toString(36)}_${i}`,
           type: "scene" as const,

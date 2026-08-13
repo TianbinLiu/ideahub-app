@@ -8,14 +8,14 @@
 import { useRef, useState } from "react";
 import { AI_REAL, extractCardsFromVideo } from "../ai";
 import { addCards, canAfford, myCards, spendTokens, walletOf } from "../data/account";
-import { IMAGE_TOKENS, VISION_FRAME_TOKENS, extractCost, fmtTokens } from "../data/economy";
+import { DECK_MAX_CARDS, IMAGE_TOKENS, VISION_FRAME_TOKENS, extractCost, extractSettle, fmtTokens } from "../data/economy";
 import { Card, CARD_TYPE_LABELS } from "../types";
 import Icon from "./Icon";
 import { sampleFrames } from "./videoFrames";
 import TarotCard from "./TarotCard";
 
-/** 提炼上限：与 real.ts 的 defs.slice(0, 8) 保持一致 */
-const MAX_CARDS = 8;
+// 上限不在这儿定义：报价、提示词里给模型的数、mintCards 真正切的那一刀，
+// 三者必须是同一个值，唯一出处是 economy.DECK_MAX_CARDS（那里有为什么）。
 const FRAME_CHOICES = [4, 6, 8];
 export default function VideoCardExtractor({ onClose }: { onClose: () => void }) {
   const [file, setFile] = useState<File | null>(null);
@@ -27,7 +27,7 @@ export default function VideoCardExtractor({ onClose }: { onClose: () => void })
   const [got, setGot] = useState<Card[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const estimate = extractCost(frameN, MAX_CARDS);
+  const estimate = extractCost(frameN, DECK_MAX_CARDS);
   const wallet = walletOf();
 
   async function pick(f: File) {
@@ -66,11 +66,12 @@ export default function VideoCardExtractor({ onClose }: { onClose: () => void })
       );
       if (cards.length === 0) {
         setErr("这段视频里的实体你都已经有卡了——没有新卡可提（本次只收看帧的钱）");
-        if (AI_REAL) spendTokens(frames.length * VISION_FRAME_TOKENS);
+        if (AI_REAL) spendTokens(extractSettle(frames.length, 0));
         return;
       }
       // 按实际出卡张数结算：预估给的是上限，认出几个就收几个
-      if (AI_REAL) spendTokens(frames.length * VISION_FRAME_TOKENS + cards.length * IMAGE_TOKENS);
+      // ★ 与上面 extractCost 同一条式子（economy 里的 visionCardsTokens），只是张数不同
+      if (AI_REAL) spendTokens(extractSettle(frames.length, cards.length));
       addCards(cards);
       setGot(cards);
     } catch (e) {
@@ -177,8 +178,8 @@ export default function VideoCardExtractor({ onClose }: { onClose: () => void })
 
             <div className="mb-2 rounded-xl bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
               预计最多消耗 <b className="text-slate-200">{fmtTokens(estimate)}</b> token
-              （看 {frameN} 帧 {fmtTokens(frameN * VISION_FRAME_TOKENS)} + 最多 {MAX_CARDS} 张卡面{" "}
-              {fmtTokens(MAX_CARDS * IMAGE_TOKENS)}）。
+              （看 {frameN} 帧 {fmtTokens(frameN * VISION_FRAME_TOKENS)} + 最多 {DECK_MAX_CARDS} 张卡面{" "}
+              {fmtTokens(IMAGE_TOKENS * DECK_MAX_CARDS)}）。
               <br />
               实际按认出的张数结算；与你已有的卡重复的实体不会重复出卡。
               {AI_REAL && wallet && ` 当前余额 ${fmtTokens(wallet.plan + wallet.addon)}。`}
