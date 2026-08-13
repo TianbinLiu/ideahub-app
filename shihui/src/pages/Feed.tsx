@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react"
 import { InkPlaceholder } from "../components/InkPlaceholder"
+import { VerseOverlay } from "../components/VerseOverlay"
+import { useVideoUrl } from "../data/blobStore"
 import { useShihui } from "../data/store"
-import { MY_AUTHOR_ID, type PoemWork } from "../types"
+import { MY_AUTHOR_ID, realClip, type PoemWork } from "../types"
 
 // 广场：排行榜（有分才有名次）+ 最新。播放 = 逐句水墨画面 + 作者朗诵音频。
 // mock 段没有真实时长，先按固定 3.2s/句 翻页；接真视频后改成 video ended 事件驱动，
@@ -110,22 +112,54 @@ export function Feed() {
 
 function Player({ work, onClose }: { work: PoemWork; onClose: () => void }) {
   const [idx, setIdx] = useState(0)
+  /** 本次播放里已判定"播不了"的句子（解码失败/blob 解析超时），退占位走定时翻页 */
+  const [broken, setBroken] = useState<Record<number, boolean>>({})
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const line = work.lines[idx]
   const last = idx === work.lines.length - 1
+  const isReal = realClip(line.clip) && !broken[idx]
+  // 真片（idb: 指针）异步解析成 ObjectURL；mock/坏段传 undefined 直接走占位
+  const src = useVideoUrl(isReal ? line.clip.videoUrl : undefined)
 
-  // mock 段固定时长自动翻句；点一下也能翻。真视频接入后由 ended 事件驱动
+  // 三层兜底，保证播放器在任何坏状态下都不会卡死在一句上（评审确认过三种卡法）：
+  // ① mock/坏段：固定时长翻页；
+  // ② 真片 blob 解析超 6s（库被清了/IndexedDB 抽风）：标坏退占位；
+  // ③ 真片在播但 ended 迟迟不来（autoplay 被拒、解码停摆）：12s 看门狗强制翻页
   useEffect(() => {
-    if (last) return
-    const t = setTimeout(() => setIdx(idx + 1), MOCK_CLIP_SEC * 1000)
+    let t: ReturnType<typeof setTimeout>
+    if (!isReal) {
+      if (last) return
+      t = setTimeout(() => setIdx(idx + 1), MOCK_CLIP_SEC * 1000)
+    } else if (!src) {
+      t = setTimeout(() => setBroken((b) => ({ ...b, [idx]: true })), 6000)
+    } else {
+      if (last) return
+      t = setTimeout(() => setIdx(idx + 1), 12_000)
+    }
     return () => clearTimeout(t)
-  }, [idx, last])
+  }, [idx, last, isReal, src])
 
   return (
     <div className="absolute inset-0 z-50 bg-paper">
       <button onClick={() => setIdx(last ? idx : idx + 1)} className="absolute inset-0 h-full w-full">
         <div key={idx} className="ink-appear h-full w-full">
-          <InkPlaceholder text={line.text} className="h-full w-full" />
+          {src ? (
+            <div className="relative h-full w-full overflow-hidden bg-paper">
+              {/* muted：段本身无声（generate_audio:false），朗诵走独立 <audio>；静音同时保住 autoplay */}
+              <video
+                src={src}
+                autoPlay
+                muted
+                playsInline
+                onEnded={() => !last && setIdx(idx + 1)}
+                onError={() => setBroken((b) => ({ ...b, [idx]: true }))}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+              <VerseOverlay text={line.text} />
+            </div>
+          ) : (
+            <InkPlaceholder text={line.text} className="h-full w-full" />
+          )}
         </div>
       </button>
       <header className="pointer-events-none absolute left-0 right-0 top-0 flex items-center gap-3 px-4 pt-5">

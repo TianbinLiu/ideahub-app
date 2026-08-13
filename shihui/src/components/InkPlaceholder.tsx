@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react"
 import { guessKeywords, hashStr, seededRand } from "../utils/keywords"
+import { VerseOverlay } from "./VerseOverlay"
 
 // 水墨占位画面：mock 构建下"演示视频"的替身。
 // 按句子的画面关键词组装水墨元素（月/山/水/鸟/鹅/花/雨…），同一句永远长一样（种子伪随机），
@@ -159,6 +160,17 @@ export function InkPlaceholder({ text, keywords, gloss, animate = true, classNam
       </g>,
     )
   }
+  if (kw.has("舟")) {
+    const x = 150 + rand() * 90
+    el.push(
+      <g key="boat" style={anim("ink-drift", 16)} opacity={0.85}>
+        <path d={`M${x - 42},540 q42,18 84,0 l-10,12 q-32,10 -64,0 Z`} fill="#2b2b28" />
+        <path d={`M${x + 8},540 q2,-16 -4,-26`} fill="none" stroke="#2b2b28" strokeWidth={2.5} strokeLinecap="round" />
+        <circle cx={x - 12} cy={528} r={7} fill="#4a473d" />
+        <path d={`M${x - 22},536 q10,-14 20,0`} fill="#4a473d" />
+      </g>,
+    )
+  }
   if (kw.has("鱼")) {
     el.push(
       <g key="fish" opacity={0.6} style={anim("ink-drift", 8)}>
@@ -205,6 +217,35 @@ export function InkPlaceholder({ text, keywords, gloss, animate = true, classNam
       )
     }
     el.push(<g key="rain">{drops}</g>)
+  }
+  if (kw.has("雪")) {
+    const flakes: ReactNode[] = []
+    for (let i = 0; i < 14; i++) {
+      flakes.push(
+        <circle
+          key={i}
+          cx={10 + rand() * 340}
+          cy={rand() * 160}
+          r={2 + rand() * 2}
+          fill="#ffffff"
+          stroke="#8a877d"
+          strokeWidth={0.4}
+          opacity={0.85}
+          style={anim("ink-rain", 6 + rand() * 5, rand() * 6)}
+        />,
+      )
+    }
+    el.push(<g key="snow">{flakes}</g>)
+  }
+  if (kw.has("灯")) {
+    const x = 80 + rand() * 60
+    el.push(
+      <g key="lantern" style={anim("ink-sway", 7)}>
+        <line x1={x} y1={70} x2={x} y2={110} stroke="#2b2b28" strokeWidth={1.5} />
+        <ellipse cx={x} cy={128} rx={16} ry={19} fill="#d8a05a" opacity={0.85} stroke="#b3432b" strokeWidth={1.5} />
+        <ellipse cx={x} cy={128} rx={26} ry={29} fill="#d8a05a" opacity={0.25} filter="url(#soft)" />
+      </g>,
+    )
   }
   if (kw.has("花") || kw.has("落")) {
     const petals: ReactNode[] = []
@@ -266,20 +307,7 @@ export function InkPlaceholder({ text, keywords, gloss, animate = true, classNam
         {night && <rect x={0} y={0} width={360} height={640} fill="#1d2030" opacity={0.16} />}
         <rect x={0} y={0} width={360} height={640} fill="#f7f3ea" opacity={0.5} filter="url(#paper-grain)" style={{ mixBlendMode: "multiply" }} />
       </svg>
-      {/* 竖排诗句 + 朱印 */}
-      <div className="absolute right-5 top-6 flex flex-col items-center gap-3">
-        <div className="v-text font-kai text-3xl text-ink drop-shadow-sm" style={{ maxHeight: "70%" }}>
-          {text}
-        </div>
-        <div className="flex h-7 w-7 items-center justify-center rounded-sm bg-cinnabar font-kai text-sm text-paper opacity-90">
-          诗
-        </div>
-      </div>
-      {gloss && (
-        <div className="absolute bottom-4 left-4 right-16 rounded-lg bg-paper/80 px-3 py-2 text-sm text-mist backdrop-blur-[2px]">
-          {gloss}
-        </div>
-      )}
+      <VerseOverlay text={text} gloss={gloss} />
     </div>
   )
 }

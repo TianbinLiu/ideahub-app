@@ -30,3 +30,6 @@ android/keystore/
 
 # 音色试听样带：听完就删，不入仓
 design/tts-samples/
+
+# shihui 的 forge 预生成产物（mp4/关键帧/manifest）：内容包走 CDN 分发，不进 git
+shihui/public/clips/
