@@ -81,6 +81,34 @@ async function materializedViews(card: Card): Promise<CardView[]> {
   return [{ kind: primarySlotOf(card.type), url }];
 }
 
+/** 一张**准备好挂到卡上**的本地图。note 非空 = 我们动过用户的原图，必须说出来 */
+export interface PreparedCardImage {
+  blob: Blob;
+  /** 例如"原图长宽比超过 3:1，已居中裁切"。没有就没有 */
+  note?: string;
+}
+
+/**
+ * 本地图 →「可以挂到卡上的那一张」：比例裁 + 上限校验 + 一句要说给用户听的话。
+ *
+ * ★ 抽出来是因为它现在有**两个**调用方，而它们对同一件事必须给同一个答案（铁律六）：
+ *     ① 详情页「+ 图位」（下面的 addCardView，拿 blob 去 uploads 转存）；
+ *     ② 创意工坊「自己传图做卡片」（pages/CustomCardPage，把 dataURL 直接挂在新卡上，
+ *        转存交给 data/account.addCards 那一层做）。
+ *   抄一份的后果不报错：某天有人只把一边的上限从 5MB 改到 10MB，另一条路就继续把
+ *   必然 413 的图发出去；或者只有一边会说"我裁了你的图"，另一边默默改了人家的画面。
+ * ★ 出参给 Blob 不给 dataURL：上传那条路要的就是 Blob，多编一次 base64 是白费的 CPU。
+ *   要 dataURL 的那条路自己编一下——那只是编码，不是规则。
+ */
+export async function prepareCardImage(file: File): Promise<PreparedCardImage> {
+  const { blob, cropped } = await fileToRefImage(file);
+  if (blob.size > MAX_IMAGE_BYTES) throw new Error("这张图太大了（上限 5MB）");
+  return {
+    blob,
+    ...(cropped ? { note: "原图长宽比超过 3:1，已居中裁切——Seedream 不收超出这个比例的参考图" } : {}),
+  };
+}
+
 /** 远端模式才能加图：本地没有服务器可以把图转存成永久地址，而 views 不收 dataURL */
 function assertUploadable(): void {
   if (!isRemoteMode()) {
@@ -100,10 +128,9 @@ export async function addCardView(cardId: string, file: File, kind: CardView["ki
   if (current.length >= MAX_CARD_VIEWS) {
     throw new Error(`最多 ${MAX_CARD_VIEWS} 张：方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征`);
   }
-  const { blob, cropped } = await fileToRefImage(file);
-  if (blob.size > MAX_IMAGE_BYTES) throw new Error("这张图太大了（上限 5MB）");
+  // 裁切规则与提示语见 prepareCardImage（与工坊「自己传图做卡片」共用同一份）
+  const { blob, note } = await prepareCardImage(file);
   const url = await uploadImage(blob, `card-view-${cardId}.jpg`);
-  const note = cropped ? "原图长宽比超过 3:1，已居中裁切——Seedream 不收超出这个比例的参考图" : undefined;
   const views = [...(await materializedViews(card)), { url, kind, ...(note ? { note } : {}) }].slice(
     0,
     MAX_CARD_VIEWS,
