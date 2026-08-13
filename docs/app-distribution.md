@@ -1,7 +1,8 @@
 # 发包与应用内更新
 
-App 目前是**侧载分发**：自己出 APK，发给别人装。这份文档说清两件事 ——
-怎么发一版，以及别人装了之后怎么收到后续更新。
+App 目前是**侧载分发**：自己出 APK，发给别人装 —— 现在「发给别人装」有了固定的
+去处：官网下载页 <https://ideahubs.org/download>（见下面「官网下载页」一节）。
+这份文档说清两件事 —— 怎么发一版，以及别人装了之后怎么收到后续更新。
 
 上架 Google Play 是另一条路，见 [`play-store-checklist.md`](play-store-checklist.md)。
 
@@ -85,12 +86,31 @@ WebView 的 origin 是 `https://localhost`，在 Web 层 `fetch` GitHub 上的�
 
 ---
 
+## 官网下载页
+
+<https://ideahubs.org/download>（`ideahub-client` 的 `src/pages/DownloadPage.tsx`）。
+**发一版之后这一页不用动**：版本号、大小、更新说明、sha256 全部现取自清单。
+
+| 页面上的东西 | 从哪来 |
+|---|---|
+| 版本 / 大小 / 更新说明 / sha256 | `GET /api/app/latest.json`（就是上面那份清单） |
+| 下载按钮、桌面端二维码 | `GET /api/app/download` → 302 到当前版本的 APK |
+
+★ 按钮**故意不用清单里的 `apkUrl`**：那个地址带版本号
+（`…/v1.7/qimeng-1.7.apk`），一旦被复制进聊天记录、印上海报或二维码就收不回来了，
+下次发版所有照着它下的人拿到的还是旧包。`/api/app/download` 是不带版本号的固定地址。
+
+★ 因此 `APP_APK_BASE` 这个换源开关现在有**两个**下游（App 的自更新 + 官网下载页），
+换 CDN 时两边一起生效，仍然只改一个环境变量。
+
 ## 更新源现在长什么样
 
 ```
-App（构建期常量 VITE_UPDATE_MANIFEST）
-  └→ https://api.ideahubs.org/api/app/latest.json      ← 自己的服务器，国内秒回
-       └→ 转一手 + 缓存 60 秒
+App（构建期常量 VITE_UPDATE_MANIFEST）        官网下载页 /download
+  └───────────────┬────────────────────────────┬──┘
+                  ↓                            ↓
+   https://api.ideahubs.org/api/app/latest.json   /api/app/download  ← 自己的服务器，国内秒回
+       └→ 转一手 + 缓存 60 秒（两个端点共用同一份缓存）
             └→ https://github.com/…/releases/latest/download/latest.json   ← 权威那份
                  apkUrl → GitHub Release 上的 95MB APK
 ```
