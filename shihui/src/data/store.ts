@@ -2,6 +2,7 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import type { Difficulty, LineClip, PoemWork, WorkScore } from "../types"
 import { clipReady, MY_AUTHOR_ID } from "../types"
+import { deleteBlob } from "./blobStore"
 import { CLIP_COST_POINTS, DAILY_FREE_CLIPS, INITIAL_POINTS, TASK_REWARDS } from "./economy"
 import { SAMPLE_WORKS } from "./sampleWorks"
 
@@ -31,6 +32,7 @@ interface ShihuiState {
   setLearnLine: (poemId: string, lineIdx: number) => void
   completeLearn: (poemId: string) => number
   spendGeneration: () => { ok: boolean; reason?: string }
+  refundGeneration: () => void
   startWork: (difficulty: Difficulty, theme?: string) => string
   appendLine: (workId: string, text: string) => void
   setLineClip: (workId: string, lineIdx: number, clip: LineClip) => void
@@ -104,6 +106,15 @@ export const useShihui = create<ShihuiState>()(
         return { ok: false, reason: "今日免费画面用完了，积分也不够。做个小任务赚积分，或明天再来～" }
       },
 
+      // 生成失败的退款：先退当日配额、没有再退积分。只挂在失败路径上——
+      // 失败不是用户能刻意制造获利的事，退了才不会出现"敏感词必败也照扣、重试再扣"
+      refundGeneration: () =>
+        set((s) =>
+          usedToday(s) > 0
+            ? { quotaDate: todayStr(), quotaUsed: usedToday(s) - 1 }
+            : { points: s.points + CLIP_COST_POINTS },
+        ),
+
       startWork: (difficulty, theme) => {
         const id = crypto.randomUUID()
         const work: PoemWork = {
@@ -152,7 +163,16 @@ export const useShihui = create<ShihuiState>()(
         return gained
       },
 
-      deleteWork: (workId) => set((s) => ({ works: s.works.filter((w) => w.id !== workId) })),
+      deleteWork: (workId) =>
+        set((s) => {
+          // 真片 blob 一并清（fire-and-forget）：不清的话删一首留 8-16MB 孤儿在 IndexedDB
+          s.works
+            .find((w) => w.id === workId)
+            ?.lines.forEach((l) => {
+              if (l.clip.videoUrl.startsWith("idb:")) void deleteBlob(l.clip.videoUrl.slice(4)).catch(() => {})
+            })
+          return { works: s.works.filter((w) => w.id !== workId) }
+        }),
 
       toggleLike: (workId) =>
         set((s) => {
@@ -174,13 +194,30 @@ export const useShihui = create<ShihuiState>()(
     {
       name: "shihui-v1",
       version: 1,
-      // 朗诵音频是本次会话的 blob: ObjectURL，刷新后必然失效——重水化时清掉，
-      // 免得播放器拿着死链接静默失败（真实现落 IndexedDB 后删掉这段清洗）
+      // ★ 落盘时剥掉 tailFrame：那是 100-300KB 级的 dataURL，随 works 全量写 localStorage
+      //   两三首真作品就爆 ~5MB 配额，之后**所有** action 的持久化静默失败、刷新丢数据
+      //   （评审确认的 high）。代价是刷新后缩略图退占位、跨刷新续写少一张承接参考图——
+      //   与「尾帧捕获失败」既有降级同一档。
+      partialize: (s) => ({
+        ...s,
+        works: s.works.map((w) => ({
+          ...w,
+          lines: w.lines.map((l) => (l.clip.tailFrame ? { ...l, clip: { ...l.clip, tailFrame: undefined } } : l)),
+        })),
+      }),
+      // 重水化清洗两件事：
+      // ① 朗诵音频是会话级 blob: ObjectURL，刷新必失效；
+      // ② 刷新打断的真生成会把句子永远钉在 generating（没有任何代码会再推进它）——
+      //   翻成 failed，让「重画」按钮出现（评审确认的 high）
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ShihuiState>
-        const works = (p.works ?? current.works).map((w) =>
-          w.recitationUrl?.startsWith("blob:") ? { ...w, recitationUrl: undefined } : w,
-        )
+        const works = (p.works ?? current.works).map((w) => ({
+          ...w,
+          recitationUrl: w.recitationUrl?.startsWith("blob:") ? undefined : w.recitationUrl,
+          lines: w.lines.map((l) =>
+            l.clip.status === "generating" ? { ...l, clip: { status: "failed" as const, videoUrl: "" } } : l,
+          ),
+        }))
         return { ...current, ...p, works }
       },
     },

@@ -5,6 +5,7 @@ import { InkPlaceholder } from "../components/InkPlaceholder"
 import { bankOf } from "../data/poems"
 import { canAddLine, useShihui } from "../data/store"
 import { nav } from "../router"
+import { realClip } from "../types"
 
 // 创作会话：写一句 → 生成这一句的画面 → 才能写下一句（承接门禁在 store.canAddLine，唯一实现）。
 // 三个小阶段：write（逐句写）→ finish（起名 + 朗诵录音）→ result（打分 + 发布）。
@@ -16,6 +17,7 @@ const MAX_CHARS = 9
 export function ComposeSession({ workId }: { workId: string }) {
   const work = useShihui((s) => s.works.find((w) => w.id === workId))
   const spendGeneration = useShihui((s) => s.spendGeneration)
+  const refundGeneration = useShihui((s) => s.refundGeneration)
   const appendLine = useShihui((s) => s.appendLine)
   const setLineClip = useShihui((s) => s.setLineClip)
   const finishWork = useShihui((s) => s.finishWork)
@@ -24,6 +26,8 @@ export function ComposeSession({ workId }: { workId: string }) {
   const [stage, setStage] = useState<Stage>("write")
   const [draft, setDraft] = useState("")
   const [err, setErr] = useState<string | null>(null)
+  /** 每句的生成进度文案（真生成一句要 60-90s，必须让孩子知道炉子没熄） */
+  const [progress, setProgress] = useState<Record<number, string>>({})
   const [title, setTitle] = useState("")
   const [recState, setRecState] = useState<"idle" | "recording" | "done">("idle")
   const [recUrl, setRecUrl] = useState<string | null>(null)
@@ -60,12 +64,15 @@ export function ComposeSession({ workId }: { workId: string }) {
     appendLine(work.id, text)
     setDraft("")
     const prevTail = work.lines[lineIdx - 1]?.clip.tailFrame
-    genLineClip(text, prevTail)
+    genLineClip(text, prevTail, (msg) => setProgress((p) => ({ ...p, [lineIdx]: msg })))
       .then((clip) => setLineClip(work.id, lineIdx, clip))
-      .catch(() => {
-        // 失败要响且局部：这一句标失败给重试按钮，不整页崩
+      .catch((e: unknown) => {
+        // 失败要响且局部：这一句标失败给重试按钮，不整页崩。
+        // real.ts 的翻译层保证 e.message 已是童向文案，这里原样展示，别再包一层；
+        // 失败退费（敏感词必败也照扣、重试再扣，是评审确认的双重收费）
+        refundGeneration()
         setLineClip(work.id, lineIdx, { status: "failed", videoUrl: "" })
-        setErr("这一句的画面没画出来，点那一句上的「重画」再试")
+        setErr(e instanceof Error ? e.message : "这一句的画面没画出来，点那一句上的「重画」再试")
       })
   }
 
@@ -77,9 +84,15 @@ export function ComposeSession({ workId }: { workId: string }) {
     }
     setErr(null)
     setLineClip(work.id, lineIdx, { status: "generating", videoUrl: "" })
-    genLineClip(work.lines[lineIdx].text, work.lines[lineIdx - 1]?.clip.tailFrame)
+    genLineClip(work.lines[lineIdx].text, work.lines[lineIdx - 1]?.clip.tailFrame, (msg) =>
+      setProgress((p) => ({ ...p, [lineIdx]: msg })),
+    )
       .then((clip) => setLineClip(work.id, lineIdx, clip))
-      .catch(() => setLineClip(work.id, lineIdx, { status: "failed", videoUrl: "" }))
+      .catch((e: unknown) => {
+        refundGeneration()
+        setLineClip(work.id, lineIdx, { status: "failed", videoUrl: "" })
+        setErr(e instanceof Error ? e.message : "还是没画出来，稍后再试试")
+      })
   }
 
   const startRecording = async () => {
@@ -234,14 +247,21 @@ export function ComposeSession({ workId }: { workId: string }) {
       <div className="flex-1 space-y-3 overflow-y-auto px-5 pb-20">
         {work.lines.map((l, i) => (
           <div key={i} className="flex items-center gap-3 rounded-2xl border border-ink/10 bg-white/40 p-2.5">
-            <InkPlaceholder
-              text={l.text}
-              animate={i === work.lines.length - 1 && l.clip.status === "ready"}
-              className="h-24 w-16 shrink-0 rounded-lg"
-            />
+            {/* 真片有捕获的尾帧就当缩略图（真实画面）；mock/无尾帧退回水墨占位 */}
+            {realClip(l.clip) && l.clip.tailFrame ? (
+              <img src={l.clip.tailFrame} alt="" className="h-24 w-16 shrink-0 rounded-lg object-cover" />
+            ) : (
+              <InkPlaceholder
+                text={l.text}
+                animate={i === work.lines.length - 1 && l.clip.status === "ready"}
+                className="h-24 w-16 shrink-0 rounded-lg"
+              />
+            )}
             <div className="flex-1">
               <div className="font-kai text-lg">{l.text}</div>
-              {l.clip.status === "generating" && <div className="animate-pulse text-sm text-mist">🖌️ 这一句的画面生成中…</div>}
+              {l.clip.status === "generating" && (
+                <div className="animate-pulse text-sm text-mist">🖌️ {progress[i] ?? "这一句的画面生成中…"}</div>
+              )}
               {l.clip.status === "failed" && (
                 <button onClick={() => onRetry(i)} className="text-sm text-cinnabar underline underline-offset-2">
                   没画出来 · 重画
@@ -250,6 +270,10 @@ export function ComposeSession({ workId }: { workId: string }) {
             </div>
           </div>
         ))}
+
+        {/* ★ 报错必须画在编辑器块外面：生成失败时 ready=false、编辑器整块隐藏，
+            报错写在里面就是"设了 err 却永远看不见"（评审的反驳者自己挖出来的） */}
+        {err && <p className="text-center text-sm text-cinnabar">{err}</p>}
 
         {!ready && work.lines.length > 0 && (
           <p className="text-center text-xs text-mist">上一句的画面好了才能写下一句——每段画面要接着上一段的结尾画</p>
@@ -287,7 +311,6 @@ export function ComposeSession({ workId }: { workId: string }) {
                 className="w-full rounded-lg border border-ink/15 bg-paper px-3 py-2.5 font-kai text-xl outline-none focus:border-cinnabar"
               />
             )}
-            {err && <div className="pt-2 text-sm text-cinnabar">{err}</div>}
             <button
               onClick={onGenerate}
               disabled={!draft.trim()}

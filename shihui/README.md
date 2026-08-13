@@ -47,16 +47,29 @@ Seedream 爱题字且十有八九是错字。
 - **经济系统**：免费 5 段/天 + 积分兜底，扣费唯一入口 `store.spendGeneration`，报价单收口 `data/economy.ts`
 - **水墨占位画面**：`InkPlaceholder` 按句子关键词组装场景（月/山/水/鹅/雨/花…），种子确定性
 
+## 创作侧真生成（MVP-1，dev 版已接通）
+
+配了 `shihui/.env.local` 的 `ARK_API_KEY` 后 dev 下创作即真生成（角标消失）：
+孩子写一句 → Seedream 画首帧（**承接上一段真实尾帧**做参考图）→ Seedance pro-fast
+出段（¥0.5/段，创作侧走便宜档）→ **视频落 IndexedDB**（TOS 链接 24h 失效，
+作品里只存 `idb:` 指针）→ 浏览器捕获真实尾帧给下一句。实测一句约 90~190s（含排队），
+逐句流水线的等待体验设计见 IDEA-REVIEW「等待体验」。
+
+与内容库管线（forge，1-0-pro 首尾帧锁定）是**刻意的两条路线**：批量质量优先 vs
+交互成本优先；风格串共用 `src/ai/inkStyle.json`（唯一出处）。
+打包构建下 `AI_REAL` 强制 false（打包版没有 `/api/ark`，Capacitor SPA 回退坑）——
+接 ideahub-server 代理后才放开。
+
 ## 还是假的（接线点）
 
 | 假的 | 真实现 | 说明 |
 |---|---|---|
-| 画面生成（1.5~3s 假延迟） | 方舟 Seedream+Seedance | 抄 ideahub `segmentGen`，坑全列在 `src/ai/real.ts` 注释里 |
 | 朗诵识别（Web Speech） | 火山 openspeech 流式 ASR | 国内真机 Web Speech 不可用；从宽判定 + 手动放行的形状保留 |
 | 范读（speechSynthesis） | 火山 TTS / 真人音 | 系统没中文语音包就没声（主仓已知坑） |
 | 打分（确定性规则） | 豆包 chat 按 rubric 填数 | 必须关深度思考；维度口径钉在 `src/ai/score.ts` |
-| 存储（localStorage） | IndexedDB + 服务端 | 朗诵音频目前刷新即失效，重水化时已做清洗 |
+| 朗诵音频存储（ObjectURL） | IndexedDB（同 blobStore） | 目前刷新即失效，重水化时已做清洗；视频已落 IndexedDB，音频照抄即可 |
 | 账号/支付/审核/家长门 | 未做 | 形态见 IDEA-REVIEW「合规」与「账号体系」 |
+| 打包版的 AI 代理 | ideahub-server 扩展 `/api/ark` | dev 代理只在 vite 里；真机一律走 API_BASE（主仓铁律） |
 
 ## 目录
 
