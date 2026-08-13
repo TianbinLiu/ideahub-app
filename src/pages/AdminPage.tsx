@@ -33,6 +33,8 @@ export default function AdminPage() {
   // 这里只处理"登录了、但不是管理员"。
   const user = useCurrentUser();
   const navigate = useNavigate();
+  // ★ 必须在 early return **之前**声明：hooks 不许有条件地调用
+  const [reloadKey, setReloadKey] = useState(0);
 
   if (!isAdmin()) return <Denied remote={isRemoteMode()} loggedIn={!!user} onBack={() => navigate("/", { replace: true })} />;
 
@@ -46,8 +48,12 @@ export default function AdminPage() {
         <span className="ml-auto rounded-full bg-brand/15 px-2.5 py-1 text-[11px] text-brand">管理员</span>
       </div>
 
-      <StatsSection />
-      <ReportsSection />
+      {/* ★★ 两块共用一个"该重读了"的信号：处理完一条举报之后，如果只有列表更新、
+          统计卡不动，同一屏上就会出现「没有待处理的举报」与「待处理举报 1」并排 ——
+          用户没法判断哪个是真的（2026-08-13 真机验证时看到的就是这个）。
+          刷新按钮同理：它refresh 的是"这一页的数据"，不是"列表"。 */}
+      <StatsSection reloadKey={reloadKey} />
+      <ReportsSection onChanged={() => setReloadKey((n) => n + 1)} />
 
       <p className="mt-8 text-center text-[10px] leading-relaxed text-slate-600">
         这里的每一个动作都由服务端按 role 重新鉴权一次。
@@ -85,7 +91,7 @@ function Denied({ remote, loggedIn, onBack }: { remote: boolean; loggedIn: boole
 
 // ── 平台数据 ──────────────────────────────────────────────
 
-function StatsSection() {
+function StatsSection({ reloadKey }: { reloadKey: number }) {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
@@ -104,7 +110,9 @@ function StatsSection() {
     return () => {
       alive = false;
     };
-  }, []);
+    // ★ reloadKey 变了就重读：处理完举报 / 点了刷新之后，「待处理举报」这一格必须跟着动，
+    //   否则它与下面的列表会在同一屏上互相打脸（见 AdminPage 里那段说明）
+  }, [reloadKey]);
 
   return (
     <section className="mb-6">
@@ -140,7 +148,7 @@ function StatCell({ label, v, accent = false }: { label: string; v: number | nul
 
 type Tab = "pending" | "all";
 
-function ReportsSection() {
+function ReportsSection({ onChanged }: { onChanged: () => void }) {
   const [tab, setTab] = useState<Tab>("pending");
   const [items, setItems] = useState<ApiReport[]>([]);
   const [supported, setSupported] = useState(true);
@@ -181,7 +189,16 @@ function ReportsSection() {
             </button>
           ))}
         </div>
-        <button onClick={() => void load(tab)} aria-label="刷新" className="rounded-full bg-panel p-1.5 text-slate-400">
+        {/* ★ 刷新的是"这一页的数据"，统计卡也要跟着重读 —— 只刷列表的话，
+            用户点了刷新却发现那个数字纹丝不动，只会以为刷新键坏了 */}
+        <button
+          onClick={() => {
+            void load(tab);
+            onChanged();
+          }}
+          aria-label="刷新"
+          className="rounded-full bg-panel p-1.5 text-slate-400"
+        >
           <Icon name="replay" size={14} />
         </button>
       </div>
@@ -206,7 +223,12 @@ function ReportsSection() {
           <ReportCard
             key={r._id}
             report={r}
-            onResolved={(next, action) => setItems((xs) => applyResolved(xs, r._id, next, action, tab))}
+            onResolved={(next, action) => {
+              setItems((xs) => applyResolved(xs, r._id, next, action, tab));
+              // ★ 统计卡跟着重读：处理掉一条之后「待处理举报」那个数必须动，
+              //   否则同一屏上「没有待处理的举报」与「待处理举报 1」并排（真机上见过）
+              onChanged();
+            }}
           />
         ))}
       </div>
