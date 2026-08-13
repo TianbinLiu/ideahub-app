@@ -41,7 +41,7 @@ import {
   useFlow,
 } from "../studio/flowStore";
 import PlanBoard from "../studio/ui/PlanBoard";
-import { useStudio } from "../studio/studioStore";
+import { deckQuoteOf, useStudio } from "../studio/studioStore";
 import { VIDEO_ASPECTS, aspectCss, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 
@@ -668,7 +668,20 @@ export default function FlowPage() {
   const allDone = nodes.length > 0 && nodes.every(nodeDone);
   /** 还没出片的第一段 = 用户最远能走到的地方（-1 表示全出片了，随便看） */
   const frontier = frontierOf(nodes);
-  const remain = useMemo(() => flowCost(nodes, mode), [nodes, mode]);
+  /**
+   * 按下「完成视频」那一下还要花的钱（组稿时提炼本片卡组，撞上 3D 关键词再加建模）。
+   *
+   * ★★ 这笔钱以前**从头到尾没在界面上出现过**：顶栏只累加各段的出片费，而组稿会再烧
+   *   最多 110k（8 张卡）+ 最多 320k（2 个建模）。用户照着顶栏那个数攒余额，
+   *   点完「完成视频」发现少了一大截 —— CLAUDE.md「页面报 ¥25、实际扣 ¥15」那条的放大版。
+   * ★ 报价与实收同一处实现：deckQuoteOf 与 finalizeFromFlow 读的是同一个 mode、
+   *   同一份文字、同一批常量（见 studioStore.deckQuoteOf）。简约模式它返回全 0 ——
+   *   那条路**不报也不收**。
+   */
+  const deck = useMemo(() => deckQuoteOf(nodes, mode), [nodes, mode]);
+  /** 顶栏那个"剩余约"。★ 把组稿那一笔一起算进去：分开显示两个数，用户没有任何理由
+   *  相信它们要相加，而"我还得准备多少 token"是一个数不是两个。 */
+  const remain = useMemo(() => flowCost(nodes, mode) + deck.total, [nodes, mode, deck.total]);
   const wallet = walletOf();
   const node = nodes[Math.min(cursor, nodes.length - 1)];
 
@@ -689,7 +702,11 @@ export default function FlowPage() {
     if (busy || finalizing) return;
     setFinalizing("组稿中…");
     try {
-      const ok = await useStudio.getState().finalizeFromFlow(useFlow.getState().nodes, (s) => setFinalizing(s));
+      // ★ mode 显式传过去：「简约模式不出卡组」这条规则由它决定，而 store 里偷读
+      //   useFlow 的话，这个调用点上根本看不出"模式会改变这次组稿花多少钱"。
+      //   与上面 deckQuoteOf 报价时读的是同一个 mode —— 报什么价就收什么钱。
+      const st = useFlow.getState();
+      const ok = await useStudio.getState().finalizeFromFlow(st.nodes, st.mode, (s) => setFinalizing(s));
       if (ok) {
         leavingRef.current = true;
         reset();
@@ -801,6 +818,29 @@ export default function FlowPage() {
               </button>
             </>
           )}
+        </div>
+      )}
+
+      {/* ★★ 组稿前把「完成视频」那一下要花的钱明说出来。
+          为什么单开一行而不是塞进按钮上：那颗按钮在 375px 顶栏里与返回/标题/进度/存草稿
+          挤在一起，多两个字就把中间那行进度压成省略号（CLAUDE.md 那条底缘几何的同类问题）。
+          为什么等到 allDone 才出现：在那之前按钮是灰的，用户此刻要读的是"下一段多少钱"；
+          整片的这一笔一直算在顶栏「剩余约」里，不会因为这行没出现就瞒着他。
+          ⚠ 措辞三处都不许含糊：**最多**（张数是上限，按实际出卡结算）、
+          **约**（单价还没与火山账单对过，见 economy 的 ⚠）、以及余额不足会自动跳过
+          （那是 finalizeFromFlow 真实的行为，不写的话用户会以为钱不够就完不成片）。 */}
+      {deck.on && AI_REAL && allDone && (
+        <div className="mx-4 mb-1.5 flex-none rounded-xl border border-slate-700/70 bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
+          {/* ★ 整句在 JS 里拼好再交给 JSX：分成几段写的话，JSX 会把每行之间的换行折成
+              一个空格，于是条件那一支不成立时就变成「…token 。都按实际…」——
+              中文标点前多一个空格，看着像是文案坏了 */}
+          {[
+            `点「完成视频」还会提炼本片卡组：最多 ${deck.maxCards} 张卡，约 ${fmtTokens(deck.cards)} token`,
+            deck.wants3d
+              ? `；这条片写了 3D / 建模一类的画风，还会给派生的角色卡铸最多 ${deck.max3d} 个 3D 建模，另约 ${fmtTokens(deck.model3d)} token`
+              : "",
+            "。都按实际出卡结算，余额不够会自动跳过（成片不受影响）。",
+          ].join("")}
         </div>
       )}
 

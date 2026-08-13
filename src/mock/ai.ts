@@ -3,6 +3,9 @@
 import { Card, CardType, Proposal, VideoAspect, uid } from "../types";
 import { makeCover, makeFrame } from "./frames";
 import { makeRng, pick } from "./rng";
+// ★ mock 也读**同一张**图位表：它只用来告诉用户"这一档本该画几张"，而那句话一旦
+//   与真实管线分叉，就成了演示模式里一句谁也验不了的假话（铁律五）。
+import { slotsFor } from "../data/economy";
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms + Math.random() * 400));
 
@@ -142,9 +145,21 @@ function stemOf(fileName: string): string {
 
 /** NPC 铸卡：本地文件 + 补充说明 → 若干张卡（mock：图片用原图作卡面）。
  *  forcedType 是用户在素材窗第一步选定的卡种——给了就不再猜。类型猜错是
- *  最常见的重炼理由（"白裙少女"被当成场景），把选择权交回用户比调正则实在。 */
-export async function generateCards(files: MaterialFile[], note: string, forcedType?: CardType | null): Promise<Card[]> {
-  await delay(1200);
+ *  最常见的重炼理由（"白裙少女"被当成场景），把选择权交回用户比调正则实在。
+ *
+ *  返回 `{ cards, minted, notes }` 与真实实现同形（ai/index.ts 靠这个签名做真假切换）。
+ *  ★ `minted` 恒为全 0：mock 一张图都没真画过，卡面要么是用户自己的原图、要么是
+ *    本地画的占位图。报一个非零数就是**凭空造出一笔账** —— 结算读的正是这个数组
+ *    （data/economy.forgeSettle），写 1 就等于在演示模式里扣真钱。
+ *  ★ `tierId` 在这里**确实没用上**（没有出图这回事），所以必须**说出来**：
+ *    用户在界面上选了「精绘」那一档，最后拿到一张占位图，中间一句话都没有的话，
+ *    他只会认为这个档位坏了（铁律八）。 */
+export async function generateCards(
+  files: MaterialFile[],
+  note: string,
+  forcedType?: CardType | null,
+  opts?: { tierId?: string; onProgress?: (msg: string) => void },
+): Promise<{ cards: Card[]; minted: number[]; notes: string[] }> {
   const cards: Card[] = [];
   for (const f of files) {
     const name = stemOf(f.name);
@@ -175,7 +190,28 @@ export async function generateCards(files: MaterialFile[], note: string, forcedT
       cover: makeCover(`gen:${note}`, name),
     });
   }
-  return cards;
+  // 演示模式的实情：这一档本该画几张、实际一张没画。张数走 slotsFor（唯一实现），
+  // 免得这里手写一个"3"，哪天图位表改了它还在原地说谎。
+  // ★ 说"最多"不说"每张"：卡种不同张数就不同（非人物卡只有 2 格），
+  //   一批里混着两种卡时，"每张 3 张"这句话本身就是假的。
+  const notes: string[] = [];
+  if (cards.length > 0) {
+    const want = Math.max(...cards.map((c) => slotsFor(c.type, opts?.tierId).length));
+    notes.push(
+      `演示模式（这台机器没接上 AI 出图）：这一档本该给每张卡画最多 ${want} 张图，这次一张都没画；` +
+        `卡面用的是你的原图或本地占位图，不计费`,
+    );
+  }
+  // ★★ 这一发必须在 `await delay` **之前**，而且卡也必须在 delay 之前就造好。
+  //   原来的顺序是「delay → 造卡 → onProgress → return」：onProgress 与 return 之间
+  //   没有任何 await，调用方（studioStore.forgeCards）拿到结果后 `finally` 立刻把
+  //   forgeProgress 清空 —— 这句话发出去的瞬间就被抹掉，React **一帧都没画过**，
+  //   而档位面板上还明晃晃写着「每张卡出 3 张图」。100% 不会被看见的话等于没说（铁律八）。
+  //   挪到 delay 前面，它至少能在这 1.2 秒里被真正读到；
+  //   要长期留在界面上的那一份靠返回的 `notes`（与真实实现同形，调用方一份代码处理两种构建）。
+  if (notes.length > 0) opts?.onProgress?.(notes[0]);
+  await delay(1200);
+  return { cards, minted: cards.map(() => 0), notes };
 }
 
 // ── 节点 → 三方案推演 ─────────────────────────────────────────

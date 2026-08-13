@@ -2,20 +2,25 @@
 // （豆包写剧情 + Seedream 首尾帧，首帧用上一段尾帧作参考图承接色调）。
 // 每个环节失败都回退到 mock 同款产物——AI 网络抖动不阻断工坊流程。
 import {
+  CARD_SLOTS,
   CARD_TYPE_LABELS,
   Card,
   CardType,
   Proposal,
   VideoAspect,
   aspectOf,
+  normalizeSlot,
+  slotLabel,
   uid,
   viewsOf,
+  CARD_SIZE,
+  type CardSlot,
   type CardView,
 } from "../types";
 import { makeCover, makeFrame } from "../mock/frames";
 import type { MaterialFile, ProposalContext } from "../mock/ai";
 import * as mock from "../mock/ai";
-import { clampDuration, tierOf } from "../data/economy";
+import { clampDuration, imageTierOf, slotsFor, tierOf, type ImageTier } from "../data/economy";
 import { idbSet } from "../data/db";
 import {
   chat,
@@ -43,9 +48,24 @@ async function toDataUrl(url: string): Promise<string> {
   });
 }
 
-async function genImageAsDataUrl(prompt: string, imageRefs?: string[], size?: string): Promise<string> {
-  const url = await generateImage(prompt, { imageRefs, size });
+/**
+ * 出一张图并落地成 dataURL。
+ *
+ * ★ 参数收成 opts 对象，**不再往后加位置参数**：`model` 是第四个了，而位置参数漏传
+ *   一个不会报错，只会静默用默认模型出图 —— 顶档与默认档差着三倍钱，且画面看不出
+ *   是"用错模型"还是"这次没画好"。
+ */
+async function genImageAsDataUrl(
+  prompt: string,
+  opts?: { imageRefs?: string[]; size?: string; model?: string },
+): Promise<string> {
+  const url = await generateImage(prompt, opts);
   return await toDataUrl(url);
+}
+
+/** 报给用户的失败原因：截一句。原样贴进进度条会把真正有用的那半句挤出可视区。 */
+function reasonOf(e: unknown): string {
+  return (e instanceof Error ? e.message : String(e)).slice(0, 80);
 }
 
 /** 并发限流 map：免费额度下 6 张图同时打过去容易撞限流，压到 3 路并发 */
@@ -63,10 +83,77 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, i: number
   return out;
 }
 
-const STYLE_SUFFIX =
-  "二次元厚涂插画风，高细节，电影感构图，氛围光，无文字无水印。竖版 3:4 卡面。";
+/** 画风词。★ 拆出来是为了让**画风卡**能只要后半截（见 cardStyleSuffix） */
+const ART_STYLE = "二次元厚涂插画风，高细节，电影感构图，氛围光，";
+/** 每张出图都要的收尾。水印/文字混进设定帧就会被 Seedance 一起拍进视频里 */
+const NO_TEXT = "无文字无水印。";
 
-const TYPE_LABEL: Record<CardType, string> = {
+const STYLE_SUFFIX = `${ART_STYLE}${NO_TEXT}竖版 3:4 卡面。`;
+
+/**
+ * 卡片相关出图的尾巴。
+ *
+ * ★★ style 卡**一个画风词都不能拼**（2026-08-11 之前是全类型一律拼 STYLE_SUFFIX）：
+ *   画风卡的整张图就是用来定义"这套画风长什么样"的，再按上"二次元厚涂插画风"，
+ *   用户要的水墨 / 胶片 / 像素从第一步就不存在了。而这张图随后是唯一的画风参考
+ *   （prepareMaterialRefs 的绑定句会说"只沿用它的画法"），于是错一次错到底 ——
+ *   全片都是厚涂，用户挂着一张写着「水墨留白」的卡，全程零报错。
+ * ★ frameWord 区分"这张是卡面"和"这张只是卡的一张形象参考图"：对着一张面部特写
+ *   说"卡面"，模型会去画一张**画着卡片**的图（带边框题名条），而那张图随后要当
+ *   参考图喂回去。
+ */
+export function cardStyleSuffix(type: CardType, frameWord: "卡面" | "画面"): string {
+  return `${type === "style" ? "" : ART_STYLE}${NO_TEXT}竖版 3:4 ${frameWord}。`;
+}
+
+/** 卡框会吃掉的那一圈。数值来自 TarotCard：卡片容器是 aspect-[2/3] + object-cover，
+ *  3:4 的图左右各被裁掉约 5.5%；题名条从 87% 起占底部 13%。
+ *  ★ 只拼给**卡面**（图位表的第 0 格）。后续图位不进卡框，是详情页里的形象参考图，
+ *    给它们也留白边等于白白丢掉三成画面。 */
+const CARD_SAFE_AREA =
+  "主体居中并留出余量：左右各约 6%、底部约 15% 会被卡框裁切或被题名条压住，不要放重要内容。";
+
+/**
+ * 卡面的**构图与禁忌**，按卡种分叉。
+ *
+ * ★★ 这里以前是一句写死的"主体居中并留出余量"，对两类卡是错的，而且错得毫无声响：
+ *   · background 是**氛围底色**卡，本来就不该有主体 —— 让它"把主体居中"等于命令模型
+ *     现编一个主体出来，用户想要的那块底色第一步就没了；
+ *   · scene 少了定场约束（模型爱画成局部特写），更要紧的是**它会往场景里放人**：
+ *     场景卡与人物卡是一起喂给出片模型的，画面里两个主体抢戏，而"一张图里画多个角色"
+ *     会被方舟整条 400 掉（同 prepareMaterialRefs 规则一），错误信息与"你的场景卡里
+ *     有个人"毫无表面关联。
+ */
+const CARD_COMPOSITION: Record<CardType, string> = {
+  character: CARD_SAFE_AREA,
+  scene: `这是一张定场图：完整交代这个地点的空间结构、规模与光线关系，一眼能认出是哪里，不要拍成局部特写。画面中不要出现任何人物或角色。${CARD_SAFE_AREA}`,
+  background:
+    "这是一张氛围底色图：只画色调、光比与光线方向，以及空气感与质感，不要有明确主体；画面中不出现任何可辨认的人物、建筑、物体或文字。",
+  prop: `只画这一件物件，背景干净不抢戏。${CARD_SAFE_AREA}`,
+  style: `画一张能代表这套画法的示意画面，题材随意，重点是画法本身。${CARD_SAFE_AREA}`,
+};
+
+/**
+ * 提示词里怎么称呼这张卡代表的东西。
+ * ★ 对一块氛围底色说"这件东西"、对一套笔触说"这个物体"，是在命令模型把它画成实物 ——
+ *   这正是老绑定句（写死的"实物参考"）对 background / style 犯的错。
+ */
+const SUBJECT_WORD: Record<CardType, string> = {
+  character: "个角色",
+  scene: "个地点",
+  background: "套色光氛围",
+  prop: "件物件",
+  style: "套画法",
+};
+
+/**
+ * 出图提示词里怎么称呼"这张卡面"。
+ * ★ 导出是**有意的**：卡片详情页要为没存 genPrompt 的老卡/市场种子卡现场拼一份
+ *   "铸卡蓝图"，那段文字必须与真的发给方舟的那句逐字同源（铁律六）。抄一份的下场
+ *   已经发生过：real.ts 改成"画风卡一个画风词都不拼"之后详情页还在拼厚涂，
+ *   用户照着那段提示词生成出来的是另一种画风，零报错。
+ */
+export const TYPE_LABEL: Record<CardType, string> = {
   character: "人物立绘卡面",
   scene: "场景概念图卡面",
   background: "氛围底色卡面",
@@ -74,10 +161,9 @@ const TYPE_LABEL: Record<CardType, string> = {
   style: "画风示意卡面",
 };
 
-/** 卡面画布：竖版 3:4。1728×2304 = 3,981,312 像素，刚过 Seedream 的 3,686,400 下限
- *  （实测 1536×2304 会被 400 掉）。派生卡也用同一尺寸——素材卡和派生卡摆在同一副
- *  卡组里，画幅不一致一眼就看得出是两套流程。 */
-const CARD_SIZE = "1728x2304";
+// 卡面画布（CARD_SIZE）搬到了 types.ts —— 报价那侧（economy.IMAGE_TIERS）要按输出像素
+// 分档算钱，两边必须是同一个数。派生卡也用同一尺寸：素材卡和派生卡摆在同一副卡组里，
+// 画幅不一致一眼就看得出是两套流程。
 
 /** 参考图该怎么用——**按卡种给不同指令**。「保留主体特征」这句话对场景卡是空话
  *  （场景没有单一主体），对氛围底色卡更是反效果（底色卡本就不该有主体）。 */
@@ -172,32 +258,182 @@ async function prepRefImage(src: string): Promise<string | null> {
 
 // ── 素材卡 → Seedream 参考图 ────────────────────────────────────────
 //
-// ★★ 这一段是"多图参考"的全部实现，三条规则写死在这里，别在调用点各写一遍：
+// ★★ 这一段是"多图参考"的全部实现，规则写死在这里，别在调用点各写一遍。
+//   对外只有两个口子：`prepareMaterialRefs`（真去取图）和 `refUsedFlags`（只回答
+//   "这张卡的第几张图会进管线"，详情页拿它标注）—— 两者共用下面同一个 allocateRefs。
 //
 // 【规则一】**设定帧只锁一张人物卡的形象**（第一张人物卡＝主角），其余人物卡仍走纯文字。
 //   AGENTS.md 的方舟实测约束：「一张图里画多个角色一律被拒」。挂两张人物卡就把两张脸
 //   一起喂进去的话，用户会在"绘制起拍画面"处收到一个 400，而错误信息与"你挂了两张
 //   人物卡"毫无表面关联 —— 这种查不出源头的失败必须在代码里提前挡掉，并**当场说出来**。
 //
-// 【规则二】总共最多 MAX_REF_IMAGES 张。方舟指南：「不建议用满素材上限，过多素材会导致
-//   模型难以判断特征优先级」。人物卡最多占 2 张（大头照 + 全身），剩下的给道具/场景。
+// 【规则二】总共最多 MAX_REF_IMAGES 张，**分两轮发**：
+//   · 第一轮：主角取前 MAX_CHAR_REFS 张；其余**每张**非人物卡各取 1 张
+//     —— 雨露均沾，不让排在前面的那张卡把预算一口吃光。
+//   · 第二轮：预算还有余，就按图位顺序给非人物卡补第 2 张，直到 MAX_REF_IMAGES 用完。
+//   ★★ 第二轮不是"能塞就塞"的凑数，是**在补一个真花了钱的窟窿**：老代码非人物卡一律
+//     只取 viewsOf()[0]，于是一段里只挂一两张卡时预算大量闲置，而用户为第 2 张图付的钱
+//     **永远进不了模型**（定妆档一张场景卡 33.7k token 里有 16.7k 是白花），全程零提示。
+//   ★★ 人物卡**不参与第二轮**。MAX_CHAR_REFS = 2 是方舟指南的硬结论（见规则三），
+//     预算有余就给主角补第 3 张不是"把钱花在刀刃上"，而是**主动把画面变差**：
+//     同一人物的多视图会被识别成多个主体，ID 漂移反而更重。宁可让那一格空着。
 //
 // 【规则三】人物卡取图顺序 face → body → detail，**不是**多角度。方舟指南原文：
 //   「人物参考使用大头照 + 全身照即可，不建议使用人物多视图。多视图素材包含同一人物的
 //   不同角度，模型易将其识别为多个不同主体，反而加剧 ID 漂移问题。」
-//   道具/场景卡不受这条约束（它们不承担"主体身份"），但也各只取一张，把配额留给主角。
+//   道具/场景卡不受这条约束（它们不承担"主体身份"），所以第二轮只轮到它们。
 
-/** 一次生成最多附几张**素材卡**参考图（承接帧另算，见 prepareMaterialRefs 的 offset） */
-const MAX_REF_IMAGES = 3;
-/** 主角人物卡最多占几张：大头照 + 全身照，正好是方舟推荐的那一组 */
-const MAX_CHAR_REFS = 2;
+/** 一段生成里最多带几张**素材卡**参考图（承接帧另算，见 prepareMaterialRefs 的 offset） */
+export const MAX_REF_IMAGES = 3;
+/** 主角人物卡最多占几张（方舟指南：大头照 + 全身照，多视图反而加剧 ID 漂移） */
+export const MAX_CHAR_REFS = 2;
 
 const KIND_ORDER: Record<CardView["kind"], number> = { face: 0, body: 1, detail: 2 };
-/** 每种图在绑定句里代表"哪部分特征"——说清楚模型才知道该从哪张图取什么 */
-const KIND_FEATURE: Record<CardView["kind"], string> = {
-  face: "面部特征与发型发色",
-  body: "服装、体型与整体配色",
-  detail: "标志性细节",
+
+/** 一张真会被喂给模型的图。`index` = 它在 `viewsOf(card)` 里的下标 —— refUsedFlags 靠它对齐 */
+interface RefPick {
+  card: Card;
+  index: number;
+  view: CardView;
+}
+
+/**
+ * 预算分配：规则一/二/三的**唯一实现**。prepareMaterialRefs（真去取图）与
+ * refUsedFlags（详情页问"这张进不进管线"）都只准从这里拿答案 —— 抄成两份的下场是
+ * 详情页标着"这张会用上"、管线其实没带，而两边都不会报错。
+ *
+ * `onNote` 是**反静默失败**的那一半：谁被挤掉了要逐张点名（铁律八）。
+ * 纯查询（refUsedFlags）不传它。
+ */
+function allocateRefs(materials: Card[], onNote?: (note: string) => void): RefPick[] {
+  const picks: RefPick[] = [];
+  const chars = materials.filter((c) => c.type === "character");
+  const hero = chars[0];
+  if (hero && chars.length > 1) {
+    // 规则一：说出来。不说的话用户只知道"另一个角色长得不像"，永远猜不到是配额问题
+    onNote?.(
+      `挂了 ${chars.length} 张人物卡，只把「${hero.name}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定`,
+    );
+  }
+
+  // ── 第一轮：主角占满 MAX_CHAR_REFS，其余非人物卡各占 1 张 ──
+  if (hero) {
+    // ★ 排序必须**带着原下标**排：refUsedFlags 要的是"与 viewsOf(hero) 一一对齐"的下标，
+    //   而取图顺序是 face→body→detail（规则三）—— 两个顺序不是一回事，排完就丢下标
+    //   会让详情页把高亮标在错的那张图上。
+    const ordered = viewsOf(hero)
+      .map((view, index) => ({ view, index }))
+      .sort((a, b) => KIND_ORDER[a.view.kind] - KIND_ORDER[b.view.kind]);
+    for (const it of ordered.slice(0, MAX_CHAR_REFS)) picks.push({ card: hero, index: it.index, view: it.view });
+  }
+  const others = materials.filter((c) => c.type !== "character");
+  for (const card of others) {
+    const view = viewsOf(card)[0];
+    if (!view) continue;
+    // ★ 满了要**逐张点名**再跳过。这里原来是一句 `break`，于是挂第 4 张卡时那张
+    //   连同它后面所有卡一起被**静默**丢掉 —— 用户挂了卡、付了钱、画面里没有它，
+    //   而全程没有任何一句话提过这件事（铁律八）。
+    if (picks.length >= MAX_REF_IMAGES) {
+      onNote?.(
+        `「${card.name}」的参考图这次没带上（一次最多 ${MAX_REF_IMAGES} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与`,
+      );
+      continue;
+    }
+    picks.push({ card, index: 0, view });
+  }
+
+  // ── 第二轮：预算还有余，非人物卡各补第 2 张 ──
+  // ★ 只补到第 2 张就打住：非人物卡的图位表本来就只有两格（types.CARD_SLOTS），
+  //   第 3 张在这条管线里没有对应的图位可指。
+  const dropped: string[] = [];
+  for (const card of others) {
+    const view = viewsOf(card)[1];
+    // 第一轮就没排上号的不给第 2 张：越过一张"连第 1 张都没带上"的卡去补别人的第 2 张，
+    // 是把预算花在边际收益最低的地方
+    if (!view || !picks.some((p) => p.card === card)) continue;
+    if (picks.length >= MAX_REF_IMAGES) {
+      dropped.push(card.name);
+      continue;
+    }
+    picks.push({ card, index: 1, view });
+  }
+  if (dropped.length > 0) {
+    // 这一条同样要点名：用户为这张图付过钱，而它这次没进模型 —— 只是原因是"预算被更
+    // 要紧的图位占了"，不是"它没用"。挂少一张卡就能让它进去，所以这是句可行动的话。
+    onNote?.(
+      `${dropped.map((n) => `「${n}」`).join("")}的第 2 张参考图这次没带上（预算 ${MAX_REF_IMAGES} 张已被更要紧的图位占满），它们按第 1 张参与`,
+    );
+  }
+  // ★ 最后按卡归拢，让同一张卡的图在 `<图片N>` 里**连号**。两轮分配天然排出的是
+  //   [场景①, 道具①, 场景②] 这种交错，绑定句于是长成"<图片1>、<图片3>是场景卡…；
+  //   <图片2>是道具卡…" —— 编号越跳，模型把哪张图配给哪张卡就越容易配错，而配错的表现
+  //   是"道具画成了场景里的东西"这种**画面照出、零报错**的故障。
+  //   Set 保插入顺序、filter 保卡内顺序，所以这只是重排，不动分配结果。
+  const byCard = [...new Set(picks.map((p) => p.card))];
+  return byCard.flatMap((c) => picks.filter((p) => p.card === c));
+}
+
+/**
+ * 这张卡的哪几张 view 会真进出片管线。**全仓唯一实现**（复用 allocateRefs，
+ * 与真正取图的 prepareMaterialRefs 是同一套分配）。
+ *
+ * @param card 这张卡
+ * @param ctx  同一段里挂的所有素材卡（决定它是不是 hero、预算还剩多少）。
+ *             不传 = 单卡视角（当它是唯一挂的卡），详情页用这个。
+ * @returns 与 `viewsOf(card)` 一一对齐的布尔数组
+ *
+ * ★ 这里只回答"分配规则会不会带上它"。带上之后还可能被 prepRefImage 当场挡掉
+ *   （比例越界 / 跨域读不出来），那一条由 prepareMaterialRefs 逐张点名，不在本函数射程内 ——
+ *   所以它是"会不会被带上"，不是"最后一定送到了"。
+ */
+export function refUsedFlags(card: Card, ctx?: Card[]): boolean[] {
+  const views = viewsOf(card);
+  if (views.length === 0) return [];
+  // ★ ctx 里没有这张卡时把它**补进去**（当它是最后挂上去的那张），而不是照算 ——
+  //   不补的话返回的是一整排 false，等于对用户断言"你这张卡一张图都用不上"，
+  //   那是个假答案（铁律五）。
+  const pool = ctx ?? [];
+  const list = pool.length === 0 ? [card] : pool.some((c) => c.id === card.id) ? pool : [...pool, card];
+  const used = new Set(
+    allocateRefs(list)
+      .filter((p) => p.card.id === card.id)
+      .map((p) => p.index),
+  );
+  return views.map((_, i) => used.has(i));
+}
+
+/**
+ * 这张图在绑定句里代表"哪部分特征" —— 按 **(卡种, 图位)** 二维查表。
+ *
+ * ★★ 一维的老表（kind → 文案）是错的：`kind` 是**跨仓冻结**的三个值，同一个值在不同
+ *   卡种下读法完全不同（见 types.CARD_SLOTS 的 ★）。拿人物卡那套去解释场景卡的 body，
+ *   就会对着一片天空说"这是它的面部特征与发型发色"。
+ * ★ 走 normalizeSlot 再 find：viewsOf() 已经归一过一次，这里只是不让一个 undefined
+ *   漏进提示词（提示词里出现 "undefined" 不会报错，只会让模型胡猜）。
+ */
+function slotLocks(type: CardType, kind: unknown): string {
+  const k = normalizeSlot(type, kind);
+  return (CARD_SLOTS[type].find((s) => s.kind === k) ?? CARD_SLOTS[type][0]).locks;
+}
+
+/**
+ * 非主角那张卡的绑定句该怎么说 —— **按卡种分叉**。
+ *
+ * ★★ 老代码对所有非主角卡写死一句「是{类型}「{名}」的**实物参考**，画面中出现它时
+ *   必须与之一致」。这句话对氛围卡与画风卡是胡话：它在命令模型把一块底色 / 一套笔触
+ *   当成一件东西画进画面。
+ * ★ scene 那句尾巴上的"光线、天气与时间可随剧情变化"不是客套：不写它，一张场景卡
+ *   会把整片五段的时间冻在同一刻 —— 第 1 段的正午和第 5 段的深夜长得一模一样。
+ * ★ character 这一条**今天走不到**（规则一把非主角人物卡挡在参考图之外，只走文字）。
+ *   仍然写全是因为这是个 Record：留空就得在调用点 `?? 兜底`，而那正是"以后放开限制时
+ *   悄悄用错文案"的入口。
+ */
+const BIND_HINT: Record<CardType, string> = {
+  character: "的形象参考：该角色出现时长相、发色与服装必须与之一致",
+  scene: "的定场参考：本段画面的空间结构、地貌与建筑轮廓要与之一致；光线、天气与时间跟着剧情走，不必与参考图相同",
+  background: "的色调参考：只取它的色调、光比与光线方向，不要把它当成一个物体画进画面",
+  prop: "的实物参考，画面中出现它时必须与之一致",
+  style: "的画法参考：只沿用它的笔触、线条与上色方式，不要把样张里的内容画进画面",
 };
 
 export interface MaterialRefs {
@@ -224,37 +460,26 @@ export async function prepareMaterialRefs(
   const empty: MaterialRefs = { refs: [], bind: () => "" };
   if (!materials?.length) return empty;
 
-  const chars = materials.filter((c) => c.type === "character");
-  const hero = chars[0];
-  if (chars.length > 1) {
-    // 规则一：说出来。不说的话用户只知道"另一个角色长得不像"，永远猜不到是配额问题
-    onNote?.(
-      `挂了 ${chars.length} 张人物卡，只把「${hero.name}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定`,
-    );
-  }
-
-  type Pick = { card: Card; view: CardView };
-  const picks: Pick[] = [];
-  if (hero) {
-    const sorted = viewsOf(hero).slice().sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
-    for (const view of sorted.slice(0, MAX_CHAR_REFS)) picks.push({ card: hero, view });
-  }
-  for (const card of materials) {
-    if (picks.length >= MAX_REF_IMAGES) break;
-    if (card.type === "character") continue; // 主角已经占了位，其余人物卡只走文字
-    const view = viewsOf(card)[0];
-    if (view) picks.push({ card, view });
-  }
+  // 分配规则（谁上、上几张、谁被挤掉）全在 allocateRefs 里，这里只负责把它取回来
+  const picks = allocateRefs(materials, onNote);
+  const hero = materials.find((c) => c.type === "character");
+  if (picks.length === 0) return empty;
 
   // 逐张守门。★ 一张坏图会把**整条**请求 400 掉，所以不能"一起送出去看运气"；
   //   而坏掉的那张必须点名，否则多图之下没人知道是哪张没生效
-  const prepared = await mapLimit(picks.slice(0, MAX_REF_IMAGES), 3, async (p) => ({
+  const prepared = await mapLimit(picks, 3, async (p) => ({
     ...p,
     url: await prepRefImage(p.view.url),
   }));
-  const good = prepared.filter((p): p is Pick & { url: string } => !!p.url);
+  const good = prepared.filter((p): p is RefPick & { url: string } => !!p.url);
   prepared.forEach((p, i) => {
-    if (!p.url) onNote?.(`第 ${i + 1} 张参考图未采用（「${p.card.name}」，比例越界或读不出来）`);
+    // ★ 报到**图位**那一级：两轮分配之后同一张卡可能带两张图，只说卡名的话
+    //   "「废土集市」那张没采用"根本分不清是全景没进去还是局部特写没进去
+    if (!p.url) {
+      onNote?.(
+        `第 ${i + 1} 张参考图未采用（「${p.card.name}」的${slotLabel(p.card.type, p.view.kind)}，比例越界或读不出来）`,
+      );
+    }
   });
   if (good.length === 0) return empty;
 
@@ -262,19 +487,25 @@ export async function prepareMaterialRefs(
     refs: good.map((p) => p.url),
     bind: (offset = 0) => {
       const parts: string[] = [];
+      const numOf = (p: (typeof good)[number]) => `<图片${offset + good.indexOf(p) + 1}>`;
       const heroPicks = good.filter((p) => p.card === hero);
       if (heroPicks.length > 0 && hero) {
-        const feats = heroPicks
-          .map((p) => `<图片${offset + good.indexOf(p) + 1}>的${KIND_FEATURE[p.view.kind]}`)
-          .join("、");
+        const feats = heroPicks.map((p) => `${numOf(p)}的${slotLocks(hero.type, p.view.kind)}`).join("、");
         parts.push(
           `将${feats}定义为角色「${hero.name}」${hero.summary ? `（设定：${hero.summary.slice(0, 40)}）` : ""}，本段画面中该角色的长相、发色与服装必须与之完全一致`,
         );
       }
+      // ★ 同一张卡的多张图必须**并进一句**说，不能一张图一句：两句"「会说谎的罗盘」的
+      //   实物参考"在模型看来就是**两件**罗盘 —— 与"人物卡不带多视图"是同一个失效机理
+      //   （见规则二的 ★★）。第二轮分配之后一张非人物卡最多带 2 张图，这条从"以后可能"
+      //   变成了"每天都在发生"，所以在这里收口。
+      const said = new Set<Card>();
       for (const p of good) {
-        if (p.card === hero) continue;
+        if (p.card === hero || said.has(p.card)) continue;
+        said.add(p.card);
+        const mine = good.filter((g) => g.card === p.card);
         parts.push(
-          `<图片${offset + good.indexOf(p) + 1}>是${CARD_TYPE_LABELS[p.card.type]}「${p.card.name}」的实物参考，画面中出现它时必须与之一致`,
+          `${mine.map(numOf).join("、")}是${CARD_TYPE_LABELS[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`,
         );
       }
       if (parts.length === 0) return "";
@@ -288,88 +519,273 @@ export async function prepareMaterialRefs(
 }
 
 /**
- * 卡面一律由 Seedream 画。**图片素材不再直接当卡面**，而是作为 Seedream 的参考图——
- * 用户交上来的常常是随手拍/截图，直接贴上去与整副塔罗牌的画风完全对不上；
- * 让模型照着它重画一张，人物特征和配色留住了，画风也统一了。
+ * 卡面（图位表第 0 格）一律由 Seedream 画。**图片素材不再直接当卡面**，而是作为
+ * Seedream 的参考图——用户交上来的常常是随手拍/截图，直接贴上去与整副塔罗牌的画风
+ * 完全对不上；让模型照着它重画一张，人物特征和配色留住了，画风也统一了。
  *
  * 参考图走 dataURL：arkClient.generateImage 把 imageRefs 原样塞进 body.image，
  * 方舟收 dataURL（design/gen-create-covers.mjs 一直这么喂定妆照）。
  *
  * 返回 genPrompt 而不只是图：卡详情页的「生成蓝图」要它，按实际出图张数结算也要它
  * （出图失败退回原图的那张不该收图钱）。没画成时**不带这个字段**——Card.genPrompt
- * 是可选属性，写 undefined 和不写等价，但写 null 会与类型打架。
+ * 是可选属性，写 undefined 和不写等价，但写 null 会与类型打架；同时把原因带回去，
+ * 调用方要指名道姓地播报（铁律八）。
  *
  * 兜底顺序：出图 > 用户原图 > mock 占位图。原图至少是"用户认得的东西"。
  */
-async function forgeCover(
+async function forgePrimary(
   type: CardType,
   name: string,
   summary: string,
   note: string,
+  slot: CardSlot,
   f: MaterialFile | undefined,
   fallback: string,
-): Promise<{ cover: string; genPrompt?: string }> {
+  tier: ImageTier,
+): Promise<{ cover: string; genPrompt?: string; error?: string }> {
   const raw = f?.dataUrl ? await prepRefImage(f.dataUrl) : null;
   const ref = raw ? [raw] : undefined;
   const prompt = softenForImage(
     [
       `${TYPE_LABEL[type]}：${name}。${summary}`,
+      // ★ 主图也要说清它是**哪个图位**（图位表的第 0 格）：人物卡的第 0 格是「全身立绘」
+      //   而不是大头照 —— 不写这一句，模型十有八九给一张半身像，而后面几张都以它为参考，
+      //   "这张卡没有全身参考"就一路传下去了（顺序为什么是 body 打头见 types.CARD_SLOTS）
+      `画面取景：${slot.label}，要锁住${slot.locks}。`,
       // ★ 用户原话单独成段、不揉进 summary：summary 被豆包压到 30 字，用户写的
       //   硬约束（"左手有旧伤疤""一定要戴红围巾"）会被压没，出图就丢细节
       note ? `用户的额外要求（必须满足）：${note.slice(0, 200)}` : "",
       ref ? REF_HINT[type] : "",
       ref ? "不要直接复制参考图，也不要保留它的背景杂物、相框、界面元素与文字。" : "",
-      // 数值来自 TarotCard：卡片容器是 aspect-[2/3] + object-cover，3:4 的图放进去
-      // 左右各被裁掉约 5.5%；题名条从 87% 起占底部 13%
-      "主体居中并留出余量：左右各约 6%、底部约 15% 会被卡框裁切或被题名条压住，不要放重要内容。",
-      STYLE_SUFFIX,
+      CARD_COMPOSITION[type],
+      cardStyleSuffix(type, "卡面"),
     ]
       .filter(Boolean)
       .join(" "),
   );
   try {
-    return { cover: await genImageAsDataUrl(prompt, ref, CARD_SIZE), genPrompt: prompt };
+    const cover = await genImageAsDataUrl(prompt, { imageRefs: ref, size: tier.size, model: tier.model });
+    return { cover, genPrompt: prompt };
   } catch (e) {
     console.warn("[ai] 卡面出图失败，退回素材原图:", e);
-    return { cover: f?.dataUrl ?? fallback };
+    return { cover: f?.dataUrl ?? fallback, error: reasonOf(e) };
   }
 }
 
-/** 素材炼卡：卡面全部由 Seedream 生成（图片素材作参考图）；
- *  名称/简介/类型交给豆包精炼。
+/**
+ * 第 i(>0) 个图位的提示词。**恒定以卡面（`<图片1>`）为唯一参考图**，理由见 forgeSlots。
+ * ★ 不拼 CARD_SAFE_AREA：这几张不进卡框，是详情页里的形象参考图。
+ */
+function slotPrompt(type: CardType, name: string, summary: string, note: string, slot: CardSlot): string {
+  return softenForImage(
+    [
+      // ★ 这里用 CARD_TYPE_LABELS（"人物卡"）而不是 TYPE_LABEL（"人物立绘卡面"）：
+      //   这几张不是卡面，说成"卡面的面部特写"会让模型去画一张画着卡的图
+      `${CARD_TYPE_LABELS[type]}「${name}」的${slot.label}。${summary}`,
+      `<图片1>是这张卡已经定稿的主图。画的必须是<图片1>里的同一${SUBJECT_WORD[type]}：${slot.locks}要与<图片1>完全一致，只改变取景与景别，不要另画一${SUBJECT_WORD[type]}。`,
+      note ? `用户的额外要求（必须满足）：${note.slice(0, 200)}` : "",
+      type === "scene" || type === "background" ? "画面中不要出现任何人物或角色。" : "",
+      cardStyleSuffix(type, "画面"),
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+}
+
+/**
+ * 铸卡过程的两个出口。**分开不是洁癖，是这两句话的寿命完全不同**：
+ *
+ * · `say` 写的是一行**会被下一条盖掉**、收工时还会被 `studioStore.forgeCards` 的
+ *   `finally { forgeProgress: "" }` 清空的状态文字。适合"正在画第 2/3 张"这种一直在变的话。
+ * · `note` 是"必须让人读到"的实情（哪张没画成、为什么）。写进 `say` 等于**没说**：
+ *   catch 之后 for 循环下一轮就在**同一个同步块**里 say 下一条，React 一帧都没画过。
+ *   所以它攒起来，挂到**下一条状态行的尾巴**上 —— 那一行会跟着一张图一直挂着
+ *   （顶档实测每张 70 秒以上），用户才真读得到（铁律八）。
+ *
+ * ★ 本仓已经三处栽在这同一个陷阱上并规避过：real.ts 的 matNotes、studio/segmentGen 的
+ *   noteTail、flowStore。别把 note 改回直接 say。
+ */
+interface ForgeReport {
+  say: (msg: string) => void;
+  note: (msg: string) => void;
+}
+
+/**
+ * 一张卡的全部图位：主图（= 卡面）+ 这一档还要补的几张形象参考图。
+ *
+ * ★★ 后续图位**必须以主图的成品当参考图、并且串行画**。这不是性能上的取舍：
+ *   三张各画各的文生图得到的是三个不同的人 / 三把不同的刀，而这三张随后会一起
+ *   喂给出片模型当形象参考 —— 形象当场分裂。**顶档因此会比只出一张的最低档更不像**：
+ *   用户多付两倍的钱，买到更差的一致性，全程零报错。
+ *   谁要为了提速改成 Promise.all，请先回答"那时参考图从哪来"。
+ * ★ 参考图**恒定只有 1 张**（就是主图）。除了上面那条，它还让 5.0-pro 的
+ *   "首张输入图不额外计费"永远成立 —— 带第二张进去就开始按输入图收钱。
+ * ★ 每一张单独 try/catch，**不是整卡一个 catch**：整卡 catch 的意思是"第 3 张抛一次，
+ *   前两张已经画成、也已经被服务端扣过费的图跟着一起丢"。
+ *
+ * 返回真正画成的图（含主图），顺序与 `slots` 一致。
+ */
+async function forgeSlots(
+  type: CardType,
+  name: string,
+  summary: string,
+  note: string,
+  slots: readonly CardSlot[],
+  primary: string,
+  tier: ImageTier,
+  rp: ForgeReport,
+): Promise<CardView[]> {
+  const views: CardView[] = [{ kind: slots[0].kind, url: primary }];
+  if (slots.length < 2) return views;
+  // 主图当参考图前先过 prepRefImage：它是 1728×2304 的 dataURL（1MB 级 base64），
+  // 原样塞进请求体正是慢网上行会挂死的那个量级（见 REF_MAX_LONG）
+  const ref = await prepRefImage(primary);
+  if (!ref) {
+    // 解不开自己刚画出来的图，理论上不该发生；真发生也别闷着——闷掉的表现是
+    // "顶档少了两张图且没人提过"，与"模型抽风"从外面看一模一样
+    rp.note(`「${name}」的主图读不出来，剩下 ${slots.length - 1} 张形象参考图这次不画了`);
+    return views;
+  }
+  for (let i = 1; i < slots.length; i++) {
+    const slot = slots[i];
+    rp.say(`铸「${name}」第 ${i + 1}/${slots.length} 张：${slot.label}…`);
+    try {
+      const url = await genImageAsDataUrl(slotPrompt(type, name, summary, note, slot), {
+        imageRefs: [ref],
+        size: tier.size,
+        model: tier.model,
+      });
+      views.push({ kind: slot.kind, url });
+    } catch (e) {
+      console.warn(`[ai] 「${name}」的${slot.label}出图失败:`, e);
+      // 逐张点名。只说"少了一张"用户根本不知道少的是哪张、这张卡还能不能用。
+      // ★ 走 note 不走 say：紧接着的下一轮循环就会 say 出"第 i+2 张…"把它盖掉（见 ForgeReport）
+      rp.note(`「${name}」的${slot.label}没画成（${reasonOf(e)}），这张卡按主图锁形象`);
+    }
+  }
+  return views;
+}
+
+/** 素材炼卡：按**图位表**逐张出图（Seedream），名称/简介/类型交给豆包精炼。
+ *
  *  forcedType = 用户在素材窗里选定的卡种：给了就**锁死**，模型只负责起名写简介，
- *  不再有"选了人物卡却回来一张场景卡"的落差。 */
-export async function generateCards(files: MaterialFile[], note: string, forcedType?: CardType | null): Promise<Card[]> {
-  const base = await mock.generateCards(files, note, forcedType); // 结构/兜底沿用 mock 推断
-  // ★ 限流 3 路，不能用 Promise.all：现在**每张卡都要出一次图**，6 份素材就是
-  //   6 个 Seedream 并发打过去，而 arkFetch 撞 429 只退避重试一次。
-  return await mapLimit(base, 3, async (card, i) => {
-      const f = files[i] as MaterialFile | undefined;
-      try {
-        // 文案精炼：名称 + 一句话简介 + 类型校正
-        const meta = await chat(
-          forcedType
-            ? `你是卡牌游戏的铸卡师。用户已指定这是一张【${TYPE_LABEL[forcedType]}】，不要改类型。输出 JSON：{"name":"不超过8字的卡名","summary":"一句30字内有故事感的简介","type":"${forcedType}"}。只输出 JSON。`
-            : "你是卡牌游戏的铸卡师。根据素材信息输出 JSON：{\"name\":\"不超过8字的卡名\",\"summary\":\"一句30字内有故事感的简介\",\"type\":\"character|scene|background|prop|style\"}。只输出 JSON。",
-          `文件名: ${f?.name ?? "无"}\n文本内容: ${(f?.text ?? "").slice(0, 300) || "无"}\n用户补充: ${note || "无"}\n是否图片素材: ${f?.dataUrl ? "是" : "否"}`,
-        );
-        const parsed = JSON.parse(meta.replace(/```json|```/g, "").trim()) as {
-          name?: string;
-          summary?: string;
-          type?: CardType;
-        };
-        const name = parsed.name?.slice(0, 8) || card.name;
-        const summary = parsed.summary?.slice(0, 60) || card.summary;
-        // forcedType 优先于模型返回：提示词里已经写死了，但模型偶尔仍会自作主张
-        const type = forcedType ?? (parsed.type && TYPE_LABEL[parsed.type] ? parsed.type : card.type);
-        return { ...card, name, summary, type, ...(await forgeCover(type, name, summary, note, f, card.cover)) };
-      } catch (e) {
-        // 文案精炼失败不该连卡面一起赔进去：mock 已经给了名字和简介，
-        // 拿它们照样能出图。以前这里一 catch 整张卡退回 mock 占位面
-        console.warn("[ai] 卡片文案回退 mock:", e);
-        return { ...card, ...(await forgeCover(card.type, card.name, card.summary, note, f, card.cover)) };
-      }
-    });
+ *  不再有"选了人物卡却回来一张场景卡"的落差。
+ *
+ *  `minted[i]` = 第 i 张卡**真画成了几张图**（卡面算一张）。结算按它走，
+ *  所以它必须是"真的"：少算一张我们自己亏，多算一张就是收了钱没给东西。
+ *
+ *  `notes` = 这一炉里"哪张没画成、顶上去的是什么"的逐条实情。它在跑的过程中会挂在
+ *  进度行尾巴上（见 ForgeReport），但**最后一条挂不住**：generateCards 一返回，
+ *  `studioStore.forgeCards` 的 `finally { forgeProgress: "" }` 就把整行清了。
+ *  ★ 所以它必须跟着返回值出去，由结果页长期显示（素材窗那句"该出 N 张、成了 M 张"
+ *    只报了数目，没报是哪张、为什么）。**调用方吞掉 notes = 铁律八失效**。
+ */
+export async function generateCards(
+  files: MaterialFile[],
+  note: string,
+  forcedType?: CardType | null,
+  opts?: { tierId?: string; onProgress?: (msg: string) => void },
+): Promise<{ cards: Card[]; minted: number[]; notes: string[] }> {
+  // 结构/兜底沿用 mock 推断。★ 不把 opts 传下去：mock 的进度播报是"演示模式"那套话，
+  // 在真实管线里说出来就是骗人
+  const { cards: base } = await mock.generateCards(files, note, forcedType);
+  const tier = imageTierOf(opts?.tierId);
+  const emit = opts?.onProgress;
+  // 出图失败攒在这里，挂到每一条状态行的尾巴上（理由见 ForgeReport）
+  const notes: string[] = [];
+  let lastLine = "";
+  const tailOf = () => (notes.length > 0 ? `（${notes.join("；")}）` : "");
+  const rp: ForgeReport = {
+    say: (msg) => {
+      lastLine = msg;
+      emit?.(msg + tailOf());
+    },
+    note: (msg) => {
+      notes.push(msg);
+      // 立刻把**当前这一行**带着新尾巴重发一次。多张卡是并炼的（下面 mapLimit 3 路），
+      // 别的卡还在画（每张 70 秒起），这一发就真的会被渲染出来。
+      // 全炉最后一条仍然挂不住 —— 那一条靠返回值里的 notes 兜底。
+      emit?.(lastLine + tailOf());
+    },
+  };
+  // ★ 限流 3 路，不能用 Promise.all：现在**每张卡都要出好几次图**，6 份素材就是
+  //   十几个 Seedream 并发打过去，而 arkFetch 撞 429 只退避重试一次。
+  //   卡与卡之间并发，**一张卡内部的图位必须串行**（理由见 forgeSlots）。
+  const out = await mapLimit(base, 3, async (card, i) => {
+    const f = files[i] as MaterialFile | undefined;
+    let name = card.name;
+    let summary = card.summary;
+    let type = card.type;
+    try {
+      // 文案精炼：名称 + 一句话简介 + 类型校正
+      const meta = await chat(
+        forcedType
+          ? `你是卡牌游戏的铸卡师。用户已指定这是一张【${TYPE_LABEL[forcedType]}】，不要改类型。输出 JSON：{"name":"不超过8字的卡名","summary":"一句30字内有故事感的简介","type":"${forcedType}"}。只输出 JSON。`
+          : "你是卡牌游戏的铸卡师。根据素材信息输出 JSON：{\"name\":\"不超过8字的卡名\",\"summary\":\"一句30字内有故事感的简介\",\"type\":\"character|scene|background|prop|style\"}。只输出 JSON。",
+        `文件名: ${f?.name ?? "无"}\n文本内容: ${(f?.text ?? "").slice(0, 300) || "无"}\n用户补充: ${note || "无"}\n是否图片素材: ${f?.dataUrl ? "是" : "否"}`,
+      );
+      const parsed = JSON.parse(meta.replace(/```json|```/g, "").trim()) as {
+        name?: string;
+        summary?: string;
+        type?: CardType;
+      };
+      name = parsed.name?.slice(0, 8) || name;
+      summary = parsed.summary?.slice(0, 60) || summary;
+      // forcedType 优先于模型返回：提示词里已经写死了，但模型偶尔仍会自作主张
+      type = forcedType ?? (parsed.type && TYPE_LABEL[parsed.type] ? parsed.type : card.type);
+    } catch (e) {
+      // 文案精炼失败不该连卡面一起赔进去：mock 已经给了名字和简介，拿它们照样能出图。
+      // ★ 所以这个 try 只包着"问豆包"这一段，不再罩着出图——以前一 catch 整张卡退回 mock 占位面
+      console.warn("[ai] 卡片文案回退 mock:", e);
+    }
+
+    // ★ 这一档、这一类要画哪几张 —— **唯一来源**是 economy.slotsFor。
+    //   别在这里另算张数（`imageTier.views` 是名义上限，非人物卡只有 2 格），
+    //   报价、出图、结算读的必须是同一次 slice 的结果，否则就是"页面报 3 张、实际画 2 张"。
+    const slots = slotsFor(type, opts?.tierId);
+    rp.say(`铸「${name}」第 1/${slots.length} 张：${slots[0].label}…`);
+    const primary = await forgePrimary(type, name, summary, note, slots[0], f, card.cover, tier);
+    if (!primary.genPrompt) {
+      // 主图都没画成：后面几张没有参考图可依，画了也只会是另一个人 —— 直接收手。
+      // ★ 说出来，并且说清楚顶上去的是什么。用户看到一张陌生的占位图却以为"AI 就画成这样"，
+      //   比看到一句"没画成"糟得多（铁律八）。
+      // ★ 走 note 不走 say：这句话之后这张卡就 return 了，没有下一条状态行来撑住它 ——
+      //   直接 say 出去等于蒸发（同 ForgeReport 的理由）
+      rp.note(
+        `「${name}」的${slots[0].label}没画成（${primary.error}），先用${f?.dataUrl ? "你交上来的原图" : "占位图"}顶着` +
+          // 只有一格的档位（速写）本来就没有"其余图位"，这句话对它是句废话
+          (slots.length > 1 ? `，这张卡余下的 ${slots.length - 1} 张这次也不画了` : ""),
+      );
+      return { card: { ...card, name, summary, type, cover: primary.cover, imageTier: tier.id }, minted: 0 };
+    }
+    const views = await forgeSlots(type, name, summary, note, slots, primary.cover, tier, rp);
+    return {
+      card: {
+        ...card,
+        name,
+        summary,
+        type,
+        cover: primary.cover,
+        genPrompt: primary.genPrompt,
+        // 这次用的是哪一档。★ 存 id 不存张数：张数是 (档位 × 卡种) 算出来的，
+        //   存下来就成了第二处实现，改档位表时它不会跟着变
+        imageTier: tier.id,
+        // ★★ 后续图位挂在 `views` 上（`views[0]` 就是卡面本身，顺序 = 图位表的顺序），
+        //   下游一律走 `viewsOf()` 读它。只有真多画出图来才写这个字段：只有一张时
+        //   `viewsOf()` 的兜底给出的是同一份结果（卡面即主图参考），写进去纯属冗余。
+        //   ⚠ 这里放的是 **dataURL**，与 types.CardView「只存 http(s) URL」那条不变量
+        //     暂时不一致：出图管线拿不到上传通道（离线/无服务端时根本没有），也不该
+        //     在这一层决定谁去转存。**存卡那一层必须先把它们转存成永久地址**
+        //     （data/publishAssets 的 imageToUrl 是唯一实现）——不转存的话，
+        //     api/branch.httpViews 会把非 http 的 view 直接滤掉：卡在本机看着好好的，
+        //     一次重登（loadRemoteAssets 整体覆盖 db.cards）之后用户花钱画的那两张
+        //     **无声消失**。
+        ...(views.length > 1 ? { views } : {}),
+      },
+      minted: views.length,
+    };
+  });
+  return { cards: out.map((o) => o.card), minted: out.map((o) => o.minted), notes };
 }
 
 /** 设定帧的画风尾巴。画幅得写进提示词：size 参数只决定画布，构图还是靠这句话——
@@ -465,13 +881,16 @@ export async function generateProposals(
     const prompt = (which === "first" ? prompts.first : prompts.last) + mat.bind(withFrameRef ? frameRefs.length : 0);
     let frame: string | null = null;
     try {
-      frame = await genImageAsDataUrl(prompt, useRefs.length > 0 ? useRefs : undefined, frameSize);
+      frame = await genImageAsDataUrl(prompt, {
+        imageRefs: useRefs.length > 0 ? useRefs : undefined,
+        size: frameSize,
+      });
     } catch {
       try {
         // 带参考图失败可能是参考图本身不被受理——去掉参考图再试一次。
         // ★ 说出来：退成纯文生图意味着这一帧**没有**用上你挂的卡，闷声重试等于骗人
         if (useRefs.length > 0) onProgress?.("参考图未被受理，该帧改用纯文字重画");
-        frame = await genImageAsDataUrl(framePrompts(p.plot, false, ctx.aspect)[which], undefined, frameSize);
+        frame = await genImageAsDataUrl(framePrompts(p.plot, false, ctx.aspect)[which], { size: frameSize });
       } catch (e2) {
         console.warn(`[ai] ${p.title} ${which} 帧两次失败:`, e2);
       }
@@ -562,8 +981,12 @@ async function mintCards(
     try {
       // 完整生成提示词随卡保存（生成蓝图）：卡片详情页展示，
       // 后续用它就能复刻出与卡面一致的画面/建模
-      const genPrompt = `${TYPE_LABEL[type]}：${d.name}。${d.imagePrompt ?? d.summary ?? ""}。${styleHint ? `画风：${styleHint}。` : ""}${STYLE_SUFFIX}`;
-      const cover = await genImageAsDataUrl(genPrompt, undefined, "1728x2304");
+      // ★ 画风卡同样不拼 STYLE_SUFFIX（与 forgePrimary 同一条理由）：派生出来的那张
+      //   style 卡是给后面整片当画风参考的，被按上"二次元厚涂"就等于把这条片的画风
+      //   悄悄换掉，而卡上写的还是模型总结出来的那个名字
+      const genPrompt = `${TYPE_LABEL[type]}：${d.name}。${d.imagePrompt ?? d.summary ?? ""}。${styleHint ? `画风：${styleHint}。` : ""}${cardStyleSuffix(type, "卡面")}`;
+      // 画布与素材卡一致（CARD_SIZE）：两种卡摆在同一副卡组里，画幅不一致一眼就看得出
+      const cover = await genImageAsDataUrl(genPrompt, { size: CARD_SIZE });
       out.push({
         id: uid("card"),
         type,
@@ -755,8 +1178,7 @@ export async function refineFrame(
   const spec = aspectOf(aspect);
   return await genImageAsDataUrl(
     `在<图片1>的基础上修改这张视频分镜帧：${req}。除要求之外保持人物、构图、光线与整体画风完全一致。高细节，无文字无水印。${spec.promptHint}。`,
-    [refDataUrl, ...(extraRefs ?? [])],
-    spec.frameSize,
+    { imageRefs: [refDataUrl, ...(extraRefs ?? [])], size: spec.frameSize },
   );
 }
 
@@ -816,7 +1238,7 @@ export async function generateCover(
     ? `在<图片1>的基础上修改这张视频封面：${req}。除要求之外保持主体、构图与整体风格不变。高细节，氛围光，无文字无水印。${spec.promptHint}。`
     : `视频封面图：${req}。高细节，电影感构图，氛围光，无文字无水印。${spec.promptHint}。`;
   const refs = [...(refDataUrl ? [refDataUrl] : []), ...(extraRefs ?? [])];
-  return await genImageAsDataUrl(prompt, refs.length > 0 ? refs : undefined, spec.frameSize);
+  return await genImageAsDataUrl(prompt, { imageRefs: refs.length > 0 ? refs : undefined, size: spec.frameSize });
 }
 
 /** 单段合成结果：url 缺席时 error 说明原因；firstFrame/lastFrame 带回"真实"帧
@@ -975,8 +1397,8 @@ export async function composeSegments(
         const prompts = framePrompts(sg.plot, false, sg.aspect);
         const frameSize = aspectOf(sg.aspect).frameSize;
         [first, last] = await Promise.all([
-          genImageAsDataUrl(prompts.first, undefined, frameSize),
-          genImageAsDataUrl(prompts.last, undefined, frameSize),
+          genImageAsDataUrl(prompts.first, { size: frameSize }),
+          genImageAsDataUrl(prompts.last, { size: frameSize }),
         ]);
         res.firstFrame = first;
         res.lastFrame = last;

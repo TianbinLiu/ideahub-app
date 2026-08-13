@@ -708,7 +708,12 @@ function FeedItem({
           onClick={() => navigate(authorHref)}
           className="pointer-events-auto mb-1.5 block max-w-full truncate text-left text-sm font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,.6)] active:opacity-70"
         >
-          @{video.author}
+          {/* ★ 这里**不带 `@` 前缀**：`video.author` 是**显示名**，而本 app 的 @ 句柄是
+              不可改的 username（见 utils/mention 与 MentionInput）。给显示名前面加个 @
+              就是在告诉用户"@ 这串能 @ 到他"，而那串多半 @ 不到 —— 首页是曝光量最大的
+              一屏，这条口径错在这儿传播得最快。要显示真句柄得把 author.username 一路
+              接进 VideoItem，那是另一件事；在此之前，不写比写错好。 */}
+          {video.author}
         </button>
         {/* 标题接管了原来头像那个「进详情页」的职责。详情页不是可有可无的：
             本片卡组、分段剧情、多 P 选集都只在那儿，头像改指主页后必须另留一个门 */}

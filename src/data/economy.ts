@@ -2,7 +2,15 @@
 // token 与方舟视频 token 同量纲（720p 24fps：时长×1280×720×24/1024/秒），
 // 档位系数按各模型单价相对标准档（1.0-pro 15元/M）折算——用户看到的数字
 // 就是真实资源消耗，不做虚拟汇率。
-import { VideoSegment } from "../types";
+import {
+  CARD_SIZE,
+  CARD_SLOTS,
+  CARD_TYPES,
+  MAX_CARD_VIEWS,
+  VideoSegment,
+  type CardSlot,
+  type CardType,
+} from "../types";
 
 /** 观看付费的平台抽成比例（其余进创作者 add-on 余额） */
 export const PLATFORM_CUT = 0.3;
@@ -144,12 +152,177 @@ export function segTokens(durationSec: number, tierId?: string): number {
   return Math.round(base * tierOf(tierId).mult);
 }
 
+// ── 出图模型与铸卡档位 ─────────────────────────────────────────
+//
+// 口径与视频同一把尺子：**元/张 ÷ 15 元/百万 token**（15 = Seedance 1.0-pro 标准档）。
+// ★ 不做 base × mult 两层：图片是"每张一口价"，没有时长那样的连续量，除一次再乘回来
+//   只会引入舍入误差，而误差方向总是我们垫钱。直接写绝对 token。
+//
+// ⚠ 单价来自方舟公开价目（2026-08-11 核对），**尚未与控制台账单对过**。
+//   发现偏差**只改这一张表**，并同步 server/src/config/tokens.js 的同名表（跨仓契约）。
+//
+// 各模型的像素区间是 2026-08-11 拿真 key 探出来的（发必然 400 的尺寸、读报错文案，零成本）：
+//   4.0     ≥ 921,600      ≤ 16,777,216
+//   4.5     ≥ 3,686,400    ≤ 16,777,216
+//   5.0     ≥ 3,686,400                    ← 公开价目里查不到单价，**因此不进档位表**
+//   5.0-pro ≥ 921,600      ≤ 4,624,220
+// ★ 那条 3,686,400 是 **5.0 / 4.5 专属**，不是 Seedream 的通则 —— 别再照抄成全家桶下限。
+
+/** 一张出图的 token 等价，按模型。★ 每一格的注释必须带：单价、口径、核对状态 */
+export const IMAGE_TOKENS_BY_MODEL: Record<string, number> = {
+  // 0.20 元/张 ÷ 15 元/M = 13,333。账单核对 ☐ 未做
+  "doubao-seedream-4-0-250828": 13_333,
+  // 0.25 元/张 ÷ 15 元/M = 16,667。账单核对 ☐ 未做
+  "doubao-seedream-4-5-251128": 16_667,
+  // 0.60 元/张（输出图 > 236 万像素那一档）÷ 15 元/M = 40,000。账单核对 ☐ 未做
+  // ★ 顶档**故意用满画布** CARD_SIZE(1728×2304 = 398 万像素) 走贵的那一档：
+  //   压到 236 万以下（例 1296×1728）单价减半，但那样顶档出的图会**比中档还小**，
+  //   一个"更贵却更糊"的顶档迟早被当成 bug。想换成半价版只改 ImageTier.size 这一行。
+  "doubao-seedream-5-0-pro-260628": 40_000,
+};
+
 /**
- * 一次图像生成（Seedream 卡面/设定帧）的 token 等价。
- * 折算依据：Seedream 5.0 约 0.2 元/张，标准档视频 15 元/M token ⇒ 0.2/15 M ≈ 13.3k。
- * 与视频 token 同量纲，用户看到的就是同一把尺子。
+ * 查一张图的单价；**认不出的模型返回 null**。
+ *
+ * ★ 不写 `?? IMAGE_TOKENS` 兜底：那会把"档位表加了、价表忘了"这种配置错**静默**盖住，
+ *   表现为高档按低档收费 —— 用户无感、界面无错、测试全绿，只有火山账单知道。
+ * ★★ 但也**不在这一层抛**（原来是 `throw new Error`）。这个函数的调用链是
+ *   imageTierTokens → forgeCost，而 forgeCost 是在 NpcDialog 的 **render 里**调的，
+ *   `IMAGE_TOKENS` 更是**模块顶层常量**：
+ *     · render 里抛 → 全 app 没有任何 ErrorBoundary（2026-08-11 全仓 grep 确认），
+ *       React 直接卸载整棵树；
+ *     · 顶层抛 → economy.ts 求值失败，所有 import 它的模块连带挂掉，app 根本起不来。
+ *   两种都表现为**白屏，错误只进 console** —— 用户拿不到任何一句话（铁律八），而抛异常
+ *   的初衷恰恰是"别静默"。所以这一层只回答"表里有没有"，把"没有该怎么办"交给上面两处：
+ *   数值侧返回 null（类型逼着调用方处理），人话侧走 imageTierPriceIssue。
+ * ★ 用 `?? null` 而不是 `if (!n)`：0 也是一个合法单价（哪天某个模型免费），
+ *   `!n` 会把它当成"不在表里"。
+ * ★ 那句 `number | undefined` 标注不能省：tsconfig 没开 noUncheckedIndexedAccess，
+ *   `Record<string, number>` 的下标在**类型上**是 number（运行时却真会给 undefined）。
+ *   不标的话 `?? null` 看起来像一段永远走不到的死代码，下一个人顺手就删了。
  */
-export const IMAGE_TOKENS = 13_300;
+function imagePriceOf(model: string): number | null {
+  const n: number | undefined = IMAGE_TOKENS_BY_MODEL[model];
+  return n ?? null;
+}
+
+/** 铸卡出图档位：id 持久化在 Card.imageTier */
+export interface ImageTier {
+  id: string;
+  label: string;
+  model: string;
+  /**
+   * 取该卡种图位列表（types.CARD_SLOTS）的前几个。实际张数还要 min 上列表长度。
+   * ★ **没有档位敢写 3**：出片管线一张卡最多喂 2 张（见 slotsFor 的 ★★），
+   *   第 3 张画了也进不了模型 —— 收了钱、画面一个像素不变。
+   */
+  views: number;
+  /**
+   * 发给方舟的画布。★ 必填、不许留空 —— 单价按输出像素分档，留空就等于把钱交给默认值。
+   */
+  size: string;
+  desc: string;
+}
+
+/**
+ * 铸卡档位。**低→高单调递增**，且三个模型的单价都有公开出处。
+ *
+ * ★ 为什么没有现在天天在调的 `doubao-seedream-5-0-260128`：它的单价在方舟公开价目里
+ *   查不到。拿一个不知道多少钱的模型当默认，就是今天这个局面 —— `IMAGE_TOKENS` 原值
+ *   13,300 折的是 **0.20 元**，那是 4.0 的价，而我们一直在调 5.0，差价自己吃了。
+ *
+ * ★★ 三档的 desc 必须**如实说清各自差在哪**：
+ *     速写→定妆 差在**张数**（1 张 → 2 张），定妆→精绘 差在**模型**（4.5 → 5.0-pro），
+ *     张数两者都是 2。谁要是在精绘那句里暗示"图更多"，就是拿一张画不出来的图卖钱 ——
+ *     顶档的 views 曾经写 3，而第 3 张永远进不了出片管线（见 slotsFor 的 ★★），
+ *     人物卡一张 120,400 里有 40,000 是白花的。
+ */
+export const IMAGE_TIERS: ImageTier[] = [
+  {
+    id: "sketch",
+    label: "速写",
+    model: "doubao-seedream-4-0-250828",
+    views: 1,
+    size: CARD_SIZE,
+    desc: "只画 1 张主图 · 它同时就是卡面",
+  },
+  {
+    id: "studio",
+    label: "定妆",
+    model: "doubao-seedream-4-5-251128",
+    views: 2,
+    size: CARD_SIZE,
+    desc: "画 2 张：主图 + 一张参考图，照着主图画同一个对象",
+  },
+  {
+    id: "master",
+    label: "精绘",
+    model: "doubao-seedream-5-0-pro-260628",
+    // ★ 2（不是 3）：出片管线一张卡最多喂 2 张，第 3 张是画了也用不上的（见 slotsFor）
+    views: 2,
+    size: CARD_SIZE,
+    // 实测 2026-08-11：pro 出一张 1296×1728 用了 73.6 秒，是 5.0（21-25s）的三倍多。
+    // 客户端出图超时因此必须 > 服务端 T_CREATE，见 ai/arkClient 的说明。
+    desc: "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢",
+  },
+];
+
+export const DEFAULT_IMAGE_TIER = "sketch";
+
+/**
+ * 按 id 查档位。
+ * ★ 兜底用 **DEFAULT_IMAGE_TIER 常量**，不学 tierOf 那样写 `IMAGE_TIERS[1]` —— 下标兜底
+ *   在往数组前面插一档时会**静默**变成另一档，而这种错没有任何症状。
+ */
+export function imageTierOf(id: string | undefined): ImageTier {
+  return IMAGE_TIERS.find((t) => t.id === id) ?? IMAGE_TIERS.find((t) => t.id === DEFAULT_IMAGE_TIER)!;
+}
+
+/**
+ * 「这一档现在报不报得出价」—— **唯一实现**。null = 能报价，否则是一句给用户看的原因。
+ *
+ * ★ 形状照抄 account.tierBlockReason：界面拿它决定"这颗按钮能不能按、旁边写什么"，
+ *   而不是各自去 IMAGE_TOKENS_BY_MODEL 里探一次（铁律六）。
+ * ★ 为什么非要有这么一句：价目缺失时唯一诚实的做法是**既不报价也不开炼**。
+ *   放它过去只有两个下场 —— 按 0 收（页面写着免费、火山照扣），或者在 render 里抛
+ *   （白屏，用户一个字都看不到）。两个都是本仓最怕的形状。
+ */
+export function imageTierPriceIssue(tierId?: string): string | null {
+  const t = imageTierOf(tierId);
+  if (imagePriceOf(t.model) !== null) return null;
+  return `「${t.label}」这一档暂时报不出价（${modelLabel(t.model)} 不在价目表里），先用别的档位`;
+}
+
+/**
+ * 一张出图的 token 等价（按档位）。非铸卡路径（设定帧/方案首尾帧）走 IMAGE_TOKENS。
+ * ★ 返回 null = **这一档报不了价**，不是"免费"。类型上就是 nullable，调用方想当 0 用
+ *   得自己写 `?? 0` —— 那时候至少是一次显式的、看得见的选择。
+ */
+export function imageTierTokens(tierId?: string): number | null {
+  return imagePriceOf(imageTierOf(tierId).model);
+}
+
+/**
+ * 非铸卡路径（补设定帧、三套方案的首尾帧、AI 封面、提炼卡组）一张出图的 token 等价。
+ * ★ 跟着默认档走，不再是一个手写常量 —— 手写常量正是"折的是 4.0 的价、跑的是 5.0"
+ *   那个错的来源。
+ * ★★ 这里**一个字都不能抛**：它是模块顶层常量，抛出去就是 economy.ts 求值失败 →
+ *   所有 import 它的模块连带失败 → app 连界面都挂不起来（白屏 + 只有 console 有话说）。
+ *   "默认档一定在价目表里"是本模块的不变量（DEFAULT_IMAGE_TIER = 速写 = 4.0，就在表里）；
+ *   万一哪天被改破，退到表里**最贵**的那个单价：报价宁可偏高也不能偏低 —— 偏低就是
+ *   CLAUDE.md 里「页面报 ¥25、实际扣 ¥15」那条事故的方向。同时 console.error 点名，
+ *   让改坏它的人当场看见。
+ * ⚠ 留给人工确认：这几条路径**没有**"这一档报不了价"的界面出口（只有铸卡那条有，
+ *   见 imageTierPriceIssue）。真要让它们也开口说话，得在各自的 TokenCost 旁边补一句，
+ *   那些文件这一轮不归我改。
+ */
+export const IMAGE_TOKENS: number = ((): number => {
+  const model = imageTierOf(DEFAULT_IMAGE_TIER).model;
+  const n = imagePriceOf(model);
+  if (n !== null) return n;
+  console.error(`[economy] 默认出图档位的模型 ${model} 不在价目表里，暂按表里最贵的单价报价`);
+  return Math.max(...Object.values(IMAGE_TOKENS_BY_MODEL));
+})();
 
 /** 视觉模型看图（每帧）的 token 等价：豆包 seed-2.1 图文输入远比出图便宜，取一个保守值 */
 export const VISION_FRAME_TOKENS = 900;
@@ -174,13 +347,89 @@ export function forgeCardCount(fileCount: number, hasNote: boolean): number {
 }
 
 /**
- * 素材炼卡的预估：每张卡 = 一次豆包文案 + **一次 Seedream 出图**。
- * 旧版按"图片素材直接当卡面、不烧 Seedream"算，是半价；现在卡面一律由
- * Seedream 画（图片素材降级为参考图，见 real.forgeCover），那条捷径没有了，
- * 报价必须跟着涨——报低了就是替用户做主花他的钱。
+ * 这一档给这种卡出哪几张图 —— **全仓唯一实现**（铁律六）。
+ * 报价、出图、结算、界面上那个张数，四处都只调它。
+ *
+ * ★ 用 `slice` 不做长度断言：档位的 `views` 是**名义上限**，某类卡的图位列表比它短时
+ *   （顶档还写 3 那会儿，非人物卡就只有 2 格）就按短的来 —— 这个函数返回的才是
+ *   **这一次的真张数**。报价与出图必须读同一次 slice 的结果，否则就是
+ *   "页面报 3 张、实际画 2 张"。
+ * ★ 为什么非人物卡只有 2 格：那是它们的图位表就只有 2 格（types.CARD_SLOTS）。
+ *   ⚠ 这里原来写的理由是"出片管线对它们只读 viewsOf()[0] 一张"——**那条已经不成立**：
+ *   2026-08-11 起 prepareMaterialRefs 改成两轮分配，预算有余时会给非人物卡补第 2 张。
+ *   结论没变，理由变了。照旧理由读下去的人会得出"第 2 格也是白花钱"进而把它砍掉，
+ *   那会静默地把刚补上的窟窿原样退回去（一张场景卡 16.7k 白花），且没有任何测试会拦。
+ *
+ * ★★ 为什么**没有档位敢把 views 写成 3**（顶档曾经写过，2026-08-11 改回 2）：
+ *   出片管线对**任何一张卡**最多喂 2 张图 ——
+ *     · 人物卡：只有第一张（主角）能带参考图，且按 face→body→detail 排序取前
+ *       `MAX_CHAR_REFS = 2` 张（ai/real 规则一、规则三；依据是方舟指南「不建议用满
+ *       素材上限，过多素材会导致模型难以判断特征优先级」）；
+ *     · 非人物卡：图位表本来就只有 2 格（第 1 张保底，第 2 张在预算有余时进）。
+ *   所以人物卡的第 3 格「标志性细节」**永远排在配额之外**：前两张必然已经占满。
+ *   花钱替用户画它 = 卖一张卖不出去的图（一张顶档 40,000 token）。
+ * ★ 但那一格不是废格，它是**手动专用**：用户可以在卡片详情页自己补一张 detail，
+ *   而当这张卡缺 face 或 body 时它就轮得到（取图是按卡上真有的图排序，不是按图位表）。
+ *   —— 所以删格子是错的，删的只是"铸卡自动出第 3 张"这件事。
+ * ★ 这里仍然只 `Math.min(views, MAX_CARD_VIEWS)`，不再另写一个 `Math.min(…, 2)`：
+ *   真正的 2 在 ai/real 那侧（`MAX_CHAR_REFS`）。它现在是导出的，但**照样不 import**——
+ *   data 层反向依赖 ai 层会把依赖方向拧过来（ai/real 已经 import 本文件，会成环）。
+ *   约束由档位表的 views 表达，理由写在这里；改 MAX_CHAR_REFS 的人请回来看这段。
  */
-export function forgeCost(cardCount: number): number {
-  return cardCount * (CARD_META_TOKENS + IMAGE_TOKENS);
+export function slotsFor(type: CardType, tierId?: string): readonly CardSlot[] {
+  const k = Math.min(imageTierOf(tierId).views, MAX_CARD_VIEWS);
+  return CARD_SLOTS[type].slice(0, k);
+}
+
+/**
+ * 卡种还没定（🎲「让铸卡师看着办」）时**按哪一类报价** —— 取这一档下图位最多的那类。
+ *
+ * ★ 独立成函数是因为它有两个读者：forgeCost 的 null 分支（算钱）与素材窗的那句
+ *   "先按最贵的人物卡报价"（说给用户听）。两边各写一份 reduce，哪天有人给场景卡
+ *   加第 3 格，就会变成"嘴上说按人物卡报、实际按别的类算"—— 正是 CLAUDE.md 里
+ *   「页面报 ¥25、实际扣 ¥15」那条事故的形状（铁律六）。
+ * ★ 平手时取 CARD_TYPES 里靠前的那个（reduce 用严格大于）：五类现在图位数只有 1/2 两种，
+ *   谁在前面都不影响钱数，但保证同一次渲染里"报价用的类"和"文案里写的类"是同一个。
+ */
+export function dearestCardType(tierId?: string): CardType {
+  return CARD_TYPES.reduce((a, b) => (slotsFor(b, tierId).length > slotsFor(a, tierId).length ? b : a));
+}
+
+/**
+ * 素材炼卡的预估：每张卡 = 一次豆包文案 + **这一档这一类要画的每一张图**。
+ *
+ * ★ `type` 为 null 是「让铸卡师看着办 · 按素材自动判断类型」那条路 —— 报价发生在
+ *   卡种**已知之前**。这时按**最贵的那类**报（dearestCardType，与界面文案同一处），
+ *   并由调用方在文案里说"最多"；按最便宜的报就是"界面按场景卡报价、实际按人物卡扣钱"，
+ *   正是 CLAUDE.md 里「页面报 ¥25、实际扣 ¥15」那条事故的镜像版。
+ * ★ 返回 null = **这一档报不出价**（价目表里没有它的模型），不是 0。调用方必须把它
+ *   翻成一句人话并挡住开炼按钮（见 imageTierPriceIssue 与 NpcDialog.forge）。
+ */
+export function forgeCost(cardCount: number, type: CardType | null, tierId?: string): number | null {
+  const one = imageTierTokens(tierId);
+  if (one === null) return null;
+  const per = slotsFor(type ?? dearestCardType(tierId), tierId).length;
+  return cardCount * (CARD_META_TOKENS + per * one);
+}
+
+/**
+ * 实际结算：按**每张卡真画成了几张图**收。
+ *
+ * ★ 入参是每张卡各自画成的张数，不是"出了卡面的卡数"。旧签名是一张卡一个布尔，
+ *   物理上表达不了"该画 3 张、成了 2 张" —— 那种情况下用户被全额收费且全程零提示。
+ * ★ 返回 null 同 forgeCost：这一档报不出价，别当 0 花掉。
+ *
+ * ⚠⚠ 这个"按实结算"**只在离线模式生效**。远端模式下 account.spendTokens 是**空操作**
+ *   （余额镜像只由服务端的权威值写入），真扣费发生在服务端：**按每次方舟调用是否 2xx 记**，
+ *   W2 只对非 2xx 退款。也就是说"图画出来了、只是取图那一步 504 / 弱网超时"的那一张，
+ *   服务端照扣，而客户端把它算作"没画成"。
+ *   所以界面上**绝不许**写"少的那几张没收你的钱" —— 那是客户端无从验证、也不成立的
+ *   承诺，用户照它对账只会认定自己被多扣（见 NpcDialog 那句提示的措辞）。
+ */
+export function forgeSettle(mintedPerCard: number[], tierId?: string): number | null {
+  const per = imageTierTokens(tierId);
+  if (per === null) return null;
+  return mintedPerCard.reduce((sum, n) => sum + CARD_META_TOKENS + n * per, 0);
 }
 
 /**
@@ -225,7 +474,8 @@ export function composeCost(segments: Array<Pick<VideoSegment, "durationSec" | "
  * 一次 seed3d 建模的 token 等价。折算依据：doubao-seed3d-2.0 约 **2.4 元/次**
  * （带纹理 + PBR），标准档视频 15 元/M ⇒ 2.4/15 M = 160k。
  * 这是全 app **最贵的单次操作**——12 张 Seedream 的钱。它以前一分不收也一句提示
- * 没有，还由一条正则（/3d|三维|立体感|cg|建模|渲染/）静默触发。
+ * 没有，还由一条正则静默触发；那条正则现在是 styleWants3d（本文件下方），
+ * 报价与触发读的是同一个判断。
  */
 export const MODEL3D_TOKENS = 160_000;
 
@@ -249,16 +499,55 @@ export function proposalRedrawCost(keepFirst: boolean, keepLast: boolean): numbe
   return ((keepFirst ? 0 : 1) + (keepLast ? 0 : 1)) * ONE_IMAGE;
 }
 
-/** 成片派生卡组：最多 8 张，每张一次文案 + 一次卡面。
+// ── 成片派生卡组（组稿那一下）──────────────────────────────
+//
+// ★★ 这笔钱在 2026-08-12 之前**从来没在界面上出现过**：工作流顶栏那个"剩余约 xx"
+//   只累加各段的 segmentCost，而按下「完成视频」还会静默烧掉最多 110k（8 张卡）
+//   —— 撞上 3D 关键词再加最多 320k。用户看到的总价与实际扣的差一倍以上，
+//   正是 CLAUDE.md 里「页面报 ¥25、实际扣 ¥15」那条事故的放大版。
+//   所以下面这几个常量/函数的存在意义是：**让 UI 有东西可报**（FlowPage 顶栏与
+//   「完成视频」旁那句话），而结算侧（studioStore.finalizeFromFlow）读同一份。
+
+/**
+ * 一次派生最多出几张卡。
+ *
+ * ⚠ 这个 8 在仓里**还有两处**，都在 `ai/real.ts`（不归本轮改）：`mintCards` 的
+ *   `defs.slice(0, 8)`，以及提示词里那句「输出 JSON 数组（0~8 张）」。三处必须相等 ——
+ *   这里报小了就是少报价（用户被多扣），报大了则是吓唬人。改那两处的人请回来改这里。
+ *   （没有在这一轮把它们收成一处：那要动 ai 层的签名，与本轮的改动范围无关。）
+ */
+export const DECK_MAX_CARDS = 8;
+
+/** 派生卡组时最多顺带铸几个 3D 建模（只给派生出来的角色卡铸）。
+ *  studioStore.finalizeFromFlow 传给 deriveCharacterModels 的上限读的就是它。 */
+export const DECK_MAX_3D = 2;
+
+/**
+ * 「这条片的画风/剧情会不会触发 3D 建模」—— **全仓唯一一处**（铁律六）。
+ *
+ * ★★ 这条正则原来写死在 studioStore.finalizeFromFlow 里，是个**静默触发器**：
+ *   剧情里出现"渲染"两个字，组稿就会去铸最多 2 个建模（每个 160k，全 app 最贵的
+ *   单次操作）。搬到这里是为了让**报价与触发读同一个判断** —— 报价那侧自己再写一遍
+ *   正则的话，多写少写一个词就是"界面说不铸、实际铸了"，而用户只会在账单上发现。
+ * ★ 它匹配的是"用户已经写下的字"，所以在报价那一刻就**是确定的**（不是概率）：
+ *   撞上就一定会去铸，没撞上就一定不铸。真正说不准的只有"派生出几张角色卡"（0~2 张），
+ *   那部分只能按上限报、按实际结算。
+ */
+const STYLE_3D_RE = /3d|三维|立体感|cg|建模|皮克斯|pixar|渲染/i;
+
+export function styleWants3d(text: string): boolean {
+  return STYLE_3D_RE.test(String(text || ""));
+}
+
+/** 成片派生卡组：最多 DECK_MAX_CARDS 张，每张一次文案 + 一次卡面。
  *  与 extractCost 一样给的是**上限**——重复实体会被剔掉，按实际出卡结算。 */
-export function deckCardsCost(maxCards = 8): number {
+export function deckCardsCost(maxCards = DECK_MAX_CARDS): number {
   return maxCards * (CARD_META_TOKENS + IMAGE_TOKENS);
 }
 
-/** 素材炼卡的**实际**结算：只有真画出卡面的那几张收图钱，
- *  出图失败退回用户原图的那张只收文案钱。 */
-export function forgeSettle(cardCount: number, mintedCovers: number): number {
-  return cardCount * CARD_META_TOKENS + mintedCovers * IMAGE_TOKENS;
+/** 派生角色卡顺带铸 3D 建模的上限报价。★ 与实际结算（按 minted 张数）同一个单价。 */
+export function deckModel3dCost(count = DECK_MAX_3D): number {
+  return count * MODEL3D_TOKENS;
 }
 
 export function fmtTokens(n: number): string {

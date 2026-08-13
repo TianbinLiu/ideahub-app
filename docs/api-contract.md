@@ -17,11 +17,40 @@
   // 视频解码出来的宽高，所以服务端**丢掉这个字段不会让画面出错**，只会让首帧解码前
   // 那一瞬按横屏排版、解码后跳一下。videoTier 同理，只是创作侧的档位快照。
   branchTree?: { rootId, startChoices?, nodes },
+  takedown?: { by: ObjectId(User), at: Date, reason: String },   // 见下「平台下架」
   author: ObjectId(User), plays, likes, commentCount,
   createdAt, updatedAt
 }
 ```
 索引：`{ author: 1, createdAt: -1 }`、`{ category: 1, createdAt: -1 }`、`{ createdAt: -1 }`
+
+#### 平台下架（`takedown`）
+
+**有这个子文档 = 已被平台下架。** 没下架时服务端**根本不发这个键**（不是 `null`、不是 `false`）。
+
+| 谁 | 读不读得到这条作品 | 回包里有没有 `takedown` |
+|---|---|---|
+| 陌生人 / 未登录 | ❌ 列表、搜索、他人主页、按 id 直取全部没有 | — |
+| **作者本人** | ✅ 照常读得到 | ✅ 带 `{at, reason}`，**不带 `by`** |
+| 管理员 | ✅ 按 id 直取读得到（列表里与常人一样） | ✅ 带 `{at, reason}` |
+
+三条不许踩：
+
+1. **不能拿 `visibility=private` 当下架。** 那是作者自己的开关，作者照样看得见，
+   而且 `PATCH /videos/:id` 只校验"是不是作者" —— 他能一键改回 public。
+   两个开关**互不顶替**：下架的作品把 visibility 改成 public 也还是下架。
+2. **作者必须看得见它，并且看得见原因。** 直接从作者眼前抹掉比下架更糟：
+   他只会以为系统吞了自己的作品，然后**原样再发一遍**。
+3. **`by`（谁下的架）只留在库里，不出回包。** 把审核员透给被处理的用户
+   等于把他摆到被骚扰的位置。
+
+作者**改不掉**它：`PATCH /videos/:id` 的 zod（`updateBody`）没有声明 `takedown`，
+z.object 默认 strip，塞进去会被丢掉。★ 这条靠的是 strip 语义，所以
+**谁给那个 schema 加 `.loose()` 就会静默打开这个后门** —— 服务端有用例从外面钉住它。
+
+客户端判据一律是"这个键在不在"，不是 `takedown.xxx === 某值`：
+`takedown: null` 这类坏数据的失败方向必须是"作品照常显示"，
+而不是"作品被判成已下架"（老服务端没有这个键，缺省一律当没下架 —— 铁律七）。
 
 ### BranchCard（用户卡片）
 ```
@@ -30,6 +59,7 @@
   views?: [{ url, kind, note? }],              // 形象参考图（0~3 张），见下
   published?, publishedAt?, description?,      // 分享到创意工坊
   createdAt }
+// imageTier?  —— 客户端 Card 上有，服务端**目前不存**，见下面单独一节
 ```
 `cardId` 是客户端生成的稳定 id（市场卡为 `mkt_*`），`{ owner, cardId }` 唯一索引。
 
@@ -63,6 +93,65 @@
   ⚠ 还有**第六、第七处**：作品自带的卡组快照是另一套 schema —— `models/BranchVideo.js`
   的 `deckCardSchema` 与 `branchVideo.controller` 里那份字段白名单（见下面「随作品发布的
   卡组」）。第一版就是只改了 `BranchDeck` 那份，作品里的卡组照样把 `views` 丢了。
+
+#### `views[].kind` —— 枚举没变，但**同一个值在不同卡种下读作不同的图位**
+
+枚举**冻结**在 `face | body | detail` 三个值（`schemas/branchAsset.schemas.js` 的
+`CARD_VIEW_KINDS` + `models/cardView.schema.js` 的 mongoose enum 各钉一道）。
+2026-08 铸卡分档时**没有**扩这个枚举，改的只是"这三个值分别读作什么"。
+
+| `card.type` | 第 1 格（= 卡面） | 第 2 格 | 第 3 格 |
+|---|---|---|---|
+| `character` 人物 | `body` 全身立绘 | `face` 面部特写 | `detail` 标志性细节 |
+| `scene` 场景 | `body` 全景主视图 | `detail` 局部特征 | — |
+| `background` 背景 | `body` 色光基调 | `detail` 质感特写 | — |
+| `prop` 道具 | `body` 净底主视图 | `detail` 局部细节 | — |
+| `style` 画风 | `body` 画风样张 | `detail` 笔触特写 | — |
+
+- **不许往枚举里加值。** 老服务端的 `z.enum` 会把带新 kind 的请求整批 400，而全 app
+  **没有任何地方监听 `emitApiError`** —— 表现就是"炼完的卡一张都没同步上去，且一句提示
+  都没有"（铁律八）。要表达新图位，加的是**读法**（哪个 type 下第几格叫什么），不是新值。
+- **顺序是重要性降序，`[0]` 必须是能当卡面的那张** —— 所以人物卡是 `body` 打头而不是
+  `face`：一张大头照当卡面既看不出服装配色，也没法直接喂给出片管线当形象参考。
+- **非人物卡只有 2 格是有意的，不是漏写。** 出片管线对场景/背景/道具/画风卡只读
+  `viewsOf()[0]` 一张（`app/src/ai/real.ts` 的 `prepareMaterialRefs` 规则二），
+  第 3 张画了也喂不进模型 —— 那是"收了钱、画面一个像素不变、零报错"。
+  顶档（3 张）对这四类就是真的少画一张、也真的少收一次钱，报价与结算都读同一次
+  `economy.slotsFor()` 的结果（全仓唯一实现）。
+- **归一只在客户端做一次，服务端一律不归一。** 客户端的唯一出处是 `app/src/types.ts`：
+  `CARD_SLOTS`（表）/ `primarySlotOf` / `normalizeSlot`（脏值 → 合法 kind）/ `slotLabel`
+  （kind + type → 中文图位名）/ `viewsOf`（老卡用 `cover` 兜底成一张 `body`）。
+  服务端**只存 kind 的原值**：不按 `type` 校验、不改写、不补默认。
+  ★ 理由与 `views` 的 cover 兜底同一条：卡的 `type` 是可以改的（同一个 `body` 换个 type
+  就该读成另一个图位名），服务端跟着改写就是同一条规则的第二处实现；两边一旦分叉，
+  "详情页看到的图位"和"喂给 Seedream 的那张"会不是同一张，而这种偏差在结果里看不出来。
+  于是这里出现"服务端存着 `face`、而这张卡是场景卡"这种组合是**合法**的（改过 type 的
+  老卡），客户端按 `normalizeSlot` 读，不报错也不改库。
+
+#### `card.imageTier` —— 铸卡用的出图档位（**目前是纯客户端字段**）
+
+值是 `app/src/data/economy.ts` `IMAGE_TIERS` 的 id：`"sketch" | "studio" | "master"`
+（速写 / 定妆 / 精绘，分别对应 Seedream 4.0 / 4.5 / 5.0-pro，见下面「出图档位与计价」）。
+它记的是"这张卡当初是用哪一档炼的"。
+
+⚠ **截至 2026-08-11，服务端不存这个字段。** `schemas/branchAsset.schemas.js` 的 `cardItem`
+里没有声明它，而 `z.object` 是 **strip** 语义 —— 客户端发上来会被**悄悄丢掉**：请求 201、
+日志干净、读回来是空的，全程零报错（`deck` / `modelUrl` / `views` 都是这么丢的）。
+所以在补齐下面那七处之前：
+
+- **客户端不要发 `imageTier`**（发了等于假装存住了，比不发更糟）；
+- **不要指望它跨设备存活**：`loadRemoteAssets()` 每次登录都用服务端那份**整体覆盖**
+  本地卡库，本地存了也会被覆盖掉；
+- **读侧必须容忍缺失**：`economy.imageTierOf(undefined)` 退回 `DEFAULT_IMAGE_TIER`
+  （`"sketch"`），这是刻意的**降级不崩**。代价是卡片上的档位徽标、以及"照这一档补齐
+  图位"的默认值会退成低档 —— 这是已知的、可接受的偏差，不是 bug。
+
+要让它真正入库，**七处一起改**（漏一处就是"发得出、存不下、零报错"）：
+`schemas/branchAsset.schemas.js` 的 `cardItem`、`models/BranchCard.js`、
+`models/BranchDeck.js` 的 `snapshotCardSchema`、`models/BranchVideo.js` 的 `deckCardSchema`、
+`branchAsset.controller` 的 `toCardPayload`、`branchVideo.controller` 的卡组字段白名单、
+以及 app 的 `api/branch.ts`（`ApiCard` **和** `addCards` 的 payload —— 那里是逐字段手写的，
+只加 interface 不加 payload 等于没加）。
 
 #### `PATCH /api/branch/cards/:cardId`
 
@@ -354,6 +443,232 @@ B 站式弹幕：一句话 + 它该在**视频第几秒**飘过去。与评论�
 
 ★ 返回**必须是 `at` 升序**：播放端是按游标扫时间轴放的，乱序会整段漏放。
 
+## 举报
+
+能举报**三种对象**：作品（`video`）、评论（`comment`）、弹幕（`danmaku`）。
+三者共用一张 `Report` 表与同一条处理流程（待处理 → 下架 / 删除 / 驳回）——
+管理端要的是"一个按时间排的待处理队列"，拆三张表那个队列就得三查一合再排序。
+
+### 端点
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| POST | `/api/branch/reports` | required | 提交举报 `{ targetType, targetId, reason, detail? }` → 201 `{ ok, report }`。重复举报 **409**。限流见下 |
+| GET | `/api/admin/branch/reports` | **admin** | 举报队列。query `status`(默认 `pending`，`all` 看全部)、`targetType?`、`page`(默认 1)、`limit`(默认 20，上限 50) → `{ ok, items, total, page, limit, status, targetType? }` |
+| PATCH | `/api/admin/branch/reports/:id` | **admin** | 处理一条 `{ action, note? }` → `{ ok, report, applied, alsoResolved }` |
+| POST | `/api/admin/branch/videos/:id/takedown` | **admin** | 下架一条作品 `{ reason }`（**必填**）→ `{ ok, video }`。可撤销 |
+| DELETE | `/api/admin/branch/videos/:id/takedown` | **admin** | 撤销下架 → `{ ok, video }`。**幂等**（对没下架的作品调也 200，后台重复点不该报错） |
+| GET | `/api/admin/branch/takedowns` | **admin** | 已下架列表。没有它，"撤销"就是个找不到入口的功能 |
+| GET | `/api/admin/branch/stats` | **admin** | `{ users, videos, takenDown, comments, danmaku, pendingReports }`，全部 `countDocuments` |
+
+★ `reason` 必填不是形式：作品消失了还不告诉作者为什么，比不下架更糟（见 BranchVideo 的「平台下架」）。
+
+★ `stats.pendingReports` 有**两种空**，客户端必须分开显示：
+`null` = 这台服务端没有举报功能（老服务端），后台画 `—`；
+`0` = 有举报功能、当前没有待处理的。把 null 当 0 显示就是在说"没有活要干"，而实情是"问不到"。
+
+★ **硬删除没有另开管理路径**：`DELETE /api/branch/videos/:id` 已经放行管理员
+（权限判据只有一处：`assertCanDelete`）。再开一条 `/api/admin/...` 的删除端点
+就是同一条规则的第二处实现。
+
+服务端实现：`models/Report.js` + `controllers/report.controller.js` +
+`routes/report.routes.js`（**导出两个 router**，在 `app.js` 里挂两个前缀）。
+★ 管理端那两条挂在既有的 `/api/admin` 门后面（与管 Idea/Leaderboard 那 8 条同一道门），
+但**实现仍在 report.routes.js 一处** —— 举报的读写共用同一套序列化与同一份状态机，
+拆进 `admin.routes.js` 就变成"加一个动作要改两个文件"（铁律六）。
+★ 「谁是管理员」的判据只有一处：`utils/roles.js` 的 `ADMIN_ROLE` / `isAdmin`。
+
+非管理员打后两条是 **403**，不是 404。★ 与作品可见性那边"一律 404"是两回事：
+那边要藏的是"这条作品在不在"，这里路径本身就写在契约上、藏不住，而队列内容根本没返回，
+403 一个字节的新信息都没多给。
+
+⚠ 路径改动必须**两仓同时改**（app 侧只有 `src/api/admin.ts` 的 `PATHS` 一张表）。
+真机上改错了**不会 404**：Capacitor 对未命中路径回 **200 + index.html**，
+于是"服务端根本没这个端点"会伪装成"一条举报都没有" —— 所以客户端一律**判回包形状**，
+不判状态码（`readPage` / `submitReport` 已经这么做了）。
+
+### 一条举报（响应形状）
+
+```
+{
+  _id, targetType, targetId,
+  reason, detail,                      // detail 可空串
+  status,                              // 见下「状态机」
+  reporter: { _id, username, displayName, avatarUrl },
+  handler: {…} | null, handledAt: ISO | null, handleNote: "",
+  createdAt,
+  // ↓ 只有管理端列表才有
+  target: { exists, … },               // 见下「target 是现查的」
+  reportCount, pendingCount            // 这个**对象**一共被举报几次 / 还剩几条没处理
+}
+```
+
+`reportCount` 是管理员最需要的信号：**30 个人举报同一条 ≠ 1 个人举报 30 条**。
+（后者不可能发生 —— 见下「去重」。）
+
+★ 处理信息用 `handler` / `handledAt` / `handleNote`，**没有** `resolution` 字段：
+"做了什么"已经写在 `status` 里了（`taken_down` / `deleted` / `dismissed`），
+再开一列就是同一件事存两遍，早晚对不上。
+
+### 理由枚举（`reason`）
+
+| key | 中文文案（客户端渲染） |
+|---|---|
+| `porn` | 色情低俗 |
+| `violence` | 血腥暴力 |
+| `abuse` | 人身攻击 / 辱骂 |
+| `spam` | 垃圾营销 / 刷屏 |
+| `infringe` | 侵权 / 冒用他人作品 |
+| `other` | 其他（配合 `detail` 用） |
+
+★ 落库的是**英文 key**，中文只在客户端。存中文的话改一版文案就得写数据迁移——
+与 @提及那边「身份存 userId、名字现查」同一条道理：key 是身份，文案是显示。
+★ 这六个 id 在 server `models/Report.js` 的 `REASONS` 与 app `src/api/admin.ts` 的
+`REPORT_REASONS` 里**逐字相等**。两仓不在一个 CI 里，对不上的表现是用户选了「人身攻击」
+而服务端 400，或者管理员看到一个认不出来的 key —— 而那恰恰是他判断要不要下架的主要依据。
+★ 客户端遇到**不认识的 key 原样显示**，不要退成"其他"：那会把一条真实的举报理由
+悄悄改写成另一个意思（铁律七/八）。
+★ `other` 不是凑数：分类枚举永远盖不全，没有兜底项时用户只会随便挑一个不对的，
+管理员看到的分类反而更脏。`detail` trim 后 **≤ 500 字**，客户端输入框上限必须与它相等。
+
+### 状态机
+
+```
+                 ┌─ action=takedown ─▶ taken_down   内容还在，但谁都看不到
+pending ─────────┼─ action=delete   ─▶ deleted      连内容一起删，不可撤销
+                 └─ action=dismiss  ─▶ dismissed    举报不成立，内容照旧
+```
+
+动作 → 状态的映射**只有一处实现**：server `models/Report.js` 的 `ACTION_STATUS`。
+
+- 只能**从 `pending` 出发**。已处理的再 PATCH 一次回 **409**（两个管理员同时点，
+  不判这一下就会走两遍下架、写两遍处理人，后写的把先写的悄悄盖掉）。
+- 离开 `pending` 时 `handler` / `handledAt` / `handleNote` 三样**一起**写入。
+- 请求体只收 `action`，**不收目标状态**（比如 `status: "taken_down"`）——
+  收了的话客户端就能把一条举报标成"已下架"而没有任何内容被下架。
+- `takedown` 与 `delete` 是**两件事**，状态必须分得开：事后追责时"下架了"和"删没了"
+  完全不同。两者调**同一个**服务，差别只有一个 `hard` 标志（见下）。
+
+★★ **`status` 是跨仓字符串，新增取值必须两仓同步**（铁律九：server 的
+`models/Report.js` 的 `ACTION_STATUS` + app 的渲染分支 + 本节）。
+**老客户端读到不认识的取值时，判据一律是 `status !== "pending"` 即已处理**——
+判否定，不判等值（与 `visibility !== "private"` 同源）。写成
+`status === "dismissed" || status === "taken_down"` 的话，将来加一个 `duplicate`
+之类的取值，老包会把它显示成"还没人管"，用户于是反复重新举报（而重新举报会被 409
+挡住，他只会觉得 App 坏了）—— 这一个字的错不会有任何报错。
+
+### 去重：同一个人对同一个对象只能举报一次
+
+`{ reporter, targetType, targetId }` **唯一索引**。第二次（哪怕换个理由）回
+**409 `DUPLICATE`**，`details` 里带 `{ reportId, status }`，客户端据此显示
+"你已经举报过这一条了，当前状态：…"。**不许把 409 吞成成功**：用户以为自己第一次
+没点上，就会反复点，每一次都撞同一个 409。
+
+★ 没有这条索引，一个人写个循环就能把待处理队列刷成一万条同一个视频，真正需要人看的
+被埋在下面 —— 不需要任何漏洞，只要一个合法账号。服务端那次预检 `findOne` 只是为了给一句
+人话；**并发下真正兜住的是索引**（两个请求同时到达时预检会双双扑空），两处缺一不可。
+
+### 限流：两个窗口，都按【账号】
+
+| 桶 | 窗口 | 上限 |
+|---|---|---|
+| `report:create` | 60s | 10 |
+| `report:daily` | 24h | 50 |
+
+超限回 **429**（客户端文案："举报太频繁了，过一会儿再试"）。
+
+★ 按账号（`userRateLimit`）不按 IP：这条在 `requireAuth` 后面，按 IP 计等于"换个出口就重开
+一桶"，同时又会让同一个 NAT 后面的真人互相抢额度（理由与发评论那条逐字相同）。
+★ 两个窗口缺一不可：只有短窗的话，一天 1440 分钟 × 10 = 一万四千条照样能把队列埋掉；
+长窗才是硬顶。唯一索引只保证"同一个人对同一个对象一次"，**挡不住**"一个人举报一千个不同对象"
+—— 那正是这两个桶存在的理由。
+
+### ★★ 提交端点**不校验对象存在 / 可见**
+
+举报一个根本不存在的 id 也会 **201**。这是刻意的：任何"存在就 201、不存在就 404"的写法，
+都会把这条端点变成一个**探测私密作品的旁路**——拿一串 id 挨个试，凭状态码就能把库里
+有哪些作品、哪条评论属于哪条作品数出来（与 `assertVisible` 挡的是同一类，那边为此
+把 403 全改成了 404）。而举报天然是"我刚才看到了这个东西"：看不见就没有举报入口，
+校验换不来什么，却要在举报这边抄第三份可见性规则（铁律六）。
+
+垃圾举报由三样兜住：① 唯一索引；② 上面两个限流桶；③ 管理端**现查**对象，
+查不到就如实标 `target.exists = false`，一眼能筛掉。
+
+★ 同理，请求体里**不收 `videoId`**（发了会被 zod strip 掉）。那是外部输入，伪造一个
+别的作品 id 就能让管理员点去看错误的现场；评论/弹幕属于哪条作品由服务端按 `targetId`
+**现查**，那份才是权威的（结果在 `target.videoId` 里回给管理端）。
+
+### `target` 是**现查**的，不是快照
+
+管理端列表里每条举报会把被举报对象**当场查出来**（按 `targetType` 分三批查，不是逐条）：
+
+| targetType | `target` 字段 |
+|---|---|
+| `video` | `{ exists, videoId, title, cover, visibility, takedown, author, createdAt }` |
+| `comment` | `{ exists, videoId, text, author, createdAt }` |
+| `danmaku` | `{ exists, videoId, text, at, author, createdAt }` |
+
+- 查不到一律给 `{ exists: false }`。★ 用**必给的布尔** `exists`，不用"缺省即正常"的
+  `missing?`：后者一旦服务端漏给这一项，客户端读到 `undefined` → falsy → 显示成
+  "内容还在"，管理员会对着一条早就没了的内容按下"下架"。缺省必须是**未知**，
+  而未知在这里不该存在 —— 所以这一项永远显式给（铁律八）。
+- `takedown` **原样带出**那一列（没下架就是 `null`），管理端据 `takedown.at` 存不存在
+  显示"已处于下架状态"。★ 这里刻意不算一个 `takenDown` 布尔：怎么判一条作品下没下架
+  由 server `branchVideo.controller` 的 `isTakenDown` 一处说了算，在举报这边再写一遍
+  就是第三份判断（铁律六）。⚠ 队列里出现"已下架但还有待处理举报"是正常的 ——
+  管理员也可以走 `POST /api/admin/branch/videos/:id/takedown` 直接下架，那条路不碰举报队列。
+- **不存快照**。快照只能来自举报者的请求体（外部输入，伪造一段脏话栽赃谁都做得到），
+  而管理员要看的本来就是**现在**的内容。
+- `Report.targetId` 上**没有 `ref`**：一列同时装三张表的 `_id`，写死任意一个都会让
+  populate 在另外两种类型上**静默返回 null**（不报错，对象凭空消失）。解引用按类型分派。
+
+★★ **弹幕这一项会带出 `author`** —— 弹幕的作者是**存了的**（`BranchDanmaku.author`），
+只是对普通用户从不透出（见上「弹幕」：对外只有一个 `mine` 布尔）。
+这里是全系统**唯一**一处把它露出来的地方，成立的前提是**整个列表端点挂在
+`requireRole(ADMIN_ROLE)` 后面**。哪天把它放开给普通用户（比如做「我的举报」），
+**必须先把这个字段摘掉**，否则举报一次就能查出某条弹幕是谁发的，整面弹幕墙都被去匿名化了。
+
+### 「下架 / 删除」调另一条线的服务，举报侧**不写一行清理逻辑**
+
+下架要连带清理的东西一长串（评论树、点赞行、弹幕、指向它的通知、计数回写……），
+抄一份必然漏掉一两样，而漏了不报错，只是库里留下一堆谁也查不到也删不掉的行（铁律六）。
+所以举报处理只**调用**：
+
+```js
+// server/src/services/takedown.service.js —— 它自己也不写清理逻辑，
+// 全部转调 branchVideo.controller 的 applyTakedown / purgeVideo / purgeComments
+exports.takedownTarget = async ({ targetType, targetId, operatorId, reason, hard }) => { … }
+//   hard=false → 下架（可撤销，内容还在但谁都看不到）    hard=true → 硬删除（不可撤销）
+//   失败 throw；返回值原样放进响应的 `takedown` 字段
+```
+
+对应关系：`action=takedown` → `hard=false`，`action=delete` → `hard=true`。
+成功时响应里 `applied: true`，并且**同一个对象上其余待处理的举报被一并收尾**
+（内容都没了，剩下那些谁也处理不了），条数在 `alsoResolved` 里。
+`dismiss` 既不调服务也**不**级联：不同人举报的理由可能不同，驳回"垃圾营销"
+不代表"色情"也不成立。
+
+⚠ **评论与弹幕没有可撤销的下架**（那两张表没有隐藏位），对它们用 `action=takedown`
+会得到 **400**「请改用 action=delete」。★ 这是**故意不降级**的：悄悄替管理员把"下架"
+办成"删除"，会让举报记录上写着 `taken_down`（可撤销、内容还在）而内容其实已经没了 ——
+事后申诉时谁也说不清发生过什么，且一个错都不报。
+
+★★ **任何一种失败（服务抛错、400、以及服务整个不存在时的 501）都不写状态**：
+举报原地留在 `pending`，管理员可以重来。把状态标成 `taken_down` 而内容还挂在首页上，
+是这一整块里最坏的一种失败 —— 管理员以为处理完了、举报者以为被受理了，
+而那条内容一直在线且全程零报错（铁律八）。客户端必须把这几种失败都当成"没处理成"
+来显示，不能吞掉、更不能把那一行从列表里摘掉。
+
+服务文件缺失时（部署漏了文件之类）回：
+
+```
+501  { ok:false, code:"TAKEDOWN_UNAVAILABLE", details:{ reportId, status:"pending", action, applied:false } }
+```
+
+回归测试 `server/tests/report.spec.js`（R1–R12，13 条）。★ R11 / R11b 一律**看内容**
+（作品是不是真的 404 了、评论是不是真的从列表里没了），不看状态字段 ——
+"状态对、内容没动"正是这块最需要防的失败。
+
 ## 随作品发布的卡组（`deck`）
 
 `{ name, cards: [{ cardId, type, name, summary, cover, tags, views? }] }`，**内嵌快照**，
@@ -500,8 +815,12 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
 
 **这是白名单转发，不是通用反向代理**：只有上表这几条上游路径可达，且 `model` 必须在
 `ALLOWED_MODELS` 里（对应 `app/src/ai/arkClient.ts` 的 `MODELS` 与
-`app/src/data/economy.ts` 的 `VIDEO_TIERS`）。**App 新增视频档位 = 服务端要补一行** ——
-每加一个模型都是一笔新单价，应该有人明确点头。回归测试见 `server/tests/arkProxy.spec.js`。
+`app/src/data/economy.ts` 的 `VIDEO_TIERS` / `IMAGE_TIERS`）。**App 新增视频档位 =
+服务端要补一行** —— 每加一个模型都是一笔新单价，应该有人明确点头。
+★ **出图那几行是从价目表自动带出的**（`ALLOWED_MODELS` 里摊开 `tokens.IMAGE_MODELS`）：
+出图的「在册」与「有价」必须是同一件事。分成两张手写的表有两种漏法，而且都不报错 ——
+在册了没定价 = 落到兜底按最贵档收（用户被多扣）；定价了没在册 = 这一档永远 400
+（用户只会觉得"这档坏了"）。回归测试见 `server/tests/arkProxy.spec.js`。
 
 ### 视频档位与模型能力（写死在两边的表里，不靠运行时探测）
 
@@ -530,6 +849,60 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
   ⚠ 客户端禁用只是提示，**不是安全边界** —— 服务端必须按当前用户的套餐再挡一次，
   免费版调 2.5 直接拒并给出可读原因。
 
+### 出图档位与计价（**按 `model` 查表，不是一口价**）
+
+| 档位 id | label | 模型 | 单价 | token/张 | 图位数 K |
+|---|---|---|---|---|---|
+| `sketch` | 速写 | `doubao-seedream-4-0-250828` | 0.20 元/张 | **13,333** | 1 |
+| `studio` | 定妆 | `doubao-seedream-4-5-251128` | 0.25 元/张 | **16,667** | 2 |
+| `master` | 精绘 | `doubao-seedream-5-0-pro-260628` | 0.60 元/张 | **40,000** | 3 |
+
+折算口径与视频同一把尺子：**元/张 ÷ 15 元/百万 token**（15 = Seedance 1.0-pro 标准档）。
+实际张数 = `min(K, 该卡种的图位数)`，见上面「`views[].kind`」——非人物卡只有 2 格，
+顶档对它们真的少画一张、也真的少收一次钱（`economy.slotsFor()` 一处实现，报价与结算共用）。
+
+★ **2026-08-11 之前这里是个致命缺口**：服务端 `priceOf` 拿到了请求体却**不读 `model`**，
+一律按 13,300 收 —— 也就是**顶档按最低档收费**，每张顶档图白送 0.4 元。这种错没有任何
+症状（用户无感、界面无错、测试全绿），只有火山账单知道。现在 `config/tokens.js` 按模型
+查表，`arkProxy.spec.js` 与 `tokenWallet.spec.js` 各钉了一份。
+
+★ **认不出的出图模型按已知最贵的一档收，并打 `console.error`**，既不按最便宜的收
+（等于白送且永远没人发现），也不 throw（`billedForward` 会把它变成 500，**出图整条全挂**；
+出图端点是用户可控 `model` 的转发口，老客户端随时可能发一个没登记的 id）。
+方向是刻意选的：**少收是隐形的，多收当天就会被投诉**。这条兜底在路由上其实够不着
+（在册 = 有价），是第二道保险。
+
+⚠ **老客户端那个出图模型不能从在册名单里删。** 新版 app 已经把
+`arkClient.MODELS.image` 改成跟着默认档走（`imageTierOf(DEFAULT_IMAGE_TIER).model` = 4.0），
+新包不再发 `doubao-seedream-5-0-260128`；但**已装机的 APK 改不了** —— 它们补设定帧、
+推三套方案的首尾帧、出 AI 封面全都还在发这个 id。删掉的表现不是"降级"，是那批用户
+**出图整条 400**（而客户端把 400 当敏感词处理，连重试都不做）。
+它的单价在方舟公开价目里**查不到**，所以服务端不去猜，直接沿用**老包自己报的那个价
+13,300**（老版 `economy.IMAGE_TOKENS` 的常量）—— 老用户的「报价 = 实收」逐分不变，
+这次改价对他们是**零影响**。若 5.0 实际更贵，差价我们自己吃：多收才是骗人，少收只是
+我们亏钱，而且这批调用会随老版本淘汰而归零。
+★ 这条兼容项的寿命 = 老版本的寿命；确认线上没有旧包在发它之后，连同白名单一起删。
+
+各模型的像素区间是 2026-08-11 拿真 key 探出来的（发必然 400 的尺寸、读报错文案，零成本）：
+
+| 模型 | 最小像素 | 最大像素 |
+|---|---|---|
+| `doubao-seedream-4-0-250828` | 921,600 | 16,777,216 |
+| `doubao-seedream-4-5-251128` | 3,686,400 | 16,777,216 |
+| `doubao-seedream-5-0-260128` ⚠仅老客户端 | 3,686,400 | —（未探） |
+| `doubao-seedream-5-0-pro-260628` | 921,600 | 4,624,220 |
+
+★ 那条 3,686,400 是 **4.5 / 5.0 专属**，不是 Seedream 通则 —— 别照抄成全家桶下限。
+★ 卡面画布 `CARD_SIZE = 1728×2304 = 3,981,312` 像素：过得了 4.5 的下限，在 pro 上落在
+**0.60 元那一档**（pro 按输出像素分档：≤236 万 0.30、>236 万 0.60）。这是有意的 ——
+压到 236 万以下单价减半，但顶档出的图会**比中档还小**，一个"更贵却更糊"的顶档迟早被
+当成 bug。哪天真要换成半价版，`ImageTier.size` 与两仓的价目表要**一起**改。
+★ pro 实测出一张 1296×1728 要 **73.6 秒**（5.0 是 21-25s），所以客户端出图超时必须
+大于服务端 `T_CREATE`。
+
+⚠ 以上单价取自方舟公开价目（2026-08-11 核对），**尚未与控制台账单对过**。
+**真实结算一律以控制台账单为准**；发现偏差改两仓的价目表（下面那条测试会红）。
+
 状态码约定（客户端据此决策，见 `app/src/ai/arkClient.ts`）：
 
 - `501` 服务端没配 `ARK_API_KEY` → 提示"这台服务器没有配置方舟密钥"
@@ -553,7 +926,7 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
 
 | 端点 | 计费 |
 |---|---|
-| `POST /images/generations` | 13,300（一次 Seedream 出图） |
+| `POST /images/generations` | **按 `body.model` 查表**：13,333 / 16,667 / 40,000（见上「出图档位与计价」）。认不出的按最贵档 |
 | `POST /chat/completions` | 400（一次豆包往返） |
 | `POST /contents/generations/tasks`（Seedance） | `时长×1280×720×24/1024 × 档位系数`（极速 0.3 / 标准 1 / 高清 1.6 / 电影级 4.7） |
 | `POST /contents/generations/tasks`（Seed3D） | 160,000 |
@@ -571,7 +944,17 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
 ★ **定价表两边都有，必须一起改**：服务端 `src/config/tokens.js` 是**结算**口径，
 App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216k、余额掉了 243k"，
 用户会觉得被偷了钱。已知的两处不一致写在 `tokens.js` 的 `priceOf` 注释里。
-两张表的 **key 集合与数值必须逐条相等**，服务端有一条测试钉着（加档位漏一边就会红）。
+两张表的 **key 集合与数值必须逐条相等**，服务端有测试钉着（加档位漏一边就会红）：
+
+| 内容 | app（报价） | server（结算） | 钉住它的测试 |
+|---|---|---|---|
+| 视频档位系数 | `VIDEO_TIERS[].mult` | `VIDEO_MULT` | `arkProxy.spec.js`「跨仓档位系数一致性」 |
+| 出图单价 | `IMAGE_TOKENS_BY_MODEL` | `IMAGE_TOKENS_BY_MODEL` | `arkProxy.spec.js`「跨仓出图价目一致性」 |
+| 套餐 / 直充包 | `PLANS` / `RECHARGE_PACKS` | `PLANS` / `order.service.RECHARGE_PACKS` | `payOrder.spec.js`「跨仓价目一致性」 |
+
+出图那组除了逐条比数，还额外钉了三件事：**三个价互不相同**（证明"真的读了 `model`"，
+而不是碰巧等于某一档的常量）、**档位越高越贵**（顺序倒挂 = 用户为更好的图付更少）、
+**兜底不静默**（认不出的模型必须打日志）。
 
 ⚠ `电影级` 的 4.7 = **70 元/百万 token ÷ 15**（标准档 1.0-pro 15 元/M = 1）。这个 70
 **不是从方舟官方价目表页读到的**（那页抓不到内容），是两个独立来源互相印证：另一来源

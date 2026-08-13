@@ -23,6 +23,7 @@ import {
 import { markNotificationRead } from "../data/notifications";
 import type { MentionPick } from "../utils/mention";
 import CommentDelete from "../components/CommentDelete";
+import ReportButton from "../components/ReportButton";
 import MentionInput from "../components/MentionInput";
 import MentionText from "../components/MentionText";
 import { useCurrentUser } from "../hooks/useAccount";
@@ -358,6 +359,24 @@ export default function VideoPage() {
             <SegmentPlayer key={`s${pi}`} segments={part.segments} cover={video.cover} />
           ))}
 
+        {/* ★★ 被平台下架的横幅。**只有作者自己会走到这里** —— 别人的接口回包里根本没有
+            这条作品，服务端刻意只对作者放行并带上原因。
+            为什么必须有这一块：作者手里的这条作品一切照旧（封面在、点得开、能播），
+            只是播放量再也不涨、别人打开是 404。不给他一个字的解释，他最可能的下一步
+            就是原样重发一遍 —— 正是下架想避免的那个结果。
+            原因写在这里而不是只挂 title：手机没有 hover（CLAUDE.md 点名过的坑）。 */}
+        {video.takedown && (
+          <div className="mt-4 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3">
+            <p className="text-sm font-semibold text-rose-200">这条作品已被平台下架</p>
+            <p className="mt-1 text-xs leading-relaxed text-rose-100/80">
+              {video.takedown.reason || "（管理员没有填写原因）"}
+            </p>
+            <p className="mt-1.5 text-[11px] text-slate-400">
+              只有你自己看得到它。把可见性改回公开也没用 —— 这是平台的开关，不是你的那一个。
+            </p>
+          </div>
+        )}
+
         <h1 className="mt-4 text-xl font-bold text-slate-100">{video.title}</h1>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-400">
           {/* 作者可点：从详情页也要能走到创作者主页，否则「看看 TA 还发过什么」
@@ -393,6 +412,17 @@ export default function VideoPage() {
             {video.description}
           </p>
         )}
+
+        {/* 举报这个作品。
+            ★★ 为什么放在详情页而不是首页右侧那一栏：那一栏是 bottom 定位的 flex-col，
+              每加一个键整栏就往上长 64px，640 高的小屏上最上面的头像会被 section 的
+              overflow-hidden 裁掉（CLAUDE.md 那条坑已经量到只剩 24px 余量）。
+              首页 → 详情页是一次点击（标题/描述区就能进来），举报又是低频动作，
+              为它去动那几个咬着算的数值不划算。
+            ★ 自己的作品不显示（mine）：自己的东西该编辑该删，不该举报。 */}
+        <div className="mt-2 flex justify-end">
+          <ReportButton targetType="video" targetId={video.id} videoId={video.id} mine={isMyAuthor(video.author)} />
+        </div>
 
         {/* 本片卡组：作者生成本片所用素材卡的快照。观众收入后用同一套素材
             进工坊，就能生成相似走向的视频——创作的可复刻性是卡片生态的闭环 */}
@@ -444,7 +474,11 @@ export default function VideoPage() {
                   {/* 删除入口与首页评论抽屉共用同一份实现（铁律六）。
                       ★ 本页的 comments 是 video.comments 的**快照**，data 层删完要把
                         快照换掉，否则那条评论还留在屏幕上（下次 version 变了才消失）。 */}
-                  <CommentDelete videoId={video.id} comment={c} onDeleted={() => setComments([...video.comments])} />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <CommentDelete videoId={video.id} comment={c} onDeleted={() => setComments([...video.comments])} />
+                    {/* 举报入口与首页评论抽屉共用同一份实现（铁律六） */}
+                    <ReportButton targetType="comment" targetId={c.id} videoId={video.id} mine={isMyAuthor(c.author)} />
+                  </div>
                 </div>
               </div>
             ))}

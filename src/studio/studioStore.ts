@@ -4,10 +4,10 @@ import { BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DraftVideo,
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, npcChat, npcChatOffline, prepareMaterialRefs, refineFrame, searchMarket } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, tierBlockReason, walletOf } from "../data/account";
-import { CHAT_TURN_TOKENS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, tierOf } from "../data/economy";
+import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, tierBlockReason, walletOf, type AddCardsResult } from "../data/account";
+import { CHAT_TURN_TOKENS, DECK_MAX_3D, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, deckModel3dCost, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, styleWants3d, tierOf } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
-import { FlowNode, FlowTemplate, chosenOf, flowDirty, nodeVideo, useFlow } from "./flowStore";
+import { FlowMode, FlowNode, FlowTemplate, chosenOf, flowDirty, nodeVideo, useFlow } from "./flowStore";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, saveDraft } from "../data/drafts";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
 import { generateSegment } from "./segmentGen";
@@ -131,6 +131,81 @@ export function placeholderVisible(root: NodeSlot | null): boolean {
 export function composable(root: NodeSlot | null): boolean {
   if (!root) return false;
   return activePath(root).every((n) => proposalDone(chosenProposal(n)));
+}
+
+// ── 组稿那一下会派生的卡组：报价与结算共用 ─────────────────────
+//
+// ★★ 这一块存在的理由是**报价必须等于实收**。按下「完成视频」时 finalizeFromFlow 会
+//   提炼本片卡组（最多 8 张，约 110k），撞上 3D 关键词还会顺带铸最多 2 个建模
+//   （每个 160k）—— 而在 2026-08-12 之前，工作流顶栏那个"剩余约 xx"里**一分钱都没算
+//   这些**。用户比着那个数攒余额，点完「完成视频」发现少了一大截。
+//   所以「会不会派生」「派生多贵」只由下面这两个函数回答：FlowPage 拿它报价，
+//   finalizeFromFlow 拿它判余额、拿它决定要不要铸 3D（铁律六）。
+
+/**
+ * 拿来判 3D 关键词的那一坨文字。**报价与真正触发必须读同一份**。
+ *
+ * ★ 从 `nodes` 取（而不是从工坊的节点树 `root` 取）：FlowPage 手上只有 nodes，
+ *   而 nodes 里的 requirement / plot 是用户在工作流里**改过之后**的那一份，
+ *   比节点树上的原值更接近真正会送去派生的内容。两边各取各的话，就会出现
+ *   "界面说不铸建模、组稿时按另一份文字判定要铸"。
+ *
+ * ★★ 每一步都当外部状态**形状可能不对**（CLAUDE.md「渲染循环里别信任外部状态的形状」）：
+ *   这个函数现在会在 FlowPage 的 **render 里**被调到（顶栏报价），而全 app 没有
+ *   ErrorBoundary —— 一个节点碰巧没有 proposals，`chosenOf(n).plot` 就是整页白屏，
+ *   而用户手上那条正在做的片子还没存过草稿。报价算歪一点点没关系，页面挂了才是灾难。
+ */
+function deckStyleBlob(nodes: FlowNode[]): string {
+  const parts: string[] = [];
+  for (const n of nodes) {
+    for (const c of n.materials ?? []) if (c.type === "style") parts.push(c.name);
+    if (n.requirement) parts.push(n.requirement);
+    parts.push(chosenOf(n)?.plot ?? "");
+  }
+  return parts.join(" ");
+}
+
+/** 组稿会派生什么、最多花多少。全 0 = 这条路根本不派生卡组（简约模式）。 */
+export interface DeckQuote {
+  /** 会不会派生（= 不是简约模式）。为假时下面全是 0 */
+  on: boolean;
+  /** 最多提炼几张卡 / 这些卡的 token 上限 */
+  maxCards: number;
+  cards: number;
+  /** 这条片的文字**当下**撞上 3D 关键词了吗 —— 撞上组稿就一定会去铸建模 */
+  wants3d: boolean;
+  /** 最多铸几个建模 / 这些建模的 token 上限。wants3d 为假时都是 0 */
+  max3d: number;
+  model3d: number;
+  /** 两项之和，就是顶栏那个总价要加进去的数 */
+  total: number;
+}
+
+/**
+ * 组稿派生卡组的报价 —— **唯一实现**（铁律六）。
+ *
+ * ★★ 简约模式返回全 0：那条路**既不派生也不收费**（见 finalizeFromFlow 的短路）。
+ *   报价与实收必须一致，所以"不收"这件事也只能有一处判断，就是这里的 `mode`。
+ * ★ 卡张数是**上限**不是确数（重复实体会被剔掉，按实际出卡结算），所以 UI 必须写"最多"。
+ * ★ 3D 那一项是**条件项**：撞不上关键词就是实打实的 0（不是"暂时不算"），
+ *   撞上了才按上限 2 个报。它随用户改剧情实时变 —— 这正是它诚实的地方：
+ *   报的永远是"照现在这些字，组稿会花多少"。
+ */
+export function deckQuoteOf(nodes: FlowNode[], mode: FlowMode): DeckQuote {
+  const off: DeckQuote = { on: false, maxCards: 0, cards: 0, wants3d: false, max3d: 0, model3d: 0, total: 0 };
+  if (mode === "simple" || nodes.length === 0) return off;
+  const cards = deckCardsCost(DECK_MAX_CARDS);
+  const wants3d = styleWants3d(deckStyleBlob(nodes));
+  const model3d = wants3d ? deckModel3dCost(DECK_MAX_3D) : 0;
+  return {
+    on: true,
+    maxCards: DECK_MAX_CARDS,
+    cards,
+    wants3d,
+    max3d: wants3d ? DECK_MAX_3D : 0,
+    model3d,
+    total: cards + model3d,
+  };
 }
 
 /** 把工坊的 NodeSlot 树转成观众侧互动分支树：
@@ -311,11 +386,40 @@ interface StudioState {
   crisisReply: () => void;
   /** 帮助档：本地文案，0 token */
   helpReply: () => void;
-  /** 只炼不收：生成的卡进预览槽，落账/入组要等 acceptForge。
-   *  失败抛出——素材窗要把原因显示在窗里，吞掉就成了"点了没反应"。 */
-  forgeCards: (files: MaterialFile[], note: string, type: CardType | null) => Promise<Card[]>;
-  /** 收下这批卡：归入账号资产 + 入组 + 从铸卡师手边飞过来 */
-  acceptForge: (cards: Card[]) => void;
+  /**
+   * 只炼不收：生成的卡进预览槽，落账/入组要等 acceptForge。
+   * 失败抛出——素材窗要把原因显示在窗里，吞掉就成了"点了没反应"。
+   *
+   * ★ 返回的 `minted[i]` = 第 i 张卡**真画成了几张图**（卡面算一张），结算按它走。
+   *   旧版返回的是 Card[]，调用方拿 `cards.filter(c => c.genPrompt).length` 当"成了几张"——
+   *   一张卡一个布尔，一卡多图之后它物理上表达不了"该画 3 张、成了 2 张"：
+   *   用户被全额收费，界面一个字都不会说（铁律八）。
+   * ★ tierId 缺省 = 默认档（economy.imageTierOf 兜底），不在这里写第二处默认值。
+   */
+  forgeCards: (
+    files: MaterialFile[],
+    note: string,
+    type: CardType | null,
+    tierId?: string,
+  ) => Promise<{ cards: Card[]; minted: number[]; notes: string[] }>;
+  /**
+   * 铸卡进行中的实时阶段播报（generateCards 的 onProgress 写进来）。
+   * ★ 为什么不逐条 npcSay：顶档一炉两张图、每张实测 70 秒以上（economy.IMAGE_TIERS），
+   *   逐条进消息流会把对话历史冲成日志，而且 npcSay 每条都要合成语音念一遍 ——
+   *   声音会落后画面好几分钟。所以它是**一行会被覆盖的状态**，由素材窗按钮与对话气泡
+   *   直接显示；她"开炉/出炉"那两句仍然走 npcSay。
+   */
+  forgeProgress: string;
+  /**
+   * 收下这批卡：归入账号资产 + 入组 + 从铸卡师手边飞过来。
+   *
+   * ★ 之所以是 async：入账那一步（data/account.addCards）要把新画的形象参考图逐张
+   *   转存成永久地址，而**转存失败必须由她当场说出来**——那几张图是真金白银画的，
+   *   悄悄丢掉才是最糟的结果（铁律八）。
+   * ★ 但它**永不 reject**：调用方（NpcDialog 的 accept）是同步的、收完就关窗，
+   *   抛出去只会变成没人接手的 unhandledrejection。
+   */
+  acceptForge: (cards: Card[]) => Promise<void>;
 
   landFlight: (id: string) => void;
 
@@ -385,8 +489,16 @@ interface StudioState {
   openSegmentEdit: (nodeId: string, proposalId: string) => void;
   /** 退出单段编辑。save=true 时把剪辑页改过的帧与视频写回方案（含下一段的起拍衔接） */
   closeSegmentEdit: (save: boolean) => void;
-  /** 工作流全部跑完 → 组稿：真帧回写节点树 + 提炼本片卡组 + 生成草稿（进剪辑页） */
-  finalizeFromFlow: (nodes: FlowNode[], onProgress?: (status: string) => void) => Promise<boolean>;
+  /**
+   * 工作流全部跑完 → 组稿：真帧回写节点树 + 提炼本片卡组 + 生成草稿（进剪辑页）。
+   *
+   * ★★ `mode` 是**显式参数**，不在函数体里 `useFlow.getState().mode` 偷读。
+   *   这个函数三种创作模式共用，而"简约模式不出卡组"这条规则完全取决于它 ——
+   *   偷读的话，调用点上看不出"模式会改变这次组稿花多少钱"，而 FlowPage 那侧
+   *   还得自己再读一次同样的东西去报价，两次读的中间隔着一个 await（用户可能
+   *   已经退出去换了模式）。调用方只有 FlowPage 一处，显式传的成本是一个参数。
+   */
+  finalizeFromFlow: (nodes: FlowNode[], mode: FlowMode, onProgress?: (status: string) => void) => Promise<boolean>;
   clearDraft: () => void;
 
   // ── 在途工程草稿（data/drafts.ts）─────────────────────────
@@ -413,6 +525,24 @@ interface StudioState {
   exitDialog: () => void;
   /** 返回按钮/安卓返回键的唯一决策点。true = 这次返回已被工坊消费，调用方别再退路由 */
   goBack: () => boolean;
+}
+
+/**
+ * 入账时没能转存成永久地址的形象参考图 —— **由铸卡师说出来**（铁律八）。
+ *
+ * ★ 一处实现：收下新铸的卡与收藏市场卡两条路共用。这句话必须说清三件事——
+ *   丢的是哪几张、为什么、以及用户能做什么；只说"同步失败"等于没说。
+ * ★ 走 npcSay 而不是 notice：notice 是几秒就消失的瞬时提示，而这条是"你花钱画的图
+ *   有可能没了"，得留在对话历史里能翻回去看。
+ */
+function sayLostViews(r: AddCardsResult, s: Pick<StudioState, "npcSay" | "setMood">): void {
+  if (r.lostViews.length === 0) return;
+  const head = r.lostViews.slice(0, 3).join("、");
+  s.npcSay(
+    `${head}${r.lostViews.length > 3 ? ` 等 ${r.lostViews.length} 张` : ""}没能存到服务器（${r.reason ?? "上传失败"}）` +
+      `——这几张只留在这台设备上，换设备或者重新登录就没了。想留住的话，回卡片详情页把它重新挂一次。`,
+  );
+  s.setMood(-0.6, 3000);
 }
 
 const DEFAULT_EDITOR: EditorState = {
@@ -513,6 +643,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   dialog: { messages: [], busy: false, thinking: false },
   speakTone: "act",
   pendingFiles: [],
+  forgeProgress: "",
   root: null,
   focus: null,
   projection: null,
@@ -610,7 +741,10 @@ export const useStudio = create<StudioState>()((set, get) => ({
   addMarketToDeck: (from) => {
     const card = get().marketDetail;
     if (!card) return;
-    saveCardsToAccount([card]); // 市场收藏同样归入账号资产
+    // 市场收藏同样归入账号资产。★ 即发即忘但**接住结果**：市场卡今天的图基本都是
+    //   现成的 URL（没有要转存的 dataURL），可"基本都是"不是不变量 —— 真有转存失败时
+    //   也得有人说出来，而这句话与收卡那条共用同一处实现
+    void saveCardsToAccount([card]).then((r) => sayLostViews(r, get()));
     if (get().deck.some((c) => c.id === card.id)) {
       get().npcSay(`「${card.name}」已经在你的卡组里了。`);
       set({ marketDetail: null, camera: { kind: "default" } });
@@ -643,19 +777,34 @@ export const useStudio = create<StudioState>()((set, get) => ({
     await get().chatToNpc(text);
   },
 
-  forgeCards: async (files, note, type) => {
+  forgeCards: async (files, note, type, tierId) => {
     get().meSay(note || `（递上 ${files.length} 份素材）`);
-    set((s) => ({ dialog: { ...s.dialog, busy: true } }));
+    set((s) => ({ dialog: { ...s.dialog, busy: true }, forgeProgress: "" }));
     get().npcSay("收到，让我看看成色……（炉火升起）");
     try {
-      const cards = await generateCards(files, note, type);
+      // ★ onProgress 必须透传：顶档一张图实测 73.6 秒，一炉两张就是两分半。
+      //   中间不报进度，用户看到的就是一个不动的"炼卡中…"——与卡死无从区分。
+      const { cards, minted, notes } = await generateCards(files, note, type, {
+        tierId,
+        onProgress: (msg) => set({ forgeProgress: msg }),
+      });
       if (cards.length === 0) {
         get().npcSay("这些素材还差点意思，再补充点描述？");
         get().setMood(-0.6, 2600);
       } else {
-        get().npcSay(`铛——${cards.length} 张卡的形已经出来了，你先过目。`);
+        // 一卡多图之后"几张卡"不再等于"几张图"，两个数都说出来——只报卡数的话，
+        // 用户对着一张 12 万 token 的账单只看得到"3 张卡"
+        const shots = minted.reduce((n, k) => n + k, 0);
+        get().npcSay(
+          `铛——${cards.length} 张卡的形已经出来了${shots > cards.length ? `，一共 ${shots} 张图` : ""}，你先过目。`,
+        );
       }
-      return cards;
+      // ★★ notes 必须一路带出去，**不能只留在 forgeProgress 上**：那是一行会被下一条
+      //   覆盖、并且被下面 finally 清空的状态文字。最常见的那种失败（只交一份素材、
+      //   第 2 张出图 400）从写进 forgeProgress 到 finally 清掉全在同一条微任务链里，
+      //   React 一帧都没画过 —— 用户只会拿到一句"该出 2 张、成了 1 张"，
+      //   永远不知道缺的是哪张、为什么缺、要不要重炼（铁律八）。
+      return { cards, minted, notes };
     } catch (e) {
       // 真实 AI 会因为余额/审核/网络失败。以前这里直接 throw 到无人接手的
       // Promise 上，界面只剩一个转不停的"炼卡中…"；现在由铸卡师说出来
@@ -664,14 +813,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
       get().setMood(-0.8, 3000);
       throw e;
     } finally {
-      set((s) => ({ dialog: { ...s.dialog, busy: false } }));
+      set((s) => ({ dialog: { ...s.dialog, busy: false }, forgeProgress: "" }));
     }
   },
 
-  acceptForge: (cards) => {
+  acceptForge: async (cards) => {
     if (cards.length === 0) return;
-    saveCardsToAccount(cards); // 收下才归入账号资产（创意工坊/Profile 可见）
-    // 立即入组；从 NPC 手边错峰起飞的只是视觉动画
+    // ★ 先入组、先起飞，再等入账。入账里的转存要把 1~2 张 1MB 级的图传上去，手机上
+    //   好几秒起步；把动画压在 await 后面，用户按下「收下」会看到卡凭空停在半空。
+    //   业务状态不依赖渲染循环，从 NPC 手边错峰起飞的只是视觉动画。
     set((s) => {
       const fresh = cards.filter((c) => !s.deck.some((d) => d.id === c.id));
       return {
@@ -684,6 +834,10 @@ export const useStudio = create<StudioState>()((set, get) => ({
     });
     get().npcSay(`${cards.length} 张新卡飞进你的卡组了。`);
     get().setMood(1, 4000);
+    // 收下才归入账号资产（创意工坊/Profile 可见）。★ 必须 await：这一步顺带把新画的
+    //   形象参考图转存成永久地址，失败了要当场说出来 —— 不说的话，用户花 12 万 token
+    //   画出来的那两张会在下次重登时无声消失（见 data/account.addCards 的 ★★）
+    sayLostViews(await saveCardsToAccount(cards), get());
   },
 
   npcReply: (text, opts) => {
@@ -1463,10 +1617,25 @@ export const useStudio = create<StudioState>()((set, get) => ({
     return true;
   },
 
-  finalizeFromFlow: async (nodes, onProgress) => {
+  finalizeFromFlow: async (nodes, mode, onProgress) => {
     if (nodes.length === 0) return false;
     const { root } = get();
     const say = (s: string) => onProgress?.(s);
+    /**
+     * ★★ 这次组稿要不要派生卡组 —— **本条规则的唯一实现**（铁律六），
+     *   与 saveWorkDraft 里那条「简约模式不进草稿库」并列，理由是同一个：
+     *   简约模式只有一段、写一句话就出片、直通发布，是一次性的东西。
+     *   而这个函数**三种模式共用后半段**，于是简约模式那一个节点也会去派生最多 8 张卡
+     *   （≈110k token，真扣钱），剧情里再撞上"渲染/3D"之类的词还会顺带铸建模
+     *   （每个 160k）—— 用户写了一句话、等了几十秒出一条短片，账单上却多出一叠
+     *   他从没要过、也没在任何界面上见过报价的卡。
+     *   ⚠ 短路的是**整段**：派生、3D 建模、以及派生失败时那个"按段兜底出场景卡"，
+     *     三件都在下面同一个 try 里，一件都不做。素材卡的并集也不做 ——
+     *     那些卡本来就在用户自己的卡库里，简约模式没必要再随片打包一份。
+     *   ★ 报价那侧读 deckQuoteOf(nodes, mode)，判的是**同一个 mode**：
+     *     不报也不收，报了就一定收（报价必须等于实收）。
+     */
+    const withDeck = mode !== "simple";
     // 真实帧回写节点树：占位帧的重画、尾帧续作的真实结尾——节点卡、分支树、
     // 日后回炉编辑都以真帧为准（节点卡显示的就是视频里实际的画面）
     const path = root ? activePath(root) : [];
@@ -1516,60 +1685,66 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // 本片卡组：素材卡并集 + AI 从剧情提炼的派生卡（角色/场景/背景/画风，
     // 卡面跟随视频画风）。派生失败时兜底按段出场景卡——每部作品都必须有
     // 可分享的卡组，观众才能"用同款素材复刻"
+    // （★ 简约模式整段跳过，见上面的 withDeck）
     const seenCard = new Set<string>();
-    const deckCards = nodes
-      .flatMap((n) => n.materials ?? [])
-      .filter((c) => (seenCard.has(c.id) ? false : (seenCard.add(c.id), true)));
-    try {
-      const styleHint = deckCards.find((c) => c.type === "style")?.name ?? "";
-      // 把已用的素材卡报给 AI：已覆盖的实体不重复提炼，只补剧情里缺卡的角色/场景
-      // 派生卡组与 3D 建模以前**完全免费**，而 3D 建模是全 app 最贵的单次操作
-      // （seed3d 约 2.4 元/次 ≈ 160k token）。这里在真实 AI 下按上限预扣门槛、
-      // 按实际产出结算——余额不够就跳过派生，成片本身照出，不该被卡住
-      const canDerive = !AI_REAL || canAfford(deckCardsCost());
-      if (!canDerive) say("余额不足，跳过卡组提炼（成片不受影响）");
-      if (!canDerive) throw new Error("skip-derive");
-      say("提炼本片卡组…");
-      const derived = await deriveDeckCards(
-        segments.map((sg) => ({ title: sg.title, plot: sg.plot, firstFrame: sg.firstFrame })),
-        styleHint,
-        deckCards.map((c) => ({ type: c.type, name: c.name, summary: c.summary })),
-        say,
-      );
-      const names = new Set(deckCards.map((c) => c.name));
-      const fresh = derived.filter((c) => !names.has(c.name));
-      deckCards.push(...fresh);
-      if (AI_REAL && fresh.length > 0) spendTokens(deckCardsCost(fresh.length)); // 按实际出卡结算
-      // 3D 画风的作品：给派生的角色卡自动铸 3D 建模（Seed3D，上限 2 张）。
-      // ★ 这条正则是**静默触发**的——剧情里出现"渲染"两个字就会去铸模。以前还不收钱，
-      //   现在至少要看得起：余额不够就跳过，并明确说出来
-      const styleBlob = [styleHint, ...path.map((n) => n.requirement ?? ""), ...segments.map((s) => s.plot)].join(" ");
-      if (/3d|三维|立体感|cg|建模|皮克斯|pixar|渲染/i.test(styleBlob)) {
-        const want = Math.min(2, fresh.filter((c) => c.type === "character").length);
-        if (want > 0) {
-          if (AI_REAL && !canAfford(want * MODEL3D_TOKENS)) {
-            say(`3D 建模需 ${fmtTokens(want * MODEL3D_TOKENS)} token，余额不足，跳过`);
-          } else {
-            say(`这是 3D 画风，顺便铸 ${want} 个建模（${fmtTokens(want * MODEL3D_TOKENS)} token）…`);
-            const before = fresh.filter((c) => c.modelUrl).length;
-            await deriveCharacterModels(fresh, 2, say);
-            const minted = fresh.filter((c) => c.modelUrl).length - before;
-            if (AI_REAL && minted > 0) spendTokens(minted * MODEL3D_TOKENS);
+    // ★ 显式标 Card[]：三元的空数组分支会被推成 never[]，那样下面的 push 就编不过
+    const deckCards: Card[] = withDeck
+      ? nodes.flatMap((n) => n.materials ?? []).filter((c) => (seenCard.has(c.id) ? false : (seenCard.add(c.id), true)))
+      : [];
+    if (withDeck) {
+      try {
+        const styleHint = deckCards.find((c) => c.type === "style")?.name ?? "";
+        // 把已用的素材卡报给 AI：已覆盖的实体不重复提炼，只补剧情里缺卡的角色/场景
+        // 派生卡组与 3D 建模以前**完全免费**，而 3D 建模是全 app 最贵的单次操作
+        // （seed3d 约 2.4 元/次 ≈ 160k token）。这里在真实 AI 下按上限预扣门槛、
+        // 按实际产出结算——余额不够就跳过派生，成片本身照出，不该被卡住
+        // ★ 门槛用的 deckCardsCost() 与 FlowPage 顶栏报的那个数是同一个函数（铁律六）
+        const canDerive = !AI_REAL || canAfford(deckCardsCost());
+        if (!canDerive) say("余额不足，跳过卡组提炼（成片不受影响）");
+        if (!canDerive) throw new Error("skip-derive");
+        say("提炼本片卡组…");
+        const derived = await deriveDeckCards(
+          segments.map((sg) => ({ title: sg.title, plot: sg.plot, firstFrame: sg.firstFrame })),
+          styleHint,
+          deckCards.map((c) => ({ type: c.type, name: c.name, summary: c.summary })),
+          say,
+        );
+        const names = new Set(deckCards.map((c) => c.name));
+        const fresh = derived.filter((c) => !names.has(c.name));
+        deckCards.push(...fresh);
+        if (AI_REAL && fresh.length > 0) spendTokens(deckCardsCost(fresh.length)); // 按实际出卡结算
+        // 3D 画风的作品：给派生的角色卡自动铸 3D 建模（Seed3D，上限 DECK_MAX_3D 个）。
+        // ★★ 触发判定走 economy.styleWants3d —— **报价（FlowPage 顶栏 / 「完成视频」
+        //   旁那句话）读的是同一个函数、同一坨文字**（deckStyleBlob）。这条正则原来
+        //   写死在这儿，于是界面上永远不可能说出"这条片会不会铸建模"；两边各写一份
+        //   正则则更糟：多写少写一个词就是"说不铸、结果铸了"，用户只在账单上看得到。
+        if (styleWants3d(deckStyleBlob(nodes))) {
+          const want = Math.min(DECK_MAX_3D, fresh.filter((c) => c.type === "character").length);
+          if (want > 0) {
+            if (AI_REAL && !canAfford(deckModel3dCost(want))) {
+              say(`3D 建模需 ${fmtTokens(deckModel3dCost(want))} token，余额不足，跳过`);
+            } else {
+              say(`这是 3D 画风，顺便铸 ${want} 个建模（${fmtTokens(deckModel3dCost(want))} token）…`);
+              const before = fresh.filter((c) => c.modelUrl).length;
+              await deriveCharacterModels(fresh, DECK_MAX_3D, say);
+              const minted = fresh.filter((c) => c.modelUrl).length - before;
+              if (AI_REAL && minted > 0) spendTokens(minted * MODEL3D_TOKENS);
+            }
           }
         }
-      }
-    } catch (e) {
-      if (!(e instanceof Error && e.message === "skip-derive")) console.warn("[studio] 卡组提炼回退按段场景卡:", e);
-      if (deckCards.length === 0) {
-        deckCards.push(
-          ...segments.map((sg, i) => ({
-            id: uid("card"),
-            type: "scene" as const,
-            name: sg.title.replace(/^第\d+段 · /, "").slice(0, 8) || `场景${i + 1}`,
-            summary: sg.plot.slice(0, 60),
-            cover: sg.firstFrame,
-          })),
-        );
+      } catch (e) {
+        if (!(e instanceof Error && e.message === "skip-derive")) console.warn("[studio] 卡组提炼回退按段场景卡:", e);
+        if (deckCards.length === 0) {
+          deckCards.push(
+            ...segments.map((sg, i) => ({
+              id: uid("card"),
+              type: "scene" as const,
+              name: sg.title.replace(/^第\d+段 · /, "").slice(0, 8) || `场景${i + 1}`,
+              summary: sg.plot.slice(0, 60),
+              cover: sg.firstFrame,
+            })),
+          );
+        }
       }
     }
     set({
@@ -1581,7 +1756,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
         cover: segments[0]?.firstFrame ?? "",
         segments,
         branchTree: root ? buildBranchTree(root, videoByProposal) : undefined,
-        deck: { name: "", cards: deckCards },
+        // ★ 简约模式**连键都不写**（DraftVideo.deck 本来就是可选，全部读取方都用了
+        //   `?.`）。写一个 `{ name: "", cards: [] }` 空壳的话，发布页那一路要多一处
+        //   "长度为 0 也算没有"的判断，而个人页「卡组」页签靠 `v.deck && cards.length`
+        //   过滤 —— 多一个空对象只会多一个每个人都要绕过去的坑。
+        ...(withDeck ? { deck: { name: "", cards: deckCards } } : {}),
       },
     });
     return true;

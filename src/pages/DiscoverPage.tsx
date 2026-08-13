@@ -11,8 +11,8 @@
 //   与工作流页「生成本段」旁那颗素材按钮是同一套做法（见 components/SpriteToggle）。
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../components/Icon";
-import Avatar from "../components/Avatar";
 import SpriteToggle, { type SpriteSheet } from "../components/SpriteToggle";
+import UserRow from "../components/UserRow";
 import { Link } from "react-router";
 import { listVideos, profileHref, remoteOn } from "../data/videos";
 import { searchUsers, userDisplayName, type ApiUserLite } from "../api/users";
@@ -170,8 +170,10 @@ export default function DiscoverPage() {
                   （users.controller.js 的 searchUsers，tests/userSearch.spec.js S1 钉了
                   "李小明"/"小明" 都搜得到），中文昵称本来就搜得到。
                   在真的查无此人时甩这么一句，等于给用户一个假的失败原因，
-                  还会让他从此不再用昵称找人 —— 与 MentionInput 里那句不是一回事：
-                  那边说的是 @提及**令牌**只能是 ASCII username，那是真的。 */}
+                  还会让他从此不再用昵称找人。
+                  ⚠ 「@ 的令牌只能是 ASCII」也**不是**理由：那条从来只约束服务端的兜底
+                  正则，而补全面板挑人走的是 span，中文 username 照样 @ 得到
+                  （见 utils/mention.ts 顶部）。 */}
             </p>
           ) : (
             <ul className="space-y-1">
@@ -187,12 +189,10 @@ export default function DiscoverPage() {
                     to={profileHref({ id: u._id, name: userDisplayName(u) })}
                     className="flex items-center gap-3 rounded-xl px-1 py-1.5 active:opacity-70"
                   >
-                    <Avatar name={userDisplayName(u)} src={u.avatarUrl} size={38} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-slate-100">{userDisplayName(u)}</span>
-                      {/* @username 一并显示：这是 @ 别人时要打的那串，App 里别处从来没露过 */}
-                      <span className="block truncate text-[11px] text-slate-500">@{u.username}</span>
-                    </span>
+                    {/* ★ 与 @补全面板**同一个组件**（铁律六）。第二行那个 @username 就是
+                        @ 他时要打的那一串，也是补全面板真正插进正文的令牌 ——
+                        App 里除了这两处，username 一个字都没露过。 */}
+                    <UserRow user={u} size={38} />
                     <Icon name="back" size={16} className="flex-none rotate-180 text-slate-600" />
                   </Link>
                 </li>

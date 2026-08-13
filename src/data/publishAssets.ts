@@ -1,7 +1,7 @@
 // 发布前的「资产实体化」：把作品里所有**只在本机存在**的东西换成永久 URL。
 //
 // ★★ 这一步是"别人能不能看到你的视频"的分水岭。在它之前，一份作品里混着三种地址：
-//     `data:image/jpeg;base64,...`  帧 / 封面 / 卡面 —— 几百 KB 到 1MB 一张
+//     `data:image/jpeg;base64,...`  帧 / 封面 / 卡面 / 卡的形象参考图 —— 几百 KB 到 1MB 一张
 //     `idb:merged:mv_xxx`           剪辑合并后的成片 —— **本机 IndexedDB 键**
 //     `https://...volces.com/...`   方舟产物 —— 24h 就失效的临时链接
 //   前两种发到服务端等于没发：一个把请求体撑到 MB 级（被 nginx 的 1m 上限掐断），
@@ -17,7 +17,7 @@
 //   悄悄发一份缺图的作品比发不出去更糟（铁律八）。
 import { idbGet } from "./db";
 import { uploadImage, uploadMedia, MAX_IMAGE_BYTES, MAX_MEDIA_BYTES } from "../api/uploads";
-import type { DraftVideo } from "../types";
+import { slotLabel, type Card, type CardView, type DraftVideo } from "../types";
 
 /** 已经是永久地址、不用动的：http(s) 且不是方舟临时域 */
 function isPermanentUrl(u: string | undefined): boolean {
@@ -64,6 +64,45 @@ async function videoToUrl(value: string | undefined): Promise<string | undefined
   return uploadMedia(blob, `film.${extOf(blob.type)}`);
 }
 
+/**
+ * 一张卡的形象参考图：dataURL → 永久 URL。卡面之外**还有 1~2 张**要传。
+ *
+ * ★★ 为什么发布时必须一并实体化（2026-08-11 补的漏）：铸卡从"一张卡一张图"变成
+ *   一炉最多三张之后，`Card.views` 里挂的是 1728×2304 的 dataURL，一张 1MB 级。
+ *   只传卡面的话有两条后果，且都不报错：
+ *     ① 发布体每张卡多 1~2MB —— 正是文件头记的 2026-08-10「4.9MB 撞 nginx 1m」
+ *        那次事故的复发条件；而且进度条分母还少数了这几个文件，用户看到的是
+ *        "进度条走完了却还没发出去"；
+ *     ② 就算撑过去，服务端 `shareableViews` 会把非 http 的 view 全丢掉、落库
+ *        `views: []` —— 观众装走这套卡组之后炼出来的人物**不是同一个人**，
+ *        而他和作者都不会收到任何提示。
+ * ★ 读的是**原始 `card.views`**，不是 `viewsOf()`：后者会给没挂过图的卡兜底出一张
+ *   "卡面即主图"，那张就是上一行刚传过的 cover —— 会被数两遍、传两遍、付两遍流量。
+ * ★ 失败原样抛，与卡面同口径（上层 pushPublish 把这份半成品放进待发队列）。
+ */
+async function cardViewsToUrls(
+  card: Card,
+  begin: (label: string) => void,
+  finish: () => void,
+): Promise<CardView[] | undefined> {
+  const views = card.views;
+  if (!Array.isArray(views) || views.length === 0) return views;
+  const out: CardView[] = [];
+  for (const v of views) {
+    if (!v?.url) continue;
+    const local = v.url.startsWith("data:");
+    if (local) begin(viewLabel(card, v));
+    out.push({ ...v, url: await imageToUrl(v.url, `card-${card.id}-${v.kind}`) });
+    if (local) finish();
+  }
+  return out;
+}
+
+/** 进度条上那一行叫什么。★ 数分母和真正开传两处必须用同一句，否则"第几个/共几个"会对不上 */
+function viewLabel(card: Pick<Card, "name" | "type">, v: CardView): string {
+  return `「${card.name}」的${slotLabel(card.type, v.kind)}`;
+}
+
 export type UploadProgress = (done: number, total: number, label: string) => void;
 
 /**
@@ -83,6 +122,8 @@ export async function materializeDraft(draft: DraftVideo, onProgress?: UploadPro
   });
   (draft.deck?.cards ?? []).forEach((c) => {
     if (c.cover?.startsWith("data:")) jobs.push(`卡面「${c.name}」`);
+    // 形象参考图也是本地资产，见 cardViewsToUrls（读原始 views，不走 viewsOf 的卡面兜底）
+    for (const v of c.views ?? []) if (v?.url?.startsWith("data:")) jobs.push(viewLabel(c, v));
   });
   const total = jobs.length;
   let done = 0;
@@ -122,10 +163,16 @@ export async function materializeDraft(draft: DraftVideo, onProgress?: UploadPro
     if (out.deck?.cards.length) {
       const cards = out.deck.cards.slice();
       for (let i = 0; i < cards.length; i++) {
-        if (cards[i].cover?.startsWith("data:")) begin(`卡面「${cards[i].name}」`);
-        const url = await imageToUrl(cards[i].cover, `card-${cards[i].id}`);
-        if (cards[i].cover?.startsWith("data:")) finish();
-        cards[i] = { ...cards[i], cover: url };
+        const c = cards[i];
+        if (c.cover?.startsWith("data:")) begin(`卡面「${c.name}」`);
+        const cover = await imageToUrl(c.cover, `card-${c.id}`);
+        if (c.cover?.startsWith("data:")) finish();
+        cards[i] = { ...c, cover };
+        out.deck = { ...out.deck, cards };
+        // 卡面之后接着传这张卡的形象参考图（理由见 cardViewsToUrls）。
+        // ★ 分两步写回、不合成一句：views 传到一半失败时，刚传好的卡面要留在 partial 里，
+        //   否则重试会把它再传一遍（同 segments 那三步的写法）
+        cards[i] = { ...cards[i], views: await cardViewsToUrls(c, begin, finish) };
         out.deck = { ...out.deck, cards };
       }
     }
@@ -149,20 +196,31 @@ export function localAssetCount(draft: DraftVideo): number {
     if (s.lastFrame?.startsWith("data:")) n++;
     if (s.videoUrl?.startsWith("idb:")) n++;
   }
-  for (const c of draft.deck?.cards ?? []) if (c.cover?.startsWith("data:")) n++;
+  for (const c of draft.deck?.cards ?? []) {
+    if (c.cover?.startsWith("data:")) n++;
+    // 与 materializeDraft 的 jobs 一一对应：少数一个，UI 说的"要传 N 个文件"就是错的
+    for (const v of c.views ?? []) if (v?.url?.startsWith("data:")) n++;
+  }
   return n;
 }
 
 /**
- * 单张封面 dataURL → 永久 URL。作品编辑页换封面时用。
+ * 单张图 dataURL → 永久 URL。**发布之外那几条路的唯一入口**：
+ * 作品编辑页换封面、卡片详情页加参考图、收下新铸的卡（data/account.addCards）。
  *
- * ★ 与发布路径共用同一个 imageToUrl（铁律六）：换封面和发封面走两套上传逻辑的话，
- *   尺寸上限、失败文案、以及"已经是 URL 就别重传"这三件事必然会分叉。
- * ★ 失败直接抛，调用方**不许**在这种情况下显示"已保存"——服务端的 PATCH 只收
- *   http(s) URL，dataURL 发过去要么被 schema 拒、要么撞网关 1MB 上限。
+ * ★ 与发布路径共用同一个 imageToUrl（铁律六）：另写一套上传的话，尺寸上限、
+ *   失败文案、以及"已经是 URL 就别重传"这三件事必然会分叉。
+ * ★ 失败直接抛，调用方**不许**在这种情况下显示"已保存"——服务端只收 http(s) URL，
+ *   dataURL 发过去要么被 schema 拒/滤掉、要么撞网关 1MB 上限，两种都是静默丢图。
+ * ★ label 只决定上传时的文件名，用来在 Cloudinary 后台认出这张图是干嘛的。
  */
+export async function toPermanentUrl(dataUrl: string, label: string): Promise<string> {
+  return imageToUrl(dataUrl, label);
+}
+
+/** 封面那一路的名字（作品编辑页换封面）。就是 toPermanentUrl 的固定 label 版 */
 export async function coverToPermanentUrl(cover: string): Promise<string> {
-  return imageToUrl(cover, "cover");
+  return toPermanentUrl(cover, "cover");
 }
 
 export { isPermanentUrl };

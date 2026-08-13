@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Icon from "../components/Icon";
 import { useNavigate } from "react-router";
-import { setAvatarImage, signOut, updateProfile, isRemoteMode } from "../data/account";
+import { setAvatarImage, signOut, updateProfile, isAdmin, isRemoteMode } from "../data/account";
 import Avatar from "../components/Avatar";
 import { fileToSquareImage } from "../utils/image";
 import { useCurrentUser } from "../hooks/useAccount";
@@ -208,6 +208,34 @@ export default function SettingsPage() {
       </section>
 
       <VersionSection />
+
+      {/* ── 管理后台入口 ────────────────────────────────────────
+          ★★ 非管理员**看不到这一行**（判断走 data/account 的 isAdmin 那一处，铁律六）。
+            摆一个点进去就被拒的入口，只会让人以为功能坏了（CLAUDE.md 那条
+            「界面上摆一个永远点不动的选项」）。
+          ★ role 缺省（老服务端不返回）时 isAdmin() 为 false，这一段整块不出现 ——
+            降级成"和普通用户一样"，而不是报错（铁律七）。
+          ★ 顺带把「免扣费」说在这儿：管理员在服务端是不扣 token 的，不说的话
+            他会把"这一步免费"当成产品事实（各处报价旁边也有同一句，见 TokenCost）。 */}
+      {isAdmin() && (
+        <section className="mb-6">
+          <h2 className="mb-2.5 text-xs font-semibold text-slate-400">管理</h2>
+          <button
+            onClick={() => navigate("/admin")}
+            className="flex w-full items-center gap-3 rounded-xl border border-brand/40 bg-brand/10 px-4 py-3 text-left"
+          >
+            <span className="text-lg">🛡️</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm text-slate-100">管理后台</span>
+              <span className="block text-[11px] text-slate-400">处理举报（下架 / 驳回 / 删除）· 平台数据</span>
+            </span>
+            <Icon name="chevron" size={16} className="flex-none text-slate-500" />
+          </button>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+            你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。
+          </p>
+        </section>
+      )}
 
       <button
         onClick={() => {

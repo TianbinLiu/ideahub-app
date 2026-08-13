@@ -6,11 +6,13 @@
 //
 // 页面读的全是同步函数（myCards() / currentUser() / isFollowing()…），签名一个没动；
 // 变更仍通过 subscribeAccount + 版本号广播，远端回包回填时也走同一条广播。
-import { Card, uid } from "../types";
+import { Card, slotLabel, uid, type CardView } from "../types";
 // data → mock 是既有方向（data/videos.ts 也从 mock/frames 取种子帧），不成环
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
 import { PLANS, PLATFORM_CUT, fmtTokens, type VideoTier } from "./economy";
 import { idbGet, idbSet } from "./db";
+// 转存（dataURL → 永久 URL）的唯一入口，与发布/换封面/详情页加图共用（铁律六）
+import { toPermanentUrl } from "./publishAssets";
 // ★ 刻意不再 import setToken：token 的生命周期只有两个主人 ——
 //   api/client.ts（服务端回 401 时清）与 api/auth.ts（用户显式登出）。
 //   业务层一插手就会出现"网络抖一下把人登出"这种破坏性降级（见 adoptFromToken）。
@@ -37,6 +39,15 @@ export interface User {
   planId?: string;
   /** 已解锁的付费内容，键 `${videoId}:${partIndex}` */
   purchases?: string[];
+  /**
+   * 服务端角色（"user" / "admin" / …）。**只由服务端写**，本地永远不自己造。
+   *
+   * ★ 缺省（老服务端不返回 / 离线模式压根没有服务端）一律当普通用户 —— 见 isAdmin()。
+   * ★ 它不是安全边界，只是**界面开关**：真正的门在服务端（requireRole("admin")，
+   *   而且 requireAuth 每次请求都从库里重读 role，不信 JWT 里的快照）。改这一行
+   *   只能让自己多看见一个点了必然 403 的入口。
+   */
+  role?: string;
   createdAt: number;
 }
 
@@ -185,6 +196,38 @@ export function currentUser(): User | null {
 
 export function isLoggedIn(): boolean {
   return !!currentUser();
+}
+
+/** 服务端 User.role 里代表管理员的那个值（server 的 enum 逐字对应） */
+const ADMIN_ROLE = "admin";
+
+/**
+ * 当前登录的人是不是管理员。**全 app 唯一的一处判断**（铁律六）。
+ *
+ * ★★ role **缺省时一律是普通用户**，既不报错也不当管理员（铁律七）：
+ *   老服务端的 serializeAuthUser 不返回 role、离线模式压根没有服务端、
+ *   /api/me/profile 那条也不保证带它。把"不知道"当成"是管理员"会给每个人
+ *   开一个点了必然 403 的后台入口；当成"出错"则会让整页崩掉。
+ * ★★ 这**不是**安全边界。它只决定"看不看得见入口"，真正的拦截在服务端
+ *   （requireRole("admin")，且 requireAuth 每次请求都从库里重读 role）。
+ *   所以页面上按它显示/隐藏就够了，不必再叠一层本地校验。
+ */
+export function isAdmin(): boolean {
+  return currentUser()?.role === ADMIN_ROLE;
+}
+
+/**
+ * 「这个人用 AI 不扣费」—— 免扣费规则的**唯一实现**。
+ *
+ * ★★ 为什么必须有这一条：客户端的 `canAfford` 拿的是**钱包镜像**，它会在请求
+ *   发出去**之前**就把按钮灰掉。而管理员在服务端是被放行的（wallet.debit 对
+ *   admin 不扣），于是"服务端允许、前端告诉他余额不足"就成了一种**反向的假特权**：
+ *   权限更大的人反而先被自己这边挡住，而且看到的还是一句错误的解释。
+ * ★ 免扣费**必须在界面上说出来**（TokenCost 那条提示）：不说的话管理员不知道
+ *   自己花的是特权额度，会把"这一步免费"当成产品事实（铁律八）。
+ */
+export function billingExempt(): boolean {
+  return isAdmin();
 }
 
 /**
@@ -430,8 +473,12 @@ export function walletOf(): { plan: number; addon: number; planId: string } | nu
  * ★ 远端模式下这是**乐观判断**：镜像还没取到（null）时一律放行，让请求打出去，
  *   由服务端回 402 说了算。宁可多一次往返，也不能因为镜像慢了半拍就把功能锁死
  *   ——那会表现成"明明有余额却说不够"，而且刷新也好不了。
+ * ★★ 管理员直接放行（billingExempt）：服务端不向他扣费，前端再拿镜像余额去拦
+ *   就是**反向假特权**——权限最大的人被自己这边挡在门外，看到的还是一句
+ *   与事实相反的"余额不足"。免扣费这件事由 TokenCost 在报价那一行如实写出来。
  */
 export function canAfford(n: number): boolean {
+  if (billingExempt()) return true;
   if (remoteOn()) {
     if (!currentUser()) return false;
     if (!remoteWallet) return true; // 还不知道，交给服务端判
@@ -455,6 +502,13 @@ export function canAfford(n: number): boolean {
  */
 export function tierBlockReason(tier: Pick<VideoTier, "label" | "paidOnly">): string | null {
   if (!tier.paidOnly) return null;
+  // ★★ 管理员放行。这里原来写着"故意不开口子，因为服务端是分开判的"——那句话**是错的**：
+  //   服务端的 billedForward 对 admin **同时**跳过套餐门禁与扣费（门禁守的也是钱，
+  //   不跳的话免费档的管理员会在 seedance-2.5 上被 403）。所以这边继续灰着，
+  //   就是给管理员看一句与事实相反的「升级套餐后可用」——反向假特权，
+  //   而且他没有任何办法验证到底是谁在拦（铁律五、八）。
+  //   服务端仍是唯一的安全边界：客户端放行只是别再撒谎。
+  if (billingExempt()) return null;
   const w = walletOf();
   if (!w) return null; // 还不知道套餐，交给服务端判
   // 远端模式下镜像里的 planId 可能是**我们自己填的** "free"（响应头只带余额不带套餐，
@@ -628,21 +682,132 @@ export function myCards(): Card[] {
   return db.cards.filter((c) => c.ownerId === u.id).sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export function addCards(cards: Card[]): void {
+/** addCards 的结果。★ 不只回 added：转存失败必须能被调用方**说给用户听**（铁律八） */
+export interface AddCardsResult {
+  /** 真正新入库的那几张（按 id 去重后剩下的） */
+  added: Card[];
+  /** 没能转存成永久地址的形象参考图，形如「凛」的面部特写。空数组 = 全部落地 */
+  lostViews: string[];
+  /** 第一条失败原因。说一句就够——把 N 条原因全列出来只会把对话框刷成日志 */
+  reason?: string;
+}
+
+/**
+ * 收卡入库。这里同时是**存卡那一层**，也就是 dataURL 形象参考图转存成永久地址的地方。
+ *
+ * ★★ 为什么转存必须发生在这里（2026-08-11 修的真 bug，用户为此付过钱）：
+ *   铸卡管线 `ai/real.forgeSlots` 把新画的图以 **dataURL** 写进 `card.views`
+ *   （它拿不到上传通道——离线包里根本没有——也不该由出图那一层决定谁去转存，
+ *   那里留着 ⚠ 注释指到这里）。而远端模式下这份 dataURL 会被三件事叠着抹掉，
+ *   全程零报错：
+ *     ① `persist()` 在远端模式**不写 IndexedDB**（登录态与资产都以服务端为准）；
+ *     ② `api/branch.addCards` 的 `httpViews()` 只发 http(s) 的那几张，dataURL 全被滤掉，
+ *        服务端落库 `views: []`；
+ *     ③ 下次冷启动 `loadRemoteAssets()` 拿服务端那份**整体覆盖** `db.cards`。
+ *   于是用户刚花掉的钱（精绘档一张人物卡 120,000 token）画出来的那两张图，
+ *   重启 App 之后无声消失。
+ * ★★ 顺序是 **POST → 转存 → PATCH**，三步都不能换位（理由写在函数体里）。
+ *   一句话：POST 要早（卡本身必须尽快落到服务端，否则那段上传窗口里进程一没整张卡就丢），
+ *   而 views 只能靠 PATCH 补 —— `POST /cards` 是 `$setOnInsert`，再 POST 一次是无效操作。
+ * ★ 离线模式**故意不转存**：那边 `persist()` 写的是 IndexedDB，dataURL 留在本地库里
+ *   反而是能用的 —— 详情页 `<img src>` 直接显示，出片管线的 `prepRefImage` 本来就同时
+ *   吃 dataURL 和 http（还会把 dataURL 缩到 1024 长边再上行）。而且离线包压根没有
+ *   上传通道，"转存不成就丢图"只会把一个本来能用的功能弄坏。真正危险的组合只有一个：
+ *   **远端模式 + dataURL**。
+ * ★ 返回 Promise 但**永不 reject**：调用点里有四处是即发即忘的同步调用（收藏市场卡、
+ *   从视频提卡、装别人的卡组…），reject 在那里会变成没人接手的 unhandledrejection，
+ *   等于换了个形式的静默失败。失败一律走 lostViews/reason 如实回报。
+ */
+export async function addCards(cards: Card[]): Promise<AddCardsResult> {
   const u = currentUser();
-  if (!u || !db) return;
+  if (!u || !db) return { added: [], lostViews: [] };
   const existing = new Set(db.cards.filter((c) => c.ownerId === u.id).map((c) => c.id));
   const added: Card[] = [];
+  const rows: Card[] = [];
   for (const c of cards) {
     if (existing.has(c.id)) continue;
-    db.cards.push({ ...c, ownerId: u.id, createdAt: Date.now() });
+    const row = { ...c, ownerId: u.id, createdAt: Date.now() };
+    db.cards.push(row);
     added.push(c);
+    rows.push(row);
   }
+  // 先让卡出现在库里：上传一张 1MB 级的图在手机上要好几秒，这段时间里卡该已经在
+  // 卡组/个人页里了，不能吊在屏幕上等网络
   persist();
-  if (remoteOn() && added.length > 0) {
-    // 服务端按 cardId 幂等，重发不会长出重复卡
-    void branch.addCards(added).catch((e) => emitApiError("addCards", e));
+  if (added.length === 0 || !remoteOn()) return { added, lostViews: [] };
+
+  // ★★ 先 POST 把卡本身存住，再补图 —— **不是**先转存完再 POST。
+  //   转存是串行上传（见 materializeViews 的 ★），一炉 6 卡 × 2 图 = 12 次往返，
+  //   弱网下能拖到几分钟；而远端模式的 `persist()` 不写 IndexedDB，这段窗口里卡
+  //   **只活在内存**。用户看着卡已经在卡组里了，于是切出去 —— 被系统回收之后回来，
+  //   `loadRemoteAssets()` 拿服务端那份整体覆盖，整张卡（不是某张图）无声消失。
+  //   先 POST 把这个窗口收回到一次往返。
+  // ★ 服务端 `POST /cards` 是 `$setOnInsert`（已存在的字段一个不动），所以 views
+  //   **补不进去**，只能走 PATCH（api/branch.updateCardViews 就是为这件事存在的）。
+  //   顺序反过来写成"POST 空 views、再 POST 一次带图的"是无效操作。
+  try {
+    await branch.addCards(added); // 服务端按 cardId 幂等，重发不会长出重复卡
+  } catch (e) {
+    emitApiError("addCards", e);
+    // 卡都没存上，转存那几张图没有意义（PATCH 会打在一张不存在的卡上）。
+    // 图原样留着 dataURL，在这台设备上照样看得见、也照样能当出图参考。
+    return { added, lostViews: [], reason: "这批卡没能同步到服务器，形象参考图先留在本机" };
   }
+
+  const { lostViews, reason } = await materializeViews(added, rows);
+  persist(); // 把换好的永久地址写回内存库并广播
+  // 把转存好的地址补上去。逐张 catch：一张卡补失败不该连累别的卡
+  await Promise.all(
+    added
+      .filter((c) => c.views?.length)
+      .map((c) => branch.updateCardViews(c.id, c.views).catch((e) => emitApiError("updateCardViews", e))),
+  );
+  return { added, lostViews, reason };
+}
+
+/**
+ * 把这批新卡里的 dataURL 形象参考图转存成永久地址。**远端模式专用**（见 addCards 的 ★）。
+ *
+ * ★ 失败**只丢这一张图，不丢这张卡**，而且**原样保留那条 dataURL**：它在这台设备上
+ *   照样显示得出来、也照样能当出图参考，当场抹掉只会让用户连"我付钱画的图长什么样"
+ *   都看不到。要发给服务端的那一份由 `api/branch.httpViews` 自己滤 —— "views 只存 URL"
+ *   这条不变量守的是**写出去**的那份。用户下次在详情页加图时，
+ *   `data/cardViews.materializedViews` 会把没传上去的这几张一起补传（自愈入口）。
+ * ★ 串行传，与 publishAssets.materializeDraft 同一条理由：手机上行窄，几个 MB 级请求
+ *   并发只会互相拖慢，还更容易一起超时。
+ * ★ 两份都要写回：`added[i]` 是调用方（工坊卡组、预览窗）手里那个对象，`rows[i]` 是
+ *   库里那份拷贝 —— 只写一边，另一边就还挂着 dataURL，随后又会被当成"没转存过"。
+ */
+async function materializeViews(added: Card[], rows: Card[]): Promise<{ lostViews: string[]; reason?: string }> {
+  const lostViews: string[] = [];
+  let reason: string | undefined;
+  // 同一份 dataURL 只传一次：views[0] 通常就是卡面本身（见 ai/real.forgeSlots）
+  const done = new Map<string, string>();
+  for (let i = 0; i < added.length; i++) {
+    const card = added[i];
+    const cur = card.views;
+    if (!Array.isArray(cur) || cur.length === 0) continue;
+    const next: CardView[] = [];
+    for (const v of cur) {
+      if (!v?.url) continue;
+      if (!v.url.startsWith("data:")) {
+        next.push(v);
+        continue;
+      }
+      try {
+        const url = done.get(v.url) ?? (await toPermanentUrl(v.url, `card-${card.id}-${v.kind}`));
+        done.set(v.url, url);
+        next.push({ ...v, url });
+      } catch (e) {
+        next.push(v); // 留着原图，理由见上面的 ★
+        lostViews.push(`「${card.name}」的${slotLabel(card.type, v.kind)}`);
+        reason ??= e instanceof Error ? e.message : String(e);
+      }
+    }
+    card.views = next;
+    rows[i].views = next;
+  }
+  return { lostViews, reason };
 }
 
 /** 更新自己的卡（挂 3D 建模指针、补生成蓝图等）。远端同步依赖服务端 upsert，暂本地生效 */
@@ -1046,6 +1211,10 @@ function toLocalUser(u: authApi.ApiUser): User {
     avatar: u.avatarUrl || AVATARS[0],
     bio: u.bio ?? "",
     following: [],
+    // ★ 这一行以前是漏的：服务端明明返回了 role，映射时被整个丢掉，于是 App 侧
+    //   对"我是不是管理员"一无所知。缺省保持 undefined（不补 "user"）—— isAdmin()
+    //   判的是"等于 admin"，补一个假值只会让"不知道"和"确实是普通用户"混成一谈。
+    role: u.role,
     createdAt: Date.now(),
   };
 }
@@ -1070,7 +1239,14 @@ function toLocalUser(u: authApi.ApiUser): User {
  */
 async function hydrateProfile(remote: authApi.ApiUser): Promise<authApi.ApiUser> {
   const profile = await authApi.fetchProfile();
-  return profile ? { ...remote, ...profile } : remote;
+  if (!profile) return remote;
+  const merged = { ...remote, ...profile };
+  // ★★ role 以**带得出值的那一份**为准，不能被后展开的 profile 抹掉。
+  //   /api/me/profile 与登录回包用的是**两套**序列化函数（api/auth.ts 顶部记着这件事），
+  //   前者不保证带 role；一旦它回了个 role: null，展开合并就会把登录回包里的真值
+  //   覆盖成空 —— 表现是"登录进来能看到管理入口，刷新一下就没了"，而且一点错都不报。
+  if (!merged.role && remote.role) merged.role = remote.role;
+  return merged;
 }
 
 /** 把服务端用户装进内存库并置为当前登录用户 */
@@ -1361,6 +1537,13 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
     buyPlan,
     purchasePart,
     hasPurchased,
-    debug: () => ({ hasDb: !!db, currentId: db?.currentId ?? null, users: db?.users.length ?? -1, remote: remoteOn() }),
+    isAdmin,
+    debug: () => ({
+      hasDb: !!db,
+      currentId: db?.currentId ?? null,
+      users: db?.users.length ?? -1,
+      remote: remoteOn(),
+      role: currentUser()?.role ?? null,
+    }),
   };
 }

@@ -9,7 +9,19 @@ import { useStudio } from "../studioStore";
 import { fileToCover } from "../../mock/frames";
 import { AI_REAL, MaterialFile } from "../../ai";
 import { canAfford, spendTokens, walletOf } from "../../data/account";
-import { forgeCardCount, forgeCost, forgeSettle, fmtTokens } from "../../data/economy";
+import {
+  DEFAULT_IMAGE_TIER,
+  IMAGE_TIERS,
+  dearestCardType,
+  fmtTokens,
+  forgeCardCount,
+  forgeCost,
+  forgeSettle,
+  imageTierOf,
+  imageTierPriceIssue,
+  modelLabel,
+  slotsFor,
+} from "../../data/economy";
 import { Card, CARD_TYPES, CARD_TYPE_LABELS, CardType } from "../../types";
 import TarotCard from "../../components/TarotCard";
 import TokenCost from "../../components/TokenCost";
@@ -23,6 +35,8 @@ export default function NpcDialog() {
   const messages = useStudio((s) => s.dialog.messages);
   const busy = useStudio((s) => s.dialog.busy);
   const thinking = useStudio((s) => s.dialog.thinking);
+  // 炼卡阶段播报（顶档一炉两张图、每张实测 70 秒以上）。空串时退回那句固定的"炉火正旺"
+  const forgeProgress = useStudio((s) => s.forgeProgress);
   const projection = useStudio((s) => s.projection);
   const marketOpen = useStudio((s) => s.market.open);
   // 对话默认隐藏：可见性由 store 的 dialogView 决定，只有点击 3D 里的 NPC 才唤起
@@ -108,7 +122,7 @@ export default function NpcDialog() {
             )}
           </div>
           <div className="max-h-24 overflow-y-auto whitespace-pre-wrap text-[13px] leading-relaxed text-slate-100">
-            {busy ? "炉火正旺，卡片成形中…" : thinking ? "……" : (lastNpc?.text ?? "……")}
+            {busy ? forgeProgress || "炉火正旺，卡片成形中…" : thinking ? "……" : (lastNpc?.text ?? "……")}
           </div>
         </div>
         {/* 气泡尾巴：指向角色 */}
@@ -235,6 +249,7 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
   const messages = useStudio((s) => s.dialog.messages);
   const busy = useStudio((s) => s.dialog.busy);
   const thinking = useStudio((s) => s.dialog.thinking);
+  const forgeProgress = useStudio((s) => s.forgeProgress);
   const [text, setText] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -322,7 +337,9 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
               </div>
             </div>
           )}
-          {busy && <div className="pl-1 text-xs text-amber-300/90 pulse-soft">炉火正旺，卡片成形中…</div>}
+          {busy && (
+            <div className="pl-1 text-xs text-amber-300/90 pulse-soft">{forgeProgress || "炉火正旺，卡片成形中…"}</div>
+          )}
         </div>
 
         {/* 复用 TokenCost 而不是手写：演示模式下它自己会说"不消耗 token"，
@@ -404,6 +421,8 @@ const TYPE_COVER: Record<CardType, string> = {
 function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initialDesc?: string }) {
   const pending = useStudio((s) => s.pendingFiles);
   const busy = useStudio((s) => s.dialog.busy);
+  // 炼卡阶段播报：素材窗盖在对话气泡上面，用户这会儿看的是这颗按钮
+  const forgeProgress = useStudio((s) => s.forgeProgress);
   const [step, setStep] = useState<ForgeStep>("type");
   const [type, setType] = useState<CardType | null>(null);
   // 从聊天窗抬过来时带着用户刚打的那句话。**step 仍停在 "type"**——让用户自己挑
@@ -412,6 +431,9 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
   const [reading, setReading] = useState(false);
   const [err, setErr] = useState("");
   const [preview, setPreview] = useState<Card[] | null>(null);
+  // 出图档位（速写/定妆/精绘）。★ 默认值只能来自 DEFAULT_IMAGE_TIER —— 这里写死
+  // "sketch" 就是第二处默认值，改档位表时它不会跟着动，而且一点不报错
+  const [tierId, setTierId] = useState<string>(DEFAULT_IMAGE_TIER);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // 关窗即弃：「取消」就该是取消。描述是组件本地态、关窗必丢，文件却存在 store 里——
@@ -419,9 +441,28 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
   useEffect(() => () => useStudio.setState({ pendingFiles: [] }), []);
 
   const cardN = forgeCardCount(pending.length, !!desc.trim());
-  const cost = forgeCost(cardN);
+  /**
+   * 这一炉最多要花多少。**null = 这一档报不出价**（价目表里没有它的模型），不是 0 ——
+   * economy 那侧刻意不抛异常（render 里抛 = 白屏，见 economy.imagePriceOf 的 ★★），
+   * 把"翻成人话 + 挡住按钮"留给这里。
+   */
+  const cost = forgeCost(cardN, type, tierId);
+  /** 报不出价时的那句人话。唯一实现在 economy，这里只负责显示与拦截 */
+  const priceIssue = imageTierPriceIssue(tierId);
   const wallet = walletOf();
   const canForge = pending.length > 0 || !!desc.trim();
+  const tier = imageTierOf(tierId);
+  /** 这一档给这类卡画哪几张。★ 只问 economy.slotsFor（全仓唯一实现），
+   *  界面上的张数与报价、出图、结算永远是同一次 slice 的结果 */
+  const slots = type ? slotsFor(type, tierId) : null;
+  /**
+   * 卡种未定（🎲 让铸卡师看着办）时报价按**最贵的那类**走。
+   * ★ 这里不再自己 reduce 一遍：那与 forgeCost 的 null 分支是同一条规则的第二处实现，
+   *   两边分叉的样子就是"嘴上说按人物卡报价、实际按别的类算钱"。现在两边同问
+   *   economy.dearestCardType（铁律六）。
+   */
+  const dearest = dearestCardType(tierId);
+  const maxSlots = slotsFor(dearest, tierId).length;
 
   async function onFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -446,6 +487,14 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
 
   async function forge() {
     if (busy || !canForge) return;
+    // ★ 报不出价就**不开炼**。这是 economy 那侧"认不出的模型不许静默按低价收"那条规则
+    //   的落地点：原来它是 imageTokensOf 里的一句 throw，可 forgeCost 是在 render 里调的，
+    //   真触发时用户看到的是白屏、错误只进 console —— 一句话都没有，反而更静默（铁律八）。
+    //   现在数值侧返回 null、人话侧给 priceIssue，在这里翻成用户看得懂的一句并早退。
+    if (priceIssue || cost === null) {
+      setErr(priceIssue ?? "这一档暂时报不出价，换个档位再试");
+      return;
+    }
     if (AI_REAL && !canAfford(cost)) {
       setErr(
         `需要 ${fmtTokens(cost)} token，余额 ${fmtTokens((wallet?.plan ?? 0) + (wallet?.addon ?? 0))} 不够——去「我的」页充值`,
@@ -454,17 +503,45 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
     }
     setErr("");
     try {
-      const cards = await useStudio.getState().forgeCards(pending, desc.trim(), type);
+      const { cards, minted, notes } = await useStudio.getState().forgeCards(pending, desc.trim(), type, tierId);
       if (cards.length === 0) {
         setErr("这批素材没能炼出卡，补充点描述再试？");
         return;
       }
-      // 按**实际出卡 + 实际出图**结算：预估是"一份素材一张卡、每张都出图"的上限，
-      // 模型少出几张就少收几张；出图失败退回用户原图的那张（没有 genPrompt）只收文案钱
+      // 按**实际出卡 + 实际出图**结算：预估是"一份素材一张卡、每张都画满这一档"的上限，
+      // 模型少出几张就少记几张。
+      // ★ minted 是**每张卡各自画成了几张图**，不是"出了卡面的卡数"。旧写法
+      //   （cards.filter(c => c.genPrompt).length）是一张卡一个布尔，一卡多图之后
+      //   "该画 3 张、成了 2 张"会被算成满额，用户被全额收费且全程零提示。
+      // ★★ 这一句真正动余额的只有**离线模式**：远端模式下 spendTokens 是空操作，
+      //   真扣费在服务端，按每次方舟调用是否 2xx 记（W2 只对非 2xx 退款）。
       if (AI_REAL) {
-        const minted = cards.filter((c) => c.genPrompt).length;
-        spendTokens(forgeSettle(cards.length, minted));
-        if (minted < cards.length) setErr(`有 ${cards.length - minted} 张没画成卡面，先用你的原图顶上（这几张不收图钱）`);
+        // due 为 null 只可能是"这一档报不出价"，而那时上面的早退根本不会让流程走到这儿
+        const due = forgeSettle(minted, tierId);
+        if (due !== null) spendTokens(due);
+        // 该画几张按**每张卡自己的卡种**算：🎲 那条路上卡种是模型定的，报价时还不知道
+        const want = cards.reduce((n, c) => n + slotsFor(c.type, tierId).length, 0);
+        const got = minted.reduce((n, k) => n + k, 0);
+        // ★★ 措辞只**陈述事实**，不替服务端承诺退款。原话是"少的 N 张没收你的钱"——
+        //   客户端根本无从验证这件事，而且它在最常见的那种失败下是**错的**：
+        //   图已经画出来、只是取图那一步 504 或弱网超时的，服务端按 2xx 早就扣了，
+        //   客户端却把它算作"没画成"。于是钱包响应头刚同步完 -40,000，界面却红字写着
+        //   "没收你的钱"，用户照这句话对账只会认定自己被多扣（铁律五、八）。
+        //   真实扣了多少以钱包余额为准 —— 那是服务端的权威值，不是我们这边的推算。
+        if (got < want)
+          setErr(
+            `这一炉该出 ${want} 张图、成了 ${got} 张——缺的 ${want - got} 张先用你的原图顶上。` +
+              `已经画出来、只是没取回来的那几张仍会计费，实扣以「我的」页余额为准` +
+              // ★★ notes 是**哪一张、为什么**。不拼上去的话这句只剩两个数字，
+              //   而 forgeProgress 那一行早被 forgeCards 的 finally 清掉了 ——
+              //   用户拿着一张缺图的卡和一笔已扣的钱，无从判断该不该重炼（铁律八）。
+              (notes.length > 0 ? `。${notes.join("；")}` : ""),
+          );
+        else if (notes.length > 0) setErr(notes.join("；"));
+      } else if (notes.length > 0) {
+        // 演示模式（AI_REAL=false）也要说：那条路一张图都没真画，而档位面板照常写着
+        // "每张卡出 N 张图"。不说的话界面从头到尾在讲一件没发生的事。
+        setErr(notes.join("；"));
       }
       setPreview(cards);
       setStep("preview");
@@ -590,13 +667,70 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                   className="w-full resize-none rounded-xl border border-slate-600 bg-ink/70 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                 />
               </div>
+              {/* ── 出图档位：照工作流「画质」那一行的形态（FlowPage）──
+                  报价挂在每颗按钮上，因为**这一步就是在比价**：把价钱只写在下面那条
+                  统一提示里，用户要点三次才看得全三档各要多少。
+                  ⚠ cardN=0（什么都没填）时整批报价恒为 0，摆一排写着 0 的按钮是骗人，
+                  所以整块与 TokenCost 同一个 canForge 闸门 —— 有东西可炼才谈价。 */}
               {canForge && (
-                <TokenCost
-                  tokens={cost}
-                  upper
-                  note={`${cardN} 张卡 · 每张一次卡面 · 每次重炼都会再扣`}
-                  className="mt-1.5"
-                />
+                <div className="mt-3 space-y-1.5 rounded-xl border border-slate-700/60 bg-ink/40 p-2.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="w-8 flex-none text-[11px] text-slate-400">精度</span>
+                    {IMAGE_TIERS.map((t) => {
+                      // 这一档报不出价（价目表里没有它的模型）时：不写数字、也不许选。
+                      // ★ 写个 0 或者按别的档的价糊上去，就是"页面报一个数、火山扣另一个数"
+                      const c = forgeCost(cardN, type, t.id);
+                      const issue = imageTierPriceIssue(t.id);
+                      return (
+                        <button
+                          key={t.id}
+                          onClick={() => setTierId(t.id)}
+                          // 炉子开着就别让人改档：结算用的是开炼那一刻的档位（闭包里的
+                          // tierId），此时改它不会算错钱，但按钮会显得"改了却没生效"
+                          disabled={busy || c === null}
+                          title={issue ?? `${t.desc}（${t.model}）`}
+                          className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${
+                            tierId === t.id ? "bg-brand text-ink" : "bg-panel text-slate-300"
+                          }`}
+                        >
+                          {t.label} · {c === null ? "报不出价" : fmtTokens(c)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* 这一档给这类卡出几张、分别是什么。名字来自 types.CARD_SLOTS
+                      （经 slotsFor），不在这儿另编一套说法 */}
+                  <p className="text-[10px] leading-4 text-slate-400">
+                    {slots
+                      ? `每张卡出 ${slots.length} 张图：${slots.map((s) => s.label).join(" · ")}`
+                      : `每张卡最多 ${maxSlots} 张图 —— 卡种交给铸卡师判，这里先按最贵的${CARD_TYPE_LABELS[dearest]}报价；少画的那张不会去调出图，也就不计费`}
+                  </p>
+                  {/* ★ 把**真正会被调用的那个模型**写出来（与工作流「本段模型」同一做法）：
+                      「速写/定妆/精绘」只说了档次，没说这一炉交给谁去画，而不同世代的
+                      Seedream 观感与耗时差很多（顶档实测一张 70 秒以上）。
+                      名字由 modelLabel 从 id 推导，与真正发出去的 id 同源；title 给完整 id */}
+                  <div className="text-[10px] text-slate-500" title={tier.model}>
+                    本次出图：{modelLabel(tier.model)}
+                    <span className="ml-1 opacity-70">· {tier.desc}</span>
+                  </div>
+                  {/* ★ note 里原来写的是"按实际画成的结算"。那句只有离线模式成立：
+                      远端模式真扣费在服务端，按**每次调用**是否 2xx 记，图画出来了、
+                      取图那步超时的照扣（见 economy.forgeSettle 的 ⚠⚠）。所以这里
+                      只说"按真正调用了几次出图算"——它两种模式下都是实话（铁律五）。 */}
+                  {cost === null ? (
+                    <p className="text-[11px] text-rose-300">{priceIssue ?? "这一档暂时报不出价，换个档位再试"}</p>
+                  ) : (
+                    <TokenCost
+                      tokens={cost}
+                      upper
+                      note={
+                        slots
+                          ? `${cardN} 张卡 × 最多 ${slots.length} 张图 · 按真正调用了几次出图算 · 每次重炼都会再扣`
+                          : `${cardN} 张卡 · 每张最多 ${maxSlots} 张图 · 按真正调用了几次出图算 · 每次重炼都会再扣`
+                      }
+                    />
+                  )}
+                </div>
               )}
             </>
           )}
@@ -604,7 +738,18 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
           {/* ── 3 过目 ── */}
           {step === "preview" && preview && (
             <>
-              <p className="mb-2 text-[11px] text-slate-400">还没进你的卡组——不满意可以回去改素材，或者原样再炼一炉。</p>
+              {/* ★「再炼一炉」是真金白银的第二次扣费，价钱要在按下之前就看得见。
+                  这里只写在提示里而不是印到「↻ 重炼」上：那颗按钮和另外两颗挤在
+                  一行，375px 屏上塞进 6 位数会把「收下这批卡」挤断行 */}
+              <p className="mb-2 text-[11px] text-slate-400">
+                还没进你的卡组——不满意可以回去改素材，或者原样再炼一炉（
+                {!AI_REAL
+                  ? "演示模式不消耗 token"
+                  : cost === null
+                    ? "这一档现在报不出价，重炼前先换个档位"
+                    : `再炼一次最多再扣 ${fmtTokens(cost)} token`}
+                ）。
+              </p>
               <div className="grid grid-cols-3 gap-2.5">
                 {preview.map((c) => (
                   <div key={c.id}>
@@ -633,7 +778,9 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
               disabled={busy || !canForge}
               className="flex-1 rounded-xl bg-brand/85 py-2 text-sm font-bold text-ink disabled:opacity-40"
             >
-              {busy ? "炼卡中…" : "交给铸卡师炼卡"}
+              {/* 顶档一炉要画两张图、每张 70 秒以上。一个不动的"炼卡中…"与卡死无从区分，
+                  所以按钮直接显示阶段播报（store.forgeProgress ← generateCards.onProgress） */}
+              {busy ? forgeProgress || "炼卡中…" : "交给铸卡师炼卡"}
             </button>
           </div>
         )}
