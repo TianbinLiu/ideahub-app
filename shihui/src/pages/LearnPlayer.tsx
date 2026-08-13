@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { MATCH_THRESHOLD, reciteMatch, reciteSupported, speakLine, startRecite, type ReciteSession } from "../ai/recite"
-import { InkPlaceholder } from "../components/InkPlaceholder"
+import { LineStage } from "../components/LineStage"
+import { useClips } from "../data/clips"
 import { poemById } from "../data/poems"
 import { useShihui } from "../data/store"
 import { nav } from "../router"
@@ -13,6 +14,7 @@ type Phase = "idle" | "listening" | "matched" | "done"
 
 export function LearnPlayer({ poemId }: { poemId: string }) {
   const poem = poemById(poemId)
+  const segs = useClips(poemId)
   const setLearnLine = useShihui((s) => s.setLearnLine)
   const completeLearn = useShihui((s) => s.completeLearn)
 
@@ -125,10 +127,13 @@ export function LearnPlayer({ poemId }: { poemId: string }) {
 
   return (
     <div className="relative h-full">
-      {/* key=idx：换句时重挂载，走一遍 ink-appear 入场，模拟"下一段视频接上了" */}
+      {/* key=idx：换句时重挂载，走一遍 ink-appear 入场——真片模式下这 0.9s 恰好盖住
+          video 首帧解码的空窗（poster 先顶着），弱机上不至于闪白 */}
       <div key={idx} className="ink-appear absolute inset-0">
-        <InkPlaceholder text={line.text} keywords={line.keywords} gloss={line.gloss} className="h-full w-full" />
+        <LineStage text={line.text} keywords={line.keywords} gloss={line.gloss} seg={segs?.[idx]} className="h-full w-full" />
       </div>
+      {/* 预载下一段：跟读判定平均要十几秒，足够悄悄拉完下一段的 5s 视频 */}
+      {segs?.[idx + 1] && <video src={segs[idx + 1].video} preload="auto" muted className="hidden" />}
 
       <header className="absolute left-0 right-0 top-0 flex items-center gap-3 px-4 pt-5">
         <button onClick={() => nav("/")} className="flex h-9 w-9 items-center justify-center rounded-full bg-paper/80 text-lg">

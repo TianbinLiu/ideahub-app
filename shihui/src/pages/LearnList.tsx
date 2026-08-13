@@ -1,7 +1,10 @@
+import { useState } from "react"
 import { InkPlaceholder } from "../components/InkPlaceholder"
+import { useClips } from "../data/clips"
 import { POEMS } from "../data/poems"
 import { useShihui } from "../data/store"
 import { nav } from "../router"
+import type { Poem } from "../types"
 
 export function LearnList() {
   const learn = useShihui((s) => s.learn)
@@ -24,12 +27,7 @@ export function LearnList() {
               onClick={() => nav(`/learn/${p.id}`)}
               className="flex w-full items-stretch gap-4 rounded-2xl border border-ink/10 bg-white/40 p-3 text-left active:scale-[0.99]"
             >
-              <InkPlaceholder
-                text={p.lines[0].text}
-                keywords={p.lines[0].keywords}
-                animate={false}
-                className="h-28 w-20 shrink-0 rounded-xl"
-              />
+              <PoemThumb poem={p} />
               <div className="flex flex-1 flex-col justify-between py-1">
                 <div>
                   <div className="font-kai text-xl">{p.title}</div>
@@ -51,9 +49,32 @@ export function LearnList() {
           )
         })}
         <p className="pb-2 pt-1 text-center text-xs text-mist">
-          骨架版内置 4 首 · 完整内容库见 docs/IDEA-REVIEW.md
+          带「真片」角标的诗已有预生成水墨视频（forge 管线产物）
         </p>
       </div>
     </div>
+  )
+}
+
+/** 列表缩略图：有预生成真片用它的首帧海报图，没有退回水墨占位（hooks 不能进 map，单拆组件） */
+function PoemThumb({ poem }: { poem: Poem }) {
+  const segs = useClips(poem.id)
+  const [imgBroken, setImgBroken] = useState(false)
+  // manifest 是磁盘扫描的产物，别信它的形状：空 segments / 海报 404 都退回占位，不崩列表
+  if (segs?.[0] && !imgBroken) {
+    return (
+      <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-xl">
+        <img src={segs[0].poster} alt="" onError={() => setImgBroken(true)} className="h-full w-full object-cover" />
+        <span className="absolute bottom-1 right-1 rounded bg-cinnabar px-1 text-[10px] text-paper">真片</span>
+      </div>
+    )
+  }
+  return (
+    <InkPlaceholder
+      text={poem.lines[0].text}
+      keywords={poem.lines[0].keywords}
+      animate={false}
+      className="h-28 w-20 shrink-0 rounded-xl"
+    />
   )
 }

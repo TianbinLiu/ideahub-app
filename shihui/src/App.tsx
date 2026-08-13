@@ -1,5 +1,6 @@
-import type { ReactNode } from "react"
+import { useEffect, type ReactNode } from "react"
 import { AI_REAL } from "./ai"
+import { loadClips } from "./data/clips"
 import { TabBar } from "./components/TabBar"
 import { ComposeHome } from "./pages/ComposeHome"
 import { ComposeSession } from "./pages/ComposeSession"
@@ -12,6 +13,8 @@ import { useHashRoute } from "./router"
 export function App() {
   const route = useHashRoute()
   const seg = route.split("/").filter(Boolean)
+  // 内容库真片清单：启动拉一次，到货后各页面经 useClips 自动切到真视频
+  useEffect(loadClips, [])
 
   let page: ReactNode
   let immersive = false // 沉浸页（学诗播放器/创作会话）不显示底栏
@@ -37,7 +40,7 @@ export function App() {
       {/* mock 是静默的（ideahub 教训）：没接真 AI 必须让每个人一眼看见 */}
       {!AI_REAL && (
         <div className="pointer-events-none absolute right-2 top-2 z-50 rounded-full bg-ink/70 px-2.5 py-1 text-[10px] text-paper">
-          演示模式 · 画面为水墨占位
+          演示模式 · 创作生成未接线
         </div>
       )}
       <main className="h-full">{page}</main>
