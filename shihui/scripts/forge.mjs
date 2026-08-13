@@ -33,9 +33,9 @@ const DURATION = 5; // 秒。5s/720p ≈ 10.4 万 token ≈ ¥1.6/段；一年�
 const COST_IMG = 0.6;
 const COST_SEG = 1.6;
 
-const STYLE =
-  "中国传统写意水墨画，宣纸底色，大量留白，淡墨渲染，少量赭石与花青淡彩，竖构图。" +
-  "画面中不要出现任何文字、书法、落款、印章。";
+// 风格串的唯一出处在 src/ai/inkStyle.json（与创作侧 real.ts 共用，一处实现）
+const ink = JSON.parse(await readFile(path.join(ROOT, "src", "ai", "inkStyle.json"), "utf8"));
+const STYLE = ink.style;
 
 // ---------- 参数与环境 ----------
 // ★ 解析必须严格：这个脚本的参数错误不是"用法提示"级别的事——`--poem=xx` 被静默忽略的
@@ -264,9 +264,7 @@ async function forgePoem(poem) {
         }
       }
       const [first, last] = await Promise.all([asDataUrl(frameFile(i)), asDataUrl(frameFile(i + 1))]);
-      const prompt =
-        `写意水墨动画，缓慢柔和的镜头推移，墨色自然晕染流动：${sceneOf(i)} ` +
-        `节奏舒缓，无剧烈运动，无文字出现。`;
+      const prompt = `${ink.motion} 画面内容：${sceneOf(i)}`;
       const url = await genVideo(prompt, first, last, `段 ${i + 1}/${N}`);
       await writeFile(urlFile, url);
       await download(url, file);
