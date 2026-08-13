@@ -10,6 +10,12 @@ export interface PoemLine {
    * （InkPlaceholder 按关键词挑水墨元素：月/山/水/鸟/花…）
    */
   keywords: string[]
+  /**
+   * 这一句的画面描述（20-45 字，写意水墨、竖构图、人物远景剪影、无文字）——
+   * forge 预生成管线的提示词主体；缺省用 gloss + keywords 兜底（画质会明显差一档）。
+   * 内容库的 scene 视同教材文案：过人工审校，不直接拿 AI 产出上线。
+   */
+  scene?: string
 }
 
 /** 内容库里的一首诗（预生成视频的对象） */
