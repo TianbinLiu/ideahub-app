@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 5178
+    },
+    {
+      "name": "shihui-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "shihui", "run", "dev"],
+      "port": 5174
     }
   ]
 }

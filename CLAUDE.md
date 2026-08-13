@@ -51,6 +51,8 @@ public/
   avatars/     官方 Q 版看板娘头像（「我的」页换头像用，从 createbtn 精灵图里裁的）
 design/        ★ 建模/出图的【离线工具与素材】，不参与 App 构建
                （角色转换、LOD 生成、封面生成脚本 + 参考图 + 授权笔记）
+shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架工程，自带 package.json，
+               与本 App 构建互不参与；先读 shihui/README.md 与 shihui/docs/IDEA-REVIEW.md
 ```
 
 ## 约定

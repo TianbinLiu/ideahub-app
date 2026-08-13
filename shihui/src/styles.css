@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-paper text-ink;
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  /* 移动端形态：桌面上也按手机宽度演示 */
+  overscroll-behavior: none;
+}
+
+/* 水墨占位画面的动效。★ 只动 transform/opacity（合成层）——沿用 ideahub 的性能铁律，
+   将来这层下面是真视频在解码，重排会掉帧 */
+@keyframes ink-drift {
+  from { transform: translateX(-4%) translateY(0) scale(1); }
+  50% { transform: translateX(3%) translateY(-2%) scale(1.04); }
+  to { transform: translateX(-4%) translateY(0) scale(1); }
+}
+@keyframes ink-sway {
+  from { transform: rotate(-2deg); }
+  50% { transform: rotate(2.5deg); }
+  to { transform: rotate(-2deg); }
+}
+@keyframes ink-fall {
+  from { transform: translateY(-8%) rotate(0deg); opacity: 0; }
+  15% { opacity: 0.9; }
+  to { transform: translateY(110%) rotate(160deg); opacity: 0; }
+}
+@keyframes ink-fade {
+  from { opacity: 0.25; }
+  50% { opacity: 0.7; }
+  to { opacity: 0.25; }
+}
+@keyframes ink-rain {
+  from { transform: translateY(-10%); opacity: 0; }
+  20% { opacity: 0.5; }
+  to { transform: translateY(120%); opacity: 0; }
+}
+@keyframes ink-appear {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+.ink-appear {
+  animation: ink-appear 0.9s ease-out both;
+}
+
+/* 竖排诗句（宣纸卷轴感） */
+.v-text {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 0.35em;
+}
