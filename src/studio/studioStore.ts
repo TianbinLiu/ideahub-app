@@ -5,7 +5,7 @@ import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generate
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, tierBlockReason, walletOf, type AddCardsResult } from "../data/account";
-import { CHAT_TURN_TOKENS, DECK_MAX_3D, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, deckModel3dCost, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, styleWants3d, tierOf } from "../data/economy";
+import { CHAT_TURN_TOKENS, DECK_MAX_3D, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, styleWants3d, tierOf } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { FlowMode, FlowNode, FlowTemplate, chosenOf, flowDirty, nodeVideo, useFlow } from "./flowStore";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, saveDraft } from "../data/drafts";
@@ -1712,7 +1712,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         const names = new Set(deckCards.map((c) => c.name));
         const fresh = derived.filter((c) => !names.has(c.name));
         deckCards.push(...fresh);
-        if (AI_REAL && fresh.length > 0) spendTokens(deckCardsCost(fresh.length)); // 按实际出卡结算
+        if (AI_REAL && fresh.length > 0) spendTokens(deckCardsSettle(fresh.length)); // 按实际出卡结算
         // 3D 画风的作品：给派生的角色卡自动铸 3D 建模（Seed3D，上限 DECK_MAX_3D 个）。
         // ★★ 触发判定走 economy.styleWants3d —— **报价（FlowPage 顶栏 / 「完成视频」
         //   旁那句话）读的是同一个函数、同一坨文字**（deckStyleBlob）。这条正则原来

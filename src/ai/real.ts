@@ -20,7 +20,16 @@ import {
 import { makeCover, makeFrame } from "../mock/frames";
 import type { MaterialFile, ProposalContext } from "../mock/ai";
 import * as mock from "../mock/ai";
-import { clampDuration, imageTierOf, slotsFor, tierOf, type ImageTier } from "../data/economy";
+import {
+  DECK_MAX_CARDS,
+  TEMPLATE_MAX_CARDS,
+  clampDuration,
+  imageTierOf,
+  slotsFor,
+  tierOf,
+  type CardMintCap,
+  type ImageTier,
+} from "../data/economy";
 import { idbSet } from "../data/db";
 import {
   chat,
@@ -919,6 +928,34 @@ export async function generateProposals(
   });
 }
 
+/**
+ * 一次铸卡任务的规格：**模型看到的那个上限**与**客户端实际切的那个上限**捆成一个值。
+ *
+ * ★★ 为什么是一个对象、而不是"提示词一个参数 + 上限一个参数"：分成两个参数时调用方
+ *   可以传两个不一样的数，而这**已经发生过** —— 模板那条路（extractTemplateFromVideo）
+ *   提示词写「0~6 张」、mintCards 却切 8、界面按 6 报价，模型多认出两张就是白收两张
+ *   卡面的钱。捆在一起之后物理上不可能再分叉。
+ * ★ 数字由 mintSpec **插值**进提示词，调用方只给前后两半文字，**拿不到自己写那个数的
+ *   机会**（CLAUDE.md 铁律六的"只有一处实现"）。而 cap 又只能是 economy 的
+ *   CardMintCap 常量，报价读的就是同一个常量。
+ */
+interface MintSpec {
+  readonly cap: CardMintCap;
+  readonly prompt: string;
+}
+
+/** 把「输出 JSON 数组（0~N 张）」夹进提示词中间 —— 全仓**唯一**写这个数的地方。 */
+function mintSpec(cap: CardMintCap, head: string, tail: string): MintSpec {
+  return { cap, prompt: `${head}输出 JSON 数组（0~${cap} 张）${tail}` };
+}
+
+/** 成片剧情 → 本片卡组。上限与报价（economy.deckCardsCost）同一个常量。 */
+const DECK_MINT = mintSpec(
+  DECK_MAX_CARDS,
+  '你是卡牌游戏的铸卡师。对照"已有素材卡"清单，从视频剧情中提炼出尚未有卡的可复用创作素材，',
+  '：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：剧情中每个主要角色若未被已有卡覆盖（注意同一角色可能换了称呼），各出一张 character 卡，缺几个补几张；已有卡覆盖的实体绝对不要再出——例如已有人物卡「义肢少女」时，剧情里这位少女无论被叫作"电玩少女""机械臂少女"还是换了新造型，都不得再为她出卡。主要场景/地点同理，每处未覆盖的出一张 scene 卡。整体色调氛围未覆盖时至多一张 background 卡；画风鲜明且没有风格卡时至多一张 style 卡；剧情关键道具可出 prop 卡。所有实体都已被覆盖时输出 []。只输出 JSON。',
+);
+
 /** 从成片剧情提炼"本片卡组"：豆包分类型出卡（主要角色/场景/氛围底色/画风），
  *  Seedream 逐张出竖版卡面。视频是什么画风，卡面就跟什么画风（styleHint 注入）。 */
 export async function deriveDeckCards(
@@ -935,12 +972,12 @@ export async function deriveDeckCards(
       ? existing.map((c) => `${TYPE_LABEL[c.type]}「${c.name}」(${(c.summary ?? "").slice(0, 24)})`).join("、")
       : "（无）";
   const raw = await chat(
-    '你是卡牌游戏的铸卡师。对照"已有素材卡"清单，从视频剧情中提炼出尚未有卡的可复用创作素材，输出 JSON 数组（0~8 张）：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：剧情中每个主要角色若未被已有卡覆盖（注意同一角色可能换了称呼），各出一张 character 卡，缺几个补几张；已有卡覆盖的实体绝对不要再出——例如已有人物卡「义肢少女」时，剧情里这位少女无论被叫作"电玩少女""机械臂少女"还是换了新造型，都不得再为她出卡。主要场景/地点同理，每处未覆盖的出一张 scene 卡。整体色调氛围未覆盖时至多一张 background 卡；画风鲜明且没有风格卡时至多一张 style 卡；剧情关键道具可出 prop 卡。所有实体都已被覆盖时输出 []。只输出 JSON。',
+    DECK_MINT.prompt,
     `已有素材卡：${existingDesc}\n剧情（按段）：${segments.map((s) => s.plot).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从剧情推断）"}`,
   );
   const defs = JSON.parse(raw.replace(/```json|```/g, "").trim()) as CardDef[];
   if (!Array.isArray(defs)) throw new Error("卡组提炼 JSON 结构不符");
-  return await mintCards(defs, styleHint, existing, onProgress);
+  return await mintCards(defs, DECK_MINT, styleHint, existing, onProgress);
 }
 
 /** 模型吐出的卡定义（提炼与视频提卡共用一套结构） */
@@ -957,6 +994,7 @@ interface CardDef {
  */
 async function mintCards(
   defs: CardDef[],
+  spec: MintSpec,
   styleHint: string,
   existing: Array<Pick<Card, "type" | "name" | "summary">>,
   onProgress?: (status: string) => void,
@@ -972,8 +1010,10 @@ async function mintCards(
     });
   const out: Card[] = [];
   let done = 0;
+  // ★ 切的这个数就是提示词里写给模型的那个数（同一个 spec.cap），也是界面报价用的那个
+  //   —— 模型不守规矩多吐几张时，这一刀保证"实际出卡"不超过用户看到的报价。
   const jobs = defs
-    .slice(0, 8)
+    .slice(0, spec.cap)
     .filter((d) => d.name && TYPE_LABEL[d.type as CardType] && !isDupOfExisting(d.name, d.type as CardType));
   if (jobs.length === 0) return []; // 提出来的全是已有实体的换皮：等于无需补卡
   await mapLimit(jobs, 3, async (d) => {
@@ -1005,6 +1045,13 @@ async function mintCards(
   return out;
 }
 
+/** 上传视频 → 素材卡。与派生卡组同一个上限（VideoCardExtractor 的报价读的也是它）。 */
+const VIDEO_MINT = mintSpec(
+  DECK_MAX_CARDS,
+  "你是卡牌游戏的铸卡师。用户给你一段视频里按时间顺序抽的若干帧。请辨认画面里可复用的创作素材，",
+  '：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：出现的每个主要角色各出一张 character 卡；主要场景/地点各出一张 scene 卡；整体色调氛围至多一张 background 卡；画风鲜明时至多一张 style 卡；关键道具可出 prop 卡。已有卡覆盖的实体绝对不要再出。只输出 JSON。',
+);
+
 /**
  * 从用户上传的本地视频提炼卡组：抽好的帧交给视觉模型认人认景，再逐个铸卡面。
  * 帧是调用方抽的（浏览器 canvas 抽帧比传整个视频便宜得多，也不用后端转码）。
@@ -1022,7 +1069,7 @@ export async function extractCardsFromVideo(
       ? existing.map((c) => `${TYPE_LABEL[c.type]}「${c.name}」`).join("、")
       : "（无）";
   const raw = await chatVision(
-    '你是卡牌游戏的铸卡师。用户给你一段视频里按时间顺序抽的若干帧。请辨认画面里可复用的创作素材，输出 JSON 数组（0~8 张）：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：出现的每个主要角色各出一张 character 卡；主要场景/地点各出一张 scene 卡；整体色调氛围至多一张 background 卡；画风鲜明时至多一张 style 卡；关键道具可出 prop 卡。已有卡覆盖的实体绝对不要再出。只输出 JSON。',
+    VIDEO_MINT.prompt,
     `已有卡：${existingDesc}\n用户补充说明：${note || "无"}\n以下是这段视频按时间顺序的抽帧：`,
     frames,
   );
@@ -1030,8 +1077,21 @@ export async function extractCardsFromVideo(
   if (!Array.isArray(defs)) throw new Error("视频提卡 JSON 结构不符");
   // 画风由模型自己在 style 卡里判断，这里不再额外注入风格提示
   const styleHint = defs.find((d) => d.type === "style")?.name ?? "";
-  return await mintCards(defs, styleHint, existing, onProgress);
+  return await mintCards(defs, VIDEO_MINT, styleHint, existing, onProgress);
 }
+
+/**
+ * 视频 → 模板素材卡。上限比提卡小（不出 character 卡），所以是**另一个**常量。
+ *
+ * ★★ 这条路是这次收口的直接起因：2026-08-13 之前提示词写死「0~6 张」，而 mintCards
+ *   切的是写死的 8，界面 templateCost 又按 6 报价 —— 模型认出 7、8 张时那多出来的
+ *   卡面是白收钱的，且三处谁都不报错。现在三个数都从 TEMPLATE_MAX_CARDS 来。
+ */
+const TEMPLATE_MINT = mintSpec(
+  TEMPLATE_MAX_CARDS,
+  '你是卡牌游戏的铸卡师。用户给你一段参考视频的抽帧，这段视频将被做成"可换主角的模板"。请辨认画面里**与具体主角无关、可复用**的创作素材，',
+  '：[{"type":"scene|background|prop|style","name":"不超过8字","summary":"30字内简介","imagePrompt":"卡面文生图描述，60字内"}]。规则：主要场景/地点各出一张 scene 卡；整体色调氛围至多一张 background 卡；画风鲜明时至多一张 style 卡；标志性道具可出 prop 卡。**绝对不要出 character 卡**——主角是模板使用者自己指定的。只输出 JSON。',
+);
 
 /**
  * 视频 → **模板**：比提卡多一步——除了认出素材，还要把"这类视频为什么长这样"
@@ -1074,14 +1134,16 @@ export async function extractTemplateFromVideo(
   // 素材卡：沿用提卡那一套，但把刚总结出的画风喂进去，卡面与模板同调
   onProgress?.("提炼模板素材卡…");
   const rawCards = await chatVision(
-    '你是卡牌游戏的铸卡师。用户给你一段参考视频的抽帧，这段视频将被做成"可换主角的模板"。请辨认画面里**与具体主角无关、可复用**的创作素材，输出 JSON 数组（0~6 张）：[{"type":"scene|background|prop|style","name":"不超过8字","summary":"30字内简介","imagePrompt":"卡面文生图描述，60字内"}]。规则：主要场景/地点各出一张 scene 卡；整体色调氛围至多一张 background 卡；画风鲜明时至多一张 style 卡；标志性道具可出 prop 卡。**绝对不要出 character 卡**——主角是模板使用者自己指定的。只输出 JSON。',
+    TEMPLATE_MINT.prompt,
     `这段视频的画风要求是：${styleHint}
 用户补充说明：${note || "无"}
 以下是抽帧：`,
     frames,
   );
   const defs = JSON.parse(rawCards.replace(/```json|```/g, "").trim()) as CardDef[];
-  const cards = Array.isArray(defs) ? await mintCards(defs.filter((d) => d.type !== "character"), styleHint, [], onProgress) : [];
+  const cards = Array.isArray(defs)
+    ? await mintCards(defs.filter((d) => d.type !== "character"), TEMPLATE_MINT, styleHint, [], onProgress)
+    : [];
 
   return {
     title: (t.title ?? "").trim() || "未命名模板",

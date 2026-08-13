@@ -686,6 +686,20 @@ export function myCards(): Card[] {
 export interface AddCardsResult {
   /** 真正新入库的那几张（按 id 去重后剩下的） */
   added: Card[];
+  /**
+   * 这批卡**本身**到没到服务端。
+   *
+   * ★★ 必须是一个显式字段，不能让调用方靠"哪个字段有值"去猜失败类型。两种失败对用户
+   *   要做的事完全不同：
+   *     · `synced === false` —— 卡**没到服务端**。远端模式下 persist() 不写 IndexedDB，
+   *       所以它只活在内存：用户下一次冷启动，loadRemoteAssets 用服务端那份整体覆盖
+   *       db.cards，整张卡（连同他自己拍的照片）无声消失。这时该给的是**重试**。
+   *     · `synced === true` 但 lostViews 非空 —— 卡在服务端，只是某几张图没转存上。
+   *       这时该给的是"去详情页补挂那几张"。
+   *   把两者说成同一句"有图没传上"，第一种会让用户安心退出，然后丢掉整张卡。
+   * ★ 离线模式（!remoteOn）恒为 true：那边 persist() 写的是 IndexedDB，卡是真落地了。
+   */
+  synced: boolean;
   /** 没能转存成永久地址的形象参考图，形如「凛」的面部特写。空数组 = 全部落地 */
   lostViews: string[];
   /** 第一条失败原因。说一句就够——把 N 条原因全列出来只会把对话框刷成日志 */
@@ -720,7 +734,7 @@ export interface AddCardsResult {
  */
 export async function addCards(cards: Card[]): Promise<AddCardsResult> {
   const u = currentUser();
-  if (!u || !db) return { added: [], lostViews: [] };
+  if (!u || !db) return { added: [], synced: false, lostViews: [] };
   const existing = new Set(db.cards.filter((c) => c.ownerId === u.id).map((c) => c.id));
   const added: Card[] = [];
   const rows: Card[] = [];
@@ -734,7 +748,8 @@ export async function addCards(cards: Card[]): Promise<AddCardsResult> {
   // 先让卡出现在库里：上传一张 1MB 级的图在手机上要好几秒，这段时间里卡该已经在
   // 卡组/个人页里了，不能吊在屏幕上等网络
   persist();
-  if (added.length === 0 || !remoteOn()) return { added, lostViews: [] };
+  // 离线模式 synced 记 true：那边 persist() 写的是 IndexedDB，卡是真落地了（见字段注释）
+  if (added.length === 0 || !remoteOn()) return { added, synced: true, lostViews: [] };
 
   // ★★ 先 POST 把卡本身存住，再补图 —— **不是**先转存完再 POST。
   //   转存是串行上传（见 materializeViews 的 ★），一炉 6 卡 × 2 图 = 12 次往返，
@@ -751,18 +766,38 @@ export async function addCards(cards: Card[]): Promise<AddCardsResult> {
     emitApiError("addCards", e);
     // 卡都没存上，转存那几张图没有意义（PATCH 会打在一张不存在的卡上）。
     // 图原样留着 dataURL，在这台设备上照样看得见、也照样能当出图参考。
-    return { added, lostViews: [], reason: "这批卡没能同步到服务器，形象参考图先留在本机" };
+    return { added, synced: false, lostViews: [], reason: "这批卡没能同步到服务器" };
   }
 
   const { lostViews, reason } = await materializeViews(added, rows);
   persist(); // 把换好的永久地址写回内存库并广播
-  // 把转存好的地址补上去。逐张 catch：一张卡补失败不该连累别的卡
+
+  // 把转存好的地址补上去。
+  // ★★ PATCH 失败**必须并进 lostViews**，不能只 emitApiError 就算了 —— 全 app 没有
+  //   任何地方监听 emitApiError（铁律八）。图已经转存成永久 URL、但没挂到卡上，
+  //   服务端那张卡的 views 仍是 `[]`（POST 是 $setOnInsert，补不进去），
+  //   下次冷启动 loadRemoteAssets 一覆盖，用户看着好好的三张参考图就没了 ——
+  //   而调用方拿到的是一个"完全成功"的返回值，页面正打算跳走。
+  // ★ 逐张 catch：一张卡补失败不该连累别的卡。
+  const patchFailed: string[] = [];
+  let patchReason: string | undefined;
   await Promise.all(
     added
       .filter((c) => c.views?.length)
-      .map((c) => branch.updateCardViews(c.id, c.views).catch((e) => emitApiError("updateCardViews", e))),
+      .map((c) =>
+        branch.updateCardViews(c.id, c.views).catch((e) => {
+          emitApiError("updateCardViews", e);
+          patchFailed.push(`「${c.name}」的形象参考图`);
+          patchReason ??= e instanceof Error ? e.message : String(e);
+        }),
+      ),
   );
-  return { added, lostViews, reason };
+  return {
+    added,
+    synced: true,
+    lostViews: [...lostViews, ...patchFailed],
+    reason: reason ?? patchReason,
+  };
 }
 
 /**

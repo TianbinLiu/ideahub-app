@@ -13,6 +13,7 @@ import VideoPage from "./pages/VideoPage";
 import PublishPage from "./pages/PublishPage";
 import EditPage from "./pages/EditPage";
 import CardDetailPage from "./pages/CardDetailPage";
+import CustomCardPage from "./pages/CustomCardPage";
 import DeckDetailPage from "./pages/DeckDetailPage";
 import TemplateDetailPage from "./pages/TemplateDetailPage";
 import TemplateMarketPage from "./pages/TemplateMarketPage";
@@ -188,6 +189,19 @@ export default function App() {
       />
       <Route path="/video/:id" element={<VideoPage />} />
       <Route path="/card/:id" element={<CardDetailPage />} />
+      {/* 自己传图做卡片（入口在创意工坊）。★ 路径刻意**不**挂在 /card/ 下面：
+          `/card/new` 与 `/card/:id` 只靠路由排序分胜负，哪天有人真铸出一张 id 为
+          "new" 的卡就会撞车。全屏推入页，不进 TabLayout（与 /publish 同形态）。
+          ★ RequireAuth：这一页的终点是 addCards，而它在没有登录用户时**静默返回空**，
+            不拦的话直接输 hash 进来会走到最后一步才发现"卡没了"。 */}
+      <Route
+        path="/custom-card"
+        element={
+          <RequireAuth>
+            <CustomCardPage />
+          </RequireAuth>
+        }
+      />
       <Route path="/deck/:id" element={<DeckDetailPage />} />
       <Route path="/template/:id" element={<TemplateDetailPage />} />
       <Route path="/templates" element={<TemplateMarketPage />} />

@@ -230,7 +230,7 @@ export default function WorkshopPage() {
           )}
           {cards.length === 0 && (
             <div className="mb-3 rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
-              还没有卡片——从视频提取、去 3D 工坊炼卡，或从下面的市场添加
+              还没有卡片——去 3D 工坊让 AI 炼一张、从视频提取、自己传图做一张，或从下面的市场添加
             </div>
           )}
 
@@ -246,6 +246,24 @@ export default function WorkshopPage() {
             </span>
             <Icon name="chevron" size={18} />
           </button>
+
+          {/* 自己传图做卡片：**另一条**路，不是默认路径 —— 默认铸卡（3D 工坊里的铸卡师）
+              已经是 AI 全自动出图，一张图都不用传。所以这行说明必须点出区别，
+              否则用户会以为"铸卡原来还得自己找图"，等于把全自动那条藏起来了。
+              ★ 「不消耗 token」是它相对 AI 铸卡唯一真实的优势，值得写在入口上。 */}
+          <Link
+            to="/custom-card"
+            className="mb-5 flex w-full items-center gap-3 rounded-xl border border-amber-400/35 bg-gradient-to-r from-amber-400/15 to-transparent px-3.5 py-3 text-left"
+          >
+            <span className="text-2xl">🖼</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-slate-100">自己传图做卡片</span>
+              <span className="block text-[11px] text-slate-400">
+                用你自己的图当卡面与形象参考，不经过 AI 出图 · 不消耗 token
+              </span>
+            </span>
+            <Icon name="chevron" size={18} />
+          </Link>
 
           <div className="mb-2 flex items-center gap-3">
             <h2 className="text-sm font-semibold text-slate-300">从市场添加</h2>
