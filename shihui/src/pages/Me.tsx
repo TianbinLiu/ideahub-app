@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react"
 import { ParentGate } from "../components/ParentGate"
+import { UpdateSheet } from "../components/UpdateSheet"
+import { checkUpdate, currentVersion, selfUpdateSupported, type UpdateInfo } from "../data/appUpdate"
 import { DAILY_FREE_CLIPS, TASK_REWARDS } from "../data/economy"
 import { gateCooldownLeft, useGuardian, type ConsentRecord } from "../data/guardian"
 import { POEMS } from "../data/poems"
@@ -81,7 +83,49 @@ export function Me() {
         </div>
 
         <ParentCenter />
+        <UpdateRow />
       </div>
+    </div>
+  )
+}
+
+/** 手动「检查更新」。★ 只在侧载原生包里出现（selfUpdateSupported）——浏览器与
+ *  上架渠道里摆一个点了没反应的按钮比没有更糟（与启梦同一原则） */
+function UpdateRow() {
+  const [supported, setSupported] = useState(false)
+  const [ver, setVer] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [info, setInfo] = useState<UpdateInfo | null>(null)
+
+  useEffect(() => {
+    void selfUpdateSupported().then(setSupported)
+    void currentVersion().then((v) => setVer(v?.versionName ?? null))
+  }, [])
+  if (!supported) return null
+
+  const onCheck = () => {
+    setBusy(true)
+    setMsg(null)
+    // 手动检查 silent=false：查不成要说出来，用户分不清"已最新"和"没查成"
+    checkUpdate(false)
+      .then((i) => (i ? setInfo(i) : setMsg("已经是最新版啦")))
+      .catch((e: unknown) => setMsg(e instanceof Error ? e.message : "没查成，稍后再试"))
+      .finally(() => setBusy(false))
+  }
+
+  return (
+    <div className="rounded-2xl border border-ink/10 bg-white/50 p-4">
+      <div className="flex items-center justify-between text-sm">
+        <span>
+          版本 {ver ?? "—"}
+          {msg && <span className="pl-2 text-xs text-mist">{msg}</span>}
+        </span>
+        <button onClick={onCheck} disabled={busy} className="text-cinnabar disabled:opacity-50">
+          {busy ? "检查中…" : "检查更新 →"}
+        </button>
+      </div>
+      {info && <UpdateSheet info={info} onClose={() => setInfo(null)} />}
     </div>
   )
 }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- play 渠道：明确把安装权限摘掉。
+     ★ 这是**兜底**，不是必需 —— 权限本来就只声明在 src/sideload/ 里，play 渠道
+       合并时压根不会带上它。留这一行是为了防"哪天有人图省事把它挪回 main/"：
+       那种改动在本地跑一切正常，只有上架审核会拒，而那时离改动已经过去很久了。
+     ★ 有第三方依赖偷偷声明这条权限时，这一行同样会把它摘掉。 -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
+</manifest>

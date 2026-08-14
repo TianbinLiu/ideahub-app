@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { AI_REAL } from "./ai"
+import { UpdateSheet } from "./components/UpdateSheet"
+import { checkUpdateForPrompt, type UpdateInfo } from "./data/appUpdate"
 import { loadClips } from "./data/clips"
 import { TabBar } from "./components/TabBar"
 import { ComposeHome } from "./pages/ComposeHome"
@@ -46,8 +48,23 @@ export function App() {
       <main className="h-full">{page}</main>
       {!immersive && <TabBar route={route} />}
       <RestReminder />
+      <UpdatePrompt />
     </div>
   )
+}
+
+/** 启动 3 秒后查一次新版（避开首屏抢带宽；浏览器/未配清单地址时整个功能静默关闭） */
+function UpdatePrompt() {
+  const [info, setInfo] = useState<UpdateInfo | null>(null)
+  const [closed, setClosed] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void checkUpdateForPrompt().then(setInfo)
+    }, 3000)
+    return () => clearTimeout(t)
+  }, [])
+  if (!info || closed) return null
+  return <UpdateSheet info={info} onClose={() => setClosed(true)} />
 }
 
 /**
