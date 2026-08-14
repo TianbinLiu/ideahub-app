@@ -16,7 +16,7 @@ import { toPermanentUrl } from "./publishAssets";
 // ★ 刻意不再 import setToken：token 的生命周期只有两个主人 ——
 //   api/client.ts（服务端回 401 时清）与 api/auth.ts（用户显式登出）。
 //   业务层一插手就会出现"网络抖一下把人登出"这种破坏性降级（见 adoptFromToken）。
-import { API_ON, emitApiError, getToken, resetServerProbe, serverAlive, AUTH_EXPIRED_EVENT } from "../api/client";
+import { API_ON, ApiError, emitApiError, getToken, resetServerProbe, serverAlive, setToken, AUTH_EXPIRED_EVENT } from "../api/client";
 import * as authApi from "../api/auth";
 import * as branch from "../api/branch";
 import * as walletApi from "../api/wallet";
@@ -1356,9 +1356,41 @@ async function adoptFromToken(): Promise<boolean> {
     adoptUser(await hydrateProfile(me));
     return true;
   } catch (e) {
+    // ★★ 被封禁（403 BANNED）是唯一一种**必须开口说话**的失败。
+    //   其它失败（断网/超时/5xx）静默降级是对的 —— 下次自愈重试就好；
+    //   但封禁不会自愈：不处理的话，被封的用户冷启动 App 只会看到"变成了未登录"，
+    //   armOnlineRetry 还会拿着这个 token 每隔几十秒再撞一次 403，表现与断网无法区分，
+    //   而服务端明明在回包里带了原因（jwt/auth 两道都带）——该给的解释存在，
+    //   只是没有任何 UI 承接（铁律八）。这里把 token 清掉（它已经废了，留着只会
+    //   反复撞 403）、把原因存下来，登录页开屏时如实显示（consumeAuthNotice）。
+    if (e instanceof ApiError && e.code === "BANNED") {
+      setToken(null);
+      try {
+        localStorage.setItem(AUTH_NOTICE_KEY, e.message);
+      } catch {
+        /* 隐私模式存不进就算了，登录时服务端还会再说一遍 */
+      }
+    }
     emitApiError("readyAccount", e);
     emit();
     return false;
+  }
+}
+
+const AUTH_NOTICE_KEY = "auth:notice";
+
+/**
+ * 取出并清掉"登录态被服务端终止"的原因（目前只有封禁写它）。
+ * ★ 读一次就清：这是一条一次性的解释，不是常驻横幅 —— 用户看过之后再一直挂着，
+ *   会盖住登录页真正的当次错误。登录页开屏时调它当初始错误文案。
+ */
+export function consumeAuthNotice(): string {
+  try {
+    const v = localStorage.getItem(AUTH_NOTICE_KEY) ?? "";
+    if (v) localStorage.removeItem(AUTH_NOTICE_KEY);
+    return v;
+  } catch {
+    return "";
   }
 }
 

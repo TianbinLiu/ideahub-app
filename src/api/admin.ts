@@ -15,8 +15,8 @@
 //   **200 + index.html** 而不是 404（CLAUDE.md 里有整段说明）。于是"老服务端根本
 //   没有举报功能"会伪装成"一条举报都没有" —— 管理员打开后台看到空列表，会以为
 //   天下太平（铁律八的典型形态）。与 api/notifications.ts 的 readPage 同一招。
-import { apiGet, apiPatch, apiPost, ApiError } from "./client";
-import { authorName, type ApiAuthor } from "./branch";
+import { apiDelete, apiGet, apiPatch, apiPost, ApiError } from "./client";
+import { authorName, type ApiAuthor, type ApiVideo } from "./branch";
 
 /** 端点表。改路径只改这里（铁律六：拼 URL 这件事只有一处） */
 const PATHS = {
@@ -28,6 +28,27 @@ const PATHS = {
   resolve: (id: string) => `/api/admin/branch/reports/${encodeURIComponent(id)}`,
   /** 管理员：平台数据 */
   stats: "/api/admin/branch/stats",
+  // ── 钻取列表与处置（全部挂 /api/admin/branch 这一个前缀，
+  //    与服务端 branchAdmin.routes.js 的选择一致：后台只用记一个 base） ──
+  /** 管理员：用户列表（query q / page / limit） */
+  users: "/api/admin/branch/users",
+  /** 管理员：删除一个账号（硬删 + 级联；服务端拒绝删管理员） */
+  user: (id: string) => `/api/admin/branch/users/${encodeURIComponent(id)}`,
+  /** 管理员：封禁（POST，body { reason }）/ 解封（DELETE，幂等）。
+   *  与作品下架同款「POST|DELETE 同路径」的可逆对 —— 一眼看出这是一对互逆操作 */
+  ban: (id: string) => `/api/admin/branch/users/${encodeURIComponent(id)}/ban`,
+  /** 管理员：给单个用户发平台通知（POST，body { text }，落成 ADMIN_NOTICE） */
+  notify: (id: string) => `/api/admin/branch/users/${encodeURIComponent(id)}/notify`,
+  /** 管理员：作品全量列表（不过可见性筛 —— 私密的、下架的都要能看到） */
+  videos: "/api/admin/branch/videos",
+  /** 管理员：评论全量列表 */
+  comments: "/api/admin/branch/comments",
+  /** 管理员：弹幕全量列表 */
+  danmaku: "/api/admin/branch/danmaku",
+  /** 管理员：当前被下架的作品（「重新上架」的入口） */
+  takedowns: "/api/admin/branch/takedowns",
+  /** 管理员：下架（POST，body { reason } 必填）/ 撤销下架（DELETE，幂等） */
+  takedown: (id: string) => `/api/admin/branch/videos/${encodeURIComponent(id)}/takedown`,
 } as const;
 
 // ── 举报理由 ──────────────────────────────────────────────
@@ -197,6 +218,8 @@ export interface AdminStats {
   comments: number | null;
   danmaku: number | null;
   pendingReports: number | null;
+  /** 当前被下架的作品数（服务端 branchStats 的 takenDown，同名 countDocuments） */
+  takenDown: number | null;
 }
 
 function num(v: unknown): number | null {
@@ -214,9 +237,224 @@ export async function fetchAdminStats(): Promise<AdminStats | null> {
     comments: num(s.comments),
     danmaku: num(s.danmaku),
     pendingReports: num(s.pendingReports),
+    takenDown: num(s.takenDown),
   };
   // 一项都没解析出来 = 这个回包压根不是我们要的东西（多半是 SPA 回退的 HTML）
   return Object.values(out).some((v) => v !== null) ? out : null;
+}
+
+// ── 钻取列表（用户 / 作品 / 评论 / 弹幕 / 已下架） ─────────
+//
+// ★★ 每个列表函数都返回 `{ items, supported }`：supported=false 表示这台服务器
+//   压根没有这个端点（回包形状不对 —— 多半是 Capacitor SPA 回退的 HTML）。
+//   界面必须把它与「列表为空」分开显示，否则老服务端上的后台会伪装成"天下太平"。
+
+/** 管理端用户列表里的一行。服务端 select 什么这里就认什么，全部可缺省（铁律七） */
+export interface ApiAdminUser {
+  _id: string;
+  username?: string;
+  displayName?: string;
+  avatarUrl?: string;
+  /** 服务端 User.role；判「是不是管理员」用 isAdminRole，别在页面里各比各的 */
+  role?: string;
+  /**
+   * 封禁子文档。**有这个键（非空对象）= 被封了**；没封时服务端根本不发这个键 ——
+   * 与作品的 takedown 同一套约定，同样刻意不折成布尔（折一次就是第二份判断）。
+   * ★ `by`（哪个管理员封的）服务端只进日志不出接口，这里不声明。
+   */
+  banned?: { at?: string | number; reason?: string } | null;
+  /** 这个人发过几条作品。服务端没算的话缺省，界面画「—」别画 0 */
+  videoCount?: number;
+  createdAt?: string | number;
+}
+
+/**
+ * 「这一行是不是管理员」的**唯一**App 侧判据（对**别人**；对自己用 data/account.isAdmin）。
+ * ★ 镜像自 server `utils/roles.js` 的 ADMIN_ROLE —— 那边是权威，这边只管显示：
+ *   管理员行不渲染封禁/删除按钮（服务端也会拒，但别摆一个必然失败的按钮）。
+ */
+export function isAdminRole(role: string | undefined): boolean {
+  return role === "admin";
+}
+
+/** 「封没封」的唯一判据：banned 子文档在不在（takedown 同款，不看布尔不看缺省值） */
+export function userIsBanned(u: Pick<ApiAdminUser, "banned">): boolean {
+  return !!u.banned && typeof u.banned === "object";
+}
+
+/** 管理端评论/弹幕列表里的一行。两类形状一致（弹幕多个 at），共用一个 DTO */
+export interface ApiAdminContent {
+  _id: string;
+  text?: string;
+  /** ★ 管理端带作者（弹幕对外匿名，只有这条 requireRole(admin) 的路透出作者） */
+  author?: ApiAuthor | string | null;
+  /**
+   * 所属作品 id。★ **删除要靠它**：删评论/弹幕复用既有端点
+   * `DELETE /api/branch/videos/:videoId/...`（admin 由 assertCanDelete 放行），
+   * 路径里就要 videoId。服务端可能给裸 id 也可能 populate 成对象，norm 时两种都认。
+   */
+  videoId?: string;
+  videoTitle?: string;
+  /** 弹幕：出现在全片第几秒 */
+  at?: number;
+  createdAt?: string | number;
+}
+
+export interface AdminListPage<T> {
+  items: T[];
+  /** false = 这台服务器没有这个端点，界面必须明说，不能显示成空列表 */
+  supported: boolean;
+  /**
+   * 服务端的**全量**条数（按当前搜索/筛选算）。null = 回包没带（不该发生，但老回包要兜）。
+   * ★ 有它才能诚实：列表一页 50 条，total > items.length 时必须给「加载更多」——
+   *   否则管理员搜一条 51 名开外的旧评论看到"没有匹配"，会误判成内容已删而把举报驳回。
+   */
+  total: number | null;
+}
+
+/** 列表查询参数。q 下推给服务端（在**全量**里查，不是在拉回来的这一页里筛） */
+export interface AdminListQuery {
+  q?: string;
+  page?: number;
+}
+
+function readItems<T>(res: unknown): AdminListPage<T> {
+  if (!isRecord(res)) return { items: [], supported: false, total: null };
+  const items = res.items;
+  if (!Array.isArray(items)) return { items: [], supported: false, total: null };
+  return { items: items as T[], supported: true, total: typeof res.total === "number" ? res.total : null };
+}
+
+function listQuery(opts?: AdminListQuery): Record<string, string | number> {
+  const query: Record<string, string | number> = { limit: 50 };
+  const q = opts?.q?.trim();
+  if (q) query.q = q;
+  if (opts?.page && opts.page > 1) query.page = opts.page;
+  return query;
+}
+
+/** video 引用归一：服务端裸 id / populate 对象两种形状都认（铁律七） */
+function normContent(raw: unknown): ApiAdminContent | null {
+  if (!isRecord(raw) || typeof raw._id !== "string") return null;
+  const v = raw.videoId ?? raw.video;
+  const videoObj = isRecord(v) ? v : null;
+  return {
+    _id: raw._id,
+    text: typeof raw.text === "string" ? raw.text : undefined,
+    author: (raw.author ?? null) as ApiAdminContent["author"],
+    videoId: videoObj ? String(videoObj._id ?? "") || undefined : typeof v === "string" ? v : undefined,
+    videoTitle:
+      typeof raw.videoTitle === "string"
+        ? raw.videoTitle
+        : videoObj && typeof videoObj.title === "string"
+          ? videoObj.title
+          : undefined,
+    at: typeof raw.at === "number" ? raw.at : undefined,
+    createdAt: raw.createdAt as ApiAdminContent["createdAt"],
+  };
+}
+
+/**
+ * 用户列表。一页 50 条；**搜索下推给服务端**（q 在全量里查）。
+ * ★ 这里原来写着"生产库 26 个用户，过滤下推换不来什么" —— 用户表也许如此，
+ *   但评论/弹幕是无上界增长的表，四个列表共用一套口径省得各判各的。
+ *   「老服务端 strip 掉 q 照常返回全量」的口子在这里不存在：老服务端压根没有
+ *   这些端点（supported=false 那条路），端点在即参数在（同一次发布）。
+ */
+export async function listAdminUsers(opts?: AdminListQuery): Promise<AdminListPage<ApiAdminUser>> {
+  return readItems<ApiAdminUser>(await apiGet<unknown>(PATHS.users, { query: listQuery(opts) }));
+}
+
+/** 作品全量列表（含私密与已下架；服务端只有这条路不做可见性过滤） */
+export async function listAdminVideos(opts?: AdminListQuery): Promise<AdminListPage<ApiVideo>> {
+  return readItems<ApiVideo>(await apiGet<unknown>(PATHS.videos, { query: listQuery(opts) }));
+}
+
+/** 当前被下架的作品（「重新上架」的入口，服务端按 takedown.at 倒序） */
+export async function listTakedownVideos(opts?: AdminListQuery): Promise<AdminListPage<ApiVideo>> {
+  return readItems<ApiVideo>(await apiGet<unknown>(PATHS.takedowns, { query: listQuery(opts) }));
+}
+
+/** 评论全量列表 */
+export async function listAdminComments(opts?: AdminListQuery): Promise<AdminListPage<ApiAdminContent>> {
+  const page = readItems<unknown>(await apiGet<unknown>(PATHS.comments, { query: listQuery(opts) }));
+  return { supported: page.supported, total: page.total, items: page.items.map(normContent).filter((x): x is ApiAdminContent => x !== null) };
+}
+
+/** 弹幕全量列表 */
+export async function listAdminDanmaku(opts?: AdminListQuery): Promise<AdminListPage<ApiAdminContent>> {
+  const page = readItems<unknown>(await apiGet<unknown>(PATHS.danmaku, { query: listQuery(opts) }));
+  return { supported: page.supported, total: page.total, items: page.items.map(normContent).filter((x): x is ApiAdminContent => x !== null) };
+}
+
+// ── 处置动作（封禁 / 解封 / 删号 / 发通知 / 下架 / 重新上架） ──
+//
+// ★ 全部「验形状再认账」：动作类端点成功必回 `{ ok: true, ... }`。回包不是这个形状
+//   （SPA 回退的 HTML / 老服务端）就抛 UNSUPPORTED —— 假装成功是最坏的做法（铁律八）。
+// ★ 失败一律**抛出去**不吞，页面留在原地写红字。
+
+function assertActed(res: unknown, what: string): Record<string, unknown> {
+  if (isRecord(res) && res.ok === true) return res;
+  throw new ApiError(`这台服务器还不支持${what}（需要升级服务端）`, 0, "UNSUPPORTED");
+}
+
+/** 封禁原因上限。镜像服务端 schema（与下架原因同一个数）；超了服务端 400 */
+export const BAN_REASON_MAX = 500;
+/** 平台通知正文上限。镜像服务端 schema；超了服务端 400 */
+export const ADMIN_NOTICE_MAX = 500;
+/** 下架原因上限。镜像服务端 branchVideo.controller 的 TAKEDOWN_REASON_MAX（铁律六） */
+export const TAKEDOWN_REASON_MAX = 500;
+
+/**
+ * 封禁一个账号。reason **必填**（trim 后非空）—— 封禁挡的是登录与一切带 token 的请求，
+ * 被封的人看到的那句话就是这个 reason，空着等于"你被封了，不告诉你为什么"。
+ * ★ 封禁**不**自动隐藏其内容：两权分开，内容处置走每条内容自己的下架/删除。
+ */
+export async function banUser(id: string, reason: string): Promise<ApiAdminUser | null> {
+  const r = reason.trim();
+  if (!r) throw new ApiError("封禁必须写明原因", 0, "REASON_REQUIRED");
+  const res = assertActed(await apiPost<unknown>(PATHS.ban(id), { reason: r }), "封禁");
+  return (res.user as ApiAdminUser | undefined) ?? null;
+}
+
+/** 解封（幂等：对没封的人调也成功，后台重复点不该报错） */
+export async function unbanUser(id: string): Promise<ApiAdminUser | null> {
+  const res = assertActed(await apiDelete<unknown>(PATHS.ban(id)), "解封");
+  return (res.user as ApiAdminUser | undefined) ?? null;
+}
+
+/**
+ * 删除一个账号：**硬删且级联**（作品走 purgeVideo + 评论 + 弹幕 + 举报 + 流水 + 卡片/卡组）。
+ * ★ 服务端**拒绝删管理员**（要删先降权，防手滑团灭）；页面上管理员行连按钮都不渲染。
+ * ★ 不可撤销 —— UI 必须走「输入用户名确认」那道闸再调这里。
+ */
+export async function deleteUserAccount(id: string): Promise<Record<string, number> | null> {
+  // ★ 把服务端回的级联清单（各删了多少条）带出去给 UI 显示（契约明文要求）：
+  //   这是全后台威力最大的按钮，按下之后必须看得到后果 ——「删了个寂寞」要有症状（铁律五）
+  const res = assertActed(await apiDelete<unknown>(PATHS.user(id)), "删除账号");
+  const removed = res.removed;
+  return isRecord(removed) ? (removed as Record<string, number>) : null;
+}
+
+/** 给单个用户发一条平台通知（ADMIN_NOTICE，自由文本）。text 必填 */
+export async function notifyUser(id: string, text: string): Promise<void> {
+  const t = text.trim();
+  if (!t) throw new ApiError("通知内容不能为空", 0, "TEXT_REQUIRED");
+  assertActed(await apiPost<unknown>(PATHS.notify(id), { text: t }), "发平台通知");
+}
+
+/** 下架一条作品（可逆）。reason 必填：作品从作者眼前消失还不说为什么，比不下架更糟 */
+export async function takedownVideo(id: string, reason: string): Promise<ApiVideo | null> {
+  const r = reason.trim();
+  if (!r) throw new ApiError("下架必须写明原因", 0, "REASON_REQUIRED");
+  const res = assertActed(await apiPost<unknown>(PATHS.takedown(id), { reason: r }), "下架");
+  return (res.video as ApiVideo | undefined) ?? null;
+}
+
+/** 撤销下架（重新上架）。服务端幂等：对没下架的作品调也 200 */
+export async function revokeTakedown(id: string): Promise<ApiVideo | null> {
+  const res = assertActed(await apiDelete<unknown>(PATHS.takedown(id)), "重新上架");
+  return (res.video as ApiVideo | undefined) ?? null;
 }
 
 // ── 提交举报（普通用户） ──────────────────────────────────

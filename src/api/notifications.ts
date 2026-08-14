@@ -25,6 +25,15 @@ export const BRANCH_NOTIFICATION_TYPES = [
   "BRANCH_COMMENT_REPLY",
   "BRANCH_COMMENT_LIKE",
   "BRANCH_MENTION",
+  /**
+   * 平台通知：管理员从后台发给单个用户的自由文本（api/admin.notifyUser 那条路）。
+   * ★ 正文走 `payload.commentText` —— 刻意复用评论正文那条既有通道，而不是新开一个
+   *   `payload.text`：data/notifications.ts 的 toItem 只搬运它认识的字段，新开字段
+   *   就得动那边的映射，而"服务端发了、App 静默丢掉"正是这张表存在要防的事故形态。
+   *   服务端写 payload 时必须用这个键（跨仓契约，铁律九）。
+   * ★ 老服务端不认这个 type：列表查询把它放进 type 白名单只会匹配不到任何行，无害。
+   */
+  "ADMIN_NOTICE",
 ] as const;
 
 export type BranchNotificationType = (typeof BRANCH_NOTIFICATION_TYPES)[number];

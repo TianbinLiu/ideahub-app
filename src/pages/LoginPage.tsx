@@ -18,6 +18,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import Icon from "../components/Icon";
 import {
+  consumeAuthNotice,
   isRemoteMode,
   registerWithEmailOtp,
   signIn,
@@ -54,8 +55,11 @@ export default function LoginPage() {
   const [capsLoading, setCapsLoading] = useState(remote);
   const [method, setMethod] = useState<Method>("password");
   // 第三方登录失败时 OauthDeepLinkBridge 会把原因塞在 ?err= 里送回本页——
-  // 不接住的话，用户从浏览器回到 App 只会看到一个"莫名其妙又回到登录页"
-  const [err, setErr] = useState(params.get("err") || "");
+  // 不接住的话，用户从浏览器回到 App 只会看到一个"莫名其妙又回到登录页"。
+  // consumeAuthNotice 是另一条来路：登录态被服务端终止（目前只有封禁）时
+  // adoptFromToken 存下的原因 —— 被封的用户"莫名其妙变成未登录"来到这一页，
+  // 开屏就该看到为什么（铁律八）。读一次即清。
+  const [err, setErr] = useState(() => params.get("err") || consumeAuthNotice());
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 

@@ -294,6 +294,14 @@ likes×6 + comments×4 + bookmarks×3 + min(views, 5000)×0.04
 沿用既有的 `/api/notifications`（列表 / `unread-count` / `:id/read` / `read-all`），新增：
 
 - `Notification.type` 增加 `BRANCH_LIKE`、`BRANCH_COMMENT`、`BRANCH_COMMENT_REPLY`、`BRANCH_COMMENT_LIKE`、`BRANCH_MENTION`
+- `Notification.type` 另增 **`ADMIN_NOTICE`**（平台通知，管理员手动发给某个用户）。
+  `payload = { text }`（自由文本，1~500 字），**没有 `actorId`**、没有 deeplink ——
+  通知以平台口径发出，「是哪个管理员发的」刻意不透给用户（与 `takedown.by` 同一条理由）。
+  App 渲染成「系统通知 + 原样文本」即可，头像用平台占位图（actorId 为 null 不是坏数据）。
+  ★★ **未知类型必须降级显示，不许崩、不许吞**（铁律七）：消息页对认识的类型正常渲染，
+  对不认识的类型显示成通用的「系统通知」行（标题给类型名或"通知"，正文尽力取
+  `payload.text`）。老包收到新类型是常态 —— 白名单过滤器只该决定**归到哪个 tab**，
+  不该决定**存不存在**；把未知类型直接 filter 掉的话，用户的红点数与列表条数永远对不上。
 - `Notification.videoId`（ref `BranchVideo`）。★ **不要复用 `ideaId`** —— 它 ref 的是 `Idea`，
   塞一个 BranchVideo 的 id 进去不会报错，只会 populate 成 `null`，标题和跳转地址一起没了，全程零日志。
 - 列表接口的 `actorId` 现在 populate `username displayName avatarUrl role`，并额外 populate
@@ -459,7 +467,7 @@ B 站式弹幕：一句话 + 它该在**视频第几秒**飘过去。与评论�
 | POST | `/api/admin/branch/videos/:id/takedown` | **admin** | 下架一条作品 `{ reason }`（**必填**）→ `{ ok, video }`。可撤销 |
 | DELETE | `/api/admin/branch/videos/:id/takedown` | **admin** | 撤销下架 → `{ ok, video }`。**幂等**（对没下架的作品调也 200，后台重复点不该报错） |
 | GET | `/api/admin/branch/takedowns` | **admin** | 已下架列表。没有它，"撤销"就是个找不到入口的功能 |
-| GET | `/api/admin/branch/stats` | **admin** | `{ users, videos, takenDown, comments, danmaku, pendingReports }`，全部 `countDocuments` |
+| GET | `/api/admin/branch/stats` | **admin** | `{ users, banned, videos, takenDown, comments, danmaku, pendingReports }`，全部 `countDocuments`。`banned` 是后加的键（被封禁用户数），老服务端不给 —— 客户端读不到画 `—`，别当 0 |
 
 ★ `reason` 必填不是形式：作品消失了还不告诉作者为什么，比不下架更糟（见 BranchVideo 的「平台下架」）。
 
@@ -668,6 +676,85 @@ exports.takedownTarget = async ({ targetType, targetId, operatorId, reason, hard
 回归测试 `server/tests/report.spec.js`（R1–R12，13 条）。★ R11 / R11b 一律**看内容**
 （作品是不是真的 404 了、评论是不是真的从列表里没了），不看状态字段 ——
 "状态对、内容没动"正是这块最需要防的失败。
+
+## 管理员：用户与内容管理
+
+全部挂在既有的 `/api/admin/branch` 前缀下（与举报队列 / 下架同一道
+`requireAuth + requireRole(admin)` 门）。服务端实现：`controllers/branchAdmin.controller.js`
+（复用件全部来自 `branchVideo.controller` / `branchAsset.controller`，清理与序列化只有一份）。
+
+### 端点
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/admin/branch/users` | 用户列表。query `page`(默认 1)、`limit`(默认 20，上限 50)、`q`（username/displayName 子串，大小写不敏感）、`role`（`user`\|`company`\|`admin`）、`banned`（`"1"` 只看被封 / `"0"` 只看没封）→ `{ ok, items, total, page, limit }`。筛选值拼错回 **400**，不静默当成"不筛" |
+| POST | `/api/admin/branch/users/:id/ban` | 封禁 `{ reason }`（**必填**，≤500 字）→ `{ ok, user }`。**拒绝封禁管理员（403）**。重复封禁不报错（覆盖成最新原因） |
+| DELETE | `/api/admin/branch/users/:id/ban` | 解封 → `{ ok, user }`。**幂等**（对没封的人调也 200） |
+| DELETE | `/api/admin/branch/users/:id` | **硬删账号 + 级联，不可逆** → `{ ok, removed }`。**拒绝删除管理员（403）** |
+| POST | `/api/admin/branch/users/:id/notify` | 发平台通知 `{ text }`（必填，1~500 字）→ 201 `{ ok, notificationId }`。落一条 `ADMIN_NOTICE` |
+| GET | `/api/admin/branch/videos` | 作品钻取。query `page`/`limit`/`q`（标题子串，或作者 username/displayName 子串）/`takenDown`(`"1"`\|`"0"`) → `{ ok, items, total, page, limit }`。**私密与已下架都列得出来**（后台要看得全），序列化带 `takedown.by` |
+| GET | `/api/admin/branch/comments` | 评论钻取。query `page`/`limit`/`q`（正文子串）/`videoId` → items：`{ _id, text, author, video:{_id,title}\|null, parentId, likes, createdAt }` |
+| GET | `/api/admin/branch/danmaku` | 弹幕钻取。query 同上 → items：`{ _id, text, at, color, author, video, createdAt }` |
+
+删除内容**不在这里另开端点**：删作品/评论/弹幕走各自既有的 `DELETE /api/branch/...`
+（`assertCanDelete` 已放行管理员）；下架/撤销走上面「举报」一节列的两条。
+
+### 用户列表的一条（DTO）
+
+```
+{
+  _id, username, displayName, avatarUrl, role, createdAt,
+  email,                 // ★ 打码版（"s***@example.com"），永远不回全文
+  phone?,                // 打码版（"138****5678"）；没绑手机就没有这个键
+  videoCount, commentCount,
+  banned?: { at, reason } // 有这个键 = 被封；没有 = 正常（与 takedown 同一种给法）
+}
+```
+
+★ **email/phone 只回打码版**：管理员列表的用途是「认出这个人、看状态」，全文 PII
+在这里没有用途，却会把泄露面从「数据库被攻破」扩大到「任何一个管理员账号被钓走」。
+★ `banned` **不带 `by`**（是哪个管理员封的只进库与操作日志），与 `takedown.by`
+不透给作者同一条理由。
+
+### 封禁的语义（★ 与内容处置**两权分开**）
+
+- 封禁挡的是**登录与一切带 token 的请求**：
+  - 登录（密码/OTP/OAuth 全部路径，收口在 `signToken`）→ **403 `code:"BANNED"`**，
+    `message` 里带原因（形如 `账号已被封禁：<reason>`），可直接展示给用户；
+  - 已发出去的 token（`requireAuth`）→ 同样 **403 BANNED + 原因**，封禁**立即生效**
+    （requireAuth 每次请求从库里重读用户，不用等 token 过期）。
+  - `optionalAuth` 的公开端点：被封的人**当匿名**处理（看得见公开内容，做不了带身份的事）。
+- ★ 客户端必须区分 401 与 403 BANNED：401 的处置是「登出重登」，封禁重登也没用 ——
+  收到 `code:"BANNED"` 时把 `message` 展示出来，不要把人踢回登录页转圈。
+- **封人不隐藏其内容**。内容要下架/删除，走每条内容自己的端点。合成一个开关的话，
+  解封一个改好了的人会连带把他真正违规的内容一起放出来；封人时全量藏内容又会把他
+  没问题的作品也一起消失。两把开关，各管各的。
+- 解封 = `$unset` 整个 `banned` 子文档（判据是 `banned.at` 的有无，与 `takedown` 同构）。
+
+### 删除账号的级联（服务端一处实现：`purgeUserCascade`）
+
+删：作品（逐条走 `purgeVideo`，连带该作品下所有人的评论/点赞/弹幕/通知）、
+他发在别人作品下的评论（逐条走 `purgeComments`，连带楼中楼回复与点赞）、弹幕、
+他点过的赞（并重算受影响作品/评论/卡片卡组的计数快照）、卡片与卡组（含卡组的
+计数行与别人对它的赞）、举报（他提的 + 指向他内容的）、token 流水与订单、
+关注关系（双向）、通知（他收的 + 他触发的）、搜索记录、用户本体。
+
+**刻意不删**（不是遗漏）：`PointsLedger`（复式记账，删一侧对手方永远配不平）；
+卡片的全局计数（`kind:"card"` 按 cardId 跨用户聚合，删了会清掉别人手里同一张卡的热度）；
+ideas 产品线的内容（那边有自己的软删除体系，混着做一半更糟 —— 已知未尽事项）。
+
+回包 `removed` 逐项带条数（`{ videos, comments, danmaku, likesGiven, …, user }`），
+UI 把它显示出来 —— 「删了个寂寞」必须有症状。
+
+★ UI 要求**输入用户名**做二次确认并把后果说全（不可逆、连带内容清单）；
+服务端不收确认字段 —— 确认是交互，权限与后果才是服务端的事。
+
+### `ADMIN_NOTICE` 通知
+
+类型契约见上「通知（分支视频）」一节：`payload = { text }`、无 `actorId`、无 deeplink；
+**未知通知类型客户端必须降级显示**（通用「系统通知」行），不许崩、不许 filter 成不存在。
+
+回归测试：`server/tests/branchAdminUsers.spec.js`（U1–U6）。
 
 ## 随作品发布的卡组（`deck`）
 
