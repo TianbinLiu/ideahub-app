@@ -111,7 +111,12 @@ function isBranchType(t: string): t is api.BranchNotificationType {
 }
 
 function toItem(n: api.ApiNotification): NotificationItem | null {
-  if (!isBranchType(n.type)) return null; // 服务端理论上已按 type 过滤，这里兜一道
+  // ★★ 不认识的类型**降级保留**，不丢弃（铁律七；契约「通知」一节明文要求）。
+  //   这里原来是 `return null`——于是 NotificationsPage 里"未知类型原样显示类型名"
+  //   那个 default 分支是永远到不了的死代码，而服务端每加一种新类型，装着老版本的
+  //   用户就静默收不到（发送方看到"已发送"，收件人无感，红点也不亮）。
+  //   请求层的 type 白名单仍然保留（防老服务端把别的产品线的通知混进来）——
+  //   这一道只兜"回来了但这版不认识"的那部分，显示成类型名总好过消失。
   const actor = n.actorId;
   const actorObj = actor && typeof actor === "object" ? actor : null;
   const video = n.videoId;
@@ -119,13 +124,17 @@ function toItem(n: api.ApiNotification): NotificationItem | null {
   const payload = n.payload ?? {};
   return {
     id: n._id,
-    type: n.type,
+    type: isBranchType(n.type) ? n.type : (n.type as NotificationItem["type"]),
     actorName: actorObj ? actorObj.displayName || actorObj.username || "有人" : "有人",
     actorAvatar: actorObj?.avatarUrl || undefined,
     // populate 过就是对象，没 populate 时是裸 id 字符串，两种都能拿来跳转
     videoId: videoObj ? videoObj._id : typeof video === "string" ? video : payload.videoId ?? null,
     videoTitle: videoObj?.title || payload.videoTitle || "",
-    commentText: payload.commentText || "",
+    // ★ ADMIN_NOTICE 的正文在 payload.text（契约与服务端一致），其余类型在 commentText。
+    //   两个都收 —— 这里原来只读 commentText，而服务端按契约写的是 text：
+    //   管理员发的每一条平台通知到用户手里都会显示成「（通知内容缺失）」，
+    //   发送方还看着"已发送"的成功回执（2026-08-14 复查抓到的跨仓键名分叉）。
+    commentText: payload.commentText || (payload as { text?: string }).text || "",
     at: toMs(n.createdAt),
     // ★ 判**未读**用「readAt 有没有值」，不是和某个哨兵值比：服务端未读写的是 null，
     //   而更老的记录里这一项可能压根不存在（undefined）。两种都必须算未读。

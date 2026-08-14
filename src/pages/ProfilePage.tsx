@@ -44,6 +44,7 @@ import { deleteDraft, loadDraft, renameDraft, type DraftMode, type WorkDraftMeta
 import { useDrafts } from "../hooks/useDrafts";
 import { useStudio } from "../studio/studioStore";
 import {
+  billingExempt,
   buyPlan,
   deckCoverOf,
   isFollowing,
@@ -573,26 +574,52 @@ export default function ProfilePage() {
           >
             <span className="text-xl">⚡</span>
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-bold tabular-nums text-slate-100">
-                {wallet ? (
-                  <>
-                    {fmtTokens(wallet.plan + wallet.addon)}{" "}
-                    <span className="text-xs font-normal text-slate-500">token</span>
-                  </>
-                ) : (
-                  "余额读取中…"
-                )}
-              </div>
-              <div className="text-[11px] text-slate-500">
-                {wallet ? (
-                  <>
-                    套餐 {fmtTokens(wallet.plan)} · 直充 {fmtTokens(wallet.addon)} ·{" "}
-                    {PLANS.find((p) => p.id === wallet.planId)?.name ?? "免费版"}
-                  </>
-                ) : (
-                  "点开重试"
-                )}
-              </div>
+              {billingExempt() ? (
+                /* ★★ 管理员不摆余额数字：服务端对 admin 不扣费（wallet.debit 放行），
+                     镜像里的数字不会因为他用 AI 而动，摆出来等于暗示"这是一份会消耗的
+                     真额度"。∞ 也不许是另一个方向的谎 —— 下面那行小字必须把
+                     「免扣费 + 用量照记（admin_free 流水）」如实说全（铁律五、八）。
+                     判据只用 data/account 的 billingExempt() 这一处（铁律六）；
+                     它缺省为 false，老服务端/离线模式下这里就是普通用户那支，不崩（铁律七）。 */
+                <>
+                  <div className="text-sm font-bold text-slate-100">
+                    ∞ <span className="text-xs font-normal text-slate-500">token</span>
+                    {/* 套餐名的位置给「管理员」：他没有套餐档位，留着"免费版"三个字
+                        反而是错的（他既不是免费版，也不受任何档位门禁约束） */}
+                    <span className="ml-1.5 rounded bg-brand/20 px-1.5 py-0.5 text-[9px] font-normal text-brand">
+                      管理员
+                    </span>
+                  </div>
+                  {/* 「无需充值」写在这行，正好挨着右边那颗充值按钮 —— 入口照常保留
+                      （测支付流程要用），但必须说清点它不是为了给自己续费 */}
+                  <div className="text-[11px] leading-relaxed text-slate-500">
+                    AI 生成走免扣费通道，无需充值；真实用量服务端照记（admin_free 流水）
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-sm font-bold tabular-nums text-slate-100">
+                    {wallet ? (
+                      <>
+                        {fmtTokens(wallet.plan + wallet.addon)}{" "}
+                        <span className="text-xs font-normal text-slate-500">token</span>
+                      </>
+                    ) : (
+                      "余额读取中…"
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    {wallet ? (
+                      <>
+                        套餐 {fmtTokens(wallet.plan)} · 直充 {fmtTokens(wallet.addon)} ·{" "}
+                        {PLANS.find((p) => p.id === wallet.planId)?.name ?? "免费版"}
+                      </>
+                    ) : (
+                      "点开重试"
+                    )}
+                  </div>
+                </>
+              )}
             </div>
             <span className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink">充值 / 套餐</span>
           </button>
@@ -1267,6 +1294,15 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
           <Icon name="close" size={20} />
         </button>
       </div>
+
+      {/* ★ 管理员在「我的」页看到的是 ∞，这里却是镜像里的真实数字 —— 不把两边的关系
+          说清楚，看起来就像其中一边坏了。数字照常显示（它是服务端的真值，不藏），
+          下单按钮也照常能点：入口保留是为了测支付流程，不是给自己续费。 */}
+      {billingExempt() && (
+        <div className="mb-3 rounded-xl border border-brand/40 bg-brand/10 px-3 py-2.5 text-[11px] leading-relaxed text-slate-300">
+          管理员账号无需充值：AI 生成走免扣费通道，不从下面的余额里扣。余额与下单入口保留，仅用于测试支付流程。
+        </div>
+      )}
 
       <div className="mb-4 grid grid-cols-2 gap-2">
         <div className="rounded-xl bg-panel p-3">

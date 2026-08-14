@@ -1,4 +1,4 @@
-// 管理后台：待处理举报 + 处置动作 + 平台数据。
+// 管理后台：平台数据（可点开钻取）+ 待处理举报 + 各类处置动作。
 //
 // ★★ 这一页的**每一处失败都要看得见**（铁律八）。后台是"没人盯着的地方"：
 //   列表拉不到、动作没生效、服务端根本没有这套端点 —— 任何一样悄悄发生，
@@ -8,25 +8,62 @@
 // ★★ 门禁是**服务端**的（requireRole("admin")，且 requireAuth 每次请求都从库里重读
 //   role）。这一页上的判断只决定"看不看得见"，不是安全边界 —— 所以非管理员进来
 //   要给一句能读懂的解释 + 一条出路，而不是白屏、也不是不声不响地弹回首页。
+//
+// ★ 钻取列表做成**同页子视图**（view state），不另开路由：后台的五张卡与列表之间
+//   来回切是高频动作，走路由会把「返回=退出后台」和「返回=回到总览」搅在一起；
+//   子视图里顶栏的返回键固定回总览，语义只有一种。
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
+import Avatar from "../components/Avatar";
 import Icon from "../components/Icon";
 import {
+  ADMIN_NOTICE_MAX,
+  BAN_REASON_MAX,
+  TAKEDOWN_REASON_MAX,
   TARGET_LABEL,
+  banUser,
+  deleteUserAccount,
   displayNameOf,
   fetchAdminStats,
+  isAdminRole,
+  listAdminComments,
+  listAdminDanmaku,
+  listAdminUsers,
+  listAdminVideos,
   listReports,
+  listTakedownVideos,
+  notifyUser,
   reasonLabel,
   reportTimeMs,
   resolveReport,
+  revokeTakedown,
+  takedownVideo,
+  unbanUser,
+  userIsBanned,
+  type AdminListPage,
   type AdminStats,
+  type ApiAdminContent,
+  type ApiAdminUser,
   type ApiReport,
   type ReportAction,
   type ReportStatus,
 } from "../api/admin";
+import { deleteVideo, removeComment, removeDanmaku, type ApiVideo } from "../api/branch";
 import { isAdmin, isRemoteMode } from "../data/account";
 import { useCurrentUser } from "../hooks/useAccount";
 import { relativeTime } from "../types";
+
+/** 同页子视图。home = 总览（统计卡 + 举报队列），其余五个是钻取列表 */
+type AdminView = "home" | "users" | "videos" | "comments" | "danmaku" | "takedowns";
+
+const VIEW_TITLE: Record<AdminView, string> = {
+  home: "管理后台",
+  users: "用户",
+  videos: "作品",
+  comments: "评论",
+  danmaku: "弹幕",
+  takedowns: "已下架",
+};
 
 export default function AdminPage() {
   // 登录墙由路由那层的 RequireAuth 管（未登录会带着 next=/admin 去登录页）。
@@ -35,31 +72,46 @@ export default function AdminPage() {
   const navigate = useNavigate();
   // ★ 必须在 early return **之前**声明：hooks 不许有条件地调用
   const [reloadKey, setReloadKey] = useState(0);
+  const [view, setView] = useState<AdminView>("home");
 
   if (!isAdmin()) return <Denied remote={isRemoteMode()} loggedIn={!!user} onBack={() => navigate("/", { replace: true })} />;
+
+  // ★★ 所有处置动作共用这一个"该重读了"的信号：处理完一条举报/封了一个人之后，
+  //   如果只有列表更新、统计卡不动，同一屏上就会出现「没有待处理的举报」与
+  //   「待处理举报 1」并排 —— 用户没法判断哪个是真的（2026-08-13 真机验证时看到的）。
+  const bump = () => setReloadKey((n) => n + 1);
 
   return (
     <div className="safe-top min-h-full px-4 pb-16 pt-3">
       <div className="mb-5 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} aria-label="返回" className="text-slate-400">
+        {/* 子视图里返回键固定回总览；只有总览上才真的退出这一页 */}
+        <button onClick={() => (view === "home" ? navigate(-1) : setView("home"))} aria-label="返回" className="text-slate-400">
           <Icon name="back" size={20} />
         </button>
-        <h1 className="text-lg font-bold text-slate-100">管理后台</h1>
+        <h1 className="text-lg font-bold text-slate-100">{VIEW_TITLE[view]}</h1>
         <span className="ml-auto rounded-full bg-brand/15 px-2.5 py-1 text-[11px] text-brand">管理员</span>
       </div>
 
-      {/* ★★ 两块共用一个"该重读了"的信号：处理完一条举报之后，如果只有列表更新、
-          统计卡不动，同一屏上就会出现「没有待处理的举报」与「待处理举报 1」并排 ——
-          用户没法判断哪个是真的（2026-08-13 真机验证时看到的就是这个）。
-          刷新按钮同理：它refresh 的是"这一页的数据"，不是"列表"。 */}
-      <StatsSection reloadKey={reloadKey} />
-      <ReportsSection onChanged={() => setReloadKey((n) => n + 1)} />
-
-      <p className="mt-8 text-center text-[10px] leading-relaxed text-slate-600">
-        这里的每一个动作都由服务端按 role 重新鉴权一次。
-        <br />
-        看不到内容就不要下架 —— 举报理由只是线索，不是结论。
-      </p>
+      {view === "home" && (
+        <>
+          <StatsSection reloadKey={reloadKey} onOpen={setView} />
+          {/* id 给「待处理举报」那张卡当滚动锚点：举报队列本来就在这一页上，
+              点卡不必换视图，把人带到它面前即可 */}
+          <div id="admin-reports">
+            <ReportsSection onChanged={bump} />
+          </div>
+          <p className="mt-8 text-center text-[10px] leading-relaxed text-slate-600">
+            这里的每一个动作都由服务端按 role 重新鉴权一次。
+            <br />
+            看不到内容就不要下架 —— 举报理由只是线索，不是结论。
+          </p>
+        </>
+      )}
+      {view === "users" && <UsersView onChanged={bump} />}
+      {view === "videos" && <VideosView onChanged={bump} />}
+      {view === "comments" && <ContentView kind="comment" onChanged={bump} />}
+      {view === "danmaku" && <ContentView kind="danmaku" onChanged={bump} />}
+      {view === "takedowns" && <TakedownsView onChanged={bump} />}
     </div>
   );
 }
@@ -91,7 +143,7 @@ function Denied({ remote, loggedIn, onBack }: { remote: boolean; loggedIn: boole
 
 // ── 平台数据 ──────────────────────────────────────────────
 
-function StatsSection({ reloadKey }: { reloadKey: number }) {
+function StatsSection({ reloadKey, onOpen }: { reloadKey: number; onOpen: (v: AdminView) => void }) {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
@@ -116,31 +168,919 @@ function StatsSection({ reloadKey }: { reloadKey: number }) {
 
   return (
     <section className="mb-6">
-      <h2 className="mb-2.5 text-xs font-semibold text-slate-400">平台数据</h2>
+      <h2 className="mb-2.5 text-xs font-semibold text-slate-400">平台数据 · 点卡片进入管理</h2>
       {loading && <p className="text-xs text-slate-500">读取中…</p>}
       {err && <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
       {stats && (
         <div className="grid grid-cols-3 gap-2">
-          <StatCell label="用户" v={stats.users} />
-          <StatCell label="作品" v={stats.videos} />
-          <StatCell label="评论" v={stats.comments} />
-          <StatCell label="弹幕" v={stats.danmaku} />
-          <StatCell label="待处理举报" v={stats.pendingReports} accent />
+          <StatCell label="用户" v={stats.users} onOpen={() => onOpen("users")} />
+          <StatCell label="作品" v={stats.videos} onOpen={() => onOpen("videos")} />
+          <StatCell label="评论" v={stats.comments} onOpen={() => onOpen("comments")} />
+          <StatCell label="弹幕" v={stats.danmaku} onOpen={() => onOpen("danmaku")} />
+          {/* 举报队列就在本页下方 —— 点卡不换视图，滚过去即可 */}
+          <StatCell
+            label="待处理举报"
+            v={stats.pendingReports}
+            accent
+            onOpen={() => document.getElementById("admin-reports")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          />
+          <StatCell label="已下架" v={stats.takenDown} onOpen={() => onOpen("takedowns")} />
         </div>
       )}
     </section>
   );
 }
 
-/** ★ null 显示成「—」而不是 0：「没有用户」和「没查到」是两件事，写成 0 会吓人 */
-function StatCell({ label, v, accent = false }: { label: string; v: number | null; accent?: boolean }) {
+/** ★ null 显示成「—」而不是 0：「没有用户」和「没查到」是两件事，写成 0 会吓人。
+ *  值是 null 也**照样可点**：钻取视图自己会说"需要升级服务端"，比一张点不动的卡诚实 */
+function StatCell({ label, v, accent = false, onOpen }: { label: string; v: number | null; accent?: boolean; onOpen: () => void }) {
   return (
-    <div className="rounded-xl border border-slate-700 bg-panel px-3 py-2.5">
-      <div className={`text-lg font-bold tabular-nums ${accent && (v ?? 0) > 0 ? "text-amber-300" : "text-slate-100"}`}>
-        {v === null ? "—" : v}
+    <button onClick={onOpen} className="rounded-xl border border-slate-700 bg-panel px-3 py-2.5 text-left active:opacity-70">
+      <div className="flex items-start justify-between">
+        <div className={`text-lg font-bold tabular-nums ${accent && (v ?? 0) > 0 ? "text-amber-300" : "text-slate-100"}`}>
+          {v === null ? "—" : v}
+        </div>
+        <span className="text-xs text-slate-600">›</span>
       </div>
       <div className="text-[11px] text-slate-500">{label}</div>
+    </button>
+  );
+}
+
+// ── 钻取列表的公共零件 ────────────────────────────────────
+
+/**
+ * 列表装载的公共骨架：items / supported / err / loading 四件套 + 手动重读。
+ * ★ loader 必须是**稳定引用**（模块级函数），否则每次渲染都重拉一遍。
+ */
+/**
+ * 钻取列表的取数 hook。
+ *
+ * ★★ 搜索（q）**下推给服务端**，不在拉回来的这一页里筛：列表一页只有 50 条，
+ *   本地筛的话，内容一超过 50 条，搜一条真实存在的旧内容会显示"没有匹配" ——
+ *   与"真的不存在"无法区分，管理员会照着把举报驳回（2026-08-14 复查抓到的）。
+ *   q 防抖 400ms（每个键入都打一发服务端是浪费，也会让结果闪）。
+ * ★ total 是服务端按当前搜索算的全量数；items.length < total 时给「加载更多」。
+ */
+function useAdminList<T>(loader: (opts?: { q?: string; page?: number }) => Promise<AdminListPage<T>>, q = "") {
+  const [items, setItems] = useState<T[]>([]);
+  const [supported, setSupported] = useState(true);
+  const [total, setTotal] = useState<number | null>(null);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+
+  // 防抖：q 停止变化 400ms 后才真的去问服务端
+  const [dq, setDq] = useState(q);
+  useEffect(() => {
+    const t = setTimeout(() => setDq(q), 400);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErr("");
+    try {
+      const res = await loader({ q: dq, page: 1 });
+      setSupported(res.supported);
+      setItems(res.items);
+      setTotal(res.total);
+      setPage(1);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "列表没拉到");
+    } finally {
+      setLoading(false);
+    }
+  }, [loader, dq]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  /** 追加下一页。失败写红字留在原地（铁律八），已有的不丢 */
+  const loadMore = useCallback(async () => {
+    setLoading(true);
+    setErr("");
+    try {
+      const res = await loader({ q: dq, page: page + 1 });
+      setItems((xs) => [...xs, ...res.items]);
+      setTotal(res.total);
+      setPage((p) => p + 1);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "加载更多失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [loader, dq, page]);
+
+  const hasMore = total !== null && items.length < total;
+  return { items, supported, total, err, loading, load, loadMore, hasMore };
+}
+
+/** 列表底部的「加载更多」。★ hasMore 为假时**什么都不画**（列表已经到底不必宣布） */
+function LoadMore({ hasMore, loading, total, shown, onMore }: { hasMore: boolean; loading: boolean; total: number | null; shown: number; onMore: () => void }) {
+  if (!hasMore) return null;
+  return (
+    <button
+      onClick={onMore}
+      disabled={loading}
+      className="mt-2 w-full rounded-lg border border-slate-700 bg-panel py-2 text-xs text-slate-300 disabled:opacity-40"
+    >
+      {loading ? "加载中…" : `加载更多（已显示 ${shown} / 共 ${total} 条）`}
+    </button>
+  );
+}
+
+/** ★★ 「这台服务器没有这套端点」与「列表为空」必须分开说（铁律七 + 八）。
+ *  Capacitor 的 SPA 回退让"没端点"不会 404 —— 混成一句的后果是老服务端上的
+ *  后台永远显示"天下太平"。 */
+function Unsupported({ what }: { what: string }) {
+  return (
+    <p className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-[11px] leading-relaxed text-amber-300">
+      这台服务器还没有{what}接口（需要升级服务端）。这不代表列表是空的 —— 是这一头根本问不到。
+    </p>
+  );
+}
+
+function ErrBox({ text }: { text: string }) {
+  return <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 text-[11px] leading-relaxed text-rose-300">{text}</p>;
+}
+
+function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+  return (
+    <label className="flex items-center gap-2 rounded-xl bg-panel px-3 py-2">
+      <Icon name="search" size={14} className="shrink-0 text-slate-500" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-600"
+      />
+      {value && (
+        <button onClick={() => onChange("")} aria-label="清空" className="shrink-0 text-slate-500">
+          <Icon name="close" size={14} />
+        </button>
+      )}
+    </label>
+  );
+}
+
+function Chips<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: ReadonlyArray<{ id: T; label: string }>;
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex w-max gap-1 rounded-full bg-panel p-0.5">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => onChange(o.id)}
+          className={`rounded-full px-3 py-1 text-[11px] ${value === o.id ? "bg-brand font-semibold text-ink" : "text-slate-400"}`}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
+  );
+}
+
+function RefreshBtn({ onClick }: { onClick: () => void }) {
+  return (
+    <button onClick={onClick} aria-label="刷新" className="ml-auto rounded-full bg-panel p-1.5 text-slate-400">
+      <Icon name="replay" size={14} />
+    </button>
+  );
+}
+
+/** 大小写不敏感的包含匹配。空 needle = 全命中 */
+function hit(needle: string, ...hay: Array<string | undefined | null>): boolean {
+  const n = needle.trim().toLowerCase();
+  if (!n) return true;
+  return hay.some((s) => (s ?? "").toLowerCase().includes(n));
+}
+
+// ── 用户列表 ──────────────────────────────────────────────
+
+type UserFilter = "all" | "admin" | "banned";
+
+function UsersView({ onChanged }: { onChanged: () => void }) {
+  const [q, setQ] = useState("");
+  // ★ q 交给 hook 下推服务端（在全量里查）；本地 hit() 只再筛一遍已拉到的
+  //   （防抖窗口内给即时反馈，语义与服务端一致所以不会互相打架）
+  const { items, supported, err, loading, load, loadMore, hasMore, total } = useAdminList(listAdminUsers, q);
+  const [filter, setFilter] = useState<UserFilter>("all");
+  /** 删号后的级联清单（该行已从列表消失，只能在列表层报） */
+  const [deletedNote, setDeletedNote] = useState("");
+
+  const shown = items.filter((u) => {
+    if (filter === "admin" && !isAdminRole(u.role)) return false;
+    if (filter === "banned" && !userIsBanned(u)) return false;
+    return hit(q, u.username, u.displayName);
+  });
+
+  return (
+    <section>
+      <div className="mb-2.5 space-y-2.5">
+        <SearchBox value={q} onChange={setQ} placeholder="搜用户名 / 昵称" />
+        <div className="flex items-center gap-2">
+          <Chips
+            options={[
+              { id: "all", label: "全部" },
+              { id: "admin", label: "管理员" },
+              { id: "banned", label: "已封禁" },
+            ]}
+            value={filter}
+            onChange={setFilter}
+          />
+          <RefreshBtn
+            onClick={() => {
+              void load();
+              onChanged();
+            }}
+          />
+        </div>
+      </div>
+
+      {loading && <p className="text-xs text-slate-500">读取中…</p>}
+      {!loading && !supported && !err && <Unsupported what="用户列表" />}
+      {err && <ErrBox text={err} />}
+      {!loading && supported && !err && shown.length === 0 && (
+        <p className="py-8 text-center text-sm text-slate-500">{items.length === 0 ? "一个用户都没有" : "没有匹配的用户"}</p>
+      )}
+
+      {deletedNote && (
+        <p className="mb-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2.5 text-[11px] leading-relaxed text-emerald-300">
+          {deletedNote}
+        </p>
+      )}
+      <div className="space-y-3">
+        {shown.map((u) => (
+          <UserRow
+            key={u._id}
+            u={u}
+            onDeleted={setDeletedNote}
+            onDone={() => {
+              // 处置完重读列表 + 统计卡（铁律：动作后的一致性）
+              void load();
+              onChanged();
+            }}
+          />
+        ))}
+      </div>
+      <LoadMore hasMore={hasMore} loading={loading} total={total} shown={items.length} onMore={() => void loadMore()} />
+    </section>
+  );
+}
+
+type UserPanel = "" | "ban" | "notify" | "delete";
+
+/** removed 清单的键 → 中文。认不出的键原样显示（服务端将来加清理项，这边至少能看见） */
+const REMOVED_LABEL: Record<string, string> = {
+  videos: "作品",
+  comments: "评论",
+  danmaku: "弹幕",
+  likesGiven: "点过的赞",
+  commentLikesGiven: "评论点赞",
+  assetLikesGiven: "素材点赞",
+  decks: "卡组",
+  cards: "卡片",
+  reports: "举报记录",
+  tokenLedger: "代币流水",
+  tokenOrders: "订单",
+  follows: "关注关系",
+  notifications: "通知",
+  searchHistory: "搜索历史",
+  user: "账号",
+};
+
+function summarizeRemoved(removed: Record<string, number> | null): string {
+  if (!removed) return "已删除（服务端未返回明细）";
+  const parts = Object.entries(removed)
+    .filter(([, n]) => n > 0)
+    .map(([k, n]) => `${REMOVED_LABEL[k] ?? k} ${n}`);
+  return parts.length ? `已删除：${parts.join("、")}` : "已删除（没有关联数据）";
+}
+
+function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void; onDeleted: (summary: string) => void }) {
+  const [panel, setPanel] = useState<UserPanel>("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [reason, setReason] = useState("");
+  const [notice, setNotice] = useState("");
+  const [confirmText, setConfirmText] = useState("");
+  /** 发通知成功后的回执。通知不改任何列表/统计，没有别的东西能证明它发出去了 */
+  const [sent, setSent] = useState(false);
+
+  const admin = isAdminRole(u.role);
+  const banned = userIsBanned(u);
+  const name = displayNameOf(u);
+
+  function openPanel(p: UserPanel) {
+    setErr("");
+    setSent(false);
+    setPanel((cur) => (cur === p ? "" : p));
+  }
+
+  /** 动作骨架：失败留在原地写红字（铁律八），成功后由 after 决定收尾 */
+  async function run(action: () => Promise<unknown>, after: () => void) {
+    if (busy) return;
+    setBusy(true);
+    setErr("");
+    try {
+      await action();
+      after();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "没能完成，请重试");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <article className="rounded-xl border border-slate-700 bg-panel p-3">
+      <div className="flex items-center gap-3">
+        <Avatar name={name} src={u.avatarUrl} size={40} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="truncate text-sm font-semibold text-slate-100">{name}</span>
+            {u.username && <span className="text-[11px] text-slate-500">@{u.username}</span>}
+            {admin && <span className="rounded bg-brand/15 px-1.5 py-0.5 text-[10px] text-brand">管理员</span>}
+            {banned && (
+              <span className="rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] text-rose-300" title={u.banned?.reason}>
+                已封禁
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
+            {/* videoCount 服务端没给就画「—」：「0 条作品」和「不知道」是两回事 */}
+            <span>作品 {typeof u.videoCount === "number" ? u.videoCount : "—"}</span>
+            {reportTimeMs(u.createdAt) > 0 && <span>· {relativeTime(reportTimeMs(u.createdAt))}注册</span>}
+          </div>
+        </div>
+      </div>
+
+      {/* 封禁原因：管理员应当一眼看到"这人当时为什么被封"，不该藏在 title 里（手机没有 hover） */}
+      {banned && u.banned?.reason && (
+        <p className="mt-2 rounded-lg bg-rose-500/5 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300/80">
+          封禁原因：{u.banned.reason}
+        </p>
+      )}
+
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        {/* ★★ 管理员行**不渲染**封禁/删除：服务端也会拒（防手滑团灭），但摆一个
+            必然失败的按钮只会让人以为后台坏了（CLAUDE.md「永远点不动的选项」那条坑）。
+            要处置一个管理员，先在服务端给他降权。发通知照常可用。 */}
+        {!admin &&
+          (banned ? (
+            <button
+              onClick={() => void run(() => unbanUser(u._id), onDone)}
+              disabled={busy}
+              className="rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs text-emerald-300 disabled:opacity-40"
+            >
+              {busy ? "处理中…" : "解封"}
+            </button>
+          ) : (
+            <button
+              onClick={() => openPanel("ban")}
+              disabled={busy}
+              className="rounded-full bg-amber-500/20 px-3 py-1.5 text-xs text-amber-200 disabled:opacity-40"
+            >
+              封禁…
+            </button>
+          ))}
+        <button
+          onClick={() => openPanel("notify")}
+          disabled={busy}
+          className="rounded-full bg-slate-700 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-40"
+        >
+          发通知…
+        </button>
+        {!admin && (
+          <button
+            onClick={() => openPanel("delete")}
+            disabled={busy}
+            className="rounded-full border border-rose-500/40 px-3 py-1.5 text-xs text-rose-300 disabled:opacity-40"
+          >
+            删除账号…
+          </button>
+        )}
+        {sent && <span className="text-[11px] text-emerald-300">通知已发送</span>}
+      </div>
+
+      {panel === "ban" && (
+        <div className="mt-2.5 space-y-2 rounded-lg bg-black/25 p-2.5">
+          <p className="text-[11px] leading-relaxed text-slate-400">
+            封禁挡的是<b>登录与一切带登录态的请求</b>，对方会看到下面这句原因。
+            封禁<b>不会</b>自动隐藏其已发内容 —— 内容处置请到作品/评论/弹幕里逐条下架或删除（两权分开）。
+          </p>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={BAN_REASON_MAX}
+            rows={2}
+            placeholder="封禁原因（必填，会展示给该用户）"
+            className="w-full rounded-lg bg-panel p-2 text-sm text-slate-100 outline-none placeholder:text-slate-600"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() =>
+                void run(
+                  () => banUser(u._id, reason),
+                  () => {
+                    setReason("");
+                    setPanel("");
+                    onDone();
+                  }
+                )
+              }
+              disabled={busy || !reason.trim()}
+              className="rounded-full bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-200 disabled:opacity-40"
+            >
+              {busy ? "处理中…" : "确认封禁"}
+            </button>
+            <button onClick={() => setPanel("")} className="text-xs text-slate-500">
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+
+      {panel === "notify" && (
+        <div className="mt-2.5 space-y-2 rounded-lg bg-black/25 p-2.5">
+          <textarea
+            value={notice}
+            onChange={(e) => setNotice(e.target.value)}
+            maxLength={ADMIN_NOTICE_MAX}
+            rows={3}
+            placeholder="通知内容（以平台名义送达对方的消息页）"
+            className="w-full rounded-lg bg-panel p-2 text-sm text-slate-100 outline-none placeholder:text-slate-600"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() =>
+                void run(
+                  () => notifyUser(u._id, notice),
+                  () => {
+                    // 发通知不改列表也不改统计 —— 不重读，只留一句看得见的回执（铁律八）
+                    setNotice("");
+                    setPanel("");
+                    setSent(true);
+                  }
+                )
+              }
+              disabled={busy || !notice.trim()}
+              className="rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-ink disabled:opacity-40"
+            >
+              {busy ? "发送中…" : "发送"}
+            </button>
+            <button onClick={() => setPanel("")} className="text-xs text-slate-500">
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+
+      {panel === "delete" && (
+        <div className="mt-2.5 space-y-2 rounded-lg bg-black/25 p-2.5">
+          {/* ★ 后果逐条说全（危险动作的纪律）：删号是级联硬删，没有后悔药。
+              两条措辞是照实收过的（2026-08-14 复查）：
+              · 不许写"连同视频文件一起删除"——级联只清数据库行，Cloudinary 上的
+                视频/封面/帧图不随删，缓存过 URL 的人仍然拉得到；承诺做不到的事
+                比不承诺糟得多（铁律五）。
+              · "别人回复在其评论下的楼中楼也会被删"必须说：那是**第三方**的内容，
+                管理员按清单理解成"只删他自己的东西"，事后收到别人投诉"我的回复没了"
+                会确信自己没删过。 */}
+          <ul className="list-disc space-y-0.5 pl-4 text-[11px] leading-relaxed text-rose-300/90">
+            <li>账号本身永久删除，无法恢复，也无法用同名重建找回任何数据</li>
+            <li>其<b>全部作品</b>（含私密与已下架的）从平台删除；⚠ 视频/图片<b>文件</b>暂不随删，已流出的直链仍可访问</li>
+            <li>其发出的<b>评论、弹幕</b>全部删除；别人作品下的也一样；⚠ <b>其他用户</b>回复在这些评论下的楼中楼会被连带删除</li>
+            <li>相关的举报记录、通知、代币流水、卡片/卡组一并清除</li>
+          </ul>
+          <p className="text-[11px] text-slate-400">
+            输入该用户的用户名 <code className="rounded bg-panel px-1 text-slate-200">{u.username ?? "（无用户名）"}</code> 以确认：
+          </p>
+          <input
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder="输入用户名确认"
+            className="w-full rounded-lg bg-panel p-2 text-sm text-slate-100 outline-none placeholder:text-slate-600"
+          />
+          <div className="flex items-center gap-2">
+            {/* ★ 用户名逐字相等才亮删除键。u.username 缺失时永远点不亮 ——
+                宁可删不掉，也不能在没有确认物的情况下放行一个不可逆动作 */}
+            <button
+              onClick={() =>
+                void run(
+                  // ★ removed 明细必须带出去显示：这是全后台威力最大的按钮，按下之后
+                  //   行从列表里消失，不给清单的话管理员只能"从行没了反推删成了"（铁律五）
+                  async () => onDeleted(summarizeRemoved(await deleteUserAccount(u._id))),
+                  () => {
+                    setPanel("");
+                    onDone();
+                  }
+                )
+              }
+              disabled={busy || !u.username || confirmText !== u.username}
+              className="rounded-full bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-300 disabled:opacity-40"
+            >
+              {busy ? "删除中…" : "永久删除该账号"}
+            </button>
+            <button
+              onClick={() => {
+                setPanel("");
+                setConfirmText("");
+              }}
+              className="text-xs text-slate-500"
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+
+      {err && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+    </article>
+  );
+}
+
+// ── 作品列表 ──────────────────────────────────────────────
+
+type VideoFilter = "all" | "down";
+
+function VideosView({ onChanged }: { onChanged: () => void }) {
+  const [q, setQ] = useState("");
+  const { items, supported, err, loading, load, loadMore, hasMore, total } = useAdminList(listAdminVideos, q);
+  const [filter, setFilter] = useState<VideoFilter>("all");
+
+  const shown = items.filter((v) => {
+    // 判「下没下架」看 takedown 子文档在不在（与举报队列同一条判据）
+    if (filter === "down" && !v.takedown) return false;
+    return hit(q, v.title, v.description, displayNameOf(v.author), v._id);
+  });
+
+  return (
+    <section>
+      <div className="mb-2.5 space-y-2.5">
+        <SearchBox value={q} onChange={setQ} placeholder="搜标题 / 简介 / 作者 / id" />
+        <div className="flex items-center gap-2">
+          <Chips
+            options={[
+              { id: "all", label: "全部" },
+              { id: "down", label: "已下架" },
+            ]}
+            value={filter}
+            onChange={setFilter}
+          />
+          <RefreshBtn
+            onClick={() => {
+              void load();
+              onChanged();
+            }}
+          />
+        </div>
+      </div>
+
+      {loading && <p className="text-xs text-slate-500">读取中…</p>}
+      {!loading && !supported && !err && <Unsupported what="作品管理列表" />}
+      {err && <ErrBox text={err} />}
+      {!loading && supported && !err && shown.length === 0 && (
+        <p className="py-8 text-center text-sm text-slate-500">{items.length === 0 ? "一条作品都没有" : "没有匹配的作品"}</p>
+      )}
+
+      <div className="space-y-3">
+        {shown.map((v) => (
+          <VideoRow
+            key={v._id}
+            v={v}
+            onDone={() => {
+              void load();
+              onChanged();
+            }}
+          />
+        ))}
+      </div>
+      <LoadMore hasMore={hasMore} loading={loading} total={total} shown={items.length} onMore={() => void loadMore()} />
+    </section>
+  );
+}
+
+/** 作品行 + 下架/撤销/删除。takedowns 视图也复用它（那边只是数据源不同） */
+function VideoRow({ v, onDone }: { v: ApiVideo; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  /** "" | "takedown" | "delete"（下架要填原因；删除要按两下 —— 同 ReportCard 的做法，
+   *  不用 window.confirm：Capacitor 的 WebView 里那是个割裂的系统弹窗，部分机型直接拦掉） */
+  const [panel, setPanel] = useState<"" | "takedown" | "delete">("");
+  const [reason, setReason] = useState("");
+
+  const down = !!v.takedown;
+
+  async function run(action: () => Promise<unknown>) {
+    if (busy) return;
+    setBusy(true);
+    setErr("");
+    try {
+      await action();
+      setPanel("");
+      onDone();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "没能完成，请重试");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <article className="rounded-xl border border-slate-700 bg-panel p-3">
+      <div className="flex items-start gap-3">
+        {v.cover && <img src={v.cover} alt="" className="h-14 w-10 flex-none rounded object-cover" />}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="truncate text-sm font-semibold text-slate-100">{v.title || "（无标题）"}</span>
+            {v.visibility === "private" && <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300">私密</span>}
+            {down && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300">已下架</span>}
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
+            <span>{displayNameOf(v.author)}</span>
+            <span>· 播放 {v.plays ?? 0}</span>
+            <span>· 赞 {v.likes ?? 0}</span>
+            {reportTimeMs(v.createdAt) > 0 && <span>· {relativeTime(reportTimeMs(v.createdAt))}</span>}
+          </div>
+          {down && v.takedown?.reason && (
+            <p className="mt-1 text-[11px] leading-relaxed text-amber-300/80">下架原因：{v.takedown.reason}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        {down ? (
+          <button
+            onClick={() => void run(() => revokeTakedown(v._id))}
+            disabled={busy}
+            className="rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs text-emerald-300 disabled:opacity-40"
+          >
+            {busy ? "处理中…" : "重新上架"}
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              setErr("");
+              setPanel(panel === "takedown" ? "" : "takedown");
+            }}
+            disabled={busy}
+            className="rounded-full bg-amber-500/20 px-3 py-1.5 text-xs text-amber-200 disabled:opacity-40"
+          >
+            下架…
+          </button>
+        )}
+        {panel === "delete" ? (
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => void run(() => deleteVideo(v._id))}
+              disabled={busy}
+              className="rounded-full bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-300 disabled:opacity-40"
+            >
+              {busy ? "删除中…" : "确认删除"}
+            </button>
+            <button onClick={() => setPanel("")} className="text-xs text-slate-500">
+              取消
+            </button>
+            <span className="w-full text-[10px] leading-relaxed text-slate-500">删除不可撤销。只想让它不再被看到就用「下架」。</span>
+          </span>
+        ) : (
+          <button
+            onClick={() => {
+              setErr("");
+              setPanel("delete");
+            }}
+            disabled={busy}
+            className="rounded-full border border-rose-500/40 px-3 py-1.5 text-xs text-rose-300 disabled:opacity-40"
+          >
+            删除…
+          </button>
+        )}
+        <Link to={`/video/${v._id}`} className="ml-auto text-[11px] text-brand underline">
+          去现场 →
+        </Link>
+      </div>
+
+      {panel === "takedown" && (
+        <div className="mt-2.5 space-y-2 rounded-lg bg-black/25 p-2.5">
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={TAKEDOWN_REASON_MAX}
+            rows={2}
+            placeholder="下架原因（必填，作者会看到这句话）"
+            className="w-full rounded-lg bg-panel p-2 text-sm text-slate-100 outline-none placeholder:text-slate-600"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => void run(() => takedownVideo(v._id, reason))}
+              disabled={busy || !reason.trim()}
+              className="rounded-full bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-200 disabled:opacity-40"
+            >
+              {busy ? "处理中…" : "确认下架"}
+            </button>
+            <button onClick={() => setPanel("")} className="text-xs text-slate-500">
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+
+      {err && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+    </article>
+  );
+}
+
+// ── 已下架列表（「重新上架」的入口） ───────────────────────
+
+function TakedownsView({ onChanged }: { onChanged: () => void }) {
+  const { items, supported, err, loading, load, loadMore, hasMore, total } = useAdminList(listTakedownVideos);
+
+  return (
+    <section>
+      <div className="mb-2.5 flex items-center gap-2">
+        <p className="text-[11px] leading-relaxed text-slate-500">
+          被平台下架的作品只有作者与管理员看得到。「重新上架」幂等，重复点不会出错。
+        </p>
+        <RefreshBtn
+          onClick={() => {
+            void load();
+            onChanged();
+          }}
+        />
+      </div>
+
+      {loading && <p className="text-xs text-slate-500">读取中…</p>}
+      {!loading && !supported && !err && <Unsupported what="已下架列表" />}
+      {err && <ErrBox text={err} />}
+      {!loading && supported && !err && items.length === 0 && (
+        <p className="py-8 text-center text-sm text-slate-500">现在没有被下架的作品</p>
+      )}
+
+      <div className="space-y-3">
+        {items.map((v) => (
+          // 行为与作品列表同一份实现（VideoRow 自己按 takedown 在不在切按钮）——
+          // 「怎么撤销下架」只有一处（铁律六）
+          <VideoRow
+            key={v._id}
+            v={v}
+            onDone={() => {
+              void load();
+              onChanged();
+            }}
+          />
+        ))}
+      </div>
+      <LoadMore hasMore={hasMore} loading={loading} total={total} shown={items.length} onMore={() => void loadMore()} />
+    </section>
+  );
+}
+
+// ── 评论 / 弹幕列表 ───────────────────────────────────────
+
+function ContentView({ kind, onChanged }: { kind: "comment" | "danmaku"; onChanged: () => void }) {
+  // 两个模块级函数引用稳定，三元不会造成 useAdminList 重拉
+  const loader = kind === "comment" ? listAdminComments : listAdminDanmaku;
+  const [q, setQ] = useState("");
+  // q（正文/作者）下推服务端在全量里查；vq（按作品筛）留在本地 —— 它筛的是"这一页里
+  //   属于哪条作品"，与分页语义正交，下推反而要服务端多认一个参数
+  const { items, supported, err, loading, load, loadMore, hasMore, total } = useAdminList(loader, q);
+  const [vq, setVq] = useState("");
+
+  const label = TARGET_LABEL[kind];
+  const shown = items.filter((c) => hit(q, c.text, displayNameOf(c.author)) && hit(vq, c.videoId, c.videoTitle));
+
+  return (
+    <section>
+      <div className="mb-2.5 space-y-2.5">
+        <SearchBox value={q} onChange={setQ} placeholder={`搜${label}正文 / 作者`} />
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <SearchBox value={vq} onChange={setVq} placeholder="按作品筛（作品标题或 id）" />
+          </div>
+          <RefreshBtn
+            onClick={() => {
+              void load();
+              onChanged();
+            }}
+          />
+        </div>
+      </div>
+
+      {loading && <p className="text-xs text-slate-500">读取中…</p>}
+      {!loading && !supported && !err && <Unsupported what={`${label}管理列表`} />}
+      {err && <ErrBox text={err} />}
+      {!loading && supported && !err && shown.length === 0 && (
+        <p className="py-8 text-center text-sm text-slate-500">{items.length === 0 ? `一条${label}都没有` : `没有匹配的${label}`}</p>
+      )}
+
+      <div className="space-y-3">
+        {shown.map((c) => (
+          <ContentRow
+            key={c._id}
+            kind={kind}
+            c={c}
+            onDone={() => {
+              void load();
+              onChanged();
+            }}
+          />
+        ))}
+      </div>
+      <LoadMore hasMore={hasMore} loading={loading} total={total} shown={items.length} onMore={() => void loadMore()} />
+    </section>
+  );
+}
+
+function ContentRow({ kind, c, onDone }: { kind: "comment" | "danmaku"; c: ApiAdminContent; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [confirming, setConfirming] = useState(false);
+
+  const at = reportTimeMs(c.createdAt);
+
+  async function doDelete() {
+    if (busy || !c.videoId) return;
+    setBusy(true);
+    setErr("");
+    try {
+      // 删除复用既有端点（DELETE /api/branch/videos/:videoId/...，admin 由服务端
+      // assertCanDelete 放行）—— 「怎么删一条评论/弹幕」全 app 只有一份实现（铁律六）
+      const landed = kind === "comment" ? await removeComment(c.videoId, c._id) : await removeDanmaku(c.videoId, c._id);
+      if (!landed) {
+        // 回包形状不对 = 这台服务器没有删除端点。如实说，别让这条从列表里消失（铁律八）
+        setErr("这台服务器还不支持删除（需要升级服务端）");
+        setConfirming(false);
+        return;
+      }
+      onDone();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "没删掉，请重试");
+      setConfirming(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <article className="rounded-xl border border-slate-700 bg-panel p-3">
+      <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-200">{c.text || "（空）"}</p>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
+        {/* ★ 弹幕对外匿名，但管理端带作者（唯一透出处，见 api/admin 的说明）——
+            审核弹幕不知道是谁发的，封禁就无从下手 */}
+        {c.author && <span>{displayNameOf(c.author)}</span>}
+        {typeof c.at === "number" && kind === "danmaku" && <span>· 第 {Math.round(c.at)} 秒</span>}
+        {at > 0 && <span>· {relativeTime(at)}</span>}
+        {c.videoTitle && <span className="truncate">· 《{c.videoTitle}》</span>}
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {confirming ? (
+          <>
+            <button
+              onClick={() => void doDelete()}
+              disabled={busy}
+              className="rounded-full bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-300 disabled:opacity-40"
+            >
+              {busy ? "删除中…" : "确认删除"}
+            </button>
+            <button onClick={() => setConfirming(false)} className="text-xs text-slate-500">
+              取消
+            </button>
+          </>
+        ) : c.videoId ? (
+          <button
+            onClick={() => {
+              setErr("");
+              setConfirming(true);
+            }}
+            disabled={busy}
+            className="rounded-full border border-rose-500/40 px-3 py-1.5 text-xs text-rose-300 disabled:opacity-40"
+          >
+            删除…
+          </button>
+        ) : (
+          // 契约缺口要**说出来**：删除端点的路径要 videoId，服务端这条没带就删不了。
+          // 摆一个点了必然失败的按钮更糟（CLAUDE.md「永远点不动的选项」那条坑）
+          <span className="text-[10px] text-rose-300/70">服务端没带所属作品 id，这条删不了（需要升级服务端）</span>
+        )}
+        {c.videoId && (
+          <Link to={`/video/${c.videoId}`} className="ml-auto text-[11px] text-brand underline">
+            去现场 →
+          </Link>
+        )}
+      </div>
+
+      {err && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+    </article>
   );
 }
 

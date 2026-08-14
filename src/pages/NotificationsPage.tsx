@@ -32,6 +32,16 @@ function actionText(n: NotificationItem): string {
       // ★ 与「评论了你的作品」分开写：被 @ 的人**未必是作品作者**，多半是路过的第三个人。
       //   共用一句文案会让他以为是自己的作品被评论了，点进去发现是别人的片子。
       return "在评论里 @ 了你";
+    case "ADMIN_NOTICE":
+      // 平台口吻的那一行不走这个句式（见 NoticeRow），这里只是类型上兜全
+      return "平台通知";
+    default:
+      // ★★ 铁律七：**不认识的类型原样显示类型名**，不吞、不崩。这一支在类型上是
+      //   never（白名单是闭合联合），但运行时形状由服务端决定 —— 哪天两边版本错开，
+      //   能在界面上看见那个陌生词的人才知道该升级 App 了（铁律八：静默失败最糟）。
+      //   ⚠ 今天真正的未知类型到不了这里：data/notifications.ts 的 toItem 会把
+      //   白名单外的类型整条丢掉（return null）。这里是渲染层自己的最后一道兜底。
+      return String((n as NotificationItem).type);
   }
 }
 
@@ -144,7 +154,7 @@ export default function NotificationsPage() {
             </button>
           </div>
         ) : state.items.length === 0 ? (
-          <Empty text="还没有新消息" hint="别人赞你、评论你、回复你、在评论里 @ 你时会出现在这里" />
+          <Empty text="还没有新消息" hint="别人赞你、评论你、回复你、在评论里 @ 你，或平台发来通知时会出现在这里" />
         ) : (
           <ul className="divide-y divide-slate-800/70">
             {state.items.map((n) => (
@@ -153,14 +163,42 @@ export default function NotificationsPage() {
                   onClick={() => open(n)}
                   className="flex w-full items-start gap-3 py-3.5 text-left active:opacity-70"
                 >
-                  <Avatar name={n.actorName} src={n.actorAvatar} size={40} />
+                  {n.type === "ADMIN_NOTICE" ? (
+                    // ★ 平台口吻：**不显示是哪个管理员发的**（数据里 actor 是那位管理员，
+                    //   但把审核员透给被通知的用户等于把他摆到被骚扰的位置 ——
+                    //   与举报下架不带 by 是同一条取舍）。头像位画一只铃铛顶替。
+                    <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-brand/15 text-brand">
+                      <Icon name="bell" size={20} />
+                    </span>
+                  ) : (
+                    <Avatar name={n.actorName} src={n.actorAvatar} size={40} />
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="text-sm text-slate-200">
-                      <span className="font-semibold">{n.actorName}</span>
-                      <span className="text-slate-400"> {actionText(n)}</span>
+                      {n.type === "ADMIN_NOTICE" ? (
+                        <span className="font-semibold">平台通知</span>
+                      ) : (
+                        <>
+                          <span className="font-semibold">{n.actorName}</span>
+                          <span className="text-slate-400"> {actionText(n)}</span>
+                        </>
+                      )}
                     </div>
-                    {n.commentText && (
-                      <div className="mt-0.5 truncate text-[13px] text-slate-300">「{n.commentText}」</div>
+                    {n.type === "ADMIN_NOTICE" ? (
+                      // ★ 正文**不截断**（互动通知那行是预览，这行是内容本身）：
+                      //   平台通知多半在解释一次处置，被截掉一半比没收到更糟。
+                      n.commentText ? (
+                        <div className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-slate-300">
+                          {n.commentText}
+                        </div>
+                      ) : (
+                        // 服务端没把正文放进 payload.commentText —— 契约问题，说出来（铁律八）
+                        <div className="mt-0.5 text-[13px] text-rose-300">（通知内容缺失）</div>
+                      )
+                    ) : (
+                      n.commentText && (
+                        <div className="mt-0.5 truncate text-[13px] text-slate-300">「{n.commentText}」</div>
+                      )
                     )}
                     {n.videoTitle && (
                       <div className="mt-0.5 truncate text-xs text-slate-500">{n.videoTitle}</div>
