@@ -19,8 +19,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // ★ 每发一版给别人装，versionCode 必须 +1 —— Android 只认这个整数判新旧，
         //   不涨的话所有已安装用户的更新检查都判不出有新版（等于没发，且失败是静默的）
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
