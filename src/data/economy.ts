@@ -2,6 +2,20 @@
 // token 与方舟视频 token 同量纲（720p 24fps：时长×1280×720×24/1024/秒），
 // 档位系数按各模型单价相对标准档（1.0-pro 15元/M）折算——用户看到的数字
 // 就是真实资源消耗，不做虚拟汇率。
+//
+// ── r2v（白模模板出片）的计费契约 ──────────────────────────────
+// 方舟公式（✅ 2026-08 A3 实测：同素材各打一发 t2v 与 r2v，两行账单逐 token 对上，分毫不差）：
+//   raw tokens = (输入视频时长 + 输出时长) × 输出宽 × 输出高 × fps ÷ 1024
+// **输入视频的时长也计费**。输出恒为 720p 档（16:9 实测给 1280×720 = 921,600px，
+// adaptive 实测给 1266×728 = 921,648px，都是 92 万像素级）、fps=24
+// ⇒ 每秒 21,600 raw tokens（SEC_720P_TOKENS —— 与 segTokens 同一个常量，铁律六）。
+// 报价按【输出时长 = 输入时长】取上界：edit 任务输出≈输入是协议行为，实测方舟还会
+// 略微裁短输出（14.04s 输入 → 13.67s 计费），报价≥实收方向安全，误差 ~1%。
+// Seedance 2.5 含视频输入档 42 元/M ⇒ 系数 42/15 = 2.8（ULTRA_R2V_MULT）。
+// ⚠ 「42 < 70 所以 r2v 便宜」的直觉是**反的**：输入也计费 + 输出=输入，同时长下
+//   r2v ≈ 纯任务的 2×2.8/4.7 ≈ 1.2 倍 —— 报价行必须写明含输入费。
+// ★ 跨仓契约：server 的 config/tokens.js **VIDEO_MULT_R2V** 必须与本表 r2vMult 逐条
+//   相等（同 VIDEO_MULT ↔ mult 的对账关系，server 侧 spec 有钉子）。
 import {
   CARD_SIZE,
   CARD_SLOTS,
@@ -52,6 +66,17 @@ export const RECHARGE_PACKS = [
  */
 const ULTRA_MULT = 4.7;
 
+/**
+ * Seedance 2.5 **含视频输入**档（r2v/白模模板）的系数：42 元/百万 token ÷ 15 = 2.8。
+ *
+ * ✅ 与 ULTRA_MULT 那种"两个第三方来源互证"不同，这个数是**对过真账单**的：
+ *   2026-08 A3 实测两发，raw 用量与文件头那条公式逐 token 相等，金额命中 42 元/M 档。
+ * ★ 它与 ULTRA_MULT 不是一个东西也**不许互相推导**：4.7 是纯任务（不含视频输入）
+ *   70 元/M 档，2.8 是含视频输入 42 元/M 档 —— 方舟按请求里有没有 reference_video
+ *   分档计价，server 的 resolveR2v 也按同一判据换表。
+ */
+const ULTRA_R2V_MULT = 2.8;
+
 /** Seedance 档位：id 持久化在 VideoSegment.videoTier / EditorState.videoTier */
 export interface VideoTier {
   id: string;
@@ -73,6 +98,26 @@ export interface VideoTier {
    */
   refImg: boolean;
   /**
+   * 是否开放**白模模板出片**（r2v：参考视频 edit 逐镜头复刻，只换主体）。
+   *
+   * ★ 四档全部显式写值、不留 undefined（同 refImg 的理由：留空就得到处 `?? false`，
+   *   那是第二处默认值）。
+   * ★★ 首发**四档全 false 是有意的闸门**，不是没写完：协议层（arkClient）、报价
+   *   （r2vTokens）、系数（r2vMult 已按实测账单钉死）都已就位，但「能不能卖」要等
+   *   模板上传/登记链路上线后，由仓库主人核账并用**一个只翻这一个布尔的 commit** 开闸
+   *   （首发只开 ultra）。关闸期界面照 r2vPriceIssue 的整句「看得见但点不动 + 说原因」，
+   *   不摆灰按钮，也**绝不静默退回首尾帧**（那是偷换商品，见 segmentGen 的 blockoutOn）。
+   */
+  refVid: boolean;
+  /**
+   * r2v 档位系数（口径同 mult：元/百万 token ÷ 15）。**null = 这一档没有 r2v 价** ——
+   * 不是 0、不是免费，r2vTokens 会返回 null、r2vPriceIssue 会整句拦下（价目缺失时
+   * 唯一诚实的做法是既不报价也不开炼，同 imageTierPriceIssue 那条）。
+   * ultra = ULTRA_R2V_MULT（2.8，实测账单核过）；hd 将来若开闸备选 0.93
+   * （2.0-mini 含视频输入 14 元/M 刊例价），前置是 A6 参数行为实测 + 账单核对。
+   */
+  r2vMult: number | null;
+  /**
    * 只有付费套餐能选。免费版**看得见但选不了**，并写出原因（藏起来用户不知道有这回事）。
    * ★ 这只是界面提示，**不是安全边界** —— 真正的拦截在服务端按当前用户套餐判。
    *   判断本身只有一处：data/account.tierBlockReason。
@@ -88,12 +133,14 @@ export interface VideoTier {
 }
 
 export const VIDEO_TIERS: VideoTier[] = [
-  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 0.3, flf: false, refImg: false, minSec: 3, desc: "省 token · 首帧起拍，不锁尾帧" },
-  { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, minSec: 3, desc: "首尾帧可控（默认）" },
+  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 0.3, flf: false, refImg: false, refVid: false, r2vMult: null, minSec: 3, desc: "省 token · 首帧起拍，不锁尾帧" },
+  { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, minSec: 3, desc: "首尾帧可控（默认）" },
   // ★ desc 是给**用户**看的，不是给运维看的。原来这里写的是「需在方舟控制台开通 2.0 系列」——
   //   那是部署方的事，终端用户既看不懂也做不了（CLAUDE.md 那条「界面上摆一个用户看不懂
   //   也做不了事的东西」）。开通与否的后果由服务端 ALLOWED_MODELS 与方舟的 ModelNotOpen 负责。
-  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 1.6, flf: true, refImg: true, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片" },
+  // hd 的 r2vMult 刻意留 null（不是忘了）：0.93 只是刊例折算的备选，A6（mini 对
+  // omni_reference_task_type 的行为）与账单都没核过 —— 没核过的价不进表（见文件头）。
+  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 1.6, flf: true, refImg: true, refVid: false, r2vMult: null, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片" },
   {
     id: "ultra",
     label: "电影级",
@@ -101,6 +148,11 @@ export const VIDEO_TIERS: VideoTier[] = [
     mult: ULTRA_MULT,
     flf: true,
     refImg: true,
+    // ★ r2v 开闸只翻 refVid 这一个布尔（系数已实测钉死在 ULTRA_R2V_MULT）。
+    //   现在 false：App 侧模板上传/登记链路还没上线，服务端 resolveR2v 只认已登记
+    //   模板 URL，开了也无模板可用 —— 关着才不会出现"按钮能按、一按必失败"。
+    refVid: false,
+    r2vMult: ULTRA_R2V_MULT,
     paidOnly: true,
     // 2.5 的时长区间是 [4,30]，3 秒会被同步 400（见 VideoTier.minSec）
     minSec: 4,
@@ -146,10 +198,61 @@ export function clampDuration(durationSec: number, tierId?: string): number {
   return Math.max(tierOf(tierId).minSec, Math.min(10, Math.round(durationSec)));
 }
 
+/**
+ * 720p 档一秒视频的 raw token：1280×720×24÷1024 = 21,600。
+ * ★ **全仓唯一一处**（铁律六）：segTokens（纯任务）与 r2vTokens（白模 r2v）共用。
+ *   r2v 的 adaptive 输出实测也是 92 万像素级（1266×728 = 921,648 vs 1280×720 = 921,600，
+ *   差 0.005%），同一个每秒数照样成立 —— 别为 adaptive 另抄一份。
+ */
+const SEC_720P_TOKENS = (1280 * 720 * 24) / 1024;
+
 /** 一段 720p 视频的 token 估算（方舟公式：时长×宽×高×帧率/1024，×档位系数） */
 export function segTokens(durationSec: number, tierId?: string): number {
-  const base = (clampDuration(durationSec, tierId) * 1280 * 720 * 24) / 1024;
-  return Math.round(base * tierOf(tierId).mult);
+  return Math.round(clampDuration(durationSec, tierId) * SEC_720P_TOKENS * tierOf(tierId).mult);
+}
+
+/** r2v 公式核心：(输入 + 输出) × 每秒 21,600 × 系数，输出按 = 输入取上界 ⇒ 输入 × 2。
+ *  拆出来是给 segmentCost 的兜底分支复用的 —— 同一条式子不许出现第二份（铁律六）。 */
+function r2vRawTokens(inputSec: number, mult: number): number {
+  return Math.round(inputSec * 2 * SEC_720P_TOKENS * mult);
+}
+
+/**
+ * 白模模板（r2v）一段出片的 token 估算。**null = 这一档报不出 r2v 价**，不是免费
+ * （类型逼着调用方处理，同 imageTierTokens；人话侧走 r2vPriceIssue）。
+ *
+ * ★ 公式见文件头「r2v 计费契约」（A3 账单逐 token 核过）：输入视频的时长**也计费**。
+ * ★ 只收 inputSec 一个时长，因为报价按【输出时长 = 输入时长】取上界：edit 任务
+ *   输出≈输入是**协议行为**（不是我们能选的参数），实测方舟还会略微裁短输出
+ *   （14.04s 输入 → 13.67s 计费）—— 报价≥实收方向安全，误差 ~1%。
+ * ★ **不过 clampDuration**：那个 10s 上限是纯 t2v 档位的产品约束（时长按钮选出来的数），
+ *   白模没有时长选择器 —— 时长跟着模板走（上传窗口 [4,15]s，服务端复核兜底）。
+ *   在这里夹到 10 就是"报 10s 的价、按 15s 实收"，正是本文件最怕的方向。
+ * ★ inputSec 只准喂 `template.refVideo.durationSec`（服务端登记值的镜像，见 types.ts）——
+ *   别拿 `<video>` 现探的本机值：server 结算按 URL 反查同一份登记值，两端必须算同一个数。
+ */
+export function r2vTokens(inputSec: number, tierId?: string): number | null {
+  const m = tierOf(tierId).r2vMult;
+  return m === null ? null : r2vRawTokens(inputSec, m);
+}
+
+/**
+ * 「这一档现在能不能按白模（r2v）报价/出片」—— **唯一实现**，照 imageTierPriceIssue
+ * 的形状：null = 能，否则是一句给用户看的整句原因（界面拿它决定按钮能不能按、旁边写
+ * 什么，而不是各自去档位表里探一次，铁律六）。
+ *
+ * ★ 先查 refVid 再查 r2vMult，顺序是有意的：refVid 是**闸门**（开闸 = 仓库主人只翻
+ *   那一个布尔的 commit），r2vMult 是**价签**。闸没开时说「暂未开放」比说「报不出价」
+ *   诚实 —— ultra 的价其实已经钉死了，没开的是链路。
+ * ★ 为什么非有这句：价目/闸门不满足时唯一诚实的做法是既不报价也不开炼。放过去只有
+ *   两个下场 —— 静默退回首尾帧（背景/运镜全丢、钱照收，偷换商品），或按错的系数收。
+ */
+export function r2vPriceIssue(tierId?: string): string | null {
+  const t = tierOf(tierId);
+  if (!t.refVid) return `「${t.label}」这一档暂未开放白模模板出片，等开放后再来`;
+  if (t.r2vMult === null)
+    return `「${t.label}」这一档的白模出片暂时报不出价（${modelLabel(t.model)} 的 r2v 单价未核账），先用别的档位`;
+  return null;
 }
 
 // ── 出图模型与铸卡档位 ─────────────────────────────────────────
@@ -550,6 +653,19 @@ export function templateSettle(frameCount: number, minted: number): number {
 }
 
 /**
+ * 提**白模模板**的预估：看 N 帧总结配方，**单遍视觉、卡面恒 0 张**（预估即结算 ——
+ * 没有"按实出卡"的浮动项，所以不像 templateCost 那样配一个 Settle 伴生函数）。
+ *
+ * ★ 与 templateCost（两遍视觉 + 最多 TEMPLATE_MAX_CARDS 张卡）**不是一回事，别复用**：
+ *   白模里全是大色块和红色小人，「认素材卡」那一遍必然空手而归 —— 跑了是白烧钱，
+ *   照 6 张报价则是吓唬人（报价≠实收的另一个方向，两种都不报错）。配方总结一遍就够。
+ * ★ 仍走 visionCardsTokens（cards=0 时卡面项自然为 0）：「看一帧多少钱」只有那一处。
+ */
+export function blockoutTemplateCost(frameCount: number): number {
+  return visionCardsTokens(frameCount, 0);
+}
+
+/**
  * 「炼一段」的**整笔**报价：出片 + 这一段还得现补几张设定帧。
  *
  * ★ 补帧条件与 studio/segmentGen 的第③步同源（缺首帧就画首帧；flf 档缺尾帧再画一张），
@@ -557,6 +673,9 @@ export function templateSettle(frameCount: number, minted: number): number {
  *   那条路 —— 用户看到 108k，实际还烧掉两张 Seedream（26.6k），差价没人说过一个字。
  * ★ 走**参考生视频**（refMode）时一张设定帧都不画，省下的钱必须从报价里也去掉：
  *   界面报一个用不上的价，和报低了一样是骗人。
+ * ★ 走**白模模板**（refVideo）时同样一张帧不画（画面整个来自参考视频），且 token
+ *   换 r2v 公式 —— 时长跟模板走，入参的 durationSec 在这条路上**不参与计算**
+ *   （白模节点没有时长选择器，也不过 clampDuration，理由见 r2vTokens）。
  */
 export function segmentCost(o: {
   durationSec: number;
@@ -567,7 +686,25 @@ export function segmentCost(o: {
   hasLastFrame: boolean;
   /** 这一段走参考生视频（多图直出，不画设定帧） */
   refMode: boolean;
+  /**
+   * 这一段走**白模模板**（r2v）。inputSec = 模板参考视频的时长 —— **只准从
+   * `template.refVideo.durationSec`（服务端登记值镜像）读**，别拿本机 `<video>` 现探：
+   * server 按同一份登记值结算，两端要算同一个数（见 r2vTokens 的 ★）。
+   */
+  refVideo?: { inputSec: number };
 }): number {
+  if (o.refVideo) {
+    const quoted = r2vTokens(o.refVideo.inputSec, o.tierId);
+    if (quoted !== null) return quoted;
+    // ★ 走到这里 = 调用方没先问 r2vPriceIssue 就带着 refVideo 来报价（那是它的失职，
+    //   但这里不能抛 —— 本函数在 render 里被调，抛 = 白屏，同 IMAGE_TOKENS 那段的理由）；
+    //   也不能按经典路报（那是另一件商品的价）。照 IMAGE_TOKENS 的处置：按表里最贵的
+    //   r2v 系数报 —— 报价宁可偏高也不能偏低 —— 并 console.error 点名，让改坏门禁的人
+    //   当场看见。ULTRA_R2V_MULT 垫底是防"有人把表里的 r2vMult 全删光"的最后一道。
+    console.error(`[economy] 档位 ${o.tierId ?? DEFAULT_TIER} 没有 r2v 单价却被要求按白模报价（调用方该先问 r2vPriceIssue）`);
+    const worst = VIDEO_TIERS.reduce((m, t) => Math.max(m, t.r2vMult ?? 0), ULTRA_R2V_MULT);
+    return r2vRawTokens(o.refVideo.inputSec, worst);
+  }
   const tier = tierOf(o.tierId);
   const draws = o.refMode ? 0 : (o.hasFirstFrame ? 0 : 1) + (tier.flf && !o.hasLastFrame ? 1 : 0);
   return segTokens(o.durationSec, o.tierId) + draws * IMAGE_TOKENS;

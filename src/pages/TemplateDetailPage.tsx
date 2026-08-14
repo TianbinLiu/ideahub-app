@@ -2,63 +2,259 @@
 //
 // 配方是明着给的，不藏——用户看得见"为什么这个模板出片像"，才知道该不该用它，
 // 也才能照着改出自己的版本。这与卡片详情页展示「生成蓝图」是同一个主张。
-import { useState } from "react";
+//
+// 白模模板（t.refVideo 存在，判定一律写存在性，types.ts 的 ★）在此之上多三块：
+//   · 参考视频就地预览 + 套用成本行（r2v 连输入视频时长也计费，必须写明——
+//     "42<70 所以更便宜"的直觉是反的）；
+//   · 作者侧的发布状态机：登记（pending）→ 试炼（provenAt，作者先用它真实出过一次片）
+//     → 发布（published）。状态的权威在服务端，这里只显示与转发；
+//   · 身份判定走服务端按 ownerId 算的 isOwner——**绝不拿显示名比对**。
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import { useTemplatesVersion } from "./TemplateMarketPage";
-import { deleteTemplate, getTemplate, myTemplates, updateTemplate } from "../data/templates";
+import {
+  deleteTemplateEverywhere,
+  fetchRemoteTemplateById,
+  getTemplate,
+  myTemplates,
+  refreshRemoteTemplate,
+  registerIssueOf,
+  registerTemplate,
+  remoteStateOf,
+  setTemplatePublished,
+  updateTemplate,
+} from "../data/templates";
+import { VIDEO_TIERS, fmtTokens, r2vPriceIssue, r2vTokens } from "../data/economy";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useFlow } from "../studio/flowStore";
 import { CARD_TYPE_LABELS, VideoTemplate } from "../types";
 
-/** 作者本人才能看到的发布/改名区。发布 = 进模板市场供别人使用 */
-function OwnerBar({ t }: { t: VideoTemplate }) {
+/**
+ * 白模出片会走哪一档。refVid 的**唯一出处**是 economy.VIDEO_TIERS（开闸 = 仓库主人翻
+ * ultra 那一个布尔的 commit）——flowStore.applyTemplate 的档位钳制读的也是这张表的
+ * 同一个标志，这里只是对同一张表的另一次读取，不是第二份"开没开"的登记处。
+ */
+function blockoutGate() {
+  return VIDEO_TIERS.find((x) => x.refVid) ?? null;
+}
+
+/** 闸门整句（null = 能出片能报价）。gate 不存在时的措辞与 flowStore.applyTemplate 一致 */
+function blockoutIssue(): string | null {
+  const gate = blockoutGate();
+  if (!gate) return "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来";
+  return r2vPriceIssue(gate.id);
+}
+
+/** 白模区：参考视频预览 + 套用成本行 */
+function BlockoutInfo({ t }: { t: VideoTemplate }) {
+  if (!t.refVideo) return null;
+  const gate = blockoutGate();
+  const issue = blockoutIssue();
+  // issue 为 null 时 gate 必然存在且报得出价（r2vPriceIssue 先查 refVid 再查 r2vMult）
+  const tokens = issue === null ? r2vTokens(t.refVideo.durationSec, gate!.id) : null;
+  return (
+    <div className="mb-4 rounded-xl border border-sky-500/30 bg-sky-500/5 p-3">
+      <div className="mb-2 text-xs font-semibold text-sky-300">⬜ 白模模板 · 参考视频 {t.refVideo.durationSec}s</div>
+      <video
+        src={t.refVideo.url}
+        controls
+        playsInline
+        preload="metadata"
+        className="mb-2 max-h-72 w-full rounded-lg bg-black"
+      />
+      <p className="text-[11px] leading-relaxed text-slate-400">
+        套用出片时 AI 会整段复刻这段视频的场景、道具与运镜，只把主角位（红色小人）换成你挂的角色卡。
+        出片时长≈模板时长、画幅自适应模板视频。
+      </p>
+      {issue !== null ? (
+        // 看得见但点不动 + 说原因（闸没开 / 价没核，整句来自 r2vPriceIssue 唯一实现）
+        <p className="mt-2 text-[11px] leading-relaxed text-amber-300/90">{issue}</p>
+      ) : (
+        tokens !== null && (
+          <p className="mt-2 text-[11px] leading-relaxed text-slate-300">
+            套用一次约 <b>{fmtTokens(tokens)}</b> token（「{gate!.label}」档 · 含模板视频 {t.refVideo.durationSec}s
+            的输入费——r2v 连输入视频的时长也计费，输出时长按≈模板时长估）
+          </p>
+        )
+      )}
+    </div>
+  );
+}
+
+/** 作者本人才能看到的发布/改名区。发布 = 进模板市场供别人使用。
+ *  经典配方照旧翻本机布尔；白模走服务端状态机（登记 → 试炼 → 发布），
+ *  两条路的发布/删除都收口在 data/templates 的 setTemplatePublished /
+ *  deleteTemplateEverywhere（铁律六：页面不各自去调 branch API）。 */
+function OwnerBar({ t, inMine, onApply }: { t: VideoTemplate; inMine: boolean; onApply: () => void }) {
   const nav = useNavigate();
   const [title, setTitle] = useState(t.title);
   const [intro, setIntro] = useState(t.intro);
+  const [busy, setBusy] = useState(false);
+  const [opErr, setOpErr] = useState("");
   const dirty = title !== t.title || intro !== t.intro;
-  return (
-    <div className="mt-4 rounded-xl border border-slate-700/70 bg-panel p-3">
-      <div className="mb-2 text-xs font-semibold text-slate-300">✎ 模板信息（只有你能改）</div>
-      <input
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="模板名"
-        className="mb-2 w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand"
-      />
-      <textarea
-        value={intro}
-        onChange={(e) => setIntro(e.target.value)}
-        rows={2}
-        placeholder="一句话说明这个模板能做什么样的片子"
-        className="mb-2 w-full resize-none rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand"
-      />
-      <div className="flex gap-2">
+  const blockout = !!t.refVideo;
+  const rs = remoteStateOf(t);
+  const regIssue = registerIssueOf(t.id);
+
+  /** 异步操作的统一收口：失败把 message 印出来（全 app 没人监听 emitApiError，
+   *  这里不接住就是静默失败——铁律八） */
+  async function run(op: () => Promise<void>) {
+    if (busy) return;
+    setBusy(true);
+    setOpErr("");
+    try {
+      await op();
+    } catch (e) {
+      setOpErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** 白模的发布区按远端状态机走；经典配方保持原来的一颗切换按钮 */
+  function publishArea() {
+    if (!blockout) {
+      return (
         <button
-          onClick={() => updateTemplate(t.id, { title: title.trim() || t.title, intro: intro.trim() })}
-          disabled={!dirty}
-          className="rounded-full bg-slate-700 px-3.5 py-1.5 text-xs font-semibold text-slate-100 disabled:opacity-40"
-        >
-          保存
-        </button>
-        <button
-          onClick={() => updateTemplate(t.id, { published: !t.published })}
+          onClick={() => void run(() => setTemplatePublished(t.id, !t.published))}
           className={`rounded-full px-3.5 py-1.5 text-xs font-bold ${t.published ? "bg-slate-700 text-slate-200" : "bg-brand text-ink"}`}
         >
           {t.published ? "取消发布" : "发布到模板市场"}
         </button>
+      );
+    }
+    // 还没登记上（saveTemplate 之后的异步登记失败了 / 还在路上）
+    if (!t.remoteId) {
+      return regIssue ? (
         <button
-          onClick={() => {
-            deleteTemplate(t.id);
+          onClick={() => void run(() => registerTemplate(t.id))}
+          disabled={busy}
+          className="rounded-full bg-amber-500/90 px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-50"
+        >
+          重新登记到服务器
+        </button>
+      ) : (
+        <span className="rounded-full bg-slate-700/60 px-3.5 py-1.5 text-xs text-slate-300">正在登记到服务器…</span>
+      );
+    }
+    if (rs?.status === "blocked") {
+      return <span className="rounded-full bg-rose-500/15 px-3.5 py-1.5 text-xs text-rose-300">已被平台下架</span>;
+    }
+    if (t.published) {
+      return (
+        <button
+          onClick={() => void run(() => setTemplatePublished(t.id, false))}
+          disabled={busy}
+          className="rounded-full bg-slate-700 px-3.5 py-1.5 text-xs font-bold text-slate-200 disabled:opacity-50"
+        >
+          取消发布
+        </button>
+      );
+    }
+    // 试炼闸：provenAt 由服务端在「作者本人的 r2v 任务真实出片成功」时写入，
+    // 这里只显示。没过闸也把发布按钮亮着——点了会得到服务端那句 400 整句
+    // （比灰按钮多一次确认机会，且文案永远与服务端一致）
+    return (
+      <button
+        onClick={() => void run(() => setTemplatePublished(t.id, true))}
+        disabled={busy}
+        className="rounded-full bg-brand px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-50"
+      >
+        {rs?.provenAt ? "发布到模板市场" : "发布（需先试炼）"}
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+      <div className="mb-2 text-xs font-semibold text-slate-300">✎ 模板信息（只有你能改）</div>
+      {/* 改名改简介写的是本机库；换设备后本机没有这条记录，改了也无处可存（V1 服务端
+          没有元数据编辑端点）——藏掉输入框，只留下架/删除这些走服务端的操作，
+          别摆一个"保存了却什么都没发生"的假按钮 */}
+      {!inMine && (
+        <p className="mb-2 text-[11px] leading-relaxed text-slate-400">
+          这台设备上没有它的本机记录（换了设备？）。可以在这里下架或删除；改名/改简介需回到当初提取它的设备。
+        </p>
+      )}
+      {inMine && (
+        <>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="模板名"
+            className="mb-2 w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand"
+          />
+          <textarea
+            value={intro}
+            onChange={(e) => setIntro(e.target.value)}
+            rows={2}
+            placeholder="一句话说明这个模板能做什么样的片子"
+            className="mb-2 w-full resize-none rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand"
+          />
+        </>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {inMine && (
+          <button
+            onClick={() => updateTemplate(t.id, { title: title.trim() || t.title, intro: intro.trim() })}
+            disabled={!dirty}
+            className="rounded-full bg-slate-700 px-3.5 py-1.5 text-xs font-semibold text-slate-100 disabled:opacity-40"
+          >
+            保存
+          </button>
+        )}
+        {publishArea()}
+        <button
+          onClick={() => void run(async () => {
+            await deleteTemplateEverywhere(t.id);
             nav("/templates");
-          }}
-          className="ml-auto rounded-full px-3 py-1.5 text-xs text-rose-400"
+          })}
+          disabled={busy}
+          className="ml-auto rounded-full px-3 py-1.5 text-xs text-rose-400 disabled:opacity-50"
         >
           删除
         </button>
       </div>
+      {/* 白模的试炼闸说明与操作：发布前须用本模板真实出过一次片。
+          为什么有这道门也要说给作者听——方舟任务受理后失败不退费，坏模板的钱
+          该坏在作者自己那一次，不该让每个套用的人各赔一次 */}
+      {blockout && t.remoteId && rs?.status !== "blocked" && !t.published && (
+        <div className="mt-2 rounded-lg bg-black/25 px-2.5 py-2 text-[11px] leading-relaxed text-slate-400">
+          {rs?.provenAt ? (
+            <span className="text-emerald-300">✓ 试炼通过——你已经用这个模板真实出过片，可以发布了。</span>
+          ) : (
+            <>
+              发布前须用本模板<b>真实出过一次片</b>（套用它、挂上角色卡、付费出一段）——这一步能确保套用你模板的人不会白花钱。
+              <span className="mt-1 flex gap-2">
+                <button onClick={onApply} className="rounded-full bg-slate-700 px-2.5 py-1 text-[11px] text-slate-100">
+                  去出一段片
+                </button>
+                <button
+                  onClick={() => void run(() => refreshRemoteTemplate(t.id))}
+                  disabled={busy}
+                  className="rounded-full bg-slate-700/60 px-2.5 py-1 text-[11px] text-slate-300 disabled:opacity-50"
+                >
+                  出过了？刷新状态
+                </button>
+              </span>
+            </>
+          )}
+        </div>
+      )}
+      {/* 登记失败的原因要印在页面上（重试按钮在上面）。regIssue 来自 data/templates
+          的登记旁路——不印的话它只活在 console 里，用户面对的是"发布按钮永远没反应" */}
+      {blockout && !t.remoteId && regIssue && (
+        <p className="mt-2 text-[11px] leading-relaxed text-amber-300/90">{regIssue}</p>
+      )}
+      {blockout && t.remoteId && (
+        <p className="mt-2 text-[10px] text-slate-500">
+          标题/简介的修改只改本机显示；市场里展示的是登记那一刻的版本。
+        </p>
+      )}
+      {opErr && <p className="mt-2 text-[11px] leading-relaxed text-rose-400">{opErr}</p>}
       {t.published && <p className="mt-2 text-[10px] text-slate-500">已在模板市场公开，别人可以直接套用出片。</p>}
     </div>
   );
@@ -72,8 +268,39 @@ export default function TemplateDetailPage() {
   const user = useCurrentUser();
   useCountView("template", id);
   const t = id ? getTemplate(id) : null;
+  const [applyErr, setApplyErr] = useState("");
+  // 远端回源的结论：null = 还没试/在试，false = 真取不到。直达详情路由（会话恢复、
+  // 分享链接）时 shared 缓存是空的——先回源再下"不存在"的结论，别对着一个真实存在的
+  // 模板撒谎（回源实现在 data/templates.fetchRemoteTemplateById，取到会 emit 触发重渲）
+  const looksRemote = !!id && /^[0-9a-f]{24}$/i.test(id);
+  const [remoteMiss, setRemoteMiss] = useState(false);
+
+  // 打开详情就刷新一次远端状态（provenAt 是服务端在出片轮询里写的，本机不刷新
+  // 永远不知道试炼过没过）。refreshRemoteTemplate 对没登记/离线的模板是空操作
+  useEffect(() => {
+    if (id) void refreshRemoteTemplate(id);
+  }, [id]);
+
+  useEffect(() => {
+    if (!id || t || !looksRemote) return;
+    let alive = true;
+    void fetchRemoteTemplateById(id).then((ok) => {
+      if (alive && !ok) setRemoteMiss(true);
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t 到货靠 emit 重渲，这里只在 id 变化时回源
+  }, [id, looksRemote]);
 
   if (!t) {
+    if (looksRemote && !remoteMiss) {
+      return (
+        <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-3 px-6">
+          <p className="text-sm text-slate-400">正在从服务器取这个模板…</p>
+        </div>
+      );
+    }
     return (
       <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-3 px-6">
         <Icon name="cards" size={40} className="text-slate-600" />
@@ -85,7 +312,27 @@ export default function TemplateDetailPage() {
     );
   }
 
-  const isMine = myTemplates().some((x) => x.id === t.id) && user?.name === t.author;
+  // 身份判定：
+  //   · 白模路**绝不拿显示名比对**——服务端按 ownerId 对当前 JWT 算的 isOwner 是唯一
+  //     权威（remoteStateOf）；登记还没完成（没有远端状态）时退回「本机库里有这条」
+  //     （它就是这台设备刚提取的，连显示名都还没机会变）。
+  //   · 经典路保留存量判定原样（含拿 user?.name 比对这个已知坑——CLAUDE.md「拿名字
+  //     当身份」，另立任务修存量，这里只保证新路径不复刻它）。
+  const inMine = myTemplates().some((x) => x.id === t.id);
+  const rs = remoteStateOf(t);
+  const isMine = t.refVideo ? (rs ? rs.isOwner : inMine) : inMine && user?.name === t.author;
+
+  // 白模在闸门没开时「看得见但点不动 + 说原因」（原因印在 BlockoutInfo 的成本行里）
+  const applyBlocked = t.refVideo ? blockoutIssue() : null;
+
+  function apply() {
+    if (!t) return;
+    setApplyErr("");
+    // applyTemplate 返回 false = 被闸门整句拒绝（err 在 flow store 里）——把原因就地
+    // 印出来，不能让按钮看起来"点了没反应"（铁律八）
+    if (useFlow.getState().applyTemplate(t)) nav("/flow");
+    else setApplyErr(useFlow.getState().err || "套用失败");
+  }
 
   return (
     <div className="safe-top min-h-full px-4 pb-10 pt-3">
@@ -105,19 +352,23 @@ export default function TemplateDetailPage() {
 
       <h2 className="text-lg font-bold text-slate-100">{t.title}</h2>
       <div className="mt-0.5 mb-2 text-xs text-slate-500">
-        @{t.author} · {t.recipe.beats.length} 段 · 每段 {t.recipe.durationSec}s
+        @{t.author} ·{" "}
+        {t.refVideo ? `白模复刻 · 模板视频 ${t.refVideo.durationSec}s` : `${t.recipe.beats.length} 段 · 每段 ${t.recipe.durationSec}s`}
       </div>
       <p className="mb-4 text-sm leading-relaxed text-slate-300">{t.intro}</p>
 
+      <BlockoutInfo t={t} />
+
       <button
-        onClick={() => {
-          useFlow.getState().applyTemplate(t);
-          nav("/flow");
-        }}
-        className="mb-4 block w-full rounded-xl bg-brand py-3 text-center text-sm font-bold text-ink"
+        onClick={apply}
+        disabled={!!applyBlocked}
+        title={applyBlocked ?? undefined}
+        className="mb-1 block w-full rounded-xl bg-brand py-3 text-center text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
       >
-        ⚡ 用这个模板出片（只需一句话）
+        ⚡ 用这个模板出片{t.refVideo ? "（挂上你的角色卡）" : "（只需一句话）"}
       </button>
+      {applyErr && <p className="mb-3 text-xs leading-relaxed text-rose-400">{applyErr}</p>}
+      <div className="mb-3" />
 
       {/* 生成配方：明着给，用户才知道它为什么像，也才能照着改 */}
       <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
@@ -158,7 +409,10 @@ export default function TemplateDetailPage() {
         </div>
       )}
 
-      {isMine && <OwnerBar t={t} />}
+      {/* 白模路：isMine 来自服务端 isOwner——**不要**再 && inMine（换设备后本机库
+          是空的，但作者对自己已发布的模板必须仍有下架/删除入口，否则作废/侵权模板
+          只能干挂在市场上被人付费套用）。经典路 isMine 本身就含 inMine，行为不变 */}
+      {isMine && <OwnerBar t={t} inMine={inMine} onApply={apply} />}
 
       <SocialPanel kind="template" id={t.id} />
     </div>

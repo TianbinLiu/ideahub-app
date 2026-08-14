@@ -240,6 +240,21 @@ function supportsRefImage(model: string): boolean {
 }
 
 /**
+ * 支持 `reference_video`（白模模板 r2v）的模型 —— **只有 Seedance 2.5**。
+ *
+ * ★ 与 supportsRefImage 同款双层结构：这是**协议层的兜底白名单**，业务层那道在
+ *   data/economy 的 `VideoTier.refVid`（界面按它决定能不能选，并把原因说出来）。
+ * ★ 为什么 2.0 系列不在名单里（refImage 那条它在）：白模路是三件绑死的
+ *   `omni_reference_task_type:"edit" + duration:-1 + ratio:"adaptive"`（见 BLOCKOUT_TASK），
+ *   而 omni_reference_task_type 官方只写 2.5 支持 —— mini 收到它是 400 还是**静默忽略**
+ *   没人验证过（实测清单 A6）。若是忽略，任务照样被受理：模板视频整个被扔掉、拍一段
+ *   无关的片、照收钱 —— 那不是降级是偷换商品。A6 测完前宁可在这里响亮地炸掉。
+ */
+function supportsRefVideo(model: string): boolean {
+  return isSeedance25(model);
+}
+
+/**
  * 这次任务该用什么 `ratio` —— **唯一实现**。
  *
  * ★ Seedance 2.5 在「首帧 / 首尾帧生视频」任务上**只接受 `adaptive`**，给具体宽高比
@@ -255,13 +270,36 @@ export function ratioFor(model: string, mode: "frames" | "reference", want = "16
 }
 
 /**
+ * 白模模板（r2v）任务的三件套 —— **一个常量绑死，不许拆开各传各的**：
+ *
+ * · `omni_reference_task_type: "edit"`：A2 实拍用同素材对拍过 reference vs edit ——
+ *   reference 把 14s 源片压进 5s，节奏运镜全毁；**edit 全时长逐镜头复刻，压倒性胜出**。
+ *   显式传值还有一层保险（同下面 "reference" 那行的注释）：不传就是 auto，auto 判错
+ *   是异步失败且不退费，显式值判错是提交时同步 400、一分钱不花。
+ * · `duration: -1`：edit 的输出时长**跟随输入**（协议行为，A2 实测 14.04s 输入 →
+ *   13.67s 计费时长），-1 = 让它跟随。**-1 只许这条路传**：纯任务/参考图路上 -1 是
+ *   "模型自选时长"，会把单次成本上界推到 30s —— 那条路照旧走 [3,10] 硬夹（见下）。
+ *   白模路的成本上界由**模板登记时长**卡住（上传窗口 [4,15]s + 服务端复核），不失控；
+ *   也因此白模不过 clampDuration 的 10s 上限 —— 那是纯 t2v 档位的产品约束，报价侧
+ *   （economy.r2vTokens）同一句注释。
+ * · `ratio: "adaptive"`：画幅自适应源片（A2 实测输出 1266×728 跟着源片走）。edit 连
+ *   镜头都在复刻源片，指定别的 ratio 没有意义，还会引一刀裁切。
+ *
+ * 三个字段是**同一条实测结论（edit 全时长复刻）的三个面**：改任何一个都等于换了路线，
+ * 必须回 A2 重测再动 —— 所以钉成一个常量，让"只改一个"在代码形状上就别扭。
+ */
+const BLOCKOUT_TASK = { omni_reference_task_type: "edit", duration: -1, ratio: "adaptive" } as const;
+
+/**
  * Seedance 图生视频：创建任务 → 轮询 → 返回视频 URL。
  * 传 lastFrameUrl 则走"首尾帧"模式（我们的方案卡正好有首尾帧，画面收束更可控）；
- * 传 refImages 则走"全模态参考生视频"（多张形象图 + 一句话直出，不需要设定帧）。
+ * 传 refImages 则走"全模态参考生视频"（多张形象图 + 一句话直出，不需要设定帧）；
+ * 传 refVideoUrl 则走"白模模板"（r2v：参考视频 edit 逐镜头复刻，与 refImages 混发）。
  * 参数用独立字段（新版 API；旧版塞在 prompt 里的 `--resolution` 已废弃）。
  *
- * ★ **首尾帧与参考图互斥**：方舟文档写死「图生视频-首帧、图生视频-首尾帧、全模态
- *   参考生视频为 3 种互斥场景，不可混用」。所以 refImages 非空时首尾帧一张都不拼。
+ * ★ **首尾帧与参考媒体互斥**：方舟文档写死「图生视频-首帧、图生视频-首尾帧、全模态
+ *   参考生视频为 3 种互斥场景，不可混用」。所以 refImages / refVideoUrl 非空时
+ *   首尾帧一张都不拼。
  */
 export async function generateVideo(
   prompt: string,
@@ -280,13 +318,28 @@ export async function generateVideo(
      * 只给 3 张以内，这里不再截。
      */
     refImages?: string[];
+    /**
+     * 白模模板的参考视频（公网 https 地址 —— 方舟 r2v 的 video_url 只收 URL/asset://，
+     * **没有 base64 选项**，方舟自己去取，所以它必须是服务端登记过的公网地址）。
+     * 非空 = 白模出片：与 refImages **混发**（视频给画面与运镜，形象图说"换成谁"），
+     * 首尾帧一张不拼；duration / ratio / omni_reference_task_type 三件被 BLOCKOUT_TASK
+     * 整体接管 —— 传进来的 durationSec / ratio 在这条路上**不生效**（理由见那个常量：
+     * edit 的输出时长与画幅都跟随源片，是协议行为不是我们的参数）。
+     */
+    refVideoUrl?: string;
     onProgress?: (status: string) => void;
   },
 ): Promise<string> {
   const model = opts?.model ?? MODELS.video;
   const refs = opts?.refImages ?? [];
-  const mode: "frames" | "reference" = refs.length > 0 ? "reference" : "frames";
-  if (mode === "reference" && !supportsRefImage(model)) {
+  const refVideoUrl = opts?.refVideoUrl;
+  const mode: "frames" | "reference" = refs.length > 0 || refVideoUrl ? "reference" : "frames";
+  if (refVideoUrl && !supportsRefVideo(model)) {
+    // 响亮地失败（同下面 refImage 那条）：静默忽略参考视频 = 模板整个被扔掉、
+    // 拍一段无关的片、照收钱 —— 那不是降级，是偷换商品（铁律八）
+    throw new Error(`模型 ${model} 不支持白模参考视频出片，不该走到这里（能力表见 data/economy 的 VideoTier.refVid）`);
+  }
+  if (refs.length > 0 && !supportsRefImage(model)) {
     // 响亮地失败：静默忽略参考图 = 用户付了钱、加了图、画面没变、零报错（铁律八）
     throw new Error(`模型 ${model} 不支持参考生视频，不该走到这里（能力表见 data/economy 的 VideoTier.refImg）`);
   }
@@ -297,6 +350,11 @@ export async function generateVideo(
     mode === "reference"
       ? [
           { type: "text", text: prompt },
+          // ★ 参考视频排在参考图前面（它是这条路的"主输入"），且**不占 <图片N> 编号**：
+          //   提示词里对它的称呼是「视频」（A2 实拍的提示词就是「把视频里的红色小人
+          //   替换成@图片1的角色」，一条视频 + 一张图，编号从图片1起算且成立）——
+          //   所以 prepareMaterialRefs 的 bind(offset) 不需要为它 +1。
+          ...(refVideoUrl ? [{ type: "video_url", role: "reference_video", video_url: { url: refVideoUrl } }] : []),
           ...refs.map((url) => ({ type: "image_url", image_url: { url }, role: "reference_image" })),
         ]
       : [
@@ -316,17 +374,26 @@ export async function generateVideo(
         model,
         content,
         resolution: "720p",
-        // 画幅只由这个参数决定：提示词里写"竖版"没用，首尾帧是竖的也没用——
-        // ratio 不改，方舟一律按 16:9 出片，再把竖版帧裁进去。
-        // 2.5 的首尾帧任务只收 adaptive，那条规则收在 ratioFor 里
-        ratio: ratioFor(model, mode, opts?.ratio ?? "16:9"),
-        duration: Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5))),
         generate_audio: false, // 无声更省 tokens（0.008 vs 0.016 元/千），配乐后续再说
         watermark: false,
-        // ★ 仅 2.5：不显式传就是 `auto`，而 auto **判错是异步失败** —— 任务已受理、
-        //   钱已经花了，几十秒后才 failed（而且不退，见 api-contract「被受理之后才失败不退」）。
-        //   显式写 "reference" 判错会在**提交时同步 400**，一分钱不花。
-        ...(mode === "reference" && isSeedance25(model) ? { omni_reference_task_type: "reference" } : {}),
+        ...(refVideoUrl
+          ? // 白模：duration / ratio / omni_reference_task_type 三件由 BLOCKOUT_TASK 整体
+            // 接管（理由钉在那个常量上）。duration:-1 在**且仅在**这条展开里出现 ——
+            // 结构上就保证了别的路径传不出 -1。
+            BLOCKOUT_TASK
+          : {
+              // 画幅只由这个参数决定：提示词里写"竖版"没用，首尾帧是竖的也没用——
+              // ratio 不改，方舟一律按 16:9 出片，再把竖版帧裁进去。
+              // 2.5 的首尾帧任务只收 adaptive，那条规则收在 ratioFor 里
+              ratio: ratioFor(model, mode, opts?.ratio ?? "16:9"),
+              // [3,10] 硬夹顺带禁掉 -1（智能选时长会把单次成本上界推到 30s）；
+              // 各档更细的钳制（2.5 不收 3 秒）由调用方过 economy.clampDuration
+              duration: Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5))),
+              // ★ 仅 2.5：不显式传就是 `auto`，而 auto **判错是异步失败** —— 任务已受理、
+              //   钱已经花了，几十秒后才 failed（而且不退，见 api-contract「被受理之后才失败不退」）。
+              //   显式写 "reference" 判错会在**提交时同步 400**，一分钱不花。
+              ...(mode === "reference" && isSeedance25(model) ? { omni_reference_task_type: "reference" } : {}),
+            }),
       }),
     },
     // 创建请求体带 2-3MB base64 首尾帧，慢网下 30s 会掐死在上传半途（2026-08-07 实测连超两次）

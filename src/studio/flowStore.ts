@@ -20,7 +20,7 @@
 import { create } from "zustand";
 import { AI_REAL, generateCover, generateProposals, prepareMaterialRefs } from "../ai";
 import { canAfford, spendTokens, tierBlockReason, walletOf } from "../data/account";
-import { DEFAULT_TIER, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, tierOf } from "../data/economy";
+import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, tierOf } from "../data/economy";
 import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
 import { generateSegment, refVideoOn } from "./segmentGen";
@@ -86,8 +86,17 @@ export interface FlowNode {
 
 export type FlowMode = "workflow" | "simple";
 
-/** 套用中的模板快照（草稿要整份存下来，所以单独成型） */
-export type FlowTemplate = { id: string; title: string; recipe: TemplateRecipe; cards: Card[] } | null;
+/** 套用中的模板快照（草稿要整份存下来，所以单独成型）。
+ *  refVideo 是白模模板的参考视频登记值镜像，跟着快照进草稿：报价（nodeCost）与出片
+ *  （genNode）都只从这里读——存在性判定（`!refVideo` 走经典路，types.ts 同一条 ★），
+ *  经典模板与老草稿天然缺它，零迁移。 */
+export type FlowTemplate = {
+  id: string;
+  title: string;
+  recipe: TemplateRecipe;
+  cards: Card[];
+  refVideo?: VideoTemplate["refVideo"];
+} | null;
 
 export function chosenOf(node: FlowNode): Proposal {
   return node.proposals.find((p) => p.id === node.chosenId) ?? node.proposals[0];
@@ -195,12 +204,19 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
   if (!node) return 0;
   const prop = chosenOf(node);
   const carry = nodeCarry(nodes, idx);
+  // 白模位从模板快照读（模板挂在 store 上不在节点上——读 getState 是 flowDirty 的同款先例）。
+  // ★ 按「模板带 refVideo」透传，而不是问 blockoutOn：还没挂角色卡的白模节点也必须按
+  //   r2v 报价——那才是它唯一可能花出去的钱（不挂卡根本出不了片，genNode 门口的
+  //   blockoutIssue 拦着，而扣款只在出片成功后）；按经典路报是另一件商品的价。
+  //   inputSec 只从登记值镜像读（economy.segmentCost 的同一句 ★），不拿 <video> 现探。
+  const refVideo = useFlow.getState().template?.refVideo;
   return segmentCost({
     durationSec: prop.durationSec,
     tierId: tierOverride ?? node.videoTier,
     hasFirstFrame: !!(prop.firstFrame || carry),
     hasLastFrame: !!prop.lastFrame,
     refMode: nodeRefOn(nodes, idx, mode, tierOverride),
+    refVideo: refVideo ? { inputSec: refVideo.durationSec } : undefined,
   });
 }
 
@@ -234,6 +250,9 @@ export function nodeRefOn(nodes: FlowNode[], idx: number, mode: FlowMode, tierOv
     carryFrame: nodeCarry(nodes, idx),
     anns: node.anns,
     refAllowed: mode === "simple",
+    // 白模段让位：refVideoUrl 非空时 refVideoOn 恒 false——它的形象图是白模路自己
+    // 混发的，不是「参考生视频」这条产品路（界面那句「省掉设定帧」不该亮）
+    refVideoUrl: useFlow.getState().template?.refVideo?.url,
   });
 }
 
@@ -282,8 +301,10 @@ interface FlowState {
   seed: (nodes: FlowNode[], opts: { mode: FlowMode; origin: "studio" | "solo" }) => void;
   /** 工作流/简约模式的空白起手：一个待填的节点 */
   seedSolo: (mode: FlowMode) => void;
-  /** 套模板：按配方的分镜骨架铺节点、挂上模板卡组，之后只等用户写那句话 */
-  applyTemplate: (t: VideoTemplate) => void;
+  /** 套模板：按配方的分镜骨架铺节点、挂上模板卡组，之后只等用户写那句话。
+   *  白模模板（t.refVideo 存在）只铺 1 个节点。返回 false = 被闸门整句拒绝
+   *  （err 已写明原因，什么都没铺）——调用方据此决定还跳不跳工作流页 */
+  applyTemplate: (t: VideoTemplate) => boolean;
   /** 写那句话：立刻把配方里的 {{主题}} 填成它，各段剧情随之成形 */
   setSubject: (subject: string) => void;
   reset: () => void;
@@ -351,7 +372,48 @@ export const useFlow = create<FlowState>()((set, get) => ({
       subject: "",
     }),
 
-  applyTemplate: (t) =>
+  applyTemplate: (t) => {
+    // ── 白模模板（存在性判定，types.ts 的 ★）：只铺 1 个节点、chain=false ──
+    // 多段在物理上不成立：段间承接的整个机制是「上一段**真实**尾帧顶替本段首帧」
+    // （segmentGen 第②步），而首尾帧与参考媒体是方舟三大互斥场景——第 2 段要么发不出
+    // r2v 任务、要么砍掉承接（那衔接就断了）。不发明新的承接规则，直接砍成单段。
+    if (t.refVideo) {
+      // 档位钳到 refVid=true 的档（首发只有 ultra；免费用户吃 paidOnly 的既有拦截）。
+      // ★ 四档全 false 的今天，这里就是**闸门本身**：整句拒绝、什么都不铺。
+      //   开闸 = 仓库主人翻 economy 里 ultra.refVid 那一个布尔的 commit，这里自动放行
+      //   ——refVid 的唯一出处是 VIDEO_TIERS，别在这里另记一份"开没开"。
+      const gate = VIDEO_TIERS.find((x) => x.refVid);
+      if (!gate) {
+        set({ err: "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来" });
+        return false;
+      }
+      const node = newFlowNode(0, {
+        chain: false,
+        // 白模模板自己不带卡（提取时认不出素材卡，cards 恒空）——「换成谁」由用户
+        // 往节点上挂自己的角色卡；万一带了就原样挂上
+        materials: t.cards.length ? t.cards : undefined,
+        videoTier: gate.id,
+        // 预览容器的横竖跟着模板登记的宽高走。真正的出片画幅是 adaptive 跟随源片
+        // （arkClient 的 BLOCKOUT_TASK），这里只决定界面框怎么摆；方形归横屏——
+        // 只有竖/横两档时，横容器上下留黑边比竖容器左右裁切诚实
+        aspect: t.refVideo.height > t.refVideo.width ? "portrait" : "landscape",
+      });
+      // 时长 = 模板的（白模节点没有时长选择器）：显示跟登记值走，报价侧本来就不看
+      // durationSec（economy.segmentCost 的 refVideo 位）。不过 clampDuration 的 10s
+      // 上限——那是纯 t2v 档位的产品约束，edit 输出≈输入是协议行为（见 r2vTokens）
+      node.proposals[0].durationSec = t.refVideo.durationSec;
+      set({
+        nodes: [node],
+        cursor: 0,
+        mode: "simple",
+        origin: "solo",
+        busy: false,
+        err: "",
+        template: { id: t.id, title: t.title, recipe: t.recipe, cards: t.cards, refVideo: t.refVideo },
+        subject: "",
+      });
+      return true;
+    }
     set({
       // 一个 beat 一段。段与段之间沿用尾帧续作（chain），模板才有连贯性
       nodes: t.recipe.beats.map((_, i) =>
@@ -370,12 +432,18 @@ export const useFlow = create<FlowState>()((set, get) => ({
       err: "",
       template: { id: t.id, title: t.title, recipe: t.recipe, cards: t.cards },
       subject: "",
-    }),
+    });
+    return true;
+  },
 
   setSubject: (subject) =>
     set((s) => {
       const rec = s.template?.recipe;
       if (!rec) return { subject };
+      // 白模的段时长跟模板**登记值**走（recipe.durationSec 是留给老客户端经典降级路的数）：
+      // 填空这一步别把它改回配方数——报价虽不看它（r2v 按登记时长算），但界面上显示的
+      // 段时长与实际出片时长（edit 输出≈输入）对不上，也是一种骗人（铁律八）
+      const dur = s.template?.refVideo?.durationSec ?? rec.durationSec;
       // 每段剧情 = 骨架填空 + 画风要求。画风每段都带一份而不是只写一次——
       // Seedance 是按段独立调用的，只在第一段写画风，后面几段会各画各的
       return {
@@ -386,7 +454,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
           return {
             ...n,
             proposals: n.proposals.map((p) =>
-              p.id === n.chosenId ? { ...p, plot, title: `${s.template!.title} · 第 ${i + 1} 段`, durationSec: rec.durationSec } : p,
+              p.id === n.chosenId ? { ...p, plot, title: `${s.template!.title} · 第 ${i + 1} 段`, durationSec: dur } : p,
             ),
           };
         }),
@@ -610,6 +678,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
 
   addNode: () =>
     set((s) => {
+      // 白模模板只有一段：追加的下一段要么承接（承接帧与参考视频在方舟互斥，任务发不出去）、
+      // 要么不承接（衔接断掉）——两头都不成立。拦在追加门槛这一处，与「先把这一段炼出来」
+      // 是同一个门（CLAUDE.md：顺序门禁只在 clampCursor + addNode 两处，别在 UI 另写）
+      if (s.template?.refVideo) return { err: "白模模板只有一段：画面与运镜整个来自模板视频，没有可续的下一段" };
       const prev = s.nodes[s.nodes.length - 1];
       // 顺序门禁：只能在末尾追加，且上一段必须已出片
       if (prev && !nodeDone(prev)) return { err: "先把这一段炼出来，再加下一段" };
@@ -725,6 +797,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 套了模板就用配方里的起拍提示词：它专门为"这个模板长什么样"写过，
       // 比从剧情正文截前 200 字更贴（剧情前半段常常是动作描述而非画面描述）
       const tplFrame = get().template?.recipe.framePrompt;
+      // 白模位：与 nodeCost 读**同一份**模板快照——报了 r2v 的价就必须真发参考视频，
+      // 两处各读各的迟早对不上（铁律六）。走不走成、为什么走不成由 segmentGen 门口的
+      // blockoutIssue 说了算（走不成整句拒绝，钱在成功后才扣，见下面 spendTokens）
+      const tplRef = get().template?.refVideo;
       const res = await generateSegment(
         {
           plot: prop.plot,
@@ -735,6 +811,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
           aspect: node.aspect,
           anns: node.anns,
           carryFrame: carry,
+          refVideoUrl: tplRef?.url,
+          refVideoSec: tplRef?.durationSec,
           framePrompt: tplFrame ? fillSubject(tplFrame, get().subject) : undefined,
           // 本段素材卡要真的进提示词。此前它只喂给「推演三种走向」，
           // 用户在这一段挂了人物卡再点生成，出片其实完全不认识那张卡

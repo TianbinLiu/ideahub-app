@@ -1093,6 +1093,22 @@ const TEMPLATE_MINT = mintSpec(
   '：[{"type":"scene|background|prop|style","name":"不超过8字","summary":"30字内简介","imagePrompt":"卡面文生图描述，60字内"}]。规则：主要场景/地点各出一张 scene 卡；整体色调氛围至多一张 background 卡；画风鲜明时至多一张 style 卡；标志性道具可出 prop 卡。**绝对不要出 character 卡**——主角是模板使用者自己指定的。只输出 JSON。',
 );
 
+/** 经典模板的配方总结提示词（两遍视觉里的第一遍）。 */
+const TEMPLATE_RECIPE_PROMPT =
+  '你是短视频导演，正在把一段参考视频拆解成可复用的"生成模板"。看完这些按时间顺序抽的帧，输出 JSON：{"title":"模板名，不超过12字","intro":"40字内说明这个模板能做什么样的片子","source":"40字内客观描述参考画面的视觉特征","styleHint":"120字内的画面质感与运镜要求，越具体越好：胶片/数码、光比、色调、景深、镜头运动、剪辑节奏、人物动作幅度，以及明确禁止什么","beats":["分镜骨架，每段一条，1~3条。必须用 {{主题}} 占位代表主角或主体，其余描述固定不变"],"framePrompt":"起拍画面的文生图提示词，同样用 {{主题}} 占位，60字内"}。规则：styleHint 与 beats 里都不要出现参考视频里的具体角色名——模板要能换任何人来演，角色位置一律写 {{主题}}。只输出 JSON。';
+
+/**
+ * 白模模板的配方总结提示词 —— 与经典版是**两种输入**，不是一句话的差别：
+ * 白模里主角位是红色小人、场景是无材质简模，模型要描述的是**场景/道具/运镜的结构**，
+ * 不能让它照经典版去编"胶片质感/色调"（白模里根本没有这些信息，编出来就是幻觉）。
+ * ★ beats 只要一条：白模模板出片只铺 1 个节点（段间承接靠"上一段真实尾帧"，而首尾帧
+ *   与参考媒体在方舟互斥，多段物理上不成立）——多出的 beat 只会误导老客户端的降级路。
+ * ★ 产出的 recipe 仍要求独立成立（{{主题}} 占位、不出现"红色小人"字样）：老客户端
+ *   不认识 refVideo 字段，会把它当经典配方跑，那条降级路也得诚实可用（types.ts 的 ★）。
+ */
+const BLOCKOUT_RECIPE_PROMPT =
+  '你是短视频导演。用户上传的是一段「白模预演」参考视频：主角位由一个红色小人占位，场景与道具是无材质的灰白简模。请只总结场景/道具/运镜，输出 JSON：{"title":"模板名，不超过12字","intro":"40字内说明这个模板能拍出什么样的镜头与场面","source":"40字内客观描述白模画面：红色小人做了什么、镜头怎么动","styleHint":"120字内：场景与道具的空间布局、主体的动线、镜头运动轨迹与节奏、构图变化。只写画面结构，不要编造材质/色调/光效——白模里没有这些信息","beats":["唯一一条分镜：用 {{主题}} 占位代表主角，按时间顺序写清它在场景里的动作与镜头如何跟随"],"framePrompt":"起拍画面的文生图提示词，用 {{主题}} 占位，60字内"}。规则：红色小人只是占位符，除 source 外任何字段都不要出现"红色小人"，一律写 {{主题}}；beats 必须恰好 1 条。只输出 JSON。';
+
 /**
  * 视频 → **模板**：比提卡多一步——除了认出素材，还要把"这类视频为什么长这样"
  * 总结成可复用的配方（画风/镜头/节奏 + 分镜骨架 + 起拍画面提示词）。
@@ -1100,11 +1116,17 @@ const TEMPLATE_MINT = mintSpec(
  * 分两次调模型而不是一次出全部：认卡和总结配方是两种任务，混在一个 JSON 里模型
  * 容易顾此失彼（实测会把画风描述塞进卡简介、或者只出卡不出配方）。先总结配方拿到
  * styleHint，再把它喂给铸卡环节，卡面画风才与模板一致。
+ *
+ * ★ `opts.blockout` = 白模模板：**只跑配方总结这一遍，跳过认卡遍、cards 恒空**。
+ *   白模里全是大色块和红色小人，认素材卡那一遍必然空手而归——跑了是白烧钱。
+ *   报价侧与这里同一口径：economy.blockoutTemplateCost（单遍视觉、cards=0，预估即结算），
+ *   两边分叉就是"报两遍的价、跑一遍"或反过来，谁都不报错。
  */
 export async function extractTemplateFromVideo(
   frames: string[],
   note: string,
   onProgress?: (status: string) => void,
+  opts?: { blockout?: boolean },
 ): Promise<{
   title: string;
   intro: string;
@@ -1112,9 +1134,10 @@ export async function extractTemplateFromVideo(
   recipe: { styleHint: string; beats: string[]; framePrompt: string; durationSec: number };
   cards: Card[];
 }> {
-  onProgress?.(`分析画面风格（${frames.length} 帧）…`);
+  const blockout = !!opts?.blockout;
+  onProgress?.(`分析${blockout ? "场景与运镜" : "画面风格"}（${frames.length} 帧）…`);
   const raw = await chatVision(
-    '你是短视频导演，正在把一段参考视频拆解成可复用的"生成模板"。看完这些按时间顺序抽的帧，输出 JSON：{"title":"模板名，不超过12字","intro":"40字内说明这个模板能做什么样的片子","source":"40字内客观描述参考画面的视觉特征","styleHint":"120字内的画面质感与运镜要求，越具体越好：胶片/数码、光比、色调、景深、镜头运动、剪辑节奏、人物动作幅度，以及明确禁止什么","beats":["分镜骨架，每段一条，1~3条。必须用 {{主题}} 占位代表主角或主体，其余描述固定不变"],"framePrompt":"起拍画面的文生图提示词，同样用 {{主题}} 占位，60字内"}。规则：styleHint 与 beats 里都不要出现参考视频里的具体角色名——模板要能换任何人来演，角色位置一律写 {{主题}}。只输出 JSON。',
+    blockout ? BLOCKOUT_RECIPE_PROMPT : TEMPLATE_RECIPE_PROMPT,
     `用户补充说明：${note || "无"}
 以下是参考视频按时间顺序的抽帧：`,
     frames,
@@ -1128,22 +1151,29 @@ export async function extractTemplateFromVideo(
     framePrompt?: string;
   };
   const styleHint = (t.styleHint ?? "").trim();
-  const beats = (Array.isArray(t.beats) ? t.beats : []).filter((b) => typeof b === "string" && b.trim()).slice(0, 3);
+  // 白模只留 1 条（提示词也只要了 1 条，这刀是模型不守规矩时的保险，同 mintCards 那刀的道理）
+  const beats = (Array.isArray(t.beats) ? t.beats : [])
+    .filter((b) => typeof b === "string" && b.trim())
+    .slice(0, blockout ? 1 : 3);
   if (!styleHint || beats.length === 0) throw new Error("模板配方 JSON 结构不符（缺 styleHint 或 beats）");
 
-  // 素材卡：沿用提卡那一套，但把刚总结出的画风喂进去，卡面与模板同调
-  onProgress?.("提炼模板素材卡…");
-  const rawCards = await chatVision(
-    TEMPLATE_MINT.prompt,
-    `这段视频的画风要求是：${styleHint}
+  // 素材卡：沿用提卡那一套，但把刚总结出的画风喂进去，卡面与模板同调。
+  // 白模整段跳过（见函数头 ★），cards 恒空。
+  let cards: Card[] = [];
+  if (!blockout) {
+    onProgress?.("提炼模板素材卡…");
+    const rawCards = await chatVision(
+      TEMPLATE_MINT.prompt,
+      `这段视频的画风要求是：${styleHint}
 用户补充说明：${note || "无"}
 以下是抽帧：`,
-    frames,
-  );
-  const defs = JSON.parse(rawCards.replace(/```json|```/g, "").trim()) as CardDef[];
-  const cards = Array.isArray(defs)
-    ? await mintCards(defs.filter((d) => d.type !== "character"), TEMPLATE_MINT, styleHint, [], onProgress)
-    : [];
+      frames,
+    );
+    const defs = JSON.parse(rawCards.replace(/```json|```/g, "").trim()) as CardDef[];
+    cards = Array.isArray(defs)
+      ? await mintCards(defs.filter((d) => d.type !== "character"), TEMPLATE_MINT, styleHint, [], onProgress)
+      : [];
+  }
 
   return {
     title: (t.title ?? "").trim() || "未命名模板",
@@ -1437,6 +1467,14 @@ export async function composeSegments(
      * 决定要不要给，这里只负责发出去。
      */
     refImages?: string[];
+    /**
+     * 白模模板的参考视频（模板登记的公网地址，`template.refVideo.url`）。非空 =
+     * 这一段走 **r2v**（edit 逐镜头复刻，与 refImages 混发，首尾帧同样一张不发；
+     * 时长/画幅跟随源片，本段的 durationSec/aspect 在 arkClient 那侧不生效，
+     * 见 BLOCKOUT_TASK）。走不走由 studio/segmentGen 的 blockoutOn 判（唯一判定处，
+     * 同 refVideoOn 的分工），这里只负责透传。
+     */
+    refVideoUrl?: string;
   }>,
   onProgress?: (done: number, total: number, status: string) => void,
 ): Promise<SegmentResult[]> {
@@ -1474,15 +1512,19 @@ export async function composeSegments(
       }
       onProgress?.(i, segments.length, "任务创建中…");
       const tier = tierOf(sg.videoTier);
-      // 参考生视频：多张形象图 + 一句话直出，**首尾帧一张都不给**（三种场景互斥）
-      const refMode = !!sg.refImages?.length;
+      // 参考媒体（形象图 / 白模参考视频）非空：一句话直出，**首尾帧一张都不给**（三种场景互斥）
+      const refMode = !!sg.refImages?.length || !!sg.refVideoUrl;
       const url = await generateVideo(sg.plot.slice(0, VIDEO_PROMPT_MAX), refMode ? "" : await shrinkFrameFor720p(first), {
         // ★ 时长按档位夹（2.5 不收 3 秒）。与 economy.segTokens 用的是同一个函数 ——
-        //   只在这一侧夹的话，界面报 3 秒的价、方舟出 4 秒的片
+        //   只在这一侧夹的话，界面报 3 秒的价、方舟出 4 秒的片。
+        //   （白模段不受影响：refVideoUrl 非空时 arkClient 走 BLOCKOUT_TASK 的 duration:-1，
+        //   这里传的值根本不上桌 —— 时长跟模板走，报价侧 r2vTokens 同一个口径。）
         durationSec: clampDuration(sg.durationSec, sg.videoTier),
         // 极速档（pro-fast）不支持首尾帧任务（实测 400 task_type flf2v）——只给首帧起拍
         lastFrameUrl: !refMode && tier.flf ? await shrinkFrameFor720p(last) : undefined,
         refImages: sg.refImages,
+        // 白模参考视频：透传而已，判定与拼装都不在这层（见字段注释）
+        refVideoUrl: sg.refVideoUrl,
         model: tier.model,
         ratio: aspectOf(sg.aspect).ratio,
         onProgress: (s) => onProgress?.(i, segments.length, `${tier.label}档 · ${s}`),

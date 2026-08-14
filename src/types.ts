@@ -580,6 +580,35 @@ export interface VideoTemplate {
   recipe: TemplateRecipe;
   /** 来源视频的画面特征摘要（提取模板时由 AI 写），详情页展示，也帮用户判断像不像 */
   source?: string;
+  /**
+   * 白模参考视频。**存在 = 白模模板**（出片走 r2v：把参考视频逐镜头复刻、只换主体）；
+   * 缺省 = 经典配方模板。
+   *
+   * ★ 判定一律写**存在性/否定式**（`!t.refVideo` → 经典路）：这是后加字段，老数据
+   *   天然缺它、天然走经典路 —— 不需要迁移，也**绝不许**拿它和某个值等值比
+   *   （`visibility` 那条坑的同族，见 docs/api-contract.md「可见性」）。
+   * ★ 四个数值是**服务端登记值的镜像**（服务端从 Cloudinary 上传回执写入，不信客户端
+   *   报的任何数）。报价的输入时长只从 `durationSec` 读，别拿 `<video>` 在本机现探 ——
+   *   报价（App）与结算（server 按 url 反查同一份登记值）必须算同一个数。
+   * ★ recipe 仍然独立成立：老客户端把白模模板当经典配方跑，也能按那条路出一段
+   *   "降级但诚实"的片（它只认 recipe，不认识这个字段）。
+   */
+  refVideo?: {
+    /** Cloudinary 公网地址。方舟 r2v 的 video_url 只收 URL（没有 base64 选项），拿它自己去取 */
+    url: string;
+    /** 参考视频时长（秒，Cloudinary 回执的整数秒）—— r2v 报价输入时长的唯一来源 */
+    durationSec: number;
+    width: number;
+    height: number;
+    /**
+     * Cloudinary public_id（上传回执带回）。唯一用途：**登记失败/放弃时回收托管视频**
+     * （DELETE /api/uploads/template-video）——没有它，"上传成功但从未登记成模板"的
+     * 视频会成为两端都删不掉的配额孤儿。已登记模板的回收不走它（DELETE 模板级联）。
+     */
+    publicId?: string;
+  };
+  /** 服务端模板实体 id（登记/发布后回填）。缺省 = 还没上过服务端 —— 同样只判存在性 */
+  remoteId?: string;
   /** 已发布到模板市场 */
   published: boolean;
 }

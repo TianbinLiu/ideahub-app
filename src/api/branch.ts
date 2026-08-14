@@ -3,7 +3,7 @@
 //
 // 服务端字段用 `_id` / ISO 时间字符串，客户端领域模型用 `id` / 毫秒时间戳，
 // 转换统一放在 data/*.ts（因为只有它知道要往哪个 cache 里塞）。
-import type { BranchTree, Card, CardType, DraftVideo, VideoDeck, VideoPart, VideoSegment } from "../types";
+import type { BranchTree, Card, CardType, DraftVideo, TemplateRecipe, VideoDeck, VideoPart, VideoSegment } from "../types";
 import { apiDelete, apiGet, apiPatch, apiPost } from "./client";
 
 // ── DTO ──────────────────────────────────────────────────
@@ -690,6 +690,118 @@ export async function listSharedCards(q = "", limit = 20): Promise<ApiSharedCard
 export async function installCard(cardId: string): Promise<ApiCard | null> {
   const res = await apiPost<Record<string, unknown>>(`/api/branch/cards/${encodeURIComponent(cardId)}/install`);
   return pick<ApiCard>(res, ["card", "item", "data"]);
+}
+
+// ── 白模模板（blockout r2v）──────────────────────────────
+// 服务端实体是 BranchTemplate（server routes/branchTemplate.routes.js），挂在同一个
+// /api/branch base 下。生命周期：登记（pending）→ 作者自己付费出一次片（服务端置
+// provenAt，试炼闸）→ 发布（published）→ 上市场；平台下架是 blocked，作者动不了。
+// 契约见 docs/api-contract.md「白模模板」。
+
+/**
+ * 服务端的一个白模模板。
+ *
+ * ★ 所有字段都按「可能缺」标（Partial 风格）：这是**新加**的实体，但 pick 出来的东西
+ *   终究是网络回包 —— data/templates.ts 映射时逐字段兜底，不在这里假设服务端形状永远对。
+ * ★ `provenAt` = 试炼闸（作者本人用它真实出过一次片才非空），发布的前置；由服务端在
+ *   r2v 任务轮询到 succeeded 时写入，**客户端说什么都不作数**。
+ * ★ `isOwner` 由服务端按 ownerId 对当前 JWT 算 —— 身份判定**只认它**，绝不拿
+ *   authorName 显示名比对（CLAUDE.md「拿名字当身份」坑；authorName 只是显示快照）。
+ */
+export interface ApiBranchTemplate {
+  _id?: string;
+  /** 服务端同时回 id（字符串化的 _id），两个都认 */
+  id?: string;
+  ownerId?: string;
+  /** 显示快照（登记那一刻的用户名），会过时，不承担身份 */
+  authorName?: string;
+  title?: string;
+  intro?: string;
+  /** https 或空串（服务端 zod 拒 dataURL） */
+  coverUrl?: string;
+  recipe?: {
+    styleHint?: string;
+    beats?: string[];
+    durationSec?: number;
+    videoTier?: string;
+    aspect?: "portrait" | "landscape";
+    framePrompt?: string;
+  };
+  /** 参考视频的**服务端登记值**（从 Cloudinary 写入）—— r2v 报价输入时长的唯一来源 */
+  refVideo?: { url?: string; durationSec?: number; width?: number; height?: number; bytes?: number };
+  status?: "pending" | "published" | "blocked" | string;
+  provenAt?: string | number | null;
+  isOwner?: boolean;
+  createdAt?: string | number;
+  updatedAt?: string | number;
+}
+
+/**
+ * POST /api/branch/templates（requireAuth，限流 5/分）—— 登记一个白模模板。
+ *
+ * ★ `videoUrl` 必须是**本账号刚通过 /api/uploads/template-video 传的** Cloudinary 地址
+ *   （服务端三重白名单：host + 目录 + public_id 归属），别处的链接一律 400。
+ * ★ `coverUrl` 只收 https 或空串 —— dataURL 要先走 publishAssets.toPermanentUrl 转存
+ *   （服务端 zod 直接拒，这里在类型注释里说破，免得撞了 400 才知道）。
+ * ★ 元数据（时长/尺寸）**不发**：服务端只从 Cloudinary 取（发了也会被 zod strip 掉，
+ *   那正是"不信客户端报的任何数"的机制化）。
+ * ★ 同一段视频只能登记一个模板（refVideo.url 唯一索引）：重复登记服务端回 409，
+ *   message 可直接给用户看。
+ */
+export interface CreateTemplatePayload {
+  title: string;
+  intro: string;
+  coverUrl: string;
+  recipe: TemplateRecipe;
+  videoUrl: string;
+}
+
+export async function createTemplate(payload: CreateTemplatePayload): Promise<ApiBranchTemplate | null> {
+  const res = await apiPost<Record<string, unknown>>("/api/branch/templates", payload);
+  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+}
+
+/** GET /api/branch/templates/shared（optionalAuth）—— 模板市场，只回 published */
+export async function listSharedTemplates(limit = 50): Promise<ApiBranchTemplate[]> {
+  const res = await apiGet<Record<string, unknown>>("/api/branch/templates/shared", { query: { limit } });
+  return pickList<ApiBranchTemplate>(res, ["templates", "items", "data"]);
+}
+
+/** GET /api/branch/templates/:id（optionalAuth）。非 published 只有作者看得到（别人 404，
+ *  服务端刻意不用 403 —— 不泄露私有模板的存在性），404 时 apiGet 抛 ApiError */
+export async function getRemoteTemplate(id: string): Promise<ApiBranchTemplate | null> {
+  const res = await apiGet<Record<string, unknown>>(`/api/branch/templates/${encodeURIComponent(id)}`);
+  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+}
+
+/**
+ * PATCH /api/branch/templates/:id/publish（requireAuth，仅作者）。
+ * ★ 服务端校**试炼闸**（provenAt 非空 = 作者本人用这个模板真实出过一次片）：没过闸
+ *   回 400，message 是整句人话（"发布前请先用这个模板成功出一段片…"）——调用方原样
+ *   显示，别自己编一句盖过去（那句解释了为什么要有这道门：受理后失败不退费，
+ *   坏模板的钱该坏在作者那一次，不该让每个套用的人各赔一次）。
+ */
+export async function publishTemplate(id: string): Promise<ApiBranchTemplate | null> {
+  const res = await apiPatch<Record<string, unknown>>(`/api/branch/templates/${encodeURIComponent(id)}/publish`);
+  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+}
+
+/** PATCH /api/branch/templates/:id/unpublish（requireAuth，仅作者）→ 回到 pending。
+ *  blocked（平台下架）不许作者自己洗回来，服务端 400 */
+export async function unpublishTemplate(id: string): Promise<ApiBranchTemplate | null> {
+  const res = await apiPatch<Record<string, unknown>>(`/api/branch/templates/${encodeURIComponent(id)}/unpublish`);
+  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+}
+
+/**
+ * DELETE /api/branch/templates/:id（requireAuth，仅作者）——连带回收 Cloudinary 上的
+ * 参考视频（服务端先云端后库；云端回收失败会 502 且**不删库**，重试即可）。
+ * @returns false = 这台服务器没有这个端点（回包形状不对，判据同 removeComment 的
+ *   deleteLanded——Capacitor SPA 回退恒 200，状态码不可信），调用方必须说出来
+ */
+export async function deleteRemoteTemplate(id: string): Promise<boolean> {
+  const res = await apiDelete<unknown>(`/api/branch/templates/${encodeURIComponent(id)}`);
+  return deleteLanded(res);
 }
 
 // ── 卡片/卡组的互动与热度 ─────────────────────────────────

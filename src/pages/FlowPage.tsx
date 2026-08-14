@@ -25,7 +25,7 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 import { AI_REAL } from "../ai";
 import { tierBlockReason, walletOf } from "../data/account";
 import { myTemplates } from "../data/templates";
-import { VIDEO_TIERS, clampDuration, fmtTokens, modelLabel, proposalsCost, tierOf } from "../data/economy";
+import { VIDEO_TIERS, clampDuration, fmtTokens, modelLabel, proposalsCost, r2vPriceIssue, tierOf } from "../data/economy";
 import {
   FlowNode,
   chosenOf,
@@ -153,8 +153,15 @@ function NodeScreen({
    *   "直接用卡片形象、不画设定帧"，实际却在承接上一段真实尾帧并按文字补画结束帧。
    */
   const refOn = useFlow((s) => nodeRefOn(s.nodes, index, s.mode));
+  /** 本段走白模复刻（r2v）。判定与报价（nodeCost）同源：模板快照带 refVideo（存在性） */
+  const blockout = !!tpl?.refVideo;
   /** 当前套餐点不动的档位各是为什么（空 = 都能选）。判断在 data/account 一处 */
   const tierBlocks = VIDEO_TIERS.map((t) => tierBlockReason(t)).filter((r): r is string => !!r);
+  /** 白模节点下各档位点不动的 r2v 原因（判断在 economy.r2vPriceIssue 一处，铁律六）。
+   *  几档的整句常常相同（"暂未开放"），Set 去重后再印，别把同一句话糊三遍 */
+  const r2vBlocks = blockout
+    ? [...new Set(VIDEO_TIERS.map((t) => r2vPriceIssue(t.id)).filter((r): r is string => !!r))]
+    : [];
   const req = requirementOf(node);
   const generating = node.status === "generating";
   /** 主按钮这一下干什么：没方案台先推演，摊开着就重推，挑定了才真出片。
@@ -327,7 +334,18 @@ function NodeScreen({
         {tpl ? (
           /* 套了模板：用户只需要说"换成谁/什么主题"，其余由配方补齐。
              剧情框仍然可展开查看/微调——模板是起点不是牢笼 */
-          <TemplateSubjectBox />
+          <>
+            <TemplateSubjectBox />
+            {/* ★ 白模的报价行必须**明示输入费构成**：r2v 连模板视频的输入时长也计费
+                （输出还≈输入），"42<70 所以更便宜"的直觉是反的——只报一个总数，
+                用户会拿纯任务的价一比就觉得被多收了。数字与主按钮同一把尺子（nodeCost） */}
+            {tpl.refVideo && (
+              <p className="text-[10px] leading-4 text-slate-500">
+                {`白模复刻出片（「${tierOf(node.videoTier).label}」档）：模板视频 ${tpl.refVideo.durationSec}s 的输入也计费、输出≈模板时长，共约 ${fmtTokens(cost)} token`}
+                {matCount === 0 && "。挂上带形象图的角色卡（右下角素材按钮），AI 会把红色小人换成它"}
+              </p>
+            )}
+          </>
         ) : simple ? (
           <div className="space-y-1">
             <textarea
@@ -400,9 +418,11 @@ function NodeScreen({
             className="flex-none rounded-lg bg-panel px-2.5 py-2 text-[11px] text-slate-300"
           >
             {/* 时长显示的是**真正会发出去**的秒数（2.5 不收 3 秒，见 clampDuration）——
-                写 3 秒却出 4 秒的片，用户对不上账 */}
-            ⚙ {clampDuration(prop.durationSec, node.videoTier)}s · {tierOf(node.videoTier).label} ·{" "}
-            {aspectOf(node.aspect).label}
+                写 3 秒却出 4 秒的片，用户对不上账。
+                ★ 白模例外：时长 = 模板登记时长，**不过 clampDuration**（edit 输出≈输入是
+                协议行为，10s 上限是纯 t2v 档位的约束——夹了就是"显示 10s、实出 14s"） */}
+            ⚙ {blockout && tpl?.refVideo ? tpl.refVideo.durationSec : clampDuration(prop.durationSec, node.videoTier)}s ·{" "}
+            {tierOf(node.videoTier).label} · {aspectOf(node.aspect).label}
           </button>
           {done && (
             <button
@@ -498,25 +518,37 @@ function NodeScreen({
               </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="w-10 flex-none text-[11px] text-slate-400">时长</span>
-              {DURATIONS.map((d) => {
-                // ★ 短于本档下限的时长直接禁掉并说明：Seedance 2.5 的合法区间是 [4,30]，
-                //   3 秒发过去是同步 400，用户只会觉得"这一档坏了"（见 VideoTier.minSec）
-                const tooShort = d < tierOf(node.videoTier).minSec;
-                return (
-                  <button
-                    key={d}
-                    onClick={() => updateProposal(node.id, { durationSec: d })}
-                    disabled={tooShort}
-                    title={tooShort ? `「${tierOf(node.videoTier).label}」最短 ${tierOf(node.videoTier).minSec} 秒` : undefined}
-                    className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${prop.durationSec === d ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
-                  >
-                    {d}s
-                  </button>
-                );
-              })}
-            </div>
+            {/* ★ 白模节点**没有时长选择器**（仓库主人拍板）：时长 = 模板的登记时长，
+                edit 输出≈输入是协议行为，不吃 clampDuration 的 10s 上限（那是纯 t2v
+                档位的产品约束）。摆一排点了不生效的时长按钮就是骗人 —— 换成一句明说 */}
+            {blockout && tpl?.refVideo ? (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="w-10 flex-none text-[11px] text-slate-400">时长</span>
+                <span className="text-[11px] text-slate-300">
+                  {tpl.refVideo.durationSec}s · 跟随模板视频（白模复刻的输出时长≈模板时长，不可另选）
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="w-10 flex-none text-[11px] text-slate-400">时长</span>
+                {DURATIONS.map((d) => {
+                  // ★ 短于本档下限的时长直接禁掉并说明：Seedance 2.5 的合法区间是 [4,30]，
+                  //   3 秒发过去是同步 400，用户只会觉得"这一档坏了"（见 VideoTier.minSec）
+                  const tooShort = d < tierOf(node.videoTier).minSec;
+                  return (
+                    <button
+                      key={d}
+                      onClick={() => updateProposal(node.id, { durationSec: d })}
+                      disabled={tooShort}
+                      title={tooShort ? `「${tierOf(node.videoTier).label}」最短 ${tierOf(node.videoTier).minSec} 秒` : undefined}
+                      className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${prop.durationSec === d ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+                    >
+                      {d}s
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {/* 画幅：已出片的段不给改——改了这一段的成片还是老画幅，
                 用户以为改完就变了，直到剪辑页合并才发现这一段被裁/补了边 */}
@@ -526,8 +558,17 @@ function NodeScreen({
                 <button
                   key={a.id}
                   onClick={() => updateNode(node.id, { aspect: a.id })}
-                  disabled={done}
-                  title={done ? "这一段已出片，改画幅要重新生成才生效" : a.desc}
+                  // ★ 白模禁改：真正的出片画幅是 adaptive 跟随模板视频（arkClient 的
+                  //   BLOCKOUT_TASK 整体接管 ratio），这排按钮点了不会改变产出 ——
+                  //   摆着能点就是"改了不生效"的骗人选项
+                  disabled={done || blockout}
+                  title={
+                    blockout
+                      ? "白模复刻的画幅自适应模板视频，不可另选"
+                      : done
+                        ? "这一段已出片，改画幅要重新生成才生效"
+                        : a.desc
+                  }
                   className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${
                     node.aspect === a.id ? "bg-brand text-ink" : "bg-panel text-slate-300"
                   }`}
@@ -544,7 +585,13 @@ function NodeScreen({
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="w-10 flex-none text-[11px] text-slate-400">画质</span>
               {VIDEO_TIERS.map((t) => {
-                const block = tierBlockReason(t);
+                // ★ 白模节点上，不支持 r2v 的档位也要禁掉（判断在 economy.r2vPriceIssue
+                //   一处）：切过去出片必被 segmentGen 的门禁整句拒绝，让人选一个必失败的
+                //   档位不如当场说不能选。价目也不能对这些档位问 nodeCost —— 那会走进
+                //   segmentCost 的"没 r2v 价还硬报"兜底（按最贵系数 + console.error 点名），
+                //   而这里不是门禁被改坏，只是一排比价按钮
+                const r2vBlock = blockout ? r2vPriceIssue(t.id) : null;
+                const block = tierBlockReason(t) ?? r2vBlock;
                 return (
                   <button
                     key={t.id}
@@ -556,7 +603,7 @@ function NodeScreen({
                     {/* ★ 与主按钮同一把尺子（nodeCost，只是把档位换成这一档）：光报 segTokens
                         会漏掉"这一档还得补画几张设定帧"，而简约模式正是两张都要补的那条路 ——
                         于是抽屉里写 108k、外面按钮写 134.6k，用户在**比价**的这一步被少报 */}
-                    {t.label} · {fmtTokens(nodeCost(nodes, index, mode, t.id))}
+                    {r2vBlock ? t.label : <>{t.label} · {fmtTokens(nodeCost(nodes, index, mode, t.id))}</>}
                   </button>
                 );
               })}
@@ -564,13 +611,20 @@ function NodeScreen({
             {/* ★ 点不动就必须写出为什么。只把按钮灰掉的话，用户只会觉得"这功能坏了"
                 （CLAUDE.md「界面上摆一个永远点不动的选项」）。title 在手机上没有 hover，
                 所以原因得**印在页面上**，不能只挂在 title 里 */}
-            {tierBlocks.length > 0 && (
+            {(tierBlocks.length > 0 || r2vBlocks.length > 0) && (
               <p className="text-[10px] leading-4 text-amber-300/80">
-                {tierBlocks.join("；")}
-                　
-                <Link to="/me" className="underline">
-                  去升级
-                </Link>
+                {[...tierBlocks, ...r2vBlocks].join("；")}
+                {/* 「去升级」只治得了套餐门槛那类原因；r2v 闸门没开不是充钱能解决的，
+                    只有套餐原因在场时才给这个链接。间隔用全角空格字面量——JSX 会把
+                    行间换行整个吃掉，靠折行留空隙是留不住的 */}
+                {tierBlocks.length > 0 && (
+                  <>
+                    {"　"}
+                    <Link to="/me" className="underline">
+                      去升级
+                    </Link>
+                  </>
+                )}
               </p>
             )}
             {/* ★ 把**真正会被调用的那个模型**写出来。「极速/标准/高清」只说了画质档次，
