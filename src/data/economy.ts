@@ -148,10 +148,12 @@ export const VIDEO_TIERS: VideoTier[] = [
     mult: ULTRA_MULT,
     flf: true,
     refImg: true,
-    // ★ r2v 开闸只翻 refVid 这一个布尔（系数已实测钉死在 ULTRA_R2V_MULT）。
-    //   现在 false：App 侧模板上传/登记链路还没上线，服务端 resolveR2v 只认已登记
-    //   模板 URL，开了也无模板可用 —— 关着才不会出现"按钮能按、一按必失败"。
-    refVid: false,
+    // ★ r2v 已开闸（2026-08-14，前置三发实测全过才翻的这个布尔）：
+    //   A2 = edit 路线全时长逐镜头复刻（保真度判定）；A3 = 计费公式两发分毫不差
+    //   （(输入+输出时长)×W×H×fps÷1024，系数 2.8 = 42元/M÷15 锚）；A4 = 4s 短模板
+    //   下探无"最低 token 门槛"抬价。系数钉死在 ULTRA_R2V_MULT，与 server 的
+    //   VIDEO_MULT_R2V 逐条相等（arkProxy.spec 有跨仓钉子）。
+    refVid: true,
     r2vMult: ULTRA_R2V_MULT,
     paidOnly: true,
     // 2.5 的时长区间是 [4,30]，3 秒会被同步 400（见 VideoTier.minSec）
