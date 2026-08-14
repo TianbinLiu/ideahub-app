@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-path name="my_images" path="." />
+    <cache-path name="my_cache_images" path="." />
+    <!-- 自更新下载的 APK（sideload 渠道，见 AppUpdaterPlugin）。
+         上面那条 path="." 其实已经覆盖了整个 cache 目录，单列一条是为了让
+         "系统安装器凭什么读得到我们私有目录里的文件"这件事在文件里看得见。 -->
+    <cache-path name="app_updates" path="updates/" />
+</paths>
