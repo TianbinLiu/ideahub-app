@@ -1,0 +1,95 @@
+apply plugin: 'com.android.application'
+
+// 签名配置从 android/keystore/keystore.properties 读取（整个 keystore/ 被 gitignore，
+// 公开仓库不含任何口令；目录缺失时 release 退化为无签名包并给出警告）。
+// ★ 与主 App「启梦」共用同一把 keystore：一把密钥可以签多个应用，两个 applicationId
+//   互不影响，也省得再保管第二份口令（丢了同样无法挽回，见 keystore/README.md）。
+def keystorePropertiesFile = rootProject.file("keystore/keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
+android {
+    namespace = "com.ideahub.shihui"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.ideahub.shihui"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        // ★ 每发一版给别人装，versionCode 必须 +1 —— Android 只认这个整数判新旧，
+        //   不涨的话所有已安装用户的更新检查都判不出有新版（等于没发，且失败是静默的）
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            release {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
+    /**
+     * 分发渠道。★★ 存在的唯一理由：**自更新只能出现在侧载包里**。
+     * Google Play 的「设备与网络滥用」政策禁止应用自己下载安装 APK，所以
+     * REQUEST_INSTALL_PACKAGES 与 AppUpdaterPlugin 都只在 src/sideload/ 下。
+     * 和主 App 同一套约定——不这么做的话，那是一颗只在上架审核时才炸的雷。
+     */
+    flavorDimensions += "distribution"
+    productFlavors {
+        sideload { dimension "distribution" }
+        play { dimension "distribution" }
+    }
+
+    buildTypes {
+        release {
+            // webview 壳应用：原生代码只有 Capacitor 桥，minify 收益小，保持关闭省心
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn("android/keystore/ 缺失：release 包将不签名，无法安装（见主 App 的 android/keystore/README.md）")
+            }
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

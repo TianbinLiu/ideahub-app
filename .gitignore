@@ -6,7 +6,10 @@ dist
 public/models/protected/
 assets-private/
 # 签名 keystore 与口令：公开仓库绝不入仓（备份见 android/keystore/README.md）
-android/keystore/
+# ★ 必须用 **/ 前缀：`android/keystore/` 这样带斜杠的规则**只锚定仓库根**，
+#   诗绘的 shihui/android/keystore/ 不会被它挡住 —— 2026-08 给 shihui 复制 keystore
+#   时实测过，密钥和口令当场处于"可提交"状态。任何新增子工程都靠这条兜住。
+**/android/keystore/
 
 # ── 密钥 ────────────────────────────────────────────────────────────────
 # .env.local 本来就被上面的 *.local 兜住了，但那是【碰巧】——
@@ -33,3 +36,8 @@ design/tts-samples/
 
 # shihui 的 forge 预生成产物（mp4/关键帧/manifest）：内容包走 CDN 分发，不进 git
 shihui/public/clips/
+
+# 压缩后的内容库（APK 打包用，母版在 public/clips）
+.clips-packed/
+# 生成的图标/封面原图（切好的图标进仓，原图不进）
+assets-art/
