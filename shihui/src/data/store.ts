@@ -38,6 +38,8 @@ interface ShihuiState {
   setLineClip: (workId: string, lineIdx: number, clip: LineClip) => void
   finishWork: (workId: string, patch: { title?: string; recitationUrl?: string; score?: WorkScore }) => void
   publishWork: (workId: string) => number
+  /** 忘记 PIN 重置的代价（docs/PARENT-GATE.md）：下架我的全部已发布作品 */
+  unpublishMine: () => void
   deleteWork: (workId: string) => void
   toggleLike: (workId: string) => void
   claimShare: () => number
@@ -162,6 +164,11 @@ export const useShihui = create<ShihuiState>()(
         })
         return gained
       },
+
+      unpublishMine: () =>
+        set((s) => ({
+          works: s.works.map((w) => (w.authorId === MY_AUTHOR_ID && w.published ? { ...w, published: false } : w)),
+        })),
 
       deleteWork: (workId) =>
         set((s) => {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { InkPlaceholder } from "../components/InkPlaceholder"
+import { ParentGate } from "../components/ParentGate"
 import { VerseOverlay } from "../components/VerseOverlay"
 import { useVideoUrl } from "../data/blobStore"
 import { useShihui } from "../data/store"
@@ -19,6 +20,8 @@ export function Feed() {
   const [tab, setTab] = useState<"rank" | "new">("rank")
   const [playing, setPlaying] = useState<PoemWork | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  /** 分享挂家长门（门禁矩阵见 docs/PARENT-GATE.md）：待分享的作品 */
+  const [gateFor, setGateFor] = useState<PoemWork | null>(null)
 
   const published = works.filter((w) => w.published)
   const ranked = published
@@ -91,7 +94,7 @@ export function Feed() {
                 <button onClick={() => toggleLike(w.id)} className={liked ? "text-cinnabar" : ""}>
                   {liked ? "♥" : "♡"} {w.likes}
                 </button>
-                <button onClick={() => share(w)}>↗ 分享</button>
+                <button onClick={() => setGateFor(w)}>↗ 分享</button>
                 <span className="ml-auto text-xs">{w.theme ? `主题「${w.theme}」` : "自由创作"}</span>
               </div>
             </div>
@@ -106,6 +109,18 @@ export function Feed() {
       )}
 
       {playing && <Player work={playing} onClose={() => setPlaying(null)} />}
+
+      {gateFor && (
+        <ParentGate
+          req={{ action: "分享作品", detail: `分享《${gateFor.title}》`, consentAction: "share", allowSession: true }}
+          onPass={() => {
+            const w = gateFor
+            setGateFor(null)
+            void share(w)
+          }}
+          onCancel={() => setGateFor(null)}
+        />
+      )}
     </div>
   )
 }
