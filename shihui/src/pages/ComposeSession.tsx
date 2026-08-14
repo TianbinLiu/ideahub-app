@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react"
 import { genLineClip } from "../ai"
 import { scoreWork } from "../ai/score"
 import { InkPlaceholder } from "../components/InkPlaceholder"
+import { MicConsent } from "../components/MicConsent"
+import { ParentGate } from "../components/ParentGate"
+import { hasVoiceCaptureConsent, useGuardian } from "../data/guardian"
 import { bankOf } from "../data/poems"
 import { canAddLine, useShihui } from "../data/store"
 import { nav } from "../router"
@@ -32,6 +35,8 @@ export function ComposeSession({ workId }: { workId: string }) {
   const [recState, setRecState] = useState<"idle" | "recording" | "done">("idle")
   const [recUrl, setRecUrl] = useState<string | null>(null)
   const [published, setPublished] = useState(false)
+  const [gateOpen, setGateOpen] = useState(false)
+  const [micAsk, setMicAsk] = useState(false)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
 
@@ -96,6 +101,11 @@ export function ComposeSession({ workId }: { workId: string }) {
   }
 
   const startRecording = async () => {
+    // 首次开麦的采集侧同意——读实时 state（订阅值在 onAllow 同步回调里是旧的）
+    if (!hasVoiceCaptureConsent(useGuardian.getState().consents)) {
+      setMicAsk(true)
+      return
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const rec = new MediaRecorder(stream)
@@ -174,24 +184,33 @@ export function ComposeSession({ workId }: { workId: string }) {
           {published ? (
             <div className="text-center text-cinnabar">已发布到广场 ✓</div>
           ) : (
-            <button
-              onClick={() => {
-                publishWork(work.id)
-                setPublished(true)
-                nav("/feed")
-              }}
-              className="w-full rounded-full bg-cinnabar py-3.5 text-lg text-paper"
-            >
-              发布到广场
+            <button onClick={() => setGateOpen(true)} className="w-full rounded-full bg-cinnabar py-3.5 text-lg text-paper">
+              发布到广场（需家长确认）
             </button>
           )}
           <button onClick={() => nav("/compose")} className="w-full py-2 text-sm text-mist">
             先存着，回创作页
           </button>
-          <p className="text-center text-xs text-mist">
-            骨架提示：真实产品发布前必须过「家长确认 + 内容审核」两道门（孩子的声音是敏感个人信息）
-          </p>
+          <p className="text-center text-xs text-mist">发布过家长门；内容审核在服务端阶段接入（见 docs/PARENT-GATE.md）</p>
         </div>
+        {gateOpen && (
+          <ParentGate
+            req={{
+              action: "发布这首诗",
+              detail: `发布《${w?.title ?? "无题"}》${w?.recitationUrl ? "（含朗诵音频）" : ""}`,
+              consentAction: w?.recitationUrl ? "publish-voice" : "publish",
+              requireVoiceConsent: !!w?.recitationUrl,
+              // 含语音发布 PIN 永不豁免（评审 high：免重验窗口内的勾选可能是孩子勾的）
+              allowSession: !w?.recitationUrl,
+            }}
+            onPass={() => {
+              publishWork(work.id)
+              setPublished(true)
+              nav("/feed")
+            }}
+            onCancel={() => setGateOpen(false)}
+          />
+        )}
       </div>
     )
   }
@@ -236,6 +255,16 @@ export function ComposeSession({ workId }: { workId: string }) {
             {work.difficulty === "free" ? "完成 →" : "完成，看打分 →"}
           </button>
         </div>
+        {micAsk && (
+          <MicConsent
+            purpose="朗诵录音"
+            onAllow={() => {
+              setMicAsk(false)
+              void startRecording()
+            }}
+            onDeny={() => setMicAsk(false)}
+          />
+        )}
       </div>
     )
   }

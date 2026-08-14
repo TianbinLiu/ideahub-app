@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react"
 import { MATCH_THRESHOLD, reciteMatch, reciteSupported, speakLine, startRecite, type ReciteSession } from "../ai/recite"
 import { LineStage } from "../components/LineStage"
+import { MicConsent } from "../components/MicConsent"
 import { useClips } from "../data/clips"
+import { hasVoiceCaptureConsent, useGuardian } from "../data/guardian"
 import { poemById } from "../data/poems"
 import { useShihui } from "../data/store"
 import { nav } from "../router"
@@ -27,6 +29,7 @@ export function LearnPlayer({ poemId }: { poemId: string }) {
   const [heard, setHeard] = useState("")
   const [hint, setHint] = useState<string | null>(null)
   const [gained, setGained] = useState(0)
+  const [micAsk, setMicAsk] = useState(false)
   const sessionRef = useRef<ReciteSession | null>(null)
   const phaseRef = useRef<Phase>("idle")
   phaseRef.current = phase
@@ -74,6 +77,12 @@ export function LearnPlayer({ poemId }: { poemId: string }) {
   }, [phase])
 
   const startListening = () => {
+    // 首次开麦的采集侧同意（义务在首次采集不在首次发布，见 MicConsent 头注释）。
+    // ★ 读实时 state 而不是订阅值：onAllow 同步回调进来时订阅闭包还是旧值，会无限弹页
+    if (!hasVoiceCaptureConsent(useGuardian.getState().consents)) {
+      setMicAsk(true)
+      return
+    }
     setHint(null)
     setHeard("")
     const session = startRecite(
@@ -143,6 +152,20 @@ export function LearnPlayer({ poemId }: { poemId: string }) {
           《{poem.title}》 {idx + 1}/{poem.lines.length}
         </div>
       </header>
+
+      {micAsk && (
+        <MicConsent
+          purpose="跟读识别"
+          onAllow={() => {
+            setMicAsk(false)
+            startListening()
+          }}
+          onDeny={() => {
+            setMicAsk(false)
+            setHint("不用麦克风也行：念完点下面的「我念完了」")
+          }}
+        />
+      )}
 
       {phase === "matched" && (
         <div className="absolute inset-0 z-10 flex items-center justify-center">
