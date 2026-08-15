@@ -76,6 +76,11 @@ export type FrameSize = Pick<VideoNatural, "width" | "height">;
  *  （types.ts 那边刻意用的行内形状，与 refVideo 同款），这里只是给它起个名字好引用。 */
 export type TemplateRole = NonNullable<VideoTemplate["roles"]>[number];
 
+// ★ 「一个模板最多几个能挂卡的角色位」（`BLOCKOUT_MAX_ROLES` / `splitCastRoles`）**不在本文件**，
+//   在 `data/templates.ts` —— 与 `BLOCKOUTIZE_FRAME_MAX` 同一个理由：那是**服务端那份数的镜像**，
+//   本文件只放"方舟对输入视频的窗口"。而且 store 层（flowStore）也要问同一个函数，
+//   store 不该反过来 import 组件（依赖方向：data → store → 组件）。
+
 export const ARK_EDIT_RULES = Object.freeze({
   minSec: 4,
   maxSec: 30,

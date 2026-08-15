@@ -26,7 +26,7 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 //   真正发出去的那段话，在这里另抄一个 400 出来，改上限时这里就开始说假话
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
 import { tierBlockReason, walletOf } from "../data/account";
-import { myTemplates } from "../data/templates";
+import { myTemplates, splitCastRoles } from "../data/templates";
 import { VIDEO_TIERS, clampDuration, fmtTokens, modelLabel, proposalsCost, r2vPriceIssue, tierOf } from "../data/economy";
 import {
   FlowNode,
@@ -126,7 +126,10 @@ function TemplateSubjectBox() {
 function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void }) {
   const { template, cast, castErr, castFallback, castBusy, busy, updateProposal, setRequirement, fillCastFallback } =
     useFlow();
-  const roles = template?.roles ?? [];
+  // ★ 分母只数**能挂卡的**那些（上限 BLOCKOUT_MAX_ROLES，判定唯一实现在 data/templates）：
+  //   数全部的话，一个 12 个角色位的模板会显示"已挂 9/12"，而第 10~12 个在挂卡面板上
+  //   根本没有挂卡按钮 —— 用户会一直找那三个位子在哪
+  const roles = splitCastRoles(template?.roles ?? []).castable;
   const prop = chosenOf(node);
   const mounted = roles.filter((r) => cast[r.label]).length;
   const [openReq, setOpenReq] = useState(false);
@@ -663,10 +666,11 @@ function NodeScreen({
               同 CharacterPerch 那套做法）。 */}
           {/* ★★ V2 白模上这枚钮改开**挂卡**，不开素材窗口：那条路的 materials ≡ 挂卡结果
               （flowStore.applyCast 整表覆盖）。放着素材窗口能自由加卡的话，加进来的卡
-              没有任何编号点它，却照样占掉一张参考图配额（一次最多 MAX_REF_IMAGES 张，
-              规则在 ai/real.allocateRefs），把真正要换的那张挤掉 —— 画面里那个人没换成，
-              钱照扣、零报错。移除同理：从素材条里删掉一张，点名句里还写着它。
-              两个入口指同一个动作，不是两条路。 */}
+              没有任何编号点它，却照样进参考图、照样在尾巴上多出一条绑定句（`名字=@图片N`）——
+              模型收到一个"有图有名字、却没人点它"的角色，只会自己找个地方把他画进去，
+              而那句绑定还白吃掉用户的正文额度（提示词硬顶 400 字，截断从正文这头切）。
+              移除同理：从素材条里删掉一张，点名句里还写着它、图却没发出去 ——
+              两个方向都是画面照出、钱照扣、零报错。两个入口指同一个动作，不是两条路。 */}
           <button
             key={matShake}
             onClick={named ? requestCast : onToggleMat}
@@ -930,9 +934,10 @@ export default function FlowPage() {
    * 自由素材窗口开着吗 —— **V2 白模上恒为关**。
    *
    * ★★ 那条路的 materials ≡ 挂卡结果（唯一出处是角色位，flowStore.applyCast 整表覆盖）。
-   *   素材窗口能加也能删：加进来的卡没有任何编号点它，却照样占掉一张参考图配额
-   *   （一次最多 MAX_REF_IMAGES 张，规则在 ai/real.allocateRefs），把真正要换的那张挤掉；
-   *   删掉一张则是点名句里还写着它、图却没发出去 —— 两个方向都是"人没换成、钱照扣、
+   *   素材窗口能加也能删：加进来的卡没有任何编号点它，却照样进参考图、照样多出一条
+   *   `名字=@图片N` 的绑定句（规则在 ai/real.allocateRefs 与它的 bind）—— 模型收到一个
+   *   "有图有名字、没人点它"的角色就会自己安排他出场，那句绑定还白吃掉用户的正文额度；
+   *   删掉一张则是点名句里还写着它、图却没发出去 —— 两个方向都是"人错了、钱照扣、
    *   零报错"。所以这一格在 V2 上整个不开（那枚圆钮改成挂卡入口，见 NodeScreen）。
    * ★ 写成派生值而不是"打开时判一下"：matOpen 是本页的存量状态，用户完全可能先开着
    *   素材窗口、再从模板栏套上一个 V2 模板（提取器那条路就在这一页上），那一刻没人

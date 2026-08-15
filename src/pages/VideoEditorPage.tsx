@@ -32,8 +32,11 @@ import BlockoutTrimmer from "../components/blockout/BlockoutTrimmer";
 import RoleCastBoard from "../components/blockout/RoleCastBoard";
 import type { BlockoutSelection, TemplateRole, VideoNatural } from "../components/blockout/arkVideoRules";
 // ★ 只取那一个常量，不取实现：「一次出片最多带几张参考图」的唯一实现在 ai/real
-//   （MAX_REF_IMAGES + 两轮分配）。在这儿抄一个 3 出来，就是那条规则的第二份。
-import { MAX_REF_IMAGES } from "../ai/real";
+//   （预算 + 两轮分配）。在这儿抄一个数出来，就是那条规则的第二份。
+// ★★ 这一页走的是**白模路**，它的预算是 `ARK_REF_IMAGES_MAX`（跟随方舟 2.5 协议的 30 张），
+//   **不是** `MAX_REF_IMAGES`（那个 3 是经典路的启发式）。2026-08-15 之前这里传的正是那个 3 ——
+//   界面于是会对着 4 张卡说"超上限、会被挤掉"，而出片管线根本不会挤 —— 界面在吓唬用户。
+import { ARK_REF_IMAGES_MAX } from "../ai/real";
 import { myCards } from "../data/account";
 import { useAccountVersion } from "../hooks/useAccount";
 import type { Card } from "../types";
@@ -229,7 +232,7 @@ export default function VideoEditorPage() {
             cards={cards}
             value={cast}
             onChange={setCast}
-            maxRefImages={MAX_REF_IMAGES}
+            maxRefImages={ARK_REF_IMAGES_MAX}
             onDone={() => finish({ mode: "cast", templateId: state.templateId, cast })}
             doneLabel="完成挂卡"
             onCancel={() => nav(-1)}

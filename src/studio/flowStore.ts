@@ -22,7 +22,10 @@ import { AI_REAL, generateCover, generateProposals, prepareMaterialRefs } from "
 import { canAfford, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, tierOf } from "../data/economy";
 import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
-import { type BlockoutCastSlot, blockoutApplySkeleton, composeBlockoutPrompt } from "./blockoutPrompt";
+// ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
+//   store 不该 import 组件（依赖方向 data → store → 组件）
+import { BLOCKOUT_MAX_ROLES, splitCastRoles } from "../data/templates";
+import { type BlockoutCastSlot, blockoutApplySkeleton, castNameIssue, composeBlockoutPrompt } from "./blockoutPrompt";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
 import { blockoutIssue, generateSegment, refVideoOn } from "./segmentGen";
 
@@ -323,7 +326,8 @@ interface FlowState {
   /** 用户那句话，替换配方里的 {{主题}} */
   subject: string;
   /**
-   * 白模 V2 的挂卡映射：**人偶胸口的编号（`roles[].label`）→ 卡 id**。
+   * 白模 V2 的挂卡映射：**人偶头上的编号（`roles[].label`）→ 卡 id**。
+   * （编号印在头部前后左右四面，2026-08-15 起；此前只印胸口，人一转身就看不见了。）
    * 空表 = 还没挂（V1 老模板与经典模板恒为空表，它们没有角色位）。
    *
    * ★ 存 id 而不是整张卡：卡有 1MB 级的图，而这一格每次开编辑页都要原样塞进
@@ -574,10 +578,23 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   注释），所以这一刻才现查。查不到不是小事：界面上那个位子显示"？"，映射里却还
     //   留着一个 id —— 不拦的话出片时它既没有形象图、点名句里又白白点了它的名，
     //   模型只能自己编一个人出来，钱照扣（铁律八）。
+    // ── 角色位上限：只有前 BLOCKOUT_MAX_ROLES 个能挂卡（判定唯一实现在 data/templates） ──
+    // ★ 这一段今天走不到（挂卡面板压根不给超出的位子挂卡按钮），留着是**断言**：真收到了
+    //   就说明有人绕过了那一处（老草稿、老服务端多编了几个位子），而静默丢掉的表现是
+    //   "我明明挂了 10 号，出片时它还是白模"——挂了、付了钱、画面没变，零报错（铁律八）。
+    const { castable } = splitCastRoles(roles);
+    const canCast = new Set(castable.map((r) => r.label));
+    const overflow = Object.keys(next).filter((label) => !canCast.has(label));
+    if (overflow.length > 0) {
+      set({
+        err: `编号 ${overflow.join("、")} 挂的卡不能生效：一个模板最多只有 ${BLOCKOUT_MAX_ROLES} 个角色位能挂卡（再多的编号在画面上也认不出来），多出来的会保持白模人偶原样——回挂卡那一屏点「取下这几张」再完成挂卡`,
+      });
+      return false;
+    }
     const mine = new Map(myCards().map((c) => [c.id, c]));
     const slots: BlockoutCastSlot[] = [];
     const missing: string[] = [];
-    for (const r of roles) {
+    for (const r of castable) {
       const id = next[r.label];
       const card = id ? (mine.get(id) ?? null) : null;
       if (id && !card) missing.push(r.label);
@@ -601,10 +618,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
       get().updateProposal(node.id, { plot: "" });
       return false;
     }
-    // ★★ 重名硬拦：合成句说「编号 4 …替换为角色「张三」」，出片时的绑定句说
-    //   「<图片2>…定义为角色「张三」」—— 两句是靠**角色名**接上的（编号 M 在合成那一刻
-    //   还不存在，理由见 blockoutPrompt.blockoutApplySkeleton 的 ★）。两张**不同**的卡
-    //   重名，这个连接键就失效了：模型只能在两张脸里挑一张，挑错了就是张三换到李四身上，
+    // ★★ 重名硬拦：合成句说「编号4=张三」，出片时的绑定句说「张三=@图片2」——
+    //   两句是靠**角色名**接上的（图片编号 M 在合成那一刻还不存在，理由见
+    //   blockoutPrompt.blockoutApplySkeleton 的 ★）。两张**不同**的卡重名，这个连接键
+    //   就失效了：模型只能在两张脸里挑一张，挑错了就是张三换到李四身上，
     //   而画面照出、零报错。同一张卡挂在两个位子上是合法的（用户就是要同一个人），
     //   所以判的是"名字相同但 id 不同"。
     const byName = new Map<string, string>();
@@ -617,12 +634,22 @@ export const useFlow = create<FlowState>()((set, get) => ({
         return false;
       }
       byName.set(s.card.name, s.card.id);
+      // ★ 同一条连接键的**另一半**：两段话都用 `=`、`；`、`、` 分隔（2026-08-15 紧凑化），
+      //   名字里混进这几个符号，模型会把一条绑定读成两条 —— 与重名是同一种故障
+      //   （换错人、零报错），所以在同一处、同样在花钱之前拦下（判据唯一实现在
+      //   blockoutPrompt.castNameIssue，别在界面上再判一遍）。
+      const nameIssue = castNameIssue(s.card.name);
+      if (nameIssue) {
+        set({ err: `编号 ${s.label} 挂的这张卡不能这么用：${nameIssue}` });
+        return false;
+      }
     }
 
     // ── materials：按**角色位原序**落盘，同一张卡只落一次 ──
     // ★★ 顺序决定的**不是**"谁是谁"（那由角色名连接，见上面重名那条），而是
-    //   **预算不够时谁先被挤掉**：一次出片最多带 MAX_REF_IMAGES 张参考图，多出来的卡
-    //   只按文字参与（规则的唯一实现在 ai/real.allocateRefs，这里绝不复述）。
+    //   **预算不够时谁先被挤掉**：一次出片带的参考图有预算上限，多出来的卡只按文字参与
+    //   （规则的唯一实现在 ai/real.allocateRefs，这里绝不复述；白模路的预算已经跟随
+    //   方舟协议放到 30 张，9 个角色位挤不掉谁，但这个顺序仍是那条规则的输入）。
     //   用 `roles` 的原序，是因为那正是编辑页角色位列表的显示顺序，也是那一页
     //   「多出来的会被挤掉」那句提醒所指的顺序 —— 在这里另排一次（比如按编号数值排），
     //   用户看到的顺序与真正被挤掉的那张就对不上了。

@@ -501,7 +501,7 @@ export async function setTemplatePublished(id: string, on: boolean): Promise<voi
  * 核对角色位编号 —— **唯一入口**（页面别自己调 branch API：本机镜像与远端状态要一起改）。
  *
  * ★★ 为什么非有这一步不可（这是白模 V2 最阴的一条错法）：白模化落库那一刻的 label 是
- *   **服务端按视觉清单顺序编的猜测**（1..N），而成片上人偶胸口的数字实测**稳定但不连续**
+ *   **服务端按视觉清单顺序编的猜测**（1..N），而成片上人偶头上的数字实测**稳定但不连续**
  *   （一发四人实出 1/2/4/5）。对不上时，套用者点"3 号位"挂上张三 —— 模型老老实实换掉
  *   画面上的 3 号（另一个人），**钱照扣、零报错**。所以编号只能由看得见画面的人确认。
  * ★ 提交的是**完整的那一份**（服务端整份替换）：作者可以改编号、改描述、删掉 AI 多认的
@@ -685,6 +685,41 @@ export function autoVisionFrames(durSec: number): number {
  */
 export function visionFrameCount(durSec: number, frameTimes?: number[]): number {
   return frameTimes ? frameTimes.length : autoVisionFrames(durSec);
+}
+
+// ── 一个模板最多有几个「能挂卡」的角色位 ────────────────────────────
+
+/**
+ * **跨仓镜像**：服务端白模化时最多编到这个数，核对端点（`PATCH /templates/:id/roles`）
+ * 收的条数上限也是它（server `schemas/branchTemplate.schemas.js` 的 `roles` 数组上限），
+ * 两边必须逐字相等 —— 契约见 docs/api-contract.md「白模模板」。
+ *
+ * ★★ 9 不是技术上限，是**看得清的上限**（2026-08-15 实测）：12 个角色位时编号照样印得出来，
+ *   但画面上人眼能稳定认出的只有 4~5 个。再往上加只会造出一堆"看不见、挂不上"的位子——
+ *   用户对着列表里的 11 号在画面里找半天，找不到，只会以为坏了（而全程零报错）。
+ * ★ 参考图预算**不是**瓶颈：9 个角色位 × 每卡最多 2 张 = 18 张，而方舟 2.5 收 30 张
+ *   （`ai/real.ARK_REF_IMAGES_MAX`）。所以这个 9 纯粹由"画面上认不认得出"这一条定，
+ *   别拿参考图预算去推它 —— 那两个数各有各的依据，绑在一起改一个就会悄悄动到另一个。
+ * ⚠ 服务端还没跟上这个数时，模板可能带回多于 9 个角色位：那时多出来的**照样显示**
+ *   （画面上真有那个编号），只是挂不了卡 —— 见 `splitCastRoles` 与 RoleCastBoard。
+ */
+export const BLOCKOUT_MAX_ROLES = 9;
+
+/**
+ * 角色位 → 「能挂卡的」与「超出上限的」两摞。**唯一实现**：挂卡面板（渲染那一处）与
+ * `flowStore.applyCast`（真正落 materials 那一处）问的是同一个函数。
+ *
+ * ★ 为什么不在收模板那一层就把多出来的**扔掉**：画面上那些人偶身上真的印着编号，
+ *   列表里悄悄消失的话，用户看见 11 号却在列表里找不到它，只会以为坏了。摆出来 +
+ *   说清"它保持白模、挂不了卡"，才是诚实的降级（铁律八）。
+ * ★ 收 `roles` 的行内形状而不是组件里那个 `TemplateRole` 别名：那个别名定义在
+ *   `components/blockout/arkVideoRules`，data 层 import 组件会把依赖方向掉个个儿。
+ */
+export function splitCastRoles(roles: NonNullable<VideoTemplate["roles"]>): {
+  castable: NonNullable<VideoTemplate["roles"]>;
+  extra: NonNullable<VideoTemplate["roles"]>;
+} {
+  return { castable: roles.slice(0, BLOCKOUT_MAX_ROLES), extra: roles.slice(BLOCKOUT_MAX_ROLES) };
 }
 
 /**

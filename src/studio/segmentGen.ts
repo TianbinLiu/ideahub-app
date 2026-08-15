@@ -62,7 +62,7 @@ export interface SegmentGenInput {
   /**
    * 白模模板的**角色位**（`template.roles` 的镜像，见 types.VideoTemplate.roles）。
    *
-   * ★★ 这里只当**存在性开关**用（`roles?.length`）：有 = V2 白模模板（人偶胸口有编号，
+   * ★★ 这里只当**存在性开关**用（`roles?.length`）：有 = V2 白模模板（人偶头上印着编号，
    *   编辑页已经把「编号 N → 角色「XX」」的点名合成句填进了 `plot`）；缺省 = V1 老模板
    *   （人偶身上没有编号，只能泛指）。两条路在下面出片那一步显式分叉，注释在那里。
    * ★ 内容（label/desc）本函数一个字都不读 —— 点名那句话由 `studio/blockoutPrompt`
@@ -327,18 +327,28 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   //   ——后加字段，老模板天然缺它、天然走老路，零迁移；等值判会把存量整批算进某一类
   //   且一个错都不报，见 types.VideoTemplate.roles 的 ★）：
   //   · **V2（有 roles）**：`plot` 里那段话已经是编辑页合成好的点名映射
-  //     （「编号 4 的白色人偶替换为角色「张三」」，studio/blockoutPrompt 一处实现，
-  //     用户过目并可改）。这条路**不再拼 BLOCKOUT_SWAP** —— 它说的「将视频中的红色小人
-  //     替换为下列角色」是**泛指**，与逐个点名摆在同一段话里就是自相矛盾（而"泛指盖过
-  //     点名"正是白模化那一步实测踩过的坑：泛指只换配角、主角不动，F4），
-  //     还要白白吃掉 VIDEO_PROMPT_MAX 里 60 字的正文额度。
+  //     （「编号4=张三」，studio/blockoutPrompt 一处实现，用户过目并可改）。
+  //     这条路**不再拼 BLOCKOUT_SWAP** —— 它说的「将视频中的红色小人替换为下列角色」
+  //     是**泛指**，与逐个点名摆在同一段话里就是自相矛盾（而"泛指盖过点名"正是白模化
+  //     那一步实测踩过的坑：泛指只换配角、主角不动，F4），还要白白吃掉
+  //     VIDEO_PROMPT_MAX 里 60 字的正文额度。
   //   · **V1（没有 roles，老模板）**：人偶身上根本没有编号，除了泛指没有别的说法 ——
   //     照旧拼 BLOCKOUT_SWAP。降级但诚实。
-  //   · **绑定句（bind）两条路都要拼**：`<图片N>` ↔ 角色是 prepareMaterialRefs 在出片
+  //   · **绑定句（bind）两条路都要拼**：图片编号 ↔ 角色是 prepareMaterialRefs 在出片
   //     这一刻现分配的（谁被挤掉、同卡的图怎么连号），用户在输入框里改不出来、也没法
-  //     提前知道 —— 合成句里说的是角色**名**，全靠这一句把名字接到图上。
+  //     提前知道 —— 合成句里说的是角色**名**，全靠这一句把名字接到图上
+  //     （白模路是紧凑式 `张三=@图片1@图片2`，理由见 ai/real 的 bind）。
   const named = blockout && !!input.roles?.length;
-  const tail = blockout ? `${named ? "" : BLOCKOUT_SWAP}${mats}${bind}` : `${mats}${refMode ? bind : ""}`;
+  // ★★ V2（点名）那条路**不拼素材设定文字**（`mats`），只留绑定句。这不是省字的洁癖，是算出来的：
+  //   `mats` 每张卡 ≈ 50 字（卡种 + 名字 + 30~40 字设定），角色位上限放到 9 之后光它一项就
+  //   400 字打底 —— 而提示词硬顶就是 400，截断又是**从正文这头切**的（见下面的 room），
+  //   于是用户在输入框里亲眼过目、亲手改过的那段点名映射会被整段切没，画面照出、钱照收。
+  //   舍它而不是舍别的，是因为这条路上它最接近纯冗余：每个角色的名字在**点名句**里已经出现
+  //   （编号N=张三），形象由**参考图 + 紧凑绑定句**（张三=@图片1@图片2）锁定，而设定文字那 30 字
+  //   是豆包写的卡面简介，对"把白模换成这个人"几乎不添信息。
+  //   ⚠ 例外：某张卡的形象图全都读不出来时，它就只剩名字了 —— 那种情况由 prepareMaterialRefs
+  //   的 onNote 逐张点名（"第 N 张参考图未采用…"），一张都没成还会整句 throw，不是静默。
+  const tail = blockout ? (named ? bind : `${BLOCKOUT_SWAP}${mats}${bind}`) : `${mats}${refMode ? bind : ""}`;
   const story = reqs ? `${input.plot}。修改要求（必须满足）：${reqs}` : input.plot;
   // ★ 提示词有 VIDEO_PROMPT_MAX 的硬顶，而它是**从尾巴切**的 —— 尾巴恰好就是素材设定
   //   与绑定句。直接拼起来交上去的话：简约模式的输入框本身就允许 400 字，用户写满

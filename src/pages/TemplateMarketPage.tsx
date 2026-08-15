@@ -122,7 +122,7 @@ export function TemplateCard({ t, onPick }: { t: VideoTemplate; onPick?: () => v
  * 核对角色位编号（白模 V2，**只有作者自己看得到**）。
  *
  * ★★ 为什么必须有这一步：白模化落库那一刻的编号是**服务端按视觉清单顺序编的猜测**
- *   （1..N），而成片上人偶胸口的数字实测**稳定但不连续**（一发四人实出 1/2/4/5）。
+ *   （1..N），而成片上人偶头上的数字实测**稳定但不连续**（一发四人实出 1/2/4/5）。
  *   对不上时，套用者点"3 号位"挂上张三 —— 模型老老实实换掉画面上的 3 号（另一个人），
  *   **钱照扣、零报错**。所以这一屏把白模视频摆在最上面：编号只能由**看着画面的人**确认。
  * ★ 重复编号/空清单这些规则**不在这里再判一遍**（铁律六）：唯一实现在服务端与
@@ -169,8 +169,9 @@ function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onClose: () => voi
         {/* 为什么要核对，说全（说一半的话作者会以为这只是个可填可不填的表单） */}
         {/* ★ 这段话不许缩写成"请核对编号"：不说清后果，作者会以为这只是个可填可不填的表单 */}
         <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
-          下面这份编号是生成时<b className="font-bold">按顺序编的猜测</b>，不保证与画面上人偶胸口的数字一致
-          （实测编号稳定但可能跳号，比如 1/2/4/5）。请对着视频逐个看清楚，改成画面上真实的数字 ——
+          下面这份编号是生成时<b className="font-bold">按顺序编的猜测</b>，不保证与画面上人偶头上的数字一致
+          （编号印在人偶头部，前后左右四面都是同一个数，转过身也看得见；实测编号稳定但可能跳号，比如 1/2/4/5）。
+          请对着视频逐个看清楚，改成画面上真实的数字 ——
           编号对不上时，别人给「3 号位」挂的角色卡会换到另一个人身上，而且
           <b className="font-bold">不会有任何报错</b>。
         </p>
@@ -187,7 +188,7 @@ function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onClose: () => voi
         {rows.map((r, i) => (
           <div key={i} className="flex items-start gap-2 rounded-xl border border-slate-700/70 bg-panel p-2.5">
             <div className="flex-none">
-              <div className="mb-1 text-[9px] text-slate-500">胸口编号</div>
+              <div className="mb-1 text-[9px] text-slate-500">人偶编号</div>
               <input
                 value={r.label}
                 onChange={(e) => setRow(i, { label: e.target.value })}
@@ -455,7 +456,7 @@ export default function TemplateMarketPage() {
               >
                 <Icon name="pen" size={13} className="flex-none" />
                 <span>
-                  编号还没核对：AI 编的号可能与画面上人偶胸口的数字对不上，
+                  编号还没核对：AI 编的号可能与画面上人偶头上的数字对不上，
                   <b className="font-bold">核对之前不能发布</b>（对不上会让别人的角色卡换到别人身上）。点这里去核对。
                 </span>
               </button>

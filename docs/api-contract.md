@@ -884,8 +884,15 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 - `refVideo` 的数值**只由服务端从 Cloudinary 取**（`cloudinary.api.resource(..., { media_metadata: true })`
   —— ⚠ 这个参数是**必须的**：Admin API 对视频默认只回 width/height/bytes、**不回 duration**，
   2026-08-14 生产实测踩过）；客户端塞元数据会被 zod strip（这里 strip 是帮手）。
-- **`roles`（白模 V2）**：`label` = 白模人偶胸口那个编号，`desc` = 这个编号在原视频里
-  替换掉的是谁（"穿黑袍的白发少年"，套用者挂卡时**只看这句话**）。三条铁则：
+- **`roles`（白模 V2）**：`label` = 白模人偶身上那个编号，`desc` = 这个编号在原视频里
+  替换掉的是谁（"穿黑袍的白发少年"，套用者挂卡时**只看这句话**）。四条铁则：
+  0. **最多 9 条**（`BLOCKOUT_MAX_ROLES`，2026-08-15 起）：白模化时最多编到 9 号，核对端点
+     也只收 9 条。9 不是技术上限是**看得清的上限** —— 实测 12 个角色位时编号照样印得出来，
+     但画面上人眼能稳定认出的只有 4~5 个，多出来的位子用户在画面里找不到、只会以为坏了。
+     画面里超出这个数的人**照样白模化但不给编号**（同下面「清单之外的人」那条兜底）。
+     App 侧镜像：`src/data/templates.ts` 的 `BLOCKOUT_MAX_ROLES` / `splitCastRoles`（一处实现，
+     挂卡面板与出片前的落盘都问它）；存量模板带回多于 9 条时 App **照样列出来**但不给挂卡
+     （画面上真有那个编号，列表里悄悄少几项用户只会以为坏了）。
   1. **判存在性**（`roles?.length`），不判等值 —— V1 老模板整个键缺失，回空数组会让客户端
      分不清"老模板"和"新模板但一个人都没认出来"（后者根本建不出来，见下面 blockoutize 的
      「roles 为空整句拒」）。
@@ -915,7 +922,7 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 | GET | `/api/branch/templates/blockoutize/pending` | required | **掉线恢复**：本账号还没取回结果的凭据 `{ ok, jobs: [{ jobId, taskId, durSec, title, roles[], expiresAt, createdAt }] }`。App 进模板市场时拉一次，摆出取回入口 |
 | GET | `/api/branch/templates/shared` | optional | 市场列表，只回 `status === "published"`，`{ ok, templates[] }`。**路由必须排在 `/:id` 前**（branchAsset 同款排序坑） |
 | GET | `/api/branch/templates/:id` | optional | 详情。非 published 只有作者可见，对别人一律 **404 而不是 403**（不泄露私有模板的存在性） |
-| PATCH | `/api/branch/templates/:id/roles` | required（仅作者，**仅 pending**） | **作者核对角色位编号**（白模 V2）。body `{ roles: [{ label, desc }] }`，1~12 条，**整份替换**，落库时 `labelConfirmed=true`。这是**唯一收客户端 roles 的端点**。见下 |
+| PATCH | `/api/branch/templates/:id/roles` | required（仅作者，**仅 pending**） | **作者核对角色位编号**（白模 V2）。body `{ roles: [{ label, desc }] }`，1~9 条（`BLOCKOUT_MAX_ROLES`），**整份替换**，落库时 `labelConfirmed=true`。这是**唯一收客户端 roles 的端点**。见下 |
 | PATCH | `/api/branch/templates/:id/publish` | required（仅作者） | **两道独立的门**：① 试炼闸 `provenAt` 非空；② 有 `roles` 时编号必须已核对。任一不过回 400 整句（各说各的原因）。blocked 不能发布 |
 | PATCH | `/api/branch/templates/:id/unpublish` | required（仅作者） | 回到 pending。blocked 是平台处置，作者洗不掉（400） |
 | DELETE | `/api/branch/templates/:id` | required（仅作者） | **连带 `uploader.destroy` 回收参考视频**（先云端后库：云端回收失败回 502 且不删库，重试即可；封面与 **V2 的 `source.publicId` 原始素材** best-effort 回收，失败不阻断）。回 `{ ok: true }` |
@@ -981,7 +988,11 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
    一个人都没认出 → 整句拒、**不建空壳模板**（角色位是套用者挂卡的唯一入口）。
    **看哪几帧见下一节**；回包里的 `frames` 就是这一步真正用掉的帧数；
 7. **一次 r2v edit**（F4 的"点名"：提示词把每个人的外观特征逐个写进去 ——
-   泛指"所有人物"只换配角、主角不动，两发对照实测）；**⑥ 与 ⑦ 之间就是阶段一的终点**：
+   泛指"所有人物"只换配角、主角不动，两发对照实测）。编号**印在头部前后左右四面、四个面
+   同一个数字**（2026-08-15 起，此前只印胸口）：胸口那个一转身/一背对镜头就看不见了，
+   而编号是套用者"点这个人偶挂这张卡"的唯一连接键 —— 看不见就没法开始挂卡。
+   编号**最多编到 9**（见上面 `roles` 的铁则 0），多出来的人照样白模化但不给编号；
+   **⑥ 与 ⑦ 之间就是阶段一的终点**：
    任务被受理即落凭据并 201 返回（`jobId`/`taskId`/`durSec`/`roles`/`expiresAt`）；
 8. 【阶段二】向方舟核实 → 产物**转存 Cloudinary**（F12）→ 用 **② 号窗口**复核产物本身
    （它要当下一发的输入）；
@@ -1036,11 +1047,11 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 
 ### 角色位编号的核对 `PATCH /api/branch/templates/:id/roles`（V2）
 
-body `{ roles: [{ label, desc }] }`（1~12 条），成功回完整模板（`roles[].labelConfirmed`
+body `{ roles: [{ label, desc }] }`（**1~9 条**，见上面 `roles` 的铁则 0），成功回完整模板（`roles[].labelConfirmed`
 全为 `true`）。
 
 **为什么这条端点非有不可**：白模化落库那一刻的 `label` 是服务端按视觉清单顺序编的**猜测**
-（1..N），而成片上人偶胸口的数字**稳定但不连续**（F5 实测一发四人实出 1/2/4/5）。两者错位时，
+（1..N），而成片上人偶身上的数字**稳定但不连续**（F5 实测一发四人实出 1/2/4/5）。两者错位时，
 套用者点"3 号位"挂上张三 —— 模型老老实实换掉画面上的 3 号（另一个人），**钱照扣、零报错**。
 所以编号只能由**看得见画面的人**确认；这条端点收的不是数据，是**作者的确认**。
 

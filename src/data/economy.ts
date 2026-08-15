@@ -283,6 +283,14 @@ function r2vRawTokens(inputSec: number, mult: number): number {
  *   在这里夹到 10 就是"报 10s 的价、按 15s 实收"，正是本文件最怕的方向。
  * ★ inputSec 只准喂 `template.refVideo.durationSec`（服务端登记值的镜像，见 types.ts）——
  *   别拿 `<video>` 现探的本机值：server 结算按 URL 反查同一份登记值，两端必须算同一个数。
+ * ★★ **参考图张数不进这条式子**，而这是**量出来的**不是猜的：G0 那一发带 3 张人物参考图，
+ *   实收 188,109 raw = 8.7s × 21,621.6 = （输入 4.7s + 输出 4.0s），一张图的 token 都没多收。
+ *   所以 2026-08-15 把白模路的参考图预算从 3 张放到 30 张（`ai/real.ARK_REF_IMAGES_MAX`）
+ *   时**报价一个字都不用改**。
+ *   ⚠ 但那个证据只有"3 张"这一个点：真按 9 个角色位发 18 张时，请回控制台账单再核一次
+ *   （核法：拿这一发的 raw token ÷ 21,621.6，看是不是仍然只等于「输入+输出」的秒数）。
+ *   今天的公式按【输出=输入】取上界，实测输出还会被裁短一点（4.7s 输入 → 4.0s 计费），
+ *   富余约 8% —— 图真开始计费也大概率仍在"报价 ≥ 实收"这一侧，但那是**推论不是账单**。
  */
 export function r2vTokens(inputSec: number, tierId?: string): number | null {
   const m = tierOf(tierId).r2vMult;
