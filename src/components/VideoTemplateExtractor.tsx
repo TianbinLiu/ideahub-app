@@ -42,10 +42,14 @@ import { canAfford, spendTokens, walletOf } from "../data/account";
 import { TEMPLATE_MAX_CARDS, fmtTokens, templateCost, templateSettle } from "../data/economy";
 import {
   BLOCKOUTIZE_VISION_FRAMES,
+  blockoutJobNote,
   blockoutizeBlockReason,
   blockoutizeTemplate,
+  pendingBlockoutJobs,
   remoteTemplatesCapable,
   saveTemplate,
+  subscribeTemplates,
+  type BlockoutJob,
 } from "../data/templates";
 import { VideoAspect, VideoTemplate, aspectFromSize } from "../types";
 import BlockoutTrimmer from "./blockout/BlockoutTrimmer";
@@ -336,24 +340,42 @@ export default function VideoTemplateExtractor({
   // 额度又在 Cloudinary 留孤儿）。src 是 objectURL —— 播放取景用本机文件，不去拉
   // 那份公网视频（省一次几十 MB 的下行，手机上尤其明显）。
   const [receipt, setReceipt] = useState<{ file: File; data: TemplateVideoReceipt; src: string } | null>(null);
+  /**
+   * 这段素材**已经被一发付过钱的白模化用掉了**（r2v 受理、凭据落库那一刻起为真）。
+   *
+   * ★★ 它只管一件事：**还能不能回收那段托管视频**。两阶段之后，"开炼了"与"成功了"
+   *   之间隔着好几分钟，而用户在这几分钟里完全可能把浮层关掉去干别的（那正是拆两阶段
+   *   要支持的行为）。若还按老逻辑"没建成模板就回收"，就会把一发**已经付过钱**的
+   *   白模化的来源删掉 —— 服务端 finish 时想把它记成模板的 source 都记不成了。
+   */
+  const [spent, setSpent] = useState(false);
+  /** 本账号还没取回结果的白模化（服务端那份的镜像，见 data/templates 的 ★★） */
+  const [pending, setPending] = useState<BlockoutJob[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   /**
-   * 关浮层的唯一出口：素材传上去了、却没有变成任何模板（白模化失败后放弃、或干脆
-   * 直接关掉）→ 回收托管视频再关。不回收的话这段最大 100MB 的视频两端都没了句柄，
-   * 配额只增不减且零症状（孤儿治理，server DELETE /api/uploads/template-video 只认
-   * 未登记资产 —— 已经成为某个模板 `source` 的那份它会整句拒，所以误删不掉）。
-   * ★ 成功建成模板时 receipt 会被清空（那份素材的生命周期从此跟着模板走）。
+   * 放掉手上这份上传回执 —— **唯一实现**（关浮层与切换模式两处都走它）。
+   *
+   * 素材传上去了、却没有变成任何模板（白模化失败后放弃、或干脆直接关掉）→ 回收托管视频。
+   * 不回收的话这段最大 100MB 的视频两端都没了句柄，配额只增不减且零症状（孤儿治理，
+   * server DELETE /api/uploads/template-video 只认未登记资产 —— 已经成为某个模板
+   * `source` 的那份它会整句拒，所以误删不掉）。
+   * ★★ **但 `spent` 为真时一律不回收**（理由见那个 state 的 ★★）：钱已经花在这段素材上了。
    * fire-and-forget：回收是兜底不是主链路，失败只吼不拦着用户关窗。
    */
-  function close() {
-    if (receipt) {
-      URL.revokeObjectURL(receipt.src);
+  function dropReceipt() {
+    if (!receipt) return;
+    URL.revokeObjectURL(receipt.src);
+    if (!spent) {
       void deleteTemplateVideo(receipt.data.publicId).catch((e) =>
         console.error("[extractor] 放弃时回收模板视频失败（将留作孤儿，可联系管理员清理）：", e),
       );
-      setReceipt(null);
     }
+    setReceipt(null);
+  }
+
+  function close() {
+    dropReceipt();
     onClose();
   }
 
@@ -370,6 +392,17 @@ export default function VideoTemplateExtractor({
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- defaultBlockout 只该在挂载时生效一次
+  }, []);
+
+  // ★★ 「你还有一发没取回」必须在**开炼之前**说：这一屏是花钱的入口，而重新开炼一发
+  //   是**再花一次钱**，已经付过的那一发不会因此回来。名单只有服务端说得准
+  //   （pendingBlockoutJobs 唯一实现，第一次读会触发懒加载、到货 emit）。
+  //   订阅 store 而不是只读一次：懒加载是异步的，只读一次的话名单到货时这一屏不会更新。
+  useEffect(() => {
+    const read = () => setPending(pendingBlockoutJobs());
+    const un = subscribeTemplates(read);
+    read();
+    return un;
   }, []);
 
   // ★ 白模路在本组件里**不报价**：它一个 token 都不花（不上传、不抽帧、不调视觉），
@@ -480,10 +513,13 @@ export default function VideoTemplateExtractor({
   /**
    * 白模化开炼：把 BlockoutTrimmer 报上来的四组数 + 那份上传回执交给 data 层。
    *
-   * ★ 流程本身（能力/报价门禁、提交、落本机带 remoteId）收在 `templates.blockoutizeTemplate`
-   *   一处（铁律六）—— 这里只负责把界面状态接进去、把失败原样显示出来。
+   * ★ 流程本身（能力/报价门禁、提交、轮询、取回结果、落本机带 remoteId）收在
+   *   `templates.blockoutizeTemplate` 一处（铁律六）—— 这里只负责把界面状态接进去、
+   *   把失败原样显示出来。
    * ★ 失败**一律显示原文**，尤其是"受理后失败不退费"那一类：`BlockoutizeError.billed`
    *   为真时服务端的整句里已经写明扣没扣钱，别自己另编一句盖过去（铁律八）。
+   *   两阶段之后还多一类：**取结果失败**（钱在开炼那一步已经付过，结果还能再取一次）——
+   *   那句话由 data 层/服务端给全，这里同样原样显示。
    */
   async function runBlockoutize(sel: BlockoutSelection) {
     if (!receipt || busy) return;
@@ -503,12 +539,12 @@ export default function VideoTemplateExtractor({
         note,
         // 画幅按**裁后**的框算，不按原片：模板出片跟着裁剪框走
         aspect: aspectFromSize(sel.crop.w, sel.crop.h),
+        // ★★ 钱已经花在这段素材上了 —— 从这一刻起它归这一发（以及它将变成的模板）管，
+        //   放弃时**不许再回收**（见 spent 的 ★★）。注意这里**不清 receipt**：清了这一屏
+        //   会当场从"框选 + 进度"退回选文件按钮，而任务其实正在跑（用户会以为白花了钱）。
+        onBilled: () => setSpent(true),
         onProgress: (s) => setBusy(s),
       });
-      // 这段素材从此归模板管（服务端把它记成模板的 source，级联回收）——
-      // 清掉回执，close() 就不会再去删它（删也会被服务端整句拒）
-      URL.revokeObjectURL(receipt.src);
-      setReceipt(null);
       setGot(tpl);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -617,14 +653,9 @@ export default function VideoTemplateExtractor({
                     //   才撞方舟的 400。反方向同理（白模只收 mp4/mov，经典路不限）。
                     // ★ 已经传上去的那份也要**当场回收**：留着它既占配额，又会让用户
                     //   切回来时看到一个自己以为已经放弃的旧视频（回收失败只吼，
-                    //   close() 那一层还有一次兜底）。
-                    if (receipt) {
-                      URL.revokeObjectURL(receipt.src);
-                      void deleteTemplateVideo(receipt.data.publicId).catch((e) =>
-                        console.error("[extractor] 切换模式时回收模板视频失败（将留作孤儿，可联系管理员清理）：", e),
-                      );
-                      setReceipt(null);
-                    }
+                    //   close() 那一层还有一次兜底）。回不回收由 dropReceipt 一处判
+                    //   （已经花过钱的那份**不回收**）。
+                    dropReceipt();
                     setFile(null);
                     setFrames([]);
                     setErr("");
@@ -674,6 +705,20 @@ export default function VideoTemplateExtractor({
                     <br />
                     白模化整条只走这一档，所以现在还开不了 —— 先在这里说清楚，免得你传完一大段视频、
                     框完选段之后才被挡下。
+                  </p>
+                )}
+                {/* ★★ 「你还有一发没取回」要在**开炼之前**说：这一屏是花钱的入口，而再开一发
+                    是**再花一次钱**，已经付过的那一发不会因此回来。这里只提醒不拦人
+                    （他也可能就是想再做一个模板），但那句"钱已经付过"必须写死在句子里。
+                    ★ 取回的按钮不摆在这儿：取回要显示进度、要处理失败，那一屏在「我的模板」
+                    （唯一实现 —— 两处各写一遍取回流程必然分叉，而分叉的代价是用户的钱）。 */}
+                {blockout && pending.length > 0 && (
+                  <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-amber-200">
+                    你还有 <b className="font-bold">{pending.length}</b> 发白模化<b className="font-bold">已经付过钱、还没取回结果</b>
+                    （{blockoutJobNote(pending[0])}）。
+                    <br />
+                    先去「我的模板」把它取回来 —— 在这里重新开炼是<b className="font-bold">再花一次钱</b>，
+                    已经付过的那一发不会因此回来。
                   </p>
                 )}
               </div>

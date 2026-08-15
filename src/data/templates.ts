@@ -9,6 +9,10 @@ import { idbGet, idbSet } from "./db";
 import { apiGet, ApiError } from "../api/client";
 import * as branch from "../api/branch";
 import * as uploadsApi from "../api/uploads";
+// ★ 直接 import arkClient 而不是 ai/index：那一层是**真/假实现的开关**（没配 key 就走
+//   mock），而白模化整条链路本来就只在"真的有服务端"时才存在（remoteOn + 能力探测
+//   两道门）。轮询一个真实存在的方舟任务没有 mock 版本可言，走开关只会平添一层空实现。
+import { fetchArkTask } from "../ai/arkClient";
 import { canAfford, currentUser, refreshRemoteWallet, tierBlockReason } from "./account";
 import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens } from "./economy";
 import { toPermanentUrl } from "./publishAssets";
@@ -678,6 +682,344 @@ export function blockoutizeBlockReason(): string | null {
   return tier ? tierBlockReason(tier) : null;
 }
 
+// ── 两阶段与「掉线可恢复」────────────────────────────────────────
+//
+// ★★ 白模化 2026-08-15 起是**两阶段**的（此前是一条同步等到底的长请求）：
+//     ① `startBlockoutize`   服务端做完归属校验/拼变换 URL/预热/看帧/发 r2v，落一条**凭据**；
+//        —— 钱在这一刻花掉（看帧 + r2v 受理，受理后失败不退）
+//     ② 客户端**轮询**既有的 `GET /api/ark/contents/generations/tasks/:id`（不计费、
+//        已有独立限流桶）等出片；**不新造轮询端点**
+//     ③ `finishBlockoutize`  服务端自己向方舟核实 → 转存产物 → 建模板
+//   拆的理由：手机切后台、弱网断线、App 进程被系统回收、nginx 超时掐断，任何一条都会让
+//   用户**丢掉这一发的结果，而钱已经花了**。两阶段让"结果"变成一件可以再来取的东西。
+//
+// ★★ 所以这一段代码里**最重要的不是主路径，是恢复路径**：拿到凭据之后，无论中间发生
+//   什么，用户都必须能从「我的模板」把结果领回去（`pendingBlockoutJobs` + `resumeBlockoutize`）。
+//   没有那个入口的话，两阶段就白拆了 —— 反而比同步版多了一处会丢结果的地方。
+
+/**
+ * 凭据的有效期 —— **24 小时，不是 48**。
+ *
+ * ★★ 这个数不是拍脑袋的时限，是**方舟产物的物理寿命**：产物 URL 是 TOS 签名地址，
+ *   24h 过期（F12）。过了这个点，服务端拿着 jobId 也拉不到那段视频了 ——
+ *   这一发的钱**无法挽回**，不是"稍后再来"。文案不许粉饰（见 blockoutJobNote）。
+ * ★ 只在**服务端没给 expiresAt** 时才用它兜底推算；有 expiresAt 一律以服务端那份为准
+ *   （本机时钟可能是错的，而"还能不能取"由服务端说了算）。
+ */
+export const BLOCKOUT_JOB_TTL_MS = 24 * 3600_000;
+
+/** 一发**已经付过钱、但还没取回结果**的白模化（服务端 BlockoutJob 的镜像） */
+export interface BlockoutJob {
+  /** 阶段二只认它。★ 归属在服务端按 ownerId 判 —— 别人拿到 jobId 也取不走 */
+  jobId: string;
+  /** 方舟任务号（轮询用）。空 = 服务端没给，那就直接去 finish，由服务端向方舟核实 */
+  taskId: string;
+  /** 计价口径：服务端真正拿去拼变换 URL 的那个时长 */
+  durSec: number;
+  title: string;
+  /** 看帧那一步的角色位**草案**（编号仍是猜测，建成模板后作者还要核对一次） */
+  roles: { label: string; desc: string }[];
+  /** 失效时刻（ms，服务端说了算）。0 = 服务端没说，按 createdAt + TTL 兜底推算 */
+  expiresAt: number;
+  createdAt: number;
+}
+
+function jobOf(api: branch.ApiBlockoutJob): BlockoutJob | null {
+  const jobId = String(api.jobId ?? api.id ?? api._id ?? "").trim();
+  if (!jobId) return null; // 没有 jobId 的"待取回"取不回，展示它只会让人白点
+  const roles = Array.isArray(api.roles) ? api.roles : [];
+  return {
+    jobId,
+    taskId: String(api.taskId ?? "").trim(),
+    durSec: Number(api.durSec) || 0,
+    title: String(api.title ?? "").trim() || "未命名白模模板",
+    roles: roles
+      .map((r) => ({ label: String(r?.label ?? "").trim(), desc: String(r?.desc ?? "").trim() }))
+      .filter((r) => r.label !== ""),
+    expiresAt: toMs(api.expiresAt ?? null) ?? 0,
+    createdAt: toMs(api.createdAt ?? null) ?? Date.now(),
+  };
+}
+
+/** 这条凭据什么时候失效（ms）。0 = 完全说不准（服务端既没给 expiresAt 也没给 createdAt） */
+function jobExpiresAt(job: BlockoutJob): number {
+  if (job.expiresAt > 0) return job.expiresAt;
+  return job.createdAt > 0 ? job.createdAt + BLOCKOUT_JOB_TTL_MS : 0;
+}
+
+/** 过期了吗（过期 = 产物已经不在了，取不回来）。**唯一实现**，界面别自己减时间戳 */
+export function blockoutJobExpired(job: BlockoutJob): boolean {
+  const at = jobExpiresAt(job);
+  return at > 0 && Date.now() >= at;
+}
+
+/**
+ * 「还剩多久 / 已经过期」的那一句话 —— **唯一实现**（列表、取回失败、提取器的提醒都用它）。
+ *
+ * ★★ 过期那一句必须**整句说明费用无法挽回**，不许写成"已过期，请重新开始"：
+ *   用户会以为只是超时重来，而这一发的看帧 + 出片是**真花过钱的**，重开一发是再花一次。
+ *   诚实地说清楚，比让他误以为随时能回来取要好得多。
+ */
+export function blockoutJobNote(job: BlockoutJob): string {
+  const at = jobExpiresAt(job);
+  if (at <= 0) return "这一发已经付过费，但服务器没说结果能留到什么时候——建议尽快取回。";
+  const left = at - Date.now();
+  if (left <= 0) {
+    return "产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了，这一发已经付过的费用无法挽回（不是超时重来——重开一发是再花一次钱）。";
+  }
+  const h = Math.floor(left / 3600_000);
+  const m = Math.floor((left % 3600_000) / 60_000);
+  return `还剩 ${h > 0 ? `${h} 小时 ` : ""}${m} 分钟可以取回——AI 出片的产物只在服务器上留 24 小时，过期就取不回来了，而这一发的钱已经付过。`;
+}
+
+// 待取回列表的缓存（与 shared 同一套「懒加载 + 到货 emit + 失败冷却」的写法）
+let pendingJobs: BlockoutJob[] = [];
+let pendingFresh = false;
+/** 在途的那一次拉取。★ 存 Promise 而不是布尔：强制刷新要能 await 到它真的到货，
+ *  而"已经在拉了"与"刚拉完"是两件事（布尔只答得出前者） */
+let pendingInflight: Promise<void> | null = null;
+let pendingIssue = "";
+let pendingRetryAt = 0;
+
+function sortJobs(list: BlockoutJob[]): BlockoutJob[] {
+  // 快过期的排前面：这一屏的用途就是"先去救最急的那一发"
+  return [...list].sort((a, b) => (jobExpiresAt(a) || Infinity) - (jobExpiresAt(b) || Infinity));
+}
+
+/**
+ * 本账号**还没取回结果**的白模化（同步返回缓存，第一次调用触发后台拉取，到货 emit）。
+ *
+ * ★★ 这份名单**只有服务端说得准**，本机不存第二份：凭据的归属/状态/过期时刻都在那边，
+ *   而"结果丢了"最典型的场景恰恰是**进程被系统回收**（本机 state 一起没了）——
+ *   那时服务端那份是唯一还在的。本机再存一份就是两处真相，换设备后还必然是错的那份。
+ * ★ 空数组既可能是"真的没有"，也可能是"还没到货/老服务端"。要区分就看
+ *   `pendingBlockoutIssue()`（拉失败会说话）——界面据此决定要不要显示"加载失败"。
+ */
+export function pendingBlockoutJobs(): BlockoutJob[] {
+  if (remoteOn()) ensurePendingJobs();
+  return pendingJobs;
+}
+
+/** 待取回列表这一拍没到货的原因（空串 = 一切正常）。别让"拉挂了"伪装成"你没有待取回的" */
+export function pendingBlockoutIssue(): string {
+  return pendingIssue;
+}
+
+/** 真正去拉那一次（同一时刻只有一发在途；**唯一实现**，懒加载与强制刷新都走它） */
+function loadPendingJobs(): Promise<void> {
+  pendingInflight ??= (async () => {
+    try {
+      if (!(await remoteTemplatesCapable())) {
+        // 瞬时网络失败（探测没缓存结论）≠ 老服务端：前者要说出来（这一屏关系到钱），
+        // 后者安静 —— 老服务端连白模化入口都不渲染，说"待取回列表拉不到"只是噪音
+        if (remoteOn() && capProbe === null) {
+          pendingIssue = "还没取回的白模化结果暂时拉不到（网络不稳），稍后自动重试——这不代表你没有待取回的";
+          pendingRetryAt = Date.now() + 15_000;
+          emit();
+        }
+        return;
+      }
+      const list = await branch.listBlockoutJobs();
+      if (list === null) {
+        // 这台服务器有模板能力、但没有两阶段的 pending 端点（上一版服务端）。
+        // 它那条白模化是同步跑完的（startBlockoutize 的 legacy 分支），本来就没有
+        // "待取回"这回事 —— 安静收工，不摆一个永远是空的区块。
+        pendingFresh = true;
+        pendingJobs = [];
+        pendingIssue = "";
+        emit();
+        return;
+      }
+      pendingJobs = sortJobs(list.map(jobOf).filter((j): j is BlockoutJob => j !== null));
+      pendingFresh = true;
+      pendingIssue = "";
+      emit();
+    } catch (e) {
+      pendingIssue = `还没取回的白模化结果拉取失败：${e instanceof Error ? e.message : String(e)}`;
+      pendingRetryAt = Date.now() + 15_000;
+      emit();
+    }
+  })().finally(() => {
+    pendingInflight = null;
+  });
+  return pendingInflight;
+}
+
+function ensurePendingJobs(): void {
+  // ★ 没登录就别问：凭据是**按账号**发的，而这条端点是 requireAuth 的 —— 未登录时问一次
+  //   只会换回一句 401，然后在界面上摆一行"拉取失败"，吓到一个根本不可能有待取回凭据的人。
+  if (!currentUser()) return;
+  if (pendingFresh || pendingInflight || Date.now() < pendingRetryAt) return;
+  void loadPendingJobs();
+}
+
+/**
+ * 强制重拉待取回列表（进模板市场时调一次；取回失败后想刷新也调它）。
+ * ★ 与懒加载共用 `loadPendingJobs`，区别只在于它**跳过冷却与 fresh 缓存**：用户点进
+ *   模板市场，多半就是因为刚才那一发被打断了 —— 这时候给他看一份可能过时的名单没有意义。
+ */
+export async function refreshPendingBlockoutJobs(): Promise<void> {
+  if (!currentUser() || !remoteOn()) return;
+  pendingFresh = false;
+  pendingRetryAt = 0;
+  await loadPendingJobs();
+}
+
+/** 刚受理的那一发立刻进列表：不等下一次拉取，恢复入口当场就在（页面已经在订阅 emit） */
+function rememberPendingJob(job: BlockoutJob): void {
+  pendingJobs = sortJobs([...pendingJobs.filter((j) => j.jobId !== job.jobId), job]);
+  emit();
+}
+
+/** 取回成功 → 结案。★ 失败**不摘**：失败恰恰是最需要保留这条入口的时候 */
+function dropPendingJob(jobId: string): void {
+  pendingJobs = pendingJobs.filter((j) => j.jobId !== jobId);
+  emit();
+}
+
+// 轮询参数。★ 5s 一次是与 arkClient 里那两个循环一致的口径（同一个端点、同一个限流桶）。
+const BLOCKOUT_POLL_MS = 5_000;
+/** 客户端愿意盯着等多久。★ 到点**不是失败**：任务还在方舟那边跑，结果 24 小时内都能取回，
+ *  所以到点只是"我们不等了"，文案必须把用户领到恢复入口，而不是说"这一发废了"。 */
+const BLOCKOUT_POLL_MAX_MS = 12 * 60_000;
+/** 连续几次查询失败才放弃盯着（单次抖动不算——任务在云端好好跑着，白扔太亏） */
+const BLOCKOUT_POLL_TOLERATE = 5;
+
+type TaskOutcome =
+  | { kind: "succeeded" }
+  /** 方舟明说这一发失败/取消了。★ 仍然要去 finish：由服务端向方舟核实并结案，
+   *  「到底扣没扣钱」那句话只能由服务端说（客户端报的数不作数） */
+  | { kind: "failed" }
+  /** 轮不动 / 等到点了 —— **不许当成失败**（结果可能好好的，只是我们没看到） */
+  | { kind: "unknown"; note: string };
+
+/**
+ * 盯着方舟那一发出片。走**既有**的 `GET /api/ark/contents/generations/tasks/:id`
+ * （契约：不计费、90/分的独立限流桶），不新造轮询端点。
+ *
+ * ★ 进度必须报出来：这一步最长几分钟，不报进度用户会以为死了然后去连点。
+ * ★ 这里的结论**不作数**——finish 那一步服务端会自己再向方舟核实一次（与试炼闸
+ *   provenAt 同一条理由）。轮询在这条链路上的职责只有两个：给用户看进度，
+ *   以及决定"什么时候去取结果"。
+ * ⚠ **dev 下可能查不到这个任务**：`arkClient` 的端点在 dev 走 vite 代理（注入的是本机
+ *   `.env.local` 的 ARK_API_KEY），而这一发是**服务端**用它自己那把 key 建的 ——
+ *   两把 key 不是同一个方舟账号时，这里会连查五次都拿不到，于是退成 `unknown`
+ *   并把人领到恢复入口（结果照样取得回，只是看不到进度）。打包后两边都是
+ *   `${API_BASE}/api/ark`，同一把 key，不存在这个问题。
+ */
+async function waitBlockoutTask(taskId: string, prog: (s: string) => void): Promise<TaskOutcome> {
+  const t0 = Date.now();
+  let fails = 0;
+  while (Date.now() - t0 < BLOCKOUT_POLL_MAX_MS) {
+    await new Promise((r) => setTimeout(r, BLOCKOUT_POLL_MS));
+    let st: Awaited<ReturnType<typeof fetchArkTask>>;
+    try {
+      st = await fetchArkTask(taskId);
+      fails = 0;
+    } catch (e) {
+      if (++fails >= BLOCKOUT_POLL_TOLERATE) {
+        return {
+          kind: "unknown",
+          note: `盯不住这一发的进度了（${e instanceof Error ? e.message : String(e)}）。`,
+        };
+      }
+      continue;
+    }
+    const sec = Math.round((Date.now() - t0) / 1000);
+    const label = st.status === "queued" ? "排队中" : st.status === "running" ? "生成中" : st.status;
+    // ★ 这句话里那半句"可以退出"是这次改造的**用户可见部分**：它必须出现在等待的每一拍上，
+    //   否则用户仍然会以为自己必须一直盯着（而两阶段的全部意义就是他不必）。
+    prog(`AI 正在把画面里的人换成带编号的白模人偶：${label} ${sec}s（可以退出，24 小时内都能回「我的模板」取回结果）`);
+    if (st.status === "succeeded") return { kind: "succeeded" };
+    if (st.status === "failed" || st.status === "cancelled") return { kind: "failed" };
+  }
+  return { kind: "unknown", note: "等了 12 分钟还没出片（任务还在方舟那边跑，不是失败）。" };
+}
+
+/**
+ * 服务端刚回的模板 → 本机库。**幂等**（铁律：重复取回不许多出一条记录）。
+ *
+ * ★★ 同一条凭据被取回两次（两个入口、两台设备、手抖点两下）时服务端会回**同一条**模板；
+ *   本机再 saveTemplate 一次就会多出一条 remoteId 相同的记录 —— 它们的发布/删除都指向
+ *   同一个远端实体，删掉一条另一条就成了指向已删实体的幽灵（列表里点进去 404）。
+ */
+function adoptBlockoutTemplate(api: branch.ApiBranchTemplate): VideoTemplate {
+  const mapped = apiToTemplate(api);
+  if (!mapped?.remoteId) {
+    throw new Error(
+      "结果取回来了，但服务器返回的模板缺少参考视频地址——钱在开炼那一步已经付过，请去「我的模板」确认后再决定要不要重来。",
+    );
+  }
+  const already = mine.find((t) => t.remoteId === mapped.remoteId);
+  if (already) return already;
+  return saveTemplate({
+    title: mapped.title,
+    intro: mapped.intro,
+    cover: mapped.cover,
+    cards: [], // 白模不带素材卡：「换成谁」由套用者在编辑页逐个角色位挂
+    recipe: mapped.recipe,
+    refVideo: mapped.refVideo,
+    ...(mapped.roles?.length ? { roles: mapped.roles } : {}),
+    remoteId: mapped.remoteId,
+  });
+}
+
+/**
+ * 「等出片 → 取回结果」这后半段 —— **唯一实现**：刚开炼的那一发与从恢复入口领回来的
+ * 那一发走的是同一段代码（铁律六）。两处各写一遍的话，"取回失败之后凭据还留不留"
+ * 这种事必然分叉，而分叉的代价是用户的钱。
+ */
+async function takeBlockoutResult(job: BlockoutJob, prog: (s: string) => void): Promise<VideoTemplate> {
+  if (job.taskId) {
+    const out = await waitBlockoutTask(job.taskId, prog);
+    if (out.kind === "unknown") {
+      // ★ 不当成失败、也**不摘掉凭据**：结果多半好好的，只是我们没盯到。
+      //   这句话唯一要做的事就是把用户领到恢复入口去。
+      throw new Error(
+        `${out.note}这一发的钱已经付过了，结果没有丢——${blockoutJobNote(job)}「我的模板」页顶部的「还没取回结果」那一栏随时可以继续取，别重新开炼（那是再花一次钱）。`,
+      );
+    }
+    if (out.kind === "failed") {
+      // 方舟说失败了，但**扣没扣钱只有服务端说得准**（客户端报的数不作数）——
+      // 照样走 finish，让服务端核实、结案，并给出那句权威的整话
+      prog("方舟报这一发没能出片，正在向服务器核实到底怎么回事…");
+    }
+  }
+  prog("正在取回结果：服务端会自己向方舟核实，再把产物转存下来（这一步不额外花钱）…");
+  const res = await branch.finishBlockoutize(job.jobId);
+  dropPendingJob(job.jobId);
+  prog("白模模板已生成");
+  return adoptBlockoutTemplate(res.template);
+}
+
+/**
+ * **恢复入口**：把一发已经付过钱、还没取回的白模化领回来。
+ *
+ * ★★ 这条路是两阶段改造的**目的本身**。没有它，拆两阶段只是把一次长请求换成两次短请求，
+ *   反而多了一个会丢结果的接缝。
+ * ★ 过期的直接整句拒，不去打服务端：产物已经不在了（TOS 签名地址 24h），
+ *   打过去也只会拿回同一句话，还让用户多等一次转圈。
+ * @throws message 可直接显示
+ */
+export async function resumeBlockoutize(
+  jobId: string,
+  onProgress?: (status: string) => void,
+): Promise<VideoTemplate> {
+  const prog = (s: string) => onProgress?.(s);
+  if (!remoteOn()) throw new Error("现在连不上服务器——结果在服务端那边，联网后再来取（产物 24 小时内有效）");
+  const job = pendingJobs.find((j) => j.jobId === jobId);
+  if (!job) {
+    // 缓存里没有（列表还没到货 / 换了设备）也不该拦着：jobId 在手就能取，
+    // 归属由服务端按 ownerId 把关。这时没有 taskId，直接去 finish 让服务端核实。
+    prog("正在取回结果…");
+    const res = await branch.finishBlockoutize(jobId);
+    dropPendingJob(jobId);
+    return adoptBlockoutTemplate(res.template);
+  }
+  if (blockoutJobExpired(job)) throw new Error(blockoutJobNote(job));
+  return takeBlockoutResult(job, prog);
+}
+
 /** 白模化的入参：编辑页框出来的那**四组数** + 已经传好的那段素材。 */
 export interface BlockoutizeInput {
   /**
@@ -703,11 +1045,25 @@ export interface BlockoutizeInput {
   aspect?: VideoAspect;
   /** 进度播报。这一步要等好几分钟，不报进度用户会以为死了 */
   onProgress?: (status: string) => void;
+  /**
+   * **钱已经花出去了**的那一刻（r2v 被方舟受理、凭据落库；`null` = 老服务端一口气跑完了）。
+   *
+   * ★★ 宿主必须在这里放掉"用户中途放弃就回收那段原始素材"的念头：从这一刻起那段素材
+   *   归这一发（以及它将变成的模板）管了，回收它等于把一发**已经付过钱**的白模化的
+   *   来源删掉。提取器的 close() 就是照这一位决定还删不删的。
+   * ★ 它**不是**"成功了"：成功要等 finish 回来。这一位只回答"钱动了没有"。
+   */
+  onBilled?: (job: BlockoutJob | null) => void;
 }
 
 /**
- * 白模化**流程的唯一实现**：提交四组数 → 拿回模板 → 落本机（带 remoteId）。
+ * 白模化**流程的唯一实现**：提交四组数 →（钱在这一刻花掉，落一条凭据）→ 轮询出片 →
+ * 取回结果 → 落本机（带 remoteId）。
  *
+ * ★★ 中途的每一种意外都**不该让结果丢掉**：拿到凭据之后（`onBilled` 那一刻起）
+ *   这一发就进了「待取回」名单，用户随时可以退出，24 小时内从「我的模板」的恢复入口
+ *   （`resumeBlockoutize`）把结果领回来。这里抛出的每一句失败话，凡是结果还能取的，
+ *   都必须把人领到那个入口去 —— 说成"失败了，重试吧"就是让他再花一次钱。
  * ★ 两道**花钱前**的门在这里问，一道都不许挪到后面：
  *   ① 这台服务器认不认这套端点 —— 复用 `remoteTemplatesCapable()`（唯一实现，不另探）；
  *   ② 这一发**这个账号**能不能开炼 —— `blockoutizeBlockReason()`（闸门 + 价目 + 套餐门禁，
@@ -753,10 +1109,10 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
     coverUrl = await toPermanentUrl(o.cover, `tpl-blockout-${Date.now()}-cover`);
   }
 
-  prog("AI 正在看画面里有哪些人，然后把他们换成带编号的白模人偶（要几分钟，别退出）…");
-  let res: branch.BlockoutizeResult;
+  prog("正在提交：AI 先看几帧认出画面里有哪些人，再把这一段发去出片…");
+  let started: branch.BlockoutStarted;
   try {
-    res = await branch.blockoutizeTemplate({
+    started = await branch.startBlockoutize({
       publicId: o.publicId,
       // ★ 整数秒/整数像素在这里取一次整，别指望服务端替你四舍五入（它的 zod 声明是 int，
       //   小数直接 400）。取整口径与服务端一致（Math.round）。
@@ -796,23 +1152,31 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
     void refreshRemoteWallet();
   }
 
-  const mapped = apiToTemplate(res.template);
-  if (!mapped?.remoteId) {
-    throw new Error(
-      "白模化跑完了，但服务器返回的模板缺少参考视频地址——这次很可能已经计费，请去「我的模板」确认后再决定要不要重来。",
-    );
+  if (started.kind === "legacy") {
+    // 老服务端（这一轮改造之前那份同步实现）：它在那一条请求里把九步全跑完了，
+    // 模板就在回包里。没有凭据、也没有"待取回"这回事 —— 直接落本机，降级但**完整**。
+    o.onBilled?.(null);
+    prog("白模模板已生成");
+    return adoptBlockoutTemplate(started.result.template);
   }
-  prog("白模模板已生成");
-  return saveTemplate({
-    title: mapped.title,
-    intro: mapped.intro,
-    cover: mapped.cover,
-    cards: [], // 白模不带素材卡：「换成谁」由套用者在编辑页逐个角色位挂
-    recipe: mapped.recipe,
-    refVideo: mapped.refVideo,
-    ...(mapped.roles?.length ? { roles: mapped.roles } : {}),
-    remoteId: mapped.remoteId,
-  });
+
+  const job: BlockoutJob = {
+    jobId: started.job.jobId,
+    taskId: started.job.taskId,
+    durSec: started.job.durSec,
+    title: o.title.trim() || "未命名白模模板",
+    roles: started.job.roles,
+    expiresAt: toMs(started.job.expiresAt) ?? 0,
+    createdAt: Date.now(),
+  };
+  // ★★ 到这一行为止，钱**已经花掉了**（看帧 + r2v 受理，受理后失败不退）。所以这一行
+  //   要做的第一件事不是"接着等"，而是把这一发**记成一条待取回的凭据**：从现在起
+  //   无论轮询挂掉、用户切后台、还是进程被系统回收，「我的模板」那个恢复入口都在。
+  //   （本机这份只是让入口**当场**就亮起来；真正保命的是服务端那份 —— 进程被回收时
+  //   本机 state 一起没了，而 pending 端点还在。）
+  rememberPendingJob(job);
+  o.onBilled?.(job);
+  return takeBlockoutResult(job, prog);
 }
 
 export function updateTemplate(id: string, patch: Partial<Pick<VideoTemplate, "title" | "intro" | "cover" | "published">>): void {

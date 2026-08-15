@@ -291,6 +291,30 @@ export function ratioFor(model: string, mode: "frames" | "reference", want = "16
 const BLOCKOUT_TASK = { omni_reference_task_type: "edit", duration: -1, ratio: "adaptive" } as const;
 
 /**
+ * 一个方舟异步任务的状态（视频 / 3D / r2v 共用一个 tasks 端点）。
+ * `content` 的键按任务类型不同：视频是 `video_url`，Seed3D 是 `file_url`/`url`。
+ */
+export interface ArkTaskState {
+  status: string;
+  content?: { video_url?: string; file_url?: string; url?: string };
+  error?: { message?: string };
+}
+
+/**
+ * 查一次方舟任务状态 —— **全 app 唯一的那一处**（`GET /contents/generations/tasks/:id`）。
+ *
+ * ★ 为什么要导出：白模化拆成两阶段之后，**出片那几分钟由客户端轮询**
+ *   （data/templates.blockoutizeTemplate），而契约明说走既有这条端点（不计费、
+ *   已有 90/分 的独立限流桶），**不新造轮询端点**。下面 generateVideo / generate3dModel
+ *   两个循环也改成调它 —— 路径与超时只有这一份，不再有三处各写一遍的字符串。
+ * ★ 超时 20s：查询是个小 GET，慢过 20s 基本就是网络断了；单次失败由调用方的循环容忍
+ *   （任务还在云端跑，为一次抖动放弃整发太亏）。
+ */
+export async function fetchArkTask(id: string): Promise<ArkTaskState> {
+  return arkFetch<ArkTaskState>(`/contents/generations/tasks/${encodeURIComponent(id)}`, undefined, 20_000);
+}
+
+/**
  * Seedance 图生视频：创建任务 → 轮询 → 返回视频 URL。
  * 传 lastFrameUrl 则走"首尾帧"模式（我们的方案卡正好有首尾帧，画面收束更可控）；
  * 传 refImages 则走"全模态参考生视频"（多张形象图 + 一句话直出，不需要设定帧）；
@@ -426,9 +450,9 @@ export async function generateVideo(
   let pollFails = 0;
   for (let i = 0; i < 120; i++) {
     await new Promise((r) => setTimeout(r, 5000));
-    let st: { status: string; content?: { video_url?: string }; error?: { message?: string } };
+    let st: ArkTaskState;
     try {
-      st = await arkFetch(`/contents/generations/tasks/${id}`, undefined, 20_000);
+      st = await fetchArkTask(id);
       pollFails = 0;
     } catch (e) {
       // 单次查询抖动不放弃整个任务（视频已在云端排队生成，白扔太亏）
@@ -475,13 +499,9 @@ export async function generate3dModel(
   // 实测建模比视频慢（数分钟量级），上限放到 10 分钟
   for (let i = 0; i < 120; i++) {
     await new Promise((r) => setTimeout(r, 5000));
-    let st: {
-      status: string;
-      content?: { file_url?: string; video_url?: string; url?: string };
-      error?: { message?: string };
-    };
+    let st: ArkTaskState;
     try {
-      st = await arkFetch(`/contents/generations/tasks/${created.id}`, undefined, 20_000);
+      st = await fetchArkTask(created.id);
       pollFails = 0;
     } catch (e) {
       if (++pollFails >= 5) throw e;

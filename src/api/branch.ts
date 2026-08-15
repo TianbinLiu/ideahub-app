@@ -785,23 +785,54 @@ export async function createTemplate(payload: CreateTemplatePayload): Promise<Ap
 //   V2 = 作者拿的是**任意一段实拍/成片**，服务端替他看帧列人物 + 付费出一次片
 //        把人全换成带编号的白模人偶，产物才是模板。**这条路花真钱**。
 // 所以 V2 的失败必须带一位「这次到底扣没扣钱」——见 BlockoutizeError.billed。
+//
+// ★★ **两阶段**（2026-08-15 改造；此前是一条同步等到底的长请求）。
+//   原来那条请求要在服务端一口气跑完「归属校验 → 拼变换 URL → 预热 → 复核元数据 →
+//   看帧列人物 → 发 r2v → 轮询最长 5 分钟 → 转存产物 → 建模板」，客户端就那么挂着等。
+//   拆开的理由只有一条，但它足够：**手机切后台、弱网断线、App 进程被系统回收、
+//   nginx 超时掐断 —— 任何一条都会让用户丢掉这一发的结果，而钱已经花了**
+//   （r2v 受理后失败不退，F11）。一条请求等五分钟本身就是脆的；两阶段让"结果"变成
+//   一件**可以再来取**的东西。
+//
+//   阶段一 `POST /templates/blockoutize`         ①~⑥，到「r2v 被方舟受理」为止，
+//                                               落一条任务凭据 → { jobId, taskId, durSec, roles, expiresAt }
+//   轮询   `GET /api/ark/contents/generations/tasks/:id`  既有端点（不计费、已有限流），
+//                                               **不新造轮询端点**（见 ai/arkClient.fetchArkTask）
+//   阶段二 `POST /templates/blockoutize/finish`  ⑦~⑨（转存产物 → 建模板 → pending）
+//   恢复   `GET  /templates/blockoutize/pending` 本账号**还没取回结果**的凭据
+//
+//   ★ 钱**只在阶段一**花（看帧 + r2v 受理即扣，受理后失败不退）。阶段二本身不扣钱，
+//     它的失败是「取结果失败」，不是「又花了一笔」—— 两种失败的文案必须分得开
+//     （见 BlockoutizeError.phase）。
+//   ★ 凭据 **24 小时**过期：方舟产物是 TOS 签名地址、24h 失效（F12）。过了就真的取不回了，
+//     文案不许粉饰成"稍后再来"。
+
+/** 白模化的两个阶段。★ 决定失败时那句话怎么说（见 BlockoutizeError.phase） */
+export type BlockoutPhase = "start" | "finish";
 
 /**
- * 白模化的一次失败。**比 ApiError 多一位 `billed`**。
+ * 白模化的一次失败。**比 ApiError 多两位**：`billed`（这一次调用有没有花掉退不回的钱）
+ * 与 `phase`（失败在哪一阶段）。
  *
- * ★★ 为什么非要多这一位：方舟对含真人人脸的视频是**受理后**才失败（F11 实测），
+ * ★★ 为什么非要有 `billed`：方舟对含真人人脸的视频是**受理后**才失败（F11 实测），
  *   而受理即计费 —— 这一类失败**扣钱不退**。把它和"归属校验没过""余额不足"这种
  *   一分钱没动的失败混成同一个 Error，界面就只能对所有失败说同一句话：
  *   要么把没扣钱的说成扣了（吓人），要么把扣了的说成没扣（在钱上撒谎）。
- * ★ 缺省 false：只有服务端**明说** `billed:true` 才算扣过。非 JSON 回包（Capacitor 的
+ * ★★ 为什么两阶段之后还要 `phase`：`billed:false` 在两个阶段的含义**不一样**。
+ *   阶段一的 `false` = 这一发一分钱没动，重来即可；阶段二的 `false` = **这一步**没花钱，
+ *   但钱在阶段一已经花掉了 —— 对用户该说的是"结果还能再取一次"，而不是"没扣钱，重开一发吧"
+ *   （那句话会让他再花一次）。措辞由 data 层按 phase 分叉，判据只有这一位。
+ * ★ 缺省 false：只有服务端**明说** `billed:true` 才算这一次扣过。非 JSON 回包（Capacitor 的
  *   SPA 回退、老服务端）意味着请求根本没落到这个端点上，那时确实一分钱没动。
  */
 export class BlockoutizeError extends ApiError {
   readonly billed: boolean;
-  constructor(message: string, status: number, code: string, billed: boolean) {
+  readonly phase: BlockoutPhase;
+  constructor(message: string, status: number, code: string, billed: boolean, phase: BlockoutPhase) {
     super(message, status, code);
     this.name = "BlockoutizeError";
     this.billed = billed;
+    this.phase = phase;
   }
 }
 
@@ -831,6 +862,26 @@ export interface BlockoutizePayload {
   note?: string;
 }
 
+/**
+ * 阶段一的回执 —— 一条**任务凭据**（服务端 BlockoutJob 的镜像）。
+ *
+ * ★ 拿到它就意味着**钱已经花掉了**（看帧 + r2v 受理，受理后失败不退）。所以调用方
+ *   拿到它的第一件事不是"接着等"，而是**认下这一发存在** —— 之后无论轮询、切后台、
+ *   还是进程被杀，都能靠 jobId / pending 列表把结果取回来。
+ */
+export interface BlockoutStartResult {
+  /** 凭据 id —— 阶段二只收它 */
+  jobId: string;
+  /** 方舟任务号：客户端拿它去轮既有的 `GET /api/ark/contents/generations/tasks/:id` */
+  taskId: string;
+  /** 服务端**真正拿去拼变换 URL**的那个时长（也是计费口径，对账用） */
+  durSec: number;
+  /** 看帧那一步列出来的角色位**草案**（编号仍是猜测，作者要在建成模板后核对） */
+  roles: Array<{ label: string; desc: string }>;
+  /** 凭据失效时刻（服务端说了算；★ 24h —— 方舟产物是 TOS 签名地址，见文件头 ★） */
+  expiresAt: string | number | null;
+}
+
 export interface BlockoutizeResult {
   template: ApiBranchTemplate;
   /** 白模化那一发 r2v 的任务号与真实输入时长（对账用：报价按 durSec，实收也按它） */
@@ -838,46 +889,68 @@ export interface BlockoutizeResult {
 }
 
 /**
- * 白模化（requireAuth；服务端限流 3 次/10 分钟/账号）。
+ * 一条**还没取回结果**的凭据（`GET /blockoutize/pending` 的元素）。
+ * ★ 全部按「可能缺」标：这是网络回包，data 层逐字段兜底后才进内存（同 ApiBranchTemplate）。
+ */
+export interface ApiBlockoutJob {
+  jobId?: string;
+  /** 服务端可能用 id/_id 命名，三个都认（形状兜底，不假设它一定叫 jobId） */
+  id?: string;
+  _id?: string;
+  taskId?: string;
+  durSec?: number;
+  title?: string;
+  roles?: Array<{ label?: string; desc?: string }>;
+  expiresAt?: string | number | null;
+  createdAt?: string | number | null;
+}
+
+/**
+ * 白模化两阶段共用的那一次 POST —— **唯一实现**（铁律六）。
  *
- * ★★ 这是一次**同步等到底**的长请求：服务端要预热变换、抽帧、chat vision 看人、
- *   发 r2v edit 并轮询到 succeeded、把产物转存 Cloudinary，最后才建模板并 201。
- *   所以超时给到 15 分钟 —— **必须比服务端自己的上限长**：客户端先超时的话，
- *   钱照扣、模板其实在服务端建好了，而本机什么都没留下（用户只看到"超时"）。
- * ★ 判**回包形状**（`ok:true` + `template`），绝不判状态码：Capacitor 的本地静态服务器
- *   对未命中路径回 200 + index.html（CLAUDE.md 那条坑）。
+ * ★ 收在一处的是这几条规则：判成败看**回包形状**（`ok:true`）而不是状态码
+ *   （Capacitor 的本地静态服务器对未命中路径回 200 + index.html，CLAUDE.md 那条坑）、
+ *   `billed` 缺省 false、非 JSON 回包怎么翻成人话、超时那句话按阶段怎么说。
+ *   两个端点各写一遍的话，只要 `billed` 的缺省有一边写错，界面就会在钱上撒谎，
+ *   而且两个方向都不报错。
  * ★ 不走 client.ts 的 apiPost：它的失败路径把回包里的**顶层字段丢掉**（只留
  *   message/code/details），而这条路失败时最要紧的一位恰恰是顶层的 `billed`。
  *   鉴权头/超时/URL 拼装仍复用 client.ts 的那几个导出，没有第二份约定。
- * @throws BlockoutizeError（message 可直接显示；billed 决定要不要加那句"这笔不退"）
+ * @param timeoutMsg 超时/断网时那句整话。**必须由调用方按阶段给** —— 阶段一超时可能
+ *   意味着钱已经花了，阶段二超时只是没取到结果，两句话不能互换（见 BlockoutizeError.phase）。
  */
-export async function blockoutizeTemplate(payload: BlockoutizePayload): Promise<BlockoutizeResult> {
+async function blockoutPost(
+  path: string,
+  body: unknown,
+  timeoutMs: number,
+  phase: BlockoutPhase,
+  timeoutMsg: string,
+): Promise<Record<string, unknown>> {
   const token = getToken();
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 900_000);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/api/branch/templates/blockoutize`, {
+    res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
       signal: ctrl.signal,
     });
   } catch (e) {
     const aborted = e instanceof DOMException && e.name === "AbortError";
-    // ★ 超时这一条的文案不许写成"失败了，重试吧"：白模化在服务端可能已经跑完并扣了钱，
-    //   重试就是再扣一次。billed 按 false 报（我们确实不知道），但话要说清楚。
+    // billed 按 false 报（我们确实不知道服务端跑到哪儿了），但 timeoutMsg 里必须把
+    // "可能已经计费"说清楚 —— 报 true 是吓人，只说"失败了重试吧"是让他再花一次钱。
     throw new BlockoutizeError(
-      aborted
-        ? "白模化等待超时（超过 15 分钟）。服务器那边可能已经跑完并计费了——先去「我的模板」看一眼有没有新模板，没有再重试，别直接连点。"
-        : "白模化失败（网络不可用）",
+      aborted ? timeoutMsg : `${phase === "start" ? "白模化提交" : "取回白模化结果"}失败（网络不可用）`,
       0,
       aborted ? "TIMEOUT" : "NETWORK",
       false,
+      phase,
     );
   } finally {
     clearTimeout(timer);
@@ -893,12 +966,106 @@ export async function blockoutizeTemplate(payload: BlockoutizePayload): Promise<
     throw new BlockoutizeError(
       typeof data.message === "string" && data.message
         ? data.message
-        : `这台服务器不支持白模化（可能需要升级服务端）——HTTP ${res.status}`,
+        : `这台服务器不支持白模化的${phase === "start" ? "两阶段提交" : "取结果"}（可能需要升级服务端）——HTTP ${res.status}`,
       res.status,
       typeof data.code === "string" ? data.code : "",
       data.billed === true,
+      phase,
     );
   }
+  return data;
+}
+
+/**
+ * 阶段一到底把什么带回来了。
+ *
+ * ★★ 两种形状都是**成功**，别把第二种当失败（铁律七的降级矩阵）：
+ *   `job`    = 新服务端，两阶段。r2v 刚被受理，结果要客户端轮询后再来取；
+ *   `legacy` = **老服务端**（这一轮改造之前那份同步实现）：它在这一条请求里把九步全跑完了，
+ *              回包里直接带着建好的模板。那是一次完整的成功 —— 把它当"回包形状不对"拒掉，
+ *              就是"钱花了、模板其实建好了、而本机什么都没留下"（用户只看到一句失败）。
+ */
+export type BlockoutStarted =
+  | { kind: "job"; job: BlockoutStartResult }
+  | { kind: "legacy"; result: BlockoutizeResult };
+
+/**
+ * **阶段一**：提交四组数 → 服务端做完 ①~⑥ → 回一条任务凭据（requireAuth；
+ * 服务端限流 3 次/10 分钟/账号）。
+ *
+ * ★ 超时给 8 分钟。新服务端这一段是**秒级**的（预热变换、现查元数据、看几帧、发 r2v 创建），
+ *   这个上限只为兜住"对面还是老版同步实现"那种情况 —— 老版要在这一条请求里等完出片
+ *   与转存（5 分钟量级）。客户端先超时的话，钱照扣、模板其实建好了，而本机什么都没留下。
+ *   ⚠ 这不等于"用户必须盯着等 8 分钟"：那正是拆两阶段解决的问题 —— 新服务端秒级回执，
+ *   之后的等待随时可以退出，结果 24 小时内都能取回。
+ * ★ 回包既没有 jobId 也没有模板，就当失败且 `billed:true`：服务端说 ok 意味着 r2v 已经
+ *   受理（钱花了），而没有凭据我们就再也取不回结果。静默放行 = "钱花了、结果没了、零报错"。
+ * @throws BlockoutizeError（message 可直接显示；billed 决定要不要加那句"这笔不退"）
+ */
+export async function startBlockoutize(payload: BlockoutizePayload): Promise<BlockoutStarted> {
+  const data = await blockoutPost(
+    "/api/branch/templates/blockoutize",
+    payload,
+    480_000,
+    "start",
+    "白模化提交超时（超过 8 分钟）。服务器那边可能已经受理了这一发（受理即计费）——别直接重试，先去「我的模板」看有没有「还没取回结果」的一发或新模板，有就从那里继续。",
+  );
+  const job = pick<Record<string, unknown>>(data, ["job", "blockout"]) ?? data;
+  const jobId = String(job.jobId ?? job.id ?? job._id ?? "");
+  const taskId = String(job.taskId ?? "");
+  const durSecRaw = Number(job.durSec);
+  // 服务端回的 durSec 是它**真正拿去拼变换 URL**的那个数（也是计费口径）。
+  // 拿不到就退回我们提交的那个——两者理应相等，不等的话以服务端为准。
+  const durSec = Number.isFinite(durSecRaw) && durSecRaw > 0 ? durSecRaw : payload.durSec;
+  if (jobId && taskId) {
+    const roles = Array.isArray(job.roles) ? (job.roles as Array<{ label?: string; desc?: string }>) : [];
+    return {
+      kind: "job",
+      job: {
+        jobId,
+        taskId,
+        durSec,
+        roles: roles
+          .map((r) => ({ label: String(r?.label ?? "").trim(), desc: String(r?.desc ?? "").trim() }))
+          .filter((r) => r.label !== ""),
+        expiresAt: (job.expiresAt as string | number | null | undefined) ?? null,
+      },
+    };
+  }
+  const template = pick<ApiBranchTemplate>(data, ["template"]);
+  if (template && (template._id || template.id)) {
+    // 老服务端的同步实现：九步全跑完了，模板就在回包里。降级但**完整**。
+    return { kind: "legacy", result: { template, blockout: { taskId, durSec } } };
+  }
+  throw new BlockoutizeError(
+    "服务器受理了这一发白模化，却既没有返回模板、也没有返回可以取回结果的凭据（可能是旧版服务端）。这次已经计费——去「我的模板」看看有没有新模板或「还没取回结果」的一发，没有的话请把这句话反馈给我们。",
+    502,
+    "SHAPE",
+    true,
+    "start",
+  );
+}
+
+/**
+ * **阶段二**：拿凭据取回结果 —— 服务端自己向方舟核实任务状态、转存产物、建模板（⑦~⑨）。
+ *
+ * ★★ 只发 `jobId`，**不发任何"任务成功了"的断言**：客户端说什么都不作数，服务端必须
+ *   自己向方舟核实（与试炼闸 provenAt 同一条理由 —— 一句"我跑通了"能白拿一个模板）。
+ * ★ **幂等**：重复调用不许建出两个模板。服务端认凭据状态；真撞上 `refVideo.url` 唯一索引
+ *   时也该回既有那条模板而不是 500。所以本函数对"再点一次"是安全的，界面不必自己防重
+ *   （但仍然会 disable 按钮，那是防误触不是防重复建）。
+ * ★ 超时给 5 分钟：这一段要从 TOS 把产物拉下来再推给 Cloudinary（几十 MB 级）。
+ *   超时**不是**"这一发废了"：产物 24 小时内都在，回「我的模板」再取一次即可 —— 文案照这个说。
+ * @throws BlockoutizeError（phase="finish"：它的失败是"取结果失败"，钱在阶段一已经花过了）
+ */
+export async function finishBlockoutize(jobId: string): Promise<BlockoutizeResult> {
+  const data = await blockoutPost(
+    "/api/branch/templates/blockoutize/finish",
+    { jobId },
+    300_000,
+    "finish",
+    "取回白模化结果超时（超过 5 分钟）。这一步不额外花钱，产物在 24 小时内都还能取——回「我的模板」的「还没取回结果」再点一次即可。",
+  );
   const template = pick<ApiBranchTemplate>(data, ["template"]);
   const blockout = pick<Record<string, unknown>>(data, ["blockout"]);
   const durSec = Number(blockout?.durSec);
@@ -906,21 +1073,39 @@ export async function blockoutizeTemplate(payload: BlockoutizePayload): Promise<
     // 回包说 ok 却没给模板 = 这份回执当不了本机记录的锚点（既没有 remoteId 也没有
     // refVideo），静默放行就是"钱花了、模板不见了"。响亮拒绝，让用户去我的模板里找。
     throw new BlockoutizeError(
-      "服务器说白模化成功了，却没有返回模板信息（可能是旧版服务端）。这次很可能**已经计费**——去「我的模板」确认一下，别直接重试。",
+      "服务器说结果取回成功了，却没有返回模板信息（可能是旧版服务端）。这一步本身不花钱，钱在开炼那一步已经付过——去「我的模板」确认一下有没有新模板，没有的话请把这句话反馈给我们。",
       502,
       "SHAPE",
-      true,
+      false,
+      "finish",
     );
   }
   return {
     template,
     blockout: {
       taskId: String(blockout?.taskId ?? ""),
-      // 服务端回的 durSec 是它**真正拿去拼变换 URL**的那个数（也是计费口径）。
-      // 拿不到就退回我们提交的那个——两者理应相等，不等的话以服务端为准。
-      durSec: Number.isFinite(durSec) && durSec > 0 ? durSec : payload.durSec,
+      durSec: Number.isFinite(durSec) && durSec > 0 ? durSec : 0,
     },
   };
+}
+
+/**
+ * `GET /api/branch/templates/blockoutize/pending`（requireAuth）——
+ * 本账号**还没取回结果**的凭据。掉线恢复的唯一数据来源。
+ *
+ * ★★ 为什么"我有哪些没取回"只问服务端、不在本机存一份：凭据的归属、状态、过期时刻
+ *   都由服务端说了算（别人拿到 jobId 也取不走，铁律：归属只认 ownerId）。本机再存一份
+ *   就是第二处真相 —— 换设备/重装之后本机那份是空的，而"结果丢了"恰恰最可能发生在
+ *   进程被系统回收之后（本机 state 一起没了）。服务端那份反而是唯一还在的。
+ * @returns null = **这台服务器没有这个端点**（回包形状不对，老服务端）。空数组 = 真的
+ *   没有待取回的。两者绝不能混：混了就会把"探不到"画成"你没有待取回的"，
+ *   而用户那一发的钱已经花了（铁律八）。
+ */
+export async function listBlockoutJobs(): Promise<ApiBlockoutJob[] | null> {
+  const res = await apiGet<Record<string, unknown>>("/api/branch/templates/blockoutize/pending");
+  if (!res || res.ok !== true) return null;
+  const list = pick<unknown>(res, ["jobs", "pending", "items", "data"]);
+  return Array.isArray(list) ? (list as ApiBlockoutJob[]) : null;
 }
 
 /** GET /api/branch/templates/shared（optionalAuth）—— 模板市场，只回 published */

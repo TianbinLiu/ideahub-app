@@ -9,15 +9,22 @@ import Icon from "../components/Icon";
 import { useSocialVersion } from "../components/SocialPanel";
 import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 import {
+  blockoutJobExpired,
+  blockoutJobNote,
   browseTemplates,
   confirmTemplateRoles,
   myTemplates,
+  pendingBlockoutIssue,
+  pendingBlockoutJobs,
+  refreshPendingBlockoutJobs,
   refreshRemoteTemplate,
   remoteStateOf,
   remoteTemplatesCapable,
+  resumeBlockoutize,
   sharedLoadIssue,
   subscribeTemplates,
   templatesVersion,
+  type BlockoutJob,
 } from "../data/templates";
 import { readSocial } from "../data/social";
 import { useFlow } from "../studio/flowStore";
@@ -234,6 +241,77 @@ function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onClose: () => voi
   );
 }
 
+/**
+ * 【白模 V2 · 两阶段的恢复入口】一发**已经付过钱、还没取回结果**的白模化。
+ *
+ * ★★ 这一块是把白模化拆成两阶段的**目的本身**。开炼那一发的钱在 r2v 被受理时就花掉了
+ *   （受理后失败不退），而后面还要等好几分钟出片 —— 手机切后台、弱网断线、进程被系统
+ *   回收、网关超时，任何一条都会打断那次等待。**没有这个入口，用户就是"钱花了、结果
+ *   没了、还不知道该去哪找"**，那时两阶段反而比一条长请求更糟（多了一个丢结果的接缝）。
+ * ★ 剩余时间要显示，而且要**真的在走**（每分钟重算一次）：一条永远停在"剩 1 分钟"的
+ *   提示比不显示更坏。24 小时不是我们定的时限，是方舟产物 URL 的物理寿命（TOS 签名地址）。
+ * ★ 过期的那条**不给按钮、整句说明费用无法挽回**（blockoutJobNote 一处实现）：
+ *   摆一颗点了必然失败的按钮，等于让用户以为还有救。
+ */
+function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () => void }) {
+  const [busy, setBusy] = useState("");
+  const [issue, setIssue] = useState("");
+  // 每分钟重算一次剩余时间（blockoutJobNote 是纯函数，重渲即刷新）
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  const expired = blockoutJobExpired(job);
+
+  async function take() {
+    setIssue("");
+    setBusy("正在取回…");
+    try {
+      await resumeBlockoutize(job.jobId, (s) => setBusy(s));
+      onTaken();
+    } catch (e) {
+      // 服务端/数据层给的都是整句人话（"还在生成中""受理后失败不退""产物已过期"…），
+      // 原样显示。★ 这里**绝不**自己补一句"重试一下"——有些失败重试就是再花一次钱
+      setIssue(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <div
+      className={`rounded-xl border px-3 py-2.5 ${
+        expired ? "border-slate-600/60 bg-black/25" : "border-amber-500/50 bg-amber-500/10"
+      }`}
+    >
+      <div className="text-[11px] font-bold text-amber-200">
+        {expired ? "这一发白模化已经取不回来了" : "有一发白模化还没取回结果"}
+      </div>
+      <div className="mt-0.5 truncate text-[11px] text-slate-300">
+        「{job.title}」· {job.durSec > 0 ? `${job.durSec}s` : "选段"}
+        {job.roles.length > 0 ? ` · 认出 ${job.roles.length} 个角色位` : ""}
+      </div>
+      <p className={`mt-1 text-[11px] leading-relaxed ${expired ? "text-slate-400" : "text-amber-200/90"}`}>
+        {blockoutJobNote(job)}
+      </p>
+      {issue && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{issue}</p>}
+      {!expired && (
+        <button
+          onClick={() => void take()}
+          disabled={!!busy}
+          className="mt-2 w-full rounded-full bg-brand py-2 text-[12px] font-bold text-ink disabled:opacity-50"
+        >
+          {busy ? "取回中…" : "取回这一发的结果（不额外花钱）"}
+        </button>
+      )}
+      {/* ★ 进度话摆在按钮下面而不是塞进按钮里：它是整句（"生成中 35s（可以退出…）"），
+          塞进按钮会折成三行还看不清 —— 而这一步最长要等几分钟，不报进度用户会以为死了 */}
+      {busy && <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{busy}</p>}
+    </div>
+  );
+}
+
 export default function TemplateMarketPage() {
   const ver = useTemplatesVersion();
   useSocialVersion();
@@ -251,6 +329,10 @@ export default function TemplateMarketPage() {
     void remoteTemplatesCapable().then((ok) => {
       if (alive) setBlockoutCap(ok);
     });
+    // ★★ 进这一页就拉一次「还没取回结果」的名单（服务端那份是唯一真相 —— 进程被系统
+    //   回收时本机 state 一起没了，只有它还在）。强制重拉而不是用缓存：用户点进来，
+    //   多半就是因为刚才那一发被打断了，这时候给他看一份可能已经过时的名单没有意义。
+    void refreshPendingBlockoutJobs();
     return () => {
       alive = false;
     };
@@ -319,6 +401,32 @@ export default function TemplateMarketPage() {
           一模一样（铁律八——失败要响；本机与种子照常显示，所以是"响且局部"） */}
       {tab === "market" && sharedLoadIssue() && (
         <p className="mb-2 rounded-lg bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-300/90">{sharedLoadIssue()}</p>
+      )}
+
+      {/* ★★ 「还没取回结果」摆在**两个 tab 都看得见**的位置，而不是只在「我的模板」里：
+          这一块关系到已经花掉的钱，用户从任何一条路进这一页都该第一眼看见它
+          （藏进另一个 tab = 他得先猜到要去那里翻）。列表本身按快过期的排前面。 */}
+      {pendingBlockoutJobs().length > 0 && (
+        <div className="mb-3 space-y-2">
+          {pendingBlockoutJobs().map((j) => (
+            <BlockoutResumeCard
+              key={j.jobId}
+              job={j}
+              onTaken={() => {
+                // 取回成功 = 本机多了一个白模模板（还等着核对编号）。切到「我的模板」，
+                // 下面那条「编号待核对」的提示就跟着出来了 —— 那是发布前的必经一步
+                setTab("mine");
+              }}
+            />
+          ))}
+        </div>
+      )}
+      {/* 名单拉不到要说出来：不说的话"拉挂了"看起来和"你没有待取回的"一模一样，
+          而后者是在钱上撒谎（铁律八） */}
+      {pendingBlockoutIssue() && (
+        <p className="mb-2 rounded-lg bg-amber-500/10 px-3 py-1.5 text-[11px] leading-relaxed text-amber-300/90">
+          {pendingBlockoutIssue()}
+        </p>
       )}
 
       {/* 「我的模板」的白模上传入口：跳提取器并直接拨到白模开关。

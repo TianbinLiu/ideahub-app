@@ -910,7 +910,9 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | POST | `/api/branch/templates` | required（5/分） | **V1 登记**。body `{ title, intro, coverUrl, recipe, videoUrl }`；`videoUrl` 过三重白名单（host=res.cloudinary.com + 模板视频专用目录 + public_id 归属 `^<userId>-\d+$`），别处的链接 400；元数据服务端向 Cloudinary 现查，复核走 **② 号窗口**（整段原片直接当参考视频用）。建成 `status=pending`。重复视频 409 |
-| POST | `/api/branch/templates/blockoutize` | required（**3 次/10 分钟**） | **V2 白模化**。body `{ publicId, startSec, durSec, crop:{x,y,w,h}, title, intro, coverUrl, videoTier?, aspect?, note? }` —— 提交的是**四组数不是 URL**（变换地址由服务端自己拼）。成功 `201 { ok, template, blockout:{ taskId, durSec } }`。失败一律带 `billed`（见下） |
+| POST | `/api/branch/templates/blockoutize` | required（**3 次/10 分钟**） | **V2 白模化 · 阶段一**。body `{ publicId, startSec, durSec, crop:{x,y,w,h}, title, intro, coverUrl, videoTier?, aspect?, note? }` —— 提交的是**四组数不是 URL**（变换地址由服务端自己拼）。成功 `201 { ok, jobId, taskId, durSec, roles[], expiresAt }`（**钱在这一刻花掉**）。失败一律带 `billed`（见下） |
+| POST | `/api/branch/templates/blockoutize/finish` | required（仅凭据所有者） | **V2 白模化 · 阶段二**。body `{ jobId }`，**只收 jobId**：任务成没成由服务端自己向方舟核实，客户端说什么都不作数。成功 `{ ok, template, blockout:{ taskId, durSec } }`。**幂等**（重复调回同一条模板，不许建出第二个）。本阶段**不扣钱** |
+| GET | `/api/branch/templates/blockoutize/pending` | required | **掉线恢复**：本账号还没取回结果的凭据 `{ ok, jobs: [{ jobId, taskId, durSec, title, roles[], expiresAt, createdAt }] }`。App 进模板市场时拉一次，摆出取回入口 |
 | GET | `/api/branch/templates/shared` | optional | 市场列表，只回 `status === "published"`，`{ ok, templates[] }`。**路由必须排在 `/:id` 前**（branchAsset 同款排序坑） |
 | GET | `/api/branch/templates/:id` | optional | 详情。非 published 只有作者可见，对别人一律 **404 而不是 403**（不泄露私有模板的存在性） |
 | PATCH | `/api/branch/templates/:id/roles` | required（仅作者，**仅 pending**） | **作者核对角色位编号**（白模 V2）。body `{ roles: [{ label, desc }] }`，1~12 条，**整份替换**，落库时 `labelConfirmed=true`。这是**唯一收客户端 roles 的端点**。见下 |
@@ -926,10 +928,43 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 ★ 注意分支二（未登记素材，见下）**没有** templateId，那一路不落试炼追踪 —— 白模化那一发
 本来也不该被算作"用这个模板出过片"（那时模板还不存在）。
 
-### 白模化 `POST /api/branch/templates/blockoutize`（V2）
+### 白模化（V2）—— **两阶段**，不是一条长请求
 
 客户端在编辑页框出「哪一段 + 画面哪一块」，提交**四组数**（`startSec`/`durSec`/`crop`）。
-服务端走完九步，全程**客户端拿不到任何变换 URL**：
+服务端走完九步，全程**客户端拿不到任何变换 URL**。⚠ 这九步**分两次请求**跑完
+（2026-08-15 改造；此前是一条同步等到底的长请求）：
+
+```
+阶段一 POST /templates/blockoutize          ①~⑥（到「r2v 被方舟受理」为止）→ 落一条凭据 BlockoutJob
+       ↓ 钱在这一刻花掉（看帧 + r2v 受理；受理后失败不退，F11）
+客户端 GET /api/ark/contents/generations/tasks/:id   轮询出片（**既有端点**：不计费、
+       ↓                                            90/分独立限流桶。不新造轮询端点）
+阶段二 POST /templates/blockoutize/finish    ⑦~⑨（核实 → 转存产物 → 建模板 pending）
+恢复   GET  /templates/blockoutize/pending   还没取回结果的凭据（掉线/被杀进程后从这里领回）
+```
+
+**为什么必须拆**：一条请求要在服务端等完预热、看帧、出片、转存，**五分钟量级**。
+手机切后台、弱网断线、App 进程被系统回收、nginx 超时掐断 —— 任何一条都会让用户
+**丢掉这一发的结果，而钱已经花了**。两阶段让"结果"变成一件可以再来取的东西。
+
+拆开之后必须同时成立的六条（少一条这次拆分就是负收益）：
+
+1. **finish 自己向方舟核实**任务状态，绝不信客户端一句"成功了"（与试炼闸 `provenAt`
+   同一条理由：一句"我跑通了"能白拿一个模板）。
+2. **幂等**：重复 finish 不许建出两个模板 —— 凭据带状态；真撞上 `refVideo.url` 唯一索引
+   时回**既有那条模板**而不是 500。App 侧同样去重（`adoptBlockoutTemplate` 按 `remoteId`
+   查本机库，已有就返回它，不再 `saveTemplate` 一条 remoteId 相同的幽灵记录）。
+3. **掉线可恢复**：`pending` 列表 + App 里一个**真入口**（模板市场页顶部的「还没取回结果」，
+   两个 tab 都看得见）。没有这个入口，两阶段就白拆了。
+4. **时限是 24 小时，不是 48**：方舟产物是 TOS 签名地址、**24h 过期**（F12）。凭据 TTL 与
+   `expiresAt` 都按 24h；pending 列表显示**剩余时间**（每分钟重算），过期的那条
+   **不给按钮**并整句说明「产物已过期、这一发的费用无法挽回」——不是超时重来。
+5. **`billed` 的语义分阶段**：阶段一一旦 r2v 被受理就是 `billed:true`（受理后失败不退）；
+   阶段二本身不扣钱，它的失败是**"取结果失败"**不是"又花了一笔"，两句话不许互换
+   （App 侧的判据是 `BlockoutizeError.phase`）。
+6. **归属**：finish 与 pending 都只认凭据的 `ownerId` —— 别人拿到 jobId 也取不走。
+
+九步本身不变：
 
 1. 归属校验（`public_id` 形状 `ideahub/template-videos/<userId>-<ts>`，唯一实现
    `utils/templateVideoAsset.js`）+ 「这段素材做过了吗」（`refVideo.cloudinaryPublicId`
@@ -945,9 +980,12 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 6. 抽几帧 → **一次 chat vision**：列出画面里有哪些人 + 外观特征（F4 的"先看"）。
    一个人都没认出 → 整句拒、**不建空壳模板**（角色位是套用者挂卡的唯一入口）；
 7. **一次 r2v edit**（F4 的"点名"：提示词把每个人的外观特征逐个写进去 ——
-   泛指"所有人物"只换配角、主角不动，两发对照实测）；
-8. 轮询 → 产物**转存 Cloudinary**（F12）→ 用 **② 号窗口**复核产物本身（它要当下一发的输入）；
-9. 建模板 `status=pending`、`roles`（全部 `labelConfirmed:false`）、`source` = 那四组数。
+   泛指"所有人物"只换配角、主角不动，两发对照实测）；**⑥ 与 ⑦ 之间就是阶段一的终点**：
+   任务被受理即落凭据并 201 返回（`jobId`/`taskId`/`durSec`/`roles`/`expiresAt`）；
+8. 【阶段二】向方舟核实 → 产物**转存 Cloudinary**（F12）→ 用 **② 号窗口**复核产物本身
+   （它要当下一发的输入）；
+9. 建模板 `status=pending`、`roles`（全部 `labelConfirmed:false`）、`source` = 那四组数，
+   并把凭据置为已取回（幂等的锚点）。
 
 **失败一律整句中文 + `billed` 一位**（全 app 没有任何地方监听错误码，只回 code 等于让用户
 对着转圈干等）：
@@ -958,11 +996,17 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 
 | `billed` | 含义 | 典型场景 |
 |---|---|---|
-| `false` | 这一次**一分钱没动**，或已经原路退回 | 归属/四组数没过、预热失败、套餐不够格（403 `PLAN_REQUIRED`）、余额不足（402）、方舟**受理前** 400（敏感词/输入不合格，W2 已退） |
-| `true` | 已经产生费用且**退不回来** | 看帧那一步花完之后的任何失败：`roles` 为空、方舟**受理后** failed（F11：含真人人脸的视频创建时不拒、跑到一半才失败）、轮询超时、产物转存失败、产物过不了窗口 |
+| `false` | **这一次调用**一分钱没动，或已经原路退回 | 【阶段一】归属/四组数没过、预热失败、套餐不够格（403 `PLAN_REQUIRED`）、余额不足（402）、方舟**受理前** 400（敏感词/输入不合格，W2 已退）；【阶段二】**全部**（它本来就不扣钱） |
+| `true` | 已经产生费用且**退不回来** | 【阶段一】看帧那一步花完之后的任何失败：`roles` 为空、r2v 受理后才发现的问题 |
 
 ★ 客户端缺省按 `false`（非 JSON 回包 = 请求根本没落到这个端点上）。**别把两类混成一句话** ——
 要么把没扣的说成扣了（吓人），要么把扣了的说成没扣（在钱上撒谎）。
+★★ **两阶段之后 `billed:false` 有两种含义，按阶段分**（App 侧判据 `BlockoutizeError.phase`）：
+阶段一的 `false` = 这一发一分钱没动，重来即可；阶段二的 `false` = **这一步**没花钱，
+但钱在阶段一已经花了 —— 该说的是"结果还能再取一次（24 小时内）"，**不是**"没扣钱，重开一发吧"
+（那句话会让他再花一次）。同理，方舟**受理后 failed**（F11 真人脸）现在由**阶段二**报出来：
+它是"这一发废了、钱不退"，`billed` 在那一次调用上是 `false`（这次调用没花钱），
+所以 **message 必须把"钱不退"写进整句里**，不能靠 `billed` 那一位表达。
 ★ **不做真人脸门禁**（浏览器 FaceDetector 覆盖率极低，漏报比不检查更坏）：改为在编辑页
 开炼前就整句告知"视频里有真人面孔时 AI 可能中途拒绝，这种情况费用不退"，用户自负。
 
@@ -1006,7 +1050,16 @@ body `{ roles: [{ label, desc }] }`（1~12 条），成功回完整模板（`rol
 **V2 在 App 侧多两处收口**（都在 `src/data/templates.ts`，一处实现）：
 
 - `blockoutizeTemplate()` —— 白模化流程（花钱前的三道门：能力探测 / 套餐与价目 / 余额；
-  成败都刷余额镜像，因为这条路最典型的失败恰恰是**扣了钱的**）；
+  成败都刷余额镜像，因为这条路最典型的失败恰恰是**扣了钱的**）。两阶段之后它内部是
+  **start → 轮询 → finish** 三段：轮询走 `ai/arkClient.fetchArkTask`（`GET /api/ark/contents/
+  generations/tasks/:id` 的唯一封装，**没有新端点**），每一拍的进度话里都带着
+  「可以退出，24 小时内都能回「我的模板」取回结果」——那句话是这次改造唯一的用户可见承诺，
+  少了它用户仍然会以为自己必须一直盯着。拿到凭据那一刻调 `onBilled`，宿主据此
+  **不再回收**那段原始素材（钱已经花在它身上了）；
+- `pendingBlockoutJobs()` / `refreshPendingBlockoutJobs()` / `resumeBlockoutize()` ——
+  **掉线恢复**（名单只有服务端说得准，本机不存第二份：进程被系统回收时本机 state 一起没了，
+  服务端那份是唯一还在的）。「等出片 → 取回结果」这后半段在 `takeBlockoutResult` **一处实现**，
+  刚开炼的那一发与从恢复入口领回的那一发走同一段代码；
 - `confirmTemplateRoles()` —— 编号核对，**成功后把本机 `roles` 一起改写**：出片时点名用的
   是本机那份，只改远端的话作者在这台设备上出的片仍按旧编号点名（改了却没生效，零症状）。
 - `RemoteTemplateState.rolesNeedConfirm` 是「这个模板还等着核对吗」的镜像（与 status /
@@ -1018,6 +1071,8 @@ body `{ roles: [{ label, desc }] }`（1~12 条），成功回完整模板（`rol
 | 场景 | 行为 |
 |---|---|
 | 老服务端 × 新 App | `remoteTemplatesCapable()` 探不到 → 白模化入口不渲染，V1 上传路照旧；核对端点回不出模板形状 → 整句说"可能需要升级服务端"，不假装成功 |
+| **同步版服务端（有 blockoutize、没有两阶段）× 新 App** | 阶段一那次 POST 会一口气跑完九步并把 `template` 带回来。App 按**回包形状**分叉（`jobId` → 两阶段；只有 `template` → `legacy`）：直接落本机，降级但**完整**。★ 绝不能把它当"形状不对"拒掉 —— 那就是"钱花了、模板其实建好了、本机什么都没留下"。也因此阶段一的超时给到 **8 分钟**（新服务端秒级返回，这个上限只兜同步版） |
+| 新服务端 × 老 App（没有两阶段） | 老 App 拿到 `{ ok, jobId, … }` 里没有 `template`，会整句报"服务器没返回模板信息、这次很可能已经计费"并让用户去「我的模板」确认 —— 说的是实话（钱确实花了、模板确实还没建）。**但它取不回结果**：凭据会挂到 24 小时过期。所以两仓这一轮要一起发 |
 | 新服务端 × 老 App | 老 App 不认 `roles`，套用时走 V1 的泛指语义句（降级但诚实）；它也发不出核对请求 —— 于是那些 V2 模板停在 pending，**不会**带着没核对的编号上市场 |
 | 存量 V2 模板（`labelConfirmed` 字段还不存在） | 服务端 `rolesNeedConfirm` 用 `!== true` 判 → 算**未核对**（它们的编号确实没人核对过），作者核对一次即可发布 |
 
