@@ -12,6 +12,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import Icon from "../components/Icon";
+// ★ 与市场页共用同一个核对入口/面板（含"删掉一个角色位"）。两页各写一份必然分叉，
+//   而这一屏说的话直接决定作者会不会去重炼（花第二次钱）
+import { RoleConfirmEntry } from "../components/blockout/RoleConfirmSheet";
 import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import { useTemplatesVersion } from "./TemplateMarketPage";
@@ -221,6 +224,18 @@ function OwnerBar({ t, inMine, onApply }: { t: VideoTemplate; inMine: boolean; o
         >
           删除
         </button>
+      </div>
+      {/* ★★ 核对编号的入口（白模 V2，两档常驻）：作者是从**这一页**点的发布，而发布闸的
+          两道门之一就是编号 —— 撞了 400 之后这里必须有下一步，不能只把整句印在下面
+          （改造之前正是那样：opErr 里躺着一句"编号还没核对"，页面上却没有任何地方能去核对，
+          而作者一旦点过一次「我已逐个核对」，市场页那条琥珀提示也消失了）。
+          ★ 第二档（已核对）也留着：画面上有两个一样的号 / 某个号根本找不到时，
+          出路是回这一屏把那个位子**删掉**，不是再花一次钱重炼整段。
+          ★ 判据与身份不在这里重写：这一整块本来就只对作者渲染（isMine），
+          入口内部只问 remoteStateOf 那份快照。 */}
+      {/* empty:hidden —— 入口对经典配方/没角色位的模板返回 null，那时这个壳不该留下一道空白 */}
+      <div className="mt-2 empty:hidden">
+        <RoleConfirmEntry t={t} />
       </div>
       {/* 白模的试炼闸说明与操作：发布前须用本模板真实出过一次片。
           为什么有这道门也要说给作者听——方舟任务受理后失败不退费，坏模板的钱

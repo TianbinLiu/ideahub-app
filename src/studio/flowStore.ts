@@ -578,16 +578,38 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   注释），所以这一刻才现查。查不到不是小事：界面上那个位子显示"？"，映射里却还
     //   留着一个 id —— 不拦的话出片时它既没有形象图、点名句里又白白点了它的名，
     //   模型只能自己编一个人出来，钱照扣（铁律八）。
-    // ── 角色位上限：只有前 BLOCKOUT_MAX_ROLES 个能挂卡（判定唯一实现在 data/templates） ──
-    // ★ 这一段今天走不到（挂卡面板压根不给超出的位子挂卡按钮），留着是**断言**：真收到了
+    // ── 挂不上的编号：超出上限的，以及**作者已经删掉的那个位子** ──
+    // ★ 上限那一半今天走不到（挂卡面板压根不给超出的位子挂卡按钮），留着是**断言**：真收到了
     //   就说明有人绕过了那一处（老草稿、老服务端多编了几个位子），而静默丢掉的表现是
     //   "我明明挂了 10 号，出片时它还是白模"——挂了、付了钱、画面没变，零报错（铁律八）。
+    // ★ "被删掉"那一半**天天走得到**：作者核对编号时删位是常规操作（整份替换），
+    //   而挂卡映射是本机存着的旧那份 —— 所以下面的拒绝语必须分清是哪一种（见 ★★）。
     const { castable } = splitCastRoles(roles);
     const canCast = new Set(castable.map((r) => r.label));
-    const overflow = Object.keys(next).filter((label) => !canCast.has(label));
-    if (overflow.length > 0) {
+    const stray = Object.keys(next).filter((label) => !canCast.has(label));
+    if (stray.length > 0) {
+      // ★★ 拒绝的**原因分两类**，不许都说成"超过上限"（2026-08-15 修）：删掉一个角色位
+      //   已经是常规操作了（方舟画的编号会重号、会缺号，作者对着画面把找不到的那个位子
+      //   删掉是**唯一不用再花一次钱**的修法），于是最常见的 stray 恰恰是"作者删了这个位子"
+      //   —— 告诉用户"一个模板最多 9 个角色位"是一句我们亲手制造的谎话，他会照着去数
+      //   自己挂了几张，怎么数都对不上。
+      // ★ 判据仍只有一处（splitCastRoles）：这里只是把已经算出来的信息分成两类。
+      //   在 `roles` 里但挂不上 = 超出上限；根本不在 `roles` 里 = 那个位子已经没了。
+      const known = new Set(roles.map((r) => r.label));
+      const overCap = stray.filter((l) => known.has(l));
+      const removed = stray.filter((l) => !known.has(l));
+      const why = [
+        overCap.length > 0
+          ? `编号 ${overCap.join("、")} 超出了一次能挂卡的 ${BLOCKOUT_MAX_ROLES} 个上限（再多的编号在画面上也认不出来）`
+          : "",
+        removed.length > 0
+          ? `编号 ${removed.join("、")} 这个位子已经被模板作者在核对编号时删掉了（多半是因为画面上根本找不到这个号）`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("；");
       set({
-        err: `编号 ${overflow.join("、")} 挂的卡不能生效：一个模板最多只有 ${BLOCKOUT_MAX_ROLES} 个角色位能挂卡（再多的编号在画面上也认不出来），多出来的会保持白模人偶原样——回挂卡那一屏点「取下这几张」再完成挂卡`,
+        err: `${why}——这些位子挂的卡不能生效，它们会保持白模人偶原样。回挂卡那一屏点「取下这几张」再完成挂卡`,
       });
       return false;
     }

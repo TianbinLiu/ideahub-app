@@ -459,6 +459,23 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
       }
       if (dirty) persist();
     }
+    // ★★ 本机**没有**这条记录时（换设备/重装，模板只活在 shared 内存缓存里），
+    //   角色位同样要跟着服务端走。少了这一段，「打开核对面板前先取一次服务端那份」
+    //   在**它唯一想防的那条路上恰好是空转**：
+    //     设备 B 重装后进详情页 → 模板落进 shared（roles = 那份没核对过的猜测）
+    //     → 同一会话再进详情页时 `if (!id || t || …) return` 短路、不再回源
+    //     → 期间作者在设备 A 上把编号改对了并删掉两个位
+    //     → 设备 B 点「重新核对」，这里只更新了状态快照、**shared 那份 roles 一个字没动**
+    //     → 面板照着旧的 1/2/3/4/5 渲染（看着就像"还没核对的猜测"，作者看不出异常）
+    //     → 一提交就是**整份替换**，设备 A 上那次修正被悄悄撤销，两边零报错。
+    //   ⚠ 注释里承认的"已知可接受"是**并发写**后到者覆盖先到者；这里覆盖的却是一份
+    //     这台设备从未刷新过的旧值 —— 那不在"可接受"里，是这一段该修的。
+    else {
+      const cached = shared.find((x) => x.id === id);
+      const back = rolesOf(api);
+      // shared 只活在内存里，没有本机库要写（persist 只管 mine）
+      if (cached && back.length) cached.roles = back;
+    }
     emit();
   } catch (e) {
     console.warn(`[templates] 远端模板状态刷新失败 ${t.remoteId}:`, e);
@@ -498,6 +515,26 @@ export async function setTemplatePublished(id: string, on: boolean): Promise<voi
 }
 
 /**
+ * 「删到只剩这么多，行不行」—— 角色位**下限**的唯一实现（null = 行得通，否则是一句
+ * 可直接显示的整句）。核对面板（最后一条不给删的那句解释）、提交前的预检、
+ * `confirmTemplateRoles` 自己，问的都是它；UI 不许另写 `rows.length <= 1` 的判断。
+ *
+ * ★★ 为什么下限是 1 而不是 0（删到 0 的后果是一条**四段全静默**的降级链）：
+ *   ① 服务端 `toTemplatePayload` 只在 `roles.length > 0` 时才带这个键 → 模板在回包里
+ *      退化成 V1 形状；② `rolesOf` 回空数组 → 本机记录不带 `roles` 键；
+ *   ③ 出片时 `segmentGen` 的 `blockout && roles?.length` 为假 → **静默退成 V1 泛指出片**，
+ *      套用者花了 r2v 的钱，换来一段"AI 自己挑人换"的片；④ 服务端 `rolesNeedConfirm`
+ *      同时变 false → **发布闸失效**，一个没有任何挂卡入口的白模模板能上市场。
+ *   全程零报错，所以这一步必须在本机就拦住，并把"真正想要的那个操作"指出来。
+ * ★ 这是**预检**，不是第二份判据：服务端那边也拦（它才是唯一权威）。这一层存在的意义
+ *   是别让作者白跑一趟网络，以及把机器话（zod 的英文 "Validation error"）换成人话。
+ */
+export function roleFloorIssue(remaining: number): string | null {
+  if (remaining >= 1) return null;
+  return "至少要留一个角色位——一个都不留的话，套用你模板的人没有任何地方可以挂卡，这个模板会退回成「整段只有一个白模人偶」的老形态。整个模板不要了的话，用详情页的「删除」。";
+}
+
+/**
  * 核对角色位编号 —— **唯一入口**（页面别自己调 branch API：本机镜像与远端状态要一起改）。
  *
  * ★★ 为什么非有这一步不可（这是白模 V2 最阴的一条错法）：白模化落库那一刻的 label 是
@@ -506,6 +543,14 @@ export async function setTemplatePublished(id: string, on: boolean): Promise<voi
  *   画面上的 3 号（另一个人），**钱照扣、零报错**。所以编号只能由看得见画面的人确认。
  * ★ 提交的是**完整的那一份**（服务端整份替换）：作者可以改编号、改描述、删掉 AI 多认的
  *   一条、补上它漏认的一个。重复编号服务端整句 400（重了会让套用侧的挂卡互相覆盖）。
+ * ★★ **「删掉一个角色位」就走这一条路，没有第二条**（2026-08-15 实测逼出来的常规操作）：
+ *   方舟画在人偶头上的编号并不可靠 —— 同一段 5 人素材实出过 2/2/1/1/5（两组重号，
+ *   3、4 整个没出现）。库里那份永远是连续的 1..N，所以**重号只发生在画面上**：作者要把
+ *   能对上的位子改成画面上的真数字，把画面上找不到的那几个位子删掉。删的表达形式就是
+ *   **提交的数组里少了那一条**（整份替换）—— 改号与删位因此是**同一次提交的两半**，
+ *   拆成两次必然撞服务端的重号闸（把 1 号位改成 2 时库里已经有个 2）。
+ * ★★ 剩下的 label **逐字不动、顺序不动**：调用方给什么就发什么，这一层不排序、不补号、
+ *   不重编。删掉 3 号之后 5 号仍然叫 5 号 —— 重排等于把卡挂到别人身上，两边都不报错。
  * ★ 成功后**本机 roles 一起改写**：出片时点名用的就是本机这份（segmentGen 读 template.roles），
  *   只改远端的话，作者在这台设备上出的片仍然按旧编号点名 —— 那正是"改了却没生效"的
  *   零症状故障。
@@ -522,10 +567,27 @@ export async function confirmTemplateRoles(
   if (!t) throw new Error("这个模板不在本机库里");
   if (!t.remoteId) throw new Error("模板还没登记到服务器，登记成功后才能核对编号");
   if (!remoteOn()) throw new Error("现在连不上服务器——编号登记在服务端，联网后再核对");
-  const clean = roles
-    .map((r) => ({ label: String(r.label ?? "").trim(), desc: String(r.desc ?? "").trim() }))
-    .filter((r) => r.label !== "");
-  if (!clean.length) throw new Error("至少要留一个角色位——一个都不留的话，套用你模板的人没有任何地方可以挂卡");
+  const clean = roles.map((r) => ({ label: String(r.label ?? "").trim(), desc: String(r.desc ?? "").trim() }));
+  // ★★ 空编号**整句拒**，绝不静默丢掉那一条。原来这里是 `.filter((r) => r.label !== "")` ——
+  //   而这条端点是**整份替换**，被 filter 掉就等于把那个角色位真的删了：
+  //   作者把某一行的编号框全选清空（想重打画面上的真数字，或者以为"清空=不改"），
+  //   那一行既不进面板的 `doomed`、也就不进底部那条待删汇总，按钮上写的还是
+  //   「我已逐个核对，编号无误」—— 点下去角色位连同 AI 写的 desc 一起永久消失，
+  //   服务端 200、labelConfirmed 全置 true、rolesNeedConfirm 变 false，此后**没有任何一处**
+  //   会再提醒他少了一个位子。套用者看到的就是"这个人偶永远挂不上卡"。
+  //   ⚠ 服务端拦不住这一格：zod 是 `label: z.string().trim().min(1)`，空 label 根本到不了那边
+  //     ——它压根不在请求里。所以这一条只能在 App 侧成立，而"删"必须只有一种表达：显式点删除。
+  //   （同一条 filter 的反向症状：点「加一个」只填描述忘了填号 → 提交后那行被静默丢掉，
+  //     服务端 200、行数没变，作者以为补上了。）
+  const blank = clean.findIndex((r) => r.label === "");
+  if (blank >= 0) {
+    throw new Error(
+      `第 ${blank + 1} 行的人偶编号是空的——编号是"把卡挂到这个人偶身上"的唯一凭据，不能留空。照画面上印的数字填一个；想去掉这个角色位，请点它的「删掉」。`,
+    );
+  }
+  // 下限只有一处实现（面板里"最后一条不给删"说的也是这一句）
+  const floor = roleFloorIssue(clean.length);
+  if (floor) throw new Error(floor);
   const api = await branch.patchTemplateRoles(t.remoteId, clean);
   if (!api) {
     throw new Error("这台服务器还不支持核对角色位编号（回包形状不对，可能需要升级服务端）");

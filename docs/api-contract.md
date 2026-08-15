@@ -922,7 +922,7 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 | GET | `/api/branch/templates/blockoutize/pending` | required | **掉线恢复**：本账号还没取回结果的凭据 `{ ok, jobs: [{ jobId, taskId, durSec, title, roles[], expiresAt, createdAt }] }`。App 进模板市场时拉一次，摆出取回入口 |
 | GET | `/api/branch/templates/shared` | optional | 市场列表，只回 `status === "published"`，`{ ok, templates[] }`。**路由必须排在 `/:id` 前**（branchAsset 同款排序坑） |
 | GET | `/api/branch/templates/:id` | optional | 详情。非 published 只有作者可见，对别人一律 **404 而不是 403**（不泄露私有模板的存在性） |
-| PATCH | `/api/branch/templates/:id/roles` | required（仅作者，**仅 pending**） | **作者核对角色位编号**（白模 V2）。body `{ roles: [{ label, desc }] }`，1~9 条（`BLOCKOUT_MAX_ROLES`），**整份替换**，落库时 `labelConfirmed=true`。这是**唯一收客户端 roles 的端点**。见下 |
+| PATCH | `/api/branch/templates/:id/roles` | required（仅作者，**仅 pending**） | **作者核对角色位编号**（白模 V2）。body `{ roles: [{ label, desc }] }`，1~9 条（`BLOCKOUT_MAX_ROLES`），**整份替换**（"少给一条 = 删掉那个角色位"，见下），落库时 `labelConfirmed=true`。这是**唯一收客户端 roles 的端点**。见下 |
 | PATCH | `/api/branch/templates/:id/publish` | required（仅作者） | **两道独立的门**：① 试炼闸 `provenAt` 非空；② 有 `roles` 时编号必须已核对。任一不过回 400 整句（各说各的原因）。blocked 不能发布 |
 | PATCH | `/api/branch/templates/:id/unpublish` | required（仅作者） | 回到 pending。blocked 是平台处置，作者洗不掉（400） |
 | DELETE | `/api/branch/templates/:id` | required（仅作者） | **连带 `uploader.destroy` 回收参考视频**（先云端后库：云端回收失败回 502 且不删库，重试即可；封面与 **V2 的 `source.publicId` 原始素材** best-effort 回收，失败不阻断）。回 `{ ok: true }` |
@@ -1073,6 +1073,58 @@ body `{ roles: [{ label, desc }] }`（**1~9 条**，见上面 `roles` 的铁则 
 - 发布闸与试炼闸是**两道独立的门**，别合并：试炼那一发作者可以一张卡都不挂，跑通了也
   说明不了编号对；反过来编号对了也不代表这个模板出得了片。两道各说各的原因
   （落回另一句的话，作者会去再花一次钱出片，回来发现还是发不了）。
+
+#### 删掉一个角色位 —— 这条端点的**一等操作**（2026-08-15）
+
+**为什么它是必需的**：方舟画在人偶头上的编号并不可靠。实测同一段 5 人素材出过
+`2/2/1/1/5`（两组重号，3 和 4 整个没出现）与 `3/1/1/4/5`。而**库里永远不会有两个「1」**
+——落库那份是服务端自己编的连续 `1..N`，PATCH 又拒重号，所以**重号只发生在画面上**。
+作者的真实局面是「可寻址的号只有 2、1、5 三个」⇒ 改三个位子的号 + **删掉另外两个**。
+没有"删"这条路，他打开模板看到两个「1」时唯一的出路是**再花一次钱重炼整段**。
+
+- **删的表达形式只有一种**：提交的数组里少了那一条（整份替换）。**不新开 DELETE**——
+  改号与删位是同一次动作的两半，拆成两条端点两个方向都走不通：先改（把 1 号位改成「2」）
+  必撞重号闸；先删后改会在中间态落库，第二次失败就留下一个「删了但没改完、
+  `labelConfirmed` 已被置 true」的模板 —— 作者从入口看它是"已核对"，实际编号是错的。
+- **剩下的 `label` 逐字不动、顺序不动**：服务端不排序、不补号、不重编。删掉 3 号之后
+  5 号仍然叫 5 号。`label` 是"把卡挂到这个人偶身上"的唯一连接键（点名段 / `cast[label]` /
+  `applyCast` 全靠它），重排 = 把卡挂到别人身上，**两边都不报错**。顺序也是
+  `materials` 的落盘顺序（预算不够时谁先被挤掉）与编辑页的显示顺序。
+- **下限是 1，不是 0**（`.min(1)`）。删到 0 会触发一条**四段全静默**的降级链：
+  ① `toTemplatePayload` 只在 `roles.length > 0` 时带这个键 → 回包退化成 V1 形状；
+  ② App 的 `rolesOf` 回空 → 本机记录不带 `roles`；③ 出片时 `segmentGen` 的
+  `blockout && roles?.length` 为假 → **静默退成 V1 泛指出片**（套用者付了 r2v 的钱，
+  换来一段"AI 自己挑人换"的片）；④ `rolesNeedConfirm` 同时变 false → **发布闸失效**。
+  删到 0 的正确表达是 `DELETE /api/branch/templates/:id`（这个模板对套用者已经没意义了）。
+- **删位不影响钱与试炼**：这条端点碰不到 `provenAt` / `refVideo.durationSec` /
+  `status` / `ownerId`。角色位少一个不代表"这个模板出不了片"，顺手清掉 `provenAt`
+  就等于让作者再付一次 r2v 的钱。
+- **`labelConfirmed`：删完即已确认**，不单独再确认一次 —— 作者删掉一个位子，正是因为他
+  对着画面看清了"这个号不存在 / 这个号重了"，那就是确认动作本身。⚠ 由此产生的后果：
+  提交成功后 `rolesNeedConfirm` 变 false，作者界面上那条琥珀提示会消失 ——
+  **所以入口必须常驻**（见下 App 侧）。
+- **两个人偶印着同一个号时，删掉一条并不能让另一个恢复正常**：模型只认数字，
+  挂在这个号上的卡很可能把两个人一起换成同一张卡。App 侧对作者如实说了这一点，
+  并给出第二条选项（把这个号的位子也删掉，两个人偶都保持白模原样）。
+
+**App 侧（本仓）**：面板与入口在 `src/components/blockout/RoleConfirmSheet.tsx`
+（只收 props，市场页「我的模板」与详情页 `OwnerBar` 共用一份）。
+
+- **入口两档常驻**：待核对 = 琥珀拦路条；已核对 = 低调的「重新核对编号」。第二档不是
+  锦上添花 —— 作者多半是确认完之后才发现画面上有两个一样的号。
+- **打开面板前 `refreshRemoteTemplate`**（读路径，失败降级用本机那份）：作者可能在
+  另一台设备上改过编号，拿这台设备上那份过时的猜测去整份替换会把改对的又覆盖回错的。
+  ⚠ 两台设备同时编辑仍是后到者覆盖前者（**已知、可接受**：不加乐观锁，缓解是面板里
+  摆着完整的那一份，作者自己看得见）。
+- **删除是两段式**（点一下进"待删"，提交时才少发那一条）+ 底部汇总
+  「这次提交会删掉编号 X、Y，其余编号一个都不动」：整份替换下，服务端**分不清**
+  "作者有意删一条"和"客户端状态丢了一条"，把它在点最终按钮之前变成可见的，是这个
+  风险在 App 侧唯一的对冲。删掉的 `desc` 找不回来（原文是 AI 写的），所以不做无 undo 的即删。
+- 下限那句整句的唯一实现是 `data/templates.roleFloorIssue(remaining)`（面板"最后一条
+  不给删"的解释、提交前预检、`confirmTemplateRoles` 三处共用）；上限用
+  `BLOCKOUT_MAX_ROLES` 在**加行那一步**就换成说明（不摆点不动的按钮）。
+- **发版前手测**：5 个位删中间一个 → 提交 → 剩下的号肉眼逐个对（不许变连号）；
+  再打开一次面板，号还是那些。
 
 **App 侧流转**（`src/data/templates.ts`）：提取器落本机后**立刻异步登记**（服务端 r2v 只认
 已登记 URL，不登记作者连试炼片都出不了）；登记失败原因落 `registerIssueOf`，详情页显示

@@ -3,16 +3,17 @@
 // 与创意工坊的卡片市场刻意做成两个页面：卡片是"素材"（要自己组装成剧情），
 // 模板是"成品配方"（一句话就出片）。混在一起会让新用户分不清该点哪个。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router";
 import Icon from "../components/Icon";
+// ★ 核对编号那一屏（含"删掉一个角色位"）迁到了 components/blockout/RoleConfirmSheet：
+//   详情页 OwnerBar 要用同一个入口，一份实现两处用（两页各写一份必然分叉）
+import { RoleConfirmEntry } from "../components/blockout/RoleConfirmSheet";
 import { useSocialVersion } from "../components/SocialPanel";
 import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 import {
   blockoutJobExpired,
   blockoutJobNote,
   browseTemplates,
-  confirmTemplateRoles,
   myTemplates,
   pendingBlockoutIssue,
   pendingBlockoutJobs,
@@ -119,130 +120,6 @@ export function TemplateCard({ t, onPick }: { t: VideoTemplate; onPick?: () => v
 }
 
 /**
- * 核对角色位编号（白模 V2，**只有作者自己看得到**）。
- *
- * ★★ 为什么必须有这一步：白模化落库那一刻的编号是**服务端按视觉清单顺序编的猜测**
- *   （1..N），而成片上人偶头上的数字实测**稳定但不连续**（一发四人实出 1/2/4/5）。
- *   对不上时，套用者点"3 号位"挂上张三 —— 模型老老实实换掉画面上的 3 号（另一个人），
- *   **钱照扣、零报错**。所以这一屏把白模视频摆在最上面：编号只能由**看着画面的人**确认。
- * ★ 重复编号/空清单这些规则**不在这里再判一遍**（铁律六）：唯一实现在服务端与
- *   data/templates.confirmTemplateRoles，它们回的都是整句人话，这里原样显示。
- *   在这儿抄一份的话，两份判据一漂就会出现"前端放行、后端拒绝"或反过来。
- */
-function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onClose: () => void }) {
-  const [rows, setRows] = useState<{ label: string; desc: string }[]>(() =>
-    (t.roles ?? []).map((r) => ({ label: r.label, desc: r.desc })),
-  );
-  const [busy, setBusy] = useState(false);
-  const [issue, setIssue] = useState("");
-
-  function setRow(i: number, patch: Partial<{ label: string; desc: string }>) {
-    setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  }
-
-  async function save() {
-    setIssue("");
-    setBusy(true);
-    try {
-      await confirmTemplateRoles(t.id, rows);
-      onClose();
-    } catch (e) {
-      // 服务端/数据层给的是整句人话（重号、已发布、老服务端…），原样显示，别自己编一句盖过去
-      setIssue(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // ★ createPortal 到 body：祖先上任何一个 backdrop-blur / transform 都会给
-  //   `position: fixed` 的后代造包含块，inset-0 于是只铺满那个盒子（CLAUDE.md 的坑）
-  return createPortal(
-    <div className="fixed inset-0 z-[70] flex flex-col bg-black/85 backdrop-blur-sm">
-      <div className="safe-top flex items-center gap-2 px-4 py-3">
-        <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-panel">
-          <Icon name="close" size={16} className="text-slate-300" />
-        </button>
-        <h2 className="text-sm font-bold text-slate-100">核对角色位编号</h2>
-      </div>
-
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-28">
-        {/* 为什么要核对，说全（说一半的话作者会以为这只是个可填可不填的表单） */}
-        {/* ★ 这段话不许缩写成"请核对编号"：不说清后果，作者会以为这只是个可填可不填的表单 */}
-        <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
-          下面这份编号是生成时<b className="font-bold">按顺序编的猜测</b>，不保证与画面上人偶头上的数字一致
-          （编号印在人偶头部，前后左右四面都是同一个数，转过身也看得见；实测编号稳定但可能跳号，比如 1/2/4/5）。
-          请对着视频逐个看清楚，改成画面上真实的数字 ——
-          编号对不上时，别人给「3 号位」挂的角色卡会换到另一个人身上，而且
-          <b className="font-bold">不会有任何报错</b>。
-        </p>
-
-        {t.refVideo && (
-          <video
-            src={t.refVideo.url}
-            controls
-            playsInline
-            className="max-h-[38vh] w-full rounded-xl bg-black object-contain"
-          />
-        )}
-
-        {rows.map((r, i) => (
-          <div key={i} className="flex items-start gap-2 rounded-xl border border-slate-700/70 bg-panel p-2.5">
-            <div className="flex-none">
-              <div className="mb-1 text-[9px] text-slate-500">人偶编号</div>
-              <input
-                value={r.label}
-                onChange={(e) => setRow(i, { label: e.target.value })}
-                inputMode="text"
-                maxLength={8}
-                className="w-14 rounded-lg bg-black/40 px-2 py-1.5 text-center text-sm font-bold text-slate-100 outline-none"
-              />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="mb-1 text-[9px] text-slate-500">这个位置原来是谁（套用的人只看这句话）</div>
-              <input
-                value={r.desc}
-                onChange={(e) => setRow(i, { desc: e.target.value })}
-                maxLength={300}
-                placeholder="例：白发、黑袍的少年"
-                className="w-full rounded-lg bg-black/40 px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-600"
-              />
-            </div>
-            <button
-              onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}
-              className="mt-4 flex h-7 w-7 flex-none items-center justify-center rounded-full bg-black/40"
-              aria-label="删掉这个角色位"
-            >
-              <Icon name="close" size={13} className="text-slate-400" />
-            </button>
-          </div>
-        ))}
-
-        {/* AI 可能少认一个人（画面里 5 个只列了 4 个）：让作者补，比"只能确认 AI 认出的那些"诚实 */}
-        <button
-          onClick={() => setRows((rs) => [...rs, { label: "", desc: "" }])}
-          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-600 py-2.5 text-[11px] text-slate-400"
-        >
-          <Icon name="plus" size={13} />画面里还有人没列出来，加一个
-        </button>
-
-        {issue && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{issue}</p>}
-      </div>
-
-      <div className="safe-bottom absolute inset-x-0 bottom-0 border-t border-slate-800 bg-black/80 px-4 py-3">
-        <button
-          onClick={() => void save()}
-          disabled={busy}
-          className="w-full rounded-full bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-50"
-        >
-          {busy ? "提交中…" : "我已逐个核对，编号无误"}
-        </button>
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-/**
  * 【白模 V2 · 两阶段的恢复入口】一发**已经付过钱、还没取回结果**的白模化。
  *
  * ★★ 这一块是把白模化拆成两阶段的**目的本身**。开炼那一发的钱在 r2v 被受理时就花掉了
@@ -323,8 +200,6 @@ export default function TemplateMarketPage() {
   // 老服务端 / 离线时不摆一个走到上传那步才失败的按钮（CLAUDE.md「永远点不动的选项」）
   const [blockoutCap, setBlockoutCap] = useState(false);
   const [extract, setExtract] = useState(false);
-  /** 正在核对编号的那个模板（白模 V2）。null = 没开这一屏 */
-  const [confirming, setConfirming] = useState<VideoTemplate | null>(null);
   useEffect(() => {
     let alive = true;
     void remoteTemplatesCapable().then((ok) => {
@@ -446,21 +321,13 @@ export default function TemplateMarketPage() {
         {list.map((t) => (
           <div key={t.id} className="space-y-1.5">
             <TemplateCard t={t} onPick={() => pick(t)} />
-            {/* 「编号待核对」只对作者自己出现，且**必须显式给出口**：服务端在发布那一步会
-                400 整句拒（两道门之一），只提示不给按钮的话作者会以为模板坏了。
-                判据取自远端状态快照（remoteStateOf 唯一实现），不在这里另算一遍。 */}
-            {tab === "mine" && remoteStateOf(t)?.rolesNeedConfirm && (
-              <button
-                onClick={() => setConfirming(t)}
-                className="flex w-full items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-200/90"
-              >
-                <Icon name="pen" size={13} className="flex-none" />
-                <span>
-                  编号还没核对：AI 编的号可能与画面上人偶头上的数字对不上，
-                  <b className="font-bold">核对之前不能发布</b>（对不上会让别人的角色卡换到别人身上）。点这里去核对。
-                </span>
-              </button>
-            )}
+            {/* 核对编号的入口（两档：待核对 = 琥珀拦路条；核对过了 = 低调的"重新核对"）。
+                ★★ 第二档不是锦上添花：作者多半是**确认完之后**才发现画面上有两个一样的号，
+                  而"删掉那个找不到的位子"就在这一屏里 —— 没有常驻入口的话，他唯一的出路
+                  是再花一次钱重炼整段（而服务端那边一直开着门）。
+                ★ 判据、身份、刷新都在 RoleConfirmEntry 一处实现；这里只负责"摆在作者
+                  自己的那一侧"（「我的模板」tab）。 */}
+            {tab === "mine" && <RoleConfirmEntry t={t} />}
           </div>
         ))}
         {list.length === 0 && (
@@ -477,10 +344,6 @@ export default function TemplateMarketPage() {
           onDone={(t) => pick(t)}
         />
       )}
-
-      {/* ★ 传的是**列表里当前那一份**（confirming 只存 id 会在 emit 后拿到旧对象）：
-          核对成功后 data 层改写 roles 并 emit，这一屏已经关掉了，不存在读到半新半旧的问题 */}
-      {confirming && <RoleConfirmSheet t={confirming} onClose={() => setConfirming(null)} />}
     </div>
   );
 }

@@ -80,17 +80,29 @@ export default function RoleCastBoard({
   const mountedLabels = castable.filter((r) => value[r.label]).map((r) => r.label);
   const emptyCount = castable.length - mountedLabels.length;
   /**
-   * 映射里那些**这块面板上根本挂不上**的键：超出上限的角色位，或者作者核对编号时删掉的
-   * 那些位子（`confirmTemplateRoles` 是整份替换）。
+   * 映射里那些**这块面板上根本挂不上**的键，**按原因分成两摞**。
    *
    * ★★ 必须给一颗**能点的**按钮：出片前的 flowStore.applyCast 会因为它们整句拒绝，
    *   而这块面板又不渲染这些位子 —— 不给出路的话，用户看着一句"把这几张取下"却无处可取，
    *   挂卡这条路整个走不下去（比静默丢掉更糟：那至少还能出片）。
+   * ★★ 为什么要分两摞（2026-08-15 修）：原来一句话并列猜「超出上限，或者已经被删掉了」。
+   *   删位现在是常规操作（方舟画的编号会重号、会缺号，作者把画面上找不到的那个位子删掉是
+   *   唯一不用再花一次钱的修法），最常见的就是"被删掉"那一种 —— 让用户去数"我是不是挂超过
+   *   9 个了"，他怎么数都对不上。两种情况的**下一步也不同**：超上限是这个模板本来就装不下，
+   *   被删掉是作者改过编号（重新套用一次模板就会看到新的位子）。
+   * ★ 判据没有新写：能不能挂由 splitCastRoles（唯一实现）说了算，这里只是按"这个编号
+   *   在不在模板的 roles 里"把已经算出来的结果分类。
    */
-  const strayLabels = useMemo(() => {
+  const { strayOverCap, strayRemoved } = useMemo(() => {
     const ok = new Set(castable.map((r) => r.label));
-    return Object.keys(value).filter((label) => !ok.has(label));
-  }, [castable, value]);
+    const known = new Set(roles.map((r) => r.label));
+    const stray = Object.keys(value).filter((label) => !ok.has(label));
+    return {
+      strayOverCap: stray.filter((l) => known.has(l)),
+      strayRemoved: stray.filter((l) => !known.has(l)),
+    };
+  }, [castable, roles, value]);
+  const strayLabels = useMemo(() => [...strayOverCap, ...strayRemoved], [strayOverCap, strayRemoved]);
 
   function assign(label: string, cardId: string | null) {
     const next = { ...value };
@@ -212,11 +224,20 @@ export default function RoleCastBoard({
       {/* 挂在"挂不上的位子"上的卡：说清楚 + 一颗真能点的按钮（理由见 strayLabels 的 ★★） */}
       {strayLabels.length > 0 && (
         <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-          <p className="text-[11px] leading-relaxed text-amber-200">
-            编号 {strayLabels.join("、")} 上挂着的卡<b>不会生效</b>
-            （这些位子超出了 {BLOCKOUT_MAX_ROLES} 个上限，或者已经在核对编号时被删掉了）。
-            出片前必须把它们取下。
-          </p>
+          {/* 分类说准，别并列猜（见 strayOverCap/strayRemoved 的 ★★） */}
+          {strayRemoved.length > 0 && (
+            <p className="text-[11px] leading-relaxed text-amber-200">
+              编号 {strayRemoved.join("、")} 上挂着的卡<b>不会生效</b>：模板作者在核对编号时
+              <b>删掉了这个位子</b>（多半是因为画面上根本找不到这个号）。那个人偶会保持白模原样出现。
+            </p>
+          )}
+          {strayOverCap.length > 0 && (
+            <p className="text-[11px] leading-relaxed text-amber-200">
+              编号 {strayOverCap.join("、")} 上挂着的卡<b>不会生效</b>：这些位子超出了一次能挂卡的{" "}
+              {BLOCKOUT_MAX_ROLES} 个上限。
+            </p>
+          )}
+          <p className="text-[11px] leading-relaxed text-amber-200">出片前必须把它们取下。</p>
           <button
             onClick={() => {
               const next = { ...value };
