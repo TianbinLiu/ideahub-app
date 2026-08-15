@@ -748,6 +748,13 @@ export function blockoutTemplateCost(frameCount: number): number {
  *   那笔藏起来，正是本文件反复在防的「报价 ≠ 实收」。
  * ★ 视觉那一半复用 blockoutTemplateCost 的口径（单遍视觉、0 张卡面）：白模化的第一步与
  *   提白模模板一样是"看几帧总结画面里有什么"，同一件事不许有第二条式子。
+ * ★★ `frameCount` **不是常数**（2026-08-15 起）：白模化那一步看几帧要么按选段时长自动算、
+ *   要么由作者在编辑页逐帧标出来。所以调用方必须**每次都现算**，且只能从
+ *   `data/templates.visionFrameCount(durSec, frameTimes)` 取 —— 它与真正发上去的
+ *   `frameTimes` 读同一个数组。在调用点手数一次（marks.length 之类）就是第二条式子：
+ *   用户把某一帧拖出选段之后，页面报 5 帧、服务端按 3 帧扣，两个方向都不报错。
+ *   ⚠ 帧数的**权威值**在服务端（阶段一回包的 `frames`）：与本机算的不等时以它为准并如实
+ *   说一句（`blockoutizeTemplate` 的 framesNote），别默默按本机这个数继续显示。
  * ★ 出片那一半走 r2vTokens，输入时长 = **编辑页框选的那一段**（F1：方舟 edit 的输入视频
  *   必须 4~30 秒）。它能与服务端结算对上，是因为服务端拼 Cloudinary 变换 URL 用的就是
  *   提交上来的那个 durSec（并现查裁后元数据复核）—— 两端算的是同一个数。

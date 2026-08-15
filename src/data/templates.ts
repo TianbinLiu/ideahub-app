@@ -640,17 +640,52 @@ export function saveTemplate(t: NewTemplate): VideoTemplate {
 // **这一条花真钱**：服务端要看几帧列出画面里有谁，再付费出一次 r2v edit 片把人全换成
 // 带编号的白模人偶，产物转存之后才是模板。所以这里的每一步都按"钱已经动了"来写。
 
+// ── 白模化那一步「先看」会看几帧 ────────────────────────────────────
+//
+// ★★ 2026-08-15 之前这里是个写死的 `BLOCKOUTIZE_VISION_FRAMES = 3`（服务端 `VISION_FRAMES`
+//   的跨仓镜像）。真机实测把它打掉了：一段 4 秒的素材，**前段 2 人、后段围坐群戏人更多**，
+//   3 帧只认出 2 个人 → 登记的角色位是 1、2，而方舟出片时看到更多人、**自己往下编到了 3**。
+//   结果画面上有 3 号、列表里却没有第 3 个角色位 —— 用户挂不上它，只会以为坏了。
+//   ⇒ 帧数必须跟着素材走：短片也别只看 3 帧，人数会变的素材还要让用户自己指定看哪几帧。
+//
+// ★★ 这几个数是**服务端 `routes/branchTemplate.routes.js` 的跨仓镜像**，两边必须逐字相等：
+//   它们是**报价的输入**（`economy.blockoutizeCost(frameCount, durSec)` 的前一半），
+//   猜一个数就是本仓头号事故的形状 —— 页面按 6 帧报价、服务端按 3 帧扣钱，两个方向都不报错。
+//   服务端改了公式就必须同步改这里（跨仓无法共码，契约见 docs/api-contract.md「白模模板」）。
+// ★ 阶段一回包会带回**服务端真正看了几帧**（`BlockoutStartResult.frames`）：与本机这份
+//   算出来的对不上时以服务端为准，并在进度里如实说一句（见 blockoutizeTemplate 的 ★★）。
+
+/** 自动模式：每多少秒取一帧。★ 一帧几百 token（VISION_FRAME_TOKENS），比"漏掉一个人"便宜得多 */
+export const BLOCKOUTIZE_FRAME_EVERY_SEC = 1.5;
+/** 自动模式的下限。★ 4 秒的素材按 1.5 秒一帧只有 3 帧 —— 这是**下限兜住的**，不是巧合 */
+export const BLOCKOUTIZE_FRAME_MIN = 3;
+/** 帧数上限（自动与手挑**同一个**上限）。再多就是花钱买重复画面 */
+export const BLOCKOUTIZE_FRAME_MAX = 8;
+
 /**
- * 白模化那一步「先看」会看几帧 —— **服务端 `routes/branchTemplate.routes.js` 的
- * `VISION_FRAMES` 的跨仓镜像**（今天是 3）。
+ * 「自动」模式下这一段会看几帧 —— **跨仓镜像的唯一实现**（服务端按同一条式子算）。
  *
- * ★★ 它是**报价的输入**（`economy.blockoutizeCost(frameCount, durSec)` 的前一半）。
- *   猜一个数就是本仓头号事故的形状：页面按 6 帧报价、服务端按 3 帧扣钱，两个方向都不报错。
- *   服务端改了 `VISION_FRAMES` 就必须同步改这里（跨仓无法共码，契约见
- *   docs/api-contract.md「白模模板」）。
- * ★ 为什么帧数不进请求体：帧数决定花多少钱，收客户端报的数 = 让用户自己标价。
+ * ★ `ceil` 不是 `round`：向下取整会让 5 秒的素材只看 3 帧，而漏认一个人的代价是
+ *   "画面上有 3 号、列表里没有 3 号位"（用户挂不上，只会以为坏了）。多看一帧只多几百 token。
  */
-export const BLOCKOUTIZE_VISION_FRAMES = 3;
+export function autoVisionFrames(durSec: number): number {
+  const n = Math.ceil(Math.max(0, durSec) / BLOCKOUTIZE_FRAME_EVERY_SEC);
+  return Math.min(BLOCKOUTIZE_FRAME_MAX, Math.max(BLOCKOUTIZE_FRAME_MIN, n));
+}
+
+/**
+ * 这一发**实际会看几帧** —— 报价、余额预检、界面文案共用的**唯一实现**。
+ *
+ * @param frameTimes 用户自己挑的那些时刻（相对选段起点的整数秒）。
+ *   **`undefined` = 自动**：请求体里不带这个字段，帧数由服务端按时长算（那条式子在服务端，
+ *   本机这份 `autoVisionFrames` 只是为了**报出同一个数**的镜像）。
+ * ★ 传了空数组时返回 0 而不是退回自动：那种状态由 `arkVideoRules.selectionIssue` 当场
+ *   拦住（"至少标 1 帧"），在这里悄悄退回自动会让**报价按自动的帧数、请求却带着空数组**，
+ *   两边算的不是同一件事。
+ */
+export function visionFrameCount(durSec: number, frameTimes?: number[]): number {
+  return frameTimes ? frameTimes.length : autoVisionFrames(durSec);
+}
 
 /**
  * 「**这个账号**现在能不能开炼白模化」—— 全 app 唯一实现（null = 能，否则是一句
@@ -1036,6 +1071,16 @@ export interface BlockoutizeInput {
   durSec: number;
   /** 裁剪框（整数像素，相对原片**原始分辨率**，不是预览尺寸） */
   crop: { x: number; y: number; w: number; h: number };
+  /**
+   * 「AI 看哪几帧」—— **相对选段起点的整数秒**，升序去重，1~`BLOCKOUTIZE_FRAME_MAX` 个。
+   *
+   * ★★ **缺省 = 自动**：那时请求体里**不带**这个字段，帧数由服务端按时长算
+   *   （`autoVisionFrames` 那条式子的权威实现在服务端，本机只是报价用的镜像）。
+   *   给一个"自动算出来的数组"上去等于把那条式子抄成两份，服务端改了公式我们不会知道。
+   * ★ 有值时它同时决定**报价**（`visionFrameCount`）与请求 —— 两者读的是同一个数组，
+   *   不许在别处再数一次长度。
+   */
+  frameTimes?: number[];
   title: string;
   intro?: string;
   /** 封面（dataURL 或 https）。dataURL 会先转成永久地址再提交（服务端 zod 拒 dataURL） */
@@ -1089,10 +1134,42 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
   }
   const priced = blockoutizeBlockReason();
   if (priced) throw new Error(priced);
+
+  const durSec = Math.round(o.durSec);
+  /**
+   * 「自己挑帧」那条路的**规范化**：整数秒、去重、升序、落在选段内。
+   *
+   * ★ 这**不是**第二处校验：会说话的那份在编辑页（`arkVideoRules.selectionIssue`，
+   *   它才写得出"删掉几帧""把选段拖回去"这种话）。这里做的是与 `Math.round(startSec)`
+   *   同一件事 —— 把要上线的数**规范成服务端 zod 收得下的形状**（它收的是整数秒）。
+   * ★ 规范化之后为空 = 用户标的帧全落在选段外面。**响亮拒绝**，不许悄悄退回自动：
+   *   退回自动会让"页面按 3 帧报的价"变成"服务端按 8 帧扣的钱"，而且一个字都不说。
+   */
+  const frameTimes = o.frameTimes
+    ? [
+        ...new Set(
+          o.frameTimes
+            .map((t) => Math.round(t))
+            .filter((t) => Number.isFinite(t) && t >= 0 && t <= Math.max(0, durSec - 1)),
+        ),
+      ].sort((a, b) => a - b)
+    : undefined;
+  if (o.frameTimes && (!frameTimes || frameTimes.length === 0)) {
+    throw new Error("你标的那几帧都落在选中的这一段外面了（选段后来被拖动过）——回去把标记删掉重标，或者切回「自动」。");
+  }
+  // ★ 上限在这里是**断言**（会说话的那份在 selectionIssue）：条数**只夹不静默截断** ——
+  //   截掉几帧的话，报价按 8 帧、实际只看 5 帧，用户多付的那几帧没有任何一处会说出来。
+  //   走到这儿说明有调用方绕过了编辑页那道门，响亮拒绝比悄悄改数好。
+  if (frameTimes && frameTimes.length > BLOCKOUTIZE_FRAME_MAX) {
+    throw new Error(`最多只能指定 ${BLOCKOUTIZE_FRAME_MAX} 帧给 AI 看（现在是 ${frameTimes.length} 帧）——删掉几帧再开炼。`);
+  }
+  /** 这一发**要看几帧** —— 报价与下面那句进度话读的是同一个数（唯一实现在 visionFrameCount） */
+  const frames = visionFrameCount(durSec, frameTimes);
+
   // ③ 余额够不够。★ 服务端也会判（402 INSUFFICIENT_TOKENS，一分钱没动），这里再判一次
   //   不是为了安全，是为了**时机**：走到这一步用户已经传完一段最大 100MB 的视频、
   //   框了半天选段，这时候才告诉他"钱不够"太晚了。判据仍只有 account.canAfford 一处。
-  const cost = blockoutizeCost(BLOCKOUTIZE_VISION_FRAMES, Math.round(o.durSec));
+  const cost = blockoutizeCost(frames, durSec);
   // cost === null ⇒ economy.blockoutizeIssue 必然非空（那对函数一一对应，见 economy 的 ★）
   // ⇒ blockoutizeBlockReason 也非空（它把前者当第一道），上面那道门已经拦过 ——
   // 这句只为让类型闭合；真走到这里说明那几个函数分了叉
@@ -1109,7 +1186,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
     coverUrl = await toPermanentUrl(o.cover, `tpl-blockout-${Date.now()}-cover`);
   }
 
-  prog("正在提交：AI 先看几帧认出画面里有哪些人，再把这一段发去出片…");
+  prog(`正在提交：AI 先看 ${frames} 帧认出画面里有哪些人，再把这一段发去出片…`);
   let started: branch.BlockoutStarted;
   try {
     started = await branch.startBlockoutize({
@@ -1117,7 +1194,10 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
       // ★ 整数秒/整数像素在这里取一次整，别指望服务端替你四舍五入（它的 zod 声明是 int，
       //   小数直接 400）。取整口径与服务端一致（Math.round）。
       startSec: Math.round(o.startSec),
-      durSec: Math.round(o.durSec),
+      durSec,
+      // ★★ 自动模式**不发这个字段**（不是发一个空数组、也不是把本机算的帧数发上去）：
+      //   "按时长算几帧"那条式子只有一处实现 —— 在服务端。发上去就是第二处。
+      ...(frameTimes ? { frameTimes } : {}),
       crop: {
         x: Math.round(o.crop.x),
         y: Math.round(o.crop.y),
@@ -1160,6 +1240,25 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
     return adoptBlockoutTemplate(started.result.template);
   }
 
+  /**
+   * 服务端**真正看了几帧**与本机报价用的那个数对不上 —— 以服务端为准，并把这件事
+   * 如实说出来（贴在之后每一句进度话的后面）。
+   *
+   * ★★ 为什么不能默默按本机那个数继续显示：帧数就是钱（视觉那一半 = 帧数 ×
+   *   VISION_FRAME_TOKENS）。两边不等时界面上那句"AI 看 N 帧（xx token）"就是错的，
+   *   而这是本仓头号事故的形状（页面报 ¥25、实际扣 ¥15），两个方向都不报错。
+   *   会走到这里的正常原因只有一个：服务端的自动公式改了、本机镜像还没跟上。
+   * ★ 为什么**贴在每一句后面**而不是单独 prog 一次：5 秒后第一次轮询就会把它盖掉，
+   *   而这一整段等待里用户能看到的只有那一行进度话。
+   * ★ 服务端没说（frames = 0，老服务端）就什么都不说：编不出来的话不许编。
+   */
+  const serverFrames = started.job.frames;
+  const framesNote =
+    serverFrames > 0 && serverFrames !== frames
+      ? `（服务端实际看了 ${serverFrames} 帧，与本机报价用的 ${frames} 帧不同，以服务端为准）`
+      : "";
+  const say = framesNote ? (s: string) => prog(`${s}${framesNote}`) : prog;
+
   const job: BlockoutJob = {
     jobId: started.job.jobId,
     taskId: started.job.taskId,
@@ -1176,7 +1275,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
   //   本机 state 一起没了，而 pending 端点还在。）
   rememberPendingJob(job);
   o.onBilled?.(job);
-  return takeBlockoutResult(job, prog);
+  return takeBlockoutResult(job, say);
 }
 
 export function updateTemplate(id: string, patch: Partial<Pick<VideoTemplate, "title" | "intro" | "cover" | "published">>): void {

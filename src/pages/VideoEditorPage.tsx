@@ -35,10 +35,6 @@ import type { BlockoutSelection, TemplateRole, VideoNatural } from "../component
 //   （MAX_REF_IMAGES + 两轮分配）。在这儿抄一个 3 出来，就是那条规则的第二份。
 import { MAX_REF_IMAGES } from "../ai/real";
 import { myCards } from "../data/account";
-// ★ 看几帧只有一处：data/templates 的 BLOCKOUTIZE_VISION_FRAMES（服务端 VISION_FRAMES
-//   的跨仓镜像）。这一页**不许**自己写一个数 —— 报价的输入猜错就是"页面报 6 帧、
-//   服务端按 3 帧扣"，两个方向都不报错（本仓头号事故的形状）。
-import { BLOCKOUTIZE_VISION_FRAMES } from "../data/templates";
 import { useAccountVersion } from "../hooks/useAccount";
 import type { Card } from "../types";
 
@@ -59,8 +55,10 @@ export interface BlockoutizeEditorState {
   src?: string;
   /** 服务端登记值（已上传过才有）。★ 有就一定要传，见 BlockoutTrimmer.natural 的 ★ */
   natural?: VideoNatural;
-  /** 服务端看几帧（报价的视觉那一半）。缺省 = BLOCKOUTIZE_VISION_FRAMES */
-  frameCount?: number;
+  // ★ 这里原来还有一个 `frameCount`（服务端看几帧，报价的视觉那一半）。2026-08-15 拿掉了：
+  //   帧数不再是常数 —— 自动模式按**选段时长**算、"自己挑"模式就是作者标了几帧，
+  //   两者都只有编辑页自己知道（选段是在那一屏里拖出来的）。宿主传一个数进来，
+  //   就等于让报价的输入停在打开这一页那一刻的值上。
   /** 顶栏标题（可选，纯显示） */
   title?: string;
   /** 完成/取消后回哪儿（站内路径，必须以 / 开头） */
@@ -111,8 +109,6 @@ function parseState(raw: unknown): VideoEditorState | null {
       file,
       src,
       natural,
-      // ★ 认不出就用镜像常量，不是 0：0 会让报价少掉视觉那一半且一个字都不说
-      frameCount: isNum(s.frameCount) && s.frameCount > 0 ? Math.round(s.frameCount) : BLOCKOUTIZE_VISION_FRAMES,
       title: isStr(s.title) ? s.title : undefined,
       returnTo: s.returnTo,
     };
@@ -220,7 +216,6 @@ export default function VideoEditorPage() {
             <BlockoutTrimmer
               src={playable}
               natural={state.natural}
-              frameCount={state.frameCount ?? BLOCKOUTIZE_VISION_FRAMES}
               onSubmit={(selection) => finish({ mode: "blockoutize", selection, file: state.file })}
               onCancel={() => nav(-1)}
             />

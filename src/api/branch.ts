@@ -795,7 +795,7 @@ export async function createTemplate(payload: CreateTemplatePayload): Promise<Ap
 //   一件**可以再来取**的东西。
 //
 //   阶段一 `POST /templates/blockoutize`         ①~⑥，到「r2v 被方舟受理」为止，
-//                                               落一条任务凭据 → { jobId, taskId, durSec, roles, expiresAt }
+//                                               落一条任务凭据 → { jobId, taskId, durSec, frames, roles, expiresAt }
 //   轮询   `GET /api/ark/contents/generations/tasks/:id`  既有端点（不计费、已有限流），
 //                                               **不新造轮询端点**（见 ai/arkClient.fetchArkTask）
 //   阶段二 `POST /templates/blockoutize/finish`  ⑦~⑨（转存产物 → 建模板 → pending）
@@ -851,6 +851,18 @@ export interface BlockoutizePayload {
   startSec: number;
   durSec: number;
   crop: { x: number; y: number; w: number; h: number };
+  /**
+   * 「AI 看哪几帧」—— **相对选段起点的整数秒**（`[0, durSec-1]`，升序去重）。
+   *
+   * ★★ **只有用户自己挑的时候才带这个字段**。「自动」模式一律**不带** —— 帧数按时长算的
+   *   那条式子（每 1.5 秒一帧、下限 3 上限 8）唯一实现在服务端；把本机算出来的数组发上去，
+   *   就是把同一条式子抄成两份，服务端改了公式我们不会知道，而**帧数就是钱**
+   *   （视觉那一半按帧数计），分叉的表现正是"页面报 6 帧、服务端按 3 帧扣"，两个方向都不报错。
+   * ★ 为什么这一个可以收客户端报的数、而 durSec 那一组不能：帧数**上限**由服务端夹
+   *   （多标几帧最多多花视觉那几百 token，服务端照样按它自己收到的条数收）；
+   *   而 `du_` 决定 r2v 的计费时长，那才是能被用来自己标价的那一个。
+   */
+  frameTimes?: number[];
   title: string;
   intro?: string;
   /** https 或空串（服务端 zod 拒 dataURL，同 createTemplate） */
@@ -876,6 +888,15 @@ export interface BlockoutStartResult {
   taskId: string;
   /** 服务端**真正拿去拼变换 URL**的那个时长（也是计费口径，对账用） */
   durSec: number;
+  /**
+   * 服务端「先看」那一步**真正看了几帧**（0 = 这台服务器没说，老服务端）。
+   *
+   * ★★ 它是视觉那一半费用的**实收口径**：本机报价用的是 `data/templates.visionFrameCount`
+   *   （自动模式那条式子的跨仓镜像）。两个数对不上时**以这一个为准**并如实说出来 ——
+   *   默默按本机那个数显示，就是页面上写着"看 3 帧"、账单按 8 帧扣，两个方向都不报错。
+   * ★ 0 与"真的看了 0 帧"不会混：一帧都取不到时服务端在阶段一就整句拒了（不会有凭据）。
+   */
+  frames: number;
   /** 看帧那一步列出来的角色位**草案**（编号仍是猜测，作者要在建成模板后核对） */
   roles: Array<{ label: string; desc: string }>;
   /** 凭据失效时刻（服务端说了算；★ 24h —— 方舟产物是 TOS 签名地址，见文件头 ★） */
@@ -1017,6 +1038,10 @@ export async function startBlockoutize(payload: BlockoutizePayload): Promise<Blo
   // 服务端回的 durSec 是它**真正拿去拼变换 URL**的那个数（也是计费口径）。
   // 拿不到就退回我们提交的那个——两者理应相等，不等的话以服务端为准。
   const durSec = Number.isFinite(durSecRaw) && durSecRaw > 0 ? durSecRaw : payload.durSec;
+  // 服务端真正看了几帧。★ 认两个键名：这一位是 2026-08-15 才加的，两仓各自发版，
+  //   老服务端一个都不给（那时退 0 = "没说"，调用方就什么都不说，不编）。
+  const framesRaw = Number(job.frames ?? job.frameCount ?? job.visionFrames);
+  const frames = Number.isFinite(framesRaw) && framesRaw > 0 ? Math.round(framesRaw) : 0;
   if (jobId && taskId) {
     const roles = Array.isArray(job.roles) ? (job.roles as Array<{ label?: string; desc?: string }>) : [];
     return {
@@ -1025,6 +1050,7 @@ export async function startBlockoutize(payload: BlockoutizePayload): Promise<Blo
         jobId,
         taskId,
         durSec,
+        frames,
         roles: roles
           .map((r) => ({ label: String(r?.label ?? "").trim(), desc: String(r?.desc ?? "").trim() }))
           .filter((r) => r.label !== ""),

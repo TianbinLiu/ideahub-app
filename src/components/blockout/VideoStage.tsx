@@ -12,7 +12,16 @@
 // ★ 一切等媒体事件的地方**必须带超时**（CLAUDE.md「看不见的窗口」那条）：页面切到后台
 //   时浏览器挂起解码，`loadedmetadata` 永远不来。没有超时这里就是一个永远转圈、
 //   且自己好不了的页面 —— 与 videoFrames.sampleFrames / 提取器的 probeVideoMeta 同一个理由。
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ReactNode,
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type ForwardedRef,
+} from "react";
 import Icon from "../Icon";
 import { formatDuration } from "../../types";
 import type { VideoNatural } from "./arkVideoRules";
@@ -21,8 +30,46 @@ import type { VideoNatural } from "./arkVideoRules";
  *  慢网上首包确实可能要十几秒，短了会把正常的加载判成失败。 */
 const LOAD_TIMEOUT_MS = 15_000;
 
+/** 等一次 seek + 解码出画面的上限。★ 比加载短得多（元数据已经在手、多半只是几十毫秒的
+ *  seek），但**必须有**：页面切到后台时系统暂停解码，`seeked` 永远不来 ——
+ *  没有这个上限，「标记这一帧」就是一颗按下去永远转圈、且自己好不了的按钮
+ *  （CLAUDE.md「在看不见的窗口里测」那条坑）。 */
+const CAPTURE_TIMEOUT_MS = 6_000;
+
+/** 缩略图长边（CSS 像素级）。★ 只是给人认"这是哪一帧"用的，画大了没有信息量，
+ *  却要按 dataURL 塞进 React state（一条 1440×2560 的 JPEG 就是 MB 级）。 */
+const THUMB_MAX_EDGE = 200;
+
 const TIMEOUT_MSG =
   "视频加载超时。应用切到后台时系统会暂停视频解码（这时页面看着像卡住了）——回到前台后点「重试」。";
+
+/** 抓下来的一帧。`thumb` 为空串 = 画面读不出来（跨域视频的 canvas 被污染），
+ *  但**时刻仍然作数** —— 见 VideoStageHandle.capture 的 ★ */
+export interface CapturedFrame {
+  /** 真正定格在的时刻（秒，绝对时间轴）。★ 以 `<video>` 自己报的为准，不是我们要求的那个 */
+  atSec: number;
+  /** JPEG dataURL，或空串（读不出来时） */
+  thumb: string;
+}
+
+/** 宿主能对舞台做的事。★ 只开这一个口子（而不是把 `<video>` 元素交出去）：
+ *  元素一旦交出去，外面就能改 src / 调 play / 装事件，舞台里那套加载看门狗、
+ *  首帧预热、选段回环就全成了两个人在管同一个元素。 */
+export interface VideoStageHandle {
+  /**
+   * 定格到 `atSec` 并把那一帧抓成缩略图（`<canvas>` 本机抓，**不向服务端要**）。
+   *
+   * ★★ 抓的必须是**将要提交的那一帧**：先 seek 到目标秒、等 `seeked`，再画。
+   *   直接画当前画面、却按目标秒提交，缩略图与服务端真正会看的帧就不是同一张 ——
+   *   用户照着一张不存在的画面做决定，而屏幕上完全看不出来。
+   * ★ 会**暂停播放**：用户点的是"标记这一帧"，画面继续往前跑才是意外。
+   * ★ 跨域素材（https 的模板视频）画到 canvas 上会污染画布，`toDataURL` 抛
+   *   SecurityError —— 那时**照样返回这一帧**，只是 `thumb` 为空：时刻是真的，
+   *   缺的只是小图。为这个把整次标记判成失败，是拿一个显示问题去毁掉功能本身。
+   * @throws Error（整句中文，可直接显示）：解码没跟上/超时/画不出来
+   */
+  capture(atSec: number): Promise<CapturedFrame>;
+}
 
 export interface StageFit {
   /** 画面盒子在屏幕上的宽高（CSS 像素） */
@@ -64,17 +111,20 @@ export interface VideoStageProps {
   disabled?: boolean;
 }
 
-export default function VideoStage({
-  src,
-  clip = null,
-  onMeta,
-  onTime,
-  seekTo = null,
-  overlay,
-  maxHeight = "min(320px, 38vh)",
-  controlsExtra,
-  disabled,
-}: VideoStageProps) {
+function VideoStageImpl(
+  {
+    src,
+    clip = null,
+    onMeta,
+    onTime,
+    seekTo = null,
+    overlay,
+    maxHeight = "min(320px, 38vh)",
+    controlsExtra,
+    disabled,
+  }: VideoStageProps,
+  ref: ForwardedRef<VideoStageHandle>,
+) {
   const vref = useRef<HTMLVideoElement>(null);
   const spaceRef = useRef<HTMLDivElement>(null);
   const [meta, setMeta] = useState<VideoNatural | null>(null);
@@ -127,6 +177,87 @@ export default function VideoStage({
     if (v && seekTo != null && Number.isFinite(seekTo)) v.currentTime = Math.max(0, seekTo);
   }, [seekTo]);
 
+  // 抓帧能力交给宿主（「标记这一帧」用）。★ 实现放在这里而不是宿主：只有这一层
+  //   握着那个 `<video>`，而"等 seek / 等解码 / 一律带超时"是它自己的规矩
+  useImperativeHandle(
+    ref,
+    (): VideoStageHandle => ({
+      async capture(atSec: number): Promise<CapturedFrame> {
+        const v = vref.current;
+        if (!v) throw new Error("播放器还没就绪，稍等一下再标这一帧。");
+        if (!(v.videoWidth > 0 && v.videoHeight > 0)) {
+          throw new Error("这段视频的画面还没解出来（应用切到后台时系统会暂停解码）——回到前台等画面出来再标。");
+        }
+        // 播着的时候抓，抓到的会是"下一帧"。先停下：用户点的是"标记这一帧"
+        v.pause();
+        const want = Math.max(0, Math.min(atSec, Math.max(0, (v.duration || atSec) - 0.05)));
+
+        /** 等这几个事件里最先到的那一个，**一律带超时**（后台页解码挂起时它们永远不来） */
+        const waitFor = (events: string[]) =>
+          new Promise<void>((resolve, reject) => {
+            let done = false;
+            const finish = (fn: () => void) => {
+              if (done) return;
+              done = true;
+              clearTimeout(timer);
+              for (const ev of events) v.removeEventListener(ev, ok);
+              v.removeEventListener("error", bad);
+              fn();
+            };
+            const ok = () => finish(resolve);
+            const bad = () => finish(() => reject(new Error("这段视频在这个位置解不开，换一帧试试。")));
+            const timer = setTimeout(
+              () =>
+                finish(() =>
+                  reject(
+                    new Error(
+                      "取这一帧超时了。应用切到后台时系统会暂停视频解码——回到前台、让画面真的动起来之后再点「标记这一帧」。",
+                    ),
+                  ),
+                ),
+              CAPTURE_TIMEOUT_MS,
+            );
+            for (const ev of events) v.addEventListener(ev, ok);
+            v.addEventListener("error", bad);
+          });
+
+        // ★★ 两件事分开等，别合成一个 `seeked`：**同值赋 currentTime 不产生 seek**
+        //   （首帧预热那里踩过同一条），已经停在这一秒上时等 seeked 就是等一个永远不来的
+        //   事件 —— 表现为"标记这一帧"转 6 秒然后报一句其实不存在的超时。
+        if (Math.abs(v.currentTime - want) > 0.02) {
+          const seeked = waitFor(["seeked"]);
+          v.currentTime = want;
+          await seeked;
+        }
+        // 位置对了但画面还没解出来（preload="metadata" 时会这样）：再等一次"有画面了"。
+        // 这时 seeked 早过去了，所以听的是 loadeddata/canplay
+        if (v.readyState < 2) await waitFor(["loadeddata", "canplay", "seeked"]);
+        const at = v.currentTime;
+        const scale = Math.min(1, THUMB_MAX_EDGE / Math.max(v.videoWidth, v.videoHeight));
+        const cv = document.createElement("canvas");
+        cv.width = Math.max(1, Math.round(v.videoWidth * scale));
+        cv.height = Math.max(1, Math.round(v.videoHeight * scale));
+        const ctx = cv.getContext("2d");
+        if (!ctx) return { atSec: at, thumb: "" };
+        try {
+          ctx.drawImage(v, 0, 0, cv.width, cv.height);
+        } catch (e) {
+          // 画不上去（极少见：解码器还没交出画面）。★ 不当整次失败：时刻是真的
+          console.warn("[VideoStage] 抓帧画不出来（只影响缩略图）：", e);
+          return { atSec: at, thumb: "" };
+        }
+        try {
+          return { atSec: at, thumb: cv.toDataURL("image/jpeg", 0.6) };
+        } catch (e) {
+          // 跨域素材污染了画布（SecurityError）。缩略图没了，但这一帧照样能标
+          console.warn("[VideoStage] 画布被跨域素材污染，这一帧没有缩略图：", e);
+          return { atSec: at, thumb: "" };
+        }
+      },
+    }),
+    [],
+  );
+
   function toggle() {
     const v = vref.current;
     if (!v) return;
@@ -173,6 +304,28 @@ export default function VideoStage({
               setMeta(m);
               setErr("");
               onMeta?.(m);
+              // ★★ 逼它把第一帧真的画出来 —— 这一页的全部意义是「看着画面把水印框到
+              //   裁剪框外面」，看不见画面就等于蒙着眼睛裁，而水印裁不掉会被逐帧复刻进
+              //   **每一次**套用出片（2026-08-15 真机实测：不做这一步，元素上只有浏览器
+              //   自带的灰色播放键占位符）。
+              // ★ 两步缺一不可，都是实测出来的：
+              //   ① `preload="metadata"` 只取宽高/时长、**一帧都不解码**，所以要赋 currentTime
+              //      触发一次 seek（赋 0 无效——本来就是 0，同值不产生 seek，要给 epsilon）；
+              //   ② **Android WebView 对"从未播放过"的 video 不渲染 seek 到的那一帧**，
+              //      光 ① 屏幕上还是占位符。静音播一下再立刻暂停才会真的画出来
+              //      （muted 自动播放不需要用户手势，这也是元素上 muted+playsInline 的原因之一）。
+              //   代价是可能闪一下第一帧的画面，比看不见画面小得多。
+              const at = clip ? clip.startSec : 0.05;
+              if (v.currentTime !== at) v.currentTime = at;
+              void v
+                .play()
+                .then(() => {
+                  v.pause();
+                  if (v.currentTime !== at) v.currentTime = at;
+                })
+                // 播不动就算了：占位符照旧，但报错条与其它功能一个都不少（不吞成静默失败，
+                // 也不弹一句"预览失败"吓人——用户仍然能拖时间轴和裁剪框）
+                .catch((e) => console.warn("[VideoStage] 首帧预热播放被拒（预览可能只有占位符）：", e));
             }}
             onError={() => {
               settled.current = true;
@@ -239,3 +392,8 @@ export default function VideoStage({
     </div>
   );
 }
+
+/** ★ forwardRef 只为了那一个 `capture`（「标记这一帧」）。宿主不传 ref 时行为与以前完全一致 */
+const VideoStage = forwardRef<VideoStageHandle, VideoStageProps>(VideoStageImpl);
+VideoStage.displayName = "VideoStage";
+export default VideoStage;

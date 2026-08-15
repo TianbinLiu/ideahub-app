@@ -8,18 +8,23 @@
 // ★ 只收 props、只往上报数据，不认识任何 store（PlanBoard 同款约束）：这一屏的宿主
 //   不止一个（独立路由页 / 将来可能直接嵌在提取器里），状态形状也不同。
 //
-// ── 这一屏必须说清的三件事（少一件就是把成本或风险藏起来）─────────────
+// ── 这一屏必须说清的四件事（少一件就是把成本或风险藏起来）─────────────
 //  ① **差在哪**：不满足方舟输入窗口时，当场一句话说明差多少、该往哪拖（不是灰按钮）；
 //  ② **要花多少**：白模化是**真实付费出片**（看帧 + r2v edit 两笔），开炼前整句报出；
 //  ③ **可能白花**：F11 —— 含真人面孔的视频**受理之后**才失败，那时算力已经消耗，
-//     费用不退。这句必须在按钮**上方**常驻，不能藏进"了解更多"。
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+//     费用不退。这句必须在按钮**上方**常驻，不能藏进"了解更多"；
+//  ④ **AI 看哪几帧**（2026-08-15 加）：看漏了人，画面上就会站着一个**没有编号**的白模，
+//     谁的卡都挂不上去。默认按时长自动取帧；人数会变的素材由作者自己标 ——
+//     交互在 `VisionFramePicker`，帧数同时是报价的一半，所以两者必须读同一个来源。
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import CropOverlay from "./CropOverlay";
 import TrimBar from "./TrimBar";
-import VideoStage from "./VideoStage";
+import VideoStage, { type VideoStageHandle } from "./VideoStage";
+import VisionFramePicker, { type FrameMark, type VisionMode } from "./VisionFramePicker";
 import TokenCost from "../TokenCost";
 import {
   ARK_EDIT_RULES,
+  frameTimesOf,
   fullFrameCrop,
   initialSelection,
   selectableSeconds,
@@ -37,6 +42,7 @@ import {
   modelLabel,
   r2vTokens,
 } from "../../data/economy";
+import { autoVisionFrames, visionFrameCount } from "../../data/templates";
 
 /** 本机解出来的时长与登记值差多少算"对不上"（秒）。
  *  ★ 登记值是 Cloudinary 回执里**取整**过的秒数，本机是浮点 —— 正常就能差 0.5。
@@ -56,13 +62,6 @@ export interface BlockoutTrimmerProps {
    *   本机值，对不上当场停（见 sizeMismatch 的 ★）。
    */
   natural?: VideoNatural;
-  /**
-   * 服务端「先看后点名」那一步会看几帧 —— 报价里视觉那一半的输入。
-   * ★ 必须与服务端真正看的帧数**相等**。猜一个数就是本仓头号事故的形状
-   *   （页面报 ¥25、实际扣 ¥15，两个方向都不报错）。宿主拿不到确定值时，
-   *   宁可先别把这一页放出来。
-   */
-  frameCount: number;
   /** 提交中：所有交互禁掉（不隐藏——藏起来用户会以为页面坏了） */
   busy?: boolean;
   /** 提交中的进度话（"正在上传原始视频…"/"AI 正在看帧…"），整句显示 */
@@ -81,7 +80,6 @@ export interface BlockoutTrimmerProps {
 export default function BlockoutTrimmer({
   src,
   natural,
-  frameCount,
   busy,
   busyNote,
   error,
@@ -93,9 +91,22 @@ export default function BlockoutTrimmer({
 }: BlockoutTrimmerProps) {
   /** 本机 `<video>` 解出来的元数据。有登记值时只用来**比对**，没有时它就是唯一的依据 */
   const [probe, setProbe] = useState<VideoNatural | null>(null);
+  /** 选段与裁剪框。★ 「看哪几帧」**不存在这里**：它按绝对秒存在 marks 里（见下） */
   const [sel, setSel] = useState<BlockoutSelection | null>(null);
   const [playhead, setPlayhead] = useState(0);
   const [seekTo, setSeekTo] = useState<number | null>(null);
+  /** 「AI 看哪几帧」的模式。**默认自动**：绝大多数素材人数不变，自动那条路帧数由服务端算 */
+  const [visionMode, setVisionMode] = useState<VisionMode>("auto");
+  /**
+   * 自己挑的那些帧，按**绝对秒**存（用户是对着画面标的）。
+   * ★ 换算成提交用的 `frameTimes`（相对选段起点）只有 `frameTimesOf` 一处：选段之后还会
+   *   被拖动，存相对秒的话拖一下起点、同一条标记就悄悄指向了另一帧，而缩略图还停在旧画面上。
+   * ★ 缩略图（dataURL）**只活在这里**，不进 `BlockoutSelection` —— 那个形状要穿过
+   *   react-router 的 history state（structured clone），一条帧就是几十 KB 起。
+   */
+  const [marks, setMarks] = useState<FrameMark[]>([]);
+  /** 抓帧要用的那个 `<video>`（VideoStage 只开这一个口子） */
+  const stage = useRef<VideoStageHandle>(null);
 
   /** 画时间轴与裁剪框用的那组数。登记值优先（服务端按它裁），没有才退本机 */
   const geo = natural ?? probe;
@@ -104,12 +115,27 @@ export default function BlockoutTrimmer({
   // 留着上一条的框会出现"框在画面外/选段超片尾"这种一上来就是错的状态
   useEffect(() => {
     setSel(geo ? initialSelection(geo) : null);
+    // ★ 标记也必须一起清：它们是**上一条素材**里的秒数与缩略图，留着就是"标的是别的视频"
+    //   ——而它们会真的被提交上去（帧数还决定报价）。模式退回默认同理。
+    setMarks([]);
+    setVisionMode("auto");
   }, [geo?.width, geo?.height, geo?.durationSec]);
 
+  /**
+   * 要交出去的那一份 —— 选段 + 裁剪框 + 「看哪几帧」。**唯一实现**：报价、校验、
+   * onSubmit、onSelectionChange 读的都是它。
+   * ★ 自动模式**一个字段都不带**（不是带一个空数组）：那是"帧数由服务端按时长算"的表达。
+   */
+  const outSel = useMemo<BlockoutSelection | null>(() => {
+    if (!sel) return null;
+    if (visionMode !== "manual") return sel;
+    return { ...sel, frameTimes: frameTimesOf(marks.map((m) => m.atSec), sel) };
+  }, [sel, visionMode, marks]);
+
   useEffect(() => {
-    if (sel) onSelectionChange?.(sel);
+    if (outSel) onSelectionChange?.(outSel);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在选段真的变了时向上报；onSelectionChange 多半是调用方每次渲染新建的函数
-  }, [sel]);
+  }, [outSel]);
 
   useEffect(() => {
     setProbe(null);
@@ -149,18 +175,24 @@ export default function BlockoutTrimmer({
 
   /** 元数据还没到（或视频解不开）。★ 与"选得不对"分开：它不是用户的错，不能画成红字 ——
    *  开屏那一两秒里满屏红叉，用户第一反应是"这文件坏了"然后就退出去了 */
-  const loading = !geo || !sel;
-  const issue = sel && geo ? selectionIssue(sel, geo) : null;
+  const loading = !geo || !outSel;
+  const issue = outSel && geo ? selectionIssue(outSel, geo) : null;
 
   // ── 报价：两笔，都是真钱 ────────────────────────────────────────
   // ★ 总数只从 blockoutizeCost 取。下面那两行拆解是把同一笔钱的两半说清楚，**不是**第二处
   //   求和 —— 在这儿手写 `视觉 + 出片` 就等于给报价开了第二条式子（本仓头号事故的形状）。
+  // ★★ 帧数**不是常数了**（2026-08-15）：自动模式随选段时长变、自己挑时就是标了几帧。
+  //   它必须与真正发上去的那一份（outSel.frameTimes）读同一个来源，所以走 visionFrameCount
+  //   —— 在这里手数一次 marks.length，拖动选段把某一帧甩出去之后就会变成"页面报 5 帧、
+  //   服务端按 3 帧扣"。
   const priceIssue = blockoutizeIssue();
   const tier = blockoutTier();
-  const durSec = sel?.durSec ?? 0;
-  const cost = sel ? blockoutizeCost(frameCount, durSec) : null;
+  const durSec = outSel?.durSec ?? 0;
+  const autoFrames = autoVisionFrames(durSec);
+  const frameCount = outSel ? visionFrameCount(durSec, outSel.frameTimes) : 0;
+  const cost = outSel ? blockoutizeCost(frameCount, durSec) : null;
   const visionTokens = blockoutTemplateCost(frameCount);
-  const videoTokens = sel && tier ? r2vTokens(durSec, tier.id) : null;
+  const videoTokens = outSel && tier ? r2vTokens(durSec, tier.id) : null;
 
   const blocked =
     sizeMismatch ??
@@ -174,6 +206,7 @@ export default function BlockoutTrimmer({
   return (
     <div className="space-y-3">
       <VideoStage
+        ref={stage}
         src={src}
         clip={sel ? { startSec: sel.startSec, durSec: sel.durSec } : null}
         onMeta={setProbe}
@@ -243,6 +276,29 @@ export default function BlockoutTrimmer({
         />
       )}
 
+      {/* 「AI 看哪几帧」。★ 摆在时间轴**下面、校验与报价上面**是有意的：它复用同一条播放头，
+          而它一改，下面那个报价当场就变（帧数就是钱的一半）。这一块自己不说"能不能开炼"
+          —— 那句话由下面的 issue 一处说，两处各说一遍用户会以为出了两个错。 */}
+      {geo && sel && (
+        <VisionFramePicker
+          mode={visionMode}
+          onModeChange={setVisionMode}
+          sel={sel}
+          autoFrames={autoFrames}
+          marks={marks}
+          onMarksChange={setMarks}
+          playheadSec={playhead}
+          onSeek={(s) => setSeekTo(s)}
+          onCapture={async (atSec) => {
+            const api = stage.current;
+            // 舞台还没挂上（理论上到不了：这一块在 geo 到手之后才渲染）。整句拒，不静默
+            if (!api) throw new Error("播放器还没就绪，稍等一下再标这一帧。");
+            return api.capture(atSec);
+          }}
+          disabled={busy}
+        />
+      )}
+
       {/* 校验：行就说清选中的是什么，不行就说清差在哪、往哪拖。两条都是整句 */}
       {loading ? (
         <p className="text-[11px] leading-relaxed text-slate-400">
@@ -254,10 +310,10 @@ export default function BlockoutTrimmer({
         </p>
       ) : (
         !sizeMismatch &&
-        sel &&
+        outSel &&
         geo && (
           <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] leading-relaxed text-emerald-200">
-            ✓ 这一段可以开炼：{selectionSummary(sel, geo)}
+            ✓ 这一段可以开炼：{selectionSummary(outSel, geo)}
           </p>
         )
       )}
@@ -277,8 +333,13 @@ export default function BlockoutTrimmer({
           <p className="text-[11px] leading-relaxed text-amber-200">⚠ {priceIssue}</p>
         ) : (
           <>
+            {/* ★ 帧数与它那半笔钱都是**当下这一份选择**算出来的（自动随时长变、自己挑时
+                就是标了几帧）：写死一个数、或在这里另数一次 marks，都会让这句话与真正
+                发上去的那一份分家 —— 而这句话就是用户认下这笔钱的依据。 */}
             <p className="text-[11px] leading-relaxed text-slate-400">
-              这一步花两笔：AI 看 {frameCount} 帧认出画面里有哪些人（{fmtTokens(visionTokens)}）
+              这一步花两笔：AI 看 {frameCount} 帧认出画面里有哪些人（
+              {visionMode === "manual" ? "你自己挑的" : `按这 ${durSec} 秒自动取`} ·{" "}
+              {fmtTokens(visionTokens)}）
               {videoTokens !== null && tier && (
                 <>
                   {" "}
@@ -328,7 +389,7 @@ export default function BlockoutTrimmer({
           </button>
         )}
         <button
-          onClick={() => sel && onSubmit(sel)}
+          onClick={() => outSel && onSubmit(outSel)}
           disabled={!!blocked || !!busy}
           className="min-w-0 flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >

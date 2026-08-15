@@ -41,7 +41,6 @@ import {
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { TEMPLATE_MAX_CARDS, fmtTokens, templateCost, templateSettle } from "../data/economy";
 import {
-  BLOCKOUTIZE_VISION_FRAMES,
   blockoutJobNote,
   blockoutizeBlockReason,
   blockoutizeTemplate,
@@ -534,6 +533,10 @@ export default function VideoTemplateExtractor({
         startSec: sel.startSec,
         durSec: sel.durSec,
         crop: sel.crop,
+        // ★ 原样转交，**不在这里补一个默认值**：`undefined` 是"自动"这件事本身的表达
+        //   （请求体不带 frameTimes，帧数由服务端按时长算）。在这里填一个数组进去，
+        //   就把用户选的"自动"悄悄换成了"客户端说了算"。
+        frameTimes: sel.frameTimes,
         title,
         intro: note,
         note,
@@ -743,9 +746,9 @@ export default function VideoTemplateExtractor({
                   height: receipt.data.height,
                   durationSec: receipt.data.durationSec,
                 }}
-                // ★ 服务端「先看」真正会看几帧（跨仓镜像，唯一出处在 data/templates）。
-                //   在这里手写一个数就是"页面按 N 帧报价、服务端按 M 帧扣钱"。
-                frameCount={BLOCKOUTIZE_VISION_FRAMES}
+                // ★ 「AI 看哪几帧」整块（自动/自己挑、帧数、报价）都在 BlockoutTrimmer 里：
+                //   帧数随选段时长与作者标的帧变，只有那一屏知道当下是几帧。宿主在这里
+                //   传一个数进去，就是"页面按 N 帧报价、服务端按 M 帧扣钱"。
                 busy={!!busy}
                 busyNote={busy}
                 error={err}

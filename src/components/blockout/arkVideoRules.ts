@@ -18,10 +18,15 @@
 //   ≥407,696 像素  F3：像素数硬门。官方文档没写，方舟直接拒单
 //   边长 [300,6000] / 宽高比 [0.4,2.5]   F3：方舟官方对输入视频的约束
 //
+// ★ 「AI 看哪几帧」的**数**（自动那条式子、上下限）不在本文件，在 `data/templates.ts`
+//   （服务端 VISION_FRAMES 那套的跨仓镜像，因为它同时是报价的输入）。本文件只负责把
+//   "标少了 / 标多了 / 标到选段外面去了" 说成人话，以及绝对秒 → `frameTimes` 的那一次换算。
+//
 // ★ 服务端还会**再判一遍**（拼完变换 URL 后向 Cloudinary 现查裁后元数据）。客户端这一层
 //   不是安全边界，只是"别让用户点下去、传完 100MB 才知道不行" —— 但它必须与服务端判出
 //   同一个结论，否则就是界面放行、服务端整句拒，用户读到两句互相矛盾的话。
 
+import { BLOCKOUTIZE_FRAME_MAX, visionFrameCount } from "../../data/templates";
 import { VideoTemplate } from "../../types";
 
 /** 裁剪框（**源视频像素**，全部整数 —— 服务端 zod 收的就是 int，小数直接 400） */
@@ -41,6 +46,20 @@ export interface BlockoutSelection {
   /** 选段时长（整数秒） */
   durSec: number;
   crop: CropRect;
+  /**
+   * 「AI 看哪几帧」—— **相对选段起点的整数秒**（`[0, durSec-1]`，升序去重）。
+   *
+   * ★★ **`undefined` = 自动**（默认）：请求体里不带这个字段，帧数由服务端按时长算。
+   *   有值 = 用户在编辑页逐帧标出来的那些时刻。两者的差别不只是界面 ——
+   *   自动那条路"看几帧"的唯一实现在**服务端**，本机只有一份用来报价的镜像
+   *   （`data/templates.autoVisionFrames`）；把镜像算出来的数组当成 `frameTimes` 发上去，
+   *   就是把同一条式子抄成两份。
+   * ★ 为什么要有"自己挑"：2026-08-15 实测 —— 一段 4 秒的素材前段 2 人、后段围坐群戏人更多，
+   *   固定 3 帧只认出 2 个人，方舟出片时却看到更多人并**自己往下编到了 3 号**，
+   *   于是画面上有 3 号、角色位列表里没有 —— 用户挂不上它，只会以为坏了。
+   *   人数会变的素材，只有**看得见画面的人**知道该在哪几个时刻取帧。
+   */
+  frameTimes?: number[];
 }
 
 /** 一段视频的画面尺寸与时长 */
@@ -96,7 +115,35 @@ export function initialSelection(natural: VideoNatural): BlockoutSelection {
     startSec: 0,
     durSec: Math.max(1, Math.min(ARK_EDIT_RULES.maxSec, total)),
     crop: fullFrameCrop(natural),
+    // frameTimes 不给 = **自动**（默认）：帧数按时长算，那条式子在服务端。
+    // 这里造一个"默认帧列表"出来的话，用户什么都没挑就变成了"自己挑"，
+    // 而那条路的帧数是客户端说了算的 —— 默认值不该悄悄换掉一条链路。
   };
+}
+
+/**
+ * 用户标的那些帧（**绝对秒**，就是他在播放器里看到的时刻）→ 提交用的 `frameTimes`
+ * （**相对选段起点的整数秒**）。整数化、去重、升序，并**丢掉落在选段外的**。
+ *
+ * ★★ 唯一实现：报价（数它的长度）、请求体、以及"有几个标记落在选段外"那句提示，
+ *   读的都是这一个函数的结果。分成两处数的话，报价与真正发上去的帧数会各漂各的
+ *   —— 而帧数就是钱（视觉那一半按帧数计）。
+ * ★ 为什么标记按**绝对秒**存、只在这里换算成相对：用户是对着画面标的，而选段的起点
+ *   之后还可能被拖动。存相对秒的话，拖一下起点，同一条标记就悄悄指向了另一帧，
+ *   缩略图还停在旧画面上 —— 屏幕上完全看不出来。
+ * ★ 上界取 `durSec - 1`：服务端抽帧也是 `min(durSec-1, …)`，最后一秒整处未必解得出帧。
+ */
+export function frameTimesOf(marksAbsSec: number[], sel: Pick<BlockoutSelection, "startSec" | "durSec">): number[] {
+  const last = Math.max(0, Math.round(sel.durSec) - 1);
+  const rel = marksAbsSec
+    .map((t) => Math.round(t) - Math.round(sel.startSec))
+    .filter((t) => Number.isFinite(t) && t >= 0 && t <= last);
+  return [...new Set(rel)].sort((a, b) => a - b);
+}
+
+/** 这个标记（绝对秒）还在选段里吗。★ 与 frameTimesOf 同一条判据，别在界面上另减一次 */
+export function markInSelection(atSecAbs: number, sel: Pick<BlockoutSelection, "startSec" | "durSec">): boolean {
+  return frameTimesOf([atSecAbs], sel).length === 1;
 }
 
 /**
@@ -174,6 +221,28 @@ export function selectionIssue(sel: BlockoutSelection, natural: VideoNatural): s
   if (ratio < R.minRatio || ratio > R.maxRatio) {
     return `裁完的画幅太${ratio < R.minRatio ? "窄" : "扁"}了：宽高比要在 ${R.minRatio}~${R.maxRatio} 之间（现在约 ${ratio.toFixed(2)}）。AI 出片引擎不接受这个形状。`;
   }
+
+  // ④ 「AI 看哪几帧」。★ 只在**自己挑**那条路上判（frameTimes 有值）：自动那条路的帧数
+  //    由服务端按时长算，客户端没有可判的东西，也不该假装有。
+  if (sel.frameTimes) {
+    const n = sel.frameTimes.length;
+    if (n === 0) {
+      // ★ 两种情况一句话说完：一帧没标，和"标了但全落在选段外面"（拖过选段之后会这样）。
+      //   分成两句的话，第二种要在这里再判一次"外面有几帧"——那份判断在 frameTimesOf 里已经有了
+      return `「自己挑」现在一帧有效的标记都没有（还没标，或者标的那几帧都落到选段外面去了）。AI 得看着画面才认得出里面有哪些人——把播放头拖到有人的地方点「标记这一帧」（至少 1 帧、最多 ${BLOCKOUTIZE_FRAME_MAX} 帧），或者切回「自动」。`;
+    }
+    if (n > BLOCKOUTIZE_FRAME_MAX) {
+      return `标了 ${n} 帧，最多只能 ${BLOCKOUTIZE_FRAME_MAX} 帧（每一帧都要花钱看，再多也只是买重复的画面）。删掉几帧再来。`;
+    }
+    // 下面两条按契约不该发生（标记都经 frameTimesOf 规范过）。留着是**断言**：真发生了
+    // 说明有人绕过了那一处，而它的后果是"报价按 N 帧、服务端按 M 帧扣"——两个方向都不报错
+    if (sel.frameTimes.some((t) => !Number.isInteger(t) || t < 0 || t > durSec - 1)) {
+      return `有帧标在了选中这一段的外面（允许的范围是第 0~${Math.max(0, durSec - 1)} 秒）。把它们删掉重标，或者切回「自动」。`;
+    }
+    if (new Set(sel.frameTimes).size !== n) {
+      return "同一秒被标了不止一次。删掉重复的那几帧再来（重复的帧只会让你多花看帧的钱，认不出更多人）。";
+    }
+  }
   return null;
 }
 
@@ -182,5 +251,8 @@ export function selectionIssue(sel: BlockoutSelection, natural: VideoNatural): s
 export function selectionSummary(sel: BlockoutSelection, natural: VideoNatural): string {
   const { crop, durSec, startSec } = sel;
   const full = crop.w === Math.round(natural.width) && crop.h === Math.round(natural.height);
-  return `第 ${startSec} 秒起 ${durSec} 秒 · 裁后 ${n(crop.w)}×${n(crop.h)}（${n(crop.w * crop.h)} 像素，比例 ${(crop.w / crop.h).toFixed(2)}）${full ? " · 未裁剪（整幅）" : ""}`;
+  // 帧数也写进来：它是这一发**报价的一半**，而它现在会随时长与用户的标记变 ——
+  // 只报"选了几秒"会让人以为看帧那笔是固定的
+  const frames = visionFrameCount(durSec, sel.frameTimes);
+  return `第 ${startSec} 秒起 ${durSec} 秒 · 裁后 ${n(crop.w)}×${n(crop.h)}（${n(crop.w * crop.h)} 像素，比例 ${(crop.w / crop.h).toFixed(2)}）${full ? " · 未裁剪（整幅）" : ""} · AI 看 ${frames} 帧`;
 }

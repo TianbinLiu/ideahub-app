@@ -910,7 +910,7 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | POST | `/api/branch/templates` | required（5/分） | **V1 登记**。body `{ title, intro, coverUrl, recipe, videoUrl }`；`videoUrl` 过三重白名单（host=res.cloudinary.com + 模板视频专用目录 + public_id 归属 `^<userId>-\d+$`），别处的链接 400；元数据服务端向 Cloudinary 现查，复核走 **② 号窗口**（整段原片直接当参考视频用）。建成 `status=pending`。重复视频 409 |
-| POST | `/api/branch/templates/blockoutize` | required（**3 次/10 分钟**） | **V2 白模化 · 阶段一**。body `{ publicId, startSec, durSec, crop:{x,y,w,h}, title, intro, coverUrl, videoTier?, aspect?, note? }` —— 提交的是**四组数不是 URL**（变换地址由服务端自己拼）。成功 `201 { ok, jobId, taskId, durSec, roles[], expiresAt }`（**钱在这一刻花掉**）。失败一律带 `billed`（见下） |
+| POST | `/api/branch/templates/blockoutize` | required（**3 次/10 分钟**） | **V2 白模化 · 阶段一**。body `{ publicId, startSec, durSec, crop:{x,y,w,h}, frameTimes?, title, intro, coverUrl, videoTier?, aspect?, note? }` —— 提交的是**四组数不是 URL**（变换地址由服务端自己拼）。`frameTimes` 见下「看哪几帧」，**自动模式不带这个字段**。成功 `201 { ok, jobId, taskId, durSec, frames, roles[], expiresAt }`（**钱在这一刻花掉**；`frames` = 服务端**真正看了几帧**，App 报价与它不等时以它为准并如实说一句）。失败一律带 `billed`（见下） |
 | POST | `/api/branch/templates/blockoutize/finish` | required（仅凭据所有者） | **V2 白模化 · 阶段二**。body `{ jobId }`，**只收 jobId**：任务成没成由服务端自己向方舟核实，客户端说什么都不作数。成功 `{ ok, template, blockout:{ taskId, durSec } }`。**幂等**（重复调回同一条模板，不许建出第二个）。本阶段**不扣钱** |
 | GET | `/api/branch/templates/blockoutize/pending` | required | **掉线恢复**：本账号还没取回结果的凭据 `{ ok, jobs: [{ jobId, taskId, durSec, title, roles[], expiresAt, createdAt }] }`。App 进模板市场时拉一次，摆出取回入口 |
 | GET | `/api/branch/templates/shared` | optional | 市场列表，只回 `status === "published"`，`{ ok, templates[] }`。**路由必须排在 `/:id` 前**（branchAsset 同款排序坑） |
@@ -978,7 +978,8 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 5. **预热**（F9：Cloudinary 变换是懒生成的，首次请求可能拿到不完整的资产）——
    连发到「两次读到的字节数相同且非零」才算好，否则 502 整句拒（不把半截视频喂给方舟）；
 6. 抽几帧 → **一次 chat vision**：列出画面里有哪些人 + 外观特征（F4 的"先看"）。
-   一个人都没认出 → 整句拒、**不建空壳模板**（角色位是套用者挂卡的唯一入口）；
+   一个人都没认出 → 整句拒、**不建空壳模板**（角色位是套用者挂卡的唯一入口）。
+   **看哪几帧见下一节**；回包里的 `frames` 就是这一步真正用掉的帧数；
 7. **一次 r2v edit**（F4 的"点名"：提示词把每个人的外观特征逐个写进去 ——
    泛指"所有人物"只换配角、主角不动，两发对照实测）；**⑥ 与 ⑦ 之间就是阶段一的终点**：
    任务被受理即落凭据并 201 返回（`jobId`/`taskId`/`durSec`/`roles`/`expiresAt`）；
@@ -1009,6 +1010,29 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 所以 **message 必须把"钱不退"写进整句里**，不能靠 `billed` 那一位表达。
 ★ **不做真人脸门禁**（浏览器 FaceDetector 覆盖率极低，漏报比不检查更坏）：改为在编辑页
 开炼前就整句告知"视频里有真人面孔时 AI 可能中途拒绝，这种情况费用不退"，用户自负。
+
+### 看哪几帧（`frameTimes` / `frames`，2026-08-15）
+
+**为什么要有这一节**：看帧数量原来写死 3 帧。实测一段 4 秒的素材（前段 2 人、后段围坐
+群戏人更多）只认出 2 个人 —— 登记的角色位是 1、2，而方舟出片时看到更多人，**自己往下
+编到了 3**。画面上站着一个 3 号、角色位列表里却没有第 3 项：套用者挂不上它，只会以为坏了，
+而全程零报错。
+
+| 模式 | 客户端 | 服务端 |
+|---|---|---|
+| **自动**（默认） | body 里**不带** `frameTimes` | 帧数按选段时长算：**每 1.5 秒一帧，下限 3、上限 8**。这条式子的**唯一实现在服务端**；App 侧 `data/templates.autoVisionFrames` 是**报价用的跨仓镜像**，两边必须逐字相等 |
+| **自己挑** | `frameTimes: number[]` —— **相对选段起点的整数秒**（`[0, durSec-1]`），升序去重，1~8 个 | 按它取帧；条数仍夹上限 8 |
+
+- 「自己挑」是给**画面里人数会变**（有人入场/离场）的素材用的：只有看得见画面的人知道
+  该在哪几秒取帧。App 侧在编辑页 trim 那一屏逐帧标记（缩略图本机 `<canvas>` 抓，不占服务端）。
+- **帧数就是钱**（视觉那一半 = 帧数 × 单帧）。所以阶段一回包必须带 `frames`（真正看了几帧），
+  App 与本机报价不等时**以服务端为准并在进度里如实说一句**——默默按本机那个数显示，
+  就是"页面写着看 3 帧、账单按 8 帧扣"，两个方向都不报错。
+- 为什么这一个可以收客户端报的数，而 `durSec` 那一组不能：多标几帧最多多花视觉那几百
+  token，且服务端照它自己收到的条数收；而 `du_` 决定 r2v 的计费时长，那才是能被用来自己标价的。
+- **兜底（提示词，两种模式都要）**：画面里出现了清单之外的人，**也一律白模化，但不要编号**。
+  宁可让它没号（挂不了卡、保持白模人偶原样），也不要出现一个列表里没有的号——
+  用户看着它却挂不上，只会以为坏了。
 
 ### 角色位编号的核对 `PATCH /api/branch/templates/:id/roles`（V2）
 
@@ -1055,7 +1079,10 @@ body `{ roles: [{ label, desc }] }`（1~12 条），成功回完整模板（`rol
   generations/tasks/:id` 的唯一封装，**没有新端点**），每一拍的进度话里都带着
   「可以退出，24 小时内都能回「我的模板」取回结果」——那句话是这次改造唯一的用户可见承诺，
   少了它用户仍然会以为自己必须一直盯着。拿到凭据那一刻调 `onBilled`，宿主据此
-  **不再回收**那段原始素材（钱已经花在它身上了）；
+  **不再回收**那段原始素材（钱已经花在它身上了）。「看哪几帧」由编辑页交上来
+  （`BlockoutSelection.frameTimes`，`undefined` = 自动），这一层只做规范化（整数秒、去重、
+  升序、落在选段内）并据此**现算报价的帧数**（`visionFrameCount`）；
+  服务端回的 `frames` 与它不等时，之后每一句进度话都带上那句更正（以服务端为准）；
 - `pendingBlockoutJobs()` / `refreshPendingBlockoutJobs()` / `resumeBlockoutize()` ——
   **掉线恢复**（名单只有服务端说得准，本机不存第二份：进程被系统回收时本机 state 一起没了，
   服务端那份是唯一还在的）。「等出片 → 取回结果」这后半段在 `takeBlockoutResult` **一处实现**，
@@ -1294,7 +1321,7 @@ V2 这条链路**花两次真钱**，报价页必须**两笔都写明**，不许
 
 | 步骤 | 计价 | 备注 |
 |---|---|---|
-| 看帧列人物（blockoutize 第 6 步） | 一次 chat（`CHAT_TURN_TOKENS`） | App 侧 `blockoutizeCost` 的第一项 |
+| 看帧列人物（blockoutize 第 6 步） | 一次 chat（按**帧数**计） | App 侧 `blockoutizeCost(frameCount, …)` 的第一项，`frameCount` 由 `visionFrameCount(durSec, frameTimes)` 现算（自动 = 按时长，自己挑 = 标了几帧）。回包的 `frames` 是实收口径 |
 | **白模化出片**（第 7 步） | `r2vTokens(durSec)` | `durSec` = 编辑页框选的那一段（走上面的分支二） |
 | 套用出片 | `r2vTokens(template.refVideo.durationSec)` | 走分支一，与 V1 一致 |
 
