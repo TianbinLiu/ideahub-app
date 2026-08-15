@@ -17,7 +17,14 @@ import { API_BASE, ApiError, getToken } from "./client";
 /** 与服务端 middleware/upload.js 的上限一致。超了就别发出去，省一次必然失败的往返 */
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const MAX_MEDIA_BYTES = 20 * 1024 * 1024;
-export const MAX_TEMPLATE_VIDEO_BYTES = 20 * 1024 * 1024;
+/**
+ * 模板**原始素材**的大小上限。2026-08-15 白模 V2 从 20MB 放宽到 100MB —— 因为进方舟的
+ * 不再是这个文件本身，而是编辑页框出来的那 4~30 秒（服务端拼 Cloudinary 变换现裁），
+ * 原片是"素材库"不是"成品"，按成品的尺子量它等于逼用户先自己剪一遍。
+ * ★ 服务端 nginx 的 `client_max_body_size` 必须 ≥110m，否则网络层直接掐断、
+ *   浏览器只看到 `Failed to fetch`（发布体那条老坑的同款形状，见本文件头）。
+ */
+export const MAX_TEMPLATE_VIDEO_BYTES = 100 * 1024 * 1024;
 
 /** multipart POST 的唯一实现：拿回**整份**回包（模板视频要读服务端登记的元数据，
  *  不止一个 URL）。错误处理与 post 同一份——两条上传路各写一份超时/解析必然分叉。 */
@@ -85,26 +92,42 @@ export function uploadMedia(blob: Blob, filename = "video.webm"): Promise<string
 // 也没用，会拖到用户**付费出片**那一步才 400），服务端还要把 Cloudinary 回执里的
 // 时长/尺寸登记下来当 r2v 结算锚点——这些 /media 都没有。
 
+// ── 两个窗口，别混用（白模 V2 起）────────────────────────────────────
+//
+// ★★ 从这一版起「模板视频」有**两道**尺子，量的是两样东西：
+//   ① 原始素材（本文件上传的那个文件）—— 宽松，它只是素材库；
+//   ② 裁后那一段（编辑页框出来、真正进方舟 edit 的那 4~30 秒）—— 严，方舟的硬门全在这。
+//   放宽 ① 的前提正是有了 ②：白模 V2 的输入是「任意视频 + 一个时间窗 + 一个裁剪框」，
+//   服务端拼 Cloudinary 变换（`so_,du_,c_crop,x_,y_,w_,h_`）零成本现裁，原片本身不进方舟。
+//   拿 ② 的尺子去量 ① 等于要求用户先自己剪好再来（那正是 V2 要免掉的一步）；
+//   反过来只量 ① 就会把不满足 F3 的裁剪框放到付费出片那一步才被方舟 400。
+// ★ 两个窗口的**唯一实现都在服务端**（`middleware/upload.js` 的 `templateSourceIssue`
+//   与 `templateRefIssue`），这里是客户端**镜像**（跨仓无法共码）——
+//   **改窗口两边一起改**，契约见 docs/api-contract.md「白模模板」。
+//   镜像存在的意义只是省用户一次 100MB 的白传与一次必然失败的付费出片，
+//   **作数的永远是服务端那份复核**。
+// ★★ 本文件只放 ①。窗口 ② 的客户端那一份在
+//   `components/blockout/arkVideoRules.ts`（`ARK_EDIT_RULES` + `selectionIssue`）——
+//   编辑页要的是"差多少、往哪拖"那种带着裁剪框语境的整句话，收在那里是对的。
+//   **别在这里再写一份 [4,30]/[0.4,2.5]**：两份一起漂的时候没有任何症状，
+//   只表现为界面放行、服务端整句拒（或更糟：界面拦下一个其实合法的选段）。
+//   下面 minEdge / minPixels 这两个数是窗口 ② 的**必要条件投影**（裁剪面积 ≤ 原片面积），
+//   动 `ARK_EDIT_RULES` 的这两项时这里要跟着动。
+
 /**
- * 白模视频的验收窗口 —— **服务端的唯一实现在 server `middleware/upload.js` 的
- * `templateVideoIssue`**（上传回执复核与建模板复核共用那一份）；这里是它的客户端
- * **镜像**（跨仓无法共码，改窗口两边一起改，契约见 docs/api-contract.md「白模模板」）。
- * 镜像存在的意义只是省用户一次 20MB 的白传——**作数的永远是服务端那份复核**。
+ * ① 原始素材的验收窗口（`POST /api/uploads/template-video`）。
  *
- * 各数值的出处（都不是拍脑袋）：
- *   [4,15]s   —— 下限 4 保住方舟 edit 子任务的时长窗口 [4,30]；上限 15 对齐
- *               Seedance 2.0 系列单发上限，且封住单次成本上界（输入时长计进 r2v token）。
- *   [300,6000] / 比例 [0.4,2.5] —— 方舟官方对输入视频的边长与宽高比约束。
- *   宽×高 ≥ 407,696 —— 2026-08-14 A2 探针第一发 400 实测出的**像素数硬门**
- *               （官方文档没写，方舟直接拒单）。
+ * 各数值的出处：
+ *   (0,600]s   —— 2026-08-15 从 [4,15] 放宽：要处理的那一段由编辑页框选，原片不进方舟。
+ *                 上限 10 分钟是"手机随手拍的一条"的量级，再长的片子裁一段本来就该先剪。
+ *   边长 ≥300  —— 裁剪框只会更小，原片连 300 都不到就永远裁不出合规的一段（提前拦）。
+ *                 **上限取消**：4K 原片裁出 720p 的一段是完全正常的用法。
+ *   宽×高 ≥ 407,696 —— 同理，裁剪面积 ≤ 原片面积，这是必要条件。
+ *   ⚠ **宽高比不校**：比例正是裁剪框能修的那一项（16:9 的原片裁出 9:16 竖版是主用法）。
  */
-export const TEMPLATE_VIDEO_RULES = Object.freeze({
-  minSec: 4,
-  maxSec: 15,
+export const TEMPLATE_UPLOAD_RULES = Object.freeze({
+  maxSec: 600,
   minEdge: 300,
-  maxEdge: 6000,
-  minRatio: 0.4,
-  maxRatio: 2.5,
   minPixels: 407_696,
 });
 
@@ -122,17 +145,17 @@ export interface TemplateVideoProbe {
 }
 
 /**
- * 客户端预检：这个文件能不能当白模模板的参考视频。
+ * 客户端预检：这个文件能不能当白模模板的**原始素材**（窗口 ①）。
  * @returns null = 过；字符串 = **能直接显示给用户的整句原因**（铁律八：每条不过
- *   都当场说明白，不让用户传完 20MB 才从服务端听到同一句话）。
+ *   都当场说明白，不让用户传完 100MB 才从服务端听到同一句话）。
  */
 export function templateVideoPrecheckIssue(m: TemplateVideoProbe): string | null {
-  const R = TEMPLATE_VIDEO_RULES;
+  const R = TEMPLATE_UPLOAD_RULES;
   if (!TEMPLATE_VIDEO_MIMES.includes(m.mimeType)) {
     return `模板视频只收 mp4 / mov 格式（AI 出片引擎只认这两种），当前是 ${m.mimeType || "未知格式"}，请转码后重试。`;
   }
   if (m.bytes > MAX_TEMPLATE_VIDEO_BYTES) {
-    return `视频文件最大 ${Math.round(MAX_TEMPLATE_VIDEO_BYTES / 1024 / 1024)}MB（当前约 ${(m.bytes / 1024 / 1024).toFixed(1)}MB）——白模是大色块画面，压缩率很高，压一下再来。`;
+    return `视频文件最大 ${Math.round(MAX_TEMPLATE_VIDEO_BYTES / 1024 / 1024)}MB（当前约 ${(m.bytes / 1024 / 1024).toFixed(1)}MB），请压缩或剪短后重试。`;
   }
   // ★ 取整口径与服务端一致（server 对 Cloudinary 回执做 Math.round）：本机探出 3.6s
   //   的视频服务端会按 4s 收，客户端不取整就会把它拦在门外——两边判出相反结论。
@@ -142,21 +165,17 @@ export function templateVideoPrecheckIssue(m: TemplateVideoProbe): string | null
   if (!Number.isFinite(durationSec) || durationSec <= 0 || width <= 0 || height <= 0) {
     return "读不出这个视频的时长或尺寸（文件可能损坏），请换一个 mp4/mov 文件重试。";
   }
-  if (durationSec < R.minSec) {
-    return `模板视频至少要 ${R.minSec} 秒（当前约 ${durationSec} 秒）：低于 ${R.minSec} 秒会低于 AI 出片任务的时长下限。`;
-  }
   if (durationSec > R.maxSec) {
-    return `模板视频最长 ${R.maxSec} 秒（当前约 ${durationSec} 秒），请剪短后重试——模板越长，套用者每次出片的费用也越高。`;
+    return `视频最长 ${Math.round(R.maxSec / 60)} 分钟（当前约 ${durationSec} 秒），请先剪短再上传。`;
   }
-  if (width < R.minEdge || height < R.minEdge || width > R.maxEdge || height > R.maxEdge) {
-    return `视频边长要在 ${R.minEdge}~${R.maxEdge} 像素之间（当前 ${width}×${height}），AI 引擎不接受这个尺寸。`;
+  // ★ 边长只有下限、比例不校：真正要满足方舟硬门的是**裁剪框框出来的那一块**
+  //   （窗口 ②：components/blockout/arkVideoRules 的 selectionIssue）。这里拦的只是
+  //   "裁剪框再怎么拉也不可能合规"的原片 —— 裁剪面积 ≤ 原片面积，所以下面两条是必要条件。
+  if (width < R.minEdge || height < R.minEdge) {
+    return `视频边长至少 ${R.minEdge} 像素（当前 ${width}×${height}）：比这更小的画面，裁剪框怎么拉都达不到 AI 引擎的下限。`;
   }
   if (width * height < R.minPixels) {
-    return `视频分辨率太低：宽×高至少要 ${R.minPixels.toLocaleString("en-US")} 像素（当前 ${width}×${height} = ${(width * height).toLocaleString("en-US")}），AI 引擎会拒绝这样的输入。`;
-  }
-  const ratio = width / height;
-  if (ratio < R.minRatio || ratio > R.maxRatio) {
-    return `视频宽高比要在 ${R.minRatio}~${R.maxRatio} 之间（当前约 ${ratio.toFixed(2)}），过于细长的画幅 AI 引擎不接受。`;
+    return `视频分辨率太低：宽×高至少要 ${R.minPixels.toLocaleString("en-US")} 像素（当前 ${width}×${height} = ${(width * height).toLocaleString("en-US")}），裁剪只会更小，AI 引擎会拒绝这样的输入。`;
   }
   return null;
 }
@@ -181,8 +200,10 @@ export interface TemplateVideoReceipt {
  *   必须整句响亮拒绝——静默放行就是"存了个报不出价的模板"。
  */
 export async function uploadTemplateVideo(file: File): Promise<TemplateVideoReceipt> {
-  // 180s 与 /media 同口径（20MB 上限、慢网）
-  const data = await postForm("/api/uploads/template-video", "video", file, file.name || "template.mp4", 180_000);
+  // ★ 600s 不是 /media 那个 180s：上限从 20MB 提到 100MB 之后，慢网上光是把字节推上去
+  //   就可能要几分钟。超时早于服务端收完 = 用户看到"上传超时"、Cloudinary 上却留下一份
+  //   谁都不知道的孤儿（回执没回来 ⇒ 本机没有 publicId ⇒ 连回收都发不出去）。
+  const data = await postForm("/api/uploads/template-video", "video", file, file.name || "template.mp4", 600_000);
   const url = data.url;
   const publicId = data.publicId;
   const durationSec = Number(data.duration);
@@ -213,6 +234,9 @@ export async function uploadTemplateVideo(file: File): Promise<TemplateVideoRece
  *   或干脆放弃 —— 不回收的话那段 20MB 级公开视频两端都没了句柄，配额只增不减零症状。
  *   已登记模板**不走这里**（服务端会整句拒），它的回收归 DELETE /api/branch/templates/:id 级联。
  * ★ 服务端按 public_id 前缀钉归属（只能删本账号传的），幂等（资源已不存在也算成功）。
+ * ★ 白模 V2 起还多一条拒绝：这个 publicId 被某个模板当 `source`（白模化的原始素材）
+ *   引用时服务端 400 整句拒 —— 它的生命周期跟着那个模板走（删模板时级联回收）。
+ *   所以「白模化失败后回收原始素材」这条路只在**没建成模板**时才走得通，正是我们要的。
  */
 export async function deleteTemplateVideo(publicId: string): Promise<void> {
   const token = getToken();

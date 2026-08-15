@@ -59,6 +59,17 @@ export interface SegmentGenInput {
    * 谁都不拿这个数下单。
    */
   refVideoSec?: number;
+  /**
+   * 白模模板的**角色位**（`template.roles` 的镜像，见 types.VideoTemplate.roles）。
+   *
+   * ★★ 这里只当**存在性开关**用（`roles?.length`）：有 = V2 白模模板（人偶胸口有编号，
+   *   编辑页已经把「编号 N → 角色「XX」」的点名合成句填进了 `plot`）；缺省 = V1 老模板
+   *   （人偶身上没有编号，只能泛指）。两条路在下面出片那一步显式分叉，注释在那里。
+   * ★ 内容（label/desc）本函数一个字都不读 —— 点名那句话由 `studio/blockoutPrompt`
+   *   在编辑页合成、用户过目并可改，**以输入框为准**。这里再读一遍 label 去拼一遍，
+   *   就成了同一条规则的第二处实现（而且与用户改过的那份必然分叉）。
+   */
+  roles?: { label: string; desc: string }[];
 }
 
 /**
@@ -307,20 +318,47 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   // 参考生视频没有设定帧兜底，"谁是谁"全靠这句绑定句（<图片1> 的面部特征 = 角色 XX），
   // 所以它必须进**视频**提示词；首尾帧模式下它已经写进 Seedream 的提示词里了，
   // 再塞一遍只会让 Seedance 去找并不存在的 <图片1>
-  // 白模的尾巴 = 统一替换句 + 素材文字 + 绑定句：替换句说"干什么"（换主体、严格保留
-  // 背景道具运镜——BLOCKOUT_SWAP，一处实现），素材文字与绑定句说"换成谁"（<图片1> 的
-  // 面部特征 = 角色 XX）。参考视频不占 <图片N> 编号（见 arkClient 的 content 拼装注释），
-  // 所以 bind(0) 依旧成立。
-  const tail = blockout ? `${BLOCKOUT_SWAP}${mats}${bind}` : `${mats}${refMode ? bind : ""}`;
+  // 白模的尾巴 = （V1 才有的）统一替换句 + 素材文字 + 绑定句：替换句说"干什么"（换主体、
+  // 严格保留背景道具运镜——BLOCKOUT_SWAP，一处实现），素材文字与绑定句说"换成谁"
+  // （<图片1> 的面部特征 = 角色 XX）。参考视频不占 <图片N> 编号（见 arkClient 的 content
+  // 拼装注释），所以 bind(0) 依旧成立。
+  //
+  // ★★ 白模有两条**互斥**的路，判据是这个模板有没有角色位（**存在性**，`roles?.length`
+  //   ——后加字段，老模板天然缺它、天然走老路，零迁移；等值判会把存量整批算进某一类
+  //   且一个错都不报，见 types.VideoTemplate.roles 的 ★）：
+  //   · **V2（有 roles）**：`plot` 里那段话已经是编辑页合成好的点名映射
+  //     （「编号 4 的白色人偶替换为角色「张三」」，studio/blockoutPrompt 一处实现，
+  //     用户过目并可改）。这条路**不再拼 BLOCKOUT_SWAP** —— 它说的「将视频中的红色小人
+  //     替换为下列角色」是**泛指**，与逐个点名摆在同一段话里就是自相矛盾（而"泛指盖过
+  //     点名"正是白模化那一步实测踩过的坑：泛指只换配角、主角不动，F4），
+  //     还要白白吃掉 VIDEO_PROMPT_MAX 里 60 字的正文额度。
+  //   · **V1（没有 roles，老模板）**：人偶身上根本没有编号，除了泛指没有别的说法 ——
+  //     照旧拼 BLOCKOUT_SWAP。降级但诚实。
+  //   · **绑定句（bind）两条路都要拼**：`<图片N>` ↔ 角色是 prepareMaterialRefs 在出片
+  //     这一刻现分配的（谁被挤掉、同卡的图怎么连号），用户在输入框里改不出来、也没法
+  //     提前知道 —— 合成句里说的是角色**名**，全靠这一句把名字接到图上。
+  const named = blockout && !!input.roles?.length;
+  const tail = blockout ? `${named ? "" : BLOCKOUT_SWAP}${mats}${bind}` : `${mats}${refMode ? bind : ""}`;
   const story = reqs ? `${input.plot}。修改要求（必须满足）：${reqs}` : input.plot;
   // ★ 提示词有 VIDEO_PROMPT_MAX 的硬顶，而它是**从尾巴切**的 —— 尾巴恰好就是素材设定
   //   与绑定句。直接拼起来交上去的话：简约模式的输入框本身就允许 400 字，用户写满
   //   （或套个字数多一点的模板再挂张卡）就把绑定句整句切没了，而参考图照样发出去 ——
   //   模型于是只把它们当风格图用：卡挂了、片出了、人物一点都不像，且**零报错**。
   //   所以先给尾巴留位，要截就截故事正文（那部分少几个字用户看得出来，也不改变"谁是谁"）。
-  const plot = `${story.slice(0, Math.max(0, VIDEO_PROMPT_MAX - tail.length))}${tail}`;
-  if (blockout) prog(`按模板视频逐镜头复刻出片（时长跟随模板${input.refVideoSec ? ` ${input.refVideoSec} 秒` : ""}）…${noteTail}`);
-  else if (refMode) prog(`参考卡片形象直接出片（省掉设定帧）…${noteTail}`);
+  const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length);
+  const plot = `${story.slice(0, room)}${tail}`;
+  // ★ 但"截了要说"（铁律八）。V2 白模路把这条从"理论风险"变成了"每天都可能发生"：
+  //   正文那段点名合成句本身就有一两百字，挂满三张卡时尾巴也有两百字上下 ——
+  //   悄悄切掉正文末尾，用户看到的是"我写的最后几条要求模型完全没照做"，零报错。
+  // ★ 不能单独 prog：下面那两行 prog 在同一个同步块里，会立刻把它盖掉（React 连画都
+  //   没画过它，等于这句话没说过）—— 与 noteTail 同一个理由，所以并进同一行说。
+  const cut =
+    story.length > room
+      ? `（⚠ 这一段的要求太长，末尾 ${story.length - room} 字没能发出去：提示词上限 ${VIDEO_PROMPT_MAX} 字，其中素材设定与形象绑定句占了 ${tail.length} 字——把要求写短些，或少挂一张卡）`
+      : "";
+  if (blockout) prog(`按模板视频逐镜头复刻出片（时长跟随模板${input.refVideoSec ? ` ${input.refVideoSec} 秒` : ""}）…${noteTail}${cut}`);
+  else if (refMode) prog(`参考卡片形象直接出片（省掉设定帧）…${noteTail}${cut}`);
+  else if (cut) prog(`出片中…${cut}`);
   const [res] = await composeSegments(
     [
       {

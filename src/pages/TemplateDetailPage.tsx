@@ -15,6 +15,10 @@ import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import { useTemplatesVersion } from "./TemplateMarketPage";
+// ★ 「进挂卡编辑页要带什么、回哪儿」只有一处实现（FlowPage 导出的 castEditorState）：
+//   收结果的是工作流页，入参形状与回程键写错一个字母的表现是"回来了但什么都没发生"，
+//   两页各拼一份必然分叉（铁律六）。
+import { castEditorState } from "./FlowPage";
 import {
   deleteTemplateEverywhere,
   fetchRemoteTemplateById,
@@ -330,8 +334,21 @@ export default function TemplateDetailPage() {
     setApplyErr("");
     // applyTemplate 返回 false = 被闸门整句拒绝（err 在 flow store 里）——把原因就地
     // 印出来，不能让按钮看起来"点了没反应"（铁律八）
-    if (useFlow.getState().applyTemplate(t)) nav("/flow");
-    else setApplyErr(useFlow.getState().err || "套用失败");
+    if (!useFlow.getState().applyTemplate(t)) {
+      setApplyErr(useFlow.getState().err || "套用失败");
+      return;
+    }
+    // ★★ V2 白模（有角色位）：**先领去挂卡**，再进工作流。
+    //   判据是存在性（`roles?.length`，types.ts 的 ★），所以老模板（没有 roles）
+    //   与经典配方模板走的还是原来那一行 nav("/flow")，一个字都没变。
+    //   为什么不让用户先落到工作流页再自己找入口：这条路上"谁换成谁"全靠挂卡，
+    //   没挂卡的 V2 节点连要求输入框都是空的（点名句由挂卡合成），用户在那里
+    //   除了发呆没有别的可做。工作流页仍留着「改挂卡」入口，从模板市场直接套用
+    //   （那一页不在本次施工位）进来的人靠它补上这一步。
+    //   ⚠ 入参形状与回程约定见 VideoEditorPage 顶部注释；结果由 FlowPage 收。
+    const castState = castEditorState(t);
+    if (castState) nav("/video-editor", { state: castState });
+    else nav("/flow");
   }
 
   return (

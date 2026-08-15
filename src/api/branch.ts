@@ -4,7 +4,7 @@
 // 服务端字段用 `_id` / ISO 时间字符串，客户端领域模型用 `id` / 毫秒时间戳，
 // 转换统一放在 data/*.ts（因为只有它知道要往哪个 cache 里塞）。
 import type { BranchTree, Card, CardType, DraftVideo, TemplateRecipe, VideoDeck, VideoPart, VideoSegment } from "../types";
-import { apiDelete, apiGet, apiPatch, apiPost } from "./client";
+import { API_BASE, ApiError, apiDelete, apiGet, apiPatch, apiPost, getToken } from "./client";
 
 // ── DTO ──────────────────────────────────────────────────
 
@@ -729,6 +729,23 @@ export interface ApiBranchTemplate {
   };
   /** 参考视频的**服务端登记值**（从 Cloudinary 写入）—— r2v 报价输入时长的唯一来源 */
   refVideo?: { url?: string; durationSec?: number; width?: number; height?: number; bytes?: number };
+  /**
+   * 白模人偶的**角色位**（编号 ↔ 这个编号在原视频里替换掉的是谁）。
+   *
+   * ★ **只在真有的时候才出现这个 key**：V1 白模模板整个字段缺失。调用方一律判**存在性**
+   *   （`roles?.length`），不许等值比、也不许把"缺"和"空数组"当同一件事处理
+   *   —— 那是 `visibility` 那条坑的同族（docs/api-contract.md「可见性」）。
+   * ★ `label` 是**人偶胸口那个编号本身**，实测**稳定但不连续**（2026-08-15 一发四人实出
+   *   1/2/4/5）。别按下标推编号、别拿 `roles.length` 当最大编号、点名时**原样用 label**。
+   * ★ 服务端写（看帧产出、与真正发出去的点名提示词对齐）。客户端提交一律不收（zod strip），
+   *   **唯一的例外**是作者的确认：PATCH /templates/:id/roles（见 patchTemplateRoles）。
+   * ★★ `labelConfirmed` = 这个编号**作者对着成片核对过了**。为假时那份 label 只是服务端
+   *   按视觉清单顺序编的**猜测**（1..N），与画面上人偶胸口的数字可能对不上 ——
+   *   套用者照它挂卡就会把角色换到别人身上，而且不会有任何报错。所以未核对的模板
+   *   服务端**不许发布**（publish 回 400 整句）。缺省（老服务端不回这一位）按**未核对**
+   *   处理：往"多提醒一次"退是安全的，反过来是拿一份没人核对过的编号当真。
+   */
+  roles?: Array<{ label?: string; desc?: string; labelConfirmed?: boolean }>;
   status?: "pending" | "published" | "blocked" | string;
   provenAt?: string | number | null;
   isOwner?: boolean;
@@ -761,6 +778,151 @@ export async function createTemplate(payload: CreateTemplatePayload): Promise<Ap
   return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
 }
 
+// ── 白模化（V2：任意视频 → 带编号白模模板）────────────────────────
+//
+// 与上面的 V1 登记路（createTemplate）是**两条不同的进货渠道**，别合并：
+//   V1 = 作者手上已经有一段白模预演视频，上传 + 登记，不花 AI 的钱；
+//   V2 = 作者拿的是**任意一段实拍/成片**，服务端替他看帧列人物 + 付费出一次片
+//        把人全换成带编号的白模人偶，产物才是模板。**这条路花真钱**。
+// 所以 V2 的失败必须带一位「这次到底扣没扣钱」——见 BlockoutizeError.billed。
+
+/**
+ * 白模化的一次失败。**比 ApiError 多一位 `billed`**。
+ *
+ * ★★ 为什么非要多这一位：方舟对含真人人脸的视频是**受理后**才失败（F11 实测），
+ *   而受理即计费 —— 这一类失败**扣钱不退**。把它和"归属校验没过""余额不足"这种
+ *   一分钱没动的失败混成同一个 Error，界面就只能对所有失败说同一句话：
+ *   要么把没扣钱的说成扣了（吓人），要么把扣了的说成没扣（在钱上撒谎）。
+ * ★ 缺省 false：只有服务端**明说** `billed:true` 才算扣过。非 JSON 回包（Capacitor 的
+ *   SPA 回退、老服务端）意味着请求根本没落到这个端点上，那时确实一分钱没动。
+ */
+export class BlockoutizeError extends ApiError {
+  readonly billed: boolean;
+  constructor(message: string, status: number, code: string, billed: boolean) {
+    super(message, status, code);
+    this.name = "BlockoutizeError";
+    this.billed = billed;
+  }
+}
+
+/**
+ * POST /api/branch/templates/blockoutize 的请求体。
+ *
+ * ★★ **一个 URL 都不发**：变换地址（`so_,du_,c_crop,x_,y_,w_,h_`）由服务端拿这四组数
+ *   自己拼，客户端全程碰不到 —— 碰得到就等于让用户自己标价（他改一个 `du_` 就改了
+ *   r2v 的计费时长）。同理 `roles`/`source` 提交上去也会被 zod strip 掉，那是服务端写的。
+ * ★ `startSec`/`durSec` 是**整数秒**、`crop` 是**整数像素**：服务端 zod 声明的是 int，
+ *   小数直接 400（不会替你取整）。调用方在 data 层取整一次，别在这里再取一次（铁律六）。
+ */
+export interface BlockoutizePayload {
+  /** 本账号刚传的原始素材（`ideahub/template-videos/<userId>-<ts>`，来自上传回执） */
+  publicId: string;
+  startSec: number;
+  durSec: number;
+  crop: { x: number; y: number; w: number; h: number };
+  title: string;
+  intro?: string;
+  /** https 或空串（服务端 zod 拒 dataURL，同 createTemplate） */
+  coverUrl?: string;
+  /** app 档位 id —— 只进 recipe 当**展示镜像**，服务端不据此判断走哪个模型 */
+  videoTier?: string;
+  aspect?: "portrait" | "landscape";
+  /** 作者对画面的补充说明，服务端拼进「先看」那一步的提示词 */
+  note?: string;
+}
+
+export interface BlockoutizeResult {
+  template: ApiBranchTemplate;
+  /** 白模化那一发 r2v 的任务号与真实输入时长（对账用：报价按 durSec，实收也按它） */
+  blockout: { taskId: string; durSec: number };
+}
+
+/**
+ * 白模化（requireAuth；服务端限流 3 次/10 分钟/账号）。
+ *
+ * ★★ 这是一次**同步等到底**的长请求：服务端要预热变换、抽帧、chat vision 看人、
+ *   发 r2v edit 并轮询到 succeeded、把产物转存 Cloudinary，最后才建模板并 201。
+ *   所以超时给到 15 分钟 —— **必须比服务端自己的上限长**：客户端先超时的话，
+ *   钱照扣、模板其实在服务端建好了，而本机什么都没留下（用户只看到"超时"）。
+ * ★ 判**回包形状**（`ok:true` + `template`），绝不判状态码：Capacitor 的本地静态服务器
+ *   对未命中路径回 200 + index.html（CLAUDE.md 那条坑）。
+ * ★ 不走 client.ts 的 apiPost：它的失败路径把回包里的**顶层字段丢掉**（只留
+ *   message/code/details），而这条路失败时最要紧的一位恰恰是顶层的 `billed`。
+ *   鉴权头/超时/URL 拼装仍复用 client.ts 的那几个导出，没有第二份约定。
+ * @throws BlockoutizeError（message 可直接显示；billed 决定要不要加那句"这笔不退"）
+ */
+export async function blockoutizeTemplate(payload: BlockoutizePayload): Promise<BlockoutizeResult> {
+  const token = getToken();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 900_000);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/branch/templates/blockoutize`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    });
+  } catch (e) {
+    const aborted = e instanceof DOMException && e.name === "AbortError";
+    // ★ 超时这一条的文案不许写成"失败了，重试吧"：白模化在服务端可能已经跑完并扣了钱，
+    //   重试就是再扣一次。billed 按 false 报（我们确实不知道），但话要说清楚。
+    throw new BlockoutizeError(
+      aborted
+        ? "白模化等待超时（超过 15 分钟）。服务器那边可能已经跑完并计费了——先去「我的模板」看一眼有没有新模板，没有再重试，别直接连点。"
+        : "白模化失败（网络不可用）",
+      0,
+      aborted ? "TIMEOUT" : "NETWORK",
+      false,
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+  const text = await res.text();
+  let data: Record<string, unknown> = {};
+  try {
+    data = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    /* 非 JSON（SPA 回退 / 老服务端 / 网关错误页）：下面按形状判失败 */
+  }
+  if (data.ok !== true) {
+    throw new BlockoutizeError(
+      typeof data.message === "string" && data.message
+        ? data.message
+        : `这台服务器不支持白模化（可能需要升级服务端）——HTTP ${res.status}`,
+      res.status,
+      typeof data.code === "string" ? data.code : "",
+      data.billed === true,
+    );
+  }
+  const template = pick<ApiBranchTemplate>(data, ["template"]);
+  const blockout = pick<Record<string, unknown>>(data, ["blockout"]);
+  const durSec = Number(blockout?.durSec);
+  if (!template || !(template._id || template.id)) {
+    // 回包说 ok 却没给模板 = 这份回执当不了本机记录的锚点（既没有 remoteId 也没有
+    // refVideo），静默放行就是"钱花了、模板不见了"。响亮拒绝，让用户去我的模板里找。
+    throw new BlockoutizeError(
+      "服务器说白模化成功了，却没有返回模板信息（可能是旧版服务端）。这次很可能**已经计费**——去「我的模板」确认一下，别直接重试。",
+      502,
+      "SHAPE",
+      true,
+    );
+  }
+  return {
+    template,
+    blockout: {
+      taskId: String(blockout?.taskId ?? ""),
+      // 服务端回的 durSec 是它**真正拿去拼变换 URL**的那个数（也是计费口径）。
+      // 拿不到就退回我们提交的那个——两者理应相等，不等的话以服务端为准。
+      durSec: Number.isFinite(durSec) && durSec > 0 ? durSec : payload.durSec,
+    },
+  };
+}
+
 /** GET /api/branch/templates/shared（optionalAuth）—— 模板市场，只回 published */
 export async function listSharedTemplates(limit = 50): Promise<ApiBranchTemplate[]> {
   const res = await apiGet<Record<string, unknown>>("/api/branch/templates/shared", { query: { limit } });
@@ -783,6 +945,31 @@ export async function getRemoteTemplate(id: string): Promise<ApiBranchTemplate |
  */
 export async function publishTemplate(id: string): Promise<ApiBranchTemplate | null> {
   const res = await apiPatch<Record<string, unknown>>(`/api/branch/templates/${encodeURIComponent(id)}/publish`);
+  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+}
+
+/**
+ * PATCH /api/branch/templates/:id/roles（requireAuth，仅作者，**仅 pending**）——
+ * 作者核对白模人偶胸口的编号。
+ *
+ * ★★ 为什么这是**唯一**收客户端 roles 的端点（其余两条建模板路一律 strip）：这份输入
+ *   只有**看得见画面的人**做得出来。落库那份 label 是服务端按视觉清单顺序编的猜测
+ *   （1..N），而实测人偶编号稳定但**不连续**（一发四人实出 1/2/4/5）。错位的后果没有
+ *   任何报错 —— 套用者点"3 号位"挂上张三，模型换掉的是画面上的 3 号（另一个人），钱照扣。
+ * ★ 提交的是**完整的那一份**（服务端整份替换）：可以改编号、改描述、删掉 AI 多认的一条、
+ *   补上它漏认的一个。编号不许重复（服务端 400 整句：重了会让挂卡互相覆盖）。
+ * ★ 已发布的模板服务端拒改（要先下架）：编号一变，别人工程里存的「几号位挂谁」
+ *   就全对不上了，而他们那边不会有任何提示。
+ * @returns null = 这台服务器没有这个端点（老服务端；回包形状判定，**不看状态码** ——
+ *   Capacitor 的 SPA 回退恒 200 + HTML）。调用方必须把这件事说出来，别当成成功。
+ */
+export async function patchTemplateRoles(
+  id: string,
+  roles: Array<{ label: string; desc: string }>,
+): Promise<ApiBranchTemplate | null> {
+  const res = await apiPatch<Record<string, unknown>>(`/api/branch/templates/${encodeURIComponent(id)}/roles`, {
+    roles,
+  });
   return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
 }
 

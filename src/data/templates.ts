@@ -9,10 +9,11 @@ import { idbGet, idbSet } from "./db";
 import { apiGet, ApiError } from "../api/client";
 import * as branch from "../api/branch";
 import * as uploadsApi from "../api/uploads";
-import { currentUser } from "./account";
+import { canAfford, currentUser, refreshRemoteWallet, tierBlockReason } from "./account";
+import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens } from "./economy";
 import { toPermanentUrl } from "./publishAssets";
 import { remoteOn } from "./videos";
-import { Card, VideoTemplate, uid } from "../types";
+import { Card, VideoAspect, VideoTemplate, uid } from "../types";
 
 const KEY = "templates.v1";
 
@@ -187,6 +188,16 @@ export interface RemoteTemplateState {
   provenAt: number | null;
   /** 服务端按 ownerId 对当前 JWT 算的 —— 白模路的身份判定只认它，不比显示名 */
   isOwner: boolean;
+  /**
+   * 编号核对闸：true = 这个模板有角色位，但编号**还没被作者核对过**，服务端不许发布。
+   *
+   * ★★ 为什么这一位要单独存在于状态快照里、而不是塞进 `VideoTemplate.roles`：
+   *   `roles` 是**出片时点名要用的数据**（label/desc 直接进提示词），而这一位是
+   *   **模板的生命周期状态**（与 status/provenAt 同族，作者界面据它提示与拦截）。
+   *   混在一起的话，套用侧每次拼提示词都要绕过一个与提示词无关的字段。
+   * ★ V1 老模板（没有角色位）恒为 false —— 这道门与它无关（判存在性，别判等值）。
+   */
+  rolesNeedConfirm: boolean;
 }
 
 const remoteStates = new Map<string, RemoteTemplateState>();
@@ -217,9 +228,31 @@ function recordState(api: branch.ApiBranchTemplate): RemoteTemplateState | null 
     status: api.status === "published" || api.status === "blocked" ? api.status : "pending",
     provenAt: toMs(api.provenAt ?? null),
     isOwner: api.isOwner === true,
+    // ★ 逐条 `!== true`：只有服务端**明说**核对过才算数。老服务端不回这一位（undefined）
+    //   → 判成"待核对"，界面会多提示一次；反过来把没核对的当成核对过，就是让作者
+    //   带着一份可能指错人的编号上市场（错了零报错）。往多提醒那一侧退。
+    rolesNeedConfirm: Array.isArray(api.roles) && api.roles.length > 0 && api.roles.some((r) => r?.labelConfirmed !== true),
   };
   remoteStates.set(rid, st);
   return st;
+}
+
+/**
+ * 服务端回的角色位 → 本机镜像。**唯一实现**（远端列表、详情、白模化回包都走它）。
+ *
+ * ★ 逐字段兜底再进本机库：这是网络回包，`roles` 又是后加字段 —— 一个 label 变成
+ *   `undefined` 混进去，出片时点名句里就会出现「编号 undefined」，模型不会报错，
+ *   只会自己挑一个人换（换错人是零报错的故障）。没有 label 的条目直接丢掉。
+ * ★ label **原样保留字符串**，不转数字、不重排、不补齐：实测编号稳定但**不连续**
+ *   （一发四人实出 1/2/4/5），"规整成 1..N"就是把卡换到别人身上（types 的 ★★）。
+ * @returns 空数组 = 这个模板没有角色位（V1 老模板）。调用方按**存在性**处理，
+ *   别把空数组写进本机记录（写了之后"V1 还是 V2"在调试时就分不清了）。
+ */
+function rolesOf(api: branch.ApiBranchTemplate): NonNullable<VideoTemplate["roles"]> {
+  if (!Array.isArray(api.roles)) return [];
+  return api.roles
+    .map((r) => ({ label: String(r?.label ?? "").trim(), desc: String(r?.desc ?? "").trim() }))
+    .filter((r) => r.label !== "");
 }
 
 /** 服务端模板 → 本机领域模型。远端条目的 id 就用服务端 _id（详情页路由直接用它） */
@@ -228,6 +261,7 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
   const refUrl = api.refVideo?.url;
   if (!rid || !refUrl) return null; // 没有参考视频的"白模模板"不成立，丢弃比展示半个强
   recordState(api);
+  const roles = rolesOf(api);
   return {
     id: rid,
     remoteId: rid,
@@ -251,6 +285,8 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
       width: Number(api.refVideo?.width) || 0,
       height: Number(api.refVideo?.height) || 0,
     },
+    // ★ 只在真有的时候才带这个键（存在性语义，见 rolesOf 与 types 的 ★）
+    ...(roles.length > 0 ? { roles } : {}),
     published: api.status === "published",
   };
 }
@@ -403,11 +439,21 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
     const st = recordState(api);
     const local = mine.find((x) => x.id === id);
     if (local && st) {
+      let dirty = false;
       const pub = st.status === "published";
       if (local.published !== pub) {
         local.published = pub;
-        persist();
+        dirty = true;
       }
+      // ★★ 角色位也跟着服务端走（白模 V2）：作者可能是在**另一台设备**上核对的编号。
+      //   不同步的话，这台设备本机存的还是那份没核对过的猜测编号，而出片点名读的正是
+      //   本机这份 —— 卡会挂到别人身上，且两边都不会报错。服务端那份永远是权威。
+      const back = rolesOf(api);
+      if (back.length && JSON.stringify(back) !== JSON.stringify(local.roles ?? [])) {
+        local.roles = back;
+        dirty = true;
+      }
+      if (dirty) persist();
     }
     emit();
   } catch (e) {
@@ -444,6 +490,50 @@ export async function setTemplatePublished(id: string, on: boolean): Promise<voi
   if (local) persist(); // shared 条目只活在内存缓存里，没有本机库要写
   // 自己刚上/下架，市场缓存作废重取（别让作者切到市场 tab 还看见旧列表）
   sharedFresh = false;
+  emit();
+}
+
+/**
+ * 核对角色位编号 —— **唯一入口**（页面别自己调 branch API：本机镜像与远端状态要一起改）。
+ *
+ * ★★ 为什么非有这一步不可（这是白模 V2 最阴的一条错法）：白模化落库那一刻的 label 是
+ *   **服务端按视觉清单顺序编的猜测**（1..N），而成片上人偶胸口的数字实测**稳定但不连续**
+ *   （一发四人实出 1/2/4/5）。对不上时，套用者点"3 号位"挂上张三 —— 模型老老实实换掉
+ *   画面上的 3 号（另一个人），**钱照扣、零报错**。所以编号只能由看得见画面的人确认。
+ * ★ 提交的是**完整的那一份**（服务端整份替换）：作者可以改编号、改描述、删掉 AI 多认的
+ *   一条、补上它漏认的一个。重复编号服务端整句 400（重了会让套用侧的挂卡互相覆盖）。
+ * ★ 成功后**本机 roles 一起改写**：出片时点名用的就是本机这份（segmentGen 读 template.roles），
+ *   只改远端的话，作者在这台设备上出的片仍然按旧编号点名 —— 那正是"改了却没生效"的
+ *   零症状故障。
+ * @throws message 可直接显示
+ */
+export async function confirmTemplateRoles(
+  id: string,
+  roles: NonNullable<VideoTemplate["roles"]>,
+): Promise<void> {
+  const local = mine.find((x) => x.id === id);
+  // 本机没有 ≠ 不是我的（换设备/重装后本机库是空的，身份由服务端按 ownerId 把关），
+  // 与 setTemplatePublished 同一条理由
+  const t = local ?? shared.find((x) => x.id === id);
+  if (!t) throw new Error("这个模板不在本机库里");
+  if (!t.remoteId) throw new Error("模板还没登记到服务器，登记成功后才能核对编号");
+  if (!remoteOn()) throw new Error("现在连不上服务器——编号登记在服务端，联网后再核对");
+  const clean = roles
+    .map((r) => ({ label: String(r.label ?? "").trim(), desc: String(r.desc ?? "").trim() }))
+    .filter((r) => r.label !== "");
+  if (!clean.length) throw new Error("至少要留一个角色位——一个都不留的话，套用你模板的人没有任何地方可以挂卡");
+  const api = await branch.patchTemplateRoles(t.remoteId, clean);
+  if (!api) {
+    throw new Error("这台服务器还不支持核对角色位编号（回包形状不对，可能需要升级服务端）");
+  }
+  recordState(api);
+  // ★ 以**服务端回的那一份**为准写本机（不是回显我们提交的 clean）：服务端会 trim、
+  //   截断超长描述，两边不一致时出片点名用的串就与模板上登记的对不上了
+  const back = rolesOf(api);
+  if (back.length) {
+    t.roles = back;
+    if (local) persist(); // shared 条目只活在内存缓存里，没有本机库要写
+  }
   emit();
 }
 
@@ -504,6 +594,16 @@ export interface NewTemplate {
    * 没有公网 URL 的"白模模板"连作者自己都用不了（方舟 r2v 只收 URL），存半成品是骗人。
    */
   refVideo?: VideoTemplate["refVideo"];
+  /** 白模人偶的角色位（服务端登记值的镜像）。只有白模化那条路（V2）会带 */
+  roles?: VideoTemplate["roles"];
+  /**
+   * **服务端已经建好了**这个模板（白模化那条路：blockoutize 一次性出片 + 转存 + 建库，
+   * 回包里就带着实体）。带上它意味着两件事：
+   *   ① 本机记录直接带 remoteId 落库（市场去重、发布/删除都靠它）；
+   *   ② **跳过 registerTemplate** —— 那是 V1「本机先有、再补登记」那条路专用的，
+   *      对着一个已经存在的实体再 POST 一次只会撞 refVideo.url 的唯一索引拿 409。
+   */
+  remoteId?: string;
 }
 
 export function saveTemplate(t: NewTemplate): VideoTemplate {
@@ -524,10 +624,195 @@ export function saveTemplate(t: NewTemplate): VideoTemplate {
   //   作者连自己的试炼片都出不了。失败不静默——registerTemplate 会把原因记进
   //   registerErrors 并 emit，详情页显示原因 + 「重新登记」；这里 catch 掉的只是
   //   "重复上报"（错误本体已经落在 registerErrors 里了），不是把错误吞掉。
-  if (tpl.refVideo) {
+  if (tpl.refVideo && !tpl.remoteId) {
     void registerTemplate(tpl.id).catch(() => {});
   }
   return tpl;
+}
+
+// ── 白模化（V2：任意视频 → 带编号白模模板）──────────────────────
+//
+// 与 V1（作者自己已经有白模预演视频 → 上传 → 登记）是两条进货渠道，最大的差别是
+// **这一条花真钱**：服务端要看几帧列出画面里有谁，再付费出一次 r2v edit 片把人全换成
+// 带编号的白模人偶，产物转存之后才是模板。所以这里的每一步都按"钱已经动了"来写。
+
+/**
+ * 白模化那一步「先看」会看几帧 —— **服务端 `routes/branchTemplate.routes.js` 的
+ * `VISION_FRAMES` 的跨仓镜像**（今天是 3）。
+ *
+ * ★★ 它是**报价的输入**（`economy.blockoutizeCost(frameCount, durSec)` 的前一半）。
+ *   猜一个数就是本仓头号事故的形状：页面按 6 帧报价、服务端按 3 帧扣钱，两个方向都不报错。
+ *   服务端改了 `VISION_FRAMES` 就必须同步改这里（跨仓无法共码，契约见
+ *   docs/api-contract.md「白模模板」）。
+ * ★ 为什么帧数不进请求体：帧数决定花多少钱，收客户端报的数 = 让用户自己标价。
+ */
+export const BLOCKOUTIZE_VISION_FRAMES = 3;
+
+/**
+ * 「**这个账号**现在能不能开炼白模化」—— 全 app 唯一实现（null = 能，否则是一句
+ * 直接可显示的整句原因）。入口（提取器的白模开关）与真正开炼那一步问的都是它。
+ *
+ * ★★ 为什么不能只问 `economy.blockoutizeIssue()`：那一个只回答**目录侧**的一半
+ *   （闸门开没开、这一档有没有 r2v 价），它认不出"当前用户的套餐" —— economy 是纯目录，
+ *   account 已经 import 它，反过来 import 会成环（Vite 下会拿到半初始化的模块）。
+ *   而白模化**钉死走 SEEDANCE_2_5**，那正是 `paidOnly` 的那一档：免费套餐在服务端是
+ *   403 PLAN_REQUIRED，而且**充值解决不了**（得换套餐）。
+ * ★★ 2026-08-15 对抗审查抓到的形状就是这里：整条白模化路一次都没调过
+ *   `account.tierBlockReason`（全仓唯一实现，另外四个出片入口都调了），于是免费用户
+ *   传完一段最大 100MB 的视频、框完选段、读完报价，**点下去才在服务端吃 403** ——
+ *   而在此之前他很可能已经为这件事充了值（充值对这道门一分钱都不管用）。
+ *   所以这句话必须在**选文件之前**就说出口（见 VideoTemplateExtractor 的调用点）。
+ * ★ 一条判据都没有新写：闸门/价目仍在 `economy.blockoutizeIssue`，套餐仍在
+ *   `account.tierBlockReason`。本函数只是把两者接起来，让 UI 与开炼那一步问同一句话。
+ * ★ 顺序是有意的（先目录后套餐）：闸门没开时说「暂未开放」比说「升级套餐后可用」诚实
+ *   —— 闸都没开，升级了也照样用不了，那句话会把用户骗去付钱。
+ * ★ 这**只是提示，不是安全边界**（同 tierBlockReason）：套餐未知时它一律放行，由服务端
+ *   说了算 —— 宁可多打一次请求，也不能因为镜像慢半拍就把付费用户挡在自己买过的档位外。
+ */
+export function blockoutizeBlockReason(): string | null {
+  const catalog = blockoutizeIssue();
+  if (catalog) return catalog;
+  const tier = blockoutTier();
+  // catalog 为 null ⇒ tier 必然非空（blockoutizeIssue 的第一句就在拦 null）。
+  // 这一行只为让类型闭合；真走到这里说明那两个函数分了叉
+  return tier ? tierBlockReason(tier) : null;
+}
+
+/** 白模化的入参：编辑页框出来的那**四组数** + 已经传好的那段素材。 */
+export interface BlockoutizeInput {
+  /**
+   * 原始素材的 Cloudinary public_id（`uploads.uploadTemplateVideo` 的回执）。
+   *
+   * ★ 这里收的是 **publicId 不是 File**：上传归宿主管（它手上才有那份回执，
+   *   也只有它知道用户中途放弃时该不该回收 —— 见 VideoTemplateExtractor 的 close()）。
+   *   本函数只做"提交四组数 → 拿回模板 → 落本机"这一段。
+   */
+  publicId: string;
+  /** 选段起点（整数秒） */
+  startSec: number;
+  /** 选段时长（整数秒，窗口 [4,30] 由编辑页的 arkVideoRules.selectionIssue 把关） */
+  durSec: number;
+  /** 裁剪框（整数像素，相对原片**原始分辨率**，不是预览尺寸） */
+  crop: { x: number; y: number; w: number; h: number };
+  title: string;
+  intro?: string;
+  /** 封面（dataURL 或 https）。dataURL 会先转成永久地址再提交（服务端 zod 拒 dataURL） */
+  cover?: string;
+  /** 作者对画面的补充说明，服务端拼进「先看」那一步的提示词 */
+  note?: string;
+  aspect?: VideoAspect;
+  /** 进度播报。这一步要等好几分钟，不报进度用户会以为死了 */
+  onProgress?: (status: string) => void;
+}
+
+/**
+ * 白模化**流程的唯一实现**：提交四组数 → 拿回模板 → 落本机（带 remoteId）。
+ *
+ * ★ 两道**花钱前**的门在这里问，一道都不许挪到后面：
+ *   ① 这台服务器认不认这套端点 —— 复用 `remoteTemplatesCapable()`（唯一实现，不另探）；
+ *   ② 这一发**这个账号**能不能开炼 —— `blockoutizeBlockReason()`（闸门 + 价目 + 套餐门禁，
+ *      唯一实现）。报不出价就既不报也不开炼；套餐不够格就当场说清"充值不管用，要换套餐"。
+ *      ★ 提取器在**选文件之前**已经问过同一句（那才是止损最早的时机），这里再问一次不是
+ *        第二处判断 —— 是同一个函数的第二个调用点：浮层开着的这几分钟里套餐可能刚变
+ *        （换账号、镜像到货），而这一步之后就要真花钱了。
+ *   ★ **框选窗口（F1/F3）不在这里判**：客户端那一份的唯一实现是编辑页的
+ *     `components/blockout/arkVideoRules.selectionIssue`（它要说"差多少、往哪拖"，
+ *     离裁剪框近才说得出来），服务端还会对着裁后元数据现查复核。在这里再抄一份，
+ *     两份一起漂时没有任何症状。而且窗口不满足是 **400 且 billed:false** ——
+ *     不涉及钱，不需要客户端多设一道闸。
+ * ★ 不做真人脸门禁：浏览器 FaceDetector 覆盖率极低，漏报比不检查更坏。开炼前那句
+ *   「含真人面孔时 AI 可能受理后才拒绝、费用不退」由 BlockoutTrimmer 常驻告知（方案 §三），
+ *   这里只负责把服务端回的 `billed` 原样带给调用方（branch.BlockoutizeError）。
+ * @throws message 可直接显示；`branch.BlockoutizeError` 还带一位 `billed`
+ */
+export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTemplate> {
+  const prog = (s: string) => o.onProgress?.(s);
+  if (!remoteOn()) throw new Error("现在连不上服务器——白模化整条都在服务端跑（看帧、出片、转存），联网后再来");
+  if (!(await remoteTemplatesCapable())) {
+    throw new Error("这台服务器还不支持白模化（可能需要升级服务端）——你仍然可以直接上传一段白模预演视频来建模板");
+  }
+  const priced = blockoutizeBlockReason();
+  if (priced) throw new Error(priced);
+  // ③ 余额够不够。★ 服务端也会判（402 INSUFFICIENT_TOKENS，一分钱没动），这里再判一次
+  //   不是为了安全，是为了**时机**：走到这一步用户已经传完一段最大 100MB 的视频、
+  //   框了半天选段，这时候才告诉他"钱不够"太晚了。判据仍只有 account.canAfford 一处。
+  const cost = blockoutizeCost(BLOCKOUTIZE_VISION_FRAMES, Math.round(o.durSec));
+  // cost === null ⇒ economy.blockoutizeIssue 必然非空（那对函数一一对应，见 economy 的 ★）
+  // ⇒ blockoutizeBlockReason 也非空（它把前者当第一道），上面那道门已经拦过 ——
+  // 这句只为让类型闭合；真走到这里说明那几个函数分了叉
+  if (cost === null) throw new Error("白模化暂时报不出价，先不开炼（价目未就绪）");
+  if (!canAfford(cost)) {
+    throw new Error(
+      `这一发白模化预估要 ${fmtTokens(cost)} token（看帧认人 + 一次真实付费出片），余额不够——去「我的」页充值后再回来，框选不会丢。`,
+    );
+  }
+
+  let coverUrl = "";
+  if (o.cover) {
+    prog("上传封面…");
+    coverUrl = await toPermanentUrl(o.cover, `tpl-blockout-${Date.now()}-cover`);
+  }
+
+  prog("AI 正在看画面里有哪些人，然后把他们换成带编号的白模人偶（要几分钟，别退出）…");
+  let res: branch.BlockoutizeResult;
+  try {
+    res = await branch.blockoutizeTemplate({
+      publicId: o.publicId,
+      // ★ 整数秒/整数像素在这里取一次整，别指望服务端替你四舍五入（它的 zod 声明是 int，
+      //   小数直接 400）。取整口径与服务端一致（Math.round）。
+      startSec: Math.round(o.startSec),
+      durSec: Math.round(o.durSec),
+      crop: {
+        x: Math.round(o.crop.x),
+        y: Math.round(o.crop.y),
+        w: Math.round(o.crop.w),
+        h: Math.round(o.crop.h),
+      },
+      title: o.title.trim() || "未命名白模模板",
+      intro: o.intro ?? "",
+      coverUrl,
+      // ★ 只是**展示镜像**：走哪一档由服务端钉死，这里报的是 App 侧同一条链路认的那一档
+      //   （economy.blockoutTier 唯一实现），好让模板详情页显示的档位与报价对得上。
+      videoTier: blockoutTier()?.id ?? "",
+      ...(o.aspect ? { aspect: o.aspect } : {}),
+      note: o.note ?? "",
+    });
+  } finally {
+    // ★★ **成败都刷**余额镜像，而且是无条件的（原来只挂在成功路径上，2026-08-15
+    //   对抗审查抓到）：这条路最典型的失败恰恰是**扣了钱的** —— 真人脸受理后 failed、
+    //   产物转存失败、看帧之后 r2v 没发出去，服务端对这几条都明说 `billed:true`。
+    //   不刷的话，用户看到的还是白模化之前那个**虚高**的本地余额，照它再开一发，
+    //   下一次要么在服务端撞 402，要么白等几分钟 —— 而这中间没有任何一处会报错。
+    // ★ 为什么不写成"只在 billed 为真时刷"：客户端根本判不准。超时那一条报的是
+    //   `billed:false`（我们确实不知道），而服务端很可能已经跑完并计费（见 branch.ts
+    //   那句超时文案的 ★）。刷余额是只读的、不花钱、不改本地状态，往"多刷一次"的方向
+    //   退永远安全；往"少刷一次"退就是拿一个假余额继续做决定。
+    // ★ 放 finally 而不是 catch：成功路径本来就要刷（服务端刚扣过看帧 + 一次真实出片），
+    //   两处各写一遍就是同一条规则的两份实现（铁律六）。
+    // ★ fire-and-forget，且**故意不 await**：它自己不会抛（内部 catch 成 emitApiError），
+    //   拉不到就是镜像停在旧值 —— 与修这一条之前的状态一样，不是新的退步。真正拦住
+    //   "拿假余额再开一发"的最后一道仍在服务端（402）。这里不能 await，否则一次慢网
+    //   的余额请求会把真正的失败原因（下面那个 throw）在界面上拖后好几秒。
+    void refreshRemoteWallet();
+  }
+
+  const mapped = apiToTemplate(res.template);
+  if (!mapped?.remoteId) {
+    throw new Error(
+      "白模化跑完了，但服务器返回的模板缺少参考视频地址——这次很可能已经计费，请去「我的模板」确认后再决定要不要重来。",
+    );
+  }
+  prog("白模模板已生成");
+  return saveTemplate({
+    title: mapped.title,
+    intro: mapped.intro,
+    cover: mapped.cover,
+    cards: [], // 白模不带素材卡：「换成谁」由套用者在编辑页逐个角色位挂
+    recipe: mapped.recipe,
+    refVideo: mapped.refVideo,
+    ...(mapped.roles?.length ? { roles: mapped.roles } : {}),
+    remoteId: mapped.remoteId,
+  });
 }
 
 export function updateTemplate(id: string, patch: Partial<Pick<VideoTemplate, "title" | "intro" | "cover" | "published">>): void {

@@ -14,7 +14,7 @@
 //   工作流模式 → seedSolo("workflow")，方案台是主路径
 //   简约模式 → seedSolo("simple")，单节点单走向、不推演方案、**不存草稿**，UI 收到最简
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import ForgeOverlay, { type ForgePhase } from "../components/ForgeOverlay";
 import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
 import GenTrace from "../components/GenTrace";
@@ -22,7 +22,9 @@ import Icon from "../components/Icon";
 import { MaterialButtonArt } from "../components/MascotStage";
 import MaterialSheet, { MaterialStrip } from "../components/MaterialSheet";
 import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
-import { AI_REAL } from "../ai";
+// ★ VIDEO_PROMPT_MAX 取自 ai 层（提示词硬顶的唯一出处）：白模 V2 的输入框里装的是
+//   真正发出去的那段话，在这里另抄一个 400 出来，改上限时这里就开始说假话
+import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
 import { tierBlockReason, walletOf } from "../data/account";
 import { myTemplates } from "../data/templates";
 import { VIDEO_TIERS, clampDuration, fmtTokens, modelLabel, proposalsCost, r2vPriceIssue, tierOf } from "../data/economy";
@@ -42,12 +44,42 @@ import {
 } from "../studio/flowStore";
 import PlanBoard from "../studio/ui/PlanBoard";
 import { deckQuoteOf, publishedExit, useStudio } from "../studio/studioStore";
-import { VIDEO_ASPECTS, aspectCss, aspectOf, formatDuration } from "../types";
+import { VIDEO_ASPECTS, VideoTemplate, aspectCss, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
+import { VIDEO_EDITOR_RESULT_KEY, type CastEditorState, type VideoEditorResult } from "./VideoEditorPage";
 
 const DURATIONS = [3, 5, 6, 8, 10];
 /** 触发换节点/换走向的滑动阈值（px）；低于它按点击处理 */
 const SWIPE = 48;
+
+/**
+ * 进「挂卡」编辑页要带的入参 —— **全 app 唯一一处**（模板详情页与本页都从这里取）。
+ * null = 这个模板没有角色位（V1 老白模 / 经典模板），本来就没有挂卡这一步。
+ *
+ * ★ 收口在这里而不是各页各拼一份：入参形状与 `returnTo` 是**跨页约定**
+ *   （形状见 VideoEditorPage 顶部注释），写错一个字母的表现是"进去了、回来了、
+ *   什么都没发生"——不报错、也不白屏，最难查的那种。
+ * ★ 返回值标成 `CastEditorState`，让编译器替我们盯住这份约定：那一页改了字段名，
+ *   这里当场编译不过，而不是等到真机上"挂完卡回来输入框还是空的"。
+ * ★ `returnTo` 恒为 `/flow`：收结果、把点名句填进输入框、之后出片，全在这一页
+ *   （store 侧是 flowStore.applyCast）。
+ */
+export function castEditorState(
+  t: Pick<VideoTemplate, "id" | "title" | "refVideo" | "roles">,
+  value: Record<string, string> = {},
+): CastEditorState | null {
+  // 判定一律写存在性（types.ts 的 ★）：老模板天然缺这两样，天然不走挂卡
+  if (!t.refVideo?.url || !t.roles?.length) return null;
+  return {
+    mode: "cast",
+    videoUrl: t.refVideo.url,
+    roles: t.roles,
+    value,
+    templateId: t.id,
+    title: t.title,
+    returnTo: "/flow",
+  };
+}
 
 /** 套模板后的"一句话"输入：配方负责像不像，用户只负责换谁来演。
  *  下面把填好的分镜实时显示出来——让用户看得见这句话到底变成了什么，
@@ -75,6 +107,100 @@ function TemplateSubjectBox() {
           {plot || "先写那句话"}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * 白模 **V2**（模板带角色位）套用时的本段内容区 —— 取代经典模板那个「一句话」输入框。
+ *
+ * ★★ 为什么这条路不能用 TemplateSubjectBox：那个框每敲一个字都走 `setSubject`，
+ *   而 setSubject 会拿配方骨架**整段重写 plot**。V2 的 plot 里装的是挂卡合成出来的
+ *   点名映射（「编号 4 的白色人偶替换为角色「张三」」）—— 被重写掉就退回泛指，
+ *   而泛指实测会漏人（F4：只换配角、主角不动），表现是画面照出、钱照收、零报错。
+ *   （store 侧 setSubject 对 V2 也已经不回填 plot，那是第二道闸；这里是第一道。）
+ * ★★ 输入框里摆的就是**真正发给 AI 的那段话**（方案 B2「以输入框为准」）：这段话决定
+ *   哪个编号换成谁，换错人只有作者肉眼能发现 —— 藏在代码里的话，他连"模型被告知了
+ *   什么"都不知道。所以合成完直接填进来，随便改。
+ */
+function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void }) {
+  const { template, cast, castErr, castFallback, castBusy, busy, updateProposal, setRequirement, fillCastFallback } =
+    useFlow();
+  const roles = template?.roles ?? [];
+  const prop = chosenOf(node);
+  const mounted = roles.filter((r) => cast[r.label]).length;
+  const [openReq, setOpenReq] = useState(false);
+  return (
+    <div className="space-y-1.5">
+      <button
+        onClick={onCast}
+        disabled={busy}
+        className="flex w-full items-center gap-2 rounded-lg border border-brand/50 bg-panel px-2.5 py-2 text-left text-xs text-slate-100 disabled:opacity-40"
+      >
+        <span className="flex-none">🎭</span>
+        <span className="min-w-0 flex-1 truncate">
+          {mounted > 0 ? `已挂 ${mounted}/${roles.length} 个角色位 · 点这里改` : `给 ${roles.length} 个编号的人偶挂上你的角色卡`}
+        </span>
+        <Icon name="chevron" size={12} className="flex-none text-slate-400" />
+      </button>
+
+      {/* 作者补充的那句话：合成时揉进点名句里。★ 存在 node.requirement 上（"用户自己的话"，
+          见 flowStore.FlowNode.requirement），与下面那段合成产物**分开**——合成一次就
+          覆盖一次 plot，两者合成一格的话，用户补的那句话每挂一次卡就被自己的产物吃掉 */}
+      <button onClick={() => setOpenReq(!openReq)} className="flex w-full items-center gap-1 text-[10px] text-slate-500">
+        <Icon name="chevron" size={10} className={`flex-none ${openReq ? "rotate-90" : ""}`} />
+        <span className="min-w-0 flex-1 truncate text-left">
+          {openReq
+            ? "收起补充要求"
+            : node.requirement?.trim()
+              ? `补充要求：${node.requirement.trim()}`
+              : "加一句你自己的要求（可选，下次挂完卡合成时并进去）"}
+        </span>
+      </button>
+      {openReq && (
+        <input
+          value={node.requirement ?? ""}
+          onChange={(e) => setRequirement(node.id, e.target.value)}
+          maxLength={60}
+          placeholder="例：整体调成黄昏的暖色调"
+          className="w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+        />
+      )}
+
+      {/* 合成失败：整句原因 + 一颗「填入默认写法」。**绝不自动填空串**——空输入框与
+          "还没写"长得一模一样，用户会以为随手写一句就够，出片时点名映射整个没发出去
+          （blockoutPrompt 的 ★，铁律八）。骨架是确定性的那一份（第五章模板逐字实现），
+          填进去照样可以改 */}
+      {castErr && (
+        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+          <p className="text-[11px] leading-relaxed text-amber-200">{castErr}</p>
+          {castFallback && (
+            <button
+              onClick={fillCastFallback}
+              className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+            >
+              填入默认写法（填完还能改）
+            </button>
+          )}
+        </div>
+      )}
+
+      <textarea
+        value={prop.plot}
+        onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
+        rows={4}
+        maxLength={VIDEO_PROMPT_MAX}
+        disabled={castBusy}
+        placeholder={castBusy ? "正在把「编号 → 角色」合成一段话…" : "先去挂卡：合成好的点名要求会填在这里，你可以逐字改"}
+        className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-60"
+      />
+      <p className="text-[10px] leading-4 text-slate-500">
+        {castBusy
+          ? "合成中…（一次对话，几秒）"
+          : prop.plot.trim()
+            ? "这就是真正发给 AI 的那段话：编号与角色名是机器生成的（改错就会换错人），其余随便改；改挂卡会按新映射重新合成、覆盖这里。"
+            : "这一段的要求由挂卡合成：AI 会把「编号 N → 你挂的角色」写成一段话填在这里，出片前你能逐字过目和修改。"}
+      </p>
     </div>
   );
 }
@@ -142,6 +268,26 @@ function NodeScreen({
   const [showPlan, setShowPlan] = useState(false);
   const matCount = node.materials?.length ?? 0;
 
+  // ── 白模 V2 的挂卡入口（结果由 FlowPage 收，见那边的 effect）──
+  const nav = useNavigate();
+  const cast = useFlow((s) => s.cast);
+  /**
+   * 「改挂卡会覆盖你在输入框里改过的字」的确认（false = 不用问）。
+   *
+   * ★★ 为什么是**覆盖**而不是保留：输入框里那段话写的是**旧的**挂卡映射
+   *   （「编号 4 → 张三」），改完挂卡还留着它，出片就照旧映射换人 —— 比丢掉几行
+   *   手写的字坏得多，而且零报错。所以不给"保留原文案"这个必然出错的选项，
+   *   只在真有内容可丢时问一句（问都不问就覆盖，也是一种静默的数据丢失）。
+   */
+  const [castAsk, setCastAsk] = useState(false);
+  function openCast() {
+    setCastAsk(false);
+    // 入参形状与回程约定收在 castEditorState 一处（本文件顶部）
+    const st = tpl ? castEditorState(tpl, cast) : null;
+    if (st) nav("/video-editor", { state: st });
+  }
+  const requestCast = () => (prop.plot.trim() ? setCastAsk(true) : openCast());
+
   // ── 方案台三态（见 flowStore.FlowNode.plan）──
   const plan = simple ? null : planOf(node);
   const picking = plan === "picking";
@@ -162,6 +308,9 @@ function NodeScreen({
   const refOn = useFlow((s) => nodeRefOn(s.nodes, index, s.mode));
   /** 本段走白模复刻（r2v）。判定与报价（nodeCost）同源：模板快照带 refVideo（存在性） */
   const blockout = !!tpl?.refVideo;
+  /** 本段走白模**点名**路（V2：模板登记了角色位）。判据是存在性（`roles?.length`，
+   *  types.ts 的 ★）——老白模模板天然缺它、天然走泛指老路，界面也照旧是「一句话」框 */
+  const named = blockout && !!tpl?.roles?.length;
   /** 当前套餐点不动的档位各是为什么（空 = 都能选）。判断在 data/account 一处 */
   const tierBlocks = VIDEO_TIERS.map((t) => tierBlockReason(t)).filter((r): r is string => !!r);
   /** 白模节点下各档位点不动的 r2v 原因（判断在 economy.r2vPriceIssue 一处，铁律六）。
@@ -376,14 +525,35 @@ function NodeScreen({
           /* 套了模板：用户只需要说"换成谁/什么主题"，其余由配方补齐。
              剧情框仍然可展开查看/微调——模板是起点不是牢笼 */
           <>
-            <TemplateSubjectBox />
+            {/* ★ V2 白模（有角色位）换成挂卡区：那条路上"换成谁"由编号→卡的映射决定，
+                而合成出来的点名句就摆在输入框里等用户过目（方案 B2）。
+                V1 与经典模板一个字没变，还是这个「一句话」框 */}
+            {named ? <BlockoutCastBox node={node} onCast={requestCast} /> : <TemplateSubjectBox />}
+            {castAsk && (
+              <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+                <p className="text-[11px] leading-relaxed text-amber-200">
+                  改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉 ——
+                  因为旧的那段话里写的还是旧的挂卡，留着它 AI 就会照旧的换人。
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={openCast} className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink">
+                    继续去挂卡
+                  </button>
+                  <button onClick={() => setCastAsk(false)} className="rounded-full px-2.5 py-1 text-[11px] text-slate-300">
+                    算了
+                  </button>
+                </div>
+              </div>
+            )}
             {/* ★ 白模的报价行必须**明示输入费构成**：r2v 连模板视频的输入时长也计费
                 （输出还≈输入），"42<70 所以更便宜"的直觉是反的——只报一个总数，
                 用户会拿纯任务的价一比就觉得被多收了。数字与主按钮同一把尺子（nodeCost） */}
             {tpl.refVideo && (
               <p className="text-[10px] leading-4 text-slate-500">
                 {`白模复刻出片（「${tierOf(node.videoTier).label}」档）：模板视频 ${tpl.refVideo.durationSec}s 的输入也计费、输出≈模板时长，共约 ${fmtTokens(cost)} token`}
-                {matCount === 0 && "。挂上带形象图的角色卡（右下角素材按钮），AI 会把红色小人换成它"}
+                {/* 一张卡都没挂时把"去哪儿挂"说清楚。★ 两条路的入口不是同一个：V2 挂在
+                    角色位上（上面那颗按钮，右下角那枚圆钮也走同一处），V1 挂在本段素材里 */}
+                {matCount === 0 && (named ? "。先给编号的人偶挂上带形象图的角色卡，AI 才知道每个编号换成谁" : "。挂上带形象图的角色卡（右下角素材按钮），AI 会把红色小人换成它")}
               </p>
             )}
           </>
@@ -491,11 +661,17 @@ function NodeScreen({
               两态之间是同一条 8 帧序列正播/倒播（见 MaterialButtonArt）。
               角标是本段已挂的张数——加卡那一下按钮会抖一下（key 换了动画才会重播，
               同 CharacterPerch 那套做法）。 */}
+          {/* ★★ V2 白模上这枚钮改开**挂卡**，不开素材窗口：那条路的 materials ≡ 挂卡结果
+              （flowStore.applyCast 整表覆盖）。放着素材窗口能自由加卡的话，加进来的卡
+              没有任何编号点它，却照样占掉一张参考图配额（一次最多 MAX_REF_IMAGES 张，
+              规则在 ai/real.allocateRefs），把真正要换的那张挤掉 —— 画面里那个人没换成，
+              钱照扣、零报错。移除同理：从素材条里删掉一张，点名句里还写着它。
+              两个入口指同一个动作，不是两条路。 */}
           <button
             key={matShake}
-            onClick={onToggleMat}
-            aria-label={`本段素材 ${matCount} 张`}
-            title="本段素材"
+            onClick={named ? requestCast : onToggleMat}
+            aria-label={named ? `挂卡 ${matCount} 张` : `本段素材 ${matCount} 张`}
+            title={named ? "给编号的人偶挂卡" : "本段素材"}
             /* 不裁圆角：让她连人带牌探出钮外一点，比塞进一个圆里更有"她在按钮上"的味道 */
             className={`relative flex h-11 w-11 flex-none items-center justify-center rounded-full transition ${
               matOpen ? "bg-brand/20 ring-2 ring-brand" : "bg-panel ring-1 ring-slate-700"
@@ -724,6 +900,7 @@ function NodeScreen({
 
 export default function FlowPage() {
   const navigate = useNavigate();
+  const loc = useLocation();
   const { nodes, cursor, mode, origin, busy, err, setCursor, addNode, removeNode, addMaterials, removeMaterial, reset } =
     useFlow();
   const [finalizing, setFinalizing] = useState("");
@@ -749,6 +926,19 @@ export default function FlowPage() {
   const [matShake, setMatShake] = useState(0);
   const tpl = useFlow((s) => s.template);
   const simple = mode === "simple";
+  /**
+   * 自由素材窗口开着吗 —— **V2 白模上恒为关**。
+   *
+   * ★★ 那条路的 materials ≡ 挂卡结果（唯一出处是角色位，flowStore.applyCast 整表覆盖）。
+   *   素材窗口能加也能删：加进来的卡没有任何编号点它，却照样占掉一张参考图配额
+   *   （一次最多 MAX_REF_IMAGES 张，规则在 ai/real.allocateRefs），把真正要换的那张挤掉；
+   *   删掉一张则是点名句里还写着它、图却没发出去 —— 两个方向都是"人没换成、钱照扣、
+   *   零报错"。所以这一格在 V2 上整个不开（那枚圆钮改成挂卡入口，见 NodeScreen）。
+   * ★ 写成派生值而不是"打开时判一下"：matOpen 是本页的存量状态，用户完全可能先开着
+   *   素材窗口、再从模板栏套上一个 V2 模板（提取器那条路就在这一页上），那一刻没人
+   *   会去关它。
+   */
+  const matWindow = matOpen && !(tpl?.refVideo && tpl?.roles?.length);
 
   // 直接输地址进来（或热更新丢了状态）：没节点就回创作入口，别停在空白页。
   // leavingRef 是必需的：组稿成功后 reset() 清空节点，本效应会在 navigate("/cut")
@@ -760,6 +950,43 @@ export default function FlowPage() {
     if (nodes.length > 0 || leavingRef.current) return;
     navigate(publishedExit() ?? "/create", { replace: true });
   }, [nodes.length, navigate]);
+
+  /**
+   * 从视频编辑页（cast 模式）回来 —— 白模 V2 套用链路的**收口**：
+   * 拿到 `编号 → 卡 id` 的映射，交给 flowStore.applyCast 去落 materials + 合成点名句
+   * （合成与对齐规则都在那里一处实现，这一页只负责"把结果接住"）。
+   *
+   * ★ 入参**按形状验收**、不按"应该有"假设：这一格 state 可能来自深链、老包缓存，
+   *   或者是模式一（选段裁剪）的结果（那条路不归这一页收）。硬转 `as` 的话要到
+   *   第一处解引用才崩，而那时页面已经白了（同 VideoEditorPage.parseState 的 ★）。
+   * ★ **先抹掉 state 再干活**：留着它，用户之后从别处按返回回到这一格 /flow 就会
+   *   再合成一次（一次 chat 调用 + 把输入框里他改过的字整段覆盖），而他什么都没点。
+   *   ref 那道判重是为同一次渲染里的重跑兜底，两者都要。
+   * ⚠ 编辑页把结果 replace 回来时，App 进程若在挂卡那几分钟里被系统回收过，store 里
+   *   的流水线就是空的（内存态，不落盘）—— 那时上面那个 effect 会把人送回 /create，
+   *   applyCast 也会整句说"这条流水线上没有可挂卡的白模模板"。不装作没事发生。
+   */
+  const castTaken = useRef<unknown>(null);
+  useEffect(() => {
+    const raw = (loc.state as Record<string, unknown> | null)?.[VIDEO_EDITOR_RESULT_KEY];
+    if (!raw || castTaken.current === raw) return;
+    castTaken.current = raw;
+    navigate(loc.pathname, { replace: true, state: null });
+    const r = raw as Partial<VideoEditorResult> & { cast?: unknown };
+    if (r.mode !== "cast" || !r.cast || typeof r.cast !== "object") return;
+    const map: Record<string, string> = {};
+    for (const [k, v] of Object.entries(r.cast as Record<string, unknown>)) if (typeof v === "string" && v) map[k] = v;
+    const st = useFlow.getState();
+    // 对号入座：模板对不上就整句拒绝，绝不"就近用"——编号是**这个模板**的编号，
+    // 张冠李戴地套到另一个模板上，出片时就是换错人且零报错（types.roles 的 ★★）
+    if (r.templateId && st.template && r.templateId !== st.template.id) {
+      useFlow.setState({
+        err: "刚才挂卡的是另一个模板（这条流水线上套的模板中途换过了）——回模板详情页重新套用一次再挂卡",
+      });
+      return;
+    }
+    void st.applyCast(map);
+  }, [loc.state, loc.pathname, navigate]);
 
   // ★ 自动存盘只挂在"又炼出一段"这一个事件上，不做定时/每次改动都存：
   //   一段视频是几十秒 + 真金白银，丢了补不回来；而草稿正文带整份首尾帧 base64，
@@ -1016,7 +1243,7 @@ export default function FlowPage() {
           node={node}
           index={cursor}
           total={nodes.length}
-          matOpen={matOpen}
+          matOpen={matWindow}
           matShake={matShake}
           onToggleMat={() => setMatOpen((v) => !v)}
           focus={planFocus}
@@ -1029,16 +1256,16 @@ export default function FlowPage() {
       {/* ── 底部区：素材窗口开着时是【本段素材】，否则是【整条流水线的节点条】──
           这两样是同一块地方的两种用途：素材窗口一打开，用户关心的就是"这一段用哪些卡"，
           此时还占着位置的节点条只是噪音（而且那会儿他也不该跳段）。 */}
-      {(!simple || matOpen) && !planFocus && (
+      {(!simple || matWindow) && !planFocus && (
         <div
           className="flex-none border-t border-slate-800 bg-[#141821] px-3 pt-2.5"
           /* ★ 不能写 `safe-bottom pb-3`：.safe-bottom 在 index.css 里排在 @tailwind utilities
              之后，两条都是 padding-bottom，后写的赢 —— 于是没有安全区的设备（桌面、
              大多数安卓）padding-bottom 直接变成 0，素材卡整排贴死在屏幕最底边。
              两个值必须合成一个。素材条比节点条高，多留一点。 */
-          style={{ paddingBottom: `calc(${matOpen ? "1rem" : "0.75rem"} + env(safe-area-inset-bottom, 0px))` }}
+          style={{ paddingBottom: `calc(${matWindow ? "1rem" : "0.75rem"} + env(safe-area-inset-bottom, 0px))` }}
         >
-          {matOpen ? (
+          {matWindow ? (
             <MaterialStrip materials={node.materials ?? []} onRemove={(id) => removeMaterial(node.id, id)} />
           ) : (
             <>
@@ -1117,7 +1344,7 @@ export default function FlowPage() {
       )}
 
       {/* 素材窗口：从屏幕上方落下，拖卡到屏幕中间交给看板娘 */}
-      {matOpen && (
+      {matWindow && (
         <MaterialSheet
           materials={node.materials ?? []}
           onAdd={(cards) => {

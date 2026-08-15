@@ -1563,6 +1563,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
           //   **出片其实完全不认识那张卡** —— 卡片对画面零影响，而界面上它就摆在那儿。
           //   同一条规则两份实现，修了一份忘了另一份（铁律六）。
           materials: slot.materials,
+          // ★★ 这里**没有** refVideoUrl / roles，是结论不是遗漏：白模（模板套用）整条路
+          //   只活在工作流侧 —— 模板快照挂在 `flowStore.template` 上，工坊的节点树里根本
+          //   没有"模板"这个位子（applyTemplate 只 seed flowStore）。没有 refVideoUrl，
+          //   segmentGen 的 `blockout` 恒为 false，`roles` 那个存在性开关也就无从谈起。
+          //   要在工坊也支持白模，得先给节点树一个模板位——那时**两个位置一起改**，
+          //   别只在这里补一个 roles（喂了也没人读，是更难发现的假接线）。
         },
         prog,
       );

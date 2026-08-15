@@ -71,6 +71,8 @@ const ULTRA_MULT = 4.7;
  *
  * ✅ 与 ULTRA_MULT 那种"两个第三方来源互证"不同，这个数是**对过真账单**的：
  *   2026-08 A3 实测两发，raw 用量与文件头那条公式逐 token 相等，金额命中 42 元/M 档。
+ * ✅ 2026-08-15 费用中心又逐行核过一次（筛「Doubao-Seedance-2.5 在线推理」）：
+ *   单价一行行都是 **¥0.042/千 token = 42 元/M**，÷15 元/M 锚正好 2.8，与本常量逐位吻合。
  * ★ 它与 ULTRA_MULT 不是一个东西也**不许互相推导**：4.7 是纯任务（不含视频输入）
  *   70 元/M 档，2.8 是含视频输入 42 元/M 档 —— 方舟按请求里有没有 reference_video
  *   分档计价，server 的 resolveR2v 也按同一判据换表。
@@ -118,6 +120,28 @@ export interface VideoTier {
    */
   r2vMult: number | null;
   /**
+   * 这一档的出片**带不带 AI 生成的环境音**（协议侧发 `generate_audio: true`）。
+   *
+   * ★ 四档全部显式写值、不留 undefined（同 refImg/refVid 的理由：留空就得到处 `?? false`，
+   *   那是第二处默认值）。
+   * ★★ 分界在**模型代际，不在价钱** —— 2026-08-15 实测：2.x 真出声（hd 的 2.0-mini
+   *   -30.2dB、ultra 的 2.5 -27.5dB，都是真实内容），1.x（fast/std 的 1.0-pro）
+   *   **收下这个参数却静默忽略**。所以"想要声音就得买贵的"是不成立的：hd 档
+   *   **免费套餐就能选**（paidOnly 只挡 ultra），切过去就有声音。
+   *   ⇒ **不替用户改默认档**：把默认从 std 换成 hd 等于让所有人多花 60% 去换一段环境音，
+   *     而且 1.0-pro 是整张价目表 15 元/M 的锚，换默认档要重算全部报价。
+   * ★ 开音频**零额外成本**，所以这一格**不进任何报价公式**：2026-08-15 费用中心逐行核对，
+   *   同素材有声/无声两发的**用量与单价完全相同**（各 209.71 千 tokens × ¥0.042/千 = ¥8.807820），
+   *   计费单元下拉里也没有给音频单列的条目。哪天方舟开始给音频单收钱，改的是价目公式，
+   *   不是这一格。
+   * ★ 协议侧（ai/arkClient.generateVideo）按 **model id** 回查这一格（见 videoAudioOn），
+   *   支持的传 true、不支持的**一个字段都不传**。「这一档有没有声音」的判据只有这一格。
+   * ⚠ 跨仓：server 的 resolveR2v 现在还钉着「白模出片 generate_audio 必须 false/缺省」
+   *   （ark.routes.js）。放开是那边**与价目同一个提交**的事；服务端没跟上时白模那条路会被
+   *   整句 400 拒（未受理、不扣费、看得见原因），不是静默降级。
+   */
+  audio: boolean;
+  /**
    * 只有付费套餐能选。免费版**看得见但选不了**，并写出原因（藏起来用户不知道有这回事）。
    * ★ 这只是界面提示，**不是安全边界** —— 真正的拦截在服务端按当前用户套餐判。
    *   判断本身只有一处：data/account.tierBlockReason。
@@ -133,14 +157,19 @@ export interface VideoTier {
 }
 
 export const VIDEO_TIERS: VideoTier[] = [
-  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 0.3, flf: false, refImg: false, refVid: false, r2vMult: null, minSec: 3, desc: "省 token · 首帧起拍，不锁尾帧" },
-  { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, minSec: 3, desc: "首尾帧可控（默认）" },
+  // fast/std 是 1.0-pro：`generate_audio` 收下就扔（实测），所以 audio 显式 false ——
+  // 不是"我们不给"，是这一代模型出不了（见 VideoTier.audio 的 ★★）
+  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 0.3, flf: false, refImg: false, refVid: false, r2vMult: null, audio: false, minSec: 3, desc: "省 token · 首帧起拍，不锁尾帧" },
+  { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, audio: false, minSec: 3, desc: "首尾帧可控（默认）" },
   // ★ desc 是给**用户**看的，不是给运维看的。原来这里写的是「需在方舟控制台开通 2.0 系列」——
   //   那是部署方的事，终端用户既看不懂也做不了（CLAUDE.md 那条「界面上摆一个用户看不懂
   //   也做不了事的东西」）。开通与否的后果由服务端 ALLOWED_MODELS 与方舟的 ModelNotOpen 负责。
   // hd 的 r2vMult 刻意留 null（不是忘了）：0.93 只是刊例折算的备选，A6（mini 对
   // omni_reference_task_type 的行为）与账单都没核过 —— 没核过的价不进表（见文件头）。
-  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 1.6, flf: true, refImg: true, refVid: false, r2vMult: null, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片" },
+  // ★ hd 的 audio: true 是**免费套餐也听得到声音**的那条路（paidOnly 只挡 ultra）——
+  //   实测 2.0-mini 真出声（-30.2dB），且开音频零额外成本，所以 desc 里如实写出来：
+  //   不写的话用户只能靠"换个档试试"发现，而多数人只会以为 App 的片本来就是哑的。
+  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 1.6, flf: true, refImg: true, refVid: false, r2vMult: null, audio: true, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音" },
   {
     id: "ultra",
     label: "电影级",
@@ -155,10 +184,12 @@ export const VIDEO_TIERS: VideoTier[] = [
     //   VIDEO_MULT_R2V 逐条相等（arkProxy.spec 有跨仓钉子）。
     refVid: true,
     r2vMult: ULTRA_R2V_MULT,
+    // 2.5 实测出声（-27.5dB），且与无声两发的用量/单价逐位相同（见 VideoTier.audio）
+    audio: true,
     paidOnly: true,
     // 2.5 的时长区间是 [4,30]，3 秒会被同步 400（见 VideoTier.minSec）
     minSec: 4,
-    desc: "最新一代 · 画面与运镜最好，单段消耗约标准档 4.7 倍（仅付费套餐）",
+    desc: "最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，单段消耗约标准档 4.7 倍（仅付费套餐）",
   },
 ];
 
@@ -166,6 +197,26 @@ export const DEFAULT_TIER = "std";
 
 export function tierOf(id: string | undefined): VideoTier {
   return VIDEO_TIERS.find((t) => t.id === id) ?? VIDEO_TIERS[1];
+}
+
+/**
+ * 「这个模型出片带不带 AI 生成的环境音」—— 按**真正发出去的 model id** 查，给协议层
+ * （ai/arkClient.generateVideo 决定传不传 `generate_audio`）用。
+ *
+ * ★ **唯一实现**（铁律六）：音频支持与否只有 `VideoTier.audio` 一格，arkClient 那侧
+ *   **不许再列一张模型正则表**。它已经有 supportsRefImage / supportsRefVideo 两张白名单，
+ *   再加一张就是"改了档位表却忘了改正则"——而音频漏改**没有任何症状**：画面照出、
+ *   钱照收，只是片子是哑的，用户只会以为自己手机静音了。
+ * ★ 按 model 而不是 tierId 查，是因为协议层手上只有 model（generateVideo 的入参就是
+ *   model，档位在更上游）。两者一一对应的保证在这张表里：同一行的 id 与 model。
+ * ★ 认不出的 model 一律 false（= 不传这个字段）：那是"不在档位表里的 id"——老包报上来的
+ *   旧型号、临时试的新型号。往"不传"这一侧退是安全的：实测有声无声同价，两个方向都不会
+ *   多收钱；而猜它支持再传过去，只是给一个不认识的模型发一个它不认识的参数。
+ * ★ 写 `=== true` 而不是 `?? false`：后者读起来像"这里有一个默认值"，会引下一个人去别处
+ *   再写一个 `?? false`（那就是第二处默认值，refImg 的注释里已经踩过这条）。
+ */
+export function videoAudioOn(model: string): boolean {
+  return VIDEO_TIERS.find((t) => t.model === model)?.audio === true;
 }
 
 /**
@@ -255,6 +306,27 @@ export function r2vPriceIssue(tierId?: string): string | null {
   if (t.r2vMult === null)
     return `「${t.label}」这一档的白模出片暂时报不出价（${modelLabel(t.model)} 的 r2v 单价未核账），先用别的档位`;
   return null;
+}
+
+/**
+ * 「白模那条路实际走哪一档」—— 用户在白模链路上**没有档位选择器**（出片模型由链路本身
+ * 决定，不是节点卡上选的），所以这件事得有一个统一的出处：**开着 refVid 的那一档**。
+ *
+ * ★ 返回 null = 全表都没开闸（refVid 全 false，首发时的状态）。调用方据此既不报价也不开炼，
+ *   人话走 blockoutizeIssue。
+ * ★ 为什么用 `find(refVid)` 而不是写死 `"ultra"`：refVid 是**闸门**（开闸 = 仓库主人只翻
+ *   那一个布尔的 commit），写死 id 就等于把闸门抄了第二份 —— 翻了布尔却没改这里，
+ *   表现是"闸开了但白模链路还按老档报价"，两个方向都不报错。
+ * ⚠ 这里假设**同时最多只有一档开着 refVid**（今天成立：方舟只有 2.5 支持 edit 子任务，
+ *   而白模化那一发的模型由**服务端**的 blockoutize 端点钉死，能对上正是因为只有一个候选）。
+ *   哪天开了第二档，这个函数就不再够用 —— 那时必须改成「服务端告诉我们这一发用了哪一档」，
+ *   **不许在这里猜**：猜错就是报 A 档的价、按 B 档结算。
+ * ⚠ 另有两处内联的 `VIDEO_TIERS.find((x) => x.refVid)`（pages/TemplateDetailPage、
+ *   studio/flowStore）是本函数出现之前留下的同款判断，那两个文件这一轮不归本施工位改 ——
+ *   接线那一位请把它们换成这里（铁律六）。
+ */
+export function blockoutTier(): VideoTier | null {
+  return VIDEO_TIERS.find((t) => t.refVid) ?? null;
 }
 
 // ── 出图模型与铸卡档位 ─────────────────────────────────────────
@@ -665,6 +737,54 @@ export function templateSettle(frameCount: number, minted: number): number {
  */
 export function blockoutTemplateCost(frameCount: number): number {
   return visionCardsTokens(frameCount, 0);
+}
+
+/**
+ * **白模化**（把用户自己的一段视频整段换成带编号的白模人偶）那一次的报价：
+ * 看帧列人物 + **一次真实付费出片**（r2v edit）。
+ *
+ * ★ 这条链路花的是**两次真钱**（白模化一次、别人套用出片再一次），而这个函数报的是
+ *   **前面那次**。编辑页开炼前必须把它整句报出来 —— 只报"套用时多少钱"是把最先花掉的
+ *   那笔藏起来，正是本文件反复在防的「报价 ≠ 实收」。
+ * ★ 视觉那一半复用 blockoutTemplateCost 的口径（单遍视觉、0 张卡面）：白模化的第一步与
+ *   提白模模板一样是"看几帧总结画面里有什么"，同一件事不许有第二条式子。
+ * ★ 出片那一半走 r2vTokens，输入时长 = **编辑页框选的那一段**（F1：方舟 edit 的输入视频
+ *   必须 4~30 秒）。它能与服务端结算对上，是因为服务端拼 Cloudinary 变换 URL 用的就是
+ *   提交上来的那个 durSec（并现查裁后元数据复核）—— 两端算的是同一个数。
+ *   ⚠ 别喂 `<video>` 在本机现探的时长：那是客户端报的数，服务端一律不认。
+ * ★ **不过 clampDuration**（同 r2vTokens）：那个 10s 上限是纯 t2v 档位的产品约束，
+ *   白模化这一段是 [4,30]，夹到 10 就是"报 10s 的价、按 30s 实收"。
+ * ★ 返回 **null = 这一发报不出价**（语义与 r2vTokens 完全一致：闸没开 / 这一档没有 r2v 单价），
+ *   不是免费、也**不许退化成"只报视觉那一半"** —— 那会让用户以为白模化只花几千 token。
+ *   人话侧走 blockoutizeIssue，两者必须同时用：报不出价就既不报也不开炼。
+ */
+export function blockoutizeCost(frameCount: number, durSec: number): number | null {
+  const video = r2vTokens(durSec, blockoutTier()?.id);
+  return video === null ? null : blockoutTemplateCost(frameCount) + video;
+}
+
+/**
+ * 「白模化现在能不能**报价**」的人话版（null = 能）。
+ *
+ * ★ 不是第二处判断：走哪一档由 blockoutTier 说，能不能卖由 r2vPriceIssue 说，这里只是把
+ *   两者接起来 —— 因为白模链路上**用户没有档位选择器**，直接 `r2vPriceIssue(undefined)`
+ *   会退到标准档，吐出一句「「标准」这一档暂未开放…」，而用户根本没选过标准档。
+ * ★ 与 blockoutizeCost 一一对应：那边返回 null 时，这边必然有一句话可说（反之亦然）。
+ *
+ * ★★ **它只是门禁的一半**（目录侧：闸门 + 价目），认不出"当前用户的套餐" —— 而白模化
+ *   钉死走的 ultra 是 `paidOnly` 的一档，免费套餐在服务端是 403。要问「这个账号现在
+ *   能不能开炼」，一律问 **`data/templates.blockoutizeBlockReason()`**（那边把本函数与
+ *   `account.tierBlockReason` 接成一句话，是全 app 唯一的那处）。
+ *   为什么这里不自己补上套餐那一半：本模块是**纯目录**，account 已经 import 它，
+ *   反向 import 会成环（Vite 下拿到半初始化的模块，CLAUDE.md 那条 store 环坑同理）。
+ * ★ 编辑页（BlockoutTrimmer）只问本函数是**有意的**：套餐那道门在更早的入口
+ *   （VideoTemplateExtractor 的白模开关）已经拦过，走到编辑页的人必然过了它 ——
+ *   在这里把同一句话再说一遍，用户只会以为出了两个错。
+ */
+export function blockoutizeIssue(): string | null {
+  const tier = blockoutTier();
+  if (tier === null) return "白模化暂未开放（当前没有任何档位开着白模出片），等开放后再来";
+  return r2vPriceIssue(tier.id);
 }
 
 /**

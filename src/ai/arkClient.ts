@@ -14,7 +14,7 @@
 // 密钥永远不进前端包：APK 解一下就拿到了（铁律三）。
 import { API_BASE, API_ON, getToken } from "../api/client";
 import { syncRemoteWallet } from "../data/account";
-import { DEFAULT_IMAGE_TIER, imageTierOf } from "../data/economy";
+import { DEFAULT_IMAGE_TIER, imageTierOf, videoAudioOn } from "../data/economy";
 
 /** 把响应头上的权威余额同步进本地镜像。头部缺失（CORS 没放行/dev 代理）时什么都不做。 */
 function syncWalletFromHeaders(h: Headers): void {
@@ -374,7 +374,29 @@ export async function generateVideo(
         model,
         content,
         resolution: "720p",
-        generate_audio: false, // 无声更省 tokens（0.008 vs 0.016 元/千），配乐后续再说
+        // ★★ 音频：**开着不多花一分钱**，所以能出声的档一律出声。
+        //   ⚠ 这一行原来是 `generate_audio: false // 无声更省 tokens（0.008 vs 0.016 元/千）`
+        //     —— 那两个单价**查无实据**（账单里没有、方舟公开价目里也没有），却让我们白白
+        //     关掉了本来免费的声音，用户拿到的每一段片都是哑的。不写出处的数字就是这么
+        //     误导人的（铁律十），所以这次是**连注释一起**改掉。
+        //   ✅ 2026-08-15 费用中心逐行核对（计费单元「Doubao-Seedance-2.5 在线推理」）：
+        //     同素材有声/无声两发的用量与单价**完全相同**（各 209.71 千 tokens ×
+        //     ¥0.042/千 = ¥8.807820），且下拉里**没有**任何给音频单列的计费项 ⇒ 零额外成本。
+        //     也因此报价公式里没有音频项是对的（见 economy 的 VideoTier.audio）。
+        //   ★ 分界在**模型代际不在价钱**：2.x 真出声（实测 hd/2.0-mini -30.2dB、
+        //     ultra/2.5 -27.5dB），1.x（fast/std 的 1.0-pro）收下这个参数却静默忽略。
+        //     判据只有 economy 的 `VideoTier.audio` 一格 —— 这里**不再列第二张模型表**
+        //     （上面 supportsRefImage/supportsRefVideo 那两张协议白名单是另一回事：它们防的是
+        //     "静默忽略 = 收了钱却偷换商品"；音频传错既不多收钱也不换商品，不值得再抄一份
+        //     会和档位表分叉的正则）。
+        //   ★ 不支持的档**一个字段都不传**：传了也白传，发一个模型不认的参数没有好处。
+        //   ★ 支持的档显式传 true 而不是省略：方舟的默认值实测**本来就是出声**（早期没传
+        //     这个参数的产物带 -25.8dB 音轨），但那是方舟的默认、说改就改，"这一发要不要
+        //     声音"必须在我们自己的代码里看得见。
+        //   ⚠ 跨仓：server 的 resolveR2v 目前钉着「白模出片 generate_audio 必须 false/缺省」。
+        //     服务端没跟上这一轮时，**白模那条路**会被整句 400 拒（未受理、不扣费、看得见
+        //     原因），不是静默降级 —— 但它意味着**服务端要先发**。
+        ...(videoAudioOn(model) ? { generate_audio: true } : {}),
         watermark: false,
         ...(refVideoUrl
           ? // 白模：duration / ratio / omni_reference_task_type 三件由 BLOCKOUT_TASK 整体

@@ -791,45 +791,71 @@ UI 把它显示出来 —— 「删了个寂寞」必须有症状。
 
 ## 白模模板（blockout r2v）
 
-白模模板 = 一段"白模预演视频"（主角位是红色小人、场景是灰白简模）+ 配方。套用者
+白模模板 = 一段"白模视频"（人物是无五官的白色人偶、场景/运镜是原样的）+ 配方。套用者
 出片走方舟 r2v（`omni_reference_task_type:"edit"`）整段复刻场景与运镜、只换主体。
 方舟 r2v 的 `video_url` **只收 URL / asset://，没有 base64 选项** —— 参考视频必须先有
 公网地址，所以上传是建模板的硬前置，不是可选项。
 
-生命周期：上传视频（回执复核）→ 登记模板（`status=pending`）→ 作者自己付费出一次片
-（服务端置 `provenAt`，试炼闸）→ 发布（`published`）→ 上市场；平台下架是 `blocked`。
+**两条进货渠道，别合并**（2026-08-15 起）：
 
-### 参考视频上传
+| | V1：自带白模片 | V2：白模化（blockoutize） |
+|---|---|---|
+| 作者手上有什么 | 已经做好的白模预演视频 | **任意实拍/成片** |
+| 怎么建 | 上传 → `POST /templates` 登记 | 上传 → 编辑页框选一段并裁掉水印 → `POST /templates/blockoutize` |
+| 花不花 AI 的钱 | 不花 | **花两次真钱**（看帧认人的 chat + 一次真实付费出片） |
+| 角色位 | 无（整段只有一个主体） | 有（`roles[]`，套用者逐个人偶挂卡） |
+
+生命周期（服务端 `status` 是权威）：
+
+```
+上传素材（回执复核，① 号窗口）
+  → V1: 登记 /templates          ┐
+  → V2: 白模化 /templates/blockoutize ┘ → status=pending
+  → 【V2 多一道】作者核对角色位编号（PATCH /templates/:id/roles，labelConfirmed=true）
+  → 作者自己付费用它出一次片（服务端置 provenAt —— 试炼闸）
+  → 发布 PATCH /publish（**两道独立的门**：provenAt 非空 + 编号已核对）→ status=published 上市场
+  → 平台下架 = blocked（作者 publish/unpublish 都动不了）
+```
+
+### 两套验收窗口（V2 起分家，混用哪一个都不报错、只会静默出事）
+
+- **① 原始素材**（用户传上来的那一份）—— 唯一实现 server `middleware/upload.js` 的
+  `templateSourceIssue`；调用方只有上传口。
+- **② 参考视频**（真正喂给方舟的那一段）—— 唯一实现同文件的 `templateRefIssue`；
+  调用方三处：V1 登记复核、V2 裁剪后复核、V2 **白模化产物**转存后复核。
+
+| 项 | ① 原始素材 | ② 参考视频 | 出处 |
+|---|---|---|---|
+| 格式 | mp4 / mov | （同左，格式在上传口就定了） | 方舟 r2v 官方只认这两种（webm/ogg 会拖到付费出片才 400） |
+| 大小 | **≤ 100MB** | — | V2 传的是任意实拍，一分钟 1080p 就 60MB 级。⚠ nginx `client_max_body_size` 必须 **≥110m**，否则请求根本到不了 Node（用户看到 nginx 的 413 静态页，服务端日志一条都没有） |
+| 时长 | **(0, 600]s** | **[4, 30]s** | 上限 600 只封上传/存储成本；[4,30] 是方舟 `edit` 子任务硬窗口（F1 实测原文 "the video selected must satisfy the duration requirement of 4 to 30 seconds"） |
+| 边长 | ≥ 300px（**无上限**） | [300, 6000]px | 裁剪框不可能比原片大 ⇒ 下限是必要条件，早拒省一次 100MB 白传；上限只对裁后那块有意义（4K/8K 原片没问题） |
+| 宽高比 | **不校** | [0.4, 2.5] | 比例正是裁剪框能修的那一项（16:9 原片裁出竖版完全合理） |
+| 宽×高 | ≥ 407,696px | ≥ 407,696px | 2026-08-14 A2 探针实测的**像素数硬门**（官方文档没写，方舟直接拒单）；裁剪面积 ≤ 原片面积 ⇒ 对原片也是必要条件 |
+
+⚠ **V1 时代那套 `[4,15]s / ≤20MB / 上传口校宽高比` 已作废**（2026-08-15）。旧值继续写在
+上传口的话，一段 3 分钟的素材连传都传不上来，而它裁出来的 8 秒完全合格 —— 用户根本没法开始。
+App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，改窗口两边一起改。
+
+### 素材上传与回收
 
 `POST /api/uploads/template-video`（requireAuth；FormData 字段名 `video`；
 限流按账号 **3 次/分 且 10 次/天** 两桶串联）。
 
 响应：`{ ok, url, publicId, duration, width, height, bytes, maxSizeBytes }`。
-`duration/width/height/bytes` 是服务端从 Cloudinary 上传回执读出的**登记值**（整数秒）；
-客户端把它镜像进 `VideoTemplate.refVideo`，r2v 报价的输入时长**只从这份镜像读**。
-服务端**不收客户端报的任何元数据**（建模板 `POST /api/branch/templates` 时还会向
-Cloudinary 再取一次作数，那次才是结算锚点）。
+`duration/width/height/bytes` 是服务端从 Cloudinary 上传回执读出的值（整数秒），
+**只是给客户端显示与预检报价用的镜像**；结算锚点是建模板/白模化时服务端再向 Cloudinary
+现查的那一次（`media_metadata: true` 必须带，见下）。服务端**不收客户端报的任何元数据**。
 
-验收窗口 —— **唯一实现在 server `middleware/upload.js` 的 `templateVideoIssue`**
-（上传回执复核与建模板复核共用那一份）；App 侧 `src/api/uploads.ts` 的
-`templateVideoPrecheckIssue` 是省用户一次白传的**镜像**，改窗口两边一起改：
-
-| 项 | 窗口 | 出处 |
-|---|---|---|
-| 格式 | mp4 / mov | 方舟 r2v 官方只认这两种（webm/ogg 会拖到付费出片才 400） |
-| 大小 | ≤ 20MB | 白模大色块 H.264 压缩率极高，15s/720p 实际 5-8MB |
-| 时长 | [4, 15]s | 下限保方舟 edit 子任务窗口 [4,30]；上限对齐 2.0 系列单发上限并封住单次成本上界（输入时长计进 r2v token） |
-| 边长 | [300, 6000]px | 方舟官方约束 |
-| 宽高比 | [0.4, 2.5] | 方舟官方约束 |
-| 宽×高 | ≥ 407,696px | 2026-08-14 A2 探针实测的**像素数硬门**（官方文档没写，方舟直接拒单） |
-
-复核不过：服务端**先 `uploader.destroy` 回收再 400 整句拒**（不留半成品，也不永久占配额）。
+回执复核走 **① 号窗口**；不过：服务端**先 `uploader.destroy` 回收再 400 整句拒**
+（不留半成品，也不永久占配额）。
 
 `DELETE /api/uploads/template-video`（requireAuth；body/query 传 `publicId`）——
-回收**未登记成模板**的托管视频（孤儿治理：上传成功但视觉分析挂了/登记一直失败后放弃，
-这类资产两端都没别的句柄）。归属钉在 `public_id` 前缀（`ideahub/template-videos/<userId>-`），
-只能删本账号传的；**已登记的 400 整句拒**（那些的生命周期归 `DELETE /api/branch/templates/:id`
-级联）；幂等（资源已不存在也回 `ok:true`）。App 侧在「放弃提取」与「删除未登记模板」两处调。
+回收**未登记成模板**的托管视频（孤儿治理）。归属钉在 `public_id` 前缀
+（`ideahub/template-videos/<userId>-<ts>`，唯一实现 `utils/templateVideoAsset.js`），
+只能删本账号传的；**两种引用都整句拒**：`refVideo.cloudinaryPublicId`（参考视频本体）
+与 `source.publicId`（V2 的原始素材，删了模板还能用但再也重做不了）；幂等
+（资源已不存在也回 `ok:true`）。App 侧在「放弃提取」与「删除未登记模板」两处调。
 
 客户端判「这台服务器有没有白模模板能力」：探 `GET /api/branch/templates/shared`，
 判**回包形状**（`ok:true` + `templates` 数组），绝不判状态码 —— Capacitor SPA 回退
@@ -843,6 +869,7 @@ Cloudinary 再取一次作数，那次才是结算锚点）。
   title, intro, coverUrl(https 或空串，zod 拒 dataURL),
   recipe: { styleHint, beats[], durationSec, videoTier, aspect?, framePrompt },   // 经典降级路的镜像
   refVideo: { url, durationSec, width, height, bytes },   // ★ 服务端从 Cloudinary 写入的登记值
+  roles?: [{ label, desc, labelConfirmed }],  // ★ 白模 V2 的角色位；**只在真有的时候才出这个键**
   status: "pending" | "published" | "blocked",
   provenAt: Date | null,          // 试炼闸：作者本人用它真实出过一次片才非空
   isOwner: boolean,               // 服务端按 ownerId 对当前 JWT 算；客户端绝不拿 authorName 比身份
@@ -851,27 +878,122 @@ Cloudinary 再取一次作数，那次才是结算锚点）。
 
 - `refVideo.url` 存的是 Cloudinary 的 `secure_url` 规范形态且**唯一索引** —— 一段视频只许
   挂一个模板（重复登记 409），r2v 结算就按这个字符串等值反查（见下「r2v 服务端规则」）。
-- `refVideo` 的数值**只由服务端从 Cloudinary 取**（建模板时按 public_id 现查一次作数）；
-  客户端只发 `videoUrl` 一个字符串，塞元数据也会被 zod strip（这里 strip 是帮手）。
+  V2 里它存的是**白模化产物转存后**的地址（不是原始素材）：方舟产物 URL 是 TOS 签名地址、
+  **24 小时过期**（F12），不转存的话今天建的模板明天就是一条死链，而且零症状 ——
+  列表照常显示，直到有人套用它出片时方舟拉不到参考视频才 400。
+- `refVideo` 的数值**只由服务端从 Cloudinary 取**（`cloudinary.api.resource(..., { media_metadata: true })`
+  —— ⚠ 这个参数是**必须的**：Admin API 对视频默认只回 width/height/bytes、**不回 duration**，
+  2026-08-14 生产实测踩过）；客户端塞元数据会被 zod strip（这里 strip 是帮手）。
+- **`roles`（白模 V2）**：`label` = 白模人偶胸口那个编号，`desc` = 这个编号在原视频里
+  替换掉的是谁（"穿黑袍的白发少年"，套用者挂卡时**只看这句话**）。三条铁则：
+  1. **判存在性**（`roles?.length`），不判等值 —— V1 老模板整个键缺失，回空数组会让客户端
+     分不清"老模板"和"新模板但一个人都没认出来"（后者根本建不出来，见下面 blockoutize 的
+     「roles 为空整句拒」）。
+  2. **`label` 是字符串，稳定但不连续**（2026-08-15 F5 实测：一发四人实出 1/2/4/5）。
+     别按下标推编号、别拿 `roles.length` 当最大编号、点名时**原样用 label**。
+  3. **`labelConfirmed` = 作者对着成片核对过了**。为假时那份 label 只是服务端按视觉清单
+     顺序编的**猜测**（1..N）—— 与画面对不上时，套用者点"3 号位"挂上张三，模型会老老实实
+     换掉画面上的 3 号（另一个人），**钱照扣、零报错**。所以未核对的模板**不许发布**
+     （见下 `PATCH /publish` 的第二道门）。客户端读不到这一位时按**未核对**处理
+     （往多提醒一次那侧退）。
 - `recipe` 刻意独立成立：老客户端把白模模板当经典配方跑，也能出一段"降级但诚实"的片。
 - `cloudinaryPublicId` 是内部回收记账字段，**不出现在响应里**。
+- **`source` 服务端存、但不出任何响应**：`{ publicId, startSec, durSec, crop:{x,y,w,h} }`，
+  是 V2 白模化的来源（溯源、重做、删模板时级联回收原始素材）。不出响应是因为它指向
+  作者自己上传的原始素材（可能是有版权的片子），把 public_id 发给每个逛市场的人没有任何
+  正当用途（同 `cloudinaryPublicId`）。客户端提交 `roles`/`source` 一律被 zod strip ——
+  收 `roles` = 让提交方自己写"1 号位是谁"，收 `source` = 让用户自己标价（`durSec` 就是
+  r2v 的计价输入时长）。**唯一的例外**是作者的编号确认（`PATCH /:id/roles`，见下）。
 
 ### 端点（挂在同一个 `/api/branch` base）
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| POST | `/api/branch/templates` | required（5/分） | 登记。body `{ title, intro, coverUrl, recipe, videoUrl }`；`videoUrl` 过三重白名单（host=res.cloudinary.com + 模板视频专用目录 + public_id 归属 `^<userId>-\d+$`），别处的链接 400；元数据服务端向 Cloudinary 现查。建成 `status=pending`。重复视频 409 |
+| POST | `/api/branch/templates` | required（5/分） | **V1 登记**。body `{ title, intro, coverUrl, recipe, videoUrl }`；`videoUrl` 过三重白名单（host=res.cloudinary.com + 模板视频专用目录 + public_id 归属 `^<userId>-\d+$`），别处的链接 400；元数据服务端向 Cloudinary 现查，复核走 **② 号窗口**（整段原片直接当参考视频用）。建成 `status=pending`。重复视频 409 |
+| POST | `/api/branch/templates/blockoutize` | required（**3 次/10 分钟**） | **V2 白模化**。body `{ publicId, startSec, durSec, crop:{x,y,w,h}, title, intro, coverUrl, videoTier?, aspect?, note? }` —— 提交的是**四组数不是 URL**（变换地址由服务端自己拼）。成功 `201 { ok, template, blockout:{ taskId, durSec } }`。失败一律带 `billed`（见下） |
 | GET | `/api/branch/templates/shared` | optional | 市场列表，只回 `status === "published"`，`{ ok, templates[] }`。**路由必须排在 `/:id` 前**（branchAsset 同款排序坑） |
 | GET | `/api/branch/templates/:id` | optional | 详情。非 published 只有作者可见，对别人一律 **404 而不是 403**（不泄露私有模板的存在性） |
-| PATCH | `/api/branch/templates/:id/publish` | required（仅作者） | **校试炼闸**：`provenAt` 为空回 400 整句（"发布前请先用这个模板成功出一段片…"）；blocked 不能发布 |
+| PATCH | `/api/branch/templates/:id/roles` | required（仅作者，**仅 pending**） | **作者核对角色位编号**（白模 V2）。body `{ roles: [{ label, desc }] }`，1~12 条，**整份替换**，落库时 `labelConfirmed=true`。这是**唯一收客户端 roles 的端点**。见下 |
+| PATCH | `/api/branch/templates/:id/publish` | required（仅作者） | **两道独立的门**：① 试炼闸 `provenAt` 非空；② 有 `roles` 时编号必须已核对。任一不过回 400 整句（各说各的原因）。blocked 不能发布 |
 | PATCH | `/api/branch/templates/:id/unpublish` | required（仅作者） | 回到 pending。blocked 是平台处置，作者洗不掉（400） |
-| DELETE | `/api/branch/templates/:id` | required（仅作者） | **连带 `uploader.destroy` 回收参考视频**（先云端后库：云端回收失败回 502 且不删库，重试即可；封面 best-effort 回收，失败不阻断）。回 `{ ok: true }` |
+| DELETE | `/api/branch/templates/:id` | required（仅作者） | **连带 `uploader.destroy` 回收参考视频**（先云端后库：云端回收失败回 502 且不删库，重试即可；封面与 **V2 的 `source.publicId` 原始素材** best-effort 回收，失败不阻断）。回 `{ ok: true }` |
 
 **试炼闸（provenAt）的写入**完全在服务端：r2v 任务被受理时代理落一条
 `{ taskId, templateId, userId }` 追踪（TTL 48h）；轮询响应 `status=succeeded` 且发起人
 就是模板作者时置 `provenAt`。客户端一句"我跑通了"不作数。为什么要有这道门：方舟任务
 **受理后**失败（真人人脸、内容审核）不退费 —— 没这道门，一个坏模板让每个套用者各赔一次；
 有这道门，坏在作者自己那一次。
+★ 注意分支二（未登记素材，见下）**没有** templateId，那一路不落试炼追踪 —— 白模化那一发
+本来也不该被算作"用这个模板出过片"（那时模板还不存在）。
+
+### 白模化 `POST /api/branch/templates/blockoutize`（V2）
+
+客户端在编辑页框出「哪一段 + 画面哪一块」，提交**四组数**（`startSec`/`durSec`/`crop`）。
+服务端走完九步，全程**客户端拿不到任何变换 URL**：
+
+1. 归属校验（`public_id` 形状 `ideahub/template-videos/<userId>-<ts>`，唯一实现
+   `utils/templateVideoAsset.js`）+ 「这段素材做过了吗」（`refVideo.cloudinaryPublicId`
+   或 `source.publicId` 命中就整句拒 —— 不在开炼前问的话，会在最后一步撞唯一索引，而那时钱已经花了）；
+2. 钱的门禁前置（价目在册 → 套餐门禁），**排在任何一次付费调用之前**；
+3. 现查原片元数据（`media_metadata: true`）→ 校四组数：裁剪框在画面内、选段在片长内、
+   裁后那一段过 **② 号窗口**。⚠ `c_crop` 超出画面时 Cloudinary 会**自己裁到边界而不是报错**，
+   所以这一步非查不可，否则方舟收到的尺寸与我们预检的不是一回事；
+4. **服务端自己拼** Cloudinary 变换 URL（`so_<秒>,du_<秒>,c_crop,x_,y_,w_,h_`，
+   F8 实测同时做时间截取与画面裁剪、零转码成本）；
+5. **预热**（F9：Cloudinary 变换是懒生成的，首次请求可能拿到不完整的资产）——
+   连发到「两次读到的字节数相同且非零」才算好，否则 502 整句拒（不把半截视频喂给方舟）；
+6. 抽几帧 → **一次 chat vision**：列出画面里有哪些人 + 外观特征（F4 的"先看"）。
+   一个人都没认出 → 整句拒、**不建空壳模板**（角色位是套用者挂卡的唯一入口）；
+7. **一次 r2v edit**（F4 的"点名"：提示词把每个人的外观特征逐个写进去 ——
+   泛指"所有人物"只换配角、主角不动，两发对照实测）；
+8. 轮询 → 产物**转存 Cloudinary**（F12）→ 用 **② 号窗口**复核产物本身（它要当下一发的输入）；
+9. 建模板 `status=pending`、`roles`（全部 `labelConfirmed:false`）、`source` = 那四组数。
+
+**失败一律整句中文 + `billed` 一位**（全 app 没有任何地方监听错误码，只回 code 等于让用户
+对着转圈干等）：
+
+```
+{ ok: false, message: "<能直接显示给用户的整句中文>", billed: true|false, code?: "PLAN_REQUIRED" }
+```
+
+| `billed` | 含义 | 典型场景 |
+|---|---|---|
+| `false` | 这一次**一分钱没动**，或已经原路退回 | 归属/四组数没过、预热失败、套餐不够格（403 `PLAN_REQUIRED`）、余额不足（402）、方舟**受理前** 400（敏感词/输入不合格，W2 已退） |
+| `true` | 已经产生费用且**退不回来** | 看帧那一步花完之后的任何失败：`roles` 为空、方舟**受理后** failed（F11：含真人人脸的视频创建时不拒、跑到一半才失败）、轮询超时、产物转存失败、产物过不了窗口 |
+
+★ 客户端缺省按 `false`（非 JSON 回包 = 请求根本没落到这个端点上）。**别把两类混成一句话** ——
+要么把没扣的说成扣了（吓人），要么把扣了的说成没扣（在钱上撒谎）。
+★ **不做真人脸门禁**（浏览器 FaceDetector 覆盖率极低，漏报比不检查更坏）：改为在编辑页
+开炼前就整句告知"视频里有真人面孔时 AI 可能中途拒绝，这种情况费用不退"，用户自负。
+
+### 角色位编号的核对 `PATCH /api/branch/templates/:id/roles`（V2）
+
+body `{ roles: [{ label, desc }] }`（1~12 条），成功回完整模板（`roles[].labelConfirmed`
+全为 `true`）。
+
+**为什么这条端点非有不可**：白模化落库那一刻的 `label` 是服务端按视觉清单顺序编的**猜测**
+（1..N），而成片上人偶胸口的数字**稳定但不连续**（F5 实测一发四人实出 1/2/4/5）。两者错位时，
+套用者点"3 号位"挂上张三 —— 模型老老实实换掉画面上的 3 号（另一个人），**钱照扣、零报错**。
+所以编号只能由**看得见画面的人**确认；这条端点收的不是数据，是**作者的确认**。
+
+规则（服务端）：
+
+- **仅作者**（身份只认 `ownerId`）、**仅 `status === "pending"`**。已发布的要先下架再改：
+  编号一变，别人工程里存的「几号位挂谁」就全对不上了，而他们那边**不会有任何提示**；
+  `blocked` 一律拒（状态归平台管）。
+- **只对有角色位的模板成立**：V1 老模板 400（不凭空造出角色位 —— 那等于给一个没有编号的
+  视频编出"1 号位"，套用者点了只会换错东西）。
+- `label` 收**任意非空字符串**（≤8 字符）：**不校"是数字"、不校连续、不锁个数**。
+  1/2/4/5 是实测的正常输出，校连续等于把正确的确认判成非法；作者还可以补上视觉漏认的人、
+  删掉它多认的一条（服务端**整份替换**，不逐条 merge）。
+- **编号不许重复** → 400 整句（重了的话套用侧的 `label → 卡` 映射会**静默互相覆盖**，
+  用户看到的是"我给两个人各挂了一张卡，结果只换了一个"）。
+- 这条端点**碰不到钱与身份**：`refVideo`/`source`/`status`/`ownerId`/`provenAt` 塞进来
+  一律被 zod strip（`durSec`/`refVideo.durationSec` 是 r2v 的计价锚点，从这里改得动就等于
+  让用户自己标价）。
+- 发布闸与试炼闸是**两道独立的门**，别合并：试炼那一发作者可以一张卡都不挂，跑通了也
+  说明不了编号对；反过来编号对了也不代表这个模板出得了片。两道各说各的原因
+  （落回另一句的话，作者会去再花一次钱出片，回来发现还是发不了）。
 
 **App 侧流转**（`src/data/templates.ts`）：提取器落本机后**立刻异步登记**（服务端 r2v 只认
 已登记 URL，不登记作者连试炼片都出不了）；登记失败原因落 `registerIssueOf`，详情页显示
@@ -880,6 +1002,24 @@ Cloudinary 再取一次作数，那次才是结算锚点）。
 `videos.remoteOn()` 为真时懒加载远端 shared、到货 emit，按 `remoteId` 与本机去重。
 ⚠ V1 没有远端元数据编辑端点：市场里展示的 title/intro/cover 是**登记那一刻的快照**，
 本机改名不回传（详情页向作者明示了这一点）。
+
+**V2 在 App 侧多两处收口**（都在 `src/data/templates.ts`，一处实现）：
+
+- `blockoutizeTemplate()` —— 白模化流程（花钱前的三道门：能力探测 / 套餐与价目 / 余额；
+  成败都刷余额镜像，因为这条路最典型的失败恰恰是**扣了钱的**）；
+- `confirmTemplateRoles()` —— 编号核对，**成功后把本机 `roles` 一起改写**：出片时点名用的
+  是本机那份，只改远端的话作者在这台设备上出的片仍按旧编号点名（改了却没生效，零症状）。
+- `RemoteTemplateState.rolesNeedConfirm` 是「这个模板还等着核对吗」的镜像（与 status /
+  provenAt 同族的生命周期状态，**不塞进 `VideoTemplate.roles`** —— 那份是出片点名要用的数据）。
+  老服务端不回 `labelConfirmed` 时按**待核对**处理。
+
+**降级矩阵**（老/新两边各差一个版本时会怎样）：
+
+| 场景 | 行为 |
+|---|---|
+| 老服务端 × 新 App | `remoteTemplatesCapable()` 探不到 → 白模化入口不渲染，V1 上传路照旧；核对端点回不出模板形状 → 整句说"可能需要升级服务端"，不假装成功 |
+| 新服务端 × 老 App | 老 App 不认 `roles`，套用时走 V1 的泛指语义句（降级但诚实）；它也发不出核对请求 —— 于是那些 V2 模板停在 pending，**不会**带着没核对的编号上市场 |
+| 存量 V2 模板（`labelConfirmed` 字段还不存在） | 服务端 `rolesNeedConfirm` 用 `!== true` 判 → 算**未核对**（它们的编号确实没人核对过），作者核对一次即可发布 |
 
 ## 账号端点（沿用既有 `/api/auth` 与 `/api/me`，实测口径）
 
@@ -1034,33 +1174,74 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
   **绝不静默退回首尾帧**（那是偷换商品）。服务端侧对应的白名单是
   `VIDEO_MULT_R2V`（模型不在表里 → r2v 任务 400 拒单）。
 
-### r2v（白模出片）的服务端规则 —— `reference_video` 只准已登记模板的 URL
+### r2v（白模出片）的服务端规则 —— `reference_video` 只有两条合法来源
 
 任务体 `content[]` 里带 **`video_url` 形状条目**（`type:"video_url"` 或带 `video_url`
 键——按**形状**判不按 `role` 判：`role` 是客户端可控字符串，只认 `role` 会被"去掉
 role 的 video_url"绕过、按纯任务价放行）的请求，代理在计费前先过 `resolveR2v`
-（server `ark.routes.js`）：
+（server `ark.routes.js`）。
 
-1. 条目必须带规范的 `role:"reference_video"`（有 `video_url` 却没有 → 400）。
-2. 按 `video_url.url` **等值反查** `BranchTemplate.refVideo.url`（唯一索引，存的是
-   Cloudinary `secure_url` 规范形态——塞一段 transformation 也绕不开）。查不到 →
-   **400 `R2V_NOT_ALLOWED` 整句拒**，方舟不会被调用、不扣费。
-3. `model` 必须在 `VIDEO_MULT_R2V` 价目表里（首发只有 Seedance 2.5 = 2.8），不在 →
-   同样 400。**绝不静默按纯任务系数（4.7）结算** —— 那是不含视频输入的价，
+先过三条共同的门：
+
+1. 条目必须带规范的 `role:"reference_video"`（有 `video_url` 却没有 → 400），且只许一条。
+2. `model` 必须在 `VIDEO_MULT_R2V` 价目表里（首发只有 Seedance 2.5 = 2.8），不在 →
+   400。**绝不静默按纯任务系数（4.7）结算** —— 那是不含视频输入的价，
    等于输入时长一分不收、账目全瞎。
-4. `blocked`（平台下架）的模板不能用；**未发布**的模板只有作者本人能用（那正是
-   发布前的试炼一步，别人拿到 URL 也蹭不了）。
-5. **生成参数钉死在计价假设上**：`omni_reference_task_type` 必须是 `"edit"`、
+3. **生成参数钉死在计价假设上**：`omni_reference_task_type` 必须是 `"edit"`、
    `duration` 只能缺省或 `-1`、`resolution` 只能缺省或 `"720p"`、`ratio` 只能缺省或
-   `"adaptive"`，越出任一条 → 400。计费是 (登记时长×2)×720p×24fps，而代理原样转发
+   `"adaptive"`，越出任一条 → 400。计费是 (输入时长×2)×720p×24fps，而代理原样转发
    请求体——不钉的话改一行客户端就能按 4s 模板的价买 30s/1080p 的产出（reference
    子任务 duration 自由、-1 上探 30s，A7 实测），差额全进我们的方舟账单且零症状。
-6. 命中后计价的输入时长**只从服务端登记的 `refVideo.durationSec` 读**，请求体里
-   客户端说什么都不作数；流水 memo 追加 ` r2v tpl:<id>`（对账用）。
+   `generate_audio` 钉的是「**与该模型的支持情况一致**」（`config/tokens.VIDEO_AUDIO`
+   与 App `VideoTier.audio` 逐条相等）：支持的档允许 `true`，不支持的档只许 `false`/缺省
+   —— 1.x 收下参数却静默忽略，传了会让两边都以为"这一发有声"。⚠ 开音频**零额外成本**
+   （2026-08-15 费用中心逐行核对：同素材有声/无声两发用量与单价逐位相同），
+   所以它**不进任何计价公式**。
 
-为什么必须收窄到注册表：r2v 的输入视频时长计进 token，「输入多长」只能有一个可信来源
-（服务端登记值）。代价是封死了"拿任意视频二创"这类非模板 r2v —— 有意的范围取舍，
-放开前必须先解决输入时长的可信来源。
+**分支一：已登记的白模模板**（套用出片 / 作者试炼）
+
+按 `video_url.url` **等值反查** `BranchTemplate.refVideo.url`（唯一索引，存的是
+Cloudinary `secure_url` 规范形态——塞一段 transformation 也绕不开）。
+`blocked` 的模板不能用；**未发布**的模板只有作者本人能用（那正是发布前的试炼一步，
+别人拿到 URL 也蹭不了）。计价输入时长**只从服务端登记的 `refVideo.durationSec` 读**，
+请求体里客户端说什么都不作数；流水 memo 追加 ` r2v tpl:<id>`；任务受理后落试炼追踪。
+
+**分支二：本账号刚传、尚未登记的托管素材**（**白模化那一发的输入**，V2 新增）
+
+白模化的输入是"用户刚传的素材裁出来的那一段"，此时世上还没有任何模板，分支一必然落空。
+⚠ **绝不能**为了过闸门先把用户原视频登记成一个"模板"：那会污染模板库、撞 `refVideo.url`
+唯一索引，还让试炼闸对着中间物计数。所以开第二条分支：
+
+- URL 必须是**服务端自己拼的那种裁剪变换地址**（`utils/templateVideoAsset.parseOwnClipUrl`
+  解得出 `publicId` + `so_`/`du_` + `c_crop` 四组数，且 `publicId` 归属本账号）。
+  **没有 `du_` 的地址一律不认** —— 那等于把整条原片（最长 600s）喂进去却只按纯任务价收。
+- 已经被登记过的素材不许走这条（否则"加一段裁剪变换"就绕开了 blocked / 未发布两道门禁）。
+- 裁后那一段要过 **② 号窗口**；再现查一次 Cloudinary 资源详情，确认 `public_id` 真的存在、
+  裁剪框没超出原片（`c_crop` 超界时 Cloudinary 自己裁到边界而不是报错）。
+- **计价输入时长 = URL 里的 `du_` 那个数**，理由是它**自洽**：Cloudinary 照这条变换投递，
+  方舟拿到的就是这么长的一段 —— 同一个字符串同时决定了"上游收到多长"和"我们收多少钱"，
+  客户端拼不出"少付多得"。公式仍只有 `config/tokens.r2vTokens` 一处（**不加新公式**）。
+- 这一路 `templateId` 为 `null`：**不落试炼追踪**（模板还不存在）。流水 memo 追加
+  ` r2v src:<publicId>`（对账时分得出白模化那一发）。
+- 额外限流：`6 次/分`（`ark-r2v-source` 桶，**串在** genLimit 后面）—— 每一发都要打一次
+  Cloudinary Admin API，而免费档 Admin API 是**全局** 500 次/小时，不限的话一个账号能把
+  全 App 的建模板能力一起刷停摆。
+
+两条都不中 → **400 `R2V_NOT_ALLOWED` 整句拒**，方舟不会被调用、不扣费。
+
+为什么要收窄到这两条：r2v 的输入视频时长计进 token，「输入多长」只能有可信来源
+（服务端登记值 / 服务端自己拼的 `du_`）。代价是封死了"拿任意视频二创"这类非模板 r2v ——
+有意的范围取舍，放开前必须先解决输入时长的可信来源。
+
+### 白模链路的两笔钱（报价 = 实收，两仓逐条相等）
+
+V2 这条链路**花两次真钱**，报价页必须**两笔都写明**，不许只报后面那次：
+
+| 步骤 | 计价 | 备注 |
+|---|---|---|
+| 看帧列人物（blockoutize 第 6 步） | 一次 chat（`CHAT_TURN_TOKENS`） | App 侧 `blockoutizeCost` 的第一项 |
+| **白模化出片**（第 7 步） | `r2vTokens(durSec)` | `durSec` = 编辑页框选的那一段（走上面的分支二） |
+| 套用出片 | `r2vTokens(template.refVideo.durationSec)` | 走分支一，与 V1 一致 |
 
 ### 出图档位与计价（**按 `model` 查表，不是一口价**）
 
@@ -1142,7 +1323,7 @@ role 的 video_url"绕过、按纯任务价放行）的请求，代理在计费�
 | `POST /images/generations` | **按 `body.model` 查表**：13,333 / 16,667 / 40,000（见上「出图档位与计价」）。认不出的按最贵档 |
 | `POST /chat/completions` | 400（一次豆包往返） |
 | `POST /contents/generations/tasks`（Seedance） | `时长×1280×720×24/1024 × 档位系数`（极速 0.3 / 标准 1 / 高清 1.6 / 电影级 4.7） |
-| `POST /contents/generations/tasks`（**r2v 白模出片**，带 `reference_video`） | `模板登记时长 × 2 × 21,600 × r2v 系数`（2.5 = **2.8** = 42 元/M ÷ 15）。见下 |
+| `POST /contents/generations/tasks`（**r2v 白模出片**，带 `reference_video`） | `输入时长 × 2 × 21,600 × r2v 系数`（2.5 = **2.8** = 42 元/M ÷ 15）。输入时长有且只有两个可信来源：**模板登记的 `refVideo.durationSec`**（分支一）或**服务端拼的变换 URL 里那个 `du_`**（分支二，白模化）。见上「r2v 的服务端规则」 |
 | `POST /contents/generations/tasks`（Seed3D） | 160,000 |
 | `GET /contents/generations/tasks/:id` | **0**（轮询高频，按次收会把一段片的价格翻几倍） |
 | `GET /asset` | **0** |
@@ -1187,8 +1368,10 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
   ⇒ 两仓同一条式子：`Math.round(输入时长 × 2 × 21,600 × 系数)`。
 - 系数 = 含视频输入档单价 ÷ 15：2.5 视频输入档 **42 元/M** ⇒ **2.8**。它与纯任务的 4.7
   是**两个档位、不许互相推导**（方舟按请求里有没有 `reference_video` 分档计价）。
-- **不过 `clampDuration` 的 10s 上限**：那是纯 t2v 档位的产品约束；r2v 时长跟随模板
-  （上传窗口 [4,15]s，服务端 `r2vTokens` 对登记值夹窗并在异常时吼）。
+- **不过 `clampDuration` 的 10s 上限**：那是纯 t2v 档位的产品约束；r2v 时长跟随参考视频
+  （**② 号窗口 [4,30]s**，服务端 `r2vTokens` 对输入时长夹到同一区间并在异常时吼）。
+  ⚠ 这个夹取区间与 ② 号窗口**必须同时改**：夹到 15 而窗口放到 30 的话，一段 20s 的模板
+  会按 15s 计价 = **报价 < 实收**，本仓头号事故形状。
 - 2.0-mini 含视频输入档刊例 14 元/M（⇒ 备选系数 0.93）**未入表**：A6（mini 对
   `omni_reference_task_type` 的行为）与账单都没核过，没核过的价不进表；促销价（4 折）
   一律不写，价目只记刊例。

@@ -19,11 +19,12 @@
 //   现在它是主路径：便宜的一步（推演 ~80k token）摆在前面挑，贵的一步（出片）挑完再走。
 import { create } from "zustand";
 import { AI_REAL, generateCover, generateProposals, prepareMaterialRefs } from "../ai";
-import { canAfford, spendTokens, tierBlockReason, walletOf } from "../data/account";
+import { canAfford, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, tierOf } from "../data/economy";
 import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
+import { type BlockoutCastSlot, blockoutApplySkeleton, composeBlockoutPrompt } from "./blockoutPrompt";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
-import { generateSegment, refVideoOn } from "./segmentGen";
+import { blockoutIssue, generateSegment, refVideoOn } from "./segmentGen";
 
 /** 画面圈选标注：某一帧上圈出的物体 + 修改要求（重生成时并入提示词并改设定帧） */
 export interface FlowAnn {
@@ -96,7 +97,31 @@ export type FlowTemplate = {
   recipe: TemplateRecipe;
   cards: Card[];
   refVideo?: VideoTemplate["refVideo"];
+  /**
+   * 白模人偶的角色位（`VideoTemplate.roles` 的镜像）。**有 = V2 白模模板**（可以逐个
+   * 编号挂人物卡，走点名路）；缺省 = V1 老白模模板/经典模板，照旧走泛指的 BLOCKOUT_SWAP。
+   *
+   * ★ 判定一律写**存在性**（`roles?.length`，types.ts 同一条 ★）：后加字段，老快照与
+   *   老草稿天然缺它、天然走老路，零迁移。
+   * ★ 必须跟着快照走、不许出片时再去模板库现查：模板可能已被作者改/删，而这一段的
+   *   报价、挂卡映射与合成好的点名句都是**套用那一刻**那份 roles 的产物 —— 现查等于
+   *   让编号在半路换一份定义，那正是"换错人且零报错"的入口。
+   */
+  roles?: VideoTemplate["roles"];
 } | null;
+
+/**
+ * 「套用态」的复位值 —— 模板快照、那句话、挂卡映射、合成失败的残留是**同一件事的四半**，
+ * 只能一起清。
+ *
+ * ★ 为什么收成一处：留着上一轮的 `cast`（编号 → 卡 id）换个模板再套用，编号对不上号
+ *   却照样能合成出一段"编号 4 换成张三"的话 —— 而新模板的 4 号根本是另一个人。
+ *   换错人是画面照出、钱照收、**一个错都不报**的故障（types.VideoTemplate.roles 的 ★★），
+ *   所以宁可每处都清干净。分散在四个 set 里写，迟早漏掉其中一格。
+ */
+function clearTemplate(): Pick<FlowState, "template" | "subject" | "cast" | "castErr" | "castFallback" | "castBusy"> {
+  return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false };
+}
 
 export function chosenOf(node: FlowNode): Proposal {
   return node.proposals.find((p) => p.id === node.chosenId) ?? node.proposals[0];
@@ -297,6 +322,30 @@ interface FlowState {
   template: FlowTemplate;
   /** 用户那句话，替换配方里的 {{主题}} */
   subject: string;
+  /**
+   * 白模 V2 的挂卡映射：**人偶胸口的编号（`roles[].label`）→ 卡 id**。
+   * 空表 = 还没挂（V1 老模板与经典模板恒为空表，它们没有角色位）。
+   *
+   * ★ 存 id 而不是整张卡：卡有 1MB 级的图，而这一格每次开编辑页都要原样塞进
+   *   history state（structured clone，见 VideoEditorPage 顶部注释）。真正要用卡的时候
+   *   由 `applyCast` 现查素材库 —— 顺带把"卡被删了/换了账号"这件事当场查出来。
+   * ★ **不进草稿**：白模模板恒被 applyTemplate 铺成 simple 模式，而简约模式整个不进
+   *   草稿库（studioStore.saveWorkDraft 里挡掉），所以这一格不需要跟着草稿走。
+   */
+  cast: Record<string, string>;
+  /**
+   * 挂卡之后合成点名提示词**失败**的整句原因（空 = 没失败）。
+   *
+   * ★ 单开一格而不是并进 `err`：这一条要在输入框旁边配一颗「填入默认写法」
+   *   （骨架在 castFallback 里），而 `err` 是一条随手叉掉的通条。
+   * ★ 绝不许失败了就往输入框里塞空串：空输入框在界面上与"用户还没写"一模一样，
+   *   用户会以为自己写一句就够，出片时那段点名映射整个没发出去（blockoutPrompt 的 ★）。
+   */
+  castErr: string;
+  /** 合成失败时那份**确定性**骨架（`blockoutApplySkeleton` 的产物），供用户一键填进输入框再改 */
+  castFallback: string;
+  /** 正在合成点名提示词（一次 chat，几秒）——按钮要转圈，别让用户以为点了没反应 */
+  castBusy: boolean;
 
   seed: (nodes: FlowNode[], opts: { mode: FlowMode; origin: "studio" | "solo" }) => void;
   /** 工作流/简约模式的空白起手：一个待填的节点 */
@@ -307,6 +356,15 @@ interface FlowState {
   applyTemplate: (t: VideoTemplate) => boolean;
   /** 写那句话：立刻把配方里的 {{主题}} 填成它，各段剧情随之成形 */
   setSubject: (subject: string) => void;
+  /**
+   * 收下编辑页（VideoEditorPage 的 cast 模式）交回来的挂卡映射：
+   * 落 materials（按角色位原序）→ 合成点名提示词 → **填进本段的要求输入框**（plot）。
+   *
+   * 返回 false = 没合成成功（原因已写进 `err` 或 `castErr`，调用方不必再编一句）。
+   */
+  applyCast: (next: Record<string, string>) => Promise<boolean>;
+  /** 把合成失败时那份骨架填进输入框（用户点了才填——不许替他默认填上，见 castErr 的 ★） */
+  fillCastFallback: () => void;
   reset: () => void;
 
   /** 改当前走向的内容（标题/剧情/时长/帧） */
@@ -353,13 +411,18 @@ export const useFlow = create<FlowState>()((set, get) => ({
   err: "",
   template: null,
   subject: "",
+  cast: {},
+  castErr: "",
+  castFallback: "",
+  castBusy: false,
 
-  // ★ template/subject 必须一起清：工坊铺过来的是 workflow 模式的节点，而模板栏只在
-  //   simple 模式渲染。留着上一轮简约模式的模板，NodeScreen 会把剧情编辑框换成模板的
-  //   「一句话」输入框，且没有「不用」可点；在那里打字会走 setSubject，把工坊 AI 推演
-  //   出来的剧情/标题/时长按模板配方整个覆盖掉。（seedSolo 与 reset 本来就清了）
+  // ★ template/subject（连同挂卡那两格，见 clearTemplate）必须一起清：工坊铺过来的是
+  //   workflow 模式的节点，而模板栏只在 simple 模式渲染。留着上一轮简约模式的模板，
+  //   NodeScreen 会把剧情编辑框换成模板的「一句话」输入框，且没有「不用」可点；在那里
+  //   打字会走 setSubject，把工坊 AI 推演出来的剧情/标题/时长按模板配方整个覆盖掉。
+  //   （seedSolo 与 reset 本来就清了）
   seed: (nodes, opts) =>
-    set({ nodes, cursor: 0, mode: opts.mode, origin: opts.origin, busy: false, err: "", template: null, subject: "" }),
+    set({ nodes, cursor: 0, mode: opts.mode, origin: opts.origin, busy: false, err: "", ...clearTemplate() }),
   seedSolo: (mode) =>
     set({
       nodes: [newFlowNode(0, { chain: false })],
@@ -368,8 +431,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       origin: "solo",
       busy: false,
       err: "",
-      template: null,
-      subject: "",
+      ...clearTemplate(),
     }),
 
   applyTemplate: (t) => {
@@ -390,7 +452,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const node = newFlowNode(0, {
         chain: false,
         // 白模模板自己不带卡（提取时认不出素材卡，cards 恒空）——「换成谁」由用户
-        // 往节点上挂自己的角色卡；万一带了就原样挂上
+        // 往节点上挂自己的角色卡；万一带了就原样挂上。
+        // ★ V2（有角色位）上这一格只是**开场值**：挂完卡之后 materials 由 applyCast
+        //   整表重写（角色位是"谁换成谁"的唯一出处，见那里的对齐规则）
         materials: t.cards.length ? t.cards : undefined,
         videoTier: gate.id,
         // 预览容器的横竖跟着模板登记的宽高走。真正的出片画幅是 adaptive 跟随源片
@@ -409,8 +473,17 @@ export const useFlow = create<FlowState>()((set, get) => ({
         origin: "solo",
         busy: false,
         err: "",
-        template: { id: t.id, title: t.title, recipe: t.recipe, cards: t.cards, refVideo: t.refVideo },
-        subject: "",
+        ...clearTemplate(),
+        // ★ roles 跟着快照走（**只在真有的时候才带这个键**，存在性语义同 data/templates
+        //   的 rolesOf）：出片时 genNode 从这里读它决定走点名路还是泛指老路
+        template: {
+          id: t.id,
+          title: t.title,
+          recipe: t.recipe,
+          cards: t.cards,
+          refVideo: t.refVideo,
+          ...(t.roles?.length ? { roles: t.roles } : {}),
+        },
       });
       return true;
     }
@@ -430,8 +503,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
       origin: "solo",
       busy: false,
       err: "",
+      ...clearTemplate(),
+      // 经典模板没有角色位（roles 只在白模 V2 上存在），这里连键都不带
       template: { id: t.id, title: t.title, recipe: t.recipe, cards: t.cards },
-      subject: "",
     });
     return true;
   },
@@ -440,6 +514,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
     set((s) => {
       const rec = s.template?.recipe;
       if (!rec) return { subject };
+      // ★★ V2 白模（有角色位）：**只记下这句话，绝不回填 plot**。那一格里装的是编辑页
+      //   合成好的点名映射（「编号 4 的白色人偶替换为角色「张三」」），拿配方骨架盖掉它
+      //   等于点名整段消失、退回泛指 —— 而泛指实测会漏人（F4：只换配角、主角不动），
+      //   表现是画面照出、钱照收、零报错。V2 那句话的去处是 applyCast 的合成
+      //   （揉进点名句里，见 node.requirement），不走 {{主题}} 填空这条路。
+      //   界面上 V2 本来就不渲染那个「一句话」输入框（FlowPage），这里是第二道闸：
+      //   这条规则一旦只活在 UI 里，换个入口调 setSubject 就会静默把点名句抹掉。
+      if (s.template?.roles?.length) return { subject };
       // 白模的段时长跟模板**登记值**走（recipe.durationSec 是留给老客户端经典降级路的数）：
       // 填空这一步别把它改回配方数——报价虽不看它（r2v 按登记时长算），但界面上显示的
       // 段时长与实际出片时长（edit 输出≈输入）对不上，也是一种骗人（铁律八）
@@ -461,7 +543,158 @@ export const useFlow = create<FlowState>()((set, get) => ({
       };
     }),
 
-  reset: () => set({ nodes: [], cursor: 0, busy: false, err: "", template: null, subject: "" }),
+  applyCast: async (next) => {
+    const s0 = get();
+    // ★ 与别的动作一样让位给在途生成，但**要说一句**：这一步是用户刚从编辑页点了
+    //   「完成挂卡」回来的，静默 return 的表现就是"挂了半天，回来什么都没变"（铁律八）
+    if (s0.busy) {
+      set({ err: "这一段正在生成中，等它跑完再改挂卡（改了也得重炼一次，别白花一次钱）" });
+      return false;
+    }
+    const tpl = s0.template;
+    const roles = tpl?.roles;
+    // 白模模板恒为**单段**（applyTemplate 只铺 1 个节点，addNode 又拒绝追加），
+    // 所以"本段"就是第 0 段——不去猜 cursor
+    const node = s0.nodes[0];
+    if (!tpl?.refVideo || !roles?.length || !node) {
+      set({
+        err: "这条流水线上没有可挂卡的白模模板（角色位只有带编号的白模模板才有）——回模板市场重新套用一次",
+      });
+      return false;
+    }
+
+    // ★★ 下面几道拒绝**一律不写 cast**：`cast`（映射）/ `materials`（真发出去的形象图）/
+    //   `plot`（点名句）是一个整体，只在三样都成立时一起换。半推半就地只更新映射，
+    //   界面就会显示"已挂 4/4"，而出片用的还是上一轮那份点名句与那批卡 —— 用户按界面
+    //   判断、按旧映射出片，正是这条链路最要防的那种错。代价是被拒时要重挂一次，
+    //   而这两种拒绝（卡没了 / 重名）本来就得回编辑页去改。
+    //
+    // ── 编号 → 卡：只认**本账号素材库里真存在**的卡 ──
+    // ★ 编辑页交回来的是 id（history state 塞不下 1MB 的卡面，见 VideoEditorPage 顶部
+    //   注释），所以这一刻才现查。查不到不是小事：界面上那个位子显示"？"，映射里却还
+    //   留着一个 id —— 不拦的话出片时它既没有形象图、点名句里又白白点了它的名，
+    //   模型只能自己编一个人出来，钱照扣（铁律八）。
+    const mine = new Map(myCards().map((c) => [c.id, c]));
+    const slots: BlockoutCastSlot[] = [];
+    const missing: string[] = [];
+    for (const r of roles) {
+      const id = next[r.label];
+      const card = id ? (mine.get(id) ?? null) : null;
+      if (id && !card) missing.push(r.label);
+      slots.push({ label: r.label, desc: r.desc, card });
+    }
+    if (missing.length > 0) {
+      set({
+        err: `编号 ${missing.join("、")} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下`,
+      });
+      return false;
+    }
+    const taken = slots.filter((s): s is BlockoutCastSlot & { card: Card } => !!s.card);
+    if (taken.length === 0) {
+      // 一张都没挂（含"把之前挂的全取下"）：**如实落下去再拒**。
+      // ★ 不落的话，编辑页下次打开还显示着用户已经取下的那些卡（界面在撒谎）。
+      // ★ 上一轮合成的那段点名句必须一并撤掉：它点的是已经取下的卡，留着就是一份
+      //   **旧映射** —— 按旧映射出片正是"换错人且零报错"。清掉不会让用户白干，
+      //   因为这个状态本来就出不了片（门口的 blockoutIssue 拦着，理由同下面这句）。
+      set({ cast: {}, castErr: "", castFallback: "", err: "一个角色位都没挂卡：白模出片全靠卡上的形象图说明「换成谁」，一张都不挂的话出不了片——回去至少挂一张" });
+      get().updateNode(node.id, { materials: undefined });
+      get().updateProposal(node.id, { plot: "" });
+      return false;
+    }
+    // ★★ 重名硬拦：合成句说「编号 4 …替换为角色「张三」」，出片时的绑定句说
+    //   「<图片2>…定义为角色「张三」」—— 两句是靠**角色名**接上的（编号 M 在合成那一刻
+    //   还不存在，理由见 blockoutPrompt.blockoutApplySkeleton 的 ★）。两张**不同**的卡
+    //   重名，这个连接键就失效了：模型只能在两张脸里挑一张，挑错了就是张三换到李四身上，
+    //   而画面照出、零报错。同一张卡挂在两个位子上是合法的（用户就是要同一个人），
+    //   所以判的是"名字相同但 id 不同"。
+    const byName = new Map<string, string>();
+    for (const s of taken) {
+      const seen = byName.get(s.card.name);
+      if (seen && seen !== s.card.id) {
+        set({
+          err: `有两张不同的卡都叫「${s.card.name}」（编号 ${s.label} 挂的是其中一张）——出片时靠角色名把形象图接到编号上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡`,
+        });
+        return false;
+      }
+      byName.set(s.card.name, s.card.id);
+    }
+
+    // ── materials：按**角色位原序**落盘，同一张卡只落一次 ──
+    // ★★ 顺序决定的**不是**"谁是谁"（那由角色名连接，见上面重名那条），而是
+    //   **预算不够时谁先被挤掉**：一次出片最多带 MAX_REF_IMAGES 张参考图，多出来的卡
+    //   只按文字参与（规则的唯一实现在 ai/real.allocateRefs，这里绝不复述）。
+    //   用 `roles` 的原序，是因为那正是编辑页角色位列表的显示顺序，也是那一页
+    //   「多出来的会被挤掉」那句提醒所指的顺序 —— 在这里另排一次（比如按编号数值排），
+    //   用户看到的顺序与真正被挤掉的那张就对不上了。
+    // ★ 整表**覆盖**而不是追加：V2 白模节点的素材卡 ≡ 挂卡结果（唯一出处是角色位）。
+    //   追加的话，上一轮挂过、这一轮取下的卡还赖在 materials 里 —— 它没有任何编号点它，
+    //   却照样占一张参考图配额，把真正要换的那张挤掉。
+    const mats: Card[] = [];
+    for (const s of taken) if (!mats.some((m) => m.id === s.card.id)) mats.push(s.card);
+    // 映射也只留"角色位上真有的"那些键：编辑页可能带回已经删掉的位子（换了模板/老 state）
+    const cleaned: Record<string, string> = {};
+    for (const s of taken) cleaned[s.label] = s.card.id;
+
+    set({ busy: true, castBusy: true, err: "", castErr: "", castFallback: "", cast: cleaned });
+    get().updateNode(node.id, { materials: mats });
+
+    // 作者补充的那句话：**直接读 requirement**，不走 requirementOf ——
+    // ★ 那个兜底会在 requirement 缺席时退回 `chosenOf(node).plot`，而 plot 里装的正是
+    //   上一次合成出来的点名长句：拿它当"用户补充的一句话"再合成一次，两段点名句会
+    //   叠在一起越滚越长，最后把 VIDEO_PROMPT_MAX 撑爆。
+    const line = (node.requirement ?? "").trim();
+    try {
+      // ★ 这一次合成是一次 chat（豆包）。方案第六章的计价表里**没有这一笔** ——
+      //   那条链路上要花的三笔真钱是「看帧列人物 / 白模化出片 / 套用出片」，这一次与
+      //   npcChat 同口径：不报价、也不扣。要收就得两仓同时加（报价=实收是逐条相等的，
+      //   见 CLAUDE.md「两仓价目表各写各的」），**别在这里单方面扣一笔**。
+      // ★ 没配 ARK_API_KEY 的 mock 构建里它直接返回骨架（不是静默降级 —— 骨架本身
+      //   就是第五章那份模板，chat 只负责把作者那句话揉顺，见 composeBlockoutPrompt 的 ★）。
+      const text = await composeBlockoutPrompt(slots, line);
+      get().updateProposal(node.id, { plot: text });
+      set({ busy: false, castBusy: false });
+      // 挂完卡就把"现在还出不了片"的原因先说了（判据仍只活在 segmentGen.blockoutIssue
+      // 一处，这里只是提前问它一次）：卡上没有形象参考图这类问题，等用户点了「生成本段」
+      // 才说等于白让他期待一轮
+      const issue = blockoutIssue({
+        videoTier: node.videoTier,
+        materials: mats,
+        firstFrame: chosenOf(node).firstFrame,
+        carryFrame: null,
+        anns: node.anns,
+      });
+      if (issue) set({ err: `挂卡已记下，但现在还出不了片：${issue}` });
+      return true;
+    } catch (e) {
+      // 整句失败 + 一份可用的骨架（用户点了才填）。**绝不 catch 成空串**：
+      // 空输入框与"还没写"长得一样，用户会以为自己随手写一句就够，出片时点名映射
+      // 整个没发出去 —— 而换错人/漏换人是零报错的（blockoutPrompt 的 ★）
+      set({
+        busy: false,
+        castBusy: false,
+        castErr: e instanceof Error ? e.message : String(e),
+        castFallback: blockoutApplySkeleton(slots, line),
+      });
+      return false;
+    }
+  },
+
+  fillCastFallback: () =>
+    set((s) => {
+      const node = s.nodes[0];
+      if (!node || !s.castFallback) return {};
+      return {
+        castErr: "",
+        castFallback: "",
+        nodes: s.nodes.map((n) =>
+          n.id === node.id
+            ? { ...n, edited: true, proposals: n.proposals.map((p) => (p.id === n.chosenId ? { ...p, plot: s.castFallback } : p)) }
+            : n,
+        ),
+      };
+    }),
+
+  reset: () => set({ nodes: [], cursor: 0, busy: false, err: "", ...clearTemplate() }),
 
   updateNode: (nodeId, patch) => set((s) => ({ nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, ...patch } : n)) })),
 
@@ -813,9 +1046,22 @@ export const useFlow = create<FlowState>()((set, get) => ({
           carryFrame: carry,
           refVideoUrl: tplRef?.url,
           refVideoSec: tplRef?.durationSec,
+          // ★★ 角色位：白模两条互斥的路由它分叉（segmentGen 的 `named`，判据是**存在性**
+          //   `roles?.length`）。有 = V2，`plot` 里已经是编辑页合成好的点名映射，出片时
+          //   **不再拼**泛指的 BLOCKOUT_SWAP（泛指与点名摆在同一段话里自相矛盾，而实测
+          //   泛指会盖过点名、只换配角，F4）；缺省 = V1 老模板，照旧泛指。
+          // ★ 内容（label/desc）那边一个字都不读 —— 点名句只有 studio/blockoutPrompt
+          //   一处实现，且用户在输入框里改过之后**以输入框为准**（方案 B2）。
+          //   从模板快照读而不是现查模板库：套用那一刻的那份 roles 才与已合成的点名句、
+          //   已落的 materials 对得上（见 FlowTemplate.roles 的 ★）。
+          roles: get().template?.roles,
           framePrompt: tplFrame ? fillSubject(tplFrame, get().subject) : undefined,
           // 本段素材卡要真的进提示词。此前它只喂给「推演三种走向」，
-          // 用户在这一段挂了人物卡再点生成，出片其实完全不认识那张卡
+          // 用户在这一段挂了人物卡再点生成，出片其实完全不认识那张卡。
+          // ★★ V2 白模上这一份是 applyCast **按角色位原序**写进来的，这里不许重排：
+          //   顺序决定"参考图预算不够时谁先被挤掉"（唯一实现在 ai/real.allocateRefs），
+          //   而"谁换成谁"靠**角色名**在点名句与绑定句之间对上（applyCast 的重名硬拦
+          //   守的就是这条连接键）。重排一次，被挤掉的那张就与编辑页提醒过的那张不是同一张。
           materials: node.materials,
           // ★ 只有简约模式允许"卡片形象 + 一句话直出"：它按产品定义就没有方案推演、
           //   没有首尾帧。工作流/工坊那两条路整个建立在首尾帧上（方案台预览、段间承接），

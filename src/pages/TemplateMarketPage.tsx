@@ -2,14 +2,18 @@
 //
 // 与创意工坊的卡片市场刻意做成两个页面：卡片是"素材"（要自己组装成剧情），
 // 模板是"成品配方"（一句话就出片）。混在一起会让新用户分不清该点哪个。
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router";
 import Icon from "../components/Icon";
 import { useSocialVersion } from "../components/SocialPanel";
 import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 import {
   browseTemplates,
+  confirmTemplateRoles,
   myTemplates,
+  refreshRemoteTemplate,
+  remoteStateOf,
   remoteTemplatesCapable,
   sharedLoadIssue,
   subscribeTemplates,
@@ -59,6 +63,15 @@ export function TemplateCard({ t, onPick }: { t: VideoTemplate; onPick?: () => v
               白模
             </span>
           )}
+          {/* ★ V2 标识：这个模板有**角色位**，套用时能逐个人偶换人（V1 只能整段换一个主体）。
+              判据是**存在性**（`roles?.length`），不是等值 —— V1 老模板整个字段缺失。
+              为什么要摆出来：两种模板在市场上长得一模一样，而能力差一个量级；
+              不标的话用户只能靠"点进去试试"才知道这个模板能不能分角色换人。 */}
+          {t.roles?.length ? (
+            <span className="absolute left-[3.1rem] top-2 rounded bg-emerald-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
+              {t.roles.length} 个角色位可换人
+            </span>
+          ) : null}
           {t.refVideo && (
             <button
               onClick={(e) => {
@@ -98,6 +111,129 @@ export function TemplateCard({ t, onPick }: { t: VideoTemplate; onPick?: () => v
   );
 }
 
+/**
+ * 核对角色位编号（白模 V2，**只有作者自己看得到**）。
+ *
+ * ★★ 为什么必须有这一步：白模化落库那一刻的编号是**服务端按视觉清单顺序编的猜测**
+ *   （1..N），而成片上人偶胸口的数字实测**稳定但不连续**（一发四人实出 1/2/4/5）。
+ *   对不上时，套用者点"3 号位"挂上张三 —— 模型老老实实换掉画面上的 3 号（另一个人），
+ *   **钱照扣、零报错**。所以这一屏把白模视频摆在最上面：编号只能由**看着画面的人**确认。
+ * ★ 重复编号/空清单这些规则**不在这里再判一遍**（铁律六）：唯一实现在服务端与
+ *   data/templates.confirmTemplateRoles，它们回的都是整句人话，这里原样显示。
+ *   在这儿抄一份的话，两份判据一漂就会出现"前端放行、后端拒绝"或反过来。
+ */
+function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onClose: () => void }) {
+  const [rows, setRows] = useState<{ label: string; desc: string }[]>(() =>
+    (t.roles ?? []).map((r) => ({ label: r.label, desc: r.desc })),
+  );
+  const [busy, setBusy] = useState(false);
+  const [issue, setIssue] = useState("");
+
+  function setRow(i: number, patch: Partial<{ label: string; desc: string }>) {
+    setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  }
+
+  async function save() {
+    setIssue("");
+    setBusy(true);
+    try {
+      await confirmTemplateRoles(t.id, rows);
+      onClose();
+    } catch (e) {
+      // 服务端/数据层给的是整句人话（重号、已发布、老服务端…），原样显示，别自己编一句盖过去
+      setIssue(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ★ createPortal 到 body：祖先上任何一个 backdrop-blur / transform 都会给
+  //   `position: fixed` 的后代造包含块，inset-0 于是只铺满那个盒子（CLAUDE.md 的坑）
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex flex-col bg-black/85 backdrop-blur-sm">
+      <div className="safe-top flex items-center gap-2 px-4 py-3">
+        <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-panel">
+          <Icon name="close" size={16} className="text-slate-300" />
+        </button>
+        <h2 className="text-sm font-bold text-slate-100">核对角色位编号</h2>
+      </div>
+
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-28">
+        {/* 为什么要核对，说全（说一半的话作者会以为这只是个可填可不填的表单） */}
+        {/* ★ 这段话不许缩写成"请核对编号"：不说清后果，作者会以为这只是个可填可不填的表单 */}
+        <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+          下面这份编号是生成时<b className="font-bold">按顺序编的猜测</b>，不保证与画面上人偶胸口的数字一致
+          （实测编号稳定但可能跳号，比如 1/2/4/5）。请对着视频逐个看清楚，改成画面上真实的数字 ——
+          编号对不上时，别人给「3 号位」挂的角色卡会换到另一个人身上，而且
+          <b className="font-bold">不会有任何报错</b>。
+        </p>
+
+        {t.refVideo && (
+          <video
+            src={t.refVideo.url}
+            controls
+            playsInline
+            className="max-h-[38vh] w-full rounded-xl bg-black object-contain"
+          />
+        )}
+
+        {rows.map((r, i) => (
+          <div key={i} className="flex items-start gap-2 rounded-xl border border-slate-700/70 bg-panel p-2.5">
+            <div className="flex-none">
+              <div className="mb-1 text-[9px] text-slate-500">胸口编号</div>
+              <input
+                value={r.label}
+                onChange={(e) => setRow(i, { label: e.target.value })}
+                inputMode="text"
+                maxLength={8}
+                className="w-14 rounded-lg bg-black/40 px-2 py-1.5 text-center text-sm font-bold text-slate-100 outline-none"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 text-[9px] text-slate-500">这个位置原来是谁（套用的人只看这句话）</div>
+              <input
+                value={r.desc}
+                onChange={(e) => setRow(i, { desc: e.target.value })}
+                maxLength={300}
+                placeholder="例：白发、黑袍的少年"
+                className="w-full rounded-lg bg-black/40 px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-600"
+              />
+            </div>
+            <button
+              onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}
+              className="mt-4 flex h-7 w-7 flex-none items-center justify-center rounded-full bg-black/40"
+              aria-label="删掉这个角色位"
+            >
+              <Icon name="close" size={13} className="text-slate-400" />
+            </button>
+          </div>
+        ))}
+
+        {/* AI 可能少认一个人（画面里 5 个只列了 4 个）：让作者补，比"只能确认 AI 认出的那些"诚实 */}
+        <button
+          onClick={() => setRows((rs) => [...rs, { label: "", desc: "" }])}
+          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-600 py-2.5 text-[11px] text-slate-400"
+        >
+          <Icon name="plus" size={13} />画面里还有人没列出来，加一个
+        </button>
+
+        {issue && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{issue}</p>}
+      </div>
+
+      <div className="safe-bottom absolute inset-x-0 bottom-0 border-t border-slate-800 bg-black/80 px-4 py-3">
+        <button
+          onClick={() => void save()}
+          disabled={busy}
+          className="w-full rounded-full bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-50"
+        >
+          {busy ? "提交中…" : "我已逐个核对，编号无误"}
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export default function TemplateMarketPage() {
   const ver = useTemplatesVersion();
   useSocialVersion();
@@ -108,6 +244,8 @@ export default function TemplateMarketPage() {
   // 老服务端 / 离线时不摆一个走到上传那步才失败的按钮（CLAUDE.md「永远点不动的选项」）
   const [blockoutCap, setBlockoutCap] = useState(false);
   const [extract, setExtract] = useState(false);
+  /** 正在核对编号的那个模板（白模 V2）。null = 没开这一屏 */
+  const [confirming, setConfirming] = useState<VideoTemplate | null>(null);
   useEffect(() => {
     let alive = true;
     void remoteTemplatesCapable().then((ok) => {
@@ -120,6 +258,21 @@ export default function TemplateMarketPage() {
   // ★ 依赖里带 ver：远端 shared 是「懒加载 + 到货 emit」，到货那一拍 version 变了
   //   列表才会重算——只依赖 tab/q 的话，远端模板到了也不上屏
   const list = useMemo(() => (tab === "market" ? browseTemplates(q) : myTemplates()), [tab, q, ver]);
+
+  // ★★ 冷启动后远端状态快照是空的（本机库只存模板本身，不存 status/provenAt/待核对）。
+  //   不补的话，「编号待核对」那条提示重启后就**不出现了**，而服务端那道发布闸还在 ——
+  //   作者看到的是"点发布失败"却找不到任何出口（正是铁律八说的静默）。
+  //   只补 **有角色位、已登记、且还没有快照** 的那几条，每条一次（asked 记名防重）；
+  //   refreshRemoteTemplate 是读路径，失败静默降级为"用上次的快照"，到货会 emit。
+  const asked = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (tab !== "mine") return;
+    for (const t of myTemplates()) {
+      if (!t.roles?.length || !t.remoteId || remoteStateOf(t) || asked.current.has(t.id)) continue;
+      asked.current.add(t.id);
+      void refreshRemoteTemplate(t.id);
+    }
+  }, [tab, ver]);
 
   /** 套用模板。applyTemplate 返回 false = 被闸门整句拒绝（白模在 refVid 全关时），
    *  这时改跳详情页——那里印着拒绝的原因（r2vPriceIssue 整句），留在市场干瞪眼不行 */
@@ -182,7 +335,24 @@ export default function TemplateMarketPage() {
 
       <div className="space-y-3">
         {list.map((t) => (
-          <TemplateCard key={t.id} t={t} onPick={() => pick(t)} />
+          <div key={t.id} className="space-y-1.5">
+            <TemplateCard t={t} onPick={() => pick(t)} />
+            {/* 「编号待核对」只对作者自己出现，且**必须显式给出口**：服务端在发布那一步会
+                400 整句拒（两道门之一），只提示不给按钮的话作者会以为模板坏了。
+                判据取自远端状态快照（remoteStateOf 唯一实现），不在这里另算一遍。 */}
+            {tab === "mine" && remoteStateOf(t)?.rolesNeedConfirm && (
+              <button
+                onClick={() => setConfirming(t)}
+                className="flex w-full items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-200/90"
+              >
+                <Icon name="pen" size={13} className="flex-none" />
+                <span>
+                  编号还没核对：AI 编的号可能与画面上人偶胸口的数字对不上，
+                  <b className="font-bold">核对之前不能发布</b>（对不上会让别人的角色卡换到别人身上）。点这里去核对。
+                </span>
+              </button>
+            )}
+          </div>
         ))}
         {list.length === 0 && (
           <div className="py-16 text-center text-sm text-slate-500">
@@ -198,6 +368,10 @@ export default function TemplateMarketPage() {
           onDone={(t) => pick(t)}
         />
       )}
+
+      {/* ★ 传的是**列表里当前那一份**（confirming 只存 id 会在 emit 后拿到旧对象）：
+          核对成功后 data 层改写 roles 并 emit，这一屏已经关掉了，不存在读到半新半旧的问题 */}
+      {confirming && <RoleConfirmSheet t={confirming} onClose={() => setConfirming(null)} />}
     </div>
   );
 }
