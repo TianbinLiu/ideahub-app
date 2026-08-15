@@ -102,8 +102,21 @@ export function refVideoOn(o: {
  * 烙进每个模板各一份的话，改一次措辞就得追着所有存量模板改，而且模板作者能把它改丢；
  * 也不进 arkClient —— 那层只管协议形状，不管业务话术。
  * 「红色小人」是白模素材的约定主体（上传引导与提取提示词同一措辞）。
+ *
+ * ★ 末尾那句「不要出现水印/台标/字幕/角标」是**尽力而为，不是保证**，别当成"水印问题已解决"：
+ *   edit 子任务的职责就是**逐镜头复刻参考视频**（背景、道具、运镜、群演原位全部照抄），
+ *   贴在画面上的台标对它而言与场景里的一块招牌没有区别 —— 2026-08-14 实拍确认，
+ *   参考视频带的 B 站水印在成片里**完整保留**，这句话写进去也一样。留着它是因为它几乎不要钱
+ *   （占 21 字提示词额度）、方向正确、且对半透明的浅台标偶有效果；
+ *   **真正的解法是上传前把带水印的边裁掉或换无水印素材** —— 那条在
+ *   VideoTemplateExtractor 的白模区（上传前的整句告知 + 帧角疑似水印提示）。
+ *   所以：这里的措辞永远不要被写成"已经不会有水印了"，UI 也不许据此把上传侧的告知拿掉。
+ * ★ 加长这句的代价是**故事正文被多切 21 字**（下面 VIDEO_PROMPT_MAX 的留位是从尾巴反推的）。
+ *   白模段的正文本来就只是"这一段讲什么"的补充（画面全部来自参考视频），少 21 字换一句
+ *   全局生效的负向约束划算；再往里加词前先想清楚这笔交换还成不成立。
  */
-const BLOCKOUT_SWAP = "。将视频中的红色小人替换为下列角色，严格保留视频中的背景、道具与运镜";
+const BLOCKOUT_SWAP =
+  "。将视频中的红色小人替换为下列角色，严格保留视频中的背景、道具与运镜，画面中不要出现任何水印、台标、字幕或角标";
 
 /**
  * 白模（blockout r2v）这一段**为什么走不成** —— 条件的唯一实现（铁律六）。
@@ -247,7 +260,14 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   const needDraw = !blockout && (!first || (!last && tier.flf));
   const notes: string[] = [];
   // 白模也要形象图（混发：视频给画面与运镜，形象图说"换成谁"），所以 blockout 也准备
-  const refs = blockout || refMode || needDraw ? await prepareMaterialRefs(input.materials, (n) => notes.push(n)) : null;
+  // ★ 白模路传 multiChar：它一张设定帧都不画，参考图直接进 Seedance r2v，而 r2v 带多张
+  //   人物参考图是实测成立的（2026-08-15 G0：3 张卡各自换到对应编号的人偶上，跨帧不串号）。
+  //   不传的话 allocateRefs 会照 Seedream 那条"一张图只画一个角色"的规则只喂第一张，
+  //   用户挂三张卡想换三个人、实际只有一个真换 —— 而那正是白模模板的全部卖点。
+  const refs =
+    blockout || refMode || needDraw
+      ? await prepareMaterialRefs(input.materials, (n) => notes.push(n), blockout)
+      : null;
   const noteTail = notes.length ? `（${notes.join("；")}）` : "";
   // 没有承接帧/底图时素材卡的图就是 <图片1> 起，offset = 0
   const bind = refs ? refs.bind(0) : "";

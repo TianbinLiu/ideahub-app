@@ -314,11 +314,38 @@ interface RefPick {
  * `onNote` 是**反静默失败**的那一半：谁被挤掉了要逐张点名（铁律八）。
  * 纯查询（refUsedFlags）不传它。
  */
-function allocateRefs(materials: Card[], onNote?: (note: string) => void): RefPick[] {
+function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiChar = false): RefPick[] {
   const picks: RefPick[] = [];
   const chars = materials.filter((c) => c.type === "character");
   const hero = chars[0];
-  if (hero && chars.length > 1) {
+
+  // ── 规则一的例外：白模路（multiChar）每张人物卡各带 1 张形象图 ──
+  //
+  // ★★ 规则一那句"一张图里画多个角色会被方舟整条拒掉"说的是 **Seedream 画设定帧**
+  //   那一步。白模路**一张设定帧都不画**（segmentGen 的 needDraw = !blockout && …），
+  //   参考图是直接喂给 Seedance r2v 的 —— 而 r2v 一次带多张人物参考图**实测成立**：
+  //   2026-08-15 用一段带编号白模视频 + 3 张不同人物卡实拍，1/2/4 号人偶各自换成了
+  //   对应那张卡的角色，跨帧稳定不串号（tasks/WM_V2_probe.md 的 G0）。
+  //   在这条路上照搬规则一的后果不是"保守一点"，而是**把功能本身砍掉**：
+  //   用户挂 3 张卡想换 3 个人，只有第 1 张真进模型，其余静默按文字走 ——
+  //   出来的片子里另外两个角色是模型瞎编的，钱照付（铁律八）。
+  // ★ 每张只取 1 张（face 优先），不给主角占满 MAX_CHAR_REFS：预算就 MAX_REF_IMAGES 张，
+  //   多角色场景下"每个人都认得出"比"主角多一张特写"重要得多。
+  if (multiChar && chars.length > 0) {
+    for (const card of chars) {
+      const best = viewsOf(card)
+        .map((view, index) => ({ view, index }))
+        .sort((a, b) => KIND_ORDER[a.view.kind] - KIND_ORDER[b.view.kind])[0];
+      if (!best) continue;
+      if (picks.length >= MAX_REF_IMAGES) {
+        onNote?.(
+          `「${card.name}」的形象参考图这次没带上（一次最多 ${MAX_REF_IMAGES} 张），它只按文字设定参与——想让它也换脸就少挂一张卡`,
+        );
+        continue;
+      }
+      picks.push({ card, index: best.index, view: best.view });
+    }
+  } else if (hero && chars.length > 1) {
     // 规则一：说出来。不说的话用户只知道"另一个角色长得不像"，永远猜不到是配额问题
     onNote?.(
       `挂了 ${chars.length} 张人物卡，只把「${hero.name}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定`,
@@ -326,7 +353,7 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void): RefPi
   }
 
   // ── 第一轮：主角占满 MAX_CHAR_REFS，其余非人物卡各占 1 张 ──
-  if (hero) {
+  if (hero && !multiChar) {
     // ★ 排序必须**带着原下标**排：refUsedFlags 要的是"与 viewsOf(hero) 一一对齐"的下标，
     //   而取图顺序是 face→body→detail（规则三）—— 两个顺序不是一回事，排完就丢下标
     //   会让详情页把高亮标在错的那张图上。
@@ -461,16 +488,20 @@ export interface MaterialRefs {
  *
  * `onNote` 是**反静默失败**的那一半：哪张图没采用、为什么只锁了一个角色，
  * 都要写进生成步骤日志给用户看（铁律八）。
+ *
+ * @param multiChar 白模路（不画设定帧、参考图直接进 Seedance r2v）传 true：
+ *   每张人物卡各带 1 张形象图，而不是只锁主角一张。理由与实测见 allocateRefs 的 ★★。
  */
 export async function prepareMaterialRefs(
   materials: Card[] | undefined,
   onNote?: (note: string) => void,
+  multiChar = false,
 ): Promise<MaterialRefs> {
   const empty: MaterialRefs = { refs: [], bind: () => "" };
   if (!materials?.length) return empty;
 
   // 分配规则（谁上、上几张、谁被挤掉）全在 allocateRefs 里，这里只负责把它取回来
-  const picks = allocateRefs(materials, onNote);
+  const picks = allocateRefs(materials, onNote, multiChar);
   const hero = materials.find((c) => c.type === "character");
   if (picks.length === 0) return empty;
 

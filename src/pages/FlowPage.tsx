@@ -41,7 +41,7 @@ import {
   useFlow,
 } from "../studio/flowStore";
 import PlanBoard from "../studio/ui/PlanBoard";
-import { deckQuoteOf, useStudio } from "../studio/studioStore";
+import { deckQuoteOf, publishedExit, useStudio } from "../studio/studioStore";
 import { VIDEO_ASPECTS, aspectCss, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 
@@ -87,6 +87,8 @@ function NodeScreen({
   matOpen,
   matShake,
   onToggleMat,
+  focus,
+  onFocus,
 }: {
   node: FlowNode;
   index: number;
@@ -96,6 +98,11 @@ function NodeScreen({
   /** 每加一次素材 +1：拿它当 key 让抖动的 CSS 动画重播（同 CharacterPerch 的做法） */
   matShake: number;
   onToggleMat: () => void;
+  /** 方案台专注态：本页除了左上角那枚返回箭头，其余 UI 全部收起（见 FlowPage.planFocus） */
+  focus: boolean;
+  /** 报告"方案台开没开"。★ boardOn 只有这里算得出（它要读 plan/done/showPlan），
+   *  所以由这里报上去，FlowPage 不再算第二遍（铁律六） */
+  onFocus: (on: boolean) => void;
 }) {
   const {
     mode,
@@ -197,6 +204,34 @@ function NodeScreen({
   // 大屏幕放什么：成片 > 方案台 > 起拍画面 > 一句"还没有画面"
   const boardOn = plan != null && (!done || showPlan);
 
+  /**
+   * 方案台摊开**且还没挑定**时进专注态。
+   *
+   * ★ 为什么值得单独收一屏：方案台原来夹在顶栏 / 段导航条 / 要求输入框 / 报价行 /
+   *   节点条中间，375×640 的手机上只剩中间**一小条**——而挑方案要看首尾帧的构图、
+   *   改剧情要读一整段字，这一步恰恰是全流程里最需要地方的一步。
+   * ★★ **判据是 picking 而不是 boardOn**（2026-08-15 对抗审查抓到的回归，改前是后者）：
+   *   专注态把「本段内容」整块 hidden 掉，而全流程唯一的推进入口「⚡ 生成本段」就在那一块里。
+   *   挑定一套之后 plan 由 picking 变 picked、boardOn **不变**，于是专注态不退，屏幕上
+   *   最显眼的可点项变成方案台里真扣钱却不出片的「重新生成这一套的画面」——用户要么
+   *   被引去反复付费重画，要么得先猜到左上角那枚「收起」。这正是本页 :175 注释记过、
+   *   已经修过一次的坑：**把最贵那一步的入口藏起来**。挑定的那一刻退出专注态，动作栏
+   *   立刻回来，第 4 拍（出片）的入口就在手边。
+   * ★ 已出片的段点「看方案」（picked + showPlan）同样不进专注态：那时用户是在对比/回看，
+   *   而「看成片」这个开关自己就长在被收起的段导航条里——进得去出不来。
+   * ★ 写成 effect 而不是在 boardOn 那一行里直接 set：boardOn 是渲染期的派生值，
+   *   渲染期改父组件的 state 是非法的。
+   * ★ 卸载/换段一定要报 false：换到下一段（可能压根没有方案台）时不还原的话，
+   *   用户会对着一屏收起来的 UI 以为界面坏了。
+   * ⚠ 它只在判据**变化**时跑 —— 用户按左上角箭头手动退出专注态之后
+   *   （focus=false 而判据仍为真），这里不会把他再拽回去。
+   */
+  const focusWanted = boardOn && plan === "picking";
+  useEffect(() => {
+    onFocus(focusWanted);
+    return () => onFocus(false);
+  }, [focusWanted, onFocus]);
+
   /** 从预览播放器截当前帧去圈选（视频经代理取流，画布不会被跨域污染） */
   function openAnnotator() {
     const v = vref.current;
@@ -237,8 +272,8 @@ function NodeScreen({
           ★ 换节点从"压在画面上的两枚半透明箭头"挪到这里，状态角标也一并搬过来：方案台铺满
             大屏幕之后，那两枚箭头正好落在方案卡的首尾帧上，点方案会误触换段。
             顺序门禁的表达（锁图标 + 说明"为什么点不动"）原样保留，真正的拦截仍在
-            flowStore.clampCursor。 */}
-      <div className="flex flex-none items-center gap-2 px-3 py-1.5">
+            flowStore.clampCursor —— 专注态只是**不画**这一条，一个判断都没动。 */}
+      <div className={`${focus ? "hidden" : "flex"} flex-none items-center gap-2 px-3 py-1.5`}>
         <button
           onClick={() => shiftCursor(-1)}
           disabled={index === 0 || busy}
@@ -325,8 +360,14 @@ function NodeScreen({
         )}
       </div>
 
-      {/* ── 本段内容 ── */}
-      <div className="flex-none space-y-2 border-t border-slate-800 bg-ink px-4 pb-3 pt-2.5" data-noswipe>
+      {/* ── 本段内容 ──
+          专注态下整块收起（要求输入框 / 报价说明 / 档位按钮 / 主按钮 / 素材按钮）。
+          ★ 用 hidden 而不是不渲染：这里面有用户正在敲的输入框（要求、剧情），
+            卸载再挂回来会丢焦点、丢输入法候选，退出专注态时也就不是"原样展开"了。 */}
+      <div
+        className={`${focus ? "hidden" : ""} flex-none space-y-2 border-t border-slate-800 bg-ink px-4 pb-3 pt-2.5`}
+        data-noswipe
+      >
         {/* 出片过程日志：跑着时展开，跑完自动收起但留着可回看 */}
         <GenTrace steps={node.steps ?? []} running={generating} />
         {/* 标题不在这里改了——它是"某一套方案"的标题，跟剧情一起放在方案台那一行里改，
@@ -690,6 +731,20 @@ export default function FlowPage() {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   /** 素材窗口开着 = 底部那条也换成本段素材（见下面的底部区） */
   const [matOpen, setMatOpen] = useState(false);
+  /**
+   * 方案台专注态：方案台吃满屏，本页其余 UI（顶栏 / 组稿报价行 / 段导航条 / 要求输入框 /
+   * 主按钮 / 底部节点条）全部收起，只留左上角一枚返回箭头。退出时原样展开。
+   *
+   * ★ 由 NodeScreen 报上来（"方案台开没开"只有它算得出，见那边的 onFocus），
+   *   这里不再算第二遍（铁律六）。
+   * ★ 只是**不画**那些东西：能不能换段、能不能加段、白模能不能出片，判定一条都没动
+   *   （仍在 flowStore.clampCursor / addNode 与 segmentGen 的 blockoutIssue 里）。
+   * ★ 实现上刻意没有新的 fixed / portal / transform 容器：收起 chrome 之后，方案台
+   *   原地就长满了整屏（它本来就是那块 flex-1 里的 `absolute inset-0`）。多套一层
+   *   带 transform 或 backdrop-blur 的祖先，只会把它自己的滚动与放大动画弄坏
+   *   （CLAUDE.md「全屏浮层写了 fixed inset-0 却只铺满一小块」那条坑的同族）。
+   */
+  const [planFocus, setPlanFocus] = useState(false);
   /** 每加一次素材 +1，传给圆形按钮当 key 让抖动重播 */
   const [matShake, setMatShake] = useState(0);
   const tpl = useFlow((s) => s.template);
@@ -698,9 +753,12 @@ export default function FlowPage() {
   // 直接输地址进来（或热更新丢了状态）：没节点就回创作入口，别停在空白页。
   // leavingRef 是必需的：组稿成功后 reset() 清空节点，本效应会在 navigate("/cut")
   // 落地前抢跑，把用户按回 /create（实测踩到过）
+  // ★ 发布收工之后这一格也是死页（判据只在 studioStore.publishedExit 一处，铁律六）：
+  //   那时该去的是首页而不是创作入口 —— 用户刚发完片，不是又要开一摊新活
   const leavingRef = useRef(false);
   useEffect(() => {
-    if (nodes.length === 0 && !leavingRef.current) navigate("/create", { replace: true });
+    if (nodes.length > 0 || leavingRef.current) return;
+    navigate(publishedExit() ?? "/create", { replace: true });
   }, [nodes.length, navigate]);
 
   // ★ 自动存盘只挂在"又炼出一段"这一个事件上，不做定时/每次改动都存：
@@ -764,7 +822,10 @@ export default function FlowPage() {
       if (ok) {
         leavingRef.current = true;
         reset();
-        navigate("/cut");
+        // ★ replace 而不是 push：组稿成功那一下 reset() 已经把流水线清空了，历史里这一格
+        //   /flow 就是个死页 —— 从剪辑页按返回退到它，它当场又把人 replace 走（今天是
+        //   /create），白闪一下。少留一格死页，发布之后按返回也少一次落空
+        navigate("/cut", { replace: true });
       }
     } catch (e) {
       console.warn("[flow] 组稿失败:", e);
@@ -776,7 +837,46 @@ export default function FlowPage() {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-ink">
-      <header className="safe-top flex flex-none items-center gap-2.5 px-4 py-2.5">
+      {/* ── 专注态的那枚返回箭头 + 生成进度 ──
+          ★ 按钮上写字（"收起"）而不是只放一个光秃秃的箭头：这个位置平时是"退出工作流"，
+            不写清楚用户不敢点（怕一点就把没炼完的片子丢了）。
+          ★ 进度那一枚**不能一起收**：重新推演三套要一分多钟，这期间方案台上所有按钮都是
+            灰的，一个字都不说的话与卡死无从区分（铁律八）。 */}
+      {planFocus && (
+        <div
+          className="absolute left-3 right-3 z-20 flex items-center gap-2"
+          style={{ top: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
+        >
+          <button
+            onClick={() => setPlanFocus(false)}
+            aria-label="收起方案台"
+            className="flex flex-none items-center gap-1 rounded-full bg-black/60 px-2.5 py-1.5 text-xs text-slate-100 ring-1 ring-white/15"
+          >
+            <Icon name="back" size={16} />
+            收起
+          </button>
+          {node.status === "generating" && (
+            <span className="min-w-0 flex-1 animate-pulse truncate rounded-full bg-brand px-2.5 py-1.5 text-[11px] font-semibold text-ink">
+              {node.progress || "生成中…"}
+            </span>
+          )}
+          {/* ★ 失败原因也不能一起收：node.error 平时画在段导航条的 ✗ 角标上，而那一条在
+              专注态里是 hidden 的。推演失败（敏感词 400、余额不足、上游超时）本来就常发生在
+              这个状态下——收起来就等于"点了没反应"，铁律八。generating 时不显示旧错误。 */}
+          {node.status !== "generating" && node.error && (
+            <span className="min-w-0 flex-1 truncate rounded-full bg-rose-500/90 px-2.5 py-1.5 text-[11px] font-semibold text-white">
+              ✗ {node.error}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* 专注态下给上面那条（箭头 + 进度）留出位置。★ 用一格 flex-none 的空行占位，而不是
+          给方案台那块加 padding：方案台是 `absolute inset-0` 铺进去的，祖先的 padding 对它
+          无效，只会被箭头压住第一行；放在这里还能顺便把报错条也挤到箭头下面 */}
+      {planFocus && <div className="flex-none" style={{ height: "calc(env(safe-area-inset-top, 0px) + 46px)" }} />}
+
+      <header className={`${planFocus ? "hidden" : "flex"} safe-top flex-none items-center gap-2.5 px-4 py-2.5`}>
         <button
           onClick={() => navigate(origin === "studio" ? "/studio" : "/create")}
           className="flex-none text-slate-300"
@@ -883,7 +983,7 @@ export default function FlowPage() {
           ⚠ 措辞三处都不许含糊：**最多**（张数是上限，按实际出卡结算）、
           **约**（单价还没与火山账单对过，见 economy 的 ⚠）、以及余额不足会自动跳过
           （那是 finalizeFromFlow 真实的行为，不写的话用户会以为钱不够就完不成片）。 */}
-      {deck.on && AI_REAL && allDone && (
+      {deck.on && AI_REAL && allDone && !planFocus && (
         <div className="mx-4 mb-1.5 flex-none rounded-xl border border-slate-700/70 bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
           {/* ★ 整句在 JS 里拼好再交给 JSX：分成几段写的话，JSX 会把每行之间的换行折成
               一个空格，于是条件那一支不成立时就变成「…token 。都按实际…」——
@@ -898,6 +998,8 @@ export default function FlowPage() {
         </div>
       )}
 
+      {/* ★ 报错条**不跟着专注态收起**（其余都收）：推演/重画失败、余额不足都从这里说话，
+          藏起来就是静默失败（铁律八）。它是 flex-none，出现时把方案台顶下去一点点而已 */}
       {err && (
         <div className="mx-4 mb-1.5 flex flex-none items-start gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
           <span className="min-w-0 flex-1">{err}</span>
@@ -917,13 +1019,17 @@ export default function FlowPage() {
           matOpen={matOpen}
           matShake={matShake}
           onToggleMat={() => setMatOpen((v) => !v)}
+          focus={planFocus}
+          // setState 的 setter 引用是稳定的：直接传它，NodeScreen 那个 effect 才不会
+          // 每次渲染都重跑一遍（重跑会把用户手动收起的专注态又拽回来）
+          onFocus={setPlanFocus}
         />
       </div>
 
       {/* ── 底部区：素材窗口开着时是【本段素材】，否则是【整条流水线的节点条】──
           这两样是同一块地方的两种用途：素材窗口一打开，用户关心的就是"这一段用哪些卡"，
           此时还占着位置的节点条只是噪音（而且那会儿他也不该跳段）。 */}
-      {(!simple || matOpen) && (
+      {(!simple || matOpen) && !planFocus && (
         <div
           className="flex-none border-t border-slate-800 bg-[#141821] px-3 pt-2.5"
           /* ★ 不能写 `safe-bottom pb-3`：.safe-bottom 在 index.css 里排在 @tailwind utilities

@@ -501,6 +501,34 @@ interface StudioState {
   finalizeFromFlow: (nodes: FlowNode[], mode: FlowMode, onProgress?: (status: string) => void) => Promise<boolean>;
   clearDraft: () => void;
 
+  /**
+   * 刚发布出去的那条作品 id；null = 这摊活还没发布（新的合成稿一出现就翻篇，见下）。
+   *
+   * ★★ 它存在的唯一理由是**创作流水线上那三页各有一个"内容没了就把人送走"的守卫**
+   *   （/flow 看 nodes 空不空，/cut 与 /publish 看 draft 在不在），而"内容没了"其实有
+   *   两种截然不同的原因：
+   *     ① 直接输地址闯进来 / 热更新丢了状态 —— 送回创作入口是对的；
+   *     ② **刚刚发布成功**，draft 是发布页自己清掉的 —— 这几格历史已经是死页。
+   *   两种原因不分家的后果就是 2026-08-14 用户报的那个 bug：工作流/简约模式发完片，
+   *   落在作品页上，一按返回（安卓物理返回键在没注册 backButton 监听时就是
+   *   `webView.goBack()`，见 @capacitor/app 的 AppPlugin）就退回 `#/cut` 那一格 ——
+   *   CutPage 重新挂载、draft 已经是空的、它自己的 leftRef 又是新的 false，于是
+   *   `navigate("/studio")` 把人扔进了他从来没去过的 3D 工坊。
+   *   （工坊模式的人不会报这个 bug：他本来就是从工坊出发的，落回工坊看着像"正常返回"。）
+   * ★ 一处实现（铁律六）：三页都问 `publishedExit()`，别各自判各自的。
+   */
+  publishedWorkId: string | null;
+  /**
+   * 发布成功收工：记下作品 + 清掉合成稿 + 退休对应的在途草稿。
+   *
+   * ★ 三件事**必须一次做完**，尤其是前两件必须在同一个 set 里：清稿会立刻把发布页
+   *   打回"没内容"的守卫分支（HashRouter 的路由切换是 startTransition，属于低优先级，
+   *   而 zustand 经 useSyncExternalStore 进来的是同步更新——React 会先把发布页用空
+   *   draft 重画并跑一遍它的 effect，路由那一拍还没落地）。中间只要隔一拍没有这块牌子，
+   *   守卫就会抢在跳转前把人送去工坊。
+   */
+  finishPublish: (videoId: string) => void;
+
   // ── 在途工程草稿（data/drafts.ts）─────────────────────────
   // ⚠ 与上面的 `draft` 不是一回事：`draft` 是组稿产物（待发布的成片稿），
   //   这里的「工程草稿」是**还没做完**的半成品，工坊侧的节点树与工作流侧的流水线一起存。
@@ -1410,6 +1438,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       segEdit: { nodeId, proposalId },
       projection: null,
       editor: null,
+      // 同 finalizeFromFlow：有了新的合成稿，上一次发布就翻篇
+      publishedWorkId: null,
       // 单段草稿：剪辑页只认 draft.segments，给它一段就是"只编辑这一段"
       draft: {
         title: "",
@@ -1749,6 +1779,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
     set({
       root: root ? { ...root } : root,
+      // ★ 新的合成稿一出现，上一次发布就翻篇（publishedWorkId 的清零规则只有这一条：
+      //   "draft 被赋新值"。openSegmentEdit 是另一个赋新值的地方，同样清）
+      publishedWorkId: null,
       draft: {
         title: "",
         category: "剧情",
@@ -1766,6 +1799,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
     return true;
   },
   clearDraft: () => set({ draft: null }),
+
+  publishedWorkId: null,
+  finishPublish: (videoId) => {
+    // ★ 记作品与清合成稿在**同一个 set** 里（理由见接口那段 ★）
+    set({ publishedWorkId: videoId, draft: null });
+    // 这摊活已经变成作品了：退休对应的在途草稿，别在个人页留一条重复的半成品。
+    // 即发即忘 —— 删本地库慢一点/失败了都不该挡住跳转
+    void get().retireWorkDraft();
+  },
 
   workDraftId: null,
   newWorkDraft: () => set({ workDraftId: null }),
@@ -1915,6 +1957,21 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
   },
 }));
+
+/**
+ * 创作流水线（/create → /flow → /cut → /publish）上**已经没有内容的那一格**该把人送去哪儿。
+ * 返回 null = 不是"发布收工"留下的死页，各页按自己原来的兜底走（工坊/创作入口）。
+ *
+ * ★★ 这是那三个守卫的**唯一**判据（铁律六）。它们此前各判各的，于是同一件事
+ *   （草稿被发布页清掉了）在 /cut 上被当成"你不该在这儿"送进工坊 —— 见
+ *   `publishedWorkId` 那段 ★★ 记的事故。
+ * ★ 为什么是首页而不是那条作品本身：这些死页就压在作品页**下面**一格，用 `/video/<id>`
+ *   替换等于"按了返回还停在同一页"，看着就是返回键坏了；而首页按 createdAt 倒序排，
+ *   刚发布的那条正好在最前面 —— 用户嘴里的"首页那条刚发布的视频"就是它。
+ */
+export function publishedExit(): string | null {
+  return useStudio.getState().publishedWorkId ? "/" : null;
+}
 
 // DEV 调试/E2E 挂钩：让自动化脚本能拿到与组件同实例的 store
 if (import.meta.env.DEV) {
