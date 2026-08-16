@@ -24,7 +24,7 @@ import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, proposalRedrawCost, proposalsCost
 import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
-import { BLOCKOUT_MAX_ROLES, refVideoIssue, splitCastRoles } from "../data/templates";
+import { BLOCKOUT_MAX_ROLES, MARK_NOUN, markSchemeOf, refVideoIssue, splitCastRoles } from "../data/templates";
 import { type BlockoutCastSlot, blockoutApplySkeleton, castNameIssue, composeBlockoutPrompt } from "./blockoutPrompt";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
 import { blockoutIssue, generateSegment, refVideoOn } from "./segmentGen";
@@ -102,15 +102,27 @@ export type FlowTemplate = {
   refVideo?: VideoTemplate["refVideo"];
   /**
    * 白模人偶的角色位（`VideoTemplate.roles` 的镜像）。**有 = V2 白模模板**（可以逐个
-   * 编号挂人物卡，走点名路）；缺省 = V1 老白模模板/经典模板，照旧走泛指的 BLOCKOUT_SWAP。
+   * 角色位挂人物卡，走点名路）；缺省 = V1 老白模模板/经典模板，照旧走泛指的 BLOCKOUT_SWAP。
    *
    * ★ 判定一律写**存在性**（`roles?.length`，types.ts 同一条 ★）：后加字段，老快照与
    *   老草稿天然缺它、天然走老路，零迁移。
    * ★ 必须跟着快照走、不许出片时再去模板库现查：模板可能已被作者改/删，而这一段的
    *   报价、挂卡映射与合成好的点名句都是**套用那一刻**那份 roles 的产物 —— 现查等于
-   *   让编号在半路换一份定义，那正是"换错人且零报错"的入口。
+   *   让标记在半路换一份定义，那正是"换错人且零报错"的入口。
    */
   roles?: VideoTemplate["roles"];
+  /**
+   * 这个模板的标记方案位（`VideoTemplate.markColors` 的镜像）——
+   * **存在 = 颜色方案，缺省 = 编号方案**（判据的唯一实现是 data/templates.isColorMark）。
+   *
+   * ★★ 它必须与 `roles` **同一批**进快照：套用提示词的措辞、挂卡面板的徽章、
+   *   核对面板的输入方式全按它分支。漏在这里没有任何症状 —— 模板照样能挂卡，只是
+   *   输入框里那段话变成 `编号绿色=凛`（好在这句话一眼就是坏的，而且摆在花钱之前；
+   *   这正是当初选择"label 直接装颜色 token"而不是"label 留数字 + 另加一个 color 字段"
+   *   的理由：后者漏字段时会写出一句**看起来完全正常**的 `编号1=凛`，用户不会起疑）。
+   * ★ 与 roles 同理：跟着快照走，不许出片时现查。
+   */
+  markColors?: VideoTemplate["markColors"];
 } | null;
 
 /**
@@ -326,8 +338,11 @@ interface FlowState {
   /** 用户那句话，替换配方里的 {{主题}} */
   subject: string;
   /**
-   * 白模 V2 的挂卡映射：**人偶头上的编号（`roles[].label`）→ 卡 id**。
-   * （编号印在头部前后左右四面，2026-08-15 起；此前只印胸口，人一转身就看不见了。）
+   * 白模 V2 的挂卡映射：**人偶身上的标记（`roles[].label`）→ 卡 id**。
+   * 键是色名（新模板，人偶通体一色）或阿拉伯数字（存量老模板），哪一种由
+   * `template.markColors` 的存在性决定 —— 但这一格**不需要知道**：它只是把服务端给的
+   * 那个字符串当键用，两种形态零差别（这正是"label 直接装标记本身"换来的好处：
+   * 连接键全仓只有一个，重号闸、整份替换、materials 落盘顺序全部零改动）。
    * 空表 = 还没挂（V1 老模板与经典模板恒为空表，它们没有角色位）。
    *
    * ★ 存 id 而不是整张卡：卡有 1MB 级的图，而这一格每次开编辑页都要原样塞进
@@ -497,6 +512,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
           cards: t.cards,
           refVideo: t.refVideo,
           ...(t.roles?.length ? { roles: t.roles } : {}),
+          // ★ 方案位与 roles 同一批、同一条存在性语义（老模板天然缺它 → 编号方案 →
+          //   套用走老提示词，一个字不变）。少带这一位不会报错，只会让颜色模板被当成
+          //   编号模板 —— 见 FlowTemplate.markColors 的 ★★
+          ...(t.markColors?.length ? { markColors: t.markColors } : {}),
         },
       });
       return true;
@@ -572,10 +591,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const node = s0.nodes[0];
     if (!tpl?.refVideo || !roles?.length || !node) {
       set({
-        err: "这条流水线上没有可挂卡的白模模板（角色位只有带编号的白模模板才有）——回模板市场重新套用一次",
+        err: "这条流水线上没有可挂卡的白模模板（角色位只有白模模板才有）——回模板市场重新套用一次",
       });
       return false;
     }
+    // ★ 这一整段的措辞按方案分支：判据只问 data 层那一处（isColorMark / MARK_NOUN），
+    //   别在这里写 `tpl.markColors ? "颜色" : "编号"`。对着一个纯色人偶说"编号 3"，
+    //   用户在画面上永远找不到那个东西 —— 一句过时的指路和一个坏功能长得一模一样
+    const mark = markSchemeOf(tpl);
+    const noun = MARK_NOUN[mark];
 
     // ★★ 下面几道拒绝**一律不写 cast**：`cast`（映射）/ `materials`（真发出去的形象图）/
     //   `plot`（点名句）是一个整体，只在三样都成立时一起换。半推半就地只更新映射，
@@ -610,16 +634,20 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const removed = stray.filter((l) => !known.has(l));
       const why = [
         overCap.length > 0
-          ? `编号 ${overCap.join("、")} 超出了一次能挂卡的 ${BLOCKOUT_MAX_ROLES} 个上限（再多的编号在画面上也认不出来）`
+          ? `${noun} ${overCap.join("、")} 超出了一次能挂卡的 ${BLOCKOUT_MAX_ROLES} 个上限（${
+              mark === "color" ? "再多的颜色在画面上也分不清了" : "再多的编号在画面上也认不出来"
+            }）`
           : "",
         removed.length > 0
-          ? `编号 ${removed.join("、")} 这个位子已经被模板作者在核对编号时删掉了（多半是因为画面上根本找不到这个号）`
+          ? `${noun} ${removed.join("、")} 这个位子已经被模板作者在核对${noun}时删掉了（多半是因为${
+              mark === "color" ? "画面上那个人根本没被换成人偶" : "画面上根本找不到这个号"
+            }）`
           : "",
       ]
         .filter(Boolean)
         .join("；");
       set({
-        err: `${why}——这些位子挂的卡不能生效，它们会保持白模人偶原样。回挂卡那一屏点「取下这几张」再完成挂卡`,
+        err: `${why}——这些位子挂的卡不能生效，它们会保持人偶原样。回挂卡那一屏点「取下这几张」再完成挂卡`,
       });
       return false;
     }
@@ -634,7 +662,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
     if (missing.length > 0) {
       set({
-        err: `编号 ${missing.join("、")} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下`,
+        err: `${noun} ${missing.join("、")} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下`,
       });
       return false;
     }
@@ -645,7 +673,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // ★ 上一轮合成的那段点名句必须一并撤掉：它点的是已经取下的卡，留着就是一份
       //   **旧映射** —— 按旧映射出片正是"换错人且零报错"。清掉不会让用户白干，
       //   因为这个状态本来就出不了片（门口的 blockoutIssue 拦着，理由同下面这句）。
-      set({ cast: {}, castErr: "", castFallback: "", err: "一个角色位都没挂卡：白模出片全靠卡上的形象图说明「换成谁」，一张都不挂的话出不了片——回去至少挂一张" });
+      set({
+        cast: {},
+        castErr: "",
+        castFallback: "",
+        err: "一个角色位都没挂卡：白模出片全靠卡上的形象图说明「换成谁」，一张都不挂的话出不了片——回去至少挂一张",
+      });
       get().updateNode(node.id, { materials: undefined });
       get().updateProposal(node.id, { plot: "" });
       return false;
@@ -661,7 +694,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const seen = byName.get(s.card.name);
       if (seen && seen !== s.card.id) {
         set({
-          err: `有两张不同的卡都叫「${s.card.name}」（编号 ${s.label} 挂的是其中一张）——出片时靠角色名把形象图接到编号上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡`,
+          err: `有两张不同的卡都叫「${s.card.name}」（${noun} ${s.label} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡`,
         });
         return false;
       }
@@ -672,7 +705,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   blockoutPrompt.castNameIssue，别在界面上再判一遍）。
       const nameIssue = castNameIssue(s.card.name);
       if (nameIssue) {
-        set({ err: `编号 ${s.label} 挂的这张卡不能这么用：${nameIssue}` });
+        set({ err: `${noun} ${s.label} 挂的这张卡不能这么用：${nameIssue}` });
         return false;
       }
     }
@@ -709,7 +742,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   见 CLAUDE.md「两仓价目表各写各的」），**别在这里单方面扣一笔**。
       // ★ 没配 ARK_API_KEY 的 mock 构建里它直接返回骨架（不是静默降级 —— 骨架本身
       //   就是第五章那份模板，chat 只负责把作者那句话揉顺，见 composeBlockoutPrompt 的 ★）。
-      const text = await composeBlockoutPrompt(slots, line);
+      const text = await composeBlockoutPrompt(slots, line, mark);
       get().updateProposal(node.id, { plot: text });
       set({ busy: false, castBusy: false });
       // 挂完卡就把"现在还出不了片"的原因先说了（判据仍只活在 segmentGen.blockoutIssue
@@ -735,7 +768,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
         busy: false,
         castBusy: false,
         castErr: e instanceof Error ? e.message : String(e),
-        castFallback: blockoutApplySkeleton(slots, line),
+        castFallback: blockoutApplySkeleton(slots, line, mark),
       });
       return false;
     }

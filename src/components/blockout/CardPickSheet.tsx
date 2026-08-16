@@ -9,11 +9,17 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "../Icon";
-import { CARD_TYPE_LABELS, type Card } from "../../types";
+import MarkBadge from "./MarkBadge";
+import { CARD_TYPE_LABELS, type Card, type MarkScheme } from "../../types";
 
 export interface CardPickSheetProps {
-  /** 挂给哪个角色位（原样显示服务端给的编号，不重新编号 —— F5：编号稳定但不连续） */
+  /** 挂给哪个角色位（原样显示服务端给的标记，不重编、不换近义色名 ——
+   *  F5：编号稳定但不连续；颜色同理，"绿色"写成"青色"就是换错人） */
   label: string;
+  /** 这个模板的标记方案（宿主从模板带下来，判据唯一实现在 data/templates.isColorMark） */
+  mark: MarkScheme;
+  /** 这个色名的色值（颜色方案才有；拿不到就画中性灰块，绝不自己编一个颜色） */
+  swatch?: string | null;
   desc: string;
   /** 可挂的卡。★ 由宿主给（组件不认识素材库），要不要只给人物卡也由宿主决定 */
   cards: Card[];
@@ -26,6 +32,8 @@ export interface CardPickSheetProps {
 
 export default function CardPickSheet({
   label,
+  mark,
+  swatch,
   desc,
   cards,
   currentId,
@@ -50,9 +58,7 @@ export default function CardPickSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex items-start gap-2">
-          <span className="mt-0.5 flex-none rounded-md bg-sky-500/20 px-2 py-0.5 text-[13px] font-bold tabular-nums text-sky-200">
-            {label}
-          </span>
+          <MarkBadge mark={mark} label={label} swatch={swatch} className="mt-0.5" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-slate-100">给这个人偶挂一张卡</p>
             <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-slate-400">{desc}</p>
@@ -74,7 +80,9 @@ export default function CardPickSheet({
             onClick={onClear}
             className="mb-2 w-full rounded-lg border border-slate-600 py-2 text-[12px] text-slate-300"
           >
-            取下这张卡（这个人偶保持白模原样）
+            {/* ★ 措辞中性："白模原样"在颜色方案下会让人以为它会变回白色，而实测它会
+                **带着自己那个颜色**出现在成片里（见 blockoutPrompt 文件头 ★★） */}
+            取下这张卡（这个人偶保持原样）
           </button>
         )}
 

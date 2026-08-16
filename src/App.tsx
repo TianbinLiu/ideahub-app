@@ -239,7 +239,7 @@ export default function App() {
         }
       />
       {/* 视频编辑页（白模 V2）：一个页面两种模式——作者的「选段 + 裁掉水印」与
-          套用者的「给编号的人偶挂卡」。全屏推入页，不进 TabLayout（与 /cut 同形态）。
+          套用者的「给人偶挂卡」。全屏推入页，不进 TabLayout（与 /cut 同形态）。
           ★ 入参/出参走 location.state（形状见 VideoEditorPage 顶部注释），页面自己
             按形状验收：拿不到入参时显示一句能读懂的解释 + 回首页，不是白屏。
           ★ RequireAuth：两种模式的终点都要登录才成立——白模化打的是 requireAuth 的

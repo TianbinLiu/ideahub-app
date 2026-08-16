@@ -744,22 +744,37 @@ export interface ApiBranchTemplate {
     bytes?: number;
   };
   /**
-   * 白模人偶的**角色位**（编号 ↔ 这个编号在原视频里替换掉的是谁）。
+   * 白模人偶的**角色位**（标记 ↔ 这个标记在原视频里替换掉的是谁）。
    *
    * ★ **只在真有的时候才出现这个 key**：V1 白模模板整个字段缺失。调用方一律判**存在性**
    *   （`roles?.length`），不许等值比、也不许把"缺"和"空数组"当同一件事处理
    *   —— 那是 `visibility` 那条坑的同族（docs/api-contract.md「可见性」）。
-   * ★ `label` 是**人偶头上那个编号本身**（印在头部前后左右四面，同一个数），实测**稳定但不连续**（2026-08-15 一发四人实出
-   *   1/2/4/5）。别按下标推编号、别拿 `roles.length` 当最大编号、点名时**原样用 label**。
+   * ★ `label` 是**人偶身上那个标记本身**：新模板是色名（"绿色"，人偶通体一色），
+   *   存量老模板是阿拉伯数字（实测稳定但不连续，2026-08-15 一发四人实出 1/2/4/5）。
+   *   哪一种由 `markColors` 的**存在性**决定。别按下标推、别拿 `roles.length` 当最大编号、
+   *   点名时**原样用 label**。
    * ★ 服务端写（看帧产出、与真正发出去的点名提示词对齐）。客户端提交一律不收（zod strip），
    *   **唯一的例外**是作者的确认：PATCH /templates/:id/roles（见 patchTemplateRoles）。
-   * ★★ `labelConfirmed` = 这个编号**作者对着成片核对过了**。为假时那份 label 只是服务端
-   *   按视觉清单顺序编的**猜测**（1..N），与画面上人偶头上的数字可能对不上 ——
+   * ★★ `labelConfirmed` = 这个标记**作者对着成片核对过了**。为假时那份 label 只是服务端
+   *   按视觉清单顺序分配的**猜测**，与画面上真实的那个标记可能对不上 ——
    *   套用者照它挂卡就会把角色换到别人身上，而且不会有任何报错。所以未核对的模板
    *   服务端**不许发布**（publish 回 400 整句）。缺省（老服务端不回这一位）按**未核对**
-   *   处理：往"多提醒一次"退是安全的，反过来是拿一份没人核对过的编号当真。
+   *   处理：往"多提醒一次"退是安全的，反过来是拿一份没人核对过的标记当真。
    */
   roles?: Array<{ label?: string; desc?: string; labelConfirmed?: boolean }>;
+  /**
+   * 这个模板的角色位标记用的是**哪一套颜色**（阶段一白模化时真正写进提示词的那份清单）。
+   *
+   * ★★ **有这一位 = 颜色方案；缺失 / 空数组 = 编号方案（存量老模板）**。服务端"真有才出
+   *   这个键"，客户端一律判存在性 —— 与 `realDurationSec` 同一条写法。判成编号方案是
+   *   **安全的那一侧**：老模板照旧能用，而新模板会写出一句一眼就不对的 `编号绿色=凛`
+   *   摆在用户花钱之前（判据与后果见 types.VideoTemplate.markColors 的 ★★）。
+   * ★ `swatch` 是服务端按色名现查调色板派生出来的色值，**不落库**、只给 App 画色块用；
+   *   查不到时服务端不出这个键，App 那边画中性灰块 + 纯文字，绝不自己编一个颜色。
+   * ★ 客户端提交一律不收（含 PATCH /roles —— 让作者改得动方案位，等于让他把一个颜色
+   *   模板标成编号模板，套用侧当场整份错且零报错）。
+   */
+  markColors?: Array<{ label?: string; swatch?: string }>;
   status?: "pending" | "published" | "blocked" | string;
   provenAt?: string | number | null;
   isOwner?: boolean;
@@ -911,8 +926,12 @@ export interface BlockoutStartResult {
    * ★ 0 与"真的看了 0 帧"不会混：一帧都取不到时服务端在阶段一就整句拒了（不会有凭据）。
    */
   frames: number;
-  /** 看帧那一步列出来的角色位**草案**（编号仍是猜测，作者要在建成模板后核对） */
+  /** 看帧那一步列出来的角色位**草案**（标记仍是猜测，作者要在建成模板后核对） */
   roles: Array<{ label: string; desc: string }>;
+  /** 这一发白模化提示词里**真正发出去的**那份颜色清单（存在性 = 颜色方案）。
+   *  ★ 阶段一就要拿到它：模板还没建出来时，"待取回"那一屏与核对入口就已经要知道
+   *    该按颜色说话还是按编号说话了。老服务端不回 → 空数组 → 编号方案（它发的确实是编号版）。 */
+  markColors: Array<{ label: string; swatch?: string }>;
   /** 凭据失效时刻（服务端说了算；★ 24h —— 方舟产物是 TOS 签名地址，见文件头 ★） */
   expiresAt: string | number | null;
 }
@@ -936,6 +955,10 @@ export interface ApiBlockoutJob {
   durSec?: number;
   title?: string;
   roles?: Array<{ label?: string; desc?: string }>;
+  /** 这一发白模化**当时**发出去的那份颜色清单（存在性 = 颜色方案，同 ApiBranchTemplate）。
+   *  ★ 必须跟着凭据走、不能按"今天服务端是哪一套"事后推：凭据 TTL 24 小时，发版正好夹在
+   *    两阶段之间时，只有这一位能保证 finish 出来的模板与那段视频真正的样子一致。 */
+  markColors?: Array<{ label?: string; swatch?: string }>;
   expiresAt?: string | number | null;
   createdAt?: string | number | null;
 }
@@ -1058,6 +1081,8 @@ export async function startBlockoutize(payload: BlockoutizePayload): Promise<Blo
   const frames = Number.isFinite(framesRaw) && framesRaw > 0 ? Math.round(framesRaw) : 0;
   if (jobId && taskId) {
     const roles = Array.isArray(job.roles) ? (job.roles as Array<{ label?: string; desc?: string }>) : [];
+    // ★ 方案位同样按存在性收：老服务端不回 → 空数组 → 编号方案（它发出去的确实是编号版）
+    const colors = Array.isArray(job.markColors) ? (job.markColors as Array<{ label?: string; swatch?: string }>) : [];
     return {
       kind: "job",
       job: {
@@ -1068,6 +1093,13 @@ export async function startBlockoutize(payload: BlockoutizePayload): Promise<Blo
         roles: roles
           .map((r) => ({ label: String(r?.label ?? "").trim(), desc: String(r?.desc ?? "").trim() }))
           .filter((r) => r.label !== ""),
+        markColors: colors
+          .map((c) => {
+            const label = String(c?.label ?? "").trim();
+            const swatch = String(c?.swatch ?? "").trim();
+            return { label, ...(swatch ? { swatch } : {}) };
+          })
+          .filter((c) => c.label !== ""),
         expiresAt: (job.expiresAt as string | number | null | undefined) ?? null,
       },
     };

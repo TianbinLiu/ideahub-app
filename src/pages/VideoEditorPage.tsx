@@ -3,7 +3,7 @@
 //   模式一「白模化前」（作者选好一段原视频）—— 框出 5~30 秒、把水印裁到画面外，
 //     交出 `{ startSec, durSec, crop }` 四组整数（**不是 URL**）。
 //   模式二「套用挂卡」（别人用这个白模模板）—— 放模板视频、列出角色位，挂人物卡，
-//     交出 `编号 → cardId` 的映射。
+//     交出 `标记（颜色/编号）→ cardId` 的映射。
 //
 // ★★ 这一页是**壳**：真正的交互在 `components/blockout/` 下的组件里，它们只收 props、
 //   不认识任何 store（PlanBoard 同款约束）—— 这两种模式的宿主不止这一个路由（提取器浮层、
@@ -38,6 +38,8 @@ import type { BlockoutSelection, TemplateRole, VideoNatural } from "../component
 //   界面于是会对着 4 张卡说"超上限、会被挤掉"，而出片管线根本不会挤 —— 界面在吓唬用户。
 import { ARK_REF_IMAGES_MAX } from "../ai/real";
 import { myCards } from "../data/account";
+// ★ "这个模板是哪种标记方案"的判据只有 data 层一处，页面只问它（铁律六）
+import { isColorMark } from "../data/templates";
 import { useAccountVersion } from "../hooks/useAccount";
 import type { Card } from "../types";
 
@@ -74,6 +76,16 @@ export interface CastEditorState {
   /** 白模模板视频地址（template.refVideo.url） */
   videoUrl: string;
   roles: TemplateRole[];
+  /**
+   * 这个模板白模化时用的那份颜色清单（`VideoTemplate.markColors` 原样带过来）。
+   * **存在 = 颜色方案，缺省 = 编号方案**（判据的唯一实现是 data/templates.isColorMark）。
+   *
+   * ★★ **可选，而且 parseState 缺它时绝不 return null**：老包缓存里的 history state、
+   *   从别处深链进来的 state 都没有这一位，整份拒收会让用户看到"这一页需要从上传或模板页
+   *   进来"——而他明明是从模板页点进来的。缺了只是退成编号措辞（安全的那一侧，
+   *   而且写出来的 `编号绿色=凛` 一眼就是坏的、且在花钱之前）。
+   */
+  markColors?: { label: string; swatch?: string }[];
   /** 已有的挂卡映射（回来接着改时带上） */
   value?: Record<string, string>;
   /** 模板 id，原样带回结果里，方便宿主对号入座 */
@@ -121,9 +133,22 @@ function parseState(raw: unknown): VideoEditorState | null {
     const roles: TemplateRole[] = [];
     for (const r of s.roles) {
       const o = r as Record<string, unknown> | null;
-      // 角色位少一个都会让"编号 ↔ 谁"对不上，所以宁可整个不认（下面那句解释兜住）
+      // 角色位少一个都会让"哪个人偶 ↔ 谁"对不上，所以宁可整个不认（下面那句解释兜住）
       if (!o || !isStr(o.label) || typeof o.desc !== "string") return null;
       roles.push({ label: o.label, desc: o.desc });
+    }
+    // ★★ 方案位是**可选**的，形状不对也只是丢掉它、**绝不 return null**（见 CastEditorState
+    //   的 ★★）：整份拒收会让一个从模板页正常点进来的用户撞上"这一页需要从上传或模板页进来"。
+    //   丢掉的后果是退成编号措辞 —— 安全的那一侧，而且坏得看得见（`编号绿色=凛`）。
+    // ★ 逐字段重建（与 roles 同款）：这一层已经是"逐字段重建会静默丢字段"的三处之一，
+    //   所以这一位必须**显式**在这里出现，别指望对象整体透传。
+    const markColors: { label: string; swatch?: string }[] = [];
+    if (Array.isArray(s.markColors)) {
+      for (const c of s.markColors) {
+        const o = c as Record<string, unknown> | null;
+        if (!o || !isStr(o.label)) continue;
+        markColors.push({ label: o.label, ...(isStr(o.swatch) ? { swatch: o.swatch } : {}) });
+      }
     }
     const value: Record<string, string> = {};
     if (s.value && typeof s.value === "object") {
@@ -133,6 +158,9 @@ function parseState(raw: unknown): VideoEditorState | null {
       mode: "cast",
       videoUrl: s.videoUrl,
       roles,
+      // 存在性语义（有才带这个键）：空数组与"老 state"在下游会被压成同一个值，
+      // 而 isColorMark 数的是 length —— 两者都判编号，但记录里分得清
+      ...(markColors.length > 0 ? { markColors } : {}),
       value,
       templateId: isStr(s.templateId) ? s.templateId : undefined,
       title: isStr(s.title) ? s.title : undefined,
@@ -193,7 +221,9 @@ export default function VideoEditorPage() {
             {state?.title || (state?.mode === "cast" ? "挂上你的角色" : "选段与裁剪")}
           </p>
           <p className="truncate text-[10px] text-slate-500">
-            {state?.mode === "cast" ? "白模模板 · 给编号的人偶挂人物卡" : "白模化 · 框出一段并裁掉水印"}
+            {state?.mode === "cast"
+              ? `白模模板 · 给${isColorMark(state) ? "有颜色的" : "编号的"}人偶挂人物卡`
+              : "白模化 · 框出一段并裁掉水印"}
           </p>
         </div>
       </header>
@@ -229,6 +259,7 @@ export default function VideoEditorPage() {
           <RoleCastBoard
             videoUrl={state.videoUrl}
             roles={state.roles}
+            markColors={state.markColors}
             cards={cards}
             value={cast}
             onChange={setCast}

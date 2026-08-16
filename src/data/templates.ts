@@ -17,7 +17,7 @@ import { canAfford, currentUser, refreshRemoteWallet, tierBlockReason } from "./
 import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens } from "./economy";
 import { toPermanentUrl } from "./publishAssets";
 import { remoteOn } from "./videos";
-import { Card, VideoAspect, VideoTemplate, uid } from "../types";
+import { Card, MarkScheme, VideoAspect, VideoTemplate, uid } from "../types";
 
 const KEY = "templates.v1";
 
@@ -193,7 +193,8 @@ export interface RemoteTemplateState {
   /** 服务端按 ownerId 对当前 JWT 算的 —— 白模路的身份判定只认它，不比显示名 */
   isOwner: boolean;
   /**
-   * 编号核对闸：true = 这个模板有角色位，但编号**还没被作者核对过**，服务端不许发布。
+   * 标记核对闸：true = 这个模板有角色位，但标记（颜色/编号）**还没被作者核对过**，
+   * 服务端不许发布。
    *
    * ★★ 为什么这一位要单独存在于状态快照里、而不是塞进 `VideoTemplate.roles`：
    *   `roles` 是**出片时点名要用的数据**（label/desc 直接进提示词），而这一位是
@@ -247,8 +248,9 @@ function recordState(api: branch.ApiBranchTemplate): RemoteTemplateState | null 
  * ★ 逐字段兜底再进本机库：这是网络回包，`roles` 又是后加字段 —— 一个 label 变成
  *   `undefined` 混进去，出片时点名句里就会出现「编号 undefined」，模型不会报错，
  *   只会自己挑一个人换（换错人是零报错的故障）。没有 label 的条目直接丢掉。
- * ★ label **原样保留字符串**，不转数字、不重排、不补齐：实测编号稳定但**不连续**
- *   （一发四人实出 1/2/4/5），"规整成 1..N"就是把卡换到别人身上（types 的 ★★）。
+ * ★ label **原样保留字符串**，不转数字、不重排、不补齐：颜色方案下它是色名（"绿色"），
+ *   编号方案下实测稳定但**不连续**（一发四人实出 1/2/4/5），两种形态"顺手规整"
+ *   都是把卡换到别人身上（types 的 ★★）。
  * @returns 空数组 = 这个模板没有角色位（V1 老模板）。调用方按**存在性**处理，
  *   别把空数组写进本机记录（写了之后"V1 还是 V2"在调试时就分不清了）。
  */
@@ -257,6 +259,31 @@ function rolesOf(api: branch.ApiBranchTemplate): NonNullable<VideoTemplate["role
   return api.roles
     .map((r) => ({ label: String(r?.label ?? "").trim(), desc: String(r?.desc ?? "").trim() }))
     .filter((r) => r.label !== "");
+}
+
+/**
+ * 服务端回的那份颜色清单 → 本机镜像。**唯一实现**（模板与白模化凭据两条路都走它）。
+ *
+ * ★★ 逐字段重建是这一层的既定做法，而这一位又**恰恰是方案判据本身** —— 漏在这里
+ *   没有任何症状：模板照样能打开、照样能挂卡，只是被判成编号方案，套用时写出
+ *   `编号绿色=凛`。所以它必须与 `rolesOf` 并排、被同一批调用点问到（apiToTemplate、
+ *   refreshRemoteTemplate 的两条回写路、jobOf）。
+ * ★ `swatch` **有才带这个键**，绝不 `|| "#..."` 兜一个默认色值：编不出颜色时界面画
+ *   中性灰块 + 色名，作者一眼知道"这个色块只是占位、以画面为准"；编一个出来他会照着
+ *   我们编的那个颜色去核对，那正是"以为核对过了"（比不核对更坏）。
+ * @returns 空数组 = 编号方案（存量老模板 / 老服务端）。调用方按**存在性**处理。
+ */
+function markColorsOf(api: {
+  markColors?: Array<{ label?: string; swatch?: string }>;
+}): NonNullable<VideoTemplate["markColors"]> {
+  if (!Array.isArray(api.markColors)) return [];
+  return api.markColors
+    .map((c) => {
+      const label = String(c?.label ?? "").trim();
+      const swatch = String(c?.swatch ?? "").trim();
+      return { label, ...(swatch ? { swatch } : {}) };
+    })
+    .filter((c) => c.label !== "");
 }
 
 /**
@@ -276,6 +303,7 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
   if (!rid || !refUrl) return null; // 没有参考视频的"白模模板"不成立，丢弃比展示半个强
   recordState(api);
   const roles = rolesOf(api);
+  const markColors = markColorsOf(api);
   return {
     id: rid,
     remoteId: rid,
@@ -307,6 +335,11 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
     },
     // ★ 只在真有的时候才带这个键（存在性语义，见 rolesOf 与 types 的 ★）
     ...(roles.length > 0 ? { roles } : {}),
+    // ★★ 同一条存在性语义，但这一位是**方案判据本身**：写成 `markColors: markColors`
+    //   （空数组也带上）的话，`isColorMark` 仍然判否（它数的是 length），但本机记录里
+    //   就多了一个"看起来像颜色方案、其实是空的"的键 —— 调试时分不清"老模板"与
+    //   "新模板但颜色清单丢了"，而这两者的处置完全相反
+    ...(markColors.length > 0 ? { markColors } : {}),
     published: api.status === "published",
   };
 }
@@ -475,6 +508,18 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
         local.roles = back;
         dirty = true;
       }
+      // ★★ 方案位同样跟着服务端走，理由比 roles 那条更硬：本机 `mine` 里那份是**建模板
+      //   那一刻写下的**，而这一位是 2026-08-16 才有的 —— 换句话说，作者自己那台设备上
+      //   的老记录永远不会自己长出它。少了这一段，一个真·颜色模板在**作者本人**的
+      //   设备上会一直被判成编号方案：他去挂卡，输入框里写的是 `编号绿色=凛`；
+      //   而别人（走 shared，走的是 apiToTemplate 那条新路）看到的是对的。
+      // ★ 只在服务端真有这一位时才回写，**绝不因为"这次没回"就把本机那份删掉**：
+      //   读路径的一次抖动不该把一个颜色模板降级成编号模板（那正是判否定要防的方向）。
+      const backColors = markColorsOf(api);
+      if (backColors.length && JSON.stringify(backColors) !== JSON.stringify(local.markColors ?? [])) {
+        local.markColors = backColors;
+        dirty = true;
+      }
       // ★★ `realDurationSec` 也必须跟着服务端走，理由与上面 roles 那条**完全同构**，
       //   但少了它的后果更刁钻：这一位是 2026-08-16 才新增的（服务端回填脚本补进老文档），
       //   而本机 `mine` 里那份是**建模板时写下的**、永远不会自己长出这一位。
@@ -506,8 +551,11 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
     else {
       const cached = shared.find((x) => x.id === id);
       const back = rolesOf(api);
+      const backColors = markColorsOf(api);
       // shared 只活在内存里，没有本机库要写（persist 只管 mine）
       if (cached && back.length) cached.roles = back;
+      // 方案位同上（有才写、不因一次没回就抹掉）
+      if (cached && backColors.length) cached.markColors = backColors;
     }
     emit();
   } catch (e) {
@@ -568,24 +616,30 @@ export function roleFloorIssue(remaining: number): string | null {
 }
 
 /**
- * 核对角色位编号 —— **唯一入口**（页面别自己调 branch API：本机镜像与远端状态要一起改）。
+ * 核对角色位标记 —— **唯一入口**（页面别自己调 branch API：本机镜像与远端状态要一起改）。
  *
  * ★★ 为什么非有这一步不可（这是白模 V2 最阴的一条错法）：白模化落库那一刻的 label 是
- *   **服务端按视觉清单顺序编的猜测**（1..N），而成片上人偶头上的数字实测**稳定但不连续**
- *   （一发四人实出 1/2/4/5）。对不上时，套用者点"3 号位"挂上张三 —— 模型老老实实换掉
- *   画面上的 3 号（另一个人），**钱照扣、零报错**。所以编号只能由看得见画面的人确认。
- * ★ 提交的是**完整的那一份**（服务端整份替换）：作者可以改编号、改描述、删掉 AI 多认的
- *   一条、补上它漏认的一个。重复编号服务端整句 400（重了会让套用侧的挂卡互相覆盖）。
+ *   **服务端按视觉清单顺序分配的猜测**，而成片上人偶身上真正的标记是**方舟画上去的**。
+ *   对不上时，套用者给「绿色」（老模板是「3 号位」）挂上张三 —— 模型老老实实换掉画面上
+ *   真正的那个绿色人偶（另一个人），**钱照扣、零报错**。所以标记只能由看得见画面的人确认。
+ * ★ 提交的是**完整的那一份**（服务端整份替换）：作者可以改标记、改描述、删掉 AI 多认的
+ *   一条、补上它漏认的一个。标记重复服务端整句 400（重了会让套用侧的挂卡互相覆盖）。
  * ★★ **「删掉一个角色位」就走这一条路，没有第二条**（2026-08-15 实测逼出来的常规操作）：
- *   方舟画在人偶头上的编号并不可靠 —— 同一段 5 人素材实出过 2/2/1/1/5（两组重号，
- *   3、4 整个没出现）。库里那份永远是连续的 1..N，所以**重号只发生在画面上**：作者要把
- *   能对上的位子改成画面上的真数字，把画面上找不到的那几个位子删掉。删的表达形式就是
- *   **提交的数组里少了那一条**（整份替换）—— 改号与删位因此是**同一次提交的两半**，
- *   拆成两次必然撞服务端的重号闸（把 1 号位改成 2 时库里已经有个 2）。
+ *   两种方案各有各的不准法 —— 编号版实出过 2/2/1/1/5（两组重号，3、4 整个没出现）；
+ *   颜色版最常见的是**有个人根本没被换成人偶**（尤其是画面正中央那个最像主角的），
+ *   以及相邻两色互换。库里那份永远是不重复的，所以**对不上只发生在画面上**：作者要把
+ *   能对上的位子改成画面上真实的那个标记，把画面上找不到的那几个位子删掉。删的表达形式
+ *   就是**提交的数组里少了那一条**（整份替换）—— 改标记与删位因此是**同一次提交的两半**，
+ *   拆成两次必然撞服务端的重号闸（把 1 号位改成 2 时库里已经有个 2；把这一行改成绿色时
+ *   库里已经有个绿色）。
  * ★★ 剩下的 label **逐字不动、顺序不动**：调用方给什么就发什么，这一层不排序、不补号、
- *   不重编。删掉 3 号之后 5 号仍然叫 5 号 —— 重排等于把卡挂到别人身上，两边都不报错。
+ *   不重编、不换近义色名。删掉 3 号之后 5 号仍然叫 5 号，"绿色"不许写成"青色" ——
+ *   重排/换词等于把卡挂到别人身上，两边都不报错。
+ * ★★ **`markColors` 一个字都不发**（也不许发）：那是"这个模板是哪种方案"的判据，由白模化
+ *   那一刻的服务端说了算。让作者的一次「核对无误」把方案位擦掉，套用侧当场整份错且
+ *   零报错 —— 服务端 zod 的 strip 是第二道，这里是第一道。
  * ★ 成功后**本机 roles 一起改写**：出片时点名用的就是本机这份（segmentGen 读 template.roles），
- *   只改远端的话，作者在这台设备上出的片仍然按旧编号点名 —— 那正是"改了却没生效"的
+ *   只改远端的话，作者在这台设备上出的片仍然按旧标记点名 —— 那正是"改了却没生效"的
  *   零症状故障。
  * @throws message 可直接显示
  */
@@ -598,8 +652,10 @@ export async function confirmTemplateRoles(
   // 与 setTemplatePublished 同一条理由
   const t = local ?? shared.find((x) => x.id === id);
   if (!t) throw new Error("这个模板不在本机库里");
-  if (!t.remoteId) throw new Error("模板还没登记到服务器，登记成功后才能核对编号");
-  if (!remoteOn()) throw new Error("现在连不上服务器——编号登记在服务端，联网后再核对");
+  // 名词按方案说（唯一实现是 MARK_NOUN）：对着一个纯色人偶找"编号"，用户只会以为坏了
+  const noun = MARK_NOUN[markSchemeOf(t)];
+  if (!t.remoteId) throw new Error(`模板还没登记到服务器，登记成功后才能核对${noun}`);
+  if (!remoteOn()) throw new Error(`现在连不上服务器——${noun}登记在服务端，联网后再核对`);
   const clean = roles.map((r) => ({ label: String(r.label ?? "").trim(), desc: String(r.desc ?? "").trim() }));
   // ★★ 空编号**整句拒**，绝不静默丢掉那一条。原来这里是 `.filter((r) => r.label !== "")` ——
   //   而这条端点是**整份替换**，被 filter 掉就等于把那个角色位真的删了：
@@ -615,7 +671,9 @@ export async function confirmTemplateRoles(
   const blank = clean.findIndex((r) => r.label === "");
   if (blank >= 0) {
     throw new Error(
-      `第 ${blank + 1} 行的人偶编号是空的——编号是"把卡挂到这个人偶身上"的唯一凭据，不能留空。照画面上印的数字填一个；想去掉这个角色位，请点它的「删掉」。`,
+      `第 ${blank + 1} 行的人偶${noun}是空的——${noun}是"把卡挂到这个人偶身上"的唯一凭据，不能留空。${
+        noun === "颜色" ? "照画面上那个人偶的颜色选一个" : "照画面上印的数字填一个"
+      }；想去掉这个角色位，请点它的「删掉」。`,
     );
   }
   // 下限只有一处实现（面板里"最后一条不给删"说的也是这一句）
@@ -623,7 +681,7 @@ export async function confirmTemplateRoles(
   if (floor) throw new Error(floor);
   const api = await branch.patchTemplateRoles(t.remoteId, clean);
   if (!api) {
-    throw new Error("这台服务器还不支持核对角色位编号（回包形状不对，可能需要升级服务端）");
+    throw new Error("这台服务器还不支持核对角色位（回包形状不对，可能需要升级服务端）");
   }
   recordState(api);
   // ★ 以**服务端回的那一份**为准写本机（不是回显我们提交的 clean）：服务端会 trim、
@@ -696,6 +754,20 @@ export interface NewTemplate {
   /** 白模人偶的角色位（服务端登记值的镜像）。只有白模化那条路（V2）会带 */
   roles?: VideoTemplate["roles"];
   /**
+   * 这个模板用的是**颜色**标记（服务端下发的那份色名清单）。
+   *
+   * ★★ 这一位**必须跟着 roles 一起搬进本机库**，漏了它的表现极其刁钻：
+   *   方案判据是 `markColors` 的存在性（判否定 → 缺失即"老的编号方案"），所以漏一位
+   *   不是"少显示一个色块"，而是**刚做出来的颜色模板在作者自己那台设备上从出生起就被
+   *   判成编号方案**。接着他点「用这个模板出片」（提取器成功卡片上最显眼的下一步），
+   *   挂卡界面会让他"记住人偶头上那个数字"——而画面里是一群彩色人偶、一个数字都没有；
+   *   合成出来的提示词是「编号绿色=凛…把编号全部去掉」，三道校验**全部通过**（正则找的是
+   *   `编号\s*绿色`，命中），于是零报错地花掉一发 r2v 的钱，而那一发正是发布前必须做的试炼。
+   * ★ TS 拦不住这种漏：少传一个可选字段没有任何症状 —— 所以它必须**先在这里有名字**，
+   *   `adoptBlockoutTemplate` 那边才谈得上"忘了搬"会被看见。
+   */
+  markColors?: VideoTemplate["markColors"];
+  /**
    * **服务端已经建好了**这个模板（白模化那条路：blockoutize 一次性出片 + 转存 + 建库，
    * 回包里就带着实体）。带上它意味着两件事：
    *   ① 本机记录直接带 remoteId 落库（市场去重、发布/删除都靠它）；
@@ -729,11 +801,12 @@ export function saveTemplate(t: NewTemplate): VideoTemplate {
   return tpl;
 }
 
-// ── 白模化（V2：任意视频 → 带编号白模模板）──────────────────────
+// ── 白模化（V2：任意视频 → 带标记的白模模板）──────────────────────
 //
 // 与 V1（作者自己已经有白模预演视频 → 上传 → 登记）是两条进货渠道，最大的差别是
 // **这一条花真钱**：服务端要看几帧列出画面里有谁，再付费出一次 r2v edit 片把人全换成
-// 带编号的白模人偶，产物转存之后才是模板。所以这里的每一步都按"钱已经动了"来写。
+// 带标记的白模人偶（2026-08-16 起是**一人一色**，此前是在头上印数字，见 isColorMark
+// 上面那段复盘），产物转存之后才是模板。所以这里的每一步都按"钱已经动了"来写。
 
 // ── 白模化那一步「先看」会看几帧 ────────────────────────────────────
 //
@@ -913,14 +986,18 @@ export function refVideoOwnerNote(ref: VideoTemplate["refVideo"]): string | null
  * 收的条数上限也是它（server `schemas/branchTemplate.schemas.js` 的 `roles` 数组上限），
  * 两边必须逐字相等 —— 契约见 docs/api-contract.md「白模模板」。
  *
- * ★★ 9 不是技术上限，是**看得清的上限**（2026-08-15 实测）：12 个角色位时编号照样印得出来，
+ * ★★ 9 不是技术上限，是**看得清的上限**（2026-08-15 实测）：12 个角色位时标记照样画得出来，
  *   但画面上人眼能稳定认出的只有 4~5 个。再往上加只会造出一堆"看不见、挂不上"的位子——
  *   用户对着列表里的 11 号在画面里找半天，找不到，只会以为坏了（而全程零报错）。
+ * ⚠ 颜色方案下这个 9 还多一层**没验过的风险**：白模化提示词按 9 人算约 709 字，而实测
+ *   594 字通过、605 字就开始顶穿预算（抹外观那几句先垮）。也就是说 6 人以上已经在
+ *   出过问题的长度区间里。这个数是**跨仓的**（服务端白模化最多编到它，PATCH 收的条数
+ *   上限也是它），改它是另一次跨仓决策，本次不动 —— 产品侧用文案劝到 5 人以内。
  * ★ 参考图预算**不是**瓶颈：9 个角色位 × 每卡最多 2 张 = 18 张，而方舟 2.5 收 30 张
  *   （`ai/real.ARK_REF_IMAGES_MAX`）。所以这个 9 纯粹由"画面上认不认得出"这一条定，
  *   别拿参考图预算去推它 —— 那两个数各有各的依据，绑在一起改一个就会悄悄动到另一个。
  * ⚠ 服务端还没跟上这个数时，模板可能带回多于 9 个角色位：那时多出来的**照样显示**
- *   （画面上真有那个编号），只是挂不了卡 —— 见 `splitCastRoles` 与 RoleCastBoard。
+ *   （画面上真有那个标记），只是挂不了卡 —— 见 `splitCastRoles` 与 RoleCastBoard。
  */
 export const BLOCKOUT_MAX_ROLES = 9;
 
@@ -928,9 +1005,9 @@ export const BLOCKOUT_MAX_ROLES = 9;
  * 角色位 → 「能挂卡的」与「超出上限的」两摞。**唯一实现**：挂卡面板（渲染那一处）与
  * `flowStore.applyCast`（真正落 materials 那一处）问的是同一个函数。
  *
- * ★ 为什么不在收模板那一层就把多出来的**扔掉**：画面上那些人偶身上真的印着编号，
- *   列表里悄悄消失的话，用户看见 11 号却在列表里找不到它，只会以为坏了。摆出来 +
- *   说清"它保持白模、挂不了卡"，才是诚实的降级（铁律八）。
+ * ★ 为什么不在收模板那一层就把多出来的**扔掉**：画面上那些人偶身上真的带着标记，
+ *   列表里悄悄消失的话，用户看见它却在列表里找不到，只会以为坏了。摆出来 +
+ *   说清"它保持人偶原样、挂不了卡"，才是诚实的降级（铁律八）。
  * ★ 收 `roles` 的行内形状而不是组件里那个 `TemplateRole` 别名：那个别名定义在
  *   `components/blockout/arkVideoRules`，data 层 import 组件会把依赖方向掉个个儿。
  */
@@ -939,6 +1016,75 @@ export function splitCastRoles(roles: NonNullable<VideoTemplate["roles"]>): {
   extra: NonNullable<VideoTemplate["roles"]>;
 } {
   return { castable: roles.slice(0, BLOCKOUT_MAX_ROLES), extra: roles.slice(BLOCKOUT_MAX_ROLES) };
+}
+
+// ── 角色位标记是「颜色」还是「编号」──────────────────────────────
+//
+// ★★ 2026-08-16 起新做的白模模板改用**颜色**标记（人偶通体一色，一个角色位一种颜色），
+//   此前是**在人偶头上印阿拉伯数字**。换掉的理由全是实测：
+//     · 编号 5 个角色位从来没有一发 5/5 全对（最好 4/5，且带重号：实出过 2/2/1/1/5）；
+//     · 「头部前后左右四面各印同一个数字」**从没被执行过** —— 每发只印一面，哪一面还不可控；
+//       改成"镜头转到哪面印哪面"之后，同一个人偶正面 1/1/3、背面 2/3/3，无法仲裁；
+//     · 编号会被逐帧**原样复刻进成片**（实拍：换上去的角色后脑顶着「1」），所以套用提示词里
+//       必须额外加一句「把编号全部去掉」才修得好。
+//   根因：这个模型把数字当"贴在当前这一帧上的二维贴纸"，**不维持跨帧对象恒等性**，
+//   而"任意角度读到同一个号"恰恰要求这个。颜色是**材质**，任何角度都对，两个老毛病一次消失，
+//   而且实测**颜色不会渗进角色卡**（挂在绿色位上的凛，长袍还是黑金的），所以颜色**不需要**
+//   像编号那样额外加一句"去掉"。
+// ⚠ 但这**不是"修好了"**：颜色方案同素材同参数 7 发只有 4 发全对（≈57%），失败形状高度一致
+//   （画面正中央那个"最像主角"的没被抹掉、相邻两色互换）。所以作者核对/删位那一整套机制
+//   必须**保留**并跟着改文案 —— 它是兜底，不是修好。
+//
+// ★★★ **调色板（label → 颜色）在本仓一份都没有，也永远不许有。** 唯一实现在服务端
+//   （`blockoutize.service.MARK_PALETTE`）：颜色的**文字**来自 `roles[].label`（服务端给的
+//   字符串，App 原样显示、原样写进提示词），颜色的**色块**来自 `markColors[].swatch`
+//   （服务端按 label 现查派生、不落库）。于是"两边相等"从靠约定变成**结构上不可能不等**
+//   —— 这比 `BLOCKOUT_MAX_ROLES` 那种镜像强一档（那一个今天其实并没有测试钉住两边）。
+//   ⚠ 本仓全仓无测试框架（无 `*.spec.ts`），这条只能靠这段注释 + 契约文档 + review 兜。
+//   看到有人在本仓加一个色名数组、`Record<色名, hex>`、或者任何"按 label 算颜色"的函数，
+//   就是这条设计被推翻了 —— 回来改这段注释再动手。
+//   ★ 这条禁的是**当数据用的**色名/色值。界面文案里举例说「别人给「绿色」挂的卡…」
+//     是**举例**（和"实测挂在绿色位上的凛长袍还是黑金的"同类），不参与任何判断、
+//     改调色板也不会让它算错，别顺手把它们也删了。
+
+/**
+ * 「这个模板的角色位标记是颜色吗」—— **全 app 唯一实现**（提示词、核对面板、挂卡面板、
+ * flowStore 的错误文案，全部问它，谁都不许自己判一遍）。
+ *
+ * ★★ 判据是**存在性**：只有明确带着一份非空的 `markColors` 才算颜色方案，缺失 / 空数组 /
+ *   null 一律回落编号方案。线上那两个还在用的老模板（`都市主角群舞转场`、`宗主垫脚舞`）
+ *   天然没有这一位 → 判成编号 → 套用走老提示词（含那句「把编号全部去掉」）→ 一个字都不
+ *   受影响。反过来写成 `!== "number"` 会把存量整批翻面，画面上根本没有绿色人偶、提示词
+ *   却说「把绿色人偶替换为…」——**当场作废且零报错**，这是本次改动的头号红线。
+ * ★ 收 `Pick` 而不是整个 `VideoTemplate`：flowStore 的模板快照、编辑页的入参都是只带
+ *   几个字段的形状，让它们也能问同一个函数（而不是各自 `!!x.markColors?.length` 一遍）。
+ */
+export function isColorMark(t: Pick<VideoTemplate, "markColors"> | null | undefined): boolean {
+  return !!t?.markColors?.length;
+}
+
+/** 同上，只是直接给出那一档（提示词与文案分支要的是这个值）。★ 判据仍只有 isColorMark 一处 */
+export function markSchemeOf(t: Pick<VideoTemplate, "markColors"> | null | undefined): MarkScheme {
+  return isColorMark(t) ? "color" : "number";
+}
+
+/**
+ * 界面上称呼这个标记的那个名词 —— **一处实现**（标题、按钮、错误句、提示语都取它）。
+ * ★ 别在组件里写 `isColorMark(t) ? "颜色" : "编号"`：那就是同一条规则的第 N 处实现，
+ *   哪天多出第三种方案时改不干净（而改漏了只表现为某一屏说错名字，没有任何报错）。
+ */
+export const MARK_NOUN: Record<MarkScheme, string> = { number: "编号", color: "颜色" };
+
+/**
+ * 这个角色位该画成什么色块 —— 没有就回 null（调用方画中性灰 + 纯文字）。
+ *
+ * ★ **永远不猜**：服务端查不到 swatch（作者手改过 label 的历史遗留、或调色板改过）时
+ *   这里必须回 null。编一个颜色出来，作者就会照着我们编的那个去核对画面 ——
+ *   那是"以为核对过了"，比不核对更坏。
+ * ★ 本仓不许有调色板：这个函数只是在服务端给的那份清单里**按色名查**，不含任何色值。
+ */
+export function swatchOf(markColors: VideoTemplate["markColors"], label: string): string | null {
+  return markColors?.find((c) => c.label === label)?.swatch ?? null;
 }
 
 /**
@@ -1006,8 +1152,17 @@ export interface BlockoutJob {
   /** 计价口径：服务端真正拿去拼变换 URL 的那个时长 */
   durSec: number;
   title: string;
-  /** 看帧那一步的角色位**草案**（编号仍是猜测，建成模板后作者还要核对一次） */
+  /** 看帧那一步的角色位**草案**（标记仍是猜测，建成模板后作者还要核对一次） */
   roles: { label: string; desc: string }[];
+  /**
+   * 这一发白模化**当时真正发出去的**那份颜色清单（存在性 = 颜色方案，同模板那一位）。
+   *
+   * ★★ 为什么凭据上也要存一份、而不是等它变成模板再说：白模化提示词在**阶段一**就发出去了，
+   *   凭据 TTL 24 小时 —— 发版正好夹在两阶段之间时，只有"凭据里记着当初发的是哪一套"
+   *   才能保证 finish 出来的模板与那段视频真正的样子一致。在途的老凭据没有这一位 →
+   *   finish 出编号方案模板 → **正确**（它的视频上印的确实是数字）。
+   */
+  markColors: NonNullable<VideoTemplate["markColors"]>;
   /** 失效时刻（ms，服务端说了算）。0 = 服务端没说，按 createdAt + TTL 兜底推算 */
   expiresAt: number;
   createdAt: number;
@@ -1025,6 +1180,7 @@ function jobOf(api: branch.ApiBlockoutJob): BlockoutJob | null {
     roles: roles
       .map((r) => ({ label: String(r?.label ?? "").trim(), desc: String(r?.desc ?? "").trim() }))
       .filter((r) => r.label !== ""),
+    markColors: markColorsOf(api),
     expiresAt: toMs(api.expiresAt ?? null) ?? 0,
     createdAt: toMs(api.createdAt ?? null) ?? Date.now(),
   };
@@ -1218,7 +1374,9 @@ async function waitBlockoutTask(taskId: string, prog: (s: string) => void): Prom
     const label = st.status === "queued" ? "排队中" : st.status === "running" ? "生成中" : st.status;
     // ★ 这句话里那半句"可以退出"是这次改造的**用户可见部分**：它必须出现在等待的每一拍上，
     //   否则用户仍然会以为自己必须一直盯着（而两阶段的全部意义就是他不必）。
-    prog(`AI 正在把画面里的人换成带编号的白模人偶：${label} ${sec}s（可以退出，24 小时内都能回「我的模板」取回结果）`);
+    // ★ 措辞跟着白模化提示词走（服务端那份 2026-08-16 起给每个人一种颜色，不再印数字）：
+    //   这句话是用户在几分钟等待里唯一看得见的东西，说的和真正发生的事不一样就是骗人
+    prog(`AI 正在把画面里的人换成不同颜色的白模人偶（一人一色）：${label} ${sec}s（可以退出，24 小时内都能回「我的模板」取回结果）`);
     if (st.status === "succeeded") return { kind: "succeeded" };
     if (st.status === "failed" || st.status === "cancelled") return { kind: "failed" };
   }
@@ -1249,6 +1407,12 @@ function adoptBlockoutTemplate(api: branch.ApiBranchTemplate): VideoTemplate {
     recipe: mapped.recipe,
     refVideo: mapped.refVideo,
     ...(mapped.roles?.length ? { roles: mapped.roles } : {}),
+    // ★★ 方案位与 roles **同批搬**，理由见 NewTemplate.markColors 的 ★★：
+    //   这条路（takeBlockoutResult / resumeBlockoutize / legacy 同步）产出的那条记录
+    //   会被**直接**塞进 applyTemplate（提取器成功卡片上那颗「用这个模板出片」），
+    //   发生在任何一次 refreshRemoteTemplate 之前 —— 所以指望"以后刷新时补回来"救不了它。
+    //   判否定的代价就在这里：漏一位不是少个色块，是整份判成上一代方案。
+    ...(mapped.markColors?.length ? { markColors: mapped.markColors } : {}),
     remoteId: mapped.remoteId,
   });
 }
@@ -1520,6 +1684,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
     durSec: started.job.durSec,
     title: o.title.trim() || "未命名白模模板",
     roles: started.job.roles,
+    markColors: started.job.markColors,
     expiresAt: toMs(started.job.expiresAt) ?? 0,
     createdAt: Date.now(),
   };

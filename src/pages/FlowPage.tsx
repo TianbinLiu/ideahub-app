@@ -26,7 +26,7 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 //   真正发出去的那段话，在这里另抄一个 400 出来，改上限时这里就开始说假话
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
 import { tierBlockReason, walletOf } from "../data/account";
-import { myTemplates, splitCastRoles } from "../data/templates";
+import { MARK_NOUN, markSchemeOf, myTemplates, splitCastRoles } from "../data/templates";
 import { VIDEO_TIERS, clampDuration, fmtTokens, modelLabel, proposalsCost, r2vPriceIssue, tierOf } from "../data/economy";
 import {
   FlowNode,
@@ -65,7 +65,7 @@ const SWIPE = 48;
  *   （store 侧是 flowStore.applyCast）。
  */
 export function castEditorState(
-  t: Pick<VideoTemplate, "id" | "title" | "refVideo" | "roles">,
+  t: Pick<VideoTemplate, "id" | "title" | "refVideo" | "roles" | "markColors">,
   value: Record<string, string> = {},
 ): CastEditorState | null {
   // 判定一律写存在性（types.ts 的 ★）：老模板天然缺这两样，天然不走挂卡
@@ -74,6 +74,10 @@ export function castEditorState(
     mode: "cast",
     videoUrl: t.refVideo.url,
     roles: t.roles,
+    // ★★ 方案位必须跟着一起过去：挂卡面板的徽章、引导句、"没挂的会怎样"那几句全按它分支。
+    //   漏在这里没有任何报错 —— 只表现为颜色模板的挂卡页按编号说话（用户对着彩色人偶
+    //   找数字，找不到只会以为坏了）。存在性语义：有才带这个键。
+    ...(t.markColors?.length ? { markColors: t.markColors } : {}),
     value,
     templateId: t.id,
     title: t.title,
@@ -133,6 +137,9 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
   const prop = chosenOf(node);
   const mounted = roles.filter((r) => cast[r.label]).length;
   const [openReq, setOpenReq] = useState(false);
+  // 这个模板的标记方案（判据只有 data 层一处）。★ 名词也只有一处：MARK_NOUN
+  const mark = markSchemeOf(template);
+  const noun = MARK_NOUN[mark];
   return (
     <div className="space-y-1.5">
       <button
@@ -142,7 +149,9 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
       >
         <span className="flex-none">🎭</span>
         <span className="min-w-0 flex-1 truncate">
-          {mounted > 0 ? `已挂 ${mounted}/${roles.length} 个角色位 · 点这里改` : `给 ${roles.length} 个编号的人偶挂上你的角色卡`}
+          {mounted > 0
+            ? `已挂 ${mounted}/${roles.length} 个角色位 · 点这里改`
+            : `给 ${roles.length} 个${mark === "color" ? "有颜色的" : "编号的"}人偶挂上你的角色卡`}
         </span>
         <Icon name="chevron" size={12} className="flex-none text-slate-400" />
       </button>
@@ -194,15 +203,17 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
         rows={4}
         maxLength={VIDEO_PROMPT_MAX}
         disabled={castBusy}
-        placeholder={castBusy ? "正在把「编号 → 角色」合成一段话…" : "先去挂卡：合成好的点名要求会填在这里，你可以逐字改"}
+        placeholder={
+          castBusy ? `正在把「${noun} → 角色」合成一段话…` : "先去挂卡：合成好的点名要求会填在这里，你可以逐字改"
+        }
         className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-60"
       />
       <p className="text-[10px] leading-4 text-slate-500">
         {castBusy
           ? "合成中…（一次对话，几秒）"
           : prop.plot.trim()
-            ? "这就是真正发给 AI 的那段话：编号与角色名是机器生成的（改错就会换错人），其余随便改；改挂卡会按新映射重新合成、覆盖这里。"
-            : "这一段的要求由挂卡合成：AI 会把「编号 N → 你挂的角色」写成一段话填在这里，出片前你能逐字过目和修改。"}
+            ? `这就是真正发给 AI 的那段话：${noun}与角色名是机器生成的（改错就会换错人），其余随便改；改挂卡会按新映射重新合成、覆盖这里。`
+            : `这一段的要求由挂卡合成：AI 会把「${noun} → 你挂的角色」写成一段话填在这里，出片前你能逐字过目和修改。`}
       </p>
     </div>
   );
@@ -559,7 +570,10 @@ function NodeScreen({
                 {`白模复刻出片（「${tierOf(node.videoTier).label}」档）：模板视频按 ${tpl.refVideo.durationSec} 秒计的输入也计费、输出≈模板时长，共约 ${fmtTokens(cost)} token`}
                 {/* 一张卡都没挂时把"去哪儿挂"说清楚。★ 两条路的入口不是同一个：V2 挂在
                     角色位上（上面那颗按钮，右下角那枚圆钮也走同一处），V1 挂在本段素材里 */}
-                {matCount === 0 && (named ? "。先给编号的人偶挂上带形象图的角色卡，AI 才知道每个编号换成谁" : "。挂上带形象图的角色卡（右下角素材按钮），AI 会把红色小人换成它")}
+                {matCount === 0 &&
+                  (named
+                    ? `。先给${markSchemeOf(tpl) === "color" ? "有颜色的" : "编号的"}人偶挂上带形象图的角色卡，AI 才知道每个人偶换成谁`
+                    : "。挂上带形象图的角色卡（右下角素材按钮），AI 会把红色小人换成它")}
               </p>
             )}
           </>
@@ -678,7 +692,7 @@ function NodeScreen({
             key={matShake}
             onClick={named ? requestCast : onToggleMat}
             aria-label={named ? `挂卡 ${matCount} 张` : `本段素材 ${matCount} 张`}
-            title={named ? "给编号的人偶挂卡" : "本段素材"}
+            title={named ? "给人偶挂卡" : "本段素材"}
             /* 不裁圆角：让她连人带牌探出钮外一点，比塞进一个圆里更有"她在按钮上"的味道 */
             className={`relative flex h-11 w-11 flex-none items-center justify-center rounded-full transition ${
               matOpen ? "bg-brand/20 ring-2 ring-brand" : "bg-panel ring-1 ring-slate-700"

@@ -181,7 +181,14 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
       </div>
       <div className="mt-0.5 truncate text-[11px] text-slate-300">
         「{job.title}」· {job.durSec > 0 ? `${job.durSec}s` : "选段"}
-        {job.roles.length > 0 ? ` · 认出 ${job.roles.length} 个角色位` : ""}
+        {/* ★ 颜色方案下把颜色列出来：这一发的凭据里就记着当初真正发出去的那份清单
+            （`markColors`，跟着凭据走而不是"按今天服务端是哪一套"事后推），所以这里说得准。
+            老凭据没有这一位 → 只报个数（编号不连续，列出来反而误导） */}
+        {job.roles.length > 0
+          ? job.markColors.length > 0
+            ? ` · 认出 ${job.roles.length} 个角色位：${job.roles.map((r) => r.label).join("、")}`
+            : ` · 认出 ${job.roles.length} 个角色位`
+          : ""}
       </div>
       <p className={`mt-1 text-[11px] leading-relaxed ${expired ? "text-slate-400" : "text-amber-200/90"}`}>
         {blockoutJobNote(job)}
@@ -231,7 +238,7 @@ export default function TemplateMarketPage() {
   const list = useMemo(() => (tab === "market" ? browseTemplates(q) : myTemplates()), [tab, q, ver]);
 
   // ★★ 冷启动后远端状态快照是空的（本机库只存模板本身，不存 status/provenAt/待核对）。
-  //   不补的话，「编号待核对」那条提示重启后就**不出现了**，而服务端那道发布闸还在 ——
+  //   不补的话，「角色位待核对」那条提示重启后就**不出现了**，而服务端那道发布闸还在 ——
   //   作者看到的是"点发布失败"却找不到任何出口（正是铁律八说的静默）。
   //   只补 **有角色位、已登记、且还没有快照** 的那几条，每条一次（asked 记名防重）；
   //   refreshRemoteTemplate 是读路径，失败静默降级为"用上次的快照"，到货会 emit。
@@ -304,8 +311,8 @@ export default function TemplateMarketPage() {
               key={j.jobId}
               job={j}
               onTaken={() => {
-                // 取回成功 = 本机多了一个白模模板（还等着核对编号）。切到「我的模板」，
-                // 下面那条「编号待核对」的提示就跟着出来了 —— 那是发布前的必经一步
+                // 取回成功 = 本机多了一个白模模板（还等着核对角色位）。切到「我的模板」，
+                // 下面那条「待核对」的提示就跟着出来了 —— 那是发布前的必经一步
                 setTab("mine");
               }}
             />
