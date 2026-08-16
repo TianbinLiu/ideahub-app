@@ -153,3 +153,21 @@ App（构建期常量 VITE_UPDATE_MANIFEST）        官网下载页 /download
 如果想要"打开就是新的、完全无感"，那是另一套东西（热更新 web 包，只换 dist 里的
 JS/CSS/图，不换原生）。当时评估过，没做 —— 它盖不了原生改动，等于要同时维护两套
 更新通道，而现在这套已经够用。真要做再说。
+
+## 出包前必验两条（都要验**包本身**，不是验 dist）
+
+2026-08-16 差点发出一个「版本号是 2.8、内容是 2.7」的包，所以单列。
+
+1. **只有自有模型**：`unzip -l <apk> | grep protected/` 应当只出现 `milltina-opt.glbx`。
+   ⚠ `dist/models/protected/` 里有 rin/gratia **是正常的** —— `vite build` 把 `public/`
+   原样拷过去，裁剪发生在之后的 `prune-app-assets`（它会打印"包体减少 350MB"）。
+   所以拿 dist 判断"包干不干净"本身就是错的方法。
+2. **内容是本次构建的**：包里的入口 js 文件名要等于本次 `dist/assets/index-*.js`。
+   版本号对而内容旧，是**不会报错**的。
+
+★★ 以及：**永远不要为了绕开 `gradlew` 找不到而直接调 gradle**。
+`npm run apk:release` 是 `tsc && vite build && prune-app-assets && npx cap sync android`
+然后才 gradle —— 直接调 gradle 会把前面四步一起跳过，`cap sync` 不跑，
+android 的 assets 还是上一次同步进去的。这台机器上 `gradlew` 找不到是
+`NoDefaultCurrentDirectoryInExePath=1` 导致的，正确做法是**先跑 `npm run build:app`**、
+再进 `android/` 用 `./gradlew.bat`。
