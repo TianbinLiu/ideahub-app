@@ -5,18 +5,24 @@
 //   ① 原始素材的上传窗口 → `TEMPLATE_UPLOAD_RULES`（宽松，只挡"裁剪框怎么拉都不可能合规"
 //      的原片：边长 ≥300、像素 ≥407,696 —— 那两个数是本文件这份窗口的**必要条件投影**，
 //      因为裁剪面积 ≤ 原片面积）；
-//   ② 裁后那一段的窗口 → **本文件**（时长 [4,30]、边长 [300,6000]、像素 ≥407,696、
-//      比例 [0.4,2.5]）。收在这里是因为编辑页要的不是"合不合规"，而是**"差多少、往哪拖"**——
-//      那种话只有拿着裁剪框与时间轴的语境才写得出来。
+//   ② 裁后那一段的窗口 → **本文件的判词**（时长下限 5、上限 30、边长 [300,6000]、
+//      像素 ≥407,696、比例 [0.4,2.5]）。收在这里是因为编辑页要的不是"合不合规"，
+//      而是**"差多少、往哪拖"**—— 那种话只有拿着裁剪框与时间轴的语境才写得出来。
 //   ⚠ 别在 uploads.ts 里再写一份 [4,30]/[0.4,2.5]，也别在组件里各写一遍这四条：
 //     两份一起漂的时候**没有任何症状**，只表现为界面放行、服务端整句拒（或更糟：
 //     界面拦下一个其实合法的选段，用户永远不知道自己错在哪）。
 //
-// 数值出处（都不是拍脑袋，2026-08-15 实测，纪要见 WM_V2_probe.md）：
-//   时长 [4,30]s   F1：edit 子任务的时长要求，超出**同步 400**（错误原文
-//                  "the video selected must satisfy the duration requirement of 4 to 30 seconds"）
-//   ≥407,696 像素  F3：像素数硬门。官方文档没写，方舟直接拒单
-//   边长 [300,6000] / 宽高比 [0.4,2.5]   F3：方舟官方对输入视频的约束
+// ★★ 2026-08-16 起，**数值本身搬到了 `data/templates`**（`ARK_EDIT_RULES` /
+//   `BLOCKOUT_INPUT_RULES` / `refVideoIssue`），本文件只 re-export 并负责说人话。
+//   原因与 `BLOCKOUTIZE_FRAME_MAX` 那条一模一样：store 层（flowStore、segmentGen）
+//   也要问「这个模板视频合不合窗口」，而 store 不该反过来 import 组件；何况本文件已经
+//   import 了 data/templates，把常量留在这边再让它去 import 就成环（Vite 半初始化模块）。
+//
+// ★★ **两个下限，不是一个**（2026-08-16 的线上事故）：
+//   · 方舟窗口下限 4（`ARK_EDIT_RULES.minSec`）—— 管**产出**（模板视频自己能不能被套用）；
+//   · 白模输入下限 5（`BLOCKOUT_INPUT_RULES.minSec`）—— 管**输入**（这一段选够没有）。
+//   两者站在同一次裁短的两侧，天然不能是同一个数：edit 的产出比输入短（4.0s→3.712s），
+//   4 秒选段做出来的模板短于方舟自己的下限，谁都套用不了。详见 data/templates 那两条 ★★。
 //
 // ★ 「AI 看哪几帧」的**数**（自动那条式子、上下限）不在本文件，在 `data/templates.ts`
 //   （服务端 VISION_FRAMES 那套的跨仓镜像，因为它同时是报价的输入）。本文件只负责把
@@ -26,8 +32,19 @@
 //   不是安全边界，只是"别让用户点下去、传完 100MB 才知道不行" —— 但它必须与服务端判出
 //   同一个结论，否则就是界面放行、服务端整句拒，用户读到两句互相矛盾的话。
 
-import { BLOCKOUTIZE_FRAME_MAX, visionFrameCount } from "../../data/templates";
+import {
+  ARK_EDIT_RULES,
+  BLOCKOUTIZE_FRAME_MAX,
+  BLOCKOUT_INPUT_RULES,
+  BLOCKOUT_MIN_INPUT_SEC,
+  shrunkSecText,
+  visionFrameCount,
+} from "../../data/templates";
 import { VideoTemplate } from "../../types";
+
+// ★ 原地 re-export：本文件一直是这两个窗口在客户端的门面（BlockoutTrimmer 等都从这里拿），
+//   数值搬家不该逼着每个消费点改 import。判据仍然只有 data/templates 那一份。
+export { ARK_EDIT_RULES, BLOCKOUT_INPUT_RULES, BLOCKOUT_MIN_INPUT_SEC };
 
 /** 裁剪框（**源视频像素**，全部整数 —— 服务端 zod 收的就是 int，小数直接 400） */
 export interface CropRect {
@@ -78,20 +95,43 @@ export type TemplateRole = NonNullable<VideoTemplate["roles"]>[number];
 
 // ★ 「一个模板最多几个能挂卡的角色位」（`BLOCKOUT_MAX_ROLES` / `splitCastRoles`）**不在本文件**，
 //   在 `data/templates.ts` —— 与 `BLOCKOUTIZE_FRAME_MAX` 同一个理由：那是**服务端那份数的镜像**，
-//   本文件只放"方舟对输入视频的窗口"。而且 store 层（flowStore）也要问同一个函数，
-//   store 不该反过来 import 组件（依赖方向：data → store → 组件）。
-
-export const ARK_EDIT_RULES = Object.freeze({
-  minSec: 4,
-  maxSec: 30,
-  minEdge: 300,
-  maxEdge: 6000,
-  minRatio: 0.4,
-  maxRatio: 2.5,
-  minPixels: 407_696,
-});
+//   而且 store 层（flowStore）也要问同一个函数，store 不该反过来 import 组件
+//   （依赖方向：data → store → 组件）。2026-08-16 起窗口本身（`ARK_EDIT_RULES` /
+//   `BLOCKOUT_INPUT_RULES`）与「模板视频合不合窗口」的判据（`refVideoIssue`）也照这条搬了过去
+//   —— 本文件从此只剩**说人话的那一半**（判词、换算、上下文提示），数一个都不自己拿主意。
 
 const n = (v: number): string => Math.round(v).toLocaleString("en-US");
+
+/**
+ * **上传之前**就能判掉的那一条：整条素材本来就不够白模输入下限。
+ * null = 过；否则是一句能直接显示给用户的整句原因。
+ *
+ * ★ 为什么不塞进 `api/uploads.templateVideoPrecheckIssue`（那边是窗口①）：这条规则
+ *   不属于"这个文件能不能上传"，属于"白模这条路收不收它"，而 uploads 是比本文件低的
+ *   一层，让它 import 本文件会成环（见文件头 ★★）。所以由白模那条路的宿主
+ *   （VideoTemplateExtractor 的 pick）在预检之后紧接着问一次 —— 仍然在**上传之前**，
+ *   止损点没有变晚，用户连 100MB 都不用传。
+ * ★ 它与 `selectionIssue` 不是两份判据：那边判的是"框出来的这一段"，这里判的是
+ *   "整条素材根本给不出这么长的一段"，数都读同一个 `BLOCKOUT_INPUT_RULES.minSec`。
+ */
+/**
+ * 拒绝语里的秒数 —— **朝着"没过"的那一侧取整**（下限用 floor）。
+ *
+ * ★★ `toFixed(1)` 是四舍五入：一条 4.97 秒、真的没过 5 秒下限的素材会被印成
+ *   「只有约 **5.0** 秒。要求至少 **5** 秒」—— 用户读到的是"我明明够了，是你们坏了"。
+ *   而手机剪辑器口中的"5 秒"落在 4.966/5.033 这种数上极其常见，不是边角情况。
+ *   服务端 middleware/upload.js 的 secTextFloor 是同一条规则的另一端，两边要一起改。
+ */
+function secFloor(sec: number): string {
+  return Number.isInteger(sec) ? String(sec) : String(Math.floor(sec * 10) / 10);
+}
+
+export function blockoutSourceDurationIssue(durationSec: number): string | null {
+  const min = BLOCKOUT_INPUT_RULES.minSec;
+  if (!Number.isFinite(durationSec) || durationSec <= 0) return null; // 读不出时长由窗口①那句话说
+  if (durationSec >= min) return null;
+  return `这段视频只有约 ${secFloor(durationSec)} 秒。白模模板要求素材至少 ${min} 秒：AI 把画面里的人换成白模时会把成片截短零点几秒，${min} 秒进去才能保证做出来的模板还够 ${ARK_EDIT_RULES.minSec} 秒——短于 ${ARK_EDIT_RULES.minSec} 秒的模板谁都套用不了。换一条长一点的素材吧。`;
+}
 
 /**
  * 整条视频里**可选**的秒数上界（整数秒）。
@@ -111,8 +151,10 @@ export function fullFrameCrop(size: FrameSize): CropRect {
 
 /**
  * 打开编辑页时的初始选段：从头起，长度取"这条片子能给的"与窗口上限里较小的那个。
- * ★ 初值故意**不去凑**下限：片子本身不够 4 秒时，初值就是不合格的那个数，由 `selectionIssue`
- *   当场把原因说出来。悄悄凑成 4 秒会让用户以为选好了，真正的拒绝要等到服务端。
+ * ★ 初值故意**不去凑**下限：片子只有 4 秒时，初值就是那个不合格的 4，由 `selectionIssue`
+ *   当场把原因说出来。悄悄凑成 5 秒会让用户以为选好了 —— 而这条片子根本给不出 5 秒，
+ *   真正的拒绝要等到服务端（下限从 4 抬到 5 之后这条更要紧：一条 4 秒素材现在**必然**
+ *   走到这句话上，它必须说人话而不是自己把数改掉）。
  */
 export function initialSelection(natural: VideoNatural): BlockoutSelection {
   const total = selectableSeconds(natural);
@@ -180,6 +222,8 @@ export function clampCropToFrame(crop: CropRect, size: FrameSize, minEdgePx = 1)
  */
 export function selectionIssue(sel: BlockoutSelection, natural: VideoNatural): string | null {
   const R = ARK_EDIT_RULES;
+  /** 输入那一侧的窗口（只有 minSec 与 R 不同，见下面 ② 的 ★★） */
+  const IN = BLOCKOUT_INPUT_RULES;
   const { startSec, durSec, crop } = sel;
   const total = selectableSeconds(natural);
 
@@ -195,11 +239,14 @@ export function selectionIssue(sel: BlockoutSelection, natural: VideoNatural): s
   }
 
   // ② 时间轴
-  if (durSec < R.minSec) {
+  // ★★ 下限读 `BLOCKOUT_INPUT_RULES`（5）而不是 `R`（方舟的 4）：这一段是**输入**，
+  //   而 edit 的产出比它短，产出（= 模板视频）还要自己满足方舟那 4 秒下限。上限与后面
+  //   六条继续读 `R` —— 两个对象在那七项上逐字相同（见 data/templates 的 ★★）。
+  if (durSec < IN.minSec) {
     // 整条片子就不够长时**换一句话说**：这时"把把手往右拖"是一句做不到的建议
-    return total < R.minSec
-      ? `这条视频只有约 ${total} 秒，而 AI 出片引擎要求输入片段至少 ${R.minSec} 秒——这一条素材做不了白模模板，换一条长一点的。`
-      : `选中的这一段只有 ${durSec} 秒，至少要 ${R.minSec} 秒（AI 出片引擎的硬要求，短了会被直接拒绝）。把右边的把手往右拖。`;
+    return total < IN.minSec
+      ? `这条视频只有约 ${total} 秒，而白模模板要求输入片段至少 ${IN.minSec} 秒（AI 换白模时会把成片截短零点几秒，${total} 秒进去只剩约 ${shrunkSecText(total)} 秒，那样的模板短于 AI 出片引擎的 ${R.minSec} 秒下限，谁都套用不了）。这一条素材做不了白模模板，换一条长一点的。`
+      : `选中的这一段只有 ${durSec} 秒，至少要 ${IN.minSec} 秒。AI 把人换成白模时会把成片截短零点几秒（${durSec} 秒进去只剩约 ${shrunkSecText(durSec)} 秒），而模板本身短于 ${R.minSec} 秒就没人套用得了——把右边的把手往右拖，选够 ${IN.minSec} 秒。`;
   }
   if (durSec > R.maxSec) {
     return `选中的这一段有 ${durSec} 秒，最长只能 ${R.maxSec} 秒（AI 出片引擎的硬要求）。而且越长，白模化这一次和以后每次套用都越贵——把把手往里收一点。`;

@@ -553,7 +553,10 @@ function NodeScreen({
                 用户会拿纯任务的价一比就觉得被多收了。数字与主按钮同一把尺子（nodeCost） */}
             {tpl.refVideo && (
               <p className="text-[10px] leading-4 text-slate-500">
-                {`白模复刻出片（「${tierOf(node.videoTier).label}」档）：模板视频 ${tpl.refVideo.durationSec}s 的输入也计费、输出≈模板时长，共约 ${fmtTokens(cost)} token`}
+                {/* ★ 措辞是「按 N 秒计」不是「N 秒」：这个数是**计价锚点**（整数、向上取整），
+                    模板视频的真实文件更短。写成"模板视频 4s"会与详情页那句"实际约 3.7 秒"
+                    看起来互相打架，而它们说的是两件事 —— 一件是账、一件是文件。 */}
+                {`白模复刻出片（「${tierOf(node.videoTier).label}」档）：模板视频按 ${tpl.refVideo.durationSec} 秒计的输入也计费、输出≈模板时长，共约 ${fmtTokens(cost)} token`}
                 {/* 一张卡都没挂时把"去哪儿挂"说清楚。★ 两条路的入口不是同一个：V2 挂在
                     角色位上（上面那颗按钮，右下角那枚圆钮也走同一处），V1 挂在本段素材里 */}
                 {matCount === 0 && (named ? "。先给编号的人偶挂上带形象图的角色卡，AI 才知道每个编号换成谁" : "。挂上带形象图的角色卡（右下角素材按钮），AI 会把红色小人换成它")}
@@ -746,7 +749,10 @@ function NodeScreen({
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="w-10 flex-none text-[11px] text-slate-400">时长</span>
                 <span className="text-[11px] text-slate-300">
-                  {tpl.refVideo.durationSec}s · 跟随模板视频（白模复刻的输出时长≈模板时长，不可另选）
+                  {/* ★ 这里说的是**计价与预期时长**（锚点），不是文件真实秒数 —— 真实秒数在
+                      模板详情页如实显示。两处措辞刻意不同，别把这一处改成真实值：
+                      账单按锚点走，用户对账时看的是这个数 */}
+                  按 {tpl.refVideo.durationSec} 秒计 · 跟随模板视频（白模复刻的输出时长≈模板时长，不可另选）
                 </span>
               </div>
             ) : (

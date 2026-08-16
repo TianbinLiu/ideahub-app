@@ -28,6 +28,9 @@ import {
   getTemplate,
   myTemplates,
   refreshRemoteTemplate,
+  refVideoIssue,
+  refVideoOwnerNote,
+  refVideoRealSec,
   registerIssueOf,
   registerTemplate,
   remoteStateOf,
@@ -48,23 +51,36 @@ function blockoutGate() {
   return VIDEO_TIERS.find((x) => x.refVid) ?? null;
 }
 
-/** 闸门整句（null = 能出片能报价）。gate 不存在时的措辞与 flowStore.applyTemplate 一致 */
-function blockoutIssue(): string | null {
+/**
+ * 闸门整句（null = 能出片能报价）。gate 不存在时的措辞与 flowStore.applyTemplate 一致。
+ * ★ 第二段是**模板视频自己合不合方舟窗口**（唯一判据在 data/templates.refVideoIssue）：
+ *   3.7 秒的坏模板以前在这一页全程绿灯，点下去才在方舟撞英文 400 —— 而那句 400
+ *   全 app 没人接（没有全局 error toast），用户只会以为按钮坏了。
+ */
+function blockoutIssue(t: VideoTemplate): string | null {
   const gate = blockoutGate();
   if (!gate) return "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来";
-  return r2vPriceIssue(gate.id);
+  return r2vPriceIssue(gate.id) ?? refVideoIssue(t.refVideo);
 }
 
-/** 白模区：参考视频预览 + 套用成本行 */
-function BlockoutInfo({ t }: { t: VideoTemplate }) {
+/** 白模区：参考视频预览 + 套用成本行。`isOwner` 只影响**措辞**（坏模板对作者要说清
+ *  "不是你操作错了"以及重做时怎么才对），判据两边都只有 refVideoIssue 一处。 */
+function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
   if (!t.refVideo) return null;
   const gate = blockoutGate();
-  const issue = blockoutIssue();
+  const issue = blockoutIssue(t);
   // issue 为 null 时 gate 必然存在且报得出价（r2vPriceIssue 先查 refVid 再查 r2vMult）
   const tokens = issue === null ? r2vTokens(t.refVideo.durationSec, gate!.id) : null;
+  const realSec = refVideoRealSec(t.refVideo);
+  const ownerNote = isOwner ? refVideoOwnerNote(t.refVideo) : null;
   return (
     <div className="mb-4 rounded-xl border border-sky-500/30 bg-sky-500/5 p-3">
-      <div className="mb-2 text-xs font-semibold text-sky-300">⬜ 白模模板 · 参考视频 {t.refVideo.durationSec}s</div>
+      {/* ★ 计价锚点（durationSec，整数）与文件真实秒数（realDurationSec，小数）**都说**：
+          只说锚点会让"按 4 秒收费、文件其实 3.7 秒"这件事永远看不见；只说真实秒数又对不上
+          账单。老模板没有真实秒数（后加字段，缺一律当好），那时就只显示锚点。 */}
+      <div className="mb-2 text-xs font-semibold text-sky-300">
+        ⬜ 白模模板 · 参考视频 {realSec !== null ? `约 ${realSec.toFixed(1)}s（按 ${t.refVideo.durationSec} 秒计费）` : `${t.refVideo.durationSec}s`}
+      </div>
       <video
         src={t.refVideo.url}
         controls
@@ -76,14 +92,22 @@ function BlockoutInfo({ t }: { t: VideoTemplate }) {
         套用出片时 AI 会整段复刻这段视频的场景、道具与运镜，只把主角位（红色小人）换成你挂的角色卡。
         出片时长≈模板时长、画幅自适应模板视频。
       </p>
-      {issue !== null ? (
-        // 看得见但点不动 + 说原因（闸没开 / 价没核，整句来自 r2vPriceIssue 唯一实现）
+      {/* ★ 作者本人先看这一句：坏模板对他来说不是"换一个"，而是"这不是你的错、重做时至少
+          选 5 秒"。它替代（不是叠加）下面那句给套用者的话 —— 两句一起显示会让作者以为
+          出了两个错。判据同一处（refVideoOwnerNote 内部先问 refVideoIssue）。 */}
+      {ownerNote ? (
+        <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-rose-200">
+          {ownerNote}
+        </p>
+      ) : issue !== null ? (
+        // 看得见但点不动 + 说原因（闸没开 / 价没核 / 模板视频不合窗口，整句都来自各自的唯一实现）
         <p className="mt-2 text-[11px] leading-relaxed text-amber-300/90">{issue}</p>
       ) : (
         tokens !== null && (
           <p className="mt-2 text-[11px] leading-relaxed text-slate-300">
-            套用一次约 <b>{fmtTokens(tokens)}</b> token（「{gate!.label}」档 · 含模板视频 {t.refVideo.durationSec}s
-            的输入费——r2v 连输入视频的时长也计费，输出时长按≈模板时长估）
+            套用一次约 <b>{fmtTokens(tokens)}</b> token（「{gate!.label}」档 · 含模板视频
+            <b>按 {t.refVideo.durationSec} 秒计</b>的输入费——r2v 连输入视频的时长也计费，输出时长按≈模板时长估
+            {realSec !== null ? `；这段模板视频实际约 ${realSec.toFixed(1)} 秒，计费按整秒向上取` : ""}）
           </p>
         )
       )}
@@ -341,8 +365,9 @@ export default function TemplateDetailPage() {
   const rs = remoteStateOf(t);
   const isMine = t.refVideo ? (rs ? rs.isOwner : inMine) : inMine && user?.name === t.author;
 
-  // 白模在闸门没开时「看得见但点不动 + 说原因」（原因印在 BlockoutInfo 的成本行里）
-  const applyBlocked = t.refVideo ? blockoutIssue() : null;
+  // 白模在闸门没开 / 模板视频本身不合方舟窗口时「看得见但点不动 + 说原因」
+  // （原因印在 BlockoutInfo 的成本行里，作者本人看到的是另一句措辞）
+  const applyBlocked = t.refVideo ? blockoutIssue(t) : null;
 
   function apply() {
     if (!t) return;
@@ -385,11 +410,15 @@ export default function TemplateDetailPage() {
       <h2 className="text-lg font-bold text-slate-100">{t.title}</h2>
       <div className="mt-0.5 mb-2 text-xs text-slate-500">
         @{t.author} ·{" "}
-        {t.refVideo ? `白模复刻 · 模板视频 ${t.refVideo.durationSec}s` : `${t.recipe.beats.length} 段 · 每段 ${t.recipe.durationSec}s`}
+        {/* ★ 有真实秒数就报真实的：这一行是"这个模板长什么样"，不是账单。
+            计价那个整数锚点在下面 BlockoutInfo 的成本行里说清楚。 */}
+        {t.refVideo
+          ? `白模复刻 · 模板视频 ${(refVideoRealSec(t.refVideo) ?? t.refVideo.durationSec).toFixed(1)}s`
+          : `${t.recipe.beats.length} 段 · 每段 ${t.recipe.durationSec}s`}
       </div>
       <p className="mb-4 text-sm leading-relaxed text-slate-300">{t.intro}</p>
 
-      <BlockoutInfo t={t} />
+      <BlockoutInfo t={t} isOwner={isMine} />
 
       <button
         onClick={apply}

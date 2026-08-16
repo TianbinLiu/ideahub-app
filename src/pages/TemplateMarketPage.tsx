@@ -17,6 +17,8 @@ import {
   myTemplates,
   pendingBlockoutIssue,
   pendingBlockoutJobs,
+  refVideoIssue,
+  refVideoRealSec,
   refreshPendingBlockoutJobs,
   refreshRemoteTemplate,
   remoteStateOf,
@@ -101,8 +103,19 @@ export function TemplateCard({ t, onPick }: { t: VideoTemplate; onPick?: () => v
               <span className="flex items-center gap-0.5">
                 <Icon name="heart" size={10} /> {fmt(s.likes)}
               </span>
-              {/* 白模只有一段（整段复刻），报"模板视频几秒"比"1 段"信息量大 */}
-              <span>{t.refVideo ? `${t.refVideo.durationSec}s 复刻` : `${t.recipe.beats.length} 段`}</span>
+              {/* 白模只有一段（整段复刻），报"模板视频几秒"比"1 段"信息量大。
+                  ★ 有真实秒数就报真实的（计价那个整数锚点在详情页说清楚）。 */}
+              <span>
+                {t.refVideo
+                  ? `${(refVideoRealSec(t.refVideo) ?? t.refVideo.durationSec).toFixed(1)}s 复刻`
+                  : `${t.recipe.beats.length} 段`}
+              </span>
+              {/* ★★ 模板视频本身出不了片时打角标并置灰，**但不从列表里拿掉**：东西静默消失，
+                  用户只会以为是我们弄丢了（铁律八）。判据只有 refVideoIssue 一处，
+                  点进详情页会读到完整的那句原因（作者本人还会看到"不是你操作错了"）。 */}
+              {refVideoIssue(t.refVideo) && (
+                <span className="rounded-full bg-rose-500/20 px-1.5 py-px text-[9px] text-rose-200">暂时不可用</span>
+              )}
             </div>
           </div>
         </div>
@@ -232,8 +245,10 @@ export default function TemplateMarketPage() {
     }
   }, [tab, ver]);
 
-  /** 套用模板。applyTemplate 返回 false = 被闸门整句拒绝（白模在 refVid 全关时），
-   *  这时改跳详情页——那里印着拒绝的原因（r2vPriceIssue 整句），留在市场干瞪眼不行 */
+  /** 套用模板。applyTemplate 返回 false = 被整句拒绝（白模在 refVid 全关时，或**模板视频
+   *  本身不满足方舟窗口** —— 2026-08-16 起多了这一条），这时改跳详情页：那里印着拒绝的
+   *  原因（r2vPriceIssue / refVideoIssue 各自的整句），留在市场干瞪眼不行。
+   *  ★ 卡片上那个「暂时不可用」角标只是把这件事提前画出来，不是第二处判断 */
   function pick(t: VideoTemplate) {
     if (useFlow.getState().applyTemplate(t)) nav("/flow");
     else nav(`/template/${t.id}`);

@@ -19,7 +19,7 @@ export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const MAX_MEDIA_BYTES = 20 * 1024 * 1024;
 /**
  * 模板**原始素材**的大小上限。2026-08-15 白模 V2 从 20MB 放宽到 100MB —— 因为进方舟的
- * 不再是这个文件本身，而是编辑页框出来的那 4~30 秒（服务端拼 Cloudinary 变换现裁），
+ * 不再是这个文件本身，而是编辑页框出来的那 5~30 秒（服务端拼 Cloudinary 变换现裁），
  * 原片是"素材库"不是"成品"，按成品的尺子量它等于逼用户先自己剪一遍。
  * ★ 服务端 nginx 的 `client_max_body_size` 必须 ≥110m，否则网络层直接掐断、
  *   浏览器只看到 `Failed to fetch`（发布体那条老坑的同款形状，见本文件头）。
@@ -96,7 +96,7 @@ export function uploadMedia(blob: Blob, filename = "video.webm"): Promise<string
 //
 // ★★ 从这一版起「模板视频」有**两道**尺子，量的是两样东西：
 //   ① 原始素材（本文件上传的那个文件）—— 宽松，它只是素材库；
-//   ② 裁后那一段（编辑页框出来、真正进方舟 edit 的那 4~30 秒）—— 严，方舟的硬门全在这。
+//   ② 裁后那一段（编辑页框出来、真正进方舟 edit 的那 5~30 秒）—— 严，方舟的硬门全在这。
 //   放宽 ① 的前提正是有了 ②：白模 V2 的输入是「任意视频 + 一个时间窗 + 一个裁剪框」，
 //   服务端拼 Cloudinary 变换（`so_,du_,c_crop,x_,y_,w_,h_`）零成本现裁，原片本身不进方舟。
 //   拿 ② 的尺子去量 ① 等于要求用户先自己剪好再来（那正是 V2 要免掉的一步）；
@@ -106,13 +106,20 @@ export function uploadMedia(blob: Blob, filename = "video.webm"): Promise<string
 //   **改窗口两边一起改**，契约见 docs/api-contract.md「白模模板」。
 //   镜像存在的意义只是省用户一次 100MB 的白传与一次必然失败的付费出片，
 //   **作数的永远是服务端那份复核**。
-// ★★ 本文件只放 ①。窗口 ② 的客户端那一份在
-//   `components/blockout/arkVideoRules.ts`（`ARK_EDIT_RULES` + `selectionIssue`）——
-//   编辑页要的是"差多少、往哪拖"那种带着裁剪框语境的整句话，收在那里是对的。
+// ★★ 本文件只放 ①。窗口 ② 的数在 `data/templates`（`ARK_EDIT_RULES` /
+//   `BLOCKOUT_INPUT_RULES`），说人话的那一份在 `components/blockout/arkVideoRules`
+//   （`selectionIssue`）—— 编辑页要的是"差多少、往哪拖"那种带着裁剪框语境的整句话。
 //   **别在这里再写一份 [4,30]/[0.4,2.5]**：两份一起漂的时候没有任何症状，
 //   只表现为界面放行、服务端整句拒（或更糟：界面拦下一个其实合法的选段）。
 //   下面 minEdge / minPixels 这两个数是窗口 ② 的**必要条件投影**（裁剪面积 ≤ 原片面积），
 //   动 `ARK_EDIT_RULES` 的这两项时这里要跟着动。
+// ★★ **白模输入下限（5 秒）不在本文件**，虽然它确实是"上传之前就该拦下"的一条：
+//   本文件是比 `data/` 更低的一层（只 import ./client），而那个下限与方舟窗口是一对
+//   （判词里要同时说 5 和 4），住在 data/templates。让 uploads 去 import 它会成环
+//   （uploads → arkVideoRules → data/templates → uploads，Vite 下拿到半初始化模块）。
+//   所以那一条由白模路的宿主在**调用本函数之后、上传之前**紧接着问一次
+//   （`VideoTemplateExtractor.pick` → `arkVideoRules.blockoutSourceDurationIssue`）——
+//   止损点没有变晚，用户照样连 100MB 都不用传。
 
 /**
  * ① 原始素材的验收窗口（`POST /api/uploads/template-video`）。
@@ -120,6 +127,9 @@ export function uploadMedia(blob: Blob, filename = "video.webm"): Promise<string
  * 各数值的出处：
  *   (0,600]s   —— 2026-08-15 从 [4,15] 放宽：要处理的那一段由编辑页框选，原片不进方舟。
  *                 上限 10 分钟是"手机随手拍的一条"的量级，再长的片子裁一段本来就该先剪。
+ *                 ⚠ 下限仍是**开区间 0**（不是白模那个 5）：V1 建模板走的是同一个上传口，
+ *                 而 V1 把整段原片直接当参考视频用，4 秒的 V1 模板完全合法。白模那条路
+ *                 的 5 秒下限由它自己的宿主紧接着问一次，见上面 ★★。
  *   边长 ≥300  —— 裁剪框只会更小，原片连 300 都不到就永远裁不出合规的一段（提前拦）。
  *                 **上限取消**：4K 原片裁出 720p 的一段是完全正常的用法。
  *   宽×高 ≥ 407,696 —— 同理，裁剪面积 ≤ 原片面积，这是必要条件。
@@ -157,16 +167,19 @@ export function templateVideoPrecheckIssue(m: TemplateVideoProbe): string | null
   if (m.bytes > MAX_TEMPLATE_VIDEO_BYTES) {
     return `视频文件最大 ${Math.round(MAX_TEMPLATE_VIDEO_BYTES / 1024 / 1024)}MB（当前约 ${(m.bytes / 1024 / 1024).toFixed(1)}MB），请压缩或剪短后重试。`;
   }
-  // ★ 取整口径与服务端一致（server 对 Cloudinary 回执做 Math.round）：本机探出 3.6s
-  //   的视频服务端会按 4s 收，客户端不取整就会把它拦在门外——两边判出相反结论。
-  const durationSec = Math.round(m.durationSec);
+  // ★★ **时长不取整**（2026-08-16 改）。以前这里跟着服务端做 `Math.round`，而服务端那个
+  //   `Math.round` 正是白模事故的单点根因：`Math.round(3.712) === 4` 让"产出短于方舟下限"
+  //   的模板一路绿灯落库，也让 3.6s 的原片被读成 4s 放行。服务端已经改成按真实小数判，
+  //   客户端再取整就会重新制造"界面放行、服务端整句拒"（4.6s 取整成 5 过了本机、
+  //   服务端按 4.6 拒）。宽高维持取整 —— 像素天然是整数。
+  const durationSec = m.durationSec;
   const width = Math.round(m.width);
   const height = Math.round(m.height);
   if (!Number.isFinite(durationSec) || durationSec <= 0 || width <= 0 || height <= 0) {
     return "读不出这个视频的时长或尺寸（文件可能损坏），请换一个 mp4/mov 文件重试。";
   }
   if (durationSec > R.maxSec) {
-    return `视频最长 ${Math.round(R.maxSec / 60)} 分钟（当前约 ${durationSec} 秒），请先剪短再上传。`;
+    return `视频最长 ${Math.round(R.maxSec / 60)} 分钟（当前约 ${Math.round(durationSec)} 秒），请先剪短再上传。`;
   }
   // ★ 边长只有下限、比例不校：真正要满足方舟硬门的是**裁剪框框出来的那一块**
   //   （窗口 ②：components/blockout/arkVideoRules 的 selectionIssue）。这里拦的只是
@@ -185,7 +198,11 @@ export function templateVideoPrecheckIssue(m: TemplateVideoProbe): string | null
 export interface TemplateVideoReceipt {
   url: string;
   publicId: string;
-  /** 整数秒（Cloudinary 回执口径） */
+  /**
+   * 素材时长（秒）。★ **可能是小数**：服务端 2026-08-16 起不再对 Cloudinary 回执的
+   * duration 取整（那个 `Math.round` 是白模事故的单点根因）。这里只当"画时间轴、
+   * 判选段超不超片尾"的依据，不参与计价 —— 计价锚点是模板登记的 `refVideo.durationSec`。
+   */
   durationSec: number;
   width: number;
   height: number;

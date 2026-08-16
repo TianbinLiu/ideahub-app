@@ -598,6 +598,23 @@ export interface VideoTemplate {
     url: string;
     /** 参考视频时长（秒，Cloudinary 回执的整数秒）—— r2v 报价输入时长的唯一来源 */
     durationSec: number;
+    /**
+     * 模板视频文件的**真实**时长（小数秒，服务端从 Cloudinary 回执写入）。
+     * **只读、只用于诊断/校验/如实展示，不参与任何计价** —— 计价锚点永远是上面那个
+     * `durationSec`（整数、[4,30]，App 的无取整公式与服务端的 round+clamp 恒等，
+     * 见 economy.r2vTokens 的不变量 ★）。
+     *
+     * ★★ 为什么会有这个字段（2026-08-16 的线上事故）：方舟 edit 的**产出比输入短**
+     *   （4.0s 进 → 3.712s 出）。白模模板的产物本身又要当下一发 r2v 的输入，而方舟
+     *   要求输入 ∈ [4,30]s —— 于是"用 4 秒素材做出来的模板"是 3.712 秒，作者付了钱、
+     *   模板也建出来了，**每一个想套用它的人都会撞方舟同步 400**，作者永远不知道为什么。
+     *   `durationSec` 存的是**输入**那一段（4），看它看不出坏；这个字段存的是文件的真实秒数。
+     * ★★ 判定一律写**存在性 + 否定式**（`typeof x === "number" && x < 4` 才算坏）：
+     *   这是后加字段，存量 V1 与老 V2 都没有它，**缺一律当好**。用肯定式（`=== ` 或
+     *   `Number(x) || 0`）会把整个存量市场判成不可用且一个错都不报（`visibility` 那条坑的同族）。
+     *   唯一判据在 `data/templates.refVideoIssue`，别在页面里各比一次。
+     */
+    realDurationSec?: number;
     width: number;
     height: number;
     /**

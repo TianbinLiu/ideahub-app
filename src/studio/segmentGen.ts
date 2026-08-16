@@ -14,7 +14,10 @@
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
 import { VIDEO_PROMPT_MAX, composeSegments, generateCover, prepareMaterialRefs, refineFrame } from "../ai";
 import { r2vPriceIssue, tierOf } from "../data/economy";
-import { CARD_TYPE_LABELS, viewsOf, type Card, type VideoAspect } from "../types";
+// ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
+//   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
+import { refVideoIssue } from "../data/templates";
+import { CARD_TYPE_LABELS, viewsOf, type Card, type VideoAspect, type VideoTemplate } from "../types";
 
 export interface SegmentAnn {
   atSec: number;
@@ -53,12 +56,15 @@ export interface SegmentGenInput {
    */
   refVideoUrl?: string;
   /**
-   * 模板登记时长的镜像（`template.refVideo.durationSec`）——只用来把「时长跟随模板」
-   * 说给用户听（进度行）。**报价不在这里**：钱在 economy.segmentCost 的 refVideo 位算，
-   * 出片时长是 edit 的协议行为（输出≈输入，见 arkClient 的 BLOCKOUT_TASK），
-   * 谁都不拿这个数下单。
+   * 模板登记值的**原样镜像**（`template.refVideo`）。两个用途，都不是"下单参数"：
+   *   ① 门禁 —— 喂给 `data/templates.refVideoIssue`（模板视频自己合不合方舟窗口的**唯一
+   *      判据**）。★ 别在这里拆开它自己比数：那就成了第二份判据，而两份一起漂时没有症状。
+   *   ② 说话 —— 进度行里那句「时长跟随模板 N 秒」读 `durationSec`。
+   * **报价不在这里**：钱在 economy.segmentCost 的 refVideo 位算；出片时长是 edit 的协议
+   * 行为（输出≈输入，见 arkClient 的 BLOCKOUT_TASK），谁都不拿这个数下单。
+   * ★ 走不走白模仍由 `refVideoUrl` 的存在性决定（它才是真正发出去的那一位），本字段只是判据来源。
    */
-  refVideoSec?: number;
+  refVideo?: VideoTemplate["refVideo"];
   /**
    * 白模模板的**角色位**（`template.roles` 的镜像，见 types.VideoTemplate.roles）。
    *
@@ -140,9 +146,10 @@ const BLOCKOUT_SWAP =
  *   「把模板视频逐镜头复刻、只换主体」，降级到首尾帧等于把模板视频整个扔掉、拍一段
  *   与模板毫无关系的片照收钱 —— 那不是降级，是偷换商品（铁律八）。
  *
- * 条件：档位开了白模且报得出价（收在 economy.r2vPriceIssue，一处实现）+ 无圈选 +
- * 无设定首帧 + 无承接帧（首尾帧与参考媒体是方舟三大互斥场景；圈选改的就是设定帧，
- * 而白模段根本没有设定帧）+ 卡上真有形象参考图（「换成谁」全靠它）。
+ * 条件：档位开了白模且报得出价（收在 economy.r2vPriceIssue，一处实现）+ **模板视频本身
+ * 过得了方舟窗口**（收在 data/templates.refVideoIssue，一处实现）+ 无圈选 + 无设定首帧 +
+ * 无承接帧（首尾帧与参考媒体是方舟三大互斥场景；圈选改的就是设定帧，而白模段根本没有
+ * 设定帧）+ 卡上真有形象参考图（「换成谁」全靠它）。
  */
 export function blockoutIssue(o: {
   videoTier: string;
@@ -150,9 +157,16 @@ export function blockoutIssue(o: {
   firstFrame?: string;
   carryFrame?: string | null;
   anns?: unknown[];
+  refVideo?: VideoTemplate["refVideo"];
 }): string | null {
   const price = r2vPriceIssue(o.videoTier);
   if (price) return price;
+  // ★ 排在价目之后、其它条件之前：这一条是"这个模板根本用不了"，与用户挂没挂卡无关 ——
+  //   先让他去换模板，而不是先催他挂卡、挂完再告诉他这个模板本来就废了。
+  //   2026-08-16 之前这里**一条时长都不校**，于是 3.7 秒的坏模板从市场到详情页到工作流
+  //   全程绿灯，直到方舟同步 400（而全 app 没人监听 emitApiError）。
+  const ref = refVideoIssue(o.refVideo);
+  if (ref) return ref;
   if (o.anns?.length) return "白模出片没有设定帧可圈选修改——先删掉圈选标注，想改画面就改那句话";
   if (o.firstFrame) return "白模出片不能带设定首帧（首帧与参考视频在方舟是互斥场景）——清掉这张帧再出片";
   if (o.carryFrame) return "白模段不承接上一段的尾帧（承接帧与参考视频在方舟是互斥场景）——白模模板只有一段";
@@ -366,7 +380,10 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
     story.length > room
       ? `（⚠ 这一段的要求太长，末尾 ${story.length - room} 字没能发出去：提示词上限 ${VIDEO_PROMPT_MAX} 字，其中素材设定与形象绑定句占了 ${tail.length} 字——把要求写短些，或少挂一张卡）`
       : "";
-  if (blockout) prog(`按模板视频逐镜头复刻出片（时长跟随模板${input.refVideoSec ? ` ${input.refVideoSec} 秒` : ""}）…${noteTail}${cut}`);
+  if (blockout)
+    prog(
+      `按模板视频逐镜头复刻出片（时长跟随模板${input.refVideo?.durationSec ? ` ${input.refVideo.durationSec} 秒` : ""}）…${noteTail}${cut}`,
+    );
   else if (refMode) prog(`参考卡片形象直接出片（省掉设定帧）…${noteTail}${cut}`);
   else if (cut) prog(`出片中…${cut}`);
   const [res] = await composeSegments(

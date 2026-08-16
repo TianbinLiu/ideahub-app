@@ -24,7 +24,7 @@ import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, proposalRedrawCost, proposalsCost
 import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
-import { BLOCKOUT_MAX_ROLES, splitCastRoles } from "../data/templates";
+import { BLOCKOUT_MAX_ROLES, refVideoIssue, splitCastRoles } from "../data/templates";
 import { type BlockoutCastSlot, blockoutApplySkeleton, castNameIssue, composeBlockoutPrompt } from "./blockoutPrompt";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
 import { blockoutIssue, generateSegment, refVideoOn } from "./segmentGen";
@@ -453,6 +453,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
         set({ err: "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来" });
         return false;
       }
+      // ★★ 模板视频本身过不了方舟窗口时**当场整句拒、什么都不铺**（判据唯一实现在
+      //   data/templates.refVideoIssue，这里只是问它一次）。2026-08-16 之前这里零校验：
+      //   3.7 秒的坏模板照样铺出一个节点，用户挂完卡、点了生成，才在方舟那儿撞英文 400
+      //   —— 那句 400 全 app 没人接（没有全局 error toast），等于静默失败。
+      //   ⚠ 拒绝要走 `err`：调用方（详情页 apply / 市场页）靠返回 false + err 把原因印出来。
+      const refIssue = refVideoIssue(t.refVideo);
+      if (refIssue) {
+        set({ err: refIssue });
+        return false;
+      }
       const node = newFlowNode(0, {
         chain: false,
         // 白模模板自己不带卡（提取时认不出素材卡，cards 恒空）——「换成谁」由用户
@@ -711,6 +721,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
         firstFrame: chosenOf(node).firstFrame,
         carryFrame: null,
         anns: node.anns,
+        // ★ 与出片门口读同一份模板快照：少传这一位，这里就会说"可以出片了"、
+        //   真点生成时才拒 —— 两句话自相矛盾比不说更糟
+        refVideo: get().template?.refVideo,
       });
       if (issue) set({ err: `挂卡已记下，但现在还出不了片：${issue}` });
       return true;
@@ -1094,7 +1107,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
           anns: node.anns,
           carryFrame: carry,
           refVideoUrl: tplRef?.url,
-          refVideoSec: tplRef?.durationSec,
+          // ★ 登记值**整份**透传（不只时长）：出片门口那道「模板视频自己合不合方舟窗口」
+          //   的判据要读 realDurationSec ?? durationSec，在这里只挑一个数传下去，
+          //   segmentGen 就得自己拼那个 `??` —— 那是同一条规则的第二份实现。
+          refVideo: tplRef,
           // ★★ 角色位：白模两条互斥的路由它分叉（segmentGen 的 `named`，判据是**存在性**
           //   `roles?.length`）。有 = V2，`plot` 里已经是编辑页合成好的点名映射，出片时
           //   **不再拼**泛指的 BLOCKOUT_SWAP（泛指与点名摆在同一段话里自相矛盾，而实测

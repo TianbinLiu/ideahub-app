@@ -16,7 +16,9 @@
 //   与经典路的差别一条比一条重：
 //   ① 输入不再是"白模预演视频"，而是**任意视频** —— 服务端先看帧列出画面里有哪些人，
 //      再把他们全换成带编号的白模人偶（**一次真实付费出片**），产物才是模板；
-//   ② 选段（4~30 秒）与裁剪框（把水印框到画面外）由 `blockout/BlockoutTrimmer` 承担，
+//   ② 选段（5~30 秒 —— 方舟的窗口是 4~30，但 edit 的产出比输入短，产物还要能当下一发的
+//      输入，见 data/templates 的 BLOCKOUT_MIN_INPUT_SEC）与裁剪框（把水印框到画面外）
+//      由 `blockout/BlockoutTrimmer` 承担，
 //      它同时负责报价与那句「受理后失败不退费」的常驻告知 —— 本组件只当宿主：
 //      把上传回执喂给它、接它报上来的四组数；
 //   ③ 本组件**不在这里报价**：白模化的两笔钱（看帧 + 出片）由 BlockoutTrimmer 按
@@ -45,6 +47,7 @@ import {
   blockoutizeBlockReason,
   blockoutizeTemplate,
   pendingBlockoutJobs,
+  refVideoRealSec,
   remoteTemplatesCapable,
   saveTemplate,
   subscribeTemplates,
@@ -52,7 +55,7 @@ import {
 } from "../data/templates";
 import { VideoAspect, VideoTemplate, aspectFromSize } from "../types";
 import BlockoutTrimmer from "./blockout/BlockoutTrimmer";
-import type { BlockoutSelection } from "./blockout/arkVideoRules";
+import { blockoutSourceDurationIssue, type BlockoutSelection } from "./blockout/arkVideoRules";
 import Icon from "./Icon";
 import { sampleFrames } from "./videoFrames";
 
@@ -442,18 +445,23 @@ export default function VideoTemplateExtractor({
       // ── 白模路：预检 → 上传 → 交给 BlockoutTrimmer 框选 ──
       // 预检每条不过都当场整句说明、文件不入选（铁律八——比让用户传完 100MB 再听
       // 服务端说同一句话省得多）。作数的仍是服务端复核，这里只是提前量。
-      // ★ 量的是**原始素材**那把尺子（TEMPLATE_UPLOAD_RULES）：进方舟的那 4~30 秒
-      //   由 BlockoutTrimmer 框选，另一把严尺子（arkVideoRules.ARK_EDIT_RULES）在那边判。
+      // ★ 量的是**原始素材**那把尺子（TEMPLATE_UPLOAD_RULES）：进方舟的那 5~30 秒
+      //   由 BlockoutTrimmer 框选，另一把严尺子（arkVideoRules 的 BLOCKOUT_INPUT_RULES）
+      //   在那边判。
+      // ★★ 外加一条**只属于白模这条路**的下限（`blockoutSourceDurationIssue`）：整条素材
+      //   不够 5 秒时，这条路无论怎么框都做不出能被套用的模板 —— 在这儿说清楚，用户连
+      //   100MB 都不用传。它不是第二份判据，与选段那句读的是同一个 minSec（见那边的 ★）。
       try {
         setBusy("检查视频规格…");
         const meta = await probeVideoMeta(f);
-        const issue = templateVideoPrecheckIssue({
-          mimeType: f.type,
-          bytes: f.size,
-          durationSec: meta.durationSec,
-          width: meta.width,
-          height: meta.height,
-        });
+        const issue =
+          templateVideoPrecheckIssue({
+            mimeType: f.type,
+            bytes: f.size,
+            durationSec: meta.durationSec,
+            width: meta.width,
+            height: meta.height,
+          }) ?? blockoutSourceDurationIssue(meta.durationSec);
         if (issue) {
           setErr(issue);
           setFile(null);
@@ -610,7 +618,10 @@ export default function VideoTemplateExtractor({
               </p>
               {got.refVideo && (
                 <p className="mt-1 text-[11px] text-sky-300">
-                  白模模板 · 参考视频（{got.refVideo.durationSec}s）已托管
+                  {/* ★ 报**真实**秒数（拿不到就退回登记锚点）：作者刚花了一次真钱，
+                      这一行是他判断"做出来的东西对不对"的第一眼。计价锚点是另一个数，
+                      在模板详情页说清楚。 */}
+                  白模模板 · 参考视频（{(refVideoRealSec(got.refVideo) ?? got.refVideo.durationSec).toFixed(1)}s）已托管
                   {/* ★ 角色位数量必须说出来：它决定套用者能挂几张卡，而"AI 只认出 2 个人"
                       与"这段里本来就 2 个人"在画面上分不出来 —— 不说的话作者会以为
                       模板坏了。编号本身不连续（实出 1/2/4/5），所以这里只报**个数**，
@@ -684,7 +695,7 @@ export default function VideoTemplateExtractor({
                   <p className="mt-2 text-[10px] leading-relaxed text-amber-400/90">
                     mp4 / mov · {Math.round(TEMPLATE_UPLOAD_RULES.maxSec / 60)} 分钟以内 ·{" "}
                     {Math.round(MAX_TEMPLATE_VIDEO_BYTES / 1024 / 1024)}MB 以内。传完在下一步框出要用的那一段
-                    （4~30 秒），那一步会把这次要花的钱整句报出来。上传的视频会公开托管，套用者出片时会引用它。
+                    （5~30 秒），那一步会把这次要花的钱整句报出来。上传的视频会公开托管，套用者出片时会引用它。
                     {/* ★ 水印这条与前两条并列，且**必须常驻**（不能改成"只在探测命中时才说"）：
                         帧角探测是尽力而为、故意宁可漏报的（见 cornerWatermarkHint），
                         提示词里那句「不要出现水印」同样只是尽力而为（segmentGen.BLOCKOUT_SWAP）——
@@ -867,7 +878,7 @@ export default function VideoTemplateExtractor({
                     {busy ||
                       (blockoutBlock
                         ? "白模化这条路现在开不了（原因见上）。把上面的开关关掉走「经典配方」那条路仍然可以用——它不需要付费套餐，只是不做白模人偶。"
-                        : "选好视频先传上去（不花钱），下一步再拖时间轴框出 4~30 秒、拖裁剪框把水印框到画面外，确认报价后才开炼。")}
+                        : "选好视频先传上去（不花钱），下一步再拖时间轴框出 5~30 秒、拖裁剪框把水印框到画面外，确认报价后才开炼。")}
                   </p>
                 ) : (
                   <>

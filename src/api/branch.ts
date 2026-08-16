@@ -727,8 +727,22 @@ export interface ApiBranchTemplate {
     aspect?: "portrait" | "landscape";
     framePrompt?: string;
   };
-  /** 参考视频的**服务端登记值**（从 Cloudinary 写入）—— r2v 报价输入时长的唯一来源 */
-  refVideo?: { url?: string; durationSec?: number; width?: number; height?: number; bytes?: number };
+  /**
+   * 参考视频的**服务端登记值**（从 Cloudinary 写入）—— r2v 报价输入时长的唯一来源。
+   *
+   * ★ `realDurationSec` 是模板视频文件的**真实**时长（小数秒，服务端只读透出，客户端
+   *   永远不许发上去——服务端 zod 用 z.object，未声明字段本来就会被 strip）。
+   *   它与 `durationSec`（整数计价锚点）**不是一回事**，两者的分工与那条线上事故见
+   *   `types.VideoTemplate.refVideo` 的 ★★。老服务端不回这个字段，**缺一律当好**。
+   */
+  refVideo?: {
+    url?: string;
+    durationSec?: number;
+    realDurationSec?: number;
+    width?: number;
+    height?: number;
+    bytes?: number;
+  };
   /**
    * 白模人偶的**角色位**（编号 ↔ 这个编号在原视频里替换掉的是谁）。
    *

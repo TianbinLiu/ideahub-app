@@ -259,6 +259,16 @@ function rolesOf(api: branch.ApiBranchTemplate): NonNullable<VideoTemplate["role
     .filter((r) => r.label !== "");
 }
 
+/**
+ * 服务端那份 `realDurationSec` → 本机 refVideo 上的**可选键**（有才出，没有就一个键都不加）。
+ * ★ 唯一实现：apiToTemplate 与 registerTemplate 的回写都走它 —— 两处各写一遍 `|| 0`
+ *   的话，一处漏了就是"这台设备上的这个模板永远判不出坏"，而且不报错。
+ */
+function refRealSecKey(v: unknown): { realDurationSec?: number } {
+  const n = Number(v);
+  return typeof v === "number" && Number.isFinite(n) && n > 0 ? { realDurationSec: n } : {};
+}
+
 /** 服务端模板 → 本机领域模型。远端条目的 id 就用服务端 _id（详情页路由直接用它） */
 function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
   const rid = String(api._id ?? api.id ?? "");
@@ -285,9 +295,15 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
     },
     refVideo: {
       url: refUrl,
+      // ★ 服务端没给时长时这里是 0。**不再让它静默滑过去**：0 会被 refVideoIssue 判成
+      //   "算不出套用要花多少钱"并整句拒绝报价 —— 以前它一路变成"参考视频 0s""约 0
+      //   token"，用户点到方舟那儿才失败，全程零报错。
       durationSec: Number(api.refVideo?.durationSec) || 0,
       width: Number(api.refVideo?.width) || 0,
       height: Number(api.refVideo?.height) || 0,
+      // ★★ 存在性透出，**绝不写 `Number(x) || 0`**：那会把"老服务端没有这个字段"和
+      //   "真的是 0"压成同一个值，而两者的处置完全相反（缺 = 当好、0 = 坏得报不出价）。
+      ...refRealSecKey(api.refVideo?.realDurationSec),
     },
     // ★ 只在真有的时候才带这个键（存在性语义，见 rolesOf 与 types 的 ★）
     ...(roles.length > 0 ? { roles } : {}),
@@ -416,6 +432,8 @@ export async function registerTemplate(id: string): Promise<void> {
         width: Number(api.refVideo.width) || t.refVideo.width,
         height: Number(api.refVideo.height) || t.refVideo.height,
         publicId: t.refVideo.publicId,
+        // ★ 真实时长只有服务端算得出（Cloudinary 回执）。存在性透出，理由同 apiToTemplate
+        ...refRealSecKey(api.refVideo.realDurationSec),
       };
     }
     recordState(api);
@@ -455,6 +473,21 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
       const back = rolesOf(api);
       if (back.length && JSON.stringify(back) !== JSON.stringify(local.roles ?? [])) {
         local.roles = back;
+        dirty = true;
+      }
+      // ★★ `realDurationSec` 也必须跟着服务端走，理由与上面 roles 那条**完全同构**，
+      //   但少了它的后果更刁钻：这一位是 2026-08-16 才新增的（服务端回填脚本补进老文档），
+      //   而本机 `mine` 里那份是**建模板时写下的**、永远不会自己长出这一位。
+      //   于是「模板视频短于方舟下限」这件事在**作者自己那台设备上认不出来** ——
+      //   而作者恰恰是唯一能补救的人：详情页那句「这不是你操作错了、之前几次试炼没扣费、
+      //   重做时至少选 5 秒」、市场卡片的「暂时不可用」角标、出片按钮的禁用，
+      //   全都判在这一位上，全都不会触发（`getTemplate` 是 mine 优先于 shared，
+      //   所以别人看得见的角标，作者自己反而看不见）。
+      // ★ 只回写这一位、不整份替换 `local.refVideo`：本机那份还带着 url/publicId 等
+      //   建模板时的字段，整份换成服务端 payload 会把它们悄悄换掉，那是另一类事故。
+      const realSec = refRealSecKey(api.refVideo?.realDurationSec).realDurationSec;
+      if (local.refVideo && realSec !== undefined && local.refVideo.realDurationSec !== realSec) {
+        local.refVideo = { ...local.refVideo, realDurationSec: realSec };
         dirty = true;
       }
       if (dirty) persist();
@@ -747,6 +780,130 @@ export function autoVisionFrames(durSec: number): number {
  */
 export function visionFrameCount(durSec: number, frameTimes?: number[]): number {
   return frameTimes ? frameTimes.length : autoVisionFrames(durSec);
+}
+
+// ── 方舟 edit 的输入视频窗口，与白模路自己的输入下限 ──────────────────
+//
+// ★★ 为什么这两把尺子住在 data 而不是 `components/blockout/arkVideoRules`（它一直是
+//   窗口②的家，现在改成从这里 re-export）：**store 层也要问同一个判据**
+//   （flowStore.applyTemplate、segmentGen 的出片门禁），而 store 不该反过来 import 组件；
+//   而且 arkVideoRules 自己 import 本模块（帧数镜像），把常量放回它那边、再让本模块
+//   去 import 它就成环 —— Vite 下会拿到半初始化的模块（CLAUDE.md 那条 store 环坑同源）。
+//   同一个理由已经让 `BLOCKOUTIZE_FRAME_MAX` / `BLOCKOUT_MAX_ROLES` 住在这里，见它们的 ★。
+
+/**
+ * 方舟 edit 对**输入视频**的窗口 —— 跨仓镜像（服务端 `middleware/upload.js` 的
+ * `TEMPLATE_REF_RULES` / `templateRefIssue` 是唯一权威实现，这份只负责提前说人话）。
+ *
+ * 数值出处（2026-08-15 实测，纪要见 WM_V2_probe.md）：
+ *   时长 [4,30]s   F1：超出**同步 400**（原文 "the video selected must satisfy the
+ *                  duration requirement of 4 to 30 seconds"）
+ *   ≥407,696 像素  F3：像素数硬门，官方文档没写，方舟直接拒单
+ *   边长 [300,6000] / 宽高比 [0.4,2.5]   F3
+ *
+ * ★★ 这一份**永远是 4，不许抬**：它同时是「模板视频（= 白模化的**产出**）自己能不能被
+ *   套用」的判据（`refVideoIssue`）。把它抬到 5，合法的 5s 输入产出 4.736s 就会被自己的
+ *   门拒掉 —— 等于把唯一正确的用法也封死。输入那一侧的下限是下面 `BLOCKOUT_INPUT_RULES`。
+ */
+export const ARK_EDIT_RULES = Object.freeze({
+  minSec: 4,
+  maxSec: 30,
+  minEdge: 300,
+  maxEdge: 6000,
+  minRatio: 0.4,
+  maxRatio: 2.5,
+  minPixels: 407_696,
+});
+
+/**
+ * 实测：方舟 edit 的**产出比输入短**（2026-08-16）。
+ *   4.00s → 3.712s（−0.288）　5.00s → 4.736s（−0.264）　14.04s → 13.67s（−0.370）
+ * 最坏 0.37s，且**不随时长成比例**，像是固定的头尾帧损耗。
+ *
+ * ★★ 这是**观测值不是协议**：只准用来给用户估一句"大概会剩多少秒"，**绝不许**拿它去
+ *   算门槛（门槛是下面那个整数 5，本身就留了约两倍余量）。方舟哪天多裁一点，5 还成立，
+ *   这个数会过时 —— 把它写进判断就等于把一个会变的观测值钉成了协议。
+ */
+export const EDIT_SHRINK_WORST_SEC = 0.37;
+
+/**
+ * 白模这条路对**输入片段**的时长下限（秒）。
+ *
+ * ★★ 这个 5 **不是方舟的窗口**（方舟永远是 [4,30]，见上），是「产出还要能当下一发的
+ *   输入」推导出来的**白模路自我约束**：edit 的产出比输入短，而白模化的产出**本身就是
+ *   模板视频**，别人套用时它又要当 r2v 的输入 —— 4 秒进去只剩 3.7 秒，低于方舟自己的
+ *   4 秒下限，**谁都套用不了**。2026-08-16 线上 6 个模板里有 3 个已经是这个状态：
+ *   作者付了钱、模板建出来了、能核对能发布，而每一个想用它的人都失败，作者永远不知道为什么。
+ * ★ 为什么是整数、为什么是 5：服务端 zod 的 `durSec` 是 int、Cloudinary 变换的 `du_`
+ *   只认整数、编辑页时间轴全程整数秒 —— 候选只有 4（已知坏）和 5。5 的余量
+ *   1.0 − 0.37 ≈ 0.63s，约为最坏观测值的两倍。
+ * ★★ 权威实现在服务端（`middleware/upload.js` 的 `BLOCKOUT_INPUT_RULES` /
+ *   `blockoutInputIssue`）。App 这一份是**预检 + 换人话**，不是第二份判据。
+ */
+export const BLOCKOUT_MIN_INPUT_SEC = 5;
+
+/** 白模**输入片段**的完整窗口 = 方舟那份、只把时长下限换成 5。其余六条逐字相同，
+ *  所以 `selectionIssue` 的另外六条继续读同一组数，不会两份一起漂。 */
+export const BLOCKOUT_INPUT_RULES = Object.freeze({ ...ARK_EDIT_RULES, minSec: BLOCKOUT_MIN_INPUT_SEC });
+
+/** 「这 N 秒进去，产出大概剩多少秒」——只用来说话（见 EDIT_SHRINK_WORST_SEC 的 ★★） */
+export function shrunkSecText(inputSec: number): string {
+  return Math.max(0, inputSec - EDIT_SHRINK_WORST_SEC).toFixed(1);
+}
+
+/**
+ * 模板视频文件的**真实**时长（秒）。缺 = 老数据/老服务端，返回 null（**当好**，不是当坏）。
+ * ★ 它不是计价锚点（那是 `refVideo.durationSec`），只用于如实展示与下面这条判据。
+ */
+export function refVideoRealSec(ref: VideoTemplate["refVideo"]): number | null {
+  const v = ref?.realDurationSec;
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null;
+}
+
+/**
+ * 「这个白模模板的**模板视频本身**能不能拿去出片」—— **客户端唯一判据**（铁律六）。
+ * null = 能；否则是一句**能直接显示给用户的整句原因**（铁律八：不让用户点一个必然
+ * 失败、还要扣一次心跳的按钮，也不让它灰着不说话）。
+ *
+ * ★★ 判的是 `realDurationSec ?? durationSec`，尺子是 `ARK_EDIT_RULES`（**4，不是 5**）：
+ *   一个 4.0s 的模板完全能用；5 是**输入**那一侧的下限，拿它来判模板会把合法模板拒掉。
+ * ★★ 后加字段一律**存在性 + 否定式**：`realDurationSec` 缺失（存量 V1 与老 V2 都没有）
+ *   一律退回锚点、判不出坏就当好。反过来写会在上线那一刻把整个市场判成不可用，且零报错。
+ * ★ 服务端也会判（`ark.routes.js` 的 resolveR2v、发布闸）。这一层不是安全边界，
+ *   只是"别让用户白花一次钱、白等一次失败"。
+ */
+export function refVideoIssue(ref: VideoTemplate["refVideo"]): string | null {
+  if (!ref) return null; // 经典配方模板：这条规则与它无关
+  const R = ARK_EDIT_RULES;
+  const sec = refVideoRealSec(ref) ?? ref.durationSec;
+  if (!Number.isFinite(sec) || sec <= 0) {
+    // ★ 报价锚点缺失。**不许静默当 0** —— 那会让详情页显示"参考视频 0s""套用一次约
+    //   0 token"，用户一路点下去到方舟那儿才失败，全程一个错都不报。
+    return "服务器没有返回这个模板的参考视频时长，算不出套用一次要花多少 token，也没法确认它能不能出片。请下拉刷新重试；一直这样就把这句话反馈给我们。";
+  }
+  if (sec < R.minSec) {
+    return `这个白模模板的模板视频只有约 ${Math.floor(sec * 10) / 10} 秒，短于 AI 出片引擎的 ${R.minSec} 秒下限，用它出片一定会失败，所以这里不让你白花钱。请换一个模板。`;
+  }
+  if (sec > R.maxSec) {
+    return `这个白模模板的模板视频约 ${Math.ceil(sec * 10) / 10} 秒，超过 AI 出片引擎的 ${R.maxSec} 秒上限，用它出片一定会失败。请换一个模板。`;
+  }
+  return null;
+}
+
+/**
+ * 同一条判据**对作者本人**的说法（详情页 isOwner 时）。null = 这个模板没毛病。
+ *
+ * ★ 不是第二处判断：先问 `refVideoIssue`，它说没事就没事。只有措辞不同 ——
+ *   对套用者要说"换一个模板"，对作者要说清**这不是他操作错了**，以及重做时怎么才对。
+ *   线上那 3 条坏模板的作者反复试炼、反复撞方舟的英文 400（那些是同步 400，服务端
+ *   原路退了费，所以他们**没在重试上损失 token**，损失的是时间和信任）—— 这句话要把
+ *   这件事说清楚。
+ */
+export function refVideoOwnerNote(ref: VideoTemplate["refVideo"]): string | null {
+  if (!refVideoIssue(ref)) return null;
+  const sec = refVideoRealSec(ref) ?? ref?.durationSec;
+  const secText = typeof sec === "number" && Number.isFinite(sec) && sec > 0 ? `只有约 ${Math.floor(sec * 10) / 10} 秒，` : "";
+  return `这个模板的白模视频${secText}不满足 AI 出片引擎要求的 ${ARK_EDIT_RULES.minSec}~${ARK_EDIT_RULES.maxSec} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次试炼失败都没有扣费。请重新做一个模板：框选时至少选 ${BLOCKOUT_MIN_INPUT_SEC} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。`;
 }
 
 // ── 一个模板最多有几个「能挂卡」的角色位 ────────────────────────────
@@ -1164,7 +1321,8 @@ export interface BlockoutizeInput {
   publicId: string;
   /** 选段起点（整数秒） */
   startSec: number;
-  /** 选段时长（整数秒，窗口 [4,30] 由编辑页的 arkVideoRules.selectionIssue 把关） */
+  /** 选段时长（整数秒，窗口 [5,30] 由编辑页的 arkVideoRules.selectionIssue 把关 ——
+   *  下限是 5 不是方舟的 4，理由见 BLOCKOUT_MIN_INPUT_SEC 的 ★★） */
   durSec: number;
   /** 裁剪框（整数像素，相对原片**原始分辨率**，不是预览尺寸） */
   crop: { x: number; y: number; w: number; h: number };

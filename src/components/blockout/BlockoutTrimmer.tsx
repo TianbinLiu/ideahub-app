@@ -23,7 +23,7 @@ import VideoStage, { type VideoStageHandle } from "./VideoStage";
 import VisionFramePicker, { type FrameMark, type VisionMode } from "./VisionFramePicker";
 import TokenCost from "../TokenCost";
 import {
-  ARK_EDIT_RULES,
+  BLOCKOUT_INPUT_RULES,
   frameTimesOf,
   fullFrameCrop,
   initialSelection,
@@ -263,8 +263,11 @@ export default function BlockoutTrimmer({
           totalSec={selectableSeconds(geo)}
           startSec={sel.startSec}
           durSec={sel.durSec}
-          minSec={ARK_EDIT_RULES.minSec}
-          maxSec={ARK_EDIT_RULES.maxSec}
+          /* ★ 轨道下那句「允许 N~M 秒」说的是**输入**那一侧的窗口（下限 5，不是方舟的 4）
+             —— 徽章变红的门槛也跟着它。判词与它读同一份对象（selectionIssue 的 ②），
+             两处各写一个数的话，会出现"徽章是蓝的、按钮却点不动"这种自相矛盾的界面。 */
+          minSec={BLOCKOUT_INPUT_RULES.minSec}
+          maxSec={BLOCKOUT_INPUT_RULES.maxSec}
           onChange={(startSec, durSecNext) => {
             setSel({ ...sel, startSec, durSec: durSecNext });
             // 拖把手时画面跟到入点：不跟的话用户看不到自己框的这一段从哪开始
