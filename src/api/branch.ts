@@ -749,9 +749,10 @@ export interface ApiBranchTemplate {
    * ★ **只在真有的时候才出现这个 key**：V1 白模模板整个字段缺失。调用方一律判**存在性**
    *   （`roles?.length`），不许等值比、也不许把"缺"和"空数组"当同一件事处理
    *   —— 那是 `visibility` 那条坑的同族（docs/api-contract.md「可见性」）。
-   * ★ `label` 是**人偶身上那个标记本身**：新模板是色名（"绿色"，人偶通体一色），
-   *   存量老模板是阿拉伯数字（实测稳定但不连续，2026-08-15 一发四人实出 1/2/4/5）。
-   *   哪一种由 `markColors` 的**存在性**决定。别按下标推、别拿 `roles.length` 当最大编号、
+   * ★ `label` 是**"怎么指认这个人偶"那句话本身**：新模板是序数措辞（"从左数第3个"，
+   *   人偶全是一模一样的纯白色），存量老模板是阿拉伯数字（实测稳定但不连续，
+   *   2026-08-15 一发四人实出 1/2/4/5）。
+   *   哪一种由 `markSlots` 的**存在性**决定。别按下标推、别拿 `roles.length` 当最大编号、
    *   点名时**原样用 label**。
    * ★ 服务端写（看帧产出、与真正发出去的点名提示词对齐）。客户端提交一律不收（zod strip），
    *   **唯一的例外**是作者的确认：PATCH /templates/:id/roles（见 patchTemplateRoles）。
@@ -763,18 +764,24 @@ export interface ApiBranchTemplate {
    */
   roles?: Array<{ label?: string; desc?: string; labelConfirmed?: boolean }>;
   /**
-   * 这个模板的角色位标记用的是**哪一套颜色**（阶段一白模化时真正写进提示词的那份清单）。
+   * 这段视频里**一共有哪几个可寻址的位置，逐字、按画面从左到右升序**
+   * （阶段一白模化时服务端算出来的那份序数清单，`["最左边","从左数第2个","最右边"]`）。
    *
-   * ★★ **有这一位 = 颜色方案；缺失 / 空数组 = 编号方案（存量老模板）**。服务端"真有才出
+   * ★★ **有这一位 = 序数方案；缺失 / 空数组 = 编号方案（存量老模板）**。服务端"真有才出
    *   这个键"，客户端一律判存在性 —— 与 `realDurationSec` 同一条写法。判成编号方案是
-   *   **安全的那一侧**：老模板照旧能用，而新模板会写出一句一眼就不对的 `编号绿色=凛`
-   *   摆在用户花钱之前（判据与后果见 types.VideoTemplate.markColors 的 ★★）。
-   * ★ `swatch` 是服务端按色名现查调色板派生出来的色值，**不落库**、只给 App 画色块用；
-   *   查不到时服务端不出这个键，App 那边画中性灰块 + 纯文字，绝不自己编一个颜色。
-   * ★ 客户端提交一律不收（含 PATCH /roles —— 让作者改得动方案位，等于让他把一个颜色
+   *   **安全的那一侧**：老模板照旧能用，而新模板会写出一句一眼就不对的 `编号最左边=凛`
+   *   摆在用户花钱之前（判据与后果见 types.VideoTemplate.markSlots 的 ★★）。
+   * ★★ 它同时是套用提示词**升序排序的依据**（`markSlots.indexOf(label)`）—— 那条排序是
+   *   承重代码，不是读起来顺（实测同样 3 张卡只把书写顺序打乱，5 个位子错 3 个）。
+   * ★ 客户端提交一律不收（含 PATCH /roles —— 让作者改得动方案位，等于让他把一个序数
    *   模板标成编号模板，套用侧当场整份错且零报错）。
    */
-  markColors?: Array<{ label?: string; swatch?: string }>;
+  markSlots?: string[];
+  /** 与 `markSlots` 按下标对齐的画面位置框（归一化 0~1000）。长度不等于 markSlots 时
+   *  客户端整层丢弃（缺一个框就关掉拖拽层，见 types.VideoTemplate.markBoxes 的 ★★） */
+  markBoxes?: Array<{ cx?: number; cy?: number; w?: number; h?: number }>;
+  /** 那些框是在第几秒那一帧上量的（秒）。没有它，框就是一组无法核对的数 */
+  markBoxAtSec?: number;
   status?: "pending" | "published" | "blocked" | string;
   provenAt?: string | number | null;
   isOwner?: boolean;
@@ -928,10 +935,10 @@ export interface BlockoutStartResult {
   frames: number;
   /** 看帧那一步列出来的角色位**草案**（标记仍是猜测，作者要在建成模板后核对） */
   roles: Array<{ label: string; desc: string }>;
-  /** 这一发白模化提示词里**真正发出去的**那份颜色清单（存在性 = 颜色方案）。
+  /** 这一发白模化算出来的那份序数清单（存在性 = 序数方案）。
    *  ★ 阶段一就要拿到它：模板还没建出来时，"待取回"那一屏与核对入口就已经要知道
-   *    该按颜色说话还是按编号说话了。老服务端不回 → 空数组 → 编号方案（它发的确实是编号版）。 */
-  markColors: Array<{ label: string; swatch?: string }>;
+   *    该按位置说话还是按编号说话了。老服务端不回 → 空数组 → 编号方案（它发的确实是编号版）。 */
+  markSlots: string[];
   /** 凭据失效时刻（服务端说了算；★ 24h —— 方舟产物是 TOS 签名地址，见文件头 ★） */
   expiresAt: string | number | null;
 }
@@ -955,10 +962,10 @@ export interface ApiBlockoutJob {
   durSec?: number;
   title?: string;
   roles?: Array<{ label?: string; desc?: string }>;
-  /** 这一发白模化**当时**发出去的那份颜色清单（存在性 = 颜色方案，同 ApiBranchTemplate）。
+  /** 这一发白模化**当时**算出来的那份序数清单（存在性 = 序数方案，同 ApiBranchTemplate）。
    *  ★ 必须跟着凭据走、不能按"今天服务端是哪一套"事后推：凭据 TTL 24 小时，发版正好夹在
    *    两阶段之间时，只有这一位能保证 finish 出来的模板与那段视频真正的样子一致。 */
-  markColors?: Array<{ label?: string; swatch?: string }>;
+  markSlots?: string[];
   expiresAt?: string | number | null;
   createdAt?: string | number | null;
 }
@@ -1082,7 +1089,7 @@ export async function startBlockoutize(payload: BlockoutizePayload): Promise<Blo
   if (jobId && taskId) {
     const roles = Array.isArray(job.roles) ? (job.roles as Array<{ label?: string; desc?: string }>) : [];
     // ★ 方案位同样按存在性收：老服务端不回 → 空数组 → 编号方案（它发出去的确实是编号版）
-    const colors = Array.isArray(job.markColors) ? (job.markColors as Array<{ label?: string; swatch?: string }>) : [];
+    const slots = Array.isArray(job.markSlots) ? (job.markSlots as unknown[]) : [];
     return {
       kind: "job",
       job: {
@@ -1093,13 +1100,7 @@ export async function startBlockoutize(payload: BlockoutizePayload): Promise<Blo
         roles: roles
           .map((r) => ({ label: String(r?.label ?? "").trim(), desc: String(r?.desc ?? "").trim() }))
           .filter((r) => r.label !== ""),
-        markColors: colors
-          .map((c) => {
-            const label = String(c?.label ?? "").trim();
-            const swatch = String(c?.swatch ?? "").trim();
-            return { label, ...(swatch ? { swatch } : {}) };
-          })
-          .filter((c) => c.label !== ""),
+        markSlots: slots.map((s) => String(s ?? "").trim()).filter((s) => s !== ""),
         expiresAt: (job.expiresAt as string | number | null | undefined) ?? null,
       },
     };

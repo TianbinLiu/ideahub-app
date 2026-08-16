@@ -5,21 +5,22 @@
 //   的面板里 —— 那些属性会给 `position: fixed` 后代造包含块，`inset-0` 于是相对那个盒子
 //   而不是视口（评论抽屉与首尾帧放大层都在这条上栽过，各修过一次，见 CLAUDE.md）。
 //
-// ★ 这里是**点列表选卡**，不是"点画面里的人偶"（方案 B1 的有意降级）。理由见 RoleCastBoard。
+// ★ 这里是**从列表选卡**。序数模板还多一条路（把卡直接拖到画面上那个人偶身上，
+//   见 RoleCastBoard）—— 那条路要有 `markBoxes` 才开，老模板与没有位置数据的模板
+//   仍然只有这一条。
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "../Icon";
 import MarkBadge from "./MarkBadge";
-import { CARD_TYPE_LABELS, type Card, type MarkScheme } from "../../types";
+import type { MarkSpec } from "../../data/templates";
+import { CARD_TYPE_LABELS, type Card } from "../../types";
 
 export interface CardPickSheetProps {
-  /** 挂给哪个角色位（原样显示服务端给的标记，不重编、不换近义色名 ——
-   *  F5：编号稳定但不连续；颜色同理，"绿色"写成"青色"就是换错人） */
+  /** 挂给哪个角色位（原样显示服务端给的标记，不重编、不换近义说法 ——
+   *  F5：编号稳定但不连续；序数同理，"从左数第3个"写成"第三个"就是换错人） */
   label: string;
-  /** 这个模板的标记方案（宿主从模板带下来，判据唯一实现在 data/templates.isColorMark） */
-  mark: MarkScheme;
-  /** 这个色名的色值（颜色方案才有；拿不到就画中性灰块，绝不自己编一个颜色） */
-  swatch?: string | null;
+  /** 这个模板的标记方案（宿主从模板带下来，判据唯一实现在 data/templates.markSpecOf） */
+  spec: MarkSpec;
   desc: string;
   /** 可挂的卡。★ 由宿主给（组件不认识素材库），要不要只给人物卡也由宿主决定 */
   cards: Card[];
@@ -32,8 +33,7 @@ export interface CardPickSheetProps {
 
 export default function CardPickSheet({
   label,
-  mark,
-  swatch,
+  spec,
   desc,
   cards,
   currentId,
@@ -58,7 +58,7 @@ export default function CardPickSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex items-start gap-2">
-          <MarkBadge mark={mark} label={label} swatch={swatch} className="mt-0.5" />
+          <MarkBadge spec={spec} label={label} className="mt-0.5" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-slate-100">给这个人偶挂一张卡</p>
             <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-slate-400">{desc}</p>
@@ -80,8 +80,8 @@ export default function CardPickSheet({
             onClick={onClear}
             className="mb-2 w-full rounded-lg border border-slate-600 py-2 text-[12px] text-slate-300"
           >
-            {/* ★ 措辞中性："白模原样"在颜色方案下会让人以为它会变回白色，而实测它会
-                **带着自己那个颜色**出现在成片里（见 blockoutPrompt 文件头 ★★） */}
+            {/* ★ 措辞中性，两种方案下都成立：没挂卡的位子在成片里就是一个白色人偶
+                （序数方案下人偶本来就全是纯白的，编号方案下会把号擦掉） */}
             取下这张卡（这个人偶保持原样）
           </button>
         )}

@@ -24,7 +24,7 @@ import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, proposalRedrawCost, proposalsCost
 import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
-import { BLOCKOUT_MAX_ROLES, MARK_NOUN, markSchemeOf, refVideoIssue, splitCastRoles } from "../data/templates";
+import { BLOCKOUT_MAX_ROLES, markNoun, markSpecOf, refVideoIssue, splitCastRoles } from "../data/templates";
 import { type BlockoutCastSlot, blockoutApplySkeleton, castNameIssue, composeBlockoutPrompt } from "./blockoutPrompt";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
 import { blockoutIssue, generateSegment, refVideoOn } from "./segmentGen";
@@ -112,17 +112,20 @@ export type FlowTemplate = {
    */
   roles?: VideoTemplate["roles"];
   /**
-   * 这个模板的标记方案位（`VideoTemplate.markColors` 的镜像）——
-   * **存在 = 颜色方案，缺省 = 编号方案**（判据的唯一实现是 data/templates.isColorMark）。
+   * 这个模板的标记方案位（`VideoTemplate.markSlots` 的镜像）——
+   * **存在 = 序数方案，缺省 = 编号方案**（判据的唯一实现是 data/templates.isOrdinalMark）。
    *
-   * ★★ 它必须与 `roles` **同一批**进快照：套用提示词的措辞、挂卡面板的徽章、
+   * ★★ 它必须与 `roles` **同一批**进快照：套用提示词的措辞与**升序排序**、挂卡面板的徽章、
    *   核对面板的输入方式全按它分支。漏在这里没有任何症状 —— 模板照样能挂卡，只是
-   *   输入框里那段话变成 `编号绿色=凛`（好在这句话一眼就是坏的，而且摆在花钱之前；
-   *   这正是当初选择"label 直接装颜色 token"而不是"label 留数字 + 另加一个 color 字段"
-   *   的理由：后者漏字段时会写出一句**看起来完全正常**的 `编号1=凛`，用户不会起疑）。
+   *   输入框里那段话变成 `编号最左边=凛`（好在这句话一眼就是坏的，而且摆在花钱之前；
+   *   这正是当初选择"label 直接装措辞 token"而不是"label 留序位数字 + 另加一个方案枚举"
+   *   的理由：后者漏字段时会写出一句**看起来完全正常**的 `编号3=凛`，用户不会起疑）。
    * ★ 与 roles 同理：跟着快照走，不许出片时现查。
    */
-  markColors?: VideoTemplate["markColors"];
+  markSlots?: VideoTemplate["markSlots"];
+  /** 画面位置框与它们量自第几秒（挂卡面板的拖拽层用）。与 markSlots 下标对齐，同批进快照 */
+  markBoxes?: VideoTemplate["markBoxes"];
+  markBoxAtSec?: VideoTemplate["markBoxAtSec"];
 } | null;
 
 /**
@@ -339,10 +342,13 @@ interface FlowState {
   subject: string;
   /**
    * 白模 V2 的挂卡映射：**人偶身上的标记（`roles[].label`）→ 卡 id**。
-   * 键是色名（新模板，人偶通体一色）或阿拉伯数字（存量老模板），哪一种由
-   * `template.markColors` 的存在性决定 —— 但这一格**不需要知道**：它只是把服务端给的
+   * 键是序数措辞（新模板，「从左数第3个」）或阿拉伯数字（存量老模板），哪一种由
+   * `template.markSlots` 的存在性决定 —— 但这一格**不需要知道**：它只是把服务端给的
    * 那个字符串当键用，两种形态零差别（这正是"label 直接装标记本身"换来的好处：
    * 连接键全仓只有一个，重号闸、整份替换、materials 落盘顺序全部零改动）。
+   * ⚠ 这一格是 `Record`，它**本来就没有顺序** —— 而序数方案下"先后顺序就是语义"。
+   *   顺序不是在这里保持的，是拼提示词时被 `blockoutPrompt.orderSlots` **制造**出来的。
+   *   别在这里加一个"有序的 cast"，那会变成同一条规则的第二处实现。
    * 空表 = 还没挂（V1 老模板与经典模板恒为空表，它们没有角色位）。
    *
    * ★ 存 id 而不是整张卡：卡有 1MB 级的图，而这一格每次开编辑页都要原样塞进
@@ -513,9 +519,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
           refVideo: t.refVideo,
           ...(t.roles?.length ? { roles: t.roles } : {}),
           // ★ 方案位与 roles 同一批、同一条存在性语义（老模板天然缺它 → 编号方案 →
-          //   套用走老提示词，一个字不变）。少带这一位不会报错，只会让颜色模板被当成
-          //   编号模板 —— 见 FlowTemplate.markColors 的 ★★
-          ...(t.markColors?.length ? { markColors: t.markColors } : {}),
+          //   套用走老提示词，一个字不变）。少带这一位不会报错，只会让序数模板被当成
+          //   编号模板（连升序排序一起丢）—— 见 FlowTemplate.markSlots 的 ★★
+          ...(t.markSlots?.length ? { markSlots: t.markSlots } : {}),
+          ...(t.markBoxes?.length ? { markBoxes: t.markBoxes } : {}),
+          ...(t.markBoxAtSec !== undefined ? { markBoxAtSec: t.markBoxAtSec } : {}),
         },
       });
       return true;
@@ -595,11 +603,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
       });
       return false;
     }
-    // ★ 这一整段的措辞按方案分支：判据只问 data 层那一处（isColorMark / MARK_NOUN），
-    //   别在这里写 `tpl.markColors ? "颜色" : "编号"`。对着一个纯色人偶说"编号 3"，
+    // ★ 这一整段的措辞按方案分支：判据只问 data 层那一处（markSpecOf / markNoun），
+    //   别在这里写 `tpl.markSlots ? "位置" : "编号"`。对着一群一模一样的白人偶说"编号 3"，
     //   用户在画面上永远找不到那个东西 —— 一句过时的指路和一个坏功能长得一模一样
-    const mark = markSchemeOf(tpl);
-    const noun = MARK_NOUN[mark];
+    // ★★ `spec` 里还带着那份顺序表，合成提示词时的**升序排序**就靠它（orderSlots）——
+    //   所以这里传下去的必须是整个 spec，不是一个光秃秃的方案枚举
+    const spec = markSpecOf(tpl);
+    const noun = markNoun(spec);
 
     // ★★ 下面几道拒绝**一律不写 cast**：`cast`（映射）/ `materials`（真发出去的形象图）/
     //   `plot`（点名句）是一个整体，只在三样都成立时一起换。半推半就地只更新映射，
@@ -635,12 +645,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const why = [
         overCap.length > 0
           ? `${noun} ${overCap.join("、")} 超出了一次能挂卡的 ${BLOCKOUT_MAX_ROLES} 个上限（${
-              mark === "color" ? "再多的颜色在画面上也分不清了" : "再多的编号在画面上也认不出来"
+              spec.scheme === "ordinal" ? "人再多，从左数到第几个也数不准了" : "再多的编号在画面上也认不出来"
             }）`
           : "",
         removed.length > 0
           ? `${noun} ${removed.join("、")} 这个位子已经被模板作者在核对${noun}时删掉了（多半是因为${
-              mark === "color" ? "画面上那个人根本没被换成人偶" : "画面上根本找不到这个号"
+              spec.scheme === "ordinal" ? "画面上那个人根本没被换成人偶" : "画面上根本找不到这个号"
             }）`
           : "",
       ]
@@ -742,7 +752,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   见 CLAUDE.md「两仓价目表各写各的」），**别在这里单方面扣一笔**。
       // ★ 没配 ARK_API_KEY 的 mock 构建里它直接返回骨架（不是静默降级 —— 骨架本身
       //   就是第五章那份模板，chat 只负责把作者那句话揉顺，见 composeBlockoutPrompt 的 ★）。
-      const text = await composeBlockoutPrompt(slots, line, mark);
+      const text = await composeBlockoutPrompt(slots, line, spec);
       get().updateProposal(node.id, { plot: text });
       set({ busy: false, castBusy: false });
       // 挂完卡就把"现在还出不了片"的原因先说了（判据仍只活在 segmentGen.blockoutIssue
@@ -768,7 +778,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
         busy: false,
         castBusy: false,
         castErr: e instanceof Error ? e.message : String(e),
-        castFallback: blockoutApplySkeleton(slots, line, mark),
+        castFallback: blockoutApplySkeleton(slots, line, spec),
       });
       return false;
     }

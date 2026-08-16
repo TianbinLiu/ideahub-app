@@ -157,9 +157,14 @@ export interface VideoTier {
 }
 
 export const VIDEO_TIERS: VideoTier[] = [
+  // ✅ 2026-08-16 拿 8 月账单明细逐行核过 mult（server/src/config/tokens.js 的 VIDEO_MULT
+  //   是同一张表，那边写了完整出处）。写成 `4.2 / 15`、`23 / 15` 这种**分数形态**是有意的：
+  //   分子就是账单上那个「元/千token × 1000」的数，下次对账一眼比得上；写成 0.28 / 1.53
+  //   就没人看得出它是从哪来的了（而 23/15 = 1.5333… 本来也写不尽）。
+  //   ⚠ fast 与 hd 此前是拍出来的 0.3 / 1.6，比真实成本高 7% / 4.3%（**多收用户**的方向）。
   // fast/std 是 1.0-pro：`generate_audio` 收下就扔（实测），所以 audio 显式 false ——
   // 不是"我们不给"，是这一代模型出不了（见 VideoTier.audio 的 ★★）
-  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 0.3, flf: false, refImg: false, refVid: false, r2vMult: null, audio: false, minSec: 3, desc: "省 token · 首帧起拍，不锁尾帧" },
+  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 4.2 / 15, flf: false, refImg: false, refVid: false, r2vMult: null, audio: false, minSec: 3, desc: "省 token · 首帧起拍，不锁尾帧" },
   { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, audio: false, minSec: 3, desc: "首尾帧可控（默认）" },
   // ★ desc 是给**用户**看的，不是给运维看的。原来这里写的是「需在方舟控制台开通 2.0 系列」——
   //   那是部署方的事，终端用户既看不懂也做不了（CLAUDE.md 那条「界面上摆一个用户看不懂
@@ -169,7 +174,7 @@ export const VIDEO_TIERS: VideoTier[] = [
   // ★ hd 的 audio: true 是**免费套餐也听得到声音**的那条路（paidOnly 只挡 ultra）——
   //   实测 2.0-mini 真出声（-30.2dB），且开音频零额外成本，所以 desc 里如实写出来：
   //   不写的话用户只能靠"换个档试试"发现，而多数人只会以为 App 的片本来就是哑的。
-  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 1.6, flf: true, refImg: true, refVid: false, r2vMult: null, audio: true, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音" },
+  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refVid: false, r2vMult: null, audio: true, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音" },
   {
     id: "ultra",
     label: "电影级",
@@ -757,10 +762,21 @@ export function blockoutTemplateCost(frameCount: number): number {
   return visionCardsTokens(frameCount, 0);
 }
 
+// ══ 「成片回来后量一帧位置框」为什么**不在这张价目表里** ═══════════════════════
+//   白模视频出来之后，服务端还会看一帧，记住每个人偶站在画面哪儿（`markBoxes`，
+//   App 靠它开"把卡直接拖到人偶身上"那条挂卡路径）。那一发**我们自己吃掉，不计费**，
+//   所以这里一个字都不用加 —— 报价里没有它、账单上也没有它，两边一致。
+//   理由写在服务端 `branchTemplate.routes` 的 ⑧b：它只有 400 token（同一次白模化的总账是
+//   3,760 万），而要把它算进来就得破掉「**钱全在阶段一花掉，取回结果一分不加**」
+//   那条已经钉死的承诺 —— finish 是一条可以重来的路，一旦它会花钱，"重试取件"
+//   就变成用户不敢做的事。
+//   ⚠ 哪天那一步真的变贵了（比如改成量五帧、或换成付费的检测模型），**先回来加这一项**，
+//   别指望"反正很小"—— 那句话每加一次就少成立一点，而它失效时没有任何一层会报错。
+
 /**
- * **白模化**（把用户自己的一段视频整段换成带标记的白模人偶 —— 2026-08-16 起是一人一色，
- * 此前是在头上印数字；**标记怎么做不影响这条报价**，两种方案都是同一发 r2v、同样四个钉死
- * 的参数，报价与实收的关系一个字没变）那一次的报价：
+ * **白模化**（把用户自己的一段视频整段换成白模人偶 —— 2026-08-17 起是一模一样的纯白人偶、
+ * 靠位置指认，此前印过数字也上过颜色；**标记怎么做不影响这条报价**，几种方案都是同一发
+ * r2v、同样四个钉死的参数，报价与实收的关系一个字没变）那一次的报价：
  * 看帧列人物 + **一次真实付费出片**（r2v edit）。
  *
  * ★ 这条链路花的是**两次真钱**（白模化一次、别人套用出片再一次），而这个函数报的是

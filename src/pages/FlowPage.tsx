@@ -26,7 +26,7 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 //   真正发出去的那段话，在这里另抄一个 400 出来，改上限时这里就开始说假话
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
 import { tierBlockReason, walletOf } from "../data/account";
-import { MARK_NOUN, markSchemeOf, myTemplates, splitCastRoles } from "../data/templates";
+import { markNoun, markSpecOf, myTemplates, splitCastRoles } from "../data/templates";
 import { VIDEO_TIERS, clampDuration, fmtTokens, modelLabel, proposalsCost, r2vPriceIssue, tierOf } from "../data/economy";
 import {
   FlowNode,
@@ -65,7 +65,7 @@ const SWIPE = 48;
  *   （store 侧是 flowStore.applyCast）。
  */
 export function castEditorState(
-  t: Pick<VideoTemplate, "id" | "title" | "refVideo" | "roles" | "markColors">,
+  t: Pick<VideoTemplate, "id" | "title" | "refVideo" | "roles" | "markSlots" | "markBoxes" | "markBoxAtSec">,
   value: Record<string, string> = {},
 ): CastEditorState | null {
   // 判定一律写存在性（types.ts 的 ★）：老模板天然缺这两样，天然不走挂卡
@@ -75,9 +75,12 @@ export function castEditorState(
     videoUrl: t.refVideo.url,
     roles: t.roles,
     // ★★ 方案位必须跟着一起过去：挂卡面板的徽章、引导句、"没挂的会怎样"那几句全按它分支。
-    //   漏在这里没有任何报错 —— 只表现为颜色模板的挂卡页按编号说话（用户对着彩色人偶
-    //   找数字，找不到只会以为坏了）。存在性语义：有才带这个键。
-    ...(t.markColors?.length ? { markColors: t.markColors } : {}),
+    //   漏在这里没有任何报错 —— 只表现为序数模板的挂卡页按编号说话（用户对着一群一模一样
+    //   的白人偶找数字，找不到只会以为坏了）。判据只有 data 层一处（markSpecOf）。
+    spec: markSpecOf(t),
+    // 画面位置框：有才带（拖拽层的存在性开关）
+    ...(t.markBoxes?.length ? { boxes: t.markBoxes } : {}),
+    ...(t.markBoxes?.length && t.markBoxAtSec !== undefined ? { boxAtSec: t.markBoxAtSec } : {}),
     value,
     templateId: t.id,
     title: t.title,
@@ -137,9 +140,9 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
   const prop = chosenOf(node);
   const mounted = roles.filter((r) => cast[r.label]).length;
   const [openReq, setOpenReq] = useState(false);
-  // 这个模板的标记方案（判据只有 data 层一处）。★ 名词也只有一处：MARK_NOUN
-  const mark = markSchemeOf(template);
-  const noun = MARK_NOUN[mark];
+  // 这个模板的标记方案（判据只有 data 层一处）。★ 名词也只有一处：markNoun
+  const spec = markSpecOf(template);
+  const noun = markNoun(spec);
   return (
     <div className="space-y-1.5">
       <button
@@ -151,7 +154,7 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
         <span className="min-w-0 flex-1 truncate">
           {mounted > 0
             ? `已挂 ${mounted}/${roles.length} 个角色位 · 点这里改`
-            : `给 ${roles.length} 个${mark === "color" ? "有颜色的" : "编号的"}人偶挂上你的角色卡`}
+            : `给 ${roles.length} 个${spec.scheme === "ordinal" ? "白色" : "编号的"}人偶挂上你的角色卡`}
         </span>
         <Icon name="chevron" size={12} className="flex-none text-slate-400" />
       </button>
@@ -572,7 +575,7 @@ function NodeScreen({
                     角色位上（上面那颗按钮，右下角那枚圆钮也走同一处），V1 挂在本段素材里 */}
                 {matCount === 0 &&
                   (named
-                    ? `。先给${markSchemeOf(tpl) === "color" ? "有颜色的" : "编号的"}人偶挂上带形象图的角色卡，AI 才知道每个人偶换成谁`
+                    ? `。先给${markSpecOf(tpl).scheme === "ordinal" ? "白色" : "编号的"}人偶挂上带形象图的角色卡，AI 才知道每个人偶换成谁`
                     : "。挂上带形象图的角色卡（右下角素材按钮），AI 会把红色小人换成它")}
               </p>
             )}

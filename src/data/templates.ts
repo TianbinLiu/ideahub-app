@@ -17,7 +17,7 @@ import { canAfford, currentUser, refreshRemoteWallet, tierBlockReason } from "./
 import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens } from "./economy";
 import { toPermanentUrl } from "./publishAssets";
 import { remoteOn } from "./videos";
-import { Card, MarkScheme, VideoAspect, VideoTemplate, uid } from "../types";
+import { Card, MarkBox, MarkScheme, VideoAspect, VideoTemplate, uid } from "../types";
 
 const KEY = "templates.v1";
 
@@ -262,28 +262,43 @@ function rolesOf(api: branch.ApiBranchTemplate): NonNullable<VideoTemplate["role
 }
 
 /**
- * 服务端回的那份颜色清单 → 本机镜像。**唯一实现**（模板与白模化凭据两条路都走它）。
+ * 服务端回的那份序数清单 → 本机镜像。**唯一实现**（模板与白模化凭据两条路都走它）。
  *
  * ★★ 逐字段重建是这一层的既定做法，而这一位又**恰恰是方案判据本身** —— 漏在这里
  *   没有任何症状：模板照样能打开、照样能挂卡，只是被判成编号方案，套用时写出
- *   `编号绿色=凛`。所以它必须与 `rolesOf` 并排、被同一批调用点问到（apiToTemplate、
+ *   `编号最左边=凛`。所以它必须与 `rolesOf` 并排、被同一批调用点问到（apiToTemplate、
  *   refreshRemoteTemplate 的两条回写路、jobOf）。
- * ★ `swatch` **有才带这个键**，绝不 `|| "#..."` 兜一个默认色值：编不出颜色时界面画
- *   中性灰块 + 色名，作者一眼知道"这个色块只是占位、以画面为准"；编一个出来他会照着
- *   我们编的那个颜色去核对，那正是"以为核对过了"（比不核对更坏）。
+ * ★ 顺序**原样保留**：这份数组的下标就是"画面上从左到右第几个"，而套用提示词的升序
+ *   排序取的正是 `indexOf`。在这里 sort / dedupe / 补齐都等于改写那条承重规则。
  * @returns 空数组 = 编号方案（存量老模板 / 老服务端）。调用方按**存在性**处理。
  */
-function markColorsOf(api: {
-  markColors?: Array<{ label?: string; swatch?: string }>;
-}): NonNullable<VideoTemplate["markColors"]> {
-  if (!Array.isArray(api.markColors)) return [];
-  return api.markColors
-    .map((c) => {
-      const label = String(c?.label ?? "").trim();
-      const swatch = String(c?.swatch ?? "").trim();
-      return { label, ...(swatch ? { swatch } : {}) };
-    })
-    .filter((c) => c.label !== "");
+function markSlotsOf(api: { markSlots?: unknown }): NonNullable<VideoTemplate["markSlots"]> {
+  if (!Array.isArray(api.markSlots)) return [];
+  return api.markSlots.map((s) => String(s ?? "").trim()).filter((s) => s !== "");
+}
+
+/**
+ * 服务端回的那份画面位置框 → 本机镜像（归一化 0~1000）。
+ *
+ * ★★ **长度必须与 `markSlots` 相等**，否则整份丢掉（回空数组 = 没有位置数据 = 挂卡面板
+ *   退回点列表）。缺一个框就整层关掉，不许"能圈的圈上、剩下的靠列表"：局部可拖会让
+ *   用户以为"这个人拖不了 = 坏了"，而挂错人是零报错的。
+ * ★ 四个数任何一个不是有限数就算这一整份坏了 —— 半份框会让落点落在错的人身上，
+ *   而那正是拖拽这条路唯一要防的事。
+ */
+function markBoxesOf(api: { markBoxes?: unknown }, slotCount: number): NonNullable<VideoTemplate["markBoxes"]> {
+  if (!Array.isArray(api.markBoxes) || slotCount <= 0 || api.markBoxes.length !== slotCount) return [];
+  const out: NonNullable<VideoTemplate["markBoxes"]> = [];
+  for (const raw of api.markBoxes) {
+    const b = raw as Record<string, unknown> | null;
+    const cx = Number(b?.cx);
+    const cy = Number(b?.cy);
+    const w = Number(b?.w);
+    const h = Number(b?.h);
+    if (![cx, cy, w, h].every((n) => Number.isFinite(n)) || w <= 0 || h <= 0) return [];
+    out.push({ cx, cy, w, h });
+  }
+  return out;
 }
 
 /**
@@ -303,7 +318,9 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
   if (!rid || !refUrl) return null; // 没有参考视频的"白模模板"不成立，丢弃比展示半个强
   recordState(api);
   const roles = rolesOf(api);
-  const markColors = markColorsOf(api);
+  const markSlots = markSlotsOf(api);
+  const markBoxes = markBoxesOf(api, markSlots.length);
+  const boxAtSec = Number(api.markBoxAtSec);
   return {
     id: rid,
     remoteId: rid,
@@ -335,11 +352,14 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
     },
     // ★ 只在真有的时候才带这个键（存在性语义，见 rolesOf 与 types 的 ★）
     ...(roles.length > 0 ? { roles } : {}),
-    // ★★ 同一条存在性语义，但这一位是**方案判据本身**：写成 `markColors: markColors`
-    //   （空数组也带上）的话，`isColorMark` 仍然判否（它数的是 length），但本机记录里
-    //   就多了一个"看起来像颜色方案、其实是空的"的键 —— 调试时分不清"老模板"与
-    //   "新模板但颜色清单丢了"，而这两者的处置完全相反
-    ...(markColors.length > 0 ? { markColors } : {}),
+    // ★★ 同一条存在性语义，但这一位是**方案判据本身**：写成 `markSlots: markSlots`
+    //   （空数组也带上）的话，`isOrdinalMark` 仍然判否（它数的是 length），但本机记录里
+    //   就多了一个"看起来像序数方案、其实是空的"的键 —— 调试时分不清"老模板"与
+    //   "新模板但序数清单丢了"，而这两者的处置完全相反
+    ...(markSlots.length > 0 ? { markSlots } : {}),
+    // 画面位置框：与 markSlots 长度不等时 markBoxesOf 已经整份丢掉（缺一个就关掉拖拽层）
+    ...(markBoxes.length > 0 ? { markBoxes } : {}),
+    ...(markBoxes.length > 0 && Number.isFinite(boxAtSec) && boxAtSec >= 0 ? { markBoxAtSec: boxAtSec } : {}),
     published: api.status === "published",
   };
 }
@@ -509,15 +529,23 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
         dirty = true;
       }
       // ★★ 方案位同样跟着服务端走，理由比 roles 那条更硬：本机 `mine` 里那份是**建模板
-      //   那一刻写下的**，而这一位是 2026-08-16 才有的 —— 换句话说，作者自己那台设备上
-      //   的老记录永远不会自己长出它。少了这一段，一个真·颜色模板在**作者本人**的
-      //   设备上会一直被判成编号方案：他去挂卡，输入框里写的是 `编号绿色=凛`；
+      //   那一刻写下的**，而这一位是后加的 —— 换句话说，作者自己那台设备上
+      //   的老记录永远不会自己长出它。少了这一段，一个真·序数模板在**作者本人**的
+      //   设备上会一直被判成编号方案：他去挂卡，输入框里写的是 `编号最左边=凛`；
       //   而别人（走 shared，走的是 apiToTemplate 那条新路）看到的是对的。
       // ★ 只在服务端真有这一位时才回写，**绝不因为"这次没回"就把本机那份删掉**：
-      //   读路径的一次抖动不该把一个颜色模板降级成编号模板（那正是判否定要防的方向）。
-      const backColors = markColorsOf(api);
-      if (backColors.length && JSON.stringify(backColors) !== JSON.stringify(local.markColors ?? [])) {
-        local.markColors = backColors;
+      //   读路径的一次抖动不该把一个序数模板降级成编号模板（那正是判否定要防的方向）。
+      const backSlots = markSlotsOf(api);
+      if (backSlots.length && JSON.stringify(backSlots) !== JSON.stringify(local.markSlots ?? [])) {
+        local.markSlots = backSlots;
+        dirty = true;
+      }
+      // 画面位置框跟着序数清单一起搬（它按下标对齐 markSlots，分开搬会错位）
+      const backBoxes = markBoxesOf(api, (backSlots.length ? backSlots : local.markSlots ?? []).length);
+      if (backBoxes.length && JSON.stringify(backBoxes) !== JSON.stringify(local.markBoxes ?? [])) {
+        local.markBoxes = backBoxes;
+        const at = Number(api.markBoxAtSec);
+        if (Number.isFinite(at) && at >= 0) local.markBoxAtSec = at;
         dirty = true;
       }
       // ★★ `realDurationSec` 也必须跟着服务端走，理由与上面 roles 那条**完全同构**，
@@ -551,11 +579,18 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
     else {
       const cached = shared.find((x) => x.id === id);
       const back = rolesOf(api);
-      const backColors = markColorsOf(api);
+      const backSlots = markSlotsOf(api);
       // shared 只活在内存里，没有本机库要写（persist 只管 mine）
       if (cached && back.length) cached.roles = back;
       // 方案位同上（有才写、不因一次没回就抹掉）
-      if (cached && backColors.length) cached.markColors = backColors;
+      if (cached && backSlots.length) cached.markSlots = backSlots;
+      // 位置框与序数清单同批（下标对齐，分开搬会错位）
+      const backBoxes = markBoxesOf(api, (backSlots.length ? backSlots : cached?.markSlots ?? []).length);
+      if (cached && backBoxes.length) {
+        cached.markBoxes = backBoxes;
+        const at = Number(api.markBoxAtSec);
+        if (Number.isFinite(at) && at >= 0) cached.markBoxAtSec = at;
+      }
     }
     emit();
   } catch (e) {
@@ -635,9 +670,9 @@ export function roleFloorIssue(remaining: number): string | null {
  * ★★ 剩下的 label **逐字不动、顺序不动**：调用方给什么就发什么，这一层不排序、不补号、
  *   不重编、不换近义色名。删掉 3 号之后 5 号仍然叫 5 号，"绿色"不许写成"青色" ——
  *   重排/换词等于把卡挂到别人身上，两边都不报错。
- * ★★ **`markColors` 一个字都不发**（也不许发）：那是"这个模板是哪种方案"的判据，由白模化
- *   那一刻的服务端说了算。让作者的一次「核对无误」把方案位擦掉，套用侧当场整份错且
- *   零报错 —— 服务端 zod 的 strip 是第二道，这里是第一道。
+ * ★★ **`markSlots` 一个字都不发**（也不许发）：那是"这个模板是哪种方案"的判据、也是升序
+ *   排序的依据，由白模化那一刻的服务端说了算。让作者的一次「核对无误」把方案位擦掉，
+ *   套用侧当场整份错且零报错 —— 服务端 zod 的 strip 是第二道，这里是第一道。
  * ★ 成功后**本机 roles 一起改写**：出片时点名用的就是本机这份（segmentGen 读 template.roles），
  *   只改远端的话，作者在这台设备上出的片仍然按旧标记点名 —— 那正是"改了却没生效"的
  *   零症状故障。
@@ -652,8 +687,9 @@ export async function confirmTemplateRoles(
   // 与 setTemplatePublished 同一条理由
   const t = local ?? shared.find((x) => x.id === id);
   if (!t) throw new Error("这个模板不在本机库里");
-  // 名词按方案说（唯一实现是 MARK_NOUN）：对着一个纯色人偶找"编号"，用户只会以为坏了
-  const noun = MARK_NOUN[markSchemeOf(t)];
+  // 名词按方案说（唯一实现是 markNoun）：对着一群一模一样的白人偶找"编号"，用户只会以为坏了
+  const spec = markSpecOf(t);
+  const noun = markNoun(spec);
   if (!t.remoteId) throw new Error(`模板还没登记到服务器，登记成功后才能核对${noun}`);
   if (!remoteOn()) throw new Error(`现在连不上服务器——${noun}登记在服务端，联网后再核对`);
   const clean = roles.map((r) => ({ label: String(r.label ?? "").trim(), desc: String(r.desc ?? "").trim() }));
@@ -672,7 +708,7 @@ export async function confirmTemplateRoles(
   if (blank >= 0) {
     throw new Error(
       `第 ${blank + 1} 行的人偶${noun}是空的——${noun}是"把卡挂到这个人偶身上"的唯一凭据，不能留空。${
-        noun === "颜色" ? "照画面上那个人偶的颜色选一个" : "照画面上印的数字填一个"
+        spec.scheme === "ordinal" ? "对着画面从左往右数，选一个位置" : "照画面上印的数字填一个"
       }；想去掉这个角色位，请点它的「删掉」。`,
     );
   }
@@ -754,19 +790,26 @@ export interface NewTemplate {
   /** 白模人偶的角色位（服务端登记值的镜像）。只有白模化那条路（V2）会带 */
   roles?: VideoTemplate["roles"];
   /**
-   * 这个模板用的是**颜色**标记（服务端下发的那份色名清单）。
+   * 这个模板用的是**序数**标记（服务端下发的那份"从左到右一共有哪几个位置"的清单）。
    *
    * ★★ 这一位**必须跟着 roles 一起搬进本机库**，漏了它的表现极其刁钻：
-   *   方案判据是 `markColors` 的存在性（判否定 → 缺失即"老的编号方案"），所以漏一位
-   *   不是"少显示一个色块"，而是**刚做出来的颜色模板在作者自己那台设备上从出生起就被
+   *   方案判据是 `markSlots` 的存在性（判否定 → 缺失即"老的编号方案"），所以漏一位
+   *   不是"少显示一个位置"，而是**刚做出来的序数模板在作者自己那台设备上从出生起就被
    *   判成编号方案**。接着他点「用这个模板出片」（提取器成功卡片上最显眼的下一步），
-   *   挂卡界面会让他"记住人偶头上那个数字"——而画面里是一群彩色人偶、一个数字都没有；
-   *   合成出来的提示词是「编号绿色=凛…把编号全部去掉」，三道校验**全部通过**（正则找的是
-   *   `编号\s*绿色`，命中），于是零报错地花掉一发 r2v 的钱，而那一发正是发布前必须做的试炼。
+   *   挂卡界面会让他"记住人偶头上那个数字"——而画面里是一群一模一样的纯白人偶、
+   *   什么都没印；合成出来的提示词是「编号最左边=凛…把编号全部去掉」，三道校验
+   *   **全部通过**（正则找的是 `编号\s*最左边`，命中），于是零报错地花掉一发 r2v 的钱，
+   *   而那一发正是发布前必须做的试炼。
+   *   ⚠ 更狠的一层：漏了它，**升序排序也跟着丢**（排序依据就是这份清单的下标）——
+   *   而顺序一乱就是"换错人 + 多出重复角色"，实测 5 个位子里错 3 个。
    * ★ TS 拦不住这种漏：少传一个可选字段没有任何症状 —— 所以它必须**先在这里有名字**，
    *   `adoptBlockoutTemplate` 那边才谈得上"忘了搬"会被看见。
    */
-  markColors?: VideoTemplate["markColors"];
+  markSlots?: VideoTemplate["markSlots"];
+  /** 画面位置框（拖拽挂卡用）。与 markSlots 下标对齐，同批搬 */
+  markBoxes?: VideoTemplate["markBoxes"];
+  /** 那些框量自第几秒 */
+  markBoxAtSec?: VideoTemplate["markBoxAtSec"];
   /**
    * **服务端已经建好了**这个模板（白模化那条路：blockoutize 一次性出片 + 转存 + 建库，
    * 回包里就带着实体）。带上它意味着两件事：
@@ -805,8 +848,9 @@ export function saveTemplate(t: NewTemplate): VideoTemplate {
 //
 // 与 V1（作者自己已经有白模预演视频 → 上传 → 登记）是两条进货渠道，最大的差别是
 // **这一条花真钱**：服务端要看几帧列出画面里有谁，再付费出一次 r2v edit 片把人全换成
-// 带标记的白模人偶（2026-08-16 起是**一人一色**，此前是在头上印数字，见 isColorMark
-// 上面那段复盘），产物转存之后才是模板。所以这里的每一步都按"钱已经动了"来写。
+// 白模人偶（2026-08-17 起是**全都一模一样的纯白色、身上不印任何东西**，此前印过数字、
+// 也上过颜色，见 isOrdinalMark 上面那段复盘），产物转存之后才是模板。
+// 所以这里的每一步都按"钱已经动了"来写。
 
 // ── 白模化那一步「先看」会看几帧 ────────────────────────────────────
 //
@@ -1018,73 +1062,101 @@ export function splitCastRoles(roles: NonNullable<VideoTemplate["roles"]>): {
   return { castable: roles.slice(0, BLOCKOUT_MAX_ROLES), extra: roles.slice(BLOCKOUT_MAX_ROLES) };
 }
 
-// ── 角色位标记是「颜色」还是「编号」──────────────────────────────
+// ── 角色位标记是「序数」还是「编号」──────────────────────────────
 //
-// ★★ 2026-08-16 起新做的白模模板改用**颜色**标记（人偶通体一色，一个角色位一种颜色），
-//   此前是**在人偶头上印阿拉伯数字**。换掉的理由全是实测：
-//     · 编号 5 个角色位从来没有一发 5/5 全对（最好 4/5，且带重号：实出过 2/2/1/1/5）；
-//     · 「头部前后左右四面各印同一个数字」**从没被执行过** —— 每发只印一面，哪一面还不可控；
-//       改成"镜头转到哪面印哪面"之后，同一个人偶正面 1/1/3、背面 2/3/3，无法仲裁；
-//     · 编号会被逐帧**原样复刻进成片**（实拍：换上去的角色后脑顶着「1」），所以套用提示词里
-//       必须额外加一句「把编号全部去掉」才修得好。
-//   根因：这个模型把数字当"贴在当前这一帧上的二维贴纸"，**不维持跨帧对象恒等性**，
-//   而"任意角度读到同一个号"恰恰要求这个。颜色是**材质**，任何角度都对，两个老毛病一次消失，
-//   而且实测**颜色不会渗进角色卡**（挂在绿色位上的凛，长袍还是黑金的），所以颜色**不需要**
-//   像编号那样额外加一句"去掉"。
-// ⚠ 但这**不是"修好了"**：颜色方案同素材同参数 7 发只有 4 发全对（≈57%），失败形状高度一致
-//   （画面正中央那个"最像主角"的没被抹掉、相邻两色互换）。所以作者核对/删位那一整套机制
-//   必须**保留**并跟着改文案 —— 它是兜底，不是修好。
+// ★★ 2026-08-17 起新做的白模模板：人偶**全都是一模一样的纯白色**，身上不印任何东西，
+//   套用时靠**序数措辞**（「最左边」「从左数第3个」「最右边」）指认。此前走过两代：
+//   ① **在人偶头上印阿拉伯数字**（存量线上 6 个模板都是这一代，其中 2 个好用、还在被人套）。
+//      失败形状全是实测：5 个角色位从来没有一发 5/5 全对（最好 4/5，且带重号：实出过
+//      2/2/1/1/5）；「头部前后左右四面各印同一个数字」**从没被执行过**（每发只印一面、
+//      哪一面还不可控，改成"镜头转到哪面印哪面"之后同一个人偶正面 1/1/3、背面 2/3/3，
+//      无法仲裁）；编号还会被逐帧**原样复刻进成片**（实拍：换上去的角色后脑顶着「1」），
+//      所以套用提示词必须额外加一句「把编号全部去掉」才修得好。
+//      根因：这个模型把数字当"贴在当前这一帧上的二维贴纸"，**不维持跨帧对象恒等性**。
+//   ② **一位一色**（人偶通体一色）。它确实消掉了上面两个老毛病（颜色是材质，任何角度都对），
+//      但命中率只有 ~57%（同素材同参数 7 发 4 发全对），失败形状高度一致：画面正中央那个
+//      "最像主角"的根本没被抹掉、相邻两色互换。根因是白模化那一步要模型**同时维持 5 组
+//      "人↔颜色"绑定**。⚠ 这一代**从没产出过任何线上模板**（markColors 非空的模板数 = 0、
+//      在途凭据 = 0），所以 2026-08-17 整档删掉，不留任何运行期分支。
+// ★★ 全白为什么更好：它把"做出区分"换成了"**不要有任何区分**" —— 不需要维持任何绑定。
+//   提示词 406 字（彩色版 590），实测是所有版本里**抹得最干净的一版**（无头发/五官/衣服/记号）。
+//   而套用侧用序数指认的实测成绩：2 组绑定 2/2、复跑 2/2、5 组满负载 5/5、3 组跳着挂 + 留 2 个
+//   空位 5/5 —— **升序累计 12 组绑定零错误**。
+// ★★★ 但这条成绩有一个**硬前提**：指令必须**按位置从左到右升序书写**。同样 3 张卡、同样
+//   3 个目标位置，只把书写顺序从 (第2→最右→第3) 改成 (第2→第3→最右)，结果就从 **2/5 变成
+//   5/5**（乱序那一发还多出一个重复角色）。机理：这个模型是在**对齐两个序列**（指令序列 ↔
+//   画面从左到右的序列），不是在解析符号。升序排序的唯一实现在
+//   `studio/blockoutPrompt.orderSlots`，依据就是 `markSlots` 的下标。
+// ⚠ 序数**不是"修好了"**：AI 分配的"第几个"仍然只是猜测，作者核对/删位那一整套机制必须
+//   **保留**并跟着改文案。而且序数多了一条前两代都没有的失效模式：**删掉一个位子之后，
+//   它右边那些位子的序数会变**（画面上少了一个人偶）—— 核对面板必须明说这一条。
 //
-// ★★★ **调色板（label → 颜色）在本仓一份都没有，也永远不许有。** 唯一实现在服务端
-//   （`blockoutize.service.MARK_PALETTE`）：颜色的**文字**来自 `roles[].label`（服务端给的
-//   字符串，App 原样显示、原样写进提示词），颜色的**色块**来自 `markColors[].swatch`
-//   （服务端按 label 现查派生、不落库）。于是"两边相等"从靠约定变成**结构上不可能不等**
+// ★★★ **序数措辞（第 k 个该怎么说）在本仓一份都没有，也永远不许有。** 唯一实现在服务端
+//   （`blockoutize.service.ordinalSlots`）：App 侧的**文字**一律来自 `roles[].label` 或
+//   `markSlots[i]`（服务端给的字符串，原样显示、原样写进提示词），**顺序**一律来自
+//   `markSlots.indexOf(label)`。于是"两边相等"从靠约定变成**结构上不可能不等**
 //   —— 这比 `BLOCKOUT_MAX_ROLES` 那种镜像强一档（那一个今天其实并没有测试钉住两边）。
 //   ⚠ 本仓全仓无测试框架（无 `*.spec.ts`），这条只能靠这段注释 + 契约文档 + review 兜。
-//   看到有人在本仓加一个色名数组、`Record<色名, hex>`、或者任何"按 label 算颜色"的函数，
-//   就是这条设计被推翻了 —— 回来改这段注释再动手。
-//   ★ 这条禁的是**当数据用的**色名/色值。界面文案里举例说「别人给「绿色」挂的卡…」
-//     是**举例**（和"实测挂在绿色位上的凛长袍还是黑金的"同类），不参与任何判断、
-//     改调色板也不会让它算错，别顺手把它们也删了。
+//   看到有人在本仓加一个 `["最左边","从左数第2个",…]` 数组、或者任何"按下标算措辞"的
+//   函数，就是这条设计被推翻了 —— 回来改这段注释再动手。
+//   ★ 这条禁的是**当数据用的**措辞。界面文案里举例说「别人给「最左边」挂的卡…」
+//     是**举例**，不参与任何判断、改措辞表也不会让它算错，别顺手把它们也删了。
 
 /**
- * 「这个模板的角色位标记是颜色吗」—— **全 app 唯一实现**（提示词、核对面板、挂卡面板、
+ * 「这个模板的角色位标记是序数吗」—— **全 app 唯一实现**（提示词、核对面板、挂卡面板、
  * flowStore 的错误文案，全部问它，谁都不许自己判一遍）。
  *
- * ★★ 判据是**存在性**：只有明确带着一份非空的 `markColors` 才算颜色方案，缺失 / 空数组 /
- *   null 一律回落编号方案。线上那两个还在用的老模板（`都市主角群舞转场`、`宗主垫脚舞`）
- *   天然没有这一位 → 判成编号 → 套用走老提示词（含那句「把编号全部去掉」）→ 一个字都不
- *   受影响。反过来写成 `!== "number"` 会把存量整批翻面，画面上根本没有绿色人偶、提示词
- *   却说「把绿色人偶替换为…」——**当场作废且零报错**，这是本次改动的头号红线。
+ * ★★ 判据是**存在性**：只有明确带着一份非空的 `markSlots` 才算序数方案，缺失 / 空数组 /
+ *   null 一律回落编号方案。线上那 6 个老模板（其中 `都市主角群舞转场`、`宗主垫脚舞`
+ *   还在被人用）天然没有这一位 → 判成编号 → 套用走老提示词（含那句「把编号全部去掉」）
+ *   → 一个字都不受影响。反过来写成 `!== "number"` 会把存量整批翻面，画面上人偶头上明明
+ *   印着号、提示词却说「最左边=凛」——**当场作废且零报错**，这是本次改动的头号红线。
  * ★ 收 `Pick` 而不是整个 `VideoTemplate`：flowStore 的模板快照、编辑页的入参都是只带
- *   几个字段的形状，让它们也能问同一个函数（而不是各自 `!!x.markColors?.length` 一遍）。
+ *   几个字段的形状，让它们也能问同一个函数（而不是各自 `!!x.markSlots?.length` 一遍）。
  */
-export function isColorMark(t: Pick<VideoTemplate, "markColors"> | null | undefined): boolean {
-  return !!t?.markColors?.length;
+export function isOrdinalMark(t: Pick<VideoTemplate, "markSlots"> | null | undefined): boolean {
+  return !!t?.markSlots?.length;
 }
 
-/** 同上，只是直接给出那一档（提示词与文案分支要的是这个值）。★ 判据仍只有 isColorMark 一处 */
-export function markSchemeOf(t: Pick<VideoTemplate, "markColors"> | null | undefined): MarkScheme {
-  return isColorMark(t) ? "color" : "number";
+/**
+ * 一个模板的标记方案 **+ 它那份顺序表**，收成一个判别联合。
+ *
+ * ★★ 为什么不是光返回 `MarkScheme`：序数方案下"怎么排序"与"能选哪几个位置"都要那份
+ *   `slots`，而它与方案位是**同一件事**。分成两个参数传（`mark` + `markSlots`）就允许
+ *   出现"序数方案但没有顺序表"这种在类型上合法、在运行期必然排错序的状态 ——
+ *   而排错序的后果是换错人 + 多出重复角色，零报错。收成判别联合之后它在类型上不可表达。
+ * ★ `slots` 非空由这个函数保证（判据只有 isOrdinalMark 一处），下游可以直接用。
+ */
+export type MarkSpec = { scheme: "number" } | { scheme: "ordinal"; slots: string[] };
+
+export function markSpecOf(t: Pick<VideoTemplate, "markSlots"> | null | undefined): MarkSpec {
+  return isOrdinalMark(t) ? { scheme: "ordinal", slots: t!.markSlots! } : { scheme: "number" };
 }
 
 /**
  * 界面上称呼这个标记的那个名词 —— **一处实现**（标题、按钮、错误句、提示语都取它）。
- * ★ 别在组件里写 `isColorMark(t) ? "颜色" : "编号"`：那就是同一条规则的第 N 处实现，
+ * ★ 别在组件里写 `isOrdinalMark(t) ? "位置" : "编号"`：那就是同一条规则的第 N 处实现，
  *   哪天多出第三种方案时改不干净（而改漏了只表现为某一屏说错名字，没有任何报错）。
  */
-export const MARK_NOUN: Record<MarkScheme, string> = { number: "编号", color: "颜色" };
+const MARK_NOUN: Record<MarkScheme, string> = { number: "编号", ordinal: "位置" };
+
+export function markNoun(spec: MarkSpec): string {
+  return MARK_NOUN[spec.scheme];
+}
 
 /**
- * 这个角色位该画成什么色块 —— 没有就回 null（调用方画中性灰 + 纯文字）。
+ * 这个角色位在画面上的位置框 —— 没有位置数据就回 null（调用方退回点列表）。
  *
- * ★ **永远不猜**：服务端查不到 swatch（作者手改过 label 的历史遗留、或调色板改过）时
- *   这里必须回 null。编一个颜色出来，作者就会照着我们编的那个去核对画面 ——
- *   那是"以为核对过了"，比不核对更坏。
- * ★ 本仓不许有调色板：这个函数只是在服务端给的那份清单里**按色名查**，不含任何色值。
+ * ★★ **唯一的连接键是 `markSlots.indexOf(label)`**：框挂在"位置"上、不挂在角色位上。
+ *   作者在核对面板把某一行改成「从左数第3个」，落点自动跟着走，两者结构上不可能不一致。
+ * ★ 长度对不上时 `markBoxesOf` 已经在收货那一层整份丢掉了，所以这里只做一次查表。
  */
-export function swatchOf(markColors: VideoTemplate["markColors"], label: string): string | null {
-  return markColors?.find((c) => c.label === label)?.swatch ?? null;
+export function boxOfLabel(
+  t: Pick<VideoTemplate, "markSlots" | "markBoxes"> | null | undefined,
+  label: string,
+): MarkBox | null {
+  const i = t?.markSlots?.indexOf(label) ?? -1;
+  return (i >= 0 ? t?.markBoxes?.[i] : undefined) ?? null;
 }
 
 /**
@@ -1155,14 +1227,14 @@ export interface BlockoutJob {
   /** 看帧那一步的角色位**草案**（标记仍是猜测，建成模板后作者还要核对一次） */
   roles: { label: string; desc: string }[];
   /**
-   * 这一发白模化**当时真正发出去的**那份颜色清单（存在性 = 颜色方案，同模板那一位）。
+   * 这一发白模化**当时真正算出来的**那份序数清单（存在性 = 序数方案，同模板那一位）。
    *
    * ★★ 为什么凭据上也要存一份、而不是等它变成模板再说：白模化提示词在**阶段一**就发出去了，
    *   凭据 TTL 24 小时 —— 发版正好夹在两阶段之间时，只有"凭据里记着当初发的是哪一套"
    *   才能保证 finish 出来的模板与那段视频真正的样子一致。在途的老凭据没有这一位 →
    *   finish 出编号方案模板 → **正确**（它的视频上印的确实是数字）。
    */
-  markColors: NonNullable<VideoTemplate["markColors"]>;
+  markSlots: NonNullable<VideoTemplate["markSlots"]>;
   /** 失效时刻（ms，服务端说了算）。0 = 服务端没说，按 createdAt + TTL 兜底推算 */
   expiresAt: number;
   createdAt: number;
@@ -1180,7 +1252,7 @@ function jobOf(api: branch.ApiBlockoutJob): BlockoutJob | null {
     roles: roles
       .map((r) => ({ label: String(r?.label ?? "").trim(), desc: String(r?.desc ?? "").trim() }))
       .filter((r) => r.label !== ""),
-    markColors: markColorsOf(api),
+    markSlots: markSlotsOf(api),
     expiresAt: toMs(api.expiresAt ?? null) ?? 0,
     createdAt: toMs(api.createdAt ?? null) ?? Date.now(),
   };
@@ -1374,9 +1446,10 @@ async function waitBlockoutTask(taskId: string, prog: (s: string) => void): Prom
     const label = st.status === "queued" ? "排队中" : st.status === "running" ? "生成中" : st.status;
     // ★ 这句话里那半句"可以退出"是这次改造的**用户可见部分**：它必须出现在等待的每一拍上，
     //   否则用户仍然会以为自己必须一直盯着（而两阶段的全部意义就是他不必）。
-    // ★ 措辞跟着白模化提示词走（服务端那份 2026-08-16 起给每个人一种颜色，不再印数字）：
-    //   这句话是用户在几分钟等待里唯一看得见的东西，说的和真正发生的事不一样就是骗人
-    prog(`AI 正在把画面里的人换成不同颜色的白模人偶（一人一色）：${label} ${sec}s（可以退出，24 小时内都能回「我的模板」取回结果）`);
+    // ★ 措辞跟着白模化提示词走（服务端那份 2026-08-17 起把所有人换成完全一样的纯白人偶，
+    //   不再印数字、也不再上色）：这句话是用户在几分钟等待里唯一看得见的东西，
+    //   说的和真正发生的事不一样就是骗人
+    prog(`AI 正在把画面里的人换成一模一样的纯白色人偶：${label} ${sec}s（可以退出，24 小时内都能回「我的模板」取回结果）`);
     if (st.status === "succeeded") return { kind: "succeeded" };
     if (st.status === "failed" || st.status === "cancelled") return { kind: "failed" };
   }
@@ -1407,12 +1480,14 @@ function adoptBlockoutTemplate(api: branch.ApiBranchTemplate): VideoTemplate {
     recipe: mapped.recipe,
     refVideo: mapped.refVideo,
     ...(mapped.roles?.length ? { roles: mapped.roles } : {}),
-    // ★★ 方案位与 roles **同批搬**，理由见 NewTemplate.markColors 的 ★★：
+    // ★★ 方案位与 roles **同批搬**，理由见 NewTemplate.markSlots 的 ★★：
     //   这条路（takeBlockoutResult / resumeBlockoutize / legacy 同步）产出的那条记录
     //   会被**直接**塞进 applyTemplate（提取器成功卡片上那颗「用这个模板出片」），
     //   发生在任何一次 refreshRemoteTemplate 之前 —— 所以指望"以后刷新时补回来"救不了它。
-    //   判否定的代价就在这里：漏一位不是少个色块，是整份判成上一代方案。
-    ...(mapped.markColors?.length ? { markColors: mapped.markColors } : {}),
+    //   判否定的代价就在这里：漏一位不是少个位置，是整份判成上一代方案（连升序排序一起丢）。
+    ...(mapped.markSlots?.length ? { markSlots: mapped.markSlots } : {}),
+    ...(mapped.markBoxes?.length ? { markBoxes: mapped.markBoxes } : {}),
+    ...(mapped.markBoxAtSec !== undefined ? { markBoxAtSec: mapped.markBoxAtSec } : {}),
     remoteId: mapped.remoteId,
   });
 }
@@ -1684,7 +1759,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
     durSec: started.job.durSec,
     title: o.title.trim() || "未命名白模模板",
     roles: started.job.roles,
-    markColors: started.job.markColors,
+    markSlots: started.job.markSlots,
     expiresAt: toMs(started.job.expiresAt) ?? 0,
     createdAt: Date.now(),
   };

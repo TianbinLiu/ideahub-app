@@ -181,11 +181,11 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
       </div>
       <div className="mt-0.5 truncate text-[11px] text-slate-300">
         「{job.title}」· {job.durSec > 0 ? `${job.durSec}s` : "选段"}
-        {/* ★ 颜色方案下把颜色列出来：这一发的凭据里就记着当初真正发出去的那份清单
-            （`markColors`，跟着凭据走而不是"按今天服务端是哪一套"事后推），所以这里说得准。
+        {/* ★ 序数方案下把位置列出来：这一发的凭据里就记着当初真正算出来的那份清单
+            （`markSlots`，跟着凭据走而不是"按今天服务端是哪一套"事后推），所以这里说得准。
             老凭据没有这一位 → 只报个数（编号不连续，列出来反而误导） */}
         {job.roles.length > 0
-          ? job.markColors.length > 0
+          ? job.markSlots.length > 0
             ? ` · 认出 ${job.roles.length} 个角色位：${job.roles.map((r) => r.label).join("、")}`
             : ` · 认出 ${job.roles.length} 个角色位`
           : ""}

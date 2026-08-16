@@ -38,10 +38,11 @@ import type { BlockoutSelection, TemplateRole, VideoNatural } from "../component
 //   界面于是会对着 4 张卡说"超上限、会被挤掉"，而出片管线根本不会挤 —— 界面在吓唬用户。
 import { ARK_REF_IMAGES_MAX } from "../ai/real";
 import { myCards } from "../data/account";
-// ★ "这个模板是哪种标记方案"的判据只有 data 层一处，页面只问它（铁律六）
-import { isColorMark } from "../data/templates";
+// ★ "这个模板是哪种标记方案"的判据只有 data 层一处，页面只问它（铁律六）。
+//   这一页拿到的是宿主已经问过的结果（`MarkSpec`），自己一次都不判
+import type { MarkSpec } from "../data/templates";
 import { useAccountVersion } from "../hooks/useAccount";
-import type { Card } from "../types";
+import type { Card, MarkBox } from "../types";
 
 /** 结果挂在回程 state 的这个键上。宿主读 `(loc.state as {...})?.[VIDEO_EDITOR_RESULT_KEY]`。
  *  ★ 用常量而不是字面量：宿主与这里必须是同一个键，写错一个字母的表现是"回来了但什么都没发生"。 */
@@ -77,15 +78,21 @@ export interface CastEditorState {
   videoUrl: string;
   roles: TemplateRole[];
   /**
-   * 这个模板白模化时用的那份颜色清单（`VideoTemplate.markColors` 原样带过来）。
-   * **存在 = 颜色方案，缺省 = 编号方案**（判据的唯一实现是 data/templates.isColorMark）。
+   * 这个模板的标记方案 + 那份顺序表（`data/templates.markSpecOf(t)` 的产物原样带过来）。
    *
-   * ★★ **可选，而且 parseState 缺它时绝不 return null**：老包缓存里的 history state、
+   * ★★ 为什么带的是 `MarkSpec` 而不是 `markSlots` 数组：序数方案下"怎么排序"与"能选哪几个
+   *   位置"都要那份 slots，而它与方案位是同一件事 —— 收成判别联合之后，"序数方案但没有
+   *   顺序表"这种在运行期必然排错序的状态在类型上就不可表达了。
+   * ★★ **parseState 缺它 / 形状不对时绝不 return null**：老包缓存里的 history state、
    *   从别处深链进来的 state 都没有这一位，整份拒收会让用户看到"这一页需要从上传或模板页
    *   进来"——而他明明是从模板页点进来的。缺了只是退成编号措辞（安全的那一侧，
-   *   而且写出来的 `编号绿色=凛` 一眼就是坏的、且在花钱之前）。
+   *   而且写出来的 `编号最左边=凛` 一眼就是坏的、且在花钱之前）。
    */
-  markColors?: { label: string; swatch?: string }[];
+  spec: MarkSpec;
+  /** 每个位置在某一帧上的画面框（拖拽挂卡用）。与 `spec.slots` 下标对齐；
+   *  缺省 / 长度对不上 / 不知道量自第几秒 → 挂卡面板退回点列表 */
+  boxes?: MarkBox[];
+  boxAtSec?: number;
   /** 已有的挂卡映射（回来接着改时带上） */
   value?: Record<string, string>;
   /** 模板 id，原样带回结果里，方便宿主对号入座 */
@@ -137,19 +144,31 @@ function parseState(raw: unknown): VideoEditorState | null {
       if (!o || !isStr(o.label) || typeof o.desc !== "string") return null;
       roles.push({ label: o.label, desc: o.desc });
     }
-    // ★★ 方案位是**可选**的，形状不对也只是丢掉它、**绝不 return null**（见 CastEditorState
+    // ★★ 方案位是**可选**的，形状不对也只是退成编号、**绝不 return null**（见 CastEditorState
     //   的 ★★）：整份拒收会让一个从模板页正常点进来的用户撞上"这一页需要从上传或模板页进来"。
-    //   丢掉的后果是退成编号措辞 —— 安全的那一侧，而且坏得看得见（`编号绿色=凛`）。
+    //   退成编号是安全的那一侧，而且坏得看得见（`编号最左边=凛`）。
     // ★ 逐字段重建（与 roles 同款）：这一层已经是"逐字段重建会静默丢字段"的三处之一，
     //   所以这一位必须**显式**在这里出现，别指望对象整体透传。
-    const markColors: { label: string; swatch?: string }[] = [];
-    if (Array.isArray(s.markColors)) {
-      for (const c of s.markColors) {
-        const o = c as Record<string, unknown> | null;
-        if (!o || !isStr(o.label)) continue;
-        markColors.push({ label: o.label, ...(isStr(o.swatch) ? { swatch: o.swatch } : {}) });
+    // ★ 判**否定**：只有明确是 `{scheme:"ordinal", slots:[非空字符串…]}` 才算序数方案。
+    const rawSpec = s.spec as Record<string, unknown> | undefined;
+    const rawSlots = Array.isArray(rawSpec?.slots) ? (rawSpec!.slots as unknown[]).filter(isStr) : [];
+    const spec: MarkSpec =
+      rawSpec?.scheme === "ordinal" && rawSlots.length > 0 ? { scheme: "ordinal", slots: rawSlots } : { scheme: "number" };
+    // 画面位置框：与 slots 长度不等就整份丢掉（缺一个框就关掉拖拽层，理由见
+    // types.VideoTemplate.markBoxes 的 ★★）
+    const rawBoxes = Array.isArray(s.boxes) ? (s.boxes as unknown[]) : [];
+    const boxes: MarkBox[] = [];
+    if (spec.scheme === "ordinal" && rawBoxes.length === spec.slots.length) {
+      for (const raw of rawBoxes) {
+        const b = raw as Record<string, unknown> | null;
+        if (!b || !isNum(b.cx) || !isNum(b.cy) || !isNum(b.w) || !isNum(b.h) || b.w <= 0 || b.h <= 0) {
+          boxes.length = 0;
+          break;
+        }
+        boxes.push({ cx: b.cx, cy: b.cy, w: b.w, h: b.h });
       }
     }
+    const boxAtSec = isNum(s.boxAtSec) && s.boxAtSec >= 0 ? s.boxAtSec : undefined;
     const value: Record<string, string> = {};
     if (s.value && typeof s.value === "object") {
       for (const [k, v] of Object.entries(s.value as Record<string, unknown>)) if (isStr(v)) value[k] = v;
@@ -158,9 +177,10 @@ function parseState(raw: unknown): VideoEditorState | null {
       mode: "cast",
       videoUrl: s.videoUrl,
       roles,
-      // 存在性语义（有才带这个键）：空数组与"老 state"在下游会被压成同一个值，
-      // 而 isColorMark 数的是 length —— 两者都判编号，但记录里分得清
-      ...(markColors.length > 0 ? { markColors } : {}),
+      spec,
+      // 存在性语义（有才带这个键）：拖拽层只在框齐了的时候才开
+      ...(boxes.length > 0 ? { boxes } : {}),
+      ...(boxes.length > 0 && boxAtSec !== undefined ? { boxAtSec } : {}),
       value,
       templateId: isStr(s.templateId) ? s.templateId : undefined,
       title: isStr(s.title) ? s.title : undefined,
@@ -222,7 +242,7 @@ export default function VideoEditorPage() {
           </p>
           <p className="truncate text-[10px] text-slate-500">
             {state?.mode === "cast"
-              ? `白模模板 · 给${isColorMark(state) ? "有颜色的" : "编号的"}人偶挂人物卡`
+              ? `白模模板 · 给${state.spec.scheme === "ordinal" ? "白色" : "编号的"}人偶挂人物卡`
               : "白模化 · 框出一段并裁掉水印"}
           </p>
         </div>
@@ -259,7 +279,9 @@ export default function VideoEditorPage() {
           <RoleCastBoard
             videoUrl={state.videoUrl}
             roles={state.roles}
-            markColors={state.markColors}
+            spec={state.spec}
+            boxes={state.boxes}
+            boxAtSec={state.boxAtSec}
             cards={cards}
             value={cast}
             onChange={setCast}
