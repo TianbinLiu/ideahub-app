@@ -66,8 +66,18 @@ export interface BlockoutCastSlot {
    *   把序数换个说法，模型就把卡换到别人身上，而画面照出、零报错。
    */
   label: string;
-  /** 这个位子在原视频里替换掉的是谁（`roles[].desc`，如「穿黑袍的白发少年」）。
-   *  只进 chat 的上下文，**不进成品提示词** —— 成品里说的是"换成谁"，不是"原来是谁"。 */
+  /**
+   * 这个人偶**长什么样、在干什么、站在哪个景物旁**（`roles[].desc`）。
+   *
+   * ★★ 2026-08-17 起它**进成品提示词**了（此前只进 chat 的上下文）。改的理由是 #46
+   *   六发付费实拍：素材里有一个读起来像主角的人时（那一发是画面正中的红色人偶），
+   *   点名「从左数第 N 个」会被压过去 —— 被换掉的是那个主角，两发都是。序数一个人扛不住，
+   *   所以要给模型第二个互不相关的锚点。
+   * ★ 服务端那头保证了它**验过唯一性**（`verifyRosterDescs`：把描述拿回同一帧去定位，
+   *   落不回本人就只留颜色）—— 因为一条**指错人**的描述比没有描述坏得多。
+   * ⚠ 老模板（`roles[].desc` 是「穿黑袍的白发少年」这种"原视频里是谁"）不受影响：
+   *   它们是编号方案，而括号描述**只在序数方案下拼**（见 blockoutApplySkeleton）。
+   */
   desc: string;
   /** 挂上的人物卡；null = 没挂（这个人偶保持白模原样） */
   card: Card | null;
@@ -97,6 +107,53 @@ const BIND_RESERVE_PER_CARD = 13;
  */
 export function blockoutPromptBudget(cardCount: number): number {
   return Math.max(80, VIDEO_PROMPT_MAX - BIND_RESERVE_FIXED - Math.max(0, cardCount) * BIND_RESERVE_PER_CARD);
+}
+
+/**
+ * 括号描述在成品提示词里最多占多少字（**一个人偶**）。
+ *
+ * ★ 服务端合成的那一句是 `颜色、动作、位置关系`，三项各 ≤12 字 ⇒ 落库那份最长 60 字
+ *   （`ROSTER_DESC_MAX`）。整份搬进提示词的话，9 个角色位就是 540 字 —— 比整段提示词的
+ *   硬顶（`VIDEO_PROMPT_MAX` 400）还长。这里切一刀，切掉的是**位置关系那一截**
+ *   （服务端的拼接顺序是从最省字排到最贵，见 `composeRosterDesc`）。
+ * ★ 18 不是拍脑袋：`纯白、弓步前倾、在路灯下` = 14 字，加两个括号 16 字；给到 18
+ *   让"颜色 + 动作 + 一个短景物"这种最常见的形状能整句进去，再长的才被切。
+ * ⚠ 它与"塞不下就整批不要"（下面 `withDescs`）是**两道**：这一道管单条别太长，
+ *   那一道管加起来别超预算。只有一道的话，9 个 18 字仍然会把尾巴挤掉。
+ */
+const APPLY_DESC_MAX = 18;
+
+/**
+ * 一条 `desc` → 能安全写进紧凑绑定的那一截。null = 这个位子不带括号。
+ *
+ * ★★ 为什么这里**可以**静默改写，而角色名（`castNameIssue`）必须响亮地拒：
+ *   名字是**连接键** —— 这一头写「张三=@图片1」、那一头写「最左边=张三」，两句靠它接上，
+ *   改一个字就接不上了，所以只能拒、不能改。描述是**修饰语**，它不参与任何配对，
+ *   删掉一个顿号不会让任何东西对不上。两者纪律不同，是因为它们承担的东西不同。
+ * ★ 要拿掉的三类：
+ *   ① `（）()` —— 括号本身是这段语法的边界，描述里再出现一个会把 `[^）)]*` 提前截断，
+ *      于是三处正则同时失效（表现是"AI 把这个角色位弄丢了"的**误报**）；
+ *   ② `=＝、；;@＠` —— 紧凑绑定的分隔符，混进来会让模型把一条读成两条（换错人、零报错）；
+ *   ③ 换行 —— 这段话是一整句。
+ *   ★ 顿号换成逗号而不是删掉：描述本身是 `颜色、动作、位置关系` 三段拼的，
+ *     直接删会粘成一坨读不断句，而顿号又正好是外层绑定列表的分隔符。
+ */
+function descIn(desc: string): string | null {
+  const clean = desc
+    .replace(/[、]/g, "，")
+    .replace(/[（）()=＝；;@＠\n\r]/g, "")
+    .trim();
+  if (clean.length <= APPLY_DESC_MAX) return clean || null;
+  // ★★ 超长时**切到最后一个完整的分句**，不从中间一刀（2026-08-17 空跑时看见的）：
+  //   服务端给的是「白色，俯身蹲下，双手碰鞋，在画面最左侧」，硬切 18 字得到
+  //   「…在画面最左」—— 那一发凑巧还读得通，但「在红人偶左后方」切成「在红人偶左」
+  //   就把方位改掉了，而**改错的方位比没有方位更坏**（它会主动把模型指去另一个人）。
+  //   宁可少一整个分句：三项本来就是从最省字排到最贵，掉的是最后那截。
+  const cut = clean.slice(0, APPLY_DESC_MAX);
+  const at = cut.lastIndexOf("，");
+  // 第一个分句本身就超长（模型没按 12 字写）时没有边界可切 —— 那就只能硬切，
+  // 但那是"描述本来就一整句"的情形，切在哪儿都一样，不会改掉某个分句的方位
+  return (at > 0 ? cut.slice(0, at) : cut) || null;
 }
 
 /**
@@ -199,20 +256,60 @@ export function blockoutApplySkeleton(cast: BlockoutCastSlot[], userLine: string
   const slots = orderSlots(cast, spec);
   // flatMap 而不是 filter：filter 之后 TS 仍然认为 card 可能是 null，只能靠 `!` 硬压 ——
   // 而这一句正是"哪个人偶换成谁"的正文，压错了没有任何报错，只是换错人
-  const taken = slots.flatMap((s) => (s.card ? [{ label: s.label, name: s.card.name }] : []));
+  const taken = slots.flatMap((s) =>
+    s.card ? [{ label: s.label, name: s.card.name, id: s.card.id, desc: descIn(s.desc) }] : [],
+  );
   const free = slots.filter((s) => !s.card);
   const ordinal = spec.scheme === "ordinal";
-  const parts: string[] = ["以参考视频复刻原视频的人物站位、动作、节奏卡点、运动轨迹、队形与运镜。"];
-  if (taken.length > 0) {
-    // ★★ 序数版这句引导语里的「按画面里从左到右的位置」不是装饰：它把"指令序列 ↔ 画面序列"
-    //   这层对齐关系明说出来，而后面那串绑定已经由 orderSlots 排成升序 —— 两者是一对。
-    //   实测成绩（升序）：2 组 2/2、复跑 2/2、5 组满负载 5/5、3 组跳着挂 + 2 个空位 5/5。
-    parts.push(
-      ordinal
-        ? `按画面里从左到右的位置替换白色人偶：${taken.map((s) => `${s.label}=${s.name}`).join("、")}。`
-        : `把带编号的白色人偶替换为对应角色：${taken.map((s) => `编号${s.label}=${s.name}`).join("、")}。`,
-    );
-  }
+  // 括号描述只在**序数方案**下拼：编号方案的 desc 是「原视频里是谁」（穿黑袍的白发少年），
+  // 说的是被替换掉的那个人，写进"换成谁"那句话里只会打架。存量 6 个模板全在编号那一档。
+  const build = (withDescs: boolean): string => {
+    const paren = (s: { desc: string | null }) => (withDescs && ordinal && s.desc ? `（${s.desc}）` : "");
+    const bind = (s: { label: string; name: string; desc: string | null }) => `${s.label}${paren(s)}=${s.name}`;
+    // ★ 引导语那半句只在**真有括号**时才说（2026-08-17 核对时抓到）：一个括号都没有还写着
+    //   「括号里是这个人偶在画面里的样子」，是在提示词里说一句当场就不成立的话 ——
+    //   而这段话是给模型读的，凭空多一个它找不到的指代只会让它去别处找。顺带省 17 字。
+    const anyParen = taken.some((s) => paren(s));
+    const parts: string[] = ["以参考视频复刻原视频的人物站位、动作、节奏卡点、运动轨迹、队形与运镜。"];
+    if (taken.length > 0) {
+      // ★★ 序数版这句引导语里的「按画面里从左到右的位置」不是装饰：它把"指令序列 ↔ 画面序列"
+      //   这层对齐关系明说出来，而后面那串绑定已经由 orderSlots 排成升序 —— 两者是一对。
+      //   实测成绩（升序）：2 组 2/2、复跑 2/2、5 组满负载 5/5、3 组跳着挂 + 2 个空位 5/5。
+      // ★★ 括号里那截是**第二个锚点**（2026-08-17 加）：`最左边（纯白，弓步前倾）=凛`。
+      //   #46 实测证明位置一个人扛不住 —— 画面里有个读起来像主角的人时，序数会被压过去。
+      //   服务端保证括号里那句**验过唯一性**（落不回本人的只留颜色），所以它要么帮忙、
+      //   要么无害，不会主动指错人。
+      //   ⚠ 括号加在**等号左边**是有意的：绑定的形状（`位置=角色名`）与顺序一个字没变，
+      //     orderSlots 那条承重规则、以及下面三处正则的语义都还成立。
+      parts.push(
+        ordinal
+          ? `按画面里从左到右的位置替换白色人偶${anyParen ? "（括号里是这个人偶在画面里的样子）" : ""}：${taken
+              .map(bind)
+              .join("、")}。`
+          : `把带编号的白色人偶替换为对应角色：${taken.map((s) => `编号${s.label}=${s.name}`).join("、")}。`,
+      );
+    }
+    return buildRest(parts, free, ordinal, userLine);
+  };
+  // ★★ 塞不下就**整批**不要，不是挑几个留（2026-08-17）：留一半的话，正文里会出现
+  //   "有的位子带描述、有的不带"，而模型对**不对称的清单**最爱自己补齐 —— 它会给没带的
+  //   那几个也脑补一个样子，那正是"指错人"的另一条路。而且哪几个留下完全取决于字数，
+  //   用户看不出规律，只会觉得这个功能时灵时不灵。
+  // ★ 预算按**真的挂了几张卡**算（同一张卡挂两个位子只占一份图位），与 composeBlockoutPrompt
+  //   里那一处同口径。
+  // ★ 量出来的分界（2026-08-17，描述取 `纯白，双手上举侧身，在柱子旁` 这种 14 字的典型长度）：
+  //     1~6 个位子 → 带描述（6 个时 264 字 / 预算 282，刚好压线）
+  //     7 个以上   → 整批放弃（7 个时带描述 291 字 > 预算 269）
+  //   ⚠ 这个分界**随描述长短滑动**（预算每多挂一张卡就少 13 字，而每条描述占 ~16 字），
+  //   所以别把「6」写进任何判断里 —— 判据只有上面这一行长度比较。写死一个 6 的话，
+  //   描述短的时候 7 个也塞得下却被拦掉，描述长的时候 6 个塞不下却放行（后者会把尾巴挤掉）。
+  const cards = new Set(taken.map((s) => s.id)).size;
+  const full = build(true);
+  return full.length <= blockoutPromptBudget(cards) ? full : build(false);
+}
+
+/** 骨架里"挂卡那句"之后的部分 —— 两个分支（带描述/不带）共用，避免整段被抄成两份 */
+function buildRest(parts: string[], free: BlockoutCastSlot[], ordinal: boolean, userLine: string): string {
   if (free.length > 0) {
     // ★ 没挂卡的**也要点名说"保持原样"**，不能只靠"没提到就是不动"：模型对没提到的
     //   主体会自己发挥（实测白模化那一发正是"泛指会漏掉主角"的同一个机理，F4）。
@@ -278,8 +375,23 @@ export function blockoutApplySkeleton(cast: BlockoutCastSlot[], userLine: string
  */
 function hasLabel(text: string, label: string, spec: MarkSpec): boolean {
   const l = esc(label);
-  return new RegExp(spec.scheme === "ordinal" ? `${l}(?=\\s*[=＝]|的?人偶)` : `编号\\s*${l}(?![0-9])`).test(text);
+  return new RegExp(spec.scheme === "ordinal" ? `${l}${DESC_PAREN}(?=\\s*[=＝]|的?人偶)` : `编号\\s*${l}(?![0-9])`).test(
+    text,
+  );
 }
+
+/**
+ * 序数措辞与等号之间可能夹着一段括号描述（`最左边（纯白，弓步前倾）=凛`）。
+ *
+ * ★★ **三处正则共用这一个片段**（hasLabel / hasPair / posOf）。分开写就是三处判据，
+ *   而它们必须逐字相同 —— 漏改一处的表现是"上一道放行、下一道找不着"的**误拒**：
+ *   一段完全正确的提示词被整段挡下来，用户只能手写。这个形状 2026-08-17 已经栽过一次
+ *   （见 posOf 上面那条 ★★）。
+ * ★ 全角半角括号都收：这段话经过豆包改写，它换括号种类是常事，而换了不该改变语义。
+ * ★ 是 `(?:…)?`（可选）不是必选：没描述的位子、以及**所有编号方案的老模板**都不带括号，
+ *   必选会把它们整批判成"角色位弄丢了"。
+ */
+const DESC_PAREN = "(?:\\s*[（(][^）)]*[）)])?";
 
 /**
  * 「`最左边=角色名` / `编号N=角色名` 这条绑定还原样在不在」—— 比 hasLabel 更严的一档。
@@ -296,7 +408,7 @@ function hasPair(text: string, label: string, name: string, spec: MarkSpec): boo
   const l = esc(label);
   const n = esc(name);
   return new RegExp(
-    spec.scheme === "ordinal" ? `${l}\\s*[=＝]\\s*${n}` : `编号\\s*${l}(?![0-9])\\s*[=＝]\\s*${n}`,
+    spec.scheme === "ordinal" ? `${l}${DESC_PAREN}\\s*[=＝]\\s*${n}` : `编号\\s*${l}(?![0-9])\\s*[=＝]\\s*${n}`,
   ).test(text);
 }
 
@@ -340,6 +452,8 @@ const COMPOSE_SYSTEM: Record<MarkScheme, string> = {
     "硬性要求（违反任何一条都算失败）：",
     "1. 「最左边=角色名」这种等号绑定必须**逐字原样**保留：位置说法、等号、角色名一个字都不能改，",
     "   不许调换等号两边，不许改写成句子，**不许把位置换成近义说法**（把「从左数第3个」写成「第三个」「左起第三位」都算失败）；",
+    "   位置说法后面若带着一个括号（例：「最左边（纯白，弓步前倾）=凛」），那个括号连同里面的字**一起原样留在等号左边**，",
+    "   不许把它挪走、拆成另一句话、或改写成「那个弓步前倾的人偶」——它是用来指认这个人偶的第二个依据；",
     "2. 不许改动或删除任何一个位置说法（「最左边」「从左数第N个」「最右边」），包括那些说「保持白色人偶的样子」的；",
     "3. **必须保持这些绑定在句子里的先后顺序，一律不许调换**——它们是按人物在画面上从左到右排好的，",
     "   顺序一乱，AI 就会把角色换到别人身上；",
@@ -456,8 +570,8 @@ export async function composeBlockoutPrompt(
     const posOf = (s: BlockoutCastSlot) => {
       const l = esc(s.label);
       const re = s.card
-        ? new RegExp(`${l}\\s*[=＝]\\s*${esc(s.card.name)}`)
-        : new RegExp(`${l}(?=\\s*[=＝]|的?人偶)`);
+        ? new RegExp(`${l}${DESC_PAREN}\\s*[=＝]\\s*${esc(s.card.name)}`)
+        : new RegExp(`${l}${DESC_PAREN}(?=\\s*[=＝]|的?人偶)`);
       return text.search(re);
     };
     const ordered = (group: BlockoutCastSlot[]) => {
