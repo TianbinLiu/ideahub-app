@@ -776,6 +776,30 @@ export function blockoutTemplateCost(frameCount: number): number {
   return CHAT_TURN_TOKENS;
 }
 
+/**
+ * 「作者自己传一段参考视频登记成模板」这一次的报价（V1 登记路，`POST /api/branch/templates`）。
+ *
+ * ★★ 这条路**不出片**（视频已经在手上了），所以没有 r2v 那一笔 —— 它花的全部是 chat：
+ *     ① 认人**最多两发**（8 帧的视觉调用在上游 150s 超时线上下浮动，实测同一段素材
+ *        前一次回 7 个角色位、后一次回 504 —— 允许重试一次。⚠ 失败那次网关会退费，
+ *        所以"最多两发"是报价上限，实收多半只有一发）；
+ *     ② 量框**最多 `BLOCKOUT_BOX_TRIES` 发**（一帧一发，第一个能给出正好 M 个框的胜出）。
+ *   量框要重试是因为它成立的前提是"这一帧里所有人都在画面里"，而人会入场/离场 ——
+ *   2026-08-17 实测：认人认出 7 个，正中间那一帧只站着 5 个，整份被闸门丢掉。
+ * ★ 报的是**上限**，实收按真发了几发（服务端一命中就不再试）。方向永远是
+ *   「报价 ≥ 实收」—— 与 visionFrames 那条同一侧（报计划、收实际）。
+ * ⚠ `BLOCKOUT_BOX_TRIES` 是**跨仓契约**：服务端那一半是 `blockoutize.BOX_FRAME_TRIES`
+ *   （= boxFrameCandidates 的长度）。谁改候选帧的个数，两边一起改 —— 只改一边的表现是
+ *   报价与实收差一发 chat，两个方向都不报错。
+ */
+export const BLOCKOUT_BOX_TRIES = 5;
+/** 认人最多发几次（超时抖动允许重试一次）。跨仓契约：服务端那一半是登记路里那个 `attempt <= 2` */
+export const BLOCKOUT_ROSTER_TRIES = 2;
+
+export function ownRefTemplateCost(): number {
+  return CHAT_TURN_TOKENS * (BLOCKOUT_ROSTER_TRIES + BLOCKOUT_BOX_TRIES);
+}
+
 // ══ 「成片回来后量一帧位置框」为什么**不在这张价目表里** ═══════════════════════
 //   白模视频出来之后，服务端还会看一帧，记住每个人偶站在画面哪儿（`markBoxes`，
 //   App 靠它开"把卡直接拖到人偶身上"那条挂卡路径）。那一发**我们自己吃掉，不计费**，
