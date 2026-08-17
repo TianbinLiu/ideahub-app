@@ -26,10 +26,12 @@ import {
   deleteTemplateEverywhere,
   fetchRemoteTemplateById,
   getTemplate,
+  hasLocalTemplate,
   myTemplates,
   refreshRemoteTemplate,
   refVideoIssue,
   refVideoOwnerNote,
+  refVideoPoster,
   refVideoRealSec,
   registerIssueOf,
   registerTemplate,
@@ -81,8 +83,13 @@ function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
       <div className="mb-2 text-xs font-semibold text-sky-300">
         ⬜ 白模模板 · 参考视频 {realSec !== null ? `约 ${realSec.toFixed(1)}s（按 ${t.refVideo.durationSec} 秒计费）` : `${t.refVideo.durationSec}s`}
       </div>
+      {/* ★★ `poster` 不是装饰：Android WebView 下 `<video>` 在用户点播放**之前不画首帧**，
+          于是这一块在真机上就是一整片纯黑 —— 看起来像视频坏了或者没加载出来。
+          `preload="metadata"` 只保证时长可读，画面照样不画。
+          封面从视频地址**派生**（refVideoPoster，唯一实现），不另存一张图。 */}
       <video
         src={t.refVideo.url}
+        poster={refVideoPoster(t.refVideo) || undefined}
         controls
         playsInline
         preload="metadata"
@@ -119,7 +126,11 @@ function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
  *  经典配方照旧翻本机布尔；白模走服务端状态机（登记 → 试炼 → 发布），
  *  两条路的发布/删除都收口在 data/templates 的 setTemplatePublished /
  *  deleteTemplateEverywhere（铁律六：页面不各自去调 branch API）。 */
-function OwnerBar({ t, inMine, onApply }: { t: VideoTemplate; inMine: boolean; onApply: () => void }) {
+/** @param editable 「标题/简介**改得动吗**」，只问本机库（updateTemplate 能写到的就是那一份）。
+ *  ⚠ 它**不是**「这条是不是我的」：那个问题由调用方的 `ownedHere` 答。两者在换设备后会分开
+ *  （只存在于服务端的模板：是我的 ✓、但改不动 ✗）。这个形参此前叫 `inMine` —— 与那个
+ *  已经被拆开的旧概念同名，读的人会重新把两件事合起来，所以改了名。 */
+function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolean; onApply: () => void }) {
   const nav = useNavigate();
   const [title, setTitle] = useState(t.title);
   const [intro, setIntro] = useState(t.intro);
@@ -207,12 +218,12 @@ function OwnerBar({ t, inMine, onApply }: { t: VideoTemplate; inMine: boolean; o
       {/* 改名改简介写的是本机库；换设备后本机没有这条记录，改了也无处可存（V1 服务端
           没有元数据编辑端点）——藏掉输入框，只留下架/删除这些走服务端的操作，
           别摆一个"保存了却什么都没发生"的假按钮 */}
-      {!inMine && (
+      {!editable && (
         <p className="mb-2 text-[11px] leading-relaxed text-slate-400">
           这台设备上没有它的本机记录（换了设备？）。可以在这里下架或删除；改名/改简介需回到当初提取它的设备。
         </p>
       )}
-      {inMine && (
+      {editable && (
         <>
           <input
             value={title}
@@ -230,7 +241,7 @@ function OwnerBar({ t, inMine, onApply }: { t: VideoTemplate; inMine: boolean; o
         </>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        {inMine && (
+        {editable && (
           <button
             onClick={() => updateTemplate(t.id, { title: title.trim() || t.title, intro: intro.trim() })}
             disabled={!dirty}
@@ -386,9 +397,19 @@ export default function TemplateDetailPage() {
   //     （它就是这台设备刚提取的，连显示名都还没机会变）。
   //   · 经典路保留存量判定原样（含拿 user?.name 比对这个已知坑——CLAUDE.md「拿名字
   //     当身份」，另立任务修存量，这里只保证新路径不复刻它）。
-  const inMine = myTemplates().some((x) => x.id === t.id);
+  // ★★ 这里有**两个不同的问题**，2026-08-17 之前被同一个 `inMine` 兼着答，加了
+  //   `mineRemote`（服务端上本机没有的那些）之后就错了：
+  //     · `ownedHere`「这条是不是我的」→ 用**并集**。收窄会让只存在于服务端的模板
+  //       整个 OwnerBar 消失 —— 而那恰恰是最需要下架/删除入口的时候（本机没有它，
+  //       没有任何别的地方管得到那份云端资产）。远端状态还没到货时它是唯一的判据。
+  //     · `editableHere`「标题/简介改得动吗」→ 只能问**本机库**（hasLocalTemplate）。
+  //       `updateTemplate` 能写到的就只有那一份，它在 mine 里找不到就静默 return。
+  //   合成一个的后果（真发生过）：换设备后「这台设备上没有它的本机记录」那句永不显示，
+  //   输入框与「保存」照常渲染，点保存**什么都不会发生、零报错**。
+  const ownedHere = myTemplates().some((x) => x.id === t.id);
+  const editableHere = hasLocalTemplate(t.id);
   const rs = remoteStateOf(t);
-  const isMine = t.refVideo ? (rs ? rs.isOwner : inMine) : inMine && user?.name === t.author;
+  const isMine = t.refVideo ? (rs ? rs.isOwner : ownedHere) : ownedHere && user?.name === t.author;
 
   // 白模在闸门没开 / 模板视频本身不合方舟窗口时「看得见但点不动 + 说原因」
   // （原因印在 BlockoutInfo 的成本行里，作者本人看到的是另一句措辞）
@@ -495,10 +516,11 @@ export default function TemplateDetailPage() {
         </div>
       )}
 
-      {/* 白模路：isMine 来自服务端 isOwner——**不要**再 && inMine（换设备后本机库
+      {/* 白模路：isMine 来自服务端 isOwner——**不要**再 && ownedHere（换设备后本机库
           是空的，但作者对自己已发布的模板必须仍有下架/删除入口，否则作废/侵权模板
-          只能干挂在市场上被人付费套用）。经典路 isMine 本身就含 inMine，行为不变 */}
-      {isMine && <OwnerBar t={t} inMine={inMine} onApply={apply} />}
+          只能干挂在市场上被人付费套用）。经典路 isMine 本身就含 ownedHere，行为不变。
+          ★ 传下去的是 editableHere（改得动吗），与 isMine（是不是我的）是两个问题——见上面 ★★ */}
+      {isMine && <OwnerBar t={t} editable={editableHere} onApply={apply} />}
 
       <SocialPanel kind="template" id={t.id} />
     </div>

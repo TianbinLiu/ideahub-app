@@ -1,34 +1,53 @@
 // 视频编辑页【模式二 · 套用挂卡】：放白模模板视频 + 列出它的角色位，
 // 一个角色位挂一张人物卡，产出 `标记 → cardId` 的映射交给上层去合成提示词。
 //
-// ★★ 挂卡有**两条路**，第二条 2026-08-17 才有，而且**必须有位置数据才开**：
-//   ① **点列表**（永远都在）：点某一行的卡位 → `CardPickSheet` 选卡。老模板、以及任何
-//      拿不到 `markBoxes` 的模板只有这一条。
-//   ② **拖到画面上**（`markBoxes` 与 `markSlots` 长度相等、且知道那些框量自第几秒才开）：
-//      把下面那排卡拖到画面里那个人偶身上，松手后**必须再确认一次**。
-//   ⚠ 这条路当年被明确否掉过（"我们没有逐帧的人物包围盒/分割数据，点画面必然点错人"）。
+// ★★ 版式自上而下就是操作顺序（2026-08-17 定）：**卡轨在上 → 画面在中 → 格子行在下**。
+//   挂卡有**三条路**，前两条永远都在，第三条必须有位置数据才开：
+//   ① **点格子选中 → 点卡轨上的一张卡**：不依赖任何位置数据，老模板走的就是这条。
+//   ② **把卡从卡轨拖到格子上**：同样不依赖位置数据。格子上写着是哪个位子、用户是看着
+//      标签放上去的，没有可推断错的余地，所以**不问第二遍**。
+//   ③ **把卡拖到画面里那个人偶身上**（`markBoxes` 与 `markSlots` 长度相等、知道那些框
+//      量自第几秒、且作者没动过角色位 —— 判据的唯一实现是下面的 `dragOn`）：画面落点是
+//      **推断**出来的（框会重叠、人会走动），所以松手后**必须再确认一次**。
+//   ⚠ 第三条路当年被明确否掉过（"我们没有逐帧的人物包围盒/分割数据，点画面必然点错人"）。
 //   今天能开，唯一的原因是**服务端在看帧那一步真的把框量出来了**并跟着模板下发。
 //   所以判据是**存在性**，缺一个框就整层关掉（`markBoxesOf` 在收货那一层已经整份丢掉）：
 //   局部可拖会让用户以为"这个人拖不了 = 坏了"，而挂错人是零报错的。
 //   ★ 关掉时界面上**一点可点的暗示都不给**（不加光标手型、不加悬停高亮），并明说一句
-//     为什么 —— 不说的话用户会一直去戳画面，以为是坏了。
+//     为什么（`!dragOn` 那段解释，画面正下方）—— 不说的话用户会一直去戳画面，以为是坏了。
+//   ★ 2026-08-17 删掉了"逐行点开选卡浮层"那条老路（`CardPickSheet`）：选卡统一在最上面
+//     那条卡轨上，"我刚才到底在哪儿挂的"不该有两个答案。下面那份按位子列的清单因此
+//     退成**只读参考**（它独有的东西是每个位子的 `desc`），默认折叠。
+//
+// ★★ 界面上有**两个名字**，别混：
+//   · `label` —— 服务端算出来的标记（"从左数第3个" / "编号 4"），**原样**进提示词，也是
+//     `value` 这个映射的键。它只在**没有位置数据**时才露面（那时画面上不会有框亮起来，
+//     "人物N 到底是画面里哪一个"只能靠它）——见格子里那枚 `MarkBadge`。
+//   · 「人物N」—— 给人看的中性名字，**唯一实现是 `personNameOf`**（曾经在本文件里被拼过
+//     七遍、编号算法有五份，改一处漏六处是零报错的）。它只是位次，不承诺左右次序。
 //
 // ★★ 标记（`label`）**原样用**，绝不重编、绝不换近义说法：编号方案下实测白模人偶身上的数字
 //   稳定但**不连续**（一发四个人偶实出 1/2/4/5，见 types.ts 的 ★★）；序数方案下把
 //   "从左数第3个"写成"第三个"是同一种错法。按下标显示成 1..N 的话，用户对着屏幕上的 "4" 号
 //   点了列表里的第 3 项，映射就错了位。
 //
-// ★★ 两种标记方案，界面按 `spec` 分支（判据的唯一实现在 data/templates.markSpecOf）：
+// ★★ 两种标记方案，几句解释文案按 `spec` 分支（判据的唯一实现在 data/templates.markSpecOf；
+//   本文件里就是那几处 `ordinal ? … : …`：超限、野标记、排到上限）：
 //     · 序数：人偶**全都是一模一样的纯白色**，身上什么都没印 —— 唯一的线索是**站位**，
-//       所以引导语说的是"从左往右数"，不是"找记号"；
+//       所以文案说的是"人挤在一起就数不准了"，绝不说"去人偶身上找记号"；
 //     · 编号（存量老模板）：数字**只印在人偶的某一面**（多半是额头或后脑），转过身就没了。
 //   "前后左右四面都印着同一个数"那句老引导是全 app 最硬的一句假承诺（实测从没被执行过），
-//   两条路的文案都必须说实话 —— 一句过时的指路和一个坏功能长得一模一样。
+//   所有文案都必须说实话 —— 一句过时的指路和一个坏功能长得一模一样。
+//   ⚠ 措辞本身（"从左数第3个"这种）**不在本文件里造**：要显示就显示服务端给的 `label`
+//     原文（走 MarkBadge），见上面那条「两个名字」。
 //
 // ★ 只收 props、不认识任何 store（PlanBoard 同款约束）：可挂的卡由宿主给。
 import { useMemo, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import CardPickSheet from "./CardPickSheet";
+import HelpButton from "../guide/HelpButton";
+import { useAutoGuide } from "../guide/useAutoGuide";
+// ★ 原样显示一个标记（`label`）只有 MarkBadge 一处实现：两种方案的排版不同（编号要
+//   tabular-nums、序数是一句会撑破格子的中文，要折行），各画一遍必然分叉
 import MarkBadge from "./MarkBadge";
 import VideoStage from "./VideoStage";
 import type { TemplateRole } from "./arkVideoRules";
@@ -107,13 +126,22 @@ export interface RoleCastBoardProps {
   extra?: ReactNode;
 }
 
-/** 拖拽中的那张卡（跟手卡影 + 当前压在哪个框上）。null = 没在拖 */
+/** 拖拽中的那张卡（跟手卡影 + 当前压在哪儿）。null = 没在拖 */
 interface DragState {
   card: Card;
   x: number;
   y: number;
-  /** 压在 `spec.slots` 的第几个上；null = 没压在任何位子上 */
+  /** 压在**画面上**第几个人偶（`spec.slots` 的下标）；null = 没压在任何人偶上 */
   over: number | null;
+  /**
+   * 压在**格子行**的第几个格子（`castable` 的下标）；null = 没压在格子上。
+   *
+   * ★★ 与 `over` 有意分开成两位：它们的落点语义不同 —— 画面上的落点是**推断**出来的
+   *   （框会重叠、人会走动，所以松手要再问一句「是这个人吗」），而格子是用户
+   *   **看着标签**放上去的，没有任何可推断错的余地，直接落。合成一位的话，
+   *   两种落点就只能共用一套确认流程，而多问一句正是格子行要解决的那个麻烦。
+   */
+  overCell: number | null;
 }
 
 export default function RoleCastBoard({
@@ -132,8 +160,10 @@ export default function RoleCastBoard({
   onCancel,
   extra,
 }: RoleCastBoardProps) {
-  /** 正在给哪个角色位挑卡；null = 没开浮层 */
-  const [picking, setPicking] = useState<TemplateRole | null>(null);
+  // ★ 这一屏不是路由（它是 /video-editor 的一个模式），所以自己声明引导。
+  //   `enabled` 挂角色位：没有角色位时整块面板退成一段解释 + 完成键，五步全都无从谈起。
+  useAutoGuide("cast", roles.length > 0);
+  /** 这个模板是不是序数方案（判据的唯一实现在 data/templates.markSpecOf，这里只取结论） */
   const ordinal = spec.scheme === "ordinal";
 
   /**
@@ -189,11 +219,48 @@ export default function RoleCastBoard({
   const [ambiguous, setAmbiguous] = useState<{ card: Card; slots: number[] } | null>(null);
   /** 刚挂上的那个 label：列表里同步高亮一下，否则用户不知道自己刚才动了哪一行 */
   const [flash, setFlash] = useState("");
+  /**
+   * 选中的格子（`castable` 的下标）。null = 没选。
+   *
+   * ★★★ 这是新版式的**核心**：格子上写的是「人物1 / 人物2」这种中性名字，**不写序数措辞**。
+   *   理由是真的：序数只有在画面里的人真是"整齐一排从左到右"时才有意义，而实测
+   *   （2026-08-17，四发付费）真实素材里人会前后重叠、镜头会切、人数会变 ——
+   *   在格子上印一句「从左数第3个」等于对用户做一个我们自己都不保证的承诺。
+   * ⇒ 有位置数据（`dragOn`）时，「这一格是画面里的哪一个」由**画面上那个框亮起来**回答。
+   *   点格子 → 框变色，这是最诚实的指认方式（它直接来自服务端量出来的坐标，不经过任何措辞）。
+   * ⚠ **没有位置数据时这条链是断的**：没有框会亮，「人物N」就只剩排序。所以 `!dragOn` 时
+   *   格子上会补出原始 `label`（那时它是唯一的线索，编号方案的老模板尤其如此），
+   *   并在画面正下方那段解释里说清它为什么这时才出现 —— 见格子里的 `MarkBadge`。
+   * ★ label 本身**一个字都没变**：它照旧原样进提示词（那是服务端算的、r2v 认的东西），
+   *   变的只是"给人看的那一面"。两者分开是有意的。
+   */
+  const [selected, setSelected] = useState<number | null>(null);
 
   /** 画面覆盖层的根节点：落点换算只量它（它正好等于画面本身，见 VideoStage 文件头 ★★） */
   const stageRef = useRef<HTMLDivElement>(null);
+  /**
+   * 格子行的根节点 —— 拖拽落到**格子**上的命中判定量它。
+   * ★ 用一个容器 + `data-cell` 属性去量每个格子，而不是给每个格子各存一个 ref：
+   *   格子数是变的（删角色位、换模板），一个 ref 数组要跟着维护长度，而漏维护的表现是
+   *   "某一格永远接不住拖拽"，零报错。
+   */
+  const stripRef = useRef<HTMLDivElement>(null);
   /** 一次拖拽的起点。★ 与 MaterialSheet.begin 同款：方向仲裁 + pointer capture */
   const start = useRef<{ x: number; y: number; id: number; active: boolean; card: Card } | null>(null);
+  /**
+   * 「刚拖完，别把紧跟着那次 click 当成点击」。
+   *
+   * ★★ 卡片同时挂着 pointer 拖拽和 `onClick`（点卡 = 挂给选中的格子）。浏览器在一次
+   *   pointerdown→move→up 之后**照样会补发一次 click**（设了 pointer capture 时，
+   *   click 就落在这张卡上），于是拖一次 = 挂两次：一次落在拖到的格子/人偶上，
+   *   一次落在"当前选中的格子"上 —— 后者是用户**从没做过**的一条映射，而挂错人零报错。
+   *   桌面 Chrome 必现；触摸设备上补发的 click 同样会来。
+   * ★ 只在**真拖过**（`start.active` 为真）时压，"按下没动就抬手"那次 click 必须放行 ——
+   *   点一张卡挂给选中格子正是主路径。
+   * ★ 在 pointerdown 处复位而不是靠定时器：某些路径（拖出去后 pointercancel）根本不会补
+   *   click，标记留着的话会把**下一次**真点击吃掉，表现是"点卡没反应"，同样零报错。
+   */
+  const swallowClick = useRef(false);
 
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
   // ★ 能挂卡的只有前 BLOCKOUT_MAX_ROLES 个（判定的唯一实现在 data/templates.splitCastRoles，
@@ -284,17 +351,48 @@ export default function RoleCastBoard({
   }
 
   /**
-   * 把一张卡从下面那排拖出来 —— 手势细节全部照 `MaterialSheet.begin` 抄，别新发明：
+   * 落点 → 哪个**格子**（`castable` 的下标）。null = 没压在任何格子上。
+   *
+   * ★★ 与 `hitSlots`（画面上的人偶）是两条独立的路，理由见 DragState.overCell：
+   *   画面落点是推断的（框会重叠、人会走动），格子落点是用户看着标签放的。
+   * ★ 判定就是"点在这个格子的矩形里"，**没有"最近的凑合一下"那条兜底** ——
+   *   格子是并排紧挨着的，往旁边找最近的等于把落点悄悄挪给邻居，而挂错人零报错。
+   * ★ 量的是**当下的** getBoundingClientRect：格子行是可横向滚动的，缓存下来的坐标
+   *   在用户滚过之后全是错的。
+   */
+  function hitCell(clientX: number, clientY: number): number | null {
+    const el = stripRef.current;
+    if (!el) return null;
+    const cells = el.querySelectorAll<HTMLElement>("[data-cell]");
+    for (const cell of cells) {
+      const r = cell.getBoundingClientRect();
+      if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+        const i = Number(cell.dataset.cell);
+        return Number.isInteger(i) ? i : null;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 把一张卡从**最上面**那条卡轨拖出来 —— 手势细节全部照 `MaterialSheet.begin` 抄，别新发明：
    * ★ 必须用 pointer 事件（HTML5 `draggable` 在 Android WebView 的触摸下根本不触发）；
-   * ★ 卡片自己 `touch-none`、外层轨道 `touchAction: pan-x`：不写的话浏览器把竖向拖接管成
-   *   页面滚动并发 `pointercancel`，于是拖拽在真机上时灵时不灵（桌面鼠标下一切正常，
-   *   所以这种 bug 最容易漏过）；
-   * ★ 方向优先仲裁：横向走得多就让给轨道自己滚。落点在**上方**（画面在这排卡上面），
-   *   所以只认向上拖 —— 向下拖没有语义，让给页面滚动。
+   * ★ 卡片与轨道**都是** `touch-action: pan-x`：横向留给轨道自己滚，竖向留给拖拽。
+   *   卡片上写 `touch-none`（2026-08-17 那一版）看着更"干净"，实际是把轨道滚动整条关掉 ——
+   *   触摸下横滑纹丝不动，而这条轨是**唯一**的选卡入口，卡一多后面那些就永远够不到。
+   *   反过来完全不写又会让浏览器把竖向拖接管成页面滚动并发 `pointercancel`，
+   *   拖拽在真机上时灵时不灵（桌面鼠标下两种毛病都看不出来，所以最容易漏过）。
+   * ★ 方向优先仲裁：横向走得多就**彻底放手**（`start.current = null`），让浏览器去滚轨道；
+   *   判据是"哪个方向走得多"而不是"有没有横向位移"——手指下滑总会带一点横向抖动。
+   * ★ 只认**向下**拖：2026-08-17 版式改成「卡轨在上 → 画面在中 → 格子行在下」之后，
+   *   两种落点（画面里的人偶、下面的格子）都在卡的**下方**；向上拖没有落点，让给页面滚动。
+   *   （这段注释此前还写着"只认向上拖：画面在上面"，那是改版式之前的事。）
    */
   function beginDrag(card: Card) {
     return {
       onPointerDown: (e: RPointerEvent) => {
+        // ★ 新手势起头，先把上一次可能没被消费掉的"吞一次 click"标记清掉（见 swallowClick）
+        swallowClick.current = false;
         start.current = { x: e.clientX, y: e.clientY, id: e.pointerId, active: false, card };
       },
       onPointerMove: (e: RPointerEvent) => {
@@ -303,11 +401,16 @@ export default function RoleCastBoard({
         const dx = e.clientX - s.x;
         const dy = e.clientY - s.y;
         if (!s.active) {
+          // ★ 横向占优：整条手势让给轨道自己滚（卡片是 touch-pan-x，浏览器接得住），
+          //   我们**不接管**，也不再跟这次手势有任何关系
           if (Math.abs(dx) > Math.abs(dy)) {
-            start.current = null; // 让给轨道横向滚
+            start.current = null;
             return;
           }
-          if (dy > -10) return; // 只认【向上】拖：画面在上面
+          // ★★ 只认【向下】拖：2026-08-17 版式改成「卡在上 → 画面在中 → 格子在下」之后，
+          //   落点全在卡的**下方**。这一行原来是 `dy > -10`（只认向上），版式一改就等于
+          //   把整条拖拽路关掉了 —— 而且是静默的：手指怎么拖都没反应，没有任何报错。
+          if (dy < 10) return;
           s.active = true;
           try {
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -317,13 +420,39 @@ export default function RoleCastBoard({
           }
         }
         const hit = onFrame ? hitSlots(e.clientX, e.clientY) : [];
-        setDrag({ card: s.card, x: e.clientX, y: e.clientY, over: hit.length === 1 ? hit[0] : null });
+        setDrag({
+          card: s.card,
+          x: e.clientX,
+          y: e.clientY,
+          over: hit.length === 1 ? hit[0] : null,
+          overCell: hitCell(e.clientX, e.clientY),
+        });
       },
       onPointerUp: (e: RPointerEvent) => {
         const s = start.current;
         start.current = null;
         if (!s?.active) return;
+        // ★★ 真拖过一次 → 吞掉浏览器紧跟着补发的那次 click（见 swallowClick 的 ★★）。
+        //   必须在这里置位而不是在落点分支里：落不落得中都会补 click，而"落空的那一拖"
+        //   补出来的 click 同样会把卡挂到当前选中的格子上
+        swallowClick.current = true;
         setDrag(null);
+        // ★★ **格子先判、且不问第二遍**：格子上明写着是哪个位子，用户是看着标签放上去的，
+        //   没有任何可推断错的余地 —— 再问一句「是这个人吗」是纯粹的摩擦。
+        //   （另一条入口「点格子选中 → 点卡轨上的一张卡」同样是直接落，两条行为一致。）
+        // ★ 它排在画面判定**之前**：格子行就在画面下方，两者不重叠，但万一将来布局变了
+        //   压在一起，"用户看得见标签的那个"永远该赢。
+        const cell = hitCell(e.clientX, e.clientY);
+        if (cell !== null) {
+          const r = castable[cell];
+          if (r) {
+            assign(r.label, s.card.id);
+            setFlash(r.label);
+            setAsk(null);
+            setAmbiguous(null);
+          }
+          return;
+        }
         if (!onFrame) return;
         const hit = hitSlots(e.clientX, e.clientY);
         // ★ 一个都没命中：什么都不做（松手回弹）。★★ 绝不"最近的那个凑合一下" ——
@@ -378,13 +507,119 @@ export default function RoleCastBoard({
     );
   }
 
-  /** 高亮哪个框：拖拽中压着的那个，或者正在二次确认的那个。
+  /** 格子下标 → `dropSlots` 下标（画面上那个框）。查不到 = 这个位子没有框 */
+  const slotOfCell = (i: number) => {
+    const label = castable[i]?.label;
+    const at = label ? dropSlots.indexOf(label) : -1;
+    return at >= 0 ? at : null;
+  };
+  /**
+   * 标记 → 给人看的名字「人物N」。**唯一实现**，所有渲染点（卡轨那句提示、格子、
+   * aria-label、二次确认、歧义列表、折叠清单、超限区）都从这里取。
+   *
+   * ★★ 这条注释此前是**假话**：它自称唯一实现，实际上「人物N」在本文件里被拼了七遍、
+   *   算号的写法有五份（`selected + 1` / `i + 1` / `cellNoOfSlot` / `castable.length + i + 1`）。
+   *   四份各自都对，所以改一处漏六处**没有任何症状** —— 只会变成同一个人在两个地方叫两个
+   *   名字（比如二次确认说"人物3"、格子上写"人物4"），而挂错人零报错。
+   * ★★ 编号空间只有一个：**`roles` 里的位次 +1**。`splitCastRoles` 是按原顺序切前后两半
+   *   （castable / overflowRoles），所以超限区那几个"接着往下数"本来就是同一条编号，
+   *   不需要 `castable.length + i` 这种在调用点复述一遍切分规则的算法。
+   * ★ 查不到就返回中性说法而**不编一个号**：映射里的野标记（作者删过位子）在这块面板上
+   *   本来就没有位次，编一个出来会指到别人身上。
+   * ★ 按 label 查是稳的：一份 roles 里 label 唯一 —— `value` 就是按它做键，各处 React key
+   *   也是它，重了的话这块面板早就不止"名字重了"这一个毛病。
+   */
+  const personNameOf = (label: string | undefined) => {
+    const at = label ? roles.findIndex((r) => r.label === label) : -1;
+    return at >= 0 ? `人物${at + 1}` : "这个位子";
+  };
+  /** 高亮哪个框：拖拽中压着的那个 / 正在二次确认的那个 / 选中格子对应的那个。
    *  ★ 拖拽期间**只听 drag**（哪怕它现在没压住任何位子）：写成 `drag?.over ?? ask?.slot`
    *    的话，手指离开所有人偶时会退回去高亮上一次确认框，等于告诉用户"松手会挂到那儿" */
-  const litSlot = drag ? drag.over : (ask?.slot ?? null);
+  const litSlot = drag ? drag.over : (ask?.slot ?? (selected !== null ? slotOfCell(selected) : null));
 
   return (
     <div className="space-y-3">
+      {/* ══ ① 人物卡：一条横轨，摆在**最上面** ══════════════════════════════
+          ★★ 2026-08-17 版式改成「卡在上 → 画面在中 → 格子在下」。此前卡在最下面，
+            于是"拖卡"是**向上**拖、要越过整块画面；而挂卡的落点（格子）又在画面下方，
+            手势方向与视觉顺序是拧着的。现在自上而下就是「拿哪张卡 → 给画面里的谁 → 落到哪一格」。
+          ★ 只列**人物卡**（VideoEditorPage 一处过滤，没有开关）：白模人偶换的就是"人"。
+          ★★ 轨道与卡片**都是** `touch-action: pan-x`（不是 `touch-none`）：竖向留给拖拽
+            （不写的话浏览器把竖向拖接管成页面滚动并发 pointercancel，真机上拖拽时灵时不灵），
+            横向留给这条轨自己滚。卡片上写 `touch-none` 会把横滚也一起关掉 —— 而删掉逐行
+            选卡浮层之后这条轨是**唯一**的选卡入口，卡一多，右边那些就再也够不到了。
+            两种毛病桌面鼠标下都看不出来（滚轮/拖拽都不受 touch-action 管），所以最容易漏过。 */}
+      {castable.length > 0 && (
+        <div className="space-y-1 rounded-lg border border-slate-700 bg-panel/50 px-2 py-2">
+          <p className="flex items-center gap-2 px-1 text-[10px] text-slate-500">
+            <span className="min-w-0 flex-1">
+              {cards.length === 0
+                ? "素材库里还没有可挂的人物卡"
+                : selected !== null
+                  ? `点一张卡，挂给「${personNameOf(castable[selected]?.label)}」`
+                  : "先点下面一个格子，再点一张卡；也可以直接把卡拖到格子上"}
+            </span>
+            {/* ★★ 「取下」只在**选中的那一格已经挂着卡**时出现。没有它的话，挂错了
+                就再也拿不下来 —— 选卡浮层删掉之后这里是唯一的出口。 */}
+            {selected !== null && castable[selected] && value[castable[selected].label] && (
+              <button
+                onClick={() => {
+                  const r = castable[selected];
+                  if (r) assign(r.label, null);
+                }}
+                className="flex-none rounded-full border border-slate-600 px-2 py-0.5 text-[10px] text-slate-300"
+              >
+                取下
+              </button>
+            )}
+            {/* ★ 这一屏没有标题栏（它嵌在编辑页里），所以 ? 贴在这一行的右端 */}
+            <HelpButton tour="cast" className="flex-none" />
+          </p>
+          {cards.length > 0 && (
+            <div data-guide="cast-card-rail" className="no-scrollbar flex gap-2 overflow-x-auto pb-1" style={{ touchAction: "pan-x" }}>
+              {cards.map((c) => (
+                <div
+                  key={c.id}
+                  {...beginDrag(c)}
+                  // ★ 点一张卡 = 挂给**当前选中的格子**。没选中时不静默失败 ——
+                  //   上面那句话已经说了"先点下面一个格子"，这里就什么都不做
+                  onClick={() => {
+                    // ★★ 刚拖完的那次 click 是浏览器补发的，不是用户点的 —— 吞掉它，
+                    //   否则一次拖拽会额外挂出一条"挂给当前选中格子"的映射（见 swallowClick）
+                    if (swallowClick.current) {
+                      swallowClick.current = false;
+                      return;
+                    }
+                    if (selected === null) return;
+                    const r = castable[selected];
+                    if (r) {
+                      assign(r.label, c.id);
+                      setFlash(r.label);
+                    }
+                  }}
+                  // ★ touch-pan-x 而不是 touch-none：横滑要能滚这条轨（理由见上面那段 ★★）
+                  className="w-[58px] flex-none touch-pan-x select-none active:scale-95"
+                >
+                  <div className="h-[86px] w-full overflow-hidden rounded-md border border-slate-700 bg-slate-800">
+                    {c.cover ? (
+                      <img src={c.cover} alt="" className="h-full w-full object-cover" draggable={false} />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-lg opacity-40">🔮</div>
+                    )}
+                  </div>
+                  <p className="mt-0.5 truncate text-[10px] text-slate-300">{c.name}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ★ 引导要圈的是**画面**，而 VideoStage 自己声明 props、不透传 rest；这里外面这层
+          只是给它一个可量的盒子，不带任何 className —— 不引入任何布局变化
+          （父级是 space-y-3 的纵向流，多一层无样式 div 的渲染结果一模一样）。 */}
+      <div data-guide="cast-stage">
       <VideoStage
         src={videoUrl}
         disabled={busy}
@@ -432,36 +667,116 @@ export default function RoleCastBoard({
             : undefined
         }
       />
+      </div>
 
-      {/* 怎么认位子 + 能不能点画面 —— 都要明说。
-          ★★ 编号那半句 2026-08-16 改成了实话：「四面都印着同一个数、转过身也看得见」
-            **从来没有被模型执行过**（实测每发只印一面，哪一面还不可控）。用户照着那句话
-            去转身找号，找不到只会以为功能坏了 —— 一句过时的指路和一个坏功能没有区别。
-          ★ 序数那半句是这次唯一能说的一句**更好的实话**：人偶全都一模一样，
-            位置本来就是画面上唯一稳定的线索，不需要在人偶身上找任何记号。 */}
-      <p className="text-[11px] leading-relaxed text-slate-400">
-        {ordinal ? (
-          <>
-            人偶全都<b className="text-slate-200">一模一样</b>（纯白、没有编号也没有颜色），
-            靠<b className="text-slate-200">从左往右数第几个</b>来认位子，在下面找到同一个位置挂卡。
-          </>
-        ) : (
-          <>
-            对着画面记住人偶<b className="text-slate-200">头上那个数字</b>（编号只印在某一面，
-            多半是额头或后脑 —— 转过身可能就看不见了，拖动进度条找到能看清的那一帧），
-            在下面找到同一个数字挂卡。
-          </>
-        )}
-        {dragOn ? (
-          <>
-            {" "}
-            也可以<b className="text-slate-200">直接把下面的卡拖到画面上那个人偶身上</b>，
-            松手后会问你一句「是这个人吗」。
-          </>
-        ) : (
-          " 画面本身点不了：这个模板没有画面位置数据，点画面必然点错人（换错角色是不会报错的，只有你自己能看出来）。"
-        )}
-      </p>
+      {/* 「画面点不了」+「那怎么认位子」—— 都要明说，而且只在真的点不了时说。
+          ★★ 这段 2026-08-17 改版式时被整段删过一次，必须补回来：它是一条**条件触发的
+            故障解释**（只有拿不到位置数据的模板才会遇到），本仓铁律八说这类解释要留在
+            界面上、留在触发的那一刻 —— 搬进只弹一次的新手引导等于没说（tours.tsx 的
+            文件头也明文禁止）。少了它，用户只会一直去戳画面，以为功能坏了。
+          ★★ 判据只读 `dragOn` 这一处（拖拽层开不开的唯一实现），别在这儿另判一遍
+            "有没有 boxes"——两份判断分叉的表现是"画面明明能拖，下面却写着点不了"。
+          ★★ 编号方案那半句 2026-08-16 就改成实话了：「四面都印着同一个数、转过身也看得见」
+            **从来没有被模型执行过**（实测每发只印一面，哪一面还不可控）。所以这里绝不指路
+            "去人偶身上找记号"，只说标记本身长什么样 —— 一句过时的指路和一个坏功能没有区别。 */}
+      {!dragOn && (
+        <p className="rounded-lg border border-slate-700 bg-panel/60 px-3 py-2 text-[11px] leading-relaxed text-slate-300">
+          这个模板<b className="text-slate-200">没有画面位置数据</b>，所以画面
+          <b className="text-slate-200">点不了、也拖不上</b>：我们没有逐帧的人物位置，
+          点画面必然点错人，而换错人<b className="text-slate-200">不会报错</b>，
+          要等成片出来才看得见。
+          <br />
+          用下面的格子行挂就行：先点一个格子，再点上面卡轨里的一张卡（也可以把卡直接拖到格子上）。
+          格子上那行小字是这个模板<b className="text-slate-200">原本的标记</b>（原样照抄、一个字没改）——
+          画面上不会有框亮起来，「人物几」只是排序，认人得靠它和下面「每个位子原来是谁」。
+        </p>
+      )}
+
+      {/* ══ 格子行：画面正下方，一个白模一个格子 ══════════════════════════
+          ★★ 为什么要有它（2026-08-17 加）：此前唯一的"拖着挂"是**拖到画面上那个人偶身上**，
+            而人偶一多，画面上的落点框就互相重叠 —— 压在两个上面时按设计是"不猜"，
+            于是拖动全程一个框都不亮、松手才弹出一个歧义列表让你再点一次。人越多越难拖，
+            而人多恰恰是最需要挂卡的时候。
+          ★★ 格子行把同一件事变成**确定**的：格子明写着是哪个位子，用户看着它放，
+            没有任何可推断错的余地。所以它落卡**不问第二遍**（画面那条路仍然问，
+            因为那个落点是推断出来的）。
+          ★ 两条路都留着：拖到画面上更直观（尤其人少的时候），格子行更可靠。
+            判断只有一处（assign），两个入口不是两套逻辑。
+          ★★ 它**不依赖 markBoxes**，所以对没有画面位置数据的老模板同样可用 —— 那批模板
+            此前只能一行行点开选卡浮层挑卡，而那个浮层 2026-08-17 已经删了，这里就是它们
+            唯一的挂卡入口。也正因如此，`!dragOn` 时格子上要补出原始标记（见下面的 MarkBadge）。 */}
+
+      {castable.length > 0 && (
+        <div data-guide="cast-slot-strip" className="rounded-lg border border-slate-700 bg-panel/50 px-2 py-2">
+          <div ref={stripRef} className="no-scrollbar flex gap-1.5 overflow-x-auto pb-1" style={{ touchAction: "pan-x" }}>
+            {castable.map((r, i) => {
+              const card = value[r.label] ? byId.get(value[r.label]) : undefined;
+              const missing = !!value[r.label] && !card;
+              const lit = drag?.overCell === i;
+              return (
+                <button
+                  key={r.label}
+                  data-cell={i}
+                  // ★★ 点格子 = **选中**（选卡浮层已删，挑卡在上面那条卡轨）。有位置数据时
+                  //   选中之后画面上对应那个框会亮起来 —— 那是"这一格是画面里的哪一个"最诚实
+                  //   的答案（格子上写的「人物N」是中性名字，故意不承诺任何左右次序）。
+                  //   没有位置数据时不会有框亮，所以格子上另外印出原始标记（见下面的 MarkBadge）。
+                  //   再点一次取消选中：不给取消的话，用户想换一格时会先挂错一张。
+                  onClick={() => setSelected((cur) => (cur === i ? null : i))}
+                  disabled={busy}
+                  className={`flex w-[72px] flex-none flex-col items-center gap-1 rounded-lg border p-1 disabled:opacity-40 ${
+                    selected === i
+                      ? "border-gold bg-gold/25"
+                      : lit
+                        ? "border-gold bg-gold/20"
+                        : flash === r.label
+                          ? "border-gold bg-black/20"
+                          : card
+                            ? "border-gold/50 bg-black/20"
+                            : "border-dashed border-slate-600 bg-black/20"
+                  }`}
+                  aria-label={`${personNameOf(r.label)}${
+                    dragOn ? "" : `（标记：${r.label}）`
+                  }${card ? `（现在挂着 ${card.name}）` : "，还没挂卡"}`}
+                >
+                  {/* ★★ 有位置数据时这里**不写序数措辞**（「从左数第3个」那种）：它只有在画面里
+                      的人真是整齐一排时才成立，而实测真实素材会重叠、会切镜头、人数会变 ——
+                      印在格子上等于做一个我们自己都不保证的承诺。「人物N」是中性名字，
+                      "到底是画面里哪一个"由**点它之后亮起来的那个框**回答。
+                      ⚠ label 本身一个字没改，照旧原样进提示词（服务端算的、r2v 认的东西）。 */}
+                  <span
+                    className={`block w-full rounded-md px-1 py-0.5 text-center text-[11px] font-bold ${
+                      selected === i ? "bg-gold/30 text-gold" : "bg-sky-500/20 text-sky-200"
+                    }`}
+                  >
+                    {personNameOf(r.label)}
+                  </span>
+                  {/* ★★ 没有位置数据时（`!dragOn`）才补出**原始标记**：那时点格子不会有任何框
+                      亮起来，「人物N」就只剩排序、回答不了"是画面里哪一个"——尤其是编号方案的
+                      老模板，画面上那个数字是认人的唯一线索，界面上却一处都不显示它。
+                      ★ 有位置数据时**不显示**：那时"是哪一个"由亮起来的框回答，再印一句序数
+                        措辞就是上面那条 ★★ 说的"不保证的承诺"，两个答案还可能互相矛盾。
+                      ★ 用 MarkBadge（原样显示标记的唯一实现）：编号要 tabular-nums、序数最长
+                        6 个汉字得折行，自己再画一遍必然分叉。 */}
+                  {!dragOn && <MarkBadge spec={spec} label={r.label} tone="muted" wrap />}
+                  <span className="flex h-[52px] w-full items-center justify-center overflow-hidden rounded bg-slate-800">
+                    {card?.cover ? (
+                      <img src={card.cover} alt="" className="h-full w-full object-cover" draggable={false} />
+                    ) : (
+                      <span className="text-[10px] leading-tight text-slate-400">{missing ? "？" : "挂卡"}</span>
+                    )}
+                  </span>
+                  {/* 挂了谁 / 还空着。★ 空着也占同样高度：不占的话整行会随挂卡进度忽高忽低 */}
+                  <span className={`block w-full truncate text-center text-[9px] ${card ? "text-slate-200" : "text-slate-500"}`}>
+                    {missing ? "卡已丢失" : (card?.name ?? "未挂")}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
 
       {/* 离开标记帧了：**把落点层隐去**并给一颗回跳键。
           ★ 框是**一帧**上量的，人是会走动的 —— 继续画一组过时的框，用户会照着它拖，
@@ -487,8 +802,8 @@ export default function RoleCastBoard({
       {ask && (
         <div className="space-y-2 rounded-xl border border-gold/60 bg-gold/10 px-3 py-2.5">
           <p className="text-[12px] leading-relaxed text-slate-100">
-            把「<b className="font-bold">{ask.card.name}</b>」挂到 <b className="font-bold">{dropSlots[ask.slot]}</b>{" "}
-            的人偶上？
+            把「<b className="font-bold">{ask.card.name}</b>」挂到{" "}
+            <b className="font-bold">{personNameOf(dropSlots[ask.slot])}</b> 身上？
           </p>
           <div className="flex items-start gap-2">
             <div className="h-16 w-[43px] flex-none overflow-hidden rounded-md border border-gold/70 bg-slate-800">
@@ -538,7 +853,7 @@ export default function RoleCastBoard({
                 }}
                 className="rounded-full bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-100"
               >
-                {dropSlots[i]}
+                {personNameOf(dropSlots[i])}
               </button>
             ))}
             <button
@@ -551,31 +866,18 @@ export default function RoleCastBoard({
         </div>
       )}
 
-      {/* 可拖的卡：一条横轨。★ 轨道 `touchAction: pan-x` + 卡片 `touch-none`（见 beginDrag 的 ★） */}
-      {dragOn && (
-        <div className="space-y-1 rounded-lg border border-slate-700 bg-panel/50 px-2 py-2">
-          <p className="px-1 text-[10px] text-slate-500">
-            {cards.length > 0 ? "按住一张卡往上拖到画面里那个人偶身上" : "素材库里还没有可挂的人物卡"}
-          </p>
-          {cards.length > 0 && (
-            <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1" style={{ touchAction: "pan-x" }}>
-              {cards.map((c) => (
-                <div key={c.id} {...beginDrag(c)} className="w-[58px] flex-none touch-none select-none active:scale-95">
-                  <div className="h-[86px] w-full overflow-hidden rounded-md border border-slate-700 bg-slate-800">
-                    {c.cover ? (
-                      <img src={c.cover} alt="" className="h-full w-full object-cover" draggable={false} />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-lg opacity-40">🔮</div>
-                    )}
-                  </div>
-                  <p className="mt-0.5 truncate text-[10px] text-slate-300">{c.name}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
+      {/* ══ 每个位子原来是谁 —— **默认折叠** ═══════════════════════════════
+          ★ 加了格子行之后这一列的大部分内容重复了（标记、卡面、卡名、挂卡入口格子行都有），
+            但它独有一样东西：每个位子的 `desc`（这个人偶在原视频里是谁）。编号方案的老模板
+            尤其靠它认人。所以**收起来而不是删掉**。
+          ★ 默认收起：用户抱怨过这一屏东西太多，而 desc 是"想不起来时才查"的信息，
+            不是每次都要读的。 */}
+      {castable.length > 0 && (
+        <details className="rounded-lg border border-slate-700 bg-panel/40">
+          <summary className="cursor-pointer list-none px-3 py-2 text-[11px] text-slate-400">
+            每个位子原来是谁（{castable.length} 个）
+          </summary>
+          <div className="px-2 pb-2">
       <div className="space-y-2">
         {castable.map((r) => {
           const card = value[r.label] ? byId.get(value[r.label]) : undefined;
@@ -591,7 +893,11 @@ export default function RoleCastBoard({
                 flash === r.label ? "border-gold" : "border-slate-700"
               }`}
             >
-              <MarkBadge spec={spec} label={r.label} className="mt-0.5" />
+              {/* ★ 与格子行同一个名字（同一个 personNameOf）。这一列是**只读的参考**：
+                  挂卡只有格子行一条路，两个入口会让"我到底在哪儿挂的"变成一个问题 */}
+              <span className="mt-0.5 flex-none rounded-md bg-sky-500/20 px-2 py-0.5 text-[11px] font-bold text-sky-200">
+                {personNameOf(r.label)}
+              </span>
               <div className="min-w-0 flex-1">
                 <p className="line-clamp-3 text-[11px] leading-relaxed text-slate-300">{r.desc}</p>
                 {missing && (
@@ -606,30 +912,27 @@ export default function RoleCastBoard({
                   </p>
                 )}
               </div>
-              <button
-                onClick={() => setPicking(r)}
-                disabled={busy}
-                className="flex-none disabled:opacity-40"
-                /* ★ 不硬拼「N 号」：序数方案下那会读成"从左数第3个号"。用「」把标记括起来，
-                   两种方案都读得通（「从左数第3个」人偶 /「4」人偶） */
-                aria-label={card ? `换掉「${r.label}」人偶的卡` : `给「${r.label}」人偶挂卡`}
+              {/* 只读卡面（挂/换/取下都在上面的格子行 + 卡轨）。
+                  ★ 空着也占同样宽度：不占的话每一行会随挂卡进度左右跳 */}
+              <div
+                className={`flex h-16 w-[43px] flex-none items-center justify-center overflow-hidden rounded-md border ${
+                  card ? "border-gold/70" : "border-dashed border-slate-600"
+                } bg-slate-800`}
               >
-                <div
-                  className={`flex h-16 w-[43px] items-center justify-center overflow-hidden rounded-md border ${
-                    card ? "border-gold/70" : "border-dashed border-slate-600"
-                  } bg-slate-800`}
-                >
-                  {card?.cover ? (
-                    <img src={card.cover} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="text-[10px] leading-tight text-slate-400">{missing ? "？" : "挂卡"}</span>
-                  )}
-                </div>
-              </button>
+                {card?.cover ? (
+                  <img src={card.cover} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-[10px] leading-tight text-slate-400">{missing ? "？" : "未挂"}</span>
+                )}
+              </div>
             </div>
           );
         })}
       </div>
+          </div>
+        </details>
+      )}
+
 
       {/* 超出上限的角色位：列出来（画面上真有这些人偶），但**不给挂卡按钮**，并说清它们会怎样。
           ★ 不摆一个点不动的按钮（本仓的老坑：界面上摆永远点不动的东西，用户只会觉得功能坏了），
@@ -644,7 +947,12 @@ export default function RoleCastBoard({
           </p>
           {overflowRoles.map((r) => (
             <div key={r.label} className="flex items-start gap-2 opacity-60">
-              <MarkBadge spec={spec} label={r.label} tone="muted" small className="mt-0.5" />
+              {/* ★ 编号接着 castable 往下数（`personNameOf` 数的就是 roles 里的位次，
+                  overflowRoles 是同一份 roles 的后半截，所以这里不用、也不许自己加偏移）：
+                  画面上这些人偶真的站在那儿，只是挂不了卡 */}
+              <span className="mt-0.5 flex-none rounded-md bg-slate-700 px-1.5 py-0.5 text-[11px] font-bold text-slate-300">
+                {personNameOf(r.label)}
+              </span>
               <p className="line-clamp-2 min-w-0 flex-1 text-[10px] leading-relaxed text-slate-400">{r.desc}</p>
             </div>
           ))}
@@ -740,25 +1048,6 @@ export default function RoleCastBoard({
         )}
       </div>
 
-      {picking && (
-        <CardPickSheet
-          label={picking.label}
-          spec={spec}
-          desc={picking.desc}
-          cards={cards}
-          currentId={value[picking.label]}
-          onPick={(c) => {
-            assign(picking.label, c.id);
-            setFlash(picking.label);
-            setPicking(null);
-          }}
-          onClear={() => {
-            assign(picking.label, null);
-            setPicking(null);
-          }}
-          onClose={() => setPicking(null)}
-        />
-      )}
 
       {/* 跟手的卡影。★ createPortal 到 body：祖先上任何一个 backdrop-blur / transform 都会给
           `position: fixed` 的后代造包含块，卡影会被钉在那个盒子里（CLAUDE.md 的坑） */}

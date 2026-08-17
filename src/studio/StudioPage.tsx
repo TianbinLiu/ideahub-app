@@ -18,6 +18,8 @@ import { cancelPendingStop, stopSpeakingSoon } from "./speech";
 import { useStudioBack } from "./useStudioBack";
 import { autoQualityOnFirstVisit, QUALITY_LABELS, type Quality } from "./quality";
 import Icon from "../components/Icon";
+import HelpButton from "../components/guide/HelpButton";
+import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { MARKET } from "./scene/layout";
 
 // 入场加载过渡：盖住模型/贴图流式加载过程（不然首页跳转进来会看到模型逐个蹦出+卡顿）。
@@ -204,6 +206,8 @@ function AutoQualityHint({ q }: { q: Quality }) {
 
 export default function StudioPage() {
   const navigate = useNavigate();
+  // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；顶栏那颗 ? 随时能重看）
+  useAutoGuide("studio");
   const initGreet = useStudio((s) => s.initGreet);
   const spreadOpen = useStudio((s) => s.spreadOpen);
   const deckLen = useStudio((s) => s.deck.length);
@@ -280,6 +284,7 @@ export default function StudioPage() {
           padding-top——所以竖排间距靠 pt-* 单独给，别指望 p-3 */}
       <div className="safe-top pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between px-3 pb-3 pt-3">
         <button
+          data-guide="studio-back"
           onClick={onBack}
           className="pointer-events-auto flex h-12 items-center gap-1 rounded-full bg-panel/85 pl-2.5 pr-4 text-slate-200 backdrop-blur active:bg-panel"
           aria-label={backLabel}
@@ -288,6 +293,9 @@ export default function StudioPage() {
           <span className="text-xs">{backLabel}</span>
         </button>
         <div className="pointer-events-auto flex items-center gap-2 pt-2">
+          {/* ★ 摆在浮动顶栏右侧这一组里，而不是画面角落硬定位：这一屏是 3D 画布，
+              任何 absolute 的小控件都可能压住法阵/卡位（都是量出来的位置） */}
+          <HelpButton tour="studio" className="bg-panel/85 backdrop-blur" />
           {/* 存草稿：桌面上有东西才亮。工坊侧此前完全没有落盘手段——摆了半天卡、
               推演了几炉，刷新一下全没（两个 store 都是纯内存单例） */}
           {hasWork && (
@@ -322,7 +330,7 @@ export default function StudioPage() {
 
       {/* 提示条（NPC 气泡栏上方） */}
       <div className="pointer-events-none absolute inset-x-0 bottom-16 flex justify-center px-4">
-        <div className="rounded-full bg-panel/75 px-4 py-1.5 text-center text-xs text-slate-300 backdrop-blur">{hint}</div>
+        <div data-guide="studio-hint" className="rounded-full bg-panel/75 px-4 py-1.5 text-center text-xs text-slate-300 backdrop-blur">{hint}</div>
       </div>
 
       {/* 市场翻页箭头：市场种子有 19 张，一页摆 6 张 → 4 页。放在屏幕两侧竖直居中，

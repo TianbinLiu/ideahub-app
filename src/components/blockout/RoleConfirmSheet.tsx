@@ -55,6 +55,8 @@
 import { useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Icon from "../Icon";
+import HelpButton from "../guide/HelpButton";
+import { useAutoGuide } from "../guide/useAutoGuide";
 import MarkBadge from "./MarkBadge";
 import {
   BLOCKOUT_MAX_ROLES,
@@ -87,6 +89,9 @@ function useTemplatesTick(): number {
 }
 
 export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onClose: () => void }) {
+  // ★ 浮层也要自己声明引导（不是路由，按 pathname 集中判的话这一屏永远轮不到）。
+  //   第一次打开时强制放一遍，看过一次不再自动弹；标题栏那颗 ? 随时能重看。
+  useAutoGuide("roleconfirm");
   const [rows, setRows] = useState<Row[]>(() =>
     (t.roles ?? []).map((r) => ({ key: uid("role"), label: r.label, desc: r.desc, doomed: false })),
   );
@@ -180,6 +185,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
           <Icon name="close" size={16} className="text-slate-300" />
         </button>
         <h2 className="text-sm font-bold text-slate-100">核对角色位{noun}</h2>
+        <HelpButton tour="roleconfirm" className="ml-auto" />
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-40">
@@ -286,6 +292,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
 
         {t.refVideo && (
           <video
+            data-guide="roleconfirm-video"
             src={t.refVideo.url}
             controls
             playsInline
@@ -293,7 +300,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
           />
         )}
 
-        {rows.map((r) =>
+        {rows.map((r, i) =>
           r.doomed ? (
             // 待删态：整行降透明度 + 整句后果 + 一颗撤销。★ 此刻**不从 rows 里移除**
             <div
@@ -376,6 +383,9 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 text-[9px] text-slate-500">这个位置原来是谁（套用的人只看这句话）</div>
                   <input
+                    /* ★ 引导锚点只给第一行：每行都写的话 querySelector 命中的仍是第一个，
+                         但高亮圈会随列表顺序漂移（第一行被删成待删态时那一行就没有输入框了） */
+                    data-guide={i === 0 ? "roleconfirm-desc" : undefined}
                     value={r.desc}
                     onChange={(e) => setRow(r.key, { desc: e.target.value })}
                     maxLength={300}
@@ -388,6 +398,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
                     ★ 裸 ✕ 改成图标 + 「删掉」两个字：一排输入框旁边的 ✕ 看起来像"清空这一行的文字" */}
                 {!floorNext && (
                   <button
+                    data-guide={i === 0 ? "roleconfirm-del" : undefined}
                     onClick={() => delRow(r.key)}
                     className="mt-4 flex flex-none items-center gap-1 rounded-full bg-black/40 px-2 py-1.5 text-[11px] text-slate-300"
                     aria-label="删掉这个角色位"
@@ -479,6 +490,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
           </div>
         )}
         <button
+          data-guide="roleconfirm-submit"
           onClick={() => void save()}
           disabled={busy}
           className="w-full rounded-full bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-50"

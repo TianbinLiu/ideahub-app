@@ -69,6 +69,17 @@ export interface BlockoutTrimmerProps {
   busyNote?: string;
   /** 上一次失败的整句原因（服务端 message 原文透传）。★ 一律显示，不吞 */
   error?: string;
+  /**
+   * 关掉「**AI 看哪几帧**」那一块。
+   *
+   * ★★ 它只服务「AI 把人换成白模人偶」那条路：那一步是**先看后点名** —— 抽几帧列出
+   *   画面里有谁，再照这份清单写白模化提示词。而「本来就是白模片，直接用」那条路
+   *   **根本不做白模化**，它要挑的是"认人量框看哪几帧"，那是另一块（BoxFramePicker），
+   *   由提取器摆在同一屏的 extra 里。
+   * ★ 两块同时出现时，同一屏上会有两个叫法几乎一样的「看哪几帧 / 分析哪几帧」，
+   *   而它们的上限、时机、后果都不同 —— 用户没有任何办法分辨该改哪一个。
+   */
+  hideVisionFrames?: boolean;
   submitLabel?: string;
   /** 宿主往按钮上方塞的自定义表单（标题/补充说明之类）。组件自己不认识那些字段 */
   extra?: ReactNode;
@@ -86,6 +97,7 @@ export default function BlockoutTrimmer({
   error,
   submitLabel = "开始白模化",
   extra,
+  hideVisionFrames = false,
   onSelectionChange,
   onSubmit,
   onCancel,
@@ -283,7 +295,7 @@ export default function BlockoutTrimmer({
       {/* 「AI 看哪几帧」。★ 摆在时间轴**下面、校验与报价上面**是有意的：它复用同一条播放头，
           而它一改，下面那个报价当场就变（帧数就是钱的一半）。这一块自己不说"能不能开炼"
           —— 那句话由下面的 issue 一处说，两处各说一遍用户会以为出了两个错。 */}
-      {geo && sel && (
+      {geo && sel && !hideVisionFrames && (
         <VisionFramePicker
           mode={visionMode}
           onModeChange={setVisionMode}

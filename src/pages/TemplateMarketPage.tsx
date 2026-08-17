@@ -5,6 +5,9 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Link, useNavigate } from "react-router";
 import Icon from "../components/Icon";
+import BoxFramePicker, { boxMarksInSelection, type BoxFrameMode } from "../components/blockout/BoxFramePicker";
+import HelpButton from "../components/guide/HelpButton";
+import { useAutoGuide } from "../components/guide/useAutoGuide";
 // ★ 核对编号那一屏（含"删掉一个角色位"）迁到了 components/blockout/RoleConfirmSheet：
 //   详情页 OwnerBar 要用同一个入口，一份实现两处用（两页各写一份必然分叉）
 import { RoleConfirmEntry } from "../components/blockout/RoleConfirmSheet";
@@ -13,6 +16,7 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 import {
   blockoutJobExpired,
   blockoutJobNote,
+  dismissBlockoutJob,
   browseTemplates,
   deleteTemplateEverywhere,
   detectTemplateRoles,
@@ -20,6 +24,7 @@ import {
   pendingBlockoutIssue,
   pendingBlockoutJobs,
   refVideoIssue,
+  refVideoPoster,
   refVideoRealSec,
   refreshPendingBlockoutJobs,
   refreshRemoteTemplate,
@@ -45,7 +50,26 @@ function fmt(n: number): string {
   return n >= 10000 ? (n / 10000).toFixed(1) + "万" : String(n);
 }
 
-export function TemplateCard({ t, onPick }: { t: VideoTemplate; onPick?: () => void }) {
+export function TemplateCard({
+  t,
+  onPick,
+  guide,
+  guidePick,
+}: {
+  t: VideoTemplate;
+  onPick?: () => void;
+  /** 新手引导的锚点名（落到卡片根元素的 `data-guide`）。
+   *  ★ 必须显式收一个 prop：TemplateCard 自己声明 props、**不透传 `...rest`**，
+   *  调用处直接写 `data-guide` 会被 TS 挡下；而为了挂锚点在外面包一层盒子也不行 ——
+   *  下面那颗 guidePick 更是包不得（见那条注释），两个锚点统一走 prop，
+   *  免得一个包一个不包。 */
+  guide?: string;
+  /** 同上，落到「用它出片」那颗按钮上（卡片与按钮在引导里是两步，各要自己的圈）。
+   *  ★ 这颗尤其不能在外面包一层：按钮是底下那行 `flex … gap-2 p-2.5` 里的 `flex-none` 项，
+   *  套一层 span 之后 flex 项变成了那层盒子（它不带 flex-none），简介那段能占的宽度
+   *  跟着变 —— 而 line-clamp-2 的截断位置就是按这个宽度算的。 */
+  guidePick?: string;
+}) {
   // 走唯一入口 readSocial（模板的互动计数首发仍是本机的——服务端 ASSET_KINDS 还没有
   // "template"，那是 P2 快跟；到那天这里一行不用改，data/social 换个来源就行）。
   // ★ 别在这儿读 likedBy.length —— 数字从哪来只该由 data/social 说了算
@@ -54,14 +78,19 @@ export function TemplateCard({ t, onPick }: { t: VideoTemplate; onPick?: () => v
   // 视频挂在 Link 里面：靠 e.preventDefault() 拦掉 <a> 的默认跳转——预览时点视频
   // 是在操作播放器，不是想进详情页
   const [preview, setPreview] = useState(false);
+  /** 封面：自己上传的那份优先；没有就从模板视频派生一帧。
+   *  ★★ 「自己传白模视频」那条路建出来的模板 `cover` 一直是空串 —— 在此之前那张卡是
+   *    **纯黑**的（`t.cover && <img>` 直接不渲染），看起来像模板坏了。 */
+  const cover = t.cover || refVideoPoster(t.refVideo);
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-700/70 bg-panel">
+    <div data-guide={guide} className="overflow-hidden rounded-2xl border border-slate-700/70 bg-panel">
       <Link to={`/template/${t.id}`} className="block">
         <div className="relative aspect-[16/10] bg-black/40">
           {preview && t.refVideo ? (
             <div className="h-full w-full" onClick={(e) => e.preventDefault()}>
               <video
                 src={t.refVideo.url}
+                poster={cover || undefined}
                 controls
                 autoPlay
                 muted
@@ -70,7 +99,7 @@ export function TemplateCard({ t, onPick }: { t: VideoTemplate; onPick?: () => v
               />
             </div>
           ) : (
-            t.cover && <img src={t.cover} alt="" className="h-full w-full object-cover" />
+            cover && <img src={cover} alt="" className="h-full w-full object-cover" />
           )}
           {t.refVideo && (
             <span className="absolute left-2 top-2 rounded bg-sky-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
@@ -127,7 +156,11 @@ export function TemplateCard({ t, onPick }: { t: VideoTemplate; onPick?: () => v
       <div className="flex items-center gap-2 p-2.5">
         <p className="line-clamp-2 min-w-0 flex-1 text-[11px] leading-relaxed text-slate-400">{t.intro}</p>
         {onPick && (
-          <button onClick={onPick} className="flex-none rounded-full bg-brand px-3 py-1.5 text-[11px] font-bold text-ink">
+          <button
+            data-guide={guidePick}
+            onClick={onPick}
+            className="flex-none rounded-full bg-brand px-3 py-1.5 text-[11px] font-bold text-ink"
+          >
             用它出片
           </button>
         )}
@@ -198,13 +231,25 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
         {blockoutJobNote(job)}
       </p>
       {issue && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{issue}</p>}
-      {!expired && (
+      {!expired ? (
         <button
           onClick={() => void take()}
           disabled={!!busy}
           className="mt-2 w-full rounded-full bg-brand py-2 text-[12px] font-bold text-ink disabled:opacity-50"
         >
           {busy ? "取回中…" : "取回这一发的结果（不额外花钱）"}
+        </button>
+      ) : (
+        /* ★★ 只有**已经过期**的才给这颗（判据在 data 层 dismissBlockoutJob 里再挡一次）：
+             产物过期之后这条凭据在服务端名单里永远留着，而它已经没有任何可做的事 ——
+             不给消除入口的话，用户面对的是一个**永远关不掉**的提醒，久了就把真正
+             还能取回的那几发一起当成背景噪音忽略掉。
+           ★ 措辞不写"删除"：什么都没被删，那笔钱也不会回来，消掉的只是这条提醒。 */
+        <button
+          onClick={() => dismissBlockoutJob(job)}
+          className="mt-2 w-full rounded-full border border-slate-600 py-2 text-[12px] text-slate-300"
+        >
+          知道了，不用再提醒我这一发
         </button>
       )}
       {/* ★ 进度话摆在按钮下面而不是塞进按钮里：它是整句（"生成中 35s（可以退出…）"），
@@ -228,6 +273,9 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
 function DetectRolesEntry({ t }: { t: VideoTemplate }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  /** AI 自己挑帧 / 我自己挑。★ 状态留在这一层：它只影响这一次识别，不进模板 */
+  const [mode, setMode] = useState<BoxFrameMode>("auto");
+  const [marks, setMarks] = useState<number[]>([]);
   // 只对**白模模板**（有参考视频）、**已登记**、**还没有角色位**的自己那条出
   if (!t.refVideo || !t.remoteId || (t.roles?.length ?? 0) > 0) return null;
   if (remoteStateOf(t)?.isOwner === false) return null;
@@ -243,7 +291,14 @@ function DetectRolesEntry({ t }: { t: VideoTemplate }) {
           onClick={() => {
             setBusy(true);
             setMsg("");
-            void detectTemplateRoles(t.id)
+            // ★ 只有「自己挑」且真标了帧才传：`auto` 或一帧没标都发空，
+            //   服务端那边 `pickedFrameCandidates` 退成 null → 自动铺法接手，
+            //   与"没标"完全同一条路径（判据只在服务端一处，这里不另判）
+            //   ★ 即使这条路没有选段（src 就是裁好的模板视频），也要走
+            //     `boxMarksInSelection` —— 它是"标记 → 提交值"的唯一实现。今天两者结果
+            //     相同（marks 插入时已量化+排序+判重），但那个函数再加一条规则时，
+            //     这里手写的一份会**静默分叉**，正是它自己的注释要防的形状。
+            void detectTemplateRoles(t.id, mode === "manual" ? boxMarksInSelection(marks).atSecs : undefined)
               .then((note) => setMsg(note || "认好了 ✓"))
               .catch((e) => setMsg(e instanceof Error ? e.message : String(e)))
               .finally(() => setBusy(false));
@@ -255,12 +310,26 @@ function DetectRolesEntry({ t }: { t: VideoTemplate }) {
         </button>
         {msg && <span className="min-w-0 flex-1 text-[10px] leading-relaxed text-sky-200">{msg}</span>}
       </div>
+      {/* ★★ 挑帧摆在**这一屏**而不是登记那一步：这颗按钮多半是**重试**用的
+          （第一次是登记时自动跑的），而重试正是"自动那条没认全、我来指一帧"的时刻。
+          ★ 报价不随标几帧变：服务端依次试、第一个成的就停，上限本来就是
+            BLOCKOUT_BOX_TRIES —— 标 1 帧和标满都在同一个上限内，报的一直是那个上限。 */}
+      <div className="mt-2">
+        <BoxFramePicker
+          mode={mode}
+          onModeChange={setMode}
+          src={t.refVideo.url}
+          marks={marks}
+          onMarksChange={setMarks}
+          disabled={busy}
+        />
+      </div>
     </div>
   );
 }
 
 /**
- * 作者自己那条模板下面的一行操作：**下架** 与 **删除**。
+ * 作者自己那条模板下面的一行操作：**发布** / **下架** / **删除**。
  *
  * ★★ 为什么摆在列表里而不是只留在详情页：这两件事在此之前**只有详情页有入口**，
  *   而用户想做它们的那一刻，人正站在列表上看着那条模板。少一跳不是省事，是
@@ -286,6 +355,7 @@ function OwnerRow({ t }: { t: VideoTemplate }) {
   if (!isMine) return null;
   // ★ 已发布与否：远端状态拿得到就以它为准（那是权威），拿不到退回本机镜像
   const published = st ? st.status === "published" : t.published;
+  const blocked = st?.status === "blocked";
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);
@@ -301,7 +371,7 @@ function OwnerRow({ t }: { t: VideoTemplate }) {
   }
 
   return (
-    <div className="flex items-center gap-2 px-1">
+    <div data-guide="template-owner-row" className="flex flex-wrap items-center gap-2 px-1">
       {/* 只在**已发布**时给「下架」：没发布的模板本来就不在市场上，摆一颗点了没变化的
           按钮，用户只会以为它坏了（本仓明令禁止「摆一个永远点不动的选项」） */}
       {published && (
@@ -312,6 +382,34 @@ function OwnerRow({ t }: { t: VideoTemplate }) {
         >
           从市场下架
         </button>
+      )}
+
+      {/* ★★ 发布（2026-08-17 补）。在此之前整条发布链路都在（服务端 PATCH …/publish、
+          data.setTemplatePublished、详情页 OwnerBar），**唯独列表里没有入口** ——
+          而这一屏上到处在提发布：待核对那条琥珀提示写着「核对之前不能发布」，空态写着
+          「做一个自己的、发布出来，这里就有了」。都在说发布，却没有一处能发布。
+          当初只加下架/删除的取舍是"别摆点不动的按钮"，发布压根没进那次范围。
+
+          ★★★ 这里**绝不重写服务端那四道闸**（已被平台下架 / 视频时长 / 没试炼过 /
+            角色位未核对）。判据只有 data.setTemplatePublished 一处，失败就把它抛出来的
+            整句原样印在下面（`err`）—— 列表行拿不到、也不该拿试炼闸的解释位。
+          ★★ 但**只印一句话不够**：那几道闸的出路（去出一段片试炼、去核对角色位）
+            全都在详情页。只印错误不给下一步，就是把「点了没反应」从一颗按钮换到另一处
+            （铁律八要的是"响亮 + 有下一步"）。所以失败时紧跟一个「去详情页处理」。
+          ★ blocked 不给按钮：平台下架后作者的 publish/unpublish 服务端两条路由都会 400，
+            这是唯一一种"确定点不动"的状态，照本仓规矩不摆按钮、只说一句话。 */}
+      {blocked ? (
+        <span className="rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300">已被平台下架</span>
+      ) : (
+        !published && (
+          <button
+            onClick={() => void run(() => setTemplatePublished(t.id, true))}
+            disabled={busy}
+            className="rounded-full bg-brand px-2.5 py-1 text-[11px] font-bold text-ink disabled:opacity-40"
+          >
+            {busy ? "发布中…" : "发布到市场"}
+          </button>
+        )
       )}
       <button
         onClick={() => {
@@ -330,7 +428,18 @@ function OwnerRow({ t }: { t: VideoTemplate }) {
       >
         {armed ? "真的删掉？（连云端视频一起）" : "删除"}
       </button>
-      {err && <span className="min-w-0 flex-1 truncate text-[10px] text-rose-300">{err}</span>}
+      {/* ★★ 整句印出来、**不 truncate**：这里躺的是服务端那四道闸的原话（「还没核对」
+          「发布前须真实出过一次片」…），截成一行省略号等于没说。改造前它是 truncate 的，
+          而那时行里还没有会失败的操作 —— 加了发布之后这一条就变成了主要的信息出口。
+        ★ 「去详情页处理」是那句话的**下一步**：试炼与核对的入口都只在详情页。 */}
+      {err && (
+        <p className="w-full text-[10px] leading-relaxed text-rose-300">
+          {err}{" "}
+          <Link to={`/template/${t.id}`} className="font-bold text-sky-300 underline">
+            去详情页处理
+          </Link>
+        </p>
+      )}
     </div>
   );
 }
@@ -338,6 +447,8 @@ function OwnerRow({ t }: { t: VideoTemplate }) {
 export default function TemplateMarketPage() {
   const ver = useTemplatesVersion();
   useSocialVersion();
+  // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；那颗 ? 随时能重看）
+  useAutoGuide("templates");
   const nav = useNavigate();
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"market" | "mine">("market");
@@ -394,12 +505,16 @@ export default function TemplateMarketPage() {
         </button>
         <h1 className="text-base font-bold text-slate-100">视频模板</h1>
         <span className="ml-auto text-[11px] text-slate-500">套上模板，一句话出片</span>
+        <HelpButton tour="templates" />
       </div>
 
       <div className="mb-3 flex gap-2">
         {(["market", "mine"] as const).map((t) => (
           <button
             key={t}
+            // 引导只圈「我的模板」那颗（market 那颗给 undefined = 不渲染这个属性，
+            // 与改造前的 DOM 一模一样）
+            data-guide={t === "mine" ? "templates-tab-mine" : undefined}
             onClick={() => setTab(t)}
             className={`rounded-full px-3.5 py-1.5 text-xs font-semibold ${tab === t ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
           >
@@ -469,9 +584,17 @@ export default function TemplateMarketPage() {
       )}
 
       <div className="space-y-3">
-        {list.map((t) => (
+        {list.map((t, i) => (
           <div key={t.id} className="space-y-1.5">
-            <TemplateCard t={t} onPick={() => pick(t)} />
+            {/* 引导锚点只挂第一张。这一屏是竖着滚的长列表、不是轮播，第一张不会横向滑走，
+                所以用下标判就够（CreatePage 那边必须跟着当前页走，是因为三张并排且都在 DOM 里）。
+                挂满每一张也没用：GuideOverlay 拿的是 querySelector 的第一个。 */}
+            <TemplateCard
+              t={t}
+              onPick={() => pick(t)}
+              guide={i === 0 ? "template-card" : undefined}
+              guidePick={i === 0 ? "template-pick" : undefined}
+            />
             {/* 核对编号的入口（两档：待核对 = 琥珀拦路条；核对过了 = 低调的"重新核对"）。
                 ★★ 第二档不是锦上添花：作者多半是**确认完之后**才发现画面上有两个一样的号，
                   而"删掉那个找不到的位子"就在这一屏里 —— 没有常驻入口的话，他唯一的出路

@@ -104,6 +104,25 @@ export function myTemplates(): VideoTemplate[] {
   return extra.length ? [...mine, ...extra].sort((a, b) => b.createdAt - a.createdAt) : mine;
 }
 
+/**
+ * 「这一条在**本机库**里吗」—— 与 `myTemplates()` 有意分开的一个更窄的问题。
+ *
+ * ★★ 为什么必须单独有它（2026-08-17 修一个自己造的静默故障）：`myTemplates()` 从
+ *   加了 `mineRemote` 那一刻起就是**并集**（本机 + 服务端上本机没有的那些），
+ *   而详情页的 `inMine` 一直是用 `myTemplates().some(...)` 算的。于是换设备/重装后：
+ *     · 「这台设备上没有它的本机记录（换了设备？）」那句话**永远不再显示**；
+ *     · 标题/简介输入框与「保存」照常渲染，而 `updateTemplate` 在 `mine` 里找不到就
+ *       **静默 return** —— 点保存什么都不会发生，零报错。
+ *   那正是那段注释当初要防的「保存了却什么都没发生的假按钮」，被并集悄悄破坏了。
+ * ★ 判据只问 `mine`：能被 `updateTemplate` 写到的**就只有这一份**。谁把它改成
+ *   `myTemplates()`，症状就是上面那两条，且照样零报错。
+ * ★ 与 `OwnerRow` 的 `isMine`（"是不是我的"）不是一个问题：那一个问归属（并集里就算），
+ *   这一个问"改得动吗"。两处措辞相近但语义不同，别合并。
+ */
+export function hasLocalTemplate(id: string): boolean {
+  return mine.some((t) => t.id === id);
+}
+
 export function getTemplate(id: string): VideoTemplate | null {
   return (
     mine.find((t) => t.id === id) ??
@@ -489,10 +508,41 @@ export async function makeOwnRefTemplate(o: {
   clip: { startSec: number; durSec: number; crop: { x: number; y: number; w: number; h: number } };
   title: string;
   intro?: string;
+  /**
+   * 用户自己标的分析帧，**已经换算成"裁剪后那段视频内的第几秒"**。
+   * ★★ 换算责任在调用方（提取器）而不是这里：用户是对着**原片**拖时间轴标的，
+   *   而认人量框是在**裁剪后**那份派生视频上做的 —— 两者的零点差着 `clip.startSec`。
+   *   不减这一下，标的每一帧都会偏移选段起点那么多秒，而画面照样出得来、零报错。
+   * ★ **不给（undefined）** = 用户选的是「自动」，服务端按几何位置铺（判据只在服务端一处）。
+   * ★★ **给了但是空数组** = 用户选的是「自己挑」、而一帧都没能用上 —— 这条**响亮拒绝**，
+   *   见下面函数体最上面那道门。两者必须分得开，所以调用方传的是
+   *   `manual ? boxMarksInSelection(...).atSecs : undefined`，绝不把 auto 也传成 []。
+   */
+  atSecs?: number[];
   onStep?: (note: string) => void;
 }): Promise<{ id: string; note: string }> {
   const say = o.onStep ?? (() => {});
   if (!remoteOn()) throw new Error("现在连不上服务器——联网后再做模板");
+
+  // ★★★ 「自己挑帧」却一帧都没能用上 —— **响亮拒绝，不许悄悄退回自动**。
+  //   与 blockoutizeTemplate 那道门同一条理由（那边逐字写着「不许悄悄退回自动」）：
+  //   空数组会被 api/branch 的 `atSecs && atSecs.length ? {atSecs} : {}` 变成空请求体，
+  //   服务端于是按几何位置自己铺帧 —— 而用户界面上顶着「已标 N/5」，一帧都没用上，
+  //   且这一步是**付费**的。这个功能存在的全部理由就是自动铺法在有分镜的素材上认不准。
+  // ★ 位置必须在这儿（deriveTemplateVideo 之前）：放到认人那一步才拒的话，裁剪与登记
+  //   都已经做完，用户拿到一个半成品模板还挨一句报错。
+  // ★★ 这道门**只判空，不做任何规范化** —— 别把 blockoutizeTemplate 的 Math.round 抄过来：
+  //   那条路的栅格是**整数秒**（服务端 zod 收整数），这条是 **0.5 秒**
+  //   （BoxFramePicker.BOX_FRAME_QUANT，对齐服务端 pickedFrameCandidates）。
+  //   抄一个 round 进来会把 3.5s 塌成 4s、还可能把 3.5 与 4.0 去重成一帧，
+  //   那正是"同一个量化写两处"的第二份实现。
+  // ★ 措辞要同时覆盖两种成因：标了但全落在选段外（选段后来被拖过），以及压根一帧没标。
+  //   只说前一种的话，第二种用户会对着一句不成立的解释找不着北。
+  if (o.atSecs && o.atSecs.length === 0) {
+    throw new Error(
+      "你选了「自己挑」分析帧，但一帧都没能用上——要么还没标，要么标的那几帧都落在选中的这一段外面（选段后来被拖动过）。回去在选段里标至少 1 帧，或者切回「自动」。",
+    );
+  }
 
   say("正在裁出你框选的那一段…");
   const cut = await uploadsApi.deriveTemplateVideo(o.receipt.publicId, o.clip);
@@ -521,7 +571,7 @@ export async function makeOwnRefTemplate(o: {
   say("AI 正在认画面里有哪些人…（要一到几分钟）");
   let note = "";
   try {
-    note = await detectTemplateRoles(id);
+    note = await detectTemplateRoles(id, o.atSecs);
   } catch (e) {
     // ★ 认人失败**不算整件事失败**：模板已经建好，列表里那颗「识别角色位」能重来。
     //   把原因原样带回去 —— 编一句"稍后再试"会让作者以为是网络问题。
@@ -543,17 +593,28 @@ export async function makeOwnRefTemplate(o: {
  * ★ 这一发**花钱**（认人 + 量框都是计费的 chat，报价见 economy.ownRefTemplateCost），
  *   所以只在用户点了之后调，绝不做成自动轮询重试。
  *
+ * @param atSecs 用户自己标的那几帧 —— **「要分析的那段视频」上的第几秒**（不是原片时间轴：
+ *   提取器那条路在调用前已经减掉过选段起点）。⚠ 一律是**升序去重**的，不是"按他标的顺序"：
+ *   两个调用点给进来的都排过序。服务端是依次试、第一个成的就停，所以别以为用户能把
+ *   最有把握的那一帧排到最前面先试 —— 他做不到。不给 = 服务端按几何位置
+ *   自动铺（1/2 → 1/4 → 3/4 → 1/8 → 7/8）。
+ *   ★★ 为什么要给用户这条路：自动铺法不知道**分镜在哪**。2026-08-17 实测同一段 15 秒
+ *     群舞里画面人数在 8→7→5→6 之间跳，同一个人在不同镜头里的「从左数第几个」都不一样 ——
+ *     而看得见画面的人挑得出"人最齐、最能代表这一段"的那一帧。
+ *   ★ 上限与量化只在服务端一处（`pickedFrameCandidates`）。这里不截、不排序、不去重：
+ *     每试一帧就是一笔钱，两处各判一次 = 报价与实收分家。App 要做的是**在标记界面上
+ *     就不让他标超**，而不是发送前偷偷改掉他标好的东西。
  * @returns 一句给用户看的话（"" = 全都拿到了，不用说什么）
  * @throws message 可直接显示（含 409「正在识别中」那一句）
  */
-export async function detectTemplateRoles(id: string): Promise<string> {
+export async function detectTemplateRoles(id: string, atSecs?: number[]): Promise<string> {
   // ★ 三份都要找：本机库、**我在服务端的那份**（换设备后就只有它）、市场缓存。
   //   漏掉 mineRemote 的表现是"列表里明明有这一条，点识别却说不在本机库里"
   const t = mine.find((x) => x.id === id) ?? mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
   if (!t) throw new Error("这个模板不在本机库里");
   if (!t.remoteId) throw new Error("这个模板还没登记到服务器，先登记再识别角色位");
   if (!remoteOn()) throw new Error("现在连不上服务器——联网后再识别");
-  const out = await branch.detectTemplateRoles(t.remoteId);
+  const out = await branch.detectTemplateRoles(t.remoteId, atSecs);
   if (!out) throw new Error("这台服务器不支持识别角色位（回包形状不对，可能需要升级服务端）");
   const api = out.template;
   if (api) {
@@ -1132,6 +1193,36 @@ export function shrunkSecText(inputSec: number): string {
 }
 
 /**
+ * 从模板视频的地址派生一张**封面帧**（jpg）。拿不到就返回 ""。
+ *
+ * ══ 为什么用派生而不是另存一张封面（2026-08-17）══════════════════════════
+ * 「自己传白模视频」那条路建出来的模板 `cover` 一直是空串 —— 于是「我的模板」里
+ * 那张卡是**纯黑**的，详情页的参考视频在点播放之前也是**纯黑**（Android WebView 下
+ * `<video>` 没有 poster 就不画首帧）。两处是同一个缺口。
+ * 补一张真封面要多一次抓帧 + 上传 + 存储，而我们手上已经有那段视频在 Cloudinary 上，
+ * 它本来就能按 URL 投递任意一帧 —— 零存储、零上传，而且**永远与视频一致**
+ * （换了视频封面自动跟着变，不会出现"封面还是上一版"）。
+ *
+ * ★ 取第 1 秒而不是第 0 帧：很多片子第一帧是黑场/淡入，取 0 会得到一张黑图 ——
+ *   那正是这个函数要解决的问题本身。
+ * ★ 只认规范形态的上传地址（`/video/upload/` 且没有别的变换）：这一位存的是服务端
+ *   写进库的 `secure_url`，形状是固定的。匹配不上就返回 "" —— 宁可没有封面，
+ *   也不要拼一个 404 的地址（那会让卡片从"黑的"变成"破图标"，更难看也更难查）。
+ * ★ 宽度 640：卡片与详情页都用得上，再大只是白下载。
+ */
+export function refVideoPoster(ref: VideoTemplate["refVideo"]): string {
+  const url = ref?.url ?? "";
+  const at = url.indexOf("/video/upload/");
+  if (!url.startsWith("https://") || at < 0) return "";
+  const head = url.slice(0, at + "/video/upload/".length);
+  const tail = url.slice(at + "/video/upload/".length);
+  // 已经带了变换（含 `,` 或以 `so_`/`w_` 之类开头的那一段）就不碰它 —— 我们只认规范形态
+  if (/^[a-z]{1,3}_[^/]*\//.test(tail)) return "";
+  const noExt = tail.replace(/\.[a-z0-9]+$/i, "");
+  return `${head}so_1,w_640/${noExt}.jpg`;
+}
+
+/**
  * 模板视频文件的**真实**时长（秒）。缺 = 老数据/老服务端，返回 null（**当好**，不是当坏）。
  * ★ 它不是计价锚点（那是 `refVideo.durationSec`），只用于如实展示与下面这条判据。
  */
@@ -1207,6 +1298,96 @@ export function refVideoOwnerNote(ref: VideoTemplate["refVideo"]): string | null
  *   （画面上真有那个标记），只是挂不了卡 —— 见 `splitCastRoles` 与 RoleCastBoard。
  */
 export const BLOCKOUT_MAX_ROLES = 9;
+
+/**
+ * 「这段素材里有没有一个**压倒性的角色**」—— 有就返回一句给作者看的整话，没有返回 null。
+ *
+ * ⚠⚠⚠ **现在全仓零调用，而且这份判据已经被实测推翻。别原样接回任何界面。**
+ *   ① 零调用是有意的，不是漏接：挂卡面板上那条黄色警告是用户**明确要求删掉**的
+ *      （每次挂卡都出现、又给不出下一步的提醒 = 背景噪音）；登记完那一屏也没有接。
+ *      函数体留着只为一件事 —— 别把下面那几发付费实测的**结论**跟着实现一起删掉。
+ *      （曾经的注释在这里写着"登记那一屏与挂卡面板读的是同一个函数"，那是**旧行为**。）
+ *   ② **它抓的是错的那个变量**（2026-08-17，又六发付费实测）：把那个红色主舞
+ *      **推到画面边缘**之后，它**没有**被选中；而"居中"单拎出来也不足以决定胜负。
+ *      ⇒ "颜色跟别人不一样"只是**伴生现象** —— 08-17 那段素材里"红色"和"主角"恰好
+ *      是同一个人，于是判颜色看起来很准。下面这份实现判的正是颜色异类，它准的是那个巧合。
+ *   ③ 要重新启用，判据得换成「**画面里有没有一个明显居中、且占画面比例大的人**」
+ *      （位置 + 面积一起看，颜色出局）。**但那两个阈值现在标不出来**：面积那条 08-17
+ *      量过（见下），两个样本挨得太近划不出线；位置那条一个实测数都还没有。
+ *      ⇒ **先补实测再定阈值**，别把下面这份颜色实现改个名字接着用
+ *      （本仓纪律：数值不许拍脑袋）。这也是这次只改注释、**不动实现**的原因：
+ *      改判据需要新的一轮标定，那是另一件事。
+ *
+ * ══ 证据①：序数在有主角的素材上会失效（2026-08-17，四发付费实测 ¥35.2）══════
+ * 在「都市主角群舞转场」这段素材上（7 个人偶，其中一个是**红色**主舞）连打四发：
+ *   ① 单个序数点名红色主舞      → 换的是红色 ✅
+ *   ② 跨分镜、单个序数点名红色  → 换的是红色 ✅
+ *   ③ 单个序数点名一个**白模**  → 换的仍是**红色** ❌
+ *   ④ **按时间区间分段**、每一镜各写对序数、点名一个白模 → 换的仍是**红色** ❌
+ * 四发合起来只有一个解释：**在这段素材上序数根本没起作用，赢的永远是那个最显眼的角色**。
+ * ①② 之所以看起来"对"，只是因为点名的恰好就是它 —— 那两发是假阳性。
+ * 对照：公园那段（5 个一模一样的白模、单镜头、没有主角）用最朴素的单个序数 12/12 全对。
+ * ⇒ 决定成败的不是分镜、不是提示词写法，是**画面里有没有一个压倒一切的角色**。
+ *   这条结论 08-18 复测仍然成立 —— 被推翻的是下面"怎么认出那个角色"这一步。
+ *
+ * ══ 证据②：那个"压倒一切"跟颜色无关（2026-08-17，六发付费实测）════════════
+ * 把红色主舞**推到画面边缘**：它没被选中（颜色照旧异类，结果变了 ⇒ 颜色不是原因）。
+ * 把一个白模挪到正中：也没能单独把胜负拉过来 ⇒ 居中也不是**单独**的原因。
+ * ⇒ 真正的信号在"**居中 + 占画面比例大**"这一对上，而不在外观颜色上。
+ *
+ * ══ 已经量过的数（留给下一次标定，别重复花钱）══════════════════════════
+ * · 框面积（想用"谁明显更大"当信号）：公园（阴性，12/12 全对）最大/中位 = **1.11**；
+ *   群舞（阳性，序数失效）最大/中位 = **1.33**。两个数太近，两个样本划不出线。
+ * · 外观众数（下面这份实现用的，**已被 08-18 推翻**）：群舞主色 白,白,白,红,白,白,白
+ *   → 众数占 6/7、恰好一个例外 → 命中；公园主色 红,蓝,金,绿,紫 → 没有众数 → 不命中。
+ * · 位置（居中度）：**没有数**。
+ * ⚠ 真要重新启用，它也只能是**尽力而为**的提示，与帧角水印探测同一性质：漏报 =
+ *   退回现状（不多说一句话），误报 = 作者看到一句可以忽略的提醒。所以措辞里必须写明
+ *   "看错了直接忽略"，绝不能写成断言。
+ */
+const COLOR_WORDS = ["白", "红", "橙", "黄", "绿", "青", "蓝", "紫", "粉", "黑", "灰", "金", "银", "棕"];
+
+/** 一条描述里**第一个**出现的颜色词 —— 它就是这个人的"主色"。没有颜色词返回 "" */
+function primaryColor(desc: string): string {
+  let best = "";
+  let at = Infinity;
+  for (const c of COLOR_WORDS) {
+    const i = desc.indexOf(c);
+    if (i >= 0 && i < at) {
+      at = i;
+      best = c;
+    }
+  }
+  return best;
+}
+
+/** 少于这个人数不判：两三个人的画面里"一个不一样"是常态，不是压倒性主角 */
+const DOMINANT_MIN_ROLES = 4;
+
+/**
+ * ⚠⚠ **当前零调用，判据已被 2026-08-17 的六发实测推翻**（颜色被排除，见上面那段长注释）。
+ * 直接接进界面 = 给作者看一句不准的话。要用先按"居中 + 占比"重新标定判据。
+ */
+export function dominantRoleWarning(roles: VideoTemplate["roles"]): string | null {
+  const list = (roles ?? []).filter((r) => r.desc);
+  if (list.length < DOMINANT_MIN_ROLES) return null;
+  const colors = list.map((r) => primaryColor(r.desc));
+  if (colors.some((c) => !c)) return null; // 有人没写颜色 —— 判不了，别猜
+  const tally = new Map<string, number>();
+  for (const c of colors) tally.set(c, (tally.get(c) ?? 0) + 1);
+  // ★ 「恰好一个例外」：众数占了除一人以外的全部。放宽到"两个例外"会把
+  //   "两个主角对打"这种正常构图也报进来，而那类素材我们没有任何实测
+  let modal = "";
+  let modalN = 0;
+  for (const [c, n] of tally) if (n > modalN) [modal, modalN] = [c, n];
+  if (modalN !== list.length - 1) return null;
+  const odd = list[colors.findIndex((c) => c !== modal)];
+  if (!odd) return null;
+  // ★ 纯文本，**不带 markdown 星号**：这句话是要被直接塞进 JSX 的（删掉的那处调用方就是
+  //   `{dominantNote}`），写 `**…**` 会原样显示成星号。将来重新接的话也保持这一条 ——
+  //   要加粗由调用方拆句子，不在这里混排版
+  return `这段素材里有 ${modalN} 个人偶是「${modal}」的，只有「${odd.label}」不是（${odd.desc}）。实测这种情况下，挂卡多半会挂到那个最显眼的人身上——不管你挂给谁。出片后请对着画面核对一遍。看错了直接忽略。`;
+}
 
 /**
  * 角色位 → 「能挂卡的」与「超出上限的」两摞。**唯一实现**：挂卡面板（渲染那一处）与
@@ -1467,17 +1648,87 @@ function sortJobs(list: BlockoutJob[]): BlockoutJob[] {
 }
 
 /**
+ * 「这几发**取不回来了**、别再提醒我」—— 本机忽略名单（只存 jobId）。
+ *
+ * ══ 为什么必须有它（2026-08-17 用户反馈）══════════════════════════════
+ * 产物过期之后，那条凭据在服务端名单里**永远留着**（它记录的是一笔已经付过、
+ * 无法挽回的钱，服务端没有理由删它）。而 App 这边照实把它显示成"你还有一发没取回"，
+ * 于是用户点取回 → 失败 → 那句话**还在**，且没有任何办法让它消失。
+ * 一个永远关不掉的提醒，比不提醒更糟：它把"这里有件事要处理"降级成了背景噪音。
+ *
+ * ★★★ **只有已经过期的才允许忽略** —— 没过期的那些里面还躺着**能取回来的钱**，把它藏起来
+ *   正是两阶段设计存在的全部意义的反面（见文件里 BlockoutJob 那段：没有这个入口，用户就是
+ *   "钱花了、结果没了、还不知道该去哪找"）。谁把这条门禁放宽，症状是用户再也看不到自己
+ *   有一发能领 —— 零报错。
+ * ★★ 这条门禁**在过滤那一侧执行**，不是在点击那一侧（2026-08-17 收口）：名单里存的是
+ *   jobId，一存就存到卸载为止，而"过期没过期"是**随时间变的**。只在写入那一拍判一次的话，
+ *   这条不变量就只在那一拍成立，之后永不复核 —— 名单被脏数据污染（localStorage 是用户
+ *   可写的）、或者将来过期判据变了（服务端延长留存、补发 expiresAt），那笔**还能取回来的钱**
+ *   就被一条早年的记号永久藏了起来，且零报错。所以 `pendingBlockoutJobs` 每次读都
+ *   重新问一遍 `blockoutJobExpired`。
+ *   ⚠ 这不是"同一条规则写了两遍"：两处问的都是**同一个** `blockoutJobExpired`（过期的唯一
+ *   实现）。写入侧那道只是"别往名单里塞垃圾"，**真正的门禁是读那一侧**。
+ * ★ 因此不需要单独的「解除忽略」入口：一条记号只在"这一发此刻仍然是过期的"时才生效 ——
+ *   真出现"它又能取回了"（服务端延了留存 / 补了 expiresAt），它**自己就回到列表里**了。
+ *   而只要它还是过期的，解除的唯一效果就是把一条**永远失败**的提醒放回去，那正是这整段
+ *   要消掉的东西。（想连本机记号一起抹掉：清掉本 key 即可 —— 它只是阅读状态。）
+ * ★ 落 localStorage 而不是服务端：这是"我知道了"这类**这台设备上的阅读状态**，
+ *   不是需要跨设备一致的事实。换设备后再看到一次不是故障。
+ * ★ 不做淘汰：一发白模化 = 一笔钱，名单量级是个位数的短字符串，没有值得写代码去省的空间；
+ *   而"按 pendingJobs 反向清理"在缓存还没到货那一拍会**误删**，反倒把提醒放回来。
+ */
+const JOB_HIDE_KEY = "ideahub-app.blockoutJobs.hidden.v1";
+
+function readHiddenJobs(): Set<string> {
+  try {
+    const raw = localStorage.getItem(JOB_HIDE_KEY);
+    const arr: unknown = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+let hiddenJobs = readHiddenJobs();
+
+/**
+ * 把一发**已经过期**的凭据从提醒里去掉。
+ * ★ 这里拒掉没过期的只是"别往名单里塞垃圾"；**真正的门禁在 `pendingBlockoutJobs` 的过滤**
+ *   （那边每次读都复核一遍过期）。所以就算这一道被绕过去，能取回的钱也藏不住。
+ */
+export function dismissBlockoutJob(job: BlockoutJob): void {
+  if (!blockoutJobExpired(job)) return;
+  hiddenJobs = new Set([...hiddenJobs, job.jobId]);
+  try {
+    localStorage.setItem(JOB_HIDE_KEY, JSON.stringify([...hiddenJobs]));
+  } catch {
+    /* 存不下：这一次会话内不再提（内存里那份还在），下次启动会再出现一次。
+       比整块崩掉好，也没有任何值得报给用户的东西 */
+  }
+  emit();
+}
+
+/**
  * 本账号**还没取回结果**的白模化（同步返回缓存，第一次调用触发后台拉取，到货 emit）。
  *
  * ★★ 这份名单**只有服务端说得准**，本机不存第二份：凭据的归属/状态/过期时刻都在那边，
  *   而"结果丢了"最典型的场景恰恰是**进程被系统回收**（本机 state 一起没了）——
  *   那时服务端那份是唯一还在的。本机再存一份就是两处真相，换设备后还必然是错的那份。
+ *   （上面那份忽略名单不违反这一条：它存的是"我看过了"，不是凭据本身。）
  * ★ 空数组既可能是"真的没有"，也可能是"还没到货/老服务端"。要区分就看
  *   `pendingBlockoutIssue()`（拉失败会说话）——界面据此决定要不要显示"加载失败"。
  */
 export function pendingBlockoutJobs(): BlockoutJob[] {
   if (remoteOn()) ensurePendingJobs();
-  return pendingJobs;
+  // ★ 过滤在**出口**一处做：所有读方（市场页那张卡、提取器的提醒）看到的是同一份名单，
+  //   在各调用点各滤一次必然漏一处，而漏掉的那处会继续显示一个已经被消掉的提醒
+  // ★★ 名单只是「我知道了」的**记号**，不是"可以藏起来"的授权：真正的门禁是右边这半句
+  //   —— 每次读都重新问一遍 `blockoutJobExpired`。记号会留到卸载为止，而"过期"随时间变，
+  //   只在点击那一拍判过就再也不复核的话，一条被污染/过时的记号会把**还能取回来的钱**
+  //   永久藏掉（零报错）。判据本身仍然只有 `blockoutJobExpired` 一处实现。
+  return hiddenJobs.size
+    ? pendingJobs.filter((j) => !(hiddenJobs.has(j.jobId) && blockoutJobExpired(j)))
+    : pendingJobs;
 }
 
 /** 待取回列表这一拍没到货的原因（空串 = 一切正常）。别让"拉挂了"伪装成"你没有待取回的" */

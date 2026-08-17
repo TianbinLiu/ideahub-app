@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router";
+import GuideGate from "./components/guide/GuideGate";
 import FeedPage from "./pages/FeedPage";
 import DiscoverPage from "./pages/DiscoverPage";
 import WorkshopPage from "./pages/WorkshopPage";
@@ -137,6 +138,10 @@ export default function App() {
       <OauthDeepLinkBridge />
       <OrientationGuard />
       <UpdateGate />
+      {/* 新手引导的遮罩。★ 必须在 <Routes> **外面**：每一页自己的根容器多半是
+          `fixed inset-0`（首页/创作页/剪辑页/工作流页），挂在里面会跟着路由卸载，
+          而遮罩要能盖住任何一页。弹哪一份由每一屏自己 useAutoGuide 声明。 */}
+      <GuideGate />
       <Routes>
       <Route element={<TabLayout />}>
         <Route path="/" element={<FeedPage />} />

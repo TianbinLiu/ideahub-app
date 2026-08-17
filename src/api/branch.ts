@@ -1260,12 +1260,27 @@ export async function patchTemplateRoles(
  * ★ 409 = 「正在识别中」（服务端那把并发锁）—— 不是错误，是"等一下再来"。
  * @returns 服务端回的整份模板 + `note`（三档结果里非全成的那两档才有）
  */
+/**
+ * @param atSecs 用户自己在编辑页标的那几帧（绝对秒）。不给 = 服务端按几何位置自动铺
+ *   （1/2 → 1/4 → 3/4 → 1/8 → 7/8）。
+ *   ★★ 上限与量化**全在服务端** `blockout.pickedFrameCandidates` 一处，这里原样发出去、
+ *     一个字都不校验：判两遍就是两处规则，而这条路上「多试一帧 = 多花一笔钱」，
+ *     两处对上限的理解漂移会直接变成报价与实收不等。App 侧要挡的是**让用户标不出**
+ *     超限的帧（标记界面上的上限），不是在发送前偷偷截掉他已经标好的。
+ * ★ 老服务端收到这个字段会原样忽略 —— **去服务端核实过**（2026-08-17）：
+ *   `POST /templates/:id/detect-roles` 那条路由上只有 requireAuth + 限流，
+ *   **没有挂任何 zod/validate 中间件**，所以未声明的 body 字段既不会被 strip 掉也不会 400，
+ *   而是根本没人读。⚠ 哪天给这条路由加了 schema，这个结论要重新验一次
+ *   （zod 的 strict 会 400，strip 才是忽略）——
+ *   降级方向是"退回自动铺法"，不是失败，所以不需要能力探测。
+ */
 export async function detectTemplateRoles(
   id: string,
+  atSecs?: number[],
 ): Promise<{ template: ApiBranchTemplate | null; detected: number; boxed: number; note: string } | null> {
   const res = await apiPost<Record<string, unknown>>(
     `/api/branch/templates/${encodeURIComponent(id)}/detect-roles`,
-    {},
+    atSecs && atSecs.length ? { atSecs } : {},
   );
   if (!res || typeof res !== "object") return null;
   return {

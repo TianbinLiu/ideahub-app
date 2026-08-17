@@ -10,6 +10,8 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
+import HelpButton from "../components/guide/HelpButton";
+import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { flowDirty, useFlow } from "../studio/flowStore";
 import { useStudio } from "../studio/studioStore";
 
@@ -92,6 +94,8 @@ const MODES: Mode[] = [
 
 export default function CreatePage() {
   const navigate = useNavigate();
+  // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；那颗 ? 随时能重看）
+  useAutoGuide("create");
   const railRef = useRef<HTMLDivElement>(null);
   const [at, setAt] = useState(0);
   // 在途工作流保护：seedSolo 是整表覆盖，直接进会静默抹掉已出片的段（每段真金白银 +
@@ -116,6 +120,7 @@ export default function CreatePage() {
         </button>
         <span className="font-bold text-slate-100">开始创作</span>
         <span className="flex-1 text-right text-xs text-slate-500">左右滑动挑一种</span>
+        <HelpButton tour="create" />
       </header>
 
       {/* 卡片轨 + 贴左右边缘垂直居中的翻页箭头 */}
@@ -174,6 +179,11 @@ export default function CreatePage() {
                     ))}
                   </ul>
                   <button
+                    // 引导高亮只挂在**当前这一张**上：轮播是三张并排、靠 scroll 吸附，
+                    // 非当前那两张仍在 DOM 里且 getBoundingClientRect 返回非零宽高（只是
+                    // 在视口外），写死 i === 0 会在用户已划到第二张时把圈画到屏幕外，而
+                    // 「找不到锚点就退成居中卡片」的兜底判的是元素存在与否，根本不会触发。
+                    {...(i === at ? { "data-guide": "create-cta" } : {})}
                     onClick={() => (m.resets && flowDirty(flowNodes) ? setPending(m) : m.go(navigate))}
                     className={`mt-4 w-full rounded-2xl py-3 text-sm font-bold transition active:scale-[0.98] ${
                       m.light ? "bg-ink text-white" : "bg-white/90 text-ink"
@@ -206,7 +216,7 @@ export default function CreatePage() {
       </div>
 
       {/* 页点：翻页箭头已经贴在轨道两侧，这里只留位置指示 */}
-      <div className="safe-bottom flex flex-none items-center justify-center gap-2 py-3">
+      <div data-guide="create-dots" className="safe-bottom flex flex-none items-center justify-center gap-2 py-3">
         {MODES.map((m, i) => (
           <button
             key={m.key}

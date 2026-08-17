@@ -2,6 +2,8 @@
 // 互动视频（带 branchTree）在流里播开场段，点"进入互动"跳详情页做分支选择。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
+import HelpButton from "../components/guide/HelpButton";
+import { useAutoGuide } from "../components/guide/useAutoGuide";
 // 收藏取两边之长：**状态**用账号库（挂在用户对象上，刷新/换账号都还在），
 // **计数**用 videos 的 saves（TikTok 版式右栏要显示数字）。
 // videos 那套的 savedIds 是模块级 Set，刷新即丢，单用它收藏态会莫名消失；
@@ -76,6 +78,7 @@ function RailBtn({
   label,
   perch,
   className = "",
+  guide,
   onClick,
 }: {
   icon?: IconName;
@@ -89,6 +92,11 @@ function RailBtn({
    *  姿势同时决定贴图、翻页帧和进出场动画（见 CharacterPerch）。 */
   perch?: PerchPose;
   className?: string;
+  /** 新手引导的锚点名（落到 `data-guide`）。★ 这一颗**必须显式收一个 prop**：
+   *  RailBtn 不透传 `...rest`，直接写 data-guide 会被 TS 挡下；而在外面包一层 span
+   *  会改变这一栏的高度 —— 那是量出来的（整栏 512px + 底 104px，640 高的屏只剩 24px 余量，
+   *  超了会被 section 的 overflow-hidden 把最上面的头像裁掉，见下面 mt-8 那段注释）。 */
+  guide?: string;
   onClick: () => void;
 }) {
   // 只在 false→true 的跳变时播一次；划回一条早就点过赞的视频不该重播（见 usePerchBurst）
@@ -96,6 +104,7 @@ function RailBtn({
   return (
     <button
       onClick={onClick}
+      data-guide={guide}
       /* ★ mt-8 挂在【有角色演出的键】自己身上，而不是整栏一个大 gap。
          激活态的角色会从图标顶沿向上探出约 45px，压住**上一个键的计数数字**
          （实测收藏后评论数「3」整个消失，计数是信息，装饰盖掉信息就是回退）。
@@ -507,7 +516,7 @@ function FeedItem({
       {/* 进度条（对标抖音）：底缘常驻细条 + 右下角小字 当前/总时长；
           可拖动跳转，拖动中变粗并在画面中央显示大字时间；缓冲时进度条位置改播脉冲线 */}
       {active && !immersive && seg?.videoUrl && wantSrc && prog.d > 0 && (
-        <div className="absolute inset-x-0 z-20" style={{ bottom: "calc(var(--tabbar-h) - 0.375rem)" }}>
+        <div data-guide="feed-progress" className="absolute inset-x-0 z-20" style={{ bottom: "calc(var(--tabbar-h) - 0.375rem)" }}>
           <div className="mb-0.5 flex justify-end pr-3">
             <span className="text-[10px] tabular-nums text-white/70 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
               {formatDuration(scrub != null ? scrub * durTotal : durBefore + prog.t)} / {formatDuration(durTotal)}
@@ -596,6 +605,12 @@ function FeedItem({
           /* gap-2 是**基准**净空；会探头的键（点赞/收藏）自己再加 mt-8 补到 40px，
              见 RailBtn 里的说明。按键本身 min-h 56px、内容只有 46px，
              所以 8px 的 gap 读出来其实是 18px 的空气，不挤。 */
+          // ★★ 只给**当前这一条**挂锚点（与下面 feed-progress 同款门控）：首页同时渲染
+          //   前后各两屏的 FeedItem，而 `document.querySelector` 取的是 DOM 里**第一个** ——
+          //   用户划到第 N 条再点那颗 ?，圈会画在当前项上面两屏、也就是视口外。
+          //   而"找不到锚点就退成居中卡片"那条兜底**不会救**：元素是存在的，
+          //   off-screen 元素的 getBoundingClientRect 照样返回非零宽高。
+          {...(active ? { "data-guide": "feed-rail" } : {})}
           className="flex flex-col items-center gap-2"
         >
           {/* 头像 + 关注：未关注时下挂一个 + 号，点了变对勾后淡出（TikTok 同款反馈）。
@@ -672,6 +687,7 @@ function FeedItem({
             两种画幅点下去做的事不同，字也就不同：横屏转屏占满，竖屏收起边角元素。 */}
         <RailBtn
           icon="expand"
+          guide={active ? "feed-fullscreen" : undefined}
           label={shownAspect === "landscape" ? "转屏" : "全屏"}
           className="mt-6"
           onClick={onEnterFull}
@@ -719,6 +735,7 @@ function FeedItem({
             本片卡组、分段剧情、多 P 选集都只在那儿，头像改指主页后必须另留一个门 */}
         <button
           {...stopTap}
+          {...(active ? { "data-guide": "feed-title" } : {})}
           onClick={() => navigate(`/video/${video.id}`)}
           className="pointer-events-auto mb-1 block max-w-full text-left text-base font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.7)] active:opacity-70"
         >
@@ -755,6 +772,12 @@ export default function FeedPage() {
     const set = new Set(user?.following ?? []);
     return all.filter((v) => set.has(v.author));
   }, [all, feed, user?.following]);
+  // 第一次进首页强制放一遍引导。★★ 两条都要紧：
+  //   ① 必须写在下面那个 `if (videos.length === 0) return` **之前** —— 那是提前返回，
+  //      写在它后面就是条件调用 hook，React 当场报错；
+  //   ② `enabled` 挂空态：空态那一支没有右侧栏、没有进度条、也没有标题，
+  //      五步里四步的锚点都不存在，对着一屏空白讲"点这里"没有意义。
+  useAutoGuide("feed", videos.length > 0);
   const [activeIdx, setActiveIdx] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -859,10 +882,23 @@ export default function FeedPage() {
   }, [videos.length]);
 
   const tabs = immersive ? null : (
-    <div className="safe-top pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center pt-2">
+    <div className="safe-top pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-3 px-3 pt-2">
+      {/* ★★ 那颗 ? 放**左上**，跟页签同一层、同一个沉浸态开关。
+          绝不放底缘：底缘 100px 里叠着进度条(50px)/时长文字(86px)/右侧栏(104px)/底栏(56px)，
+          位置是互相咬着算出来的，CLAUDE.md 记过两次"动了首页底缘就悄悄盖住别的元素"的事故。
+          也不放右侧栏：那一栏 512px + 底 104px，640 高的屏只剩 24px 余量，再加一枚就被裁掉。
+          外壳是 pointer-events-none，所以这里要自己开 auto。
+        ★★★ **不能用 `absolute top-2`**（第一版就是，真机上点了没反应，那一下直接穿透
+          到画面的"点击暂停"上）：绝对定位算的是**padding box**，而 `safe-top` 那圈安全区
+          正是 padding —— `top-2` 于是把按钮摆到了 padding **之上**，也就是系统状态栏底下，
+          那一带的触摸被系统 UI 吃掉。改成走正常流（flex 项），它自然落在安全区之下。
+        ★ 右边补一个同宽占位，让「关注 / 推荐」保持真正居中（否则会被 ? 挤偏 14px）。 */}
+      <div className="pointer-events-auto flex-none">
+        <HelpButton tour="feed" className="border-white/50 bg-black/35 text-white backdrop-blur" />
+      </div>
       {/* 纯文字 + 下划线：胶囊底色在全出血画面上会切出一个实心矩形，
           抖音/TikTok/小红书四家一致用的是文字态 */}
-      <div className="pointer-events-auto flex items-center gap-6">
+      <div className="pointer-events-auto mx-auto flex items-center gap-6">
         {(["following", "recommend"] as const).map((f) => (
           <button
             key={f}
@@ -878,6 +914,8 @@ export default function FeedPage() {
           </button>
         ))}
       </div>
+      {/* 与左边那颗 ? 同宽的占位：页签靠 mx-auto 居中，两侧不等宽就会偏 */}
+      <div className="w-7 flex-none" />
     </div>
   );
 

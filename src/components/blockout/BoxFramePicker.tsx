@@ -1,0 +1,331 @@
+// 「**AI 分析哪几帧**」—— 认人 + 量框那一步看的帧，由谁来挑。
+//
+// ══ 为什么会有这一块（2026-08-17，四发付费实测逼出来的）══════════════════
+// 服务端不给帧的时候自己按**几何位置**铺候选：中间 → 1/4 → 3/4 → 1/8 → 7/8，
+// 依次试、第一个能干净解析出名单的胜出。这对"一镜到底、人站着不动"的素材够用。
+// 但真实素材是**有分镜的**：实测同一段 15 秒群舞里画面人数在 8→7→5→6 之间跳，
+// 同一个人在不同镜头里的「从左数第几个」都不一样。几何位置不知道分镜在哪 ——
+// 而看得见画面的人知道，他挑得出一帧"人最齐、最能代表这一段"的。
+//
+// ★★ 与 `VisionFramePicker` 是**两回事，别合并**：那一块管的是「白模化之前 AI 先看哪几帧」
+//   （产出的是白模化提示词里那份点名清单），这一块管的是「白模视频做好之后，认人+量框
+//   看哪几帧」（产出的是角色位与画面上的落点框）。两者的上限、量化粒度、失败后果都不同，
+//   合成一个组件只会让两套约束互相污染。交互范式照抄那一块是对的，实现分开也是对的。
+//
+// ── 只收 props，不认识任何 store（与 BlockoutTrimmer / PlanBoard 同款约束）──
+// ★ 标记一律按**用户在这个播放器里看到的那一秒**存（`src` 这条时间轴上的绝对秒）——
+//   调用方不必先换算。两个调用点的 `src` 不是同一种东西，差别**只由 `sel` 一个 prop 表达**：
+//     · 「识别角色位」重试：`src` 就是已经裁好的模板视频，不传 `sel` —— 每一帧都作数；
+//     · 提取器里第一次做：`src` 是**整条原片**、用户还在上面框选段，`sel` 就是那个选段 ——
+//       只有落在选段里的标记才会被采用，「减去选段起点」那一次换算也在这里。
+// ★★ 判据只有 `boxMarksInSelection` 一处：计数条、「标满」门禁、"这几帧在选段外"那句红字，
+//   以及调用方提交用的 `atSecs`，读的都是它。
+// ★★ 2026-08-17 修的就是它不在的时候：在此之前本组件**根本不知道选段存在** —— 滑杆铺满
+//   整条原片、文案一个字都没提选段，而提取器在提交前把落在选段外的标记**无声滤掉**。
+//   默认选段是 0 起 30 秒，于是一段两分钟的素材，用户在中后段标的帧会被全部滤光：
+//   atSecs 变成空数组 → `api/branch` 那句 `atSecs.length ? {atSecs} : {}` 发出空请求体 →
+//   服务端退回几何自动铺。而界面上还写着「已标 5/5」，全程一个字都没说，且这一步是付费的。
+import { useCallback, useEffect, useRef, useState } from "react";
+import { BLOCKOUT_BOX_TRIES } from "../../data/economy";
+import type { BlockoutSelection } from "./arkVideoRules";
+
+export type BoxFrameMode = "auto" | "manual";
+
+/** 标记要落进的那一段（`src` 是整条原片时才有）。形状借 `BlockoutSelection` 的两项 ——
+ *  不另起一个 interface：两个形状会各自漂。 */
+export type BoxFrameClip = Pick<BlockoutSelection, "startSec" | "durSec">;
+
+/** 与服务端 `pickedFrameCandidates` 同一个栅格（0.5 秒的倍数）。
+ *  ★ 不对齐的话，用户标的那一帧与服务端真正分析的那一帧不是同一张，
+ *    而"为什么它看的和我标的不一样"完全查不出来。
+ *  ★ **导出**：提取器提交前要把绝对秒换算成片段内秒，在那边手写一个 `Math.round(x*2)/2`
+ *    就是同一个栅格的第二份实现 —— 哪天粒度改成 0.25，两个 2 只会改掉一个，而症状是
+ *    "标的帧和分析的帧差半秒"，没有任何报错。 */
+export const BOX_FRAME_QUANT = 0.5;
+export const quantBoxSec = (t: number): number => Math.round(t / BOX_FRAME_QUANT) * BOX_FRAME_QUANT;
+
+/**
+ * 一份标记在当前选段下的分拣 —— **唯一实现**（换算 + 判据合在一处）。
+ *
+ * @param clip 不给 = `src` 就是最终要分析的那段视频（「识别角色位」重试那个调用点），
+ *   每一帧都作数、秒数直接可用。
+ * @returns `inside`/`outside` 都是**原片绝对秒**（界面上画的是那条时间轴），
+ *   `atSecs` 是**提交用的片段内秒**（升序去重）。
+ *
+ * ★★ 界面与提交必须读同一份：分成两处数的话，界面会说「已标 5/5」而实际只发出去 1 帧，
+ *   两个方向都不报错（正是 2026-08-17 修掉的那个形状）。
+ * ★ `atSecs` 去重是**断言**不是清理：`marks` 由「这一秒已经标过了」那道门保证互不相同，
+ *   而 `startSec` 按 `BlockoutSelection` 的契约是整数秒，所以 inside 与 atSecs 一一对应。
+ *   真塌缩了说明契约破了，那时**少发一帧**比多发一帧安全（多试一帧就是多一次上游调用）。
+ */
+export function boxMarksInSelection(
+  marks: number[],
+  clip?: BoxFrameClip | null,
+): { inside: number[]; outside: number[]; atSecs: number[] } {
+  const inside: number[] = [];
+  const outside: number[] = [];
+  const rels: number[] = [];
+  for (const m of marks) {
+    const abs = quantBoxSec(m);
+    const rel = clip ? quantBoxSec(abs - clip.startSec) : abs;
+    // 上界取开区间：`startSec + durSec` 那一秒整已经在选段外面（裁出来的片子没有它）
+    if (!Number.isFinite(rel) || rel < 0 || (clip && rel >= clip.durSec)) {
+      outside.push(m);
+      continue;
+    }
+    inside.push(m);
+    rels.push(rel);
+  }
+  return { inside, outside, atSecs: [...new Set(rels)].sort((a, b) => a - b) };
+}
+
+/** 这一帧还落在选段里吗。★ 与 `boxMarksInSelection` 同一条判据，别在界面上另减一次 */
+export function boxMarkInSelection(atSecAbs: number, clip?: BoxFrameClip | null): boolean {
+  return boxMarksInSelection([atSecAbs], clip).inside.length === 1;
+}
+
+export interface BoxFramePickerProps {
+  mode: BoxFrameMode;
+  onModeChange: (m: BoxFrameMode) => void;
+  /** 要分析的那段视频（本机 objectURL 或公网地址都行——只用来给人看和取时间） */
+  src: string;
+  /**
+   * `src` 只是**整条原片**、真正要分析的是其中一段时，把那一段传进来。
+   *
+   * ★★ 不传 = `src` 就是最终要分析的那段（每一帧都作数）。传了就意味着**落在选段外的
+   *   标记不会被采用**，本组件据此把计数、「标满」门禁、红字提示全部按选段内那些算 ——
+   *   调用方不许自己再滤一遍（那就是第二处判据，而两处漂开时界面与实收对不上）。
+   */
+  sel?: BoxFrameClip | null;
+  /** 已标的秒数（`src` 这条时间轴上的绝对秒），升序。调用方持有，本组件不留状态 */
+  marks: number[];
+  onMarksChange: (next: number[]) => void;
+  disabled?: boolean;
+}
+
+export default function BoxFramePicker({
+  mode,
+  onModeChange,
+  src,
+  sel,
+  marks,
+  onMarksChange,
+  disabled,
+}: BoxFramePickerProps) {
+  const vid = useRef<HTMLVideoElement | null>(null);
+  const [at, setAt] = useState(0);
+  const [dur, setDur] = useState(0);
+
+  /**
+   * 播放头与时长**跟着这个 `<video>` 元素的生死归零**。
+   *
+   * ★★ 为什么需要（2026-08-17 修）：「自动」那一支根本不渲染 `<video>`，所以在两个页签
+   *   之间切一次，回来时是**新挂载**的一个 —— 它的 `currentTime` 从 0 起，而 `at` 还停在
+   *   切走之前那一秒。于是滑杆与「第 X.X 秒」指着一帧、画面上停着另一帧，而「标记这一帧」
+   *   标的是前者：用户看着 A 画面、标下了 B 秒，还完全看不出来。归零之后两者同源
+   *   （`dur` 也清掉，"还在读时长"那道门于是重新亮起来，顺带挡掉"元数据还没到、滑杆却
+   *   已经能拖"的那一小段空窗）。代价是切页签会丢掉播放头位置 —— 标记不丢；而"seek 回
+   *   原处再对齐"要等 `seeked` 才算数，那期间画面与读数照样不是同一帧，换不来正确性。
+   *
+   * ★★ 为什么是 **ref 回调**而不是 `useEffect`：ref 在**提交这一拍**同步跑（元素刚插进
+   *   DOM，媒体事件最早也要等到下一个任务），而 passive effect 是延后的 —— 它完全可能
+   *   排在 `loadedmetadata` **后面**，把刚读到的时长又清成 0。而那之后**不会再有第二次
+   *   `loadedmetadata`**：滑杆与「标记这一帧」就永久灰在"还在读时长"上，只能退出重进。
+   *   （本机 objectURL 的元数据几乎是立刻就绪的，这不是理论风险。）
+   * ★ `useCallback([])` 是必需的：内联箭头函数每次渲染都是新的，React 会先 `null`
+   *   再传元素地重跑一遍 —— 里面带 setState 就是每渲染一次清一次。
+   */
+  const attachVideo = useCallback((el: HTMLVideoElement | null) => {
+    vid.current = el;
+    if (!el) return;
+    setAt(0);
+    // 刚挂上来的元素 duration 是 NaN（元数据还没读）——归 0，由 onLoadedMetadata 填真值
+    setDur(el.duration || 0);
+  }, []);
+
+  /** 换了一条视频（同一个元素换 `src`，元素不重挂，上面那个 ref 回调不会再跑）：
+   *  读数回到 0，免得滑杆指着上一条视频的位置。
+   *  ★ 这里**故意不碰 `dur`**：它归 `loadedmetadata` 管，在 effect 里清一次的话就又回到
+   *    上面那个"清在事件后面 = 永久灰"的形状了。新那条的元数据到货时它自己会换。 */
+  useEffect(() => {
+    setAt(0);
+  }, [src]);
+
+  const here = quantBoxSec(at);
+  /** ★ 计数、门禁、红字、提交值全从这一处来（见 boxMarksInSelection 的 ★★） */
+  const { inside, outside } = boxMarksInSelection(marks, sel);
+  const full = inside.length >= BLOCKOUT_BOX_TRIES;
+  // ★ 判重看**整份 marks**（不是 inside）：同一秒标两次会在 marks 里留两条一模一样的记录
+  const already = marks.some((m) => m === here);
+  /** 播放头当下这一帧落在选段外（不传 sel 时恒 false —— 那时整条 src 都作数） */
+  const hereOutside = !!sel && !boxMarkInSelection(here, sel);
+  /** 点不动的原因（null = 点得动）。★ 灰按钮必须配一句话（本仓禁止不给理由的灰） */
+  const block = disabled
+    ? null
+    : dur <= 0
+      ? // ★ 2026-08-17 补：`dur <= 0` 本来就把滑杆与这颗按钮灰掉了，却不在这三条理由里 ——
+        // 正是本文件自己立的那条禁令的反例。它也不是用户的错（多半是元数据还在读），
+        // 所以话要说成"等一下"而不是"你做错了"。
+        "还在读这段视频的时长，读到之前标不了帧。应用切到后台时系统会暂停解码——回到前台等一两秒就好；一直读不出来就是这个文件解不开，换一个 mp4 试试。"
+      : hereOutside && sel
+        ? `现在这一帧（原片第 ${here.toFixed(1)} 秒）在选段外面——选段是原片的第 ${sel.startSec}~${sel.startSec + sel.durSec} 秒，只有那一段会被做成模板。把播放头挪进选段再标，或者先把上面的选段拖到这儿来。`
+        : full
+          ? `已经标满 ${BLOCKOUT_BOX_TRIES} 帧了——再多也用不上（服务端依次试、第一个成的就停）。先删一帧再标。`
+          : already
+            ? "这一秒已经标过了。把播放头挪到别处再标。"
+            : null;
+
+  const tab = (m: BoxFrameMode, label: string) => (
+    <button
+      key={m}
+      onClick={() => onModeChange(m)}
+      disabled={disabled}
+      className={`flex-1 rounded-lg py-1.5 text-xs font-semibold disabled:opacity-40 ${
+        mode === m ? "bg-brand text-ink" : "bg-slate-700/70 text-slate-300"
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="space-y-2 rounded-lg border border-slate-700 bg-panel/60 px-3 py-2.5">
+      <p className="text-[11px] font-bold text-slate-200">AI 分析哪几帧</p>
+
+      <div className="flex gap-2">
+        {tab("auto", "自动（推荐）")}
+        {tab("manual", "自己挑")}
+      </div>
+
+      {mode === "auto" ? (
+        <p className="text-[11px] leading-relaxed text-slate-400">
+          由 AI 自己挑：先看正中间那一帧，认不全再往两头铺，最多试 {BLOCKOUT_BOX_TRIES} 帧。
+          <b className="text-slate-300">一镜到底、人站着不动的素材用这个就够。</b>
+        </p>
+      ) : (
+        <>
+          {/* ★ 这句话是"什么时候该用自己挑"的判据，不是装饰：分镜一换，画面里的人和
+              他们的左右次序都会变，而 AI 按几何位置铺帧，不知道分镜在哪 */}
+          <p className="text-[11px] leading-relaxed text-slate-400">
+            <b className="text-slate-200">素材有分镜切换、或者人会进出画面时用这个</b>：拖到一帧
+            <b className="text-slate-200">人最齐、最能代表这一段</b>的画面，标下来。标了几帧就按你标的顺序依次试。
+          </p>
+
+          {/* ★★ 播放器里是**整条原片**，而做成模板的只有选段 —— 这件事必须在拖滑杆之前说。
+              不说的话用户会在中后段标一串帧，读数写着「已标 5/5」，实际一帧都没发出去
+              （2026-08-17 之前就是这样，而这一步是付费的）。 */}
+          {sel && (
+            <p className="rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+              下面这条时间轴是<b className="font-bold">整条原片</b>，而真正做成模板的只有你在上面框出的
+              <b className="font-bold">
+                第 {sel.startSec}~{sel.startSec + sel.durSec} 秒
+              </b>
+              {/* ★ 别在这里写"落在外面的不计费"：这条路的报价是**按上限的一个定额**
+                  （标 1 帧和标满 5 帧报的是同一个数，见 economy.ownRefTemplateCost），
+                  说"不计费"会让人以为每多标一帧就多花一笔 —— 那是另一条路的价目。 */}
+              ——只有落在这一段里的标记才作数，落在外面的 AI 根本不会看，等于白标。
+            </p>
+          )}
+
+          <video
+            ref={attachVideo}
+            src={src}
+            playsInline
+            muted
+            preload="metadata"
+            onLoadedMetadata={(e) => setDur(e.currentTarget.duration || 0)}
+            onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
+            className="max-h-[34vh] w-full rounded-lg bg-black object-contain"
+          />
+
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min={0}
+              max={Math.max(0, dur)}
+              step={BOX_FRAME_QUANT}
+              value={Math.min(at, dur)}
+              onChange={(e) => {
+                const t = Number(e.target.value);
+                setAt(t);
+                if (vid.current) vid.current.currentTime = t;
+              }}
+              disabled={disabled || dur <= 0}
+              className="min-w-0 flex-1 accent-sky-400 disabled:opacity-40"
+              aria-label="把播放头挪到第几秒"
+            />
+            <span className="flex-none text-[11px] tabular-nums text-slate-400">第 {here.toFixed(1)} 秒</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onMarksChange([...marks, here].sort((a, b) => a - b))}
+              disabled={disabled || !!block}
+              className="flex-1 rounded-xl border border-sky-500/60 bg-sky-500/10 py-2 text-xs font-bold text-sky-200 disabled:opacity-40"
+            >
+              ＋ 标记这一帧
+            </button>
+            {/* ★ 数的是**选段内**那些（不传 sel 时二者相同）：数总数的话，用户顶着
+                「已标 5/5」而实际只发出去 1 帧 —— 门禁同理，它挡的也是选段内那些。 */}
+            <span className="flex-none text-[11px] tabular-nums text-slate-400">
+              已标 {inside.length}/{BLOCKOUT_BOX_TRIES}
+            </span>
+          </div>
+
+          {block && <p className="text-[10px] leading-relaxed text-amber-300">{block}</p>}
+
+          {marks.length === 0 ? (
+            // ★ 2026-08-17 改口：原话是「一帧都没标的话会退回『自动』那条 —— 不会失败，
+            //   只是等于没挑」。那句话在提取器那条路上要变成假的（manual 却一帧有效标记
+            //   都没有 → makeOwnRefTemplate 响亮拒绝，与 blockoutizeTemplate 同源），
+            //   而在「识别角色位」重试那条路上仍然成立。两个调用点唯一都为真的说法只有
+            //   "至少标 1 帧才作数"，所以只说这一句 —— 别在这里替某一条路许诺后果。
+            <p className="text-[10px] leading-relaxed text-slate-500">
+              还没标任何一帧。「自己挑」至少要标 1 帧才作数——把播放头拖到人最齐的那一帧点「标记这一帧」，
+              或者切回「自动」。
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {/* ★ 秒数一律按**原片**报（与上面的滑杆、下面那句红字同一条时间轴）：
+                  这里改报"片段内第几秒"的话，同一屏上就有两把尺子，而用户点它是要跳回去看画面的 */}
+              {marks.map((m) => {
+                const ok = boxMarkInSelection(m, sel);
+                return (
+                  <span
+                    key={m}
+                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${
+                      ok ? "bg-slate-700/70 text-slate-200" : "bg-rose-500/20 text-rose-200 ring-1 ring-rose-500/50"
+                    }`}
+                  >
+                    <button onClick={() => (vid.current ? (vid.current.currentTime = m) : undefined)} className="tabular-nums">
+                      第 {m.toFixed(1)} 秒{ok ? "" : "（选段外）"}
+                    </button>
+                    <button
+                      onClick={() => onMarksChange(marks.filter((x) => x !== m))}
+                      disabled={disabled}
+                      aria-label={`删掉第 ${m.toFixed(1)} 秒这一帧`}
+                      className={`disabled:opacity-40 ${ok ? "text-slate-400" : "text-rose-300"}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ★★ 落在选段外的那几帧**必须列出来**（照抄 VisionFramePicker 那一处）：它们不会被
+              采用，而屏幕上唯一能看出这件事的地方就是这里。写清两条出路 —— 删掉，或者把
+              选段拖回去（后者要知道它们在原片的第几秒，所以秒数也报出来）。 */}
+          {outside.length > 0 && (
+            <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">
+              有 {outside.length} 帧落在选段外面（选段后来被拖动过——标的时候它们还在里面），
+              <b>不会被采用</b>，AI 一眼都不会看它们。把它们删掉，或者把上面的选段拖回去
+              （它们在原片的第 {outside.map((m) => m.toFixed(1)).join(" / ")} 秒）。
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

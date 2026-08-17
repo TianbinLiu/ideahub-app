@@ -212,12 +212,10 @@ export default function VideoEditorPage() {
   // 挂卡用的素材库。★ 页面（宿主）才读账号库，两个组件都只收 props —— 它们还要被别的
   //   宿主嵌（提取器 / 工作流），认了 store 就搬不动了
   const accountV = useAccountVersion();
-  const [onlyChars, setOnlyChars] = useState(true);
-  const allCards = useMemo(() => myCards(), [accountV]);
-  const cards = useMemo<Card[]>(
-    () => (onlyChars ? allCards.filter((c) => c.type === "character") : allCards),
-    [allCards, onlyChars],
-  );
+  // ★★ 挂卡**只给人物卡**，没有开关（2026-08-17 把那个复选框去掉了）：白模人偶换的就是
+  //   "人"，挂场景/道具卡产出的东西没有任何人想要。摆一个默认勾上、勾掉之后只会得到
+  //   坏结果的开关，等于把一个陷阱做成了选项。
+  const cards = useMemo<Card[]>(() => myCards().filter((c) => c.type === "character"), [accountV]);
 
   const [cast, setCast] = useState<Record<string, string>>(() =>
     state?.mode === "cast" ? { ...(state.value ?? {}) } : {},
@@ -289,17 +287,6 @@ export default function VideoEditorPage() {
             onDone={() => finish({ mode: "cast", templateId: state.templateId, cast })}
             doneLabel="完成挂卡"
             onCancel={() => nav(-1)}
-            extra={
-              <label className="flex items-start gap-2 text-[11px] leading-relaxed text-slate-400">
-                <input
-                  type="checkbox"
-                  checked={onlyChars}
-                  onChange={(e) => setOnlyChars(e.target.checked)}
-                  className="mt-0.5 h-3.5 w-3.5 flex-none accent-sky-400"
-                />
-                只显示人物卡（白模人偶换的是"人"，挂场景/道具卡多半不是你要的效果）
-              </label>
-            }
           />
         )}
       </main>

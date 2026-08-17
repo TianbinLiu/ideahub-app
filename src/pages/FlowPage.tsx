@@ -19,6 +19,8 @@ import ForgeOverlay, { type ForgePhase } from "../components/ForgeOverlay";
 import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
 import GenTrace from "../components/GenTrace";
 import Icon from "../components/Icon";
+import HelpButton from "../components/guide/HelpButton";
+import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { MaterialButtonArt } from "../components/MascotStage";
 import MaterialSheet, { MaterialStrip } from "../components/MaterialSheet";
 import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
@@ -488,6 +490,7 @@ function NodeScreen({
       {/* ── 大屏幕：方案台 / 成片 / 起拍画面（手势区）── */}
       <div
         className={`relative min-h-0 flex-1 ${boardOn ? "bg-[#0b0f18]" : "flex items-center justify-center bg-black"}`}
+        data-guide="flow-stage"
         {...swipe}
       >
         {boardOn ? (
@@ -614,6 +617,7 @@ function NodeScreen({
               rows={2}
               maxLength={400}
               placeholder="这一段要拍什么？（AI 会按它推演三套走向）"
+              data-guide="flow-req-input"
               className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
             <p className="text-[10px] leading-4 text-slate-500">
@@ -673,6 +677,7 @@ function NodeScreen({
             onClick={() => void onMain()}
             disabled={mainDisabled}
             title={AI_REAL ? `预计消耗 ${fmtTokens(mainCost)} token` : undefined}
+            data-guide="flow-main-btn"
             className={`min-w-0 flex-1 rounded-lg py-2 text-xs font-bold disabled:opacity-40 ${
               stage === "rederive" ? "bg-gold/90 text-ink" : "bg-brand text-ink"
             }`}
@@ -927,6 +932,8 @@ function NodeScreen({
 
 export default function FlowPage() {
   const navigate = useNavigate();
+  // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；那颗 ? 随时能重看）
+  useAutoGuide("flow");
   const loc = useLocation();
   const { nodes, cursor, mode, origin, busy, err, setCursor, addNode, removeNode, addMaterials, removeMaterial, reset } =
     useFlow();
@@ -1131,6 +1138,31 @@ export default function FlowPage() {
           无效，只会被箭头压住第一行；放在这里还能顺便把报错条也挤到箭头下面 */}
       {planFocus && <div className="flex-none" style={{ height: "calc(env(safe-area-inset-top, 0px) + 46px)" }} />}
 
+      {/* ★★ 顶栏是**两行**的：左边一格里「标题 + ?」在上、进度在下，右边才是按钮。
+          为什么不能都挤在一行（2026-08-17 量出来改的，量法见下）：这一行里除进度外
+          全是 flex-none，于是每加一个固定件都**只从进度身上扣**——加那颗 ? 的时候
+          进度从 97px 掉到 59px，连「5 段 · 已出片 2」这半句本身（72.6px）都被切成
+          「5 段 · 已出…」。旁边这条注释当年正是为这件事写的，结果新加的 ? 又踩了一次。
+
+          量法（不是估字宽）：dev server 上按同一套 class 把这段版式挂进真实样式里，
+          375px 视口（最窄的目标机）读 getBoundingClientRect：
+            内容宽 375 − 32(px-4) = 343
+            返回 20 ＋ 标题「工作流」42 ＋ ? 28 ＋ 存草稿 60 ＋ 完成视频 84
+            （全段出片后带那个「›」；没出完是 76）＋ 5 个 gap-2.5 共 50 = 284
+            ⇒ 留给进度 59px
+          竖过来之后进度独占那一格：量到 **149px**，而「5 段 · 已出片 2 · 剩余约 12.3k」
+          整句 146px —— 那句「剩余约」（= 还要花多少钱）**第一次能完整显示**。
+          代价是顶栏 48 → 64.5px（舞台少 16.5px），这一条是有意换的：被切掉的是钱。
+          ⚠ 还是会切的两种，都可接受（段数与已出片数在最前面，先保住的是它们）：
+            · 两位数（「12 段 · 已出片 10 · 剩余约 123.4k」165.3px）切掉金额末几位；
+            · 存盘按钮换文案时它自己会变宽（存草稿 60 → 保存中… 69.8 / 已保存 ✓ 71.8 /
+              保存失败 72），那几秒里进度只剩 137px，「12.3k」的尾巴被切一点。
+          试过、不行的两条，别再走：
+            ① 留在一行、给进度写 `min-w-[86px]`（86 = 两位数那半句「12 段 · 已出片 10」
+               的 85.5）：flex-none 不收缩，这一行溢出内容框 27px、超出屏幕右缘 11px ——
+               「完成视频」右半边被切在屏外，点不全，且零报错；
+            ② 只把进度挪到第二行、? 仍留在主行：顶栏只长 8.5px，但进度 111px，
+               「剩余约」照样被切成「· 剩…」，等于把钱那半句丢了。 */}
       <header className={`${planFocus ? "hidden" : "flex"} safe-top flex-none items-center gap-2.5 px-4 py-2.5`}>
         <button
           onClick={() => navigate(origin === "studio" ? "/studio" : "/create")}
@@ -1138,11 +1170,16 @@ export default function FlowPage() {
         >
           <Icon name="back" size={20} />
         </button>
-        <span className="flex-none text-sm font-bold text-slate-100">{simple ? "简约模式" : "工作流"}</span>
-        <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">
-          {simple ? "一个节点，一条短片" : `${nodes.length} 段 · 已出片 ${nodes.filter(nodeDone).length}`}
-          {AI_REAL && remain > 0 && ` · 剩余约 ${fmtTokens(remain)}`}
-        </span>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex items-center gap-2">
+            <span className="flex-none text-sm font-bold text-slate-100">{simple ? "简约模式" : "工作流"}</span>
+            <HelpButton tour="flow" />
+          </div>
+          <span className="min-w-0 truncate text-[11px] text-slate-500">
+            {simple ? "一个节点，一条短片" : `${nodes.length} 段 · 已出片 ${nodes.filter(nodeDone).length}`}
+            {AI_REAL && remain > 0 && ` · 剩余约 ${fmtTokens(remain)}`}
+          </span>
+        </div>
         {/* 手动存盘。自动保存只在"炼完一段"那种昂贵节点触发（见上面的 effect），
             纯改文字不会自动存——想留住就点这里。简约模式没有这颗按钮（它不进草稿库） */}
         {!simple && (
@@ -1168,11 +1205,13 @@ export default function FlowPage() {
           onClick={() => void toCut()}
           disabled={!allDone || busy || !!finalizing}
           title={allDone ? "把各段合成一条完整视频" : "每段都出片之后才能合成"}
+          data-guide="flow-finish"
           className="flex-none rounded-full bg-brand px-3.5 py-1.5 text-xs font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
         >
-          {/* 文案要短：375px 宽的顶栏还得放返回、标题、进度、存草稿四样，
-              带上「还差 N 段」会把中间那行进度挤成一个省略号。
-              "还差几段"由旁边的「N 段 · 已出片 M」交代，这里只留终点本身 */}
+          {/* 文案要短：375px 顶栏这一行还得放返回、标题+?、存草稿三样（进度已经竖到
+              标题下面那行去了，量法见 header 上那段注释）。这颗按钮量到 84px，是这一行里
+              最宽的一件；带上「还差 N 段」会再宽出一截，把左边那一格连标题带进度一起压瘦。
+              "还差几段"由标题下面那行的「N 段 · 已出片 M」交代，这里只留终点本身 */}
           {finalizing || "完成视频"}
           {allDone && " ›"}
         </button>
@@ -1231,8 +1270,9 @@ export default function FlowPage() {
       )}
 
       {/* ★★ 组稿前把「完成视频」那一下要花的钱明说出来。
-          为什么单开一行而不是塞进按钮上：那颗按钮在 375px 顶栏里与返回/标题/进度/存草稿
-          挤在一起，多两个字就把中间那行进度压成省略号（CLAUDE.md 那条底缘几何的同类问题）。
+          为什么单开一行而不是塞进按钮上：那颗按钮在 375px 顶栏那一行里与返回/标题+?/存草稿
+          挤在一起（量法见 header 上那段），它已经是行里最宽的一件，多两个字就把左边那一格
+          连标题带进度一起压瘦（CLAUDE.md 那条底缘几何的同类问题）。
           为什么等到 allDone 才出现：在那之前按钮是灰的，用户此刻要读的是"下一段多少钱"；
           整片的这一笔一直算在顶栏「剩余约」里，不会因为这行没出现就瞒着他。
           ⚠ 措辞三处都不许含糊：**最多**（张数是上限，按实际出卡结算）、
@@ -1299,7 +1339,7 @@ export default function FlowPage() {
             <>
               {/* 节点条 = 进度轨：已出片的和当前这段可以点，再往后是锁着的。
                   真正的拦截在 flowStore.clampCursor，这里画出"为什么点不动" */}
-              <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto">
+              <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto" data-guide="flow-node-strip">
                 {nodes.map((n, i) => {
                   const p = chosenOf(n);
                   const locked = frontier >= 0 && i > frontier;

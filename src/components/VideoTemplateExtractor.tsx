@@ -33,6 +33,9 @@
 // ★ 入口按能力门控渲染：服务端不认这套端点时开关根本不出现（remoteTemplatesCapable，
 //   唯一实现）—— 不摆永远点不动的东西。
 import { useEffect, useRef, useState } from "react";
+import BoxFramePicker, { boxMarksInSelection, type BoxFrameMode } from "./blockout/BoxFramePicker";
+import HelpButton from "./guide/HelpButton";
+import { useAutoGuide } from "./guide/useAutoGuide";
 import { AI_REAL, extractTemplateFromVideo } from "../ai";
 import {
   MAX_TEMPLATE_VIDEO_BYTES,
@@ -45,17 +48,14 @@ import {
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { TEMPLATE_MAX_CARDS, fmtTokens, ownRefTemplateCost, templateCost, templateSettle } from "../data/economy";
 import {
-  blockoutJobNote,
+  BLOCKOUT_INPUT_RULES,
   blockoutizeBlockReason,
   blockoutizeTemplate,
   getTemplate,
   makeOwnRefTemplate,
-  pendingBlockoutJobs,
   refVideoRealSec,
   remoteTemplatesCapable,
   saveTemplate,
-  subscribeTemplates,
-  type BlockoutJob,
 } from "../data/templates";
 import { VideoAspect, VideoTemplate, aspectFromSize } from "../types";
 import BlockoutTrimmer from "./blockout/BlockoutTrimmer";
@@ -327,6 +327,9 @@ export default function VideoTemplateExtractor({
    *  提取器问的是同一个 remoteTemplatesCapable，不会出现"入口亮着、开关没了"的半边天 */
   defaultBlockout?: boolean;
 }) {
+  // ★ 浮层也要自己声明引导（不是路由，按 pathname 集中判的话这一屏永远轮不到）。
+  //   第一次打开时强制放一遍，看过一次不再自动弹；标题栏那颗 ? 随时能重看。
+  useAutoGuide("extractor");
   const [file, setFile] = useState<File | null>(null);
   const [frameN, setFrameN] = useState(6);
   const [frames, setFrames] = useState<string[]>([]);
@@ -338,40 +341,80 @@ export default function VideoTemplateExtractor({
   // 合成一个的话，"疑似有水印"会长得跟"传不上去"一模一样，用户只会以为自己失败了
   const [warn, setWarn] = useState("");
   const [got, setGot] = useState<VideoTemplate | null>(null);
-  const [blockout, setBlockout] = useState(false);
   /**
-   * 框选完之后走哪条路 —— **两条路的分界就一句话：这段视频要不要 AI 帮你换成白模人偶**。
+   * 这一屏的**第一层岔路**，三选一 —— 全组件唯一的"走哪条路"状态。
    *
-   * ★★ `"aiBlockout"`（默认）：任意视频 → 服务端看帧认人 → **一次真实付费出片**把人
-   *   全换成一模一样的纯白人偶，产物才是模板。这是白模 V2。
-   * ★★ `"ownRef"`：**这段本来就是白模/人偶片**（作者自己做好的预演片）。不出片、
-   *   不换人，只认出画面里有谁、量出他们在哪 —— 便宜两个量级。
-   * ★ 为什么选择摆在**框选这一屏**而不是选文件之前：两条路的前两步（选文件、上传）
-   *   一模一样，而"这段是不是已经是白模了"要看着画面才说得准。摆在前面等于让用户
-   *   在还没看到画面时先答一道题。
+   *   · `"aiBlockout"` —— 任意视频 → 服务端看帧认人 → **一次真实付费出片**，把画面里的人
+   *     全换成一模一样的纯白人偶，产物才是模板（白模 V2）。
+   *   · `"ownRef"`     —— **这段本来就是白模/人偶片**（作者自己做好的预演片）。不出片、
+   *     不换人，只认出画面里有谁、量出他们在哪 —— 便宜两个量级。
+   *   · `"classic"`    —— 经典配方：抽几帧总结画风/运镜/分镜骨架 + 提炼场景道具卡。
+   *     不出片、不把视频传上公网，也**不需要付费套餐**（三条路里唯一不要套餐的）。
+   *
+   * ══ 为什么合成一个状态、并且摆在**选文件之前**（2026-08-17 改）══════════════
+   * 改造之前这是**两个**状态：顶上一个「白模模板」开关（布尔），以及框选那一屏里
+   * 藏在 `extra` 插槽里的 aiBlockout/ownRef 二选一。两个问题：
+   *   ① 同一个决定被拆成两处、隔着"选文件 + 上传 + 进框选屏"三步才问完，用户走到
+   *      第二问时早已忘了第一问；而两问的**组合**才决定花不花钱、花多少。
+   *   ② 布尔 + 枚举意味着"关着的时候第二问是什么"这种没有意义的状态是可表达的。
+   *      三选一让非法组合从类型上就不存在。
+   * ★ 那条"摆在框选屏才看得见画面、才说得准这是不是白模片"的旧理由**不成立**：
+   *   用户是自己挑的文件，他比我们更清楚那段是什么。而代价是他要传完整段视频
+   *   （可能上百 MB）之后才发现自己想走的是另一条路。
    * ★ 为什么必须让用户选、不能自动判：一段"看起来像白模"的片子与一段真的白模片，
    *   我们分不出来 —— 猜错的两个方向都很贵（该出片的没出 = 模板全是真人；
-   *   不该出片的出了 = 白花一次 r2v 且画质被二次白模化）。
+   *   不该出片的出了 = 白花一次 r2v，画质还被二次白模化）。
    */
-  const [refMode, setRefMode] = useState<"aiBlockout" | "ownRef">("aiBlockout");
+  const [route, setRoute] = useState<"aiBlockout" | "ownRef" | "classic">("classic");
+  /**
+   * 「AI 分析哪几帧」——**只对 ownRef 那条路有意义**：认人量框是它那一步做的。
+   * aiBlockout 那条的"看几帧"是另一件事（白模化之前的点名清单，由 BlockoutTrimmer 里的
+   * VisionFramePicker 管），两者别混。
+   * ★ 标的是**原片**的秒数（用户对着原片拖的）。"哪几帧落在选段里"与"减去选段起点"是
+   *   同一件事，判据只有 `BoxFramePicker.boxMarksInSelection` 一处：picker 拿它画计数条、
+   *   门禁与红字，`runOwnRef` 拿它算提交值 —— 两边各算一次的话，界面会说 5 帧、
+   *   实际发出去 1 帧，而且两个方向都不报错。
+   * ★ 这两条**跟着回执走**：换素材时由 `dropReceipt` 一处清掉（上一段视频标的帧留到
+   *   下一段，会原样发成 atSecs）。
+   */
+  const [boxMode, setBoxMode] = useState<BoxFrameMode>("auto");
+  const [boxMarks, setBoxMarks] = useState<number[]>([]);
+  /**
+   * BlockoutTrimmer 现在框出来的那一段（它每次变化都往上报一次）。
+   *
+   * ★★ 唯一用途是**转给 BoxFramePicker**：那一块要知道"标记落在选段里没有"才说得出
+   *   后果与出路（不知道的话它只能装作每一帧都作数，而提取器在提交前把落在外面的
+   *   无声滤掉 —— 2026-08-17 修掉的那个洞）。选段的持有者仍然只有 Trimmer 一个，
+   *   这里是**镜像**：不参与任何判断，也绝不回喂给它。
+   * ★ 真正提交的那一份是 `onSubmit` 带上来的（同一个 outSel），不是这份镜像。
+   */
+  const [trimSel, setTrimSel] = useState<BlockoutSelection | null>(null);
+  /** 走的是不是白模那两条（决定选文件的 accept、上传、以及整屏换成框选器）。
+   *  ★ 派生值，不是第二个状态 —— 它与 route 不可能不一致 */
+  const blockout = route !== "classic";
   // false = 开关不渲染。能力探测（remoteTemplatesCapable）过了才出现——服务端不认
   // 这套端点时摆一个开关出来，用户会一路走到上传那步才失败（不摆永远点不动的东西）。
   const [blockoutReady, setBlockoutReady] = useState(false);
-  // 上传回执 + 本机可播地址。**按文件对象记**：同一个文件只传一次（重传既浪费限流
-  // 额度又在 Cloudinary 留孤儿）。src 是 objectURL —— 播放取景用本机文件，不去拉
-  // 那份公网视频（省一次几十 MB 的下行，手机上尤其明显）。
-  const [receipt, setReceipt] = useState<{ file: File; data: TemplateVideoReceipt; src: string } | null>(null);
   /**
-   * 这段素材**已经被一发付过钱的白模化用掉了**（r2v 受理、凭据落库那一刻起为真）。
+   * 上传回执 + 本机可播地址。**按文件对象记**：同一个文件只传一次（重传既浪费限流
+   * 额度又在 Cloudinary 留孤儿）。src 是 objectURL —— 播放取景用本机文件，不去拉
+   * 那份公网视频（省一次几十 MB 的下行，手机上尤其明显）。
    *
+   * `spent` = **这一段素材**已经被一发付过钱的白模化用掉了（r2v 受理、凭据落库那一刻起为真）。
    * ★★ 它只管一件事：**还能不能回收那段托管视频**。两阶段之后，"开炼了"与"成功了"
    *   之间隔着好几分钟，而用户在这几分钟里完全可能把浮层关掉去干别的（那正是拆两阶段
    *   要支持的行为）。若还按老逻辑"没建成模板就回收"，就会把一发**已经付过钱**的
    *   白模化的来源删掉 —— 服务端 finish 时想把它记成模板的 source 都记不成了。
+   * ★★ 它必须**跟着回执走**，不能是组件级的一个布尔（2026-08-17 修）：那一版里，付过钱的
+   *   回执被放掉之后（跨白模/经典换路那一处），`spent` 还留着真值 —— 于是**下一份**新传的
+   *   视频永远不回收，成为孤儿，占配额且零症状。一份回执花没花过钱，只有那份回执自己知道。
    */
-  const [spent, setSpent] = useState(false);
-  /** 本账号还没取回结果的白模化（服务端那份的镜像，见 data/templates 的 ★★） */
-  const [pending, setPending] = useState<BlockoutJob[]>([]);
+  const [receipt, setReceipt] = useState<{
+    file: File;
+    data: TemplateVideoReceipt;
+    src: string;
+    spent: boolean;
+  } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   /**
@@ -381,18 +424,27 @@ export default function VideoTemplateExtractor({
    * 不回收的话这段最大 100MB 的视频两端都没了句柄，配额只增不减且零症状（孤儿治理，
    * server DELETE /api/uploads/template-video 只认未登记资产 —— 已经成为某个模板
    * `source` 的那份它会整句拒，所以误删不掉）。
-   * ★★ **但 `spent` 为真时一律不回收**（理由见那个 state 的 ★★）：钱已经花在这段素材上了。
+   * ★★ **但这份回执的 `spent` 为真时一律不回收**（理由见 receipt 的 ★★）：钱已经花在
+   *   这段素材上了。判的是**这一份**回执自己那一位，不是组件级的某个布尔。
    * fire-and-forget：回收是兜底不是主链路，失败只吼不拦着用户关窗。
+   *
+   * ★★ 框选与标记也在这里一起放掉：它们是**这一段视频**上的坐标（第几秒、框在哪），
+   *   换了素材还留着就是"标的是别的视频"，而它们会原样发成 atSecs —— 画面照样出得来、
+   *   零报错。收在这一处是有意的：换路那边只管调 dropReceipt，别再自己清一遍
+   *   （两处各清各的，迟早会漏一样）。
    */
   function dropReceipt() {
     if (!receipt) return;
     URL.revokeObjectURL(receipt.src);
-    if (!spent) {
+    if (!receipt.spent) {
       void deleteTemplateVideo(receipt.data.publicId).catch((e) =>
         console.error("[extractor] 放弃时回收模板视频失败（将留作孤儿，可联系管理员清理）：", e),
       );
     }
     setReceipt(null);
+    setTrimSel(null);
+    setBoxMarks([]);
+    setBoxMode("auto");
   }
 
   function close() {
@@ -407,23 +459,13 @@ export default function VideoTemplateExtractor({
       setBlockoutReady(ok);
       // 入口要求直达白模时，探测过了才真的拨上去（探测没过 = 开关都不存在，
       // 初值当然也不能生效）。此刻还没选过文件，不需要走开关按钮里那套清空逻辑
-      if (ok && defaultBlockout) setBlockout(true);
+      // ★ 入口方要求直接进白模：落到「AI 白模化」那一条（三条里唯一"任意视频都能用"的）
+      if (ok && defaultBlockout) setRoute("aiBlockout");
     });
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- defaultBlockout 只该在挂载时生效一次
-  }, []);
-
-  // ★★ 「你还有一发没取回」必须在**开炼之前**说：这一屏是花钱的入口，而重新开炼一发
-  //   是**再花一次钱**，已经付过的那一发不会因此回来。名单只有服务端说得准
-  //   （pendingBlockoutJobs 唯一实现，第一次读会触发懒加载、到货 emit）。
-  //   订阅 store 而不是只读一次：懒加载是异步的，只读一次的话名单到货时这一屏不会更新。
-  useEffect(() => {
-    const read = () => setPending(pendingBlockoutJobs());
-    const un = subscribeTemplates(read);
-    read();
-    return un;
   }, []);
 
   // ★ 白模路在本组件里**不报价**：它一个 token 都不花（不上传、不抽帧、不调视觉），
@@ -501,7 +543,8 @@ export default function VideoTemplateExtractor({
       try {
         setBusy("上传视频…（大文件在慢网上要等一会）");
         const data = await uploadTemplateVideo(f);
-        setReceipt({ file: f, data, src: URL.createObjectURL(f) });
+        // spent:false —— 新的一份素材，还没有任何一发付过钱的白模化用过它（见 receipt 的 ★★）
+        setReceipt({ file: f, data, src: URL.createObjectURL(f), spent: false });
         // 标题给个能用的默认值（文件名去掉扩展名）：服务端 zod 要求 title 非空，
         // 让用户对着一个空框才能继续，只是多一步没有信息量的操作
         setTitle((t) => t || f.name.replace(/\.[^.]+$/, "").slice(0, 40) || "白模模板");
@@ -565,6 +608,19 @@ export default function VideoTemplateExtractor({
         clip: { startSec: sel.startSec, durSec: sel.durSec, crop: sel.crop },
         title,
         intro: note,
+        // ★★ **原片秒 → 片段内秒**：用户是对着原片拖时间轴标的，而认人量框是在裁剪后
+        //   那份派生视频上做的，两者零点差着 sel.startSec。不减这一下，标的每一帧都会
+        //   偏移选段起点那么多秒 —— 而画面照样出得来、零报错。
+        // ★★ 这里**只换算，不承担丢弃语义**（2026-08-17 修）：同一个 `boxMarksInSelection`
+        //   也是 BoxFramePicker 画界面用的那一份 —— 它把落在选段外的逐条列出来、写清
+        //   "不会被采用也不计费"，并把计数条与「标满」门禁都改成只数选段内的那些。
+        //   在此之前这里是一句 filter：滤掉的帧界面上一个字都不说，而默认选段是 0 起 30 秒，
+        //   一段两分钟的素材在中后段标的帧会被全部滤光 → atSecs 空数组 → api/branch 那句
+        //   `atSecs.length ? {atSecs} : {}` 发出空请求体 → 服务端退回几何自动铺。
+        //   用户顶着「已标 5/5」，实际一帧都没用上，而这一步是付费的。
+        // ⚠ "manual 但规范化之后一帧都不剩"必须**响亮拒绝**，那道门在 data 层
+        //   （makeOwnRefTemplate，与 blockoutizeTemplate 逐字同源）—— 别在这里补第二处。
+        atSecs: boxMode === "manual" ? boxMarksInSelection(boxMarks, sel).atSecs : undefined,
         onStep: (n) => setBusy(n),
       });
       const made = getTemplate(out.id);
@@ -601,9 +657,11 @@ export default function VideoTemplateExtractor({
         // 画幅按**裁后**的框算，不按原片：模板出片跟着裁剪框走
         aspect: aspectFromSize(sel.crop.w, sel.crop.h),
         // ★★ 钱已经花在这段素材上了 —— 从这一刻起它归这一发（以及它将变成的模板）管，
-        //   放弃时**不许再回收**（见 spent 的 ★★）。注意这里**不清 receipt**：清了这一屏
-        //   会当场从"框选 + 进度"退回选文件按钮，而任务其实正在跑（用户会以为白花了钱）。
-        onBilled: () => setSpent(true),
+        //   放弃时**不许再回收**（见 receipt 的 ★★）。标记打在**这一份回执上**，不是
+        //   组件级的一个布尔：换掉回执之后那一位必须跟着走，否则下一份新传的视频永远
+        //   不回收。注意这里**不清 receipt**：清了这一屏会当场从"框选 + 进度"退回
+        //   选文件按钮，而任务其实正在跑（用户会以为白花了钱）。
+        onBilled: () => setReceipt((r) => (r ? { ...r, spent: true } : r)),
         onProgress: (s) => setBusy(s),
       });
       setGot(tpl);
@@ -653,6 +711,7 @@ export default function VideoTemplateExtractor({
       >
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-100">🎬 从视频提取模板</h3>
+          <HelpButton tour="extractor" className="ml-auto" />
           <button onClick={close} className="-m-2 p-2 text-slate-400">
             <Icon name="close" size={20} />
           </button>
@@ -709,108 +768,137 @@ export default function VideoTemplateExtractor({
           </div>
         ) : (
           <>
-            {blockoutReady && (
-              <div className="mb-3 rounded-xl border border-slate-700 bg-black/25 p-3">
+            {/* ══ 第一层岔路：这段视频要做成什么（三选一）══════════════════
+                ★★ 2026-08-17 从「一个白模开关 + 框选屏里藏着的第二问」改成这一处三选一。
+                  旧法把同一个决定拆成两处、隔着"选文件 → 上传 → 进框选屏"三步才问完，
+                  而两问的**组合**才决定花不花钱、花多少；走到第二问时用户早忘了第一问，
+                  更糟的是他可能已经传完上百 MB 才发现自己想走的是另一条路。
+                ★ 三条并排摆着（而不是开关 + 隐藏项）还有一个作用：**经典配方是唯一不需要
+                  付费套餐的那条**，摆出来才看得见"没套餐也能做点什么"。
+                ★ 服务端不认白模端点时只剩经典那一条，整块降级成一行说明 —— 不摆两个
+                  点了会失败的选项（本仓「界面上摆一个永远点不动的选项」那条）。 */}
+            <div data-guide="extractor-routes" className="mb-3 space-y-2 rounded-xl border border-slate-700 bg-black/25 p-3">
+              <div className="text-xs font-semibold text-slate-200">这段视频要做成什么？</div>
+              {(
+                [
+                  ...(blockoutReady
+                    ? ([
+                        {
+                          v: "aiBlockout" as const,
+                          t: "让 AI 把里面的人换成白模人偶",
+                          d: "任意视频都行。套用者出片时整段复刻它的场景与运镜。这是一次真实出片，费用在框选那一步整句报出来。",
+                        },
+                        {
+                          v: "ownRef" as const,
+                          t: "它本来就是白模 / 人偶片，直接用",
+                          d: `不出片、不换人，只认出画面里有谁、量出他们在哪（约 ${fmtTokens(ownRefTemplateCost())}）。`,
+                        },
+                      ] as const)
+                    : []),
+                  {
+                    v: "classic" as const,
+                    t: "经典配方（不做白模）",
+                    d: "抽几帧总结画风、运镜与分镜骨架，再提炼可复用的场景/道具卡。不出片、不把视频传上公网，也不需要付费套餐。",
+                  },
+                ] as const
+              ).map((o) => (
                 <button
+                  key={o.v}
                   onClick={() => {
-                    setBlockout(!blockout);
-                    // ★ 切换即清空已选文件：经典路选进来的文件没过白模预检（格式/时长/
-                    //   分辨率硬门），带着它切过去等于绕过预检，用户会拖到付费出片那一步
-                    //   才撞方舟的 400。反方向同理（白模只收 mp4/mov，经典路不限）。
-                    // ★ 已经传上去的那份也要**当场回收**：留着它既占配额，又会让用户
-                    //   切回来时看到一个自己以为已经放弃的旧视频（回收失败只吼，
-                    //   close() 那一层还有一次兜底）。回不回收由 dropReceipt 一处判
-                    //   （已经花过钱的那份**不回收**）。
-                    dropReceipt();
-                    setFile(null);
-                    setFrames([]);
-                    setErr("");
-                    setWarn("");
-                    setGot(null);
+                    // ★ 只有**跨白模/经典这条线**换路时才清掉已选文件：两侧的预检不一样
+                    //   （白模只收 mp4/mov 且有时长/分辨率硬门，经典不限），带着没过预检的
+                    //   文件切过去，用户会拖到付费出片那一步才撞方舟的 400。
+                    //   aiBlockout ↔ ownRef 互切不清：前两步（选文件、上传）完全一样，
+                    //   清掉等于让他白传一次。
+                    // ★ 已经传上去的那份要**当场回收**（留着既占配额，又会让他切回来时
+                    //   看到一个自己以为已经放弃的旧视频）。回不回收由 dropReceipt 一处判
+                    //   —— 已经花过钱的那份不回收。
+                    // ★★ 框选与「分析哪几帧」的标记也一并由 dropReceipt 清掉（2026-08-17 修）：
+                    //   在此之前只清了 file/receipt/frames，标记留在原地 —— 上一段视频标的帧
+                    //   会跟着进下一段，并原样发成 atSecs（换算是对的，指的却是别的画面）。
+                    //   别在这里再清一遍：那就成了两处各清各的。
+                    if ((o.v !== "classic") !== blockout) {
+                      dropReceipt();
+                      setFile(null);
+                      setFrames([]);
+                      setErr("");
+                      setWarn("");
+                      setGot(null);
+                    }
+                    setRoute(o.v);
                   }}
                   disabled={!!busy}
-                  className="flex w-full items-center justify-between gap-3 text-left disabled:opacity-50"
+                  className={`flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left disabled:opacity-50 ${
+                    route === o.v ? "bg-brand/20 ring-1 ring-brand" : "bg-black/20"
+                  }`}
                 >
-                  <span>
-                    <span className="block text-xs font-semibold text-slate-200">白模模板</span>
-                    <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">
-                      拿任意一段视频当底：AI 把画面里的人全换成<b className="text-slate-300">一模一样的纯白人偶</b>
-                      ，做成模板。套用者出片时整段复刻它的场景与运镜，按「从左往右第几个」把人偶换成自己的角色
-                    </span>
+                  <span className={`mt-0.5 flex-none text-[11px] ${route === o.v ? "text-brand" : "text-slate-500"}`}>
+                    {route === o.v ? "●" : "○"}
                   </span>
-                  <span
-                    className={`flex-none rounded-lg px-2.5 py-1 text-xs font-semibold ${blockout ? "bg-brand text-ink" : "bg-slate-700/70 text-slate-300"}`}
-                  >
-                    {blockout ? "开" : "关"}
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-semibold text-slate-100">{o.t}</span>
+                    <span className="block text-[10px] leading-relaxed text-slate-400">{o.d}</span>
                   </span>
                 </button>
-                {/* ★★ 命中率：这一屏是**花钱之前、选文件之前**，所以这里说的目的是让作者
-                    ① 决定要不要做 ② 选一段人少的。三条禁令（写在设计里，别改软）：
-                      · 不许出现"AI 会准确识别""智能识别每个角色"这类话；
-                      · 不许把 4/7 化妆成"成功率超过一半"—— 给的就是原始形状，带上"5 个人"这个前提，
-                        脱离人数的百分比是假精度；
-                      · 套用者那一侧**不提**命中率（他拿到的是作者已经核对过的模板，说了他也做不了
-                        任何事，只会不敢用）。
-                    ⚠ 2026-08-17 起**一个具体数字都不写**，这是有意的：以前那句"7 发 4 发全对"
-                      是**颜色方案**那一版白模化提示词的实测，而那一版已经整档删了（全白版是另一段
-                      406 字的提示词，还没有按人数分组的实测）。拿旧提示词的数字给新提示词背书，
-                      比不给数字更坏 —— 它看起来精确、其实是编的。等全白版攒够实测再把数字加回来。 */}
-                {blockout && (
-                  <p className="mt-2 rounded-lg bg-amber-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-amber-200/90">
-                    <b className="font-bold">先说清楚：这一步不是每次都全对。</b>
-                    实测每隔几发就会有 1~2 个人<b className="font-bold">根本没被换成人偶</b>（还是原来的样子）
-                    —— 最常出错的是<b className="font-bold">画面正中央、看起来最像主角的那一个</b>。
-                    出片之后你要对着画面从左往右数一遍：对不上的位子删掉就行（不用重炼、不花钱），
-                    要全对上只能重炼（<b className="font-bold">重炼要再花一次钱</b>）。
-                    <b className="font-bold">画面里的人越少越准</b>，能只框一段 3~5 个人的镜头就别框一群人。
-                  </p>
-                )}
-                {blockout && (
-                  <p className="mt-2 text-[10px] leading-relaxed text-amber-400/90">
-                    mp4 / mov · {Math.round(TEMPLATE_UPLOAD_RULES.maxSec / 60)} 分钟以内 ·{" "}
-                    {Math.round(MAX_TEMPLATE_VIDEO_BYTES / 1024 / 1024)}MB 以内。传完在下一步框出要用的那一段
-                    （5~30 秒），那一步会把这次要花的钱整句报出来。上传的视频会公开托管，套用者出片时会引用它。
-                    {/* ★ 水印这条与前两条并列，且**必须常驻**（不能改成"只在探测命中时才说"）：
-                        帧角探测是尽力而为、故意宁可漏报的（见 cornerWatermarkHint），
-                        提示词里那句「不要出现水印」同样只是尽力而为（segmentGen.BLOCKOUT_SWAP）——
-                        这句常驻告知才是水印这件事上唯一可靠的一环。2026-08-14 实拍：参考视频带的
-                        B 站水印被 edit 子任务原样画进成片，而模板会被别人反复套用，
-                        等于每一条成片都带着它。V2 起真正的解法有了：编辑页的裁剪框能把它框掉。 */}
-                    <br />
-                    视频里的水印、台标或字幕会被<b className="text-amber-300">逐帧复刻进每一次出片</b>
-                    （包括别人套用你这个模板时），请在下一步的裁剪框里把它框掉。
-                  </p>
-                )}
-                {/* ★★ 套餐/闸门/价目不满足时，这句话就摆在**选文件之前**（见 blockoutBlock 的 ★★）：
-                    它是这条路上最先该说、也最省事的一句 —— 说晚一步，用户就是传完 100MB、
-                    框完选段、读完报价之后才被挡，而那时他可能已经为此充过值。
-                    ★ 不把开关本身灰掉：开关要能拨，用户才看得到上面那段"白模模板是什么"的说明
-                    （CLAUDE.md「界面上摆一个永远点不动的选项」那条说的是**不给理由**的灰，
-                    不是"看得见 + 说清为什么"）。真正点不动的是下面那颗选文件按钮。 */}
-                {blockout && blockoutBlock && (
-                  <p className="mt-2 rounded-lg bg-rose-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-rose-300">
-                    {blockoutBlock}
-                    <br />
-                    白模化整条只走这一档，所以现在还开不了 —— 先在这里说清楚，免得你传完一大段视频、
-                    框完选段之后才被挡下。
-                  </p>
-                )}
-                {/* ★★ 「你还有一发没取回」要在**开炼之前**说：这一屏是花钱的入口，而再开一发
-                    是**再花一次钱**，已经付过的那一发不会因此回来。这里只提醒不拦人
-                    （他也可能就是想再做一个模板），但那句"钱已经付过"必须写死在句子里。
-                    ★ 取回的按钮不摆在这儿：取回要显示进度、要处理失败，那一屏在「我的模板」
-                    （唯一实现 —— 两处各写一遍取回流程必然分叉，而分叉的代价是用户的钱）。 */}
-                {blockout && pending.length > 0 && (
-                  <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-amber-200">
-                    你还有 <b className="font-bold">{pending.length}</b> 发白模化<b className="font-bold">已经付过钱、还没取回结果</b>
-                    （{blockoutJobNote(pending[0])}）。
-                    <br />
-                    先去「我的模板」把它取回来 —— 在这里重新开炼是<b className="font-bold">再花一次钱</b>，
-                    已经付过的那一发不会因此回来。
-                  </p>
-                )}
-              </div>
-            )}
+              ))}
+
+              {/* ★★ 命中率：这一屏是**花钱之前、选文件之前**，目的是让作者 ① 决定要不要做
+                  ② 选一段人少的。三条禁令（写在设计里，别改软）：
+                    · 不许出现"AI 会准确识别""智能识别每个角色"这类话；
+                    · **一个具体数字都不写** —— 以前那句"7 发 4 发全对"是**颜色方案**那一版
+                      提示词的实测，而那一版已经整档删了。拿旧提示词的数字给新提示词背书，
+                      比不给数字更坏：它看起来精确、其实是编的；
+                    · 套用者那一侧不提命中率（他拿到的是作者已核对过的模板，说了也做不了事）。
+                  ★ 这一段**没有搬进新手引导**：引导看过一次就不再自动弹，而这句话紧挨着
+                    一次真实付费的决策点，必须每次都在。 */}
+              {route === "aiBlockout" && (
+                <p className="rounded-lg bg-amber-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-amber-200/90">
+                  <b className="font-bold">这一步不是每次都全对。</b>会有人根本没被换成人偶，最容易漏的是
+                  <b className="font-bold">画面正中央、看起来最像主角的那一个</b>。出片后对着画面从左往右核对一遍，
+                  对不上的位子删掉就行（不用重炼、不花钱）；要全对上只能重炼，而
+                  <b className="font-bold">重炼要再花一次钱</b>。画面里的人越少越准。
+                </p>
+              )}
+
+              {/* ★ 规格是选文件**之前**的硬门，留在这儿（不进引导）。
+                  ★★ 水印那两行**必须常驻**：帧角探测是尽力而为、故意宁可漏报的，
+                    提示词里那句「不要出现水印」同样只是尽力而为 —— 这句常驻告知才是
+                    水印这件事上唯一可靠的一环。2026-08-14 实拍：参考视频带的 B 站水印
+                    被 edit 子任务原样画进成片，而模板会被别人反复套用，等于每条成片都带着它。
+                  ★★ 「公开托管」同样不许搬进引导：它是选文件之前的一次**告知**
+                    （素材进公网、且会被别人的成片引用），藏进一个看过一次就不再出现的地方，
+                    等于让老用户在零提示下把视频传上公网。 */}
+              {blockout && (
+                <p className="text-[10px] leading-relaxed text-amber-400/90">
+                  mp4 / mov · {Math.round(TEMPLATE_UPLOAD_RULES.maxSec / 60)} 分钟以内 ·{" "}
+                  {Math.round(MAX_TEMPLATE_VIDEO_BYTES / 1024 / 1024)}MB 以内。上传的视频会
+                  <b className="text-amber-300">公开托管</b>，套用者出片时会引用它。
+                  <br />
+                  视频里的水印、台标或字幕会被<b className="text-amber-300">逐帧复刻进每一次出片</b>
+                  （包括别人套用你这个模板时），请在下一步的裁剪框里把它框掉。
+                </p>
+              )}
+
+              {/* ★★ 套餐/闸门/价目不满足时，这句话就摆在**选文件之前**（见 blockoutBlock 的 ★★）：
+                  说晚一步，用户就是传完 100MB、框完选段、读完报价之后才被挡，
+                  而那时他可能已经为此充过值。
+                  ★ 选项本身不灰掉：它要能选中，用户才看得到下面这句为什么。真正点不动的是
+                  那颗选文件按钮（本仓禁止的是**不给理由**的灰，不是"看得见 + 说清为什么"）。 */}
+              {blockout && blockoutBlock && (
+                <p className="rounded-lg bg-rose-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-rose-300">
+                  {blockoutBlock}
+                  <br />
+                  白模那两条路都只走这一档，所以现在还开不了 —— 换成上面的「经典配方」仍然可以做模板。
+                </p>
+              )}
+
+              {/* ★★ 2026-08-17 删掉了这里的「你还有 N 发已经付过钱、还没取回结果」。
+                  删的理由不是"话太多"，是它**关不掉**：产物过期之后那条凭据在服务端名单里
+                  永远留着，用户点取回 → 失败 → 这句话还在，且没有任何办法让它消失。
+                  一个永远关不掉的提醒会被当成背景噪音，连带着把真正能取回的那几发也淹掉。
+                ★ 取回的入口仍然只有一处（「我的模板」那张卡），那里现在能把**已经过期**的
+                  那种消掉（data/templates.dismissBlockoutJob，没过期的一律拒）。 */}
+            </div>
 
             {blockout && receipt ? (
               // ── 传完了：交给 BlockoutTrimmer 框选 + 报价 + 开炼 ──
@@ -837,6 +925,14 @@ export default function VideoTemplateExtractor({
                 busy={!!busy}
                 busyNote={busy}
                 error={err}
+                // ★★ 把它框出来的那一段镜像下来，唯一去处是下面 extra 里的 BoxFramePicker：
+                //   标记是对着**整条原片**标的，而只有落在选段里的那些才会被采用 ——
+                //   不把选段递给它，它就只能装作每一帧都作数（见 trimSel 的 ★★）。
+                onSelectionChange={setTrimSel}
+                // ★ 自带白模片那条路**不做白模化**，所以「AI 看哪几帧」整块不出：
+                //   它要挑的帧由同一屏 extra 里的 BoxFramePicker 管（认人量框那一步）。
+                //   两块同时在，同一屏上就有两个叫法几乎一样的"看哪几帧"，而上限与后果都不同。
+                hideVisionFrames={route === "ownRef"}
                 extra={
                   <div className="space-y-2">
                     <input
@@ -848,7 +944,25 @@ export default function VideoTemplateExtractor({
                     />
                     {/* ★ 补充说明只对**要 AI 白模化**那条路有用（它进的是"看帧认人"那一发的
                         提示词）。自带白模片那条不看它 —— 摆着而不起作用就是在骗人 */}
-                    {refMode === "aiBlockout" && (
+                    {/* ★ 「AI 分析哪几帧」只对**自带白模片**那条路出：aiBlockout 那条的
+                        "看几帧"是白模化之前的点名清单，由 BlockoutTrimmer 自己的
+                        VisionFramePicker 管 —— 同一屏摆两个"看几帧"只会让人分不清。 */}
+                    {route === "ownRef" && receipt && (
+                      <BoxFramePicker
+                        mode={boxMode}
+                        onModeChange={setBoxMode}
+                        src={receipt.src}
+                        // ★★ src 是**整条原片**（回执那份本机文件），而做成模板的只有选段 ——
+                        //   两者的差就靠这一个 prop 说出来：picker 据此把落在选段外的标记
+                        //   列出来、写清"不会被采用也不计费"，并把计数与「标满」门禁改成
+                        //   只数选段内的。提交用的 atSecs 与它读同一个函数（见 runOwnRef）。
+                        sel={trimSel}
+                        marks={boxMarks}
+                        onMarksChange={setBoxMarks}
+                        disabled={!!busy}
+                      />
+                    )}
+                    {route === "aiBlockout" && (
                       <textarea
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
@@ -857,46 +971,10 @@ export default function VideoTemplateExtractor({
                         className="w-full resize-none rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                       />
                     )}
-                    {/* ★★ 两条路的分界。文案要把**钱**说在最前面：一条是一次真实付费出片，
-                        另一条只是几发对话。用户选错的代价完全不对称，所以别只写功能名。 */}
-                    <div className="space-y-1.5 rounded-xl border border-slate-700/70 bg-black/25 p-2.5">
-                      <div className="text-[11px] font-bold text-slate-200">这段视频要怎么用？</div>
-                      {(
-                        [
-                          {
-                            v: "aiBlockout" as const,
-                            t: "让 AI 把里面的人换成白模人偶",
-                            d: "任意视频都行。这是一次真实出片，费用在下面按你框选的秒数报。",
-                          },
-                          {
-                            v: "ownRef" as const,
-                            t: "它本来就是白模/人偶片，直接用",
-                            d: `不出片、不换人，只认出画面里有谁、量出他们在哪（约 ${fmtTokens(ownRefTemplateCost())}）。`,
-                          },
-                        ]
-                      ).map((o) => (
-                        <button
-                          key={o.v}
-                          onClick={() => setRefMode(o.v)}
-                          disabled={!!busy}
-                          className={`flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left disabled:opacity-50 ${
-                            refMode === o.v ? "bg-brand/20 ring-1 ring-brand" : "bg-black/20"
-                          }`}
-                        >
-                          <span className={`mt-0.5 flex-none text-[11px] ${refMode === o.v ? "text-brand" : "text-slate-500"}`}>
-                            {refMode === o.v ? "●" : "○"}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block text-[11px] font-semibold text-slate-100">{o.t}</span>
-                            <span className="block text-[10px] leading-relaxed text-slate-400">{o.d}</span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
                   </div>
                 }
-                  submitLabel={refMode === "ownRef" ? "做成模板（不出片）" : undefined}
-                  onSubmit={(sel) => void (refMode === "ownRef" ? runOwnRef(sel) : runBlockoutize(sel))}
+                  submitLabel={route === "ownRef" ? "做成模板（不出片）" : undefined}
+                  onSubmit={(sel) => void (route === "ownRef" ? runOwnRef(sel) : runBlockoutize(sel))}
                   onCancel={close}
                 />
               </>
@@ -916,6 +994,7 @@ export default function VideoTemplateExtractor({
                     （blockoutBlock），不是一颗没有说明的灰按钮。挡在这里而不是挡在
                     「开炼」那一步，省下的是一次 100MB 上传 + 几分钟框选。 */}
                 <button
+                  data-guide="extractor-pick-file"
                   onClick={() => inputRef.current?.click()}
                   disabled={!!busy || !!blockoutBlock}
                   className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-600 py-6 text-sm text-slate-300 disabled:opacity-50"
@@ -992,8 +1071,8 @@ export default function VideoTemplateExtractor({
                         不走 paidOnly 的档位，谁都能用。 */}
                     {busy ||
                       (blockoutBlock
-                        ? "白模化这条路现在开不了（原因见上）。把上面的开关关掉走「经典配方」那条路仍然可以用——它不需要付费套餐，只是不做白模人偶。"
-                        : "选好视频先传上去（不花钱），下一步再拖时间轴框出 5~30 秒、拖裁剪框把水印框到画面外，确认报价后才开炼。")}
+                        ? "白模那两条路现在开不了（原因见上）。上面改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。"
+                        : `选好视频先传上去（不花钱），下一步再拖时间轴框出 ${BLOCKOUT_INPUT_RULES.minSec}~${BLOCKOUT_INPUT_RULES.maxSec} 秒、拖裁剪框把水印框到画面外，确认报价后才开炼。`)}
                   </p>
                 ) : (
                   <>
@@ -1004,8 +1083,11 @@ export default function VideoTemplateExtractor({
                     >
                       {busy || "开始分析并生成模板"}
                     </button>
+                    {/* ★ 只留反直觉的那一条。「总结画风/运镜/分镜骨架」搬进了新手引导，
+                        但「不提取主角」不能搬：不说的话用户会把它当成模板做坏了，
+                        而这是每次都成立的事实、不是只看一遍就够的介绍。 */}
                     <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-                      AI 会看这几帧，总结出画风、运镜与分镜骨架，并提炼可复用的场景/道具卡（不提取主角——主角由你之后那句话指定）。
+                      <b className="text-slate-400">不提取主角</b>——主角由你之后那句话指定。
                     </p>
                   </>
                 )}
