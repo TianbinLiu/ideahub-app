@@ -1233,6 +1233,34 @@ export async function patchTemplateRoles(
 
 /** PATCH /api/branch/templates/:id/unpublish（requireAuth，仅作者）→ 回到 pending。
  *  blocked（平台下架）不许作者自己洗回来，服务端 400 */
+/**
+ * POST /api/branch/templates/:id/detect-roles（requireAuth，仅作者）
+ * —— 「去认一遍这段视频里有哪些人，并量出他们在画面上的位置」。
+ *
+ * ★★ 它与「登记模板」**是两条请求**（2026-08-17 拆的）：认人+量框慢起来是分钟级，
+ *   而上游耗时实测在 6.6s~140s 之间浮动。塞在登记里的结果是一次抖动就让作者拿到
+ *   一个没有角色位的模板，既看不出为什么、也没有入口重来。拆开之后**失败就再点一次**。
+ * ★ 服务端保证**失败不留痕**（模板一个字不动），所以这条可以放心重试；
+ *   而它每次都花钱（认人 + 量框都是计费的 chat），所以别做成自动无限重试。
+ * ★ 409 = 「正在识别中」（服务端那把并发锁）—— 不是错误，是"等一下再来"。
+ * @returns 服务端回的整份模板 + `note`（三档结果里非全成的那两档才有）
+ */
+export async function detectTemplateRoles(
+  id: string,
+): Promise<{ template: ApiBranchTemplate | null; detected: number; boxed: number; note: string } | null> {
+  const res = await apiPost<Record<string, unknown>>(
+    `/api/branch/templates/${encodeURIComponent(id)}/detect-roles`,
+    {},
+  );
+  if (!res || typeof res !== "object") return null;
+  return {
+    template: pick<ApiBranchTemplate>(res, ["template", "item", "data"]),
+    detected: Number(res.detected) || 0,
+    boxed: Number(res.boxed) || 0,
+    note: typeof res.note === "string" ? res.note : "",
+  };
+}
+
 export async function unpublishTemplate(id: string): Promise<ApiBranchTemplate | null> {
   const res = await apiPatch<Record<string, unknown>>(`/api/branch/templates/${encodeURIComponent(id)}/unpublish`);
   return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);

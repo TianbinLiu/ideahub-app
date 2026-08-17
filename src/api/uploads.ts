@@ -12,7 +12,7 @@
 //
 // ★ 服务端这两个端点早就在线、Cloudinary 也早就配好了（2026-08-10 实测：
 //   传一张 1x1 png 回的是 res.cloudinary.com 的永久 URL）。缺的一直只是 App 去用它。
-import { API_BASE, ApiError, getToken } from "./client";
+import { API_BASE, ApiError, apiPost, getToken } from "./client";
 
 /** 与服务端 middleware/upload.js 的上限一致。超了就别发出去，省一次必然失败的往返 */
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -132,13 +132,22 @@ export function uploadMedia(blob: Blob, filename = "video.webm"): Promise<string
  *                 的 5 秒下限由它自己的宿主紧接着问一次，见上面 ★★。
  *   边长 ≥300  —— 裁剪框只会更小，原片连 300 都不到就永远裁不出合规的一段（提前拦）。
  *                 **上限取消**：4K 原片裁出 720p 的一段是完全正常的用法。
- *   宽×高 ≥ 407,696 —— 同理，裁剪面积 ≤ 原片面积，这是必要条件。
+ *   ★★★ **像素门 2026-08-17 从这里去掉了**（原来是 407,696，理由写作"裁剪面积 ≤ 原片面积"）。
+ *     那个数是**方舟对参考视频**的约束，而 `POST /uploads/template-video/derive` 现在能
+ *     在裁完之后按需**放大到刚过线** —— 于是"裁剪只会更小"这个前提不成立了。
+ *     不去掉的话，一段 836×480 = 401,280 像素（只差 1.6%）的真实素材**连传都传不上来**，
+ *     而它裁一段放大之后完全合格。
+ *     ★ 够不够格改由**边长**判（≥300）：像素能靠放大补出来，边长补不出来
+ *       —— 200×120 放大到 700×420 只是把马赛克放大，那种仍然在这里就拒。
+ *     ⚠ 严窗口一点没松：裁出来的那一段仍要过服务端的 `templateRefIssue`（含像素门），
+ *       V2 的框选也仍由 `arkVideoRules.selectionIssue` 当场判 —— 止损点没有变晚。
+ *     ⚠ 与 server 的 `TEMPLATE_SOURCE_RULES` 是**跨仓镜像**：那边也去掉了这一项，
+ *       两边必须同进同退（只改一边的表现是"界面放行、服务端拒"或反过来）。
  *   ⚠ **宽高比不校**：比例正是裁剪框能修的那一项（16:9 的原片裁出 9:16 竖版是主用法）。
  */
 export const TEMPLATE_UPLOAD_RULES = Object.freeze({
   maxSec: 600,
   minEdge: 300,
-  minPixels: 407_696,
 });
 
 /** mp4 / mov —— 方舟 r2v 官方只认这两种（与 server 的 ALLOWED_TEMPLATE_VIDEO_MIMES 镜像） */
@@ -187,9 +196,6 @@ export function templateVideoPrecheckIssue(m: TemplateVideoProbe): string | null
   if (width < R.minEdge || height < R.minEdge) {
     return `视频边长至少 ${R.minEdge} 像素（当前 ${width}×${height}）：比这更小的画面，裁剪框怎么拉都达不到 AI 引擎的下限。`;
   }
-  if (width * height < R.minPixels) {
-    return `视频分辨率太低：宽×高至少要 ${R.minPixels.toLocaleString("en-US")} 像素（当前 ${width}×${height} = ${(width * height).toLocaleString("en-US")}），裁剪只会更小，AI 引擎会拒绝这样的输入。`;
-  }
   return null;
 }
 
@@ -216,6 +222,40 @@ export interface TemplateVideoReceipt {
  *   JSON 404 会在 postForm 里抛）。缺登记元数据 = 这份回执当不了 r2v 结算锚点，
  *   必须整句响亮拒绝——静默放行就是"存了个报不出价的模板"。
  */
+/**
+ * 把已上传的素材**裁出框选那一段**（不够清晰时服务端顺带放大），落成一个新素材。
+ *
+ * ★★ 只交**四组整数**，变换 URL 由服务端自己拼（`buildClipUrl`，唯一实现）——
+ *   与白模 V2 同一条纪律：能让客户端拼 URL，就等于让用户自己决定"方舟拿到多长"。
+ *   这段视频将成为**别人套用时的 r2v 输入时长**（segmentCost 读 refVideo.durationSec），
+ *   一样是钱。
+ * ★ 放大由服务端按需要做（只放到刚过方舟那道像素门）：放大不会凭空变清楚，
+ *   它解决的是"引擎拒收这个尺寸"。客户端不参与决定放多大。
+ * ★ 裁后服务端用**参考视频那套严窗口**复核，不过就先回收再整句拒 ——
+ *   所以这里失败一律把 message 原样显示，别自己编一句。
+ */
+export async function deriveTemplateVideo(
+  publicId: string,
+  clip: { startSec: number; durSec: number; crop: { x: number; y: number; w: number; h: number } },
+): Promise<TemplateVideoReceipt> {
+  const data = await apiPost<Record<string, unknown>>("/api/uploads/template-video/derive", {
+    publicId,
+    startSec: clip.startSec,
+    durSec: clip.durSec,
+    crop: clip.crop,
+  });
+  const url = String(data?.url ?? "");
+  const newId = String(data?.publicId ?? "");
+  const durationSec = Number(data?.durationSec);
+  const width = Number(data?.width);
+  const height = Number(data?.height);
+  // ★ 按**回包形状**验收，不看状态码（Capacitor 那条坑：未命中路径回 200 + index.html）
+  if (!url || !newId || !Number.isFinite(durationSec) || !Number.isFinite(width) || !Number.isFinite(height)) {
+    throw new Error("裁剪没成功：服务器没有返回可用的视频信息（可能是旧版服务端）");
+  }
+  return { url, publicId: newId, durationSec, width, height, bytes: Number(data?.bytes) || 0 };
+}
+
 export async function uploadTemplateVideo(file: File): Promise<TemplateVideoReceipt> {
   // ★ 600s 不是 /media 那个 180s：上限从 20MB 提到 100MB 之后，慢网上光是把字节推上去
   //   就可能要几分钟。超时早于服务端收完 = 用户看到"上传超时"、Cloudinary 上却留下一份

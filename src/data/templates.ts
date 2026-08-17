@@ -414,6 +414,121 @@ export function registerIssueOf(id: string): string | null {
  *   message 原样透传给用户。
  * @throws 失败时抛出，message 可直接显示；同时记进 registerErrors 供详情页展示
  */
+/**
+ * 【自带参考视频】把作者自己传的一段视频做成白模模板 —— **这条路的唯一实现**。
+ *
+ * 三步，一步都不能省：
+ *   ① `deriveTemplateVideo`：把框选那一段裁出来（不够清晰服务端顺带放大到刚过线），
+ *      落成一个正规素材。**必须有这一步**：参考视频窗口是 [4,30]s + 像素/边长/比例门，
+ *      而用户手上的原片多半不满足（实测一段 34.167s、836×480 的真实素材两条都差）。
+ *   ② `registerTemplate` 那条服务端登记（POST /templates）：**毫秒级、必然成功**，
+ *      因为认人那些慢活已经拆出去了。
+ *   ③ `detectTemplateRoles`：认人 + 量框，**慢且会抖，所以可重试**（失败不留痕）。
+ *
+ * ★★ 与白模 V2 的分界就一句话：**这条路不出片**。视频已经在作者手上，我们只是
+ *   认出画面里有谁、量出他们在哪 —— 没有 r2v 那一笔（V2 是一次真实付费出片）。
+ *   所以报价也只有 chat 那几发（`ownRefTemplateCost`）。
+ * ★ ③ 失败**不算整件事失败**：模板已经建好了，作者可以在列表里点「识别角色位」重来。
+ *   所以这里 catch 住它、把话带回去，而不是让整个流程抛。
+ *
+ * @returns 本机模板 id + 一句给用户看的话（"" = 全都拿到了）
+ */
+export async function makeOwnRefTemplate(o: {
+  receipt: { publicId: string; url: string; durationSec: number; width: number; height: number; bytes: number };
+  clip: { startSec: number; durSec: number; crop: { x: number; y: number; w: number; h: number } };
+  title: string;
+  intro?: string;
+  onStep?: (note: string) => void;
+}): Promise<{ id: string; note: string }> {
+  const say = o.onStep ?? (() => {});
+  if (!remoteOn()) throw new Error("现在连不上服务器——联网后再做模板");
+
+  say("正在裁出你框选的那一段…");
+  const cut = await uploadsApi.deriveTemplateVideo(o.receipt.publicId, o.clip);
+
+  // ★ 先落本机再登记：登记失败时本机这条还在（带 publicId），删除那条路认得出它、
+  //   能把云端那份回收掉。反过来（登记成功、本机没落）才是真的丢句柄。
+  say("正在登记模板…");
+  const tpl = saveTemplate({
+    title: o.title.trim() || "白模模板",
+    intro: (o.intro ?? "").trim(),
+    cover: "",
+    // ★ 白模不带素材卡（提取时认不出，「换成谁」由套用者自己挂卡）—— 与 apiToTemplate 同一句
+    cards: [],
+    recipe: { styleHint: "", beats: [], durationSec: Math.round(cut.durationSec), videoTier: "", framePrompt: "" },
+    refVideo: {
+      url: cut.url,
+      durationSec: Math.round(cut.durationSec),
+      width: cut.width,
+      height: cut.height,
+      publicId: cut.publicId,
+    },
+  });
+  const id = tpl.id;
+  await registerTemplate(id);
+
+  say("AI 正在认画面里有哪些人…（要一到几分钟）");
+  let note = "";
+  try {
+    note = await detectTemplateRoles(id);
+  } catch (e) {
+    // ★ 认人失败**不算整件事失败**：模板已经建好，列表里那颗「识别角色位」能重来。
+    //   把原因原样带回去 —— 编一句"稍后再试"会让作者以为是网络问题。
+    note = `${e instanceof Error ? e.message : String(e)}（模板已经建好了，可以在「我的模板」里点「识别角色位」重试）`;
+  }
+  return { id, note };
+}
+
+/**
+ * 让服务端去认一遍这个模板的角色位（并量出画面位置）——**「自己传参考视频」那条路的第二步**。
+ *
+ * ★★ 与登记分开是有意的（服务端那条路由的文件头写了完整理由）：认人+量框慢起来是
+ *   分钟级、上游还会抖，塞在登记里一次抖动就让作者拿到一个没有角色位的模板。
+ *   拆开之后**失败就再点一次，模板一直好好地在**。
+ * ★ 回来的四位（roles / markSlots / markBoxes / markBoxAtSec）**同批搬**，走的是
+ *   与 `registerTemplate` / `refreshRemoteTemplate` 同一套逐字段搬运器。
+ *   漏搬任何一位都是零报错：漏 roles → 核对入口永不出现；漏 markSlots → 整份被判成
+ *   编号方案；框与清单长度不等 → 拖拽层静默关掉（CLAUDE.md 那条已经咬过三次的坑）。
+ * ★ 这一发**花钱**（认人 + 量框都是计费的 chat，报价见 economy.ownRefTemplateCost），
+ *   所以只在用户点了之后调，绝不做成自动轮询重试。
+ *
+ * @returns 一句给用户看的话（"" = 全都拿到了，不用说什么）
+ * @throws message 可直接显示（含 409「正在识别中」那一句）
+ */
+export async function detectTemplateRoles(id: string): Promise<string> {
+  const t = mine.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
+  if (!t) throw new Error("这个模板不在本机库里");
+  if (!t.remoteId) throw new Error("这个模板还没登记到服务器，先登记再识别角色位");
+  if (!remoteOn()) throw new Error("现在连不上服务器——联网后再识别");
+  const out = await branch.detectTemplateRoles(t.remoteId);
+  if (!out) throw new Error("这台服务器不支持识别角色位（回包形状不对，可能需要升级服务端）");
+  const api = out.template;
+  if (api) {
+    // ★ 四位同批搬。★★ 服务端**认不出人时一个字都不写**，所以这里也要按存在性搬 ——
+    //   拿一份空的去覆盖，会把上一次成功认出来的角色位抹掉（这条路是可重试的，
+    //   而"重试一次反而更差"是最难查的一种）
+    const back = rolesOf(api);
+    if (back.length) t.roles = back;
+    const backSlots = markSlotsOf(api);
+    if (backSlots.length) t.markSlots = backSlots;
+    const backBoxes = markBoxesOf(api, (backSlots.length ? backSlots : t.markSlots ?? []).length);
+    if (backBoxes.length) {
+      t.markBoxes = backBoxes;
+      const at = Number(api.markBoxAtSec);
+      if (Number.isFinite(at) && at >= 0) t.markBoxAtSec = at;
+    } else if (back.length) {
+      // ★ 这一次认出了人却没量出框：把旧框**清掉**。留着的话新 roles 会配着旧框 ——
+      //   人数没变时长度还正好相等，出口那道长度校验也放行，于是整份错位、零报错。
+      delete t.markBoxes;
+      delete t.markBoxAtSec;
+    }
+    recordState(api);
+    persist();
+  }
+  emit();
+  return out.note;
+}
+
 export async function registerTemplate(id: string): Promise<void> {
   const t = mine.find((x) => x.id === id);
   if (!t) throw new Error("这个模板不在本机库里");

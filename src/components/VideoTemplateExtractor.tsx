@@ -43,11 +43,13 @@ import {
   type TemplateVideoReceipt,
 } from "../api/uploads";
 import { canAfford, spendTokens, walletOf } from "../data/account";
-import { TEMPLATE_MAX_CARDS, fmtTokens, templateCost, templateSettle } from "../data/economy";
+import { TEMPLATE_MAX_CARDS, fmtTokens, ownRefTemplateCost, templateCost, templateSettle } from "../data/economy";
 import {
   blockoutJobNote,
   blockoutizeBlockReason,
   blockoutizeTemplate,
+  getTemplate,
+  makeOwnRefTemplate,
   pendingBlockoutJobs,
   refVideoRealSec,
   remoteTemplatesCapable,
@@ -337,6 +339,21 @@ export default function VideoTemplateExtractor({
   const [warn, setWarn] = useState("");
   const [got, setGot] = useState<VideoTemplate | null>(null);
   const [blockout, setBlockout] = useState(false);
+  /**
+   * 框选完之后走哪条路 —— **两条路的分界就一句话：这段视频要不要 AI 帮你换成白模人偶**。
+   *
+   * ★★ `"aiBlockout"`（默认）：任意视频 → 服务端看帧认人 → **一次真实付费出片**把人
+   *   全换成一模一样的纯白人偶，产物才是模板。这是白模 V2。
+   * ★★ `"ownRef"`：**这段本来就是白模/人偶片**（作者自己做好的预演片）。不出片、
+   *   不换人，只认出画面里有谁、量出他们在哪 —— 便宜两个量级。
+   * ★ 为什么选择摆在**框选这一屏**而不是选文件之前：两条路的前两步（选文件、上传）
+   *   一模一样，而"这段是不是已经是白模了"要看着画面才说得准。摆在前面等于让用户
+   *   在还没看到画面时先答一道题。
+   * ★ 为什么必须让用户选、不能自动判：一段"看起来像白模"的片子与一段真的白模片，
+   *   我们分不出来 —— 猜错的两个方向都很贵（该出片的没出 = 模板全是真人；
+   *   不该出片的出了 = 白花一次 r2v 且画质被二次白模化）。
+   */
+  const [refMode, setRefMode] = useState<"aiBlockout" | "ownRef">("aiBlockout");
   // false = 开关不渲染。能力探测（remoteTemplatesCapable）过了才出现——服务端不认
   // 这套端点时摆一个开关出来，用户会一路走到上传那步才失败（不摆永远点不动的东西）。
   const [blockoutReady, setBlockoutReady] = useState(false);
@@ -530,6 +547,37 @@ export default function VideoTemplateExtractor({
    *   两阶段之后还多一类：**取结果失败**（钱在开炼那一步已经付过，结果还能再取一次）——
    *   那句话由 data 层/服务端给全，这里同样原样显示。
    */
+  /**
+   * 【自带白模片】不出片，只把框选那一段做成模板 + 认出角色位。
+   *
+   * ★ 与 runBlockoutize 共用同一颗按钮、同一份框选结果，唯一区别是**不进 r2v**。
+   * ★ 与那边同一条纪律：**先把 busy 点亮再 await** —— 头一步（裁剪）是异步的，
+   *   中间空窗期按钮还活着，手一抖就是两条模板（两份云端资产）。
+   * ★ 认人失败不算整件事失败（模板已经建好），把话原样带出来就行 —— 判断在 data 层一处。
+   */
+  async function runOwnRef(sel: BlockoutSelection) {
+    if (!receipt || busy) return;
+    setErr("");
+    setBusy("提交中…");
+    try {
+      const out = await makeOwnRefTemplate({
+        receipt: receipt.data,
+        clip: { startSec: sel.startSec, durSec: sel.durSec, crop: sel.crop },
+        title,
+        intro: note,
+        onStep: (n) => setBusy(n),
+      });
+      const made = getTemplate(out.id);
+      if (out.note) setWarn(out.note);
+      if (made) onDone?.(made);
+      else close();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function runBlockoutize(sel: BlockoutSelection) {
     if (!receipt || busy) return;
     setErr("");
@@ -798,16 +846,57 @@ export default function VideoTemplateExtractor({
                       placeholder="模板标题（别人在市场里看到的就是它）"
                       className="w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                     />
-                    <textarea
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                      rows={2}
-                      placeholder="补充说明（可选）：比如「这段里的人都穿古装」——AI 看帧认人时会参考它"
-                      className="w-full resize-none rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
-                    />
+                    {/* ★ 补充说明只对**要 AI 白模化**那条路有用（它进的是"看帧认人"那一发的
+                        提示词）。自带白模片那条不看它 —— 摆着而不起作用就是在骗人 */}
+                    {refMode === "aiBlockout" && (
+                      <textarea
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        rows={2}
+                        placeholder="补充说明（可选）：比如「这段里的人都穿古装」——AI 看帧认人时会参考它"
+                        className="w-full resize-none rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+                      />
+                    )}
+                    {/* ★★ 两条路的分界。文案要把**钱**说在最前面：一条是一次真实付费出片，
+                        另一条只是几发对话。用户选错的代价完全不对称，所以别只写功能名。 */}
+                    <div className="space-y-1.5 rounded-xl border border-slate-700/70 bg-black/25 p-2.5">
+                      <div className="text-[11px] font-bold text-slate-200">这段视频要怎么用？</div>
+                      {(
+                        [
+                          {
+                            v: "aiBlockout" as const,
+                            t: "让 AI 把里面的人换成白模人偶",
+                            d: "任意视频都行。这是一次真实出片，费用在下面按你框选的秒数报。",
+                          },
+                          {
+                            v: "ownRef" as const,
+                            t: "它本来就是白模/人偶片，直接用",
+                            d: `不出片、不换人，只认出画面里有谁、量出他们在哪（约 ${fmtTokens(ownRefTemplateCost())}）。`,
+                          },
+                        ]
+                      ).map((o) => (
+                        <button
+                          key={o.v}
+                          onClick={() => setRefMode(o.v)}
+                          disabled={!!busy}
+                          className={`flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left disabled:opacity-50 ${
+                            refMode === o.v ? "bg-brand/20 ring-1 ring-brand" : "bg-black/20"
+                          }`}
+                        >
+                          <span className={`mt-0.5 flex-none text-[11px] ${refMode === o.v ? "text-brand" : "text-slate-500"}`}>
+                            {refMode === o.v ? "●" : "○"}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-[11px] font-semibold text-slate-100">{o.t}</span>
+                            <span className="block text-[10px] leading-relaxed text-slate-400">{o.d}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 }
-                  onSubmit={(sel) => void runBlockoutize(sel)}
+                  submitLabel={refMode === "ownRef" ? "做成模板（不出片）" : undefined}
+                  onSubmit={(sel) => void (refMode === "ownRef" ? runOwnRef(sel) : runBlockoutize(sel))}
                   onCancel={close}
                 />
               </>

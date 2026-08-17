@@ -15,6 +15,7 @@ import {
   blockoutJobNote,
   browseTemplates,
   deleteTemplateEverywhere,
+  detectTemplateRoles,
   myTemplates,
   pendingBlockoutIssue,
   pendingBlockoutJobs,
@@ -31,6 +32,7 @@ import {
   templatesVersion,
   type BlockoutJob,
 } from "../data/templates";
+import { fmtTokens, ownRefTemplateCost } from "../data/economy";
 import { readSocial } from "../data/social";
 import { useFlow } from "../studio/flowStore";
 import { VideoTemplate } from "../types";
@@ -208,6 +210,51 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
       {/* ★ 进度话摆在按钮下面而不是塞进按钮里：它是整句（"生成中 35s（可以退出…）"），
           塞进按钮会折成三行还看不清 —— 而这一步最长要等几分钟，不报进度用户会以为死了 */}
       {busy && <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{busy}</p>}
+    </div>
+  );
+}
+
+/**
+ * 「这个模板还没有角色位 —— 去认一遍」的入口。**只对自己、只对白模模板、只在没角色位时出**。
+ *
+ * ★★ 它存在的理由就是那条路会失败：认人+量框要打上游，而上游耗时实测在 6.6s~140s
+ *   之间浮动（连续调用会排队）。没有这个入口的话，一次抖动 = 作者永久拿到一个
+ *   没有角色位的模板 —— 挂卡面板不出现、核对入口不出现，而他**看不出为什么，
+ *   也无处重来**。服务端保证失败不留痕，所以再点一次就是干净的一次重试。
+ * ★ 每点一次都**真花钱**（认人 + 量框都是计费的 chat），所以：① 按钮上把价钱说出来；
+ *   ② 绝不做成自动重试。
+ * ★ 结果三档都照实说（服务端回的 note 原样显示）：全成 / 有角色位没框 / 一个没认出来。
+ */
+function DetectRolesEntry({ t }: { t: VideoTemplate }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  // 只对**白模模板**（有参考视频）、**已登记**、**还没有角色位**的自己那条出
+  if (!t.refVideo || !t.remoteId || (t.roles?.length ?? 0) > 0) return null;
+  if (remoteStateOf(t)?.isOwner === false) return null;
+  const cost = ownRefTemplateCost();
+  return (
+    <div className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2">
+      <div className="text-[11px] leading-relaxed text-sky-100">
+        这个模板还没有<b className="font-bold">角色位</b>——认一遍画面里有哪些人，套用时就能一个个挂卡
+        （挂不上的话仍然可以用一句话描述要换谁）。
+      </div>
+      <div className="mt-1.5 flex items-center gap-2">
+        <button
+          onClick={() => {
+            setBusy(true);
+            setMsg("");
+            void detectTemplateRoles(t.id)
+              .then((note) => setMsg(note || "认好了 ✓"))
+              .catch((e) => setMsg(e instanceof Error ? e.message : String(e)))
+              .finally(() => setBusy(false));
+          }}
+          disabled={busy}
+          className="flex-none rounded-full bg-sky-400 px-3 py-1 text-[11px] font-bold text-ink disabled:opacity-50"
+        >
+          {busy ? "识别中…（要一到几分钟）" : `识别角色位（${fmtTokens(cost)}）`}
+        </button>
+        {msg && <span className="min-w-0 flex-1 text-[10px] leading-relaxed text-sky-200">{msg}</span>}
+      </div>
     </div>
   );
 }
@@ -408,7 +455,11 @@ export default function TemplateMarketPage() {
           className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-sky-500/50 py-3 text-xs text-sky-300"
         >
           <Icon name="plus" size={14} />
-          上传白模预演视频，做一个能分享的白模模板
+          {/* ★★ 2026-08-17 改文案：原来写「上传白模预演视频」，而它跳的是**任意视频 →
+              AI 付费白模化**那条路 —— 用户带着一段自己做好的白模片点进去，会被再白模化
+              一次、白花一次 r2v，而且画质更差。现在两条路都在框选那一屏里选，
+              所以这句话要把**两种都传得**说出来。 */}
+          传一段视频做白模模板（自己做好的白模片也行）
         </button>
       )}
 
@@ -423,6 +474,7 @@ export default function TemplateMarketPage() {
                 ★ 判据、身份、刷新都在 RoleConfirmEntry 一处实现；这里只负责"摆在作者
                   自己的那一侧"（「我的模板」tab）。 */}
             {tab === "mine" && <RoleConfirmEntry t={t} />}
+            {tab === "mine" && <DetectRolesEntry t={t} />}
             {/* 下架 / 删除：**只对自己的模板出**，两个 tab 都出（作者在市场里看到自己
                 那条挂着，最想做的就是把它拿下来，让他先点进详情页再找是白绕一圈）。 */}
             <OwnerRow t={t} />
