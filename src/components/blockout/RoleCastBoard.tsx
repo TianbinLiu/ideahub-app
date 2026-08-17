@@ -143,8 +143,39 @@ export default function RoleCastBoard({
    *   框数与位置数**相等**、并且知道这些框量自第几秒（没有时刻的框没法核对，人是会走的）。
    */
   const dropSlots = ordinal ? spec.slots : [];
+  /**
+   * 第四个条件（2026-08-17 审查逼出来的）：**作者改过角色位之后，这些框就不能信了**。
+   *
+   * ★★ `markSlots`/`markBoxes` 是**白模化那一刻的历史事实**，服务端刻意不让 PATCH /roles
+   *   动它们。而序数方案独有的修复动作恰恰是「删掉画面上根本不存在的那个位子，
+   *   并把它右边所有位子各左移一位」—— 核对面板正在主动教作者这么做。
+   *   这个动作一执行，label 的语义（在**剩下的**人偶里从左数第几个）就与 markSlots
+   *   下标的语义（白模化那一刻**全部**人偶里从左数第几个）分了叉：
+   *   `boxOfLabel` 按 `markSlots.indexOf(label)` 查出来的框指向的是**另一个人**。
+   * ★★ 而原来那三个条件**没有一条**会因此变假（markSlots 与 markBoxes 长度都没变），
+   *   于是拖拽层照常开着，把落点框画在错的人偶上、二次确认还理直气壮地高亮它 ——
+   *   而拖拽层的全部意义就是"让用户照着框做决定"。这是**最坏的一种**错：
+   *   用户看着画面点头，换出来的却是另一个人，零报错、要花一发 r2v 才看得见。
+   * ★★ 判据是**条数相等 + 每个 label 都还在表里**，不是"下标递增"。
+   *   建模板时服务端写的是 `markSlots = roles.map(r => r.label)`，两者**逐条对应**；
+   *   删掉一位就再也不等了 —— 这才是那个动作真正破坏的不变量。
+   *   （我第一版写的是"下标严格递增"，抓不住它：删掉「从左数第2个」并把
+   *    「从左数第3个」改名成「从左数第2个」之后，下标是 0 < 1 < 3，照样递增。）
+   * ★ 这条判据同时**放过**作者的另一个合法修复：把相邻两行的措辞对调
+   *   （"AI 把这两个人的左右排反了"）。那时条数没变、措辞都还在表里，
+   *   而 `boxOfLabel` 按新 label 查出来的框正好是对的那个位置 —— 本来就该继续能拖。
+   * ⚠ 不许改成"尽力而为"（把对得上的那几个留着可拖）：对不上的那几个恰恰是作者
+   *   刚刚指出画面有问题的地方，让它们看起来"只是不能拖"是把最危险的部分藏起来。
+   */
+  const boxesStillMatchRoles =
+    ordinal && roles.length === dropSlots.length && roles.every((r) => dropSlots.includes(r.label));
   const dragOn =
-    ordinal && !!boxes && boxes.length > 0 && boxes.length === dropSlots.length && typeof boxAtSec === "number";
+    ordinal &&
+    !!boxes &&
+    boxes.length > 0 &&
+    boxes.length === dropSlots.length &&
+    typeof boxAtSec === "number" &&
+    boxesStillMatchRoles;
 
   /** 播放头（秒）。★ 初值就是标记帧：下面 `seek` 也从它起步，一进来舞台就停在那一帧上 */
   const [nowSec, setNowSec] = useState(boxAtSec ?? 0);

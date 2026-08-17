@@ -341,8 +341,11 @@ export default function BlockoutTrimmer({
                 就是标了几帧）：写死一个数、或在这里另数一次 marks，都会让这句话与真正
                 发上去的那一份分家 —— 而这句话就是用户认下这笔钱的依据。 */}
             <p className="text-[11px] leading-relaxed text-slate-400">
+              {/* ★ 帧数与钱在这里是**两件事**：帧数决定认得准不准（多看几帧才不漏人），
+                  而这一笔按"一次对话"收，与几帧无关（服务端 priceOf 对 chat 是定额）。
+                  写成"看 N 帧 · N×单价"会得到一个 18 倍于实收的数 —— 那是句假话。 */}
               这一步花两笔：AI 看 {frameCount} 帧认出画面里有哪些人（
-              {visionMode === "manual" ? "你自己挑的" : `按这 ${durSec} 秒自动取`} ·{" "}
+              {visionMode === "manual" ? "你自己挑的" : `按这 ${durSec} 秒自动取`}，多看几帧不额外收费 ·{" "}
               {fmtTokens(visionTokens)}）
               {videoTokens !== null && tier && (
                 <>

@@ -759,7 +759,21 @@ export function templateSettle(frameCount: number, minted: number): number {
  * ★ 仍走 visionCardsTokens（cards=0 时卡面项自然为 0）：「看一帧多少钱」只有那一处。
  */
 export function blockoutTemplateCost(frameCount: number): number {
-  return visionCardsTokens(frameCount, 0);
+  // ★★★ 2026-08-17 修：**看几帧不影响这一笔**，所以照实按「一次 chat」报，
+  //   `frameCount` 只留在签名里给调用方读（它仍然决定质量，只是不决定价钱）。
+  //   原来写的是 `frameCount * VISION_FRAME_TOKENS`，而服务端那一头
+  //   （`config/tokens.js` 的 `priceOf`）对 `kind:"chat"` **返回定额 CHAT_TURN_TOKENS**，
+  //   与几帧完全无关 —— 8 帧时页面报 7,200、实扣 400，报价是实收的 18 倍。
+  //   方向虽然是"少收"（不偷钱），但它是一句**假话**，而且真会伤人：
+  //   余额卡在两者之间时 `canAfford` 判否，用户被自家报价挡在门外，
+  //   去充了一笔本来不需要的钱。
+  //   ⚠ 机理是**服务端按"调用了几次、什么 kind"计价，不按内容量**：N 帧是塞进
+  //   同一条 messages 里的一次 chat。所以"按帧报价"这个模型从一开始就对不上。
+  //   ⚠ 同一处分叉在 `templateCost`（V1 提卡组那条路，两遍视觉 + N 张卡面）**还在**：
+  //   那条路不归这一轮改，改它要先核清那两遍视觉到底发了几次调用。见 CLAUDE.md
+  //   「两仓价目表各写各的」——发现新的分叉先钉一条，别顺手改到没验过的路上。
+  void frameCount;
+  return CHAT_TURN_TOKENS;
 }
 
 // ══ 「成片回来后量一帧位置框」为什么**不在这张价目表里** ═══════════════════════

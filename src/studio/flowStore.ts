@@ -774,12 +774,21 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 整句失败 + 一份可用的骨架（用户点了才填）。**绝不 catch 成空串**：
       // 空输入框与"还没写"长得一样，用户会以为自己随手写一句就够，出片时点名映射
       // 整个没发出去 —— 而换错人/漏换人是零报错的（blockoutPrompt 的 ★）
+      // ★★★ 同时**必须把 plot 清掉**（与上面 taken.length===0 那一支同一条理由，
+      //   2026-08-17 审查抓到这里漏了）：cast 与 materials 在 await 之前就已经换成
+      //   这一轮的新映射了，而 plot 里还留着**上一轮**合成出来的那段点名句。
+      //   两者一旦不同步，界面上是：琥珀色错误提示 + 一段读起来完整通顺的旧点名句，
+      //   而主按钮只判 `!plot.trim()` —— 用户完全可以直接点「生成本段」，
+      //   r2v 照常出片、照常扣钱，换上去的人却是按上一轮的映射来的。零报错。
+      //   清掉之后按钮自然变灰，用户要么点「填入默认写法」（castFallback 就在手边），
+      //   要么自己写 —— 两条路都不会把一份旧映射发出去。
       set({
         busy: false,
         castBusy: false,
         castErr: e instanceof Error ? e.message : String(e),
         castFallback: blockoutApplySkeleton(slots, line, spec),
       });
+      get().updateProposal(node.id, { plot: "" });
       return false;
     }
   },
