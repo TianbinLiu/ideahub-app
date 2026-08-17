@@ -1012,6 +1012,24 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
      所以"框没量出来"最坏也只是少一条更直观的路，不会让人挂不了卡。
   4. `markBoxAtSec` **必须一起给**：框是一帧上量的、人是会走动的。App 一进挂卡面板就把
      播放头 seek 到这一秒，用户拖到别处时把落点层隐去并给一颗回跳键。
+- **`roles[].desc`（人偶描述，2026-08-17 起是"多维、且验过的"）**：`颜色、动作、与具体景物的
+  位置关系`，服务端合成，≤60 字（`ROSTER_DESC_MAX`）。
+  1. **为什么不是一句「外观特征」**：白模素材上那一句必然退化成 N 行一模一样的
+     「全白关节人偶」。实测（两段素材 12 个人偶）：颜色在全白素材上只能区分 **1/5**
+     （混色的群舞 3/7），而**动作 7/7 与 4/5**、**与景物的位置关系 6/7 与 5/5**。
+     ⇒ 扛事的是后两项；颜色仍然**必须问**，因为用户可以传"人偶不同色"的白模视频。
+  2. **`verified` 那一位管的是"这条描述能不能用来指认"**：服务端把每条描述拿回**同一帧**
+     去定位，落不回本人的那条**只留颜色**（动作与位置关系整份丢掉）。理由是歧义描述有
+     1/3 会塌缩成一个自信的错答，而"描述指错人"= 套用时把卡换到别人身上，画面照出、
+     钱照收、零报错。⇒ 客户端可以认为 `desc` 里**有分句（顿号）就是验过的**，
+     只剩一个词的就是没验过 —— 那不是第二处判据，是产物本身只有这两种形状。
+  3. **套用侧怎么用**（App `blockoutPrompt`）：序数方案下拼进绑定的**等号左边**
+     `从左数第2个（白色，半蹲前倾）=阿岚`，绑定形状与书写顺序一个字不变（升序是承重的）。
+     编号方案（存量老模板）**一个括号都不拼**：它们的 `desc` 说的是"原视频里是谁"。
+     字数塞不下时**整批**不带，不挑几个留。
+  4. ⚠ 模型会自发拿**另一个人**当地标（「在红人偶左后方」）。混色素材上这是很强的锚点，
+     **全白素材上则退化成变相的序数**（"第二个人偶旁边"并不比"第二个"多给任何信息）——
+     所以别把 `verified` 高当成"指认一定准"。
 - `recipe` 刻意独立成立：老客户端把白模模板当经典配方跑，也能出一段"降级但诚实"的片。
 - `cloudinaryPublicId` 是内部回收记账字段，**不出现在响应里**。
 - **`source` 服务端存、但不出任何响应**：`{ publicId, startSec, durSec, crop:{x,y,w,h} }`，
@@ -1034,7 +1052,7 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 | GET | `/api/branch/templates/shared` | optional | 市场列表，只回 `status === "published"`，`{ ok, templates[] }`。**路由必须排在 `/:id` 前**（branchAsset 同款排序坑） |
 | GET | `/api/branch/templates/:id` | optional | 详情。非 published 只有作者可见，对别人一律 **404 而不是 403**（不泄露私有模板的存在性） |
 | PATCH | `/api/branch/templates/:id/roles` | required（仅作者，**仅 pending**） | **作者核对角色位**（白模 V2）。body `{ roles: [{ label, desc }] }`，1~9 条（`BLOCKOUT_MAX_ROLES`），**整份替换**（"少给一条 = 删掉那个角色位"，见下），落库时 `labelConfirmed=true`。这是**唯一收客户端 roles 的端点**；`markSlots` / `markBoxes` **不收也不动**（改得动方案位 = 套用侧当场整份错，还会连升序排序的依据一起改掉）。见下 |
-| POST | `/api/branch/templates/:id/detect-roles` | required（仅作者，6 次/分） | **认人 + 量框**（V1「自己传参考视频」那条路专用；白模化 V2 在阶段一里已经认过了）。body **可选** `{ atSecs?: number[] }` —— 用户自己在编辑页标的分析帧，**片内相对秒**、0.5s 网格，不给就服务端自动铺。成功 `{ ok, template, detected, boxed, note? }`：`detected` = 认出几个角色位、`boxed` = 量出几个框，一个都没认出来时 `note` 整句说明并说"可以再点一次重试"（**认不出不写库、不留痕**）。作者核对过（`labelConfirmed`）之后 400 拒绝重认；同一模板并发再来一发 **409**（`detectingAt` 原子锁，11 分钟过期）。**这一发按 chat 计费** |
+| POST | `/api/branch/templates/:id/detect-roles` | required（仅作者，6 次/分） | **认人 + 量框 + 写描述**（V1「自己传参考视频」那条路专用；白模化 V2 在阶段一里已经认过了）。body **可选** `{ atSecs?: number[] }` —— 用户自己在编辑页标的分析帧，**片内相对秒**、0.5s 网格，不给就服务端自动铺。成功 `{ ok, template, detected, boxed, verified, note? }`：`detected` = 认出几个角色位、`boxed` = 量出几个框、`verified` = **有几条描述通过了唯一性自证**（见下「人偶描述」）。`note` 三档：一个都没认出来 / 认出来了但 `verified < detected` / 全成（不出 note）。**认不出不写库、不留痕**。作者核对过（`labelConfirmed`）之后 400 拒绝重认；同一模板并发再来一发 **409**（`detectingAt` 原子锁，11 分钟过期）。**这一发按 chat 计费** |
 | PATCH | `/api/branch/templates/:id/publish` | required（仅作者） | **两道独立的门**：① 试炼闸 `provenAt` 非空；② 有 `roles` 时必须已核对。任一不过回 400 整句（各说各的原因）。blocked 不能发布 |
 | PATCH | `/api/branch/templates/:id/unpublish` | required（仅作者） | 回到 pending。blocked 是平台处置，作者洗不掉（400） |
 | DELETE | `/api/branch/templates/:id` | required（仅作者） | **连带 `uploader.destroy` 回收参考视频**（先云端后库：云端回收失败回 502 且不删库，重试即可；封面与 **V2 的 `source.publicId` 原始素材** best-effort 回收，失败不阻断）。回 `{ ok: true }` |
