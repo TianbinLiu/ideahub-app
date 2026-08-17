@@ -267,10 +267,13 @@ function DetectRolesEntry({ t }: { t: VideoTemplate }) {
  *   "功能存在"与"用户找得到"之间的差别 —— 在此之前它俩等于不存在。
  * ★ 判据、网络、本机同步**全在 data 层**（setTemplatePublished / deleteTemplateEverywhere），
  *   这里一行业务逻辑都没有（铁律六；详情页 OwnerBar 也是这么写的）。
- * ★ 「是不是我的」只认 `t.remoteId ? remoteStateOf()?.isOwner : 本机有这条`：
- *   白模模板的身份由**服务端**说了算（isOwner），别拿 author 显示名比（CLAUDE.md 那条坑）。
- *   还没回来的（remoteStateOf 为 null）一律**不显示**——宁可少一个入口，也不给别人
- *   看见一颗点了会 403 的按钮。
+ * ★★ 「是不是我的」：**本机库里有这条 = 就是我的**（`mine` 按定义只装自己的模板），
+ *   否则才去问服务端的 `isOwner`（市场里别人那些条目走这一支）。
+ *   ⚠ 我第一版写成"有 remoteId 就只认服务端 isOwner"，结果在真机上**整行都不出现** ——
+ *   本机那两条的远端状态拉不到（服务端记录已被删），`isOwner` 是 undefined，于是判否。
+ *   而那恰恰是最需要删除入口的时候：一条服务端已经没有、本机还赖着的幽灵模板。
+ *   ⇒ 别拿"服务端说了算"去否掉一个本来就属于本机的事实。
+ * ★ 拿 `author` 显示名比身份仍然是禁止的（CLAUDE.md 那条坑）—— 这里判的是本机库成员资格。
  * ★ 删除同样是**两段式**（与详情页那颗同一条理由：会连带销毁云端视频，不可撤销）。
  */
 function OwnerRow({ t }: { t: VideoTemplate }) {
@@ -278,9 +281,11 @@ function OwnerRow({ t }: { t: VideoTemplate }) {
   const [armed, setArmed] = useState(false);
   const [err, setErr] = useState("");
   const st = remoteStateOf(t);
-  const isMine = t.remoteId ? st?.isOwner === true : myTemplates().some((x) => x.id === t.id);
+  const local = myTemplates().some((x) => x.id === t.id);
+  const isMine = local || st?.isOwner === true;
   if (!isMine) return null;
-  const published = t.remoteId ? st?.status === "published" : t.published;
+  // ★ 已发布与否：远端状态拿得到就以它为准（那是权威），拿不到退回本机镜像
+  const published = st ? st.status === "published" : t.published;
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);
