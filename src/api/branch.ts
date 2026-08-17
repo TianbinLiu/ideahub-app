@@ -1245,8 +1245,27 @@ export async function unpublishTemplate(id: string): Promise<ApiBranchTemplate |
  *   deleteLanded——Capacitor SPA 回退恒 200，状态码不可信），调用方必须说出来
  */
 export async function deleteRemoteTemplate(id: string): Promise<boolean> {
-  const res = await apiDelete<unknown>(`/api/branch/templates/${encodeURIComponent(id)}`);
-  return deleteLanded(res);
+  try {
+    const res = await apiDelete<unknown>(`/api/branch/templates/${encodeURIComponent(id)}`);
+    return deleteLanded(res);
+  } catch (e) {
+    // ★★★ 404 = **它已经不在了**，而"删除"要的就是这个结果 —— 按成功算（幂等）。
+    //   不这么写的话：另一台设备（或上一次点击）已经把它删掉了，这一次 apiDelete
+    //   撞 404 抛错 → `deleteTemplateEverywhere` 的 catch 吃掉 → **本机那条永远删不掉**。
+    //   表现是一条幽灵模板：每次点删除都弹一句 HTTP 错误，用户点几次就放弃了；
+    //   它还会一直占着「我的模板」列表，并在 getTemplate 的 mine 优先查找里盖住远端真相。
+    //   （2026-08-17 审查抓到。DELETE 天生幂等，这是它该有的样子。）
+    // ⚠ 只放过 404。403（不是你的）、502（云端资产没回收成）都必须照抛 —— 那两种
+    //   "东西还在服务端"，本机跟着删掉就是制造一个谁都删不了的孤儿。
+    // ⚠⚠ 404 有**两种含义**，必须分开，否则这个"幂等"会变成一个更坏的 bug：
+    //     ① 这条模板已经不在了     → 删除的目的达成，按成功算；
+    //     ② **老服务端根本没这条路由** → 服务端那份还好好地在，本机跟着删掉就是孤儿。
+    //   两者的 `code` 一模一样（都是 NOT_FOUND，见 server 的 utils/http.notFound 与
+    //   middleware/error.notFound），唯一的区别是②由我们自己的中间件生成、message
+    //   固定以 `Route not found:` 开头。判这个前缀不是猜 —— 那是本仓自己的产物。
+    if (e instanceof ApiError && e.status === 404 && !/^Route not found:/i.test(e.message)) return true;
+    throw e;
+  }
 }
 
 // ── 卡片/卡组的互动与热度 ─────────────────────────────────

@@ -14,6 +14,7 @@ import {
   blockoutJobExpired,
   blockoutJobNote,
   browseTemplates,
+  deleteTemplateEverywhere,
   myTemplates,
   pendingBlockoutIssue,
   pendingBlockoutJobs,
@@ -24,6 +25,7 @@ import {
   remoteStateOf,
   remoteTemplatesCapable,
   resumeBlockoutize,
+  setTemplatePublished,
   sharedLoadIssue,
   subscribeTemplates,
   templatesVersion,
@@ -210,6 +212,77 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
   );
 }
 
+/**
+ * 作者自己那条模板下面的一行操作：**下架** 与 **删除**。
+ *
+ * ★★ 为什么摆在列表里而不是只留在详情页：这两件事在此之前**只有详情页有入口**，
+ *   而用户想做它们的那一刻，人正站在列表上看着那条模板。少一跳不是省事，是
+ *   "功能存在"与"用户找得到"之间的差别 —— 在此之前它俩等于不存在。
+ * ★ 判据、网络、本机同步**全在 data 层**（setTemplatePublished / deleteTemplateEverywhere），
+ *   这里一行业务逻辑都没有（铁律六；详情页 OwnerBar 也是这么写的）。
+ * ★ 「是不是我的」只认 `t.remoteId ? remoteStateOf()?.isOwner : 本机有这条`：
+ *   白模模板的身份由**服务端**说了算（isOwner），别拿 author 显示名比（CLAUDE.md 那条坑）。
+ *   还没回来的（remoteStateOf 为 null）一律**不显示**——宁可少一个入口，也不给别人
+ *   看见一颗点了会 403 的按钮。
+ * ★ 删除同样是**两段式**（与详情页那颗同一条理由：会连带销毁云端视频，不可撤销）。
+ */
+function OwnerRow({ t }: { t: VideoTemplate }) {
+  const [busy, setBusy] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const [err, setErr] = useState("");
+  const st = remoteStateOf(t);
+  const isMine = t.remoteId ? st?.isOwner === true : myTemplates().some((x) => x.id === t.id);
+  if (!isMine) return null;
+  const published = t.remoteId ? st?.status === "published" : t.published;
+
+  async function run(fn: () => Promise<void>) {
+    setBusy(true);
+    setErr("");
+    try {
+      await fn();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+      setArmed(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 px-1">
+      {/* 只在**已发布**时给「下架」：没发布的模板本来就不在市场上，摆一颗点了没变化的
+          按钮，用户只会以为它坏了（本仓明令禁止「摆一个永远点不动的选项」） */}
+      {published && (
+        <button
+          onClick={() => void run(() => setTemplatePublished(t.id, false))}
+          disabled={busy}
+          className="rounded-full bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-100 disabled:opacity-40"
+        >
+          从市场下架
+        </button>
+      )}
+      <button
+        onClick={() => {
+          if (!armed) {
+            setArmed(true);
+            window.setTimeout(() => setArmed(false), 3000);
+            return;
+          }
+          void run(() => deleteTemplateEverywhere(t.id));
+        }}
+        onBlur={() => setArmed(false)}
+        disabled={busy}
+        className={`ml-auto rounded-full px-2.5 py-1 text-[11px] disabled:opacity-40 ${
+          armed ? "bg-rose-500 font-bold text-white" : "text-rose-400"
+        }`}
+      >
+        {armed ? "真的删掉？（连云端视频一起）" : "删除"}
+      </button>
+      {err && <span className="min-w-0 flex-1 truncate text-[10px] text-rose-300">{err}</span>}
+    </div>
+  );
+}
+
 export default function TemplateMarketPage() {
   const ver = useTemplatesVersion();
   useSocialVersion();
@@ -350,11 +423,25 @@ export default function TemplateMarketPage() {
                 ★ 判据、身份、刷新都在 RoleConfirmEntry 一处实现；这里只负责"摆在作者
                   自己的那一侧"（「我的模板」tab）。 */}
             {tab === "mine" && <RoleConfirmEntry t={t} />}
+            {/* 下架 / 删除：**只对自己的模板出**，两个 tab 都出（作者在市场里看到自己
+                那条挂着，最想做的就是把它拿下来，让他先点进详情页再找是白绕一圈）。 */}
+            <OwnerRow t={t} />
           </div>
         ))}
+        {/* ★★ 空态要分得清**三件不同的事**（2026-08-17 种子模板删掉之后，市场真的会空）：
+              ① 搜了没搜到 —— 用户自己知道怎么办（换个词），一句话就够；
+              ② 市场真的空 —— 这不是故障，但也别只说"没有匹配的模板"（他没搜任何东西，
+                 那句话会让人以为是筛选出了问题）。说清楚现状 + 给一条能走的路；
+              ③ 拉不到远端 —— 那是**故障**，由上面的 sharedLoadIssue 横幅负责说，
+                 这里不重复、也不冒充成"市场是空的"。
+            ⚠ 别退回一句放之四海的"暂无数据"：三种情形的下一步动作完全不同。 */}
         {list.length === 0 && (
-          <div className="py-16 text-center text-sm text-slate-500">
-            {tab === "mine" ? "还没提取过模板——回简约模式上传一段参考视频试试" : "没有匹配的模板"}
+          <div className="py-16 text-center text-sm leading-relaxed text-slate-500">
+            {tab === "mine"
+              ? "还没有你自己的模板——上面那两个入口都能做一个"
+              : q.trim()
+                ? "没有匹配的模板，换个词试试"
+                : "市场上还没有公开的模板。做一个自己的、发布出来，这里就有了。"}
           </div>
         )}
       </div>

@@ -43,53 +43,17 @@ export function templatesVersion(): number {
   return version;
 }
 
-// ── 种子模板 ─────────────────────────────────────────────
-// 市场首次打开不能是空的，否则用户根本不知道"模板"长什么样。两个种子刻意选了
-// 两种极端用法：一个是"换人不换戏"（特摄剧那类），一个是纯氛围短片。
-// 它们不带素材卡——卡组是套用时按用户那句话现铸的，种子只提供配方。
-const SEEDS: VideoTemplate[] = [
-  {
-    id: "tpl_seed_tokusatsu",
-    title: "特摄剧·换人出演",
-    intro: "模仿上世纪特摄剧的画面质感与运镜，把主角换成你指定的任何人物。胶片颗粒、爆炸逆光、夸张定格。",
-    cover: "/create/workflow.jpg",
-    author: "IdeaHub",
-    createdAt: Date.now() - 86400000 * 12,
-    cards: [],
-    recipe: {
-      styleHint:
-        "上世纪特摄剧质感：16mm 胶片颗粒、轻微掉色与色偏、实景微缩模型布景、硬光高对比、逆光烟雾、镜头轻微晃动与变焦推拉，画面 4:3 安全框构图。人物动作夸张有停顿感，转身/摆架势时有明显定格。禁止现代数码感与柔光。",
-      beats: [
-        "{{主题}}在废弃工厂前摆出登场架势，背后爆炸腾起橙红火光，镜头从低角度快速推近，逆光下轮廓分明。",
-        "{{主题}}侧身翻滚躲开落下的钢梁，起身后握拳定格，烟尘在硬光里翻涌，镜头轻微晃动。",
-      ],
-      durationSec: 5,
-      videoTier: "hd",
-      framePrompt:
-        "{{主题}}的全身特摄剧风格定妆画面，废弃工厂布景，逆光烟雾，16mm 胶片颗粒，硬光高对比，4:3 构图，无文字无水印。",
-    },
-    source: "参考画面特征：高对比硬光、胶片颗粒、微缩布景、爆炸逆光、夸张定格动作。",
-    published: true,
-  },
-  {
-    id: "tpl_seed_cozy",
-    title: "治愈系·一日切片",
-    intro: "柔光、浅景深、缓慢横移。适合把任何角色放进一段安静的生活片段。",
-    cover: "/create/simple.jpg",
-    author: "IdeaHub",
-    createdAt: Date.now() - 86400000 * 5,
-    cards: [],
-    recipe: {
-      styleHint:
-        "治愈系日常动画质感：柔和自然光、浅景深、低饱和暖色调、细腻的空气感颗粒，镜头缓慢横移或轻微推近，never 快切。人物表情克制，动作幅度小。",
-      beats: ["{{主题}}在窗边安静地做着手里的事，午后的光斜斜落进来，尘埃在光柱里浮动，镜头极缓地横移。"],
-      durationSec: 5,
-      videoTier: "std",
-      framePrompt: "{{主题}}在窗边的柔光画面，治愈系日常动画风，浅景深，暖色调，空气感颗粒，无文字无水印。",
-    },
-    published: true,
-  },
-];
+// ── 种子模板：**2026-08-17 整块删掉** ────────────────────────────────
+// 原来这里硬编码着两个 `tpl_seed_*`（特摄剧·换人出演 / 治愈系·一日切片），理由是
+// "市场首次打开不能是空的"。删掉的理由比它硬：
+//  ① 它们**不是白模模板**（没有 refVideo），点「用它出片」走的是经典配方那条老路，
+//     而这一版整个产品的重心是白模挂卡 —— 摆在市场第一屏的两个样板，教的是另一件事；
+//  ② 它们恒被 push 进市场、**不受 remoteOn / 能力探测影响**：服务端市场整个挂掉时
+//     页面上仍有两个模板可点，看起来像市场是好的（唯一的提示是那条 sharedLoadIssue 横幅）；
+//  ③ 它们的 `published: true` 是写死的常量，与服务端状态机无关 —— 而下架/删除这一版
+//     刚刚成为用户能做的事，一个谁都下架不了、删不掉的条目会立刻变成"这两个怎么弄不掉"。
+// ⇒ 市场空的时候就**照实说空**（TemplateMarketPage 的空态文案已经跟着改成一句能行动的话）。
+//   要样板就发真的：建一个真模板、发布它，与所有人走同一条路。
 
 export async function readyTemplates(): Promise<void> {
   const saved = await idbGet<VideoTemplate[]>(KEY);
@@ -108,7 +72,6 @@ export function myTemplates(): VideoTemplate[] {
 export function getTemplate(id: string): VideoTemplate | null {
   return (
     mine.find((t) => t.id === id) ??
-    SEEDS.find((t) => t.id === id) ??
     // 远端市场的模板（id = 服务端 _id）：详情页从市场点进来时靠这份缓存渲染
     shared.find((t) => t.id === id) ??
     null
@@ -116,7 +79,7 @@ export function getTemplate(id: string): VideoTemplate | null {
 }
 
 /**
- * 模板市场：本机已发布 + 种子 + **远端 shared**（白模模板；到货前先出本机那份）。
+ * 模板市场：本机已发布 + **远端 shared**（白模模板；到货前先出本机那份）。
  *
  * ★ 「在不在远端上」只问 videos.remoteOn()（弹幕铁律同款，唯一开关）；「这台服务器
  *   认不认模板端点」在 ensureShared 里问 remoteTemplatesCapable（也是唯一实现）——
@@ -129,7 +92,9 @@ export function getTemplate(id: string): VideoTemplate | null {
 export function browseTemplates(q = ""): VideoTemplate[] {
   if (remoteOn()) ensureShared();
   const remote = shared.filter((r) => !mine.some((m) => m.remoteId && m.remoteId === r.remoteId));
-  const all = [...mine.filter((t) => t.published), ...SEEDS, ...remote];
+  // ★ 种子那一份 2026-08-17 删了（见文件上方那段）：市场 = 本机已发布 + 远端已发布，
+  //   两者都真的走过服务端的发布状态机，也都能被作者自己下架/删掉。
+  const all = [...mine.filter((t) => t.published), ...remote];
   const kw = q.trim().toLowerCase();
   const list = kw
     ? all.filter((t) => (t.title + t.intro + t.recipe.styleHint).toLowerCase().includes(kw))
@@ -488,6 +453,27 @@ export async function registerTemplate(id: string): Promise<void> {
         // ★ 真实时长只有服务端算得出（Cloudinary 回执）。存在性透出，理由同 apiToTemplate
         ...refRealSecKey(api.refVideo.realDurationSec),
       };
+    }
+    // ★★★ 角色位与位置框**必须在这里回写**（2026-08-17：服务端这条登记路开始认人+量框了）。
+    //   这是整条改造里最容易漏、也最贵的一处：不搬的话，服务端建得好好的（有 roles、
+    //   有 markSlots、有 markBoxes），而作者**自己那台设备**的本机记录里一位都没有 ——
+    //   `RoleConfirmEntry` 第一行就是 `if (!t.roles?.length) return null`，于是核对入口
+    //   **永远不出现**；他去详情页点发布，服务端的 rolesNeedConfirm 闸回 400。
+    //   作者只会以为"发布坏了"，而 App 侧没有任何一处指得到真正的原因（全程零报错）。
+    //   ⚠ CLAUDE.md 那条「服务端加字段、本机库那几跳必须一起搬」说的就是这里。
+    // ★ 一律走现成的逐字段搬运器（rolesOf / markSlotsOf / markBoxesOf），别在这儿手写
+    //   `|| []`：markBoxesOf 里那道「长度与 markSlots 不等就整份丢」是网络这一端的边界检查。
+    // ★ 四位**同批搬、按存在性写**：markSlots 缺失 = 判成编号方案（挂卡面板会让用户去找
+    //   人偶头上的数字，而画面上什么都没印）；框与清单长度不等 = 拖拽层静默关掉。
+    const back = rolesOf(api);
+    if (back.length) t.roles = back;
+    const backSlots = markSlotsOf(api);
+    if (backSlots.length) t.markSlots = backSlots;
+    const backBoxes = markBoxesOf(api, (backSlots.length ? backSlots : t.markSlots ?? []).length);
+    if (backBoxes.length) {
+      t.markBoxes = backBoxes;
+      const at = Number(api.markBoxAtSec);
+      if (Number.isFinite(at) && at >= 0) t.markBoxAtSec = at;
     }
     recordState(api);
     registerErrors.delete(id);

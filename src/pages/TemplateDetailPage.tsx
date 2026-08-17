@@ -125,6 +125,8 @@ function OwnerBar({ t, inMine, onApply }: { t: VideoTemplate; inMine: boolean; o
   const [intro, setIntro] = useState(t.intro);
   const [busy, setBusy] = useState(false);
   const [opErr, setOpErr] = useState("");
+  /** 删除的第一段：按钮已经变成「真的删掉？」，再点一下才真动手（见下面那颗按钮的 ★★） */
+  const [armed, setArmed] = useState(false);
   const dirty = title !== t.title || intro !== t.intro;
   const blockout = !!t.refVideo;
   const rs = remoteStateOf(t);
@@ -238,15 +240,34 @@ function OwnerBar({ t, inMine, onApply }: { t: VideoTemplate; inMine: boolean; o
           </button>
         )}
         {publishArea()}
+        {/* ★★ 两段式删除：第一下只把按钮变成「真的删掉？」，第二下才动手。
+            ★ 为什么必须有这一问（全 app 只有几处配得上二次确认，这是其中之一）：
+              这一下会**连带销毁云端那段模板视频与原始素材**，服务端删完就没有任何句柄
+              找得回来 —— 不是"从列表里消失"，是资产真的没了。而按钮就挨着「保存」，
+              误触的代价与它的体积完全不成比例。
+            ★ 用**按钮自身变形**而不是 window.confirm / 弹窗：这一屏是可滚动的长页，
+              系统弹窗会盖住上面那段"这个模板现在什么状态"的说明，而那正是他此刻
+              该看一眼的东西。变形还天然带一个"点别处就取消"的退路（下面 onBlur）。
+            ★ 3 秒后自动缩回：确认态一直挂着的话，下一次误触照样是一下就没。 */}
         <button
-          onClick={() => void run(async () => {
-            await deleteTemplateEverywhere(t.id);
-            nav("/templates");
-          })}
+          onClick={() => {
+            if (!armed) {
+              setArmed(true);
+              window.setTimeout(() => setArmed(false), 3000);
+              return;
+            }
+            void run(async () => {
+              await deleteTemplateEverywhere(t.id);
+              nav("/templates");
+            });
+          }}
+          onBlur={() => setArmed(false)}
           disabled={busy}
-          className="ml-auto rounded-full px-3 py-1.5 text-xs text-rose-400 disabled:opacity-50"
+          className={`ml-auto rounded-full px-3 py-1.5 text-xs disabled:opacity-50 ${
+            armed ? "bg-rose-500 font-bold text-white" : "text-rose-400"
+          }`}
         >
-          删除
+          {armed ? "真的删掉？（连云端视频一起）" : "删除"}
         </button>
       </div>
       {/* ★★ 核对角色位的入口（白模 V2，两档常驻）：作者是从**这一页**点的发布，而发布闸的
