@@ -65,13 +65,50 @@ export async function readyTemplates(): Promise<void> {
 }
 
 /** 我建的模板（含未发布的） */
+/**
+ * 拉一次「我在服务端的模板」。★ 与 ensureShared 同款：懒加载、到货 emit、失败 15s 冷却。
+ * ★ 老服务端没有这条路由 → 抛 404 → 安静保持只有本机那份（**不显示成错误**：
+ *   那是服务端能力问题，不是用户的模板没了）。
+ */
+function ensureMineRemote(): void {
+  if (mineRemoteFresh || mineRemoteLoading || Date.now() < mineRemoteRetryAt) return;
+  mineRemoteLoading = true;
+  void (async () => {
+    try {
+      const items = await branch.listMyTemplates(50);
+      mineRemote = items.map(apiToTemplate).filter((x): x is VideoTemplate => x !== null);
+      mineRemoteFresh = true;
+      emit();
+    } catch {
+      // ★ 不设 error 文案：这一屏本来就有本机那份可显示，一条红字只会让作者以为模板出事了。
+      //   冷却 15s 之后自然重试（切 tab / 重渲染都会再问一次）。
+      mineRemoteRetryAt = Date.now() + 15_000;
+    } finally {
+      mineRemoteLoading = false;
+    }
+  })();
+}
+
+/**
+ * 我的模板 = **本机库** + **服务端上本机没有的那些**。
+ *
+ * ★★ 去重按 `remoteId`，**本机那份是正主**：它有本机 id、能进 OwnerBar、能就地编辑，
+ *   而远端那份只是同一条模板的另一个视角。反过来（远端优先）会让作者在自己
+ *   做过模板的那台设备上，点进去看到一个没有本机 id 的只读副本。
+ * ★ 没有 remoteId 的本机记录（登记失败/从没登记）**照样在列**：它们的云端视频句柄
+ *   只存在本机这一条里，从列表里藏起来就等于泄漏一份谁都删不掉的资产。
+ */
 export function myTemplates(): VideoTemplate[] {
-  return mine;
+  if (remoteOn()) ensureMineRemote();
+  const extra = mineRemote.filter((r) => !mine.some((m) => m.remoteId && m.remoteId === r.remoteId));
+  return extra.length ? [...mine, ...extra].sort((a, b) => b.createdAt - a.createdAt) : mine;
 }
 
 export function getTemplate(id: string): VideoTemplate | null {
   return (
     mine.find((t) => t.id === id) ??
+    // ★ 我在服务端的那份（本机没有的那些）：从「我的模板」点进详情页靠它渲染
+    mineRemote.find((t) => t.id === id) ??
     // 远端市场的模板（id = 服务端 _id）：详情页从市场点进来时靠这份缓存渲染
     shared.find((t) => t.id === id) ??
     null
@@ -176,6 +213,20 @@ const remoteStates = new Map<string, RemoteTemplateState>();
 const registerErrors = new Map<string, string>();
 
 /** 远端 shared 缓存与加载状态 */
+/**
+ * 「我在**服务端**的模板」缓存 —— 与本机库 `mine` 是两份，合并由 `myTemplates()` 做。
+ *
+ * ★★ 为什么必须有它：本机库只装"这台设备上做过的"。换设备/重装/清数据之后它是空的，
+ *   而服务端那些模板还在（还占着云端资产、只有作者本人有权删）。没有这一份的话，
+ *   作者在新设备上看到的是"我一个模板都没有" —— 不是"加载失败"，是压根不出现。
+ * ★ 与 `shared` 完全同构（懒加载 + 到货 emit + 15s 冷却），因为它们是同一类东西：
+ *   服务端上的一份清单，本机只是缓存。别为它另发明一套加载状态。
+ */
+let mineRemote: VideoTemplate[] = [];
+let mineRemoteFresh = false;
+let mineRemoteLoading = false;
+let mineRemoteRetryAt = 0;
+
 let shared: VideoTemplate[] = [];
 let sharedFresh = false;
 let sharedLoading = false;
@@ -496,7 +547,9 @@ export async function makeOwnRefTemplate(o: {
  * @throws message 可直接显示（含 409「正在识别中」那一句）
  */
 export async function detectTemplateRoles(id: string): Promise<string> {
-  const t = mine.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
+  // ★ 三份都要找：本机库、**我在服务端的那份**（换设备后就只有它）、市场缓存。
+  //   漏掉 mineRemote 的表现是"列表里明明有这一条，点识别却说不在本机库里"
+  const t = mine.find((x) => x.id === id) ?? mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
   if (!t) throw new Error("这个模板不在本机库里");
   if (!t.remoteId) throw new Error("这个模板还没登记到服务器，先登记再识别角色位");
   if (!remoteOn()) throw new Error("现在连不上服务器——联网后再识别");
@@ -843,16 +896,21 @@ export async function confirmTemplateRoles(
 export async function deleteTemplateEverywhere(id: string): Promise<void> {
   const t = mine.find((x) => x.id === id);
   if (!t) {
-    // 本机没有但 shared 缓存里有 = 换设备的作者在删自己的远端模板（身份由服务端把关，
+    // 本机没有但远端缓存里有 = 换设备的作者在删自己的远端模板（身份由服务端把关，
     // 非 owner 的请求服务端会 403）。删成即从缓存摘掉，别等下一次懒加载才消失。
-    const remote = shared.find((x) => x.id === id);
+    // ★ **两份缓存都要找**：`mineRemote`（我的模板那一屏）与 `shared`（市场那一屏）。
+    //   只找 shared 的话，换设备的作者在「我的模板」里点删除会得到一句"这个模板不在本机库里"
+    //   —— 而那正是这条分支存在的唯一场景。
+    const remote = mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
     if (!remote?.remoteId) return;
     if (!remoteOn()) throw new Error("现在连不上服务器——联网后再删");
     const landed = await branch.deleteRemoteTemplate(remote.remoteId);
     if (!landed) throw new Error("这台服务器不支持删除模板（回包形状不对，可能需要升级服务端）");
     remoteStates.delete(remote.remoteId);
     shared = shared.filter((x) => x.id !== id);
+    mineRemote = mineRemote.filter((x) => x.id !== id);
     sharedFresh = false;
+    mineRemoteFresh = false;
     emit();
     return;
   }
@@ -863,7 +921,11 @@ export async function deleteTemplateEverywhere(id: string): Promise<void> {
     const landed = await branch.deleteRemoteTemplate(t.remoteId);
     if (!landed) throw new Error("这台服务器不支持删除模板（回包形状不对，可能需要升级服务端）");
     remoteStates.delete(t.remoteId);
+    // ★ 远端缓存里同一条也要摘掉：不摘的话本机那条一删，`myTemplates()` 立刻把远端那份
+    //   补进来 —— 用户看到的是"删了它又回来了"（其实服务端已经删掉了，只是缓存没刷）
+    mineRemote = mineRemote.filter((x) => x.remoteId !== t.remoteId);
     sharedFresh = false;
+    mineRemoteFresh = false;
   } else if (t.refVideo?.publicId) {
     // 传上去了、从没登记成：托管视频的唯一句柄就在本机这条记录里，删记录前必须先回收
     if (!remoteOn()) {

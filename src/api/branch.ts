@@ -1182,6 +1182,21 @@ export async function listBlockoutJobs(): Promise<ApiBlockoutJob[] | null> {
 }
 
 /** GET /api/branch/templates/shared（optionalAuth）—— 模板市场，只回 published */
+/**
+ * GET /api/branch/templates/mine（requireAuth）—— **我在服务端的模板，含未发布的**。
+ *
+ * ★★ 它补的是一个从一开始就在的缺口：「我的模板」那一屏此前只读本机 IndexedDB，
+ *   而服务端唯一的列表查询是 `{status:"published"}`。换设备/重装之后作者的模板
+ *   一条都不剩，而**未发布的那些既不在市场里、也没有任何入口知道 id —— 永久失联**，
+ *   却还占着云端资产、且只有作者本人有权删。全程零报错。
+ * ★ 老服务端没有这条路由 → apiGet 撞 404 抛 ApiError，调用方按"这台服务器还没有这个能力"
+ *   静默降级（与 shared 那一路同款），别把它显示成"你没有模板"。
+ */
+export async function listMyTemplates(limit = 50): Promise<ApiBranchTemplate[]> {
+  const res = await apiGet<Record<string, unknown>>("/api/branch/templates/mine", { query: { limit } });
+  return pickList<ApiBranchTemplate>(res, ["templates", "items", "data"]);
+}
+
 export async function listSharedTemplates(limit = 50): Promise<ApiBranchTemplate[]> {
   const res = await apiGet<Record<string, unknown>>("/api/branch/templates/shared", { query: { limit } });
   return pickList<ApiBranchTemplate>(res, ["templates", "items", "data"]);
