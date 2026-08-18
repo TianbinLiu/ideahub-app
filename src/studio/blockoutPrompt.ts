@@ -48,7 +48,7 @@
 //   紧凑不等于天书：`编号1=张三` 一眼能懂、能手改，这是硬要求（这段话是给用户读的）。
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
 import { chat } from "../ai/arkClient";
-import type { MarkSpec } from "../data/templates";
+import { markColorOf, type MarkSpec } from "../data/templates";
 import type { Card, MarkScheme } from "../types";
 
 /** 一个角色位 + 它挂上了谁。编辑页把 `template.roles` 与用户挂的卡合成这张表交过来 */
@@ -311,23 +311,46 @@ function buildSkeleton(
   cast: BlockoutCastSlot[],
   userLine: string,
   spec: MarkSpec,
-): { text: string; usedDesc: Map<string, string> } {
+): { text: string; usedDesc: Map<string, string>; usedKey: Map<string, string> } {
   // ★★★ 这一行是承重的（见 orderSlots 的 ★★★）：序数方案下**书写顺序就是语义**
   const slots = orderSlots(cast, spec);
   // flatMap 而不是 filter：filter 之后 TS 仍然认为 card 可能是 null，只能靠 `!` 硬压 ——
   // 而这一句正是"哪个人偶换成谁"的正文，压错了没有任何报错，只是换错人
-  const taken = slots.flatMap((s) =>
-    // ★ 括号里那截取的是 `mark`（白模视频里那个人偶什么样），**不是** `desc`
-    //   （原视频里那个位子是谁）—— 两者的区别见 BlockoutCastSlot 上的 ★★★
-    s.card ? [{ label: s.label, name: s.card.name, id: s.card.id, desc: descIn(s.mark) }] : [],
-  );
-  const free = slots.filter((s) => !s.card);
   const ordinal = spec.scheme === "ordinal";
+  // ★★★ 点名方式按「颜色唯一」分两档（2026-08-18，第十一发 —— 用户在**同一段**五连败的
+  //   素材上手打提示词实跑出来的）：
+  //     · 这个人偶的颜色在整份名单里**独一份** → 按颜色点名（`红色人偶=凛`）。
+  //       颜色是画面里直接可见的谓词，模型不用数数，也不怕切镜把序数挤歪
+  //       （那段素材 5 秒内人数 7→5，「从左数第4个」在不同镜头里不是同一个人，
+  //       「红色人偶」永远是它）。按用户实跑的配置，这档**不带括号** —— 颜色已经是
+  //       充分锚点，多写只会占预算。
+  //     · 颜色与别人相同（一群白的）→ 照旧序数 + 括号描述 —— 全白素材上这套
+  //       第十发已验稳，不动它。
+  //   ⚠ 那一跑同时改了两件事（红色改按颜色点名 + 全部位子都挂了卡），单看哪半起效
+  //   分不出来；但这档此前是 5/5 必错，地板就是“不会更差”。我们管线的复现还欠一发实拍。
+  const colorOf = (s: BlockoutCastSlot) => (ordinal ? markColorOf(s.mark) : "");
+  const colorCount = new Map<string, number>();
+  for (const s of slots) {
+    const c = colorOf(s);
+    if (c) colorCount.set(c, (colorCount.get(c) ?? 0) + 1);
+  }
+  const keyOf = (s: BlockoutCastSlot): string => {
+    const c = colorOf(s);
+    return c && colorCount.get(c) === 1 ? `${c}色人偶` : s.label;
+  };
+  const taken = slots.flatMap((s) => {
+    if (!s.card) return [];
+    const key = keyOf(s);
+    // ★ 括号里那截取的是 `mark`（白模视频里那个人偶什么样），**不是** `desc`；
+    //   按颜色点名的位子不带括号（见上面 ★★★）。
+    return [{ label: s.label, key, name: s.card.name, id: s.card.id, desc: key === s.label ? descIn(s.mark) : null }];
+  });
+  const free = slots.filter((s) => !s.card);
   // 括号描述只在**序数方案**下拼：编号方案的 desc 是「原视频里是谁」（穿黑袍的白发少年），
   // 说的是被替换掉的那个人，写进"换成谁"那句话里只会打架。存量 6 个模板全在编号那一档。
   const build = (withDescs: boolean): string => {
     const paren = (s: { desc: string | null }) => (withDescs && ordinal && s.desc ? `（${s.desc}）` : "");
-    const bind = (s: { label: string; name: string; desc: string | null }) => `${s.label}${paren(s)}=${s.name}`;
+    const bind = (s: { key: string; name: string; desc: string | null }) => `${s.key}${paren(s)}=${s.name}`;
     // ★ 引导语那半句只在**真有括号**时才说（2026-08-17 核对时抓到）：一个括号都没有还写着
     //   「括号里是这个人偶在画面里的样子」，是在提示词里说一句当场就不成立的话 ——
     //   而这段话是给模型读的，凭空多一个它找不到的指代只会让它去别处找。顺带省 17 字。
@@ -379,7 +402,11 @@ function buildSkeleton(
   const withDescs = full.length <= blockoutPromptBudget(cards);
   const usedDesc = new Map<string, string>();
   if (withDescs && ordinal) for (const t of taken) if (t.desc) usedDesc.set(t.label, t.desc);
-  return { text: withDescs ? full : build(false), usedDesc };
+  // ★ 哪些位子改按颜色点名了，也要**告诉**校验侧（与 usedDesc 同一条理由）：
+  //   校验若照旧拿 label 去找，会把一段完全正确的提示词判成“角色位弄丢了”。
+  const usedKey = new Map<string, string>();
+  for (const t of taken) if (t.key !== t.label) usedKey.set(t.label, t.key);
+  return { text: withDescs ? full : build(false), usedDesc, usedKey };
 }
 
 /** 骨架里"挂卡那句"之后的部分 —— 两个分支（带描述/不带）共用，避免整段被抄成两份 */
@@ -454,7 +481,11 @@ function buildRest(parts: string[], free: BlockoutCastSlot[], ordinal: boolean, 
  *   那条约束，M ≤ 9 保证了不会有「从左数第1个」vs「从左数第10个」）—— 否则子串会把检查
  *   蒙混过去，与编号版 `编号1` / `编号12` 那个坑一模一样。
  */
-function hasLabel(text: string, label: string, spec: MarkSpec): boolean {
+function hasLabel(text: string, label: string, spec: MarkSpec, key?: string): boolean {
+  // ★ 按颜色点名的位子（usedKey 里有）：找的是渲染出去的那个键（「红色人偶」），不是 label。
+  //   它只在挂卡句里出现，右边界就是等号 —— 不需要「的?人偶」那一支（那是空位句的形状，
+  //   而按颜色点名的位子永远是挂了卡的）。
+  if (key && key !== label) return new RegExp(esc(key) + "\s*[=＝]").test(text);
   const l = esc(label);
   return new RegExp(spec.scheme === "ordinal" ? `${l}${DESC_PAREN}(?=\\s*[=＝]|的?人偶)` : `编号\\s*${l}(?![0-9])`).test(
     text,
@@ -503,9 +534,12 @@ const NAME_END = "(?![\\u4e00-\\u9fa5A-Za-z0-9])";
  * ★ 序数版不需要 `(?![0-9])`：等号本身就是右边界，而措辞互不为子串（见 hasLabel 的 ★★）。
  * ⚠ 这一道是**逐条**的，管不了顺序 —— 顺序由 orderKept 单独管（见 composeBlockoutPrompt）。
  */
-function hasPair(text: string, label: string, name: string, spec: MarkSpec, desc?: string | null): boolean {
+function hasPair(text: string, label: string, name: string, spec: MarkSpec, desc?: string | null, key?: string): boolean {
   const l = esc(label);
   const n = esc(name);
+  // ★ 按颜色点名：整条绑定必须是 `红色人偶=名字`、**不带括号**（那一档根本不渲染括号，
+  //   模型自己加一个就是改写，拒是安全侧）；名字右边界照旧（NAME_END）。
+  if (key && key !== label) return new RegExp(esc(key) + "\s*[=＝]\s*" + n + NAME_END).test(text);
   // ★★★ 有描述时要求括号里那截**逐字就是这一条**（2026-08-18 补）。
   //   `DESC_PAREN` 的 `[^）)]*` 对内容零校验 —— 豆包把两条描述**对调**、把描述挪到
   //   别的位子、或给本来没描述的位子凭空编一个，三道校验一律放行。而描述正是这一轮
@@ -559,6 +593,7 @@ const COMPOSE_SYSTEM: Record<MarkScheme, string> = {
     "你唯一的任务：把作者那句话自然地融进这段提示词，让全文读起来像一段连贯的中文。",
     "硬性要求（违反任何一条都算失败）：",
     "1. 「最左边=角色名」这种等号绑定必须**逐字原样**保留：位置说法、等号、角色名一个字都不能改，",
+    "   有的绑定按**颜色**点名（如「红色人偶=张三」）——同样逐字原样保留，不许把颜色换成位置说法、也不许给它加括号或别的形容；",
     "   不许调换等号两边，不许改写成句子，**不许把位置换成近义说法**（把「从左数第3个」写成「第三个」「左起第三位」都算失败）；",
     "   位置说法后面若带着一个括号（例：「最左边（纯白，弓步前倾）=凛」），那个括号连同里面的字**一起原样留在等号左边**，",
     "   不许把它挪走、拆成另一句话、或改写成「那个弓步前倾的人偶」——它是用来指认这个人偶的第二个依据；",
@@ -593,7 +628,7 @@ export async function composeBlockoutPrompt(
 ): Promise<string> {
   // ★ 骨架与「这一次给哪几个位子拼了括号」一并取回 —— 下面三道校验都要拿它逐字核对括号内容。
   //   在校验侧重算一遍预算就是同一条规则的第二处实现（详见 buildSkeleton 的 ★★★）。
-  const { text: skeleton, usedDesc } = buildSkeleton(cast, userLine, spec);
+  const { text: skeleton, usedDesc, usedKey } = buildSkeleton(cast, userLine, spec);
   // ★★ 下面每一处都用**排好序的**那一份，不是原始 `cast`：给豆包的上下文若按另一个顺序
   //   列，等于在骨架已经排好升序之后又递给它一个反例（而顺序就是语义，见 orderSlots）。
   const slots = orderSlots(cast, spec);
@@ -641,7 +676,7 @@ export async function composeBlockoutPrompt(
   // ★★ 逐条核对**机器生成的那一半还在不在**。这不是洁癖：模型很爱把「1、2、4、5」
   //   顺手规整成「1、2、3、4」，或者把 `编号1=张三` 改写成读起来更顺的句子 ——
   //   两者都不报错，只表现为出片时换错了人。核不过就整句拒，绝不"差不多就用了"。
-  const missLabel = slots.find((s) => !hasLabel(text, s.label, spec));
+  const missLabel = slots.find((s) => !hasLabel(text, s.label, spec, usedKey.get(s.label)));
   if (missLabel) {
     throw new Error(
       `提示词合成失败：AI 改写时把「${labelText(missLabel.label, spec)}」这个角色位弄丢了（${
@@ -649,7 +684,7 @@ export async function composeBlockoutPrompt(
       }就会把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。`,
     );
   }
-  const missPair = slots.find((s) => s.card && !hasPair(text, s.label, s.card.name, spec, usedDesc.get(s.label)));
+  const missPair = slots.find((s) => s.card && !hasPair(text, s.label, s.card.name, spec, usedDesc.get(s.label), usedKey.get(s.label)));
   if (missPair?.card) {
     throw new Error(
       `提示词合成失败：AI 改写时动了「${labelText(missPair.label, spec)}=${missPair.card.name}」这条绑定（${
@@ -678,8 +713,10 @@ export async function composeBlockoutPrompt(
     //   ⚠ 两处正则的**唯一区别只允许是"要不要带角色名"**；再有第三种差异就说明
     //   这里已经变成第二套判据了，回去合并。
     const posOf = (s: BlockoutCastSlot) => {
+      // ★ 与 hasPair 逐字同源：按颜色点名的找渲染键（不带括号）；其余有描述就逐字核对括号内容、名字带右边界
+      const key = usedKey.get(s.label);
+      if (key && s.card) return text.search(new RegExp(`${esc(key)}\s*[=＝]\s*${esc(s.card.name)}${NAME_END}`));
       const l = esc(s.label);
-      // ★ 与 hasPair 逐字同源：有描述就逐字核对括号内容、名字带右边界（见那两条 ★★★）
       const d = usedDesc.get(s.label);
       const paren = d ? `\\s*[（(]${esc(d)}[）)]` : DESC_PAREN;
       const re = s.card
