@@ -31,6 +31,7 @@ import {
   type ImageTier,
 } from "../data/economy";
 import { idbSet } from "../data/db";
+import { refableViews } from "../data/cardViews";
 import {
   chat,
   chatTurns,
@@ -577,10 +578,15 @@ export async function prepareMaterialRefs(
 
   // 逐张守门。★ 一张坏图会把**整条**请求 400 掉，所以不能"一起送出去看运气"；
   //   而坏掉的那张必须点名，否则多图之下没人知道是哪张没生效
-  const prepared = await mapLimit(picks, 3, async (p) => ({
-    ...p,
-    url: await prepRefImage(p.view.url),
-  }));
+  const prepared = await mapLimit(picks, 3, async (p) => {
+    // ★ 种子卡的打包路径（/cards/market/…）先兑换成参考图管线读得动的地址 ——
+    //   兑换规则、离线退路与"写回 views 自愈"都收在 data/cardViews.refableViews 一处。
+    //   非打包路径它原样返回（同一个数组对象都不换），这里不多花一次网络。
+    const views = await refableViews(p.card, multiChar);
+    const base = viewsOf(p.card);
+    const at = base.findIndex((v) => v === p.view || (v.kind === p.view.kind && v.url === p.view.url));
+    return { ...p, url: await prepRefImage(at >= 0 && views[at] ? views[at].url : p.view.url) };
+  });
   const good = prepared.filter((p): p is RefPick & { url: string } => !!p.url);
   prepared.forEach((p, i) => {
     // ★ 报到**图位**那一级：两轮分配之后同一张卡可能带两张图，只说卡名的话
@@ -591,6 +597,23 @@ export async function prepareMaterialRefs(
       );
     }
   });
+  // ★★ 白模路（multiChar）逐卡门禁：挂上的**人物卡**一张形象图都没能进管线时，
+  //   在创建任务**之前**整句拒 —— 不花钱。2.21 真机实测（2026-08-18，¥27 那发）：
+  //   「赛博侦探·凛」丢图后点名句只剩名字，红色位被另一张卡的形象整个吞掉；
+  //   名字拽不住形象（第 2、13 发两次实证），这种发出去必错的单不该发。
+  //   2.5 时代的门禁只拒"全军覆没"（下面 good.length===0 那条经 segmentGen 整句 throw），
+  //   这里收紧到逐卡。经典路（Seedream）不走这条：那边形象还能靠设定文字烤，丢图只降级。
+  if (multiChar) {
+    for (const c of materials) {
+      if (c.type !== "character") continue;
+      if (!good.some((g) => g.card === c)) {
+        throw new Error(
+          `「${c.name}」的形象图一张都没能进管线，出片时它只剩名字 —— 实测会被换成别人。` +
+            `到卡片详情页给它补一张形象参考图，或换一张卡再出片`,
+        );
+      }
+    }
+  }
   if (good.length === 0) return empty;
 
   return {
@@ -1621,6 +1644,8 @@ export async function composeSegments(
      * 同 refVideoOn 的分工），这里只负责透传。
      */
     refVideoUrl?: string;
+    /** 白模参考视频的源片时长（秒），只喂给 arkClient 的轮询死线定尺寸，不进请求体 */
+    refVideoSec?: number;
   }>,
   onProgress?: (done: number, total: number, status: string) => void,
 ): Promise<SegmentResult[]> {
@@ -1671,6 +1696,7 @@ export async function composeSegments(
         refImages: sg.refImages,
         // 白模参考视频：透传而已，判定与拼装都不在这层（见字段注释）
         refVideoUrl: sg.refVideoUrl,
+        refVideoSec: sg.refVideoSec,
         model: tier.model,
         ratio: aspectOf(sg.aspect).ratio,
         onProgress: (s) => onProgress?.(i, segments.length, `${tier.label}档 · ${s}`),

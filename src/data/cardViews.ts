@@ -139,6 +139,95 @@ export async function addCardView(cardId: string, file: File, kind: CardView["ki
   return { views, note };
 }
 
+/** 打包在安装包里的根相对路径（/cards/market/…）。data:/http(s)/protocol-relative 都不算 */
+function isBundledPath(url: string): boolean {
+  return url.startsWith("/") && !url.startsWith("//");
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+// 同一张卡的兑换只跑一次（mapLimit 并发 3，同卡两张图会同时进来）；结束就删 ——
+// 成功的那次已经把 https 写回 card.views，下次 viewsOf() 直接是好的，不需要这层缓存
+const inflightRefable = new Map<string, Promise<CardView[]>>();
+
+/**
+ * 把一张卡的 views 兑换成「参考图管线读得动」的形态。与 viewsOf() 同序同长，逐位对应。
+ *
+ * ★ 为什么存在：市场种子卡（mock/ai.MARKET_DEFS，也是新账号初始卡组）的封面是打包在
+ *   安装包里的**根相对路径**（/cards/market/mkt_N.webp）。<img> 同源渲染没问题，但
+ *   prepRefImage 第一行就拒（既非 data: 也非 http），方舟的服务器更拉不动我们包内的路径。
+ *   2.21 真机实测（2026-08-18，¥27 那发）：「赛博侦探·凛」因此被 1ms 丢图，出片只剩
+ *   名字撑着 —— 红色位整个被另一张卡的形象吞掉。新手初始卡组全是这批卡。
+ * ★ 修法：远端模式下取回打包素材 → 转存成永久 https URL → **写回 views（自愈，只传一次）**。
+ *   不退 base64 给 Seedance：reference_image 只实测过 https（2026-08-06 那条实测只覆盖
+ *   首尾帧），没验过的格式不赌（arkClient 的实测注释是边界）。
+ * ★ 离线模式转不成 https：wantHttps（白模/Seedance 路）原样返回，让 prepRefImage 照旧拒、
+ *   上游「未采用」的诚实提示照旧发火；Seedream 路（wantHttps=false）退**临时** dataURL ——
+ *   Seedream 收 dataURL 是既有事实，但不落库（「views 只存 URL」的不变量不为它破例）。
+ * ★ 转存/写回失败不抛：这里失败的下场是"这张图进不了管线"，那正是上游 onNote 已经会
+ *   说的话；抛出去反而把整段出片打断在一张兜底图上。
+ */
+export async function refableViews(card: Card, wantHttps: boolean): Promise<CardView[]> {
+  const base = viewsOf(card);
+  if (!base.some((v) => isBundledPath(v.url))) return base;
+  const key = `${card.id}:${wantHttps ? 1 : 0}`;
+  const hit = inflightRefable.get(key);
+  if (hit) return hit;
+  const job = (async () => {
+    const out: CardView[] = [];
+    let swapped = false;
+    for (const v of base) {
+      if (!isBundledPath(v.url)) {
+        out.push(v);
+        continue;
+      }
+      try {
+        const res = await fetch(v.url);
+        // ★ 只认 Content-Type 不信状态码：Capacitor 的本地服务器对未命中路径做 SPA 回退，
+        //   回的是 200 + index.html —— 素材真缺失时 res.ok 恒真，靠它把 HTML 当图转存上去
+        //   就是把垃圾写进 views（CLAUDE.md「同源相对路径」那条坑的同款机理）
+        if (!res.ok || !/^image\//.test(res.headers.get("content-type") ?? "")) {
+          throw new Error(`拉不到打包素材 ${v.url}（${res.status}）`);
+        }
+        const dataUrl = await blobToDataUrl(await res.blob());
+        if (isRemoteMode()) {
+          out.push({ ...v, url: await toPermanentUrl(dataUrl, `card-${card.id}-${v.kind}`) });
+          swapped = true;
+        } else if (wantHttps) {
+          out.push(v);
+        } else {
+          out.push({ ...v, url: dataUrl });
+        }
+      } catch {
+        out.push(v);
+      }
+    }
+    // 只给自己的卡落库（挂卡面板只发自己的卡，这里是兜底）；PATCH 失败不抛 ——
+    // 本地这份已经换好、这一发能用，服务端下次冷启动覆盖回相对路径后会再次自愈
+    if (swapped && myCards().some((c) => c.id === card.id)) {
+      try {
+        await setCardViews(card.id, out);
+      } catch {
+        /* 见上：失败留给下一次自愈 */
+      }
+    }
+    return out;
+  })();
+  inflightRefable.set(key, job);
+  try {
+    return await job;
+  } finally {
+    inflightRefable.delete(key);
+  }
+}
+
 /**
  * 删掉第 index 张。删到一张不剩时写空数组。
  *

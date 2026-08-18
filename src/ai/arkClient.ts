@@ -358,6 +358,8 @@ export async function generateVideo(
      * edit 的输出时长与画幅都跟随源片，是协议行为不是我们的参数）。
      */
     refVideoUrl?: string;
+    /** 白模参考视频的源片时长（秒）。只用来给轮询死线定尺寸（见下），不进请求体 */
+    refVideoSec?: number;
     onProgress?: (status: string) => void;
   },
 ): Promise<string> {
@@ -453,10 +455,23 @@ export async function generateVideo(
     120_000,
   );
   const id = created.id;
+  // ★★ 轮询死线按"这一发要出多少秒视频"缩放，不再一刀切 10 分钟。
+  //   实测两点（720p）：5s 素材 ≈ 250s 出片；15s 模板 ≈ 780s —— 而旧死线 120×5s=600s。
+  //   2026-08-18 真机那发（¥27）：方舟 ~13 分钟出成片，App 10 分钟先放弃报了"失败"，
+  //   用户拿到的是**钱花了、片其实存在、这边说没成** —— 死线太短不是保守，是烧钱。
+  //   斜率 ≈ 52s/输出秒，按 90s/秒 + 3 分钟余量取放弃线（15s → 25.5 分钟），
+  //   短段保底 12 分钟。放弃线只是放弃线：成功早到早返回，代价只是真卡死时多等一会。
+  //   白模段的输出时长跟模板走（refVideoSec；没传按上传窗口上限 15s 取保守值），
+  //   其余路径用夹过的 durationSec（与请求体同一套夹法）。
+  const outSec = refVideoUrl
+    ? opts?.refVideoSec ?? 15
+    : Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5)));
+  const deadlineMs = Math.max(12 * 60_000, outSec * 90_000 + 3 * 60_000);
   const t0 = Date.now();
   let pollFails = 0;
-  for (let i = 0; i < 120; i++) {
-    await new Promise((r) => setTimeout(r, 5000));
+  while (Date.now() - t0 < deadlineMs) {
+    // 前两分钟 5s 一问（短段体感），之后 10s —— 二十几分钟的等待期不必打三百个请求
+    await new Promise((r) => setTimeout(r, Date.now() - t0 > 120_000 ? 10_000 : 5000));
     let st: ArkTaskState;
     try {
       st = await fetchArkTask(id);
@@ -478,7 +493,10 @@ export async function generateVideo(
       throw new Error(`Seedance 任务${st.status}: ${st.error?.message ?? ""}`);
     }
   }
-  throw new Error("Seedance 任务超时（10 分钟）");
+  throw new Error(
+    `Seedance 任务超时（已等 ${Math.round((Date.now() - t0) / 60_000)} 分钟）—— ` +
+      `方舟侧可能仍在出片，只是这边接不回来了（任务号 ${id}）。稍后重试；扣费以钱包流水为准`,
+  );
 }
 
 /**
