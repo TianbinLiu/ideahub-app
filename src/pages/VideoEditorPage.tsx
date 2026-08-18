@@ -41,6 +41,8 @@ import { myCards } from "../data/account";
 // ★ "这个模板是哪种标记方案"的判据只有 data 层一处，页面只问它（铁律六）。
 //   这一页拿到的是宿主已经问过的结果（`MarkSpec`），自己一次都不判
 import type { MarkSpec } from "../data/templates";
+import HelpButton from "../components/guide/HelpButton";
+import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { useAccountVersion } from "../hooks/useAccount";
 import type { Card, MarkBox } from "../types";
 
@@ -194,6 +196,9 @@ export default function VideoEditorPage() {
   const nav = useNavigate();
   const loc = useLocation();
   const state = useMemo(() => parseState(loc.state), [loc.state]);
+  // ★ 只在「选段与裁剪」那一档自动弹，且要等 state 解析出来 —— 从别处误入这一页时
+  //   （state 为 null）页面渲染的是"这一页需要从上传或模板页进来"，那时弹引导是答非所问。
+  useAutoGuide("trim", state?.mode === "blockoutize");
 
   // 本机文件 → 可播地址。★ 必须在**卸载时**回收：objectURL 不回收就是一条挂在
   //   document 上的引用，而这里引的是一段最大 100MB 的视频（进出编辑页几次就是几百 MB）
@@ -244,6 +249,9 @@ export default function VideoEditorPage() {
               : "白模化 · 框出一段并裁掉水印"}
           </p>
         </div>
+        {/* ★ 只给「选段与裁剪」这一档：cast 那一档的引导挂在 RoleCastBoard 自己身上
+            （它才知道有没有框、有没有格子），这里再放一颗就是两处入口教同一件事。 */}
+        {state?.mode === "blockoutize" && <HelpButton tour="trim" />}
       </header>
 
       <main className="px-3 py-3">

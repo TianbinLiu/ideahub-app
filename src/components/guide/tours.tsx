@@ -504,6 +504,55 @@ export const TOURS: GuideTour[] = [
       },
     ],
   },
+  {
+    id: "trim",
+    title: "选段与裁剪",
+    version: 1,
+    steps: [
+      {
+        title: "这一屏在决定两件事",
+        body: (
+          <>
+            你在这里框出的那一段、裁出的那一块，就是 AI 真正拿去白模化的全部内容。
+            它同时决定<b className="font-bold text-slate-100">这一发多少钱</b>（时长越长越贵），
+            而钱一开始算就退不了。
+          </>
+        ),
+      },
+      {
+        title: "先框出哪一段",
+        anchor: "trim-range",
+        body: (
+          <>
+            拖两头的把手只取你要的那几秒。
+            挑<b className="font-bold text-slate-100">人最齐、镜头最稳</b>的一段——
+            切镜多的素材里，同一个人在不同镜头里的位置不一样，套用时容易换错人。
+          </>
+        ),
+      },
+      {
+        title: "再裁掉台标与水印",
+        anchor: "trim-crop",
+        body: (
+          <>
+            拖四个角调裁剪框。水印<b className="font-bold text-amber-300">必须框到框外</b>：
+            出片是逐帧复刻画面，提示词去不掉它（实测），而模板会被反复套用——
+            留一个水印就是永久的。
+          </>
+        ),
+      },
+      {
+        title: "裁得太小会被挡下",
+        body: (
+          <>
+            方舟对画面大小、宽高比、时长都有硬门槛。
+            不过关时下面会<b className="font-bold text-slate-100">直接说是哪一条不合</b>，按那句话改就行，
+            不用在这里背数。
+          </>
+        ),
+      },
+    ],
+  },
 ];
 
 export function tourById(id: string): GuideTour | null {
