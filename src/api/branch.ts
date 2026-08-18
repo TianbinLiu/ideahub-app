@@ -3,8 +3,8 @@
 //
 // 服务端字段用 `_id` / ISO 时间字符串，客户端领域模型用 `id` / 毫秒时间戳，
 // 转换统一放在 data/*.ts（因为只有它知道要往哪个 cache 里塞）。
-import type { BranchTree, Card, CardType, DraftVideo, VideoDeck, VideoPart, VideoSegment } from "../types";
-import { apiDelete, apiGet, apiPatch, apiPost } from "./client";
+import type { BranchTree, Card, CardType, DraftVideo, TemplateRecipe, VideoDeck, VideoPart, VideoSegment } from "../types";
+import { API_BASE, ApiError, apiDelete, apiGet, apiPatch, apiPost, getToken } from "./client";
 
 // ── DTO ──────────────────────────────────────────────────
 
@@ -690,6 +690,662 @@ export async function listSharedCards(q = "", limit = 20): Promise<ApiSharedCard
 export async function installCard(cardId: string): Promise<ApiCard | null> {
   const res = await apiPost<Record<string, unknown>>(`/api/branch/cards/${encodeURIComponent(cardId)}/install`);
   return pick<ApiCard>(res, ["card", "item", "data"]);
+}
+
+// ── 白模模板（blockout r2v）──────────────────────────────
+// 服务端实体是 BranchTemplate（server routes/branchTemplate.routes.js），挂在同一个
+// /api/branch base 下。生命周期：登记（pending）→ 作者自己付费出一次片（服务端置
+// provenAt，试炼闸）→ 发布（published）→ 上市场；平台下架是 blocked，作者动不了。
+// 契约见 docs/api-contract.md「白模模板」。
+
+/**
+ * 服务端的一个白模模板。
+ *
+ * ★ 所有字段都按「可能缺」标（Partial 风格）：这是**新加**的实体，但 pick 出来的东西
+ *   终究是网络回包 —— data/templates.ts 映射时逐字段兜底，不在这里假设服务端形状永远对。
+ * ★ `provenAt` = 试炼闸（作者本人用它真实出过一次片才非空），发布的前置；由服务端在
+ *   r2v 任务轮询到 succeeded 时写入，**客户端说什么都不作数**。
+ * ★ `isOwner` 由服务端按 ownerId 对当前 JWT 算 —— 身份判定**只认它**，绝不拿
+ *   authorName 显示名比对（CLAUDE.md「拿名字当身份」坑；authorName 只是显示快照）。
+ */
+export interface ApiBranchTemplate {
+  _id?: string;
+  /** 服务端同时回 id（字符串化的 _id），两个都认 */
+  id?: string;
+  ownerId?: string;
+  /** 显示快照（登记那一刻的用户名），会过时，不承担身份 */
+  authorName?: string;
+  title?: string;
+  intro?: string;
+  /** https 或空串（服务端 zod 拒 dataURL） */
+  coverUrl?: string;
+  recipe?: {
+    styleHint?: string;
+    beats?: string[];
+    durationSec?: number;
+    videoTier?: string;
+    aspect?: "portrait" | "landscape";
+    framePrompt?: string;
+  };
+  /**
+   * 参考视频的**服务端登记值**（从 Cloudinary 写入）—— r2v 报价输入时长的唯一来源。
+   *
+   * ★ `realDurationSec` 是模板视频文件的**真实**时长（小数秒，服务端只读透出，客户端
+   *   永远不许发上去——服务端 zod 用 z.object，未声明字段本来就会被 strip）。
+   *   它与 `durationSec`（整数计价锚点）**不是一回事**，两者的分工与那条线上事故见
+   *   `types.VideoTemplate.refVideo` 的 ★★。老服务端不回这个字段，**缺一律当好**。
+   */
+  refVideo?: {
+    url?: string;
+    durationSec?: number;
+    realDurationSec?: number;
+    width?: number;
+    height?: number;
+    bytes?: number;
+  };
+  /**
+   * 白模人偶的**角色位**（标记 ↔ 这个标记在原视频里替换掉的是谁）。
+   *
+   * ★ **只在真有的时候才出现这个 key**：V1 白模模板整个字段缺失。调用方一律判**存在性**
+   *   （`roles?.length`），不许等值比、也不许把"缺"和"空数组"当同一件事处理
+   *   —— 那是 `visibility` 那条坑的同族（docs/api-contract.md「可见性」）。
+   * ★ `label` 是**"怎么指认这个人偶"那句话本身**：新模板是序数措辞（"从左数第3个"，
+   *   人偶全是一模一样的纯白色），存量老模板是阿拉伯数字（实测稳定但不连续，
+   *   2026-08-15 一发四人实出 1/2/4/5）。
+   *   哪一种由 `markSlots` 的**存在性**决定。别按下标推、别拿 `roles.length` 当最大编号、
+   *   点名时**原样用 label**。
+   * ★ 服务端写（看帧产出、与真正发出去的点名提示词对齐）。客户端提交一律不收（zod strip），
+   *   **唯一的例外**是作者的确认：PATCH /templates/:id/roles（见 patchTemplateRoles）。
+   * ★★ `labelConfirmed` = 这个标记**作者对着成片核对过了**。为假时那份 label 只是服务端
+   *   按视觉清单顺序分配的**猜测**，与画面上真实的那个标记可能对不上 ——
+   *   套用者照它挂卡就会把角色换到别人身上，而且不会有任何报错。所以未核对的模板
+   *   服务端**不许发布**（publish 回 400 整句）。缺省（老服务端不回这一位）按**未核对**
+   *   处理：往"多提醒一次"退是安全的，反过来是拿一份没人核对过的标记当真。
+   */
+  roles?: Array<{ label?: string; desc?: string; labelConfirmed?: boolean }>;
+  /**
+   * 这段视频里**一共有哪几个可寻址的位置，逐字、按画面从左到右升序**
+   * （阶段一白模化时服务端算出来的那份序数清单，`["最左边","从左数第2个","最右边"]`）。
+   *
+   * ★★ **有这一位 = 序数方案；缺失 / 空数组 = 编号方案（存量老模板）**。服务端"真有才出
+   *   这个键"，客户端一律判存在性 —— 与 `realDurationSec` 同一条写法。判成编号方案是
+   *   **安全的那一侧**：老模板照旧能用，而新模板会写出一句一眼就不对的 `编号最左边=凛`
+   *   摆在用户花钱之前（判据与后果见 types.VideoTemplate.markSlots 的 ★★）。
+   * ★★ 它同时是套用提示词**升序排序的依据**（`markSlots.indexOf(label)`）—— 那条排序是
+   *   承重代码，不是读起来顺（实测同样 3 张卡只把书写顺序打乱，5 个位子错 3 个）。
+   * ★ 客户端提交一律不收（含 PATCH /roles —— 让作者改得动方案位，等于让他把一个序数
+   *   模板标成编号模板，套用侧当场整份错且零报错）。
+   */
+  markSlots?: string[];
+  /** 与 `markSlots` 按下标对齐的画面位置框（归一化 0~1000）。长度不等于 markSlots 时
+   *  客户端整层丢弃（缺一个框就关掉拖拽层，见 types.VideoTemplate.markBoxes 的 ★★） */
+  markBoxes?: Array<{ cx?: number; cy?: number; w?: number; h?: number }>;
+  /** 那些框是在第几秒那一帧上量的（秒）。没有它，框就是一组无法核对的数 */
+  markBoxAtSec?: number;
+  /**
+   * 与 `markSlots` 按下标对齐的**人偶描述**：「这段白模视频里第 i 个位置上那个人偶
+   * 长什么样、在干什么、站在哪个景物旁」（如 `白色、弯腰前倾，双手下垂、在左数第二条白条纹左侧`）。
+   * 套用提示词把它拼在绑定的等号左边，当序数之外的第二个指认锚点。
+   *
+   * ★★ 它**不是** `roles[].desc`（那一位说的是"这个位子**原来**是谁"，白模化那条路来自
+   *   **原片**）。合成一位会让 V2 模板拼出「从左数第2个（白发黑袍的少年）=阿岚」，
+   *   而参考视频里那个位置站着一个白人偶 —— 完整理由在 types.VideoTemplate.markDescs。
+   * ★ 单个元素可以是空串 = 这一条没通过服务端的唯一性自证（只认出个颜色）。
+   *   客户端对空串**不拼括号**。长度不等于 markSlots 时整份丢弃（同 markBoxes）。
+   * ★ 只有「自己传白模视频」那条路（detect-roles）产出它；白模化 V2 与所有老模板都没有。
+   */
+  markDescs?: string[];
+  status?: "pending" | "published" | "blocked" | string;
+  provenAt?: string | number | null;
+  isOwner?: boolean;
+  createdAt?: string | number;
+  updatedAt?: string | number;
+}
+
+/**
+ * POST /api/branch/templates（requireAuth，限流 5/分）—— 登记一个白模模板。
+ *
+ * ★ `videoUrl` 必须是**本账号刚通过 /api/uploads/template-video 传的** Cloudinary 地址
+ *   （服务端三重白名单：host + 目录 + public_id 归属），别处的链接一律 400。
+ * ★ `coverUrl` 只收 https 或空串 —— dataURL 要先走 publishAssets.toPermanentUrl 转存
+ *   （服务端 zod 直接拒，这里在类型注释里说破，免得撞了 400 才知道）。
+ * ★ 元数据（时长/尺寸）**不发**：服务端只从 Cloudinary 取（发了也会被 zod strip 掉，
+ *   那正是"不信客户端报的任何数"的机制化）。
+ * ★ 同一段视频只能登记一个模板（refVideo.url 唯一索引）：重复登记服务端回 409，
+ *   message 可直接给用户看。
+ */
+export interface CreateTemplatePayload {
+  title: string;
+  intro: string;
+  coverUrl: string;
+  recipe: TemplateRecipe;
+  videoUrl: string;
+}
+
+export async function createTemplate(payload: CreateTemplatePayload): Promise<ApiBranchTemplate | null> {
+  const res = await apiPost<Record<string, unknown>>("/api/branch/templates", payload);
+  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+}
+
+// ── 白模化（V2：任意视频 → 带编号白模模板）────────────────────────
+//
+// 与上面的 V1 登记路（createTemplate）是**两条不同的进货渠道**，别合并：
+//   V1 = 作者手上已经有一段白模预演视频，上传 + 登记，不花 AI 的钱；
+//   V2 = 作者拿的是**任意一段实拍/成片**，服务端替他看帧列人物 + 付费出一次片
+//        把人全换成带编号的白模人偶，产物才是模板。**这条路花真钱**。
+// 所以 V2 的失败必须带一位「这次到底扣没扣钱」——见 BlockoutizeError.billed。
+//
+// ★★ **两阶段**（2026-08-15 改造；此前是一条同步等到底的长请求）。
+//   原来那条请求要在服务端一口气跑完「归属校验 → 拼变换 URL → 预热 → 复核元数据 →
+//   看帧列人物 → 发 r2v → 轮询最长 5 分钟 → 转存产物 → 建模板」，客户端就那么挂着等。
+//   拆开的理由只有一条，但它足够：**手机切后台、弱网断线、App 进程被系统回收、
+//   nginx 超时掐断 —— 任何一条都会让用户丢掉这一发的结果，而钱已经花了**
+//   （r2v 受理后失败不退，F11）。一条请求等五分钟本身就是脆的；两阶段让"结果"变成
+//   一件**可以再来取**的东西。
+//
+//   阶段一 `POST /templates/blockoutize`         ①~⑥，到「r2v 被方舟受理」为止，
+//                                               落一条任务凭据 → { jobId, taskId, durSec, frames, roles, expiresAt }
+//   轮询   `GET /api/ark/contents/generations/tasks/:id`  既有端点（不计费、已有限流），
+//                                               **不新造轮询端点**（见 ai/arkClient.fetchArkTask）
+//   阶段二 `POST /templates/blockoutize/finish`  ⑦~⑨（转存产物 → 建模板 → pending）
+//   恢复   `GET  /templates/blockoutize/pending` 本账号**还没取回结果**的凭据
+//
+//   ★ 钱**只在阶段一**花（看帧 + r2v 受理即扣，受理后失败不退）。阶段二本身不扣钱，
+//     它的失败是「取结果失败」，不是「又花了一笔」—— 两种失败的文案必须分得开
+//     （见 BlockoutizeError.phase）。
+//   ★ 凭据 **24 小时**过期：方舟产物是 TOS 签名地址、24h 失效（F12）。过了就真的取不回了，
+//     文案不许粉饰成"稍后再来"。
+
+/** 白模化的两个阶段。★ 决定失败时那句话怎么说（见 BlockoutizeError.phase） */
+export type BlockoutPhase = "start" | "finish";
+
+/**
+ * 白模化的一次失败。**比 ApiError 多两位**：`billed`（这一次调用有没有花掉退不回的钱）
+ * 与 `phase`（失败在哪一阶段）。
+ *
+ * ★★ 为什么非要有 `billed`：方舟对含真人人脸的视频是**受理后**才失败（F11 实测），
+ *   而受理即计费 —— 这一类失败**扣钱不退**。把它和"归属校验没过""余额不足"这种
+ *   一分钱没动的失败混成同一个 Error，界面就只能对所有失败说同一句话：
+ *   要么把没扣钱的说成扣了（吓人），要么把扣了的说成没扣（在钱上撒谎）。
+ * ★★ 为什么两阶段之后还要 `phase`：`billed:false` 在两个阶段的含义**不一样**。
+ *   阶段一的 `false` = 这一发一分钱没动，重来即可；阶段二的 `false` = **这一步**没花钱，
+ *   但钱在阶段一已经花掉了 —— 对用户该说的是"结果还能再取一次"，而不是"没扣钱，重开一发吧"
+ *   （那句话会让他再花一次）。措辞由 data 层按 phase 分叉，判据只有这一位。
+ * ★ 缺省 false：只有服务端**明说** `billed:true` 才算这一次扣过。非 JSON 回包（Capacitor 的
+ *   SPA 回退、老服务端）意味着请求根本没落到这个端点上，那时确实一分钱没动。
+ */
+export class BlockoutizeError extends ApiError {
+  readonly billed: boolean;
+  readonly phase: BlockoutPhase;
+  constructor(message: string, status: number, code: string, billed: boolean, phase: BlockoutPhase) {
+    super(message, status, code);
+    this.name = "BlockoutizeError";
+    this.billed = billed;
+    this.phase = phase;
+  }
+}
+
+/**
+ * POST /api/branch/templates/blockoutize 的请求体。
+ *
+ * ★★ **一个 URL 都不发**：变换地址（`so_,du_,c_crop,x_,y_,w_,h_`）由服务端拿这四组数
+ *   自己拼，客户端全程碰不到 —— 碰得到就等于让用户自己标价（他改一个 `du_` 就改了
+ *   r2v 的计费时长）。同理 `roles`/`source` 提交上去也会被 zod strip 掉，那是服务端写的。
+ * ★ `startSec`/`durSec` 是**整数秒**、`crop` 是**整数像素**：服务端 zod 声明的是 int，
+ *   小数直接 400（不会替你取整）。调用方在 data 层取整一次，别在这里再取一次（铁律六）。
+ */
+export interface BlockoutizePayload {
+  /** 本账号刚传的原始素材（`ideahub/template-videos/<userId>-<ts>`，来自上传回执） */
+  publicId: string;
+  startSec: number;
+  durSec: number;
+  crop: { x: number; y: number; w: number; h: number };
+  /**
+   * 「AI 看哪几帧」—— **相对选段起点的整数秒**（`[0, durSec-1]`，升序去重）。
+   *
+   * ★★ **只有用户自己挑的时候才带这个字段**。「自动」模式一律**不带** —— 帧数按时长算的
+   *   那条式子（每 1.5 秒一帧、下限 3 上限 8）唯一实现在服务端；把本机算出来的数组发上去，
+   *   就是把同一条式子抄成两份，服务端改了公式我们不会知道，而**帧数就是钱**
+   *   （视觉那一半按帧数计），分叉的表现正是"页面报 6 帧、服务端按 3 帧扣"，两个方向都不报错。
+   * ★ 为什么这一个可以收客户端报的数、而 durSec 那一组不能：帧数**上限**由服务端夹
+   *   （多标几帧最多多花视觉那几百 token，服务端照样按它自己收到的条数收）；
+   *   而 `du_` 决定 r2v 的计费时长，那才是能被用来自己标价的那一个。
+   */
+  frameTimes?: number[];
+  title: string;
+  intro?: string;
+  /** https 或空串（服务端 zod 拒 dataURL，同 createTemplate） */
+  coverUrl?: string;
+  /** app 档位 id —— 只进 recipe 当**展示镜像**，服务端不据此判断走哪个模型 */
+  videoTier?: string;
+  aspect?: "portrait" | "landscape";
+  /** 作者对画面的补充说明，服务端拼进「先看」那一步的提示词 */
+  note?: string;
+}
+
+/**
+ * 阶段一的回执 —— 一条**任务凭据**（服务端 BlockoutJob 的镜像）。
+ *
+ * ★ 拿到它就意味着**钱已经花掉了**（看帧 + r2v 受理，受理后失败不退）。所以调用方
+ *   拿到它的第一件事不是"接着等"，而是**认下这一发存在** —— 之后无论轮询、切后台、
+ *   还是进程被杀，都能靠 jobId / pending 列表把结果取回来。
+ */
+export interface BlockoutStartResult {
+  /** 凭据 id —— 阶段二只收它 */
+  jobId: string;
+  /** 方舟任务号：客户端拿它去轮既有的 `GET /api/ark/contents/generations/tasks/:id` */
+  taskId: string;
+  /** 服务端**真正拿去拼变换 URL**的那个时长（也是计费口径，对账用） */
+  durSec: number;
+  /**
+   * 服务端「先看」那一步**真正看了几帧**（0 = 这台服务器没说，老服务端）。
+   *
+   * ★★ 它是视觉那一半费用的**实收口径**：本机报价用的是 `data/templates.visionFrameCount`
+   *   （自动模式那条式子的跨仓镜像）。两个数对不上时**以这一个为准**并如实说出来 ——
+   *   默默按本机那个数显示，就是页面上写着"看 3 帧"、账单按 8 帧扣，两个方向都不报错。
+   * ★ 0 与"真的看了 0 帧"不会混：一帧都取不到时服务端在阶段一就整句拒了（不会有凭据）。
+   */
+  frames: number;
+  /** 看帧那一步列出来的角色位**草案**（标记仍是猜测，作者要在建成模板后核对） */
+  roles: Array<{ label: string; desc: string }>;
+  /** 这一发白模化算出来的那份序数清单（存在性 = 序数方案）。
+   *  ★ 阶段一就要拿到它：模板还没建出来时，"待取回"那一屏与核对入口就已经要知道
+   *    该按位置说话还是按编号说话了。老服务端不回 → 空数组 → 编号方案（它发的确实是编号版）。 */
+  markSlots: string[];
+  /** 凭据失效时刻（服务端说了算；★ 24h —— 方舟产物是 TOS 签名地址，见文件头 ★） */
+  expiresAt: string | number | null;
+}
+
+export interface BlockoutizeResult {
+  template: ApiBranchTemplate;
+  /** 白模化那一发 r2v 的任务号与真实输入时长（对账用：报价按 durSec，实收也按它） */
+  blockout: { taskId: string; durSec: number };
+}
+
+/**
+ * 一条**还没取回结果**的凭据（`GET /blockoutize/pending` 的元素）。
+ * ★ 全部按「可能缺」标：这是网络回包，data 层逐字段兜底后才进内存（同 ApiBranchTemplate）。
+ */
+export interface ApiBlockoutJob {
+  jobId?: string;
+  /** 服务端可能用 id/_id 命名，三个都认（形状兜底，不假设它一定叫 jobId） */
+  id?: string;
+  _id?: string;
+  taskId?: string;
+  durSec?: number;
+  title?: string;
+  roles?: Array<{ label?: string; desc?: string }>;
+  /** 这一发白模化**当时**算出来的那份序数清单（存在性 = 序数方案，同 ApiBranchTemplate）。
+   *  ★ 必须跟着凭据走、不能按"今天服务端是哪一套"事后推：凭据 TTL 24 小时，发版正好夹在
+   *    两阶段之间时，只有这一位能保证 finish 出来的模板与那段视频真正的样子一致。 */
+  markSlots?: string[];
+  expiresAt?: string | number | null;
+  createdAt?: string | number | null;
+}
+
+/**
+ * 白模化两阶段共用的那一次 POST —— **唯一实现**（铁律六）。
+ *
+ * ★ 收在一处的是这几条规则：判成败看**回包形状**（`ok:true`）而不是状态码
+ *   （Capacitor 的本地静态服务器对未命中路径回 200 + index.html，CLAUDE.md 那条坑）、
+ *   `billed` 缺省 false、非 JSON 回包怎么翻成人话、超时那句话按阶段怎么说。
+ *   两个端点各写一遍的话，只要 `billed` 的缺省有一边写错，界面就会在钱上撒谎，
+ *   而且两个方向都不报错。
+ * ★ 不走 client.ts 的 apiPost：它的失败路径把回包里的**顶层字段丢掉**（只留
+ *   message/code/details），而这条路失败时最要紧的一位恰恰是顶层的 `billed`。
+ *   鉴权头/超时/URL 拼装仍复用 client.ts 的那几个导出，没有第二份约定。
+ * @param timeoutMsg 超时/断网时那句整话。**必须由调用方按阶段给** —— 阶段一超时可能
+ *   意味着钱已经花了，阶段二超时只是没取到结果，两句话不能互换（见 BlockoutizeError.phase）。
+ */
+async function blockoutPost(
+  path: string,
+  body: unknown,
+  timeoutMs: number,
+  phase: BlockoutPhase,
+  timeoutMsg: string,
+): Promise<Record<string, unknown>> {
+  const token = getToken();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+  } catch (e) {
+    const aborted = e instanceof DOMException && e.name === "AbortError";
+    // billed 按 false 报（我们确实不知道服务端跑到哪儿了），但 timeoutMsg 里必须把
+    // "可能已经计费"说清楚 —— 报 true 是吓人，只说"失败了重试吧"是让他再花一次钱。
+    throw new BlockoutizeError(
+      aborted ? timeoutMsg : `${phase === "start" ? "白模化提交" : "取回白模化结果"}失败（网络不可用）`,
+      0,
+      aborted ? "TIMEOUT" : "NETWORK",
+      false,
+      phase,
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+  const text = await res.text();
+  let data: Record<string, unknown> = {};
+  try {
+    data = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    /* 非 JSON（SPA 回退 / 老服务端 / 网关错误页）：下面按形状判失败 */
+  }
+  if (data.ok !== true) {
+    throw new BlockoutizeError(
+      typeof data.message === "string" && data.message
+        ? data.message
+        : `这台服务器不支持白模化的${phase === "start" ? "两阶段提交" : "取结果"}（可能需要升级服务端）——HTTP ${res.status}`,
+      res.status,
+      typeof data.code === "string" ? data.code : "",
+      data.billed === true,
+      phase,
+    );
+  }
+  return data;
+}
+
+/**
+ * 阶段一到底把什么带回来了。
+ *
+ * ★★ 两种形状都是**成功**，别把第二种当失败（铁律七的降级矩阵）：
+ *   `job`    = 新服务端，两阶段。r2v 刚被受理，结果要客户端轮询后再来取；
+ *   `legacy` = **老服务端**（这一轮改造之前那份同步实现）：它在这一条请求里把九步全跑完了，
+ *              回包里直接带着建好的模板。那是一次完整的成功 —— 把它当"回包形状不对"拒掉，
+ *              就是"钱花了、模板其实建好了、而本机什么都没留下"（用户只看到一句失败）。
+ */
+export type BlockoutStarted =
+  | { kind: "job"; job: BlockoutStartResult }
+  | { kind: "legacy"; result: BlockoutizeResult };
+
+/**
+ * **阶段一**：提交四组数 → 服务端做完 ①~⑥ → 回一条任务凭据（requireAuth；
+ * 服务端限流 3 次/10 分钟/账号）。
+ *
+ * ★ 超时给 8 分钟。新服务端这一段是**秒级**的（预热变换、现查元数据、看几帧、发 r2v 创建），
+ *   这个上限只为兜住"对面还是老版同步实现"那种情况 —— 老版要在这一条请求里等完出片
+ *   与转存（5 分钟量级）。客户端先超时的话，钱照扣、模板其实建好了，而本机什么都没留下。
+ *   ⚠ 这不等于"用户必须盯着等 8 分钟"：那正是拆两阶段解决的问题 —— 新服务端秒级回执，
+ *   之后的等待随时可以退出，结果 24 小时内都能取回。
+ * ★ 回包既没有 jobId 也没有模板，就当失败且 `billed:true`：服务端说 ok 意味着 r2v 已经
+ *   受理（钱花了），而没有凭据我们就再也取不回结果。静默放行 = "钱花了、结果没了、零报错"。
+ * @throws BlockoutizeError（message 可直接显示；billed 决定要不要加那句"这笔不退"）
+ */
+export async function startBlockoutize(payload: BlockoutizePayload): Promise<BlockoutStarted> {
+  const data = await blockoutPost(
+    "/api/branch/templates/blockoutize",
+    payload,
+    480_000,
+    "start",
+    "白模化提交超时（超过 8 分钟）。服务器那边可能已经受理了这一发（受理即计费）——别直接重试，先去「我的模板」看有没有「还没取回结果」的一发或新模板，有就从那里继续。",
+  );
+  const job = pick<Record<string, unknown>>(data, ["job", "blockout"]) ?? data;
+  const jobId = String(job.jobId ?? job.id ?? job._id ?? "");
+  const taskId = String(job.taskId ?? "");
+  const durSecRaw = Number(job.durSec);
+  // 服务端回的 durSec 是它**真正拿去拼变换 URL**的那个数（也是计费口径）。
+  // 拿不到就退回我们提交的那个——两者理应相等，不等的话以服务端为准。
+  const durSec = Number.isFinite(durSecRaw) && durSecRaw > 0 ? durSecRaw : payload.durSec;
+  // 服务端真正看了几帧。★ 认两个键名：这一位是 2026-08-15 才加的，两仓各自发版，
+  //   老服务端一个都不给（那时退 0 = "没说"，调用方就什么都不说，不编）。
+  const framesRaw = Number(job.frames ?? job.frameCount ?? job.visionFrames);
+  const frames = Number.isFinite(framesRaw) && framesRaw > 0 ? Math.round(framesRaw) : 0;
+  if (jobId && taskId) {
+    const roles = Array.isArray(job.roles) ? (job.roles as Array<{ label?: string; desc?: string }>) : [];
+    // ★ 方案位同样按存在性收：老服务端不回 → 空数组 → 编号方案（它发出去的确实是编号版）
+    const slots = Array.isArray(job.markSlots) ? (job.markSlots as unknown[]) : [];
+    return {
+      kind: "job",
+      job: {
+        jobId,
+        taskId,
+        durSec,
+        frames,
+        roles: roles
+          .map((r) => ({ label: String(r?.label ?? "").trim(), desc: String(r?.desc ?? "").trim() }))
+          .filter((r) => r.label !== ""),
+        markSlots: slots.map((s) => String(s ?? "").trim()).filter((s) => s !== ""),
+        expiresAt: (job.expiresAt as string | number | null | undefined) ?? null,
+      },
+    };
+  }
+  const template = pick<ApiBranchTemplate>(data, ["template"]);
+  if (template && (template._id || template.id)) {
+    // 老服务端的同步实现：九步全跑完了，模板就在回包里。降级但**完整**。
+    return { kind: "legacy", result: { template, blockout: { taskId, durSec } } };
+  }
+  throw new BlockoutizeError(
+    "服务器受理了这一发白模化，却既没有返回模板、也没有返回可以取回结果的凭据（可能是旧版服务端）。这次已经计费——去「我的模板」看看有没有新模板或「还没取回结果」的一发，没有的话请把这句话反馈给我们。",
+    502,
+    "SHAPE",
+    true,
+    "start",
+  );
+}
+
+/**
+ * **阶段二**：拿凭据取回结果 —— 服务端自己向方舟核实任务状态、转存产物、建模板（⑦~⑨）。
+ *
+ * ★★ 只发 `jobId`，**不发任何"任务成功了"的断言**：客户端说什么都不作数，服务端必须
+ *   自己向方舟核实（与试炼闸 provenAt 同一条理由 —— 一句"我跑通了"能白拿一个模板）。
+ * ★ **幂等**：重复调用不许建出两个模板。服务端认凭据状态；真撞上 `refVideo.url` 唯一索引
+ *   时也该回既有那条模板而不是 500。所以本函数对"再点一次"是安全的，界面不必自己防重
+ *   （但仍然会 disable 按钮，那是防误触不是防重复建）。
+ * ★ 超时给 5 分钟：这一段要从 TOS 把产物拉下来再推给 Cloudinary（几十 MB 级）。
+ *   超时**不是**"这一发废了"：产物 24 小时内都在，回「我的模板」再取一次即可 —— 文案照这个说。
+ * @throws BlockoutizeError（phase="finish"：它的失败是"取结果失败"，钱在阶段一已经花过了）
+ */
+export async function finishBlockoutize(jobId: string): Promise<BlockoutizeResult> {
+  const data = await blockoutPost(
+    "/api/branch/templates/blockoutize/finish",
+    { jobId },
+    300_000,
+    "finish",
+    "取回白模化结果超时（超过 5 分钟）。这一步不额外花钱，产物在 24 小时内都还能取——回「我的模板」的「还没取回结果」再点一次即可。",
+  );
+  const template = pick<ApiBranchTemplate>(data, ["template"]);
+  const blockout = pick<Record<string, unknown>>(data, ["blockout"]);
+  const durSec = Number(blockout?.durSec);
+  if (!template || !(template._id || template.id)) {
+    // 回包说 ok 却没给模板 = 这份回执当不了本机记录的锚点（既没有 remoteId 也没有
+    // refVideo），静默放行就是"钱花了、模板不见了"。响亮拒绝，让用户去我的模板里找。
+    throw new BlockoutizeError(
+      "服务器说结果取回成功了，却没有返回模板信息（可能是旧版服务端）。这一步本身不花钱，钱在开炼那一步已经付过——去「我的模板」确认一下有没有新模板，没有的话请把这句话反馈给我们。",
+      502,
+      "SHAPE",
+      false,
+      "finish",
+    );
+  }
+  return {
+    template,
+    blockout: {
+      taskId: String(blockout?.taskId ?? ""),
+      durSec: Number.isFinite(durSec) && durSec > 0 ? durSec : 0,
+    },
+  };
+}
+
+/**
+ * `GET /api/branch/templates/blockoutize/pending`（requireAuth）——
+ * 本账号**还没取回结果**的凭据。掉线恢复的唯一数据来源。
+ *
+ * ★★ 为什么"我有哪些没取回"只问服务端、不在本机存一份：凭据的归属、状态、过期时刻
+ *   都由服务端说了算（别人拿到 jobId 也取不走，铁律：归属只认 ownerId）。本机再存一份
+ *   就是第二处真相 —— 换设备/重装之后本机那份是空的，而"结果丢了"恰恰最可能发生在
+ *   进程被系统回收之后（本机 state 一起没了）。服务端那份反而是唯一还在的。
+ * @returns null = **这台服务器没有这个端点**（回包形状不对，老服务端）。空数组 = 真的
+ *   没有待取回的。两者绝不能混：混了就会把"探不到"画成"你没有待取回的"，
+ *   而用户那一发的钱已经花了（铁律八）。
+ */
+export async function listBlockoutJobs(): Promise<ApiBlockoutJob[] | null> {
+  const res = await apiGet<Record<string, unknown>>("/api/branch/templates/blockoutize/pending");
+  if (!res || res.ok !== true) return null;
+  const list = pick<unknown>(res, ["jobs", "pending", "items", "data"]);
+  return Array.isArray(list) ? (list as ApiBlockoutJob[]) : null;
+}
+
+/** GET /api/branch/templates/shared（optionalAuth）—— 模板市场，只回 published */
+/**
+ * GET /api/branch/templates/mine（requireAuth）—— **我在服务端的模板，含未发布的**。
+ *
+ * ★★ 它补的是一个从一开始就在的缺口：「我的模板」那一屏此前只读本机 IndexedDB，
+ *   而服务端唯一的列表查询是 `{status:"published"}`。换设备/重装之后作者的模板
+ *   一条都不剩，而**未发布的那些既不在市场里、也没有任何入口知道 id —— 永久失联**，
+ *   却还占着云端资产、且只有作者本人有权删。全程零报错。
+ * ★ 老服务端没有这条路由 → apiGet 撞 404 抛 ApiError，调用方按"这台服务器还没有这个能力"
+ *   静默降级（与 shared 那一路同款），别把它显示成"你没有模板"。
+ */
+export async function listMyTemplates(limit = 50): Promise<ApiBranchTemplate[]> {
+  const res = await apiGet<Record<string, unknown>>("/api/branch/templates/mine", { query: { limit } });
+  return pickList<ApiBranchTemplate>(res, ["templates", "items", "data"]);
+}
+
+export async function listSharedTemplates(limit = 50): Promise<ApiBranchTemplate[]> {
+  const res = await apiGet<Record<string, unknown>>("/api/branch/templates/shared", { query: { limit } });
+  return pickList<ApiBranchTemplate>(res, ["templates", "items", "data"]);
+}
+
+/** GET /api/branch/templates/:id（optionalAuth）。非 published 只有作者看得到（别人 404，
+ *  服务端刻意不用 403 —— 不泄露私有模板的存在性），404 时 apiGet 抛 ApiError */
+export async function getRemoteTemplate(id: string): Promise<ApiBranchTemplate | null> {
+  const res = await apiGet<Record<string, unknown>>(`/api/branch/templates/${encodeURIComponent(id)}`);
+  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+}
+
+/**
+ * PATCH /api/branch/templates/:id/publish（requireAuth，仅作者）。
+ * ★ 服务端校**试炼闸**（provenAt 非空 = 作者本人用这个模板真实出过一次片）：没过闸
+ *   回 400，message 是整句人话（"发布前请先用这个模板成功出一段片…"）——调用方原样
+ *   显示，别自己编一句盖过去（那句解释了为什么要有这道门：受理后失败不退费，
+ *   坏模板的钱该坏在作者那一次，不该让每个套用的人各赔一次）。
+ */
+export async function publishTemplate(id: string): Promise<ApiBranchTemplate | null> {
+  const res = await apiPatch<Record<string, unknown>>(`/api/branch/templates/${encodeURIComponent(id)}/publish`);
+  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+}
+
+/**
+ * PATCH /api/branch/templates/:id/roles（requireAuth，仅作者，**仅 pending**）——
+ * 作者核对白模人偶头上的编号。
+ *
+ * ★★ 为什么这是**唯一**收客户端 roles 的端点（其余两条建模板路一律 strip）：这份输入
+ *   只有**看得见画面的人**做得出来。落库那份 label 是服务端按视觉清单顺序编的猜测
+ *   （1..N），而实测人偶编号稳定但**不连续**（一发四人实出 1/2/4/5）。错位的后果没有
+ *   任何报错 —— 套用者点"3 号位"挂上张三，模型换掉的是画面上的 3 号（另一个人），钱照扣。
+ * ★ 提交的是**完整的那一份**（服务端整份替换）：可以改编号、改描述、删掉 AI 多认的一条、
+ *   补上它漏认的一个。编号不许重复（服务端 400 整句：重了会让挂卡互相覆盖）。
+ * ★ 已发布的模板服务端拒改（要先下架）：编号一变，别人工程里存的「几号位挂谁」
+ *   就全对不上了，而他们那边不会有任何提示。
+ * @returns null = 这台服务器没有这个端点（老服务端；回包形状判定，**不看状态码** ——
+ *   Capacitor 的 SPA 回退恒 200 + HTML）。调用方必须把这件事说出来，别当成成功。
+ */
+export async function patchTemplateRoles(
+  id: string,
+  roles: Array<{ label: string; desc: string }>,
+): Promise<ApiBranchTemplate | null> {
+  const res = await apiPatch<Record<string, unknown>>(`/api/branch/templates/${encodeURIComponent(id)}/roles`, {
+    roles,
+  });
+  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+}
+
+/** PATCH /api/branch/templates/:id/unpublish（requireAuth，仅作者）→ 回到 pending。
+ *  blocked（平台下架）不许作者自己洗回来，服务端 400 */
+/**
+ * POST /api/branch/templates/:id/detect-roles（requireAuth，仅作者）
+ * —— 「去认一遍这段视频里有哪些人，并量出他们在画面上的位置」。
+ *
+ * ★★ 它与「登记模板」**是两条请求**（2026-08-17 拆的）：认人+量框慢起来是分钟级，
+ *   而上游耗时实测在 6.6s~140s 之间浮动。塞在登记里的结果是一次抖动就让作者拿到
+ *   一个没有角色位的模板，既看不出为什么、也没有入口重来。拆开之后**失败就再点一次**。
+ * ★ 服务端保证**失败不留痕**（模板一个字不动），所以这条可以放心重试；
+ *   而它每次都花钱（认人 + 量框都是计费的 chat），所以别做成自动无限重试。
+ * ★ 409 = 「正在识别中」（服务端那把并发锁）—— 不是错误，是"等一下再来"。
+ * @returns 服务端回的整份模板 + `note`（三档结果里非全成的那两档才有）
+ */
+/**
+ * @param atSecs 用户自己在编辑页标的那几帧（绝对秒）。不给 = 服务端按几何位置自动铺
+ *   （1/2 → 1/4 → 3/4 → 1/8 → 7/8）。
+ *   ★★ 上限与量化**全在服务端** `blockout.pickedFrameCandidates` 一处，这里原样发出去、
+ *     一个字都不校验：判两遍就是两处规则，而这条路上「多试一帧 = 多花一笔钱」，
+ *     两处对上限的理解漂移会直接变成报价与实收不等。App 侧要挡的是**让用户标不出**
+ *     超限的帧（标记界面上的上限），不是在发送前偷偷截掉他已经标好的。
+ * ★ 老服务端收到这个字段会原样忽略 —— **去服务端核实过**（2026-08-17）：
+ *   `POST /templates/:id/detect-roles` 那条路由上只有 requireAuth + 限流，
+ *   **没有挂任何 zod/validate 中间件**，所以未声明的 body 字段既不会被 strip 掉也不会 400，
+ *   而是根本没人读。⚠ 哪天给这条路由加了 schema，这个结论要重新验一次
+ *   （zod 的 strict 会 400，strip 才是忽略）——
+ *   降级方向是"退回自动铺法"，不是失败，所以不需要能力探测。
+ */
+export async function detectTemplateRoles(
+  id: string,
+  atSecs?: number[],
+): Promise<{ template: ApiBranchTemplate | null; detected: number; boxed: number; note: string } | null> {
+  const res = await apiPost<Record<string, unknown>>(
+    `/api/branch/templates/${encodeURIComponent(id)}/detect-roles`,
+    atSecs && atSecs.length ? { atSecs } : {},
+    // ★★★ 这一发**必须自带长超时**（2026-08-18 真机跑出来的）。
+    //   客户端默认只给 20 秒（`DEFAULT_TIMEOUT_MS`），而服务端最坏要跑
+    //   **5 帧 × 60s（BOX_TIMEOUT_MS）+ 一发自证** —— 界面上写的也是「要一到几分钟」。
+    //   20 秒就 abort 的后果不是“慢一点”，是把一个**可能已经成功、已经计费**的
+    //   请求当场判成失败，而服务端那把 11 分钟的锁还抱着 —— 用户重试只会吃 409。
+    // ★ 380s 是跨仓镜像（5×60 + 60 留一点余量），**比服务端那把锁（11 分钟）短**：
+    //   超时之后锁还在，直接重试仍会 409，所以上层那句话得说“等一会儿再看”而不是“再点一次”。
+    // ⚠ 服务端那两个数改了，这里要跟着改（漂了的表现就是本条说的那个假失败）。
+    { timeoutMs: 380_000 },
+  );
+  if (!res || typeof res !== "object") return null;
+  return {
+    template: pick<ApiBranchTemplate>(res, ["template", "item", "data"]),
+    detected: Number(res.detected) || 0,
+    boxed: Number(res.boxed) || 0,
+    note: typeof res.note === "string" ? res.note : "",
+  };
+}
+
+export async function unpublishTemplate(id: string): Promise<ApiBranchTemplate | null> {
+  const res = await apiPatch<Record<string, unknown>>(`/api/branch/templates/${encodeURIComponent(id)}/unpublish`);
+  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+}
+
+/**
+ * DELETE /api/branch/templates/:id（requireAuth，仅作者）——连带回收 Cloudinary 上的
+ * 参考视频（服务端先云端后库；云端回收失败会 502 且**不删库**，重试即可）。
+ * @returns false = 这台服务器没有这个端点（回包形状不对，判据同 removeComment 的
+ *   deleteLanded——Capacitor SPA 回退恒 200，状态码不可信），调用方必须说出来
+ */
+export async function deleteRemoteTemplate(id: string): Promise<boolean> {
+  try {
+    const res = await apiDelete<unknown>(`/api/branch/templates/${encodeURIComponent(id)}`);
+    return deleteLanded(res);
+  } catch (e) {
+    // ★★★ 404 = **它已经不在了**，而"删除"要的就是这个结果 —— 按成功算（幂等）。
+    //   不这么写的话：另一台设备（或上一次点击）已经把它删掉了，这一次 apiDelete
+    //   撞 404 抛错 → `deleteTemplateEverywhere` 的 catch 吃掉 → **本机那条永远删不掉**。
+    //   表现是一条幽灵模板：每次点删除都弹一句 HTTP 错误，用户点几次就放弃了；
+    //   它还会一直占着「我的模板」列表，并在 getTemplate 的 mine 优先查找里盖住远端真相。
+    //   （2026-08-17 审查抓到。DELETE 天生幂等，这是它该有的样子。）
+    // ⚠ 只放过 404。403（不是你的）、502（云端资产没回收成）都必须照抛 —— 那两种
+    //   "东西还在服务端"，本机跟着删掉就是制造一个谁都删不了的孤儿。
+    // ⚠⚠ 404 有**两种含义**，必须分开，否则这个"幂等"会变成一个更坏的 bug：
+    //     ① 这条模板已经不在了     → 删除的目的达成，按成功算；
+    //     ② **老服务端根本没这条路由** → 服务端那份还好好地在，本机跟着删掉就是孤儿。
+    //   两者的 `code` 一模一样（都是 NOT_FOUND，见 server 的 utils/http.notFound 与
+    //   middleware/error.notFound），唯一的区别是②由我们自己的中间件生成、message
+    //   固定以 `Route not found:` 开头。判这个前缀不是猜 —— 那是本仓自己的产物。
+    if (e instanceof ApiError && e.status === 404 && !/^Route not found:/i.test(e.message)) return true;
+    throw e;
+  }
 }
 
 // ── 卡片/卡组的互动与热度 ─────────────────────────────────

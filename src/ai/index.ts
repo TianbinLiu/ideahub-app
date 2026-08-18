@@ -57,7 +57,7 @@ export const extractCardsFromVideo: typeof real.extractCardsFromVideo = AI_REAL
  *  mock 构建给一份能跑通流程的假配方 */
 export const extractTemplateFromVideo: typeof real.extractTemplateFromVideo = AI_REAL
   ? real.extractTemplateFromVideo
-  : async (frames, note) => ({
+  : async (frames, note, _onProgress, opts) => ({
       title: `${(note || "参考").slice(0, 6)}模板`,
       intro: "演示模式：未经 AI 分析的占位模板",
       source: "演示模式占位",
@@ -67,13 +67,17 @@ export const extractTemplateFromVideo: typeof real.extractTemplateFromVideo = AI
         framePrompt: "{{主题}}的定妆画面，无文字无水印。",
         durationSec: 5,
       },
-      cards: frames.slice(0, 2).map((f, i) => ({
-        id: `card_tpl_${Date.now().toString(36)}_${i}`,
-        type: "scene" as const,
-        name: `参考场景${i + 1}`,
-        summary: "演示模式：直接用抽帧当卡面",
-        cover: f,
-      })),
+      // ★ 白模路演示模式也不出卡：真实路就是"单遍视觉、0 张卡"（real.ts），而界面上
+      //   "白模不认素材卡"的说明两种构建共用一份文案——演示模式冒出两张假卡就当场穿帮。
+      cards: opts?.blockout
+        ? []
+        : frames.slice(0, 2).map((f, i) => ({
+            id: `card_tpl_${Date.now().toString(36)}_${i}`,
+            type: "scene" as const,
+            name: `参考场景${i + 1}`,
+            summary: "演示模式：直接用抽帧当卡面",
+            cover: f,
+          })),
     });
 /** 3D 风格视频角色卡自动建模（Seed3D，约 2.4 元/张）；mock 构建为空操作 */
 export const deriveCharacterModels: typeof real.deriveCharacterModels = AI_REAL

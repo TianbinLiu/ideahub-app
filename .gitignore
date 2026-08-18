@@ -2,8 +2,12 @@ node_modules
 dist
 *.local
 .DS_Store
-# 受保护资产：加密产物与（未来）购买的模型本体都不进公开仓库
-public/models/protected/
+# 受保护资产：加密产物与购买的模型本体都不进公开仓库
+# ★ 必须用 **/ 前缀（与下面 keystore 同一条教训）：带斜杠的规则**只锚定仓库根**，
+#   而 `npx cap sync` 会把 public/ 整个拷成 **android/public/**——2026-08-15 一次
+#   `git add -A` 就把 rin / gratia（BOOTH 购入的第三方模型，CLAUDE.md 明写"绝不能发"）
+#   连同加密产物一起提交进来了，只锚根的老规则一个都没拦住。那一笔已重写抹掉。
+**/models/protected/
 assets-private/
 # 签名 keystore 与口令：公开仓库绝不入仓（备份见 android/keystore/README.md）
 # ★ 必须用 **/ 前缀：`android/keystore/` 这样带斜杠的规则**只锚定仓库根**，

@@ -7,6 +7,7 @@ import Avatar from "../components/Avatar";
 import { fileToSquareImage } from "../utils/image";
 import { useCurrentUser } from "../hooks/useAccount";
 import { storageEstimate } from "../data/db";
+import { resetGuidesSeen } from "../data/guide";
 import { planSweep, runSweep, type SweepPlan } from "../data/cacheSweep";
 import { QUALITY_LABELS, getQuality, setQuality, type Quality } from "../studio/quality";
 import { DEFAULT_INSTRUCT, VOICES, currentInstruct, currentRate, currentVoice, rateLabel, setInstruct, setRate, setVoice, type PresetVoice } from "../studio/voices";
@@ -206,6 +207,8 @@ export default function SettingsPage() {
           )}
         </div>
       </section>
+
+      <GuideResetSection />
 
       <VersionSection />
 
@@ -418,6 +421,39 @@ function VoiceSection() {
         <p className="mt-1 text-[11px] text-slate-500">
           语速与语调改完，点上面任意音色即刻试听 · 语调这一段不计费 · **只对 2.0 单音色生效**，「调和」那几条用不了
         </p>
+      </div>
+    </section>
+  );
+}
+
+// ── 新手引导的复位 ────────────────────────────────────────────
+//
+// ★★ 为什么这颗按钮是**必需**的而不是锦上添花：引导是**强制**弹的（第一次进某一屏时
+//   自动拦下来，只能一路点「下一步」，没有跳过）。用户在没看懂的时候连点几下过去，
+//   那一屏就再也不会自动出现了 —— 而"再也不会自动出现"正是这个设计要的效果，
+//   所以必须另给一条回头路。没有它的话，用户只能一页一页去找那颗 `?`。
+// ★ 不显示"你看过几份"之类的计数：那是个用户看不懂也做不了事的数字（设置页那条
+//   「已用 xx MB」踩过同一个形状，后来配了真能清的按钮才成立）。
+// ★ 只清**这台设备**上的记录：引导状态本来就只存在 localStorage，不上服务端。
+function GuideResetSection() {
+  const [done, setDone] = useState(false);
+  return (
+    <section className="mb-6">
+      <h2 className="mb-2.5 text-xs font-semibold text-slate-400">新手引导</h2>
+      <div className="rounded-xl border border-slate-700 bg-panel p-4">
+        <p className="mb-2.5 text-[11px] leading-relaxed text-slate-500">
+          每个界面第一次打开时会自动放一遍使用引导，之后不再自动弹。想再看某一屏，点那一屏角落的
+          <b className="text-slate-300"> ? </b>就行；下面这颗是把<b className="text-slate-300">所有</b>引导恢复成"没看过"。
+        </p>
+        <button
+          onClick={() => {
+            resetGuidesSeen();
+            setDone(true);
+          }}
+          className="rounded-full bg-slate-700 px-3.5 py-1.5 text-xs font-semibold text-slate-100"
+        >
+          {done ? "已恢复——下次进各个界面会重新弹一遍" : "重看所有新手引导"}
+        </button>
       </div>
     </section>
   );

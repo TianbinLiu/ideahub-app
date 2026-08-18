@@ -12,7 +12,7 @@ import SegmentPlayer from "../components/SegmentPlayer";
 import { addCards, createDeck } from "../data/account";
 import { PLATFORM_CUT, fmtTokens } from "../data/economy";
 import { publishVideo } from "../data/videos";
-import { useStudio } from "../studio/studioStore";
+import { publishedExit, useStudio } from "../studio/studioStore";
 import { VIDEO_CATEGORIES, formatDuration } from "../types";
 
 export default function PublishPage() {
@@ -30,17 +30,32 @@ export default function PublishPage() {
   const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [err, setErr] = useState("");
 
-  // 仅“直接闯入且无草稿”时送回工坊；发布成功后的 clearDraft 不应抢跳
+  /**
+   * 本页刚刚发布过（publish() 已经把去处发出去了）。
+   * 两件事都靠它，缺一件都出过问题：
+   *   ① 守卫别抢跳 —— 这个 effect **真的会在发布那一拍跑起来**：HashRouter 的路由切换
+   *      走 startTransition（低优先级），而清稿经 useSyncExternalStore 是同步更新，
+   *      React 会先用空 draft 把本页重画一遍并跑完 effect，路由那一拍才落地；
+   *   ② 防连点 —— 正因为路由切换是低优先级，那颗「发布」按钮在跳走前还能再按一次，
+   *      而 publishVideo 是同步落库的，两条一模一样的作品就这么出去了。
+   */
   const publishedRef = useRef(false);
+  /**
+   * 草稿没了就别把人晾在这一页上 —— 但**去哪儿要看是怎么没的**（判据只在
+   * studioStore.publishedExit 一处，铁律六）：发布收工留下的死页送回首页，
+   * "直接输地址闯进来 / 热更新丢了状态"才回工坊。
+   */
+  const published = useStudio((s) => s.publishedWorkId);
   useEffect(() => {
-    if (!draft && !publishedRef.current) navigate("/studio", { replace: true });
-  }, [draft, navigate]);
+    if (draft || publishedRef.current) return;
+    navigate(publishedExit() ?? "/studio", { replace: true });
+  }, [draft, published, navigate]);
 
   if (!draft) return null;
   const total = draft.segments.reduce((s, x) => s + x.durationSec, 0);
 
   function publish() {
-    if (!draft) return;
+    if (!draft || publishedRef.current) return;
     if (!title.trim()) {
       setErr("先给视频起个标题");
       return;
@@ -67,10 +82,9 @@ export default function PublishPage() {
       createDeck(deck.name, deck.cards.map((c) => c.id));
     }
     publishedRef.current = true;
-    clearDraft();
-    // 发布成功 → 退休对应的在途草稿：它已经变成作品了，留在草稿列表里只是噪音，
-    // 而且草稿正文带整份帧，白占配额。作品已经定稿、不能回炉，这条草稿也就没有留的理由了
-    void useStudio.getState().retireWorkDraft();
+    // 收工三件事（记下作品 + 清合成稿 + 退休在途草稿）收在 store 一处：
+    // 顺序错一点，守卫就会抢在跳转前把人送去工坊（见 finishPublish 的 ★）
+    useStudio.getState().finishPublish(item.id);
     navigate(`/video/${item.id}`, { replace: true });
   }
 
@@ -222,7 +236,10 @@ export default function PublishPage() {
             <button
               onClick={() => {
                 clearDraft();
-                navigate("/studio");
+                // ★ replace 而不是 push：草稿一丢，这一格就是死页 —— 用 push 的话上面那个
+                //   守卫（同一拍就会跑）先把本格 replace 成 /studio，再叠一格 /studio 上去，
+                //   用户得按两次返回才走得掉
+                navigate("/studio", { replace: true });
               }}
               className="rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-400 hover:text-slate-200"
             >

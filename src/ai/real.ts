@@ -292,9 +292,27 @@ async function prepRefImage(src: string): Promise<string | null> {
 //   不同角度，模型易将其识别为多个不同主体，反而加剧 ID 漂移问题。」
 //   道具/场景卡不受这条约束（它们不承担"主体身份"），所以第二轮只轮到它们。
 
-/** 一段生成里最多带几张**素材卡**参考图（承接帧另算，见 prepareMaterialRefs 的 offset） */
+/**
+ * **经典路**一段生成里最多带几张素材卡参考图（承接帧另算，见 prepareMaterialRefs 的 offset）。
+ *
+ * ★★ 这个 3 是**我们自己定的启发式**，不是方舟的限制（方舟 2.5 收到 30 张，见
+ *   `ARK_REF_IMAGES_MAX`）。它的理由（"堆满了模型反而判断不出该优先保哪些特征"）针对的是
+ *   **经典路**：那条路的图最终喂给 Seedream 画一张设定帧，一张图里塞进太多主体本来就画不好。
+ *   **白模路（multiChar）不适用这条**，它按角色位数量走 —— 见 allocateRefs 的 `budget`。
+ */
 export const MAX_REF_IMAGES = 3;
-/** 主角人物卡最多占几张（方舟指南：大头照 + 全身照，多视图反而加剧 ID 漂移） */
+/**
+ * 方舟**协议**允许的参考图张数上限：Seedance **2.5 是 1–30 张**（2.0 系列 1–9）。
+ *
+ * ★ 出处是方舟官方参数表，本仓抄在 `ai/arkClient.ts:341`（`refImages` 那段注释）——
+ *   写在这里是因为**分配预算的是本文件**，而不是把这个数散到调用点各写一遍。
+ * ★★ 与 MAX_REF_IMAGES 泾渭分明：那个是"我们打算发几张"，这个是"方舟最多收几张"。
+ *   两者混成一个数的后果是**两个方向都错**：拿 3 当协议上限 = 白模路白白砍掉功能
+ *   （挂 9 张卡只有 3 张真进模型，其余角色由模型瞎编，钱照付）；拿 30 当经典路预算 =
+ *   给 Seedream 塞 30 张图去画一张设定帧，画面糊成一团。
+ */
+export const ARK_REF_IMAGES_MAX = 30;
+/** 一张人物卡最多占几张（方舟指南：大头照 + 全身照，**多视图**反而加剧 ID 漂移） */
 export const MAX_CHAR_REFS = 2;
 
 const KIND_ORDER: Record<CardView["kind"], number> = { face: 0, body: 1, detail: 2 };
@@ -314,11 +332,80 @@ interface RefPick {
  * `onNote` 是**反静默失败**的那一半：谁被挤掉了要逐张点名（铁律八）。
  * 纯查询（refUsedFlags）不传它。
  */
-function allocateRefs(materials: Card[], onNote?: (note: string) => void): RefPick[] {
+function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiChar = false): RefPick[] {
   const picks: RefPick[] = [];
   const chars = materials.filter((c) => c.type === "character");
   const hero = chars[0];
-  if (hero && chars.length > 1) {
+  /**
+   * 这一次的参考图预算。**两条路两个数，理由不同**（2026-08-15 放开）：
+   *   · 经典路 = `MAX_REF_IMAGES`（3）—— 我们自己的启发式，图要喂给 Seedream 画设定帧；
+   *   · 白模路 = `ARK_REF_IMAGES_MAX`（30）—— **跟随方舟协议上限**，图直接进 Seedance r2v。
+   * ★★ 白模路为什么可以放开：那条路一张设定帧都不画，"一张图里画多个角色被拒"那条
+   *   （规则一）根本不适用；而 r2v 一次带多张人物参考图各归各位是**实测通过**的
+   *   （G0：3 张卡分别换到 1/2/4 号人偶上，跨帧不串号）。压在 3 张上的代价是**功能被砍掉**：
+   *   角色位上限已经放到 9，用户挂 9 张卡只有 3 张真进模型，另外 6 个角色由模型瞎编，
+   *   钱照付、零报错（铁律八）。
+   * ★ 9 个角色位 × 每卡最多 `MAX_CHAR_REFS`（2）张 = 最坏 18 张，仍在 30 之内 ——
+   *   所以正常用法下一张都不会被挤掉；真超了（比如还挂了几张场景/道具卡）照样**逐张点名**。
+   */
+  const budget = multiChar ? ARK_REF_IMAGES_MAX : MAX_REF_IMAGES;
+
+  // ── 规则一的例外：白模路（multiChar）每张人物卡各带 face→body 两张形象图 ──
+  //
+  // ★★ 规则一那句"一张图里画多个角色会被方舟整条拒掉"说的是 **Seedream 画设定帧**
+  //   那一步。白模路**一张设定帧都不画**（segmentGen 的 needDraw = !blockout && …），
+  //   参考图是直接喂给 Seedance r2v 的 —— 而 r2v 一次带多张人物参考图**实测成立**：
+  //   2026-08-15 用一段带编号白模视频 + 3 张不同人物卡实拍，1/2/4 号人偶各自换成了
+  //   对应那张卡的角色，跨帧稳定不串号（tasks/WM_V2_probe.md 的 G0）。
+  //   在这条路上照搬规则一的后果不是"保守一点"，而是**把功能本身砍掉**：
+  //   用户挂 3 张卡想换 3 个人，只有第 1 张真进模型，其余静默按文字走 ——
+  //   出来的片子里另外两个角色是模型瞎编的，钱照付（铁律八）。
+  // ★★ **分两轮**（与经典路第二轮同一个用意：雨露均沾）：第一轮每张卡各 1 张（face 优先），
+  //   预算还有余再回头给每张卡补第 2 张（body）。一张卡一次吃满 2 张的话，预算紧时
+  //   排在后面的角色会**整个没有形象图**，而"每个人都认得出"正是白模模板的全部卖点。
+  // ★ 每张卡最多 `MAX_CHAR_REFS`（2）张、顺序 face→body，与经典路规则三同一条依据：
+  //   方舟指南「人物参考使用大头照 + 全身照即可，不建议使用人物多视图 —— 多视图素材包含
+  //   同一人物的不同角度，模型易将其识别为多个不同主体，反而加剧 ID 漂移」。预算从 3 涨到
+  //   30 之后**仍然不给第 3 张**：放开的是"能带几个人"，不是"一个人能带几个角度"。
+  // ★★ 同理，「把同一张卡的多张图**拼成一张**、只占一个 @图片N」这个省额度的招**本轮不做**：
+  //   拼接出来的正是一张多视图素材，按上面那句指南就是在主动加剧 ID 漂移。留作备选，
+  //   要用得先实测（本轮一次都没验过，而验证成本是一次真实付费出片）。
+  if (multiChar && chars.length > 0) {
+    // 取图顺序 face→body→detail，**带着原下标**排（理由同经典路：refUsedFlags 要对齐下标）
+    const ordered = chars.map((card) => ({
+      card,
+      views: viewsOf(card)
+        .map((view, index) => ({ view, index }))
+        .sort((a, b) => KIND_ORDER[a.view.kind] - KIND_ORDER[b.view.kind]),
+    }));
+    /** 连第 1 张都没排上号的卡（= 这个角色根本没有形象图，最要紧） */
+    const noRef: string[] = [];
+    /** 只带上了第 1 张的卡（形象还锁得住，只是少一张全身照） */
+    const oneRef: string[] = [];
+    for (let round = 0; round < MAX_CHAR_REFS; round++) {
+      for (const { card, views } of ordered) {
+        const it = views[round];
+        if (!it) continue;
+        // 满了要**逐张点名**再跳过（铁律八）：静默丢掉的表现是"我挂了卡，那个人却没换"
+        if (picks.length >= budget) {
+          (round === 0 ? noRef : oneRef).push(card.name);
+          continue;
+        }
+        picks.push({ card, index: it.index, view: it.view });
+      }
+    }
+    if (noRef.length > 0) {
+      // ★ 措辞不写"只按文字设定参与"：V2 点名路的提示词尾巴上**没有**素材设定文字
+      //   （segmentGen 那侧为了给正文腾额度砍掉了），这几张卡真正进模型的只剩一个名字 ——
+      //   说成"按文字参与"会让用户以为形象还有依据，其实模型是自己编的
+      onNote?.(
+        `${noRef.map((n) => `「${n}」`).join("")}的形象参考图这次没带上（一次最多 ${budget} 张，方舟的协议上限）——提示词里只剩它们的名字，画面上那几个人会由 AI 自己编，想换成卡上的样子就少挂几张卡`,
+      );
+    }
+    if (oneRef.length > 0) {
+      onNote?.(`${oneRef.map((n) => `「${n}」`).join("")}只带上了第 1 张形象图（预算 ${budget} 张已满），它们按第 1 张参与`);
+    }
+  } else if (hero && chars.length > 1) {
     // 规则一：说出来。不说的话用户只知道"另一个角色长得不像"，永远猜不到是配额问题
     onNote?.(
       `挂了 ${chars.length} 张人物卡，只把「${hero.name}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定`,
@@ -326,7 +413,7 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void): RefPi
   }
 
   // ── 第一轮：主角占满 MAX_CHAR_REFS，其余非人物卡各占 1 张 ──
-  if (hero) {
+  if (hero && !multiChar) {
     // ★ 排序必须**带着原下标**排：refUsedFlags 要的是"与 viewsOf(hero) 一一对齐"的下标，
     //   而取图顺序是 face→body→detail（规则三）—— 两个顺序不是一回事，排完就丢下标
     //   会让详情页把高亮标在错的那张图上。
@@ -342,9 +429,11 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void): RefPi
     // ★ 满了要**逐张点名**再跳过。这里原来是一句 `break`，于是挂第 4 张卡时那张
     //   连同它后面所有卡一起被**静默**丢掉 —— 用户挂了卡、付了钱、画面里没有它，
     //   而全程没有任何一句话提过这件事（铁律八）。
-    if (picks.length >= MAX_REF_IMAGES) {
+    if (picks.length >= budget) {
       onNote?.(
-        `「${card.name}」的参考图这次没带上（一次最多 ${MAX_REF_IMAGES} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与`,
+        `「${card.name}」的参考图这次没带上（一次最多 ${budget} 张${
+          multiChar ? "，方舟的协议上限" : "，堆满了模型反而判断不出该优先保哪些特征"
+        }），它只按文字设定参与`,
       );
       continue;
     }
@@ -360,7 +449,7 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void): RefPi
     // 第一轮就没排上号的不给第 2 张：越过一张"连第 1 张都没带上"的卡去补别人的第 2 张，
     // 是把预算花在边际收益最低的地方
     if (!view || !picks.some((p) => p.card === card)) continue;
-    if (picks.length >= MAX_REF_IMAGES) {
+    if (picks.length >= budget) {
       dropped.push(card.name);
       continue;
     }
@@ -370,7 +459,7 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void): RefPi
     // 这一条同样要点名：用户为这张图付过钱，而它这次没进模型 —— 只是原因是"预算被更
     // 要紧的图位占了"，不是"它没用"。挂少一张卡就能让它进去，所以这是句可行动的话。
     onNote?.(
-      `${dropped.map((n) => `「${n}」`).join("")}的第 2 张参考图这次没带上（预算 ${MAX_REF_IMAGES} 张已被更要紧的图位占满），它们按第 1 张参与`,
+      `${dropped.map((n) => `「${n}」`).join("")}的第 2 张参考图这次没带上（预算 ${budget} 张已被更要紧的图位占满），它们按第 1 张参与`,
     );
   }
   // ★ 最后按卡归拢，让同一张卡的图在 `<图片N>` 里**连号**。两轮分配天然排出的是
@@ -450,8 +539,12 @@ export interface MaterialRefs {
   refs: string[];
   /**
    * 绑定句。`offset` = 这批图**前面**已经有几张参考图（承接帧占的位置），
-   * `<图片N>` 的编号要从 offset+1 起算，否则模型会去看错的那张图。
+   * 图片编号要从 offset+1 起算，否则模型会去看错的那张图。
    * 没有可用参考图时返回空串。
+   *
+   * ★ 两种形态，由 `prepareMaterialRefs` 的 `multiChar` 决定（一处实现，见那里的 ★★）：
+   *   经典路 = 长句 `将<图片1>的面部特征…定义为角色「X」…`；
+   *   白模路 = 紧凑式 `张三=@图片1@图片2`（9 个角色位下长句放不进 VIDEO_PROMPT_MAX）。
    */
   bind: (offset?: number) => string;
 }
@@ -461,16 +554,24 @@ export interface MaterialRefs {
  *
  * `onNote` 是**反静默失败**的那一半：哪张图没采用、为什么只锁了一个角色，
  * 都要写进生成步骤日志给用户看（铁律八）。
+ *
+ * @param multiChar 白模路（不画设定帧、参考图直接进 Seedance r2v）传 true，它改**两件事**
+ *   （合起来才成立，只改一半就是"发得出去、说不清谁是谁"）：
+ *   ① 预算从 `MAX_REF_IMAGES`（我们的启发式 3 张）换成 `ARK_REF_IMAGES_MAX`（方舟协议 30 张），
+ *      每张人物卡按 face→body 取最多 `MAX_CHAR_REFS` 张，而不是只锁主角一张；
+ *   ② 绑定句换成紧凑式 `张三=@图片1@图片2` —— 9 个角色位下经典路那种长句光自己就撑爆
+ *      `VIDEO_PROMPT_MAX`，而截断是从**正文**那头下刀的。理由与实测见 allocateRefs 的 ★★。
  */
 export async function prepareMaterialRefs(
   materials: Card[] | undefined,
   onNote?: (note: string) => void,
+  multiChar = false,
 ): Promise<MaterialRefs> {
   const empty: MaterialRefs = { refs: [], bind: () => "" };
   if (!materials?.length) return empty;
 
   // 分配规则（谁上、上几张、谁被挤掉）全在 allocateRefs 里，这里只负责把它取回来
-  const picks = allocateRefs(materials, onNote);
+  const picks = allocateRefs(materials, onNote, multiChar);
   const hero = materials.find((c) => c.type === "character");
   if (picks.length === 0) return empty;
 
@@ -497,6 +598,51 @@ export async function prepareMaterialRefs(
     bind: (offset = 0) => {
       const parts: string[] = [];
       const numOf = (p: (typeof good)[number]) => `<图片${offset + good.indexOf(p) + 1}>`;
+      // ★★ 白模路（multiChar）走**紧凑式**绑定：`张三=@图片1@图片2`。
+      //   这不是省字的洁癖，是**算出来必须省**：提示词硬顶 `VIDEO_PROMPT_MAX` 是 400 字，
+      //   而经典路那种长句（「将<图片1>的面部特征…定义为角色「X」，本段画面中该角色的长相、
+      //   发色与服装必须与之完全一致」≈ 90 字 + 每张非主角卡 ≈ 40 字）在 9 个角色位下光绑定句
+      //   就 400 字打底 —— 尾巴是**从正文那头切**的（见 segmentGen 的 room），于是用户在
+      //   输入框里亲眼看过、亲手改过的那段点名映射会被整段切掉，而画面照出、钱照收、零报错。
+      // ★ `@图片N` 与经典路的 `<图片N>` 两种写法**都实测过**（A2 实拍提示词原文就是
+      //   「把视频里的红色小人替换成@图片1的角色」，G0 那发用的是 `<图片N>`），选 @ 只因为
+      //   它每处省 1 个字。**经典路一个字都不动**：那条路的长句是它自己实测过的形态。
+      // ★ 用**角色名**当左边而不是人偶身上那个标记：标记 ↔ 角色的对应关系写在用户的输入框里，
+      //   他随时可以改（那正是把合成句填进输入框的意义）。这里再按挂卡时的旧映射写一遍
+      //   「编号1=@图片1」，用户改过之后两句话就当场打架 —— 而模型只会挑一句听。
+      //   名字这一跳让用户那半始终说了算（同 blockoutApplySkeleton 的 ★）。
+      // ★★ 这也正是 2026-08-16「编号 → 颜色」那次改造**一个字都不用动这里**的原因：
+      //   `bind()` 从头到尾不认识 label，两种标记方案对它完全透明。
+      if (multiChar) {
+        const at = (p: (typeof good)[number]) => `@图片${offset + good.indexOf(p) + 1}`;
+        const chars = new Set<Card>();
+        const charParts: string[] = [];
+        for (const p of good) {
+          if (p.card.type !== "character" || chars.has(p.card)) continue;
+          chars.add(p.card);
+          charParts.push(`${p.card.name}=${good.filter((g) => g.card === p.card).map(at).join("")}`);
+        }
+        // 非人物卡照旧按卡种说人话：一句"只锁形象"套在场景卡/画风卡上是胡话（见 BIND_HINT），
+        // 而白模路上它们本来就少（挂卡面板默认只给人物卡）
+        const otherSaid = new Set<Card>();
+        const otherParts: string[] = [];
+        for (const p of good) {
+          if (p.card.type === "character" || otherSaid.has(p.card)) continue;
+          otherSaid.add(p.card);
+          const mine = good.filter((g) => g.card === p.card);
+          otherParts.push(`${mine.map(at).join("")}是${CARD_TYPE_LABELS[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`);
+        }
+        if (charParts.length === 0 && otherParts.length === 0) return "";
+        // ★ 收尾那句摆在**最后**，别夹在两组中间：夹在中间时「只锁形象」会读起来像在说
+        //   后面那张场景卡（"不要照抄其构图与背景"对场景卡恰恰是反的），一句放错位置的
+        //   限制比没有更坏
+        const body = [charParts.join("；"), otherParts.join("；")].filter(Boolean).join("；");
+        const foot =
+          charParts.length > 0
+            ? "。等号右边的图只用来锁这个角色的长相、发色与服装，不要照抄其构图与背景。"
+            : "。参考图只用于锁定形象，不要照抄它们的构图、背景、边框与文字。";
+        return softenForImage(`。参考图：${body}${foot}`);
+      }
       const heroPicks = good.filter((p) => p.card === hero);
       if (heroPicks.length > 0 && hero) {
         const feats = heroPicks.map((p) => `${numOf(p)}的${slotLocks(hero.type, p.view.kind)}`).join("、");
@@ -1093,6 +1239,22 @@ const TEMPLATE_MINT = mintSpec(
   '：[{"type":"scene|background|prop|style","name":"不超过8字","summary":"30字内简介","imagePrompt":"卡面文生图描述，60字内"}]。规则：主要场景/地点各出一张 scene 卡；整体色调氛围至多一张 background 卡；画风鲜明时至多一张 style 卡；标志性道具可出 prop 卡。**绝对不要出 character 卡**——主角是模板使用者自己指定的。只输出 JSON。',
 );
 
+/** 经典模板的配方总结提示词（两遍视觉里的第一遍）。 */
+const TEMPLATE_RECIPE_PROMPT =
+  '你是短视频导演，正在把一段参考视频拆解成可复用的"生成模板"。看完这些按时间顺序抽的帧，输出 JSON：{"title":"模板名，不超过12字","intro":"40字内说明这个模板能做什么样的片子","source":"40字内客观描述参考画面的视觉特征","styleHint":"120字内的画面质感与运镜要求，越具体越好：胶片/数码、光比、色调、景深、镜头运动、剪辑节奏、人物动作幅度，以及明确禁止什么","beats":["分镜骨架，每段一条，1~3条。必须用 {{主题}} 占位代表主角或主体，其余描述固定不变"],"framePrompt":"起拍画面的文生图提示词，同样用 {{主题}} 占位，60字内"}。规则：styleHint 与 beats 里都不要出现参考视频里的具体角色名——模板要能换任何人来演，角色位置一律写 {{主题}}。只输出 JSON。';
+
+/**
+ * 白模模板的配方总结提示词 —— 与经典版是**两种输入**，不是一句话的差别：
+ * 白模里主角位是红色小人、场景是无材质简模，模型要描述的是**场景/道具/运镜的结构**，
+ * 不能让它照经典版去编"胶片质感/色调"（白模里根本没有这些信息，编出来就是幻觉）。
+ * ★ beats 只要一条：白模模板出片只铺 1 个节点（段间承接靠"上一段真实尾帧"，而首尾帧
+ *   与参考媒体在方舟互斥，多段物理上不成立）——多出的 beat 只会误导老客户端的降级路。
+ * ★ 产出的 recipe 仍要求独立成立（{{主题}} 占位、不出现"红色小人"字样）：老客户端
+ *   不认识 refVideo 字段，会把它当经典配方跑，那条降级路也得诚实可用（types.ts 的 ★）。
+ */
+const BLOCKOUT_RECIPE_PROMPT =
+  '你是短视频导演。用户上传的是一段「白模预演」参考视频：主角位由一个红色小人占位，场景与道具是无材质的灰白简模。请只总结场景/道具/运镜，输出 JSON：{"title":"模板名，不超过12字","intro":"40字内说明这个模板能拍出什么样的镜头与场面","source":"40字内客观描述白模画面：红色小人做了什么、镜头怎么动","styleHint":"120字内：场景与道具的空间布局、主体的动线、镜头运动轨迹与节奏、构图变化。只写画面结构，不要编造材质/色调/光效——白模里没有这些信息","beats":["唯一一条分镜：用 {{主题}} 占位代表主角，按时间顺序写清它在场景里的动作与镜头如何跟随"],"framePrompt":"起拍画面的文生图提示词，用 {{主题}} 占位，60字内"}。规则：红色小人只是占位符，除 source 外任何字段都不要出现"红色小人"，一律写 {{主题}}；beats 必须恰好 1 条。只输出 JSON。';
+
 /**
  * 视频 → **模板**：比提卡多一步——除了认出素材，还要把"这类视频为什么长这样"
  * 总结成可复用的配方（画风/镜头/节奏 + 分镜骨架 + 起拍画面提示词）。
@@ -1100,11 +1262,17 @@ const TEMPLATE_MINT = mintSpec(
  * 分两次调模型而不是一次出全部：认卡和总结配方是两种任务，混在一个 JSON 里模型
  * 容易顾此失彼（实测会把画风描述塞进卡简介、或者只出卡不出配方）。先总结配方拿到
  * styleHint，再把它喂给铸卡环节，卡面画风才与模板一致。
+ *
+ * ★ `opts.blockout` = 白模模板：**只跑配方总结这一遍，跳过认卡遍、cards 恒空**。
+ *   白模里全是大色块和红色小人，认素材卡那一遍必然空手而归——跑了是白烧钱。
+ *   报价侧与这里同一口径：economy.blockoutTemplateCost（单遍视觉、cards=0，预估即结算），
+ *   两边分叉就是"报两遍的价、跑一遍"或反过来，谁都不报错。
  */
 export async function extractTemplateFromVideo(
   frames: string[],
   note: string,
   onProgress?: (status: string) => void,
+  opts?: { blockout?: boolean },
 ): Promise<{
   title: string;
   intro: string;
@@ -1112,9 +1280,10 @@ export async function extractTemplateFromVideo(
   recipe: { styleHint: string; beats: string[]; framePrompt: string; durationSec: number };
   cards: Card[];
 }> {
-  onProgress?.(`分析画面风格（${frames.length} 帧）…`);
+  const blockout = !!opts?.blockout;
+  onProgress?.(`分析${blockout ? "场景与运镜" : "画面风格"}（${frames.length} 帧）…`);
   const raw = await chatVision(
-    '你是短视频导演，正在把一段参考视频拆解成可复用的"生成模板"。看完这些按时间顺序抽的帧，输出 JSON：{"title":"模板名，不超过12字","intro":"40字内说明这个模板能做什么样的片子","source":"40字内客观描述参考画面的视觉特征","styleHint":"120字内的画面质感与运镜要求，越具体越好：胶片/数码、光比、色调、景深、镜头运动、剪辑节奏、人物动作幅度，以及明确禁止什么","beats":["分镜骨架，每段一条，1~3条。必须用 {{主题}} 占位代表主角或主体，其余描述固定不变"],"framePrompt":"起拍画面的文生图提示词，同样用 {{主题}} 占位，60字内"}。规则：styleHint 与 beats 里都不要出现参考视频里的具体角色名——模板要能换任何人来演，角色位置一律写 {{主题}}。只输出 JSON。',
+    blockout ? BLOCKOUT_RECIPE_PROMPT : TEMPLATE_RECIPE_PROMPT,
     `用户补充说明：${note || "无"}
 以下是参考视频按时间顺序的抽帧：`,
     frames,
@@ -1128,22 +1297,29 @@ export async function extractTemplateFromVideo(
     framePrompt?: string;
   };
   const styleHint = (t.styleHint ?? "").trim();
-  const beats = (Array.isArray(t.beats) ? t.beats : []).filter((b) => typeof b === "string" && b.trim()).slice(0, 3);
+  // 白模只留 1 条（提示词也只要了 1 条，这刀是模型不守规矩时的保险，同 mintCards 那刀的道理）
+  const beats = (Array.isArray(t.beats) ? t.beats : [])
+    .filter((b) => typeof b === "string" && b.trim())
+    .slice(0, blockout ? 1 : 3);
   if (!styleHint || beats.length === 0) throw new Error("模板配方 JSON 结构不符（缺 styleHint 或 beats）");
 
-  // 素材卡：沿用提卡那一套，但把刚总结出的画风喂进去，卡面与模板同调
-  onProgress?.("提炼模板素材卡…");
-  const rawCards = await chatVision(
-    TEMPLATE_MINT.prompt,
-    `这段视频的画风要求是：${styleHint}
+  // 素材卡：沿用提卡那一套，但把刚总结出的画风喂进去，卡面与模板同调。
+  // 白模整段跳过（见函数头 ★），cards 恒空。
+  let cards: Card[] = [];
+  if (!blockout) {
+    onProgress?.("提炼模板素材卡…");
+    const rawCards = await chatVision(
+      TEMPLATE_MINT.prompt,
+      `这段视频的画风要求是：${styleHint}
 用户补充说明：${note || "无"}
 以下是抽帧：`,
-    frames,
-  );
-  const defs = JSON.parse(rawCards.replace(/```json|```/g, "").trim()) as CardDef[];
-  const cards = Array.isArray(defs)
-    ? await mintCards(defs.filter((d) => d.type !== "character"), TEMPLATE_MINT, styleHint, [], onProgress)
-    : [];
+      frames,
+    );
+    const defs = JSON.parse(rawCards.replace(/```json|```/g, "").trim()) as CardDef[];
+    cards = Array.isArray(defs)
+      ? await mintCards(defs.filter((d) => d.type !== "character"), TEMPLATE_MINT, styleHint, [], onProgress)
+      : [];
+  }
 
   return {
     title: (t.title ?? "").trim() || "未命名模板",
@@ -1437,6 +1613,14 @@ export async function composeSegments(
      * 决定要不要给，这里只负责发出去。
      */
     refImages?: string[];
+    /**
+     * 白模模板的参考视频（模板登记的公网地址，`template.refVideo.url`）。非空 =
+     * 这一段走 **r2v**（edit 逐镜头复刻，与 refImages 混发，首尾帧同样一张不发；
+     * 时长/画幅跟随源片，本段的 durationSec/aspect 在 arkClient 那侧不生效，
+     * 见 BLOCKOUT_TASK）。走不走由 studio/segmentGen 的 blockoutOn 判（唯一判定处，
+     * 同 refVideoOn 的分工），这里只负责透传。
+     */
+    refVideoUrl?: string;
   }>,
   onProgress?: (done: number, total: number, status: string) => void,
 ): Promise<SegmentResult[]> {
@@ -1474,15 +1658,19 @@ export async function composeSegments(
       }
       onProgress?.(i, segments.length, "任务创建中…");
       const tier = tierOf(sg.videoTier);
-      // 参考生视频：多张形象图 + 一句话直出，**首尾帧一张都不给**（三种场景互斥）
-      const refMode = !!sg.refImages?.length;
+      // 参考媒体（形象图 / 白模参考视频）非空：一句话直出，**首尾帧一张都不给**（三种场景互斥）
+      const refMode = !!sg.refImages?.length || !!sg.refVideoUrl;
       const url = await generateVideo(sg.plot.slice(0, VIDEO_PROMPT_MAX), refMode ? "" : await shrinkFrameFor720p(first), {
         // ★ 时长按档位夹（2.5 不收 3 秒）。与 economy.segTokens 用的是同一个函数 ——
-        //   只在这一侧夹的话，界面报 3 秒的价、方舟出 4 秒的片
+        //   只在这一侧夹的话，界面报 3 秒的价、方舟出 4 秒的片。
+        //   （白模段不受影响：refVideoUrl 非空时 arkClient 走 BLOCKOUT_TASK 的 duration:-1，
+        //   这里传的值根本不上桌 —— 时长跟模板走，报价侧 r2vTokens 同一个口径。）
         durationSec: clampDuration(sg.durationSec, sg.videoTier),
         // 极速档（pro-fast）不支持首尾帧任务（实测 400 task_type flf2v）——只给首帧起拍
         lastFrameUrl: !refMode && tier.flf ? await shrinkFrameFor720p(last) : undefined,
         refImages: sg.refImages,
+        // 白模参考视频：透传而已，判定与拼装都不在这层（见字段注释）
+        refVideoUrl: sg.refVideoUrl,
         model: tier.model,
         ratio: aspectOf(sg.aspect).ratio,
         onProgress: (s) => onProgress?.(i, segments.length, `${tier.label}档 · ${s}`),

@@ -14,7 +14,7 @@
 // 密钥永远不进前端包：APK 解一下就拿到了（铁律三）。
 import { API_BASE, API_ON, getToken } from "../api/client";
 import { syncRemoteWallet } from "../data/account";
-import { DEFAULT_IMAGE_TIER, imageTierOf } from "../data/economy";
+import { DEFAULT_IMAGE_TIER, imageTierOf, videoAudioOn } from "../data/economy";
 
 /** 把响应头上的权威余额同步进本地镜像。头部缺失（CORS 没放行/dev 代理）时什么都不做。 */
 function syncWalletFromHeaders(h: Headers): void {
@@ -240,6 +240,21 @@ function supportsRefImage(model: string): boolean {
 }
 
 /**
+ * 支持 `reference_video`（白模模板 r2v）的模型 —— **只有 Seedance 2.5**。
+ *
+ * ★ 与 supportsRefImage 同款双层结构：这是**协议层的兜底白名单**，业务层那道在
+ *   data/economy 的 `VideoTier.refVid`（界面按它决定能不能选，并把原因说出来）。
+ * ★ 为什么 2.0 系列不在名单里（refImage 那条它在）：白模路是三件绑死的
+ *   `omni_reference_task_type:"edit" + duration:-1 + ratio:"adaptive"`（见 BLOCKOUT_TASK），
+ *   而 omni_reference_task_type 官方只写 2.5 支持 —— mini 收到它是 400 还是**静默忽略**
+ *   没人验证过（实测清单 A6）。若是忽略，任务照样被受理：模板视频整个被扔掉、拍一段
+ *   无关的片、照收钱 —— 那不是降级是偷换商品。A6 测完前宁可在这里响亮地炸掉。
+ */
+function supportsRefVideo(model: string): boolean {
+  return isSeedance25(model);
+}
+
+/**
  * 这次任务该用什么 `ratio` —— **唯一实现**。
  *
  * ★ Seedance 2.5 在「首帧 / 首尾帧生视频」任务上**只接受 `adaptive`**，给具体宽高比
@@ -255,13 +270,62 @@ export function ratioFor(model: string, mode: "frames" | "reference", want = "16
 }
 
 /**
+ * 白模模板（r2v）任务的三件套 —— **一个常量绑死，不许拆开各传各的**：
+ *
+ * · `omni_reference_task_type: "edit"`：A2 实拍用同素材对拍过 reference vs edit ——
+ *   reference 把 14s 源片压进 5s，节奏运镜全毁；**edit 全时长逐镜头复刻，压倒性胜出**。
+ *   显式传值还有一层保险（同下面 "reference" 那行的注释）：不传就是 auto，auto 判错
+ *   是异步失败且不退费，显式值判错是提交时同步 400、一分钱不花。
+ * · `duration: -1`：edit 的输出时长**跟随输入**（协议行为，A2 实测 14.04s 输入 →
+ *   13.67s 计费时长），-1 = 让它跟随。**-1 只许这条路传**：纯任务/参考图路上 -1 是
+ *   "模型自选时长"，会把单次成本上界推到 30s —— 那条路照旧走 [3,10] 硬夹（见下）。
+ *   白模路的成本上界由**模板登记时长**卡住（模板视频窗口 [4,30]s，服务端在建模板时
+ *   对产物现查复核 —— 白模化的**输入**另有一条更严的 [5,30]s，见 data/templates 的
+ *   BLOCKOUT_MIN_INPUT_SEC），不失控；
+ *   也因此白模不过 clampDuration 的 10s 上限 —— 那是纯 t2v 档位的产品约束，报价侧
+ *   （economy.r2vTokens）同一句注释。
+ * · `ratio: "adaptive"`：画幅自适应源片（A2 实测输出 1266×728 跟着源片走）。edit 连
+ *   镜头都在复刻源片，指定别的 ratio 没有意义，还会引一刀裁切。
+ *
+ * 三个字段是**同一条实测结论（edit 全时长复刻）的三个面**：改任何一个都等于换了路线，
+ * 必须回 A2 重测再动 —— 所以钉成一个常量，让"只改一个"在代码形状上就别扭。
+ */
+const BLOCKOUT_TASK = { omni_reference_task_type: "edit", duration: -1, ratio: "adaptive" } as const;
+
+/**
+ * 一个方舟异步任务的状态（视频 / 3D / r2v 共用一个 tasks 端点）。
+ * `content` 的键按任务类型不同：视频是 `video_url`，Seed3D 是 `file_url`/`url`。
+ */
+export interface ArkTaskState {
+  status: string;
+  content?: { video_url?: string; file_url?: string; url?: string };
+  error?: { message?: string };
+}
+
+/**
+ * 查一次方舟任务状态 —— **全 app 唯一的那一处**（`GET /contents/generations/tasks/:id`）。
+ *
+ * ★ 为什么要导出：白模化拆成两阶段之后，**出片那几分钟由客户端轮询**
+ *   （data/templates.blockoutizeTemplate），而契约明说走既有这条端点（不计费、
+ *   已有 90/分 的独立限流桶），**不新造轮询端点**。下面 generateVideo / generate3dModel
+ *   两个循环也改成调它 —— 路径与超时只有这一份，不再有三处各写一遍的字符串。
+ * ★ 超时 20s：查询是个小 GET，慢过 20s 基本就是网络断了；单次失败由调用方的循环容忍
+ *   （任务还在云端跑，为一次抖动放弃整发太亏）。
+ */
+export async function fetchArkTask(id: string): Promise<ArkTaskState> {
+  return arkFetch<ArkTaskState>(`/contents/generations/tasks/${encodeURIComponent(id)}`, undefined, 20_000);
+}
+
+/**
  * Seedance 图生视频：创建任务 → 轮询 → 返回视频 URL。
  * 传 lastFrameUrl 则走"首尾帧"模式（我们的方案卡正好有首尾帧，画面收束更可控）；
- * 传 refImages 则走"全模态参考生视频"（多张形象图 + 一句话直出，不需要设定帧）。
+ * 传 refImages 则走"全模态参考生视频"（多张形象图 + 一句话直出，不需要设定帧）；
+ * 传 refVideoUrl 则走"白模模板"（r2v：参考视频 edit 逐镜头复刻，与 refImages 混发）。
  * 参数用独立字段（新版 API；旧版塞在 prompt 里的 `--resolution` 已废弃）。
  *
- * ★ **首尾帧与参考图互斥**：方舟文档写死「图生视频-首帧、图生视频-首尾帧、全模态
- *   参考生视频为 3 种互斥场景，不可混用」。所以 refImages 非空时首尾帧一张都不拼。
+ * ★ **首尾帧与参考媒体互斥**：方舟文档写死「图生视频-首帧、图生视频-首尾帧、全模态
+ *   参考生视频为 3 种互斥场景，不可混用」。所以 refImages / refVideoUrl 非空时
+ *   首尾帧一张都不拼。
  */
 export async function generateVideo(
   prompt: string,
@@ -276,17 +340,37 @@ export async function generateVideo(
     ratio?: string;
     /**
      * 参考图（全模态参考生视频）。非空 = **不拼首尾帧**（互斥）。
-     * 张数上限：2.5 是 1–30，2.0 系列是 1–9；调用方（prepareMaterialRefs）本来就
-     * 只给 3 张以内，这里不再截。
+     *
+     * 张数上限（方舟协议）：**2.5 是 1–30**，2.0 系列是 1–9。
+     * ★ 这里**不截**：截多少是分配规则的一部分，唯一实现在 `ai/real.allocateRefs`
+     *   （经典路 `MAX_REF_IMAGES` = 3，白模路 `ARK_REF_IMAGES_MAX` = 30，那个 30 抄的就是
+     *   本行这句协议上限）。在这里再截一刀 = 那条规则的第二处实现，而它一旦与那边不等，
+     *   表现是"用户挂的卡有几张**静默**没进模型"（铁律六 + 铁律八）。
+     * ⚠ 2026-08-15 之前这行写的是"调用方本来就只给 3 张以内" —— 白模路放开到 30 后已作废。
      */
     refImages?: string[];
+    /**
+     * 白模模板的参考视频（公网 https 地址 —— 方舟 r2v 的 video_url 只收 URL/asset://，
+     * **没有 base64 选项**，方舟自己去取，所以它必须是服务端登记过的公网地址）。
+     * 非空 = 白模出片：与 refImages **混发**（视频给画面与运镜，形象图说"换成谁"），
+     * 首尾帧一张不拼；duration / ratio / omni_reference_task_type 三件被 BLOCKOUT_TASK
+     * 整体接管 —— 传进来的 durationSec / ratio 在这条路上**不生效**（理由见那个常量：
+     * edit 的输出时长与画幅都跟随源片，是协议行为不是我们的参数）。
+     */
+    refVideoUrl?: string;
     onProgress?: (status: string) => void;
   },
 ): Promise<string> {
   const model = opts?.model ?? MODELS.video;
   const refs = opts?.refImages ?? [];
-  const mode: "frames" | "reference" = refs.length > 0 ? "reference" : "frames";
-  if (mode === "reference" && !supportsRefImage(model)) {
+  const refVideoUrl = opts?.refVideoUrl;
+  const mode: "frames" | "reference" = refs.length > 0 || refVideoUrl ? "reference" : "frames";
+  if (refVideoUrl && !supportsRefVideo(model)) {
+    // 响亮地失败（同下面 refImage 那条）：静默忽略参考视频 = 模板整个被扔掉、
+    // 拍一段无关的片、照收钱 —— 那不是降级，是偷换商品（铁律八）
+    throw new Error(`模型 ${model} 不支持白模参考视频出片，不该走到这里（能力表见 data/economy 的 VideoTier.refVid）`);
+  }
+  if (refs.length > 0 && !supportsRefImage(model)) {
     // 响亮地失败：静默忽略参考图 = 用户付了钱、加了图、画面没变、零报错（铁律八）
     throw new Error(`模型 ${model} 不支持参考生视频，不该走到这里（能力表见 data/economy 的 VideoTier.refImg）`);
   }
@@ -297,6 +381,11 @@ export async function generateVideo(
     mode === "reference"
       ? [
           { type: "text", text: prompt },
+          // ★ 参考视频排在参考图前面（它是这条路的"主输入"），且**不占 <图片N> 编号**：
+          //   提示词里对它的称呼是「视频」（A2 实拍的提示词就是「把视频里的红色小人
+          //   替换成@图片1的角色」，一条视频 + 一张图，编号从图片1起算且成立）——
+          //   所以 prepareMaterialRefs 的 bind(offset) 不需要为它 +1。
+          ...(refVideoUrl ? [{ type: "video_url", role: "reference_video", video_url: { url: refVideoUrl } }] : []),
           ...refs.map((url) => ({ type: "image_url", image_url: { url }, role: "reference_image" })),
         ]
       : [
@@ -316,17 +405,48 @@ export async function generateVideo(
         model,
         content,
         resolution: "720p",
-        // 画幅只由这个参数决定：提示词里写"竖版"没用，首尾帧是竖的也没用——
-        // ratio 不改，方舟一律按 16:9 出片，再把竖版帧裁进去。
-        // 2.5 的首尾帧任务只收 adaptive，那条规则收在 ratioFor 里
-        ratio: ratioFor(model, mode, opts?.ratio ?? "16:9"),
-        duration: Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5))),
-        generate_audio: false, // 无声更省 tokens（0.008 vs 0.016 元/千），配乐后续再说
+        // ★★ 音频：**开着不多花一分钱**，所以能出声的档一律出声。
+        //   ⚠ 这一行原来是 `generate_audio: false // 无声更省 tokens（0.008 vs 0.016 元/千）`
+        //     —— 那两个单价**查无实据**（账单里没有、方舟公开价目里也没有），却让我们白白
+        //     关掉了本来免费的声音，用户拿到的每一段片都是哑的。不写出处的数字就是这么
+        //     误导人的（铁律十），所以这次是**连注释一起**改掉。
+        //   ✅ 2026-08-15 费用中心逐行核对（计费单元「Doubao-Seedance-2.5 在线推理」）：
+        //     同素材有声/无声两发的用量与单价**完全相同**（各 209.71 千 tokens ×
+        //     ¥0.042/千 = ¥8.807820），且下拉里**没有**任何给音频单列的计费项 ⇒ 零额外成本。
+        //     也因此报价公式里没有音频项是对的（见 economy 的 VideoTier.audio）。
+        //   ★ 分界在**模型代际不在价钱**：2.x 真出声（实测 hd/2.0-mini -30.2dB、
+        //     ultra/2.5 -27.5dB），1.x（fast/std 的 1.0-pro）收下这个参数却静默忽略。
+        //     判据只有 economy 的 `VideoTier.audio` 一格 —— 这里**不再列第二张模型表**
+        //     （上面 supportsRefImage/supportsRefVideo 那两张协议白名单是另一回事：它们防的是
+        //     "静默忽略 = 收了钱却偷换商品"；音频传错既不多收钱也不换商品，不值得再抄一份
+        //     会和档位表分叉的正则）。
+        //   ★ 不支持的档**一个字段都不传**：传了也白传，发一个模型不认的参数没有好处。
+        //   ★ 支持的档显式传 true 而不是省略：方舟的默认值实测**本来就是出声**（早期没传
+        //     这个参数的产物带 -25.8dB 音轨），但那是方舟的默认、说改就改，"这一发要不要
+        //     声音"必须在我们自己的代码里看得见。
+        //   ⚠ 跨仓：server 的 resolveR2v 目前钉着「白模出片 generate_audio 必须 false/缺省」。
+        //     服务端没跟上这一轮时，**白模那条路**会被整句 400 拒（未受理、不扣费、看得见
+        //     原因），不是静默降级 —— 但它意味着**服务端要先发**。
+        ...(videoAudioOn(model) ? { generate_audio: true } : {}),
         watermark: false,
-        // ★ 仅 2.5：不显式传就是 `auto`，而 auto **判错是异步失败** —— 任务已受理、
-        //   钱已经花了，几十秒后才 failed（而且不退，见 api-contract「被受理之后才失败不退」）。
-        //   显式写 "reference" 判错会在**提交时同步 400**，一分钱不花。
-        ...(mode === "reference" && isSeedance25(model) ? { omni_reference_task_type: "reference" } : {}),
+        ...(refVideoUrl
+          ? // 白模：duration / ratio / omni_reference_task_type 三件由 BLOCKOUT_TASK 整体
+            // 接管（理由钉在那个常量上）。duration:-1 在**且仅在**这条展开里出现 ——
+            // 结构上就保证了别的路径传不出 -1。
+            BLOCKOUT_TASK
+          : {
+              // 画幅只由这个参数决定：提示词里写"竖版"没用，首尾帧是竖的也没用——
+              // ratio 不改，方舟一律按 16:9 出片，再把竖版帧裁进去。
+              // 2.5 的首尾帧任务只收 adaptive，那条规则收在 ratioFor 里
+              ratio: ratioFor(model, mode, opts?.ratio ?? "16:9"),
+              // [3,10] 硬夹顺带禁掉 -1（智能选时长会把单次成本上界推到 30s）；
+              // 各档更细的钳制（2.5 不收 3 秒）由调用方过 economy.clampDuration
+              duration: Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5))),
+              // ★ 仅 2.5：不显式传就是 `auto`，而 auto **判错是异步失败** —— 任务已受理、
+              //   钱已经花了，几十秒后才 failed（而且不退，见 api-contract「被受理之后才失败不退」）。
+              //   显式写 "reference" 判错会在**提交时同步 400**，一分钱不花。
+              ...(mode === "reference" && isSeedance25(model) ? { omni_reference_task_type: "reference" } : {}),
+            }),
       }),
     },
     // 创建请求体带 2-3MB base64 首尾帧，慢网下 30s 会掐死在上传半途（2026-08-07 实测连超两次）
@@ -337,9 +457,9 @@ export async function generateVideo(
   let pollFails = 0;
   for (let i = 0; i < 120; i++) {
     await new Promise((r) => setTimeout(r, 5000));
-    let st: { status: string; content?: { video_url?: string }; error?: { message?: string } };
+    let st: ArkTaskState;
     try {
-      st = await arkFetch(`/contents/generations/tasks/${id}`, undefined, 20_000);
+      st = await fetchArkTask(id);
       pollFails = 0;
     } catch (e) {
       // 单次查询抖动不放弃整个任务（视频已在云端排队生成，白扔太亏）
@@ -386,13 +506,9 @@ export async function generate3dModel(
   // 实测建模比视频慢（数分钟量级），上限放到 10 分钟
   for (let i = 0; i < 120; i++) {
     await new Promise((r) => setTimeout(r, 5000));
-    let st: {
-      status: string;
-      content?: { file_url?: string; video_url?: string; url?: string };
-      error?: { message?: string };
-    };
+    let st: ArkTaskState;
     try {
-      st = await arkFetch(`/contents/generations/tasks/${created.id}`, undefined, 20_000);
+      st = await fetchArkTask(created.id);
       pollFails = 0;
     } catch (e) {
       if (++pollFails >= 5) throw e;

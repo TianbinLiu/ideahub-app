@@ -14,18 +14,22 @@
 //   工作流模式 → seedSolo("workflow")，方案台是主路径
 //   简约模式 → seedSolo("simple")，单节点单走向、不推演方案、**不存草稿**，UI 收到最简
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import ForgeOverlay, { type ForgePhase } from "../components/ForgeOverlay";
 import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
 import GenTrace from "../components/GenTrace";
 import Icon from "../components/Icon";
+import HelpButton from "../components/guide/HelpButton";
+import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { MaterialButtonArt } from "../components/MascotStage";
 import MaterialSheet, { MaterialStrip } from "../components/MaterialSheet";
 import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
-import { AI_REAL } from "../ai";
+// ★ VIDEO_PROMPT_MAX 取自 ai 层（提示词硬顶的唯一出处）：白模 V2 的输入框里装的是
+//   真正发出去的那段话，在这里另抄一个 400 出来，改上限时这里就开始说假话
+import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
 import { tierBlockReason, walletOf } from "../data/account";
-import { myTemplates } from "../data/templates";
-import { VIDEO_TIERS, clampDuration, fmtTokens, modelLabel, proposalsCost, tierOf } from "../data/economy";
+import { markNoun, markSpecOf, myTemplates, splitCastRoles } from "../data/templates";
+import { VIDEO_TIERS, clampDuration, fmtTokens, modelLabel, proposalsCost, r2vPriceIssue, tierOf } from "../data/economy";
 import {
   FlowNode,
   chosenOf,
@@ -41,13 +45,50 @@ import {
   useFlow,
 } from "../studio/flowStore";
 import PlanBoard from "../studio/ui/PlanBoard";
-import { deckQuoteOf, useStudio } from "../studio/studioStore";
-import { VIDEO_ASPECTS, aspectCss, aspectOf, formatDuration } from "../types";
+import { deckQuoteOf, publishedExit, useStudio } from "../studio/studioStore";
+import { VIDEO_ASPECTS, VideoTemplate, aspectCss, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
+import { VIDEO_EDITOR_RESULT_KEY, type CastEditorState, type VideoEditorResult } from "./VideoEditorPage";
 
 const DURATIONS = [3, 5, 6, 8, 10];
 /** 触发换节点/换走向的滑动阈值（px）；低于它按点击处理 */
 const SWIPE = 48;
+
+/**
+ * 进「挂卡」编辑页要带的入参 —— **全 app 唯一一处**（模板详情页与本页都从这里取）。
+ * null = 这个模板没有角色位（V1 老白模 / 经典模板），本来就没有挂卡这一步。
+ *
+ * ★ 收口在这里而不是各页各拼一份：入参形状与 `returnTo` 是**跨页约定**
+ *   （形状见 VideoEditorPage 顶部注释），写错一个字母的表现是"进去了、回来了、
+ *   什么都没发生"——不报错、也不白屏，最难查的那种。
+ * ★ 返回值标成 `CastEditorState`，让编译器替我们盯住这份约定：那一页改了字段名，
+ *   这里当场编译不过，而不是等到真机上"挂完卡回来输入框还是空的"。
+ * ★ `returnTo` 恒为 `/flow`：收结果、把点名句填进输入框、之后出片，全在这一页
+ *   （store 侧是 flowStore.applyCast）。
+ */
+export function castEditorState(
+  t: Pick<VideoTemplate, "id" | "title" | "refVideo" | "roles" | "markSlots" | "markBoxes" | "markBoxAtSec">,
+  value: Record<string, string> = {},
+): CastEditorState | null {
+  // 判定一律写存在性（types.ts 的 ★）：老模板天然缺这两样，天然不走挂卡
+  if (!t.refVideo?.url || !t.roles?.length) return null;
+  return {
+    mode: "cast",
+    videoUrl: t.refVideo.url,
+    roles: t.roles,
+    // ★★ 方案位必须跟着一起过去：挂卡面板的徽章、引导句、"没挂的会怎样"那几句全按它分支。
+    //   漏在这里没有任何报错 —— 只表现为序数模板的挂卡页按编号说话（用户对着一群一模一样
+    //   的白人偶找数字，找不到只会以为坏了）。判据只有 data 层一处（markSpecOf）。
+    spec: markSpecOf(t),
+    // 画面位置框：有才带（拖拽层的存在性开关）
+    ...(t.markBoxes?.length ? { boxes: t.markBoxes } : {}),
+    ...(t.markBoxes?.length && t.markBoxAtSec !== undefined ? { boxAtSec: t.markBoxAtSec } : {}),
+    value,
+    templateId: t.id,
+    title: t.title,
+    returnTo: "/flow",
+  };
+}
 
 /** 套模板后的"一句话"输入：配方负责像不像，用户只负责换谁来演。
  *  下面把填好的分镜实时显示出来——让用户看得见这句话到底变成了什么，
@@ -79,6 +120,110 @@ function TemplateSubjectBox() {
   );
 }
 
+/**
+ * 白模 **V2**（模板带角色位）套用时的本段内容区 —— 取代经典模板那个「一句话」输入框。
+ *
+ * ★★ 为什么这条路不能用 TemplateSubjectBox：那个框每敲一个字都走 `setSubject`，
+ *   而 setSubject 会拿配方骨架**整段重写 plot**。V2 的 plot 里装的是挂卡合成出来的
+ *   点名映射（「编号 4 的白色人偶替换为角色「张三」」）—— 被重写掉就退回泛指，
+ *   而泛指实测会漏人（F4：只换配角、主角不动），表现是画面照出、钱照收、零报错。
+ *   （store 侧 setSubject 对 V2 也已经不回填 plot，那是第二道闸；这里是第一道。）
+ * ★★ 输入框里摆的就是**真正发给 AI 的那段话**（方案 B2「以输入框为准」）：这段话决定
+ *   哪个编号换成谁，换错人只有作者肉眼能发现 —— 藏在代码里的话，他连"模型被告知了
+ *   什么"都不知道。所以合成完直接填进来，随便改。
+ */
+function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void }) {
+  const { template, cast, castErr, castFallback, castBusy, busy, updateProposal, setRequirement, fillCastFallback } =
+    useFlow();
+  // ★ 分母只数**能挂卡的**那些（上限 BLOCKOUT_MAX_ROLES，判定唯一实现在 data/templates）：
+  //   数全部的话，一个 12 个角色位的模板会显示"已挂 9/12"，而第 10~12 个在挂卡面板上
+  //   根本没有挂卡按钮 —— 用户会一直找那三个位子在哪
+  const roles = splitCastRoles(template?.roles ?? []).castable;
+  const prop = chosenOf(node);
+  const mounted = roles.filter((r) => cast[r.label]).length;
+  const [openReq, setOpenReq] = useState(false);
+  // 这个模板的标记方案（判据只有 data 层一处）。★ 名词也只有一处：markNoun
+  const spec = markSpecOf(template);
+  const noun = markNoun(spec);
+  return (
+    <div className="space-y-1.5">
+      <button
+        onClick={onCast}
+        disabled={busy}
+        className="flex w-full items-center gap-2 rounded-lg border border-brand/50 bg-panel px-2.5 py-2 text-left text-xs text-slate-100 disabled:opacity-40"
+      >
+        <span className="flex-none">🎭</span>
+        <span className="min-w-0 flex-1 truncate">
+          {mounted > 0
+            ? `已挂 ${mounted}/${roles.length} 个角色位 · 点这里改`
+            : `给 ${roles.length} 个${spec.scheme === "ordinal" ? "白色" : "编号的"}人偶挂上你的角色卡`}
+        </span>
+        <Icon name="chevron" size={12} className="flex-none text-slate-400" />
+      </button>
+
+      {/* 作者补充的那句话：合成时揉进点名句里。★ 存在 node.requirement 上（"用户自己的话"，
+          见 flowStore.FlowNode.requirement），与下面那段合成产物**分开**——合成一次就
+          覆盖一次 plot，两者合成一格的话，用户补的那句话每挂一次卡就被自己的产物吃掉 */}
+      <button onClick={() => setOpenReq(!openReq)} className="flex w-full items-center gap-1 text-[10px] text-slate-500">
+        <Icon name="chevron" size={10} className={`flex-none ${openReq ? "rotate-90" : ""}`} />
+        <span className="min-w-0 flex-1 truncate text-left">
+          {openReq
+            ? "收起补充要求"
+            : node.requirement?.trim()
+              ? `补充要求：${node.requirement.trim()}`
+              : "加一句你自己的要求（可选，下次挂完卡合成时并进去）"}
+        </span>
+      </button>
+      {openReq && (
+        <input
+          value={node.requirement ?? ""}
+          onChange={(e) => setRequirement(node.id, e.target.value)}
+          maxLength={60}
+          placeholder="例：整体调成黄昏的暖色调"
+          className="w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+        />
+      )}
+
+      {/* 合成失败：整句原因 + 一颗「填入默认写法」。**绝不自动填空串**——空输入框与
+          "还没写"长得一模一样，用户会以为随手写一句就够，出片时点名映射整个没发出去
+          （blockoutPrompt 的 ★，铁律八）。骨架是确定性的那一份（第五章模板逐字实现），
+          填进去照样可以改 */}
+      {castErr && (
+        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+          <p className="text-[11px] leading-relaxed text-amber-200">{castErr}</p>
+          {castFallback && (
+            <button
+              onClick={fillCastFallback}
+              className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+            >
+              填入默认写法（填完还能改）
+            </button>
+          )}
+        </div>
+      )}
+
+      <textarea
+        value={prop.plot}
+        onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
+        rows={4}
+        maxLength={VIDEO_PROMPT_MAX}
+        disabled={castBusy}
+        placeholder={
+          castBusy ? `正在把「${noun} → 角色」合成一段话…` : "先去挂卡：合成好的点名要求会填在这里，你可以逐字改"
+        }
+        className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-60"
+      />
+      <p className="text-[10px] leading-4 text-slate-500">
+        {castBusy
+          ? "合成中…（一次对话，几秒）"
+          : prop.plot.trim()
+            ? `这就是真正发给 AI 的那段话：${noun}与角色名是机器生成的（改错就会换错人），其余随便改；改挂卡会按新映射重新合成、覆盖这里。`
+            : `这一段的要求由挂卡合成：AI 会把「${noun} → 你挂的角色」写成一段话填在这里，出片前你能逐字过目和修改。`}
+      </p>
+    </div>
+  );
+}
+
 /** 一屏一个节点：大屏幕（方案台/画面/成片）+ 本段要求 + 可调项 + 主按钮 */
 function NodeScreen({
   node,
@@ -87,6 +232,8 @@ function NodeScreen({
   matOpen,
   matShake,
   onToggleMat,
+  focus,
+  onFocus,
 }: {
   node: FlowNode;
   index: number;
@@ -96,6 +243,11 @@ function NodeScreen({
   /** 每加一次素材 +1：拿它当 key 让抖动的 CSS 动画重播（同 CharacterPerch 的做法） */
   matShake: number;
   onToggleMat: () => void;
+  /** 方案台专注态：本页除了左上角那枚返回箭头，其余 UI 全部收起（见 FlowPage.planFocus） */
+  focus: boolean;
+  /** 报告"方案台开没开"。★ boardOn 只有这里算得出（它要读 plan/done/showPlan），
+   *  所以由这里报上去，FlowPage 不再算第二遍（铁律六） */
+  onFocus: (on: boolean) => void;
 }) {
   const {
     mode,
@@ -135,6 +287,26 @@ function NodeScreen({
   const [showPlan, setShowPlan] = useState(false);
   const matCount = node.materials?.length ?? 0;
 
+  // ── 白模 V2 的挂卡入口（结果由 FlowPage 收，见那边的 effect）──
+  const nav = useNavigate();
+  const cast = useFlow((s) => s.cast);
+  /**
+   * 「改挂卡会覆盖你在输入框里改过的字」的确认（false = 不用问）。
+   *
+   * ★★ 为什么是**覆盖**而不是保留：输入框里那段话写的是**旧的**挂卡映射
+   *   （「编号 4 → 张三」），改完挂卡还留着它，出片就照旧映射换人 —— 比丢掉几行
+   *   手写的字坏得多，而且零报错。所以不给"保留原文案"这个必然出错的选项，
+   *   只在真有内容可丢时问一句（问都不问就覆盖，也是一种静默的数据丢失）。
+   */
+  const [castAsk, setCastAsk] = useState(false);
+  function openCast() {
+    setCastAsk(false);
+    // 入参形状与回程约定收在 castEditorState 一处（本文件顶部）
+    const st = tpl ? castEditorState(tpl, cast) : null;
+    if (st) nav("/video-editor", { state: st });
+  }
+  const requestCast = () => (prop.plot.trim() ? setCastAsk(true) : openCast());
+
   // ── 方案台三态（见 flowStore.FlowNode.plan）──
   const plan = simple ? null : planOf(node);
   const picking = plan === "picking";
@@ -153,8 +325,18 @@ function NodeScreen({
    *   "直接用卡片形象、不画设定帧"，实际却在承接上一段真实尾帧并按文字补画结束帧。
    */
   const refOn = useFlow((s) => nodeRefOn(s.nodes, index, s.mode));
+  /** 本段走白模复刻（r2v）。判定与报价（nodeCost）同源：模板快照带 refVideo（存在性） */
+  const blockout = !!tpl?.refVideo;
+  /** 本段走白模**点名**路（V2：模板登记了角色位）。判据是存在性（`roles?.length`，
+   *  types.ts 的 ★）——老白模模板天然缺它、天然走泛指老路，界面也照旧是「一句话」框 */
+  const named = blockout && !!tpl?.roles?.length;
   /** 当前套餐点不动的档位各是为什么（空 = 都能选）。判断在 data/account 一处 */
   const tierBlocks = VIDEO_TIERS.map((t) => tierBlockReason(t)).filter((r): r is string => !!r);
+  /** 白模节点下各档位点不动的 r2v 原因（判断在 economy.r2vPriceIssue 一处，铁律六）。
+   *  几档的整句常常相同（"暂未开放"），Set 去重后再印，别把同一句话糊三遍 */
+  const r2vBlocks = blockout
+    ? [...new Set(VIDEO_TIERS.map((t) => r2vPriceIssue(t.id)).filter((r): r is string => !!r))]
+    : [];
   const req = requirementOf(node);
   const generating = node.status === "generating";
   /** 主按钮这一下干什么：没方案台先推演，摊开着就重推，挑定了才真出片。
@@ -189,6 +371,34 @@ function NodeScreen({
 
   // 大屏幕放什么：成片 > 方案台 > 起拍画面 > 一句"还没有画面"
   const boardOn = plan != null && (!done || showPlan);
+
+  /**
+   * 方案台摊开**且还没挑定**时进专注态。
+   *
+   * ★ 为什么值得单独收一屏：方案台原来夹在顶栏 / 段导航条 / 要求输入框 / 报价行 /
+   *   节点条中间，375×640 的手机上只剩中间**一小条**——而挑方案要看首尾帧的构图、
+   *   改剧情要读一整段字，这一步恰恰是全流程里最需要地方的一步。
+   * ★★ **判据是 picking 而不是 boardOn**（2026-08-15 对抗审查抓到的回归，改前是后者）：
+   *   专注态把「本段内容」整块 hidden 掉，而全流程唯一的推进入口「⚡ 生成本段」就在那一块里。
+   *   挑定一套之后 plan 由 picking 变 picked、boardOn **不变**，于是专注态不退，屏幕上
+   *   最显眼的可点项变成方案台里真扣钱却不出片的「重新生成这一套的画面」——用户要么
+   *   被引去反复付费重画，要么得先猜到左上角那枚「收起」。这正是本页 :175 注释记过、
+   *   已经修过一次的坑：**把最贵那一步的入口藏起来**。挑定的那一刻退出专注态，动作栏
+   *   立刻回来，第 4 拍（出片）的入口就在手边。
+   * ★ 已出片的段点「看方案」（picked + showPlan）同样不进专注态：那时用户是在对比/回看，
+   *   而「看成片」这个开关自己就长在被收起的段导航条里——进得去出不来。
+   * ★ 写成 effect 而不是在 boardOn 那一行里直接 set：boardOn 是渲染期的派生值，
+   *   渲染期改父组件的 state 是非法的。
+   * ★ 卸载/换段一定要报 false：换到下一段（可能压根没有方案台）时不还原的话，
+   *   用户会对着一屏收起来的 UI 以为界面坏了。
+   * ⚠ 它只在判据**变化**时跑 —— 用户按左上角箭头手动退出专注态之后
+   *   （focus=false 而判据仍为真），这里不会把他再拽回去。
+   */
+  const focusWanted = boardOn && plan === "picking";
+  useEffect(() => {
+    onFocus(focusWanted);
+    return () => onFocus(false);
+  }, [focusWanted, onFocus]);
 
   /** 从预览播放器截当前帧去圈选（视频经代理取流，画布不会被跨域污染） */
   function openAnnotator() {
@@ -230,8 +440,8 @@ function NodeScreen({
           ★ 换节点从"压在画面上的两枚半透明箭头"挪到这里，状态角标也一并搬过来：方案台铺满
             大屏幕之后，那两枚箭头正好落在方案卡的首尾帧上，点方案会误触换段。
             顺序门禁的表达（锁图标 + 说明"为什么点不动"）原样保留，真正的拦截仍在
-            flowStore.clampCursor。 */}
-      <div className="flex flex-none items-center gap-2 px-3 py-1.5">
+            flowStore.clampCursor —— 专注态只是**不画**这一条，一个判断都没动。 */}
+      <div className={`${focus ? "hidden" : "flex"} flex-none items-center gap-2 px-3 py-1.5`}>
         <button
           onClick={() => shiftCursor(-1)}
           disabled={index === 0 || busy}
@@ -280,6 +490,7 @@ function NodeScreen({
       {/* ── 大屏幕：方案台 / 成片 / 起拍画面（手势区）── */}
       <div
         className={`relative min-h-0 flex-1 ${boardOn ? "bg-[#0b0f18]" : "flex items-center justify-center bg-black"}`}
+        data-guide="flow-stage"
         {...swipe}
       >
         {boardOn ? (
@@ -318,8 +529,14 @@ function NodeScreen({
         )}
       </div>
 
-      {/* ── 本段内容 ── */}
-      <div className="flex-none space-y-2 border-t border-slate-800 bg-ink px-4 pb-3 pt-2.5" data-noswipe>
+      {/* ── 本段内容 ──
+          专注态下整块收起（要求输入框 / 报价说明 / 档位按钮 / 主按钮 / 素材按钮）。
+          ★ 用 hidden 而不是不渲染：这里面有用户正在敲的输入框（要求、剧情），
+            卸载再挂回来会丢焦点、丢输入法候选，退出专注态时也就不是"原样展开"了。 */}
+      <div
+        className={`${focus ? "hidden" : ""} flex-none space-y-2 border-t border-slate-800 bg-ink px-4 pb-3 pt-2.5`}
+        data-noswipe
+      >
         {/* 出片过程日志：跑着时展开，跑完自动收起但留着可回看 */}
         <GenTrace steps={node.steps ?? []} running={generating} />
         {/* 标题不在这里改了——它是"某一套方案"的标题，跟剧情一起放在方案台那一行里改，
@@ -327,7 +544,45 @@ function NodeScreen({
         {tpl ? (
           /* 套了模板：用户只需要说"换成谁/什么主题"，其余由配方补齐。
              剧情框仍然可展开查看/微调——模板是起点不是牢笼 */
-          <TemplateSubjectBox />
+          <>
+            {/* ★ V2 白模（有角色位）换成挂卡区：那条路上"换成谁"由编号→卡的映射决定，
+                而合成出来的点名句就摆在输入框里等用户过目（方案 B2）。
+                V1 与经典模板一个字没变，还是这个「一句话」框 */}
+            {named ? <BlockoutCastBox node={node} onCast={requestCast} /> : <TemplateSubjectBox />}
+            {castAsk && (
+              <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+                <p className="text-[11px] leading-relaxed text-amber-200">
+                  改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉 ——
+                  因为旧的那段话里写的还是旧的挂卡，留着它 AI 就会照旧的换人。
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={openCast} className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink">
+                    继续去挂卡
+                  </button>
+                  <button onClick={() => setCastAsk(false)} className="rounded-full px-2.5 py-1 text-[11px] text-slate-300">
+                    算了
+                  </button>
+                </div>
+              </div>
+            )}
+            {/* ★ 白模的报价行必须**明示输入费构成**：r2v 连模板视频的输入时长也计费
+                （输出还≈输入），"42<70 所以更便宜"的直觉是反的——只报一个总数，
+                用户会拿纯任务的价一比就觉得被多收了。数字与主按钮同一把尺子（nodeCost） */}
+            {tpl.refVideo && (
+              <p className="text-[10px] leading-4 text-slate-500">
+                {/* ★ 措辞是「按 N 秒计」不是「N 秒」：这个数是**计价锚点**（整数、向上取整），
+                    模板视频的真实文件更短。写成"模板视频 4s"会与详情页那句"实际约 3.7 秒"
+                    看起来互相打架，而它们说的是两件事 —— 一件是账、一件是文件。 */}
+                {`白模复刻出片（「${tierOf(node.videoTier).label}」档）：模板视频按 ${tpl.refVideo.durationSec} 秒计的输入也计费、输出≈模板时长，共约 ${fmtTokens(cost)} token`}
+                {/* 一张卡都没挂时把"去哪儿挂"说清楚。★ 两条路的入口不是同一个：V2 挂在
+                    角色位上（上面那颗按钮，右下角那枚圆钮也走同一处），V1 挂在本段素材里 */}
+                {matCount === 0 &&
+                  (named
+                    ? `。先给${markSpecOf(tpl).scheme === "ordinal" ? "白色" : "编号的"}人偶挂上带形象图的角色卡，AI 才知道每个人偶换成谁`
+                    : "。挂上带形象图的角色卡（右下角素材按钮），AI 会把红色小人换成它")}
+              </p>
+            )}
+          </>
         ) : simple ? (
           <div className="space-y-1">
             <textarea
@@ -362,6 +617,7 @@ function NodeScreen({
               rows={2}
               maxLength={400}
               placeholder="这一段要拍什么？（AI 会按它推演三套走向）"
+              data-guide="flow-req-input"
               className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
             <p className="text-[10px] leading-4 text-slate-500">
@@ -400,9 +656,11 @@ function NodeScreen({
             className="flex-none rounded-lg bg-panel px-2.5 py-2 text-[11px] text-slate-300"
           >
             {/* 时长显示的是**真正会发出去**的秒数（2.5 不收 3 秒，见 clampDuration）——
-                写 3 秒却出 4 秒的片，用户对不上账 */}
-            ⚙ {clampDuration(prop.durationSec, node.videoTier)}s · {tierOf(node.videoTier).label} ·{" "}
-            {aspectOf(node.aspect).label}
+                写 3 秒却出 4 秒的片，用户对不上账。
+                ★ 白模例外：时长 = 模板登记时长，**不过 clampDuration**（edit 输出≈输入是
+                协议行为，10s 上限是纯 t2v 档位的约束——夹了就是"显示 10s、实出 14s"） */}
+            ⚙ {blockout && tpl?.refVideo ? tpl.refVideo.durationSec : clampDuration(prop.durationSec, node.videoTier)}s ·{" "}
+            {tierOf(node.videoTier).label} · {aspectOf(node.aspect).label}
           </button>
           {done && (
             <button
@@ -419,6 +677,7 @@ function NodeScreen({
             onClick={() => void onMain()}
             disabled={mainDisabled}
             title={AI_REAL ? `预计消耗 ${fmtTokens(mainCost)} token` : undefined}
+            data-guide="flow-main-btn"
             className={`min-w-0 flex-1 rounded-lg py-2 text-xs font-bold disabled:opacity-40 ${
               stage === "rederive" ? "bg-gold/90 text-ink" : "bg-brand text-ink"
             }`}
@@ -430,11 +689,18 @@ function NodeScreen({
               两态之间是同一条 8 帧序列正播/倒播（见 MaterialButtonArt）。
               角标是本段已挂的张数——加卡那一下按钮会抖一下（key 换了动画才会重播，
               同 CharacterPerch 那套做法）。 */}
+          {/* ★★ V2 白模上这枚钮改开**挂卡**，不开素材窗口：那条路的 materials ≡ 挂卡结果
+              （flowStore.applyCast 整表覆盖）。放着素材窗口能自由加卡的话，加进来的卡
+              没有任何编号点它，却照样进参考图、照样在尾巴上多出一条绑定句（`名字=@图片N`）——
+              模型收到一个"有图有名字、却没人点它"的角色，只会自己找个地方把他画进去，
+              而那句绑定还白吃掉用户的正文额度（提示词硬顶 400 字，截断从正文这头切）。
+              移除同理：从素材条里删掉一张，点名句里还写着它、图却没发出去 ——
+              两个方向都是画面照出、钱照扣、零报错。两个入口指同一个动作，不是两条路。 */}
           <button
             key={matShake}
-            onClick={onToggleMat}
-            aria-label={`本段素材 ${matCount} 张`}
-            title="本段素材"
+            onClick={named ? requestCast : onToggleMat}
+            aria-label={named ? `挂卡 ${matCount} 张` : `本段素材 ${matCount} 张`}
+            title={named ? "给人偶挂卡" : "本段素材"}
             /* 不裁圆角：让她连人带牌探出钮外一点，比塞进一个圆里更有"她在按钮上"的味道 */
             className={`relative flex h-11 w-11 flex-none items-center justify-center rounded-full transition ${
               matOpen ? "bg-brand/20 ring-2 ring-brand" : "bg-panel ring-1 ring-slate-700"
@@ -498,25 +764,40 @@ function NodeScreen({
               </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="w-10 flex-none text-[11px] text-slate-400">时长</span>
-              {DURATIONS.map((d) => {
-                // ★ 短于本档下限的时长直接禁掉并说明：Seedance 2.5 的合法区间是 [4,30]，
-                //   3 秒发过去是同步 400，用户只会觉得"这一档坏了"（见 VideoTier.minSec）
-                const tooShort = d < tierOf(node.videoTier).minSec;
-                return (
-                  <button
-                    key={d}
-                    onClick={() => updateProposal(node.id, { durationSec: d })}
-                    disabled={tooShort}
-                    title={tooShort ? `「${tierOf(node.videoTier).label}」最短 ${tierOf(node.videoTier).minSec} 秒` : undefined}
-                    className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${prop.durationSec === d ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
-                  >
-                    {d}s
-                  </button>
-                );
-              })}
-            </div>
+            {/* ★ 白模节点**没有时长选择器**（仓库主人拍板）：时长 = 模板的登记时长，
+                edit 输出≈输入是协议行为，不吃 clampDuration 的 10s 上限（那是纯 t2v
+                档位的产品约束）。摆一排点了不生效的时长按钮就是骗人 —— 换成一句明说 */}
+            {blockout && tpl?.refVideo ? (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="w-10 flex-none text-[11px] text-slate-400">时长</span>
+                <span className="text-[11px] text-slate-300">
+                  {/* ★ 这里说的是**计价与预期时长**（锚点），不是文件真实秒数 —— 真实秒数在
+                      模板详情页如实显示。两处措辞刻意不同，别把这一处改成真实值：
+                      账单按锚点走，用户对账时看的是这个数 */}
+                  按 {tpl.refVideo.durationSec} 秒计 · 跟随模板视频（白模复刻的输出时长≈模板时长，不可另选）
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="w-10 flex-none text-[11px] text-slate-400">时长</span>
+                {DURATIONS.map((d) => {
+                  // ★ 短于本档下限的时长直接禁掉并说明：Seedance 2.5 的合法区间是 [4,30]，
+                  //   3 秒发过去是同步 400，用户只会觉得"这一档坏了"（见 VideoTier.minSec）
+                  const tooShort = d < tierOf(node.videoTier).minSec;
+                  return (
+                    <button
+                      key={d}
+                      onClick={() => updateProposal(node.id, { durationSec: d })}
+                      disabled={tooShort}
+                      title={tooShort ? `「${tierOf(node.videoTier).label}」最短 ${tierOf(node.videoTier).minSec} 秒` : undefined}
+                      className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${prop.durationSec === d ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+                    >
+                      {d}s
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {/* 画幅：已出片的段不给改——改了这一段的成片还是老画幅，
                 用户以为改完就变了，直到剪辑页合并才发现这一段被裁/补了边 */}
@@ -526,8 +807,17 @@ function NodeScreen({
                 <button
                   key={a.id}
                   onClick={() => updateNode(node.id, { aspect: a.id })}
-                  disabled={done}
-                  title={done ? "这一段已出片，改画幅要重新生成才生效" : a.desc}
+                  // ★ 白模禁改：真正的出片画幅是 adaptive 跟随模板视频（arkClient 的
+                  //   BLOCKOUT_TASK 整体接管 ratio），这排按钮点了不会改变产出 ——
+                  //   摆着能点就是"改了不生效"的骗人选项
+                  disabled={done || blockout}
+                  title={
+                    blockout
+                      ? "白模复刻的画幅自适应模板视频，不可另选"
+                      : done
+                        ? "这一段已出片，改画幅要重新生成才生效"
+                        : a.desc
+                  }
                   className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${
                     node.aspect === a.id ? "bg-brand text-ink" : "bg-panel text-slate-300"
                   }`}
@@ -544,7 +834,13 @@ function NodeScreen({
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="w-10 flex-none text-[11px] text-slate-400">画质</span>
               {VIDEO_TIERS.map((t) => {
-                const block = tierBlockReason(t);
+                // ★ 白模节点上，不支持 r2v 的档位也要禁掉（判断在 economy.r2vPriceIssue
+                //   一处）：切过去出片必被 segmentGen 的门禁整句拒绝，让人选一个必失败的
+                //   档位不如当场说不能选。价目也不能对这些档位问 nodeCost —— 那会走进
+                //   segmentCost 的"没 r2v 价还硬报"兜底（按最贵系数 + console.error 点名），
+                //   而这里不是门禁被改坏，只是一排比价按钮
+                const r2vBlock = blockout ? r2vPriceIssue(t.id) : null;
+                const block = tierBlockReason(t) ?? r2vBlock;
                 return (
                   <button
                     key={t.id}
@@ -556,7 +852,7 @@ function NodeScreen({
                     {/* ★ 与主按钮同一把尺子（nodeCost，只是把档位换成这一档）：光报 segTokens
                         会漏掉"这一档还得补画几张设定帧"，而简约模式正是两张都要补的那条路 ——
                         于是抽屉里写 108k、外面按钮写 134.6k，用户在**比价**的这一步被少报 */}
-                    {t.label} · {fmtTokens(nodeCost(nodes, index, mode, t.id))}
+                    {r2vBlock ? t.label : <>{t.label} · {fmtTokens(nodeCost(nodes, index, mode, t.id))}</>}
                   </button>
                 );
               })}
@@ -564,13 +860,20 @@ function NodeScreen({
             {/* ★ 点不动就必须写出为什么。只把按钮灰掉的话，用户只会觉得"这功能坏了"
                 （CLAUDE.md「界面上摆一个永远点不动的选项」）。title 在手机上没有 hover，
                 所以原因得**印在页面上**，不能只挂在 title 里 */}
-            {tierBlocks.length > 0 && (
+            {(tierBlocks.length > 0 || r2vBlocks.length > 0) && (
               <p className="text-[10px] leading-4 text-amber-300/80">
-                {tierBlocks.join("；")}
-                　
-                <Link to="/me" className="underline">
-                  去升级
-                </Link>
+                {[...tierBlocks, ...r2vBlocks].join("；")}
+                {/* 「去升级」只治得了套餐门槛那类原因；r2v 闸门没开不是充钱能解决的，
+                    只有套餐原因在场时才给这个链接。间隔用全角空格字面量——JSX 会把
+                    行间换行整个吃掉，靠折行留空隙是留不住的 */}
+                {tierBlocks.length > 0 && (
+                  <>
+                    {"　"}
+                    <Link to="/me" className="underline">
+                      去升级
+                    </Link>
+                  </>
+                )}
               </p>
             )}
             {/* ★ 把**真正会被调用的那个模型**写出来。「极速/标准/高清」只说了画质档次，
@@ -629,6 +932,9 @@ function NodeScreen({
 
 export default function FlowPage() {
   const navigate = useNavigate();
+  // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；那颗 ? 随时能重看）
+  useAutoGuide("flow");
+  const loc = useLocation();
   const { nodes, cursor, mode, origin, busy, err, setCursor, addNode, removeNode, addMaterials, removeMaterial, reset } =
     useFlow();
   const [finalizing, setFinalizing] = useState("");
@@ -636,18 +942,86 @@ export default function FlowPage() {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   /** 素材窗口开着 = 底部那条也换成本段素材（见下面的底部区） */
   const [matOpen, setMatOpen] = useState(false);
+  /**
+   * 方案台专注态：方案台吃满屏，本页其余 UI（顶栏 / 组稿报价行 / 段导航条 / 要求输入框 /
+   * 主按钮 / 底部节点条）全部收起，只留左上角一枚返回箭头。退出时原样展开。
+   *
+   * ★ 由 NodeScreen 报上来（"方案台开没开"只有它算得出，见那边的 onFocus），
+   *   这里不再算第二遍（铁律六）。
+   * ★ 只是**不画**那些东西：能不能换段、能不能加段、白模能不能出片，判定一条都没动
+   *   （仍在 flowStore.clampCursor / addNode 与 segmentGen 的 blockoutIssue 里）。
+   * ★ 实现上刻意没有新的 fixed / portal / transform 容器：收起 chrome 之后，方案台
+   *   原地就长满了整屏（它本来就是那块 flex-1 里的 `absolute inset-0`）。多套一层
+   *   带 transform 或 backdrop-blur 的祖先，只会把它自己的滚动与放大动画弄坏
+   *   （CLAUDE.md「全屏浮层写了 fixed inset-0 却只铺满一小块」那条坑的同族）。
+   */
+  const [planFocus, setPlanFocus] = useState(false);
   /** 每加一次素材 +1，传给圆形按钮当 key 让抖动重播 */
   const [matShake, setMatShake] = useState(0);
   const tpl = useFlow((s) => s.template);
   const simple = mode === "simple";
+  /**
+   * 自由素材窗口开着吗 —— **V2 白模上恒为关**。
+   *
+   * ★★ 那条路的 materials ≡ 挂卡结果（唯一出处是角色位，flowStore.applyCast 整表覆盖）。
+   *   素材窗口能加也能删：加进来的卡没有任何编号点它，却照样进参考图、照样多出一条
+   *   `名字=@图片N` 的绑定句（规则在 ai/real.allocateRefs 与它的 bind）—— 模型收到一个
+   *   "有图有名字、没人点它"的角色就会自己安排他出场，那句绑定还白吃掉用户的正文额度；
+   *   删掉一张则是点名句里还写着它、图却没发出去 —— 两个方向都是"人错了、钱照扣、
+   *   零报错"。所以这一格在 V2 上整个不开（那枚圆钮改成挂卡入口，见 NodeScreen）。
+   * ★ 写成派生值而不是"打开时判一下"：matOpen 是本页的存量状态，用户完全可能先开着
+   *   素材窗口、再从模板栏套上一个 V2 模板（提取器那条路就在这一页上），那一刻没人
+   *   会去关它。
+   */
+  const matWindow = matOpen && !(tpl?.refVideo && tpl?.roles?.length);
 
   // 直接输地址进来（或热更新丢了状态）：没节点就回创作入口，别停在空白页。
   // leavingRef 是必需的：组稿成功后 reset() 清空节点，本效应会在 navigate("/cut")
   // 落地前抢跑，把用户按回 /create（实测踩到过）
+  // ★ 发布收工之后这一格也是死页（判据只在 studioStore.publishedExit 一处，铁律六）：
+  //   那时该去的是首页而不是创作入口 —— 用户刚发完片，不是又要开一摊新活
   const leavingRef = useRef(false);
   useEffect(() => {
-    if (nodes.length === 0 && !leavingRef.current) navigate("/create", { replace: true });
+    if (nodes.length > 0 || leavingRef.current) return;
+    navigate(publishedExit() ?? "/create", { replace: true });
   }, [nodes.length, navigate]);
+
+  /**
+   * 从视频编辑页（cast 模式）回来 —— 白模 V2 套用链路的**收口**：
+   * 拿到 `编号 → 卡 id` 的映射，交给 flowStore.applyCast 去落 materials + 合成点名句
+   * （合成与对齐规则都在那里一处实现，这一页只负责"把结果接住"）。
+   *
+   * ★ 入参**按形状验收**、不按"应该有"假设：这一格 state 可能来自深链、老包缓存，
+   *   或者是模式一（选段裁剪）的结果（那条路不归这一页收）。硬转 `as` 的话要到
+   *   第一处解引用才崩，而那时页面已经白了（同 VideoEditorPage.parseState 的 ★）。
+   * ★ **先抹掉 state 再干活**：留着它，用户之后从别处按返回回到这一格 /flow 就会
+   *   再合成一次（一次 chat 调用 + 把输入框里他改过的字整段覆盖），而他什么都没点。
+   *   ref 那道判重是为同一次渲染里的重跑兜底，两者都要。
+   * ⚠ 编辑页把结果 replace 回来时，App 进程若在挂卡那几分钟里被系统回收过，store 里
+   *   的流水线就是空的（内存态，不落盘）—— 那时上面那个 effect 会把人送回 /create，
+   *   applyCast 也会整句说"这条流水线上没有可挂卡的白模模板"。不装作没事发生。
+   */
+  const castTaken = useRef<unknown>(null);
+  useEffect(() => {
+    const raw = (loc.state as Record<string, unknown> | null)?.[VIDEO_EDITOR_RESULT_KEY];
+    if (!raw || castTaken.current === raw) return;
+    castTaken.current = raw;
+    navigate(loc.pathname, { replace: true, state: null });
+    const r = raw as Partial<VideoEditorResult> & { cast?: unknown };
+    if (r.mode !== "cast" || !r.cast || typeof r.cast !== "object") return;
+    const map: Record<string, string> = {};
+    for (const [k, v] of Object.entries(r.cast as Record<string, unknown>)) if (typeof v === "string" && v) map[k] = v;
+    const st = useFlow.getState();
+    // 对号入座：模板对不上就整句拒绝，绝不"就近用"——编号是**这个模板**的编号，
+    // 张冠李戴地套到另一个模板上，出片时就是换错人且零报错（types.roles 的 ★★）
+    if (r.templateId && st.template && r.templateId !== st.template.id) {
+      useFlow.setState({
+        err: "刚才挂卡的是另一个模板（这条流水线上套的模板中途换过了）——回模板详情页重新套用一次再挂卡",
+      });
+      return;
+    }
+    void st.applyCast(map);
+  }, [loc.state, loc.pathname, navigate]);
 
   // ★ 自动存盘只挂在"又炼出一段"这一个事件上，不做定时/每次改动都存：
   //   一段视频是几十秒 + 真金白银，丢了补不回来；而草稿正文带整份首尾帧 base64，
@@ -710,7 +1084,10 @@ export default function FlowPage() {
       if (ok) {
         leavingRef.current = true;
         reset();
-        navigate("/cut");
+        // ★ replace 而不是 push：组稿成功那一下 reset() 已经把流水线清空了，历史里这一格
+        //   /flow 就是个死页 —— 从剪辑页按返回退到它，它当场又把人 replace 走（今天是
+        //   /create），白闪一下。少留一格死页，发布之后按返回也少一次落空
+        navigate("/cut", { replace: true });
       }
     } catch (e) {
       console.warn("[flow] 组稿失败:", e);
@@ -722,18 +1099,87 @@ export default function FlowPage() {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-ink">
-      <header className="safe-top flex flex-none items-center gap-2.5 px-4 py-2.5">
+      {/* ── 专注态的那枚返回箭头 + 生成进度 ──
+          ★ 按钮上写字（"收起"）而不是只放一个光秃秃的箭头：这个位置平时是"退出工作流"，
+            不写清楚用户不敢点（怕一点就把没炼完的片子丢了）。
+          ★ 进度那一枚**不能一起收**：重新推演三套要一分多钟，这期间方案台上所有按钮都是
+            灰的，一个字都不说的话与卡死无从区分（铁律八）。 */}
+      {planFocus && (
+        <div
+          className="absolute left-3 right-3 z-20 flex items-center gap-2"
+          style={{ top: "calc(env(safe-area-inset-top, 0px) + 10px)" }}
+        >
+          <button
+            onClick={() => setPlanFocus(false)}
+            aria-label="收起方案台"
+            className="flex flex-none items-center gap-1 rounded-full bg-black/60 px-2.5 py-1.5 text-xs text-slate-100 ring-1 ring-white/15"
+          >
+            <Icon name="back" size={16} />
+            收起
+          </button>
+          {node.status === "generating" && (
+            <span className="min-w-0 flex-1 animate-pulse truncate rounded-full bg-brand px-2.5 py-1.5 text-[11px] font-semibold text-ink">
+              {node.progress || "生成中…"}
+            </span>
+          )}
+          {/* ★ 失败原因也不能一起收：node.error 平时画在段导航条的 ✗ 角标上，而那一条在
+              专注态里是 hidden 的。推演失败（敏感词 400、余额不足、上游超时）本来就常发生在
+              这个状态下——收起来就等于"点了没反应"，铁律八。generating 时不显示旧错误。 */}
+          {node.status !== "generating" && node.error && (
+            <span className="min-w-0 flex-1 truncate rounded-full bg-rose-500/90 px-2.5 py-1.5 text-[11px] font-semibold text-white">
+              ✗ {node.error}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* 专注态下给上面那条（箭头 + 进度）留出位置。★ 用一格 flex-none 的空行占位，而不是
+          给方案台那块加 padding：方案台是 `absolute inset-0` 铺进去的，祖先的 padding 对它
+          无效，只会被箭头压住第一行；放在这里还能顺便把报错条也挤到箭头下面 */}
+      {planFocus && <div className="flex-none" style={{ height: "calc(env(safe-area-inset-top, 0px) + 46px)" }} />}
+
+      {/* ★★ 顶栏是**两行**的：左边一格里「标题 + ?」在上、进度在下，右边才是按钮。
+          为什么不能都挤在一行（2026-08-17 量出来改的，量法见下）：这一行里除进度外
+          全是 flex-none，于是每加一个固定件都**只从进度身上扣**——加那颗 ? 的时候
+          进度从 97px 掉到 59px，连「5 段 · 已出片 2」这半句本身（72.6px）都被切成
+          「5 段 · 已出…」。旁边这条注释当年正是为这件事写的，结果新加的 ? 又踩了一次。
+
+          量法（不是估字宽）：dev server 上按同一套 class 把这段版式挂进真实样式里，
+          375px 视口（最窄的目标机）读 getBoundingClientRect：
+            内容宽 375 − 32(px-4) = 343
+            返回 20 ＋ 标题「工作流」42 ＋ ? 28 ＋ 存草稿 60 ＋ 完成视频 84
+            （全段出片后带那个「›」；没出完是 76）＋ 5 个 gap-2.5 共 50 = 284
+            ⇒ 留给进度 59px
+          竖过来之后进度独占那一格：量到 **149px**，而「5 段 · 已出片 2 · 剩余约 12.3k」
+          整句 146px —— 那句「剩余约」（= 还要花多少钱）**第一次能完整显示**。
+          代价是顶栏 48 → 64.5px（舞台少 16.5px），这一条是有意换的：被切掉的是钱。
+          ⚠ 还是会切的两种，都可接受（段数与已出片数在最前面，先保住的是它们）：
+            · 两位数（「12 段 · 已出片 10 · 剩余约 123.4k」165.3px）切掉金额末几位；
+            · 存盘按钮换文案时它自己会变宽（存草稿 60 → 保存中… 69.8 / 已保存 ✓ 71.8 /
+              保存失败 72），那几秒里进度只剩 137px，「12.3k」的尾巴被切一点。
+          试过、不行的两条，别再走：
+            ① 留在一行、给进度写 `min-w-[86px]`（86 = 两位数那半句「12 段 · 已出片 10」
+               的 85.5）：flex-none 不收缩，这一行溢出内容框 27px、超出屏幕右缘 11px ——
+               「完成视频」右半边被切在屏外，点不全，且零报错；
+            ② 只把进度挪到第二行、? 仍留在主行：顶栏只长 8.5px，但进度 111px，
+               「剩余约」照样被切成「· 剩…」，等于把钱那半句丢了。 */}
+      <header className={`${planFocus ? "hidden" : "flex"} safe-top flex-none items-center gap-2.5 px-4 py-2.5`}>
         <button
           onClick={() => navigate(origin === "studio" ? "/studio" : "/create")}
           className="flex-none text-slate-300"
         >
           <Icon name="back" size={20} />
         </button>
-        <span className="flex-none text-sm font-bold text-slate-100">{simple ? "简约模式" : "工作流"}</span>
-        <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">
-          {simple ? "一个节点，一条短片" : `${nodes.length} 段 · 已出片 ${nodes.filter(nodeDone).length}`}
-          {AI_REAL && remain > 0 && ` · 剩余约 ${fmtTokens(remain)}`}
-        </span>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex items-center gap-2">
+            <span className="flex-none text-sm font-bold text-slate-100">{simple ? "简约模式" : "工作流"}</span>
+            <HelpButton tour="flow" />
+          </div>
+          <span className="min-w-0 truncate text-[11px] text-slate-500">
+            {simple ? "一个节点，一条短片" : `${nodes.length} 段 · 已出片 ${nodes.filter(nodeDone).length}`}
+            {AI_REAL && remain > 0 && ` · 剩余约 ${fmtTokens(remain)}`}
+          </span>
+        </div>
         {/* 手动存盘。自动保存只在"炼完一段"那种昂贵节点触发（见上面的 effect），
             纯改文字不会自动存——想留住就点这里。简约模式没有这颗按钮（它不进草稿库） */}
         {!simple && (
@@ -759,11 +1205,13 @@ export default function FlowPage() {
           onClick={() => void toCut()}
           disabled={!allDone || busy || !!finalizing}
           title={allDone ? "把各段合成一条完整视频" : "每段都出片之后才能合成"}
+          data-guide="flow-finish"
           className="flex-none rounded-full bg-brand px-3.5 py-1.5 text-xs font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
         >
-          {/* 文案要短：375px 宽的顶栏还得放返回、标题、进度、存草稿四样，
-              带上「还差 N 段」会把中间那行进度挤成一个省略号。
-              "还差几段"由旁边的「N 段 · 已出片 M」交代，这里只留终点本身 */}
+          {/* 文案要短：375px 顶栏这一行还得放返回、标题+?、存草稿三样（进度已经竖到
+              标题下面那行去了，量法见 header 上那段注释）。这颗按钮量到 84px，是这一行里
+              最宽的一件；带上「还差 N 段」会再宽出一截，把左边那一格连标题带进度一起压瘦。
+              "还差几段"由标题下面那行的「N 段 · 已出片 M」交代，这里只留终点本身 */}
           {finalizing || "完成视频"}
           {allDone && " ›"}
         </button>
@@ -822,14 +1270,15 @@ export default function FlowPage() {
       )}
 
       {/* ★★ 组稿前把「完成视频」那一下要花的钱明说出来。
-          为什么单开一行而不是塞进按钮上：那颗按钮在 375px 顶栏里与返回/标题/进度/存草稿
-          挤在一起，多两个字就把中间那行进度压成省略号（CLAUDE.md 那条底缘几何的同类问题）。
+          为什么单开一行而不是塞进按钮上：那颗按钮在 375px 顶栏那一行里与返回/标题+?/存草稿
+          挤在一起（量法见 header 上那段），它已经是行里最宽的一件，多两个字就把左边那一格
+          连标题带进度一起压瘦（CLAUDE.md 那条底缘几何的同类问题）。
           为什么等到 allDone 才出现：在那之前按钮是灰的，用户此刻要读的是"下一段多少钱"；
           整片的这一笔一直算在顶栏「剩余约」里，不会因为这行没出现就瞒着他。
           ⚠ 措辞三处都不许含糊：**最多**（张数是上限，按实际出卡结算）、
           **约**（单价还没与火山账单对过，见 economy 的 ⚠）、以及余额不足会自动跳过
           （那是 finalizeFromFlow 真实的行为，不写的话用户会以为钱不够就完不成片）。 */}
-      {deck.on && AI_REAL && allDone && (
+      {deck.on && AI_REAL && allDone && !planFocus && (
         <div className="mx-4 mb-1.5 flex-none rounded-xl border border-slate-700/70 bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
           {/* ★ 整句在 JS 里拼好再交给 JSX：分成几段写的话，JSX 会把每行之间的换行折成
               一个空格，于是条件那一支不成立时就变成「…token 。都按实际…」——
@@ -844,6 +1293,8 @@ export default function FlowPage() {
         </div>
       )}
 
+      {/* ★ 报错条**不跟着专注态收起**（其余都收）：推演/重画失败、余额不足都从这里说话，
+          藏起来就是静默失败（铁律八）。它是 flex-none，出现时把方案台顶下去一点点而已 */}
       {err && (
         <div className="mx-4 mb-1.5 flex flex-none items-start gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
           <span className="min-w-0 flex-1">{err}</span>
@@ -860,31 +1311,35 @@ export default function FlowPage() {
           node={node}
           index={cursor}
           total={nodes.length}
-          matOpen={matOpen}
+          matOpen={matWindow}
           matShake={matShake}
           onToggleMat={() => setMatOpen((v) => !v)}
+          focus={planFocus}
+          // setState 的 setter 引用是稳定的：直接传它，NodeScreen 那个 effect 才不会
+          // 每次渲染都重跑一遍（重跑会把用户手动收起的专注态又拽回来）
+          onFocus={setPlanFocus}
         />
       </div>
 
       {/* ── 底部区：素材窗口开着时是【本段素材】，否则是【整条流水线的节点条】──
           这两样是同一块地方的两种用途：素材窗口一打开，用户关心的就是"这一段用哪些卡"，
           此时还占着位置的节点条只是噪音（而且那会儿他也不该跳段）。 */}
-      {(!simple || matOpen) && (
+      {(!simple || matWindow) && !planFocus && (
         <div
           className="flex-none border-t border-slate-800 bg-[#141821] px-3 pt-2.5"
           /* ★ 不能写 `safe-bottom pb-3`：.safe-bottom 在 index.css 里排在 @tailwind utilities
              之后，两条都是 padding-bottom，后写的赢 —— 于是没有安全区的设备（桌面、
              大多数安卓）padding-bottom 直接变成 0，素材卡整排贴死在屏幕最底边。
              两个值必须合成一个。素材条比节点条高，多留一点。 */
-          style={{ paddingBottom: `calc(${matOpen ? "1rem" : "0.75rem"} + env(safe-area-inset-bottom, 0px))` }}
+          style={{ paddingBottom: `calc(${matWindow ? "1rem" : "0.75rem"} + env(safe-area-inset-bottom, 0px))` }}
         >
-          {matOpen ? (
+          {matWindow ? (
             <MaterialStrip materials={node.materials ?? []} onRemove={(id) => removeMaterial(node.id, id)} />
           ) : (
             <>
               {/* 节点条 = 进度轨：已出片的和当前这段可以点，再往后是锁着的。
                   真正的拦截在 flowStore.clampCursor，这里画出"为什么点不动" */}
-              <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto">
+              <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto" data-guide="flow-node-strip">
                 {nodes.map((n, i) => {
                   const p = chosenOf(n);
                   const locked = frontier >= 0 && i > frontier;
@@ -957,7 +1412,7 @@ export default function FlowPage() {
       )}
 
       {/* 素材窗口：从屏幕上方落下，拖卡到屏幕中间交给看板娘 */}
-      {matOpen && (
+      {matWindow && (
         <MaterialSheet
           materials={node.materials ?? []}
           onAdd={(cards) => {

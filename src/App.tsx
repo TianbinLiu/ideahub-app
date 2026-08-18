@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router";
+import GuideGate from "./components/guide/GuideGate";
 import FeedPage from "./pages/FeedPage";
 import DiscoverPage from "./pages/DiscoverPage";
 import WorkshopPage from "./pages/WorkshopPage";
@@ -18,6 +19,7 @@ import DeckDetailPage from "./pages/DeckDetailPage";
 import TemplateDetailPage from "./pages/TemplateDetailPage";
 import TemplateMarketPage from "./pages/TemplateMarketPage";
 import CutPage from "./pages/CutPage";
+import VideoEditorPage from "./pages/VideoEditorPage";
 import CreatePage from "./pages/CreatePage";
 import FlowPage from "./pages/FlowPage";
 import StudioPage from "./studio/StudioPage";
@@ -136,6 +138,10 @@ export default function App() {
       <OauthDeepLinkBridge />
       <OrientationGuard />
       <UpdateGate />
+      {/* 新手引导的遮罩。★ 必须在 <Routes> **外面**：每一页自己的根容器多半是
+          `fixed inset-0`（首页/创作页/剪辑页/工作流页），挂在里面会跟着路由卸载，
+          而遮罩要能盖住任何一页。弹哪一份由每一屏自己 useAutoGuide 声明。 */}
+      <GuideGate />
       <Routes>
       <Route element={<TabLayout />}>
         <Route path="/" element={<FeedPage />} />
@@ -234,6 +240,21 @@ export default function App() {
         element={
           <RequireAuth>
             <CutPage />
+          </RequireAuth>
+        }
+      />
+      {/* 视频编辑页（白模 V2）：一个页面两种模式——作者的「选段 + 裁掉水印」与
+          套用者的「给人偶挂卡」。全屏推入页，不进 TabLayout（与 /cut 同形态）。
+          ★ 入参/出参走 location.state（形状见 VideoEditorPage 顶部注释），页面自己
+            按形状验收：拿不到入参时显示一句能读懂的解释 + 回首页，不是白屏。
+          ★ RequireAuth：两种模式的终点都要登录才成立——白模化打的是 requireAuth 的
+            blockoutize 端点，挂卡读的是**本账号**的素材库（未登录时 myCards 返回空，
+            不拦的话直接输 hash 进来会看到一个"我的卡都没了"的空列表）。 */}
+      <Route
+        path="/video-editor"
+        element={
+          <RequireAuth>
+            <VideoEditorPage />
           </RequireAuth>
         }
       />

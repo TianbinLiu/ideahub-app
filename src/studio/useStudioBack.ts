@@ -3,14 +3,21 @@
 //
 // 层级：组件本地浮层（backGuards）→ 工坊模式栈（store.goBack）→ 退到底回首页。
 //
-// 关于安卓物理返回键：现在**没接**。实测 @capacitor/app 没装（package.json 里只有
-// android/cli/core），而 Capacitor 8 的原生桥自己也不处理返回键（BridgeActivity 里
-// grep onBackPressed / OnBackInvoked / KEYCODE_BACK 全部零命中），所以真机上按返回
-// 是直接 finish Activity。要接的话在这里加一个 useAndroidBack(onBack) 调用 CapApp
-// .addListener("backButton", ...) 即可——逻辑已经收口在 useStudioBack 里，接不接
-// 只差那一个监听。之所以先不接：装插件会连带改 package-lock 与 android/ 下的生成
-// 物，是独立一批的事。targetSdk=36 下别去 MainActivity 手写 onBackPressed()，
-// 那个回调在 36 上根本不会被调用，只能走 AndroidX 的 OnBackPressedDispatcher。
+// 关于安卓物理返回键：**这一层还没接**，但它并不是"没反应"——
+// ⚠ 2026-08-14 更正：@capacitor/app **已经装了**（package.json 8.1.1，为第三方登录的
+//   appUrlOpen 深链装的）。它的 AppPlugin 在 OnBackPressedDispatcher 上挂了回调：
+//   全 app 只要**没有人**监听 "backButton"（现在确实没有，grep src/ 零命中），
+//   默认行为就是 `bridge.getWebView().goBack()` —— 也就是 WebView 的历史后退。
+//   HashRouter 下每个 navigate(push) 都是一格历史，所以真机上按返回 = 退回上一个路由。
+//   （这条老注释原来写着"插件没装、按返回直接 finish Activity"，两句都不对。它不是
+//    小事：发布之后落回哪一格，全看这个默认行为——正是 studioStore.publishedWorkId
+//    那段 ★★ 记的那个 bug。）
+// 要把返回键接进本文件这套栈，加一个 useAndroidBack(onBack) 调用 CapApp
+// .addListener("backButton", ...) 即可 —— 逻辑已经收口在 useStudioBack 里，接不接
+// 只差那一个监听。⚠ 但那一下会**同时接管全 app 的返回键**（监听一挂，上面那条默认
+// goBack 就不再执行），每一页的返回语义都得自己补上，是独立一批的事。
+// targetSdk=36 下别去 MainActivity 手写 onBackPressed()，那个回调在 36 上根本不会
+// 被调用，只能走 AndroidX 的 OnBackPressedDispatcher（插件走的就是它）。
 import { useCallback } from "react";
 import { useNavigate } from "react-router";
 import { popBackGuard } from "./backGuards";

@@ -4,7 +4,8 @@
 //   ① 有圈选标注 → 先按标注改设定帧（落在前半段改首帧、后半段改尾帧）
 //   ② 承接上一段的**真实**尾帧起拍（不是设定尾帧——设定帧只是画出来的示意）
 //   ③ 走参考生视频（简约模式 + 支持参考图的档位 + 卡上有形象图）就整步跳过；
-//      否则缺哪张设定帧就补画哪张
+//      否则缺哪张设定帧就补画哪张；白模模板（refVideoUrl）另走 r2v 复刻——
+//      设定帧一张不画，走不成**整句拒绝不降级**（见 blockoutIssue）
 //   ④ 交给 Seedance 出片，回捞真实尾帧顶替设定尾帧
 // 这四步以前只长在 flowStore.genNode 里。工坊要能单独出片时，与其抄一份，
 // 不如提出来共用——抄一份的必然结局是两边分叉（铁律六）。
@@ -12,8 +13,11 @@
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
 import { VIDEO_PROMPT_MAX, composeSegments, generateCover, prepareMaterialRefs, refineFrame } from "../ai";
-import { tierOf } from "../data/economy";
-import { CARD_TYPE_LABELS, viewsOf, type Card, type VideoAspect } from "../types";
+import { r2vPriceIssue, tierOf } from "../data/economy";
+// ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
+//   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
+import { refVideoIssue } from "../data/templates";
+import { CARD_TYPE_LABELS, viewsOf, type Card, type VideoAspect, type VideoTemplate } from "../types";
 
 export interface SegmentAnn {
   atSec: number;
@@ -44,6 +48,37 @@ export interface SegmentGenInput {
    * 而首尾帧与参考图在方舟是互斥场景。
    */
   refAllowed?: boolean;
+  /**
+   * 白模模板的参考视频（`template.refVideo.url`，服务端登记的公网地址——方舟 r2v 的
+   * video_url 只收 URL，自己去取）。非空 = 这一段走**白模 r2v**：把模板视频逐镜头复刻、
+   * 只换主体。走不成时**整句拒绝、绝不降级** —— 与 refAllowed 那条路的降级语义相反，
+   * 理由钉在 blockoutIssue 上。
+   */
+  refVideoUrl?: string;
+  /**
+   * 模板登记值的**原样镜像**（`template.refVideo`）。两个用途，都不是"下单参数"：
+   *   ① 门禁 —— 喂给 `data/templates.refVideoIssue`（模板视频自己合不合方舟窗口的**唯一
+   *      判据**）。★ 别在这里拆开它自己比数：那就成了第二份判据，而两份一起漂时没有症状。
+   *   ② 说话 —— 进度行里那句「时长跟随模板 N 秒」读 `durationSec`。
+   * **报价不在这里**：钱在 economy.segmentCost 的 refVideo 位算；出片时长是 edit 的协议
+   * 行为（输出≈输入，见 arkClient 的 BLOCKOUT_TASK），谁都不拿这个数下单。
+   * ★ 走不走白模仍由 `refVideoUrl` 的存在性决定（它才是真正发出去的那一位），本字段只是判据来源。
+   */
+  refVideo?: VideoTemplate["refVideo"];
+  /**
+   * 白模模板的**角色位**（`template.roles` 的镜像，见 types.VideoTemplate.roles）。
+   *
+   * ★★ 这里只当**存在性开关**用（`roles?.length`）：有 = V2 白模模板（人偶身上带着可寻址的
+   *   标记 —— 新模板是颜色、老模板是数字，编辑页已经把「标记 → 角色」的点名合成句填进了
+   *   `plot`）；缺省 = V1 老模板（人偶身上什么标记都没有，只能泛指）。两条路在下面出片
+   *   那一步显式分叉，注释在那里。
+   * ★ **哪种标记与本函数无关**：这一层从头到尾不读 label，方案分支整个活在 blockoutPrompt
+   *   那一处（所以那次改造这个文件一个字都没动）。
+   * ★ 内容（label/desc）本函数一个字都不读 —— 点名那句话由 `studio/blockoutPrompt`
+   *   在编辑页合成、用户过目并可改，**以输入框为准**。这里再读一遍 label 去拼一遍，
+   *   就成了同一条规则的第二处实现（而且与用户改过的那份必然分叉）。
+   */
+  roles?: { label: string; desc: string }[];
 }
 
 /**
@@ -67,12 +102,85 @@ export function refVideoOn(o: {
   carryFrame?: string | null;
   anns?: unknown[];
   refAllowed?: boolean;
+  /** 白模参考视频地址：存在 = 这一段是白模段，本判定整个让位（见 blockoutOn） */
+  refVideoUrl?: string;
 }): boolean {
+  // ★ 白模段（refVideoUrl 非空）不算「参考生视频」：它也发形象图，但那是白模路自己
+  //   混发的（视频给画面与运镜，形象图说"换成谁"）。这里不让位的话，界面那句
+  //   「省掉设定帧直接出片」的说明、报价的 refMode 位都会按参考生视频亮——说的是
+  //   另一件商品。白模自己的判定在 blockoutIssue/blockoutOn。
+  if (o.refVideoUrl) return false;
   if (!o.refAllowed) return false;
   if (!tierOf(o.videoTier).refImg) return false;
   if (o.firstFrame || o.carryFrame) return false;
   if (o.anns?.length) return false;
   return !!o.materials?.some((c) => viewsOf(c).length > 0);
+}
+
+/**
+ * 白模出片的统一替换句 —— **全仓只有这一处**（铁律六）。它刻意不进模板的 recipe：
+ * 烙进每个模板各一份的话，改一次措辞就得追着所有存量模板改，而且模板作者能把它改丢；
+ * 也不进 arkClient —— 那层只管协议形状，不管业务话术。
+ * 「红色小人」是白模素材的约定主体（上传引导与提取提示词同一措辞）。
+ *
+ * ★ 末尾那句「不要出现水印/台标/字幕/角标」是**尽力而为，不是保证**，别当成"水印问题已解决"：
+ *   edit 子任务的职责就是**逐镜头复刻参考视频**（背景、道具、运镜、群演原位全部照抄），
+ *   贴在画面上的台标对它而言与场景里的一块招牌没有区别 —— 2026-08-14 实拍确认，
+ *   参考视频带的 B 站水印在成片里**完整保留**，这句话写进去也一样。留着它是因为它几乎不要钱
+ *   （占 21 字提示词额度）、方向正确、且对半透明的浅台标偶有效果；
+ *   **真正的解法是上传前把带水印的边裁掉或换无水印素材** —— 那条在
+ *   VideoTemplateExtractor 的白模区（上传前的整句告知 + 帧角疑似水印提示）。
+ *   所以：这里的措辞永远不要被写成"已经不会有水印了"，UI 也不许据此把上传侧的告知拿掉。
+ * ★ 加长这句的代价是**故事正文被多切 21 字**（下面 VIDEO_PROMPT_MAX 的留位是从尾巴反推的）。
+ *   白模段的正文本来就只是"这一段讲什么"的补充（画面全部来自参考视频），少 21 字换一句
+ *   全局生效的负向约束划算；再往里加词前先想清楚这笔交换还成不成立。
+ */
+const BLOCKOUT_SWAP =
+  "。将视频中的红色小人替换为下列角色，严格保留视频中的背景、道具与运镜，画面中不要出现任何水印、台标、字幕或角标";
+
+/**
+ * 白模（blockout r2v）这一段**为什么走不成** —— 条件的唯一实现（铁律六）。
+ * null = 能走；否则是一句给用户看的整句原因。报价侧（flowStore.nodeCost 的透传位）、
+ * 界面说明（FlowPage）、真正出片（generateSegment 的门口）问的都是这一对
+ * （blockoutOn 是它的布尔视图），别在别处再抄一遍条件。
+ *
+ * ★ 与 refVideoOn 最关键的分野：**走不成必须整句拒绝，绝不降级**。refImg 那条路降级
+ *   到首尾帧只是"多画一张设定帧并说明"——拍的还是这段剧情，商品没变；白模的商品是
+ *   「把模板视频逐镜头复刻、只换主体」，降级到首尾帧等于把模板视频整个扔掉、拍一段
+ *   与模板毫无关系的片照收钱 —— 那不是降级，是偷换商品（铁律八）。
+ *
+ * 条件：档位开了白模且报得出价（收在 economy.r2vPriceIssue，一处实现）+ **模板视频本身
+ * 过得了方舟窗口**（收在 data/templates.refVideoIssue，一处实现）+ 无圈选 + 无设定首帧 +
+ * 无承接帧（首尾帧与参考媒体是方舟三大互斥场景；圈选改的就是设定帧，而白模段根本没有
+ * 设定帧）+ 卡上真有形象参考图（「换成谁」全靠它）。
+ */
+export function blockoutIssue(o: {
+  videoTier: string;
+  materials?: Card[];
+  firstFrame?: string;
+  carryFrame?: string | null;
+  anns?: unknown[];
+  refVideo?: VideoTemplate["refVideo"];
+}): string | null {
+  const price = r2vPriceIssue(o.videoTier);
+  if (price) return price;
+  // ★ 排在价目之后、其它条件之前：这一条是"这个模板根本用不了"，与用户挂没挂卡无关 ——
+  //   先让他去换模板，而不是先催他挂卡、挂完再告诉他这个模板本来就废了。
+  //   2026-08-16 之前这里**一条时长都不校**，于是 3.7 秒的坏模板从市场到详情页到工作流
+  //   全程绿灯，直到方舟同步 400（而全 app 没人监听 emitApiError）。
+  const ref = refVideoIssue(o.refVideo);
+  if (ref) return ref;
+  if (o.anns?.length) return "白模出片没有设定帧可圈选修改——先删掉圈选标注，想改画面就改那句话";
+  if (o.firstFrame) return "白模出片不能带设定首帧（首帧与参考视频在方舟是互斥场景）——清掉这张帧再出片";
+  if (o.carryFrame) return "白模段不承接上一段的尾帧（承接帧与参考视频在方舟是互斥场景）——白模模板只有一段";
+  if (!o.materials?.some((c) => viewsOf(c).length > 0))
+    return "白模出片要先挂一张带形象参考图的角色卡：模板只提供画面与运镜，「换成谁」全靠卡上的形象图";
+  return null;
+}
+
+/** 这一段走不走**白模 r2v** —— blockoutIssue 的布尔视图（条件只活在那一处） */
+export function blockoutOn(o: Parameters<typeof blockoutIssue>[0] & { refVideoUrl?: string }): boolean {
+  return !!o.refVideoUrl && blockoutIssue(o) === null;
 }
 
 /**
@@ -116,6 +224,16 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   let first = input.firstFrame;
   let last = input.lastFrame;
 
+  // ★ 白模门禁放在最前（步骤①之前）：圈选改帧那一步要花真钱出图，走进去再拒就白烧了。
+  //   走不成一律 throw 整句原因（绝不降级——理由钉在 blockoutIssue 的 ★ 上），
+  //   条件本身只活在 blockoutIssue 一处（铁律六）。过了这道门，blockout 恒等于
+  //   「refVideoUrl 非空」，后面各步据它绕开设定帧的整条产线。
+  const blockout = !!input.refVideoUrl;
+  if (blockout) {
+    const issue = blockoutIssue(input);
+    if (issue) throw new Error(issue);
+  }
+
   // ① 圈选 → 改设定帧。同一帧的多条标注串行叠加（上一次的产物当下一次的底图），
   //    并行会各改各的、互相覆盖
   // ★ 这一步**故意不带**素材卡的形象参考图：提示词的全部意思是"看<图片1>上那圈红线"，
@@ -144,8 +262,10 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   // ★ 判定用的是**顶替过承接帧之后**的 first：段间承接一旦成立就必须走首尾帧
   //   （方舟三种场景互斥），这一步的顺序不能反（refVideoOn 的条件④）
   let refMode = refVideoOn({ ...input, firstFrame: first });
-  /** 用户的意图是"直接拿卡片形象出片"（refAllowed + 挂了卡 + 没有帧可用） */
-  const wantRef = !!input.refAllowed && !!input.materials?.length && !first && !input.anns.length;
+  /** 用户的意图是"直接拿卡片形象出片"（refAllowed + 挂了卡 + 没有帧可用）。
+   *  白模段除外：它的意图是"复刻模板"，对它播"改画设定帧"那句就是宣布降级——
+   *  而白模走不成早在门口 throw 了，能到这里的白模段不该收到这句话 */
+  const wantRef = !blockout && !!input.refAllowed && !!input.materials?.length && !first && !input.anns.length;
   // 想走却走不成，**一律说出原因**：悄悄退回"按文字画一张设定帧"的代价是用户以为
   // 卡片形象被直接采用了，实际拿到的是一张重画的图，还多花一张出图的钱（铁律八）
   if (wantRef && !refMode) {
@@ -163,13 +283,30 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   // ★ 提示（哪张图没采用/为什么只锁一个角色）攒着，**不当场 prog 出去**：prog 写的是
   //   一行会被下一条盖掉的状态文字，而下一条（"绘制起拍画面…"）就在同一个同步块里，
   //   React 连画都没画过它 —— 等于这句话没说过。挂在开画那一行后面才看得见（铁律八）。
-  const needDraw = !first || (!last && tier.flf);
+  // ★ 白模一张设定帧都不画：画面整个来自模板视频（报价侧 economy.segmentCost 的
+  //   refVideo 位同一口径——报了"不画帧"的价就真不能画）
+  const needDraw = !blockout && (!first || (!last && tier.flf));
   const notes: string[] = [];
-  const refs = refMode || needDraw ? await prepareMaterialRefs(input.materials, (n) => notes.push(n)) : null;
+  // 白模也要形象图（混发：视频给画面与运镜，形象图说"换成谁"），所以 blockout 也准备
+  // ★ 白模路传 multiChar：它一张设定帧都不画，参考图直接进 Seedance r2v，而 r2v 带多张
+  //   人物参考图是实测成立的（2026-08-15 G0：3 张卡各自换到对应编号的人偶上，跨帧不串号）。
+  //   不传的话 allocateRefs 会照 Seedream 那条"一张图只画一个角色"的规则只喂第一张，
+  //   用户挂三张卡想换三个人、实际只有一个真换 —— 而那正是白模模板的全部卖点。
+  const refs =
+    blockout || refMode || needDraw
+      ? await prepareMaterialRefs(input.materials, (n) => notes.push(n), blockout)
+      : null;
   const noteTail = notes.length ? `（${notes.join("；")}）` : "";
   // 没有承接帧/底图时素材卡的图就是 <图片1> 起，offset = 0
   const bind = refs ? refs.bind(0) : "";
   const refUrls = refs?.refs.length ? refs.refs : undefined;
+  // ★ 白模：形象图一张都没准备成（图裂了/跨域读不出来）→ **整句失败，不降级**。
+  //   refImg 那条能退回首尾帧（拍的还是这段剧情），白模退无可退：没有形象图的 r2v
+  //   任务要么被方舟拒、要么受理后拍出一段没换主体的复刻片——受理后失败不退费，
+  //   替用户把这笔钱按住的唯一办法就是在这里响亮地停下（铁律八）。
+  if (blockout && !refUrls) {
+    throw new Error("角色卡上的形象参考图一张都没能读出来（图片可能已损坏），白模出片必须靠形象图说明「换成谁」——给卡换一张形象图再试");
+  }
   // ★ 走到这一步才发现一张参考图都没准备成（图裂了/跨域读不出来）：**退回首尾帧模式**
   //   而不是发一个没有参考图的"参考生视频"任务——那个任务方舟会拒，或者更糟：受理了
   //   然后拍出一段与卡片毫无关系的片子，钱照扣（受理后失败不退）。
@@ -177,7 +314,9 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
     refMode = false;
     prog("素材卡的形象参考图一张都没能用上，改为先按描述画一张设定帧再出片（多花约一张出图的钱）");
   }
-  if (!refMode && !first) {
+  // 补画只属于经典路（!blockout）：白模段 first/last 天然为空（门禁保证），
+  // 但空≠要补——它的画面在模板视频里
+  if (!blockout && !refMode && !first) {
     prog(`绘制起拍画面…${noteTail}`);
     first = await generateCover(
       `${input.framePrompt || input.plot.slice(0, 200)}${mats}${bind}`,
@@ -186,7 +325,7 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
       refUrls,
     );
   }
-  if (!refMode && !last && tier.flf) {
+  if (!blockout && !refMode && !last && tier.flf) {
     prog(`绘制结束画面…${noteTail}`);
     last = await generateCover(`${input.plot.slice(0, 180)} 的结束瞬间${mats}${bind}`, undefined, input.aspect, refUrls);
   }
@@ -196,15 +335,60 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   // 参考生视频没有设定帧兜底，"谁是谁"全靠这句绑定句（<图片1> 的面部特征 = 角色 XX），
   // 所以它必须进**视频**提示词；首尾帧模式下它已经写进 Seedream 的提示词里了，
   // 再塞一遍只会让 Seedance 去找并不存在的 <图片1>
-  const tail = `${mats}${refMode ? bind : ""}`;
+  // 白模的尾巴 = （V1 才有的）统一替换句 + 素材文字 + 绑定句：替换句说"干什么"（换主体、
+  // 严格保留背景道具运镜——BLOCKOUT_SWAP，一处实现），素材文字与绑定句说"换成谁"
+  // （<图片1> 的面部特征 = 角色 XX）。参考视频不占 <图片N> 编号（见 arkClient 的 content
+  // 拼装注释），所以 bind(0) 依旧成立。
+  //
+  // ★★ 白模有两条**互斥**的路，判据是这个模板有没有角色位（**存在性**，`roles?.length`
+  //   ——后加字段，老模板天然缺它、天然走老路，零迁移；等值判会把存量整批算进某一类
+  //   且一个错都不报，见 types.VideoTemplate.roles 的 ★）：
+  //   · **V2（有 roles）**：`plot` 里那段话已经是编辑页合成好的点名映射
+  //     （「编号4=张三」，studio/blockoutPrompt 一处实现，用户过目并可改）。
+  //     这条路**不再拼 BLOCKOUT_SWAP** —— 它说的「将视频中的红色小人替换为下列角色」
+  //     是**泛指**，与逐个点名摆在同一段话里就是自相矛盾（而"泛指盖过点名"正是白模化
+  //     那一步实测踩过的坑：泛指只换配角、主角不动，F4），还要白白吃掉
+  //     VIDEO_PROMPT_MAX 里 60 字的正文额度。
+  //   · **V1（没有 roles，老模板）**：人偶身上根本没有编号，除了泛指没有别的说法 ——
+  //     照旧拼 BLOCKOUT_SWAP。降级但诚实。
+  //   · **绑定句（bind）两条路都要拼**：图片编号 ↔ 角色是 prepareMaterialRefs 在出片
+  //     这一刻现分配的（谁被挤掉、同卡的图怎么连号），用户在输入框里改不出来、也没法
+  //     提前知道 —— 合成句里说的是角色**名**，全靠这一句把名字接到图上
+  //     （白模路是紧凑式 `张三=@图片1@图片2`，理由见 ai/real 的 bind）。
+  const named = blockout && !!input.roles?.length;
+  // ★★ V2（点名）那条路**不拼素材设定文字**（`mats`），只留绑定句。这不是省字的洁癖，是算出来的：
+  //   `mats` 每张卡 ≈ 50 字（卡种 + 名字 + 30~40 字设定），角色位上限放到 9 之后光它一项就
+  //   400 字打底 —— 而提示词硬顶就是 400，截断又是**从正文这头切**的（见下面的 room），
+  //   于是用户在输入框里亲眼过目、亲手改过的那段点名映射会被整段切没，画面照出、钱照收。
+  //   舍它而不是舍别的，是因为这条路上它最接近纯冗余：每个角色的名字在**点名句**里已经出现
+  //   （编号N=张三），形象由**参考图 + 紧凑绑定句**（张三=@图片1@图片2）锁定，而设定文字那 30 字
+  //   是豆包写的卡面简介，对"把白模换成这个人"几乎不添信息。
+  //   ⚠ 例外：某张卡的形象图全都读不出来时，它就只剩名字了 —— 那种情况由 prepareMaterialRefs
+  //   的 onNote 逐张点名（"第 N 张参考图未采用…"），一张都没成还会整句 throw，不是静默。
+  const tail = blockout ? (named ? bind : `${BLOCKOUT_SWAP}${mats}${bind}`) : `${mats}${refMode ? bind : ""}`;
   const story = reqs ? `${input.plot}。修改要求（必须满足）：${reqs}` : input.plot;
   // ★ 提示词有 VIDEO_PROMPT_MAX 的硬顶，而它是**从尾巴切**的 —— 尾巴恰好就是素材设定
   //   与绑定句。直接拼起来交上去的话：简约模式的输入框本身就允许 400 字，用户写满
   //   （或套个字数多一点的模板再挂张卡）就把绑定句整句切没了，而参考图照样发出去 ——
   //   模型于是只把它们当风格图用：卡挂了、片出了、人物一点都不像，且**零报错**。
   //   所以先给尾巴留位，要截就截故事正文（那部分少几个字用户看得出来，也不改变"谁是谁"）。
-  const plot = `${story.slice(0, Math.max(0, VIDEO_PROMPT_MAX - tail.length))}${tail}`;
-  if (refMode) prog(`参考卡片形象直接出片（省掉设定帧）…${noteTail}`);
+  const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length);
+  const plot = `${story.slice(0, room)}${tail}`;
+  // ★ 但"截了要说"（铁律八）。V2 白模路把这条从"理论风险"变成了"每天都可能发生"：
+  //   正文那段点名合成句本身就有一两百字，挂满三张卡时尾巴也有两百字上下 ——
+  //   悄悄切掉正文末尾，用户看到的是"我写的最后几条要求模型完全没照做"，零报错。
+  // ★ 不能单独 prog：下面那两行 prog 在同一个同步块里，会立刻把它盖掉（React 连画都
+  //   没画过它，等于这句话没说过）—— 与 noteTail 同一个理由，所以并进同一行说。
+  const cut =
+    story.length > room
+      ? `（⚠ 这一段的要求太长，末尾 ${story.length - room} 字没能发出去：提示词上限 ${VIDEO_PROMPT_MAX} 字，其中素材设定与形象绑定句占了 ${tail.length} 字——把要求写短些，或少挂一张卡）`
+      : "";
+  if (blockout)
+    prog(
+      `按模板视频逐镜头复刻出片（时长跟随模板${input.refVideo?.durationSec ? ` ${input.refVideo.durationSec} 秒` : ""}）…${noteTail}${cut}`,
+    );
+  else if (refMode) prog(`参考卡片形象直接出片（省掉设定帧）…${noteTail}${cut}`);
+  else if (cut) prog(`出片中…${cut}`);
   const [res] = await composeSegments(
     [
       {
@@ -214,7 +398,12 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
         durationSec: input.durationSec,
         videoTier: input.videoTier,
         aspect: input.aspect,
-        refImages: refMode ? refUrls : undefined,
+        // 白模也发形象图（混发：视频给画面与运镜，形象图说"换成谁"）；refUrls 非空由
+        // 上面那道 throw 保证
+        refImages: refMode || blockout ? refUrls : undefined,
+        // 报价（economy.segmentCost 的 refVideo 位）与这里必须同进同出：报了 r2v 的价
+        // 就必须真发参考视频，反之亦然（flowStore.nodeCost 与 genNode 读同一份模板快照）
+        refVideoUrl: input.refVideoUrl,
       },
     ],
     (_d, _t, status) => prog(status),

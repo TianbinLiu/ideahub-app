@@ -14,7 +14,7 @@ import { AI_REAL, refineFrame, regenSegment } from "../ai";
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
 import { fmtTokens, segTokens } from "../data/economy";
-import { useStudio } from "../studio/studioStore";
+import { publishedExit, useStudio } from "../studio/studioStore";
 import { VideoSegment, aspectOf, formatDuration, uid } from "../types";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 
@@ -83,7 +83,13 @@ export default function CutPage() {
 
   const leftRef = useRef(false);
   useEffect(() => {
-    if (!draft && !leftRef.current) navigate("/studio", { replace: true });
+    if (draft || leftRef.current) return;
+    // ★★ 去哪儿要看草稿是**怎么**没的（判据只在 studioStore.publishedExit 一处，铁律六）：
+    //   发布成功之后，这一格是流水线留下的死页 —— 安卓返回键（没注册 backButton 监听时
+    //   就是 webView.goBack()）会正好退回这里，而当时 leftRef 是新挂载的 false、draft
+    //   已被发布页清掉，于是"刚发完片的人被扔进他从没去过的 3D 工坊"。回工坊只对
+    //   "直接输地址闯进来"那种情况成立。
+    navigate(publishedExit() ?? "/studio", { replace: true });
   }, [draft, navigate]);
 
   // 初始化片段 + 预解析各段视频为可截帧的 blob 地址
