@@ -337,6 +337,27 @@ function markBoxesOf(api: { markBoxes?: unknown }, slotCount: number): NonNullab
 }
 
 /**
+ * 服务端那份 `markDescs` → 本机那一份。**长度必须与 `markSlots` 相等**，否则整份丢掉
+ * （与 `markBoxesOf` 逐字同源的纪律：少一条就整份错位，而错位是零报错的）。
+ *
+ * ★★ 这一位与 `roles[].desc` **不是同一件事**（服务端 model 里写了完整理由）：
+ *   · `roles[].desc` = 「这个位子**原来**是谁」，给作者核对、给套用者挑卡看；
+ *   · `markDescs[i]` = 「**这段白模视频里**那个人偶什么样」，写进套用提示词给 r2v 指认。
+ *   合成一位的后果当场就有：白模化（V2）那条路的 desc 来自**原片**，拼进提示词就是
+ *   「从左数第2个（白发黑袍的少年）=阿岚」，而参考视频那个位置站着一个白人偶。
+ * ★ 元素允许是空串 = 「这一条没通过唯一性自证」（服务端只认出个颜色）。空串**不拼括号** ——
+ *   一句"7 个人里 6 个都符合"的话进提示词是纯噪音，2026-08-18 一发实拍验过。
+ *   所以这里**不过滤空串**，原样留着（长度是承重的）。
+ */
+function markDescsOf(api: { markDescs?: unknown }, slotCount: number): string[] {
+  if (!Array.isArray(api.markDescs) || slotCount <= 0 || api.markDescs.length !== slotCount) return [];
+  const out = api.markDescs.map((d) => (typeof d === "string" ? d.trim() : ""));
+  // 全是空串 = 一条都没验过，与"没有这一位"要做的事完全相同 —— 别在本机留一个
+  // 看起来有、其实什么都不带的键（调试时分不清"老模板"和"这次一条都没验过"）
+  return out.some((d) => d) ? out : [];
+}
+
+/**
  * 服务端那份 `realDurationSec` → 本机 refVideo 上的**可选键**（有才出，没有就一个键都不加）。
  * ★ 唯一实现：apiToTemplate 与 registerTemplate 的回写都走它 —— 两处各写一遍 `|| 0`
  *   的话，一处漏了就是"这台设备上的这个模板永远判不出坏"，而且不报错。
@@ -355,6 +376,7 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
   const roles = rolesOf(api);
   const markSlots = markSlotsOf(api);
   const markBoxes = markBoxesOf(api, markSlots.length);
+  const markDescs = markDescsOf(api, markSlots.length);
   const boxAtSec = Number(api.markBoxAtSec);
   return {
     id: rid,
@@ -395,6 +417,9 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
     // 画面位置框：与 markSlots 长度不等时 markBoxesOf 已经整份丢掉（缺一个就关掉拖拽层）
     ...(markBoxes.length > 0 ? { markBoxes } : {}),
     ...(markBoxes.length > 0 && Number.isFinite(boxAtSec) && boxAtSec >= 0 ? { markBoxAtSec: boxAtSec } : {}),
+    // 人偶描述：同一条存在性语义。★ 它与 markBoxes **各自独立**（框没量出来 ≠ 描述没验过），
+    // 所以两者不共用同一个 if —— 合并的话"框失败"会把描述一起带走，白丢一次已经付过的钱
+    ...(markDescs.length > 0 ? { markDescs } : {}),
     published: api.status === "published",
   };
 }
@@ -636,6 +661,13 @@ export async function detectTemplateRoles(id: string, atSecs?: number[]): Promis
       delete t.markBoxes;
       delete t.markBoxAtSec;
     }
+    // ★ 人偶描述：与框**各自独立**（框没量出来 ≠ 描述没验过），所以单独一段。
+    //   ★★ 这一次认出了人却一条描述都没验过时要**清掉旧的**，理由与上面的框一模一样：
+    //   留着的话新 roles 会配着上一次的描述，长度还正好相等（人数没变），
+    //   于是套用提示词里那句括号说的是**另一个人偶**的样子 —— 零报错、指错人。
+    const backDescs = markDescsOf(api, (backSlots.length ? backSlots : t.markSlots ?? []).length);
+    if (backDescs.length) t.markDescs = backDescs;
+    else if (back.length) delete t.markDescs;
     recordState(api);
     persist();
   }
@@ -704,6 +736,10 @@ export async function registerTemplate(id: string): Promise<void> {
       const at = Number(api.markBoxAtSec);
       if (Number.isFinite(at) && at >= 0) t.markBoxAtSec = at;
     }
+    // 人偶描述：第五位，同批搬。★ 漏了它的表现是套用提示词里那句括号**永远不出现**，
+    // 而"没有括号"与"这段素材本来就没什么可描述的"在界面上完全一样（零报错）
+    const backDescs = markDescsOf(api, (backSlots.length ? backSlots : t.markSlots ?? []).length);
+    if (backDescs.length) t.markDescs = backDescs;
     recordState(api);
     registerErrors.delete(id);
     persist();
@@ -763,6 +799,16 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
         if (Number.isFinite(at) && at >= 0) local.markBoxAtSec = at;
         dirty = true;
       }
+      // ★★ 人偶描述同样跟着服务端走，而且这一跳**比别处更要紧**：作者可以在核对面板里
+      //   改写它（服务端 PATCH /roles 会把他改的那一份写进 markDescs），而他很可能是在
+      //   **另一台设备**上改的。不同步的话，这台设备出片时括号里塞的还是 AI 原来那句 ——
+      //   而他改写它的理由多半正是"AI 那句认不出人"。
+      // ★ 只在服务端真有时才回写，绝不因为"这次没回"就删本机那份（判否定的方向）。
+      const backDescs = markDescsOf(api, (backSlots.length ? backSlots : local.markSlots ?? []).length);
+      if (backDescs.length && JSON.stringify(backDescs) !== JSON.stringify(local.markDescs ?? [])) {
+        local.markDescs = backDescs;
+        dirty = true;
+      }
       // ★★ `realDurationSec` 也必须跟着服务端走，理由与上面 roles 那条**完全同构**，
       //   但少了它的后果更刁钻：这一位是 2026-08-16 才新增的（服务端回填脚本补进老文档），
       //   而本机 `mine` 里那份是**建模板时写下的**、永远不会自己长出这一位。
@@ -806,6 +852,11 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
         const at = Number(api.markBoxAtSec);
         if (Number.isFinite(at) && at >= 0) cached.markBoxAtSec = at;
       }
+      // 人偶描述：第五位。★★ **mine 与 shared 两份都要搬**（CLAUDE.md 那条坑的原话）——
+      //   `getTemplate` 是 mine 优先，所以只搬 shared 的话作者自己看不见；
+      //   只搬 mine 的话别人（换设备、市场来的）看不见。两边各管一半的路径。
+      const backDescs = markDescsOf(api, (backSlots.length ? backSlots : cached?.markSlots ?? []).length);
+      if (cached && backDescs.length) cached.markDescs = backDescs;
     }
     emit();
   } catch (e) {
@@ -1032,6 +1083,10 @@ export interface NewTemplate {
   markSlots?: VideoTemplate["markSlots"];
   /** 画面位置框（拖拽挂卡用）。与 markSlots 下标对齐，同批搬 */
   markBoxes?: VideoTemplate["markBoxes"];
+  /** 人偶描述（写进套用提示词给 r2v 指认）。★ 类型里必须有名字 —— 没有的话
+   *  `adoptBlockoutTemplate` 漏传它时 TS 连一声都不吭（CLAUDE.md 那条坑的原话）。
+   *  ⚠ 它**不是** `roles[].desc`，理由写在 types.ts 的 markDescs 上 */
+  markDescs?: VideoTemplate["markDescs"];
   /** 那些框量自第几秒 */
   markBoxAtSec?: VideoTemplate["markBoxAtSec"];
   /**
@@ -1504,6 +1559,24 @@ export function boxOfLabel(
 }
 
 /**
+ * 这个角色位在**白模视频里**长什么样 —— 没有就回 ""（套用提示词不拼那个括号）。
+ *
+ * ★★ 连接键与 `boxOfLabel` **逐字相同**（`markSlots.indexOf(label)`）：描述也挂在"位置"上、
+ *   不挂在角色位上。作者在核对面板把某一行改成「从左数第3个」，描述自动跟着走。
+ * ★ 回 "" 而不是 null：调用方只关心"有没有话可说"，两个空值形状只会让判断多一种写法。
+ * ⚠ **不要拿 `roles[].desc` 兜底**。那一位说的是「这个位子原来是谁」，白模化（V2）那条路
+ *   它来自原片（「白发黑袍的少年」）—— 兜底进提示词就是让模型照着白模化**之前**那个人画，
+ *   而参考视频里站着的是一个白人偶。缺了就是缺了，退回"只有序数"的老形状。
+ */
+export function markDescOfLabel(
+  t: Pick<VideoTemplate, "markSlots" | "markDescs"> | null | undefined,
+  label: string,
+): string {
+  const i = t?.markSlots?.indexOf(label) ?? -1;
+  return (i >= 0 ? t?.markDescs?.[i] : "") || "";
+}
+
+/**
  * 「**这个账号**现在能不能开炼白模化」—— 全 app 唯一实现（null = 能，否则是一句
  * 直接可显示的整句原因）。入口（提取器的白模开关）与真正开炼那一步问的都是它。
  *
@@ -1901,6 +1974,8 @@ function adoptBlockoutTemplate(api: branch.ApiBranchTemplate): VideoTemplate {
     //   判否定的代价就在这里：漏一位不是少个位置，是整份判成上一代方案（连升序排序一起丢）。
     ...(mapped.markSlots?.length ? { markSlots: mapped.markSlots } : {}),
     ...(mapped.markBoxes?.length ? { markBoxes: mapped.markBoxes } : {}),
+    // 人偶描述：与框各自独立（框没量出来 ≠ 描述没验过），所以单独一个存在性判断
+    ...(mapped.markDescs?.length ? { markDescs: mapped.markDescs } : {}),
     ...(mapped.markBoxAtSec !== undefined ? { markBoxAtSec: mapped.markBoxAtSec } : {}),
     remoteId: mapped.remoteId,
   });

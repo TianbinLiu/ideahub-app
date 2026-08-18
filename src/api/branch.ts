@@ -782,6 +782,19 @@ export interface ApiBranchTemplate {
   markBoxes?: Array<{ cx?: number; cy?: number; w?: number; h?: number }>;
   /** 那些框是在第几秒那一帧上量的（秒）。没有它，框就是一组无法核对的数 */
   markBoxAtSec?: number;
+  /**
+   * 与 `markSlots` 按下标对齐的**人偶描述**：「这段白模视频里第 i 个位置上那个人偶
+   * 长什么样、在干什么、站在哪个景物旁」（如 `白色、弯腰前倾，双手下垂、在左数第二条白条纹左侧`）。
+   * 套用提示词把它拼在绑定的等号左边，当序数之外的第二个指认锚点。
+   *
+   * ★★ 它**不是** `roles[].desc`（那一位说的是"这个位子**原来**是谁"，白模化那条路来自
+   *   **原片**）。合成一位会让 V2 模板拼出「从左数第2个（白发黑袍的少年）=阿岚」，
+   *   而参考视频里那个位置站着一个白人偶 —— 完整理由在 types.VideoTemplate.markDescs。
+   * ★ 单个元素可以是空串 = 这一条没通过服务端的唯一性自证（只认出个颜色）。
+   *   客户端对空串**不拼括号**。长度不等于 markSlots 时整份丢弃（同 markBoxes）。
+   * ★ 只有「自己传白模视频」那条路（detect-roles）产出它；白模化 V2 与所有老模板都没有。
+   */
+  markDescs?: string[];
   status?: "pending" | "published" | "blocked" | string;
   provenAt?: string | number | null;
   isOwner?: boolean;

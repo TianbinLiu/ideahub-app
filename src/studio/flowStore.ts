@@ -24,7 +24,14 @@ import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, proposalRedrawCost, proposalsCost
 import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
-import { BLOCKOUT_MAX_ROLES, markNoun, markSpecOf, refVideoIssue, splitCastRoles } from "../data/templates";
+import {
+  BLOCKOUT_MAX_ROLES,
+  markDescOfLabel,
+  markNoun,
+  markSpecOf,
+  refVideoIssue,
+  splitCastRoles,
+} from "../data/templates";
 import { type BlockoutCastSlot, blockoutApplySkeleton, castNameIssue, composeBlockoutPrompt } from "./blockoutPrompt";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
 import { blockoutIssue, generateSegment, refVideoOn } from "./segmentGen";
@@ -126,6 +133,14 @@ export type FlowTemplate = {
   /** 画面位置框与它们量自第几秒（挂卡面板的拖拽层用）。与 markSlots 下标对齐，同批进快照 */
   markBoxes?: VideoTemplate["markBoxes"];
   markBoxAtSec?: VideoTemplate["markBoxAtSec"];
+  /**
+   * 人偶描述（`VideoTemplate.markDescs` 的镜像）——「**这段白模视频里**第 i 个位置上
+   * 那个人偶什么样」，与 markSlots 下标对齐，写进套用提示词给 r2v 当第二个指认锚点。
+   * ⚠ 它**不是** `roles[].desc`（那一位说的是"原来是谁"，白模化那条路来自原片）。
+   * ★ 与 roles/markSlots 同一批进快照、同一条存在性语义：漏在这里没有任何症状，
+   *   只是括号永远不出现，而"没有括号"与"这段素材本来就没什么可描述的"长得一模一样。
+   */
+  markDescs?: VideoTemplate["markDescs"];
 } | null;
 
 /**
@@ -524,6 +539,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
           ...(t.markSlots?.length ? { markSlots: t.markSlots } : {}),
           ...(t.markBoxes?.length ? { markBoxes: t.markBoxes } : {}),
           ...(t.markBoxAtSec !== undefined ? { markBoxAtSec: t.markBoxAtSec } : {}),
+          // ★ 人偶描述：与框**各自独立**（框没量出来 ≠ 描述没验过），单独一个存在性判断
+          ...(t.markDescs?.length ? { markDescs: t.markDescs } : {}),
         },
       });
       return true;
@@ -668,7 +685,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const id = next[r.label];
       const card = id ? (mine.get(id) ?? null) : null;
       if (id && !card) missing.push(r.label);
-      slots.push({ label: r.label, desc: r.desc, card });
+      // ★ `desc`（原来是谁，给 chat 读）与 `mark`（白模视频里那个人偶什么样，写进括号）
+      //   是**两位**，别合并 —— 理由见 blockoutPrompt.BlockoutCastSlot 的 ★★★。
+      //   取值只有 markDescOfLabel 一处（连接键 markSlots.indexOf(label)，与框同源）。
+      slots.push({ label: r.label, desc: r.desc, mark: markDescOfLabel(tpl, r.label), card });
     }
     if (missing.length > 0) {
       set({
