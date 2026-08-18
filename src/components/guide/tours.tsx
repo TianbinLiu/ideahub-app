@@ -504,6 +504,263 @@ export const TOURS: GuideTour[] = [
       },
     ],
   },
+  {
+    id: "trim",
+    title: "选段与裁剪",
+    version: 1,
+    steps: [
+      {
+        title: "这一屏在决定两件事",
+        body: (
+          <>
+            你在这里框出的那一段、裁出的那一块，就是 AI 真正拿去白模化的全部内容。
+            它同时决定<b className="font-bold text-slate-100">这一发多少钱</b>（时长越长越贵），
+            而钱一开始算就退不了。
+          </>
+        ),
+      },
+      {
+        title: "先框出哪一段",
+        anchor: "trim-range",
+        body: (
+          <>
+            拖两头的把手只取你要的那几秒。
+            挑<b className="font-bold text-slate-100">人最齐、镜头最稳</b>的一段——
+            切镜多的素材里，同一个人在不同镜头里的位置不一样，套用时容易换错人。
+          </>
+        ),
+      },
+      {
+        title: "再裁掉台标与水印",
+        anchor: "trim-crop",
+        body: (
+          <>
+            拖四个角调裁剪框。水印<b className="font-bold text-amber-300">必须框到框外</b>：
+            出片是逐帧复刻画面，提示词去不掉它（实测），而模板会被反复套用——
+            留一个水印就是永久的。
+          </>
+        ),
+      },
+      {
+        title: "裁得太小会被挡下",
+        body: (
+          <>
+            方舟对画面大小、宽高比、时长都有硬门槛。
+            不过关时下面会<b className="font-bold text-slate-100">直接说是哪一条不合</b>，按那句话改就行，
+            不用在这里背数。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "workshop",
+    title: "创意工坊",
+    version: 1,
+    steps: [
+      {
+        title: "这一页管卡，不出片",
+        anchor: "workshop-studio-entry",
+        body: (
+          <>
+            这里只管<b className="font-bold text-slate-100">卡片和卡组</b>这些素材，不出片。
+            要摆桌铸卡、把卡炼成视频，从这条路进 3D 工坊。
+          </>
+        ),
+      },
+      {
+        title: "造卡四条路，两条花钱",
+        anchor: "workshop-extract-card",
+        body: (
+          <>
+            工坊铸卡、上传视频提卡<b className="font-bold text-slate-100">要花 token</b>，
+            按真出几张结算；自己传图、从市场拿都<b className="font-bold text-slate-100">不花</b>。
+          </>
+        ),
+      },
+      {
+        // ★ 有意不挂锚点：它排在卡片网格下面，卡一多就掉出首屏，而引导期间页面滚不动。
+        //   （屏外锚点现在会退成居中卡片，不再把「下一步」沉出屏幕 —— 但退化了圈就没了，
+        //   不如一开始就写清位置。）
+        title: "市场里点哪儿才是拿",
+        body: (
+          <>
+            下面「从市场添加」那一栏：点卡面只是<b className="font-bold text-slate-100">看详情</b>，
+            卡片下面那行小字才是收进自己的库。那一栏还能切成卡组、整套装走，都不花钱。
+          </>
+        ),
+      },
+      {
+        title: "卡组是干什么的",
+        anchor: "workshop-tabs",
+        body: (
+          <>
+            把常用的几张归成一组；出片时<b className="font-bold text-slate-100">人物和场景由卡组锁住，全片保持一致</b>。
+            散着的卡在旁边那个页签。
+          </>
+        ),
+      },
+      {
+        title: "组卡组：怎么加、怎么改",
+        anchor: "workshop-deck-new",
+        body: (
+          <>
+            先点「编辑」<b className="font-bold text-slate-100">再</b>点卡片，才是加进来或拿出去；卡角能定封面。
+            组名点上去直接改。删掉整组<b className="font-bold text-slate-100">不会删卡</b>。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "discover",
+    title: "分区",
+    version: 1,
+    steps: [
+      {
+        title: "一个框搜两样",
+        anchor: "discover-search",
+        body: (
+          <>
+            打字之后上面先出<b className="font-bold text-slate-100">人</b>、下面出作品。
+            作品是拿标题、简介、作者、分区一起对的，不只对标题。
+          </>
+        ),
+      },
+      {
+        title: "搜到的人",
+        anchor: "discover-users",
+        body: (
+          <>
+            人排在作品前面，点一行进他主页 —— 有些作品这里搜不到，去他主页能看全。
+            名字底下那串 <b className="font-bold text-slate-100">@ 开头的</b>，就是 @ 他时要打的那串。
+          </>
+        ),
+      },
+      {
+        title: "分区图标就是开关",
+        anchor: "discover-cats",
+        body: (
+          <>
+            点一个就只看这一类，选中的那个会放大亮起来；
+            <b className="font-bold text-slate-100">再点同一个才取消</b> —— 没有别的地方能关掉它。
+          </>
+        ),
+      },
+      {
+        title: "现在筛的是什么",
+        anchor: "discover-scope",
+        body: (
+          <>
+            分区和搜索词是<b className="font-bold text-slate-100">叠加</b>的。这行小字写着当前筛的是什么、有几个；
+            觉得作品变少了先看它。右边那两颗换排法：最火按播放多少排，最新按发布时间倒着排。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "profile",
+    title: "我的",
+    version: 1,
+    steps: [
+      {
+        title: "出片花的就是这些 token",
+        anchor: "profile-wallet",
+        body: (
+          <>
+            出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——
+            <b className="font-bold text-slate-100">套餐按月给且先扣，直充的不过期</b>。
+          </>
+        ),
+      },
+      {
+        title: "五个图标各管一堆",
+        anchor: "profile-tabs",
+        body: (
+          <>
+            从左到右是作品、草稿、卡片、卡组、收藏，点一下换一堆看。
+            图标旁边那个数字是这堆有几件；<b className="font-bold text-slate-100">空的那几堆不显示数字</b>。
+          </>
+        ),
+      },
+      {
+        title: "没做完的半成品在这一格",
+        anchor: "profile-tab-drafts",
+        body: (
+          <>
+            存着的半成品都在这儿。那把锁是「<b className="font-bold text-slate-100">还没发布</b>」，
+            不是私密。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。
+          </>
+        ),
+      },
+      {
+        title: "谁赞了你、谁关注了你",
+        anchor: "profile-notify",
+        body: (
+          <>
+            点它看消息 —— 全 app <b className="font-bold text-slate-100">只有这一个入口</b>。
+            有新的时候图标上会多一个红点，红点不报条数，进去才知道有几条。
+          </>
+        ),
+      },
+      {
+        title: "这三个数字里有一个能点",
+        anchor: "profile-stats",
+        body: (
+          <>
+            「关注」那格点开是你关注过的人的名单，就地能取关。
+            旁边两个是你<b className="font-bold text-slate-100">所有作品加起来</b>的总数，不是某一支的。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "tpldetail",
+    title: "模板详情",
+    version: 1,
+    steps: [
+      {
+        title: "白模那种模板：视频就是成片",
+        anchor: "template-refvideo",
+        body: (
+          <>
+            白模那种模板，出片就是<b className="font-bold text-slate-100">整段复刻这段视频</b>、只把人偶换掉。
+            上面的报价把模板视频自己的时长也计了一遍，不是只按出片时长算。
+          </>
+        ),
+      },
+      {
+        title: "点「用它出片」还不扣钱",
+        body: (
+          <>
+            那颗按钮只是把配方铺到出片那一屏，<b className="font-bold text-slate-100">钱要到那边点生成才扣</b>。
+            有角色位的模板会先领你去给人偶挂卡。
+          </>
+        ),
+      },
+      {
+        title: "自己做的那条才多一行",
+        body: (
+          <>
+            最底下那一行<b className="font-bold text-slate-100">只有作者看得见</b>。
+            发布＝别人搜得到、能付费套用；白模模板要先用它真出过一段片才让发。
+            下架只是收回来，你那份还在。
+          </>
+        ),
+      },
+      {
+        title: "删除是真的销毁",
+        body: (
+          <>
+            那一行最右那颗不是从列表里划掉：<b className="font-bold text-slate-100">云端那段模板视频和原始素材会一起没掉</b>，
+            谁都找不回。所以要点两下才认。
+          </>
+        ),
+      },
+    ],
+  },
 ];
 
 export function tourById(id: string): GuideTour | null {

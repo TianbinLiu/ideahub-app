@@ -11,6 +11,8 @@
 //   与工作流页「生成本段」旁那颗素材按钮是同一套做法（见 components/SpriteToggle）。
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../components/Icon";
+import HelpButton from "../components/guide/HelpButton";
+import { useAutoGuide } from "../components/guide/useAutoGuide";
 import SpriteToggle, { type SpriteSheet } from "../components/SpriteToggle";
 import UserRow from "../components/UserRow";
 import { Link } from "react-router";
@@ -62,6 +64,8 @@ const USER_DEBOUNCE_MS = 300;
 const USER_LIMIT = 6;
 
 export default function DiscoverPage() {
+  // ★ 无条件弹：这一页没有登录墙，谁都能逛
+  useAutoGuide("discover", true);
   const [videos] = useState(() => listVideos());
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null);
@@ -125,7 +129,10 @@ export default function DiscoverPage() {
 
   return (
     <div className="safe-top min-h-full px-4 pt-3">
-      <div className="mb-4 flex items-center gap-2 rounded-full border border-slate-700 bg-panel px-4 py-2.5">
+      {/* ★ `?` 摆在搜索框同一行的右边：这一页没有标题栏，没有别的地方好放，
+          而它必须在**正常流**里 —— absolute 定位会钻到系统状态栏底下去（首页栽过一次）。 */}
+      <div className="mb-4 flex items-center gap-2">
+        <div data-guide="discover-search" className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-700 bg-panel px-4 py-2.5">
         <Icon name="search" size={17} className="text-slate-500" />
         <input
           value={q}
@@ -138,13 +145,15 @@ export default function DiscoverPage() {
             <Icon name="close" size={16} />
           </button>
         )}
+        </div>
+        <HelpButton tour="discover" className="flex-none" />
       </div>
 
       {/* 用户结果：只在真的输入了东西时才占位置（没输入时这一页的主干是「浏览分区」）。
           ★ 四种状态都得画出来，少画一种就变成"用户看到空白自己去猜"（与消息页同一条理由，铁律八）：
             离线 / 这台服务器没有这个端点 / 出错 / 真的没这个人。 */}
       {key && (
-        <section className="mb-5">
+        <section data-guide="discover-users" className="mb-5">
           <h2 className="mb-2 text-sm font-semibold text-slate-300">用户</h2>
           {!canSearchUsers ? (
             // ★ 绝不能画成一个空列表：那等于说"查无此人"，而事实是"根本没查"。
@@ -207,6 +216,7 @@ export default function DiscoverPage() {
           窄屏上自然变成横滑。-mx-4 px-4 让滑动区贴到屏幕边缘，最后一个不会卡在 padding 里。
           pt-1/pb-1 是给选中那一下的放大留的余量，否则 scale 会被滚动容器裁掉。 */}
       <div
+        data-guide="discover-cats"
         className="no-scrollbar mb-5 -mx-4 flex justify-between gap-1 overflow-x-auto px-4 pb-1 pt-1"
       >
         {VIDEO_CATEGORIES.map((c) => {
@@ -254,7 +264,7 @@ export default function DiscoverPage() {
           ★ 选了分区**不在这里另开一枚 tag** —— 分区图标自己已经是高亮的了，
             再显示一遍就是把同一件事说两次，还引出"关掉 tag"和"再点一次图标"两条
             互相矛盾的退路。 */}
-      <div className="mb-2.5 flex items-center gap-2">
+      <div data-guide="discover-scope" className="mb-2.5 flex items-center gap-2">
         <h2 className="flex-none text-sm font-semibold text-slate-300">{sort === "new" ? "最新作品" : "最火作品"}</h2>
         <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">
           {cat ? `${cat} · ` : ""}

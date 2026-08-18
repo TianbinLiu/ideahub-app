@@ -12,6 +12,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import Icon from "../components/Icon";
+import HelpButton from "../components/guide/HelpButton";
+import { useAutoGuide } from "../components/guide/useAutoGuide";
 // ★ 与市场页共用同一个核对入口/面板（含"删掉一个角色位"）。两页各写一份必然分叉，
 //   而这一屏说的话直接决定作者会不会去重炼（花第二次钱）
 import { RoleConfirmEntry } from "../components/blockout/RoleConfirmSheet";
@@ -95,9 +97,14 @@ function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
         preload="metadata"
         className="mb-2 max-h-72 w-full rounded-lg bg-black"
       />
-      <p className="text-[11px] leading-relaxed text-slate-400">
-        套用出片时 AI 会整段复刻这段视频的场景、道具与运镜，只把主角位（红色小人）换成你挂的角色卡。
-        出片时长≈模板时长、画幅自适应模板视频。
+      {/* ★★ 这句话 2026-08-18 之前写的是「只把主角位（红色小人）换成你挂的角色卡」——
+          那是**上一代**的说法（人偶身上印数字/上颜色那两代），现在人偶通体纯白、
+          按「从左数第几个」指认，画面上根本没有"红色小人"。
+          指着一个不存在的东西说话，与功能坏了长得一模一样。
+          ★ 顺手压到一行：剩下那半句（时长与画幅）是每次都该看见的，留着。 */}
+      <p data-guide="template-refvideo" className="text-[11px] leading-relaxed text-slate-400">
+        套用出片＝整段复刻这段视频的场景、道具与运镜，只把人偶换成你挂的角色卡。
+        出片时长≈模板时长，画幅跟这段视频走。
       </p>
       {/* ★ 作者本人先看这一句：坏模板对他来说不是"换一个"，而是"这不是你的错、重做时至少
           选 5 秒"。它替代（不是叠加）下面那句给套用者的话 —— 两句一起显示会让作者以为
@@ -340,6 +347,11 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
 }
 
 export default function TemplateDetailPage() {
+  // ★ 无条件弹：这一页谁都能进（别人的模板也看得到），要教的四件事对所有人都成立 ——
+  //   作者那一行不出时，讲发布/删除的那两步会退成居中卡片，照样读得通。
+  // ⚠ 必须挂在**这个**组件上，不能挂在下面的 `OwnerBar`：那一块只对作者渲染，
+  //   挂在那儿等于"只有作者会自动看到引导"，而且它随发布状态挂载/卸载。
+  useAutoGuide("tpldetail", true);
   useTemplatesVersion();
   useSocialVersion();
   const { id } = useParams();
@@ -444,6 +456,7 @@ export default function TemplateDetailPage() {
           <Icon name="back" size={18} className="text-slate-300" />
         </button>
         <h1 className="text-base font-bold text-slate-100">模板详情</h1>
+        <HelpButton tour="tpldetail" />
         {!t.published && isMine && (
           <span className="ml-auto rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] text-amber-400">未发布</span>
         )}

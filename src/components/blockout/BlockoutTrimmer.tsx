@@ -254,7 +254,7 @@ export default function BlockoutTrimmer({
 
       {/* 裁剪框是干什么用的，必须在框旁边说 —— 不说的话大多数人根本不会去动它，
           而它是水印唯一的解（F7 实测：提示词去不掉，edit 是逐帧复刻） */}
-      <p className="text-[11px] leading-relaxed text-slate-400">
+      <p data-guide="trim-crop" className="text-[11px] leading-relaxed text-slate-400">
         拖四个角调整<b className="text-slate-200">裁剪框</b>，拖框身整体挪位。
         <b className="text-amber-300">台标 / 水印必须框到框外</b> —— AI 出片是逐帧复刻画面，
         提示词去不掉它（实测），裁掉是唯一的办法；而模板会被反复套用，留一个水印就是永久的。
@@ -271,7 +271,11 @@ export default function BlockoutTrimmer({
         </p>
       )}
 
+      {/* ★ 引导锚点包在外面而不是当 prop 传给 TrimBar：自定义组件不会把
+          不认识的 prop 透到 DOM 上，传了就是一个**找不到的锚点** ——
+          而找不到不报错，只是那一步退成居中卡片，没人会发现圈没了。 */}
       {geo && sel && (
+        <div data-guide="trim-range">
         <TrimBar
           totalSec={selectableSeconds(geo)}
           startSec={sel.startSec}
@@ -290,6 +294,7 @@ export default function BlockoutTrimmer({
           onSeek={(s) => setSeekTo(s)}
           disabled={busy}
         />
+        </div>
       )}
 
       {/* 「AI 看哪几帧」。★ 摆在时间轴**下面、校验与报价上面**是有意的：它复用同一条播放头，

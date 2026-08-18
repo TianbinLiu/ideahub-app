@@ -69,6 +69,18 @@ function rectOf(anchor: string): Rect | null {
   const r = el.getBoundingClientRect();
   // 宽高为 0 = 还没布局好 / 被隐藏了：当作没找到（画一个 0×0 的圈只会是个怪点）
   if (r.width <= 0 || r.height <= 0) return null;
+  // ★★★ **不在视口里的锚点一律当作没找到**（2026-08-18 修，这是个已经发出去的坑）。
+  //   引导期间页面**滚不动**（整层吃掉所有手势），所以一个在折叠线以下的锚点是够不着的；
+  //   而 `getBoundingClientRect` 对屏外元素照样返回非零宽高，老写法的"找不到就退成居中卡片"
+  //   那道兜底**根本不会触发**。后果不是少个圈：下面按空隙算位置时 `rect.top` 会超过 `vh`，
+  //   `bottom: vh - rect.top + …` 直接变负数，**说明卡跟着圈一起沉出屏幕，而最先被切掉的
+  //   正是卡片底部那颗「下一步」** —— 而这一层锁死整屏、没有跳过键、也不接管安卓返回键，
+  //   用户唯一的出路是按返回键**离开这一页**。
+  //   ⇒ 判"有没有和视口相交"，不相交就退成居中卡片（那一档本来就是设计好的兜底）。
+  //   ★ 用相交而不是"整个在视口内"：贴着边露出一半的锚点仍然圈得住、也指得准。
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  if (r.bottom <= 0 || r.top >= vh || r.right <= 0 || r.left >= vw) return null;
   return { top: r.top, left: r.left, width: r.width, height: r.height };
 }
 
@@ -155,15 +167,26 @@ export default function GuideOverlay() {
   /** 上下空隙小于这个数就别硬塞了（一张卡至少要能显示标题 + 两行正文 + 按钮） */
   const MIN_CARD_H = 190;
   const vh = window.innerHeight;
-  const gapAbove = rect ? rect.top - HOLE_PAD - GAP - EDGE : 0;
-  const gapBelow = rect ? vh - (rect.top + rect.height + HOLE_PAD) - GAP - EDGE : 0;
+  // ★ 空隙按**视口内**那一截算：`rect.top` 可能是负的（锚点被滚到上面去了一半），
+  //   直接拿它算会得到一个"上面还有很多地方"的假结论，而那块地方在屏幕外。
+  const vTop = rect ? Math.max(0, Math.min(vh, rect.top)) : 0;
+  const vBot = rect ? Math.max(0, Math.min(vh, rect.top + rect.height)) : 0;
+  const gapAbove = rect ? vTop - HOLE_PAD - GAP - EDGE : 0;
+  const gapBelow = rect ? vh - vBot - HOLE_PAD - GAP - EDGE : 0;
   const below = gapBelow >= gapAbove;
   const gap = Math.max(gapAbove, gapBelow);
   const anchored = !!rect && gap >= MIN_CARD_H;
+  // ★★ 第二道（上面 rectOf 那道是第一道）：空隙**先钳进视口**再判。
+  //   锚点只露出一半时 `rect.top` 可能是负的、`rect.top + rect.height` 可能超过 vh，
+  //   不钳的话算出来的空隙比屏幕还大，maxHeight 就拦不住卡片、位置也会偏出去。
+  //   两道都要：那一道管"够不着的锚点根本别用"，这一道管"够得着但只露一半"。
+  const clamp = (v: number) => Math.max(0, Math.min(vh, v));
+  const topIn = clamp(rect ? rect.top : 0);
+  const botIn = clamp(rect ? rect.top + rect.height : 0);
   const cardStyle: React.CSSProperties = anchored
     ? below
-      ? { top: rect.top + rect.height + HOLE_PAD + GAP, maxHeight: gap, overflowY: "auto" }
-      : { bottom: vh - rect.top + HOLE_PAD + GAP, maxHeight: gap, overflowY: "auto" }
+      ? { top: botIn + HOLE_PAD + GAP, maxHeight: gap, overflowY: "auto" }
+      : { bottom: vh - topIn + HOLE_PAD + GAP, maxHeight: gap, overflowY: "auto" }
     : { top: "50%", transform: "translateY(-50%)", maxHeight: "70vh", overflowY: "auto" };
 
   return createPortal(

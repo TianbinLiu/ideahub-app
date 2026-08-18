@@ -2,6 +2,8 @@
 // 与 3D 卡片工坊（/studio）分工：这里是资产管理，那里是创作现场。
 import { useEffect, useMemo, useState } from "react";
 import Icon from "../components/Icon";
+import HelpButton from "../components/guide/HelpButton";
+import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { Link } from "react-router";
 import {
   addCards,
@@ -168,6 +170,11 @@ export default function WorkshopPage() {
     return m;
   }, [cards]);
 
+  // ★★ 必须在下面那个登录墙 `if (!me) return` **之前**（hook 不能写在条件返回之后），
+  //   而 enabled 又必须是 `!!me` —— 未登录时整页是登录墙，那时弹一份讲卡片卡组的引导
+  //   等于对着一个不存在的界面说话，而且走完就记成"看过了"，用户真登录后再也不会自动看到。
+  useAutoGuide("workshop", !!me);
+
   if (!me) {
     return (
       <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-4 px-6">
@@ -184,7 +191,8 @@ export default function WorkshopPage() {
     <div className="safe-top min-h-full px-4 pt-3">
       <div className="mb-3 flex items-center justify-between">
         <h1 className="text-lg font-bold text-slate-100">创意工坊</h1>
-        <Link to="/studio" className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink">
+        <HelpButton tour="workshop" className="ml-auto mr-2" />
+        <Link data-guide="workshop-studio-entry" to="/studio" className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink">
           🎴 进入 3D 工坊
         </Link>
       </div>
@@ -205,7 +213,7 @@ export default function WorkshopPage() {
       </div>
 
       {/* 页签 */}
-      <div className="mb-3 flex gap-2">
+      <div data-guide="workshop-tabs" className="mb-3 flex gap-2">
         {(["cards", "decks"] as const).map((t) => (
           <button
             key={t}
@@ -236,6 +244,7 @@ export default function WorkshopPage() {
 
           {/* 从本地视频提卡：手里已经有片子的人不必从零铸卡，抽帧让 AI 认人认景直接出卡 */}
           <button
+            data-guide="workshop-extract-card"
             onClick={() => setExtractOpen(true)}
             className="mb-5 flex w-full items-center gap-3 rounded-xl border border-cyan-400/35 bg-gradient-to-r from-cyan-400/15 to-transparent px-3.5 py-3 text-left"
           >
@@ -439,6 +448,7 @@ export default function WorkshopPage() {
         <>
           {deckErr && <div className="mb-2 text-xs text-rose-400">{deckErr}</div>}
           <button
+            data-guide="workshop-deck-new"
             onClick={() => createDeck(`卡组 ${decks.length + 1}`)}
             className="mb-3 w-full rounded-xl border border-dashed border-slate-600 py-3 text-sm text-slate-300"
           >
@@ -499,7 +509,10 @@ export default function WorkshopPage() {
                   )}
                   {open && (
                     <div className="mt-3 border-t border-slate-700/60 pt-2.5">
-                      <div className="mb-1.5 text-[11px] text-slate-400">点击卡片加入/移出 · 组内卡片左上角可设为卡组封面</div>
+                      {/* ★ 只留"点它就是加/减"这半句：卡长得就是卡、没有按钮相，全页只有这一句
+                          在**事前**说明；而设封面那颗按钮自己就写着「设封面」，说明放在按钮上比
+                          放在这行小字里更近 —— 而这一行每展开一个卡组就重印一遍。 */}
+                      <div className="mb-1.5 text-[11px] text-slate-400">点卡片加入 / 移出</div>
                       <div className="grid grid-cols-4 gap-2">
                         {cards.map((c) => {
                           const on = d.cardIds.includes(c.id);
