@@ -553,6 +553,112 @@ export const TOURS: GuideTour[] = [
       },
     ],
   },
+  {
+    id: "workshop",
+    title: "创意工坊",
+    version: 1,
+    steps: [
+      {
+        title: "这一页管卡，不出片",
+        anchor: "workshop-studio-entry",
+        body: (
+          <>
+            这里只管<b className="font-bold text-slate-100">卡片和卡组</b>这些素材，不出片。
+            要摆桌铸卡、把卡炼成视频，从这条路进 3D 工坊。
+          </>
+        ),
+      },
+      {
+        title: "造卡四条路，两条花钱",
+        anchor: "workshop-extract-card",
+        body: (
+          <>
+            工坊铸卡、上传视频提卡<b className="font-bold text-slate-100">要花 token</b>，
+            按真出几张结算；自己传图、从市场拿都<b className="font-bold text-slate-100">不花</b>。
+          </>
+        ),
+      },
+      {
+        // ★ 有意不挂锚点：它排在卡片网格下面，卡一多就掉出首屏，而引导期间页面滚不动。
+        //   （屏外锚点现在会退成居中卡片，不再把「下一步」沉出屏幕 —— 但退化了圈就没了，
+        //   不如一开始就写清位置。）
+        title: "市场里点哪儿才是拿",
+        body: (
+          <>
+            下面「从市场添加」那一栏：点卡面只是<b className="font-bold text-slate-100">看详情</b>，
+            卡片下面那行小字才是收进自己的库。那一栏还能切成卡组、整套装走，都不花钱。
+          </>
+        ),
+      },
+      {
+        title: "卡组是干什么的",
+        anchor: "workshop-tabs",
+        body: (
+          <>
+            把常用的几张归成一组；出片时<b className="font-bold text-slate-100">人物和场景由卡组锁住，全片保持一致</b>。
+            散着的卡在旁边那个页签。
+          </>
+        ),
+      },
+      {
+        title: "组卡组：怎么加、怎么改",
+        anchor: "workshop-deck-new",
+        body: (
+          <>
+            先点「编辑」<b className="font-bold text-slate-100">再</b>点卡片，才是加进来或拿出去；卡角能定封面。
+            组名点上去直接改。删掉整组<b className="font-bold text-slate-100">不会删卡</b>。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "discover",
+    title: "分区",
+    version: 1,
+    steps: [
+      {
+        title: "一个框搜两样",
+        anchor: "discover-search",
+        body: (
+          <>
+            打字之后上面先出<b className="font-bold text-slate-100">人</b>、下面出作品。
+            作品是拿标题、简介、作者、分区一起对的，不只对标题。
+          </>
+        ),
+      },
+      {
+        title: "搜到的人",
+        anchor: "discover-users",
+        body: (
+          <>
+            人排在作品前面，点一行进他主页 —— 有些作品这里搜不到，去他主页能看全。
+            名字底下那串 <b className="font-bold text-slate-100">@ 开头的</b>，就是 @ 他时要打的那串。
+          </>
+        ),
+      },
+      {
+        title: "分区图标就是开关",
+        anchor: "discover-cats",
+        body: (
+          <>
+            点一个就只看这一类，选中的那个会放大亮起来；
+            <b className="font-bold text-slate-100">再点同一个才取消</b> —— 没有别的地方能关掉它。
+          </>
+        ),
+      },
+      {
+        title: "现在筛的是什么",
+        anchor: "discover-scope",
+        body: (
+          <>
+            分区和搜索词是<b className="font-bold text-slate-100">叠加</b>的。这行小字写着当前筛的是什么、有几个；
+            觉得作品变少了先看它。右边那两颗换排法：最火按播放多少排，最新按发布时间倒着排。
+          </>
+        ),
+      },
+    ],
+  },
 ];
 
 export function tourById(id: string): GuideTour | null {
