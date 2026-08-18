@@ -20,6 +20,8 @@
 // 短视频形态完全不搭，而且首页压根没有入口能走到"别人"的主页。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import HelpButton from "../components/guide/HelpButton";
+import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import Icon, { type IconName } from "../components/Icon";
 import DeckCard from "../components/DeckCard";
@@ -252,6 +254,13 @@ export default function ProfilePage() {
   }, [self, user?.id]);
   const unread = self ? notif.unread : 0;
 
+  // ★★★ enabled 必须是 `self && !!user`，与下面那个登录墙 return 的条件**互补**。
+  //   坑在于：未登录访问 /me 时 `self` **就是 true**（没有路由参数即 self），
+  //   而 hook 不能写在条件返回之后 —— 只写 `self` 的话，引导会**弹在登录墙上**：
+  //   整屏变暗、锁死点击，五步讲一个界面上根本不存在的钱包和页签；走完还记成"看过了"，
+  //   用户真正登录之后**再也不会自动看到**。登录墙挡得住 JSX，挡不住 hook。
+  useAutoGuide("profile", self && !!user);
+
   function flash(msg: string) {
     setToast(msg);
     window.clearTimeout(toastTimer.current);
@@ -385,7 +394,9 @@ export default function ProfilePage() {
             <div className="flex items-center">
               {/* 通知入口。★ 放这儿而不是底栏加一格：TabBar 是五格，底缘那 100px 的
                   几何是承重的（CLAUDE.md「动了首页底缘任何一个元素」那条）。 */}
+              <HelpButton tour="profile" />
               <Link
+                data-guide="profile-notify"
                 to="/notifications"
                 className="relative flex h-11 w-11 items-center justify-center text-slate-300"
                 aria-label={unread > 0 ? `消息（${unread} 条未读）` : "消息"}
@@ -477,7 +488,7 @@ export default function ProfilePage() {
         {/* 统计：竖线分隔，数字大、标签小（TikTok 同款视觉层级）。
             ★ 别人的主页可能有四栏（多一个「粉丝」），每格得从 84px 收到 70px ——
               4×84=336 已经超过 375px 屏减去两侧 px-5 之后的 335px，会把最后一栏挤出屏幕。 */}
-        <div className="mt-3.5 flex items-stretch">
+        <div data-guide="profile-stats" className="mt-3.5 flex items-stretch">
           {stats.map((s, i) => {
             const cell = stats.length > 3 ? "min-w-[70px]" : "min-w-[84px]";
             const body = (
@@ -569,6 +580,7 @@ export default function ProfilePage() {
               现在余额读不到时按钮照样在，点开就会重新拉一次（WalletSheet 的 effect）。 */}
         {self && (
           <button
+            data-guide="profile-wallet"
             onClick={() => setWalletOpen(true)}
             className="mt-4 flex w-full items-center gap-3 rounded-xl border border-slate-700/60 bg-panel px-3.5 py-2.5 text-left"
           >
@@ -628,6 +640,7 @@ export default function ProfilePage() {
 
       {/* ── 页签：只有图标 + 计数（TikTok 同款），sticky 在顶栏正下方 ────── */}
       <div
+        data-guide="profile-tabs"
         className="sticky z-10 mt-4 flex border-b border-slate-800 bg-ink"
         style={{ top: `calc(env(safe-area-inset-top, 0px) + ${HEADER_H})` }}
       >
@@ -637,6 +650,9 @@ export default function ProfilePage() {
           return (
             <button
               key={k}
+              // ★ 锚点按 key 生成、**不按下标**：下标那种写法在页签数量变化时会指到别人身上
+              //   （本人五格、别人两格）
+              data-guide={`profile-tab-${k}`}
               onClick={() => setTab(k)}
               aria-label={m.label}
               title={m.label}

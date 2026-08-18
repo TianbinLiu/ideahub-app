@@ -659,6 +659,108 @@ export const TOURS: GuideTour[] = [
       },
     ],
   },
+  {
+    id: "profile",
+    title: "我的",
+    version: 1,
+    steps: [
+      {
+        title: "出片花的就是这些 token",
+        anchor: "profile-wallet",
+        body: (
+          <>
+            出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——
+            <b className="font-bold text-slate-100">套餐按月给且先扣，直充的不过期</b>。
+          </>
+        ),
+      },
+      {
+        title: "五个图标各管一堆",
+        anchor: "profile-tabs",
+        body: (
+          <>
+            从左到右是作品、草稿、卡片、卡组、收藏，点一下换一堆看。
+            图标旁边那个数字是这堆有几件；<b className="font-bold text-slate-100">空的那几堆不显示数字</b>。
+          </>
+        ),
+      },
+      {
+        title: "没做完的半成品在这一格",
+        anchor: "profile-tab-drafts",
+        body: (
+          <>
+            存着的半成品都在这儿。那把锁是「<b className="font-bold text-slate-100">还没发布</b>」，
+            不是私密。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。
+          </>
+        ),
+      },
+      {
+        title: "谁赞了你、谁关注了你",
+        anchor: "profile-notify",
+        body: (
+          <>
+            点它看消息 —— 全 app <b className="font-bold text-slate-100">只有这一个入口</b>。
+            有新的时候图标上会多一个红点，红点不报条数，进去才知道有几条。
+          </>
+        ),
+      },
+      {
+        title: "这三个数字里有一个能点",
+        anchor: "profile-stats",
+        body: (
+          <>
+            「关注」那格点开是你关注过的人的名单，就地能取关。
+            旁边两个是你<b className="font-bold text-slate-100">所有作品加起来</b>的总数，不是某一支的。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "tpldetail",
+    title: "模板详情",
+    version: 1,
+    steps: [
+      {
+        title: "白模那种模板：视频就是成片",
+        anchor: "template-refvideo",
+        body: (
+          <>
+            白模那种模板，出片就是<b className="font-bold text-slate-100">整段复刻这段视频</b>、只把人偶换掉。
+            上面的报价把模板视频自己的时长也计了一遍，不是只按出片时长算。
+          </>
+        ),
+      },
+      {
+        title: "点「用它出片」还不扣钱",
+        body: (
+          <>
+            那颗按钮只是把配方铺到出片那一屏，<b className="font-bold text-slate-100">钱要到那边点生成才扣</b>。
+            有角色位的模板会先领你去给人偶挂卡。
+          </>
+        ),
+      },
+      {
+        title: "自己做的那条才多一行",
+        body: (
+          <>
+            最底下那一行<b className="font-bold text-slate-100">只有作者看得见</b>。
+            发布＝别人搜得到、能付费套用；白模模板要先用它真出过一段片才让发。
+            下架只是收回来，你那份还在。
+          </>
+        ),
+      },
+      {
+        title: "删除是真的销毁",
+        body: (
+          <>
+            那一行最右那颗不是从列表里划掉：<b className="font-bold text-slate-100">云端那段模板视频和原始素材会一起没掉</b>，
+            谁都找不回。所以要点两下才认。
+          </>
+        ),
+      },
+    ],
+  },
 ];
 
 export function tourById(id: string): GuideTour | null {
