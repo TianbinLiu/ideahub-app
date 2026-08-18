@@ -54,7 +54,7 @@ import type { TemplateRole } from "./arkVideoRules";
 // ★ 角色位上限、"哪几个能挂卡"、"这个模板是哪种标记方案"全部取自 data 层（一处实现）——
 //   这里只负责把它们画出来，不复述判断，更**不许**在本文件里出现任何序数措辞常量
 //   （data/templates 那段 ★★★）
-import { BLOCKOUT_MAX_ROLES, splitCastRoles, type MarkSpec } from "../../data/templates";
+import { BLOCKOUT_MAX_ROLES, prominentRoleWarning, splitCastRoles, type MarkSpec } from "../../data/templates";
 import type { Card, MarkBox } from "../../types";
 
 /**
@@ -199,6 +199,13 @@ export default function RoleCastBoard({
    */
   const boxesStillMatchRoles =
     ordinal && roles.length === dropSlots.length && roles.every((r) => dropSlots.includes(r.label));
+  /**
+   * 「这段素材里有个特别显眼的人，挂卡可能被换到它身上」—— 判据的**唯一实现**在
+   * `data/templates.prominentRoleWarning`（颜色异类 ∧ 就在正中，两个都要，九发实拍标定的）。
+   * ★ 这里只负责显示：别在组件里补一句"顺便也判判谁最大"，那就是第二处判据了
+   *   （而"最大的那个"实测指向的是另一个人，加了会当场说错话）。
+   */
+  const prominent = useMemo(() => prominentRoleWarning(roles, dropSlots, boxes), [roles, dropSlots, boxes]);
   const dragOn =
     ordinal &&
     !!boxes &&
@@ -540,6 +547,22 @@ export default function RoleCastBoard({
 
   return (
     <div className="space-y-3">
+      {/* ══ ①′ “这段素材里有个特别显眼的人” ══════════════════════
+          ★★★ 这句话是 **2026-08-18 九发付费实拍的唯一产出**：当画面里有一个
+            颜色异类、而且它就在正中时，r2v 会把卡换到**它**身上 —— 不管你挂给谁。
+            序数、多维描述、连“这个不要换”的反向点名都推不动它（第三发还多赔了一个）。
+          ★★ 不说的后果是铁律八那一类：用户认真挂完卡、付了 r2v 的钱，拿到一段换错人的片，
+            而全程没有任何一层会喊。我们既然已经知道了，就得在他花钱**之前**说出来。
+          ★ 带着一条**真能做的事**（拿原视频重走一遍 AI 白模化 → 人偶全变纯白），
+            而不是只扔一句警告：白模化恰好打断了那个合取里的“颜色异类”一半。
+          ★ 措辞里必须有“不重做也能用”与“看错了直接忽略”：它是尽力而为的启发式，
+            不是闸（判据与完整复盘在 data/templates.prominentRoleWarning）。 */}
+      {prominent && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+          {prominent}
+        </div>
+      )}
+
       {/* ══ ① 人物卡：一条横轨，摆在**最上面** ══════════════════════════════
           ★★ 2026-08-17 版式改成「卡在上 → 画面在中 → 格子在下」。此前卡在最下面，
             于是"拖卡"是**向上**拖、要越过整块画面；而挂卡的落点（格子）又在画面下方，
