@@ -103,6 +103,15 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
   /** 这个模板是哪种标记方案（判据只有 data 层一处）。整屏的输入方式与措辞都跟着它走 */
   const spec = markSpecOf(t);
   const ordinal = spec.scheme === "ordinal";
+  /**
+   * 这一条描述会不会**进到付费提示词里**。
+   *
+   * ★★★ 判据是 `markDescs` 存不存在，与服务端 PATCH /roles 那一条逐字同源：
+   *   它只**改已有的**、绝不凭空创建。两边一漂就是这屏在骗人：
+   *   要么说“只给人看”而它其实进了提示词，要么说“会进提示词”而作者白写一场。
+   * ★ V2（白模化）那条路没有这一位 —— 它的描述说的是“原片里是谁”，只给人看。
+   */
+  const descGoesToPrompt = ordinal && !!t.markDescs?.length;
   const noun = markNoun(spec);
   /** 序数方案下可选的那几个位置 = **这段视频里真实存在的**那几个（不是一张凭空的 1..9 表）。
    *  ★ 这正是当初选择存 `markSlots`（而不是一个 `markScheme` 枚举）的理由之一：
@@ -381,7 +390,11 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="mb-1 text-[9px] text-slate-500">这个位置原来是谁（套用的人只看这句话）</div>
+                  <div className="mb-1 text-[9px] text-slate-500">
+                    {descGoesToPrompt
+                      ? "画面里怎么认出这个人偶（这句话会进出片提示词）"
+                      : "这个位置原来是谁（套用的人只看这句话）"}
+                  </div>
                   <input
                     /* ★ 引导锚点只给第一行：每行都写的话 querySelector 命中的仍是第一个，
                          但高亮圈会随列表顺序漂移（第一行被删成待删态时那一行就没有输入框了） */
@@ -389,7 +402,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
                     value={r.desc}
                     onChange={(e) => setRow(r.key, { desc: e.target.value })}
                     maxLength={300}
-                    placeholder="例：白发、黑袍的少年"
+                    placeholder={descGoesToPrompt ? "例：白色、弯腰前倾、在最左那盏路灯下" : "例：白发、黑袍的少年"}
                     className="w-full rounded-lg bg-black/40 px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-600"
                   />
                 </div>

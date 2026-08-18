@@ -274,6 +274,23 @@ export function castNameIssue(name: string): string | null {
  *   调用方从模板带下来。
  */
 export function blockoutApplySkeleton(cast: BlockoutCastSlot[], userLine: string, spec: MarkSpec): string {
+  return buildSkeleton(cast, userLine, spec).text;
+}
+
+/**
+ * 骨架 + **这一次到底给哪几个位子拼了括号**。
+ *
+ * ★★★ 为什么要把 `usedDesc` 一并返回（2026-08-18）：合成后的 `hasPair` 要逐字核对
+ *   括号里那截（否则豆包把两条描述对调也能蒙混过关），而“到底带没带括号”是
+ *   预算那条规则（`full.length <= budget`）当场决定的。校验侧再算一遍就是**同一条规则
+ *   的第二处实现** —— 两边一漂，表现是“一段完全正确的提示词被整段拒掉”的误拒，
+ *   而用户只能手写。所以让它把结果**告诉**校验侧，不让校验侧去猜。
+ */
+function buildSkeleton(
+  cast: BlockoutCastSlot[],
+  userLine: string,
+  spec: MarkSpec,
+): { text: string; usedDesc: Map<string, string> } {
   // ★★★ 这一行是承重的（见 orderSlots 的 ★★★）：序数方案下**书写顺序就是语义**
   const slots = orderSlots(cast, spec);
   // flatMap 而不是 filter：filter 之后 TS 仍然认为 card 可能是 null，只能靠 `!` 硬压 ——
@@ -305,9 +322,18 @@ export function blockoutApplySkeleton(cast: BlockoutCastSlot[], userLine: string
       //   要么无害，不会主动指错人。
       //   ⚠ 括号加在**等号左边**是有意的：绑定的形状（`位置=角色名`）与顺序一个字没变，
       //     orderSlots 那条承重规则、以及下面三处正则的语义都还成立。
+      // ★★ 序数版这里也去掉了「白色」二字（2026-08-18，与下面空位句同一个理由）：
+      //   括号里第一项**就是颜色**，而这条路支持不同色的人偶 —— 于是同一句话可以变成
+      //   「替换**白色**人偶：从左数第2个（**红色**，双手上举）=阿岚」，自相矛盾。
+      //   模型有两种同样自洽的读法：把它当成"这个不是白的、不用换"，或者去画面里另找一个
+      //   白的换 —— 两种都是换错人。而那个彩色的恰恰是 #46 里"读起来像主角、序数压不住"
+      //   的那一个，括号本来就是为救它加的。
+      //   ⚠ 这一条**审查时被反驳过**（理由是这条路叫"白模"），我还是改了：用户对这条
+      //     上传路的原话是"人偶但不限颜色"，服务端认人提示词也照这个写。少一个形容词
+      //     不影响指令完整性，而一句自相矛盾的话没有任何上行空间。
       parts.push(
         ordinal
-          ? `按画面里从左到右的位置替换白色人偶${anyParen ? "（括号里是这个人偶在画面里的样子）" : ""}：${taken
+          ? `按画面里从左到右的位置替换人偶${anyParen ? "（括号里是这个人偶在画面里的样子）" : ""}：${taken
               .map(bind)
               .join("、")}。`
           : `把带编号的白色人偶替换为对应角色：${taken.map((s) => `编号${s.label}=${s.name}`).join("、")}。`,
@@ -329,7 +355,10 @@ export function blockoutApplySkeleton(cast: BlockoutCastSlot[], userLine: string
   //   描述短的时候 7 个也塞得下却被拦掉，描述长的时候 6 个塞不下却放行（后者会把尾巴挤掉）。
   const cards = new Set(taken.map((s) => s.id)).size;
   const full = build(true);
-  return full.length <= blockoutPromptBudget(cards) ? full : build(false);
+  const withDescs = full.length <= blockoutPromptBudget(cards);
+  const usedDesc = new Map<string, string>();
+  if (withDescs && ordinal) for (const t of taken) if (t.desc) usedDesc.set(t.label, t.desc);
+  return { text: withDescs ? full : build(false), usedDesc };
 }
 
 /** 骨架里"挂卡那句"之后的部分 —— 两个分支（带描述/不带）共用，避免整段被抄成两份 */
@@ -343,9 +372,16 @@ function buildRest(parts: string[], free: BlockoutCastSlot[], ordinal: boolean, 
     // ★★ 序数版不需要那半句：人偶身上**什么都没有**，"保持白色人偶的样子"已经说全了。
     //   ★ 空位句里每个位子都写成 `${label}的人偶`（「最右边**的**人偶」）——「最右边人偶」
     //     不是中文，而 hasLabel 的右边界正是按这个写法配的正则（两者是一对，改一个必须改另一个）。
+    // ★★★ 序数版这句 2026-08-18 从「保持**白色**人偶的样子」改成「保持人偶原样」：
+    //   「自己传白模视频」那条路**明确支持不同色的人偶**（用户的原话就是"人偶但不限颜色"，
+    //   服务端认人提示词也写着"所有人都同一个颜色时照实写，不要编"，实测样本正是 6 白 + 1 红）。
+    //   对一个红色人偶说"保持白色人偶的样子"，那不是"保持原样"，是**命令模型把它改成白的** ——
+    //   而这一句本来的全部意义就是"别动它"。
+    //   ⚠ 编号版那一句**一个字都不动**：它是存量 6 个模板的逐字副本，而那些模板的人偶
+    //     确实通体纯白（还印着号，所以后半句"同样去掉编号"也必须留着）。
     parts.push(
       ordinal
-        ? `${free.map((s) => `${s.label}的人偶`).join("、")}保持白色人偶的样子，不要替换成任何人。`
+        ? `${free.map((s) => `${s.label}的人偶`).join("、")}保持人偶原样，不要替换成任何人。`
         : `${free.map((s) => `编号${s.label}`).join("、")}保持白色人偶的样子，但同样去掉编号。`,
     );
   }
@@ -418,6 +454,24 @@ function hasLabel(text: string, label: string, spec: MarkSpec): boolean {
 const DESC_PAREN = "(?:\\s*[（(][^）)]*[）)])?";
 
 /**
+ * 角色名的**右边界** —— 名字后面不许再跟一个"像名字的字"。
+ *
+ * ★★★ 没有它的后果（2026-08-18 审查抓到，实跑复现过）：两张卡叫「凛」与「凛音」
+ *   （flowStore 那道重名硬拦只判**完全相同**的名字，前缀关系对它完全不可见）。
+ *   豆包把 `最左边（…）=凛、最右边（…）=凛音` 改写成两句都是「=凛音」时，
+ *   `hasPair(最左边,「凛」)` 会在「凛音」里命中**前缀**而判真 —— 四道校验全过，
+ *   而成品里「凛」整个消失、两个人偶都换成凛音，尾巴上那句 `凛=@图片1` 悬空。
+ *   正是「换错人 + 多出重复角色」，画面照出、钱照收、零报错。
+ *   ⚠ 缺口比"前缀撞名"更宽：任何**超串**都能过（模型给名字加个后缀写成 `=凛老师`），
+ *   那一版只要**一张**卡就能发作。
+ * ★ label 那一侧早就有边界（编号是 `(?![0-9])`、序数靠"措辞互不为子串"），
+ *   名字这一侧一直是空的 —— 这个不对称是写的时候没想到，不是有意为之。
+ * ★ 判的是"下一个字不是汉字/字母/数字"：骨架里名字后面跟的是 `、`、`。` 或句尾，
+ *   都过得了；而 `=凛和最右边=岚` 这种改写会被拦下 —— 它**本来就该**被拦下。
+ */
+const NAME_END = "(?![\\u4e00-\\u9fa5A-Za-z0-9])";
+
+/**
  * 「`最左边=角色名` / `编号N=角色名` 这条绑定还原样在不在」—— 比 hasLabel 更严的一档。
  *
  * ★★ 光查"标记还在""名字还在"是不够的：模型很爱把 `编号1=张三、编号2=李四` 改写成
@@ -428,11 +482,20 @@ const DESC_PAREN = "(?:\\s*[（(][^）)]*[）)])?";
  * ★ 序数版不需要 `(?![0-9])`：等号本身就是右边界，而措辞互不为子串（见 hasLabel 的 ★★）。
  * ⚠ 这一道是**逐条**的，管不了顺序 —— 顺序由 orderKept 单独管（见 composeBlockoutPrompt）。
  */
-function hasPair(text: string, label: string, name: string, spec: MarkSpec): boolean {
+function hasPair(text: string, label: string, name: string, spec: MarkSpec, desc?: string | null): boolean {
   const l = esc(label);
   const n = esc(name);
+  // ★★★ 有描述时要求括号里那截**逐字就是这一条**（2026-08-18 补）。
+  //   `DESC_PAREN` 的 `[^）)]*` 对内容零校验 —— 豆包把两条描述**对调**、把描述挪到
+  //   别的位子、或给本来没描述的位子凭空编一个，三道校验一律放行。而描述正是这一轮
+  //   加进来的"第二个锚点"：对调之后它不是失效，是**主动把模型指向另一个人**。
+  //   ★ 仍然允许全角/半角括号互换（那是排版），里面一个字都不许变。
+  //   ★ 没描述时走 `DESC_PAREN`（可选）：它得容得下"本来就没有括号"这一档。
+  const paren = desc ? `\\s*[（(]${esc(desc)}[）)]` : DESC_PAREN;
   return new RegExp(
-    spec.scheme === "ordinal" ? `${l}${DESC_PAREN}\\s*[=＝]\\s*${n}` : `编号\\s*${l}(?![0-9])\\s*[=＝]\\s*${n}`,
+    spec.scheme === "ordinal"
+      ? `${l}${paren}\\s*[=＝]\\s*${n}${NAME_END}`
+      : `编号\\s*${l}(?![0-9])\\s*[=＝]\\s*${n}${NAME_END}`,
   ).test(text);
 }
 
@@ -507,7 +570,9 @@ export async function composeBlockoutPrompt(
   userLine: string,
   spec: MarkSpec,
 ): Promise<string> {
-  const skeleton = blockoutApplySkeleton(cast, userLine, spec);
+  // ★ 骨架与「这一次给哪几个位子拼了括号」一并取回 —— 下面三道校验都要拿它逐字核对括号内容。
+  //   在校验侧重算一遍预算就是同一条规则的第二处实现（详见 buildSkeleton 的 ★★★）。
+  const { text: skeleton, usedDesc } = buildSkeleton(cast, userLine, spec);
   // ★★ 下面每一处都用**排好序的**那一份，不是原始 `cast`：给豆包的上下文若按另一个顺序
   //   列，等于在骨架已经排好升序之后又递给它一个反例（而顺序就是语义，见 orderSlots）。
   const slots = orderSlots(cast, spec);
@@ -563,7 +628,7 @@ export async function composeBlockoutPrompt(
       }就会把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。`,
     );
   }
-  const missPair = slots.find((s) => s.card && !hasPair(text, s.label, s.card.name, spec));
+  const missPair = slots.find((s) => s.card && !hasPair(text, s.label, s.card.name, spec, usedDesc.get(s.label)));
   if (missPair?.card) {
     throw new Error(
       `提示词合成失败：AI 改写时动了「${labelText(missPair.label, spec)}=${missPair.card.name}」这条绑定（${
@@ -593,9 +658,12 @@ export async function composeBlockoutPrompt(
     //   这里已经变成第二套判据了，回去合并。
     const posOf = (s: BlockoutCastSlot) => {
       const l = esc(s.label);
+      // ★ 与 hasPair 逐字同源：有描述就逐字核对括号内容、名字带右边界（见那两条 ★★★）
+      const d = usedDesc.get(s.label);
+      const paren = d ? `\\s*[（(]${esc(d)}[）)]` : DESC_PAREN;
       const re = s.card
-        ? new RegExp(`${l}${DESC_PAREN}\\s*[=＝]\\s*${esc(s.card.name)}`)
-        : new RegExp(`${l}${DESC_PAREN}(?=\\s*[=＝]|的?人偶)`);
+        ? new RegExp(`${l}${paren}\\s*[=＝]\\s*${esc(s.card.name)}${NAME_END}`)
+        : new RegExp(`${l}${paren}(?=\\s*[=＝]|的?人偶)`);
       return text.search(re);
     };
     const ordered = (group: BlockoutCastSlot[]) => {
@@ -632,7 +700,13 @@ export async function composeBlockoutPrompt(
   // ★ 仍然按**句子**判、且三个要素允许换措辞：这一句允许被揉进别的句子里，
   //   宁可放过一种古怪的改写，也不要因为模型换了个动词就把用户整段挡下来。
   const clearsMarks = text
-    .split(/[。；;!！\n]/)
+    // ★★ **中文逗号也是分句符**（2026-08-18 审查抓到）：不切它的话，作者一句
+    //   「人偶动作要连贯，不要出现编号」就把「人偶」「不要」「编号」三个词凑进同一"句"，
+    //   连上一轮刚加的「人偶」那道一起顶替掉 —— 而它恰好在最需要它的时候失效
+    //   （上一发被编号毁过的作者，最可能补的就是这句话）。
+    //   ★ 机器那句本身含中文逗号（「…全部去掉，成片里不许出现任何编号或数字。」），
+    //     但切开后前半句仍然同时含有 去掉/编号/人偶，照样放行 —— 验算过。
+    .split(/[。；;!！，,\n]/)
     .some(
       (s) =>
         // ★ 动词放得比原来更松（不再要求"不许**出现**"这种固定搭配）：真正把假阳性
