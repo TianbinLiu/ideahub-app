@@ -1294,6 +1294,15 @@ export async function detectTemplateRoles(
   const res = await apiPost<Record<string, unknown>>(
     `/api/branch/templates/${encodeURIComponent(id)}/detect-roles`,
     atSecs && atSecs.length ? { atSecs } : {},
+    // ★★★ 这一发**必须自带长超时**（2026-08-18 真机跑出来的）。
+    //   客户端默认只给 20 秒（`DEFAULT_TIMEOUT_MS`），而服务端最坏要跑
+    //   **5 帧 × 60s（BOX_TIMEOUT_MS）+ 一发自证** —— 界面上写的也是「要一到几分钟」。
+    //   20 秒就 abort 的后果不是“慢一点”，是把一个**可能已经成功、已经计费**的
+    //   请求当场判成失败，而服务端那把 11 分钟的锁还抱着 —— 用户重试只会吃 409。
+    // ★ 380s 是跨仓镜像（5×60 + 60 留一点余量），**比服务端那把锁（11 分钟）短**：
+    //   超时之后锁还在，直接重试仍会 409，所以上层那句话得说“等一会儿再看”而不是“再点一次”。
+    // ⚠ 服务端那两个数改了，这里要跟着改（漂了的表现就是本条说的那个假失败）。
+    { timeoutMs: 380_000 },
   );
   if (!res || typeof res !== "object") return null;
   return {

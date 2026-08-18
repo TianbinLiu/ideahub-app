@@ -260,7 +260,20 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
 }
 
 /**
- * 「这个模板还没有角色位 —— 去认一遍」的入口。**只对自己、只对白模模板、只在没角色位时出**。
+ * 「去认一遍画面里有哪些人」的入口。**只对自己、只对白模模板**，两种情形：
+ *   · **还没有角色位** → 第一次认（下面那段 ★★ 说的就是它）；
+ *   · **已经有了、但一条都还没核对** → 重新认一遍。
+ *
+ * ★★★ 重认那一档是 2026-08-18 真机跑一遍才发现必须加的：老写法是
+ *   `(t.roles?.length ?? 0) > 0` 就整个不出，于是一个用**旧提示词**认出来的模板
+ *   （描述是「全白关节人偶」这种一句话）**永远升不上来** —— 拿不到多维描述、
+ *   拿不到 `markDescs`，那句「有个特别显眼的人」也永远报不出来（它靠描述里的颜色）。
+ *   而服务端**本来就允许**重认（只要没核对过）—— 是 App 把入口藏了。
+ *   ⇒ 不加这一档的话，这一轮做的多维描述只对**今后新建**的模板生效，
+ *     而存量模板的作者只能重传一遍视频、重新花一次钱。
+ * ★ 允不允许重认只问 `remoteStateOf(t).rolesRedetectable` 一处（与服务端那道闸同源），
+ *   别在这里写 `roles.some(...)` —— 写了就是同一条规则的第二处实现，
+ *   而它漂了的表现是“摆一颗写着价钱、点下去却 400”的按钮。
  *
  * ★★ 它存在的理由就是那条路会失败：认人+量框要打上游，而上游耗时实测在 6.6s~140s
  *   之间浮动（连续调用会排队）。没有这个入口的话，一次抖动 = 作者永久拿到一个
@@ -276,15 +289,32 @@ function DetectRolesEntry({ t }: { t: VideoTemplate }) {
   /** AI 自己挑帧 / 我自己挑。★ 状态留在这一层：它只影响这一次识别，不进模板 */
   const [mode, setMode] = useState<BoxFrameMode>("auto");
   const [marks, setMarks] = useState<number[]>([]);
-  // 只对**白模模板**（有参考视频）、**已登记**、**还没有角色位**的自己那条出
-  if (!t.refVideo || !t.remoteId || (t.roles?.length ?? 0) > 0) return null;
-  if (remoteStateOf(t)?.isOwner === false) return null;
+  // 只对**白模模板**（有参考视频）、**已登记**的自己那条出
+  if (!t.refVideo || !t.remoteId) return null;
+  const rs = remoteStateOf(t);
+  if (rs?.isOwner === false) return null;
+  const has = (t.roles?.length ?? 0) > 0;
+  // ★ 已经核对过的不出：重认会把作者一条条改过的措辞整份冲掉，服务端也会 400。
+  //   ★★ `rs` 为 null = 远端状态还没到货。已经有角色位时**往不出那一侧退**：
+  //     摆一颗可能被服务端拒的付费按钮，比少一个入口坏。
+  if (has && !rs?.rolesRedetectable) return null;
   const cost = ownRefTemplateCost();
   return (
     <div className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2">
       <div className="text-[11px] leading-relaxed text-sky-100">
-        这个模板还没有<b className="font-bold">角色位</b>——认一遍画面里有哪些人，套用时就能一个个挂卡
-        （挂不上的话仍然可以用一句话描述要换谁）。
+        {has ? (
+          <>
+            重新认一遍画面里的人：现在会给每个人偶写下
+            <b className="font-bold">颜色、动作、他站在哪个景物旁</b>，套用出片时这几句会一并告诉 AI。
+            <b className="font-bold">会覆盖现在这几行描述</b>（你自己改过的也会没），而且
+            <b className="font-bold">按一次收一次费</b>。核对过之后就不能再重认了。
+          </>
+        ) : (
+          <>
+            这个模板还没有<b className="font-bold">角色位</b>——认一遍画面里有哪些人，套用时就能一个个挂卡
+            （挂不上的话仍然可以用一句话描述要换谁）。
+          </>
+        )}
       </div>
       <div className="mt-1.5 flex items-center gap-2">
         <button
@@ -306,7 +336,7 @@ function DetectRolesEntry({ t }: { t: VideoTemplate }) {
           disabled={busy}
           className="flex-none rounded-full bg-sky-400 px-3 py-1 text-[11px] font-bold text-ink disabled:opacity-50"
         >
-          {busy ? "识别中…（要一到几分钟）" : `识别角色位（${fmtTokens(cost)}）`}
+          {busy ? "识别中…（要一到几分钟）" : `${has ? "重新识别角色位" : "识别角色位"}（${fmtTokens(cost)}）`}
         </button>
         {msg && <span className="min-w-0 flex-1 text-[10px] leading-relaxed text-sky-200">{msg}</span>}
       </div>

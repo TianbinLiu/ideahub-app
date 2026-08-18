@@ -224,6 +224,9 @@ export interface RemoteTemplateState {
    * ★ V1 老模板（没有角色位）恒为 false —— 这道门与它无关（判存在性，别判等值）。
    */
   rolesNeedConfirm: boolean;
+  /** 服务端还允许**重新识别角色位**吗（= 没有任何一条已核对）。
+   *  ★ 与服务端那道闸同源，**不是** `!rolesNeedConfirm`（理由写在赋值处）。 */
+  rolesRedetectable: boolean;
 }
 
 const remoteStates = new Map<string, RemoteTemplateState>();
@@ -272,6 +275,13 @@ function recordState(api: branch.ApiBranchTemplate): RemoteTemplateState | null 
     //   → 判成"待核对"，界面会多提示一次；反过来把没核对的当成核对过，就是让作者
     //   带着一份可能指错人的编号上市场（错了零报错）。往多提醒那一侧退。
     rolesNeedConfirm: Array.isArray(api.roles) && api.roles.length > 0 && api.roles.some((r) => r?.labelConfirmed !== true),
+    // ★★ 与服务端 detect-roles 那道闸**逐字同源**：只要有**任何一条**已核对，重认就会被 400
+    //   拒（重认会把作者一条条改过的措辞整份冲掉）。
+    // ⚠ **不能用 `!rolesNeedConfirm` 取反**：那一位问的是“有没有没核对的”，
+    //   两者在**部分核对**时同时为真 —— 那时取反会让 App 摆出一颗服务端必拒的按钮，
+    //   而它写着价钱。（今天 PATCH /roles 是整份置 true，走不到部分核对；
+    //   但判据该按服务端那句写，不该按“今天刚好走不到”写。）
+    rolesRedetectable: !(Array.isArray(api.roles) && api.roles.some((r) => r?.labelConfirmed === true)),
   };
   remoteStates.set(rid, st);
   return st;
@@ -639,7 +649,24 @@ export async function detectTemplateRoles(id: string, atSecs?: number[]): Promis
   if (!t) throw new Error("这个模板不在本机库里");
   if (!t.remoteId) throw new Error("这个模板还没登记到服务器，先登记再识别角色位");
   if (!remoteOn()) throw new Error("现在连不上服务器——联网后再识别");
-  const out = await branch.detectTemplateRoles(t.remoteId, atSecs);
+  let out: Awaited<ReturnType<typeof branch.detectTemplateRoles>>;
+  try {
+    out = await branch.detectTemplateRoles(t.remoteId, atSecs);
+  } catch (e) {
+    // ★★★ 超时**不等于失败**（2026-08-18 真机撞到）：服务端那一发可能还在跑、
+    //   甚至已经成功并**已经计费**，而它还抱着一把 11 分钟的锁 —— 这时候说
+    //   「请求超时」会把用户推去立刻重试，而重试只会吃 409「正在识别中」。
+    //   ⇒ 把这一档单独说清楚：等一会儿、回来看，别急着再点（铁律八：失败要带下一步）。
+    // ★ 只改这一种（`TIMEOUT`）的措辞：网络不可用、401、409 那几档服务端/客户端
+    //   本来就说得准，原样抛。
+    if (e instanceof ApiError && e.code === "TIMEOUT") {
+      throw new Error(
+        "等太久没等到回复——但**这一发多半还在服务器上跑**（认人最坏要几分钟），而且可能已经计费。" +
+          "先别急着再点（这会儿再点只会说「正在识别中」）：等一两分钟，退出这一页再进来看看角色位是不是已经有了。",
+      );
+    }
+    throw e;
+  }
   if (!out) throw new Error("这台服务器不支持识别角色位（回包形状不对，可能需要升级服务端）");
   const api = out.template;
   if (api) {
