@@ -319,7 +319,12 @@ function buildSkeleton(
   cast: BlockoutCastSlot[],
   userLine: string,
   spec: MarkSpec,
-): { text: string; usedDesc: Map<string, string>; usedKey: Map<string, string> } {
+): {
+  text: string;
+  usedDesc: Map<string, string>;
+  usedKey: Map<string, string>;
+  usedGroups: { color: string; labels: string[]; names: string[] }[];
+} {
   // ★★★ 这一行是承重的（见 orderSlots 的 ★★★）：序数方案下**书写顺序就是语义**
   const slots = orderSlots(cast, spec);
   // flatMap 而不是 filter：filter 之后 TS 仍然认为 card 可能是 null，只能靠 `!` 硬压 ——
@@ -346,8 +351,29 @@ function buildSkeleton(
     const c = colorOf(s);
     return c && colorCount.get(c) === 1 ? `${c}色人偶` : s.label;
   };
+  // ★★★ 第三档：**成组分配**（2026-08-18，同样来自第十一发用户实跑的配方）。
+  //   同色 ≥2 且这一色**全部挂了卡** → 整组一句：`4个白色人偶依次替换为A、B、C、D`
+  //   （名字按画面从左到右排，与 orderSlots 同一条承重规则）。
+  //   为什么它比逐个序数稳：模型本来就在**对齐两个序列**（升序实测 2/5→5/5 那一发），
+  //   「依次」把这层对齐明说成一句，模型不用逐条数「从左数第 N 个」——
+  //   第十二发里逐条序数在切镜素材上正是这么错位的。
+  //   ⚠ 只有**整组都挂了**才成组：`4个白色人偶依次替换为A、B`（4 个位子 2 张卡）
+  //   会让后两位的归属完全靠模型猜。缺一个就整组退回逐个序数（第十发验稳的形状）。
+  //   ⚠ 提供方：这一档的措辞来自用户实跑全对的那发（同段素材）；我们管线**没有**单独
+  //   为它实拍过 —— 别把它当成又一发验证，它是对那发配方的照抄。
+  const groups: { color: string; labels: string[]; names: string[] }[] = [];
+  if (ordinal) {
+    for (const [c, n] of colorCount) {
+      if (n < 2) continue;
+      const members = slots.filter((s) => colorOf(s) === c);
+      if (members.every((s) => s.card)) {
+        groups.push({ color: c, labels: members.map((s) => s.label), names: members.map((s) => s.card!.name) });
+      }
+    }
+  }
+  const grouped = new Set(groups.flatMap((g) => g.labels));
   const taken = slots.flatMap((s) => {
-    if (!s.card) return [];
+    if (!s.card || grouped.has(s.label)) return [];
     const key = keyOf(s);
     // ★ 括号里那截取的是 `mark`（白模视频里那个人偶什么样），**不是** `desc`；
     //   按颜色点名的位子不带括号（见上面 ★★★）。
@@ -364,7 +390,7 @@ function buildSkeleton(
     //   而这段话是给模型读的，凭空多一个它找不到的指代只会让它去别处找。顺带省 17 字。
     const anyParen = taken.some((s) => paren(s));
     const parts: string[] = ["以参考视频复刻原视频的人物站位、动作、节奏卡点、运动轨迹、队形与运镜。"];
-    if (taken.length > 0) {
+    if (taken.length > 0 || groups.length > 0) {
       // ★★ 序数版这句引导语里的「按画面里从左到右的位置」不是装饰：它把"指令序列 ↔ 画面序列"
       //   这层对齐关系明说出来，而后面那串绑定已经由 orderSlots 排成升序 —— 两者是一对。
       //   实测成绩（升序）：2 组 2/2、复跑 2/2、5 组满负载 5/5、3 组跳着挂 + 2 个空位 5/5。
@@ -385,9 +411,14 @@ function buildSkeleton(
       //     不影响指令完整性，而一句自相矛盾的话没有任何上行空间。
       parts.push(
         ordinal
-          ? `按画面里从左到右的位置替换人偶${anyParen ? "（括号里是这个人偶在画面里的样子）" : ""}：${taken
-              .map(bind)
-              .join("、")}。`
+          ? `按画面里从左到右的位置替换人偶${anyParen ? "（括号里是这个人偶在画面里的样子）" : ""}：${[
+              taken.map(bind).join("、"),
+              // ★ 成组句排在逐个绑定**之后**、各自成句（用户实跑的顺序：先点名特殊的、再成组）。
+              //   组内名字用 、 分隔，与外层同符号 —— 用户那条更乱都能读对，这里保持最简。
+              ...groups.map((g) => `${g.labels.length}个${g.color}色人偶依次替换为${g.names.join("、")}`),
+            ]
+              .filter(Boolean)
+              .join("。")}。`
           : `把带编号的白色人偶替换为对应角色：${taken.map((s) => `编号${s.label}=${s.name}`).join("、")}。`,
       );
     }
@@ -405,7 +436,8 @@ function buildSkeleton(
   //   ⚠ 这个分界**随描述长短滑动**（预算每多挂一张卡就少 13 字，而每条描述占 ~16 字），
   //   所以别把「6」写进任何判断里 —— 判据只有上面这一行长度比较。写死一个 6 的话，
   //   描述短的时候 7 个也塞得下却被拦掉，描述长的时候 6 个塞不下却放行（后者会把尾巴挤掉）。
-  const cards = new Set(taken.map((s) => s.id)).size;
+  // ★ 卡数按**全部挂了卡的位子**算（组员已从 taken 里摘走，但它们的参考图照样占预算）
+  const cards = new Set(slots.flatMap((s) => (s.card ? [s.card.id] : []))).size;
   const full = build(true);
   const withDescs = full.length <= blockoutPromptBudget(cards);
   const usedDesc = new Map<string, string>();
@@ -414,7 +446,7 @@ function buildSkeleton(
   //   校验若照旧拿 label 去找，会把一段完全正确的提示词判成“角色位弄丢了”。
   const usedKey = new Map<string, string>();
   for (const t of taken) if (t.key !== t.label) usedKey.set(t.label, t.key);
-  return { text: withDescs ? full : build(false), usedDesc, usedKey };
+  return { text: withDescs ? full : build(false), usedDesc, usedKey, usedGroups: groups };
 }
 
 /** 骨架里"挂卡那句"之后的部分 —— 两个分支（带描述/不带）共用，避免整段被抄成两份 */
@@ -493,7 +525,7 @@ function hasLabel(text: string, label: string, spec: MarkSpec, key?: string): bo
   // ★ 按颜色点名的位子（usedKey 里有）：找的是渲染出去的那个键（「红色人偶」），不是 label。
   //   它只在挂卡句里出现，右边界就是等号 —— 不需要「的?人偶」那一支（那是空位句的形状，
   //   而按颜色点名的位子永远是挂了卡的）。
-  if (key && key !== label) return new RegExp(esc(key) + "\s*[=＝]").test(text);
+  if (key && key !== label) return new RegExp(esc(key) + "\\s*[=＝]").test(text);
   const l = esc(label);
   return new RegExp(spec.scheme === "ordinal" ? `${l}${DESC_PAREN}(?=\\s*[=＝]|的?人偶)` : `编号\\s*${l}(?![0-9])`).test(
     text,
@@ -547,7 +579,7 @@ function hasPair(text: string, label: string, name: string, spec: MarkSpec, desc
   const n = esc(name);
   // ★ 按颜色点名：整条绑定必须是 `红色人偶=名字`、**不带括号**（那一档根本不渲染括号，
   //   模型自己加一个就是改写，拒是安全侧）；名字右边界照旧（NAME_END）。
-  if (key && key !== label) return new RegExp(esc(key) + "\s*[=＝]\s*" + n + NAME_END).test(text);
+  if (key && key !== label) return new RegExp(esc(key) + "\\s*[=＝]\\s*" + n + NAME_END).test(text);
   // ★★★ 有描述时要求括号里那截**逐字就是这一条**（2026-08-18 补）。
   //   `DESC_PAREN` 的 `[^）)]*` 对内容零校验 —— 豆包把两条描述**对调**、把描述挪到
   //   别的位子、或给本来没描述的位子凭空编一个，三道校验一律放行。而描述正是这一轮
@@ -602,6 +634,7 @@ const COMPOSE_SYSTEM: Record<MarkScheme, string> = {
     "硬性要求（违反任何一条都算失败）：",
     "1. 「最左边=角色名」这种等号绑定必须**逐字原样**保留：位置说法、等号、角色名一个字都不能改，",
     "   有的绑定按**颜色**点名（如「红色人偶=张三」）——同样逐字原样保留，不许把颜色换成位置说法、也不许给它加括号或别的形容；",
+    "   「4个白色人偶依次替换为甲、乙、丙、丁」这种**成组**绑定必须整句逐字原样保留：个数、颜色、名字、顺序一个都不能动，不许拆成单独的句子；",
     "   不许调换等号两边，不许改写成句子，**不许把位置换成近义说法**（把「从左数第3个」写成「第三个」「左起第三位」都算失败）；",
     "   位置说法后面若带着一个括号（例：「最左边（纯白，弓步前倾）=凛」），那个括号连同里面的字**一起原样留在等号左边**，",
     "   不许把它挪走、拆成另一句话、或改写成「那个弓步前倾的人偶」——它是用来指认这个人偶的第二个依据；",
@@ -636,7 +669,7 @@ export async function composeBlockoutPrompt(
 ): Promise<string> {
   // ★ 骨架与「这一次给哪几个位子拼了括号」一并取回 —— 下面三道校验都要拿它逐字核对括号内容。
   //   在校验侧重算一遍预算就是同一条规则的第二处实现（详见 buildSkeleton 的 ★★★）。
-  const { text: skeleton, usedDesc, usedKey } = buildSkeleton(cast, userLine, spec);
+  const { text: skeleton, usedDesc, usedKey, usedGroups } = buildSkeleton(cast, userLine, spec);
   // ★★ 下面每一处都用**排好序的**那一份，不是原始 `cast`：给豆包的上下文若按另一个顺序
   //   列，等于在骨架已经排好升序之后又递给它一个反例（而顺序就是语义，见 orderSlots）。
   const slots = orderSlots(cast, spec);
@@ -684,7 +717,25 @@ export async function composeBlockoutPrompt(
   // ★★ 逐条核对**机器生成的那一半还在不在**。这不是洁癖：模型很爱把「1、2、4、5」
   //   顺手规整成「1、2、3、4」，或者把 `编号1=张三` 改写成读起来更顺的句子 ——
   //   两者都不报错，只表现为出片时换错了人。核不过就整句拒，绝不"差不多就用了"。
-  const missLabel = slots.find((s) => !hasLabel(text, s.label, spec, usedKey.get(s.label)));
+  // ★★★ 成组那几句**整句核对**（个数、颜色、名字、顺序，逐字；只放过空白与顿号周围的排版）。
+  //   组是一个不可拆的单元：模型把「4个白色人偶依次替换为A、B、C、D」拆成四句、换个顺序、
+  //   或吞掉一个名字，四个位子就整片错位 —— 而它逐条看都"像还在"。所以不逐条查组员，
+  //   查整句；不过就整段拒（宁可让用户手写，也不把一份错位的映射发出去）。
+  const groupedLabels = new Set(usedGroups.flatMap((g) => g.labels));
+  for (const g of usedGroups) {
+    const re = new RegExp(
+      // ⚠ 模板字符串里必须写 `\\s`（写 `\s` 会静默变成字母 s，正则退化成 `4s*个…` ——
+      //   无空格时零个 s 也匹配、有空格就崩：假阳性与假阴性同时具备，harness 抓过一次）
+      `${g.labels.length}\\s*个${esc(g.color)}色人偶\\s*依次替换为\\s*${g.names.map(esc).join("\\s*、\\s*")}${NAME_END}`,
+    );
+    if (!re.test(text)) {
+      throw new Error(
+        `提示词合成失败：AI 改动了「${g.labels.length}个${g.color}色人偶依次替换为${g.names.join("、")}」这句成组绑定` +
+          `（个数、顺序、名字任何一个变了，这 ${g.labels.length} 个位子就会整片换错人）——这一段的要求请自己写，或用下面那份默认写法。`,
+      );
+    }
+  }
+  const missLabel = slots.find((s) => !groupedLabels.has(s.label) && !hasLabel(text, s.label, spec, usedKey.get(s.label)));
   if (missLabel) {
     throw new Error(
       `提示词合成失败：AI 改写时把「${labelText(missLabel.label, spec)}」这个角色位弄丢了（${
@@ -692,7 +743,7 @@ export async function composeBlockoutPrompt(
       }就会把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。`,
     );
   }
-  const missPair = slots.find((s) => s.card && !hasPair(text, s.label, s.card.name, spec, usedDesc.get(s.label), usedKey.get(s.label)));
+  const missPair = slots.find((s) => s.card && !groupedLabels.has(s.label) && !hasPair(text, s.label, s.card.name, spec, usedDesc.get(s.label), usedKey.get(s.label)));
   if (missPair?.card) {
     throw new Error(
       `提示词合成失败：AI 改写时动了「${labelText(missPair.label, spec)}=${missPair.card.name}」这条绑定（${
@@ -723,7 +774,7 @@ export async function composeBlockoutPrompt(
     const posOf = (s: BlockoutCastSlot) => {
       // ★ 与 hasPair 逐字同源：按颜色点名的找渲染键（不带括号）；其余有描述就逐字核对括号内容、名字带右边界
       const key = usedKey.get(s.label);
-      if (key && s.card) return text.search(new RegExp(`${esc(key)}\s*[=＝]\s*${esc(s.card.name)}${NAME_END}`));
+      if (key && s.card) return text.search(new RegExp(`${esc(key)}\\s*[=＝]\\s*${esc(s.card.name)}${NAME_END}`));
       const l = esc(s.label);
       const d = usedDesc.get(s.label);
       const paren = d ? `\\s*[（(]${esc(d)}[）)]` : DESC_PAREN;
@@ -741,7 +792,7 @@ export async function composeBlockoutPrompt(
       }
       return true;
     };
-    if (!ordered(slots.filter((s) => s.card)) || !ordered(slots.filter((s) => !s.card))) {
+    if (!ordered(slots.filter((s) => s.card && !groupedLabels.has(s.label))) || !ordered(slots.filter((s) => !s.card))) {
       throw new Error(
         "提示词合成失败：AI 改写时把角色位的先后顺序打乱了（这段话必须按画面上从左到右的顺序写，顺序一乱就会换错人——实测同样三张卡，只把顺序写反，5 个位子里就错了 3 个）——这一段的要求请自己写，或用下面那份默认写法。",
       );
