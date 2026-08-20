@@ -305,7 +305,7 @@ export const TOURS: GuideTour[] = [
         anchor: "template-owner-row",
         body: (
           <>
-            自己那条模板下面会多出一行操作：<b className="font-bold text-slate-100">发布到市场</b>让别人搜得到、能套用；已经发布的那条这里换成<b className="font-bold text-slate-100">从市场下架</b>，收回来之后你自己那份还在；最右边是<b className="font-bold text-slate-100">删除</b>，按下去会先问你一遍要删掉的是什么。发布点下去要是被拦住，拦的原因和下一步就印在这条模板下面。
+            自己模板的卡片里带一行操作：<b className="font-bold text-slate-100">核对位置</b>与<b className="font-bold text-slate-100">识别角色位</b>管"画面里谁是谁"（识别面板里可以选定场景/人物数量变化的特定帧，让 AI 分析每一段里的人物）；<b className="font-bold text-slate-100">发布到市场</b>让别人搜得到、能套用，已发布的换成<b className="font-bold text-slate-100">从市场下架</b>；最右边是<b className="font-bold text-slate-100">删除</b>，按下去会先问你一遍。发布被拦住的话，原因和下一步就印在这行下面。
           </>
         ),
       },

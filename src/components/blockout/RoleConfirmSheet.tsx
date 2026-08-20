@@ -534,7 +534,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
  * ★ 没有 remoteId（登记还没成功）时不渲染：编号登记在服务端，摆个点了必然失败的按钮
  *   只会让作者以为功能坏了 —— 登记失败的原因与「重新登记」在详情页已经有出口。
  */
-export function RoleConfirmEntry({ t }: { t: VideoTemplate }) {
+export function RoleConfirmEntry({ t, compact }: { t: VideoTemplate; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [opening, setOpening] = useState(false);
   useTemplatesTick();
@@ -553,6 +553,31 @@ export function RoleConfirmEntry({ t }: { t: VideoTemplate }) {
     await refreshRemoteTemplate(t.id);
     setOpening(false);
     setOpen(true);
+  }
+
+  // ★ 紧凑形态（2026-08-20，「我的模板」列表塞进卡片格子用）：同一套判据与打开逻辑，
+  //   只是渲染成一颗小按钮。**颜色仍分两档**（琥珀=拦路，灰=可选）——核对是发布的前置闸，
+  //   压缩成小按钮不能把"这步没做会被 400"的信号一起压没。长文案两档留在详情页那份里。
+  if (compact) {
+    const pending = !rs || rs.rolesNeedConfirm;
+    const noun = ordinal ? "位置" : "编号";
+    return (
+      <>
+        <button
+          onClick={() => void openSheet()}
+          disabled={opening}
+          title={pending ? `核对之前不能发布（${noun}对不上会让别人的角色卡换到别人身上）` : "改错了不用重炼"}
+          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold disabled:opacity-50 ${
+            pending
+              ? "border border-amber-500/50 bg-amber-500/15 text-amber-200"
+              : "border border-slate-600 text-slate-300"
+          }`}
+        >
+          {opening ? "取最新…" : pending ? `核对${noun}` : `重新核对${noun}`}
+        </button>
+        {open && <RoleConfirmSheet t={t} onClose={() => setOpen(false)} />}
+      </>
+    );
   }
 
   return (

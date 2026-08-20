@@ -20,10 +20,10 @@ import {
   browseTemplates,
   deleteTemplateEverywhere,
   detectTemplateRoles,
+  isMyTemplate,
   myTemplates,
   pendingBlockoutIssue,
   pendingBlockoutJobs,
-  prominentRoleWarning,
   refVideoIssue,
   refVideoPoster,
   refVideoRealSec,
@@ -56,9 +56,13 @@ export function TemplateCard({
   onPick,
   guide,
   guidePick,
+  actions,
 }: {
   t: VideoTemplate;
   onPick?: () => void;
+  /** 塞进卡片格子里的操作区（2026-08-20：识别/核对/发布/删除都住进来，列表不再往
+   *  卡片下面堆三块说明文字）。只在「我的模板」侧传。 */
+  actions?: React.ReactNode;
   /** 新手引导的锚点名（落到卡片根元素的 `data-guide`）。
    *  ★ 必须显式收一个 prop：TemplateCard 自己声明 props、**不透传 `...rest`**，
    *  调用处直接写 `data-guide` 会被 TS 挡下；而为了挂锚点在外面包一层盒子也不行 ——
@@ -166,6 +170,7 @@ export function TemplateCard({
           </button>
         )}
       </div>
+      {actions && <div className="border-t border-slate-700/60 px-2.5 pb-2.5 pt-2">{actions}</div>}
     </div>
   );
 }
@@ -287,6 +292,8 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
 function DetectRolesEntry({ t }: { t: VideoTemplate }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  /** 折叠态（2026-08-20 塞进卡片格子后默认收起）：挑帧那块有高度，常驻会把列表撑成长文 */
+  const [openPanel, setOpenPanel] = useState(false);
   /** AI 自己挑帧 / 我自己挑。★ 状态留在这一层：它只影响这一次识别，不进模板 */
   const [mode, setMode] = useState<BoxFrameMode>("auto");
   const [marks, setMarks] = useState<number[]>([]);
@@ -300,25 +307,32 @@ function DetectRolesEntry({ t }: { t: VideoTemplate }) {
   //     摆一颗可能被服务端拒的付费按钮，比少一个入口坏。
   if (has && !rs?.rolesRedetectable) return null;
   const cost = ownRefTemplateCost();
+  // 展开面板是 w-full：外层是 flex-wrap 的按钮行，按钮内联、面板独占一行
   return (
-    <div className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2">
-      <div className="text-[11px] leading-relaxed text-sky-100">
-        {has ? (
-          <>
-            重新认一遍画面里的人：现在会给每个人偶写下
-            <b className="font-bold">颜色、动作、他站在哪个景物旁</b>，套用出片时这几句会一并告诉 AI。
-            <b className="font-bold">会覆盖现在这几行描述</b>（你自己改过的也会没），而且
-            <b className="font-bold">按一次收一次费</b>。核对过之后就不能再重认了。
-          </>
-        ) : (
-          <>
-            这个模板还没有<b className="font-bold">角色位</b>——认一遍画面里有哪些人，套用时就能一个个挂卡
-            （挂不上的话仍然可以用一句话描述要换谁）。
-          </>
-        )}
-      </div>
-      <div className="mt-1.5 flex items-center gap-2">
-        <button
+    <>
+      <button
+        onClick={() => setOpenPanel((v) => !v)}
+        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+          openPanel ? "bg-sky-400 text-ink" : "border border-sky-500/50 bg-sky-500/15 text-sky-200"
+        }`}
+      >
+        {has ? "重新识别角色位" : "识别角色位"}
+      </button>
+      {openPanel && (
+        <div className="w-full space-y-2 rounded-xl border border-sky-500/30 bg-sky-500/5 px-2.5 py-2">
+          {/* ★ 一句话说清这个面板是干嘛的。"每一段视频"不是笔误：挑的帧同时就是
+              长视频的分段点（场景/人数一变就该标一帧），见分段出片那条产品线 */}
+          <div className="text-[11px] leading-relaxed text-sky-100">
+            选定场景/人物数量变化的特定帧，让 AI 分析每一段视频中的人物。
+            {has && (
+              <>
+                {" "}
+                重认会<b className="font-bold">覆盖现有描述</b>（你自己改过的也会没），按一次收一次费；核对过之后不能再重认。
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
           onClick={() => {
             setBusy(true);
             setMsg("");
@@ -337,25 +351,25 @@ function DetectRolesEntry({ t }: { t: VideoTemplate }) {
           disabled={busy}
           className="flex-none rounded-full bg-sky-400 px-3 py-1 text-[11px] font-bold text-ink disabled:opacity-50"
         >
-          {busy ? "识别中…（要一到几分钟）" : `${has ? "重新识别角色位" : "识别角色位"}（${fmtTokens(cost)}）`}
-        </button>
-        {msg && <span className="min-w-0 flex-1 text-[10px] leading-relaxed text-sky-200">{msg}</span>}
-      </div>
-      {/* ★★ 挑帧摆在**这一屏**而不是登记那一步：这颗按钮多半是**重试**用的
-          （第一次是登记时自动跑的），而重试正是"自动那条没认全、我来指一帧"的时刻。
-          ★ 报价不随标几帧变：服务端依次试、第一个成的就停，上限本来就是
-            BLOCKOUT_BOX_TRIES —— 标 1 帧和标满都在同一个上限内，报的一直是那个上限。 */}
-      <div className="mt-2">
-        <BoxFramePicker
-          mode={mode}
-          onModeChange={setMode}
-          src={t.refVideo.url}
-          marks={marks}
-          onMarksChange={setMarks}
-          disabled={busy}
-        />
-      </div>
-    </div>
+          {busy ? "识别中…（要一到几分钟）" : `开始识别（${fmtTokens(cost)}）`}
+            </button>
+            {msg && <span className="min-w-0 flex-1 text-[10px] leading-relaxed text-sky-200">{msg}</span>}
+          </div>
+          {/* ★★ 挑帧摆在**这一屏**而不是登记那一步：这颗按钮多半是**重试**用的
+              （第一次是登记时自动跑的），而重试正是"自动那条没认全、我来指一帧"的时刻。
+              ★ 报价不随标几帧变：服务端依次试、第一个成的就停，上限本来就是
+                BLOCKOUT_BOX_TRIES —— 标 1 帧和标满都在同一个上限内，报的一直是那个上限。 */}
+          <BoxFramePicker
+            mode={mode}
+            onModeChange={setMode}
+            src={t.refVideo.url}
+            marks={marks}
+            onMarksChange={setMarks}
+            disabled={busy}
+          />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -367,25 +381,19 @@ function DetectRolesEntry({ t }: { t: VideoTemplate }) {
  *   "功能存在"与"用户找得到"之间的差别 —— 在此之前它俩等于不存在。
  * ★ 判据、网络、本机同步**全在 data 层**（setTemplatePublished / deleteTemplateEverywhere），
  *   这里一行业务逻辑都没有（铁律六；详情页 OwnerBar 也是这么写的）。
- * ★★ 「是不是我的」：**本机库里有这条 = 就是我的**（`mine` 按定义只装自己的模板），
- *   否则才去问服务端的 `isOwner`（市场里别人那些条目走这一支）。
- *   ⚠ 我第一版写成"有 remoteId 就只认服务端 isOwner"，结果在真机上**整行都不出现** ——
- *   本机那两条的远端状态拉不到（服务端记录已被删），`isOwner` 是 undefined，于是判否。
- *   而那恰恰是最需要删除入口的时候：一条服务端已经没有、本机还赖着的幽灵模板。
- *   ⇒ 别拿"服务端说了算"去否掉一个本来就属于本机的事实。
- * ★ 拿 `author` 显示名比身份仍然是禁止的（CLAUDE.md 那条坑）—— 这里判的是本机库成员资格。
+ * ★ 「是不是我的」只问 data 层的 `isMyTemplate`（2026-08-20 下沉，那条"别只认服务端
+ *   isOwner"的实拍教训跟着判据一起搬了家）。
  * ★ 删除同样是**两段式**（与详情页那颗同一条理由：会连带销毁云端视频，不可撤销）。
+ * ★★ 2026-08-20 起整行**塞进模板卡片的格子里**（TemplateCard 的 actions 槽），核对/识别
+ *   也压成小按钮住进来（full=「我的模板」tab 才带它们）——原来卡片下面竖着三大块说明文字，
+ *   列表刷两条就是一屏字。长解释都还在：核对的在详情页与面板里，识别的在展开面板里。
  */
-function OwnerRow({ t }: { t: VideoTemplate }) {
+function OwnerRow({ t, full }: { t: VideoTemplate; full?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [armed, setArmed] = useState(false);
   const [err, setErr] = useState("");
   const st = remoteStateOf(t);
-  const local = myTemplates().some((x) => x.id === t.id);
-  const isMine = local || st?.isOwner === true;
-  // ★ 判据只有 data 层那一处（颜色异类 ∧ 就在正中）。这里只负责在**发布之前**把它说出来。
-  const prominent = prominentRoleWarning(t.roles ?? [], t.markSlots, t.markBoxes);
-  if (!isMine) return null;
+  if (!isMyTemplate(t)) return null;
   // ★ 已发布与否：远端状态拿得到就以它为准（那是权威），拿不到退回本机镜像
   const published = st ? st.status === "published" : t.published;
   const blocked = st?.status === "blocked";
@@ -404,7 +412,10 @@ function OwnerRow({ t }: { t: VideoTemplate }) {
   }
 
   return (
-    <div data-guide="template-owner-row" className="flex flex-wrap items-center gap-2 px-1">
+    <div data-guide="template-owner-row" className="flex flex-wrap items-center gap-2">
+      {/* 核对（拦发布的那道闸）与识别：紧凑形态，长解释在各自面板里 */}
+      {full && <RoleConfirmEntry t={t} compact />}
+      {full && <DetectRolesEntry t={t} />}
       {/* 只在**已发布**时给「下架」：没发布的模板本来就不在市场上，摆一颗点了没变化的
           按钮，用户只会以为它坏了（本仓明令禁止「摆一个永远点不动的选项」） */}
       {published && (
@@ -431,20 +442,9 @@ function OwnerRow({ t }: { t: VideoTemplate }) {
             （铁律八要的是"响亮 + 有下一步"）。所以失败时紧跟一个「去详情页处理」。
           ★ blocked 不给按钮：平台下架后作者的 publish/unpublish 服务端两条路由都会 400，
             这是唯一一种"确定点不动"的状态，照本仓规矩不摆按钮、只说一句话。 */}
-      {/* ★★★ 发布前把「这个模板会让别人换错人」说出来（2026-08-18 加，十发实拍换来的）。
-          判据只有 `prominentRoleWarning` 一处：**颜色异类 ∧ 它就在正中**。
-          实测这一档 5 发全错（换掉的都是那个异类，不管点名谁），而没有异类的全白素材
-          点名最难的一档也换对了 —— 也就是说这不是"有时候会错"，是**这类素材必错**。
-          ★ 为什么要摆在**发布**这一步而不是只在挂卡面板说：挂卡那句是给套用者看的，
-            而他是**付了 r2v 的钱之后**才看见结果的人；作者按下发布，就是让每一个套用者
-            各踩一次。这一句是唯一能在"扩散出去之前"拦一下的地方。
-          ★ **只警告、不拦**（与本仓其它启发式同一条纪律）：判据是启发式，误报的代价是
-            作者多看一句可以忽略的话，漏报的代价是退回现状。真要拦得有更硬的判据。 */}
-      {!published && prominent && (
-        <p className="w-full rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-amber-100">
-          {prominent}
-        </p>
-      )}
+      {/* 「颜色异类会让别人换错人」那条发布前警告 2026-08-20 按用户要求从列表撤掉
+          （原来是常驻长段，把列表撑成长文）。判据与文案仍在 prominentRoleWarning 一处，
+          套用者在挂卡面板照旧看得到 —— 撤的只是作者列表里的这份重复。 */}
       {blocked ? (
         <span className="rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300">已被平台下架</span>
       ) : (
@@ -636,23 +636,16 @@ export default function TemplateMarketPage() {
             {/* 引导锚点只挂第一张。这一屏是竖着滚的长列表、不是轮播，第一张不会横向滑走，
                 所以用下标判就够（CreatePage 那边必须跟着当前页走，是因为三张并排且都在 DOM 里）。
                 挂满每一张也没用：GuideOverlay 拿的是 querySelector 的第一个。 */}
+            {/* 2026-08-20 起作者操作全塞进卡片格子（TemplateCard 的 actions 槽）：
+                核对/识别/发布/删除是一行小按钮，长说明各自收进面板 —— 列表不再在卡片
+                下面堆三块常驻文字。isMyTemplate 判据在 data 层一处。 */}
             <TemplateCard
               t={t}
               onPick={() => pick(t)}
               guide={i === 0 ? "template-card" : undefined}
               guidePick={i === 0 ? "template-pick" : undefined}
+              actions={isMyTemplate(t) ? <OwnerRow t={t} full={tab === "mine"} /> : undefined}
             />
-            {/* 核对编号的入口（两档：待核对 = 琥珀拦路条；核对过了 = 低调的"重新核对"）。
-                ★★ 第二档不是锦上添花：作者多半是**确认完之后**才发现画面上有两个一样的号，
-                  而"删掉那个找不到的位子"就在这一屏里 —— 没有常驻入口的话，他唯一的出路
-                  是再花一次钱重炼整段（而服务端那边一直开着门）。
-                ★ 判据、身份、刷新都在 RoleConfirmEntry 一处实现；这里只负责"摆在作者
-                  自己的那一侧"（「我的模板」tab）。 */}
-            {tab === "mine" && <RoleConfirmEntry t={t} />}
-            {tab === "mine" && <DetectRolesEntry t={t} />}
-            {/* 下架 / 删除：**只对自己的模板出**，两个 tab 都出（作者在市场里看到自己
-                那条挂着，最想做的就是把它拿下来，让他先点进详情页再找是白绕一圈）。 */}
-            <OwnerRow t={t} />
           </div>
         ))}
         {/* ★★ 空态要分得清**三件不同的事**（2026-08-17 种子模板删掉之后，市场真的会空）：

@@ -477,6 +477,19 @@ export function remoteStateOf(t: VideoTemplate): RemoteTemplateState | null {
 }
 
 /**
+ * 「这条模板是不是我的」的**唯一**判据（2026-08-20 从市场页 OwnerRow 下沉过来）。
+ *
+ * ★★ 本机库里有这条 = 就是我的（`mine` 按定义只装自己的模板），否则才问服务端的
+ *   `isOwner`（市场里别人那些条目走这一支）。⚠ 别写成"有 remoteId 就只认服务端
+ *   isOwner"——本机那条的远端状态拉不到（服务端记录已被删）时 isOwner 是 undefined，
+ *   于是判否，而那恰恰是最需要删除入口的时候：一条服务端已没有、本机还赖着的幽灵模板。
+ * ★ 拿 `author` 显示名比身份仍然是禁止的（CLAUDE.md 那条坑）——这里判的是本机库成员资格。
+ */
+export function isMyTemplate(t: VideoTemplate): boolean {
+  return mine.some((x) => x.id === t.id) || remoteStateOf(t)?.isOwner === true;
+}
+
+/**
  * 按 id 现取一个远端模板并塞进 shared 缓存（getTemplate 随之能查到，emit 触发重渲）。
  *
  * ★ 为什么存在：shared 缓存靠市场页懒加载，**直达详情路由**（会话恢复、未来的分享
@@ -703,7 +716,8 @@ export async function detectTemplateRoles(id: string, atSecs?: number[]): Promis
 }
 
 export async function registerTemplate(id: string): Promise<void> {
-  const t = mine.find((x) => x.id === id);
+  // mineRemote 条目天生带 remoteId，下面会走"已登记 → 刷新"那条路（同 setTemplatePublished 的 ★★）
+  const t = mine.find((x) => x.id === id) ?? mineRemote.find((x) => x.id === id);
   if (!t) throw new Error("这个模板不在本机库里");
   if (!t.refVideo) throw new Error("经典配方模板首发只存本机，不需要登记到服务器");
   if (t.remoteId) {
@@ -902,7 +916,10 @@ export async function setTemplatePublished(id: string, on: boolean): Promise<voi
   //   isOwner 还在——此时作者必须仍能下架自己的模板（服务端端点本来就支持，
   //   没有这条路的话作废/侵权模板只能干挂在市场上，2026-08-14 对抗审查抓到）。
   //   shared 条目全是白模（apiToTemplate 丢弃无 refVideo 的），身份由服务端把关。
-  const t = local ?? shared.find((x) => x.id === id);
+  // ★★ mineRemote 也必须查（2026-08-20 真机实拍：重装后本机库空了，「我的模板」列表
+  //   里的条目全来自 mineRemote，点发布却报"不在本机库里"）—— detectTemplateRoles
+  //   647 行的注释早写了这个坑的形状，这里当时还是漏了。三份列表一个都不能少。
+  const t = local ?? mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
   if (!t) throw new Error("这个模板不在本机库里");
   if (!t.refVideo) {
     updateTemplate(id, { published: on }); // 经典路：存量行为原样保留
@@ -977,8 +994,8 @@ export async function confirmTemplateRoles(
 ): Promise<void> {
   const local = mine.find((x) => x.id === id);
   // 本机没有 ≠ 不是我的（换设备/重装后本机库是空的，身份由服务端按 ownerId 把关），
-  // 与 setTemplatePublished 同一条理由
-  const t = local ?? shared.find((x) => x.id === id);
+  // 与 setTemplatePublished 同一条理由；mineRemote 同样不能漏（同处的 ★★）
+  const t = local ?? mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
   if (!t) throw new Error("这个模板不在本机库里");
   // 名词按方案说（唯一实现是 markNoun）：对着一群一模一样的白人偶找"编号"，用户只会以为坏了
   const spec = markSpecOf(t);
