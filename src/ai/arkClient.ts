@@ -75,6 +75,44 @@ export async function fetchArkAsset(url: string, timeoutMs: number): Promise<Res
   return res;
 }
 
+/** 方舟产物域名（volces/volccdn/TOS）。服务端 videoAsset.service 的域名表是权威，这里是
+ *  客户端镜像 —— 只用来判「这条要不要转存/自救」，判错的代价只是多打或少打一次转存请求 */
+export function isArkAssetUrl(url: string | undefined): boolean {
+  if (!url || !/^https?:\/\//i.test(url)) return false;
+  try {
+    const host = new URL(url).hostname;
+    return /(^|\.)(volces|volccdn|byteimg|bytedance|ivolces)\.com$/i.test(host) || /tos-[a-z0-9-]+\./i.test(host);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 方舟成片 → 永久地址（服务端拉 TOS → 传 Cloudinary，POST /api/ark/transfer-video）。
+ *
+ * ★ 为什么出片后要立刻转存（2026-08-20 真机实测）：videoUrl 揣着 TOS 直链到发布才转存，
+ *   而预览/合并都在发布之前。跨境网络直连 TOS 的下载速度（PC 实测 1.06 MB/s）**低于成片
+ *   码率**（15s 720p ≈ 1.33 MB/s）——<video> 永远缓冲不到能连续播（黑屏转圈、不报错），
+ *   合并的 120s 代理抓取两次都拉不完（用户看到「合并失败：The user aborted a request」）。
+ * ★ 失败一律抛，由调用方决定退路（generateVideo 退回方舟直链并把这句说给用户）。
+ *   dev 裸跑没有这个端点：vite 的 SPA 回退回 200+HTML，所以照旧只认 Content-Type。
+ * ★ 超时 180s：服务端要拉最多 80MB 再跨境传 Cloudinary，60s 不够它做完两头。
+ */
+export async function transferArkVideo(url: string): Promise<string> {
+  const token = getToken();
+  const res = await fetch(`${BASE}/transfer-video`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ url }),
+    signal: AbortSignal.timeout(180_000),
+  });
+  const ct = res.headers.get("content-type") ?? "";
+  if (!ct.includes("application/json")) throw new Error("这台服务器还没有 /api/ark/transfer-video（请更新服务端）");
+  const j = (await res.json().catch(() => ({}))) as { url?: string; message?: string };
+  if (!res.ok || !j.url) throw new Error(j.message || `转存失败（${res.status}）`);
+  return j.url;
+}
+
 // 模型 ID（2026-08-01 实测于本账号：GET /api/v3/models 取活跃 ID + 控制台开通状态）
 // 选型依据=已开通且有免费额度：Seedance 1.5-pro（200 万 tokens）、Seed-2.1-turbo（50 万 tokens）。
 // Seedance 2.0 系列需账户余额>200 元才能开通，暂不可用。
@@ -487,6 +525,19 @@ export async function generateVideo(
     if (st.status === "succeeded") {
       const url = st.content?.video_url;
       if (!url) throw new Error("Seedance 任务成功但无视频 URL");
+      // ★ 出片一成马上换成永久地址（理由见 transferArkVideo 的 ★）。这里是**唯一**收口：
+      //   composeSegments / regenSegment / 未来任何调用方都自动拿到能全球播的地址。
+      //   失败不挡出片 —— 退回方舟直链（24h 内有效，发布时服务端还会再转存一次），但要说出来。
+      if (isArkAssetUrl(url)) {
+        opts?.onProgress?.("成片转存中（换成永久地址）…");
+        try {
+          return await transferArkVideo(url);
+        } catch (e) {
+          opts?.onProgress?.(
+            `成片转存没成（${e instanceof Error ? e.message : String(e)}）——先用方舟临时链接，跨境网络下预览可能很慢`,
+          );
+        }
+      }
       return url;
     }
     if (st.status === "failed" || st.status === "cancelled") {

@@ -31,6 +31,12 @@ export async function resolveMediaUrl(url: string | undefined, opts?: { forCaptu
   for (let attempt = 0; ; attempt++) {
     const res = await fetchArkAsset(url, 120_000).catch((e) => {
       if (attempt === 0) return null;
+      // ★ 超时的 AbortError 一路裸抛的话，用户在合并页看到的是英文原文
+      //   「The user aborted a request.」——既看不懂又不知道下一步（铁律八）。
+      //   2026-08-20 真机实拍：跨境拉方舟 TOS 的 20MB 成片，120s 两次都拉不完，正是这句。
+      if (e instanceof DOMException && e.name === "AbortError") {
+        throw new Error("取媒体超时 —— 文件较大或网络太慢，稍后重试");
+      }
       throw e;
     });
     if (!res || !res.ok) {
