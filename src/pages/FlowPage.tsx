@@ -342,7 +342,12 @@ function NodeScreen({
   /** 主按钮这一下干什么：没方案台先推演，摊开着就重推，挑定了才真出片。
    *  **这是唯一的推进入口**——三套方案原来藏在「本段设置」抽屉的一枚小按钮后面，
    *  绝大多数用户没见过它，于是最贵的一步（出片）反而没有选择余地。 */
-  const stage: "derive" | "rederive" | "film" = simple || plan === "picked" ? "film" : picking ? "rederive" : "derive";
+  // ★ 白模节点（blockout）恒直出：r2v 复刻没有方案台这一拍（画面整个来自模板视频，
+  //   推演三套走向无从谈起）。2026-08-20 之前只有 `simple` 一票 —— 分段模板组走
+  //   workflow 模式后，白模节点落进"先推演"档：按钮标着推演价（80.4k）、点下去
+  //   真去推演三套方案，方案台对着一段 r2v 复刻完全没有意义，还多花一笔推演的钱。
+  const stage: "derive" | "rederive" | "film" =
+    simple || blockout || plan === "picked" ? "film" : picking ? "rederive" : "derive";
   const mainCost = stage === "film" ? cost : propCost;
   const mainDisabled =
     busy || generating || (stage === "film" ? !prop.plot.trim() : !req.trim() && !node.materials?.length);
@@ -522,8 +527,10 @@ function NodeScreen({
           <div className="px-8 text-center text-xs leading-relaxed text-slate-500">
             {generating
               ? node.progress || "生成中…"
-              : simple
-                ? "还没有画面——在下面写清楚这一段要拍什么"
+              : simple || blockout // 白模没有方案台（直出复刻），别许诺"三套方案"
+                ? blockout && named
+                  ? "还没有画面——先给人偶挂上角色卡，出片就按模板逐镜头复刻"
+                  : "还没有画面——在下面写清楚这一段要拍什么"
                 : "还没有画面——在下面写清楚这一段要拍什么，点「生成本段」先看三套方案"}
           </div>
         )}
