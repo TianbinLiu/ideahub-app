@@ -1051,7 +1051,7 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| POST | `/api/branch/templates` | required（5/分） | **V1 登记**。body `{ title, intro, coverUrl, recipe, videoUrl }`；`videoUrl` 过三重白名单（host=res.cloudinary.com + 模板视频专用目录 + public_id 归属 `^<userId>-\d+$`），别处的链接 400；元数据服务端向 Cloudinary 现查，复核走 **② 号窗口**（整段原片直接当参考视频用）。建成 `status=pending`。重复视频 409 |
+| POST | `/api/branch/templates` | required（5/分） | **V1 登记**。body `{ title, intro, coverUrl, recipe, videoUrl, splits? }`；`videoUrl` 过三重白名单（host=res.cloudinary.com + 模板视频专用目录 + public_id 归属 `^<userId>-\d+$`），别处的链接 400；元数据服务端向 Cloudinary 现查，复核走 **② 号窗口**（整段原片直接当参考视频用）。建成 `status=pending`。重复视频 409（`refVideo.cloudinaryPublicId` **与 `group.sourcePublicId` 都算**——切过段的源不能再登记）。`splits` 非空 = **分段登记**（见下「长视频分段登记」），成功回 `{ ok, template, parts[], needsDetect: true }` |
 | POST | `/api/branch/templates/blockoutize` | required（**3 次/10 分钟**） | **V2 白模化 · 阶段一**。body `{ publicId, startSec, durSec, crop:{x,y,w,h}, frameTimes?, title, intro, coverUrl, videoTier?, aspect?, note? }` —— 提交的是**四组数不是 URL**（变换地址由服务端自己拼）。`frameTimes` 见下「看哪几帧」，**自动模式不带这个字段**。成功 `201 { ok, jobId, taskId, durSec, frames, roles[], markSlots?, expiresAt }`（`markSlots` 见上：存在即序数方案，**阶段一就要给** —— 模板还没建出来时核对入口就要知道该按位置说话还是按编号说话）（**钱在这一刻花掉**；`frames` = 服务端**真正看了几帧**，App 报价与它不等时以它为准并如实说一句）。失败一律带 `billed`（见下） |
 | POST | `/api/branch/templates/blockoutize/finish` | required（仅凭据所有者） | **V2 白模化 · 阶段二**。body `{ jobId }`，**只收 jobId**：任务成没成由服务端自己向方舟核实，客户端说什么都不作数。成功 `{ ok, template, blockout:{ taskId, durSec } }`。**幂等**（重复调回同一条模板，不许建出第二个）。本阶段**不扣钱** |
 | GET | `/api/branch/templates/blockoutize/pending` | required | **掉线恢复**：本账号还没取回结果的凭据 `{ ok, jobs: [{ jobId, taskId, durSec, title, roles[], markSlots?, expiresAt, createdAt }] }`。App 进模板市场时拉一次，摆出取回入口 |
@@ -1062,6 +1062,33 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 | PATCH | `/api/branch/templates/:id/publish` | required（仅作者） | **两道独立的门**：① 试炼闸 `provenAt` 非空；② 有 `roles` 时必须已核对。任一不过回 400 整句（各说各的原因）。blocked 不能发布 |
 | PATCH | `/api/branch/templates/:id/unpublish` | required（仅作者） | 回到 pending。blocked 是平台处置，作者洗不掉（400） |
 | DELETE | `/api/branch/templates/:id` | required（仅作者） | **连带 `uploader.destroy` 回收参考视频**（先云端后库：云端回收失败回 502 且不删库，重试即可；封面与 **V2 的 `source.publicId` 原始素材** best-effort 回收，失败不阻断）。回 `{ ok: true }` |
+
+### 长视频分段登记（splits，2026-08-20）
+
+超过参考视频窗口（30s）的素材走这条：`POST /templates` 的 body 多带
+`splits: number[]`（秒，**严格递增**，落在 `(0, 源时长)` 开区间），服务端把源视频
+**物理切成 N 段独立 Cloudinary 资产**、各建一条普通模板，`group` 归组。
+
+- **每段必须落在 [4,30] 窗口**，越界**整单 400**、一个资产都不切。服务端**只验不修**
+  （替用户挪分段点 = 替他改每段的价钱）。「用户标的帧 → 合法分段」在客户端一处实现：
+  `app/src/data/templates.planSplits(真实时长, marks)` —— 丢掉切出 <4s 的刀（`dropped`
+  返回给界面整句点名）、>30s 的段中点补刀到进窗。
+- **段数上限 12**（zod `splits ≤ 11` ↔ app `SPLIT_MAX_PARTS`，跨仓契约）。
+- **切段变换**：`so_<a>,du_<d>[/c_scale,w_<N>]/<sourcePublicId>.mp4`。`c_scale` 只在
+  源画面低于 407,696 像素硬门时出现，放大到刚过线（×1.02 余量、宽取偶，公式与
+  `/uploads/template-video/derive` 逐字同源），**接在 so_/du_ 之后**（链式按书写顺序）。
+  边长（<300）与宽高比越窗放大救不了，照旧整单拒。
+- **无裁剪、无时段选择**（v1）：吃的是**整条原始上传**。App 侧的对应限制：ownRef 路
+  选段 >30s 时必须「整条 + 整幅」，否则判词整句拒（`arkVideoRules.ownRefSplitVerdict`）。
+  整条的理由不只是省事：`group.sourceUrl` 就是合并成片时回填**完整音轨**的原片，
+  登记中段音轨就从 0 秒起错位。
+- 每段回包/详情带 `group: { key, index, count, sourceUrl, sourceDurationSec }`
+  （`sourcePublicId` 不出，隐私口径同 `source`）。`sourceUrl` 给客户端解原片音轨。
+- 半途失败：已切资产回收、库里零残留、502 可重试（回滚后判重不误伤）。
+- 登记后每段照常走 `POST /:id/detect-roles` 认人（**每段一发、各自计费**，报价镜像
+  `economy.ownRefTemplateCost` × 段数，App 提交前整句报总价）。
+- 分段登记过的源视频不可再登记（409）、不可当孤儿回收（`group.sourcePublicId` 命中
+  即拒删——它是整组的音轨来源）。
 
 **试炼闸（provenAt）的写入**完全在服务端：r2v 任务被受理时代理落一条
 `{ taskId, templateId, userId }` 追踪（TTL 48h）；轮询响应 `status=succeeded` 且发起人

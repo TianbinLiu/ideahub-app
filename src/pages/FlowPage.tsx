@@ -28,7 +28,7 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 //   真正发出去的那段话，在这里另抄一个 400 出来，改上限时这里就开始说假话
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
 import { tierBlockReason, walletOf } from "../data/account";
-import { markNoun, markSpecOf, myTemplates, splitCastRoles } from "../data/templates";
+import { markNoun, markSpecOf, myTemplates, splitCastRoles, templateGroupOf } from "../data/templates";
 import { VIDEO_TIERS, clampDuration, fmtTokens, modelLabel, proposalsCost, r2vPriceIssue, tierOf } from "../data/economy";
 import {
   FlowNode,
@@ -1439,7 +1439,13 @@ export default function FlowPage() {
       {tplExtract && (
         <VideoTemplateExtractor
           onClose={() => setTplExtract(false)}
-          onDone={(t) => useFlow.getState().applyTemplate(t)}
+          // 分段组任一段都是整组套用（templateGroupOf 对非组员回 [自己]，单模板走原路）——
+          // 与市场页 pick 同一句判断。只 applyTemplate 的话，刚在这里做完的分段组只会铺进第 1 段
+          onDone={(t) => {
+            const parts = templateGroupOf(t);
+            if (parts.length > 1) useFlow.getState().applyTemplateGroup(parts);
+            else useFlow.getState().applyTemplate(t);
+          }}
         />
       )}
     </div>

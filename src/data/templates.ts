@@ -463,6 +463,13 @@ export function templateGroupOf(t: VideoTemplate): VideoTemplate[] {
 }
 
 /**
+ * 一次分段登记最多切几段 —— **跨仓契约**：服务端那一半是 zod 的 `splits: …max(11)`
+ * （11 刀 = 12 段，schemas/branchTemplate.schemas.js）。谁改一边都必须同步另一边，
+ * 只改服务端的表现是：客户端放行 13 段、服务端 400 一句 zod 校验错，用户看不懂也改不动。
+ */
+export const SPLIT_MAX_PARTS = 12;
+
+/**
  * 用户标的帧 → 合法分段点（**唯一实现**，登记 splits 之前必须过这里）。
  * 规则（与服务端 [4,30] 窗口对齐，服务端只验不修）：
  *   ① 丢掉会切出 <4s 段的标记（丢哪个都要能说出来 —— 返回 dropped 由调用方提示）；
@@ -693,6 +700,100 @@ export async function makeOwnRefTemplate(o: {
     note = `${e instanceof Error ? e.message : String(e)}（模板已经建好了，可以在「我的模板」里点「识别角色位」重试）`;
   }
   return { id, note };
+}
+
+/**
+ * 【自带参考视频 · 长视频】整条分段登记成一个模板组 —— **>30 秒那条路的唯一实现**。
+ *
+ * 与单段的 `makeOwnRefTemplate` 是同一条产品路的两种形态，但步骤不同、刻意不合并：
+ *   · 单段：deriveTemplateVideo 裁剪（可裁画面）→ 本机先落 → registerTemplate 登记；
+ *   · 分段：**跳过裁剪**（服务端 splits 路吃整条原始上传，v1 不支持画面裁剪 —— 限制
+ *     由提取器在选段界面整句说出），POST /templates 带 `splits` 一发登记出 N 段独立
+ *     资产（group 归组），再把服务端回的 parts **逐段**落本机、**逐段**认人。
+ *
+ * ★★ 落库顺序与单段相反（先服务端后本机）是有意的：单段"先落本机"是为了握住派生
+ *   资产的回收句柄；分段路**不产生本机先知道的资产**（切段由服务端完成、失败服务端
+ *   自己回滚），本机没有可先落的东西。登记成功那一刻源视频成为 `group.sourcePublicId`
+ *   （合并回填原片音轨靠它），从此**不许再回收** —— `onRegistered` 就是让宿主把回执标成
+ *   spent 的钩子，漏调的表现是关窗时客户端徒劳地去删、服务端整句拒、控制台多一条假警报。
+ * ★★ 每段落库走 `adoptRemoteTemplate`（与白模化取件同一跳），认人回写走
+ *   `detectTemplateRoles`（与单段同一跳）—— 五件套（roles/markSlots/markBoxes/
+ *   markBoxAtSec/markDescs）对每段各来一遍，全部经由那两处唯一实现，这里不碰任何字段。
+ * ★ 认人是**逐段串行**的：detect-roles 限流 6 次/分，N 段并发出去会自己撞自己的限流；
+ *   而且每段一发是一笔钱，串行让"第 3 段失败"停在第 3 段的报错上，好认。
+ * ★ 某段认人失败**不算整件事失败**（与单段同一条纪律）：那一段模板已经在「我的模板」里，
+ *   单独点「识别角色位」重试即可 —— 失败的段逐段点名，别把 N 段的结果压成一句"部分失败"。
+ *
+ * @param o.splits 分段点（秒，升序）——调用方经 `planSplits` 规划过的那份（唯一实现，
+ *   丢刀/对半都在那边）。这里不重新规划：服务端只验不修，不合法就整单 400 原文透传。
+ * @returns 第 1 段的本机 id + 段数 + 一句给用户看的话（"" = 全都拿到了）
+ */
+export async function makeOwnRefTemplateGroup(o: {
+  receipt: { publicId: string; url: string; durationSec: number; width: number; height: number; bytes: number };
+  splits: number[];
+  title: string;
+  intro?: string;
+  /** 登记一成功（源视频从此归模板组管、不许再回收）就回调 —— 宿主拿它标记回执 spent */
+  onRegistered?: () => void;
+  onStep?: (note: string) => void;
+}): Promise<{ id: string; count: number; note: string }> {
+  const say = o.onStep ?? (() => {});
+  if (!remoteOn()) throw new Error("现在连不上服务器——联网后再做模板");
+  // 断言而不是静默兜底：空 splits 意味着调用方没走 planSplits 就进来了（≤30 秒该走单段路）
+  if (!o.splits.length) throw new Error("分段登记需要至少一个分段点——不超过 30 秒的选段请走单段那条路。");
+
+  const count = o.splits.length + 1;
+  say(`正在把整条视频切成 ${count} 段登记…（每段都要独立转码，请稍候）`);
+  const { parts } = await branch.createTemplate({
+    title: o.title.trim() || "白模模板",
+    intro: (o.intro ?? "").trim(),
+    coverUrl: "",
+    recipe: {
+      styleHint: "",
+      beats: [],
+      // ★ recipe.durationSec 是「经典降级路的镜像时长」，服务端 zod 窗口 [3,30] ——
+      //   整条源时长（>30 才走到这条路）直接塞会整单 400（2026-08-20 实测 34.18s 撞的
+      //   第一发）。这份 recipe 是 N 段共用的，而每段真实时长在各自 refVideo 上；
+      //   镜像取窗口上限即可（老客户端降级跑经典配方时的拍长，不参与任何计价）。
+      durationSec: Math.min(ARK_EDIT_RULES.maxSec, Math.max(3, Math.round(o.receipt.durationSec))),
+      videoTier: "",
+      framePrompt: "",
+    },
+    videoUrl: o.receipt.url,
+    splits: o.splits,
+  });
+  // ★ 判回包**形状**不判状态码（Capacitor SPA 回退恒 200，CLAUDE.md 那条坑）：
+  //   老服务端对带 splits 的请求可能按整段登记处理（zod strip 掉不认识的字段）——
+  //   那时回的是单个 template 而没有 parts，必须整句拒，否则一段 34 秒的"整段模板"
+  //   会带着超窗的时长静默落库，套用的人付费那一步才 400。
+  if (!parts?.length) {
+    throw new Error("这台服务器不支持分段登记（回包没有 parts，可能需要升级服务端）——模板没有创建，本次没有花钱。");
+  }
+  o.onRegistered?.();
+
+  // 逐段落本机（五件套此刻多半还是空的 —— needsDetect，由下面逐段认人回写）
+  const landed = parts.map((api) =>
+    adoptRemoteTemplate(api, "分段登记成功了，但服务器返回的某一段缺少参考视频地址——请到「我的模板」里确认各段状态。"),
+  );
+
+  const lines: string[] = [];
+  let failed = 0;
+  for (let i = 0; i < landed.length; i += 1) {
+    say(`第 ${i + 1}/${landed.length} 段：AI 正在认画面里有哪些人…（要一到几分钟）`);
+    try {
+      // atSecs 不传 = 服务端按几何位置自动铺：用户标的帧在分段路里是**切段点**（镜头边界），
+      // 拿镜头切换那一瞬当认人帧正好是最差的一帧 —— 两种语义别混
+      const n = await detectTemplateRoles(landed[i].id, undefined);
+      if (n) lines.push(`第 ${i + 1} 段：${n}`);
+    } catch (e) {
+      failed += 1;
+      lines.push(`第 ${i + 1} 段认人失败：${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  if (failed > 0) {
+    lines.push("失败的段不用重做模板：在「我的模板」里找到那一段，单独点「识别角色位」重试就行。");
+  }
+  return { id: landed[0].id, count: landed.length, note: lines.join("\n") };
 }
 
 /**
@@ -1200,6 +1301,13 @@ export interface NewTemplate {
   markDescs?: VideoTemplate["markDescs"];
   /** 那些框量自第几秒 */
   markBoxAtSec?: VideoTemplate["markBoxAtSec"];
+  /**
+   * 分段组归属（长视频切段登记，2026-08-20）。★ 类型里必须有名字（CLAUDE.md 那条坑的
+   * 原话）：`saveTemplate` 是 `{...t}` 展开、`adoptRemoteTemplate` 是逐字段搬 —— 这里
+   * 没有名字的话，分段登记落进 `mine` 的每一段都会**静默丢掉组归属**，
+   * `templateGroupOf` 判成单模板，「从任何一段套用都整组铺」当场退化成只铺一段，零报错。
+   */
+  group?: VideoTemplate["group"];
   /**
    * **服务端已经建好了**这个模板（白模化那条路：blockoutize 一次性出片 + 转存 + 建库，
    * 回包里就带着实体）。带上它意味着两件事：
@@ -2147,12 +2255,18 @@ async function waitBlockoutTask(taskId: string, prog: (s: string) => void): Prom
  *   本机再 saveTemplate 一次就会多出一条 remoteId 相同的记录 —— 它们的发布/删除都指向
  *   同一个远端实体，删掉一条另一条就成了指向已删实体的幽灵（列表里点进去 404）。
  */
-function adoptBlockoutTemplate(api: branch.ApiBranchTemplate): VideoTemplate {
+/**
+ * 服务端已经建好的模板实体 → 本机库（`mine`）—— **落库这一跳的唯一实现**。
+ * 白模化取件（adoptBlockoutTemplate）与分段登记（makeOwnRefTemplateGroup）都走它：
+ * 两处各写一遍的话，五件套（roles/markSlots/markBoxes/markBoxAtSec/markDescs）迟早
+ * 有一处漏搬一位，而那正是 CLAUDE.md「服务端加字段本机几跳一起搬」钉过三次的坑。
+ * @param missingRefMsg 服务端回包缺参考视频时抛的整句 —— 两条路的"钱花没花过"不同，
+ *   话术必须各说各的（白模化那句提"钱已付过"，分段那句不能提）
+ */
+function adoptRemoteTemplate(api: branch.ApiBranchTemplate, missingRefMsg: string): VideoTemplate {
   const mapped = apiToTemplate(api);
   if (!mapped?.remoteId) {
-    throw new Error(
-      "结果取回来了，但服务器返回的模板缺少参考视频地址——钱在开炼那一步已经付过，请去「我的模板」确认后再决定要不要重来。",
-    );
+    throw new Error(missingRefMsg);
   }
   const already = mine.find((t) => t.remoteId === mapped.remoteId);
   if (already) return already;
@@ -2174,8 +2288,19 @@ function adoptBlockoutTemplate(api: branch.ApiBranchTemplate): VideoTemplate {
     // 人偶描述：与框各自独立（框没量出来 ≠ 描述没验过），所以单独一个存在性判断
     ...(mapped.markDescs?.length ? { markDescs: mapped.markDescs } : {}),
     ...(mapped.markBoxAtSec !== undefined ? { markBoxAtSec: mapped.markBoxAtSec } : {}),
+    // 分段组归属：存在性搬运（白模化那条路没有它，分段登记的每一段都有）。
+    // ★ 漏了它 = 组在 mine 里散架（见 NewTemplate.group 的 ★），且 mineRemote 那份带着组、
+    //   去重后只显示 mine 这份 —— 两份并存反而把症状盖得更深
+    ...(mapped.group ? { group: mapped.group } : {}),
     remoteId: mapped.remoteId,
   });
+}
+
+function adoptBlockoutTemplate(api: branch.ApiBranchTemplate): VideoTemplate {
+  return adoptRemoteTemplate(
+    api,
+    "结果取回来了，但服务器返回的模板缺少参考视频地址——钱在开炼那一步已经付过，请去「我的模板」确认后再决定要不要重来。",
+  );
 }
 
 /**
