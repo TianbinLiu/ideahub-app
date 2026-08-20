@@ -440,6 +440,15 @@ interface FlowState {
 
   /** 生成/重生成某节点：先按圈选改设定帧，再承接上一段真尾帧起拍，最后出片 */
   genNode: (id: string) => Promise<boolean>;
+
+  /**
+   * 出片结束（成/败）留下的"待读通知"。给全局悬浮胶囊（GenerationPill）读的：
+   * 生成期间用户可以离开工作流页去逛（genNode 全程活在这个 store 里，站内切页
+   * **不会**中断——2026-08-20 之前浮层上那句"中途离开会中断"是架构早期的陈旧恐吓），
+   * 结束时人不在页上，就靠它把人叫回来。回到 /flow 即清（FlowPage 挂载时清）。
+   */
+  genNotice: { ok: boolean; msg: string } | null;
+  clearGenNotice: () => void;
 }
 
 export const useFlow = create<FlowState>()((set, get) => ({
@@ -449,6 +458,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
   origin: "solo",
   busy: false,
   err: "",
+  genNotice: null,
+  clearGenNotice: () => set({ genNotice: null }),
   template: null,
   subject: "",
   cast: {},
@@ -1228,14 +1239,20 @@ export const useFlow = create<FlowState>()((set, get) => ({
         videoByProposal: { ...get().nodes[idx].videoByProposal, [node.chosenId]: res.url || "mock:" },
         anns: [],
       });
-      set({ busy: false });
+      // 通知无条件设：人在页上的话 FlowPage 一直挂着，胶囊不渲染（按路由判），
+      // 下次进来也会清 —— 在这里判"人在不在"反而是第二处路由判断
+      set({ busy: false, genNotice: { ok: true, msg: `第 ${idx + 1} 段出片完成` } });
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       // 失败也留在日志里：卡在哪一步、跑了多久，比一句"生成失败"有用得多
       log.fail(`失败：${msg.slice(0, 80)}`);
       patchNode({ status: "failed", progress: "", error: msg.slice(0, 160) });
-      set({ busy: false, err: `第 ${idx + 1} 段生成失败：${msg.slice(0, 120)}` });
+      set({
+        busy: false,
+        err: `第 ${idx + 1} 段生成失败：${msg.slice(0, 120)}`,
+        genNotice: { ok: false, msg: `第 ${idx + 1} 段生成失败` },
+      });
       return false;
     }
   },

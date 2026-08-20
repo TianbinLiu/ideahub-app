@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router";
 import GuideGate from "./components/guide/GuideGate";
+import GenerationPill from "./components/GenerationPill";
 import FeedPage from "./pages/FeedPage";
 import DiscoverPage from "./pages/DiscoverPage";
 import WorkshopPage from "./pages/WorkshopPage";
@@ -142,6 +143,9 @@ export default function App() {
           `fixed inset-0`（首页/创作页/剪辑页/工作流页），挂在里面会跟着路由卸载，
           而遮罩要能盖住任何一页。弹哪一份由每一屏自己 useAutoGuide 声明。 */}
       <GuideGate />
+      {/* 出片状态胶囊：生成期间人不在 /flow 时显示进度，出完显示"回去继续"的通知。
+          与 GuideGate 同一条理由挂在 Routes 外面（要盖住任何一页，不随路由卸载） */}
+      <GenerationPill />
       <Routes>
       <Route element={<TabLayout />}>
         <Route path="/" element={<FeedPage />} />

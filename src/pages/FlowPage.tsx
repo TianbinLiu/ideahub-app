@@ -745,6 +745,9 @@ function NodeScreen({
           // 余额不足这类"还没进流程就被拦下"的失败没有 node.error，只有 store 的 err
           error={node.error || err}
           onClose={() => setForge(null)}
+          // 「先去逛逛」：生成链条活在 flowStore，站内切页不断；全局胶囊（GenerationPill）
+          // 接手进度显示，出完把人叫回来
+          onLeave={() => nav("/")}
         />
       )}
 
@@ -935,6 +938,9 @@ export default function FlowPage() {
   // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；那颗 ? 随时能重看）
   useAutoGuide("flow");
   const loc = useLocation();
+  // 人回到这一页，胶囊那条"待读通知"就算读过了（页内自有完整的进度与结果 UI）
+  const clearGenNotice = useFlow((s) => s.clearGenNotice);
+  useEffect(() => clearGenNotice(), [clearGenNotice]);
   const { nodes, cursor, mode, origin, busy, err, setCursor, addNode, removeNode, addMaterials, removeMaterial, reset } =
     useFlow();
   const [finalizing, setFinalizing] = useState("");
