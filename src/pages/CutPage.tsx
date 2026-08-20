@@ -11,6 +11,7 @@ import { useNavigate } from "react-router";
 import FrameAnnotator, { drawCover, loadImg } from "../components/FrameAnnotator";
 import Icon from "../components/Icon";
 import { AI_REAL, refineFrame, regenSegment } from "../ai";
+import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
 import { fmtTokens, segTokens } from "../data/economy";
@@ -281,6 +282,26 @@ export default function CutPage() {
     setErr("");
     let audioCtx: AudioContext | null = null;
     try {
+      // ★ 老草稿自救：还是方舟直链的段先转存成永久地址（服务端拉，全球 CDN）。
+      //   出片那一刻的转存 2026-08-20 才上线，在那之前炼的段揣的还是 TOS 直链 ——
+      //   跨境网络下 120s 代理抓取拉不完 20MB，合并必超时（真机实拍）。转存失败不挡合并，
+      //   照旧走代理抓取碰运气，resolveMediaUrl 的超时文案会说人话。
+      let mergeSegs = segs;
+      const arkAt = segs.map((s, i) => (isArkAssetUrl(s.videoUrl) ? i : -1)).filter((i) => i >= 0);
+      if (arkAt.length > 0) {
+        const next = segs.slice();
+        for (const i of arkAt) {
+          setBusy(`第 ${i + 1} 段成片转存中（换成永久地址）…`);
+          try {
+            next[i] = { ...next[i], videoUrl: await transferArkVideo(next[i].videoUrl!) };
+          } catch {
+            /* 见上：失败照旧 */
+          }
+        }
+        mergeSegs = next;
+        // 写回草稿：预览、重试合并、发布都用转存后的地址，别让下一步再拉一次跨境
+        useStudio.setState({ draft: { ...draft!, segments: next } });
+      }
       const canvas = document.createElement("canvas");
       canvas.width = out.w;
       canvas.height = out.h;
@@ -317,7 +338,7 @@ export default function CutPage() {
       rec.start(250);
       for (let i = 0; i < view.length; i++) {
         const clip = view[i];
-        const seg = segs[clip.segIndex];
+        const seg = mergeSegs[clip.segIndex];
         setBusy(`合并中 · 片段 ${i + 1}/${view.length}`);
         if (seg.videoUrl) {
           const src = srcMap[clip.segIndex] ?? (await resolveMediaUrl(seg.videoUrl, { forCapture: true }));

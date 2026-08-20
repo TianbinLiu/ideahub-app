@@ -58,6 +58,14 @@ const BASE = import.meta.env.DEV ? "/api/ark" : `${API_BASE}/api/ark`;
  *   路径与鉴权的规则只能有一处（铁律六）。
  */
 export async function fetchArkAsset(url: string, timeoutMs: number): Promise<Response> {
+  // ★ 只有方舟域需要代理（TOS 不发 CORS 头，canvas 抓 blob 会被拦）。2026-08-20 起成片
+  //   出片即转存 Cloudinary —— 它自带 CORS（ACAO:*），**直连**抓 blob 即可；塞给代理反而
+  //   撞它的域名白名单（volces/volccdn 之外一律 400 host not allowed），合并当场失败
+  //   （同日真机实拍：「合并失败：取媒体失败 400」）。直连还省一跳服务器带宽。
+  //   将来若再有"无 CORS 的非方舟域"，这里会以 fetch TypeError 响亮地失败，不会静默。
+  if (!isArkAssetUrl(url)) {
+    return fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+  }
   // dev 的中间件挂在 /api/asset（vite.config.ts）；服务端挂在 /api/ark/asset（同一个路由文件）
   const endpoint = import.meta.env.DEV ? "/api/asset" : `${BASE}/asset`;
   const token = getToken();
@@ -73,6 +81,44 @@ export async function fetchArkAsset(url: string, timeoutMs: number): Promise<Res
     throw new Error(`取产物失败：${API_BASE || "本机"} 上没有 /api/ark/asset 代理，请更新服务端`);
   }
   return res;
+}
+
+/** 方舟产物域名（volces/volccdn/TOS）。服务端 videoAsset.service 的域名表是权威，这里是
+ *  客户端镜像 —— 只用来判「这条要不要转存/自救」，判错的代价只是多打或少打一次转存请求 */
+export function isArkAssetUrl(url: string | undefined): boolean {
+  if (!url || !/^https?:\/\//i.test(url)) return false;
+  try {
+    const host = new URL(url).hostname;
+    return /(^|\.)(volces|volccdn|byteimg|bytedance|ivolces)\.com$/i.test(host) || /tos-[a-z0-9-]+\./i.test(host);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 方舟成片 → 永久地址（服务端拉 TOS → 传 Cloudinary，POST /api/ark/transfer-video）。
+ *
+ * ★ 为什么出片后要立刻转存（2026-08-20 真机实测）：videoUrl 揣着 TOS 直链到发布才转存，
+ *   而预览/合并都在发布之前。跨境网络直连 TOS 的下载速度（PC 实测 1.06 MB/s）**低于成片
+ *   码率**（15s 720p ≈ 1.33 MB/s）——<video> 永远缓冲不到能连续播（黑屏转圈、不报错），
+ *   合并的 120s 代理抓取两次都拉不完（用户看到「合并失败：The user aborted a request」）。
+ * ★ 失败一律抛，由调用方决定退路（generateVideo 退回方舟直链并把这句说给用户）。
+ *   dev 裸跑没有这个端点：vite 的 SPA 回退回 200+HTML，所以照旧只认 Content-Type。
+ * ★ 超时 180s：服务端要拉最多 80MB 再跨境传 Cloudinary，60s 不够它做完两头。
+ */
+export async function transferArkVideo(url: string): Promise<string> {
+  const token = getToken();
+  const res = await fetch(`${BASE}/transfer-video`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ url }),
+    signal: AbortSignal.timeout(180_000),
+  });
+  const ct = res.headers.get("content-type") ?? "";
+  if (!ct.includes("application/json")) throw new Error("这台服务器还没有 /api/ark/transfer-video（请更新服务端）");
+  const j = (await res.json().catch(() => ({}))) as { url?: string; message?: string };
+  if (!res.ok || !j.url) throw new Error(j.message || `转存失败（${res.status}）`);
+  return j.url;
 }
 
 // 模型 ID（2026-08-01 实测于本账号：GET /api/v3/models 取活跃 ID + 控制台开通状态）
@@ -358,6 +404,8 @@ export async function generateVideo(
      * edit 的输出时长与画幅都跟随源片，是协议行为不是我们的参数）。
      */
     refVideoUrl?: string;
+    /** 白模参考视频的源片时长（秒）。只用来给轮询死线定尺寸（见下），不进请求体 */
+    refVideoSec?: number;
     onProgress?: (status: string) => void;
   },
 ): Promise<string> {
@@ -453,10 +501,23 @@ export async function generateVideo(
     120_000,
   );
   const id = created.id;
+  // ★★ 轮询死线按"这一发要出多少秒视频"缩放，不再一刀切 10 分钟。
+  //   实测两点（720p）：5s 素材 ≈ 250s 出片；15s 模板 ≈ 780s —— 而旧死线 120×5s=600s。
+  //   2026-08-18 真机那发（¥27）：方舟 ~13 分钟出成片，App 10 分钟先放弃报了"失败"，
+  //   用户拿到的是**钱花了、片其实存在、这边说没成** —— 死线太短不是保守，是烧钱。
+  //   斜率 ≈ 52s/输出秒，按 90s/秒 + 3 分钟余量取放弃线（15s → 25.5 分钟），
+  //   短段保底 12 分钟。放弃线只是放弃线：成功早到早返回，代价只是真卡死时多等一会。
+  //   白模段的输出时长跟模板走（refVideoSec；没传按上传窗口上限 15s 取保守值），
+  //   其余路径用夹过的 durationSec（与请求体同一套夹法）。
+  const outSec = refVideoUrl
+    ? opts?.refVideoSec ?? 15
+    : Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5)));
+  const deadlineMs = Math.max(12 * 60_000, outSec * 90_000 + 3 * 60_000);
   const t0 = Date.now();
   let pollFails = 0;
-  for (let i = 0; i < 120; i++) {
-    await new Promise((r) => setTimeout(r, 5000));
+  while (Date.now() - t0 < deadlineMs) {
+    // 前两分钟 5s 一问（短段体感），之后 10s —— 二十几分钟的等待期不必打三百个请求
+    await new Promise((r) => setTimeout(r, Date.now() - t0 > 120_000 ? 10_000 : 5000));
     let st: ArkTaskState;
     try {
       st = await fetchArkTask(id);
@@ -472,13 +533,36 @@ export async function generateVideo(
     if (st.status === "succeeded") {
       const url = st.content?.video_url;
       if (!url) throw new Error("Seedance 任务成功但无视频 URL");
+      // ★ 出片一成马上换成永久地址（理由见 transferArkVideo 的 ★）。这里是**唯一**收口：
+      //   composeSegments / regenSegment / 未来任何调用方都自动拿到能全球播的地址。
+      //   失败不挡出片 —— 退回方舟直链（24h 内有效，发布时服务端还会再转存一次），但要说出来。
+      if (isArkAssetUrl(url)) {
+        opts?.onProgress?.("成片转存中（换成永久地址）…");
+        try {
+          return await transferArkVideo(url);
+        } catch (e) {
+          opts?.onProgress?.(
+            `成片转存没成（${e instanceof Error ? e.message : String(e)}）——先用方舟临时链接，跨境网络下预览可能很慢`,
+          );
+        }
+      }
       return url;
     }
     if (st.status === "failed" || st.status === "cancelled") {
       throw new Error(`Seedance 任务${st.status}: ${st.error?.message ?? ""}`);
     }
   }
-  throw new Error("Seedance 任务超时（10 分钟）");
+  // ★ 这句话只准写**用户真能拿它做点什么**的内容。原来那版写了「任务号 xxx」与
+  //   「扣费以钱包流水为准」—— 前者全 app 没有任何消费方（能按号取回的只有白模化那条路），
+  //   后者在 App 里**根本没有页面**（fetchWalletLedger 零调用方，唯一的流水在管理端）。
+  //   指向两个不存在的出口，比不说更坏。
+  // ⚠ 欠着的正事：这条路缺一个「到点先按未知处理、给个 24 小时取回入口」的形态 ——
+  //   同仓的 waitBlockoutTask 就是那个正确形状。死线拉长 2.5 倍之后更该补上。
+  throw new Error(
+    `出片超时：等了 ${Math.round((Date.now() - t0) / 60_000)} 分钟还没回来。` +
+      `方舟那边可能仍在出片，但这一发我们已经接不回来了；提交那一刻就已经计费，` +
+      `再点「重新生成」是重新下一单、会再花一次钱`,
+  );
 }
 
 /**

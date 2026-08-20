@@ -8,7 +8,7 @@
     "build": "tsc && node scripts/check-guides.mjs && vite build",
     "preview": "vite preview",
     "protect": "node scripts/protect-asset.mjs",
-    "build:app": "tsc && vite build && node scripts/prune-app-assets.mjs && npx cap sync android",
+    "build:app": "npm run build && node scripts/prune-app-assets.mjs && npx cap sync android",
     "apk": "npm run build:app && cd android && gradlew assembleSideloadDebug",
     "apk:release": "npm run build:app && cd android && gradlew assembleSideloadRelease",
     "aab": "npm run build:app && cd android && gradlew bundlePlayRelease",
