@@ -404,6 +404,9 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
         // 报价（economy.segmentCost 的 refVideo 位）与这里必须同进同出：报了 r2v 的价
         // 就必须真发参考视频，反之亦然（flowStore.nodeCost 与 genNode 读同一份模板快照）
         refVideoUrl: input.refVideoUrl,
+        // 模板时长只喂给轮询死线定尺寸（arkClient 按输出秒数放弃，不再一刀切 10 分钟），
+        // 不是下单参数 —— duration 在白模路上由 BLOCKOUT_TASK 的 -1 接管
+        refVideoSec: input.refVideo?.durationSec,
       },
     ],
     (_d, _t, status) => prog(status),

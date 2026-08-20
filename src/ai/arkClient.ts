@@ -358,6 +358,8 @@ export async function generateVideo(
      * edit 的输出时长与画幅都跟随源片，是协议行为不是我们的参数）。
      */
     refVideoUrl?: string;
+    /** 白模参考视频的源片时长（秒）。只用来给轮询死线定尺寸（见下），不进请求体 */
+    refVideoSec?: number;
     onProgress?: (status: string) => void;
   },
 ): Promise<string> {
@@ -453,10 +455,23 @@ export async function generateVideo(
     120_000,
   );
   const id = created.id;
+  // ★★ 轮询死线按"这一发要出多少秒视频"缩放，不再一刀切 10 分钟。
+  //   实测两点（720p）：5s 素材 ≈ 250s 出片；15s 模板 ≈ 780s —— 而旧死线 120×5s=600s。
+  //   2026-08-18 真机那发（¥27）：方舟 ~13 分钟出成片，App 10 分钟先放弃报了"失败"，
+  //   用户拿到的是**钱花了、片其实存在、这边说没成** —— 死线太短不是保守，是烧钱。
+  //   斜率 ≈ 52s/输出秒，按 90s/秒 + 3 分钟余量取放弃线（15s → 25.5 分钟），
+  //   短段保底 12 分钟。放弃线只是放弃线：成功早到早返回，代价只是真卡死时多等一会。
+  //   白模段的输出时长跟模板走（refVideoSec；没传按上传窗口上限 15s 取保守值），
+  //   其余路径用夹过的 durationSec（与请求体同一套夹法）。
+  const outSec = refVideoUrl
+    ? opts?.refVideoSec ?? 15
+    : Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5)));
+  const deadlineMs = Math.max(12 * 60_000, outSec * 90_000 + 3 * 60_000);
   const t0 = Date.now();
   let pollFails = 0;
-  for (let i = 0; i < 120; i++) {
-    await new Promise((r) => setTimeout(r, 5000));
+  while (Date.now() - t0 < deadlineMs) {
+    // 前两分钟 5s 一问（短段体感），之后 10s —— 二十几分钟的等待期不必打三百个请求
+    await new Promise((r) => setTimeout(r, Date.now() - t0 > 120_000 ? 10_000 : 5000));
     let st: ArkTaskState;
     try {
       st = await fetchArkTask(id);
@@ -478,7 +493,17 @@ export async function generateVideo(
       throw new Error(`Seedance 任务${st.status}: ${st.error?.message ?? ""}`);
     }
   }
-  throw new Error("Seedance 任务超时（10 分钟）");
+  // ★ 这句话只准写**用户真能拿它做点什么**的内容。原来那版写了「任务号 xxx」与
+  //   「扣费以钱包流水为准」—— 前者全 app 没有任何消费方（能按号取回的只有白模化那条路），
+  //   后者在 App 里**根本没有页面**（fetchWalletLedger 零调用方，唯一的流水在管理端）。
+  //   指向两个不存在的出口，比不说更坏。
+  // ⚠ 欠着的正事：这条路缺一个「到点先按未知处理、给个 24 小时取回入口」的形态 ——
+  //   同仓的 waitBlockoutTask 就是那个正确形状。死线拉长 2.5 倍之后更该补上。
+  throw new Error(
+    `出片超时：等了 ${Math.round((Date.now() - t0) / 60_000)} 分钟还没回来。` +
+      `方舟那边可能仍在出片，但这一发我们已经接不回来了；提交那一刻就已经计费，` +
+      `再点「重新生成」是重新下一单、会再花一次钱`,
+  );
 }
 
 /**

@@ -23,6 +23,7 @@ import {
   myTemplates,
   pendingBlockoutIssue,
   pendingBlockoutJobs,
+  prominentRoleWarning,
   refVideoIssue,
   refVideoPoster,
   refVideoRealSec,
@@ -382,6 +383,8 @@ function OwnerRow({ t }: { t: VideoTemplate }) {
   const st = remoteStateOf(t);
   const local = myTemplates().some((x) => x.id === t.id);
   const isMine = local || st?.isOwner === true;
+  // ★ 判据只有 data 层那一处（颜色异类 ∧ 就在正中）。这里只负责在**发布之前**把它说出来。
+  const prominent = prominentRoleWarning(t.roles ?? [], t.markSlots, t.markBoxes);
   if (!isMine) return null;
   // ★ 已发布与否：远端状态拿得到就以它为准（那是权威），拿不到退回本机镜像
   const published = st ? st.status === "published" : t.published;
@@ -428,6 +431,20 @@ function OwnerRow({ t }: { t: VideoTemplate }) {
             （铁律八要的是"响亮 + 有下一步"）。所以失败时紧跟一个「去详情页处理」。
           ★ blocked 不给按钮：平台下架后作者的 publish/unpublish 服务端两条路由都会 400，
             这是唯一一种"确定点不动"的状态，照本仓规矩不摆按钮、只说一句话。 */}
+      {/* ★★★ 发布前把「这个模板会让别人换错人」说出来（2026-08-18 加，十发实拍换来的）。
+          判据只有 `prominentRoleWarning` 一处：**颜色异类 ∧ 它就在正中**。
+          实测这一档 5 发全错（换掉的都是那个异类，不管点名谁），而没有异类的全白素材
+          点名最难的一档也换对了 —— 也就是说这不是"有时候会错"，是**这类素材必错**。
+          ★ 为什么要摆在**发布**这一步而不是只在挂卡面板说：挂卡那句是给套用者看的，
+            而他是**付了 r2v 的钱之后**才看见结果的人；作者按下发布，就是让每一个套用者
+            各踩一次。这一句是唯一能在"扩散出去之前"拦一下的地方。
+          ★ **只警告、不拦**（与本仓其它启发式同一条纪律）：判据是启发式，误报的代价是
+            作者多看一句可以忽略的话，漏报的代价是退回现状。真要拦得有更硬的判据。 */}
+      {!published && prominent && (
+        <p className="w-full rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-amber-100">
+          {prominent}
+        </p>
+      )}
       {blocked ? (
         <span className="rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300">已被平台下架</span>
       ) : (
