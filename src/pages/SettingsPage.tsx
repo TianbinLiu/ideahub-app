@@ -5,7 +5,8 @@ import { useNavigate } from "react-router";
 import { setAvatarImage, signOut, updateProfile, isAdmin, isRemoteMode } from "../data/account";
 import Avatar from "../components/Avatar";
 import { fileToSquareImage } from "../utils/image";
-import { useCurrentUser } from "../hooks/useAccount";
+import { useAuthState, useCurrentUser } from "../hooks/useAccount";
+import AuthPending from "../components/AuthPending";
 import { storageEstimate } from "../data/db";
 import { resetGuidesSeen } from "../data/guide";
 import { planSweep, runSweep, type SweepPlan } from "../data/cacheSweep";
@@ -22,6 +23,7 @@ export default function SettingsPage() {
   // 远端模式下作品的权威副本在服务器，本地这份只是缓存——文案不能再说「存在本机」
   const remote = isRemoteMode();
   const user = useCurrentUser();
+  const auth = useAuthState();
   const navigate = useNavigate();
   const [name, setName] = useState(user?.name ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
@@ -36,6 +38,9 @@ export default function SettingsPage() {
     void storageEstimate().then(setStorage);
   }, []);
 
+  // ★ 会话还没有结论时先等着：这里 replace 到登录页是**不可回退**的，
+  //   水合完再放行只会白丢一次访问（与 RequireAuth 同一条判据）。
+  if (auth === "pending") return <AuthPending className="min-h-[70vh]" />;
   if (!user) {
     navigate("/login?next=/settings", { replace: true });
     return null;

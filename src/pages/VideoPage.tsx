@@ -26,7 +26,8 @@ import CommentDelete from "../components/CommentDelete";
 import ReportButton from "../components/ReportButton";
 import MentionInput from "../components/MentionInput";
 import MentionText from "../components/MentionText";
-import { useCurrentUser } from "../hooks/useAccount";
+import { useAuthState, useCurrentUser } from "../hooks/useAccount";
+import type { AuthState } from "../data/account";
 import { useVideosVersion } from "../hooks/useVideos";
 import { useStudio } from "../studio/studioStore";
 import TarotCard from "../components/TarotCard";
@@ -34,7 +35,17 @@ import { CARD_TYPE_LABELS, VideoComment, formatPlays, relativeTime } from "../ty
 
 /** 本片卡组：卡片横滑条 + 收入/去创作。收入 = 卡片拷进观众账号；
  *  去创作 = 顺手并进工坊桌面卡组并跳工坊（工坊卡组是会话态，必须显式合并） */
-function VideoDeckSection({ video, loggedIn, onGo }: { video: NonNullable<ReturnType<typeof getVideo>>; loggedIn: boolean; onGo: () => void }) {
+function VideoDeckSection({
+  video,
+  auth,
+  onGo,
+}: {
+  video: NonNullable<ReturnType<typeof getVideo>>;
+  /** 三态。★ 不收 `loggedIn: boolean` —— 水合期那一档会被写成"没登录"（见 useAuthState） */
+  auth: AuthState;
+  onGo: () => void;
+}) {
+  const loggedIn = auth === "in";
   const deck = video.deck!;
   const [got, setGot] = useState(() => {
     const mine = new Set(myCards().map((c) => c.id));
@@ -69,7 +80,7 @@ function VideoDeckSection({ video, loggedIn, onGo }: { video: NonNullable<Return
           onClick={collect}
           disabled={got}
           className="rounded-xl bg-panel px-4 py-2 text-sm text-slate-200 ring-1 ring-slate-700 disabled:opacity-50"
-          title={loggedIn ? "" : "登录后可收入卡组"}
+          title={loggedIn ? "" : auth === "pending" ? "正在确认登录状态…" : "登录后可收入卡组"}
         >
           {got ? "✓ 已在我的卡组" : "收入我的卡组"}
         </button>
@@ -96,6 +107,7 @@ export default function VideoPage() {
   const navigate = useNavigate();
   const loc = useLocation();
   const user = useCurrentUser();
+  const auth = useAuthState();
   // 订阅作品库：远端模式下 getVideo() 会在后台补一次详情接口（列表不带 comments），
   // 回填是原地改同一个对象，不订阅就永远渲染不出来。
   const version = useVideosVersion();
@@ -330,6 +342,12 @@ export default function VideoPage() {
                 <button
                   onClick={() => {
                     setPayErr("");
+                    // ★ 会话还没结论时别把人弹去登录页（见 hooks/useAccount 的 useAuthState）：
+                    //   这一步是**花钱**的，"我明明登录着却被要求重新登录"最像被骗
+                    if (auth === "pending") {
+                      setPayErr("正在确认登录状态，稍等一下再点。");
+                      return;
+                    }
                     if (!user) {
                       navigate(`/login?next=/video/${video.id}`);
                       return;
@@ -426,7 +444,7 @@ export default function VideoPage() {
 
         {/* 本片卡组：作者生成本片所用素材卡的快照。观众收入后用同一套素材
             进工坊，就能生成相似走向的视频——创作的可复刻性是卡片生态的闭环 */}
-        {video.deck && video.deck.cards.length > 0 && <VideoDeckSection video={video} loggedIn={!!user} onGo={() => navigate("/studio")} />}
+        {video.deck && video.deck.cards.length > 0 && <VideoDeckSection video={video} auth={auth} onGo={() => navigate("/studio")} />}
 
         {/* 这里原来有一段「分段剧情 · N 个节点」：逐段列首尾帧 + 小说体剧情。
             移除的理由是它把成片又用图文复述了一遍——观众已经看完视频了，

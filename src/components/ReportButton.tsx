@@ -27,7 +27,8 @@ import {
   type ReportTargetType,
 } from "../api/admin";
 import { isRemoteMode } from "../data/account";
-import { useCurrentUser } from "../hooks/useAccount";
+import { useAuthState, useCurrentUser } from "../hooks/useAccount";
+import AuthPending from "./AuthPending";
 import Icon from "./Icon";
 
 const DETAIL_MAX = 100;
@@ -48,6 +49,7 @@ export default function ReportButton({
   className?: string;
 }) {
   const user = useCurrentUser();
+  const auth = useAuthState();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<ReportReason | "">("");
@@ -115,7 +117,10 @@ export default function ReportButton({
               </button>
             </div>
 
-            {!user ? (
+            {auth === "pending" ? (
+              // 还不知道登没登录：别摆"登录之后才能举报"，那句话这一刻可能是错的
+              <AuthPending className="min-h-[7rem] pb-3" />
+            ) : !user ? (
               // 未登录也能刷首页，所以这一步很常见。别做成灰按钮——说清楚并给出路
               <div className="pb-3">
                 <p className="mb-3 text-xs text-slate-400">登录之后才能举报（管理员需要知道是谁报的，才能挡住刷举报）。</p>
