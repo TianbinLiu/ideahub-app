@@ -33,7 +33,7 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 //   真正发出去的那段话，在这里另抄一个 400 出来，改上限时这里就开始说假话
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
 import { balanceNote } from "../data/account";
-import { markNoun, markSpecOf, myTemplates, splitCastRoles } from "../data/templates";
+import { markNoun, markSpecOf, myTemplates, splitCastRoles, templateGroupOf } from "../data/templates";
 import { clampDuration, fmtTokens, proposalsCost, tierOf } from "../data/economy";
 import {
   FlowNode,
@@ -1402,10 +1402,20 @@ export default function FlowPage() {
       {tplExtract && (
         <VideoTemplateExtractor
           onClose={() => setTplExtract(false)}
-          // ★ 第三条 applyTemplate 入口，同样要过守卫（第五轮验证抓到：上一版只接了模板货架
-          //   与模板详情页两条）。这一下也是整表覆盖 nodes —— 简约模式下已经花钱出过片的
-          //   那一段会当场消失，而"提取模板"提的是**另外上传的一段视频**，与这条流水线无关。
-          onDone={(t) => applyGuard(() => useFlow.getState().applyTemplate(t))}
+          // ★★ 两件事都要，缺一不可：
+          //   ① **守卫**（第五轮补的）——这一下是整表覆盖 nodes，在途流水线里已经花钱
+          //      炼出来的段会被抹掉，而"提取模板"提的是另外上传的一段视频，与这条流水线无关；
+          //   ② **整组套用**（分段登记接上之后必须）——templateGroupOf 对非组员回 [自己]，
+          //      只 applyTemplate 的话，刚在这里做完的分段组只会铺进第 1 段、其余静默消失。
+          //   判据与模板货架 pick、模板详情页 applyNow **逐字同形**（三处一条规则）。
+          onDone={(t) =>
+            applyGuard(() => {
+              const parts = templateGroupOf(t);
+              return parts.length > 1
+                ? useFlow.getState().applyTemplateGroup(parts)
+                : useFlow.getState().applyTemplate(t);
+            })
+          }
         />
       )}
       {applyDialog}

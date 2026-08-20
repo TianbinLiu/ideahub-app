@@ -49,18 +49,28 @@ import { balanceNote, canAfford, spendTokens } from "../data/account";
 import { TEMPLATE_MAX_CARDS, fmtTokens, ownRefTemplateCost, templateCost, templateSettle } from "../data/economy";
 import {
   BLOCKOUT_INPUT_RULES,
+  SPLIT_MAX_PARTS,
   blockoutizeBlockReason,
   blockoutizeTemplate,
   getTemplate,
   makeOwnRefTemplate,
+  makeOwnRefTemplateGroup,
+  planSplits,
   refVideoRealSec,
   remoteTemplatesCapable,
   saveTemplate,
 } from "../data/templates";
 import { VideoAspect, VideoTemplate, aspectFromSize } from "../types";
 import BlockoutTrimmer from "./blockout/BlockoutTrimmer";
-import { blockoutSourceDurationIssue, type BlockoutSelection } from "./blockout/arkVideoRules";
+import {
+  blockoutSourceDurationIssue,
+  ownRefSingleVerdict,
+  ownRefSplitVerdict,
+  type BlockoutSelection,
+  type VideoNatural,
+} from "./blockout/arkVideoRules";
 import Icon from "./Icon";
+import TokenCost from "./TokenCost";
 import { sampleFrames } from "./videoFrames";
 
 /** 参考视频是竖是横，抽帧本身就带着（canvas 按源比例截的）——照抄它，
@@ -380,6 +390,14 @@ export default function VideoTemplateExtractor({
   const [boxMode, setBoxMode] = useState<BoxFrameMode>("auto");
   const [boxMarks, setBoxMarks] = useState<number[]>([]);
   /**
+   * 分段登记（ownRef 选段拖过 30 秒）时用户标的**切段刀**（原片绝对秒）。
+   * ★★ 与 `boxMarks` 是**两份独立状态、绝不共用**：同一批秒数换个形态就换了含义 ——
+   *   boxMarks 是"给 AI 看的代表帧"（人最齐那种），这份是"在哪儿切开"（镜头边界那种）。
+   *   共用的话，用户在 25 秒选段里标好分析帧、再把选段拖满整条，那些帧就静默变成了刀。
+   * ★ 跟着回执走，由 dropReceipt 一处清（与 boxMarks 同一条纪律）。
+   */
+  const [splitMarks, setSplitMarks] = useState<number[]>([]);
+  /**
    * BlockoutTrimmer 现在框出来的那一段（它每次变化都往上报一次）。
    *
    * ★★ 唯一用途是**转给 BoxFramePicker**：那一块要知道"标记落在选段里没有"才说得出
@@ -444,6 +462,7 @@ export default function VideoTemplateExtractor({
     setReceipt(null);
     setTrimSel(null);
     setBoxMarks([]);
+    setSplitMarks([]);
     setBoxMode("auto");
   }
 
@@ -487,6 +506,87 @@ export default function VideoTemplateExtractor({
    *   存下来就会停在"还不知道"那一拍上，而那一拍恰恰是**放行**的（乐观口径）。
    */
   const blockoutBlock = blockout ? blockoutizeBlockReason() : null;
+
+  // ── ownRef 路：单段 / 分段两种形态（2026-08-20 接上长视频分段登记）────────────
+  /**
+   * 「选段拖过 30 秒」= 换到**整条分段登记**形态 —— 这一处是形态的唯一判据：
+   * judge（判词）、extra 里的标刀块、报价、runOwnRef 的提交分支四处都读它。
+   * ★ 阈值就是方舟窗口上限（BLOCKOUT_INPUT_RULES.maxSec = 30）：≤30 走单段老路
+   *   （derive 裁剪，可裁画面），>30 走 splits（整条、整幅，v1 限制由判词整句说）。
+   */
+  const segLong = route === "ownRef" && !!trimSel && trimSel.durSec > BLOCKOUT_INPUT_RULES.maxSec;
+  /**
+   * 分段规划：**真实时长**（服务端登记值，带小数）+ 用户标的刀 → 合法分段。
+   * ★ 必须用 receipt.data.durationSec 而不是时间轴那份 floor 过的整数：末段窗口按真实
+   *   时长算 —— 拿 34 去规划一条 34.18 的片子，60.4 那种会规划出 [30.2] 之外的越窗段，
+   *   服务端整单 400。规划只有 planSplits 一处实现；这里现算（纯函数、输入就两个，
+   *   提交时 runOwnRef 用同样输入重算，结果必然一致）。
+   */
+  const splitPlan = segLong && receipt ? planSplits(receipt.data.durationSec, splitMarks) : null;
+  /** ownRef 的选段裁决（注入 Trimmer 的 judge 口）：≤30 秒沿用白模化那组窗口判词但豁免
+   *  像素门（derive 会放大），>30 秒换分段那组（整条/整幅/≤12 段，见 arkVideoRules） */
+  const ownRefJudge =
+    route === "ownRef" && receipt
+      ? (sel: BlockoutSelection, natural: VideoNatural) =>
+          sel.durSec > BLOCKOUT_INPUT_RULES.maxSec
+            ? ownRefSplitVerdict(
+                sel,
+                natural,
+                planSplits(receipt.data.durationSec, splitMarks),
+                receipt.data.durationSec,
+              )
+            : ownRefSingleVerdict(sel, natural)
+      : undefined;
+  /** 时间轴徽章的窗口：整条装得下（≤12×30 秒）就允许拉满，装不下就只有单段那 30 秒 */
+  const ownRefWindow = (() => {
+    if (route !== "ownRef" || !receipt) return undefined;
+    const total = Math.floor(receipt.data.durationSec);
+    const cap = SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec;
+    return {
+      minSec: BLOCKOUT_INPUT_RULES.minSec,
+      maxSec: total <= cap ? Math.max(BLOCKOUT_INPUT_RULES.maxSec, total) : BLOCKOUT_INPUT_RULES.maxSec,
+    };
+  })();
+  /**
+   * ownRef 的报价块（注入 Trimmer 的 pricing 口，整块替掉白模化那两笔与 F11）。
+   * ★★ 这条路真正的钱只有「认人 + 量框」（economy.ownRefTemplateCost，上限价）；
+   *   分段 = **每段各认一次** —— N 段就是 N 笔，提交前整句报总数（报价 = 实收的上界，
+   *   先说钱再花钱）。Trimmer 默认那块报的是白模化的两笔 + r2v 的不退费风险，
+   *   挂在这条路上就是「页面报 A 路的价、实收 B 路的钱」（本仓头号事故形状，
+   *   2026-08-20 之前真就这么挂着）。
+   */
+  const ownRefPricing =
+    route === "ownRef" && receipt ? (
+      <div className="rounded-lg border border-slate-700 bg-panel/60 px-3 py-2">
+        {segLong && splitPlan ? (
+          <>
+            <p className="text-[11px] leading-relaxed text-slate-400">
+              这一步不出片、不换人，只花「认人 + 量框」的钱，而分段是
+              <b className="text-slate-200">每段各认一次</b>：{splitPlan.splits.length + 1} 段 ×{" "}
+              {fmtTokens(ownRefTemplateCost())}。按上限报价，实收只少不多（服务端一认出来就不再试）。
+            </p>
+            <TokenCost
+              tokens={ownRefTemplateCost() * (splitPlan.splits.length + 1)}
+              note={`分段登记这一次的总消耗（${splitPlan.splits.length + 1} 段合计）`}
+              upper
+              className="mt-1"
+            />
+          </>
+        ) : (
+          <>
+            <p className="text-[11px] leading-relaxed text-slate-400">
+              这一步不出片、不换人，只花「认人 + 量框」的钱。按上限报价，实收只少不多
+              （服务端一认出来就不再试）。
+            </p>
+            <TokenCost tokens={ownRefTemplateCost()} note="做成模板这一次的消耗" upper className="mt-1" />
+          </>
+        )}
+        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+          这是做模板这一次的花费；以后每次有人套用出片，按{segLong ? "所套那一段" : "模板视频"}
+          的时长另计一笔。
+        </p>
+      </div>
+    ) : undefined;
 
   /**
    * @param n 抽几帧。★ **必须由调用方显式传**，不能在函数体里读 frameN：
@@ -602,6 +702,31 @@ export default function VideoTemplateExtractor({
     setErr("");
     setBusy("提交中…");
     try {
+      // ── 分段形态（选段拖过 30 秒）：整条切段登记成模板组 ──
+      if (sel.durSec > BLOCKOUT_INPUT_RULES.maxSec) {
+        // splits 用与界面同一份输入重算（planSplits 纯函数，报出的段数与提交的必然一致）。
+        // 「整条、整幅、≤12 段」三条已由 judge 挡在按钮前，这里不再重判（第二处判据）。
+        const plan = planSplits(receipt.data.durationSec, splitMarks);
+        const out = await makeOwnRefTemplateGroup({
+          receipt: receipt.data,
+          splits: plan.splits,
+          title,
+          intro: note,
+          // ★ 登记一成功，源视频就是 group.sourcePublicId（合并回填音轨的原片）——
+          //   从此归模板组管，关窗时不许再回收（与 blockoutize 的 onBilled 同一条纪律，
+          //   标在**这一份回执**上）。服务端那头也会拒删，但拒之前客户端不该去试。
+          onRegistered: () => setReceipt((r) => (r ? { ...r, spent: true } : r)),
+          onStep: (s) => setBusy(s),
+        });
+        if (out.note) setWarn(out.note);
+        const made = getTemplate(out.id);
+        // ★ 分段成功**不直接跳出片**（与单段那条 onDone 直通不同）：N 段各自的认人结果
+        //   都在 note 里，直通的话它们一闪就没（onDone 多半立刻导航走）。先给成功卡 ——
+        //   卡上那颗「用这个模板出片」再走 onDone，市场页对组员本来就是整组套用。
+        if (made) setGot(made);
+        else close();
+        return;
+      }
       const out = await makeOwnRefTemplate({
         receipt: receipt.data,
         clip: { startSec: sel.startSec, durSec: sel.durSec, crop: sel.crop },
@@ -750,7 +875,21 @@ export default function VideoTemplateExtractor({
                   ，套用出片时将整段复刻它的场景与运镜
                 </p>
               )}
+              {/* 分段组：说清"一组几段、从哪儿都能整组套用"。不说的话，作者在「我的模板」里
+                  看到 N 条「第 i/N 段」只会以为登记重复了 */}
+              {got.group && (
+                <p className="mt-1 text-[11px] text-sky-300">
+                  分段组 · 整条已切成 {got.group.count} 段各自登记（这张卡是第 {got.group.index + 1} 段）。
+                  从任何一段套用都会整组铺进工作流，逐段挂卡出片，合并时自动回填原片音轨。
+                </p>
+              )}
             </div>
+            {/* 逐段认人的结果（哪段成了、哪段要重试）——分段路的 note 是多行的，整句保留 */}
+            {warn && (
+              <p className="whitespace-pre-line rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">
+                ⚠ {warn}
+              </p>
+            )}
             <div className="rounded-xl bg-black/25 p-3">
               <div className="mb-1 text-[11px] text-slate-500">总结出的画面要求</div>
               <p className="text-xs leading-relaxed text-slate-400">{got.recipe.styleHint}</p>
@@ -790,7 +929,7 @@ export default function VideoTemplateExtractor({
                         {
                           v: "ownRef" as const,
                           t: "它本来就是白模 / 人偶片，直接用",
-                          d: `不出片、不换人，只认出画面里有谁、量出他们在哪（约 ${fmtTokens(ownRefTemplateCost())}）。`,
+                          d: `不出片、不换人，只认出画面里有谁、量出他们在哪（约 ${fmtTokens(ownRefTemplateCost())}）。超过 30 秒的素材可以整条切段登记成一组（逐段认人、按段计费）。`,
                         },
                       ] as const)
                     : []),
@@ -932,6 +1071,12 @@ export default function VideoTemplateExtractor({
                 //   它要挑的帧由同一屏 extra 里的 BoxFramePicker 管（认人量框那一步）。
                 //   两块同时在，同一屏上就有两个叫法几乎一样的"看哪几帧"，而上限与后果都不同。
                 hideVisionFrames={route === "ownRef"}
+                // ★ ownRef 的三件套（judge/pricing/trimWindow）成组给：判词、报价、徽章窗口
+                //   说的必须是同一条路的话 —— 只换其中一样，屏幕上就会自相矛盾
+                //   （aiBlockout 三个都 undefined = Trimmer 原行为，一个字不变）
+                judge={ownRefJudge}
+                pricing={ownRefPricing}
+                trimWindow={ownRefWindow}
                 extra={
                   <div className="space-y-2">
                     <input
@@ -946,7 +1091,47 @@ export default function VideoTemplateExtractor({
                     {/* ★ 「AI 分析哪几帧」只对**自带白模片**那条路出：aiBlockout 那条的
                         "看几帧"是白模化之前的点名清单，由 BlockoutTrimmer 自己的
                         VisionFramePicker 管 —— 同一屏摆两个"看几帧"只会让人分不清。 */}
-                    {route === "ownRef" && receipt && (
+                    {/* ★ 长素材的出路要在还没拖到 30 秒以上时就说（不说的话没人知道能拖过去）：
+                        初始选段是 30 秒，分段那条路的入口就是"把右把手继续往右拖"。
+                        ★ 超过 12×30=360 秒的素材**不出这句**：那种整条装不下（judge 会整句拒），
+                        请人把把手拉满、再告诉他拉满也不行，是把人往死路上指 */}
+                    {route === "ownRef" &&
+                      receipt &&
+                      !segLong &&
+                      receipt.data.durationSec > BLOCKOUT_INPUT_RULES.maxSec &&
+                      Math.floor(receipt.data.durationSec) <= SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec && (
+                        <p className="rounded-lg bg-sky-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-sky-200/90">
+                          这条素材有 {receipt.data.durationSec.toFixed(1)} 秒：把上面的选段
+                          <b className="font-bold">拉满整条</b>，就会自动切成多段登记成一组（每段 ≤30 秒、逐段认人）；
+                          只想用其中一段就框 {BLOCKOUT_INPUT_RULES.maxSec} 秒以内。
+                        </p>
+                      )}
+                    {route === "ownRef" && receipt && segLong && (
+                      <>
+                        {/* 分段形态：标的是**切段刀**（splitMarks），不是认人帧 —— 两份状态
+                            两种含义，见 splitMarks 的 ★★。整条都要登记，所以不传 sel。
+                            mode 在 split 形态下不参与渲染（picker 里没有模式档）。 */}
+                        <BoxFramePicker
+                          kind="split"
+                          mode="manual"
+                          onModeChange={() => {}}
+                          src={receipt.src}
+                          marks={splitMarks}
+                          onMarksChange={setSplitMarks}
+                          disabled={!!busy}
+                        />
+                        {/* ★★ 被丢弃的刀必须整句点名（planSplits 只丢不响，响的责任在这儿）：
+                            不说的话，用户标了 3 刀、绿字却说"切成 3 段"，他只会以为标丢了 */}
+                        {splitPlan && splitPlan.dropped.length > 0 && (
+                          <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">
+                            有 {splitPlan.dropped.length} 刀落不下去，已被忽略：第{" "}
+                            {splitPlan.dropped.map((m) => m.toFixed(1)).join(" / ")} 秒——离片头、片尾或相邻的刀不足
+                            4 秒，切出来会有短于 4 秒的段（AI 引擎收不下）。把这几刀删掉，或挪远一点再标。
+                          </p>
+                        )}
+                      </>
+                    )}
+                    {route === "ownRef" && receipt && !segLong && (
                       <BoxFramePicker
                         mode={boxMode}
                         onModeChange={setBoxMode}
