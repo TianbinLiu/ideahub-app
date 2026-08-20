@@ -144,18 +144,50 @@ function isBundledPath(url: string): boolean {
   return url.startsWith("/") && !url.startsWith("//");
 }
 
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
+/**
+ * 打包素材 → **jpeg** dataURL。
+ *
+ * ★ 为什么一定要转格式：`public/cards/market/*.webp` 是 webp，而进方舟 `reference_image`
+ *   的图**从来只有 jpeg**（此前全是 Seedream 出的 jpeg/png 转存成 .jpg）。prepRefImage 对
+ *   比例合法的 http 图是**原样透传、不重编码**的（那些卡是 512×768，比例合法），所以不转的话
+ *   方舟会第一次收到一条 .webp URL —— 而"方舟收不收 webp"我们一次都没实测过。
+ *   拿一次白模出片（¥27）去赌一个没验过的格式不值，这里多一次 canvas 重编码就绕开了。
+ */
+async function blobToJpegDataUrl(blob: Blob): Promise<string> {
+  const raw = await new Promise<string>((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(r.result as string);
-    r.onerror = reject;
+    r.onerror = () => reject(new Error("读不出这张打包素材"));
     r.readAsDataURL(blob);
   });
+  if (raw.startsWith("data:image/jpeg")) return raw;
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error("这张打包素材解码失败"));
+    i.src = raw;
+  });
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  if (!w || !h) throw new Error("这张打包素材尺寸读不出来");
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  c.getContext("2d")!.drawImage(img, 0, 0);
+  return c.toDataURL("image/jpeg", 0.9);
+}
+
+/** refableViews 的结果。`why` 非空 = 有图没兑换成，**那句话要能一路说到用户眼前** */
+export interface RefableViews {
+  /** 与 viewsOf(card) 同序同长，逐位对应 */
+  views: CardView[];
+  /** 第一条失败原因（登录过期 / 被限流 / 素材没打进包…），没有就没有 */
+  why?: string;
 }
 
 // 同一张卡的兑换只跑一次（mapLimit 并发 3，同卡两张图会同时进来）；结束就删 ——
 // 成功的那次已经把 https 写回 card.views，下次 viewsOf() 直接是好的，不需要这层缓存
-const inflightRefable = new Map<string, Promise<CardView[]>>();
+const inflightRefable = new Map<string, Promise<RefableViews>>();
 
 /**
  * 把一张卡的 views 兑换成「参考图管线读得动」的形态。与 viewsOf() 同序同长，逐位对应。
@@ -174,15 +206,16 @@ const inflightRefable = new Map<string, Promise<CardView[]>>();
  * ★ 转存/写回失败不抛：这里失败的下场是"这张图进不了管线"，那正是上游 onNote 已经会
  *   说的话；抛出去反而把整段出片打断在一张兜底图上。
  */
-export async function refableViews(card: Card, wantHttps: boolean): Promise<CardView[]> {
+export async function refableViews(card: Card, wantHttps: boolean): Promise<RefableViews> {
   const base = viewsOf(card);
-  if (!base.some((v) => isBundledPath(v.url))) return base;
+  if (!base.some((v) => isBundledPath(v.url))) return { views: base };
   const key = `${card.id}:${wantHttps ? 1 : 0}`;
   const hit = inflightRefable.get(key);
   if (hit) return hit;
-  const job = (async () => {
+  const job = (async (): Promise<RefableViews> => {
     const out: CardView[] = [];
     let swapped = false;
+    let why: string | undefined;
     for (const v of base) {
       if (!isBundledPath(v.url)) {
         out.push(v);
@@ -194,18 +227,22 @@ export async function refableViews(card: Card, wantHttps: boolean): Promise<Card
         //   回的是 200 + index.html —— 素材真缺失时 res.ok 恒真，靠它把 HTML 当图转存上去
         //   就是把垃圾写进 views（CLAUDE.md「同源相对路径」那条坑的同款机理）
         if (!res.ok || !/^image\//.test(res.headers.get("content-type") ?? "")) {
-          throw new Error(`拉不到打包素材 ${v.url}（${res.status}）`);
+          throw new Error(`安装包里没有这张素材（${v.url}）`);
         }
-        const dataUrl = await blobToDataUrl(await res.blob());
+        const dataUrl = await blobToJpegDataUrl(await res.blob());
         if (isRemoteMode()) {
           out.push({ ...v, url: await toPermanentUrl(dataUrl, `card-${card.id}-${v.kind}`) });
           swapped = true;
         } else if (wantHttps) {
           out.push(v);
+          why ??= "离线模式转不出永久地址";
         } else {
           out.push({ ...v, url: dataUrl });
         }
-      } catch {
+      } catch (e) {
+        // ★ 失败原因**必须带出去**：调用方（白模路的逐卡门禁）拿它拼进那句 throw。
+        //   压成一句"图没进管线"的话，登录过期、被限流、素材没打进包在屏幕上完全一样。
+        why ??= e instanceof Error ? e.message : String(e);
         out.push(v);
       }
     }
@@ -218,7 +255,7 @@ export async function refableViews(card: Card, wantHttps: boolean): Promise<Card
         /* 见上：失败留给下一次自愈 */
       }
     }
-    return out;
+    return { views: out, ...(why ? { why } : {}) };
   })();
   inflightRefable.set(key, job);
   try {

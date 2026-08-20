@@ -578,14 +578,23 @@ export async function prepareMaterialRefs(
 
   // 逐张守门。★ 一张坏图会把**整条**请求 400 掉，所以不能"一起送出去看运气"；
   //   而坏掉的那张必须点名，否则多图之下没人知道是哪张没生效
+  // 兑换失败的原因，逐卡留一条（下面那道门禁要把它说出来，否则真机上分不清是登录过期、
+  // 被限流、还是素材根本没打进包 —— 铁律八）
+  const failWhy = new Map<Card, string>();
   const prepared = await mapLimit(picks, 3, async (p) => {
     // ★ 种子卡的打包路径（/cards/market/…）先兑换成参考图管线读得动的地址 ——
     //   兑换规则、离线退路与"写回 views 自愈"都收在 data/cardViews.refableViews 一处。
-    //   非打包路径它原样返回（同一个数组对象都不换），这里不多花一次网络。
-    const views = await refableViews(p.card, multiChar);
-    const base = viewsOf(p.card);
-    const at = base.findIndex((v) => v === p.view || (v.kind === p.view.kind && v.url === p.view.url));
-    return { ...p, url: await prepRefImage(at >= 0 && views[at] ? views[at].url : p.view.url) };
+    //   非打包路径它原样返回，这里不多花一次网络。
+    // ★★ 用 `p.index` 定位那一张，**绝不能拿 url 回查**：refableViews 转存成功时会
+    //   `setCardViews → updateCard` 的 `Object.assign` **就地改** db.cards 里那张卡，
+    //   而 `p.card` 正是那个对象（`myCards()` 只 filter+sort 不拷贝，flowStore 一路传引用）。
+    //   于是 await 之后再 `viewsOf(p.card)`，读到的已经是**换好的新地址**，拿 await 之前
+    //   快照的 `p.view.url` 去比必然对不上 —— **自愈成功反而把图丢掉**，且零报错。
+    //   2026-08-19 出包前的对抗性预检抓到的就是这条（我第一版正是这么写的）。
+    //   `index` 本来就是"它在 viewsOf(card) 里的下标"（见 RefPick），refableViews 承诺同序同长。
+    const r = await refableViews(p.card, multiChar);
+    if (r.why && !failWhy.has(p.card)) failWhy.set(p.card, r.why);
+    return { ...p, url: await prepRefImage(r.views[p.index]?.url ?? p.view.url) };
   });
   const good = prepared.filter((p): p is RefPick & { url: string } => !!p.url);
   prepared.forEach((p, i) => {
@@ -607,8 +616,10 @@ export async function prepareMaterialRefs(
     for (const c of materials) {
       if (c.type !== "character") continue;
       if (!good.some((g) => g.card === c)) {
+        // ★ 带上具体原因：没它的话「登录过期」「被限流」「素材没打进包」在屏幕上长得一模一样
+        const why = failWhy.get(c);
         throw new Error(
-          `「${c.name}」的形象图一张都没能进管线，出片时它只剩名字 —— 实测会被换成别人。` +
+          `「${c.name}」的形象图一张都没能进管线${why ? `（${why}）` : ""}，出片时它只剩名字 —— 实测会被换成别人。` +
             `到卡片详情页给它补一张形象参考图，或换一张卡再出片`,
         );
       }
