@@ -16,7 +16,6 @@ import { canAfford, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
 import { fmtTokens, segTokens } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
-import { useFlow } from "../studio/flowStore";
 import { VideoSegment, aspectOf, formatDuration, uid } from "../types";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 
@@ -68,10 +67,12 @@ export default function CutPage() {
   const [annOpen, setAnnOpen] = useState<{ segIndex: number; atSec: number; frame: string } | null>(null);
   // ★ 分段模板组：默认把**原片音轨**预置进来（用户点名要的：白模复刻的成片保留原视频
   //   音频）。白模出片本身是无声的（server 钉着 generate_audio 缺省），合并时从原片
-  //   group.sourceUrl 解音轨混进去 —— decodeAudioData 直接吃 mp4 容器里的 AAC。
+  //   解音轨混进去 —— decodeAudioData 直接吃 mp4 容器里的 AAC。
+  //   线索读 studioStore.draftAudioHint（搭草稿的车）：「完成视频」会清空 flow store，
+  //   这里挂载时 nodes 已经空了（2026-08-20 dev 实测，读 flow 那版永远落空）。
   //   用户在音频 tab 随时能换掉/去掉，所以是"预置"不是"锁定"。
   const [audio, setAudio] = useState<{ name: string; url: string; volume: number } | null>(() => {
-    const src = useFlow.getState().nodes.find((n) => n.tpl?.group?.sourceUrl)?.tpl?.group?.sourceUrl;
+    const src = useStudio.getState().draftAudioHint;
     return src ? { name: "原视频音轨", url: src, volume: 1 } : null;
   });
   const [tab, setTab] = useState<Tab>("cut");

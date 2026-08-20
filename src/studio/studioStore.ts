@@ -344,6 +344,13 @@ interface StudioState {
   /** NPC 手中展示的 AI 推荐卡（按用户卡组缺口 + 市场热度） */
   flights: Flight[];
   draft: DraftVideo | null;
+  /**
+   * 合并页的音轨预置线索（2026-08-20，分段模板组）：原片地址，剪辑页拿它默认混入
+   * 「原视频音轨」。**不进 DraftVideo**（那是发布体的形状，服务端 schema 会 strip，
+   * 也没理由把它发出去）；draft 为 null 时它读不到，所以清 draft 的几处不用跟着清。
+   * 只有 finalizeFromFlow 会写真值（读 FlowNode.tpl.group.sourceUrl），其余产稿路写 null。
+   */
+  draftAudioHint: string | null;
   camera: CamView;
   /** NPC 正在说话的截止时间戳（npcSay 设置，驱动 3D 口型） */
   speakingUntil: number;
@@ -680,6 +687,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   dialogView: false,
   flights: [],
   draft: null,
+  draftAudioHint: null,
   camera: { kind: "default" },
   speakingUntil: 0,
   mood: 0,
@@ -1441,6 +1449,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // 同 finalizeFromFlow：有了新的合成稿，上一次发布就翻篇
       publishedWorkId: null,
       // 单段草稿：剪辑页只认 draft.segments，给它一段就是"只编辑这一段"
+      draftAudioHint: null,
       draft: {
         title: "",
         category: "剧情",
@@ -1788,6 +1797,10 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // ★ 新的合成稿一出现，上一次发布就翻篇（publishedWorkId 的清零规则只有这一条：
       //   "draft 被赋新值"。openSegmentEdit 是另一个赋新值的地方，同样清）
       publishedWorkId: null,
+      // 分段模板组：原片地址给剪辑页当音轨预置（用户点名要的"成片保留原视频音频"）。
+      // ★ 必须在这里搭草稿的车 —— 「完成视频」会把 flow store 清掉，剪辑页挂载时
+      //   nodes 已经空了（2026-08-20 dev 实测：读 flow 那版预置永远落空）
+      draftAudioHint: nodes.find((n) => n.tpl?.group?.sourceUrl)?.tpl?.group?.sourceUrl ?? null,
       draft: {
         title: "",
         category: "剧情",
