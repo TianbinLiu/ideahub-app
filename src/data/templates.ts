@@ -430,8 +430,75 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
     // 人偶描述：同一条存在性语义。★ 它与 markBoxes **各自独立**（框没量出来 ≠ 描述没验过），
     // 所以两者不共用同一个 if —— 合并的话"框失败"会把描述一起带走，白丢一次已经付过的钱
     ...(markDescs.length > 0 ? { markDescs } : {}),
+    // 分段组归属：同一条存在性语义（老模板整个字段缺失）。key/count 缺一不可 ——
+    // 只有 key 没有 count 的"半个组"没法折卡也没法整组套用，宁可当独立模板
+    ...(api.group?.key && Number(api.group.count) > 1
+      ? {
+          group: {
+            key: String(api.group.key),
+            index: Number(api.group.index) || 0,
+            count: Number(api.group.count),
+            sourceUrl: api.group.sourceUrl || "",
+            sourceDurationSec: Number(api.group.sourceDurationSec) || 0,
+          },
+        }
+      : {}),
     published: api.status === "published",
   };
+}
+
+/**
+ * 这条模板所在分段组的**全组**（含自己，按 index 升序）。不是组员就回 [自己]。
+ * 只在三份列表（mine/mineRemote/shared）里找 —— 组员天然同源（同一次登记建出来的）。
+ */
+export function templateGroupOf(t: VideoTemplate): VideoTemplate[] {
+  if (!t.group) return [t];
+  const key = t.group.key;
+  const all = [...mine, ...mineRemote, ...shared].filter((x) => x.group?.key === key);
+  const seen = new Set<string>();
+  const uniq = all.filter((x) => (seen.has(x.id) ? false : (seen.add(x.id), true)));
+  uniq.sort((a, b) => (a.group?.index ?? 0) - (b.group?.index ?? 0));
+  // 组不齐（远端列表截断/某段被删）宁可只回自己：整组套用少一段是静默丢内容
+  return uniq.length === t.group.count ? uniq : [t];
+}
+
+/**
+ * 用户标的帧 → 合法分段点（**唯一实现**，登记 splits 之前必须过这里）。
+ * 规则（与服务端 [4,30] 窗口对齐，服务端只验不修）：
+ *   ① 丢掉会切出 <4s 段的标记（丢哪个都要能说出来 —— 返回 dropped 由调用方提示）；
+ *   ② 任何一段 >30s 就在中点补刀，直到全部 ≤30s（用户没标就是整片对半切到进窗口）。
+ */
+export function planSplits(durationSec: number, marks: number[]): { splits: number[]; dropped: number[] } {
+  const MIN = 4;
+  const MAX = 30;
+  const dropped: number[] = [];
+  const picked: number[] = [];
+  const sorted = [...new Set(marks.map((m) => Math.round(m * 100) / 100))].sort((a, b) => a - b);
+  let prev = 0;
+  for (const m of sorted) {
+    if (m - prev < MIN || durationSec - m < MIN) {
+      dropped.push(m); // 切出来不足 4s：这一刀落不下去
+      continue;
+    }
+    picked.push(m);
+    prev = m;
+  }
+  // 对超窗的段递归对半，直到每段 ≤30s（34.18s 没标 → [17.09]；62s → 四段）
+  const out: number[] = [];
+  const halve = (a: number, b: number) => {
+    if (b - a <= MAX) return;
+    const mid = Math.round(((a + b) / 2) * 100) / 100;
+    halve(a, mid);
+    out.push(mid);
+    halve(mid, b);
+  };
+  let start = 0;
+  for (const m of [...picked, durationSec]) {
+    halve(start, m);
+    if (m !== durationSec) out.push(m);
+    start = m;
+  }
+  return { splits: out.sort((a, b) => a - b), dropped };
 }
 
 /** 市场远端区这一拍没到货/没到齐的原因（空串 = 一切正常）。市场页拿它明说，
@@ -732,7 +799,7 @@ export async function registerTemplate(id: string): Promise<void> {
   }
   try {
     const coverUrl = await toPermanentUrl(t.cover, `tpl-${t.id}-cover`);
-    const api = await branch.createTemplate({
+    const { template: api } = await branch.createTemplate({
       title: t.title,
       intro: t.intro,
       coverUrl,

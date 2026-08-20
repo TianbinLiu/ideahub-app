@@ -21,6 +21,7 @@ import {
   deleteTemplateEverywhere,
   detectTemplateRoles,
   isMyTemplate,
+  templateGroupOf,
   myTemplates,
   pendingBlockoutIssue,
   pendingBlockoutJobs,
@@ -540,7 +541,11 @@ export default function TemplateMarketPage() {
    *  原因（r2vPriceIssue / refVideoIssue 各自的整句），留在市场干瞪眼不行。
    *  ★ 卡片上那个「暂时不可用」角标只是把这件事提前画出来，不是第二处判断 */
   function pick(t: VideoTemplate) {
-    if (useFlow.getState().applyTemplate(t)) nav("/flow");
+    // 分段组从任意一段点「用它出片」都是**整组**套用（templateGroupOf 不是组员时回 [自己]，
+    // 所以单模板走的还是 applyTemplate 那条原路）
+    const parts = templateGroupOf(t);
+    const ok = parts.length > 1 ? useFlow.getState().applyTemplateGroup(parts) : useFlow.getState().applyTemplate(t);
+    if (ok) nav("/flow");
     else nav(`/template/${t.id}`);
   }
 

@@ -48,6 +48,17 @@ export interface FlowAnn {
 
 export interface FlowNode {
   id: string;
+  /**
+   * 这一段自己的模板快照（**分段模板组**才有，2026-08-20）：长视频切成 N 段登记后，
+   * 每段是一条独立模板，一次套用铺 N 个节点、各带各的快照。缺省 = 单模板流，
+   * 读 store 级 template。**读模板一律走 `tplOfNode`**，别直接摸这两处任何一处 ——
+   * 报价（nodeCost）与出片（genNode）读错一份，就是「按第 1 段的时长给第 2 段报价」
+   * 这类静默错账。store 级 template 由 setCursor 跟着当前节点同步（旧读点的兜底）。
+   */
+  tpl?: FlowTemplate;
+  /** 这一段已挂的卡（label → cardId）。分段组切段时 setCursor 拿它恢复编辑缓冲；
+   *  真正生效的映射在合成进 plot 的点名句里（applyCast），这份只是面板回显 */
+  cast?: Record<string, string>;
   /** 走向方案：工坊铸的三选一，或工作流现场推演/手写的若干个 */
   proposals: Proposal[];
   chosenId: string;
@@ -107,6 +118,9 @@ export type FlowTemplate = {
   recipe: TemplateRecipe;
   cards: Card[];
   refVideo?: VideoTemplate["refVideo"];
+  /** 分段组归属（`VideoTemplate.group` 的镜像，存在性语义同 roles）。剪辑页拿
+   *  `sourceUrl` 预置原片音轨（用户点名要的：成片保留原视频音频） */
+  group?: VideoTemplate["group"];
   /**
    * 白模人偶的角色位（`VideoTemplate.roles` 的镜像）。**有 = V2 白模模板**（可以逐个
    * 角色位挂人物卡，走点名路）；缺省 = V1 老白模模板/经典模板，照旧走泛指的 BLOCKOUT_SWAP。
@@ -154,6 +168,31 @@ export type FlowTemplate = {
  */
 function clearTemplate(): Pick<FlowState, "template" | "subject" | "cast" | "castErr" | "castFallback" | "castBusy"> {
   return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false };
+}
+
+/**
+ * VideoTemplate → 流水线里的模板快照。applyTemplate（单模板）与 applyTemplateGroup
+ * （分段组，逐段各一份）共用 —— 抄两份的话哪天 markDescs 这类"真有才带键"的位漏在
+ * 一边，表现是分段组的括号描述静默消失（存在性语义见 data/templates 的 rolesOf）。
+ * ★ 方案位与 roles 同一批、同一条存在性语义（老模板天然缺它 → 编号方案 →
+ *   套用走老提示词，一个字不变）。少带 markSlots 不报错，只会让序数模板被当成
+ *   编号模板（连升序排序一起丢）—— 见 FlowTemplate.markSlots 的 ★★。
+ * ★ 人偶描述与框**各自独立**（框没量出来 ≠ 描述没验过），各自单独判存在性。
+ */
+function snapTpl(t: VideoTemplate): FlowTemplate {
+  return {
+    id: t.id,
+    title: t.title,
+    recipe: t.recipe,
+    cards: t.cards,
+    refVideo: t.refVideo,
+    ...(t.roles?.length ? { roles: t.roles } : {}),
+    ...(t.markSlots?.length ? { markSlots: t.markSlots } : {}),
+    ...(t.markBoxes?.length ? { markBoxes: t.markBoxes } : {}),
+    ...(t.markBoxAtSec !== undefined ? { markBoxAtSec: t.markBoxAtSec } : {}),
+    ...(t.markDescs?.length ? { markDescs: t.markDescs } : {}),
+    ...(t.group ? { group: t.group } : {}),
+  };
 }
 
 export function chosenOf(node: FlowNode): Proposal {
@@ -257,17 +296,26 @@ function clampCursor(nodes: FlowNode[], to: number): number {
  *   而简约模式正是两张设定帧都要补画的那条路，少报的 13.3k–26.6k 恰恰落在用户
  *   **正在比价**的这一步（CLAUDE.md：报价与结算不一致，用户会觉得被偷钱）。
  */
+/**
+ * 这一段的模板快照 —— **唯一读法**（2026-08-20）。分段组每节点各带一份（node.tpl），
+ * 单模板流退回 store 级 template（读 getState 是 nodeCost 里的同款先例）。
+ */
+export function tplOfNode(node: FlowNode | undefined | null): FlowTemplate | null {
+  return node?.tpl ?? useFlow.getState().template;
+}
+
 export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOverride?: string): number {
   const node = nodes[idx];
   if (!node) return 0;
   const prop = chosenOf(node);
   const carry = nodeCarry(nodes, idx);
-  // 白模位从模板快照读（模板挂在 store 上不在节点上——读 getState 是 flowDirty 的同款先例）。
+  // 白模位从模板快照读。★ 走 tplOfNode：分段组各段时长不同，读 store 级那份会把
+  //   第 1 段的时长套在每一段头上 —— 报价对不上实扣（本仓头号事故形状）。
   // ★ 按「模板带 refVideo」透传，而不是问 blockoutOn：还没挂角色卡的白模节点也必须按
   //   r2v 报价——那才是它唯一可能花出去的钱（不挂卡根本出不了片，genNode 门口的
   //   blockoutIssue 拦着，而扣款只在出片成功后）；按经典路报是另一件商品的价。
   //   inputSec 只从登记值镜像读（economy.segmentCost 的同一句 ★），不拿 <video> 现探。
-  const refVideo = useFlow.getState().template?.refVideo;
+  const refVideo = tplOfNode(node)?.refVideo;
   return segmentCost({
     durationSec: prop.durationSec,
     tierId: tierOverride ?? node.videoTier,
@@ -310,7 +358,7 @@ export function nodeRefOn(nodes: FlowNode[], idx: number, mode: FlowMode, tierOv
     refAllowed: mode === "simple",
     // 白模段让位：refVideoUrl 非空时 refVideoOn 恒 false——它的形象图是白模路自己
     // 混发的，不是「参考生视频」这条产品路（界面那句「省掉设定帧」不该亮）
-    refVideoUrl: useFlow.getState().template?.refVideo?.url,
+    refVideoUrl: tplOfNode(node)?.refVideo?.url,
   });
 }
 
@@ -394,6 +442,9 @@ interface FlowState {
    *  白模模板（t.refVideo 存在）只铺 1 个节点。返回 false = 被闸门整句拒绝
    *  （err 已写明原因，什么都没铺）——调用方据此决定还跳不跳工作流页 */
   applyTemplate: (t: VideoTemplate) => boolean;
+  /** 分段模板组整组套用（2026-08-20）：N 段 = N 个白模节点，各带各的快照、各挂各的卡，
+   *  顺序门禁照走 clampCursor（炼完本段才能去下一段）。1 段退化为 applyTemplate。 */
+  applyTemplateGroup: (parts: VideoTemplate[]) => boolean;
   /** 写那句话：立刻把配方里的 {{主题}} 填成它，各段剧情随之成形 */
   setSubject: (subject: string) => void;
   /**
@@ -537,22 +588,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
         ...clearTemplate(),
         // ★ roles 跟着快照走（**只在真有的时候才带这个键**，存在性语义同 data/templates
         //   的 rolesOf）：出片时 genNode 从这里读它决定走点名路还是泛指老路
-        template: {
-          id: t.id,
-          title: t.title,
-          recipe: t.recipe,
-          cards: t.cards,
-          refVideo: t.refVideo,
-          ...(t.roles?.length ? { roles: t.roles } : {}),
-          // ★ 方案位与 roles 同一批、同一条存在性语义（老模板天然缺它 → 编号方案 →
-          //   套用走老提示词，一个字不变）。少带这一位不会报错，只会让序数模板被当成
-          //   编号模板（连升序排序一起丢）—— 见 FlowTemplate.markSlots 的 ★★
-          ...(t.markSlots?.length ? { markSlots: t.markSlots } : {}),
-          ...(t.markBoxes?.length ? { markBoxes: t.markBoxes } : {}),
-          ...(t.markBoxAtSec !== undefined ? { markBoxAtSec: t.markBoxAtSec } : {}),
-          // ★ 人偶描述：与框**各自独立**（框没量出来 ≠ 描述没验过），单独一个存在性判断
-          ...(t.markDescs?.length ? { markDescs: t.markDescs } : {}),
-        },
+        template: snapTpl(t),
       });
       return true;
     }
@@ -575,6 +611,57 @@ export const useFlow = create<FlowState>()((set, get) => ({
       ...clearTemplate(),
       // 经典模板没有角色位（roles 只在白模 V2 上存在），这里连键都不带
       template: { id: t.id, title: t.title, recipe: t.recipe, cards: t.cards },
+    });
+    return true;
+  },
+
+  applyTemplateGroup: (parts) => {
+    if (parts.length === 0) return false;
+    if (parts.length === 1) return get().applyTemplate(parts[0]);
+    const gate = VIDEO_TIERS.find((x) => x.refVid);
+    if (!gate) {
+      set({ err: "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来" });
+      return false;
+    }
+    // 整组先验完再铺（与 applyTemplate 同一道 refVideoIssue 闸）：第 3 段是坏的却铺出
+    // 前两段，用户炼到一半才发现走不下去 —— 钱已经花在前两段上了
+    for (let i = 0; i < parts.length; i += 1) {
+      const p = parts[i];
+      if (!p.refVideo) {
+        set({ err: `第 ${i + 1} 段不是白模模板，这一组没法整组套用` });
+        return false;
+      }
+      const issue = refVideoIssue(p.refVideo);
+      if (issue) {
+        set({ err: `第 ${i + 1} 段：${issue}` });
+        return false;
+      }
+    }
+    const nodes = parts.map((p, i) => {
+      const node = newFlowNode(i, {
+        // ★ chain=false：每段各自复刻**自己的子片段**，衔接由原片本身保证 ——
+        //   不走尾帧承接（首尾帧与参考媒体在方舟互斥，applyTemplate 单段那条 ★ 的同款理由）
+        chain: false,
+        materials: p.cards.length ? p.cards : undefined,
+        videoTier: gate.id,
+        aspect: p.refVideo!.height > p.refVideo!.width ? "portrait" : "landscape",
+      });
+      node.tpl = snapTpl(p);
+      node.proposals[0].durationSec = p.refVideo!.durationSec;
+      return node;
+    });
+    set({
+      nodes,
+      cursor: 0,
+      // ★ workflow 而不是 simple：分段组要看得见段导航条（简约恒单段没有它），
+      //   「炼完本段才能去下一段」的顺序门禁由 clampCursor 照常执行
+      mode: "workflow",
+      origin: "solo",
+      busy: false,
+      err: "",
+      ...clearTemplate(),
+      // store 级跟第 1 段走（旧读点的兜底；切段由 setCursor 同步，见 FlowNode.tpl 的 ★）
+      template: nodes[0].tpl!,
     });
     return true;
   },
@@ -620,11 +707,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
       set({ err: "这一段正在生成中，等它跑完再改挂卡（改了也得重炼一次，别白花一次钱）" });
       return false;
     }
-    const tpl = s0.template;
+    // ★ 2026-08-20 起"本段"= 光标段：分段模板组一次铺 N 个白模节点，各挂各的卡。
+    //   模板读 tplOfNode（分段组每节点自带快照；单模板流它退回 store 级，行为不变——
+    //   那条"恒单段"的老注释说的就是单模板流，addNode 对白模照旧拒绝追加）。
+    const node = s0.nodes[s0.cursor] ?? s0.nodes[0];
+    const tpl = node?.tpl ?? s0.template;
     const roles = tpl?.roles;
-    // 白模模板恒为**单段**（applyTemplate 只铺 1 个节点，addNode 又拒绝追加），
-    // 所以"本段"就是第 0 段——不去猜 cursor
-    const node = s0.nodes[0];
     if (!tpl?.refVideo || !roles?.length || !node) {
       set({
         err: "这条流水线上没有可挂卡的白模模板（角色位只有白模模板才有）——回模板市场重新套用一次",
@@ -769,7 +857,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
     for (const s of taken) cleaned[s.label] = s.card.id;
 
     set({ busy: true, castBusy: true, err: "", castErr: "", castFallback: "", cast: cleaned });
-    get().updateNode(node.id, { materials: mats });
+    // cast 同时落到节点上：分段组切段时编辑缓冲要换成**那一段自己的**挂法
+    // （setCursor 负责换），不落节点的话切回来面板就是空的，而出片用的还是旧映射
+    get().updateNode(node.id, { materials: mats, cast: cleaned });
 
     // 作者补充的那句话：**直接读 requirement**，不走 requirementOf ——
     // ★ 那个兜底会在 requirement 缺席时退回 `chosenOf(node).plot`，而 plot 里装的正是
@@ -797,7 +887,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
         anns: node.anns,
         // ★ 与出片门口读同一份模板快照：少传这一位，这里就会说"可以出片了"、
         //   真点生成时才拒 —— 两句话自相矛盾比不说更糟
-        refVideo: get().template?.refVideo,
+        refVideo: tpl.refVideo,
       });
       if (issue) set({ err: `挂卡已记下，但现在还出不了片：${issue}` });
       return true;
@@ -826,7 +916,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
 
   fillCastFallback: () =>
     set((s) => {
-      const node = s.nodes[0];
+      const node = s.nodes[s.cursor] ?? s.nodes[0]; // 与 applyCast 同一个"本段"（分段组 = 光标段）
       if (!node || !s.castFallback) return {};
       return {
         castErr: "",
@@ -1083,7 +1173,20 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return { nodes, cursor: clampCursor(nodes, Math.max(0, i)) };
     }),
 
-  setCursor: (i) => set((s) => ({ cursor: clampCursor(s.nodes, i) })),
+  setCursor: (i) =>
+    set((s) => {
+      const cursor = clampCursor(s.nodes, i);
+      const tpl = s.nodes[cursor]?.tpl;
+      // ★ 分段组：store 级模板跟着当前段走（旧读点的兜底，见 FlowNode.tpl 的 ★），
+      //   挂卡编辑缓冲同步换成**这一段自己的**（node.cast；没挂过就是空）——
+      //   带着上一段的挂法串段，出片映射就是错的
+      return {
+        cursor,
+        ...(tpl && tpl !== s.template
+          ? { template: tpl, cast: s.nodes[cursor]?.cast ?? {}, castErr: "", castFallback: "" }
+          : {}),
+      };
+    }),
   shiftCursor: (dir) => set((s) => ({ cursor: clampCursor(s.nodes, s.cursor + dir) })),
 
   addAnn: (nodeId, ann) =>
@@ -1174,11 +1277,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const carry = node.chain && prevNode && nodeDone(prevNode) ? prevProp?.lastFrame : null;
       // 套了模板就用配方里的起拍提示词：它专门为"这个模板长什么样"写过，
       // 比从剧情正文截前 200 字更贴（剧情前半段常常是动作描述而非画面描述）
-      const tplFrame = get().template?.recipe.framePrompt;
-      // 白模位：与 nodeCost 读**同一份**模板快照——报了 r2v 的价就必须真发参考视频，
-      // 两处各读各的迟早对不上（铁律六）。走不走成、为什么走不成由 segmentGen 门口的
-      // blockoutIssue 说了算（走不成整句拒绝，钱在成功后才扣，见下面 spendTokens）
-      const tplRef = get().template?.refVideo;
+      // ★ 一律走 tplOfNode（分段组每节点自带快照）：与 nodeCost 读**同一份** ——
+      //   报了 r2v 的价就必须真发参考视频，两处各读各的迟早对不上（铁律六）
+      const nodeTpl = tplOfNode(node);
+      const tplFrame = nodeTpl?.recipe.framePrompt;
+      const tplRef = nodeTpl?.refVideo;
       const res = await generateSegment(
         {
           plot: prop.plot,
@@ -1202,7 +1305,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
           //   一处实现，且用户在输入框里改过之后**以输入框为准**（方案 B2）。
           //   从模板快照读而不是现查模板库：套用那一刻的那份 roles 才与已合成的点名句、
           //   已落的 materials 对得上（见 FlowTemplate.roles 的 ★）。
-          roles: get().template?.roles,
+          roles: nodeTpl?.roles,
           framePrompt: tplFrame ? fillSubject(tplFrame, get().subject) : undefined,
           // 本段素材卡要真的进提示词。此前它只喂给「推演三种走向」，
           // 用户在这一段挂了人物卡再点生成，出片其实完全不认识那张卡。

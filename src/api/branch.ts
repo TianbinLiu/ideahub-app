@@ -795,6 +795,17 @@ export interface ApiBranchTemplate {
    * ★ 只有「自己传白模视频」那条路（detect-roles）产出它；白模化 V2 与所有老模板都没有。
    */
   markDescs?: string[];
+  /**
+   * 长视频分段登记的归组（2026-08-20）。**只在真有的时候出现**（存在性判断，同 roles）：
+   * 整段登记/存量模板整个字段缺失。`sourceUrl` 是原片地址 —— 合并成片时拿它解原片音轨。
+   */
+  group?: {
+    key?: string;
+    index?: number;
+    count?: number;
+    sourceUrl?: string;
+    sourceDurationSec?: number;
+  };
   status?: "pending" | "published" | "blocked" | string;
   provenAt?: string | number | null;
   isOwner?: boolean;
@@ -820,11 +831,25 @@ export interface CreateTemplatePayload {
   coverUrl: string;
   recipe: TemplateRecipe;
   videoUrl: string;
+  /**
+   * 长视频分段点（秒，升序，(0,时长) 开区间）。非空 = 服务端把源视频物理切成 N 段
+   * 各自登记（group 归组），**每段都要落在 [4,30] 窗口**，越界服务端整单 400。
+   * 分段规划（用户标的帧 → 合法分段）在 data/templates.planSplits 一处实现。
+   */
+  splits?: number[];
 }
 
-export async function createTemplate(payload: CreateTemplatePayload): Promise<ApiBranchTemplate | null> {
+/** createTemplate 的完整回包：分段登记时 parts 是全组（含 template=第 1 段） */
+export interface CreateTemplateResult {
+  template: ApiBranchTemplate | null;
+  parts: ApiBranchTemplate[] | null;
+}
+
+export async function createTemplate(payload: CreateTemplatePayload): Promise<CreateTemplateResult> {
   const res = await apiPost<Record<string, unknown>>("/api/branch/templates", payload);
-  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+  const template = pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+  const parts = Array.isArray((res as { parts?: unknown }).parts) ? ((res as { parts: ApiBranchTemplate[] }).parts) : null;
+  return { template, parts };
 }
 
 // ── 白模化（V2：任意视频 → 带编号白模模板）────────────────────────

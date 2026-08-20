@@ -759,6 +759,18 @@ export interface VideoTemplate {
    *   退回"只有序数"的老形状，与今天逐字相同。判存在性，不判等值。
    */
   markDescs?: string[];
+  /**
+   * 长视频分段登记的归组（2026-08-20）。**存在 = 这条是某个分段组的一段**（存在性判断，
+   * 老模板/整段登记整个字段缺失）：列表把整组折成一张卡、套用时整组一起铺
+   * （flowStore.applyTemplateGroup）。`sourceUrl` 是原片地址 —— 合并成片时拿它解原片音轨。
+   */
+  group?: {
+    key: string;
+    index: number;
+    count: number;
+    sourceUrl: string;
+    sourceDurationSec: number;
+  };
   /** 服务端模板实体 id（登记/发布后回填）。缺省 = 还没上过服务端 —— 同样只判存在性 */
   remoteId?: string;
   /** 已发布到模板市场 */
