@@ -58,6 +58,14 @@ const BASE = import.meta.env.DEV ? "/api/ark" : `${API_BASE}/api/ark`;
  *   路径与鉴权的规则只能有一处（铁律六）。
  */
 export async function fetchArkAsset(url: string, timeoutMs: number): Promise<Response> {
+  // ★ 只有方舟域需要代理（TOS 不发 CORS 头，canvas 抓 blob 会被拦）。2026-08-20 起成片
+  //   出片即转存 Cloudinary —— 它自带 CORS（ACAO:*），**直连**抓 blob 即可；塞给代理反而
+  //   撞它的域名白名单（volces/volccdn 之外一律 400 host not allowed），合并当场失败
+  //   （同日真机实拍：「合并失败：取媒体失败 400」）。直连还省一跳服务器带宽。
+  //   将来若再有"无 CORS 的非方舟域"，这里会以 fetch TypeError 响亮地失败，不会静默。
+  if (!isArkAssetUrl(url)) {
+    return fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+  }
   // dev 的中间件挂在 /api/asset（vite.config.ts）；服务端挂在 /api/ark/asset（同一个路由文件）
   const endpoint = import.meta.env.DEV ? "/api/asset" : `${BASE}/asset`;
   const token = getToken();
