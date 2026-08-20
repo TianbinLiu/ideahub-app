@@ -150,6 +150,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 把 `REQUEST_INSTALL_PACKAGES` 挪进 `src/main/` | 本地一切正常，**上架审核被拒**（Google Play 禁止应用自装 APK），而那时离改动早过去很久了 | 自更新的权限与代码只准待在 `android/app/src/sideload/`；`src/play/AndroidManifest.xml` 里那条 `tools:node="remove"` 是兜底，别删 |
 | 全屏浮层写了 `fixed inset-0` 却只铺满一小块 | 浮层被某个祖先裁掉、点不到或压不住底栏 | 祖先上有 `backdrop-blur`（`backdrop-filter`）或 `transform`/`filter` —— 它们会给 `position: fixed` 后代造**包含块**，`inset-0` 于是相对那个盒子而不是视口；`position+z-index` 还会另开层叠上下文，压不过外面的兄弟节点。解法一律是 `createPortal` 到 `body`（评论抽屉、首尾帧卡放大层都栽在这条上，各修过一次） |
 | 在**看不见的**窗口里测（最小化/被挡住/标签页在后台） | 三类假故障：① `scrollTo({behavior:"smooth"})` 完全不动、scroll 事件一次都不触发（轮播翻页、首页上下滑看起来全坏）② `<video>` 不加载不解码，`loadedmetadata`/`seeked` 永不到达（出片卡在「捕获本段真实尾帧…」、剪辑页卡在「合并中」）③ rAF 被节流到 ~1 帧/500ms，Three.js 画布是黑的 | 先查 `document.visibilityState`，是 `hidden` 就别下结论。自动化测试必须让窗口真正可见（CDP 截图能骗过去，rAF 和媒体解码骗不过去）。代码侧的对策是**等媒体事件一律带超时**（见 `ai/real.ts` 的 `withTimeout`）——否则用户在几分钟的出片过程里切出去，回来就是永久卡死 |
+| 出片没接到结果就按「失败」处理 | 用户面前唯一可点的是「♻ 重新生成（N token）」= **重新下一单 = 再花一次钱**，而那一发的成片往往在方舟那边好好地存在着（2026-08-18 实测：15s 白模模板方舟约 13 分钟出片，App 10 分钟就放弃了，¥27 的成片是事后用任务号从方舟侧捞回来的）。计费在**受理那一刻**就发生（契约「先扣钱、再转发」+「受理之后失败不退」），所以「没接到」和「没花钱」毫无关系 | 「没接到」与「失败」是**两个**结局，判据是**类型**（`ai/arkClient.ArkTaskUnknown`）而不是错误文案里的关键词。三件一起做：① 任务**受理即落凭据**（`data/videoJobs`，用 localStorage —— 要扛得住进程被系统回收，那正是丢结果最常见的方式），落在开始等待**之前**而不是失败分支里；② 节点打 `status:"pending"` 而不是 `"failed"`；③ 段卡上给 24 小时取回入口（查询不计费，取回不再花钱）。同仓另有一份正确形态可对照：`data/templates.waitBlockoutTask`（白模化两阶段），改一处时对着看另一处 |
 
 ## 相关文档
 

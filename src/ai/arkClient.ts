@@ -104,6 +104,40 @@ export const MODELS = {
   model3d: "doubao-seed3d-2-0-260328",
 };
 
+/**
+ * 方舟回了一个非 2xx —— **带着状态码**的错误。
+ *
+ * ★ 为什么要这个类：有些调用方必须区分"查不到这个东西"（404）与"这条线断了"，而两者的
+ *   后果完全相反（前者是"东西没了"，后者是"一会儿再来"）。唯一的替代是去 message 里
+ *   `includes("404")` —— 那是改一次文案就静默失效的判断，而这里判错的代价是钱
+ *   （见 real.takeVideoTask）。
+ * ★ 仍旧是 Error 的子类、message 一字未改：既有那些只读 `.message` 的 catch 全都照常。
+ */
+export class ArkHttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ArkHttpError";
+  }
+}
+
+/**
+ * 一句**能给用户看**的失败原因 —— 唯一实现（出片轮询与取回都用它）。
+ *
+ * ★ 存在的理由是那一坨方舟原文：`Ark /contents/generations/tasks/cgt-… 404: {"error":
+ *   {"code":…,"message":"…Request id: 0217872118…"}}`。原样贴进提示里，用户读不懂
+ *   （request id 对他毫无意义），而且它长到会把后半句**真正可行动的话**（"再点一次
+ *   「取回」，凭据还在"）挤出可视区 —— arkFetch 里 403 那条注释记的就是同一个坑。
+ * ★ 状态码保留：那是唯一对排查有用、又短的一位。
+ */
+export function briefArkReason(e: unknown): string {
+  if (e instanceof ArkHttpError) return `服务器返回 ${e.status}`;
+  if (e instanceof Error) return e.message.includes("网络失败") ? "网络不通" : e.message.slice(0, 40);
+  return "未知原因";
+}
+
 /** 带超时的 Ark 请求。fetch 没有默认超时——网络一卡整个工坊就"假死"在加载态。
  *  429（限流，请求未被受理）自动退避重试一次；其他错误直接抛给上层做回退/播报。 */
 async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000): Promise<T> {
@@ -172,7 +206,7 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
         const msg = /"message"\s*:\s*"([^"]+)"/.exec(body)?.[1];
         throw new Error(msg || "这一档不对当前套餐开放，去「我的」页升级套餐后再试");
       }
-      throw new Error(`Ark ${path} ${res.status}: ${body.slice(0, 300)}`);
+      throw new ArkHttpError(`Ark ${path} ${res.status}: ${body.slice(0, 300)}`, res.status);
     }
     return (await res.json()) as T;
   }
@@ -317,6 +351,30 @@ export async function fetchArkTask(id: string): Promise<ArkTaskState> {
 }
 
 /**
+ * 「**我们不知道这一发怎么样了**」—— 轮询没能盯到结果时抛它，**不是"失败"**。
+ *
+ * ★★ 为什么必须是一个类而不是一句话：调用方要据此分叉（继续留着取回凭据 vs 当场销毁），
+ *   而按错误文案 `includes("超时")` 反推是那种"改一次措辞就静默失效"的判断 ——
+ *   这里判错的代价是**用户的钱**：把 unknown 当成 failed 处理会把还能取回的那一发
+ *   连同凭据一起扔掉，界面上只剩「♻ 重新生成」（= 再下一单、再花一次钱）。
+ * ★ 两种情形抛它，共同点是「任务已经被方舟受理、钱已经花了，只是我们没看到结果」：
+ *   ① 等到死线还没出片；② 连查五次都查不动（网断了，任务在云端好好跑着）。
+ *   反过来，**方舟明说 failed/cancelled 不抛它** —— 那是真失败，取回也取不回什么。
+ * ★ 与 data/templates 的 `TaskOutcome.unknown` 是同一件事的两个形态：那边是两阶段
+ *   白模化（凭据在服务端），这边是客户端自己建的出片任务（凭据在本机 data/videoJobs）。
+ */
+export class ArkTaskUnknown extends Error {
+  constructor(
+    message: string,
+    /** 方舟任务号 —— 24 小时内凭它把成片取回来（GET tasks/:id 不计费） */
+    readonly taskId: string,
+  ) {
+    super(message);
+    this.name = "ArkTaskUnknown";
+  }
+}
+
+/**
  * Seedance 图生视频：创建任务 → 轮询 → 返回视频 URL。
  * 传 lastFrameUrl 则走"首尾帧"模式（我们的方案卡正好有首尾帧，画面收束更可控）；
  * 传 refImages 则走"全模态参考生视频"（多张形象图 + 一句话直出，不需要设定帧）；
@@ -360,6 +418,19 @@ export async function generateVideo(
     refVideoUrl?: string;
     /** 白模参考视频的源片时长（秒）。只用来给轮询死线定尺寸（见下），不进请求体 */
     refVideoSec?: number;
+    /**
+     * 任务**刚被方舟受理**就把任务号交出去 —— 在这之前一分钱没花，在这之后钱已经花了
+     * （契约「先扣钱、再转发；上游没受理就原路退回」+「受理之后才失败不退」）。
+     *
+     * ★★ 它必须在**开始等待之前**回调，而不是等出片、也不是在失败分支里给：
+     *   这一发要等最长 25.5 分钟，而这段时间里最典型的丢结果方式是**进程被系统回收**
+     *   （切后台、内存压力）—— 那时下面这个循环连同它的 catch 一起没了，任务号
+     *   只在这个回调已经落过盘的情况下才还活着。抛异常时再给等于只覆盖了"我们还活着"
+     *   那一半，而那一半本来就是最不需要救的。
+     * ★ 这一层**只交号，不管存哪儿**：谁在等这一发、存不存、存哪儿是业务的事
+     *   （studio/flowStore → data/videoJobs）。协议层认识 data 层就成了双向依赖。
+     */
+    onTask?: (taskId: string) => void;
     onProgress?: (status: string) => void;
   },
 ): Promise<string> {
@@ -455,6 +526,8 @@ export async function generateVideo(
     120_000,
   );
   const id = created.id;
+  // ★ 受理即交号（理由钉在 onTask 上）：从这一行往后，这一发的钱已经花掉了
+  opts?.onTask?.(id);
   // ★★ 轮询死线按"这一发要出多少秒视频"缩放，不再一刀切 10 分钟。
   //   实测两点（720p）：5s 素材 ≈ 250s 出片；15s 模板 ≈ 780s —— 而旧死线 120×5s=600s。
   //   2026-08-18 真机那发（¥27）：方舟 ~13 分钟出成片，App 10 分钟先放弃报了"失败"，
@@ -478,7 +551,15 @@ export async function generateVideo(
       pollFails = 0;
     } catch (e) {
       // 单次查询抖动不放弃整个任务（视频已在云端排队生成，白扔太亏）
-      if (++pollFails >= 5) throw e;
+      // ★ 连查五次都查不动 = **我们瞎了，不是这一发废了**：任务在方舟那边照跑，
+      //   所以按 unknown 抛（凭据留着、给取回入口），与 waitBlockoutTask 里
+      //   「盯不住这一发的进度了」那一支同一个判断
+      if (++pollFails >= 5) {
+        throw new ArkTaskUnknown(
+          `盯不住这一发的进度了（${briefArkReason(e)}）。任务还在方舟那边跑，不是失败：钱在提交那一刻就已经花掉了。`,
+          id,
+        );
+      }
       continue;
     }
     const sec = Math.round((Date.now() - t0) / 1000);
@@ -494,15 +575,18 @@ export async function generateVideo(
     }
   }
   // ★ 这句话只准写**用户真能拿它做点什么**的内容。原来那版写了「任务号 xxx」与
-  //   「扣费以钱包流水为准」—— 前者全 app 没有任何消费方（能按号取回的只有白模化那条路），
-  //   后者在 App 里**根本没有页面**（fetchWalletLedger 零调用方，唯一的流水在管理端）。
-  //   指向两个不存在的出口，比不说更坏。
-  // ⚠ 欠着的正事：这条路缺一个「到点先按未知处理、给个 24 小时取回入口」的形态 ——
-  //   同仓的 waitBlockoutTask 就是那个正确形状。死线拉长 2.5 倍之后更该补上。
-  throw new Error(
-    `出片超时：等了 ${Math.round((Date.now() - t0) / 60_000)} 分钟还没回来。` +
-      `方舟那边可能仍在出片，但这一发我们已经接不回来了；提交那一刻就已经计费，` +
-      `再点「重新生成」是重新下一单、会再花一次钱`,
+  //   「扣费以钱包流水为准」—— 前者全 app 没有任何消费方，后者在 App 里**根本没有页面**
+  //   （fetchWalletLedger 零调用方，唯一的流水在管理端）。指向两个不存在的出口，比不说更坏。
+  // ★★ 到点**不是失败**，是我们不等了 —— 与 waitBlockoutTask 到点返回 unknown 同一个形状。
+  // ★ 这句话只说**事实**（等了多久、任务还在、钱已经花了），**不说"去哪儿取回"**：
+  //   这一层是协议层，不知道调用它的那条路上有没有取回入口（工作流有，工坊没有），
+  //   在这里许一个那边兑现不了的承诺，就是换了一种骗人。可行动的那半句由**落了凭据的
+  //   那一方**接着说（flowStore.genNode 的 pending 分支 + 段卡上的取回卡）。
+  // ★ 任务号也不写进这句话：用户抄不动它，也不需要抄（取回按凭据走，不要人输号）。
+  throw new ArkTaskUnknown(
+    `等了 ${Math.round((Date.now() - t0) / 60_000)} 分钟还没出片。这不是失败：任务还在方舟那边跑，` +
+      `钱在提交那一刻就已经花掉了。`,
+    id,
   );
 }
 

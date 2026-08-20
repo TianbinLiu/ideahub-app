@@ -1590,6 +1590,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log.fail(`失败：${msg.slice(0, 80)}`);
+      // ⚠ 工坊这条路**没有取回入口**（凭据与取回卡都长在工作流那一侧，见
+      //   data/videoJobs 与 flowStore.genNode 的 onTask）。所以这里不落凭据，也不许
+      //   把话说成"回来取"——ai 层给的那句话本身只陈述事实（"任务还在方舟那边跑，
+      //   钱已经花了"），可行动的那半句由**落了凭据的那一方**接着说。
+      //   要给工坊也补，得连入口一起补：只在这里落凭据只会攒下一堆没人能取的记录。
       set({ nodeGen: null, notice: { text: `这一段没炼成：${msg.slice(0, 60)}`, at: Date.now() } });
       return false;
     }
