@@ -24,7 +24,7 @@
 
 ### 2. 签名密钥 ✅（已生成，**立即备份**）
 - 位置：`android/keystore/`（**gitignore 不入仓，这台电脑是唯一副本**）。
-- 口令与备份说明见 `android/keystore/README.md` ——
+- 换机 / 新 worktree 怎么恢复见 [`signing-keystore.md`](signing-keystore.md)（口令随 keystore 一起备份，不入仓）——
   **⚠️ 请立刻把整个目录备份到至少两处（密码管理器/加密网盘/U盘）。
   丢失 = 已上架应用永远无法更新，没有找回手段。**
 - 首次上传 AAB 时选择启用 **Play App Signing**（默认推荐）：Google 托管最终签名密钥，
@@ -90,7 +90,8 @@
 npm run aab          → android/app/build/outputs/bundle/playRelease/app-play-release.aab（传 Play Console）
 npm run apk:release  → android/app/build/outputs/apk/sideload/release/app-sideload-release.apk（直装版）
 ```
-- release 签名自动从 `android/keystore/keystore.properties` 读取，目录缺失会构建成无签名包并警告。
+- release 签名自动从 `android/keystore/keystore.properties` 读取；**目录缺失或配置不全时构建直接失败**
+  （不会再产出无签名包），恢复步骤见 [`signing-keystore.md`](signing-keystore.md)。
 - 上传 AAB 后 Console 会显示 Play 按设备拆分后的实际下载体积（远小于 APK）。
 
 ## 五、上架流程速览

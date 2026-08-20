@@ -71,7 +71,9 @@ npm run apk:release   # release APK（需要签名 keystore）
 npm run aab           # 上架用的 AAB
 ```
 
-keystore 与口令不在仓库里，见 `android/keystore/README.md`。
+keystore 与口令不在仓库里（`android/keystore/` 被 gitignore 排除，克隆不会带过来）。
+缺了它 `apk:release` / `aab` 会**直接失败**并在报错里写清恢复步骤，完整说明见
+[`signing-keystore.md`](signing-keystore.md)。debug 包不需要 keystore。
 
 ---
 
