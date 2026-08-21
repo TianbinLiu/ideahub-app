@@ -654,7 +654,8 @@ export default function TemplateShelf({ initialTab }: { initialTab?: "market" | 
     guard(() => {
       const ok = parts.length > 1 ? useFlow.getState().applyTemplateGroup(parts) : useFlow.getState().applyTemplate(t);
       if (ok) nav("/flow");
-      else nav(`/template/${t.id}`);
+      else nav(`/template/${t.id}`); // 被闸门整句拒：去详情页看原因（那里印着 err）
+      return ok;
     });
   }
 

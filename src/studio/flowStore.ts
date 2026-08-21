@@ -803,6 +803,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
           : n,
       ),
       // 换的是当前段：store 级模板与挂卡缓冲同步（setCursor 同款职责）
+      // ★ 换模板同样要作废那一段的挂卡三态（上一版只在摘模板那支加了，这支漏了）：
+      //   旧的失败提示与骨架点的是**上一个模板**的角色位，对新模板毫无意义；
+      //   留着的话下次回到这一段又原样弹出来，点「填入默认写法」还会把上个模板的骨架
+      //   写进新模板段的 plot（那正是"按错的人偶点名"）
+      ...(s.castNodeId === nodeId ? { castErr: "", castFallback: "", castNodeId: null } : {}),
       ...(s.cursor === idx ? { template: tplSnap, cast: {} } : {}),
     }));
     get().updateProposal(nodeId, { plot: "", durationSec: t.refVideo.durationSec, firstFrame: "", lastFrame: "" });

@@ -438,13 +438,14 @@ export default function TemplateDetailPage() {
     guard(() => applyNow());
   }
 
-  function applyNow() {
-    if (!t) return;
+  /** 返回真 = 真的套上了（守卫据此决定要不要断开旧草稿，见 useApplyTemplate 的 ★★） */
+  function applyNow(): boolean {
+    if (!t) return false;
     // applyTemplate 返回 false = 被闸门整句拒绝（err 在 flow store 里）——把原因就地
     // 印出来，不能让按钮看起来"点了没反应"（铁律八）
     if (!useFlow.getState().applyTemplate(t)) {
       setApplyErr(useFlow.getState().err || "套用失败");
-      return;
+      return false;
     }
     // ★★ V2 白模（有角色位）：**先领去挂卡**，再进工作流。
     //   判据是存在性（`roles?.length`，types.ts 的 ★），所以老模板（没有 roles）
@@ -457,6 +458,7 @@ export default function TemplateDetailPage() {
     const castState = castEditorState(t);
     if (castState) nav("/video-editor", { state: castState });
     else nav("/flow");
+    return true;
   }
 
   return (

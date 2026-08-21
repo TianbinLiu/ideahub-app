@@ -19,16 +19,21 @@ import { useStudio } from "../../studio/studioStore";
 export function useApplyTemplate() {
   const nav = useNavigate();
   /** 等用户点头的那次套用。用函数包一层是因为 useState 会把裸函数当成惰性初始化 */
-  const [pending, setPending] = useState<{ run: () => void } | null>(null);
+  const [pending, setPending] = useState<{ run: () => boolean } | null>(null);
 
-  /** 真正落地：先断开旧草稿，再执行调用方那一下 */
-  function commit(apply: () => void) {
-    useStudio.getState().newWorkDraft();
-    apply();
+  /**
+   * 真正落地。★★ **套成了才断开旧草稿**（第五轮验证抓到）：`applyTemplate` /
+   *   `applyTemplateGroup` 整句拒绝是常态（档位闸没开、模板视频不合方舟窗口、分段组凑不齐），
+   *   而拒绝时 `nodes` 一个字没改 —— 先断的话，流水线原封不动却已经和它那条草稿脱钩：
+   *   下一次自动存盘会**另存一条新草稿**，而确认卡从此把"其实存住了的段"报成"没存上，
+   *   丢了要重花钱"（savedDoneCount 也被清零）。顺序反过来就都对了。
+   */
+  function commit(apply: () => boolean) {
+    if (apply()) useStudio.getState().newWorkDraft();
   }
 
-  /** 调用方把"套用 + 套用之后要做什么"整个交进来；脏了就先问，不脏就直接跑 */
-  function guard(apply: () => void) {
+  /** 调用方把"套用 + 套用之后要做什么"整个交进来（返回真 = 真的套上了）；脏了就先问 */
+  function guard(apply: () => boolean) {
     if (flowDirty()) {
       setPending({ run: apply });
       return;

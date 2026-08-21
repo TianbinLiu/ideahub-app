@@ -27,6 +27,14 @@ export default function DiscardFlowDialog({
 }) {
   const nodes = useFlow((s) => s.nodes);
   const savedDone = useStudio((s) => s.savedDoneCount);
+  /**
+   * ★★ 简约模式**恒 savedDoneCount = 0**（第五轮验证抓到）：它按设计不进草稿库
+   *   （saveWorkDraft 里挡掉、FlowPage 的自动存盘 `if (simple) return`、连「存草稿」
+   *   按钮都不渲染）。不单独分档的话，简约模式出过片就必然落进下面那个 ⚠ 分支，
+   *   说一句"没能存进草稿（存储空间不足或隐私模式）、建议先回去点存草稿" ——
+   *   两句都是假的：既不是存盘失败，那颗按钮也根本不存在。
+   */
+  const simple = useFlow((s) => s.mode === "simple");
   const done = nodes.filter((n) => Object.keys(n.videoByProposal).length > 0).length;
   const anns = nodes.reduce((s, n) => s + n.anns.length, 0);
   /** 出了片、却没能落进草稿的段数 —— 只有这些是丢弃时真会烧掉的钱 */
@@ -52,6 +60,12 @@ export default function DiscardFlowDialog({
         <p className="mt-1.5 text-xs leading-relaxed text-slate-300">
           {done === 0 ? (
             <>开新的一条会把它丢掉——都还没出片，丢的是写好的要求与设定，没有花掉的钱。</>
+          ) : simple ? (
+            <>
+              ⚠ 这条是<span className="text-amber-300">简约模式</span>：它按设计不进草稿库（一次性直通发布），
+              所以已经出片的 <span className="text-rose-300">{done} 段丢了就要重花 token 再炼一次</span>。
+              想留住就先「回去接着炼」，把它<span className="text-emerald-300">完成并发布</span>，再回来套模板。
+            </>
           ) : unsaved === 0 ? (
             <>
               已出片的 <span className="text-emerald-300">{done} 段在炼成那一刻就自动存进了草稿</span>

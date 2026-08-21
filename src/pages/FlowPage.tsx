@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import AnnStrip from "../components/flow/AnnStrip";
+import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import DeleteSegBtn from "../components/flow/DeleteSegBtn";
 import SegSettings from "../components/flow/SegSettings";
 import FlowCanvas from "../components/flow/FlowCanvas";
@@ -851,6 +852,8 @@ export default function FlowPage() {
     }
   };
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  // 「提取模板」出来的那一下也是整表覆盖，走与模板货架同一处守卫（唯一实现）
+  const { guard: applyGuard, dialog: applyDialog } = useApplyTemplate();
   /** 素材窗口开着 = 底部那条也换成本段素材（见下面的底部区） */
   const [matOpen, setMatOpen] = useState(false);
   /**
@@ -1384,9 +1387,13 @@ export default function FlowPage() {
       {tplExtract && (
         <VideoTemplateExtractor
           onClose={() => setTplExtract(false)}
-          onDone={(t) => useFlow.getState().applyTemplate(t)}
+          // ★ 第三条 applyTemplate 入口，同样要过守卫（第五轮验证抓到：上一版只接了模板货架
+          //   与模板详情页两条）。这一下也是整表覆盖 nodes —— 简约模式下已经花钱出过片的
+          //   那一段会当场消失，而"提取模板"提的是**另外上传的一段视频**，与这条流水线无关。
+          onDone={(t) => applyGuard(() => useFlow.getState().applyTemplate(t))}
         />
       )}
+      {applyDialog}
 
       {/* 画布视图：全屏覆盖层（Portal 到 body），点格子就地开编辑窗。
           挂卡要去 /video-editor 整页编辑器 —— castEditorState 只有本文件一处实现
