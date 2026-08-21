@@ -346,8 +346,15 @@ function NodeScreen({
   const stage: "derive" | "rederive" | "film" =
     simple || blockout || plan === "picked" ? "film" : picking ? "rederive" : "derive";
   const mainCost = stage === "film" ? cost : propCost;
-  const mainDisabled =
-    busy || generating || (stage === "film" ? !prop.plot.trim() : !req.trim() && !node.materials?.length);
+  /**
+   * 「这一段现在有东西可以往下推了吗」——**一处判断，两个地方用**：主按钮亮不亮，
+   * 以及画面区那句占位文案说什么。
+   * ★ 各写一遍的后果不是难看，是**自相矛盾**（2026-08-21 真机上撞见）：要求已经写好、
+   *   按钮已经亮起，画面区还在说「在下面写清楚这一段要拍什么」—— 用户会以为自己刚打的
+   *   那行字没存上，于是再写一遍。
+   */
+  const hasInput = !!req.trim() || !!node.materials?.length;
+  const mainDisabled = busy || generating || (stage === "film" ? !prop.plot.trim() : !hasInput);
   const mainLabel = generating
     ? node.progress || "生成中…"
     : stage === "rederive"
@@ -527,8 +534,14 @@ function NodeScreen({
               : simple || blockout // 白模没有方案台（直出复刻），别许诺"三套方案"
                 ? blockout && named
                   ? "还没有画面——先给人偶挂上角色卡，出片就按模板逐镜头复刻"
-                  : "还没有画面——在下面写清楚这一段要拍什么"
-                : "还没有画面——在下面写清楚这一段要拍什么，点「生成本段」先看三套方案"}
+                  : hasInput
+                    ? "还没有画面——点下面的「生成本段」就开炼"
+                    : "还没有画面——在下面写清楚这一段要拍什么"
+                : /* ★ 写没写过要分开说（见上面 hasInput 的 ★）：都说"去写"的话，
+                     写完的人会以为自己那行字没存上 */
+                  hasInput
+                  ? "还没有画面——点下面的「生成本段」先看三套方案（各带首尾帧预览）"
+                  : "还没有画面——在下面写清楚这一段要拍什么，点「生成本段」先看三套方案"}
           </div>
         )}
       </div>
