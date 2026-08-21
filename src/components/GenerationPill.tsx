@@ -35,13 +35,16 @@ export default function GenerationPill() {
 
   return (
     <div
-      className="fixed inset-x-0 z-40 flex justify-center px-4"
+      // ★ 外壳 pointer-events-none：它是**全宽**的透明条，不放行的话顶栏那一带
+      //   （约 30px 高）的点击会被它整条吞掉 —— 用户看不见任何东西却点不动
+      //   （2026-08-21 对抗评审确认）。胶囊自己再收回来。
+      className="pointer-events-none fixed inset-x-0 z-40 flex justify-center px-4"
       style={{ top: "calc(env(safe-area-inset-top, 0px) + 8px)" }}
     >
       {show.kind === "busy" ? (
         <button
           onClick={goBack}
-          className="flex max-w-full items-center gap-2 rounded-full border border-slate-600/70 bg-ink/95 py-1.5 pl-3 pr-4 text-[11px] text-slate-100 shadow-lg shadow-black/40"
+          className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full border border-slate-600/70 bg-ink/95 py-1.5 pl-3 pr-4 text-[11px] text-slate-100 shadow-lg shadow-black/40"
         >
           <span className="h-3 w-3 flex-none animate-spin rounded-full border-2 border-slate-600 border-t-brand" />
           <span className="min-w-0 truncate">{gen!.progress || "本段生成中…"}</span>
@@ -49,7 +52,7 @@ export default function GenerationPill() {
         </button>
       ) : (
         <div
-          className={`flex max-w-full items-center gap-1 rounded-full border py-1 pl-3 pr-1 text-[11px] shadow-lg shadow-black/40 ${
+          className={`pointer-events-auto flex max-w-full items-center gap-1 rounded-full border py-1 pl-3 pr-1 text-[11px] shadow-lg shadow-black/40 ${
             notice!.ok
               ? "border-emerald-500/50 bg-emerald-950/95 text-emerald-100"
               : "border-rose-500/50 bg-rose-950/95 text-rose-100"

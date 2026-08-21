@@ -583,6 +583,9 @@ export default function TemplateShelf({ initialTab }: { initialTab?: "market" | 
   // 老服务端 / 离线时不摆一个走到上传那步才失败的按钮（CLAUDE.md「永远点不动的选项」）
   const [blockoutCap, setBlockoutCap] = useState(false);
   const [extract, setExtract] = useState(false);
+  /** 套用被就地拒绝时那句话（分段组凑不齐）。★ 不走 flowStore.err：那条错误条只画在
+   *  工作流页与画布上，而用户此刻站在模板列表里 —— 写进那里等于没人看得见 */
+  const [pickErr, setPickErr] = useState("");
   useEffect(() => {
     let alive = true;
     void remoteTemplatesCapable().then((ok) => {
@@ -626,6 +629,22 @@ export default function TemplateShelf({ initialTab }: { initialTab?: "market" | 
     // 分段组从任意一段点「用它出片」都是**整组**套用（templateGroupOf 不是组员时回 [自己]，
     // 所以单模板走的还是 applyTemplate 那条原路）
     const parts = templateGroupOf(t);
+    // ★★ 组不齐时**整句拒绝**，绝不静默退成单段（2026-08-21 对抗评审确认）：
+    //   templateGroupOf 凑不齐 count 就回 [自己]，而 `parts.length > 1` 这个判据会把它
+    //   当成"这本来就是单模板"，落进 applyTemplate —— 一个节点、mode 退成 simple、
+    //   其余段全丢，err 一个字都没有。而卡上那条横条正写着「套用即整组铺开」。
+    //   凑不齐的常见原因：作者只发布了其中几段、某段被删、远端列表分页截断、弱网只到货一半。
+    //   ⚠ 删段之后其余段的 group.count 仍是旧值，那一组会**永远**凑不齐 —— 所以这句话
+    //     必须把"缺了几段"说出来，让作者知道去补发或重切，而不是每次都莫名其妙少几段。
+    if (t.group && parts.length !== t.group.count) {
+      setPickErr(
+        `这是一条分成 ${t.group.count} 段的模板，但这台设备上只拿到了 ${parts.length} 段 —— ` +
+          `整组套用会少内容，所以先不套。下拉刷新试试；如果是作者只发布了其中几段（组内每段各自发布），` +
+          `等其余段发布出来再用。`,
+      );
+      return;
+    }
+    setPickErr("");
     const ok = parts.length > 1 ? useFlow.getState().applyTemplateGroup(parts) : useFlow.getState().applyTemplate(t);
     if (ok) nav("/flow");
     else nav(`/template/${t.id}`);
@@ -658,6 +677,10 @@ export default function TemplateShelf({ initialTab }: { initialTab?: "market" | 
             className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
           />
         </div>
+      )}
+
+      {pickErr && (
+        <p className="mb-2 rounded-lg bg-amber-500/10 px-3 py-1.5 text-[11px] leading-relaxed text-amber-300/90">{pickErr}</p>
       )}
 
       {/* 远端市场拉挂了要明说：不说的话"远端加载失败"看起来和"市场就这么几个模板"

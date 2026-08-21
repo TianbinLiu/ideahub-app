@@ -1283,7 +1283,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
           : {}),
       };
     }),
-  shiftCursor: (dir) => set((s) => ({ cursor: clampCursor(s.nodes, s.cursor + dir) })),
+  /**
+   * ★★ 复用 setCursor，**不许**自己 set 一个 cursor：换段这件事不只是挪下标，还要把
+   *   store 级的模板快照与挂卡缓冲换成那一段自己的（见 setCursor 里那段）。
+   *   2026-08-21 对抗评审抓到的 high：分段模板组下，「✓ 这段满意，去下一段」/左右箭头/
+   *   横划三条路都走这里，于是第 2 段起界面按**第 1 段**的模板渲染 —— 挂卡编辑页打开的是
+   *   上一段的白模视频与映射，回程那道防"张冠李戴"的闸比的又是同一份陈旧快照（恒相等、
+   *   拦不住），而 applyCast 按当前段落地。两段编号同形时（同源切段几乎必然同形）
+   *   卡就挂到另一批人偶上：换错人、钱照扣、零报错。
+   */
+  shiftCursor: (dir) => get().setCursor(get().cursor + dir),
 
   addAnn: (nodeId, ann) =>
     set((s) => ({

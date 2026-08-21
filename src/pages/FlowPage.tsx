@@ -39,6 +39,7 @@ import {
   frontierOf,
   nodeCost,
   nodeDone,
+  tplOfNode,
   nodeRefOn,
   realVideoOfNode,
   planOf,
@@ -270,7 +271,9 @@ function NodeScreen({
     shiftCursor,
     addNode,
   } = useFlow();
-  const tpl = useFlow((s) => s.template);
+  // ★ 「本段模板」只有一处读法：tplOfNode(node)（画布那侧一直是这么读的）。
+  //   读 store 级那份会在换段时慢一拍/对不上（见 flowStore.shiftCursor 的 ★★）
+  const tpl = tplOfNode(node);
   // 上一段的选定走向：决定本段能否承接真实结尾起拍（也决定推演报价——共用开头帧时图量减半）
   const prevProp = useFlow((s) => (index > 0 ? chosenOf(s.nodes[index - 1]) : null));
   const simple = mode === "simple";
@@ -893,9 +896,16 @@ function NodeScreen({
                 用户对不上账时无从判断。这里显示的是 tierOf(...).model 推导出来的名字，
                 与发给方舟的 id 同源，不会出现"界面写着一个、实际跑另一个"。
                 title 里给完整 id，要查证的人一眼能看到。 */}
+            {/* ★ 白模段不印档位 desc（2026-08-21 对抗评审确认）：白模被钳死在 ultra 档，
+                而 ultra 的 desc 里那句「出片带 AI 生成的环境音」对白模是**假的** ——
+                BLOCKOUT_TASK 写死 generate_audio:false（带歌的参考视频会被方舟版权拦下，
+                见 arkClient 那段 ★）。用户在最贵一档上照那句话付了钱，拿回的每段都是哑的。
+                改印白模自己的实话：声音在合并那一步回填原片音轨。 */}
             <div className="text-[10px] text-slate-500" title={tierOf(node.videoTier).model}>
               本段模型：{modelLabel(tierOf(node.videoTier).model)}
-              <span className="ml-1 opacity-70">· {tierOf(node.videoTier).desc}</span>
+              <span className="ml-1 opacity-70">
+                · {blockout ? "白模复刻：只换人不生成声音，音轨在「完成视频」那一步回填原片" : tierOf(node.videoTier).desc}
+              </span>
             </div>
 
             {index > 0 && (
@@ -949,7 +959,14 @@ export default function FlowPage() {
   const loc = useLocation();
   // 人回到这一页，胶囊那条"待读通知"就算读过了（页内自有完整的进度与结果 UI）
   const clearGenNotice = useFlow((s) => s.clearGenNotice);
-  useEffect(() => clearGenNotice(), [clearGenNotice]);
+  const genNotice = useFlow((s) => s.genNotice);
+  // ★★ 依赖里必须带 genNotice：只在挂载时清一次的话，**在这一页上看着炼完**的那一条
+  //   会一直留着，等用户离开这一页才弹出来 —— 一条他刚刚亲眼看完的"幽灵通知"，
+  //   组稿之后点它还会落进一条空流水线（2026-08-21 对抗评审确认）。
+  //   人在这一页上 = 页内自有完整的进度与结果 UI，任何时候到货都当读过。
+  useEffect(() => {
+    if (genNotice) clearGenNotice();
+  }, [genNotice, clearGenNotice]);
   const { nodes, cursor, mode, origin, busy, err, setCursor, addNode, removeNode, addMaterials, removeMaterial, reset } =
     useFlow();
   const [finalizing, setFinalizing] = useState("");
@@ -992,7 +1009,8 @@ export default function FlowPage() {
   const [planFocus, setPlanFocus] = useState(false);
   /** 每加一次素材 +1，传给圆形按钮当 key 让抖动重播 */
   const [matShake, setMatShake] = useState(0);
-  const tpl = useFlow((s) => s.template);
+  // ★ 与 NodeScreen 同一处读法（tplOfNode）：store 级那份在换段时会慢一拍
+  const tpl = tplOfNode(nodes[Math.min(cursor, Math.max(0, nodes.length - 1))]);
   const simple = mode === "simple";
   /**
    * 自由素材窗口开着吗 —— **V2 白模上恒为关**。
@@ -1048,7 +1066,10 @@ export default function FlowPage() {
     const st = useFlow.getState();
     // 对号入座：模板对不上就整句拒绝，绝不"就近用"——编号是**这个模板**的编号，
     // 张冠李戴地套到另一个模板上，出片时就是换错人且零报错（types.roles 的 ★★）
-    if (r.templateId && st.template && r.templateId !== st.template.id) {
+    // ★ 比的是**当前这一段**的模板（tplOfNode），不是 store 级那份 —— 后者在换段时
+    //   可能还停在上一段上，那样这道闸恒相等、等于没有（对抗评审确认的 high 的一半）
+    const curTpl = tplOfNode(st.nodes[st.cursor] ?? st.nodes[0]);
+    if (r.templateId && curTpl && r.templateId !== curTpl.id) {
       useFlow.setState({
         err: "刚才挂卡的是另一个模板（这条流水线上套的模板中途换过了）——回模板详情页重新套用一次再挂卡",
       });
