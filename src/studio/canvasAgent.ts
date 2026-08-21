@@ -213,6 +213,12 @@ function cnInt(s: string): number {
   return M[s] ?? 0;
 }
 
+/**
+ * 「这句说的是段的**属性**，不是画面」—— 本地档办不了这些（时长/画幅/画质/删段都在
+ * ⚙ 本段设置与删除按钮上），所以宁可说没听懂，也别把它当成拍摄要求写进去（见下面 ★★）。
+ */
+const ATTR_LIKE = /(\d+\s*(秒|s)|时长|竖屏|横屏|画幅|画质|极速|标准|高清|电影级|删掉|删除|去掉这段|短一点|长一点)/;
+
 /** 离线/降级档：只认直白句式，能办多少办多少。规则窄一点没关系，**说清楚**最重要 */
 function localParse(text: string): { say: string; ops: Op[] } {
   const ops: Op[] = [];
@@ -233,9 +239,11 @@ function localParse(text: string): { say: string; ops: Op[] } {
       //   最容易连说好几句的时候。原来凡是没命中模板关键词的一律当成"要求"，于是
       //   「第2段删掉」「第2段短一点」会把他精心写的那段要求整段替换成「删掉」，
       //   没有确认、没有撤销，回执还写着绿勾「按直白句式帮你办了下面这些」。
-      //   现在只认**明确在描述画面**的句式；其余交给下面那句"我没听懂"，让他换句话说。
-      else if (/^(拍|画|改成|换成|变成|要|讲|演)/.test(rest) || rest.length >= 8)
-        ops.push({ op: "require", seg, text: rest });
+      //   ⚠ 光看开头那几个字不够（验证轮抓到）：「第2段**改成**10秒」「第2段**换成**高清」
+      //   「第2段**变成**竖屏」说的是**这一段的属性**，不是画面 —— 而本地档办不了属性，
+      //   于是照旧把整段要求替换成「改成10秒」。所以先按属性词判死，再谈是不是描述画面。
+      else if (ATTR_LIKE.test(rest)) unclear.push(part.trim());
+      else if (/^(拍|画|讲|演|要)/.test(rest) || rest.length >= 8) ops.push({ op: "require", seg, text: rest });
       else unclear.push(part.trim());
       continue;
     }
@@ -322,19 +330,22 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
           refused.push(`第 ${o.seg} 段套着模板，要求由挂卡合成——想全手写就先说「第 ${o.seg} 段摘掉模板」`);
           break;
         }
-        // ★ 与隔壁 cards 分支同一口径（2026-08-21 第六轮评审的完备性批评）：
-        //   免费的写操作也不许"答非所做"。对已出片的段改要求，回执写绿勾「要求已写」，
-        //   而那段成片一帧都不会变 —— 用户以为改上了，等着看新画面。
-        if (nodeDone(node)) {
-          refused.push(`第 ${o.seg} 段已出片，改要求不会改变已生成的视频——想重做先在编辑窗「♻ 重新生成」`);
-          break;
-        }
         if (node.status === "generating") {
           refused.push(`第 ${o.seg} 段正在生成，等它跑完再改要求（现在改也来不及进这一炉）`);
           break;
         }
         useFlow.getState().setRequirement(node.id, o.text);
-        applied.push(`第 ${o.seg} 段：要求已写`);
+        // ★★ 已出片的段**照写不误**（第一版在这里整句拒，验证轮判成回归）：两个理由 ——
+        //   ① 两个面的要求框对已出片的段都是可编辑的（只 disable locked/generating），
+        //      agent 比 UI 严 = 同一件事两种答复；
+        //   ② 那时给的出路「♻ 重新生成」走的是 genNode，它读的是 chosenOf(node).plot、
+        //      **根本不读 requirement** —— 照着做只会花钱重炼出同一段。
+        //   但绿勾不能只写"要求已写"（那就是"答非所做"）：要说清它**什么时候才作数**。
+        applied.push(
+          nodeDone(node)
+            ? `第 ${o.seg} 段：要求已写（这一段已经出片，新要求要等你重新推演三套方案之后才会用上）`
+            : `第 ${o.seg} 段：要求已写`,
+        );
         break;
       }
       case "template": {

@@ -203,6 +203,25 @@ export function nodeVideo(node: FlowNode): string | undefined {
   return node.videoByProposal[node.chosenId];
 }
 
+/**
+ * 把**还没表过态**的段（`tpl === undefined`）钉成此刻的 store 级真相 —— 唯一实现。
+ *
+ * ★★ 为什么必须钉（2026-08-21 第六轮对抗评审确认的 high）：`tplOfNode` 对 undefined 是
+ *   "退回 store 级"，而 store 级那份会随 `setCursor` 换成**当前段**的快照。于是一个
+ *   tpl 还没定的段，会在用户点回前面某个白模段的那一刻，被兜底认成**那个白模模板的段**：
+ *   卡片上冒出 🧪 徽章、报价改按 r2v、加段被拒「白模复刻段只有一段」，最狠的是出片时
+ *   genNode 真把那个模板的参考视频发给方舟——按 r2v 扣钱，炼出来的却是前面那段的复刻。
+ *   全程零报错。
+ * ★ 所以**凡是让某个段有了明确 tpl 的动作**（套模板、摘模板、加一段）都要在同一拍里
+ *   把其余 undefined 的段钉住。三处各写一遍的话，漏掉哪一处都没有任何症状——
+ *   addNode 那一处此前就是漏的。
+ * ⚠ 钉的是"这些段**本来就会兜底读到**的那份"，所以是语义等价的固化。
+ *   **新造的段不适用**（它没有"本来会读到什么"这回事）——见 addNode 里的 ★★★。
+ */
+export function pinUnstatedTpl(nodes: FlowNode[], template: FlowTemplate): FlowNode[] {
+  return nodes.map((n) => (n.tpl === undefined ? { ...n, tpl: template ?? null } : n));
+}
+
 /** 这一段是否已经交付：当前走向有成片，或 mock 构建下标记过完成 */
 export function nodeDone(node: FlowNode): boolean {
   return !!node.videoByProposal[node.chosenId];
@@ -218,23 +237,6 @@ export function nodeDone(node: FlowNode): boolean {
  *   反复记的那种"抄一份必然分叉、而分叉了不报错"的形状。
  *   （studioStore 的 `realVideoOf` 收的是 `Proposal`，形状不同，是另一条路。）
  */
-/**
- * 把**还没表过态**的段（`tpl === undefined`）钉成此刻的 store 级真相 —— 唯一实现。
- *
- * ★★ 为什么必须钉（2026-08-21 第六轮对抗评审确认的 high）：`tplOfNode` 对 undefined 是
- *   "退回 store 级"，而 store 级那份会随 `setCursor` 换成**当前段**的快照。于是一个
- *   tpl 还没定的段，会在用户点回前面某个白模段的那一刻，被兜底认成**那个白模模板的段**：
- *   卡片上冒出 🧪 徽章、报价改按 r2v、加段被拒「白模复刻段只有一段」，最狠的是出片时
- *   genNode 真把那个模板的参考视频发给方舟——按 r2v 扣钱，炼出来的却是前面那段的复刻。
- *   全程零报错。
- * ★ 所以**凡是让某个段有了明确 tpl 的动作**（套模板、摘模板、加一段）都要在同一拍里
- *   把其余 undefined 的段钉住。三处各写一遍的话，漏掉哪一处都没有任何症状——
- *   addNode 那一处此前就是漏的。
- */
-export function pinUnstatedTpl(nodes: FlowNode[], template: FlowTemplate): FlowNode[] {
-  return nodes.map((n) => (n.tpl === undefined ? { ...n, tpl: template ?? null } : n));
-}
-
 export function realVideoOfNode(node: FlowNode): string | undefined {
   const v = nodeVideo(node);
   return v && !v.startsWith("mock:") ? v : undefined;
@@ -1315,11 +1317,20 @@ export const useFlow = create<FlowState>()((set, get) => ({
         aspect: prev?.aspect ?? DEFAULT_ASPECT,
       });
       if (prev) node.proposals[0].durationSec = chosenOf(prev).durationSec;
-      // ★★ 新段**当场表态**（钉成此刻的 store 级真相，多半是 null），别留 undefined：
-      //   留着的话，用户之后点回前面任何一个带模板快照的段，setCursor 会把 store 级换成
-      //   那个模板，这一新段就被兜底静默认成白模段——错显示、错报价、加不了段，
-      //   最后按 r2v 真扣钱炼出前面那段的复刻。整段机理见 pinUnstatedTpl 的 ★★。
-      node.tpl = s.template ?? null;
+      // ★★★ 新段恒 `null`（明确没有模板），**不是** `s.template`（2026-08-21 验证轮抓到：
+      //   第一版写成 `s.template ?? null`，把 high 从"可能被兜底读错"恶化成"当场写死"）。
+      //   两条理由，缺一不可：
+      //   ① `s.template` 不是全局真相，它是**当前光标那一段**的快照（setCursor 同步），
+      //      而且切到 tpl 为 null 的段时**不回退**（那边的条件是 `tpl && tpl !== s.template`）
+      //      —— 所以它常常是别段留下的陈旧值。用户点一眼第 1 段的成片再点「加一段」，
+      //      新段就顶着第 1 段的白模模板出生：卡上冒 🧪、按 r2v 报价、出片把那份参考视频
+      //      发给方舟（真扣钱，炼出来的是第 1 段的复刻）。
+      //   ② 这个函数**两行前刚断言过**「最后那一段不是白模段」（读的是 tplOfNode(prev)，
+      //      不是 store 级 —— 那句 ★★ 已经写明为什么不能信 store 级）。而工作流模式下
+      //      store.template 非空时恒为白模快照（setNodeTemplate 拒非白模模板、
+      //      applyTemplateGroup 整组白模、经典模板只出现在简约模式）。既然刚判过
+      //      "接在后面的不是白模段"，新段的正确默认值就只能是"没有模板"。
+      node.tpl = null;
       return { nodes: [...pinUnstatedTpl(s.nodes, s.template), node], cursor: i, err: "" };
     }),
 

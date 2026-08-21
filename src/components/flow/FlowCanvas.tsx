@@ -197,9 +197,19 @@ export default function FlowCanvas({
   }
   function onPointerUp(e: React.PointerEvent) {
     pointers.current.delete(e.pointerId);
-    if (pointers.current.size === 0) {
+    const rest = [...pointers.current.values()];
+    if (rest.length === 0) {
       gesture.current = null;
       setView(liveView.current); // 手指离开才提交一次（见上面 liveView 的 ★★）
+      return;
+    }
+    // ★★ 两指变一指要**按剩下那根重建基准**（2026-08-21 验证轮抓到）：不重建的话
+    //   gesture 还是捏合那一份（tx/ty/scale 停在捏合**开始前**、cx/cy 是两指中点），
+    //   剩下那根手指再动一像素就从那份陈旧基准重算 —— 缩放当场退回捏合前、位置跳几百
+    //   像素，而且抬手时这个被打回的值还会 setView 提交下去（刚捏的缩放永久丢失）。
+    //   真机上两根手指几乎不可能同时离屏，所以这是常规路径不是边角。
+    if (rest.length === 1) {
+      gesture.current = { ...liveView.current, cx: rest[0].x, cy: rest[0].y, dist: 0 };
     }
   }
   function onWheel(e: React.WheelEvent) {
@@ -220,7 +230,12 @@ export default function FlowCanvas({
   function panTo(i: number) {
     // ★ ty 一并归位（第六轮评审）：整条流水线只有横向一排，用户往上下拖走之后，
     //   只改 tx 的"挪进视野"根本没把那一格挪回视野里 ——「加一段」还是"点了没反应"
-    setView((v) => ({ ...v, tx: 40 - i * (CARD_W + GAP_X) * v.scale, ty: 24 }));
+    const next = { ...liveView.current, tx: 40 - i * (CARD_W + GAP_X) * liveView.current.scale, ty: 24 };
+    // ★★ 手势可能正在进行（agent 的回包是异步的，用户完全可以一边等一边拖画布）：
+    //   只 setView 的话，那个没有依赖数组的 effect 会立刻把画面涂回手指底下的值，
+    //   抬手时再 setView(liveView) 把它彻底丢掉 —— 表现为「模型说去第 3 段了，画面没动」。
+    liveView.current = next;
+    setView(next);
   }
 
   // 挂载时把当前段挪进视野（机理见上面 didInitPan 的 ★★）。第 1 段本来就在视野里，跳过。
@@ -594,6 +609,15 @@ function NodePanel({
   const castFallback = useFlow((s) => s.castFallback);
   const castBusy = useFlow((s) => s.castBusy);
   const fillCastFallback = useFlow((s) => s.fillCastFallback);
+  /**
+   * 这三个挂卡状态是 store 级的，语义上**恒指光标段**（`fillCastFallback` 写的就是
+   * `nodes[cursor]`，`applyCast` 也只作用于光标段）。
+   * ★★ 而画布的编辑窗画的是 `nodes[sel]` —— 点一个被顺序门禁锁住的格子时 `setCursor`
+   *   会被 `clampCursor` 夹住，于是 sel ≠ cursor。不判这一下的话：那一段的编辑窗里会
+   *   印着**别段**的合成失败提示，点「填入默认写法」写进的也是别段（还顺手把提示清掉），
+   *   而用户眼里是"点了没反应"。线性视图天然只渲染光标段，所以只有这一面要判。
+   */
+  const castOfThisNode = useFlow((s) => s.nodes[s.cursor]?.id === node.id);
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   const tpl = tplOfNode(node);
@@ -766,7 +790,7 @@ function NodePanel({
               !plot.trim() 恒灰。而 store 注释里说的那颗「填入默认写法」只长在线性视图上，
               此刻正被这张 z-40 的画布整块盖着 —— 用户既看不见也不知道它存在，
               只能反复挂卡、每次白跑一次对话。 */}
-          {castErr && (
+          {castErr && castOfThisNode && (
             <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
               <p className="text-[11px] leading-relaxed text-amber-200">{castErr}</p>
               {castFallback && (
@@ -791,9 +815,11 @@ function NodePanel({
               value={p.plot}
               onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
               maxLength={VIDEO_PROMPT_MAX}
-              disabled={locked || generating || castBusy}
+              disabled={locked || generating || (castBusy && castOfThisNode)}
               placeholder={
-                castBusy ? "正在把「人偶 → 角色」合成一段话…" : "先去挂卡：合成好的点名要求会填在这里，你可以逐字改"
+                castBusy && castOfThisNode
+                  ? "正在把「人偶 → 角色」合成一段话…"
+                  : "先去挂卡：合成好的点名要求会填在这里，你可以逐字改"
               }
               className="h-24 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
             />
@@ -802,7 +828,7 @@ function NodePanel({
               value={p.plot}
               onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
               maxLength={VIDEO_PROMPT_MAX}
-              disabled={locked || generating || castBusy}
+              disabled={locked || generating || (castBusy && castOfThisNode)}
               placeholder="写一句要换成谁（V1 白模没有角色位，整段换一个主体）"
               className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
             />

@@ -1904,12 +1904,20 @@ export const useStudio = create<StudioState>()((set, get) => ({
     //     · plan ——「方案台」这一版才有。按"多方案即已选定"补：那时的节点确实是选好的，
     //       缺省成 picking 会让用户打开旧草稿发现每段都要重挑一遍
     //     · requirement —— 退回当前方案的剧情，正是旧版推演时当作 requirement 用的东西
+    //     · tpl —— 钉成**这条草稿自己存下的**那份 store 级模板（`d.flow.template`）。
+    //       ★★ 2026-08-21 补：三态里的 undefined 是"退回 store 级"，而 store 级会随光标
+    //       换成当前段的快照 —— 老草稿里（尤其是 addNode 造出的段）留着的 undefined，
+    //       重开之后会在用户点回某个白模段的那一刻被兜底认成那个模板：错显示、错报价、
+    //       出片按 r2v 真扣钱。落库时的语义就是"读到 d.flow.template 那份"，
+    //       所以在这里固化下来是等价的，只是从此不再漂（见 flowStore.pinUnstatedTpl）。
+    const draftTpl = (d.flow?.template as FlowTemplate) ?? null;
     const flowNodes = ((d.flow?.nodes ?? []) as FlowNode[]).map(
       (n): FlowNode => ({
         ...n,
         aspect: n.aspect ?? "landscape",
         plan: n.plan ?? (n.proposals.length > 1 ? ("picked" as const) : undefined),
         requirement: n.requirement ?? chosenOf(n).plot,
+        tpl: n.tpl !== undefined ? n.tpl : draftTpl,
       }),
     );
     const root = d.root ?? (flowNodes.length > 0 ? rootFromFlowNodes(flowNodes) : null);
