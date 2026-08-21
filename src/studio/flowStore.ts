@@ -448,6 +448,10 @@ interface FlowState {
   /** 分段模板组整组套用（2026-08-20）：N 段 = N 个白模节点，各带各的快照、各挂各的卡，
    *  顺序门禁照走 clampCursor（炼完本段才能去下一段）。1 段退化为 applyTemplate。 */
   applyTemplateGroup: (parts: VideoTemplate[]) => boolean;
+  /** 给**单个节点**换/摘白模模板（2026-08-21，画布编辑窗用）：t=null 摘掉退回普通段。
+   *  已出片的段整句拒（换模板会作废那段成片，钱不能静默作废）；换上即清这一段的
+   *  挂卡与合成句（旧映射对新模板全是错的）。失败原因写进 err，返回 false。 */
+  setNodeTemplate: (nodeId: string, t: VideoTemplate | null) => boolean;
   /** 写那句话：立刻把配方里的 {{主题}} 填成它，各段剧情随之成形 */
   setSubject: (subject: string) => void;
   /**
@@ -666,6 +670,70 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // store 级跟第 1 段走（旧读点的兜底；切段由 setCursor 同步，见 FlowNode.tpl 的 ★）
       template: nodes[0].tpl!,
     });
+    return true;
+  },
+
+  setNodeTemplate: (nodeId, t) => {
+    const s0 = get();
+    if (s0.busy) {
+      set({ err: "正在生成中，等它跑完再换模板" });
+      return false;
+    }
+    const idx = s0.nodes.findIndex((n) => n.id === nodeId);
+    if (idx < 0) return false;
+    const node = s0.nodes[idx];
+    // ★ 已出片整句拒：换模板 = 这段成片作废重炼，那笔钱不能被一次点击静默作废。
+    //   想换的路仍然开着：先「重新生成」（用户自己按下的重炼）或删除本段重加。
+    if (nodeDone(node)) {
+      set({ err: "这一段已经出片：换模板会作废这段成片。想换就删除本段重加，或先接受重炼这一段的花费" });
+      return false;
+    }
+    if (!t) {
+      // 摘模板：退回普通段。挂卡/素材/合成句一起清（旧映射对"没有模板"毫无意义）
+      set((s) => ({
+        err: "",
+        nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, tpl: undefined, materials: undefined, cast: undefined } : n)),
+        ...(s.cursor === idx ? { template: null, cast: {} } : {}),
+      }));
+      get().updateProposal(nodeId, { plot: "", durationSec: 5 });
+      return true;
+    }
+    // 换/套模板：与 applyTemplateGroup 铺节点走同一批规则（refVid 闸、窗口闸、快照、清挂卡）
+    const gate = VIDEO_TIERS.find((x) => x.refVid);
+    if (!gate) {
+      set({ err: "白模模板出片暂未开放：还没有档位支持白模（r2v）出片" });
+      return false;
+    }
+    if (!t.refVideo) {
+      set({ err: "这不是白模模板（只有白模模板能按段套用）" });
+      return false;
+    }
+    const issue = refVideoIssue(t.refVideo);
+    if (issue) {
+      set({ err: issue });
+      return false;
+    }
+    const tplSnap = snapTpl(t);
+    set((s) => ({
+      err: "",
+      nodes: s.nodes.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              tpl: tplSnap,
+              // 模板自带卡照 applyTemplate 的口径；挂卡结果清零（旧映射对新模板全错）
+              materials: t.cards.length ? t.cards : undefined,
+              cast: undefined,
+              chain: false, // 白模段复刻自己的素材，不走尾帧承接（applyTemplateGroup 同款 ★）
+              videoTier: gate.id,
+              aspect: t.refVideo!.height > t.refVideo!.width ? "portrait" : "landscape",
+            }
+          : n,
+      ),
+      // 换的是当前段：store 级模板与挂卡缓冲同步（setCursor 同款职责）
+      ...(s.cursor === idx ? { template: tplSnap, cast: {} } : {}),
+    }));
+    get().updateProposal(nodeId, { plot: "", durationSec: t.refVideo.durationSec, firstFrame: "", lastFrame: "" });
     return true;
   },
 

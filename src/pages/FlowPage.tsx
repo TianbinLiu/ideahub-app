@@ -953,8 +953,21 @@ export default function FlowPage() {
     useFlow();
   const [finalizing, setFinalizing] = useState("");
   const [tplExtract, setTplExtract] = useState(false);
-  /** 画布视图（全屏覆盖层，进入即横屏）：总览整条流水线，点一段跳回线性编辑 */
-  const [canvas, setCanvas] = useState(false);
+  /**
+   * 画布视图（全屏覆盖层，竖横皆可）：点格子就地开编辑窗，不再跳回线性视图。
+   * 开关落 sessionStorage：画布里点「挂卡」要去 /video-editor 整页编辑器，
+   * 回来必须还在画布上 —— 不落盘的话回程 remount 会把用户扔回线性视图，
+   * 「我明明在画布里编的」这种断裂比多存一个键难受得多。
+   */
+  const [canvas, setCanvasRaw] = useState(() => sessionStorage.getItem("flowCanvasOpen") === "1");
+  const setCanvas = (v: boolean) => {
+    setCanvasRaw(v);
+    try {
+      sessionStorage.setItem("flowCanvasOpen", v ? "1" : "0");
+    } catch {
+      /* 隐私模式塞不进就算了：代价只是回程回线性视图 */
+    }
+  };
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   /** 素材窗口开着 = 底部那条也换成本段素材（见下面的底部区） */
   const [matOpen, setMatOpen] = useState(false);
@@ -1457,14 +1470,15 @@ export default function FlowPage() {
         />
       )}
 
-      {/* 画布视图：全屏覆盖层（Portal 到 body），点「去编辑」跳段并收起。
-          setCursor 走 store（clampCursor 在里面夹，锁着的段 onJump 也到不了） */}
+      {/* 画布视图：全屏覆盖层（Portal 到 body），点格子就地开编辑窗。
+          挂卡要去 /video-editor 整页编辑器 —— castEditorState 只有本文件一处实现
+          （跨页约定），经 prop 借给画布，FlowCanvas 不 import 页面（依赖单向） */}
       {canvas && (
         <FlowCanvas
           onClose={() => setCanvas(false)}
-          onJump={(i) => {
-            setCursor(i);
-            setCanvas(false);
+          onCast={(t, value) => {
+            const st = castEditorState(t, value);
+            if (st) navigate("/video-editor", { state: st });
           }}
         />
       )}
