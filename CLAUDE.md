@@ -149,6 +149,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 把 debug 包发给别人装 | 下次发 release 包时对方装不上，只提示「应用未安装」，看不出是签名不同 | 发给别人的永远只发 `npm run apk:release` 的产物；debug 包只留在自己机器上 |
 | 把 `REQUEST_INSTALL_PACKAGES` 挪进 `src/main/` | 本地一切正常，**上架审核被拒**（Google Play 禁止应用自装 APK），而那时离改动早过去很久了 | 自更新的权限与代码只准待在 `android/app/src/sideload/`；`src/play/AndroidManifest.xml` 里那条 `tools:node="remove"` 是兜底，别删 |
 | 全屏浮层写了 `fixed inset-0` 却只铺满一小块 | 浮层被某个祖先裁掉、点不到或压不住底栏 | 祖先上有 `backdrop-blur`（`backdrop-filter`）或 `transform`/`filter` —— 它们会给 `position: fixed` 后代造**包含块**，`inset-0` 于是相对那个盒子而不是视口；`position+z-index` 还会另开层叠上下文，压不过外面的兄弟节点。解法一律是 `createPortal` 到 `body`（评论抽屉、首尾帧卡放大层都栽在这条上，各修过一次） |
+| 长按/拖拽手势"浏览器里好好的，真机上时灵时不灵" | 要么拖不动，要么一拖就变成滚页面，且没有任何报错 | `touch-action` 是浏览器在**手势开始那一刻**锁定的，手势中途再改**无效**。所以"长按之后才允许拖"必须由一次**先行的重渲染**打开（「我的」页的整理模式就是干这个用的：长按 → 进模式 → 栅格拿到 `touch-action:none` → 抬手 → 之后的手势才归我们）。横向列表可以取巧写 `pan-x`（`MaterialSheet` / `RoleCastBoard` 那两条轨），**纵向栅格没有这条退路**。另外拖动时页面不滚了，得自己在屏幕上下边缘做自动滚，否则够不到屏幕外的位置 |
+| 另一个 worktree 的 dev server 占着 5178 | 你测的是**别的分支的代码**，而且毫无征兆：新加文件的请求照样 200（SPA 回退返回的是 index.html，同上面"永远不要信状态码"那条） | `vite.config.ts` 写死了 `port:5178, strictPort:true`，所以第二个 worktree 起不来、只会连上第一个。确认办法：`curl -s localhost:5178/src/<你刚新建的文件> \| head -3`，出来 `<!doctype html>` 就是没命中。换端口跑：`npm run dev -- --port 5179` |
 | 在**看不见的**窗口里测（最小化/被挡住/标签页在后台） | 三类假故障：① `scrollTo({behavior:"smooth"})` 完全不动、scroll 事件一次都不触发（轮播翻页、首页上下滑看起来全坏）② `<video>` 不加载不解码，`loadedmetadata`/`seeked` 永不到达（出片卡在「捕获本段真实尾帧…」、剪辑页卡在「合并中」）③ rAF 被节流到 ~1 帧/500ms，Three.js 画布是黑的 | 先查 `document.visibilityState`，是 `hidden` 就别下结论。自动化测试必须让窗口真正可见（CDP 截图能骗过去，rAF 和媒体解码骗不过去）。代码侧的对策是**等媒体事件一律带超时**（见 `ai/real.ts` 的 `withTimeout`）——否则用户在几分钟的出片过程里切出去，回来就是永久卡死 |
 
 ## 相关文档

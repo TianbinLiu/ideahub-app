@@ -543,6 +543,14 @@ interface StudioState {
   openWorkDraft: (d: WorkDraft, mode: DraftMode) => void;
   /** 开始一摊全新的活：断开与上一条草稿的关联，之后保存会新建而不是覆盖 */
   newWorkDraft: () => void;
+  /**
+   * 删掉某条草稿（个人页那个删除入口走这里）。
+   * ★★ 删草稿的**唯一**入口，别在页面里直接调 `deleteDraft`（铁律六）：
+   *   删的若正是当前开着的那条，只删库不断关联的话，工坊/工作流下一次自动保存
+   *   （FlowPage 那条 30 秒定时器）会拿着同一个 id 原样再写回去 —— 用户眼睁睁看着
+   *   删掉的草稿自己长回来，全程零报错。
+   */
+  discardWorkDraft: (id: string) => Promise<void>;
   /** 这摊活已经发布成作品了：删掉对应草稿并断开关联 */
   retireWorkDraft: () => Promise<void>;
 
@@ -1826,10 +1834,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
 
   workDraftId: null,
   newWorkDraft: () => set({ workDraftId: null }),
+  discardWorkDraft: async (id) => {
+    if (get().workDraftId === id) set({ workDraftId: null });
+    await deleteDraft(id);
+  },
   retireWorkDraft: async () => {
     const id = get().workDraftId;
-    set({ workDraftId: null });
-    if (id) await deleteDraft(id);
+    if (id) await get().discardWorkDraft(id);
   },
 
   saveWorkDraft: async (opts) => {

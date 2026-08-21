@@ -874,19 +874,31 @@ export async function setCardViews(cardId: string, views: Card["views"]): Promis
   await branch.updateCardViews(cardId, views);
 }
 
-export function removeCard(cardId: string): void {
+/**
+ * 删卡。本地立刻生效，远端默认即发即忘。
+ *
+ * ★ `confirm: true` = 调用方要**自己等服务端、自己报错**（个人页那个明确的删除弹窗走这条）。
+ *   默认那条路把异常喂给 `emitApiError`，而全 app **没有任何地方监听它**（铁律八）——
+ *   于是"服务端没删掉"这件事的实际后果是：本地看着没了，下次 `loadRemoteAssets`
+ *   整片覆盖本地库，卡自己回来了，全程零提示。用户点了删除的地方不能是这样。
+ * ★ 返回值加了 Promise 但**老调用点一个字都不用改**：它们不接返回值，
+ *   不传 confirm 时内部照旧 catch 住，不会冒出未处理的 rejection。
+ */
+export function removeCard(cardId: string, opts?: { confirm?: boolean }): Promise<void> {
   const u = currentUser();
-  if (!u || !db) return;
+  if (!u || !db) return Promise.resolve();
   db.cards = db.cards.filter((c) => !(c.ownerId === u.id && c.id === cardId));
   const touchedDecks = db.decks.filter((d) => d.cardIds.includes(cardId));
   for (const d of db.decks) d.cardIds = d.cardIds.filter((id) => id !== cardId);
   persist();
-  if (remoteOn()) {
-    void branch.removeCard(cardId).catch((e) => emitApiError("removeCard", e));
-    // 契约没写删卡是否会顺带清理卡组里的引用，这里显式同步一次，幂等且便宜
-    // （走同一条防抖队列，和用户正在改的名字合并成一次 PATCH）
-    for (const d of touchedDecks) queueDeckPatch(d.id, { cardIds: d.cardIds });
-  }
+  if (!remoteOn()) return Promise.resolve();
+  // 契约没写删卡是否会顺带清理卡组里的引用，这里显式同步一次，幂等且便宜
+  // （走同一条防抖队列，和用户正在改的名字合并成一次 PATCH）
+  for (const d of touchedDecks) queueDeckPatch(d.id, { cardIds: d.cardIds });
+  const sent = branch.removeCard(cardId);
+  if (opts?.confirm) return sent;
+  void sent.catch((e) => emitApiError("removeCard", e));
+  return Promise.resolve();
 }
 
 // ── 卡组 ──────────────────────────────────────────────
@@ -946,20 +958,25 @@ export function deckCoverOf(d: Deck): Card | null {
   return (coverId && byId.get(coverId)) || null;
 }
 
-export function deleteDeck(deckId: string): void {
-  if (!db) return;
+/** 删卡组。`confirm` 的含义与 `removeCard` 完全一致（理由写在那边） */
+export function deleteDeck(deckId: string, opts?: { confirm?: boolean }): Promise<void> {
+  if (!db) return Promise.resolve();
   const d = findDeck(deckId);
   db.decks = db.decks.filter((x) => x !== d);
   persist();
-  if (remoteOn() && d) {
-    const localId = d.id;
-    cancelDeckPatch(localId); // 都要删了，别再把排队中的改名发出去
-    void (async () => {
-      const id = await resolveDeckId(localId);
-      if (!id) return;
-      await branch.deleteDeck(id).catch((e) => emitApiError("deleteDeck", e));
-    })();
-  }
+  if (!remoteOn() || !d) return Promise.resolve();
+  const localId = d.id;
+  cancelDeckPatch(localId); // 都要删了，别再把排队中的改名发出去
+  const sent = (async () => {
+    const id = await resolveDeckId(localId);
+    // ★ 解不出远端 id = 这套卡组压根没同步上去过（id 还是本地的 deck_ 前缀），
+    //   服务端那边本来就没有它 —— 这是**删成功**，不是失败，别报错吓人
+    if (!id) return;
+    await branch.deleteDeck(id);
+  })();
+  if (opts?.confirm) return sent;
+  void sent.catch((e) => emitApiError("deleteDeck", e));
+  return Promise.resolve();
 }
 
 // ── 卡组分享 ──────────────────────────────────────────

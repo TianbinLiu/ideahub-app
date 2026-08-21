@@ -42,17 +42,19 @@ import {
   type AuthorWorks,
 } from "../data/videos";
 import { getUser, userDisplayName, type ApiUserProfile } from "../api/users";
-import { deleteDraft, loadDraft, renameDraft, type DraftMode, type WorkDraftMeta } from "../data/drafts";
+import { loadDraft, renameDraft, reorderDrafts, type DraftMode, type WorkDraftMeta } from "../data/drafts";
 import { useDrafts } from "../hooks/useDrafts";
 import { useStudio } from "../studio/studioStore";
 import {
   billingExempt,
   buyPlan,
   deckCoverOf,
+  deleteDeck,
   isFollowing,
   myCards,
   myDecks,
   rechargeAddon,
+  removeCard,
   refreshRemoteWallet,
   toggleFollow,
   walletOf,
@@ -63,6 +65,8 @@ import { API_ON } from "../api/client";
 import { PLANS, RECHARGE_PACKS, fmtTokens } from "../data/economy";
 import { notificationsState, refreshUnreadCount, subscribeNotifications } from "../data/notifications";
 import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
+import { useGridReorder, type DragHandlers } from "../hooks/useGridReorder";
+import { useLongPress } from "../hooks/useLongPress";
 import { useVideosVersion } from "../hooks/useVideos";
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoItem, formatPlays, relativeTime } from "../types";
 
@@ -145,6 +149,12 @@ export default function ProfilePage() {
 
   const [tab, setTab] = useState<TabKey>("works");
   const [pickDraft, setPickDraft] = useState<WorkDraftMeta | null>(null);
+  /** 长按选中的那一个。稿件/卡片/卡组共用一个弹窗——三份实现必然三个手感（铁律六） */
+  const [held, setHeld] = useState<{ kind: "draft" | "card" | "deck"; id: string } | null>(null);
+  /** 稿件整理模式：进了才能拖动换序。
+   *  ★ 它必须是一个**模式**而不是"长按就能拖"，因为浏览器在手势开始那一刻就锁定了
+   *    touch-action，中途改无效 —— 完整理由记在 hooks/useGridReorder 的抬头。 */
+  const [organizing, setOrganizing] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
   const [followListOpen, setFollowListOpen] = useState(false);
@@ -320,6 +330,78 @@ export default function ProfilePage() {
     ? ["works", "drafts", "cards", "decks", "collects"]
     : (["works", "decks"] as TabKey[]).filter((k) => k === "works" || TAB_META[k].n > 0);
   const activeTab = tabKeys.includes(tab) ? tab : "works";
+
+  // ── 稿件整理（长按选中 / 拖动换序）────────────────────────────
+  const draftIds = useMemo(() => drafts.map((d) => d.id), [drafts]);
+  const draftById = useMemo(() => new Map(drafts.map((d) => [d.id, d])), [drafts]);
+  const reorder = useGridReorder({
+    enabled: organizing && activeTab === "drafts",
+    ids: draftIds,
+    onCommit: (ids) => void reorderDrafts(ids),
+  });
+  // 切页签就退出整理模式并松开选中：整理模式会吃掉纵向手势（页面不滚），
+  // 留着它跨页签生效的话，用户在别的页签会遇到"页面划不动"且不知道为什么
+  useEffect(() => {
+    setHeld(null);
+    setOrganizing(false);
+  }, [tab]);
+
+  /** 长按选中的那一个是什么、删掉会连带什么。三种东西的差别只在这一处展开 */
+  function heldView() {
+    if (!held) return null;
+    if (held.kind === "draft") {
+      const d = draftById.get(held.id);
+      if (!d) return null;
+      const i = reorder.view.indexOf(held.id);
+      return {
+        title: d.title,
+        meta: `${d.segCount} 段 · 已出片 ${d.doneCount} · 第 ${i + 1}/${reorder.view.length} 位`,
+        // ★ 草稿是**真的没了**：只躺在这台设备的 IndexedDB 里，服务端没有备份，
+        //   换台手机登录也看不到。这句话必须说出来，别让人以为云端还留着
+        warn: "草稿只存在这台设备上，删掉找不回来",
+        onDelete: () => useStudio.getState().discardWorkDraft(d.id),
+        move: (dir: -1 | 1) => moveDraft(d.id, dir),
+        canUp: i > 0,
+        canDown: i >= 0 && i < reorder.view.length - 1,
+      };
+    }
+    if (held.kind === "card") {
+      const c = cards.find((x) => x.id === held.id);
+      if (!c) return null;
+      const inDecks = decks.filter((d) => d.cardIds.includes(c.id));
+      return {
+        title: c.name,
+        meta: CARD_TYPE_LABELS[c.type],
+        warn: inDecks.length
+          ? `这张卡还在「${inDecks.map((d) => d.name).join("、")}」里，删掉会一并从卡组中移除`
+          : "已发布作品里的那套卡是快照，不受影响",
+        onDelete: () => removeCard(c.id, { confirm: true }),
+      };
+    }
+    const d = decks.find((x) => x.id === held.id);
+    if (!d) return null;
+    return {
+      title: d.name,
+      meta: `${d.cardIds.length} 张卡`,
+      // ★ 删卡组**不删卡**。不说清楚的话，用户会以为删一叠就把里头的卡都毁了而不敢动
+      warn: d.published
+        ? "这套已分享到创意工坊，删掉后别人也看不到了；组里的卡片本身不会被删"
+        : "只删这一叠的编排，组里的卡片本身不会被删",
+      onDelete: () => deleteDeck(d.id, { confirm: true }),
+    };
+  }
+
+  /** 上移/下移一格。★ 拖不动时的确定路径 —— 手抖、屏幕小、辅助功能开着的用户都得有一条走得通的路
+   *  （剪辑页那条时间轴就是反例：界面上写着「拖拽换序」，而它用的 HTML5 draggable 在手机上根本不触发） */
+  function moveDraft(id: string, dir: -1 | 1) {
+    const ids = reorder.view;
+    const i = ids.indexOf(id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= ids.length) return;
+    const next = [...ids];
+    [next[i], next[j]] = [next[j], next[i]];
+    void reorderDrafts(next);
+  }
 
   /**
    * 这一页**对外**的地址（分享 / 登录后回跳都用它）。
@@ -694,31 +776,55 @@ export default function ProfilePage() {
             工坊是 3D 桌面上的节点树，工作流是逐段流水线，两个入口都能接着干 */}
         {activeTab === "drafts" &&
           (drafts.length ? (
-            <div className="grid grid-cols-3 gap-[2px]">
-              {drafts.map((d) => (
-                <button key={d.id} onClick={() => setPickDraft(d)} className="relative block bg-panel text-left">
-                  {d.thumb ? (
-                    <img src={d.thumb} alt="" className="aspect-[3/4] w-full object-cover" loading="lazy" />
-                  ) : (
-                    <div className="flex aspect-[3/4] w-full items-center justify-center bg-slate-800 text-2xl">🎬</div>
-                  )}
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-1.5 pb-1 pt-5">
-                    {/* 草稿必须带标题：它们常常共用同一批帧，只看封面分不出是哪条 */}
-                    <div className="truncate text-[11px] font-medium text-white">{d.title}</div>
-                    <div className="text-[10px] text-slate-300">
-                      已出片 {d.doneCount}/{d.segCount}
-                    </div>
-                  </div>
-                  {/* ★ 这里原来写的是「仅自己可见」——和已发布作品的可见性设置**是同一个词**，
-                      于是用户以为自己有一条设成私密的作品，跑去找哪儿能改（真事，2026-08-10）。
-                      草稿的"没人看得到"是它还没发布，不是一个可切换的选项，用词必须分开。 */}
-                  <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/65 px-1 py-0.5 text-[9px] text-white">
-                    <Icon name="lock" size={9} strokeWidth={2.5} />
-                    未发布
-                  </span>
-                </button>
-              ))}
-            </div>
+            <>
+              {/* ★ 整理模式必须有一条自己的说明与出口：它把纵向手势整个吃掉了（页面不滚），
+                  没有这行字的话，用户只会觉得"页面卡住了" */}
+              <div className="flex items-center gap-2 px-3 py-2">
+                {organizing ? (
+                  <>
+                    <span className="flex-1 text-[11px] text-brand">拖动换位置 · 点一下打开操作</span>
+                    <button
+                      onClick={() => {
+                        setOrganizing(false);
+                        setHeld(null);
+                      }}
+                      className="flex-none rounded-full bg-brand px-3 py-1 text-[11px] font-bold text-ink"
+                    >
+                      完成
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-[11px] text-slate-500">长按稿件可排序、删除</span>
+                )}
+              </div>
+              <div
+                ref={reorder.gridRef}
+                className="grid grid-cols-3 gap-[2px]"
+                // ★ 只有整理模式才关掉浏览器的手势接管，平时页面得能正常上下滑
+                style={organizing ? { touchAction: "none" } : undefined}
+              >
+                {reorder.view.map((id) => {
+                  const d = draftById.get(id);
+                  if (!d) return null;
+                  return (
+                    <DraftTile
+                      key={id}
+                      d={d}
+                      organizing={organizing}
+                      dragging={reorder.dragId === id}
+                      selected={held?.kind === "draft" && held.id === id}
+                      drag={reorder.handlersFor(id)}
+                      onHold={() => {
+                        setOrganizing(true);
+                        setHeld({ kind: "draft", id });
+                      }}
+                      // 整理模式里点一下就是"选中它"，不再直接进编辑——手指在这个模式下是用来摆位置的
+                      onOpen={() => (organizing ? setHeld({ kind: "draft", id }) : setPickDraft(d))}
+                    />
+                  );
+                })}
+              </div>
+            </>
           ) : (
             <Empty text="还没有草稿——工坊和工作流里都能存" cta="去创作" to="/create" />
           ))}
@@ -729,11 +835,13 @@ export default function ProfilePage() {
           (cards.length ? (
             <div className="grid grid-cols-3 gap-2 px-3 pt-3">
               {cards.map((c) => (
-                <Link
+                <HoldCell
                   key={c.id}
-                  to={`/card/${c.id}`}
-                  className="relative block overflow-hidden rounded-lg border border-slate-700/60"
+                  className="rounded-lg"
+                  selected={held?.kind === "card" && held.id === c.id}
+                  onHold={() => setHeld({ kind: "card", id: c.id })}
                 >
+                  <Link to={`/card/${c.id}`} className="relative block overflow-hidden rounded-lg border border-slate-700/60">
                   {c.cover ? (
                     <img src={c.cover} alt={c.name} className="aspect-[3/4] w-full object-cover" loading="lazy" />
                   ) : (
@@ -745,7 +853,8 @@ export default function ProfilePage() {
                       {CARD_TYPE_LABELS[c.type]}
                     </span>
                   </div>
-                </Link>
+                  </Link>
+                </HoldCell>
               ))}
             </div>
           ) : (
@@ -759,9 +868,16 @@ export default function ProfilePage() {
             decks.length ? (
               <div className="grid grid-cols-3 gap-x-3.5 gap-y-4 px-3 pr-4 pt-3">
                 {decks.map((d) => (
-                  <Link key={d.id} to={`/deck/${d.id}`} className="block">
-                    <DeckCard name={d.name} count={d.cardIds.length} cover={deckCoverOf(d)?.cover ?? null} />
-                  </Link>
+                  <HoldCell
+                    key={d.id}
+                    className="rounded-xl"
+                    selected={held?.kind === "deck" && held.id === d.id}
+                    onHold={() => setHeld({ kind: "deck", id: d.id })}
+                  >
+                    <Link to={`/deck/${d.id}`} className="block">
+                      <DeckCard name={d.name} count={d.cardIds.length} cover={deckCoverOf(d)?.cover ?? null} />
+                    </Link>
+                  </HoldCell>
                 ))}
               </div>
             ) : (
@@ -794,6 +910,30 @@ export default function ProfilePage() {
         <AvatarPicker name={display} current={user.avatar} onClose={() => setAvatarOpen(false)} onError={flash} />
       )}
       {pickDraft && <DraftSheet meta={pickDraft} onClose={() => setPickDraft(null)} />}
+      {(() => {
+        const v = heldView();
+        // 选中的东西被删掉后 heldView 会变 null，弹窗跟着消失——不用另写一处关闭
+        return v ? <HoldSheet {...v} onClose={() => setHeld(null)} /> : null;
+      })()}
+      {/* 拖动中跟手的影子。★ 不给原格子加 transform 而是另画一个：换序是实时发生的，
+          原格子的"家"每一拍都在变，按位移画会跳来跳去 */}
+      {reorder.ghost &&
+        (() => {
+          const d = draftById.get(reorder.ghost.id);
+          if (!d) return null;
+          return (
+            <div
+              className="pointer-events-none fixed z-40 w-20 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg border-2 border-brand shadow-2xl shadow-black/60"
+              style={{ left: reorder.ghost.x, top: reorder.ghost.y }}
+            >
+              {d.thumb ? (
+                <img src={d.thumb} alt="" className="aspect-[3/4] w-full object-cover" />
+              ) : (
+                <div className="flex aspect-[3/4] w-full items-center justify-center bg-slate-800 text-xl">🎬</div>
+              )}
+            </div>
+          );
+        })()}
       {walletOpen && <WalletSheet onClose={() => setWalletOpen(false)} />}
       {followListOpen && user && (
         <FollowingSheet names={user.following} videos={videos} onClose={() => setFollowListOpen(false)} />
@@ -1098,6 +1238,187 @@ function FollowingSheet({
  * 两个模式都列出来而不是直接进上次那个——用户存的时候在工作流里，再打开时想去桌面上
  * 改剧情是很正常的需求；上次用的那个标成「上次」，省得每次都要想。
  */
+/**
+ * 稿件格子。
+ * ★ 单开一个组件不是为了整洁：`useLongPress` 是 hook，在 `.map()` 里直接调违反 hooks 规则，
+ *   而且每格必须各自持有自己的定时器（同时按住两格时才不会互相顶掉）。
+ */
+function DraftTile({
+  d,
+  organizing,
+  dragging,
+  selected,
+  drag,
+  onHold,
+  onOpen,
+}: {
+  d: WorkDraftMeta;
+  organizing: boolean;
+  dragging: boolean;
+  selected: boolean;
+  drag: DragHandlers;
+  onHold: () => void;
+  onOpen: () => void;
+}) {
+  // ★ 两套手势永不同时在场：整理模式外只有长按，整理模式里只有拖动。
+  //   （关掉的那一套返回空对象，展开进去什么都不加）
+  const hold = useLongPress(onHold, !organizing);
+  return (
+    <button
+      onClick={onOpen}
+      {...hold}
+      {...drag}
+      className={`relative block select-none bg-panel text-left ${dragging ? "opacity-25" : ""} ${
+        selected ? "z-10 ring-2 ring-brand" : ""
+      }`}
+    >
+      {d.thumb ? (
+        // ★ draggable={false}：不关的话手指按住图片，WebView 会弹自己那套"保存图片"菜单，
+        //   把我们的弹窗盖住（全仓的 -webkit-touch-callout 只写在 canvas 上）
+        <img src={d.thumb} alt="" draggable={false} className="aspect-[3/4] w-full object-cover" loading="lazy" />
+      ) : (
+        <div className="flex aspect-[3/4] w-full items-center justify-center bg-slate-800 text-2xl">🎬</div>
+      )}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-1.5 pb-1 pt-5">
+        {/* 草稿必须带标题：它们常常共用同一批帧，只看封面分不出是哪条 */}
+        <div className="truncate text-[11px] font-medium text-white">{d.title}</div>
+        <div className="text-[10px] text-slate-300">
+          已出片 {d.doneCount}/{d.segCount}
+        </div>
+      </div>
+      {/* ★ 这里原来写的是「仅自己可见」——和已发布作品的可见性设置**是同一个词**，
+          于是用户以为自己有一条设成私密的作品，跑去找哪儿能改（真事，2026-08-10）。
+          草稿的"没人看得到"是它还没发布，不是一个可切换的选项，用词必须分开。 */}
+      <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/65 px-1 py-0.5 text-[9px] text-white">
+        <Icon name="lock" size={9} strokeWidth={2.5} />
+        未发布
+      </span>
+      {organizing && (
+        <span className="absolute right-1 top-1 rounded bg-brand/90 px-1 py-0.5 text-[9px] font-bold text-ink">⇕</span>
+      )}
+    </button>
+  );
+}
+
+/**
+ * 可长按的壳，里头照旧放 `<Link>`。
+ * ★ 长按触发后浏览器**还是会**发一下 click，由 hook 在捕获阶段（早于 Link 自己的处理）吃掉，
+ *   否则长按会顺势跳进详情页 —— 表现就是"长按等于点击，弹窗一闪而过"。
+ */
+function HoldCell({
+  children,
+  onHold,
+  selected,
+  className = "",
+}: {
+  children: ReactNode;
+  onHold: () => void;
+  selected: boolean;
+  className?: string;
+}) {
+  const hold = useLongPress(onHold);
+  return (
+    <div {...hold} className={`select-none ${selected ? "ring-2 ring-brand" : ""} ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * 长按之后那个小窗口：说清这是什么、删了会连带什么，再让人删。
+ *
+ * ★ 两步确认，不是 `window.confirm`：后者在 Capacitor WebView 里是系统弹框，样式完全出戏，
+ *   有的机型直接屏蔽（CommentDelete.tsx 记着这条）。
+ * ★ 删除失败必须**留在原地说出来**（铁律八）。卡片/卡组的删除要过服务端，失败是常事
+ *   （没网、老服务端、限流），而失败的后果不是"没删掉"这么轻——本地已经看不见了，
+ *   下次拉取远端资产会整片覆盖回来，卡自己长回来。用户得知道该再删一次。
+ */
+function HoldSheet({
+  title,
+  meta,
+  warn,
+  onDelete,
+  onClose,
+  move,
+  canUp,
+  canDown,
+}: {
+  title: string;
+  meta: string;
+  warn: string;
+  onDelete: () => Promise<void>;
+  onClose: () => void;
+  move?: (dir: -1 | 1) => void;
+  canUp?: boolean;
+  canDown?: boolean;
+}) {
+  const [armed, setArmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function del() {
+    if (!armed) {
+      setArmed(true);
+      return;
+    }
+    setBusy(true);
+    setErr("");
+    try {
+      await onDelete();
+      onClose();
+    } catch (e) {
+      setErr(`没能删干净：${(e as Error).message || "网络不通"}。这台设备上已经看不到了，但下次同步可能还会回来——联网后再删一次`);
+      setBusy(false);
+      setArmed(false);
+    }
+  }
+
+  return (
+    <Sheet onClose={onClose}>
+      <h3 className="truncate text-base font-bold text-slate-100">{title}</h3>
+      <p className="mt-1 text-[11px] text-slate-500">{meta}</p>
+
+      {move && (
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {/* ★ 拖不动时的确定路径：小屏、手抖、或者干脆没拖起来的时候，总得有一条走得通的路 */}
+          <button
+            onClick={() => move(-1)}
+            disabled={!canUp}
+            className="rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200 disabled:opacity-40"
+          >
+            ↑ 往前挪
+          </button>
+          <button
+            onClick={() => move(1)}
+            disabled={!canDown}
+            className="rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200 disabled:opacity-40"
+          >
+            ↓ 往后挪
+          </button>
+        </div>
+      )}
+
+      <p className={`mt-4 text-[11px] leading-relaxed ${armed ? "text-rose-300" : "text-slate-500"}`}>{warn}</p>
+      {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-400">{err}</p>}
+
+      <div className="mt-3 flex gap-2">
+        <button onClick={onClose} className="flex-1 rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200">
+          取消
+        </button>
+        <button
+          onClick={() => void del()}
+          disabled={busy}
+          className={`rounded-xl px-4 py-2.5 text-sm disabled:opacity-50 ${
+            armed ? "bg-rose-500 font-bold text-white" : "border border-rose-500/40 bg-rose-500/10 text-rose-300"
+          }`}
+        >
+          {busy ? "删除中…" : armed ? "确认删除" : "删除"}
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
 function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onClose: () => void }) {
   const navigate = useNavigate();
   const [busy, setBusy] = useState("");
@@ -1110,7 +1431,7 @@ function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onClose: () => voi
     if (!full) {
       // 索引里有、正文没了（配额清理/手动清过库）：把这条索引也清掉，别让用户对着点不开的卡片反复点
       setBusy("这条草稿的内容已丢失，已从列表移除");
-      await deleteDraft(meta.id);
+      await useStudio.getState().discardWorkDraft(meta.id);
       setTimeout(onClose, 1600);
       return;
     }
@@ -1177,7 +1498,9 @@ function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onClose: () => voi
           取消
         </button>
         <button
-          onClick={() => void deleteDraft(meta.id).then(onClose)}
+          // ★ 与长按弹窗走**同一个**入口：直接调 deleteDraft 的话，删的若正是工坊里开着的
+          //   那条，下一次自动保存会把它原样写回来（studioStore.discardWorkDraft 的抬头有详述）
+          onClick={() => void useStudio.getState().discardWorkDraft(meta.id).then(onClose)}
           className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-300"
         >
           删除

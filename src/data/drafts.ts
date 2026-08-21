@@ -94,9 +94,32 @@ export async function readyDrafts(): Promise<void> {
   emit();
 }
 
-/** 全部草稿，最近改的在前 */
+/**
+ * 全部草稿，**按 index 数组的顺序**——这就是用户在「我的」里看到的顺序，也是他能拖动改的顺序。
+ *
+ * ★ 原来这里是 `sort((a,b)=>b.updatedAt-a.updatedAt)`。改掉的理由不是排序不好，而是
+ *   「用户拖出来的顺序」需要一个**存得住的家**，而 index 数组本身就是（saveDraft 一直在
+ *   往前插，deleteDraft 也只是过滤，顺序天然被保留并落盘）。再引一份 order 数组当第二处
+ *   真相，删除/淘汰两条路就都要同步维护它，漂了还不报错（铁律六）。
+ * ★ 对**存量数据零影响**：老索引本来就是"每次保存往前插"攒出来的，顺序≈最近改的在前，
+ *   与旧口径肉眼无差。
+ */
 export function listDrafts(): WorkDraftMeta[] {
-  return [...index].sort((a, b) => b.updatedAt - a.updatedAt);
+  return [...index];
+}
+
+/**
+ * 按给定的 id 顺序重排草稿（「我的」页整理模式拖完之后调）。
+ * ★ 只认识 id：调用方给什么顺序就是什么顺序，不在这里做二次排序。
+ *   没出现在 ids 里的草稿（并发新建的）保持相对次序、接在后面 —— 丢掉才是真出事。
+ */
+export async function reorderDrafts(ids: string[]): Promise<void> {
+  const rank = new Map(ids.map((id, i) => [id, i]));
+  const known = index.filter((d) => rank.has(d.id)).sort((a, b) => rank.get(a.id)! - rank.get(b.id)!);
+  const rest = index.filter((d) => !rank.has(d.id));
+  index = [...known, ...rest];
+  persistIndex();
+  emit();
 }
 
 export function getDraftMeta(id: string): WorkDraftMeta | null {
@@ -158,14 +181,23 @@ export async function saveDraft(input: {
     hasRoot: !!input.root,
     hasFlow: !!input.flow && (input.flow.nodes?.length ?? 0) > 0,
   };
-  index = [meta, ...index.filter((d) => d.id !== id)];
+  // ★ 老草稿**留在原位**，只有新草稿插到最前。
+  //   原来是无条件 `[meta, ...其余]`（每次自动保存都把这条顶到第一位）。留位是"手动排序"
+  //   成立的前提：不留的话，用户拖好顺序后随便点开一条编辑，它就自己跳回队首了。
+  const at = index.findIndex((d) => d.id === id);
+  index = at >= 0 ? index.map((d) => (d.id === id ? meta : d)) : [meta, ...index];
 
-  // 超量淘汰最旧的（按 updatedAt），正文一并删掉
+  // 超量淘汰：从**列表末尾**开始扔，正文一并删掉
+  // ★★ 判据必须与"用户看到的顺序"是同一个（铁律六）。原来这里按 updatedAt 挑，而列表也按
+  //   updatedAt 排，两者天然一致；现在顺序归用户管了，还按 updatedAt 挑就等于：用户把一条
+  //   珍贵的老草稿拖到第一位，它照样被悄悄删掉 —— 而且删得**毫无征兆**（这条路本来就不吭声）。
+  //   现在的规则一句话说得清：掉出列表末尾的那条会被清掉。没手动排过序时，末尾正是最久没动的
+  //   那条，与旧行为一致。
   if (index.length > MAX_DRAFTS) {
-    const keep = [...index].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_DRAFTS);
-    const dropped = index.filter((d) => !keep.some((k) => k.id === d.id));
-    index = keep;
+    const dropped = index.slice(MAX_DRAFTS);
+    index = index.slice(0, MAX_DRAFTS);
     for (const d of dropped) void idbDel(bodyKey(d.id));
+    if (dropped.length) console.warn(`[drafts] 草稿超过 ${MAX_DRAFTS} 条上限，清掉列表末尾 ${dropped.length} 条:`, dropped.map((d) => d.title));
   }
   persistIndex();
   emit();
