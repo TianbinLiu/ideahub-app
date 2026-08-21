@@ -374,10 +374,18 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
           refused.push(`第 ${o.seg} 段是带角色位的白模段，素材由挂卡决定——用编辑窗里的挂卡入口`);
           break;
         }
-        if (nodeDone(node)) {
-          refused.push(`第 ${o.seg} 段已出片，改素材不会改变已生成的视频——想重做先在编辑窗重新生成`);
+        // ★★ 已出片的段**照改不误**（2026-08-21 通读拒绝语时抓到，与 require 那支同一形状）：
+        //   ① 两个面的「选卡片」对已出片的段都是可点的（只 disable locked/generating），
+        //      agent 比 UI 严 = 同一件事两种答复；
+        //   ② 原来那句话还是个环：它拒掉改素材，却叫用户「先重新生成」—— 而重新生成用的是
+        //      **当前** materials（genNode 真把 node.materials 透传给 generateSegment），
+        //      不改素材就重炼，只会花钱得到同一段。
+        //   所以照改，但绿勾要说清它什么时候才作数。
+        if (node.status === "generating") {
+          refused.push(`第 ${o.seg} 段正在生成，等它跑完再改素材（现在改也来不及进这一炉）`);
           break;
         }
+        const doneNote = nodeDone(node) ? "（这一段已经出片，新素材要点「♻ 重新生成」才会用上）" : "";
         for (const name of o.add ?? []) {
           const f = findCard(name);
           if (!f.c) {
@@ -385,7 +393,9 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
             continue;
           }
           const n2 = useFlow.getState().addMaterials(node.id, [f.c]);
-          applied.push(n2 > 0 ? `第 ${o.seg} 段：挂上「${f.c.name}」` : `第 ${o.seg} 段：「${f.c.name}」本来就挂着`);
+          applied.push(
+            n2 > 0 ? `第 ${o.seg} 段：挂上「${f.c.name}」${doneNote}` : `第 ${o.seg} 段：「${f.c.name}」本来就挂着`,
+          );
         }
         for (const name of o.remove ?? []) {
           const cur = nodeAt(o.seg)?.materials ?? [];
@@ -396,7 +406,7 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
             continue;
           }
           useFlow.getState().removeMaterial(node.id, hit.id);
-          applied.push(`第 ${o.seg} 段：摘下「${hit.name}」`);
+          applied.push(`第 ${o.seg} 段：摘下「${hit.name}」${doneNote}`);
         }
         break;
       }
