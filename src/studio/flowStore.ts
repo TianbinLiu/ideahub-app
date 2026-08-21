@@ -761,6 +761,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
         nodes: pinUnstatedTpl(s.nodes, s.template).map((n) =>
           n.id === nodeId ? { ...n, tpl: null, materials: undefined, cast: undefined } : n,
         ),
+        // ★ 这一段的挂卡三态跟着作废：旧的失败提示与骨架点的是已经不存在的角色位，
+        //   留着的话下次回到这一段又原样弹出来（第四轮验证抓到的"永远挂着"）
+        ...(s.castNodeId === nodeId ? { castErr: "", castFallback: "", castNodeId: null } : {}),
         ...(s.cursor === idx ? { template: null, cast: {} } : {}),
       }));
       get().updateProposal(nodeId, { plot: "", durationSec: 5 });
@@ -969,7 +972,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
         castNodeId: null,
         err: "一个角色位都没挂卡：白模出片全靠卡上的形象图说明「换成谁」，一张都不挂的话出不了片——回去至少挂一张",
       });
-      get().updateNode(node.id, { materials: undefined });
+      // ★ node.cast 一并清（第三轮验证抓到）：不清的话按钮还印着「已挂 4/4」而 materials
+      //   已经没了；而且切段一来一回，setCursor 会把这份旧映射灌回缓冲，goCast 再拿它当初值
+      get().updateNode(node.id, { materials: undefined, cast: undefined });
       get().updateProposal(node.id, { plot: "" });
       return false;
     }
@@ -1397,12 +1402,18 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // ★ 分段组：store 级模板跟着当前段走（旧读点的兜底，见 FlowNode.tpl 的 ★），
       //   挂卡编辑缓冲同步换成**这一段自己的**（node.cast；没挂过就是空）——
       //   带着上一段的挂法串段，出片映射就是错的
-      return {
-        cursor,
-        ...(tpl && tpl !== s.template
-          ? { template: tpl, cast: s.nodes[cursor]?.cast ?? {}, castErr: "", castFallback: "", castNodeId: null }
-          : {}),
-      };
+      // ★★ 挂卡缓冲**无条件**换成本段那份（原来跟在 `tpl !== s.template` 里）：两段套的是
+      //   同一个模板对象（pinUnstatedTpl / applyTemplateGroup 发的就是同一个引用）、或本段
+      //   tpl 为 null/undefined 时，那个条件不成立，缓冲就停在**别段**的挂法上 ——
+      //   而 goCast 拿它当编辑页初值、canvasAgent 的 cast 分支拿它去 merge、applyCast 又
+      //   整表落盘，一路串到真出片。
+      // ★★ **绝不再碰 castErr / castFallback / castNodeId**：合成是一次十几秒的对话，
+      //   这期间用户点一下别的段（点卡片、底部节点条都不判 busy）就会走到这里。清掉的话
+      //   castBusy 还是真、归属令牌却没了：正在被写的那段解除禁用（打的字会被回包整段覆盖），
+      //   失败回包落在无主状态上 —— 两个面都判 `castNodeId === node.id`，于是**哪儿都不显示**：
+      //   要求框莫名空了、生成键恒灰、全 app 没有一个字说明发生了什么（铁律八）。
+      //   这三态属于谁只有 castNodeId 一处说了算，谁都别替它做主。
+      return { cursor, cast: s.nodes[cursor]?.cast ?? {}, ...(tpl && tpl !== s.template ? { template: tpl } : {}) };
     }),
   /**
    * ★★ 复用 setCursor，**不许**自己 set 一个 cursor：换段这件事不只是挪下标，还要把

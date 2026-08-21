@@ -69,7 +69,9 @@ export interface AgentOutcome {
 }
 
 type Op =
-  | { op: "require"; seg: number; text: string }
+  /** local = 这条是**本地降级档**的正则分出来的（模型那条路不带）。applyOps 据此决定敢不敢
+   *  覆盖已经写好的要求 —— 见那一支的 ★★ */
+  | { op: "require"; seg: number; text: string; local?: boolean }
   | { op: "template"; seg: number; title: string }
   | { op: "untemplate"; seg: number }
   | { op: "cards"; seg: number; add?: string[]; remove?: string[] }
@@ -228,9 +230,21 @@ function cnInt(s: string): number {
  *   误判成属性只是白拒一次（用户一个字没丢，而且下面 attrSay 会告诉他去哪儿改）；
  *   漏判成要求会**静默整段覆盖**他写好的东西，不可撤销。所以剥词表宁可多收几个词。
  */
+/**
+ * 属性词表。★★ 必须是**正则字面量**，不许写成字符串再 new RegExp（第四轮验证栽过一次）：
+ *   字符串里的 `\d` 在 JS 里是转义序列，运行时退化成字母 `d` —— 于是"数字+秒"那一档
+ *   整个是死的，而且**没有任何症状**（构建过、类型过，只是永远匹配不上）。
+ * ★ 带 `i`：不带的话「4K」「1080P」「10S」一个都不剥。
+ */
 const ATTR_TOKENS =
-  /(时长|画幅|画质|清晰度|分辨率|竖屏|横屏|极速|标准|高清|电影级|1080p|720p|2k|4k|删掉|删除|删了|去掉|短一?点|长一?点|\d+\s*(?:秒|s)|[一二两三四五六七八九十]+\s*秒)/g;
-const ATTR_VERBS = /(改成|换成|变成|设成|调成|设置成|设为|改为|换为|调到|改|换|设|调|把|成|的|吧|了|请|帮我|给我|要|想|需要|一下|这段|本段|视频|画面)/g;
+  /(时长|画幅|画质|清晰度|分辨率|竖屏|横屏|极速|标准|高清|超清|标清|原画|电影级|1080p|720p|2k|4k|删掉|删除|删了|去掉|短一?点|长一?点|\d+\s*(?:秒|s)|[一二两三四五六七八九十]+\s*秒)/gi;
+/** 「这句里到底有没有属性词」。★ 从上面那条**派生**（`.source`），不是另抄一份 —— 带 `g`
+ *  的正则 test 会推进 lastIndex，不能直接复用；而抄一份就是同一条规则的第二处实现。 */
+const ATTR_HIT = new RegExp(ATTR_TOKENS.source, "i");
+/** 改动动词与语气词。★ 只收**功能词**：像「画面」「视频」这种内容词一旦收进来，
+ *  「删掉画面里的路人」会被剥成「里路人」而误判成属性指令。 */
+const ATTR_VERBS =
+  /(改成|换成|变成|设成|调成|设置成|设置为|设为|改为|换为|调到|加到|减到|弄成|调整成|改|换|设|调|弄|把|成|的|吧|了|呗|啊|嘛|请|麻烦|谢谢|帮我|给我|要|想|需要|稍微|大概|左右|再|一下)/gi;
 /** 剥完还剩什么；只剩空白/标点 = 这句话整个就是一条属性指令 */
 function attrLeftover(rest: string): string {
   return rest.replace(ATTR_TOKENS, "").replace(ATTR_VERBS, "").replace(/[\s，。、,.!！?？：:；;]/g, "");
@@ -251,7 +265,7 @@ function localParse(text: string): { say: string; ops: Op[] } {
       const rest = m[2].trim();
       if (!seg || !rest) continue;
       const tplM = rest.match(/(?:换成|套上?|用)\s*(.+?)\s*(?:模板)?$/);
-      if (/摘掉?模板|不用模板/.test(rest)) ops.push({ op: "untemplate", seg });
+      if (/(摘掉?|不用|去掉|去除|删掉|取消)模板/.test(rest)) ops.push({ op: "untemplate", seg });
       else if (/模板/.test(rest) && tplM) ops.push({ op: "template", seg, title: tplM[1] });
       // ★★ require **不是 catch-all**（2026-08-21 第六轮评审的完备性批评）：
       //   这一档不只在离线时走，`AI_REAL` 但**余额不足**也落到这里 —— 而那恰恰是用户
@@ -265,12 +279,23 @@ function localParse(text: string): { say: string; ops: Op[] } {
       //   `^(拍|画|讲|演|要)` 与 `length >= 8`）都已删掉：前者与「**画**质换成高清」
       //   「**要**删掉」正面撞车（首字命中就当要求，照旧静默覆盖），后者纯靠字数蒙
       //   （「去掉背景音乐」6 字被拒、「换成 1080p」8 字被当要求，两个方向都错）。
-      else {
-        const left = attrLeftover(rest);
-        if (!left) attrs.push(`第 ${seg} 段`);
-        else if (left.length >= 2) ops.push({ op: "require", seg, text: rest });
-        // 剥完只剩一个字（「嗯」「啊」）：既不是属性也不像要求，别拿它覆盖人家写好的
+      else if (!ATTR_HIT.test(rest)) {
+        // ★★ 一个属性词都没有 = 这就是在描述画面，**别再剥词**（第四轮验证抓到）：
+        //   剥词表里有「把/画面/调/的」这些极常用的字，「把画面调暗」剥完只剩「暗」，
+        //   会被判成"没听懂"而白拒 —— 而它是一句再正常不过的拍摄要求。
+        if (rest.length >= 2) ops.push({ op: "require", seg, text: rest, local: true });
         else unclear.push(part.trim());
+      } else {
+        // ★★ 有属性词：看剥完还剩多少。**别指望剥完为空**（上一版注释里那句断言是错的，
+        //   第四轮验证用一串自然说法证伪：「麻烦改成竖屏」剩「麻烦」、「时长加到10秒」剩
+        //   「加到」、「画质设置为高清」剩「置为」）—— 剥词表是黑名单，漏一个字就掉进
+        //   require **静默整段覆盖**用户写好的要求，而这一档正好在离线/余额不足时走。
+        //   所以留一点余量：剩三个字以内仍按属性算。
+        // ★ 两个方向的代价不对称：误判成属性 = 白拒一次 + 指路（可恢复）；
+        //   漏判成要求 = setRequirement 整表覆盖，无历史无撤销。宁可多判几句属性。
+        const left = attrLeftover(rest);
+        if (left.length <= 3) attrs.push(`第 ${seg} 段`);
+        else ops.push({ op: "require", seg, text: rest, local: true });
       }
       continue;
     }
@@ -366,6 +391,19 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
         }
         if (node.status === "generating") {
           refused.push(`第 ${o.seg} 段正在生成，等它跑完再改要求（现在改也来不及进这一炉）`);
+          break;
+        }
+        // ★★ **本地档不许静默覆盖已经写好的要求**（第四轮验证的结论）：那一档的分档全靠
+        //   几条正则，而它正好在**离线 / 余额不足**时走 —— 用户连说好几句的时候。
+        //   分档判错一次的代价原来是"用户精心写的一整段被换成『改成10秒』，无确认无撤销"。
+        //   把这条不可逆的后果堵死之后，分档再不准也只是白拒一次（说清楚就行）。
+        //   模型那条路不加这道闸：它对意图的理解可靠得多，而且回执芯片会如实报出来。
+        const prevReq = (node.requirement ?? "").trim();
+        if (o.local && prevReq && prevReq !== o.text.trim()) {
+          refused.push(
+            `第 ${o.seg} 段已经写着「${prevReq.slice(0, 24)}${prevReq.length > 24 ? "…" : ""}」——` +
+              `离线档不敢直接覆盖它。想换成「${o.text.slice(0, 16)}…」的话，在这一段的编辑窗里改，或先把那段清空`,
+          );
           break;
         }
         useFlow.getState().setRequirement(node.id, o.text);
