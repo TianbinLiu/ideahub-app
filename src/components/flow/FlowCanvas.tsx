@@ -49,7 +49,9 @@ import { executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProp
 import { requestLandscape } from "../../hooks/useOrientationLock";
 import { resolveMediaUrl, useMediaUrl } from "../../utils/mediaUrl";
 import FrameAnnotator, { drawCover } from "../FrameAnnotator";
-import { AI_REAL } from "../../ai";
+// ★ VIDEO_PROMPT_MAX 与线性视图取自同一处（ai 层是提示词硬顶的唯一出处）：
+//   在这里另抄一个 400，改上限时画布就开始说假话
+import { AI_REAL, VIDEO_PROMPT_MAX } from "../../ai";
 import { aspectCss, type VideoTemplate } from "../../types";
 
 const CARD_W = 216;
@@ -110,6 +112,11 @@ export default function FlowCanvas({
   useAutoGuide("canvas");
   /** 正在回看成片的那一段（node.id）。★ 认 id 不认下标：删段会让下标整体前移 */
   const [playing, setPlaying] = useState<string | null>(null);
+  // ★★ 打开画布时把**当前段**挪进视野（2026-08-21 第六轮对抗评审）：sel 初值就是 cursor，
+  //   于是编辑窗一升起来写着「第 3 段」，画布却停在第 1 段 —— 高亮框在屏外几百像素处，
+  //   用户看不出自己正在编哪一格。第一次打开更糟：引导第一步的聚光圈锚在那一格上，
+  //   于是一屏变暗 + 一张指着空处的说明卡。只在挂载跑一次（之后是用户自己的视角）。
+  const didInitPan = useRef(false);
   const isLand = useIsLandscape();
 
   // 转屏是**手动**的（用户点名要竖屏也能用）；退出画布必须把方向还回去
@@ -124,17 +131,47 @@ export default function FlowCanvas({
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{ tx: number; ty: number; scale: number; cx: number; cy: number; dist: number } | null>(null);
   const moved = useRef(false);
+  /**
+   * ★★ 手势进行中**不走 setState**，直接写 transform；抬手那一下才提交进 state。
+   *
+   *   文件头那句「只动 transform（合成层）」只兑现了一半：浏览器那半是对的，React 这半不是。
+   *   原来每个 pointermove 都 `setView` 一次 = 整个 FlowCanvas 重渲一次 —— 全部节点卡
+   *   （每张挂着一张 1MB 级 base64 首帧）、编辑窗、textarea 全部参与 reconcile。
+   *   段一多、编辑窗一开，拖动就掉帧，而这恰恰是画布最主要的交互（第六轮评审的完备性批评）。
+   *   liveView 是"手指底下的真值"，view 是"已提交的真值"，两者只在手势期间不同。
+   */
+  const stageRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const liveView = useRef(view);
+  function paintView(v: { tx: number; ty: number; scale: number }) {
+    const st = stageRef.current;
+    if (st) st.style.transform = `translate(${v.tx}px, ${v.ty}px) scale(${v.scale})`;
+    const g = gridRef.current;
+    if (g) {
+      g.style.backgroundSize = `${28 * v.scale}px ${28 * v.scale}px`;
+      g.style.backgroundPosition = `${v.tx}px ${v.ty}px`;
+    }
+  }
+  // 每次渲染后重涂一遍：手势期间用手指底下那份（否则别处引起的重渲会把画面弹回上一次提交值），
+  // 平时用已提交的那份（panTo / 滚轮 / 初始化都走它）
+  useEffect(() => {
+    if (!gesture.current) liveView.current = view;
+    paintView(liveView.current);
+  });
 
   function onPointerDown(e: React.PointerEvent) {
     (e.target as Element).setPointerCapture?.(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const pts = [...pointers.current.values()];
     moved.current = false;
-    if (pts.length === 1) gesture.current = { ...view, cx: pts[0].x, cy: pts[0].y, dist: 0 };
+    // ★ 起手值取 liveView（不是 view）：一指转两指发生在手势**中途**，
+    //   那时 view 还停在按下之前的已提交值，用它会让画面当场跳一下
+    const base = liveView.current;
+    if (pts.length === 1) gesture.current = { ...base, cx: pts[0].x, cy: pts[0].y, dist: 0 };
     else if (pts.length === 2) {
       const cx = (pts[0].x + pts[1].x) / 2;
       const cy = (pts[0].y + pts[1].y) / 2;
-      gesture.current = { ...view, cx, cy, dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) };
+      gesture.current = { ...base, cx, cy, dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) };
     }
   }
   function onPointerMove(e: React.PointerEvent) {
@@ -146,27 +183,29 @@ export default function FlowCanvas({
       const dx = pts[0].x - g.cx;
       const dy = pts[0].y - g.cy;
       if (Math.abs(dx) + Math.abs(dy) > 6) moved.current = true;
-      setView({ tx: g.tx + dx, ty: g.ty + dy, scale: g.scale });
+      liveView.current = { tx: g.tx + dx, ty: g.ty + dy, scale: g.scale };
+      paintView(liveView.current);
     } else if (pts.length >= 2) {
       moved.current = true;
       const cx = (pts[0].x + pts[1].x) / 2;
       const cy = (pts[0].y + pts[1].y) / 2;
       const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
       const k = Math.min(2, Math.max(0.4, g.scale * (g.dist > 0 ? dist / g.dist : 1)));
-      setView({ tx: cx - ((g.cx - g.tx) / g.scale) * k, ty: cy - ((g.cy - g.ty) / g.scale) * k, scale: k });
+      liveView.current = { tx: cx - ((g.cx - g.tx) / g.scale) * k, ty: cy - ((g.cy - g.ty) / g.scale) * k, scale: k };
+      paintView(liveView.current);
     }
   }
   function onPointerUp(e: React.PointerEvent) {
     pointers.current.delete(e.pointerId);
-    if (pointers.current.size === 0) gesture.current = null;
+    if (pointers.current.size === 0) {
+      gesture.current = null;
+      setView(liveView.current); // 手指离开才提交一次（见上面 liveView 的 ★★）
+    }
   }
   function onWheel(e: React.WheelEvent) {
-    const k = Math.min(2, Math.max(0.4, view.scale * (e.deltaY < 0 ? 1.12 : 0.9)));
-    setView((v) => ({
-      tx: e.clientX - ((e.clientX - v.tx) / v.scale) * k,
-      ty: e.clientY - ((e.clientY - v.ty) / v.scale) * k,
-      scale: k,
-    }));
+    const k = Math.min(2, Math.max(0.4, liveView.current.scale * (e.deltaY < 0 ? 1.12 : 0.9)));
+    const v = liveView.current;
+    setView({ tx: e.clientX - ((e.clientX - v.tx) / v.scale) * k, ty: e.clientY - ((e.clientY - v.ty) / v.scale) * k, scale: k });
   }
 
   const addNode = useFlow((s) => s.addNode);
@@ -179,8 +218,18 @@ export default function FlowCanvas({
    * ★ 只改 translate（合成层），不动 scale：用户自己捏的缩放是他的视角，别替他改。
    */
   function panTo(i: number) {
-    setView((v) => ({ ...v, tx: 40 - i * (CARD_W + GAP_X) * v.scale }));
+    // ★ ty 一并归位（第六轮评审）：整条流水线只有横向一排，用户往上下拖走之后，
+    //   只改 tx 的"挪进视野"根本没把那一格挪回视野里 ——「加一段」还是"点了没反应"
+    setView((v) => ({ ...v, tx: 40 - i * (CARD_W + GAP_X) * v.scale, ty: 24 }));
   }
+
+  // 挂载时把当前段挪进视野（机理见上面 didInitPan 的 ★★）。第 1 段本来就在视野里，跳过。
+  useEffect(() => {
+    if (didInitPan.current) return;
+    didInitPan.current = true;
+    if (cursor > 0) panTo(cursor);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** 点格子：开/收/切编辑窗。选中一段就把 cursor 也带过去（夹到哪算哪）——
    *  线性视图那套"当前段"机制（模板同步、挂卡缓冲）全部照常伺候编辑窗 */
@@ -275,6 +324,7 @@ export default function FlowCanvas({
           onWheel={onWheel}
         >
           <div
+            ref={gridRef}
             className="absolute inset-0 opacity-[0.14]"
             style={{
               backgroundImage: "radial-gradient(circle, #64748b 1px, transparent 1px)",
@@ -283,6 +333,7 @@ export default function FlowCanvas({
             }}
           />
           <div
+            ref={stageRef}
             className="absolute left-0 top-0 origin-top-left will-change-transform"
             style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})` }}
           >
@@ -337,7 +388,17 @@ export default function FlowCanvas({
                     style={{ width: CARD_W, height: CARD_H }}
                   >
                     {p.firstFrame ? (
-                      <img src={p.firstFrame} alt="" className="h-full w-full object-cover" draggable={false} />
+                      /* ★ 屏外的格子别急着解码（第六轮评审的完备性批评）：草稿里那份首帧是
+                         1MB 级 base64、竖屏 1440×2560，十几段同时解码就是上百 MB 位图，
+                         低端安卓 WebView 上的表现是"画布一开就白/闪退"，而没人会往帧尺寸上想 */
+                      <img
+                        src={p.firstFrame}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-cover"
+                        draggable={false}
+                      />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center px-3 text-center text-[11px] leading-relaxed text-slate-500">
                         {done
@@ -528,6 +589,11 @@ function NodePanel({
 }) {
   const { updateProposal, setRequirement, genNode, setNodeTemplate, deriveProposals, removeMaterial, removeNode, removeAnn } =
     useFlow();
+  // 挂卡合成的三个状态：画布这一面此前一个都没引用（见下面 castErr 那块的 ★★）
+  const castErr = useFlow((s) => s.castErr);
+  const castFallback = useFlow((s) => s.castFallback);
+  const castBusy = useFlow((s) => s.castBusy);
+  const fillCastFallback = useFlow((s) => s.fillCastFallback);
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   const tpl = tplOfNode(node);
@@ -693,20 +759,50 @@ function NodePanel({
             </>
           )}
 
-          {/* 合成句 / 要求：named 直接编辑 plot（B2「以输入框为准」）；V1 白模写一句换谁 */}
+          {/* ★★ 挂卡合成失败的出口，画布这一面此前**整条都没有**（2026-08-21 第六轮评审的
+              完备性批评）：合成那次对话失败时，flowStore 写的是 castErr + castFallback
+              并把 plot 清成空串，`err` 一个字没动 —— 于是画布壳那条错误条不亮（它只看 err），
+              框还是空的、提示语还写着"先去挂卡"（卡明明已经挂过了），「生成本段」因
+              !plot.trim() 恒灰。而 store 注释里说的那颗「填入默认写法」只长在线性视图上，
+              此刻正被这张 z-40 的画布整块盖着 —— 用户既看不见也不知道它存在，
+              只能反复挂卡、每次白跑一次对话。 */}
+          {castErr && (
+            <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+              <p className="text-[11px] leading-relaxed text-amber-200">{castErr}</p>
+              {castFallback && (
+                <button
+                  onClick={fillCastFallback}
+                  className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+                >
+                  填入默认写法（填完还能改）
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* 合成句 / 要求：named 直接编辑 plot（B2「以输入框为准」）；V1 白模写一句换谁。
+              ★ maxLength 与线性视图同一个常量：提示词硬顶是**从正文那头下刀**的
+              （segmentGen 的 ★），越顶的后果是发出去的点名映射被切掉一截、画面照出、钱照收。
+              线性那边之所以直接硬拦，就是不想靠那句一闪而过的进度警告。
+              ★ castBusy 期间禁编辑：合成结果几秒后会 updateProposal 整段覆盖，
+              这几秒里打的字会凭空消失。 */}
           {named ? (
             <textarea
               value={p.plot}
               onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
-              disabled={locked || generating}
-              placeholder="先去挂卡：合成好的点名要求会填在这里，你可以逐字改"
+              maxLength={VIDEO_PROMPT_MAX}
+              disabled={locked || generating || castBusy}
+              placeholder={
+                castBusy ? "正在把「人偶 → 角色」合成一段话…" : "先去挂卡：合成好的点名要求会填在这里，你可以逐字改"
+              }
               className="h-24 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
             />
           ) : (
             <textarea
               value={p.plot}
               onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
-              disabled={locked || generating}
+              maxLength={VIDEO_PROMPT_MAX}
+              disabled={locked || generating || castBusy}
               placeholder="写一句要换成谁（V1 白模没有角色位，整段换一个主体）"
               className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
             />
@@ -748,6 +844,7 @@ function NodePanel({
           <textarea
             value={node.requirement ?? ""}
             onChange={(e) => setRequirement(node.id, e.target.value)}
+            maxLength={VIDEO_PROMPT_MAX}
             disabled={locked || generating}
             placeholder="这一段要拍什么？写清楚后点下面推演——AI 先给三套方案（各带首尾帧预览）"
             className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
@@ -1005,6 +1102,8 @@ function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: string; onClose: 
   const vref = useRef<HTMLVideoElement>(null);
   const addAnn = useFlow((s) => s.addAnn);
   const busy = useFlow((s) => s.busy);
+  // 本层盖住了画布壳上那条唯一的错误条，所以自带一份（见下面 err 那块的 ★★）
+  const err = useFlow((s) => s.err);
   /** 圈选：null=没开；"loading"=正在取一份能截帧的流 */
   const [ann, setAnn] = useState<{ frame: string; atSec: number } | "loading" | null>(null);
 
@@ -1116,7 +1215,27 @@ function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: string; onClose: 
           <Icon name="close" size={16} />
         </button>
       </div>
+      {/* ★★ 自带一份错误条（2026-08-21 第六轮对抗评审）：本层是 z-50 全屏，把画布壳上
+          唯一那条 err（z-40）整个盖住 —— 而**本层自己**就会写 err（上面 openAnn 的失败分支
+          「取不到这一段的画面，圈选打不开…」）。不画的话那句话一个像素都看不见：
+          用户点了「⭕ 圈选改画面」，屏幕纹丝不动（铁律八）。
+          同为 z-50 的 PlanSheet / TemplatePicker 早就各自画了一份，就漏了这个自己写 err 的。 */}
+      {err && (
+        <div
+          className="mx-3 mt-1 flex flex-none items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/95 px-2.5 py-1.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-white">{err}</p>
+          <button onClick={() => useFlow.setState({ err: "" })} className="flex-none text-white/90">
+            <Icon name="close" size={12} />
+          </button>
+        </div>
+      )}
       {ann && ann !== "loading" && (
+        /* ★ 包一层挡住冒泡（2026-08-21 第六轮对抗评审）：标注器的遮罩点空白只该关它自己，
+           而它是本层遮罩的直接子节点 —— 事件冒上来会把**正在看的成片一起关掉**，
+           用户只想取消这次圈选，却被弹回画布 */
+        <div onClick={(e) => e.stopPropagation()}>
         <FrameAnnotator
           frame={ann.frame}
           hint="标注会先改这一段的设定画面，再重新生成本段视频"
@@ -1130,6 +1249,7 @@ function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: string; onClose: 
             onClose();
           }}
         />
+        </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-3 pb-4" onClick={(e) => e.stopPropagation()}>
         {/* ★★ 三种"放不出来"要说三句**不同**的话（对抗评审确认：原来一句话把它们混成一样，

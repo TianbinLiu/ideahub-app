@@ -821,8 +821,16 @@ export default function FlowPage() {
    *   画布顶栏「≡ 线性」当场写回 "0"。
    */
   const [canvas, setCanvasRaw] = useState(() => localStorage.getItem("flowCanvasOpen") === "1");
-  const setCanvas = (v: boolean) => {
+  /**
+   * @param remember 要不要把这一下记成长期偏好。
+   * ★★ 只有用户**在说"我要用哪个面"**时才记（🗺 打开、「≡ 线性」收起）。
+   *   退出编辑（顶栏 ✕）说的是"这摊活先到这儿"，不是"我不要画布了" —— 记下来的话，
+   *   每一次正常收工都会把他的画布偏好抹成线性，下次进来还得再点一次 🗺，
+   *   而他从没表达过这个意思（2026-08-21 第六轮对抗评审）。
+   */
+  const setCanvas = (v: boolean, remember = true) => {
     setCanvasRaw(v);
+    if (!remember) return;
     try {
       localStorage.setItem("flowCanvasOpen", v ? "1" : "0");
     } catch {
@@ -1378,7 +1386,8 @@ export default function FlowPage() {
       {!simple && canvas && (
         <FlowCanvas
           onExit={() => {
-            setCanvas(false);
+            // ★ 不记偏好（见 setCanvas 的 ★★）：✕ 是"退出编辑"，不是"我不要画布了"
+            setCanvas(false, false);
             navigate(origin === "studio" ? "/studio" : "/create");
           }}
           onLinear={() => setCanvas(false)}

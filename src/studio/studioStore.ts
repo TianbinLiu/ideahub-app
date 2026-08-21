@@ -8,6 +8,8 @@ import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendToken
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, styleWants3d, tierOf } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { FlowMode, FlowNode, FlowTemplate, chosenOf, flowDirty, nodeVideo, useFlow } from "./flowStore";
+// ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
+import { forgetCanvasAgent } from "./canvasAgent";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, saveDraft } from "../data/drafts";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
 import { generateSegment } from "./segmentGen";
@@ -1840,7 +1842,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
   workDraftId: null,
   savedDoneCount: 0,
   // 另起一摊活 / 这摊活已发布：与草稿的关联断了，"存住了几段"也跟着归零
-  newWorkDraft: () => set({ workDraftId: null, savedDoneCount: 0 }),
+  newWorkDraft: () => {
+    // 换一摊活：把「对画布说话」的多轮记忆也清掉（模块级变量，不跟着 store 走，
+    // 不清的话上一条片的对话会跟进下一条片的提示词，见 canvasAgent.forgetCanvasAgent）
+    forgetCanvasAgent();
+    set({ workDraftId: null, savedDoneCount: 0 });
+  },
   retireWorkDraft: async () => {
     const id = get().workDraftId;
     set({ workDraftId: null, savedDoneCount: 0 });
@@ -1886,6 +1893,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
 
   openWorkDraft: (d, mode) => {
+    forgetCanvasAgent(); // 打开的是另一摊活，理由同 newWorkDraft
     // 工坊侧：草稿里没有节点树（纯工作流/简约模式起手的）就按流水线现搭一棵，
     // 否则「用工坊模式打开」会落到一张空桌子上——用户点的那条草稿像是丢了
     //

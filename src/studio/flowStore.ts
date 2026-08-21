@@ -218,6 +218,23 @@ export function nodeDone(node: FlowNode): boolean {
  *   反复记的那种"抄一份必然分叉、而分叉了不报错"的形状。
  *   （studioStore 的 `realVideoOf` 收的是 `Proposal`，形状不同，是另一条路。）
  */
+/**
+ * 把**还没表过态**的段（`tpl === undefined`）钉成此刻的 store 级真相 —— 唯一实现。
+ *
+ * ★★ 为什么必须钉（2026-08-21 第六轮对抗评审确认的 high）：`tplOfNode` 对 undefined 是
+ *   "退回 store 级"，而 store 级那份会随 `setCursor` 换成**当前段**的快照。于是一个
+ *   tpl 还没定的段，会在用户点回前面某个白模段的那一刻，被兜底认成**那个白模模板的段**：
+ *   卡片上冒出 🧪 徽章、报价改按 r2v、加段被拒「白模复刻段只有一段」，最狠的是出片时
+ *   genNode 真把那个模板的参考视频发给方舟——按 r2v 扣钱，炼出来的却是前面那段的复刻。
+ *   全程零报错。
+ * ★ 所以**凡是让某个段有了明确 tpl 的动作**（套模板、摘模板、加一段）都要在同一拍里
+ *   把其余 undefined 的段钉住。三处各写一遍的话，漏掉哪一处都没有任何症状——
+ *   addNode 那一处此前就是漏的。
+ */
+export function pinUnstatedTpl(nodes: FlowNode[], template: FlowTemplate): FlowNode[] {
+  return nodes.map((n) => (n.tpl === undefined ? { ...n, tpl: template ?? null } : n));
+}
+
 export function realVideoOfNode(node: FlowNode): string | undefined {
   const v = nodeVideo(node);
   return v && !v.startsWith("mock:") ? v : undefined;
@@ -711,13 +728,23 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return false;
     }
     if (!t) {
+      // ★★ 本来就没套模板 → 整句拒（2026-08-21 第六轮对抗评审确认的 high）。
+      //   这一支不是"什么都不做"，它会清掉 materials/cast 并把 plot 清空、时长退回 5s。
+      //   对一个普通段来说那是**纯破坏**：推演出来的剧情（真花过钱）、挂上的素材卡、
+      //   改过的段时长一起没，而 TemplatePicker 里那行「✂️ 不用模板（退回普通段）」
+      //   对普通段读起来就是"取消"，用户点它是想关掉弹层。
+      //   agent 那条路早就判了这一下（canvasAgent 的 untemplate 分支），弹层这条漏了。
+      if (!tplOfNode(node)) {
+        set({ err: `第 ${idx + 1} 段本来就没套模板，不用摘（想关掉这个弹层点右上角的 ✕）` });
+        return false;
+      }
       // 摘模板：退回普通段。挂卡/素材/合成句一起清（旧映射对"没有模板"毫无意义）
       set((s) => ({
         err: "",
         // ★ 摘模板写的是 **null**（明确没有），不是 undefined（还没表态）—— 见 tplOfNode 的 ★★
-      nodes: s.nodes
-        .map((n) => (n.id !== nodeId && n.tpl === undefined ? { ...n, tpl: s.template ?? null } : n))
-        .map((n) => (n.id === nodeId ? { ...n, tpl: null, materials: undefined, cast: undefined } : n)),
+        nodes: pinUnstatedTpl(s.nodes, s.template).map((n) =>
+          n.id === nodeId ? { ...n, tpl: null, materials: undefined, cast: undefined } : n,
+        ),
         ...(s.cursor === idx ? { template: null, cast: {} } : {}),
       }));
       get().updateProposal(nodeId, { plot: "", durationSec: 5 });
@@ -741,12 +768,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const tplSnap = snapTpl(t);
     set((s) => ({
       err: "",
-      // ★★ 其余"还没表过态"的段（tpl === undefined）在这一刻钉成**当时的** store 级真相
-      //   （多半是 null）—— 否则它们会继续靠兜底读到我们刚给这一段套上的模板，
-      //   而那正是上面 tplOfNode 的 ★★ 说的那串错显示/错报价/错拒绝。
-      nodes: s.nodes
-        .map((n) => (n.id !== nodeId && n.tpl === undefined ? { ...n, tpl: s.template ?? null } : n))
-        .map((n) =>
+      // ★ 其余"还没表过态"的段在这一刻钉住（唯一实现见 pinUnstatedTpl 的 ★★）
+      nodes: pinUnstatedTpl(s.nodes, s.template).map((n) =>
         n.id === nodeId
           ? {
               ...n,
@@ -1143,12 +1166,20 @@ export const useFlow = create<FlowState>()((set, get) => ({
         progress: "",
         anns: [],
       });
-      set({ busy: false });
+      // ★★ 也要写 genNotice（2026-08-21 第六轮对抗评审）：全局出片胶囊只认这个字段。
+      //   推演是**开跑前就扣钱**的（上面 spendTokens 在 await 之前，catch 里也不退），
+      //   而它一分钟级——用户正是在这段时间退出去逛（胶囊上就印着「点击返回」）。
+      //   不写的话胶囊只是无声消失：钱花了、成没成没人告诉他（铁律八）。
+      set({ busy: false, genNotice: { ok: true, msg: `第 ${idx + 1} 段推演好了三套方案` } });
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       get().updateNode(nodeId, { status: "idle", progress: "" });
-      set({ busy: false, err: `推演失败：${msg.slice(0, 120)}` });
+      set({
+        busy: false,
+        err: `推演失败：${msg.slice(0, 120)}`,
+        genNotice: { ok: false, msg: `第 ${idx + 1} 段推演失败` },
+      });
       return false;
     }
   },
@@ -1245,12 +1276,17 @@ export const useFlow = create<FlowState>()((set, get) => ({
       if (AI_REAL) spendTokens(cost); // 出图成功才扣，与 refineProposalFrame 同口径
       get().updateProposal(nodeId, { firstFrame: first, lastFrame: last, degraded: undefined });
       get().updateNode(nodeId, { status: "idle", progress: "", regenning: false });
-      set({ busy: false });
+      // 理由同 deriveProposals 末尾的 ★★：胶囊只认 genNotice，重画同样是先扣钱后开跑
+      set({ busy: false, genNotice: { ok: true, msg: `第 ${idx + 1} 段重画好了` } });
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       get().updateNode(nodeId, { status: "idle", progress: "", regenning: false });
-      set({ busy: false, err: `重画失败：${msg.slice(0, 120)}` });
+      set({
+        busy: false,
+        err: `重画失败：${msg.slice(0, 120)}`,
+        genNotice: { ok: false, msg: `第 ${idx + 1} 段重画失败` },
+      });
       return false;
     }
   },
@@ -1279,12 +1315,20 @@ export const useFlow = create<FlowState>()((set, get) => ({
         aspect: prev?.aspect ?? DEFAULT_ASPECT,
       });
       if (prev) node.proposals[0].durationSec = chosenOf(prev).durationSec;
-      return { nodes: [...s.nodes, node], cursor: i, err: "" };
+      // ★★ 新段**当场表态**（钉成此刻的 store 级真相，多半是 null），别留 undefined：
+      //   留着的话，用户之后点回前面任何一个带模板快照的段，setCursor 会把 store 级换成
+      //   那个模板，这一新段就被兜底静默认成白模段——错显示、错报价、加不了段，
+      //   最后按 r2v 真扣钱炼出前面那段的复刻。整段机理见 pinUnstatedTpl 的 ★★。
+      node.tpl = s.template ?? null;
+      return { nodes: [...pinUnstatedTpl(s.nodes, s.template), node], cursor: i, err: "" };
     }),
 
   removeNode: (id) =>
     set((s) => {
-      if (s.nodes.length <= 1) return {};
+      // ★ 早退要说人话（铁律八）：静默 return {} 时，agent 那条路按"删完了没变"判失败，
+      //   然后去读 store.err —— 读到的是**上一次别的操作**留下的那句，于是回执上会出现
+      //   「✗ 删第 1 段：先把这一段炼出来，再加下一段」这种驴唇不对马嘴的解释。
+      if (s.nodes.length <= 1) return { err: "只剩这一段了，删不掉（想重来就用「删除本段」旁边的重新生成，或退出去开一条新的）" };
       const i = s.nodes.findIndex((n) => n.id === id);
       const nodes = s.nodes.filter((n) => n.id !== id);
       return { nodes, cursor: clampCursor(nodes, Math.max(0, i)) };

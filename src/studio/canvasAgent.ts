@@ -9,7 +9,7 @@
 //   里只有一处实现（铁律六），这里被拒就把 store 的整句原样报给用户，不另判一遍。
 // · **降级不封口**：mock 构建 / 余额不足 / 回复解析不出来，都退到本地直白句式解析
 //   （localParse）——能办多少办多少，并说清自己是哪一档（铁律八：不静默）。
-import { AI_REAL, canvasAgentChat } from "../ai";
+import { AI_REAL, VIDEO_PROMPT_MAX, canvasAgentChat } from "../ai";
 import { canAfford, myCards, spendTokens } from "../data/account";
 import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost } from "../data/economy";
 import { browseTemplates, myTemplates } from "../data/templates";
@@ -143,7 +143,10 @@ function parseReply(raw: string): { say: string; ops: Op[] } | null {
         const seg = typeof o.seg === "number" ? o.seg : NaN;
         switch (o.op) {
           case "require":
-            if (seg >= 1 && typeof o.text === "string" && o.text.trim()) ops.push({ op: "require", seg, text: o.text.trim().slice(0, 300) });
+            // ★ 与两个面的输入框同一个上限（VIDEO_PROMPT_MAX）：同一件事此前三个数
+            //   （人手输入无上限、模型 300、线性 400），而这一串最终都进同一个提示词
+            if (seg >= 1 && typeof o.text === "string" && o.text.trim())
+              ops.push({ op: "require", seg, text: o.text.trim().slice(0, VIDEO_PROMPT_MAX) });
             break;
           case "template":
             if (seg >= 1 && typeof o.title === "string" && o.title.trim()) ops.push({ op: "template", seg, title: o.title.trim() });
@@ -192,6 +195,13 @@ function parseReply(raw: string): { say: string; ops: Op[] } | null {
   }
 }
 
+/**
+ * 顺序门禁只问 `clampCursor`（唯一实现，铁律六）：还没轮到的段不接付费/挂卡提案。
+ * ★ 模块级而不是藏在 applyOps 里：**摆卡时问一次、点「执行」前还要再问一次**
+ *   （见 executeAgentProposal 里的 ★★）—— 两处必须是同一个判断，各写一份就会分叉。
+ */
+const lockedAt = (seg: number) => clampCursor(useFlow.getState().nodes, seg - 1) !== seg - 1;
+
 /** 中文数字 → int（本地句式档用；只到十几，够指段号） */
 function cnInt(s: string): number {
   const n = Number(s);
@@ -206,6 +216,8 @@ function cnInt(s: string): number {
 /** 离线/降级档：只认直白句式，能办多少办多少。规则窄一点没关系，**说清楚**最重要 */
 function localParse(text: string): { say: string; ops: Op[] } {
   const ops: Op[] = [];
+  /** 认出是"第 N 段 …"、但那半句不敢当成拍摄要求的句子。宁可说没听懂，也别乱写（见下 ★★） */
+  const unclear: string[] = [];
   // 「第N段 摘掉模板 / 换成XX模板 / 拍…」逐句拆（分号/句号/换行分隔）
   for (const part of text.split(/[;；。\n]/)) {
     const m = part.match(/第\s*([0-9一二两三四五六七八九十]+)\s*段\s*[:：,，]?\s*(.*)/);
@@ -216,7 +228,15 @@ function localParse(text: string): { say: string; ops: Op[] } {
       const tplM = rest.match(/(?:换成|套上?|用)\s*(.+?)\s*(?:模板)?$/);
       if (/摘掉?模板|不用模板/.test(rest)) ops.push({ op: "untemplate", seg });
       else if (/模板/.test(rest) && tplM) ops.push({ op: "template", seg, title: tplM[1] });
-      else ops.push({ op: "require", seg, text: rest });
+      // ★★ require **不是 catch-all**（2026-08-21 第六轮评审的完备性批评）：
+      //   这一档不只在离线时走，`AI_REAL` 但**余额不足**也落到这里 —— 而那恰恰是用户
+      //   最容易连说好几句的时候。原来凡是没命中模板关键词的一律当成"要求"，于是
+      //   「第2段删掉」「第2段短一点」会把他精心写的那段要求整段替换成「删掉」，
+      //   没有确认、没有撤销，回执还写着绿勾「按直白句式帮你办了下面这些」。
+      //   现在只认**明确在描述画面**的句式；其余交给下面那句"我没听懂"，让他换句话说。
+      else if (/^(拍|画|改成|换成|变成|要|讲|演)/.test(rest) || rest.length >= 8)
+        ops.push({ op: "require", seg, text: rest });
+      else unclear.push(part.trim());
       continue;
     }
     if (/加\s*([0-9一二两三]*)\s*段/.test(part)) {
@@ -224,10 +244,14 @@ function localParse(text: string): { say: string; ops: Op[] } {
       ops.push({ op: "add_segment", n });
     }
   }
+  const hint = "「第N段 拍什么」「第N段换成XX模板」「第N段摘掉模板」「加一段」";
+  const unclearSay = unclear.length
+    ? `没听懂这几句，怕改错就没动：${unclear.map((u) => `「${u}」`).join("、")}。`
+    : "";
   return {
     say: ops.length
-      ? "（本地档）按直白句式帮你办了下面这些。"
-      : "（本地档）现在只认「第N段 拍什么」「第N段换成XX模板」「第N段摘掉模板」「加一段」这类直白句式。",
+      ? `（本地档）按直白句式帮你办了下面这些。${unclearSay}`
+      : `（本地档）${unclearSay}现在只认${hint}这类直白句式。`,
     ops,
   };
 }
@@ -265,8 +289,6 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
   const refused: string[] = [];
   const proposals: AgentProposal[] = [];
   let focusSeg: number | undefined;
-  /** 顺序门禁只问 clampCursor（唯一实现，铁律六）：还没轮到的段不接付费/挂卡提案 */
-  const lockedAt = (seg: number) => clampCursor(useFlow.getState().nodes, seg - 1) !== seg - 1;
   const nodeAt = (seg: number): FlowNode | null => useFlow.getState().nodes[seg - 1] ?? null;
   const storeErr = () => useFlow.getState().err || "被拒绝了（原因没说清——这是个 bug，请反馈）";
 
@@ -298,6 +320,17 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
       case "require": {
         if (tpl?.refVideo) {
           refused.push(`第 ${o.seg} 段套着模板，要求由挂卡合成——想全手写就先说「第 ${o.seg} 段摘掉模板」`);
+          break;
+        }
+        // ★ 与隔壁 cards 分支同一口径（2026-08-21 第六轮评审的完备性批评）：
+        //   免费的写操作也不许"答非所做"。对已出片的段改要求，回执写绿勾「要求已写」，
+        //   而那段成片一帧都不会变 —— 用户以为改上了，等着看新画面。
+        if (nodeDone(node)) {
+          refused.push(`第 ${o.seg} 段已出片，改要求不会改变已生成的视频——想重做先在编辑窗「♻ 重新生成」`);
+          break;
+        }
+        if (node.status === "generating") {
+          refused.push(`第 ${o.seg} 段正在生成，等它跑完再改要求（现在改也来不及进这一炉）`);
           break;
         }
         useFlow.getState().setRequirement(node.id, o.text);
@@ -358,7 +391,9 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
       }
       case "remove_segment": {
         if (nodeDone(node)) {
-          refused.push(`第 ${o.seg} 段已经出片：删掉它成片就没了，这一步不代劳——要删去线性视图自己按「🗑 删除本段」`);
+          // ★ 别把人支去线性视图：画布与线性用的是**同一个** DeleteSegBtn（同一条
+          //   「已出片要点两下」规则），两边都在编辑窗底部。指错路等于让用户以为画布做不到
+          refused.push(`第 ${o.seg} 段已经出片：删掉它成片就没了，这一步不代劳——要删就自己在本段编辑窗底部按「🗑 删除本段」（已出片的要点两下）`);
           break;
         }
         useFlow.getState().removeNode(node.id);
@@ -453,7 +488,9 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
             break;
           }
         } else if (planOf(node) !== "picked" && !nodeDone(node)) {
-          refused.push(`第 ${o.seg} 段还没挑定方案——先推演，再去顶栏「≡ 线性」的方案台挑一套`);
+          // ★ 同上：方案台在画布里就有（编辑窗那颗「🎬 挑一套方案」→ PlanSheet）。
+          //   照着"去顶栏 ≡ 线性"做的用户会把画布整个收起来，而他本来就在能做这件事的地方
+          refused.push(`第 ${o.seg} 段还没挑定方案——先推演，再在本段编辑窗点「🎬 挑一套方案」挑一套`);
           break;
         }
         const cost = nodeCost(useFlow.getState().nodes, o.seg - 1, useFlow.getState().mode);
@@ -480,6 +517,15 @@ function remember(line: string) {
   past.push(line.slice(0, 240));
   while (past.length > 6) past.shift();
 }
+/**
+ * 换一摊活时把记忆清掉（开新工作流 / 打开另一条草稿 / 组稿发布后）。
+ * ★ 这是**模块级**变量，不跟着 store 走：不清的话，上一条片的「用户：第2段拍雪山」
+ *   会跟着进下一条片的提示词，模型据此脑补出与当前流水线无关的走向。
+ *   状态本身不会被带错（每轮都重发 snapshot()），串的是**内容**。
+ */
+export function forgetCanvasAgent() {
+  past.length = 0;
+}
 function rememberOutcome(userText: string, r: Pick<AgentOutcome, "say" | "applied" | "refused" | "proposals">) {
   remember(`用户：${userText}`);
   remember(
@@ -490,7 +536,7 @@ function rememberOutcome(userText: string, r: Pick<AgentOutcome, "say" | "applie
 /** 入口。计费与 NPC 聊天同口径：AI_REAL 且付得起才走大模型，**成功才扣**；
  *  否则本地档（免费）。模型回复解析不出 JSON → 当它在闲聊，原文给用户、不执行任何操作。 */
 export async function runCanvasAgent(text: string): Promise<AgentOutcome> {
-  const t = text.trim().slice(0, 300);
+  const t = text.trim().slice(0, VIDEO_PROMPT_MAX);
   if (!t) return { say: "", applied: [], refused: [], proposals: [], paid: false };
   const paid = AI_REAL && canAfford(CHAT_TURN_TOKENS);
   if (!paid) {
@@ -571,6 +617,17 @@ export async function executeAgentProposal(p: AgentProposal): Promise<{ ok: bool
   }
 
   if (node.status === "generating") return fin(false, `第 ${p.seg} 段正在生成，等它跑完`);
+
+  // ★★ 顺序门禁也要**执行前再问一遍**（2026-08-21 第六轮对抗评审）：卡摆着的这段时间里，
+  //   用户完全可能回前面某段去方案台换一套没炼过的走向 —— 那一段的 nodeDone 变假、
+  //   frontier 前移，本段当场重新上锁（画布上都画出 🔒 了）。而 genNode / deriveProposals
+  //   自己没有任何 frontier 判断（门禁只活在 clampCursor 与 UI 的 disabled 里），
+  //   于是这张卡就成了绕过顺序门禁的唯一入口：屏幕上写着「🔒 还没解锁」，钱照扣，
+  //   炼出来的还接着用户刚刚弃掉的那套走向的尾帧。
+  //   问的是**同一处实现**（clampCursor），不是另写一份 frontier。
+  if (lockedAt(p.seg)) {
+    return fin(false, `第 ${p.seg} 段又锁上了（前面的段被改回未出片）——先把前面那段炼出来，再说一次`);
+  }
 
   // ★★ 价签复核：卡摆着的这段时间里，用户完全可能去方案台改了时长/首尾帧/选中的走向，
   //   而那三样正是计价输入（nodeCost / proposalsCost 读的就是它们）。不复核的话，
