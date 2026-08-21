@@ -342,6 +342,18 @@ function buildSkeleton(
   spec: MarkSpec,
 ): {
   text: string;
+  /**
+   * 同一份骨架，但**不含作者那句话**——专给 composeBlockoutPrompt 递给模型用。
+   * ★★ 为什么要单出这一份（2026-08-21 真机上肉眼看见）：合成那次对话把
+   *   【已写好的提示词】和【作者补充的那句话】分两栏递过去，而前者本身就含后者；
+   *   系统提示词又写着"把作者那句话融进去""不许删掉原文任何一条要求" ——
+   *   模型只能照办，于是成品里那句话**出现两遍**。
+   *   后果不只是难看：`segmentGen` 的截断是从**尾巴**下刀的，白挤掉的正是排在最末的
+   *   「不要出现字幕」；而这条路上一次出片是百万 token 级。
+   * ★ 括号描述塞不塞得下的判定仍按**含那句话**的长度算（见下面 withDescs）：
+   *   两份文本共用同一个判定，只差那一句，别在这里给模型一份"更胖的"骨架。
+   */
+  textNoUserLine: string;
   usedDesc: Map<string, string>;
   usedKey: Map<string, string>;
   usedGroups: { color: string; labels: string[]; names: string[] }[];
@@ -403,7 +415,7 @@ function buildSkeleton(
   const free = slots.filter((s) => !s.card);
   // 括号描述只在**序数方案**下拼：编号方案的 desc 是「原视频里是谁」（穿黑袍的白发少年），
   // 说的是被替换掉的那个人，写进"换成谁"那句话里只会打架。存量 6 个模板全在编号那一档。
-  const build = (withDescs: boolean): string => {
+  const build = (withDescs: boolean, line: string = userLine): string => {
     const paren = (s: { desc: string | null }) => (withDescs && ordinal && s.desc ? `（${s.desc}）` : "");
     const bind = (s: { key: string; name: string; desc: string | null }) => `${s.key}${paren(s)}=${s.name}`;
     // ★ 引导语那半句只在**真有括号**时才说（2026-08-17 核对时抓到）：一个括号都没有还写着
@@ -443,7 +455,7 @@ function buildSkeleton(
           : `把带编号的白色人偶替换为对应角色：${taken.map((s) => `编号${s.label}=${s.name}`).join("、")}。`,
       );
     }
-    return buildRest(parts, free, ordinal, userLine);
+    return buildRest(parts, free, ordinal, line);
   };
   // ★★ 塞不下就**整批**不要，不是挑几个留（2026-08-17）：留一半的话，正文里会出现
   //   "有的位子带描述、有的不带"，而模型对**不对称的清单**最爱自己补齐 —— 它会给没带的
@@ -467,7 +479,14 @@ function buildSkeleton(
   //   校验若照旧拿 label 去找，会把一段完全正确的提示词判成“角色位弄丢了”。
   const usedKey = new Map<string, string>();
   for (const t of taken) if (t.key !== t.label) usedKey.set(t.label, t.key);
-  return { text: withDescs ? full : build(false), usedDesc, usedKey, usedGroups: groups };
+  return {
+    text: withDescs ? full : build(false),
+    // ★ 与 text 用**同一个** withDescs（见 textNoUserLine 的 ★）
+    textNoUserLine: build(withDescs, ""),
+    usedDesc,
+    usedKey,
+    usedGroups: groups,
+  };
 }
 
 /** 骨架里"挂卡那句"之后的部分 —— 两个分支（带描述/不带）共用，避免整段被抄成两份 */
@@ -690,7 +709,7 @@ export async function composeBlockoutPrompt(
 ): Promise<string> {
   // ★ 骨架与「这一次给哪几个位子拼了括号」一并取回 —— 下面三道校验都要拿它逐字核对括号内容。
   //   在校验侧重算一遍预算就是同一条规则的第二处实现（详见 buildSkeleton 的 ★★★）。
-  const { text: skeleton, usedDesc, usedKey, usedGroups } = buildSkeleton(cast, userLine, spec);
+  const { text: skeleton, textNoUserLine, usedDesc, usedKey, usedGroups } = buildSkeleton(cast, userLine, spec);
   // ★★ 下面每一处都用**排好序的**那一份，不是原始 `cast`：给豆包的上下文若按另一个顺序
   //   列，等于在骨架已经排好升序之后又递给它一个反例（而顺序就是语义，见 orderSlots）。
   const slots = orderSlots(cast, spec);
@@ -714,7 +733,9 @@ export async function composeBlockoutPrompt(
       COMPOSE_SYSTEM[spec.scheme],
       [
         "【已写好的提示词】",
-        skeleton,
+        // ★★ 递**不含那句话**的那份：含着的话模型会把它再融一遍，成品里出现两遍
+        //   （见 buildSkeleton 返回值里 textNoUserLine 的 ★★）
+        textNoUserLine,
         "",
         "【作者补充的那句话】",
         line,
