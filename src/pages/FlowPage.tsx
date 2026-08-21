@@ -1472,10 +1472,19 @@ export default function FlowPage() {
 
       {/* 画布视图：全屏覆盖层（Portal 到 body），点格子就地开编辑窗。
           挂卡要去 /video-editor 整页编辑器 —— castEditorState 只有本文件一处实现
-          （跨页约定），经 prop 借给画布，FlowCanvas 不 import 页面（依赖单向） */}
-      {canvas && (
+          （跨页约定），经 prop 借给画布，FlowCanvas 不 import 页面（依赖单向）。
+          ★ !simple 两道都拦（按钮 + 渲染）：sessionStorage 里的开关是跨模式共用的，
+            只拦按钮的话，工作流里开过画布再进简约模式，恢复逻辑会把画布糊上来 ——
+            简约恒单段，画布没有信息量（用户点名：简约不要有画布）。
+          ★ ✕ = 退出编辑回创作入口（与页头返回同一目的地，用户点名叉号别落回线性页）；
+            「≡ 线性」才是收起画布看线性视图的路（方案台/组稿/存草稿在那边）。 */}
+      {!simple && canvas && (
         <FlowCanvas
-          onClose={() => setCanvas(false)}
+          onExit={() => {
+            setCanvas(false);
+            navigate(origin === "studio" ? "/studio" : "/create");
+          }}
+          onLinear={() => setCanvas(false)}
           onCast={(t, value) => {
             const st = castEditorState(t, value);
             if (st) navigate("/video-editor", { state: st });

@@ -19,11 +19,14 @@ import {
   clampCursor,
   nodeCost,
   nodeDone,
+  planOf,
   tplOfNode,
   useFlow,
   type FlowNode,
   type FlowTemplate,
 } from "../../studio/flowStore";
+import { myCards } from "../../data/account";
+import { useAccountVersion } from "../../hooks/useAccount";
 import {
   browseTemplates,
   myTemplates,
@@ -32,7 +35,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { fmtTokens } from "../../data/economy";
+import { fmtTokens, proposalsCost } from "../../data/economy";
 import { requestLandscape } from "../../hooks/useOrientationLock";
 import { AI_REAL } from "../../ai";
 import type { VideoTemplate } from "../../types";
@@ -63,10 +66,16 @@ function useIsLandscape(): boolean {
 }
 
 export default function FlowCanvas({
-  onClose,
+  onExit,
+  onLinear,
   onCast,
 }: {
-  onClose: () => void;
+  /** ✕ = 退出编辑，回创作入口（与线性视图页头的返回同一目的地）。
+   *  ★ 用户点名：叉号不该落回旧的线性编辑页 —— 画布就是工作流的编辑现场。 */
+  onExit: () => void;
+  /** ≡ = 收起画布、露出线性视图：方案台（三选一挑方案）、组稿、存草稿这些
+   *  全屏的活儿还住在那边，普通段推演完从这里过去挑。 */
+  onLinear: () => void;
   /** 打开挂卡编辑页（castEditorState 只有 FlowPage 一处实现，经 prop 进来避免页面互引） */
   onCast: (tpl: NonNullable<FlowTemplate>, value: Record<string, string>) => void;
 }) {
@@ -154,11 +163,15 @@ export default function FlowCanvas({
   const body = (
     <div className="fixed inset-0 z-40 flex flex-col bg-ink">
       <div className="safe-top flex flex-none items-center gap-2 px-3 py-2">
-        <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-panel text-slate-200">
+        <button onClick={onExit} className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-panel text-slate-200">
           <Icon name="close" size={16} />
         </button>
-        <span className="text-sm font-bold text-slate-100">流水线画布</span>
-        <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">拖动平移 · 双指缩放 · 点格子开编辑窗</span>
+        <span className="flex-none text-sm font-bold text-slate-100">流水线画布</span>
+        <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">点格子开编辑窗</span>
+        {/* 线性视图入口：✕ 改成退出编辑之后，方案台/组稿/存草稿的路从这颗走 */}
+        <button onClick={onLinear} className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200">
+          ≡ 线性
+        </button>
         {/* 转屏：表达意图（真机由 useOrientationLock 执行；dev 桌面无感） */}
         <button
           onClick={() => setWantLand((v) => !v)}
@@ -302,6 +315,7 @@ export default function FlowCanvas({
               busy={busy}
               err={err}
               onCast={onCast}
+              onLinear={onLinear}
               onClose={() => setSel(null)}
             />
           </div>
@@ -313,7 +327,10 @@ export default function FlowCanvas({
   return createPortal(body, document.body);
 }
 
-/** 编辑窗本体：模板行 / 挂卡 / 合成句·要求 / 进度 / 生成。
+/** 编辑窗本体：一段的编辑现场，**两个模式**（用户点名）：
+ *  · 套模板 —— 白模复刻：换模板 / 挂卡 / 改点名句 / 生成；
+ *  · 自选卡片 —— 自己挑素材卡 + 写提示词：推演三套方案 → （线性视图挑定）→ 生成。
+ *  模式不是皮肤而是节点事实（有无 tpl 快照），切换真的摘/套模板（setNodeTemplate 一处规则）。
  *  只对**当前段**（isCursor）开放会花钱或改状态的操作 —— 选中即 setCursor，
  *  两者不一致只剩"锁着没夹过去"一种情况，此时只读。 */
 function NodePanel({
@@ -325,6 +342,7 @@ function NodePanel({
   busy,
   err,
   onCast,
+  onLinear,
   onClose,
 }: {
   index: number;
@@ -335,9 +353,10 @@ function NodePanel({
   busy: boolean;
   err: string;
   onCast: (tpl: NonNullable<FlowTemplate>, value: Record<string, string>) => void;
+  onLinear: () => void;
   onClose: () => void;
 }) {
-  const { updateProposal, setRequirement, genNode, setNodeTemplate } = useFlow();
+  const { updateProposal, setRequirement, genNode, setNodeTemplate, deriveProposals, removeMaterial } = useFlow();
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   const tpl = tplOfNode(node);
@@ -345,9 +364,19 @@ function NodePanel({
   const done = nodeDone(node);
   const generating = node.status === "generating";
   const named = !!tpl?.refVideo && !!tpl.roles?.length;
+  /** 模板模式？由节点事实派生（有白模模板快照），不是独立 UI 状态 —— 两份真相必然漂 */
+  const tplMode = !!tpl?.refVideo;
   const [picker, setPicker] = useState(false);
+  const [cardPick, setCardPick] = useState(false);
   const [castAsk, setCastAsk] = useState(false);
+  const [stripAsk, setStripAsk] = useState(false);
   const cost = nodeCost(nodes, index, mode);
+  // 推演报价与线性视图同一把尺：承接上一段真实尾帧的段少画一张起始帧
+  const prevP = index > 0 ? chosenOf(nodes[index - 1]) : null;
+  const carried = !!(node.chain && prevP?.lastFrame);
+  const propCost = proposalsCost(carried);
+  const plan = planOf(node);
+  const mats = node.materials ?? [];
   const mounted = named ? (tpl!.roles ?? []).filter((r) => cast[r.label]).length : 0;
 
   return (
@@ -363,90 +392,162 @@ function NodePanel({
         </button>
       </div>
 
-      {/* 模板行：每段各选各的（用户点名要的）。换/摘的规则都在 store 的 setNodeTemplate */}
-      <div className="flex items-center gap-2 rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2">
-        <span className="flex-none text-xs">🧪</span>
-        <span className="min-w-0 flex-1 truncate text-xs text-slate-100">
-          {tpl?.refVideo ? tpl.title : "没套模板（普通段）"}
-        </span>
+      {/* 模式切换：切到另一侧是真操作（套/摘模板），不是换皮。摘的确认在下面那块 */}
+      <div className="flex gap-1 self-start rounded-full bg-panel p-0.5">
         <button
-          onClick={() => setPicker(true)}
+          onClick={() => !tplMode && setPicker(true)}
           disabled={locked || generating}
-          className="flex-none rounded-full bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-100 disabled:opacity-40"
+          className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
+            tplMode ? "bg-brand font-bold text-ink" : "text-slate-400"
+          }`}
         >
-          {tpl?.refVideo ? "换模板" : "选模板"}
+          🧪 套模板
+        </button>
+        <button
+          onClick={() => tplMode && setStripAsk(true)}
+          disabled={locked || generating}
+          className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
+            !tplMode ? "bg-brand font-bold text-ink" : "text-slate-400"
+          }`}
+        >
+          🃏 自选卡片
         </button>
       </div>
-
-      {/* 挂卡（白模点名路）。覆盖确认与线性视图同一句话、同一个理由 */}
-      {named && !locked && (
-        <>
-          {/* ★ 传 store 的 cast（当前段的**实时**挂卡缓冲）而不是 node.cast：
-              后者只在切段时回写，这里读它会把用户刚挂的卡又退回旧映射 */}
-          <button
-            onClick={() => (p.plot.trim() ? setCastAsk(true) : onCast(tpl!, cast))}
-            disabled={generating}
-            className="flex w-full items-center gap-2 rounded-lg border border-brand/50 bg-panel px-2.5 py-2 text-left text-xs text-slate-100 disabled:opacity-40"
-          >
-            <span className="flex-none">🎭</span>
-            <span className="min-w-0 flex-1 truncate">
-              {mounted > 0 ? `已挂 ${mounted}/${tpl!.roles!.length} 个角色位 · 点这里改` : `给 ${tpl!.roles!.length} 个人偶挂上你的角色卡`}
-            </span>
-            <Icon name="chevron" size={12} className="flex-none text-slate-400" />
-          </button>
-          {castAsk && (
-            <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
-              <p className="text-[11px] leading-relaxed text-amber-200">
-                改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉。
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setCastAsk(false);
-                    onCast(tpl!, cast);
-                  }}
-                  className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
-                >
-                  知道了，去改挂卡
-                </button>
-                <button onClick={() => setCastAsk(false)} className="rounded-full border border-slate-600 px-2.5 py-1 text-[11px] text-slate-300">
-                  先不改
-                </button>
-              </div>
-            </div>
-          )}
-        </>
+      {stripAsk && (
+        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+          <p className="text-[11px] leading-relaxed text-amber-200">
+            切到自选会<b>摘掉模板</b>：挂的卡与合成好的点名句一起清掉，这一段退回普通段（想回来再套就行）。
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                if (setNodeTemplate(node.id, null)) setStripAsk(false);
+              }}
+              className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+            >
+              摘掉模板，改为自选
+            </button>
+            <button onClick={() => setStripAsk(false)} className="rounded-full border border-slate-600 px-2.5 py-1 text-[11px] text-slate-300">
+              先不
+            </button>
+          </div>
+        </div>
       )}
 
-      {/* 合成句 / 要求：named 直接编辑 plot（B2「以输入框为准」）；普通段编辑 requirement */}
-      {named ? (
-        <textarea
-          value={p.plot}
-          onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
-          disabled={locked || generating}
-          placeholder="先去挂卡：合成好的点名要求会填在这里，你可以逐字改"
-          className="h-24 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
-        />
-      ) : tpl?.refVideo ? (
-        <textarea
-          value={p.plot}
-          onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
-          disabled={locked || generating}
-          placeholder="写一句要换成谁（V1 白模没有角色位，整段换一个主体）"
-          className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
-        />
+      {tplMode ? (
+        <>
+          {/* 模板行：每段各选各的。换/摘的规则都在 store 的 setNodeTemplate */}
+          <div className="flex items-center gap-2 rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2">
+            <span className="flex-none text-xs">🧪</span>
+            <span className="min-w-0 flex-1 truncate text-xs text-slate-100">{tpl!.title}</span>
+            <button
+              onClick={() => setPicker(true)}
+              disabled={locked || generating}
+              className="flex-none rounded-full bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-100 disabled:opacity-40"
+            >
+              换模板
+            </button>
+          </div>
+
+          {/* 挂卡（白模点名路）。覆盖确认与线性视图同一句话、同一个理由 */}
+          {named && !locked && (
+            <>
+              {/* ★ 传 store 的 cast（当前段的**实时**挂卡缓冲）而不是 node.cast：
+                  后者只在切段时回写，这里读它会把用户刚挂的卡又退回旧映射 */}
+              <button
+                onClick={() => (p.plot.trim() ? setCastAsk(true) : onCast(tpl!, cast))}
+                disabled={generating}
+                className="flex w-full items-center gap-2 rounded-lg border border-brand/50 bg-panel px-2.5 py-2 text-left text-xs text-slate-100 disabled:opacity-40"
+              >
+                <span className="flex-none">🎭</span>
+                <span className="min-w-0 flex-1 truncate">
+                  {mounted > 0 ? `已挂 ${mounted}/${tpl!.roles!.length} 个角色位 · 点这里改` : `给 ${tpl!.roles!.length} 个人偶挂上你的角色卡`}
+                </span>
+                <Icon name="chevron" size={12} className="flex-none text-slate-400" />
+              </button>
+              {castAsk && (
+                <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+                  <p className="text-[11px] leading-relaxed text-amber-200">
+                    改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉。
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setCastAsk(false);
+                        onCast(tpl!, cast);
+                      }}
+                      className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+                    >
+                      知道了，去改挂卡
+                    </button>
+                    <button onClick={() => setCastAsk(false)} className="rounded-full border border-slate-600 px-2.5 py-1 text-[11px] text-slate-300">
+                      先不改
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* 合成句 / 要求：named 直接编辑 plot（B2「以输入框为准」）；V1 白模写一句换谁 */}
+          {named ? (
+            <textarea
+              value={p.plot}
+              onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
+              disabled={locked || generating}
+              placeholder="先去挂卡：合成好的点名要求会填在这里，你可以逐字改"
+              className="h-24 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
+            />
+          ) : (
+            <textarea
+              value={p.plot}
+              onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
+              disabled={locked || generating}
+              placeholder="写一句要换成谁（V1 白模没有角色位，整段换一个主体）"
+              className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
+            />
+          )}
+        </>
       ) : (
         <>
+          {/* 自选模式：素材卡 + 自己的提示词（用户点名的第二模式） */}
+          <div className="rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2">
+            <div className="flex items-center gap-2">
+              <span className="flex-none text-xs">🃏</span>
+              <span className="min-w-0 flex-1 truncate text-xs text-slate-100">
+                {mats.length ? `素材卡 ${mats.length} 张` : "还没选素材卡（不选也能推演）"}
+              </span>
+              <button
+                onClick={() => setCardPick(true)}
+                disabled={locked || generating}
+                className="flex-none rounded-full bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-100 disabled:opacity-40"
+              >
+                选卡片
+              </button>
+            </div>
+            {mats.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {mats.map((c) => (
+                  <span key={c.id} className="flex items-center gap-1 rounded-md bg-black/40 py-1 pl-1 pr-1.5">
+                    {c.cover && <img src={c.cover} alt="" className="h-8 w-6 rounded object-cover" draggable={false} />}
+                    <span className="max-w-[72px] truncate text-[10px] text-slate-200">{c.name}</span>
+                    {!locked && !generating && (
+                      <button onClick={() => removeMaterial(node.id, c.id)} className="text-slate-500">
+                        <Icon name="close" size={10} />
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
           <textarea
             value={node.requirement ?? ""}
             onChange={(e) => setRequirement(node.id, e.target.value)}
             disabled={locked || generating}
-            placeholder="这一段要拍什么？（推演三套方案在线性视图完成）"
+            placeholder="这一段要拍什么？写清楚后点下面推演——AI 先给三套方案（各带首尾帧预览）"
             className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
           />
-          <p className="text-[10px] leading-relaxed text-slate-500">
-            普通段的「推演三套方案 → 挑一套 → 炼」在<b>线性视图</b>里走（方案台是全屏的，半窗摆不下）。
-          </p>
         </>
       )}
 
@@ -458,8 +559,8 @@ function NodePanel({
       )}
       {isCursor && err && <p className="text-[11px] leading-relaxed text-rose-300">{err}</p>}
 
-      {/* 生成：只有白模段在画布上直炼（普通段要先过方案台）。报价与扣费同一把尺（nodeCost/genNode） */}
-      {tpl?.refVideo && !locked && (
+      {/* 行动区。报价与扣费同一把尺（nodeCost/genNode、proposalsCost/deriveProposals） */}
+      {tplMode && !locked && (
         <button
           onClick={() => void genNode(node.id)}
           disabled={busy || generating || !p.plot.trim()}
@@ -467,6 +568,35 @@ function NodePanel({
         >
           {generating ? node.progress || "生成中…" : done ? `♻ 重新生成（${AI_REAL ? fmtTokens(cost) : "演示"}）` : `⚡ 生成本段（${AI_REAL ? fmtTokens(cost) : "演示"}）`}
         </button>
+      )}
+      {!tplMode && !locked && (
+        plan === "picking" ? (
+          <>
+            {/* 方案台是全屏 UI（三套并排、可换帧改剧情），半窗摆不下 —— 挑那一步去线性视图 */}
+            <p className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-sky-200">
+              三套方案推演好了。去线性视图的方案台挑一套（可换首尾帧、改剧情），挑定回来再炼。
+            </p>
+            <button onClick={onLinear} className="w-full rounded-full bg-brand py-2.5 text-sm font-bold text-ink">
+              ≡ 去线性视图挑方案
+            </button>
+          </>
+        ) : plan === "picked" || done ? (
+          <button
+            onClick={() => void genNode(node.id)}
+            disabled={busy || generating}
+            className="w-full rounded-full bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+          >
+            {generating ? node.progress || "生成中…" : done ? `♻ 重新生成（${AI_REAL ? fmtTokens(cost) : "演示"}）` : `⚡ 炼这一段视频（${AI_REAL ? fmtTokens(cost) : "演示"}）`}
+          </button>
+        ) : (
+          <button
+            onClick={() => void deriveProposals(node.id)}
+            disabled={busy || generating || !(node.requirement ?? "").trim()}
+            className="w-full rounded-full bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+          >
+            {generating ? node.progress || "推演中…" : `🎲 推演三套方案（${AI_REAL ? fmtTokens(propCost) : "演示"}）`}
+          </button>
+        )
       )}
 
       {picker && (
@@ -479,7 +609,63 @@ function NodePanel({
           onClose={() => setPicker(false)}
         />
       )}
+      {cardPick && <CardPicker node={node} onClose={() => setCardPick(false)} />}
     </div>
+  );
+}
+
+/** 自选模式的选卡面板：点一下选中/取消（拖拽那套隐喻留在线性视图的素材窗口——
+ *  画布的半窗里没地方给看板娘落卡）。加/删直接走 store 的 addMaterials/removeMaterial */
+function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => void }) {
+  useAccountVersion();
+  const addMaterials = useFlow((s) => s.addMaterials);
+  const removeMaterial = useFlow((s) => s.removeMaterial);
+  const cards = myCards();
+  const chosen = new Set((node.materials ?? []).map((c) => c.id));
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={onClose}>
+      <div className="flex max-h-[70%] w-full max-w-md flex-col rounded-t-2xl bg-ink p-3" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-1 flex items-center">
+          <span className="text-sm font-bold text-slate-100">给这一段选素材卡</span>
+          <span className="flex-1" />
+          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-full bg-panel text-slate-300">
+            <Icon name="close" size={13} />
+          </button>
+        </div>
+        <p className="mb-2 text-[10px] leading-relaxed text-slate-500">
+          点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进推演与出片。
+        </p>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {cards.length === 0 ? (
+            <p className="py-8 text-center text-xs text-slate-500">还没有卡片——去创意工坊铸几张或从市场添加</p>
+          ) : (
+            <div className="grid grid-cols-4 gap-2 pb-2">
+              {cards.map((c) => {
+                const on = chosen.has(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => (on ? removeMaterial(node.id, c.id) : addMaterials(node.id, [c]))}
+                    className={`overflow-hidden rounded-lg border text-left ${
+                      on ? "border-brand ring-1 ring-brand" : "border-slate-700 opacity-75"
+                    }`}
+                  >
+                    <div className="aspect-[3/4] bg-black/40">
+                      {c.cover && <img src={c.cover} alt="" className="h-full w-full object-cover" draggable={false} />}
+                    </div>
+                    <div className="truncate px-1 py-0.5 text-[9px] text-slate-200">{c.name}</div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <button onClick={onClose} className="mt-2 w-full rounded-full bg-brand py-2 text-sm font-bold text-ink">
+          好了（选中 {chosen.size} 张）
+        </button>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -25,6 +25,7 @@ import type { ApiSharedCard, ApiSharedDeck } from "../api/branch";
 import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
 import { searchMarket } from "../ai";
 import TarotCard from "../components/TarotCard";
+import TemplateShelf from "../components/TemplateShelf";
 import VideoCardExtractor from "../components/VideoCardExtractor";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType } from "../types";
@@ -124,7 +125,10 @@ export default function WorkshopPage() {
   const me = useCurrentUser();
   const cards = myCards();
   const decks = myDecks();
-  const [tab, setTab] = useState<"cards" | "decks">("cards");
+  // ★ 2026-08-21 加第三个页签「我的模板」（用户点名：模板与卡片/卡组同住创意工坊，
+  //   同一行页签）。内容整块复用 components/TemplateShelf —— 它自带「模板市场/我的模板」
+  //   两个来源，所以模板市场也一并住进了本页；/templates 独立页照旧（深链在用）。
+  const [tab, setTab] = useState<"cards" | "decks" | "templates">("cards");
   const [q, setQ] = useState("");
   const [market, setMarket] = useState<Card[]>([]);
   const [loading, setLoading] = useState(false);
@@ -212,9 +216,9 @@ export default function WorkshopPage() {
         <span className="flex-none rounded-full bg-panel px-2.5 py-1 text-slate-300">{decks.length} 个卡组</span>
       </div>
 
-      {/* 页签 */}
+      {/* 页签：卡片 / 卡组 / 模板同一行（模板那格连着模板市场，见 TemplateShelf） */}
       <div data-guide="workshop-tabs" className="mb-3 flex gap-2">
-        {(["cards", "decks"] as const).map((t) => (
+        {(["cards", "decks", "templates"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -222,12 +226,16 @@ export default function WorkshopPage() {
               tab === t ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
             }`}
           >
-            {t === "cards" ? "我的卡片" : "我的卡组"}
+            {t === "cards" ? "我的卡片" : t === "decks" ? "我的卡组" : "我的模板"}
           </button>
         ))}
       </div>
 
-      {tab === "cards" ? (
+      {tab === "templates" ? (
+        <div className="pb-4">
+          <TemplateShelf initialTab="mine" />
+        </div>
+      ) : tab === "cards" ? (
         <>
           {cards.length > 0 && (
             <div className="mb-5 grid grid-cols-3 gap-2.5">
