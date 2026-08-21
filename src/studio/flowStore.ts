@@ -166,8 +166,11 @@ export type FlowTemplate = {
  *   换错人是画面照出、钱照收、**一个错都不报**的故障（types.VideoTemplate.roles 的 ★★），
  *   所以宁可每处都清干净。分散在四个 set 里写，迟早漏掉其中一格。
  */
-function clearTemplate(): Pick<FlowState, "template" | "subject" | "cast" | "castErr" | "castFallback" | "castBusy"> {
-  return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false };
+function clearTemplate(): Pick<
+  FlowState,
+  "template" | "subject" | "cast" | "castErr" | "castFallback" | "castBusy" | "castNodeId"
+> {
+  return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false, castNodeId: null };
 }
 
 /**
@@ -504,6 +507,16 @@ interface FlowState {
   applyCast: (next: Record<string, string>) => Promise<boolean>;
   /** 把合成失败时那份骨架填进输入框（用户点了才填——不许替他默认填上，见 castErr 的 ★） */
   fillCastFallback: () => void;
+  /**
+   * 上面三个挂卡状态**属于哪一段**（applyCast 起手写、收工不清 —— 失败提示要一直挂在
+   * 那一段上直到用户处理掉）。
+   * ★★ 2026-08-21 验证轮加：原来它们只是"全局的"，界面靠 `s.cursor` 反推是谁 ——
+   *   而合成是一次十几秒的对话，这期间用户点一下别的段光标就走了（tapNode 与底部节点条
+   *   都不判 busy）。于是：真正在被写的那一段解除了禁用（用户这几秒打的字会被回包整段覆盖，
+   *   而那把锁存在的全部理由就是防这个），失败提示与「填入默认写法」却落在**另一段**上，
+   *   点下去把这一段的骨架写进别人的 plot。两个面同病。
+   */
+  castNodeId: string | null;
   reset: () => void;
 
   /** 改当前走向的内容（标题/剧情/时长/帧） */
@@ -565,6 +578,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
   castErr: "",
   castFallback: "",
   castBusy: false,
+  castNodeId: null,
 
   // ★ template/subject（连同挂卡那两格，见 clearTemplate）必须一起清：工坊铺过来的是
   //   workflow 模式的节点，而模板栏只在 simple 模式渲染。留着上一轮简约模式的模板，
@@ -837,7 +851,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   模板读 tplOfNode（分段组每节点自带快照；单模板流它退回 store 级，行为不变——
     //   那条"恒单段"的老注释说的就是单模板流，addNode 对白模照旧拒绝追加）。
     const node = s0.nodes[s0.cursor] ?? s0.nodes[0];
-    const tpl = node?.tpl ?? s0.template;
+    // ★★ 走 tplOfNode，**不是** `node?.tpl ?? s0.template`（2026-08-21 验证轮抓到的 high：
+    //   三态收口时漏了这一处读点，注释写着"模板读 tplOfNode"而代码写的是 `??`）。
+    //   差别在 `tpl === null`（明确没有模板 —— 正是摘过模板的段与 addNode 造的新段）：
+    //   `??` 对 null 会退回 store 级，而 store 级是**当前光标那一段**留下的陈旧快照，
+    //   于是挂卡会落在一个根本没有模板的段上，按别段的角色位写 materials/cast、重写 plot。
+    const tpl = tplOfNode(node);
     const roles = tpl?.roles;
     if (!tpl?.refVideo || !roles?.length || !node) {
       set({
@@ -932,6 +951,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
         cast: {},
         castErr: "",
         castFallback: "",
+        castNodeId: null,
         err: "一个角色位都没挂卡：白模出片全靠卡上的形象图说明「换成谁」，一张都不挂的话出不了片——回去至少挂一张",
       });
       get().updateNode(node.id, { materials: undefined });
@@ -982,7 +1002,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const cleaned: Record<string, string> = {};
     for (const s of taken) cleaned[s.label] = s.card.id;
 
-    set({ busy: true, castBusy: true, err: "", castErr: "", castFallback: "", cast: cleaned });
+    set({ busy: true, castBusy: true, err: "", castErr: "", castFallback: "", cast: cleaned, castNodeId: node.id });
     // cast 同时落到节点上：分段组切段时编辑缓冲要换成**那一段自己的**挂法
     // （setCursor 负责换），不落节点的话切回来面板就是空的，而出片用的还是旧映射
     get().updateNode(node.id, { materials: mats, cast: cleaned });
@@ -1042,7 +1062,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
 
   fillCastFallback: () =>
     set((s) => {
-      const node = s.nodes[s.cursor] ?? s.nodes[0]; // 与 applyCast 同一个"本段"（分段组 = 光标段）
+      // ★★ 认 castNodeId 不认 cursor（见那个字段的 ★★）：合成那十几秒里用户点一下别的段，
+      //   光标就走了 —— 按光标写等于把这一段的骨架填进别人的 plot，而真正空着的那一段
+      //   救它的按钮却不在。
+      const node = s.nodes.find((n) => n.id === s.castNodeId) ?? s.nodes[s.cursor] ?? s.nodes[0];
       if (!node || !s.castFallback) return {};
       return {
         castErr: "",
@@ -1355,7 +1378,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return {
         cursor,
         ...(tpl && tpl !== s.template
-          ? { template: tpl, cast: s.nodes[cursor]?.cast ?? {}, castErr: "", castFallback: "" }
+          ? { template: tpl, cast: s.nodes[cursor]?.cast ?? {}, castErr: "", castFallback: "", castNodeId: null }
           : {}),
       };
     }),

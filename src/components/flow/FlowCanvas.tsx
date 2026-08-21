@@ -162,17 +162,10 @@ export default function FlowCanvas({
   function onPointerDown(e: React.PointerEvent) {
     (e.target as Element).setPointerCapture?.(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    const pts = [...pointers.current.values()];
     moved.current = false;
     // ★ 起手值取 liveView（不是 view）：一指转两指发生在手势**中途**，
     //   那时 view 还停在按下之前的已提交值，用它会让画面当场跳一下
-    const base = liveView.current;
-    if (pts.length === 1) gesture.current = { ...base, cx: pts[0].x, cy: pts[0].y, dist: 0 };
-    else if (pts.length === 2) {
-      const cx = (pts[0].x + pts[1].x) / 2;
-      const cy = (pts[0].y + pts[1].y) / 2;
-      gesture.current = { ...base, cx, cy, dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) };
-    }
+    reanchor(liveView.current);
   }
   function onPointerMove(e: React.PointerEvent) {
     if (!pointers.current.has(e.pointerId) || !gesture.current) return;
@@ -195,27 +188,54 @@ export default function FlowCanvas({
       paintView(liveView.current);
     }
   }
+  /**
+   * 按**此刻还在屏幕上的手指**重新锚定手势基准 —— 唯一实现，三个地方用：手指数量变了、
+   * 程序化平移（panTo）打断了手势、以及按下时。
+   * ★★ 为什么非重锚不可（2026-08-21 验证轮两次抓到）：pointermove 是**整体重算**
+   *   （`tx = g.tx + dx`），不是增量叠加。基准一旦陈旧，下一拍就把中间发生的一切抹掉：
+   *   两指抬掉一根 → 缩放当场退回捏合前、位置跳几百像素；panTo 挪过去 → 画面跳过去又弹
+   *   回来，而且抬手时 `setView(liveView)` 把这个错值**提交**下去。
+   */
+  function reanchor(base: { tx: number; ty: number; scale: number }) {
+    const pts = [...pointers.current.values()];
+    if (pts.length === 0) return;
+    if (pts.length === 1) {
+      gesture.current = { ...base, cx: pts[0].x, cy: pts[0].y, dist: 0 };
+      return;
+    }
+    // 两指及以上：与 pointermove 那支取同样的两根（pts[0]/pts[1]），中点与间距一起重记
+    gesture.current = {
+      ...base,
+      cx: (pts[0].x + pts[1].x) / 2,
+      cy: (pts[0].y + pts[1].y) / 2,
+      dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+    };
+  }
+
   function onPointerUp(e: React.PointerEvent) {
     pointers.current.delete(e.pointerId);
-    const rest = [...pointers.current.values()];
-    if (rest.length === 0) {
+    if (pointers.current.size === 0) {
       gesture.current = null;
       setView(liveView.current); // 手指离开才提交一次（见上面 liveView 的 ★★）
       return;
     }
-    // ★★ 两指变一指要**按剩下那根重建基准**（2026-08-21 验证轮抓到）：不重建的话
-    //   gesture 还是捏合那一份（tx/ty/scale 停在捏合**开始前**、cx/cy 是两指中点），
-    //   剩下那根手指再动一像素就从那份陈旧基准重算 —— 缩放当场退回捏合前、位置跳几百
-    //   像素，而且抬手时这个被打回的值还会 setView 提交下去（刚捏的缩放永久丢失）。
-    //   真机上两根手指几乎不可能同时离屏，所以这是常规路径不是边角。
-    if (rest.length === 1) {
-      gesture.current = { ...liveView.current, cx: rest[0].x, cy: rest[0].y, dist: 0 };
-    }
+    // ★ 少一根手指就重锚（不只两指→一指：三指抬掉最先按下那根时，pts[0]/pts[1] 换了人，
+    //   基准里记的还是原来那两根的中点与间距，同一个跳变形状）
+    reanchor(liveView.current);
   }
   function onWheel(e: React.WheelEvent) {
     const k = Math.min(2, Math.max(0.4, liveView.current.scale * (e.deltaY < 0 ? 1.12 : 0.9)));
     const v = liveView.current;
-    setView({ tx: e.clientX - ((e.clientX - v.tx) / v.scale) * k, ty: e.clientY - ((e.clientY - v.ty) / v.scale) * k, scale: k });
+    // ★ 也要写回 liveView 并重锚：触控板上"按住拖 + 滚轮"是常规操作，只 setView 的话
+    //   这一下会被手势那条路当场抹掉（与 panTo 同一条病）
+    const next = {
+      tx: e.clientX - ((e.clientX - v.tx) / v.scale) * k,
+      ty: e.clientY - ((e.clientY - v.ty) / v.scale) * k,
+      scale: k,
+    };
+    liveView.current = next;
+    if (gesture.current) reanchor(next);
+    setView(next);
   }
 
   const addNode = useFlow((s) => s.addNode);
@@ -231,10 +251,13 @@ export default function FlowCanvas({
     // ★ ty 一并归位（第六轮评审）：整条流水线只有横向一排，用户往上下拖走之后，
     //   只改 tx 的"挪进视野"根本没把那一格挪回视野里 ——「加一段」还是"点了没反应"
     const next = { ...liveView.current, tx: 40 - i * (CARD_W + GAP_X) * liveView.current.scale, ty: 24 };
-    // ★★ 手势可能正在进行（agent 的回包是异步的，用户完全可以一边等一边拖画布）：
-    //   只 setView 的话，那个没有依赖数组的 effect 会立刻把画面涂回手指底下的值，
-    //   抬手时再 setView(liveView) 把它彻底丢掉 —— 表现为「模型说去第 3 段了，画面没动」。
+    // ★★ 手势可能正在进行（agent 的回包是异步的，用户完全可以一边等一边拖画布）。
+    //   只 setView 会被 effect 涂回手指值；只写 liveView 也不够 —— 下一个 pointermove
+    //   从**按下那一刻的基准**整体重算，照样把 panTo 抹掉，抬手还把这个覆盖值提交下去
+    //   （第一版就栽在这儿：从"纹丝不动"变成"跳过去又弹回来"，更像坏了）。
+    //   所以连基准一起挪：从这一刻起，手指的位移相对**新位置**累加。
     liveView.current = next;
+    reanchor(next);
     setView(next);
   }
 
@@ -610,14 +633,30 @@ function NodePanel({
   const castBusy = useFlow((s) => s.castBusy);
   const fillCastFallback = useFlow((s) => s.fillCastFallback);
   /**
-   * 这三个挂卡状态是 store 级的，语义上**恒指光标段**（`fillCastFallback` 写的就是
-   * `nodes[cursor]`，`applyCast` 也只作用于光标段）。
-   * ★★ 而画布的编辑窗画的是 `nodes[sel]` —— 点一个被顺序门禁锁住的格子时 `setCursor`
-   *   会被 `clampCursor` 夹住，于是 sel ≠ cursor。不判这一下的话：那一段的编辑窗里会
-   *   印着**别段**的合成失败提示，点「填入默认写法」写进的也是别段（还顺手把提示清掉），
-   *   而用户眼里是"点了没反应"。线性视图天然只渲染光标段，所以只有这一面要判。
+   * 这三个挂卡状态属于**某一段**，而画布的编辑窗画的是 `nodes[sel]` —— 两者可以不是同一段。
+   * ★★ 认 `castNodeId` 不认 `cursor`（2026-08-21 验证轮的第二版）：第一版比的是光标，
+   *   而"sel ≠ cursor 只发生在锁着的段上"这条不变式在**上一段炼完的那一刻**就破了
+   *   （frontier 前移、这一格就地解锁，而 genNode 根本不碰 cursor）；合成那十几秒里
+   *   用户点一下别的段，光标同样会走。store 现在自己记着这三个状态属于谁，照它判。
    */
-  const castOfThisNode = useFlow((s) => s.nodes[s.cursor]?.id === node.id);
+  const castOfThisNode = useFlow((s) => s.castNodeId === node.id);
+  /**
+   * 去挂卡：**先把光标真挪到本段，挪不过去就整句拒**（与 canvasAgent 的 cast 分支同一招）。
+   * ★★ 2026-08-21 验证轮：`applyCast` 与那颗「已挂 N/M」读的都是**光标段**，而这个面板画的是
+   *   `nodes[sel]` —— 两者能不一样。原以为"只在锁着的段上"，其实**上一段炼完那一刻**就破了：
+   *   frontier 前移、这一格就地解锁（locked 变假），而 genNode 根本不碰 cursor。
+   *   于是按钮可点、上面写着别段的挂卡数，挂完回来要么被「刚才挂卡的是另一个模板」整趟作废，
+   *   要么把别段的 materials/cast 整表覆盖并重写它的 plot（那一段可能已经出片）。
+   */
+  function goCast() {
+    useFlow.getState().setCursor(index);
+    if (useFlow.getState().cursor !== index) {
+      useFlow.setState({ err: `第 ${index + 1} 段还没轮到（前面的段先炼完才解锁），挂不了卡` });
+      return;
+    }
+    // ★ 光标刚挪过来，这一拍的 cast 缓冲才是**本段**的（setCursor 顺带换的），所以现取
+    onCast(tplOfNode(useFlow.getState().nodes[index])!, useFlow.getState().cast);
+  }
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   const tpl = tplOfNode(node);
@@ -645,7 +684,11 @@ function NodePanel({
   const propCost = proposalsCost(carried);
   const plan = planOf(node);
   const mats = node.materials ?? [];
-  const mounted = named ? (tpl!.roles ?? []).filter((r) => cast[r.label]).length : 0;
+  // ★ 本段就是光标段时读**实时缓冲**（用户刚挂完还没回写 node.cast）；不是时读本段自己
+  //   落盘的那份 —— 否则这颗按钮上会印着**别段**的挂卡数（验证轮抓到）
+  const isCursorNode = useFlow((s) => s.nodes[s.cursor]?.id === node.id);
+  const castOfNode = isCursorNode ? cast : (node.cast ?? {});
+  const mounted = named ? (tpl!.roles ?? []).filter((r) => castOfNode[r.label]).length : 0;
 
   return (
     <div className="flex flex-col gap-2.5 px-3 py-2.5">
@@ -749,7 +792,7 @@ function NodePanel({
               {/* ★ 传 store 的 cast（当前段的**实时**挂卡缓冲）而不是 node.cast：
                   后者只在切段时回写，这里读它会把用户刚挂的卡又退回旧映射 */}
               <button
-                onClick={() => (p.plot.trim() ? setCastAsk(true) : onCast(tpl!, cast))}
+                onClick={() => (p.plot.trim() ? setCastAsk(true) : goCast())}
                 disabled={generating}
                 className="flex w-full items-center gap-2 rounded-lg border border-brand/50 bg-panel px-2.5 py-2 text-left text-xs text-slate-100 disabled:opacity-40"
               >
@@ -768,7 +811,7 @@ function NodePanel({
                     <button
                       onClick={() => {
                         setCastAsk(false);
-                        onCast(tpl!, cast);
+                        goCast();
                       }}
                       className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
                     >
