@@ -31,7 +31,7 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 // ★ VIDEO_PROMPT_MAX 取自 ai 层（提示词硬顶的唯一出处）：白模 V2 的输入框里装的是
 //   真正发出去的那段话，在这里另抄一个 400 出来，改上限时这里就开始说假话
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
-import { walletOf } from "../data/account";
+import { balanceNote } from "../data/account";
 import { markNoun, markSpecOf, myTemplates, splitCastRoles } from "../data/templates";
 import { clampDuration, fmtTokens, proposalsCost, tierOf } from "../data/economy";
 import {
@@ -937,7 +937,6 @@ export default function FlowPage() {
   /** 顶栏那个"剩余约"。★ 把组稿那一笔一起算进去：分开显示两个数，用户没有任何理由
    *  相信它们要相加，而"我还得准备多少 token"是一个数不是两个。 */
   const remain = useMemo(() => flowCost(nodes, mode) + deck.total, [nodes, mode, deck.total]);
-  const wallet = walletOf();
   const node = nodes[Math.min(cursor, nodes.length - 1)];
 
   if (nodes.length === 0 || !node) return null;
@@ -1309,7 +1308,9 @@ export default function FlowPage() {
                 />
                 <span className="min-w-0 flex-1 truncate text-right text-slate-500">
                   总时长 {formatDuration(nodes.reduce((s, n) => s + chosenOf(n).durationSec, 0))}
-                  {AI_REAL && wallet && ` · 余额 ${fmtTokens(wallet.plan + wallet.addon)}`}
+                  {/* ★ 「余额 X」还是「管理员免扣费」由 account.balanceNote 一处决定 ——
+                      管理员的镜像余额（5.2k）挂在十万级报价旁边等于撒谎，见那边的 ★★ */}
+                  {AI_REAL && balanceNote() && ` · ${balanceNote()}`}
                 </span>
               </div>
             </>

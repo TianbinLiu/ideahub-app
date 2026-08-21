@@ -7,7 +7,7 @@
 // 实际按模型认出并成功出图的张数结算——认出 3 个实体就只收 3 张的钱。
 import { useRef, useState } from "react";
 import { AI_REAL, extractCardsFromVideo } from "../ai";
-import { addCards, canAfford, myCards, spendTokens, walletOf } from "../data/account";
+import { addCards, balanceNote, canAfford, myCards, spendTokens, walletOf } from "../data/account";
 import { DECK_MAX_CARDS, IMAGE_TOKENS, VISION_FRAME_TOKENS, extractCost, extractSettle, fmtTokens } from "../data/economy";
 import { Card, CARD_TYPE_LABELS } from "../types";
 import Icon from "./Icon";
@@ -182,7 +182,8 @@ export default function VideoCardExtractor({ onClose }: { onClose: () => void })
               {fmtTokens(IMAGE_TOKENS * DECK_MAX_CARDS)}）。
               <br />
               实际按认出的张数结算；与你已有的卡重复的实体不会重复出卡。
-              {AI_REAL && wallet && ` 当前余额 ${fmtTokens(wallet.plan + wallet.addon)}。`}
+              {/* ★ 管理员那档写的是「管理员免扣费」，不是一个会误导的小数字，见 account.balanceNote */}
+              {AI_REAL && balanceNote() && ` 当前${balanceNote()}。`}
               {!AI_REAL && " 当前是演示模式，不产生真实消耗。"}
             </div>
 

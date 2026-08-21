@@ -45,7 +45,7 @@ import {
   uploadTemplateVideo,
   type TemplateVideoReceipt,
 } from "../api/uploads";
-import { canAfford, spendTokens, walletOf } from "../data/account";
+import { balanceNote, canAfford, spendTokens } from "../data/account";
 import { TEMPLATE_MAX_CARDS, fmtTokens, ownRefTemplateCost, templateCost, templateSettle } from "../data/economy";
 import {
   BLOCKOUT_INPUT_RULES,
@@ -472,7 +472,6 @@ export default function VideoTemplateExtractor({
   //   真正的两笔钱（看帧列人物 + 白模化出片）由编辑页按 economy.blockoutizeCost 整句报出
   //   —— 在这里先报一个只含视觉那一半的数，就是把最先花掉的那笔藏起来。
   const estimate = templateCost(frameN, TEMPLATE_MAX_CARDS);
-  const wallet = walletOf();
 
   /**
    * 白模化这条路**这个账号现在能不能走**（null = 能）。判据是
@@ -1051,9 +1050,9 @@ export default function VideoTemplateExtractor({
                       <span className="text-slate-400">预估消耗</span>
                       <span className="text-slate-200">
                         {fmtTokens(estimate)} token
-                        {wallet && (
-                          <span className="ml-2 text-slate-500">余额 {fmtTokens(wallet.plan + wallet.addon)}</span>
-                        )}
+                        {/* ★ 一处实现（见 account.balanceNote）；顺带补上 AI_REAL ——
+                            演示模式下本就不花钱，报一个真余额只会让人以为这一炉在扣钱 */}
+                        {AI_REAL && balanceNote() && <span className="ml-2 text-slate-500">{balanceNote()}</span>}
                       </span>
                     </div>
                   </>
