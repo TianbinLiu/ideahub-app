@@ -280,7 +280,10 @@ export function frontierOf(nodes: FlowNode[]): number {
  *   接的是设定帧，衔接直接断掉；而且用户会在还没看到第一段效果之前，
  *   就把钱花在第三段上。
  */
-function clampCursor(nodes: FlowNode[], to: number): number {
+/** 顺序门禁的唯一实现之一（另一处是 addNode，CLAUDE.md 钉过）。
+ *  2026-08-21 导出：画布视图要给"还没解锁的段"画锁并解释为什么点不动 ——
+ *  它必须问同一道闸，别在画布里另写 `nodeDone(prev)` 之类的第二份判断。 */
+export function clampCursor(nodes: FlowNode[], to: number): number {
   const target = Math.max(0, Math.min(to, nodes.length - 1));
   const frontier = frontierOf(nodes);
   return frontier < 0 ? target : Math.min(target, frontier);

@@ -15,6 +15,7 @@
 //   简约模式 → seedSolo("simple")，单节点单走向、不推演方案、**不存草稿**，UI 收到最简
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
+import FlowCanvas from "../components/flow/FlowCanvas";
 import ForgeOverlay, { type ForgePhase } from "../components/ForgeOverlay";
 import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
 import GenTrace from "../components/GenTrace";
@@ -952,6 +953,8 @@ export default function FlowPage() {
     useFlow();
   const [finalizing, setFinalizing] = useState("");
   const [tplExtract, setTplExtract] = useState(false);
+  /** 画布视图（全屏覆盖层，进入即横屏）：总览整条流水线，点一段跳回线性编辑 */
+  const [canvas, setCanvas] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   /** 素材窗口开着 = 底部那条也换成本段素材（见下面的底部区） */
   const [matOpen, setMatOpen] = useState(false);
@@ -1193,6 +1196,17 @@ export default function FlowPage() {
             {AI_REAL && remain > 0 && ` · 剩余约 ${fmtTokens(remain)}`}
           </span>
         </div>
+        {/* 画布视图入口（icon-only：顶栏宽度账见上面那段量法注释，28px 的图标钮
+            加 gap 正好落在剩余 59px 里）。简约模式恒单段，画布没有信息量，不出 */}
+        {!simple && (
+          <button
+            onClick={() => setCanvas(true)}
+            title="画布视图：整条流水线摊开看"
+            className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-slate-700/80 text-[13px]"
+          >
+            🗺
+          </button>
+        )}
         {/* 手动存盘。自动保存只在"炼完一段"那种昂贵节点触发（见上面的 effect），
             纯改文字不会自动存——想留住就点这里。简约模式没有这颗按钮（它不进草稿库） */}
         {!simple && (
@@ -1440,6 +1454,18 @@ export default function FlowPage() {
         <VideoTemplateExtractor
           onClose={() => setTplExtract(false)}
           onDone={(t) => useFlow.getState().applyTemplate(t)}
+        />
+      )}
+
+      {/* 画布视图：全屏覆盖层（Portal 到 body），点「去编辑」跳段并收起。
+          setCursor 走 store（clampCursor 在里面夹，锁着的段 onJump 也到不了） */}
+      {canvas && (
+        <FlowCanvas
+          onClose={() => setCanvas(false)}
+          onJump={(i) => {
+            setCursor(i);
+            setCanvas(false);
+          }}
         />
       )}
     </div>
