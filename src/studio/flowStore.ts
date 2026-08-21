@@ -208,6 +208,21 @@ export function nodeDone(node: FlowNode): boolean {
   return !!node.videoByProposal[node.chosenId];
 }
 
+/**
+ * 这一段**能不能播**（≠ 出没出片）。
+ * ★★ 与 nodeDone 是两个问题：mock 构建（没配 ARK_API_KEY）下 Seedance 不返回地址，
+ *   两边一致写 `"mock:"` 占位串 —— 那种段 `nodeDone` 为真、地址却是假的，
+ *   直接塞给 <video> 就是一块黑（CLAUDE.md「一段视频只有一份」那条）。
+ * ★ **唯一实现**（2026-08-21 收口）：画布与线性视图都调它。收之前两个面各写了一份
+ *   `!startsWith("mock:")`，而画布那份的注释还写着"判据只有这一处" —— 正是本仓
+ *   反复记的那种"抄一份必然分叉、而分叉了不报错"的形状。
+ *   （studioStore 的 `realVideoOf` 收的是 `Proposal`，形状不同，是另一条路。）
+ */
+export function realVideoOfNode(node: FlowNode): string | undefined {
+  const v = nodeVideo(node);
+  return v && !v.startsWith("mock:") ? v : undefined;
+}
+
 /** 方案台状态（带老草稿兜底）：多方案却没有 plan 字段的节点是旧版数据，那时的方案都是
  *  选定过的，按 "picked" 算——否则打开旧草稿会要求每段重挑一遍。 */
 export function planOf(node: FlowNode): "picking" | "picked" | null {

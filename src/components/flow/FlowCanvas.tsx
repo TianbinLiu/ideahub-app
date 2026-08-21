@@ -24,8 +24,8 @@ import {
   clampCursor,
   nodeCost,
   nodeDone,
-  nodeVideo,
   planOf,
+  realVideoOfNode,
   redrawCost,
   tplOfNode,
   useFlow,
@@ -355,7 +355,7 @@ export default function FlowCanvas({
                       那种段 nodeDone 为真却播不了（CLAUDE.md「一段视频只有一份」那条）。
                       ★ 摆在卡外面一层 relative 里而不是卡里面：卡本身是 button，
                       按钮不能套按钮。 */}
-                  {realVidOf(n) && (
+                  {realVideoOfNode(n) && (
                     <button
                       onClick={() => !moved.current && setPlaying(n.id)}
                       title="看这一段成片"
@@ -541,7 +541,7 @@ function NodePanel({
         </button>
       </div>
 
-      {realVidOf(node) && (
+      {realVideoOfNode(node) && (
         <button
           onClick={onPlay}
           className="flex w-full items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-2 text-left text-xs text-emerald-100"
@@ -937,13 +937,6 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
   );
 }
 
-/** 这一段**能不能播**（≠ 出没出片）：mock 构建两边一致写 "mock:" 占位串，
- *  那种段 nodeDone 为真、地址却是假的。判据只有这一处（CLAUDE.md 的 realVideoOf 同义）。 */
-function realVidOf(n: FlowNode): string | undefined {
-  const v = nodeVideo(n);
-  return v && !v.startsWith("mock:") ? v : undefined;
-}
-
 /**
  * 回看某一段成片的播放层。
  * ★ 认 node.id 不认下标（删段会让下标前移，PlanSheet 那条 ★★ 同款）；那一段没了就自关。
@@ -957,7 +950,7 @@ function SegPlayer({ nodeId, onClose }: { nodeId: string; onClose: () => void })
   const nodes = useFlow((s) => s.nodes);
   const idx = nodes.findIndex((n) => n.id === nodeId);
   const node = idx >= 0 ? nodes[idx] : undefined;
-  const url = node ? realVidOf(node) : undefined;
+  const url = node ? realVideoOfNode(node) : undefined;
   const src = useMediaUrl(url);
   /** 拉不动（跨境慢、链接过期、离线）。★★ 必须有：地址在这条路上是**同步原样返回**的
    *  （不传 forCapture 时 mediaUrl 对 http(s) 直接放行），所以"取不到"根本不会表现为

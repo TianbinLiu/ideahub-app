@@ -40,7 +40,7 @@ import {
   nodeCost,
   nodeDone,
   nodeRefOn,
-  nodeVideo,
+  realVideoOfNode,
   planOf,
   redrawCost,
   requirementOf,
@@ -275,9 +275,9 @@ function NodeScreen({
   const prevProp = useFlow((s) => (index > 0 ? chosenOf(s.nodes[index - 1]) : null));
   const simple = mode === "simple";
   const prop = chosenOf(node);
-  const video = nodeVideo(node);
   const done = nodeDone(node);
-  const realVideo = video && !video.startsWith("mock:") ? video : undefined;
+  // ★ 「能不能播」只问 store 那一处（realVideoOfNode）：画布那份也调它
+  const realVideo = realVideoOfNode(node);
   const vsrc = useMediaUrl(realVideo, { forCapture: true });
   const vref = useRef<HTMLVideoElement>(null);
   const [annOpen, setAnnOpen] = useState<{ frame: string; atSec: number } | null>(null);

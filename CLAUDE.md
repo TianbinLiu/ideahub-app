@@ -35,7 +35,9 @@ npm run dev                    # http://localhost:5173
 src/
   ai/          方舟（Seedream 生图 / Seedance 生视频 / 豆包对话）客户端与真假实现切换
   api/         与 server 的 HTTP 调用
-  components/  通用组件
+  components/  通用组件；`flow/` = 工作流画布：`FlowCanvas.tsx`（画布壳 + 就地编辑窗 +
+               agent 输入条 + 四个 portal 弹层：方案台/成片回看/选卡/选模板）、
+               `DeleteSegBtn.tsx`（删段确认，与线性视图共用）
   data/        本地库（IndexedDB）与账号库，含种子数据与迁移
   hooks/
   mock/        无后端时的假数据
@@ -78,6 +80,19 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   底部节点条三条路共用）加 `addNode` 的追加门槛，工坊是 `studioStore.placeholderVisible`
   （虚线卡位亮不亮）加 `composable`（法阵亮不亮）。UI 上的 disabled/锁图标只是把"为什么
   点不动"画出来，别在那里另写一遍判断。
+- **画布与线性视图是同一条流水线的两个面**（`components/flow/FlowCanvas.tsx` ↔ `pages/FlowPage.tsx`；
+  用哪个面记在 localStorage 的 `flowCanvasOpen` —— 那是长期偏好，不是一次会话）。两个面都不
+  自己判规则，各条**唯一实现**在哪：顺序门禁 `flowStore.clampCursor`、报价 `nodeCost` /
+  `proposalsCost` / `redrawCost`（与真扣钱同一个函数）、「能不能播」`flowStore.realVideoOfNode`
+  （2026-08-21 收口，收之前两面各写了一份 `!startsWith("mock:")`）、删段确认 `DeleteSegBtn`。
+  组稿（`toCut`）、存草稿（`saveNow`）、挂卡入口（`castEditorState`）三样的实现**只在 FlowPage**，
+  画布靠 prop 借——组稿要回写真帧、提炼卡组、清流水线、跳剪辑页，抄一份必然与那边分叉。
+- **「对画布说话」（`studio/canvasAgent.ts`）把模型输出当不可信输入**：模型只能发白名单里的 op。
+  要用户点头的三件一律**只摆确认卡、点了才跑** —— 推演、出片（真花钱），以及挂卡合成
+  （**免费**，但会整表覆盖角色映射并重写你改过的点名句）。所以确认卡上那行 `costLabel`
+  有两种含义：价钱**或**后果（cast 那张 `cost` 恒为 0）。**钱上的闸必须写在白名单这一层，
+  不能指望提示词**——实测模型会嘴上说"已经给你加一段啦"而门禁其实拒了，回执里那排 ✓/✗
+  芯片就是为治这个而存在的（说的是 store 的真相，不是模型的话）。
 - **互动计数一律要能防刷**。首页是上下甩着刷的，"进入视口就 +1""重挂载就重来"这类写法
   等于给用户做了个刷量按钮。已经收口的两条：**播放**要真看够 `PLAY_MIN_SEC`（3 秒，
   按 `currentTime` 增量累计，不是墙上时钟）且一次会话只记一次（`videos.addPlay` 里去重，
@@ -143,6 +158,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 改了画幅却发现出片还是横的 | 竖屏设定帧被裁成横的，或视频照样 16:9 | 画幅要**三处同时改**才生效，缺一处就被方舟静默裁掉：Seedance 的 `ratio` 参数、Seedream 的画布尺寸（竖屏 `1440x2560`，比例不符会被裁）、提示词里的构图措辞（尺寸参数管不到构图）。三者收在 `types.VIDEO_ASPECTS` 一处，别在调用点各写各的。另：720p 竖屏方舟实际吐 **704×1248**（对齐到 16 的倍数），不是 720×1280 |
 | 动了首页底缘任何一个元素的位置 | 别的元素被**悄悄盖住**：右侧栏的全屏键压住时长文字、底栏的看板娘压住进度条 —— 两件都真发生过，而且都不报错，只是信息看不见了 | 底缘 100px 里叠着四样东西，位置是联动的：进度条容器 `bottom = var(--tabbar-h) - 0.375rem`（离底 50px）→ 时长文字顶沿在 86px → 右侧栏 `bottom = var(--tabbar-h) + 3rem`（104px）。底栏自己 56px 高，任何挂件都不许往上戳。改一个就把这几个数一起重算，别只看自己那一块 |
 | 右侧操作栏加了新按钮 | 小屏（640 高）上最上面的头像被 section 的 `overflow-hidden` **裁掉** | 整栏是 bottom 定位的 flex-col，加一个键就往上长 64px。现值 512px + 底 104px = 616px，640 屏还剩 24px。再加键就得先减间距（`RailBtn` 的 `mt-8` 只给有角色演出的键，基准 gap-2） |
+| 弹层/确认卡按「第几段」记 | 用户删掉前面一段，下标**整体前移** —— 之后的操作静默落到**另一段**上：换走向、清掉圈选、把已出片的段退回未出片并连锁上锁，最狠的是 `genNode` 打在用户没点头的那一段：扣真钱、覆盖它已经花过钱的成片，回执还写着「第 3 段开始生成了」，全程零报错 | 一律**认 `node.id` 不认下标**（`AgentProposal.nodeId` / `PlanSheet` / `SegPlayer` 三处都是这么修的）；执行前 `node.id !== p.nodeId` 就整句拒。面板类组件加 `key={node.id}`，顺带清掉跨段残留的本地开关 |
+| 确认卡上的价钱在卡摆着的时候不会变 | 卡不关，用户去方案台把时长 5s 点成 10s（那正是计价输入）→ 回来点「执行」：标价 507.6k、实扣 1.0M，屏幕上那个数从头到尾没动过 | `executeAgentProposal` 真跑之前用**同一把尺**重算（`nodeCost` / `proposalsCost`），对不上就整句拒并请用户重说一句。所以 `AgentProposal.cost` 存的是**数值**，不只是那句字符串 |
+| z-50 的弹层盖住 z-40 画布壳上那条错误条 | store 的整句拒绝（换模板被拒、挂卡被拒）正好落在被盖住的那条上 = 用户眼里的「点了没反应」 | 盖住谁就**自带一份**：`PlanSheet` 与 `TemplatePicker` 各画一份 `useFlow(s => s.err)`；能提前判死的干脆 disable 并在旁边写清为什么点不动 |
+| store 的 action 撞上全局 `busy` 时静默 `return false` | 上层拿不到原因：画布的确认卡把**没点着的火**报成绿勾 ✓ 并跳窗过去，用户以为两段都在炼，实际只有一段在跑、另一段一个 token 都没花 | store 里**任何早退分支**（busy / 已出片 / 越界）都要 `set({ err: 整句人话 })` 再 `return false` —— 静默 false = 上层只能瞎猜（本次给 `genNode` / `deriveProposals` / `regenProposal` 补齐，`setNodeTemplate` / `applyCast` 早就这么写）；调用方判成败一律看 `store.err` 或**真实结果**，探不到就当没点着 |
 | 拿**名字**当身份判「这条是不是我发的」 | 用户改完昵称回首页：右侧头像退回字母底、点进去还是旧名字的主页，重启才好 | `VideoItem.author` 是**显示名**，会变。缓存里那些作品的 author 还是旧值，`isMyAuthor` 就判否了。改名时按 `authorId` 精确改写缓存（`videos.ts` 的 `renameMyVideos`），别按旧名字模糊匹配——会误伤重名的别人 |
 | 界面上摆一个永远点不动的选项 | 「极致」画质在 App 里是灰的，说明写着"安装包不含 4K 贴图" —— 用户只会觉得功能坏了 | 要么让它真能用（现在 4K 随包发布），要么别显示。同理：设置页那个「已用 xx MB」原来只是个用户看不懂也做不了事的数字，现在配了真能清的「清理缓存」 |
 | 出包时忘了涨 `versionCode` | 已经装了的人**永远收不到这次更新** —— 更新检查靠这个整数判新旧，不涨就等于没发 | 每次 `npm run apk:release` 前先改 `android/app/build.gradle`，见 `docs/app-distribution.md` |
