@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { createPortal } from "react-dom";
 import GenTrace from "../GenTrace";
 import Icon from "../Icon";
+import DeleteSegBtn from "./DeleteSegBtn";
 import PlanBoard from "../../studio/ui/PlanBoard";
 import {
   chosenOf,
@@ -73,6 +74,8 @@ export default function FlowCanvas({
   onExit,
   onLinear,
   onCast,
+  draft,
+  finish,
 }: {
   /** ✕ = 退出编辑，回创作入口（与线性视图页头的返回同一目的地）。
    *  ★ 用户点名：叉号不该落回旧的线性编辑页 —— 画布就是工作流的编辑现场。 */
@@ -82,6 +85,11 @@ export default function FlowCanvas({
   onLinear: () => void;
   /** 打开挂卡编辑页（castEditorState 只有 FlowPage 一处实现，经 prop 进来避免页面互引） */
   onCast: (tpl: NonNullable<FlowTemplate>, value: Record<string, string>) => void;
+  /** 存草稿：实现在 FlowPage.saveNow（写盘 + 失败要说话），这里只借按钮与状态 */
+  draft: { state: "idle" | "saving" | "saved" | "failed"; onSave: () => void };
+  /** 完成视频（组稿→剪辑页）：实现在 FlowPage.toCut。note 是组稿那一笔的整句报价，
+   *  与线性视图**同一句**（在 FlowPage 拼一次） */
+  finish: { allDone: boolean; finalizing: string; note: string; onRun: () => void };
 }) {
   const nodes = useFlow((s) => s.nodes);
   const cursor = useFlow((s) => s.cursor);
@@ -149,8 +157,18 @@ export default function FlowCanvas({
     }));
   }
 
+  const addNode = useFlow((s) => s.addNode);
   const reachable = useMemo(() => nodes.map((_, i) => clampCursor(nodes, i) === i), [nodes]);
   const selNode: FlowNode | undefined = sel === null ? undefined : nodes[sel];
+
+  /**
+   * 把某一格挪进视野。**加段与 agent 聚焦都必须调它**：新加的那一段在画布右边几百像素外，
+   * 不平移的话点了「加一段」屏幕上什么都不动 —— 与"按钮坏了"完全一样（铁律八）。
+   * ★ 只改 translate（合成层），不动 scale：用户自己捏的缩放是他的视角，别替他改。
+   */
+  function panTo(i: number) {
+    setView((v) => ({ ...v, tx: 40 - i * (CARD_W + GAP_X) * v.scale }));
+  }
 
   /** 点格子：开/收/切编辑窗。选中一段就把 cursor 也带过去（夹到哪算哪）——
    *  线性视图那套"当前段"机制（模板同步、挂卡缓冲）全部照常伺候编辑窗 */
@@ -172,6 +190,18 @@ export default function FlowCanvas({
         </button>
         <span className="flex-none text-sm font-bold text-slate-100">流水线画布</span>
         <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">点格子开编辑窗</span>
+        {/* 存草稿：文案随状态换（失败必须看得见 —— 静默"保存成功"会让用户放心关掉页面）。
+            ★ 图标钮而不是文字钮：顶栏这一行还得放 ✕/标题/≡线性/转屏，量过放不下第五件文字钮 */}
+        <button
+          onClick={draft.onSave}
+          disabled={draft.state === "saving"}
+          title="存草稿"
+          className={`flex h-8 w-8 flex-none items-center justify-center rounded-full text-[13px] disabled:opacity-50 ${
+            draft.state === "failed" ? "bg-rose-500/20 text-rose-300" : draft.state === "saved" ? "bg-emerald-500/20 text-emerald-300" : "bg-panel text-slate-200"
+          }`}
+        >
+          {draft.state === "saving" ? "…" : draft.state === "saved" ? "✓" : draft.state === "failed" ? "!" : "💾"}
+        </button>
         {/* 线性视图入口：✕ 改成退出编辑之后，方案台/组稿/存草稿的路从这颗走 */}
         <button onClick={onLinear} className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200">
           ≡ 线性
@@ -184,6 +214,19 @@ export default function FlowCanvas({
           {wantLand ? "↩ 回竖屏" : "⟳ 转横屏"}
         </button>
       </div>
+
+      {/* ★★ 报错条摆在**画布壳这一层**：store.err 原来只在编辑窗里画（isCursor && err），
+          而"加一段"被顺序门禁拒、"存草稿"写盘失败这些都可能发生在编辑窗关着的时候 ——
+          那时整句拒绝一个字都不显示，用户看到的就是"点了没反应"（铁律八）。
+          编辑窗里那份已经撤掉，只留这一处（方案台弹层自带一份，因为它盖住了这里）。 */}
+      {err && (
+        <div className="mx-3 mb-1 flex flex-none items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5">
+          <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-rose-200">{err}</p>
+          <button onClick={() => useFlow.setState({ err: "" })} className="flex-none text-rose-300">
+            <Icon name="close" size={12} />
+          </button>
+        </div>
+      )}
 
       {/* 画布 + 编辑窗：竖屏上下、横屏左右（跟实际朝向走） */}
       <div className={`flex min-h-0 flex-1 ${isLand ? "flex-row" : "flex-col"}`}>
@@ -295,6 +338,52 @@ export default function FlowCanvas({
               );
             })}
 
+            {/* 流水线的**终点**就画在流水线末尾：加一段 + 完成视频。
+                ★ 摆在这里而不是顶栏：顶栏那一行已经放不下第六件（量法见 FlowPage 顶栏那段
+                  注释的同类账），而"下一段接在这儿""合成在这儿之后"本来就是空间关系。
+                ★ 「加一段」的门禁只在 store 的 addNode 里（白模模板不许续、上一段没出片
+                  不许加）—— 这里**不重判**，点了被拒就由上面那条错误条说话。 */}
+            {nodes.length > 0 && (
+              <div
+                className="absolute flex flex-col gap-2"
+                style={{ transform: `translate(${nodes.length * (CARD_W + GAP_X)}px, ${TOP_Y}px)`, width: CARD_W }}
+              >
+                <button
+                  onClick={() => {
+                    if (moved.current) return;
+                    const before = useFlow.getState().nodes.length;
+                    addNode();
+                    const after = useFlow.getState().nodes.length;
+                    if (after > before) {
+                      setSel(after - 1);
+                      panTo(after - 1); // 不挪的话新段在屏幕外，等于"点了没反应"
+                    }
+                  }}
+                  className="flex items-center justify-center rounded-xl border-2 border-dashed border-slate-600 text-sm text-slate-400"
+                  style={{ height: CARD_H }}
+                >
+                  ＋ 加一段
+                </button>
+                {finish.allDone ? (
+                  <button
+                    onClick={() => !moved.current && finish.onRun()}
+                    disabled={busy || !!finish.finalizing}
+                    className="rounded-xl bg-brand px-3 py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+                  >
+                    {finish.finalizing || "🎬 完成视频 ›"}
+                  </button>
+                ) : (
+                  /* 没全出片时**不摆一颗灰按钮**（本仓明令禁止永远点不动的选项），
+                     只如实说还差几段 —— 这是状态不是入口 */
+                  <div className="rounded-xl border border-slate-700 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
+                    每段都出片之后在这里合成整片（还差 {nodes.filter((n) => !nodeDone(n)).length} 段）
+                  </div>
+                )}
+                {finish.allDone && finish.note && (
+                  <p className="max-w-[216px] text-[10px] leading-relaxed text-slate-500">{finish.note}</p>
+                )}
+              </div>
+            )}
             {nodes.length === 0 && (
               <div className="absolute left-6 top-24 text-sm text-slate-500">这条流水线还没有段——对下面的输入条说「加一段」</div>
             )}
@@ -306,6 +395,7 @@ export default function FlowCanvas({
             onFocus={(i) => {
               setSel(i);
               setCursor(i);
+              panTo(i); // 那一格可能在屏幕外：只开窗不挪，用户看不出它说的是哪一段
             }}
           />
         </div>
@@ -327,10 +417,8 @@ export default function FlowCanvas({
               index={sel}
               node={selNode}
               locked={!reachable[sel]}
-              isCursor={sel === cursor}
               cast={cast}
               busy={busy}
-              err={err}
               onCast={onCast}
               onClose={() => setSel(null)}
             />
@@ -353,24 +441,20 @@ function NodePanel({
   index,
   node,
   locked,
-  isCursor,
   cast,
   busy,
-  err,
   onCast,
   onClose,
 }: {
   index: number;
   node: FlowNode;
   locked: boolean;
-  isCursor: boolean;
   cast: Record<string, string>;
   busy: boolean;
-  err: string;
   onCast: (tpl: NonNullable<FlowTemplate>, value: Record<string, string>) => void;
   onClose: () => void;
 }) {
-  const { updateProposal, setRequirement, genNode, setNodeTemplate, deriveProposals, removeMaterial } = useFlow();
+  const { updateProposal, setRequirement, genNode, setNodeTemplate, deriveProposals, removeMaterial, removeNode } = useFlow();
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   const tpl = tplOfNode(node);
@@ -416,7 +500,7 @@ function NodePanel({
       <div className="flex gap-1 self-start rounded-full bg-panel p-0.5">
         <button
           onClick={() => !tplMode && setPicker(true)}
-          disabled={locked || generating}
+          disabled={locked || generating || busy || done}
           className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
             tplMode ? "bg-brand font-bold text-ink" : "text-slate-400"
           }`}
@@ -425,7 +509,7 @@ function NodePanel({
         </button>
         <button
           onClick={() => tplMode && setStripAsk(true)}
-          disabled={locked || generating}
+          disabled={locked || generating || busy || done}
           className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
             !tplMode ? "bg-brand font-bold text-ink" : "text-slate-400"
           }`}
@@ -433,6 +517,13 @@ function NodePanel({
           🃏 自选卡片
         </button>
       </div>
+      {/* ★ 已出片的段：换模板/换模式会作废这段成片，store 本来就整句拒 —— 与其让用户
+          点开弹层再被拒（而那句话正好被弹层盖住），不如在这里就说清为什么点不动 */}
+      {done && !locked && (
+        <p className="text-[10px] leading-relaxed text-slate-500">
+          这一段已经出片，换模板/换模式会作废这段成片。想换就先删除本段再加一段。
+        </p>
+      )}
       {stripAsk && (
         <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
           <p className="text-[11px] leading-relaxed text-amber-200">
@@ -462,7 +553,7 @@ function NodePanel({
             <span className="min-w-0 flex-1 truncate text-xs text-slate-100">{tpl!.title}</span>
             <button
               onClick={() => setPicker(true)}
-              disabled={locked || generating}
+              disabled={locked || generating || busy || done}
               className="flex-none rounded-full bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-100 disabled:opacity-40"
             >
               换模板
@@ -577,7 +668,6 @@ function NodePanel({
           <GenTrace steps={node.steps ?? []} running={generating} />
         </div>
       )}
-      {isCursor && err && <p className="text-[11px] leading-relaxed text-rose-300">{err}</p>}
 
       {/* 行动区。报价与扣费同一把尺（nodeCost/genNode、proposalsCost/deriveProposals） */}
       {tplMode && !locked && (
@@ -639,6 +729,28 @@ function NodePanel({
             {generating ? node.progress || "推演中…" : `🎲 推演三套方案（${AI_REAL ? fmtTokens(propCost) : "演示"}）`}
           </button>
         )
+      )}
+
+      {/* 删除本段。★ 门禁在 store 的 removeNode（只剩一段时不许删）—— 这里只把
+          "为什么点不动"画出来（disabled + 说明），不另写判断。
+          ★ 「已出片要点两下」这条规则在 DeleteSegBtn 一处（线性视图用的是同一个组件）。 */}
+      {!locked && (
+        <div className="flex items-center gap-2">
+          <DeleteSegBtn
+            done={done}
+            disabled={busy || generating || nodes.length <= 1}
+            onConfirm={() => {
+              removeNode(node.id);
+              // ★★ 删完必须关窗：sel 是**下标**，删掉这一段之后 nodes[sel] 变成原来的后一段，
+              //   而标题「第 N 段」一个字都不变 —— 用户以为没删掉，再点一次就连删两段；
+              //   store 级的 cast 缓冲也还是被删那一段的（onCast 会把死人的挂法带进新段）。
+              //   关掉之后 cursor 由 removeNode 的 clampCursor 夹好，再点格子走 tapNode 补齐同步。
+              onClose();
+            }}
+            className="rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300 disabled:opacity-40"
+          />
+          {nodes.length <= 1 && <span className="text-[10px] text-slate-500">只剩一段了，删不掉</span>}
+        </div>
       )}
 
       {planSheet && <PlanSheet nodeId={planSheet} onClose={() => setPlanSheet(null)} />}
@@ -965,6 +1077,9 @@ function TemplatePicker({
   onClose: () => void;
 }) {
   useSyncExternalStore(subscribeTemplates, templatesVersion, () => 0); // 市场懒加载到货后重渲
+  // ★ 与 PlanSheet 同一条理由：这一层 z-50 盖住了画布壳那条错误条，store 的整句拒绝
+  //   （换模板被拒之类）不在这儿画一份就是"点了没反应"（铁律八）
+  const err = useFlow((s) => s.err);
   const list = useMemo(() => {
     const seen = new Set<string>();
     return [...myTemplates(), ...browseTemplates("")]
@@ -984,6 +1099,7 @@ function TemplatePicker({
             <Icon name="close" size={13} />
           </button>
         </div>
+        {err && <p className="mb-1.5 flex-none text-[11px] leading-relaxed text-rose-300">{err}</p>}
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
           <button
             onClick={() => onPick(null)}

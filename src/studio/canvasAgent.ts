@@ -25,8 +25,18 @@ import { chosenOf, clampCursor, nodeCost, nodeDone, planOf, tplOfNode, useFlow, 
  */
 export interface AgentProposal {
   kind: "cast" | "derive" | "generate";
-  /** 1 起。执行时按下标现取节点（提案挂着期间流水线可能被改，取不到就整句拒绝） */
+  /** 1 起。**只用来说人话**（"第 N 段"）；真正认哪一段看 nodeId */
   seg: number;
+  /**
+   * 摆这张卡时那一段的 node.id。
+   * ★★ 认 id 不认下标（2026-08-21 对抗评审确认的 high）：卡摆着的时候用户可以在画布里
+   *   删掉前面的段，下标会**整体前移** —— 那时按 `nodes[seg-1]` 取到的是**另一段**。
+   *   三道闸一条都拦不住：越界检查过得去、status 无关、连价签复核也过得去
+   *   （addNode 把 durationSec/videoTier/aspect 整套从上一段抄下来，兄弟段的价常常
+   *   逐 token 相等）。后果是 genNode 打在用户没点头的那一段上：扣真钱、覆盖它已经
+   *   花过钱的成片，回执还写着"第 3 段开始生成了"，全程零报错。
+   */
+  nodeId: string;
   /** cast 专用：本次**新增/改动**的映射（label → cardId）。执行时与该段现挂的合并 */
   map?: Record<string, string>;
   /** 确认卡正文 */
@@ -394,6 +404,7 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
           display: `第 ${o.seg} 段挂角色卡：${shown.join("；")}${Object.keys(node.cast ?? {}).length ? "（该段其余已挂的位子保持不变）" : ""}`,
           costLabel: "免费 · 会重新合成点名句（覆盖你改过的字）",
           cost: 0,
+          nodeId: node.id,
         });
         break;
       }
@@ -422,6 +433,7 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
           display: `第 ${o.seg} 段按要求推演三套方案${planOf(node) ? "（会替换现有那三套）" : ""}`,
           costLabel: AI_REAL ? fmtTokens(proposalsCost(carried)) : "演示",
           cost: proposalsCost(carried),
+          nodeId: node.id,
         });
         break;
       }
@@ -451,6 +463,7 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
           display: nodeDone(node) ? `第 ${o.seg} 段重新生成视频（旧成片作废）` : `第 ${o.seg} 段生成视频`,
           costLabel: AI_REAL ? fmtTokens(cost) : "演示",
           cost,
+          nodeId: node.id,
         });
         break;
       }
@@ -537,6 +550,11 @@ export async function executeAgentProposal(p: AgentProposal): Promise<{ ok: bool
     return { ok, note };
   };
   if (!node) return fin(false, `第 ${p.seg} 段已经不存在了（流水线被改过）`);
+  // ★★ 下标可能已经指向**另一段**（摆卡之后用户删过段，后面的段整体前移）：
+  //   认 id 是唯一可靠的判据，见 AgentProposal.nodeId 的 ★★
+  if (node.id !== p.nodeId) {
+    return fin(false, `这张卡说的那一段已经不在第 ${p.seg} 位了（流水线被改过）——重说一句，我按现在的样子再摆一张`);
+  }
 
   if (p.kind === "cast") {
     // applyCast 作用于**光标段**（分段组各挂各的）：先把光标真挪过去，被夹住 = 还锁着

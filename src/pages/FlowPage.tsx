@@ -15,6 +15,7 @@
 //   简约模式 → seedSolo("simple")，单节点单走向、不推演方案、**不存草稿**，UI 收到最简
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
+import DeleteSegBtn from "../components/flow/DeleteSegBtn";
 import FlowCanvas from "../components/flow/FlowCanvas";
 import ForgeOverlay, { type ForgePhase } from "../components/ForgeOverlay";
 import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
@@ -1090,6 +1091,27 @@ export default function FlowPage() {
 
   if (nodes.length === 0 || !node) return null;
 
+  /**
+   * 组稿那一笔的整句报价。**只拼一处**：线性视图印它，画布上那颗「完成视频」也印它
+   * （抄一份的话，哪天上限或措辞改了就只改一边，而两处说的是同一笔钱）。
+   * ★ 整句在 JS 里拼好再交给 JSX：分成几段写的话，JSX 会把每行之间的换行折成一个空格，
+   *   于是条件那一支不成立时就变成「…token 。都按实际…」——中文标点前多一个空格，
+   *   看着像是文案坏了。
+   * ⚠ 措辞三处都不许含糊：**最多**（张数是上限，按实际出卡结算）、**约**（单价还没与
+   *   火山账单对过，见 economy 的 ⚠）、以及余额不足会自动跳过（那是 finalizeFromFlow
+   *   真实的行为，不写的话用户会以为钱不够就完不成片）。
+   */
+  const deckNote =
+    deck.on && AI_REAL
+      ? [
+          `点「完成视频」还会提炼本片卡组：最多 ${deck.maxCards} 张卡，约 ${fmtTokens(deck.cards)} token`,
+          deck.wants3d
+            ? `；这条片写了 3D / 建模一类的画风，还会给派生的角色卡铸最多 ${deck.max3d} 个 3D 建模，另约 ${fmtTokens(deck.model3d)} token`
+            : "",
+          "。都按实际出卡结算，余额不够会自动跳过（成片不受影响）。",
+        ].join("")
+      : "";
+
   /** 存盘。失败要说出来：配额满/隐私模式下 IndexedDB 写不进去，
    *  静默"保存成功"会让用户放心地关掉页面，然后什么都没了（铁律八） */
   async function saveNow() {
@@ -1320,16 +1342,7 @@ export default function FlowPage() {
           （那是 finalizeFromFlow 真实的行为，不写的话用户会以为钱不够就完不成片）。 */}
       {deck.on && AI_REAL && allDone && !planFocus && (
         <div className="mx-4 mb-1.5 flex-none rounded-xl border border-slate-700/70 bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
-          {/* ★ 整句在 JS 里拼好再交给 JSX：分成几段写的话，JSX 会把每行之间的换行折成
-              一个空格，于是条件那一支不成立时就变成「…token 。都按实际…」——
-              中文标点前多一个空格，看着像是文案坏了 */}
-          {[
-            `点「完成视频」还会提炼本片卡组：最多 ${deck.maxCards} 张卡，约 ${fmtTokens(deck.cards)} token`,
-            deck.wants3d
-              ? `；这条片写了 3D / 建模一类的画风，还会给派生的角色卡铸最多 ${deck.max3d} 个 3D 建模，另约 ${fmtTokens(deck.model3d)} token`
-              : "",
-            "。都按实际出卡结算，余额不够会自动跳过（成片不受影响）。",
-          ].join("")}
+          {deckNote}
         </div>
       )}
 
@@ -1434,13 +1447,15 @@ export default function FlowPage() {
                 </button>
               </div>
               <div className="mt-1.5 flex items-center gap-1.5 text-[10px]">
-                <button
-                  onClick={() => removeNode(node.id)}
+                {/* ★ 与画布用**同一个**组件：删的门禁在 store，而「已出片要点两下」这条
+                    规则在 DeleteSegBtn 一处。此前这颗是一点就删，而画布那颗要点两下 ——
+                    同一段成片两套规矩，且没确认的恰是默认视图（对抗评审确认） */}
+                <DeleteSegBtn
+                  done={nodeDone(node)}
                   disabled={busy || nodes.length <= 1}
+                  onConfirm={() => removeNode(node.id)}
                   className="rounded bg-rose-500/15 px-2 py-1 text-rose-300 disabled:opacity-30"
-                >
-                  🗑 删除本段
-                </button>
+                />
                 <span className="min-w-0 flex-1 truncate text-right text-slate-500">
                   总时长 {formatDuration(nodes.reduce((s, n) => s + chosenOf(n).durationSec, 0))}
                   {AI_REAL && wallet && ` · 余额 ${fmtTokens(wallet.plan + wallet.addon)}`}
@@ -1489,6 +1504,11 @@ export default function FlowPage() {
             const st = castEditorState(t, value);
             if (st) navigate("/video-editor", { state: st });
           }}
+          /* ★ 存草稿与组稿的实现**只有本页一处**（saveNow / toCut）：组稿要回写真帧、
+             提炼卡组、清空流水线、跳剪辑页，在画布里另写一份必然与这边分叉（铁律六）。
+             画布只借按钮与状态，与 onCast 同一个套路。 */
+          draft={{ state: saveState, onSave: () => void saveNow() }}
+          finish={{ allDone, finalizing, note: deckNote, onRun: () => void toCut() }}
         />
       )}
     </div>
