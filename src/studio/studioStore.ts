@@ -7,7 +7,7 @@ import type { PlayerAvatar } from "./quality";
 import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, tierBlockReason, walletOf, type AddCardsResult } from "../data/account";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, styleWants3d, tierOf } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
-import { FlowMode, FlowNode, FlowTemplate, chosenOf, flowDirty, nodeVideo, useFlow } from "./flowStore";
+import { FlowMode, FlowNode, FlowTemplate, chosenOf, flowDirty, nodeVideo, tplOfNode, useFlow } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, saveDraft } from "../data/drafts";
@@ -1811,7 +1811,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // 分段模板组：原片地址给剪辑页当音轨预置（用户点名要的"成片保留原视频音频"）。
       // ★ 必须在这里搭草稿的车 —— 「完成视频」会把 flow store 清掉，剪辑页挂载时
       //   nodes 已经空了（2026-08-20 dev 实测：读 flow 那版预置永远落空）
-      draftAudioHint: nodes.find((n) => n.tpl?.group?.sourceUrl)?.tpl?.group?.sourceUrl ?? null,
+      // ★ 走 tplOfNode，别直接摸 `.tpl`（2026-08-21 第三轮验证）：三态里 `undefined` 要退回
+      //   store 级那份，而从模板详情页套用**分段组里的某一段**走的正是那条（applyTemplate
+      //   铺单节点、tpl 不写）。漏读的后果是剪辑页静默丢掉原片音轨预置 —— 用户点名要的
+      //   "成片保留原视频音频"没了，而全程零报错。
+      draftAudioHint: nodes.map((n) => tplOfNode(n)?.group?.sourceUrl).find(Boolean) ?? null,
       draft: {
         title: "",
         category: "剧情",

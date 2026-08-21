@@ -142,7 +142,21 @@ export default function FlowCanvas({
    */
   const stageRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  /** 手势面板本身。★ 缩放锚点要用**容器坐标**，见 localPoint 的 ★★ */
+  const surfaceRef = useRef<HTMLDivElement>(null);
   const liveView = useRef(view);
+  /**
+   * 视口坐标 → 画布容器坐标 —— 唯一实现，捏合与滚轮都用它。
+   * ★★ `tx/ty` 是相对这个容器量的，而指针事件给的 `clientX/clientY` 是**视口**坐标：
+   *   容器上方还压着顶栏（约 48px）、横屏时左边还可能有编辑窗。直接拿 client 当锚点，
+   *   误差 = 偏移量 ×(1 − k/scale) —— 滚轮一格约 6px，捏合放到 2 倍约 48px，
+   *   真机上表现为"两指往外撑时画面相对手指往上溜半指宽"。
+   *   （这条是既有毛病，2026-08-21 第三轮验证顺出来的，一次改两处。）
+   */
+  function localPoint(cx: number, cy: number) {
+    const r = surfaceRef.current?.getBoundingClientRect();
+    return r ? { x: cx - r.left, y: cy - r.top } : { x: cx, y: cy };
+  }
   function paintView(v: { tx: number; ty: number; scale: number }) {
     const st = stageRef.current;
     if (st) st.style.transform = `translate(${v.tx}px, ${v.ty}px) scale(${v.scale})`;
@@ -173,6 +187,10 @@ export default function FlowCanvas({
     const g = gesture.current;
     const pts = [...pointers.current.values()];
     if (pts.length === 1) {
+      // ★ 这一支用的是**差值**，视口/容器坐标系在相减时相消，不必换算（别"顺手统一"成
+      //   localPoint —— 那会与 reanchor 存的 cx/cy 不同源，反而错一个顶栏的高度）。
+      //   ⚠ 所以单指分支的 cx/cy 存的是**视口**坐标、捏合分支存的是**容器**坐标：
+      //   两支各自自洽，reanchor 也按同样的规则分两支存。
       const dx = pts[0].x - g.cx;
       const dy = pts[0].y - g.cy;
       if (Math.abs(dx) + Math.abs(dy) > 6) moved.current = true;
@@ -180,8 +198,9 @@ export default function FlowCanvas({
       paintView(liveView.current);
     } else if (pts.length >= 2) {
       moved.current = true;
-      const cx = (pts[0].x + pts[1].x) / 2;
-      const cy = (pts[0].y + pts[1].y) / 2;
+      const mid = localPoint((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
+      const cx = mid.x;
+      const cy = mid.y;
       const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
       const k = Math.min(2, Math.max(0.4, g.scale * (g.dist > 0 ? dist / g.dist : 1)));
       liveView.current = { tx: cx - ((g.cx - g.tx) / g.scale) * k, ty: cy - ((g.cy - g.ty) / g.scale) * k, scale: k };
@@ -203,11 +222,14 @@ export default function FlowCanvas({
       gesture.current = { ...base, cx: pts[0].x, cy: pts[0].y, dist: 0 };
       return;
     }
-    // 两指及以上：与 pointermove 那支取同样的两根（pts[0]/pts[1]），中点与间距一起重记
+    // 两指及以上：与 pointermove 那支取同样的两根（pts[0]/pts[1]）、**同一坐标系**，
+    // 中点与间距一起重记。★ 中点必须过 localPoint —— 那支算 tx 时用的就是容器坐标，
+    //   两边不同源的话，重锚那一拍画面会平移一个顶栏的高度
+    const mid = localPoint((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
     gesture.current = {
       ...base,
-      cx: (pts[0].x + pts[1].x) / 2,
-      cy: (pts[0].y + pts[1].y) / 2,
+      cx: mid.x,
+      cy: mid.y,
       dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
     };
   }
@@ -226,11 +248,13 @@ export default function FlowCanvas({
   function onWheel(e: React.WheelEvent) {
     const k = Math.min(2, Math.max(0.4, liveView.current.scale * (e.deltaY < 0 ? 1.12 : 0.9)));
     const v = liveView.current;
+    // ★ 锚点换算成容器坐标（见 localPoint 的 ★★）
+    const a = localPoint(e.clientX, e.clientY);
     // ★ 也要写回 liveView 并重锚：触控板上"按住拖 + 滚轮"是常规操作，只 setView 的话
     //   这一下会被手势那条路当场抹掉（与 panTo 同一条病）
     const next = {
-      tx: e.clientX - ((e.clientX - v.tx) / v.scale) * k,
-      ty: e.clientY - ((e.clientY - v.ty) / v.scale) * k,
+      tx: a.x - ((a.x - v.tx) / v.scale) * k,
+      ty: a.y - ((a.y - v.ty) / v.scale) * k,
       scale: k,
     };
     liveView.current = next;
@@ -354,6 +378,7 @@ export default function FlowCanvas({
       {/* 画布 + 编辑窗：竖屏上下、横屏左右（跟实际朝向走） */}
       <div className={`flex min-h-0 flex-1 ${isLand ? "flex-row" : "flex-col"}`}>
         <div
+          ref={surfaceRef}
           className="relative min-h-0 min-w-0 flex-1 touch-none overflow-hidden"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
