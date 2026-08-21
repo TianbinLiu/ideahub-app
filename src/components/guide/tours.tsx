@@ -761,6 +761,80 @@ export const TOURS: GuideTour[] = [
       },
     ],
   },
+  {
+    id: "canvas",
+    title: "流水线画布",
+    version: 1,
+    steps: [
+      {
+        title: "一屏看完整条片",
+        anchor: "canvas-card",
+        body: (
+          <>
+            每一格是<b className="font-bold text-slate-100">一段</b>，从左往右就是这条片的顺序。
+            点一格<b className="font-bold text-slate-100">就地打开这一段的编辑窗</b>，再点一下收起，点别的格子就换过去。
+            画布可以拖着平移、两指捏合缩放。
+          </>
+        ),
+      },
+      {
+        title: "一段有两种做法",
+        anchor: "canvas-modes",
+        body: (
+          <>
+            编辑窗顶部这对按钮切的是<b className="font-bold text-slate-100">这一段</b>怎么做：
+            「套模板」是拿一段白模视频复刻运镜与站位，你只需给里面的人偶挂上自己的角色卡；
+            「自选卡片」是自己挑素材卡、写一句要求，AI 推演几套走向让你挑。
+            两种<b className="font-bold text-slate-100">每段各选各的</b>，同一条片里可以混着来。
+          </>
+        ),
+      },
+      {
+        title: "对画布说话",
+        anchor: "canvas-agent",
+        body: (
+          <>
+            一句话就能改流水线：给哪段套哪个模板、把谁挂到哪个位子、这段拍什么、加一段。
+            <b className="font-bold text-slate-100">会花钱的事它不替你按</b> —— 推演、挂卡合成、出片都只会摆一张
+            带价钱的确认卡，你点了才真跑。办成了什么、被拒了什么，它逐条列给你看。
+          </>
+        ),
+      },
+      {
+        // ★ 这一步**有意不挂锚点**：终端格子在流水线**末段之后**，段一多就在视口外，
+        //   而 off-screen 元素的 rect 仍返回非零宽高 —— 退化成居中卡片那条兜底不会触发，
+        //   圈会画到屏幕外（本文件顶部那条 ⚠ 说的就是它）。所以改成用文字自定位。
+        title: "流水线的终点",
+        body: (
+          <>
+            一直往右拖到<b className="font-bold text-slate-100">末段后面</b>，跟着两格：一格<b className="font-bold text-slate-100">加下一段</b>，
+            一格<b className="font-bold text-slate-100">把各段合成整片</b>（每段都出片了才亮，还差几段它会说）。
+            已经出片的格子右上角有个 ▶，随时能回看那一段。
+          </>
+        ),
+      },
+      {
+        title: "横竖都能用",
+        anchor: "canvas-rotate",
+        body: (
+          <>
+            竖屏时编辑窗从下面升起，横屏时它挪到右边、画布留给左边 —— 段多的时候横过来看更痛快。
+            旁边那颗 💾 随时把这条片存成草稿，回头接着做。
+          </>
+        ),
+      },
+      {
+        title: "老界面还在",
+        anchor: "canvas-linear",
+        body: (
+          <>
+            点它收起画布，回到<b className="font-bold text-slate-100">一屏一段</b>的编辑页 —— 那边有整屏的方案台和圈选改画面。
+            下次进来会记着你上次用的是哪一种。
+          </>
+        ),
+      },
+    ],
+  },
 ];
 
 export function tourById(id: string): GuideTour | null {

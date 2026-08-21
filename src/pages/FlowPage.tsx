@@ -956,15 +956,19 @@ export default function FlowPage() {
   const [tplExtract, setTplExtract] = useState(false);
   /**
    * 画布视图（全屏覆盖层，竖横皆可）：点格子就地开编辑窗，不再跳回线性视图。
-   * 开关落 sessionStorage：画布里点「挂卡」要去 /video-editor 整页编辑器，
-   * 回来必须还在画布上 —— 不落盘的话回程 remount 会把用户扔回线性视图，
-   * 「我明明在画布里编的」这种断裂比多存一个键难受得多。
+   * 开关要落盘的**第一个**理由：画布里点「挂卡」要去 /video-editor 整页编辑器，回来必须
+   * 还在画布上 —— 不落盘的话回程 remount 会把用户扔回线性视图，「我明明在画布里编的」
+   * 这种断裂比多存一个键难受得多。
+   * ★ 用 localStorage 不是 sessionStorage（2026-08-21 改）：「用画布还是用线性」是**长期
+   *   偏好**，不是一次会话的事。手机上退到后台被系统回收、或第二天再打开，sessionStorage
+   *   就没了 —— 用户每次都得重新点那颗 🗺，而他上次已经表过态了。反悔的路一直开着：
+   *   画布顶栏「≡ 线性」当场写回 "0"。
    */
-  const [canvas, setCanvasRaw] = useState(() => sessionStorage.getItem("flowCanvasOpen") === "1");
+  const [canvas, setCanvasRaw] = useState(() => localStorage.getItem("flowCanvasOpen") === "1");
   const setCanvas = (v: boolean) => {
     setCanvasRaw(v);
     try {
-      sessionStorage.setItem("flowCanvasOpen", v ? "1" : "0");
+      localStorage.setItem("flowCanvasOpen", v ? "1" : "0");
     } catch {
       /* 隐私模式塞不进就算了：代价只是回程回线性视图 */
     }

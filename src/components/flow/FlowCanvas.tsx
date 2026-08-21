@@ -15,6 +15,8 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { createPortal } from "react-dom";
 import GenTrace from "../GenTrace";
 import Icon from "../Icon";
+import HelpButton from "../guide/HelpButton";
+import { useAutoGuide } from "../guide/useAutoGuide";
 import DeleteSegBtn from "./DeleteSegBtn";
 import PlanBoard from "../../studio/ui/PlanBoard";
 import {
@@ -100,6 +102,9 @@ export default function FlowCanvas({
   const err = useFlow((s) => s.err);
   const setCursor = useFlow((s) => s.setCursor);
   const [sel, setSel] = useState<number | null>(cursor);
+  // 第一次打开画布强制放一遍引导（看过一次不再自动弹；顶栏那颗 ? 随时能重看）。
+  // ★ 由**这一屏自己**声明（useAutoGuide 的 ★★）：画布是浮层不是路由，按 pathname 派发轮不到它
+  useAutoGuide("canvas");
   /** 正在回看成片的那一段（node.id）。★ 认 id 不认下标：删段会让下标整体前移 */
   const [playing, setPlaying] = useState<string | null>(null);
   const isLand = useIsLandscape();
@@ -193,7 +198,11 @@ export default function FlowCanvas({
           <Icon name="close" size={16} />
         </button>
         <span className="flex-none text-sm font-bold text-slate-100">流水线画布</span>
-        <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">点格子开编辑窗</span>
+        {/* ★ 原来这里是一句「点格子开编辑窗」的常驻提示，加了引导之后撤掉：
+            引导就是"把常驻说明从界面上搬走"的容器，两边都留等于减法没做成。
+            留一个空的 flex-1 把右边几颗顶到边上 */}
+        <span className="min-w-0 flex-1" />
+        <HelpButton tour="canvas" className="flex-none" />
         {/* 存草稿：文案随状态换（失败必须看得见 —— 静默"保存成功"会让用户放心关掉页面）。
             ★ 图标钮而不是文字钮：顶栏这一行还得放 ✕/标题/≡线性/转屏，量过放不下第五件文字钮 */}
         <button
@@ -207,11 +216,16 @@ export default function FlowCanvas({
           {draft.state === "saving" ? "…" : draft.state === "saved" ? "✓" : draft.state === "failed" ? "!" : "💾"}
         </button>
         {/* 线性视图入口：✕ 改成退出编辑之后，方案台/组稿/存草稿的路从这颗走 */}
-        <button onClick={onLinear} className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200">
+        <button
+          data-guide="canvas-linear"
+          onClick={onLinear}
+          className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200"
+        >
           ≡ 线性
         </button>
         {/* 转屏：表达意图（真机由 useOrientationLock 执行；dev 桌面无感） */}
         <button
+          data-guide="canvas-rotate"
           onClick={() => setWantLand((v) => !v)}
           className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200"
         >
@@ -286,7 +300,12 @@ export default function FlowCanvas({
               const locked = !reachable[i];
               const x = i * (CARD_W + GAP_X);
               return (
-                <div key={n.id} className="absolute" style={{ transform: `translate(${x}px, ${TOP_Y}px)` }}>
+                <div
+                  key={n.id}
+                  data-guide={i === (sel ?? 0) ? "canvas-card" : undefined}
+                  className="absolute"
+                  style={{ transform: `translate(${x}px, ${TOP_Y}px)` }}
+                >
                   {tpl?.refVideo && (
                     <div className="mb-1 flex items-center gap-1 text-[10px] text-sky-300">
                       <span>🧪</span>
@@ -533,7 +552,7 @@ function NodePanel({
       )}
 
       {/* 模式切换：切到另一侧是真操作（套/摘模板），不是换皮。摘的确认在下面那块 */}
-      <div className="flex gap-1 self-start rounded-full bg-panel p-0.5">
+      <div data-guide="canvas-modes" className="flex gap-1 self-start rounded-full bg-panel p-0.5">
         <button
           onClick={() => !tplMode && setPicker(true)}
           disabled={locked || generating || busy || done}
@@ -1112,7 +1131,7 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
           )}
         </div>
       )}
-      <div className="flex items-center gap-2 rounded-full border border-slate-600/80 bg-ink/95 px-3 py-1.5 shadow-lg">
+      <div data-guide="canvas-agent" className="flex items-center gap-2 rounded-full border border-slate-600/80 bg-ink/95 px-3 py-1.5 shadow-lg">
         <span className="flex-none text-sm">🪄</span>
         <input
           value={text}
