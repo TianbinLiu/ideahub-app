@@ -879,5 +879,21 @@ export async function composeBlockoutPrompt(
       "提示词合成失败：AI 改写时把「去掉人偶身上的编号」这句丢了（丢了的话成片里人物头上会顶着编号，钱花完才看得出来）——这一段的要求请自己写，或用下面那份默认写法。",
     );
   }
-  return text;
+  // ★★ 最后一道，专管**作者那句话**（2026-08-21 加）：自从骨架不再含它（见 textNoUserLine
+  //   的 ★★），它就不在「原文（不许删掉任何一条要求）」的保护范围里了，而上面四道核的
+  //   全是机器生成的那一半 —— 模型真把它揉丢时是**静默**的：用户写的那句话凭空消失，
+  //   出片按没有它的提示词跑，钱照花。
+  // ★ 这一道**只会补、不会拒**：找不到影子就原样接在末尾。改写成同义句是模型的正常发挥，
+  //   为此整段拒的代价（用户只能手写）远大于偶尔略显冗余；而"补"这个动作永远不丢东西。
+  const squash = (x: string) => x.replace(/[\s，。、,.!！?？；;：:「」""'']/g, "");
+  const flat = squash(text);
+  const lineFlat = squash(line);
+  // 取首/中/尾三个 4 字窗口，任一命中就算它还在（整句原样、被改写但留了半句，都能认出来）
+  const windows = [0, Math.max(0, Math.floor(lineFlat.length / 2) - 2), Math.max(0, lineFlat.length - 4)]
+    .map((i) => lineFlat.slice(i, i + 4))
+    .filter((w) => w.length >= 2);
+  const kept = windows.length === 0 || windows.some((w) => flat.includes(w));
+  if (kept) return text;
+  const tail = line.endsWith("。") ? line : `${line}。`;
+  return text.endsWith("。") ? text + tail : `${text}。${tail}`;
 }
