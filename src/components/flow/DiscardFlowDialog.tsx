@@ -9,6 +9,7 @@
 // ★ 所以这里不猜，只报**已知的事实**：studioStore.savedDoneCount 记的是"确实落进草稿的
 //   已出片段数"，只有 saveWorkDraft 真的写成功才会动。它与当前 doneCount 的差额，
 //   就是丢弃真正会烧掉的钱。
+import { createPortal } from "react-dom";
 import { useFlow } from "../../studio/flowStore";
 import { useStudio } from "../../studio/studioStore";
 
@@ -31,8 +32,11 @@ export default function DiscardFlowDialog({
   /** 出了片、却没能落进草稿的段数 —— 只有这些是丢弃时真会烧掉的钱 */
   const unsaved = Math.max(0, done - savedDone);
 
-  return (
-    <div className="absolute inset-0 z-30 flex items-end justify-center bg-black/65 p-4" onClick={onCancel}>
+  // ★ portal 到 body + fixed：宿主已经有四个页面（创作入口/工坊法阵/模板货架/模板详情），
+  //   靠"祖先恰好是定位容器"太脆；而祖先上任何一个 backdrop-blur / transform 都会给
+  //   fixed 后代造包含块（CLAUDE.md「全屏浮层只铺满一小块」那条）。
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 p-4" onClick={onCancel}>
       <div
         className="w-full max-w-md rounded-2xl border border-slate-700 bg-panel p-4 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -77,6 +81,7 @@ export default function DiscardFlowDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

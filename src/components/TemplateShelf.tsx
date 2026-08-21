@@ -44,6 +44,7 @@ import {
 import { fmtTokens, ownRefTemplateCost } from "../data/economy";
 import { readSocial } from "../data/social";
 import { useFlow } from "../studio/flowStore";
+import { useApplyTemplate } from "./flow/useApplyTemplate";
 import { VideoTemplate } from "../types";
 
 export function useTemplatesVersion(): number {
@@ -586,6 +587,8 @@ export default function TemplateShelf({ initialTab }: { initialTab?: "market" | 
   /** 套用被就地拒绝时那句话（分段组凑不齐）。★ 不走 flowStore.err：那条错误条只画在
    *  工作流页与画布上，而用户此刻站在模板列表里 —— 写进那里等于没人看得见 */
   const [pickErr, setPickErr] = useState("");
+  // 套用前的在途流水线守卫（唯一实现，与模板详情页共用）
+  const { guard, dialog: discardDialog } = useApplyTemplate();
   useEffect(() => {
     let alive = true;
     void remoteTemplatesCapable().then((ok) => {
@@ -645,13 +648,19 @@ export default function TemplateShelf({ initialTab }: { initialTab?: "market" | 
       return;
     }
     setPickErr("");
-    const ok = parts.length > 1 ? useFlow.getState().applyTemplateGroup(parts) : useFlow.getState().applyTemplate(t);
-    if (ok) nav("/flow");
-    else nav(`/template/${t.id}`);
+    // ★ 整表覆盖 nodes 之前先过守卫（唯一实现见 useApplyTemplate 的 ★★）：在途流水线
+    //   连同已花钱的段会被这一下抹掉，而且不断开旧草稿的话，新流水线出片时的自动存盘
+    //   会把那条草稿原地覆盖 —— 那是那些付费段唯一的备份
+    guard(() => {
+      const ok = parts.length > 1 ? useFlow.getState().applyTemplateGroup(parts) : useFlow.getState().applyTemplate(t);
+      if (ok) nav("/flow");
+      else nav(`/template/${t.id}`);
+    });
   }
 
   return (
     <div>
+      {discardDialog}
       <div className="mb-3 flex gap-2">
         {(["market", "mine"] as const).map((t) => (
           <button

@@ -44,6 +44,7 @@ import {
 import { VIDEO_TIERS, fmtTokens, r2vPriceIssue, r2vTokens } from "../data/economy";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useFlow } from "../studio/flowStore";
+import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import { CARD_TYPE_LABELS, VideoTemplate } from "../types";
 
 /**
@@ -360,6 +361,8 @@ export default function TemplateDetailPage() {
   useCountView("template", id);
   const t = id ? getTemplate(id) : null;
   const [applyErr, setApplyErr] = useState("");
+  // 套用前的在途流水线守卫（唯一实现，与模板货架共用）
+  const { guard, dialog: discardDialog } = useApplyTemplate();
   // 远端回源的结论：null = 还没试/在试，false = 真取不到。直达详情路由（会话恢复、
   // 分享链接）时 shared 缓存是空的——先回源再下"不存在"的结论，别对着一个真实存在的
   // 模板撒谎（回源实现在 data/templates.fetchRemoteTemplateById，取到会 emit 触发重渲）
@@ -430,6 +433,13 @@ export default function TemplateDetailPage() {
   function apply() {
     if (!t) return;
     setApplyErr("");
+    // ★ 与货架那条同一个守卫（见 useApplyTemplate 的 ★★）：套用是整表覆盖，
+    //   在途流水线里已经花钱炼出来的段会被抹掉，旧草稿还会被后续自动存盘覆盖
+    guard(() => applyNow());
+  }
+
+  function applyNow() {
+    if (!t) return;
     // applyTemplate 返回 false = 被闸门整句拒绝（err 在 flow store 里）——把原因就地
     // 印出来，不能让按钮看起来"点了没反应"（铁律八）
     if (!useFlow.getState().applyTemplate(t)) {
@@ -487,6 +497,7 @@ export default function TemplateDetailPage() {
       >
         ⚡ 用这个模板出片{t.refVideo ? "（挂上你的角色卡）" : "（只需一句话）"}
       </button>
+      {discardDialog}
       {applyErr && <p className="mb-3 text-xs leading-relaxed text-rose-400">{applyErr}</p>}
       <div className="mb-3" />
 
