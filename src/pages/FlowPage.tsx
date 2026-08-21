@@ -15,6 +15,7 @@
 //   简约模式 → seedSolo("simple")，单节点单走向、不推演方案、**不存草稿**，UI 收到最简
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
+import AnnStrip from "../components/flow/AnnStrip";
 import DeleteSegBtn from "../components/flow/DeleteSegBtn";
 import SegSettings from "../components/flow/SegSettings";
 import FlowCanvas from "../components/flow/FlowCanvas";
@@ -633,25 +634,8 @@ function NodeScreen({
           </div>
         )}
 
-        {/* 圈选标注缩略 */}
-        {node.anns.length > 0 && (
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-            {node.anns.map((a) => (
-              <div key={a.id} className="relative w-24 flex-none overflow-hidden rounded-lg bg-panel">
-                <img src={a.frame} alt="" className="h-12 w-full object-cover" />
-                <div className="truncate px-1 py-0.5 text-[9px] text-slate-300" title={a.req}>
-                  {a.req}
-                </div>
-                <button
-                  onClick={() => removeAnn(node.id, a.id)}
-                  className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-[9px] text-slate-200"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* 圈选标注缩略（与画布同一个组件：那边圈完也要能看见、删得掉） */}
+        <AnnStrip anns={node.anns} onRemove={(annId) => removeAnn(node.id, annId)} />
 
         <div className="flex items-center gap-1.5">
           <button

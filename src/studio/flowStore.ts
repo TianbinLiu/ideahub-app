@@ -319,7 +319,14 @@ export function clampCursor(nodes: FlowNode[], to: number): number {
  * 单模板流退回 store 级 template（读 getState 是 nodeCost 里的同款先例）。
  */
 export function tplOfNode(node: FlowNode | undefined | null): FlowTemplate | null {
-  return node?.tpl ?? useFlow.getState().template;
+  // ★★ 三态，不是两态（2026-08-21 对抗评审确认的 high）：
+  //   `undefined` = 这个节点还没表过态 -> 退回 store 级（老草稿与单模板流靠它，不能删）；
+  //   `null`      = **明确地没有模板**；   对象 = 这一段自己的快照。
+  //   之前写成 `?? store.template`，于是 null 也被当成"没表态" —— 混合流水线里
+  //   给某一段套上白模模板之后，其余段全部读到**别人的**模板：卡片上多出一行 🧪、
+  //   报价落进"没 r2v 价还硬报"的最贵兜底、出片被整句拒成白模段、连加段都被拒
+  //   （「白模模板只有一段」）。全程零报错。
+  return node?.tpl !== undefined ? node.tpl : useFlow.getState().template;
 }
 
 export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOverride?: string): number {
@@ -707,7 +714,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 摘模板：退回普通段。挂卡/素材/合成句一起清（旧映射对"没有模板"毫无意义）
       set((s) => ({
         err: "",
-        nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, tpl: undefined, materials: undefined, cast: undefined } : n)),
+        // ★ 摘模板写的是 **null**（明确没有），不是 undefined（还没表态）—— 见 tplOfNode 的 ★★
+      nodes: s.nodes
+        .map((n) => (n.id !== nodeId && n.tpl === undefined ? { ...n, tpl: s.template ?? null } : n))
+        .map((n) => (n.id === nodeId ? { ...n, tpl: null, materials: undefined, cast: undefined } : n)),
         ...(s.cursor === idx ? { template: null, cast: {} } : {}),
       }));
       get().updateProposal(nodeId, { plot: "", durationSec: 5 });
@@ -731,7 +741,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const tplSnap = snapTpl(t);
     set((s) => ({
       err: "",
-      nodes: s.nodes.map((n) =>
+      // ★★ 其余"还没表过态"的段（tpl === undefined）在这一刻钉成**当时的** store 级真相
+      //   （多半是 null）—— 否则它们会继续靠兜底读到我们刚给这一段套上的模板，
+      //   而那正是上面 tplOfNode 的 ★★ 说的那串错显示/错报价/错拒绝。
+      nodes: s.nodes
+        .map((n) => (n.id !== nodeId && n.tpl === undefined ? { ...n, tpl: s.template ?? null } : n))
+        .map((n) =>
         n.id === nodeId
           ? {
               ...n,
@@ -1245,8 +1260,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 白模模板只有一段：追加的下一段要么承接（承接帧与参考视频在方舟互斥，任务发不出去）、
       // 要么不承接（衔接断掉）——两头都不成立。拦在追加门槛这一处，与「先把这一段炼出来」
       // 是同一个门（CLAUDE.md：顺序门禁只在 clampCursor + addNode 两处，别在 UI 另写）
-      if (s.template?.refVideo) return { err: "白模模板只有一段：画面与运镜整个来自模板视频，没有可续的下一段" };
+      // ★★ 判据是**最后那一段**（tplOfNode），不是 store 级 template（2026-08-21 对抗评审）：
+      //   画布能给单独某一段套白模模板，于是流水线可以是 [白模, 普通, 普通] —— 读 store 级
+      //   那份会因为"某一段是白模"就把整条流水线judge成白模流，从此再也加不了段，
+      //   而用户接在后面的明明是普通段。反过来单模板流与分段组仍照旧拒（最后一段就是白模段）。
       const prev = s.nodes[s.nodes.length - 1];
+      if (prev ? !!tplOfNode(prev)?.refVideo : !!s.template?.refVideo) {
+        return { err: "白模复刻段只有一段：画面与运镜整个来自模板视频，没有可续的下一段" };
+      }
       // 顺序门禁：只能在末尾追加，且上一段必须已出片
       if (prev && !nodeDone(prev)) return { err: "先把这一段炼出来，再加下一段" };
       const i = s.nodes.length;

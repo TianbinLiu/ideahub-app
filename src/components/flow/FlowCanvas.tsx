@@ -17,6 +17,7 @@ import GenTrace from "../GenTrace";
 import Icon from "../Icon";
 import HelpButton from "../guide/HelpButton";
 import { useAutoGuide } from "../guide/useAutoGuide";
+import AnnStrip from "./AnnStrip";
 import DeleteSegBtn from "./DeleteSegBtn";
 import SegSettings from "./SegSettings";
 import PlanBoard from "../../studio/ui/PlanBoard";
@@ -248,7 +249,20 @@ export default function FlowCanvas({
         </div>
       )}
 
-      {playing && <SegPlayer nodeId={playing} onClose={() => setPlaying(null)} />}
+      {playing && (
+        <SegPlayer
+          nodeId={playing}
+          onClose={() => setPlaying(null)}
+          onOpenPanel={() => {
+            const i = nodes.findIndex((n) => n.id === playing);
+            if (i >= 0) {
+              setSel(i);
+              setCursor(i);
+              panTo(i);
+            }
+          }}
+        />
+      )}
 
       {/* 画布 + 编辑窗：竖屏上下、横屏左右（跟实际朝向走） */}
       <div className={`flex min-h-0 flex-1 ${isLand ? "flex-row" : "flex-col"}`}>
@@ -501,7 +515,8 @@ function NodePanel({
   onCast: (tpl: NonNullable<FlowTemplate>, value: Record<string, string>) => void;
   onClose: () => void;
 }) {
-  const { updateProposal, setRequirement, genNode, setNodeTemplate, deriveProposals, removeMaterial, removeNode } = useFlow();
+  const { updateProposal, setRequirement, genNode, setNodeTemplate, deriveProposals, removeMaterial, removeNode, removeAnn } =
+    useFlow();
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   const tpl = tplOfNode(node);
@@ -728,6 +743,10 @@ function NodePanel({
           />
         </>
       )}
+
+      {/* 圈选标注：**看得见、删得掉**（与线性视图同一个组件）。没有它的话，画布上
+          圈完零反馈、白模段还会被 genNode 指着一件这一面做不到的事（删标注） */}
+      <AnnStrip anns={node.anns} onRemove={(annId) => removeAnn(node.id, annId)} />
 
       {/* 进度/报错：与线性视图同源（node.steps / store.err） */}
       {(generating || (node.steps?.length ?? 0) > 0) && (
@@ -959,7 +978,7 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
  *   单纯回看走直连更快，也不占服务端带宽。
  * ★ portal 到 body：画布的变换层带 transform，fixed 后代会被它当包含块（CLAUDE.md 那条坑）。
  */
-function SegPlayer({ nodeId, onClose }: { nodeId: string; onClose: () => void }) {
+function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: string; onClose: () => void; onOpenPanel: () => void }) {
   const nodes = useFlow((s) => s.nodes);
   const idx = nodes.findIndex((n) => n.id === nodeId);
   const node = idx >= 0 ? nodes[idx] : undefined;
@@ -974,6 +993,7 @@ function SegPlayer({ nodeId, onClose }: { nodeId: string; onClose: () => void })
   useEffect(() => setFailed(false), [src, retry]);
   const vref = useRef<HTMLVideoElement>(null);
   const addAnn = useFlow((s) => s.addAnn);
+  const busy = useFlow((s) => s.busy);
   /** 圈选：null=没开；"loading"=正在取一份能截帧的流 */
   const [ann, setAnn] = useState<{ frame: string; atSec: number } | "loading" | null>(null);
 
@@ -1014,12 +1034,19 @@ function SegPlayer({ nodeId, onClose }: { nodeId: string; onClose: () => void })
         v.onerror = () => rej(new Error("视频读不出来"));
         window.setTimeout(() => rej(new Error("取流超时（窗口在后台时浏览器不解码视频）")), 20_000);
       });
-      // 定位到用户正在看的那一秒（媒体事件一律带超时：切后台时 seeked 永远不到）
-      if (at > 0 && at < (v.duration || 0)) {
+      // 定位到用户正在看的那一秒。
+      // ★★ 钳位，别拿 duration 当**门槛**（2026-08-21 对抗评审用真实复现抓到的 high）：
+      //   播放层是 autoPlay 且不循环，几秒后就 ended —— 那时 currentTime **恰好等于**
+      //   duration，`at < duration` 为假，整个 seek 被跳过，截到的是**开头那一帧**；
+      //   而 atSec 仍记成 duration，segmentGen 按 `atSec < half` 判成**尾帧**标注 ——
+      //   于是改过的开头帧被塞进结束帧，成片首尾几乎同一张画面，钱照扣、零报错。
+      //   duration 为 NaN（代理没给时长）时同样恒假，落进同一个坑。
+      const target = Math.max(0, Math.min(at, (v.duration || at) - 0.05));
+      if (target > 0) {
         await new Promise<void>((res) => {
           v.onseeked = () => res();
-          v.currentTime = at;
-          window.setTimeout(() => res(), 8_000);
+          v.currentTime = target;
+          window.setTimeout(() => res(), 8_000); // 窗口不可见时 seeked 永远不到
         });
       }
       const c = document.createElement("canvas");
@@ -1038,7 +1065,9 @@ function SegPlayer({ nodeId, onClose }: { nodeId: string; onClose: () => void })
         if (band[i] > hi) hi = band[i];
       }
       if (hi - lo === 0 && hi === 0) throw new Error("截出来是一片空白");
-      setAnn({ frame: c.toDataURL("image/jpeg", 0.9), atSec: at });
+      // ★ atSec 记**真正截到的那一刻**，不是播放器上那个 at：seek 失败/超时退回 0 秒时
+      //   位置也跟着是 0，segmentGen 判成首帧标注 —— 图与位置永远一致
+      setAnn({ frame: c.toDataURL("image/jpeg", 0.9), atSec: v.currentTime || 0 });
     } catch (e) {
       console.warn("[canvas] 圈选取帧失败:", e);
       const fb = node ? chosenOf(node).firstFrame : "";
@@ -1063,7 +1092,10 @@ function SegPlayer({ nodeId, onClose }: { nodeId: string; onClose: () => void })
         {src && !failed && (
           <button
             onClick={() => void openAnn()}
-            disabled={ann === "loading"}
+            /* ★ 与线性视图同一道闸（那边是 disabled={busy}）：生成期间圈的标注会被
+               这次出片成功时的 patchNode({anns: []}) 整表抹掉 —— 存了等于没存，且零提示 */
+            disabled={ann === "loading" || busy || node.status === "generating"}
+            title={busy || node.status === "generating" ? "这一段正在生成，炼完再圈" : undefined}
             className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 disabled:opacity-50"
           >
             {ann === "loading" ? "取帧中…" : "⭕ 圈选改画面"}
@@ -1081,7 +1113,10 @@ function SegPlayer({ nodeId, onClose }: { nodeId: string; onClose: () => void })
           onSave={(frame, req) => {
             addAnn(node.id, { frame, req, atSec: ann.atSec });
             setAnn(null);
-            onClose(); // 圈完就退回画布：接下来要点的是「♻ 重新生成」，那颗在编辑窗里
+            // ★ 圈完把**这一段的编辑窗**打开（那里有刚存下的缩略条与「♻ 重新生成」）：
+            //   只 onClose 会让用户落回一张什么都没变的画布 —— 他只会以为没存上，再圈一遍
+            onOpenPanel();
+            onClose();
           }}
         />
       )}
