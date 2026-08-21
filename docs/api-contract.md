@@ -245,6 +245,8 @@ BranchAssetView  { kind, key, viewer, expiresAt }                        唯一 
 | POST | `/api/branch/videos/:id/comments/:commentId/like` | required | 评论点赞 → `{ ok, likes, liked: true }` |
 | DELETE | `/api/branch/videos/:id/comments/:commentId/like` | required | 取消 → `{ ok, likes, liked: false }` |
 | DELETE | `/api/branch/videos/:id/comments/:commentId` | required | 删评论。**评论作者本人 或 作品作者**。连带删：回复、评论赞、指向它的通知；重算 `commentCount`。→ `{ ok, removed, commentCount }`。限流 30/分钟按账号 |
+| POST | `/api/branch/compose` | required | 服务端把 N 段成片拼成一条（受理式 202 + 轮询）。详见下「成片合并」 |
+| GET | `/api/branch/compose/:jobId` | required | 查合并进展。详见下「成片合并」 |
 | DELETE | `/api/branch/videos/:id/danmaku/:danmakuId` | required | 删弹幕。**弹幕作者本人 或 作品作者**。→ `{ ok: true }`。限流 30/分钟按账号。★ 无权时回**裸 403**，回包与文案里**绝不能出现作者信息** —— 否则对每条弹幕试删一次，就等于给整面匿名弹幕墙开了一个逐条查作者的接口 |
 | GET | `/api/branch/videos/:id/danmaku` | optional | 弹幕列表（见下「弹幕」）。query `limit`(默认 200，上限 500)。返回 `{ ok, items, truncated }` |
 | POST | `/api/branch/videos/:id/danmaku` | required | 发弹幕 `{ at, text, color? }` → 201 `{ ok, danmaku }`。限流 **30/分钟**（按账号） |
@@ -788,6 +790,74 @@ UI 把它显示出来 —— 「删了个寂寞」必须有症状。
 （环境变量 `BRANCH_INLINE_FALLBACK_MAX`，默认 512KB）：小于阈值的 dataURL 原样内联落库，
 超过就丢弃置空——否则没配 Cloudinary 时每条记录都带着 MB 级 base64，
 `GET /cards` 一次性返回全部卡面会撑出几十 MB 的响应体。
+
+## 成片合并（服务端拼接，2026-08-21）
+
+把已经转存在 Cloudinary 上的 N 段成片按时间轴拼成一条，产出**独立资产**。
+端上原来用 MediaRecorder + `canvas.captureStream` 实时重录（耗时恒等于片长、低端机掉帧、
+切后台就被 rAF 节流卡死），弱网真机上连素材都拉不完 —— 那次的成片是拿本机 ffmpeg 救回来的。
+
+| 方法 | 路径 | 鉴权 | 限流 | 说明 |
+|---|---|---|---|---|
+| POST | `/api/branch/compose` | required | 6/min | body 见下 → `202 {jobId,state:"pending"}`；已经拼过同一份配方则 `200 {jobId,state:"done",url}` |
+| GET | `/api/branch/compose/:jobId` | required | 90/min | `{jobId,state,url?,message?}`；按 `{key,userId}` 查（jobId 是配方指纹、可猜，不按人过滤就是泄露别人的成片地址） |
+
+```jsonc
+// POST /api/branch/compose
+{
+  "clips": [ { "url": "<段落的 secure_url>", "startSec": 0.5, "endSec": 4.5 } ],  // 1~12 段
+  "width": 704, "height": 1248,        // 由 app 的 outSize(分辨率,画幅) 算；奇数会被服务端取偶
+  "quality": "good",                   // good（默认，≈2.2Mbps）| best（≈3.4Mbps）
+  "audio": { "url": "<本账号的音频/视频资产>", "volume": 0.4, "replace": false }  // 可选 BGM
+}
+```
+
+- **不计费**（不动 token 钱包）：合并不调用任何 AI，端上原本也是免费的。成本落在 Cloudinary
+  配额上，由三道兜着：段数/总时长上限（`COMPOSE_LIMITS`：≤12 段、总时长 ≤300s、边长 ≤1920）、
+  限流 6 次/分、以及**每人每天 900 秒产出预算**（`COMPOSE_DAILY_SEC`，超了回
+  `429 {code:"COMPOSE_QUOTA"}`）。★ 前两道管不住钱：Cloudinary 按**输出秒数**计费
+  （≈0.0013 credits/秒），只限次数的话 6 次/分 × 300 秒 ≈ 2.3 credits/分钟，
+  一个账号十来分钟就能抽干免费版整月的 25 credits —— 而超配额的终局是账号被自动停用。
+  预算算的是**受理过的**秒数（含失败与重试）：失败那一发同样在 Cloudinary 侧跑过编码。
+- **段落必须已经在我们的 Cloudinary 空间里且属于本人**。两种失败**刻意分开说**：
+  还挂在方舟直链上 → `400 {code:"CLIPS_NOT_READY"}`（等转存就行）；是我们空间里但不是本人的
+  → 普通 400「不是你自己的素材」（等多久都没用）。混成一句的话第二种会让人一直重试到放弃。
+- **BGM 的时长只由服务端向 Cloudinary 取**（决定循环几次），schema 刻意不收客户端报的数。
+  ⚠ App 目前**没有音频上传口**，所以这一位在客户端接上之前不会有人传。
+- 产物是 `ideahub/branch-videos/<userId>-<ts>-merged`，与段落同目录同归属形状 ——
+  它本身也能再被当成一段拼进下一次合并。发布链路原样沿用（非方舟域的 http(s) 会被保留，
+  不再多搬一次）。
+
+### 拼接规则与三个静默陷阱（实测钉死，改之前先看 `server/src/utils/videoCompose.js`）
+
+变换形状（每一格的位置都是 2026-08-21 在真账号上量出来的）：
+
+```
+q_auto:good,c_fill,w_704,h_1248,so_0.5,du_4                         ← 第 1 段（基片）
+/fl_splice,l_video:<第2段>/c_fill,w_704,h_1248,so_1,du_3/fl_layer_apply   ← 每多一段一组
+/l_audio:<BGM>,du_3,e_loop:3,e_volume:-60/fl_layer_apply             ← 有 BGM 才有
+```
+
+三条**返回 200、无错误头、产物却是另一个东西**的坑：
+1. `fl_splice` 必须与 `l_video:` **同格**。写成 `l_video:X/fl_splice,fl_layer_apply` 会得到
+   **画中画叠加**（时长=基片，被叠那段的声音还会混进来）——出片成功、钱照花、商品被换掉。
+2. 逐段裁剪的 `so_/du_` 必须写在**图层组件**里。写进 `fl_layer_apply` 那格会被静默忽略
+   （那一格的 `so_` 在 splice 语境下是「拼到最前面」的意思，不是裁剪）。
+3. `br_<码率>` 完全无效，画质只能靠 `q_auto:<档>`。
+
+响亮的那条（400，不是静默）：**所有被拼接的素材尺寸必须完全一致**，所以每一格都无条件带
+`c_fill,w_,h_`，横竖混排靠它归一。
+
+**产物自检**：拼接结果落地后比对 `duration` 与「各段裁剪后之和」，对不上就整单判失败并
+删掉产物 —— 上面三个陷阱全都在时长上露馅，这是最后一道闸（铁律八）。
+
+**为什么用「入站变换」而不是「拼一条带变换的投递地址让 Cloudinary 去抓」**：三种做法都实测过，
+只有入站变换（变换随已签名的上传 API 请求发出）① 不产生派生垃圾、② 存下来是**常规 MP4**、
+③ 账号将来打开 strict transformations 也不受影响。让它去抓一条没生成过的变换地址，抓到的是
+「边生成边发」的**分片 MP4**，会被原样存成成片 —— 容器里没有样本表，播放器多半读不出时长
+（进度条直接废），而且是永久的。
+
+回归测试见 `server/tests/videoCompose.spec.js`（三个陷阱由纯函数断言钉死 + 端到端自检）。
 
 ## 白模模板（blockout r2v）
 
