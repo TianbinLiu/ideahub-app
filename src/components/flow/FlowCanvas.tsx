@@ -36,7 +36,7 @@ import {
   templatesVersion,
 } from "../../data/templates";
 import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost } from "../../data/economy";
-import { runCanvasAgent, type AgentOutcome } from "../../studio/canvasAgent";
+import { executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { requestLandscape } from "../../hooks/useOrientationLock";
 import { AI_REAL } from "../../ai";
 import type { VideoTemplate } from "../../types";
@@ -632,6 +632,8 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<AgentOutcome | null>(null);
+  /** 正在执行的提案（同一时刻只跑一张：applyCast/genNode 本来就互斥于 busy） */
+  const [runningProp, setRunningProp] = useState<AgentProposal | null>(null);
   async function send() {
     const t = text.trim();
     if (!t || busy) return;
@@ -643,6 +645,24 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
       if (r.focusSeg !== undefined) onFocus(r.focusSeg);
     } finally {
       setBusy(false);
+    }
+  }
+  /** 点了确认卡：真执行（executeAgentProposal 会重走 store 全部闸），结果转成 ✓/✗ 芯片 */
+  async function confirm(p: AgentProposal) {
+    if (runningProp) return;
+    setRunningProp(p);
+    try {
+      const r = await executeAgentProposal(p);
+      setLog((prev) =>
+        prev && {
+          ...prev,
+          proposals: prev.proposals.filter((x) => x !== p),
+          applied: r.ok ? [...prev.applied, r.note] : prev.applied,
+          refused: r.ok ? prev.refused : [...prev.refused, r.note],
+        },
+      );
+    } finally {
+      setRunningProp(null);
     }
   }
   return (
@@ -659,6 +679,33 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
               <Icon name="close" size={12} />
             </button>
           </div>
+          {/* 提案卡：花钱/有后果的操作等用户点头。按钮标价（真花钱的）或标后果（免费但覆盖） */}
+          {log.proposals.length > 0 && (
+            <div className="mt-1.5 space-y-1.5">
+              {log.proposals.map((p, i) => (
+                <div key={`p${i}`} className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5">
+                  <p className="text-[11px] leading-relaxed text-amber-100">{p.display}</p>
+                  {p.kind === "cast" && <p className="mt-0.5 text-[9px] text-amber-200/80">{p.costLabel}</p>}
+                  <div className="mt-1 flex items-center gap-2">
+                    <button
+                      onClick={() => void confirm(p)}
+                      disabled={!!runningProp}
+                      className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-bold text-ink disabled:opacity-50"
+                    >
+                      {runningProp === p ? "执行中…" : p.kind === "cast" ? "执行（免费）" : `执行（${p.costLabel}）`}
+                    </button>
+                    <button
+                      onClick={() => setLog((prev) => prev && { ...prev, proposals: prev.proposals.filter((x) => x !== p) })}
+                      disabled={!!runningProp}
+                      className="rounded-full border border-slate-600 px-2.5 py-1 text-[10px] text-slate-300 disabled:opacity-50"
+                    >
+                      不了
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           {(log.applied.length > 0 || log.refused.length > 0) && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {log.applied.map((s, i) => (
