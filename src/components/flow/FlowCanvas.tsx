@@ -22,6 +22,7 @@ import {
   clampCursor,
   nodeCost,
   nodeDone,
+  nodeVideo,
   planOf,
   redrawCost,
   tplOfNode,
@@ -42,6 +43,7 @@ import {
 import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost } from "../../data/economy";
 import { executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { requestLandscape } from "../../hooks/useOrientationLock";
+import { useMediaUrl } from "../../utils/mediaUrl";
 import { AI_REAL } from "../../ai";
 import { aspectCss, type VideoTemplate } from "../../types";
 
@@ -98,6 +100,8 @@ export default function FlowCanvas({
   const err = useFlow((s) => s.err);
   const setCursor = useFlow((s) => s.setCursor);
   const [sel, setSel] = useState<number | null>(cursor);
+  /** 正在回看成片的那一段（node.id）。★ 认 id 不认下标：删段会让下标整体前移 */
+  const [playing, setPlaying] = useState<string | null>(null);
   const isLand = useIsLandscape();
 
   // 转屏是**手动**的（用户点名要竖屏也能用）；退出画布必须把方向还回去
@@ -228,6 +232,8 @@ export default function FlowCanvas({
         </div>
       )}
 
+      {playing && <SegPlayer nodeId={playing} onClose={() => setPlaying(null)} />}
+
       {/* 画布 + 编辑窗：竖屏上下、横屏左右（跟实际朝向走） */}
       <div className={`flex min-h-0 flex-1 ${isLand ? "flex-row" : "flex-col"}`}>
         <div
@@ -287,6 +293,7 @@ export default function FlowCanvas({
                       <span className="max-w-[200px] truncate">{tpl.title}</span>
                     </div>
                   )}
+                  <div className="relative" style={{ width: CARD_W }}>
                   <button
                     onClick={() => tapNode(i)}
                     className={`relative block overflow-hidden rounded-xl border-2 bg-panel text-left ${
@@ -324,6 +331,21 @@ export default function FlowCanvas({
                       </span>
                     )}
                   </button>
+                  {/* ▶ 回看这一段成片。★ 判「能不能播」用**真地址**（realVid），不用 nodeDone ——
+                      mock 构建下 Seedance 不返回地址、两边一致写 "mock:" 占位串，
+                      那种段 nodeDone 为真却播不了（CLAUDE.md「一段视频只有一份」那条）。
+                      ★ 摆在卡外面一层 relative 里而不是卡里面：卡本身是 button，
+                      按钮不能套按钮。 */}
+                  {realVidOf(n) && (
+                    <button
+                      onClick={() => !moved.current && setPlaying(n.id)}
+                      title="看这一段成片"
+                      className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-[12px] text-white"
+                    >
+                      ▶
+                    </button>
+                  )}
+                  </div>
                   {!!n.materials?.length && (
                     <div className="mt-1.5 flex items-center gap-1">
                       {n.materials.slice(0, 6).map((c) => (
@@ -417,6 +439,7 @@ export default function FlowCanvas({
               index={sel}
               node={selNode}
               locked={!reachable[sel]}
+              onPlay={() => setPlaying(selNode.id)}
               cast={cast}
               busy={busy}
               onCast={onCast}
@@ -441,6 +464,7 @@ function NodePanel({
   index,
   node,
   locked,
+  onPlay,
   cast,
   busy,
   onCast,
@@ -449,6 +473,8 @@ function NodePanel({
   index: number;
   node: FlowNode;
   locked: boolean;
+  /** 回看本段成片（播放层在画布根一级，只有一处实现） */
+  onPlay: () => void;
   cast: Record<string, string>;
   busy: boolean;
   onCast: (tpl: NonNullable<FlowTemplate>, value: Record<string, string>) => void;
@@ -495,6 +521,16 @@ function NodePanel({
           <Icon name="close" size={13} />
         </button>
       </div>
+
+      {realVidOf(node) && (
+        <button
+          onClick={onPlay}
+          className="flex w-full items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-2 text-left text-xs text-emerald-100"
+        >
+          <span className="flex-none">▶</span>
+          <span className="min-w-0 flex-1 truncate">看这一段成片（{chosenOf(node).durationSec}s）</span>
+        </button>
+      )}
 
       {/* 模式切换：切到另一侧是真操作（套/摘模板），不是换皮。摘的确认在下面那块 */}
       <div className="flex gap-1 self-start rounded-full bg-panel p-0.5">
@@ -876,6 +912,97 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
             dense={isLand}
           />
         </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/** 这一段**能不能播**（≠ 出没出片）：mock 构建两边一致写 "mock:" 占位串，
+ *  那种段 nodeDone 为真、地址却是假的。判据只有这一处（CLAUDE.md 的 realVideoOf 同义）。 */
+function realVidOf(n: FlowNode): string | undefined {
+  const v = nodeVideo(n);
+  return v && !v.startsWith("mock:") ? v : undefined;
+}
+
+/**
+ * 回看某一段成片的播放层。
+ * ★ 认 node.id 不认下标（删段会让下标前移，PlanSheet 那条 ★★ 同款）；那一段没了就自关。
+ * ★ 地址要过 useMediaUrl：本机库里存的是 `idb:` 句柄、远端是跨域地址，直接塞给
+ *   <video> 会一片黑（utils/mediaUrl 是唯一的解析实现）。
+ * ★ **不传 forCapture**：那是给"要从视频里截帧"的调用点用的（会强制走代理绕开画布污染），
+ *   单纯回看走直连更快，也不占服务端带宽。
+ * ★ portal 到 body：画布的变换层带 transform，fixed 后代会被它当包含块（CLAUDE.md 那条坑）。
+ */
+function SegPlayer({ nodeId, onClose }: { nodeId: string; onClose: () => void }) {
+  const nodes = useFlow((s) => s.nodes);
+  const idx = nodes.findIndex((n) => n.id === nodeId);
+  const node = idx >= 0 ? nodes[idx] : undefined;
+  const url = node ? realVidOf(node) : undefined;
+  const src = useMediaUrl(url);
+  /** 拉不动（跨境慢、链接过期、离线）。★★ 必须有：地址在这条路上是**同步原样返回**的
+   *  （不传 forCapture 时 mediaUrl 对 http(s) 直接放行），所以"取不到"根本不会表现为
+   *  src 为空 —— 它只会落在 <video> 的 error 上。没有这一手，用户得到的是一块全屏黑
+   *  加一排按不出东西的控件，一个字都没有（铁律八）。全 app 另外四个播放器都接了 onError。 */
+  const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => setFailed(false), [src, retry]);
+  useEffect(() => {
+    if (!node) onClose(); // 这一段被删了：别留一个放不出东西的黑框
+  }, [node, onClose]);
+  if (!node) return null;
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex flex-col bg-black/90" onClick={onClose}>
+      <div className="safe-top flex flex-none items-center gap-2 px-3 py-2" onClick={(e) => e.stopPropagation()}>
+        <span className="text-sm font-bold text-slate-100">第 {idx + 1} 段 · 成片</span>
+        <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">{chosenOf(node).durationSec}s</span>
+        <button onClick={onClose} className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-panel text-slate-200">
+          <Icon name="close" size={16} />
+        </button>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-3 pb-4" onClick={(e) => e.stopPropagation()}>
+        {/* ★★ 三种"放不出来"要说三句**不同**的话（对抗评审确认：原来一句话把它们混成一样，
+            而那句话的诊断还是错的）：
+            ① 这一套走向根本没成片（换过走向/重推过方案）—— 与网络无关，退出去重进也不会好；
+            ② 地址还在解析（idb: 句柄那条路）；
+            ③ 有地址但拉不动 —— 这才是网络，给重试。 */}
+        {!url ? (
+          <p className="max-w-xs text-center text-xs leading-relaxed text-slate-400">
+            这一段现在选中的走向还没有成片
+            <br />
+            <span className="text-[11px] text-slate-500">
+              多半是刚换过走向或重推了方案。挑回原来那一套（或炼完这一套）就能回看
+            </span>
+          </p>
+        ) : failed ? (
+          <>
+            {/* 拉不动时先用这一套的开头帧顶着，别留全屏黑（线性视图也是这么退的） */}
+            {chosenOf(node).firstFrame && (
+              <img src={chosenOf(node).firstFrame} alt="" className="max-h-[50%] max-w-full rounded-lg opacity-70" />
+            )}
+            <p className="max-w-xs text-center text-xs leading-relaxed text-rose-200">
+              这一段的视频拉不下来
+              <br />
+              <span className="text-[11px] text-rose-300/80">网络不好，或者这条链接已经过期（隔天打开的草稿常见）</span>
+            </p>
+            <button onClick={() => setRetry((k) => k + 1)} className="rounded-full bg-panel px-4 py-1.5 text-[11px] text-slate-200">
+              重试
+            </button>
+          </>
+        ) : src ? (
+          <video
+            key={retry}
+            src={src}
+            poster={chosenOf(node).firstFrame || undefined}
+            controls
+            autoPlay
+            playsInline
+            onError={() => setFailed(true)}
+            className="max-h-full max-w-full rounded-lg"
+          />
+        ) : (
+          <p className="text-center text-xs leading-relaxed text-slate-400">正在取这一段的视频地址…</p>
+        )}
       </div>
     </div>,
     document.body,
