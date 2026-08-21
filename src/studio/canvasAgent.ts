@@ -33,6 +33,14 @@ export interface AgentProposal {
   display: string;
   /** 执行按钮上的价签（真花钱的）或后果（免费但覆盖） */
   costLabel: string;
+  /**
+   * 摆这张卡时算出的**报价数值**（cast 为 0：那一次合成明文不收费）。
+   * ★★ 存数值而不只是那句字符串，是因为它会**过期**：卡摆着不关，用户可以去方案台
+   *   把时长 5s 改成 10s、换首尾帧、换一套方案 —— 计价输入全变了，而卡上的数字不会动。
+   *   执行前用同一把尺重算一次，对不上就整句拒（executeAgentProposal 里那道闸）。
+   *   报价 = 实扣是本仓铁律，一次点击扣掉标价两倍的钱是绝不能有的（对抗评审确认）。
+   */
+  cost: number;
 }
 
 export interface AgentOutcome {
@@ -107,7 +115,7 @@ const SYSTEM = `你是「启梦」App 工作流画布的指挥助手。用户对
 {"op":"cast","seg":2,"map":{"角色位":"卡名"}} 给模板段挂角色卡换人（角色位用该段状态里「角色位」列的字样，卡名用「我的卡」里的；免费，但会重新合成点名句）
 {"op":"derive","seg":1} 自选段按要求推演三套方案（花钱）
 {"op":"generate","seg":1} 生成这一段视频（花钱；白模段要先挂过卡，自选段要先挑定方案）
-挑方案只能用户自己来：推演完让他点顶栏「≡ 线性」进方案台。
+挑方案只能用户自己来：推演完让他在本段编辑窗点「🎬 挑一套方案」（画布里就能挑，不必去线性视图）。
 规则：信息不够或办不到就只回 say 说清楚，别猜。say 不超过 80 字，口语化，别复述 JSON。状态永远以「当前流水线状态」为准；【最近对话】只是记忆，段落可能已经变了。`;
 
 /** 模型回复 → ops。找第一个 { 到最后一个 }，逐条按白名单验形；坏的丢掉不执行 */
@@ -385,6 +393,7 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
           map: resolved,
           display: `第 ${o.seg} 段挂角色卡：${shown.join("；")}${Object.keys(node.cast ?? {}).length ? "（该段其余已挂的位子保持不变）" : ""}`,
           costLabel: "免费 · 会重新合成点名句（覆盖你改过的字）",
+          cost: 0,
         });
         break;
       }
@@ -412,6 +421,7 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
           seg: o.seg,
           display: `第 ${o.seg} 段按要求推演三套方案${planOf(node) ? "（会替换现有那三套）" : ""}`,
           costLabel: AI_REAL ? fmtTokens(proposalsCost(carried)) : "演示",
+          cost: proposalsCost(carried),
         });
         break;
       }
@@ -440,6 +450,7 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
           seg: o.seg,
           display: nodeDone(node) ? `第 ${o.seg} 段重新生成视频（旧成片作废）` : `第 ${o.seg} 段生成视频`,
           costLabel: AI_REAL ? fmtTokens(cost) : "演示",
+          cost,
         });
         break;
       }
@@ -543,6 +554,26 @@ export async function executeAgentProposal(p: AgentProposal): Promise<{ ok: bool
 
   if (node.status === "generating") return fin(false, `第 ${p.seg} 段正在生成，等它跑完`);
 
+  // ★★ 价签复核：卡摆着的这段时间里，用户完全可能去方案台改了时长/首尾帧/选中的走向，
+  //   而那三样正是计价输入（nodeCost / proposalsCost 读的就是它们）。不复核的话，
+  //   点下去扣的是新价、屏幕上写的是旧价 —— 报价 ≠ 实扣，且零报错。
+  //   复核用**同一把尺**（不是另写一份算法），对不上就整句拒并请用户重说一句。
+  {
+    const prev = p.seg >= 2 ? chosenOf(useFlow.getState().nodes[p.seg - 2]) : null;
+    const now =
+      p.kind === "derive"
+        ? proposalsCost(!!(node.chain && prev?.lastFrame))
+        : p.kind === "generate"
+          ? nodeCost(useFlow.getState().nodes, p.seg - 1, useFlow.getState().mode)
+          : 0;
+    if (now !== p.cost) {
+      return fin(
+        false,
+        `这一段在确认之前被改过了（时长/画面/选中的走向变了）：现在要 ${fmtTokens(now)}，卡上写的是 ${fmtTokens(p.cost)}——重说一句，我按新价再摆一张卡`,
+      );
+    }
+  }
+
   if (p.kind === "derive") {
     if (tplOfNode(node)?.refVideo) return fin(false, `第 ${p.seg} 段现在套着模板，不走推演（提案已过期）`);
     void st().deriveProposals(node.id);
@@ -556,10 +587,17 @@ export async function executeAgentProposal(p: AgentProposal): Promise<{ ok: bool
     return fin(
       true,
       p.kind === "derive"
-        ? `第 ${p.seg} 段开始推演——好了之后去顶栏「≡ 线性」的方案台挑一套`
+        ? `第 ${p.seg} 段开始推演——好了之后在本段编辑窗点「🎬 挑一套方案」`
         : `第 ${p.seg} 段开始生成（要几分钟，可以先去逛，出片有胶囊通知）`,
     );
   }
-  const why = st().err;
-  return why ? fin(false, why) : fin(true, `第 ${p.seg} 段已点火（进度看本段编辑窗）`);
+  // 演示构建/极快返回：真办成了也可能已经收工，按**结果**认（别按状态认）
+  if (after && p.kind === "generate" && nodeDone(after)) return fin(true, `第 ${p.seg} 段出片了`);
+  if (after && p.kind === "derive" && planOf(after) === "picking") {
+    return fin(true, `第 ${p.seg} 段推演好了——在本段编辑窗点「🎬 挑一套方案」`);
+  }
+  // ★★ 探不到就当**没点着**（原来这里无条件报成功）：genNode/deriveProposals 撞上
+  //   全局 busy 时会早退，那一段一个 token 都没花 —— 报绿勾等于告诉用户"两段都在炼"，
+  //   而实际只有一段在跑（对抗评审确认的静默失败）。store 有整句就用它的。
+  return fin(false, st().err || `第 ${p.seg} 段没能开始（多半是有别的段正在生成）——等它跑完再说一次`);
 }

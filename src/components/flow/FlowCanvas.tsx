@@ -4,9 +4,10 @@
 //   退出画布必须还原 —— 方向只有一个主人，见 hooks/useOrientationLock）。
 // · **点一段的格子 = 打开/收起这一段的编辑窗**（再点同一格收起，点别的格切换）；
 //   编辑窗竖屏从底部升起（上下分窗）、横屏靠右侧（左右分窗），跟**实际朝向**走。
-// · 编辑窗里能干线性视图本段区的核心事：换/摘模板（每段各选各的）、挂卡、
-//   改合成句/要求、看进度、生成本段。方案台（推演三选一）仍在线性视图 ——
-//   那是一块全屏 UI，塞进半窗只会两边都难用。
+// · 编辑窗里能干线性视图本段区的**全部**核心事：换/摘模板（每段各选各的）、挂卡、
+//   改合成句/要求、看进度、生成本段，以及**挑方案**（PlanSheet 弹层，2026-08-21 补上
+//   的最后一块 —— 在此之前挑方案必须跳回线性视图）。方案台之所以是弹层不是内联，
+//   见 PlanSheet 自己的 ★★（它要确定高度，而半窗的余量放不下三行）。
 // · 顺序门禁只问 flowStore.clampCursor（唯一实现）；选中一段同时 setCursor（夹到哪算哪），
 //   与线性视图共享"当前段"的全部机制（store 级模板同步、挂卡缓冲切换）。
 // · 手势只动 transform（合成层）：拖 = translate，捏合/滚轮 = scale。
@@ -14,12 +15,14 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { createPortal } from "react-dom";
 import GenTrace from "../GenTrace";
 import Icon from "../Icon";
+import PlanBoard from "../../studio/ui/PlanBoard";
 import {
   chosenOf,
   clampCursor,
   nodeCost,
   nodeDone,
   planOf,
+  redrawCost,
   tplOfNode,
   useFlow,
   type FlowNode,
@@ -39,7 +42,7 @@ import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost } from "../../data/economy";
 import { executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { requestLandscape } from "../../hooks/useOrientationLock";
 import { AI_REAL } from "../../ai";
-import type { VideoTemplate } from "../../types";
+import { aspectCss, type VideoTemplate } from "../../types";
 
 const CARD_W = 216;
 const CARD_H = 158;
@@ -317,6 +320,10 @@ export default function FlowCanvas({
             }`}
           >
             <NodePanel
+              // ★ 按段重挂：本地开关（选模板/选卡/摘模板确认/挂卡确认/方案台）都是
+              //   "对着这一段"的状态。不加 key 时 React 会复用同一实例，agent 的 onFocus
+              //   换段之后那些开关还开着、指着上一段（对抗评审确认的一类残留）。
+              key={selNode.id}
               index={sel}
               node={selNode}
               locked={!reachable[sel]}
@@ -325,7 +332,6 @@ export default function FlowCanvas({
               busy={busy}
               err={err}
               onCast={onCast}
-              onLinear={onLinear}
               onClose={() => setSel(null)}
             />
           </div>
@@ -352,7 +358,6 @@ function NodePanel({
   busy,
   err,
   onCast,
-  onLinear,
   onClose,
 }: {
   index: number;
@@ -363,7 +368,6 @@ function NodePanel({
   busy: boolean;
   err: string;
   onCast: (tpl: NonNullable<FlowTemplate>, value: Record<string, string>) => void;
-  onLinear: () => void;
   onClose: () => void;
 }) {
   const { updateProposal, setRequirement, genNode, setNodeTemplate, deriveProposals, removeMaterial } = useFlow();
@@ -380,6 +384,12 @@ function NodePanel({
   const [cardPick, setCardPick] = useState(false);
   const [castAsk, setCastAsk] = useState(false);
   const [stripAsk, setStripAsk] = useState(false);
+  /** 方案台弹层开在**哪一段**上（存 node.id 不存下标）。
+   *  ★★ 不能只存 true：agent 提案办成后会 onFocus 到别的段，NodePanel 就地换 index，
+   *    而弹层还开着 —— 按下标认段的话，用户以为在改第 3 段，实际点在第 1 段上：
+   *    换掉它选定的走向、清掉它的圈选，已出片的还会退回"未出片"并把后面全部重新上锁，
+   *    全程零报错（2026-08-21 对抗评审确认）。认 id 就换不错。 */
+  const [planSheet, setPlanSheet] = useState<string | null>(null);
   const cost = nodeCost(nodes, index, mode);
   // 推演报价与线性视图同一把尺：承接上一段真实尾帧的段少画一张起始帧
   const prevP = index > 0 ? chosenOf(nodes[index - 1]) : null;
@@ -582,22 +592,44 @@ function NodePanel({
       {!tplMode && !locked && (
         plan === "picking" ? (
           <>
-            {/* 方案台是全屏 UI（三套并排、可换帧改剧情），半窗摆不下 —— 挑那一步去线性视图 */}
-            <p className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-sky-200">
-              三套方案推演好了。去线性视图的方案台挑一套（可换首尾帧、改剧情），挑定回来再炼。
-            </p>
-            <button onClick={onLinear} className="w-full rounded-full bg-brand py-2.5 text-sm font-bold text-ink">
-              ≡ 去线性视图挑方案
+            {/* ★ 方案台从 2026-08-21 起就在画布里挑（PlanSheet 弹层）：它需要 300~500px
+                的确定高度，而半窗静息内容已占掉 52% 的大半 —— 所以是**弹层**不是内联。
+                线性视图那条路仍在（顶栏「≡ 线性」），只是不再是唯一出口。 */}
+            <button
+              onClick={() => setPlanSheet(node.id)}
+              className="w-full rounded-full bg-brand py-2.5 text-sm font-bold text-ink"
+            >
+              🎬 挑一套方案（{node.proposals.length} 套已推演好）
+            </button>
+            {/* 三套都不满意时的出路。推演是**付费**的，所以按钮上标价（与 store 同一把尺） */}
+            <button
+              onClick={() => void deriveProposals(node.id)}
+              disabled={busy || generating}
+              className="w-full rounded-full border border-slate-600 py-2 text-[11px] text-slate-300 disabled:opacity-40"
+            >
+              {generating ? node.progress || "推演中…" : `♻ 都不满意，重新推演三套（${AI_REAL ? fmtTokens(propCost) : "演示"}）`}
             </button>
           </>
         ) : plan === "picked" || done ? (
-          <button
-            onClick={() => void genNode(node.id)}
-            disabled={busy || generating}
-            className="w-full rounded-full bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
-          >
-            {generating ? node.progress || "生成中…" : done ? `♻ 重新生成（${AI_REAL ? fmtTokens(cost) : "演示"}）` : `⚡ 炼这一段视频（${AI_REAL ? fmtTokens(cost) : "演示"}）`}
-          </button>
+          <>
+            <button
+              onClick={() => void genNode(node.id)}
+              disabled={busy || generating}
+              className="w-full rounded-full bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+            >
+              {generating ? node.progress || "生成中…" : done ? `♻ 重新生成（${AI_REAL ? fmtTokens(cost) : "演示"}）` : `⚡ 炼这一段视频（${AI_REAL ? fmtTokens(cost) : "演示"}）`}
+            </button>
+            {/* 挑定之后仍要能回方案台：换首尾帧、逐字改剧情、重新推演都在那里
+                （入口只有一处 —— 这些编辑口 PlanBoard 只对选定行开，见它自己的 ★） */}
+            {plan != null && (
+              <button
+                onClick={() => setPlanSheet(node.id)}
+                className="w-full rounded-full border border-slate-600 py-2 text-[11px] text-slate-300"
+              >
+                📋 看/改这一套方案（换首尾帧、改剧情）
+              </button>
+            )}
+          </>
         ) : (
           <button
             onClick={() => void deriveProposals(node.id)}
@@ -609,6 +641,7 @@ function NodePanel({
         )
       )}
 
+      {planSheet && <PlanSheet nodeId={planSheet} onClose={() => setPlanSheet(null)} />}
       {picker && (
         <TemplatePicker
           current={tpl?.id}
@@ -621,6 +654,119 @@ function NodePanel({
       )}
       {cardPick && <CardPicker node={node} onClose={() => setCardPick(false)} />}
     </div>
+  );
+}
+
+/**
+ * 方案台弹层：**在画布里挑方案**（2026-08-21，画布自足化的最后一块）。
+ *
+ * ★★ 为什么是弹层不是内联半窗：PlanBoard 是 `flex h-full flex-col` + 内部
+ *   `min-h-0 flex-1 overflow-y-auto`，要求**父容器高度确定**；而三行未选定态在 9:16 画幅下
+ *   约 500px，编辑窗竖屏只有 52%（800 屏 ≈ 390px）且静息内容已占掉 330~350px。
+ *   内联的结果是「三套并排比较」这件事本身被削掉，还会与半窗自己的滚动叠成双滚动
+ *   （PlanBoard 选中时的 `scrollIntoView` 会向上冒泡滚动所有祖先）。
+ * ★★ 必须 portal 到 body：画布的变换层带 `transform`，任何 `fixed` 后代都会以它为包含块
+ *   （CLAUDE.md 那条坑）；编辑窗外壳又是 `overflow-y-auto`，内联浮层会被裁。
+ *   层级 z-50 与两个 picker 同级，让位给 FrameCard 放大层的 z-60。
+ * ★ 手势隔离靠**结构**：本组件从 NodePanel 渲染，React 父链在编辑窗那一侧（画布手势
+ *   挂在兄弟节点上），所以拖剧情框不会平移画布 —— 别把它挪到 canvas 区的子树里去渲染。
+ * ★ PlanBoard 一行没改：它不认任何 store（那是它的铁律六约束），所有状态由这里翻译。
+ *   翻译口径与线性视图**逐条相同**（pickedId/isDone/regenId/报价三件），抄错一条的表现
+ *   是"改到了另一套方案上、零报错"（见 FlowPage 那份的同名注释）。
+ */
+function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void }) {
+  const nodes = useFlow((s) => s.nodes);
+  const busy = useFlow((s) => s.busy);
+  const err = useFlow((s) => s.err);
+  const { chooseProposal, updateProposal, setFrame, regenProposal, deriveProposals } = useFlow();
+  const isLand = useIsLandscape();
+  // ★ 按 id 现取（不按下标）：弹层开着期间 store 会变 —— 挑定/重画/推演在改这一段，
+  //   而 agent 的 onFocus 可能把编辑窗换到别的段。认 id 才不会"就地换段"（见上面 ★★）
+  const index = nodes.findIndex((n) => n.id === nodeId);
+  const node = index >= 0 ? nodes[index] : undefined;
+  useEffect(() => {
+    if (!node) onClose(); // 这一段被删了/流水线被换掉：别留一个空壳弹层
+  }, [node, onClose]);
+  if (!node) return null;
+  const picking = planOf(node) === "picking";
+  const generating = node.status === "generating";
+  const prevProp = index > 0 ? chosenOf(nodes[index - 1]) : null;
+  const carried = !!(node.chain && prevProp?.lastFrame);
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={onClose}>
+      <div
+        className="flex h-[92%] w-full max-w-lg flex-col rounded-t-2xl bg-ink p-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-1 flex flex-none items-center gap-2">
+          <span className="text-sm font-bold text-slate-100">
+            第 {index + 1} 段 · {picking ? "挑一套方案" : "已选定的方案"}
+          </span>
+          <span className="min-w-0 flex-1" />
+          <button onClick={onClose} className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-300">
+            <Icon name="close" size={13} />
+          </button>
+        </div>
+        {/* ★ store 的整句错误必须在**这一层**也看得见：推演/重画/余额不足都写在 store.err，
+            而编辑窗那份被这块遮罩盖住了 —— 不画就是静默失败（铁律八） */}
+        {err && <p className="mb-1 flex-none text-[11px] leading-relaxed text-rose-300">{err}</p>}
+        {/* ★★ 进度也必须画在**这一层**：弹层盖住了编辑窗那块 GenTrace，而「♻ 重新推演三套」
+            只在弹层里（PlanBoard 选定态），它**先扣钱再跑几十秒** —— 不画进度，用户看到的
+            就是"点了个付费按钮，屏幕上什么都没发生"（对抗评审确认）。
+            ★ deriveProposals 只写 node.progress、不写 steps（那是 genNode 的），所以这里
+            两样都画：progress 那行管推演，GenTrace 管出片（steps 空时它自己不渲染）。 */}
+        {generating && (
+          <p className="mb-1 flex-none animate-pulse text-[11px] leading-relaxed text-sky-300">
+            {node.progress || "处理中…"}
+          </p>
+        )}
+        {(node.steps?.length ?? 0) > 0 && (
+          <div className="mb-1 flex-none rounded-lg bg-white/[0.04] px-2.5 py-1.5">
+            <GenTrace steps={node.steps ?? []} running={generating} />
+          </div>
+        )}
+        {/* PlanBoard 要一个高度确定的盒子：这里由 h-[92%] 的外壳 + flex 分配给出 */}
+        <div className="min-h-0 flex-1">
+          <PlanBoard
+            proposals={node.proposals}
+            // ★ 翻译：flow 的 chosenId 一直有值，"等挑"是 plan==="picking"（工坊那边是 chosenId===null）
+            pickedId={picking ? null : node.chosenId}
+            // ★ 工作流侧判据是 videoByProposal（工坊读 proposal.videoUrl），别抄错那一份
+            isDone={(pp) => !!node.videoByProposal[pp.id]}
+            busy={busy || generating}
+            // ★ flow 只记"在不在重画"，方案 id 得自己补，否则重画时按钮不转、换图口不锁
+            regenId={node.regenning ? node.chosenId : null}
+            onPick={(id) => {
+              chooseProposal(node.id, id);
+              // ★★ 挑定即退场（线性视图那份的等价物，FlowPage 的 focusWanted 判据同理）：
+              //   挑完之后 PlanBoard 切成选定态，全屏最显眼的可点项变成付费的
+              //   「✨ 重新生成这一套的画面」—— 而真正该点的「⚡ 炼这一段视频」在弹层背后。
+              //   把最贵那一步的入口藏起来、把付费重画顶到眼前，正是 2026-08-15 钉过的回归。
+              //   ★ 只有**从摊开态挑定**才退场：picking 是这一拍的旧值，所以从
+              //     「📋 看/改这一套方案」进来换走向不会被踢出去。
+              if (picking) onClose();
+            }}
+            // 三个回调都丢掉 id、恒写当前选定那一套（与线性视图同款）：安全的前提是
+            // PlanBoard 只对选定行开编辑口，别在这里做"未选定也能改"的变体
+            onPatch={(_id, patch) => updateProposal(node.id, patch)}
+            onFrame={(_id, which, url) => setFrame(node.id, which, url)}
+            onRegen={() => void regenProposal(node.id)}
+            // ★ 报价一律走 store 的同一处实现，不在画布里重算（铁律六）
+            regenCost={(pp) => redrawCost(node, pp, prevProp)}
+            onRederive={() => void deriveProposals(node.id)}
+            rederiveCost={proposalsCost(carried)}
+            carriedFrom={carried}
+            // ★ 画幅必须跟本段走：写死比例会让另一种画幅的帧被 object-cover 裁掉一大半，
+            //   而挑方案挑的正是构图
+            frameAspect={aspectCss(node.aspect)}
+            // 横屏时弹层高度只有整屏那么点（≈375px），卡小一号才排得下
+            dense={isLand}
+          />
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -661,6 +807,11 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
           refused: r.ok ? prev.refused : [...prev.refused, r.note],
         },
       );
+      // ★ 办成了就把那一段的编辑窗打开：挂卡要能当场看见合成出来的点名句、
+      //   推演/出片要能当场看见 GenTrace 在走。只报一句"开始了"而不给看，
+      //   用户下一步只能自己去猜是哪一格（提案里说的"第 N 段"得他自己数）。
+      //   失败时**不抢焦点** —— 拒绝原因就在下面的 ✗ 芯片上，跳开反而把它挤出视野。
+      if (r.ok) onFocus(p.seg - 1);
     } finally {
       setRunningProp(null);
     }

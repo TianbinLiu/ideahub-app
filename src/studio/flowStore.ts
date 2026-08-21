@@ -1046,7 +1046,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
 
   deriveProposals: async (nodeId) => {
     const s0 = get();
-    if (s0.busy) return false;
+    // ★ 2026-08-21：busy 早退必须说话（原来是静默 false）。画布的 agent 提案卡会拿
+    //   `st().err` 判成败 —— 不写 err 的话，第二张卡会被当成"已点火"报绿勾，而那一段
+    //   一个 token 都没花、什么都没排队（对抗评审确认的静默失败）。
+    //   同款写法见 setNodeTemplate / applyCast 的 busy 分支。
+    if (s0.busy) {
+      set({ err: "有一段正在生成，等它跑完再推演下一段" });
+      return false;
+    }
     const idx = s0.nodes.findIndex((n) => n.id === nodeId);
     const node = s0.nodes[idx];
     if (!node) return false;
@@ -1144,7 +1151,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
 
   regenProposal: async (nodeId) => {
     const s0 = get();
-    if (s0.busy) return false;
+    if (s0.busy) {
+      set({ err: "有一段正在生成，等它跑完再重画这一套" }); // 理由同 deriveProposals 的 ★
+      return false;
+    }
     const idx = s0.nodes.findIndex((n) => n.id === nodeId);
     const node = s0.nodes[idx];
     if (!node) return false;
@@ -1293,7 +1303,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
 
   genNode: async (id) => {
     const s0 = get();
-    if (s0.busy) return false;
+    if (s0.busy) {
+      set({ err: "有一段正在生成，等它跑完再炼下一段" }); // 理由同 deriveProposals 的 ★（不许静默）
+      return false;
+    }
     const idx = s0.nodes.findIndex((n) => n.id === id);
     if (idx < 0) return false;
     const node = s0.nodes[idx];
