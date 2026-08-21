@@ -346,7 +346,12 @@ export default function CutPage() {
         await new Promise((r) => setTimeout(r, 3000));
         job = await composeStatus(job.jobId!);
       }
-      if (job.state === "done" && job.url) return job.url;
+      if (job.state === "done" && job.url) {
+        // ★ done 也可能带一句话：成片能用，但有件事得说（目前只有"BGM 没混进去"这一种）。
+        //   不显示的话用户会拿到一条哑片，以为是自己手机静音了
+        if (job.message) setErr(job.message);
+        return job.url;
+      }
       setErr(
         job.state === "failed"
           ? `服务端合并没成（${(job.message || "").slice(0, 60)}）——改用本机合并，会慢一些`

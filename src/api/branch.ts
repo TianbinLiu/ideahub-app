@@ -1440,6 +1440,8 @@ export interface ComposeJob {
   /** pending=还在跑；done=拿 url 走人；failed=看 message */
   state: "pending" | "done" | "failed" | string;
   url?: string;
+  /** failed 时是原因；**done 时也可能有**——成片能用但有件事得说
+   *  （目前只有"BGM 没混进去"这一种）。别只在 failed 分支读它 */
   message?: string;
 }
 
