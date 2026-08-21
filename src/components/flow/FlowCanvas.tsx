@@ -346,7 +346,18 @@ export default function FlowCanvas({
                             ? "白模复刻段（还没出片）"
                             : p.plot
                               ? p.plot.slice(0, 40)
-                              : "还没写这一段拍什么"}
+                              : /* ★ 「写了要求、还没推演」是独立的一档，不能并进"还没写"
+                                   （2026-08-21 真机上撞见）：agent 刚回执「✓ 第 2 段：要求已写」，
+                                   画布上那张卡却写着「还没写这一段拍什么」—— 两句话互相打脸，
+                                   用户没法知道哪句是真的，最省事的反应就是再写一遍。
+                                   连着写五段要求再统一推演时更明显：五张卡全说"还没写"。
+                                 ★ 优先级与 store 的 requirementOf **故意相反**，别收口成一个：
+                                   那个函数答的是"推演该喂 AI 什么"（要用户原话，所以 requirement 优先），
+                                   这里答的是"这一段现在是什么"（挑定了就该显示挑定那套的剧情，
+                                   否则卡片上看不出到底挑了哪一套）。 */
+                                n.requirement?.trim()
+                                ? `✎ ${n.requirement.trim().slice(0, 38)}`
+                                : "还没写这一段拍什么"}
                       </div>
                     )}
                     <div className="absolute left-1.5 top-1.5 flex items-center gap-1">
