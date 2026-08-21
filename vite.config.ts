@@ -274,7 +274,11 @@ export default defineConfig(({ mode }) => {
         "/api/ark": {
           target: "https://ark.cn-beijing.volces.com",
           changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/api\/ark/, "/api/v3"),
+          // ★ ?transfer=1 是客户端与 ideahub-server 之间的私货（轮询自动转存的 opt-in，
+          //   见 arkClient.fetchArkTask）——dev 直连方舟时必须剥掉，方舟不认这个参数。
+          //   它永远是唯一的 query，所以整段剪掉即可；dev 下没有 transfer 字段挂回来，
+          //   客户端自然走"老服务端"的兜底路，与改动前行为一致。
+          rewrite: (p) => p.replace(/^\/api\/ark/, "/api/v3").replace(/\?transfer=1$/, ""),
           headers: arkKey ? { Authorization: `Bearer ${arkKey}` } : {},
         },
       },

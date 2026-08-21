@@ -101,10 +101,14 @@ export function isArkAssetUrl(url: string | undefined): boolean {
  * ★ 为什么出片后要立刻转存（2026-08-20 真机实测）：videoUrl 揣着 TOS 直链到发布才转存，
  *   而预览/合并都在发布之前。跨境网络直连 TOS 的下载速度（PC 实测 1.06 MB/s）**低于成片
  *   码率**（15s 720p ≈ 1.33 MB/s）——<video> 永远缓冲不到能连续播（黑屏转圈、不报错），
- *   合并的 120s 代理抓取两次都拉不完（用户看到「合并失败：The user aborted a request」）。
+ *   合并的代理抓取两次都拉不完（用户看到「合并失败：The user aborted a request」）。
+ * ★ 2026-08-21 起这是**兜底老路**（对着老服务端才走）：新服务端在轮询端点看到 succeeded
+ *   就自动后台转存（见 fetchArkTask 的 transfer 参数），客户端只读结果——弱网手机上
+ *   「POST 一趟傻等 180s」这件事本身就是那天真机上静默失败的元凶。
  * ★ 失败一律抛，由调用方决定退路（generateVideo 退回方舟直链并把这句说给用户）。
  *   dev 裸跑没有这个端点：vite 的 SPA 回退回 200+HTML，所以照旧只认 Content-Type。
- * ★ 超时 180s：服务端要拉最多 80MB 再跨境传 Cloudinary，60s 不够它做完两头。
+ * ★ 超时 200s：新服务端阻塞形态在 165s 预算内必有答复（搬完给 {url}，没搬完给 502+中文），
+ *   这里只要比它宽；老服务端同步搬完最多也就 180s 量级。
  */
 export async function transferArkVideo(url: string): Promise<string> {
   const token = getToken();
@@ -112,13 +116,61 @@ export async function transferArkVideo(url: string): Promise<string> {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ url }),
-    signal: AbortSignal.timeout(180_000),
+    signal: AbortSignal.timeout(200_000),
   });
   const ct = res.headers.get("content-type") ?? "";
   if (!ct.includes("application/json")) throw new Error("这台服务器还没有 /api/ark/transfer-video（请更新服务端）");
   const j = (await res.json().catch(() => ({}))) as { url?: string; message?: string };
   if (!res.ok || !j.url) throw new Error(j.message || `转存失败（${res.status}）`);
   return j.url;
+}
+
+/** 一次转存的进展（服务端登记表的三态 + 查询侧的 none=没登记过） */
+export interface ArkTransferState {
+  state: "pending" | "done" | "failed" | "none" | string;
+  url?: string;
+  message?: string;
+}
+
+/**
+ * 受理式转存：`{url, wait:false}` 踢一脚就走，真正的搬运在服务端后台（幂等，按产物去重）。
+ * 进展随后用 fetchArkTransferStatus 或轮询端点的 transfer 字段拿。
+ * ★ 老服务端不认 wait 字段，会退化成**阻塞搬完直接回 {url}**——所以超时必须给到老形态
+ *   的量级（200s），且把那种响应折成 {state:"done"}，调用方不用分辨新旧。
+ */
+export async function kickArkVideoTransfer(url: string): Promise<ArkTransferState> {
+  const token = getToken();
+  const res = await fetch(`${BASE}/transfer-video`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ url, wait: false }),
+    signal: AbortSignal.timeout(200_000),
+  });
+  const ct = res.headers.get("content-type") ?? "";
+  if (!ct.includes("application/json")) throw new Error("这台服务器还没有 /api/ark/transfer-video（请更新服务端）");
+  const j = (await res.json().catch(() => ({}))) as { state?: string; url?: string; message?: string };
+  if (j.state) return { state: j.state, url: j.url, message: j.message };
+  if (res.ok && j.url) return { state: "done", url: j.url }; // 老服务端：同步搬完直接给地址
+  throw new Error(j.message || `转存受理失败（${res.status}）`);
+}
+
+/**
+ * 批量查转存进展（POST /api/ark/transfer-video/status，只读）。键 = 原样传入的 url。
+ * 老服务端没有这个端点（404 JSON / SPA 回退 HTML）→ 抛错，调用方停止轮询即可——
+ * 那种服务端上 kick 本来就是同步搬完的，不会有 pending 需要等。
+ */
+export async function fetchArkTransferStatus(urls: string[]): Promise<Record<string, ArkTransferState>> {
+  const token = getToken();
+  const res = await fetch(`${BASE}/transfer-video/status`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ urls }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const ct = res.headers.get("content-type") ?? "";
+  if (!ct.includes("application/json") || !res.ok) throw new Error(`转存进展查询失败（${res.status}）`);
+  const j = (await res.json().catch(() => ({}))) as { results?: Record<string, ArkTransferState> };
+  return j.results ?? {};
 }
 
 // 模型 ID（2026-08-01 实测于本账号：GET /api/v3/models 取活跃 ID + 控制台开通状态）
@@ -346,6 +398,9 @@ export interface ArkTaskState {
   status: string;
   content?: { video_url?: string; file_url?: string; url?: string };
   error?: { message?: string };
+  /** 服务端轮询自动转存的进展（带 `transfer:true` 轮询才有）。
+   *  **缺席 = 老服务端 / dev 直连代理**——那时退回客户端自己 POST 的老路，别当 pending 等 */
+  transfer?: { state?: string; url?: string; message?: string };
 }
 
 /**
@@ -357,9 +412,74 @@ export interface ArkTaskState {
  *   两个循环也改成调它 —— 路径与超时只有这一份，不再有三处各写一遍的字符串。
  * ★ 超时 20s：查询是个小 GET，慢过 20s 基本就是网络断了；单次失败由调用方的循环容忍
  *   （任务还在云端跑，为一次抖动放弃整发太亏）。
+ * ★ `transfer:true` = 请服务端在这个任务 succeeded 时**自动后台转存成片**（?transfer=1，
+ *   进展挂在响应的 transfer 字段）。只有 generateVideo 传它：白模化（产物由 finish 阶段
+ *   按模板流程另行转存）与 Seed3D（zip 不是视频）的轮询不许带——带了就是每单让服务端
+ *   白搬 20MB 去一个没人读的角落。dev 的 vite 代理会把这个参数剥掉再转发（方舟不认它）。
  */
-export async function fetchArkTask(id: string): Promise<ArkTaskState> {
-  return arkFetch<ArkTaskState>(`/contents/generations/tasks/${encodeURIComponent(id)}`, undefined, 20_000);
+export async function fetchArkTask(id: string, opts?: { transfer?: boolean }): Promise<ArkTaskState> {
+  const q = opts?.transfer ? "?transfer=1" : "";
+  return arkFetch<ArkTaskState>(`/contents/generations/tasks/${encodeURIComponent(id)}${q}`, undefined, 20_000);
+}
+
+/** 出片成功后再等服务端转存的最长时间。取 300s：server 拉 TOS 跨境 + 传 Cloudinary
+ *  跨境，两跳常态在分钟级（2026-08-21 真机复盘）；等不到不算失败——后台还在搬，
+ *  合并/发布前的自救会直接拿到现成结果，这里退回直链只是"先别拦着用户往下走"。 */
+const TRANSFER_WAIT_MS = 300_000;
+
+/**
+ * 出片 succeeded 之后把 videoUrl 落定成"尽量是永久地址"——**唯一**收口（generateVideo 的
+ * 三条调用路 composeSegments / regenSegment / 未来者都从这里拿地址）。
+ *
+ * 四种情形按响应形状分流：
+ *   · 响应带 transfer=done → 直接用 Cloudinary 地址（零额外等待，服务端在轮询间隙搬完了）；
+ *   · transfer=pending     → 轮询登记表状态端点等结果（预算 TRANSFER_WAIT_MS），
+ *     这就是 2026-08-21 之后的主路：弱网手机只花"读状态"的流量，搬运全在服务端；
+ *   · transfer=failed / 等超预算 → 退回方舟直链并把原因说出来（进度行会被后续步骤盖掉，
+ *     **持久的留痕在调用方**：flowStore 的红色日志行 / 工坊的节点脚注 / 剪辑页的黄条）；
+ *   · 响应**没有** transfer 字段（老服务端 / dev 直连代理）→ 走 transferArkVideo 的
+ *     阻塞老路，行为与 2026-08-20 版完全一致。
+ */
+async function settleTransferredUrl(
+  arkUrl: string,
+  first: ArkTaskState["transfer"],
+  onProgress?: (status: string) => void,
+): Promise<string> {
+  const fallback = (why: string) => {
+    onProgress?.(`成片转存没成（${why}）——先用方舟临时链接，跨境网络下预览可能很慢；合并/发布时会自动再转存`);
+    return arkUrl;
+  };
+  if (!first) {
+    // 老服务端/dev：它不会自动搬，这一趟阻塞 POST 就是唯一的机会
+    onProgress?.("成片转存中（换成永久地址）…");
+    try {
+      return await transferArkVideo(arkUrl);
+    } catch (e) {
+      return fallback(e instanceof Error ? e.message : String(e));
+    }
+  }
+  let tr: { state?: string; url?: string; message?: string } | undefined = first;
+  const t0 = Date.now();
+  let pollFails = 0;
+  for (;;) {
+    if (tr?.state === "done" && tr.url) return tr.url;
+    if (tr?.state === "failed") return fallback(tr.message || "服务端转存失败");
+    if (Date.now() - t0 >= TRANSFER_WAIT_MS) return fallback("等了 5 分钟还没搬完，后台仍在继续");
+    onProgress?.(`成片已出，转存永久地址中 ${Math.round((Date.now() - t0) / 1000)}s…`);
+    await new Promise((r) => setTimeout(r, 5000));
+    try {
+      // ★ 等转存问的是**登记表状态端点**，不是任务轮询端点：后者每问一次 server 都要
+      //   跨境去问一趟方舟上游（一段等 5 分钟 = 60 次白问），而登记表只是一次库读；
+      //   任务记录在方舟侧过期也影响不到它。能走进这个循环 = 响应带过 transfer 字段
+      //   = 新服务端，status 端点必然存在。
+      const stat = await fetchArkTransferStatus([arkUrl]);
+      tr = stat[arkUrl] ?? tr; // "none" 不该出现（pending 时登记已存在），当作还没好接着等
+      pollFails = 0;
+    } catch (e) {
+      // 网络抖动不放弃（搬运在服务端，不受这边影响）；连断 5 次说明网真断了，先放行
+      if (++pollFails >= 5) return fallback(e instanceof Error ? e.message : String(e));
+    }
+  }
 }
 
 /**
@@ -520,7 +640,8 @@ export async function generateVideo(
     await new Promise((r) => setTimeout(r, Date.now() - t0 > 120_000 ? 10_000 : 5000));
     let st: ArkTaskState;
     try {
-      st = await fetchArkTask(id);
+      // transfer:true —— 一旦 succeeded，服务端在应答前就已把成片排进后台转存队列
+      st = await fetchArkTask(id, { transfer: true });
       pollFails = 0;
     } catch (e) {
       // 单次查询抖动不放弃整个任务（视频已在云端排队生成，白扔太亏）
@@ -533,18 +654,12 @@ export async function generateVideo(
     if (st.status === "succeeded") {
       const url = st.content?.video_url;
       if (!url) throw new Error("Seedance 任务成功但无视频 URL");
-      // ★ 出片一成马上换成永久地址（理由见 transferArkVideo 的 ★）。这里是**唯一**收口：
-      //   composeSegments / regenSegment / 未来任何调用方都自动拿到能全球播的地址。
+      // ★ 出片一成马上换成永久地址。这里是**唯一**收口：composeSegments / regenSegment /
+      //   未来任何调用方都自动拿到能全球播的地址。搬运在服务端后台（弱网手机不再傻等一趟
+      //   大文件 POST，2026-08-21 真机复盘），四种新旧组合的分流全在 settleTransferredUrl。
       //   失败不挡出片 —— 退回方舟直链（24h 内有效，发布时服务端还会再转存一次），但要说出来。
       if (isArkAssetUrl(url)) {
-        opts?.onProgress?.("成片转存中（换成永久地址）…");
-        try {
-          return await transferArkVideo(url);
-        } catch (e) {
-          opts?.onProgress?.(
-            `成片转存没成（${e instanceof Error ? e.message : String(e)}）——先用方舟临时链接，跨境网络下预览可能很慢`,
-          );
-        }
+        return await settleTransferredUrl(url, st.transfer, opts?.onProgress);
       }
       return url;
     }

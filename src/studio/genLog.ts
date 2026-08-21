@@ -74,6 +74,15 @@ export function createGenLog(onChange: (steps: GenStep[]) => void, now: () => nu
       if (cur) cur.title = title;
       flush();
     },
+    /** 追加一条**定格的**警示行（红点，不带耗时）。与 fail 的分工：fail 是"当前步失败
+     *  收尾"，warn 是流程照常跑完之后要**留下来**的一句话——出片成功但转存没成时，
+     *  进度行早被后续步骤盖掉了（React 连画都没画过它），保留日志里的这一条是用户唯一
+     *  能回看到的痕迹（铁律八）。不动任何已有步骤，也不要求有正在跑的步。 */
+    warn(title: string) {
+      closeCurrent("done");
+      steps = [...steps, { id: uid("gs"), title, status: "error" }];
+      flush();
+    },
     get steps() {
       return steps;
     },

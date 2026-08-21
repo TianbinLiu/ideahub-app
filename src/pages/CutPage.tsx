@@ -11,7 +11,7 @@ import { useNavigate } from "react-router";
 import FrameAnnotator, { drawCover, loadImg } from "../components/FrameAnnotator";
 import Icon from "../components/Icon";
 import { AI_REAL, refineFrame, regenSegment } from "../ai";
-import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
+import { fetchArkTransferStatus, isArkAssetUrl, kickArkVideoTransfer } from "../ai/arkClient";
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
 import { fmtTokens, segTokens } from "../data/economy";
@@ -270,6 +270,14 @@ export default function CutPage() {
       useStudio.setState({ draft: { ...draft!, segments: nextSegs } });
       setAnns([]);
       setBusy("");
+      // 重拍成功但转存没成的段要说出来（铁律八）：generateVideo 的那句进度提示早被
+      // 后续步骤盖掉了。合并前的自救会再转存一次，所以这里只提醒、不重试
+      const stillArk = [...bySeg.keys()].filter((i) => isArkAssetUrl(nextSegs[i].videoUrl));
+      if (stillArk.length > 0) {
+        setErr(
+          `第 ${stillArk.map((i) => i + 1).join("、")} 段重拍成了，但长期地址转存没成——预览可能慢，合并时会自动再转存`,
+        );
+      }
     } catch (e) {
       setBusy("");
       setErr(`重新生成失败：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}`);
@@ -282,21 +290,55 @@ export default function CutPage() {
     setErr("");
     let audioCtx: AudioContext | null = null;
     try {
-      // ★ 老草稿自救：还是方舟直链的段先转存成永久地址（服务端拉，全球 CDN）。
-      //   出片那一刻的转存 2026-08-20 才上线，在那之前炼的段揣的还是 TOS 直链 ——
-      //   跨境网络下 120s 代理抓取拉不完 20MB，合并必超时（真机实拍）。转存失败不挡合并，
-      //   照旧走代理抓取碰运气，resolveMediaUrl 的超时文案会说人话。
+      // ★ 合并前自救：还是方舟直链的段（转存没成的段 / 出片即转存上线前的老草稿）先换成
+      //   永久地址——跨境网络下代理抓 20MB 常超时，合并必挂（2026-08-21 真机实拍）。
+      //   2026-08-21 起改成**受理式**：逐段串行阻塞 180s 那版在弱网手机上一次都等不完还
+      //   静默失败。现在并行踢一脚（新服务端立即 202 后台搬；老服务端同步搬完直接回地址），
+      //   再打包轮询进展，预算内没搬完的段照旧走代理碰运气——但**要说出来**（铁律八），
+      //   且服务端不陪跑：这次没等到的，下次点合并会直接拿到现成结果。
       let mergeSegs = segs;
       const arkAt = segs.map((s, i) => (isArkAssetUrl(s.videoUrl) ? i : -1)).filter((i) => i >= 0);
       if (arkAt.length > 0) {
         const next = segs.slice();
-        for (const i of arkAt) {
-          setBusy(`第 ${i + 1} 段成片转存中（换成永久地址）…`);
+        setBusy(`成片转存中（换成长期地址，共 ${arkAt.length} 段）…`);
+        const pending = new Set<number>();
+        await Promise.all(
+          arkAt.map(async (i) => {
+            try {
+              const r = await kickArkVideoTransfer(next[i].videoUrl!);
+              if (r.state === "done" && r.url) next[i] = { ...next[i], videoUrl: r.url };
+              else if (r.state === "pending") pending.add(i);
+              // failed：留直链，落到下面那句统一的黄条里
+            } catch {
+              /* 没有转存端点的服务端/dev：留直链走代理老路 */
+            }
+          }),
+        );
+        const t0 = Date.now();
+        while (pending.size > 0 && Date.now() - t0 < 180_000) {
+          setBusy(`成片转存等待中 ${Math.round((Date.now() - t0) / 1000)}s · 还差 ${pending.size} 段…`);
+          await new Promise((r) => setTimeout(r, 5000));
           try {
-            next[i] = { ...next[i], videoUrl: await transferArkVideo(next[i].videoUrl!) };
+            const stat = await fetchArkTransferStatus([...pending].map((i) => next[i].videoUrl!));
+            for (const i of [...pending]) {
+              const st = stat[next[i].videoUrl!];
+              if (st?.state === "done" && st.url) {
+                next[i] = { ...next[i], videoUrl: st.url };
+                pending.delete(i);
+              } else if (st?.state === "failed") pending.delete(i);
+            }
           } catch {
-            /* 见上：失败照旧 */
+            break; // 老服务端没有 status 端点（kick 在那种服务端上本来就是同步完成的）
           }
+        }
+        // 还挂着直链的段不挡合并，但必须看得见——原来这里静默留直链，用户直到
+        // 「合并失败：The user aborted a request.」才知道出了事
+        const still = arkAt.filter((i) => isArkAssetUrl(next[i].videoUrl));
+        if (still.length > 0) {
+          setErr(
+            `第 ${still.map((i) => i + 1).join("、")} 段还没转存成，先按方舟临时链接合并（跨境网络可能较慢）；` +
+              `服务端仍在后台搬，稍后重试合并会直接换上长期地址`,
+          );
         }
         mergeSegs = next;
         // 写回草稿：预览、重试合并、发布都用转存后的地址，别让下一步再拉一次跨境

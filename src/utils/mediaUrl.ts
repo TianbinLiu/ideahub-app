@@ -29,12 +29,19 @@ export async function resolveMediaUrl(url: string | undefined, opts?: { forCaptu
   const hit = objectUrlCache.get(cacheKey);
   if (hit) return hit;
   for (let attempt = 0; ; attempt++) {
-    const res = await fetchArkAsset(url, 120_000).catch((e) => {
+    // 300s：跨境拉方舟 TOS 的 20MB 成片按实测 1.06MB/s 要 ~190s，旧值 120s 两次都拉不完
+    // （2026-08-21 真机实拍，合并必超时）。这条路只剩"转存没成退回直链"的少数段在走，
+    // 等得起；转存成功的段是 Cloudinary 域，直连不经过这里的代理超时。
+    const res = await fetchArkAsset(url, 300_000).catch((e) => {
       if (attempt === 0) return null;
-      // ★ 超时的 AbortError 一路裸抛的话，用户在合并页看到的是英文原文
-      //   「The user aborted a request.」——既看不懂又不知道下一步（铁律八）。
-      //   2026-08-20 真机实拍：跨境拉方舟 TOS 的 20MB 成片，120s 两次都拉不完，正是这句。
-      if (e instanceof DOMException && e.name === "AbortError") {
+      // ★ 超时一路裸抛的话，用户在合并页看到的是英文原文「The user aborted a request.」
+      //   ——既看不懂又不知道下一步（铁律八）。
+      // ★ 判定只认 e?.name，**不要** instanceof DOMException：Android WebView 上
+      //   AbortSignal.timeout 掐出来的异常过不了 instanceof（2026-08-21 真机实拍，
+      //   这层映射整个失灵、英文原文透出）。且规范里 timeout 掐的名字是 "TimeoutError"，
+      //   手动 abort 才是 "AbortError"——两个都要接。
+      const name = (e as { name?: string } | null)?.name;
+      if (name === "AbortError" || name === "TimeoutError") {
         throw new Error("取媒体超时 —— 文件较大或网络太慢，稍后重试");
       }
       throw e;

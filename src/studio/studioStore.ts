@@ -2,6 +2,8 @@
 import { create } from "zustand";
 import { BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, uid } from "../types";
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, npcChat, npcChatOffline, prepareMaterialRefs, refineFrame, searchMarket } from "../ai";
+// 「这条地址是不是方舟临时域」的客户端判据只有 arkClient 这一份（PublishPage 同款用法）
+import { isArkAssetUrl } from "../ai/arkClient";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, tierBlockReason, walletOf, type AddCardsResult } from "../data/account";
@@ -1583,6 +1585,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
       delete prop.degraded;
       const cur = get().root;
       set({ root: cur ? { ...cur } : cur, nodeGen: null });
+      // ★ 转存没成要说出来（铁律八）：工坊成功路上 nodeGen 被清掉，步骤日志留不下来，
+      //   toast + 方案台脚注（projection 按 isArkAssetUrl 现算，地址换了自然消失）双保险
+      if (res.url && isArkAssetUrl(res.url)) {
+        set({
+          notice: { text: "本段炼成了，但长期地址转存没成——暂用方舟临时链接，预览可能慢，合并/发布时会自动再转存", at: Date.now() },
+        });
+      }
       get().npcSay(
         "这一段炼好了——下一段的虚线卡位已经亮起来了。想改细节就点「编辑本段」圈画面，改完的尾帧就是下一段的起拍画面。",
       );

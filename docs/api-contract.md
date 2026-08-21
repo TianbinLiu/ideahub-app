@@ -1492,14 +1492,50 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
 | GET | `/api/ark/health` | 无 | — | `{ ok, ark: boolean }`，只说配没配 key |
 | POST | `/api/ark/images/generations` | required | 30/min | Seedream 出图（卡面 / 首尾帧） |
 | POST | `/api/ark/contents/generations/tasks` | required | 30/min | Seedance 出视频 / Seed3D 建模（同一个异步任务端点） |
-| GET | `/api/ark/contents/generations/tasks/:id` | required | 90/min | 轮询任务状态（每 5s 一次，一段视频最多 120 次，所以单独一个桶） |
+| GET | `/api/ark/contents/generations/tasks/:id` | required | 90/min | 轮询任务状态（每 5s 一次，一段视频最多 120 次，所以单独一个桶）。可带 **`?transfer=1`**（见下「成片转存」）：succeeded 且产物在方舟视频域时服务端自动后台转存，进展以响应的 `transfer` 字段挂回 |
 | POST | `/api/ark/chat/completions` | required | 30/min | 豆包对话 / 看图说话 |
 | GET | `/api/ark/asset?url=…` | required | 90/min | 取方舟产物（图片 / 视频 / 3D zip），域名限 `*.volces.com`、`*.volccdn.com` |
-| POST | `/api/ark/transfer-video` | required | 30/min | body=`{url}`（限方舟视频域名）→ 服务端拉取并传 Cloudinary → `{url}` 永久地址。**出片一成客户端就调它**（2026-08-20 起）：TOS 直链跨境下载速度低于成片码率，预览黑屏、合并超时；转存失败客户端退回方舟直链（24h 内有效，发布时的转存老路会再兜一次）。不计费（不产生算力消耗）。实现与发布时的转存共用 `services/videoAsset.service` 一份 |
+| POST | `/api/ark/transfer-video` | required | 30/min | body=`{url}`（限方舟视频域名）→ 阻塞等后台搬完 → `{url}` 永久地址（老客户端形态）；body=`{url, wait:false}` → 立即 `202 {state,url?,message?}`（受理式）。见下「成片转存」。不计费（不产生算力消耗） |
+| POST | `/api/ark/transfer-video/status` | required | 90/min | body=`{urls:string[]}`（≤24）→ `{results:{[原样传入的 url]:{state,url?,message?}}}`，只读不登记；没登记过的是 `{state:"none"}` |
 
 请求体与响应**原样透传**方舟 v3（含错误码：`400` 敏感词、`429` 限流——客户端对这两者的
 处置完全不同，聚合成 502 会把区分抹掉）。`POST /api/ark` 的 body 上限放宽到 50MB
 （Seedance 任务带 base64 首尾帧），闸门同 `/api/branch`：先验 JWT 签名再决定给多大缓冲区。
+唯二的透传例外：轮询响应可能**多**一个 `transfer` 字段（见下，方舟自己的字段一个不动）；
+`?transfer=1` 这个 query 是客户端与 server 之间的私货，**不会**转发给方舟
+（app 的 vite dev 代理直连方舟，所以它在 rewrite 里同样把这个参数剥掉）。
+
+### 成片转存（方舟 TOS 直链 → Cloudinary 永久地址）
+
+**为什么由服务端后台搬（2026-08-21 真机复盘）**：TOS 直链 24h 过期且跨境下载速度
+（实测 1.06 MB/s）低于成片码率，预览黑屏、合并的代理抓取超时。而 2026-08-20 那版
+「出片一成客户端就 POST /transfer-video 傻等」在弱网手机上 180s 都等不完——超时即
+静默失败，成片留在直链上，下游全坏。搬 20MB 去 Cloudinary 这件事根本不需要客户端在线：
+server 在轮询里看到 succeeded 的第一眼就自己搬，客户端只读结果。
+
+- **登记表**（`models/ArkVideoTransfer`，TTL 48h）按 `协议//主机/路径` 去重——TOS 的
+  签名 query 每次轮询可能重签，同一产物从三个入口来都只搬**一次**。表也是 pm2 cluster
+  多实例间的认领锁（pending 超过 10 分钟没动静算僵尸，可被重新认领）。
+- **三个入口，共用登记表**：
+  ① 轮询 `?transfer=1`（新客户端主路）：succeeded → 服务端 `ensureTransfer` 后台开搬，
+    响应挂 `transfer: {state:"pending"} | {state:"done",url} | {state:"failed",message}`；
+    客户端接着轮询同一端点直到 done（预算 5 分钟），等不到就退回直链继续往下走。
+    `content.video_url` **原样保留**，不偷换——老客户端还要读它走老路。
+  ② `POST /transfer-video {url, wait:false}`（受理式，剪辑页合并前自救）：立即
+    `202 {state,…}`，进展用 `/transfer-video/status` 批量轮询。
+  ③ `POST /transfer-video {url}`（阻塞式，**已装机老 APK 的形态，不许动**）：在登记表上
+    等结果，165s 预算内搬完回 `{url}`，没搬完回 `502 + 中文 message`（后台**继续**搬，
+    下次再问直接拿现成的）。
+- **兼容矩阵**：新客户端 × 老服务端 → 轮询响应没有 `transfer` 字段，客户端识别后退回
+  阻塞 POST 老路（dev 的 vite 直连代理同理）；老客户端 × 新服务端 → 老 APK 照旧阻塞
+  POST，只是命中登记表后不再重搬。**服务端要先发**（与 generate_audio 那条同一顺序）。
+- 转存失败/超预算不挡任何流程（退回直链，发布时的转存老路再兜一次），但**必须留痕**：
+  工作流是节点保留日志里的红行，工坊是方案台脚注（按 `isArkAssetUrl(videoUrl)` 现算，
+  地址换上自动消失），剪辑页是合并前的黄条。判据只有 app `arkClient.isArkAssetUrl` 与
+  server `videoAsset.isArkVideoUrl` 各一份镜像。
+- 自动转存必须 **opt-in**（`?transfer=1`）：同一个轮询端点还伺候白模化（产物由 finish
+  阶段按模板流程另行转存）与 Seed3D（zip 不是视频），见 succeeded 就搬等于每单白搬
+  20MB 去没人读的角落。回归测试见 `server/tests/arkTransfer.spec.js`。
 
 **这是白名单转发，不是通用反向代理**：只有上表这几条上游路径可达，且 `model` 必须在
 `ALLOWED_MODELS` 里（对应 `app/src/ai/arkClient.ts` 的 `MODELS` 与

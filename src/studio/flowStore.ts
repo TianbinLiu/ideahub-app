@@ -19,6 +19,8 @@
 //   现在它是主路径：便宜的一步（推演 ~80k token）摆在前面挑，贵的一步（出片）挑完再走。
 import { create } from "zustand";
 import { AI_REAL, generateCover, generateProposals, prepareMaterialRefs } from "../ai";
+// 「这条地址是不是方舟临时域」的客户端判据只有 arkClient 这一份（PublishPage 同款用法）
+import { isArkAssetUrl } from "../ai/arkClient";
 import { canAfford, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, tierOf } from "../data/economy";
 import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
@@ -1209,6 +1211,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
         prog,
       );
       log.end();
+      // ★ 转存没成要**留痕**（铁律八）：generateVideo 只在进度行里说了一句，紧接着的
+      //   「捕获尾帧」立刻把它盖掉——出片成功、videoUrl 却还是方舟临时域时，在保留的
+      //   步骤日志里补一条定格红行。地址一换（合并/发布前自救转存成功）这个判断自然消失。
+      if (res.url && isArkAssetUrl(res.url)) {
+        log.warn("⚠ 长期地址转存没成，本段暂用方舟临时链接（约 24 小时）——预览可能慢，合并/发布时会自动再转存");
+      }
       if (res.url && AI_REAL) spendTokens(cost);
       // 真实帧顶替设定帧：节点卡显示的就是视频里实际的画面，也是下一段的起拍帧。
       // videoUrl 同时挂在方案上——工坊侧的节点卡读的就是它（两个模式共用同一份出片）

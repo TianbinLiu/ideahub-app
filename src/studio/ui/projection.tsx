@@ -6,6 +6,8 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { deckCoverOf, myCards, myDecks, tierBlockReason } from "../../data/account";
+// 「这条地址是不是方舟临时域」的判据只有 arkClient 这一份（转存没成的脚注按它现算）
+import { isArkAssetUrl } from "../../ai/arkClient";
 import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, modelLabel, segTokens, segmentCost, tierOf } from "../../data/economy";
 import TarotCard from "../../components/TarotCard";
 import DeckCard from "../../components/DeckCard";
@@ -615,7 +617,11 @@ function ProposalsPanel() {
         {!node.chosenId
           ? "挑一套 → 可换首尾帧/改剧情 → 炼出本段视频，桌面上才会亮出下一段的卡位"
           : done
-            ? "本段已出片 · 桌面上下一段的虚线卡位已亮起"
+            ? // ★ 转存没成的持久留痕（铁律八）：toast 两秒就没了，这行按 videoUrl 现算，
+              //   地址一换（合并/发布前自救转存成功）自动恢复成正常文案
+              isArkAssetUrl(chosen?.videoUrl)
+              ? "⚠ 本段已出片，但还挂在方舟临时链接上（转存没成）——预览可能慢，合并/发布时会自动再转存"
+              : "本段已出片 · 桌面上下一段的虚线卡位已亮起"
             : "炼出本段视频才能开下一段（段与段靠上一段的真实尾帧承接起拍）"}
       </div>
     </>
