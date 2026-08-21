@@ -18,6 +18,7 @@ import Icon from "../Icon";
 import HelpButton from "../guide/HelpButton";
 import { useAutoGuide } from "../guide/useAutoGuide";
 import DeleteSegBtn from "./DeleteSegBtn";
+import SegSettings from "./SegSettings";
 import PlanBoard from "../../studio/ui/PlanBoard";
 import {
   chosenOf,
@@ -519,6 +520,7 @@ function NodePanel({
    *    换掉它选定的走向、清掉它的圈选，已出片的还会退回"未出片"并把后面全部重新上锁，
    *    全程零报错（2026-08-21 对抗评审确认）。认 id 就换不错。 */
   const [planSheet, setPlanSheet] = useState<string | null>(null);
+  const [settings, setSettings] = useState(false);
   const cost = nodeCost(nodes, index, mode);
   // 推演报价与线性视图同一把尺：承接上一段真实尾帧的段少画一张起始帧
   const prevP = index > 0 ? chosenOf(nodes[index - 1]) : null;
@@ -536,6 +538,15 @@ function NodePanel({
           {done ? " · ✓ 已出片" : generating ? " · 生成中…" : locked ? " · 🔒 前面的段炼完才解锁" : ""}
         </span>
         <span className="min-w-0 flex-1" />
+        {/* ⚙ 本段设置：时长/画幅/画质/承接。★ 时长与画质**直接决定这一段多少钱** ——
+            只在线性视图里能改的话，画布上那颗标着价的生成键就是个改不动的数 */}
+        <button
+          onClick={() => setSettings(true)}
+          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-[13px] text-slate-300"
+          title="本段设置"
+        >
+          ⚙
+        </button>
         <button onClick={onClose} className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-300">
           <Icon name="close" size={13} />
         </button>
@@ -808,6 +819,7 @@ function NodePanel({
         </div>
       )}
 
+      {settings && <SegSettingsSheet nodeId={node.id} onClose={() => setSettings(false)} />}
       {planSheet && <PlanSheet nodeId={planSheet} onClose={() => setPlanSheet(null)} />}
       {picker && (
         <TemplatePicker
@@ -1015,6 +1027,30 @@ function SegPlayer({ nodeId, onClose }: { nodeId: string; onClose: () => void })
         ) : (
           <p className="text-center text-xs leading-relaxed text-slate-400">正在取这一段的视频地址…</p>
         )}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/** 「本段设置」弹层：正文是两面共用的 SegSettings（规则只有那一处）。
+ *  ★ portal + z-50 与另外几个弹层同级：画布的变换层带 transform，内联的 fixed 会被它
+ *    当包含块（CLAUDE.md 那条坑）；编辑窗外壳又是滚动容器，内联会被裁。 */
+function SegSettingsSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void }) {
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={onClose}>
+      <div
+        className="flex max-h-[80%] w-full max-w-md flex-col overflow-y-auto rounded-t-2xl bg-ink p-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-2 flex flex-none items-center">
+          <span className="text-sm font-bold text-slate-100">本段设置</span>
+          <span className="flex-1" />
+          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-full bg-panel text-slate-300">
+            <Icon name="close" size={13} />
+          </button>
+        </div>
+        <SegSettings nodeId={nodeId} />
       </div>
     </div>,
     document.body,

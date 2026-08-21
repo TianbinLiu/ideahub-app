@@ -47,6 +47,11 @@ export interface AspectSpec {
   desc: string;
 }
 
+/** 一段视频可选的时长（秒）。★ 唯一一份：方案台与「本段设置」都从这里取 ——
+ *  在此之前 FlowPage 与 PlanBoard 各写了一份同样的数组。
+ *  ⚠ 各档位还有自己的下限（VideoTier.minSec），能不能选那一档由那边判，别在这里筛。 */
+export const DURATIONS = [3, 5, 6, 8, 10];
+
 export const VIDEO_ASPECTS: AspectSpec[] = [
   {
     id: "portrait",
