@@ -818,6 +818,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   界面上 V2 本来就不渲染那个「一句话」输入框（FlowPage），这里是第二道闸：
       //   这条规则一旦只活在 UI 里，换个入口调 setSubject 就会静默把点名句抹掉。
       if (s.template?.roles?.length) return { subject };
+      // ★★ **混合/分段流水线一律只记这句话**（2026-08-21 第三轮验证）：下面那段是拿
+      //   store 级配方的 beats **整表覆盖每一段**的 plot/title/时长，而 store 级那份只是
+      //   "光标段的模板"。分段模板组（各段自带快照）或混合流水线里，在「一句话」框里
+      //   敲一个字，就会把别段推演出来的剧情、改过的时长按**当前这一段**的配方抹平 ——
+      //   而那些段可能已经花钱出过片。整表填空只对"整条流水线共用一份模板"的单模板流成立，
+      //   判据就是"没有任何一段自带 tpl"（三态里的 undefined 才是单模板流的形状）。
+      if (s.nodes.some((n) => n.tpl !== undefined)) return { subject };
       // 白模的段时长跟模板**登记值**走（recipe.durationSec 是留给老客户端经典降级路的数）：
       // 填空这一步别把它改回配方数——报价虽不看它（r2v 按登记时长算），但界面上显示的
       // 段时长与实际出片时长（edit 输出≈输入）对不上，也是一种骗人（铁律八）
@@ -1357,16 +1364,23 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return { nodes: [...pinUnstatedTpl(s.nodes, s.template), node], cursor: i, err: "" };
     }),
 
-  removeNode: (id) =>
-    set((s) => {
-      // ★ 早退要说人话（铁律八）：静默 return {} 时，agent 那条路按"删完了没变"判失败，
-      //   然后去读 store.err —— 读到的是**上一次别的操作**留下的那句，于是回执上会出现
-      //   「✗ 删第 1 段：先把这一段炼出来，再加下一段」这种驴唇不对马嘴的解释。
-      if (s.nodes.length <= 1) return { err: "只剩这一段了，删不掉（想重来就用「删除本段」旁边的重新生成，或退出去开一条新的）" };
-      const i = s.nodes.findIndex((n) => n.id === id);
-      const nodes = s.nodes.filter((n) => n.id !== id);
-      return { nodes, cursor: clampCursor(nodes, Math.max(0, i)) };
-    }),
+  removeNode: (id) => {
+    const s = get();
+    // ★ 早退要说人话（铁律八）：静默 return 时，agent 那条路按"删完了没变"判失败，
+    //   然后去读 store.err —— 读到的是**上一次别的操作**留下的那句，于是回执上会出现
+    //   「✗ 删第 1 段：先把这一段炼出来，再加下一段」这种驴唇不对马嘴的解释。
+    if (s.nodes.length <= 1) {
+      set({ err: "只剩这一段了，删不掉（想重来就用「删除本段」旁边的重新生成，或退出去开一条新的）" });
+      return;
+    }
+    const i = s.nodes.findIndex((n) => n.id === id);
+    set({ nodes: s.nodes.filter((n) => n.id !== id) });
+    // ★★ 走 setCursor，别自己 set 一个下标（2026-08-21 第三轮验证）：换段这件事还要把
+    //   store 级模板与挂卡缓冲换成那一段自己的。自己 set 的话，删完之后这两样还停在
+    //   **被删那一段**上 —— 线性视图的挂卡区按已经不存在的角色位渲染，挂法直接串段。
+    //   画布那面靠"删完关窗、再点格子补齐"绕过去了，线性那面没有这个绕法。
+    get().setCursor(Math.max(0, i));
+  },
 
   setCursor: (i) =>
     set((s) => {

@@ -137,17 +137,28 @@ function TemplateSubjectBox() {
  *   什么"都不知道。所以合成完直接填进来，随便改。
  */
 function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void }) {
-  const { template, cast, castErr, castFallback, castBusy, busy, updateProposal, setRequirement, fillCastFallback } =
-    useFlow();
+  const { cast, castErr, castFallback, castBusy, busy, updateProposal, setRequirement, fillCastFallback } = useFlow();
+  /**
+   * ★★ 挂卡三态属于**哪一段**由 store 的 castNodeId 说了算，与画布同一处判据（铁律六）。
+   *   不判的话：合成那十几秒里用户点一下别的段（底部节点条不判 busy），这一段的输入框
+   *   会被禁用并写着「正在把…合成一段话…」，而真正在写的那一段不在屏上；失败提示同样
+   *   画在这里，点「填入默认写法」却（正确地）写进另一段 —— 用户眼里就是"点了没反应"。
+   */
+  const castOfThisNode = useFlow((s) => s.castNodeId === node.id);
+  // ★ 模板读 tplOfNode（本段自己的快照），不是 store 级那份：删段/切段时 store 级会陈旧，
+  //   而这一块正是按角色位渲染的 —— 按别段的角色位画就是挂法串段（第三轮验证抓到）
+  const tpl = tplOfNode(node);
   // ★ 分母只数**能挂卡的**那些（上限 BLOCKOUT_MAX_ROLES，判定唯一实现在 data/templates）：
   //   数全部的话，一个 12 个角色位的模板会显示"已挂 9/12"，而第 10~12 个在挂卡面板上
   //   根本没有挂卡按钮 —— 用户会一直找那三个位子在哪
-  const roles = splitCastRoles(template?.roles ?? []).castable;
+  const roles = splitCastRoles(tpl?.roles ?? []).castable;
   const prop = chosenOf(node);
-  const mounted = roles.filter((r) => cast[r.label]).length;
+  // 本段就是光标段时读实时缓冲（刚从编辑页回来还没落盘），否则读本段自己那份
+  const isCursorNode = useFlow((s) => s.nodes[s.cursor]?.id === node.id);
+  const mounted = roles.filter((r) => (isCursorNode ? cast : (node.cast ?? {}))[r.label]).length;
   const [openReq, setOpenReq] = useState(false);
   // 这个模板的标记方案（判据只有 data 层一处）。★ 名词也只有一处：markNoun
-  const spec = markSpecOf(template);
+  const spec = markSpecOf(tpl);
   const noun = markNoun(spec);
   return (
     <div className="space-y-1.5">
@@ -192,7 +203,7 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
           "还没写"长得一模一样，用户会以为随手写一句就够，出片时点名映射整个没发出去
           （blockoutPrompt 的 ★，铁律八）。骨架是确定性的那一份（第五章模板逐字实现），
           填进去照样可以改 */}
-      {castErr && (
+      {castErr && castOfThisNode && (
         <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
           <p className="text-[11px] leading-relaxed text-amber-200">{castErr}</p>
           {castFallback && (
@@ -211,14 +222,16 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
         onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
         rows={4}
         maxLength={VIDEO_PROMPT_MAX}
-        disabled={castBusy}
+        disabled={castBusy && castOfThisNode}
         placeholder={
-          castBusy ? `正在把「${noun} → 角色」合成一段话…` : "先去挂卡：合成好的点名要求会填在这里，你可以逐字改"
+          castBusy && castOfThisNode
+            ? `正在把「${noun} → 角色」合成一段话…`
+            : "先去挂卡：合成好的点名要求会填在这里，你可以逐字改"
         }
         className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-60"
       />
       <p className="text-[10px] leading-4 text-slate-500">
-        {castBusy
+        {castBusy && castOfThisNode
           ? "合成中…（一次对话，几秒）"
           : prop.plot.trim()
             ? `这就是真正发给 AI 的那段话：${noun}与角色名是机器生成的（改错就会换错人），其余随便改；改挂卡会按新映射重新合成、覆盖这里。`
