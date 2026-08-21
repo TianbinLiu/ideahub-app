@@ -5,13 +5,24 @@
 //        剪辑 —— 缩略图时间轴：选中/✂️分割/🗑删除/拖拽或◀▶换序
 //        圈选 —— ⭕在任意帧圈出物体写要求，跨帧跨段累积，一键按全部要求重生成
 //        音频 —— 本地 BGM，音量可调，合并时混进成片
-// 最后「下一步」把时间轴按顺序与裁剪范围重编码成单条视频，进发布页。
+// 最后「下一步」把时间轴按顺序与裁剪范围合成单条视频，进发布页。
+//
+// ★★ 合并有**两条路**，能走服务端就走服务端（2026-08-21 真机复盘）：
+//   · 服务端拼接（首选）：段落早就转存在 Cloudinary 上了，让服务端按时间轴拼一条独立资产。
+//     手机只发一次请求 + 轮询，几秒钟就完事。
+//   · 端上重录（兜底）：MediaRecorder + canvas.captureStream 实时重录 —— 耗时恒等于片长、
+//     低端机掉帧直接烙进成片、切后台就被 rAF 节流卡死。弱网真机上它连素材都拉不完，
+//     那次的成片最后是拿本机 ffmpeg 救回来的。
+//   兜底这条**必须留着**：离线模式（没配 VITE_API_BASE）根本没有 public_id；选了本地 BGM
+//   时服务端拿不到那个文件；有段落没出片（只有首尾帧）时服务端也拼不了。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import FrameAnnotator, { drawCover, loadImg } from "../components/FrameAnnotator";
 import Icon from "../components/Icon";
 import { AI_REAL, refineFrame, regenSegment } from "../ai";
 import { fetchArkTransferStatus, isArkAssetUrl, kickArkVideoTransfer } from "../ai/arkClient";
+import { composeStatus, startCompose, type ComposeClip } from "../api/branch";
+import { API_ON } from "../api/client";
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
 import { fmtTokens, segTokens } from "../data/economy";
@@ -284,7 +295,73 @@ export default function CutPage() {
     }
   }
 
-  /** 🎬 合并导出：按时间轴顺序/裁剪范围重编码成单条 webm（混入音频轨）→ 发布页 */
+  /**
+   * 合并完成之后做什么 —— **两条路共用这一处**（铁律六）。
+   * 服务端拼接给的是 https 永久地址，端上重录给的是 `idb:` 本地 blob，除此之外
+   * 后续完全相同：把时间轴收成单段成片、清掉分支树、进发布页。分两份写的话，
+   * 哪天给成片加个字段（画幅那次就是）必然只加一边，而两边都不报错。
+   */
+  function finishMerge(videoUrl: string) {
+    const orderedPlots = [...new Set(view.map((c) => segs[c.segIndex].plot))];
+    const first = segs[view[0].segIndex];
+    const last = segs[view[view.length - 1].segIndex];
+    const merged: VideoSegment = {
+      title: "成片",
+      plot: orderedPlots.join("\n"),
+      firstFrame: first.firstFrame,
+      lastFrame: last.lastFrame,
+      durationSec: Math.round(total),
+      videoUrl,
+      // 合并后就只剩这一段了：画幅必须跟着走，否则首页拿不到画幅提示，
+      // 而且回炉重制时新拍的段会退回默认画幅
+      aspect: segs[0]?.aspect,
+    };
+    leftRef.current = true;
+    useStudio.setState({ draft: { ...draft!, segments: [merged], branchTree: undefined, merged: true } });
+    navigate("/publish");
+  }
+
+  /**
+   * 服务端拼接（首选那条路）。
+   * @returns 成片地址；`null` = 这条路走不成，调用方**照旧退回端上重录**。
+   *
+   * ★ 走不成一律退回而不是报错终止：端上那条虽然慢，但它什么都不依赖。把服务端的
+   *   失败翻成"合并失败"会让本来能出片的人卡死在这一步。但退回**要说出来**（铁律八）——
+   *   不然用户只会觉得"这次怎么特别慢"。
+   */
+  async function serverMerge(mergeSegs: VideoSegment[]): Promise<string | null> {
+    const clips: ComposeClip[] = view.map((c) => ({
+      url: mergeSegs[c.segIndex].videoUrl!,
+      startSec: c.start,
+      endSec: c.end,
+    }));
+    try {
+      setBusy("服务端合并中…");
+      let job = await startCompose({ clips, width: out.w, height: out.h });
+      const t0 = Date.now();
+      // 实测一条 25 秒成片约 17 秒出片；5 分钟是给"排队 + 高峰"的余量。
+      // 到点不算失败：服务端那边还在跑，只是这次不等了 —— 退回端上把片子先做出来。
+      while (job.state === "pending" && Date.now() - t0 < 5 * 60_000) {
+        setBusy(`服务端合并中 ${Math.round((Date.now() - t0) / 1000)}s…`);
+        await new Promise((r) => setTimeout(r, 3000));
+        job = await composeStatus(job.jobId!);
+      }
+      if (job.state === "done" && job.url) return job.url;
+      setErr(
+        job.state === "failed"
+          ? `服务端合并没成（${(job.message || "").slice(0, 60)}）——改用本机合并，会慢一些`
+          : "服务端合并还没跑完——先用本机合并，会慢一些",
+      );
+      return null;
+    } catch (e) {
+      // CLIPS_NOT_READY（素材还没转存好）/ COMPOSE_QUOTA（额度用完）/ 网络问题，
+      // 三种都还能退回端上，所以都不是致命错误 —— 但要把原话带给用户
+      setErr(`服务端合并用不了（${(e instanceof Error ? e.message : String(e)).slice(0, 60)}）——改用本机合并，会慢一些`);
+      return null;
+    }
+  }
+
+  /** 🎬 合并导出：优先服务端拼接，走不成退回端上重录（混入音频轨）→ 发布页 */
   async function mergeAndGo() {
     if (busy) return;
     setErr("");
@@ -344,6 +421,31 @@ export default function CutPage() {
         // 写回草稿：预览、重试合并、发布都用转存后的地址，别让下一步再拉一次跨境
         useStudio.setState({ draft: { ...draft!, segments: next } });
       }
+
+      // ★★ 优先走服务端拼接。三个前提缺一不可，缺了就只能端上重录：
+      //   · 接了服务器（离线模式根本没有 public_id 可拼）；
+      //   · 没选本地 BGM（那是用户机器上的文件，服务端拿不到 —— 补上音频上传口之前只能这样）；
+      //   · 每一段都真出过片且已经是 https 地址（只有首尾帧的失败段、mock: 占位串都不行）。
+      //   判定放在**转存之后**：转存正是把段落变成"服务端拼得动"的那一步。
+      //   ★ 方舟直链也是 https，所以必须**显式排掉**：上面那步转存没成的段就还挂在直链上，
+      //     它们在服务端一定被判 CLIPS_NOT_READY。不排的话白跑一趟往返，还会把上面那句
+      //     「第 N 段还没转存成」的提示冲掉 —— 而那句才是用户真正需要看到的。
+      const serverOk =
+        API_ON &&
+        !audio &&
+        view.every((c) => {
+          const u = mergeSegs[c.segIndex]?.videoUrl ?? "";
+          return /^https:\/\//.test(u) && !isArkAssetUrl(u);
+        });
+      if (serverOk) {
+        const url = await serverMerge(mergeSegs);
+        if (url) {
+          finishMerge(url);
+          return;
+        }
+        // 走不成：serverMerge 已经把原因说出来了，继续往下用端上那条
+      }
+
       const canvas = document.createElement("canvas");
       canvas.width = out.w;
       canvas.height = out.h;
@@ -438,23 +540,7 @@ export default function CutPage() {
       const blob = new Blob(chunks, { type: mime });
       const key = `merged:${uid("mv")}`;
       if (!(await idbSet(key, blob))) throw new Error("成片写入本地库失败（存储配额？）");
-      const orderedPlots = [...new Set(view.map((c) => segs[c.segIndex].plot))];
-      const first = segs[view[0].segIndex];
-      const last = segs[view[view.length - 1].segIndex];
-      const merged: VideoSegment = {
-        title: "成片",
-        plot: orderedPlots.join("\n"),
-        firstFrame: first.firstFrame,
-        lastFrame: last.lastFrame,
-        durationSec: Math.round(total),
-        videoUrl: `idb:${key}`,
-        // 合并后就只剩这一段了：画幅必须跟着走，否则首页拿不到画幅提示，
-        // 而且回炉重制时新拍的段会退回默认画幅
-        aspect: segs[0]?.aspect,
-      };
-      leftRef.current = true;
-      useStudio.setState({ draft: { ...draft!, segments: [merged], branchTree: undefined, merged: true } });
-      navigate("/publish");
+      finishMerge(`idb:${key}`);
     } catch (e) {
       setErr(`合并失败：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}`);
     } finally {

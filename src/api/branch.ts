@@ -1418,3 +1418,51 @@ export async function listFollowing(userId: string): Promise<ApiAuthor[]> {
   });
   return pickList<ApiAuthor>(res, ["following", "users", "items"]);
 }
+
+// ── 成片合并（服务端拼接，2026-08-21）──────────────────────
+//
+// 端上原来用 MediaRecorder 实时重录合并：耗时恒等于片长、低端机掉帧、切后台就被 rAF
+// 节流卡死，弱网真机上连素材都拉不完（那次的成片是拿本机 ffmpeg 救回来的）。
+// 段落早就都转存在 Cloudinary 上了，拼接交给服务端做，这边只受理 + 轮询。
+// 契约见 docs/api-contract.md「成片合并」。
+
+/** 一段：段落地址 + 时间轴上取哪一截 */
+export interface ComposeClip {
+  /** 段落的 secure_url（必须是已转存到我们 Cloudinary 空间的地址） */
+  url: string;
+  startSec: number;
+  endSec: number;
+}
+
+/** 合并任务的进展。state 之外的字段按状态出现 */
+export interface ComposeJob {
+  jobId?: string;
+  /** pending=还在跑；done=拿 url 走人；failed=看 message */
+  state: "pending" | "done" | "failed" | string;
+  url?: string;
+  message?: string;
+}
+
+export interface ComposeRequest {
+  clips: ComposeClip[];
+  width: number;
+  height: number;
+  quality?: "good" | "best";
+  /** 背景音乐（必须是本账号在我们空间里的资产）。App 目前没有音频上传口，所以暂时不会传 */
+  audio?: { url: string; volume: number; replace?: boolean };
+}
+
+/**
+ * POST /api/branch/compose —— 受理一次合并。
+ * 202 = 已受理，拿 jobId 去轮询；200 = 这份配方之前就拼过，直接给地址。
+ * ★ 失败一律抛 ApiError，调用方按 `code` 分流（CLIPS_NOT_READY = 素材还没转存好、
+ *   COMPOSE_QUOTA = 额度用完）——两种都还能退回端上合并，所以别把它当致命错误。
+ */
+export async function startCompose(req: ComposeRequest): Promise<ComposeJob> {
+  return await apiPost<ComposeJob>("/api/branch/compose", req, { timeoutMs: 30_000 });
+}
+
+/** GET /api/branch/compose/:jobId —— 查进展（服务端会把僵尸任务判失败，不会永远 pending） */
+export async function composeStatus(jobId: string): Promise<ComposeJob> {
+  return await apiGet<ComposeJob>(`/api/branch/compose/${encodeURIComponent(jobId)}`);
+}
