@@ -3,7 +3,7 @@
 // ★ 只有「全新发布」这一种模式了。原来还有一种「回炉编辑」（把本次合成塞回既有作品的
 //   某一 P），2026-08 随「作品一经发布不可回炉」一并删除 —— 理由见 studioStore 里
 //   那段注释：已经有人看过的作品不该被换掉内容。想改内容 = 重新发一条。
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { Link, useNavigate } from "react-router";
 import { CoverSection } from "../components/CoverPicker";
 import Icon from "../components/Icon";
@@ -30,6 +30,11 @@ export default function PublishPage() {
   // 想先自己留着的人可以在这里改，发完在作品编辑页也随时能改回来。
   const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [err, setErr] = useState("");
+  /** 出问题的那一格（目前只有标题）。校验没过要把人带过去，见 reportProblem */
+  const titleRef = useRef<HTMLInputElement>(null);
+  /** 让那一格闪一下红框。用状态而不是直接改 DOM：React 重绘时手改的 class 会被抹掉 */
+  const [flash, setFlash] = useState(false);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
    * 本页刚刚发布过（publish() 已经把去处发出去了）。
@@ -55,10 +60,50 @@ export default function PublishPage() {
   if (!draft) return null;
   const total = draft.segments.reduce((s, x) => s + x.durationSec, 0);
 
+  /**
+   * 校验没过时怎么告诉用户 —— **一处实现**（铁律六），新增必填项照这条路走。
+   *
+   * ★★ 光 setErr 是不够的，这正是 2026-08-21 真机上暴露的那个 bug：那句话渲染在
+   *   标题输入框下面，而「发布」按钮在这张长表单的**最底部** —— 手机上点下去，
+   *   提示就出现在屏幕外。用户看到的是"点了没反应"，只会认为软件坏了（铁律八：
+   *   失败要响，而"响在看不见的地方"等于没响）。
+   * ★ 三件事缺一不可：滚过去（看得见）、聚焦（手能直接打字，顺带弹出键盘）、
+   *   闪一下红框（一眼认出是**哪一格**的问题，而不是满屏找红字）。
+   * ★ 不用"标题为空就禁用发布按钮"那种做法：一个点不动又不说为什么的按钮是同一种
+   *   静默失败，CLAUDE.md「界面上摆一个永远点不动的选项」那条说的就是它。
+   */
+  // 跳走之后定时器还醒着的话会对着已卸载的组件 setState（React 会警告，且毫无意义）
+  useEffect(() => () => {
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+  }, []);
+
+  function reportProblem(field: RefObject<HTMLElement | null>, message: string) {
+    setErr(message);
+    const el = field.current;
+    if (!el) return;
+    // block:"center" 而不是 "start"：顶栏是 sticky top-0，start 会把这一格塞到顶栏底下
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    // ★★ 平滑滚动**存在静默不生效的场合**，实测过：页面不可见时（后台标签、被遮住的窗口）
+    //   Chromium 直接不跑这个动画，scrollTop 一动不动 —— 就是 CLAUDE.md「在看不见的窗口里测」
+    //   那条坑的同一个机理；系统开了「减少动效」、某些 WebView 上同理。
+    //   而它一旦没跑，用户就又回到"点了没反应"——正是这次要修的那个病。所以等一拍复查：
+    //   还在视口外就瞬时滚过去（跳一下不好看，但比什么都不发生强得多）。
+    // ★ 聚焦也放在这一拍：立刻 focus 的话，WebView 会为了"把光标露出来"再滚一次，
+    //   把刚才平滑滚动的位置拽走（真机上表现为画面抖一下又跑偏）。preventScroll 双保险。
+    setTimeout(() => {
+      const box = el.getBoundingClientRect();
+      if (box.top < 0 || box.bottom > window.innerHeight) el.scrollIntoView({ block: "center" });
+      el.focus({ preventScroll: true });
+    }, 350);
+    setFlash(true);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlash(false), 1800);
+  }
+
   function publish() {
     if (!draft || publishedRef.current) return;
     if (!title.trim()) {
-      setErr("先给视频起个标题");
+      reportProblem(titleRef, "还没起标题——先给这支视频起个名字才能发布");
       return;
     }
     // 本片卡组定名（合成时聚合了素材/派生卡，名字要等最终标题定下来）
@@ -148,14 +193,18 @@ export default function PublishPage() {
           <div>
             <div className="mb-1.5 text-sm font-semibold text-slate-300">标题 *</div>
             <input
+              ref={titleRef}
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
                 setErr("");
+                setFlash(false); // 一开始打字就把红框收掉：问题正在被解决，别再红着吓人
               }}
               maxLength={40}
               placeholder="给这支视频起个好名字"
-              className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+              className={`w-full rounded-xl border bg-panel px-3.5 py-2.5 text-slate-100 outline-none transition-colors placeholder:text-slate-500 ${
+                flash ? "border-red-400 ring-2 ring-red-400/60" : "border-slate-700 focus:border-brand"
+              }`}
             />
             {err && <div className="mt-1 text-xs text-red-400">{err}</div>}
           </div>
