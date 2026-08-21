@@ -17,6 +17,7 @@ import AvatarSwapButton from "./ui/AvatarSwapButton";
 import { cancelPendingStop, stopSpeakingSoon } from "./speech";
 import { useStudioBack } from "./useStudioBack";
 import { autoQualityOnFirstVisit, QUALITY_LABELS, type Quality } from "./quality";
+import DiscardFlowDialog from "../components/flow/DiscardFlowDialog";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -119,51 +120,22 @@ function MarketArrow({ dir, disabled, side }: { dir: 1 | -1; disabled: boolean; 
   );
 }
 
-/** 法阵二次确认：桌面上已经有一条在途工作流时，重铺会把已出片的段（每段真金白银 +
- *  几分钟）、圈选标注、手敲的剧情全部抹掉。此前这一步是静默执行的，而且 flowLen 不是
- *  0→N，StudioPage 也不会跳页——用户看到的是"点了没反应"，钱和进度却没了。
- *  顺带补上工坊里唯一的「回到在途工作流」入口（以前只能靠法阵，而法阵正是清空它的那个）。 */
+/** 法阵二次确认：桌面上已经有一条在途工作流时，重铺会把还没存进草稿的进度抹掉。
+ *  此前这一步是静默执行的，而且 flowLen 不是 0→N，StudioPage 也不会跳页——用户看到的是
+ *  "点了没反应"，钱和进度却没了。顺带补上工坊里唯一的「回到在途工作流」入口
+ *  （以前只能靠法阵，而法阵正是清空它的那个）。
+ *  ★ 对话框本体与创作入口那道**共用一份**（components/flow/DiscardFlowDialog）：那段话要
+ *    说清"丢弃会不会烧掉已经花过的钱"，抄两份必然分叉——此前正是两份，且两份都在撒谎。 */
 function FlowConfirm({ onResume, onRebuild }: { onResume: () => void; onRebuild: () => void }) {
   const open = useStudio((s) => s.flowConfirm);
-  const nodes = useFlow((s) => s.nodes);
   if (!open) return null;
-  const done = nodes.filter((n) => Object.keys(n.videoByProposal).length > 0).length;
-  const anns = nodes.reduce((s, n) => s + n.anns.length, 0);
   return (
-    <div
-      className="absolute inset-0 z-30 flex items-end justify-center bg-black/65 p-4"
-      onClick={() => useStudio.getState().setFlowConfirm(false)}
-    >
-      <div
-        className="w-full max-w-md rounded-2xl border border-slate-700 bg-panel p-4 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-sm font-bold text-slate-100">已经有一条工作流在跑</h3>
-        <p className="mt-2 text-xs leading-relaxed text-slate-300">
-          {nodes.length} 段
-          {done > 0 && <span className="text-emerald-300">，其中 {done} 段已出片</span>}
-          {anns > 0 && <span className="text-amber-300">，{anns} 条圈选要求</span>}
-          。重新铺一条会把这些全部丢掉，已出片的段要重新花 token 再炼一次。
-        </p>
-        <div className="mt-3.5 flex flex-col gap-2">
-          <button onClick={onResume} className="rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
-            回去接着炼
-          </button>
-          <button
-            onClick={onRebuild}
-            className="rounded-xl border border-rose-500/40 bg-rose-500/10 py-2.5 text-sm font-semibold text-rose-300"
-          >
-            按现在的走向重铺（丢弃上面这些）
-          </button>
-          <button
-            onClick={() => useStudio.getState().setFlowConfirm(false)}
-            className="rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200"
-          >
-            取消
-          </button>
-        </div>
-      </div>
-    </div>
+    <DiscardFlowDialog
+      discardLabel="按现在的走向重铺（丢弃上面这些）"
+      onResume={onResume}
+      onDiscard={onRebuild}
+      onCancel={() => useStudio.getState().setFlowConfirm(false)}
+    />
   );
 }
 

@@ -541,6 +541,15 @@ interface StudioState {
   //   这里的「工程草稿」是**还没做完**的半成品，工坊侧的节点树与工作流侧的流水线一起存。
   /** 当前正编辑的工程草稿 id；null = 这摊活还没存过 */
   workDraftId: string | null;
+  /**
+   * **确实落进草稿的"已出片段数"**——唯一实现，供「丢弃这条工作流」那道确认卡判断
+   * "丢了到底烧不烧钱"（见 components/flow/DiscardFlowDialog）。
+   * ★ 只有 saveWorkDraft 真的写成功才会动。存盘失败时**故意不动**：那一刻的真相就是
+   *   "这一段还没存住"，把它当成存住了正是最危险的谎（用户会踏实地丢掉刚花钱炼的段）。
+   * ★ 别拿 workDraftId 是否非空来替代：草稿 id 是上一次成功保存留下的，
+   *   之后再炼一段而自动存盘失败，id 照样在——那会把"没存上"读成"存上了"。
+   */
+  savedDoneCount: number;
   /** 存盘。两个 store 的状态一起收进一条草稿。返回 null = 写失败（配额/隐私模式）。
    *  from = 从哪个模式点的保存，决定个人页上这条草稿默认推荐哪个入口 */
   saveWorkDraft: (opts?: { title?: string; from?: DraftMode }) => Promise<WorkDraftMeta | null>;
@@ -1829,10 +1838,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
 
   workDraftId: null,
-  newWorkDraft: () => set({ workDraftId: null }),
+  savedDoneCount: 0,
+  // 另起一摊活 / 这摊活已发布：与草稿的关联断了，"存住了几段"也跟着归零
+  newWorkDraft: () => set({ workDraftId: null, savedDoneCount: 0 }),
   retireWorkDraft: async () => {
     const id = get().workDraftId;
-    set({ workDraftId: null });
+    set({ workDraftId: null, savedDoneCount: 0 });
     if (id) await deleteDraft(id);
   },
 
@@ -1852,6 +1863,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // 已经存过的草稿不动标题——用户可能在个人页改过名，自动保存不该把它冲掉。
     // 新建节点的标题就是占位的"第 N 段"（见 flowStore.blankProposal），拿它当草稿名
     // 一屏全是"第 1 段"根本分不出谁是谁——这种情况改用剧情开头
+    const doneCount = nodes.filter((n) => Object.keys(n.videoByProposal).length > 0).length;
     const rawTitle = (head?.title ?? "").replace(/^第\s*\d+\s*段\s*·\s*/, "").trim();
     const autoTitle = /^第\s*\d+\s*段$/.test(rawTitle) || !rawTitle ? (head?.plot ?? "").trim().slice(0, 16) : rawTitle;
     const meta = await saveDraft({
@@ -1866,9 +1878,10 @@ export const useStudio = create<StudioState>()((set, get) => ({
           : null,
       coverFrame: coverFrame || undefined,
       segCount: nodes.length || activePath(root).length,
-      doneCount: nodes.filter((n) => Object.keys(n.videoByProposal).length > 0).length,
+      doneCount,
     });
-    if (meta) set({ workDraftId: meta.id });
+    // ★ 记账放在**写成功之后**（见 savedDoneCount 的 ★）：失败时保持上一次的已知真相不变
+    if (meta) set({ workDraftId: meta.id, savedDoneCount: doneCount });
     return meta;
   },
 
@@ -1896,6 +1909,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
       root,
       deck: d.deck ?? [],
       workDraftId: d.id,
+      // ★ 刚从草稿读出来的这些段，按定义就是"已经存住的"——不置位的话，
+      //   打开老草稿后那道确认卡会把它们全报成"没存上，丢了要重花钱"
+      savedDoneCount: ((d.flow?.nodes ?? []) as FlowNode[]).filter(
+        (n) => Object.keys(n.videoByProposal ?? {}).length > 0,
+      ).length,
       // 视图层一律回到干净状态：草稿存的是内容，不是"上次停在哪个浮层"
       draft: null,
       focus: null,

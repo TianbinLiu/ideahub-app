@@ -929,7 +929,24 @@ export default function FlowPage() {
   const prevDone = useRef(doneCount);
   useEffect(() => {
     if (simple) return;
-    if (doneCount > prevDone.current) void useStudio.getState().saveWorkDraft({ from: "flow" });
+    if (doneCount > prevDone.current) {
+      // ★★ 这一刻钱刚花出去，存盘失败必须当场说（铁律八）。原来这里是 `void` 掉的：
+      //   失败零提示，而「已经有一条工作流在跑」那道确认卡又是按"存住了"来劝人放心的
+      //   —— 两件一叠，用户会踏踏实实地把刚花钱炼出来的段丢掉。
+      //   （谁存住了由 studioStore.savedDoneCount 一处记账，确认卡读的就是它）
+      void (async () => {
+        let ok = false;
+        try {
+          ok = !!(await useStudio.getState().saveWorkDraft({ from: "flow" }));
+        } catch {
+          ok = false;
+        }
+        if (!ok)
+          useFlow.setState({
+            err: "这一段炼好了，但自动存草稿失败（存储空间不足或浏览器隐私模式）——先别离开这一页，点上面的「存草稿」再试一次",
+          });
+      })();
+    }
     prevDone.current = doneCount;
   }, [doneCount, simple]);
 

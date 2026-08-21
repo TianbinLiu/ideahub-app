@@ -12,6 +12,7 @@ import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
+import DiscardFlowDialog from "../components/flow/DiscardFlowDialog";
 import { flowDirty, useFlow } from "../studio/flowStore";
 import { useStudio } from "../studio/studioStore";
 
@@ -227,41 +228,20 @@ export default function CreatePage() {
         ))}
       </div>
 
+      {/* ★ 与工坊法阵**同一个**对话框（components/flow/DiscardFlowDialog）：
+          这段话要说清"丢弃会不会烧掉已经花过的钱"，抄成两份必然分叉 —— 而它此前
+          正是两份，且两份都在撒谎（见那个组件顶上的 ★★） */}
       {pending && (
-        <div className="absolute inset-0 z-30 flex items-end justify-center bg-black/65 p-4" onClick={() => setPending(null)}>
-          <div
-            className="w-full max-w-md rounded-2xl border border-slate-700 bg-panel p-4 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-sm font-bold text-slate-100">已经有一条工作流在跑</h3>
-            <p className="mt-2 text-xs leading-relaxed text-slate-300">
-              {flowNodes.length} 段
-              {(() => {
-                const done = flowNodes.filter((n) => Object.keys(n.videoByProposal).length > 0).length;
-                return done > 0 ? <span className="text-emerald-300">，其中 {done} 段已出片</span> : null;
-              })()}
-              。开新的一条会把它丢掉，已出片的段要重新花 token 再炼一次。
-            </p>
-            <div className="mt-3.5 flex flex-col gap-2">
-              <button onClick={() => navigate("/flow")} className="rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
-                回去接着炼
-              </button>
-              <button
-                onClick={() => {
-                  const m = pending;
-                  setPending(null);
-                  m.go(navigate);
-                }}
-                className="rounded-xl border border-rose-500/40 bg-rose-500/10 py-2.5 text-sm font-semibold text-rose-300"
-              >
-                开一条新的{pending.title}（丢弃上面那条）
-              </button>
-              <button onClick={() => setPending(null)} className="rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200">
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
+        <DiscardFlowDialog
+          discardLabel={`开一条新的${pending.title}（丢弃上面那条）`}
+          onResume={() => navigate("/flow")}
+          onDiscard={() => {
+            const m = pending;
+            setPending(null);
+            m.go(navigate);
+          }}
+          onCancel={() => setPending(null)}
+        />
       )}
     </div>
   );
