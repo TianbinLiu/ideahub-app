@@ -35,7 +35,8 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { fmtTokens, proposalsCost } from "../../data/economy";
+import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost } from "../../data/economy";
+import { runCanvasAgent, type AgentOutcome } from "../../studio/canvasAgent";
 import { requestLandscape } from "../../hooks/useOrientationLock";
 import { AI_REAL } from "../../ai";
 import type { VideoTemplate } from "../../types";
@@ -292,9 +293,18 @@ export default function FlowCanvas({
             })}
 
             {nodes.length === 0 && (
-              <div className="absolute left-6 top-24 text-sm text-slate-500">这条流水线还没有段——回线性视图加一段</div>
+              <div className="absolute left-6 top-24 text-sm text-slate-500">这条流水线还没有段——对下面的输入条说「加一段」</div>
             )}
           </div>
+
+          {/* 对画布说话（updream/LibTV 式 agent 条，语汇是我们的模板与卡）。
+              浮在画布底缘；stopPropagation 隔开拖移手势，别让打字变成平移 */}
+          <AgentBar
+            onFocus={(i) => {
+              setSel(i);
+              setCursor(i);
+            }}
+          />
         </div>
 
         {/* 编辑窗：点格子开/收。竖屏底部 52%，横屏右侧 42% */}
@@ -610,6 +620,82 @@ function NodePanel({
         />
       )}
       {cardPick && <CardPicker node={node} onClose={() => setCardPick(false)} />}
+    </div>
+  );
+}
+
+/** 「对画布说话」输入条 + 最近一次回执。执行与计费全在 studio/canvasAgent
+ *  （白名单 op、花钱不代按、降级不封口都收在那一处）；这里只画。
+ *  回执分两色：✓ 落地了的、✗ 被拒的（store 的整句原话）——只说 say 不列账，
+ *  用户就得自己去数哪段变了哪段没变。 */
+function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [log, setLog] = useState<AgentOutcome | null>(null);
+  async function send() {
+    const t = text.trim();
+    if (!t || busy) return;
+    setBusy(true);
+    try {
+      const r = await runCanvasAgent(t);
+      setLog(r);
+      setText("");
+      if (r.focusSeg !== undefined) onFocus(r.focusSeg);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div
+      className="absolute inset-x-2 bottom-2 z-10 space-y-1.5"
+      onPointerDown={(e) => e.stopPropagation()}
+      onWheel={(e) => e.stopPropagation()}
+    >
+      {log && (
+        <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-700/80 bg-ink/95 px-3 py-2 shadow-lg">
+          <div className="flex items-start gap-2">
+            <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-200">🪄 {log.say}</p>
+            <button onClick={() => setLog(null)} className="flex-none text-slate-500">
+              <Icon name="close" size={12} />
+            </button>
+          </div>
+          {(log.applied.length > 0 || log.refused.length > 0) && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {log.applied.map((s, i) => (
+                <span key={`a${i}`} className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-300">
+                  ✓ {s}
+                </span>
+              ))}
+              {log.refused.map((s, i) => (
+                <span key={`r${i}`} className="rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] leading-relaxed text-rose-300">
+                  ✗ {s}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      <div className="flex items-center gap-2 rounded-full border border-slate-600/80 bg-ink/95 px-3 py-1.5 shadow-lg">
+        <span className="flex-none text-sm">🪄</span>
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && void send()}
+          placeholder={
+            AI_REAL
+              ? `对画布说话（每句 ${fmtTokens(CHAT_TURN_TOKENS)}）：第2段套宗主模板；第1段拍雨夜狂奔`
+              : "对画布说话（演示档）：第1段 拍主角雨夜狂奔"
+          }
+          className="min-w-0 flex-1 bg-transparent text-xs text-slate-100 outline-none placeholder:text-slate-600"
+        />
+        <button
+          onClick={() => void send()}
+          disabled={busy || !text.trim()}
+          className="flex-none rounded-full bg-brand px-3 py-1 text-[11px] font-bold text-ink disabled:bg-slate-700 disabled:text-slate-500"
+        >
+          {busy ? "…" : "发送"}
+        </button>
+      </div>
     </div>
   );
 }

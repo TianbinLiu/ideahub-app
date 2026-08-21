@@ -1763,6 +1763,13 @@ export async function npcChat(ctx: {
   return { text: clean || "（没说话）", tokens: 0 };
 }
 
+/** 画布指挥（「对画布说话」）的对话通道：单轮、原文返回。
+ *  ★ 不复用 npcChat —— 那条会剥标记 + 按句截 90 字（NPC 气泡的形状），
+ *    这里要的是整段 JSON，截一刀就废了。解析/落地都在 studio/canvasAgent。 */
+export async function canvasAgentChat(system: string, user: string): Promise<string> {
+  return chat(system, user);
+}
+
 /** 按句号截断，宁可短不要断在半句。找不到句读就直接截并补省略号。 */
 function clipSentences(t: string, max: number): string {
   if (t.length <= max) return t;
