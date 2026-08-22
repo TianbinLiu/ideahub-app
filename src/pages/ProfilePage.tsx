@@ -1129,7 +1129,13 @@ function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onClose: () => voi
     guard(
       () => {
         setBusy("打开中…");
-        useStudio.getState().openWorkDraft(full, mode);
+        // ★ 工坊里有一炉在跑时会被整句拒（studioBusyReason）：不看返回值的话，
+        //   照旧跳页，而桌面还是上一摊活 —— 用户以为草稿打不开（第十一轮抓到）
+        if (!useStudio.getState().openWorkDraft(full, mode)) {
+          setBusy(useStudio.getState().studioBusyReason() ?? "现在打不开这条草稿");
+          setTimeout(() => setBusy(""), 3200);
+          return false;
+        }
         navigate(mode === "studio" ? "/studio" : "/flow");
         return true;
       },

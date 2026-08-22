@@ -614,7 +614,19 @@ export function publishVideo(draft: DraftVideo): VideoItem {
   const list = [item, ...all()];
   cache = list;
   save(list);
-  if (remoteOn()) void pushPublish(item, draft);
+  if (remoteOn()) {
+    void pushPublish(item, draft);
+  } else if (API_ON) {
+    // ★★ **配了服务器、但这次会话没连上**（2026-08-21 第十一轮扫描的 high）：
+    //   `remoteLive` 只在 readyRemote 成功那一次置真，弱网冷启动退回本地库之后
+    //   整个会话不再翻转。而 AI 走的是 `${API_BASE}/api/ark`，网络一恢复出片照样成功、
+    //   照样真扣钱 —— 用户点发布，作品只写进本机 IDB，既不上传、也不入待发队列、
+    //   横幅一个字都没有。等到下次启动服务端可达，readyRemote 用 `cache = res.items`
+    //   整份替换列表、readyLocal 根本不跑：刚花了几十分钟和真钱的那条作品从首页和
+    //   个人页同时消失，本机那份再无入口读得到，全程零报错。
+    //   ⇒ 落进待发队列，下次启动 flushPending 会把它传上去（服务端按 clientId 幂等）。
+    void queuePending(draft, "这次启动没连上服务器，作品先存在这台设备上——联网后会自动上传");
+  }
   emitVideos();
   return item;
 }

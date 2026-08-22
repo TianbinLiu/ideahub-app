@@ -566,7 +566,18 @@ interface StudioState {
    *  from = 从哪个模式点的保存，决定个人页上这条草稿默认推荐哪个入口 */
   saveWorkDraft: (opts?: { title?: string; from?: DraftMode }) => Promise<WorkDraftMeta | null>;
   /** 打开草稿：还原两侧状态。mode 决定进哪个模式；缺哪侧就地补出来 */
-  openWorkDraft: (d: WorkDraft, mode: DraftMode) => void;
+  /**
+   * 「工坊现在有没有一炉在跑」—— 有就返回一句人话，没有返回 null。
+   * ★★ 2026-08-21 第十一轮抓到的 high（我上一轮亲手引入）：工坊「同一时刻只炼一段」的
+   *   **唯一**锁就是 `nodeGen`（`genNodeVideo` 开头那句 `if (nodeGen) return false`，
+   *   UI 的 disabled 也只由这三格算出）。上一版为了"新打开的草稿方案台别整块禁着"
+   *   把它们无条件清成 null —— 等于把锁拿掉：出片跑着的时候去打开一条草稿，回来就能
+   *   再点一次，两炉并发、各扣各的钱，还抢方舟并发额度。
+   *   正解不是清锁，是**在途就别换**（与 flowStore.canReplaceNodes 对称）。
+   */
+  studioBusyReason: () => string | null;
+  /** 返回 false = 被 studioBusyReason 拒了（原因由调用方念出来） */
+  openWorkDraft: (d: WorkDraft, mode: DraftMode) => boolean;
   /** 开始一摊全新的活：断开与上一条草稿的关联，之后保存会新建而不是覆盖 */
   newWorkDraft: () => void;
   /** 这摊活已经发布成作品了：删掉对应草稿并断开关联 */
@@ -1619,7 +1630,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
       prop.lastFrame = res.lastFrame;
       prop.videoUrl = res.url || "mock:";
       delete prop.degraded;
+      // ★★ 回包前确认**这棵树还是当初那棵**（与 refineProposalFrame 同款）：出片要几分钟，
+      //   万一桌面被换掉了（打开草稿/重铺），写回去等于把旧树盖回来 —— 钱花了、
+      //   刚打开的那摊活还被顶掉。上面那道闸拦住了主要入口，这里是最后一道。
       const cur = get().root;
+      if (cur !== root) {
+        set({ nodeGen: null });
+        get().npcSay("这一段炼好了，但桌面已经换过一摊活了——那一炉没写回去（钱已经花了，抱歉）。");
+        return false;
+      }
       set({ root: cur ? { ...cur } : cur, nodeGen: null });
       get().npcSay(
         "这一段炼好了——下一段的虚线卡位已经亮起来了。想改细节就点「编辑本段」圈画面，改完的尾帧就是下一段的起拍画面。",
@@ -1935,7 +1954,22 @@ export const useStudio = create<StudioState>()((set, get) => ({
     return meta;
   },
 
+  studioBusyReason: () => {
+    const s = get();
+    if (s.nodeGen) return "工坊里有一段正在炼视频（钱已经在花了）——换掉桌面不会把它停下，等它跑完再来";
+    if (s.proposalRegen) return "工坊里正在重推方案，等它跑完再换桌面";
+    if (s.frameRefining) return "工坊里正在改一张图，等它跑完再换桌面";
+    return null;
+  },
   openWorkDraft: (d, mode) => {
+    // ★★ 在途就别换（见 studioBusyReason 的 ★★）：桌面/流水线一旦被整表换掉，
+    //   那一炉的回包会写进一棵已经不存在的树 —— 钱花了、东西没了、还零报错。
+    const busyWhy = get().studioBusyReason();
+    if (busyWhy) {
+      get().npcSay(busyWhy);
+      set({ notice: { text: busyWhy, at: Date.now() } });
+      return false;
+    }
     forgetCanvasAgent(); // 打开的是另一摊活，理由同 newWorkDraft
     // 工坊侧：草稿里没有节点树（纯工作流/简约模式起手的）就按流水线现搭一棵，
     // 否则「用工坊模式打开」会落到一张空桌子上——用户点的那条草稿像是丢了
@@ -1989,15 +2023,6 @@ export const useStudio = create<StudioState>()((set, get) => ({
       savedDoneCount: ((d.flow?.nodes ?? []) as FlowNode[]).filter(
         (n) => Object.keys(n.videoByProposal ?? {}).length > 0,
       ).length,
-      // ★★ 工坊自己的**在途三格**也要清（2026-08-21 第十轮扫描）：`nodeGen` / `proposalRegen`
-      //   / `frameRefining` 是"这一炉在跑"的标记，而打开草稿是整表换掉节点树。不清的话：
-      //   ① 新打开的这条草稿方案台整块禁着（那三格是各处 disabled 的判据），用户以为坏了；
-      //   ② 旧那一炉回来时 `set({ root: {...root} })` 会把**被换掉的那棵树**盖回去 ——
-      //   刚打开的草稿当场变回上一摊活，钱也花在了看不见的地方。
-      //   ⚠ 与 flowStore 那边同一个道理，只是那边叫 busy/genRun。
-      nodeGen: null,
-      proposalRegen: null,
-      frameRefining: null,
       // 视图层一律回到干净状态：草稿存的是内容，不是"上次停在哪个浮层"
       draft: null,
       focus: null,
@@ -2037,6 +2062,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     } else {
       useFlow.getState().reset();
     }
+    return true;
   },
 
   notice: null,

@@ -463,6 +463,20 @@ export function templateGroupOf(t: VideoTemplate): VideoTemplate[] {
 }
 
 /**
+ * ⚠⚠ **写入端还没接上（2026-08-21 第十一轮扫描发现）**：这个函数**零调用方**，
+ *   `branch.createTemplate` 的 payload 里也没有 `splits`，`CreateTemplateResult.parts`
+ *   同样没人消费。服务端只在收到 `splits` 时才建组（`branchTemplate.routes.js` 里
+ *   `if (splits.length > 0)` 那一支），所以 `ApiBranchTemplate.group` 在**任何设备上
+ *   都不可能存在** —— 于是下面这一整条读取端都是死代码：`templateGroupOf`、
+ *   TemplateShelf 的 `groupRows` / `GroupRow`（那条「共 N 段 · 套用即整组铺开」横条）、
+ *   `flowStore.applyTemplateGroup`、`FlowTemplate.group`、`studioStore.draftAudioHint`、
+ *   以及剪辑页那个「原视频音轨」预置（用户点名要的"成片保留原视频音频"）。
+ *   ⇒ 想接上要动的是 `registerTemplate`：算出 splits 一并发过去、再把回来的 `parts`
+ *   逐条落成本机模板。那段代码的注释自己写着"整条改造里最容易漏、也最贵的一处"
+ *   （roles / markSlots / markBoxes 必须一起搬），所以**别顺手改** —— 那是一次
+ *   独立的施工，不是补一行。市场里那些标着「第 1/2 段」的模板只是作者自己起的标题，
+ *   与这里的 group 无关。
+ *
  * 用户标的帧 → 合法分段点（**唯一实现**，登记 splits 之前必须过这里）。
  * 规则（与服务端 [4,30] 窗口对齐，服务端只验不修）：
  *   ① 丢掉会切出 <4s 段的标记（丢哪个都要能说出来 —— 返回 dropped 由调用方提示）；
