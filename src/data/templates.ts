@@ -730,8 +730,9 @@ export async function makeOwnRefTemplate(o: {
  *
  * ★★ 落库顺序与单段相反（先服务端后本机）是有意的：单段"先落本机"是为了握住派生
  *   资产的回收句柄；分段路**不产生本机先知道的资产**（切段由服务端完成、失败服务端
- *   自己回滚），本机没有可先落的东西。登记成功那一刻源视频成为 `group.sourcePublicId`
- *   （合并回填原片音轨靠它），从此**不许再回收** —— `onRegistered` 就是让宿主把回执标成
+ *   自己回滚），本机没有可先落的东西。登记成功那一刻源视频归模板组所有
+ *   （客户端认得的那一位是 `group.sourceUrl`，合并回填原片音轨解的就是它；publicId 只在
+ *   服务端那份实体上，`VideoTemplate["group"]` 里没有这一位），从此**不许再回收** —— `onRegistered` 就是让宿主把回执标成
  *   spent 的钩子，漏调的表现是关窗时客户端徒劳地去删、服务端整句拒、控制台多一条假警报。
  * ★★ 每段落库走 `adoptRemoteTemplate`（与白模化取件同一跳），认人回写走
  *   `detectTemplateRoles`（与单段同一跳）—— 五件套（roles/markSlots/markBoxes/

@@ -749,7 +749,8 @@ export default function VideoTemplateExtractor({
           splits: plan.splits,
           title,
           intro: note,
-          // ★ 登记一成功，源视频就是 group.sourcePublicId（合并回填音轨的原片）——
+          // ★ 登记一成功，这条源视频就归模板组所有（客户端认得的那一位是 `group.sourceUrl`，
+          //   合并回填音轨时解的就是它；publicId 只在服务端那份实体上）——
           //   从此归模板组管，关窗时不许再回收（与 blockoutize 的 onBilled 同一条纪律，
           //   标在**这一份回执**上）。服务端那头也会拒删，但拒之前客户端不该去试。
           onRegistered: () => setReceipt((r) => (r ? { ...r, spent: true } : r)),
