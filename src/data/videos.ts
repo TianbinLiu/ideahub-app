@@ -1371,7 +1371,7 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     //   先落一条队列项，成功再删掉它：多一次 IDB 写，换掉一条"几十分钟的付费成片
     //   彻底消失且零提示"的路。★ 幂等键是 clientId，重复入队只会覆盖同一条。
     if (draft.clientId) inflightPublish.add(draft.clientId);
-    await queuePending(draft, "上传中（App 被关掉的话，下次启动会自动重试）");
+    await queuePending(draft, "上传中（App 被关掉的话，下次启动会自动重试）", { insurance: true });
     // ★ 先把本机资产（base64 帧/卡面、idb: 成片）传成永久 URL，再发那个几 KB 的 JSON。
     //   不做这一步的话：请求体 MB 级被网关掐断，而且**就算发出去别人也放不出来**
     //   ——服务端存下的 videoUrl 是一个指向"发布者手机上某处"的 idb: 键。
@@ -1430,10 +1430,18 @@ async function dropPending(clientId: string | undefined): Promise<void> {
   if (left.length !== list.length) await writePending(left);
 }
 
-async function queuePending(draft: DraftVideo, error: unknown): Promise<void> {
+/**
+ * @param opts.insurance 这一条是**上传前的保险**（还没失败），不是一次真失败。
+ *   ★★ 队列满了就**不要**挤掉别人（2026-08-21 自查）：`slice(-5)` 那个上限原本只截
+ *     "失败"队列，5 条很宽裕；改成每次发布都先入队之后，第 6 次发布会把一条**真失败**
+ *     的旧记录顶掉 —— 那条是用户唯一能重试的备份，而顶掉它的只是一次多半会成功的保险。
+ *     保险是尽力而为，真失败不是。
+ */
+async function queuePending(draft: DraftVideo, error: unknown, opts?: { insurance?: boolean }): Promise<void> {
   const list = await readPending();
   // 同一条（clientId 幂等键）只留一份，反复重试不会堆成一摞
   const rest = list.filter((p) => p.draft.clientId !== draft.clientId);
+  if (opts?.insurance && rest.length >= 5) return; // 见上面的 ★★：满了就不上保险，别顶掉真失败的
   await writePending([...rest, { draft, error: errText(error), at: Date.now() }].slice(-5)); // 只留最近 5 条，别把配额吃光
 }
 
