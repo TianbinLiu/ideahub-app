@@ -359,6 +359,7 @@ function putChunk(
   range: { start: number; end: number; total: number } | null,
   uploadId: string,
   onBytes: (sentInThisChunk: number) => void,
+  signal?: AbortSignal,
 ): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const fd = new FormData();
@@ -391,12 +392,26 @@ function putChunk(
     };
     xhr.onerror = () => reject(new Error("上传中断了（网络不可用）"));
     xhr.ontimeout = () => reject(new Error("这一小段传了 4 分钟还没完成——网络太慢或不稳，换个网络再试"));
+    // ★★ 关窗要真的把它停下来：不 abort 的话 XHR 会**在组件卸载之后继续跑**，
+    //   最后在 Cloudinary 上落一份**没有任何人认得**的资产（本机没有 receipt ⇒
+    //   dropReceipt 够不着它），配额只增不减、零症状。中途 abort 留下的是一次
+    //   未完成的分块上传，Cloudinary 自己会清掉，比落一份完整孤儿好得多。
+    if (signal) {
+      if (signal.aborted) return reject(new DOMException("已取消", "AbortError"));
+      signal.addEventListener("abort", () => xhr.abort(), { once: true });
+      xhr.onabort = () => reject(new DOMException("已取消", "AbortError"));
+    }
     xhr.send(fd);
   });
 }
 
 /** 直传：串行推完每一块。★ 串行不并发 —— 官方 SDK 也是串行，乱序/并发官方没有承诺过。 */
-async function putDirect(t: DirectTicket, file: File, onProgress?: (frac: number) => void): Promise<void> {
+async function putDirect(
+  t: DirectTicket,
+  file: File,
+  onProgress?: (frac: number) => void,
+  signal?: AbortSignal,
+): Promise<void> {
   // ★ 每次上传一个新的分组 id。crypto.randomUUID 在 Android WebView 上要 https 语境，
   //   Capacitor 的 https://localhost 满足；退路用随机数拼，别让它抛。
   const uploadId =
@@ -406,7 +421,7 @@ async function putDirect(t: DirectTicket, file: File, onProgress?: (frac: number
   const total = file.size;
   // 一块就装得下 → 普通上传（见 putChunk 的 range 参数注释）
   if (total <= t.chunkBytes) {
-    await putChunk(t, file, null, uploadId, (sent) => onProgress?.(Math.min(1, sent / total)));
+    await putChunk(t, file, null, uploadId, (sent) => onProgress?.(Math.min(1, sent / total)), signal);
     onProgress?.(1);
     return;
   }
@@ -416,20 +431,56 @@ async function putDirect(t: DirectTicket, file: File, onProgress?: (frac: number
     const end = Math.min(start + t.chunkBytes, total); // 右开
     const blob = file.slice(start, end);
     // eslint-disable-next-line no-await-in-loop -- 串行是刻意的，见上面的 ★
-    await putChunk(t, blob, { start, end: end - 1, total }, uploadId, (sent) => {
-      onProgress?.(Math.min(1, (doneBytes + sent) / total));
-    });
+    await putChunk(
+      t,
+      blob,
+      { start, end: end - 1, total },
+      uploadId,
+      (sent) => onProgress?.(Math.min(1, (doneBytes + sent) / total)),
+      signal,
+    );
     doneBytes = end;
     onProgress?.(Math.min(1, doneBytes / total));
     start = end;
   }
 }
 
-/** 直传完成后的服务端验收。★ 回执**只认服务端这一份** —— 客户端能直接和 Cloudinary
- *  对话，它手上那份回执完全可以伪造，而时长正是 r2v 的计价输入。 */
+/**
+ * 直传完成后的服务端验收。★ 回执**只认服务端这一份** —— 客户端能直接和 Cloudinary
+ * 对话，它手上那份回执完全可以伪造，而时长正是 r2v 的计价输入。
+ *
+ * ★★ 这一步**要重试**，理由与别处的"失败就报错"不同：字节已经全部推上去了（慢网上
+ *   那是好几分钟），而 confirm 只是一个几百字节的请求。让一次网络抖动把几分钟的成果
+ *   整个作废、还在 Cloudinary 上留下一份没人回收的孤儿，是明显不成比例的。
+ * ★ 只重试**网络类**失败（NETWORK/TIMEOUT）。4xx 是服务端的定论（格式不对、时长不够、
+ *   归属不符），它那边**已经 destroy 过了**，重试只会得到同一句话 —— 而且第二次会变成
+ *   404「没找到这段视频」，把真正的原因盖掉。
+ */
 async function confirmDirect(publicId: string): Promise<TemplateVideoReceipt> {
-  const data = await apiPost<Record<string, unknown>>("/api/uploads/template-video/confirm", { publicId });
-  return receiptOf(data);
+  const waits = [0, 1_500, 4_000];
+  let last: unknown;
+  for (const wait of waits) {
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    try {
+      return receiptOf(await apiPost<Record<string, unknown>>("/api/uploads/template-video/confirm", { publicId }));
+    } catch (e) {
+      last = e;
+      const retriable = e instanceof ApiError && (e.code === "NETWORK" || e.code === "TIMEOUT");
+      if (!retriable) throw e;
+    }
+  }
+  // ★ 到这儿说明网络一直没回来。那份已经传上去的资产**没有任何人还认得它**
+  //   （本机没有 receipt ⇒ 关窗时的 dropReceipt 够不着它）—— 兜底回收一次，
+  //   失败也只吼不拦（回收是兜底不是主链路，与 dropReceipt 同一条纪律）。
+  void deleteTemplateVideo(publicId).catch((e) =>
+    console.error("[uploads] 直传后验收失败、兜底回收也失败（将留作孤儿）：", e),
+  );
+  throw new ApiError(
+    `视频已经传上去了，但服务器一直没能确认（${last instanceof Error ? last.message : "网络不可用"}）。` +
+      `网络恢复后请重新选一次文件再传——这一份已经作废，不会留在服务器上。`,
+    0,
+    "NETWORK",
+  );
 }
 
 /** 回包 → 回执。两条路（老路的一次性上传、新路的 confirm）**共用这一份**验收：
@@ -482,6 +533,8 @@ function receiptOf(data: Record<string, unknown>): TemplateVideoReceipt {
 export async function uploadTemplateVideo(
   file: File,
   onProgress?: (frac: number) => void,
+  /** 关窗/卸载时传进来，真的把在途的那一块停下（见 putChunk 的 ★★） */
+  signal?: AbortSignal,
 ): Promise<TemplateVideoReceipt> {
   const ticket = await directTicket();
   if (ticket) {
@@ -493,7 +546,7 @@ export async function uploadTemplateVideo(
       );
     }
     onProgress?.(0);
-    await putDirect(ticket, file, onProgress);
+    await putDirect(ticket, file, onProgress, signal);
     return await confirmDirect(ticket.publicId);
   }
   // ── 退路：老服务端只有这条 ────────────────────────────────────────────

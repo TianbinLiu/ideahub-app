@@ -461,6 +461,16 @@ export default function VideoTemplateExtractor({
    */
   const flightRef = useRef(false);
 
+  /**
+   * 在途上传的取消把手。★ 直传是**分块**的，一发要走好几分钟 —— 这期间用户完全可能
+   * 关掉这一屏。不取消的话 XHR 会在组件卸载之后继续跑完，最后在 Cloudinary 上落一份
+   * 没有任何人认得的资产（本机没有 receipt ⇒ dropReceipt 够不着它）。
+   * ⚠ 卸载时才 abort，不在 close() 里 —— close 只是"想关"，真正的终点是卸载
+   *   （父组件条件渲染），两处都写就会变成同一条规则的两处实现。
+   */
+  const uploadAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => uploadAbort.current?.abort(), []);
+
   function dropReceipt() {
     if (!receipt) return;
     URL.revokeObjectURL(receipt.src);
@@ -680,7 +690,14 @@ export default function VideoTemplateExtractor({
         //   静态的"大文件在慢网上要等一会" —— 而这一步在手机网上要走好几分钟，
         //   没有进度条的话，用户唯一能做的判断就是"是不是卡死了"。
         setBusy("上传视频 0%");
-        const data = await uploadTemplateVideo(f, (frac) => setBusy(`上传视频 ${Math.round(frac * 100)}%`));
+        uploadAbort.current?.abort(); // 上一发若还在跑（换文件），先停掉它
+        const ac = new AbortController();
+        uploadAbort.current = ac;
+        const data = await uploadTemplateVideo(
+          f,
+          (frac) => setBusy(`上传视频 ${Math.round(frac * 100)}%`),
+          ac.signal,
+        );
         // spent:false —— 新的一份素材，还没有任何一发付过钱的白模化用过它（见 receipt 的 ★★）
         setReceipt({ file: f, data, src: URL.createObjectURL(f), spent: false });
         // 标题给个能用的默认值（文件名去掉扩展名）：服务端 zod 要求 title 非空，
