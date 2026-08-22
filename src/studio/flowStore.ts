@@ -1411,6 +1411,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
       }
       // 顺序门禁：只能在末尾追加，且上一段必须已出片
       if (prev && !nodeDone(prev)) return { err: "先把这一段炼出来，再加下一段" };
+      // ★ 生成中也拒（2026-08-21 自查：两个面的 ＋ 本来就 `disabled={busy}`，但 **agent 的
+      //   add_segment 绕过 UI 这道闸** —— 闸该在 store，UI 只是把"为什么点不动"画出来。
+      //   追加本身不会让 genNode 的写回错位（末尾追加不改前面的下标，而且写回认 id），
+      //   但它会把光标从正在炼的那一段拽走，用户眼睁睁看着进度条消失。
+      if (s.busy || s.nodes.some((n) => n.status === "generating")) {
+        return { err: "有一段正在生成中，等它跑完再加下一段（它炼完你才知道下一段从哪一帧接）" };
+      }
       const i = s.nodes.length;
       // 画幅跟着上一段：一部片里前三段竖、第四段横，剪辑页合并只有一块画布，
       // 那一段必然被裁或补边
