@@ -451,6 +451,16 @@ export default function VideoTemplateExtractor({
    *   零报错。收在这一处是有意的：换路那边只管调 dropReceipt，别再自己清一遍
    *   （两处各清各的，迟早会漏一样）。
    */
+  /**
+   * 「**这一刻有没有一发登记正压在服务端手里**」。★ 只给 close() 那道闸用，判据只此一处。
+   * 不用 `busy` 反推：`busy` 是给用户看的一句话，它在本机抽帧、检查规格、检查画面角落
+   * 时同样点亮 —— 那几档关掉是安全的（该删的确实该删），拿它当闸就会一边多拦、一边
+   * 把"服务器正拿它切段"这句**假话**说给一个什么都没在跑的人听（2026-08-21 复核抓到，
+   * 我上一版收窄了一次仍留着「检查画面角落 i/4…」这一档）。
+   * 用 ref 不用 state：close() 要**同步**读到最新值，而这面旗子不参与任何渲染。
+   */
+  const flightRef = useRef(false);
+
   function dropReceipt() {
     if (!receipt) return;
     URL.revokeObjectURL(receipt.src);
@@ -473,19 +483,24 @@ export default function VideoTemplateExtractor({
     //   于是手滑点一下遮罩就 dropReceipt → 删掉源视频：在途的 so_/du_ 切段变换当场失败、
     //   组件已卸载所以 setErr 是空操作 —— 控制台之外一个字都没有（铁律八），
     //   而那个源正是整组的音轨来源，用户只能重传几十上百 MB 的原片、还不知道发生了什么。
-    // ★★ 判据是 `busy && receipt && !receipt.spent`，**不是裸 busy**（2026-08-21 复核抓到：
-    //   我上一版写宽了）。逐个阶段对一遍就知道为什么：
+    // ★★ 判据是 `flightRef && receipt && !receipt.spent`，**不是 busy**（收窄过两次：
+    //   先从裸 busy 收到 `busy && receipt && !spent`，复核发现还宽）。逐档对一遍：
     //     · 抽帧 / 检查规格 / 上传中 —— receipt 还没回来，`dropReceipt` 第一行就 return，
     //       关掉什么都不删。经典配方路更是**从头到尾不上传**（receipt 恒 null），
     //       而那条路的卡片上明写着"不把视频传上公网" —— 对他说"会把已经传上去的素材删掉"
     //       是一句与同屏三百像素之上的承诺直接打架的假话。
+    //     · 「检查画面角落 i/4…」—— 排在上传**之后**（receipt 在手、spent 还是 false），
+    //       但它是**本机**抽四帧看角标，服务端一个字都不知道。关掉正该把刚传上去的那份
+    //       回收掉；拦住他、还告诉他"服务器正拿它切段"，两头都不对。
     //     · 登记完成之后（onRegistered 已把 receipt 标 spent）—— dropReceipt 不再删源，
     //       而随后的**逐段认人**是 380s × N（12 段上界约 76 分钟）：那段时间关掉完全无害
-    //       （parts 已经落库、认人的回写直接进 store 并 persist），却被这道闸一起堵死了。
-    //   真正需要保护的只有中间那一段：回执在手、还没登记上 —— 关掉会把源删掉，而服务端
-    //   正拿着它切段（四道引用检查此刻全部落空，拦不住）。
-    if (busy && receipt && !receipt.spent) {
-      setWarn(`${busy}——这一步在跑，跑完再关：现在关掉会把已经传上去的那段素材删掉，而服务器正拿它切段。`);
+    //       （parts 已经落库、认人的回写直接进 store 并 persist），不该被堵。
+    //   真正需要保护的只有一档：**一发登记正压在服务端手里**、回执还没标 spent ——
+    //   关掉会把源删掉，而服务端正拿着它切段（四道引用检查此刻全部落空，拦不住）。
+    if (flightRef.current && receipt && !receipt.spent) {
+      setWarn(
+        `${busy || "正在登记"}——这一步在跑，跑完再关：现在关掉会把已经传上去的那段素材删掉，而服务器正拿它切段。`,
+      );
       return;
     }
     dropReceipt();
@@ -722,6 +737,7 @@ export default function VideoTemplateExtractor({
     if (!receipt || busy) return;
     setErr("");
     setBusy("提交中…");
+    flightRef.current = true;
     try {
       // ── 分段形态（选段拖过 30 秒）：整条切段登记成模板组 ──
       if (sel.durSec > BLOCKOUT_INPUT_RULES.maxSec) {
@@ -775,6 +791,7 @@ export default function VideoTemplateExtractor({
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
+      flightRef.current = false;
       setBusy("");
     }
   }
@@ -786,6 +803,7 @@ export default function VideoTemplateExtractor({
     //   第一句进度话要好几百毫秒才到 —— 中间这段空窗期按钮是活的，手一抖就是**两发**
     //   白模化（两次真实付费出片）。
     setBusy("提交中…");
+    flightRef.current = true;
     try {
       const tpl = await blockoutizeTemplate({
         publicId: receipt.data.publicId,
@@ -813,6 +831,7 @@ export default function VideoTemplateExtractor({
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
+      flightRef.current = false;
       setBusy("");
     }
   }
@@ -1114,8 +1133,11 @@ export default function VideoTemplateExtractor({
                         VisionFramePicker 管 —— 同一屏摆两个"看几帧"只会让人分不清。 */}
                     {/* ★ 长素材的出路要在还没拖到 30 秒以上时就说（不说的话没人知道能拖过去）：
                         初始选段是 30 秒，分段那条路的入口就是"把右把手继续往右拖"。
-                        ★ 超过 12×30=360 秒的素材**不出这句**：那种整条装不下（judge 会整句拒），
-                        请人把把手拉满、再告诉他拉满也不行，是把人往死路上指 */}
+                        ★ 超过 12×30=360 秒的素材**不出这句**：那种整条装不下，请人把把手拉满、
+                        再告诉他拉满也不行，是把人往死路上指。★ 更正一处旧注释（说的是"judge 会整句拒"）：
+                        judge 其实**轮不到说话** —— `ownRefWindow` 在这一档已经把把手硬钳到 30 秒，
+                        选段永远长不到 segLong，红字自然也不会出现。所以那一档缺的不是拒绝，
+                        是**一句解释**（把手拉到 30 秒就不动了、屏幕上一个字都没有），见下面第三条 */}
                     {route === "ownRef" &&
                       receipt &&
                       !segLong &&
@@ -1144,6 +1166,23 @@ export default function VideoTemplateExtractor({
                           之后还要<b className="font-bold">自己标切段刀</b>（把 {SPLIT_MAX_PARTS - 1} 刀尽量摆匀）——
                           这个长度上"自动对半"会一步切到 16 段，超过一次最多 {SPLIT_MAX_PARTS} 段。
                           只想用其中一段就框 {BLOCKOUT_INPUT_RULES.maxSec} 秒以内。
+                        </p>
+                      )}
+                    {/* ★ >360 秒这一档（2026-08-21 复核补）：`ownRefWindow` 把把手钳在 30 秒，
+                        用户拖到 30 秒就拉不动了 —— 不解释的话，那就是 CLAUDE.md「界面上摆一个
+                        永远点不动的东西」那条坑。整条登记的天花板由 SPLIT_MAX_PARTS × maxSec
+                        算出来，别在这里手写 360 */}
+                    {route === "ownRef" &&
+                      receipt &&
+                      !segLong &&
+                      Math.floor(receipt.data.durationSec) > SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec && (
+                        <p className="rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                          这条素材有 {receipt.data.durationSec.toFixed(1)} 秒，
+                          <b className="font-bold">整条登记做不了</b>（一次最多 {SPLIT_MAX_PARTS} 段 × {BLOCKOUT_INPUT_RULES.maxSec}
+                          秒 = {SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec} 秒），所以上面的选段拉到{" "}
+                          {BLOCKOUT_INPUT_RULES.maxSec} 秒就拉不动了。要么框其中{" "}
+                          {BLOCKOUT_INPUT_RULES.maxSec} 秒以内做一段，要么先把素材剪短到{" "}
+                          {SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec} 秒以内再传。
                         </p>
                       )}
                     {route === "ownRef" && receipt && segLong && (
