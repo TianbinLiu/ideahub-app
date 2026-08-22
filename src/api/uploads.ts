@@ -408,6 +408,18 @@ function putChunk(
   });
 }
 
+/**
+ * 末块回来之后确认**资产真的成形了**。
+ * ★ 只有末块的响应里才有 `secure_url`（中间块是 `{done:false}`）。不在这里断言的话，
+ *   一旦协议或分块算术出了岔，症状会推迟到下一步 —— 用户看到的是 confirm 那句
+ *   「没在服务器上找到这段视频」，而真正出问题的是上一步，排查方向整个错。
+ */
+function assertDone(res: Record<string, unknown>): void {
+  if (typeof res?.secure_url !== "string" || !res.secure_url) {
+    throw new Error("最后一段传完了，但视频存储没有把这段视频组装出来——请重新选一次文件再传。");
+  }
+}
+
 /** 同一块最多再试两次（首发 + 2）。间隔给短一点：这条路上用户已经在等了。 */
 async function withChunkRetry<T>(signal: AbortSignal | undefined, run: () => Promise<T>): Promise<T> {
   const waits = [0, 2_000, 6_000];
@@ -447,7 +459,7 @@ async function putDirect(
   if (!Number.isFinite(total) || total <= 0) throw new Error("这个文件是空的，选一段真正的视频再传。");
   // 一块就装得下 → 普通上传（见 putChunk 的 range 参数注释）
   if (total <= t.chunkBytes) {
-    await putChunk(t, file, null, uploadId, (sent) => onProgress?.(Math.min(1, sent / total)), signal);
+    assertDone(await putChunk(t, file, null, uploadId, (sent) => onProgress?.(Math.min(1, sent / total)), signal));
     onProgress?.(1);
     return;
   }
@@ -463,7 +475,7 @@ async function putDirect(
     //   /derive 共用），而"断了只重传一块"这句承诺在两个仓的注释里都写着。
     // ★ 只重传输层失败；被存储明确拒绝的不重试（见 chunkError）。
     // eslint-disable-next-line no-await-in-loop -- 串行是刻意的，见上面的 ★
-    await withChunkRetry(signal, () =>
+    const out = await withChunkRetry(signal, () =>
       putChunk(
         t,
         blob,
@@ -473,6 +485,7 @@ async function putDirect(
         signal,
       ),
     );
+    if (end >= total) assertDone(out); // 末块
     doneBytes = end;
     onProgress?.(Math.min(1, doneBytes / total));
     start = end;
