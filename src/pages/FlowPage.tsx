@@ -1212,10 +1212,9 @@ export default function FlowPage() {
                 //   与另外三条 applyTemplate 入口走同一处守卫（第六轮收尾扫描抓到的第四条）。
                 onClick={() =>
                   applyGuard(
-                    () => {
-                      useFlow.getState().seedSolo("simple");
-                      return true;
-                    },
+                    // ★ 把 seedSolo 的成败**如实**回给守卫：恒 return true 的话，
+                    //   被 canReplaceNodes 拒了守卫还会照旧断开旧草稿、关掉确认卡
+                    () => useFlow.getState().seedSolo("simple"),
                     // ★ 这一下不是套模板，是**清掉模板铺一条空的**：借人家的对话框也得说自己的话
                     { label: "不用模板，开一条空的（丢弃上面那条）", noun: "重新套模板" },
                   )

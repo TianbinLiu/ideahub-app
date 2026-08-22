@@ -1660,7 +1660,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
       status: "idle",
       anns: [],
     }));
-    useFlow.getState().seed(nodes, { mode: "workflow", origin: "studio" });
+    // ★ 铺不动就整句停（原因已在 flowStore.err：多半是"有一段正在生成中"）——
+    //   照旧往下走的话，法阵会说"N 段已铺成工作流"，而流水线其实一个字没变
+    if (!useFlow.getState().seed(nodes, { mode: "workflow", origin: "studio" })) {
+      set({ flowConfirm: false });
+      get().npcSay(useFlow.getState().err || "现在铺不了，等在跑的那一段炼完再来");
+      return false;
+    }
     set({ flowConfirm: false });
     // 整片预算只做知会不做拦截：工作流是一段一结账，钱不够也能先炼前几段
     const cost = composeCost(chosen.map((p, i) => ({ durationSec: p.durationSec, videoTier: nodes[i].videoTier })));

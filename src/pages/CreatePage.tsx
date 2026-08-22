@@ -64,7 +64,9 @@ const MODES: Mode[] = [
     cta: "开一条工作流",
     resets: true,
     go: (nav) => {
-      useFlow.getState().seedSolo("workflow");
+      // ★ 被 canReplaceNodes 拒了就**留在原地**（原因已写进 store.err，画布/线性都画它）：
+      //   照旧跳页的话，用户会落到一条"没换成"的流水线上，而他以为自己开了新的
+      if (!useFlow.getState().seedSolo("workflow")) return;
       // 这是"另起一摊活"：断开与上一条草稿的关联，否则在新工作流里点保存会把
       // 之前那条草稿原地覆盖掉
       useStudio.getState().newWorkDraft();
@@ -84,7 +86,7 @@ const MODES: Mode[] = [
     cta: "写一句话出片",
     resets: true,
     go: (nav) => {
-      useFlow.getState().seedSolo("simple");
+      if (!useFlow.getState().seedSolo("simple")) return; // 理由同上
       // 简约模式自己不落草稿（见 studioStore.saveWorkDraft），但仍然要断开与上一条草稿的
       // 关联：不断开的话，用户从简约模式回工坊再点「存草稿」会把之前那条原地覆盖掉
       useStudio.getState().newWorkDraft();
