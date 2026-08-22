@@ -888,6 +888,49 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 
 ### 素材上传与回收
 
+#### 默认路：客户端签名直传 Cloudinary + 分块（2026-08-22 起）
+
+**为什么不走我们自己的服务器**：`Cloudflare 的 Proxy Read Timeout = 125 秒`，而 nginx 默认
+`proxy_request_buffering on` —— 要把整个 body 收完才回包。于是整段上传期间 CF 看到的是
+「源站零响应」，125 秒一到就掐断（nginx 记 **499**，客户端只拿到一个**没有状态码**的 fetch 失败）。
+三发连续复现 `rt=125.006 / 125.005 / 125.006`。⇒ 老路的真实上限**不是那个 100MB，是「125 秒内
+能推上去多少」**（实测手机 5G 上行 0.126MB/s ⇒ 约 15MB）。这个 125 秒**只有 Enterprise 套餐能调**。
+
+**两步：**
+
+`POST /api/uploads/template-video/sign`（requireAuth；限流与老路**共用同两个桶**：3 次/分 + 10 次/天）
+响应：`{ ok, uploadUrl, publicId, params, chunkBytes, maxSizeBytes }`
+- `params` 是要**原样逐字段转发**给 Cloudinary 的表单字段（`allowed_formats / overwrite /
+  public_id / timestamp / api_key / signature`）。客户端**不许自己拼、不许增删**：多签一个没发、
+  或发了一个没签，Cloudinary 都只回一句 `Invalid Signature`，那是最难查的一类错。
+- 客户端把 `file` 与 `Content-Range: bytes <start>-<end>/<total>`（end 是**闭区间**）、
+  `X-Unique-Upload-Id`（同一次上传的每一块用**同一个**值）加进去，POST 到 `uploadUrl`。
+  除末块外**每块必须 > 5MB**（`chunkBytes` 由服务端下发）；中间块回 `{done:false}`，
+  **只有末块**回完整资产。一块就装得下时走普通上传，不带那两个头。
+- 同一张签名可用于该次上传的**所有块**（实测），有效期 1 小时；**同一块可以原地重传**
+  （实测幂等，字节数不会重复累加）—— 断线时只重传那一块。
+
+`POST /api/uploads/template-video/confirm`（requireAuth；限流 **5 次/分**，独立于 uploads 桶）
+body：`{ publicId }`。响应与老路**逐字相同**（有测试比对字段集合）。
+- 服务端拿 `publicId` 走 `cloudinary.api.resource(..., { media_metadata: true })` **自取**元数据，
+  **客户端报的数一个都不信**（它现在能直接和 Cloudinary 对话，回执完全可以伪造，而时长正是
+  r2v 的计价输入）。验收 = 格式/体积（`templateVideoFormatIssue`）+ ① 号窗口（`templateSourceIssue`）。
+- 不过就 `destroy` 再 400；但 **destroy 前必须先问 `templateVideoInUse()`** —— 否则这个端点
+  就成了客户端可点名的删除原语（拿一个已登记已发布的参考视频去 confirm，落在窗口外就被删掉）。
+
+**三条防线（都在服务端，缺一条就有绕行路）：**
+1. `public_id` 由服务端生成并**签死**，形状必须正好是 `ideahub/template-videos/<userId>-<digits>`。
+   客户端能自选 = 能覆盖任何人的资产。请求体里塞 publicId/folder/overwrite 一律无效。
+2. `overwrite: false` **进签名**：签名 1 小时可复用，不锁的话用户能在模板过审发布后用同一张票
+   把内容**原地换掉**（DB 一个字段都不动、零报错）。实测过攻击成立，也实测过这一项挡得住。
+3. `allowed_formats` **进签名**：Cloudinary 算签名时**排除 `resource_type`**（它只在 URL 路径里），
+   所以一张 `/video/upload` 的票改成 `/raw/upload` 照样有效 —— 实测把 HTML 传进了我们的可信域，
+   而那类资产我们三处 destroy 全写死 `resource_type:"video"` 且不带扩展名，**永远回收不到**。
+
+#### 退路：老的一次性上传（**保留不删**）
+
+已经装在用户手机上的旧版 App 只认它；新版在 `/sign` 回 404 时退回这条（**判回包形状不判状态码**）。
+
 `POST /api/uploads/template-video`（requireAuth；FormData 字段名 `video`；
 限流按账号 **3 次/分 且 10 次/天** 两桶串联）。
 
