@@ -676,8 +676,11 @@ export default function VideoTemplateExtractor({
       //   按 `du_` 计价都用那一份。拿 <video> 本机现探的数去框，就是"用户按 A 报价、
       //   服务端按 B 结算"。上传本身不花 token，失败就整个停下、什么都不存。
       try {
-        setBusy("上传视频…（大文件在慢网上要等一会）");
-        const data = await uploadTemplateVideo(f);
+        // ★ 真进度（直传是分块的，XHR 给得出 upload.onprogress）。此前这里只有一句
+        //   静态的"大文件在慢网上要等一会" —— 而这一步在手机网上要走好几分钟，
+        //   没有进度条的话，用户唯一能做的判断就是"是不是卡死了"。
+        setBusy("上传视频 0%");
+        const data = await uploadTemplateVideo(f, (frac) => setBusy(`上传视频 ${Math.round(frac * 100)}%`));
         // spent:false —— 新的一份素材，还没有任何一发付过钱的白模化用过它（见 receipt 的 ★★）
         setReceipt({ file: f, data, src: URL.createObjectURL(f), spent: false });
         // 标题给个能用的默认值（文件名去掉扩展名）：服务端 zod 要求 title 非空，
