@@ -415,7 +415,7 @@ export function ownRefSplitVerdict(
       : sel.startSec !== 0 || sel.durSec !== total
         ? `选段超过 ${ARK_EDIT_RULES.maxSec} 秒时只能整条登记（分段组吃的是整条原片——合并成片时要拿它回填完整音轨）：把选段拉满 0~${total} 秒（起点 0、时长 ${total}），或者收回 ${ARK_EDIT_RULES.maxSec} 秒以内只做一段。`
         : sel.crop.w !== w || sel.crop.h !== h
-          ? `分段登记暂不支持裁剪画面（服务端切段吃的是原始上传）：点视频**下方播放条最右端**的「⤢ 铺满整幅」把裁剪框还原。要裁水印或改画幅，就把选段收回 ${ARK_EDIT_RULES.maxSec} 秒以内、一段一段做。`
+          ? `分段登记暂不支持裁剪画面（服务端切段吃的是原始上传）：点视频下方播放条最右端的「⤢ 铺满整幅」把裁剪框还原。要裁水印或改画幅，就把选段收回 ${ARK_EDIT_RULES.maxSec} 秒以内、一段一段做。`
           : w > ARK_EDIT_RULES.maxEdge || h > ARK_EDIT_RULES.maxEdge
             ? `整条登记不裁画面，而这条原片有一边到了 ${n(Math.max(w, h))} 像素，超过 AI 引擎的 ${n(ARK_EDIT_RULES.maxEdge)} 上限。把选段收回 ${ARK_EDIT_RULES.maxSec} 秒以内、用裁剪框把画面框到 ${n(ARK_EDIT_RULES.maxEdge)} 以内，一段一段做。`
             : ratio < ARK_EDIT_RULES.minRatio || ratio > ARK_EDIT_RULES.maxRatio
@@ -424,7 +424,7 @@ export function ownRefSplitVerdict(
                 ? // ★ 出路要分两种说（评审抓到：只说"多标几刀"时，241~360 秒的素材标满 11 刀
                   //   也未必够，而 picker 到 11 刀就顶回来 —— 一处叫他多标、一处不让他标）
                   total > autoMaxSec
-                  ? `现在这样要切 ${parts} 段，而一次分段登记最多 ${SPLIT_MAX_PARTS} 段。这条素材有 ${total} 秒，超过 ${autoMaxSec} 秒之后**自动切会一步跨到 16 段**（补刀是对半切，段数只能是 8、16…），所以必须**自己标刀**：把 ${SPLIT_MAX_PARTS - 1} 刀尽量均匀地摆开（每段接近 ${ARK_EDIT_RULES.maxSec} 秒）。实在摆不匀就先把素材剪短再传。`
+                  ? `现在这样要切 ${parts} 段，而一次分段登记最多 ${SPLIT_MAX_PARTS} 段。这条素材有 ${total} 秒，超过 ${autoMaxSec} 秒之后自动切会一步跨到 16 段（补刀是对半切，段数只能是 8、16…），所以必须自己标刀：把 ${SPLIT_MAX_PARTS - 1} 刀尽量均匀地摆开（每段接近 ${ARK_EDIT_RULES.maxSec} 秒）。实在摆不匀就先把素材剪短再传。`
                   : `现在这样要切 ${parts} 段，而一次分段登记最多 ${SPLIT_MAX_PARTS} 段（超过 ${ARK_EDIT_RULES.maxSec} 秒的段会自动对半，越切越碎）。多标几刀、让每段更接近 ${ARK_EDIT_RULES.maxSec} 秒，或者先把素材剪短。`
                 : null;
   // 段清单：作者点「登记」之前要看得见每一段多长（每段就是将来一个独立模板的时长，

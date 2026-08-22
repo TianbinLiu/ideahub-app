@@ -761,6 +761,16 @@ export async function makeOwnRefTemplateGroup(o: {
 
   const count = o.splits.length + 1;
   say(`正在把整条视频切成 ${count} 段登记…（每段都要独立转码，请稍候）`);
+  // ★★ 超时要**单独善后**（2026-08-21 复核抓到；与 detectTemplateRoles 那档同一条道理）：
+  //   服务端切段是串行逐段转码，客户端等到 360s 就 abort —— 而那一发**多半还在服务器上跑**。
+  //   只把 "请求超时" 原样抛出去的话，用户会做两件都很坏的事：
+  //     ① 关窗 —— receipt 还没 spent（onRegistered 在下面才调），dropReceipt 会把源删掉，
+  //        而服务端此刻正拿它抓 so_/du_ 子片段，四道引用检查全部落空、拦不住 ⇒ 整组回滚，
+  //        用户等了六分钟只看到四个字，几十上百 MB 原片要重传；
+  //     ② 再点一次 —— 服务端那道 $or 判重此刻同样落空（docs 还没 insert），
+  //        同一条源被切第二遍，两组资产。
+  //   ⇒ 这一档把 receipt 标成 spent（不许再回收源），并把话说成"去看看到没到"。
+  //   ★ 只包这一发、不搬代码块：下面那份 payload 一个字都不动（搬动它会让 diff 淹掉真正的改动）。
   const { parts } = await branch.createTemplate({
     title: o.title.trim() || "白模模板",
     intro: (o.intro ?? "").trim(),
@@ -778,6 +788,16 @@ export async function makeOwnRefTemplateGroup(o: {
     },
     videoUrl: o.receipt.url,
     splits: o.splits,
+  }).catch((e) => {
+    if (e instanceof ApiError && e.code === "TIMEOUT") {
+      o.onRegistered?.(); // 源已经交给服务端了：从这一刻起不许再回收它
+      throw new Error(
+        "等太久没等到回复——但这一发多半还在服务器上跑（整条切成 N 段要逐段转码，慢的时候好几分钟）。" +
+          "先别急着再点（再点会把同一条视频切第二遍），也别去删那段素材：等一两分钟，" +
+          "去「我的模板」看看那一组是不是已经到了。",
+      );
+    }
+    throw e;
   });
   // ★ 判回包**形状**不判状态码（Capacitor SPA 回退恒 200，CLAUDE.md 那条坑）：
   //   老服务端对带 splits 的请求可能按整段登记处理（zod strip 掉不认识的字段）——
