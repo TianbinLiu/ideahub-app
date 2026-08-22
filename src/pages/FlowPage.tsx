@@ -807,8 +807,6 @@ function NodeScreen({
 
 export default function FlowPage() {
   const navigate = useNavigate();
-  // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；那颗 ? 随时能重看）
-  useAutoGuide("flow");
   const loc = useLocation();
   // 人回到这一页，胶囊那条"待读通知"就算读过了（页内自有完整的进度与结果 UI）
   const clearGenNotice = useFlow((s) => s.clearGenNotice);
@@ -851,6 +849,12 @@ export default function FlowPage() {
       /* 隐私模式塞不进就算了：代价只是回程回线性视图 */
     }
   };
+  // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；那颗 ? 随时能重看）。
+  // ★★ **画布开着时不放这一份**（2026-08-21 第八轮扫描）：两份引导会在同一帧抢着开
+  //   —— 后开的那份把先开的顶掉，而先开的已经被记成「看过」，于是画布那份一次都没放过
+  //   就永远不再自动弹了；而线性这份讲的元素此刻正被 z-40 的画布整块盖着。
+  //   画布那份由 FlowCanvas 自己声明（它只在开着时挂载），两边天然互斥。
+  useAutoGuide("flow", !canvas);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   // 「提取模板」出来的那一下也是整表覆盖，走与模板货架同一处守卫（唯一实现）
   const { guard: applyGuard, dialog: applyDialog } = useApplyTemplate();

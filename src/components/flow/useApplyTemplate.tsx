@@ -24,7 +24,9 @@ export function useApplyTemplate() {
    *  ★ 措辞按次传（第七轮扫描）：同一个 hook 实例会服务好几个动作 —— 工作流页那颗
    *    「不用」做的是**清掉模板铺一条空的**，而红键上却印着「套用这个模板」，
    *    正文还劝他「再回来套模板」（他刚点的正是"不要模板"）。 */
-  const [pending, setPending] = useState<{ run: () => boolean; label: string; noun: string } | null>(null);
+  const [pending, setPending] = useState<{ run: () => boolean; label: string; noun: string; claim: boolean } | null>(
+    null,
+  );
 
   /**
    * 真正落地。★★ **套成了才断开旧草稿**（第五轮验证抓到）：`applyTemplate` /
@@ -33,21 +35,36 @@ export function useApplyTemplate() {
    *   下一次自动存盘会**另存一条新草稿**，而确认卡从此把"其实存住了的段"报成"没存上，
    *   丢了要重花钱"（savedDoneCount 也被清零）。顺序反过来就都对了。
    */
-  function commit(apply: () => boolean) {
-    if (apply()) useStudio.getState().newWorkDraft();
+  function commit(apply: () => boolean, claim: boolean) {
+    if (!apply()) return;
+    // ★★ **认领式的入口不许断**（2026-08-21 第八轮验证判成回归，是我上一版引入的 high）：
+    //   「打开草稿」这一下已经由 openWorkDraft 把 workDraftId 认到那条草稿上了，
+    //   紧接着 newWorkDraft() 就把它当场脱钩 —— 之后自动存盘会**另存一条重复草稿**
+    //   （库里两条各带 1MB 级的帧，20 条上限会挤掉最旧那条的正文），而确认卡按
+    //   savedDoneCount=0 反过来说「N 段出片后还没进草稿，丢了要重花 token」，
+    //   那 N 段就在刚打开的这条草稿里躺着。
+    //   覆盖式入口（套模板/换模式/重铺）才需要断：它们把 nodes 换成了与旧草稿无关的内容。
+    if (!claim) useStudio.getState().newWorkDraft();
   }
 
   /** 调用方把"套用 + 套用之后要做什么"整个交进来（返回真 = 真的套上了）；脏了就先问 */
-  function guard(apply: () => boolean, words?: { label?: string; noun?: string }) {
+  /**
+   * @param words 这一下在这里叫什么（红键上的字、以及出路那句里的动词）。
+   * @param words.claim true = **认领**一条既有草稿（打开草稿），不要断开与它的关联；
+   *   缺省 false = 覆盖式（套模板/换模式/重铺），成功后断。见 commit 的 ★★。
+   */
+  function guard(apply: () => boolean, words?: { label?: string; noun?: string; claim?: boolean }) {
+    const claim = words?.claim ?? false;
     if (flowDirty()) {
       setPending({
         run: apply,
         label: words?.label ?? "套用这个模板（丢弃上面那条）",
         noun: words?.noun ?? "套模板",
+        claim,
       });
       return;
     }
-    commit(apply);
+    commit(apply, claim);
   }
 
   const dialog = pending ? (
@@ -61,7 +78,7 @@ export function useApplyTemplate() {
       onDiscard={() => {
         const p = pending;
         setPending(null);
-        commit(p.run);
+        commit(p.run, p.claim);
       }}
       onCancel={() => setPending(null)}
     />

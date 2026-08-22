@@ -1122,11 +1122,16 @@ function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onClose: () => voi
       setTimeout(onClose, 1600);
       return;
     }
-    guard(() => {
-      useStudio.getState().openWorkDraft(full, mode);
-      navigate(mode === "studio" ? "/studio" : "/flow");
-      return true;
-    });
+    guard(
+      () => {
+        useStudio.getState().openWorkDraft(full, mode);
+        navigate(mode === "studio" ? "/studio" : "/flow");
+        return true;
+      },
+      // ★ claim：这一下是**认领**这条草稿（openWorkDraft 自己会把 workDraftId 指过去），
+      //   不是覆盖式套用 —— 断开的话下次自动存盘会另存一条重复的，见 commit 的 ★★
+      { claim: true, label: "打开这条草稿（丢弃上面那条流水线）", noun: "打开草稿" },
+    );
   }
 
   return (

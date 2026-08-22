@@ -508,6 +508,16 @@ interface StudioState {
    *   已经退出去换了模式）。调用方只有 FlowPage 一处，显式传的成本是一个参数。
    */
   finalizeFromFlow: (nodes: FlowNode[], mode: FlowMode, onProgress?: (status: string) => void) => Promise<boolean>;
+  /**
+   * 「这次组稿在跑吗」—— **store 级**，不许只活在组件的 useState 里。
+   * ★★ 2026-08-21 第八轮扫描的 high：组稿要几十秒（提炼卡组最多 8 张 + 撞上 3D 关键词
+   *   还要铸建模，都是真钱）。原来那个 `finalizing` 是 FlowPage 自己的 state ——
+   *   用户中途退出这一页再进来，组件重挂载、标记归零，「完成视频」又可以点了：
+   *   第二发照旧派生卡组、照旧铸 3D，**同一份内容收两遍钱**。
+   */
+  finalizing: boolean;
+  /** finalizeFromFlow 的正文（外层只负责那道"同一时刻只跑一发"的闸），别直接调 */
+  finalizeInner: (nodes: FlowNode[], mode: FlowMode, onProgress?: (status: string) => void) => Promise<boolean>;
   clearDraft: () => void;
 
   /**
@@ -1681,6 +1691,20 @@ export const useStudio = create<StudioState>()((set, get) => ({
 
   finalizeFromFlow: async (nodes, mode, onProgress) => {
     if (nodes.length === 0) return false;
+    // ★★ 同一时刻只准跑一发（见 finalizing 字段的 ★★）。原因写进 flowStore.err：
+    //   两个面都画它，静默 return 的话上层只能瞎猜（铁律八）
+    if (get().finalizing) {
+      useFlow.setState({ err: "这一片正在组稿中（提炼卡组要花几十秒），等它跑完再点" });
+      return false;
+    }
+    set({ finalizing: true });
+    try {
+      return await get().finalizeInner(nodes, mode, onProgress);
+    } finally {
+      set({ finalizing: false });
+    }
+  },
+  finalizeInner: async (nodes, mode, onProgress) => {
     const { root } = get();
     const say = (s: string) => onProgress?.(s);
     /**
@@ -1851,6 +1875,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
 
   workDraftId: null,
   savedDoneCount: 0,
+  finalizing: false,
   // 另起一摊活 / 这摊活已发布：与草稿的关联断了，"存住了几段"也跟着归零
   newWorkDraft: () => {
     // 换一摊活：把「对画布说话」的多轮记忆也清掉（模块级变量，不跟着 store 走，
@@ -1928,6 +1953,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
         plan: n.plan ?? (n.proposals.length > 1 ? ("picked" as const) : undefined),
         requirement: n.requirement ?? chosenOf(n).plot,
         tpl: n.tpl !== undefined ? n.tpl : draftTpl,
+        // ★★ **status 必须归一**（2026-08-21 第八轮扫描）：节点的 status 会原样落进草稿
+        //   （saveWorkDraft 把 f.nodes 整份交出去，drafts 那层不做净化），而顶栏那颗
+        //   「存草稿」不判 busy —— 用户在几分钟的出片过程里点一下存草稿是完全正常的动作。
+        //   于是草稿里就躺着一段 `status: "generating"`，重开后 busy 是 false 而它恒"在跑"：
+        //   canReplaceNodes / removeNode / 丢弃键 / 主按钮 / agent 四处全拒，措辞是
+        //   「等它跑完再来」，而它**永远不会跑完** —— 一条出口都不剩，且状态已落盘，
+        //   重启 App 也一样。草稿里不可能有真在跑的一炉，读出来一律当没跑。
+        status: n.status === "generating" ? "idle" : n.status,
+        progress: n.status === "generating" ? "" : n.progress,
       }),
     );
     const root = d.root ?? (flowNodes.length > 0 ? rootFromFlowNodes(flowNodes) : null);
@@ -1953,9 +1987,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
     });
     // 工作流侧
     if (d.flow && flowNodes.length > 0) {
+      const cur = Math.min(d.flow.cursor ?? 0, flowNodes.length - 1);
       useFlow.setState({
         nodes: flowNodes,
-        cursor: Math.min(d.flow.cursor ?? 0, flowNodes.length - 1),
+        cursor: cur,
+        // ★ 挂卡缓冲也要换成**这条草稿光标段自己**那份（第八轮扫描）：不换的话它还停在
+        //   上一条流水线的映射上，而「改挂卡」拿它当编辑页初值、applyCast 又整表落盘 ——
+        //   那正是这条线上反复出现的"挂法串段"。与 setCursor 里那一行同一个理由。
+        cast: flowNodes[cur]?.cast ?? {},
         mode: d.flow.mode ?? "workflow",
         origin: d.flow.origin ?? "studio",
         template: (d.flow.template as FlowTemplate) ?? null,

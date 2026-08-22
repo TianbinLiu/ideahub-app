@@ -633,6 +633,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
   },
 
   applyTemplate: (t) => {
+    // ★ 与 seed/seedSolo 同一道闸（第八轮扫描：上一版只给那两处加了，而这两处同样是整表覆盖）
+    if (!get().canReplaceNodes()) return false;
     // ── 白模模板（存在性判定，types.ts 的 ★）：只铺 1 个节点、chain=false ──
     // 多段在物理上不成立：段间承接的整个机制是「上一段**真实**尾帧顶替本段首帧」
     // （segmentGen 第②步），而首尾帧与参考媒体是方舟三大互斥场景——第 2 段要么发不出
@@ -713,6 +715,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
 
   applyTemplateGroup: (parts) => {
     if (parts.length === 0) return false;
+    if (!get().canReplaceNodes()) return false; // 理由同 applyTemplate
     if (parts.length === 1) return get().applyTemplate(parts[0]);
     const gate = VIDEO_TIERS.find((x) => x.refVid);
     if (!gate) {
@@ -1061,7 +1064,20 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const cleaned: Record<string, string> = {};
     for (const s of taken) cleaned[s.label] = s.card.id;
 
-    set({ busy: true, castBusy: true, err: "", castErr: "", castFallback: "", cast: cleaned, castNodeId: node.id });
+    // ★ 领令牌（第八轮扫描：applyCast 是 busy 的第四个持有者，上一版漏了它）——
+    //   这次合成的 chat 没有超时包装，弱网下可以挂很久；无条件清 busy 的话，
+    //   一个已经作废的回包会把「同时只炼一段」的闸打开
+    const myRun = get().genRun + 1;
+    set({
+      busy: true,
+      castBusy: true,
+      err: "",
+      castErr: "",
+      castFallback: "",
+      cast: cleaned,
+      castNodeId: node.id,
+      genRun: myRun,
+    });
     // cast 同时落到节点上：分段组切段时编辑缓冲要换成**那一段自己的**挂法
     // （setCursor 负责换），不落节点的话切回来面板就是空的，而出片用的还是旧映射
     get().updateNode(node.id, { materials: mats, cast: cleaned });
@@ -1080,7 +1096,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   就是第五章那份模板，chat 只负责把作者那句话揉顺，见 composeBlockoutPrompt 的 ★）。
       const text = await composeBlockoutPrompt(slots, line, spec);
       get().updateProposal(node.id, { plot: text });
-      set({ busy: false, castBusy: false });
+      // ★ busy 只在"还是我这一炉"时清（见 genRun 的 ★★）；castBusy/castErr 是本次挂卡
+      //   自己的状态，无论如何都要落（否则那一段的框会永远禁着）
+      set(get().genRun === myRun ? { busy: false, castBusy: false } : { castBusy: false });
       // 挂完卡就把"现在还出不了片"的原因先说了（判据仍只活在 segmentGen.blockoutIssue
       // 一处，这里只是提前问它一次）：卡上没有形象参考图这类问题，等用户点了「生成本段」
       // 才说等于白让他期待一轮
@@ -1109,7 +1127,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   清掉之后按钮自然变灰，用户要么点「填入默认写法」（castFallback 就在手边），
       //   要么自己写 —— 两条路都不会把一份旧映射发出去。
       set({
-        busy: false,
+        ...(get().genRun === myRun ? { busy: false } : {}), // 理由同上
         castBusy: false,
         castErr: e instanceof Error ? e.message : String(e),
         castFallback: blockoutApplySkeleton(slots, line, spec),

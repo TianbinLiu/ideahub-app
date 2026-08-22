@@ -106,6 +106,8 @@ export default function CreatePage() {
   // 从此回 /create 而不是工坊，那棵节点树就再也走不回去了。
   const [pending, setPending] = useState<Mode | null>(null);
   const flowNodes = useFlow((s) => s.nodes);
+  // 主 CTA 被整句拒时的原因（这一页此前不读它，见下面渲染处的 ★★）
+  const flowErr = useFlow((s) => s.err);
 
   function scrollTo(i: number) {
     const rail = railRef.current;
@@ -229,6 +231,18 @@ export default function CreatePage() {
           />
         ))}
       </div>
+
+      {/* ★★ 这一页也要画 store.err（2026-08-21 第八轮扫描）：主 CTA 现在会被
+          `canReplaceNodes` 整句拒（有段在生成中），而这一页此前从头到尾不读 err ——
+          点下去没有跳转、没有弹层、一个字都没有，与"按钮坏了"完全一样（铁律八）。 */}
+      {flowErr && (
+        <div className="absolute inset-x-3 top-14 z-40 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/95 px-2.5 py-2">
+          <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-white">{flowErr}</p>
+          <button onClick={() => useFlow.setState({ err: "" })} className="flex-none text-white/90">
+            <Icon name="close" size={12} />
+          </button>
+        </div>
+      )}
 
       {/* ★ 与工坊法阵**同一个**对话框（components/flow/DiscardFlowDialog）：
           这段话要说清"丢弃会不会烧掉已经花过的钱"，抄成两份必然分叉 —— 而它此前
