@@ -1122,8 +1122,13 @@ function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onClose: () => voi
       setTimeout(onClose, 1600);
       return;
     }
+    // ★ 守卫可能**推迟**执行（脏流水线时先摆确认卡）：那一路要把「打开中…」复位，
+    //   否则用户点了「取消」之后两颗模式键恒禁、下面还写着"打开中…"，而什么都没在跑
+    //   （第九轮扫描抓到，是这一批新守卫引入的）。
+    setBusy("");
     guard(
       () => {
+        setBusy("打开中…");
         useStudio.getState().openWorkDraft(full, mode);
         navigate(mode === "studio" ? "/studio" : "/flow");
         return true;

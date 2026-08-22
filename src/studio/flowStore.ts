@@ -20,7 +20,16 @@
 import { create } from "zustand";
 import { AI_REAL, generateCover, generateProposals, prepareMaterialRefs } from "../ai";
 import { canAfford, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
-import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, tierOf } from "../data/economy";
+import {
+  DEFAULT_TIER,
+  VIDEO_TIERS,
+  annRedrawCost,
+  fmtTokens,
+  proposalRedrawCost,
+  proposalsCost,
+  segmentCost,
+  tierOf,
+} from "../data/economy";
 import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
@@ -363,7 +372,12 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
   //   blockoutIssue 拦着，而扣款只在出片成功后）；按经典路报是另一件商品的价。
   //   inputSec 只从登记值镜像读（economy.segmentCost 的同一句 ★），不拿 <video> 现探。
   const refVideo = tplOfNode(node)?.refVideo;
-  return segmentCost({
+  // ★★ 圈选改帧那几张图**必须进报价**（2026-08-21 第九轮扫描的 high）：出片管线对每一处
+  //   圈选都会跑一次 refineFrame（segmentGen 里那个 for 循环，一次真的 Seedream 图生图），
+  //   而这里原来只算视频那一半 —— 圈 5 处就少报 5 张图的钱，按钮上的数比实扣少一大截。
+  //   ★ 白模段没有这一笔：那条路整个不接受圈选（segmentGen 的 blockoutIssue 会整句拒）。
+  const annsCost = refVideo ? 0 : annRedrawCost(node.anns.length);
+  return annsCost + segmentCost({
     durationSec: prop.durationSec,
     tierId: tierOverride ?? node.videoTier,
     hasFirstFrame: !!(prop.firstFrame || carry),

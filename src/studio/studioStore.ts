@@ -1960,8 +1960,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
         //   canReplaceNodes / removeNode / 丢弃键 / 主按钮 / agent 四处全拒，措辞是
         //   「等它跑完再来」，而它**永远不会跑完** —— 一条出口都不剩，且状态已落盘，
         //   重启 App 也一样。草稿里不可能有真在跑的一炉，读出来一律当没跑。
+        //   ⚠ 「在途」不止 status 一格（第九轮扫描）：`regenning` 与 steps 里那条 running
+        //   的步骤同样会落盘。regenning 漏了的话，重开后那一套方案的换首帧/换尾帧/清帧
+        //   四颗键**永久禁着**（PlanBoard 的 canEdit 判的就是它），按钮恒印「重画中…」而
+        //   什么都没在跑，唯一解锁方式是再真跑一次重画（再花一笔 redrawCost）。
+        //   所以这里把"在途"那几格**一起**归一，别只做一格。
         status: n.status === "generating" ? "idle" : n.status,
         progress: n.status === "generating" ? "" : n.progress,
+        regenning: n.status === "generating" ? undefined : n.regenning,
+        steps: n.steps?.map((st) => (st.status === "running" ? { ...st, status: "error" as const } : st)),
       }),
     );
     const root = d.root ?? (flowNodes.length > 0 ? rootFromFlowNodes(flowNodes) : null);

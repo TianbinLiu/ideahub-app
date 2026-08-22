@@ -14,7 +14,7 @@ import { AI_REAL, refineFrame, regenSegment } from "../ai";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
-import { fmtTokens, segTokens } from "../data/economy";
+import { annRedrawCost, fmtTokens, segTokens } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { VideoSegment, aspectOf, formatDuration, uid } from "../types";
 import { resolveMediaUrl } from "../utils/mediaUrl";
@@ -141,8 +141,16 @@ export default function CutPage() {
     for (const a of anns) m.set(a.segIndex, (m.get(a.segIndex) ?? 0) + 1);
     return m;
   }, [anns]);
+  // ★★ 每段 = 重出一次片 + **每处圈选一张改图**（regenerateAll 里对每条 ann 跑一次
+  //   refineFrame）。原来只算了视频那一半 —— 5 秒标准档圈 5 处，按钮印 108k、实扣约 175k，
+  //   而按钮旁边还写着「这一步才计费」（2026-08-21 第九轮扫描的 high）。
+  //   改图那笔与工作流出片共用同一个 annRedrawCost（唯一实现，铁律六）。
   const annCost = useMemo(
-    () => [...annBySeg.keys()].reduce((s, i) => s + (segs[i] ? segTokens(segs[i].durationSec, segs[i].videoTier) : 0), 0),
+    () =>
+      [...annBySeg.entries()].reduce(
+        (s, [i, n]) => s + (segs[i] ? segTokens(segs[i].durationSec, segs[i].videoTier) + annRedrawCost(n) : 0),
+        0,
+      ),
     [annBySeg, segs],
   );
 
@@ -274,16 +282,25 @@ export default function CutPage() {
         if (lastFrame) seg.lastFrame = lastFrame;
         // ★ 必须判 AI_REAL：演示模式下根本没调方舟，却照样扣本地余额，
         //   用户在 mock 里点几次就"没钱"了，还查不出钱花在哪
-        if (AI_REAL) spendTokens(segTokens(seg.durationSec, seg.videoTier));
+        // ★ 与按钮上那个数同源：视频那一半 + 每处圈选一张改图（annRedrawCost 唯一实现）
+        if (AI_REAL) spendTokens(segTokens(seg.durationSec, seg.videoTier) + annRedrawCost(list.length));
         nextSegs[segIndex] = seg;
+        // ★★ **每段一落地**（2026-08-21 第九轮扫描的 high）：原来整轮跑完才 setState 一次，
+        //   中途失败（第 3 段撞上敏感词/超时）前面两段**钱已经扣了**，成片却随
+        //   nextSegs 一起丢弃，圈选也没清 —— 用户点「重试」对同一份内容再收一遍。
+        //   逐段写回 + 逐段清掉这一段的圈选：失败时前面付过的钱全都留在成片里。
+        useStudio.setState({ draft: { ...useStudio.getState().draft!, segments: nextSegs.slice() } });
+        setAnns((prev) => prev.filter((a) => a.segIndex !== segIndex));
         void resolveMediaUrl(url, { forCapture: true }).then((u) => u && setSrcMap((m) => ({ ...m, [segIndex]: u })));
       }
-      useStudio.setState({ draft: { ...draft!, segments: nextSegs } });
-      setAnns([]);
       setBusy("");
     } catch (e) {
       setBusy("");
-      setErr(`重新生成失败：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}`);
+      // ★ 说清"前面几段已经保住了"：不说的话用户以为整轮白花，会再点一次（再收一遍）
+      setErr(
+        `重新生成中断：${(e instanceof Error ? e.message : String(e)).slice(0, 110)}` +
+          `。已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段`,
+      );
     }
   }
 
