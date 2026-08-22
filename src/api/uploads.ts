@@ -42,9 +42,11 @@ async function postForm(
   // ★★ 「是不是我们自己掐的」用**一面自己举的旗子**，不嗅探错误形状（2026-08-22 真机撞到）：
   //   原来判的是 `e instanceof DOMException && e.name === "AbortError"`，而 Android WebView
   //   在**上传中途**被 abort 时给的往往是 `TypeError: Failed to fetch` —— 于是自己的超时
-  //   被报成「网络不可用」，排查的人（包括我）会一路往断网、网关、服务端上找，而真相是
-  //   这条网在 timeoutMs 内就是推不完这么大的文件。实测：那台手机 5G 上行只有 ~0.12MB/s
-  //   （curl 发 10MB 用了 83 秒），47MB 光推字节就要六分多钟，600 秒那道闸几乎必然先响。
+  //   被报成「网络不可用」，而这两句话该让人往完全不同的方向查。
+  //   ⚠ 这面旗子**不是**为 47MB 那次事故加的（那次真因是 CF 的 125 秒读超时，见下面
+  //     ★★★，600 秒这道闸根本没轮到响）—— 我一度按时间巧合把它判成"自己掐的"，
+  //     又判错了一次。留着它是因为**判据本身不该建立在错误对象的形状上**：
+  //     同一个 abort，Chromium 在不同阶段给 DOMException 还是 TypeError 并不保证。
   //   ⚠ 旗子要在 `abort()` **之前**举 —— 回调是同步执行的，顺序反了就永远读到 false。
   let selfAborted = false;
   const timer = setTimeout(() => {
