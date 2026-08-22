@@ -80,6 +80,16 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   底部节点条三条路共用）加 `addNode` 的追加门槛，工坊是 `studioStore.placeholderVisible`
   （虚线卡位亮不亮）加 `composable`（法阵亮不亮）。UI 上的 disabled/锁图标只是把"为什么
   点不动"画出来，别在那里另写一遍判断。
+- **凡是"整表换掉 `nodes`"的入口，都要先问 `flowDirty`、成功之后断开旧草稿**。
+  这样的入口有六条：创作入口换模式（`seedSolo` ×2）、模板货架套用、模板详情页套用、
+  工作流页「提取模板」、简约模板栏那颗「不用」（也是 `seedSolo`）、工坊法阵重铺
+  （`startFlow({force})`）。两件事缺一不可：
+  ① **先问**——已经花钱炼出来的段就在 `nodes` 上，换掉就没了（确认卡是共用的
+  `components/flow/DiscardFlowDialog`，它按 `savedDoneCount` 如实说清哪些其实存住了）；
+  ② **成了再断**（`newWorkDraft()`）——不断的话 `workDraftId` 还指着旧草稿，新流水线
+  炼成第一段时的自动存盘会把它**原地覆盖**，而那正是那些付费段唯一的备份；顺序反过来
+  也不行：套用被整句拒时流水线没变，却已经和草稿脱钩了。
+  ⚠ 这条一次性防住三种事故，而它们**都零报错**：段没了、草稿被覆盖、确认卡说的与事实相反。
 - **画布与线性视图是同一条流水线的两个面**（`components/flow/FlowCanvas.tsx` ↔ `pages/FlowPage.tsx`；
   用哪个面记在 localStorage 的 `flowCanvasOpen` —— 那是长期偏好，不是一次会话）。两个面都不
   自己判规则，各条**唯一实现**在哪：顺序门禁 `flowStore.clampCursor`、报价 `nodeCost` /
