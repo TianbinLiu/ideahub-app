@@ -39,7 +39,18 @@ async function postForm(
   const fd = new FormData();
   fd.append(field, blob, filename);
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  // ★★ 「是不是我们自己掐的」用**一面自己举的旗子**，不嗅探错误形状（2026-08-22 真机撞到）：
+  //   原来判的是 `e instanceof DOMException && e.name === "AbortError"`，而 Android WebView
+  //   在**上传中途**被 abort 时给的往往是 `TypeError: Failed to fetch` —— 于是自己的超时
+  //   被报成「网络不可用」，排查的人（包括我）会一路往断网、网关、服务端上找，而真相是
+  //   这条网在 timeoutMs 内就是推不完这么大的文件。实测：那台手机 5G 上行只有 ~0.12MB/s
+  //   （curl 发 10MB 用了 83 秒），47MB 光推字节就要六分多钟，600 秒那道闸几乎必然先响。
+  //   ⚠ 旗子要在 `abort()` **之前**举 —— 回调是同步执行的，顺序反了就永远读到 false。
+  let selfAborted = false;
+  const timer = setTimeout(() => {
+    selfAborted = true;
+    ctrl.abort();
+  }, timeoutMs);
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
@@ -51,7 +62,8 @@ async function postForm(
       signal: ctrl.signal,
     });
   } catch (e) {
-    const aborted = e instanceof DOMException && e.name === "AbortError";
+    // 旗子优先；`AbortError` 只作补充（别处调 ctrl.abort() 时仍认得出来）
+    const aborted = selfAborted || (e instanceof DOMException && e.name === "AbortError");
     // ★★ 把**这份文件多大**写进话里（2026-08-21 真机撞到）：47MB 那一发跑到 100 秒
     //   上下直接 reject，屏幕上只有"网络不可用"五个字 —— 而同一台设备、同一条 WiFi、
     //   同一分钟内 11.6MB 传得上去。
@@ -68,7 +80,9 @@ async function postForm(
     const mb = `${(blob.size / 1024 / 1024).toFixed(1)}MB`;
     throw new ApiError(
       aborted
-        ? `上传超时：这份 ${mb} 在限时内没传完，换个网络或先把它压小再试。`
+        ? `上传超时：这份 ${mb} 在 ${Math.round(timeoutMs / 1000)} 秒内没传完。不是断网——` +
+          `是这条网推不完这么大的文件（手机上行常见只有 1Mbps 上下，47MB 就要六分钟）。` +
+          `换个更快的网络，或者先把视频压小再传。`
         : `上传失败（网络不可用）：这份 ${mb} 没能推上去。断网、慢网、或者传太久被中途掐断，都会是这一句；` +
           `传得越久越容易被掐 —— 先把视频压小一点再传，多半就过了。`,
       0,
@@ -319,7 +333,11 @@ export async function uploadTemplateVideo(file: File): Promise<TemplateVideoRece
 export async function deleteTemplateVideo(publicId: string): Promise<void> {
   const token = getToken();
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 20_000);
+  let selfAborted = false; // 同 postForm 的 ★★：别嗅探错误形状
+  const timer = setTimeout(() => {
+    selfAborted = true;
+    ctrl.abort();
+  }, 20_000);
   let res: Response;
   try {
     res = await fetch(`${API_BASE}/api/uploads/template-video`, {
@@ -332,7 +350,7 @@ export async function deleteTemplateVideo(publicId: string): Promise<void> {
       signal: ctrl.signal,
     });
   } catch (e) {
-    const aborted = e instanceof DOMException && e.name === "AbortError";
+    const aborted = selfAborted || (e instanceof DOMException && e.name === "AbortError");
     throw new ApiError(aborted ? "回收超时" : "回收失败（网络不可用）", 0, aborted ? "TIMEOUT" : "NETWORK");
   } finally {
     clearTimeout(timer);
