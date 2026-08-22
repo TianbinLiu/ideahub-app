@@ -846,7 +846,16 @@ export interface CreateTemplateResult {
 }
 
 export async function createTemplate(payload: CreateTemplatePayload): Promise<CreateTemplateResult> {
-  const res = await apiPost<Record<string, unknown>>("/api/branch/templates", payload);
+  // ★★★ 带 `splits` 时**必须自带长超时**（2026-08-21 cherry-pick 评审的 high，
+  //   与 detectTemplateRoles 那条 ★★★ 同一个道理）：客户端默认只给 20 秒
+  //   （`DEFAULT_TIMEOUT_MS`），而服务端那一支是**串行**逐段 `cloudinary.uploader.upload`
+  //   （远端抓取 + 转码 + 上传，单段自己就挂着 300s 的 timeout）——12 段最坏是分钟级。
+  //   20 秒就 abort 的后果不是"慢一点"：源视频那时既登记不上（POST 被判失败），
+  //   也回收不掉（服务端可能正切到一半），用户只能重传一次几十上百 MB 的原片。
+  //   ★ 不带 splits 的单段登记是**毫秒级**（认人那些慢活早就拆出去了，见 makeOwnRefTemplate
+  //     的 ★★），所以只给分段那一发加长超时，别把单段那条也拖成 6 分钟才报错。
+  const seg = payload.splits?.length ? { timeoutMs: 360_000 } : undefined;
+  const res = await apiPost<Record<string, unknown>>("/api/branch/templates", payload, seg);
   const template = pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
   const parts = Array.isArray((res as { parts?: unknown }).parts) ? ((res as { parts: ApiBranchTemplate[] }).parts) : null;
   return { template, parts };

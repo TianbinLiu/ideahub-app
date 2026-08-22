@@ -455,8 +455,20 @@ export function templateGroupOf(t: VideoTemplate): VideoTemplate[] {
   if (!t.group) return [t];
   const key = t.group.key;
   const all = [...mine, ...mineRemote, ...shared].filter((x) => x.group?.key === key);
+  // ★★ 去重键是 `remoteId || id`，**不是 `id`**（2026-08-21 cherry-pick 评审的 high）：
+  //   同一条模板在 `mine` 里的 id 是本机 `uid("tpl")`、在 `mineRemote` 里是服务端 `_id`，
+  //   两者天然不等 —— 按 id 去重的话作者自己那台设备上每一段都被数两遍，
+  //   `uniq.length` 恒等于 2×count、永远 !== count，于是整组落进下面那句"组不齐"，
+  //   货架与详情页从此永远弹「这台设备上只拿到了 1 段…下拉刷新试试」，
+  //   而下拉刷新恰恰是把 mineRemote 拉回来、让它更不可能凑齐。
+  //   作者再也用不了自己刚花 N × 认人费做出来的这一组。
+  //   ⚠ 口径与 `myTemplates()` 那句去重**必须一致**（它按 remoteId 判）—— 那正是
+  //   "同一条模板两个 id"这件事在本文件里的既有共识，这里当初漏抄了。
   const seen = new Set<string>();
-  const uniq = all.filter((x) => (seen.has(x.id) ? false : (seen.add(x.id), true)));
+  const uniq = all.filter((x) => {
+    const k = x.remoteId || x.id;
+    return seen.has(k) ? false : (seen.add(k), true);
+  });
   uniq.sort((a, b) => (a.group?.index ?? 0) - (b.group?.index ?? 0));
   // 组不齐（远端列表截断/某段被删）宁可只回自己：整组套用少一段是静默丢内容
   return uniq.length === t.group.count ? uniq : [t];

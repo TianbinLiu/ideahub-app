@@ -467,6 +467,16 @@ export default function VideoTemplateExtractor({
   }
 
   function close() {
+    // ★★ **在跑就别关**（2026-08-21 cherry-pick 评审）：这一屏的「取消」早就 disabled={busy}
+    //   了（BlockoutTrimmer 那颗），但外层遮罩与标题栏的 ✕ 是无条件 close —— 同一屏两套纪律。
+    //   分段登记那一发是服务端**串行逐段转码**、分钟级，这期间 receipt.spent 还是 false，
+    //   于是手滑点一下遮罩就 dropReceipt → 删掉源视频：在途的 so_/du_ 切段变换当场失败、
+    //   组件已卸载所以 setErr 是空操作 —— 控制台之外一个字都没有（铁律八），
+    //   而那个源正是整组的音轨来源，用户只能重传几十上百 MB 的原片、还不知道发生了什么。
+    if (busy) {
+      setWarn(`${busy}——这一步在跑，跑完再关（现在关掉会把已经传上去的素材删掉）`);
+      return;
+    }
     dropReceipt();
     onClose();
   }
@@ -1099,10 +1109,29 @@ export default function VideoTemplateExtractor({
                       receipt &&
                       !segLong &&
                       receipt.data.durationSec > BLOCKOUT_INPUT_RULES.maxSec &&
-                      Math.floor(receipt.data.durationSec) <= SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec && (
+                      // ★★ 门槛是**自动切真能覆盖到的**那个数（8×30=240），不是 12×30=360
+                      //   （2026-08-21 评审）：planSplits 的补刀是递归对半，段数只能是 2 的幂，
+                      //   240 秒之后下一档直接 16 段、一步跨过 12 段上限 —— 对 241~360 秒的
+                      //   素材说"拉满就会自动切成多段"，用户照做立刻撞红字。那一档改在
+                      //   下面单独说（要自己标刀）。
+                      Math.floor(receipt.data.durationSec) <= 8 * BLOCKOUT_INPUT_RULES.maxSec && (
                         <p className="rounded-lg bg-sky-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-sky-200/90">
                           这条素材有 {receipt.data.durationSec.toFixed(1)} 秒：把上面的选段
                           <b className="font-bold">拉满整条</b>，就会自动切成多段登记成一组（每段 ≤30 秒、逐段认人）；
+                          只想用其中一段就框 {BLOCKOUT_INPUT_RULES.maxSec} 秒以内。
+                        </p>
+                      )}
+                    {/* ★ 240~360 秒这一档单独说：自动切会一步跨到 16 段（见 arkVideoRules
+                        的 autoMaxSec ★★），必须自己标刀，不然拉满就是一句红字 */}
+                    {route === "ownRef" &&
+                      receipt &&
+                      !segLong &&
+                      Math.floor(receipt.data.durationSec) > 8 * BLOCKOUT_INPUT_RULES.maxSec &&
+                      Math.floor(receipt.data.durationSec) <= SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec && (
+                        <p className="rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                          这条素材有 {receipt.data.durationSec.toFixed(1)} 秒：把选段<b className="font-bold">拉满整条</b>
+                          之后还要<b className="font-bold">自己标切段刀</b>（把 {SPLIT_MAX_PARTS - 1} 刀尽量摆匀）——
+                          这个长度上"自动对半"会一步切到 16 段，超过一次最多 {SPLIT_MAX_PARTS} 段。
                           只想用其中一段就框 {BLOCKOUT_INPUT_RULES.maxSec} 秒以内。
                         </p>
                       )}

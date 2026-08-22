@@ -1411,6 +1411,19 @@ export default function FlowPage() {
           onDone={(t) =>
             applyGuard(() => {
               const parts = templateGroupOf(t);
+              // ★★ 组不齐**整句拒**，绝不静默退成单段（cherry-pick 评审抓到：我上一版
+              //   只抄了后半句，而注释却写着"三处逐字同形" —— 注释在撒谎）。
+              //   templateGroupOf 凑不齐时回的是 **[t]（长度 1）**，恰好落进下面那个
+              //   三元的 false 支 → applyTemplate 铺 1 段、mode 退成简约、其余段全丢，
+              //   而且它返回 true，于是守卫照常断开旧草稿 —— 全程 err 一个字都没有。
+              if (t.group && parts.length !== t.group.count) {
+                useFlow.setState({
+                  err:
+                    `这是一条分成 ${t.group.count} 段的模板，但这台设备上只拿到了 ${parts.length} 段 —— ` +
+                    `整组套用会少内容，所以先不套。去「我的模板」下拉刷新试试。`,
+                });
+                return false;
+              }
               return parts.length > 1
                 ? useFlow.getState().applyTemplateGroup(parts)
                 : useFlow.getState().applyTemplate(t);
