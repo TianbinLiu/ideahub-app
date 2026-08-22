@@ -52,7 +52,21 @@ async function postForm(
     });
   } catch (e) {
     const aborted = e instanceof DOMException && e.name === "AbortError";
-    throw new ApiError(aborted ? "上传超时" : "上传失败（网络不可用）", 0, aborted ? "TIMEOUT" : "NETWORK");
+    // ★★ 把**这份文件多大**写进话里（2026-08-21 真机撞到）：47MB 那一发在 90 秒左右
+    //   直接 reject，屏幕上只有"网络不可用"五个字 —— 而同一台设备同一分钟内 11.6MB
+    //   传得上去。fetch 只会给一个 TypeError，看不出是断网还是被中途掐断（网关对请求体
+    //   大小有上限时，nginx 那类会先回 413 再断连，浏览器侧就退化成一个网络错误，
+    //   `res.ok` 那条路根本走不到）。不写死任何阈值、也不断言原因 —— 只把用户唯一
+    //   能拿来判断的那个数给他，并给一条出路（铁律八：说清楚 + 给活路）。
+    const mb = `${(blob.size / 1024 / 1024).toFixed(1)}MB`;
+    throw new ApiError(
+      aborted
+        ? `上传超时：这份 ${mb} 在限时内没传完，换个网络或先把它压小再试。`
+        : `上传失败（网络不可用）：这份 ${mb} 没能推上去。断网、慢网、或者中途被掐断都会是这一句；` +
+          `文件越大越容易撞上服务器/网关对请求体大小的上限 —— 先把视频压小一点再传，多半就过了。`,
+      0,
+      aborted ? "TIMEOUT" : "NETWORK",
+    );
   } finally {
     clearTimeout(timer);
   }
