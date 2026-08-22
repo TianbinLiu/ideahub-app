@@ -43,6 +43,15 @@ export default function DiscardFlowDialog({
    *   两句都是假的：既不是存盘失败，那颗按钮也根本不存在。
    */
   const simple = useFlow((s) => s.mode === "simple");
+  /**
+   * ★★ 有段**正在生成**时不许丢（2026-08-21 第七轮扫描的 high）：那一炉的钱已经在花，
+   *   而换掉流水线并不会把它停下（没有 AbortController，也停不下）。丢了的话回包时
+   *   钱照扣、成片落在一条已经不存在的流水线上，而这张卡那会儿正按 done===0 对用户说
+   *   「都还没出片，**没有花掉的钱**」—— 这句话在这一刻是假的。
+   *   store 侧 `canReplaceNodes` 是真正的闸（六条入口都问它），这里只是把"为什么点不动"
+   *   画出来，别在这里另写一份判断。
+   */
+  const gening = useFlow((s) => s.nodes.findIndex((n) => n.status === "generating"));
   const done = nodes.filter((n) => Object.keys(n.videoByProposal).length > 0).length;
   const anns = nodes.reduce((s, n) => s + n.anns.length, 0);
   /** 出了片、却没能落进草稿的段数 —— 只有这些是丢弃时真会烧掉的钱 */
@@ -66,7 +75,13 @@ export default function DiscardFlowDialog({
         {/* ★ 第二段单独摆：上面是"有什么"，这里是"丢了会怎样"。三种情况说三句不同的话，
             含糊成一句的话，最该看清的那一种（有段没存上）就被稀释掉了 */}
         <p className="mt-1.5 text-xs leading-relaxed text-slate-300">
-          {done === 0 ? (
+          {gening >= 0 ? (
+            <>
+              ⚠ <span className="text-rose-300">第 {gening + 1} 段正在生成中，钱已经在花了</span>
+              ——丢掉这条流水线并<b>不会</b>把它停下：回包时那笔钱照扣，成片却落在一条已经不存在的
+              流水线上。等它跑完（出片有胶囊通知）再回来。
+            </>
+          ) : done === 0 ? (
             <>开新的一条会把它丢掉——都还没出片，丢的是写好的要求与设定，没有花掉的钱。</>
           ) : simple ? (
             <>
@@ -82,8 +97,11 @@ export default function DiscardFlowDialog({
             </>
           ) : (
             <>
-              ⚠ 其中 <span className="text-rose-300">{unsaved} 段出片后没能存进草稿</span>
-              （存储空间不足或隐私模式），丢弃就要<span className="text-rose-300">重花 token 再炼一次</span>。
+              {/* ★ 不写死原因（第七轮扫描）：这一支不只在"存盘失败"时出现 —— 法阵重铺
+                  之后 savedDoneCount 会归零，那时说"存储空间不足或隐私模式"就是句假话。
+                  只说**事实**（还没进草稿），出路两种情况都成立。 */}
+              ⚠ 其中 <span className="text-rose-300">{unsaved} 段出片后还没进草稿</span>，
+              丢弃就要<span className="text-rose-300">重花 token 再炼一次</span>。
               建议先「回去接着炼」，在那一页点「存草稿」把它们留住。
             </>
           )}
@@ -92,11 +110,14 @@ export default function DiscardFlowDialog({
           <button onClick={onResume} className="rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
             回去接着炼
           </button>
+          {/* ★ 生成中就把它禁掉并说清为什么（真正的闸在 store 的 canReplaceNodes） */}
           <button
             onClick={onDiscard}
-            className="rounded-xl border border-rose-500/40 bg-rose-500/10 py-2.5 text-sm font-semibold text-rose-300"
+            disabled={gening >= 0}
+            title={gening >= 0 ? "有一段正在生成，等它跑完再说" : undefined}
+            className="rounded-xl border border-rose-500/40 bg-rose-500/10 py-2.5 text-sm font-semibold text-rose-300 disabled:opacity-40"
           >
-            {discardLabel}
+            {gening >= 0 ? "等这一段炼完才能丢" : discardLabel}
           </button>
           <button onClick={onCancel} className="rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200">
             取消

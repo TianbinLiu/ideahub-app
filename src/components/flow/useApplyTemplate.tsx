@@ -19,8 +19,12 @@ import { useStudio } from "../../studio/studioStore";
 
 export function useApplyTemplate() {
   const nav = useNavigate();
-  /** 等用户点头的那次套用。用函数包一层是因为 useState 会把裸函数当成惰性初始化 */
-  const [pending, setPending] = useState<{ run: () => boolean } | null>(null);
+  /** 等用户点头的那次套用（连同**这一下在这里叫什么**）。用对象包一层是因为
+   *  useState 会把裸函数当成惰性初始化。
+   *  ★ 措辞按次传（第七轮扫描）：同一个 hook 实例会服务好几个动作 —— 工作流页那颗
+   *    「不用」做的是**清掉模板铺一条空的**，而红键上却印着「套用这个模板」，
+   *    正文还劝他「再回来套模板」（他刚点的正是"不要模板"）。 */
+  const [pending, setPending] = useState<{ run: () => boolean; label: string; noun: string } | null>(null);
 
   /**
    * 真正落地。★★ **套成了才断开旧草稿**（第五轮验证抓到）：`applyTemplate` /
@@ -34,9 +38,13 @@ export function useApplyTemplate() {
   }
 
   /** 调用方把"套用 + 套用之后要做什么"整个交进来（返回真 = 真的套上了）；脏了就先问 */
-  function guard(apply: () => boolean) {
+  function guard(apply: () => boolean, words?: { label?: string; noun?: string }) {
     if (flowDirty()) {
-      setPending({ run: apply });
+      setPending({
+        run: apply,
+        label: words?.label ?? "套用这个模板（丢弃上面那条）",
+        noun: words?.noun ?? "套模板",
+      });
       return;
     }
     commit(apply);
@@ -44,8 +52,8 @@ export function useApplyTemplate() {
 
   const dialog = pending ? (
     <DiscardFlowDialog
-      discardLabel="套用这个模板（丢弃上面那条）"
-      actionNoun="套模板"
+      discardLabel={pending.label}
+      actionNoun={pending.noun}
       onResume={() => {
         setPending(null);
         nav("/flow"); // 「回去接着炼」：回到那条流水线，模板不套了

@@ -1211,10 +1211,14 @@ export default function FlowPage() {
                 //   而简约模式按设计不进草稿库 —— 已经花钱炼出来的那一段没有任何备份。
                 //   与另外三条 applyTemplate 入口走同一处守卫（第六轮收尾扫描抓到的第四条）。
                 onClick={() =>
-                  applyGuard(() => {
-                    useFlow.getState().seedSolo("simple");
-                    return true;
-                  })
+                  applyGuard(
+                    () => {
+                      useFlow.getState().seedSolo("simple");
+                      return true;
+                    },
+                    // ★ 这一下不是套模板，是**清掉模板铺一条空的**：借人家的对话框也得说自己的话
+                    { label: "不用模板，开一条空的（丢弃上面那条）", noun: "重新套模板" },
+                  )
                 }
                 className="flex-none text-[11px] text-slate-500"
               >

@@ -482,9 +482,19 @@ interface FlowState {
   /** 正在合成点名提示词（一次 chat，几秒）——按钮要转圈，别让用户以为点了没反应 */
   castBusy: boolean;
 
-  seed: (nodes: FlowNode[], opts: { mode: FlowMode; origin: "studio" | "solo" }) => void;
+  /**
+   * 「现在能不能整表换掉 nodes」—— **唯一实现**，六条整表覆盖入口都先问它。
+   * ★★ 在途生成时一律拒：那一炉的钱**已经在花**，而换掉流水线并不会把它停下
+   *   （没有 AbortController，也停不下）。回包时 `spendTokens` 照扣、写回打在一个
+   *   已经不存在的节点上（静默落空），而确认卡那会儿还写着「没有花掉的钱」——
+   *   三处与事实相反。等它跑完再换是唯一诚实的做法（胶囊本来就会通知）。
+   * 返回 false 时原因已写进 `err`（铁律八）。
+   */
+  canReplaceNodes: () => boolean;
+  /** 返回 false = 被 canReplaceNodes 拒了（原因在 err） */
+  seed: (nodes: FlowNode[], opts: { mode: FlowMode; origin: "studio" | "solo" }) => boolean;
   /** 工作流/简约模式的空白起手：一个待填的节点 */
-  seedSolo: (mode: FlowMode) => void;
+  seedSolo: (mode: FlowMode) => boolean;
   /** 套模板：按配方的分镜骨架铺节点、挂上模板卡组，之后只等用户写那句话。
    *  白模模板（t.refVideo 存在）只铺 1 个节点。返回 false = 被闸门整句拒绝
    *  （err 已写明原因，什么都没铺）——调用方据此决定还跳不跳工作流页 */
@@ -560,6 +570,14 @@ interface FlowState {
    * 结束时人不在页上，就靠它把人叫回来。回到 /flow 即清（FlowPage 挂载时清）。
    */
   genNotice: { ok: boolean; msg: string } | null;
+  /**
+   * 「现在跑着的是哪一炉」的令牌 —— 每次开跑 +1。
+   * ★★ 为什么需要（2026-08-21 第七轮扫描的 high）：出片是几分钟的异步，而这期间用户
+   *   完全可以把整条流水线换掉或删掉那一段。老那一炉回来时会照旧 `set({ busy: false })`
+   *   —— 而那时新的一炉可能已经在跑，于是「同一时刻只炼一段」这道闸被一个**已经作废的
+   *   回包**打开，可以并发出第三炉。回包只有在"还是我这一炉"时才有资格动 busy。
+   */
+  genRun: number;
   clearGenNotice: () => void;
 }
 
@@ -571,6 +589,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
   busy: false,
   err: "",
   genNotice: null,
+  genRun: 0,
   clearGenNotice: () => set({ genNotice: null }),
   template: null,
   subject: "",
@@ -585,9 +604,22 @@ export const useFlow = create<FlowState>()((set, get) => ({
   //   NodeScreen 会把剧情编辑框换成模板的「一句话」输入框，且没有「不用」可点；在那里
   //   打字会走 setSubject，把工坊 AI 推演出来的剧情/标题/时长按模板配方整个覆盖掉。
   //   （seedSolo 与 reset 本来就清了）
-  seed: (nodes, opts) =>
-    set({ nodes, cursor: 0, mode: opts.mode, origin: opts.origin, busy: false, err: "", ...clearTemplate() }),
-  seedSolo: (mode) =>
+  canReplaceNodes: () => {
+    const s = get();
+    const i = s.nodes.findIndex((n) => n.status === "generating");
+    if (!s.busy && i < 0) return true;
+    set({
+      err: `第 ${i >= 0 ? i + 1 : s.cursor + 1} 段正在生成中（钱已经在花了）——换掉流水线不会把它停下，回包时那笔钱照扣、成片却落在一条已经不存在的流水线上。等它跑完再来`,
+    });
+    return false;
+  },
+  seed: (nodes, opts) => {
+    if (!get().canReplaceNodes()) return false;
+    set({ nodes, cursor: 0, mode: opts.mode, origin: opts.origin, busy: false, err: "", ...clearTemplate() });
+    return true;
+  },
+  seedSolo: (mode) => {
+    if (!get().canReplaceNodes()) return false;
     set({
       nodes: [newFlowNode(0, { chain: false })],
       cursor: 0,
@@ -596,7 +628,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
       busy: false,
       err: "",
       ...clearTemplate(),
-    }),
+    });
+    return true;
+  },
 
   applyTemplate: (t) => {
     // ── 白模模板（存在性判定，types.ts 的 ★）：只铺 1 个节点、chain=false ──
@@ -1179,7 +1213,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
       });
       return false;
     }
-    set({ busy: true, err: "" });
+    const myRun = get().genRun + 1;
+    set({ busy: true, err: "", genRun: myRun });
     if (AI_REAL) spendTokens(propCost);
     get().updateNode(nodeId, { status: "generating", progress: "推演三种走向…" });
     try {
@@ -1220,16 +1255,17 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   推演是**开跑前就扣钱**的（上面 spendTokens 在 await 之前，catch 里也不退），
       //   而它一分钟级——用户正是在这段时间退出去逛（胶囊上就印着「点击返回」）。
       //   不写的话胶囊只是无声消失：钱花了、成没成没人告诉他（铁律八）。
-      set({ busy: false, genNotice: { ok: true, msg: `第 ${idx + 1} 段推演好了三套方案` } });
+      // ★ 只有"还是我这一炉"才有资格清 busy（见 genRun 的 ★★）
+      set(get().genRun === myRun ? { busy: false, genNotice: { ok: true, msg: `第 ${idx + 1} 段推演好了三套方案` } } : {});
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       get().updateNode(nodeId, { status: "idle", progress: "" });
-      set({
-        busy: false,
-        err: `推演失败：${msg.slice(0, 120)}`,
-        genNotice: { ok: false, msg: `第 ${idx + 1} 段推演失败` },
-      });
+      set(
+        get().genRun === myRun
+          ? { busy: false, err: `推演失败：${msg.slice(0, 120)}`, genNotice: { ok: false, msg: `第 ${idx + 1} 段推演失败` } }
+          : {},
+      );
       return false;
     }
   },
@@ -1291,7 +1327,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
       });
       return false;
     }
-    set({ busy: true, err: "" });
+    const myRun = get().genRun + 1;
+    set({ busy: true, err: "", genRun: myRun });
     get().updateNode(nodeId, { status: "generating", progress: "按修改重画画面…", regenning: true });
     try {
       // ★ 必须把本段画幅递下去：Seedream 的画布比例得与视频画幅一致，缺了它重画出来的
@@ -1327,16 +1364,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
       get().updateProposal(nodeId, { firstFrame: first, lastFrame: last, degraded: undefined });
       get().updateNode(nodeId, { status: "idle", progress: "", regenning: false });
       // 理由同 deriveProposals 末尾的 ★★：胶囊只认 genNotice，重画同样是先扣钱后开跑
-      set({ busy: false, genNotice: { ok: true, msg: `第 ${idx + 1} 段重画好了` } });
+      set(get().genRun === myRun ? { busy: false, genNotice: { ok: true, msg: `第 ${idx + 1} 段重画好了` } } : {});
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       get().updateNode(nodeId, { status: "idle", progress: "", regenning: false });
-      set({
-        busy: false,
-        err: `重画失败：${msg.slice(0, 120)}`,
-        genNotice: { ok: false, msg: `第 ${idx + 1} 段重画失败` },
-      });
+      set(
+        get().genRun === myRun
+          ? { busy: false, err: `重画失败：${msg.slice(0, 120)}`, genNotice: { ok: false, msg: `第 ${idx + 1} 段重画失败` } }
+          : {},
+      );
       return false;
     }
   },
@@ -1389,6 +1426,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   「✗ 删第 1 段：先把这一段炼出来，再加下一段」这种驴唇不对马嘴的解释。
     if (s.nodes.length <= 1) {
       set({ err: "只剩这一段了，删不掉（想重来就用「删除本段」旁边的重新生成，或退出去开一条新的）" });
+      return;
+    }
+    // ★★ 生成中一律拒（第七轮扫描）：两个面的删段按钮都 `disabled={busy||generating}`，
+    //   但 **agent 那条路绕过了 UI 这道闸**（remove_segment 只判 nodeDone，而正在炼的那一段
+    //   videoByProposal 还没写，nodeDone 恰好为假）。删掉之后 genNode 回包按 idx 写回，
+    //   越界抛错 —— 钱已经扣了、成片丢了，用户看到的是一句 JS 异常。
+    //   ⚠ 删**别的**段同样拒：genNode 闭包里捏着 idx，删前面的段会让它整体前移，写回就打在另一段上。
+    if (s.busy || s.nodes.some((n) => n.status === "generating")) {
+      set({ err: "有一段正在生成中，等它跑完再删（现在删的话，那一炉的钱照扣、成片会落空）" });
       return;
     }
     const i = s.nodes.findIndex((n) => n.id === id);
@@ -1513,7 +1559,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
       if (!cur || cur.status !== "running" || cur.title !== title) log.begin(title);
       if (detail) log.detail(detail);
     };
-    set({ busy: true, err: "" });
+    const myRun = get().genRun + 1;
+    set({ busy: true, err: "", genRun: myRun });
     patchNode({ status: "generating", progress: "准备中…", error: undefined, steps: [] });
     try {
       // 承接判定：上一段真出过片，它的尾帧才是"真实结尾"，才配顶替本段起拍帧
@@ -1580,27 +1627,50 @@ export const useFlow = create<FlowState>()((set, get) => ({
         videoUrl: res.url || "mock:",
         degraded: undefined,
       });
+      // ★★ 写回之前先确认**这一段还在**（第七轮扫描）：出片是几分钟的异步，这期间流水线
+      //   可能已经被换掉或那一段被删了。`get().nodes[idx]` 那时要么越界（读 undefined 的
+      //   属性当场抛错，用户看到的是一句 JS 异常），要么指向**另一段**（下标前移）——
+      //   而钱在上一行已经扣了。认 id 不认下标，找不到就如实说一句，别装作成功。
+      const still = get().nodes.find((n) => n.id === id);
+      if (!still) {
+        set(
+          get().genRun === myRun
+            ? {
+                busy: false,
+                err: "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线",
+                genNotice: { ok: false, msg: "有一段生成完了，但它已经不在了" },
+              }
+            : {},
+        );
+        return false;
+      }
       patchNode({
         status: "idle",
         progress: "",
         // mock 构建没有真视频：占位串让 nodeDone 成立，播放器回退首尾帧渐变
-        videoByProposal: { ...get().nodes[idx].videoByProposal, [node.chosenId]: res.url || "mock:" },
+        videoByProposal: { ...still.videoByProposal, [node.chosenId]: res.url || "mock:" },
         anns: [],
       });
       // 通知无条件设：人在页上的话 FlowPage 一直挂着，胶囊不渲染（按路由判），
       // 下次进来也会清 —— 在这里判"人在不在"反而是第二处路由判断
-      set({ busy: false, genNotice: { ok: true, msg: `第 ${idx + 1} 段出片完成` } });
+      // ★ 只有"还是我这一炉"才有资格清 busy（见 genRun 的 ★★）：作废的回包清掉的话，
+      //   新那一炉跑着而闸开着，可以并发出第三炉
+      set(get().genRun === myRun ? { busy: false, genNotice: { ok: true, msg: `第 ${idx + 1} 段出片完成` } } : {});
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       // 失败也留在日志里：卡在哪一步、跑了多久，比一句"生成失败"有用得多
       log.fail(`失败：${msg.slice(0, 80)}`);
       patchNode({ status: "failed", progress: "", error: msg.slice(0, 160) });
-      set({
-        busy: false,
-        err: `第 ${idx + 1} 段生成失败：${msg.slice(0, 120)}`,
-        genNotice: { ok: false, msg: `第 ${idx + 1} 段生成失败` },
-      });
+      set(
+        get().genRun === myRun
+          ? {
+              busy: false,
+              err: `第 ${idx + 1} 段生成失败：${msg.slice(0, 120)}`,
+              genNotice: { ok: false, msg: `第 ${idx + 1} 段生成失败` },
+            }
+          : {},
+      );
       return false;
     }
   },
