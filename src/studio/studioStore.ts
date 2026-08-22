@@ -1147,6 +1147,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
         mat.refs.length > 0 ? mat.refs : undefined,
       );
       if (AI_REAL) spendTokens(ONE_IMAGE); // 出图成功才扣
+      // ★★ 回包前确认**这棵树还是当初那棵**（2026-08-21 第十轮扫描）：改图要几十秒，
+      //   这期间用户完全可以打开另一条草稿/重铺法阵 —— 闭包里捏着的是**旧 root**，
+      //   直接 `set({ root: {...root} })` 会把已经换掉的节点树整棵盖回去。
+      //   认对象引用即可：换过树的话 get().root 就不是同一个了。
+      if (get().root !== root) {
+        get().npcSay("这张图改好了，但桌面已经换过一摊活了——那次改动没写回去（钱已经花了，抱歉）。");
+        return false;
+      }
       if (which === "first") prop.firstFrame = next;
       else prop.lastFrame = next;
       set({ root: root ? { ...root } : root });
@@ -1981,6 +1989,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
       savedDoneCount: ((d.flow?.nodes ?? []) as FlowNode[]).filter(
         (n) => Object.keys(n.videoByProposal ?? {}).length > 0,
       ).length,
+      // ★★ 工坊自己的**在途三格**也要清（2026-08-21 第十轮扫描）：`nodeGen` / `proposalRegen`
+      //   / `frameRefining` 是"这一炉在跑"的标记，而打开草稿是整表换掉节点树。不清的话：
+      //   ① 新打开的这条草稿方案台整块禁着（那三格是各处 disabled 的判据），用户以为坏了；
+      //   ② 旧那一炉回来时 `set({ root: {...root} })` 会把**被换掉的那棵树**盖回去 ——
+      //   刚打开的草稿当场变回上一摊活，钱也花在了看不见的地方。
+      //   ⚠ 与 flowStore 那边同一个道理，只是那边叫 busy/genRun。
+      nodeGen: null,
+      proposalRegen: null,
+      frameRefining: null,
       // 视图层一律回到干净状态：草稿存的是内容，不是"上次停在哪个浮层"
       draft: null,
       focus: null,
@@ -2011,7 +2028,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
       });
     } else if (mode === "flow") {
       // 只有节点树的草稿要进工作流：按活动路径现铺一条（与点法阵同一条路）
-      get().startFlow({ force: true });
+      // ★ 铺不出来要说话（startFlow 现在会被 canReplaceNodes 整句拒）：不看返回值的话，
+      //   旧流水线原封不动留在原地，却已经被认到刚打开的这条草稿名下 —— 下一次存盘
+      //   会拿旧内容覆盖它（第十轮扫描抓到，是这一批新闸带出来的）
+      if (!get().startFlow({ force: true })) {
+        get().npcSay(useFlow.getState().err || "现在铺不了这条草稿，等在跑的那一段炼完再打开");
+      }
     } else {
       useFlow.getState().reset();
     }

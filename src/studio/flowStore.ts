@@ -1275,6 +1275,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   就多三行——推三次屏幕上就是九套，用户根本分不清哪三套是新的。
       const keep = node.proposals.filter((p) => node.videoByProposal[p.id]);
       get().updateNode(nodeId, {
+        // ★ 顺手清掉 error（第十轮扫描）：它只在 genNode 开跑时清，
+        //   于是“出片失败 → 改要求 → 重新推演成功”之后，三套崭新的方案上方
+        //   永久挂着上一次那条红色失败原因，而用户最自然的下一步是
+        //   再点一次付费的推演。推演成功 = 这一段翻篇了。
+        error: undefined,
         proposals: [...fresh, ...keep],
         chosenId: fresh[0].id,
         // 推完是"摊开等挑"，不是"帮你选好了"：这一步之后按钮写「重新生成方案」
@@ -1394,7 +1399,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       }
       if (AI_REAL) spendTokens(cost); // 出图成功才扣，与 refineProposalFrame 同口径
       get().updateProposal(nodeId, { firstFrame: first, lastFrame: last, degraded: undefined });
-      get().updateNode(nodeId, { status: "idle", progress: "", regenning: false });
+      get().updateNode(nodeId, { status: "idle", progress: "", regenning: false, error: undefined });  // ★ 重画成功也算这一段翻篇了，别让上一次的红条挂着
       // 理由同 deriveProposals 末尾的 ★★：胶囊只认 genNotice，重画同样是先扣钱后开跑
       set(get().genRun === myRun ? { busy: false, genNotice: { ok: true, msg: `第 ${idx + 1} 段重画好了` } } : {});
       return true;

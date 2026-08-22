@@ -757,7 +757,7 @@ function NodeScreen({
           phase={forge}
           steps={node.steps ?? []}
           // 余额不足这类"还没进流程就被拦下"的失败没有 node.error，只有 store 的 err
-          error={node.error || err}
+          error={err || node.error}
           onClose={() => setForge(null)}
           // 「先去逛逛」：生成链条活在 flowStore，站内切页不断；全局胶囊（GenerationPill）
           // 接手进度显示，出完把人叫回来
