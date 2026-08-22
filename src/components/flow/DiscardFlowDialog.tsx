@@ -15,12 +15,20 @@ import { useStudio } from "../../studio/studioStore";
 
 export default function DiscardFlowDialog({
   discardLabel,
+  actionNoun = "开新的这条",
   onResume,
   onDiscard,
   onCancel,
 }: {
-  /** 丢弃那颗按钮上的字：两条入口做的事不同（开新的一条 / 按现在的走向重铺） */
+  /** 丢弃那颗按钮上的字：四个宿主做的事不同（开新的一条 / 按现在的走向重铺 / 套用这个模板） */
   discardLabel: string;
+  /**
+   * 「丢弃这一下在这个宿主里叫什么」，用在需要说出路的那几句里（例：「…再回来**套模板**」）。
+   * ★ 必须是 prop，不许在组件里写死（第六轮收尾扫描抓到）：这个组件的存在理由就是
+   *   「这段话不许撒谎」，而四个宿主里只有模板那两条在套模板 —— 创作入口是换模式、
+   *   工坊法阵是按走向重铺，对他们说「再回来套模板」就是又一句与事实不符的话。
+   */
+  actionNoun?: string;
   onResume: () => void;
   onDiscard: () => void;
   onCancel: () => void;
@@ -64,7 +72,7 @@ export default function DiscardFlowDialog({
             <>
               ⚠ 这条是<span className="text-amber-300">简约模式</span>：它按设计不进草稿库（一次性直通发布），
               所以已经出片的 <span className="text-rose-300">{done} 段丢了就要重花 token 再炼一次</span>。
-              想留住就先「回去接着炼」，把它<span className="text-emerald-300">完成并发布</span>，再回来套模板。
+              想留住就先「回去接着炼」，把它<span className="text-emerald-300">完成并发布</span>，再回来{actionNoun}。
             </>
           ) : unsaved === 0 ? (
             <>

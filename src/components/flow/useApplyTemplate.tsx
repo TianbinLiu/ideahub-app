@@ -8,8 +8,9 @@
 //   原来那条草稿（那正是那些付费段唯一的备份，见 FlowPage 的 doneCount effect）。
 //   于是"还能从草稿捞回来"这条退路也被踩掉，钱真没了。
 // ★ 两件事一起做：① 脏了就先摆确认卡（与创作入口、工坊法阵**同一个** DiscardFlowDialog，
-//   那张卡会如实说清哪些已经存进草稿、哪些丢了要重花钱）；② 真套用之前 `newWorkDraft()`
-//   断开与旧草稿的关联 —— 这一步与 CreatePage 里换模式那三条路是同一个理由，别漏。
+//   那张卡会如实说清哪些已经存进草稿、哪些丢了要重花钱）；② **套成了**再 `newWorkDraft()`
+//   断开与旧草稿的关联 —— 这一步与 CreatePage 换模式、工坊法阵重铺是同一个理由，别漏。
+//   （顺序见 commit 的 ★★：先断后套的话，套用被拒时流水线没变却已经和草稿脱钩。）
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import DiscardFlowDialog from "./DiscardFlowDialog";
@@ -44,6 +45,7 @@ export function useApplyTemplate() {
   const dialog = pending ? (
     <DiscardFlowDialog
       discardLabel="套用这个模板（丢弃上面那条）"
+      actionNoun="套模板"
       onResume={() => {
         setPending(null);
         nav("/flow"); // 「回去接着炼」：回到那条流水线，模板不套了

@@ -328,7 +328,18 @@ export default function StudioPage() {
         }}
         onRebuild={() => {
           useStudio.getState().setFlowConfirm(false);
-          if (useStudio.getState().startFlow({ force: true })) navigate("/flow");
+          if (useStudio.getState().startFlow({ force: true })) {
+            // ★★ **重铺成功就断开旧草稿**（2026-08-21 第六轮收尾扫描抓到的 high）：
+            //   四个宿主里只有这一条漏了 newWorkDraft()。不断的话，上面那张确认卡刚
+            //   对用户说完「已出片的 N 段在炼成那一刻就自动存进了草稿，不用重花 token」，
+            //   新流水线炼成第 1 段时的自动存盘就会拿 workDraftId **原地覆盖**那条草稿 ——
+            //   而重铺那一刻那几段成片已经从内存里消失（它们只活在流水线上，节点树上
+            //   那份 proposal 没有 videoUrl），草稿是唯一的备份。于是确认卡说的与事实相反，
+            //   钱真没了，全程零报错。
+            //   ★ 与 useApplyTemplate.commit 同一个口径：**成了才断**（startFlow 会整句拒）。
+            useStudio.getState().newWorkDraft();
+            navigate("/flow");
+          }
         }}
       />
 

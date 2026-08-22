@@ -1207,7 +1207,15 @@ export default function FlowPage() {
                 </button>
               )}
               <button
-                onClick={() => useFlow.getState().seedSolo("simple")}
+                // ★ 这一下也是**整表覆盖**（seedSolo 无条件把 nodes 换成一个空节点），
+                //   而简约模式按设计不进草稿库 —— 已经花钱炼出来的那一段没有任何备份。
+                //   与另外三条 applyTemplate 入口走同一处守卫（第六轮收尾扫描抓到的第四条）。
+                onClick={() =>
+                  applyGuard(() => {
+                    useFlow.getState().seedSolo("simple");
+                    return true;
+                  })
+                }
                 className="flex-none text-[11px] text-slate-500"
               >
                 不用

@@ -652,9 +652,18 @@ export default function TemplateShelf({ initialTab }: { initialTab?: "market" | 
     //   连同已花钱的段会被这一下抹掉，而且不断开旧草稿的话，新流水线出片时的自动存盘
     //   会把那条草稿原地覆盖 —— 那是那些付费段唯一的备份
     guard(() => {
-      const ok = parts.length > 1 ? useFlow.getState().applyTemplateGroup(parts) : useFlow.getState().applyTemplate(t);
+      const group = parts.length > 1;
+      const ok = group ? useFlow.getState().applyTemplateGroup(parts) : useFlow.getState().applyTemplate(t);
       if (ok) nav("/flow");
-      else nav(`/template/${t.id}`); // 被闸门整句拒：去详情页看原因（那里印着 err）
+      // ★★ 被整句拒时：**分段组把原因就地印出来，别甩去详情页**（第六轮收尾扫描抓到）。
+      //   两个理由：① 详情页从头到尾不读 flowStore.err，它只会重算**这一条**模板的
+      //   blockoutIssue —— 而组里坏的可能是第 3 段，用户点的第 1 段完全健康，
+      //   那一页于是一个字都不提为什么被拒，看起来就是"点了『用它出片』被莫名甩走"；
+      //   ② 更糟的是他在那一页再点一次「用它出片」，走的是 applyTemplate（单条），
+      //   其余段静默消失 —— 而那正是本函数上面明令拒绝的「整组套用会少内容」。
+      //   单模板那条仍然跳详情页：那一页会自己重算 blockoutIssue，措辞与这里一致。
+      else if (group) setPickErr(useFlow.getState().err || "这一组模板暂时套不了");
+      else nav(`/template/${t.id}`);
       return ok;
     });
   }
