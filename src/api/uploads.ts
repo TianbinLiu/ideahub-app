@@ -256,13 +256,6 @@ export interface TemplateVideoReceipt {
 }
 
 /**
- * POST /api/uploads/template-video（requireAuth，服务端限流 3 次/分 + 10 次/天）。
- *
- * ★ 回包按**形状**验收，不信状态码（Capacitor SPA 回退恒 200 + HTML；老服务端回
- *   JSON 404 会在 postForm 里抛）。缺登记元数据 = 这份回执当不了 r2v 结算锚点，
- *   必须整句响亮拒绝——静默放行就是"存了个报不出价的模板"。
- */
-/**
  * 把已上传的素材**裁出框选那一段**（不够清晰时服务端顺带放大），落成一个新素材。
  *
  * ★★ 只交**四组整数**，变换 URL 由服务端自己拼（`buildClipUrl`，唯一实现）——
@@ -331,7 +324,9 @@ async function directTicket(): Promise<DirectTicket | null> {
   const params = data?.params;
   const chunkBytes = Number(data?.chunkBytes);
   if (!uploadUrl.startsWith("https://") || !publicId || !params || typeof params !== "object") return null;
-  if (!Number.isFinite(chunkBytes) || chunkBytes <= 0) return null;
+  // ★ 必须是**整数**：Content-Range 里的 `end = start + len - 1` 带上小数就是一个
+  //   服务端读不懂的范围（`bytes 0-5999999.5/…`），而这是一次坏的服务端改动就能造成的。
+  if (!Number.isInteger(chunkBytes) || chunkBytes <= 0) return null;
   return {
     uploadUrl,
     publicId,
@@ -339,6 +334,11 @@ async function directTicket(): Promise<DirectTicket | null> {
     chunkBytes,
     maxSizeBytes: Number(data?.maxSizeBytes) || 0,
   };
+}
+
+/** 传输层失败（断线/超时）标成可重试；被存储明确拒绝的不标 —— 见 putChunk 的 ★ */
+function chunkError(message: string, retriable: boolean): Error & { retriable?: boolean } {
+  return Object.assign(new Error(message), { retriable });
 }
 
 /** 一块的超时。★ 按**最慢的网**给：6MB 在 0.05MB/s 上要 120 秒，留一倍余量。
@@ -388,10 +388,13 @@ function putChunk(
       // Cloudinary 的错误体是 { error: { message } }，把它原样带出来 —— 自己编一句
       // 会把 "Invalid Signature" 这种一眼定位的信息盖掉
       const msg = String((body?.error as { message?: string } | undefined)?.message || `HTTP ${xhr.status}`);
-      reject(new Error(`视频存储拒绝了这一段：${msg}`));
+      // ★ 被存储明确拒绝（签名不对、格式不许、范围对不上）**不重试** —— 再发一遍
+      //   只会得到同一句话，而每一次都是一整块的流量。
+      reject(chunkError(`视频存储拒绝了这一段：${msg}`, false));
     };
-    xhr.onerror = () => reject(new Error("上传中断了（网络不可用）"));
-    xhr.ontimeout = () => reject(new Error("这一小段传了 4 分钟还没完成——网络太慢或不稳，换个网络再试"));
+    xhr.onerror = () => reject(chunkError("上传中断了（网络不可用）", true));
+    xhr.ontimeout = () =>
+      reject(chunkError("这一小段传了 4 分钟还没完成——网络太慢或不稳，换个网络再试", true));
     // ★★ 关窗要真的把它停下来：不 abort 的话 XHR 会**在组件卸载之后继续跑**，
     //   最后在 Cloudinary 上落一份**没有任何人认得**的资产（本机没有 receipt ⇒
     //   dropReceipt 够不着它），配额只增不减、零症状。中途 abort 留下的是一次
@@ -403,6 +406,27 @@ function putChunk(
     }
     xhr.send(fd);
   });
+}
+
+/** 同一块最多再试两次（首发 + 2）。间隔给短一点：这条路上用户已经在等了。 */
+async function withChunkRetry<T>(signal: AbortSignal | undefined, run: () => Promise<T>): Promise<T> {
+  const waits = [0, 2_000, 6_000];
+  let last: unknown;
+  for (const wait of waits) {
+    if (wait) {
+      if (signal?.aborted) break;
+      await new Promise((r) => setTimeout(r, wait));
+    }
+    try {
+      return await run();
+    } catch (e) {
+      last = e;
+      // 用户主动取消、或存储明确拒绝 —— 都不该再试
+      if (e instanceof DOMException && e.name === "AbortError") throw e;
+      if (!(e as { retriable?: boolean })?.retriable) throw e;
+    }
+  }
+  throw last;
 }
 
 /** 直传：串行推完每一块。★ 串行不并发 —— 官方 SDK 也是串行，乱序/并发官方没有承诺过。 */
@@ -419,6 +443,8 @@ async function putDirect(
       ? crypto.randomUUID().replace(/-/g, "")
       : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
   const total = file.size;
+  // ★ 公共 API 自己也拦一下 0 字节：目前调用方那边有预检挡着，但这条不该依赖别人
+  if (!Number.isFinite(total) || total <= 0) throw new Error("这个文件是空的，选一段真正的视频再传。");
   // 一块就装得下 → 普通上传（见 putChunk 的 range 参数注释）
   if (total <= t.chunkBytes) {
     await putChunk(t, file, null, uploadId, (sent) => onProgress?.(Math.min(1, sent / total)), signal);
@@ -430,14 +456,22 @@ async function putDirect(
   while (start < total) {
     const end = Math.min(start + t.chunkBytes, total); // 右开
     const blob = file.slice(start, end);
+    // ★★ **同一块原地重试**（2026-08-22 实测确认是幂等的：把第 1 块原样重发一次，
+    //   回的还是 `{done:false, bytes:6000000}`，字节数没有重复累加，后续块与末块组装
+    //   照常）。这正是选 6MB 一块的全部理由 —— 没有这段的话，47MB 传到第 6 块碰上一次
+    //   进电梯，前面 30MB 全部作废、还要再烧一格 sign 的日额度（3/分 + 10/天，与
+    //   /derive 共用），而"断了只重传一块"这句承诺在两个仓的注释里都写着。
+    // ★ 只重传输层失败；被存储明确拒绝的不重试（见 chunkError）。
     // eslint-disable-next-line no-await-in-loop -- 串行是刻意的，见上面的 ★
-    await putChunk(
-      t,
-      blob,
-      { start, end: end - 1, total },
-      uploadId,
-      (sent) => onProgress?.(Math.min(1, (doneBytes + sent) / total)),
-      signal,
+    await withChunkRetry(signal, () =>
+      putChunk(
+        t,
+        blob,
+        { start, end: end - 1, total },
+        uploadId,
+        (sent) => onProgress?.(Math.min(1, (doneBytes + sent) / total)),
+        signal,
+      ),
     );
     doneBytes = end;
     onProgress?.(Math.min(1, doneBytes / total));
@@ -465,26 +499,45 @@ async function confirmDirect(publicId: string): Promise<TemplateVideoReceipt> {
       return receiptOf(await apiPost<Record<string, unknown>>("/api/uploads/template-video/confirm", { publicId }));
     } catch (e) {
       last = e;
-      const retriable = e instanceof ApiError && (e.code === "NETWORK" || e.code === "TIMEOUT");
-      if (!retriable) throw e;
+      const st = e instanceof ApiError ? e.status : -1;
+      // ★ 404 也重试：**滚动部署期间**新客户端可能打在还没换的旧 worker 上（那台没有
+      //   这条路由，回的是 `Route not found`），下一次可能就落到新 worker 上了。
+      //   资源真的不存在时重试只多两个几百字节的请求，然后照样抛出去。
+      const retriable = e instanceof ApiError && (e.code === "NETWORK" || e.code === "TIMEOUT" || st === 404);
+      if (!retriable) break;
     }
   }
-  // ★ 到这儿说明网络一直没回来。那份已经传上去的资产**没有任何人还认得它**
-  //   （本机没有 receipt ⇒ 关窗时的 dropReceipt 够不着它）—— 兜底回收一次，
-  //   失败也只吼不拦（回收是兜底不是主链路，与 dropReceipt 同一条纪律）。
-  void deleteTemplateVideo(publicId).catch((e) =>
-    console.error("[uploads] 直传后验收失败、兜底回收也失败（将留作孤儿）：", e),
-  );
+  // ★★ 兜底回收：那份已经传上去的资产**没有任何人还认得它**（本机没有 receipt ⇒
+  //   关窗时的 dropReceipt 够不着它），不回收就是一份 100MB 级的永久孤儿。
+  //   ★ 只有 **400** 不回收 —— 那是服务端就这份资产**做过决定**的唯一状态：
+  //     验收不过它已经 destroy 过了；被别的模板引用则是**有意保留**，客户端再去删
+  //     正是刚补上的那道防线要挡的事。其余（网络、超时、404、429、502）一律兜底删
+  //     （destroy 幂等，资源本来就不存在时回 "not found"，一样算成功）。
+  const finalStatus = last instanceof ApiError ? last.status : -1;
+  if (finalStatus !== 400) {
+    void deleteTemplateVideo(publicId).catch((e) =>
+      console.error("[uploads] 直传后验收失败、兜底回收也失败（将留作孤儿）：", e),
+    );
+  }
+  if (last instanceof ApiError && finalStatus === 400) throw last; // 服务端的定论，原样转达
   throw new ApiError(
-    `视频已经传上去了，但服务器一直没能确认（${last instanceof Error ? last.message : "网络不可用"}）。` +
-      `网络恢复后请重新选一次文件再传——这一份已经作废，不会留在服务器上。`,
+    `视频已经传上去了，但服务器没能确认（${last instanceof Error ? last.message : "网络不可用"}）。` +
+      // ★ 不说"已经作废、不会留在服务器上"：兜底回收是 fire-and-forget，而走到这里的
+      //   前提往往正是那台服务器连不上 —— 在最可能为假的那一刻把话说满，是另一种骗人。
+      `我们会尽量把它回收掉。网络恢复后请重新选一次文件再传。`,
     0,
     "NETWORK",
   );
 }
 
-/** 回包 → 回执。两条路（老路的一次性上传、新路的 confirm）**共用这一份**验收：
- *  分叉的话就会出现"一条路进得来、另一条进不来"，而且两边各自看着都没错。 */
+/**
+ * 回包 → 回执。两条路（老路的一次性上传、新路的 confirm）**共用这一份**验收：
+ * 分叉的话就会出现"一条路进得来、另一条进不来"，而且两边各自看着都没错。
+ *
+ * ★ 按**形状**验收，不信状态码（Capacitor 的本地静态服务器对未命中路径回 200 + HTML）。
+ *   缺登记元数据 = 这份回执当不了 r2v 的结算锚点，必须整句响亮拒绝 —— 静默放行就是
+ *   "存了个报不出价的模板"。
+ */
 function receiptOf(data: Record<string, unknown>): TemplateVideoReceipt {
   const url = data.url;
   const publicId = data.publicId;
