@@ -42,7 +42,7 @@ const MODES: Mode[] = [
     title: "工坊模式",
     tag: "完整作品",
     desc: "在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑一套炼一段，逐段往下铺。",
-    bullets: ["素材卡组驱动，人物场景全片一致", "每段三选一，可分叉可回溯", "本段炼出来才开下一张卡，坏了立刻止损"],
+    bullets: ["用素材卡定人物场景，全片一致", "每段三选一，可回头改", "炼好这段才开下一张，坏了立刻止损"],
     cover: "/create/studio.jpg",
     skin: "border-amber-400/45",
     cta: "进铸卡桌面",
@@ -55,9 +55,9 @@ const MODES: Mode[] = [
     tag: "自己写分镜",
     desc: "一屏一段：写一句要求，AI 先给三套方案（各带首尾帧预览），挑定一套再炼视频。",
     bullets: [
-      "三套方案摊在屏幕上挑，选中的那套可换首尾帧、改剧情",
-      "一段一结账，不满意只重炼这一段",
-      "节点卡就是工坊的节点卡，只是没有 3D 桌面",
+      "三套方案摊开挑，选中的可换首尾帧、改剧情",
+      "一段一结账，不满意只重炼这段",
+      "和工坊用同一种卡，只是没有 3D 桌面",
     ],
     cover: "/create/workflow.jpg",
     skin: "border-cyan-400/45",
@@ -79,7 +79,7 @@ const MODES: Mode[] = [
     title: "简约模式",
     tag: "几秒出片",
     desc: "只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。不推方案、不存草稿。",
-    bullets: ["无需素材卡，开箱即用", "起拍画面 AI 代笔", "一次性直通发布，不占草稿库"],
+    bullets: ["不用素材卡，直接写", "开头画面 AI 补", "直接发布，不进草稿"],
     cover: "/create/simple.jpg",
     skin: "border-fuchsia-400/45",
     light: true,
@@ -169,9 +169,6 @@ export default function CreatePage() {
                       {m.tag}
                     </span>
                   </div>
-                  <p className={`mt-2.5 text-sm leading-relaxed ${m.light ? "text-slate-700" : "text-slate-200"}`}>
-                    {m.desc}
-                  </p>
                   <ul className="mt-3 space-y-1.5">
                     {m.bullets.map((b) => (
                       <li

@@ -606,7 +606,7 @@ export default function ProfilePage() {
                   {/* 「无需充值」写在这行，正好挨着右边那颗充值按钮 —— 入口照常保留
                       （测支付流程要用），但必须说清点它不是为了给自己续费 */}
                   <div className="text-[11px] leading-relaxed text-slate-500">
-                    AI 生成走免扣费通道，无需充值；真实用量服务端照记（admin_free 流水）
+                    AI 生成免扣费，无需充值；用量服务端照记
                   </div>
                 </>
               ) : (
