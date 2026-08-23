@@ -170,7 +170,7 @@ function AutoQualityHint({ q }: { q: Quality }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-24 z-30 flex justify-center px-6">
       <div className="rounded-full bg-black/70 px-3.5 py-1.5 text-center text-[11px] text-slate-300 backdrop-blur">
-        已按你的设备自动选择「{QUALITY_LABELS[q].name}」画质 · 可在「我的 → 设置」里改
+        已自动选「{QUALITY_LABELS[q].name}」画质 · 设置里可改
       </div>
     </div>
   );

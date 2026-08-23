@@ -246,7 +246,7 @@ export default function WorkshopPage() {
           )}
           {cards.length === 0 && (
             <div className="mb-3 rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
-              还没有卡片——去 3D 工坊让 AI 炼一张、从视频提取、自己传图做一张，或从下面的市场添加
+              还没有卡片——用下面几种方式做第一张
             </div>
           )}
 
