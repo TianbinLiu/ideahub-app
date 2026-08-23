@@ -14,6 +14,7 @@ import Icon from "./Icon";
 import { useSocialVersion } from "./SocialPanel";
 import VideoTemplateExtractor from "./VideoTemplateExtractor";
 import {
+  groupRows,
   blockoutJobExpired,
   blockoutJobNote,
   dismissBlockoutJob,
@@ -283,30 +284,6 @@ function OwnerRow({ t }: { t: VideoTemplate }) {
       {label}
     </span>
   );
-}
-
-/** 列表行：单模板一行；分段组收成一行（组内按 group.index 升序）。
- *  ★ 与 templateGroupOf 刻意不同：那边组不齐宁可只回自己（整组**套用**少一段是静默丢
- *  内容）；这边是**陈列**，有几段摆几段、组头照实报「共 N 段」——藏起来才是静默。 */
-function groupRows(list: VideoTemplate[]): { key: string; parts: VideoTemplate[] }[] {
-  const rows: { key: string; parts: VideoTemplate[] }[] = [];
-  const byKey = new Map<string, { key: string; parts: VideoTemplate[] }>();
-  for (const t of list) {
-    if (!t.group) {
-      rows.push({ key: `t:${t.id}`, parts: [t] });
-      continue;
-    }
-    const k = `g:${t.group.key}`;
-    const hit = byKey.get(k);
-    if (hit) hit.parts.push(t);
-    else {
-      const row = { key: k, parts: [t] };
-      byKey.set(k, row);
-      rows.push(row); // 组的位置按它第一次出现算（列表本身已按时间排过）
-    }
-  }
-  for (const r of rows) r.parts.sort((a, b) => (a.group?.index ?? 0) - (b.group?.index ?? 0));
-  return rows;
 }
 
 /** 分段组的一行：组头 = 第 1 段的卡 + 「共 N 段」横条，展开才铺其余段。

@@ -38,6 +38,7 @@ import { myCards } from "../../data/account";
 import { useAccountVersion } from "../../hooks/useAccount";
 import {
   browseTemplates,
+  groupRows,
   myTemplates,
   refVideoIssue,
   refVideoPoster,
@@ -1604,6 +1605,46 @@ function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => void }) 
 
 /** 每段的模板选择器：我的 + 市场里的白模模板平铺（分段组的兄弟段也在"我的"里）。
  *  只列**白模**模板 —— 经典配方模板是整条流水线级的（recipe 铺全部段），不按段套。 */
+/** 选模板弹层里的一行（单段模板 / 组内某一段共用）。
+ *  ★ `onPick` 触发的是**预览**，不是直接套用 —— 真正的套用要等用户在预览小窗里点确认。 */
+function PickRow({
+  t,
+  current,
+  seg,
+  onPick,
+}: {
+  t: VideoTemplate;
+  current?: string;
+  seg?: string;
+  onPick: () => void;
+}) {
+  const issue = refVideoIssue(t.refVideo);
+  const cur = t.id === current;
+  return (
+    <button
+      onClick={() => !issue && !cur && onPick()}
+      disabled={!!issue || cur}
+      className={`flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left ${
+        cur ? "border-brand/70 bg-brand/10" : "border-slate-700 bg-panel"
+      } disabled:opacity-60`}
+    >
+      <div className="h-12 w-20 flex-none overflow-hidden rounded-lg bg-black/40">
+        {(t.cover || refVideoPoster(t.refVideo)) && (
+          <img src={t.cover || refVideoPoster(t.refVideo)} alt="" className="h-full w-full object-cover" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs font-semibold text-slate-100">{seg ?? t.title}</div>
+        <div className="truncate text-[10px] text-slate-500">
+          {t.refVideo!.durationSec}s 复刻{t.roles?.length ? ` · ${t.roles.length} 个角色位` : ""}
+          {cur ? " · 当前" : ""}
+          {issue ? ` · ${issue}` : ""}
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function TemplatePicker({
   current,
   onPick,
@@ -1617,12 +1658,28 @@ function TemplatePicker({
   // ★ 与 PlanSheet 同一条理由：这一层 z-50 盖住了画布壳那条错误条，store 的整句拒绝
   //   （换模板被拒之类）不在这儿画一份就是"点了没反应"（铁律八）
   const err = useFlow((s) => s.err);
-  const list = useMemo(() => {
+  /** ★★ 分段组在这一层**折成一行**（用户点名：不要平铺「第 1/2 段」「第 2/2 段」，
+   *   那两行同名同封面，用户根本分不出选哪个）。折叠用 data 层的 groupRows（唯一实现，
+   *   与「我的模板」货架同一份）。
+   *   ⚠ 去重键用 `remoteId || id`：作者自己那台设备上 myTemplates 与 browseTemplates
+   *     会各回一份同一条模板（本机记录 + 远端记录，id 不同 remoteId 相同），只按 id 去重
+   *     的话同一组每段会数两遍。 */
+  const rows = useMemo(() => {
     const seen = new Set<string>();
-    return [...myTemplates(), ...browseTemplates("")]
-      .filter((t) => t.refVideo && !seen.has(t.id) && (seen.add(t.id), true))
-      .slice(0, 40);
+    const flat = [...myTemplates(), ...browseTemplates("")].filter((t) => {
+      if (!t.refVideo) return false;
+      const k = t.remoteId || t.id;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    return groupRows(flat).slice(0, 40);
   }, [templatesVersion()]);
+  /** 展开中的那个组（key）。null = 都收着 */
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  /** 正在预览、等用户确认的那一段。★ 选段**先看再定**：套用即真花钱，
+   *  而同一条素材切出来的几段封面常常长得差不多，光看缩略图分不出是哪一段。 */
+  const [previewing, setPreviewing] = useState<VideoTemplate | null>(null);
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={onClose}>
       <div
@@ -1644,37 +1701,96 @@ function TemplatePicker({
           >
             <span>✂️</span> 不用模板（退回普通段）
           </button>
-          {list.map((t) => {
-            const issue = refVideoIssue(t.refVideo);
-            const cur = t.id === current;
+          {rows.map((row) => {
+            const head = row.parts[0];
+            const multi = row.parts.length > 1 || (head.group?.count ?? 1) > 1;
+            // ── 单段模板：照旧一行直接选 ──
+            if (!multi) return <PickRow key={row.key} t={head} current={current} onPick={() => setPreviewing(head)} />;
+            // ── 分段组：折成一行，点开才铺各段 ──
+            const open = openKey === row.key;
+            const count = head.group?.count ?? row.parts.length;
+            const partial = row.parts.length !== count;
             return (
-              <button
-                key={t.id}
-                onClick={() => !issue && !cur && onPick(t)}
-                disabled={!!issue || cur}
-                className={`flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left ${
-                  cur ? "border-brand/70 bg-brand/10" : "border-slate-700 bg-panel"
-                } disabled:opacity-60`}
-              >
-                <div className="h-12 w-20 flex-none overflow-hidden rounded-lg bg-black/40">
-                  {(t.cover || refVideoPoster(t.refVideo)) && (
-                    <img src={t.cover || refVideoPoster(t.refVideo)} alt="" className="h-full w-full object-cover" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-xs font-semibold text-slate-100">{t.title}</div>
-                  <div className="truncate text-[10px] text-slate-500">
-                    {t.refVideo!.durationSec}s 复刻{t.roles?.length ? ` · ${t.roles.length} 个角色位` : ""}
-                    {cur ? " · 当前" : ""}
-                    {issue ? ` · ${issue}` : ""}
+              <div key={row.key} className="rounded-xl border border-slate-700 bg-panel">
+                <button
+                  onClick={() => setOpenKey(open ? null : row.key)}
+                  className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left"
+                >
+                  <div className="h-12 w-20 flex-none overflow-hidden rounded-lg bg-black/40">
+                    {(head.cover || refVideoPoster(head.refVideo)) && (
+                      <img src={head.cover || refVideoPoster(head.refVideo)} alt="" className="h-full w-full object-cover" />
+                    )}
                   </div>
-                </div>
-              </button>
+                  <div className="min-w-0 flex-1">
+                    {/* 组名去掉「· 第 N/M 段」那半截：整组只呈现一个模板名 */}
+                    <div className="truncate text-xs font-semibold text-slate-100">
+                      {head.title.replace(/\s*[·・]\s*第\s*\d+\s*\/\s*\d+\s*段\s*$/, "")}
+                    </div>
+                    <div className="truncate text-[10px] text-slate-500">
+                      共 {count} 段 · 点开选一段
+                      {partial ? ` · 这台设备只看到 ${row.parts.length} 段` : ""}
+                    </div>
+                  </div>
+                  <span className="flex-none text-[11px] text-slate-400">{open ? "▴" : "▾"}</span>
+                </button>
+                {open && (
+                  <div className="space-y-1.5 border-t border-slate-700/70 p-1.5">
+                    {row.parts.map((part) => (
+                      <PickRow
+                        key={part.id}
+                        t={part}
+                        current={current}
+                        seg={`第 ${(part.group?.index ?? 0) + 1}/${count} 段`}
+                        onPick={() => setPreviewing(part)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             );
           })}
-          {list.length === 0 && <p className="py-6 text-center text-xs text-slate-500">还没有白模模板——去模板市场逛逛</p>}
+          {rows.length === 0 && <p className="py-6 text-center text-xs text-slate-500">还没有白模模板——去模板市场逛逛</p>}
         </div>
       </div>
+      {/* ★★ 选段前的居中预览小窗（用户点名）：套用即真花钱，而同一条素材切出来的几段
+          封面常常长得差不多，光看缩略图分不出是哪一段。先播给他看，确认了才套。
+          ★ z-[60] 盖在选择弹层（z-50）之上；点背景 = 取消，回列表继续挑。 */}
+      {previewing && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-6"
+          onClick={() => setPreviewing(null)}
+        >
+          <div className="w-full max-w-sm rounded-2xl bg-ink p-3" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 truncate text-xs font-semibold text-slate-100">{previewing.title}</div>
+            <video
+              src={previewing.refVideo!.url}
+              poster={refVideoPoster(previewing.refVideo)}
+              controls
+              autoPlay
+              playsInline
+              className="mb-2.5 w-full rounded-xl bg-black"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPreviewing(null)}
+                className="flex-none rounded-full bg-panel px-3.5 py-2 text-xs text-slate-300"
+              >
+                返回挑选
+              </button>
+              <button
+                onClick={() => {
+                  const picked = previewing;
+                  setPreviewing(null);
+                  onPick(picked);
+                }}
+                className="min-w-0 flex-1 rounded-full bg-brand px-3.5 py-2 text-xs font-bold text-ink"
+              >
+                就用这一段
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body,
   );

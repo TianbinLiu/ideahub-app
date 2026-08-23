@@ -2640,3 +2640,27 @@ export function deleteTemplate(id: string): void {
 export function fillBeat(text: string, subject: string): string {
   return text.replace(/\{\{\s*主题\s*\}\}/g, subject.trim() || "主角");
 }
+
+/** 列表行：单模板一行；分段组收成一行（组内按 group.index 升序）。
+ *  ★ 与 templateGroupOf 刻意不同：那边组不齐宁可只回自己（整组**套用**少一段是静默丢
+ *  内容）；这边是**陈列**，有几段摆几段、组头照实报「共 N 段」——藏起来才是静默。 */
+export function groupRows(list: VideoTemplate[]): { key: string; parts: VideoTemplate[] }[] {
+  const rows: { key: string; parts: VideoTemplate[] }[] = [];
+  const byKey = new Map<string, { key: string; parts: VideoTemplate[] }>();
+  for (const t of list) {
+    if (!t.group) {
+      rows.push({ key: `t:${t.id}`, parts: [t] });
+      continue;
+    }
+    const k = `g:${t.group.key}`;
+    const hit = byKey.get(k);
+    if (hit) hit.parts.push(t);
+    else {
+      const row = { key: k, parts: [t] };
+      byKey.set(k, row);
+      rows.push(row); // 组的位置按它第一次出现算（列表本身已按时间排过）
+    }
+  }
+  for (const r of rows) r.parts.sort((a, b) => (a.group?.index ?? 0) - (b.group?.index ?? 0));
+  return rows;
+}
