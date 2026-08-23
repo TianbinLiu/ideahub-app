@@ -832,23 +832,10 @@ export default function FlowPage() {
    *   就没了 —— 用户每次都得重新点那颗 🗺，而他上次已经表过态了。反悔的路一直开着：
    *   画布顶栏「≡ 线性」当场写回 "0"。
    */
-  const [canvas, setCanvasRaw] = useState(() => localStorage.getItem("flowCanvasOpen") === "1");
-  /**
-   * @param remember 要不要把这一下记成长期偏好。
-   * ★★ 只有用户**在说"我要用哪个面"**时才记（🗺 打开、「≡ 线性」收起）。
-   *   退出编辑（顶栏 ✕）说的是"这摊活先到这儿"，不是"我不要画布了" —— 记下来的话，
-   *   每一次正常收工都会把他的画布偏好抹成线性，下次进来还得再点一次 🗺，
-   *   而他从没表达过这个意思（2026-08-21 第六轮对抗评审）。
-   */
-  const setCanvas = (v: boolean, remember = true) => {
-    setCanvasRaw(v);
-    if (!remember) return;
-    try {
-      localStorage.setItem("flowCanvasOpen", v ? "1" : "0");
-    } catch {
-      /* 隐私模式塞不进就算了：代价只是回程回线性视图 */
-    }
-  };
+  /** ★★ 2026-08-23：工作流**只有画布一个面**了（线性视图下线，用户点名）。
+   *   这个 state 保留是因为**简约模式仍寄生在本页**——它恒 false、走下面那套单段 UI。
+   *   非简约恒 true：不再读 flowCanvasOpen 那条长期偏好（那是"两个面"时代的东西）。 */
+  const [canvas] = useState(true);
   // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；那颗 ? 随时能重看）。
   // ★★ **画布开着时不放这一份**（2026-08-21 第八轮扫描）：两份引导会在同一帧抢着开
   //   —— 后开的那份把先开的顶掉，而先开的已经被记成「看过」，于是画布那份一次都没放过
@@ -1139,17 +1126,8 @@ export default function FlowPage() {
             {AI_REAL && remain > 0 && ` · 剩余约 ${fmtTokens(remain)}`}
           </span>
         </div>
-        {/* 画布视图入口（icon-only：顶栏宽度账见上面那段量法注释，28px 的图标钮
-            加 gap 正好落在剩余 59px 里）。简约模式恒单段，画布没有信息量，不出 */}
-        {!simple && (
-          <button
-            onClick={() => setCanvas(true)}
-            title="画布视图：整条流水线摊开看"
-            className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-slate-700/80 text-[13px]"
-          >
-            🗺
-          </button>
-        )}
+        {/* ★ 「进画布」那颗键 2026-08-23 撤掉：非简约恒画布，这条顶栏只有简约模式还在用，
+            而简约恒单段、画布没有信息量（用户点名：简约不要画布）。 */}
         {/* 手动存盘。自动保存只在"炼完一段"那种昂贵节点触发（见上面的 effect），
             纯改文字不会自动存——想留住就点这里。简约模式没有这颗按钮（它不进草稿库） */}
         {!simple && (
@@ -1439,16 +1417,14 @@ export default function FlowPage() {
           ★ !simple 两道都拦（按钮 + 渲染）：sessionStorage 里的开关是跨模式共用的，
             只拦按钮的话，工作流里开过画布再进简约模式，恢复逻辑会把画布糊上来 ——
             简约恒单段，画布没有信息量（用户点名：简约不要有画布）。
-          ★ ✕ = 退出编辑回创作入口（与页头返回同一目的地，用户点名叉号别落回线性页）；
-            「≡ 线性」才是收起画布看线性视图的路（方案台/组稿/存草稿在那边）。 */}
+          ★ ✕ = 退出编辑回创作入口；「🎴 工坊」= 同一条流水线换到 3D 桌面那一面。
+            ★★ 线性视图 2026-08-23 下线，工作流只剩画布这一个面。 */}
       {!simple && canvas && (
         <FlowCanvas
-          onExit={() => {
-            // ★ 不记偏好（见 setCanvas 的 ★★）：✕ 是"退出编辑"，不是"我不要画布了"
-            setCanvas(false, false);
-            navigate(origin === "studio" ? "/studio" : "/create");
-          }}
-          onLinear={() => setCanvas(false)}
+          onExit={() => navigate(origin === "studio" ? "/studio" : "/create")}
+          /* 「🎴 工坊」：同一条流水线换到 3D 铸卡桌面那一面（工作流↔工坊互通）。
+             ★ 不再是"收起画布看线性"——线性视图已经没有了。 */
+          onLinear={() => navigate("/studio")}
           onCast={(t, value) => {
             const st = castEditorState(t, value);
             if (st) navigate("/video-editor", { state: st });

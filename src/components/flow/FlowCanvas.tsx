@@ -330,13 +330,15 @@ export default function FlowCanvas({
         >
           {draft.state === "saving" ? "…" : draft.state === "saved" ? "✓" : draft.state === "failed" ? "!" : "💾"}
         </button>
-        {/* 线性视图入口：✕ 改成退出编辑之后，方案台/组稿/存草稿的路从这颗走 */}
+        {/* ★★ 2026-08-23：这颗从「≡ 线性」改成「切到工坊」——工作流**只剩画布一个面**，
+            线性视图已下线，原来那条切换没有去处了。改成工坊之后它兑现的是
+            「工作流与工坊互通」：同一条流水线，一个是摊开的画布，一个是 3D 铸卡桌面。 */}
         <button
           data-guide="canvas-linear"
           onClick={onLinear}
           className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200"
         >
-          ≡ 线性
+          🎴 工坊
         </button>
         {/* 转屏：表达意图（真机由 useOrientationLock 执行；dev 桌面无感） */}
         <button
