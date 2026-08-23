@@ -341,7 +341,12 @@ export const TOURS: GuideTour[] = [
       },
       {
         title: "白模那两条怎么走",
-        anchor: "extractor-pick-file",
+        // ★★ 这一步**故意不带锚点**（2026-08-23）：选文件那颗按钮已经搬到第 2 步，
+        //   而引导是一进这屏就跑的（那时还停在第 1 步的三选一上）。留着 anchor 的话
+        //   `rectOf` 会连量 FIND_TRIES 帧都量不到，才退成居中卡片 —— 结果一样，
+        //   过程却是"引导指着一个不存在的东西"（这条 tour 自己 v2 就是为这种错升的版）。
+        //   ⇒ 不升 version：说的事一个字没变（选文件 → 上传 → 框选 → 报价），
+        //   变的只是"指哪儿"，没必要让所有人重看一遍。
         body: (
           <>
             选文件 → 上传（<b className="font-bold text-slate-100">不花钱</b>）→ 下一步拖时间轴框出 {BLOCKOUT_INPUT_RULES.minSec}~
