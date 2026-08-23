@@ -77,7 +77,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-rail",
         body: (
           <>
-            右边竖着一列。最上面是<b className="font-bold text-slate-100">作者头像</b>，点它进作者主页，头像下面那枚 + 号是关注。往下依次是发弹幕（「弹」字那枚）、点赞、评论、收藏、分享，<b className="font-bold text-slate-100">后四枚下面的数字是已经有多少人做过</b>；发弹幕那枚下面写的是字、不是数。评论就地滑出来，不用离开这一屏。
+            最上面是<b className="font-bold text-slate-100">作者头像</b>（点进主页，下面那枚 + 号关注）。往下依次是发弹幕、点赞、评论、收藏、分享，<b className="font-bold text-slate-100">下面的数字是已经有多少人做过</b>。评论就地滑出来，不用离开这一屏。
           </>
         ),
       },
@@ -86,7 +86,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-progress",
         body: (
           <>
-            画面底缘那条细线是<b className="font-bold text-slate-100">播放进度</b>，它上方右侧的小字是当前 / 总时长。按住它可以<b className="font-bold text-slate-100">拖着跳到任意一处</b>：拖的时候线会变粗、画面中央显示大字时间，松手就从那儿接着播。多段的作品，这条线走的是整片。
+            底缘那条细线是<b className="font-bold text-slate-100">播放进度</b>，右上小字是当前 / 总时长，按住能<b className="font-bold text-slate-100">拖着跳到任意一处</b>。多段的作品，这条线走的是整片。
           </>
         ),
       },
@@ -95,7 +95,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-title",
         body: (
           <>
-            左下角是作者名、标题和简介。<b className="font-bold text-slate-100">点标题进这支片子的详情页</b>——本片卡组、多 P 选集、没被截断的完整简介都只有那儿有；带「互动 · 你来选」的作品，分支也在那儿选。点作者名或右边的头像，则是去他的主页。
+            <b className="font-bold text-slate-100">点标题进详情页</b>——本片卡组、多 P 选集、完整简介、「互动 · 你来选」的分支，都<b className="font-bold text-slate-100">只在那儿</b>。点作者名或头像，去的是他的主页。
           </>
         ),
       },
@@ -104,7 +104,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-fullscreen",
         body: (
           <>
-            那一列最下面单独一枚是全屏键。点了会收起页签、底栏和这些角落的元素，只留画面；<b className="font-bold text-slate-100">横屏的片子会连屏幕一起转过来</b>，所以它在横屏片上写的是「转屏」。要退出，点右上角那枚缩小键。
+            那一列最下面单独一枚是全屏键，点了只留画面；<b className="font-bold text-slate-100">横屏的片子会连屏幕一起转过来</b>，所以它在横屏片上写的是「转屏」。退出点右上角那枚缩小键。
           </>
         ),
       },
