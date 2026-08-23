@@ -270,6 +270,15 @@ function VoiceSection() {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const [instruct, setIns] = useState(currentInstruct);
+  /**
+   * 音色区展不展开。**默认收起**（2026-08-23）：这张列表有 24 把嗓子，每条两行 ——
+   * 光它就 50 行，而设置页下面还有引导复位、版本、清理缓存几节，路过的人得一直划。
+   * ★ 收起时**把当前选的那把画出来**，不是画一个"声音 ›"的空壳：这一节的信息价值
+   *   九成在"我现在用的是哪把"，藏掉它等于逼人点开才能确认一件没改过的事。
+   * ★ 语速与语调指令跟着一起收 —— 它们要"改完点上面任意音色即刻试听"，
+   *   跟列表分开摆就没法试听了（那条相邻关系是这块原来的设计取舍，见下面 ★）。
+   */
+  const [open, setOpen] = useState(false);
   // null = 跟随音色默认；滑杆一动就变成显式值
   const [rate, setRateState] = useState<number | null>(currentRate);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -323,6 +332,19 @@ function VoiceSection() {
   return (
     <section className="mb-6">
       <h2 className="mb-1 text-xs font-semibold text-slate-400">铸卡师的声音</h2>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between rounded-xl border border-slate-700 bg-panel px-4 py-3 text-left"
+      >
+        <span className="min-w-0">
+          <span className="block truncate text-sm text-slate-100">{VOICES.find((v) => v.id === id)?.name ?? "跟随系统"}</span>
+          <span className="block truncate text-[11px] text-slate-500">{VOICES.find((v) => v.id === id)?.why ?? ""}</span>
+        </span>
+        <span className="ml-2 flex-none text-[11px] text-slate-400">{open ? "收起" : `换一把（${VOICES.length} 选）`}</span>
+      </button>
+
+      {open && (
+        <div className="mt-2.5">
       <p className="mb-2.5 text-[11px] text-slate-500">
         点一下即试听并选定。没配云端语音时退回系统内置合成器（需装中文语音包）。
       </p>
@@ -422,6 +444,8 @@ function VoiceSection() {
           语速与语调改完，点上面任意音色即刻试听 · 语调这一段不计费 · 只对 2.0 单音色生效，「调和」那几条用不了
         </p>
       </div>
+        </div>
+      )}
     </section>
   );
 }
