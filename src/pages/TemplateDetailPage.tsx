@@ -105,8 +105,7 @@ function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
           指着一个不存在的东西说话，与功能坏了长得一模一样。
           ★ 顺手压到一行：剩下那半句（时长与画幅）是每次都该看见的，留着。 */}
       <p data-guide="template-refvideo" className="text-[11px] leading-relaxed text-slate-400">
-        套用出片＝整段复刻这段视频的场景、道具与运镜，只把人偶换成你挂的角色卡。
-        出片时长≈模板时长，画幅跟这段视频走。
+        套用＝复刻这段的场景与运镜，人偶换成你挂的角色卡。时长与画幅跟这段视频走。
       </p>
       {/* ★ 作者本人先看这一句：坏模板对他来说不是"换一个"，而是"这不是你的错、重做时至少
           选 5 秒"。它替代（不是叠加）下面那句给套用者的话 —— 两句一起显示会让作者以为
@@ -121,9 +120,7 @@ function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
       ) : (
         tokens !== null && (
           <p className="mt-2 text-[11px] leading-relaxed text-slate-300">
-            套用一次约 <b>{fmtTokens(tokens)}</b> token（「{gate!.label}」档 · 含模板视频
-            <b>按 {t.refVideo.durationSec} 秒计</b>的输入费——r2v 连输入视频的时长也计费，输出时长按≈模板时长估
-            {realSec !== null ? `；这段模板视频实际约 ${realSec.toFixed(1)} 秒，计费按整秒向上取` : ""}）
+            套用一次约 <b>{fmtTokens(tokens)}</b> token（按模板视频时长计）
           </p>
         )
       )}
