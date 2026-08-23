@@ -131,6 +131,16 @@ export default function WorkshopPage() {
   const [tab, setTab] = useState<"cards" | "decks" | "templates">("cards");
   const [q, setQ] = useState("");
   const [market, setMarket] = useState<Card[]>([]);
+  /**
+   * 市场里**已经拥有的**那些要不要一起摊出来。默认不摊（2026-08-23）。
+   * ★★ 病症是量出来的：种子市场 17 张，老用户基本全拿过 —— 于是「从市场添加」下面
+   *   摊着 17 格，其中 16 格是 40% 透明、按钮写着「已拥有」的死格子，把整个卡片页签
+   *   撑到 149 行，而真正能点的只有 1 格。这一段的活是"找还没有的卡"，
+   *   已拥有的每一格都在与这件事作对。
+   * ★ 不是删掉：仍然能一键摊开（有人就是想按卡面点进详情看蓝图、点赞）。
+   *   隐藏了几张要**说出数目**，否则看起来像市场就这么小。
+   */
+  const [showOwned, setShowOwned] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   // 市场：卡片 / 卡组两个来源
@@ -370,8 +380,23 @@ export default function WorkshopPage() {
                     {cardErr && <div className="mb-3 text-xs text-rose-400">{cardErr}</div>}
                   </>
                 )}
+              {/* ★ 过滤在渲染这一层做，不动 market 本身：ownedIds 会随「＋ 添加」当场变，
+                  刚添加的那一格应当就地变成"已拥有"再消失，而不是让整份列表重算一遍。 */}
+              {(() => {
+                const hiddenOwned = showOwned ? 0 : market.filter((c) => ownedIds.has(c.id)).length;
+                return hiddenOwned > 0 ? (
+                  <button
+                    onClick={() => setShowOwned(true)}
+                    className="mb-2 w-full rounded-lg border border-slate-700/60 bg-panel/60 py-1.5 text-[11px] text-slate-400"
+                  >
+                    已拥有的 {hiddenOwned} 张没有列出 · 点这里一起看
+                  </button>
+                ) : null;
+              })()}
               <div className="grid grid-cols-3 gap-2.5 pb-4">
-                {market.map((c) => {
+                {market
+                  .filter((c) => showOwned || !ownedIds.has(c.id))
+                  .map((c) => {
                   const owned = ownedIds.has(c.id);
                   return (
                     <div key={c.id}>
