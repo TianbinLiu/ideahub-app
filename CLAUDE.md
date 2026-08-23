@@ -37,7 +37,7 @@ src/
   api/         与 server 的 HTTP 调用
   components/  通用组件；`flow/` = 工作流画布：`FlowCanvas.tsx`（画布壳 + 就地编辑窗 +
                agent 输入条 + 四个 portal 弹层：方案台/成片回看/选卡/选模板）、
-               `DeleteSegBtn.tsx`（删段确认，与线性视图共用）
+               `DeleteSegBtn.tsx`（删段确认，与 FlowPage 那份共用一处实现）
   data/        本地库（IndexedDB）与账号库，含种子数据与迁移
   hooks/
   mock/        无后端时的假数据
@@ -96,9 +96,18 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   这一炉"才有资格清 `busy`** —— 否则一个已经作废的回包会把「同时只炼一段」的闸打开。
   ⚠ 这条一次性防住四种事故，而它们**都零报错**：段没了、草稿被覆盖、确认卡说的与事实相反、
   钱扣了而成片落空。
-- **画布与线性视图是同一条流水线的两个面**（`components/flow/FlowCanvas.tsx` ↔ `pages/FlowPage.tsx`；
-  用哪个面记在 localStorage 的 `flowCanvasOpen` —— 那是长期偏好，不是一次会话）。两个面都不
-  自己判规则，各条**唯一实现**在哪：顺序门禁 `flowStore.clampCursor`、报价 `nodeCost` /
+- **工作流只剩画布一个面**（2026-08-23 线性视图下线，用户点名；`localStorage.flowCanvasOpen`
+  那条长期偏好同日作废，别再去读它）。`pages/FlowPage.tsx` 这一页现在同时服务两件事：
+  非简约 = 只挂 `components/flow/FlowCanvas.tsx`（z-40 全屏 portal），简约 = 页内那套单段 UI。
+  **单段那一大块用 `{simple && …}` 闸住**（2026-08-23 补）：不闸的话它在工作流里照常挂载、
+  照常跑 effect、照常开一个 `<video>` 去解码同一段成片，而屏幕上一个像素都看不到 ——
+  实测两段"还没有画面…"的提示同时躺在 DOM 里，`elementFromPoint` 打在它们中心拿回来的都是画布。
+  ⚠ 别把它当死码删了：简约仍然会落到这一页 —— `applyTemplate` 把模板铺成 `mode:"simple"`
+  再 `nav("/flow")`（`/simple` 那条向导页只接创作入口那一下），**付费的 V2 白模挂卡走的正是它**。
+  ⚠ 闸**里面**另有一批条件恒假的分支（专注态块、存草稿钮、组稿报价行、底部节点条那一支）：
+  简约下 `plan` 恒 null、`deckQuoteOf` 恒 `on:false`，所以它们永不成立。删是安全的，只是没删 ——
+  读的时候别当成"简约模式的功能"。
+  画布与页内那套单段 UI 都不自己判规则，各条**唯一实现**在哪：顺序门禁 `flowStore.clampCursor`、报价 `nodeCost` /
   `proposalsCost` / `redrawCost`（与真扣钱同一个函数）、「能不能播」`flowStore.realVideoOfNode`
   （2026-08-21 收口，收之前两面各写了一份 `!startsWith("mock:")`）、删段确认 `DeleteSegBtn`。
   组稿（`toCut`）、存草稿（`saveNow`）、挂卡入口（`castEditorState`）三样的实现**只在 FlowPage**，
