@@ -305,7 +305,7 @@ export const TOURS: GuideTour[] = [
         anchor: "template-owner-row",
         body: (
           <>
-            自己那条模板下面会多出一行操作：<b className="font-bold text-slate-100">发布到市场</b>让别人搜得到、能套用；已经发布的那条这里换成<b className="font-bold text-slate-100">从市场下架</b>，收回来之后你自己那份还在；最右边是<b className="font-bold text-slate-100">删除</b>，按下去会先问你一遍要删掉的是什么。发布点下去要是被拦住，拦的原因和下一步就印在这条模板下面。
+            自己模板的卡片里带一行操作：<b className="font-bold text-slate-100">核对位置</b>与<b className="font-bold text-slate-100">识别角色位</b>管"画面里谁是谁"（识别面板里可以选定场景/人物数量变化的特定帧，让 AI 分析每一段里的人物）；<b className="font-bold text-slate-100">发布到市场</b>让别人搜得到、能套用，已发布的换成<b className="font-bold text-slate-100">从市场下架</b>；最右边是<b className="font-bold text-slate-100">删除</b>，按下去会先问你一遍。发布被拦住的话，原因和下一步就印在这行下面。
           </>
         ),
       },
@@ -756,6 +756,85 @@ export const TOURS: GuideTour[] = [
           <>
             那一行最右那颗不是从列表里划掉：<b className="font-bold text-slate-100">云端那段模板视频和原始素材会一起没掉</b>，
             谁都找不回。所以要点两下才认。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "canvas",
+    title: "流水线画布",
+    version: 1,
+    steps: [
+      {
+        title: "一屏看完整条片",
+        anchor: "canvas-card",
+        body: (
+          <>
+            每一格是<b className="font-bold text-slate-100">一段</b>，从左往右就是这条片的顺序。
+            点一格<b className="font-bold text-slate-100">就地打开这一段的编辑窗</b>，再点一下收起，点别的格子就换过去。
+            画布可以拖着平移、两指捏合缩放。
+          </>
+        ),
+      },
+      {
+        title: "一段有两种做法",
+        anchor: "canvas-modes",
+        body: (
+          <>
+            编辑窗顶部这对按钮切的是<b className="font-bold text-slate-100">这一段</b>怎么做：
+            「套模板」是拿一段白模视频复刻运镜与站位，你只需给里面的人偶挂上自己的角色卡；
+            「自选卡片」是自己挑素材卡、写一句要求，AI 推演几套走向让你挑。
+            两种<b className="font-bold text-slate-100">每段各选各的</b>，同一条片里可以混着来。
+          </>
+        ),
+      },
+      {
+        title: "对画布说话",
+        anchor: "canvas-agent",
+        body: (
+          <>
+            一句话就能改流水线：给哪段套哪个模板、把谁挂到哪个位子、这段拍什么、加一段。
+            {/* ★ 这三件里**挂卡合成是免费的**（cost 恒 0，见 canvasAgent 的 AgentProposal）。
+                写成"会花钱的三件"是错的报价口径，而这个仓库里报价说错是最贵的一类错
+                （CLAUDE.md「两仓价目表各写各的」）。所以措辞按**要不要你点头**分，
+                确认卡上那行标的是价钱**或**后果。 */}
+            <b className="font-bold text-slate-100">它不替你按那三件</b> —— 推演、出片（真花钱），
+            以及挂卡合成（不花钱，但会把你改过的点名句整段重写）。它只摆一张确认卡，
+            上面写着这一下要花多少、或者会覆盖掉什么，你点了才真跑。办成了什么、被拒了什么，它逐条列给你看。
+          </>
+        ),
+      },
+      {
+        // ★ 这一步**有意不挂锚点**：终端格子在流水线**末段之后**，段一多就在视口外，
+        //   而 off-screen 元素的 rect 仍返回非零宽高 —— 退化成居中卡片那条兜底不会触发，
+        //   圈会画到屏幕外（本文件顶部那条 ⚠ 说的就是它）。所以改成用文字自定位。
+        title: "流水线的终点",
+        body: (
+          <>
+            一直往右拖到<b className="font-bold text-slate-100">末段后面</b>，跟着两格：一格<b className="font-bold text-slate-100">加下一段</b>，
+            一格<b className="font-bold text-slate-100">把各段合成整片</b>（每段都出片了才亮，还差几段它会说）。
+            已经出片的格子右上角有个 ▶，随时能回看那一段。
+          </>
+        ),
+      },
+      {
+        title: "横竖都能用",
+        anchor: "canvas-rotate",
+        body: (
+          <>
+            竖屏时编辑窗从下面升起，横屏时它挪到右边、画布留给左边 —— 段多的时候横过来看更痛快。
+            旁边那颗 💾 随时把这条片存成草稿，回头接着做。
+          </>
+        ),
+      },
+      {
+        title: "老界面还在",
+        anchor: "canvas-linear",
+        body: (
+          <>
+            点它收起画布，回到<b className="font-bold text-slate-100">一屏一段</b>的编辑页 —— 那边有整屏的方案台和圈选改画面。
+            下次进来会记着你上次用的是哪一种。
           </>
         ),
       },

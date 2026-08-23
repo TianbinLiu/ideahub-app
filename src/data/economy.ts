@@ -940,6 +940,20 @@ export function proposalsCost(hasStartFrame: boolean): number {
 export const ONE_IMAGE = IMAGE_TOKENS;
 
 /**
+ * 「按 N 处圈选重新生成」里那几张改图的钱 —— **唯一实现**。
+ *
+ * ★★ 2026-08-21 第九轮扫描确认的 high：出片管线对**每一处圈选**都会跑一次 refineFrame
+ *   （`studio/segmentGen.ts` 里那个 for 循环，一次真的 Seedream 图生图），而两处报价
+ *   （剪辑页的 `annCost`、工作流的 `nodeCost`）从头到尾只算视频那一半。
+ *   5 秒标准档 + 5 处圈选：按钮印 108k，实扣约 175k —— 多 62%，而按钮旁边还写着
+ *   「这一步才计费」。这正是本仓头号事故形状（CLAUDE.md「两仓价目表各写各的」那一条）。
+ * ★ 圈选数**没有上限**，所以这笔随 N 线性涨，不是一个可以忽略的尾数。
+ */
+export function annRedrawCost(annCount: number): number {
+  return Math.max(0, annCount) * ONE_IMAGE;
+}
+
+/**
  * 「按修改重画一套方案」的报价：用户自己上传的帧、以及承接上一段真实结尾的那张开头帧
  * 一律不动（见 Proposal.pinned），剩下几张才重画。
  * ★ 只能有这一处实现——按钮上的报价和真正扣的钱分开算，必然分叉，而"界面写 13.3k、

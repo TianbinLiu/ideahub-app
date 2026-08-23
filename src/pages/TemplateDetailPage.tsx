@@ -39,11 +39,13 @@ import {
   registerTemplate,
   remoteStateOf,
   setTemplatePublished,
+  templateGroupOf,
   updateTemplate,
 } from "../data/templates";
 import { VIDEO_TIERS, fmtTokens, r2vPriceIssue, r2vTokens } from "../data/economy";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useFlow } from "../studio/flowStore";
+import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import { CARD_TYPE_LABELS, VideoTemplate } from "../types";
 
 /**
@@ -360,6 +362,8 @@ export default function TemplateDetailPage() {
   useCountView("template", id);
   const t = id ? getTemplate(id) : null;
   const [applyErr, setApplyErr] = useState("");
+  // 套用前的在途流水线守卫（唯一实现，与模板货架共用）
+  const { guard, dialog: discardDialog } = useApplyTemplate();
   // 远端回源的结论：null = 还没试/在试，false = 真取不到。直达详情路由（会话恢复、
   // 分享链接）时 shared 缓存是空的——先回源再下"不存在"的结论，别对着一个真实存在的
   // 模板撒谎（回源实现在 data/templates.fetchRemoteTemplateById，取到会 emit 触发重渲）
@@ -430,11 +434,40 @@ export default function TemplateDetailPage() {
   function apply() {
     if (!t) return;
     setApplyErr("");
+    // ★ 与货架那条同一个守卫（见 useApplyTemplate 的 ★★）：套用是整表覆盖，
+    //   在途流水线里已经花钱炼出来的段会被抹掉，旧草稿还会被后续自动存盘覆盖
+    guard(() => applyNow());
+  }
+
+  /** 返回真 = 真的套上了（守卫据此决定要不要断开旧草稿，见 useApplyTemplate 的 ★★） */
+  function applyNow(): boolean {
+    if (!t) return false;
+    // ★★ **分段组要整组套**（2026-08-21 第八轮扫描）：这一页原来无脑走 applyTemplate（单条），
+    //   于是从组里任何一段的详情页点「用它出片」，只铺第 1 段、其余段静默消失，
+    //   还把 mode 退成简约 —— 而模板货架那条路（pick）早就是整组套用，两条入口对同一个
+    //   模板做两件事。规则与措辞都取自货架那份，不在这里另造一条。
+    const parts = templateGroupOf(t);
+    if (t.group && parts.length !== t.group.count) {
+      setApplyErr(
+        `这是一条分成 ${t.group.count} 段的模板，但这台设备上只拿到了 ${parts.length} 段 —— ` +
+          `整组套用会少内容，所以先不套。下拉刷新试试；如果是作者只发布了其中几段（组内每段各自发布），` +
+          `等其余段发布出来再用。`,
+      );
+      return false;
+    }
+    if (parts.length > 1) {
+      if (!useFlow.getState().applyTemplateGroup(parts)) {
+        setApplyErr(useFlow.getState().err || "这一组模板暂时套不了");
+        return false;
+      }
+      nav("/flow"); // 整组是白模段，挂卡入口在工作流页每一段的编辑窗里
+      return true;
+    }
     // applyTemplate 返回 false = 被闸门整句拒绝（err 在 flow store 里）——把原因就地
     // 印出来，不能让按钮看起来"点了没反应"（铁律八）
     if (!useFlow.getState().applyTemplate(t)) {
       setApplyErr(useFlow.getState().err || "套用失败");
-      return;
+      return false;
     }
     // ★★ V2 白模（有角色位）：**先领去挂卡**，再进工作流。
     //   判据是存在性（`roles?.length`，types.ts 的 ★），所以老模板（没有 roles）
@@ -447,6 +480,7 @@ export default function TemplateDetailPage() {
     const castState = castEditorState(t);
     if (castState) nav("/video-editor", { state: castState });
     else nav("/flow");
+    return true;
   }
 
   return (
@@ -487,6 +521,7 @@ export default function TemplateDetailPage() {
       >
         ⚡ 用这个模板出片{t.refVideo ? "（挂上你的角色卡）" : "（只需一句话）"}
       </button>
+      {discardDialog}
       {applyErr && <p className="mb-3 text-xs leading-relaxed text-rose-400">{applyErr}</p>}
       <div className="mb-3" />
 

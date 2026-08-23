@@ -614,7 +614,19 @@ export function publishVideo(draft: DraftVideo): VideoItem {
   const list = [item, ...all()];
   cache = list;
   save(list);
-  if (remoteOn()) void pushPublish(item, draft);
+  if (remoteOn()) {
+    void pushPublish(item, draft);
+  } else if (API_ON) {
+    // ★★ **配了服务器、但这次会话没连上**（2026-08-21 第十一轮扫描的 high）：
+    //   `remoteLive` 只在 readyRemote 成功那一次置真，弱网冷启动退回本地库之后
+    //   整个会话不再翻转。而 AI 走的是 `${API_BASE}/api/ark`，网络一恢复出片照样成功、
+    //   照样真扣钱 —— 用户点发布，作品只写进本机 IDB，既不上传、也不入待发队列、
+    //   横幅一个字都没有。等到下次启动服务端可达，readyRemote 用 `cache = res.items`
+    //   整份替换列表、readyLocal 根本不跑：刚花了几十分钟和真钱的那条作品从首页和
+    //   个人页同时消失，本机那份再无入口读得到，全程零报错。
+    //   ⇒ 落进待发队列，下次启动 flushPending 会把它传上去（服务端按 clientId 幂等）。
+    void queuePending(draft, "这次启动没连上服务器，作品先存在这台设备上——联网后会自动上传");
+  }
   emitVideos();
   return item;
 }
@@ -1363,6 +1375,15 @@ async function loadDetail(item: VideoItem): Promise<void> {
 async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
   let sending = draft;
   try {
+    // ★★ **先入队，成了再出队**（2026-08-21 第十轮扫描）：上传一条三段片要逐个传
+    //   1MB 级的帧与 1.5MB 级的成片，慢网上一两分钟。原来只在 catch 里入队 ——
+    //   这段时间里 App 被系统回收/用户切后台被杀，作品在**四个地方都不存在**：
+    //   服务端（POST 还没发出去）、待发队列（只在 catch 写）、本机库（远端模式下
+    //   save() 是 no-op）、工程草稿（点发布那一刻就被 retireWorkDraft 删了）。
+    //   先落一条队列项，成功再删掉它：多一次 IDB 写，换掉一条"几十分钟的付费成片
+    //   彻底消失且零提示"的路。★ 幂等键是 clientId，重复入队只会覆盖同一条。
+    if (draft.clientId) inflightPublish.add(draft.clientId);
+    await queuePending(draft, "上传中（App 被关掉的话，下次启动会自动重试）", { insurance: true });
     // ★ 先把本机资产（base64 帧/卡面、idb: 成片）传成永久 URL，再发那个几 KB 的 JSON。
     //   不做这一步的话：请求体 MB 级被网关掐断，而且**就算发出去别人也放不出来**
     //   ——服务端存下的 videoUrl 是一个指向"发布者手机上某处"的 idb: 键。
@@ -1372,7 +1393,18 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     });
     uploadStatus = null;
     const v = await branch.createVideo(sending);
-    if (!v) return;
+    // ★★ **`null` 是失败，不是成功**（2026-08-21 第十轮扫描）：`createVideo` 对
+    //   「200 + 形状不对」的回包返回 null（`request()` 不抛错：JSON.parse 失败就把
+    //   body 当字符串原样返回，`res.ok` 恒真）—— 而这正是「.env.production 指错主机」
+    //   「网关把 POST 兜到静态页」的形状（CLAUDE.md「永远不要信状态码」那条）。
+    //   原来这里 `if (!v) return;` 直接当成功：不报错、不入队，而远端模式下 `save()`
+    //   是 no-op，作品只活在内存 cache 里 —— 重启 App，几十分钟的付费成片彻底不见，
+    //   个人页连那条待发横幅都不会出现。
+    //   同一文件的 `fetchVideoById` 对同一形状早就判了形状不判状态码，发布这条路缺的
+    //   就是这一句。抛出去 → 落进下面那个 catch → emitApiError + 入队重试。
+    if (!v || typeof v._id !== "string") {
+      throw new Error("服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）");
+    }
     idAlias.set(item.id, v._id);
     item.id = v._id;
     item.cover = v.cover || item.cover;
@@ -1383,9 +1415,14 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     item.authorAvatar = branch.authorAvatar(v.author) ?? item.authorAvatar;
     item.createdAt = toMs(v.createdAt);
     detailed.add(v._id);
+    // ★ 真传上去了才出队（见上面"先入队"的 ★★）
+    if (draft.clientId) inflightPublish.delete(draft.clientId);
+    await dropPending(draft.clientId);
     emitVideos();
   } catch (e) {
     uploadStatus = null;
+    // ★ 失败了就不再算"在传"：那条队列项要立刻出现在横幅上（铁律八）
+    if (draft.clientId) inflightPublish.delete(draft.clientId);
     emitApiError("publishVideo", e);
     // PublishPage 发完就 clearDraft() 了，作品只剩内存里这一份——存进待发队列，
     // 下次启动重试，不让一次网络抖动吃掉用户几十分钟的生成。
@@ -1397,10 +1434,26 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
   }
 }
 
-async function queuePending(draft: DraftVideo, error: unknown): Promise<void> {
+/** 从待发队列里删掉一条（clientId 幂等键）。上传真成功时调，见 pushPublish 的 ★★ */
+async function dropPending(clientId: string | undefined): Promise<void> {
+  if (!clientId) return;
+  const list = await readPending();
+  const left = list.filter((p) => p.draft.clientId !== clientId);
+  if (left.length !== list.length) await writePending(left);
+}
+
+/**
+ * @param opts.insurance 这一条是**上传前的保险**（还没失败），不是一次真失败。
+ *   ★★ 队列满了就**不要**挤掉别人（2026-08-21 自查）：`slice(-5)` 那个上限原本只截
+ *     "失败"队列，5 条很宽裕；改成每次发布都先入队之后，第 6 次发布会把一条**真失败**
+ *     的旧记录顶掉 —— 那条是用户唯一能重试的备份，而顶掉它的只是一次多半会成功的保险。
+ *     保险是尽力而为，真失败不是。
+ */
+async function queuePending(draft: DraftVideo, error: unknown, opts?: { insurance?: boolean }): Promise<void> {
   const list = await readPending();
   // 同一条（clientId 幂等键）只留一份，反复重试不会堆成一摞
   const rest = list.filter((p) => p.draft.clientId !== draft.clientId);
+  if (opts?.insurance && rest.length >= 5) return; // 见上面的 ★★：满了就不上保险，别顶掉真失败的
   await writePending([...rest, { draft, error: errText(error), at: Date.now() }].slice(-5)); // 只留最近 5 条，别把配额吃光
 }
 
@@ -1449,9 +1502,18 @@ async function writePending(list: PendingPublish[]): Promise<void> {
   emitVideos();
 }
 
-/** 页面同步读：还有几条没传上去 */
+/**
+ * **这一会话里正在上传的那几条**（clientId）。它们已经先落进待发队列当保险
+ * （见 pushPublish 的 ★★），但**不该出现在"没传上去"那条横幅里** —— 那会在每一次
+ * 正常发布时都弹一句"1 条没传上去"，而它明明正在传、上面还画着进度条。
+ * ★ 只活在内存里：进程被杀之后这个集合就没了，那条队列项于是**正常显示**在横幅上
+ *   （那时它确实没传上去），下次启动的 flushPending 也会去重试它。
+ */
+const inflightPublish = new Set<string>();
+
+/** 页面同步读：还有几条没传上去（在传的那几条不算，见 inflightPublish 的 ★） */
 export function pendingPublishes(): PendingPublish[] {
-  return pendingMirror;
+  return pendingMirror.filter((p) => !p.draft.clientId || !inflightPublish.has(p.draft.clientId));
 }
 
 function errText(e: unknown): string {
@@ -1483,6 +1545,12 @@ async function flushPending(): Promise<void> {
       });
       uploadStatus = null;
       const v = await branch.createVideo(sending);
+      // ★★ 与 pushPublish 同一条：`null` 是失败。原来 `if (v && cache)` 把 null 当成功，
+      //   于是那条队列项**不会进 left**，`writePending(left)` 之后就永久删掉了 ——
+      //   用户点一次「立即重试」，队列里那条作品就没了，提示还写着「全部上传成功」。
+      if (!v || typeof v._id !== "string") {
+        throw new Error("服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）");
+      }
       // ★ 去重再塞：这条**很可能已经在 cache 里了**。
       //   进队列的典型原因是"POST 超时但服务端其实已经落库"（server 的 clientId 幂等
       //   就是为这个场景写的），重试时服务端认幂等键返回首次那条、状态码 200。

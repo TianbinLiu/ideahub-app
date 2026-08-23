@@ -21,11 +21,15 @@ export default function ForgeOverlay({
   steps,
   error,
   onClose,
+  onLeave,
 }: {
   phase: ForgePhase;
   steps: GenStep[];
   error?: string;
   onClose: () => void;
+  /** 「先去逛逛」：生成继续（链条活在 flowStore，站内切页不断），人先去别处。
+   *  给了才渲染那颗按钮 —— 工坊桌面的炼卡浮层没有全局胶囊接手，就不给这个口子 */
+  onLeave?: () => void;
 }) {
   // 成功：等她把"举牌大笑"这套动作演完，再多留一拍才收场。
   // 立刻收会让人只看到一道闪光，根本没看清发生了什么
@@ -111,7 +115,23 @@ export default function ForgeOverlay({
       )}
 
       {phase === "forging" && (
-        <p className="mt-2.5 text-[11px] text-slate-500">整段一炉出，中途离开这一页会中断</p>
+        <>
+          {/* ★ 2026-08-20 改口：老文案「中途离开这一页会中断」是架构早期的陈旧恐吓 ——
+              生成链条活在 flowStore（全局），站内切页根本不断。真正会断的是**退出 App**
+              （安卓冻结后台 WebView 的 JS），所以只承诺站内、明说别关 App。 */}
+          <p className="mt-2.5 max-w-sm text-center text-[11px] leading-relaxed text-slate-500">
+            {onLeave ? "可以先去逛逛——生成不会中断，好了顶部会弹提示带你回来。别退出 App 就行" : "整段一炉出，别退出 App"}
+          </p>
+          {onLeave && (
+            <button
+              onClick={onLeave}
+              className="mt-3 flex items-center gap-1.5 rounded-full border border-slate-600 px-4 py-2 text-xs text-slate-200"
+            >
+              <Icon name="play" size={13} />
+              先去逛逛，好了叫我
+            </button>
+          )}
+        </>
       )}
     </div>,
     document.body,

@@ -7,7 +7,9 @@ import type { PlayerAvatar } from "./quality";
 import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, tierBlockReason, walletOf, type AddCardsResult } from "../data/account";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, styleWants3d, tierOf } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
-import { FlowMode, FlowNode, FlowTemplate, chosenOf, flowDirty, nodeVideo, useFlow } from "./flowStore";
+import { FlowMode, FlowNode, FlowTemplate, chosenOf, flowDirty, nodeVideo, tplOfNode, useFlow } from "./flowStore";
+// ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
+import { forgetCanvasAgent } from "./canvasAgent";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, saveDraft } from "../data/drafts";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
 import { generateSegment } from "./segmentGen";
@@ -344,6 +346,13 @@ interface StudioState {
   /** NPC 手中展示的 AI 推荐卡（按用户卡组缺口 + 市场热度） */
   flights: Flight[];
   draft: DraftVideo | null;
+  /**
+   * 合并页的音轨预置线索（2026-08-20，分段模板组）：原片地址，剪辑页拿它默认混入
+   * 「原视频音轨」。**不进 DraftVideo**（那是发布体的形状，服务端 schema 会 strip，
+   * 也没理由把它发出去）；draft 为 null 时它读不到，所以清 draft 的几处不用跟着清。
+   * 只有 finalizeFromFlow 会写真值（读 FlowNode.tpl.group.sourceUrl），其余产稿路写 null。
+   */
+  draftAudioHint: string | null;
   camera: CamView;
   /** NPC 正在说话的截止时间戳（npcSay 设置，驱动 3D 口型） */
   speakingUntil: number;
@@ -499,6 +508,16 @@ interface StudioState {
    *   已经退出去换了模式）。调用方只有 FlowPage 一处，显式传的成本是一个参数。
    */
   finalizeFromFlow: (nodes: FlowNode[], mode: FlowMode, onProgress?: (status: string) => void) => Promise<boolean>;
+  /**
+   * 「这次组稿在跑吗」—— **store 级**，不许只活在组件的 useState 里。
+   * ★★ 2026-08-21 第八轮扫描的 high：组稿要几十秒（提炼卡组最多 8 张 + 撞上 3D 关键词
+   *   还要铸建模，都是真钱）。原来那个 `finalizing` 是 FlowPage 自己的 state ——
+   *   用户中途退出这一页再进来，组件重挂载、标记归零，「完成视频」又可以点了：
+   *   第二发照旧派生卡组、照旧铸 3D，**同一份内容收两遍钱**。
+   */
+  finalizing: boolean;
+  /** finalizeFromFlow 的正文（外层只负责那道"同一时刻只跑一发"的闸），别直接调 */
+  finalizeInner: (nodes: FlowNode[], mode: FlowMode, onProgress?: (status: string) => void) => Promise<boolean>;
   clearDraft: () => void;
 
   /**
@@ -534,11 +553,31 @@ interface StudioState {
   //   这里的「工程草稿」是**还没做完**的半成品，工坊侧的节点树与工作流侧的流水线一起存。
   /** 当前正编辑的工程草稿 id；null = 这摊活还没存过 */
   workDraftId: string | null;
+  /**
+   * **确实落进草稿的"已出片段数"**——唯一实现，供「丢弃这条工作流」那道确认卡判断
+   * "丢了到底烧不烧钱"（见 components/flow/DiscardFlowDialog）。
+   * ★ 只有 saveWorkDraft 真的写成功才会动。存盘失败时**故意不动**：那一刻的真相就是
+   *   "这一段还没存住"，把它当成存住了正是最危险的谎（用户会踏实地丢掉刚花钱炼的段）。
+   * ★ 别拿 workDraftId 是否非空来替代：草稿 id 是上一次成功保存留下的，
+   *   之后再炼一段而自动存盘失败，id 照样在——那会把"没存上"读成"存上了"。
+   */
+  savedDoneCount: number;
   /** 存盘。两个 store 的状态一起收进一条草稿。返回 null = 写失败（配额/隐私模式）。
    *  from = 从哪个模式点的保存，决定个人页上这条草稿默认推荐哪个入口 */
   saveWorkDraft: (opts?: { title?: string; from?: DraftMode }) => Promise<WorkDraftMeta | null>;
   /** 打开草稿：还原两侧状态。mode 决定进哪个模式；缺哪侧就地补出来 */
-  openWorkDraft: (d: WorkDraft, mode: DraftMode) => void;
+  /**
+   * 「工坊现在有没有一炉在跑」—— 有就返回一句人话，没有返回 null。
+   * ★★ 2026-08-21 第十一轮抓到的 high（我上一轮亲手引入）：工坊「同一时刻只炼一段」的
+   *   **唯一**锁就是 `nodeGen`（`genNodeVideo` 开头那句 `if (nodeGen) return false`，
+   *   UI 的 disabled 也只由这三格算出）。上一版为了"新打开的草稿方案台别整块禁着"
+   *   把它们无条件清成 null —— 等于把锁拿掉：出片跑着的时候去打开一条草稿，回来就能
+   *   再点一次，两炉并发、各扣各的钱，还抢方舟并发额度。
+   *   正解不是清锁，是**在途就别换**（与 flowStore.canReplaceNodes 对称）。
+   */
+  studioBusyReason: () => string | null;
+  /** 返回 false = 被 studioBusyReason 拒了（原因由调用方念出来） */
+  openWorkDraft: (d: WorkDraft, mode: DraftMode) => boolean;
   /** 开始一摊全新的活：断开与上一条草稿的关联，之后保存会新建而不是覆盖 */
   newWorkDraft: () => void;
   /** 这摊活已经发布成作品了：删掉对应草稿并断开关联 */
@@ -680,6 +719,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   dialogView: false,
   flights: [],
   draft: null,
+  draftAudioHint: null,
   camera: { kind: "default" },
   speakingUntil: 0,
   mood: 0,
@@ -1118,6 +1158,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
         mat.refs.length > 0 ? mat.refs : undefined,
       );
       if (AI_REAL) spendTokens(ONE_IMAGE); // 出图成功才扣
+      // ★★ 回包前确认**这棵树还是当初那棵**（2026-08-21 第十轮扫描）：改图要几十秒，
+      //   这期间用户完全可以打开另一条草稿/重铺法阵 —— 闭包里捏着的是**旧 root**，
+      //   直接 `set({ root: {...root} })` 会把已经换掉的节点树整棵盖回去。
+      //   认对象引用即可：换过树的话 get().root 就不是同一个了。
+      if (get().root !== root) {
+        get().npcSay("这张图改好了，但桌面已经换过一摊活了——那次改动没写回去（钱已经花了，抱歉）。");
+        return false;
+      }
       if (which === "first") prop.firstFrame = next;
       else prop.lastFrame = next;
       set({ root: root ? { ...root } : root });
@@ -1441,6 +1489,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // 同 finalizeFromFlow：有了新的合成稿，上一次发布就翻篇
       publishedWorkId: null,
       // 单段草稿：剪辑页只认 draft.segments，给它一段就是"只编辑这一段"
+      draftAudioHint: null,
       draft: {
         title: "",
         category: "剧情",
@@ -1581,7 +1630,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
       prop.lastFrame = res.lastFrame;
       prop.videoUrl = res.url || "mock:";
       delete prop.degraded;
+      // ★★ 回包前确认**这棵树还是当初那棵**（与 refineProposalFrame 同款）：出片要几分钟，
+      //   万一桌面被换掉了（打开草稿/重铺），写回去等于把旧树盖回来 —— 钱花了、
+      //   刚打开的那摊活还被顶掉。上面那道闸拦住了主要入口，这里是最后一道。
       const cur = get().root;
+      if (cur !== root) {
+        set({ nodeGen: null });
+        get().npcSay("这一段炼好了，但桌面已经换过一摊活了——那一炉没写回去（钱已经花了，抱歉）。");
+        return false;
+      }
       set({ root: cur ? { ...cur } : cur, nodeGen: null });
       get().npcSay(
         "这一段炼好了——下一段的虚线卡位已经亮起来了。想改细节就点「编辑本段」圈画面，改完的尾帧就是下一段的起拍画面。",
@@ -1640,7 +1697,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
       status: "idle",
       anns: [],
     }));
-    useFlow.getState().seed(nodes, { mode: "workflow", origin: "studio" });
+    // ★ 铺不动就整句停（原因已在 flowStore.err：多半是"有一段正在生成中"）——
+    //   照旧往下走的话，法阵会说"N 段已铺成工作流"，而流水线其实一个字没变
+    if (!useFlow.getState().seed(nodes, { mode: "workflow", origin: "studio" })) {
+      set({ flowConfirm: false });
+      get().npcSay(useFlow.getState().err || "现在铺不了，等在跑的那一段炼完再来");
+      return false;
+    }
     set({ flowConfirm: false });
     // 整片预算只做知会不做拦截：工作流是一段一结账，钱不够也能先炼前几段
     const cost = composeCost(chosen.map((p, i) => ({ durationSec: p.durationSec, videoTier: nodes[i].videoTier })));
@@ -1655,6 +1718,20 @@ export const useStudio = create<StudioState>()((set, get) => ({
 
   finalizeFromFlow: async (nodes, mode, onProgress) => {
     if (nodes.length === 0) return false;
+    // ★★ 同一时刻只准跑一发（见 finalizing 字段的 ★★）。原因写进 flowStore.err：
+    //   两个面都画它，静默 return 的话上层只能瞎猜（铁律八）
+    if (get().finalizing) {
+      useFlow.setState({ err: "这一片正在组稿中（提炼卡组要花几十秒），等它跑完再点" });
+      return false;
+    }
+    set({ finalizing: true });
+    try {
+      return await get().finalizeInner(nodes, mode, onProgress);
+    } finally {
+      set({ finalizing: false });
+    }
+  },
+  finalizeInner: async (nodes, mode, onProgress) => {
     const { root } = get();
     const say = (s: string) => onProgress?.(s);
     /**
@@ -1788,6 +1865,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // ★ 新的合成稿一出现，上一次发布就翻篇（publishedWorkId 的清零规则只有这一条：
       //   "draft 被赋新值"。openSegmentEdit 是另一个赋新值的地方，同样清）
       publishedWorkId: null,
+      // 分段模板组：原片地址给剪辑页当音轨预置（用户点名要的"成片保留原视频音频"）。
+      // ★ 必须在这里搭草稿的车 —— 「完成视频」会把 flow store 清掉，剪辑页挂载时
+      //   nodes 已经空了（2026-08-20 dev 实测：读 flow 那版预置永远落空）
+      // ★ 走 tplOfNode，别直接摸 `.tpl`（2026-08-21 第三轮验证）：三态里 `undefined` 要退回
+      //   store 级那份，而从模板详情页套用**分段组里的某一段**走的正是那条（applyTemplate
+      //   铺单节点、tpl 不写）。漏读的后果是剪辑页静默丢掉原片音轨预置 —— 用户点名要的
+      //   "成片保留原视频音频"没了，而全程零报错。
+      draftAudioHint: nodes.map((n) => tplOfNode(n)?.group?.sourceUrl).find(Boolean) ?? null,
       draft: {
         title: "",
         category: "剧情",
@@ -1816,10 +1901,18 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
 
   workDraftId: null,
-  newWorkDraft: () => set({ workDraftId: null }),
+  savedDoneCount: 0,
+  finalizing: false,
+  // 另起一摊活 / 这摊活已发布：与草稿的关联断了，"存住了几段"也跟着归零
+  newWorkDraft: () => {
+    // 换一摊活：把「对画布说话」的多轮记忆也清掉（模块级变量，不跟着 store 走，
+    // 不清的话上一条片的对话会跟进下一条片的提示词，见 canvasAgent.forgetCanvasAgent）
+    forgetCanvasAgent();
+    set({ workDraftId: null, savedDoneCount: 0 });
+  },
   retireWorkDraft: async () => {
     const id = get().workDraftId;
-    set({ workDraftId: null });
+    set({ workDraftId: null, savedDoneCount: 0 });
     if (id) await deleteDraft(id);
   },
 
@@ -1839,6 +1932,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // 已经存过的草稿不动标题——用户可能在个人页改过名，自动保存不该把它冲掉。
     // 新建节点的标题就是占位的"第 N 段"（见 flowStore.blankProposal），拿它当草稿名
     // 一屏全是"第 1 段"根本分不出谁是谁——这种情况改用剧情开头
+    const doneCount = nodes.filter((n) => Object.keys(n.videoByProposal).length > 0).length;
     const rawTitle = (head?.title ?? "").replace(/^第\s*\d+\s*段\s*·\s*/, "").trim();
     const autoTitle = /^第\s*\d+\s*段$/.test(rawTitle) || !rawTitle ? (head?.plot ?? "").trim().slice(0, 16) : rawTitle;
     const meta = await saveDraft({
@@ -1853,13 +1947,30 @@ export const useStudio = create<StudioState>()((set, get) => ({
           : null,
       coverFrame: coverFrame || undefined,
       segCount: nodes.length || activePath(root).length,
-      doneCount: nodes.filter((n) => Object.keys(n.videoByProposal).length > 0).length,
+      doneCount,
     });
-    if (meta) set({ workDraftId: meta.id });
+    // ★ 记账放在**写成功之后**（见 savedDoneCount 的 ★）：失败时保持上一次的已知真相不变
+    if (meta) set({ workDraftId: meta.id, savedDoneCount: doneCount });
     return meta;
   },
 
+  studioBusyReason: () => {
+    const s = get();
+    if (s.nodeGen) return "工坊里有一段正在炼视频（钱已经在花了）——换掉桌面不会把它停下，等它跑完再来";
+    if (s.proposalRegen) return "工坊里正在重推方案，等它跑完再换桌面";
+    if (s.frameRefining) return "工坊里正在改一张图，等它跑完再换桌面";
+    return null;
+  },
   openWorkDraft: (d, mode) => {
+    // ★★ 在途就别换（见 studioBusyReason 的 ★★）：桌面/流水线一旦被整表换掉，
+    //   那一炉的回包会写进一棵已经不存在的树 —— 钱花了、东西没了、还零报错。
+    const busyWhy = get().studioBusyReason();
+    if (busyWhy) {
+      get().npcSay(busyWhy);
+      set({ notice: { text: busyWhy, at: Date.now() } });
+      return false;
+    }
+    forgetCanvasAgent(); // 打开的是另一摊活，理由同 newWorkDraft
     // 工坊侧：草稿里没有节点树（纯工作流/简约模式起手的）就按流水线现搭一棵，
     // 否则「用工坊模式打开」会落到一张空桌子上——用户点的那条草稿像是丢了
     //
@@ -1870,12 +1981,36 @@ export const useStudio = create<StudioState>()((set, get) => ({
     //     · plan ——「方案台」这一版才有。按"多方案即已选定"补：那时的节点确实是选好的，
     //       缺省成 picking 会让用户打开旧草稿发现每段都要重挑一遍
     //     · requirement —— 退回当前方案的剧情，正是旧版推演时当作 requirement 用的东西
+    //     · tpl —— 钉成**这条草稿自己存下的**那份 store 级模板（`d.flow.template`）。
+    //       ★★ 2026-08-21 补：三态里的 undefined 是"退回 store 级"，而 store 级会随光标
+    //       换成当前段的快照 —— 老草稿里（尤其是 addNode 造出的段）留着的 undefined，
+    //       重开之后会在用户点回某个白模段的那一刻被兜底认成那个模板：错显示、错报价、
+    //       出片按 r2v 真扣钱。落库时的语义就是"读到 d.flow.template 那份"，
+    //       所以在这里固化下来是等价的，只是从此不再漂（见 flowStore.pinUnstatedTpl）。
+    const draftTpl = (d.flow?.template as FlowTemplate) ?? null;
     const flowNodes = ((d.flow?.nodes ?? []) as FlowNode[]).map(
       (n): FlowNode => ({
         ...n,
         aspect: n.aspect ?? "landscape",
         plan: n.plan ?? (n.proposals.length > 1 ? ("picked" as const) : undefined),
         requirement: n.requirement ?? chosenOf(n).plot,
+        tpl: n.tpl !== undefined ? n.tpl : draftTpl,
+        // ★★ **status 必须归一**（2026-08-21 第八轮扫描）：节点的 status 会原样落进草稿
+        //   （saveWorkDraft 把 f.nodes 整份交出去，drafts 那层不做净化），而顶栏那颗
+        //   「存草稿」不判 busy —— 用户在几分钟的出片过程里点一下存草稿是完全正常的动作。
+        //   于是草稿里就躺着一段 `status: "generating"`，重开后 busy 是 false 而它恒"在跑"：
+        //   canReplaceNodes / removeNode / 丢弃键 / 主按钮 / agent 四处全拒，措辞是
+        //   「等它跑完再来」，而它**永远不会跑完** —— 一条出口都不剩，且状态已落盘，
+        //   重启 App 也一样。草稿里不可能有真在跑的一炉，读出来一律当没跑。
+        //   ⚠ 「在途」不止 status 一格（第九轮扫描）：`regenning` 与 steps 里那条 running
+        //   的步骤同样会落盘。regenning 漏了的话，重开后那一套方案的换首帧/换尾帧/清帧
+        //   四颗键**永久禁着**（PlanBoard 的 canEdit 判的就是它），按钮恒印「重画中…」而
+        //   什么都没在跑，唯一解锁方式是再真跑一次重画（再花一笔 redrawCost）。
+        //   所以这里把"在途"那几格**一起**归一，别只做一格。
+        status: n.status === "generating" ? "idle" : n.status,
+        progress: n.status === "generating" ? "" : n.progress,
+        regenning: n.status === "generating" ? undefined : n.regenning,
+        steps: n.steps?.map((st) => (st.status === "running" ? { ...st, status: "error" as const } : st)),
       }),
     );
     const root = d.root ?? (flowNodes.length > 0 ? rootFromFlowNodes(flowNodes) : null);
@@ -1883,6 +2018,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
       root,
       deck: d.deck ?? [],
       workDraftId: d.id,
+      // ★ 刚从草稿读出来的这些段，按定义就是"已经存住的"——不置位的话，
+      //   打开老草稿后那道确认卡会把它们全报成"没存上，丢了要重花钱"
+      savedDoneCount: ((d.flow?.nodes ?? []) as FlowNode[]).filter(
+        (n) => Object.keys(n.videoByProposal ?? {}).length > 0,
+      ).length,
       // 视图层一律回到干净状态：草稿存的是内容，不是"上次停在哪个浮层"
       draft: null,
       focus: null,
@@ -1896,9 +2036,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
     });
     // 工作流侧
     if (d.flow && flowNodes.length > 0) {
+      const cur = Math.min(d.flow.cursor ?? 0, flowNodes.length - 1);
       useFlow.setState({
         nodes: flowNodes,
-        cursor: Math.min(d.flow.cursor ?? 0, flowNodes.length - 1),
+        cursor: cur,
+        // ★ 挂卡缓冲也要换成**这条草稿光标段自己**那份（第八轮扫描）：不换的话它还停在
+        //   上一条流水线的映射上，而「改挂卡」拿它当编辑页初值、applyCast 又整表落盘 ——
+        //   那正是这条线上反复出现的"挂法串段"。与 setCursor 里那一行同一个理由。
+        cast: flowNodes[cur]?.cast ?? {},
         mode: d.flow.mode ?? "workflow",
         origin: d.flow.origin ?? "studio",
         template: (d.flow.template as FlowTemplate) ?? null,
@@ -1908,10 +2053,16 @@ export const useStudio = create<StudioState>()((set, get) => ({
       });
     } else if (mode === "flow") {
       // 只有节点树的草稿要进工作流：按活动路径现铺一条（与点法阵同一条路）
-      get().startFlow({ force: true });
+      // ★ 铺不出来要说话（startFlow 现在会被 canReplaceNodes 整句拒）：不看返回值的话，
+      //   旧流水线原封不动留在原地，却已经被认到刚打开的这条草稿名下 —— 下一次存盘
+      //   会拿旧内容覆盖它（第十轮扫描抓到，是这一批新闸带出来的）
+      if (!get().startFlow({ force: true })) {
+        get().npcSay(useFlow.getState().err || "现在铺不了这条草稿，等在跑的那一段炼完再打开");
+      }
     } else {
       useFlow.getState().reset();
     }
+    return true;
   },
 
   notice: null,

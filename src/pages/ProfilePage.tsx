@@ -22,6 +22,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactN
 import { createPortal } from "react-dom";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
+import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import Icon, { type IconName } from "../components/Icon";
 import DeckCard from "../components/DeckCard";
@@ -1104,6 +1105,13 @@ function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onClose: () => voi
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(meta.title);
 
+  // ★★ **第七条整表换掉 nodes 的入口**（2026-08-21 第七轮扫描的 high）：openWorkDraft 是
+  //   彻头彻尾的整表覆盖（有 flow 的走 setState、没有的走 startFlow(force) 或 reset()），
+  //   而这一页此前连 flowDirty 都不问 —— 手上那条流水线里已经花钱炼出来的段当场蒸发，
+  //   零确认、零报错；简约模式更没有任何备份（它按设计不进草稿库）。
+  //   与另外六条走同一处守卫（唯一实现，见 useApplyTemplate 的 ★★）。
+  const { guard, dialog } = useApplyTemplate();
+
   async function open(mode: DraftMode) {
     setBusy("打开中…");
     const full = await loadDraft(meta.id);
@@ -1114,12 +1122,32 @@ function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onClose: () => voi
       setTimeout(onClose, 1600);
       return;
     }
-    useStudio.getState().openWorkDraft(full, mode);
-    navigate(mode === "studio" ? "/studio" : "/flow");
+    // ★ 守卫可能**推迟**执行（脏流水线时先摆确认卡）：那一路要把「打开中…」复位，
+    //   否则用户点了「取消」之后两颗模式键恒禁、下面还写着"打开中…"，而什么都没在跑
+    //   （第九轮扫描抓到，是这一批新守卫引入的）。
+    setBusy("");
+    guard(
+      () => {
+        setBusy("打开中…");
+        // ★ 工坊里有一炉在跑时会被整句拒（studioBusyReason）：不看返回值的话，
+        //   照旧跳页，而桌面还是上一摊活 —— 用户以为草稿打不开（第十一轮抓到）
+        if (!useStudio.getState().openWorkDraft(full, mode)) {
+          setBusy(useStudio.getState().studioBusyReason() ?? "现在打不开这条草稿");
+          setTimeout(() => setBusy(""), 3200);
+          return false;
+        }
+        navigate(mode === "studio" ? "/studio" : "/flow");
+        return true;
+      },
+      // ★ claim：这一下是**认领**这条草稿（openWorkDraft 自己会把 workDraftId 指过去），
+      //   不是覆盖式套用 —— 断开的话下次自动存盘会另存一条重复的，见 commit 的 ★★
+      { claim: true, label: "打开这条草稿（丢弃上面那条流水线）", noun: "打开草稿" },
+    );
   }
 
   return (
     <Sheet onClose={onClose}>
+      {dialog}
       {renaming ? (
         <div className="flex gap-2">
           <input

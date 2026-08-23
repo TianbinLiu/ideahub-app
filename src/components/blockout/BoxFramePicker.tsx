@@ -27,9 +27,25 @@
 //   服务端退回几何自动铺。而界面上还写着「已标 5/5」，全程一个字都没说，且这一步是付费的。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BLOCKOUT_BOX_TRIES } from "../../data/economy";
+import { SPLIT_MAX_PARTS } from "../../data/templates";
 import type { BlockoutSelection } from "./arkVideoRules";
 
 export type BoxFrameMode = "auto" | "manual";
+
+/**
+ * 这块标记界面在标什么 —— 两种形态，交互一模一样（拖播放头 → 标这一帧），语义完全不同：
+ *   · `"analyze"`（默认）= 「认人量框看哪几帧」：标的是**给 AI 看的代表帧**（人最齐的那种），
+ *     上限 BLOCKOUT_BOX_TRIES（服务端依次试、一帧一发 chat）；有 自动/自己挑 两档。
+ *   · `"split"` = 「长视频在哪几帧切段」：标的是**切段点**（场景切换/人数变化的镜头边界），
+ *     上限 SPLIT_MAX_PARTS-1 刀（服务端 zod 的跨仓契约）；**没有模式档** —— 不标就自动
+ *     对半、标了不够还会自动补刀，这两件事都在 planSplits 一处做，界面上没有"自动 vs 手动"
+ *     的岔路可选。
+ * ★★ 为什么是同一个组件的两种形态、而不是抄一份新组件：播放头归零那三条 ★★（后台切页、
+ *   ref 回调时序、换 src）是拿真故障换来的，抄出去就是两份各自漂的实现。
+ * ★ 两种形态**别共用同一份 marks 状态**（调用方的责任）：同一批秒数换个形态就换了含义
+ *   （代表帧 ≠ 切段点），静默继承等于替用户改了主意。提取器里是两个独立的 state。
+ */
+export type BoxFrameKind = "analyze" | "split";
 
 /** 标记要落进的那一段（`src` 是整条原片时才有）。形状借 `BlockoutSelection` 的两项 ——
  *  不另起一个 interface：两个形状会各自漂。 */
@@ -85,6 +101,8 @@ export function boxMarkInSelection(atSecAbs: number, clip?: BoxFrameClip | null)
 }
 
 export interface BoxFramePickerProps {
+  /** 形态（默认 "analyze"）。"split" 时 mode/onModeChange 不参与渲染（没有模式档可选） */
+  kind?: BoxFrameKind;
   mode: BoxFrameMode;
   onModeChange: (m: BoxFrameMode) => void;
   /** 要分析的那段视频（本机 objectURL 或公网地址都行——只用来给人看和取时间） */
@@ -104,6 +122,7 @@ export interface BoxFramePickerProps {
 }
 
 export default function BoxFramePicker({
+  kind = "analyze",
   mode,
   onModeChange,
   src,
@@ -152,9 +171,11 @@ export default function BoxFramePicker({
   }, [src]);
 
   const here = quantBoxSec(at);
+  /** 上限按形态走：认人帧是"服务端依次试"的预算，切段刀是 zod 的跨仓契约（12 段 = 11 刀） */
+  const cap = kind === "split" ? SPLIT_MAX_PARTS - 1 : BLOCKOUT_BOX_TRIES;
   /** ★ 计数、门禁、红字、提交值全从这一处来（见 boxMarksInSelection 的 ★★） */
   const { inside, outside } = boxMarksInSelection(marks, sel);
-  const full = inside.length >= BLOCKOUT_BOX_TRIES;
+  const full = inside.length >= cap;
   // ★ 判重看**整份 marks**（不是 inside）：同一秒标两次会在 marks 里留两条一模一样的记录
   const already = marks.some((m) => m === here);
   /** 播放头当下这一帧落在选段外（不传 sel 时恒 false —— 那时整条 src 都作数） */
@@ -170,7 +191,9 @@ export default function BoxFramePicker({
       : hereOutside && sel
         ? `现在这一帧（原片第 ${here.toFixed(1)} 秒）在选段外面——选段是原片的第 ${sel.startSec}~${sel.startSec + sel.durSec} 秒，只有那一段会被做成模板。把播放头挪进选段再标，或者先把上面的选段拖到这儿来。`
         : full
-          ? `已经标满 ${BLOCKOUT_BOX_TRIES} 帧了——再多也用不上（服务端依次试、第一个成的就停）。先删一帧再标。`
+          ? kind === "split"
+            ? `已经标满 ${cap} 刀了——一次分段登记最多切 ${SPLIT_MAX_PARTS} 段（超过 30 秒的段还会自动补刀，不用标太密）。先删一刀再标。`
+            : `已经标满 ${cap} 帧了——再多也用不上（服务端依次试、第一个成的就停）。先删一帧再标。`
           : already
             ? "这一秒已经标过了。把播放头挪到别处再标。"
             : null;
@@ -190,26 +213,41 @@ export default function BoxFramePicker({
 
   return (
     <div className="space-y-2 rounded-lg border border-slate-700 bg-panel/60 px-3 py-2.5">
-      <p className="text-[11px] font-bold text-slate-200">AI 分析哪几帧</p>
+      <p className="text-[11px] font-bold text-slate-200">{kind === "split" ? "在哪几帧切开" : "AI 分析哪几帧"}</p>
 
-      <div className="flex gap-2">
-        {tab("auto", "自动（推荐）")}
-        {tab("manual", "自己挑")}
-      </div>
+      {/* split 形态没有模式档：不标 = 自动对半、标了不够 = 自动补刀，都在 planSplits 一处，
+          界面上摆一对"自动/手动"页签只会暗示存在两条不同的路 */}
+      {kind === "analyze" && (
+        <div className="flex gap-2">
+          {tab("auto", "自动（推荐）")}
+          {tab("manual", "自己挑")}
+        </div>
+      )}
 
-      {mode === "auto" ? (
+      {kind === "analyze" && mode === "auto" ? (
         <p className="text-[11px] leading-relaxed text-slate-400">
           由 AI 自己挑：先看正中间那一帧，认不全再往两头铺，最多试 {BLOCKOUT_BOX_TRIES} 帧。
           <b className="text-slate-300">一镜到底、人站着不动的素材用这个就够。</b>
         </p>
       ) : (
         <>
-          {/* ★ 这句话是"什么时候该用自己挑"的判据，不是装饰：分镜一换，画面里的人和
-              他们的左右次序都会变，而 AI 按几何位置铺帧，不知道分镜在哪 */}
-          <p className="text-[11px] leading-relaxed text-slate-400">
-            <b className="text-slate-200">素材有分镜切换、或者人会进出画面时用这个</b>：拖到一帧
-            <b className="text-slate-200">人最齐、最能代表这一段</b>的画面，标下来。标了几帧就按你标的顺序依次试。
-          </p>
+          {kind === "split" ? (
+            /* ★ 切段刀的判据也要说清：切在镜头边界上，逐段认人才不会把两个镜头的人数混在
+                一帧里数（认人是每段各来一次的）。"不标也行"必须说 —— 不说的话用户会以为
+                这一步是必填的，对着一条一镜到底的素材硬找切点 */
+            <p className="text-[11px] leading-relaxed text-slate-400">
+              <b className="text-slate-200">标在场景切换、人数变化的那一帧</b>：每段是独立模板、各认一次人，
+              切在镜头边界上每段都认得更准。<b className="text-slate-200">不标也行</b>——会自动对半切到每段 ≤30
+              秒；标了之后还超 30 秒的段也会自动补刀。切出来不足 4 秒的刀落不下去，会整句告诉你。
+            </p>
+          ) : (
+            /* ★ 这句话是"什么时候该用自己挑"的判据，不是装饰：分镜一换，画面里的人和
+                他们的左右次序都会变，而 AI 按几何位置铺帧，不知道分镜在哪 */
+            <p className="text-[11px] leading-relaxed text-slate-400">
+              <b className="text-slate-200">素材有分镜切换、或者人会进出画面时用这个</b>：拖到一帧
+              <b className="text-slate-200">人最齐、最能代表这一段</b>的画面，标下来。标了几帧就按你标的顺序依次试。
+            </p>
+          )}
 
           {/* ★★ 播放器里是**整条原片**，而做成模板的只有选段 —— 这件事必须在拖滑杆之前说。
               不说的话用户会在中后段标一串帧，读数写着「已标 5/5」，实际一帧都没发出去
@@ -263,27 +301,35 @@ export default function BoxFramePicker({
               disabled={disabled || !!block}
               className="flex-1 rounded-xl border border-sky-500/60 bg-sky-500/10 py-2 text-xs font-bold text-sky-200 disabled:opacity-40"
             >
-              ＋ 标记这一帧
+              {kind === "split" ? "＋ 在这里切一刀" : "＋ 标记这一帧"}
             </button>
             {/* ★ 数的是**选段内**那些（不传 sel 时二者相同）：数总数的话，用户顶着
                 「已标 5/5」而实际只发出去 1 帧 —— 门禁同理，它挡的也是选段内那些。 */}
             <span className="flex-none text-[11px] tabular-nums text-slate-400">
-              已标 {inside.length}/{BLOCKOUT_BOX_TRIES}
+              已标 {inside.length}/{cap}
+              {kind === "split" ? " 刀" : ""}
             </span>
           </div>
 
           {block && <p className="text-[10px] leading-relaxed text-amber-300">{block}</p>}
 
           {marks.length === 0 ? (
-            // ★ 2026-08-17 改口：原话是「一帧都没标的话会退回『自动』那条 —— 不会失败，
-            //   只是等于没挑」。那句话在提取器那条路上要变成假的（manual 却一帧有效标记
-            //   都没有 → makeOwnRefTemplate 响亮拒绝，与 blockoutizeTemplate 同源），
-            //   而在「识别角色位」重试那条路上仍然成立。两个调用点唯一都为真的说法只有
-            //   "至少标 1 帧才作数"，所以只说这一句 —— 别在这里替某一条路许诺后果。
-            <p className="text-[10px] leading-relaxed text-slate-500">
-              还没标任何一帧。「自己挑」至少要标 1 帧才作数——把播放头拖到人最齐的那一帧点「标记这一帧」，
-              或者切回「自动」。
-            </p>
+            kind === "split" ? (
+              // split 形态下"没标"不是缺口而是一条完整的路（自动对半），话按这个说
+              <p className="text-[10px] leading-relaxed text-slate-500">
+                还没标刀——不标就自动对半切到每段 ≤30 秒。想自己定切点，把播放头拖到镜头切换那一帧点「在这里切一刀」。
+              </p>
+            ) : (
+              // ★ 2026-08-17 改口：原话是「一帧都没标的话会退回『自动』那条 —— 不会失败，
+              //   只是等于没挑」。那句话在提取器那条路上要变成假的（manual 却一帧有效标记
+              //   都没有 → makeOwnRefTemplate 响亮拒绝，与 blockoutizeTemplate 同源），
+              //   而在「识别角色位」重试那条路上仍然成立。两个调用点唯一都为真的说法只有
+              //   "至少标 1 帧才作数"，所以只说这一句 —— 别在这里替某一条路许诺后果。
+              <p className="text-[10px] leading-relaxed text-slate-500">
+                还没标任何一帧。「自己挑」至少要标 1 帧才作数——把播放头拖到人最齐的那一帧点「标记这一帧」，
+                或者切回「自动」。
+              </p>
+            )
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {/* ★ 秒数一律按**原片**报（与上面的滑杆、下面那句红字同一条时间轴）：

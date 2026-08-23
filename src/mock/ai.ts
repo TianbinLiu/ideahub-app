@@ -332,6 +332,14 @@ const CHAT_POOL = [
   "我听着。",
 ];
 
+/** 画布指挥的离线档：**不装大模型**，回空串。canvasAgent 收到空/坏回复就退到
+ *  本地直白句式解析（localParse，一处实现）——真实构建余额不足时走的也是那条路，
+ *  所以它不是只有开发看得到的死代码。 */
+export async function canvasAgentChat(_system: string, _user: string): Promise<string> {
+  await delay(200);
+  return "";
+}
+
 export async function npcChat(ctx: NpcChatContext): Promise<{ text: string; tokens: number }> {
   await delay(300); // 一点点延迟，否则"秒回"反而像假的
   for (const [re, lines] of CHAT_RULES) {

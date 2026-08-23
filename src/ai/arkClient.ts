@@ -336,7 +336,16 @@ export function ratioFor(model: string, mode: "frames" | "reference", want = "16
  * 三个字段是**同一条实测结论（edit 全时长复刻）的三个面**：改任何一个都等于换了路线，
  * 必须回 A2 重测再动 —— 所以钉成一个常量，让"只改一个"在代码形状上就别扭。
  */
-const BLOCKOUT_TASK = { omni_reference_task_type: "edit", duration: -1, ratio: "adaptive" } as const;
+// ★★ generate_audio 显式 **false**（2026-08-21 真机实拍换来的）：2.5 不传这个参数的
+//   缺省行为是**出声**，而 edit 模式会连参考视频的音频一起复刻 —— 参考视频带版权歌曲
+//   （《What a Day》白模）时，方舟在输出端直接整发拒掉：
+//   `OutputAudioSensitiveContentDetected.PolicyViolation`（受理后失败，钱不退）。
+//   之前的模板都没音轨，模型自造环境音撞不上版权检测，这颗雷一直没响。
+//   关掉零损失：白模成片的音轨本来就由合并页回填原片音频（CutPage 的「原视频音轨」预置），
+//   模型生成的那份从来没人要。代价是无音轨模板的成片少了 AI 环境音 —— 与"带歌模板
+//   整发被拒、钱不退"相比不值一提。server 的 resolveR2v 收显式 false（它钉的是
+//   「与档位能力一致」，false 恒在允许集里）。
+const BLOCKOUT_TASK = { omni_reference_task_type: "edit", duration: -1, ratio: "adaptive", generate_audio: false } as const;
 
 /**
  * 一个方舟异步任务的状态（视频 / 3D / r2v 共用一个 tasks 端点）。

@@ -39,7 +39,20 @@ async function postForm(
   const fd = new FormData();
   fd.append(field, blob, filename);
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  // ★★ 「是不是我们自己掐的」用**一面自己举的旗子**，不嗅探错误形状（2026-08-22 真机撞到）：
+  //   原来判的是 `e instanceof DOMException && e.name === "AbortError"`，而 Android WebView
+  //   在**上传中途**被 abort 时给的往往是 `TypeError: Failed to fetch` —— 于是自己的超时
+  //   被报成「网络不可用」，而这两句话该让人往完全不同的方向查。
+  //   ⚠ 这面旗子**不是**为 47MB 那次事故加的（那次真因是 CF 的 125 秒读超时，见下面
+  //     ★★★，600 秒这道闸根本没轮到响）—— 我一度按时间巧合把它判成"自己掐的"，
+  //     又判错了一次。留着它是因为**判据本身不该建立在错误对象的形状上**：
+  //     同一个 abort，Chromium 在不同阶段给 DOMException 还是 TypeError 并不保证。
+  //   ⚠ 旗子要在 `abort()` **之前**举 —— 回调是同步执行的，顺序反了就永远读到 false。
+  let selfAborted = false;
+  const timer = setTimeout(() => {
+    selfAborted = true;
+    ctrl.abort();
+  }, timeoutMs);
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
@@ -51,8 +64,35 @@ async function postForm(
       signal: ctrl.signal,
     });
   } catch (e) {
-    const aborted = e instanceof DOMException && e.name === "AbortError";
-    throw new ApiError(aborted ? "上传超时" : "上传失败（网络不可用）", 0, aborted ? "TIMEOUT" : "NETWORK");
+    // 旗子优先；`AbortError` 只作补充（别处调 ctrl.abort() 时仍认得出来）
+    const aborted = selfAborted || (e instanceof DOMException && e.name === "AbortError");
+    // ★★ 把**这份文件多大**写进话里（2026-08-21 真机撞到）：47MB 那一发跑到 100 秒
+    //   上下直接 reject，屏幕上只有"网络不可用"五个字 —— 而同一台设备、同一条 WiFi、
+    //   同一分钟内 11.6MB 传得上去。
+    //   ★★★ 真因已查实（2026-08-22，nginx `$request_time` 实证）：**Cloudflare 的
+    //     Proxy Read Timeout = 125 秒**。三发连续复现，`rt=125.006 / 125.005 / 125.006`，
+    //     精确到毫秒一致；`len` 只有 18~23MB（body 根本没传完）、`urt=-`（nginx 还在读
+    //     body，压根没转发给 Node）。机理：nginx 默认 `proxy_request_buffering on`，
+    //     **要把整个 body 收完才回包** ⇒ 整个上传期间 CF 看到的是"源站零响应" ⇒ 125 秒
+    //     到点掐断。⇒ **这条路真正的天花板不是 100MB，是「125 秒内能推上去多少」**
+    //     （实测那台手机 5G 上行 0.126MB/s ⇒ 约 15MB；WiFi 0.69MB/s ⇒ 约 86MB）。
+    //     ⚠ 别再拿"路由不存在"的路径做探针：`/api/health` 收 POST 时 Express 立刻回 404、
+    //     不等 body，CF 的读超时永远不触发 —— 我就是被这个无效对照骗过一次。
+    //     ⚠ 也别升 CF 套餐：这个值**只有 Enterprise 能调**，Pro/Business 一样是 125 秒。
+    //   fetch 对这两种情况给的都是一个 TypeError（`res.ok` 那条路根本走不到，状态码
+    //   无从谈起），所以客户端**判不出来**。⇒ 不断言原因、不写死阈值，只把用户唯一
+    //   能拿来判断的那个数给他，并给一条出路（铁律八：说清楚 + 给活路）。
+    const mb = `${(blob.size / 1024 / 1024).toFixed(1)}MB`;
+    throw new ApiError(
+      aborted
+        ? `上传超时：这份 ${mb} 在 ${Math.round(timeoutMs / 1000)} 秒内没传完。不是断网——` +
+          `是这条网推不完这么大的文件（手机上行常见只有 1Mbps 上下，47MB 就要六分钟）。` +
+          `换个更快的网络，或者先把视频压小再传。`
+        : `上传失败（网络不可用）：这份 ${mb} 没能推上去。断网、慢网、或者传太久被中途掐断，都会是这一句；` +
+          `传得越久越容易被掐 —— 先把视频压小一点再传，多半就过了。`,
+      0,
+      aborted ? "TIMEOUT" : "NETWORK",
+    );
   } finally {
     clearTimeout(timer);
   }
@@ -216,13 +256,6 @@ export interface TemplateVideoReceipt {
 }
 
 /**
- * POST /api/uploads/template-video（requireAuth，服务端限流 3 次/分 + 10 次/天）。
- *
- * ★ 回包按**形状**验收，不信状态码（Capacitor SPA 回退恒 200 + HTML；老服务端回
- *   JSON 404 会在 postForm 里抛）。缺登记元数据 = 这份回执当不了 r2v 结算锚点，
- *   必须整句响亮拒绝——静默放行就是"存了个报不出价的模板"。
- */
-/**
  * 把已上传的素材**裁出框选那一段**（不够清晰时服务端顺带放大），落成一个新素材。
  *
  * ★★ 只交**四组整数**，变换 URL 由服务端自己拼（`buildClipUrl`，唯一实现）——
@@ -256,11 +289,269 @@ export async function deriveTemplateVideo(
   return { url, publicId: newId, durationSec, width, height, bytes: Number(data?.bytes) || 0 };
 }
 
-export async function uploadTemplateVideo(file: File): Promise<TemplateVideoReceipt> {
-  // ★ 600s 不是 /media 那个 180s：上限从 20MB 提到 100MB 之后，慢网上光是把字节推上去
-  //   就可能要几分钟。超时早于服务端收完 = 用户看到"上传超时"、Cloudinary 上却留下一份
-  //   谁都不知道的孤儿（回执没回来 ⇒ 本机没有 publicId ⇒ 连回收都发不出去）。
-  const data = await postForm("/api/uploads/template-video", "video", file, file.name || "template.mp4", 600_000);
+/**
+ * 「这一发直传的票」—— 服务端签好、客户端**原样转发**的那一份。
+ * ★ `params` 里有什么由服务端说了算（签名与要发的字段是同一个对象）：客户端自己拼、
+ *   自己增删任何一项，Cloudinary 都只回一句 Invalid Signature，而那是最难查的一类错。
+ */
+interface DirectTicket {
+  uploadUrl: string;
+  publicId: string;
+  params: Record<string, string | number | boolean>;
+  chunkBytes: number;
+  maxSizeBytes: number;
+}
+
+/**
+ * 问服务端要一张直传票。
+ * @returns null = **这台服务器还不支持直传**（老服务端）→ 调用方退回老路。
+ *
+ * ★ 判「支不支持」看**回包形状**不看状态码（CLAUDE.md 那条坑：Capacitor 的本地静态
+ *   服务器对未命中路径回 200 + index.html）。这里两头都挡：抛错（真 404）与形状不对
+ *   （HTML/老服务端）都当"不支持"，而**别的**错（401、限流 429）必须原样抛出去 ——
+ *   把"你被限流了"吞成"退回老路"，用户会在老路上再撞一次 125 秒的墙。
+ */
+async function directTicket(): Promise<DirectTicket | null> {
+  let data: Record<string, unknown>;
+  try {
+    data = await apiPost<Record<string, unknown>>("/api/uploads/template-video/sign", {});
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null; // 老服务端
+    throw e;
+  }
+  const uploadUrl = String(data?.uploadUrl ?? "");
+  const publicId = String(data?.publicId ?? "");
+  const params = data?.params;
+  const chunkBytes = Number(data?.chunkBytes);
+  if (!uploadUrl.startsWith("https://") || !publicId || !params || typeof params !== "object") return null;
+  // ★ 必须是**整数**：Content-Range 里的 `end = start + len - 1` 带上小数就是一个
+  //   服务端读不懂的范围（`bytes 0-5999999.5/…`），而这是一次坏的服务端改动就能造成的。
+  if (!Number.isInteger(chunkBytes) || chunkBytes <= 0) return null;
+  return {
+    uploadUrl,
+    publicId,
+    params: params as Record<string, string | number | boolean>,
+    chunkBytes,
+    maxSizeBytes: Number(data?.maxSizeBytes) || 0,
+  };
+}
+
+/** 传输层失败（断线/超时）标成可重试；被存储明确拒绝的不标 —— 见 putChunk 的 ★ */
+function chunkError(message: string, retriable: boolean): Error & { retriable?: boolean } {
+  return Object.assign(new Error(message), { retriable });
+}
+
+/** 一块的超时。★ 按**最慢的网**给：6MB 在 0.05MB/s 上要 120 秒，留一倍余量。
+ *  分块最大的好处就在这儿 —— 超时是"每块"的，不再是"整发一个 600 秒"，
+ *  47MB 在慢网上要走十分钟也不会有哪一次请求跑到那么久。 */
+const CHUNK_TIMEOUT_MS = 240_000;
+
+/**
+ * 把一块推给 Cloudinary。用 XHR 不用 fetch —— **fetch 拿不到上传进度**，
+ * 而这条路上用户要盯着看好几分钟，没有进度条就只能猜"是不是卡死了"。
+ * @returns 末块回完整资产（含 secure_url），中间块回 `{done:false}`
+ */
+function putChunk(
+  t: DirectTicket,
+  blob: Blob,
+  /** null = **整份一次发完**（不分块）。★ 官方 SDK 也是这么分的（upload vs upload_large）：
+   *  一块就装得下时走普通上传，不去依赖"单块 Content-Range"那条我们没实测过的语义。 */
+  range: { start: number; end: number; total: number } | null,
+  uploadId: string,
+  onBytes: (sentInThisChunk: number) => void,
+  signal?: AbortSignal,
+): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const fd = new FormData();
+    fd.append("file", blob);
+    // ★ 原样转发服务端给的每一项，一个不多一个不少（见 DirectTicket 的 ★）
+    for (const [k, v] of Object.entries(t.params)) fd.append(k, String(v));
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", t.uploadUrl);
+    // ★★ 同一次上传的每一块必须带**同一个** X-Unique-Upload-Id，Cloudinary 靠它把
+    //   多块归成一次上传；而 Content-Range 的 end 是**闭区间**的最后一个字节下标
+    //   （写成 start+len 会得到 "Chunk size doesn't match upload size"）。
+    if (range) {
+      xhr.setRequestHeader("X-Unique-Upload-Id", uploadId);
+      xhr.setRequestHeader("Content-Range", `bytes ${range.start}-${range.end}/${range.total}`);
+    }
+    xhr.timeout = CHUNK_TIMEOUT_MS;
+    xhr.upload.onprogress = (ev) => onBytes(ev.loaded);
+    xhr.onload = () => {
+      let body: Record<string, unknown> = {};
+      try {
+        body = JSON.parse(xhr.responseText) as Record<string, unknown>;
+      } catch {
+        /* 非 JSON：下面按状态码与形状报错 */
+      }
+      if (xhr.status >= 200 && xhr.status < 300) return resolve(body);
+      // Cloudinary 的错误体是 { error: { message } }，把它原样带出来 —— 自己编一句
+      // 会把 "Invalid Signature" 这种一眼定位的信息盖掉
+      const msg = String((body?.error as { message?: string } | undefined)?.message || `HTTP ${xhr.status}`);
+      // ★ 被存储明确拒绝（签名不对、格式不许、范围对不上）**不重试** —— 再发一遍
+      //   只会得到同一句话，而每一次都是一整块的流量。
+      reject(chunkError(`视频存储拒绝了这一段：${msg}`, false));
+    };
+    xhr.onerror = () => reject(chunkError("上传中断了（网络不可用）", true));
+    xhr.ontimeout = () =>
+      reject(chunkError("这一小段传了 4 分钟还没完成——网络太慢或不稳，换个网络再试", true));
+    // ★★ 关窗要真的把它停下来：不 abort 的话 XHR 会**在组件卸载之后继续跑**，
+    //   最后在 Cloudinary 上落一份**没有任何人认得**的资产（本机没有 receipt ⇒
+    //   dropReceipt 够不着它），配额只增不减、零症状。中途 abort 留下的是一次
+    //   未完成的分块上传，Cloudinary 自己会清掉，比落一份完整孤儿好得多。
+    if (signal) {
+      if (signal.aborted) return reject(new DOMException("已取消", "AbortError"));
+      signal.addEventListener("abort", () => xhr.abort(), { once: true });
+      xhr.onabort = () => reject(new DOMException("已取消", "AbortError"));
+    }
+    xhr.send(fd);
+  });
+}
+
+/**
+ * 末块回来之后确认**资产真的成形了**。
+ * ★ 只有末块的响应里才有 `secure_url`（中间块是 `{done:false}`）。不在这里断言的话，
+ *   一旦协议或分块算术出了岔，症状会推迟到下一步 —— 用户看到的是 confirm 那句
+ *   「没在服务器上找到这段视频」，而真正出问题的是上一步，排查方向整个错。
+ */
+function assertDone(res: Record<string, unknown>): void {
+  if (typeof res?.secure_url !== "string" || !res.secure_url) {
+    throw new Error("最后一段传完了，但视频存储没有把这段视频组装出来——请重新选一次文件再传。");
+  }
+}
+
+/** 同一块最多再试两次（首发 + 2）。间隔给短一点：这条路上用户已经在等了。 */
+async function withChunkRetry<T>(signal: AbortSignal | undefined, run: () => Promise<T>): Promise<T> {
+  const waits = [0, 2_000, 6_000];
+  let last: unknown;
+  for (const wait of waits) {
+    if (wait) {
+      if (signal?.aborted) break;
+      await new Promise((r) => setTimeout(r, wait));
+    }
+    try {
+      return await run();
+    } catch (e) {
+      last = e;
+      // 用户主动取消、或存储明确拒绝 —— 都不该再试
+      if (e instanceof DOMException && e.name === "AbortError") throw e;
+      if (!(e as { retriable?: boolean })?.retriable) throw e;
+    }
+  }
+  throw last;
+}
+
+/** 直传：串行推完每一块。★ 串行不并发 —— 官方 SDK 也是串行，乱序/并发官方没有承诺过。 */
+async function putDirect(
+  t: DirectTicket,
+  file: File,
+  onProgress?: (frac: number) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  // ★ 每次上传一个新的分组 id。crypto.randomUUID 在 Android WebView 上要 https 语境，
+  //   Capacitor 的 https://localhost 满足；退路用随机数拼，别让它抛。
+  const uploadId =
+    typeof crypto?.randomUUID === "function"
+      ? crypto.randomUUID().replace(/-/g, "")
+      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+  const total = file.size;
+  // ★ 公共 API 自己也拦一下 0 字节：目前调用方那边有预检挡着，但这条不该依赖别人
+  if (!Number.isFinite(total) || total <= 0) throw new Error("这个文件是空的，选一段真正的视频再传。");
+  // 一块就装得下 → 普通上传（见 putChunk 的 range 参数注释）
+  if (total <= t.chunkBytes) {
+    assertDone(await putChunk(t, file, null, uploadId, (sent) => onProgress?.(Math.min(1, sent / total)), signal));
+    onProgress?.(1);
+    return;
+  }
+  let start = 0;
+  let doneBytes = 0;
+  while (start < total) {
+    const end = Math.min(start + t.chunkBytes, total); // 右开
+    const blob = file.slice(start, end);
+    // ★★ **同一块原地重试**（2026-08-22 实测确认是幂等的：把第 1 块原样重发一次，
+    //   回的还是 `{done:false, bytes:6000000}`，字节数没有重复累加，后续块与末块组装
+    //   照常）。这正是选 6MB 一块的全部理由 —— 没有这段的话，47MB 传到第 6 块碰上一次
+    //   进电梯，前面 30MB 全部作废、还要再烧一格 sign 的日额度（3/分 + 10/天，与
+    //   /derive 共用），而"断了只重传一块"这句承诺在两个仓的注释里都写着。
+    // ★ 只重传输层失败；被存储明确拒绝的不重试（见 chunkError）。
+    // eslint-disable-next-line no-await-in-loop -- 串行是刻意的，见上面的 ★
+    const out = await withChunkRetry(signal, () =>
+      putChunk(
+        t,
+        blob,
+        { start, end: end - 1, total },
+        uploadId,
+        (sent) => onProgress?.(Math.min(1, (doneBytes + sent) / total)),
+        signal,
+      ),
+    );
+    if (end >= total) assertDone(out); // 末块
+    doneBytes = end;
+    onProgress?.(Math.min(1, doneBytes / total));
+    start = end;
+  }
+}
+
+/**
+ * 直传完成后的服务端验收。★ 回执**只认服务端这一份** —— 客户端能直接和 Cloudinary
+ * 对话，它手上那份回执完全可以伪造，而时长正是 r2v 的计价输入。
+ *
+ * ★★ 这一步**要重试**，理由与别处的"失败就报错"不同：字节已经全部推上去了（慢网上
+ *   那是好几分钟），而 confirm 只是一个几百字节的请求。让一次网络抖动把几分钟的成果
+ *   整个作废、还在 Cloudinary 上留下一份没人回收的孤儿，是明显不成比例的。
+ * ★ 只重试**网络类**失败（NETWORK/TIMEOUT）。4xx 是服务端的定论（格式不对、时长不够、
+ *   归属不符），它那边**已经 destroy 过了**，重试只会得到同一句话 —— 而且第二次会变成
+ *   404「没找到这段视频」，把真正的原因盖掉。
+ */
+async function confirmDirect(publicId: string): Promise<TemplateVideoReceipt> {
+  const waits = [0, 1_500, 4_000];
+  let last: unknown;
+  for (const wait of waits) {
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    try {
+      return receiptOf(await apiPost<Record<string, unknown>>("/api/uploads/template-video/confirm", { publicId }));
+    } catch (e) {
+      last = e;
+      const st = e instanceof ApiError ? e.status : -1;
+      // ★ 404 也重试：**滚动部署期间**新客户端可能打在还没换的旧 worker 上（那台没有
+      //   这条路由，回的是 `Route not found`），下一次可能就落到新 worker 上了。
+      //   资源真的不存在时重试只多两个几百字节的请求，然后照样抛出去。
+      const retriable = e instanceof ApiError && (e.code === "NETWORK" || e.code === "TIMEOUT" || st === 404);
+      if (!retriable) break;
+    }
+  }
+  // ★★ 兜底回收：那份已经传上去的资产**没有任何人还认得它**（本机没有 receipt ⇒
+  //   关窗时的 dropReceipt 够不着它），不回收就是一份 100MB 级的永久孤儿。
+  //   ★ 只有 **400** 不回收 —— 那是服务端就这份资产**做过决定**的唯一状态：
+  //     验收不过它已经 destroy 过了；被别的模板引用则是**有意保留**，客户端再去删
+  //     正是刚补上的那道防线要挡的事。其余（网络、超时、404、429、502）一律兜底删
+  //     （destroy 幂等，资源本来就不存在时回 "not found"，一样算成功）。
+  const finalStatus = last instanceof ApiError ? last.status : -1;
+  if (finalStatus !== 400) {
+    void deleteTemplateVideo(publicId).catch((e) =>
+      console.error("[uploads] 直传后验收失败、兜底回收也失败（将留作孤儿）：", e),
+    );
+  }
+  if (last instanceof ApiError && finalStatus === 400) throw last; // 服务端的定论，原样转达
+  throw new ApiError(
+    `视频已经传上去了，但服务器没能确认（${last instanceof Error ? last.message : "网络不可用"}）。` +
+      // ★ 不说"已经作废、不会留在服务器上"：兜底回收是 fire-and-forget，而走到这里的
+      //   前提往往正是那台服务器连不上 —— 在最可能为假的那一刻把话说满，是另一种骗人。
+      `我们会尽量把它回收掉。网络恢复后请重新选一次文件再传。`,
+    0,
+    "NETWORK",
+  );
+}
+
+/**
+ * 回包 → 回执。两条路（老路的一次性上传、新路的 confirm）**共用这一份**验收：
+ * 分叉的话就会出现"一条路进得来、另一条进不来"，而且两边各自看着都没错。
+ *
+ * ★ 按**形状**验收，不信状态码（Capacitor 的本地静态服务器对未命中路径回 200 + HTML）。
+ *   缺登记元数据 = 这份回执当不了 r2v 的结算锚点，必须整句响亮拒绝 —— 静默放行就是
+ *   "存了个报不出价的模板"。
+ */
+function receiptOf(data: Record<string, unknown>): TemplateVideoReceipt {
   const url = data.url;
   const publicId = data.publicId;
   const durationSec = Number(data.duration);
@@ -285,6 +576,56 @@ export async function uploadTemplateVideo(file: File): Promise<TemplateVideoRece
 }
 
 /**
+ * 上传一段视频当白模模板的**原始素材**。
+ *
+ * ★★★ 默认走**客户端签名直传 Cloudinary + 分块**，字节根本不经过我们的服务器与
+ *   Cloudflare。为什么必须这样（2026-08-22 实证，别把它改回去）：
+ *     · **Cloudflare 的 Proxy Read Timeout = 125 秒**，而 nginx 默认要把整个 body
+ *       收完才回包 ⇒ 整段上传期间 CF 看到的是"源站零响应" ⇒ 125 秒一到就掐断。
+ *       三发连续复现，`rt=125.006 / 125.005 / 125.006` 精确到毫秒一致。
+ *     · 于是老路的真实上限**不是那个 100MB，是「125 秒内能推上去多少」**：
+ *       实测手机 5G 上行 0.126MB/s ⇒ 约 15MB。而服务端还要同步等 Cloudinary
+ *       吃完才回包（11.6MB 那发就占了约 79 秒），可用体积还要再打折。
+ *     · 这个 125 秒**只有 Enterprise 套餐能调**，升 Pro/Business 一样是 125 秒。
+ *   直传之后每一次 HTTP 请求都只是一小块（6MB 量级），跟 125 秒完全不沾边。
+ *
+ * ★ 老路**保留**并作为退路：新版 App 打到老服务端（`/sign` 回 404）时仍然能传
+ *   ——只是仍然受 125 秒那道墙约束。判"支不支持"看回包形状不看状态码。
+ * ★ 安全面全部落在服务端：public_id 由服务端生成并签死、`overwrite:false` 进签名、
+ *   元数据以 confirm 里 Admin API 取回的那份为准。客户端这边**没有**任何一处值得信任。
+ *
+ * @param onProgress 0~1。直传才有真进度（XHR 的 upload.onprogress）；老路只有起止两点。
+ */
+export async function uploadTemplateVideo(
+  file: File,
+  onProgress?: (frac: number) => void,
+  /** 关窗/卸载时传进来，真的把在途的那一块停下（见 putChunk 的 ★★） */
+  signal?: AbortSignal,
+): Promise<TemplateVideoReceipt> {
+  const ticket = await directTicket();
+  if (ticket) {
+    // ★ 提前量：服务端 confirm 那一步还会按真实字节再判一次（客户端这份只是省用户时间）
+    if (ticket.maxSizeBytes > 0 && file.size > ticket.maxSizeBytes) {
+      throw new ApiError(
+        `视频最大 ${Math.round(ticket.maxSizeBytes / 1024 / 1024)}MB（这份约 ${(file.size / 1024 / 1024).toFixed(1)}MB），请先压小再传。`,
+        400,
+      );
+    }
+    onProgress?.(0);
+    await putDirect(ticket, file, onProgress, signal);
+    return await confirmDirect(ticket.publicId);
+  }
+  // ── 退路：老服务端只有这条 ────────────────────────────────────────────
+  // ★ 600s 不是 /media 那个 180s：上限从 20MB 提到 100MB 之后，慢网上光是把字节推上去
+  //   就可能要几分钟。⚠ 但在 Cloudflare 后面它其实到不了 600 秒 —— 125 秒就被掐了
+  //   （见上面的 ★★★）。这个数留着只是为了不比那道墙更早响。
+  onProgress?.(0);
+  const data = await postForm("/api/uploads/template-video", "video", file, file.name || "template.mp4", 600_000);
+  onProgress?.(1);
+  return receiptOf(data);
+}
+
+/**
  * DELETE /api/uploads/template-video —— 回收**未登记成模板**的托管视频（孤儿治理）。
  *
  * ★ 为什么存在：上传成功 ≠ 建成模板。视觉分析挂了、登记一直失败后用户删掉本机模板、
@@ -298,7 +639,11 @@ export async function uploadTemplateVideo(file: File): Promise<TemplateVideoRece
 export async function deleteTemplateVideo(publicId: string): Promise<void> {
   const token = getToken();
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 20_000);
+  let selfAborted = false; // 同 postForm 的 ★★：别嗅探错误形状
+  const timer = setTimeout(() => {
+    selfAborted = true;
+    ctrl.abort();
+  }, 20_000);
   let res: Response;
   try {
     res = await fetch(`${API_BASE}/api/uploads/template-video`, {
@@ -311,7 +656,7 @@ export async function deleteTemplateVideo(publicId: string): Promise<void> {
       signal: ctrl.signal,
     });
   } catch (e) {
-    const aborted = e instanceof DOMException && e.name === "AbortError";
+    const aborted = selfAborted || (e instanceof DOMException && e.name === "AbortError");
     throw new ApiError(aborted ? "回收超时" : "回收失败（网络不可用）", 0, aborted ? "TIMEOUT" : "NETWORK");
   } finally {
     clearTimeout(timer);

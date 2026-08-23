@@ -489,6 +489,25 @@ export function canAfford(n: number): boolean {
 }
 
 /**
+ * 「我的额度状况」那半句——**唯一实现**（`余额 5.2k` / `管理员免扣费` / 什么都不说）。
+ *
+ * ★★ 为什么非抽不可（2026-08-21 真机上撞见）：管理员的镜像余额就是个普通数字（5.2k），
+ *   而报价动辄 80.4k —— 于是「余额 5.2k」长期挂在十万级的报价旁边，可服务端对 admin
+ *   根本不扣（billingExempt 让 canAfford 直接放行）。**按钮点得动、旁边写着不够**，
+ *   两句话里必有一句是假的，用户没有办法判断是哪句。TokenCost 早就为这条单开了一档，
+ *   但另外三处（流水线底栏、抽卡、扒模板）各自手写 `余额 ${plan + addon}`，
+ *   于是同一条规则四处各说各的（铁律六）。
+ * ★ 不判 AI_REAL：那个常量在 `ai/arkClient` 顶层，而 arkClient 已经 import 本模块 ——
+ *   反向再引就成环，循环加载下这里会读到 undefined（比不判更糟：演示模式静默报真余额）。
+ *   演示模式的那句话由调用点自己说，各处措辞本来就不同。
+ */
+export function balanceNote(): string {
+  if (billingExempt()) return "管理员免扣费";
+  const w = walletOf();
+  return w ? `余额 ${fmtTokens(w.plan + w.addon)}` : "";
+}
+
+/**
  * 「这一档现在能不能用」——**唯一实现**。返回 null = 能用，否则是一句给用户看的原因。
  *
  * ★ 为什么放在 account 而不是 economy：判据是**当前用户的套餐**，而 economy 是纯目录

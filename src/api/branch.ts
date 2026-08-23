@@ -795,6 +795,17 @@ export interface ApiBranchTemplate {
    * ★ 只有「自己传白模视频」那条路（detect-roles）产出它；白模化 V2 与所有老模板都没有。
    */
   markDescs?: string[];
+  /**
+   * 长视频分段登记的归组（2026-08-20）。**只在真有的时候出现**（存在性判断，同 roles）：
+   * 整段登记/存量模板整个字段缺失。`sourceUrl` 是原片地址 —— 合并成片时拿它解原片音轨。
+   */
+  group?: {
+    key?: string;
+    index?: number;
+    count?: number;
+    sourceUrl?: string;
+    sourceDurationSec?: number;
+  };
   status?: "pending" | "published" | "blocked" | string;
   provenAt?: string | number | null;
   isOwner?: boolean;
@@ -820,11 +831,34 @@ export interface CreateTemplatePayload {
   coverUrl: string;
   recipe: TemplateRecipe;
   videoUrl: string;
+  /**
+   * 长视频分段点（秒，升序，(0,时长) 开区间）。非空 = 服务端把源视频物理切成 N 段
+   * 各自登记（group 归组），**每段都要落在 [4,30] 窗口**，越界服务端整单 400。
+   * 分段规划（用户标的帧 → 合法分段）在 data/templates.planSplits 一处实现。
+   */
+  splits?: number[];
 }
 
-export async function createTemplate(payload: CreateTemplatePayload): Promise<ApiBranchTemplate | null> {
-  const res = await apiPost<Record<string, unknown>>("/api/branch/templates", payload);
-  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+/** createTemplate 的完整回包：分段登记时 parts 是全组（含 template=第 1 段） */
+export interface CreateTemplateResult {
+  template: ApiBranchTemplate | null;
+  parts: ApiBranchTemplate[] | null;
+}
+
+export async function createTemplate(payload: CreateTemplatePayload): Promise<CreateTemplateResult> {
+  // ★★★ 带 `splits` 时**必须自带长超时**（2026-08-21 cherry-pick 评审的 high，
+  //   与 detectTemplateRoles 那条 ★★★ 同一个道理）：客户端默认只给 20 秒
+  //   （`DEFAULT_TIMEOUT_MS`），而服务端那一支是**串行**逐段 `cloudinary.uploader.upload`
+  //   （远端抓取 + 转码 + 上传，单段自己就挂着 300s 的 timeout）——12 段最坏是分钟级。
+  //   20 秒就 abort 的后果不是"慢一点"：源视频那时既登记不上（POST 被判失败），
+  //   也回收不掉（服务端可能正切到一半），用户只能重传一次几十上百 MB 的原片。
+  //   ★ 不带 splits 的单段登记是**毫秒级**（认人那些慢活早就拆出去了，见 makeOwnRefTemplate
+  //     的 ★★），所以只给分段那一发加长超时，别把单段那条也拖成 6 分钟才报错。
+  const seg = payload.splits?.length ? { timeoutMs: 360_000 } : undefined;
+  const res = await apiPost<Record<string, unknown>>("/api/branch/templates", payload, seg);
+  const template = pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+  const parts = Array.isArray((res as { parts?: unknown }).parts) ? ((res as { parts: ApiBranchTemplate[] }).parts) : null;
+  return { template, parts };
 }
 
 // ── 白模化（V2：任意视频 → 带编号白模模板）────────────────────────
