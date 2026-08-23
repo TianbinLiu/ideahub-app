@@ -17,6 +17,7 @@ import { useAutoGuide } from "../components/guide/useAutoGuide";
 // ★ 与市场页共用同一个核对入口/面板（含"删掉一个角色位"）。两页各写一份必然分叉，
 //   而这一屏说的话直接决定作者会不会去重炼（花第二次钱）
 import { RoleConfirmEntry } from "../components/blockout/RoleConfirmSheet";
+import { DetectRolesEntry } from "../components/blockout/DetectRolesEntry";
 import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import { useTemplatesVersion } from "./TemplateMarketPage";
@@ -302,6 +303,12 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
       {/* empty:hidden —— 入口对经典配方/没角色位的模板返回 null，那时这个壳不该留下一道空白 */}
       <div className="mt-2 empty:hidden">
         <RoleConfirmEntry t={t} />
+      </div>
+      {/* 识别角色位（2026-08-23 从列表格子挪进来，与核对同属「作者工作台」）：核对之前
+          先让 AI 认一遍画面里有哪些人。DetectRolesEntry 自己判「只对白模、只对本人、
+          没核对过」，不满足就返回 null 自动隐藏（外层 empty:hidden 收掉空壳）。 */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 empty:hidden">
+        <DetectRolesEntry t={t} />
       </div>
       {/* 白模的试炼闸说明与操作：发布前须用本模板真实出过一次片。
           为什么有这道门也要说给作者听——方舟任务受理后失败不退费，坏模板的钱

@@ -281,7 +281,7 @@ export const TOURS: GuideTour[] = [
         anchor: "template-owner-row",
         body: (
           <>
-            自己模板的卡片里带一行操作：<b className="font-bold text-slate-100">核对位置</b>与<b className="font-bold text-slate-100">识别角色位</b>管"画面里谁是谁"（识别面板里可以选定场景/人物数量变化的特定帧，让 AI 分析每一段里的人物）；<b className="font-bold text-slate-100">发布到市场</b>让别人搜得到、能套用，已发布的换成<b className="font-bold text-slate-100">从市场下架</b>；最右边是<b className="font-bold text-slate-100">删除</b>，按下去会先问你一遍。发布被拦住的话，原因和下一步就印在这行下面。
+            自己的模板，卡片上只标一个<b className="font-bold text-slate-100">状态</b>（草稿 / 已发布 / 已下架）。<b className="font-bold text-slate-100">核对位置、识别角色位、发布、删除</b>这些操作都收进了模板详情页——点开卡片进去，那里按「核对 → 识别 → 试炼 → 发布」的顺序排好了。
           </>
         ),
       },

@@ -11,16 +11,13 @@ import { Link, useNavigate } from "react-router";
 import Icon from "./Icon";
 // ★ 核对编号那一屏（含"删掉一个角色位"）在 components/blockout/RoleConfirmSheet：
 //   详情页 OwnerBar 要用同一个入口，一份实现两处用（两页各写一份必然分叉）
-import { RoleConfirmEntry } from "./blockout/RoleConfirmSheet";
 import { useSocialVersion } from "./SocialPanel";
 import VideoTemplateExtractor from "./VideoTemplateExtractor";
-import { DetectRolesEntry } from "./blockout/DetectRolesEntry";
 import {
   blockoutJobExpired,
   blockoutJobNote,
   dismissBlockoutJob,
   browseTemplates,
-  deleteTemplateEverywhere,
   isMyTemplate,
   templateGroupOf,
   myTemplates,
@@ -34,7 +31,6 @@ import {
   remoteStateOf,
   remoteTemplatesCapable,
   resumeBlockoutize,
-  setTemplatePublished,
   sharedLoadIssue,
   subscribeTemplates,
   templatesVersion,
@@ -267,121 +263,25 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
   );
 }
 
-/**
- * 作者自己那条模板下面的一行操作：**发布** / **下架** / **删除**。
- *
- * ★★ 为什么摆在列表里而不是只留在详情页：这两件事在此之前**只有详情页有入口**，
- *   而用户想做它们的那一刻，人正站在列表上看着那条模板。少一跳不是省事，是
- *   "功能存在"与"用户找得到"之间的差别 —— 在此之前它俩等于不存在。
- * ★ 判据、网络、本机同步**全在 data 层**（setTemplatePublished / deleteTemplateEverywhere），
- *   这里一行业务逻辑都没有（铁律六；详情页 OwnerBar 也是这么写的）。
- * ★ 「是不是我的」只问 data 层的 `isMyTemplate`（2026-08-20 下沉，那条"别只认服务端
- *   isOwner"的实拍教训跟着判据一起搬了家）。
- * ★ 删除同样是**两段式**（与详情页那颗同一条理由：会连带销毁云端视频，不可撤销）。
- * ★★ 2026-08-20 起整行**塞进模板卡片的格子里**（TemplateCard 的 actions 槽），核对/识别
- *   也压成小按钮住进来（full=「我的模板」tab 才带它们）——原来卡片下面竖着三大块说明文字，
- *   列表刷两条就是一屏字。长解释都还在：核对的在详情页与面板里，识别的在展开面板里。
- */
-function OwnerRow({ t, full }: { t: VideoTemplate; full?: boolean }) {
-  const [busy, setBusy] = useState(false);
-  const [armed, setArmed] = useState(false);
-  const [err, setErr] = useState("");
+/** 列表格子上作者那条模板的**状态标**（2026-08-23 起格子上只剩它）。
+ *  ★ 所有作者操作（核对 / 识别 / 发布 / 下架 / 删除）都移进了详情页的作者工作台 ——
+ *    用户点名「格子上别堆一排按钮」；顺带列表滑动不再误触删除。此前"摆在列表里省一跳"
+ *    那条取舍（见 git 历史）按用户新要求撤销：入口收在详情页一处，格子回归"只陈列 + 一眼看状态"。
+ *  ★ 判据仍在 data 层唯一实现（isMyTemplate / remoteStateOf），这里只读不写。 */
+function OwnerRow({ t }: { t: VideoTemplate }) {
   const st = remoteStateOf(t);
   if (!isMyTemplate(t)) return null;
-  // ★ 已发布与否：远端状态拿得到就以它为准（那是权威），拿不到退回本机镜像
   const published = st ? st.status === "published" : t.published;
   const blocked = st?.status === "blocked";
-
-  async function run(fn: () => Promise<void>) {
-    setBusy(true);
-    setErr("");
-    try {
-      await fn();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-      setArmed(false);
-    }
-  }
-
+  const [label, cls] = blocked
+    ? ["已下架", "bg-rose-500/15 text-rose-300"]
+    : published
+      ? ["已发布", "bg-emerald-500/15 text-emerald-300"]
+      : ["草稿", "bg-slate-700 text-slate-300"];
   return (
-    <div data-guide="template-owner-row" className="flex flex-wrap items-center gap-2">
-      {/* 核对（拦发布的那道闸）与识别：紧凑形态，长解释在各自面板里 */}
-      {full && <RoleConfirmEntry t={t} compact />}
-      {full && <DetectRolesEntry t={t} />}
-      {/* 只在**已发布**时给「下架」：没发布的模板本来就不在市场上，摆一颗点了没变化的
-          按钮，用户只会以为它坏了（本仓明令禁止「摆一个永远点不动的选项」） */}
-      {published && (
-        <button
-          onClick={() => void run(() => setTemplatePublished(t.id, false))}
-          disabled={busy}
-          className="rounded-full bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-100 disabled:opacity-40"
-        >
-          从市场下架
-        </button>
-      )}
-
-      {/* ★★ 发布（2026-08-17 补）。在此之前整条发布链路都在（服务端 PATCH …/publish、
-          data.setTemplatePublished、详情页 OwnerBar），**唯独列表里没有入口** ——
-          而这一屏上到处在提发布：待核对那条琥珀提示写着「核对之前不能发布」，空态写着
-          「做一个自己的、发布出来，这里就有了」。都在说发布，却没有一处能发布。
-          当初只加下架/删除的取舍是"别摆点不动的按钮"，发布压根没进那次范围。
-
-          ★★★ 这里**绝不重写服务端那四道闸**（已被平台下架 / 视频时长 / 没试炼过 /
-            角色位未核对）。判据只有 data.setTemplatePublished 一处，失败就把它抛出来的
-            整句原样印在下面（`err`）—— 列表行拿不到、也不该拿试炼闸的解释位。
-          ★★ 但**只印一句话不够**：那几道闸的出路（去出一段片试炼、去核对角色位）
-            全都在详情页。只印错误不给下一步，就是把「点了没反应」从一颗按钮换到另一处
-            （铁律八要的是"响亮 + 有下一步"）。所以失败时紧跟一个「去详情页处理」。
-          ★ blocked 不给按钮：平台下架后作者的 publish/unpublish 服务端两条路由都会 400，
-            这是唯一一种"确定点不动"的状态，照本仓规矩不摆按钮、只说一句话。 */}
-      {/* 「颜色异类会让别人换错人」那条发布前警告 2026-08-20 按用户要求从列表撤掉
-          （原来是常驻长段，把列表撑成长文）。判据与文案仍在 prominentRoleWarning 一处，
-          套用者在挂卡面板照旧看得到 —— 撤的只是作者列表里的这份重复。 */}
-      {blocked ? (
-        <span className="rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300">已被平台下架</span>
-      ) : (
-        !published && (
-          <button
-            onClick={() => void run(() => setTemplatePublished(t.id, true))}
-            disabled={busy}
-            className="rounded-full bg-brand px-2.5 py-1 text-[11px] font-bold text-ink disabled:opacity-40"
-          >
-            {busy ? "发布中…" : "发布到市场"}
-          </button>
-        )
-      )}
-      <button
-        onClick={() => {
-          if (!armed) {
-            setArmed(true);
-            window.setTimeout(() => setArmed(false), 3000);
-            return;
-          }
-          void run(() => deleteTemplateEverywhere(t.id));
-        }}
-        onBlur={() => setArmed(false)}
-        disabled={busy}
-        className={`ml-auto rounded-full px-2.5 py-1 text-[11px] disabled:opacity-40 ${
-          armed ? "bg-rose-500 font-bold text-white" : "text-rose-400"
-        }`}
-      >
-        {armed ? "真的删掉？（连云端视频一起）" : "删除"}
-      </button>
-      {/* ★★ 整句印出来、**不 truncate**：这里躺的是服务端那四道闸的原话（「还没核对」
-          「发布前须真实出过一次片」…），截成一行省略号等于没说。改造前它是 truncate 的，
-          而那时行里还没有会失败的操作 —— 加了发布之后这一条就变成了主要的信息出口。
-        ★ 「去详情页处理」是那句话的**下一步**：试炼与核对的入口都只在详情页。 */}
-      {err && (
-        <p className="w-full text-[10px] leading-relaxed text-rose-300">
-          {err}{" "}
-          <Link to={`/template/${t.id}`} className="font-bold text-sky-300 underline">
-            去详情页处理
-          </Link>
-        </p>
-      )}
-    </div>
+    <span data-guide="template-owner-row" className={`flex-none rounded-full px-2.5 py-1 text-[11px] ${cls}`}>
+      {label}
+    </span>
   );
 }
 
@@ -414,13 +314,11 @@ function groupRows(list: VideoTemplate[]): { key: string; parts: VideoTemplate[]
  *  不新造任何一条组级规则。「用它出片」从任何一段点都是整组套用（pick 里的 templateGroupOf）。 */
 function GroupRow({
   parts,
-  mineTab,
   pick,
   guide,
   guidePick,
 }: {
   parts: VideoTemplate[];
-  mineTab: boolean;
   pick: (t: VideoTemplate) => void;
   guide?: string;
   guidePick?: string;
@@ -449,14 +347,14 @@ function GroupRow({
               </span>
               <span className="flex-none font-semibold">{open ? "收起 ▴" : "展开各段 ▾"}</span>
             </button>
-            {isMyTemplate(head) && <OwnerRow t={head} full={mineTab} />}
+            {isMyTemplate(head) && <OwnerRow t={head} />}
           </div>
         }
       />
       {open &&
         parts.slice(1).map((p) => (
           <div key={p.id} className="ml-5">
-            <TemplateCard t={p} onPick={() => pick(p)} actions={isMyTemplate(p) ? <OwnerRow t={p} full={mineTab} /> : undefined} />
+            <TemplateCard t={p} onPick={() => pick(p)} actions={isMyTemplate(p) ? <OwnerRow t={p} /> : undefined} />
           </div>
         ))}
     </div>
@@ -646,7 +544,6 @@ export default function TemplateShelf({ initialTab }: { initialTab?: "market" | 
             <GroupRow
               key={row.key}
               parts={row.parts}
-              mineTab={tab === "mine"}
               pick={pick}
               guide={i === 0 ? "template-card" : undefined}
               guidePick={i === 0 ? "template-pick" : undefined}
@@ -663,7 +560,7 @@ export default function TemplateShelf({ initialTab }: { initialTab?: "market" | 
                 onPick={() => pick(row.parts[0])}
                 guide={i === 0 ? "template-card" : undefined}
                 guidePick={i === 0 ? "template-pick" : undefined}
-                actions={isMyTemplate(row.parts[0]) ? <OwnerRow t={row.parts[0]} full={tab === "mine"} /> : undefined}
+                actions={isMyTemplate(row.parts[0]) ? <OwnerRow t={row.parts[0]} /> : undefined}
               />
             </div>
           ),
