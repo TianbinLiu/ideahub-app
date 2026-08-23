@@ -529,44 +529,54 @@ export default function TemplateDetailPage() {
       {applyErr && <p className="mb-3 text-xs leading-relaxed text-rose-400">{applyErr}</p>}
       <div className="mb-3" />
 
-      {/* 生成配方：明着给，用户才知道它为什么像，也才能照着改 */}
-      <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
-        <div className="mb-2 text-xs font-semibold text-slate-300">🧪 生成配方</div>
-        <div className="mb-2">
-          <div className="mb-1 text-[11px] text-slate-500">画面质感与运镜</div>
-          <p className="text-xs leading-relaxed text-slate-400">{t.recipe.styleHint}</p>
+      {/* ★ 第 2 区「怎么做出来的」——默认折叠（2026-08-23）。
+          配方与卡组是"想深究时才看"的信息：套用者的决策在第一屏（预览 + 价钱 + 出片）
+          就能做完，把它们常驻展开只会把第一屏推到屏幕外。折叠壳不改内部一个字。 */}
+      <details className="mb-4 rounded-xl border border-slate-700/70 bg-panel/60">
+        <summary className="cursor-pointer list-none px-3 py-2.5 text-xs font-semibold text-slate-300">
+          🧪 怎么做出来的{t.cards.length > 0 ? ` · 含 ${t.cards.length} 张卡` : ""}
+        </summary>
+        <div className="px-3 pb-3">
+        {/* 生成配方：明着给，用户才知道它为什么像，也才能照着改 */}
+        <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+          <div className="mb-2 text-xs font-semibold text-slate-300">🧪 生成配方</div>
+          <div className="mb-2">
+            <div className="mb-1 text-[11px] text-slate-500">画面质感与运镜</div>
+            <p className="text-xs leading-relaxed text-slate-400">{t.recipe.styleHint}</p>
+          </div>
+          <div className="mb-2">
+            <div className="mb-1 text-[11px] text-slate-500">分镜骨架（{"{{主题}}"} 会换成你那句话）</div>
+            <ol className="space-y-1">
+              {t.recipe.beats.map((b, i) => (
+                <li key={i} className="rounded-lg bg-black/25 px-2.5 py-1.5 text-xs leading-relaxed text-slate-300">
+                  <span className="mr-1.5 text-slate-500">{i + 1}.</span>
+                  {b}
+                </li>
+              ))}
+            </ol>
+          </div>
+          {t.source && (
+            <div>
+              <div className="mb-1 text-[11px] text-slate-500">参考画面特征</div>
+              <p className="text-xs leading-relaxed text-slate-500">{t.source}</p>
+            </div>
+          )}
         </div>
-        <div className="mb-2">
-          <div className="mb-1 text-[11px] text-slate-500">分镜骨架（{"{{主题}}"} 会换成你那句话）</div>
-          <ol className="space-y-1">
-            {t.recipe.beats.map((b, i) => (
-              <li key={i} className="rounded-lg bg-black/25 px-2.5 py-1.5 text-xs leading-relaxed text-slate-300">
-                <span className="mr-1.5 text-slate-500">{i + 1}.</span>
-                {b}
-              </li>
-            ))}
-          </ol>
-        </div>
-        {t.source && (
-          <div>
-            <div className="mb-1 text-[11px] text-slate-500">参考画面特征</div>
-            <p className="text-xs leading-relaxed text-slate-500">{t.source}</p>
+
+        {t.cards.length > 0 && (
+          <div className="mb-4">
+            <div className="mb-2 text-xs font-semibold text-slate-300">🎴 模板卡组 · {t.cards.length} 张</div>
+            <div className="grid grid-cols-3 gap-2">
+              {t.cards.map((c) => (
+                <Link key={c.id} to={`/card/${c.id}`} state={{ card: c }}>
+                  <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} />
+                </Link>
+              ))}
+            </div>
           </div>
         )}
-      </div>
-
-      {t.cards.length > 0 && (
-        <div className="mb-4">
-          <div className="mb-2 text-xs font-semibold text-slate-300">🎴 模板卡组 · {t.cards.length} 张</div>
-          <div className="grid grid-cols-3 gap-2">
-            {t.cards.map((c) => (
-              <Link key={c.id} to={`/card/${c.id}`} state={{ card: c }}>
-                <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} />
-              </Link>
-            ))}
-          </div>
         </div>
-      )}
+      </details>
 
       {/* 白模路：isMine 来自服务端 isOwner——**不要**再 && ownedHere（换设备后本机库
           是空的，但作者对自己已发布的模板必须仍有下架/删除入口，否则作废/侵权模板
