@@ -841,7 +841,13 @@ export default function FlowPage() {
   //   —— 后开的那份把先开的顶掉，而先开的已经被记成「看过」，于是画布那份一次都没放过
   //   就永远不再自动弹了；而线性这份讲的元素此刻正被 z-40 的画布整块盖着。
   //   画布那份由 FlowCanvas 自己声明（它只在开着时挂载），两边天然互斥。
-  useAutoGuide("flow", !canvas);
+  // ★★ 2026-08-23：这份 "flow" 引导**不再自动弹**。
+  //   线性视图下线后 `!canvas` 恒等于「简约模式」，而它教的是「先挑三套方案」
+  //   「一段炼完再往下」「节点条换段」—— 简约模式一个都没有（单段、不推方案、直通发布）。
+  //   教一套用户屏幕上根本不存在的操作，比不教更糟。
+  //   ★ 工作流那一面由 FlowCanvas 自己声明的 "canvas" 引导负责（它只在画布挂载时跑）。
+  //   ★ 这份 tour 本身留着：顶栏那颗 ? 仍能手动重看，且简约独立成页之后要改写它。
+  useAutoGuide("flow", false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   // 「提取模板」出来的那一下也是整表覆盖，走与模板货架同一处守卫（唯一实现）
   const { guard: applyGuard, dialog: applyDialog } = useApplyTemplate();
