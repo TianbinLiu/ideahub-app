@@ -259,6 +259,29 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
             </>
           )}
         </p>
+        {t.refVideo && (
+          <video
+            data-guide="roleconfirm-video"
+            src={t.refVideo.url}
+            controls
+            playsInline
+            className="max-h-[38vh] w-full rounded-xl bg-black object-contain"
+          />
+        )}
+
+        {/* ★★ 三段「对不上怎么办」收进折叠（2026-08-23）：它们加起来约 20 行，原来整块摊在
+            视频**上面** —— 作者要做的事是"对着画面从左往右数"，而他得先划过 20 行才看得见
+            那段视频。这三段说的又都是**条件性**的知识（没被人偶化 / 排反了 / 站得重叠），
+            只有真撞上时才用得着。
+          ★★ 但「不用重炼」这半句**必须留在收起状态也看得见**，所以它写进了 summary：
+            这一屏的钱已经花完了，作者一旦以为"对不上 = 这段废了"，就会直接再花一次钱重炼
+            —— 那正是本组件顶上那条注释反复强调、也是它存在的理由。折叠可以收走"怎么办的细节"，
+            绝不能连"不用重炼"一起收走。 */}
+        <details className="rounded-lg border border-slate-700/70 bg-panel/60">
+          <summary className="cursor-pointer list-none px-3 py-2 text-[11px] leading-relaxed text-slate-300">
+            ▸ 对不上怎么办？<span className="text-slate-500">多数情况删掉那个位子就行，不用重炼</span>
+          </summary>
+          <div className="space-y-2 px-3 pb-3">
         {ordinal ? (
           <>
             <p className="rounded-lg bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
@@ -298,16 +321,8 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
             ? "如果画面上根本数不出这么多人偶，这段白模本身就没做好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。"
             : "如果画面上大部分号都对不上，这段白模的编号本身就没画好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。"}
         </p>
-
-        {t.refVideo && (
-          <video
-            data-guide="roleconfirm-video"
-            src={t.refVideo.url}
-            controls
-            playsInline
-            className="max-h-[38vh] w-full rounded-xl bg-black object-contain"
-          />
-        )}
+          </div>
+        </details>
 
         {rows.map((r, i) =>
           r.doomed ? (

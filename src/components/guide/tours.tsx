@@ -77,7 +77,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-rail",
         body: (
           <>
-            右边竖着一列。最上面是<b className="font-bold text-slate-100">作者头像</b>，点它进作者主页，头像下面那枚 + 号是关注。往下依次是发弹幕（「弹」字那枚）、点赞、评论、收藏、分享，<b className="font-bold text-slate-100">后四枚下面的数字是已经有多少人做过</b>；发弹幕那枚下面写的是字、不是数。评论就地滑出来，不用离开这一屏。
+            最上面是<b className="font-bold text-slate-100">作者头像</b>（点进主页，下面那枚 + 号关注）。往下依次是发弹幕、点赞、评论、收藏、分享，<b className="font-bold text-slate-100">下面的数字是已经有多少人做过</b>。评论就地滑出来，不用离开这一屏。
           </>
         ),
       },
@@ -86,7 +86,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-progress",
         body: (
           <>
-            画面底缘那条细线是<b className="font-bold text-slate-100">播放进度</b>，它上方右侧的小字是当前 / 总时长。按住它可以<b className="font-bold text-slate-100">拖着跳到任意一处</b>：拖的时候线会变粗、画面中央显示大字时间，松手就从那儿接着播。多段的作品，这条线走的是整片。
+            底缘那条细线是<b className="font-bold text-slate-100">播放进度</b>，右上小字是当前 / 总时长，按住能<b className="font-bold text-slate-100">拖着跳到任意一处</b>。多段的作品，这条线走的是整片。
           </>
         ),
       },
@@ -95,7 +95,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-title",
         body: (
           <>
-            左下角是作者名、标题和简介。<b className="font-bold text-slate-100">点标题进这支片子的详情页</b>——本片卡组、多 P 选集、没被截断的完整简介都只有那儿有；带「互动 · 你来选」的作品，分支也在那儿选。点作者名或右边的头像，则是去他的主页。
+            <b className="font-bold text-slate-100">点标题进详情页</b>——本片卡组、多 P 选集、完整简介、「互动 · 你来选」的分支，都<b className="font-bold text-slate-100">只在那儿</b>。点作者名或头像，去的是他的主页。
           </>
         ),
       },
@@ -104,7 +104,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-fullscreen",
         body: (
           <>
-            那一列最下面单独一枚是全屏键。点了会收起页签、底栏和这些角落的元素，只留画面；<b className="font-bold text-slate-100">横屏的片子会连屏幕一起转过来</b>，所以它在横屏片上写的是「转屏」。要退出，点右上角那枚缩小键。
+            那一列最下面单独一枚是全屏键，点了只留画面；<b className="font-bold text-slate-100">横屏的片子会连屏幕一起转过来</b>，所以它在横屏片上写的是「转屏」。退出点右上角那枚缩小键。
           </>
         ),
       },
@@ -121,30 +121,6 @@ export const TOURS: GuideTour[] = [
         body: (
           <>
             底栏的 ➕ 先落到这里：每张卡是一种创作方式，左右滑动，或者点画面边上的箭头、底部的圆点，都能翻到下一张。它们<b className="font-bold text-slate-100">不是各走各的</b>，而是同一条流水线的不同入口，最后都汇到剪辑与发布。
-          </>
-        ),
-      },
-      {
-        title: "工坊模式",
-        body: (
-          <>
-            在 3D 铸卡桌面上摆素材卡，人物和场景由卡组锁住，全片保持一致。AI 每段推演几套走向，挑一套炼一段，逐段往下铺；走岔了能从任一张卡分叉回溯。<b className="font-bold text-slate-100">本段炼出来才开下一张卡</b>——第一段人物就不对时当场止损。
-          </>
-        ),
-      },
-      {
-        title: "工作流模式",
-        body: (
-          <>
-            一屏一段，自己写分镜：写清这一段要拍什么 → AI 把几套走向摊开（各带首尾帧预览）→ 挑定一套，还能换帧、改剧情 → 才炼这一段视频。节点卡跟工坊那张是同一张，只是没有 3D 桌面；<b className="font-bold text-slate-100">一段一结账</b>，不满意只重炼这一段。
-          </>
-        ),
-      },
-      {
-        title: "简约模式",
-        body: (
-          <>
-            起手只有一个节点：不用先备素材卡，写一句话、挑个时长，起拍画面交给 AI 代笔，直接出一条短片。它<b className="font-bold text-slate-100">不推方案、不进草稿库</b>，出片后直通剪辑与发布；想留着慢慢打磨的作品，回去挑工坊或工作流。
           </>
         ),
       },
@@ -305,7 +281,7 @@ export const TOURS: GuideTour[] = [
         anchor: "template-owner-row",
         body: (
           <>
-            自己模板的卡片里带一行操作：<b className="font-bold text-slate-100">核对位置</b>与<b className="font-bold text-slate-100">识别角色位</b>管"画面里谁是谁"（识别面板里可以选定场景/人物数量变化的特定帧，让 AI 分析每一段里的人物）；<b className="font-bold text-slate-100">发布到市场</b>让别人搜得到、能套用，已发布的换成<b className="font-bold text-slate-100">从市场下架</b>；最右边是<b className="font-bold text-slate-100">删除</b>，按下去会先问你一遍。发布被拦住的话，原因和下一步就印在这行下面。
+            自己的模板，卡片上只标一个<b className="font-bold text-slate-100">状态</b>（草稿 / 已发布 / 已下架）。<b className="font-bold text-slate-100">核对位置、识别角色位、发布、删除</b>这些操作都收进了模板详情页——点开卡片进去，那里按「核对 → 识别 → 试炼 → 发布」的顺序排好了。
           </>
         ),
       },
@@ -365,7 +341,12 @@ export const TOURS: GuideTour[] = [
       },
       {
         title: "白模那两条怎么走",
-        anchor: "extractor-pick-file",
+        // ★★ 这一步**故意不带锚点**（2026-08-23）：选文件那颗按钮已经搬到第 2 步，
+        //   而引导是一进这屏就跑的（那时还停在第 1 步的三选一上）。留着 anchor 的话
+        //   `rectOf` 会连量 FIND_TRIES 帧都量不到，才退成居中卡片 —— 结果一样，
+        //   过程却是"引导指着一个不存在的东西"（这条 tour 自己 v2 就是为这种错升的版）。
+        //   ⇒ 不升 version：说的事一个字没变（选文件 → 上传 → 框选 → 报价），
+        //   变的只是"指哪儿"，没必要让所有人重看一遍。
         body: (
           <>
             选文件 → 上传（<b className="font-bold text-slate-100">不花钱</b>）→ 下一步拖时间轴框出 {BLOCKOUT_INPUT_RULES.minSec}~

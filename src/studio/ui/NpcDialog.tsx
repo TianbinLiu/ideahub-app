@@ -738,17 +738,14 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
           {/* ── 3 过目 ── */}
           {step === "preview" && preview && (
             <>
-              {/* ★「再炼一炉」是真金白银的第二次扣费，价钱要在按下之前就看得见。
-                  这里只写在提示里而不是印到「↻ 重炼」上：那颗按钮和另外两颗挤在
-                  一行，375px 屏上塞进 6 位数会把「收下这批卡」挤断行 */}
+              {/* ★★ 价钱**印在那颗按钮上**（2026-08-23 挪的）。原来它只能写在这段提示里，
+                  理由写得很清楚：三颗按钮挤一行，375px 屏上塞进 6 位数会把「收下这批卡」
+                  挤断行 —— 也就是说，**是排版把价钱从决策点上挤走的**。
+                  底下那排已改成两行（收下独占一行，回去改/再炼一炉并排），位置腾出来了，
+                  价钱就该回到按下之前看得见的地方。 */}
               <p className="mb-2 text-[11px] text-slate-400">
-                还没进你的卡组——不满意可以回去改素材，或者原样再炼一炉（
-                {!AI_REAL
-                  ? "演示模式不消耗 token"
-                  : cost === null
-                    ? "这一档现在报不出价，重炼前先换个档位"
-                    : `再炼一次最多再扣 ${fmtTokens(cost)} token`}
-                ）。
+                还没进你的卡组，点「收下这批卡」才落账。
+                {AI_REAL && cost === null && "（这一档现在报不出价，重炼前先换个档位）"}
               </p>
               <div className="grid grid-cols-3 gap-2.5">
                 {preview.map((c) => (
@@ -785,31 +782,35 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
           </div>
         )}
         {step === "preview" && (
-          <div className="flex gap-2 px-4 pb-3.5 pt-2">
-            <button
-              onClick={() => {
-                setPreview(null);
-                setStep("input");
-              }}
-              disabled={busy}
-              className="rounded-xl bg-slate-700/70 px-3 py-2 text-sm text-slate-200 disabled:opacity-40"
-            >
-              回去改
-            </button>
-            <button
-              onClick={() => void forge()}
-              disabled={busy}
-              className="rounded-xl bg-slate-700/70 px-3 py-2 text-sm text-slate-200 disabled:opacity-40"
-            >
-              {busy ? "…" : "↻ 重炼"}
-            </button>
+          <div className="space-y-2 px-4 pb-3.5 pt-2">
+            {/* ★ 免费的那件事（收下）独占一行、最显眼；两颗要么退回、要么再花钱的
+                并排在下面。原来三颗等宽挤一行，看不出"哪颗是常规动作、哪颗要再收一次钱"。 */}
             <button
               onClick={accept}
               disabled={busy}
-              className="flex-1 rounded-xl bg-brand/85 py-2 text-sm font-bold text-ink disabled:opacity-40"
+              className="w-full rounded-xl bg-brand/85 py-2 text-sm font-bold text-ink disabled:opacity-40"
             >
               收下这批卡
             </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setPreview(null);
+                  setStep("input");
+                }}
+                disabled={busy}
+                className="flex-1 rounded-xl bg-slate-700/70 px-3 py-2 text-xs text-slate-200 disabled:opacity-40"
+              >
+                回去改素材
+              </button>
+              <button
+                onClick={() => void forge()}
+                disabled={busy}
+                className="flex-1 rounded-xl bg-slate-700/70 px-3 py-2 text-xs text-slate-200 disabled:opacity-40"
+              >
+                {busy ? "…" : AI_REAL && cost !== null ? `↻ 再炼一炉（${fmtTokens(cost)}）` : "↻ 再炼一炉"}
+              </button>
+            </div>
           </div>
         )}
 

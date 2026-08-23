@@ -228,6 +228,18 @@ function EditorPanel() {
   const deck = useStudio((s) => s.deck);
   const root = useStudio((s) => s.root);
   const [pickerType, setPickerType] = useState<CardType | null>(null);
+  /**
+   * 这块投影现在展示的是「这一段拍什么」还是「出片规格」。
+   * ★★ 2026-08-23 拆的：原来六块挤一个手机全息窗 —— 首尾帧卡、素材、视频要求、
+   *   时长、画幅、档位（外加档位下面的门禁原因与模型名）。后三块加起来占掉整块投影
+   *   **一半以上**的高度，而它们三个都有能用的默认值、多数人一次都不会动；结果是
+   *   真正每次都要写的那栏「视频要求」被挤成一条缝，还得在窄窗里滚动才找得到。
+   * ★ 收成一行、点开才展开 —— 与工作流那边「⚙ 5s · 标准 · 竖屏」是同一种收法
+   *   （那处收在 SegSettings）。**没有共用组件**：SegSettings 认的是 flowStore 的
+   *   node.id，而这里在铸段阶段根本还没有 flow 节点；硬套要么把 flowStore 反向拖进
+   *   工坊（依赖方向单向，绝不），要么在它里面塞一条工坊分支（那才是真正的第二处实现）。
+   */
+  const [spec, setSpec] = useState(false);
   if (!editor) return null;
 
   const slotCards = editor.slots
@@ -252,6 +264,122 @@ function EditorPanel() {
         </button>
       </div>
 
+      {/* ══ 规格视图：时长 / 画幅 / 档位。整块投影归它一个，不与"拍什么"混在一屏 ══ */}
+      {spec ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
+          {/* ④ 视频时长：单输入框——留空 = AI 决定，填数字 = 按用户输入（2-15 秒，失焦时收拢） */}
+          <div className="flex flex-none items-center gap-2.5">
+            <span className="flex-none text-xs font-semibold text-slate-300">视频时长</span>
+            <input
+              type="number"
+              min={2}
+              max={15}
+              value={editor.durationMode === "manual" ? editor.durationSec : ""}
+              placeholder="AI 决定"
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "") {
+                  useStudio.getState().setDurationMode("ai");
+                } else {
+                  useStudio.getState().setDurationMode("manual");
+                  useStudio.getState().setDurationSec(Number(v));
+                }
+              }}
+              onBlur={() => {
+                if (editor.durationMode === "manual")
+                  useStudio.getState().setDurationSec(Math.min(15, Math.max(2, editor.durationSec || 2)));
+              }}
+              className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-black/30 px-2.5 py-1.5 text-xs text-cyan-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
+            />
+            <span className="flex-none text-xs text-slate-400" title="留空由 AI 决定；可填 2-15">
+              秒
+            </span>
+          </div>
+
+          {/* ⑤ 画幅：竖屏/横屏。放在档位【之前】——它决定设定帧画在什么画布上，
+              是这一炉最先落地的东西，推演完再想换就等于整段重画。
+              小方块是等比示意图，不写数字：用户要判断的是"手机全屏还是电影感"，
+              9:16/16:9 这种写法在这一步反而要多想一步 */}
+          <div className="flex-none">
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="text-xs font-semibold text-slate-300">画幅</span>
+              <span className="text-[10px] text-slate-500">{aspectOf(editor.aspect).desc}</span>
+            </div>
+            <div className="flex gap-1.5">
+              {VIDEO_ASPECTS.map((a) => {
+                const on = editor.aspect === a.id;
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => useStudio.getState().setAspect(a.id)}
+                    disabled={editor.generating}
+                    title={a.desc}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-1 py-1.5 transition ${
+                      on
+                        ? "border-cyan-400 bg-cyan-400/10 text-cyan-100"
+                        : "border-slate-600 text-slate-400 hover:border-slate-400"
+                    }`}
+                  >
+                    <span
+                      className={`block rounded-[2px] border-2 ${on ? "border-cyan-300" : "border-slate-500"}`}
+                      style={{ width: a.id === "portrait" ? 9 : 16, height: a.id === "portrait" ? 16 : 9 }}
+                    />
+                    <span className="text-[11px] font-semibold">{a.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ⑥ 生成档位：Seedance 模型分级，按档位×时长预估本段合成 token 消耗 */}
+          <div className="flex-none">
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="text-xs font-semibold text-slate-300">视频档位</span>
+              <span className="text-[10px] text-slate-500">合成本段预计消耗</span>
+            </div>
+            <div className="flex gap-1.5">
+              {VIDEO_TIERS.map((t) => {
+                const est = segTokens(editor.durationMode === "manual" ? editor.durationSec : 6, t.id);
+                const on = editor.videoTier === t.id;
+                // 付费档位门禁：判断只有一处（data/account.tierBlockReason），
+                // 这里只负责把它画出来 —— 灰着但不说为什么等于告诉用户"功能坏了"
+                const block = tierBlockReason(t);
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => useStudio.getState().setVideoTier(t.id)}
+                    disabled={editor.generating || !!block}
+                    title={block ?? `${t.desc}（${t.model}）`}
+                    className={`flex-1 rounded-lg border px-1 py-1 text-center transition disabled:opacity-40 ${
+                      on
+                        ? "border-cyan-400 bg-cyan-400/10 text-cyan-100"
+                        : "border-slate-600 text-slate-400 hover:border-slate-400"
+                    }`}
+                  >
+                    <div className="text-[11px] font-semibold">{t.label}</div>
+                    <div className="tabular-nums text-[9px] opacity-80">
+                      {editor.durationMode === "manual" ? "" : "约 "}
+                      {fmtTokens(est)} token
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {/* 原因印在页面上，不能只挂 title：工坊这块投影在手机上同样没有 hover */}
+            {tierBlocks.length > 0 && <p className="mt-1 text-[9px] leading-[13px] text-amber-300/80">{tierBlocks.join("；")}</p>}
+            {/* ★ 写出**真正会被调用的那个模型**。「极速/标准/高清」只说了画质档次，
+                没说这一段交给谁生成 —— 而 1.0 与 2.0 的观感差别很大，用户对不上账时
+                无从判断。名字由 tierOf(...).model 推导，与发给方舟的 id 同源，
+                不会出现"界面写着一个、实际跑另一个"。完整 id 放在 title 里。 */}
+            <div
+              className="mt-1 text-center text-[9px] text-slate-500"
+              title={tierOf(editor.videoTier).model}
+            >
+              模型：{modelLabel(tierOf(editor.videoTier).model)}
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden p-3">
         {/* 左：首尾帧卡（原来是开头帧图 / 上传按钮 / 尾帧占位三块，合成一张——
             它和桌面上的节点卡是同一个东西的两种形态，点开看大图、换开头帧都在卡里做） */}
@@ -378,121 +506,37 @@ function EditorPanel() {
             />
           </div>
 
-          {/* ④ 视频时长：单输入框——留空 = AI 决定，填数字 = 按用户输入（2-15 秒，失焦时收拢） */}
-          <div className="flex flex-none items-center gap-2.5">
-            <span className="flex-none text-xs font-semibold text-slate-300">视频时长</span>
-            <input
-              type="number"
-              min={2}
-              max={15}
-              value={editor.durationMode === "manual" ? editor.durationSec : ""}
-              placeholder="AI 决定"
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v === "") {
-                  useStudio.getState().setDurationMode("ai");
-                } else {
-                  useStudio.getState().setDurationMode("manual");
-                  useStudio.getState().setDurationSec(Number(v));
-                }
-              }}
-              onBlur={() => {
-                if (editor.durationMode === "manual")
-                  useStudio.getState().setDurationSec(Math.min(15, Math.max(2, editor.durationSec || 2)));
-              }}
-              className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-black/30 px-2.5 py-1.5 text-xs text-cyan-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
-            />
-            <span className="flex-none text-xs text-slate-400" title="留空由 AI 决定；可填 2-15">
-              秒
+          {/* ★ 规格收成一行（见 spec 的 ★★）。摘要里三样都写出来，而不是只写一个 ⚙：
+              时长与档位**直接决定这一段多少钱**，画幅决定设定帧画在什么画布上 ——
+              把它们藏进一个不标值的齿轮里，等于让用户为了确认默认值多点一次。 */}
+          <button
+            onClick={() => setSpec(true)}
+            disabled={editor.generating}
+            className="flex flex-none items-center justify-between rounded-lg border border-slate-600 bg-black/25 px-2.5 py-1.5 text-xs text-slate-300 disabled:opacity-40"
+          >
+            <span>
+              ⚙ {editor.durationMode === "manual" ? `${editor.durationSec}s` : "AI 定时长"} ·{" "}
+              {tierOf(editor.videoTier).label} · {aspectOf(editor.aspect).label}
             </span>
-          </div>
-
-          {/* ⑤ 画幅：竖屏/横屏。放在档位【之前】——它决定设定帧画在什么画布上，
-              是这一炉最先落地的东西，推演完再想换就等于整段重画。
-              小方块是等比示意图，不写数字：用户要判断的是"手机全屏还是电影感"，
-              9:16/16:9 这种写法在这一步反而要多想一步 */}
-          <div className="flex-none">
-            <div className="mb-1 flex items-baseline justify-between">
-              <span className="text-xs font-semibold text-slate-300">画幅</span>
-              <span className="text-[10px] text-slate-500">{aspectOf(editor.aspect).desc}</span>
-            </div>
-            <div className="flex gap-1.5">
-              {VIDEO_ASPECTS.map((a) => {
-                const on = editor.aspect === a.id;
-                return (
-                  <button
-                    key={a.id}
-                    onClick={() => useStudio.getState().setAspect(a.id)}
-                    disabled={editor.generating}
-                    title={a.desc}
-                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-1 py-1.5 transition ${
-                      on
-                        ? "border-cyan-400 bg-cyan-400/10 text-cyan-100"
-                        : "border-slate-600 text-slate-400 hover:border-slate-400"
-                    }`}
-                  >
-                    <span
-                      className={`block rounded-[2px] border-2 ${on ? "border-cyan-300" : "border-slate-500"}`}
-                      style={{ width: a.id === "portrait" ? 9 : 16, height: a.id === "portrait" ? 16 : 9 }}
-                    />
-                    <span className="text-[11px] font-semibold">{a.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ⑥ 生成档位：Seedance 模型分级，按档位×时长预估本段合成 token 消耗 */}
-          <div className="flex-none">
-            <div className="mb-1 flex items-baseline justify-between">
-              <span className="text-xs font-semibold text-slate-300">视频档位</span>
-              <span className="text-[10px] text-slate-500">合成本段预计消耗</span>
-            </div>
-            <div className="flex gap-1.5">
-              {VIDEO_TIERS.map((t) => {
-                const est = segTokens(editor.durationMode === "manual" ? editor.durationSec : 6, t.id);
-                const on = editor.videoTier === t.id;
-                // 付费档位门禁：判断只有一处（data/account.tierBlockReason），
-                // 这里只负责把它画出来 —— 灰着但不说为什么等于告诉用户"功能坏了"
-                const block = tierBlockReason(t);
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => useStudio.getState().setVideoTier(t.id)}
-                    disabled={editor.generating || !!block}
-                    title={block ?? `${t.desc}（${t.model}）`}
-                    className={`flex-1 rounded-lg border px-1 py-1 text-center transition disabled:opacity-40 ${
-                      on
-                        ? "border-cyan-400 bg-cyan-400/10 text-cyan-100"
-                        : "border-slate-600 text-slate-400 hover:border-slate-400"
-                    }`}
-                  >
-                    <div className="text-[11px] font-semibold">{t.label}</div>
-                    <div className="tabular-nums text-[9px] opacity-80">
-                      {editor.durationMode === "manual" ? "" : "约 "}
-                      {fmtTokens(est)} token
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            {/* 原因印在页面上，不能只挂 title：工坊这块投影在手机上同样没有 hover */}
-            {tierBlocks.length > 0 && <p className="mt-1 text-[9px] leading-[13px] text-amber-300/80">{tierBlocks.join("；")}</p>}
-            {/* ★ 写出**真正会被调用的那个模型**。「极速/标准/高清」只说了画质档次，
-                没说这一段交给谁生成 —— 而 1.0 与 2.0 的观感差别很大，用户对不上账时
-                无从判断。名字由 tierOf(...).model 推导，与发给方舟的 id 同源，
-                不会出现"界面写着一个、实际跑另一个"。完整 id 放在 title 里。 */}
-            <div
-              className="mt-1 text-center text-[9px] text-slate-500"
-              title={tierOf(editor.videoTier).model}
-            >
-              模型：{modelLabel(tierOf(editor.videoTier).model)}
-            </div>
-          </div>
+            <span className="text-slate-500">›</span>
+          </button>
         </div>
       </div>
+      )}
 
       <div className="border-t border-cyan-400/20 px-3 pb-3 pt-2">
+        {/* ★ 规格视图里**不摆「生成」**：这一屏的活是调规格，调完回去再开炼。
+            摆着的话这块投影就又变回"什么都能在这儿干"，而拆它就是为了治这个。
+            ✕（标题栏那颗）仍然随时能整块关掉，所以没有"困在这一屏"的问题。 */}
+        {spec ? (
+          <button
+            onClick={() => setSpec(false)}
+            className="w-full rounded-xl bg-slate-700/70 py-2 text-sm text-slate-200"
+          >
+            ‹ 返回
+          </button>
+        ) : (
+          <>
         {/* 推演一次 = 1 次豆包写剧情 + 最多 6 张 Seedream 首尾帧。
             这一步是工坊里用得最频繁的付费操作，以前一个字的提示都没有 */}
         <TokenCost
@@ -516,6 +560,8 @@ function EditorPanel() {
           {editor.generating ? editor.progress || "AI 正在推演三种走向…" : "生成"}
         </button>
         </div>
+          </>
+        )}
       </div>
     </>
   );

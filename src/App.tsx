@@ -23,6 +23,7 @@ import CutPage from "./pages/CutPage";
 import VideoEditorPage from "./pages/VideoEditorPage";
 import CreatePage from "./pages/CreatePage";
 import FlowPage from "./pages/FlowPage";
+import SimpleModePage from "./pages/SimpleModePage";
 import StudioPage from "./studio/StudioPage";
 import TabBar from "./components/TabBar";
 import { readyVideos } from "./data/videos";
@@ -228,6 +229,15 @@ export default function App() {
         element={
           <RequireAuth>
             <StudioPage />
+          </RequireAuth>
+        }
+      />
+      {/* 简约模式：一步一屏的向导（2026-08-23 从 /flow 独立出来） */}
+      <Route
+        path="/simple"
+        element={
+          <RequireAuth>
+            <SimpleModePage />
           </RequireAuth>
         }
       />

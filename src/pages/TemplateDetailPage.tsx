@@ -17,6 +17,7 @@ import { useAutoGuide } from "../components/guide/useAutoGuide";
 // ★ 与市场页共用同一个核对入口/面板（含"删掉一个角色位"）。两页各写一份必然分叉，
 //   而这一屏说的话直接决定作者会不会去重炼（花第二次钱）
 import { RoleConfirmEntry } from "../components/blockout/RoleConfirmSheet";
+import { DetectRolesEntry } from "../components/blockout/DetectRolesEntry";
 import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import { useTemplatesVersion } from "./TemplateMarketPage";
@@ -105,8 +106,7 @@ function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
           指着一个不存在的东西说话，与功能坏了长得一模一样。
           ★ 顺手压到一行：剩下那半句（时长与画幅）是每次都该看见的，留着。 */}
       <p data-guide="template-refvideo" className="text-[11px] leading-relaxed text-slate-400">
-        套用出片＝整段复刻这段视频的场景、道具与运镜，只把人偶换成你挂的角色卡。
-        出片时长≈模板时长，画幅跟这段视频走。
+        套用＝复刻这段的场景与运镜，人偶换成你挂的角色卡。时长与画幅跟这段视频走。
       </p>
       {/* ★ 作者本人先看这一句：坏模板对他来说不是"换一个"，而是"这不是你的错、重做时至少
           选 5 秒"。它替代（不是叠加）下面那句给套用者的话 —— 两句一起显示会让作者以为
@@ -121,9 +121,7 @@ function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
       ) : (
         tokens !== null && (
           <p className="mt-2 text-[11px] leading-relaxed text-slate-300">
-            套用一次约 <b>{fmtTokens(tokens)}</b> token（「{gate!.label}」档 · 含模板视频
-            <b>按 {t.refVideo.durationSec} 秒计</b>的输入费——r2v 连输入视频的时长也计费，输出时长按≈模板时长估
-            {realSec !== null ? `；这段模板视频实际约 ${realSec.toFixed(1)} 秒，计费按整秒向上取` : ""}）
+            套用一次约 <b>{fmtTokens(tokens)}</b> token（按模板视频时长计）
           </p>
         )
       )}
@@ -305,6 +303,12 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
       {/* empty:hidden —— 入口对经典配方/没角色位的模板返回 null，那时这个壳不该留下一道空白 */}
       <div className="mt-2 empty:hidden">
         <RoleConfirmEntry t={t} />
+      </div>
+      {/* 识别角色位（2026-08-23 从列表格子挪进来，与核对同属「作者工作台」）：核对之前
+          先让 AI 认一遍画面里有哪些人。DetectRolesEntry 自己判「只对白模、只对本人、
+          没核对过」，不满足就返回 null 自动隐藏（外层 empty:hidden 收掉空壳）。 */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 empty:hidden">
+        <DetectRolesEntry t={t} />
       </div>
       {/* 白模的试炼闸说明与操作：发布前须用本模板真实出过一次片。
           为什么有这道门也要说给作者听——方舟任务受理后失败不退费，坏模板的钱
@@ -525,44 +529,54 @@ export default function TemplateDetailPage() {
       {applyErr && <p className="mb-3 text-xs leading-relaxed text-rose-400">{applyErr}</p>}
       <div className="mb-3" />
 
-      {/* 生成配方：明着给，用户才知道它为什么像，也才能照着改 */}
-      <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
-        <div className="mb-2 text-xs font-semibold text-slate-300">🧪 生成配方</div>
-        <div className="mb-2">
-          <div className="mb-1 text-[11px] text-slate-500">画面质感与运镜</div>
-          <p className="text-xs leading-relaxed text-slate-400">{t.recipe.styleHint}</p>
+      {/* ★ 第 2 区「怎么做出来的」——默认折叠（2026-08-23）。
+          配方与卡组是"想深究时才看"的信息：套用者的决策在第一屏（预览 + 价钱 + 出片）
+          就能做完，把它们常驻展开只会把第一屏推到屏幕外。折叠壳不改内部一个字。 */}
+      <details className="mb-4 rounded-xl border border-slate-700/70 bg-panel/60">
+        <summary className="cursor-pointer list-none px-3 py-2.5 text-xs font-semibold text-slate-300">
+          🧪 怎么做出来的{t.cards.length > 0 ? ` · 含 ${t.cards.length} 张卡` : ""}
+        </summary>
+        <div className="px-3 pb-3">
+        {/* 生成配方：明着给，用户才知道它为什么像，也才能照着改 */}
+        <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+          <div className="mb-2 text-xs font-semibold text-slate-300">🧪 生成配方</div>
+          <div className="mb-2">
+            <div className="mb-1 text-[11px] text-slate-500">画面质感与运镜</div>
+            <p className="text-xs leading-relaxed text-slate-400">{t.recipe.styleHint}</p>
+          </div>
+          <div className="mb-2">
+            <div className="mb-1 text-[11px] text-slate-500">分镜骨架（{"{{主题}}"} 会换成你那句话）</div>
+            <ol className="space-y-1">
+              {t.recipe.beats.map((b, i) => (
+                <li key={i} className="rounded-lg bg-black/25 px-2.5 py-1.5 text-xs leading-relaxed text-slate-300">
+                  <span className="mr-1.5 text-slate-500">{i + 1}.</span>
+                  {b}
+                </li>
+              ))}
+            </ol>
+          </div>
+          {t.source && (
+            <div>
+              <div className="mb-1 text-[11px] text-slate-500">参考画面特征</div>
+              <p className="text-xs leading-relaxed text-slate-500">{t.source}</p>
+            </div>
+          )}
         </div>
-        <div className="mb-2">
-          <div className="mb-1 text-[11px] text-slate-500">分镜骨架（{"{{主题}}"} 会换成你那句话）</div>
-          <ol className="space-y-1">
-            {t.recipe.beats.map((b, i) => (
-              <li key={i} className="rounded-lg bg-black/25 px-2.5 py-1.5 text-xs leading-relaxed text-slate-300">
-                <span className="mr-1.5 text-slate-500">{i + 1}.</span>
-                {b}
-              </li>
-            ))}
-          </ol>
-        </div>
-        {t.source && (
-          <div>
-            <div className="mb-1 text-[11px] text-slate-500">参考画面特征</div>
-            <p className="text-xs leading-relaxed text-slate-500">{t.source}</p>
+
+        {t.cards.length > 0 && (
+          <div className="mb-4">
+            <div className="mb-2 text-xs font-semibold text-slate-300">🎴 模板卡组 · {t.cards.length} 张</div>
+            <div className="grid grid-cols-3 gap-2">
+              {t.cards.map((c) => (
+                <Link key={c.id} to={`/card/${c.id}`} state={{ card: c }}>
+                  <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} />
+                </Link>
+              ))}
+            </div>
           </div>
         )}
-      </div>
-
-      {t.cards.length > 0 && (
-        <div className="mb-4">
-          <div className="mb-2 text-xs font-semibold text-slate-300">🎴 模板卡组 · {t.cards.length} 张</div>
-          <div className="grid grid-cols-3 gap-2">
-            {t.cards.map((c) => (
-              <Link key={c.id} to={`/card/${c.id}`} state={{ card: c }}>
-                <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} />
-              </Link>
-            ))}
-          </div>
         </div>
-      )}
+      </details>
 
       {/* 白模路：isMine 来自服务端 isOwner——**不要**再 && ownedHere（换设备后本机库
           是空的，但作者对自己已发布的模板必须仍有下架/删除入口，否则作废/侵权模板

@@ -171,7 +171,7 @@ export default function BranchPlayer({ tree, cover }: { tree: BranchTree; cover:
                 ▶
               </span>
               <span className="rounded-full bg-brand/90 px-3 py-1 text-xs font-medium text-white">
-                互动视频 · 你的选择决定剧情
+                互动视频
               </span>
             </button>
           )}
@@ -236,7 +236,7 @@ export default function BranchPlayer({ tree, cover }: { tree: BranchTree; cover:
                   <Icon name="replay" size={16} className="mr-1.5 inline-block align-[-3px]" />从头再看
                 </button>
                 <button onClick={backToFork} className="rounded-full bg-brand/80 px-4 py-2 text-sm hover:bg-brand">
-                  <Icon name="branch" size={16} className="mr-1.5 inline-block align-[-3px]" />回到分支点换条路
+                  <Icon name="branch" size={16} className="mr-1.5 inline-block align-[-3px]" />换条路
                 </button>
               </div>
             </div>
