@@ -118,7 +118,7 @@ export default function ReportButton({
             {!user ? (
               // 未登录也能刷首页，所以这一步很常见。别做成灰按钮——说清楚并给出路
               <div className="pb-3">
-                <p className="mb-3 text-xs text-slate-400">登录之后才能举报（管理员需要知道是谁报的，才能挡住刷举报）。</p>
+                <p className="mb-3 text-xs text-slate-400">登录之后才能举报。</p>
                 <button
                   onClick={() => navigate("/login?next=/")}
                   className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"

@@ -419,7 +419,7 @@ function VoiceSection() {
           className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
         />
         <p className="mt-1 text-[11px] text-slate-500">
-          语速与语调改完，点上面任意音色即刻试听 · 语调这一段不计费 · **只对 2.0 单音色生效**，「调和」那几条用不了
+          语速与语调改完，点上面任意音色即刻试听 · 语调这一段不计费 · 只对 2.0 单音色生效，「调和」那几条用不了
         </p>
       </div>
     </section>
