@@ -84,7 +84,20 @@ export default function SimpleModePage() {
       {/* store 的整句拒绝（换模板被拒、生成被拒…）—— 不画一份就是"点了没反应"（铁律八） */}
       {err && <p className="mb-3 rounded-lg bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
 
-      {step === "start" && <StepStart onPick={(r) => { setRoute(r); setStep("fill"); }} />}
+      {step === "start" && (
+        <StepStart
+          onPick={(r) => {
+            // ★★ 选「自己写」必须**摘掉已套的模板**（2026-08-23 实测抓到）：
+            //   用户从模板路退回来改选自定义时，节点上那份 tpl 快照还在 —— 第 3 屏会
+            //   照旧显示「套用的模板 …」、按 r2v 计价（2.2M 而不是几十 k），最后出的
+            //   还是模板复刻。他明明选了"自己写"，全程零报错。
+            //   ★ 走 store 的 setNodeTemplate(null)（摘模板的唯一实现，会一并清挂卡与点名句）。
+            if (r === "custom" && tpl) setNodeTemplate(node.id, null);
+            setRoute(r);
+            setStep("fill");
+          }}
+        />
+      )}
 
       {step === "fill" && route === "template" && (
         <StepTemplate
