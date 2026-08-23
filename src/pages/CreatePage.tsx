@@ -90,7 +90,7 @@ const MODES: Mode[] = [
       // 简约模式自己不落草稿（见 studioStore.saveWorkDraft），但仍然要断开与上一条草稿的
       // 关联：不断开的话，用户从简约模式回工坊再点「存草稿」会把之前那条原地覆盖掉
       useStudio.getState().newWorkDraft();
-      nav("/flow");
+      nav("/simple"); // ★ 2026-08-23 起简约有自己的向导页，不再寄生在 /flow
     },
   },
 ];

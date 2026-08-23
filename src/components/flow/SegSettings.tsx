@@ -27,10 +27,28 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
   /** 这一段走白模复刻（判据与报价、出片同源：模板快照带 refVideo） */
   const blockout = !!tpl?.refVideo;
   const tierBlocks = VIDEO_TIERS.map((t) => tierBlockReason(t)).filter((r): r is string => !!r);
-  /** 白模节点下各档位点不动的 r2v 原因（判断在 economy.r2vPriceIssue 一处，铁律六）。
-   *  几档的整句常常相同（"暂未开放"），Set 去重后再印，别把同一句话糊三遍 */
+  /**
+   * 白模节点下各档位点不动的 r2v 原因（判断在 economy.r2vPriceIssue 一处，铁律六）。
+   *
+   * ★★ 2026-08-23 修：原来只对**整句**做 Set 去重，而每句都带着自己的档位名
+   *   （「极速」这一档暂未开放…／「标准」这一档暂未开放…），四句字面不同 ⇒ 去重恒失效，
+   *   于是同一件事在屏幕上糊了三四遍，把这一块撑成一大段红字。
+   *   现在按**去掉档位名之后**的句子去重：同因只留一条，并把档位名合并到一起说。
+   */
   const r2vBlocks = blockout
-    ? [...new Set(VIDEO_TIERS.map((t) => r2vPriceIssue(t.id)).filter((r): r is string => !!r))]
+    ? (() => {
+        const byReason = new Map<string, string[]>();
+        for (const t of VIDEO_TIERS) {
+          const why = r2vPriceIssue(t.id);
+          if (!why) continue;
+          // 「「极速」这一档暂未开放…」→ 去掉开头那个带引号的档位名，剩下的就是"原因本身"
+          const bare = why.replace(/^「[^」]*」/, "").trim();
+          const hit = byReason.get(bare);
+          if (hit) hit.push(t.label);
+          else byReason.set(bare, [t.label]);
+        }
+        return [...byReason].map(([bare, names]) => `「${names.join("」「")}」${bare}`);
+      })()
     : [];
 
   return (
