@@ -15,6 +15,8 @@ interface QQLoginPluginApi {
   isAvailable(): Promise<{ available: boolean; qqInstalled: boolean }>;
   /** 授权成功只吐一次性 code —— access_token 与 openid 都在服务端换，端上拿不到也不该拿到 */
   login(): Promise<{ code: string }>;
+  /** 卡片式分享到 QQ 好友。用户取消也会 reject（调用方要能把原因摆出来） */
+  shareToQQ(opts: { title: string; targetUrl: string; summary?: string; imageUrl?: string }): Promise<void>;
 }
 
 const QQLogin = registerPlugin<QQLoginPluginApi>("QQLogin");
@@ -40,4 +42,13 @@ export async function signInWithQQ(): Promise<string> {
   const { code } = await QQLogin.login();
   const { token } = await qqNativeLogin(code);
   return token;
+}
+
+/**
+ * 把一条作品的预览链接分享到 QQ 好友（卡片：标题/摘要/封面/链接）。
+ * 复用登录那个原生插件——share 的回执走同一条 onActivityResult 转发。
+ * 失败与用户取消都抛，由分享面板显示原因。
+ */
+export async function shareVideoToQQ(opts: { title: string; targetUrl: string; summary?: string; imageUrl?: string }): Promise<void> {
+  await QQLogin.shareToQQ(opts);
 }

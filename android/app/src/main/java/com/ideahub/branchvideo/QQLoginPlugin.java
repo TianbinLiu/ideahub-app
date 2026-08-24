@@ -140,6 +140,80 @@ public class QQLoginPlugin extends Plugin {
         }
     }
 
+    /**
+     * 分享一条链接到 QQ 好友（卡片式：标题 + 摘要 + 封面 + 链接）。
+     *
+     * ★ 和登录共用同一套 pending/listener 单槽与 onActivityResult 转发：
+     *   share 的回执同样回到 MainActivity（requestCode 10103），
+     *   Tencent.onActivityResultData 按 code 自己分发，这边只要保证
+     *   listener 是"当前这一单"的即可 —— 单飞（in-flight 只有一单）由 pending 闸住。
+     * ★ 用户在 QQ 里点「取消」会走 onCancel —— 一样要 reject，让分享面板能显示原因，
+     *   不能让按钮看起来"点了没反应"（铁律八）。
+     */
+    @PluginMethod
+    public void shareToQQ(PluginCall call) {
+        Activity activity = getActivity();
+        if (activity == null) {
+            call.reject("Activity 不可用");
+            return;
+        }
+        if (pending != null) {
+            call.reject("上一次操作还没结束");
+            return;
+        }
+        if (ensureTencent() == null) {
+            call.reject("QQ SDK 初始化失败");
+            return;
+        }
+
+        String title = call.getString("title", "");
+        String targetUrl = call.getString("targetUrl", "");
+        if (title == null || title.isEmpty() || targetUrl == null || targetUrl.isEmpty()) {
+            call.reject("缺少标题或链接");
+            return;
+        }
+
+        android.os.Bundle params = new android.os.Bundle();
+        params.putInt(com.tencent.connect.share.QQShare.SHARE_TO_QQ_KEY_TYPE,
+                com.tencent.connect.share.QQShare.SHARE_TO_QQ_TYPE_DEFAULT);
+        params.putString(com.tencent.connect.share.QQShare.SHARE_TO_QQ_TITLE, title);
+        params.putString(com.tencent.connect.share.QQShare.SHARE_TO_QQ_TARGET_URL, targetUrl);
+        String summary = call.getString("summary", "");
+        if (summary != null && !summary.isEmpty()) {
+            params.putString(com.tencent.connect.share.QQShare.SHARE_TO_QQ_SUMMARY, summary);
+        }
+        String imageUrl = call.getString("imageUrl", "");
+        if (imageUrl != null && !imageUrl.isEmpty()) {
+            params.putString(com.tencent.connect.share.QQShare.SHARE_TO_QQ_IMAGE_URL, imageUrl);
+        }
+        params.putString(com.tencent.connect.share.QQShare.SHARE_TO_QQ_APP_NAME, "启梦");
+
+        pending = call;
+        listener = new IUiListener() {
+            @Override
+            public void onComplete(Object response) {
+                finish(new JSObject(), null);
+            }
+
+            @Override
+            public void onError(UiError e) {
+                String msg = e == null ? "QQ 分享失败" : ("QQ 分享失败（" + e.errorCode + "）" + safe(e.errorMessage));
+                finish(null, msg);
+            }
+
+            @Override
+            public void onCancel() {
+                finish(null, "已取消分享");
+            }
+
+            @Override
+            public void onWarning(int code) {
+                /* 非终态，不收尾 */
+            }
+        };
+        tencent.shareToQQ(activity, params, listener);
+    }
+
     /** 收尾：结果只从这一处交付，避免某条分支忘了清 pending 把后续点击全堵死 */
     private void finish(JSObject ret, String err) {
         PluginCall call = pending;
