@@ -16,8 +16,10 @@ import { API_BASE, API_ON, getToken } from "../api/client";
 import { syncRemoteWallet } from "../data/account";
 import { DEFAULT_IMAGE_TIER, imageTierOf, videoAudioOn } from "../data/economy";
 
-/** 把响应头上的权威余额同步进本地镜像。头部缺失（CORS 没放行/dev 代理）时什么都不做。 */
-function syncWalletFromHeaders(h: Headers): void {
+/** 把响应头上的权威余额同步进本地镜像。头部缺失（CORS 没放行/dev 代理）时什么都不做。
+ *  ★ 导出给 minimaxVideo 复用（真人档也走计费代理、也带同一对 X-Wallet 头）——
+ *    镜像同步只有这一份实现。 */
+export function syncWalletFromHeaders(h: Headers): void {
   const plan = h.get("X-Wallet-Plan");
   const addon = h.get("X-Wallet-Addon");
   if (plan === null || addon === null) return;
@@ -415,6 +417,14 @@ export async function generateVideo(
     refVideoUrl?: string;
     /** 白模参考视频的源片时长（秒）。只用来给轮询死线定尺寸（见下），不进请求体 */
     refVideoSec?: number;
+    /**
+     * 人物卡声音样本（wav/mp3 dataURL，2~15s，≤3 段）—— 台词的**音色参考**。
+     * ★ 只能在参考生视频模式给：方舟实测（2026-08-24 阶段 0）首尾帧任务混参考媒体
+     *   直接 400 `first/last frame content cannot be mixed with reference media content`。
+     *   要不要给由 studio/segmentGen 判（唯一判定处），这里只校验形状并发出去。
+     * ★ 计费实测零加价：同任务带/不带参考音频 usage 逐位相同（87,300 = 87,300）。
+     */
+    refAudios?: string[];
     onProgress?: (status: string) => void;
   },
 ): Promise<string> {
@@ -434,6 +444,17 @@ export async function generateVideo(
   if (mode === "frames" && !firstFrameUrl) {
     throw new Error("出片缺少起拍画面：既没有首帧也没有参考图");
   }
+  const refAudios = opts?.refAudios ?? [];
+  if (refAudios.length > 0 && mode !== "reference") {
+    // 响亮地失败（同上两条）：首尾帧模式混参考音频是方舟侧的 400——在这里放行等于
+    // 让一个必然失败的任务把钱先扣了（任务创建那一刻就计费受理）
+    throw new Error("参考音频只能配参考生视频模式（首尾帧任务混参考媒体会被方舟拒绝）——不该走到这里");
+  }
+  if (refAudios.length > 0 && !videoAudioOn(model)) {
+    // 1.x 收到 audio_url 是 400 还是静默忽略没人验证过——静默忽略就是"带了声音样本、
+    // 片子照样哑的、零报错"，比报错更坏（与 refImage 白名单同一条纪律）
+    throw new Error(`模型 ${model} 不支持音频，不该带参考音频（能力表见 data/economy 的 VideoTier.audio）`);
+  }
   const content: Array<Record<string, unknown>> =
     mode === "reference"
       ? [
@@ -444,6 +465,9 @@ export async function generateVideo(
           //   所以 prepareMaterialRefs 的 bind(offset) 不需要为它 +1。
           ...(refVideoUrl ? [{ type: "video_url", role: "reference_video", video_url: { url: refVideoUrl } }] : []),
           ...refs.map((url) => ({ type: "image_url", image_url: { url }, role: "reference_image" })),
+          // ★ 音频排在图后面：提示词里按「参考音频N」点名（1 起算，与图的编号互不相干），
+          //   schema 与 dataURL 直发都是阶段 0 直连实测钉死的（docs/card-system-v2-design.md）
+          ...refAudios.slice(0, 3).map((url) => ({ type: "audio_url", audio_url: { url }, role: "reference_audio" })),
         ]
       : [
           { type: "text", text: prompt },

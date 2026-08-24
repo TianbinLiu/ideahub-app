@@ -56,12 +56,28 @@ z.object 默认 strip，塞进去会被丢掉。★ 这条靠的是 strip 语义
 ```
 { _id, owner: ObjectId(User), cardId, type, name, summary, cover, hot?, tags?,
   modelUrl?, genPrompt?,                       // 3D 建模指针 / 生成蓝图
+  realPerson?,                                 // 真人声明（布尔），见下
   views?: [{ url, kind, note? }],              // 形象参考图（0~3 张），见下
   published?, publishedAt?, description?,      // 分享到创意工坊
   createdAt }
 // imageTier?  —— 客户端 Card 上有，服务端**目前不存**，见下面单独一节
 ```
 `cardId` 是客户端生成的稳定 id（市场卡为 `mkt_*`），`{ owner, cardId }` 唯一索引。
+
+#### `realPerson` —— 真人声明（2026-08-23 加）
+
+用户在圈选提取时**自己勾的**「画面里是真实人物」（机器判不准，只能让当事人表态；
+勾它必须同时勾肖像同意协议，责任由用户承担——产品决定，开放任意真人照片）。
+真人素材受供应商内容审核与深度合成法规约束，出片档位按它分流。
+
+- **缺省 = 老卡/老客户端 = 非真人**，两边读侧一律判否定（`!== true` 当非真人）。
+  拿它和 `false` 等值判"明确声明过不是"会把存量卡整批误判（同 `visibility` 那条规则）。
+- **随分享/安装/卡组快照/作品卡组快照一路携带，不剥**：它是内容属性不是隐私字段，
+  掉在任何一跳，真人卡经那条路洗一遍就变回"非真人"，档位分流静默失效。
+  落库要过的几处与 `views` 完全同一批（见下面「五处一起加」，含第六、第七处的
+  `BranchVideo.deckCardSchema` 与 `branchVideo.controller` 字段白名单）。
+- `PATCH /cards/:cardId` 的 schema 声明了它但当前客户端**不发**（那条 PATCH 是 views
+  专用；声明只为将来加"改声明"入口时不再经历一次"发了、被 strip、零报错"）。
 
 #### `views` —— 卡片的形象参考图
 

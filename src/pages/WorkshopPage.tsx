@@ -1,6 +1,6 @@
 // 创意工坊页：管理自己的卡片与卡组——搜索添加市场卡片、建组、增删卡。
 // 与 3D 卡片工坊（/studio）分工：这里是资产管理，那里是创作现场。
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -26,7 +26,8 @@ import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
 import { searchMarket } from "../ai";
 import TarotCard from "../components/TarotCard";
 import TemplateShelf from "../components/TemplateShelf";
-import VideoCardExtractor from "../components/VideoCardExtractor";
+import VideoCardAnnotator from "../components/VideoCardAnnotator";
+import { subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType } from "../types";
 
@@ -91,6 +92,12 @@ function CardTile({ card, onRemove, to }: { card: Card; onRemove?: () => void; t
   return (
     <div className="group relative">
       {to ? <Link to={to}>{face}</Link> : face}
+      {/* 🔊 = 带声音样本（本机侧库，data/cardVoice）。用户按"有没有声音"挑卡就靠这一眼 */}
+      {voiceOf(card.id) && (
+        <span className="absolute left-1 top-1 rounded bg-black/70 px-1 text-[10px]" title="带声音样本">
+          🔊
+        </span>
+      )}
       {onRemove && (
         <button
           onClick={onRemove}
@@ -150,7 +157,9 @@ export default function WorkshopPage() {
   const [busyCard, setBusyCard] = useState<string | null>(null);
   const [cardErr, setCardErr] = useState("");
   // 上传本地视频提卡的抽屉
-  const [extractOpen, setExtractOpen] = useState(false);
+  /** 圈选提取抽屉。null = 没开；"deck"/"single" = 提取卡组 / 单张卡片（V2 圈选式） */
+  const [extractOpen, setExtractOpen] = useState<null | "deck" | "single">(null);
+  useSyncExternalStore(subscribeVoices, voicesVersion, () => 0);
   const remote = isRemoteMode();
 
   // 搜索市场卡片（空词=热门）
@@ -260,19 +269,29 @@ export default function WorkshopPage() {
             </div>
           )}
 
-          {/* 从本地视频提卡：手里已经有片子的人不必从零铸卡，抽帧让 AI 认人认景直接出卡 */}
-          <button
-            data-guide="workshop-extract-card"
-            onClick={() => setExtractOpen(true)}
-            className="mb-5 flex w-full items-center gap-3 rounded-xl border border-cyan-400/35 bg-gradient-to-r from-cyan-400/15 to-transparent px-3.5 py-3 text-left"
-          >
-            <span className="text-2xl">🎬</span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-100">从视频提取卡片</span>
-              <span className="block text-[11px] text-slate-400">上传本地视频，AI 认出里面的角色/场景/画风，直接铸成卡</span>
-            </span>
-            <Icon name="chevron" size={18} />
-          </button>
+          {/* 从本地视频圈选提卡（V2，2026-08-24 换代）：旧路是"AI 看抽帧自动认"，又贵又不可控；
+              新路是用户拖到某一帧亲手圈出要的人和物 —— 不上传、不花 token、指哪张是哪张。
+              两颗入口并排：提取卡组（连圈多张打包）/ 提取卡片（圈一张就走）。 */}
+          <div data-guide="workshop-extract-card" className="mb-5 flex gap-2">
+            {(
+              [
+                ["deck", "🎴", "从视频提取卡组", "连圈多张，打包成一组"],
+                ["single", "🎯", "从视频提取卡片", "圈一张就走"],
+              ] as const
+            ).map(([mode, icon, title, sub]) => (
+              <button
+                key={mode}
+                onClick={() => setExtractOpen(mode)}
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-cyan-400/35 bg-gradient-to-r from-cyan-400/15 to-transparent px-3 py-3 text-left"
+              >
+                <span className="text-xl">{icon}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-semibold text-slate-100">{title}</span>
+                  <span className="block truncate text-[10px] text-slate-400">{sub}</span>
+                </span>
+              </button>
+            ))}
+          </div>
 
           {/* 自己传图做卡片：**另一条**路，不是默认路径 —— 默认铸卡（3D 工坊里的铸卡师）
               已经是 AI 全自动出图，一张图都不用传。所以这行说明必须点出区别，
@@ -593,7 +612,7 @@ export default function WorkshopPage() {
           </div>
         </>
       )}
-      {extractOpen && <VideoCardExtractor onClose={() => setExtractOpen(false)} />}
+      {extractOpen && <VideoCardAnnotator deckMode={extractOpen === "deck"} onClose={() => setExtractOpen(null)} />}
     </div>
   );
 }

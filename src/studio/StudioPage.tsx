@@ -86,11 +86,15 @@ function useHint(): string {
   const projection = useStudio((s) => s.projection);
   const focus = useStudio((s) => s.focus);
   const marketOpen = useStudio((s) => s.market.open);
+  const marketEmpty = useStudio((s) => s.market.open && !s.market.loading && s.market.items.length === 0);
   const spreadOpen = useStudio((s) => s.spreadOpen);
   if (projection === "editor") return "填入素材与要求，AI 将推演三套走向";
   if (projection === "proposals") return "挑一套方案 → 可换首尾帧/改剧情 → 炼出本段视频";
   if (projection === "decks") return "小窗右上角可在「卡组 / 卡片」间切换，单击卡片看详情";
   if (focus) return "点击卡片之外的桌面区域可拉远视角";
+  // ★ 空市场不许照念"点桌上的市场卡"——桌上一张都没有（卡片系统 V2 清掉了离线种子），
+  //   指着空桌说"点卡"是在骗人。空态说清哪里能来卡。
+  if (marketEmpty) return "市场还空着——用「从视频提取」圈几张卡，分享后这里就会有";
   if (marketOpen) return "点桌上的市场卡放大查看，喜欢就收进卡组";
   if (spreadOpen) return "拖卡片到虚线卡位铸段 · 单点看详情";
   if (!root && deckLen === 0) return "先把素材交给铸卡师炼卡，或让 TA 摊开市场";

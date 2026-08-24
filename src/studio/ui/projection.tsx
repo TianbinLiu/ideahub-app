@@ -6,7 +6,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { deckCoverOf, myCards, myDecks, tierBlockReason } from "../../data/account";
-import { DEFAULT_TIER, VIDEO_TIERS, fmtTokens, modelLabel, segTokens, segmentCost, tierOf } from "../../data/economy";
+import { DEFAULT_TIER, VIDEO_TIERS, deriveIssue, fmtTokens, modelLabel, segTokens, segmentCost, tierOf } from "../../data/economy";
 import TarotCard from "../../components/TarotCard";
 import DeckCard from "../../components/DeckCard";
 import GenTrace from "../../components/GenTrace";
@@ -249,7 +249,9 @@ function EditorPanel() {
   const prev = path.length > 0 ? chosenProposal(path[path.length - 1]) : null;
   const segIndex = root ? path.length : 0;
   /** 当前套餐点不动的档位各是为什么（空 = 都能选）。判断在 data/account 一处 */
-  const tierBlocks = VIDEO_TIERS.map((t) => tierBlockReason(t)).filter((r): r is string => !!r);
+  const tierBlocks = VIDEO_TIERS.map((t) => tierBlockReason(t) ?? deriveIssue(t.id)).filter(
+    (r): r is string => !!r,
+  );
 
   return (
     <>
@@ -343,7 +345,9 @@ function EditorPanel() {
                 const on = editor.videoTier === t.id;
                 // 付费档位门禁：判断只有一处（data/account.tierBlockReason），
                 // 这里只负责把它画出来 —— 灰着但不说为什么等于告诉用户"功能坏了"
-                const block = tierBlockReason(t);
+                // 工坊铸段整个建立在推演上，按发直出档（真人档）走不了——判定与话术
+                // 都在 economy.deriveIssue 一处（flowStore/studioStore 的闸用的同一句）
+                const block = tierBlockReason(t) ?? deriveIssue(t.id);
                 return (
                   <button
                     key={t.id}

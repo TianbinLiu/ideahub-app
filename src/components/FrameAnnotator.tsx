@@ -13,6 +13,39 @@ export function drawCover(ctx: CanvasRenderingContext2D, src: HTMLVideoElement |
   ctx.drawImage(src, (w - sw * s) / 2, (h - sh * s) / 2, sw * s, sh * s);
 }
 
+/**
+ * 在成片画布右下角画一枚**持续显示**的 AIGC 标识（《人工智能生成合成内容标识办法》
+ * 2025-09-01 施行的显式标识：视频须"持续显示"含「AI」+「生成/合成」字样的角标，
+ * 不是只在起始画面出现）。合并那一层每帧调一次 —— 逐帧盖章才叫"持续"。
+ *
+ * ★ 全片通用，不只真人档：所有 AI 出的片都归它管；真人档只是让它从"该做"变成
+ *   "不能再拖"（真人合成是标识办法点名的高危场景）。
+ * ★ 只做**显式**这一半。隐式标识（文件元数据五要素）webm 容器在浏览器里写不进，
+ *   那是发布上传时服务端的活（见 publish 侧待办）—— 别在这儿假装做了。
+ * ★ 尺寸按画布短边比例算（竖屏横屏同一套代码），描边保证深浅背景上都读得出。
+ */
+export function drawAigcBadge(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const text = "AI 生成";
+  const fs = Math.max(14, Math.round(Math.min(w, h) * 0.028));
+  const pad = Math.round(fs * 0.5);
+  ctx.save();
+  ctx.font = `600 ${fs}px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif`;
+  ctx.textBaseline = "bottom";
+  ctx.textAlign = "right";
+  const x = w - pad;
+  const y = h - pad;
+  const tw = ctx.measureText(text).width;
+  // 半透明底衬，保证在任何画面上都读得出（描边单独兜底纯色背景）
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.fillRect(x - tw - pad * 0.8, y - fs - pad * 0.5, tw + pad * 1.6, fs + pad);
+  ctx.lineWidth = Math.max(2, fs * 0.12);
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
 export function loadImg(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const i = new Image();

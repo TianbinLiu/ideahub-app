@@ -156,6 +156,8 @@ export interface ApiCard {
   modelUrl?: string;
   /** 生成蓝图 */
   genPrompt?: string;
+  /** 真人声明（缺省 = 老卡 = 非真人，读侧判否定，见 types.Card.realPerson） */
+  realPerson?: boolean;
   /** 已分享到创意工坊 */
   published?: boolean;
   publishedAt?: string | number;
@@ -551,6 +553,10 @@ export async function addCards(cards: Card[]): Promise<ApiCard[]> {
     //   那份记录的一部分；发布给别人时由服务端 shareableModelUrl 剥掉。
     modelUrl: c.modelUrl,
     genPrompt: c.genPrompt,
+    // ★ 真人声明与卡同生同灭：POST 是 $setOnInsert，漏在这里的话服务端那份永远是
+    //   "非真人"，换台设备登录声明就无声消失、出片档位分流静默失效（modelUrl/genPrompt
+    //   2026-08-11 就是这么丢的）。undefined 会被 JSON 序列化丢掉，等价于"没声明"。
+    realPerson: c.realPerson,
     // ★ 只发 http(s) 的那几张。views 的不变量是"只存 URL"（见 types.CardView），
     //   而 viewsOf() 给老卡兜底出来的那张 url 可能是 dataURL 卡面 —— 那是**读**用的，
     //   发上去只会被服务端当成一张几百 KB 的 base64 存进文档（或按 512KB 规则丢掉）。
@@ -582,6 +588,10 @@ function httpViews(views: Card["views"]): ApiCardView[] | undefined {
  *   `db.cards = 服务端那份`，于是用户加的参考图在下一次冷启动时**无声消失**。
  * ★ 调用方必须 await 并把失败**显示出来**（见 data/cardViews.ts）：全 app 没有任何
  *   地方监听 emitApiError，fire-and-forget 在这里等于静默丢数据（铁律八）。
+ * ★ realPerson **刻意不在**这份 payload 里：这条 PATCH 是定向 $set（只动 views），
+ *   服务端存的真人声明不受影响；声明在 POST 入库那一下就定了，客户端也没有事后改它
+ *   的入口。服务端的 update schema 声明了 realPerson 只是留门——真要发得新开参数，
+ *   别把 views 专用函数改成"顺手带一切"。
  */
 export async function updateCardViews(cardId: string, views: Card["views"]): Promise<ApiCard | null> {
   const res = await apiPatch<Record<string, unknown>>(`/api/branch/cards/${encodeURIComponent(cardId)}`, {

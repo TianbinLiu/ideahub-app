@@ -10,7 +10,7 @@
 //   不必把 index/nodes/mode 一路传下来，也就不会出现"传的是上一段"那类错。
 import { Link } from "react-router";
 import { tierBlockReason } from "../../data/account";
-import { fmtTokens, modelLabel, r2vPriceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { clampDuration, fmtTokens, modelLabel, r2vPriceIssue, realFaceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { chosenOf, nodeCost, nodeDone, tplOfNode, useFlow } from "../../studio/flowStore";
 import { DURATIONS, VIDEO_ASPECTS } from "../../types";
 
@@ -50,6 +50,14 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
         return [...byReason].map(([bare, names]) => `「${names.join("」「")}」${bare}`);
       })()
     : [];
+  /**
+   * 真人卡 × 档位的门禁原因（判断在 economy.realFaceIssue 一处，铁律六）——生成闸
+   * （flowStore.genNode / deriveProposals）拒的就是这一句，这里提前印出来，
+   * 免得用户写完一大段要求、点了生成才第一次听说真人卡过不去。
+   * 按当前档位问一次就够：今天四档 realFace 全 false，逐档问只会把同一句糊四遍
+   * （上面 r2vBlocks 刚治过这个）。
+   */
+  const realFaceBlock = realFaceIssue(node.materials, node.videoTier);
 
   return (
     <div className="space-y-3">
@@ -73,13 +81,26 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
             // ★ 短于本档下限的时长直接禁掉并说明：Seedance 2.5 的合法区间是 [4,30]，
             //   3 秒发过去是同步 400，用户只会觉得"这一档坏了"（见 VideoTier.minSec）
             const tooShort = d < tierOf(node.videoTier).minSec;
+            // ★ 按发计价档（真人档）只有价表里那几个整档：8 秒会被 clampDuration 吸附到
+            //   10 档并按 10 收——让它可点就是"按钮写 8、账按 10"，比灰掉更糟
+            const flat = tierOf(node.videoTier).flatCost;
+            const offStep = !!flat && !(d in flat);
             return (
               <button
                 key={d}
                 onClick={() => updateProposal(node.id, { durationSec: d })}
-                disabled={tooShort}
-                title={tooShort ? `「${tierOf(node.videoTier).label}」最短 ${tierOf(node.videoTier).minSec} 秒` : undefined}
-                className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${prop.durationSec === d ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+                disabled={tooShort || offStep}
+                title={
+                  offStep
+                    ? `「${tierOf(node.videoTier).label}」按发计价，只有 ${Object.keys(flat!).join("/")} 秒两档`
+                    : tooShort
+                      ? `「${tierOf(node.videoTier).label}」最短 ${tierOf(node.videoTier).minSec} 秒`
+                      : undefined
+                }
+                // ★ 高亮跟 clampDuration 的**结算值**走，不跟存量原始值（2026-08-24 真机抓到）：
+                //   换到按发档时 durationSec 可能还停在 5——实扣按吸附后的 6 算（clampDuration
+                //   是报价与出片同一把尺），5s 却还亮着 = 界面写 5、账按 6。
+                className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${clampDuration(prop.durationSec, node.videoTier) === d ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
               >
                 {d}s
               </button>
@@ -133,7 +154,15 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
           return (
             <button
               key={t.id}
-              onClick={() => updateNode(node.id, { videoTier: t.id })}
+              onClick={() => {
+                updateNode(node.id, { videoTier: t.id });
+                // ★ 换档同一拍把时长**吸附写回**（2026-08-24 真机抓到）：换到按发档时
+                //   durationSec 可能停在 5/8，实扣按 clampDuration 吸附后的整档算——
+                //   不写回的话段卡标签、总时长条这些读原始值的地方全在写 5、账按 6。
+                //   ark 档下 clamp 基本恒等，写回无害。
+                const snapped = clampDuration(prop.durationSec, t.id);
+                if (snapped !== prop.durationSec) updateProposal(node.id, { durationSec: snapped });
+              }}
               disabled={!!block}
               title={block ?? `${t.desc}（${t.model}）`}
               className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${node.videoTier === t.id ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
@@ -149,9 +178,9 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
       {/* ★ 点不动就必须写出为什么。只把按钮灰掉的话，用户只会觉得"这功能坏了"
           （CLAUDE.md「界面上摆一个永远点不动的选项」）。title 在手机上没有 hover，
           所以原因得**印在页面上**，不能只挂在 title 里 */}
-      {(tierBlocks.length > 0 || r2vBlocks.length > 0) && (
+      {(tierBlocks.length > 0 || r2vBlocks.length > 0 || realFaceBlock) && (
         <p className="text-[10px] leading-4 text-amber-300/80">
-          {[...tierBlocks, ...r2vBlocks].join("；")}
+          {[...tierBlocks, ...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])].join("；")}
           {/* 「去升级」只治得了套餐门槛那类原因；r2v 闸门没开不是充钱能解决的，
               只有套餐原因在场时才给这个链接。间隔用全角空格字面量——JSX 会把
               行间换行整个吃掉，靠折行留空隙是留不住的 */}

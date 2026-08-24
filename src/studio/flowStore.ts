@@ -27,8 +27,10 @@ import {
   fmtTokens,
   proposalRedrawCost,
   proposalsCost,
+  realFaceIssue,
   segmentCost,
   tierOf,
+  deriveIssue,
 } from "../data/economy";
 import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
@@ -1226,11 +1228,29 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const idx = s0.nodes.findIndex((n) => n.id === nodeId);
     const node = s0.nodes[idx];
     if (!node) return false;
+    // 按发计价档（真人档）没有方案台——判定在 economy.deriveIssue 一处。
+    // UI 已把推演入口换成直出，这里是兜底（agent 确认卡那条路能绕过 UI 直呼本函数）
+    {
+      const flatIssue = deriveIssue(node.videoTier);
+      if (flatIssue) {
+        set({ err: flatIssue });
+        return false;
+      }
+    }
     const cur = chosenOf(node);
     // 推演的依据是**用户那句话**，不是某一套方案的剧情（见 FlowNode.requirement）
     const req = requirementOf(node);
     if (!req.trim() && !node.materials?.length) {
       set({ err: "先写一句要拍什么（或从工坊带素材卡过来），我才好推演走向" });
+      return false;
+    }
+    // ★ 真人卡门禁（判断在 economy.realFaceIssue 一处，铁律六）：推演画首尾帧同样把
+    //   素材卡的形象参考喂给方舟（generateProposals → prepareMaterialRefs），真人照片
+    //   一样整发被拒 —— 而这条路是**先扣费后开跑**（下面 spendTokens 在 await 之前），
+    //   门禁必须立在扣费之前，不然就是"钱扣了、供应商拒了"。
+    const realFaceBlocked = realFaceIssue(node.materials, node.videoTier);
+    if (realFaceBlocked) {
+      set({ err: realFaceBlocked });
       return false;
     }
     // 与工坊的 generateNode 同一口径：1 次豆包 + 最多 6 张 Seedream。
@@ -1578,6 +1598,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const blocked = tierBlockReason(tierOf(node.videoTier));
     if (blocked) {
       set({ err: blocked });
+      return false;
+    }
+    // ★ 真人卡门禁（判断在 economy.realFaceIssue 一处，铁律六）：现有方舟档位对真人
+    //   参考图两套探测器全拦、整发拒收（见 VideoTier.realFace 的实测依据）——与其飞到
+    //   方舟中途换回一句英文报错，不如当场说人话（同上面 tierBlockReason 的处置）。
+    //   SegSettings 在档位区印的是同一句；r2v/白模路也从这里走，天然同一道门。
+    const realFaceBlocked = realFaceIssue(node.materials, node.videoTier);
+    if (realFaceBlocked) {
+      set({ err: realFaceBlocked });
       return false;
     }
     const cost = nodeCost(s0.nodes, idx, s0.mode);

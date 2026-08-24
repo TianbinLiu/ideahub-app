@@ -9,7 +9,10 @@ import * as real from "./real";
 export type { MaterialFile, ProposalContext } from "../mock/ai";
 export type { SegmentResult } from "./real";
 
-export const searchMarket = mock.searchMarket; // 市场是社区数据，暂留种子实现
+// 卡片系统 V2（2026-08-24）：离线种子市场随旧卡一并下架 —— 留着的话，一键"从市场添加"
+// 会把 mkt_* 旧卡装回来，下次启动又被清库迁移删掉，用户看到的是"添加了个寂寞"。
+// 远端模式的市场是服务端广场（browseSharedCards），不走这里。
+export const searchMarket: typeof mock.searchMarket = async () => [];
 export const generateCards = AI_REAL ? real.generateCards : mock.generateCards;
 /** mock 构建忽略 onProgress（本地 2 秒内出结果，无进度可报） */
 export const generateProposals: typeof real.generateProposals = AI_REAL

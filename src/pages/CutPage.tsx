@@ -8,7 +8,7 @@
 // 最后「下一步」把时间轴按顺序与裁剪范围重编码成单条视频，进发布页。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import FrameAnnotator, { drawCover, loadImg } from "../components/FrameAnnotator";
+import FrameAnnotator, { drawAigcBadge, drawCover, loadImg } from "../components/FrameAnnotator";
 import Icon from "../components/Icon";
 import { AI_REAL, refineFrame, regenSegment } from "../ai";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
@@ -418,6 +418,7 @@ export default function CutPage() {
                 return;
               }
               drawCover(ctx, v, canvas.width, canvas.height);
+              drawAigcBadge(ctx, canvas.width, canvas.height);
               requestAnimationFrame(draw);
             };
             draw();
@@ -433,6 +434,7 @@ export default function CutPage() {
               ctx.globalAlpha = p * p * (3 - 2 * p);
               drawCover(ctx, b, canvas.width, canvas.height);
               ctx.globalAlpha = 1;
+              drawAigcBadge(ctx, canvas.width, canvas.height);
               if (p >= 1) {
                 resolve();
                 return;

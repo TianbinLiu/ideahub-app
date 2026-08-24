@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { createPortal } from "react-dom";
 import GenTrace from "../GenTrace";
 import Icon from "../Icon";
+import { subscribeVoices, voiceOf, voicesVersion } from "../../data/cardVoice";
 import HelpButton from "../guide/HelpButton";
 import { useAutoGuide } from "../guide/useAutoGuide";
 import AnnStrip from "./AnnStrip";
@@ -45,7 +46,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost } from "../../data/economy";
+import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost, tierOf } from "../../data/economy";
 import { executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { requestLandscape } from "../../hooks/useOrientationLock";
 import { resolveMediaUrl, useMediaUrl } from "../../utils/mediaUrl";
@@ -694,6 +695,9 @@ function NodePanel({
   const named = !!tpl?.refVideo && !!tpl.roles?.length;
   /** 模板模式？由节点事实派生（有白模模板快照），不是独立 UI 状态 —— 两份真相必然漂 */
   const tplMode = !!tpl?.refVideo;
+  /** 按发直出档（真人档）：没有方案台，文本框直接写 plot、按钮直接开炼——
+   *  与 tplMode 同一条直出产线，判据只有档位表的 flatCost 一格 */
+  const flatTier = !!tierOf(node.videoTier).flatCost;
   const [picker, setPicker] = useState(false);
   const [cardPick, setCardPick] = useState(false);
   const [castAsk, setCastAsk] = useState(false);
@@ -938,12 +942,21 @@ function NodePanel({
               </div>
             )}
           </div>
+          {/* ★ 真人档（flatTier）直出：这一栏写的就是 plot（genNode 只认 chosenOf().plot），
+              推演那条路整个不存在——占位语也换掉，别许诺"三套方案"。
+              其余档照旧写 requirement（推演依据）。 */}
           <textarea
-            value={node.requirement ?? ""}
-            onChange={(e) => setRequirement(node.id, e.target.value)}
+            value={flatTier ? p.plot : (node.requirement ?? "")}
+            onChange={(e) =>
+              flatTier ? updateProposal(node.id, { plot: e.target.value }) : setRequirement(node.id, e.target.value)
+            }
             maxLength={VIDEO_PROMPT_MAX}
             disabled={locked || generating}
-            placeholder="这一段要拍什么？写清楚后点下面推演——AI 先给三套方案（各带首尾帧预览）"
+            placeholder={
+              flatTier
+                ? "这一段要拍什么？真人档直出——起拍画面就是真人卡的照片，写好直接生成"
+                : "这一段要拍什么？写清楚后点下面推演——AI 先给三套方案（各带首尾帧预览）"
+            }
             className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
           />
         </>
@@ -961,7 +974,7 @@ function NodePanel({
       )}
 
       {/* 行动区。报价与扣费同一把尺（nodeCost/genNode、proposalsCost/deriveProposals） */}
-      {tplMode && !locked && (
+      {(tplMode || flatTier) && !locked && (
         <button
           onClick={() => void genNode(node.id)}
           disabled={busy || generating || !p.plot.trim()}
@@ -970,7 +983,7 @@ function NodePanel({
           {generating ? node.progress || "生成中…" : done ? `♻ 重新生成（${AI_REAL ? fmtTokens(cost) : "演示"}）` : `⚡ 生成本段（${AI_REAL ? fmtTokens(cost) : "演示"}）`}
         </button>
       )}
-      {!tplMode && !locked && (
+      {!tplMode && !flatTier && !locked && (
         plan === "picking" ? (
           <>
             {/* ★ 方案台从 2026-08-21 起就在画布里挑（PlanSheet 弹层）：它需要 300~500px
@@ -1554,9 +1567,13 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
  *  画布的半窗里没地方给看板娘落卡）。加/删直接走 store 的 addMaterials/removeMaterial */
 function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => void }) {
   useAccountVersion();
+  useSyncExternalStore(subscribeVoices, voicesVersion, () => 0);
   const addMaterials = useFlow((s) => s.addMaterials);
   const removeMaterial = useFlow((s) => s.removeMaterial);
-  const cards = myCards();
+  /** 只看带声音样本的卡（写台词想指定音色时，用户按这个挑）。会话内开关，不持久化 */
+  const [voicedOnly, setVoicedOnly] = useState(false);
+  const all = myCards();
+  const cards = voicedOnly ? all.filter((c) => voiceOf(c.id)) : all;
   const chosen = new Set((node.materials ?? []).map((c) => c.id));
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={onClose}>
@@ -1571,9 +1588,22 @@ function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => void }) 
         <p className="mb-2 text-[10px] leading-relaxed text-slate-500">
           点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进推演与出片。
         </p>
+        {/* 只有库里真有带声音的卡才摆这颗开关：空库上摆一个筛选器 = 永远筛出空列表 */}
+        {all.some((c) => voiceOf(c.id)) && (
+          <button
+            onClick={() => setVoicedOnly((v) => !v)}
+            className={`mb-2 self-start rounded-full px-2.5 py-1 text-[10px] ${
+              voicedOnly ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-400"
+            }`}
+          >
+            🔊 只看带声音的卡
+          </button>
+        )}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {cards.length === 0 ? (
-            <p className="py-8 text-center text-xs text-slate-500">还没有卡片——去创意工坊铸几张或从市场添加</p>
+            <p className="py-8 text-center text-xs text-slate-500">
+              {voicedOnly ? "没有带声音样本的卡——在工坊「从视频提取」圈人物时可以顺手取一段声音" : "还没有卡片——去创意工坊铸几张或从市场添加"}
+            </p>
           ) : (
             <div className="grid grid-cols-4 gap-2 pb-2">
               {cards.map((c) => {
@@ -1589,7 +1619,10 @@ function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => void }) 
                     <div className="aspect-[3/4] bg-black/40">
                       {c.cover && <img src={c.cover} alt="" className="h-full w-full object-cover" draggable={false} />}
                     </div>
-                    <div className="truncate px-1 py-0.5 text-[9px] text-slate-200">{c.name}</div>
+                    <div className="truncate px-1 py-0.5 text-[9px] text-slate-200">
+                      {voiceOf(c.id) ? "🔊 " : ""}
+                      {c.name}
+                    </div>
                   </button>
                 );
               })}

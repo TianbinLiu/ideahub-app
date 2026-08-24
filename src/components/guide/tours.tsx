@@ -550,12 +550,13 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
-        title: "造卡四条路，两条花钱",
+        title: "造卡四条路，一条花钱",
         anchor: "workshop-extract-card",
         body: (
           <>
-            工坊铸卡、上传视频提卡<b className="font-bold text-slate-100">要花 token</b>，
-            按真出几张结算；自己传图、从市场拿都<b className="font-bold text-slate-100">不花</b>。
+            只有工坊铸卡（AI 出图）<b className="font-bold text-slate-100">要花 token</b>。
+            从视频圈选提取、自己传图、从市场拿都<b className="font-bold text-slate-100">不花</b>——
+            提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。
           </>
         ),
       },
