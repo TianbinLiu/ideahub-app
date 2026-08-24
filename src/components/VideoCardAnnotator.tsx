@@ -21,6 +21,13 @@ const NAME_MAX = 8;
 const SUMMARY_MAX = 60;
 /** 裁剪产物的长边上限。1600 够 Seedream 当参考（它自己会缩），再大只是白撑 IndexedDB */
 const CROP_MAX = 1600;
+/**
+ * 裁剪产物的**短边下限**。真机实测（2026-08-24）：方舟参考图要求宽 ≥300px ——
+ * 脸部特写圈小了裁出 274×274，出片那一步才 400（钱都要扣了才报错）。
+ * 320 留了点余量；不足时**放大**到线（模糊但合法，特征还在），小得离谱（<110px，
+ * 放大 3 倍都不够）就整句拒，让用户重圈 —— 10 倍放大的糊图当参考是在骗模型。
+ */
+const CROP_MIN = 320;
 
 type Tool = "circle" | "rect" | "brush" | "full";
 /** 圈选结果（显示坐标系）。brush 为闭合路径，其余为几何参数 */
@@ -189,7 +196,10 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     bw = Math.min(bw, v.videoWidth - bx);
     bh = Math.min(bh, v.videoHeight - by);
     if (bw < 16 || bh < 16) return null;
-    const scale = Math.min(1, CROP_MAX / Math.max(bw, bh));
+    // 短边不足 300（方舟参考图硬门）：能放大就放大到线，太小整句拒（见 CROP_MIN 注释）
+    const short = Math.min(bw, bh);
+    if (short < 110) return null;
+    const scale = short < CROP_MIN ? CROP_MIN / short : Math.min(1, CROP_MAX / Math.max(bw, bh));
     const cv = document.createElement("canvas");
     cv.width = Math.round(bw * scale);
     cv.height = Math.round(bh * scale);
@@ -328,7 +338,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
   function confirmCrop() {
     const dataUrl = cropNow();
     if (!dataUrl) {
-      setErr("圈出来的范围太小了——再拖大一点");
+      setErr("圈出来的范围太小（参考图至少要 300px 宽）——再拖大一点");
       return;
     }
     setErr("");
