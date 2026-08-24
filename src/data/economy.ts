@@ -22,6 +22,7 @@ import {
   CARD_TYPES,
   MAX_CARD_VIEWS,
   VideoSegment,
+  type Card,
   type CardSlot,
   type CardType,
 } from "../types";
@@ -142,6 +143,20 @@ export interface VideoTier {
    */
   audio: boolean;
   /**
+   * 这一档收不收**真人照片素材**（声明过 `Card.realPerson` 的卡当参考图）。
+   *
+   * ★★ 现有四档全 false 是**实测结论，不是保守缺省**（2026-08-24 直连实测，全任务
+   *   形态都试过）：方舟对真人参考图有**两套探测器**、全拦 —— 名人按版权拦、普通人
+   *   按隐私拦，整发拒收而不是降级（同「提示词敏感词是 400 不是降级」那条的形状）；
+   *   人像库授权通道（供应商侧的肖像授权白名单）也未接。放行的下场就是"钱包见了报价、
+   *   请求必被拒、用户只收到一句英文报错"。
+   * ★ 此位为 MiniMax/Runway 真人档**预留**：接入时新档位写 true，门禁（realFaceIssue）
+   *   与界面提示自动放行 —— 判断只有那一处（铁律六），本表之外不许再翻 realPerson。
+   * ★ 四档显式写 false、不留 undefined（同 refImg/refVid/audio 的理由：留空就得到处
+   *   `?? false`，那是第二处默认值）。
+   */
+  realFace: boolean;
+  /**
    * 只有付费套餐能选。免费版**看得见但选不了**，并写出原因（藏起来用户不知道有这回事）。
    * ★ 这只是界面提示，**不是安全边界** —— 真正的拦截在服务端按当前用户套餐判。
    *   判断本身只有一处：data/account.tierBlockReason。
@@ -164,8 +179,8 @@ export const VIDEO_TIERS: VideoTier[] = [
   //   ⚠ fast 与 hd 此前是拍出来的 0.3 / 1.6，比真实成本高 7% / 4.3%（**多收用户**的方向）。
   // fast/std 是 1.0-pro：`generate_audio` 收下就扔（实测），所以 audio 显式 false ——
   // 不是"我们不给"，是这一代模型出不了（见 VideoTier.audio 的 ★★）
-  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 4.2 / 15, flf: false, refImg: false, refVid: false, r2vMult: null, audio: false, minSec: 3, desc: "省 token · 首帧起拍，不锁尾帧" },
-  { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, audio: false, minSec: 3, desc: "首尾帧可控（默认）" },
+  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 4.2 / 15, flf: false, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, minSec: 3, desc: "省 token · 首帧起拍，不锁尾帧" },
+  { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, minSec: 3, desc: "首尾帧可控（默认）" },
   // ★ desc 是给**用户**看的，不是给运维看的。原来这里写的是「需在方舟控制台开通 2.0 系列」——
   //   那是部署方的事，终端用户既看不懂也做不了（CLAUDE.md 那条「界面上摆一个用户看不懂
   //   也做不了事的东西」）。开通与否的后果由服务端 ALLOWED_MODELS 与方舟的 ModelNotOpen 负责。
@@ -174,7 +189,7 @@ export const VIDEO_TIERS: VideoTier[] = [
   // ★ hd 的 audio: true 是**免费套餐也听得到声音**的那条路（paidOnly 只挡 ultra）——
   //   实测 2.0-mini 真出声（-30.2dB），且开音频零额外成本，所以 desc 里如实写出来：
   //   不写的话用户只能靠"换个档试试"发现，而多数人只会以为 App 的片本来就是哑的。
-  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refVid: false, r2vMult: null, audio: true, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音" },
+  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refVid: false, r2vMult: null, audio: true, realFace: false, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音" },
   {
     id: "ultra",
     label: "电影级",
@@ -191,6 +206,8 @@ export const VIDEO_TIERS: VideoTier[] = [
     r2vMult: ULTRA_R2V_MULT,
     // 2.5 实测出声（-27.5dB），且与无声两发的用量/单价逐位相同（见 VideoTier.audio）
     audio: true,
+    // 最贵一档也一样收不了真人照片：方舟的两套真人探测器不分档位（见 VideoTier.realFace）
+    realFace: false,
     paidOnly: true,
     // 2.5 的时长区间是 [4,30]，3 秒会被同步 400（见 VideoTier.minSec）
     minSec: 4,
@@ -350,6 +367,33 @@ export function r2vPriceIssue(tierId?: string): string | null {
  */
 export function blockoutTier(): VideoTier | null {
   return VIDEO_TIERS.find((t) => t.refVid) ?? null;
+}
+
+/**
+ * 「这些素材卡挂在这一档上，真人照片过不过得去」—— **唯一实现**（铁律六），
+ * null = 没问题，否则是一句给用户看的整句原因。形状照 r2vPriceIssue / imageTierPriceIssue：
+ * 界面（SegSettings 把原因印在页面上）与生成闸（flowStore 的 genNode / deriveProposals）
+ * 都只问这一句，不许各自去翻 `realPerson` 或档位表 —— 各翻一遍就是"界面说能出、
+ * 生成闸拒了"这种两面打架。
+ *
+ * ★ 为什么在**素材 × 档位**上判，不是只看档位：非真人素材在任何档都照常走；真人素材
+ *   只有 realFace 档能收（今天一档都没有，见 VideoTier.realFace 的实测依据）——
+ *   两个输入缺一个都答不了"这一段现在能不能生成"。
+ * ★ realPerson 判**肯定**（`=== true`）：缺省 = 老卡 = 非真人，照常放行
+ *   （types.Card.realPerson 那条 ★ 的读侧约定，别改成对 false 的等值判）。
+ * ★ r2v/白模路不用单独设闸：它与经典路都从 genNode 那道门走，天然被盖住。
+ * ★ 原因句不点名 MiniMax/Runway：对用户那是没上线的内部选型，说了也做不了任何事；
+ *   接入哪家写在 VideoTier.realFace 的注释里，给接入的人看。
+ */
+export function realFaceIssue(materials: Card[] | undefined, tierId: string | undefined): string | null {
+  const real = (materials ?? []).filter((c) => c.realPerson === true);
+  if (real.length === 0) return null;
+  const t = tierOf(tierId);
+  if (t.realFace !== true) {
+    const names = real.map((c) => `「${c.name}」`).join("、");
+    return `${names}是声明过的真人素材，而现有各档位（含「${t.label}」）的供应商一律拒收真人照片——实测名人按版权拦、普通人按隐私拦，推演和出片都会整发被拒。等支持真人出片的档位接入后开放；眼下想生成这一段，先把真人卡取下`;
+  }
+  return null;
 }
 
 // ── 出图模型与铸卡档位 ─────────────────────────────────────────

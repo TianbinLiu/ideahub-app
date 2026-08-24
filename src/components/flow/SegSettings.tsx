@@ -10,7 +10,7 @@
 //   不必把 index/nodes/mode 一路传下来，也就不会出现"传的是上一段"那类错。
 import { Link } from "react-router";
 import { tierBlockReason } from "../../data/account";
-import { fmtTokens, modelLabel, r2vPriceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { fmtTokens, modelLabel, r2vPriceIssue, realFaceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { chosenOf, nodeCost, nodeDone, tplOfNode, useFlow } from "../../studio/flowStore";
 import { DURATIONS, VIDEO_ASPECTS } from "../../types";
 
@@ -50,6 +50,14 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
         return [...byReason].map(([bare, names]) => `「${names.join("」「")}」${bare}`);
       })()
     : [];
+  /**
+   * 真人卡 × 档位的门禁原因（判断在 economy.realFaceIssue 一处，铁律六）——生成闸
+   * （flowStore.genNode / deriveProposals）拒的就是这一句，这里提前印出来，
+   * 免得用户写完一大段要求、点了生成才第一次听说真人卡过不去。
+   * 按当前档位问一次就够：今天四档 realFace 全 false，逐档问只会把同一句糊四遍
+   * （上面 r2vBlocks 刚治过这个）。
+   */
+  const realFaceBlock = realFaceIssue(node.materials, node.videoTier);
 
   return (
     <div className="space-y-3">
@@ -149,9 +157,9 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
       {/* ★ 点不动就必须写出为什么。只把按钮灰掉的话，用户只会觉得"这功能坏了"
           （CLAUDE.md「界面上摆一个永远点不动的选项」）。title 在手机上没有 hover，
           所以原因得**印在页面上**，不能只挂在 title 里 */}
-      {(tierBlocks.length > 0 || r2vBlocks.length > 0) && (
+      {(tierBlocks.length > 0 || r2vBlocks.length > 0 || realFaceBlock) && (
         <p className="text-[10px] leading-4 text-amber-300/80">
-          {[...tierBlocks, ...r2vBlocks].join("；")}
+          {[...tierBlocks, ...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])].join("；")}
           {/* 「去升级」只治得了套餐门槛那类原因；r2v 闸门没开不是充钱能解决的，
               只有套餐原因在场时才给这个链接。间隔用全角空格字面量——JSX 会把
               行间换行整个吃掉，靠折行留空隙是留不住的 */}

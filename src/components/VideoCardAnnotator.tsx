@@ -60,6 +60,13 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
   const [crops, setCrops] = useState<{ kind: CardView["kind"]; dataUrl: string }[]>([]);
   const [name, setName] = useState("");
   const [summary, setSummary] = useState("");
+  /**
+   * 真人声明（仅人物卡）。产品决定开放任意真人照片，肖像同意的责任压给用户——
+   * 所以勾了 realPerson 就必须同时勾 consentOk（协议确认），否则 saveCard 整句拒。
+   * 不做"没勾协议就灰掉存卡键"：灰按钮说不出为什么点不动（铁律八）。
+   */
+  const [realPerson, setRealPerson] = useState(false);
+  const [consentOk, setConsentOk] = useState(false);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   /** 本次会话已入库的卡（卡组模式攒着最后建组；卡片模式只作"已存 N 张"计数） */
@@ -356,6 +363,12 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       setErr("先给这张卡起个名字");
       return;
     }
+    // 真人声明只属于人物卡：换卡种重圈后残留的勾不算数（UI 上那块也只在人物卡时渲染）
+    const declareReal = type === "character" && realPerson;
+    if (declareReal && !consentOk) {
+      setErr("勾了「画面里是真实人物」，就得同时勾上下面那条肖像同意的确认——没有本人同意，真人素材不能入库。取消真人勾选，或者勾上确认再存。");
+      return;
+    }
     setErr("");
     setBusy("存卡中…");
     try {
@@ -368,6 +381,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         cover: crops[0].dataUrl,
         ...(views.length > 1 ? { views } : {}),
         // imageTier 不写：这条路一张图都没让 AI 画（与「自己传图做卡片」同一条规则）
+        // 真人声明只在为 true 时写（缺省 = 非真人，读侧判否定，见 types.Card.realPerson）
+        ...(declareReal ? { realPerson: true } : {}),
       };
       const r = await addCards([card]);
       if (r.added.length === 0) {
@@ -391,6 +406,9 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       setPendingVoice(null);
       setVStart(null);
       setVEnd(null);
+      // 声明是逐卡的表态，不许带到下一张：残留一个勾着的"真人"比空着危险得多
+      setRealPerson(false);
+      setConsentOk(false);
     } finally {
       setBusy("");
     }
@@ -483,6 +501,47 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
               placeholder="一句简介（可留空）"
               className="w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
+            {/* 真人声明：像不像真人机器判不准，只能让圈图的人自己表态。勾了就展开协议区，
+                没勾协议时「存这张卡」整句拒（saveCard），不玩静默灰按钮 */}
+            {type === "character" && (
+              <div className="rounded-lg border border-slate-700 bg-black/25 p-2.5">
+                <label className="flex items-center gap-2 text-xs text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={realPerson}
+                    onChange={(e) => {
+                      setRealPerson(e.target.checked);
+                      // 取消真人 = 撤回整个声明，协议勾选一起清：留着它，下次一勾"真人"
+                      // 就直接带着"已同意"入库，那一下用户根本没看协议
+                      if (!e.target.checked) setConsentOk(false);
+                      setErr("");
+                    }}
+                    className="h-4 w-4 flex-none accent-brand"
+                  />
+                  画面里是真实人物（真人）
+                </label>
+                {realPerson && (
+                  <div className="mt-2 space-y-1.5">
+                    <p className="text-[10px] leading-relaxed text-slate-400">
+                      真人素材出片要过供应商的内容审核，也受深度合成相关法规约束——用这张卡出片可能被拒单或加审。
+                      拿别人的脸生成内容，必须先取得他本人的同意。
+                    </p>
+                    <label className="flex items-start gap-2 text-[11px] leading-relaxed text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={consentOk}
+                        onChange={(e) => {
+                          setConsentOk(e.target.checked);
+                          if (e.target.checked) setErr("");
+                        }}
+                        className="mt-0.5 h-4 w-4 flex-none accent-brand"
+                      />
+                      我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
             {type === "character" && !crops.some((c) => c.kind === "face") && (
               <button
                 onClick={() => {
@@ -688,6 +747,11 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                     setTool(DEFAULT_TOOL[k]);
                     setShape(DEFAULT_TOOL[k] === "full" ? { tool: "full" } : null);
                     setErr("");
+                    // 重挑卡种 = 圈的是另一个对象，上一个对象的真人声明不许跟过来
+                    //（saveCard 里 declareReal 还会再按 type 闸一道，这里只是不让
+                    //  界面上出现一个"莫名其妙已经勾着"的声明）
+                    setRealPerson(false);
+                    setConsentOk(false);
                   }}
                   disabled={facePass || voicePick}
                   className={`flex-1 rounded-lg border px-1 py-1.5 text-[11px] font-semibold disabled:opacity-40 ${

@@ -27,6 +27,7 @@ import {
   fmtTokens,
   proposalRedrawCost,
   proposalsCost,
+  realFaceIssue,
   segmentCost,
   tierOf,
 } from "../data/economy";
@@ -1233,6 +1234,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
       set({ err: "先写一句要拍什么（或从工坊带素材卡过来），我才好推演走向" });
       return false;
     }
+    // ★ 真人卡门禁（判断在 economy.realFaceIssue 一处，铁律六）：推演画首尾帧同样把
+    //   素材卡的形象参考喂给方舟（generateProposals → prepareMaterialRefs），真人照片
+    //   一样整发被拒 —— 而这条路是**先扣费后开跑**（下面 spendTokens 在 await 之前），
+    //   门禁必须立在扣费之前，不然就是"钱扣了、供应商拒了"。
+    const realFaceBlocked = realFaceIssue(node.materials, node.videoTier);
+    if (realFaceBlocked) {
+      set({ err: realFaceBlocked });
+      return false;
+    }
     // 与工坊的 generateNode 同一口径：1 次豆包 + 最多 6 张 Seedream。
     // 这里以前既没有余额门槛也不扣费
     // 承接上一段尾帧时三个方案共用同一张开头帧，只画尾帧——图量减半，报价同步减半
@@ -1578,6 +1588,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const blocked = tierBlockReason(tierOf(node.videoTier));
     if (blocked) {
       set({ err: blocked });
+      return false;
+    }
+    // ★ 真人卡门禁（判断在 economy.realFaceIssue 一处，铁律六）：现有方舟档位对真人
+    //   参考图两套探测器全拦、整发拒收（见 VideoTier.realFace 的实测依据）——与其飞到
+    //   方舟中途换回一句英文报错，不如当场说人话（同上面 tierBlockReason 的处置）。
+    //   SegSettings 在档位区印的是同一句；r2v/白模路也从这里走，天然同一道门。
+    const realFaceBlocked = realFaceIssue(node.materials, node.videoTier);
+    if (realFaceBlocked) {
+      set({ err: realFaceBlocked });
       return false;
     }
     const cost = nodeCost(s0.nodes, idx, s0.mode);

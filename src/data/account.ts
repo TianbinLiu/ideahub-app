@@ -1248,6 +1248,9 @@ function toLocalCard(c: branch.ApiCard): Card {
     tags: c.tags,
     modelUrl: c.modelUrl || undefined,
     genPrompt: c.genPrompt || undefined,
+    // 真人声明：false/缺省都归一成 undefined —— 读侧判否定，两者本就同义（非真人），
+    // 落一个显式 false 只会让人误以为"声明过不是"是个存在的状态
+    realPerson: c.realPerson || undefined,
     // ★ 原样收下，不替 undefined 补 []（新服务端对老卡回的就是 []，两者到了
     //   viewsOf() 里是**同一个意思**：没有挂过图 → 拿卡面当全身参考兜底）。
     //   曾经这里的注释声称"[] = 明确地没有参考图，与 undefined 是两回事" —— 那是
