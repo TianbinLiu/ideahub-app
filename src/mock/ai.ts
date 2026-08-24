@@ -97,6 +97,18 @@ export function marketCardsByName(names: string[]): Card[] {
 }
 
 /** 市场检索：空词 → 最热；有词 → 名称/简介/标签模糊匹配 */
+/** 演示模式的「AI 生成干净立绘」：不出网，回两张假图（与铸卡假图同一来路） */
+export async function portraitViews(o: {
+  bodyCrop: string;
+  faceCrop?: string | null;
+  onProgress?: (s: string) => void;
+}): Promise<{ body: string; face: string }> {
+  o.onProgress?.("绘制全身立绘…（演示）");
+  await new Promise((r) => setTimeout(r, 400));
+  o.onProgress?.("绘制面部特写…（演示）");
+  return { body: makeCover("portrait:body", "立绘"), face: makeCover("portrait:face", "特写") };
+}
+
 export async function searchMarket(query: string): Promise<Card[]> {
   // 市场卡目前是本地静态种子，不再假装有网络延迟——
   // 500ms 的 delay 会让「搜索中…」在纯本地数据上闪一下，是白白制造的等待感。

@@ -8,6 +8,12 @@
       "port": 5178
     },
     {
+      "name": "ideahub-dev-b",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5180", "--host", "127.0.0.1", "--strictPort"],
+      "port": 5180
+    },
+    {
       "name": "shihui-dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "shihui", "run", "dev"],

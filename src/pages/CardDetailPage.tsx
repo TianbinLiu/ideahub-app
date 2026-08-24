@@ -1,7 +1,7 @@
 // 卡片详情页：大卡面 + 类型/标签 + 简介 + 形象参考图（多图）+「<类型>信息」
 // （铸卡时的完整提示词，具体到可复刻卡面）+ 3D 建模全息预览（有 modelUrl 的角色卡）。
 // 创意工坊/我的/卡组详情点卡进来。
-import { useRef, useMemo, useState } from "react";
+import { useRef, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 // ★ 出片管线的规则一律**从管线本身取**，这一页不再抄一份（铁律六）。
@@ -15,6 +15,7 @@ import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareB
 import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
 import { isRemoteMode, myCards, myDecks, shareCard } from "../data/account";
 import { addCardView, removeCardView } from "../data/cardViews";
+import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
 import { formatHeat, heatOf } from "../data/social";
 import {
   CARD_INFO_LABELS,
@@ -136,6 +137,65 @@ function pipelineNoteFor(type: CardType, views: CardView[]): string {
     //   不说这一句，用挂卡出片的用户会照上面那半句自我设限：以为挂第 2 张人物卡没用。
     `（白模模板挂卡那条路是例外：它不画设定帧，每个角色位挂的人物卡都各带自己的形象图。）` +
     `${slotLabel("character", "detail")}这一格铸卡不会自动出图（只能自己传），三张挂满时它也排在最后，出片轮不到它。`
+  );
+}
+
+/**
+ * 人物声音区：🔊 标识 + 试听 + 移除。数据在本机侧库（data/cardVoice——样本不进 Card、
+ * 不随分享，理由见那边顶注），所以**别人的卡**这里永远是空的，整块不渲染而不是摆一句
+ * "他没有声音"（我们根本不知道他那台设备上有没有）。
+ */
+function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
+  useSyncExternalStore(subscribeVoices, voicesVersion, () => 0);
+  const [confirmRm, setConfirmRm] = useState(false);
+  const v = voiceOf(card.id);
+  if (card.type !== "character") return null;
+  if (!v) {
+    // 只对自己的卡提示"怎么补"：别人的卡看不到侧库，说什么都是猜
+    if (!owned) return null;
+    return (
+      <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+        <span className="text-xs font-semibold text-slate-300">🔊 人物声音</span>
+        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+          这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——
+          出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-300">🔊 人物声音 · {v.durationSec}s</span>
+        {owned &&
+          (confirmRm ? (
+            <span className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  removeVoice(card.id);
+                  setConfirmRm(false);
+                }}
+                className="rounded-full bg-rose-500/90 px-2.5 py-1 text-[11px] font-bold text-white"
+              >
+                确认移除
+              </button>
+              <button onClick={() => setConfirmRm(false)} className="text-[11px] text-slate-400">
+                不了
+              </button>
+            </span>
+          ) : (
+            <button onClick={() => setConfirmRm(true)} className="text-[11px] text-slate-500">
+              移除
+            </button>
+          ))}
+      </div>
+      {/* 试听就是这一块存在的意义：样本干不干净只有耳朵能判 */}
+      <audio controls src={v.dataUrl} className="h-9 w-full" />
+      <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+        {v.note ? `${v.note} · ` : ""}出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段声音的音色
+        （尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。
+      </p>
+    </div>
   );
 }
 
@@ -427,6 +487,9 @@ export default function CardDetailPage() {
 
       {/* 形象参考图：AI 画设定帧时真的会照着它们锁形象，不是相册 */}
       <CardViewsSection card={card} owned={owned} />
+
+      {/* 人物声音：标识 + 试听 + 移除（样本在本机侧库，不随卡同步/分享） */}
+      <CardVoiceSection card={card} owned={owned} />
 
       {/* 「<类型>信息」：铸卡时的完整提示词——照着它 AI 就能复刻出与卡面一致的画面/建模。
           ★ 标题按卡种叫（人物信息/场景信息/…），表在 types.CARD_INFO_LABELS 一处 */}

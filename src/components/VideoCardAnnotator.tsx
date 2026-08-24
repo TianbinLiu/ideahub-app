@@ -11,7 +11,9 @@
 //   存卡走 data/account.addCards（dataURL 转永久地址是它的活，铁律六），建组走 createDeck。
 // ★ 人物卡的"定段取声音样本"是阶段 2（等参考音频音色跟随的实听结论），本组件先留位。
 import { useEffect, useRef, useState } from "react";
-import { addCards, createDeck } from "../data/account";
+import { AI_REAL, portraitViews } from "../ai";
+import { addCards, canAfford, createDeck, spendTokens } from "../data/account";
+import { ONE_IMAGE, fmtTokens } from "../data/economy";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
 import { Card, CARD_SLOTS, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType, CardView, uid } from "../types";
 import Icon from "./Icon";
@@ -60,6 +62,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
   const [crops, setCrops] = useState<{ kind: CardView["kind"]; dataUrl: string }[]>([]);
   const [name, setName] = useState("");
   const [summary, setSummary] = useState("");
+  /** AI 立绘生成前的原片裁剪（撤销用）。null = 当前 crops 就是原片 */
+  const [rawCrops, setRawCrops] = useState<{ kind: CardView["kind"]; dataUrl: string }[] | null>(null);
   /**
    * 真人声明（仅人物卡）。产品决定开放任意真人照片，肖像同意的责任压给用户——
    * 所以勾了 realPerson 就必须同时勾 consentOk（协议确认），否则 saveCard 整句拒。
@@ -357,6 +361,46 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     setFacePass(false);
   }
 
+  /**
+   * 「AI 生成干净立绘」（人物卡命名屏的可选付费步）：拿圈选裁剪当参考，出
+   * 全身立绘 + 面部特写两张（正好是出片管线真正吃的那两张），纯白背景、风格跟随原图
+   * （真人截图出写实立绘——2026-08-24 实测 Seedream 图像侧对真人放行）。
+   * 原片裁剪**不丢**：降级成「标志性细节」位保留（它仍是最忠实的参考），
+   * 也就把用户点名的三个图位（全身/特写/细节）一次配齐。
+   */
+  async function makePortraits() {
+    if (busy || crops.length === 0) return;
+    const price = 2 * ONE_IMAGE;
+    if (AI_REAL && !canAfford(price)) {
+      setErr(`生成两张立绘约需 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
+      return;
+    }
+    setErr("");
+    const raw = crops;
+    try {
+      const body = raw.find((c) => c.kind === "body") ?? raw[0];
+      const face = raw.find((c) => c.kind === "face");
+      const out = await portraitViews({
+        bodyCrop: body.dataUrl,
+        faceCrop: face?.dataUrl ?? null,
+        onProgress: (s) => setBusy(s),
+      });
+      if (AI_REAL) spendTokens(price);
+      setRawCrops(raw);
+      setCrops([
+        { kind: "body", dataUrl: out.body },
+        { kind: "face", dataUrl: out.face },
+        // 原片主裁剪保底进 detail 位：AI 立绘再像也是重画的，出片对不上时它是对照物
+        { kind: "detail", dataUrl: body.dataUrl },
+      ]);
+    } catch (e) {
+      // 失败不动原 crops（原片裁剪照旧能存卡），但必须整句说清（铁律八）
+      setErr(`AI 立绘没画成：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}——原片裁剪没受影响，可以直接存或再试一次`);
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function saveCard() {
     if (!type || crops.length === 0 || busy) return;
     if (!name.trim()) {
@@ -399,6 +443,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       }
       setSaved((s) => [...s, card]);
       setCrops([]);
+      setRawCrops(null);
       setName("");
       setSummary("");
       setType(null);
@@ -555,6 +600,30 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
               </button>
             )}
             {type === "character" &&
+              (rawCrops ? (
+                <div className="flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-2">
+                  <span className="text-[11px] text-emerald-200">✨ 已换成 AI 立绘（原片截图保留在「标志性细节」位）</span>
+                  <button
+                    onClick={() => {
+                      setCrops(rawCrops);
+                      setRawCrops(null);
+                    }}
+                    disabled={!!busy}
+                    className="flex-none text-[11px] text-slate-400 disabled:opacity-40"
+                  >
+                    ↺ 用回原片
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => void makePortraits()}
+                  disabled={!!busy}
+                  className="w-full rounded-lg border border-brand/50 bg-brand/10 py-2 text-xs font-semibold text-brand disabled:opacity-40"
+                >
+                  {busy || `✨ AI 生成干净立绘：全身 + 面部特写（白底、风格跟随原片${AI_REAL ? ` · 约 ${fmtTokens(2 * ONE_IMAGE)}` : " · 演示"}）`}
+                </button>
+              ))}
+            {type === "character" &&
               (pendingVoice ? (
                 <div className="rounded-lg border border-sky-500/40 bg-sky-500/10 p-2.5">
                   <div className="mb-1 flex items-center justify-between text-[11px] text-sky-200">
@@ -590,6 +659,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
               <button
                 onClick={() => {
                   setCrops([]);
+                  setRawCrops(null);
                   setErr("");
                 }}
                 disabled={!!busy}

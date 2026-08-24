@@ -75,6 +75,36 @@ async function genImageAsDataUrl(
   return await toDataUrl(url);
 }
 
+/**
+ * 圈选提取的「AI 生成干净立绘」：拿原片裁剪当 i2i 参考，出全身立绘 + 面部特写两张
+ * （正好是出片管线真正会吃的那两张，见 refUsedFlags——detail 位出片轮不到，不花这个钱）。
+ *
+ * ★ 风格**跟随参考图**，提示词里不点名画风：真人截图出写实立绘、动漫截图出同风格插画。
+ *   两者都实测过（2026-08-24 华强截图：写实版与动漫版各一发，Seedream i2i 对真人
+ *   照片放行——它拦真人的是 Seedance 视频侧，图像侧宽松）。
+ * ★ 纯白背景写死：这两张是形象参考，背景元素就是特征污染（方舟指南「素材过多难判
+ *   特征优先级」的图内版本）。
+ * ★ 串行不并行：Seedream 顶档一张可到 70 秒，两张并发在限流上撞车得不偿失。
+ */
+export async function portraitViews(o: {
+  bodyCrop: string;
+  faceCrop?: string | null;
+  onProgress?: (s: string) => void;
+}): Promise<{ body: string; face: string }> {
+  const keep = "严格保持参考图的画风（照片则照片级写实，插画则同风格插画）与人物相貌、发型、服装、神态完全一致";
+  o.onProgress?.("绘制全身立绘…");
+  const body = await genImageAsDataUrl(
+    `参考图中人物的全身立绘：${keep}；纯白色背景，无任何背景元素与文字；全身完整可见，站姿自然`,
+    { imageRefs: [o.bodyCrop], size: CARD_SIZE },
+  );
+  o.onProgress?.("绘制面部特写…");
+  const face = await genImageAsDataUrl(
+    `参考图中人物的面部特写肖像：${keep}；纯白色背景，无任何背景元素与文字；头肩构图，五官清晰`,
+    { imageRefs: [o.faceCrop || o.bodyCrop], size: CARD_SIZE },
+  );
+  return { body, face };
+}
+
 /** 报给用户的失败原因：截一句。原样贴进进度条会把真正有用的那半句挤出可视区。 */
 function reasonOf(e: unknown): string {
   return (e instanceof Error ? e.message : String(e)).slice(0, 80);
