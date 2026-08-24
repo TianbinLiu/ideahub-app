@@ -247,3 +247,27 @@ unmuted play 未被拦）→ 存卡（views 转存 Cloudinary 成功）→ 套�
 接入形态：MiniMax 首帧 I2V（first_frame_image 收 URL 或 base64 dataURL）与主体参考
 （subject_reference:[{type:"character", image:[...]}], 仅 S2V-01/I2V-Director 系列）
 都实测可用；server 代理脚手架（/api/minimax）已就位，计费公式与档位待接。
+
+### 真人档已接通（2026-08-24，dev 全链 E2E 通过）
+
+选型（仓库主人拍板）：**海螺 2.3 · 768P · 成本价 · 6s+10s 两档**。
+
+- 计价：VideoTier 加 provider（缺省=方舟，唯一出口 providerOf）+ flatCost（按发定价表）。
+  真人档 {6:135k, 10:270k} token/发 —— $0.28/$0.56 × 7.2 ÷ (15元/M) 成本价。
+  clampDuration 对 flatCost 档吸附到整档、segTokens 查表、segmentCost.draws=0（不画设定帧）。
+  ⚠ **汇率会动**：真上生产计费前用当日汇率复核，server 结算表逐条等于这两个数。
+- 出片：ai/minimaxVideo.ts（创建→轮询→取件），走 /api/minimax（dev=vite注头，生产=server）。
+  real.composeSegments 按 providerOf 分流，尾帧捕获/承接/进度共用同一产线（不抄第二份）。
+  segmentGen：真人卡照片作首帧、不画设定帧；白模/圈选在真人档整句拒。
+- 资产：白名单扩 public-cdn-video-data*.oss-cn-*.aliyuncs.com（收口前缀，不放开整个 aliyuncs）。
+- **E2E 实测**：真人档存在、门禁放行/拦截正确、6s=135k/10s=270k/8s→10档；dev 代理链
+  创建→轮询→取件出片成功（成片落 OSS）、资产代理拿回 video/mp4。server 装载自检 +
+  12 条代理测试全绿。
+
+**仍待办（下一步再做，不在本批）**：
+1. UI：SegSettings 的档位选择器让「真人」档可见可选（现在门禁能拦，但用户要能主动选真人档
+   出片；且真人档 6s/10s 与其它档的时长按钮语义不同，要么单列要么禁用无关时长）。
+2. server 计费：/api/minimax 还没接钱包扣费（照 arkGateway.chargedArkCall 序列），
+   接之前"未配 key 即 501"是天然安全网，但生产配了真 key 就必须先接扣费。
+3. AIGC 标识：真人成片的深度合成标识（法规义务，与供应商无关）。
+4. 真机复验 + 出包。
