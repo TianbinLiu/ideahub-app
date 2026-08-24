@@ -19,9 +19,19 @@ android {
         //   Android 只认这个整数判"新旧"：不涨的话，任何自动更新检查都判不出有新版，
         //   而且同号覆盖安装虽然能装（签名相同即可），装完用户也说不清自己在哪一版。
         //   versionName 是给人看的，versionCode 是给系统看的，两个都要动。
-        versionCode 36
-        versionName "2.25"
+        versionCode 37
+        versionName "2.26"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        // ★ QQ 互联的 AppID 只写这一处，下面两个用处都从它派生：
+        //     BuildConfig.QQ_APP_ID  —— 起授权时给 SDK
+        //     manifest 的 tencent<AppID> scheme —— QQ 客户端授权完回跳我们这个进程
+        //   两边**必须同源**：手抄成两份而其中一份写错时，没有任何编译期或运行期报错，
+        //   症状只是"点了 QQ 登录，转一下就回来了，什么都没发生" —— 回跳的 Intent
+        //   匹配不到 AuthActivity，SDK 那个 listener 永远等不到回调。
+        //   （AppID 本身是公开信息，随包发没问题；AppKey 是密钥，只准待在服务端。）
+        def qqAppId = "1905467096"
+        manifestPlaceholders = [qqAppId: qqAppId]
+        buildConfigField "String", "QQ_APP_ID", "\"${qqAppId}\""
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
@@ -62,6 +72,11 @@ android {
         play {
             dimension "distribution"
         }
+    }
+
+    // AGP 8 起 BuildConfig 默认不生成，不打开的话上面那个 buildConfigField 会静默失效
+    buildFeatures {
+        buildConfig true
     }
 
     buildTypes {

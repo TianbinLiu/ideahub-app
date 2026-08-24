@@ -1535,6 +1535,25 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
 （`<SERVER_BASE_URL>/api/auth/oauth/google/callback`）。自定义 scheme 不需要、也不能
 登记到 Google —— 它是服务端拿到 token **之后**自己发起的第二跳。
 
+### QQ 登录（原生 SDK，**不走上面那条回跳**）
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| POST | `/api/auth/oauth/qq/native` | 无 | `{ code }` → `201/200 { ok, token, created, user }`。`code` 是 App 原生 SDK `loginServerSide` 拿到的一次性授权码。限流 20/分钟·IP（`QQ_LOGIN_RATE_MAX`）。未配 `QQ_APP_ID`/`QQ_APP_KEY` 时 **503** |
+
+★★ **QQ 不在 `capabilities.providers` 里**，这是有意的。那份列表的语义是"能跳转的 provider"，
+而 QQ 互联注册的是**移动应用** —— 后台**没有回调地址那一栏**，网页版 OAuth2.0 授权走不通
+（要走得先另注册「网站应用」，需要登记域名并 ICP 备案）。App 侧的判断因此是
+"跑没跑在原生壳里"（`utils/qqLogin.ts` 的 `qqLoginSupported`），与 `providers` 无关。
+
+★★ 请求体**只有 `code`**。客户端多送的 `openid` / `access_token` 一律忽略 ——
+openid 由服务端拿 AppKey 向 `graph.qq.com` 换取，客户端没有机会伪造。
+收客户端报上来的 openid 等于"报谁的 openid 就登谁的号"，是无凭证的账号接管。
+
+★ QQ 用户**没有邮箱**（`get_simple_userinfo` 里就没这一项），建号时走合成邮箱
+`qq_<openid>@no-email.ideahub.local`，与手机号注册同一套；昵称进 `displayName`，
+用户名随机生成（`user_<8位hex>`）。openid 是**按 AppID 隔离**的，换 AppID 等于所有 QQ 用户失联。
+
 ## 语音合成（工坊 NPC 的嗓子）
 
 | 方法 | 路径 | 鉴权 | 说明 |

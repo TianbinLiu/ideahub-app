@@ -22,6 +22,7 @@ import {
   isRemoteMode,
   registerWithEmailOtp,
   signIn,
+  signInWithOauthToken,
   signInWithPassword,
   signInWithPhoneOtp,
 } from "../data/account";
@@ -34,6 +35,7 @@ import {
   type AuthCapabilities,
 } from "../api/auth";
 import { startOauth } from "../utils/oauth";
+import { qqLoginSupported, signInWithQQ } from "../utils/qqLogin";
 import BrandIcon, { BRAND_CHIP, type BrandName } from "../components/BrandIcon";
 
 const INPUT =
@@ -44,6 +46,12 @@ const INPUT =
 const RESEND_SEC = 60;
 
 type Method = "password" | "email" | "phone";
+
+/** 点了个点不动的第三方按钮时说实话——两家不能用的原因完全不同，别混成一句 */
+function deadReason(k: BrandName): string {
+  if (k === "qq") return "QQ 登录要在 App 里用（浏览器中没有 QQ 客户端可以拉起），先用邮箱或手机号登录";
+  return "微信登录还没接入（需要企业主体与应用审核），先用邮箱或手机号登录";
+}
 
 export default function LoginPage() {
   const remote = isRemoteMode();
@@ -183,6 +191,24 @@ export default function LoginPage() {
     await startOauth(provider, (msg) => setErr(msg));
   }
 
+  /**
+   * QQ 走的是**另一条链路**：原生 SDK 拉起 QQ 客户端，结果同步回到这次 await，
+   * 不经过 OauthDeepLinkBridge（见 utils/qqLogin 文件头）。所以落地登录态与跳转
+   * 都要在这里自己做一遍，不能指望顶层那个桥。
+   */
+  async function qqSignIn() {
+    setErr("");
+    setBusy(true);
+    try {
+      await signInWithOauthToken(await signInWithQQ());
+      done();
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const onEnter = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") void submit();
   };
@@ -195,6 +221,10 @@ export default function LoginPage() {
   ];
   const showGoogle = !!caps?.oauthEnabled && caps.providers.includes("google");
   const showGithub = !!caps?.oauthEnabled && caps.providers.includes("github");
+  // ★ QQ **不看 caps**。它不是服务端那套 oauth provider（没有跳转、没有回调地址），
+  //   而是原生 SDK 直接拉起 QQ 客户端，能不能用只取决于"跑在不跑在 App 壳里"。
+  //   拿 providers 去判它的话，浏览器里也会亮，点了必然报 not implemented。
+  const showQQ = qqLoginSupported();
 
   return (
     <div className="safe-top relative flex min-h-full flex-col items-center justify-center px-6 py-10">
@@ -402,8 +432,9 @@ export default function LoginPage() {
                     : "重置密码并登录"}
         </button>
 
-        {/* 第三方。★ 微信/QQ 是明确的占位：国内两家都要企业主体 + 应用审核才拿得到
-            AppID，没接之前放一个"点了就登进去"的按钮是骗人，所以按下去只说实话。 */}
+        {/* 第三方。★ 微信仍是明确的占位（要企业主体 + 应用审核才拿得到 AppID），
+            放一个"点了就登进去"的按钮是骗人，所以按下去只说实话。
+            QQ 已接入，但只在 App 壳里能用——浏览器里同样给出真实原因（见 deadReason）。 */}
         {remote && !capsLoading && (
           <>
             <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-600">
@@ -411,17 +442,18 @@ export default function LoginPage() {
               其他方式
               <span className="h-px flex-1 bg-slate-800" />
             </div>
-            {/* ★ 显示哪几个由服务端的 capabilities 决定，前端不自己判地区：
+            {/* ★ Google/GitHub 显示哪几个由服务端的 capabilities 决定，前端不自己判地区：
                   国内出口 IP → oauthEnabled=false → 只剩微信/QQ（Google 在墙内点了只会转圈）
                   海外出口 IP → 四个都在
-                微信/QQ 不受 oauthEnabled 约束——它们在国内才是主力登录方式。 */}
+                微信/QQ 不受 oauthEnabled 约束——它们在国内才是主力登录方式。
+                QQ 更进一步：它连 providers 都不看，只问"跑在 App 壳里没有"（见 showQQ）。 */}
             <div className="flex justify-center gap-3.5">
               {(
                 [
                   ...(showGoogle ? ([{ k: "google", live: true }] as const) : []),
                   ...(showGithub ? ([{ k: "github", live: true }] as const) : []),
                   { k: "wechat", live: false },
-                  { k: "qq", live: false },
+                  { k: "qq", live: showQQ },
                 ] as Array<{ k: BrandName; live: boolean }>
               ).map((p) => {
                 const chip = BRAND_CHIP[p.k];
@@ -430,8 +462,8 @@ export default function LoginPage() {
                     key={p.k}
                     onClick={() =>
                       p.live
-                        ? void thirdParty(p.k)
-                        : setErr(`${chip.label}登录还没接入（需要企业主体与应用审核），先用邮箱或手机号登录`)
+                        ? void (p.k === "qq" ? qqSignIn() : thirdParty(p.k))
+                        : setErr(deadReason(p.k))
                     }
                     style={{ background: chip.bg }}
                     className={`flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition active:scale-95 ${
