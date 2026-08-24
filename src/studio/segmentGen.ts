@@ -368,7 +368,12 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
     : "";
   // 带了声音的卡 + 有台词，却走不了音色参考 —— 一律说清为什么（铁律八：静默降级没人看）
   if (!voiceOk && voiced.length > 0) {
-    if (!tier.audio) notes.push(`「${tier.label}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）`);
+    if (!tier.audio)
+      notes.push(
+        tier.flatCost
+          ? `「${tier.label}」档暂无配音，台词只以画面呈现`
+          : `「${tier.label}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）`,
+      );
     else if (!refMode) notes.push("这一段走首尾帧承接，带不了声音样本（方舟协议互斥）——台词仍会被配音，但音色随机");
   }
   const noteTail = notes.length ? `（${notes.join("；")}）` : "";

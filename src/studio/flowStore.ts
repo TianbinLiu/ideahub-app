@@ -30,6 +30,7 @@ import {
   realFaceIssue,
   segmentCost,
   tierOf,
+  deriveIssue,
 } from "../data/economy";
 import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
@@ -1227,6 +1228,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const idx = s0.nodes.findIndex((n) => n.id === nodeId);
     const node = s0.nodes[idx];
     if (!node) return false;
+    // 按发计价档（真人档）没有方案台——判定在 economy.deriveIssue 一处。
+    // UI 已把推演入口换成直出，这里是兜底（agent 确认卡那条路能绕过 UI 直呼本函数）
+    {
+      const flatIssue = deriveIssue(node.videoTier);
+      if (flatIssue) {
+        set({ err: flatIssue });
+        return false;
+      }
+    }
     const cur = chosenOf(node);
     // 推演的依据是**用户那句话**，不是某一套方案的剧情（见 FlowNode.requirement）
     const req = requirementOf(node);

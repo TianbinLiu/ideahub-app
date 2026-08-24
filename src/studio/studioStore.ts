@@ -5,7 +5,7 @@ import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generate
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, tierBlockReason, walletOf, type AddCardsResult } from "../data/account";
-import { CHAT_TURN_TOKENS, DECK_MAX_3D, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, styleWants3d, tierOf } from "../data/economy";
+import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, composeCost, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalRedrawCost, proposalsCost, segmentCost, styleWants3d, tierOf } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { FlowMode, FlowNode, FlowTemplate, chosenOf, flowDirty, nodeVideo, tplOfNode, useFlow } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
@@ -1357,6 +1357,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (materials.length === 0 && !editor.requirement.trim()) {
       get().npcSay("至少放一张素材卡，或写一句视频要求，我才好推演。");
       return;
+    }
+    // 按发计价档（真人档）没有方案台（判定在 economy.deriveIssue 一处）——工坊的
+    // 铸段流程整个建立在推演上，走不通就当场说清出路，别让人到扣费那一步才撞墙
+    {
+      const flatIssue = deriveIssue(editor.videoTier);
+      if (flatIssue) {
+        get().npcSay(`${flatIssue}。真人档去「工作流」或「简约模式」直出。`);
+        return;
+      }
     }
     // 三方案推演 = 1 次豆包 + 最多 6 张 Seedream。以前这一步一分钱不收，
     // 而它是工坊里用得最频繁的操作。有确定开头帧时三个方案共用它、只画尾帧，

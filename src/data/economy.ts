@@ -268,6 +268,18 @@ export function providerOf(tierId: string | undefined): "ark" | "minimax" {
   return tierOf(tierId).provider ?? "ark";
 }
 
+/**
+ * 这一档能不能走「推演三套方案」—— 唯一实现（flowStore.deriveProposals、
+ * 工坊 studioStore.generateNode、工坊档位按钮三处共用，别各写一遍）。
+ * 按发计价档（flatCost，真人档）没有方案台：它不画设定帧（首帧就是卡片照片），
+ * 推演产出的三套首尾帧一张都用不上 —— 收了推演的钱再全扔掉，就是白扣一笔。
+ */
+export function deriveIssue(tierId: string | undefined): string | null {
+  const t = tierOf(tierId);
+  if (!t.flatCost) return null;
+  return `「${t.label}」档按发直出（起拍画面就是真人卡的照片），没有推演三套方案这一步——写好一句话直接生成，或换回其它档再推演`;
+}
+
 export function tierOf(id: string | undefined): VideoTier {
   return VIDEO_TIERS.find((t) => t.id === id) ?? VIDEO_TIERS[1];
 }

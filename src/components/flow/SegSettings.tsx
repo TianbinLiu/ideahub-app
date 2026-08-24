@@ -81,12 +81,22 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
             // ★ 短于本档下限的时长直接禁掉并说明：Seedance 2.5 的合法区间是 [4,30]，
             //   3 秒发过去是同步 400，用户只会觉得"这一档坏了"（见 VideoTier.minSec）
             const tooShort = d < tierOf(node.videoTier).minSec;
+            // ★ 按发计价档（真人档）只有价表里那几个整档：8 秒会被 clampDuration 吸附到
+            //   10 档并按 10 收——让它可点就是"按钮写 8、账按 10"，比灰掉更糟
+            const flat = tierOf(node.videoTier).flatCost;
+            const offStep = !!flat && !(d in flat);
             return (
               <button
                 key={d}
                 onClick={() => updateProposal(node.id, { durationSec: d })}
-                disabled={tooShort}
-                title={tooShort ? `「${tierOf(node.videoTier).label}」最短 ${tierOf(node.videoTier).minSec} 秒` : undefined}
+                disabled={tooShort || offStep}
+                title={
+                  offStep
+                    ? `「${tierOf(node.videoTier).label}」按发计价，只有 ${Object.keys(flat!).join("/")} 秒两档`
+                    : tooShort
+                      ? `「${tierOf(node.videoTier).label}」最短 ${tierOf(node.videoTier).minSec} 秒`
+                      : undefined
+                }
                 className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${prop.durationSec === d ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
               >
                 {d}s

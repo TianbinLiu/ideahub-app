@@ -46,7 +46,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost } from "../../data/economy";
+import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost, tierOf } from "../../data/economy";
 import { executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { requestLandscape } from "../../hooks/useOrientationLock";
 import { resolveMediaUrl, useMediaUrl } from "../../utils/mediaUrl";
@@ -695,6 +695,9 @@ function NodePanel({
   const named = !!tpl?.refVideo && !!tpl.roles?.length;
   /** 模板模式？由节点事实派生（有白模模板快照），不是独立 UI 状态 —— 两份真相必然漂 */
   const tplMode = !!tpl?.refVideo;
+  /** 按发直出档（真人档）：没有方案台，文本框直接写 plot、按钮直接开炼——
+   *  与 tplMode 同一条直出产线，判据只有档位表的 flatCost 一格 */
+  const flatTier = !!tierOf(node.videoTier).flatCost;
   const [picker, setPicker] = useState(false);
   const [cardPick, setCardPick] = useState(false);
   const [castAsk, setCastAsk] = useState(false);
@@ -939,12 +942,21 @@ function NodePanel({
               </div>
             )}
           </div>
+          {/* ★ 真人档（flatTier）直出：这一栏写的就是 plot（genNode 只认 chosenOf().plot），
+              推演那条路整个不存在——占位语也换掉，别许诺"三套方案"。
+              其余档照旧写 requirement（推演依据）。 */}
           <textarea
-            value={node.requirement ?? ""}
-            onChange={(e) => setRequirement(node.id, e.target.value)}
+            value={flatTier ? p.plot : (node.requirement ?? "")}
+            onChange={(e) =>
+              flatTier ? updateProposal(node.id, { plot: e.target.value }) : setRequirement(node.id, e.target.value)
+            }
             maxLength={VIDEO_PROMPT_MAX}
             disabled={locked || generating}
-            placeholder="这一段要拍什么？写清楚后点下面推演——AI 先给三套方案（各带首尾帧预览）"
+            placeholder={
+              flatTier
+                ? "这一段要拍什么？真人档直出——起拍画面就是真人卡的照片，写好直接生成"
+                : "这一段要拍什么？写清楚后点下面推演——AI 先给三套方案（各带首尾帧预览）"
+            }
             className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
           />
         </>
@@ -962,7 +974,7 @@ function NodePanel({
       )}
 
       {/* 行动区。报价与扣费同一把尺（nodeCost/genNode、proposalsCost/deriveProposals） */}
-      {tplMode && !locked && (
+      {(tplMode || flatTier) && !locked && (
         <button
           onClick={() => void genNode(node.id)}
           disabled={busy || generating || !p.plot.trim()}
@@ -971,7 +983,7 @@ function NodePanel({
           {generating ? node.progress || "生成中…" : done ? `♻ 重新生成（${AI_REAL ? fmtTokens(cost) : "演示"}）` : `⚡ 生成本段（${AI_REAL ? fmtTokens(cost) : "演示"}）`}
         </button>
       )}
-      {!tplMode && !locked && (
+      {!tplMode && !flatTier && !locked && (
         plan === "picking" ? (
           <>
             {/* ★ 方案台从 2026-08-21 起就在画布里挑（PlanSheet 弹层）：它需要 300~500px
