@@ -16,8 +16,10 @@ import { API_BASE, API_ON, getToken } from "../api/client";
 import { syncRemoteWallet } from "../data/account";
 import { DEFAULT_IMAGE_TIER, imageTierOf, videoAudioOn } from "../data/economy";
 
-/** 把响应头上的权威余额同步进本地镜像。头部缺失（CORS 没放行/dev 代理）时什么都不做。 */
-function syncWalletFromHeaders(h: Headers): void {
+/** 把响应头上的权威余额同步进本地镜像。头部缺失（CORS 没放行/dev 代理）时什么都不做。
+ *  ★ 导出给 minimaxVideo 复用（真人档也走计费代理、也带同一对 X-Wallet 头）——
+ *    镜像同步只有这一份实现。 */
+export function syncWalletFromHeaders(h: Headers): void {
   const plan = h.get("X-Wallet-Plan");
   const addon = h.get("X-Wallet-Addon");
   if (plan === null || addon === null) return;

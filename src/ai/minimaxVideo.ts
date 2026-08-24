@@ -11,6 +11,7 @@
 //   （Capacitor 的 SPA 回退对未命中路径回 200 + index.html，CLAUDE.md 有专条）。
 import { API_BASE } from "../api/client";
 import { getToken } from "../api/client";
+import { syncWalletFromHeaders } from "./arkClient";
 
 /** 上游受理回执的业务码：0 = 成功。非 0 时 status_msg 是给人看的原因 */
 interface BaseResp {
@@ -27,6 +28,9 @@ function authHeaders(): Record<string, string> {
 }
 
 async function jsonOf(res: Response, what: string): Promise<Record<string, unknown>> {
+  // 计费代理在每个响应上带权威余额头（生产 server 写；dev 的 vite 代理没有，helper 自会跳过）。
+  // 扣费/退款都发生在服务端，这里不同步的话镜像要等下一次方舟调用才自愈
+  syncWalletFromHeaders(res.headers);
   const ct = res.headers.get("Content-Type") ?? "";
   if (!ct.includes("application/json")) {
     // SPA 回退 / 网关错误页都会走到这里 —— 说清是哪一步、拿到了什么
