@@ -13,11 +13,12 @@
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
 import { VIDEO_PROMPT_MAX, composeSegments, generateCover, prepareMaterialRefs, refineFrame } from "../ai";
-import { r2vPriceIssue, tierOf } from "../data/economy";
+import { r2vPriceIssue, tierOf, providerOf, clampDuration } from "../data/economy";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
 import { CARD_TYPE_LABELS, viewsOf, type Card, type VideoAspect, type VideoTemplate } from "../types";
+import { voiceOf } from "../data/cardVoice";
 
 export interface SegmentAnn {
   atSec: number;
@@ -95,6 +96,28 @@ export interface SegmentGenInput {
  *     这条门禁不动（不然整片的衔接就断了）；
  *  ⑤ 没有圈选标注 —— 圈选改的就是设定帧，没有帧可改。
  */
+/**
+ * 这一段的台词能不能带上人物卡的**声音样本**（音色参考）—— 唯一实现。
+ *
+ * 三个条件（少一个都不发）：
+ *  ① 剧情里真有台词（「」/ "" 引号内文字 —— 与 Seedance 的配音语义同一判据：
+ *     引号台词会被合成为对白）；
+ *  ② 走的是参考生视频模式（refVideoOn 为真）：方舟实测首尾帧任务混参考媒体直接 400，
+ *     所以**工作流的首尾帧承接段带不了音色参考** —— 那不是漏做，是协议互斥。
+ *     （hd/ultra 的首帧段台词照样被配音，只是音色随机 —— 那种情况由出片处如实说。）
+ *  ③ 档位真出声（VideoTier.audio；1.x 收下 generate_audio 静默忽略，样本发了也是哑的）。
+ * 计费：阶段 0 直连实测**零加价**（usage 逐位相同），所以报价侧一项都不用加。
+ */
+export function voicedCardsOf(o: { plot: string; materials?: Card[] }): Card[] {
+  if (!hasDialogue(o.plot)) return [];
+  return (o.materials ?? []).filter((c) => c.type === "character" && voiceOf(c.id)).slice(0, 3);
+}
+
+/** 「剧情里有没有台词」——与配音语义同一判据（引号内文字会被合成对白） */
+export function hasDialogue(plot: string): boolean {
+  return /[「"].{1,}?[」"]/.test(plot);
+}
+
 export function refVideoOn(o: {
   videoTier: string;
   materials?: Card[];
@@ -234,6 +257,44 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
     if (issue) throw new Error(issue);
   }
 
+  // ── 真人档（MiniMax，flatCost 计价）：帧来源整个不同，在这里备好再交 composeSegments ──
+  // 这条路**一张 Seedream 设定帧都不画**（报价侧 segmentCost 的 draws 同口径 = 0）：
+  // 首帧就是真人卡的照片（或用户设定帧/承接帧），提示词驱动它动起来 —— 三发探针
+  // 验证过的 i2v 形态。出片调用的分流在 composeSegments（尾帧捕获/承接共用那条产线）。
+  if (providerOf(input.videoTier) === "minimax") {
+    if (blockout) throw new Error("白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板");
+    if (input.anns.length) throw new Error("真人档暂不支持圈选改画面（改图引擎会拒收真人脸）——清掉圈选标注再出片");
+    const firstSrc =
+      input.carryFrame ||
+      input.firstFrame ||
+      // 优先取声明过真人的卡（这一档存在的理由），再退任意有图的卡
+      (input.materials ?? [])
+        .filter((c) => c.realPerson === true)
+        .concat(input.materials ?? [])
+        .flatMap((c) => viewsOf(c))
+        .map((v) => v.url)
+        .find(Boolean);
+    if (!firstSrc) {
+      throw new Error("真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧");
+    }
+    prog(`真人档按发计价（${clampDuration(input.durationSec, input.videoTier)} 秒整档）· 以卡片照片起拍…`);
+    const [res] = await composeSegments(
+      [
+        {
+          plot: `${input.plot}${materialText(input.materials)}`.slice(0, VIDEO_PROMPT_MAX),
+          firstFrame: firstSrc,
+          lastFrame: "",
+          durationSec: input.durationSec,
+          videoTier: input.videoTier,
+          aspect: input.aspect,
+        },
+      ],
+      (_d, _t, status) => prog(status),
+    );
+    if (res?.error) throw new Error(res.error);
+    return { url: res?.url, firstFrame: firstSrc, lastFrame: res?.lastFrame || firstSrc };
+  }
+
   // ① 圈选 → 改设定帧。同一帧的多条标注串行叠加（上一次的产物当下一次的底图），
   //    并行会各改各的、互相覆盖
   // ★ 这一步**故意不带**素材卡的形象参考图：提示词的全部意思是"看<图片1>上那圈红线"，
@@ -296,6 +357,25 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
     blockout || refMode || needDraw
       ? await prepareMaterialRefs(input.materials, (n) => notes.push(n), blockout)
       : null;
+  // ── 台词音色（卡片系统 V2 阶段 2）────────────────────────────
+  // 样本只在 refMode（参考生视频）发。点名句单独 append、不并进 tail 参与截断取舍：
+  // 它丢了只是音色随机（软降级），正文被截才是内容错——两者不该抢同一段配额。
+  const voiced = voicedCardsOf({ plot: input.plot, materials: input.materials });
+  const voiceOk = refMode && tier.audio === true && voiced.length > 0;
+  const refAudios = voiceOk ? voiced.map((c) => voiceOf(c.id)!.dataUrl) : undefined;
+  const voiceLine = voiceOk
+    ? `。${voiced.map((c, i) => `「${c.name}」的台词使用参考音频${i + 1}的音色`).join("；")}`
+    : "";
+  // 带了声音的卡 + 有台词，却走不了音色参考 —— 一律说清为什么（铁律八：静默降级没人看）
+  if (!voiceOk && voiced.length > 0) {
+    if (!tier.audio)
+      notes.push(
+        tier.flatCost
+          ? `「${tier.label}」档暂无配音，台词只以画面呈现`
+          : `「${tier.label}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）`,
+      );
+    else if (!refMode) notes.push("这一段走首尾帧承接，带不了声音样本（方舟协议互斥）——台词仍会被配音，但音色随机");
+  }
   const noteTail = notes.length ? `（${notes.join("；")}）` : "";
   // 没有承接帧/底图时素材卡的图就是 <图片1> 起，offset = 0
   const bind = refs ? refs.bind(0) : "";
@@ -392,7 +472,7 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   const [res] = await composeSegments(
     [
       {
-        plot,
+        plot: `${plot}${voiceLine}`,
         firstFrame: first,
         lastFrame: last,
         durationSec: input.durationSec,
@@ -401,6 +481,7 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
         // 白模也发形象图（混发：视频给画面与运镜，形象图说"换成谁"）；refUrls 非空由
         // 上面那道 throw 保证
         refImages: refMode || blockout ? refUrls : undefined,
+        refAudios,
         // 报价（economy.segmentCost 的 refVideo 位）与这里必须同进同出：报了 r2v 的价
         // 就必须真发参考视频，反之亦然（flowStore.nodeCost 与 genNode 读同一份模板快照）
         refVideoUrl: input.refVideoUrl,

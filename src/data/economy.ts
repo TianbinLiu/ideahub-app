@@ -22,6 +22,7 @@ import {
   CARD_TYPES,
   MAX_CARD_VIEWS,
   VideoSegment,
+  type Card,
   type CardSlot,
   type CardType,
 } from "../types";
@@ -84,7 +85,27 @@ export interface VideoTier {
   id: string;
   label: string;
   model: string;
-  /** token 消耗系数（相对标准档；按模型单价折算） */
+  /**
+   * 这一档走哪个供应商。缺省（不写）= 方舟（Seedance），存量四档都是它。
+   * ★ 加它是因为**计价模型根本不同**：方舟按 token 连续计（时长×每秒×系数），
+   *   MiniMax 按发固定价（见 flatCost）。协议层（谁来出片）也按它分流：
+   *   ark → ai/arkClient，minimax → server 的 /api/minimax 代理。
+   * ★ 判否定：缺省即 ark，别到处 `?? "ark"`（第二处默认值）——统一走 providerOf()。
+   */
+  provider?: "ark" | "minimax";
+  /**
+   * **按发固定计价表**（token/发，按时长档查）。非空 = 这一档不按 token 连续计，
+   * segTokens 改查这张表（见那里的 ★）。只有 MiniMax 这种"每发一口价"的供应商用。
+   *
+   * ★★ 报价=实扣的锚（成本价 1.0x，仓库主人拍板）：海螺 2.3 · 768p，
+   *   $0.28/发(6s)、$0.56/发(10s)，汇率 7.2 ⇒ ¥2.016 / ¥4.032；
+   *   按全仓 token 锚（元/百万 ÷ 15 = 系数 1，即 1 token = 15/1e6 元）折算：
+   *   ¥2.016 ÷ (15/1e6) = 134,400 token(6s)、268,800 token(10s)。取整 135k / 270k。
+   *   ⚠ server 的结算价必须逐条等于这两个数（跨仓钉子照 payOrder.spec 的样子打）。
+   *   汇率是会动的：真接计费前用当日汇率复核一遍，别让报价悄悄偏离实扣。
+   */
+  flatCost?: Record<number, number>;
+  /** token 消耗系数（相对标准档；按模型单价折算）。flatCost 档不看它，随便填 1 */
   mult: number;
   /** 是否支持首尾帧模式（flf2v）。实测 pro-fast 只收首帧：报 task_type flf2v not support */
   flf: boolean;
@@ -142,6 +163,20 @@ export interface VideoTier {
    */
   audio: boolean;
   /**
+   * 这一档收不收**真人照片素材**（声明过 `Card.realPerson` 的卡当参考图）。
+   *
+   * ★★ 现有四档全 false 是**实测结论，不是保守缺省**（2026-08-24 直连实测，全任务
+   *   形态都试过）：方舟对真人参考图有**两套探测器**、全拦 —— 名人按版权拦、普通人
+   *   按隐私拦，整发拒收而不是降级（同「提示词敏感词是 400 不是降级」那条的形状）；
+   *   人像库授权通道（供应商侧的肖像授权白名单）也未接。放行的下场就是"钱包见了报价、
+   *   请求必被拒、用户只收到一句英文报错"。
+   * ★ 此位为 MiniMax/Runway 真人档**预留**：接入时新档位写 true，门禁（realFaceIssue）
+   *   与界面提示自动放行 —— 判断只有那一处（铁律六），本表之外不许再翻 realPerson。
+   * ★ 四档显式写 false、不留 undefined（同 refImg/refVid/audio 的理由：留空就得到处
+   *   `?? false`，那是第二处默认值）。
+   */
+  realFace: boolean;
+  /**
    * 只有付费套餐能选。免费版**看得见但选不了**，并写出原因（藏起来用户不知道有这回事）。
    * ★ 这只是界面提示，**不是安全边界** —— 真正的拦截在服务端按当前用户套餐判。
    *   判断本身只有一处：data/account.tierBlockReason。
@@ -164,8 +199,8 @@ export const VIDEO_TIERS: VideoTier[] = [
   //   ⚠ fast 与 hd 此前是拍出来的 0.3 / 1.6，比真实成本高 7% / 4.3%（**多收用户**的方向）。
   // fast/std 是 1.0-pro：`generate_audio` 收下就扔（实测），所以 audio 显式 false ——
   // 不是"我们不给"，是这一代模型出不了（见 VideoTier.audio 的 ★★）
-  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 4.2 / 15, flf: false, refImg: false, refVid: false, r2vMult: null, audio: false, minSec: 3, desc: "省 token · 首帧起拍，不锁尾帧" },
-  { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, audio: false, minSec: 3, desc: "首尾帧可控（默认）" },
+  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 4.2 / 15, flf: false, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, minSec: 3, desc: "省 token · 首帧起拍，不锁尾帧" },
+  { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, minSec: 3, desc: "首尾帧可控（默认）" },
   // ★ desc 是给**用户**看的，不是给运维看的。原来这里写的是「需在方舟控制台开通 2.0 系列」——
   //   那是部署方的事，终端用户既看不懂也做不了（CLAUDE.md 那条「界面上摆一个用户看不懂
   //   也做不了事的东西」）。开通与否的后果由服务端 ALLOWED_MODELS 与方舟的 ModelNotOpen 负责。
@@ -174,7 +209,7 @@ export const VIDEO_TIERS: VideoTier[] = [
   // ★ hd 的 audio: true 是**免费套餐也听得到声音**的那条路（paidOnly 只挡 ultra）——
   //   实测 2.0-mini 真出声（-30.2dB），且开音频零额外成本，所以 desc 里如实写出来：
   //   不写的话用户只能靠"换个档试试"发现，而多数人只会以为 App 的片本来就是哑的。
-  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refVid: false, r2vMult: null, audio: true, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音" },
+  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refVid: false, r2vMult: null, audio: true, realFace: false, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音" },
   {
     id: "ultra",
     label: "电影级",
@@ -191,14 +226,59 @@ export const VIDEO_TIERS: VideoTier[] = [
     r2vMult: ULTRA_R2V_MULT,
     // 2.5 实测出声（-27.5dB），且与无声两发的用量/单价逐位相同（见 VideoTier.audio）
     audio: true,
+    // 最贵一档也一样收不了真人照片：方舟的两套真人探测器不分档位（见 VideoTier.realFace）
+    realFace: false,
     paidOnly: true,
     // 2.5 的时长区间是 [4,30]，3 秒会被同步 400（见 VideoTier.minSec）
     minSec: 4,
     desc: "最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，单段消耗约标准档 4.7 倍（仅付费套餐）",
   },
+  {
+    id: "real",
+    label: "真人",
+    // 供应商换成 MiniMax（海螺 2.3，768P）：方舟对真人参考图两套探测器全拦（名人版权、
+    // 普通人隐私，2026-08-24 全形态实测），而海螺同一批图**输入输出两端都放行且成片落地**
+    // （华强首帧/普通真人首帧/华强 S2V 三发全 Success）——真人档主力就是它。
+    // 合规：境内 api.minimaxi.com，无人脸出境问题；本人同意由圈选提取时的协议勾选承担
+    // （产品决定：开放任意真人照片，责任用户承诺）。
+    model: "MiniMax-Hailuo-2.3",
+    provider: "minimax",
+    // 按发一口价（数的来历见 VideoTier.flatCost 的 ★★），只有 6s/10s 两档——
+    // 这是海螺 768P 的全部合法时长，不是我们少做了
+    flatCost: { 6: 135_000, 10: 270_000 },
+    mult: 1,
+    // 首帧图实测可用（first_frame_image 收 URL/base64）；尾帧、参考图、r2v 海螺都没有
+    flf: false,
+    refImg: false,
+    refVid: false,
+    r2vMult: null,
+    // 海螺出片有没有原生音频没实测过——先按无声报（往少承诺的方向错，铁律八的精神）
+    audio: false,
+    // ★ 全表唯一的 true：realFaceIssue 靠它放行（唯一判定处）
+    realFace: true,
+    minSec: 6,
+    desc: "唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它",
+  },
 ];
 
 export const DEFAULT_TIER = "std";
+
+/** 这一档走哪个供应商 —— 判否定的唯一出口（缺省 = 方舟）。别在别处 `?? "ark"` */
+export function providerOf(tierId: string | undefined): "ark" | "minimax" {
+  return tierOf(tierId).provider ?? "ark";
+}
+
+/**
+ * 这一档能不能走「推演三套方案」—— 唯一实现（flowStore.deriveProposals、
+ * 工坊 studioStore.generateNode、工坊档位按钮三处共用，别各写一遍）。
+ * 按发计价档（flatCost，真人档）没有方案台：它不画设定帧（首帧就是卡片照片），
+ * 推演产出的三套首尾帧一张都用不上 —— 收了推演的钱再全扔掉，就是白扣一笔。
+ */
+export function deriveIssue(tierId: string | undefined): string | null {
+  const t = tierOf(tierId);
+  if (!t.flatCost) return null;
+  return `「${t.label}」档按发直出（起拍画面就是真人卡的照片），没有推演三套方案这一步——写好一句话直接生成，或换回其它档再推演`;
+}
 
 export function tierOf(id: string | undefined): VideoTier {
   return VIDEO_TIERS.find((t) => t.id === id) ?? VIDEO_TIERS[1];
@@ -253,7 +333,16 @@ export function modelLabel(modelId: string): string {
  *   拿到的是 4 秒的片，差 33% 且无从察觉。
  */
 export function clampDuration(durationSec: number, tierId?: string): number {
-  return Math.max(tierOf(tierId).minSec, Math.min(10, Math.round(durationSec)));
+  const t = tierOf(tierId);
+  // 按发计价的档只有价表里那几个整档时长（海螺 768P 就是 6s/10s，不是我们砍的）：
+  // 报价与下单都得吸附到档上，否则"按 8 秒报价、按 10 秒扣费"这种缝隙就开了——
+  // 吸附方向取**不小于所选时长的最小档**（用户要 8 秒就给 10 秒档并按 10 秒收，
+  // 往少给的方向吸是暗降级）。超过最大档就顶格。
+  if (t.flatCost) {
+    const steps = Object.keys(t.flatCost).map(Number).sort((a, b) => a - b);
+    return steps.find((s) => s >= durationSec) ?? steps[steps.length - 1];
+  }
+  return Math.max(t.minSec, Math.min(10, Math.round(durationSec)));
 }
 
 /**
@@ -264,9 +353,15 @@ export function clampDuration(durationSec: number, tierId?: string): number {
  */
 const SEC_720P_TOKENS = (1280 * 720 * 24) / 1024;
 
-/** 一段 720p 视频的 token 估算（方舟公式：时长×宽×高×帧率/1024，×档位系数） */
+/** 一段视频的 token 报价。方舟档按公式连续计（时长×宽×高×帧率/1024×系数）；
+ *  按发计价档（flatCost 非空，如 MiniMax 真人档）查价表——clampDuration 已把时长
+ *  吸附到价表档位上，这里直接取数。**报价与实扣共用本函数**（铁律六），
+ *  server 结算侧的对应表必须逐条相等。 */
 export function segTokens(durationSec: number, tierId?: string): number {
-  return Math.round(clampDuration(durationSec, tierId) * SEC_720P_TOKENS * tierOf(tierId).mult);
+  const t = tierOf(tierId);
+  const sec = clampDuration(durationSec, tierId);
+  if (t.flatCost) return t.flatCost[sec] ?? Math.max(...Object.values(t.flatCost));
+  return Math.round(sec * SEC_720P_TOKENS * t.mult);
 }
 
 /** r2v 公式核心：(输入 + 输出) × 每秒 21,600 × 系数，输出按 = 输入取上界 ⇒ 输入 × 2。
@@ -350,6 +445,33 @@ export function r2vPriceIssue(tierId?: string): string | null {
  */
 export function blockoutTier(): VideoTier | null {
   return VIDEO_TIERS.find((t) => t.refVid) ?? null;
+}
+
+/**
+ * 「这些素材卡挂在这一档上，真人照片过不过得去」—— **唯一实现**（铁律六），
+ * null = 没问题，否则是一句给用户看的整句原因。形状照 r2vPriceIssue / imageTierPriceIssue：
+ * 界面（SegSettings 把原因印在页面上）与生成闸（flowStore 的 genNode / deriveProposals）
+ * 都只问这一句，不许各自去翻 `realPerson` 或档位表 —— 各翻一遍就是"界面说能出、
+ * 生成闸拒了"这种两面打架。
+ *
+ * ★ 为什么在**素材 × 档位**上判，不是只看档位：非真人素材在任何档都照常走；真人素材
+ *   只有 realFace 档能收（今天一档都没有，见 VideoTier.realFace 的实测依据）——
+ *   两个输入缺一个都答不了"这一段现在能不能生成"。
+ * ★ realPerson 判**肯定**（`=== true`）：缺省 = 老卡 = 非真人，照常放行
+ *   （types.Card.realPerson 那条 ★ 的读侧约定，别改成对 false 的等值判）。
+ * ★ r2v/白模路不用单独设闸：它与经典路都从 genNode 那道门走，天然被盖住。
+ * ★ 原因句不点名 MiniMax/Runway：对用户那是没上线的内部选型，说了也做不了任何事；
+ *   接入哪家写在 VideoTier.realFace 的注释里，给接入的人看。
+ */
+export function realFaceIssue(materials: Card[] | undefined, tierId: string | undefined): string | null {
+  const real = (materials ?? []).filter((c) => c.realPerson === true);
+  if (real.length === 0) return null;
+  const t = tierOf(tierId);
+  if (t.realFace !== true) {
+    const names = real.map((c) => `「${c.name}」`).join("、");
+    return `${names}是声明过的真人素材，「${t.label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——把画质换成「真人」档就能出，或先把真人卡取下`;
+  }
+  return null;
 }
 
 // ── 出图模型与铸卡档位 ─────────────────────────────────────────
@@ -911,7 +1033,10 @@ export function segmentCost(o: {
     return r2vRawTokens(o.refVideo.inputSec, worst);
   }
   const tier = tierOf(o.tierId);
-  const draws = o.refMode ? 0 : (o.hasFirstFrame ? 0 : 1) + (tier.flf && !o.hasLastFrame ? 1 : 0);
+  // ★ 按发计价档（flatCost，真人档）一张设定帧都不画：首帧就是真人卡的照片本身
+  //   （segmentGen 的 minimax 分支），没有帧就整句拒，Seedream 从头到尾不参与
+  //   ——把 draws 算进去就是报了一笔永远不会发生的图钱（报价 ≠ 实扣的方向错）。
+  const draws = o.refMode || tier.flatCost ? 0 : (o.hasFirstFrame ? 0 : 1) + (tier.flf && !o.hasLastFrame ? 1 : 0);
   return segTokens(o.durationSec, o.tierId) + draws * IMAGE_TOKENS;
 }
 
@@ -938,6 +1063,20 @@ export function proposalsCost(hasStartFrame: boolean): number {
 
 /** 单张图的重画：方案设定图改图（refineFrame）、AI 封面（generateCover） */
 export const ONE_IMAGE = IMAGE_TOKENS;
+
+/**
+ * 「按 N 处圈选重新生成」里那几张改图的钱 —— **唯一实现**。
+ *
+ * ★★ 2026-08-21 第九轮扫描确认的 high：出片管线对**每一处圈选**都会跑一次 refineFrame
+ *   （`studio/segmentGen.ts` 里那个 for 循环，一次真的 Seedream 图生图），而两处报价
+ *   （剪辑页的 `annCost`、工作流的 `nodeCost`）从头到尾只算视频那一半。
+ *   5 秒标准档 + 5 处圈选：按钮印 108k，实扣约 175k —— 多 62%，而按钮旁边还写着
+ *   「这一步才计费」。这正是本仓头号事故形状（CLAUDE.md「两仓价目表各写各的」那一条）。
+ * ★ 圈选数**没有上限**，所以这笔随 N 线性涨，不是一个可以忽略的尾数。
+ */
+export function annRedrawCost(annCount: number): number {
+  return Math.max(0, annCount) * ONE_IMAGE;
+}
 
 /**
  * 「按修改重画一套方案」的报价：用户自己上传的帧、以及承接上一段真实结尾的那张开头帧

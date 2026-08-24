@@ -421,7 +421,6 @@ function FeedItem({
             <span className="rounded-full bg-gold px-4 py-1.5 text-sm font-bold text-ink">
               ⚡ {fmtTokens(lockPrice)} token 解锁
             </span>
-            <span className="text-[11px] text-white/70">付费作品 · 点击进入解锁</span>
           </button>
         </>
       ) : resolvedSrc && wantSrc ? (

@@ -37,6 +37,7 @@ import {
   BLOCKOUTIZE_FRAME_MAX,
   BLOCKOUT_INPUT_RULES,
   BLOCKOUT_MIN_INPUT_SEC,
+  SPLIT_MAX_PARTS,
   shrunkSecText,
   visionFrameCount,
 } from "../../data/templates";
@@ -220,7 +221,22 @@ export function clampCropToFrame(crop: CropRect, size: FrameSize, minEdgePx = 1)
  * ★ 顺序按"用户能怎么改"排，不是按规则表的顺序：先说数本身不成立、再说时间轴（拖把手就能改）、
  *   最后说裁剪框（拖角才能改）。一次只说一句 —— 三条一起甩出来，用户改完第一条还得重读一遍。
  */
-export function selectionIssue(sel: BlockoutSelection, natural: VideoNatural): string | null {
+export function selectionIssue(
+  sel: BlockoutSelection,
+  natural: VideoNatural,
+  opts?: {
+    /**
+     * true = 这条路的服务端会在裁剪之后**按需放大到刚过像素门**
+     * （`POST /uploads/template-video/derive` 的 c_scale，自带参考视频那条路走它），
+     * 所以像素那一条不拦 —— 拦了就是"界面拒收一个服务端完全能做的选段"，
+     * 用户对着一句「把裁剪框拖大一点」干瞪眼（框已经铺满整幅了）。
+     * ★ 只豁免**像素**：边长下限（300）与比例放大救不了（放大不会凭空变清楚，
+     *   见服务端 upload.js「那"够不够格"由谁判」），照旧拦。
+     * 白模化（blockoutize）那条路服务端**不放大**，绝不能传 true。
+     */
+    pixelUpscalable?: boolean;
+  },
+): string | null {
   const R = ARK_EDIT_RULES;
   /** 输入那一侧的窗口（只有 minSec 与 R 不同，见下面 ② 的 ★★） */
   const IN = BLOCKOUT_INPUT_RULES;
@@ -266,7 +282,7 @@ export function selectionIssue(sel: BlockoutSelection, natural: VideoNatural): s
     return `裁剪框太大：裁完的宽和高都要 ≤ ${R.maxEdge} 像素（现在 ${n(crop.w)}×${n(crop.h)}）。这条素材本身就超了，需要先压小分辨率再来。`;
   }
   const px = crop.w * crop.h;
-  if (px < R.minPixels) {
+  if (px < R.minPixels && !opts?.pixelUpscalable) {
     return `裁完的画面太小：宽×高至少要 ${n(R.minPixels)} 像素（现在 ${n(crop.w)}×${n(crop.h)} = ${n(px)}，还差 ${n(R.minPixels - px)}）。AI 出片引擎会拒绝这样的输入——把裁剪框拖大一点。`;
   }
   const ratio = crop.w / crop.h;
@@ -299,12 +315,127 @@ export function selectionIssue(sel: BlockoutSelection, natural: VideoNatural): s
 }
 
 /** 过了以后给用户看的那句「这一段是什么样子」。整句，与 issue 一一对应（一个说不行、
- *  一个说行）—— 只把按钮点亮而什么都不说，用户不知道自己到底选中了什么。 */
-export function selectionSummary(sel: BlockoutSelection, natural: VideoNatural): string {
+ *  一个说行）—— 只把按钮点亮而什么都不说，用户不知道自己到底选中了什么。
+ *  @param opts.frames false = 不带「AI 看 N 帧」那半句（visionFrameCount 是**白模化**
+ *    看帧那笔钱的输入；自带参考视频那条路认人看几帧是另一件事、另一笔钱，硬带上就是
+ *    拿别条路的报价输入冒充这条路的） */
+export function selectionSummary(
+  sel: BlockoutSelection,
+  natural: VideoNatural,
+  opts?: { frames?: boolean },
+): string {
   const { crop, durSec, startSec } = sel;
   const full = crop.w === Math.round(natural.width) && crop.h === Math.round(natural.height);
+  const base = `第 ${startSec} 秒起 ${durSec} 秒 · 裁后 ${n(crop.w)}×${n(crop.h)}（${n(crop.w * crop.h)} 像素，比例 ${(crop.w / crop.h).toFixed(2)}）${full ? " · 未裁剪（整幅）" : ""}`;
+  if (opts?.frames === false) return base;
   // 帧数也写进来：它是这一发**报价的一半**，而它现在会随时长与用户的标记变 ——
   // 只报"选了几秒"会让人以为看帧那笔是固定的
   const frames = visionFrameCount(durSec, sel.frameTimes);
-  return `第 ${startSec} 秒起 ${durSec} 秒 · 裁后 ${n(crop.w)}×${n(crop.h)}（${n(crop.w * crop.h)} 像素，比例 ${(crop.w / crop.h).toFixed(2)}）${full ? " · 未裁剪（整幅）" : ""} · AI 看 ${frames} 帧`;
+  return `${base} · AI 看 ${frames} 帧`;
+}
+
+// ── 「自带参考视频」那条路（ownRef）的选段判词 ─────────────────────────
+//
+// 与上面 `selectionIssue`/`selectionSummary`（白模化那条路的判词）并排放着，是因为
+// 两条路对同一份选段的裁决**真的不同**，各自的差异都有服务端依据：
+//   · 像素门：ownRef 的 derive/切段两条服务端路都会按需放大到刚过线，白模化不放 ——
+//     所以 ownRef 豁免像素、白模化照拦（`pixelUpscalable` 的 ★）；
+//   · 时长上限：ownRef 允许 >30 秒 —— 那不是放宽窗口，是**换一条路**（整条切成 N 段
+//     独立模板归组登记，服务端 splits 路）。v1 那条路的三条限制（整条、整幅、≤12 段）
+//     必须在这里说成人话，而不是让服务端 400 一句 zod 校验错。
+// 两组判词都由 BlockoutTrimmer 的 `judge` 口子注入（默认仍是白模化那组），
+// 数值仍然只有 data/templates 那一份（ARK_EDIT_RULES / BLOCKOUT_INPUT_RULES / SPLIT_MAX_PARTS）。
+
+/** `judge` 口子的裁决形状：issue 非空 = 不能提交（整句原因）；ok = 过了之后那句绿字 */
+export interface SelectionVerdict {
+  issue: string | null;
+  ok: string;
+}
+
+/** 源画面低于像素门时的那半句提示（两种形态共用；"" = 不用提）。
+ *  说出来是义务：放大是服务端静默做的，不说的话作者会以为登记出来的就是原始分辨率 */
+function upscaleNote(w: number, h: number): string {
+  return w * h < ARK_EDIT_RULES.minPixels
+    ? `（画面 ${n(w)}×${n(h)} 低于 AI 引擎的像素下限，登记时服务端会自动放大到刚过线，时长与画幅比例不变）`
+    : "";
+}
+
+/**
+ * ownRef · 单段（≤30 秒）：窗口判据与白模化同一份（`selectionIssue`），只豁免像素门。
+ */
+export function ownRefSingleVerdict(sel: BlockoutSelection, natural: VideoNatural): SelectionVerdict {
+  return {
+    issue: selectionIssue(sel, natural, { pixelUpscalable: true }),
+    ok: `这一段可以做成模板（不出片）：${selectionSummary(sel, natural, { frames: false })}${upscaleNote(sel.crop.w, sel.crop.h)}`,
+  };
+}
+
+/**
+ * ownRef · 分段（>30 秒）：v1 的三条限制逐条说人话。
+ *
+ * ★★ v1 为什么这么限（提交给服务端的是**原始上传 + splits**，什么变换都不带）：
+ *   · **整条**：`group.sourceUrl` 就是原片 —— 合并成片时拿它回填**完整**音轨，登记的
+ *     若只是原片中段，音轨从第 0 秒起就对不上（静默错位，没人报错）；
+ *   · **整幅**：服务端 splits 路不吃裁剪框（要裁就得把裁剪并进切段变换，留到下一轮）；
+ *   · **≤12 段**：服务端 zod 钉的 `splits ≤ 11`（SPLIT_MAX_PARTS 的跨仓契约）。
+ *
+ * @param plan `planSplits(真实时长, 用户标的刀)` 的结果 —— 规划只有那一处实现，
+ *   这里只consume：段数上限判它、绿字段清单画它。dropped 那句话**不在这里**说
+ *   （它长在标刀的那块界面旁边，提取器负责 —— 这里再说一遍就是同一句话出现在两处）。
+ * @param realDurationSec 服务端登记的真实时长（上传回执那份，带小数）——绿字按它报，
+ *   与 `natural.durationSec` 不是同一个精度（时间轴取的是 floor 整数秒）。
+ */
+export function ownRefSplitVerdict(
+  sel: BlockoutSelection,
+  natural: VideoNatural,
+  plan: { splits: number[]; dropped: number[] },
+  realDurationSec: number,
+): SelectionVerdict {
+  const total = selectableSeconds(natural);
+  const maxSec = SPLIT_MAX_PARTS * ARK_EDIT_RULES.maxSec;
+  /**
+   * **不标一刀时**自动切能覆盖到多长 —— `planSplits` 的补刀是**递归对半**，所以段数
+   * 只可能是 1/2/4/8/16…（2 的幂）。于是 240s（8 段）之后**下一档直接是 16 段**，
+   * 一步跨过 12 段上限：241~360 秒的素材"拉满整条自动切"必然被判超段。
+   * ★★ 这个数与 `maxSec`（12×30=360）**不是一回事**，别混用（2026-08-21 评审抓到）：
+   *   蓝字提示当初用 maxSec 当门槛，于是对 241~360 秒的素材说"拉满就会自动切成多段"，
+   *   用户照做立刻撞红字"要切 16 段、最多 12 段"，而它给的出路（多标几刀）又会撞上
+   *   11 刀上限 —— 三句话互相打脸。要走 240s 以上只能**自己标刀**且标得够匀。
+   */
+  const autoMaxSec = 8 * ARK_EDIT_RULES.maxSec;
+  const parts = plan.splits.length + 1;
+  const w = Math.round(natural.width);
+  const h = Math.round(natural.height);
+  const ratio = w / (h || 1);
+  // 顺序按"用户能怎么改"：先说这条素材根本装不下（换素材/收选段），再说时间轴（拖把手）、
+  // 裁剪框（点铺满）、素材形状（收选段用裁剪框修）、最后才是刀标得太碎（删几刀/补几刀）
+  const issue =
+    total > maxSec
+      ? `这条视频约 ${total} 秒，而分段登记一次最多 ${SPLIT_MAX_PARTS} 段 × ${ARK_EDIT_RULES.maxSec} 秒 = ${maxSec} 秒——整条装不下。把选段收回 ${ARK_EDIT_RULES.maxSec} 秒以内只做一段，或先把素材剪短再传。`
+      : sel.startSec !== 0 || sel.durSec !== total
+        ? `选段超过 ${ARK_EDIT_RULES.maxSec} 秒时只能整条登记（分段组吃的是整条原片——合并成片时要拿它回填完整音轨）：把选段拉满 0~${total} 秒（起点 0、时长 ${total}），或者收回 ${ARK_EDIT_RULES.maxSec} 秒以内只做一段。`
+        : sel.crop.w !== w || sel.crop.h !== h
+          ? `分段登记暂不支持裁剪画面（服务端切段吃的是原始上传）：点视频下方播放条最右端的「⤢ 铺满整幅」把裁剪框还原。要裁水印或改画幅，就把选段收回 ${ARK_EDIT_RULES.maxSec} 秒以内、一段一段做。`
+          : w > ARK_EDIT_RULES.maxEdge || h > ARK_EDIT_RULES.maxEdge
+            ? `整条登记不裁画面，而这条原片有一边到了 ${n(Math.max(w, h))} 像素，超过 AI 引擎的 ${n(ARK_EDIT_RULES.maxEdge)} 上限。把选段收回 ${ARK_EDIT_RULES.maxSec} 秒以内、用裁剪框把画面框到 ${n(ARK_EDIT_RULES.maxEdge)} 以内，一段一段做。`
+            : ratio < ARK_EDIT_RULES.minRatio || ratio > ARK_EDIT_RULES.maxRatio
+              ? `整条登记不裁画面，而这条原片的宽高比约 ${ratio.toFixed(2)}，超出 AI 引擎的 ${ARK_EDIT_RULES.minRatio}~${ARK_EDIT_RULES.maxRatio} 窗口——放大救不了形状。把选段收回 ${ARK_EDIT_RULES.maxSec} 秒以内、用裁剪框把比例修进窗口，一段一段做。`
+              : parts > SPLIT_MAX_PARTS
+                ? // ★ 出路要分两种说（评审抓到：只说"多标几刀"时，241~360 秒的素材标满 11 刀
+                  //   也未必够，而 picker 到 11 刀就顶回来 —— 一处叫他多标、一处不让他标）
+                  total > autoMaxSec
+                  ? `现在这样要切 ${parts} 段，而一次分段登记最多 ${SPLIT_MAX_PARTS} 段。这条素材有 ${total} 秒，超过 ${autoMaxSec} 秒之后自动切会一步跨到 16 段（补刀是对半切，段数只能是 8、16…），所以必须自己标刀：把 ${SPLIT_MAX_PARTS - 1} 刀尽量均匀地摆开（每段接近 ${ARK_EDIT_RULES.maxSec} 秒）。实在摆不匀就先把素材剪短再传。`
+                  : `现在这样要切 ${parts} 段，而一次分段登记最多 ${SPLIT_MAX_PARTS} 段（超过 ${ARK_EDIT_RULES.maxSec} 秒的段会自动对半，越切越碎）。多标几刀、让每段更接近 ${ARK_EDIT_RULES.maxSec} 秒，或者先把素材剪短。`
+                : null;
+  // 段清单：作者点「登记」之前要看得见每一段多长（每段就是将来一个独立模板的时长，
+  // 也是套用者那一侧按时长计价的锚点）
+  const bounds = [0, ...plan.splits, realDurationSec];
+  const segs = bounds
+    .slice(1)
+    .map((b, i) => `${(b - bounds[i]).toFixed(1)}s`)
+    .join(" + ");
+  return {
+    issue,
+    ok: `整条 ${realDurationSec.toFixed(1)} 秒将切成 ${parts} 段（${segs}）登记成一组——每段是独立模板，从任何一段套用都会整组铺进工作流${upscaleNote(w, h)}。`,
+  };
 }

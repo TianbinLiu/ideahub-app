@@ -77,7 +77,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-rail",
         body: (
           <>
-            右边竖着一列。最上面是<b className="font-bold text-slate-100">作者头像</b>，点它进作者主页，头像下面那枚 + 号是关注。往下依次是发弹幕（「弹」字那枚）、点赞、评论、收藏、分享，<b className="font-bold text-slate-100">后四枚下面的数字是已经有多少人做过</b>；发弹幕那枚下面写的是字、不是数。评论就地滑出来，不用离开这一屏。
+            最上面是<b className="font-bold text-slate-100">作者头像</b>（点进主页，下面那枚 + 号关注）。往下依次是发弹幕、点赞、评论、收藏、分享，<b className="font-bold text-slate-100">下面的数字是已经有多少人做过</b>。评论就地滑出来，不用离开这一屏。
           </>
         ),
       },
@@ -86,7 +86,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-progress",
         body: (
           <>
-            画面底缘那条细线是<b className="font-bold text-slate-100">播放进度</b>，它上方右侧的小字是当前 / 总时长。按住它可以<b className="font-bold text-slate-100">拖着跳到任意一处</b>：拖的时候线会变粗、画面中央显示大字时间，松手就从那儿接着播。多段的作品，这条线走的是整片。
+            底缘那条细线是<b className="font-bold text-slate-100">播放进度</b>，右上小字是当前 / 总时长，按住能<b className="font-bold text-slate-100">拖着跳到任意一处</b>。多段的作品，这条线走的是整片。
           </>
         ),
       },
@@ -95,7 +95,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-title",
         body: (
           <>
-            左下角是作者名、标题和简介。<b className="font-bold text-slate-100">点标题进这支片子的详情页</b>——本片卡组、多 P 选集、没被截断的完整简介都只有那儿有；带「互动 · 你来选」的作品，分支也在那儿选。点作者名或右边的头像，则是去他的主页。
+            <b className="font-bold text-slate-100">点标题进详情页</b>——本片卡组、多 P 选集、完整简介、「互动 · 你来选」的分支，都<b className="font-bold text-slate-100">只在那儿</b>。点作者名或头像，去的是他的主页。
           </>
         ),
       },
@@ -104,7 +104,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-fullscreen",
         body: (
           <>
-            那一列最下面单独一枚是全屏键。点了会收起页签、底栏和这些角落的元素，只留画面；<b className="font-bold text-slate-100">横屏的片子会连屏幕一起转过来</b>，所以它在横屏片上写的是「转屏」。要退出，点右上角那枚缩小键。
+            那一列最下面单独一枚是全屏键，点了只留画面；<b className="font-bold text-slate-100">横屏的片子会连屏幕一起转过来</b>，所以它在横屏片上写的是「转屏」。退出点右上角那枚缩小键。
           </>
         ),
       },
@@ -121,30 +121,6 @@ export const TOURS: GuideTour[] = [
         body: (
           <>
             底栏的 ➕ 先落到这里：每张卡是一种创作方式，左右滑动，或者点画面边上的箭头、底部的圆点，都能翻到下一张。它们<b className="font-bold text-slate-100">不是各走各的</b>，而是同一条流水线的不同入口，最后都汇到剪辑与发布。
-          </>
-        ),
-      },
-      {
-        title: "工坊模式",
-        body: (
-          <>
-            在 3D 铸卡桌面上摆素材卡，人物和场景由卡组锁住，全片保持一致。AI 每段推演几套走向，挑一套炼一段，逐段往下铺；走岔了能从任一张卡分叉回溯。<b className="font-bold text-slate-100">本段炼出来才开下一张卡</b>——第一段人物就不对时当场止损。
-          </>
-        ),
-      },
-      {
-        title: "工作流模式",
-        body: (
-          <>
-            一屏一段，自己写分镜：写清这一段要拍什么 → AI 把几套走向摊开（各带首尾帧预览）→ 挑定一套，还能换帧、改剧情 → 才炼这一段视频。节点卡跟工坊那张是同一张，只是没有 3D 桌面；<b className="font-bold text-slate-100">一段一结账</b>，不满意只重炼这一段。
-          </>
-        ),
-      },
-      {
-        title: "简约模式",
-        body: (
-          <>
-            起手只有一个节点：不用先备素材卡，写一句话、挑个时长，起拍画面交给 AI 代笔，直接出一条短片。它<b className="font-bold text-slate-100">不推方案、不进草稿库</b>，出片后直通剪辑与发布；想留着慢慢打磨的作品，回去挑工坊或工作流。
           </>
         ),
       },
@@ -305,7 +281,7 @@ export const TOURS: GuideTour[] = [
         anchor: "template-owner-row",
         body: (
           <>
-            自己那条模板下面会多出一行操作：<b className="font-bold text-slate-100">发布到市场</b>让别人搜得到、能套用；已经发布的那条这里换成<b className="font-bold text-slate-100">从市场下架</b>，收回来之后你自己那份还在；最右边是<b className="font-bold text-slate-100">删除</b>，按下去会先问你一遍要删掉的是什么。发布点下去要是被拦住，拦的原因和下一步就印在这条模板下面。
+            自己的模板，卡片上只标一个<b className="font-bold text-slate-100">状态</b>（草稿 / 已发布 / 已下架）。<b className="font-bold text-slate-100">核对位置、识别角色位、发布、删除</b>这些操作都收进了模板详情页——点开卡片进去，那里按「核对 → 识别 → 试炼 → 发布」的顺序排好了。
           </>
         ),
       },
@@ -365,7 +341,12 @@ export const TOURS: GuideTour[] = [
       },
       {
         title: "白模那两条怎么走",
-        anchor: "extractor-pick-file",
+        // ★★ 这一步**故意不带锚点**（2026-08-23）：选文件那颗按钮已经搬到第 2 步，
+        //   而引导是一进这屏就跑的（那时还停在第 1 步的三选一上）。留着 anchor 的话
+        //   `rectOf` 会连量 FIND_TRIES 帧都量不到，才退成居中卡片 —— 结果一样，
+        //   过程却是"引导指着一个不存在的东西"（这条 tour 自己 v2 就是为这种错升的版）。
+        //   ⇒ 不升 version：说的事一个字没变（选文件 → 上传 → 框选 → 报价），
+        //   变的只是"指哪儿"，没必要让所有人重看一遍。
         body: (
           <>
             选文件 → 上传（<b className="font-bold text-slate-100">不花钱</b>）→ 下一步拖时间轴框出 {BLOCKOUT_INPUT_RULES.minSec}~
@@ -569,12 +550,13 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
-        title: "造卡四条路，两条花钱",
+        title: "造卡四条路，一条花钱",
         anchor: "workshop-extract-card",
         body: (
           <>
-            工坊铸卡、上传视频提卡<b className="font-bold text-slate-100">要花 token</b>，
-            按真出几张结算；自己传图、从市场拿都<b className="font-bold text-slate-100">不花</b>。
+            只有工坊铸卡（AI 出图）<b className="font-bold text-slate-100">要花 token</b>。
+            从视频圈选提取、自己传图、从市场拿都<b className="font-bold text-slate-100">不花</b>——
+            提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。
           </>
         ),
       },
@@ -756,6 +738,85 @@ export const TOURS: GuideTour[] = [
           <>
             那一行最右那颗不是从列表里划掉：<b className="font-bold text-slate-100">云端那段模板视频和原始素材会一起没掉</b>，
             谁都找不回。所以要点两下才认。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "canvas",
+    title: "流水线画布",
+    version: 1,
+    steps: [
+      {
+        title: "一屏看完整条片",
+        anchor: "canvas-card",
+        body: (
+          <>
+            每一格是<b className="font-bold text-slate-100">一段</b>，从左往右就是这条片的顺序。
+            点一格<b className="font-bold text-slate-100">就地打开这一段的编辑窗</b>，再点一下收起，点别的格子就换过去。
+            画布可以拖着平移、两指捏合缩放。
+          </>
+        ),
+      },
+      {
+        title: "一段有两种做法",
+        anchor: "canvas-modes",
+        body: (
+          <>
+            编辑窗顶部这对按钮切的是<b className="font-bold text-slate-100">这一段</b>怎么做：
+            「套模板」是拿一段白模视频复刻运镜与站位，你只需给里面的人偶挂上自己的角色卡；
+            「自选卡片」是自己挑素材卡、写一句要求，AI 推演几套走向让你挑。
+            两种<b className="font-bold text-slate-100">每段各选各的</b>，同一条片里可以混着来。
+          </>
+        ),
+      },
+      {
+        title: "对画布说话",
+        anchor: "canvas-agent",
+        body: (
+          <>
+            一句话就能改流水线：给哪段套哪个模板、把谁挂到哪个位子、这段拍什么、加一段。
+            {/* ★ 这三件里**挂卡合成是免费的**（cost 恒 0，见 canvasAgent 的 AgentProposal）。
+                写成"会花钱的三件"是错的报价口径，而这个仓库里报价说错是最贵的一类错
+                （CLAUDE.md「两仓价目表各写各的」）。所以措辞按**要不要你点头**分，
+                确认卡上那行标的是价钱**或**后果。 */}
+            <b className="font-bold text-slate-100">它不替你按那三件</b> —— 推演、出片（真花钱），
+            以及挂卡合成（不花钱，但会把你改过的点名句整段重写）。它只摆一张确认卡，
+            上面写着这一下要花多少、或者会覆盖掉什么，你点了才真跑。办成了什么、被拒了什么，它逐条列给你看。
+          </>
+        ),
+      },
+      {
+        // ★ 这一步**有意不挂锚点**：终端格子在流水线**末段之后**，段一多就在视口外，
+        //   而 off-screen 元素的 rect 仍返回非零宽高 —— 退化成居中卡片那条兜底不会触发，
+        //   圈会画到屏幕外（本文件顶部那条 ⚠ 说的就是它）。所以改成用文字自定位。
+        title: "流水线的终点",
+        body: (
+          <>
+            一直往右拖到<b className="font-bold text-slate-100">末段后面</b>，跟着两格：一格<b className="font-bold text-slate-100">加下一段</b>，
+            一格<b className="font-bold text-slate-100">把各段合成整片</b>（每段都出片了才亮，还差几段它会说）。
+            已经出片的格子右上角有个 ▶，随时能回看那一段。
+          </>
+        ),
+      },
+      {
+        title: "横竖都能用",
+        anchor: "canvas-rotate",
+        body: (
+          <>
+            竖屏时编辑窗从下面升起，横屏时它挪到右边、画布留给左边 —— 段多的时候横过来看更痛快。
+            旁边那颗 💾 随时把这条片存成草稿，回头接着做。
+          </>
+        ),
+      },
+      {
+        title: "老界面还在",
+        anchor: "canvas-linear",
+        body: (
+          <>
+            点它收起画布，回到<b className="font-bold text-slate-100">一屏一段</b>的编辑页 —— 那边有整屏的方案台和圈选改画面。
+            下次进来会记着你上次用的是哪一种。
           </>
         ),
       },

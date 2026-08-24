@@ -309,7 +309,7 @@ export default function DanmakuInput({
               // isComposing：中文输入法选词时的回车是"上屏"，不是"发送"
               if (e.key === "Enter" && !e.nativeEvent.isComposing) void submit();
             }}
-            placeholder="发个友善的弹幕见证当下"
+            placeholder="发条友善的弹幕"
             maxLength={DANMAKU_MAX_LEN}
             className="min-w-0 flex-1 rounded-full border border-slate-700 bg-black/30 px-4 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
           />

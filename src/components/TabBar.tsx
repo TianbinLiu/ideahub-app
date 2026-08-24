@@ -15,7 +15,7 @@ const TABS: ReadonlyArray<{ to: string; icon: IconName; label: string; pose: Per
   { to: "/", icon: "home", label: "首页", pose: "home" },
   { to: "/discover", icon: "compass", label: "分区", pose: "explore" },
   null, // 中间 ➕ 占位
-  { to: "/workshop", icon: "cards", label: "创意工坊", pose: "studio" },
+  { to: "/workshop", icon: "cards", label: "工坊", pose: "studio" },
   { to: "/me", icon: "user", label: "我的", pose: "mine" },
 ];
 

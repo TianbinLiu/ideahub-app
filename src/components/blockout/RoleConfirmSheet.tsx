@@ -259,6 +259,29 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
             </>
           )}
         </p>
+        {t.refVideo && (
+          <video
+            data-guide="roleconfirm-video"
+            src={t.refVideo.url}
+            controls
+            playsInline
+            className="max-h-[38vh] w-full rounded-xl bg-black object-contain"
+          />
+        )}
+
+        {/* ★★ 三段「对不上怎么办」收进折叠（2026-08-23）：它们加起来约 20 行，原来整块摊在
+            视频**上面** —— 作者要做的事是"对着画面从左往右数"，而他得先划过 20 行才看得见
+            那段视频。这三段说的又都是**条件性**的知识（没被人偶化 / 排反了 / 站得重叠），
+            只有真撞上时才用得着。
+          ★★ 但「不用重炼」这半句**必须留在收起状态也看得见**，所以它写进了 summary：
+            这一屏的钱已经花完了，作者一旦以为"对不上 = 这段废了"，就会直接再花一次钱重炼
+            —— 那正是本组件顶上那条注释反复强调、也是它存在的理由。折叠可以收走"怎么办的细节"，
+            绝不能连"不用重炼"一起收走。 */}
+        <details className="rounded-lg border border-slate-700/70 bg-panel/60">
+          <summary className="cursor-pointer list-none px-3 py-2 text-[11px] leading-relaxed text-slate-300">
+            ▸ 对不上怎么办？<span className="text-slate-500">多数情况删掉那个位子就行，不用重炼</span>
+          </summary>
+          <div className="space-y-2 px-3 pb-3">
         {ordinal ? (
           <>
             <p className="rounded-lg bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
@@ -298,16 +321,8 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
             ? "如果画面上根本数不出这么多人偶，这段白模本身就没做好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。"
             : "如果画面上大部分号都对不上，这段白模的编号本身就没画好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。"}
         </p>
-
-        {t.refVideo && (
-          <video
-            data-guide="roleconfirm-video"
-            src={t.refVideo.url}
-            controls
-            playsInline
-            className="max-h-[38vh] w-full rounded-xl bg-black object-contain"
-          />
-        )}
+          </div>
+        </details>
 
         {rows.map((r, i) =>
           r.doomed ? (
@@ -534,7 +549,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
  * ★ 没有 remoteId（登记还没成功）时不渲染：编号登记在服务端，摆个点了必然失败的按钮
  *   只会让作者以为功能坏了 —— 登记失败的原因与「重新登记」在详情页已经有出口。
  */
-export function RoleConfirmEntry({ t }: { t: VideoTemplate }) {
+export function RoleConfirmEntry({ t, compact }: { t: VideoTemplate; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [opening, setOpening] = useState(false);
   useTemplatesTick();
@@ -553,6 +568,31 @@ export function RoleConfirmEntry({ t }: { t: VideoTemplate }) {
     await refreshRemoteTemplate(t.id);
     setOpening(false);
     setOpen(true);
+  }
+
+  // ★ 紧凑形态（2026-08-20，「我的模板」列表塞进卡片格子用）：同一套判据与打开逻辑，
+  //   只是渲染成一颗小按钮。**颜色仍分两档**（琥珀=拦路，灰=可选）——核对是发布的前置闸，
+  //   压缩成小按钮不能把"这步没做会被 400"的信号一起压没。长文案两档留在详情页那份里。
+  if (compact) {
+    const pending = !rs || rs.rolesNeedConfirm;
+    const noun = ordinal ? "位置" : "编号";
+    return (
+      <>
+        <button
+          onClick={() => void openSheet()}
+          disabled={opening}
+          title={pending ? `核对之前不能发布（${noun}对不上会让别人的角色卡换到别人身上）` : "改错了不用重炼"}
+          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold disabled:opacity-50 ${
+            pending
+              ? "border border-amber-500/50 bg-amber-500/15 text-amber-200"
+              : "border border-slate-600 text-slate-300"
+          }`}
+        >
+          {opening ? "取最新…" : pending ? `核对${noun}` : `重新核对${noun}`}
+        </button>
+        {open && <RoleConfirmSheet t={t} onClose={() => setOpen(false)} />}
+      </>
+    );
   }
 
   return (

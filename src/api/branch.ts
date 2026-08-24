@@ -156,6 +156,8 @@ export interface ApiCard {
   modelUrl?: string;
   /** 生成蓝图 */
   genPrompt?: string;
+  /** 真人声明（缺省 = 老卡 = 非真人，读侧判否定，见 types.Card.realPerson） */
+  realPerson?: boolean;
   /** 已分享到创意工坊 */
   published?: boolean;
   publishedAt?: string | number;
@@ -551,6 +553,10 @@ export async function addCards(cards: Card[]): Promise<ApiCard[]> {
     //   那份记录的一部分；发布给别人时由服务端 shareableModelUrl 剥掉。
     modelUrl: c.modelUrl,
     genPrompt: c.genPrompt,
+    // ★ 真人声明与卡同生同灭：POST 是 $setOnInsert，漏在这里的话服务端那份永远是
+    //   "非真人"，换台设备登录声明就无声消失、出片档位分流静默失效（modelUrl/genPrompt
+    //   2026-08-11 就是这么丢的）。undefined 会被 JSON 序列化丢掉，等价于"没声明"。
+    realPerson: c.realPerson,
     // ★ 只发 http(s) 的那几张。views 的不变量是"只存 URL"（见 types.CardView），
     //   而 viewsOf() 给老卡兜底出来的那张 url 可能是 dataURL 卡面 —— 那是**读**用的，
     //   发上去只会被服务端当成一张几百 KB 的 base64 存进文档（或按 512KB 规则丢掉）。
@@ -582,6 +588,10 @@ function httpViews(views: Card["views"]): ApiCardView[] | undefined {
  *   `db.cards = 服务端那份`，于是用户加的参考图在下一次冷启动时**无声消失**。
  * ★ 调用方必须 await 并把失败**显示出来**（见 data/cardViews.ts）：全 app 没有任何
  *   地方监听 emitApiError，fire-and-forget 在这里等于静默丢数据（铁律八）。
+ * ★ realPerson **刻意不在**这份 payload 里：这条 PATCH 是定向 $set（只动 views），
+ *   服务端存的真人声明不受影响；声明在 POST 入库那一下就定了，客户端也没有事后改它
+ *   的入口。服务端的 update schema 声明了 realPerson 只是留门——真要发得新开参数，
+ *   别把 views 专用函数改成"顺手带一切"。
  */
 export async function updateCardViews(cardId: string, views: Card["views"]): Promise<ApiCard | null> {
   const res = await apiPatch<Record<string, unknown>>(`/api/branch/cards/${encodeURIComponent(cardId)}`, {
@@ -795,6 +805,17 @@ export interface ApiBranchTemplate {
    * ★ 只有「自己传白模视频」那条路（detect-roles）产出它；白模化 V2 与所有老模板都没有。
    */
   markDescs?: string[];
+  /**
+   * 长视频分段登记的归组（2026-08-20）。**只在真有的时候出现**（存在性判断，同 roles）：
+   * 整段登记/存量模板整个字段缺失。`sourceUrl` 是原片地址 —— 合并成片时拿它解原片音轨。
+   */
+  group?: {
+    key?: string;
+    index?: number;
+    count?: number;
+    sourceUrl?: string;
+    sourceDurationSec?: number;
+  };
   status?: "pending" | "published" | "blocked" | string;
   provenAt?: string | number | null;
   isOwner?: boolean;
@@ -820,11 +841,34 @@ export interface CreateTemplatePayload {
   coverUrl: string;
   recipe: TemplateRecipe;
   videoUrl: string;
+  /**
+   * 长视频分段点（秒，升序，(0,时长) 开区间）。非空 = 服务端把源视频物理切成 N 段
+   * 各自登记（group 归组），**每段都要落在 [4,30] 窗口**，越界服务端整单 400。
+   * 分段规划（用户标的帧 → 合法分段）在 data/templates.planSplits 一处实现。
+   */
+  splits?: number[];
 }
 
-export async function createTemplate(payload: CreateTemplatePayload): Promise<ApiBranchTemplate | null> {
-  const res = await apiPost<Record<string, unknown>>("/api/branch/templates", payload);
-  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+/** createTemplate 的完整回包：分段登记时 parts 是全组（含 template=第 1 段） */
+export interface CreateTemplateResult {
+  template: ApiBranchTemplate | null;
+  parts: ApiBranchTemplate[] | null;
+}
+
+export async function createTemplate(payload: CreateTemplatePayload): Promise<CreateTemplateResult> {
+  // ★★★ 带 `splits` 时**必须自带长超时**（2026-08-21 cherry-pick 评审的 high，
+  //   与 detectTemplateRoles 那条 ★★★ 同一个道理）：客户端默认只给 20 秒
+  //   （`DEFAULT_TIMEOUT_MS`），而服务端那一支是**串行**逐段 `cloudinary.uploader.upload`
+  //   （远端抓取 + 转码 + 上传，单段自己就挂着 300s 的 timeout）——12 段最坏是分钟级。
+  //   20 秒就 abort 的后果不是"慢一点"：源视频那时既登记不上（POST 被判失败），
+  //   也回收不掉（服务端可能正切到一半），用户只能重传一次几十上百 MB 的原片。
+  //   ★ 不带 splits 的单段登记是**毫秒级**（认人那些慢活早就拆出去了，见 makeOwnRefTemplate
+  //     的 ★★），所以只给分段那一发加长超时，别把单段那条也拖成 6 分钟才报错。
+  const seg = payload.splits?.length ? { timeoutMs: 360_000 } : undefined;
+  const res = await apiPost<Record<string, unknown>>("/api/branch/templates", payload, seg);
+  const template = pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+  const parts = Array.isArray((res as { parts?: unknown }).parts) ? ((res as { parts: ApiBranchTemplate[] }).parts) : null;
+  return { template, parts };
 }
 
 // ── 白模化（V2：任意视频 → 带编号白模模板）────────────────────────

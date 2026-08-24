@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router";
 import GuideGate from "./components/guide/GuideGate";
+import GenerationPill from "./components/GenerationPill";
 import FeedPage from "./pages/FeedPage";
 import DiscoverPage from "./pages/DiscoverPage";
 import WorkshopPage from "./pages/WorkshopPage";
@@ -22,6 +23,7 @@ import CutPage from "./pages/CutPage";
 import VideoEditorPage from "./pages/VideoEditorPage";
 import CreatePage from "./pages/CreatePage";
 import FlowPage from "./pages/FlowPage";
+import SimpleModePage from "./pages/SimpleModePage";
 import StudioPage from "./studio/StudioPage";
 import TabBar from "./components/TabBar";
 import { readyVideos } from "./data/videos";
@@ -142,6 +144,9 @@ export default function App() {
           `fixed inset-0`（首页/创作页/剪辑页/工作流页），挂在里面会跟着路由卸载，
           而遮罩要能盖住任何一页。弹哪一份由每一屏自己 useAutoGuide 声明。 */}
       <GuideGate />
+      {/* 出片状态胶囊：生成期间人不在 /flow 时显示进度，出完显示"回去继续"的通知。
+          与 GuideGate 同一条理由挂在 Routes 外面（要盖住任何一页，不随路由卸载） */}
+      <GenerationPill />
       <Routes>
       <Route element={<TabLayout />}>
         <Route path="/" element={<FeedPage />} />
@@ -224,6 +229,15 @@ export default function App() {
         element={
           <RequireAuth>
             <StudioPage />
+          </RequireAuth>
+        }
+      />
+      {/* 简约模式：一步一屏的向导（2026-08-23 从 /flow 独立出来） */}
+      <Route
+        path="/simple"
+        element={
+          <RequireAuth>
+            <SimpleModePage />
           </RequireAuth>
         }
       />

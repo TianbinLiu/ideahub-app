@@ -198,7 +198,11 @@ async function main() {
       path.join(out, `qimeng-${versionName}-play-store.aab`),
       path.join(out, "latest.json"),
       "--title", `启梦 ${versionName}`,
-      "--notes", notes || `启梦 ${versionName}`,
+      // ★ notes 走 --notes-file 而不是 --notes 内联（2026-08-24 发 2.25 时炸出来的）：
+      //   runShell 是 shell:true + 外包一层双引号，notes 里出现英文双引号就把参数
+      //   当场截断，后半段被 shell 当 glob 炸掉（v2.24 的 notes 恰好全用「」没踩到）。
+      //   发布文案里迟早会出现 " ` $ 之类字符——传文件路径就没有转义问题。
+      ...(fs.existsSync(notesFile) ? ["--notes-file", notesFile] : ["--notes", `启梦 ${versionName}`]),
       "--repo", REPO]);
   }
 
@@ -229,7 +233,8 @@ async function main() {
   for (let i = 0; i < 12; i++) {
     app = await readManifest(APP_MANIFEST_URL);
     if (app?.versionCode === versionCode) break;
-    process.stdout.write(`  等服务端缓存过期…（${(i + 1) * 10}s）`);
+    process.stdout.write(`  等服务端缓存过期…（${(i + 1) * 10}s）
+`);
     await new Promise((r) => setTimeout(r, 10000));
   }
   console.log("");

@@ -53,7 +53,7 @@ function VideoDeckSection({ video, loggedIn, onGo }: { video: NonNullable<Return
       <h2 className="mb-3 text-base font-bold text-slate-200">
         本片卡组
         <span className="ml-2 text-xs font-normal text-slate-500">
-          {deck.name || `${deck.cards.length} 张`} · 收入后可用同款素材生成相似视频
+          {deck.name || `${deck.cards.length} 张`}
         </span>
       </h2>
       <div className="flex gap-2.5 overflow-x-auto pb-1">
@@ -350,7 +350,7 @@ export default function VideoPage() {
                     {payErr}
                   </Link>
                 )}
-                <span className="text-[10px] text-slate-400">解锁后永久可看 · 收益归创作者（平台抽成 30%）</span>
+                <span className="text-[10px] text-slate-400">解锁后永久可看</span>
               </div>
             </div>
           ) : part.branchTree ? (

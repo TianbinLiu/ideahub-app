@@ -16,12 +16,11 @@
 //   已选定 —— 那一行放大居中、其余缩小压暗；只有选定的那一行可以改帧、改剧情、重画。
 //             不给未选定的行开编辑口，是因为编辑必然要花钱重画，而用户还没决定用哪套。
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Proposal } from "../../types";
+import { DURATIONS, Proposal  } from "../../types";
 import { fmtTokens } from "../../data/economy";
 import { fileToFrameDataUrl } from "../../utils/image";
 import FrameCard, { CardFace, useFrameCycle } from "./FrameCard";
 
-const DURATIONS = [3, 5, 6, 8, 10];
 
 export interface PlanBoardProps {
   proposals: Proposal[];

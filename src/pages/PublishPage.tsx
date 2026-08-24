@@ -102,7 +102,7 @@ export default function PublishPage() {
           </Link>
           <span className="font-bold text-slate-100">发布视频</span>
           <span className="text-xs text-slate-500">
-            {draft.segments.length} 个节点段 · 共 {formatDuration(total)}
+            {draft.segments.length} 段 · 共 {formatDuration(total)}
           </span>
         </div>
       </header>
@@ -111,7 +111,7 @@ export default function PublishPage() {
         {/* 成片预览 */}
         <div>
           <SegmentPlayer segments={draft.segments} cover={cover || draft.cover} />
-          <div className="mt-2 text-center text-xs text-slate-500">成片预览（各节点段按时间线依次播放）</div>
+          <div className="mt-2 text-center text-xs text-slate-500">成片预览（各段按时间线依次播放）</div>
           {/* 每段的来历必须可见：真实 Seedance 影像还是首尾帧渐变回退。
               此前两者在预览里长得都"会动"，用户分不清哪些是真生成的 */}
           <div className="mt-3 space-y-1.5">
@@ -121,7 +121,7 @@ export default function PublishPage() {
                 <span className="min-w-0 flex-1 truncate text-slate-300">{sg.title}</span>
                 {sg.videoUrl ? (
                   <span className="flex-none rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300">
-                    ✓ Seedance 真实影像
+                    ✓ 真实影像
                   </span>
                 ) : (
                   <span
@@ -138,7 +138,7 @@ export default function PublishPage() {
               无条件挂着就是对多数用户撒谎（他们的链接根本不会过期） */}
           {draft.segments.some((sg) => isArkAssetUrl(sg.videoUrl)) && (
             <div className="mt-2 text-center text-[11px] leading-4 text-slate-500">
-              有片段还挂在方舟临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址
+              有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址
             </div>
           )}
         </div>
@@ -211,7 +211,7 @@ export default function PublishPage() {
             {paid && (
               <div className="mt-2.5 flex items-center gap-2.5 rounded-xl border border-gold/30 bg-gold/5 px-3.5 py-2.5">
                 <span className="flex-none text-xs text-slate-300">
-                  本 P 解锁价
+                  本片解锁价
                 </span>
                 <input
                   type="number"
