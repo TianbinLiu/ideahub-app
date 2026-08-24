@@ -13,7 +13,11 @@ const arkFetchPlugin = () => ({
       if (!req.url?.startsWith("/api/asset?")) return next();
       try {
         const target = new URL(req.url, "http://localhost").searchParams.get("url");
-        if (!target || !/^https:\/\/[\w.-]+\.(volces|volccdn)\.com\//.test(target)) {
+        // 第二支：MiniMax 真人档出片视频的 OSS 落点（与 server 的 ASSET_HOST_RE 同口径收口）
+        if (
+          !target ||
+          !/^https:\/\/([\w.-]+\.(volces|volccdn)\.com|public-cdn-video-data[\w-]*\.oss-cn-[\w-]+\.aliyuncs\.com)\//.test(target)
+        ) {
           res.statusCode = 400;
           return res.end("bad url");
         }
@@ -243,6 +247,7 @@ const cspPlugin = () => ({
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const arkKey = env.ARK_API_KEY ?? "";
+  const minimaxKey = env.MINIMAX_API_KEY;
   // 豆包语音（openspeech）：与 ARK_API_KEY 是两套凭据，见 ttsPlugin 的注释
   const ttsKey = env.TTS_API_KEY ?? "";
   return {
@@ -276,6 +281,23 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/api\/ark/, "/api/v3"),
           headers: arkKey ? { Authorization: `Bearer ${arkKey}` } : {},
+        },
+        // 真人档（MiniMax 海螺）的 dev 代理——生产走 server 的 /api/minimax（含鉴权限流）。
+        // 与 ark 同款：密钥不进前端包，dev 由这里注头。没配 MINIMAX_API_KEY 时上游会 401，
+        // 界面能看到整句失败（不是静默）。
+        "/api/minimax": {
+          target: "https://api.minimaxi.com",
+          changeOrigin: true,
+          // 路径形状以 server 代理为准（客户端只有一套代码）：
+          //   POST /video           → /v1/video_generation
+          //   GET  /video/:taskId   → /v1/query/video_generation?task_id=
+          //   GET  /file/:fileId    → /v1/files/retrieve?file_id=
+          rewrite: (p) =>
+            p
+              .replace(/^\/api\/minimax\/video\/([\w-]+)$/, "/v1/query/video_generation?task_id=$1")
+              .replace(/^\/api\/minimax\/file\/([\w-]+)$/, "/v1/files/retrieve?file_id=$1")
+              .replace(/^\/api\/minimax\/video$/, "/v1/video_generation"),
+          headers: minimaxKey ? { Authorization: `Bearer ${minimaxKey}` } : {},
         },
       },
     },

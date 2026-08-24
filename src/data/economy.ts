@@ -85,7 +85,27 @@ export interface VideoTier {
   id: string;
   label: string;
   model: string;
-  /** token 消耗系数（相对标准档；按模型单价折算） */
+  /**
+   * 这一档走哪个供应商。缺省（不写）= 方舟（Seedance），存量四档都是它。
+   * ★ 加它是因为**计价模型根本不同**：方舟按 token 连续计（时长×每秒×系数），
+   *   MiniMax 按发固定价（见 flatCost）。协议层（谁来出片）也按它分流：
+   *   ark → ai/arkClient，minimax → server 的 /api/minimax 代理。
+   * ★ 判否定：缺省即 ark，别到处 `?? "ark"`（第二处默认值）——统一走 providerOf()。
+   */
+  provider?: "ark" | "minimax";
+  /**
+   * **按发固定计价表**（token/发，按时长档查）。非空 = 这一档不按 token 连续计，
+   * segTokens 改查这张表（见那里的 ★）。只有 MiniMax 这种"每发一口价"的供应商用。
+   *
+   * ★★ 报价=实扣的锚（成本价 1.0x，仓库主人拍板）：海螺 2.3 · 768p，
+   *   $0.28/发(6s)、$0.56/发(10s)，汇率 7.2 ⇒ ¥2.016 / ¥4.032；
+   *   按全仓 token 锚（元/百万 ÷ 15 = 系数 1，即 1 token = 15/1e6 元）折算：
+   *   ¥2.016 ÷ (15/1e6) = 134,400 token(6s)、268,800 token(10s)。取整 135k / 270k。
+   *   ⚠ server 的结算价必须逐条等于这两个数（跨仓钉子照 payOrder.spec 的样子打）。
+   *   汇率是会动的：真接计费前用当日汇率复核一遍，别让报价悄悄偏离实扣。
+   */
+  flatCost?: Record<number, number>;
+  /** token 消耗系数（相对标准档；按模型单价折算）。flatCost 档不看它，随便填 1 */
   mult: number;
   /** 是否支持首尾帧模式（flf2v）。实测 pro-fast 只收首帧：报 task_type flf2v not support */
   flf: boolean;
@@ -213,9 +233,40 @@ export const VIDEO_TIERS: VideoTier[] = [
     minSec: 4,
     desc: "最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，单段消耗约标准档 4.7 倍（仅付费套餐）",
   },
+  {
+    id: "real",
+    label: "真人",
+    // 供应商换成 MiniMax（海螺 2.3，768P）：方舟对真人参考图两套探测器全拦（名人版权、
+    // 普通人隐私，2026-08-24 全形态实测），而海螺同一批图**输入输出两端都放行且成片落地**
+    // （华强首帧/普通真人首帧/华强 S2V 三发全 Success）——真人档主力就是它。
+    // 合规：境内 api.minimaxi.com，无人脸出境问题；本人同意由圈选提取时的协议勾选承担
+    // （产品决定：开放任意真人照片，责任用户承诺）。
+    model: "MiniMax-Hailuo-2.3",
+    provider: "minimax",
+    // 按发一口价（数的来历见 VideoTier.flatCost 的 ★★），只有 6s/10s 两档——
+    // 这是海螺 768P 的全部合法时长，不是我们少做了
+    flatCost: { 6: 135_000, 10: 270_000 },
+    mult: 1,
+    // 首帧图实测可用（first_frame_image 收 URL/base64）；尾帧、参考图、r2v 海螺都没有
+    flf: false,
+    refImg: false,
+    refVid: false,
+    r2vMult: null,
+    // 海螺出片有没有原生音频没实测过——先按无声报（往少承诺的方向错，铁律八的精神）
+    audio: false,
+    // ★ 全表唯一的 true：realFaceIssue 靠它放行（唯一判定处）
+    realFace: true,
+    minSec: 6,
+    desc: "唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它",
+  },
 ];
 
 export const DEFAULT_TIER = "std";
+
+/** 这一档走哪个供应商 —— 判否定的唯一出口（缺省 = 方舟）。别在别处 `?? "ark"` */
+export function providerOf(tierId: string | undefined): "ark" | "minimax" {
+  return tierOf(tierId).provider ?? "ark";
+}
 
 export function tierOf(id: string | undefined): VideoTier {
   return VIDEO_TIERS.find((t) => t.id === id) ?? VIDEO_TIERS[1];
@@ -270,7 +321,16 @@ export function modelLabel(modelId: string): string {
  *   拿到的是 4 秒的片，差 33% 且无从察觉。
  */
 export function clampDuration(durationSec: number, tierId?: string): number {
-  return Math.max(tierOf(tierId).minSec, Math.min(10, Math.round(durationSec)));
+  const t = tierOf(tierId);
+  // 按发计价的档只有价表里那几个整档时长（海螺 768P 就是 6s/10s，不是我们砍的）：
+  // 报价与下单都得吸附到档上，否则"按 8 秒报价、按 10 秒扣费"这种缝隙就开了——
+  // 吸附方向取**不小于所选时长的最小档**（用户要 8 秒就给 10 秒档并按 10 秒收，
+  // 往少给的方向吸是暗降级）。超过最大档就顶格。
+  if (t.flatCost) {
+    const steps = Object.keys(t.flatCost).map(Number).sort((a, b) => a - b);
+    return steps.find((s) => s >= durationSec) ?? steps[steps.length - 1];
+  }
+  return Math.max(t.minSec, Math.min(10, Math.round(durationSec)));
 }
 
 /**
@@ -281,9 +341,15 @@ export function clampDuration(durationSec: number, tierId?: string): number {
  */
 const SEC_720P_TOKENS = (1280 * 720 * 24) / 1024;
 
-/** 一段 720p 视频的 token 估算（方舟公式：时长×宽×高×帧率/1024，×档位系数） */
+/** 一段视频的 token 报价。方舟档按公式连续计（时长×宽×高×帧率/1024×系数）；
+ *  按发计价档（flatCost 非空，如 MiniMax 真人档）查价表——clampDuration 已把时长
+ *  吸附到价表档位上，这里直接取数。**报价与实扣共用本函数**（铁律六），
+ *  server 结算侧的对应表必须逐条相等。 */
 export function segTokens(durationSec: number, tierId?: string): number {
-  return Math.round(clampDuration(durationSec, tierId) * SEC_720P_TOKENS * tierOf(tierId).mult);
+  const t = tierOf(tierId);
+  const sec = clampDuration(durationSec, tierId);
+  if (t.flatCost) return t.flatCost[sec] ?? Math.max(...Object.values(t.flatCost));
+  return Math.round(sec * SEC_720P_TOKENS * t.mult);
 }
 
 /** r2v 公式核心：(输入 + 输出) × 每秒 21,600 × 系数，输出按 = 输入取上界 ⇒ 输入 × 2。
@@ -391,7 +457,7 @@ export function realFaceIssue(materials: Card[] | undefined, tierId: string | un
   const t = tierOf(tierId);
   if (t.realFace !== true) {
     const names = real.map((c) => `「${c.name}」`).join("、");
-    return `${names}是声明过的真人素材，而现有各档位（含「${t.label}」）的供应商一律拒收真人照片——实测名人按版权拦、普通人按隐私拦，推演和出片都会整发被拒。等支持真人出片的档位接入后开放；眼下想生成这一段，先把真人卡取下`;
+    return `${names}是声明过的真人素材，「${t.label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——把画质换成「真人」档就能出，或先把真人卡取下`;
   }
   return null;
 }
@@ -955,7 +1021,10 @@ export function segmentCost(o: {
     return r2vRawTokens(o.refVideo.inputSec, worst);
   }
   const tier = tierOf(o.tierId);
-  const draws = o.refMode ? 0 : (o.hasFirstFrame ? 0 : 1) + (tier.flf && !o.hasLastFrame ? 1 : 0);
+  // ★ 按发计价档（flatCost，真人档）一张设定帧都不画：首帧就是真人卡的照片本身
+  //   （segmentGen 的 minimax 分支），没有帧就整句拒，Seedream 从头到尾不参与
+  //   ——把 draws 算进去就是报了一笔永远不会发生的图钱（报价 ≠ 实扣的方向错）。
+  const draws = o.refMode || tier.flatCost ? 0 : (o.hasFirstFrame ? 0 : 1) + (tier.flf && !o.hasLastFrame ? 1 : 0);
   return segTokens(o.durationSec, o.tierId) + draws * IMAGE_TOKENS;
 }
 

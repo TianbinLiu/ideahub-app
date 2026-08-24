@@ -25,12 +25,14 @@ import {
   TEMPLATE_MAX_CARDS,
   clampDuration,
   imageTierOf,
+  providerOf,
   slotsFor,
   tierOf,
   type CardMintCap,
   type ImageTier,
 } from "../data/economy";
 import { idbSet } from "../data/db";
+import { minimaxVideo } from "./minimaxVideo";
 import { refableViews } from "../data/cardViews";
 import {
   chat,
@@ -1696,6 +1698,32 @@ export async function composeSegments(
       }
       onProgress?.(i, segments.length, "任务创建中…");
       const tier = tierOf(sg.videoTier);
+      // ── 真人档（MiniMax）在这里分流 ────────────────────────────
+      // 出片调用换供应商，但**尾帧捕获/段间承接/进度**都走下面同一条产线——
+      // 分流点选在这里而不是 segmentGen，就是为了这三样不抄第二份（铁律六）。
+      // 首帧一定非空（segmentGen 的 minimax 分支备好了：用户帧/承接帧/真人卡照片，
+      // 都没有会在那边整句拒，走不到这里）。
+      if (providerOf(sg.videoTier) === "minimax") {
+        const url2 = await minimaxVideo({
+          model: tier.model,
+          prompt: sg.plot.slice(0, VIDEO_PROMPT_MAX),
+          firstFrame: await shrinkFrameFor720p(first),
+          // 与报价同一把尺：clampDuration 对 flatCost 档吸附到 6/10 整档
+          durationSec: clampDuration(sg.durationSec, sg.videoTier),
+          onProgress: (st) => onProgress?.(i, segments.length, `${tier.label}档 · ${st}`),
+        });
+        res.url = url2;
+        try {
+          onProgress?.(i, segments.length, "捕获本段真实尾帧…");
+          const tail = await captureVideoTail(url2);
+          res.lastFrame = tail;
+          carryTail = tail;
+        } catch {
+          // 与方舟路同款兜底：捕获失败不拖垮整段，下一段退回设定衔接
+        }
+        out.push(res);
+        continue;
+      }
       // 参考媒体（形象图 / 白模参考视频）非空：一句话直出，**首尾帧一张都不给**（三种场景互斥）
       const refMode = !!sg.refImages?.length || !!sg.refVideoUrl;
       const url = await generateVideo(sg.plot.slice(0, VIDEO_PROMPT_MAX), refMode ? "" : await shrinkFrameFor720p(first), {

@@ -13,7 +13,7 @@
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
 import { VIDEO_PROMPT_MAX, composeSegments, generateCover, prepareMaterialRefs, refineFrame } from "../ai";
-import { r2vPriceIssue, tierOf } from "../data/economy";
+import { r2vPriceIssue, tierOf, providerOf, clampDuration } from "../data/economy";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
@@ -255,6 +255,44 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   if (blockout) {
     const issue = blockoutIssue(input);
     if (issue) throw new Error(issue);
+  }
+
+  // ── 真人档（MiniMax，flatCost 计价）：帧来源整个不同，在这里备好再交 composeSegments ──
+  // 这条路**一张 Seedream 设定帧都不画**（报价侧 segmentCost 的 draws 同口径 = 0）：
+  // 首帧就是真人卡的照片（或用户设定帧/承接帧），提示词驱动它动起来 —— 三发探针
+  // 验证过的 i2v 形态。出片调用的分流在 composeSegments（尾帧捕获/承接共用那条产线）。
+  if (providerOf(input.videoTier) === "minimax") {
+    if (blockout) throw new Error("白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板");
+    if (input.anns.length) throw new Error("真人档暂不支持圈选改画面（改图引擎会拒收真人脸）——清掉圈选标注再出片");
+    const firstSrc =
+      input.carryFrame ||
+      input.firstFrame ||
+      // 优先取声明过真人的卡（这一档存在的理由），再退任意有图的卡
+      (input.materials ?? [])
+        .filter((c) => c.realPerson === true)
+        .concat(input.materials ?? [])
+        .flatMap((c) => viewsOf(c))
+        .map((v) => v.url)
+        .find(Boolean);
+    if (!firstSrc) {
+      throw new Error("真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧");
+    }
+    prog(`真人档按发计价（${clampDuration(input.durationSec, input.videoTier)} 秒整档）· 以卡片照片起拍…`);
+    const [res] = await composeSegments(
+      [
+        {
+          plot: `${input.plot}${materialText(input.materials)}`.slice(0, VIDEO_PROMPT_MAX),
+          firstFrame: firstSrc,
+          lastFrame: "",
+          durationSec: input.durationSec,
+          videoTier: input.videoTier,
+          aspect: input.aspect,
+        },
+      ],
+      (_d, _t, status) => prog(status),
+    );
+    if (res?.error) throw new Error(res.error);
+    return { url: res?.url, firstFrame: firstSrc, lastFrame: res?.lastFrame || firstSrc };
   }
 
   // ① 圈选 → 改设定帧。同一帧的多条标注串行叠加（上一次的产物当下一次的底图），
