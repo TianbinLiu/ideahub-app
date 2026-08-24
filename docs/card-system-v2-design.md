@@ -65,19 +65,16 @@
 
 ## 二、设计：人物卡的声音
 
-### 数据模型
+### 数据模型（阶段 2 实做时改为**本机侧库**，2026-08-24）
 
-```ts
-// Card 新增（可选字段，老卡缺省 = 无声音，判否定）
-voice?: {
-  kind: "sample";          // V1 只做这一种；"cloned" 留给 V2
-  /** 2–15s 的声音样本。存 IndexedDB blob（idb: 指针，与 3D 模型同款），不强制上传 */
-  ref: string;
-  durationSec: number;
-  /** 来源说明（"取自原视频 00:12–00:19"），详情页展示 */
-  note?: string;
-}
-```
+实现在 `data/cardVoice.ts`：`{cardId → {dataUrl, durationSec, note}}` 一张表存 IndexedDB，
+**不进 Card 对象**。改的理由：卡在远端模式的真相是服务端那份（loadRemoteAssets 冷启动
+整体覆盖 db.cards），Card.voice 要活下来就得四处一起改（branch payload / ApiCard /
+toLocalCard / server zod）外加一次服务端部署，且 MB 级样本走卡同步会撑爆请求体。
+侧库按 cardId 存本机，卡怎么覆盖都不掉 —— 代价是声音**不跨设备、不随分享**，
+恰好就是"分享不带声音样本"那条设计。样本格式：24kHz 单声道 16-bit WAV dataURL
+（15s ≈ 960KB），抓取走 ScriptProcessor 直取 PCM（实播一遍、任意大小视频不炸内存），
+不走 MediaRecorder（webm/opus 容器的 decodeAudioData 支持面没保证）。
 
 - 卡面/选卡器加 **🔊 徽标**，选卡器可按"有无声音"筛（用户点名的需求）。
 - 分享到工坊的卡带不带声音样本：**V1 不带**（样本是本机 blob；上传涉及他人声音的
@@ -163,7 +160,7 @@ CARD_SLOTS 的形状 —— **不需要改生成侧一行逻辑，精度收益�
 |---|---|---|
 | 0 | **三发直连实测**：① 参考音频音色跟随语义；② 音频输入计费；③ 引号台词+对口型质量（2.5 一发 6s ≈ ¥8.8，共约 ¥25–30） | ~¥30 |
 | 1 | 圈选提取（不含音频）+ 卡组模式 + 清种子 | 0 token 路为主 |
-| 2 | 人物卡声音样本（提取第 4 步）+ 出片接线（参考音频） | 出片价不变（待 0-② 证实） |
+| 2 | ✅ 已上线（2026-08-24）：圈人物可取声（起止点 + 实播抓 PCM + 必经试听）；🔊 徽标 + 选卡器「只看带声音的」；出片接线在参考生视频模式发 reference_audio + 点名句，走不了的两种情况整句说明。零花费 E2E：fetch 拦截抓到真实请求体，content=[text, reference_image, reference_audio]、无 first_frame、点名句在 | 0（0-② 已证零加价） |
 | 3（可选） | 声音复刻 + 全档位 TTS 配音混音 | 按音色付费，需开通 |
 
 风险清单：对口型只在 hd/ultra；跨段音色一致性靠每段重复携带同一份样本（软约束，

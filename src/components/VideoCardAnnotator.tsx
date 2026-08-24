@@ -12,6 +12,7 @@
 // ★ 人物卡的"定段取声音样本"是阶段 2（等参考音频音色跟随的实听结论），本组件先留位。
 import { useEffect, useRef, useState } from "react";
 import { addCards, createDeck } from "../data/account";
+import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
 import { Card, CARD_SLOTS, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType, CardView, uid } from "../types";
 import Icon from "./Icon";
 import TarotCard from "./TarotCard";
@@ -60,10 +61,27 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
   /** 建组完成后的收尾屏 */
   const [deckDone, setDeckDone] = useState<string | null>(null);
 
+  /**
+   * 取声音样本（人物卡可选第三步）。协议窗口 2~15s（cardVoice 的常量，Seedance 参考音频硬门）。
+   * ★ 抓音走 ScriptProcessor 直取 PCM，不走 MediaRecorder：后者出的是 webm/opus 容器，
+   *   decodeAudioData 对它的支持面没人保证；PCM 进来就是裸数据，重采样一步到 WAV。
+   * ★ 实时播一遍才录到（≤15s 的等待）——代价换来的是**任意大小的视频都不炸内存**：
+   *   decodeAudioData 整条解的话，十分钟的片 PCM 就是几百 MB，手机上必挂。
+   */
+  const [voicePick, setVoicePick] = useState(false);
+  const [vStart, setVStart] = useState<number | null>(null);
+  const [vEnd, setVEnd] = useState<number | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [pendingVoice, setPendingVoice] = useState<{ dataUrl: string; durationSec: number; note: string } | null>(null);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const drawing = useRef(false);
+  // 音频图只建一次：createMediaElementSource 对同一个 <video> 调第二次会抛
+  const graph = useRef<{ ctx: AudioContext; proc: ScriptProcessorNode } | null>(null);
+  const pcm = useRef<Float32Array[]>([]);
+  const capOn = useRef(false);
 
   useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url]);
 
@@ -192,6 +210,121 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     return cv.toDataURL("image/jpeg", 0.9);
   }
 
+  /** 16-bit 单声道 WAV 封装（44 字节头 + PCM）。24k 采样下 15s ≈ 720KB，dataURL ≈ 960KB */
+  function wavDataUrl(samples: Float32Array, rate: number): string {
+    const buf = new ArrayBuffer(44 + samples.length * 2);
+    const dv = new DataView(buf);
+    const ws = (o: number, str: string) => {
+      for (let i = 0; i < str.length; i++) dv.setUint8(o + i, str.charCodeAt(i));
+    };
+    ws(0, "RIFF");
+    dv.setUint32(4, 36 + samples.length * 2, true);
+    ws(8, "WAVEfmt ");
+    dv.setUint32(16, 16, true);
+    dv.setUint16(20, 1, true);
+    dv.setUint16(22, 1, true);
+    dv.setUint32(24, rate, true);
+    dv.setUint32(28, rate * 2, true);
+    dv.setUint16(32, 2, true);
+    dv.setUint16(34, 16, true);
+    ws(36, "data");
+    dv.setUint32(40, samples.length * 2, true);
+    for (let i = 0; i < samples.length; i++) {
+      const x = Math.max(-1, Math.min(1, samples[i]));
+      dv.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7fff, true);
+    }
+    let bin = "";
+    const u8 = new Uint8Array(buf);
+    for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode(...u8.subarray(i, i + 0x8000));
+    return "data:audio/wav;base64," + btoa(bin);
+  }
+
+  /** 播一遍选段并抓 PCM → 重采样 24k 单声道 → WAV。失败整句报（铁律八） */
+  async function grabVoice() {
+    const v = videoRef.current;
+    if (!v || vStart === null || vEnd === null || recording) return;
+    const secs = vEnd - vStart;
+    if (secs < VOICE_MIN_SEC || secs > VOICE_MAX_SEC) return;
+    setErr("");
+    setRecording(true);
+    try {
+      if (!graph.current) {
+        const ctx = new AudioContext();
+        const src = ctx.createMediaElementSource(v);
+        const proc = ctx.createScriptProcessor(4096, 2, 1);
+        // 听得见（src→喇叭）+ 抓得到（src→proc→静音→喇叭；proc 不接下游就不触发）
+        src.connect(ctx.destination);
+        const mute = ctx.createGain();
+        mute.gain.value = 0;
+        src.connect(proc);
+        proc.connect(mute);
+        mute.connect(ctx.destination);
+        proc.onaudioprocess = (e) => {
+          if (!capOn.current) return;
+          const L = e.inputBuffer.getChannelData(0);
+          const R = e.inputBuffer.numberOfChannels > 1 ? e.inputBuffer.getChannelData(1) : L;
+          const mono = new Float32Array(L.length);
+          for (let i = 0; i < L.length; i++) mono[i] = (L[i] + R[i]) / 2;
+          pcm.current.push(mono);
+        };
+        graph.current = { ctx, proc };
+      }
+      await graph.current.ctx.resume();
+      pcm.current = [];
+      v.pause();
+      v.currentTime = vStart;
+      await new Promise<void>((res) => v.addEventListener("seeked", () => res(), { once: true }));
+      capOn.current = true;
+      await v.play();
+      // 播到终点就停。timeupdate 的粒度 ~250ms，尾巴多出的一点在重采样前按秒数掐掉
+      await new Promise<void>((res) => {
+        const onT = () => {
+          if (v.currentTime >= vEnd) {
+            v.removeEventListener("timeupdate", onT);
+            res();
+          }
+        };
+        v.addEventListener("timeupdate", onT);
+      });
+      capOn.current = false;
+      v.pause();
+      const rate = graph.current.ctx.sampleRate;
+      const total = pcm.current.reduce((n, a) => n + a.length, 0);
+      if (total < rate * VOICE_MIN_SEC * 0.8) throw new Error("没抓到足够的声音——这段视频可能没有音轨，换一段试试");
+      const keep = Math.min(total, Math.round(secs * rate));
+      const flat = new Float32Array(keep);
+      let off = 0;
+      for (const a of pcm.current) {
+        if (off >= keep) break;
+        flat.set(a.subarray(0, Math.min(a.length, keep - off)), off);
+        off += a.length;
+      }
+      pcm.current = [];
+      // 重采样到 24k 单声道：体积减半，人声音色无损（16k 就够电话级，24k 留了余量）
+      const out = 24000;
+      const off2 = new OfflineAudioContext(1, Math.ceil((keep / rate) * out), out);
+      const ab = off2.createBuffer(1, keep, rate);
+      ab.copyToChannel(flat, 0);
+      const node = off2.createBufferSource();
+      node.buffer = ab;
+      node.connect(off2.destination);
+      node.start();
+      const rendered = await off2.startRendering();
+      const dataUrl = wavDataUrl(rendered.getChannelData(0), out);
+      setPendingVoice({
+        dataUrl,
+        durationSec: Math.round(secs * 10) / 10,
+        note: `取自原视频 ${vStart.toFixed(1)}–${vEnd.toFixed(1)}s`,
+      });
+      setVoicePick(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      capOn.current = false;
+      setRecording(false);
+    }
+  }
+
   function confirmCrop() {
     const dataUrl = cropNow();
     if (!dataUrl) {
@@ -234,12 +367,20 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       // ★ 与 CustomCardPage 同一套诚实口径：unsynced = 卡没到服务端，冷启动会整张消失
       if (!r.synced) setErr(`卡存在本机了，但还没同步到服务端（${r.reason ?? "网络问题"}）——网络恢复前别退出登录，否则会丢`);
       else if (r.lostViews.length > 0) setErr(`卡存好了，但 ${r.lostViews.join("、")} 没传上——去卡片详情页补挂`);
+      // 声音样本进本机侧库（不进 Card——理由见 data/cardVoice 顶注）。addCards 成了才写：
+      // 卡都没入库，样本挂上去就是永远读不到的孤儿
+      if (type === "character" && pendingVoice) {
+        await saveVoice(card.id, pendingVoice);
+      }
       setSaved((s) => [...s, card]);
       setCrops([]);
       setName("");
       setSummary("");
       setType(null);
       setShape(null);
+      setPendingVoice(null);
+      setVStart(null);
+      setVEnd(null);
     } finally {
       setBusy("");
     }
@@ -308,7 +449,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
               视频不上传、不花 token：拖到某一帧，圈出要的人或物，裁出来的画面就是这张卡的参考图。
             </p>
           </>
-        ) : crops.length > 0 && !facePass ? (
+        ) : crops.length > 0 && !facePass && !voicePick ? (
           // ── 命名入库屏：圈完了，起名 + 简介 ──
           <div className="space-y-3">
             <div className="flex gap-2">
@@ -344,6 +485,37 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                 ＋ 再标一张脸部特写（可选，出片时锁面部特征更稳）
               </button>
             )}
+            {type === "character" &&
+              (pendingVoice ? (
+                <div className="rounded-lg border border-sky-500/40 bg-sky-500/10 p-2.5">
+                  <div className="mb-1 flex items-center justify-between text-[11px] text-sky-200">
+                    <span>
+                      🔊 声音样本 {pendingVoice.durationSec}s · {pendingVoice.note}
+                    </span>
+                    <button onClick={() => setPendingVoice(null)} className="text-slate-400">
+                      去掉
+                    </button>
+                  </div>
+                  {/* 试听是必经的把关点：段里没人说话/全是 BGM 时，只有耳朵能发现 */}
+                  <audio controls src={pendingVoice.dataUrl} className="h-8 w-full" />
+                  <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+                    先听一遍：要的是<b className="font-bold text-slate-300">这个人说话</b>的干净片段。出片走「高清/电影级」且台词写在引号里时，
+                    会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。
+                  </p>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setVoicePick(true);
+                    setVStart(null);
+                    setVEnd(null);
+                    setErr("");
+                  }}
+                  className="w-full rounded-lg border border-slate-600 py-2 text-xs text-slate-300"
+                >
+                  🎤 取一段他的声音（可选，{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒 · 出片时台词可用这个音色）
+                </button>
+              ))}
             {err && <p className="text-xs leading-relaxed text-rose-400">{err}</p>}
             <div className="flex gap-2">
               <button
@@ -386,7 +558,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                 onPointerMove={move}
                 onPointerUp={up}
                 className="absolute inset-0 h-full w-full"
-                style={{ touchAction: "none", pointerEvents: type && tool !== "full" ? "auto" : "none" }}
+                style={{ touchAction: "none", pointerEvents: type && tool !== "full" && !voicePick ? "auto" : "none" }}
               />
             </div>
 
@@ -419,6 +591,62 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
 
             {facePass && <p className="text-[11px] text-sky-300">正在标「脸部特写」：拖到看得清脸的一帧，圈住面部</p>}
 
+            {voicePick && (
+              <div className="space-y-1.5 rounded-lg border border-sky-500/40 bg-sky-500/10 p-2">
+                <p className="text-[11px] leading-relaxed text-sky-200">
+                  正在取声音：找到<b className="font-bold">只有这个人在说话</b>的一段，先定起点再定终点（{VOICE_MIN_SEC}~
+                  {VOICE_MAX_SEC} 秒）。录制会实际播一遍。
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      setVStart(t);
+                      if (vEnd !== null && vEnd <= t) setVEnd(null);
+                    }}
+                    disabled={recording}
+                    className="rounded-full bg-slate-700/70 px-2.5 py-1 text-[11px] text-slate-200 disabled:opacity-40"
+                  >
+                    起点 {vStart !== null ? `${vStart.toFixed(1)}s` : "＝当前帧"}
+                  </button>
+                  <button
+                    onClick={() => setVEnd(t)}
+                    disabled={recording || vStart === null}
+                    className="rounded-full bg-slate-700/70 px-2.5 py-1 text-[11px] text-slate-200 disabled:opacity-40"
+                  >
+                    终点 {vEnd !== null ? `${vEnd.toFixed(1)}s` : "＝当前帧"}
+                  </button>
+                  <span className="ml-auto text-[10px] tabular-nums text-slate-400">
+                    {vStart !== null && vEnd !== null
+                      ? `${(vEnd - vStart).toFixed(1)}s${vEnd - vStart < VOICE_MIN_SEC ? " · 太短" : vEnd - vStart > VOICE_MAX_SEC ? " · 太长" : ""}`
+                      : ""}
+                  </span>
+                </div>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => setVoicePick(false)}
+                    disabled={recording}
+                    className="rounded-lg bg-slate-700/70 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-40"
+                  >
+                    不取了
+                  </button>
+                  <button
+                    onClick={() => void grabVoice()}
+                    disabled={
+                      recording ||
+                      vStart === null ||
+                      vEnd === null ||
+                      vEnd - vStart < VOICE_MIN_SEC ||
+                      vEnd - vStart > VOICE_MAX_SEC
+                    }
+                    className="flex-1 rounded-lg bg-brand py-1.5 text-xs font-bold text-ink disabled:opacity-40"
+                  >
+                    {recording ? "录制中…（实际播这一段）" : "🎙 录这一段"}
+                  </button>
+                </div>
+                {err && <p className="text-[11px] text-rose-400">{err}</p>}
+              </div>
+            )}
+
             {/* 卡种行：点了才进圈选态 */}
             <div className="flex gap-1.5">
               {(Object.keys(CARD_TYPE_LABELS) as CardType[]).map((k) => (
@@ -431,7 +659,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                     setShape(DEFAULT_TOOL[k] === "full" ? { tool: "full" } : null);
                     setErr("");
                   }}
-                  disabled={facePass}
+                  disabled={facePass || voicePick}
                   className={`flex-1 rounded-lg border px-1 py-1.5 text-[11px] font-semibold disabled:opacity-40 ${
                     type === k ? "text-ink" : "border-slate-600 text-slate-300"
                   }`}
@@ -442,7 +670,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
               ))}
             </div>
 
-            {(type || facePass) && (
+            {(type || facePass) && !voicePick && (
               <>
                 <div className="flex items-center gap-1.5">
                   {(

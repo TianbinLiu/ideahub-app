@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { createPortal } from "react-dom";
 import GenTrace from "../GenTrace";
 import Icon from "../Icon";
+import { subscribeVoices, voiceOf, voicesVersion } from "../../data/cardVoice";
 import HelpButton from "../guide/HelpButton";
 import { useAutoGuide } from "../guide/useAutoGuide";
 import AnnStrip from "./AnnStrip";
@@ -1554,9 +1555,13 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
  *  画布的半窗里没地方给看板娘落卡）。加/删直接走 store 的 addMaterials/removeMaterial */
 function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => void }) {
   useAccountVersion();
+  useSyncExternalStore(subscribeVoices, voicesVersion, () => 0);
   const addMaterials = useFlow((s) => s.addMaterials);
   const removeMaterial = useFlow((s) => s.removeMaterial);
-  const cards = myCards();
+  /** 只看带声音样本的卡（写台词想指定音色时，用户按这个挑）。会话内开关，不持久化 */
+  const [voicedOnly, setVoicedOnly] = useState(false);
+  const all = myCards();
+  const cards = voicedOnly ? all.filter((c) => voiceOf(c.id)) : all;
   const chosen = new Set((node.materials ?? []).map((c) => c.id));
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={onClose}>
@@ -1571,9 +1576,22 @@ function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => void }) 
         <p className="mb-2 text-[10px] leading-relaxed text-slate-500">
           点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进推演与出片。
         </p>
+        {/* 只有库里真有带声音的卡才摆这颗开关：空库上摆一个筛选器 = 永远筛出空列表 */}
+        {all.some((c) => voiceOf(c.id)) && (
+          <button
+            onClick={() => setVoicedOnly((v) => !v)}
+            className={`mb-2 self-start rounded-full px-2.5 py-1 text-[10px] ${
+              voicedOnly ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-400"
+            }`}
+          >
+            🔊 只看带声音的卡
+          </button>
+        )}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {cards.length === 0 ? (
-            <p className="py-8 text-center text-xs text-slate-500">还没有卡片——去创意工坊铸几张或从市场添加</p>
+            <p className="py-8 text-center text-xs text-slate-500">
+              {voicedOnly ? "没有带声音样本的卡——在工坊「从视频提取」圈人物时可以顺手取一段声音" : "还没有卡片——去创意工坊铸几张或从市场添加"}
+            </p>
           ) : (
             <div className="grid grid-cols-4 gap-2 pb-2">
               {cards.map((c) => {
@@ -1589,7 +1607,10 @@ function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => void }) 
                     <div className="aspect-[3/4] bg-black/40">
                       {c.cover && <img src={c.cover} alt="" className="h-full w-full object-cover" draggable={false} />}
                     </div>
-                    <div className="truncate px-1 py-0.5 text-[9px] text-slate-200">{c.name}</div>
+                    <div className="truncate px-1 py-0.5 text-[9px] text-slate-200">
+                      {voiceOf(c.id) ? "🔊 " : ""}
+                      {c.name}
+                    </div>
                   </button>
                 );
               })}

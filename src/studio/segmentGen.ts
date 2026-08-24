@@ -18,6 +18,7 @@ import { r2vPriceIssue, tierOf } from "../data/economy";
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
 import { CARD_TYPE_LABELS, viewsOf, type Card, type VideoAspect, type VideoTemplate } from "../types";
+import { voiceOf } from "../data/cardVoice";
 
 export interface SegmentAnn {
   atSec: number;
@@ -95,6 +96,28 @@ export interface SegmentGenInput {
  *     这条门禁不动（不然整片的衔接就断了）；
  *  ⑤ 没有圈选标注 —— 圈选改的就是设定帧，没有帧可改。
  */
+/**
+ * 这一段的台词能不能带上人物卡的**声音样本**（音色参考）—— 唯一实现。
+ *
+ * 三个条件（少一个都不发）：
+ *  ① 剧情里真有台词（「」/ "" 引号内文字 —— 与 Seedance 的配音语义同一判据：
+ *     引号台词会被合成为对白）；
+ *  ② 走的是参考生视频模式（refVideoOn 为真）：方舟实测首尾帧任务混参考媒体直接 400，
+ *     所以**工作流的首尾帧承接段带不了音色参考** —— 那不是漏做，是协议互斥。
+ *     （hd/ultra 的首帧段台词照样被配音，只是音色随机 —— 那种情况由出片处如实说。）
+ *  ③ 档位真出声（VideoTier.audio；1.x 收下 generate_audio 静默忽略，样本发了也是哑的）。
+ * 计费：阶段 0 直连实测**零加价**（usage 逐位相同），所以报价侧一项都不用加。
+ */
+export function voicedCardsOf(o: { plot: string; materials?: Card[] }): Card[] {
+  if (!hasDialogue(o.plot)) return [];
+  return (o.materials ?? []).filter((c) => c.type === "character" && voiceOf(c.id)).slice(0, 3);
+}
+
+/** 「剧情里有没有台词」——与配音语义同一判据（引号内文字会被合成对白） */
+export function hasDialogue(plot: string): boolean {
+  return /[「"].{1,}?[」"]/.test(plot);
+}
+
 export function refVideoOn(o: {
   videoTier: string;
   materials?: Card[];
@@ -296,6 +319,20 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
     blockout || refMode || needDraw
       ? await prepareMaterialRefs(input.materials, (n) => notes.push(n), blockout)
       : null;
+  // ── 台词音色（卡片系统 V2 阶段 2）────────────────────────────
+  // 样本只在 refMode（参考生视频）发。点名句单独 append、不并进 tail 参与截断取舍：
+  // 它丢了只是音色随机（软降级），正文被截才是内容错——两者不该抢同一段配额。
+  const voiced = voicedCardsOf({ plot: input.plot, materials: input.materials });
+  const voiceOk = refMode && tier.audio === true && voiced.length > 0;
+  const refAudios = voiceOk ? voiced.map((c) => voiceOf(c.id)!.dataUrl) : undefined;
+  const voiceLine = voiceOk
+    ? `。${voiced.map((c, i) => `「${c.name}」的台词使用参考音频${i + 1}的音色`).join("；")}`
+    : "";
+  // 带了声音的卡 + 有台词，却走不了音色参考 —— 一律说清为什么（铁律八：静默降级没人看）
+  if (!voiceOk && voiced.length > 0) {
+    if (!tier.audio) notes.push(`「${tier.label}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）`);
+    else if (!refMode) notes.push("这一段走首尾帧承接，带不了声音样本（方舟协议互斥）——台词仍会被配音，但音色随机");
+  }
   const noteTail = notes.length ? `（${notes.join("；")}）` : "";
   // 没有承接帧/底图时素材卡的图就是 <图片1> 起，offset = 0
   const bind = refs ? refs.bind(0) : "";
@@ -392,7 +429,7 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   const [res] = await composeSegments(
     [
       {
-        plot,
+        plot: `${plot}${voiceLine}`,
         firstFrame: first,
         lastFrame: last,
         durationSec: input.durationSec,
@@ -401,6 +438,7 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
         // 白模也发形象图（混发：视频给画面与运镜，形象图说"换成谁"）；refUrls 非空由
         // 上面那道 throw 保证
         refImages: refMode || blockout ? refUrls : undefined,
+        refAudios,
         // 报价（economy.segmentCost 的 refVideo 位）与这里必须同进同出：报了 r2v 的价
         // 就必须真发参考视频，反之亦然（flowStore.nodeCost 与 genNode 读同一份模板快照）
         refVideoUrl: input.refVideoUrl,

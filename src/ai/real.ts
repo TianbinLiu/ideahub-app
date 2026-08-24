@@ -1657,6 +1657,8 @@ export async function composeSegments(
     refVideoUrl?: string;
     /** 白模参考视频的源片时长（秒），只喂给 arkClient 的轮询死线定尺寸，不进请求体 */
     refVideoSec?: number;
+    /** 人物卡声音样本（台词音色参考）。只在参考生视频段有意义，由 segmentGen 决定给不给 */
+    refAudios?: string[];
   }>,
   onProgress?: (done: number, total: number, status: string) => void,
 ): Promise<SegmentResult[]> {
@@ -1705,6 +1707,7 @@ export async function composeSegments(
         // 极速档（pro-fast）不支持首尾帧任务（实测 400 task_type flf2v）——只给首帧起拍
         lastFrameUrl: !refMode && tier.flf ? await shrinkFrameFor720p(last) : undefined,
         refImages: sg.refImages,
+        refAudios: sg.refAudios,
         // 白模参考视频：透传而已，判定与拼装都不在这层（见字段注释）
         refVideoUrl: sg.refVideoUrl,
         refVideoSec: sg.refVideoSec,

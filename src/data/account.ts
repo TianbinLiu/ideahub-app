@@ -9,6 +9,7 @@
 import { Card, slotLabel, uid, type CardView } from "../types";
 // data → mock 是既有方向（data/videos.ts 也从 mock/frames 取种子帧），不成环
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
+import { removeVoice } from "./cardVoice";
 import { PLANS, PLATFORM_CUT, fmtTokens, type VideoTier } from "./economy";
 import { idbGet, idbSet } from "./db";
 // 转存（dataURL → 永久 URL）的唯一入口，与发布/换封面/详情页加图共用（铁律六）
@@ -908,6 +909,8 @@ export async function setCardViews(cardId: string, views: Card["views"]): Promis
 }
 
 export function removeCard(cardId: string): void {
+  // 声音样本是本机侧库（data/cardVoice），卡没了它就成了永远读不到的孤儿——顺手清
+  removeVoice(cardId);
   const u = currentUser();
   if (!u || !db) return;
   db.cards = db.cards.filter((c) => !(c.ownerId === u.id && c.id === cardId));

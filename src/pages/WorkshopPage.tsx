@@ -1,6 +1,6 @@
 // 创意工坊页：管理自己的卡片与卡组——搜索添加市场卡片、建组、增删卡。
 // 与 3D 卡片工坊（/studio）分工：这里是资产管理，那里是创作现场。
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -27,6 +27,7 @@ import { searchMarket } from "../ai";
 import TarotCard from "../components/TarotCard";
 import TemplateShelf from "../components/TemplateShelf";
 import VideoCardAnnotator from "../components/VideoCardAnnotator";
+import { subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType } from "../types";
 
@@ -91,6 +92,12 @@ function CardTile({ card, onRemove, to }: { card: Card; onRemove?: () => void; t
   return (
     <div className="group relative">
       {to ? <Link to={to}>{face}</Link> : face}
+      {/* 🔊 = 带声音样本（本机侧库，data/cardVoice）。用户按"有没有声音"挑卡就靠这一眼 */}
+      {voiceOf(card.id) && (
+        <span className="absolute left-1 top-1 rounded bg-black/70 px-1 text-[10px]" title="带声音样本">
+          🔊
+        </span>
+      )}
       {onRemove && (
         <button
           onClick={onRemove}
@@ -152,6 +159,7 @@ export default function WorkshopPage() {
   // 上传本地视频提卡的抽屉
   /** 圈选提取抽屉。null = 没开；"deck"/"single" = 提取卡组 / 单张卡片（V2 圈选式） */
   const [extractOpen, setExtractOpen] = useState<null | "deck" | "single">(null);
+  useSyncExternalStore(subscribeVoices, voicesVersion, () => 0);
   const remote = isRemoteMode();
 
   // 搜索市场卡片（空词=热门）
