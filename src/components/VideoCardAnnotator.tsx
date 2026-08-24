@@ -546,7 +546,27 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                 src={url}
                 playsInline
                 className="max-h-[42vh] w-full rounded-xl bg-black object-contain"
-                onLoadedMetadata={(e) => setDur(e.currentTarget.duration)}
+                onLoadedMetadata={(e) => {
+                  const v = e.currentTarget;
+                  setDur(v.duration);
+                  // ★★ 真机实测（2026-08-24，Android WebView）：从没播过的 <video> 只画一个
+                  //   灰底大播放钮，**连 drawImage 都取不到帧**（裁出来全黑）——桌面 Chrome
+                  //   两样都正常，这条只在真机上暴露。静音播一拍再暂停就唤醒了渲染管线。
+                  //   ⚠ 挂在 loadedmetadata 而不是只做一次：圈完→命名→再标脸会把这个元素
+                  //   **整个重挂**，重挂就回到"从没播过"，黑帧问题原样复发。
+                  //   静音是必须的（无用户手势时非静音 play 可能被拒绝），完事恢复；
+                  //   顺带把进度恢复到 t——重挂后元素回到 0，而滑条还显示旧位置（两边说的不一样）。
+                  v.muted = true;
+                  v.play()
+                    .then(() => {
+                      v.pause();
+                      v.muted = false;
+                      if (t > 0 && t < v.duration) v.currentTime = t;
+                    })
+                    .catch(() => {
+                      v.muted = false;
+                    });
+                }}
                 onTimeUpdate={(e) => setT(e.currentTarget.currentTime)}
                 onPlay={() => setPlaying(true)}
                 onPause={() => setPlaying(false)}
