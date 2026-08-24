@@ -472,7 +472,10 @@ export default function LoginPage() {
                     aria-label={p.live ? `用${chip.label}登录` : `${chip.label}登录（暂未接入）`}
                     title={p.live ? `用${chip.label}登录` : `${chip.label}登录（暂未接入）`}
                   >
-                    <BrandIcon name={p.k} size={p.k === "google" ? 21 : 23} />
+                    {/* ★ 按**视觉重量**给尺寸，不是按包围盒：Google 的 G 撑满画布所以给小一号；
+                        QQ 那张官方 PNG 自带留白、又是 0.83:1 的竖长比例，给 23 时并排明显瘦一圈，
+                        26 才和另外三个看起来一样大（真机 640×2800 上比过） */}
+                    <BrandIcon name={p.k} size={p.k === "google" ? 21 : p.k === "qq" ? 26 : 23} />
                   </button>
                 );
               })}

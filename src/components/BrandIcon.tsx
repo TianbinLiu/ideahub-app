@@ -1,23 +1,34 @@
 // 第三方登录的品牌图标。
 //
-// ★ 只能内联 SVG：这个 App 打进 Capacitor WebView 离线运行，生产构建还带严格 CSP
-//   （见 vite.config 的 cspPlugin，img-src 不含任意外域），外链图标一律加载不出来。
-//   图标字体同理——彩色品牌色做不到。
+// ★ 不许外链：这个 App 打进 Capacitor WebView 离线运行，生产构建还带严格 CSP
+//   （见 vite.config 的 cspPlugin）。图标要么内联 SVG，要么是随包发的**同源**资源
+//   （`img-src 'self'` 放行），外域图标一律加载不出来。图标字体同理。
 //
 // ★ 各家品牌都有 brand guideline，形状与配色不要"自己发挥"：
 //   Google 必须是四色 G 且放在白底上（它的规范明确禁止在彩色背景上直接放彩色 G）；
-//   GitHub 是黑白 Invertocat；微信是绿底双气泡；QQ 是蓝色企鹅。
+//   GitHub 是黑白 Invertocat；微信是绿底双气泡。
 //   画得像不像直接决定用户敢不敢点——这一栏此前是「G / ⌥ / 微信 / QQ」四个文字占位。
+//
+// ★★ QQ 是唯一一个**不自己画**的（2026-08-24 换掉手绘版）。QQ互联的视觉素材页把话
+//   说死了：「以下各种规格的图标版权都归腾讯公司所有，请勿更改，否则腾讯公司有权
+//   单方面中止 QQ 登录连接服务」。也就是说自绘一只"更像的"企鹅同样违规——它既不是
+//   官方素材，又构成对商标图形的改动。
+//   现在这张来自官方 `03_qq_symbol.psd`（企鹅单独图标），只做了等比缩放导出：
+//   不裁内容、不重上色、不换底、不加描边。换素材时也守这条。
 import type { CSSProperties } from "react";
 
 export type BrandName = "google" | "github" | "wechat" | "qq";
 
-/** 各家的"底"：Google 规范要求白底，其余用品牌色底 + 白色前景 */
+/**
+ * 各家的"底"：Google 规范要求白底，其余用品牌色底 + 白色前景。
+ * ★ QQ 也是白底 —— 官方企鹅是黑+红+橙的彩色实心图形，压在品牌蓝上既看不清，
+ *   又等于给商标换了衬底（"请勿更改"管的不只是图形本身）。与 Google 那颗同一处理。
+ */
 export const BRAND_CHIP: Record<BrandName, { bg: string; label: string }> = {
   google: { bg: "#ffffff", label: "Google" },
   github: { bg: "#1b1f24", label: "GitHub" },
   wechat: { bg: "#07C160", label: "微信" },
-  qq: { bg: "#12B7F5", label: "QQ" },
+  qq: { bg: "#ffffff", label: "QQ" },
 };
 
 function Google({ s }: { s: number }) {
@@ -63,27 +74,24 @@ function WeChat({ s }: { s: number }) {
   );
 }
 
+/**
+ * 官方企鹅图标（`public/brand/qq-symbol.png`，源自 QQ互联 `03_qq_symbol.psd`）。
+ *
+ * ★ 用 <img> 而不是内联 SVG：官方只发 PSD/PNG，把它描成 SVG 就是"改过的商标"。
+ *   同源资源随包发，CSP 的 `img-src 'self'` 放行，离线也在。
+ * ★ 原图 0.83:1（竖长），所以按**高**给尺寸、宽按比例走 —— 强行拉成正方形是变形。
+ */
 function QQ({ s }: { s: number }) {
-  // 企鹅。★ 红围巾是这只企鹅最强的识别特征——第一版没画围巾，缩到 23px 就只剩一团白，
-  //   跟"某个通用头像"没区别。眼睛要用深色而不是蓝色：白身上放品牌蓝，对比度不够看不见。
   return (
-    <svg width={s} height={s} viewBox="0 0 32 32" aria-hidden focusable="false">
-      {/* 身体：头身一体的水滴形，顶上两撮耳羽 */}
-      <path
-        fill="#ffffff"
-        d="M11.6 5.4c-.5-1.1.2-1.7 1-1.1l1.6 1.2a7.9 7.9 0 0 1 3.6 0l1.6-1.2c.8-.6 1.5 0 1 1.1l-.6 1.3c1.9 1.4 3.1 3.7 3.1 6.3v2.2c1.2 1.3 2 3 2.3 4.6.3 1.6-.1 2.5-.8 2.6-.5.1-1.1-.3-1.7-1.1-.4 1.2-1.1 2.3-2 3.2 1.4.5 2.3 1.3 2.3 2.1 0 1.5-2.9 2.4-6.9 2.4s-6.9-.9-6.9-2.4c0-.8.9-1.6 2.3-2.1-.9-.9-1.6-2-2-3.2-.6.8-1.2 1.2-1.7 1.1-.7-.1-1.1-1-.8-2.6.3-1.6 1.1-3.3 2.3-4.6V13c0-2.6 1.2-4.9 3.1-6.3z"
-      />
-      {/* 眼睛（深色 + 高光） */}
-      <ellipse cx="13.3" cy="12.2" rx="1.5" ry="2.1" fill="#20303f" />
-      <ellipse cx="18.7" cy="12.2" rx="1.5" ry="2.1" fill="#20303f" />
-      <circle cx="13.8" cy="11.4" r=".55" fill="#ffffff" />
-      <circle cx="19.2" cy="11.4" r=".55" fill="#ffffff" />
-      {/* 喙 */}
-      <path fill="#F5A623" d="M16 14.6l2.1 1.6c-.6.5-1.3.8-2.1.8s-1.5-.3-2.1-.8z" />
-      {/* 红围巾：一条横过颈部的带子 + 一截垂下的巾尾 */}
-      <path fill="#E8402A" d="M10.2 18.3c1.7.9 3.7 1.4 5.8 1.4s4.1-.5 5.8-1.4l.5 2.2c-1.9 1-4.1 1.5-6.3 1.5s-4.4-.5-6.3-1.5z" />
-      <path fill="#C7301D" d="M20.6 20.1l2.2 3.6-2.6.5-.9-3.4z" />
-    </svg>
+    <img
+      src="/brand/qq-symbol.png"
+      alt=""
+      aria-hidden
+      draggable={false}
+      width={Math.round((s * 120) / 144)}
+      height={s}
+      style={{ display: "block" }}
+    />
   );
 }
 
