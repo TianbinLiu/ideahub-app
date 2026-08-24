@@ -10,7 +10,7 @@
 //   不必把 index/nodes/mode 一路传下来，也就不会出现"传的是上一段"那类错。
 import { Link } from "react-router";
 import { tierBlockReason } from "../../data/account";
-import { fmtTokens, modelLabel, r2vPriceIssue, realFaceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { clampDuration, fmtTokens, modelLabel, r2vPriceIssue, realFaceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { chosenOf, nodeCost, nodeDone, tplOfNode, useFlow } from "../../studio/flowStore";
 import { DURATIONS, VIDEO_ASPECTS } from "../../types";
 
@@ -97,7 +97,10 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
                       ? `「${tierOf(node.videoTier).label}」最短 ${tierOf(node.videoTier).minSec} 秒`
                       : undefined
                 }
-                className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${prop.durationSec === d ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+                // ★ 高亮跟 clampDuration 的**结算值**走，不跟存量原始值（2026-08-24 真机抓到）：
+                //   换到按发档时 durationSec 可能还停在 5——实扣按吸附后的 6 算（clampDuration
+                //   是报价与出片同一把尺），5s 却还亮着 = 界面写 5、账按 6。
+                className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${clampDuration(prop.durationSec, node.videoTier) === d ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
               >
                 {d}s
               </button>
@@ -151,7 +154,15 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
           return (
             <button
               key={t.id}
-              onClick={() => updateNode(node.id, { videoTier: t.id })}
+              onClick={() => {
+                updateNode(node.id, { videoTier: t.id });
+                // ★ 换档同一拍把时长**吸附写回**（2026-08-24 真机抓到）：换到按发档时
+                //   durationSec 可能停在 5/8，实扣按 clampDuration 吸附后的整档算——
+                //   不写回的话段卡标签、总时长条这些读原始值的地方全在写 5、账按 6。
+                //   ark 档下 clamp 基本恒等，写回无害。
+                const snapped = clampDuration(prop.durationSec, t.id);
+                if (snapped !== prop.durationSec) updateProposal(node.id, { durationSec: snapped });
+              }}
               disabled={!!block}
               title={block ?? `${t.desc}（${t.model}）`}
               className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${node.videoTier === t.id ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
