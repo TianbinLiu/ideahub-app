@@ -56,8 +56,10 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
    * 免得用户写完一大段要求、点了生成才第一次听说真人卡过不去。
    * 按当前档位问一次就够：今天四档 realFace 全 false，逐档问只会把同一句糊四遍
    * （上面 r2vBlocks 刚治过这个）。
+   * blockout 位跟着本段事实：白模节点上「真人」档整个按不动（上面 r2vBlocks 正印着
+   * 原因），默认那句「换成真人档就能出」在这儿是死路 —— 两行并排自相矛盾。
    */
-  const realFaceBlock = realFaceIssue(node.materials, node.videoTier);
+  const realFaceBlock = realFaceIssue(node.materials, node.videoTier, { blockout });
 
   return (
     <div className="space-y-3">

@@ -462,14 +462,25 @@ export function blockoutTier(): VideoTier | null {
  * ★ r2v/白模路不用单独设闸：它与经典路都从 genNode 那道门走，天然被盖住。
  * ★ 原因句不点名 MiniMax/Runway：对用户那是没上线的内部选型，说了也做不了任何事；
  *   接入哪家写在 VideoTier.realFace 的注释里，给接入的人看。
+ * ★ `blockout` 只改**出路那半句**（2026-08-24 真机走查抓到）：白模节点上「真人」档
+ *   整个按不动（没有 r2v 能力，r2vPriceIssue 拦着），默认那句「换成真人档就能出」
+ *   在那儿是一条死路 —— 两行提示并排自相矛盾，用户照着点只会发现按钮不生效。
+ *   真人卡 × 白模模板是**双向都无解**的组合，出路只有取卡或去模板，就照实说。
  */
-export function realFaceIssue(materials: Card[] | undefined, tierId: string | undefined): string | null {
+export function realFaceIssue(
+  materials: Card[] | undefined,
+  tierId: string | undefined,
+  opts?: { blockout?: boolean },
+): string | null {
   const real = (materials ?? []).filter((c) => c.realPerson === true);
   if (real.length === 0) return null;
   const t = tierOf(tierId);
   if (t.realFace !== true) {
     const names = real.map((c) => `「${c.name}」`).join("、");
-    return `${names}是声明过的真人素材，「${t.label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——把画质换成「真人」档就能出，或先把真人卡取下`;
+    const head = `${names}是声明过的真人素材，「${t.label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）`;
+    return opts?.blockout
+      ? `${head}；而「真人」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「真人」档以卡上照片起拍直出`
+      : `${head}——把画质换成「真人」档就能出，或先把真人卡取下`;
   }
   return null;
 }

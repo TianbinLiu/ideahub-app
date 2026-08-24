@@ -1248,7 +1248,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   素材卡的形象参考喂给方舟（generateProposals → prepareMaterialRefs），真人照片
     //   一样整发被拒 —— 而这条路是**先扣费后开跑**（下面 spendTokens 在 await 之前），
     //   门禁必须立在扣费之前，不然就是"钱扣了、供应商拒了"。
-    const realFaceBlocked = realFaceIssue(node.materials, node.videoTier);
+    //   blockout 位按本段事实传（白模节点上「换真人档」是死路，出路那半句要换说法）
+    const realFaceBlocked = realFaceIssue(node.materials, node.videoTier, {
+      blockout: !!tplOfNode(node)?.refVideo,
+    });
     if (realFaceBlocked) {
       set({ err: realFaceBlocked });
       return false;
@@ -1604,7 +1607,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   参考图两套探测器全拦、整发拒收（见 VideoTier.realFace 的实测依据）——与其飞到
     //   方舟中途换回一句英文报错，不如当场说人话（同上面 tierBlockReason 的处置）。
     //   SegSettings 在档位区印的是同一句；r2v/白模路也从这里走，天然同一道门。
-    const realFaceBlocked = realFaceIssue(node.materials, node.videoTier);
+    //   blockout 位按本段事实传（白模节点上「换真人档」是死路，出路那半句要换说法）
+    const realFaceBlocked = realFaceIssue(node.materials, node.videoTier, {
+      blockout: !!tplOfNode(node)?.refVideo,
+    });
     if (realFaceBlocked) {
       set({ err: realFaceBlocked });
       return false;
