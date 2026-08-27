@@ -126,6 +126,18 @@ export async function portraitViews(o: {
   return out;
 }
 
+/** 演示模式的「融图」：不出网，回一张假帧（形状与 real 一致） */
+export async function fuseFrame(o: {
+  sources: string[];
+  instruction: string;
+  aspect: VideoAspect;
+  onProgress?: (s: string) => void;
+}): Promise<string> {
+  o.onProgress?.(`融合 ${o.sources.length} 张参考图…（演示）`);
+  await new Promise((r) => setTimeout(r, 400));
+  return makeFrame(`fuse:${o.instruction}`, o.aspect);
+}
+
 export async function searchMarket(query: string): Promise<Card[]> {
   // 市场卡目前是本地静态种子，不再假装有网络延迟——
   // 500ms 的 delay 会让「搜索中…」在纯本地数据上闪一下，是白白制造的等待感。

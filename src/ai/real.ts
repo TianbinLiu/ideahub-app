@@ -125,6 +125,38 @@ export async function portraitViews(o: {
   return out;
 }
 
+/**
+ * 「融图」：把 2~3 张参考图**融成一张边界帧**（首帧或尾帧），用来做段间无缝。
+ *
+ * ★★ 为什么要单独有它：段与段之间要无缝，靠的是**同一张图既当上一段的尾帧、又当下一段
+ *   的首帧**。而这张图往往需要"这个人（卡片形象）+ 这个姿势/场景（另一张图）"合起来 ——
+ *   单张 i2i 做不到，多图参考才行（方舟 Seedream 的 image 参数收数组）。
+ * ★ 出来的图交给**同一条换帧缝** `PlanBoard.onFrame` 落地，所以工坊/工作流/简约三条路
+ *   一处实现、三处都有（铁律六）。
+ * ★ 尺寸跟着**本段画幅**走（`aspectOf(...).frameSize`）：帧的比例与视频不一致会被方舟
+ *   静默裁掉一截（CLAUDE.md「画幅要三处同时改」那条坑的同一个面）。
+ * ★ 失败整发抛：调用方写整句 err（铁律八）。这一步是花钱的，不能失败了还装作没事。
+ */
+export async function fuseFrame(o: {
+  sources: string[];
+  instruction: string;
+  aspect: VideoAspect;
+  onProgress?: (s: string) => void;
+}): Promise<string> {
+  const refs = o.sources.filter(Boolean).slice(0, 3);
+  if (refs.length === 0) throw new Error("没有可融的参考图");
+  const spec = aspectOf(o.aspect);
+  o.onProgress?.(`融合 ${refs.length} 张参考图…`);
+  // ★ 逐张点名「@图片N」：不点名的话模型不知道哪张管人、哪张管场景，实测会把两张
+  //   平均成一张四不像。措辞与出片那侧的绑定句同一套路（见 bindingLine）。
+  const nameLine = refs.map((_, i) => `图片${i + 1}`).join("、");
+  const prompt =
+    `把参考图（${nameLine}）融合成一张完整画面：${o.instruction}；` +
+    `保持各参考图中人物的相貌、发型、服装与画风完全一致，不要改变他们的长相；` +
+    `${spec.promptHint}；画面干净，无字幕、无水印、无分屏拼接痕迹`;
+  return await genImageAsDataUrl(prompt, { imageRefs: refs, size: spec.frameSize });
+}
+
 /** 报给用户的失败原因：截一句。原样贴进进度条会把真正有用的那半句挤出可视区。 */
 function reasonOf(e: unknown): string {
   return (e instanceof Error ? e.message : String(e)).slice(0, 80);

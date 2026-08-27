@@ -22,6 +22,7 @@ import AnnStrip from "./AnnStrip";
 import DeleteSegBtn from "./DeleteSegBtn";
 import SegSettings from "./SegSettings";
 import PlanBoard from "../../studio/ui/PlanBoard";
+import { fuseSourcesOf } from "../../studio/ui/FuseFrameSheet";
 import {
   chosenOf,
   clampCursor,
@@ -1168,6 +1169,14 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
             // PlanBoard 只对选定行开编辑口，别在这里做"未选定也能改"的变体
             onPatch={(_id, patch) => updateProposal(node.id, patch)}
             onFrame={(_id, which, url) => setFrame(node.id, which, url)}
+            // 融图候选（唯一实现在 FuseFrameSheet.fuseSourcesOf，三条路共用）
+            fuseSources={fuseSourcesOf({
+              materials: node.materials,
+              carryFrame: carried ? prevProp?.lastFrame : null,
+              firstFrame: chosenOf(node).firstFrame,
+              lastFrame: chosenOf(node).lastFrame,
+            })}
+            fuseAspect={node.aspect}
             onRegen={() => void regenProposal(node.id)}
             // ★ 报价一律走 store 的同一处实现，不在画布里重算（铁律六）
             regenCost={(pp) => redrawCost(node, pp, prevProp)}

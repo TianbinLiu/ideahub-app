@@ -51,6 +51,7 @@ import {
   useFlow,
 } from "../studio/flowStore";
 import PlanBoard from "../studio/ui/PlanBoard";
+import { fuseSourcesOf } from "../studio/ui/FuseFrameSheet";
 import { deckQuoteOf, publishedExit, useStudio } from "../studio/studioStore";
 import { VideoTemplate, aspectCss, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
@@ -528,6 +529,14 @@ function NodeScreen({
               onPick={(id) => chooseProposal(node.id, id)}
               onPatch={(_id, patch) => updateProposal(node.id, patch)}
               onFrame={(_id, which, dataUrl) => setFrame(node.id, which, dataUrl)}
+              // 融图候选（唯一实现在 FuseFrameSheet.fuseSourcesOf，三条路共用）
+              fuseSources={fuseSourcesOf({
+                materials: node.materials,
+                carryFrame: carried ? prevProp?.lastFrame : null,
+                firstFrame: prop.firstFrame,
+                lastFrame: prop.lastFrame,
+              })}
+              fuseAspect={node.aspect}
               onRegen={() => void regenProposal(node.id)}
               regenCost={(p) => redrawCost(node, p, prevProp)}
               onRederive={() => void deriveProposals(node.id)}

@@ -12,6 +12,7 @@ import DeckCard from "../../components/DeckCard";
 import GenTrace from "../../components/GenTrace";
 import FrameCard from "./FrameCard";
 import PlanBoard from "./PlanBoard";
+import { fuseSourcesOf } from "./FuseFrameSheet";
 import Icon from "../../components/Icon";
 import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType, NodeSlot, Proposal, VIDEO_ASPECTS, aspectCss, aspectOf } from "../../types";
 import {
@@ -653,6 +654,14 @@ function ProposalsPanel() {
           carriedFrom={carried}
           // 预览卡的框跟本段画幅走：写死一个比例，另一种画幅的帧会被裁掉一大半
           frameAspect={aspectCss(node.aspect)}
+          // 融图候选（唯一实现在 FuseFrameSheet.fuseSourcesOf，三条路共用）
+          fuseSources={fuseSourcesOf({
+            materials: node.materials,
+            carryFrame: carried ? prev?.lastFrame : null,
+            firstFrame: chosen?.firstFrame,
+            lastFrame: chosen?.lastFrame,
+          })}
+          fuseAspect={node.aspect}
           switchWarn={(p) =>
             node.chosenId != null && node.chosenId !== p.id && node.children[node.chosenId] != null
               ? "⚠ 换成这一套，原方案已延展的后续节点会被收起（切回可恢复）"

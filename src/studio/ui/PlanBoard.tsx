@@ -16,10 +16,11 @@
 //   已选定 —— 那一行放大居中、其余缩小压暗；只有选定的那一行可以改帧、改剧情、重画。
 //             不给未选定的行开编辑口，是因为编辑必然要花钱重画，而用户还没决定用哪套。
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { DURATIONS, Proposal  } from "../../types";
+import { DURATIONS, Proposal, type VideoAspect } from "../../types";
 import { fmtTokens } from "../../data/economy";
 import { fileToFrameDataUrl } from "../../utils/image";
 import FrameCard, { CardFace, useFrameCycle } from "./FrameCard";
+import FuseFrameSheet, { type FuseSource } from "./FuseFrameSheet";
 
 
 export interface PlanBoardProps {
@@ -60,6 +61,16 @@ export interface PlanBoardProps {
   actions?: (p: Proposal) => ReactNode;
   /** 工坊投影面板比手机整屏窄，卡与字都要收一号 */
   dense?: boolean;
+  /**
+   * 「融图」可用的参考图（素材卡的形象图、上一段真实结尾…）。**非空才显示那颗按钮**。
+   *
+   * ★ 融出来的帧照旧走 `onFrame` 落地 —— 换帧只有那一个缝（工坊/工作流/简约共用），
+   *   在这里另开一条写回路径就会与"上锁/清掉交回 AI"那套 pinned 语义分叉。
+   * ★ 判**存在性**：老调用方不传 = 不显示，零改动（后加字段判否定）。
+   */
+  fuseSources?: FuseSource[];
+  /** 本段画幅：融出来的帧要跟它同比例，否则会被方舟静默裁掉一截 */
+  fuseAspect?: VideoAspect;
 }
 
 export default function PlanBoard({
@@ -80,10 +91,14 @@ export default function PlanBoard({
   switchWarn,
   actions,
   dense,
+  fuseSources,
+  fuseAspect,
 }: PlanBoardProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const pickedRow = useRef<HTMLDivElement>(null);
   const [err, setErr] = useState("");
+  /** 融图浮层开在哪一套的哪一端。null = 没开 */
+  const [fusing, setFusing] = useState<{ id: string; which: "first" | "last" } | null>(null);
 
   // 选定后把那一行滚到视野中间（"放大居中"的后半句）。
   // ★ 用 behavior:"auto" 而不是 smooth：窗口不可见时（切到后台/被挡住）平滑滚动完全
@@ -172,6 +187,22 @@ export default function PlanBoard({
                       aspectRatio={frameAspect}
                     />
                     <div className="text-center text-[9px] leading-3 text-slate-500">点开卡片换图</div>
+                    {/* 「融图」：把几张参考图合成一张边界帧。★ 只在宿主给了候选图时出现，
+                        融出来的帧仍旧走 onFrame 落地（换帧只有那一个缝） */}
+                    {!!fuseSources?.length && (
+                      <div className="flex gap-1">
+                        {(["first", "last"] as const).map((w) => (
+                          <button
+                            key={w}
+                            onClick={() => setFusing({ id: p.id, which: w })}
+                            disabled={busy || regenId === p.id}
+                            className="flex-1 rounded-md border border-slate-700 py-1 text-[9px] text-slate-300 disabled:opacity-40"
+                          >
+                            🧬 融{w === "first" ? "首" : "尾"}帧
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="min-w-0 flex-1 space-y-1.5">
@@ -264,6 +295,18 @@ export default function PlanBoard({
           );
         })}
       </div>
+      {/* 融图浮层：融好的帧走 onFrame 落地（与上传/清掉同一个缝）。
+          ★ 认 `fusing.id` 不认下标：方案顺序会变（重新推演就整表换掉），
+            按下标记的话融出来的帧会落到另一套上，而画面照出、零报错。 */}
+      {fusing && (
+        <FuseFrameSheet
+          which={fusing.which}
+          sources={fuseSources ?? []}
+          aspect={fuseAspect ?? "portrait"}
+          onDone={(url) => onFrame(fusing.id, fusing.which, url)}
+          onClose={() => setFusing(null)}
+        />
+      )}
     </div>
   );
 }

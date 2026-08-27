@@ -20,7 +20,9 @@ export const generateProposals: typeof real.generateProposals = AI_REAL
   : (ctx) => mock.generateProposals(ctx);
 export const composeVideo = mock.composeVideo; // 合成动画节奏（真实生成由 composeSegments 负责）
 /** 封面工坊：mock 构建出本地占位帧（带演示水标语义），真实构建走 Seedream */
-/** 圈选提取的「AI 生成干净立绘」（全身+特写，风格跟随原图，纯白背景） */
+/** 融图：把 2~3 张参考图融成一张边界帧（段间无缝用），落地走 PlanBoard.onFrame */
+export const fuseFrame: typeof real.fuseFrame = AI_REAL ? real.fuseFrame : mock.fuseFrame;
+/** 圈选提取的「按提示词方案炼形象图」（图位由方案决定，风格跟随原图） */
 export const portraitViews: typeof real.portraitViews = AI_REAL ? real.portraitViews : mock.portraitViews;
 export const generateCover: typeof real.generateCover = AI_REAL
   ? real.generateCover
