@@ -36,7 +36,19 @@
 
 ---
 
-## 2. 其它（较小）
+## 2. 提示词方案市场的剩余部分
+
+主体已上（见 [`card-prompt-scheme-market-design.md`](card-prompt-scheme-market-design.md) 的落地状态表）。剩下三件：
+
+- **远端共享**：现在只有本机方案库 + 内置三套。接服务端时照 `data/templates.ts` 的
+  mine/shared 搬，并走「加字段五处一起改」。
+- **方案预览示例图**（`PromptScheme.examples` 字段已留、UI 未画）。⚠ 示例**不得用真人**。
+- **用户自建方案的编辑屏**（`saveScheme` 已能存，缺逐格写提示词那一屏）。
+
+⚠ 市场**不得**按"绕过真人检测的成功率"排序或标注 —— 那会把中立工具变成主动帮凶，
+理由写在 design doc 的 §B2；`faceless` 只描述产出形态。
+
+## 3. 其它（较小）
 
 - **合成成片的 AIGC 角标真机拍照验证**：逻辑上确定（单一 merge 循环，`drawAigcBadge` 两条路径都调了），但没在真机上拍照留证。
 - **隐式 AIGC 元数据**：浏览器写不了 webm 元数据，需服务端做（已在 doc 里如实记为 TODO）。
