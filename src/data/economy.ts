@@ -1076,6 +1076,20 @@ export function proposalsCost(hasStartFrame: boolean): number {
 export const ONE_IMAGE = IMAGE_TOKENS;
 
 /**
+ * 「按一套提示词方案炼形象图」要多少 token —— **唯一实现**（报价与实扣共用）。
+ *
+ * ★★ 图位数**随方案变**，所以这个数不能写死成 `2 * ONE_IMAGE`（上一版就是写死的，
+ *   那时只有"全身+特写"两张）。命名屏按钮上印的数、`canAfford` 的门、真扣钱的
+ *   `spendTokens`，三处都必须读这一个函数 —— 抄第二份的下场就是本仓头号事故的形状：
+ *   页面按 2 张报价、实际炼了 3 张，多出来的那张照扣钱，两个方向都不报错。
+ * ★ 只数**生成型**图位（`isGenerated`）：`fromCrop` 那种直接放原片裁剪、一次模型都不调，
+ *   把它算进报价就是收了不存在的钱。判据只有 promptSchemes.isGenerated 一处。
+ */
+export function schemeCost(slots: readonly { fromCrop?: boolean }[]): number {
+  return slots.filter((s) => !s.fromCrop).length * ONE_IMAGE;
+}
+
+/**
  * 「按 N 处圈选重新生成」里那几张改图的钱 —— **唯一实现**。
  *
  * ★★ 2026-08-21 第九轮扫描确认的 high：出片管线对**每一处圈选**都会跑一次 refineFrame

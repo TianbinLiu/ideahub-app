@@ -13,9 +13,31 @@
 import { useEffect, useRef, useState } from "react";
 import { AI_REAL, portraitViews } from "../ai";
 import { addCards, canAfford, createDeck, spendTokens } from "../data/account";
-import { ONE_IMAGE, fmtTokens } from "../data/economy";
+import { fmtTokens, schemeCost } from "../data/economy";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
-import { Card, CARD_SLOTS, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType, CardView, uid } from "../types";
+import {
+  defaultScheme,
+  isGenerated,
+  listSchemes,
+  schemeOf,
+} from "../data/promptSchemes";
+import {
+  Card,
+  CARD_TYPE_COLORS,
+  CARD_TYPE_LABELS,
+  CardRole,
+  CardType,
+  CardView,
+  roleToKind,
+  slotLabel,
+  uid,
+} from "../types";
+
+/**
+ * 命名屏手里那几张图。**认 `role` 不认 `kind`**：图位由方案决定，`kind` 只是
+ * 落卡时写回服务端的兼容值（`types.roleToKind`，跨仓冻结三值）。
+ */
+type Crop = { role: CardRole; tag: string; dataUrl: string };
 import Icon from "./Icon";
 import TarotCard from "./TarotCard";
 
@@ -59,11 +81,15 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
   /** 人物卡的第二张（脸部特写）在标谁：null = 正在标主图 */
   const [facePass, setFacePass] = useState(false);
   /** 已裁好、等命名入库的图（人物卡可能两张：body + face） */
-  const [crops, setCrops] = useState<{ kind: CardView["kind"]; dataUrl: string }[]>([]);
+  const [crops, setCrops] = useState<Crop[]>([]);
   const [name, setName] = useState("");
   const [summary, setSummary] = useState("");
   /** AI 立绘生成前的原片裁剪（撤销用）。null = 当前 crops 就是原片 */
-  const [rawCrops, setRawCrops] = useState<{ kind: CardView["kind"]; dataUrl: string }[] | null>(null);
+  const [rawCrops, setRawCrops] = useState<Crop[] | null>(null);
+  /** 选中的提示词方案（决定这张卡出哪几个图位）。缺省 = 干净立绘（老行为） */
+  const [schemeId, setSchemeId] = useState<string>(defaultScheme().id);
+  /** 方案选择器展开着？ */
+  const [schemeOpen, setSchemeOpen] = useState(false);
   /**
    * 真人声明（仅人物卡）。产品决定开放任意真人照片，肖像同意的责任压给用户——
    * 所以勾了 realPerson 就必须同时勾 consentOk（协议确认），否则 saveCard 整句拒。
@@ -355,47 +381,51 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     setErr("");
     // 人物卡两遍：主图（body）→ 可选的脸部特写（face）。kind 跟 CARD_SLOTS 对齐，
     // viewsOf() 与出片管线按 kind 取图，写错了不报错、只是图被当成别的用途
-    const kind: CardView["kind"] = type === "character" ? (facePass ? "face" : "body") : CARD_SLOTS[type!][0].kind;
-    setCrops((c) => [...c.filter((x) => x.kind !== kind), { kind, dataUrl }]);
+    // 圈选阶段只产出两种角色：主图（primary）与可选的脸部特写（face）。
+    // ★ 认 role 不认 kind：图位灵活之后 kind 只是写回服务端时的兼容值（types.roleToKind）。
+    const role: CardRole = type === "character" && facePass ? "face" : "primary";
+    const tag = role === "face" ? "脸部特写" : slotLabel(type!, "body");
+    setCrops((c) => [...c.filter((x) => x.role !== role), { role, tag, dataUrl }]);
     setShape(null);
     setFacePass(false);
   }
 
   /**
-   * 「AI 生成干净立绘」（人物卡命名屏的可选付费步）：拿圈选裁剪当参考，出
-   * 全身立绘 + 面部特写两张（正好是出片管线真正吃的那两张），纯白背景、风格跟随原图
-   * （真人截图出写实立绘——2026-08-24 实测 Seedream 图像侧对真人放行）。
-   * 原片裁剪**不丢**：降级成「标志性细节」位保留（它仍是最忠实的参考），
-   * 也就把用户点名的三个图位（全身/特写/细节）一次配齐。
+   * 「按提示词方案炼形象图」（人物卡命名屏的可选付费步）：拿圈选裁剪当 i2i 参考，
+   * **按所选方案的图位**逐格出图（无脸白模三视图 / 分栏设定规格图 / 干净立绘…）。
+   *
+   * ★ 报价与实扣读**同一个** `schemeCost(scheme.slots)`（按钮上印的、这里判余额的、
+   *   真扣钱的三处同源）—— 抄第二份就是本仓头号事故的形状：页面按 2 张报价、
+   *   实际炼了 3 张，多出来那张照扣钱且两个方向都不报错。
+   * ★ 原片裁剪**不丢**：方案里那个 `fromCrop` 的格子直接放它（不调模型、不计费），
+   *   没有这种格子时也留在 rawCrops 里供「↺ 用回原片」撤销。
    */
   async function makePortraits() {
     if (busy || crops.length === 0) return;
-    const price = 2 * ONE_IMAGE;
+    const scheme = schemeOf(schemeId) ?? defaultScheme();
+    const price = schemeCost(scheme.slots);
     if (AI_REAL && !canAfford(price)) {
-      setErr(`生成两张立绘约需 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
+      setErr(`「${scheme.title}」要炼 ${scheme.slots.filter(isGenerated).length} 张图、约 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
       return;
     }
     setErr("");
     const raw = crops;
     try {
-      const body = raw.find((c) => c.kind === "body") ?? raw[0];
-      const face = raw.find((c) => c.kind === "face");
+      const body = raw.find((c) => c.role === "primary") ?? raw[0];
+      const face = raw.find((c) => c.role === "face");
       const out = await portraitViews({
+        scheme,
         bodyCrop: body.dataUrl,
         faceCrop: face?.dataUrl ?? null,
+        subject: summary.trim() || name.trim(),
         onProgress: (s) => setBusy(s),
       });
       if (AI_REAL) spendTokens(price);
       setRawCrops(raw);
-      setCrops([
-        { kind: "body", dataUrl: out.body },
-        { kind: "face", dataUrl: out.face },
-        // 原片主裁剪保底进 detail 位：AI 立绘再像也是重画的，出片对不上时它是对照物
-        { kind: "detail", dataUrl: body.dataUrl },
-      ]);
+      setCrops(out.map((v) => ({ role: v.role, tag: v.tag, dataUrl: v.dataUrl })));
     } catch (e) {
       // 失败不动原 crops（原片裁剪照旧能存卡），但必须整句说清（铁律八）
-      setErr(`AI 立绘没画成：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}——原片裁剪没受影响，可以直接存或再试一次`);
+      setErr(`形象图没画成：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}——原片裁剪没受影响，可以直接存或再试一次`);
     } finally {
       setBusy("");
     }
@@ -416,7 +446,14 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     setErr("");
     setBusy("存卡中…");
     try {
-      const views: CardView[] = crops.map((c) => ({ kind: c.kind, url: c.dataUrl }));
+      // ★★ `kind` 由 role 反推**并且必须照写**（types.roleToKind）：它是跨仓冻结的三值，
+      //   老服务端/老客户端只认它 —— 不写的话那边拿到的是个非法 view。role/tag 是新增位。
+      const views: CardView[] = crops.map((c) => ({
+        kind: roleToKind(c.role),
+        role: c.role,
+        tag: c.tag,
+        url: c.dataUrl,
+      }));
       const card: Card = {
         id: uid("card"),
         type,
@@ -526,9 +563,9 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
           // ── 命名入库屏：圈完了，起名 + 简介 ──
           <div className="space-y-3">
             <div className="flex gap-2">
-              {crops.map((c) => (
-                <div key={c.kind} className="w-24 flex-none">
-                  <TarotCard cover={c.dataUrl} title={name || "未命名"} sub={c.kind === "face" ? "脸部特写" : CARD_TYPE_LABELS[type!]} type={type!} />
+              {crops.map((c, i) => (
+                <div key={`${c.role}:${i}`} className="w-24 flex-none">
+                  <TarotCard cover={c.dataUrl} title={name || "未命名"} sub={c.tag} type={type!} />
                 </div>
               ))}
             </div>
@@ -587,7 +624,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                 )}
               </div>
             )}
-            {type === "character" && !crops.some((c) => c.kind === "face") && (
+            {type === "character" && !crops.some((c) => c.role === "face") && (
               <button
                 onClick={() => {
                   setFacePass(true);
@@ -602,7 +639,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
             {type === "character" &&
               (rawCrops ? (
                 <div className="flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-2">
-                  <span className="text-[11px] text-emerald-200">✨ 已换成 AI 立绘（原片截图保留在「标志性细节」位）</span>
+                  <span className="text-[11px] text-emerald-200">✨ 已按「{schemeOf(schemeId)?.title ?? "方案"}」炼好形象图</span>
                   <button
                     onClick={() => {
                       setCrops(rawCrops);
@@ -615,13 +652,67 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={() => void makePortraits()}
-                  disabled={!!busy}
-                  className="w-full rounded-lg border border-brand/50 bg-brand/10 py-2 text-xs font-semibold text-brand disabled:opacity-40"
-                >
-                  {busy || `✨ AI 生成干净立绘：全身 + 面部特写（白底、风格跟随原片${AI_REAL ? ` · 约 ${fmtTokens(2 * ONE_IMAGE)}` : " · 演示"}）`}
-                </button>
+                <div className="space-y-1.5">
+                  {/* ── 方案选择器 ──
+                      ★ 折叠着只占一行：绝大多数人用默认那套，把三四套方案永远摊开
+                        会把"起名字"这件正事挤到屏幕外。 */}
+                  <button
+                    onClick={() => setSchemeOpen((v) => !v)}
+                    disabled={!!busy}
+                    className="flex w-full items-center justify-between rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-left disabled:opacity-40"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-[11px] font-semibold text-slate-200">
+                        方案：{schemeOf(schemeId)?.title ?? "干净立绘"}
+                        {schemeOf(schemeId)?.faceless && <span className="ml-1 text-emerald-300">· 无脸</span>}
+                      </span>
+                      <span className="block truncate text-[10px] text-slate-500">{schemeOf(schemeId)?.intro}</span>
+                    </span>
+                    <span className="ml-2 flex-none text-[10px] text-slate-500">{schemeOpen ? "收起" : "换一套"}</span>
+                  </button>
+                  {schemeOpen && (
+                    <div className="space-y-1 rounded-lg border border-slate-700/70 bg-ink/40 p-1.5">
+                      {listSchemes("character").map((sc) => (
+                        <button
+                          key={sc.id}
+                          onClick={() => {
+                            setSchemeId(sc.id);
+                            setSchemeOpen(false);
+                          }}
+                          className={`w-full rounded-md px-2 py-1.5 text-left ${
+                            sc.id === schemeId ? "bg-brand/15 ring-1 ring-brand/40" : "hover:bg-white/5"
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <span className="truncate text-[11px] font-semibold text-slate-200">{sc.title}</span>
+                            {/* ★ 「无脸」是**产出形态**的标注，不是"绕过成功率"——市场不做那种标注，
+                                理由见 docs/card-prompt-scheme-market-design.md §B2 */}
+                            {sc.faceless && (
+                              <span className="flex-none rounded-full bg-emerald-500/15 px-1.5 py-px text-[9px] text-emerald-300">
+                                无脸
+                              </span>
+                            )}
+                          </span>
+                          <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">{sc.intro}</span>
+                          <span className="mt-0.5 block text-[9px] text-slate-600">
+                            {sc.slots.map((x) => x.tag).join(" · ")}
+                            {AI_REAL ? ` · 约 ${fmtTokens(schemeCost(sc.slots))}` : " · 演示"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => void makePortraits()}
+                    disabled={!!busy}
+                    className="w-full rounded-lg border border-brand/50 bg-brand/10 py-2 text-xs font-semibold text-brand disabled:opacity-40"
+                  >
+                    {busy ||
+                      `✨ 按这套方案炼形象图（${schemeOf(schemeId)?.slots.filter(isGenerated).length ?? 2} 张${
+                        AI_REAL ? ` · 约 ${fmtTokens(schemeCost((schemeOf(schemeId) ?? defaultScheme()).slots))}` : " · 演示"
+                      }）`}
+                  </button>
+                </div>
               ))}
             {type === "character" &&
               (pendingVoice ? (

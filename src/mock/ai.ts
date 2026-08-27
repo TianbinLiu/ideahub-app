@@ -1,11 +1,14 @@
 // mock AI 管线：卡片生成 / 市场检索 / 三方案推演。
 // 接口形状按未来 server 端点设计（异步 + 延迟），换成真实 AI 时仅需替换实现。
-import { Card, CardType, Proposal, VideoAspect, uid } from "../types";
+import { Card, CardRole, CardType, Proposal, VideoAspect, uid } from "../types";
 import { makeCover, makeFrame } from "./frames";
 import { makeRng, pick } from "./rng";
 // ★ mock 也读**同一张**图位表：它只用来告诉用户"这一档本该画几张"，而那句话一旦
 //   与真实管线分叉，就成了演示模式里一句谁也验不了的假话（铁律五）。
 import { slotsFor } from "../data/economy";
+// 图位要不要调模型只有 promptSchemes.isGenerated 一处判据 —— 演示模式也走它，
+// 否则"哪几格算生成型"会有第二份答案，而它正是报价的输入。
+import { isGenerated, type PromptScheme } from "../data/promptSchemes";
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms + Math.random() * 400));
 
@@ -97,16 +100,30 @@ export function marketCardsByName(names: string[]): Card[] {
 }
 
 /** 市场检索：空词 → 最热；有词 → 名称/简介/标签模糊匹配 */
-/** 演示模式的「AI 生成干净立绘」：不出网，回两张假图（与铸卡假图同一来路） */
+/**
+ * 演示模式的「按方案炼形象图」：不出网，按方案的图位数回同样多张假图。
+ * ★ 形状必须与 real 那份**逐字段一致**（含 role/tag）：形状不一致的话，演示模式下
+ *   走通的流程在真实模式里会在落卡那一步才炸，而那时钱已经花了。
+ */
 export async function portraitViews(o: {
+  scheme: PromptScheme;
   bodyCrop: string;
   faceCrop?: string | null;
+  subject?: string;
   onProgress?: (s: string) => void;
-}): Promise<{ body: string; face: string }> {
-  o.onProgress?.("绘制全身立绘…（演示）");
-  await new Promise((r) => setTimeout(r, 400));
-  o.onProgress?.("绘制面部特写…（演示）");
-  return { body: makeCover("portrait:body", "立绘"), face: makeCover("portrait:face", "特写") };
+}): Promise<{ role: CardRole; tag: string; dataUrl: string }[]> {
+  const out: { role: CardRole; tag: string; dataUrl: string }[] = [];
+  for (let i = 0; i < o.scheme.slots.length; i++) {
+    const slot = o.scheme.slots[i];
+    if (!isGenerated(slot)) {
+      out.push({ role: slot.role, tag: slot.tag, dataUrl: slot.ref === "face" && o.faceCrop ? o.faceCrop : o.bodyCrop });
+      continue;
+    }
+    o.onProgress?.(`绘制${slot.tag}…（${i + 1}/${o.scheme.slots.length}·演示）`);
+    await new Promise((r) => setTimeout(r, 300));
+    out.push({ role: slot.role, tag: slot.tag, dataUrl: makeCover(`portrait:${slot.role}:${i}`, slot.tag) });
+  }
+  return out;
 }
 
 export async function searchMarket(query: string): Promise<Card[]> {

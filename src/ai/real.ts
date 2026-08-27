@@ -34,6 +34,11 @@ import {
   type ImageTier,
 } from "../data/economy";
 import { idbSet } from "../data/db";
+// 方案的提示词拼装与"这一格要不要调模型"都在 data/promptSchemes 一处实现（铁律六）：
+// 风格那句由 slotPrompt 统一拼，方案作者改不掉；isGenerated 与 economy.schemeCost 同源。
+// ★ 别名 schemeSlotPrompt：本文件下面已经有一个**铸卡**用的 slotPrompt(type,name,...)，
+//   两者管的是完全不同的两件事（那个拼铸卡提示词，这个拼方案图位提示词）。
+import { isGenerated, slotPrompt as schemeSlotPrompt, slotSize, type PromptScheme } from "../data/promptSchemes";
 import { minimaxVideo } from "./minimaxVideo";
 import { refableViews } from "../data/cardViews";
 import {
@@ -78,33 +83,46 @@ async function genImageAsDataUrl(
 }
 
 /**
- * 圈选提取的「AI 生成干净立绘」：拿原片裁剪当 i2i 参考，出全身立绘 + 面部特写两张
- * （正好是出片管线真正会吃的那两张，见 refUsedFlags——detail 位出片轮不到，不花这个钱）。
+ * 圈选提取的「按提示词方案炼形象图」：拿原片裁剪当 i2i 参考，**按方案的图位逐格出图**。
  *
- * ★ 风格**跟随参考图**，提示词里不点名画风：真人截图出写实立绘、动漫截图出同风格插画。
- *   两者都实测过（2026-08-24 华强截图：写实版与动漫版各一发，Seedream i2i 对真人
- *   照片放行——它拦真人的是 Seedance 视频侧，图像侧宽松）。
- * ★ 纯白背景写死：这两张是形象参考，背景元素就是特征污染（方舟指南「素材过多难判
- *   特征优先级」的图内版本）。
- * ★ 串行不并行：Seedream 顶档一张可到 70 秒，两张并发在限流上撞车得不偿失。
+ * ★★ 图位是方案说了算的（`data/promptSchemes`），不是写死的两张 —— 不同流派产出的
+ *   图位数量与种类都不同（无脸白模三视图 / 分栏设定规格图 / 干净立绘）。返回的每一格
+ *   都带着 `role`（进不进模型）与 `tag`（界面花名），落卡时原样写进 CardView。
+ * ★ 风格那句**不在这里拼**，唯一实现是 `promptSchemes.slotPrompt` —— 它保证
+ *   "风格跟随参考图"这条方案作者改不掉（真人截图出写实、动漫截图出同风格插画；
+ *   2026-08-24 华强截图实测，Seedream i2i 对真人照片放行，拦真人的是 Seedance 视频侧）。
+ * ★ `fromCrop` 的格子**一次模型都不调**（直接放原片裁剪）—— 与 `economy.schemeCost`
+ *   不数它是同一个判据（`isGenerated`），报价与实扣因此天然相等。
+ * ★ 串行不并行：Seedream 顶档一张可到 70 秒，几张并发在限流上撞车得不偿失；
+ *   而且逐格报进度（onProgress）用户才知道自己在等第几张。
+ * ★ 失败**整发抛**、不吞：调用方（命名屏）拿它写整句 err 并保住原裁剪（铁律八）。
  */
 export async function portraitViews(o: {
+  scheme: PromptScheme;
   bodyCrop: string;
   faceCrop?: string | null;
+  /** 用户写的那句描述，插进方案的 {{主体}} 占位符 */
+  subject?: string;
   onProgress?: (s: string) => void;
-}): Promise<{ body: string; face: string }> {
-  const keep = "严格保持参考图的画风（照片则照片级写实，插画则同风格插画）与人物相貌、发型、服装、神态完全一致";
-  o.onProgress?.("绘制全身立绘…");
-  const body = await genImageAsDataUrl(
-    `参考图中人物的全身立绘：${keep}；纯白色背景，无任何背景元素与文字；全身完整可见，站姿自然`,
-    { imageRefs: [o.bodyCrop], size: CARD_SIZE },
-  );
-  o.onProgress?.("绘制面部特写…");
-  const face = await genImageAsDataUrl(
-    `参考图中人物的面部特写肖像：${keep}；纯白色背景，无任何背景元素与文字；头肩构图，五官清晰`,
-    { imageRefs: [o.faceCrop || o.bodyCrop], size: CARD_SIZE },
-  );
-  return { body, face };
+}): Promise<{ role: CardRole; tag: string; dataUrl: string }[]> {
+  const out: { role: CardRole; tag: string; dataUrl: string }[] = [];
+  const slots = o.scheme.slots;
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+    if (!isGenerated(slot)) {
+      // 原片裁剪那一格：直接放，不调模型、不计费
+      out.push({ role: slot.role, tag: slot.tag, dataUrl: slot.ref === "face" && o.faceCrop ? o.faceCrop : o.bodyCrop });
+      continue;
+    }
+    o.onProgress?.(`绘制${slot.tag}…（${i + 1}/${slots.length}）`);
+    const ref = slot.ref === "face" ? o.faceCrop || o.bodyCrop : o.bodyCrop;
+    const dataUrl = await genImageAsDataUrl(schemeSlotPrompt(slot, o.subject), {
+      imageRefs: [ref],
+      size: slotSize(slot),
+    });
+    out.push({ role: slot.role, tag: slot.tag, dataUrl });
+  }
+  return out;
 }
 
 /** 报给用户的失败原因：截一句。原样贴进进度条会把真正有用的那半句挤出可视区。 */
