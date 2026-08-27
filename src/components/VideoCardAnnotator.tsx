@@ -17,14 +17,19 @@ import { fmtTokens, schemeCost } from "../data/economy";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
 import {
   defaultScheme,
+  exampleIssue,
   isGenerated,
   listSchemes,
   removeScheme,
   schemeOf,
   schemesVersion,
+  setSchemeExamples,
   subscribeSchemes,
+  SCHEME_EXAMPLE_MAX,
+  SCHEME_EXAMPLE_MAX_W,
   type PromptScheme,
 } from "../data/promptSchemes";
+import { shrinkDataUrl } from "../utils/image";
 import SchemeEditorSheet from "../studio/ui/SchemeEditorSheet";
 import {
   Card,
@@ -440,6 +445,31 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     }
   }
 
+  /**
+   * 把这次炼出来的图存成这套方案的示例图（选方案时给别人看"产出长什么样"）。
+   * ★ 存**缩图**：方案库在 localStorage，塞原图会把整份写失败，而 persist() 吞配额错误
+   *   ⇒ 表现成"自建方案下次打开就没了"（见 PromptScheme.examples 的 ★★）。
+   * ★ 规则判据只有 exampleIssue 一处（真人不得当示例，design doc §B2）。
+   */
+  async function saveExamples(sc: PromptScheme) {
+    const issue = exampleIssue({ scheme: sc, realPerson });
+    if (issue) {
+      setErr(issue);
+      return;
+    }
+    setErr("");
+    setBusy("存示例图…");
+    try {
+      const picks = crops.slice(0, SCHEME_EXAMPLE_MAX);
+      const thumbs = await Promise.all(picks.map((c) => shrinkDataUrl(c.dataUrl, SCHEME_EXAMPLE_MAX_W)));
+      setSchemeExamples(sc.id, thumbs);
+    } catch (e) {
+      setErr(`示例图没存上：${(e instanceof Error ? e.message : String(e)).slice(0, 80)}`);
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function saveCard() {
     if (!type || crops.length === 0 || busy) return;
     if (!name.trim()) {
@@ -647,18 +677,41 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
             )}
             {type === "character" &&
               (rawCrops ? (
-                <div className="flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-2">
-                  <span className="text-[11px] text-emerald-200">✨ 已按「{schemeOf(schemeId)?.title ?? "方案"}」炼好形象图</span>
-                  <button
-                    onClick={() => {
-                      setCrops(rawCrops);
-                      setRawCrops(null);
-                    }}
-                    disabled={!!busy}
-                    className="flex-none text-[11px] text-slate-400 disabled:opacity-40"
-                  >
-                    ↺ 用回原片
-                  </button>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-2">
+                    <span className="text-[11px] text-emerald-200">✨ 已按「{schemeOf(schemeId)?.title ?? "方案"}」炼好形象图</span>
+                    <button
+                      onClick={() => {
+                        setCrops(rawCrops);
+                        setRawCrops(null);
+                      }}
+                      disabled={!!busy}
+                      className="flex-none text-[11px] text-slate-400 disabled:opacity-40"
+                    >
+                      ↺ 用回原片
+                    </button>
+                  </div>
+                  {/* 「存成方案示例图」：只对**自己的**方案、且不是真人素材时才给
+                      （判据唯一实现在 promptSchemes.exampleIssue）。不给的时候把原因写出来，
+                      别摆一颗永远点不动的按钮（CLAUDE.md 那条坑）。 */}
+                  {(() => {
+                    const sc = schemeOf(schemeId);
+                    if (!sc) return null;
+                    const issue = exampleIssue({ scheme: sc, realPerson });
+                    if (issue) {
+                      // 内置那条不必啰嗦（用户没主动想存），只有真人那条值得说
+                      return realPerson ? <p className="text-[9px] leading-relaxed text-slate-600">{issue}</p> : null;
+                    }
+                    return (
+                      <button
+                        onClick={() => void saveExamples(sc)}
+                        disabled={!!busy}
+                        className="w-full rounded-lg border border-slate-700 py-1.5 text-[10px] text-slate-400 disabled:opacity-40"
+                      >
+                        {sc.examples?.length ? "🖼 更新这套方案的示例图" : "🖼 把这次的产出存成方案示例图"}
+                      </button>
+                    );
+                  })()}
                 </div>
               ) : (
                 <div className="space-y-1.5">
@@ -703,6 +756,20 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                             )}
                           </span>
                           <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">{sc.intro}</span>
+                          {/* 示例缩图：只有作者存过才有（内置那几套没有，见 backlog） */}
+                          {!!sc.examples?.length && (
+                            <span className="mt-1 flex gap-1">
+                              {sc.examples.map((ex, k) => (
+                                <img
+                                  key={k}
+                                  src={ex}
+                                  alt=""
+                                  className="h-10 w-8 rounded border border-slate-700 object-cover"
+                                  loading="lazy"
+                                />
+                              ))}
+                            </span>
+                          )}
                           <span className="mt-0.5 block text-[9px] text-slate-600">
                             {sc.slots.map((x) => x.tag).join(" · ")}
                             {AI_REAL ? ` · 约 ${fmtTokens(schemeCost(sc.slots))}` : " · 演示"}

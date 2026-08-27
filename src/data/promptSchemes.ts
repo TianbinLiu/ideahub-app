@@ -62,7 +62,15 @@ export interface PromptScheme {
    *   预览示例也不得用真人（理由写在 docs/card-prompt-scheme-market-design.md §B2）。
    */
   faceless?: boolean;
-  /** 方案预览图（作者出一次存起来）。市场卡片上给用户看"用这套做出来长什么样" */
+  /**
+   * 方案预览图（作者出一次存起来）。选方案时给用户看"用这套做出来长什么样"。
+   *
+   * ★★ 存的是**缩图**（`SCHEME_EXAMPLE_MAX_W`）不是原图：方案库整个躺在 localStorage
+   *   （几 MB 上限），塞几张 1MB 级的卡面进去会把整份方案库写失败 —— 而 `persist()`
+   *   是**吞掉配额错误**的（那本是对的：方案库不该让工坊打不开），于是后果会变成
+   *   "自建的方案下次打开就没了"，且零报错。
+   * ⚠ **不得用真人**（design doc §B2）：`canBeExample` 是那条规则的唯一实现。
+   */
   examples?: string[];
   /** 内置方案：不可删、不可改（改了就"另存为"一份用户方案） */
   builtin?: boolean;
@@ -315,6 +323,42 @@ export function saveScheme(s: Omit<PromptScheme, "id" | "builtin"> & { id?: stri
 
 export function removeScheme(id: string): void {
   mine = mine.filter((s) => s.id !== id);
+  persist();
+  emit();
+}
+
+/**
+ * 预览示例缩图的宽度上限。★ 200 是量出来的取舍：选方案那一行的缩略框约 40px 宽，
+ * 2 倍屏下 80px 就够清楚；再大只是把 localStorage 吃掉（见 examples 的 ★★）。
+ */
+export const SCHEME_EXAMPLE_MAX_W = 200;
+/** 一套方案最多存几张示例。★ 2 张够表达"产出长什么样"，再多是拿配额换边际信息 */
+export const SCHEME_EXAMPLE_MAX = 2;
+
+/**
+ * 「这次的产出能不能当这套方案的示例图」—— **唯一实现**（design doc §B2 那条规则）。
+ * null = 可以，否则是一句整句原因。
+ *
+ * ★★ 真人一律不行：示例图是**给所有人看的展示物**，把某个真实的人挂上去当"用这套
+ *   做出来长这样"，既是我们替被拍者做了一个他没同意的展示，也正是 §B2 说的
+ *   "平台用示例图展示真人产出"——那一步会把中立工具变成主动帮凶。
+ * ★ 内置方案不行：它们是模块里的冻结常量，存不进去（存了也只活在内存里，
+ *   刷新就没 —— 那是比"不给存"更糟的假承诺）。
+ */
+export function exampleIssue(o: { scheme: PromptScheme; realPerson?: boolean }): string | null {
+  if (o.scheme.builtin) return "内置方案不能改示例图——先「另存为我的」，再给自己那份存示例";
+  if (o.realPerson) return "这张卡声明过是真实人物，不能拿它的产出当方案示例图（示例是给所有人看的）";
+  return null;
+}
+
+/**
+ * 给一套自定义方案存示例图。★ 传进来的应当是**已经缩好**的图（调用方走 shrinkDataUrl）——
+ * 这里不做缩放是因为它是纯数据层，拉 canvas 进来会让它没法在非浏览器环境跑测试。
+ */
+export function setSchemeExamples(id: string, examples: string[]): void {
+  const i = mine.findIndex((s) => s.id === id);
+  if (i < 0) return;
+  mine = mine.map((s, k) => (k === i ? { ...s, examples: examples.slice(0, SCHEME_EXAMPLE_MAX) } : s));
   persist();
   emit();
 }
