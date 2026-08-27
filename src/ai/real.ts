@@ -41,6 +41,8 @@ import { idbSet } from "../data/db";
 import { isGenerated, slotPrompt as schemeSlotPrompt, slotSize, type PromptScheme } from "../data/promptSchemes";
 import { minimaxVideo } from "./minimaxVideo";
 import { refableViews } from "../data/cardViews";
+// 已授权的可信素材：整张卡改发 asset:// URI（判据与拼法各只有一处，见 data/cardAsset）
+import { assetOf, assetUri } from "../data/cardAsset";
 import {
   chat,
   chatTurns,
@@ -701,6 +703,14 @@ export async function prepareMaterialRefs(
     //   快照的 `p.view.url` 去比必然对不上 —— **自愈成功反而把图丢掉**，且零报错。
     //   2026-08-19 出包前的对抗性预检抓到的就是这条（我第一版正是这么写的）。
     //   `index` 本来就是"它在 viewsOf(card) 里的下标"（见 RefPick），refableViews 承诺同序同长。
+    // ★★ 可信素材（已做肖像授权的真人卡）**整张卡只发 asset:// URI，不发图**：
+    //   方舟 2.0/2.5 不收直接上传的真人人脸，但收授权过的素材。这条路上没有"图"可
+    //   预处理——`prepRefImage` 会因为它既不是 data: 也不是 http(s) 而返回 null，
+    //   于是这张卡被当成"坏图"整张丢掉（零报错，只是画面里那个人由模型自己编）。
+    //   所以要在守门**之前**分流。
+    // ★ 拼 URI 只有 cardAsset.assetUri 一处（别在这写 `"asset://" + id`）。
+    const trusted = assetOf(p.card.id);
+    if (trusted) return { ...p, url: assetUri(trusted.assetId) };
     const r = await refableViews(p.card, multiChar);
     if (r.why && !failWhy.has(p.card)) failWhy.set(p.card, r.why);
     return { ...p, url: await prepRefImage(r.views[p.index]?.url ?? p.view.url) };

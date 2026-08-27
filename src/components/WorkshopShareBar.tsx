@@ -25,6 +25,8 @@ export function shareBlockReason(input: {
   owned?: boolean;
   /** 卡片：它挂的 3D 建模。第三方版权模型服务端会直接 400，按钮不能是亮的 */
   modelUrl?: string | null;
+  /** 卡片：声明过是真实人物（types.Card.realPerson）。真人卡一律不许分享，见下 */
+  realPerson?: boolean;
 }): string | null {
   if (!input.remote) return "分享需要先连接服务器并登录 —— 离线库里没有「别人」。";
   if (input.owned === false) return "只能分享自己库里的卡：先把它添加到我的卡片。";
@@ -33,6 +35,15 @@ export function shareBlockReason(input: {
   //   一个"按下去必然失败"的按钮比灰着更糟 —— 用户会以为是自己网不好，一直点。
   //   判据在 types.isThirdPartyModel 一处（服务端还有一份权威的同规则）。
   if (isThirdPartyModel(input.modelUrl)) return "这张卡挂的是第三方版权模型，未获授权前不能分享出去。";
+  // ★★ 真人卡一律不许分享（产品决定，docs/backlog.md §1.4）。理由不是"怕麻烦"：
+  //   ① 卡上那张脸是**某个真实的人**，他同意的是"你拿去做视频"，不是"挂到市场上任人取用"
+  //      —— 我们没有资格替他做那第二个授权；
+  //   ② 就算做过方舟肖像授权，那份可信素材也**绑死在授权给的那个火山账号**下
+  //      （而且是本机侧库、根本不随卡走）。别人装走这张卡，拿到的是一张有脸的图、
+  //      却没有任何授权依据 —— 把违规风险转嫁给了不知情的人。
+  //   ⚠ 服务端也有一份权威的同规则（发布路径），这里只是不让按钮是亮的
+  //      —— 一个"按下去必然失败"的按钮比灰着更糟。
+  if (input.realPerson === true) return "这张卡声明过是真实人物，不能分享到创意工坊：肖像授权只覆盖你自己使用。";
   return null;
 }
 

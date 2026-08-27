@@ -16,6 +16,7 @@ import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHo
 import { isRemoteMode, myCards, myDecks, shareCard } from "../data/account";
 import { addCardView, removeCardView } from "../data/cardViews";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
+import { assetOf, assetsVersion, normalizeAssetId, removeAsset, saveAsset, subscribeAssets } from "../data/cardAsset";
 import { formatHeat, heatOf } from "../data/social";
 import {
   CARD_INFO_LABELS,
@@ -138,6 +139,108 @@ function pipelineNoteFor(type: CardType, views: CardView[]): string {
     //   不说这一句，用挂卡出片的用户会照上面那半句自我设限：以为挂第 2 张人物卡没用。
     `（白模模板挂卡那条路是例外：它不画设定帧，每个角色位挂的人物卡都各带自己的形象图。）` +
     `${slotLabel("character", "detail")}这一格铸卡不会自动出图（只能自己传），三张挂满时它也排在最后，出片轮不到它。`
+  );
+}
+
+/**
+ * 「方舟可信素材」区：真人卡做完肖像授权后，把方舟给的资产 ID 填在这里，出片就走
+ * `asset://<id>` 而不是那张照片 —— 这是方舟的**官方合规通道**（不是绕过检测）。
+ *
+ * ★ 只对**自己的真人卡**出现：别人的卡看不到本机侧库；非真人卡根本不需要它
+ *   （方舟只拦真人人脸）。
+ * ★★ 这一屏**不承诺我们做不到的事**：授权二维码是方舟控制台生成的、素材检索也只有
+ *   控制台有（官方没有列表 API，见 docs/backlog.md §1）。所以这里如实写"去方舟控制台
+ *   做授权、把 ID 复制回来"，而不是画一个我们根本给不出的扫码按钮。
+ */
+function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
+  useSyncExternalStore(subscribeAssets, assetsVersion, () => 0);
+  const [draft, setDraft] = useState("");
+  const [err, setErr] = useState("");
+  const [open, setOpen] = useState(false);
+  const a = assetOf(card.id);
+  // 非真人卡 / 别人的卡：整块不渲染（不是灰着——那会让人以为自己少做了一步）
+  if (card.type !== "character" || card.realPerson !== true || !owned) return null;
+
+  function save() {
+    // 归一（"asset://xxx" 与纯 id 都收）与格式判据都只有 cardAsset 一处
+    const id = normalizeAssetId(draft);
+    if (!id) {
+      setErr("这不像方舟的资产 ID —— 应该长成 asset-20260401123823-6d4x2 这样（在方舟控制台点「复制 asset ID」拿到）");
+      return;
+    }
+    setErr("");
+    void saveAsset(card.id, { assetId: id, scope: "private", note: "本人授权（方舟可信素材库）" });
+    setDraft("");
+    setOpen(false);
+  }
+
+  return (
+    <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-300">🪪 方舟可信素材{a ? " · 已绑定" : ""}</span>
+        {a && (
+          <button onClick={() => void removeAsset(card.id)} className="text-[11px] text-slate-500">
+            解绑
+          </button>
+        )}
+      </div>
+      {a ? (
+        <>
+          <p className="break-all rounded-lg bg-ink/60 px-2 py-1.5 font-mono text-[10px] text-emerald-300">{a.assetId}</p>
+          <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+            出片走「高清」「电影级」档时，会把这份**已授权素材**交给 AI，而不是卡上那张照片
+            —— 这样才过得了方舟的人脸审核。{a.note ? `（${a.note}）` : ""}
+          </p>
+          {/* 说清它的边界：绑定不等于永久，也不等于能分享 */}
+          <p className="mt-1 text-[10px] leading-relaxed text-slate-600">
+            ⚠ 授权在方舟那边**有有效期**，到期后出片会被拒 —— 那时要请本人重新授权。
+            这份绑定只存在这台设备上，也不会随卡片分享出去。
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-[10px] leading-relaxed text-slate-500">
+            这张卡声明过是真实人物。「高清」「电影级」档**不收直接上传的真人照片**，只收本人授权过的素材
+            —— 在方舟控制台请本人扫码完成肖像授权，再把拿到的资产 ID 填在这里。
+          </p>
+          {open ? (
+            <div className="mt-2">
+              <input
+                value={draft}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  setErr("");
+                }}
+                placeholder="粘贴 asset ID 或 asset://…"
+                className="w-full rounded-lg border border-slate-700 bg-ink/60 px-2.5 py-2 font-mono text-[11px] text-slate-100 placeholder:text-slate-600"
+              />
+              {err && <p className="mt-1 text-[10px] leading-relaxed text-rose-400">{err}</p>}
+              <div className="mt-1.5 flex gap-2">
+                <button onClick={save} className="flex-1 rounded-lg bg-brand py-1.5 text-[11px] font-bold text-ink">
+                  绑定
+                </button>
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    setErr("");
+                  }}
+                  className="rounded-lg border border-slate-700 px-3 text-[11px] text-slate-400"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setOpen(true)}
+              className="mt-2 w-full rounded-lg border border-slate-600 py-1.5 text-[11px] text-slate-300"
+            >
+              ＋ 填入方舟资产 ID
+            </button>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -492,6 +595,9 @@ export default function CardDetailPage() {
       {/* 人物声音：标识 + 试听 + 移除（样本在本机侧库，不随卡同步/分享） */}
       <CardVoiceSection card={card} owned={owned} />
 
+      {/* 方舟可信素材：真人卡做完肖像授权后填 asset ID，出片改走 asset:// */}
+      <CardAssetSection card={card} owned={owned} />
+
       {/* 「<类型>信息」：铸卡时的完整提示词——照着它 AI 就能复刻出与卡面一致的画面/建模。
           ★ 标题按卡种叫（人物信息/场景信息/…），表在 types.CARD_INFO_LABELS 一处 */}
       <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
@@ -540,7 +646,7 @@ export default function CardDetailPage() {
         kind="card"
         className="mb-4"
         published={!!card.published}
-        disabledReason={shareBlockReason({ remote: isRemoteMode(), owned, modelUrl: card.modelUrl })}
+        disabledReason={shareBlockReason({ remote: isRemoteMode(), owned, modelUrl: card.modelUrl, realPerson: card.realPerson })}
         note={shareModelNote(card)}
         onToggle={(next) => shareCard(card.id, next)}
       />
