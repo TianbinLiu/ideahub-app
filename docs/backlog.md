@@ -36,17 +36,18 @@
 
 ---
 
-## 2. 提示词方案市场的剩余部分
+## 2. 提示词方案市场（已完成，留几条约束）
 
-主体已上（见 [`card-prompt-scheme-market-design.md`](card-prompt-scheme-market-design.md) 的落地状态表）。剩下三件：
+三件剩余项 2026-08-24 全部做完：**自建方案编辑屏**、**预览示例图**、**远端共享市场**
+（server 的 `PromptScheme` + `/api/branch/schemes`，6 例 spec）。
 
-- **远端共享**：现在只有本机方案库 + 内置三套。接服务端时照 `data/templates.ts` 的
-  mine/shared 搬，并走「加字段五处一起改」。
-- **方案预览示例图**（`PromptScheme.examples` 字段已留、UI 未画）。⚠ 示例**不得用真人**。
-- **用户自建方案的编辑屏**（`saveScheme` 已能存，缺逐格写提示词那一屏）。
-
-⚠ 市场**不得**按"绕过真人检测的成功率"排序或标注 —— 那会把中立工具变成主动帮凶，
-理由写在 design doc 的 §B2；`faceless` 只描述产出形态。
+⚠ 后续改这块时不能破的三条：
+- **市场不得按"绕过真人检测的成功率"排序或标注**——那会把中立工具变成主动帮凶
+  （design doc §B2）。`faceless` 只描述**产出形态**，排序键也只有它 + 更新时间。
+- **预览示例图不得是真人**（判据唯一实现 `promptSchemes.exampleIssue`）。
+- **`data/promptSchemes.ts` 必须保持叶子**（只依赖 types）。联网那半边在
+  `data/schemeMarket.ts`：promptSchemes 一旦 import videos 就成环
+  （videos → account → mock/ai → promptSchemes），Vite 下拿到半初始化模块。
 
 ## 3. 其它（较小）
 
