@@ -162,6 +162,28 @@ export interface CardView {
 export type CardRole = "face" | "primary" | "aux" | "display";
 
 /**
+ * 图位花名的长度上限。**跨仓镜像**：server 的 `CARD_VIEW_TAG_MAX`（zod `.max(24)`）。
+ *
+ * ★★ 那边是 `.max()` —— **超了是整发 400，不是截断**。也就是说用户在方案编辑屏里
+ *   多打几个字，后果不是"标签被截短"，而是这张卡**整个发不上去**（而 app 全局没人
+ *   监听 emitApiError ⇒ 静默丢卡）。所以每个能写 tag 的输入框都要 maxLength 硬拦，
+ *   并且用**同一个常量**（此前这个 24 只活在一句注释里）。
+ */
+export const VIEW_TAG_MAX = 24;
+
+/**
+ * role 的人话标签与它到底管什么 —— **唯一实现**（方案编辑屏与将来的详情页共用）。
+ * ★ 这几句话要说的是"选了它会怎样"，不是把枚举名翻译一遍：用户挑图位角色时唯一关心的
+ *   就是"这张图会不会真的喂给 AI、会不会因此花钱"。
+ */
+export const ROLE_LABELS: Record<CardRole, { label: string; hint: string }> = {
+  face: { label: "锁脸", hint: "面部特征与发型发色，出片时优先喂给 AI" },
+  primary: { label: "锁主体", hint: "服装、体型与整体造型；也是这张卡的卡面" },
+  aux: { label: "补充参考", hint: "参考图预算还有余时才轮到它" },
+  display: { label: "只展示", hint: "永不进模型（三视图/规格稿这类多视图会让 AI 认错人）" },
+};
+
+/**
  * 读一张图的 role。**唯一实现**——别在调用点写 `v.role ?? 推一下`（那是第二处默认值）。
  *
  * ★ 判**存在性**：后加字段，老卡恒缺省，缺省即"按 kind 推"（CLAUDE.md「后加字段判否定」）。

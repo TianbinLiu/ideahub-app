@@ -17,7 +17,7 @@
 // ★ 与模板市场的关系：形状刻意照着 `data/templates.ts`（mine/shared/remoteId），
 //   将来接服务端共享时是同一套搬法。本轮只做**本机方案库 + 内置方案**，
 //   远端共享见 docs/backlog.md。
-import { CARD_SIZE, CardRole, CardType, MAX_CARD_VIEWS, uid } from "../types";
+import { CARD_SIZE, CardRole, CardType, MAX_CARD_VIEWS, VIEW_TAG_MAX, uid } from "../types";
 
 /** 这一格的参考图从哪张裁剪来 */
 export type SchemeRef = "body" | "face";
@@ -267,8 +267,39 @@ export function defaultScheme(): PromptScheme {
   return BUILTIN_SCHEMES[0];
 }
 
+/**
+ * 「这份方案能不能存 / 能不能用」—— **唯一实现**（编辑屏与 `saveScheme` 都问它）。
+ * null = 没问题，否则是一句给用户看的整句原因（铁律八：说清为什么，别只把按钮变灰）。
+ *
+ * ★ 抄第二份的下场：编辑屏放行、`saveScheme` 拒（或反过来），用户点了保存什么都没发生。
+ */
+export function schemeIssue(d: { title?: string; slots?: SchemeSlot[] }): string | null {
+  if (!d.title?.trim()) return "先给这套方案起个名字";
+  const slots = d.slots ?? [];
+  if (slots.length === 0) return "至少要有一个图位——方案就是「从一张裁剪能炼出哪几张图」";
+  if (slots.length > MAX_CARD_VIEWS)
+    return `一张卡最多存 ${MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 ${MAX_CARD_VIEWS} 个以内`;
+  for (let i = 0; i < slots.length; i++) {
+    const x = slots[i];
+    const tag = (x.tag || "").trim();
+    if (!tag) return `第 ${i + 1} 个图位还没起名字（这个名字会显示在卡片详情页上）`;
+    // ★★ 超长不是"截短"，是服务端 zod 整发 400 ⇒ 这张卡发不上去且零报错（见 types.VIEW_TAG_MAX）
+    if (tag.length > VIEW_TAG_MAX) return `图位名「${tag}」超过 ${VIEW_TAG_MAX} 个字——太长的话这张卡会存不到服务器上`;
+    if (isGenerated(x) && !(x.prompt || "").trim()) return `图位「${tag}」要 AI 出图，但还没写提示词`;
+  }
+  // ★ 全是 display 的方案炼出来的卡，出片时一张形象图都进不了模型 —— AI 完全不认识
+  //   这个角色，钱照花、画面里的人是编的。这不是"高级用法"，是必然的失望，所以硬拦。
+  if (slots.every((x) => x.role === "display"))
+    return "至少要有一个图位不是「只展示」——全都只展示的话，出片时 AI 一张形象图都拿不到，画面里的人只能靠它自己编";
+  return null;
+}
+
 /** 存一份用户自定义方案（新建或改）。返回落库那份 */
 export function saveScheme(s: Omit<PromptScheme, "id" | "builtin"> & { id?: string }): PromptScheme {
+  // ★ 存之前再问一次同一把尺：编辑屏可能被绕过（将来从服务端装一份方案回来也走这里），
+  //   而一份半残的方案会在**生成到一半**时炸，那时钱已经花出去了。
+  const issue = schemeIssue(s);
+  if (issue) throw new Error(issue);
   const next: PromptScheme = {
     ...s,
     id: s.id && !s.id.startsWith("scheme_") ? s.id : uid("ps"),

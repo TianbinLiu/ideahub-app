@@ -10,7 +10,7 @@
 // ★ 全程本机：视频不上传、不抽帧喂模型、不花 token（与「自己传图做卡片」同一承诺）。
 //   存卡走 data/account.addCards（dataURL 转永久地址是它的活，铁律六），建组走 createDeck。
 // ★ 人物卡的"定段取声音样本"是阶段 2（等参考音频音色跟随的实听结论），本组件先留位。
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AI_REAL, portraitViews } from "../ai";
 import { addCards, canAfford, createDeck, spendTokens } from "../data/account";
 import { fmtTokens, schemeCost } from "../data/economy";
@@ -19,8 +19,13 @@ import {
   defaultScheme,
   isGenerated,
   listSchemes,
+  removeScheme,
   schemeOf,
+  schemesVersion,
+  subscribeSchemes,
+  type PromptScheme,
 } from "../data/promptSchemes";
+import SchemeEditorSheet from "../studio/ui/SchemeEditorSheet";
 import {
   Card,
   CARD_TYPE_COLORS,
@@ -90,6 +95,10 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
   const [schemeId, setSchemeId] = useState<string>(defaultScheme().id);
   /** 方案选择器展开着？ */
   const [schemeOpen, setSchemeOpen] = useState(false);
+  /** 方案编辑屏：undefined=没开；{source:undefined}=新建；{source:某套}=改/另存为 */
+  const [schemeEdit, setSchemeEdit] = useState<{ source?: PromptScheme } | null>(null);
+  // 方案库是模块级的侧库（不是 React state）——自建/删掉之后要重渲染，靠它订阅
+  useSyncExternalStore(subscribeSchemes, schemesVersion, () => 0);
   /**
    * 真人声明（仅人物卡）。产品决定开放任意真人照片，肖像同意的责任压给用户——
    * 所以勾了 realPerson 就必须同时勾 consentOk（协议确认），否则 saveCard 整句拒。
@@ -698,8 +707,45 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                             {sc.slots.map((x) => x.tag).join(" · ")}
                             {AI_REAL ? ` · 约 ${fmtTokens(schemeCost(sc.slots))}` : " · 演示"}
                           </span>
+                          {/* 每一套都能拿去改：内置的会另存成自己的一份（内置不可改） */}
+                          <span className="mt-1 flex gap-2">
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSchemeEdit({ source: sc });
+                              }}
+                              onKeyDown={(e) => e.key === "Enter" && setSchemeEdit({ source: sc })}
+                              className="text-[9px] text-slate-400 underline"
+                            >
+                              {sc.builtin ? "另存为我的" : "改"}
+                            </span>
+                            {!sc.builtin && (
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // 删掉正在用的那套就退回默认，别让 schemeId 指着一个不存在的 id
+                                  if (sc.id === schemeId) setSchemeId(defaultScheme().id);
+                                  removeScheme(sc.id);
+                                }}
+                                onKeyDown={(e) => e.key === "Enter" && removeScheme(sc.id)}
+                                className="text-[9px] text-rose-400/80 underline"
+                              >
+                                删
+                              </span>
+                            )}
+                          </span>
                         </button>
                       ))}
+                      <button
+                        onClick={() => setSchemeEdit({})}
+                        className="w-full rounded-md border border-dashed border-slate-600 px-2 py-1.5 text-[10px] text-slate-400"
+                      >
+                        ＋ 自建一套方案（自己写每一格的提示词）
+                      </button>
                     </div>
                   )}
                   <button
@@ -990,6 +1036,14 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
           </div>
         )}
       </div>
+      {/* 方案编辑屏：存完直接切到新存的那套（用户刚写完，当然是想用它） */}
+      {schemeEdit && (
+        <SchemeEditorSheet
+          source={schemeEdit.source}
+          onSaved={(sc) => setSchemeId(sc.id)}
+          onClose={() => setSchemeEdit(null)}
+        />
+      )}
     </div>
   );
 }
