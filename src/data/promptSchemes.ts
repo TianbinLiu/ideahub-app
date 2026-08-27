@@ -74,6 +74,8 @@ export interface PromptScheme {
   examples?: string[];
   /** 内置方案：不可删、不可改（改了就"另存为"一份用户方案） */
   builtin?: boolean;
+  /** 已发布到广场（远端态的镜像）。★ 判**存在性**：老数据/离线恒缺省 = 没发布 */
+  published?: boolean;
   createdAt?: number;
 }
 
@@ -366,4 +368,40 @@ export function setSchemeExamples(id: string, examples: string[]): void {
 /** 出图尺寸：方案没写就用卡面画布 */
 export function slotSize(slot: SchemeSlot): string {
   return slot.size || CARD_SIZE;
+}
+
+// ── 给「市场」模块用的内部口子 ──────────────────────────────────────
+//
+// ★★ 市场层（data/schemeMarket.ts）**单独成模块**，而不是写在这里：它要问
+//   `videos.remoteOn()`，而 videos → account → mock/ai → 本文件 —— 本文件再去 import
+//   videos 就成了环，Vite 下会拿到**半初始化的模块**（实测报 "Cannot access 'listeners'
+//   before initialization"）。CLAUDE.md 那条「两个 store 互相 import」是同一件事。
+//   ⇒ 本文件保持**叶子**（只依赖 types），要联网的那半边放外面。
+// ★ 订阅仍然只有一处（subscribeSchemes / schemesVersion）：市场层改完自己那份状态后
+//   调 `emitSchemes()`，界面因此只需要订阅一个源。
+
+/** 我自己的那些方案（市场层要读它来决定发布哪一套） */
+export function mineSchemes(): PromptScheme[] {
+  return mine;
+}
+
+/** 落一份方案进本机库（装回来的、或推送后回写的）。★ 同 id 覆盖，不重复堆 */
+export function upsertMine(s: PromptScheme): void {
+  mine = [s, ...mine.filter((x) => x.id !== s.id)];
+  persist();
+  emit();
+}
+
+/** 就地改一份本机方案的某几位（例如回写 published）。找不到就静默 —— 清理路径不该吵 */
+export function patchMine(id: string, patch: Partial<PromptScheme>): void {
+  const i = mine.findIndex((x) => x.id === id);
+  if (i < 0) return;
+  mine = mine.map((x, k) => (k === i ? { ...x, ...patch } : x));
+  persist();
+  emit();
+}
+
+/** 让界面重渲染（市场层改了自己那份状态时调）。订阅源仍然只有这一个 */
+export function emitSchemes(): void {
+  emit();
 }

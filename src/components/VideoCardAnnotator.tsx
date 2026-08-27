@@ -31,6 +31,9 @@ import {
 } from "../data/promptSchemes";
 import { shrinkDataUrl } from "../utils/image";
 import SchemeEditorSheet from "../studio/ui/SchemeEditorSheet";
+import SchemeMarketSheet from "../studio/ui/SchemeMarketSheet";
+// 市场那半边单独成模块（promptSchemes 保持叶子，避免 videos↔account 那条环）
+import { schemeMarketErr, schemeMarketOn, shareScheme } from "../data/schemeMarket";
 import {
   Card,
   CARD_TYPE_COLORS,
@@ -102,6 +105,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
   const [schemeOpen, setSchemeOpen] = useState(false);
   /** 方案编辑屏：undefined=没开；{source:undefined}=新建；{source:某套}=改/另存为 */
   const [schemeEdit, setSchemeEdit] = useState<{ source?: PromptScheme } | null>(null);
+  /** 方案市场浮层开着？ */
+  const [marketOpen, setMarketOpen] = useState(false);
   // 方案库是模块级的侧库（不是 React state）——自建/删掉之后要重渲染，靠它订阅
   useSyncExternalStore(subscribeSchemes, schemesVersion, () => 0);
   /**
@@ -732,6 +737,11 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                     </span>
                     <span className="ml-2 flex-none text-[10px] text-slate-500">{schemeOpen ? "收起" : "换一套"}</span>
                   </button>
+                  {schemeOpen && !!schemeMarketErr() && (
+                    <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[10px] leading-relaxed text-rose-300">
+                      {schemeMarketErr()}
+                    </p>
+                  )}
                   {schemeOpen && (
                     <div className="space-y-1 rounded-lg border border-slate-700/70 bg-ink/40 p-1.5">
                       {listSchemes("character").map((sc) => (
@@ -788,6 +798,19 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                             >
                               {sc.builtin ? "另存为我的" : "改"}
                             </span>
+                            {!sc.builtin && schemeMarketOn() && (
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void shareScheme(sc.id, !sc.published);
+                                }}
+                                className="text-[9px] text-sky-300/90 underline"
+                              >
+                                {sc.published ? "下架" : "发布到市场"}
+                              </span>
+                            )}
                             {!sc.builtin && (
                               <span
                                 role="button"
@@ -807,12 +830,23 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                           </span>
                         </button>
                       ))}
-                      <button
-                        onClick={() => setSchemeEdit({})}
-                        className="w-full rounded-md border border-dashed border-slate-600 px-2 py-1.5 text-[10px] text-slate-400"
-                      >
-                        ＋ 自建一套方案（自己写每一格的提示词）
-                      </button>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => setSchemeEdit({})}
+                          className="flex-1 rounded-md border border-dashed border-slate-600 px-2 py-1.5 text-[10px] text-slate-400"
+                        >
+                          ＋ 自建一套
+                        </button>
+                        {/* ★ 没连服务端就整个不显示，而不是摆一颗点不动的按钮 */}
+                        {schemeMarketOn() && (
+                          <button
+                            onClick={() => setMarketOpen(true)}
+                            className="flex-1 rounded-md border border-slate-600 px-2 py-1.5 text-[10px] text-slate-300"
+                          >
+                            🛒 逛方案市场
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                   <button
@@ -1104,6 +1138,9 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         )}
       </div>
       {/* 方案编辑屏：存完直接切到新存的那套（用户刚写完，当然是想用它） */}
+      {marketOpen && (
+        <SchemeMarketSheet onInstalled={(sc) => setSchemeId(sc.id)} onClose={() => setMarketOpen(false)} />
+      )}
       {schemeEdit && (
         <SchemeEditorSheet
           source={schemeEdit.source}
