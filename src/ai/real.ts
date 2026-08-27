@@ -10,10 +10,12 @@ import {
   VideoAspect,
   aspectOf,
   normalizeSlot,
-  slotLabel,
+  roleOf,
   uid,
+  viewTag,
   viewsOf,
   CARD_SIZE,
+  type CardRole,
   type CardSlot,
   type CardView,
 } from "../types";
@@ -348,7 +350,27 @@ export const ARK_REF_IMAGES_MAX = 30;
 /** 一张人物卡最多占几张（方舟指南：大头照 + 全身照，**多视图**反而加剧 ID 漂移） */
 export const MAX_CHAR_REFS = 2;
 
-const KIND_ORDER: Record<CardView["kind"], number> = { face: 0, body: 1, detail: 2 };
+/**
+ * 取图优先级（规则三）。**按 `role` 排，不按 `kind`** —— 灵活图位之后，"这张图在管线里
+ * 干什么"的唯一依据是 `types.roleOf`（自由文本的 `tag` 绝不参与判断，见 CardView.role 的 ★★）。
+ *
+ * ★ 逐位对齐老的 `KIND_ORDER`（face:0 / body:1 / detail:2）：`roleOf` 把老卡的
+ *   face→face、body→primary、detail→aux，所以**存量卡的分配结果一字节不变**。
+ * ★★ `display` 给 `Infinity` 只是"排最后"，**真正挡住它的是下面的 allocatable()**：
+ *   合成规格图（三视图/分栏设定稿）当人物参考图会加剧 ID 漂移（方舟指南原文），
+ *   排在最后仍可能在预算宽裕时被取上 —— 那正是"钱花了、画面更差了"。所以要硬排除。
+ */
+const ROLE_ORDER: Record<CardRole, number> = { face: 0, primary: 1, aux: 2, display: Infinity };
+
+/**
+ * 这张卡**可以进模型**的那些图（带原下标，`refUsedFlags` 要靠下标对齐）。
+ * ★ `display` 在这里就被滤掉 —— 全仓只有这一处决定"哪些图有资格参与分配"。
+ */
+function allocatable(card: Card): { view: CardView; index: number }[] {
+  return viewsOf(card)
+    .map((view, index) => ({ view, index }))
+    .filter((x) => roleOf(x.view) !== "display");
+}
 
 /** 一张真会被喂给模型的图。`index` = 它在 `viewsOf(card)` 里的下标 —— refUsedFlags 靠它对齐 */
 interface RefPick {
@@ -407,9 +429,7 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
     // 取图顺序 face→body→detail，**带着原下标**排（理由同经典路：refUsedFlags 要对齐下标）
     const ordered = chars.map((card) => ({
       card,
-      views: viewsOf(card)
-        .map((view, index) => ({ view, index }))
-        .sort((a, b) => KIND_ORDER[a.view.kind] - KIND_ORDER[b.view.kind]),
+      views: allocatable(card).sort((a, b) => ROLE_ORDER[roleOf(a.view)] - ROLE_ORDER[roleOf(b.view)]),
     }));
     /** 连第 1 张都没排上号的卡（= 这个角色根本没有形象图，最要紧） */
     const noRef: string[] = [];
@@ -450,14 +470,16 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
     // ★ 排序必须**带着原下标**排：refUsedFlags 要的是"与 viewsOf(hero) 一一对齐"的下标，
     //   而取图顺序是 face→body→detail（规则三）—— 两个顺序不是一回事，排完就丢下标
     //   会让详情页把高亮标在错的那张图上。
-    const ordered = viewsOf(hero)
-      .map((view, index) => ({ view, index }))
-      .sort((a, b) => KIND_ORDER[a.view.kind] - KIND_ORDER[b.view.kind]);
+    const ordered = allocatable(hero).sort((a, b) => ROLE_ORDER[roleOf(a.view)] - ROLE_ORDER[roleOf(b.view)]);
     for (const it of ordered.slice(0, MAX_CHAR_REFS)) picks.push({ card: hero, index: it.index, view: it.view });
   }
   const others = materials.filter((c) => c.type !== "character");
   for (const card of others) {
-    const view = viewsOf(card)[0];
+    // ★ 走 allocatable 而不是 viewsOf()[0]：这两轮是**按下标**取图的，而灵活图位之后
+    //   下标 0/1 上可能坐着一张 display（方案产出的合成规格图）—— 直接按下标取就会把
+    //   一张"永不该进模型"的图喂进去，钱照付、画面更差且零报错。
+    const it0 = allocatable(card)[0];
+    const view = it0?.view;
     if (!view) continue;
     // ★ 满了要**逐张点名**再跳过。这里原来是一句 `break`，于是挂第 4 张卡时那张
     //   连同它后面所有卡一起被**静默**丢掉 —— 用户挂了卡、付了钱、画面里没有它，
@@ -470,7 +492,10 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
       );
       continue;
     }
-    picks.push({ card, index: 0, view });
+    // ★ 下标取 it0.index（**不是**写死的 0）：allocatable 滤掉 display 之后，"第 1 张能用的"
+    //   在 viewsOf 里的真实下标可能是 1 —— 而 refUsedFlags 是拿这个下标去对齐详情页
+    //   那排「出片用 / 仅展示」徽标的，写死就会把徽标标在错的那张图上。
+    picks.push({ card, index: it0.index, view });
   }
 
   // ── 第二轮：预算还有余，非人物卡各补第 2 张 ──
@@ -478,7 +503,9 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
   //   第 3 张在这条管线里没有对应的图位可指。
   const dropped: string[] = [];
   for (const card of others) {
-    const view = viewsOf(card)[1];
+    // 同上：走 allocatable 的第 2 张，下标也从它身上取
+    const it1 = allocatable(card)[1];
+    const view = it1?.view;
     // 第一轮就没排上号的不给第 2 张：越过一张"连第 1 张都没带上"的卡去补别人的第 2 张，
     // 是把预算花在边际收益最低的地方
     if (!view || !picks.some((p) => p.card === card)) continue;
@@ -486,7 +513,7 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
       dropped.push(card.name);
       continue;
     }
-    picks.push({ card, index: 1, view });
+    picks.push({ card, index: it1.index, view });
   }
   if (dropped.length > 0) {
     // 这一条同样要点名：用户为这张图付过钱，而它这次没进模型 —— 只是原因是"预算被更
@@ -632,10 +659,10 @@ export async function prepareMaterialRefs(
   prepared.forEach((p, i) => {
     // ★ 报到**图位**那一级：两轮分配之后同一张卡可能带两张图，只说卡名的话
     //   "「废土集市」那张没采用"根本分不清是全景没进去还是局部特写没进去
+    // ★ 走 viewTag 而不是 slotLabel：图位灵活之后，用户在详情页看到的是方案给的花名
+    //   （"无面部白模三视图"），这里再说"标志性细节"就对不上他屏幕上的任何一格。
     if (!p.url) {
-      onNote?.(
-        `第 ${i + 1} 张参考图未采用（「${p.card.name}」的${slotLabel(p.card.type, p.view.kind)}，比例越界或读不出来）`,
-      );
+      onNote?.(`第 ${i + 1} 张参考图未采用（「${p.card.name}」的${viewTag(p.card.type, p.view)}，比例越界或读不出来）`);
     }
   });
   // ★★ 白模路（multiChar）逐卡门禁：挂上的**人物卡**一张形象图都没能进管线时，

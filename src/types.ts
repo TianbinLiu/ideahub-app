@@ -120,9 +120,78 @@ export function aspectFromSize(w: number, h: number): VideoAspect {
 export interface CardView {
   /** http(s) 永久地址。★ 不接受 dataURL，理由见上 */
   url: string;
+  /**
+   * **跨仓冻结的三值**（server `schemas/branchAsset.schemas.js` 的 `z.enum`）。
+   *
+   * ★★ 一个取值都不许加：加了 = 老服务端整批 400 → `emitApiError` 全 app 没人监听
+   *   → **静默丢卡**。灵活图位靠下面的 `role`/`tag` 表达，`kind` 只当"存储层与老客户端
+   *   看的那一份"，**每次写卡都要照写**（由 role 反推，见 roleToKind）——
+   *   这样老服务端拿到的仍是完全合法的三值数据，只是丢了花名：**降级而不是损坏**。
+   */
   kind: "face" | "body" | "detail";
+  /**
+   * 这张图在**出片管线**里干什么（机器读）。缺省 = 从 `kind` 推（见 roleOf）。
+   *
+   * ★★ 与 `tag` 分家是本设计的地基：`tag` 一旦是自由文本，管线就没法再回答
+   *   "这张图该不该喂给模型"。合成一位的下场是同一个词在两档方案里管线行为相反 ——
+   *   而那正是**静默扣错钱**的形状（详情页标着"出片用"、模型根本没收到）。
+   * ★ `display` 是**新增**的那一态，也是"提示词方案"能灵活的关键：方案产出的
+   *   **合成规格图**（左右分栏的设定稿、三视图、多肖像拼版）对人极有用，但方舟指南
+   *   原文说多视图素材「模型易将其识别为多个不同主体，反而加剧 ID 漂移」——
+   *   拿它当人物参考图是**主动把画面变差**。所以这类图一律 `display`：只展示、
+   *   永不进模型、也**不按"出片用"收费**。
+   */
+  role?: CardRole;
+  /**
+   * 这张图叫什么（人读）。缺省 = `slotLabel(type, kind)`（老卡与固定图位流的行为不变）。
+   * ★ 只用于界面标签，**绝不进** allocateRefs 的判断（理由见 role 的 ★★）。
+   */
+  tag?: string;
   /** 这张图的说明（例如"原图过长，已居中裁成 3:1"），详情页放大时显示 */
   note?: string;
+}
+
+/**
+ * 图位在出片管线里的语义。**受控词表**（与自由文本的 `tag` 分家，见 CardView.role）。
+ *
+ * · `face`    锁面部特征与发型发色
+ * · `primary` 锁主体（服装/体型/造型），也是能当卡面的那张
+ * · `aux`     进模型的补充参考（非人物卡第二轮真的会取它）
+ * · `display` **只展示、永不进模型**（合成规格图、原片截图这类）
+ */
+export type CardRole = "face" | "primary" | "aux" | "display";
+
+/**
+ * 读一张图的 role。**唯一实现**——别在调用点写 `v.role ?? 推一下`（那是第二处默认值）。
+ *
+ * ★ 判**存在性**：后加字段，老卡恒缺省，缺省即"按 kind 推"（CLAUDE.md「后加字段判否定」）。
+ * ★ `kind→role` 的映射逐位对齐老的 `KIND_ORDER`（face:0/body:1/detail:2）——
+ *   所以**老卡的分配结果一字节不变**（人物卡仍只取 face+body，非人物卡第二轮仍取第 2 张）。
+ * ★ 认不出的取值退 `aux` 而不是抛：`role` 和 `views` 一样是被原样收下的服务端 JSON，
+ *   编译期类型在那里是"声明出来的谎"（同 normalizeSlot 的 ★）。
+ */
+export function roleOf(view: Pick<CardView, "kind" | "role">): CardRole {
+  const r = view.role;
+  if (r === "face" || r === "primary" || r === "aux" || r === "display") return r;
+  return view.kind === "face" ? "face" : view.kind === "body" ? "primary" : "aux";
+}
+
+/**
+ * 写卡时由 role 反推那个**必须照写**的 `kind`（跨仓冻结三值，理由见 CardView.kind 的 ★★）。
+ * ★ `display` 与 `aux` 都落 `detail`：老客户端读到的是"第三优先级的补充图"，
+ *   而它在老逻辑里本来就排最后、人物卡根本取不到 —— 降级方向是安全的那一侧。
+ */
+export function roleToKind(role: CardRole): CardView["kind"] {
+  return role === "face" ? "face" : role === "primary" ? "body" : "detail";
+}
+
+/**
+ * 这张图在界面上叫什么。**唯一实现**：方案给的花名优先，没有就退回固定图位表的名字。
+ * ★ 退回而不是留空：老卡没有 tag，留空的表现是详情页三个格子都没标题。
+ */
+export function viewTag(type: CardType, view: Pick<CardView, "kind" | "tag">): string {
+  const t = typeof view.tag === "string" ? view.tag.trim() : "";
+  return t || slotLabel(type, view.kind);
 }
 
 /**

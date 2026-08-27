@@ -28,6 +28,7 @@ import {
   MAX_CARD_VIEWS,
   publishableModelUrl,
   slotLabel,
+  viewTag,
   viewsOf,
 } from "../types";
 import { useAccountVersion } from "../hooks/useAccount";
@@ -118,7 +119,7 @@ function hintFor(type: CardType): string {
  */
 function pipelineNoteFor(type: CardType, views: CardView[]): string {
   if (type !== "character") {
-    const first = views[0] ? slotLabel(type, views[0].kind) : CARD_SLOTS[type][0].label;
+    const first = views[0] ? viewTag(type, views[0]) : CARD_SLOTS[type][0].label;
     return (
       `出片时这类卡先保证第 1 张（${first}）喂给 AI；同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，` +
       `预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。` +
@@ -305,7 +306,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
             >
               <img
                 src={v.url}
-                alt={slotLabel(card.type, v.kind)}
+                alt={viewTag(card.type, v)}
                 className="h-full w-full object-cover"
                 loading="lazy"
               />
@@ -319,7 +320,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                 {used[i] ? "出片用" : "仅展示"}
               </span>
               <span className="absolute inset-x-0 bottom-0 bg-ink/75 py-0.5 text-center text-[9px] text-slate-300">
-                {slotLabel(card.type, v.kind)}
+                {viewTag(card.type, v)}
               </span>
             </button>
           ))}
@@ -363,7 +364,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
           >
             <img src={views[zoom].url} alt="" className="max-h-[70vh] max-w-full rounded-lg object-contain" />
             <div className="text-xs text-slate-300">
-              {slotLabel(card.type, views[zoom].kind)}
+              {viewTag(card.type, views[zoom])}
               {/* ★ 放大层是 portal 到 body 的整屏浮层，图下那段说明这时看不见 —— 所以
                   "可能让位"这半句必须在这里也说一次，否则用户读到的就是一句无条件的
                   "会喂给 AI"（人物卡排在别人后面、或一段挂满 3 张时都不成立）。
