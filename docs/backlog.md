@@ -132,14 +132,29 @@ POST console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/ListAuthorizationA
 3. **做不进 app 的那一步谁都做不进**：活体认证 + 登录火山账号 + 上传素材发生在**火山的 H5** 上
    ——LibTV 也一样。我们能做的是把"出示二维码"和"收结果"两头搬进 app。
 
+**✅ 探针已跑通（2026-08-27，AK/SK 直调 OpenAPI，只读零费用）**：
+- 端点确认：`POST https://open.volcengineapi.com/?Action=<Action>&Version=2024-01-01`，
+  service=`ark`、region=`cn-beijing`，**火山 V4 签名**（与 AWS SigV4 同构，terminator=`request`，
+  签名头 `content-type;host;x-content-sha256;x-date`）。
+- 鉴权确认：新建的 IAM 子用户 `ideahub-ark-api`（仅 `ArkFullAccess`、只编程访问）**签名一次通过**——
+  失败会是 403/SignatureDoesNotMatch，而实际是接口在逐字段教 schema，等于完全接受这对钥匙。
+- `ListAuthorizationAssetGroup` 的入参 schema（摸出来了）：`{ Filter: { AssetOwnership: "All" } }` → **HTTP 200**
+  `Result: { Items[], TotalCount, PageNumber, PageSize }`。`AssetOwnership` 是**枚举且大小写敏感**，
+  实测只有 **`"All"`** 收（`Owned`/`Authorized`/`Self`/`owned` 全报 `InvalidParameter`）——
+  别猜别的值，接的时候直接写 `"All"` 再在客户端按 `Items[].` 的字段筛归属。
+- ⇒ **「app 内授权」这条路成立**：server 用 AK/SK 直调即可，不依赖控制台登录态。
+  密钥进 server `.env`（`VOLC_AK`/`VOLC_SK`，已配好、已 gitignore、绝不进 app 包）。
+
 **动工前置（按顺序）**：
-1. 用户在火山 IAM 建一对 **AK/SK**（可建子用户、只授 ark 相关权限），配进 server `.env`；
-2. **一发探针**：AK/SK 直调 `ListAuthorizationAssetGroup`（只读、零风险）——通了这条路就成立，
-   被拒（console-only）就整节作废、维持手工粘贴；
-3. 「**接收授权**」那一步的 Action 还没抓到（要等真有人扫码授权后控制台才出现那颗按钮）——
-   接收前先抓它，别猜名字；
-4. ToS 面：这是正规网关格式不是逆向私有接口，但**未见公开文档** ⇒ 接受"可能变动无通知"，
-   实现里凡是调它的地方都要能整句报错并退回"去控制台手工操作"（铁律八）。
+1. ~~建 AK/SK~~ **已完成**（子用户 `ideahub-ark-api` + `ArkFullAccess`，密钥在 server `.env`）。
+2. ~~只读探针~~ **已完成**（见上，200 通过）。
+3. **`CreateAuthorizationUUID` 的入参还没摸**（生成邀约那一步）：控制台抓到了 Action 名，但
+   请求体 schema 未知——接之前先照 `ListAuthorizationAssetGroup` 那样逐字段试出来（授权时间、
+   AssetOwnership 之类）。这一步**会真的建一条邀约**，不是纯只读，试的时候用短有效期。
+4. 「**接收授权**」那一步的 Action 还没抓到（要等真有人扫码授权后控制台才出现那颗按钮）——
+   接收前先抓它，别猜名字。
+5. ToS 面：正规网关格式、非逆向私有接口，但**未见公开文档** ⇒ 接受"可能变动无通知"，
+   凡调它的地方都要能整句报错并退回"去控制台手工操作"（铁律八）。
 
 ### 1.5 产品形态（仓库主人 2026-08-24 拍板，仍然有效）
 
