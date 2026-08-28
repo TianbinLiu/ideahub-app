@@ -156,6 +156,27 @@ POST console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/ListAuthorizationA
 - ⇒ **「app 内授权」这条路成立**：server 用 AK/SK 直调即可，不依赖控制台登录态。
   密钥进 server `.env`（`VOLC_AK`/`VOLC_SK`，已配好、已 gitignore、绝不进 app 包）。
 
+**✅ 已开工（2026-08-27，server 一半 + app 骨架）**：
+- `server/src/services/arkOpenApi.service.js` —— 火山 V4 签名的**唯一实现**（AK/SK，
+  区别于 arkGateway 的 API Key 推理网关；这套不烧 token、不进钱包）。封装
+  `createAuthorizationInvite` / `listAuthorizationAssetGroups`。**端到端活测通过**
+  （真 AK/SK → 200 → 拿到 UUID）。
+- `server/src/routes/arkPortrait.routes.js` —— `POST /api/ark/portrait/invite`（生成邀约链接）、
+  `GET /api/ark/portrait/groups`（查授权/asset id）。全 requireAuth；未配 AK/SK 回 503 让 app
+  退回手填；火山业务错原样透出（502 + 火山 Code/Message）。
+- `preflight` 加了 AK/SK **半配自检**（只配一个 → 生产起不来，同 QQ 那条）。
+- `tests/arkPortrait.spec.js` 6 例：401 / 503 未开通 / days 上限 / "签了名但没真出网 + 头形状" /
+  业务错透传 / **V4 签名可复现**。107/107 绿（含既有三套）。
+- `app/src/api/portrait.ts` + 详情页「🪪 方舟可信素材」区加「🔗 在 app 内发起授权」骨架：
+  生成链接 + 复制（发给本人打开）+ 查状态。手填 asset ID 退路保留。
+
+**⚠ app UI 现在是骨架，两处等真机核对后补**（都在 docs 里标了）：
+- **二维码渲染**：现在给「复制链接」（功能等价、零依赖）。原因不只是缺 QR 库 ——
+  邀约链接的 `?uuid=` **query 参数名尚未实证**，先画二维码可能"扫了打不开"。
+  用一个真 UUID 在真机上打开核对 query 格式后，再把复制升级成二维码。
+- **授权完成后自动绑定 asset id**：`groups` 的 `items[]` 字段名要等真有一条授权入库才看得到
+  （现在恒 totalCount:0）。核对后把"查状态"接成"自动把 asset id 绑进卡"。
+
 **动工前置（按顺序）**：
 1. ~~建 AK/SK~~ **已完成**（子用户 `ideahub-ark-api` + `ArkFullAccess`，密钥在 server `.env`）。
 2. ~~只读探针~~ **已完成**（见上，200 通过）。

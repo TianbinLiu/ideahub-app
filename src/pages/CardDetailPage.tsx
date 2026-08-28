@@ -17,6 +17,7 @@ import { isRemoteMode, myCards, myDecks, shareCard } from "../data/account";
 import { addCardView, removeCardView } from "../data/cardViews";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
 import { assetOf, assetsVersion, normalizeAssetId, removeAsset, saveAsset, subscribeAssets } from "../data/cardAsset";
+import { createPortraitInvite, fetchPortraitGroups, type PortraitInvite } from "../api/portrait";
 import { formatHeat, heatOf } from "../data/social";
 import {
   CARD_INFO_LABELS,
@@ -157,6 +158,10 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
   const [draft, setDraft] = useState("");
   const [err, setErr] = useState("");
   const [open, setOpen] = useState(false);
+  /** 在 app 内发起授权的进行态：链接 + 忙 + 提示。null = 还没发起 */
+  const [invite, setInvite] = useState<PortraitInvite | null>(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteMsg, setInviteMsg] = useState("");
   const a = assetOf(card.id);
   // 非真人卡 / 别人的卡：整块不渲染（不是灰着——那会让人以为自己少做了一步）
   if (card.type !== "character" || card.realPerson !== true || !owned) return null;
@@ -172,6 +177,46 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
     void saveAsset(card.id, { assetId: id, scope: "private", note: "本人授权（方舟可信素材库）" });
     setDraft("");
     setOpen(false);
+  }
+
+  /**
+   * 在 app 内发起一条授权邀约（LibTV 同款体验的前端一半）：向服务端要一条 H5 链接，
+   * 发给被拍的本人在手机上打开完成活体认证与授权。
+   * ★ 现在只做到"生成链接 + 复制"这一步：二维码渲染与"授权完成后自动绑定 asset id"
+   *   都还依赖两处**未真机核对**的东西（链接 query 格式、授权列表 items 字段），
+   *   核对前不画会"扫了打不开"的二维码、也不假装能自动绑（docs/backlog.md §1.6）。
+   * ★ 未开通（服务端没配 AK/SK）会抛 —— 退回下面那颗手填按钮，功能不断。
+   */
+  async function startInvite() {
+    if (inviteBusy) return;
+    setInviteBusy(true);
+    setInviteMsg("");
+    try {
+      setInvite(await createPortraitInvite());
+    } catch (e) {
+      setInviteMsg(`发起授权没成：${(e instanceof Error ? e.message : String(e)).slice(0, 100)}——可以改用下面「填入方舟资产 ID」那条路`);
+    } finally {
+      setInviteBusy(false);
+    }
+  }
+
+  /** 查一次授权状态。★ items 字段未实证，这里只如实报"已授权素材有几条"，不假装能读出 id */
+  async function checkStatus() {
+    if (inviteBusy) return;
+    setInviteBusy(true);
+    setInviteMsg("");
+    try {
+      const g = await fetchPortraitGroups();
+      setInviteMsg(
+        g.totalCount > 0
+          ? `方舟里已有 ${g.totalCount} 条已授权素材。请去方舟控制台复制对应的 asset ID，填到下面。（自动绑定还在接入中）`
+          : "还没有已授权的素材——请本人扫码/打开链接、完成活体认证与授权后再查。",
+      );
+    } catch (e) {
+      setInviteMsg(`查状态没成：${(e instanceof Error ? e.message : String(e)).slice(0, 100)}`);
+    } finally {
+      setInviteBusy(false);
+    }
   }
 
   return (
@@ -200,8 +245,8 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
       ) : (
         <>
           <p className="text-[10px] leading-relaxed text-slate-500">
-            这张卡声明过是真实人物。「高清」「电影级」档**不收直接上传的真人照片**，只收本人授权过的素材
-            —— 在方舟控制台请本人扫码完成肖像授权，再把拿到的资产 ID 填在这里。
+            这张卡声明过是真实人物。「高清」「电影级」档**不收直接上传的真人照片**，只收本人授权过的素材。
+            请本人完成一次肖像授权（活体认证在方舟的页面上做），拿到资产 ID 后绑到这张卡。
           </p>
           {open ? (
             <div className="mt-2">
@@ -231,12 +276,78 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
               </div>
             </div>
           ) : (
-            <button
-              onClick={() => setOpen(true)}
-              className="mt-2 w-full rounded-lg border border-slate-600 py-1.5 text-[11px] text-slate-300"
-            >
-              ＋ 填入方舟资产 ID
-            </button>
+            <div className="mt-2 space-y-1.5">
+              {/* 路一：在 app 内发起授权（把链接发给本人）。骨架——见 startInvite 的 ★ */}
+              {invite ? (
+                <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-2">
+                  <p className="mb-1 text-[10px] leading-relaxed text-sky-200">
+                    把这条链接发给<b>本人</b>，让他在手机上打开，完成活体认证并授权（有效期至{" "}
+                    {new Date(invite.endSec * 1000).toLocaleDateString()}）：
+                  </p>
+                  <p className="break-all rounded bg-ink/60 px-2 py-1 font-mono text-[9px] text-slate-300">{invite.url}</p>
+                  <div className="mt-1.5 flex gap-2">
+                    <button
+                      onClick={() => void navigator.clipboard?.writeText(invite.url).then(() => setInviteMsg("链接已复制"))}
+                      className="flex-1 rounded-lg bg-brand py-1.5 text-[11px] font-bold text-ink"
+                    >
+                      复制链接
+                    </button>
+                    <button
+                      onClick={() => void checkStatus()}
+                      disabled={inviteBusy}
+                      className="rounded-lg border border-slate-600 px-3 text-[11px] text-slate-300 disabled:opacity-40"
+                    >
+                      {inviteBusy ? "查…" : "查授权状态"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => void startInvite()}
+                  disabled={inviteBusy}
+                  className="w-full rounded-lg border border-sky-500/40 py-1.5 text-[11px] text-sky-200 disabled:opacity-40"
+                >
+                  {inviteBusy ? "生成中…" : "🔗 在 app 内发起授权（请本人扫码）"}
+                </button>
+              )}
+              {inviteMsg && <p className="text-[10px] leading-relaxed text-slate-400">{inviteMsg}</p>}
+              {/* 路二：已在控制台授权过，直接手填 asset ID（一直保留的退路） */}
+              {open ? (
+                <div>
+                  <input
+                    value={draft}
+                    onChange={(e) => {
+                      setDraft(e.target.value);
+                      setErr("");
+                    }}
+                    placeholder="粘贴 asset ID 或 asset://…"
+                    className="w-full rounded-lg border border-slate-700 bg-ink/60 px-2.5 py-2 font-mono text-[11px] text-slate-100 placeholder:text-slate-600"
+                  />
+                  {err && <p className="mt-1 text-[10px] leading-relaxed text-rose-400">{err}</p>}
+                  <div className="mt-1.5 flex gap-2">
+                    <button onClick={save} className="flex-1 rounded-lg bg-brand py-1.5 text-[11px] font-bold text-ink">
+                      绑定
+                    </button>
+                    <button
+                      onClick={() => {
+                        setOpen(false);
+                        setErr("");
+                      }}
+                      className="rounded-lg border border-slate-700 px-3 text-[11px] text-slate-400"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setOpen(true)}
+                  className="w-full rounded-lg border border-slate-600 py-1.5 text-[11px] text-slate-300"
+                >
+                  ＋ 已在控制台授权过？直接填 asset ID
+                </button>
+              )}
+            </div>
           )}
         </>
       )}
