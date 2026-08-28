@@ -37,6 +37,8 @@
 import type { ReactNode } from "react";
 import { BLOCKOUT_INPUT_RULES } from "../../data/templates";
 import { CARD_TYPES, CARD_TYPE_LABELS } from "../../types";
+// 自制卡那份要报比例上限：方舟的硬约束，数只能从这里取（数字一律插值，见 ★★）
+import { REF_MAX_RATIO } from "../../utils/image";
 
 export interface GuideStep {
   title: string;
@@ -912,6 +914,60 @@ export const TOURS: GuideTour[] = [
           <>
             发布后<b className="font-bold text-slate-100">内容不可再改</b>（编辑页只能改标题、封面这些壳），
             想换内容就重新发一条。「放弃本次合成」会把这条成片丢掉 —— 点它会先问你一句。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "customcard",
+    title: "自己传图做卡片",
+    // 2026-08-28 文案收纳：页面顶上那块三条 bullet 的对比说明压成一句，展开讲在这。
+    // 首次进页强制放一遍，"这是另一条路、默认铸卡不用传图"这件事仍然人人看得到。
+    version: 1,
+    steps: [
+      {
+        title: "这是另一条路",
+        anchor: "cc-compare",
+        body: (
+          <>
+            默认铸卡是 <b className="font-bold text-slate-100">AI 全自动出图</b>（3D 工坊找铸卡师），
+            一张图都不用传。这一页反过来：全用你自己的图，
+            <b className="font-bold text-slate-100">不调模型、不耗 token</b>，也没有 AI 帮你补图位。
+            铸出来的卡与 AI 铸的完全同一种东西 —— 能进卡组、当出片的形象参考、发布到创意工坊。
+          </>
+        ),
+      },
+      {
+        title: "图位怎么摆",
+        anchor: "cc-slots",
+        body: (
+          <>
+            卡种决定有哪几个图位、每格锁住什么（一把剑不该有「全身立绘」）；换卡种时对不上的格子会被
+            取下来并当场告诉你。<b className="font-bold text-slate-100">第一格既是卡面也是主形象参考</b>：
+            卡框是竖版 2:3，别的比例会居中显示，不裁你的图。
+          </>
+        ),
+      },
+      {
+        title: "图会被怎么处理",
+        body: (
+          <>
+            相册原图直接选：会自动压到 AI 认得出的尺寸，长宽比超过 {REF_MAX_RATIO}:1 的会被居中裁进
+            {REF_MAX_RATIO}:1（方舟不收更极端的参考图），裁过会在那一格里写明。出片时
+            <b className="font-bold text-slate-100">不是每张都会喂进模型</b>：取几张要看这张卡在那一段里
+            排第几、同段还挂了几张卡 —— 详情页会逐张标「出片用 / 仅展示」，那里是唯一的判据。
+          </>
+        ),
+      },
+      {
+        title: "写给 AI 的那段信息",
+        anchor: "cc-info",
+        body: (
+          <>
+            第 ④ 步那段信息，之后 AI 复刻这张卡的画面 / 建模时会读，
+            <b className="font-bold text-slate-100">写得越具体越像</b>。不填也行 ——
+            详情页会按卡名与简介现补一份。
           </>
         ),
       },
