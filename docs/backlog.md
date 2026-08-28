@@ -233,6 +233,30 @@ POST console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/ListAuthorizationA
   一份可用的都没有但有失败的 → **把方舟的原话摆出来**；一条都没有 → 再问一次组，
   分清"还没授权"与"授权了但没传素材"。spec 加 2 例（入参三件套 + "原因透出 & 直链不许外泄"）。
 
+- **⚠⚠ `ListAssets` 对不认识的 `Filter` 键静默忽略**（2026-08-28 补探，**先写错过一次**）：
+  `AssetType:"__bogus__"` / `Status:"__bogus__"` 都照样 200 + 全量返回，不报错。
+  ⇒ 按组过滤**只有复数 `GroupIds:[…]` 生效，单数 `GroupId` 是被忽略的**。
+  写成单数的后果零报错：「按这个组查」悄悄返回了**所有组**的素材，拿去自动绑就可能把
+  **别人那份肖像素材**绑到这张卡上。
+  ★ 更值得记的是**当初为什么判错**：验证时拿的是"唯一那份素材所在的组"，而**生效与被忽略
+  在这种测法下结果一模一样**——那不是证据。改用**空组**（结果应该为 0）才定案：
+  | 条件 | TotalCount |
+  |---|---|
+  | 只给 GroupType（全量） | 1 |
+  | `GroupId` = 空组 | **1**（被忽略） |
+  | `GroupIds` = [空组] | 0 |
+  | `GroupIds` = [有料组] | 1 |
+  ⇒ 给这个 Filter 加任何新键，一律拿**"结果应该为空"的反例**证一遍。
+
+- **枚举值问不出来**（试过，记下省得再试）：给 `GroupType` / `AssetOwnership` 传非法值，
+  火山只回 `InvalidParameter.X is invalid`，**不列合法值**。
+
+- **「接收授权」的 Action 仍未抓到**：`Accept/Reject/Confirm/Audit/Review + Authorization…`
+  等 10 个候选**全部 404**。猜名字这条路已经走不通 ⇒ 等真有**别人**授权给本账号时，
+  从控制台的网络请求里抓（`console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/<Action>`）。
+  ⚠ 本账号目前是自己授权自己（`AssetOwnership:"SelfUploaded"`），根本走不到那颗按钮 ——
+  也就是说**自己给自己授权不需要"接收"这一步**，这条路现在是通的。
+
 - **仍未验**：过审的素材长什么状态、以及**绑上之后 hd/ultra 真出一次片**
   （手上还是没有一个可用 asset id —— 那份被审核拒了）。
 
