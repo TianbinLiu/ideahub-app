@@ -51,8 +51,11 @@ export interface PortraitAsset {
   /** 所属资产组 `group-…` */
   groupId?: string;
   /**
-   * 方舟给的状态。**只实证到 `"Failed"`**（成功那个字符串还没见过）——
-   * 所以判读一律**判否定**：`status !== "Failed"` 才当可用，别去写 `=== "成功值"`。
+   * 方舟给的状态。实证到两个值：过审的是 `"Active"`、被内容审核拒掉的是 `"Failed"`
+   * （2026-08-28）。
+   * ⚠ 知道了成功值也**别改成 `=== "Active"` 白名单**：处理中/审核中那几个状态串
+   *   我们仍然没见过，白名单会把它们一律判成不可用 —— 那是"传上去了却一直说没有"。
+   *   判读一律**判否定**，见 assetUsable。
    */
   status?: string;
   /** 审核失败的原因，**必须让用户看见**（否则就是"授权成功但用不了"的静默失败） */
@@ -72,8 +75,10 @@ export async function fetchPortraitAssets(groupId?: string): Promise<{ totalCoun
 
 /**
  * 这份素材能不能拿去出片。**判据唯一实现** —— UI 与自动绑定都问它。
- * ★ 判否定：只有明确 `Failed` 才算不可用。成功态的字符串我们没见过，写白名单会把
- *   将来出现的新状态（Processing/Succeeded/…）一律误判成不可用，那是"功能突然没了"。
+ * ★ 判否定：只有明确 `Failed` 才算不可用。过审的实测是 `"Active"`，但处理中那几个
+ *   状态串仍未见过 —— 写成白名单会把它们一律误判成不可用，那是"功能突然没了"。
+ * ⚠ 它只回答"方舟这份素材本身有没有问题"，**不保证出片一定成功**：账号没开通
+ *   「Asset Service」时，`asset://` 会在出片那一刻被整条 400（见 docs/backlog.md §1.6）。
  */
 export function assetUsable(a: PortraitAsset): boolean {
   return a.status !== "Failed";

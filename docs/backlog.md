@@ -266,8 +266,35 @@ POST console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/ListAuthorizationA
   ⚠ 本账号目前是自己授权自己（`AssetOwnership:"SelfUploaded"`），根本走不到那颗按钮 ——
   也就是说**自己给自己授权不需要"接收"这一步**，这条路现在是通的。
 
-- **仍未验**：过审的素材长什么状态、以及**绑上之后 hd/ultra 真出一次片**
-  （手上还是没有一个可用 asset id —— 那份被审核拒了）。
+- ~~过审的素材长什么状态~~ **已实证（2026-08-28）：`Status: "Active"`**
+  （`asset-20260828141416-5zb5l`，`AssetType:"Image"`）。可用性判据仍然**判否定**
+  （`assetUsable = status !== "Failed"`）—— 现在知道成功值叫 Active，但别改成
+  `=== "Active"` 白名单：处理中/审核中那些状态串我们还是没见过，白名单会把它们
+  一律判成不可用。
+
+- **⚠⚠ 出片前置：方舟账号必须开通「Asset Service」，否则 `asset://` 整条 400。**
+  2026-08-28 拿真 asset id 直连方舟出片（hd / `doubao-seedance-2-0-mini-260615`，
+  `reference_image` 带 `asset://`）拿到的原话：
+  > `InvalidParameter` · `content[1].image_url.url` … `Your account has not activated
+  > the Asset Service. You may activate it at https://console.volcengine.com/ark/
+  > region:ark+cn-beijing/openManagement?…&tab=ComputerVision`
+
+  两条结论：
+  ① **`asset://` 这个形状是被认的** —— 报错是"服务没开通"，不是"参数看不懂"，
+     也就是说请求体拼对了（`{type:"image_url", image_url:{url:"asset://…"},
+     role:"reference_image"}`）；
+  ② 这是**账号级开关**，和「开通 2.0 系列模型」是两件事，要在**开通管理 →
+     ComputerVision** 那一页单独开。⇒ 归到"部署前置"里，与 keystore、
+     `public/models/protected/` 同一类：不开就是**每一次**真人卡出片都 400。
+  ★ 失败是**同步 400、未受理、不扣费**，且报错点名了参数与开通地址 —— 这一发探针
+    因此是**零成本**的。
+  ⚠ 那句报错对**终端用户**没有意义（控制台是我们的账号，他打不开也开不了）。
+    真要给用户看，得翻成"平台侧未开通"，别把控制台链接原样甩给他
+    （CLAUDE.md「界面上摆一个用户看不懂也做不了事的东西」）。目前**没做**这层翻译 ——
+    开通之后这条错基本不会再出现，不值得为它现在加一处映射；等真撞上再说。
+
+- **仍未验**：开通 Asset Service 之后**真出一次片**（这是最后一环；探针脚本的请求体
+  已经拼好并验过形状，开通后重跑即可）。
 
 **动工前置（按顺序）**：
 1. ~~建 AK/SK~~ **已完成**（子用户 `ideahub-ark-api` + `ArkFullAccess`，密钥在 server `.env`）。
