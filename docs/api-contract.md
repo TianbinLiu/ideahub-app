@@ -1484,7 +1484,7 @@ body `{ roles: [{ label, desc }] }`（**1~9 条**，见上面 `roles` 的铁则 
 | GET | `/api/auth/me` | 只返回登录态字段（`_id/username/email/role/avatarUrl`），**不含 displayName/bio** |
 | GET | `/api/me/profile` | 本次新增，对称于既有的 PUT，返回 `username/displayName/bio/avatarUrl/role/createdAt`。缺了它换设备登录后昵称会退回 username |
 | PUT | `/api/me/profile` | `{ displayName?, bio?, avatarUrl? }`，返回更新后的 user |
-| POST | `/api/me/deactivate` | `{ confirmUsername }` —— 注销账号（**软删除**：打 `deactivatedAt` 标记 + `tokenVersion++` 让全部旧 token 立即 401「Account deactivated」，内容数据不删、管理员可恢复）。confirmUsername 与本人 username **严格全等**（不 trim、区分大小写），客户端不得预先加工。App 入口：设置 → 注销账号（2026-08-28，仅远端模式显示）。⚠ 已知：登录端点本身不查 `deactivatedAt`——注销后再登录仍会发 token，但随后每个带鉴权的请求都 401 |
+| POST | `/api/me/deactivate` | `{ confirmUsername }` —— 注销账号（**软删除**：打 `deactivatedAt` 标记 + `tokenVersion++` 让全部旧 token 立即 401，内容数据不删、管理员可恢复）。confirmUsername 与本人 username **严格全等**（不 trim、区分大小写），客户端不得预先加工。App 入口：设置 → 注销账号（2026-08-28，仅远端模式显示）。注销后**登录也被拦**：拒签收口在 server 的 `utils/jwt.signToken`（所有签发路径唯一收口），401 整句「账号已注销……support@ 可恢复」；错误密码仍报通用凭据错误，不泄露注销状态。（此处曾误记为「登录仍发 token」——那是把被拒后的空 token 当 `NOTOKEN` 发出去的测法错误，2026-08-28 复查更正并在 server 补了整链测试） |
 
 ### 登录方式按出口 IP 分流
 
