@@ -19,6 +19,7 @@ import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/ca
 import { assetOf, assetsVersion, normalizeAssetId, removeAsset, saveAsset, subscribeAssets } from "../data/cardAsset";
 import { createPortraitInvite, fetchPortraitGroups, type PortraitInvite } from "../api/portrait";
 import QrCode from "../components/QrCode";
+import { isNative } from "../utils/oauth";
 import { formatHeat, heatOf } from "../data/social";
 import {
   CARD_INFO_LABELS,
@@ -201,6 +202,30 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
     }
   }
 
+  /**
+   * 「授权的就是我自己」这条路：**不用扫码**，直接在本机浏览器打开那一页。
+   *
+   * ★★ 二维码的全部作用是"把链接搬到**另一个人的**手机上" —— 当被拍的就是本机用户时，
+   *   链接已经在手上了，扫自己屏幕上的码是绕远路。所以两条路并排给：
+   *   本机打开（我授权我自己）/ 二维码与链接（授权别人）。
+   * ★ 走系统浏览器而不是 app 内 WebView：那一页要**登录被授权人自己的火山账号**并做活体
+   *   人脸认证，系统浏览器才有已登录态与相机权限，也让用户看得见地址栏是 volcengine.com
+   *   （在我们自己的 WebView 里让人输火山密码，是钓鱼页的形状）。
+   */
+  async function openHere(url: string) {
+    if (!isNative()) {
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    try {
+      const { Browser } = await import("@capacitor/browser");
+      await Browser.open({ url });
+    } catch (e) {
+      // 插件缺失不静默：用户点了必须有回音，并给出可行动的退路
+      setInviteMsg(`打不开系统浏览器（${e instanceof Error ? e.message : String(e)}）——用下面的「复制链接」自己粘到浏览器里`);
+    }
+  }
+
   /** 查一次授权状态。★ items 字段未实证，这里只如实报"已授权素材有几条"，不假装能读出 id */
   async function checkStatus() {
     if (inviteBusy) return;
@@ -282,8 +307,19 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
               {invite ? (
                 <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-2">
                   <p className="mb-1.5 text-[10px] leading-relaxed text-sky-200">
-                    让<b>本人</b>用手机扫下面这个码（或把链接发给他打开），完成活体认证并授权。
-                    授权有效期至 {new Date(invite.endSec * 1000).toLocaleDateString()}。
+                    完成一次活体认证并授权，授权有效期至 {new Date(invite.endSec * 1000).toLocaleDateString()}。
+                  </p>
+                  {/* 路一：被拍的就是本机用户 —— 不用扫码，直接打开 */}
+                  <button
+                    onClick={() => void openHere(invite.url)}
+                    className="mb-2 w-full rounded-lg bg-brand py-2 text-[12px] font-bold text-ink"
+                  >
+                    📱 就是我本人 · 在这台手机上完成授权
+                  </button>
+                  <p className="mb-1.5 text-[10px] leading-relaxed text-slate-400">
+                    要授权的是<b className="text-slate-300">别人</b>？让他用自己的手机扫这个码
+                    —— 活体认证必须在<b className="text-slate-300">他本人</b>的手机上、用他自己的火山账号做，
+                    这正是这份授权有效的原因。
                   </p>
                   {/* 二维码：当面扫最快。★ 白底黑点写死不吃主题色（对比度是功能） */}
                   <div className="mb-1.5 flex justify-center rounded-lg bg-white p-2">
