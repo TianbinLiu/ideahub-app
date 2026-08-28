@@ -4,7 +4,7 @@
 //   被拍者扫）、轮询授权状态拿 asset id。密钥全在服务端，app 只见链接与状态。
 // ★ 未开通（服务端没配 AK/SK）时 server 回 503 —— 调用方据此退回"去方舟控制台手工创建
 //   资产组 + 手工粘贴 asset id"那条老路（cardAsset 那颗手填按钮一直在）。
-import { apiGet, apiPost } from "./client";
+import { API_BASE, apiGet, apiPost, getToken } from "./client";
 
 /** 一条邀约：uuid + 可渲染成二维码的 H5 链接 + 授权有效期（秒级时间戳） */
 export interface PortraitInvite {
@@ -71,6 +71,29 @@ export async function fetchPortraitAssets(groupId?: string): Promise<{ totalCoun
   const q = groupId ? `?groupId=${encodeURIComponent(groupId)}` : "";
   const r = await apiGet<{ ok: boolean; totalCount: number; items: PortraitAsset[] }>(`/api/ark/portrait/assets${q}`);
   return { totalCount: r.totalCount ?? 0, items: Array.isArray(r.items) ? r.items : [] };
+}
+
+/**
+ * 取某份授权素材的**图片本体**（服务端代取，直链不外泄）——造卡时把授权照片
+ * 自动填进卡面/图位用。失败 throw 整句（调用方退回"从相册自己选"并把原因摆出来）。
+ * ★ 不走 apiGet：那条只解 JSON，这里要的是字节。鉴权头与 client 同一来源（getToken）。
+ */
+export async function fetchPortraitAssetImage(assetId: string): Promise<Blob> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE}/api/ark/portrait/assets/${encodeURIComponent(assetId)}/image`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const j = (await res.json()) as { message?: string };
+      if (j.message) msg = j.message;
+    } catch {
+      /* 非 JSON 就用状态码 */
+    }
+    throw new Error(msg);
+  }
+  return res.blob();
 }
 
 /**

@@ -570,18 +570,29 @@ function EditorPanel() {
           {editor.generating ? editor.progress || "AI 正在推演三种走向…" : "生成"}
         </button>
         </div>
-        {/* 自定义直出（主人点名的第三车道·工坊面）：跳过推演，把上面那张卡里的帧 +
-            视频要求直接铺成一张已选定的方案卡 —— 这一步免费，出片仍走方案台那颗
-            「炼这一段视频」（报价与 generateSegment 一行没改）。
-            尾帧就在左边那张卡上传（推演路上它是虚框，这条路允许现在就给）。 */}
-        <button
-          onClick={() => useStudio.getState().layCustomNode()}
-          disabled={editor.generating || !editor.requirement.trim()}
-          title={!editor.requirement.trim() ? "先写一句视频要求（缺的帧按它补画）" : undefined}
-          className="mt-1.5 w-full rounded-xl border border-slate-600 py-2 text-[12px] text-slate-300 disabled:opacity-40"
-        >
-          ✍ 直接生成方案（跳过推演 · 免费）——用我给的首尾帧
-        </button>
+        {/* ✍ 自定义直出（主人点名的第三选项·工坊面）：跳过推演，把左边那张卡里的
+            首尾帧 + 视频要求直接铺成一张已选定的方案卡 —— 这一步免费，出片仍走
+            方案台那颗「炼这一段视频」（报价与 generateSegment 一行没改）。
+            上一版只是一颗沉在底部的小按钮，实测被认定"没有这个选项"——升成带
+            标题的区块，尾帧怎么给也写清楚。 */}
+        <div className="mt-2 rounded-xl border border-slate-600/70 bg-white/[0.03] p-2">
+          <p className="text-[11px] font-semibold text-slate-200">✍ 自定义直出（不用 AI 推演方案）</p>
+          <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">
+            首帧/尾帧在<b className="text-slate-300">左边那张卡</b>上传（尾帧点卡里「换结束帧」），
+            写好上面的视频要求后从这里直接铺成方案——免费；出片仍在方案台按原价。缺的帧由 AI 按要求补画。
+          </p>
+          <button
+            onClick={() => useStudio.getState().layCustomNode()}
+            disabled={editor.generating || !editor.requirement.trim()}
+            title={!editor.requirement.trim() ? "先写一句视频要求（缺的帧按它补画）" : undefined}
+            className="mt-1.5 w-full rounded-lg bg-slate-200/90 py-2 text-[12px] font-bold text-ink disabled:opacity-40"
+          >
+            ✍ 用我给的首尾帧直接生成方案（免费）
+          </button>
+          {!editor.requirement.trim() && (
+            <p className="mt-1 text-[9px] text-slate-600">先在上面写一句视频要求，这颗键才亮（缺的帧按它补画）</p>
+          )}
+        </div>
           </>
         )}
       </div>

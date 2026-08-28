@@ -24,6 +24,7 @@ import SegSettings from "./SegSettings";
 import PlanBoard from "../../studio/ui/PlanBoard";
 import FuseFrameSheet, { fuseSourcesOf } from "../../studio/ui/FuseFrameSheet";
 import CustomFrameSlots from "./CustomFrameSlots";
+import { fileToFrameDataUrl } from "../../utils/image";
 import {
   chosenOf,
   clampCursor,
@@ -715,6 +716,8 @@ function NodePanel({
   const custom = !!node.custom && !tplMode && !flatTier;
   /** 融图开在哪一帧上（自定义车道；方案台里那份由 PlanBoard 自己带） */
   const [fuse, setFuse] = useState<"first" | "last" | null>(null);
+  /** 中间帧选图（拆段）的文件口 */
+  const midFileRef = useRef<HTMLInputElement>(null);
   const [picker, setPicker] = useState(false);
   const [cardPick, setCardPick] = useState(false);
   const [castAsk, setCastAsk] = useState(false);
@@ -771,7 +774,9 @@ function NodePanel({
         </button>
       )}
 
-      {/* 模式切换：切到另一侧是真操作（套/摘模板），不是换皮。摘的确认在下面那块 */}
+      {/* 模式切换：**三个并排选项**（主人点名的形状——自定义与另两个是同级选项，
+          不是藏在自选里的开关）。切换是真操作（套/摘模板、setNodeCustom），不是换皮。
+          摘模板的确认在下面那块；套着模板点「自定义」由 store 整句拒并指路（先摘）。 */}
       <div data-guide="canvas-modes" className="flex gap-1 self-start rounded-full bg-panel p-0.5">
         <button
           onClick={() => !tplMode && setPicker(true)}
@@ -783,13 +788,23 @@ function NodePanel({
           🧪 套模板
         </button>
         <button
-          onClick={() => tplMode && setStripAsk(true)}
+          onClick={() => (tplMode ? setStripAsk(true) : custom ? setNodeCustom(node.id, false) : undefined)}
           disabled={locked || generating || busy || done}
           className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
-            !tplMode ? "bg-brand font-bold text-ink" : "text-slate-400"
+            !tplMode && !custom ? "bg-brand font-bold text-ink" : "text-slate-400"
           }`}
         >
           🃏 自选卡片
+        </button>
+        <button
+          onClick={() => !custom && setNodeCustom(node.id, true)}
+          disabled={locked || generating || busy || done || flatTier}
+          title={flatTier ? "真人档本来就是直出，不需要再切自定义" : undefined}
+          className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
+            custom ? "bg-brand font-bold text-ink" : "text-slate-400"
+          }`}
+        >
+          ✍ 自定义
         </button>
       </div>
       {/* ★ 已出片的段：换模板/换模式会作废这段成片，store 本来就整句拒 —— 与其让用户
@@ -959,22 +974,6 @@ function NodePanel({
               </div>
             )}
           </div>
-          {/* 自定义直出开关（第三车道）：真人档已经是直出，摆两个开关只会打架 */}
-          {!flatTier && (
-            <label className="flex items-center gap-2 rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-[11px] text-slate-200">
-              <input
-                type="checkbox"
-                checked={custom}
-                disabled={locked || generating || busy}
-                onChange={(e) => setNodeCustom(node.id, e.target.checked)}
-                className="h-4 w-4 flex-none accent-brand"
-              />
-              <span className="min-w-0 flex-1">
-                ✍ 自定义首尾帧<span className="text-slate-500">（自己传帧/融图，跳过方案台直出）</span>
-              </span>
-            </label>
-          )}
-
           {custom && (
             <>
               {/* 首/尾帧编辑（markup 在 CustomFrameSlots 一份，简约那面共用）：
@@ -1017,6 +1016,42 @@ function NodePanel({
                   );
                 })}
               </div>
+              {/* 中间帧（选填）：在这里把本段拆成两段——本段到中间帧为止，新段接着它。
+                  规则唯一实现在 flowStore.insertMidFrame（方舟没有中间帧参数，
+                  "N 张关键帧 = N-1 段 + 真实尾帧承接"就是它的真实形状）。 */}
+              {mode === "workflow" && (
+                <button
+                  onClick={() => {
+                    midFileRef.current?.click();
+                  }}
+                  disabled={locked || generating || busy}
+                  className="w-full rounded-lg border border-dashed border-slate-600 py-2 text-[11px] text-slate-300 disabled:opacity-40"
+                >
+                  ＋ 插一张中间帧（把这一段拆成两段，接缝无缝）
+                </button>
+              )}
+              <input
+                ref={midFileRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!f) return;
+                  void fileToFrameDataUrl(f).then(
+                    (d) => {
+                      useFlow.getState().insertMidFrame(node.id, d);
+                    },
+                    (err) => useFlow.setState({ err: err instanceof Error ? err.message : String(err) }),
+                  );
+                }}
+              />
+              {/* 示例视频（整段参考视频）如实说没开——它要过服务端的 r2v 计费闸
+                  （只认登记过的模板视频），下一批单独做。别摆一个点不动的传视频框 */}
+              <p className="text-[9px] leading-relaxed text-slate-600">
+                示例视频（传一段本地视频当整段参考）还没开：要过服务端计费闸，下一版做。现在的等价做法是「套模板」。
+              </p>
             </>
           )}
 

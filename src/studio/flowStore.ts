@@ -577,6 +577,9 @@ interface FlowState {
   /** 把某一段切进/切出「自定义直出」（FlowNode.custom 的唯一写点）。
    *  返回 false = 被拒（原因在 err，铁律八） */
   setNodeCustom: (id: string, on: boolean) => boolean;
+  /** 自定义车道的「中间帧」：把这一段在该帧处**拆成两段**（本段到中间帧为止，
+   *  紧随其后插入一段同为自定义的新段接着它）。返回 false = 被拒（原因在 err） */
+  insertMidFrame: (id: string, dataUrl: string) => boolean;
   removeNode: (id: string) => void;
   setCursor: (i: number) => void;
   shiftCursor: (dir: 1 | -1) => void;
@@ -1538,6 +1541,70 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return true;
     }
     set((st) => ({ nodes: st.nodes.map((n) => (n.id === id ? { ...n, custom: false } : n)), err: "" }));
+    return true;
+  },
+
+  /**
+   * 「中间帧」的真实形状（方舟单段只有 first/last_frame，没有中间帧参数）：
+   * 用户给一张中间帧 = 本段的目标尾帧换成它 + 紧随其后插一段新的自定义段，
+   * 新段的目标尾帧继承本段原来的目标尾帧 —— N 张关键帧就这样逐次铺成 N-1 段，
+   * 相邻段靠既有「真实尾帧承接」无缝（chain:true，genNode 的 carry 一行没改）。
+   *
+   * ★ 插入（不是追加）会让后面段的**下标**整体后移 —— 本仓有一整条坑位讲"按下标记段"
+   *   的事故（CLAUDE.md）。安全的前提是全店已收口到认 id：genNode 写回按 id 重找、
+   *   agent 提案带 nodeId、面板 key={node.id}。这里再加一道闸：生成中一律拒。
+   * ★ 只对自定义段开放：普通段的尾帧属于所选方案（AI 画的），在它身上"拆段"语义不明。
+   * ★ 与 addNode 的追加门槛不冲突：那道闸挡的是"上一段没炼完就**开工下一段**"，
+   *   而拆段只是把**计划**切细，生成顺序仍被 clampCursor 钉死 —— 与模板一次铺 N 段同理。
+   */
+  insertMidFrame: (id, dataUrl) => {
+    const s = get();
+    const idx = s.nodes.findIndex((n) => n.id === id);
+    const node = s.nodes[idx];
+    if (!node || !dataUrl) return false;
+    if (s.mode === "simple") {
+      set({ err: "简约模式只有一段，插不了中间帧——要多段接力去「工作流」里做" });
+      return false;
+    }
+    if (s.busy || s.nodes.some((n) => n.status === "generating")) {
+      set({ err: "有一段正在生成中，等它跑完再拆段（现在拆会让写回打在另一段上）" });
+      return false;
+    }
+    if (nodeDone(node)) {
+      set({ err: "这一段已经出片，拆不了——想改分段就先删掉本段再重新铺" });
+      return false;
+    }
+    if (!node.custom) {
+      set({ err: "先把这一段切到「✍ 自定义」再插中间帧（普通段的尾帧由所选方案决定）" });
+      return false;
+    }
+    const p = chosenOf(node);
+    const next = newFlowNode(idx + 1, {
+      custom: true,
+      chain: true, // 新段承接本段的真实尾帧起拍——这正是"剪辑无缝"的接缝
+      videoTier: node.videoTier,
+      aspect: node.aspect,
+    });
+    next.tpl = null; // 自定义段恒明确无模板（理由见 setNodeCustom 的 ★）
+    next.proposals[0].durationSec = p.durationSec;
+    // 新段接过本段**原来的**目标尾帧（含用户上锁状态）；本段的目标尾帧换成中间帧
+    next.proposals[0].lastFrame = p.lastFrame;
+    if (p.lastFrame && p.pinned?.last) next.proposals[0].pinned = { last: true };
+    set((st) => {
+      const nodes = pinUnstatedTpl(st.nodes, st.template).map((n) =>
+        n.id === id
+          ? {
+              ...n,
+              proposals: n.proposals.map((pp) =>
+                pp.id === n.chosenId ? { ...pp, lastFrame: dataUrl, pinned: { ...pp.pinned, last: true }, degraded: undefined } : pp,
+              ),
+            }
+          : n,
+      );
+      const at = nodes.findIndex((n) => n.id === id);
+      nodes.splice(at + 1, 0, next);
+      return { nodes, err: "" };
+    });
     return true;
   },
 
