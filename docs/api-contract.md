@@ -1850,6 +1850,35 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
   `omni_reference_task_type` 的行为）与账单都没核过，没核过的价不进表；促销价（4 折）
   一律不写，价目只记刊例。
 
+## 真人肖像授权（方舟可信素材）
+
+挂载点：`/api/ark/portrait/*`（`routes/arkPortrait.routes.js`），全部 `requireAuth`。
+**与上面那条方舟代理不是一回事**：代理走推理网关 + API Key、烧 token 进钱包；这三条走
+**管控 OpenAPI**（`open.volcengineapi.com`）+ **AK/SK 的火山 V4 签名**，不烧 token、不进钱包。
+AK/SK 只在服务端（`VOLC_AK`/`VOLC_SK`），**永不进 app 包**。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/ark/portrait/invite` | `{days?:1..366=365}` → `{ok,uuid,url,startSec,endSec}`。`url` 就是给本人打开/扫码那一页 |
+| GET | `/api/ark/portrait/groups` | 资产**组**（授权那一层）→ `{ok,totalCount,items}`，items 原样透传方舟 |
+| GET | `/api/ark/portrait/assets` | 资产组里的**素材**（出片要用的 `asset-…`）→ `{ok,totalCount,items:[{id,name,assetType,groupId,status,error?,createTime}]}`；`?groupId=` 可只看一个组 |
+
+三条硬约束（都是踩出来的，改这块之前先读）：
+
+- **组 ≠ 素材，是两层**。`groups` 回 `Authorized` **不代表**有素材能出片：素材要单独过内容
+  审核，可能整张 `Status:"Failed"` 而组那一层照样写着已授权（2026-08-28 实测第一发就是
+  `InputImageSensitiveContentDetected.PolicyViolation`）。⇒ **判"能不能出片"只准问 `assets`**，
+  拿 `groups.totalCount` 当依据就会告诉用户"已有 N 条已授权素材"而他一条都用不了。
+- **`assets` 是白名单挑字段，不是透传** —— 只为把方舟回的 `Items[].URL` 挡在服务端：那是带签名的
+  TOS 直链（`X-Tos-Expires=41400`），指向**某个真人的肖像原图**。app 只需要 id 与能不能用，
+  把直链发到端上等于把肖像原图发出去。spec 里钉了"回包里不许出现 `X-Tos-Signature`"。
+- **`status` 不在服务端判可用性**：成功那个字符串至今没见过（只实证到 `"Failed"`）。
+  ⇒ 客户端**判否定**：`status !== "Failed"` 才当可用（`api/portrait.ts` 的 `assetUsable`，
+  唯一实现）。写白名单会把将来出现的新状态一律误判成不可用 = 功能突然没了。
+- 未配 AK/SK 一律 **503 `PORTRAIT_NOT_CONFIGURED`**（不是 500），app 据此退回"控制台手工授权 +
+  手填 asset ID"那条路；方舟的业务错**原样** 502 透出 Code/Message，`assets` 的
+  `error.message` 必须一路走到用户眼前（那是他唯一能据以补救的信息）。
+
 ## AI token 钱包
 
 挂载点：`app.use("/api/me/wallet", require("./routes/wallet.routes"))`，全部 `requireAuth`。

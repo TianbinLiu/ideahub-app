@@ -17,7 +17,14 @@ import { isRemoteMode, myCards, myDecks, shareCard } from "../data/account";
 import { addCardView, removeCardView } from "../data/cardViews";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
 import { assetOf, assetsVersion, normalizeAssetId, removeAsset, saveAsset, subscribeAssets } from "../data/cardAsset";
-import { createPortraitInvite, fetchPortraitGroups, type PortraitInvite } from "../api/portrait";
+import {
+  assetUsable,
+  createPortraitInvite,
+  fetchPortraitAssets,
+  fetchPortraitGroups,
+  type PortraitAsset,
+  type PortraitInvite,
+} from "../api/portrait";
 import QrCode from "../components/QrCode";
 import { isNative } from "../utils/oauth";
 import { formatHeat, heatOf } from "../data/social";
@@ -151,9 +158,11 @@ function pipelineNoteFor(type: CardType, views: CardView[]): string {
  *
  * ★ 只对**自己的真人卡**出现：别人的卡看不到本机侧库；非真人卡根本不需要它
  *   （方舟只拦真人人脸）。
- * ★★ 这一屏**不承诺我们做不到的事**：授权二维码是方舟控制台生成的、素材检索也只有
- *   控制台有（官方没有列表 API，见 docs/backlog.md §1）。所以这里如实写"去方舟控制台
- *   做授权、把 ID 复制回来"，而不是画一个我们根本给不出的扫码按钮。
+ * ★★ 三条路并排，都在这一屏里（2026-08-28 起）：本机打开授权 / 二维码给别人 /
+ *   手填 asset ID。**手填那条永远保留** —— 服务端没配 AK/SK 时前两条会 503，
+ *   那时手填就是唯一的路（铁律八：坏了要有出口）。
+ *   ⚠ 这里此前写着"官方没有列表 API、只能手填"，**已作废**：2026-08-28 探到
+ *   `ListAssets`，所以「查授权状态」现在能真读到 asset id 并自动绑（见 checkStatus）。
  */
 function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
   useSyncExternalStore(subscribeAssets, assetsVersion, () => 0);
@@ -164,6 +173,12 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
   const [invite, setInvite] = useState<PortraitInvite | null>(null);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteMsg, setInviteMsg] = useState("");
+  /**
+   * 「查授权状态」查回来的素材。null = 还没查过。
+   * ★ 存**全部**（含审核失败的）而不是只存可用的：失败那几条正是用户最需要看见的
+   *   —— 组写着「已授权」但素材被内容审核拒掉时，不给出原因就是"授权成功却用不了"的静默失败。
+   */
+  const [found, setFound] = useState<PortraitAsset[] | null>(null);
   const a = assetOf(card.id);
   // 非真人卡 / 别人的卡：整块不渲染（不是灰着——那会让人以为自己少做了一步）
   if (card.type !== "character" || card.realPerson !== true || !owned) return null;
@@ -184,9 +199,9 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
   /**
    * 在 app 内发起一条授权邀约（LibTV 同款体验的前端一半）：向服务端要一条 H5 链接，
    * 发给被拍的本人在手机上打开完成活体认证与授权。
-   * ★ 现在只做到"生成链接 + 复制"这一步：二维码渲染与"授权完成后自动绑定 asset id"
-   *   都还依赖两处**未真机核对**的东西（链接 query 格式、授权列表 items 字段），
-   *   核对前不画会"扫了打不开"的二维码、也不假装能自动绑（docs/backlog.md §1.6）。
+   * ★ 链接格式与「授权完成后自动绑定 asset id」都已核对完（2026-08-27 真机验链接、
+   *   2026-08-28 用真授权抠出 `ListAssets` 的字段），所以这一屏现在是**整条通的**：
+   *   发起 → 本人授权 → 回来点「查授权状态」→ 自动绑上（见 checkStatus）。
    * ★ 未开通（服务端没配 AK/SK）会抛 —— 退回下面那颗手填按钮，功能不断。
    */
   async function startInvite() {
@@ -226,18 +241,64 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
     }
   }
 
-  /** 查一次授权状态。★ items 字段未实证，这里只如实报"已授权素材有几条"，不假装能读出 id */
+  /** 把一份素材绑到这张卡上。唯一实现 —— 自动绑与手点「用这一份」都走它 */
+  function bindAsset(id: string, note: string) {
+    saveAsset(card.id, { assetId: id, scope: "private", note }).catch(() => {
+      // 侧库写不进去要出声：不然用户以为绑好了，出片时才发现还是旧状态（铁律八）
+      setInviteMsg("绑定没存住（本机存储写入失败）——再点一次；一直不行就用下面手填那条路。");
+    });
+  }
+
+  /**
+   * 查一次授权状态，**能确定就直接绑**。
+   *
+   * ★★ 查的是**素材**不是资产组：组「已授权」和"有素材能出片"是两回事 ——
+   *   素材要单独过内容审核，可能整张 `Failed` 而组那一层照样写着 Authorized
+   *   （2026-08-28 实测第一发就是：`InputImageSensitiveContentDetected.PolicyViolation`）。
+   *   只看组的 totalCount 就会告诉用户"已有 N 条已授权素材"，而他一条都用不了。
+   * ★ 四种结局各说各的，不合并成一句模糊的：
+   *   ① 正好一份可用 → **自动绑**（用户点这颗键的意图就是"接上"，再让他挑一次是多余的）；
+   *   ② 多份可用 → 列出来让他挑（我们无从知道哪份是这张卡的人）；
+   *   ③ 一份可用的都没有但有失败的 → **把方舟的原话说出来**，那是他唯一能据以补救的信息；
+   *   ④ 一条素材都没有 → 再问一次组，好分清"还没授权"与"授权了但没传素材"。
+   */
   async function checkStatus() {
     if (inviteBusy) return;
     setInviteBusy(true);
     setInviteMsg("");
     try {
-      const g = await fetchPortraitGroups();
-      setInviteMsg(
-        g.totalCount > 0
-          ? `方舟里已有 ${g.totalCount} 条已授权素材。请去方舟控制台复制对应的 asset ID，填到下面。（自动绑定还在接入中）`
-          : "还没有已授权的素材——请本人扫码/打开链接、完成活体认证与授权后再查。",
-      );
+      const r = await fetchPortraitAssets();
+      setFound(r.items);
+      const usable = r.items.filter(assetUsable);
+      const failed = r.items.filter((x) => !assetUsable(x));
+
+      if (usable.length === 1) {
+        // 归一/格式判据只有 cardAsset 一处。方舟自己给的 id 理应过得了，过不了就不猜着绑
+        const id = normalizeAssetId(usable[0].id || "");
+        if (!id) {
+          setInviteMsg(`方舟回了一份素材，但 ID 形状不认识（${usable[0].id}）——请用下面手填那条路确认一下。`);
+        } else {
+          bindAsset(id, "本人授权（方舟可信素材库）");
+          setInviteMsg("已经把这份已授权素材绑到这张卡上了 —— 出片走「高清」「电影级」档时就用它。");
+        }
+      } else if (usable.length > 1) {
+        setInviteMsg(`方舟里有 ${usable.length} 份可用素材，挑一份绑到这张卡上：`);
+      } else if (failed.length > 0) {
+        const f = failed[0];
+        setInviteMsg(
+          `授权是成了，但${failed.length > 1 ? `这 ${failed.length} 份素材` : "上传的那份素材"}` +
+            `没过方舟的内容审核，所以还不能用来出片。方舟给的原因：${f.error?.message || f.error?.code || "（没给原因）"}` +
+            `。请本人重新打开授权链接、换一张照片再传一次。`,
+        );
+      } else {
+        // 一条素材都没有：分清"没授权"和"授权了没传"
+        const g = await fetchPortraitGroups();
+        setInviteMsg(
+          g.totalCount > 0
+            ? `已经有 ${g.totalCount} 个资产组，但里面一份素材都没有 —— 请本人打开授权链接，走完活体认证后**把照片传上去**。`
+            : "还没有已授权的素材——请本人扫码/打开链接、完成活体认证与授权后再查。",
+        );
+      }
     } catch (e) {
       setInviteMsg(`查状态没成：${(e instanceof Error ? e.message : String(e)).slice(0, 100)}`);
     } finally {
@@ -358,6 +419,48 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
                 </button>
               )}
               {inviteMsg && <p className="text-[10px] leading-relaxed text-slate-400">{inviteMsg}</p>}
+              {/* 查回来的素材：可用的给一颗「用这一份」；失败的把方舟的原话摆出来。
+                  ★ 只在"要用户做点什么"时才渲染 —— 正好一份可用时已经自动绑了，
+                    再列一遍只是噪音（那时 found 里那一份也不满足下面两个分支）。 */}
+              {found?.filter(assetUsable).length ? (
+                found.filter(assetUsable).length > 1 ? (
+                  <div className="space-y-1">
+                    {found.filter(assetUsable).map((it) => (
+                      <button
+                        key={it.id}
+                        onClick={() => {
+                          const id = normalizeAssetId(it.id || "");
+                          if (!id) {
+                            setInviteMsg(`这份的 ID 形状不认识（${it.id}）——用下面手填那条路试试。`);
+                            return;
+                          }
+                          bindAsset(id, "本人授权（方舟可信素材库）");
+                          setFound(null);
+                          setInviteMsg("绑好了 —— 出片走「高清」「电影级」档时就用这一份。");
+                        }}
+                        className="w-full rounded-lg border border-slate-700 bg-ink/40 px-2 py-1.5 text-left"
+                      >
+                        <span className="block font-mono text-[10px] text-emerald-300">{it.id}</span>
+                        <span className="block text-[9px] text-slate-500">
+                          {it.name || "（无文件名）"}
+                          {it.createTime ? ` · ${new Date(it.createTime).toLocaleString()}` : ""}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null
+              ) : null}
+              {found?.some((x) => !assetUsable(x)) && (
+                <div className="space-y-1">
+                  {found
+                    .filter((x) => !assetUsable(x))
+                    .map((it) => (
+                      <p key={it.id} className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-2 py-1.5 text-[9px] leading-relaxed text-rose-300">
+                        ✗ {it.name || it.id} 没过审核：{it.error?.message || it.error?.code || "方舟没给原因"}
+                      </p>
+                    ))}
+                </div>
+              )}
               {/* 路二：已在控制台授权过，直接手填 asset ID（一直保留的退路） */}
               {open ? (
                 <div>

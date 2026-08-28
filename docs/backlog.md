@@ -196,8 +196,45 @@ POST console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/ListAuthorizationA
   ⚠ 待观察：H5 底部那颗 CTA 写的是「扫码上传人像资产」—— 带着 `?uuid=` 进去、
   登录后到底是直接续上这条邀约，还是仍要再扫一次码，**登录后才看得到**。若是后者，
   「就是我本人」这条路要改成"本机扫自己屏幕上的码"以外的走法，文案也得跟着改。
-- **授权完成后自动绑定 asset id**：`groups` 的 `items[]` 字段名要等真有一条授权入库才看得到
-  （现在恒 totalCount:0）。核对后把"查状态"接成"自动把 asset id 绑进卡"。
+- ~~**授权完成后自动绑定 asset id**~~ **已完成（2026-08-28，用真授权抠出字段后接的）**。
+  这一发探针纠正了一个从头错到尾的假设：
+
+  **★★ 组 ≠ 素材，是两层**（此前一直当成一层，`asset://` 差点就拿组 ID 去拼了）：
+  - `ListAuthorizationAssetGroup` → **组**：`Items[] = { AssetGroup:{Id:"group-20260828131552-jlbz5",
+    Name,GroupType:"LivenessFace",ProjectName,CreateTime,UpdateTime}, Status:"Authorized",
+    Validity:{Start,End}, AccountType:"Company", CompanyName, CreditCode, AssetOwnership:"SelfUploaded" }`
+  - `ListAssets` → **素材**（出片要的那个）：`Items[] = { Id:"asset-20260828131637-4872q", Name, URL,
+    AssetType:"Image", GroupId, Status, Error?:{Code,Message}, Moderation:{Strategy},
+    CreateTime, UpdateTime, ProjectName }`
+    入参必填三件：`Filter.GroupType:"LivenessFace"` + `PageNumber` + （`PageSize` 不给走默认 10）；
+    `Filter.GroupId`（**单数**）生效。
+  - `GetAuthorizationAssetGroup{GroupId}` / `GetAssetGroup{Id}` 也存在（单组详情）。
+  - 不存在（全 404 `InvalidActionOrVersion`）：`ListAuthorizationAsset(s)` / `ListAsset` /
+    `ListAssetGroupAsset` / `ListLivenessFaceAsset` / `DescribeAuthorizationAssetGroup`。
+    ⇒ 找 Action 名的手法记一下：**空 body 打一发**，不存在回 404 `InvalidActionOrVersion`、
+    存在但缺参回 400 `MissingParameter.X` —— 一发就能把名字和必填参数一起问出来。
+
+  **⚠⚠ 组 `Authorized` ≠ 有素材可用**，而且这正是第一次真授权的结局：两个组都 `Authorized`，
+  素材却只有 1 份且 `Status:"Failed"`、`Error.Code = InputImageSensitiveContentDetected.PolicyViolation`
+  （"输入图片可能涉及版权限制"），另一个组里 0 份。**只看组就是"看起来成了、其实一张都不能用"**
+  —— 老的「查授权状态」正是只看组，会回一句"已有 2 条已授权素材，去控制台复制 ID"，
+  而控制台里根本没有可复制的可用 ID。已改成只认 `assets`。
+
+  **⚠ `Validity.End` 回来是 `253399593600`（≈9999 年 = 永久），不是我们建邀约时给的一年**
+  —— 有效期最终由授权人在火山那一页选，我们的 `days` 只是建议值。别拿它当"到期时间"显示。
+
+  **⚠ `Status` 只见过 `"Failed"`**（还没有一张过审的），所以可用性一律**判否定**
+  （`assetUsable = status !== "Failed"`，`api/portrait.ts` 唯一实现）。等真有一张过审的，
+  把成功那个字符串补进注释。
+
+  落地：server `listPortraitAssets` + `GET /api/ark/portrait/assets`（**白名单挑字段，
+  把签名 TOS 直链挡在服务端** —— 那是真人肖像原图，`X-Tos-Expires=41400`）；
+  app 的「查授权状态」四种结局各说各的：正好一份可用 → **自动绑**；多份 → 列出来挑；
+  一份可用的都没有但有失败的 → **把方舟的原话摆出来**；一条都没有 → 再问一次组，
+  分清"还没授权"与"授权了但没传素材"。spec 加 2 例（入参三件套 + "原因透出 & 直链不许外泄"）。
+
+- **仍未验**：过审的素材长什么状态、以及**绑上之后 hd/ultra 真出一次片**
+  （手上还是没有一个可用 asset id —— 那份被审核拒了）。
 
 **动工前置（按顺序）**：
 1. ~~建 AK/SK~~ **已完成**（子用户 `ideahub-ark-api` + `ArkFullAccess`，密钥在 server `.env`）。

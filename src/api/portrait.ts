@@ -27,12 +27,54 @@ export async function createPortraitInvite(days?: number): Promise<PortraitInvit
 }
 
 /**
- * 资产组列表（查授权状态 / asset id）。
- * ⚠⚠ `items[]` 的字段名**尚未实证**（要等真有一条授权入库）——所以这里返回 `unknown[]`，
- *   刻意不硬造 TS 结构。真授权跑通后再定 asset id / 状态 / 演员名 的读法
- *   （docs/backlog.md §1.6 的 TODO）。硬造字段的下场是"看起来有值其实全 undefined"。
+ * 资产组列表（**授权那一层**：授没授权、几个组）。
+ * ⚠⚠ 组「已授权」**不等于**有素材能出片 —— 素材要单独过内容审核，可能整张失败而组照样
+ *   写着 Authorized（2026-08-28 实测第一发就是）。要判"能不能出片"用 fetchPortraitAssets。
+ * ★ items[] 仍是 `unknown[]`：这一层的消费方只用 totalCount，没有读字段的需求，
+ *   写一份 TS 结构出来只会多一处要跟着方舟改的地方。
  */
 export async function fetchPortraitGroups(): Promise<{ totalCount: number; items: unknown[] }> {
   const r = await apiGet<{ ok: boolean; totalCount: number; items: unknown[] }>("/api/ark/portrait/groups");
   return { totalCount: r.totalCount ?? 0, items: Array.isArray(r.items) ? r.items : [] };
+}
+
+/**
+ * 一份可信素材。字段名 2026-08-28 用真授权逐字段实证（服务端已挑过字段、去掉了肖像直链）。
+ */
+export interface PortraitAsset {
+  /** `asset-20260828131637-4872q` —— 出片时拼成 `asset://<id>` 的那个 */
+  id: string;
+  /** 上传时的文件名，用户用来认"这是哪一张" */
+  name?: string;
+  /** "Image" / 视频音频另有值 */
+  assetType?: string;
+  /** 所属资产组 `group-…` */
+  groupId?: string;
+  /**
+   * 方舟给的状态。**只实证到 `"Failed"`**（成功那个字符串还没见过）——
+   * 所以判读一律**判否定**：`status !== "Failed"` 才当可用，别去写 `=== "成功值"`。
+   */
+  status?: string;
+  /** 审核失败的原因，**必须让用户看见**（否则就是"授权成功但用不了"的静默失败） */
+  error?: { code?: string; message?: string };
+  createTime?: string;
+}
+
+/**
+ * 素材列表（**出片要用的 asset id 在这里**）。
+ * @param groupId 只看某个资产组；不给 = 本账号全部真人肖像素材
+ */
+export async function fetchPortraitAssets(groupId?: string): Promise<{ totalCount: number; items: PortraitAsset[] }> {
+  const q = groupId ? `?groupId=${encodeURIComponent(groupId)}` : "";
+  const r = await apiGet<{ ok: boolean; totalCount: number; items: PortraitAsset[] }>(`/api/ark/portrait/assets${q}`);
+  return { totalCount: r.totalCount ?? 0, items: Array.isArray(r.items) ? r.items : [] };
+}
+
+/**
+ * 这份素材能不能拿去出片。**判据唯一实现** —— UI 与自动绑定都问它。
+ * ★ 判否定：只有明确 `Failed` 才算不可用。成功态的字符串我们没见过，写白名单会把
+ *   将来出现的新状态（Processing/Succeeded/…）一律误判成不可用，那是"功能突然没了"。
+ */
+export function assetUsable(a: PortraitAsset): boolean {
+  return a.status !== "Failed";
 }
