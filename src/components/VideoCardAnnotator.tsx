@@ -15,8 +15,12 @@ import { AI_REAL, portraitViews } from "../ai";
 import { addCards, canAfford, createDeck, spendTokens } from "../data/account";
 import { fmtTokens, schemeCost } from "../data/economy";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
+import { saveAsset } from "../data/cardAsset";
+import { pcmToVoiceWav } from "../utils/wav";
+import PortraitAuthPanel from "./PortraitAuthPanel";
 import {
   defaultScheme,
+  defaultSchemeFor,
   exampleIssue,
   isGenerated,
   listSchemes,
@@ -116,6 +120,17 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
    */
   const [realPerson, setRealPerson] = useState(false);
   const [consentOk, setConsentOk] = useState(false);
+  /**
+   * 造卡时就拿到的授权素材（PortraitAuthPanel 交出来的）。此时卡还没有 id，
+   * 只能攒在这里 —— addCards 成功后才写 cardAsset 侧库（与 pendingVoice 同一条规则：
+   * 卡没入库，挂上去就是永远读不到的孤儿）。
+   */
+  const [pendingAsset, setPendingAsset] = useState<{ assetId: string; note: string } | null>(null);
+  /**
+   * 用户有没有**亲手**挑过方案。勾「真人」时只在没挑过的情况下把默认换成无脸
+   * （defaultSchemeFor 的 ★：主推是默认值不是强制，不许覆盖用户已经挑好的）。
+   */
+  const schemeTouched = useRef(false);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   /** 本次会话已入库的卡（卡组模式攒着最后建组；卡片模式只作"已存 N 张"计数） */
@@ -276,36 +291,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     return cv.toDataURL("image/jpeg", 0.9);
   }
 
-  /** 16-bit 单声道 WAV 封装（44 字节头 + PCM）。24k 采样下 15s ≈ 720KB，dataURL ≈ 960KB */
-  function wavDataUrl(samples: Float32Array, rate: number): string {
-    const buf = new ArrayBuffer(44 + samples.length * 2);
-    const dv = new DataView(buf);
-    const ws = (o: number, str: string) => {
-      for (let i = 0; i < str.length; i++) dv.setUint8(o + i, str.charCodeAt(i));
-    };
-    ws(0, "RIFF");
-    dv.setUint32(4, 36 + samples.length * 2, true);
-    ws(8, "WAVEfmt ");
-    dv.setUint32(16, 16, true);
-    dv.setUint16(20, 1, true);
-    dv.setUint16(22, 1, true);
-    dv.setUint32(24, rate, true);
-    dv.setUint32(28, rate * 2, true);
-    dv.setUint16(32, 2, true);
-    dv.setUint16(34, 16, true);
-    ws(36, "data");
-    dv.setUint32(40, samples.length * 2, true);
-    for (let i = 0; i < samples.length; i++) {
-      const x = Math.max(-1, Math.min(1, samples[i]));
-      dv.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7fff, true);
-    }
-    let bin = "";
-    const u8 = new Uint8Array(buf);
-    for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode(...u8.subarray(i, i + 0x8000));
-    return "data:audio/wav;base64," + btoa(bin);
-  }
-
-  /** 播一遍选段并抓 PCM → 重采样 24k 单声道 → WAV。失败整句报（铁律八） */
+  /** 播一遍选段并抓 PCM → 重采样 24k 单声道 → WAV（编码走 utils/wav 唯一实现）。失败整句报（铁律八） */
   async function grabVoice() {
     const v = videoRef.current;
     if (!v || vStart === null || vEnd === null || recording) return;
@@ -366,17 +352,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         off += a.length;
       }
       pcm.current = [];
-      // 重采样到 24k 单声道：体积减半，人声音色无损（16k 就够电话级，24k 留了余量）
-      const out = 24000;
-      const off2 = new OfflineAudioContext(1, Math.ceil((keep / rate) * out), out);
-      const ab = off2.createBuffer(1, keep, rate);
-      ab.copyToChannel(flat, 0);
-      const node = off2.createBufferSource();
-      node.buffer = ab;
-      node.connect(off2.destination);
-      node.start();
-      const rendered = await off2.startRendering();
-      const dataUrl = wavDataUrl(rendered.getChannelData(0), out);
+      // 重采样 + WAV 封装走共用件（采样率的取舍钉在 utils/wav 的 VOICE_SAMPLE_RATE 上）
+      const dataUrl = await pcmToVoiceWav(flat, rate);
       setPendingVoice({
         dataUrl,
         durationSec: Math.round(secs * 10) / 10,
@@ -522,6 +499,10 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       if (type === "character" && pendingVoice) {
         await saveVoice(card.id, pendingVoice);
       }
+      // 造卡时做完的肖像授权同理（不进 Card——理由见 data/cardAsset 顶注）
+      if (declareReal && pendingAsset) {
+        await saveAsset(card.id, { assetId: pendingAsset.assetId, scope: "private", note: pendingAsset.note });
+      }
       setSaved((s) => [...s, card]);
       setCrops([]);
       setRawCrops(null);
@@ -532,9 +513,11 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       setPendingVoice(null);
       setVStart(null);
       setVEnd(null);
-      // 声明是逐卡的表态，不许带到下一张：残留一个勾着的"真人"比空着危险得多
+      // 声明是逐卡的表态，不许带到下一张：残留一个勾着的"真人"比空着危险得多。
+      // 授权素材同理 —— 它属于**这个人**，带到下一张就是把 A 的肖像绑给 B 的卡
       setRealPerson(false);
       setConsentOk(false);
+      setPendingAsset(null);
     } finally {
       setBusy("");
     }
@@ -639,7 +622,16 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                       setRealPerson(e.target.checked);
                       // 取消真人 = 撤回整个声明，协议勾选一起清：留着它，下次一勾"真人"
                       // 就直接带着"已同意"入库，那一下用户根本没看协议
-                      if (!e.target.checked) setConsentOk(false);
+                      if (!e.target.checked) {
+                        setConsentOk(false);
+                        // 授权素材是跟着"真人"声明走的：声明撤了它就没有挂处
+                        setPendingAsset(null);
+                      }
+                      // 真人素材默认主推无脸方案（唯一实现 defaultSchemeFor）；
+                      // 用户亲手挑过的不动 —— 主推是默认值，不是强制
+                      if (!schemeTouched.current) {
+                        setSchemeId(defaultSchemeFor({ realPerson: e.target.checked }).id);
+                      }
                       setErr("");
                     }}
                     className="h-4 w-4 flex-none accent-brand"
@@ -664,6 +656,28 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                       />
                       我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担
                     </label>
+                    {/* 授权挪进造卡流程（2026-08-28 拍板）：勾了真人当场就能把肖像授权做掉，
+                        不必等卡存完再去详情页找。拿到的 assetId 攒在 pendingAsset，
+                        存卡成功才落 cardAsset 侧库（与声音样本同一条规则）。 */}
+                    <div className="mt-1 rounded-lg border border-slate-700/70 bg-ink/30 p-2">
+                      <p className="mb-1.5 text-[10px] leading-relaxed text-slate-400">
+                        🪪 <b className="text-slate-300">方舟可信素材</b>（真人出片的合规通道）：「高清」「电影级」档
+                        <b className="text-slate-300">不收直接上传的真人照片</b>，只收本人授权过的素材。现在就能做：
+                      </p>
+                      {pendingAsset ? (
+                        <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
+                          <span className="min-w-0">
+                            <span className="block text-[10px] text-emerald-200">已接上授权素材，存卡时一并绑定</span>
+                            <span className="block truncate font-mono text-[9px] text-emerald-300/80">{pendingAsset.assetId}</span>
+                          </span>
+                          <button onClick={() => setPendingAsset(null)} className="flex-none text-[10px] text-slate-500">
+                            取消
+                          </button>
+                        </div>
+                      ) : (
+                        <PortraitAuthPanel onBound={(assetId, note) => setPendingAsset({ assetId, note })} />
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -749,6 +763,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                           key={sc.id}
                           onClick={() => {
                             setSchemeId(sc.id);
+                            schemeTouched.current = true; // 亲手挑过 → 勾真人时不再替他换成无脸
                             setSchemeOpen(false);
                           }}
                           className={`w-full rounded-md px-2 py-1.5 text-left ${

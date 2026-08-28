@@ -278,6 +278,20 @@ export function defaultScheme(): PromptScheme {
 }
 
 /**
+ * 按"是不是真人素材"给默认方案 —— **「无脸方案主推」这条产品规则的唯一实现**
+ * （设计文档 §B2 / backlog"三条合规真人路"：真人素材最不容易被拒的产出形态是无脸/背影，
+ *   所以勾了真人就把它当默认；市场排序的无脸置顶在 listSchemes，是同一条规则的另一半）。
+ *
+ * ★ 只管**默认值**，不管强制：用户手动换成别的（比如已做完肖像授权、想要正脸立绘）
+ *   完全合法 —— 调用方要自己记「用户碰过没有」，别在勾选真人时把人家挑好的方案覆盖掉。
+ * ★ 判否定兜底：无脸内置项万一被下掉，退回 defaultScheme() 而不是 undefined 崩掉调用方。
+ */
+export function defaultSchemeFor(o: { realPerson?: boolean }): PromptScheme {
+  if (o.realPerson) return BUILTIN_SCHEMES.find((s) => s.faceless) ?? defaultScheme();
+  return defaultScheme();
+}
+
+/**
  * 「这份方案能不能存 / 能不能用」—— **唯一实现**（编辑屏与 `saveScheme` 都问它）。
  * null = 没问题，否则是一句给用户看的整句原因（铁律八：说清为什么，别只把按钮变灰）。
  *

@@ -86,6 +86,13 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 跟读录音（真人卡录本人音色样本，components/VoiceRecorder）。
+         Capacitor 的 WebChromeClient 收到页面 getUserMedia 的 PermissionRequest 时，
+         只有清单里声明了这条才会去弹系统授权——不声明就是**静默拒**，页面只看到
+         NotAllowedError，一句系统弹窗都没有。⚠ 老包（versionCode ≤40）没有这条：
+         老包上跟读永远拿不到麦克风，VoiceRecorder 的报错文案专门写了这一情况 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <!-- Android 11+ 的包可见性。不声明这条，QQ SDK 查不到本机装没装 QQ，
          isSupportSSOLogin 恒为 false —— 装了 QQ 的用户也会被塞进 H5 授权页，

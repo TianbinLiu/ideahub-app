@@ -16,17 +16,8 @@ import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHo
 import { isRemoteMode, myCards, myDecks, shareCard } from "../data/account";
 import { addCardView, removeCardView } from "../data/cardViews";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
-import { assetOf, assetsVersion, normalizeAssetId, removeAsset, saveAsset, subscribeAssets } from "../data/cardAsset";
-import {
-  assetUsable,
-  createPortraitInvite,
-  fetchPortraitAssets,
-  fetchPortraitGroups,
-  type PortraitAsset,
-  type PortraitInvite,
-} from "../api/portrait";
-import QrCode from "../components/QrCode";
-import { isNative } from "../utils/oauth";
+import { assetOf, assetsVersion, saveAsset, subscribeAssets } from "../data/cardAsset";
+import PortraitAuthPanel from "../components/PortraitAuthPanel";
 import { formatHeat, heatOf } from "../data/social";
 import {
   CARD_INFO_LABELS,
@@ -153,368 +144,40 @@ function pipelineNoteFor(type: CardType, views: CardView[]): string {
 }
 
 /**
- * 「方舟可信素材」区：真人卡做完肖像授权后，把方舟给的资产 ID 填在这里，出片就走
- * `asset://<id>` 而不是那张照片 —— 这是方舟的**官方合规通道**（不是绕过检测）。
+ * 「方舟可信素材」窄条 —— 只在**坏了**的时候出现：真人卡 + 还没绑上素材。
  *
- * ★ 只对**自己的真人卡**出现：别人的卡看不到本机侧库；非真人卡根本不需要它
- *   （方舟只拦真人人脸）。
- * ★★ 三条路并排，都在这一屏里（2026-08-28 起）：本机打开授权 / 二维码给别人 /
- *   手填 asset ID。**手填那条永远保留** —— 服务端没配 AK/SK 时前两条会 503，
- *   那时手填就是唯一的路（铁律八：坏了要有出口）。
- *   ⚠ 这里此前写着"官方没有列表 API、只能手填"，**已作废**：2026-08-28 探到
- *   `ListAssets`，所以「查授权状态」现在能真读到 asset id 并自动绑（见 checkStatus）。
+ * ★★ 2026-08-28 仓库主人拍板：授权的主路挪进**造卡流程**（自己传图 / 从视频提取里
+ *   勾「真人」当场做，共用 components/PortraitAuthPanel 一份实现），详情页不再常驻
+ *   整块授权区 —— 绑上素材后这里**整块消失**。
+ *   这条窄条存在的唯一理由是授权**异步**：本人可能隔天才扫码，照片还可能被内容审核
+ *   拒掉（2026-08-28 第一发实测就被拒：InputImageSensitiveContentDetected）——
+ *   造卡时没接上的真人卡总得有个就地修复的地方，不能逼人删卡重来。
+ * ★ 只对自己的卡出现（别人的卡看不到本机侧库）。
+ * ★ 绑定后**没有解绑入口**是有意的（同一次拍板「绑上即消失」）：绑错只剩"手填填错"
+ *   一种来路，而手填两处都过 normalizeAssetId。真要换绑，等出现真实需求再开口子，
+ *   别为想象中的操作摆按钮。
  */
 function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
   useSyncExternalStore(subscribeAssets, assetsVersion, () => 0);
-  const [draft, setDraft] = useState("");
-  const [err, setErr] = useState("");
-  const [open, setOpen] = useState(false);
-  /** 在 app 内发起授权的进行态：链接 + 忙 + 提示。null = 还没发起 */
-  const [invite, setInvite] = useState<PortraitInvite | null>(null);
-  const [inviteBusy, setInviteBusy] = useState(false);
-  const [inviteMsg, setInviteMsg] = useState("");
-  /**
-   * 「查授权状态」查回来的素材。null = 还没查过。
-   * ★ 存**全部**（含审核失败的）而不是只存可用的：失败那几条正是用户最需要看见的
-   *   —— 组写着「已授权」但素材被内容审核拒掉时，不给出原因就是"授权成功却用不了"的静默失败。
-   */
-  const [found, setFound] = useState<PortraitAsset[] | null>(null);
-  const a = assetOf(card.id);
-  // 非真人卡 / 别人的卡：整块不渲染（不是灰着——那会让人以为自己少做了一步）
+  const [saveErr, setSaveErr] = useState("");
   if (card.type !== "character" || card.realPerson !== true || !owned) return null;
-
-  function save() {
-    // 归一（"asset://xxx" 与纯 id 都收）与格式判据都只有 cardAsset 一处
-    const id = normalizeAssetId(draft);
-    if (!id) {
-      setErr("这不像方舟的资产 ID —— 应该长成 asset-20260401123823-6d4x2 这样（在方舟控制台点「复制 asset ID」拿到）");
-      return;
-    }
-    setErr("");
-    void saveAsset(card.id, { assetId: id, scope: "private", note: "本人授权（方舟可信素材库）" });
-    setDraft("");
-    setOpen(false);
-  }
-
-  /**
-   * 在 app 内发起一条授权邀约（LibTV 同款体验的前端一半）：向服务端要一条 H5 链接，
-   * 发给被拍的本人在手机上打开完成活体认证与授权。
-   * ★ 链接格式与「授权完成后自动绑定 asset id」都已核对完（2026-08-27 真机验链接、
-   *   2026-08-28 用真授权抠出 `ListAssets` 的字段），所以这一屏现在是**整条通的**：
-   *   发起 → 本人授权 → 回来点「查授权状态」→ 自动绑上（见 checkStatus）。
-   * ★ 未开通（服务端没配 AK/SK）会抛 —— 退回下面那颗手填按钮，功能不断。
-   */
-  async function startInvite() {
-    if (inviteBusy) return;
-    setInviteBusy(true);
-    setInviteMsg("");
-    try {
-      setInvite(await createPortraitInvite());
-    } catch (e) {
-      setInviteMsg(`发起授权没成：${(e instanceof Error ? e.message : String(e)).slice(0, 100)}——可以改用下面「填入方舟资产 ID」那条路`);
-    } finally {
-      setInviteBusy(false);
-    }
-  }
-
-  /**
-   * 「授权的就是我自己」这条路：**不用扫码**，直接在本机浏览器打开那一页。
-   *
-   * ★★ 二维码的全部作用是"把链接搬到**另一个人的**手机上" —— 当被拍的就是本机用户时，
-   *   链接已经在手上了，扫自己屏幕上的码是绕远路。所以两条路并排给：
-   *   本机打开（我授权我自己）/ 二维码与链接（授权别人）。
-   * ★ 走系统浏览器而不是 app 内 WebView：那一页要**登录被授权人自己的火山账号**并做活体
-   *   人脸认证，系统浏览器才有已登录态与相机权限，也让用户看得见地址栏是 volcengine.com
-   *   （在我们自己的 WebView 里让人输火山密码，是钓鱼页的形状）。
-   */
-  async function openHere(url: string) {
-    if (!isNative()) {
-      window.open(url, "_blank", "noopener,noreferrer");
-      return;
-    }
-    try {
-      const { Browser } = await import("@capacitor/browser");
-      await Browser.open({ url });
-    } catch (e) {
-      // 插件缺失不静默：用户点了必须有回音，并给出可行动的退路
-      setInviteMsg(`打不开系统浏览器（${e instanceof Error ? e.message : String(e)}）——用下面的「复制链接」自己粘到浏览器里`);
-    }
-  }
-
-  /** 把一份素材绑到这张卡上。唯一实现 —— 自动绑与手点「用这一份」都走它 */
-  function bindAsset(id: string, note: string) {
-    saveAsset(card.id, { assetId: id, scope: "private", note }).catch(() => {
-      // 侧库写不进去要出声：不然用户以为绑好了，出片时才发现还是旧状态（铁律八）
-      setInviteMsg("绑定没存住（本机存储写入失败）——再点一次；一直不行就用下面手填那条路。");
-    });
-  }
-
-  /**
-   * 查一次授权状态，**能确定就直接绑**。
-   *
-   * ★★ 查的是**素材**不是资产组：组「已授权」和"有素材能出片"是两回事 ——
-   *   素材要单独过内容审核，可能整张 `Failed` 而组那一层照样写着 Authorized
-   *   （2026-08-28 实测第一发就是：`InputImageSensitiveContentDetected.PolicyViolation`）。
-   *   只看组的 totalCount 就会告诉用户"已有 N 条已授权素材"，而他一条都用不了。
-   * ★ 四种结局各说各的，不合并成一句模糊的：
-   *   ① 正好一份可用 → **自动绑**（用户点这颗键的意图就是"接上"，再让他挑一次是多余的）；
-   *   ② 多份可用 → 列出来让他挑（我们无从知道哪份是这张卡的人）；
-   *   ③ 一份可用的都没有但有失败的 → **把方舟的原话说出来**，那是他唯一能据以补救的信息；
-   *   ④ 一条素材都没有 → 再问一次组，好分清"还没授权"与"授权了但没传素材"。
-   */
-  async function checkStatus() {
-    if (inviteBusy) return;
-    setInviteBusy(true);
-    setInviteMsg("");
-    try {
-      const r = await fetchPortraitAssets();
-      setFound(r.items);
-      const usable = r.items.filter(assetUsable);
-      const failed = r.items.filter((x) => !assetUsable(x));
-
-      if (usable.length === 1) {
-        // 归一/格式判据只有 cardAsset 一处。方舟自己给的 id 理应过得了，过不了就不猜着绑
-        const id = normalizeAssetId(usable[0].id || "");
-        if (!id) {
-          setInviteMsg(`方舟回了一份素材，但 ID 形状不认识（${usable[0].id}）——请用下面手填那条路确认一下。`);
-        } else {
-          bindAsset(id, "本人授权（方舟可信素材库）");
-          setInviteMsg("已经把这份已授权素材绑到这张卡上了 —— 出片走「高清」「电影级」档时就用它。");
-        }
-      } else if (usable.length > 1) {
-        setInviteMsg(`方舟里有 ${usable.length} 份可用素材，挑一份绑到这张卡上：`);
-      } else if (failed.length > 0) {
-        // ★ 这里**不重复**方舟那段原因：下面每一份失败素材各有一行红字带着原话
-        //   （真机上量过：方舟的 message 是一长串英文 + Request ID，说两遍占了大半屏，
-        //   而两遍是同一句话）。这一句只管"发生了什么、接下来做什么"。
-        setInviteMsg(
-          `授权是成了，但${failed.length > 1 ? `这 ${failed.length} 份素材都` : "上传的那份素材"}` +
-            `没过方舟的内容审核（原因见下），所以还不能用来出片。` +
-            `请本人重新打开授权链接、换一张照片再传一次。`,
-        );
-      } else {
-        // 一条素材都没有：分清"没授权"和"授权了没传"
-        const g = await fetchPortraitGroups();
-        setInviteMsg(
-          g.totalCount > 0
-            ? `已经有 ${g.totalCount} 个资产组，但里面一份素材都没有 —— 请本人打开授权链接，走完活体认证后**把照片传上去**。`
-            : "还没有已授权的素材——请本人扫码/打开链接、完成活体认证与授权后再查。",
-        );
-      }
-    } catch (e) {
-      setInviteMsg(`查状态没成：${(e instanceof Error ? e.message : String(e)).slice(0, 100)}`);
-    } finally {
-      setInviteBusy(false);
-    }
-  }
-
+  if (assetOf(card.id)) return null; // 绑上即消失（见顶注）
   return (
-    <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-xs font-semibold text-slate-300">🪪 方舟可信素材{a ? " · 已绑定" : ""}</span>
-        {a && (
-          <button onClick={() => void removeAsset(card.id)} className="text-[11px] text-slate-500">
-            解绑
-          </button>
-        )}
-      </div>
-      {a ? (
-        <>
-          <p className="break-all rounded-lg bg-ink/60 px-2 py-1.5 font-mono text-[10px] text-emerald-300">{a.assetId}</p>
-          <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-            出片走「高清」「电影级」档时，会把这份<b className="text-slate-300">已授权素材</b>交给 AI，
-            而不是卡上那张照片 —— 这样才过得了方舟的人脸审核。{a.note ? `（${a.note}）` : ""}
-          </p>
-          {/* 说清它的边界：绑定不等于永久，也不等于能分享 */}
-          <p className="mt-1 text-[10px] leading-relaxed text-slate-600">
-            ⚠ 授权在方舟那边<b className="text-slate-400">有有效期</b>，到期后出片会被拒 —— 那时要请本人重新授权。
-            这份绑定只存在这台设备上，也不会随卡片分享出去。
-          </p>
-        </>
-      ) : (
-        <>
-          <p className="text-[10px] leading-relaxed text-slate-500">
-            这张卡声明过是真实人物。「高清」「电影级」档<b className="text-slate-300">不收直接上传的真人照片</b>，只收本人授权过的素材。
-            请本人完成一次肖像授权（活体认证在方舟的页面上做），拿到资产 ID 后绑到这张卡。
-          </p>
-          {open ? (
-            <div className="mt-2">
-              <input
-                value={draft}
-                onChange={(e) => {
-                  setDraft(e.target.value);
-                  setErr("");
-                }}
-                placeholder="粘贴 asset ID 或 asset://…"
-                className="w-full rounded-lg border border-slate-700 bg-ink/60 px-2.5 py-2 font-mono text-[11px] text-slate-100 placeholder:text-slate-600"
-              />
-              {err && <p className="mt-1 text-[10px] leading-relaxed text-rose-400">{err}</p>}
-              <div className="mt-1.5 flex gap-2">
-                <button onClick={save} className="flex-1 rounded-lg bg-brand py-1.5 text-[11px] font-bold text-ink">
-                  绑定
-                </button>
-                <button
-                  onClick={() => {
-                    setOpen(false);
-                    setErr("");
-                  }}
-                  className="rounded-lg border border-slate-700 px-3 text-[11px] text-slate-400"
-                >
-                  取消
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-2 space-y-1.5">
-              {/* 路一：在 app 内发起授权（把链接发给本人）。骨架——见 startInvite 的 ★ */}
-              {invite ? (
-                <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-2">
-                  <p className="mb-1.5 text-[10px] leading-relaxed text-sky-200">
-                    完成一次活体认证并授权，授权有效期至 {new Date(invite.endSec * 1000).toLocaleDateString()}。
-                  </p>
-                  {/* 路一：被拍的就是本机用户 —— 不用扫码，直接打开 */}
-                  <button
-                    onClick={() => void openHere(invite.url)}
-                    className="mb-2 w-full rounded-lg bg-brand py-2 text-[12px] font-bold text-ink"
-                  >
-                    📱 就是我本人 · 在这台手机上完成授权
-                  </button>
-                  <p className="mb-1.5 text-[10px] leading-relaxed text-slate-400">
-                    要授权的是<b className="text-slate-300">别人</b>？让他用自己的手机扫这个码
-                    —— 活体认证必须在<b className="text-slate-300">他本人</b>的手机上、用他自己的火山账号做，
-                    这正是这份授权有效的原因。
-                  </p>
-                  {/* 二维码：当面扫最快。★ 白底黑点写死不吃主题色（对比度是功能） */}
-                  <div className="mb-1.5 flex justify-center rounded-lg bg-white p-2">
-                    <QrCode text={invite.url} size={168} />
-                  </div>
-                  <p className="mb-1.5 break-all rounded bg-ink/60 px-2 py-1 font-mono text-[9px] text-slate-400">
-                    {invite.url}
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => void navigator.clipboard?.writeText(invite.url).then(() => setInviteMsg("链接已复制，可以发给本人"))}
-                      className="flex-1 rounded-lg bg-brand py-1.5 text-[11px] font-bold text-ink"
-                    >
-                      复制链接
-                    </button>
-                    <button
-                      onClick={() => void checkStatus()}
-                      disabled={inviteBusy}
-                      className="rounded-lg border border-slate-600 px-3 text-[11px] text-slate-300 disabled:opacity-40"
-                    >
-                      {inviteBusy ? "查…" : "查授权状态"}
-                    </button>
-                  </div>
-                  {/* ⚠ 到期就换：邀约码本身有效期比授权期短（控制台是 7 天）——扫不动就重新发起 */}
-                  <p className="mt-1 text-[9px] leading-relaxed text-slate-600">
-                    扫不动了？这条邀约码会过期，回来重新「发起授权」生成一张新的即可。
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <button
-                    onClick={() => void startInvite()}
-                    disabled={inviteBusy}
-                    className="w-full rounded-lg border border-sky-500/40 py-1.5 text-[11px] text-sky-200 disabled:opacity-40"
-                  >
-                    {inviteBusy ? "生成中…" : "🔗 在 app 内发起授权（请本人扫码）"}
-                  </button>
-                  {/* ★★ 「查授权状态」必须在**没有邀约**时也点得到：授权是隔一会儿（甚至隔天）
-                      才完成的，那时 invite 早随页面卸载没了。只挂在邀约块里的话，用户为了
-                      "查一下绑上没有"得先再发起一条新邀约 —— 那正是自动绑要省掉的那一步。 */}
-                  <button
-                    onClick={() => void checkStatus()}
-                    disabled={inviteBusy}
-                    className="w-full rounded-lg border border-slate-600 py-1.5 text-[11px] text-slate-300 disabled:opacity-40"
-                  >
-                    {inviteBusy ? "查…" : "已经授权过了？查一下并自动绑"}
-                  </button>
-                </>
-              )}
-              {inviteMsg && <p className="text-[10px] leading-relaxed text-slate-400">{inviteMsg}</p>}
-              {/* 查回来的素材：可用的给一颗「用这一份」；失败的把方舟的原话摆出来。
-                  ★ 只在"要用户做点什么"时才渲染 —— 正好一份可用时已经自动绑了，
-                    再列一遍只是噪音（那时 found 里那一份也不满足下面两个分支）。 */}
-              {found?.filter(assetUsable).length ? (
-                found.filter(assetUsable).length > 1 ? (
-                  <div className="space-y-1">
-                    {found.filter(assetUsable).map((it) => (
-                      <button
-                        key={it.id}
-                        onClick={() => {
-                          const id = normalizeAssetId(it.id || "");
-                          if (!id) {
-                            setInviteMsg(`这份的 ID 形状不认识（${it.id}）——用下面手填那条路试试。`);
-                            return;
-                          }
-                          bindAsset(id, "本人授权（方舟可信素材库）");
-                          setFound(null);
-                          setInviteMsg("绑好了 —— 出片走「高清」「电影级」档时就用这一份。");
-                        }}
-                        className="w-full rounded-lg border border-slate-700 bg-ink/40 px-2 py-1.5 text-left"
-                      >
-                        <span className="block font-mono text-[10px] text-emerald-300">{it.id}</span>
-                        <span className="block text-[9px] text-slate-500">
-                          {it.name || "（无文件名）"}
-                          {it.createTime ? ` · ${new Date(it.createTime).toLocaleString()}` : ""}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null
-              ) : null}
-              {found?.some((x) => !assetUsable(x)) && (
-                <div className="space-y-1">
-                  {found
-                    .filter((x) => !assetUsable(x))
-                    .map((it) => (
-                      <p key={it.id} className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-2 py-1.5 text-[9px] leading-relaxed text-rose-300">
-                        ✗ {it.name || it.id} 没过审核：{it.error?.message || it.error?.code || "方舟没给原因"}
-                      </p>
-                    ))}
-                </div>
-              )}
-              {/* 路二：已在控制台授权过，直接手填 asset ID（一直保留的退路） */}
-              {open ? (
-                <div>
-                  <input
-                    value={draft}
-                    onChange={(e) => {
-                      setDraft(e.target.value);
-                      setErr("");
-                    }}
-                    placeholder="粘贴 asset ID 或 asset://…"
-                    className="w-full rounded-lg border border-slate-700 bg-ink/60 px-2.5 py-2 font-mono text-[11px] text-slate-100 placeholder:text-slate-600"
-                  />
-                  {err && <p className="mt-1 text-[10px] leading-relaxed text-rose-400">{err}</p>}
-                  <div className="mt-1.5 flex gap-2">
-                    <button onClick={save} className="flex-1 rounded-lg bg-brand py-1.5 text-[11px] font-bold text-ink">
-                      绑定
-                    </button>
-                    <button
-                      onClick={() => {
-                        setOpen(false);
-                        setErr("");
-                      }}
-                      className="rounded-lg border border-slate-700 px-3 text-[11px] text-slate-400"
-                    >
-                      取消
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setOpen(true)}
-                  className="w-full rounded-lg border border-slate-600 py-1.5 text-[11px] text-slate-300"
-                >
-                  ＋ 已在控制台授权过？直接填 asset ID
-                </button>
-              )}
-            </div>
-          )}
-        </>
-      )}
+    <div className="mb-4 rounded-xl border border-amber-400/40 bg-amber-400/5 p-3">
+      <p className="mb-1.5 text-[11px] leading-relaxed text-amber-200/90">
+        🪪 这张真人卡还<b className="text-amber-100">没接上已授权的肖像素材</b>——
+        「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。
+      </p>
+      <PortraitAuthPanel
+        onBound={(assetId, note) => {
+          // 窄条是"卡已存在"的场景，当场落库。写失败要出声（铁律八）：
+          // 静默失败的话用户以为绑好了，出片那一刻才发现还是拒
+          saveAsset(card.id, { assetId, scope: "private", note }).catch(() =>
+            setSaveErr("绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"),
+          );
+        }}
+      />
+      {saveErr && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-400">{saveErr}</p>}
     </div>
   );
 }
