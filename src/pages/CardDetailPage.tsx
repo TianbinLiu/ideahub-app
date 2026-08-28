@@ -9,6 +9,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router";
 //   一张从来不进模型的图亮起来 —— 用户为它多付了钱，界面还告诉他钱花在了出片上。
 import { MAX_CHAR_REFS, MAX_REF_IMAGES, TYPE_LABEL, cardStyleSuffix, refUsedFlags } from "../ai/real";
 import Icon from "../components/Icon";
+import InfoDialog from "../components/InfoDialog";
 import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
@@ -107,7 +108,8 @@ function hintFor(type: CardType): string {
 //   refUsedFlags(card) 不传 ctx —— 得到的是"它是这一段唯一那张卡"时的乐观结果。
 //   两处会让这个乐观结果落空：① 它不是这一段的第一张人物卡（规则一）；
 //   ② 一段最多带 MAX_REF_IMAGES 张，排在后面的整张卡都带不上（规则二）。
-//   这两件事都必须由 pipelineNoteFor 当着用户的面说出来，不能只靠生成日志事后补票。
+//   这两件事不能只靠生成日志事后补票：乐观口径那半句**常驻**在图库下那一行与放大层里，
+//   完整规则仍由 pipelineNoteFor 一处拼出、在「取舍规则」小窗里展开（2026-08-28 收纳）。
 
 /**
  * 图位旁边那句实情。只说"取几张、取哪几张、什么情况下一张都不取"。
@@ -252,6 +254,8 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
   const [zoom, setZoom] = useState<number | null>(null);
+  /** 「取舍规则」小窗（hintFor + pipelineNoteFor 的全文搬进去了，见下面那段 ★） */
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   // ★★ "要不要画成图库"的判据是**卡上有没有真的挂图**（`card.views` 非空），
   //   不是 viewsOf() 的长度。两者只在一种情况下不同，而那种情况恰好会丢东西：
@@ -368,10 +372,23 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
         </div>
       )}
 
-      <p className="mt-2 text-[10px] leading-relaxed text-slate-500">{hintFor(card.type)}</p>
-      {/* ★ 铁律八：出片管线只吃前几张，剩下的画了也进不了模型。不说的话，用户为一张
-          "画面一个像素都不会变"的图付了钱还以为有用 */}
-      <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{pipelineNoteFor(card.type, views)}</p>
+      {/* ★ 铁律八的那半句必须常驻：出片管线只吃前几张，「出片用」还是乐观口径。
+          2026-08-28 文案收纳：页面留这一句 + 图上的角标 + 放大层里的口径；
+          完整规则（每格锁什么 / 取几张 / 什么情况整张卡带不上）进小窗，点开才读——
+          它按卡种动态拼（hintFor / pipelineNoteFor 原样保留），塞不进静态的引导步骤 */}
+      <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+        出片时<span className="text-slate-400">不是每张都会喂进模型</span>——「出片用」按单卡乐观口径标，
+        同一段挂的卡多时可能让位。
+        <button onClick={() => setRulesOpen(true)} className="ml-1 text-brand underline">
+          取舍规则 ›
+        </button>
+      </p>
+      {rulesOpen && (
+        <InfoDialog title="参考图怎么被 AI 取用" onClose={() => setRulesOpen(false)}>
+          <p>{hintFor(card.type)}</p>
+          <p>{pipelineNoteFor(card.type, views)}</p>
+        </InfoDialog>
+      )}
       {owned && full && (
         <p className="mt-1 text-[10px] text-slate-500">
           已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。

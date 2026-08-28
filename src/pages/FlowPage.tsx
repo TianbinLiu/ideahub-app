@@ -634,6 +634,7 @@ function NodeScreen({
               onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
               rows={3}
               maxLength={400}
+              data-guide="flow-simple-plot"
               placeholder="想拍什么？例：雨夜的东京街头，霓虹灯牌下一只黑猫慢慢走过积水，倒影闪烁"
               className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
@@ -909,13 +910,11 @@ export default function FlowPage() {
   //   —— 后开的那份把先开的顶掉，而先开的已经被记成「看过」，于是画布那份一次都没放过
   //   就永远不再自动弹了；而线性这份讲的元素此刻正被 z-40 的画布整块盖着。
   //   画布那份由 FlowCanvas 自己声明（它只在开着时挂载），两边天然互斥。
-  // ★★ 2026-08-23：这份 "flow" 引导**不再自动弹**。
-  //   线性视图下线后 `!canvas` 恒等于「简约模式」，而它教的是「先挑三套方案」
-  //   「一段炼完再往下」「节点条换段」—— 简约模式一个都没有（单段、不推方案、直通发布）。
-  //   教一套用户屏幕上根本不存在的操作，比不教更糟。
-  //   ★ 工作流那一面由 FlowCanvas 自己声明的 "canvas" 引导负责（它只在画布挂载时跑）。
-  //   ★ 这份 tour 本身留着：顶栏那颗 ? 仍能手动重看，且简约独立成页之后要改写它。
-  useAutoGuide("flow", false);
+  // ★★ 2026-08-28：这份 "flow" 引导已按**简约模式**重写（tours 的 v2），只在简约下
+  //   自动弹 —— 非简约恒画布，那一面由 FlowCanvas 自己声明的 "canvas" 引导负责
+  //   （它只在画布挂载时跑，两边天然互斥）。此前它因为讲的是已下线的线性视图而被
+  //   整个关掉（2026-08-23），现在内容对上了，恢复自动弹。
+  useAutoGuide("flow", mode === "simple");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   // 「提取模板」出来的那一下也是整表覆盖，走与模板货架同一处守卫（唯一实现）
   const { guard: applyGuard, dialog: applyDialog } = useApplyTemplate();

@@ -1484,6 +1484,7 @@ body `{ roles: [{ label, desc }] }`（**1~9 条**，见上面 `roles` 的铁则 
 | GET | `/api/auth/me` | 只返回登录态字段（`_id/username/email/role/avatarUrl`），**不含 displayName/bio** |
 | GET | `/api/me/profile` | 本次新增，对称于既有的 PUT，返回 `username/displayName/bio/avatarUrl/role/createdAt`。缺了它换设备登录后昵称会退回 username |
 | PUT | `/api/me/profile` | `{ displayName?, bio?, avatarUrl? }`，返回更新后的 user |
+| POST | `/api/me/deactivate` | `{ confirmUsername }` —— 注销账号（**软删除**：打 `deactivatedAt` 标记 + `tokenVersion++` 让全部旧 token 立即 401，内容数据不删、管理员可恢复）。confirmUsername 与本人 username **严格全等**（不 trim、区分大小写），客户端不得预先加工。App 入口：设置 → 注销账号（2026-08-28，仅远端模式显示）。注销后**登录也被拦**：拒签收口在 server 的 `utils/jwt.signToken`（所有签发路径唯一收口），401 整句「账号已注销……support@ 可恢复」；错误密码仍报通用凭据错误，不泄露注销状态。（此处曾误记为「登录仍发 token」——那是把被拒后的空 token 当 `NOTOKEN` 发出去的测法错误，2026-08-28 复查更正并在 server 补了整链测试） |
 
 ### 登录方式按出口 IP 分流
 
@@ -1553,6 +1554,26 @@ openid 由服务端拿 AppKey 向 `graph.qq.com` 换取，客户端没有机会�
 ★ QQ 用户**没有邮箱**（`get_simple_userinfo` 里就没这一项），建号时走合成邮箱
 `qq_<openid>@no-email.ideahub.local`，与手机号注册同一套；昵称进 `displayName`，
 用户名随机生成（`user_<8位hex>`）。openid 是**按 AppID 隔离**的，换 AppID 等于所有 QQ 用户失联。
+
+### 用户协议同意留痕（2026-08-28）
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| POST | `/api/me/accept-terms` | requireAuth | `{ version }`（1~32 字符）→ `200 { ok, termsAcceptedVersion }`。写 `User.termsAcceptedVersion` + `termsAcceptedAt`（服务端时间）。**幂等**：同版本重复提交只刷新时间戳 |
+
+读走 `GET /api/auth/me`：`serializeAuthUser` 现在带 `termsAcceptedVersion`（空串 = 没同意过）。
+
+★ **服务端只存不判**。协议正文与当前版本号都在 app 仓（`src/data/agreements.tsx` 的
+`TERMS_UPDATED`，形如 `"2026-08-28"`），"要不要弹补签门"由客户端拿服务端的值对自己的版本。
+服务端这份是合规留痕（谁、哪版、何时），不是门禁。
+
+★ **App 侧的对账在 `data/account.adoptUser` 一处**（四条登录路 + 冷启动都汇到它）：
+服务端已有当前版本 → 落到本机 localStorage（换设备登录不重复弹）；本机有而服务端没有/旧 →
+补传一次。补传覆盖两种天然漏发：登录页勾选发生在拿到 token **之前**（POST 发不出去）、
+上次 POST 恰好断网。端点幂等，多发无害。
+
+★ 老服务端没有这个端点（404）：App 一律按尽力而为处理，本机记录才是 UI 判据 —— 判否定
+（`termsAcceptedVersion` 缺省/空串 = 没同意过），别判相等（「后加字段判否定」那条铁则）。
 
 ## 语音合成（工坊 NPC 的嗓子）
 

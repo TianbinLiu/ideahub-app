@@ -5,7 +5,12 @@
 //   那段注释：已经有人看过的作品不该被换掉内容。想改内容 = 重新发一条。
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
+import ConfirmDialog from "../components/ConfirmDialog";
+import InfoDialog from "../components/InfoDialog";
+import { AGREEMENTS } from "../data/agreements";
 import { CoverSection } from "../components/CoverPicker";
+import HelpButton from "../components/guide/HelpButton";
+import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
 import VisibilityPicker from "../components/VisibilityPicker";
 import SegmentPlayer from "../components/SegmentPlayer";
@@ -30,6 +35,11 @@ export default function PublishPage() {
   // 想先自己留着的人可以在这里改，发完在作品编辑页也随时能改回来。
   const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [err, setErr] = useState("");
+  /** 「放弃本次合成」的确认小窗。丢的是已经合成好的整条成片，一点就没太草率 */
+  const [discardOpen, setDiscardOpen] = useState(false);
+  /** AIGC 内容须知全文（data/agreements 唯一一份） */
+  const [aigcOpen, setAigcOpen] = useState(false);
+  useAutoGuide("publish", !!draft);
 
   /**
    * 本页刚刚发布过（publish() 已经把去处发出去了）。
@@ -104,6 +114,7 @@ export default function PublishPage() {
           <span className="text-xs text-slate-500">
             {draft.segments.length} 段 · 共 {formatDuration(total)}
           </span>
+          <HelpButton tour="publish" className="ml-auto" />
         </div>
       </header>
 
@@ -114,7 +125,7 @@ export default function PublishPage() {
           <div className="mt-2 text-center text-xs text-slate-500">成片预览（各段按时间线依次播放）</div>
           {/* 每段的来历必须可见：真实 Seedance 影像还是首尾帧渐变回退。
               此前两者在预览里长得都"会动"，用户分不清哪些是真生成的 */}
-          <div className="mt-3 space-y-1.5">
+          <div data-guide="publish-segments" className="mt-3 space-y-1.5">
             {draft.segments.map((sg, i) => (
               <div key={i} className="flex items-center gap-2 rounded-lg bg-panel/60 px-3 py-1.5 text-xs">
                 <span className="flex-none text-slate-500">第 {i + 1} 段</span>
@@ -193,7 +204,7 @@ export default function PublishPage() {
           <VisibilityPicker value={visibility} onChange={setVisibility} />
 
           {/* 付费设置：免费 / 付费（本 P 的解锁价，观众用 token 解锁，平台抽成后进你的 add-on） */}
-          <div>
+          <div data-guide="publish-pricing">
             <div className="mb-1.5 text-sm font-semibold text-slate-300">收费方式</div>
             <div className="flex gap-2">
               {(["free", "paid"] as const).map((m) => (
@@ -227,30 +238,57 @@ export default function PublishPage() {
                 </span>
               </div>
             )}
-            <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
-              付费收益进入你的 add-on token，可直接用于生成视频。
-            </p>
+            {/* 「收益进 add-on、可直接用于生成」那句常驻说明搬进了引导（tours 的 publish） */}
           </div>
 
-          <div className="flex items-center gap-3 pt-2">
+          <div data-guide="publish-actions" className="flex items-center gap-3 pt-2">
             <button onClick={publish} className="rounded-xl bg-brand px-6 py-2.5 font-bold text-ink hover:brightness-110">
               发布
             </button>
             <button
-              onClick={() => {
-                clearDraft();
-                // ★ replace 而不是 push：草稿一丢，这一格就是死页 —— 用 push 的话上面那个
-                //   守卫（同一拍就会跑）先把本格 replace 成 /studio，再叠一格 /studio 上去，
-                //   用户得按两次返回才走得掉
-                navigate("/studio", { replace: true });
-              }}
+              onClick={() => setDiscardOpen(true)}
               className="rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-400 hover:text-slate-200"
             >
               放弃本次合成
             </button>
           </div>
+          {/* AIGC 须知：一句常驻 + 全文小窗（2026-08-28）。标识那半句说的是已实现的
+              事实——合并时 drawAigcBadge 真的把「AI 生成」角标画进了每一帧 */}
+          <p className="text-[11px] leading-relaxed text-slate-500">
+            发布即视为同意
+            <button onClick={() => setAigcOpen(true)} className="text-brand">
+              《AIGC 内容须知》
+            </button>
+            ——成片右下角已自动带「AI 生成」标识。
+          </p>
         </div>
       </main>
+
+      {aigcOpen && (
+        <InfoDialog title={AGREEMENTS.aigc.title} onClose={() => setAigcOpen(false)}>
+          {AGREEMENTS.aigc.body}
+        </InfoDialog>
+      )}
+
+      {discardOpen && (
+        <ConfirmDialog
+          title="放弃本次合成？"
+          confirmLabel="放弃"
+          danger
+          onConfirm={() => {
+            clearDraft();
+            // ★ replace 而不是 push：草稿一丢，这一格就是死页 —— 用 push 的话那个守卫
+            //   （同一拍就会跑）先把本格 replace 成 /studio，再叠一格 /studio 上去，
+            //   用户得按两次返回才走得掉
+            navigate("/studio", { replace: true });
+          }}
+          onClose={() => setDiscardOpen(false)}
+        >
+          {/* 只说已知事实：丢的是这条合成稿和填好的发布信息。各段素材/草稿丢没丢
+              取决于上游存盘情况，这里不知道，就不许诺（DiscardFlowDialog 那条教训） */}
+          这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。
+        </ConfirmDialog>
+      )}
     </div>
   );
 }
