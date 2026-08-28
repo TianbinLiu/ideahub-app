@@ -553,6 +553,20 @@ export default function CardDetailPage() {
       {/* 方舟可信素材：真人卡做完肖像授权后填 asset ID，出片改走 asset:// */}
       <CardAssetSection card={card} owned={owned} />
 
+      {/* 固定身份句（Card.idLine）：出片提示词里代表这张卡的那一句（铸卡时压好、逐段复用）。
+          只在真有的时候显示——老卡/自传图卡走 idLineOf 的兜底，那不是"留下来的身份句"，
+          摆出来说成是就违反铁律五 */}
+      {card.idLine && (
+        <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+          <div className="mb-1 text-xs font-semibold text-slate-300">🎯 出片身份句</div>
+          <p className="text-xs leading-relaxed text-slate-400">{card.idLine}</p>
+          <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+            出片时提示词里代表这张卡的固定一句（逐段复用同一措辞，形象更稳）。长设定进画面靠上面的参考图与
+            {CARD_INFO_LABELS[card.type]}，不直接塞进视频提示词。
+          </p>
+        </div>
+      )}
+
       {/* 「<类型>信息」：铸卡时的完整提示词——照着它 AI 就能复刻出与卡面一致的画面/建模。
           ★ 标题按卡种叫（人物信息/场景信息/…），表在 types.CARD_INFO_LABELS 一处 */}
       <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">

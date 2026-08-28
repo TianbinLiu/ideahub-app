@@ -1259,6 +1259,7 @@ function toLocalCard(c: branch.ApiCard): Card {
     tags: c.tags,
     modelUrl: c.modelUrl || undefined,
     genPrompt: c.genPrompt || undefined,
+    idLine: c.idLine || undefined,
     // 真人声明：false/缺省都归一成 undefined —— 读侧判否定，两者本就同义（非真人），
     // 落一个显式 false 只会让人误以为"声明过不是"是个存在的状态
     realPerson: c.realPerson || undefined,

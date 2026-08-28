@@ -304,6 +304,21 @@ export const CARD_SLOTS: Record<CardType, readonly CardSlot[]> = {
   ],
 };
 
+/** 身份句上限。60 是按提示词预算反推的：8 张卡 × 60 字 = 480 已超 VIDEO_PROMPT_MAX，
+ *  所以出片侧只给**人物卡**用整句，其余卡种仍是短句（见 segmentGen.materialText） */
+export const ID_LINE_MAX = 60;
+
+/**
+ * 这张卡在**视频提示词**里的那一句 —— 唯一实现（铁律六：兜底只写这一处）。
+ * 有 idLine 用 idLine；老卡/自传图卡退回「名字：简介前 40 字」（正是 2026-08-28 之前
+ * 的老行为，所以存量卡的出片提示词一个字不变）。
+ */
+export function idLineOf(c: Card): string {
+  const line = (c.idLine || "").trim();
+  if (line) return line.slice(0, ID_LINE_MAX);
+  return `${c.name}${c.summary ? `：${c.summary.slice(0, 40)}` : ""}`;
+}
+
 /**
  * 卡面兜底那张算哪个槽 —— 五类一律 `body`（卡面就是这张卡的主图）。
  * ★ 与 viewsOf() 原来写死的 "body" 完全相同，兜底行为一个字没变。
@@ -388,8 +403,23 @@ export interface Card {
   tags?: string[];
   /** 3D 建模文件（glb/glbx）：有值则卡详情显示全息实体预览（3D 风格视频的角色卡） */
   modelUrl?: string;
-  /** 铸卡时的完整文生图提示词（详情页的「<类型>信息」）——具体到能让 AI 复刻出与卡面一致的画面/建模 */
+  /** 铸卡时的完整文生图提示词（详情页的「<类型>信息」）——具体到能让 AI 复刻出与卡面一致的画面/建模。
+   *  ★ 只喂 Seedream（出形象图/卡面），**不进视频提示词**——那边的分工见 idLine */
   genPrompt?: string;
+  /**
+   * 固定身份句（≤60 字）：出片提示词里代表这张卡的那一句。铸卡时由豆包随文案一并产出
+   * （名字 + 2~3 个不变的视觉特征 + 标志物，**不写性格词**）。
+   *
+   * ★★ 为什么不直接把 genPrompt 塞进视频提示词（2026-08-28 调研钉死，来源见
+   *   docs/backlog.md 2.9）：方舟官方明说"主体用 2~3 个稳定静态特征描述、勿贴长文，
+   *   字数过多信息分散"；LibTV 主体库/火宝短剧也都是资产期压一句短描述复用。
+   *   长设定归图（genPrompt→Seedream），短身份句归片（idLine→Seedance）。
+   * ★ 铸卡时一次性压好而不是出片时现压：零新增调用/延迟，且每段拿到**同一句**
+   *   （逐镜复用同一措辞本身就是一致性手段——Sora/CHAR 都这么讲）。
+   * ★ 缺省 = 老卡/自传图卡：读侧一律走 idLineOf()（兜底"名字+简介"，老行为），
+   *   绝不在调用点各写一份兜底。
+   */
+  idLine?: string;
   /**
    * 铸这张卡时用的出图档位（data/economy.IMAGE_TIERS 的 id）。
    * ★ 缺省 = 老卡，一律当默认档读（imageTierOf 的兜底）；**不要**拿它和某个值等值判，

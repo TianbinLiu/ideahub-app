@@ -161,6 +161,8 @@ export interface ApiCard {
   modelUrl?: string;
   /** 生成蓝图 */
   genPrompt?: string;
+  /** 固定身份句（出片提示词用，见 types.Card.idLine；服务端五处 2026-08-28 已加） */
+  idLine?: string;
   /** 真人声明（缺省 = 老卡 = 非真人，读侧判否定，见 types.Card.realPerson） */
   realPerson?: boolean;
   /** 已分享到创意工坊 */
@@ -558,6 +560,7 @@ export async function addCards(cards: Card[]): Promise<ApiCard[]> {
     //   那份记录的一部分；发布给别人时由服务端 shareableModelUrl 剥掉。
     modelUrl: c.modelUrl,
     genPrompt: c.genPrompt,
+    idLine: c.idLine, // 与 genPrompt 同一批搬运点（漏了 = 换台设备登录身份句无声消失）
     // ★ 真人声明与卡同生同灭：POST 是 $setOnInsert，漏在这里的话服务端那份永远是
     //   "非真人"，换台设备登录声明就无声消失、出片档位分流静默失效（modelUrl/genPrompt
     //   2026-08-11 就是这么丢的）。undefined 会被 JSON 序列化丢掉，等价于"没声明"。

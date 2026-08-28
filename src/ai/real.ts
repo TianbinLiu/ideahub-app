@@ -16,6 +16,8 @@ import {
   viewTag,
   viewsOf,
   CARD_SIZE,
+  ID_LINE_MAX,
+  idLineOf,
   type CardRole,
   type CardSlot,
   type CardView,
@@ -258,6 +260,14 @@ export const TYPE_LABEL: Record<CardType, string> = {
   prop: "道具特写卡面",
   style: "画风示意卡面",
 };
+
+/**
+ * 身份句（Card.idLine）的 JSON 字段说明 —— 四处铸卡提示词共用一句（工坊铸卡师文案、
+ * 派生卡组、视频提卡、模板提卡），改配方只改这里。
+ * 配方出处（2026-08-28 调研，backlog 2.9）：方舟官方"主体= 2~3 个稳定静态特征"；
+ * 火宝短剧"最有辨识度的特征放前面、性格转神态不出现性格词"。
+ */
+const ID_LINE_SPEC = "30~60字的固定身份句：名字+2~3个不会变的视觉特征+标志物，如「凛：银发红瞳的义体侦探，左眼全息扫描仪，黑色风衣」；性格转成神态措辞，不出现性格词";
 
 // 卡面画布（CARD_SIZE）搬到了 types.ts —— 报价那侧（economy.IMAGE_TIERS）要按输出像素
 // 分档算钱，两边必须是同一个数。派生卡也用同一尺寸：素材卡和派生卡摆在同一副卡组里，
@@ -801,8 +811,10 @@ export async function prepareMaterialRefs(
       const heroPicks = good.filter((p) => p.card === hero);
       if (heroPicks.length > 0 && hero) {
         const feats = heroPicks.map((p) => `${numOf(p)}的${slotLocks(hero.type, p.view.kind)}`).join("、");
+        // 设定括号用**身份句**（idLineOf）：它就是为"锁形象"压出来的那句视觉描述；
+        // 老卡兜底"名字：简介40字"，与旧措辞等效
         parts.push(
-          `将${feats}定义为角色「${hero.name}」${hero.summary ? `（设定：${hero.summary.slice(0, 40)}）` : ""}，本段画面中该角色的长相、发色与服装必须与之完全一致`,
+          `将${feats}定义为角色「${hero.name}」（设定：${idLineOf(hero)}），本段画面中该角色的长相、发色与服装必须与之完全一致`,
         );
       }
       // ★ 同一张卡的多张图必须**并进一句**说，不能一张图一句：两句"「会说谎的罗盘」的
@@ -1026,21 +1038,25 @@ export async function generateCards(
     let name = card.name;
     let summary = card.summary;
     let type = card.type;
+    let idLine = "";
     try {
-      // 文案精炼：名称 + 一句话简介 + 类型校正
+      // 文案精炼：名称 + 一句话简介 + 类型校正 + 固定身份句（idLine：与文案同一次调用
+      // 顺带产出、零新增成本——铸卡期一次压好，出片逐段复用同一句，见 types.Card.idLine）
       const meta = await chat(
         forcedType
-          ? `你是卡牌游戏的铸卡师。用户已指定这是一张【${TYPE_LABEL[forcedType]}】，不要改类型。输出 JSON：{"name":"不超过8字的卡名","summary":"一句30字内有故事感的简介","type":"${forcedType}"}。只输出 JSON。`
-          : "你是卡牌游戏的铸卡师。根据素材信息输出 JSON：{\"name\":\"不超过8字的卡名\",\"summary\":\"一句30字内有故事感的简介\",\"type\":\"character|scene|background|prop|style\"}。只输出 JSON。",
+          ? `你是卡牌游戏的铸卡师。用户已指定这是一张【${TYPE_LABEL[forcedType]}】，不要改类型。输出 JSON：{"name":"不超过8字的卡名","summary":"一句30字内有故事感的简介","idLine":"${ID_LINE_SPEC}","type":"${forcedType}"}。只输出 JSON。`
+          : `你是卡牌游戏的铸卡师。根据素材信息输出 JSON：{"name":"不超过8字的卡名","summary":"一句30字内有故事感的简介","idLine":"${ID_LINE_SPEC}","type":"character|scene|background|prop|style"}。只输出 JSON。`,
         `文件名: ${f?.name ?? "无"}\n文本内容: ${(f?.text ?? "").slice(0, 300) || "无"}\n用户补充: ${note || "无"}\n是否图片素材: ${f?.dataUrl ? "是" : "否"}`,
       );
       const parsed = JSON.parse(meta.replace(/```json|```/g, "").trim()) as {
         name?: string;
         summary?: string;
+        idLine?: string;
         type?: CardType;
       };
       name = parsed.name?.slice(0, 8) || name;
       summary = parsed.summary?.slice(0, 60) || summary;
+      idLine = (parsed.idLine ?? "").slice(0, ID_LINE_MAX);
       // forcedType 优先于模型返回：提示词里已经写死了，但模型偶尔仍会自作主张
       type = forcedType ?? (parsed.type && TYPE_LABEL[parsed.type] ? parsed.type : card.type);
     } catch (e) {
@@ -1077,6 +1093,8 @@ export async function generateCards(
         type,
         cover: primary.cover,
         genPrompt: primary.genPrompt,
+        // 身份句只在豆包真给了的时候带键（缺省走 idLineOf 的兜底，与老卡同一条路）
+        ...(idLine ? { idLine } : {}),
         // 这次用的是哪一档。★ 存 id 不存张数：张数是 (档位 × 卡种) 算出来的，
         //   存下来就成了第二处实现，改档位表时它不会跟着变
         imageTier: tier.id,
@@ -1286,7 +1304,7 @@ function mintSpec(cap: CardMintCap, head: string, tail: string): MintSpec {
 const DECK_MINT = mintSpec(
   DECK_MAX_CARDS,
   "你是卡牌游戏的铸卡师。用户为这条视频挂过一些素材卡（那些卡种已经关门），请只为下面点名的「缺失卡种」从剧情中提炼补卡，",
-  '：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：**只出「缺失卡种」清单里点名的卡种**，其它卡种一张都不要出。缺失卡种按需出：character＝剧情每个主要角色各一张；scene＝每个主要场景/地点各一张；background＝恰出一张（总结整片色调、光比与氛围）；style＝**必须恰出一张**（总结整片画风，name 就是画风名，如「水墨留白」「胶片质感」）；prop＝剧情确有关键道具时各一张，没有就不出。缺失卡种清单为空时输出 []。只输出 JSON。',
+  `：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","idLine":"${ID_LINE_SPEC}","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：**只出「缺失卡种」清单里点名的卡种**，其它卡种一张都不要出。缺失卡种按需出：character＝剧情每个主要角色各一张；scene＝每个主要场景/地点各一张；background＝恰出一张（总结整片色调、光比与氛围）；style＝**必须恰出一张**（总结整片画风，name 就是画风名，如「水墨留白」「胶片质感」）；prop＝剧情确有关键道具时各一张，没有就不出。缺失卡种清单为空时输出 []。只输出 JSON。`,
 );
 
 /** 从成片剧情提炼"本片卡组"：豆包分类型出卡（主要角色/场景/氛围底色/画风），
@@ -1326,6 +1344,7 @@ export async function deriveDeckCards(
       type: "style",
       name: "本片画风",
       summary: "从整片画面总结的画风基调，复用它可让新片延续同一画风。",
+      idLine: "本片画风：延续整片画面的笔触、上色方式与光影基调",
       imagePrompt: "一张能代表本片整体画风的示意画面：延续剧情画面的笔触、上色与光影质感，题材随意，重点是画法本身",
     });
   }
@@ -1337,6 +1356,8 @@ interface CardDef {
   type?: CardType;
   name?: string;
   summary?: string;
+  /** 固定身份句（ID_LINE_SPEC 的产物），随卡保存供出片提示词复用 */
+  idLine?: string;
   imagePrompt?: string;
 }
 
@@ -1386,6 +1407,8 @@ async function mintCards(
         summary: (d.summary ?? "").slice(0, 60),
         cover,
         genPrompt,
+        // 身份句随卡定义带出（缺省走 idLineOf 兜底）；上限一处（types.ID_LINE_MAX）
+        ...(d.idLine ? { idLine: d.idLine.slice(0, ID_LINE_MAX) } : {}),
       });
     } catch (e) {
       console.warn(`[ai] 派生卡「${d.name}」卡面失败:`, e);
@@ -1401,7 +1424,7 @@ async function mintCards(
 const VIDEO_MINT = mintSpec(
   DECK_MAX_CARDS,
   "你是卡牌游戏的铸卡师。用户给你一段视频里按时间顺序抽的若干帧。请辨认画面里可复用的创作素材，",
-  '：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：出现的每个主要角色各出一张 character 卡；主要场景/地点各出一张 scene 卡；整体色调氛围至多一张 background 卡；画风鲜明时至多一张 style 卡；关键道具可出 prop 卡。已有卡覆盖的实体绝对不要再出。只输出 JSON。',
+  `：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","idLine":"${ID_LINE_SPEC}","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：出现的每个主要角色各出一张 character 卡；主要场景/地点各出一张 scene 卡；整体色调氛围至多一张 background 卡；画风鲜明时至多一张 style 卡；关键道具可出 prop 卡。已有卡覆盖的实体绝对不要再出。只输出 JSON。`,
 );
 
 /**
@@ -1442,7 +1465,7 @@ export async function extractCardsFromVideo(
 const TEMPLATE_MINT = mintSpec(
   TEMPLATE_MAX_CARDS,
   '你是卡牌游戏的铸卡师。用户给你一段参考视频的抽帧，这段视频将被做成"可换主角的模板"。请辨认画面里**与具体主角无关、可复用**的创作素材，',
-  '：[{"type":"scene|background|prop|style","name":"不超过8字","summary":"30字内简介","imagePrompt":"卡面文生图描述，60字内"}]。规则：主要场景/地点各出一张 scene 卡；整体色调氛围至多一张 background 卡；画风鲜明时至多一张 style 卡；标志性道具可出 prop 卡。**绝对不要出 character 卡**——主角是模板使用者自己指定的。只输出 JSON。',
+  `：[{"type":"scene|background|prop|style","name":"不超过8字","summary":"30字内简介","idLine":"${ID_LINE_SPEC}","imagePrompt":"卡面文生图描述，60字内"}]。规则：主要场景/地点各出一张 scene 卡；整体色调氛围至多一张 background 卡；画风鲜明时至多一张 style 卡；标志性道具可出 prop 卡。**绝对不要出 character 卡**——主角是模板使用者自己指定的。只输出 JSON。`,
 );
 
 /** 经典模板的配方总结提示词（两遍视觉里的第一遍）。 */
