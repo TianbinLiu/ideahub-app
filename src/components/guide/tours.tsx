@@ -878,6 +878,45 @@ export const TOURS: GuideTour[] = [
       },
     ],
   },
+  {
+    id: "publish",
+    title: "发布",
+    version: 1,
+    steps: [
+      {
+        title: "先核对成片",
+        anchor: "publish-segments",
+        body: (
+          <>
+            预览里各段按时间线连播。这张清单标着每段的<b className="font-bold text-slate-100">来历</b>：
+            ✓ 是真生成的影像，⚠ 是没生成成功、用首尾帧渐变顶替的段 ——
+            <b className="font-bold text-slate-100">发布前把 ⚠ 的段看一眼</b>，别让顶替画面替你见观众。
+          </>
+        ),
+      },
+      {
+        title: "谁能看、要不要钱",
+        anchor: "publish-pricing",
+        body: (
+          <>
+            可见性管<b className="font-bold text-slate-100">谁看得到</b>，收费管
+            <b className="font-bold text-slate-100">看要不要花 token</b>。付费解锁的收益按平台抽成后进你的
+            add-on 钱包，能直接拿来生成视频 —— 具体到手多少，定价那一行会当场算给你看。
+          </>
+        ),
+      },
+      {
+        title: "发布就是定稿",
+        anchor: "publish-actions",
+        body: (
+          <>
+            发布后<b className="font-bold text-slate-100">内容不可再改</b>（编辑页只能改标题、封面这些壳），
+            想换内容就重新发一条。「放弃本次合成」会把这条成片丢掉 —— 点它会先问你一句。
+          </>
+        ),
+      },
+    ],
+  },
   // ── 设置子页（2026-08-27 设置页拆分时一起加）──────────────────────
   // 设置页原来把说明文字直接铺在每一节里；拆成子页后常驻说明进这里，页面上只留
   // 控件与条件触发的事实（离线/失败/管理员那几句仍在界面上，理由见文件头 ❌ 那条）。
