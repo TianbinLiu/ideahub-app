@@ -50,10 +50,8 @@ export default function SettingsVoicePage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   useAutoGuide("setvoice", !!user);
 
-  if (!user) {
-    navigate("/login?next=/settings/voice", { replace: true });
-    return null;
-  }
+  // 路由已套 RequireAuth；这里只为 TS 收窄（render 里 navigate 会被 React 丢弃，别改回来）
+  if (!user) return null;
 
   async function preview(v: PresetVoice) {
     setId(v.id);
