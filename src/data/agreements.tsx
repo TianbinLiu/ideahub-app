@@ -10,6 +10,8 @@
 // ★ 版本用**更新日期**而不是数字：登录页按它记"同意到哪一版"，改了正文且需要
 //   用户重新同意时改这个日期；改错别字不用动。
 import type { ReactNode } from "react";
+import { acceptTermsRemote } from "../api/auth";
+import { getToken } from "../api/client";
 
 /** 协议正文的更新日期。改动实质条款时更新它，登录页会要求重新同意 */
 export const TERMS_UPDATED = "2026-08-28";
@@ -138,9 +140,11 @@ export const AGREEMENTS: Record<AgreementId, { title: string; body: ReactNode }>
   },
 };
 
-// ── 「同意到哪一版」的本机记录 ─────────────────────────────────
-// 只记在 localStorage：这是"这台设备上勾过没有"的便利记录，不是服务端合规凭证。
-// 正文更新（TERMS_UPDATED 变了）后旧记录失效，登录页会重新要求勾选。
+// ── 「同意到哪一版」的记录 ─────────────────────────────────────
+// 本机 localStorage 是 **UI 的判据**（门弹不弹只看它）；服务端那份是**合规留痕**
+// （POST /api/me/accept-terms → User.termsAcceptedVersion/At），两边靠下面的
+// reconcile 对账，任何一边成功都不阻塞另一边。
+// 正文更新（TERMS_UPDATED 变了）后两边的旧记录都失效，门会重新弹。
 const ACCEPT_KEY = "ideahub-app.terms.accepted";
 
 export function termsAccepted(): boolean {
@@ -157,4 +161,28 @@ export function recordTermsAccepted(): void {
   } catch {
     /* 存不下就每次都要勾，不致命 */
   }
+  // 服务端留痕：有登录态才发得出（requireAuth）。失败静默——本机记录已成立，
+  // 老服务端 404 也算失败；补发交给 reconcileTermsWithServer 那条自愈。
+  // ★ 登录页勾选那一下发生在拿到 token **之前**，这里必然发不出——正是靠
+  //   登录成功后 adoptUser 里的对账把它补上，不要在登录页里再写一条补发（铁律六）。
+  if (getToken()) void acceptTermsRemote(TERMS_UPDATED).catch(() => {});
+}
+
+/**
+ * 登录/冷启动拿到服务端的同意版本后对账（data/account.adoptUser 是唯一调用方）：
+ *   服务端已有当前版本 → 落到本机（换设备登录不重复弹门）；
+ *   本机有、服务端没有/旧 → 补传一次（覆盖"勾选发生在拿到 token 之前"与
+ *   "上次 POST 恰好断网"两种漏发，发到成功为止——端点幂等，多发无害）；
+ *   两边都没有 → 不动，补签门该弹就弹。
+ */
+export function reconcileTermsWithServer(serverVersion: string | undefined): void {
+  if (serverVersion === TERMS_UPDATED) {
+    try {
+      localStorage.setItem(ACCEPT_KEY, TERMS_UPDATED);
+    } catch {
+      /* 存不下就这次会话内靠内存渲染，下次再对一遍 */
+    }
+    return;
+  }
+  if (termsAccepted() && getToken()) void acceptTermsRemote(TERMS_UPDATED).catch(() => {});
 }
