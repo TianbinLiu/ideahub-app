@@ -126,7 +126,7 @@ function pipelineNoteFor(type: CardType, views: CardView[]): string {
     return (
       `出片时这类卡先保证第 1 张（${first}）喂给 AI；同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，` +
       `预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。` +
-      `预算不够时**先被丢的就是各卡的第 2 张**，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。`
+      `预算不够时「先被丢的就是各卡的第 2 张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。`
     );
   }
   return (
@@ -234,19 +234,19 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
         <>
           <p className="break-all rounded-lg bg-ink/60 px-2 py-1.5 font-mono text-[10px] text-emerald-300">{a.assetId}</p>
           <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-            出片走「高清」「电影级」档时，会把这份**已授权素材**交给 AI，而不是卡上那张照片
-            —— 这样才过得了方舟的人脸审核。{a.note ? `（${a.note}）` : ""}
+            出片走「高清」「电影级」档时，会把这份<b className="text-slate-300">已授权素材</b>交给 AI，
+            而不是卡上那张照片 —— 这样才过得了方舟的人脸审核。{a.note ? `（${a.note}）` : ""}
           </p>
           {/* 说清它的边界：绑定不等于永久，也不等于能分享 */}
           <p className="mt-1 text-[10px] leading-relaxed text-slate-600">
-            ⚠ 授权在方舟那边**有有效期**，到期后出片会被拒 —— 那时要请本人重新授权。
+            ⚠ 授权在方舟那边<b className="text-slate-400">有有效期</b>，到期后出片会被拒 —— 那时要请本人重新授权。
             这份绑定只存在这台设备上，也不会随卡片分享出去。
           </p>
         </>
       ) : (
         <>
           <p className="text-[10px] leading-relaxed text-slate-500">
-            这张卡声明过是真实人物。「高清」「电影级」档**不收直接上传的真人照片**，只收本人授权过的素材。
+            这张卡声明过是真实人物。「高清」「电影级」档<b className="text-slate-300">不收直接上传的真人照片</b>，只收本人授权过的素材。
             请本人完成一次肖像授权（活体认证在方舟的页面上做），拿到资产 ID 后绑到这张卡。
           </p>
           {open ? (
