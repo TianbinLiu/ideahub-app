@@ -7,6 +7,10 @@ import DiscoverPage from "./pages/DiscoverPage";
 import WorkshopPage from "./pages/WorkshopPage";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
+import SettingsProfilePage from "./pages/SettingsProfilePage";
+import SettingsVoicePage from "./pages/SettingsVoicePage";
+import SettingsQualityPage from "./pages/SettingsQualityPage";
+import SettingsStoragePage from "./pages/SettingsStoragePage";
 import AdminPage from "./pages/AdminPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import LoginPage from "./pages/LoginPage";
@@ -172,7 +176,13 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       {/* 第三方登录的 web 回程（原生端走自定义 scheme，不经过这条路由） */}
       <Route path="/oauth/callback" element={<OauthCallbackPage />} />
+      {/* 设置系：/settings 只是入口列表，四个单功能子页各占一条路由（2026-08-27 拆分）。
+          都不套 RequireAuth：与拆分前一致，页面自己判未登录并带 next 跳登录页 */}
       <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/settings/profile" element={<SettingsProfilePage />} />
+      <Route path="/settings/voice" element={<SettingsVoicePage />} />
+      <Route path="/settings/quality" element={<SettingsQualityPage />} />
+      <Route path="/settings/storage" element={<SettingsStoragePage />} />
       {/* 管理后台。全屏推入页，入口在设置页（非管理员看不见那一行）。
           ★★ 两道门缺一不可：RequireAuth 管"没登录"（带 next 回跳），
             AdminPage 自己管"登录了但不是管理员" —— 直接输 hash 进来会看到一句
