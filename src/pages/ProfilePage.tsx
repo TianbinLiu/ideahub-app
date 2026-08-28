@@ -519,7 +519,8 @@ export default function ProfilePage() {
           {self ? (
             <>
               <Link
-                to="/settings"
+                /* 直达编辑资料子页（设置页 2026-08-27 拆分后它不再住在 /settings 本页） */
+                to="/settings/profile"
                 className="flex h-10 flex-1 items-center justify-center rounded-full bg-panel text-sm font-semibold text-slate-100 ring-1 ring-slate-700 active:scale-[.98]"
               >
                 编辑资料

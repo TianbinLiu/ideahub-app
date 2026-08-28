@@ -746,7 +746,10 @@ export const TOURS: GuideTour[] = [
   {
     id: "canvas",
     title: "流水线画布",
-    version: 1,
+    // v2（2026-08-27）：末步原来讲的是「≡ 收起画布回线性视图」，而线性视图 08-23 已
+    // 下线、那颗按钮改成了「🎴 工坊」——老引导在教一个不存在的退路，正是文件头说的
+    // 「改版到老引导会误导人」，所以升版本让所有人重看。
+    version: 2,
     steps: [
       {
         title: "一屏看完整条片",
@@ -811,12 +814,108 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
-        title: "老界面还在",
+        title: "同一条片的另一面",
         anchor: "canvas-linear",
         body: (
           <>
-            点它收起画布，回到<b className="font-bold text-slate-100">一屏一段</b>的编辑页 —— 那边有整屏的方案台和圈选改画面。
-            下次进来会记着你上次用的是哪一种。
+            点它把这条流水线带去 <b className="font-bold text-slate-100">3D 工坊</b>：画布是摊开的流水线，
+            工坊是摆在桌上的节点卡，<b className="font-bold text-slate-100">两边改的是同一份</b>，
+            换个面打开不用重炼、不重复收费。
+          </>
+        ),
+      },
+    ],
+  },
+  // ── 设置子页（2026-08-27 设置页拆分时一起加）──────────────────────
+  // 设置页原来把说明文字直接铺在每一节里；拆成子页后常驻说明进这里，页面上只留
+  // 控件与条件触发的事实（离线/失败/管理员那几句仍在界面上，理由见文件头 ❌ 那条）。
+  {
+    id: "setprofile",
+    title: "编辑资料",
+    version: 1,
+    steps: [
+      {
+        title: "换头像",
+        anchor: "setprofile-avatar",
+        body: (
+          <>
+            点头像打开选择器：官方看板娘现成可选，最后一格从相册选自己的图，
+            <b className="font-bold text-slate-100">能拖动裁切、双指缩放</b>。不想用图，下面还能挑一个
+            emoji 顶着。
+          </>
+        ),
+      },
+      {
+        title: "昵称和简介",
+        anchor: "setprofile-form",
+        body: (
+          <>
+            昵称是别人看到的名字，简介挂在主页名字底下。这两样改完要点
+            <b className="font-bold text-slate-100">「保存资料」</b>才算数 —— 头像不用，点了就换。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "setvoice",
+    title: "铸卡师的声音",
+    version: 1,
+    steps: [
+      {
+        title: "点一条就试听",
+        anchor: "setvoice-list",
+        body: (
+          <>
+            每一条是一把嗓子，<b className="font-bold text-slate-100">点一下立刻念一句样本、同时选定它</b>。
+            标着「调和」的是几把嗓子混出来的。
+          </>
+        ),
+      },
+      {
+        title: "挑完嗓子还有两个旋钮",
+        anchor: "setvoice-tune",
+        body: (
+          <>
+            语速管快慢；语调用一句话描述想要的语气，
+            <b className="font-bold text-slate-100">改完点上面任意音色即刻再听</b>。语调那一段不计费，
+            只对单音色生效 ——「调和」那几条用不了。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "setquality",
+    title: "画面质量",
+    version: 1,
+    steps: [
+      {
+        title: "只管 3D 工坊",
+        anchor: "setquality-opts",
+        body: (
+          <>
+            这三档管的是工坊里 3D 形象的贴图精细度，
+            <b className="font-bold text-slate-100">跟出片视频的清晰度无关</b>。第一次进工坊会按机型
+            自动选一档；之后想换，全 app 只有这里能改。换档会重新加载一次。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "setstorage",
+    title: "存储与清理",
+    version: 1,
+    steps: [
+      {
+        title: "占的空间在这看、也在这清",
+        anchor: "setstorage-usage",
+        body: (
+          <>
+            上面是这台设备已经占用的空间。「清理缓存」
+            <b className="font-bold text-slate-100">只删生成过程中留下、已经没人引用的中间文件</b> ——
+            未发布的草稿和还没传上去的作品一个不动。
           </>
         ),
       },
