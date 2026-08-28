@@ -826,6 +826,58 @@ export const TOURS: GuideTour[] = [
       },
     ],
   },
+  {
+    id: "cut",
+    title: "剪辑",
+    // 2026-08-28 从 CutPage 自带的那份帮助弹窗迁来（铁律六：帮助内容只在 tours 一处）。
+    // 首次进页自动弹是新增的行为——原来那份只有主动点 ? 才看得到。
+    version: 1,
+    steps: [
+      {
+        title: "三个页签各管一摊",
+        anchor: "cut-tabs",
+        body: (
+          <>
+            <b className="font-bold text-slate-100">剪辑</b>管顺序与取舍，
+            <b className="font-bold text-slate-100">圈选</b>管改画面（要花钱的那种改），
+            <b className="font-bold text-slate-100">音频</b>管配乐 —— AI 生成的画面本身没有声音，
+            想要声音就在这儿配。
+          </>
+        ),
+      },
+      {
+        title: "剪辑：不花钱的整理",
+        anchor: "cut-timeline",
+        body: (
+          <>
+            点一个片段选中，就能在播放头处<b className="font-bold text-slate-100">✂️ 分割</b>、
+            <b className="font-bold text-slate-100">🗑 删除</b>、拖拽或前移后移<b className="font-bold text-slate-100">换序</b>。
+            这些只改导出范围，<b className="font-bold text-slate-100">一个 token 都不花</b>。
+          </>
+        ),
+      },
+      {
+        title: "圈选：花钱的重生成",
+        body: (
+          <>
+            拖进度条停在要改的画面，⭕ 圈出物体、写一句要求；可以<b className="font-bold text-slate-100">跨帧跨段圈多处</b>，
+            攒齐了一次性重新生成 —— 按钮上会标出几段、多少钱，<b className="font-bold text-slate-100">点那一下才计费</b>。
+          </>
+        ),
+      },
+      {
+        title: "右上角是终点",
+        anchor: "cut-next",
+        body: (
+          <>
+            整条模式下「下一步」把时间轴按顺序导出成<b className="font-bold text-slate-100">一整条视频</b>、进发布页
+            —— <b className="font-bold text-slate-100">发布后作品不可再修改</b>。从工坊单段进来时它是「保存本段」，
+            改完写回那一段、不合并不发片。
+          </>
+        ),
+      },
+    ],
+  },
   // ── 设置子页（2026-08-27 设置页拆分时一起加）──────────────────────
   // 设置页原来把说明文字直接铺在每一节里；拆成子页后常驻说明进这里，页面上只留
   // 控件与条件触发的事实（离线/失败/管理员那几句仍在界面上，理由见文件头 ❌ 那条）。

@@ -9,6 +9,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import FrameAnnotator, { drawAigcBadge, drawCover, loadImg } from "../components/FrameAnnotator";
+import HelpButton from "../components/guide/HelpButton";
+import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
 import { AI_REAL, refineFrame, regenSegment } from "../ai";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
@@ -78,7 +80,6 @@ export default function CutPage() {
   const [tab, setTab] = useState<Tab>("cut");
   const [resId, setResId] = useState("720");
   const [resOpen, setResOpen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState("");
   /** 合并的防重入闸。★ 用 ref 不用 busy：setBusy 异步生效，挡不住同一帧内的第二次点击 */
   const mergingRef = useRef(false);
@@ -92,6 +93,9 @@ export default function CutPage() {
   const [, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
   const pendingSeek = useRef<number | null>(null);
+
+  // 没草稿时页面马上跳走（下面那个 effect），别对着一屏空白弹引导
+  useAutoGuide("cut", !!draft);
 
   const leftRef = useRef(false);
   useEffect(() => {
@@ -501,13 +505,7 @@ export default function CutPage() {
         >
           <Icon name="back" size={22} />
         </button>
-        <button
-          onClick={() => setHelpOpen(true)}
-          className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-500 text-xs text-slate-300"
-          aria-label="使用说明"
-        >
-          ?
-        </button>
+        <HelpButton tour="cut" />
         <div className="flex-1" />
         <div className="relative">
           <button
@@ -544,6 +542,7 @@ export default function CutPage() {
             改完写回这一段的方案，并把改好的尾帧交给下一段当起拍帧，然后回工坊 */}
         {segEdit ? (
           <button
+            data-guide="cut-next"
             onClick={() => {
               leftRef.current = true;
               useStudio.getState().closeSegmentEdit(true);
@@ -556,6 +555,7 @@ export default function CutPage() {
           </button>
         ) : (
           <button
+            data-guide="cut-next"
             onClick={() => void mergeAndGo()}
             disabled={!!busy}
             className="rounded-lg bg-brand px-4 py-1.5 text-sm font-bold text-ink disabled:opacity-45"
@@ -645,7 +645,7 @@ export default function CutPage() {
 
       {/* ── 底部工具面板 ── */}
       <div className="safe-bottom flex max-h-[46%] flex-none flex-col border-t border-slate-800 bg-[#141821]">
-        <div className="flex flex-none items-center justify-center gap-7 px-4 pt-3">
+        <div data-guide="cut-tabs" className="flex flex-none items-center justify-center gap-7 px-4 pt-3">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -680,7 +680,7 @@ export default function CutPage() {
                 <span>{view.length} 个片段 · 共 {formatDuration(total)}</span>
                 <span>拖拽换序 · 点击选中</span>
               </div>
-              <div className="flex gap-1 overflow-x-auto rounded-xl bg-black/40 p-1.5">
+              <div data-guide="cut-timeline" className="flex gap-1 overflow-x-auto rounded-xl bg-black/40 p-1.5">
                 {view.map((c, i) => {
                   const seg = segs[c.segIndex];
                   const isSel = sel === c.id;
@@ -776,8 +776,9 @@ export default function CutPage() {
               >
                 ⭕ 圈选当前这一帧
               </button>
+              {/* 一句精华，展开讲在引导（tours 的 cut）里 */}
               <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-                拖动上面的进度条到想改的画面，圈出物体写要求。可跨帧跨段圈多处，最后一次性重新生成。
+                可跨帧跨段圈多处，最后一次性重新生成——那一步才计费。
               </p>
               {anns.length > 0 && (
                 <>
@@ -848,8 +849,9 @@ export default function CutPage() {
                     }}
                   />
                 </label>
+                {/* 「AI 画面本身没声音」挪进了引导第一步——这里留操作性的那一句就够 */}
                 <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-                  合并时混进成片；短于成片会自动循环。AI 生成的画面本身没有声音。
+                  合并时混进成片，短于成片会自动循环。
                 </p>
               </>
             ))}
@@ -868,24 +870,6 @@ export default function CutPage() {
         />
       )}
 
-      {helpOpen && (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/70" onClick={() => setHelpOpen(false)}>
-          <div className="w-full rounded-t-2xl bg-ink p-4" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm font-bold text-slate-100">怎么用这个剪辑页</span>
-              <button onClick={() => setHelpOpen(false)} className="text-slate-400">
-                <Icon name="close" size={18} />
-              </button>
-            </div>
-            <ul className="space-y-1.5 text-xs leading-relaxed text-slate-300">
-              <li>· <b>剪辑</b>：点片段选中，可在播放头处分割、删除、拖拽换序。分割只影响导出范围，不花 token。</li>
-              <li>· <b>圈选</b>：拖进度条到要改的画面，圈出物体写要求；可圈多处，最后一次性重新生成——这一步才计费。</li>
-              <li>· <b>音频</b>：加一段本地 BGM，导出时混进成片。</li>
-              <li>· <b>下一步</b>：按时间轴顺序导出成一整条视频，进发布页。发布后作品不可再修改。</li>
-            </ul>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
