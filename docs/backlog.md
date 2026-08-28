@@ -171,9 +171,13 @@ POST console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/ListAuthorizationA
   生成链接 + 复制（发给本人打开）+ 查状态。手填 asset ID 退路保留。
 
 **⚠ app UI 现在是骨架，两处等真机核对后补**（都在 docs 里标了）：
-- **二维码渲染**：现在给「复制链接」（功能等价、零依赖）。原因不只是缺 QR 库 ——
-  邀约链接的 `?uuid=` **query 参数名尚未实证**，先画二维码可能"扫了打不开"。
-  用一个真 UUID 在真机上打开核对 query 格式后，再把复制升级成二维码。
+- ~~二维码渲染~~ **已完成（2026-08-27）**：从控制台真二维码抠出并核对了链接格式 ——
+  `https://ark.volcengine.com/region:cn-beijing/mobile/livenees-face-manage/**index**?uuid=<UUID>`
+  （此前服务端少了结尾 `/index`，已修；query 名 `uuid` 猜对了）。加了零传递依赖的
+  `qrcode-generator`，`components/QrCode.tsx` 自己画 SVG 格子（白底黑点写死不吃主题色 ——
+  对比度是功能）。详情页「发起授权」现在出真二维码 + 复制链接双通道。
+  ⚠ **真机扫码这一步还没做**（要生产部署 + 一个愿意配合的人扫）——码本身经组件自检
+  （45×45 模块、定位角、不同 UUID 生成不同矩阵），但"扫了能不能走完火山 H5 那套"没验过。
 - **授权完成后自动绑定 asset id**：`groups` 的 `items[]` 字段名要等真有一条授权入库才看得到
   （现在恒 totalCount:0）。核对后把"查状态"接成"自动把 asset id 绑进卡"。
 

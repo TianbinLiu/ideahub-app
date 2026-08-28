@@ -18,6 +18,7 @@ import { addCardView, removeCardView } from "../data/cardViews";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
 import { assetOf, assetsVersion, normalizeAssetId, removeAsset, saveAsset, subscribeAssets } from "../data/cardAsset";
 import { createPortraitInvite, fetchPortraitGroups, type PortraitInvite } from "../api/portrait";
+import QrCode from "../components/QrCode";
 import { formatHeat, heatOf } from "../data/social";
 import {
   CARD_INFO_LABELS,
@@ -280,14 +281,20 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
               {/* 路一：在 app 内发起授权（把链接发给本人）。骨架——见 startInvite 的 ★ */}
               {invite ? (
                 <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-2">
-                  <p className="mb-1 text-[10px] leading-relaxed text-sky-200">
-                    把这条链接发给<b>本人</b>，让他在手机上打开，完成活体认证并授权（有效期至{" "}
-                    {new Date(invite.endSec * 1000).toLocaleDateString()}）：
+                  <p className="mb-1.5 text-[10px] leading-relaxed text-sky-200">
+                    让<b>本人</b>用手机扫下面这个码（或把链接发给他打开），完成活体认证并授权。
+                    授权有效期至 {new Date(invite.endSec * 1000).toLocaleDateString()}。
                   </p>
-                  <p className="break-all rounded bg-ink/60 px-2 py-1 font-mono text-[9px] text-slate-300">{invite.url}</p>
-                  <div className="mt-1.5 flex gap-2">
+                  {/* 二维码：当面扫最快。★ 白底黑点写死不吃主题色（对比度是功能） */}
+                  <div className="mb-1.5 flex justify-center rounded-lg bg-white p-2">
+                    <QrCode text={invite.url} size={168} />
+                  </div>
+                  <p className="mb-1.5 break-all rounded bg-ink/60 px-2 py-1 font-mono text-[9px] text-slate-400">
+                    {invite.url}
+                  </p>
+                  <div className="flex gap-2">
                     <button
-                      onClick={() => void navigator.clipboard?.writeText(invite.url).then(() => setInviteMsg("链接已复制"))}
+                      onClick={() => void navigator.clipboard?.writeText(invite.url).then(() => setInviteMsg("链接已复制，可以发给本人"))}
                       className="flex-1 rounded-lg bg-brand py-1.5 text-[11px] font-bold text-ink"
                     >
                       复制链接
@@ -300,6 +307,10 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
                       {inviteBusy ? "查…" : "查授权状态"}
                     </button>
                   </div>
+                  {/* ⚠ 到期就换：邀约码本身有效期比授权期短（控制台是 7 天）——扫不动就重新发起 */}
+                  <p className="mt-1 text-[9px] leading-relaxed text-slate-600">
+                    扫不动了？这条邀约码会过期，回来重新「发起授权」生成一张新的即可。
+                  </p>
                 </div>
               ) : (
                 <button
