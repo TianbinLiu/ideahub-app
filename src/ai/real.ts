@@ -6,6 +6,7 @@ import {
   CARD_TYPE_LABELS,
   Card,
   CardType,
+  CARD_TYPES,
   Proposal,
   VideoAspect,
   aspectOf,
@@ -184,7 +185,8 @@ const ART_STYLE = "二次元厚涂插画风，高细节，电影感构图，氛�
 /** 每张出图都要的收尾。水印/文字混进设定帧就会被 Seedance 一起拍进视频里 */
 const NO_TEXT = "无文字无水印。";
 
-const STYLE_SUFFIX = `${ART_STYLE}${NO_TEXT}竖版 3:4 卡面。`;
+// （STYLE_SUFFIX 已拆散：卡面那半在 cardStyleSuffix，设定帧那半在 frameStyle——
+//   后者 2026-08-28 起画风开头交给 frameArtStyle 按挂的卡定，不再无条件厚涂）
 
 /**
  * 卡片相关出图的尾巴。
@@ -1096,18 +1098,46 @@ export async function generateCards(
   return { cards: out.map((o) => o.card), minted: out.map((o) => o.minted), notes };
 }
 
+/**
+ * 设定帧的**画风开头** —— 2026-08-28 主人拍板：画风的主人是**卡**，不是写死的常量。
+ *
+ * ★★ 修的是一条实打实的自相矛盾（backlog 2.7 的 P1-a）：这里原来无条件拼 ART_STYLE
+ *   （「二次元厚涂插画风…」），而挂了风格卡时 prepareMaterialRefs 的绑定句在**同一句**
+ *   提示词里说「只沿用〈图片N〉的画法」——两句打架，模型挑一句听。卡面铸造那侧
+ *   2026-08-11 修过一模一样的事（cardStyleSuffix 对 style 卡不拼画风词），帧管线漏了。
+ * ★ 按**文字**点名风格卡而不是只靠参考图：风格卡的图在预算里可能被挤掉
+ *   （MAX_REF_IMAGES=3，hero 占 2 张时第二张非人物卡就没位了）——图被挤掉时
+ *   这句文字就是它参与的唯一途径，两条腿都在才稳。
+ * ★ 真人卡（realPerson）也压掉厚涂词（backlog 2.7 的 P2-b 顺手修）：对着照片参考写
+ *   「厚涂插画」就是命令模型把真人动漫化。风格卡优先于真人判定——用户明挂了风格卡
+ *   就是要那个画风。
+ * ★ 什么卡都没挂：维持默认厚涂 —— 没有任何画风依据时，帧与帧会各画各的。
+ */
+function frameArtStyle(materials?: Card[]): string {
+  const styleCard = materials?.find((c) => c.type === "style");
+  if (styleCard)
+    return `整体画风严格跟随风格卡「${styleCard.name}」${
+      styleCard.summary ? `（${styleCard.summary.slice(0, 24)}）` : ""
+    }，全片统一，高细节，`;
+  if (materials?.some((c) => c.realPerson === true)) return "照片级写实画面，高细节，电影感构图，氛围光，";
+  return ART_STYLE;
+}
+
 /** 设定帧的画风尾巴。画幅得写进提示词：size 参数只决定画布，构图还是靠这句话——
  *  竖版画布配"横版构图"的提示词，出来的是一张上下大片空白的横构图。 */
-function frameStyle(aspect?: VideoAspect): string {
-  return STYLE_SUFFIX.replace("竖版 3:4 卡面", aspectOf(aspect).promptHint);
+function frameStyle(aspect?: VideoAspect, materials?: Card[]): string {
+  return `${frameArtStyle(materials)}${NO_TEXT}${aspectOf(aspect).promptHint}。`;
 }
 
 /** `withRef` 专指**承接帧**（上一段的尾帧）在不在。素材卡的参考图不走这里 ——
  *  它们由 prepareMaterialRefs 的绑定句负责，两者语义完全不同：
  *  承接帧是"接着这一画面往下拍"，素材卡是"这个角色长这样"。
- *  ★ 承接帧一律排在参考图数组的**第一位**，所以这里可以写死 `<图片1>`。 */
-function framePrompts(plot: string, withRef: boolean, aspect?: VideoAspect): { first: string; last: string } {
-  const style = frameStyle(aspect);
+ *  ★ 承接帧一律排在参考图数组的**第一位**，所以这里可以写死 `<图片1>`。
+ *  ★ `materials` 只喂给画风那半（frameArtStyle）：composeSegments 里 degraded 帧的
+ *    重画拿不到素材卡（segments 形状里没有），传 undefined 退默认厚涂——可接受，
+ *    那是失败救援路，不是主产线。 */
+function framePrompts(plot: string, withRef: boolean, aspect?: VideoAspect, materials?: Card[]): { first: string; last: string } {
+  const style = frameStyle(aspect, materials);
   return {
     first: `电影分镜首帧：${plot.slice(0, 100)}。${withRef ? "延续<图片1>的色调与光线氛围。" : ""}${style}`,
     last: `电影分镜尾帧（这段剧情的收束瞬间）：${plot.slice(-100)}。${style}`,
@@ -1184,7 +1214,7 @@ export async function generateProposals(
     // 有确定开头帧时尾帧也带它当参考（人物/画风连贯）；否则仅首帧带上一段色调参考
     const withFrameRef = (which === "first" || !!startFrame) && frameRefs.length > 0;
     const useRefs = [...(withFrameRef ? frameRefs : []), ...mat.refs];
-    const prompts = framePrompts(p.plot, withFrameRef, ctx.aspect);
+    const prompts = framePrompts(p.plot, withFrameRef, ctx.aspect, ctx.materials);
     // 绑定句里的 <图片N> 要跳过承接帧占的那一位，否则模型会去看错的那张图
     const prompt = (which === "first" ? prompts.first : prompts.last) + mat.bind(withFrameRef ? frameRefs.length : 0);
     let frame: string | null = null;
@@ -1198,7 +1228,8 @@ export async function generateProposals(
         // 带参考图失败可能是参考图本身不被受理——去掉参考图再试一次。
         // ★ 说出来：退成纯文生图意味着这一帧**没有**用上你挂的卡，闷声重试等于骗人
         if (useRefs.length > 0) onProgress?.("参考图未被受理，该帧改用纯文字重画");
-        frame = await genImageAsDataUrl(framePrompts(p.plot, false, ctx.aspect)[which], { size: frameSize });
+        // 纯文字重试也要带画风那半（frameArtStyle 只出文字，风格卡按名字点名，不涉图）
+        frame = await genImageAsDataUrl(framePrompts(p.plot, false, ctx.aspect, ctx.materials)[which], { size: frameSize });
       } catch (e2) {
         console.warn(`[ai] ${p.title} ${which} 帧两次失败:`, e2);
       }
@@ -1248,15 +1279,24 @@ function mintSpec(cap: CardMintCap, head: string, tail: string): MintSpec {
   return { cap, prompt: `${head}输出 JSON 数组（0~${cap} 张）${tail}` };
 }
 
-/** 成片剧情 → 本片卡组。上限与报价（economy.deckCardsCost）同一个常量。 */
+/** 成片剧情 → 本片卡组。上限与报价（economy.deckCardsCost）同一个常量。
+ *  ★ 2026-08-28 主人拍板改成**卡种级**规则（原来是实体级"补缺的角色"）：
+ *    用户挂过某一卡种 = 那一种整个关门（他的卡直接入组，AI 一张都不出）；
+ *    没挂过的卡种按需补齐，其中 style 是**硬要求**（每条片的卡组都要有风格卡）。 */
 const DECK_MINT = mintSpec(
   DECK_MAX_CARDS,
-  '你是卡牌游戏的铸卡师。对照"已有素材卡"清单，从视频剧情中提炼出尚未有卡的可复用创作素材，',
-  '：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：剧情中每个主要角色若未被已有卡覆盖（注意同一角色可能换了称呼），各出一张 character 卡，缺几个补几张；已有卡覆盖的实体绝对不要再出——例如已有人物卡「义肢少女」时，剧情里这位少女无论被叫作"电玩少女""机械臂少女"还是换了新造型，都不得再为她出卡。主要场景/地点同理，每处未覆盖的出一张 scene 卡。整体色调氛围未覆盖时至多一张 background 卡；画风鲜明且没有风格卡时至多一张 style 卡；剧情关键道具可出 prop 卡。所有实体都已被覆盖时输出 []。只输出 JSON。',
+  "你是卡牌游戏的铸卡师。用户为这条视频挂过一些素材卡（那些卡种已经关门），请只为下面点名的「缺失卡种」从剧情中提炼补卡，",
+  '：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：**只出「缺失卡种」清单里点名的卡种**，其它卡种一张都不要出。缺失卡种按需出：character＝剧情每个主要角色各一张；scene＝每个主要场景/地点各一张；background＝恰出一张（总结整片色调、光比与氛围）；style＝**必须恰出一张**（总结整片画风，name 就是画风名，如「水墨留白」「胶片质感」）；prop＝剧情确有关键道具时各一张，没有就不出。缺失卡种清单为空时输出 []。只输出 JSON。',
 );
 
 /** 从成片剧情提炼"本片卡组"：豆包分类型出卡（主要角色/场景/氛围底色/画风），
- *  Seedream 逐张出竖版卡面。视频是什么画风，卡面就跟什么画风（styleHint 注入）。 */
+ *  Seedream 逐张出竖版卡面。视频是什么画风，卡面就跟什么画风（styleHint 注入）。
+ *
+ *  ★★ 卡种级关门是**代码闸**不是提示词请求（与 canvasAgent"钱上的闸写在白名单层"
+ *    同一条纪律）：模型偶尔会不听话给已关门的卡种出卡，那张卡面照样要花一次图钱 ——
+ *    所以 defs 在铸卡面**之前**先按 coveredTypes 硬滤一遍。
+ *  ★ style 兜底：模型没按"必须恰出一张"给风格卡时，用确定性定义补上（总结句式，
+ *    不编内容）——「每条片的卡组都有风格卡」是主人点名的硬规格，不能指望提示词。 */
 export async function deriveDeckCards(
   segments: Array<{ title: string; plot: string; firstFrame: string }>,
   styleHint: string,
@@ -1264,18 +1304,31 @@ export async function deriveDeckCards(
   onProgress?: (status: string) => void,
 ): Promise<Card[]> {
   onProgress?.("提炼本片卡组…");
-  // 把已有素材卡报给模型：同一实体（哪怕剧情里换了叫法）不许重复出卡，
-  // 只补剧情里出现但还没有卡的角色/场景——每类都可以出多张
+  // 用户挂过的卡种整个关门；没挂过的点名为「缺失卡种」
+  const covered = new Set(existing.map((c) => c.type));
+  const missing = CARD_TYPES.filter((t) => !covered.has(t));
+  if (missing.length === 0) return []; // 五种都挂全了：素材卡并集就是完整卡组，一张不铸
   const existingDesc =
     existing.length > 0
       ? existing.map((c) => `${TYPE_LABEL[c.type]}「${c.name}」(${(c.summary ?? "").slice(0, 24)})`).join("、")
       : "（无）";
   const raw = await chat(
     DECK_MINT.prompt,
-    `已有素材卡：${existingDesc}\n剧情（按段）：${segments.map((s) => s.plot).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从剧情推断）"}`,
+    `缺失卡种（只出这些）：${missing.map((t) => `${t}（${CARD_TYPE_LABELS[t]}）`).join("、")}\n用户已挂的卡（这些卡种关门）：${existingDesc}\n剧情（按段）：${segments.map((s) => s.plot).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从剧情画面推断）"}`,
   );
-  const defs = JSON.parse(raw.replace(/```json|```/g, "").trim()) as CardDef[];
+  let defs = JSON.parse(raw.replace(/```json|```/g, "").trim()) as CardDef[];
   if (!Array.isArray(defs)) throw new Error("卡组提炼 JSON 结构不符");
+  // 代码闸：已关门的卡种一张不铸（见函数头 ★★）
+  defs = defs.filter((d) => d.type && missing.includes(d.type));
+  // style 硬要求的兜底（见函数头 ★）
+  if (missing.includes("style") && !defs.some((d) => d.type === "style")) {
+    defs.push({
+      type: "style",
+      name: "本片画风",
+      summary: "从整片画面总结的画风基调，复用它可让新片延续同一画风。",
+      imagePrompt: "一张能代表本片整体画风的示意画面：延续剧情画面的笔触、上色与光影质感，题材随意，重点是画法本身",
+    });
+  }
   return await mintCards(defs, DECK_MINT, styleHint, existing, onProgress);
 }
 

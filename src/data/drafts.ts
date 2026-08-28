@@ -29,6 +29,8 @@ export interface FlowSnapshot {
   origin: "studio" | "solo";
   template: unknown;
   subject: string;
+  /** 「只出片不出卡组」的选择（flowStore.deckOff）。★ 判否定：老草稿缺省 = false = 随片出卡组 */
+  deckOff?: boolean;
 }
 
 export interface WorkDraft {

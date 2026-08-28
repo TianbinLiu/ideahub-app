@@ -887,8 +887,22 @@ export default function FlowPage() {
   useEffect(() => {
     if (genNotice) clearGenNotice();
   }, [genNotice, clearGenNotice]);
-  const { nodes, cursor, mode, origin, busy, err, setCursor, addNode, removeNode, addMaterials, removeMaterial, reset } =
-    useFlow();
+  const {
+    nodes,
+    cursor,
+    mode,
+    origin,
+    busy,
+    err,
+    deckOff,
+    setDeckOff,
+    setCursor,
+    addNode,
+    removeNode,
+    addMaterials,
+    removeMaterial,
+    reset,
+  } = useFlow();
   const [finalizing, setFinalizing] = useState("");
   const [tplExtract, setTplExtract] = useState(false);
   /**
@@ -1051,7 +1065,7 @@ export default function FlowPage() {
    *   同一份文字、同一批常量（见 studioStore.deckQuoteOf）。简约模式它返回全 0 ——
    *   那条路**不报也不收**。
    */
-  const deck = useMemo(() => deckQuoteOf(nodes, mode), [nodes, mode]);
+  const deck = useMemo(() => deckQuoteOf(nodes, mode, deckOff), [nodes, mode, deckOff]);
   /** 顶栏那个"剩余约"。★ 把组稿那一笔一起算进去：分开显示两个数，用户没有任何理由
    *  相信它们要相加，而"我还得准备多少 token"是一个数不是两个。 */
   const remain = useMemo(() => flowCost(nodes, mode) + deck.total, [nodes, mode, deck.total]);
@@ -1072,13 +1086,16 @@ export default function FlowPage() {
   const deckNote =
     deck.on && AI_REAL
       ? [
-          `点「完成视频」还会提炼本片卡组：最多 ${deck.maxCards} 张卡，约 ${fmtTokens(deck.cards)} token`,
+          `点「完成视频」还会提炼本片卡组：你挂过的卡直接入组，缺的卡种（风格卡必有）AI 补齐，最多 ${deck.maxCards} 张、约 ${fmtTokens(deck.cards)} token`,
           deck.wants3d
             ? `；这条片写了 3D / 建模一类的画风，还会给派生的角色卡铸最多 ${deck.max3d} 个 3D 建模，另约 ${fmtTokens(deck.model3d)} token`
             : "",
           "。都按实际出卡结算，余额不够会自动跳过（成片不受影响）。",
         ].join("")
-      : "";
+      : // 勾了「只出片」：报价行也要如实换话——空着的话用户看不出这个选择生效了没有
+        deckOff && mode !== "simple"
+        ? "已选择只出片：这次「完成视频」不提炼卡组，也不收那笔钱。"
+        : "";
 
   /** 存盘。失败要说出来：配额满/隐私模式下 IndexedDB 写不进去，
    *  静默"保存成功"会让用户放心地关掉页面，然后什么都没了（铁律八） */
@@ -1099,7 +1116,8 @@ export default function FlowPage() {
       //   useFlow 的话，这个调用点上根本看不出"模式会改变这次组稿花多少钱"。
       //   与上面 deckQuoteOf 报价时读的是同一个 mode —— 报什么价就收什么钱。
       const st = useFlow.getState();
-      const ok = await useStudio.getState().finalizeFromFlow(st.nodes, st.mode, (s) => setFinalizing(s));
+      // ★ deckOff 与 mode 同一拍读同一个 store：报价（deckQuoteOf）读的就是这两个
+      const ok = await useStudio.getState().finalizeFromFlow(st.nodes, st.mode, (s) => setFinalizing(s), st.deckOff);
       if (ok) {
         leavingRef.current = true;
         reset();
@@ -1524,7 +1542,15 @@ export default function FlowPage() {
              提炼卡组、清空流水线、跳剪辑页，在画布里另写一份必然与这边分叉（铁律六）。
              画布只借按钮与状态，与 onCast 同一个套路。 */
           draft={{ state: saveState, onSave: () => void saveNow() }}
-          finish={{ allDone, finalizing, note: deckNote, onRun: () => void toCut() }}
+          finish={{
+            allDone,
+            finalizing,
+            note: deckNote,
+            onRun: () => void toCut(),
+            // 「随片出不出卡组」的开关（值在 flowStore.deckOff：报价与实收读同一份）
+            deckOn: !deckOff,
+            onDeckToggle: () => setDeckOff(!deckOff),
+          }}
         />
       )}
     </div>

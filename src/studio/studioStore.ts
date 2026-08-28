@@ -191,14 +191,17 @@ export interface DeckQuote {
  *
  * ★★ 简约模式返回全 0：那条路**既不派生也不收费**（见 finalizeFromFlow 的短路）。
  *   报价与实收必须一致，所以"不收"这件事也只能有一处判断，就是这里的 `mode`。
- * ★ 卡张数是**上限**不是确数（重复实体会被剔掉，按实际出卡结算），所以 UI 必须写"最多"。
+ * ★ deckOff（用户勾了「只出片不出卡组」，flowStore.deckOff）同样全 0——与 mode 是
+ *   同一道闸的两个入口，实收侧（finalizeInner 的 withDeck）读的是同一对布尔。
+ * ★ 卡张数是**上限**不是确数（2026-08-28 起按**卡种级**补缺：用户挂过的卡种一张不出，
+ *   缺的卡种才补，按实际出卡结算），所以 UI 必须写"最多"。
  * ★ 3D 那一项是**条件项**：撞不上关键词就是实打实的 0（不是"暂时不算"），
  *   撞上了才按上限 2 个报。它随用户改剧情实时变 —— 这正是它诚实的地方：
  *   报的永远是"照现在这些字，组稿会花多少"。
  */
-export function deckQuoteOf(nodes: FlowNode[], mode: FlowMode): DeckQuote {
+export function deckQuoteOf(nodes: FlowNode[], mode: FlowMode, deckOff = false): DeckQuote {
   const off: DeckQuote = { on: false, maxCards: 0, cards: 0, wants3d: false, max3d: 0, model3d: 0, total: 0 };
-  if (mode === "simple" || nodes.length === 0) return off;
+  if (mode === "simple" || deckOff || nodes.length === 0) return off;
   const cards = deckCardsCost(DECK_MAX_CARDS);
   const wants3d = styleWants3d(deckStyleBlob(nodes));
   const model3d = wants3d ? deckModel3dCost(DECK_MAX_3D) : 0;
@@ -514,7 +517,7 @@ interface StudioState {
    *   还得自己再读一次同样的东西去报价，两次读的中间隔着一个 await（用户可能
    *   已经退出去换了模式）。调用方只有 FlowPage 一处，显式传的成本是一个参数。
    */
-  finalizeFromFlow: (nodes: FlowNode[], mode: FlowMode, onProgress?: (status: string) => void) => Promise<boolean>;
+  finalizeFromFlow: (nodes: FlowNode[], mode: FlowMode, onProgress?: (status: string) => void, deckOff?: boolean) => Promise<boolean>;
   /**
    * 「这次组稿在跑吗」—— **store 级**，不许只活在组件的 useState 里。
    * ★★ 2026-08-21 第八轮扫描的 high：组稿要几十秒（提炼卡组最多 8 张 + 撞上 3D 关键词
@@ -524,7 +527,7 @@ interface StudioState {
    */
   finalizing: boolean;
   /** finalizeFromFlow 的正文（外层只负责那道"同一时刻只跑一发"的闸），别直接调 */
-  finalizeInner: (nodes: FlowNode[], mode: FlowMode, onProgress?: (status: string) => void) => Promise<boolean>;
+  finalizeInner: (nodes: FlowNode[], mode: FlowMode, onProgress?: (status: string) => void, deckOff?: boolean) => Promise<boolean>;
   clearDraft: () => void;
 
   /**
@@ -1791,7 +1794,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     return true;
   },
 
-  finalizeFromFlow: async (nodes, mode, onProgress) => {
+  finalizeFromFlow: async (nodes, mode, onProgress, deckOff) => {
     if (nodes.length === 0) return false;
     // ★★ 同一时刻只准跑一发（见 finalizing 字段的 ★★）。原因写进 flowStore.err：
     //   两个面都画它，静默 return 的话上层只能瞎猜（铁律八）
@@ -1801,12 +1804,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
     set({ finalizing: true });
     try {
-      return await get().finalizeInner(nodes, mode, onProgress);
+      return await get().finalizeInner(nodes, mode, onProgress, deckOff);
     } finally {
       set({ finalizing: false });
     }
   },
-  finalizeInner: async (nodes, mode, onProgress) => {
+  finalizeInner: async (nodes, mode, onProgress, deckOff) => {
     const { root } = get();
     const say = (s: string) => onProgress?.(s);
     /**
@@ -1820,10 +1823,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
      *   ⚠ 短路的是**整段**：派生、3D 建模、以及派生失败时那个"按段兜底出场景卡"，
      *     三件都在下面同一个 try 里，一件都不做。素材卡的并集也不做 ——
      *     那些卡本来就在用户自己的卡库里，简约模式没必要再随片打包一份。
-     *   ★ 报价那侧读 deckQuoteOf(nodes, mode)，判的是**同一个 mode**：
+     *   ★ 报价那侧读 deckQuoteOf(nodes, mode, deckOff)，判的是**同一个 mode + 同一个
+     *     deckOff**（都来自 flowStore，FlowPage 一处读了显式传过来）：
      *     不报也不收，报了就一定收（报价必须等于实收）。
+     * ★ deckOff（2026-08-28 主人点名的用户选择）：用户勾了「只出片不出卡组」就整段
+     *   跳过——语义与简约模式的短路完全相同，走同一个布尔。
      */
-    const withDeck = mode !== "simple";
+    const withDeck = mode !== "simple" && !deckOff;
     // 真实帧回写节点树：占位帧的重画、尾帧续作的真实结尾——节点卡、分支树、
     // 日后回炉编辑都以真帧为准（节点卡显示的就是视频里实际的画面）
     const path = root ? activePath(root) : [];
@@ -1882,7 +1888,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (withDeck) {
       try {
         const styleHint = deckCards.find((c) => c.type === "style")?.name ?? "";
-        // 把已用的素材卡报给 AI：已覆盖的实体不重复提炼，只补剧情里缺卡的角色/场景
+        // 把已挂的素材卡报给 AI：2026-08-28 起按**卡种级**关门——挂过的卡种一张不出
+        // （那些卡直接随片入组），缺的卡种才补，风格卡必补（规则在 deriveDeckCards 一处）
         // 派生卡组与 3D 建模以前**完全免费**，而 3D 建模是全 app 最贵的单次操作
         // （seed3d 约 2.4 元/次 ≈ 160k token）。这里在真实 AI 下按上限预扣门槛、
         // 按实际产出结算——余额不够就跳过派生，成片本身照出，不该被卡住
@@ -2018,7 +2025,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       deck,
       flow:
         nodes.length > 0
-          ? { nodes, cursor: f.cursor, mode: f.mode, origin: f.origin, template: f.template, subject: f.subject }
+          ? { nodes, cursor: f.cursor, mode: f.mode, origin: f.origin, template: f.template, subject: f.subject, deckOff: f.deckOff }
           : null,
       coverFrame: coverFrame || undefined,
       segCount: nodes.length || activePath(root).length,
@@ -2123,6 +2130,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
         origin: d.flow.origin ?? "studio",
         template: (d.flow.template as FlowTemplate) ?? null,
         subject: d.flow.subject ?? "",
+        // ★ 判否定（drafts.FlowSnapshot.deckOff 的 ★）：老草稿缺省 = 随片出卡组
+        deckOff: d.flow.deckOff === true,
         busy: false,
         err: "",
       });

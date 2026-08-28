@@ -104,8 +104,17 @@ export default function FlowCanvas({
   /** 存草稿：实现在 FlowPage.saveNow（写盘 + 失败要说话），这里只借按钮与状态 */
   draft: { state: "idle" | "saving" | "saved" | "failed"; onSave: () => void };
   /** 完成视频（组稿→剪辑页）：实现在 FlowPage.toCut。note 是组稿那一笔的整句报价，
-   *  与线性视图**同一句**（在 FlowPage 拼一次） */
-  finish: { allDone: boolean; finalizing: string; note: string; onRun: () => void };
+   *  与线性视图**同一句**（在 FlowPage 拼一次）。deckOn/onDeckToggle 是「随片出不出
+   *  卡组」的用户选择（2026-08-28）——值住在 flowStore.deckOff，报价与实收读同一份，
+   *  这里照旧只借开关。 */
+  finish: {
+    allDone: boolean;
+    finalizing: string;
+    note: string;
+    onRun: () => void;
+    deckOn: boolean;
+    onDeckToggle: () => void;
+  };
 }) {
   const nodes = useFlow((s) => s.nodes);
   const cursor = useFlow((s) => s.cursor);
@@ -580,6 +589,23 @@ export default function FlowCanvas({
                     每段都出片之后在这里合成整片（还差 {nodes.filter((n) => !nodeDone(n)).length} 段）
                   </div>
                 )}
+                {/* 随片出不出卡组：主人点名的用户选择。放在终点这里而不是设置页——
+                    钱在这一步花，选择就该摆在钱旁边。什么时候都能改（组稿前生效即可） */}
+                <label
+                  className="flex max-w-[216px] items-start gap-1.5 text-[10px] leading-relaxed text-slate-400"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    checked={finish.deckOn}
+                    onChange={() => finish.onDeckToggle()}
+                    className="mt-0.5 h-3.5 w-3.5 flex-none accent-brand"
+                  />
+                  <span>
+                    随片提炼本片卡组
+                    <span className="text-slate-500">（你挂过的卡直接入组，缺的卡种由 AI 补齐；不勾就只出片）</span>
+                  </span>
+                </label>
                 {finish.allDone && finish.note && (
                   <p className="max-w-[216px] text-[10px] leading-relaxed text-slate-500">{finish.note}</p>
                 )}

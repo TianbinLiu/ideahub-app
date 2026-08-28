@@ -198,9 +198,11 @@ export type FlowTemplate = {
  */
 function clearTemplate(): Pick<
   FlowState,
-  "template" | "subject" | "cast" | "castErr" | "castFallback" | "castBusy" | "castNodeId"
+  "template" | "subject" | "cast" | "castErr" | "castFallback" | "castBusy" | "castNodeId" | "deckOff"
 > {
-  return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false, castNodeId: null };
+  // deckOff 也在这里回默认：本函数的调用点恰好就是全部「整表换流水线/复位」点，
+  // 而「只出片不出卡组」是**每条片各自**的选择，不该跟到下一条片上
+  return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false, castNodeId: null, deckOff: false };
 }
 
 /**
@@ -573,6 +575,16 @@ interface FlowState {
    *   点下去把这一段的骨架写进别人的 plot。两个面同病。
    */
   castNodeId: string | null;
+  /**
+   * 「这条片只出片，不随片提炼卡组」（2026-08-28 主人点名的用户选择）。
+   * ★ 判否定：false = 默认随片出卡组（老行为）。放 store 而不是页面组件本地态，
+   *   因为**报价与实收要读同一份**（铁律六）：FlowPage 的 deckQuoteOf 报价、
+   *   toCut 传给 finalizeFromFlow 实收，两处都从这里拿。
+   * ★ 换新流水线（seed/seedSolo/applyTemplate*）时回默认 false——那是另一条片，
+   *   上一条的选择不该悄悄跟过来。随草稿存取（drafts.FlowSnapshot.deckOff）。
+   */
+  deckOff: boolean;
+  setDeckOff: (v: boolean) => void;
   reset: () => void;
 
   /** 改当前走向的内容（标题/剧情/时长/帧） */
@@ -656,6 +668,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
   castFallback: "",
   castBusy: false,
   castNodeId: null,
+  deckOff: false,
+  setDeckOff: (v) => set({ deckOff: v }),
 
   // ★ template/subject（连同挂卡那两格，见 clearTemplate）必须一起清：工坊铺过来的是
   //   workflow 模式的节点，而模板栏只在 simple 模式渲染。留着上一轮简约模式的模板，
