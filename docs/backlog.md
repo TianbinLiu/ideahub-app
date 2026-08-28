@@ -142,15 +142,24 @@ POST console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/ListAuthorizationA
   `Result: { Items[], TotalCount, PageNumber, PageSize }`。`AssetOwnership` 是**枚举且大小写敏感**，
   实测只有 **`"All"`** 收（`Owned`/`Authorized`/`Self`/`owned` 全报 `InvalidParameter`）——
   别猜别的值，接的时候直接写 `"All"` 再在客户端按 `Items[].` 的字段筛归属。
+- **两个 Action 的入参 schema 都摸通了（2026-08-27，逐字段实证）**：
+  - `CreateAuthorizationUUID`（生成邀约）：必填 `Validity`，形状是
+    **`{ Validity: { Start:<秒级时间戳>, End:<秒级时间戳> } }`** → 200 `Result: { UUID }`。
+    ⚠ Start/End 只收**秒级 Unix 时间戳**（日期串 `"2026-08-27"` / datetime / ISO8601 / 毫秒 全报
+    `InvalidParameter.Validity.Start`）。返回的 `UUID` 就是拼邀约 H5 链接的那一段
+    （二维码指向 `ark.volcengine.com/region:cn-beijing/mobile/livenees-face-manage/…?…UUID…`，
+    确切 query 参数名等接 UI 时用一个真 UUID 拼出来核对）。
+  - `ListAuthorizationAssetGroup`（查授权状态/asset id）：`{ Filter: { AssetOwnership:"All" } }`
+    → 200 `Result: { Items[], TotalCount, PageNumber, PageSize }`。`Items[]` 的字段要等**真有
+    授权入库**后才看得到（现在 TotalCount:0）——接 app 轮询前用一条真授权把 `Items[].` 的字段
+    （asset id、状态、演员名）抠出来，别猜。
 - ⇒ **「app 内授权」这条路成立**：server 用 AK/SK 直调即可，不依赖控制台登录态。
   密钥进 server `.env`（`VOLC_AK`/`VOLC_SK`，已配好、已 gitignore、绝不进 app 包）。
 
 **动工前置（按顺序）**：
 1. ~~建 AK/SK~~ **已完成**（子用户 `ideahub-ark-api` + `ArkFullAccess`，密钥在 server `.env`）。
 2. ~~只读探针~~ **已完成**（见上，200 通过）。
-3. **`CreateAuthorizationUUID` 的入参还没摸**（生成邀约那一步）：控制台抓到了 Action 名，但
-   请求体 schema 未知——接之前先照 `ListAuthorizationAssetGroup` 那样逐字段试出来（授权时间、
-   AssetOwnership 之类）。这一步**会真的建一条邀约**，不是纯只读，试的时候用短有效期。
+3. ~~摸 `CreateAuthorizationUUID` 入参~~ **已完成**（`Validity:{Start,End}` 秒级时间戳 → `{UUID}`，见上）。
 4. 「**接收授权**」那一步的 Action 还没抓到（要等真有人扫码授权后控制台才出现那颗按钮）——
    接收前先抓它，别猜名字。
 5. ToS 面：正规网关格式、非逆向私有接口，但**未见公开文档** ⇒ 接受"可能变动无通知"，
