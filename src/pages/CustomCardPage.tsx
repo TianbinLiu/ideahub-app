@@ -52,6 +52,7 @@ import {
   CARD_INFO_LABELS,
   CARD_SLOTS,
   CARD_TYPES,
+  CARD_TYPE_COVERS,
   CARD_TYPE_LABELS,
   Card,
   CardType,
@@ -78,19 +79,6 @@ const TAG_LEN_MAX = 10;
 
 /** 方案小窗的占位图（内置方案都带真实示例图了，这份只兜自定义方案没存示例的情况） */
 const SCHEME_EMOJI: Record<string, string> = { scheme_clean: "🧍", scheme_faceless: "🫥", scheme_specsheet: "📐" };
-
-/**
- * 第 1 屏五张卡种海报的封面：借市场种子卡里各卡种**最热那张**的真实卡面。
- * ★ `mkt_<i>` 是按 MARKET_DEFS **下标**绑定的文件名（mock/ai.ts 那条 ★）——
- *   那边中途插卡这里就会指鹿为马，改这张表先去对下标。
- */
-const TYPE_COVERS: Record<CardType, string> = {
-  character: "/cards/market/mkt_0.webp", // 赛博侦探·凛
-  scene: "/cards/market/mkt_5.webp", // 雨夜霓虹街
-  background: "/cards/market/mkt_10.webp", // 黄昏金
-  prop: "/cards/market/mkt_13.webp", // 会说谎的罗盘
-  style: "/cards/market/mkt_15.webp", // 水墨留白
-};
 
 /** 一个图位上已经准备好的那张图 */
 interface Shot {
@@ -469,7 +457,8 @@ export default function CustomCardPage() {
 
       {/* ── 第 1 屏：只有五个卡种（主人点名的形状：无文案、约八成屏、不滚动）。
           2026-08-28 二改（主人点名"符合 app 风格"）：五条纯色平板 → 五张**塔罗卡面**
-          （TarotCard 全仓同款卡框），封面借市场种子卡里各卡种最热那张的真实卡面。
+          （TarotCard 全仓同款卡框）；同日三改：封面从市场种子卡换成**工坊铸卡小窗同一套**
+          看板娘导览图（types.CARD_TYPE_COVERS，主人点名两窗要一致）。
           说明性文字仍然全在引导里（tours 的 customcard，右上角 ? 随时重看） */}
       {step === "type" && (
         <>
@@ -489,7 +478,7 @@ export default function CustomCardPage() {
                     }}
                     className="flex aspect-[2/3] h-full max-w-[46%] items-center transition-transform active:scale-[0.97]"
                   >
-                    <TarotCard cover={TYPE_COVERS[t]} title={CARD_TYPE_LABELS[t]} type={t} size="md" />
+                    <TarotCard cover={CARD_TYPE_COVERS[t]} title={CARD_TYPE_LABELS[t]} type={t} size="md" />
                   </button>
                 ))}
               </div>

@@ -19,6 +19,22 @@ export const CARD_TYPE_COLORS: Record<CardType, string> = {
   style: "#34d399",
 };
 
+/**
+ * 卡种封面：看板娘亲自比划着推销每一类卡（design/gen-cardtype-covers.mjs 出的图）。
+ * 她就是创作入口三张封面里那位、也是工坊里的铸卡师——全 app 同一个人。
+ * 640×960 webp，五张合计 258KB；想换姿势/换构图重跑那个脚本，别手改图。
+ * ★ 唯一一份（铁律六）：工坊铸卡小窗（NpcDialog）与「自己传图做卡片」选卡种
+ *   （CustomCardPage）用的是同一套——2026-08-28 主人点名两窗封面要一致，
+ *   在页面里各抄一份就是下一次"改了一处忘了另一处"。
+ */
+export const CARD_TYPE_COVERS: Record<CardType, string> = {
+  character: "/cardtype/character.webp",
+  scene: "/cardtype/scene.webp",
+  background: "/cardtype/background.webp",
+  prop: "/cardtype/prop.webp",
+  style: "/cardtype/style.webp",
+};
+
 /** 画幅：一条视频拍成竖的还是横的。竖屏对齐首页全屏流，横屏是影视/横版观感 */
 export type VideoAspect = "portrait" | "landscape";
 
