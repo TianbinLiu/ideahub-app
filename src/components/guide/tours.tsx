@@ -37,6 +37,8 @@
 import type { ReactNode } from "react";
 import { BLOCKOUT_INPUT_RULES } from "../../data/templates";
 import { CARD_TYPES, CARD_TYPE_LABELS } from "../../types";
+// 自制卡那份要报比例上限：方舟的硬约束，数只能从这里取（数字一律插值，见 ★★）
+import { REF_MAX_RATIO } from "../../utils/image";
 
 export interface GuideStep {
   title: string;
@@ -821,6 +823,151 @@ export const TOURS: GuideTour[] = [
             点它把这条流水线带去 <b className="font-bold text-slate-100">3D 工坊</b>：画布是摊开的流水线，
             工坊是摆在桌上的节点卡，<b className="font-bold text-slate-100">两边改的是同一份</b>，
             换个面打开不用重炼、不重复收费。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "cut",
+    title: "剪辑",
+    // 2026-08-28 从 CutPage 自带的那份帮助弹窗迁来（铁律六：帮助内容只在 tours 一处）。
+    // 首次进页自动弹是新增的行为——原来那份只有主动点 ? 才看得到。
+    version: 1,
+    steps: [
+      {
+        title: "三个页签各管一摊",
+        anchor: "cut-tabs",
+        body: (
+          <>
+            <b className="font-bold text-slate-100">剪辑</b>管顺序与取舍，
+            <b className="font-bold text-slate-100">圈选</b>管改画面（要花钱的那种改），
+            <b className="font-bold text-slate-100">音频</b>管配乐 —— AI 生成的画面本身没有声音，
+            想要声音就在这儿配。
+          </>
+        ),
+      },
+      {
+        title: "剪辑：不花钱的整理",
+        anchor: "cut-timeline",
+        body: (
+          <>
+            点一个片段选中，就能在播放头处<b className="font-bold text-slate-100">✂️ 分割</b>、
+            <b className="font-bold text-slate-100">🗑 删除</b>、拖拽或前移后移<b className="font-bold text-slate-100">换序</b>。
+            这些只改导出范围，<b className="font-bold text-slate-100">一个 token 都不花</b>。
+          </>
+        ),
+      },
+      {
+        title: "圈选：花钱的重生成",
+        body: (
+          <>
+            拖进度条停在要改的画面，⭕ 圈出物体、写一句要求；可以<b className="font-bold text-slate-100">跨帧跨段圈多处</b>，
+            攒齐了一次性重新生成 —— 按钮上会标出几段、多少钱，<b className="font-bold text-slate-100">点那一下才计费</b>。
+          </>
+        ),
+      },
+      {
+        title: "右上角是终点",
+        anchor: "cut-next",
+        body: (
+          <>
+            整条模式下「下一步」把时间轴按顺序导出成<b className="font-bold text-slate-100">一整条视频</b>、进发布页
+            —— <b className="font-bold text-slate-100">发布后作品不可再修改</b>。从工坊单段进来时它是「保存本段」，
+            改完写回那一段、不合并不发片。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "publish",
+    title: "发布",
+    version: 1,
+    steps: [
+      {
+        title: "先核对成片",
+        anchor: "publish-segments",
+        body: (
+          <>
+            预览里各段按时间线连播。这张清单标着每段的<b className="font-bold text-slate-100">来历</b>：
+            ✓ 是真生成的影像，⚠ 是没生成成功、用首尾帧渐变顶替的段 ——
+            <b className="font-bold text-slate-100">发布前把 ⚠ 的段看一眼</b>，别让顶替画面替你见观众。
+          </>
+        ),
+      },
+      {
+        title: "谁能看、要不要钱",
+        anchor: "publish-pricing",
+        body: (
+          <>
+            可见性管<b className="font-bold text-slate-100">谁看得到</b>，收费管
+            <b className="font-bold text-slate-100">看要不要花 token</b>。付费解锁的收益按平台抽成后进你的
+            add-on 钱包，能直接拿来生成视频 —— 具体到手多少，定价那一行会当场算给你看。
+          </>
+        ),
+      },
+      {
+        title: "发布就是定稿",
+        anchor: "publish-actions",
+        body: (
+          <>
+            发布后<b className="font-bold text-slate-100">内容不可再改</b>（编辑页只能改标题、封面这些壳），
+            想换内容就重新发一条。「放弃本次合成」会把这条成片丢掉 —— 点它会先问你一句。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "customcard",
+    title: "自己传图做卡片",
+    // 2026-08-28 文案收纳：页面顶上那块三条 bullet 的对比说明压成一句，展开讲在这。
+    // 首次进页强制放一遍，"这是另一条路、默认铸卡不用传图"这件事仍然人人看得到。
+    version: 1,
+    steps: [
+      {
+        title: "这是另一条路",
+        anchor: "cc-compare",
+        body: (
+          <>
+            默认铸卡是 <b className="font-bold text-slate-100">AI 全自动出图</b>（3D 工坊找铸卡师），
+            一张图都不用传。这一页反过来：全用你自己的图，
+            <b className="font-bold text-slate-100">不调模型、不耗 token</b>，也没有 AI 帮你补图位。
+            铸出来的卡与 AI 铸的完全同一种东西 —— 能进卡组、当出片的形象参考、发布到创意工坊。
+          </>
+        ),
+      },
+      {
+        title: "图位怎么摆",
+        anchor: "cc-slots",
+        body: (
+          <>
+            卡种决定有哪几个图位、每格锁住什么（一把剑不该有「全身立绘」）；换卡种时对不上的格子会被
+            取下来并当场告诉你。<b className="font-bold text-slate-100">第一格既是卡面也是主形象参考</b>：
+            卡框是竖版 2:3，别的比例会居中显示，不裁你的图。
+          </>
+        ),
+      },
+      {
+        title: "图会被怎么处理",
+        body: (
+          <>
+            相册原图直接选：会自动压到 AI 认得出的尺寸，长宽比超过 {REF_MAX_RATIO}:1 的会被居中裁进
+            {REF_MAX_RATIO}:1（方舟不收更极端的参考图），裁过会在那一格里写明。出片时
+            <b className="font-bold text-slate-100">不是每张都会喂进模型</b>：取几张要看这张卡在那一段里
+            排第几、同段还挂了几张卡 —— 详情页会逐张标「出片用 / 仅展示」，那里是唯一的判据。
+          </>
+        ),
+      },
+      {
+        title: "写给 AI 的那段信息",
+        anchor: "cc-info",
+        body: (
+          <>
+            第 ④ 步那段信息，之后 AI 复刻这张卡的画面 / 建模时会读，
+            <b className="font-bold text-slate-100">写得越具体越像</b>。不填也行 ——
+            详情页会按卡名与简介现补一份。
           </>
         ),
       },
