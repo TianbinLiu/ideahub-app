@@ -402,9 +402,17 @@ genNode / nodeCost / clampCursor / 承接 / segmentGen **零改动** —— 帧�
 - **「中间帧」的形状**（按设计映射落地，没有新参数）：方舟单段只有 first/last_frame ⇒
   N 张关键帧 = 逐段铺（每段自定义尾帧 = 下一个关键帧），相邻段靠既有「真实尾帧承接」
   无缝。多图合成一张边界帧 = 融图（首尾帧模式不收参考图同发，方舟同步 400）。
-- **示例视频不在本批**（拍板分期）：任意本地视频当 `reference_video` 会被 server 的 r2v 闸
-  整句拒（只认登记过的模板视频，防白嫖视频输入计费）。要支持得加"用户素材视频"合法来源 +
-  按 r2v 系数计价 + 复用模板直传通道，报价=实扣跨仓钉一轮 —— 单独立项。
+- ~~示例视频分期~~ **已做（2026-08-28 主人点名提前）**：r2v 第三条合法来源「用户素材
+  参考视频」全链上线 —— server：MaterialRefVideo 登记表 + /uploads/material-video/register
+  （复用模板直传三件套；时长服务端向 Cloudinary 取回写死）+ resolveR2v 分支三（素材私有、
+  reference 子任务专属钉子：omni ∈ {缺省,"reference"}、duration 3~10 有限数、720p）+
+  tokens.materialRefTokens = (输入[4,30]+输出[3,10])×21600×2.8（arkProxy spec 79/79）。
+  app：economy.materialRefCost 逐字镜像；flowStore.customRef（挂/摘视频、中间帧参考图
+  上限 CUSTOM_MID_MAX=2）；segmentGen 素材产线（用户帧转存 https 后当 reference_image，
+  customRefPrompt 唯一实现地点名「图片1是第一帧画面…」——**软引导不是硬承诺**，文案不许
+  说成保证）；arkClient refTask:"reference"。画布自定义车道：真上传格（直传分块+进度+
+  登记）、挂上后中间帧=同段参考图、没挂时中间帧=拆段——两种语义 UI 里分清。
+  ⚠ 尚未花真钱端到端出过一发（形状全对、闸门与计价 spec 钉死）；首发时顺带核账单。
 
 ## 3. 其它（较小）
 
