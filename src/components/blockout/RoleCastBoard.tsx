@@ -162,7 +162,9 @@ export default function RoleCastBoard({
 }: RoleCastBoardProps) {
   // ★ 这一屏不是路由（它是 /video-editor 的一个模式），所以自己声明引导。
   //   `enabled` 挂角色位：没有角色位时整块面板退成一段解释 + 完成键，五步全都无从谈起。
-  useAutoGuide("cast", roles.length > 0);
+  //   也挂**有没有可挂的人物卡**（2026-08-28）：卡库空着时"上面那排卡"根本不渲染，
+  //   引导反复指着它说话就是指空气——先去造卡，回来第一次真能挂时再弹。
+  useAutoGuide("cast", roles.length > 0 && cards.length > 0);
   /** 这个模板是不是序数方案（判据的唯一实现在 data/templates.markSpecOf，这里只取结论） */
   const ordinal = spec.scheme === "ordinal";
 

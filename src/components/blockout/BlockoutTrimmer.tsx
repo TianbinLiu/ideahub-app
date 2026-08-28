@@ -259,6 +259,10 @@ export default function BlockoutTrimmer({
 
   return (
     <div className="space-y-3">
+      {/* ★ trim-crop 锚点包住**画面台**（2026-08-28 从下面那段说明文字挪上来）：
+          引导那步教的是"拖四个角"，四个角在 CropOverlay 上——圈说明文字等于指着解释
+          说"拖它"。包一层中性 div，不影响 space-y 布局 */}
+      <div data-guide="trim-crop">
       <VideoStage
         ref={stage}
         src={src}
@@ -292,10 +296,11 @@ export default function BlockoutTrimmer({
           ) : undefined
         }
       />
+      </div>
 
       {/* 裁剪框是干什么用的，必须在框旁边说 —— 不说的话大多数人根本不会去动它，
           而它是水印唯一的解（F7 实测：提示词去不掉，edit 是逐帧复刻） */}
-      <p data-guide="trim-crop" className="text-[11px] leading-relaxed text-slate-400">
+      <p className="text-[11px] leading-relaxed text-slate-400">
         拖四个角调整<b className="text-slate-200">裁剪框</b>，拖框身整体挪位。
         <b className="text-amber-300">台标 / 水印必须框到框外</b> —— AI 出片是逐帧复刻画面，
         提示词去不掉它（实测），裁掉是唯一的办法；而模板会被反复套用，留一个水印就是永久的。
