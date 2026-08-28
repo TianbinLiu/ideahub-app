@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router";
 import GuideGate from "./components/guide/GuideGate";
+import InfoDialog from "./components/InfoDialog";
+import { AGREEMENTS, recordTermsAccepted, termsAccepted, type AgreementId } from "./data/agreements";
 import GenerationPill from "./components/GenerationPill";
 import FeedPage from "./pages/FeedPage";
 import DiscoverPage from "./pages/DiscoverPage";
@@ -40,7 +43,7 @@ import { readyDrafts } from "./data/drafts";
 import { readyAccount } from "./data/account";
 import { useCurrentUser } from "./hooks/useAccount";
 import useOrientationLock from "./hooks/useOrientationLock";
-import { signInWithOauthToken } from "./data/account";
+import { signInWithOauthToken, signOut } from "./data/account";
 import { initOauthDeepLink, onOauthResult } from "./utils/oauth";
 
 /**
@@ -105,6 +108,70 @@ function UpdateGate() {
   return <UpdateSheet info={info} onClose={() => setClosed(true)} />;
 }
 
+/**
+ * 协议补签门（2026-08-28）：已登录、但本机没有当前版本协议同意记录的人，开屏补一次。
+ *
+ * ★ 为什么不能只靠登录页那道勾选门：已登录的存量用户、QQ 深链自动登录回来的用户
+ *   都**不经过登录页**；协议更新（TERMS_UPDATED 变了）后也只有这里能触达他们。
+ * ★ 点背景**不关**：这张卡只有两个出口，都得明确表态（同意 / 不同意并退出登录）。
+ *   误触背景就把人登出是事故；不同意也只退登录态、不拦浏览——首页本来就能逛。
+ * ★ 全文小窗渲染在门后面（同 z 的 portal 后挂载者在上），从卡里点《用户协议》
+ *   能在其上层展开，与登录页那张「同意并继续」卡同一套关系。
+ */
+function TermsGate() {
+  const user = useCurrentUser();
+  // 同意/退出都不改本组件的 props，靠这个空 bump 让 termsAccepted() 重新求值
+  const [, bump] = useState(0);
+  const [viewDoc, setViewDoc] = useState<AgreementId | null>(null);
+  if (!user || termsAccepted()) return null;
+  return (
+    <>
+      {createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-8">
+          <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4">
+            <h3 className="text-sm font-bold text-slate-100">用户协议与隐私政策</h3>
+            <div className="mt-2 text-xs leading-relaxed text-slate-400">
+              继续使用前，请阅读并同意
+              <button onClick={() => setViewDoc("terms")} className="text-brand">
+                《用户协议》
+              </button>
+              与
+              <button onClick={() => setViewDoc("privacy")} className="text-brand">
+                《隐私政策》
+              </button>
+              。
+            </div>
+            <button
+              onClick={() => {
+                recordTermsAccepted();
+                bump((n) => n + 1);
+              }}
+              className="mt-4 w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink"
+            >
+              同意并继续
+            </button>
+            <button
+              onClick={() => {
+                signOut();
+                bump((n) => n + 1);
+              }}
+              className="mt-2 w-full py-1.5 text-center text-[11px] text-slate-500"
+            >
+              不同意，退出登录
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+      {viewDoc && (
+        <InfoDialog title={AGREEMENTS[viewDoc].title} onClose={() => setViewDoc(null)}>
+          {AGREEMENTS[viewDoc].body}
+        </InfoDialog>
+      )}
+    </>
+  );
+}
+
 /** 需要登录的路由：未登录跳登录页并带回跳地址 */
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useCurrentUser();
@@ -144,6 +211,7 @@ export default function App() {
       <OauthDeepLinkBridge />
       <OrientationGuard />
       <UpdateGate />
+      <TermsGate />
       {/* 新手引导的遮罩。★ 必须在 <Routes> **外面**：每一页自己的根容器多半是
           `fixed inset-0`（首页/创作页/剪辑页/工作流页），挂在里面会跟着路由卸载，
           而遮罩要能盖住任何一页。弹哪一份由每一屏自己 useAutoGuide 声明。 */}
