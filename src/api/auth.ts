@@ -31,6 +31,12 @@ export interface ApiUser {
   hasPassword?: boolean;
   displayName?: string;
   bio?: string;
+  /**
+   * 同意到哪一版用户协议（server 的合规留痕，空串/缺省 = 没同意过——老服务端
+   * 不返回这个字段，判否定别判相等）。写入口是 acceptTermsRemote；
+   * App 侧登录/冷启动拿它对账（data/agreements.reconcileTermsWithServer）。
+   */
+  termsAcceptedVersion?: string;
 }
 
 export interface AuthResult {
@@ -107,6 +113,16 @@ export async function fetchProfile(): Promise<ApiUser | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * POST /api/me/accept-terms（requireAuth）——把"同意了哪一版协议"记到服务端（合规留痕）。
+ * ★ 尽力而为：UI 的判据是本机记录（data/agreements），这条失败不该打断任何流程；
+ *   老服务端没有这个端点（404）也一样。调用方一律 .catch(() => {}) 吞掉，
+ *   补发靠登录/冷启动的对账（reconcileTermsWithServer）——那条自愈会一直补到成功。
+ */
+export async function acceptTermsRemote(version: string): Promise<void> {
+  await apiPost("/api/me/accept-terms", { version });
 }
 
 /**

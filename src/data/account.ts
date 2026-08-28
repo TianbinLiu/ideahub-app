@@ -9,6 +9,7 @@
 import { Card, slotLabel, uid, type CardView } from "../types";
 // data → mock 是既有方向（data/videos.ts 也从 mock/frames 取种子帧），不成环
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
+import { reconcileTermsWithServer } from "./agreements";
 import { removeVoice } from "./cardVoice";
 import { PLANS, PLATFORM_CUT, fmtTokens, type VideoTier } from "./economy";
 import { idbGet, idbSet } from "./db";
@@ -1311,6 +1312,9 @@ async function hydrateProfile(remote: authApi.ApiUser): Promise<authApi.ApiUser>
 
 /** 把服务端用户装进内存库并置为当前登录用户 */
 function adoptUser(remote: authApi.ApiUser): User {
+  // 协议同意对账：四条登录路 + 冷启动都汇到这里，是唯一该做这件事的地方
+  // （服务端有当前版本→落本机；本机有而服务端旧→补传。见 agreements 里那段 ★）
+  reconcileTermsWithServer(remote.termsAcceptedVersion);
   const user = toLocalUser(remote);
   db = { users: [user], currentId: user.id, cards: [], decks: [] };
   // 钱包镜像跟着登录态走：换了人就必须重取，否则新登录的账号会先看到上一个人的余额。
