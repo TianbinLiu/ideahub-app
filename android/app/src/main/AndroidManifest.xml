@@ -47,6 +47,31 @@
 
         </activity>
 
+        <!-- QQ 登录（open_sdk 3.5.19，jar 在 android/app/libs/）。这两个 Activity 是 SDK 自带的，
+             必须在这里声明 —— 漏了的表现是**点了 QQ 登录什么都不发生**，logcat 里只有一条
+             ActivityNotFoundException，UI 上没有任何反馈，很容易误判成"插件没注册"。
+
+             ★ scheme 里的 ${qqAppId} 由 build.gradle 注入，别在这里手写死数字（同源的理由见那边）。
+             ★ noHistory=true 是 SDK 要求的：授权页不能留在返回栈里，否则用户按返回键会
+               重新触发一次授权回跳。 -->
+        <activity
+            android:name="com.tencent.tauth.AuthActivity"
+            android:launchMode="singleTask"
+            android:noHistory="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tencent${qqAppId}" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name="com.tencent.connect.common.AssistActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:screenOrientation="behind"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -61,4 +86,11 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Android 11+ 的包可见性。不声明这条，QQ SDK 查不到本机装没装 QQ，
+         isSupportSSOLogin 恒为 false —— 装了 QQ 的用户也会被塞进 H5 授权页，
+         得重新输账号密码。功能"能用"，但体验退了一档，而且没有任何报错。 -->
+    <queries>
+        <package android:name="com.tencent.mobileqq" />
+    </queries>
 </manifest>

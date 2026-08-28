@@ -226,6 +226,22 @@ export function oauthStartUrl(provider: string, redirect: string): string {
 }
 
 /**
+ * QQ 登录：把原生 SDK 拿到的一次性授权码交给服务端，换回本站 token。
+ *
+ * ★ 为什么不像 Google/GitHub 那样走 oauthStartUrl：我们在 QQ 互联注册的是**移动应用**，
+ *   后台没有"回调地址"这一栏，网页版 OAuth2.0 那条路根本走不通。详见
+ *   android 的 QQLoginPlugin.java 类注释。
+ * ★ 这里**只发 code，不发 openid**。服务端拿 AppKey 去 graph.qq.com 换 token 时，
+ *   openid 是 QQ 直接告诉服务端的 —— 客户端没机会伪造。要是图省事让客户端把
+ *   openid 一起传上去，那就是"报谁的 openid 就登谁的号"。
+ */
+export async function qqNativeLogin(code: string): Promise<{ token: string }> {
+  const r = await apiPost<{ token?: string }>("/api/auth/oauth/qq/native", { code }, { auth: false });
+  if (!r.token) throw new Error("服务端未返回登录凭证");
+  return { token: r.token };
+}
+
+/**
  * 深链回来只有 token，用它换回用户并落地登录态。
  *
  * ★★ 换不回用户时**不要清 token**。这里原来写的是

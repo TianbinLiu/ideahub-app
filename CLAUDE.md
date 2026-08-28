@@ -209,6 +209,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 界面上摆一个永远点不动的选项 | 「极致」画质在 App 里是灰的，说明写着"安装包不含 4K 贴图" —— 用户只会觉得功能坏了 | 要么让它真能用（现在 4K 随包发布），要么别显示。同理：设置页那个「已用 xx MB」原来只是个用户看不懂也做不了事的数字，现在配了真能清的「清理缓存」 |
 | 出包时忘了涨 `versionCode` | 已经装了的人**永远收不到这次更新** —— 更新检查靠这个整数判新旧，不涨就等于没发 | 每次 `npm run apk:release` 前先改 `android/app/build.gradle`，见 `docs/app-distribution.md` |
 | 把 debug 包发给别人装 | 下次发 release 包时对方装不上，只提示「应用未安装」，看不出是签名不同 | 发给别人的永远只发 `npm run apk:release` 的产物；debug 包只留在自己机器上 |
+| 想把 QQ 登录塞进 `providers[]`，复用「系统浏览器 + 深链」那条路 | 授权页直接被 QQ 拒 | QQ 互联注册的是**移动应用**，后台**没有回调地址那一栏**——网页版 OAuth2.0 要求先在「网站应用」里登记域名与回调地址（还要 ICP 备案）。所以 QQ 是**另一条链路**：原生 SDK（`QQLoginPlugin.java`）拿一次性 code，结果**同步返回**，不经过 `OauthDeepLinkBridge`。也因此它不看 `caps.providers`，只看跑没跑在 App 壳里 |
+| QQ 登录让客户端把 openid 一起传给服务端 | 报谁的 openid 就登谁的号 | 用 `loginServerSide` 只取 code，openid 由服务端拿 AppKey 去 QQ 换。AppKey 只准待在 server 的环境变量里，AppID（`1905467096`）才是可以随包发的那个 |
 | 把 `REQUEST_INSTALL_PACKAGES` 挪进 `src/main/` | 本地一切正常，**上架审核被拒**（Google Play 禁止应用自装 APK），而那时离改动早过去很久了 | 自更新的权限与代码只准待在 `android/app/src/sideload/`；`src/play/AndroidManifest.xml` 里那条 `tools:node="remove"` 是兜底，别删 |
 | 全屏浮层写了 `fixed inset-0` 却只铺满一小块 | 浮层被某个祖先裁掉、点不到或压不住底栏 | 祖先上有 `backdrop-blur`（`backdrop-filter`）或 `transform`/`filter` —— 它们会给 `position: fixed` 后代造**包含块**，`inset-0` 于是相对那个盒子而不是视口；`position+z-index` 还会另开层叠上下文，压不过外面的兄弟节点。解法一律是 `createPortal` 到 `body`（评论抽屉、首尾帧卡放大层都栽在这条上，各修过一次） |
 | 确认卡/提示语说"丢了要重花 token 再炼一次" | 其实每炼成一段就自动落一次草稿（`FlowPage` 的 `doneCount` effect），已出片的段躺在「我的 → 草稿」里。往**吓人**的方向说错不比往放心的方向说错高尚：用户会为了保住其实没危险的东西放弃一次无害的操作 | 「丢了会怎样」只按**已知事实**说：`studioStore.savedDoneCount`（确实写成功了几段，只有 `saveWorkDraft` 返回非 null 才动）与当前 doneCount 的差额才是真会烧掉的钱。别拿 `workDraftId` 非空替代——那是上一次成功保存留下的。对话框只有一份：`components/flow/DiscardFlowDialog` |
