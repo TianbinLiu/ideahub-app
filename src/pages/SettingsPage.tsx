@@ -11,6 +11,8 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import Icon from "../components/Icon";
 import ConfirmDialog from "../components/ConfirmDialog";
+import InfoDialog from "../components/InfoDialog";
+import { AGREEMENTS, TERMS_UPDATED, type AgreementId } from "../data/agreements";
 import { signOut, isAdmin, isRemoteMode } from "../data/account";
 import { useCurrentUser } from "../hooks/useAccount";
 import { resetGuidesSeen } from "../data/guide";
@@ -56,6 +58,14 @@ export default function SettingsPage() {
         />
         <GuideRow />
         <VersionRow />
+      </Group>
+
+      {/* ── 协议与须知 ────────────────────────────────────────────
+          应用商店与监管都要求协议在应用内可随时找到；文本只有 data/agreements 一份 */}
+      <Group>
+        <DocRow id="terms" emoji="📜" sub="使用本应用的约定" />
+        <DocRow id="privacy" emoji="🔒" sub="收集什么、怎么用、找谁行使权利" />
+        <DocRow id="aigc" emoji="🏷️" sub="标识、素材授权与违规处理" />
       </Group>
 
       {/* ── 管理后台入口 ────────────────────────────────────────
@@ -123,6 +133,34 @@ function NavRow({ to, emoji, title, sub }: { to: string; emoji: string; title: s
       </span>
       <Icon name="chevron" size={16} className="flex-none text-slate-600" />
     </Link>
+  );
+}
+
+/** 协议行：点开在小窗里读全文（正文在 data/agreements，这里只借） */
+function DocRow({ id, emoji, sub }: { id: AgreementId; emoji: string; sub: string }) {
+  const [open, setOpen] = useState(false);
+  const doc = AGREEMENTS[id];
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40"
+      >
+        <span className="text-lg">{emoji}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm text-slate-100">
+            {doc.title} <span className="text-[10px] text-slate-600">{TERMS_UPDATED}</span>
+          </span>
+          <span className="block truncate text-[11px] text-slate-500">{sub}</span>
+        </span>
+        <Icon name="chevron" size={16} className="flex-none text-slate-600" />
+      </button>
+      {open && (
+        <InfoDialog title={doc.title} onClose={() => setOpen(false)}>
+          {doc.body}
+        </InfoDialog>
+      )}
+    </>
   );
 }
 

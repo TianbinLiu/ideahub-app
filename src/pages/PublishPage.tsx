@@ -6,6 +6,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import ConfirmDialog from "../components/ConfirmDialog";
+import InfoDialog from "../components/InfoDialog";
+import { AGREEMENTS } from "../data/agreements";
 import { CoverSection } from "../components/CoverPicker";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -35,6 +37,8 @@ export default function PublishPage() {
   const [err, setErr] = useState("");
   /** 「放弃本次合成」的确认小窗。丢的是已经合成好的整条成片，一点就没太草率 */
   const [discardOpen, setDiscardOpen] = useState(false);
+  /** AIGC 内容须知全文（data/agreements 唯一一份） */
+  const [aigcOpen, setAigcOpen] = useState(false);
   useAutoGuide("publish", !!draft);
 
   /**
@@ -248,8 +252,23 @@ export default function PublishPage() {
               放弃本次合成
             </button>
           </div>
+          {/* AIGC 须知：一句常驻 + 全文小窗（2026-08-28）。标识那半句说的是已实现的
+              事实——合并时 drawAigcBadge 真的把「AI 生成」角标画进了每一帧 */}
+          <p className="text-[11px] leading-relaxed text-slate-500">
+            发布即视为同意
+            <button onClick={() => setAigcOpen(true)} className="text-brand">
+              《AIGC 内容须知》
+            </button>
+            ——成片右下角已自动带「AI 生成」标识。
+          </p>
         </div>
       </main>
+
+      {aigcOpen && (
+        <InfoDialog title={AGREEMENTS.aigc.title} onClose={() => setAigcOpen(false)}>
+          {AGREEMENTS.aigc.body}
+        </InfoDialog>
+      )}
 
       {discardOpen && (
         <ConfirmDialog

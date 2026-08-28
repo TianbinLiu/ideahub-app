@@ -16,7 +16,10 @@
 // 离线（没配 VITE_API_BASE 或服务器不可达）时整页退回本地账号：账号不存在即注册。
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
+import ConfirmDialog from "../components/ConfirmDialog";
+import InfoDialog from "../components/InfoDialog";
 import Icon from "../components/Icon";
+import { AGREEMENTS, recordTermsAccepted, termsAccepted, type AgreementId } from "../data/agreements";
 import {
   consumeAuthNotice,
   isRemoteMode,
@@ -70,6 +73,27 @@ export default function LoginPage() {
   const [err, setErr] = useState(() => params.get("err") || consumeAuthNotice());
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // ── 用户协议勾选门（2026-08-28）────────────────────────────────
+  // 文本只有 data/agreements 一份（铁律六）。这台设备上同意过当前版本就默认勾上，
+  // 正文更新（TERMS_UPDATED 变了）后记录失效、重新要求勾选。
+  const [agreed, setAgreed] = useState(() => termsAccepted());
+  /** 看哪份全文（登录页只放协议与隐私两份；AIGC 须知在发布页与设置页） */
+  const [viewDoc, setViewDoc] = useState<AgreementId | null>(null);
+  /**
+   * 没勾就点了登录/第三方时暂存的那次动作：弹「同意并继续」，点了才放行。
+   * ★ 比只弹一句红字好：用户的下一步永远是"同意然后登录"，让他点两次是白折腾。
+   */
+  const [pendingAuth, setPendingAuth] = useState<(() => void) | null>(null);
+
+  /** 所有登录入口共用的一道门（密码/验证码/QQ/Google/GitHub 都从这儿过） */
+  function requireAgree(run: () => void) {
+    if (agreed) {
+      run();
+      return;
+    }
+    setPendingAuth(() => run);
+  }
 
   // 表单
   const [account, setAccount] = useState(""); // 密码登录的 用户名/邮箱
@@ -210,7 +234,7 @@ export default function LoginPage() {
   }
 
   const onEnter = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") void submit();
+    if (e.key === "Enter") requireAgree(() => void submit());
   };
 
   // 服务端没报 phoneEnabled 就不给这一栏——摆一个发不出码的按钮比没有更糟
@@ -414,8 +438,38 @@ export default function LoginPage() {
         {err && <div className="text-xs leading-relaxed text-rose-400">{err}</div>}
         {note && !err && <div className="text-xs text-emerald-400">{note}</div>}
 
+        {/* 协议勾选行。链接是嵌在文字里的两颗小按钮——不能把整行做成一颗大按钮
+            再往里嵌按钮（button 套 button 是非法嵌套，React 也会告警） */}
+        <div className="flex items-start gap-2 pt-1">
+          <button
+            onClick={() => {
+              const v = !agreed;
+              setAgreed(v);
+              if (v) recordTermsAccepted();
+            }}
+            aria-label={agreed ? "取消同意协议" : "同意协议"}
+            role="checkbox"
+            aria-checked={agreed}
+            className={`mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full border transition ${
+              agreed ? "border-brand bg-brand text-ink" : "border-slate-600"
+            }`}
+          >
+            {agreed && <Icon name="check" size={11} strokeWidth={3} />}
+          </button>
+          <span className="text-[11px] leading-relaxed text-slate-500">
+            已阅读并同意
+            <button onClick={() => setViewDoc("terms")} className="text-brand">
+              《用户协议》
+            </button>
+            与
+            <button onClick={() => setViewDoc("privacy")} className="text-brand">
+              《隐私政策》
+            </button>
+          </span>
+        </div>
+
         <button
-          onClick={() => void submit()}
+          onClick={() => requireAgree(() => void submit())}
           disabled={busy || capsLoading}
           className="w-full rounded-xl bg-brand py-3 text-sm font-bold text-ink transition hover:brightness-110 disabled:opacity-60"
         >
@@ -462,7 +516,7 @@ export default function LoginPage() {
                     key={p.k}
                     onClick={() =>
                       p.live
-                        ? void (p.k === "qq" ? qqSignIn() : thirdParty(p.k))
+                        ? requireAgree(() => void (p.k === "qq" ? qqSignIn() : thirdParty(p.k)))
                         : setErr(deadReason(p.k))
                     }
                     style={{ background: chip.bg }}
@@ -506,6 +560,39 @@ export default function LoginPage() {
           )}
         </p>
       </div>
+
+      {/* 没勾协议就点了登录：弹「同意并继续」，点了直接放行暂存的那次登录。
+          全文小窗渲染在它后面——同为 z-50 的 portal，后挂载的盖在上面，
+          于是从这张卡里点《用户协议》能在其上层展开全文。 */}
+      {pendingAuth && (
+        <ConfirmDialog
+          title="服务协议与隐私政策"
+          confirmLabel="同意并继续"
+          onConfirm={() => {
+            setAgreed(true);
+            recordTermsAccepted();
+            const run = pendingAuth;
+            setPendingAuth(null);
+            run();
+          }}
+          onClose={() => setPendingAuth(null)}
+        >
+          登录前请先阅读并同意
+          <button onClick={() => setViewDoc("terms")} className="text-brand">
+            《用户协议》
+          </button>
+          与
+          <button onClick={() => setViewDoc("privacy")} className="text-brand">
+            《隐私政策》
+          </button>
+          。
+        </ConfirmDialog>
+      )}
+      {viewDoc && (
+        <InfoDialog title={AGREEMENTS[viewDoc].title} onClose={() => setViewDoc(null)}>
+          {AGREEMENTS[viewDoc].body}
+        </InfoDialog>
+      )}
     </div>
   );
 }
