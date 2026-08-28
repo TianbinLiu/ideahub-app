@@ -19,8 +19,8 @@ android {
         //   Android 只认这个整数判"新旧"：不涨的话，任何自动更新检查都判不出有新版，
         //   而且同号覆盖安装虽然能装（签名相同即可），装完用户也说不清自己在哪一版。
         //   versionName 是给人看的，versionCode 是给系统看的，两个都要动。
-        versionCode 39
-        versionName "2.28"
+        versionCode 40
+        versionName "2.29"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // ★ QQ 互联的 AppID 只写这一处，下面两个用处都从它派生：
         //     BuildConfig.QQ_APP_ID  —— 起授权时给 SDK
