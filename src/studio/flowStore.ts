@@ -84,6 +84,16 @@ export interface FlowNode {
    */
   plan?: "picking" | "picked";
   /**
+   * 「自定义直出」段（2026-08-28，主人点名的第三车道）：不经方案台，用户自己给
+   * 首帧/尾帧（可选、可融图）+ 一句提示词，直接炼 —— 与真人档 flatTier 同一条
+   * 直出产线的形状，只是判据是这个节点事实而不是档位表。
+   * ★ 判否定（缺省 = 不是自定义）：老草稿天然缺它、天然走老路，零迁移。
+   * ★ 它**不**新开生成/计费路径：帧写在 chosenOf(node) 那条方案上（pinned 语义与
+   *   方案台换帧完全同一套），genNode / nodeCost / 顺序门禁 / 承接一行都没改 ——
+   *   这正是它安全的全部理由，改这里之前先想清楚会不会把第三车道变成第二套规则。
+   */
+  custom?: boolean;
+  /**
    * 用户对这一段的原始输入（"这一段要拍什么"）。
    * ★ 与 proposal.plot 刻意分开：plot 是 AI 写出来的那一套的剧情（用户还能在方案卡上
    *   逐字改），requirement 是**用户自己的话**——「重新生成方案」要原样再喂给 AI 一次。
@@ -564,6 +574,9 @@ interface FlowState {
 
   /** 在末尾追加一段。★ 上一段没出片时拒绝（见 canAdvance 那段注释） */
   addNode: () => void;
+  /** 把某一段切进/切出「自定义直出」（FlowNode.custom 的唯一写点）。
+   *  返回 false = 被拒（原因在 err，铁律八） */
+  setNodeCustom: (id: string, on: boolean) => boolean;
   removeNode: (id: string) => void;
   setCursor: (i: number) => void;
   shiftCursor: (dir: 1 | -1) => void;
@@ -1485,6 +1498,48 @@ export const useFlow = create<FlowState>()((set, get) => ({
       node.tpl = null;
       return { nodes: [...pinUnstatedTpl(s.nodes, s.template), node], cursor: i, err: "" };
     }),
+
+  setNodeCustom: (id, on) => {
+    const s = get();
+    const node = s.nodes.find((n) => n.id === id);
+    if (!node) return false;
+    // 生成中/全局忙一律拒：直出车道的帧就写在 chosenOf 那条方案上，生成回包也写它，
+    // 这几分钟里切换车道等于和回包抢同一条方案（与 removeNode 的闸同一理由）
+    if (s.busy || s.nodes.some((n) => n.status === "generating")) {
+      set({ err: "有一段正在生成中，等它跑完再切换这一段的模式" });
+      return false;
+    }
+    if (on) {
+      // 已出片的段拒（与面板上"换模板/换模式"对 done 禁用同一条理由）：
+      // 改帧不会改成片，还会把下一段的承接帧换成假的 —— nodeCarry 读的是
+      // chosenOf(prev).lastFrame，而出片时它已被真实尾帧顶替
+      if (nodeDone(node)) {
+        set({ err: "这一段已经出片：想改画面就先删掉本段再加一段，别在成片底下换帧" });
+        return false;
+      }
+      // 套着模板（白模或经典）不许直接切：模板的参考视频/配方与自定义帧是两套世界。
+      // 摘模板的确认（挂的卡与点名句一起清）只在 setNodeTemplate 一处，别在这里静默替人摘
+      if (tplOfNode(node)) {
+        set({ err: "这一段套着模板——先「摘掉模板」（改为自选）再自定义首尾帧" });
+        return false;
+      }
+      set((st) => ({
+        // ★ tpl 顺手写成**明确的 null**：自定义段绝不许被 store 级模板兜底认领
+        //   （tplOfNode 对 undefined 是"退回 store 级"，见那边 ★★ —— 兜底成白模段的话
+        //   genNode 会真把参考视频发给方舟）。这一下属于"让某个段有了明确 tpl 的动作"，
+        //   所以其余没表态的段同一拍钉住（pinUnstatedTpl 的 ★）。
+        nodes: pinUnstatedTpl(st.nodes, st.template).map((n) =>
+          // 方案台若正摊着（picking）就收起：已推演的方案**保留**（那是花过钱的），
+          // chosenId 不动 —— 自定义写的帧落在当前选中那条方案上
+          n.id === id ? { ...n, custom: true, tpl: null, ...(planOf(n) === "picking" ? { plan: "picked" as const } : {}) } : n,
+        ),
+        err: "",
+      }));
+      return true;
+    }
+    set((st) => ({ nodes: st.nodes.map((n) => (n.id === id ? { ...n, custom: false } : n)), err: "" }));
+    return true;
+  },
 
   removeNode: (id) => {
     const s = get();

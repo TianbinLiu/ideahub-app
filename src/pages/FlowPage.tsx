@@ -51,7 +51,8 @@ import {
   useFlow,
 } from "../studio/flowStore";
 import PlanBoard from "../studio/ui/PlanBoard";
-import { fuseSourcesOf } from "../studio/ui/FuseFrameSheet";
+import FuseFrameSheet, { fuseSourcesOf } from "../studio/ui/FuseFrameSheet";
+import CustomFrameSlots from "../components/flow/CustomFrameSlots";
 import { deckQuoteOf, publishedExit, useStudio } from "../studio/studioStore";
 import { VideoTemplate, aspectCss, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
@@ -299,6 +300,9 @@ function NodeScreen({
   const vref = useRef<HTMLVideoElement>(null);
   const [annOpen, setAnnOpen] = useState<{ frame: string; atSec: number } | null>(null);
   const [sheet, setSheet] = useState(false); // 底部「本段设置」抽屉
+  /** 简约面的「自定义首尾帧」折叠条 + 它的融图开在哪一帧上 */
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customFuse, setCustomFuse] = useState<"first" | "last" | null>(null);
   /** 出片浮层。只由「出片」这一拍开——推演方案也会把 status 置成 generating，
    *  跟着 status 走的话"挑方案"这一步会莫名其妙弹出炼卡动画 */
   const [forge, setForge] = useState<ForgePhase | null>(null);
@@ -646,6 +650,42 @@ function NodeScreen({
                     : `「${tierOf(node.videoTier).label}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」`}
               </p>
             )}
+            {/* ── 自定义首尾帧（选填，主人点名的第三车道·简约面）──
+                折叠着只占一行：绝大多数人一句话直出，摊开两格图框会把主按钮挤下屏。
+                写入走 setFrame（唯一实现），markup 与画布共用 CustomFrameSlots。 */}
+            <button
+              onClick={() => setCustomOpen((v) => !v)}
+              className="flex w-full items-center justify-between rounded-lg border border-slate-700/70 bg-panel px-2.5 py-1.5 text-[11px] text-slate-300"
+            >
+              <span className="min-w-0 truncate">
+                🖼 自定义首尾帧
+                {prop.firstFrame || prop.lastFrame
+                  ? ` · 已给${prop.firstFrame ? "首" : ""}${prop.firstFrame && prop.lastFrame ? "、" : ""}${prop.lastFrame ? "尾" : ""}帧`
+                  : "（选填 · 传自己的图或融图）"}
+              </span>
+              <span className="ml-2 flex-none text-[10px] text-slate-500">{customOpen ? "收起" : "展开"}</span>
+            </button>
+            {customOpen && (
+              <>
+                <CustomFrameSlots
+                  first={prop.firstFrame}
+                  last={prop.lastFrame}
+                  aspectCssValue={aspectCss(node.aspect)}
+                  canEdit={!generating && !busy}
+                  firstEmptyNote="空 = AI 按提示词补画（计费）"
+                  onFrame={(which, url) => setFrame(node.id, which, url)}
+                  onFuse={setCustomFuse}
+                  onError={(msg) => useFlow.setState({ err: msg })}
+                />
+                {/* 与「直接用卡片形象」互斥要明说：首尾帧与参考图在方舟不能同发（refVideoOn
+                    的判定），给了首帧那条省钱的路就自动让位——不说的话用户以为卡片没生效 */}
+                {matCount > 0 && tierOf(node.videoTier).refImg && (prop.firstFrame || prop.lastFrame) && (
+                  <p className="text-[10px] leading-4 text-slate-500">
+                    给了自己的帧就走首尾帧模式（与「直接用卡片形象出片」互斥）——清掉两帧才会回到那条路。
+                  </p>
+                )}
+              </>
+            )}
           </div>
         ) : (
           /* 工作流：这一栏是**用户自己的话**（推演三套方案的依据），不是某一套的剧情。
@@ -771,6 +811,25 @@ function NodeScreen({
           // 「先去逛逛」：生成链条活在 flowStore，站内切页不断；全局胶囊（GenerationPill）
           // 接手进度显示，出完把人叫回来
           onLeave={() => nav("/")}
+        />
+      )}
+
+      {/* 简约面「自定义首尾帧」的融图（组件自己 portal 到 body；候选唯一实现 fuseSourcesOf） */}
+      {customFuse && (
+        <FuseFrameSheet
+          which={customFuse}
+          sources={fuseSourcesOf({
+            materials: node.materials,
+            carryFrame: null, // 简约恒单段，没有上一段
+            firstFrame: prop.firstFrame,
+            lastFrame: prop.lastFrame,
+          })}
+          aspect={node.aspect}
+          onDone={(url) => {
+            setFrame(node.id, customFuse, url);
+            setCustomFuse(null);
+          }}
+          onClose={() => setCustomFuse(null)}
         />
       )}
 

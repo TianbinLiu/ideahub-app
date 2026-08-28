@@ -22,7 +22,8 @@ import AnnStrip from "./AnnStrip";
 import DeleteSegBtn from "./DeleteSegBtn";
 import SegSettings from "./SegSettings";
 import PlanBoard from "../../studio/ui/PlanBoard";
-import { fuseSourcesOf } from "../../studio/ui/FuseFrameSheet";
+import FuseFrameSheet, { fuseSourcesOf } from "../../studio/ui/FuseFrameSheet";
+import CustomFrameSlots from "./CustomFrameSlots";
 import {
   chosenOf,
   clampCursor,
@@ -655,8 +656,18 @@ function NodePanel({
   onCast: (tpl: NonNullable<FlowTemplate>, value: Record<string, string>) => void;
   onClose: () => void;
 }) {
-  const { updateProposal, setRequirement, genNode, setNodeTemplate, deriveProposals, removeMaterial, removeNode, removeAnn } =
-    useFlow();
+  const {
+    updateProposal,
+    setRequirement,
+    genNode,
+    setNodeTemplate,
+    setNodeCustom,
+    setFrame,
+    deriveProposals,
+    removeMaterial,
+    removeNode,
+    removeAnn,
+  } = useFlow();
   // 挂卡合成的三个状态：画布这一面此前一个都没引用（见下面 castErr 那块的 ★★）
   const castErr = useFlow((s) => s.castErr);
   const castFallback = useFlow((s) => s.castFallback);
@@ -699,6 +710,11 @@ function NodePanel({
   /** 按发直出档（真人档）：没有方案台，文本框直接写 plot、按钮直接开炼——
    *  与 tplMode 同一条直出产线，判据只有档位表的 flatCost 一格 */
   const flatTier = !!tierOf(node.videoTier).flatCost;
+  /** 自定义直出段（主人点名的第三车道）：帧自己给、跳过方案台。事实在 FlowNode.custom
+   *  （setNodeCustom 唯一写点），tplMode/flatTier 在场时它让位（store 也拦） */
+  const custom = !!node.custom && !tplMode && !flatTier;
+  /** 融图开在哪一帧上（自定义车道；方案台里那份由 PlanBoard 自己带） */
+  const [fuse, setFuse] = useState<"first" | "last" | null>(null);
   const [picker, setPicker] = useState(false);
   const [cardPick, setCardPick] = useState(false);
   const [castAsk, setCastAsk] = useState(false);
@@ -943,20 +959,83 @@ function NodePanel({
               </div>
             )}
           </div>
-          {/* ★ 真人档（flatTier）直出：这一栏写的就是 plot（genNode 只认 chosenOf().plot），
-              推演那条路整个不存在——占位语也换掉，别许诺"三套方案"。
+          {/* 自定义直出开关（第三车道）：真人档已经是直出，摆两个开关只会打架 */}
+          {!flatTier && (
+            <label className="flex items-center gap-2 rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-[11px] text-slate-200">
+              <input
+                type="checkbox"
+                checked={custom}
+                disabled={locked || generating || busy}
+                onChange={(e) => setNodeCustom(node.id, e.target.checked)}
+                className="h-4 w-4 flex-none accent-brand"
+              />
+              <span className="min-w-0 flex-1">
+                ✍ 自定义首尾帧<span className="text-slate-500">（自己传帧/融图，跳过方案台直出）</span>
+              </span>
+            </label>
+          )}
+
+          {custom && (
+            <>
+              {/* 首/尾帧编辑（markup 在 CustomFrameSlots 一份，简约那面共用）：
+                  写入走 setFrame——pinned/承接语义与方案台换帧同一套（唯一实现） */}
+              <CustomFrameSlots
+                first={p.firstFrame}
+                last={p.lastFrame}
+                aspectCssValue={aspectCss(node.aspect)}
+                canEdit={!locked && !generating}
+                firstEmptyNote={index > 0 && node.chain ? "空 = 承接上一段真实尾帧" : "空 = AI 按提示词补画（计费）"}
+                onFrame={(which, url) => setFrame(node.id, which, url)}
+                onFuse={setFuse}
+                onError={(msg) => useFlow.setState({ err: msg })}
+              />
+              {/* 承接状态照实说（chain 的翻转在 setFrame / ⚙ 本段设置，这里只是把事实画出来） */}
+              {index > 0 && (
+                <p className="text-[10px] leading-relaxed text-slate-500">
+                  {node.chain
+                    ? "首帧承接上一段的真实尾帧（段与段无缝）。上传自己的首帧会改为不承接。"
+                    : "这一段不承接上一段（用你自己的首帧起拍）。想恢复承接：清掉首帧后去 ⚙ 本段设置打开。"}
+                </p>
+              )}
+              {/* 时长：直接写进方案（nodeCost/genNode 读的就是它）。低于本档下限的不给点 */}
+              <div className="flex items-center gap-1.5">
+                <span className="flex-none text-[10px] text-slate-500">时长</span>
+                {[3, 5, 8, 10].map((sec) => {
+                  const below = sec < (tierOf(node.videoTier).minSec ?? 3);
+                  return (
+                    <button
+                      key={sec}
+                      onClick={() => updateProposal(node.id, { durationSec: sec })}
+                      disabled={locked || generating || below}
+                      title={below ? `${tierOf(node.videoTier).label}档最短 ${tierOf(node.videoTier).minSec}s` : undefined}
+                      className={`rounded-full px-2.5 py-1 text-[10px] disabled:opacity-30 ${
+                        p.durationSec === sec ? "bg-brand font-bold text-ink" : "bg-panel text-slate-300"
+                      }`}
+                    >
+                      {sec}s
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* ★ 真人档（flatTier）与自定义段直出：这一栏写的就是 plot（genNode 只认
+              chosenOf().plot），推演那条路整个不存在——占位语也换掉，别许诺"三套方案"。
               其余档照旧写 requirement（推演依据）。 */}
           <textarea
-            value={flatTier ? p.plot : (node.requirement ?? "")}
+            value={flatTier || custom ? p.plot : (node.requirement ?? "")}
             onChange={(e) =>
-              flatTier ? updateProposal(node.id, { plot: e.target.value }) : setRequirement(node.id, e.target.value)
+              flatTier || custom ? updateProposal(node.id, { plot: e.target.value }) : setRequirement(node.id, e.target.value)
             }
             maxLength={VIDEO_PROMPT_MAX}
             disabled={locked || generating}
             placeholder={
               flatTier
                 ? "这一段要拍什么？真人档直出——起拍画面就是真人卡的照片，写好直接生成"
-                : "这一段要拍什么？写清楚后点下面推演——AI 先给三套方案（各带首尾帧预览）"
+                : custom
+                  ? "这一段要拍什么？自定义直出——按你给的首尾帧炼，缺的帧由 AI 按这句话补画"
+                  : "这一段要拍什么？写清楚后点下面推演——AI 先给三套方案（各带首尾帧预览）"
             }
             className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
           />
@@ -975,7 +1054,7 @@ function NodePanel({
       )}
 
       {/* 行动区。报价与扣费同一把尺（nodeCost/genNode、proposalsCost/deriveProposals） */}
-      {(tplMode || flatTier) && !locked && (
+      {(tplMode || flatTier || custom) && !locked && (
         <button
           onClick={() => void genNode(node.id)}
           disabled={busy || generating || !p.plot.trim()}
@@ -984,7 +1063,7 @@ function NodePanel({
           {generating ? node.progress || "生成中…" : done ? `♻ 重新生成（${AI_REAL ? fmtTokens(cost) : "演示"}）` : `⚡ 生成本段（${AI_REAL ? fmtTokens(cost) : "演示"}）`}
         </button>
       )}
-      {!tplMode && !flatTier && !locked && (
+      {!tplMode && !flatTier && !custom && !locked && (
         plan === "picking" ? (
           <>
             {/* ★ 方案台从 2026-08-21 起就在画布里挑（PlanSheet 弹层）：它需要 300~500px
@@ -1060,6 +1139,25 @@ function NodePanel({
 
       {settings && <SegSettingsSheet nodeId={node.id} onClose={() => setSettings(false)} />}
       {planSheet && <PlanSheet nodeId={planSheet} onClose={() => setPlanSheet(null)} />}
+      {/* 自定义车道的融图（方案台里那份由 PlanBoard 自己带，这份服务直出车道）。
+          组件自己 portal 到 body（画布 transform 会给 fixed 造包含块，CLAUDE.md 那条坑） */}
+      {fuse && (
+        <FuseFrameSheet
+          which={fuse}
+          sources={fuseSourcesOf({
+            materials: node.materials,
+            carryFrame: carried ? prevP?.lastFrame : null,
+            firstFrame: p.firstFrame,
+            lastFrame: p.lastFrame,
+          })}
+          aspect={node.aspect}
+          onDone={(url) => {
+            setFrame(node.id, fuse, url);
+            setFuse(null);
+          }}
+          onClose={() => setFuse(null)}
+        />
+      )}
       {picker && (
         <TemplatePicker
           current={tpl?.id}

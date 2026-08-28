@@ -391,9 +391,9 @@ function EditorPanel() {
         <div className="flex w-[124px] flex-none flex-col gap-2">
           <FrameCard
             firstFrame={editor.startFrame ?? prev?.lastFrame ?? null}
-            /* 铸段阶段尾帧还不存在——它由所选方案决定，所以这里恒为 null，卡是虚框。
-               推演完成后节点卡上两帧齐了，卡自然变实框并开始轮播 */
-            lastFrame={null}
+            /* 尾帧：推演路上它由所选方案决定（恒虚框）；但「直接生成（自定义直出）」
+               那条路允许现在就传 —— 传了就走首尾帧直出，不传就 AI 补画（layCustomNode） */
+            lastFrame={editor.endFrame}
             originNote={
               editor.startFrame ? "已用你上传的图" : prev?.lastFrame ? "承接上一段尾帧" : "AI 将自拟开头帧"
             }
@@ -401,6 +401,11 @@ function EditorPanel() {
             uploaded={!!editor.startFrame}
             onPickFile={(f) => void fileToFrameDataUrl(f).then((d) => useStudio.getState().setStartFrame(d))}
             onResetStart={() => useStudio.getState().setStartFrame(null)}
+            onPickLastFile={(f) => void fileToFrameDataUrl(f).then((d) => useStudio.getState().setEndFrame(d))}
+            onClearFrame={(which) =>
+              which === "first" ? useStudio.getState().setStartFrame(null) : useStudio.getState().setEndFrame(null)
+            }
+            pinned={{ first: !!editor.startFrame, last: !!editor.endFrame }}
           />
         </div>
 
@@ -565,6 +570,18 @@ function EditorPanel() {
           {editor.generating ? editor.progress || "AI 正在推演三种走向…" : "生成"}
         </button>
         </div>
+        {/* 自定义直出（主人点名的第三车道·工坊面）：跳过推演，把上面那张卡里的帧 +
+            视频要求直接铺成一张已选定的方案卡 —— 这一步免费，出片仍走方案台那颗
+            「炼这一段视频」（报价与 generateSegment 一行没改）。
+            尾帧就在左边那张卡上传（推演路上它是虚框，这条路允许现在就给）。 */}
+        <button
+          onClick={() => useStudio.getState().layCustomNode()}
+          disabled={editor.generating || !editor.requirement.trim()}
+          title={!editor.requirement.trim() ? "先写一句视频要求（缺的帧按它补画）" : undefined}
+          className="mt-1.5 w-full rounded-xl border border-slate-600 py-2 text-[12px] text-slate-300 disabled:opacity-40"
+        >
+          ✍ 直接生成方案（跳过推演 · 免费）——用我给的首尾帧
+        </button>
           </>
         )}
       </div>

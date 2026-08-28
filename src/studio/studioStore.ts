@@ -59,6 +59,9 @@ export interface EditorState {
   aspect: VideoAspect;
   /** 用户上传的本段开头帧（dataURL）；null=沿用上一节点尾帧（无上节点则 AI 自拟） */
   startFrame: string | null;
+  /** 用户上传的本段**结束帧**（dataURL）——只有「直接生成（自定义直出）」那条路读它：
+   *  推演三套时尾帧由各方案自拟，这一位不参与（null=没给）。 */
+  endFrame: string | null;
   generating: boolean;
   /** 生成期间的实时阶段播报（真实 AI 全程约 1-1.5 分钟，没进度=卡死体感） */
   progress: string;
@@ -468,6 +471,10 @@ interface StudioState {
   setAspect: (a: VideoAspect) => void;
   /** 上传/清除本段开头帧（null=恢复默认承接上一节点尾帧） */
   setStartFrame: (dataUrl: string | null) => void;
+  setEndFrame: (dataUrl: string | null) => void;
+  /** 自定义直出：不推演，把编辑器里的帧+要求铺成一张**已选定单方案**的节点卡。
+   *  出片仍走方案台那颗「炼这一段视频」（generateSegment/报价一行没改） */
+  layCustomNode: () => void;
   setRequirement: (v: string) => void;
   setDurationMode: (m: "ai" | "manual") => void;
   setDurationSec: (v: number) => void;
@@ -620,6 +627,7 @@ const DEFAULT_EDITOR: EditorState = {
   videoTier: DEFAULT_TIER,
   aspect: DEFAULT_ASPECT,
   startFrame: null,
+  endFrame: null,
   generating: false,
   progress: "",
 };
@@ -1342,7 +1350,65 @@ export const useStudio = create<StudioState>()((set, get) => ({
   setVideoTier: (id) => set((s) => (s.editor ? { editor: { ...s.editor, videoTier: id } } : {})),
   setAspect: (a) => set((s) => (s.editor ? { editor: { ...s.editor, aspect: a } } : {})),
   setStartFrame: (dataUrl) => set((s) => (s.editor ? { editor: { ...s.editor, startFrame: dataUrl } } : {})),
+  setEndFrame: (dataUrl) => set((s) => (s.editor ? { editor: { ...s.editor, endFrame: dataUrl } } : {})),
   closeEditor: () => set({ editor: null }),
+
+  /**
+   * 自定义直出（主人点名的第三车道·工坊面）：跳过推演，把编辑器里的
+   * 帧（可缺，缺的由 AI 按提示词补画、照价）+ 要求铺成**一张已选定单方案**的节点卡。
+   *
+   * ★ 它**不出片也不扣钱**：出片仍是方案台那颗「炼这一段视频」（generateSegment 与
+   *   segmentCost 一行没改）——这一步只是把"方案"从 AI 推演换成用户亲笔。
+   * ★ 同步动作，没有 generateNode 那套锚点作废逻辑要防（没有 await，桌面不可能中途变样），
+   *   但挂载规则必须与它逐条相同：root 空→当根；否则挂在活动路径末端的 chosenId 下。
+   */
+  layCustomNode: () => {
+    const { editor, deck, root } = get();
+    if (!editor || editor.generating) return;
+    if (!editor.requirement.trim()) {
+      get().npcSay("自定义直出也得写一句这段要拍什么——缺的帧我按这句话补画，一个字都没有我就只能瞎画了。");
+      return;
+    }
+    const materials = editor.slots.map((id) => deck.find((c) => c.id === id)).filter((c): c is Card => !!c);
+    const path = activePath(root);
+    const tail = path.length > 0 ? path[path.length - 1] : null;
+    if (tail && !tail.chosenId) {
+      get().npcSay("上一张卡还没挑定走向——先选定一套，我才知道这张新卡接在哪条线后面。");
+      return;
+    }
+    const prev = tail ? chosenProposal(tail) : null;
+    const first = editor.startFrame ?? prev?.lastFrame ?? "";
+    const p: Proposal = {
+      id: uid("prop"),
+      title: "自定义",
+      plot: editor.requirement.trim(),
+      firstFrame: first,
+      lastFrame: editor.endFrame ?? "",
+      durationSec: editor.durationMode === "manual" ? editor.durationSec : 5,
+      // 用户给的帧（含承接来的接缝帧）上锁：重画不许动它们（Proposal.pinned 的既有语义）
+      pinned: {
+        ...(first ? { first: true } : {}),
+        ...(editor.endFrame ? { last: true } : {}),
+      },
+    };
+    const node: NodeSlot = {
+      id: uid("node"),
+      proposals: [p],
+      chosenId: p.id, // 已选定：方案台直接给「炼这一段视频」，没有三选一那一步
+      children: {},
+      materials,
+      videoTier: editor.videoTier,
+      aspect: editor.aspect,
+      requirement: editor.requirement,
+    };
+    if (!tail) {
+      set({ root: node, spreadOpen: false, focus: { nodeId: node.id }, projection: "proposals", editor: null });
+    } else {
+      tail.children[tail.chosenId!] = node;
+      set({ root: root ? { ...root } : root, spreadOpen: false, focus: { nodeId: node.id }, projection: "proposals", editor: null });
+    }
+    get().npcSay("自定义方案摆上桌了——帧和提示词确认没问题，就点「炼这一段视频」。");
+  },
 
   generateNode: async () => {
     const { editor, deck, root } = get();
