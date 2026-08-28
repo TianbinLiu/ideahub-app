@@ -23,13 +23,15 @@
 // ④ **图太大 / 比例超 3:1 怎么办？** 走 `data/cardViews.prepareCardImage`（与详情页
 //    「+ 图位」同一份实现）：越界居中裁并把这件事**说出来**，超 5MB 直接报错。
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Link, useNavigate } from "react-router";
+import { createPortal } from "react-dom";
+import { useNavigate } from "react-router";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
 import PortraitAuthPanel from "../components/PortraitAuthPanel";
 import VoiceRecorder from "../components/VoiceRecorder";
+import VoiceUploadButton from "../components/VoiceUploadButton";
 import { fetchPortraitAssetImage } from "../api/portrait";
 import { addCards, isRemoteMode } from "../data/account";
 import { API_ON } from "../api/client";
@@ -41,7 +43,6 @@ import { saveVoice } from "../data/cardVoice";
 // AI 出图那半（slotPrompt/schemeCost）这条路用不上，也就不 import。
 import {
   defaultScheme,
-  defaultSchemeFor,
   listSchemes,
   schemeOf,
   schemesVersion,
@@ -75,6 +76,9 @@ const SUMMARY_MAX = 60;
 const INFO_MAX = 500;
 const TAG_MAX = 6;
 const TAG_LEN_MAX = 10;
+
+/** 方案小窗的占位图（内置方案没有示例图时用；作者存过示例图就显示真图） */
+const SCHEME_EMOJI: Record<string, string> = { scheme_clean: "🧍", scheme_faceless: "🫥", scheme_specsheet: "📐" };
 
 /** 一个图位上已经准备好的那张图 */
 interface Shot {
@@ -136,7 +140,9 @@ export default function CustomCardPage() {
    * 真人区沉在两屏之下，用户按老动线走完全程都不会遇到它们。步骤化不是装饰，
    * 是把"先表态，再干活"变成动线本身。
    */
-  const [step, setStep] = useState<"setup" | "form">("setup");
+  const [step, setStep] = useState<"type" | "real" | "form">("type");
+  /** 人物卡的方案小窗开没开（第 1 屏点「人物卡」弹出） */
+  const [schemePick, setSchemePick] = useState(false);
   /** 授权照片自动填卡面的进行态/结果（铁律八：取失败要整句说，并给退路） */
   const [importMsg, setImportMsg] = useState("");
   /** 真人声明（仅人物卡）。勾了就必须同时勾 consentOk，否则铸卡整句拒（同提取那条路） */
@@ -446,240 +452,179 @@ export default function CustomCardPage() {
         </button>
         <h1 className="text-base font-bold text-slate-100">自己传图做卡片</h1>
         <HelpButton tour="customcard" />
-        <span className="ml-auto text-[10px] text-slate-500">{step === "setup" ? "第 1 步 · 方案与授权" : "第 2 步 · 传图与信息"}</span>
+        <span className="ml-auto text-[10px] text-slate-500">{step === "type" ? "选卡种" : step === "real" ? "真人素材" : "传图与信息"}</span>
       </div>
 
-      {step === "setup" ? (
+      {/* ── 第 1 屏：只有五个卡种（主人点名的形状：无文案、按钮占约八成屏、不滚动）。
+          说明性文字全部让位给引导（tours 的 customcard，右上角 ? 随时重看） */}
+      {step === "type" && (
         <>
-      {/* ★ 与默认路径的区别写在最前面——压成一句常驻（main 的 UI 梳理批），
-          三条展开在引导里（tours 的 customcard）。整块去掉的话这一页会被读成"原来铸卡得自己找图" */}
-      <div data-guide="cc-compare" className="mb-3 flex items-center gap-2.5 rounded-xl border border-amber-400/30 bg-amber-400/5 p-3">
-        <p className="min-w-0 flex-1 text-xs leading-relaxed text-amber-200/90">
-          这是<span className="font-semibold">另一条</span>路：全部用你上传的图，不调 AI、不耗 token。
-        </p>
-        <Link to="/studio" className="flex-none text-[11px] text-brand">
-          想让 AI 画？去工坊 ›
-        </Link>
-      </div>
-
-      {/* ★★ 两种"没连服务器"必须分开说，因为后果差着一整张卡（见 offlineButConfigured） */}
-      {offlineButConfigured ? (
-        <div className="mb-3 rounded-xl border border-rose-500/50 bg-rose-500/10 p-3 text-[11px] leading-relaxed text-slate-300">
-          <span className="font-semibold text-rose-200">连不上服务器，这会儿做不了卡：</span>
-          现在建的卡<span className="text-rose-200">只会存在内存里</span>，等网络恢复、App 与服务器对上账之后，
-          它会连同你传的图一起消失（App 会用服务器上那份覆盖本机，而离线期间建的卡不会自动补传上去）。
-          与其让你白填一遍，不如等连上再来 —— 换个网络或稍后重开 App 试试。
-        </div>
-      ) : (
-        !remote && (
-          <div className="mb-3 rounded-xl border border-slate-600 bg-panel p-3 text-[11px] leading-relaxed text-slate-300">
-            <span className="font-semibold text-slate-200">离线版（这个包没有配服务器）：</span>
-            这张卡<span className="text-slate-100">能铸</span>，图存在这台设备上，出片时照样能当形象参考；
-            但<span className="text-amber-300">发布不了</span> ——「发布到创意工坊」要有服务器，
-            而且换设备或清掉 App 数据后这些图就没了。
-          </div>
-        )
-      )}
-
-      {/* ── 1 卡片类型 ── */}
-      <section className="mb-4">
-        <h2 className="mb-1.5 text-xs font-semibold text-slate-300">① 这是一张什么卡</h2>
-        <div className="flex flex-wrap gap-2">
-          {CARD_TYPES.map((t) => {
-            const on = t === type;
-            return (
-              <button
-                key={t}
-                onClick={() => changeType(t)}
-                // ★★ 处理图片期间不许换卡种：onFile 在 await 之后按 pickingRef 里的 kind
-                //   写 shots，而 changeType 只按**当时**的 shots 算要丢哪几张 ——
-                //   在途那张既不会被取下、也不会进"已经取下来了"那句说明，
-                //   处理完直接写进一个新卡种根本没有的图位，从此不显示、不入卡、零提示。
-                disabled={busySlot !== null}
-                className="rounded-full border px-3 py-1.5 text-xs transition disabled:opacity-40"
-                style={{
-                  color: on ? "#0b1020" : CARD_TYPE_COLORS[t],
-                  borderColor: CARD_TYPE_COLORS[t],
-                  background: on ? CARD_TYPE_COLORS[t] : CARD_TYPE_COLORS[t] + "14",
-                  fontWeight: on ? 700 : 400,
-                }}
-              >
-                {CARD_TYPE_LABELS[t]}
-              </button>
-            );
-          })}
-        </div>
-        {/* ★ 这里**不**把各卡种的图位名列一遍：那是 types.CARD_SLOTS 的内容，
-            下面第 ③ 步已经照表画出来了。抄一份摆在这儿，改表时它不会跟着变。
-            "换卡种会取下并告知"那半句在引导里——真发生时 dropped 那行自己会说 */}
-        <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-          卡种决定下面有<span className="text-slate-400">哪几个图位、每格锁住什么</span>。
-        </p>
-        {dropped && <p className="mt-1 text-[11px] leading-relaxed text-amber-400">{dropped}</p>}
-      </section>
-
-      {/* ── setup·② 方案（仅人物卡）：大卡摊开必选其一——主人点名"先让用户选方案"，
-          折叠成一行的上一版被实测认定"没改"。每张卡把图位 tag 列全，选哪套下一步就有哪几格 */}
-      {isChar && (
-        <section data-guide="cc-scheme" className="mb-4">
-          <h2 className="mb-1.5 text-xs font-semibold text-slate-300">② 挑一套图位方案</h2>
-          <div className="space-y-2">
-            {listSchemes("character").map((sc) => {
-              const on = sc.id === schemeId;
+          <div data-guide="cc-type" className="flex h-[78vh] flex-col gap-3">
+            {CARD_TYPES.map((t) => {
+              const color = CARD_TYPE_COLORS[t];
               return (
                 <button
-                  key={sc.id}
-                  onClick={() => changeScheme(sc.id)}
-                  className={`w-full rounded-xl border p-2.5 text-left ${
-                    on ? "border-brand bg-brand/10" : "border-slate-700/70 bg-panel"
-                  }`}
+                  key={t}
+                  onClick={() => {
+                    changeType(t);
+                    // 人物卡：先弹方案小窗（看图挑）；其余卡种没有方案，直进表单
+                    if (t === "character") setSchemePick(true);
+                    else setStep("form");
+                  }}
+                  className="flex-1 rounded-2xl border-2 text-2xl font-bold"
+                  style={{ color, borderColor: color, background: color + "14" }}
                 >
-                  <span className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-slate-100">{sc.title}</span>
-                    {sc.faceless && (
-                      <span className="flex-none rounded-full bg-emerald-500/15 px-1.5 py-px text-[9px] text-emerald-300">无脸</span>
-                    )}
-                    {on && <span className="ml-auto flex-none text-[10px] font-bold text-brand">✓ 用这套</span>}
-                  </span>
-                  <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">{sc.intro}</span>
-                  <span className="mt-1 flex flex-wrap gap-1">
-                    {sc.slots.map((s) => (
-                      <span key={s.tag} className="rounded bg-slate-700/60 px-1.5 py-0.5 text-[9px] text-slate-300">
-                        {s.tag}
-                      </span>
-                    ))}
-                  </span>
+                  {CARD_TYPE_LABELS[t]}
                 </button>
               );
             })}
           </div>
-          <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-            方案决定下一步有哪几格图位、各叫什么。自建方案 / 从市场装新方案在工坊「从视频提取卡片」里做，装好这里就能选。
-          </p>
-        </section>
-      )}
-
-      {/* ── setup·③ 真人素材与声音（仅人物卡，选填）：
-          声明 + 肖像授权（PortraitAuthPanel 唯一实现）+ 跟读录音。授权接上那一刻
-          自动把素材照片填进方案第一格（importAssetPhoto——主人两次点名要的）。
-          pending 两样 addCards 成功后才落侧库（卡没入库就是孤儿）。 */}
-      {isChar && (
-        <section className="mb-4">
-          <h2 className="mb-1.5 text-xs font-semibold text-slate-300">③ 真人素材与声音（选填）</h2>
-          <div className="rounded-xl border border-slate-700/70 bg-panel p-2.5">
-            <label className="flex items-center gap-2 text-xs text-slate-200">
-              <input
-                type="checkbox"
-                checked={realPerson}
-                onChange={(e) => {
-                  setRealPerson(e.target.checked);
-                  // 取消真人 = 撤回整个声明：协议勾选、已接上的授权素材一起清
-                  //（留着协议勾选，下次一勾就带着"已同意"入库，那一下用户根本没看协议；
-                  //  留着素材，就是把 A 的肖像绑给下一张不相干的卡）
-                  if (!e.target.checked) {
-                    setConsentOk(false);
-                    setPendingAsset(null);
-                    setImportMsg("");
-                  }
-                  // 真人素材默认主推无脸方案（唯一实现 defaultSchemeFor）；亲手挑过的不动
-                  if (!schemeTouched.current) {
-                    const next = defaultSchemeFor({ realPerson: e.target.checked });
-                    if (next.id !== schemeId) changeScheme(next.id);
-                    schemeTouched.current = false; // changeScheme 会标 touched，这里是系统换的，撤回标记
-                  }
-                  setErr("");
-                }}
-                className="h-4 w-4 flex-none accent-brand"
-              />
-              画面里是真实人物（真人）
-            </label>
-            {realPerson && (
-              <div className="mt-2 space-y-1.5">
-                <p className="text-[10px] leading-relaxed text-slate-400">
-                  真人素材出片要过供应商的内容审核，也受深度合成相关法规约束——用这张卡出片可能被拒单或加审。
-                  拿别人的脸生成内容，必须先取得他本人的同意。
-                </p>
-                <label className="flex items-start gap-2 text-[11px] leading-relaxed text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={consentOk}
-                    onChange={(e) => {
-                      setConsentOk(e.target.checked);
-                      if (e.target.checked) setErr("");
-                    }}
-                    className="mt-0.5 h-4 w-4 flex-none accent-brand"
-                  />
-                  我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担
-                </label>
-                <div className="rounded-lg border border-slate-700/70 bg-ink/30 p-2">
-                  <p className="mb-1.5 text-[10px] leading-relaxed text-slate-400">
-                    🪪 <b className="text-slate-300">方舟可信素材</b>（真人出片的合规通道）：「高清」「电影级」档
-                    <b className="text-slate-300">不收直接上传的真人照片</b>，只收本人授权过的素材。现在就做：
-                  </p>
-                  {pendingAsset ? (
-                    <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
-                      <span className="min-w-0">
-                        <span className="block text-[10px] text-emerald-200">已接上授权素材，铸卡时一并绑定</span>
-                        <span className="block truncate font-mono text-[9px] text-emerald-300/80">{pendingAsset.assetId}</span>
-                      </span>
-                      <button
-                        onClick={() => {
-                          setPendingAsset(null);
-                          setImportMsg("");
-                        }}
-                        className="flex-none text-[10px] text-slate-500"
-                      >
-                        取消
-                      </button>
-                    </div>
-                  ) : (
-                    <PortraitAuthPanel
-                      onBound={(assetId, note) => {
-                        setPendingAsset({ assetId, note });
-                        // 授权接上那一刻就把照片填进卡面（服务端代取，失败会整句说并给退路）
-                        void importAssetPhoto(assetId);
+          {/* 方案小窗：四张**只有示例图 + 名字**的牌（主人点名：不要简介）。
+              内置方案没有示例图时用占位图（作者存过示例图就显示真图）。
+              portal 到 body：与全仓浮层同一条纪律（祖先 transform/blur 会造包含块） */}
+          {schemePick &&
+            createPortal(
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
+                onClick={() => setSchemePick(false)}
+              >
+                <div className="grid w-full max-w-sm grid-cols-2 gap-3" onClick={(e) => e.stopPropagation()}>
+                  {listSchemes("character").map((sc) => (
+                    <button
+                      key={sc.id}
+                      onClick={() => {
+                        changeScheme(sc.id);
+                        setRealPerson(false);
+                        setConsentOk(false);
+                        setSchemePick(false);
+                        setStep("form");
                       }}
-                    />
-                  )}
-                  {importMsg && <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400">{importMsg}</p>}
-                </div>
-              </div>
-            )}
-            {/* 跟读录音：真人卡录本人音色最有意义，但非真人的人物卡也可以配音（配音演员给
-                原创角色配一段同样成立），所以不锁在 realPerson 里 */}
-            <div className="mt-2">
-              {pendingVoice ? (
-                <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[10px] text-emerald-200">
-                      🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）
-                    </span>
-                    <audio src={pendingVoice.dataUrl} controls className="mt-1 h-8 w-full" />
-                  </span>
-                  <button onClick={() => setPendingVoice(null)} className="flex-none text-[10px] text-slate-500">
-                    重录
+                      className="overflow-hidden rounded-2xl border border-slate-600 bg-panel"
+                    >
+                      {sc.examples?.[0] ? (
+                        <img src={sc.examples[0]} alt={sc.title} className="aspect-[3/4] w-full object-cover" />
+                      ) : (
+                        <span className="flex aspect-[3/4] w-full items-center justify-center bg-ink/60 text-5xl">
+                          {SCHEME_EMOJI[sc.id] ?? "🎴"}
+                        </span>
+                      )}
+                      <span className="block px-1 py-2 text-center text-xs font-semibold text-slate-100">{sc.title}</span>
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => {
+                      // 真人路的图位用「干净立绘」（传的是真人照片，全身+特写正合适；
+                      // 出片端合规靠 asset://，不靠无脸——那是 AI 出图路的主推）
+                      const clean = listSchemes("character").find((s) => s.builtin && !s.faceless);
+                      if (clean) changeScheme(clean.id);
+                      setRealPerson(true);
+                      setSchemePick(false);
+                      setStep("real");
+                    }}
+                    className="overflow-hidden rounded-2xl border border-sky-500/60 bg-panel"
+                  >
+                    <span className="flex aspect-[3/4] w-full items-center justify-center bg-sky-500/10 text-5xl">🪪</span>
+                    <span className="block px-1 py-2 text-center text-xs font-semibold text-sky-200">真人素材扫脸认证</span>
                   </button>
                 </div>
-              ) : (
-                <VoiceRecorder onDone={setPendingVoice} />
-              )}
-            </div>
-          </div>
-        </section>
+              </div>,
+              document.body,
+            )}
+        </>
       )}
 
-      <button onClick={() => setStep("form")} className="w-full rounded-xl bg-brand py-3 text-sm font-bold text-ink">
-        {isChar ? `下一步：按「${scheme.title}」传图 ›` : "下一步：传图与信息 ›"}
-      </button>
-      <p className="mt-1.5 text-center text-[11px] text-slate-500">下一步传图、起名，然后铸成卡片——全程不消耗 token</p>
-        </>
-      ) : (
+      {/* ── 真人素材页（选「真人素材扫脸认证」才进）：肖像授权 + 跟读录音 + 传本地音频。
+          跟读只在这一页有（主人点名）；其它方案在表单里只有传本地音频。 */}
+      {step === "real" && (
         <>
-      {/* 第 2 步顶部的回程：方案/授权/录音都在第 1 步，随时能回去改 */}
-      <button onClick={() => setStep("setup")} className="mb-3 flex items-center gap-1 text-[11px] text-slate-400">
+          <button
+            onClick={() => {
+              setStep("type");
+              setSchemePick(true);
+            }}
+            className="mb-3 flex items-center gap-1 text-[11px] text-slate-400"
+          >
+            <Icon name="back" size={12} />
+            重选方案
+          </button>
+          <label className="flex items-start gap-2 text-[11px] leading-relaxed text-slate-300">
+            <input
+              type="checkbox"
+              checked={consentOk}
+              onChange={(e) => {
+                setConsentOk(e.target.checked);
+                if (e.target.checked) setErr("");
+              }}
+              className="mt-0.5 h-4 w-4 flex-none accent-brand"
+            />
+            我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担
+          </label>
+          <div className="mt-3 rounded-xl border border-slate-700/70 bg-panel p-2.5">
+            {pendingAsset ? (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
+                <span className="min-w-0">
+                  <span className="block text-[10px] text-emerald-200">已接上授权素材，铸卡时一并绑定</span>
+                  <span className="block truncate font-mono text-[9px] text-emerald-300/80">{pendingAsset.assetId}</span>
+                </span>
+                <button
+                  onClick={() => {
+                    setPendingAsset(null);
+                    setImportMsg("");
+                  }}
+                  className="flex-none text-[10px] text-slate-500"
+                >
+                  取消
+                </button>
+              </div>
+            ) : (
+              <PortraitAuthPanel
+                onBound={(assetId, note) => {
+                  setPendingAsset({ assetId, note });
+                  // 授权接上那一刻就把照片填进卡面（服务端代取，失败整句说并给退路）
+                  void importAssetPhoto(assetId);
+                }}
+              />
+            )}
+            {importMsg && <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400">{importMsg}</p>}
+          </div>
+          <div className="mt-3 space-y-2">
+            {pendingVoice ? (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[10px] text-emerald-200">
+                    🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）
+                  </span>
+                  <audio src={pendingVoice.dataUrl} controls className="mt-1 h-8 w-full" />
+                </span>
+                <button onClick={() => setPendingVoice(null)} className="flex-none text-[10px] text-slate-500">
+                  重来
+                </button>
+              </div>
+            ) : (
+              <>
+                <VoiceRecorder onDone={setPendingVoice} />
+                <VoiceUploadButton onDone={setPendingVoice} />
+              </>
+            )}
+          </div>
+          <button onClick={() => setStep("form")} className="mt-4 w-full rounded-xl bg-brand py-3 text-sm font-bold text-ink">
+            下一步：传图与信息 ›
+          </button>
+        </>
+      )}
+
+      {step === "form" && (
+        <>
+      {/* 表单顶部的回程：真人路回真人素材页，其余回选卡种 */}
+      <button
+        onClick={() => setStep(isChar && realPerson ? "real" : "type")}
+        className="mb-3 flex items-center gap-1 text-[11px] text-slate-400"
+      >
         <Icon name="back" size={12} />
-        返回：{isChar ? "方案与授权" : "卡种"}
+        返回：{isChar && realPerson ? "真人素材" : "选卡种"}
       </button>
+
+      {dropped && <p className="mb-3 text-[11px] leading-relaxed text-amber-400">{dropped}</p>}
 
       {/* ── 2 卡名 + 简介（右边挂实时卡面预览）── */}
       <section className="mb-4 flex gap-3">
@@ -930,7 +875,7 @@ export default function CustomCardPage() {
           {pendingAsset ? `${realPerson ? " · " : ""}授权素材已接上（铸卡时绑定）` : ""}
           {pendingVoice ? `${realPerson || pendingAsset ? " · " : ""}已录音 ${pendingVoice.durationSec.toFixed(1)}s` : ""}
           {" —— 要改就"}
-          <button onClick={() => setStep("setup")} className="text-brand">
+          <button onClick={() => setStep(isChar && realPerson ? "real" : "type")} className="text-brand">
             返回上一步
           </button>
         </p>

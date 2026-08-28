@@ -954,14 +954,14 @@ export const TOURS: GuideTour[] = [
     title: "自己传图做卡片",
     // 2026-08-28 文案收纳：页面顶上那块三条 bullet 的对比说明压成一句，展开讲在这。
     // 首次进页强制放一遍，"这是另一条路、默认铸卡不用传图"这件事仍然人人看得到。
-    // ★ version 2（同日两支合流）：页面改成两步向导（先选方案+授权，再传图），
-    //   第 1 步只有 cc-compare / cc-scheme 两个锚点在场——cc-slots / cc-info 在第 2 步，
-    //   自动弹在第 1 步找不到它们会退成居中卡片（GuideOverlay 的既定行为），照样能读。
-    version: 2,
+    // ★ version 3（2026-08-28 再改版）：第 1 屏只有五个卡种大按钮（无文案，说明全在
+    //   本引导里）；人物卡点开弹方案小窗（看图挑）或走「真人素材扫脸认证」独立页。
+    //   第 1 屏在场的锚只有 cc-type——cc-slots / cc-info 在表单步，自动弹时找不到
+    //   会退成居中卡片（GuideOverlay 的既定行为），照样能读。
+    version: 3,
     steps: [
       {
         title: "这是另一条路",
-        anchor: "cc-compare",
         body: (
           <>
             默认铸卡是 <b className="font-bold text-slate-100">AI 全自动出图</b>（3D 工坊找铸卡师），
@@ -972,14 +972,14 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
-        title: "先表态，再传图",
-        anchor: "cc-scheme",
+        title: "先挑卡种，再挑方案",
+        anchor: "cc-type",
         body: (
           <>
-            这一页分两步。<b className="font-bold text-slate-100">第 1 步先挑一套图位方案</b>
-            （人物卡：干净立绘 / 无脸背影 / 设定图鉴，或你自建的）——选哪套，下一步就有哪几格。
-            画面里是真人的话，肖像授权、跟读录音也在这一步当场做完；授权一接上会
-            <b className="font-bold text-slate-100">自动把授权照片填进卡面</b>。
+            第 1 屏只做一件事：<b className="font-bold text-slate-100">挑卡种</b>。点「人物卡」会弹一扇小窗，
+            <b className="font-bold text-slate-100">看图挑一套图位方案</b>（无面部白模三视图 / 全身立绘+面部特写 /
+            角色设定规格图），或者选<b className="font-bold text-slate-100">「真人素材扫脸认证」</b>——那条路先做
+            肖像授权（授权照片自动填进卡面）、跟读录音或上传本地音频，然后才传图。其余卡种直接进传图。
           </>
         ),
       },

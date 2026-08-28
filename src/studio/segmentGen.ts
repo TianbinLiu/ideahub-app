@@ -13,6 +13,7 @@
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
 import { VIDEO_PROMPT_MAX, composeSegments, generateCover, prepareMaterialRefs, refineFrame } from "../ai";
+import { uploadImage } from "../api/uploads";
 import { r2vPriceIssue, tierOf, providerOf, clampDuration } from "../data/economy";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
@@ -66,6 +67,15 @@ export interface SegmentGenInput {
    * ★ 走不走白模仍由 `refVideoUrl` 的存在性决定（它才是真正发出去的那一位），本字段只是判据来源。
    */
   refVideo?: VideoTemplate["refVideo"];
+  /**
+   * **素材参考**（自定义 = 多图 + 参考视频，主人点名的形态）：用户自传的参考视频
+   * （服务端 /uploads/material-video/register 登记过的地址）+ 首/中/尾帧参考图，
+   * 时序靠**默认提示词点名**（customRefPrompt 唯一实现——「图片1是第一帧画面…」）。
+   * 走 reference 子任务：输出时长用户选（3~10s），计价 (输入+输出)×系数
+   * （economy.materialRefCost ↔ server tokens.materialRefTokens，跨仓逐字相等）。
+   * ★ 与 refVideoUrl（白模 edit 复刻）互斥使用：调用方不该两个都给。
+   */
+  materialRef?: { url: string; durationSec: number; mids?: string[] };
   /**
    * 白模模板的**角色位**（`template.roles` 的镜像，见 types.VideoTemplate.roles）。
    *
@@ -242,6 +252,26 @@ export interface SegmentGenResult {
 /** 进度回调：一路平铺的短句，由调用方归一进步骤日志（见 genLog.splitStatus） */
 export type SegmentProgress = (status: string) => void;
 
+/**
+ * 素材参考的**时序点名句** —— 唯一实现（主人点名的机制：让 Seedance 通过默认提示词
+ * 明白哪张图是首帧、哪些是中间帧、哪张是尾帧）。
+ *
+ * ★ 编号从 1 起、按「首 → 中… → 尾」的发送顺序对齐（segmentGen 那侧 ordered 的顺序
+ *   就是这里的编号顺序，两处同一个排列——错位一格就是"开头画成了结尾"）。
+ * ★ 用「图片N」称呼（方舟官方点名法，与白模点名句同一习惯）；参考视频不占编号。
+ * ⚠ 这是**提示词层的软约束**：reference 子任务没有硬性的首尾帧参数（那与参考媒体
+ *   互斥），模型对时序点名的服从度没有协议保证——文案与门禁都不许把它说成硬承诺。
+ */
+export function customRefPrompt(o: { hasFirst: boolean; midCount: number; hasLast: boolean }): string {
+  const parts: string[] = [];
+  let n = 1;
+  if (o.hasFirst) parts.push(`图片${n++}是这段视频的第一帧画面，视频从它开始`);
+  for (let k = 0; k < o.midCount; k++) parts.push(`图片${n++}是视频中间的关键画面，按顺序经过它`);
+  if (o.hasLast) parts.push(`图片${n}是这段视频的最后一帧画面，视频结束在它`);
+  if (parts.length === 0) return "。参考视频提供整体画面、运镜与节奏。";
+  return `。参考视频提供整体画面、运镜与节奏；${parts.join("；")}。画面按图片编号顺序推进，衔接自然。`;
+}
+
 export async function generateSegment(input: SegmentGenInput, onProgress?: SegmentProgress): Promise<SegmentGenResult> {
   const prog = (s: string) => onProgress?.(s);
   let first = input.firstFrame;
@@ -255,6 +285,69 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   if (blockout) {
     const issue = blockoutIssue(input);
     if (issue) throw new Error(issue);
+  }
+
+  // ── 素材参考（自定义 = 多图 + 参考视频，reference 子任务）──────────────
+  // 首/中/尾帧作为 reference_image 发出去，时序由默认提示词点名（customRefPrompt）。
+  // 与白模复刻是两种商品：这条输出时长用户选、画幅照传、计价 (输入+输出)×系数。
+  if (input.materialRef) {
+    const t = tierOf(input.videoTier);
+    if (!t.refVid) {
+      throw new Error(`「${t.label}」档不支持带参考视频出片——去 ⚙ 本段设置换成「电影级」档，或移除参考视频`);
+    }
+    if (input.anns.length) {
+      throw new Error("带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片");
+    }
+    // 承接的真实尾帧优先当首帧参考（段间无缝正是这条链的意义）
+    const firstRef = input.carryFrame || input.firstFrame || "";
+    const mids = input.materialRef.mids ?? [];
+    const ordered = [firstRef, ...mids, input.lastFrame || ""].filter(Boolean);
+    // ★ reference_image 只实测过 https（cardViews 那条 ★），用户帧是 dataURL ——
+    //   逐张转存成公网地址再发。转存失败整句 throw（这一步不花钱，别带着坏图去花钱）。
+    const refUrls: string[] = [];
+    for (let i = 0; i < ordered.length; i++) {
+      const u = ordered[i];
+      if (/^https?:\/\//i.test(u)) {
+        refUrls.push(u);
+        continue;
+      }
+      prog(`上传参考帧 ${i + 1}/${ordered.length}…`);
+      const blob = await (await fetch(u)).blob();
+      refUrls.push(await uploadImage(blob, `custom-ref-${i + 1}.jpg`));
+    }
+    const roles = customRefPrompt({ hasFirst: !!firstRef, midCount: mids.length, hasLast: !!input.lastFrame });
+    // 点名句是这条路的**功能本体**，截断优先保它（与白模 tail 同一条纪律）
+    const mats = materialText(input.materials);
+    const tail = `${roles}${mats}`;
+    const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length);
+    const cut =
+      input.plot.length > room
+        ? `（⚠ 要求太长，末尾 ${input.plot.length - room} 字没能发出去——时序点名句要占 ${tail.length} 字）`
+        : "";
+    prog(`按参考视频 + ${refUrls.length} 张关键帧出片（输入 ${input.materialRef.durationSec}s + 输出 ${clampDuration(input.durationSec, input.videoTier)}s 计价）…${cut}`);
+    const [res] = await composeSegments(
+      [
+        {
+          plot: `${input.plot.slice(0, room)}${tail}`,
+          firstFrame: "",
+          lastFrame: "",
+          durationSec: input.durationSec,
+          videoTier: input.videoTier,
+          aspect: input.aspect,
+          refImages: refUrls,
+          refVideoUrl: input.materialRef.url,
+          refTask: "reference",
+          refVideoSec: input.materialRef.durationSec,
+        },
+      ],
+      (_d, _t, status) => prog(status),
+    );
+    if (res?.error) throw new Error(res.error);
+    return {
+      url: res?.url,
+      firstFrame: res?.firstFrame || firstRef || input.firstFrame,
+      lastFrame: res?.lastFrame || input.lastFrame || firstRef,
+    };
   }
 
   // ── 真人档（MiniMax，flatCost 计价）：帧来源整个不同，在这里备好再交 composeSegments ──

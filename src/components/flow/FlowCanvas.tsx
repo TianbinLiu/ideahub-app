@@ -24,8 +24,10 @@ import SegSettings from "./SegSettings";
 import PlanBoard from "../../studio/ui/PlanBoard";
 import FuseFrameSheet, { fuseSourcesOf } from "../../studio/ui/FuseFrameSheet";
 import CustomFrameSlots from "./CustomFrameSlots";
+import { registerMaterialVideo, uploadTemplateVideo } from "../../api/uploads";
 import { fileToFrameDataUrl } from "../../utils/image";
 import {
+  CUSTOM_MID_MAX,
   chosenOf,
   clampCursor,
   nodeCost,
@@ -663,6 +665,8 @@ function NodePanel({
     genNode,
     setNodeTemplate,
     setNodeCustom,
+    setCustomRefVideo: setNodeCustomRefVideo,
+    removeCustomMid,
     setFrame,
     deriveProposals,
     removeMaterial,
@@ -716,8 +720,10 @@ function NodePanel({
   const custom = !!node.custom && !tplMode && !flatTier;
   /** 融图开在哪一帧上（自定义车道；方案台里那份由 PlanBoard 自己带） */
   const [fuse, setFuse] = useState<"first" | "last" | null>(null);
-  /** 中间帧选图（拆段）的文件口 */
+  /** 中间帧选图（拆段/参考图两用）与参考视频的文件口 */
   const midFileRef = useRef<HTMLInputElement>(null);
+  const refVideoFileRef = useRef<HTMLInputElement>(null);
+  const [refUploading, setRefUploading] = useState("");
   const [picker, setPicker] = useState(false);
   const [cardPick, setCardPick] = useState(false);
   const [castAsk, setCastAsk] = useState(false);
@@ -1016,19 +1022,78 @@ function NodePanel({
                   );
                 })}
               </div>
-              {/* 中间帧（选填）：在这里把本段拆成两段——本段到中间帧为止，新段接着它。
-                  规则唯一实现在 flowStore.insertMidFrame（方舟没有中间帧参数，
-                  "N 张关键帧 = N-1 段 + 真实尾帧承接"就是它的真实形状）。 */}
-              {mode === "workflow" && (
-                <button
-                  onClick={() => {
-                    midFileRef.current?.click();
-                  }}
-                  disabled={locked || generating || busy}
-                  className="w-full rounded-lg border border-dashed border-slate-600 py-2 text-[11px] text-slate-300 disabled:opacity-40"
-                >
-                  ＋ 插一张中间帧（把这一段拆成两段，接缝无缝）
-                </button>
+              {/* ── 示例视频（素材参考）：传本地视频当整段参考 ──
+                  挂上后整段切成「多图 + 参考视频」（reference 子任务）：首/中/尾帧变成
+                  参考图，时序由默认提示词点名（segmentGen.customRefPrompt 唯一实现）。 */}
+              {node.customRef ? (
+                <div className="rounded-lg border border-sky-500/40 bg-sky-500/5 p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 flex-1 truncate text-[11px] text-sky-200">
+                      🎬 参考视频已挂上（{node.customRef.durationSec.toFixed(1)}s · 计价按输入 {Math.round(node.customRef.durationSec)}s + 输出 {p.durationSec}s）
+                    </span>
+                    <button
+                      onClick={() => setNodeCustomRefVideo(node.id, null)}
+                      disabled={locked || generating || busy}
+                      className="flex-none text-[10px] text-slate-500 disabled:opacity-40"
+                    >
+                      移除
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[9px] leading-relaxed text-slate-500">
+                    多图+参考视频模式：上面的首/尾帧此时是<b className="text-slate-400">参考图</b>，
+                    由提示词点名「图片1是第一帧画面…」——是引导不是硬约束。
+                  </p>
+                  {/* 中间帧参考图（多图那半）：与拆段是两回事，这里的中间帧进同一段 */}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] text-slate-500">中间帧参考图</span>
+                    {node.customRef.mids.map((m, i) => (
+                      <span key={i} className="relative">
+                        <img src={m} alt="" className="h-10 w-8 rounded border border-slate-600 object-cover" />
+                        <button
+                          onClick={() => removeCustomMid(node.id, i)}
+                          className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/80 text-[8px] text-slate-300"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                    {node.customRef.mids.length < CUSTOM_MID_MAX && (
+                      <button
+                        onClick={() => midFileRef.current?.click()}
+                        disabled={locked || generating || busy}
+                        className="flex h-10 w-8 items-center justify-center rounded border border-dashed border-slate-600 text-slate-500 disabled:opacity-40"
+                      >
+                        ＋
+                      </button>
+                    )}
+                  </div>
+                  {!tierOf(node.videoTier).refVid && (
+                    <p className="mt-1 text-[9px] leading-relaxed text-amber-300">
+                      ⚠「{tierOf(node.videoTier).label}」档带不了参考视频——去 ⚙ 本段设置换成「电影级」，否则生成会被整句拒。
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => refVideoFileRef.current?.click()}
+                    disabled={locked || generating || busy || !!refUploading}
+                    className="w-full rounded-lg border border-dashed border-sky-500/50 py-2 text-[11px] text-sky-200 disabled:opacity-40"
+                  >
+                    {refUploading || "🎬 传一段示例视频当整段参考（多图+参考视频模式）"}
+                  </button>
+                  {/* 没挂视频时，中间帧 = 拆段（方舟纯帧协议没有中间帧参数，
+                      "N 张关键帧 = N-1 段 + 真实尾帧承接"就是它的真实形状） */}
+                  {mode === "workflow" && (
+                    <button
+                      onClick={() => midFileRef.current?.click()}
+                      disabled={locked || generating || busy}
+                      className="w-full rounded-lg border border-dashed border-slate-600 py-2 text-[11px] text-slate-300 disabled:opacity-40"
+                    >
+                      ＋ 插一张中间帧（把这一段拆成两段，接缝无缝）
+                    </button>
+                  )}
+                </>
               )}
               <input
                 ref={midFileRef}
@@ -1041,17 +1106,47 @@ function NodePanel({
                   if (!f) return;
                   void fileToFrameDataUrl(f).then(
                     (d) => {
-                      useFlow.getState().insertMidFrame(node.id, d);
+                      const st = useFlow.getState();
+                      // 同一个选图口两种去向：挂了参考视频 = 加中间帧参考图（进同一段）；
+                      // 没挂 = 拆段（规则各自唯一实现在 store）
+                      if (st.nodes.find((n) => n.id === node.id)?.customRef) st.addCustomMid(node.id, d);
+                      else st.insertMidFrame(node.id, d);
                     },
                     (err) => useFlow.setState({ err: err instanceof Error ? err.message : String(err) }),
                   );
                 }}
               />
-              {/* 示例视频（整段参考视频）如实说没开——它要过服务端的 r2v 计费闸
-                  （只认登记过的模板视频），下一批单独做。别摆一个点不动的传视频框 */}
-              <p className="text-[9px] leading-relaxed text-slate-600">
-                示例视频（传一段本地视频当整段参考）还没开：要过服务端计费闸，下一版做。现在的等价做法是「套模板」。
-              </p>
+              <input
+                ref={refVideoFileRef}
+                type="file"
+                accept="video/mp4,video/quicktime"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!f) return;
+                  void (async () => {
+                    try {
+                      setRefUploading("上传参考视频 0%…");
+                      const receipt = await uploadTemplateVideo(f, (frac) =>
+                        setRefUploading(`上传参考视频 ${Math.round(frac * 100)}%…`),
+                      );
+                      setRefUploading("登记素材…");
+                      // 登记回执里的时长是服务端从 Cloudinary 取的 —— 计价输入以它为准
+                      const reg = await registerMaterialVideo(receipt.publicId);
+                      setNodeCustomRefVideo(node.id, {
+                        url: reg.url,
+                        publicId: receipt.publicId,
+                        durationSec: reg.durationSec,
+                      });
+                    } catch (err) {
+                      useFlow.setState({ err: `参考视频没挂上：${err instanceof Error ? err.message : String(err)}` });
+                    } finally {
+                      setRefUploading("");
+                    }
+                  })();
+                }}
+              />
             </>
           )}
 

@@ -1778,6 +1778,8 @@ export async function composeSegments(
     refVideoSec?: number;
     /** 人物卡声音样本（台词音色参考）。只在参考生视频段有意义，由 segmentGen 决定给不给 */
     refAudios?: string[];
+    /** 参考视频的子任务（透传 arkClient）：缺省 edit（白模复刻）；"reference" = 素材参考 */
+    refTask?: "edit" | "reference";
   }>,
   onProgress?: (done: number, total: number, status: string) => void,
 ): Promise<SegmentResult[]> {
@@ -1856,6 +1858,7 @@ export async function composeSegments(
         // 白模参考视频：透传而已，判定与拼装都不在这层（见字段注释）
         refVideoUrl: sg.refVideoUrl,
         refVideoSec: sg.refVideoSec,
+        refTask: sg.refTask,
         model: tier.model,
         ratio: aspectOf(sg.aspect).ratio,
         onProgress: (s) => onProgress?.(i, segments.length, `${tier.label}档 · ${s}`),

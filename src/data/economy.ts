@@ -388,6 +388,27 @@ function r2vRawTokens(inputSec: number, mult: number): number {
 }
 
 /**
+ * 素材参考出片（自定义 = 多图 + 参考视频，reference 子任务）的报价。
+ *
+ * ★ 与白模那条 r2vRawTokens 是**两个公式**：edit 输出≈输入所以 输入×2；
+ *   reference 的输出时长由用户选（3~10s），式子是 (输入 + 输出)×21,600×系数。
+ * ★★ 夹取区间与 server 的 tokens.materialRefTokens **逐字相等**（报价=实扣，
+ *   跨仓契约）：输入夹 [4,30]、输出夹 [3,10]。系数走档位表 r2vMult（方舟按
+ *   "有没有视频输入"分档，不按子任务分档 —— 与白模同一档 2.8）。
+ * ★ 档位没有 r2v 价（r2vMult 为 null）时**抛错**：这是报价函数，开发期就该当场炸
+ *   （与 server 那份"结算不能炸"的分工相反，理由见 server tokens.imageTokensOf 注释）。
+ */
+export function materialRefCost(inputSec: number, outputSec: number, tierId?: string): number {
+  const t = tierOf(tierId);
+  if (t.r2vMult === null) {
+    throw new Error(`档位 ${t.id} 没有 r2v 价目（r2vMult=null），不能带参考视频出片——调用方该先判 refVid`);
+  }
+  const i = Math.max(4, Math.min(30, Math.round(inputSec)));
+  const o = Math.max(3, Math.min(10, Math.round(outputSec)));
+  return Math.round((i + o) * SEC_720P_TOKENS * t.r2vMult);
+}
+
+/**
  * 白模模板（r2v）一段出片的 token 估算。**null = 这一档报不出 r2v 价**，不是免费
  * （类型逼着调用方处理，同 imageTierTokens；人话侧走 r2vPriceIssue）。
  *

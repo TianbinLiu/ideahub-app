@@ -24,6 +24,7 @@ import {
   DEFAULT_TIER,
   VIDEO_TIERS,
   annRedrawCost,
+  materialRefCost,
   fmtTokens,
   proposalRedrawCost,
   proposalsCost,
@@ -93,6 +94,14 @@ export interface FlowNode {
    *   这正是它安全的全部理由，改这里之前先想清楚会不会把第三车道变成第二套规则。
    */
   custom?: boolean;
+  /**
+   * 自定义段的**素材参考**（多图 + 参考视频，主人点名的形态）：
+   * url/durationSec 来自服务端登记（/uploads/material-video/register，时长服务端说了算，
+   * 计价输入就是它）；mids 是中间帧参考图（dataURL，上限见 CUSTOM_MID_MAX）。
+   * 有它 = 这一段走 reference 子任务（segmentGen.materialRef），首/尾帧变成参考图 +
+   * 提示词点名；没有 = 纯帧模式（first/last_frame 硬参数）。只在 custom 段上有意义。
+   */
+  customRef?: { url: string; publicId: string; durationSec: number; mids: string[] };
   /**
    * 用户对这一段的原始输入（"这一段要拍什么"）。
    * ★ 与 proposal.plot 刻意分开：plot 是 AI 写出来的那一套的剧情（用户还能在方案卡上
@@ -372,11 +381,22 @@ export function tplOfNode(node: FlowNode | undefined | null): FlowTemplate | nul
   return node?.tpl !== undefined ? node.tpl : useFlow.getState().template;
 }
 
+/** 素材参考模式下中间帧参考图的上限（首/尾帧另算，共 4 张图 —— 方舟 2.5 收 1–30，
+ *  取小是给提示词点名句留字数：每多一张就多一句「图片N是…」） */
+export const CUSTOM_MID_MAX = 2;
+
 export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOverride?: string): number {
   const node = nodes[idx];
   if (!node) return 0;
   const prop = chosenOf(node);
   const carry = nodeCarry(nodes, idx);
+  // ── 素材参考（自定义 = 多图 + 参考视频）：(输入 + 输出)×系数，与真扣同一个函数 ──
+  // ★ 档位没有 r2v 价（r2vMult null，即 hd/std/fast）时**按纯帧模式报**：materialRefCost
+  //   在那种档上是 throw（报价函数开发期就该炸），而这里是渲染路径不能炸 ——
+  //   genNode/segmentGen 会在出片前整句拒并指路换档，报价旁的提示条负责把话说在前面。
+  if (node.custom && node.customRef && tierOf(tierOverride ?? node.videoTier).r2vMult !== null) {
+    return materialRefCost(node.customRef.durationSec, prop.durationSec, tierOverride ?? node.videoTier);
+  }
   // 白模位从模板快照读。★ 走 tplOfNode：分段组各段时长不同，读 store 级那份会把
   //   第 1 段的时长套在每一段头上 —— 报价对不上实扣（本仓头号事故形状）。
   // ★ 按「模板带 refVideo」透传，而不是问 blockoutOn：还没挂角色卡的白模节点也必须按
@@ -580,6 +600,12 @@ interface FlowState {
   /** 自定义车道的「中间帧」：把这一段在该帧处**拆成两段**（本段到中间帧为止，
    *  紧随其后插入一段同为自定义的新段接着它）。返回 false = 被拒（原因在 err） */
   insertMidFrame: (id: string, dataUrl: string) => boolean;
+  /** 给自定义段挂/摘**素材参考视频**（服务端登记回执整份传入；null = 摘掉）。
+   *  返回 false = 被拒（原因在 err） */
+  setCustomRefVideo: (id: string, ref: { url: string; publicId: string; durationSec: number } | null) => boolean;
+  /** 素材参考模式下增/删**中间帧参考图**（上限 CUSTOM_MID_MAX）。返回 false = 被拒 */
+  addCustomMid: (id: string, dataUrl: string) => boolean;
+  removeCustomMid: (id: string, idx: number) => void;
   removeNode: (id: string) => void;
   setCursor: (i: number) => void;
   shiftCursor: (dir: 1 | -1) => void;
@@ -1608,6 +1634,69 @@ export const useFlow = create<FlowState>()((set, get) => ({
     return true;
   },
 
+  setCustomRefVideo: (id, ref) => {
+    const s = get();
+    const node = s.nodes.find((n) => n.id === id);
+    if (!node) return false;
+    if (s.busy || s.nodes.some((n) => n.status === "generating")) {
+      set({ err: "有一段正在生成中，等它跑完再挂/摘参考视频" });
+      return false;
+    }
+    if (nodeDone(node)) {
+      set({ err: "这一段已经出片，挂参考视频不会改成片——想重来就先删掉本段" });
+      return false;
+    }
+    if (ref && !node.custom) {
+      set({ err: "先把这一段切到「✍ 自定义」再挂参考视频" });
+      return false;
+    }
+    set((st) => ({
+      nodes: st.nodes.map((n) =>
+        n.id === id
+          ? ref
+            ? { ...n, customRef: { ...ref, mids: n.customRef?.mids ?? [] } }
+            : { ...n, customRef: undefined }
+          : n,
+      ),
+      err: "",
+    }));
+    return true;
+  },
+
+  addCustomMid: (id, dataUrl) => {
+    const s = get();
+    const node = s.nodes.find((n) => n.id === id);
+    if (!node || !dataUrl) return false;
+    if (!node.customRef) {
+      set({ err: "先挂上参考视频——中间帧参考图是「多图+参考视频」模式的一部分" });
+      return false;
+    }
+    if (node.customRef.mids.length >= CUSTOM_MID_MAX) {
+      set({ err: `中间帧参考图最多 ${CUSTOM_MID_MAX} 张（首帧、尾帧另算）——先删一张再加` });
+      return false;
+    }
+    if (s.busy || s.nodes.some((n) => n.status === "generating")) {
+      set({ err: "有一段正在生成中，等它跑完再改参考图" });
+      return false;
+    }
+    set((st) => ({
+      nodes: st.nodes.map((n) =>
+        n.id === id && n.customRef ? { ...n, customRef: { ...n.customRef, mids: [...n.customRef.mids, dataUrl] } } : n,
+      ),
+      err: "",
+    }));
+    return true;
+  },
+
+  removeCustomMid: (id, idx) =>
+    set((st) => ({
+      nodes: st.nodes.map((n) =>
+        n.id === id && n.customRef
+          ? { ...n, customRef: { ...n.customRef, mids: n.customRef.mids.filter((_, i) => i !== idx) } }
+          : n,
+      ),
+    })),
+
   removeNode: (id) => {
     const s = get();
     // ★ 早退要说人话（铁律八）：静默 return 时，agent 那条路按"删完了没变"判失败，
@@ -1786,6 +1875,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
           anns: node.anns,
           carryFrame: carry,
           refVideoUrl: tplRef?.url,
+          // 自定义段的素材参考（多图+参考视频）：报价（上面 nodeCost 的 materialRefCost
+          // 分支）与这里必须同进同出 —— 报了 (输入+输出) 的价就必须真发参考视频
+          materialRef:
+            node.custom && node.customRef
+              ? { url: node.customRef.url, durationSec: node.customRef.durationSec, mids: node.customRef.mids }
+              : undefined,
           // ★ 登记值**整份**透传（不只时长）：出片门口那道「模板视频自己合不合方舟窗口」
           //   的判据要读 realDurationSec ?? durationSec，在这里只挑一个数传下去，
           //   segmentGen 就得自己拼那个 `??` —— 那是同一条规则的第二份实现。

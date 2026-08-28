@@ -55,3 +55,44 @@ export async function pcmToVoiceWav(flat: Float32Array, srcRate: number): Promis
   const rendered = await off.startRendering();
   return wavDataUrl(rendered.getChannelData(0), out);
 }
+
+/**
+ * 本地音频文件 → 声音样本（24k 单声道 WAV dataURL）。
+ * 「上传本地音频」那条路的唯一实现（跟读录音是另一条，共用下面的重采样与封装）。
+ * ★ 窗口与录音同一套（Seedance 参考音频 [2,15]s）：短于 2s 整句拒；长于 15s
+ *   **掐头 15s 并如实说**（durationSec 永远等于 dataUrl 里的真实长度——录音那边
+ *   曾在这上面骗过一次人，教训见 VoiceRecorder 的 ★★）。
+ */
+export async function audioFileToVoice(
+  file: File,
+  minSec: number,
+  maxSec: number,
+): Promise<{ dataUrl: string; durationSec: number; trimmed: boolean }> {
+  const buf = await file.arrayBuffer();
+  const ctx = new AudioContext();
+  let decoded: AudioBuffer;
+  try {
+    decoded = await ctx.decodeAudioData(buf);
+  } catch {
+    throw new Error("这个文件解不出音频——换一个 mp3 / wav / m4a 试试");
+  } finally {
+    void ctx.close();
+  }
+  if (decoded.duration < minSec) {
+    throw new Error(`这段音频只有 ${decoded.duration.toFixed(1)}s，短于 ${minSec}s 下限——换一段长一点的`);
+  }
+  const rate = decoded.sampleRate;
+  const keep = Math.min(decoded.length, Math.round(maxSec * rate));
+  // 混单声道（多声道取平均，与录音/抓音同口径）
+  const mono = new Float32Array(keep);
+  for (let ch = 0; ch < decoded.numberOfChannels; ch++) {
+    const data = decoded.getChannelData(ch);
+    for (let i = 0; i < keep; i++) mono[i] += data[i] / decoded.numberOfChannels;
+  }
+  const dataUrl = await pcmToVoiceWav(mono, rate);
+  return {
+    dataUrl,
+    durationSec: Math.round((keep / rate) * 10) / 10,
+    trimmed: decoded.duration > maxSec,
+  };
+}
