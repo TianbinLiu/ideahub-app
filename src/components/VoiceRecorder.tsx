@@ -46,6 +46,18 @@ export default function VoiceRecorder({
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   // stop 会被 pointerup/leave/自动到点三条路调用，用 ref 防重入
   const stopping = useRef(false);
+  /**
+   * ★★ 控制路径一律走 ref，不走 state（2026-08-28 真机抓到的两连环，都源于闭包抓旧值）：
+   *   ① `recording` 是 state：start() 里建的 setInterval 闭包抓的是**那一拍**的 stop
+   *     （其中 recording 恒为 false）→ 15 秒自动停**从没生效过**——实测录了 42 秒直到
+   *     手动点停，而 durationSec 还如实地写着 15.0（界面说的与 dataUrl 里装的不是一回事）。
+   *   ② 首次录音会弹系统麦克风授权：弹窗期间用户已松手（pointerup 落在 recording=false
+   *     上被无视），授权通过后 start() 的 await 继续 → **没有任何手指按着**却开录，
+   *     红按钮自己在数秒。
+   *   recordingRef / pressedRef 就是给这两条闭包用的实时真相。
+   */
+  const recordingRef = useRef(false);
+  const pressedRef = useRef(false);
 
   // 卸载时把麦克风关干净：留着的话状态栏的录音红点会一直亮，用户只会认为在偷录
   useEffect(
@@ -59,11 +71,18 @@ export default function VoiceRecorder({
   );
 
   async function start() {
-    if (recording || busy) return;
+    if (recordingRef.current || busy) return;
     setErr("");
     try {
       // 每次按下都重新要流：授权对话框只会出现在第一次，之后是瞬时的
       const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // ★ 授权弹窗期间手已经松了（pointerup 那时 recording 还是 false，stop() 无从拦）：
+      //   这里是唯一能拦住"孤儿录音"的地方——不拦的话红按钮会自己数秒（真机实测）
+      if (!pressedRef.current) {
+        ms.getTracks().forEach((t) => t.stop());
+        setErr("麦克风授权好了——再按住一次，照着示例词念。");
+        return;
+      }
       stream.current = ms;
       const ctx = new AudioContext();
       const src = ctx.createMediaStreamSource(ms);
@@ -82,11 +101,14 @@ export default function VoiceRecorder({
       stopping.current = false;
       startedAt.current = Date.now();
       setElapsed(0);
+      recordingRef.current = true;
       setRecording(true);
       timer.current = setInterval(() => {
         const secs = (Date.now() - startedAt.current) / 1000;
         setElapsed(secs);
-        // 到 15s 硬停：松手是主路径，这条只是 Seedance 窗口的兜底
+        // 到 15s 硬停：松手是主路径，这条只是 Seedance 窗口的兜底。
+        // ★ stop 里判的是 recordingRef 不是 state——判 state 的话这个闭包抓的是
+        //   开录那一拍的 false，这条兜底就是死的（真机录到 42 秒才发现）
         if (secs >= VOICE_MAX_SEC) void stop();
       }, 100);
     } catch (e) {
@@ -101,8 +123,10 @@ export default function VoiceRecorder({
   }
 
   async function stop() {
-    if (!recording || stopping.current) return;
+    // ★ 判 ref 不判 state：interval 那条兜底闭包里 state 是陈旧的（见 recordingRef 的 ★★）
+    if (!recordingRef.current || stopping.current) return;
     stopping.current = true;
+    recordingRef.current = false;
     if (timer.current) clearInterval(timer.current);
     timer.current = null;
     setRecording(false);
@@ -128,10 +152,15 @@ export default function VoiceRecorder({
         setErr("没抓到足够的声音——检查麦克风是不是被别的 App 占着。");
         return;
       }
-      const flat = new Float32Array(total);
+      // ★ 编码前按 15s 硬掐 PCM（兜底的兜底）：万一哪条路又让录音超了窗（真机上刚出过
+      //   一次 42s），durationSec 报 15.0 而 dataUrl 里装着 42s——界面说的和实际发给
+      //   方舟的不是一回事，方舟按 [2,15] 窗口整发拒收，用户完全对不上账
+      const keep = Math.min(total, Math.round(VOICE_MAX_SEC * rate));
+      const flat = new Float32Array(keep);
       let off = 0;
       for (const a of pcm.current) {
-        flat.set(a, off);
+        if (off >= keep) break;
+        flat.set(a.subarray(0, Math.min(a.length, keep - off)), off);
         off += a.length;
       }
       pcm.current = [];
@@ -165,9 +194,18 @@ export default function VoiceRecorder({
         </button>
       </div>
       <button
-        onPointerDown={() => void start()}
-        onPointerUp={() => void stop()}
-        onPointerLeave={() => void stop()}
+        onPointerDown={() => {
+          pressedRef.current = true;
+          void start();
+        }}
+        onPointerUp={() => {
+          pressedRef.current = false;
+          void stop();
+        }}
+        onPointerLeave={() => {
+          pressedRef.current = false;
+          void stop();
+        }}
         onContextMenu={(e) => e.preventDefault()}
         disabled={busy}
         className={`mt-2 w-full select-none rounded-lg py-2.5 text-[12px] font-bold ${
