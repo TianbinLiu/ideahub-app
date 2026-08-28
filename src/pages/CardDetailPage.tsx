@@ -284,11 +284,13 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
       } else if (usable.length > 1) {
         setInviteMsg(`方舟里有 ${usable.length} 份可用素材，挑一份绑到这张卡上：`);
       } else if (failed.length > 0) {
-        const f = failed[0];
+        // ★ 这里**不重复**方舟那段原因：下面每一份失败素材各有一行红字带着原话
+        //   （真机上量过：方舟的 message 是一长串英文 + Request ID，说两遍占了大半屏，
+        //   而两遍是同一句话）。这一句只管"发生了什么、接下来做什么"。
         setInviteMsg(
-          `授权是成了，但${failed.length > 1 ? `这 ${failed.length} 份素材` : "上传的那份素材"}` +
-            `没过方舟的内容审核，所以还不能用来出片。方舟给的原因：${f.error?.message || f.error?.code || "（没给原因）"}` +
-            `。请本人重新打开授权链接、换一张照片再传一次。`,
+          `授权是成了，但${failed.length > 1 ? `这 ${failed.length} 份素材都` : "上传的那份素材"}` +
+            `没过方舟的内容审核（原因见下），所以还不能用来出片。` +
+            `请本人重新打开授权链接、换一张照片再传一次。`,
         );
       } else {
         // 一条素材都没有：分清"没授权"和"授权了没传"
@@ -410,13 +412,25 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
                   </p>
                 </div>
               ) : (
-                <button
-                  onClick={() => void startInvite()}
-                  disabled={inviteBusy}
-                  className="w-full rounded-lg border border-sky-500/40 py-1.5 text-[11px] text-sky-200 disabled:opacity-40"
-                >
-                  {inviteBusy ? "生成中…" : "🔗 在 app 内发起授权（请本人扫码）"}
-                </button>
+                <>
+                  <button
+                    onClick={() => void startInvite()}
+                    disabled={inviteBusy}
+                    className="w-full rounded-lg border border-sky-500/40 py-1.5 text-[11px] text-sky-200 disabled:opacity-40"
+                  >
+                    {inviteBusy ? "生成中…" : "🔗 在 app 内发起授权（请本人扫码）"}
+                  </button>
+                  {/* ★★ 「查授权状态」必须在**没有邀约**时也点得到：授权是隔一会儿（甚至隔天）
+                      才完成的，那时 invite 早随页面卸载没了。只挂在邀约块里的话，用户为了
+                      "查一下绑上没有"得先再发起一条新邀约 —— 那正是自动绑要省掉的那一步。 */}
+                  <button
+                    onClick={() => void checkStatus()}
+                    disabled={inviteBusy}
+                    className="w-full rounded-lg border border-slate-600 py-1.5 text-[11px] text-slate-300 disabled:opacity-40"
+                  >
+                    {inviteBusy ? "查…" : "已经授权过了？查一下并自动绑"}
+                  </button>
+                </>
               )}
               {inviteMsg && <p className="text-[10px] leading-relaxed text-slate-400">{inviteMsg}</p>}
               {/* 查回来的素材：可用的给一颗「用这一份」；失败的把方舟的原话摆出来。
