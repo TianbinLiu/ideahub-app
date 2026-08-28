@@ -109,12 +109,19 @@ export function isGenerated(slot: SchemeSlot): boolean {
 //   照搬那些超长提示词没有意义（它们是给通用对话模型写的、含大量排版指令），
 //   这里提炼的是**每一派真正决定产出形态的那几句**。
 
+// ★ 内置方案的 examples 是 public/ 路径（几十字节的字符串），不占 localStorage 配额 ——
+//   examples 字段头上那条「必须缩图」的 ★★ 管的是**用户方案**（存 dataURL 那种）。
+//   四张图由 design/gen-scheme-examples.mjs 出（真实 Seedream 产出，主人点名"不要美工示意"），
+//   脚本对下面的图位提示词做子串断言：改了提示词记得重出图，否则脚本会当场报错。
+
 export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
   {
     id: "scheme_clean",
-    title: "干净立绘（默认）",
+    // ★ 2026-08-28 由「干净立绘（默认）」改名：主人点名标题直接说产出物
+    title: "全身立绘+面部特写",
     intro: "白底全身立绘 + 面部特写两张，出片管线真正会吃的就是这两张。原片截图留作对照。",
     builtin: true,
+    examples: ["/schemes/clean.webp"],
     slots: [
       {
         tag: "全身立绘",
@@ -139,6 +146,7 @@ export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
       "人脸与服装分离：出一张无面部的白模三视图（只锁服装/体型/比例）+ 一张服装细节图。不复刻长相，适合只想借动作与穿着的素材。",
     builtin: true,
     faceless: true,
+    examples: ["/schemes/faceless.webp"],
     slots: [
       {
         // ★★ 这一格是**唯一**能进管线的：它锁的是服装与体型，而画面里没有脸 ——
@@ -171,6 +179,7 @@ export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
     title: "角色设定规格图",
     intro: "一张分栏设定稿（素描线稿 + 色板 + 服装细节），外加一张能出片的面部特写。规格稿只作展示。",
     builtin: true,
+    examples: ["/schemes/specsheet.webp"],
     slots: [
       {
         tag: "面部特写",
@@ -272,7 +281,7 @@ export function schemeOf(id: string | undefined): PromptScheme | undefined {
   return [...BUILTIN_SCHEMES, ...mine].find((s) => s.id === id);
 }
 
-/** 默认方案 = 干净立绘（老行为）。★ 唯一实现：别在调用点各写一遍 `?? "scheme_clean"` */
+/** 默认方案 = 全身立绘+面部特写（老名字「干净立绘」）。★ 唯一实现：别在调用点各写 `?? "scheme_clean"` */
 export function defaultScheme(): PromptScheme {
   return BUILTIN_SCHEMES[0];
 }

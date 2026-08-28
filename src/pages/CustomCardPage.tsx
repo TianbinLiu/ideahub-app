@@ -52,7 +52,6 @@ import {
   CARD_INFO_LABELS,
   CARD_SLOTS,
   CARD_TYPES,
-  CARD_TYPE_COLORS,
   CARD_TYPE_LABELS,
   Card,
   CardType,
@@ -77,8 +76,21 @@ const INFO_MAX = 500;
 const TAG_MAX = 6;
 const TAG_LEN_MAX = 10;
 
-/** 方案小窗的占位图（内置方案没有示例图时用；作者存过示例图就显示真图） */
+/** 方案小窗的占位图（内置方案都带真实示例图了，这份只兜自定义方案没存示例的情况） */
 const SCHEME_EMOJI: Record<string, string> = { scheme_clean: "🧍", scheme_faceless: "🫥", scheme_specsheet: "📐" };
+
+/**
+ * 第 1 屏五张卡种海报的封面：借市场种子卡里各卡种**最热那张**的真实卡面。
+ * ★ `mkt_<i>` 是按 MARKET_DEFS **下标**绑定的文件名（mock/ai.ts 那条 ★）——
+ *   那边中途插卡这里就会指鹿为马，改这张表先去对下标。
+ */
+const TYPE_COVERS: Record<CardType, string> = {
+  character: "/cards/market/mkt_0.webp", // 赛博侦探·凛
+  scene: "/cards/market/mkt_5.webp", // 雨夜霓虹街
+  background: "/cards/market/mkt_10.webp", // 黄昏金
+  prop: "/cards/market/mkt_13.webp", // 会说谎的罗盘
+  style: "/cards/market/mkt_15.webp", // 水墨留白
+};
 
 /** 一个图位上已经准备好的那张图 */
 interface Shot {
@@ -455,32 +467,38 @@ export default function CustomCardPage() {
         <span className="ml-auto text-[10px] text-slate-500">{step === "type" ? "选卡种" : step === "real" ? "真人素材" : "传图与信息"}</span>
       </div>
 
-      {/* ── 第 1 屏：只有五个卡种（主人点名的形状：无文案、按钮占约八成屏、不滚动）。
-          说明性文字全部让位给引导（tours 的 customcard，右上角 ? 随时重看） */}
+      {/* ── 第 1 屏：只有五个卡种（主人点名的形状：无文案、约八成屏、不滚动）。
+          2026-08-28 二改（主人点名"符合 app 风格"）：五条纯色平板 → 五张**塔罗卡面**
+          （TarotCard 全仓同款卡框），封面借市场种子卡里各卡种最热那张的真实卡面。
+          说明性文字仍然全在引导里（tours 的 customcard，右上角 ? 随时重看） */}
       {step === "type" && (
         <>
           <div data-guide="cc-type" className="flex h-[78vh] flex-col gap-3">
-            {CARD_TYPES.map((t) => {
-              const color = CARD_TYPE_COLORS[t];
-              return (
-                <button
-                  key={t}
-                  onClick={() => {
-                    changeType(t);
-                    // 人物卡：先弹方案小窗（看图挑）；其余卡种没有方案，直进表单
-                    if (t === "character") setSchemePick(true);
-                    else setStep("form");
-                  }}
-                  className="flex-1 rounded-2xl border-2 text-2xl font-bold"
-                  style={{ color, borderColor: color, background: color + "14" }}
-                >
-                  {CARD_TYPE_LABELS[t]}
-                </button>
-              );
-            })}
+            {/* 2+2+1 三行：第 5 张独居一行自动居中。卡由**行高**定尺寸（h-full + 2:3），
+                max-w 兜住极窄屏（320px 宽时按宽收缩，TarotCard 自身的 aspect 保比例） */}
+            {[CARD_TYPES.slice(0, 2), CARD_TYPES.slice(2, 4), CARD_TYPES.slice(4)].map((row, ri) => (
+              <div key={ri} className="flex min-h-0 flex-1 items-center justify-center gap-3">
+                {row.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => {
+                      changeType(t);
+                      // 人物卡：先弹方案小窗（看图挑）；其余卡种没有方案，直进表单
+                      if (t === "character") setSchemePick(true);
+                      else setStep("form");
+                    }}
+                    className="flex aspect-[2/3] h-full max-w-[46%] items-center transition-transform active:scale-[0.97]"
+                  >
+                    <TarotCard cover={TYPE_COVERS[t]} title={CARD_TYPE_LABELS[t]} type={t} size="md" />
+                  </button>
+                ))}
+              </div>
+            ))}
           </div>
-          {/* 方案小窗：四张**只有示例图 + 名字**的牌（主人点名：不要简介）。
-              内置方案没有示例图时用占位图（作者存过示例图就显示真图）。
+          {/* 方案小窗：四张**只有示例图 + 名字**的牌（主人点名：不要简介；示例图是
+              design/gen-scheme-examples.mjs 出的**真实 Seedream 产出**，不是美工示意）。
+              题名压在图上的底部渐变里（与 TarotCard 同一手法）——clean 那张是白底，
+              没有渐变垫底白字会看不见。无示例图的自定义方案退回占位 emoji。
               portal 到 body：与全仓浮层同一条纪律（祖先 transform/blur 会造包含块） */}
           {schemePick &&
             createPortal(
@@ -499,7 +517,7 @@ export default function CustomCardPage() {
                         setSchemePick(false);
                         setStep("form");
                       }}
-                      className="overflow-hidden rounded-2xl border border-slate-600 bg-panel"
+                      className="relative overflow-hidden rounded-2xl border border-slate-600 bg-panel transition-transform active:scale-[0.97]"
                     >
                       {sc.examples?.[0] ? (
                         <img src={sc.examples[0]} alt={sc.title} className="aspect-[3/4] w-full object-cover" />
@@ -508,12 +526,14 @@ export default function CustomCardPage() {
                           {SCHEME_EMOJI[sc.id] ?? "🎴"}
                         </span>
                       )}
-                      <span className="block px-1 py-2 text-center text-xs font-semibold text-slate-100">{sc.title}</span>
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-2 pb-2 pt-6 text-center text-xs font-semibold text-slate-100">
+                        {sc.title}
+                      </span>
                     </button>
                   ))}
                   <button
                     onClick={() => {
-                      // 真人路的图位用「干净立绘」（传的是真人照片，全身+特写正合适；
+                      // 真人路的图位用「全身立绘+面部特写」（传的是真人照片，正合适；
                       // 出片端合规靠 asset://，不靠无脸——那是 AI 出图路的主推）
                       const clean = listSchemes("character").find((s) => s.builtin && !s.faceless);
                       if (clean) changeScheme(clean.id);
@@ -521,10 +541,14 @@ export default function CustomCardPage() {
                       setSchemePick(false);
                       setStep("real");
                     }}
-                    className="overflow-hidden rounded-2xl border border-sky-500/60 bg-panel"
+                    className="relative overflow-hidden rounded-2xl border border-sky-500/60 bg-panel transition-transform active:scale-[0.97]"
                   >
-                    <span className="flex aspect-[3/4] w-full items-center justify-center bg-sky-500/10 text-5xl">🪪</span>
-                    <span className="block px-1 py-2 text-center text-xs font-semibold text-sky-200">真人素材扫脸认证</span>
+                    {/* 示意图也是自己生成的（gen-scheme-examples.mjs 第四张）：**虚构**人像 +
+                        识别框。刻意不搬火山控制台那张官方人像——那是火山的版权素材 */}
+                    <img src="/schemes/realface.webp" alt="真人素材扫脸认证" className="aspect-[3/4] w-full object-cover" />
+                    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-2 pb-2 pt-6 text-center text-xs font-semibold text-sky-200">
+                      真人素材扫脸认证
+                    </span>
                   </button>
                 </div>
               </div>,

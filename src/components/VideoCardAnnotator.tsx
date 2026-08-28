@@ -744,7 +744,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-[11px] font-semibold text-slate-200">
-                        方案：{schemeOf(schemeId)?.title ?? "干净立绘"}
+                        方案：{schemeOf(schemeId)?.title ?? defaultScheme().title}
                         {schemeOf(schemeId)?.faceless && <span className="ml-1 text-emerald-300">· 无脸</span>}
                       </span>
                       <span className="block truncate text-[10px] text-slate-500">{schemeOf(schemeId)?.intro}</span>
