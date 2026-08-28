@@ -26,10 +26,10 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const [signOutOpen, setSignOutOpen] = useState(false);
 
-  if (!user) {
-    navigate("/login?next=/settings", { replace: true });
-    return null;
-  }
+  // 路由已套 RequireAuth，未登录进不来；这里只为 TS 收窄。
+  // （老写法是在 render 里 navigate 去登录页——navigate 本质是 setState，渲染期间
+  //   会被 React 丢弃，真机实测未登录直开就是白屏卡死。2026-08-28 全组改走 RequireAuth）
+  if (!user) return null;
 
   return (
     <div className="safe-top min-h-full px-4 pb-10 pt-3">
@@ -91,6 +91,15 @@ export default function SettingsPage() {
       >
         退出登录
       </button>
+
+      {/* 注销：与退出登录刻意拉开视觉重量（小字链接 vs 整宽按钮）——两者后果差一个账号。
+          只在远端模式显示：离线包没有可注销的云端账号（子页里也有同一判断兜底，
+          这里藏入口只是别引人去点） */}
+      {isRemoteMode() && (
+        <Link to="/settings/deactivate" className="mt-3 block text-center text-[11px] text-slate-600 underline">
+          注销账号
+        </Link>
+      )}
 
       {signOutOpen && (
         <ConfirmDialog

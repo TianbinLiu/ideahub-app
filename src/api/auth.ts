@@ -126,6 +126,16 @@ export async function acceptTermsRemote(version: string): Promise<void> {
 }
 
 /**
+ * POST /api/me/deactivate（requireAuth）——注销账号（服务端软删除 + 全部旧 token 立即失效）。
+ * ★ confirmUsername 原样透传：服务端与本人 username **严格全等**比对（不 trim、区分大小写），
+ *   这里跟着不加工——在客户端"好心"trim 一下就是把服务端那道确认门槛拆了半边。
+ * 失败会抛（400 用户名不匹配 / 网络错误），调用方把 message 原样给用户看。
+ */
+export async function deactivateRemote(confirmUsername: string): Promise<void> {
+  await apiPost("/api/me/deactivate", { confirmUsername });
+}
+
+/**
  * GET /api/auth/me（requireAuth）
  * token 失效时 client 已经清掉 token 并派发 auth:expired，这里只把错误往上抛。
  */

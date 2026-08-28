@@ -31,10 +31,8 @@ export default function SettingsStoragePage() {
     void storageEstimate().then(setStorage);
   }, []);
 
-  if (!user) {
-    navigate("/login?next=/settings/storage", { replace: true });
-    return null;
-  }
+  // 路由已套 RequireAuth；这里只为 TS 收窄（render 里 navigate 会被 React 丢弃，别改回来）
+  if (!user) return null;
 
   return (
     <div className="safe-top min-h-full px-4 pb-10 pt-3">

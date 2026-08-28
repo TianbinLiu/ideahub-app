@@ -34,10 +34,8 @@ export default function SettingsProfilePage() {
   const timer = useRef<number | undefined>(undefined);
   useAutoGuide("setprofile", !!user);
 
-  if (!user) {
-    navigate("/login?next=/settings/profile", { replace: true });
-    return null;
-  }
+  // 路由已套 RequireAuth；这里只为 TS 收窄（render 里 navigate 会被 React 丢弃，别改回来）
+  if (!user) return null;
 
   function save() {
     updateProfile({ name: name.trim().slice(0, NAME_MAX) || user!.name, bio: bio.slice(0, BIO_MAX) });
