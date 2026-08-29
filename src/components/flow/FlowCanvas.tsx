@@ -23,6 +23,7 @@ import DraftTitle from "../DraftTitle";
 import CameraChips from "./CameraChips";
 import DeleteSegBtn from "./DeleteSegBtn";
 import SegSettings from "./SegSettings";
+import SkillPanel from "./SkillPanel";
 import PlanBoard from "../../studio/ui/PlanBoard";
 import FuseFrameSheet, { fuseSourcesOf } from "../../studio/ui/FuseFrameSheet";
 import CustomFrameSlots from "./CustomFrameSlots";
@@ -1851,6 +1852,7 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
       </div>
       {palette && (
         <AgentPalette
+          draft={text}
           onClose={() => setPalette(false)}
           onPick={(s) => {
             setText(s);
@@ -1863,13 +1865,15 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
 }
 
 /**
- * 「/」句式面板：指令填空 + 我的模板直填。
+ * 「/」句式面板：指令填空 + 我的技能 + 我的模板直填。
  * ★ 句式表住在 canvasAgent.AGENT_PHRASES（与 op 白名单同文件，铁律六）——这里只画。
  *   插进输入框的是**起手**不是成品：用户接着补内容/换段号，发送才真跑（花钱的照旧
  *   要过确认卡，本面板不改变任何一道闸）。
  * ★ 模板列表直填「第N段套模板「标题」」——名字打错是 agent 被拒的头号原因，点选归零。
+ * ★ 技能区（存/发布/装，backlog 2.8-⑤ 的发布半）整块在 SkillPanel；`draft` 是输入条
+ *   当前那句 —— 「存当前输入为技能」存的就是它。
  */
-function AgentPalette({ onClose, onPick }: { onClose: () => void; onPick: (s: string) => void }) {
+function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () => void; onPick: (s: string) => void }) {
   const cursor = useFlow((s) => s.cursor);
   const seg = cursor + 1;
   const tpls = myTemplates();
@@ -1893,6 +1897,7 @@ function AgentPalette({ onClose, onPick }: { onClose: () => void; onPick: (s: st
             </button>
           ))}
         </div>
+        <SkillPanel draft={draft} onPick={onPick} />
         {tpls.length > 0 && (
           <>
             <div className="mb-1.5 mt-3 text-xs font-semibold text-slate-300">我的模板（点一个 = 第 {seg} 段套它）</div>

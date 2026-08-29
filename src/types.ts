@@ -304,6 +304,20 @@ export const CARD_SLOTS: Record<CardType, readonly CardSlot[]> = {
   ],
 };
 
+/**
+ * 发给 Seedance 的提示词上限（字符）。再长模型开始各记各的，前面的要求被稀释。
+ *
+ * ★ 提出来是因为**截断从哪一头下手是有讲究的**：提示词的尾巴挂着素材设定与参考图
+ *   绑定句（「将<图片1>的面部特征定义为角色「XX」」），而参考生视频模式下"谁是谁"
+ *   全靠那句话 —— 从尾巴切掉的话，参考图照样发出去、绑定句没了，模型只会把它们
+ *   当风格图用：**卡挂了、片出了、人物一点都不像、零报错**。所以拼提示词的那一处
+ *   （studio/segmentGen）按这个数**先给尾巴留位**，ai/real 里的 slice 只是最后一道硬顶。
+ * ★ 本体放这里（而不是 ai/real）是依赖方向逼的：data 层的叶子模块（agentSkills 的
+ *   正文上限）也要引它，而 ai/real 反向依赖着一串 data 模块，data → ai 就成环了。
+ *   ai/index 仍转出同一个名字，调用点照旧从 "../ai" 引。
+ */
+export const VIDEO_PROMPT_MAX = 400;
+
 /** 身份句上限。60 是按提示词预算反推的：8 张卡 × 60 字 = 480 已超 VIDEO_PROMPT_MAX，
  *  所以出片侧只给**人物卡**用整句，其余卡种仍是短句（见 segmentGen.materialText） */
 export const ID_LINE_MAX = 60;

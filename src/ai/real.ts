@@ -17,6 +17,7 @@ import {
   viewsOf,
   CARD_SIZE,
   ID_LINE_MAX,
+  VIDEO_PROMPT_MAX,
   idLineOf,
   type CardRole,
   type CardSlot,
@@ -1885,16 +1886,9 @@ async function captureVideoTail(videoUrl: string): Promise<string> {
   }
 }
 
-/**
- * 发给 Seedance 的提示词上限（字符）。再长模型开始各记各的，前面的要求被稀释。
- *
- * ★ 提出来是因为**截断从哪一头下手是有讲究的**：提示词的尾巴挂着素材设定与参考图
- *   绑定句（「将<图片1>的面部特征定义为角色「XX」」），而参考生视频模式下"谁是谁"
- *   全靠那句话 —— 从尾巴切掉的话，参考图照样发出去、绑定句没了，模型只会把它们
- *   当风格图用：**卡挂了、片出了、人物一点都不像、零报错**。所以拼提示词的那一处
- *   （studio/segmentGen）按这个数**先给尾巴留位**，这里的 slice 只是最后一道硬顶。
- */
-export const VIDEO_PROMPT_MAX = 400;
+// 提示词上限本体在 types.ts（data 层叶子也要引，放这边会让 data → ai 成环）。
+// 这里转出同名，调用点照旧从 "../ai" 引。
+export { VIDEO_PROMPT_MAX } from "../types";
 
 /**
  * 合成：逐段用 Seedance 首尾帧图生视频。段间串行（免费额度并发有限），

@@ -518,8 +518,15 @@ setTemplateCategory（远端先 PATCH /:id/category 成了再落本机三份）�
 AgentBar 魔杖钮/输入 "/" 唤起句式面板（AGENT_PHRASES 与 op 白名单同文件钉死——
 只列真办得了的八式，时长/画幅/画质刻意不列：Op 里没有、两档必拒，那是"永远点不动
 的选项"的词表变体）+ 我的模板直填「第N段套模板「标题」」（名字打错是被拒头号原因）。
-**"把提示词+卡组+参数封装成技能发布"那半没做**——与方案市场/模板市场职责重叠，
-要不要第三种市场实体等主人拍板】；⑥ 点名句标准化 @槽位语法——【已验证并落地
+**发布半也已落地 2026-08-29（主人点名）**：技能 = 存了名字的一句 agent 指令
+（卡组/参数就骑在句子里，不另立结构），本体 ≤VIDEO_PROMPT_MAX（常量本体挪进
+types.ts，data 叶子与 ai 共用一处）。存/发布/装全长在 "/" 面板（SkillPanel）——
+用武之地就是输入条，不塞 SchemeMarketSheet；装来的句子仍走 canvasAgent 白名单 +
+确认卡，**不多开任何一道闸**。三层照方案市场逐字镜像：server AgentSkill
+（(ownerId,skillId) 唯一键、shared 路由先于 /:skillId、装取幂等不覆盖、upsert 不动
+published，agentSkillMarket.spec 6/6）↔ api/skills.ts ↔ data/agentSkills（叶子）+
+data/skillMarket（remoteOn 唯一开关，离线整区不显示）。已发布的先下架再删
+（本机行一删，广场那条就成没人能下架的孤儿）】；⑥ 点名句标准化 @槽位语法——【已验证并落地
 2026-08-29，主人点名出的付费 A/B（design/ab-bind-syntax.mjs，hd 档两发同素材同剧情，
 各 108,900 tokens ≈ ¥2 + 参考图 ¥0.4）：A=现状长句尾置（267 字）vs B=@槽位紧凑式
 前置（176 字），六帧比对身份贴合（银白长发/金星发夹/蓝绿瞳/深蓝披风全锁死）与遵词
