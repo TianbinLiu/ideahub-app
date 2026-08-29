@@ -98,7 +98,7 @@ export const deriveCharacterModels: typeof real.deriveCharacterModels = AI_REAL
  */
 export const prepareMaterialRefs: typeof real.prepareMaterialRefs = AI_REAL
   ? real.prepareMaterialRefs
-  : async () => ({ refs: [], bind: () => "" });
+  : async () => ({ refs: [], bind: () => "", bindCompact: () => "" });
 export type { MaterialRefs } from "./real";
 /** 设定图按要求改图（方案选帧改图/剪辑页圈选修改）；mock 原图返回 */
 export const refineFrame: typeof real.refineFrame = AI_REAL ? real.refineFrame : async (_req, ref) => ref;

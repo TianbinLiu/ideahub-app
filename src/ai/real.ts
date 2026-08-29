@@ -679,10 +679,19 @@ export interface MaterialRefs {
    * 没有可用参考图时返回空串。
    *
    * ★ 两种形态，由 `prepareMaterialRefs` 的 `multiChar` 决定（一处实现，见那里的 ★★）：
-   *   经典路 = 长句 `将<图片1>的面部特征…定义为角色「X」…`；
+   *   经典路 = 长句 `将<图片1>的面部特征…定义为角色「X」…`——**Seedream 画帧专用**；
    *   白模路 = 紧凑式 `张三=@图片1@图片2`（9 个角色位下长句放不进 VIDEO_PROMPT_MAX）。
    */
   bind: (offset?: number) => string;
+  /**
+   * 紧凑式绑定句（@槽位），**Seedance 视频提示词专用**（2026-08-29 付费 A/B 采纳，
+   * backlog 2.8-⑥）：refMode（简约参考生视频）的提示词改用它并**前置**——
+   * A/B 两发同素材同剧情同档（design/ab-bind-syntax.mjs，各 108,900 tokens），
+   * 六帧比对身份贴合与遵词同水平，紧凑式省约 90 字正文额度，且与白模路语法统一、
+   * 契合方舟官方「重要素材前置」。措辞与 multiChar 的 bind() **同一个构造器**（一处实现）。
+   * ⚠ Seedream 画帧那半（needDraw / 方案台）**未做 A/B，仍用长句 bind()**——别顺手统一。
+   */
+  bindCompact: (offset?: number) => string;
 }
 
 /**
@@ -703,7 +712,7 @@ export async function prepareMaterialRefs(
   onNote?: (note: string) => void,
   multiChar = false,
 ): Promise<MaterialRefs> {
-  const empty: MaterialRefs = { refs: [], bind: () => "" };
+  const empty: MaterialRefs = { refs: [], bind: () => "", bindCompact: () => "" };
   if (!materials?.length) return empty;
 
   // 分配规则（谁上、上几张、谁被挤掉）全在 allocateRefs 里，这里只负责把它取回来
@@ -770,56 +779,63 @@ export async function prepareMaterialRefs(
   }
   if (good.length === 0) return empty;
 
+  /**
+   * 紧凑式（@槽位）构造器 —— multiChar 的 bind() 与 refMode 的 bindCompact() **共用这一个**。
+   *
+   * ★★ 白模路（multiChar）走**紧凑式**绑定：`张三=@图片1@图片2`。
+   *   这不是省字的洁癖，是**算出来必须省**：提示词硬顶 `VIDEO_PROMPT_MAX` 是 400 字，
+   *   而经典路那种长句（「将<图片1>的面部特征…定义为角色「X」，本段画面中该角色的长相、
+   *   发色与服装必须与之完全一致」≈ 90 字 + 每张非主角卡 ≈ 40 字）在 9 个角色位下光绑定句
+   *   就 400 字打底 —— 尾巴是**从正文那头切**的（见 segmentGen 的 room），于是用户在
+   *   输入框里亲眼看过、亲手改过的那段点名映射会被整段切掉，而画面照出、钱照收、零报错。
+   * ★ `@图片N` 与经典路的 `<图片N>` 两种写法**都实测过**（A2 实拍提示词原文就是
+   *   「把视频里的红色小人替换成@图片1的角色」，G0 那发用的是 `<图片N>`；2026-08-29 的
+   *   付费 A/B 又钉了一发：refMode 下紧凑式与长句身份贴合同水平，见 bindCompact 的注释）。
+   * ★ 用**角色名**当左边而不是人偶身上那个标记：标记 ↔ 角色的对应关系写在用户的输入框里，
+   *   他随时可以改（那正是把合成句填进输入框的意义）。这里再按挂卡时的旧映射写一遍
+   *   「编号1=@图片1」，用户改过之后两句话就当场打架 —— 而模型只会挑一句听。
+   *   名字这一跳让用户那半始终说了算（同 blockoutApplySkeleton 的 ★）。
+   * ★★ 这也正是 2026-08-16「编号 → 颜色」那次改造**一个字都不用动这里**的原因：
+   *   这个构造器从头到尾不认识 label，两种标记方案对它完全透明。
+   */
+  const compact = (offset = 0): string => {
+    const at = (p: (typeof good)[number]) => `@图片${offset + good.indexOf(p) + 1}`;
+    const chars = new Set<Card>();
+    const charParts: string[] = [];
+    for (const p of good) {
+      if (p.card.type !== "character" || chars.has(p.card)) continue;
+      chars.add(p.card);
+      charParts.push(`${p.card.name}=${good.filter((g) => g.card === p.card).map(at).join("")}`);
+    }
+    // 非人物卡照旧按卡种说人话：一句"只锁形象"套在场景卡/画风卡上是胡话（见 BIND_HINT），
+    // 而白模路上它们本来就少（挂卡面板默认只给人物卡）
+    const otherSaid = new Set<Card>();
+    const otherParts: string[] = [];
+    for (const p of good) {
+      if (p.card.type === "character" || otherSaid.has(p.card)) continue;
+      otherSaid.add(p.card);
+      const mine = good.filter((g) => g.card === p.card);
+      otherParts.push(`${mine.map(at).join("")}是${CARD_TYPE_LABELS[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`);
+    }
+    if (charParts.length === 0 && otherParts.length === 0) return "";
+    // ★ 收尾那句摆在**最后**，别夹在两组中间：夹在中间时「只锁形象」会读起来像在说
+    //   后面那张场景卡（"不要照抄其构图与背景"对场景卡恰恰是反的），一句放错位置的
+    //   限制比没有更坏
+    const body = [charParts.join("；"), otherParts.join("；")].filter(Boolean).join("；");
+    const foot =
+      charParts.length > 0
+        ? "。等号右边的图只用来锁这个角色的长相、发色与服装，不要照抄其构图与背景。"
+        : "。参考图只用于锁定形象，不要照抄它们的构图、背景、边框与文字。";
+    return softenForImage(`。参考图：${body}${foot}`);
+  };
+
   return {
     refs: good.map((p) => p.url),
+    bindCompact: compact,
     bind: (offset = 0) => {
+      if (multiChar) return compact(offset);
       const parts: string[] = [];
       const numOf = (p: (typeof good)[number]) => `<图片${offset + good.indexOf(p) + 1}>`;
-      // ★★ 白模路（multiChar）走**紧凑式**绑定：`张三=@图片1@图片2`。
-      //   这不是省字的洁癖，是**算出来必须省**：提示词硬顶 `VIDEO_PROMPT_MAX` 是 400 字，
-      //   而经典路那种长句（「将<图片1>的面部特征…定义为角色「X」，本段画面中该角色的长相、
-      //   发色与服装必须与之完全一致」≈ 90 字 + 每张非主角卡 ≈ 40 字）在 9 个角色位下光绑定句
-      //   就 400 字打底 —— 尾巴是**从正文那头切**的（见 segmentGen 的 room），于是用户在
-      //   输入框里亲眼看过、亲手改过的那段点名映射会被整段切掉，而画面照出、钱照收、零报错。
-      // ★ `@图片N` 与经典路的 `<图片N>` 两种写法**都实测过**（A2 实拍提示词原文就是
-      //   「把视频里的红色小人替换成@图片1的角色」，G0 那发用的是 `<图片N>`），选 @ 只因为
-      //   它每处省 1 个字。**经典路一个字都不动**：那条路的长句是它自己实测过的形态。
-      // ★ 用**角色名**当左边而不是人偶身上那个标记：标记 ↔ 角色的对应关系写在用户的输入框里，
-      //   他随时可以改（那正是把合成句填进输入框的意义）。这里再按挂卡时的旧映射写一遍
-      //   「编号1=@图片1」，用户改过之后两句话就当场打架 —— 而模型只会挑一句听。
-      //   名字这一跳让用户那半始终说了算（同 blockoutApplySkeleton 的 ★）。
-      // ★★ 这也正是 2026-08-16「编号 → 颜色」那次改造**一个字都不用动这里**的原因：
-      //   `bind()` 从头到尾不认识 label，两种标记方案对它完全透明。
-      if (multiChar) {
-        const at = (p: (typeof good)[number]) => `@图片${offset + good.indexOf(p) + 1}`;
-        const chars = new Set<Card>();
-        const charParts: string[] = [];
-        for (const p of good) {
-          if (p.card.type !== "character" || chars.has(p.card)) continue;
-          chars.add(p.card);
-          charParts.push(`${p.card.name}=${good.filter((g) => g.card === p.card).map(at).join("")}`);
-        }
-        // 非人物卡照旧按卡种说人话：一句"只锁形象"套在场景卡/画风卡上是胡话（见 BIND_HINT），
-        // 而白模路上它们本来就少（挂卡面板默认只给人物卡）
-        const otherSaid = new Set<Card>();
-        const otherParts: string[] = [];
-        for (const p of good) {
-          if (p.card.type === "character" || otherSaid.has(p.card)) continue;
-          otherSaid.add(p.card);
-          const mine = good.filter((g) => g.card === p.card);
-          otherParts.push(`${mine.map(at).join("")}是${CARD_TYPE_LABELS[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`);
-        }
-        if (charParts.length === 0 && otherParts.length === 0) return "";
-        // ★ 收尾那句摆在**最后**，别夹在两组中间：夹在中间时「只锁形象」会读起来像在说
-        //   后面那张场景卡（"不要照抄其构图与背景"对场景卡恰恰是反的），一句放错位置的
-        //   限制比没有更坏
-        const body = [charParts.join("；"), otherParts.join("；")].filter(Boolean).join("；");
-        const foot =
-          charParts.length > 0
-            ? "。等号右边的图只用来锁这个角色的长相、发色与服装，不要照抄其构图与背景。"
-            : "。参考图只用于锁定形象，不要照抄它们的构图、背景、边框与文字。";
-        return softenForImage(`。参考图：${body}${foot}`);
-      }
       const heroPicks = good.filter((p) => p.card === hero);
       if (heroPicks.length > 0 && hero) {
         const feats = heroPicks.map((p) => `${numOf(p)}的${slotLocks(hero.type, p.view.kind)}`).join("、");

@@ -513,9 +513,10 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
 
   // ④ 出片。圈选要求并进提示词——只改设定帧不够，Seedance 得知道这一段要拍成什么样
   const reqs = input.anns.map((a) => a.req).join("；");
-  // 参考生视频没有设定帧兜底，"谁是谁"全靠这句绑定句（<图片1> 的面部特征 = 角色 XX），
-  // 所以它必须进**视频**提示词；首尾帧模式下它已经写进 Seedream 的提示词里了，
-  // 再塞一遍只会让 Seedance 去找并不存在的 <图片1>
+  // 参考生视频没有设定帧兜底，"谁是谁"全靠点名句（2026-08-29 起是前置的紧凑式
+  // 「凛=@图片1@图片2」，见下面 bindHead），所以它必须进**视频**提示词；
+  // 首尾帧模式下长句 bind 已经写进 Seedream 的提示词里了，
+  // 视频提示词再塞一遍只会让 Seedance 去找并不存在的 <图片1>
   // 白模的尾巴 = （V1 才有的）统一替换句 + 素材文字 + 绑定句：替换句说"干什么"（换主体、
   // 严格保留背景道具运镜——BLOCKOUT_SWAP，一处实现），素材文字与绑定句说"换成谁"
   // （<图片1> 的面部特征 = 角色 XX）。参考视频不占 <图片N> 编号（见 arkClient 的 content
@@ -537,6 +538,13 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   //     提前知道 —— 合成句里说的是角色**名**，全靠这一句把名字接到图上
   //     （白模路是紧凑式 `张三=@图片1@图片2`，理由见 ai/real 的 bind）。
   const named = blockout && !!input.roles?.length;
+  // ★ refMode 的点名句 2026-08-29 起换**紧凑式 @槽位并前置**（backlog 2.8-⑥，付费 A/B
+  //   采纳：design/ab-bind-syntax.mjs 两发同素材同档，身份贴合与遵词同水平、省约 90 字
+  //   正文额度、语法与白模路统一、契合方舟官方「重要素材前置」）。
+  //   构造器与白模 bind() 同一个（prepareMaterialRefs.bindCompact）；砍掉开头那个
+  //   接续用的句号——它是给尾置拼接设计的，站句首是个病句。
+  //   Seedream 画帧那半（上面 needDraw 用的 bind）**未做 A/B，仍是长句**，别顺手统一。
+  const bindHead = refMode && refs ? refs.bindCompact(0).replace(/^。/, "") : "";
   // ★★ V2（点名）那条路**不拼素材设定文字**（`mats`），只留绑定句。这不是省字的洁癖，是算出来的：
   //   `mats` 每张卡 ≈ 50 字（卡种 + 名字 + 30~40 字设定），角色位上限放到 9 之后光它一项就
   //   400 字打底 —— 而提示词硬顶就是 400，截断又是**从正文这头切**的（见下面的 room），
@@ -546,15 +554,16 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   //   是豆包写的卡面简介，对"把白模换成这个人"几乎不添信息。
   //   ⚠ 例外：某张卡的形象图全都读不出来时，它就只剩名字了 —— 那种情况由 prepareMaterialRefs
   //   的 onNote 逐张点名（"第 N 张参考图未采用…"），一张都没成还会整句 throw，不是静默。
-  const tail = blockout ? (named ? bind : `${BLOCKOUT_SWAP}${mats}${bind}`) : `${mats}${refMode ? bind : ""}`;
+  // refMode 的绑定句已前置（bindHead），尾巴只剩素材设定文字
+  const tail = blockout ? (named ? bind : `${BLOCKOUT_SWAP}${mats}${bind}`) : mats;
   const story = reqs ? `${input.plot}。修改要求（必须满足）：${reqs}` : input.plot;
-  // ★ 提示词有 VIDEO_PROMPT_MAX 的硬顶，而它是**从尾巴切**的 —— 尾巴恰好就是素材设定
-  //   与绑定句。直接拼起来交上去的话：简约模式的输入框本身就允许 400 字，用户写满
-  //   （或套个字数多一点的模板再挂张卡）就把绑定句整句切没了，而参考图照样发出去 ——
-  //   模型于是只把它们当风格图用：卡挂了、片出了、人物一点都不像，且**零报错**。
-  //   所以先给尾巴留位，要截就截故事正文（那部分少几个字用户看得出来，也不改变"谁是谁"）。
-  const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length);
-  const plot = `${story.slice(0, room)}${tail}`;
+  // ★ 提示词有 VIDEO_PROMPT_MAX 的硬顶，而截的是**正文** —— 头（点名句）与尾（素材设定/
+  //   白模绑定句）都要先留位。直接拼起来交上去的话：简约模式的输入框本身就允许 400 字，
+  //   用户写满（或套个字数多一点的模板再挂张卡）就把绑定句整句切没了，而参考图照样发出去
+  //   —— 模型于是只把它们当风格图用：卡挂了、片出了、人物一点都不像，且**零报错**。
+  //   截正文是唯一诚实的刀口（少几个字用户看得出来，也不改变"谁是谁"）。
+  const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length - bindHead.length);
+  const plot = `${bindHead}${story.slice(0, room)}${tail}`;
   // ★ 但"截了要说"（铁律八）。V2 白模路把这条从"理论风险"变成了"每天都可能发生"：
   //   正文那段点名合成句本身就有一两百字，挂满三张卡时尾巴也有两百字上下 ——
   //   悄悄切掉正文末尾，用户看到的是"我写的最后几条要求模型完全没照做"，零报错。
@@ -562,7 +571,7 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   //   没画过它，等于这句话没说过）—— 与 noteTail 同一个理由，所以并进同一行说。
   const cut =
     story.length > room
-      ? `（⚠ 这一段的要求太长，末尾 ${story.length - room} 字没能发出去：提示词上限 ${VIDEO_PROMPT_MAX} 字，其中素材设定与形象绑定句占了 ${tail.length} 字——把要求写短些，或少挂一张卡）`
+      ? `（⚠ 这一段的要求太长，末尾 ${story.length - room} 字没能发出去：提示词上限 ${VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 ${tail.length + bindHead.length} 字——把要求写短些，或少挂一张卡）`
       : "";
   if (blockout)
     prog(
