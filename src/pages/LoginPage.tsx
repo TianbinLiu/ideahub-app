@@ -39,6 +39,7 @@ import {
 } from "../api/auth";
 import { startOauth } from "../utils/oauth";
 import { qqLoginSupported, signInWithQQ } from "../utils/qqLogin";
+import { wechatSupported, signInWithWeChat } from "../utils/wechat";
 import BrandIcon, { BRAND_CHIP, type BrandName } from "../components/BrandIcon";
 
 const INPUT =
@@ -53,7 +54,7 @@ type Method = "password" | "email" | "phone";
 /** 点了个点不动的第三方按钮时说实话——两家不能用的原因完全不同，别混成一句 */
 function deadReason(k: BrandName): string {
   if (k === "qq") return "QQ 登录要在 App 里用（浏览器中没有 QQ 客户端可以拉起），先用邮箱或手机号登录";
-  return "微信登录还没接入（需要企业主体与应用审核），先用邮箱或手机号登录";
+  return "微信登录要在 App 里用（浏览器中没有微信客户端可以拉起），先用邮箱或手机号登录";
 }
 
 export default function LoginPage() {
@@ -220,6 +221,20 @@ export default function LoginPage() {
    * 不经过 OauthDeepLinkBridge（见 utils/qqLogin 文件头）。所以落地登录态与跳转
    * 都要在这里自己做一遍，不能指望顶层那个桥。
    */
+  /** 微信版同款（回执经 wxapi/WXEntryActivity，对本页无感——await 一下拿 code） */
+  async function wechatSignIn() {
+    setErr("");
+    setBusy(true);
+    try {
+      await signInWithOauthToken(await signInWithWeChat());
+      done();
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function qqSignIn() {
     setErr("");
     setBusy(true);
@@ -249,6 +264,7 @@ export default function LoginPage() {
   //   而是原生 SDK 直接拉起 QQ 客户端，能不能用只取决于"跑在不跑在 App 壳里"。
   //   拿 providers 去判它的话，浏览器里也会亮，点了必然报 not implemented。
   const showQQ = qqLoginSupported();
+  const showWeChat = wechatSupported();
 
   return (
     <div className="safe-top relative flex min-h-full flex-col items-center justify-center px-6 py-10">
@@ -506,7 +522,7 @@ export default function LoginPage() {
                 [
                   ...(showGoogle ? ([{ k: "google", live: true }] as const) : []),
                   ...(showGithub ? ([{ k: "github", live: true }] as const) : []),
-                  { k: "wechat", live: false },
+                  { k: "wechat", live: showWeChat },
                   { k: "qq", live: showQQ },
                 ] as Array<{ k: BrandName; live: boolean }>
               ).map((p) => {
@@ -516,7 +532,7 @@ export default function LoginPage() {
                     key={p.k}
                     onClick={() =>
                       p.live
-                        ? requireAgree(() => void (p.k === "qq" ? qqSignIn() : thirdParty(p.k)))
+                        ? requireAgree(() => void (p.k === "qq" ? qqSignIn() : p.k === "wechat" ? wechatSignIn() : thirdParty(p.k)))
                         : setErr(deadReason(p.k))
                     }
                     style={{ background: chip.bg }}

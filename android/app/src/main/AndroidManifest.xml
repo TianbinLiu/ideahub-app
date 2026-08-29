@@ -72,6 +72,16 @@
             android:screenOrientation="behind"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
+        <!-- 微信回执的固定落点（<包名>.wxapi.WXEntryActivity，位置是 SDK 死规矩——
+             放错没有任何报错，只是授权完永远回不来）。exported 必须 true：是微信在拉起它。
+             taskAffinity 钉在本应用：别让透明壳落进微信的任务栈。 -->
+        <activity
+            android:name=".wxapi.WXEntryActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.ideahub.branchvideo"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -92,5 +102,7 @@
          得重新输账号密码。功能"能用"，但体验退了一档，而且没有任何报错。 -->
     <queries>
         <package android:name="com.tencent.mobileqq" />
+        <!-- 微信同理：不声明的话 isWXAppInstalled 恒 false，装了微信也说没装 -->
+        <package android:name="com.tencent.mm" />
     </queries>
 </manifest>

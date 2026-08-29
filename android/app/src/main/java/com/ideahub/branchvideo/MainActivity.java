@@ -14,6 +14,7 @@ public class MainActivity extends BridgeActivity {
         //   sideload = 真的下载安装，play = 会 reject 的空壳。这里两边共用同一行。
         registerPlugin(AppUpdaterPlugin.class);
         registerPlugin(QQLoginPlugin.class);
+        registerPlugin(WeChatPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

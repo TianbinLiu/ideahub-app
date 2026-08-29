@@ -267,6 +267,13 @@ export async function qqNativeLogin(code: string): Promise<{ token: string }> {
   return { token: r.token };
 }
 
+/** 微信版同款：只发 code，身份由服务端拿 AppSecret 换（unionid 优先）。理由见 qqNativeLogin */
+export async function wechatNativeLogin(code: string): Promise<{ token: string }> {
+  const r = await apiPost<{ token?: string }>("/api/auth/oauth/wechat/native", { code }, { auth: false });
+  if (!r.token) throw new Error("服务端未返回登录凭证");
+  return { token: r.token };
+}
+
 /**
  * 深链回来只有 token，用它换回用户并落地登录态。
  *

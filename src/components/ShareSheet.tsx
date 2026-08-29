@@ -23,6 +23,7 @@ import BrandIcon, { BRAND_CHIP } from "./BrandIcon";
 import { previewUrlOf } from "../utils/shareLink";
 import { isNative } from "../utils/oauth";
 import { shareVideoToQQ } from "../utils/qqLogin";
+import { shareVideoToWeChat, wechatSupported } from "../utils/wechat";
 
 /** 剪贴板：优先标准 API（Capacitor WebView 的 https origin 是安全上下文，可用），
  *  拿不到就退 execCommand —— 老 WebView 上 navigator.clipboard 可能整个 undefined */
@@ -76,6 +77,32 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
     }
   }
 
+  /** 微信好友。分享是"发出即成功"（新版微信取消分享不回执，原生注释有完整理由），
+   *  所以 resolve 就关面板 —— 别等一个永远不来的回执。 */
+  async function toWeChat() {
+    if (busy) return;
+    setErr("");
+    setNote("");
+    if (!wechatSupported()) {
+      setErr("微信分享要在 App 里用，浏览器里请复制链接");
+      return;
+    }
+    setBusy(true);
+    try {
+      await shareVideoToWeChat({
+        title: video.title,
+        summary: video.description || "AI 逐段生成的短片 · 来自启梦",
+        targetUrl: url,
+        imageUrl: video.cover,
+      });
+      onClose();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function copyLink() {
     setErr("");
     try {
@@ -107,19 +134,12 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
     {
       key: "wechat",
       label: "微信",
-      disabled: true,
       render: (
-        <span
-          className="flex h-12 w-12 items-center justify-center rounded-full opacity-45"
-          style={{ background: BRAND_CHIP.wechat.bg }}
-        >
+        <span className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: BRAND_CHIP.wechat.bg }}>
           <BrandIcon name="wechat" size={26} />
         </span>
       ),
-      onTap: () => {
-        setNote("");
-        setErr("微信分享还没接入（需要企业主体与应用审核），先用 QQ 或复制链接");
-      },
+      onTap: () => void toWeChat(),
     },
     {
       key: "copy",
