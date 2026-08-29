@@ -29,6 +29,8 @@ import MentionText from "../components/MentionText";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
 import { useStudio } from "../studio/studioStore";
+import { remakeNodesOf, remakeableOf, useFlow } from "../studio/flowStore";
+import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import TarotCard from "../components/TarotCard";
 import { CARD_TYPE_LABELS, VideoComment, formatPlays, relativeTime } from "../types";
 
@@ -111,6 +113,11 @@ export default function VideoPage() {
   const [commentErr, setCommentErr] = useState("");
   /** 评论发出去了、但有几个 @ 服务端没认下来。黄字：评论本身是成功的 */
   const [mentionWarn, setMentionWarn] = useState("");
+  /** 做同款被就地拒时那句话（seed 被 canReplaceNodes 整句拒 —— flowStore.err 只画在
+   *  工作流页，用户此刻站在详情页，不接住就是没人看得见） */
+  const [remakeErr, setRemakeErr] = useState("");
+  // 做同款 = 第八条整表覆盖入口，守卫与套模板同一份实现（先问脏/成了再断草稿）
+  const { guard: remakeGuard, dialog: remakeDialog } = useApplyTemplate();
   // 多 P：老作品 partsOf 归一成单 P，pi 越界（编辑删 P 后）自动夹回
   const parts = useMemo(() => (video ? partsOf(video) : []), [video, version]);
   const [pi, setPi] = useState(0);
@@ -423,6 +430,34 @@ export default function VideoPage() {
         <div className="mt-2 flex justify-end">
           <ReportButton targetType="video" targetId={video.id} videoId={video.id} mine={isMyAuthor(video.author)} />
         </div>
+
+        {/* 做同款（backlog 2.8-②，可灵/即梦式闭环）：把**当前这一 P**的分段剧本+时长+
+            档位+画幅+随片卡组整份铺成观众自己的工作流。帧不带（那是作者花钱炼的成片，
+            抄的是配方）；铺开不花钱，一段一结账。守卫三件套见 useApplyTemplate。 */}
+        {remakeableOf(part?.segments ?? video.segments) && (
+          <button
+            onClick={() =>
+              remakeGuard(() => {
+                const segs = part?.segments ?? video.segments;
+                const ok = useFlow
+                  .getState()
+                  .seed(remakeNodesOf(segs, video.deck?.cards ?? []), { mode: "workflow", origin: "solo" });
+                if (ok) navigate("/flow");
+                else setRemakeErr(useFlow.getState().err || "现在铺不了（可能有一段正在生成中），稍后再试");
+                return ok;
+              }, { label: "做同款（丢弃上面那条流水线）", noun: "做同款" })
+            }
+            className="mt-6 w-full rounded-xl bg-gold/90 px-4 py-2.5 text-sm font-bold text-ink active:scale-[0.99]"
+          >
+            ⚡ 做同款：同一份分段剧本{video.deck?.cards.length ? "和卡组" : ""}，生成你自己的版本
+          </button>
+        )}
+        {remakeErr && (
+          <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-1.5 text-[11px] leading-relaxed text-amber-300/90">
+            {remakeErr}
+          </p>
+        )}
+        {remakeDialog}
 
         {/* 本片卡组：作者生成本片所用素材卡的快照。观众收入后用同一套素材
             进工坊，就能生成相似走向的视频——创作的可复刻性是卡片生态的闭环 */}

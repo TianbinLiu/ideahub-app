@@ -81,9 +81,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   （虚线卡位亮不亮）加 `composable`（法阵亮不亮）。UI 上的 disabled/锁图标只是把"为什么
   点不动"画出来，别在那里另写一遍判断。
 - **凡是"整表换掉 `nodes`"的入口，都要先问 `flowDirty`、成功之后断开旧草稿**。
-  这样的入口有**七条**：创作入口换模式（`seedSolo` ×2）、模板货架套用、模板详情页套用、
+  这样的入口有**八条**：创作入口换模式（`seedSolo` ×2）、模板货架套用、模板详情页套用、
   工作流页「提取模板」、简约模板栏那颗「不用」（也是 `seedSolo`）、工坊法阵重铺
-  （`startFlow({force})`）、**个人页打开草稿**（`openWorkDraft`）。三件事缺一不可：
+  （`startFlow({force})`）、**个人页/草稿箱打开草稿**（`openWorkDraft`，DraftSheet 两页共用）、
+  **做同款**（首页 chip 与详情页整宽键，`remakeNodesOf` → `seed`，2026-08-29）。三件事缺一不可：
   ① **先问**——已经花钱炼出来的段就在 `nodes` 上，换掉就没了（确认卡是共用的
   `components/flow/DiscardFlowDialog`，它按 `savedDoneCount` 如实说清哪些其实存住了）；
   ② **成了再断**（`newWorkDraft()`）——不断的话 `workDraftId` 还指着旧草稿，新流水线

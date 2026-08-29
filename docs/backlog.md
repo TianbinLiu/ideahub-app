@@ -496,7 +496,12 @@ genNode / nodeCost / clampCursor / 承接 / segmentGen **零改动** —— 帧�
 
 十条可执行建议（详见底稿末节；与 §2.7 的 P1/P2 合并排期）：
 ① 模板登记表补 PixVerse 式字段（槽位化 display_prompt/GIF 封面/角标/价签）；
-② 首页流加「做同款」（带模板+提示词+参数进工作流）；③ 模板市场分类改人话
+② 首页流加「做同款」（带模板+提示词+参数进工作流）——【已落地 2026-08-29：
+flowStore.remakeNodesOf 纯建料（分段剧本/时长/档位/画幅照抄、plan:"picked" 直出、
+requirement 预填可重推演、随片卡组挂每段、**帧一张不带**——抄配方不抄成片）；
+入口两处 = 首页底部 chip（与互动 chip 同排不动纵向几何、付费未解锁不给）+ 详情页
+整宽键（按当前 P）；**第八条整表覆盖入口**，守卫走 useApplyTemplate 同一份三件套；
+seed 被拒时两处各自就地印 err（flowStore.err 只画在工作流页）】；③ 模板市场分类改人话
 （情感互动/整活/变身/节日/带货）——【已落地 2026-08-29：types.TPL_CATEGORIES 六类，
 货架 chips 按行筛（分段组按组头归类不拆组），分类唯一写路 = 详情页作者工作台
 setTemplateCategory（远端先 PATCH /:id/category 成了再落本机三份），存量模板判否定

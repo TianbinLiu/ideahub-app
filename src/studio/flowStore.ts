@@ -24,6 +24,7 @@ import {
   DEFAULT_TIER,
   VIDEO_TIERS,
   annRedrawCost,
+  clampDuration,
   materialRefCost,
   fmtTokens,
   proposalRedrawCost,
@@ -33,7 +34,7 @@ import {
   tierOf,
   deriveIssue,
 } from "../data/economy";
-import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoTemplate, uid } from "../types";
+import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
 import {
@@ -330,6 +331,50 @@ export function newFlowNode(i: number, patch: Partial<FlowNode> = {}): FlowNode 
     anns: [],
     ...patch,
   };
+}
+
+/**
+ * 「做同款」的建料（backlog 2.8-② 对标：可灵/即梦的做同款 = 复制提示词与参数进生成器）。
+ * 把一条**已发布作品**的分段剧本铺成一条新流水线的 nodes：
+ *   · 每段 = 单方案节点，plot/时长/档位/画幅照抄；`plan:"picked"`——原剧本就是挑定的
+ *     那一套，进来就能直接「生成本段」；requirement 预填原剧本，想变着做就点重新推演。
+ *   · **帧一张不带**：首尾帧是原作者花钱炼出来的产物，做同款抄的是配方不是成片——
+ *     帧留空，生成时由 needDraw/参考图产线按你挂的卡现画（这也正是"同款不同人"的语义）。
+ *   · 随片卡组整份挂上每一段（与 applyTemplate 挂模板卡同一形状）；收不收进自己的
+ *     卡片库由观众在详情页「收入我的卡组」另行决定，这里不代收。
+ *   · 时长按各段档位 clamp（老作品可能带退役档位 id，tierOf 兜底 + clampDuration 夹窗）。
+ *
+ * ★ 纯建料，不碰 store：真正的整表覆盖走 `seed()`（canReplaceNodes 在那里把门），
+ *   调用方（VideoPage / FeedPage）必须再套 useApplyTemplate 守卫——这是第**八**条
+ *   整表换 nodes 的入口，三件套（先问/成了再断/在途不换）一件都不能少（CLAUDE.md 那条 ★★）。
+ * ★ 段数不设上限裁剪：作品有几段就铺几段——工作流本来就是一段一结账，铺开不花钱。
+ */
+export function remakeNodesOf(segs: VideoSegment[], cards: Card[]): FlowNode[] {
+  return segs.map((seg, i) => {
+    const tier = seg.videoTier || DEFAULT_TIER;
+    const p: Proposal = {
+      id: uid("prop"),
+      title: seg.title || `第 ${i + 1} 段`,
+      plot: seg.plot,
+      firstFrame: "",
+      lastFrame: "",
+      durationSec: clampDuration(seg.durationSec || 5, tier),
+    };
+    return newFlowNode(i, {
+      proposals: [p],
+      chosenId: p.id,
+      plan: "picked",
+      requirement: seg.plot,
+      videoTier: tier,
+      aspect: seg.aspect ?? "landscape",
+      ...(cards.length ? { materials: cards } : {}),
+    });
+  });
+}
+
+/** 这条作品够不够格「做同款」：至少一段带剧本文字（纯上传/无剧本的作品没有配方可抄） */
+export function remakeableOf(segs: VideoSegment[] | undefined): boolean {
+  return !!segs?.length && segs.some((s) => (s.plot ?? "").trim().length > 0);
 }
 
 /**
