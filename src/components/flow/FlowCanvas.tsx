@@ -54,7 +54,7 @@ import {
   templatesVersion,
 } from "../../data/templates";
 import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost, tierOf } from "../../data/economy";
-import { executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
+import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { requestLandscape } from "../../hooks/useOrientationLock";
 import { resolveMediaUrl, useMediaUrl } from "../../utils/mediaUrl";
 import FrameAnnotator, { drawCover } from "../FrameAnnotator";
@@ -1717,6 +1717,7 @@ function SegSettingsSheet({ nodeId, onClose }: { nodeId: string; onClose: () => 
 function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [palette, setPalette] = useState(false);
   const [log, setLog] = useState<AgentOutcome | null>(null);
   /** 正在执行的提案（同一时刻只跑一张：applyCast/genNode 本来就互斥于 busy） */
   const [runningProp, setRunningProp] = useState<AgentProposal | null>(null);
@@ -1814,15 +1815,29 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
         </div>
       )}
       <div data-guide="canvas-agent" className="flex items-center gap-2 rounded-full border border-slate-600/80 bg-ink/95 px-3 py-1.5 shadow-lg">
-        <span className="flex-none text-sm">🪄</span>
+        {/* 「/」唤起（backlog 2.8-⑤ 的交互半，updream 式）：点魔杖或在输入框敲 "/"
+            都开句式面板。魔杖从装饰升级成按钮——它本来就是这条 bar 的脸 */}
+        <button onClick={() => setPalette(true)} title="唤起指令句式（也可以输入 /）" className="flex-none text-sm active:scale-90">
+          🪄
+        </button>
         <input
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            // 敲 "/" 唤起面板（updream 的习惯动作）。只认"整个输入就是一个 /"——
+            // 句子中间的斜杠（"黑/白配色"）不该弹窗打断打字
+            if (v === "/" || v === "、/") {
+              setPalette(true);
+              setText("");
+              return;
+            }
+            setText(v);
+          }}
           onKeyDown={(e) => e.key === "Enter" && void send()}
           placeholder={
             AI_REAL
-              ? `对画布说话（每句 ${fmtTokens(CHAT_TURN_TOKENS)}）：第2段套宗主模板；第1段拍雨夜狂奔`
-              : "对画布说话（演示档）：第1段 拍主角雨夜狂奔"
+              ? `对画布说话（每句 ${fmtTokens(CHAT_TURN_TOKENS)}，/ 唤起句式）：第2段套宗主模板`
+              : "对画布说话（演示档，/ 唤起句式）：第1段 拍主角雨夜狂奔"
           }
           className="min-w-0 flex-1 bg-transparent text-xs text-slate-100 outline-none placeholder:text-slate-600"
         />
@@ -1834,7 +1849,72 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
           {busy ? "…" : "发送"}
         </button>
       </div>
+      {palette && (
+        <AgentPalette
+          onClose={() => setPalette(false)}
+          onPick={(s) => {
+            setText(s);
+            setPalette(false);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * 「/」句式面板：指令填空 + 我的模板直填。
+ * ★ 句式表住在 canvasAgent.AGENT_PHRASES（与 op 白名单同文件，铁律六）——这里只画。
+ *   插进输入框的是**起手**不是成品：用户接着补内容/换段号，发送才真跑（花钱的照旧
+ *   要过确认卡，本面板不改变任何一道闸）。
+ * ★ 模板列表直填「第N段套模板「标题」」——名字打错是 agent 被拒的头号原因，点选归零。
+ */
+function AgentPalette({ onClose, onPick }: { onClose: () => void; onPick: (s: string) => void }) {
+  const cursor = useFlow((s) => s.cursor);
+  const seg = cursor + 1;
+  const tpls = myTemplates();
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={onClose}>
+      <div
+        className="max-h-[70vh] w-full overflow-y-auto rounded-t-2xl border-t border-slate-700 bg-ink p-4"
+        style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-2 text-xs font-semibold text-slate-300">指令句式（点一个填进输入框，接着改）</div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {AGENT_PHRASES.map((p) => (
+            <button
+              key={p.label}
+              onClick={() => onPick(p.make(seg))}
+              className="rounded-xl border border-slate-700/70 bg-panel px-2.5 py-2 text-left"
+            >
+              <div className="text-[12px] font-semibold text-slate-100">{p.label}</div>
+              <div className="mt-0.5 text-[10px] leading-relaxed text-slate-500">{p.hint}</div>
+            </button>
+          ))}
+        </div>
+        {tpls.length > 0 && (
+          <>
+            <div className="mb-1.5 mt-3 text-xs font-semibold text-slate-300">我的模板（点一个 = 第 {seg} 段套它）</div>
+            <div className="space-y-1">
+              {tpls.slice(0, 12).map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => onPick(`第${seg}段套模板「${t.title}」`)}
+                  className="flex w-full items-center gap-2 rounded-xl border border-slate-700/70 bg-panel px-2.5 py-2 text-left"
+                >
+                  <span className="min-w-0 flex-1 truncate text-[12px] text-slate-100">{t.title}</span>
+                  {t.refVideo && (
+                    <span className="flex-none rounded bg-sky-500/20 px-1.5 py-0.5 text-[9px] text-sky-300">白模</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>,
+    document.body,
   );
 }
 

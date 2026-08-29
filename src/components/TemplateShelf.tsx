@@ -125,6 +125,15 @@ export function TemplateCard({
               {t.roles.length} 个角色位可换人
             </span>
           ) : null}
+          {/* 「新」角标（backlog 2.8-① 的 marker 位，PixVerse 式）：七天内登记的标出来。
+              只做 new 不做 hot——模板互动计数首发是**本机**的（服务端 ASSET_KINDS 还没有
+              template），拿本机数标「热」是在撒谎；等计数上服务端再补那半。
+              右上角是 ▶预览 钮退役后空出来的位置 */}
+          {Date.now() - t.createdAt < 7 * 24 * 3600 * 1000 && (
+            <span className="absolute right-2 top-2 rounded bg-amber-400/95 px-1.5 py-0.5 text-[9px] font-bold text-ink">
+              新
+            </span>
+          )}
           {/* ★ 卡片做减法（2026-08-29 主人点名走 backlog 2.8-④）：@作者、播放/点赞数、
               简介两行全部收进详情页——卡面只剩「标题 + 循环预览 + 一个生成键」。
               保留的三枚角标（白模/角色位/暂时不可用）是能力与健康位，不是装饰。 */}
