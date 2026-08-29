@@ -1117,34 +1117,42 @@ export async function generateCards(
 }
 
 /**
- * 设定帧的**画风开头** —— 2026-08-28 主人拍板：画风的主人是**卡**，不是写死的常量。
+ * 设定帧的**画风开头** —— 2026-08-28 主人两次拍板：画风的主人是**卡与参考图**，
+ * 永远不是写死的常量（默认厚涂当天下午也去掉了）。
  *
- * ★★ 修的是一条实打实的自相矛盾（backlog 2.7 的 P1-a）：这里原来无条件拼 ART_STYLE
+ * ★★ 起因是一条实打实的自相矛盾（backlog 2.7 的 P1-a）：这里原来无条件拼 ART_STYLE
  *   （「二次元厚涂插画风…」），而挂了风格卡时 prepareMaterialRefs 的绑定句在**同一句**
  *   提示词里说「只沿用〈图片N〉的画法」——两句打架，模型挑一句听。卡面铸造那侧
  *   2026-08-11 修过一模一样的事（cardStyleSuffix 对 style 卡不拼画风词），帧管线漏了。
- * ★ 按**文字**点名风格卡而不是只靠参考图：风格卡的图在预算里可能被挤掉
- *   （MAX_REF_IMAGES=3，hero 占 2 张时第二张非人物卡就没位了）——图被挤掉时
- *   这句文字就是它参与的唯一途径，两条腿都在才稳。
- * ★ 真人卡（realPerson）也压掉厚涂词（backlog 2.7 的 P2-b 顺手修）：对着照片参考写
- *   「厚涂插画」就是命令模型把真人动漫化。风格卡优先于真人判定——用户明挂了风格卡
- *   就是要那个画风。
- * ★ 什么卡都没挂：维持默认厚涂 —— 没有任何画风依据时，帧与帧会各画各的。
+ * ★ 四档判定，优先级从上到下：
+ *   ① 风格卡 → 按**名字**点名跟随（图在预算里被挤掉时，这句文字就是它参与的唯一途径）；
+ *   ② 真人卡 → 照片级写实（对着照片参考写「厚涂插画」就是命令模型把真人动漫化，P2-b）；
+ *   ③ 挂了任何带图的卡（refsOn 时）→ 「画风严格跟随参考图」——与 promptSchemes 的
+ *      STYLE_CLAUSE（★★★①「风格跟随参考图」）是**同一条产品规则**在帧管线的那半：
+ *      照片素材出写实帧、插画素材出同风格帧，不由我们替用户挑画风；
+ *   ④ 什么都没挂 → **只留质感词，不注明画风**（与 generateCover 的中性措辞对齐）。
+ *      代价说在明处：纯文字首段的首尾两帧各画各的时画风可能漂——主人明确选了
+ *      "让模型自己定"而不是"我们塞一个厚涂默认"。
+ * ★ viewsOf 对任何卡都 ≥1（老卡拿卡面兜底），所以③实际上就是"挂了卡且真发了图"。
+ * @param refsOn 这一发**真的带着参考图**吗——纯文字重试（参考图被拒后去掉图重画）
+ *   必须传 false：图都没发还写"跟随参考图"，模型只能瞎猜那是什么。
  */
-function frameArtStyle(materials?: Card[]): string {
+function frameArtStyle(materials?: Card[], refsOn = true): string {
   const styleCard = materials?.find((c) => c.type === "style");
   if (styleCard)
     return `整体画风严格跟随风格卡「${styleCard.name}」${
       styleCard.summary ? `（${styleCard.summary.slice(0, 24)}）` : ""
     }，全片统一，高细节，`;
   if (materials?.some((c) => c.realPerson === true)) return "照片级写实画面，高细节，电影感构图，氛围光，";
-  return ART_STYLE;
+  if (refsOn && materials?.some((c) => viewsOf(c).length > 0))
+    return "整体画风严格跟随参考图（照片则照片级写实，插画则同风格插画），高细节，";
+  return "高细节，电影感构图，氛围光，";
 }
 
 /** 设定帧的画风尾巴。画幅得写进提示词：size 参数只决定画布，构图还是靠这句话——
  *  竖版画布配"横版构图"的提示词，出来的是一张上下大片空白的横构图。 */
-function frameStyle(aspect?: VideoAspect, materials?: Card[]): string {
-  return `${frameArtStyle(materials)}${NO_TEXT}${aspectOf(aspect).promptHint}。`;
+function frameStyle(aspect?: VideoAspect, materials?: Card[], refsOn = true): string {
+  return `${frameArtStyle(materials, refsOn)}${NO_TEXT}${aspectOf(aspect).promptHint}。`;
 }
 
 /** `withRef` 专指**承接帧**（上一段的尾帧）在不在。素材卡的参考图不走这里 ——
@@ -1152,10 +1160,17 @@ function frameStyle(aspect?: VideoAspect, materials?: Card[]): string {
  *  承接帧是"接着这一画面往下拍"，素材卡是"这个角色长这样"。
  *  ★ 承接帧一律排在参考图数组的**第一位**，所以这里可以写死 `<图片1>`。
  *  ★ `materials` 只喂给画风那半（frameArtStyle）：composeSegments 里 degraded 帧的
- *    重画拿不到素材卡（segments 形状里没有），传 undefined 退默认厚涂——可接受，
- *    那是失败救援路，不是主产线。 */
-function framePrompts(plot: string, withRef: boolean, aspect?: VideoAspect, materials?: Card[]): { first: string; last: string } {
-  const style = frameStyle(aspect, materials);
+ *    重画拿不到素材卡（segments 形状里没有），传 undefined 退中性质感词——可接受，
+ *    那是失败救援路，不是主产线。
+ *  ★ `refsOn`：这一发是否真带参考图（见 frameArtStyle 的 @param）。 */
+function framePrompts(
+  plot: string,
+  withRef: boolean,
+  aspect?: VideoAspect,
+  materials?: Card[],
+  refsOn = true,
+): { first: string; last: string } {
+  const style = frameStyle(aspect, materials, refsOn);
   return {
     first: `电影分镜首帧：${plot.slice(0, 100)}。${withRef ? "延续<图片1>的色调与光线氛围。" : ""}${style}`,
     last: `电影分镜尾帧（这段剧情的收束瞬间）：${plot.slice(-100)}。${style}`,
@@ -1232,7 +1247,9 @@ export async function generateProposals(
     // 有确定开头帧时尾帧也带它当参考（人物/画风连贯）；否则仅首帧带上一段色调参考
     const withFrameRef = (which === "first" || !!startFrame) && frameRefs.length > 0;
     const useRefs = [...(withFrameRef ? frameRefs : []), ...mat.refs];
-    const prompts = framePrompts(p.plot, withFrameRef, ctx.aspect, ctx.materials);
+    // refsOn 传**这一发实际带不带图**：卡都挂了但一张图都没准备成（mat.refs 空）时，
+    // "跟随参考图"那句必须跟着消失——图没发还这么说，模型只能瞎猜（铁律五的措辞版）
+    const prompts = framePrompts(p.plot, withFrameRef, ctx.aspect, ctx.materials, useRefs.length > 0);
     // 绑定句里的 <图片N> 要跳过承接帧占的那一位，否则模型会去看错的那张图
     const prompt = (which === "first" ? prompts.first : prompts.last) + mat.bind(withFrameRef ? frameRefs.length : 0);
     let frame: string | null = null;
@@ -1246,8 +1263,11 @@ export async function generateProposals(
         // 带参考图失败可能是参考图本身不被受理——去掉参考图再试一次。
         // ★ 说出来：退成纯文生图意味着这一帧**没有**用上你挂的卡，闷声重试等于骗人
         if (useRefs.length > 0) onProgress?.("参考图未被受理，该帧改用纯文字重画");
-        // 纯文字重试也要带画风那半（frameArtStyle 只出文字，风格卡按名字点名，不涉图）
-        frame = await genImageAsDataUrl(framePrompts(p.plot, false, ctx.aspect, ctx.materials)[which], { size: frameSize });
+        // 纯文字重试：refsOn=false——图都不发了，"跟随参考图"那句必须跟着消失；
+        // 风格卡/真人卡两档按名字点名不涉图，照常生效
+        frame = await genImageAsDataUrl(framePrompts(p.plot, false, ctx.aspect, ctx.materials, false)[which], {
+          size: frameSize,
+        });
       } catch (e2) {
         console.warn(`[ai] ${p.title} ${which} 帧两次失败:`, e2);
       }
