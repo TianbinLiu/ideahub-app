@@ -93,7 +93,21 @@ const MILLTINA_CFG = {
   ],
   // 衣装/头发暖灰乘暗融入烛光暗房；脸+皮肤单独亮乘色（官方宣传图=亮脸平光，
   // 全局压暗会把眼白压灰、眼周暗成"眼影"）；浅色模型描边用固定深紫黑
-  look: { tint: 0xbfb2a4, outlineColor: 0x2a2230, faceTint: 0xeae2d8, hairTint: 0xb9bcc4 },
+  look: {
+    tint: 0xbfb2a4,
+    outlineColor: 0x2a2230,
+    faceTint: 0xeae2d8,
+    hairTint: 0xb9bcc4,
+    // ↓ 两笔加色，移植自 Blender 插件「Paper朱二次元渲染助手」（见 toonify 里的注释）。
+    // 工坊是烛光暗房，基准画面里她整个人是**贴在背景上**的一块暗绿——三阶 toon ramp
+    // 只分明暗档、不认视线夹角，做不出把人和背景分开的那一笔。
+    // 阈值全部按本场景灯光实测重定过，插件原值在这里一个都不能用（原因写在 toonify）。
+    rimLight: { from: 0.24, to: 0.62 },
+    // 高光只给头发：铺全身实测会把裙子变成"湿乳胶"（四组参数无一例外）。
+    // 二游那种漂亮高光靠的是手绘高光图/发丝各向异性，单一 Blinn 复刻不了，
+    // 但发片细长带弧度，一条带正好读作发丝反光。
+    specBand: { match: ["hair"], strength: 0.4 },
+  },
   // 表情=模型出厂默认脸（官方宣传图即默认脸）+瞬时全闭眨眼；不加任何常驻表情。
   // 自带 nagomi 慵懒眼可用 restMorphs:{eye_nagomi_1:x, brow_nagomi:x} 随时开
   blinkBase: 0,
@@ -1653,7 +1667,7 @@ export default function TableScene() {
           // 默认铸卡师 = 委托定制的 Milltina（**自有版权，随包发布**；加密只是防直接取用，
           // 不是"不能发"——别和 protected/ 下那些第三方版权模型混为一谈，见 prune-app-assets）：
           // VRC 原生形键 + 弹簧骨物理 + 调暗描边
-          <TripoNpc url="/models/protected/milltina-opt.glbx?v=m15" cfg={MILLTINA_CFG} face={MILLTINA_FACE} />
+          <TripoNpc url="/models/protected/milltina-opt.glbx?v=m16" cfg={MILLTINA_CFG} face={MILLTINA_FACE} />
         )}
       </Suspense>
       <PlayerHandsSwitch />

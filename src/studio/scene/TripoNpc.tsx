@@ -39,6 +39,150 @@ const POSE_KEYS = {
   rFore: "mixamorigRightForeArm",
 } as const;
 
+// ── 二次元加色两件套（边缘光 + 高光带）──────────────────────────────
+// 来源：Blender 插件「Paper朱二次元渲染助手」(github.com/PUBG11S1/paperzhu-anime-helper)。
+// 那边是 EEVEE 的材质节点图，跑不到浏览器里，所以搬的是**配方与阈值**，
+// 用同样的两级 ColorRamp 卡出硬边光带，在 three 的 toon 材质上重写一遍。
+//
+// 为什么加在 MeshToonMaterial 上而不是换材质：整套渲染（faceRamp / 反壳描边 /
+// cameraFade / 表情形键）都挂在现有材质上，换材质等于全部重接一遍。
+//
+// ⚠ 两个数值不是照抄就能用的，必须按本项目的灯光重新量（见下面各自的注释）：
+//   插件的阈值是对着 Blender 的 Glossy BSDF / LayerWeight 输出定的，
+//   这里的 Blinn-Phong 高光与 Schlick 菲涅尔**分布不一样**，同一个 0.84 落在
+//   完全不同的位置上。抄阈值不抄分布 = 要么全屏死白、要么一点都看不见。
+interface AnimeShade {
+  key: string;
+  rim: { color: THREE.Color; strength: number; from: number; to: number } | null;
+  spec: { color: THREE.Color; strength: number; shininess: number; from: number; to: number } | null;
+}
+
+/** Blender LayerWeight(Blend 0.6) 等价的 Schlick F0：ior = 1/(1-0.6) = 2.5
+ *  → F0 = ((2.5-1)/(2.5+1))^2 = 0.1837。菲涅尔曲线形状对得上，边缘光带才落在
+ *  同一个掠射角区间里（按该式反算：0.55~0.85 这段落在 N·V 0.151→0.040，一条窄边） */
+const RIM_F0 = 0.1837;
+
+function animeShadeOf(
+  look:
+    | {
+        rimLight?: { color?: number; strength?: number; from?: number; to?: number };
+        specBand?: { color?: number; strength?: number; roughness?: number; from?: number; to?: number; match?: string[] };
+      }
+    | undefined,
+  /** 本网格的名字与贴图名（都已小写）——specBand.match 按它们过滤 */
+  names: string[],
+): AnimeShade | null {
+  const r = look?.rimLight;
+  const spRaw = look?.specBand;
+  const sp = spRaw && (!spRaw.match || spRaw.match.some((m) => names.some((n) => n.includes(m)))) ? spRaw : undefined;
+  if (!r && !sp) return null;
+  const rim = r
+    ? {
+        color: new THREE.Color(r.color ?? 0xffffff),
+        strength: r.strength ?? 1,
+        // ★ 默认值是**在本项目灯光下量出来的**，不是插件的原值（插件是 0.55/0.85）。
+        //   照抄会**什么都看不见**：插件那两个数是对着 Blender LayerWeight 的输出定的，
+        //   而这里走 Schlick(F0=0.1837)，同一个 0.55 对应 N·V≈0.151、0.85 对应 0.040——
+        //   一条比 1px 还窄的掠射带，在 720p 上基本采样不到（实测均亮度只涨 0.53/255）。
+        //   0.24/0.62 对应 N·V 0.49→0.155，才是肉眼可见的那圈轮廓光。
+        from: r.from ?? 0.24,
+        to: r.to ?? 0.62,
+      }
+    : null;
+  const spec = sp
+    ? {
+        // 插件用的暖白是**线性** (1.0, 0.95, 0.92)；这里给 sRGB 十六进制（与本文件
+        // 其余颜色选项一致），0xfff9f6 转成线性正好是那三个数
+        color: new THREE.Color(sp.color ?? 0xfff9f6),
+        // ★ 同上，全组默认值都是量出来的，插件原值是 (roughness .15, 0.84/0.93, ×1)。
+        //   照抄的结果是**一颗颗白点**：Blinn 指数 86.9 太尖，只有极少数正对反射的面
+        //   能过 0.84 的门槛，落在裙子那种大面积平滑布料上就是散落白斑。
+        //   放宽到 r=0.25(指数 30)、门槛 0.55/0.80、强度 0.40，配合 match 只给头发，
+        //   才是发丝那条高光带。强度定 0.40：全身档扫了 4 组（全部成白斑）、只给头发再扫
+        //   3 组参数 + 2 档强度，0.55 那档发梢已经开始读作"湿"，0.40 是看得见又不油的位置。
+        strength: sp.strength ?? 0.4,
+        // 粗糙度→Blinn 指数：2/r^2-2。GGX 与 Blinn 不是一一对应，这只是把"粗糙度"
+        // 这个直觉量换算成指数的桥，真正决定观感的是 from/to 落在哪
+        shininess: 2 / Math.max(sp.roughness ?? 0.25, 0.01) ** 2 - 2,
+        from: sp.from ?? 0.55,
+        to: sp.to ?? 0.80,
+      }
+    : null;
+  const key = [
+    rim && `r${rim.color.getHex()}_${rim.strength}_${rim.from}_${rim.to}`,
+    spec && `s${spec.color.getHex()}_${spec.strength}_${spec.shininess.toFixed(1)}_${spec.from}_${spec.to}`,
+  ]
+    .filter(Boolean)
+    .join("|");
+  return { key, rim, spec };
+}
+
+/** 把两件套注入 MeshToonMaterial 的片元着色器。
+ *  高光走 three 自己的灯光循环（包一层 RE_Direct_Toon 再改宏），这样三盏灯的颜色/
+ *  衰减全都天然生效；边缘光只跟视线夹角有关，直接加在 outgoingLight 上。 */
+function injectAnimeShading(s: { fragmentShader: string; uniforms: Record<string, { value: unknown }> }, shade: AnimeShade) {
+  const { rim, spec } = shade;
+  let head = "";
+  if (spec) {
+    s.uniforms.uSpecColor = { value: spec.color };
+    s.uniforms.uSpecStrength = { value: spec.strength };
+    s.uniforms.uSpecShin = { value: spec.shininess };
+    s.uniforms.uSpecFrom = { value: spec.from };
+    s.uniforms.uSpecTo = { value: spec.to };
+    head +=
+      "\nuniform vec3 uSpecColor;\nuniform float uSpecStrength;\nuniform float uSpecShin;" +
+      "\nuniform float uSpecFrom;\nuniform float uSpecTo;";
+  }
+  if (rim) {
+    s.uniforms.uRimColor = { value: rim.color };
+    s.uniforms.uRimStrength = { value: rim.strength };
+    s.uniforms.uRimFrom = { value: rim.from };
+    s.uniforms.uRimTo = { value: rim.to };
+    head += "\nuniform vec3 uRimColor;\nuniform float uRimStrength;\nuniform float uRimFrom;\nuniform float uRimTo;";
+  }
+  s.fragmentShader = s.fragmentShader.replace("#include <common>", "#include <common>" + head);
+
+  if (spec) {
+    // MeshToonMaterial 的 RE_Direct_Toon 只算漫反射。这里**不改它**，而是包一层再
+    // 把 RE_Direct 宏指过去——原函数原样调用，行为不变，只多累加一份 directSpecular。
+    // （直接重写 three 的 chunk 会在升级 three 时静默失配，包一层则只依赖签名。）
+    s.fragmentShader = s.fragmentShader.replace(
+      "#include <lights_toon_pars_fragment>",
+      `#include <lights_toon_pars_fragment>
+void RE_Direct_ToonAnime( const in IncidentLight directLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in ToonMaterial material, inout ReflectedLight reflectedLight ) {
+	RE_Direct_Toon( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );
+	vec3 halfDir = normalize( directLight.direction + geometryViewDir );
+	float sp = pow( max( dot( geometryNormal, halfDir ), 0.0 ), uSpecShin );
+	// 线性两点 ramp（对齐插件的 ColorRamp 默认 LINEAR 插值，不是 smoothstep）
+	float band = clamp( ( sp - uSpecFrom ) / max( uSpecTo - uSpecFrom, 1e-4 ), 0.0, 1.0 );
+	reflectedLight.directSpecular += band * uSpecColor * uSpecStrength * directLight.color;
+}
+#undef RE_Direct
+#define RE_Direct RE_Direct_ToonAnime`,
+    );
+  }
+
+  // toon 的出光只累加漫反射 —— directSpecular 与边缘光都得自己接上去
+  const OUT = "vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance;";
+  let add = OUT.replace(";", spec ? " + reflectedLight.directSpecular;" : ";");
+  if (rim) {
+    add +=
+      `
+	{
+		float ndv = clamp( dot( normal, normalize( vViewPosition ) ), 0.0, 1.0 );
+		float fres = ${RIM_F0.toFixed(4)} + ( 1.0 - ${RIM_F0.toFixed(4)} ) * pow( 1.0 - ndv, 5.0 );
+		float edge = clamp( ( fres - uRimFrom ) / max( uRimTo - uRimFrom, 1e-4 ), 0.0, 1.0 );
+		outgoingLight += edge * uRimColor * uRimStrength;
+	}`;
+  }
+  if (!s.fragmentShader.includes(OUT)) {
+    // three 换版本改了这行就会静默失效（画面照常、只是没有效果）——出声比装没事强
+    console.warn("[toonify] 未找到 outgoingLight 汇总行，边缘光/高光带未接上（three 版本变了？）");
+    return;
+  }
+  s.fragmentShader = s.fragmentShader.replace(OUT, add);
+}
+
 // 赛璐璐化：PBR 材质 → 三阶 Toon ramp（保留原贴图），并给每个 mesh 造反壳描边
 // width 是 mesh 局部空间的法线外扩量——不同模型的量化缩放/场景缩放不同，需按最终屏幕效果各自调
 export function toonify(
@@ -71,6 +215,29 @@ export function toonify(
      *  渲染后却被放大成一块硬边奶白板（用户连报四次的那个）。改成不吃光后当场消失，
      *  睁眼观感不受影响。这也正是动画脸的通行画法：脸只用贴图，不参与光照。 */
     faceUnlit?: boolean;
+    /** 菲涅尔边缘光。移植自 Blender「Paper朱二次元渲染助手」的
+     *  LayerWeight(Blend 0.6) → ColorRamp(0.55/0.85) → 白色**加色**那一支。
+     *  工坊是烛光暗房，角色轮廓本来就埋在背景里；三阶 toon ramp 只分明暗档、
+     *  不认视线夹角，做不出这一笔——它才是把人从暗底里"抠"出来的那个东西。
+     *  默认不开（会改变所有既有模型的观感），按模型在 look 里点名。 */
+    rimLight?: { color?: number; strength?: number; from?: number; to?: number };
+    /** 二次元高光带。同插件的 Glossy(roughness 0.15) → ColorRamp(0.84/0.93)
+     *  × 暖白 加色那一支。MeshToonMaterial **一点高光都没有**，于是皮肤、绸缎、
+     *  漆皮鞋在暗房里全是哑光块面——"高精度贴图看着不贵"的主因就在这儿。 */
+    specBand?: {
+      color?: number;
+      strength?: number;
+      roughness?: number;
+      from?: number;
+      to?: number;
+      /** 只给这些网格上高光（子串匹配网格名与贴图名，同 faceMatch 那套）。
+       *  ★ 不填 = 全身都上，而全身上**基本一定是错的**：实测这套暗房灯光下，
+       *  Blinn 高光铺在裙子那种大面积平滑布料上会摊成一块块白斑，观感是"湿乳胶/
+       *  油污"，比不加还差（四组参数扫下来无一例外）。二游里那种漂亮高光根本不是
+       *  这么来的——它靠手绘高光图或发丝各向异性，几何+单一 Blinn 复刻不出来。
+       *  所以这里只在**头发**上用它：发片本来就细长带弧度，一条高光带正好读作发丝反光。 */
+      match?: string[];
+    };
   },
 ) {
   const ramp = new THREE.DataTexture(
@@ -172,14 +339,28 @@ export function toonify(
     // transparent 仍是 false——只判 transparent 会整个漏掉这类材质，于是"靠贴图
     // 切出形状"的发片/睫毛整片实心渲染，多层发片叠起来糊成一坨（接 Tsumire 实测）
     if (old.alphaTest > 0) toonMat.alphaTest = old.alphaTest;
-    if (windGLSL) {
+    // 边缘光/高光带只给非脸部件（头发、衣装、皮肤）。脸单独排除有先例：眼周是这套
+    // 渲染反复出事的地方（睫毛反壳的「黑眼圈」修过一轮），而脸上打高光读作"油光"，
+    // 动画惯例本来也是平光亮脸——这里少一笔比多一笔安全。
+    const shade = isFace ? null : animeShadeOf(look, [nm, texNmEarly]);
+    if (windGLSL || shade) {
       toonMat.onBeforeCompile = (s) => {
-        s.uniforms.uWindT = { value: 0 };
-        s.vertexShader = s.vertexShader
-          .replace("#include <common>", "#include <common>\nuniform float uWindT;")
-          .replace("#include <skinning_vertex>", `#include <skinning_vertex>${windGLSL}`);
-        ((scene.userData.__windUniforms ??= []) as { value: number }[]).push(s.uniforms.uWindT as { value: number });
+        if (windGLSL) {
+          s.uniforms.uWindT = { value: 0 };
+          s.vertexShader = s.vertexShader
+            .replace("#include <common>", "#include <common>\nuniform float uWindT;")
+            .replace("#include <skinning_vertex>", `#include <skinning_vertex>${windGLSL}`);
+          ((scene.userData.__windUniforms ??= []) as { value: number }[]).push(s.uniforms.uWindT as { value: number });
+        }
+        if (shade) injectAnimeShading(s, shade);
       };
+      // ★ 带 rim/spec 时必须给 customProgramCacheKey：three 复用 program 的键里
+      //   **不含** onBeforeCompile 改出来的源码，不给键的话不同参数会共用同一个
+      //   已编译 program——改了数值画面纹丝不动，且没有任何报错。
+      if (shade) {
+        const k = shade.key + (windGLSL ? "|w" : "");
+        toonMat.customProgramCacheKey = () => k;
+      }
     }
     mesh.material = toonMat;
     old.dispose();

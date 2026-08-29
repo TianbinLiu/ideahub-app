@@ -1,5 +1,24 @@
 # Milltina FBX → GLB 转换：接贴图、人形骨改名为 mixamo 约定（复用整套演出管线）、
 # 精选形键白名单（738→常用集，控制导出体积）。购买资产——产物只进 gitignore 目录。
+#
+# ── 出货全链（四步，缺一步就发不出去；2026-08-21 补记）──────────────────────
+#   ① 本脚本            FBX → assets-private/milltina-rigged.glb
+#      blender -b --factory-startup -P scripts/bl_milltina_convert.py
+#   ② bl_milltina_pose  rigged → assets-private/milltina-anim.glb（烘 lean / deal 两段动画）
+#      blender -b --factory-startup -P scripts/bl_milltina_pose.py
+#   ③ glTF-Transform    anim → assets-private/milltina-opt.glb（24MB → 2.7MB）
+#      npx @gltf-transform/cli@4.4.2 optimize <anim> <opt> --compress meshopt
+#          --texture-compress webp --texture-size 2048 --simplify false
+#      ★ --simplify false 不能省：减面会**直接删掉形键**（形键是逐顶点位移，顶点没了
+#        位移无处安放），整套表情/口型当场消失，而且导出不报错——同 make-lod.mjs 那条。
+#      ★ 这一步的 sharp 得是 0.35+：CLI 自带的旧版在本机链到系统 libvips，贴图环节报
+#        `colourspace: parameter space not set` 当场失败（装 CLI 时用 overrides 钉版本）。
+#   ④ 加密             opt → public/models/protected/milltina-opt.glbx
+#      node scripts/protect-asset.mjs assets-private/milltina-opt.glb
+#      ★ 换了 .glbx 必须同步把 TableScene.tsx 里的 `?v=mNN` 顶一位，否则老用户的
+#        浏览器/WebView 拿的还是缓存里那份旧模型——**没有任何报错**，就是没生效。
+#   全链已验证可逐字节复现：Blender 5.2 + 上面这条 optimize 跑出来的 opt.glb
+#   与线上那份 SHA256 完全一致（2026-08-21 实测），所以改动差异全都归因于改动本身。
 import bpy
 from mathutils import Vector
 import re
@@ -46,6 +65,23 @@ if _bra:
     bpy.data.objects.remove(_bra, do_unlink=True)
     print("已移除 bra")
 
+# ── 去牛角 / 去尾巴（产品定稿：铸卡师不要兽化特征）──
+# 三件一组，缺一件就露馅（同围裙那条铁律：网格开关必须自洽）：
+#   cow_horns / cow_horns_big  两对角是纯外挂件，根部埋在头皮里，删掉不留洞（已渲图核对）
+#   cow_tail / cloth_tail_ribbon  尾巴本体 + 尾根蝴蝶结
+#   cloth_tail_slit  ★ 必须一起删。它不是“裙子上的洞”，是模拟开衩的一片独立贴片
+#     （403 顶点的镶边翻盖）。只删尾巴留着它，裙背就挂着一片孤零零的米色小翻盖，
+#     观感是“这儿少了个东西”；三件全删后裙背是连续布面，本来就没洞（实测：
+#     Milltina_cloth_skirt 的边界边全是百褶分片造成的，不在尾根处成环）。
+for _n in ("Milltina_cow_horns", "Milltina_cow_horns_big",
+           "Milltina_cow_tail", "Milltina_cloth_tail_ribbon", "Milltina_cloth_tail_slit"):
+    _o = bpy.data.objects.get(_n)
+    if _o:
+        bpy.data.objects.remove(_o, do_unlink=True)
+        print(f"已移除 {_n}")
+    else:
+        print(f"去角去尾: 未找到 {_n}")
+
 # ── 官方防穿模配置（逆向自 Milltina.prefab 的 m_BlendShapeWeights，索引→键名对照 FBX 顺序）──
 # VRChat 不穿模的根源：prefab 把「身体 Shrink 系（衣下身体内缩）+ 全件胸型统一 Cow +
 # 挤压键」配置好了；裸 FBX 全 0 = 身体全尺寸顶穿衣身 → 内衣/皮肤露出。
@@ -76,7 +112,10 @@ bake_shape_mix("Milltina_body", {
     "Foot_heel": 1.0,
 })
 bake_shape_mix("Milltina_cloth_dress", {"Breasts_Big": 1.0, "Cuff_shrink": 1.0})
-bake_shape_mix("Milltina_cloth_panties", {"Panty_squeeze": 1.0, "Option_Tail_set": 1.0})
+# Option_Tail_set 是“穿尾巴时给尾根让位”的形态（实测只动 103 顶点、最大 0.0047，
+# z[0.593,0.683]=尾根那圈）。尾巴网格删了就绝不能再烘它——同围裙 Apron_set 的坑：
+# 没有尾巴盖着，那圈让位就是白白在内裤上压一道凹痕。
+bake_shape_mix("Milltina_cloth_panties", {"Panty_squeeze": 1.0})
 bake_shape_mix("Milltina_cloth_garterbelt", {
     "Panty_squeeze": 1.0, "Foot_heel": 1.0, "Sock_squeeze": 1.0, "Garters_squeeze": 1.0,
 })
@@ -165,30 +204,11 @@ def cinch_waist(zr=WAIST_Z, k=WAIST_SHRINK):
 cinch_waist()
 
 
-# ── 牛尾外让：尾巴从裙子背后的开衩出来后是贴着裙面走的，实测余量只有 0.02~0.03
-# 模型单位（裙子是外扩的 A 字形，尾巴却从髋部直垂），等于蹭着布面——裙子一形变就
-# 把尾巴半埋进去，观感就是"尾巴和衣服穿模"。
-# 做法是在绑定姿势里把尾巴网格沿背向（+y）按长度渐变外移：根部为 0（不脱离开衩），
-# 到尖端 0.05。只动网格顶点、不动骨骼与权重，蒙皮关系完全不变——外移量会跟着尾骨
-# 一起旋转，等价于让整条尾巴"搭"在裙面外侧。
-def tail_clearance(gain=0.05, z_root=0.706, z_tip=0.410):
-    span = z_root - z_tip
-    for name in ("Milltina_cow_tail", "Milltina_cloth_tail_ribbon"):
-        o = bpy.data.objects.get(name)
-        if o is None:
-            print(f"牛尾外让: 未找到 {name}")
-            continue
-        n = 0
-        for v in o.data.vertices:
-            t = (z_root - v.co.z) / span
-            if t <= 0:
-                continue
-            v.co.y += gain * min(1.0, t)
-            n += 1
-        print(f"牛尾外让: {name} {n} 顶点，尖端 +{gain}")
+# ── 牛尾外让：已随「去尾巴」一并作废 ──
+# 原先这一步把尾巴网格沿 +y 渐变外移 0.05，解决“尾巴蹭着裙面、一形变就半埋进去”。
+# 尾巴网格现在在上面就删掉了，这段没有作用对象。留个碑：要是哪天把尾巴加回来，
+# 记得连这段外让和 Option_Tail_set=1.0 一起恢复，否则立刻复发穿模。
 
-
-tail_clearance()
 
 
 # ── 收缩包裹：逐顶点把身体塞回衣身内侧。径向收束是"按比例猜"，总有局部猜不够；
