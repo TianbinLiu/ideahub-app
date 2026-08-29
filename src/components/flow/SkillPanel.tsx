@@ -85,7 +85,7 @@ export default function SkillPanel({ draft, onPick }: { draft: string; onPick: (
             }}
             className="flex-none rounded-full border border-slate-600 px-2.5 py-1 text-[10px] text-slate-300"
           >
-            ＋ 存当前输入为技能
+            ＋ 存为技能
           </button>
         )}
       </div>
@@ -103,7 +103,7 @@ export default function SkillPanel({ draft, onPick }: { draft: string; onPick: (
             value={intro}
             onChange={(e) => setIntro(e.target.value)}
             maxLength={SKILL_INTRO_MAX}
-            placeholder="一句话简介（发布到市场时给别人看，可空）"
+            placeholder="一句话简介（可空）"
             className="mt-1.5 w-full rounded-lg border border-slate-700 bg-ink px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-600"
           />
           <div className="mt-1.5 flex items-center gap-2">
@@ -123,9 +123,7 @@ export default function SkillPanel({ draft, onPick }: { draft: string; onPick: (
         </div>
       )}
       {mine.length === 0 && !saving && (
-        <p className="text-[10px] leading-relaxed text-slate-600">
-          还没有技能。在输入条里写好一句常用指令（例：加两段；第1段拍雨夜追逐），点上面「存当前输入为技能」。
-        </p>
+        <p className="text-[10px] leading-relaxed text-slate-600">还没有技能——输入条写好常用指令，点「＋ 存为技能」。</p>
       )}
       {mine.length > 0 && (
         <div className="space-y-1">

@@ -24,6 +24,7 @@ import CameraChips from "./CameraChips";
 import DeleteSegBtn from "./DeleteSegBtn";
 import SegSettings from "./SegSettings";
 import SkillPanel from "./SkillPanel";
+import InfoTip from "../InfoTip";
 import PlanBoard from "../../studio/ui/PlanBoard";
 import FuseFrameSheet, { fuseSourcesOf } from "../../studio/ui/FuseFrameSheet";
 import CustomFrameSlots from "./CustomFrameSlots";
@@ -587,27 +588,28 @@ export default function FlowCanvas({
                   </button>
                 ) : (
                   /* 没全出片时**不摆一颗灰按钮**（本仓明令禁止永远点不动的选项），
-                     只如实说还差几段 —— 这是状态不是入口 */
-                  <div className="rounded-xl border border-slate-700 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
-                    每段都出片之后在这里合成整片（还差 {nodes.filter((n) => !nodeDone(n)).length} 段）
+                     只如实说还差几段 —— 这是状态不是入口（文法④：短原因内联） */
+                  <div className="rounded-xl border border-slate-700 px-3 py-2 text-[11px] text-slate-500">
+                    合成整片 · 还差 {nodes.filter((n) => !nodeDone(n)).length} 段
                   </div>
                 )}
                 {/* 随片出不出卡组：主人点名的用户选择。放在终点这里而不是设置页——
-                    钱在这一步花，选择就该摆在钱旁边。什么时候都能改（组稿前生效即可） */}
+                    钱在这一步花，选择就该摆在钱旁边。什么时候都能改（组稿前生效即可）。
+                    ★ 解释收进 ⓘ（ui-copy-grammar 文法③）：常驻只留名词短语 */}
                 <label
-                  className="flex max-w-[216px] items-start gap-1.5 text-[10px] leading-relaxed text-slate-400"
+                  className="flex max-w-[216px] items-center gap-1.5 text-[10px] text-slate-400"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <input
                     type="checkbox"
                     checked={finish.deckOn}
                     onChange={() => finish.onDeckToggle()}
-                    className="mt-0.5 h-3.5 w-3.5 flex-none accent-brand"
+                    className="h-3.5 w-3.5 flex-none accent-brand"
                   />
-                  <span>
-                    随片提炼本片卡组
-                    <span className="text-slate-500">（你挂过的卡直接入组，缺的卡种由 AI 补齐；不勾就只出片）</span>
-                  </span>
+                  <span>随片提炼本片卡组</span>
+                  <InfoTip title="随片提炼卡组">
+                    出片的同时提炼一副本片卡组：你挂过的卡直接入组，缺的卡种由 AI 按成片补齐（含一张画风卡）。不勾就只出片、不出卡组。组稿前随时能改。
+                  </InfoTip>
                 </label>
                 {finish.allDone && finish.note && (
                   <p className="max-w-[216px] text-[10px] leading-relaxed text-slate-500">{finish.note}</p>
@@ -845,9 +847,7 @@ function NodePanel({
       {/* ★ 已出片的段：换模板/换模式会作废这段成片，store 本来就整句拒 —— 与其让用户
           点开弹层再被拒（而那句话正好被弹层盖住），不如在这里就说清为什么点不动 */}
       {done && !locked && (
-        <p className="text-[10px] leading-relaxed text-slate-500">
-          这一段已经出片，换模板/换模式会作废这段成片。想换就先删除本段再加一段。
-        </p>
+        <p className="text-[10px] leading-relaxed text-slate-500">已出片：换模板/模式会作废本段（想换先删段重加）</p>
       )}
       {stripAsk && (
         <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
@@ -958,11 +958,7 @@ function NodePanel({
               onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
               maxLength={VIDEO_PROMPT_MAX}
               disabled={locked || generating || (castBusy && castOfThisNode)}
-              placeholder={
-                castBusy && castOfThisNode
-                  ? "正在把「人偶 → 角色」合成一段话…"
-                  : "先去挂卡：合成好的点名要求会填在这里，你可以逐字改"
-              }
+              placeholder={castBusy && castOfThisNode ? "正在把「人偶 → 角色」合成一段话…" : "先去挂卡，点名句会填进这里（可改）"}
               className="h-24 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
             />
           ) : (
@@ -971,7 +967,7 @@ function NodePanel({
               onChange={(e) => updateProposal(node.id, { plot: e.target.value })}
               maxLength={VIDEO_PROMPT_MAX}
               disabled={locked || generating || (castBusy && castOfThisNode)}
-              placeholder="写一句要换成谁（V1 白模没有角色位，整段换一个主体）"
+              placeholder="写一句换成谁，例：换成一只戴墨镜的柴犬"
               className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
             />
           )}
@@ -983,7 +979,7 @@ function NodePanel({
             <div className="flex items-center gap-2">
               <span className="flex-none text-xs">🃏</span>
               <span className="min-w-0 flex-1 truncate text-xs text-slate-100">
-                {mats.length ? `素材卡 ${mats.length} 张` : "还没选素材卡（不选也能推演）"}
+                {mats.length ? `素材卡 ${mats.length} 张` : "素材卡（可不选）"}
               </span>
               <button
                 onClick={() => setCardPick(true)}
@@ -1023,12 +1019,14 @@ function NodePanel({
                 onFuse={setFuse}
                 onError={(msg) => useFlow.setState({ err: msg })}
               />
-              {/* 承接状态照实说（chain 的翻转在 setFrame / ⚙ 本段设置，这里只是把事实画出来） */}
+              {/* 承接状态照实说（chain 的翻转在 setFrame / ⚙ 本段设置，这里只是把事实画出来）。
+                  ★ 常驻只留状态短句，"怎么改"收进 ⓘ（ui-copy-grammar 文法③） */}
               {index > 0 && (
-                <p className="text-[10px] leading-relaxed text-slate-500">
-                  {node.chain
-                    ? "首帧承接上一段的真实尾帧（段与段无缝）。上传自己的首帧会改为不承接。"
-                    : "这一段不承接上一段（用你自己的首帧起拍）。想恢复承接：清掉首帧后去 ⚙ 本段设置打开。"}
+                <p className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <span>{node.chain ? "首帧承接上一段尾帧" : "不承接（用自己的首帧起拍）"}</span>
+                  <InfoTip title="段间承接">
+                    承接 = 本段首帧自动用上一段的真实尾帧，段与段无缝；上传自己的首帧会改为不承接。想恢复承接：清掉首帧，再到 ⚙ 本段设置里打开。
+                  </InfoTip>
                 </p>
               )}
               {/* 时长：直接写进方案（nodeCost/genNode 读的就是它）。低于本档下限的不给点 */}
@@ -1190,11 +1188,8 @@ function NodePanel({
             maxLength={VIDEO_PROMPT_MAX}
             disabled={locked || generating}
             placeholder={
-              flatTier
-                ? "这一段要拍什么？真人档直出——起拍画面就是真人卡的照片，写好直接生成"
-                : custom
-                  ? "这一段要拍什么？自定义直出——按你给的首尾帧炼，缺的帧由 AI 按这句话补画"
-                  : "这一段要拍什么？写清楚后点下面推演——AI 先给三套方案（各带首尾帧预览）"
+              // ★ placeholder = 一句提问（ui-copy-grammar 文法⑦）：教学交给引导与按钮本身
+              flatTier ? "这一段拍什么？写好直接生成" : custom ? "这一段拍什么？缺的帧按这句补画" : "这一段拍什么？"
             }
             className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
           />
@@ -1835,13 +1830,13 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
             setText(v);
           }}
           onKeyDown={(e) => e.key === "Enter" && void send()}
-          placeholder={
-            AI_REAL
-              ? `对画布说话（每句 ${fmtTokens(CHAT_TURN_TOKENS)}，/ 唤起句式）：第2段套宗主模板`
-              : "对画布说话（演示档，/ 唤起句式）：第1段 拍主角雨夜狂奔"
-          }
+          // ★ placeholder 只留一句示例（文法⑦）；"/" 的入口是旁边那颗魔杖钮本身
+          placeholder={AI_REAL ? "对画布说话：第2段套宗主模板" : "对画布说话：第1段拍主角雨夜狂奔"}
           className="min-w-0 flex-1 bg-transparent text-xs text-slate-100 outline-none placeholder:text-slate-600"
         />
+        {/* 每句的价（真实收费，报价=实扣）：数字芯片常驻（文法②），不再挤进 placeholder ——
+            placeholder 在打第一个字时就消失，把价钱写在那里等于只报价给还没花钱的人看 */}
+        {AI_REAL && <span className="flex-none text-[9px] text-slate-600">{fmtTokens(CHAT_TURN_TOKENS)}/句</span>}
         <button
           onClick={() => void send()}
           disabled={busy || !text.trim()}

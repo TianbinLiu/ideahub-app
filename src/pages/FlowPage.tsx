@@ -560,15 +560,15 @@ function NodeScreen({
               ? node.progress || "生成中…"
               : simple || blockout // 白模没有方案台（直出复刻），别许诺"三套方案"
                 ? blockout && named
-                  ? "还没有画面——先给人偶挂上角色卡，出片就按模板逐镜头复刻"
+                  ? "还没有画面——先给人偶挂上角色卡"
                   : hasInput
-                    ? "还没有画面——点下面的「生成本段」就开炼"
-                    : "还没有画面——在下面写清楚这一段要拍什么"
+                    ? "还没有画面——点「生成本段」开炼"
+                    : "还没有画面——先写这一段拍什么"
                 : /* ★ 写没写过要分开说（见上面 hasInput 的 ★）：都说"去写"的话，
-                     写完的人会以为自己那行字没存上 */
+                     写完的人会以为自己那行字没存上。空态一句话（文法①） */
                   hasInput
-                  ? "还没有画面——点下面的「生成本段」先看三套方案（各带首尾帧预览）"
-                  : "还没有画面——在下面写清楚这一段要拍什么，点「生成本段」先看三套方案"}
+                  ? "还没有画面——点「生成本段」先看三套方案"
+                  : "还没有画面——先写这一段拍什么"}
           </div>
         )}
       </div>
@@ -697,7 +697,7 @@ function NodeScreen({
               onChange={(e) => setRequirement(node.id, e.target.value)}
               rows={2}
               maxLength={400}
-              placeholder="这一段要拍什么？（AI 会按它推演三套走向）"
+              placeholder="这一段拍什么？"
               data-guide="flow-req-input"
               className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
