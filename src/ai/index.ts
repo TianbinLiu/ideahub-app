@@ -24,6 +24,8 @@ export const composeVideo = mock.composeVideo; // 合成动画节奏（真实生
 export const fuseFrame: typeof real.fuseFrame = AI_REAL ? real.fuseFrame : mock.fuseFrame;
 /** 圈选提取的「按提示词方案炼形象图」（图位由方案决定，风格跟随原图） */
 export const portraitViews: typeof real.portraitViews = AI_REAL ? real.portraitViews : mock.portraitViews;
+/** 圈选改卡图；mock 原图返回（与 refineFrame 的 mock 同款：演示档不装作改了） */
+export const refineCardImage: typeof real.refineCardImage = AI_REAL ? real.refineCardImage : async (o) => o.annotated;
 export const generateCover: typeof real.generateCover = AI_REAL
   ? real.generateCover
   : async (req, _ref, aspect) =>

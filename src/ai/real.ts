@@ -132,6 +132,19 @@ export async function portraitViews(o: {
 }
 
 /**
+ * 圈选改卡图（2026-08-30 自传图向导第②步）：把带圈选标注的图 + 一句要求交给 Seedream
+ * i2i，重画被圈的部分。尺寸按图位走（slotSize），别拿视频帧那套 16:9 画布来裁 3:4 卡图。
+ * 计费在调用方（ONE_IMAGE，与改帧同价同口径）；失败整发抛（铁律八）。
+ */
+export async function refineCardImage(o: { annotated: string; req: string; size: string }): Promise<string> {
+  return genImageAsDataUrl(
+    `按图中圈选标注修改：${o.req}；只修改圈出的部分，其余画面保持原样；` +
+      `保持人物的长相、发型、服装与画风完全一致；成品图不要保留任何圈选线条或标注痕迹`,
+    { imageRefs: [o.annotated], size: o.size },
+  );
+}
+
+/**
  * 「融图」：把 2~3 张参考图**融成一张边界帧**（首帧或尾帧），用来做段间无缝。
  *
  * ★★ 为什么要单独有它：段与段之间要无缝，靠的是**同一张图既当上一段的尾帧、又当下一段
