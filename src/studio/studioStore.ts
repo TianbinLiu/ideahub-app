@@ -109,6 +109,23 @@ export function proposalRedrawCostOf(p: Proposal, prev: Proposal | null): number
   return proposalRedrawCost(keepFirstFrame(p, prev), !!p.pinned?.last);
 }
 
+/**
+ * 工作流那份方案 → 节点树这份的**逐字段搬运器**。组稿（finalizeFromFlow）与进工坊回流
+ * （syncFlowBack）两处共用 —— 字段清单只许有这一份：漏一个字段的表现是"线性播放显示
+ * 新文案、回工坊看到旧文案"这类零报错分叉（markColors 同款机理，CLAUDE.md 单列过）。
+ * `real` 传本段真实出片地址（mock 占位串由调用方按各自语义取舍：组稿只收真地址，
+ * 回流连 "mock:" 一起收 —— 不收的话演示档回工坊全显示"没出片"，法阵永远点不亮）。
+ */
+function copyBackProposal(orig: Proposal, p: Proposal, real: string | undefined): void {
+  orig.firstFrame = p.firstFrame;
+  orig.lastFrame = p.lastFrame;
+  orig.title = p.title;
+  orig.plot = p.plot;
+  orig.durationSec = p.durationSec;
+  if (real) orig.videoUrl = real;
+  delete orig.degraded;
+}
+
 /** 「重新推演三套」跑起来时占用 nodeGen 的那个 key。
  *  nodeGen 本来是按方案 id 记的，而重推时新方案还不存在——拿节点 id 顶上，UI 据此把进度
  *  日志显示在整个方案台上方（重推真实 AI 下要一分钟出头，没有进度就是"卡死"体感）。
@@ -494,6 +511,22 @@ interface StudioState {
    *  StudioPage 据此弹确认层——重铺会抹掉已出片的段（真金白银）、圈选标注与手敲的剧情。 */
   flowConfirm: boolean;
   setFlowConfirm: (v: boolean) => void;
+  /**
+   * 把工作流上的改动**并回节点树**（进工坊那一刻调，StudioPage 挂载时）。
+   *
+   * ★★ 为什么必须有它（2026-08-30 主人点名"检查两边同不同步"查出来的）：startFlow 是按
+   *   引用把 proposals 递过去的，但 flowStore 的 updateProposal 走不可变更新——在工作流里
+   *   改过剧情/换过帧/炼过片之后，流水线上是**新对象**，节点树里还攥着旧的那份；工作流里
+   *   「＋加一段」出来的段树上根本没有。此前唯一的回写时刻是组稿（finalizeFromFlow），
+   *   于是中途点「🎴 工坊」看到的是**上次铺出去时的快照**：帧是旧的、剧情是旧的、
+   *   已出片显示没出片、新加的段整个不见——零报错。
+   * ★ 只并**认得出来的**流水线：任何一个流水线方案 id 能在节点树里找到才算同一条
+   *   （模板/做同款/简约铺的流水线与桌上的树无亲缘，硬并会把别人的段嫁接到无关的树上）。
+   * ★ 逐字段搬运走 copyBackProposal（与组稿那份**同一个函数**，铁律六——字段清单
+   *   分叉就是 markColors 那种零报错事故的温床）；树上认不出的流水线段**追加**到链尾
+   *   （工作流是线性的，追加只沿 chosenId 主链走，未选走向的分支子树原样保留）。
+   */
+  syncFlowBack: () => void;
 
   /** 单独炼工坊节点卡上的这一段（不铺整条工作流）。用户可以只挑几段先看效果，
    *  剩下的留到最后一起炼——出片结果写在方案的 videoUrl 上，两个模式都认。 */
@@ -1794,6 +1827,70 @@ export const useStudio = create<StudioState>()((set, get) => ({
     return true;
   },
 
+  syncFlowBack: () => {
+    const { root } = get();
+    const fnodes = useFlow.getState().nodes;
+    if (fnodes.length === 0) return;
+    const path = activePath(root);
+    /** 流水线上这个段在树上的对应槽：三套方案同进同出，任一 id 对上就是同一个段 */
+    const slotOf = (n: FlowNode) => path.find((s) => s.proposals.some((q) => n.proposals.some((f) => f.id === q.id)));
+    // ── 亲缘判定：一个段都认不出 = 不是同一条流水线 ──
+    //   空桌例外：整条**收养**成新树（模板/做同款/简约铺的流水线此前在工坊那一面
+    //   完全不存在，「🎴 工坊」过去是一张空桌，看着像流水线丢了）。
+    //   桌上有树但无亲缘时**不动**：那是用户自己摆到一半的另一摊活，硬并等于嫁接。
+    if (root && !fnodes.some((n) => slotOf(n))) return;
+    /** FlowNode → 新的节点槽（proposals 按引用，与 startFlow 同一约定；出片写回方案上） */
+    const adopt = (n: FlowNode): NodeSlot => {
+      for (const f of n.proposals) {
+        const v = n.videoByProposal?.[f.id];
+        if (v && !f.videoUrl) f.videoUrl = v;
+      }
+      return {
+        id: uid("node"),
+        proposals: n.proposals,
+        // 工作流的 chosenId 恒有值、"待挑"是 plan==="picking"；树上的待挑 = chosenId null
+        chosenId: n.plan === "picking" ? null : n.chosenId,
+        children: {},
+        materials: n.materials,
+        videoTier: n.videoTier,
+        aspect: n.aspect,
+        requirement: n.requirement,
+      };
+    };
+    let newRoot = root;
+    let tail: NodeSlot | null = path[path.length - 1] ?? null;
+    for (const n of fnodes) {
+      const slot = slotOf(n);
+      if (slot) {
+        // 三套方案逐套回写（不止选中那套：工作流里可以改另一套的剧情再换回来）。
+        // "mock:" 占位一起收 —— 收窄成真地址的话，演示档回工坊全显示"没出片"，法阵点不亮
+        for (const f of n.proposals) {
+          const orig = slot.proposals.find((q) => q.id === f.id);
+          if (!orig) continue;
+          const real = n.videoByProposal?.[f.id];
+          if (orig !== f) copyBackProposal(orig, f, real);
+          else if (real && !orig.videoUrl) orig.videoUrl = real;
+        }
+        if (n.plan === "picking") slot.chosenId = null;
+        else if (n.chosenId && slot.proposals.some((q) => q.id === n.chosenId)) slot.chosenId = n.chosenId;
+        slot.videoTier = n.videoTier;
+        slot.aspect = n.aspect;
+        slot.requirement = n.requirement;
+      } else if (!newRoot) {
+        newRoot = adopt(n);
+        tail = newRoot;
+      } else if (tail?.chosenId) {
+        // 工作流里「＋加一段」出来的段：沿主链追加（未选走向的分支子树原样保留在 children）
+        const fresh = adopt(n);
+        tail.children[tail.chosenId] = fresh;
+        tail = fresh;
+      }
+      // tail 没选走向时追加没有挂点 —— 跳过（那种流水线本身也过不了顺序门禁）
+    }
+    // 工作流里删掉的段**不从树上摘**：树上还挂着未选走向的分支，摘错一刀伤的是分支子树
+    set({ root: newRoot ? { ...newRoot } : newRoot });
+  },
+
   finalizeFromFlow: async (nodes, mode, onProgress, deckOff) => {
     if (nodes.length === 0) return false;
     // ★★ 同一时刻只准跑一发（见 finalizing 字段的 ★★）。原因写进 flowStore.err：
@@ -1843,23 +1940,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
       const slot = path.find((s) => s.proposals.some((q) => q.id === p.id));
       if (slot) {
         const orig = slot.proposals.find((q) => q.id === p.id);
-        if (orig) {
-          orig.firstFrame = p.firstFrame;
-          orig.lastFrame = p.lastFrame;
-          // ★ 文案与时长也必须回写，不能只回写帧：下面的 branchTree 是从**节点树**建的
-          //   （buildBranchTree 读 proposal.title/plot/durationSec），而 segments 用的是
-          //   工作流里改过的值。只回帧的话，同一支视频线性播放显示新文案、走分支显示旧
-          //   文案，观众看到两套说法。（orig 与 p 常常是同一个对象——startFlow 是按引用
-          //   把 proposals 递过去的——那时这几行是无害的自赋值；用户在工作流里改过之后
-          //   flowStore 的 updateProposal 会换新对象，这才真正需要搬回来）
-          orig.title = p.title;
-          orig.plot = p.plot;
-          orig.durationSec = p.durationSec;
-          // 工作流里炼出来的段回写到方案上：回工坊后节点卡上还是"已出片"状态，
-          // 再点法阵也不会要求重炼一遍（两个模式共用同一份出片）
-          if (real) orig.videoUrl = real;
-          delete orig.degraded;
-        }
+        // ★ 文案/时长/帧/出片逐字段回写 —— 搬运器只有 copyBackProposal 一份（与进工坊
+        //   回流 syncFlowBack 共用）。orig 与 p 常常是同一个对象（startFlow 按引用递
+        //   proposals），那时是无害的自赋值；用户在工作流里改过之后 flowStore 的
+        //   updateProposal 会换新对象，这才真正需要搬回来。
+        if (orig) copyBackProposal(orig, p, real);
         slot.chosenId = p.id;
         slot.videoTier = n.videoTier;
         slot.aspect = n.aspect;

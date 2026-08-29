@@ -221,6 +221,13 @@ export default function StudioPage() {
     }
   }, []);
 
+  // ★ 进工坊先把工作流上的改动并回节点树（syncFlowBack 的 ★★）：不并的话，从画布
+  //   点「🎴 工坊」过来看到的是上次铺出去时的快照——帧旧、剧情旧、已出片显示没出片、
+  //   新加的段整个不见，零报错。只跑一次（挂载时）就够：停留期间两边不会同时被操作
+  useEffect(() => {
+    useStudio.getState().syncFlowBack();
+  }, []);
+
   // 点金色圆台 → 铺成工作流后跳 /flow（逐段生成逐段确认，全部满意才进剪辑页）。
   // 只在"节点数从 0 变成有"的那一刻跳，避免从工作流返回工坊时又被弹走
   const flowLen = useFlow((s) => s.nodes.length);
@@ -277,6 +284,18 @@ export default function StudioPage() {
             <div className="min-w-0 max-w-[38vw] rounded-full bg-panel/85 px-3 py-1.5 backdrop-blur">
               <DraftTitle from="studio" className="w-full" />
             </div>
+          )}
+          {/* 「🧩 工作流」：同一条流水线换到画布那一面 —— 与画布顶栏「🎴 工坊」对称
+              （2026-08-30 主人点名：此前只有画布→工坊单向有键，反向只剩法阵那条隐路）。
+              只在流水线上真有段时亮：0 段时 /flow 会把人弹回创作入口，摆一颗必弹走的
+              键就是"永远点不动的选项"的变体；0 段时铺流水线本来就是法阵的差事 */}
+          {flowLen > 0 && (
+            <button
+              onClick={() => navigate("/flow")}
+              className="rounded-full bg-panel/85 px-3 py-1.5 text-xs text-slate-200 backdrop-blur"
+            >
+              🧩 工作流
+            </button>
           )}
           {/* ★ 摆在浮动顶栏右侧这一组里，而不是画面角落硬定位：这一屏是 3D 画布，
               任何 absolute 的小控件都可能压住法阵/卡位（都是量出来的位置） */}
