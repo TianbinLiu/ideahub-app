@@ -54,6 +54,52 @@ const TEMPLATES = [
       "明亮的浅灰色摄影棚背景，灯光均匀。画面里站成一横排的三个完全相同的纯白色人偶模特——没有头发、没有五官、没有服装，全身光滑的哑光白色塑料，关节处可见球形关节。节奏感强的三连动作：先是左边的人偶拍手一次，接着中间的人偶向前一步张开双臂摆出夸张的姿势，最后右边的人偶原地跳起比出胜利手势。三个人偶始终保持左、中、右的站位，位置不交换。固定机位全身景，竖屏构图。",
     descs: ["最左边·拍手的", "中间·向前张臂的", "最右边·跳起比胜利手势的"],
   },
+  // ── 第二批（2026-08-29）：补齐其余四类 ──────────────────────────────
+  {
+    id: "alley-standoff",
+    title: "巷口对峙",
+    category: "story",
+    intro: "深巷两端对峙：左边的角色缓缓拔出木剑指向对面，右边的角色抬手摆出迎战姿态。两个角色位，换上你的主角与对手。",
+    roles: 2,
+    // PROMPT 迭代记录：v1 直接成稿（武器是道具、保持实物；拔剑指向=单向动作，无位置交换）。
+    prompt:
+      "黄昏的窄巷，两侧是斑驳的砖墙，地面有薄雾。画面里只有两个完全相同的纯白色人偶模特——没有头发、没有五官、没有服装，全身光滑的哑光白色塑料，关节处可见球形关节。左边的人偶从腰间缓缓拔出一把木剑，剑尖指向对面；右边的人偶双手抬起摆出迎战的姿态，微微后退半步。两个人偶始终一左一右，位置不交换。固定机位中景侧拍，竖屏构图，逆光剪影感。",
+    descs: ["左边·拔木剑指向对面的", "右边·抬手迎战后退半步的"],
+  },
+  {
+    id: "moonlight-morph",
+    title: "月光变身",
+    category: "morph",
+    intro: "一转身，光尘环绕落定英雄站姿——单角色位变身模板，把你的角色卡挂上去出变身名场面。",
+    roles: 1,
+    // PROMPT 迭代记录：v1 直接成稿（光效属于画面、复刻时保留；单人=挂卡最稳的形态）。
+    prompt:
+      "深蓝色夜空背景，一轮明亮的满月。画面里只有一个纯白色人偶模特——没有头发、没有五官、没有服装，全身光滑的哑光白色塑料，关节处可见球形关节。它站在画面中央，原地转身一圈，转身时周围升起一圈发光的金色光尘与流光环绕，随后光尘散开，它落定成一个挺拔的英雄站姿，单手向前伸出。人偶始终在画面中央。固定机位全身景，竖屏构图。",
+    descs: ["画面中央·转身变身落定英雄站姿的"],
+  },
+  {
+    id: "midautumn-lantern",
+    title: "中秋提灯望月",
+    category: "festival",
+    intro: "屋檐下并肩望月，左边的角色提起暖光灯笼——中秋节的两人团圆位，换上你们两个。",
+    roles: 2,
+    // PROMPT 迭代记录：v1 直接成稿（灯笼/月亮/桂花瓣全是道具与环境，白模只管人；
+    // 2026 中秋在 9 月下旬，提前一个月上架正合 ⑩ 的节奏）。
+    prompt:
+      "夜晚的中式屋檐下，天空挂着一轮巨大的金黄色满月，远处有桂花瓣缓缓飘落。画面里只有两个完全相同的纯白色人偶模特——没有头发、没有五官、没有服装，全身光滑的哑光白色塑料，关节处可见球形关节。两个人偶并肩站着仰头望月，左边的人偶缓缓提起一盏发着暖橙色光的圆形纸灯笼，右边的人偶抬手指向月亮。两个人偶始终一左一右，位置不交换。固定机位中景，竖屏构图，月光清冷与灯笼暖光对比。",
+    descs: ["左边·提暖光圆灯笼的", "右边·抬手指月亮的"],
+  },
+  {
+    id: "product-reveal",
+    title: "新品展示",
+    category: "commerce",
+    intro: "展示台前拿起产品递向镜头，光斑一闪——单角色位带货模板，主讲人换成你自己的角色。",
+    roles: 1,
+    // PROMPT 迭代记录：v1 直接成稿（产品瓶是道具、保持实物；镜头缓推=带货片的标准运镜）。
+    prompt:
+      "简洁的米白色展示间，画面中央一张浅色圆形展示台，台上放着一只磨砂玻璃小瓶。画面里只有一个纯白色人偶模特——没有头发、没有五官、没有服装，全身光滑的哑光白色塑料，关节处可见球形关节。它站在展示台后，双手拿起那只小瓶，递向镜头方向展示，瓶身闪过一道柔和的光斑。人偶始终在画面中央。镜头缓缓向前推近，竖屏构图，柔和棚光。",
+    descs: ["展示台后·拿起产品递向镜头的"],
+  },
 ];
 
 async function jfetch(base, path, opts = {}) {
@@ -97,6 +143,11 @@ const save = () => writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 // ── gen：t2v 出两条白模人偶源视频（直连方舟，¥1/条）─────────────────────
 if (PHASE === "gen") {
   for (const t of TEMPLATES) {
+    // 复跑守卫：已出过的源片不重烧（换构思就删掉对应 mp4 再跑）
+    if (existsSync(join(OUT, `${t.id}.mp4`))) {
+      console.log(`· ${t.title} 已有源片，跳过`);
+      continue;
+    }
     console.log(`① ${t.title}：创建 t2v 任务…`);
     const j = await ark("/contents/generations/tasks", {
       model: "doubao-seedance-2-0-mini-260615",
@@ -187,8 +238,10 @@ const CAST_CHARS = [
   { name: "橙叶", look: "一位奶白色短卷发、戴圆框眼镜的动漫女性角色，暖棕色眼睛，橙黄色针织围巾与米色大衣" },
 ];
 if (PHASE === "castrefs") {
-  const urls = [];
-  for (const c of CAST_CHARS) {
+  // 复用守卫：同一批 TOS 链接 24h 内有效，池子还在就不重烧（过期报 4xx 时删掉 _castPool 重跑）
+  const urls = state._castPool ?? [];
+  if (urls.length) console.log("· 复用上一次的形象图池（_castPool）");
+  for (const c of urls.length ? [] : CAST_CHARS) {
     const mk = async (kind, prompt) => {
       const j = await jfetch(ARK, "/images/generations", {
         body: { model: "doubao-seedream-5-0-260128", prompt, size: "1764x2352", response_format: "url", watermark: false },
@@ -203,12 +256,14 @@ if (PHASE === "castrefs") {
     urls.push([f, b]);
     console.log(`   ${c.name} face+body ✓`);
   }
-  // 按各模板的角色位数分配（前 N 位）
+  state._castPool = urls;
+  // 按各模板的角色位数分配（前 N 位）。★ 只发给还没试炼过的条目：
+  // 复跑时把已 trialDone 的重置掉 = 白白再烧一发 ¥9 的试炼
   for (const t of TEMPLATES) {
     const st = (state[t.id] ??= {});
+    if (st.trialDone) continue;
     st.castRefs = urls.slice(0, t.roles);
     st.castNames = CAST_CHARS.slice(0, t.roles).map((c) => c.name);
-    st.trialDone = false;
   }
   save();
   console.log("castrefs 完成（TOS 链接 24h 内有效，尽快跑 trial）。");
@@ -263,7 +318,14 @@ if (PHASE === "trial") {
 if (PHASE === "publish") {
   for (const t of TEMPLATES) {
     const st = state[t.id];
+    if (!st?.templateId || !st.trialDone) {
+      console.log(`· ${t.title} 还没走完试炼，跳过发布`);
+      continue;
+    }
+    if (st.published) continue;
     await api(`/api/branch/templates/${st.templateId}/publish`, { method: "PATCH", body: {} });
+    st.published = true;
+    save();
     console.log(`${t.title} 已发布`);
   }
   const shared = await jfetch(API_BASE, "/api/branch/templates/shared");
