@@ -18,6 +18,7 @@ import { cancelPendingStop, stopSpeakingSoon } from "./speech";
 import { useStudioBack } from "./useStudioBack";
 import { autoQualityOnFirstVisit, QUALITY_LABELS, type Quality } from "./quality";
 import DiscardFlowDialog from "../components/flow/DiscardFlowDialog";
+import DraftTitle from "../components/DraftTitle";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -268,7 +269,15 @@ export default function StudioPage() {
           <Icon name="back" size={20} />
           <span className="text-xs">{backLabel}</span>
         </button>
-        <div className="pointer-events-auto flex items-center gap-2 pt-2">
+        <div className="pointer-events-auto flex min-w-0 items-center gap-2 pt-2">
+          {/* 工程标题（与工作流画布同一枚 DraftTitle，2026-08-29）：多草稿并存后
+              "现在这摊活是哪条"得有名字。摆在右组最左而不是绝对居中——这一屏是 3D
+              画布，absolute 的小控件会压住法阵/卡位（量过的位置，别加新的绝对定位） */}
+          {hasWork && (
+            <div className="min-w-0 max-w-[38vw] rounded-full bg-panel/85 px-3 py-1.5 backdrop-blur">
+              <DraftTitle from="studio" className="w-full" />
+            </div>
+          )}
           {/* ★ 摆在浮动顶栏右侧这一组里，而不是画面角落硬定位：这一屏是 3D 画布，
               任何 absolute 的小控件都可能压住法阵/卡位（都是量出来的位置） */}
           <HelpButton tour="studio" className="bg-panel/85 backdrop-blur" />

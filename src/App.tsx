@@ -24,6 +24,7 @@ import PublishPage from "./pages/PublishPage";
 import EditPage from "./pages/EditPage";
 import CardDetailPage from "./pages/CardDetailPage";
 import CustomCardPage from "./pages/CustomCardPage";
+import DraftsPage from "./pages/DraftsPage";
 import DeckDetailPage from "./pages/DeckDetailPage";
 import TemplateDetailPage from "./pages/TemplateDetailPage";
 import TemplateMarketPage from "./pages/TemplateMarketPage";
@@ -296,6 +297,8 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* 草稿箱整页（2026-08-29）。不设登录墙：草稿是这台设备的 IndexedDB，与账号无关 */}
+      <Route path="/drafts" element={<DraftsPage />} />
       <Route path="/deck/:id" element={<DeckDetailPage />} />
       <Route path="/template/:id" element={<TemplateDetailPage />} />
       <Route path="/templates" element={<TemplateMarketPage />} />

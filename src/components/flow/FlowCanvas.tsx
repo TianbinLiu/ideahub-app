@@ -19,6 +19,8 @@ import { subscribeVoices, voiceOf, voicesVersion } from "../../data/cardVoice";
 import HelpButton from "../guide/HelpButton";
 import { useAutoGuide } from "../guide/useAutoGuide";
 import AnnStrip from "./AnnStrip";
+import DraftTitle from "../DraftTitle";
+import CameraChips from "./CameraChips";
 import DeleteSegBtn from "./DeleteSegBtn";
 import SegSettings from "./SegSettings";
 import PlanBoard from "../../studio/ui/PlanBoard";
@@ -327,11 +329,11 @@ export default function FlowCanvas({
         <button onClick={onExit} className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-panel text-slate-200">
           <Icon name="close" size={16} />
         </button>
-        <span className="flex-none text-sm font-bold text-slate-100">流水线画布</span>
-        {/* ★ 原来这里是一句「点格子开编辑窗」的常驻提示，加了引导之后撤掉：
-            引导就是"把常驻说明从界面上搬走"的容器，两边都留等于减法没做成。
-            留一个空的 flex-1 把右边几颗顶到边上 */}
-        <span className="min-w-0 flex-1" />
+        {/* 2026-08-29 主人点名：顶栏那句写死的「流水线画布」换成 Google 文档式**工程标题**
+            （点击就地改名，命名即建档）。"这是画布"由整个画面自己说明，标题位留给
+            "这是哪条工程"——多草稿并存后这才是用户真正分不清的事。实现在 DraftTitle 一处
+            （工坊顶栏同款），标题真身在草稿库。flex-1 顺带把右边几颗顶到边上 */}
+        <DraftTitle from="flow" className="min-w-0 flex-1" />
         <HelpButton tour="canvas" className="flex-none" />
         {/* 存草稿：文案随状态换（失败必须看得见 —— 静默"保存成功"会让用户放心关掉页面）。
             ★ 图标钮而不是文字钮：顶栏这一行还得放 ✕/标题/≡线性/转屏，量过放不下第五件文字钮 */}
@@ -1194,6 +1196,16 @@ function NodePanel({
                   : "这一段要拍什么？写清楚后点下面推演——AI 先给三套方案（各带首尾帧预览）"
             }
             className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
+          />
+          {/* 运镜 chips（对标落地，backlog 2.8-⑦）：点选把受控词表的短语插进上面那栏 ——
+              插的目标与 textarea 的绑定完全同源（flatTier/custom 写 plot，其余写
+              requirement），别在这里另判一遍归属 */}
+          <CameraChips
+            text={flatTier || custom ? p.plot : (node.requirement ?? "")}
+            onChange={(next) =>
+              flatTier || custom ? updateProposal(node.id, { plot: next }) : setRequirement(node.id, next)
+            }
+            disabled={locked || generating}
           />
         </>
       )}
