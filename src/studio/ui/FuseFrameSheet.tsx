@@ -180,7 +180,7 @@ export default function FuseFrameSheet({
           onChange={(e) => setInstruction(e.target.value)}
           maxLength={200}
           disabled={!!busy}
-          placeholder={`这张${label}要什么画面？例如"他站在门口回头看，半身构图，暖色夕光"`}
+          placeholder={`这张${label}要什么画面？例："他站在门口回头，半身，暖光"`}
           className="mb-2 h-16 w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-xs text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
         />
         {err && <p className="mb-2 text-[11px] leading-relaxed text-rose-400">{err}</p>}

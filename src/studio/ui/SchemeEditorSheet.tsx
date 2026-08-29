@@ -205,7 +205,7 @@ export default function SchemeEditorSheet({
                     value={s.prompt}
                     onChange={(e) => patchSlot(i, { prompt: e.target.value })}
                     maxLength={400}
-                    placeholder="这一格要画成什么样？（画风那句系统会自动接在后面）"
+                    placeholder="这一格要画成什么样？（画风句会自动接上）"
                     className="h-16 w-full resize-none rounded-md border border-slate-700 bg-ink/60 px-2 py-1.5 text-[11px] leading-relaxed text-slate-100 placeholder:text-slate-600"
                   />
                 </>

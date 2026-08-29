@@ -253,7 +253,7 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
           换设备没有本机记录照样能改——与只写本机库的改名/改简介不是一回事。
           点亮着的那颗 = 再点一下清掉。 */}
       <div className="mb-2">
-        <div className="mb-1 text-[10px] text-slate-500">市场分类（发布前挑一个，别人按分类才筛得到它）</div>
+        <div className="mb-1 text-[10px] text-slate-500">市场分类（发布前挑一个）</div>
         <div className="flex flex-wrap gap-1.5">
           {TPL_CATEGORIES.map((c) => (
             <button

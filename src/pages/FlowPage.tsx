@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import AnnStrip from "../components/flow/AnnStrip";
+import InfoTip from "../components/InfoTip";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import DeleteSegBtn from "../components/flow/DeleteSegBtn";
 import SegSettings from "../components/flow/SegSettings";
@@ -227,18 +228,26 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
         maxLength={VIDEO_PROMPT_MAX}
         disabled={castBusy && castOfThisNode}
         placeholder={
-          castBusy && castOfThisNode
-            ? `正在把「${noun} → 角色」合成一段话…`
-            : "先去挂卡：合成好的点名要求会填在这里，你可以逐字改"
+          castBusy && castOfThisNode ? `正在把「${noun} → 角色」合成一段话…` : "先去挂卡，点名句会填进这里（可改）"
         }
         className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-60"
       />
-      <p className="text-[10px] leading-4 text-slate-500">
-        {castBusy && castOfThisNode
-          ? "合成中…（一次对话，几秒）"
-          : prop.plot.trim()
-            ? `这就是真正发给 AI 的那段话：${noun}与角色名是机器生成的（改错就会换错人），其余随便改；改挂卡会按新映射重新合成、覆盖这里。`
-            : `这一段的要求由挂卡合成：AI 会把「${noun} → 你挂的角色」写成一段话填在这里，出片前你能逐字过目和修改。`}
+      {/* ★ 常驻只留风险内核一句（改错就会换错人是要在改之前看到的，不许全收进 ⓘ——
+          ui-copy-grammar 文法④）；「为什么/覆盖规则」那截进 ⓘ */}
+      <p className="flex items-center gap-1 text-[10px] leading-4 text-slate-500">
+        {castBusy && castOfThisNode ? (
+          "合成中…（一次对话，几秒）"
+        ) : (
+          <>
+            <span>
+              {prop.plot.trim() ? `这段话直接发给 AI：${noun}与角色名改错会换错人，其余随便改` : "挂卡后自动合成，出片前可逐字改"}
+            </span>
+            <InfoTip title="点名句">
+              这一段的要求由挂卡合成：AI 把「{noun} → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。{noun}
+              与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。
+            </InfoTip>
+          </>
+        )}
       </p>
     </div>
   );
