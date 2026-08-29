@@ -27,6 +27,8 @@ export interface User {
   id: string;
   /** 登录标识（手机号或昵称，本地账号下唯一） */
   account: string;
+  /** 公开数字 UID（服务端发的 9 位随机数）。离线账号没有 */
+  uid?: number;
   name: string;
   /** emoji 或 dataURL */
   avatar: string;
@@ -1278,6 +1280,7 @@ function toLocalUser(u: authApi.ApiUser): User {
   return {
     id: u._id,
     account: u.username || u.email || u._id,
+    uid: typeof u.uid === "number" ? u.uid : undefined,
     name: u.displayName || u.username || "我",
     avatar: u.avatarUrl || AVATARS[0],
     bio: u.bio ?? "",

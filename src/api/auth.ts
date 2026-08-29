@@ -14,6 +14,8 @@ import { API_BASE, apiGet, apiPost, apiPut, getToken, setToken } from "./client"
 export interface ApiUser {
   _id: string;
   username: string;
+  /** 公开数字 UID（9 位随机）。老服务端不返回——缺省别编 */
+  uid?: number | null;
   email?: string;
   /**
    * 服务端角色（"user" / "admin" / …）。

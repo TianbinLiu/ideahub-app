@@ -17,6 +17,8 @@ import { ApiError, apiGet } from "./client";
  *  searchUsers 只 select 了 `_id username`，两项都会缺 —— 调用方一律退回
  *  username + 字母底头像，绝不因为缺字段就报错或不显示这个人。 */
 export interface ApiUserLite {
+  /** 公开数字 UID（9 位随机）。老服务端不返回 */
+  uid?: number | null;
   _id: string;
   username: string;
   displayName?: string;
@@ -51,6 +53,9 @@ function toUser(raw: unknown): ApiUserLite | null {
     username,
     displayName: typeof o.displayName === "string" && o.displayName ? o.displayName : undefined,
     avatarUrl: typeof o.avatarUrl === "string" && o.avatarUrl ? o.avatarUrl : undefined,
+    // ★ 这里是逐字段重建（CLAUDE.md「服务端加了字段，本机这几跳要一起搬」那族坑）：
+    //   服务端 2026-08-29 起返回 uid，这行漏了的话个人页那行 UID 永远不出现且零报错
+    uid: typeof o.uid === "number" ? o.uid : undefined,
   };
 }
 
