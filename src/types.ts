@@ -756,12 +756,36 @@ export interface MarkBox {
 }
 
 /** 视频模板 = 卡组 + 生成配方。发布后进模板市场，别人一句话就能复刻同类视频 */
+/**
+ * 模板市场的人话分类（2026-08-29，backlog 2.8-③ 对标落地：Vidu 的 Love/整活/变身/节日/
+ * 电商那套按情绪与用途分，不按模型参数分）。
+ * ★ id 是跨仓契约（server BranchTemplate.category 存的就是它），label 只活在客户端 ——
+ *   改名/加分类只动这张表，服务端存宽松字符串不 enum。
+ * ★ 老模板没有分类（判否定：缺省/认不出的 id 一律当未分类，只在「全部」下出现）。
+ */
+export const TPL_CATEGORIES = [
+  { id: "story", label: "剧情" },
+  { id: "emotion", label: "情感互动" },
+  { id: "fun", label: "整活" },
+  { id: "morph", label: "变身" },
+  { id: "festival", label: "节日" },
+  { id: "commerce", label: "带货" },
+] as const;
+
+/** 分类 id → 人话标签。null = 未分类/认不出（读侧判否定的唯一实现，别在页面各写一遍 find） */
+export function tplCategoryLabel(id: string | undefined): string | null {
+  if (!id) return null;
+  return TPL_CATEGORIES.find((c) => c.id === id)?.label ?? null;
+}
+
 export interface VideoTemplate {
   id: string;
   title: string;
   intro: string;
   /** 封面（dataURL 或站内路径） */
   cover: string;
+  /** 市场人话分类（TPL_CATEGORIES 的 id）。缺省 = 未分类（存量模板全是，判否定） */
+  category?: string;
   author: string;
   createdAt: number;
   /** 模板自带素材卡：套用时直接作为本次生成的素材 */

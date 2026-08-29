@@ -744,6 +744,8 @@ export interface ApiBranchTemplate {
   authorName?: string;
   title?: string;
   intro?: string;
+  /** 市场人话分类（types.TPL_CATEGORIES 的 id；空串/缺省 = 未分类） */
+  category?: string;
   /** https 或空串（服务端 zod 拒 dataURL） */
   coverUrl?: string;
   recipe?: {
@@ -1317,6 +1319,20 @@ export async function patchTemplateRoles(
   const res = await apiPatch<Record<string, unknown>>(`/api/branch/templates/${encodeURIComponent(id)}/roles`, {
     roles,
   });
+  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+}
+
+/**
+ * PATCH /api/branch/templates/:id/category（requireAuth，仅作者）——市场人话分类。
+ * 分类的**唯一写路**（详情页作者工作台；四条建模板车道都不带它，存量模板也靠这里补）。
+ * 空串 = 清掉分类。
+ * @returns null = 老服务端没有这个端点（回包形状判定，不看状态码——SPA 回退恒 200）。
+ */
+export async function patchTemplateCategory(id: string, category: string): Promise<ApiBranchTemplate | null> {
+  const res = await apiPatch<Record<string, unknown>>(
+    `/api/branch/templates/${encodeURIComponent(id)}/category`,
+    { category },
+  );
   return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
 }
 
