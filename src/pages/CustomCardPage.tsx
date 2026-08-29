@@ -3,8 +3,9 @@
 //
 // ★★ 这条路的定位必须一眼看得出来：默认的铸卡**已经是 AI 全自动出图**（3D 工坊里
 //   交给铸卡师，一张图都不用传）。这一页是给"我就是想用自己那张图"的人留的**另一条**
-//   路，不是默认路径 —— 页面顶上那块对比说明不是装饰，去掉它用户就会以为"原来铸卡
-//   还得自己找图"，等于把刚做完的全自动铸卡藏起来了。
+//   路，不是默认路径。2026-08-28 文案收纳：顶上的对比说明压成**一句常驻**（另一条路 /
+//   不耗 token / 去工坊的链接），三条展开讲进了引导（tours 的 customcard，首次进页
+//   强制放一遍、角落 ? 随时重看）——"默认铸卡不用传图"这件事仍然人人看得到。
 //
 // ★★ 这一页**一个模型都不调**，所以既不报价也不扣 token。这是它相对 AI 铸卡的真实
 //   优势（也是唯一的），要写出来；反过来说，它也没有"AI 帮你补全另外两张图"这件事。
@@ -23,6 +24,8 @@
 //    「+ 图位」同一份实现）：越界居中裁并把这件事**说出来**，超 5MB 直接报错。
 import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
+import HelpButton from "../components/guide/HelpButton";
+import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
 import { addCards, isRemoteMode } from "../data/account";
@@ -40,8 +43,7 @@ import {
   slotLabel,
   uid,
 } from "../types";
-// 比例上限是方舟的硬约束，文案里那个数只能从这里取（见下面图位那段的 ★）
-import { REF_MAX_RATIO } from "../utils/image";
+// （比例上限那个数现在只在引导文案里出现，由 tours.tsx 从 utils/image 插值）
 
 /**
  * 卡名 / 简介的长度上限。
@@ -142,6 +144,8 @@ export default function CustomCardPage() {
   const slots = CARD_SLOTS[type];
   const primary = slots[0];
   const tags = useMemo(() => parseTags(tagText), [tagText]);
+  // 路由套着 RequireAuth，进来就有内容，无条件弹
+  useAutoGuide("customcard", true);
 
   /**
    * 换卡种。★ 图位是按卡种给的（人物卡三格、其余两格），换过去没有的那一格**必须
@@ -294,21 +298,18 @@ export default function CustomCardPage() {
         <button onClick={() => nav(-1)} className="flex h-8 w-8 items-center justify-center rounded-full bg-panel">
           <Icon name="back" size={18} className="text-slate-300" />
         </button>
-        <h1 className="text-base font-bold text-slate-100">自己传图做卡片</h1>
+        <h1 className="flex-1 text-base font-bold text-slate-100">自己传图做卡片</h1>
+        <HelpButton tour="customcard" />
       </div>
 
-      {/* ★ 与默认路径的区别写在最前面。不写的话这一页会被读成"原来铸卡得自己找图" */}
-      <div className="mb-3 rounded-xl border border-amber-400/30 bg-amber-400/5 p-3">
-        <p className="text-xs leading-relaxed text-amber-200/90">
-          这是<span className="font-semibold">另一条</span>路：卡面和形象参考图全部用你上传的图。
+      {/* ★ 与默认路径的区别写在最前面——压成一句常驻，三条展开在引导里（tours 的
+          customcard）。整块去掉的话这一页会被读成"原来铸卡得自己找图" */}
+      <div data-guide="cc-compare" className="mb-3 flex items-center gap-2.5 rounded-xl border border-amber-400/30 bg-amber-400/5 p-3">
+        <p className="min-w-0 flex-1 text-xs leading-relaxed text-amber-200/90">
+          这是<span className="font-semibold">另一条</span>路：全部用你上传的图，不调 AI、不耗 token。
         </p>
-        <ul className="mt-1.5 space-y-1 text-[11px] leading-relaxed text-slate-400">
-          <li>· 默认铸卡是 <span className="text-slate-300">AI 全自动出图</span>（3D 工坊 → 找铸卡师），一张图都不用你传。</li>
-          <li>· 这里<span className="text-slate-300">不调用任何出图模型，因此不消耗 token</span>；相应地，也不会有 AI 帮你补齐其余图位。</li>
-          <li>· 铸出来的卡和 AI 铸的完全同一种东西：能进卡组、能当出片的形象参考、能发布到创意工坊。</li>
-        </ul>
-        <Link to="/studio" className="mt-2 inline-block text-[11px] text-brand">
-          想让 AI 来画？去 3D 工坊 ›
+        <Link to="/studio" className="flex-none text-[11px] text-brand">
+          想让 AI 画？去工坊 ›
         </Link>
       </div>
 
@@ -360,10 +361,10 @@ export default function CustomCardPage() {
           })}
         </div>
         {/* ★ 这里**不**把各卡种的图位名列一遍：那是 types.CARD_SLOTS 的内容，
-            下面第 ③ 步已经照表画出来了。抄一份摆在这儿，改表时它不会跟着变 */}
+            下面第 ③ 步已经照表画出来了。抄一份摆在这儿，改表时它不会跟着变。
+            "换卡种会取下并告知"那半句在引导里——真发生时 dropped 那行自己会说 */}
         <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-          卡种决定下面有<span className="text-slate-400">哪几个图位、每格锁住什么</span>
-          （一把剑不该有"全身立绘"）。换卡种时对不上的那一格会被取下来，并在这里告诉你。
+          卡种决定下面有<span className="text-slate-400">哪几个图位、每格锁住什么</span>。
         </p>
         {dropped && <p className="mt-1 text-[11px] leading-relaxed text-amber-400">{dropped}</p>}
       </section>
@@ -404,7 +405,7 @@ export default function CustomCardPage() {
       </section>
 
       {/* ── 3 图位 ── */}
-      <section className="mb-4">
+      <section data-guide="cc-slots" className="mb-4">
         <h2 className="mb-1.5 text-xs font-semibold text-slate-300">
           ③ 图位（{CARD_TYPE_LABELS[type]}共 {slots.length} 格）
         </h2>
@@ -444,10 +445,10 @@ export default function CustomCardPage() {
                   <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">锁住{s.locks}。</p>
                   {isPrimary && (
                     // ★ "一图两用"必须写明白：与最低档 AI 铸卡是同一条规则，
-                    //   不说的话用户会以为卡面是另外一张、还要再传一次
+                    //   不说的话用户会以为卡面是另外一张、还要再传一次。
+                    //   2:3 卡框怎么摆那半句在引导里（tours 的 customcard 第二步）
                     <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">
-                      这一张既当卡面，也当这张卡的主形象参考。卡框是竖版 2:3，非这个比例的图会被
-                      <span className="text-slate-400">居中显示</span>（这一步只影响卡面怎么摆，不裁图）。
+                      这一张既当卡面，也当这张卡的主形象参考。
                     </p>
                   )}
                   {/* ★★ 选图失败的话必须显示在**出事的这一格里**。原来只写进页面底部那个 err，
@@ -488,24 +489,17 @@ export default function CustomCardPage() {
             （ai/real.refUsedFlags，详情页据它逐张标「出片用 / 仅展示」），
             所以这里只说"不是每张都进"并把人指过去，不在这儿把规则重念一遍（铁律六）——
             重念的那一份迟早会和管线分叉，而分叉的正是花了钱的那半句。 */}
+        {/* 两段处理规则（自动压缩 / 比例裁切 / 出片时取几张）搬进了引导第三步——
+            页面上只留"不是每张都用"这一句最防误解的。真裁了图时那一格的 note 自己会说。
+            ★ 引导里那个比例数同样从 utils/image 的 REF_MAX_RATIO 插值，不手打（方舟硬约束） */}
         <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-          出片时<span className="text-slate-400">不是每张都会喂进模型</span>：取几张要看这张卡在那一段里排第几、
-          同一段里还挂了几张卡。铸完之后卡片详情页会逐张标出「出片用 / 仅展示」，那里是唯一的判据。
-        </p>
-        {/* ★ 比例这个数从 utils/image 的 REF_MAX_RATIO 取，不手打一个 "3"：它是方舟的**硬**
-            约束（越界不是忽略这张图，是整个请求 400），改的时候文案必须跟着改。
-          ★ 刻意**不**写"单张上限 5MB"：那是压缩**之后**的 blob 上限，压缩后基本碰不到；
-            用户真会撞到的是原图 20MB 那道（utils/image.decodeImageFile），而两个数摆在
-            一起只会让人以为 6MB 的手机原图不能用 —— 其实完全可以（铁律五）。 */}
-        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-          相册里的原图直接选就行：会自动压到 AI 认得出的尺寸再挂上去，不会把整份原图塞进卡里。
-          长宽比超过 {REF_MAX_RATIO}:1 的会被居中裁进 {REF_MAX_RATIO}:1（方舟不收更极端的参考图），
-          裁过就会在上面那一格里写出来；图太大 / 太小则会当场说明原因。
+          出片时<span className="text-slate-400">不是每张都会喂进模型</span>——详情页会逐张标出
+          「出片用 / 仅展示」，那里是唯一的判据。
         </p>
       </section>
 
       {/* ── 4 「<类型>信息」 ── */}
-      <section className="mb-4">
+      <section data-guide="cc-info" className="mb-4">
         <h2 className="mb-1.5 text-xs font-semibold text-slate-300">④ {CARD_INFO_LABELS[type]}（选填）</h2>
         <textarea
           value={info}
@@ -522,10 +516,9 @@ export default function CustomCardPage() {
           className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3 py-2 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
         />
         <div className="mt-0.5 flex items-start justify-between gap-2">
+          {/* "不填会怎样"那句在引导第四步——选填两个字本身已经说了可跳过 */}
           <p className="text-[10px] leading-relaxed text-slate-500">
-            这段话会存进这张卡的「{CARD_INFO_LABELS[type]}」，
-            <span className="text-slate-400">之后 AI 复刻这张卡的画面 / 建模时会读它</span>。写得越具体越像。
-            不填也行——详情页会按卡名与简介现补一份。
+            <span className="text-slate-400">AI 复刻这张卡的画面 / 建模时会读这段</span>，写得越具体越像。
           </p>
           <span className="flex-none text-[10px] text-slate-600">
             {info.length}/{INFO_MAX}

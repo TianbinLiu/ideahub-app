@@ -56,12 +56,28 @@ z.object 默认 strip，塞进去会被丢掉。★ 这条靠的是 strip 语义
 ```
 { _id, owner: ObjectId(User), cardId, type, name, summary, cover, hot?, tags?,
   modelUrl?, genPrompt?,                       // 3D 建模指针 / 生成蓝图
+  realPerson?,                                 // 真人声明（布尔），见下
   views?: [{ url, kind, note? }],              // 形象参考图（0~3 张），见下
   published?, publishedAt?, description?,      // 分享到创意工坊
   createdAt }
 // imageTier?  —— 客户端 Card 上有，服务端**目前不存**，见下面单独一节
 ```
 `cardId` 是客户端生成的稳定 id（市场卡为 `mkt_*`），`{ owner, cardId }` 唯一索引。
+
+#### `realPerson` —— 真人声明（2026-08-23 加）
+
+用户在圈选提取时**自己勾的**「画面里是真实人物」（机器判不准，只能让当事人表态；
+勾它必须同时勾肖像同意协议，责任由用户承担——产品决定，开放任意真人照片）。
+真人素材受供应商内容审核与深度合成法规约束，出片档位按它分流。
+
+- **缺省 = 老卡/老客户端 = 非真人**，两边读侧一律判否定（`!== true` 当非真人）。
+  拿它和 `false` 等值判"明确声明过不是"会把存量卡整批误判（同 `visibility` 那条规则）。
+- **随分享/安装/卡组快照/作品卡组快照一路携带，不剥**：它是内容属性不是隐私字段，
+  掉在任何一跳，真人卡经那条路洗一遍就变回"非真人"，档位分流静默失效。
+  落库要过的几处与 `views` 完全同一批（见下面「五处一起加」，含第六、第七处的
+  `BranchVideo.deckCardSchema` 与 `branchVideo.controller` 字段白名单）。
+- `PATCH /cards/:cardId` 的 schema 声明了它但当前客户端**不发**（那条 PATCH 是 views
+  专用；声明只为将来加"改声明"入口时不再经历一次"发了、被 strip、零报错"）。
 
 #### `views` —— 卡片的形象参考图
 
@@ -888,6 +904,49 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 
 ### 素材上传与回收
 
+#### 默认路：客户端签名直传 Cloudinary + 分块（2026-08-22 起）
+
+**为什么不走我们自己的服务器**：`Cloudflare 的 Proxy Read Timeout = 125 秒`，而 nginx 默认
+`proxy_request_buffering on` —— 要把整个 body 收完才回包。于是整段上传期间 CF 看到的是
+「源站零响应」，125 秒一到就掐断（nginx 记 **499**，客户端只拿到一个**没有状态码**的 fetch 失败）。
+三发连续复现 `rt=125.006 / 125.005 / 125.006`。⇒ 老路的真实上限**不是那个 100MB，是「125 秒内
+能推上去多少」**（实测手机 5G 上行 0.126MB/s ⇒ 约 15MB）。这个 125 秒**只有 Enterprise 套餐能调**。
+
+**两步：**
+
+`POST /api/uploads/template-video/sign`（requireAuth；限流与老路**共用同两个桶**：3 次/分 + 10 次/天）
+响应：`{ ok, uploadUrl, publicId, params, chunkBytes, maxSizeBytes }`
+- `params` 是要**原样逐字段转发**给 Cloudinary 的表单字段（`allowed_formats / overwrite /
+  public_id / timestamp / api_key / signature`）。客户端**不许自己拼、不许增删**：多签一个没发、
+  或发了一个没签，Cloudinary 都只回一句 `Invalid Signature`，那是最难查的一类错。
+- 客户端把 `file` 与 `Content-Range: bytes <start>-<end>/<total>`（end 是**闭区间**）、
+  `X-Unique-Upload-Id`（同一次上传的每一块用**同一个**值）加进去，POST 到 `uploadUrl`。
+  除末块外**每块必须 > 5MB**（`chunkBytes` 由服务端下发）；中间块回 `{done:false}`，
+  **只有末块**回完整资产。一块就装得下时走普通上传，不带那两个头。
+- 同一张签名可用于该次上传的**所有块**（实测），有效期 1 小时；**同一块可以原地重传**
+  （实测幂等，字节数不会重复累加）—— 断线时只重传那一块。
+
+`POST /api/uploads/template-video/confirm`（requireAuth；限流 **5 次/分**，独立于 uploads 桶）
+body：`{ publicId }`。响应与老路**逐字相同**（有测试比对字段集合）。
+- 服务端拿 `publicId` 走 `cloudinary.api.resource(..., { media_metadata: true })` **自取**元数据，
+  **客户端报的数一个都不信**（它现在能直接和 Cloudinary 对话，回执完全可以伪造，而时长正是
+  r2v 的计价输入）。验收 = 格式/体积（`templateVideoFormatIssue`）+ ① 号窗口（`templateSourceIssue`）。
+- 不过就 `destroy` 再 400；但 **destroy 前必须先问 `templateVideoInUse()`** —— 否则这个端点
+  就成了客户端可点名的删除原语（拿一个已登记已发布的参考视频去 confirm，落在窗口外就被删掉）。
+
+**三条防线（都在服务端，缺一条就有绕行路）：**
+1. `public_id` 由服务端生成并**签死**，形状必须正好是 `ideahub/template-videos/<userId>-<digits>`。
+   客户端能自选 = 能覆盖任何人的资产。请求体里塞 publicId/folder/overwrite 一律无效。
+2. `overwrite: false` **进签名**：签名 1 小时可复用，不锁的话用户能在模板过审发布后用同一张票
+   把内容**原地换掉**（DB 一个字段都不动、零报错）。实测过攻击成立，也实测过这一项挡得住。
+3. `allowed_formats` **进签名**：Cloudinary 算签名时**排除 `resource_type`**（它只在 URL 路径里），
+   所以一张 `/video/upload` 的票改成 `/raw/upload` 照样有效 —— 实测把 HTML 传进了我们的可信域，
+   而那类资产我们三处 destroy 全写死 `resource_type:"video"` 且不带扩展名，**永远回收不到**。
+
+#### 退路：老的一次性上传（**保留不删**）
+
+已经装在用户手机上的旧版 App 只认它；新版在 `/sign` 回 404 时退回这条（**判回包形状不判状态码**）。
+
 `POST /api/uploads/template-video`（requireAuth；FormData 字段名 `video`；
 限流按账号 **3 次/分 且 10 次/天** 两桶串联）。
 
@@ -1051,7 +1110,7 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| POST | `/api/branch/templates` | required（5/分） | **V1 登记**。body `{ title, intro, coverUrl, recipe, videoUrl }`；`videoUrl` 过三重白名单（host=res.cloudinary.com + 模板视频专用目录 + public_id 归属 `^<userId>-\d+$`），别处的链接 400；元数据服务端向 Cloudinary 现查，复核走 **② 号窗口**（整段原片直接当参考视频用）。建成 `status=pending`。重复视频 409 |
+| POST | `/api/branch/templates` | required（5/分） | **V1 登记**。body `{ title, intro, coverUrl, recipe, videoUrl, splits? }`；`videoUrl` 过三重白名单（host=res.cloudinary.com + 模板视频专用目录 + public_id 归属 `^<userId>-\d+$`），别处的链接 400；元数据服务端向 Cloudinary 现查，复核走 **② 号窗口**（整段原片直接当参考视频用）。建成 `status=pending`。重复视频 409（`refVideo.cloudinaryPublicId` **与 `group.sourcePublicId` 都算**——切过段的源不能再登记）。`splits` 非空 = **分段登记**（见下「长视频分段登记」），成功回 `{ ok, template, parts[], needsDetect: true }` |
 | POST | `/api/branch/templates/blockoutize` | required（**3 次/10 分钟**） | **V2 白模化 · 阶段一**。body `{ publicId, startSec, durSec, crop:{x,y,w,h}, frameTimes?, title, intro, coverUrl, videoTier?, aspect?, note? }` —— 提交的是**四组数不是 URL**（变换地址由服务端自己拼）。`frameTimes` 见下「看哪几帧」，**自动模式不带这个字段**。成功 `201 { ok, jobId, taskId, durSec, frames, roles[], markSlots?, expiresAt }`（`markSlots` 见上：存在即序数方案，**阶段一就要给** —— 模板还没建出来时核对入口就要知道该按位置说话还是按编号说话）（**钱在这一刻花掉**；`frames` = 服务端**真正看了几帧**，App 报价与它不等时以它为准并如实说一句）。失败一律带 `billed`（见下） |
 | POST | `/api/branch/templates/blockoutize/finish` | required（仅凭据所有者） | **V2 白模化 · 阶段二**。body `{ jobId }`，**只收 jobId**：任务成没成由服务端自己向方舟核实，客户端说什么都不作数。成功 `{ ok, template, blockout:{ taskId, durSec } }`。**幂等**（重复调回同一条模板，不许建出第二个）。本阶段**不扣钱** |
 | GET | `/api/branch/templates/blockoutize/pending` | required | **掉线恢复**：本账号还没取回结果的凭据 `{ ok, jobs: [{ jobId, taskId, durSec, title, roles[], markSlots?, expiresAt, createdAt }] }`。App 进模板市场时拉一次，摆出取回入口 |
@@ -1062,6 +1121,33 @@ App 侧 `src/api/uploads.ts` 的预检是省用户一次白传的**镜像**，�
 | PATCH | `/api/branch/templates/:id/publish` | required（仅作者） | **两道独立的门**：① 试炼闸 `provenAt` 非空；② 有 `roles` 时必须已核对。任一不过回 400 整句（各说各的原因）。blocked 不能发布 |
 | PATCH | `/api/branch/templates/:id/unpublish` | required（仅作者） | 回到 pending。blocked 是平台处置，作者洗不掉（400） |
 | DELETE | `/api/branch/templates/:id` | required（仅作者） | **连带 `uploader.destroy` 回收参考视频**（先云端后库：云端回收失败回 502 且不删库，重试即可；封面与 **V2 的 `source.publicId` 原始素材** best-effort 回收，失败不阻断）。回 `{ ok: true }` |
+
+### 长视频分段登记（splits，2026-08-20）
+
+超过参考视频窗口（30s）的素材走这条：`POST /templates` 的 body 多带
+`splits: number[]`（秒，**严格递增**，落在 `(0, 源时长)` 开区间），服务端把源视频
+**物理切成 N 段独立 Cloudinary 资产**、各建一条普通模板，`group` 归组。
+
+- **每段必须落在 [4,30] 窗口**，越界**整单 400**、一个资产都不切。服务端**只验不修**
+  （替用户挪分段点 = 替他改每段的价钱）。「用户标的帧 → 合法分段」在客户端一处实现：
+  `app/src/data/templates.planSplits(真实时长, marks)` —— 丢掉切出 <4s 的刀（`dropped`
+  返回给界面整句点名）、>30s 的段中点补刀到进窗。
+- **段数上限 12**（zod `splits ≤ 11` ↔ app `SPLIT_MAX_PARTS`，跨仓契约）。
+- **切段变换**：`so_<a>,du_<d>[/c_scale,w_<N>]/<sourcePublicId>.mp4`。`c_scale` 只在
+  源画面低于 407,696 像素硬门时出现，放大到刚过线（×1.02 余量、宽取偶，公式与
+  `/uploads/template-video/derive` 逐字同源），**接在 so_/du_ 之后**（链式按书写顺序）。
+  边长（<300）与宽高比越窗放大救不了，照旧整单拒。
+- **无裁剪、无时段选择**（v1）：吃的是**整条原始上传**。App 侧的对应限制：ownRef 路
+  选段 >30s 时必须「整条 + 整幅」，否则判词整句拒（`arkVideoRules.ownRefSplitVerdict`）。
+  整条的理由不只是省事：`group.sourceUrl` 就是合并成片时回填**完整音轨**的原片，
+  登记中段音轨就从 0 秒起错位。
+- 每段回包/详情带 `group: { key, index, count, sourceUrl, sourceDurationSec }`
+  （`sourcePublicId` 不出，隐私口径同 `source`）。`sourceUrl` 给客户端解原片音轨。
+- 半途失败：已切资产回收、库里零残留、502 可重试（回滚后判重不误伤）。
+- 登记后每段照常走 `POST /:id/detect-roles` 认人（**每段一发、各自计费**，报价镜像
+  `economy.ownRefTemplateCost` × 段数，App 提交前整句报总价）。
+- 分段登记过的源视频不可再登记（409）、不可当孤儿回收（`group.sourcePublicId` 命中
+  即拒删——它是整组的音轨来源）。
 
 **试炼闸（provenAt）的写入**完全在服务端：r2v 任务被受理时代理落一条
 `{ taskId, templateId, userId }` 追踪（TTL 48h）；轮询响应 `status=succeeded` 且发起人
@@ -1398,6 +1484,7 @@ body `{ roles: [{ label, desc }] }`（**1~9 条**，见上面 `roles` 的铁则 
 | GET | `/api/auth/me` | 只返回登录态字段（`_id/username/email/role/avatarUrl`），**不含 displayName/bio** |
 | GET | `/api/me/profile` | 本次新增，对称于既有的 PUT，返回 `username/displayName/bio/avatarUrl/role/createdAt`。缺了它换设备登录后昵称会退回 username |
 | PUT | `/api/me/profile` | `{ displayName?, bio?, avatarUrl? }`，返回更新后的 user |
+| POST | `/api/me/deactivate` | `{ confirmUsername }` —— 注销账号（**软删除**：打 `deactivatedAt` 标记 + `tokenVersion++` 让全部旧 token 立即 401，内容数据不删、管理员可恢复）。confirmUsername 与本人 username **严格全等**（不 trim、区分大小写），客户端不得预先加工。App 入口：设置 → 注销账号（2026-08-28，仅远端模式显示）。注销后**登录也被拦**：拒签收口在 server 的 `utils/jwt.signToken`（所有签发路径唯一收口），401 整句「账号已注销……support@ 可恢复」；错误密码仍报通用凭据错误，不泄露注销状态。（此处曾误记为「登录仍发 token」——那是把被拒后的空 token 当 `NOTOKEN` 发出去的测法错误，2026-08-28 复查更正并在 server 补了整链测试） |
 
 ### 登录方式按出口 IP 分流
 
@@ -1448,6 +1535,45 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
 ★ Google Cloud Console 里登记的授权回调**只有服务端那一个**
 （`<SERVER_BASE_URL>/api/auth/oauth/google/callback`）。自定义 scheme 不需要、也不能
 登记到 Google —— 它是服务端拿到 token **之后**自己发起的第二跳。
+
+### QQ 登录（原生 SDK，**不走上面那条回跳**）
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| POST | `/api/auth/oauth/qq/native` | 无 | `{ code }` → `201/200 { ok, token, created, user }`。`code` 是 App 原生 SDK `loginServerSide` 拿到的一次性授权码。限流 20/分钟·IP（`QQ_LOGIN_RATE_MAX`）。未配 `QQ_APP_ID`/`QQ_APP_KEY` 时 **503** |
+
+★★ **QQ 不在 `capabilities.providers` 里**，这是有意的。那份列表的语义是"能跳转的 provider"，
+而 QQ 互联注册的是**移动应用** —— 后台**没有回调地址那一栏**，网页版 OAuth2.0 授权走不通
+（要走得先另注册「网站应用」，需要登记域名并 ICP 备案）。App 侧的判断因此是
+"跑没跑在原生壳里"（`utils/qqLogin.ts` 的 `qqLoginSupported`），与 `providers` 无关。
+
+★★ 请求体**只有 `code`**。客户端多送的 `openid` / `access_token` 一律忽略 ——
+openid 由服务端拿 AppKey 向 `graph.qq.com` 换取，客户端没有机会伪造。
+收客户端报上来的 openid 等于"报谁的 openid 就登谁的号"，是无凭证的账号接管。
+
+★ QQ 用户**没有邮箱**（`get_simple_userinfo` 里就没这一项），建号时走合成邮箱
+`qq_<openid>@no-email.ideahub.local`，与手机号注册同一套；昵称进 `displayName`，
+用户名随机生成（`user_<8位hex>`）。openid 是**按 AppID 隔离**的，换 AppID 等于所有 QQ 用户失联。
+
+### 用户协议同意留痕（2026-08-28）
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| POST | `/api/me/accept-terms` | requireAuth | `{ version }`（1~32 字符）→ `200 { ok, termsAcceptedVersion }`。写 `User.termsAcceptedVersion` + `termsAcceptedAt`（服务端时间）。**幂等**：同版本重复提交只刷新时间戳 |
+
+读走 `GET /api/auth/me`：`serializeAuthUser` 现在带 `termsAcceptedVersion`（空串 = 没同意过）。
+
+★ **服务端只存不判**。协议正文与当前版本号都在 app 仓（`src/data/agreements.tsx` 的
+`TERMS_UPDATED`，形如 `"2026-08-28"`），"要不要弹补签门"由客户端拿服务端的值对自己的版本。
+服务端这份是合规留痕（谁、哪版、何时），不是门禁。
+
+★ **App 侧的对账在 `data/account.adoptUser` 一处**（四条登录路 + 冷启动都汇到它）：
+服务端已有当前版本 → 落到本机 localStorage（换设备登录不重复弹）；本机有而服务端没有/旧 →
+补传一次。补传覆盖两种天然漏发：登录页勾选发生在拿到 token **之前**（POST 发不出去）、
+上次 POST 恰好断网。端点幂等，多发无害。
+
+★ 老服务端没有这个端点（404）：App 一律按尽力而为处理，本机记录才是 UI 判据 —— 判否定
+（`termsAcceptedVersion` 缺省/空串 = 没同意过），别判相等（「后加字段判否定」那条铁则）。
 
 ## 语音合成（工坊 NPC 的嗓子）
 

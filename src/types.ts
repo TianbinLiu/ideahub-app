@@ -47,6 +47,11 @@ export interface AspectSpec {
   desc: string;
 }
 
+/** 一段视频可选的时长（秒）。★ 唯一一份：方案台与「本段设置」都从这里取 ——
+ *  在此之前 FlowPage 与 PlanBoard 各写了一份同样的数组。
+ *  ⚠ 各档位还有自己的下限（VideoTier.minSec），能不能选那一档由那边判，别在这里筛。 */
+export const DURATIONS = [3, 5, 6, 8, 10];
+
 export const VIDEO_ASPECTS: AspectSpec[] = [
   {
     id: "portrait",
@@ -284,6 +289,16 @@ export interface Card {
    *   存量卡这一项全是 undefined，等值判会把它们整批算成"另一档"且一点不报。
    */
   imageTier?: string;
+  /**
+   * 画面里是真实人物 —— 用户在圈选提取时**自己勾的声明**（像不像真人机器判不准，
+   * 只能让当事人表态；肖像同意的责任由勾协议那一步压给用户）。
+   * ★ 为什么存在：真人素材受供应商内容审核与深度合成法规约束，出片档位要按它分流
+   *   （真人卡该走审核更严的档），没有这个字段就只能"全按虚拟人放行"或"全按真人加审"。
+   * ★ 缺省 = 老卡 = 非真人，读侧一律**判否定**（`!== true` 当非真人）：存量卡这一项
+   *   全是 undefined，拿它和 false 等值判"明确声明过不是"会把老卡整批误判且零报错
+   *   （imageTier / visibility 同一形状的教训）。
+   */
+  realPerson?: boolean;
   /** 已分享到创意工坊（仅远端模式有意义） */
   published?: boolean;
   /** 分享时写的一句话推荐（对应服务端 BranchCard.description） */
@@ -759,6 +774,18 @@ export interface VideoTemplate {
    *   退回"只有序数"的老形状，与今天逐字相同。判存在性，不判等值。
    */
   markDescs?: string[];
+  /**
+   * 长视频分段登记的归组（2026-08-20）。**存在 = 这条是某个分段组的一段**（存在性判断，
+   * 老模板/整段登记整个字段缺失）：列表把整组折成一张卡、套用时整组一起铺
+   * （flowStore.applyTemplateGroup）。`sourceUrl` 是原片地址 —— 合并成片时拿它解原片音轨。
+   */
+  group?: {
+    key: string;
+    index: number;
+    count: number;
+    sourceUrl: string;
+    sourceDurationSec: number;
+  };
   /** 服务端模板实体 id（登记/发布后回填）。缺省 = 还没上过服务端 —— 同样只判存在性 */
   remoteId?: string;
   /** 已发布到模板市场 */

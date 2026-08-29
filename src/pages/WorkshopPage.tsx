@@ -1,6 +1,6 @@
 // 创意工坊页：管理自己的卡片与卡组——搜索添加市场卡片、建组、增删卡。
 // 与 3D 卡片工坊（/studio）分工：这里是资产管理，那里是创作现场。
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -25,7 +25,9 @@ import type { ApiSharedCard, ApiSharedDeck } from "../api/branch";
 import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
 import { searchMarket } from "../ai";
 import TarotCard from "../components/TarotCard";
-import VideoCardExtractor from "../components/VideoCardExtractor";
+import TemplateShelf from "../components/TemplateShelf";
+import VideoCardAnnotator from "../components/VideoCardAnnotator";
+import { subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType } from "../types";
 
@@ -90,6 +92,12 @@ function CardTile({ card, onRemove, to }: { card: Card; onRemove?: () => void; t
   return (
     <div className="group relative">
       {to ? <Link to={to}>{face}</Link> : face}
+      {/* 🔊 = 带声音样本（本机侧库，data/cardVoice）。用户按"有没有声音"挑卡就靠这一眼 */}
+      {voiceOf(card.id) && (
+        <span className="absolute left-1 top-1 rounded bg-black/70 px-1 text-[10px]" title="带声音样本">
+          🔊
+        </span>
+      )}
       {onRemove && (
         <button
           onClick={onRemove}
@@ -124,9 +132,22 @@ export default function WorkshopPage() {
   const me = useCurrentUser();
   const cards = myCards();
   const decks = myDecks();
-  const [tab, setTab] = useState<"cards" | "decks">("cards");
+  // ★ 2026-08-21 加第三个页签「我的模板」（用户点名：模板与卡片/卡组同住创意工坊，
+  //   同一行页签）。内容整块复用 components/TemplateShelf —— 它自带「模板市场/我的模板」
+  //   两个来源，所以模板市场也一并住进了本页；/templates 独立页照旧（深链在用）。
+  const [tab, setTab] = useState<"cards" | "decks" | "templates">("cards");
   const [q, setQ] = useState("");
   const [market, setMarket] = useState<Card[]>([]);
+  /**
+   * 市场里**已经拥有的**那些要不要一起摊出来。默认不摊（2026-08-23）。
+   * ★★ 病症是量出来的：种子市场 17 张，老用户基本全拿过 —— 于是「从市场添加」下面
+   *   摊着 17 格，其中 16 格是 40% 透明、按钮写着「已拥有」的死格子，把整个卡片页签
+   *   撑到 149 行，而真正能点的只有 1 格。这一段的活是"找还没有的卡"，
+   *   已拥有的每一格都在与这件事作对。
+   * ★ 不是删掉：仍然能一键摊开（有人就是想按卡面点进详情看蓝图、点赞）。
+   *   隐藏了几张要**说出数目**，否则看起来像市场就这么小。
+   */
+  const [showOwned, setShowOwned] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   // 市场：卡片 / 卡组两个来源
@@ -136,7 +157,9 @@ export default function WorkshopPage() {
   const [busyCard, setBusyCard] = useState<string | null>(null);
   const [cardErr, setCardErr] = useState("");
   // 上传本地视频提卡的抽屉
-  const [extractOpen, setExtractOpen] = useState(false);
+  /** 圈选提取抽屉。null = 没开；"deck"/"single" = 提取卡组 / 单张卡片（V2 圈选式） */
+  const [extractOpen, setExtractOpen] = useState<null | "deck" | "single">(null);
+  useSyncExternalStore(subscribeVoices, voicesVersion, () => 0);
   const remote = isRemoteMode();
 
   // 搜索市场卡片（空词=热门）
@@ -212,9 +235,9 @@ export default function WorkshopPage() {
         <span className="flex-none rounded-full bg-panel px-2.5 py-1 text-slate-300">{decks.length} 个卡组</span>
       </div>
 
-      {/* 页签 */}
+      {/* 页签：卡片 / 卡组 / 模板同一行（模板那格连着模板市场，见 TemplateShelf） */}
       <div data-guide="workshop-tabs" className="mb-3 flex gap-2">
-        {(["cards", "decks"] as const).map((t) => (
+        {(["cards", "decks", "templates"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -222,12 +245,16 @@ export default function WorkshopPage() {
               tab === t ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
             }`}
           >
-            {t === "cards" ? "我的卡片" : "我的卡组"}
+            {t === "cards" ? "我的卡片" : t === "decks" ? "我的卡组" : "我的模板"}
           </button>
         ))}
       </div>
 
-      {tab === "cards" ? (
+      {tab === "templates" ? (
+        <div className="pb-4">
+          <TemplateShelf initialTab="mine" />
+        </div>
+      ) : tab === "cards" ? (
         <>
           {cards.length > 0 && (
             <div className="mb-5 grid grid-cols-3 gap-2.5">
@@ -238,23 +265,33 @@ export default function WorkshopPage() {
           )}
           {cards.length === 0 && (
             <div className="mb-3 rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
-              还没有卡片——去 3D 工坊让 AI 炼一张、从视频提取、自己传图做一张，或从下面的市场添加
+              还没有卡片——用下面几种方式做第一张
             </div>
           )}
 
-          {/* 从本地视频提卡：手里已经有片子的人不必从零铸卡，抽帧让 AI 认人认景直接出卡 */}
-          <button
-            data-guide="workshop-extract-card"
-            onClick={() => setExtractOpen(true)}
-            className="mb-5 flex w-full items-center gap-3 rounded-xl border border-cyan-400/35 bg-gradient-to-r from-cyan-400/15 to-transparent px-3.5 py-3 text-left"
-          >
-            <span className="text-2xl">🎬</span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-100">从视频提取卡片</span>
-              <span className="block text-[11px] text-slate-400">上传本地视频，AI 认出里面的角色/场景/画风，直接铸成卡</span>
-            </span>
-            <Icon name="chevron" size={18} />
-          </button>
+          {/* 从本地视频圈选提卡（V2，2026-08-24 换代）：旧路是"AI 看抽帧自动认"，又贵又不可控；
+              新路是用户拖到某一帧亲手圈出要的人和物 —— 不上传、不花 token、指哪张是哪张。
+              两颗入口并排：提取卡组（连圈多张打包）/ 提取卡片（圈一张就走）。 */}
+          <div data-guide="workshop-extract-card" className="mb-5 flex gap-2">
+            {(
+              [
+                ["deck", "🎴", "从视频提取卡组", "连圈多张，打包成一组"],
+                ["single", "🎯", "从视频提取卡片", "圈一张就走"],
+              ] as const
+            ).map(([mode, icon, title, sub]) => (
+              <button
+                key={mode}
+                onClick={() => setExtractOpen(mode)}
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-cyan-400/35 bg-gradient-to-r from-cyan-400/15 to-transparent px-3 py-3 text-left"
+              >
+                <span className="text-xl">{icon}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-semibold text-slate-100">{title}</span>
+                  <span className="block truncate text-[10px] text-slate-400">{sub}</span>
+                </span>
+              </button>
+            ))}
+          </div>
 
           {/* 自己传图做卡片：**另一条**路，不是默认路径 —— 默认铸卡（3D 工坊里的铸卡师）
               已经是 AI 全自动出图，一张图都不用传。所以这行说明必须点出区别，
@@ -362,8 +399,23 @@ export default function WorkshopPage() {
                     {cardErr && <div className="mb-3 text-xs text-rose-400">{cardErr}</div>}
                   </>
                 )}
+              {/* ★ 过滤在渲染这一层做，不动 market 本身：ownedIds 会随「＋ 添加」当场变，
+                  刚添加的那一格应当就地变成"已拥有"再消失，而不是让整份列表重算一遍。 */}
+              {(() => {
+                const hiddenOwned = showOwned ? 0 : market.filter((c) => ownedIds.has(c.id)).length;
+                return hiddenOwned > 0 ? (
+                  <button
+                    onClick={() => setShowOwned(true)}
+                    className="mb-2 w-full rounded-lg border border-slate-700/60 bg-panel/60 py-1.5 text-[11px] text-slate-400"
+                  >
+                    已拥有的 {hiddenOwned} 张没有列出 · 点这里一起看
+                  </button>
+                ) : null;
+              })()}
               <div className="grid grid-cols-3 gap-2.5 pb-4">
-                {market.map((c) => {
+                {market
+                  .filter((c) => showOwned || !ownedIds.has(c.id))
+                  .map((c) => {
                   const owned = ownedIds.has(c.id);
                   return (
                     <div key={c.id}>
@@ -560,7 +612,7 @@ export default function WorkshopPage() {
           </div>
         </>
       )}
-      {extractOpen && <VideoCardExtractor onClose={() => setExtractOpen(false)} />}
+      {extractOpen && <VideoCardAnnotator deckMode={extractOpen === "deck"} onClose={() => setExtractOpen(null)} />}
     </div>
   );
 }

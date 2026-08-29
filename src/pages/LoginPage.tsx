@@ -16,12 +16,16 @@
 // 离线（没配 VITE_API_BASE 或服务器不可达）时整页退回本地账号：账号不存在即注册。
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
+import ConfirmDialog from "../components/ConfirmDialog";
+import InfoDialog from "../components/InfoDialog";
 import Icon from "../components/Icon";
+import { AGREEMENTS, recordTermsAccepted, termsAccepted, type AgreementId } from "../data/agreements";
 import {
   consumeAuthNotice,
   isRemoteMode,
   registerWithEmailOtp,
   signIn,
+  signInWithOauthToken,
   signInWithPassword,
   signInWithPhoneOtp,
 } from "../data/account";
@@ -34,6 +38,7 @@ import {
   type AuthCapabilities,
 } from "../api/auth";
 import { startOauth } from "../utils/oauth";
+import { qqLoginSupported, signInWithQQ } from "../utils/qqLogin";
 import BrandIcon, { BRAND_CHIP, type BrandName } from "../components/BrandIcon";
 
 const INPUT =
@@ -44,6 +49,12 @@ const INPUT =
 const RESEND_SEC = 60;
 
 type Method = "password" | "email" | "phone";
+
+/** 点了个点不动的第三方按钮时说实话——两家不能用的原因完全不同，别混成一句 */
+function deadReason(k: BrandName): string {
+  if (k === "qq") return "QQ 登录要在 App 里用（浏览器中没有 QQ 客户端可以拉起），先用邮箱或手机号登录";
+  return "微信登录还没接入（需要企业主体与应用审核），先用邮箱或手机号登录";
+}
 
 export default function LoginPage() {
   const remote = isRemoteMode();
@@ -62,6 +73,27 @@ export default function LoginPage() {
   const [err, setErr] = useState(() => params.get("err") || consumeAuthNotice());
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // ── 用户协议勾选门（2026-08-28）────────────────────────────────
+  // 文本只有 data/agreements 一份（铁律六）。这台设备上同意过当前版本就默认勾上，
+  // 正文更新（TERMS_UPDATED 变了）后记录失效、重新要求勾选。
+  const [agreed, setAgreed] = useState(() => termsAccepted());
+  /** 看哪份全文（登录页只放协议与隐私两份；AIGC 须知在发布页与设置页） */
+  const [viewDoc, setViewDoc] = useState<AgreementId | null>(null);
+  /**
+   * 没勾就点了登录/第三方时暂存的那次动作：弹「同意并继续」，点了才放行。
+   * ★ 比只弹一句红字好：用户的下一步永远是"同意然后登录"，让他点两次是白折腾。
+   */
+  const [pendingAuth, setPendingAuth] = useState<(() => void) | null>(null);
+
+  /** 所有登录入口共用的一道门（密码/验证码/QQ/Google/GitHub 都从这儿过） */
+  function requireAgree(run: () => void) {
+    if (agreed) {
+      run();
+      return;
+    }
+    setPendingAuth(() => run);
+  }
 
   // 表单
   const [account, setAccount] = useState(""); // 密码登录的 用户名/邮箱
@@ -183,8 +215,26 @@ export default function LoginPage() {
     await startOauth(provider, (msg) => setErr(msg));
   }
 
+  /**
+   * QQ 走的是**另一条链路**：原生 SDK 拉起 QQ 客户端，结果同步回到这次 await，
+   * 不经过 OauthDeepLinkBridge（见 utils/qqLogin 文件头）。所以落地登录态与跳转
+   * 都要在这里自己做一遍，不能指望顶层那个桥。
+   */
+  async function qqSignIn() {
+    setErr("");
+    setBusy(true);
+    try {
+      await signInWithOauthToken(await signInWithQQ());
+      done();
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const onEnter = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") void submit();
+    if (e.key === "Enter") requireAgree(() => void submit());
   };
 
   // 服务端没报 phoneEnabled 就不给这一栏——摆一个发不出码的按钮比没有更糟
@@ -195,6 +245,10 @@ export default function LoginPage() {
   ];
   const showGoogle = !!caps?.oauthEnabled && caps.providers.includes("google");
   const showGithub = !!caps?.oauthEnabled && caps.providers.includes("github");
+  // ★ QQ **不看 caps**。它不是服务端那套 oauth provider（没有跳转、没有回调地址），
+  //   而是原生 SDK 直接拉起 QQ 客户端，能不能用只取决于"跑在不跑在 App 壳里"。
+  //   拿 providers 去判它的话，浏览器里也会亮，点了必然报 not implemented。
+  const showQQ = qqLoginSupported();
 
   return (
     <div className="safe-top relative flex min-h-full flex-col items-center justify-center px-6 py-10">
@@ -384,8 +438,38 @@ export default function LoginPage() {
         {err && <div className="text-xs leading-relaxed text-rose-400">{err}</div>}
         {note && !err && <div className="text-xs text-emerald-400">{note}</div>}
 
+        {/* 协议勾选行。链接是嵌在文字里的两颗小按钮——不能把整行做成一颗大按钮
+            再往里嵌按钮（button 套 button 是非法嵌套，React 也会告警） */}
+        <div className="flex items-start gap-2 pt-1">
+          <button
+            onClick={() => {
+              const v = !agreed;
+              setAgreed(v);
+              if (v) recordTermsAccepted();
+            }}
+            aria-label={agreed ? "取消同意协议" : "同意协议"}
+            role="checkbox"
+            aria-checked={agreed}
+            className={`mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full border transition ${
+              agreed ? "border-brand bg-brand text-ink" : "border-slate-600"
+            }`}
+          >
+            {agreed && <Icon name="check" size={11} strokeWidth={3} />}
+          </button>
+          <span className="text-[11px] leading-relaxed text-slate-500">
+            已阅读并同意
+            <button onClick={() => setViewDoc("terms")} className="text-brand">
+              《用户协议》
+            </button>
+            与
+            <button onClick={() => setViewDoc("privacy")} className="text-brand">
+              《隐私政策》
+            </button>
+          </span>
+        </div>
+
         <button
-          onClick={() => void submit()}
+          onClick={() => requireAgree(() => void submit())}
           disabled={busy || capsLoading}
           className="w-full rounded-xl bg-brand py-3 text-sm font-bold text-ink transition hover:brightness-110 disabled:opacity-60"
         >
@@ -402,8 +486,9 @@ export default function LoginPage() {
                     : "重置密码并登录"}
         </button>
 
-        {/* 第三方。★ 微信/QQ 是明确的占位：国内两家都要企业主体 + 应用审核才拿得到
-            AppID，没接之前放一个"点了就登进去"的按钮是骗人，所以按下去只说实话。 */}
+        {/* 第三方。★ 微信仍是明确的占位（要企业主体 + 应用审核才拿得到 AppID），
+            放一个"点了就登进去"的按钮是骗人，所以按下去只说实话。
+            QQ 已接入，但只在 App 壳里能用——浏览器里同样给出真实原因（见 deadReason）。 */}
         {remote && !capsLoading && (
           <>
             <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-600">
@@ -411,17 +496,18 @@ export default function LoginPage() {
               其他方式
               <span className="h-px flex-1 bg-slate-800" />
             </div>
-            {/* ★ 显示哪几个由服务端的 capabilities 决定，前端不自己判地区：
+            {/* ★ Google/GitHub 显示哪几个由服务端的 capabilities 决定，前端不自己判地区：
                   国内出口 IP → oauthEnabled=false → 只剩微信/QQ（Google 在墙内点了只会转圈）
                   海外出口 IP → 四个都在
-                微信/QQ 不受 oauthEnabled 约束——它们在国内才是主力登录方式。 */}
+                微信/QQ 不受 oauthEnabled 约束——它们在国内才是主力登录方式。
+                QQ 更进一步：它连 providers 都不看，只问"跑在 App 壳里没有"（见 showQQ）。 */}
             <div className="flex justify-center gap-3.5">
               {(
                 [
                   ...(showGoogle ? ([{ k: "google", live: true }] as const) : []),
                   ...(showGithub ? ([{ k: "github", live: true }] as const) : []),
                   { k: "wechat", live: false },
-                  { k: "qq", live: false },
+                  { k: "qq", live: showQQ },
                 ] as Array<{ k: BrandName; live: boolean }>
               ).map((p) => {
                 const chip = BRAND_CHIP[p.k];
@@ -430,8 +516,8 @@ export default function LoginPage() {
                     key={p.k}
                     onClick={() =>
                       p.live
-                        ? void thirdParty(p.k)
-                        : setErr(`${chip.label}登录还没接入（需要企业主体与应用审核），先用邮箱或手机号登录`)
+                        ? requireAgree(() => void (p.k === "qq" ? qqSignIn() : thirdParty(p.k)))
+                        : setErr(deadReason(p.k))
                     }
                     style={{ background: chip.bg }}
                     className={`flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition active:scale-95 ${
@@ -440,7 +526,10 @@ export default function LoginPage() {
                     aria-label={p.live ? `用${chip.label}登录` : `${chip.label}登录（暂未接入）`}
                     title={p.live ? `用${chip.label}登录` : `${chip.label}登录（暂未接入）`}
                   >
-                    <BrandIcon name={p.k} size={p.k === "google" ? 21 : 23} />
+                    {/* ★ 按**视觉重量**给尺寸，不是按包围盒：Google 的 G 撑满画布所以给小一号；
+                        QQ 那张官方 PNG 自带留白、又是 0.83:1 的竖长比例，给 23 时并排明显瘦一圈，
+                        26 才和另外三个看起来一样大（真机 640×2800 上比过） */}
+                    <BrandIcon name={p.k} size={p.k === "google" ? 21 : p.k === "qq" ? 26 : 23} />
                   </button>
                 );
               })}
@@ -471,6 +560,39 @@ export default function LoginPage() {
           )}
         </p>
       </div>
+
+      {/* 没勾协议就点了登录：弹「同意并继续」，点了直接放行暂存的那次登录。
+          全文小窗渲染在它后面——同为 z-50 的 portal，后挂载的盖在上面，
+          于是从这张卡里点《用户协议》能在其上层展开全文。 */}
+      {pendingAuth && (
+        <ConfirmDialog
+          title="服务协议与隐私政策"
+          confirmLabel="同意并继续"
+          onConfirm={() => {
+            setAgreed(true);
+            recordTermsAccepted();
+            const run = pendingAuth;
+            setPendingAuth(null);
+            run();
+          }}
+          onClose={() => setPendingAuth(null)}
+        >
+          登录前请先阅读并同意
+          <button onClick={() => setViewDoc("terms")} className="text-brand">
+            《用户协议》
+          </button>
+          与
+          <button onClick={() => setViewDoc("privacy")} className="text-brand">
+            《隐私政策》
+          </button>
+          。
+        </ConfirmDialog>
+      )}
+      {viewDoc && (
+        <InfoDialog title={AGREEMENTS[viewDoc].title} onClose={() => setViewDoc(null)}>
+          {AGREEMENTS[viewDoc].body}
+        </InfoDialog>
+      )}
     </div>
   );
 }

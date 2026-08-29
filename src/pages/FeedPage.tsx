@@ -29,6 +29,7 @@ import { requestLandscape } from "../hooks/useOrientationLock";
 import { useVideosVersion } from "../hooks/useVideos";
 import Avatar from "../components/Avatar";
 import CommentSheet from "../components/CommentSheet";
+import ShareSheet from "../components/ShareSheet";
 import DanmakuGlyph from "../components/DanmakuGlyph";
 import DanmakuInput from "../components/DanmakuInput";
 import DanmakuLayer from "../components/DanmakuLayer";
@@ -174,6 +175,7 @@ function FeedItem({
   const [saved, setSaved] = useState(() => isCollected(video.id));
   const [saves, setSaves] = useState(video.saves ?? 0);
   const [cmtOpen, setCmtOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [dmOpen, setDmOpen] = useState(false);
   // 弹幕总开关是**用户级**偏好，不跟作品走：在这一条上关掉，划到下一条也该是关的。
   // 订阅而不是 useState(danmakuOn())，否则同屏三个 FeedItem 的开关会各说各话
@@ -396,10 +398,12 @@ function FeedItem({
     onPointerUp: (e: React.PointerEvent) => e.stopPropagation(),
   };
 
+  /** 开分享面板（QQ / 微信占位 / 复制预览链接）。
+   *  ★ 此前这里直接 navigator.share 一个 `${location.origin}/#/video/…`——
+   *    APK 里 origin 是 https://localhost，发出去是死链。现在链接一律出自
+   *    utils/shareLink.previewUrlOf（官网 /v/:id 预览页），面板见 ShareSheet。 */
   function share() {
-    const url = `${location.origin}${location.pathname}#/video/${video.id}`;
-    if (navigator.share) void navigator.share({ title: video.title, url }).catch(() => {});
-    else void navigator.clipboard?.writeText(url);
+    setShareOpen(true);
   }
 
   return (
@@ -421,7 +425,6 @@ function FeedItem({
             <span className="rounded-full bg-gold px-4 py-1.5 text-sm font-bold text-ink">
               ⚡ {fmtTokens(lockPrice)} token 解锁
             </span>
-            <span className="text-[11px] text-white/70">付费作品 · 点击进入解锁</span>
           </button>
         </>
       ) : resolvedSrc && wantSrc ? (
@@ -695,6 +698,7 @@ function FeedItem({
       </div>
 
       {cmtOpen && <CommentSheet video={video} onClose={() => setCmtOpen(false)} />}
+      {shareOpen && <ShareSheet video={video} onClose={() => setShareOpen(false)} />}
       {/* 发弹幕时视频**不暂停**：弹幕的意思就是"此刻"，停下来发就名不副实了。
           附在哪一秒由输入条按下发送时现取（getTime），不是打开时定死的 */}
       {dmOpen && (

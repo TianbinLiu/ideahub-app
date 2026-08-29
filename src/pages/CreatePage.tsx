@@ -12,6 +12,7 @@ import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
+import DiscardFlowDialog from "../components/flow/DiscardFlowDialog";
 import { flowDirty, useFlow } from "../studio/flowStore";
 import { useStudio } from "../studio/studioStore";
 
@@ -41,7 +42,7 @@ const MODES: Mode[] = [
     title: "工坊模式",
     tag: "完整作品",
     desc: "在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑一套炼一段，逐段往下铺。",
-    bullets: ["素材卡组驱动，人物场景全片一致", "每段三选一，可分叉可回溯", "本段炼出来才开下一张卡，坏了立刻止损"],
+    bullets: ["用素材卡定人物场景，全片一致", "每段三选一，可回头改", "炼好这段才开下一张，坏了立刻止损"],
     cover: "/create/studio.jpg",
     skin: "border-amber-400/45",
     cta: "进铸卡桌面",
@@ -54,16 +55,18 @@ const MODES: Mode[] = [
     tag: "自己写分镜",
     desc: "一屏一段：写一句要求，AI 先给三套方案（各带首尾帧预览），挑定一套再炼视频。",
     bullets: [
-      "三套方案摊在屏幕上挑，选中的那套可换首尾帧、改剧情",
-      "一段一结账，不满意只重炼这一段",
-      "节点卡就是工坊的节点卡，只是没有 3D 桌面",
+      "三套方案摊开挑，选中的可换首尾帧、改剧情",
+      "一段一结账，不满意只重炼这段",
+      "和工坊用同一种卡，只是没有 3D 桌面",
     ],
     cover: "/create/workflow.jpg",
     skin: "border-cyan-400/45",
     cta: "开一条工作流",
     resets: true,
     go: (nav) => {
-      useFlow.getState().seedSolo("workflow");
+      // ★ 被 canReplaceNodes 拒了就**留在原地**（原因已写进 store.err，画布/线性都画它）：
+      //   照旧跳页的话，用户会落到一条"没换成"的流水线上，而他以为自己开了新的
+      if (!useFlow.getState().seedSolo("workflow")) return;
       // 这是"另起一摊活"：断开与上一条草稿的关联，否则在新工作流里点保存会把
       // 之前那条草稿原地覆盖掉
       useStudio.getState().newWorkDraft();
@@ -76,18 +79,18 @@ const MODES: Mode[] = [
     title: "简约模式",
     tag: "几秒出片",
     desc: "只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。不推方案、不存草稿。",
-    bullets: ["无需素材卡，开箱即用", "起拍画面 AI 代笔", "一次性直通发布，不占草稿库"],
+    bullets: ["不用素材卡，直接写", "开头画面 AI 补", "直接发布，不进草稿"],
     cover: "/create/simple.jpg",
     skin: "border-fuchsia-400/45",
     light: true,
     cta: "写一句话出片",
     resets: true,
     go: (nav) => {
-      useFlow.getState().seedSolo("simple");
+      if (!useFlow.getState().seedSolo("simple")) return; // 理由同上
       // 简约模式自己不落草稿（见 studioStore.saveWorkDraft），但仍然要断开与上一条草稿的
       // 关联：不断开的话，用户从简约模式回工坊再点「存草稿」会把之前那条原地覆盖掉
       useStudio.getState().newWorkDraft();
-      nav("/flow");
+      nav("/simple"); // ★ 2026-08-23 起简约有自己的向导页，不再寄生在 /flow
     },
   },
 ];
@@ -103,6 +106,8 @@ export default function CreatePage() {
   // 从此回 /create 而不是工坊，那棵节点树就再也走不回去了。
   const [pending, setPending] = useState<Mode | null>(null);
   const flowNodes = useFlow((s) => s.nodes);
+  // 主 CTA 被整句拒时的原因（这一页此前不读它，见下面渲染处的 ★★）
+  const flowErr = useFlow((s) => s.err);
 
   function scrollTo(i: number) {
     const rail = railRef.current;
@@ -164,9 +169,6 @@ export default function CreatePage() {
                       {m.tag}
                     </span>
                   </div>
-                  <p className={`mt-2.5 text-sm leading-relaxed ${m.light ? "text-slate-700" : "text-slate-200"}`}>
-                    {m.desc}
-                  </p>
                   <ul className="mt-3 space-y-1.5">
                     {m.bullets.map((b) => (
                       <li
@@ -227,41 +229,32 @@ export default function CreatePage() {
         ))}
       </div>
 
-      {pending && (
-        <div className="absolute inset-0 z-30 flex items-end justify-center bg-black/65 p-4" onClick={() => setPending(null)}>
-          <div
-            className="w-full max-w-md rounded-2xl border border-slate-700 bg-panel p-4 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-sm font-bold text-slate-100">已经有一条工作流在跑</h3>
-            <p className="mt-2 text-xs leading-relaxed text-slate-300">
-              {flowNodes.length} 段
-              {(() => {
-                const done = flowNodes.filter((n) => Object.keys(n.videoByProposal).length > 0).length;
-                return done > 0 ? <span className="text-emerald-300">，其中 {done} 段已出片</span> : null;
-              })()}
-              。开新的一条会把它丢掉，已出片的段要重新花 token 再炼一次。
-            </p>
-            <div className="mt-3.5 flex flex-col gap-2">
-              <button onClick={() => navigate("/flow")} className="rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
-                回去接着炼
-              </button>
-              <button
-                onClick={() => {
-                  const m = pending;
-                  setPending(null);
-                  m.go(navigate);
-                }}
-                className="rounded-xl border border-rose-500/40 bg-rose-500/10 py-2.5 text-sm font-semibold text-rose-300"
-              >
-                开一条新的{pending.title}（丢弃上面那条）
-              </button>
-              <button onClick={() => setPending(null)} className="rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200">
-                取消
-              </button>
-            </div>
-          </div>
+      {/* ★★ 这一页也要画 store.err（2026-08-21 第八轮扫描）：主 CTA 现在会被
+          `canReplaceNodes` 整句拒（有段在生成中），而这一页此前从头到尾不读 err ——
+          点下去没有跳转、没有弹层、一个字都没有，与"按钮坏了"完全一样（铁律八）。 */}
+      {flowErr && (
+        <div className="absolute inset-x-3 top-14 z-40 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/95 px-2.5 py-2">
+          <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-white">{flowErr}</p>
+          <button onClick={() => useFlow.setState({ err: "" })} className="flex-none text-white/90">
+            <Icon name="close" size={12} />
+          </button>
         </div>
+      )}
+
+      {/* ★ 与工坊法阵**同一个**对话框（components/flow/DiscardFlowDialog）：
+          这段话要说清"丢弃会不会烧掉已经花过的钱"，抄成两份必然分叉 —— 而它此前
+          正是两份，且两份都在撒谎（见那个组件顶上的 ★★） */}
+      {pending && (
+        <DiscardFlowDialog
+          discardLabel={`开一条新的${pending.title}（丢弃上面那条）`}
+          onResume={() => navigate("/flow")}
+          onDiscard={() => {
+            const m = pending;
+            setPending(null);
+            m.go(navigate);
+          }}
+          onCancel={() => setPending(null)}
+        />
       )}
     </div>
   );

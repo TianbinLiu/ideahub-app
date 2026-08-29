@@ -83,6 +83,32 @@ export interface BlockoutTrimmerProps {
   submitLabel?: string;
   /** 宿主往按钮上方塞的自定义表单（标题/补充说明之类）。组件自己不认识那些字段 */
   extra?: ReactNode;
+  /**
+   * 选段的裁决权 —— 不给就用白模化那组判词（selectionIssue + selectionSummary，原行为）。
+   *
+   * ★★ 为什么要有这个口子（2026-08-20）：这一屏的宿主已经不止白模化一条路，而
+   *   「自带参考视频」那条路对同一份选段的裁决**真的不同**（像素门豁免 —— 那条路的
+   *   服务端会放大；>30 秒不再是拒绝而是换走分段登记）。判词写在 arkVideoRules 里
+   *   （ownRefSingleVerdict / ownRefSplitVerdict），本组件只负责把 issue 画红、ok 画绿 ——
+   *   在这里塞一个 route 开关自己分支，就是把"哪条路怎么判"抄进组件（它不该认识路）。
+   */
+  judge?: (sel: BlockoutSelection, natural: VideoNatural) => { issue: string | null; ok: string };
+  /**
+   * 报价区的替换渲染 —— 不给就出白模化那两笔（blockoutizeCost）+「受理后失败不退费」。
+   *
+   * ★★ 给了就**连 F11 那句一起换掉**：那句说的是 r2v「受理之后才拒绝、算力已耗、费用
+   *   不退」，是白模化那条路独有的风险档 ——「自带参考视频」不出片，挂着它就是拿别条路
+   *   的风险话术吓自己的用户。宿主给的 pricing 节点要自己负责说清这条路的钱与风险。
+   * ★ 同时跳过 blockoutizeIssue/blockoutizeCost 那两道门（它们是白模化价目的就绪检查，
+   *   报价都不归这里了，还拿它们拦提交就是"别条路的价目没就绪、这条路也不让走"）。
+   */
+  pricing?: ReactNode;
+  /**
+   * 时间轴徽章上「允许 N~M 秒」的窗口 —— 不给就是白模化输入那份 [5,30]。
+   * ownRef 分段路允许拉满整条（上限 = min(全片, 12×30)），不换这个数的话，
+   * 用户拖到 34 秒时徽章红着说「允许 5~30 秒」、判词却放行 —— 同一屏自相矛盾。
+   */
+  trimWindow?: { minSec: number; maxSec: number };
   /** 每次框选变化都报一次（宿主要镜像/存草稿时用）。不给就纯内部状态 */
   onSelectionChange?: (sel: BlockoutSelection) => void;
   onSubmit: (sel: BlockoutSelection) => void;
@@ -98,6 +124,9 @@ export default function BlockoutTrimmer({
   submitLabel = "开始白模化",
   extra,
   hideVisionFrames = false,
+  judge,
+  pricing,
+  trimWindow,
   onSelectionChange,
   onSubmit,
   onCancel,
@@ -189,7 +218,15 @@ export default function BlockoutTrimmer({
   /** 元数据还没到（或视频解不开）。★ 与"选得不对"分开：它不是用户的错，不能画成红字 ——
    *  开屏那一两秒里满屏红叉，用户第一反应是"这文件坏了"然后就退出去了 */
   const loading = !geo || !outSel;
-  const issue = outSel && geo ? selectionIssue(outSel, geo) : null;
+  /** 裁决（红字 issue / 绿字 ok）：judge 有就听它的（ownRef 那条路），没有就是白模化那组。
+   *  ★ 两个字段一体拿：issue 与 ok 分开取的话会出现"红字按 A 路判、绿字按 B 路说" */
+  const verdict =
+    outSel && geo
+      ? judge
+        ? judge(outSel, geo)
+        : { issue: selectionIssue(outSel, geo), ok: `这一段可以开炼：${selectionSummary(outSel, geo)}` }
+      : null;
+  const issue = verdict?.issue ?? null;
 
   // ── 报价：两笔，都是真钱 ────────────────────────────────────────
   // ★ 总数只从 blockoutizeCost 取。下面那两行拆解是把同一笔钱的两半说清楚，**不是**第二处
@@ -211,13 +248,21 @@ export default function BlockoutTrimmer({
     sizeMismatch ??
     (loading ? "还在读这段视频" : null) ??
     issue ??
-    priceIssue ??
-    (cost === null
-      ? "白模化现在报不出价，先不能开炼（价目或开关没就绪）——这种情况请把这句话反馈给我们。"
-      : null);
+    // ★ 后两道是**白模化价目**的就绪检查：报价被宿主接管（pricing）时跳过 ——
+    //   那条路的钱不从 blockoutizeCost 出，拿这两道拦它就是"别条路的价目拦了这条路"
+    (pricing
+      ? null
+      : priceIssue ??
+        (cost === null
+          ? "白模化现在报不出价，先不能开炼（价目或开关没就绪）——这种情况请把这句话反馈给我们。"
+          : null));
 
   return (
     <div className="space-y-3">
+      {/* ★ trim-crop 锚点包住**画面台**（2026-08-28 从下面那段说明文字挪上来）：
+          引导那步教的是"拖四个角"，四个角在 CropOverlay 上——圈说明文字等于指着解释
+          说"拖它"。包一层中性 div，不影响 space-y 布局 */}
+      <div data-guide="trim-crop">
       <VideoStage
         ref={stage}
         src={src}
@@ -251,10 +296,11 @@ export default function BlockoutTrimmer({
           ) : undefined
         }
       />
+      </div>
 
       {/* 裁剪框是干什么用的，必须在框旁边说 —— 不说的话大多数人根本不会去动它，
           而它是水印唯一的解（F7 实测：提示词去不掉，edit 是逐帧复刻） */}
-      <p data-guide="trim-crop" className="text-[11px] leading-relaxed text-slate-400">
+      <p className="text-[11px] leading-relaxed text-slate-400">
         拖四个角调整<b className="text-slate-200">裁剪框</b>，拖框身整体挪位。
         <b className="text-amber-300">台标 / 水印必须框到框外</b> —— AI 出片是逐帧复刻画面，
         提示词去不掉它（实测），裁掉是唯一的办法；而模板会被反复套用，留一个水印就是永久的。
@@ -282,9 +328,10 @@ export default function BlockoutTrimmer({
           durSec={sel.durSec}
           /* ★ 轨道下那句「允许 N~M 秒」说的是**输入**那一侧的窗口（下限 5，不是方舟的 4）
              —— 徽章变红的门槛也跟着它。判词与它读同一份对象（selectionIssue 的 ②），
-             两处各写一个数的话，会出现"徽章是蓝的、按钮却点不动"这种自相矛盾的界面。 */
-          minSec={BLOCKOUT_INPUT_RULES.minSec}
-          maxSec={BLOCKOUT_INPUT_RULES.maxSec}
+             两处各写一个数的话，会出现"徽章是蓝的、按钮却点不动"这种自相矛盾的界面。
+             trimWindow 就是同一条纪律的另一半：判词换了（judge），窗口数也得跟着换。 */
+          minSec={trimWindow?.minSec ?? BLOCKOUT_INPUT_RULES.minSec}
+          maxSec={trimWindow?.maxSec ?? BLOCKOUT_INPUT_RULES.maxSec}
           onChange={(startSec, durSecNext) => {
             setSel({ ...sel, startSec, durSec: durSecNext });
             // 拖把手时画面跟到入点：不跟的话用户看不到自己框的这一段从哪开始
@@ -331,10 +378,9 @@ export default function BlockoutTrimmer({
         </p>
       ) : (
         !sizeMismatch &&
-        outSel &&
-        geo && (
+        verdict && (
           <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] leading-relaxed text-emerald-200">
-            ✓ 这一段可以开炼：{selectionSummary(outSel, geo)}
+            ✓ {verdict.ok}
           </p>
         )
       )}
@@ -348,7 +394,9 @@ export default function BlockoutTrimmer({
         </p>
       )}
 
-      {/* 报价 */}
+      {/* 报价。★ pricing 给了就整块换成宿主那份（连下面 F11 一起，见 props 的 ★★）——
+          默认这块报的是白模化那两笔，别条路挂着它就是「页面报 A 路的价、实收 B 路的钱」 */}
+      {pricing ?? (
       <div className="rounded-lg border border-slate-700 bg-panel/60 px-3 py-2">
         {priceIssue ? (
           <p className="text-[11px] leading-relaxed text-amber-200">⚠ {priceIssue}</p>
@@ -379,13 +427,17 @@ export default function BlockoutTrimmer({
           </>
         )}
       </div>
+      )}
 
-      {/* F11：受理后失败不退费。常驻，不折叠 */}
+      {/* F11：受理后失败不退费。常驻，不折叠。★ 报价被宿主接管时一起换掉（见 pricing 的 ★★）：
+          这句说的是 r2v 那条路的风险档，不出片的路挂着它是在吓错人 */}
+      {!pricing && (
       <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
         ⚠ 视频里有<b>真人面孔</b>时，AI 可能在<b>受理之后</b>才拒绝这一发 —— 那时算力已经开始消耗，
         <b>这笔费用不退</b>（实测：创建时不拒，只能中途失败）。真人素材请自己掂量；动画、游戏画面、
         自己拍的白模预演不受影响。
       </p>
+      )}
 
       {extra}
 

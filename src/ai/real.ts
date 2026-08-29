@@ -25,12 +25,14 @@ import {
   TEMPLATE_MAX_CARDS,
   clampDuration,
   imageTierOf,
+  providerOf,
   slotsFor,
   tierOf,
   type CardMintCap,
   type ImageTier,
 } from "../data/economy";
 import { idbSet } from "../data/db";
+import { minimaxVideo } from "./minimaxVideo";
 import { refableViews } from "../data/cardViews";
 import {
   chat,
@@ -1657,6 +1659,8 @@ export async function composeSegments(
     refVideoUrl?: string;
     /** 白模参考视频的源片时长（秒），只喂给 arkClient 的轮询死线定尺寸，不进请求体 */
     refVideoSec?: number;
+    /** 人物卡声音样本（台词音色参考）。只在参考生视频段有意义，由 segmentGen 决定给不给 */
+    refAudios?: string[];
   }>,
   onProgress?: (done: number, total: number, status: string) => void,
 ): Promise<SegmentResult[]> {
@@ -1694,6 +1698,32 @@ export async function composeSegments(
       }
       onProgress?.(i, segments.length, "任务创建中…");
       const tier = tierOf(sg.videoTier);
+      // ── 真人档（MiniMax）在这里分流 ────────────────────────────
+      // 出片调用换供应商，但**尾帧捕获/段间承接/进度**都走下面同一条产线——
+      // 分流点选在这里而不是 segmentGen，就是为了这三样不抄第二份（铁律六）。
+      // 首帧一定非空（segmentGen 的 minimax 分支备好了：用户帧/承接帧/真人卡照片，
+      // 都没有会在那边整句拒，走不到这里）。
+      if (providerOf(sg.videoTier) === "minimax") {
+        const url2 = await minimaxVideo({
+          model: tier.model,
+          prompt: sg.plot.slice(0, VIDEO_PROMPT_MAX),
+          firstFrame: await shrinkFrameFor720p(first),
+          // 与报价同一把尺：clampDuration 对 flatCost 档吸附到 6/10 整档
+          durationSec: clampDuration(sg.durationSec, sg.videoTier),
+          onProgress: (st) => onProgress?.(i, segments.length, `${tier.label}档 · ${st}`),
+        });
+        res.url = url2;
+        try {
+          onProgress?.(i, segments.length, "捕获本段真实尾帧…");
+          const tail = await captureVideoTail(url2);
+          res.lastFrame = tail;
+          carryTail = tail;
+        } catch {
+          // 与方舟路同款兜底：捕获失败不拖垮整段，下一段退回设定衔接
+        }
+        out.push(res);
+        continue;
+      }
       // 参考媒体（形象图 / 白模参考视频）非空：一句话直出，**首尾帧一张都不给**（三种场景互斥）
       const refMode = !!sg.refImages?.length || !!sg.refVideoUrl;
       const url = await generateVideo(sg.plot.slice(0, VIDEO_PROMPT_MAX), refMode ? "" : await shrinkFrameFor720p(first), {
@@ -1705,6 +1735,7 @@ export async function composeSegments(
         // 极速档（pro-fast）不支持首尾帧任务（实测 400 task_type flf2v）——只给首帧起拍
         lastFrameUrl: !refMode && tier.flf ? await shrinkFrameFor720p(last) : undefined,
         refImages: sg.refImages,
+        refAudios: sg.refAudios,
         // 白模参考视频：透传而已，判定与拼装都不在这层（见字段注释）
         refVideoUrl: sg.refVideoUrl,
         refVideoSec: sg.refVideoSec,
@@ -1761,6 +1792,13 @@ export async function npcChat(ctx: {
     90,
   );
   return { text: clean || "（没说话）", tokens: 0 };
+}
+
+/** 画布指挥（「对画布说话」）的对话通道：单轮、原文返回。
+ *  ★ 不复用 npcChat —— 那条会剥标记 + 按句截 90 字（NPC 气泡的形状），
+ *    这里要的是整段 JSON，截一刀就废了。解析/落地都在 studio/canvasAgent。 */
+export async function canvasAgentChat(system: string, user: string): Promise<string> {
+  return chat(system, user);
 }
 
 /** 按句号截断，宁可短不要断在半句。找不到句读就直接截并补省略号。 */

@@ -37,6 +37,8 @@
 import type { ReactNode } from "react";
 import { BLOCKOUT_INPUT_RULES } from "../../data/templates";
 import { CARD_TYPES, CARD_TYPE_LABELS } from "../../types";
+// 自制卡那份要报比例上限：方舟的硬约束，数只能从这里取（数字一律插值，见 ★★）
+import { REF_MAX_RATIO } from "../../utils/image";
 
 export interface GuideStep {
   title: string;
@@ -77,7 +79,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-rail",
         body: (
           <>
-            右边竖着一列。最上面是<b className="font-bold text-slate-100">作者头像</b>，点它进作者主页，头像下面那枚 + 号是关注。往下依次是发弹幕（「弹」字那枚）、点赞、评论、收藏、分享，<b className="font-bold text-slate-100">后四枚下面的数字是已经有多少人做过</b>；发弹幕那枚下面写的是字、不是数。评论就地滑出来，不用离开这一屏。
+            最上面是<b className="font-bold text-slate-100">作者头像</b>（点进主页，下面那枚 + 号关注）。往下第一枚是发弹幕；再往下点赞、评论、收藏、分享，<b className="font-bold text-slate-100">这四枚下面的数字是已经有多少人做过</b>。评论就地滑出来，不用离开这一屏。
           </>
         ),
       },
@@ -86,7 +88,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-progress",
         body: (
           <>
-            画面底缘那条细线是<b className="font-bold text-slate-100">播放进度</b>，它上方右侧的小字是当前 / 总时长。按住它可以<b className="font-bold text-slate-100">拖着跳到任意一处</b>：拖的时候线会变粗、画面中央显示大字时间，松手就从那儿接着播。多段的作品，这条线走的是整片。
+            底缘那条细线是<b className="font-bold text-slate-100">播放进度</b>，右上小字是当前 / 总时长，按住能<b className="font-bold text-slate-100">拖着跳到任意一处</b>。多段的作品，这条线走的是整片。
           </>
         ),
       },
@@ -95,7 +97,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-title",
         body: (
           <>
-            左下角是作者名、标题和简介。<b className="font-bold text-slate-100">点标题进这支片子的详情页</b>——本片卡组、多 P 选集、没被截断的完整简介都只有那儿有；带「互动 · 你来选」的作品，分支也在那儿选。点作者名或右边的头像，则是去他的主页。
+            <b className="font-bold text-slate-100">点标题进详情页</b>——本片卡组、多 P 选集、完整简介、「互动 · 你来选」的分支，都<b className="font-bold text-slate-100">只在那儿</b>。点作者名或头像，去的是他的主页。
           </>
         ),
       },
@@ -104,7 +106,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-fullscreen",
         body: (
           <>
-            那一列最下面单独一枚是全屏键。点了会收起页签、底栏和这些角落的元素，只留画面；<b className="font-bold text-slate-100">横屏的片子会连屏幕一起转过来</b>，所以它在横屏片上写的是「转屏」。要退出，点右上角那枚缩小键。
+            那一列最下面单独一枚是全屏键，点了只留画面；<b className="font-bold text-slate-100">横屏的片子会连屏幕一起转过来</b>，所以它在横屏片上写的是「转屏」。退出点右上角那枚缩小键。
           </>
         ),
       },
@@ -125,35 +127,11 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
-        title: "工坊模式",
-        body: (
-          <>
-            在 3D 铸卡桌面上摆素材卡，人物和场景由卡组锁住，全片保持一致。AI 每段推演几套走向，挑一套炼一段，逐段往下铺；走岔了能从任一张卡分叉回溯。<b className="font-bold text-slate-100">本段炼出来才开下一张卡</b>——第一段人物就不对时当场止损。
-          </>
-        ),
-      },
-      {
-        title: "工作流模式",
-        body: (
-          <>
-            一屏一段，自己写分镜：写清这一段要拍什么 → AI 把几套走向摊开（各带首尾帧预览）→ 挑定一套，还能换帧、改剧情 → 才炼这一段视频。节点卡跟工坊那张是同一张，只是没有 3D 桌面；<b className="font-bold text-slate-100">一段一结账</b>，不满意只重炼这一段。
-          </>
-        ),
-      },
-      {
-        title: "简约模式",
-        body: (
-          <>
-            起手只有一个节点：不用先备素材卡，写一句话、挑个时长，起拍画面交给 AI 代笔，直接出一条短片。它<b className="font-bold text-slate-100">不推方案、不进草稿库</b>，出片后直通剪辑与发布；想留着慢慢打磨的作品，回去挑工坊或工作流。
-          </>
-        ),
-      },
-      {
         title: "挑定了就进去",
         anchor: "create-cta",
         body: (
           <>
-            看中哪张，就点卡片底部那枚按钮从这条路进去：工坊落到 3D 铸卡桌面，另外两种直接落到写要求、出片的那一页。出片之后都汇到<b className="font-bold text-slate-100">同一个剪辑页</b>，再从那里发布。
+            看中哪张，就点卡片底部那枚按钮从这条路进去：工坊落到 3D 铸卡桌面，工作流落到一屏摊开的流水线画布，简约落到一步一屏的向导。出片之后都汇到<b className="font-bold text-slate-100">同一个剪辑页</b>，再从那里发布。
           </>
         ),
       },
@@ -161,51 +139,53 @@ export const TOURS: GuideTour[] = [
   },
   {
     id: "flow",
-    title: "工作流出片",
-    version: 1,
+    title: "简约出片",
+    // v2（2026-08-28 重写）：老版讲的是「先推三套方案、逐段解锁、节点条」那套线性
+    // 单段 UI —— 2026-08-23 线性视图下线后，这份引导唯一还能弹出的地方是**简约模式**，
+    // 而简约恰好一个特性都对不上（单段、不推方案、不存草稿）。FlowPage 当时把自动弹
+    // 关掉、注明"简约独立成页之后要改写它"，这次照办：整份按简约那一屏重写，
+    // 升版本让所有人重看（老引导教的是屏幕上不存在的操作，正是该升版的那种错）。
+    version: 2,
     steps: [
       {
-        title: "这一段拍什么",
-        anchor: "flow-req-input",
+        title: "写一句话就出片",
+        anchor: "flow-simple-plot",
         body: (
           <>
-            工作流把一条片<b className="font-bold text-slate-100">拆成一段一段</b>地炼。先在这里写清楚这一段要拍什么，AI 按你这句话去推演走向。这句话是<b className="font-bold text-slate-100">你自己的话</b>，与方案里 AI 写的剧情分开存着——改了它再重推，就按新要求来。
+            简约模式只有一段、<b className="font-bold text-slate-100">不推方案</b>：在这里写清想拍什么，
+            出片直接照它来。套了模板的话由配方管画风与分镜；
+            <b className="font-bold text-slate-100">带角色位的白模模板</b>，这一块换成挂卡入口——把你的角色卡挂到画面里的人偶上。
           </>
         ),
       },
       {
-        title: "先挑方案再出片",
-        anchor: "flow-stage",
-        body: (
-          <>
-            <b className="font-bold text-slate-100">还没有方案时</b>，点「生成本段」先不炼视频：AI 先推演出几套走向，各带首尾帧预览铺在这块屏幕上。挑定一套之后还能换首尾帧、逐字改剧情，改完再炼。推演和出片是<b className="font-bold text-slate-100">两笔钱</b>，各花多少就印在那颗按钮上，点之前看一眼那个数。
-          </>
-        ),
-      },
-      {
-        title: "同一颗推进键",
+        title: "这颗键印着价钱",
         anchor: "flow-main-btn",
         body: (
           <>
-            全程只有这一颗键往前推，它<b className="font-bold text-slate-100">按当前这一拍变样</b>：还没方案时点它去推演，方案摊开、还没挑定时它是「重新生成方案」，挑定之后才变回「生成本段」——这一下才真去炼视频。旁边「⚙」里改本段的时长、画质与画幅。
+            点它才真花钱开炼，花多少就印在键上。旁边「⚙」改本段的<b className="font-bold text-slate-100">时长、画质与画幅</b>——价钱跟着变，点之前看一眼。
+            出片之后多一颗「⭕ 圈选」：圈出画面里要改的地方、写句要求，就地重画。
           </>
         ),
       },
       {
-        title: "一段炼完再往下",
-        anchor: "flow-node-strip",
+        title: "结果就在这块屏幕上",
+        anchor: "flow-stage",
         body: (
           <>
-            下一段<b className="font-bold text-slate-100">默认接着这一段的真实结尾画面</b>起拍，所以本段炼出来之前，后面的段一直锁着，也加不了新的一段。这不是在限制你——第一段人物就不对的话，你在这里就能止损，不必铺完整条片才发现。
+            出片前这里显示<b className="font-bold text-slate-100">起拍画面</b>，出片后就地回放这一段。
+            不满意就改上面那句话（或换圈选）再来一次。
           </>
         ),
       },
       {
-        title: "合成一条完整片",
+        title: "完成直通发布",
         anchor: "flow-finish",
         body: (
           <>
-            每一段都出片之后，点右上角「完成视频」把各段并成一条片子，进剪辑页收工。炼完一段会<b className="font-bold text-slate-100">自动存一次草稿</b>；只改文字不会自动存，想留住就点旁边的「存草稿」，之后能从个人页接着做。
+            满意了点右上角「完成视频」，去剪辑页收尾、发布。
+            <b className="font-bold text-slate-100">简约不进草稿库</b>：中途退出这一段就不在了——
+            想细做、想留草稿，回创作入口换工作流或工坊。
           </>
         ),
       },
@@ -254,7 +234,7 @@ export const TOURS: GuideTour[] = [
         anchor: "studio-back",
         body: (
           <>
-            左上角这颗按钮是<b className="font-bold text-slate-100">唯一的出口</b>，它会说出自己下一步退什么：先关浮层、再退市场或对话，最后才回首页。桌上摆好的这些只在内存里，刷新或关掉 App 就没了——一动手，顶栏右侧就会出现<b className="font-bold text-slate-100">存草稿</b>，想过会儿接着做就先点它。
+            左上角这颗按钮是<b className="font-bold text-slate-100">唯一的出口</b>，它会说出自己下一步退什么：先关浮层、再退市场或对话，最后才回首页。<b className="font-bold text-slate-100">卡片收下就入账</b>，刷新还在；但桌上那棵节点树只在内存里——铸出第一段后顶栏右侧会出现<b className="font-bold text-slate-100">存草稿</b>，想过会儿接着做就先点它。
           </>
         ),
       },
@@ -296,16 +276,17 @@ export const TOURS: GuideTour[] = [
         anchor: "templates-tab-mine",
         body: (
           <>
-            <b className="font-bold text-slate-100">我的模板</b>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。两条路在框选那一屏里挑，各要花多少钱也由那一屏当场整句报出来，确认了才开炼。
+            <b className="font-bold text-slate-100">我的模板</b>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<b className="font-bold text-slate-100">打开后的第一屏</b>挑；要花多少钱到框选那一步当场整句报出来，确认了才开炼。
           </>
         ),
       },
       {
+        // ★ 有意不挂锚点（2026-08-28 撤掉 template-owner-row）：那一行只对自己的模板
+        //   渲染，而这份引导在市场页签自动弹——那一刻它多半不存在，圈画不出来
         title: "发布与下架",
-        anchor: "template-owner-row",
         body: (
           <>
-            自己那条模板下面会多出一行操作：<b className="font-bold text-slate-100">发布到市场</b>让别人搜得到、能套用；已经发布的那条这里换成<b className="font-bold text-slate-100">从市场下架</b>，收回来之后你自己那份还在；最右边是<b className="font-bold text-slate-100">删除</b>，按下去会先问你一遍要删掉的是什么。发布点下去要是被拦住，拦的原因和下一步就印在这条模板下面。
+            自己的模板，卡片上只标一个<b className="font-bold text-slate-100">状态</b>（草稿 / 已发布 / 已下架）。<b className="font-bold text-slate-100">识别角色位、核对、试炼、发布、删除</b>这些操作都收进了模板详情页——点开卡片进去，作者工作台就在那儿（先让 AI 识别画面里的人，再逐个核对）。
           </>
         ),
       },
@@ -324,9 +305,10 @@ export const TOURS: GuideTour[] = [
         anchor: "extractor-routes",
         body: (
           <>
-            拿一段参考视频，让 AI 把它变成能反复套用的<b className="font-bold text-slate-100">模板</b>。第一步就是这里的
-            <b className="font-bold text-slate-100">三选一</b>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。
-            选错了随时能回来改，但已经传上去的视频会被回收、要重传。
+            拿一段参考视频，让 AI 把它变成能反复套用的<b className="font-bold text-slate-100">模板</b>。第一步就是在这里
+            <b className="font-bold text-slate-100">选做法</b>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。
+            <b className="font-bold text-slate-100">上传之前</b>随时能回来换；在白模与经典之间换会回收已传的视频、要重传
+            （白模那两条互换不用）。传完就定死了——要换只能取消整个重来。
           </>
         ),
       },
@@ -365,12 +347,18 @@ export const TOURS: GuideTour[] = [
       },
       {
         title: "白模那两条怎么走",
-        anchor: "extractor-pick-file",
+        // ★★ 这一步**故意不带锚点**（2026-08-23）：选文件那颗按钮已经搬到第 2 步，
+        //   而引导是一进这屏就跑的（那时还停在第 1 步的三选一上）。留着 anchor 的话
+        //   `rectOf` 会连量 FIND_TRIES 帧都量不到，才退成居中卡片 —— 结果一样，
+        //   过程却是"引导指着一个不存在的东西"（这条 tour 自己 v2 就是为这种错升的版）。
+        //   ⇒ 不升 version：说的事一个字没变（选文件 → 上传 → 框选 → 报价），
+        //   变的只是"指哪儿"，没必要让所有人重看一遍。
         body: (
           <>
             选文件 → 上传（<b className="font-bold text-slate-100">不花钱</b>）→ 下一步拖时间轴框出 {BLOCKOUT_INPUT_RULES.minSec}~
-            {BLOCKOUT_INPUT_RULES.maxSec} 秒、拖裁剪框把台标水印框到画面外，读完报价才开炼。
-            换人偶这一步<b className="font-bold text-slate-100">不是每次都全对</b>，最容易漏的是画面正中央那一个；
+            {BLOCKOUT_INPUT_RULES.maxSec} 秒、拖裁剪框把台标水印框到画面外，读完报价才开炼
+            （自带白模片那条把选段拖过上限，会自动变成<b className="font-bold text-slate-100">整条切段登记成一组</b>，按段计费）。
+            让 AI 换白模那条还要注意：换人偶<b className="font-bold text-slate-100">不是每次都全对</b>，最容易漏画面正中央那一个——
             出片后对着画面从左往右核对，对不上的位子删掉就行（不用重炼、不花钱）。
           </>
         ),
@@ -456,7 +444,11 @@ export const TOURS: GuideTour[] = [
   {
     id: "roleconfirm",
     title: "核对角色位",
-    version: 1,
+    // v2（2026-08-28 审计修）：三处漂移一起纠——①「对不上怎么办」那三段 08-23 已收进
+    // 视频**下方**的折叠块，老引导还说在"视频上面"；② 描述框有两种含义（进出片提示词 /
+    // 只给套用者看），老引导只教了后一种，照着写会把原片人物写进付费提示词；
+    // ③ 漏了「加回来」与序数删位要挪号那两件。②是钱上的口径，够格升版重看。
+    version: 2,
     steps: [
       {
         title: "这份清单是猜的",
@@ -480,7 +472,7 @@ export const TOURS: GuideTour[] = [
         anchor: "roleconfirm-desc",
         body: (
           <>
-            每行那句描述说的是<b className="font-bold text-slate-100">这个位子在原视频里是谁</b>。套用你模板的人看不到你的原片，画面上又全是长得一样的人偶——他只能靠<b className="font-bold text-slate-100">标记加这句话</b>决定把哪张卡挂上去。写认得出来的外形（例：白发、黑袍的少年），别写只有你自己看得懂的代号。
+            每行那句描述给<b className="font-bold text-slate-100">套用你模板的人</b>看：他看不到你的原片，画面上又全是长得一样的人偶，只能靠<b className="font-bold text-slate-100">标记加这句话</b>决定把哪张卡挂上去。写什么看输入框上面那行小字：写着「会进出片提示词」时，描述的是<b className="font-bold text-slate-100">人偶现在的样子</b>（例：白色、弯腰前倾、在最左那盏路灯下）；否则写原片里这个人认得出来的外形（例：白发、黑袍的少年）。别写只有你自己看得懂的代号。
           </>
         ),
       },
@@ -489,7 +481,7 @@ export const TOURS: GuideTour[] = [
         anchor: "roleconfirm-del",
         body: (
           <>
-            对不上是可以就地改的：<b className="font-bold text-slate-100">标记写错了直接改成画面上那个</b>；清单里多出一个<b className="font-bold text-slate-100">画面上根本找不到</b>的位子，就用「删掉」去掉那一行。两件事都<b className="font-bold text-slate-100">不会再花一次钱</b>。至于你看到的是哪一种对不上、各该怎么办，视频上面那几段说明会按你这个模板讲。
+            对不上是可以就地改的：<b className="font-bold text-slate-100">标记写错了直接改成画面上那个</b>；清单里多出画面上找不到的位子就「删掉」；AI 漏认的人偶还能<b className="font-bold text-slate-100">「加回来」</b>。这些都<b className="font-bold text-slate-100">不会再花一次钱</b>。按位置指认的模板删掉一位后，记得把它右边各位往左挪一位——面板在待删行和提交前都会提醒。各种对不上的细节，展开视频<b className="font-bold text-slate-100">下面</b>那个「对不上怎么办？」看。
           </>
         ),
       },
@@ -498,7 +490,7 @@ export const TOURS: GuideTour[] = [
         anchor: "roleconfirm-submit",
         body: (
           <>
-            点「删掉」只是先标成待删，提交之前随时能撤销。底部那颗按钮把<b className="font-bold text-slate-100">改好的标记和要删的位子一次提交完</b>，不会留下改了一半的状态。提交完这个核对入口<b className="font-bold text-slate-100">也不会消失</b>——以后发现哪个人偶对不上，还能回来接着改。
+            点「删掉」只是先标成待删，提交之前随时能撤销。底部那颗按钮把<b className="font-bold text-slate-100">改好的标记和要删的位子一次提交完</b>，不会留下改了一半的状态。提交完这个核对入口<b className="font-bold text-slate-100">也不会消失</b>——以后发现哪个人偶对不上，还能回来接着改；模板<b className="font-bold text-slate-100">已经发布</b>时要先下架才能改，面板里有那颗按钮。
           </>
         ),
       },
@@ -507,14 +499,16 @@ export const TOURS: GuideTour[] = [
   {
     id: "trim",
     title: "选段与裁剪",
-    version: 1,
+    // v2（2026-08-28 审计修）：老版漏了整块「AI 看哪几帧」（它直接影响认不认得出人、
+    // 也直接进报价），且 trim-crop 锚点圈的是说明文字不是裁剪框本体。
+    version: 2,
     steps: [
       {
-        title: "这一屏在决定两件事",
+        title: "这一屏在决定三件事",
         body: (
           <>
-            你在这里框出的那一段、裁出的那一块，就是 AI 真正拿去白模化的全部内容。
-            它同时决定<b className="font-bold text-slate-100">这一发多少钱</b>（时长越长越贵），
+            框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面
+            「AI 看哪几帧」。三样一起决定<b className="font-bold text-slate-100">这一发多少钱</b>（时长越长、看的帧越多越贵），
             而钱一开始算就退不了。
           </>
         ),
@@ -542,6 +536,17 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        title: "AI 看哪几帧",
+        body: (
+          <>
+            时间轴下面那排帧：AI <b className="font-bold text-slate-100">只看这几帧</b>去认画面里有谁——
+            被看漏的人照样会变成白人偶，但清单里<b className="font-bold text-slate-100">没有他的位置，谁的卡都挂不上</b>，
+            还会把别人的位置挤歪。可以让它自动挑，也可以自己标人最全的几帧；
+            <b className="font-bold text-slate-100">帧数直接算进下面的报价</b>，多看更准也更贵。
+          </>
+        ),
+      },
+      {
         title: "裁得太小会被挡下",
         body: (
           <>
@@ -556,25 +561,30 @@ export const TOURS: GuideTour[] = [
   {
     id: "workshop",
     title: "创意工坊",
-    version: 1,
+    // v2（2026-08-28）：2026-08-21 本页加了第三个页签「我的模板」（内嵌模板货架与
+    // 提取器，其中 AI 白模化是真花钱出一次片的），老引导还在说"只管卡片和卡组、
+    // 只有两个页签"——页面改版到老引导会误导人，升版本让所有人重看。
+    version: 2,
     steps: [
       {
-        title: "这一页管卡，不出片",
+        title: "这一页管素材，成片在工坊",
         anchor: "workshop-studio-entry",
         body: (
           <>
-            这里只管<b className="font-bold text-slate-100">卡片和卡组</b>这些素材，不出片。
-            要摆桌铸卡、把卡炼成视频，从这条路进 3D 工坊。
+            这里管<b className="font-bold text-slate-100">卡片、卡组和模板</b>这些素材。
+            要摆桌铸卡、把卡炼成视频，从这条路进 3D 工坊；
+            唯一的例外是模板栏里的「AI 换白模」——那条会真出一次片、真花钱。
           </>
         ),
       },
       {
-        title: "造卡四条路，两条花钱",
+        title: "造卡四条路，一条花钱",
         anchor: "workshop-extract-card",
         body: (
           <>
-            工坊铸卡、上传视频提卡<b className="font-bold text-slate-100">要花 token</b>，
-            按真出几张结算；自己传图、从市场拿都<b className="font-bold text-slate-100">不花</b>。
+            只有工坊铸卡（AI 出图）<b className="font-bold text-slate-100">要花 token</b>。
+            从视频圈选提取、自己传图、从市场拿都<b className="font-bold text-slate-100">不花</b>——
+            提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。
           </>
         ),
       },
@@ -596,16 +606,17 @@ export const TOURS: GuideTour[] = [
         body: (
           <>
             把常用的几张归成一组；出片时<b className="font-bold text-slate-100">人物和场景由卡组锁住，全片保持一致</b>。
-            散着的卡在旁边那个页签。
+            散着的卡在「我的卡片」页签，你自己做的模板在「我的模板」。
           </>
         ),
       },
       {
+        // ★ 有意不挂锚点（2026-08-28 撤掉 workshop-deck-new）：那颗按钮只在「我的卡组」
+        //   页签下渲染，而引导在默认的「我的卡片」页签自动弹——那一刻它不存在，圈画不出来
         title: "组卡组：怎么加、怎么改",
-        anchor: "workshop-deck-new",
         body: (
           <>
-            先点「编辑」<b className="font-bold text-slate-100">再</b>点卡片，才是加进来或拿出去；卡角能定封面。
+            在「我的卡组」页签里：先点「编辑」<b className="font-bold text-slate-100">再</b>点卡片，才是加进来或拿出去；卡角能定封面。
             组名点上去直接改。删掉整组<b className="font-bold text-slate-100">不会删卡</b>。
           </>
         ),
@@ -652,8 +663,8 @@ export const TOURS: GuideTour[] = [
         anchor: "discover-scope",
         body: (
           <>
-            分区和搜索词是<b className="font-bold text-slate-100">叠加</b>的。这行小字写着当前筛的是什么、有几个；
-            觉得作品变少了先看它。右边那两颗换排法：最火按播放多少排，最新按发布时间倒着排。
+            分区和搜索词是<b className="font-bold text-slate-100">叠加</b>的。这行小字报的是当前分区和筛出的条数；
+            觉得作品变少了，先看分区图标亮没亮、搜索框清没清。右边那两颗换排法：最火按播放多少排，最新按发布时间倒着排。
           </>
         ),
       },
@@ -727,12 +738,12 @@ export const TOURS: GuideTour[] = [
         body: (
           <>
             白模那种模板，出片就是<b className="font-bold text-slate-100">整段复刻这段视频</b>、只把人偶换掉。
-            上面的报价把模板视频自己的时长也计了一遍，不是只按出片时长算。
+            下面那行报价把模板视频自己的时长也计了一遍，不是只按出片时长算。
           </>
         ),
       },
       {
-        title: "点「用它出片」还不扣钱",
+        title: "点「用这个模板出片」还不扣钱",
         body: (
           <>
             那颗按钮只是把配方铺到出片那一屏，<b className="font-bold text-slate-100">钱要到那边点生成才扣</b>。
@@ -741,10 +752,10 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
-        title: "自己做的那条才多一行",
+        title: "自己做的才多一块工作台",
         body: (
           <>
-            最底下那一行<b className="font-bold text-slate-100">只有作者看得见</b>。
+            互动区上面那一大块「✎ 模板信息」<b className="font-bold text-slate-100">只有作者看得见</b>。
             发布＝别人搜得到、能付费套用；白模模板要先用它真出过一段片才让发。
             下架只是收回来，你那份还在。
           </>
@@ -754,8 +765,334 @@ export const TOURS: GuideTour[] = [
         title: "删除是真的销毁",
         body: (
           <>
-            那一行最右那颗不是从列表里划掉：<b className="font-bold text-slate-100">云端那段模板视频和原始素材会一起没掉</b>，
+            工作台里的「删除」不是从列表里划掉：<b className="font-bold text-slate-100">云端那段模板视频和原始素材会一起没掉</b>，
             谁都找不回。所以要点两下才认。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "canvas",
+    title: "流水线画布",
+    // v2（2026-08-27）：末步原来讲的是「≡ 收起画布回线性视图」，而线性视图 08-23 已
+    // 下线、那颗按钮改成了「🎴 工坊」——老引导在教一个不存在的退路，正是文件头说的
+    // 「改版到老引导会误导人」，所以升版本让所有人重看。
+    // v3（2026-08-28）：agent 那一步补上「说话本身按对话计费」——老口径读起来像
+    // "说话免费、只有点确认才花钱"，报价说错是本仓最贵的一类错，再升一版。
+    version: 3,
+    steps: [
+      {
+        title: "一屏看完整条片",
+        anchor: "canvas-card",
+        body: (
+          <>
+            每一格是<b className="font-bold text-slate-100">一段</b>，从左往右就是这条片的顺序。
+            点一格<b className="font-bold text-slate-100">就地打开这一段的编辑窗</b>，再点一下收起，点别的格子就换过去。
+            画布可以拖着平移、两指捏合缩放。
+          </>
+        ),
+      },
+      {
+        title: "一段有两种做法",
+        anchor: "canvas-modes",
+        body: (
+          <>
+            编辑窗顶部这对按钮切的是<b className="font-bold text-slate-100">这一段</b>怎么做：
+            「套模板」是拿一段白模视频复刻运镜与站位，你只需给里面的人偶挂上自己的角色卡；
+            「自选卡片」是自己挑素材卡、写一句要求，AI 推演几套走向让你挑。
+            两种<b className="font-bold text-slate-100">每段各选各的</b>，同一条片里可以混着来。
+          </>
+        ),
+      },
+      {
+        title: "对画布说话",
+        anchor: "canvas-agent",
+        body: (
+          <>
+            一句话就能改流水线：给哪段套哪个模板、把谁挂到哪个位子、这段拍什么、加一段。
+            {/* ★ 这三件里**挂卡合成是免费的**（cost 恒 0，见 canvasAgent 的 AgentProposal）。
+                写成"会花钱的三件"是错的报价口径，而这个仓库里报价说错是最贵的一类错
+                （CLAUDE.md「两仓价目表各写各的」）。所以措辞按**要不要你点头**分，
+                确认卡上那行标的是价钱**或**后果。 */}
+            <b className="font-bold text-slate-100">它不替你按那三件</b> —— 推演、出片（真花钱），
+            以及挂卡合成（不花钱，但会把你改过的点名句整段重写）。它只摆一张确认卡，
+            上面写着这一下要花多少、或者会覆盖掉什么，你点了才真跑。办成了什么、被拒了什么，它逐条列给你看。
+            另外<b className="font-bold text-slate-100">对它说的每句话本身也按对话计一次费</b>——价印在输入框里。
+          </>
+        ),
+      },
+      {
+        // ★ 这一步**有意不挂锚点**：终端格子在流水线**末段之后**，段一多就在视口外，
+        //   而 off-screen 元素的 rect 仍返回非零宽高 —— 退化成居中卡片那条兜底不会触发，
+        //   圈会画到屏幕外（本文件顶部那条 ⚠ 说的就是它）。所以改成用文字自定位。
+        title: "流水线的终点",
+        body: (
+          <>
+            一直往右拖到<b className="font-bold text-slate-100">末段后面</b>，跟着两格：一格<b className="font-bold text-slate-100">加下一段</b>，
+            一格<b className="font-bold text-slate-100">把各段合成整片</b>（每段都出片了才亮，还差几段它会说）。
+            已经出片的格子右上角有个 ▶，随时能回看那一段。
+          </>
+        ),
+      },
+      {
+        title: "横竖都能用",
+        anchor: "canvas-rotate",
+        body: (
+          <>
+            竖屏时编辑窗从下面升起，横屏时它挪到右边、画布留给左边 —— 段多的时候横过来看更痛快。
+            旁边那颗 💾 随时把这条片存成草稿，回头接着做。
+          </>
+        ),
+      },
+      {
+        title: "同一条片的另一面",
+        anchor: "canvas-linear",
+        body: (
+          <>
+            点它把这条流水线带去 <b className="font-bold text-slate-100">3D 工坊</b>：画布是摊开的流水线，
+            工坊是摆在桌上的节点卡，<b className="font-bold text-slate-100">两边改的是同一份</b>，
+            换个面打开不用重炼、不重复收费。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "cut",
+    title: "剪辑",
+    // 2026-08-28 从 CutPage 自带的那份帮助弹窗迁来（铁律六：帮助内容只在 tours 一处）。
+    // 首次进页自动弹是新增的行为——原来那份只有主动点 ? 才看得到。
+    version: 1,
+    steps: [
+      {
+        title: "三个页签各管一摊",
+        anchor: "cut-tabs",
+        body: (
+          <>
+            <b className="font-bold text-slate-100">剪辑</b>管顺序与取舍，
+            <b className="font-bold text-slate-100">圈选</b>管改画面（要花钱的那种改），
+            <b className="font-bold text-slate-100">音频</b>管配乐 —— AI 生成的画面本身没有声音，
+            想要声音就在这儿配。
+          </>
+        ),
+      },
+      {
+        title: "剪辑：不花钱的整理",
+        anchor: "cut-timeline",
+        body: (
+          <>
+            点一个片段选中，就能在播放头处<b className="font-bold text-slate-100">✂️ 分割</b>、
+            <b className="font-bold text-slate-100">🗑 删除</b>、拖拽或前移后移<b className="font-bold text-slate-100">换序</b>。
+            这些只改导出范围，<b className="font-bold text-slate-100">一个 token 都不花</b>。
+          </>
+        ),
+      },
+      {
+        title: "圈选：花钱的重生成",
+        body: (
+          <>
+            拖进度条停在要改的画面，⭕ 圈出物体、写一句要求；可以<b className="font-bold text-slate-100">跨帧跨段圈多处</b>，
+            攒齐了一次性重新生成 —— 按钮上会标出几段、多少钱，<b className="font-bold text-slate-100">点那一下才计费</b>。
+          </>
+        ),
+      },
+      {
+        title: "右上角是终点",
+        anchor: "cut-next",
+        body: (
+          <>
+            整条模式下「下一步」把时间轴按顺序导出成<b className="font-bold text-slate-100">一整条视频</b>、进发布页
+            —— <b className="font-bold text-slate-100">发布后作品不可再修改</b>。从工坊单段进来时它是「保存本段」，
+            改完写回那一段、不合并不发片。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "publish",
+    title: "发布",
+    version: 1,
+    steps: [
+      {
+        title: "先核对成片",
+        anchor: "publish-segments",
+        body: (
+          <>
+            预览里各段按时间线连播。这张清单标着每段的<b className="font-bold text-slate-100">来历</b>：
+            ✓ 是真生成的影像，⚠ 是没生成成功、用首尾帧渐变顶替的段 ——
+            <b className="font-bold text-slate-100">发布前把 ⚠ 的段看一眼</b>，别让顶替画面替你见观众。
+          </>
+        ),
+      },
+      {
+        title: "谁能看、要不要钱",
+        anchor: "publish-pricing",
+        body: (
+          <>
+            可见性管<b className="font-bold text-slate-100">谁看得到</b>，收费管
+            <b className="font-bold text-slate-100">看要不要花 token</b>。付费解锁的收益按平台抽成后进你的
+            add-on 钱包，能直接拿来生成视频 —— 具体到手多少，定价那一行会当场算给你看。
+          </>
+        ),
+      },
+      {
+        title: "发布就是定稿",
+        anchor: "publish-actions",
+        body: (
+          <>
+            发布后<b className="font-bold text-slate-100">内容不可再改</b>（编辑页只能改标题、封面这些壳），
+            想换内容就重新发一条。「放弃本次合成」会把这条成片丢掉 —— 点它会先问你一句。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "customcard",
+    title: "自己传图做卡片",
+    // 2026-08-28 文案收纳：页面顶上那块三条 bullet 的对比说明压成一句，展开讲在这。
+    // 首次进页强制放一遍，"这是另一条路、默认铸卡不用传图"这件事仍然人人看得到。
+    version: 1,
+    steps: [
+      {
+        title: "这是另一条路",
+        anchor: "cc-compare",
+        body: (
+          <>
+            默认铸卡是 <b className="font-bold text-slate-100">AI 全自动出图</b>（3D 工坊找铸卡师），
+            一张图都不用传。这一页反过来：全用你自己的图，
+            <b className="font-bold text-slate-100">不调模型、不耗 token</b>，也没有 AI 帮你补图位。
+            铸出来的卡与 AI 铸的完全同一种东西 —— 能进卡组、当出片的形象参考、发布到创意工坊。
+          </>
+        ),
+      },
+      {
+        title: "图位怎么摆",
+        anchor: "cc-slots",
+        body: (
+          <>
+            卡种决定有哪几个图位、每格锁住什么（一把剑不该有「全身立绘」）；换卡种时对不上的格子会被
+            取下来并当场告诉你。<b className="font-bold text-slate-100">第一格既是卡面也是主形象参考</b>：
+            卡框是竖版 2:3，别的比例会居中显示，不裁你的图。
+          </>
+        ),
+      },
+      {
+        title: "图会被怎么处理",
+        body: (
+          <>
+            相册原图直接选：会自动压到 AI 认得出的尺寸，长宽比超过 {REF_MAX_RATIO}:1 的会被居中裁进
+            {REF_MAX_RATIO}:1（方舟不收更极端的参考图），裁过会在那一格里写明。出片时
+            <b className="font-bold text-slate-100">不是每张都会喂进模型</b>：取几张要看这张卡在那一段里
+            排第几、同段还挂了几张卡 —— 详情页会逐张标「出片用 / 仅展示」，那里是唯一的判据。
+          </>
+        ),
+      },
+      {
+        title: "写给 AI 的那段信息",
+        anchor: "cc-info",
+        body: (
+          <>
+            第 ④ 步那段信息，之后 AI 复刻这张卡的画面 / 建模时会读，
+            <b className="font-bold text-slate-100">写得越具体越像</b>。不填也行 ——
+            详情页会按卡名与简介现补一份。
+          </>
+        ),
+      },
+    ],
+  },
+  // ── 设置子页（2026-08-27 设置页拆分时一起加）──────────────────────
+  // 设置页原来把说明文字直接铺在每一节里；拆成子页后常驻说明进这里，页面上只留
+  // 控件与条件触发的事实（离线/失败/管理员那几句仍在界面上，理由见文件头 ❌ 那条）。
+  {
+    id: "setprofile",
+    title: "编辑资料",
+    version: 1,
+    steps: [
+      {
+        title: "换头像",
+        anchor: "setprofile-avatar",
+        body: (
+          <>
+            点头像打开选择器：官方看板娘现成可选，最后一格从相册选自己的图，
+            <b className="font-bold text-slate-100">能拖动裁切、双指缩放</b>。不想用图，下面还能挑一个
+            emoji 顶着。
+          </>
+        ),
+      },
+      {
+        title: "昵称和简介",
+        anchor: "setprofile-form",
+        body: (
+          <>
+            昵称是别人看到的名字，简介挂在主页名字底下。这两样改完要点
+            <b className="font-bold text-slate-100">「保存资料」</b>才算数 —— 头像不用，点了就换。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "setvoice",
+    title: "铸卡师的声音",
+    version: 1,
+    steps: [
+      {
+        title: "点一条就试听",
+        anchor: "setvoice-list",
+        body: (
+          <>
+            每一条是一把嗓子，<b className="font-bold text-slate-100">点一下立刻念一句样本、同时选定它</b>。
+            标着「调和」的是几把嗓子混出来的。
+          </>
+        ),
+      },
+      {
+        title: "挑完嗓子还有两个旋钮",
+        anchor: "setvoice-tune",
+        body: (
+          <>
+            语速管快慢；语调用一句话描述想要的语气，
+            <b className="font-bold text-slate-100">改完点上面任意音色即刻再听</b>。语调那一段不计费，
+            只对单音色生效 ——「调和」那几条用不了。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "setquality",
+    title: "画面质量",
+    version: 1,
+    steps: [
+      {
+        title: "只管 3D 工坊",
+        anchor: "setquality-opts",
+        body: (
+          <>
+            这三档管的是工坊里 3D 形象的贴图精细度，
+            <b className="font-bold text-slate-100">跟出片视频的清晰度无关</b>。第一次进工坊会按机型
+            自动选一档；之后想换，全 app 只有这里能改。换档会重新加载一次。
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    id: "setstorage",
+    title: "存储与清理",
+    version: 1,
+    steps: [
+      {
+        title: "占的空间在这看、也在这清",
+        anchor: "setstorage-usage",
+        body: (
+          <>
+            上面是这台设备已经占用的空间。「清理缓存」
+            <b className="font-bold text-slate-100">只删生成过程中留下、已经没人引用的中间文件</b> ——
+            未发布的草稿和还没传上去的作品一个不动。
           </>
         ),
       },

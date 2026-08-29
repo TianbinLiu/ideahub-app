@@ -17,6 +17,7 @@ import { useAutoGuide } from "../components/guide/useAutoGuide";
 // ★ 与市场页共用同一个核对入口/面板（含"删掉一个角色位"）。两页各写一份必然分叉，
 //   而这一屏说的话直接决定作者会不会去重炼（花第二次钱）
 import { RoleConfirmEntry } from "../components/blockout/RoleConfirmSheet";
+import { DetectRolesEntry } from "../components/blockout/DetectRolesEntry";
 import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import { useTemplatesVersion } from "./TemplateMarketPage";
@@ -39,11 +40,13 @@ import {
   registerTemplate,
   remoteStateOf,
   setTemplatePublished,
+  templateGroupOf,
   updateTemplate,
 } from "../data/templates";
 import { VIDEO_TIERS, fmtTokens, r2vPriceIssue, r2vTokens } from "../data/economy";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useFlow } from "../studio/flowStore";
+import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import { CARD_TYPE_LABELS, VideoTemplate } from "../types";
 
 /**
@@ -103,8 +106,7 @@ function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
           指着一个不存在的东西说话，与功能坏了长得一模一样。
           ★ 顺手压到一行：剩下那半句（时长与画幅）是每次都该看见的，留着。 */}
       <p data-guide="template-refvideo" className="text-[11px] leading-relaxed text-slate-400">
-        套用出片＝整段复刻这段视频的场景、道具与运镜，只把人偶换成你挂的角色卡。
-        出片时长≈模板时长，画幅跟这段视频走。
+        套用＝复刻这段的场景与运镜，人偶换成你挂的角色卡。时长与画幅跟这段视频走。
       </p>
       {/* ★ 作者本人先看这一句：坏模板对他来说不是"换一个"，而是"这不是你的错、重做时至少
           选 5 秒"。它替代（不是叠加）下面那句给套用者的话 —— 两句一起显示会让作者以为
@@ -119,9 +121,7 @@ function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
       ) : (
         tokens !== null && (
           <p className="mt-2 text-[11px] leading-relaxed text-slate-300">
-            套用一次约 <b>{fmtTokens(tokens)}</b> token（「{gate!.label}」档 · 含模板视频
-            <b>按 {t.refVideo.durationSec} 秒计</b>的输入费——r2v 连输入视频的时长也计费，输出时长按≈模板时长估
-            {realSec !== null ? `；这段模板视频实际约 ${realSec.toFixed(1)} 秒，计费按整秒向上取` : ""}）
+            套用一次约 <b>{fmtTokens(tokens)}</b> token（按模板视频时长计）
           </p>
         )
       )}
@@ -304,6 +304,12 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
       <div className="mt-2 empty:hidden">
         <RoleConfirmEntry t={t} />
       </div>
+      {/* 识别角色位（2026-08-23 从列表格子挪进来，与核对同属「作者工作台」）：核对之前
+          先让 AI 认一遍画面里有哪些人。DetectRolesEntry 自己判「只对白模、只对本人、
+          没核对过」，不满足就返回 null 自动隐藏（外层 empty:hidden 收掉空壳）。 */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 empty:hidden">
+        <DetectRolesEntry t={t} />
+      </div>
       {/* 白模的试炼闸说明与操作：发布前须用本模板真实出过一次片。
           为什么有这道门也要说给作者听——方舟任务受理后失败不退费，坏模板的钱
           该坏在作者自己那一次，不该让每个套用的人各赔一次 */}
@@ -360,6 +366,8 @@ export default function TemplateDetailPage() {
   useCountView("template", id);
   const t = id ? getTemplate(id) : null;
   const [applyErr, setApplyErr] = useState("");
+  // 套用前的在途流水线守卫（唯一实现，与模板货架共用）
+  const { guard, dialog: discardDialog } = useApplyTemplate();
   // 远端回源的结论：null = 还没试/在试，false = 真取不到。直达详情路由（会话恢复、
   // 分享链接）时 shared 缓存是空的——先回源再下"不存在"的结论，别对着一个真实存在的
   // 模板撒谎（回源实现在 data/templates.fetchRemoteTemplateById，取到会 emit 触发重渲）
@@ -430,11 +438,40 @@ export default function TemplateDetailPage() {
   function apply() {
     if (!t) return;
     setApplyErr("");
+    // ★ 与货架那条同一个守卫（见 useApplyTemplate 的 ★★）：套用是整表覆盖，
+    //   在途流水线里已经花钱炼出来的段会被抹掉，旧草稿还会被后续自动存盘覆盖
+    guard(() => applyNow());
+  }
+
+  /** 返回真 = 真的套上了（守卫据此决定要不要断开旧草稿，见 useApplyTemplate 的 ★★） */
+  function applyNow(): boolean {
+    if (!t) return false;
+    // ★★ **分段组要整组套**（2026-08-21 第八轮扫描）：这一页原来无脑走 applyTemplate（单条），
+    //   于是从组里任何一段的详情页点「用它出片」，只铺第 1 段、其余段静默消失，
+    //   还把 mode 退成简约 —— 而模板货架那条路（pick）早就是整组套用，两条入口对同一个
+    //   模板做两件事。规则与措辞都取自货架那份，不在这里另造一条。
+    const parts = templateGroupOf(t);
+    if (t.group && parts.length !== t.group.count) {
+      setApplyErr(
+        `这是一条分成 ${t.group.count} 段的模板，但这台设备上只拿到了 ${parts.length} 段 —— ` +
+          `整组套用会少内容，所以先不套。下拉刷新试试；如果是作者只发布了其中几段（组内每段各自发布），` +
+          `等其余段发布出来再用。`,
+      );
+      return false;
+    }
+    if (parts.length > 1) {
+      if (!useFlow.getState().applyTemplateGroup(parts)) {
+        setApplyErr(useFlow.getState().err || "这一组模板暂时套不了");
+        return false;
+      }
+      nav("/flow"); // 整组是白模段，挂卡入口在工作流页每一段的编辑窗里
+      return true;
+    }
     // applyTemplate 返回 false = 被闸门整句拒绝（err 在 flow store 里）——把原因就地
     // 印出来，不能让按钮看起来"点了没反应"（铁律八）
     if (!useFlow.getState().applyTemplate(t)) {
       setApplyErr(useFlow.getState().err || "套用失败");
-      return;
+      return false;
     }
     // ★★ V2 白模（有角色位）：**先领去挂卡**，再进工作流。
     //   判据是存在性（`roles?.length`，types.ts 的 ★），所以老模板（没有 roles）
@@ -447,6 +484,7 @@ export default function TemplateDetailPage() {
     const castState = castEditorState(t);
     if (castState) nav("/video-editor", { state: castState });
     else nav("/flow");
+    return true;
   }
 
   return (
@@ -487,47 +525,58 @@ export default function TemplateDetailPage() {
       >
         ⚡ 用这个模板出片{t.refVideo ? "（挂上你的角色卡）" : "（只需一句话）"}
       </button>
+      {discardDialog}
       {applyErr && <p className="mb-3 text-xs leading-relaxed text-rose-400">{applyErr}</p>}
       <div className="mb-3" />
 
-      {/* 生成配方：明着给，用户才知道它为什么像，也才能照着改 */}
-      <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
-        <div className="mb-2 text-xs font-semibold text-slate-300">🧪 生成配方</div>
-        <div className="mb-2">
-          <div className="mb-1 text-[11px] text-slate-500">画面质感与运镜</div>
-          <p className="text-xs leading-relaxed text-slate-400">{t.recipe.styleHint}</p>
+      {/* ★ 第 2 区「怎么做出来的」——默认折叠（2026-08-23）。
+          配方与卡组是"想深究时才看"的信息：套用者的决策在第一屏（预览 + 价钱 + 出片）
+          就能做完，把它们常驻展开只会把第一屏推到屏幕外。折叠壳不改内部一个字。 */}
+      <details className="mb-4 rounded-xl border border-slate-700/70 bg-panel/60">
+        <summary className="cursor-pointer list-none px-3 py-2.5 text-xs font-semibold text-slate-300">
+          🧪 怎么做出来的{t.cards.length > 0 ? ` · 含 ${t.cards.length} 张卡` : ""}
+        </summary>
+        <div className="px-3 pb-3">
+        {/* 生成配方：明着给，用户才知道它为什么像，也才能照着改 */}
+        <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+          <div className="mb-2 text-xs font-semibold text-slate-300">🧪 生成配方</div>
+          <div className="mb-2">
+            <div className="mb-1 text-[11px] text-slate-500">画面质感与运镜</div>
+            <p className="text-xs leading-relaxed text-slate-400">{t.recipe.styleHint}</p>
+          </div>
+          <div className="mb-2">
+            <div className="mb-1 text-[11px] text-slate-500">分镜骨架（{"{{主题}}"} 会换成你那句话）</div>
+            <ol className="space-y-1">
+              {t.recipe.beats.map((b, i) => (
+                <li key={i} className="rounded-lg bg-black/25 px-2.5 py-1.5 text-xs leading-relaxed text-slate-300">
+                  <span className="mr-1.5 text-slate-500">{i + 1}.</span>
+                  {b}
+                </li>
+              ))}
+            </ol>
+          </div>
+          {t.source && (
+            <div>
+              <div className="mb-1 text-[11px] text-slate-500">参考画面特征</div>
+              <p className="text-xs leading-relaxed text-slate-500">{t.source}</p>
+            </div>
+          )}
         </div>
-        <div className="mb-2">
-          <div className="mb-1 text-[11px] text-slate-500">分镜骨架（{"{{主题}}"} 会换成你那句话）</div>
-          <ol className="space-y-1">
-            {t.recipe.beats.map((b, i) => (
-              <li key={i} className="rounded-lg bg-black/25 px-2.5 py-1.5 text-xs leading-relaxed text-slate-300">
-                <span className="mr-1.5 text-slate-500">{i + 1}.</span>
-                {b}
-              </li>
-            ))}
-          </ol>
-        </div>
-        {t.source && (
-          <div>
-            <div className="mb-1 text-[11px] text-slate-500">参考画面特征</div>
-            <p className="text-xs leading-relaxed text-slate-500">{t.source}</p>
+
+        {t.cards.length > 0 && (
+          <div className="mb-4">
+            <div className="mb-2 text-xs font-semibold text-slate-300">🎴 模板卡组 · {t.cards.length} 张</div>
+            <div className="grid grid-cols-3 gap-2">
+              {t.cards.map((c) => (
+                <Link key={c.id} to={`/card/${c.id}`} state={{ card: c }}>
+                  <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} />
+                </Link>
+              ))}
+            </div>
           </div>
         )}
-      </div>
-
-      {t.cards.length > 0 && (
-        <div className="mb-4">
-          <div className="mb-2 text-xs font-semibold text-slate-300">🎴 模板卡组 · {t.cards.length} 张</div>
-          <div className="grid grid-cols-3 gap-2">
-            {t.cards.map((c) => (
-              <Link key={c.id} to={`/card/${c.id}`} state={{ card: c }}>
-                <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} />
-              </Link>
-            ))}
-          </div>
         </div>
-      )}
+      </details>
 
       {/* 白模路：isMine 来自服务端 isOwner——**不要**再 && ownedHere（换设备后本机库
           是空的，但作者对自己已发布的模板必须仍有下架/删除入口，否则作废/侵权模板

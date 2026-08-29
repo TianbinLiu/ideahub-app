@@ -8,13 +8,15 @@
 // 最后「下一步」把时间轴按顺序与裁剪范围重编码成单条视频，进发布页。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import FrameAnnotator, { drawCover, loadImg } from "../components/FrameAnnotator";
+import FrameAnnotator, { drawAigcBadge, drawCover, loadImg } from "../components/FrameAnnotator";
+import HelpButton from "../components/guide/HelpButton";
+import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
 import { AI_REAL, refineFrame, regenSegment } from "../ai";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
-import { fmtTokens, segTokens } from "../data/economy";
+import { annRedrawCost, fmtTokens, segTokens } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { VideoSegment, aspectOf, formatDuration, uid } from "../types";
 import { resolveMediaUrl } from "../utils/mediaUrl";
@@ -65,12 +67,22 @@ export default function CutPage() {
   const [sel, setSel] = useState<string | null>(null);
   const [anns, setAnns] = useState<Ann[]>([]);
   const [annOpen, setAnnOpen] = useState<{ segIndex: number; atSec: number; frame: string } | null>(null);
-  const [audio, setAudio] = useState<{ name: string; url: string; volume: number } | null>(null);
+  // ★ 分段模板组：默认把**原片音轨**预置进来（用户点名要的：白模复刻的成片保留原视频
+  //   音频）。白模出片本身是无声的（server 钉着 generate_audio 缺省），合并时从原片
+  //   解音轨混进去 —— decodeAudioData 直接吃 mp4 容器里的 AAC。
+  //   线索读 studioStore.draftAudioHint（搭草稿的车）：「完成视频」会清空 flow store，
+  //   这里挂载时 nodes 已经空了（2026-08-20 dev 实测，读 flow 那版永远落空）。
+  //   用户在音频 tab 随时能换掉/去掉，所以是"预置"不是"锁定"。
+  const [audio, setAudio] = useState<{ name: string; url: string; volume: number } | null>(() => {
+    const src = useStudio.getState().draftAudioHint;
+    return src ? { name: "原视频音轨", url: src, volume: 1 } : null;
+  });
   const [tab, setTab] = useState<Tab>("cut");
   const [resId, setResId] = useState("720");
   const [resOpen, setResOpen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState("");
+  /** 合并的防重入闸。★ 用 ref 不用 busy：setBusy 异步生效，挡不住同一帧内的第二次点击 */
+  const mergingRef = useRef(false);
   const [err, setErr] = useState("");
   const dragClip = useRef<string | null>(null);
 
@@ -81,6 +93,9 @@ export default function CutPage() {
   const [, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
   const pendingSeek = useRef<number | null>(null);
+
+  // 没草稿时页面马上跳走（下面那个 effect），别对着一屏空白弹引导
+  useAutoGuide("cut", !!draft);
 
   const leftRef = useRef(false);
   useEffect(() => {
@@ -130,8 +145,16 @@ export default function CutPage() {
     for (const a of anns) m.set(a.segIndex, (m.get(a.segIndex) ?? 0) + 1);
     return m;
   }, [anns]);
+  // ★★ 每段 = 重出一次片 + **每处圈选一张改图**（regenerateAll 里对每条 ann 跑一次
+  //   refineFrame）。原来只算了视频那一半 —— 5 秒标准档圈 5 处，按钮印 108k、实扣约 175k，
+  //   而按钮旁边还写着「这一步才计费」（2026-08-21 第九轮扫描的 high）。
+  //   改图那笔与工作流出片共用同一个 annRedrawCost（唯一实现，铁律六）。
   const annCost = useMemo(
-    () => [...annBySeg.keys()].reduce((s, i) => s + (segs[i] ? segTokens(segs[i].durationSec, segs[i].videoTier) : 0), 0),
+    () =>
+      [...annBySeg.entries()].reduce(
+        (s, [i, n]) => s + (segs[i] ? segTokens(segs[i].durationSec, segs[i].videoTier) + annRedrawCost(n) : 0),
+        0,
+      ),
     [annBySeg, segs],
   );
 
@@ -263,22 +286,36 @@ export default function CutPage() {
         if (lastFrame) seg.lastFrame = lastFrame;
         // ★ 必须判 AI_REAL：演示模式下根本没调方舟，却照样扣本地余额，
         //   用户在 mock 里点几次就"没钱"了，还查不出钱花在哪
-        if (AI_REAL) spendTokens(segTokens(seg.durationSec, seg.videoTier));
+        // ★ 与按钮上那个数同源：视频那一半 + 每处圈选一张改图（annRedrawCost 唯一实现）
+        if (AI_REAL) spendTokens(segTokens(seg.durationSec, seg.videoTier) + annRedrawCost(list.length));
         nextSegs[segIndex] = seg;
+        // ★★ **每段一落地**（2026-08-21 第九轮扫描的 high）：原来整轮跑完才 setState 一次，
+        //   中途失败（第 3 段撞上敏感词/超时）前面两段**钱已经扣了**，成片却随
+        //   nextSegs 一起丢弃，圈选也没清 —— 用户点「重试」对同一份内容再收一遍。
+        //   逐段写回 + 逐段清掉这一段的圈选：失败时前面付过的钱全都留在成片里。
+        useStudio.setState({ draft: { ...useStudio.getState().draft!, segments: nextSegs.slice() } });
+        setAnns((prev) => prev.filter((a) => a.segIndex !== segIndex));
         void resolveMediaUrl(url, { forCapture: true }).then((u) => u && setSrcMap((m) => ({ ...m, [segIndex]: u })));
       }
-      useStudio.setState({ draft: { ...draft!, segments: nextSegs } });
-      setAnns([]);
       setBusy("");
     } catch (e) {
       setBusy("");
-      setErr(`重新生成失败：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}`);
+      // ★ 说清"前面几段已经保住了"：不说的话用户以为整轮白花，会再点一次（再收一遍）
+      setErr(
+        `重新生成中断：${(e instanceof Error ? e.message : String(e)).slice(0, 110)}` +
+          `。已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段`,
+      );
     }
   }
 
   /** 🎬 合并导出：按时间轴顺序/裁剪范围重编码成单条 webm（混入音频轨）→ 发布页 */
   async function mergeAndGo() {
-    if (busy) return;
+    // ★★ 防重入用 ref 不用 state：setBusy 是异步生效的，同一帧里的第二次点击照样进得来。
+    //   进来之后就是两条 MediaRecorder 实时录同一块画布、两条 AudioContext 解同一条音轨，
+    //   两次写库、两次 navigate —— 后完成的那次会把用户已经在发布页看到的成片换成
+    //   它自己那条录得更烂的（2026-08-21 对抗评审确认）。
+    if (busy || mergingRef.current) return;
+    mergingRef.current = true;
     setErr("");
     let audioCtx: AudioContext | null = null;
     try {
@@ -302,6 +339,9 @@ export default function CutPage() {
         // 写回草稿：预览、重试合并、发布都用转存后的地址，别让下一步再拉一次跨境
         useStudio.setState({ draft: { ...draft!, segments: next } });
       }
+      // ★ 音轨与画布准备是**同步长活**（预置的原片音轨是整条原视频，几十 MB、跨境要十几秒）：
+      //   不先点亮 busy 的话，这段时间按钮亮着、屏幕上一个字都没有 = 用户眼里的"点了没反应"
+      setBusy("准备音轨与画布…");
       const canvas = document.createElement("canvas");
       canvas.width = out.w;
       canvas.height = out.h;
@@ -310,19 +350,36 @@ export default function CutPage() {
       let mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm";
       // 音频轨：解码 → 循环播放进 MediaStreamDestination，与画布流合成一条带声成片
       if (audio) {
-        audioCtx = new AudioContext();
-        const buf = await audioCtx.decodeAudioData(await (await fetch(audio.url)).arrayBuffer());
-        const dest = audioCtx.createMediaStreamDestination();
-        const srcN = audioCtx.createBufferSource();
-        srcN.buffer = buf;
-        srcN.loop = true; // BGM 短于成片时循环补齐
-        const g = audioCtx.createGain();
-        g.gain.value = audio.volume;
-        srcN.connect(g);
-        g.connect(dest);
-        for (const tr of dest.stream.getAudioTracks()) stream.addTrack(tr);
-        srcN.start();
-        mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus") ? "video/webm;codecs=vp9,opus" : "video/webm";
+        // ★★ 音轨拉不到**不许拖垮整条成片**（2026-08-21 对抗评审确认）：这一句原来
+        //   裸在大 try 里，一抛就整条导不出，而错误话里一个字都不提是音轨的锅 ——
+        //   用户以为片子坏了。而它恰恰是最容易失败的一环：预置的「原视频音轨」是
+        //   Cloudinary 上那条**完整原片**（几十 MB），跨境拉超时/断流是实测会发生的事。
+        //   就地兜住：说清是音轨没拿到、这一条按无声导出，别让人白等一场重录。
+        let buf: AudioBuffer | null = null;
+        try {
+          audioCtx = new AudioContext();
+          buf = await audioCtx.decodeAudioData(await (await fetch(audio.url)).arrayBuffer());
+        } catch (e) {
+          console.warn("[cut] 音轨取不到:", e);
+          setErr(`音轨没能取下来（${audio.name}）——这一条先按无声导出。想要声音就换一条本地音频，或等网络好些再重试合并。`);
+          if (audioCtx) {
+            void audioCtx.close().catch(() => {});
+            audioCtx = null;
+          }
+        }
+        if (buf && audioCtx) {
+          const dest = audioCtx.createMediaStreamDestination();
+          const srcN = audioCtx.createBufferSource();
+          srcN.buffer = buf;
+          srcN.loop = true; // BGM 短于成片时循环补齐
+          const g = audioCtx.createGain();
+          g.gain.value = audio.volume;
+          srcN.connect(g);
+          g.connect(dest);
+          for (const tr of dest.stream.getAudioTracks()) stream.addTrack(tr);
+          srcN.start();
+          mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus") ? "video/webm;codecs=vp9,opus" : "video/webm";
+        }
       }
       const rec = new MediaRecorder(stream, {
         mimeType: mime,
@@ -365,6 +422,7 @@ export default function CutPage() {
                 return;
               }
               drawCover(ctx, v, canvas.width, canvas.height);
+              drawAigcBadge(ctx, canvas.width, canvas.height);
               requestAnimationFrame(draw);
             };
             draw();
@@ -380,6 +438,7 @@ export default function CutPage() {
               ctx.globalAlpha = p * p * (3 - 2 * p);
               drawCover(ctx, b, canvas.width, canvas.height);
               ctx.globalAlpha = 1;
+              drawAigcBadge(ctx, canvas.width, canvas.height);
               if (p >= 1) {
                 resolve();
                 return;
@@ -418,6 +477,7 @@ export default function CutPage() {
     } finally {
       void audioCtx?.close().catch(() => {});
       setBusy("");
+      mergingRef.current = false;
     }
   }
 
@@ -445,13 +505,7 @@ export default function CutPage() {
         >
           <Icon name="back" size={22} />
         </button>
-        <button
-          onClick={() => setHelpOpen(true)}
-          className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-500 text-xs text-slate-300"
-          aria-label="使用说明"
-        >
-          ?
-        </button>
+        <HelpButton tour="cut" />
         <div className="flex-1" />
         <div className="relative">
           <button
@@ -488,6 +542,7 @@ export default function CutPage() {
             改完写回这一段的方案，并把改好的尾帧交给下一段当起拍帧，然后回工坊 */}
         {segEdit ? (
           <button
+            data-guide="cut-next"
             onClick={() => {
               leftRef.current = true;
               useStudio.getState().closeSegmentEdit(true);
@@ -500,6 +555,7 @@ export default function CutPage() {
           </button>
         ) : (
           <button
+            data-guide="cut-next"
             onClick={() => void mergeAndGo()}
             disabled={!!busy}
             className="rounded-lg bg-brand px-4 py-1.5 text-sm font-bold text-ink disabled:opacity-45"
@@ -589,7 +645,7 @@ export default function CutPage() {
 
       {/* ── 底部工具面板 ── */}
       <div className="safe-bottom flex max-h-[46%] flex-none flex-col border-t border-slate-800 bg-[#141821]">
-        <div className="flex flex-none items-center justify-center gap-7 px-4 pt-3">
+        <div data-guide="cut-tabs" className="flex flex-none items-center justify-center gap-7 px-4 pt-3">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -624,7 +680,7 @@ export default function CutPage() {
                 <span>{view.length} 个片段 · 共 {formatDuration(total)}</span>
                 <span>拖拽换序 · 点击选中</span>
               </div>
-              <div className="flex gap-1 overflow-x-auto rounded-xl bg-black/40 p-1.5">
+              <div data-guide="cut-timeline" className="flex gap-1 overflow-x-auto rounded-xl bg-black/40 p-1.5">
                 {view.map((c, i) => {
                   const seg = segs[c.segIndex];
                   const isSel = sel === c.id;
@@ -720,8 +776,9 @@ export default function CutPage() {
               >
                 ⭕ 圈选当前这一帧
               </button>
+              {/* 一句精华，展开讲在引导（tours 的 cut）里 */}
               <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-                拖动上面的进度条到想改的画面，圈出物体写要求。可跨帧跨段圈多处，最后一次性重新生成。
+                可跨帧跨段圈多处，最后一次性重新生成——那一步才计费。
               </p>
               {anns.length > 0 && (
                 <>
@@ -792,8 +849,9 @@ export default function CutPage() {
                     }}
                   />
                 </label>
+                {/* 「AI 画面本身没声音」挪进了引导第一步——这里留操作性的那一句就够 */}
                 <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-                  合并时混进成片；短于成片会自动循环。AI 生成的画面本身没有声音。
+                  合并时混进成片，短于成片会自动循环。
                 </p>
               </>
             ))}
@@ -812,24 +870,6 @@ export default function CutPage() {
         />
       )}
 
-      {helpOpen && (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/70" onClick={() => setHelpOpen(false)}>
-          <div className="w-full rounded-t-2xl bg-ink p-4" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm font-bold text-slate-100">怎么用这个剪辑页</span>
-              <button onClick={() => setHelpOpen(false)} className="text-slate-400">
-                <Icon name="close" size={18} />
-              </button>
-            </div>
-            <ul className="space-y-1.5 text-xs leading-relaxed text-slate-300">
-              <li>· <b>剪辑</b>：点片段选中，可在播放头处分割、删除、拖拽换序。分割只影响导出范围，不花 token。</li>
-              <li>· <b>圈选</b>：拖进度条到要改的画面，圈出物体写要求；可圈多处，最后一次性重新生成——这一步才计费。</li>
-              <li>· <b>音频</b>：加一段本地 BGM，导出时混进成片。</li>
-              <li>· <b>下一步</b>：按时间轴顺序导出成一整条视频，进发布页。发布后作品不可再修改。</li>
-            </ul>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

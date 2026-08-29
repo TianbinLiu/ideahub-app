@@ -45,22 +45,32 @@ import {
   uploadTemplateVideo,
   type TemplateVideoReceipt,
 } from "../api/uploads";
-import { canAfford, spendTokens, walletOf } from "../data/account";
+import { balanceNote, canAfford, spendTokens } from "../data/account";
 import { TEMPLATE_MAX_CARDS, fmtTokens, ownRefTemplateCost, templateCost, templateSettle } from "../data/economy";
 import {
   BLOCKOUT_INPUT_RULES,
+  SPLIT_MAX_PARTS,
   blockoutizeBlockReason,
   blockoutizeTemplate,
   getTemplate,
   makeOwnRefTemplate,
+  makeOwnRefTemplateGroup,
+  planSplits,
   refVideoRealSec,
   remoteTemplatesCapable,
   saveTemplate,
 } from "../data/templates";
 import { VideoAspect, VideoTemplate, aspectFromSize } from "../types";
 import BlockoutTrimmer from "./blockout/BlockoutTrimmer";
-import { blockoutSourceDurationIssue, type BlockoutSelection } from "./blockout/arkVideoRules";
+import {
+  blockoutSourceDurationIssue,
+  ownRefSingleVerdict,
+  ownRefSplitVerdict,
+  type BlockoutSelection,
+  type VideoNatural,
+} from "./blockout/arkVideoRules";
 import Icon from "./Icon";
+import TokenCost from "./TokenCost";
 import { sampleFrames } from "./videoFrames";
 
 /** 参考视频是竖是横，抽帧本身就带着（canvas 按源比例截的）——照抄它，
@@ -367,6 +377,16 @@ export default function VideoTemplateExtractor({
    */
   const [route, setRoute] = useState<"aiBlockout" | "ownRef" | "classic">("classic");
   /**
+   * 这一屏走到第几步。**只有两步**：选路线 → 选文件（传完之后整屏交给 BlockoutTrimmer，
+   * 那是第三块屏，由 `receipt` 决定，不占这里的位置）。
+   * ★★ 2026-08-23 拆的：此前三件事挤一屏 —— 三条路线各带 2~3 行描述、下面压着命中率与
+   *   规格/水印两大段黄字，**选文件按钮被挤到一屏之外**。手机上要先读完约 20 行才够得着
+   *   第一个能点的东西，而其中大半（命中率怎么算、水印会被复刻）在路线还没定时根本
+   *   看不懂、也做不了事。拆开之后：第 1 步只回答"做成什么"，第 2 步才说"这条路要注意什么"。
+   * ★ 不持久化：这是一次会话内的位置，不是长期偏好。
+   */
+  const [step, setStep] = useState<"route" | "pick">("route");
+  /**
    * 「AI 分析哪几帧」——**只对 ownRef 那条路有意义**：认人量框是它那一步做的。
    * aiBlockout 那条的"看几帧"是另一件事（白模化之前的点名清单，由 BlockoutTrimmer 里的
    * VisionFramePicker 管），两者别混。
@@ -379,6 +399,14 @@ export default function VideoTemplateExtractor({
    */
   const [boxMode, setBoxMode] = useState<BoxFrameMode>("auto");
   const [boxMarks, setBoxMarks] = useState<number[]>([]);
+  /**
+   * 分段登记（ownRef 选段拖过 30 秒）时用户标的**切段刀**（原片绝对秒）。
+   * ★★ 与 `boxMarks` 是**两份独立状态、绝不共用**：同一批秒数换个形态就换了含义 ——
+   *   boxMarks 是"给 AI 看的代表帧"（人最齐那种），这份是"在哪儿切开"（镜头边界那种）。
+   *   共用的话，用户在 25 秒选段里标好分析帧、再把选段拖满整条，那些帧就静默变成了刀。
+   * ★ 跟着回执走，由 dropReceipt 一处清（与 boxMarks 同一条纪律）。
+   */
+  const [splitMarks, setSplitMarks] = useState<number[]>([]);
   /**
    * BlockoutTrimmer 现在框出来的那一段（它每次变化都往上报一次）。
    *
@@ -433,6 +461,26 @@ export default function VideoTemplateExtractor({
    *   零报错。收在这一处是有意的：换路那边只管调 dropReceipt，别再自己清一遍
    *   （两处各清各的，迟早会漏一样）。
    */
+  /**
+   * 「**这一刻有没有一发登记正压在服务端手里**」。★ 只给 close() 那道闸用，判据只此一处。
+   * 不用 `busy` 反推：`busy` 是给用户看的一句话，它在本机抽帧、检查规格、检查画面角落
+   * 时同样点亮 —— 那几档关掉是安全的（该删的确实该删），拿它当闸就会一边多拦、一边
+   * 把"服务器正拿它切段"这句**假话**说给一个什么都没在跑的人听（2026-08-21 复核抓到，
+   * 我上一版收窄了一次仍留着「检查画面角落 i/4…」这一档）。
+   * 用 ref 不用 state：close() 要**同步**读到最新值，而这面旗子不参与任何渲染。
+   */
+  const flightRef = useRef(false);
+
+  /**
+   * 在途上传的取消把手。★ 直传是**分块**的，一发要走好几分钟 —— 这期间用户完全可能
+   * 关掉这一屏。不取消的话 XHR 会在组件卸载之后继续跑完，最后在 Cloudinary 上落一份
+   * 没有任何人认得的资产（本机没有 receipt ⇒ dropReceipt 够不着它）。
+   * ⚠ 卸载时才 abort，不在 close() 里 —— close 只是"想关"，真正的终点是卸载
+   *   （父组件条件渲染），两处都写就会变成同一条规则的两处实现。
+   */
+  const uploadAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => uploadAbort.current?.abort(), []);
+
   function dropReceipt() {
     if (!receipt) return;
     URL.revokeObjectURL(receipt.src);
@@ -444,10 +492,37 @@ export default function VideoTemplateExtractor({
     setReceipt(null);
     setTrimSel(null);
     setBoxMarks([]);
+    setSplitMarks([]);
     setBoxMode("auto");
   }
 
   function close() {
+    // ★★ **在跑就别关**（2026-08-21 cherry-pick 评审）：这一屏的「取消」早就 disabled={busy}
+    //   了（BlockoutTrimmer 那颗），但外层遮罩与标题栏的 ✕ 是无条件 close —— 同一屏两套纪律。
+    //   分段登记那一发是服务端**串行逐段转码**、分钟级，这期间 receipt.spent 还是 false，
+    //   于是手滑点一下遮罩就 dropReceipt → 删掉源视频：在途的 so_/du_ 切段变换当场失败、
+    //   组件已卸载所以 setErr 是空操作 —— 控制台之外一个字都没有（铁律八），
+    //   而那个源正是整组的音轨来源，用户只能重传几十上百 MB 的原片、还不知道发生了什么。
+    // ★★ 判据是 `flightRef && receipt && !receipt.spent`，**不是 busy**（收窄过两次：
+    //   先从裸 busy 收到 `busy && receipt && !spent`，复核发现还宽）。逐档对一遍：
+    //     · 抽帧 / 检查规格 / 上传中 —— receipt 还没回来，`dropReceipt` 第一行就 return，
+    //       关掉什么都不删。经典配方路更是**从头到尾不上传**（receipt 恒 null），
+    //       而那条路的卡片上明写着"不把视频传上公网" —— 对他说"会把已经传上去的素材删掉"
+    //       是一句与同屏三百像素之上的承诺直接打架的假话。
+    //     · 「检查画面角落 i/4…」—— 排在上传**之后**（receipt 在手、spent 还是 false），
+    //       但它是**本机**抽四帧看角标，服务端一个字都不知道。关掉正该把刚传上去的那份
+    //       回收掉；拦住他、还告诉他"服务器正拿它切段"，两头都不对。
+    //     · 登记完成之后（onRegistered 已把 receipt 标 spent）—— dropReceipt 不再删源，
+    //       而随后的**逐段认人**是 380s × N（12 段上界约 76 分钟）：那段时间关掉完全无害
+    //       （parts 已经落库、认人的回写直接进 store 并 persist），不该被堵。
+    //   真正需要保护的只有一档：**一发登记正压在服务端手里**、回执还没标 spent ——
+    //   关掉会把源删掉，而服务端正拿着它切段（四道引用检查此刻全部落空，拦不住）。
+    if (flightRef.current && receipt && !receipt.spent) {
+      setWarn(
+        `${busy || "正在登记"}——这一步在跑，跑完再关：现在关掉会把已经传上去的那段素材删掉，而服务器正拿它切段。`,
+      );
+      return;
+    }
     dropReceipt();
     onClose();
   }
@@ -457,6 +532,13 @@ export default function VideoTemplateExtractor({
     void remoteTemplatesCapable().then((ok) => {
       if (!alive) return;
       setBlockoutReady(ok);
+      // ★★ 探测没过 = 白模那两条根本不渲染，"三选一"那一屏就只剩**一条**可选 ——
+      //   一个只有一个选项的选择题是纯粹的多一步，直接跳到选文件。
+      //   ★ 放在这里而不是 render 里按 `routeOpts.length` 派生：派生的话，探测**晚到**
+      //     且结果为真时会把已经在选文件的用户**拽回**选路线那一屏（他刚点开文件选择器）。
+      //     写在这一拍就没有这个歧义 —— 只有 `!ok` 才跳，而 `!ok` 意味着选项列表不会再变长，
+      //     那一屏此后永远只有一条，跳过去不丢任何东西。
+      if (!ok) setStep("pick");
       // 入口要求直达白模时，探测过了才真的拨上去（探测没过 = 开关都不存在，
       // 初值当然也不能生效）。此刻还没选过文件，不需要走开关按钮里那套清空逻辑
       // ★ 入口方要求直接进白模：落到「AI 白模化」那一条（三条里唯一"任意视频都能用"的）
@@ -472,7 +554,6 @@ export default function VideoTemplateExtractor({
   //   真正的两笔钱（看帧列人物 + 白模化出片）由编辑页按 economy.blockoutizeCost 整句报出
   //   —— 在这里先报一个只含视觉那一半的数，就是把最先花掉的那笔藏起来。
   const estimate = templateCost(frameN, TEMPLATE_MAX_CARDS);
-  const wallet = walletOf();
 
   /**
    * 白模化这条路**这个账号现在能不能走**（null = 能）。判据是
@@ -488,6 +569,122 @@ export default function VideoTemplateExtractor({
    *   存下来就会停在"还不知道"那一拍上，而那一拍恰恰是**放行**的（乐观口径）。
    */
   const blockoutBlock = blockout ? blockoutizeBlockReason() : null;
+
+  /**
+   * 三条路线的**唯一一份说明**：第 1 步读 `t`/`short`（一行，够做选择就行），
+   * 第 2 步读 `t`/`long`（路线已定，长说明这时才是可执行的）。
+   * ★ 拆成两截而不是"第 1 步截断显示"：短的那句要能独立成话，截断出来的半句不能。
+   * ★ 秒数一律取 `BLOCKOUT_INPUT_RULES.maxSec`，别手写 30 —— 那个数在下面的页脚里也出现，
+   *   两处各写各的就会在改窗口时分家（本仓「上限自己抄一份」那条）。
+   */
+  const routeOpts = [
+    ...(blockoutReady
+      ? ([
+          {
+            v: "aiBlockout" as const,
+            t: "让 AI 把里面的人换成白模人偶",
+            short: "任意视频都行 · 要花钱",
+            long: "套用者出片时整段复刻它的场景与运镜。这是一次真实出片，费用在下一步框选时整句报出来。",
+          },
+          {
+            v: "ownRef" as const,
+            t: "它本来就是白模 / 人偶片，直接用",
+            short: `只认人、不出片 · 约 ${fmtTokens(ownRefTemplateCost())}`,
+            long: `不出片、不换人，只认出画面里有谁、量出他们在哪。超过 ${BLOCKOUT_INPUT_RULES.maxSec} 秒的素材可以整条切段登记成一组（逐段认人、按段计费）。`,
+          },
+        ] as const)
+      : []),
+    {
+      v: "classic" as const,
+      t: "经典配方（不做白模）",
+      short: "学画风运镜 · 不传公网 · 不要套餐",
+      long: "抽几帧总结画风、运镜与分镜骨架，再提炼可复用的场景/道具卡。不出片，也不把视频传上公网。",
+    },
+  ];
+  // ★ 兜底取最后一条（= 经典）：blockoutReady 是异步到货的，到货前后这张表会变长，
+  //   而 route 可能停在一条已经不在表里的路上 —— 取不到就整块空白，且不报错。
+  const routeNow = routeOpts.find((o) => o.v === route) ?? routeOpts[routeOpts.length - 1];
+
+  // ── ownRef 路：单段 / 分段两种形态（2026-08-20 接上长视频分段登记）────────────
+  /**
+   * 「选段拖过 30 秒」= 换到**整条分段登记**形态 —— 这一处是形态的唯一判据：
+   * judge（判词）、extra 里的标刀块、报价、runOwnRef 的提交分支四处都读它。
+   * ★ 阈值就是方舟窗口上限（BLOCKOUT_INPUT_RULES.maxSec = 30）：≤30 走单段老路
+   *   （derive 裁剪，可裁画面），>30 走 splits（整条、整幅，v1 限制由判词整句说）。
+   */
+  const segLong = route === "ownRef" && !!trimSel && trimSel.durSec > BLOCKOUT_INPUT_RULES.maxSec;
+  /**
+   * 分段规划：**真实时长**（服务端登记值，带小数）+ 用户标的刀 → 合法分段。
+   * ★ 必须用 receipt.data.durationSec 而不是时间轴那份 floor 过的整数：末段窗口按真实
+   *   时长算 —— 拿 34 去规划一条 34.18 的片子，60.4 那种会规划出 [30.2] 之外的越窗段，
+   *   服务端整单 400。规划只有 planSplits 一处实现；这里现算（纯函数、输入就两个，
+   *   提交时 runOwnRef 用同样输入重算，结果必然一致）。
+   */
+  const splitPlan = segLong && receipt ? planSplits(receipt.data.durationSec, splitMarks) : null;
+  /** ownRef 的选段裁决（注入 Trimmer 的 judge 口）：≤30 秒沿用白模化那组窗口判词但豁免
+   *  像素门（derive 会放大），>30 秒换分段那组（整条/整幅/≤12 段，见 arkVideoRules） */
+  const ownRefJudge =
+    route === "ownRef" && receipt
+      ? (sel: BlockoutSelection, natural: VideoNatural) =>
+          sel.durSec > BLOCKOUT_INPUT_RULES.maxSec
+            ? ownRefSplitVerdict(
+                sel,
+                natural,
+                planSplits(receipt.data.durationSec, splitMarks),
+                receipt.data.durationSec,
+              )
+            : ownRefSingleVerdict(sel, natural)
+      : undefined;
+  /** 时间轴徽章的窗口：整条装得下（≤12×30 秒）就允许拉满，装不下就只有单段那 30 秒 */
+  const ownRefWindow = (() => {
+    if (route !== "ownRef" || !receipt) return undefined;
+    const total = Math.floor(receipt.data.durationSec);
+    const cap = SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec;
+    return {
+      minSec: BLOCKOUT_INPUT_RULES.minSec,
+      maxSec: total <= cap ? Math.max(BLOCKOUT_INPUT_RULES.maxSec, total) : BLOCKOUT_INPUT_RULES.maxSec,
+    };
+  })();
+  /**
+   * ownRef 的报价块（注入 Trimmer 的 pricing 口，整块替掉白模化那两笔与 F11）。
+   * ★★ 这条路真正的钱只有「认人 + 量框」（economy.ownRefTemplateCost，上限价）；
+   *   分段 = **每段各认一次** —— N 段就是 N 笔，提交前整句报总数（报价 = 实收的上界，
+   *   先说钱再花钱）。Trimmer 默认那块报的是白模化的两笔 + r2v 的不退费风险，
+   *   挂在这条路上就是「页面报 A 路的价、实收 B 路的钱」（本仓头号事故形状，
+   *   2026-08-20 之前真就这么挂着）。
+   */
+  const ownRefPricing =
+    route === "ownRef" && receipt ? (
+      <div className="rounded-lg border border-slate-700 bg-panel/60 px-3 py-2">
+        {segLong && splitPlan ? (
+          <>
+            <p className="text-[11px] leading-relaxed text-slate-400">
+              这一步不出片、不换人，只花「认人 + 量框」的钱，而分段是
+              <b className="text-slate-200">每段各认一次</b>：{splitPlan.splits.length + 1} 段 ×{" "}
+              {fmtTokens(ownRefTemplateCost())}。按上限报价，实收只少不多（服务端一认出来就不再试）。
+            </p>
+            <TokenCost
+              tokens={ownRefTemplateCost() * (splitPlan.splits.length + 1)}
+              note={`分段登记这一次的总消耗（${splitPlan.splits.length + 1} 段合计）`}
+              upper
+              className="mt-1"
+            />
+          </>
+        ) : (
+          <>
+            <p className="text-[11px] leading-relaxed text-slate-400">
+              这一步不出片、不换人，只花「认人 + 量框」的钱。按上限报价，实收只少不多
+              （服务端一认出来就不再试）。
+            </p>
+            <TokenCost tokens={ownRefTemplateCost()} note="做成模板这一次的消耗" upper className="mt-1" />
+          </>
+        )}
+        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+          这是做模板这一次的花费；以后每次有人套用出片，按{segLong ? "所套那一段" : "模板视频"}
+          的时长另计一笔。
+        </p>
+      </div>
+    ) : undefined;
 
   /**
    * @param n 抽几帧。★ **必须由调用方显式传**，不能在函数体里读 frameN：
@@ -541,8 +738,18 @@ export default function VideoTemplateExtractor({
       //   按 `du_` 计价都用那一份。拿 <video> 本机现探的数去框，就是"用户按 A 报价、
       //   服务端按 B 结算"。上传本身不花 token，失败就整个停下、什么都不存。
       try {
-        setBusy("上传视频…（大文件在慢网上要等一会）");
-        const data = await uploadTemplateVideo(f);
+        // ★ 真进度（直传是分块的，XHR 给得出 upload.onprogress）。此前这里只有一句
+        //   静态的"大文件在慢网上要等一会" —— 而这一步在手机网上要走好几分钟，
+        //   没有进度条的话，用户唯一能做的判断就是"是不是卡死了"。
+        setBusy("上传视频 0%");
+        uploadAbort.current?.abort(); // 上一发若还在跑（换文件），先停掉它
+        const ac = new AbortController();
+        uploadAbort.current = ac;
+        const data = await uploadTemplateVideo(
+          f,
+          (frac) => setBusy(`上传视频 ${Math.round(frac * 100)}%`),
+          ac.signal,
+        );
         // spent:false —— 新的一份素材，还没有任何一发付过钱的白模化用过它（见 receipt 的 ★★）
         setReceipt({ file: f, data, src: URL.createObjectURL(f), spent: false });
         // 标题给个能用的默认值（文件名去掉扩展名）：服务端 zod 要求 title 非空，
@@ -602,7 +809,34 @@ export default function VideoTemplateExtractor({
     if (!receipt || busy) return;
     setErr("");
     setBusy("提交中…");
+    flightRef.current = true;
     try {
+      // ── 分段形态（选段拖过 30 秒）：整条切段登记成模板组 ──
+      if (sel.durSec > BLOCKOUT_INPUT_RULES.maxSec) {
+        // splits 用与界面同一份输入重算（planSplits 纯函数，报出的段数与提交的必然一致）。
+        // 「整条、整幅、≤12 段」三条已由 judge 挡在按钮前，这里不再重判（第二处判据）。
+        const plan = planSplits(receipt.data.durationSec, splitMarks);
+        const out = await makeOwnRefTemplateGroup({
+          receipt: receipt.data,
+          splits: plan.splits,
+          title,
+          intro: note,
+          // ★ 登记一成功，这条源视频就归模板组所有（客户端认得的那一位是 `group.sourceUrl`，
+          //   合并回填音轨时解的就是它；publicId 只在服务端那份实体上）——
+          //   从此归模板组管，关窗时不许再回收（与 blockoutize 的 onBilled 同一条纪律，
+          //   标在**这一份回执**上）。服务端那头也会拒删，但拒之前客户端不该去试。
+          onRegistered: () => setReceipt((r) => (r ? { ...r, spent: true } : r)),
+          onStep: (s) => setBusy(s),
+        });
+        if (out.note) setWarn(out.note);
+        const made = getTemplate(out.id);
+        // ★ 分段成功**不直接跳出片**（与单段那条 onDone 直通不同）：N 段各自的认人结果
+        //   都在 note 里，直通的话它们一闪就没（onDone 多半立刻导航走）。先给成功卡 ——
+        //   卡上那颗「用这个模板出片」再走 onDone，市场页对组员本来就是整组套用。
+        if (made) setGot(made);
+        else close();
+        return;
+      }
       const out = await makeOwnRefTemplate({
         receipt: receipt.data,
         clip: { startSec: sel.startSec, durSec: sel.durSec, crop: sel.crop },
@@ -630,6 +864,7 @@ export default function VideoTemplateExtractor({
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
+      flightRef.current = false;
       setBusy("");
     }
   }
@@ -641,6 +876,7 @@ export default function VideoTemplateExtractor({
     //   第一句进度话要好几百毫秒才到 —— 中间这段空窗期按钮是活的，手一抖就是**两发**
     //   白模化（两次真实付费出片）。
     setBusy("提交中…");
+    flightRef.current = true;
     try {
       const tpl = await blockoutizeTemplate({
         publicId: receipt.data.publicId,
@@ -668,6 +904,7 @@ export default function VideoTemplateExtractor({
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
+      flightRef.current = false;
       setBusy("");
     }
   }
@@ -751,7 +988,21 @@ export default function VideoTemplateExtractor({
                   ，套用出片时将整段复刻它的场景与运镜
                 </p>
               )}
+              {/* 分段组：说清"一组几段、从哪儿都能整组套用"。不说的话，作者在「我的模板」里
+                  看到 N 条「第 i/N 段」只会以为登记重复了 */}
+              {got.group && (
+                <p className="mt-1 text-[11px] text-sky-300">
+                  分段组 · 整条已切成 {got.group.count} 段各自登记（这张卡是第 {got.group.index + 1} 段）。
+                  从任何一段套用都会整组铺进工作流，逐段挂卡出片，合并时自动回填原片音轨。
+                </p>
+              )}
             </div>
+            {/* 逐段认人的结果（哪段成了、哪段要重试）——分段路的 note 是多行的，整句保留 */}
+            {warn && (
+              <p className="whitespace-pre-line rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">
+                ⚠ {warn}
+              </p>
+            )}
             <div className="rounded-xl bg-black/25 p-3">
               <div className="mb-1 text-[11px] text-slate-500">总结出的画面要求</div>
               <p className="text-xs leading-relaxed text-slate-400">{got.recipe.styleHint}</p>
@@ -768,139 +1019,167 @@ export default function VideoTemplateExtractor({
           </div>
         ) : (
           <>
-            {/* ══ 第一层岔路：这段视频要做成什么（三选一）══════════════════
+            {/* ★★ 门禁红字放在**两步之上**：第 1 步说明"为什么点了不往下走"，
+                第 2 步说明"为什么那颗选文件按钮点不动"。同一句话、同一处实现 ——
+                各步各写一份的话，套餐镜像异步到货（refreshRemoteWallet）时会出现
+                "在第 2 步上被挡住、却没有任何一行字"的空窗。
+              ★★ 措辞里不许出现「上面 / 下面」的方位词：这句话现在会在两步里出现，
+                方位在其中一步必然是错的。 */}
+            {blockout && blockoutBlock && (
+              <p className="mb-3 rounded-lg bg-rose-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-rose-300">
+                {blockoutBlock}
+                <br />
+                白模那两条路都只走这一档，所以现在还开不了 —— 改选「经典配方」仍然可以做模板，它不需要付费套餐。
+              </p>
+            )}
+
+            {/* ══ 第 1 步：这段视频要做成什么（三选一）══════════════════
                 ★★ 2026-08-17 从「一个白模开关 + 框选屏里藏着的第二问」改成这一处三选一。
                   旧法把同一个决定拆成两处、隔着"选文件 → 上传 → 进框选屏"三步才问完，
                   而两问的**组合**才决定花不花钱、花多少；走到第二问时用户早忘了第一问，
                   更糟的是他可能已经传完上百 MB 才发现自己想走的是另一条路。
                 ★ 三条并排摆着（而不是开关 + 隐藏项）还有一个作用：**经典配方是唯一不需要
                   付费套餐的那条**，摆出来才看得见"没套餐也能做点什么"。
-                ★ 服务端不认白模端点时只剩经典那一条，整块降级成一行说明 —— 不摆两个
-                  点了会失败的选项（本仓「界面上摆一个永远点不动的选项」那条）。 */}
-            <div data-guide="extractor-routes" className="mb-3 space-y-2 rounded-xl border border-slate-700 bg-black/25 p-3">
-              <div className="text-xs font-semibold text-slate-200">这段视频要做成什么？</div>
-              {(
-                [
-                  ...(blockoutReady
-                    ? ([
-                        {
-                          v: "aiBlockout" as const,
-                          t: "让 AI 把里面的人换成白模人偶",
-                          d: "任意视频都行。套用者出片时整段复刻它的场景与运镜。这是一次真实出片，费用在框选那一步整句报出来。",
-                        },
-                        {
-                          v: "ownRef" as const,
-                          t: "它本来就是白模 / 人偶片，直接用",
-                          d: `不出片、不换人，只认出画面里有谁、量出他们在哪（约 ${fmtTokens(ownRefTemplateCost())}）。`,
-                        },
-                      ] as const)
-                    : []),
-                  {
-                    v: "classic" as const,
-                    t: "经典配方（不做白模）",
-                    d: "抽几帧总结画风、运镜与分镜骨架，再提炼可复用的场景/道具卡。不出片、不把视频传上公网，也不需要付费套餐。",
-                  },
-                ] as const
-              ).map((o) => (
-                <button
-                  key={o.v}
-                  onClick={() => {
-                    // ★ 只有**跨白模/经典这条线**换路时才清掉已选文件：两侧的预检不一样
-                    //   （白模只收 mp4/mov 且有时长/分辨率硬门，经典不限），带着没过预检的
-                    //   文件切过去，用户会拖到付费出片那一步才撞方舟的 400。
-                    //   aiBlockout ↔ ownRef 互切不清：前两步（选文件、上传）完全一样，
-                    //   清掉等于让他白传一次。
-                    // ★ 已经传上去的那份要**当场回收**（留着既占配额，又会让他切回来时
-                    //   看到一个自己以为已经放弃的旧视频）。回不回收由 dropReceipt 一处判
-                    //   —— 已经花过钱的那份不回收。
-                    // ★★ 框选与「分析哪几帧」的标记也一并由 dropReceipt 清掉（2026-08-17 修）：
-                    //   在此之前只清了 file/receipt/frames，标记留在原地 —— 上一段视频标的帧
-                    //   会跟着进下一段，并原样发成 atSecs（换算是对的，指的却是别的画面）。
-                    //   别在这里再清一遍：那就成了两处各清各的。
-                    if ((o.v !== "classic") !== blockout) {
-                      dropReceipt();
-                      setFile(null);
-                      setFrames([]);
-                      setErr("");
-                      setWarn("");
-                      setGot(null);
-                    }
-                    setRoute(o.v);
-                  }}
-                  disabled={!!busy}
-                  className={`flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left disabled:opacity-50 ${
-                    route === o.v ? "bg-brand/20 ring-1 ring-brand" : "bg-black/20"
-                  }`}
-                >
-                  <span className={`mt-0.5 flex-none text-[11px] ${route === o.v ? "text-brand" : "text-slate-500"}`}>
-                    {route === o.v ? "●" : "○"}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[11px] font-semibold text-slate-100">{o.t}</span>
-                    <span className="block text-[10px] leading-relaxed text-slate-400">{o.d}</span>
-                  </span>
-                </button>
-              ))}
+                ★ 服务端不认白模端点时只剩经典那一条 —— 不摆两个点了会失败的选项
+                  （本仓「界面上摆一个永远点不动的选项」那条）。
+                ★★ 2026-08-23 这一步**独占一屏**，卡片上只留 short 那一行：长说明、命中率、
+                  规格水印全部搬到第 2 步（那时路线已定，说明才是可执行的）。见 step 的 ★★。 */}
+            {step === "route" && (
+              <div data-guide="extractor-routes" className="space-y-2">
+                <div className="mb-1 text-sm font-semibold text-slate-200">这段视频要做成什么？</div>
+                {routeOpts.map((o) => (
+                  <button
+                    key={o.v}
+                    onClick={() => {
+                      // ★ 只有**跨白模/经典这条线**换路时才清掉已选文件：两侧的预检不一样
+                      //   （白模只收 mp4/mov 且有时长/分辨率硬门，经典不限），带着没过预检的
+                      //   文件切过去，用户会拖到付费出片那一步才撞方舟的 400。
+                      //   aiBlockout ↔ ownRef 互切不清：前两步（选文件、上传）完全一样，
+                      //   清掉等于让他白传一次。
+                      // ★ 已经传上去的那份要**当场回收**（留着既占配额，又会让他切回来时
+                      //   看到一个自己以为已经放弃的旧视频）。回不回收由 dropReceipt 一处判
+                      //   —— 已经花过钱的那份不回收。
+                      // ★★ 框选与「分析哪几帧」的标记也一并由 dropReceipt 清掉（2026-08-17 修）：
+                      //   在此之前只清了 file/receipt/frames，标记留在原地 —— 上一段视频标的帧
+                      //   会跟着进下一段，并原样发成 atSecs（换算是对的，指的却是别的画面）。
+                      //   别在这里再清一遍：那就成了两处各清各的。
+                      if ((o.v !== "classic") !== blockout) {
+                        dropReceipt();
+                        setFile(null);
+                        setFrames([]);
+                        setErr("");
+                        setWarn("");
+                        setGot(null);
+                      }
+                      setRoute(o.v);
+                      // ★★ 被门禁挡住的那条路**选得中、但不放行**：选中才看得见那句为什么。
+                      //   灰掉它等于让用户面对一个没有理由的死选项（本仓禁止的是**不给理由**
+                      //   的灰，不是"看得见 + 说清为什么"）。
+                      // ★ 判据现算 blockoutizeBlockReason()，不读 blockoutBlock —— 后者是按
+                      //   **当前** route 算的，而这一拍 setRoute 还没生效，读它必然读到上一条路
+                      //   的结论（从经典点进白模会被直接放行，走到第 2 步才被那颗灰按钮拦住）。
+                      if (o.v !== "classic" && blockoutizeBlockReason()) return;
+                      setStep("pick");
+                    }}
+                    disabled={!!busy}
+                    className={`flex w-full items-center gap-2 rounded-xl px-3 py-3 text-left disabled:opacity-50 ${
+                      route === o.v ? "bg-brand/20 ring-1 ring-brand" : "bg-black/25"
+                    }`}
+                  >
+                    <span className={`flex-none text-[11px] ${route === o.v ? "text-brand" : "text-slate-500"}`}>
+                      {route === o.v ? "●" : "○"}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-semibold text-slate-100">{o.t}</span>
+                      <span className="block text-[11px] text-slate-400">{o.short}</span>
+                    </span>
+                    <span className="flex-none text-slate-500">›</span>
+                  </button>
+                ))}
+              </div>
+            )}
 
-              {/* ★★ 命中率：这一屏是**花钱之前、选文件之前**，目的是让作者 ① 决定要不要做
-                  ② 选一段人少的。三条禁令（写在设计里，别改软）：
-                    · 不许出现"AI 会准确识别""智能识别每个角色"这类话；
-                    · **一个具体数字都不写** —— 以前那句"7 发 4 发全对"是**颜色方案**那一版
-                      提示词的实测，而那一版已经整档删了。拿旧提示词的数字给新提示词背书，
-                      比不给数字更坏：它看起来精确、其实是编的；
-                    · 套用者那一侧不提命中率（他拿到的是作者已核对过的模板，说了也做不了事）。
-                  ★ 这一段**没有搬进新手引导**：引导看过一次就不再自动弹，而这句话紧挨着
-                    一次真实付费的决策点，必须每次都在。 */}
-              {route === "aiBlockout" && (
-                <p className="rounded-lg bg-amber-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-amber-200/90">
-                  <b className="font-bold">这一步不是每次都全对。</b>会有人根本没被换成人偶，最容易漏的是
-                  <b className="font-bold">画面正中央、看起来最像主角的那一个</b>。出片后对着画面从左往右核对一遍，
-                  对不上的位子删掉就行（不用重炼、不花钱）；要全对上只能重炼，而
-                  <b className="font-bold">重炼要再花一次钱</b>。画面里的人越少越准。
-                </p>
-              )}
+            {/* ══ 第 2 步：选文件（路线已定）══════════════════════════════ */}
+            {step === "pick" && (
+              <>
+                {/* ★ 回得去：第 1 步是个岔路口，选错了不该只能整屏关掉重来。
+                    ★★ 在跑时不许回（busy）：这颗键会把用户带回一个能换路线的地方，
+                      而换路线要 dropReceipt —— 在途的上传/切段登记正指着那份回执。
+                    ★★ **传完之后也不许回**（!receipt）：那时整屏归 BlockoutTrimmer，
+                      回第 1 步会把它整个卸载 —— 用户刚拖好的裁剪框、选段、标的帧全没了，
+                      而这些既不在 store 里也没落盘，回不来。
+                      ⇒ 这不是砍功能：路线本来就该在**上传之前**定死（2026-08-17 把
+                      "第二问"从框选屏搬出来、并成这处三选一，就是为了这件事）。
+                      真要换，框选器自己那颗「取消」是唯一出口，它说得清后果。 */}
+                {routeOpts.length > 1 && !receipt && (
+                  <button
+                    onClick={() => setStep("route")}
+                    disabled={!!busy}
+                    className="mb-2 -ml-1 px-1 py-1 text-[11px] text-slate-400 disabled:opacity-40"
+                  >
+                    ‹ 换一种做法
+                  </button>
+                )}
+                {/* ★ 传完之后整屏归 BlockoutTrimmer，这张卡与下面两段黄字都收起来：
+                    它们说的是"选文件之前要知道什么"，而那时文件已经传上去了，
+                    再摆着只是把真正在用的那块工作面积挤小（水印那句更是指着"下一步"，
+                    人已经站在下一步里了）。 */}
+                {!receipt && (
+                  <div className="mb-3 rounded-xl border border-slate-700 bg-black/25 px-3 py-2">
+                    <div className="text-[13px] font-semibold text-slate-100">{routeNow.t}</div>
+                    <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{routeNow.long}</p>
+                  </div>
+                )}
 
-              {/* ★ 规格是选文件**之前**的硬门，留在这儿（不进引导）。
-                  ★★ 水印那两行**必须常驻**：帧角探测是尽力而为、故意宁可漏报的，
-                    提示词里那句「不要出现水印」同样只是尽力而为 —— 这句常驻告知才是
-                    水印这件事上唯一可靠的一环。2026-08-14 实拍：参考视频带的 B 站水印
-                    被 edit 子任务原样画进成片，而模板会被别人反复套用，等于每条成片都带着它。
-                  ★★ 「公开托管」同样不许搬进引导：它是选文件之前的一次**告知**
-                    （素材进公网、且会被别人的成片引用），藏进一个看过一次就不再出现的地方，
-                    等于让老用户在零提示下把视频传上公网。 */}
-              {blockout && (
-                <p className="text-[10px] leading-relaxed text-amber-400/90">
-                  mp4 / mov · {Math.round(TEMPLATE_UPLOAD_RULES.maxSec / 60)} 分钟以内 ·{" "}
-                  {Math.round(MAX_TEMPLATE_VIDEO_BYTES / 1024 / 1024)}MB 以内。上传的视频会
-                  <b className="text-amber-300">公开托管</b>，套用者出片时会引用它。
-                  <br />
-                  视频里的水印、台标或字幕会被<b className="text-amber-300">逐帧复刻进每一次出片</b>
-                  （包括别人套用你这个模板时），请在下一步的裁剪框里把它框掉。
-                </p>
-              )}
+                {/* ★★ 命中率：这一段是**花钱之前、选文件之前**，目的是让作者 ① 决定要不要做
+                    ② 选一段人少的。三条禁令（写在设计里，别改软）：
+                      · 不许出现"AI 会准确识别""智能识别每个角色"这类话；
+                      · **一个具体数字都不写** —— 以前那句"7 发 4 发全对"是**颜色方案**那一版
+                        提示词的实测，而那一版已经整档删了。拿旧提示词的数字给新提示词背书，
+                        比不给数字更坏：它看起来精确、其实是编的；
+                      · 套用者那一侧不提命中率（他拿到的是作者已核对过的模板，说了也做不了事）。
+                    ★ 这一段**没有搬进新手引导**：引导看过一次就不再自动弹，而这句话紧挨着
+                      一次真实付费的决策点，必须每次都在。 */}
+                {route === "aiBlockout" && !receipt && (
+                  <p className="mb-3 rounded-lg bg-amber-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-amber-200/90">
+                    {/* ★ 压字数时**这两处不许再削**（2026-08-23 削过一轮又加回来）：
+                        · 「会有人根本没被换成人偶」是**具体的失败长相** —— 只说"不是每次都全对"
+                          等于没说，用户不知道该拿什么去核对；
+                        · 「从左往右」是**核对的方法**：角色位是按画面从左到右连续排的（序数方案），
+                          不说方位，那份清单就对不上号。 */}
+                    <b className="font-bold">不是每次都全对</b>——会有人根本没被换成人偶，最容易漏
+                    <b className="font-bold">画面正中央那一个</b>。出片后<b className="font-bold">从左往右</b>核对，
+                    对不上的位子删掉就行（不花钱）；要全对上只能<b className="font-bold">再花一次钱重炼</b>。人越少越准。
+                  </p>
+                )}
 
-              {/* ★★ 套餐/闸门/价目不满足时，这句话就摆在**选文件之前**（见 blockoutBlock 的 ★★）：
-                  说晚一步，用户就是传完 100MB、框完选段、读完报价之后才被挡，
-                  而那时他可能已经为此充过值。
-                  ★ 选项本身不灰掉：它要能选中，用户才看得到下面这句为什么。真正点不动的是
-                  那颗选文件按钮（本仓禁止的是**不给理由**的灰，不是"看得见 + 说清为什么"）。 */}
-              {blockout && blockoutBlock && (
-                <p className="rounded-lg bg-rose-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-rose-300">
-                  {blockoutBlock}
-                  <br />
-                  白模那两条路都只走这一档，所以现在还开不了 —— 换成上面的「经典配方」仍然可以做模板。
-                </p>
-              )}
+                {/* ★ 规格是选文件**之前**的硬门，留在这儿（不进引导）。
+                    ★★ 水印那两行**必须常驻**：帧角探测是尽力而为、故意宁可漏报的，
+                      提示词里那句「不要出现水印」同样只是尽力而为 —— 这句常驻告知才是
+                      水印这件事上唯一可靠的一环。2026-08-14 实拍：参考视频带的 B 站水印
+                      被 edit 子任务原样画进成片，而模板会被别人反复套用，等于每条成片都带着它。
+                    ★★ 「公开托管」同样不许搬进引导：它是选文件之前的一次**告知**
+                      （素材进公网、且会被别人的成片引用），藏进一个看过一次就不再出现的地方，
+                      等于让老用户在零提示下把视频传上公网。 */}
+                {blockout && !receipt && (
+                  <p className="mb-3 text-[11px] leading-relaxed text-amber-400/90">
+                    mp4 / mov · {Math.round(TEMPLATE_UPLOAD_RULES.maxSec / 60)} 分钟以内 ·{" "}
+                    {Math.round(MAX_TEMPLATE_VIDEO_BYTES / 1024 / 1024)}MB 以内 · 会
+                    <b className="text-amber-300">公开托管</b>（套用者出片时引用它）。
+                    <br />
+                    画面里的水印、台标、字幕会被<b className="text-amber-300">复刻进每一次出片</b>，
+                    下一步用裁剪框把它框到画面外。
+                  </p>
+                )}
 
-              {/* ★★ 2026-08-17 删掉了这里的「你还有 N 发已经付过钱、还没取回结果」。
-                  删的理由不是"话太多"，是它**关不掉**：产物过期之后那条凭据在服务端名单里
-                  永远留着，用户点取回 → 失败 → 这句话还在，且没有任何办法让它消失。
-                  一个永远关不掉的提醒会被当成背景噪音，连带着把真正能取回的那几发也淹掉。
-                ★ 取回的入口仍然只有一处（「我的模板」那张卡），那里现在能把**已经过期**的
-                  那种消掉（data/templates.dismissBlockoutJob，没过期的一律拒）。 */}
-            </div>
+                {/* ★★ 2026-08-17 删掉了这里的「你还有 N 发已经付过钱、还没取回结果」。
+                    删的理由不是"话太多"，是它**关不掉**：产物过期之后那条凭据在服务端名单里
+                    永远留着，用户点取回 → 失败 → 这句话还在，且没有任何办法让它消失。
+                    一个永远关不掉的提醒会被当成背景噪音，连带着把真正能取回的那几发也淹掉。
+                  ★ 取回的入口仍然只有一处（「我的模板」那张卡），那里现在能把**已经过期**的
+                    那种消掉（data/templates.dismissBlockoutJob，没过期的一律拒）。 */}
 
-            {blockout && receipt ? (
+                {blockout && receipt ? (
               // ── 传完了：交给 BlockoutTrimmer 框选 + 报价 + 开炼 ──
               // ★ 本组件在这一屏只当宿主：**不重复它说过的任何一句话**（报价、
               //   「受理后失败不退费」、框选差在哪，全在组件内部一处实现），
@@ -933,6 +1212,12 @@ export default function VideoTemplateExtractor({
                 //   它要挑的帧由同一屏 extra 里的 BoxFramePicker 管（认人量框那一步）。
                 //   两块同时在，同一屏上就有两个叫法几乎一样的"看哪几帧"，而上限与后果都不同。
                 hideVisionFrames={route === "ownRef"}
+                // ★ ownRef 的三件套（judge/pricing/trimWindow）成组给：判词、报价、徽章窗口
+                //   说的必须是同一条路的话 —— 只换其中一样，屏幕上就会自相矛盾
+                //   （aiBlockout 三个都 undefined = Trimmer 原行为，一个字不变）
+                judge={ownRefJudge}
+                pricing={ownRefPricing}
+                trimWindow={ownRefWindow}
                 extra={
                   <div className="space-y-2">
                     <input
@@ -947,7 +1232,86 @@ export default function VideoTemplateExtractor({
                     {/* ★ 「AI 分析哪几帧」只对**自带白模片**那条路出：aiBlockout 那条的
                         "看几帧"是白模化之前的点名清单，由 BlockoutTrimmer 自己的
                         VisionFramePicker 管 —— 同一屏摆两个"看几帧"只会让人分不清。 */}
-                    {route === "ownRef" && receipt && (
+                    {/* ★ 长素材的出路要在还没拖到 30 秒以上时就说（不说的话没人知道能拖过去）：
+                        初始选段是 30 秒，分段那条路的入口就是"把右把手继续往右拖"。
+                        ★ 超过 12×30=360 秒的素材**不出这句**：那种整条装不下，请人把把手拉满、
+                        再告诉他拉满也不行，是把人往死路上指。★ 更正一处旧注释（说的是"judge 会整句拒"）：
+                        judge 其实**轮不到说话** —— `ownRefWindow` 在这一档已经把把手硬钳到 30 秒，
+                        选段永远长不到 segLong，红字自然也不会出现。所以那一档缺的不是拒绝，
+                        是**一句解释**（把手拉到 30 秒就不动了、屏幕上一个字都没有），见下面第三条 */}
+                    {route === "ownRef" &&
+                      receipt &&
+                      !segLong &&
+                      receipt.data.durationSec > BLOCKOUT_INPUT_RULES.maxSec &&
+                      // ★★ 门槛是**自动切真能覆盖到的**那个数（8×30=240），不是 12×30=360
+                      //   （2026-08-21 评审）：planSplits 的补刀是递归对半，段数只能是 2 的幂，
+                      //   240 秒之后下一档直接 16 段、一步跨过 12 段上限 —— 对 241~360 秒的
+                      //   素材说"拉满就会自动切成多段"，用户照做立刻撞红字。那一档改在
+                      //   下面单独说（要自己标刀）。
+                      Math.floor(receipt.data.durationSec) <= 8 * BLOCKOUT_INPUT_RULES.maxSec && (
+                        <p className="rounded-lg bg-sky-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-sky-200/90">
+                          这条素材有 {receipt.data.durationSec.toFixed(1)} 秒：把上面的选段
+                          <b className="font-bold">拉满整条</b>，就会自动切成多段登记成一组（每段 ≤30 秒、逐段认人）；
+                          只想用其中一段就框 {BLOCKOUT_INPUT_RULES.maxSec} 秒以内。
+                        </p>
+                      )}
+                    {/* ★ 240~360 秒这一档单独说：自动切会一步跨到 16 段（见 arkVideoRules
+                        的 autoMaxSec ★★），必须自己标刀，不然拉满就是一句红字 */}
+                    {route === "ownRef" &&
+                      receipt &&
+                      !segLong &&
+                      Math.floor(receipt.data.durationSec) > 8 * BLOCKOUT_INPUT_RULES.maxSec &&
+                      Math.floor(receipt.data.durationSec) <= SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec && (
+                        <p className="rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                          这条素材有 {receipt.data.durationSec.toFixed(1)} 秒：把选段<b className="font-bold">拉满整条</b>
+                          之后还要<b className="font-bold">自己标切段刀</b>（把 {SPLIT_MAX_PARTS - 1} 刀尽量摆匀）——
+                          这个长度上"自动对半"会一步切到 16 段，超过一次最多 {SPLIT_MAX_PARTS} 段。
+                          只想用其中一段就框 {BLOCKOUT_INPUT_RULES.maxSec} 秒以内。
+                        </p>
+                      )}
+                    {/* ★ >360 秒这一档（2026-08-21 复核补）：`ownRefWindow` 把把手钳在 30 秒，
+                        用户拖到 30 秒就拉不动了 —— 不解释的话，那就是 CLAUDE.md「界面上摆一个
+                        永远点不动的东西」那条坑。整条登记的天花板由 SPLIT_MAX_PARTS × maxSec
+                        算出来，别在这里手写 360 */}
+                    {route === "ownRef" &&
+                      receipt &&
+                      !segLong &&
+                      Math.floor(receipt.data.durationSec) > SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec && (
+                        <p className="rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                          这条素材有 {receipt.data.durationSec.toFixed(1)} 秒，
+                          <b className="font-bold">整条登记做不了</b>（一次最多 {SPLIT_MAX_PARTS} 段 × {BLOCKOUT_INPUT_RULES.maxSec}
+                          秒 = {SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec} 秒），所以上面的选段拉到{" "}
+                          {BLOCKOUT_INPUT_RULES.maxSec} 秒就拉不动了。要么框其中{" "}
+                          {BLOCKOUT_INPUT_RULES.maxSec} 秒以内做一段，要么先把素材剪短到{" "}
+                          {SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec} 秒以内再传。
+                        </p>
+                      )}
+                    {route === "ownRef" && receipt && segLong && (
+                      <>
+                        {/* 分段形态：标的是**切段刀**（splitMarks），不是认人帧 —— 两份状态
+                            两种含义，见 splitMarks 的 ★★。整条都要登记，所以不传 sel。
+                            mode 在 split 形态下不参与渲染（picker 里没有模式档）。 */}
+                        <BoxFramePicker
+                          kind="split"
+                          mode="manual"
+                          onModeChange={() => {}}
+                          src={receipt.src}
+                          marks={splitMarks}
+                          onMarksChange={setSplitMarks}
+                          disabled={!!busy}
+                        />
+                        {/* ★★ 被丢弃的刀必须整句点名（planSplits 只丢不响，响的责任在这儿）：
+                            不说的话，用户标了 3 刀、绿字却说"切成 3 段"，他只会以为标丢了 */}
+                        {splitPlan && splitPlan.dropped.length > 0 && (
+                          <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">
+                            有 {splitPlan.dropped.length} 刀落不下去，已被忽略：第{" "}
+                            {splitPlan.dropped.map((m) => m.toFixed(1)).join(" / ")} 秒——离片头、片尾或相邻的刀不足
+                            4 秒，切出来会有短于 4 秒的段（AI 引擎收不下）。把这几刀删掉，或挪远一点再标。
+                          </p>
+                        )}
+                      </>
+                    )}
+                    {route === "ownRef" && receipt && !segLong && (
                       <BoxFramePicker
                         mode={boxMode}
                         onModeChange={setBoxMode}
@@ -994,7 +1358,6 @@ export default function VideoTemplateExtractor({
                     （blockoutBlock），不是一颗没有说明的灰按钮。挡在这里而不是挡在
                     「开炼」那一步，省下的是一次 100MB 上传 + 几分钟框选。 */}
                 <button
-                  data-guide="extractor-pick-file"
                   onClick={() => inputRef.current?.click()}
                   disabled={!!busy || !!blockoutBlock}
                   className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-600 py-6 text-sm text-slate-300 disabled:opacity-50"
@@ -1051,9 +1414,9 @@ export default function VideoTemplateExtractor({
                       <span className="text-slate-400">预估消耗</span>
                       <span className="text-slate-200">
                         {fmtTokens(estimate)} token
-                        {wallet && (
-                          <span className="ml-2 text-slate-500">余额 {fmtTokens(wallet.plan + wallet.addon)}</span>
-                        )}
+                        {/* ★ 一处实现（见 account.balanceNote）；顺带补上 AI_REAL ——
+                            演示模式下本就不花钱，报一个真余额只会让人以为这一炉在扣钱 */}
+                        {AI_REAL && balanceNote() && <span className="ml-2 text-slate-500">{balanceNote()}</span>}
                       </span>
                     </div>
                   </>
@@ -1072,7 +1435,11 @@ export default function VideoTemplateExtractor({
                     {busy ||
                       (blockoutBlock
                         ? "白模那两条路现在开不了（原因见上）。上面改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。"
-                        : `选好视频先传上去（不花钱），下一步再拖时间轴框出 ${BLOCKOUT_INPUT_RULES.minSec}~${BLOCKOUT_INPUT_RULES.maxSec} 秒、拖裁剪框把水印框到画面外，确认报价后才开炼。`)}
+                        : // ★★ 只说**这一屏别处没说过的**：上传不花钱、选段窗口、报价在开炼之前。
+                          //   「拖裁剪框把水印框到画面外」与「报价」上面那两段各说过一次了 ——
+                          //   同一屏说两遍不是强调，是让人以为那是两件事（这一屏本来就是靠删重复
+                          //   才腾出地方的，2026-08-23 拆两步时一并收）。
+                          `传上去不花钱 · 下一步框出 ${BLOCKOUT_INPUT_RULES.minSec}~${BLOCKOUT_INPUT_RULES.maxSec} 秒 · 报价确认后才开炼`)}
                   </p>
                 ) : (
                   <>
@@ -1090,6 +1457,8 @@ export default function VideoTemplateExtractor({
                       <b className="text-slate-400">不提取主角</b>——主角由你之后那句话指定。
                     </p>
                   </>
+                )}
+              </>
                 )}
               </>
             )}

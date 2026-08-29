@@ -9,6 +9,8 @@
 import { Card, slotLabel, uid, type CardView } from "../types";
 // data → mock 是既有方向（data/videos.ts 也从 mock/frames 取种子帧），不成环
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
+import { reconcileTermsWithServer } from "./agreements";
+import { removeVoice } from "./cardVoice";
 import { PLANS, PLATFORM_CUT, fmtTokens, type VideoTier } from "./economy";
 import { idbGet, idbSet } from "./db";
 // 转存（dataURL → 永久 URL）的唯一入口，与发布/换封面/详情页加图共用（铁律六）
@@ -132,40 +134,55 @@ async function readyLocal(): Promise<void> {
   db.users ??= [];
   db.cards ??= [];
   db.decks ??= [];
-  if (db.currentId) seedStarterAssets(db.currentId);
+  wipeLegacyAssetsLocal();
   emit();
 }
 
 /**
- * 给空手的本地账号铺一套开箱素材：市场那 18 张种子卡按主题成组（见 mock/ai 的 MARKET_DECKS）。
+ * 卡片系统 V2 的一次性清库（2026-08-24，用户拍板"全部清空"并知晓不可逆）：
+ * 旧卡（种子演示卡 + V2 之前铸的）整批下场，圈选提取的新卡从零开始，
+ * 种子铺设（seedStarterAssets）同日删除 —— 新账号开局就是空库。
  *
- * ★ 只在【这个人一张卡一个组都没有】时铺，且只在离线模式：
- *   远端账号的资产以服务端为准，往里塞本地种子会在下次同步时变成幽灵卡。
- *   判据用"这个人的库是空的"而不是"这是个新用户"——老账号（比如升级前建的）
- *   同样两手空空，进工作流点开素材库只会看到一句"还没有素材卡"，没法试。
- * ★ 不落 persist()：调用方（readyLocal / signIn）自己会写盘，这里重复写一次没意义。
+ * ★ 判据是**时间截线**而不是"删光再打标记"：迁移标记是每台设备一份的，
+ *   多设备账号会在 A 机清完、造了新卡之后，被迟升级的 B 机再清一遍 ——
+ *   截线让重跑天然无害（新卡 createdAt 恒在截线之后）。
+ * ★ 种子卡另按 id 兜底（mkt_* / deck_seed_*）：老版本 App 在截线之后仍会铺种子，
+ *   那批的 createdAt 晚于截线，光看时间会漏。
  */
-function seedStarterAssets(userId: string): void {
-  if (!db || remoteOn()) return;
-  const mine = db.cards.some((c) => c.ownerId === userId) || db.decks.some((d) => d.ownerId === userId);
-  if (mine) return;
-  const now = Date.now();
-  const owned = new Map<string, Card>();
-  for (const def of MARKET_DECKS) {
-    const cards = marketCardsByName(def.cards);
-    if (cards.length === 0) continue;
-    for (const c of cards) if (!owned.has(c.id)) owned.set(c.id, c);
-    db.decks.push({
-      id: `deck_seed_${def.id}`,
-      ownerId: userId,
-      name: def.name,
-      intro: def.intro,
-      cardIds: cards.map((c) => c.id),
-      coverCardId: cards[0].id,
-      createdAt: now,
-    });
+const V2_CARD_WIPE_MS = Date.parse("2026-08-24T00:00:00+08:00");
+const isLegacyCard = (c: Card & { createdAt: number }) => c.createdAt < V2_CARD_WIPE_MS || /^mkt_/.test(c.id);
+const isLegacyDeck = (d: Deck) => d.createdAt < V2_CARD_WIPE_MS || /^deck_seed_/.test(d.id);
+
+/** 本地库的清法：直接过滤（离线模式的卡只活在 IndexedDB，这一刀就是全部） */
+function wipeLegacyAssetsLocal(): void {
+  if (!db) return;
+  const nc = db.cards.filter((c) => !isLegacyCard(c));
+  const nd = db.decks.filter((d) => !isLegacyDeck(d));
+  if (nc.length !== db.cards.length || nd.length !== db.decks.length) {
+    db.cards = nc;
+    db.decks = nd;
+    persist();
   }
-  for (const c of owned.values()) db.cards.push({ ...c, ownerId: userId, createdAt: now });
+}
+
+/**
+ * 远端账号的清法：走 removeCard/deleteDeck（它们会同步打服务端删除接口 ——
+ * 只删本地的话，下次冷启动 loadRemoteAssets 又把服务端那份整份拉回来）。
+ * 挂在 loadRemoteAssets 结尾（它是远端资产落地的唯一口，三条登录/恢复路都过它）。
+ * ★ localStorage 按账号记"清过了"，只为省下每次启动的一串删除 API；
+ *   标记丢了重跑也无害 —— 截线保证 V2 新卡一张不动。
+ */
+function wipeLegacyAssetsRemote(): void {
+  const u = currentUser();
+  if (!u || !db) return;
+  const flag = `ideahub-app.cardWipeV2.${u.id}`;
+  if (localStorage.getItem(flag)) return;
+  const cards = db.cards.filter((c) => c.ownerId === u.id && isLegacyCard(c));
+  const decks = db.decks.filter((d) => d.ownerId === u.id && isLegacyDeck(d));
+  // 先删组再删卡：removeCard 会顺手把卡从组里摘掉，反过来做是白做一遍
+  for (const d of decks) deleteDeck(d.id);
+  for (const c of cards) removeCard(c.id);
+  localStorage.setItem(flag, "1");
 }
 
 /**
@@ -275,7 +292,6 @@ export function signIn(account: string, name?: string): User {
     db.users.push(user);
   }
   db.currentId = user.id;
-  seedStarterAssets(user.id); // 新账号开箱即有素材，否则工作流的素材库是空的，没法试
   persist();
   return user;
 }
@@ -292,6 +308,16 @@ export function signOut(): void {
     deckAlias.clear();
   }
   persist();
+}
+
+/**
+ * 注销账号（仅远端模式；服务端 POST /api/me/deactivate，软删除 + 全部旧 token 立即失效）。
+ * 成功后本地按登出收尾（同一份 signOut，铁律六）——服务端那边 token 反正已经全废了。
+ * 失败往上抛（400 用户名不匹配 / 网络错误），页面把 message 原样显示（铁律八）。
+ */
+export async function deactivateAccount(confirmUsername: string): Promise<void> {
+  await authApi.deactivateRemote(confirmUsername);
+  signOut();
 }
 
 export function updateProfile(patch: Partial<Pick<User, "name" | "avatar" | "bio">>): void {
@@ -486,6 +512,25 @@ export function canAfford(n: number): boolean {
   }
   const w = walletOf();
   return !!w && w.plan + w.addon >= n;
+}
+
+/**
+ * 「我的额度状况」那半句——**唯一实现**（`余额 5.2k` / `管理员免扣费` / 什么都不说）。
+ *
+ * ★★ 为什么非抽不可（2026-08-21 真机上撞见）：管理员的镜像余额就是个普通数字（5.2k），
+ *   而报价动辄 80.4k —— 于是「余额 5.2k」长期挂在十万级的报价旁边，可服务端对 admin
+ *   根本不扣（billingExempt 让 canAfford 直接放行）。**按钮点得动、旁边写着不够**，
+ *   两句话里必有一句是假的，用户没有办法判断是哪句。TokenCost 早就为这条单开了一档，
+ *   但另外三处（流水线底栏、抽卡、扒模板）各自手写 `余额 ${plan + addon}`，
+ *   于是同一条规则四处各说各的（铁律六）。
+ * ★ 不判 AI_REAL：那个常量在 `ai/arkClient` 顶层，而 arkClient 已经 import 本模块 ——
+ *   反向再引就成环，循环加载下这里会读到 undefined（比不判更糟：演示模式静默报真余额）。
+ *   演示模式的那句话由调用点自己说，各处措辞本来就不同。
+ */
+export function balanceNote(): string {
+  if (billingExempt()) return "管理员免扣费";
+  const w = walletOf();
+  return w ? `余额 ${fmtTokens(w.plan + w.addon)}` : "";
 }
 
 /**
@@ -875,6 +920,8 @@ export async function setCardViews(cardId: string, views: Card["views"]): Promis
 }
 
 export function removeCard(cardId: string): void {
+  // 声音样本是本机侧库（data/cardVoice），卡没了它就成了永远读不到的孤儿——顺手清
+  removeVoice(cardId);
   const u = currentUser();
   if (!u || !db) return;
   db.cards = db.cards.filter((c) => !(c.ownerId === u.id && c.id === cardId));
@@ -1053,24 +1100,10 @@ export async function browseSharedDecks(q = ""): Promise<branch.ApiSharedDeck[]>
 }
 
 function seedSharedDecks(q: string): branch.ApiSharedDeck[] {
-  const key = q.trim();
-  const installed = new Set(db?.decks.map((d) => d.sourceDeck).filter(Boolean) ?? []);
-  return MARKET_DECKS.filter(
-    (d) => !key || d.name.includes(key) || d.intro.includes(key) || d.cards.some((n) => n.includes(key)),
-  ).map((d) => {
-    const cards = marketCardsByName(d.cards);
-    return {
-      _id: d.id,
-      name: d.name,
-      description: d.intro,
-      cardCount: cards.length,
-      covers: cards.slice(0, 3).map((c) => c.cover),
-      types: [...new Set(cards.map((c) => c.type))],
-      // 热度取组内卡热度之和，好让广场有个稳定且说得通的排序依据
-      installs: Math.round(cards.reduce((s, c) => s + (c.hot ?? 0), 0) / 100),
-      installed: installed.has(d.id),
-    };
-  });
+  // 卡片系统 V2（2026-08-24）：离线种子市场随旧卡一并下架（理由见 ai/index.searchMarket）。
+  // 函数留壳不删：browseSharedDecks 的离线分支仍指着它，形状不变、内容为空。
+  void q;
+  return [];
 }
 
 /**
@@ -1226,6 +1259,9 @@ function toLocalCard(c: branch.ApiCard): Card {
     tags: c.tags,
     modelUrl: c.modelUrl || undefined,
     genPrompt: c.genPrompt || undefined,
+    // 真人声明：false/缺省都归一成 undefined —— 读侧判否定，两者本就同义（非真人），
+    // 落一个显式 false 只会让人误以为"声明过不是"是个存在的状态
+    realPerson: c.realPerson || undefined,
     // ★ 原样收下，不替 undefined 补 []（新服务端对老卡回的就是 []，两者到了
     //   viewsOf() 里是**同一个意思**：没有挂过图 → 拿卡面当全身参考兜底）。
     //   曾经这里的注释声称"[] = 明确地没有参考图，与 undefined 是两回事" —— 那是
@@ -1286,6 +1322,9 @@ async function hydrateProfile(remote: authApi.ApiUser): Promise<authApi.ApiUser>
 
 /** 把服务端用户装进内存库并置为当前登录用户 */
 function adoptUser(remote: authApi.ApiUser): User {
+  // 协议同意对账：四条登录路 + 冷启动都汇到这里，是唯一该做这件事的地方
+  // （服务端有当前版本→落本机；本机有而服务端旧→补传。见 agreements 里那段 ★）
+  reconcileTermsWithServer(remote.termsAcceptedVersion);
   const user = toLocalUser(remote);
   db = { users: [user], currentId: user.id, cards: [], decks: [] };
   // 钱包镜像跟着登录态走：换了人就必须重取，否则新登录的账号会先看到上一个人的余额。
@@ -1501,6 +1540,8 @@ async function loadRemoteAssets(): Promise<void> {
   }));
   // 本地按作者名关注，顺手把 名字→userId 登记进 api/branch，让 toggleFollow 能反查
   u.following = following.map((f) => branch.authorName(f));
+  // 卡片系统 V2：远端旧卡一次性清场（见 wipeLegacyAssetsRemote 的 ★）
+  wipeLegacyAssetsRemote();
 }
 
 // ── 远端登录（新增导出；LoginPage 接上密码框后改调这两个即可）──
