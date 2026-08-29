@@ -131,10 +131,12 @@ export function setQuality(q: Quality) {
 
 // 模型 URL 表：?v= 版本号用于重烘后破缓存（升版本时三档都要动）
 const NPC_VER = "lean17";
-// think5：player-f 换成 v2 重制模型（二游设定稿重建 + 迁移现网骨架，见
-// assets-private/playerf-v2/README.md）。★ 不顶这个数，老用户的浏览器/WebView
-// 拿的还是缓存里那份旧模型 —— 全程零报错，只是没生效。
-const PLAYER_VER = "think5";
+// think6：player-m 也换成 v2 重制模型（think5 时只换了 f）。两次走的是同一条流水线
+// （二游设定稿 → 图生 3D → 迁移现网骨架 → 降面 → 压缩），但**生成器换了**：
+// f 用 SupaVoxel，m 用方舟 doubao-seed3d-2-0 —— 后者直出 4096² PBR 贴图与
+// 50 万面，同一套设定稿下脸和金滚边清楚一大截（见 assets-private/playerm-v2/README.md）。
+// ★ 不顶这个数，老用户的浏览器/WebView 拿的还是缓存里那份旧模型 —— 全程零报错，只是没生效。
+const PLAYER_VER = "think6";
 
 export function npcModelUrl(): string {
   const q = getQuality();
@@ -180,18 +182,19 @@ export function playerModelUrl(avatar: PlayerAvatar): string {
 //   ③ 报的体积（2.4/3.3/25.5MB）在 f 换成 v2 重制模型之后全部作废。
 //
 // ★ 现在的实测值（`node` 逐文件读 GLB 头量的，不是估）：
-//     她 f（v2 重制）  流畅 0.85MB/4.0万面/1K ｜ 均衡 1.45MB/8.0万面/2K ｜ 极致 1.69MB/15.0万面/2K
-//     他 m（仍是旧模型）流畅 3.10MB/45.1万面/2K ｜ 均衡 4.23MB/67.6万面/2K ｜ 极致 35.54MB/90.2万面/4K
-//   两个形象差这么多，是因为 f 已经走过"二游设定稿重建 + 迁移骨架 + 降面"那条流水线，
-//   m 还没有（见 assets-private/playerf-v2/README.md）。**所以文案里不能再写死单一数字**，
-//   两个形象各报各的。
-// ★ f 没有"4K 档"：重制模型的源贴图上限就是 2048，硬放大出来的 4K 是假的，不写。
+//     她 f  流畅 0.85MB/4.0万面/1K ｜ 均衡 1.45MB/8.0万面/2K ｜ 极致 1.69MB/15.0万面/2K
+//     他 m  流畅 0.77MB/4.0万面/1K ｜ 均衡 1.79MB/8.0万面/2K ｜ 极致 3.78MB/15.0万面/4K
+//   两边现在都走完了"二游设定稿重建 + 迁移骨架 + 降面"那条流水线，所以面数一致。
+//   体积仍不一样：m 的源贴图是 4096²（方舟 seed3d 直出），f 的是 2048²（SupaVoxel 上限）。
+//   **文案里不能写死单一数字**，两个形象各报各的。
+// ★ 只有 m 有真 4K：f 的源贴图上限就是 2048，硬放大出来的 4K 是假的，不写。
+//   所以「极致」这一档的说明不能再统一写"4K"——写"最高贴图"，各自报体积。
 // ★ 画质**只影响玩家形象这一个模型**：默认铸卡师是委托定制的 milltina，单文件、不分档
 //   （npcModelUrl 那三档只服务 `?npc=witch` 调试变体，出包时全裁）。
 // ★ 2026-08-11 起三档在 App 里都能用：素材随包发布，不再是"点不动的灰选项"。
 //   所以这里说的是**加载耗时与显存**，不是下载流量 —— 文件就在本机。
 export const QUALITY_LABELS: Record<Quality, { name: string; desc: string }> = {
-  low: { name: "流畅", desc: "最小贴图与面数 · 加载最快（她 0.9MB／他 3.1MB）· 老手机选它" },
-  mid: { name: "均衡", desc: "2K 贴图 · 中等面数（推荐；她 1.5MB／他 4.2MB）" },
-  high: { name: "极致", desc: "最高贴图与面数 · 最清楚但吃显存（她 1.7MB／他 35.5MB）" },
+  low: { name: "流畅", desc: "1K 贴图 · 4 万面 · 加载最快（她 0.9MB／他 0.8MB）· 老手机选它" },
+  mid: { name: "均衡", desc: "2K 贴图 · 8 万面（推荐；她 1.5MB／他 1.8MB）" },
+  high: { name: "极致", desc: "最高贴图 · 15 万面 · 最清楚但吃显存（她 1.7MB／他 3.8MB）" },
 };
