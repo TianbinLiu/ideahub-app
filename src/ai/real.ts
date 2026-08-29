@@ -182,29 +182,41 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, i: number
   return out;
 }
 
-/** 画风词。★ 拆出来是为了让**画风卡**能只要后半截（见 cardStyleSuffix） */
-const ART_STYLE = "二次元厚涂插画风，高细节，电影感构图，氛围光，";
 /** 每张出图都要的收尾。水印/文字混进设定帧就会被 Seedance 一起拍进视频里 */
 const NO_TEXT = "无文字无水印。";
 
-// （STYLE_SUFFIX 已拆散：卡面那半在 cardStyleSuffix，设定帧那半在 frameStyle——
-//   后者 2026-08-28 起画风开头交给 frameArtStyle 按挂的卡定，不再无条件厚涂）
+// （厚涂画风词 ART_STYLE 2026-08-28 整个退役：帧管线交给 frameArtStyle 按挂的卡定，
+//   卡面这侧交给"参考图跟随句"——主人同日两次拍板"画风的主人是卡与素材，不是常量"）
 
 /**
- * 卡片相关出图的尾巴。
+ * 卡片相关出图的尾巴。**只剩质感词，不再注明任何画风**（2026-08-28 主人拍板：
+ * 卡面的画风也跟素材走——有参考图时由调用点拼「画风跟随参考图」那句
+ * （forgePrimary 的 STYLE_FOLLOW_REF / slotPrompt 的与〈图片1〉一致 / mintCards 的
+ * STYLE_FOLLOW_MINT），没有参考图就让模型自己定。
+ * 2026-08-11 那条"style 卡不拼厚涂"的例外随厚涂词一起消失——如今全类型一致）。
  *
- * ★★ style 卡**一个画风词都不能拼**（2026-08-11 之前是全类型一律拼 STYLE_SUFFIX）：
- *   画风卡的整张图就是用来定义"这套画风长什么样"的，再按上"二次元厚涂插画风"，
- *   用户要的水墨 / 胶片 / 像素从第一步就不存在了。而这张图随后是唯一的画风参考
- *   （prepareMaterialRefs 的绑定句会说"只沿用它的画法"），于是错一次错到底 ——
- *   全片都是厚涂，用户挂着一张写着「水墨留白」的卡，全程零报错。
  * ★ frameWord 区分"这张是卡面"和"这张只是卡的一张形象参考图"：对着一张面部特写
  *   说"卡面"，模型会去画一张**画着卡片**的图（带边框题名条），而那张图随后要当
  *   参考图喂回去。
+ * ★ 保持导出与签名：CardDetailPage 的 cardInfoOf 为没存 genPrompt 的老卡现拼蓝图，
+ *   必须与真发给方舟的这句逐字同源（铁律六——抄一份的下场那边注释里记着）。
  */
-export function cardStyleSuffix(type: CardType, frameWord: "卡面" | "画面"): string {
-  return `${type === "style" ? "" : ART_STYLE}${NO_TEXT}竖版 3:4 ${frameWord}。`;
+export function cardStyleSuffix(_type: CardType, frameWord: "卡面" | "画面"): string {
+  return `高细节，${NO_TEXT}竖版 3:4 ${frameWord}。`;
 }
+
+/**
+ * 「画风严格跟随参考图」—— **用户素材铸卡**那半（forgePrimary 用）。措辞与
+ * promptSchemes.STYLE_CLAUSE / frameArtStyle 第③档同源：照片素材出写实卡面、
+ * 插画素材出同风格卡面，不由我们替用户挑画风。
+ */
+const STYLE_FOLLOW_REF = "画风严格跟随参考图（照片则照片级写实，插画则同风格插画）。";
+
+/**
+ * 「画风跟随参考图但别抄内容」—— **派生/提卡铸卡面**那半（mintCards 的 styleRef 用）。
+ * 参考图是成片帧：要它的笔触与上色，不要它的画面（否则每张卡面都长成那一帧）。
+ */
+const STYLE_FOLLOW_MINT = "画风严格跟随参考图的笔触、上色与光影质感，但不要照抄参考图的画面内容与构图。";
 
 /** 卡框会吃掉的那一圈。数值来自 TarotCard：卡片容器是 aspect-[2/3] + object-cover，
  *  3:4 的图左右各被裁掉约 5.5%；题名条从 87% 起占底部 13%。
@@ -879,6 +891,9 @@ async function forgePrimary(
       note ? `用户的额外要求（必须满足）：${note.slice(0, 200)}` : "",
       ref ? REF_HINT[type] : "",
       ref ? "不要直接复制参考图，也不要保留它的背景杂物、相框、界面元素与文字。" : "",
+      // 画风跟着用户的素材走（2026-08-28）：照片素材出写实卡面、插画出同风格。
+      // 没给素材（纯文字铸卡）就不注明画风——cardStyleSuffix 只剩质感词，模型自己定
+      ref ? STYLE_FOLLOW_REF : "",
       CARD_COMPOSITION[type],
       cardStyleSuffix(type, "卡面"),
     ]
@@ -905,6 +920,9 @@ function slotPrompt(type: CardType, name: string, summary: string, note: string,
       //   这几张不是卡面，说成"卡面的面部特写"会让模型去画一张画着卡的图
       `${CARD_TYPE_LABELS[type]}「${name}」的${slot.label}。${summary}`,
       `<图片1>是这张卡已经定稿的主图。画的必须是<图片1>里的同一${SUBJECT_WORD[type]}：${slot.locks}要与<图片1>完全一致，只改变取景与景别，不要另画一${SUBJECT_WORD[type]}。`,
+      // 画风也锁在主图上（2026-08-28 厚涂词退役后这句就是唯一的画风指令）：
+      // 三张图随后要一起当形象参考，画风分裂与形象分裂一样致命
+      "画风与<图片1>完全一致。",
       note ? `用户的额外要求（必须满足）：${note.slice(0, 200)}` : "",
       type === "scene" || type === "background" ? "画面中不要出现任何人物或角色。" : "",
       cardStyleSuffix(type, "画面"),
@@ -1368,7 +1386,10 @@ export async function deriveDeckCards(
       imagePrompt: "一张能代表本片整体画风的示意画面：延续剧情画面的笔触、上色与光影质感，题材随意，重点是画法本身",
     });
   }
-  return await mintCards(defs, DECK_MINT, styleHint, existing, onProgress);
+  // 画风参考帧：成片里第一张真帧（组稿前已回写真帧）。"视频是什么画风，卡面就跟
+  // 什么画风"从 styleHint 的文字近似升级为真参考（主人 2026-08-28 拍板"卡面也跟素材走"）
+  const styleRef = segments.map((s) => s.firstFrame).find((u) => /^(data:image|https?:)/i.test(u || ""));
+  return await mintCards(defs, DECK_MINT, styleHint, existing, onProgress, styleRef);
 }
 
 /** 模型吐出的卡定义（提炼与视频提卡共用一套结构） */
@@ -1384,6 +1405,12 @@ interface CardDef {
 /**
  * 按卡定义批量铸卡面（Seedream，每张一次图生成）。
  * 与已有卡重名的先剔掉——既避免重复出卡，也省下那张卡面的图钱。
+ *
+ * @param styleRef 画风参考帧（成片/上传视频的一帧，dataURL 或 http(s)）。给了就 i2i：
+ *   每张卡面带它当参考并拼 STYLE_FOLLOW_MINT——「视频是什么画风，卡面就跟什么画风」
+ *   从 styleHint 的文字近似升级成真参考（2026-08-28 主人拍板"卡面也跟素材走"）。
+ *   ★ 5.0 的"首张输入图不额外计费"（见 forgeSlots 的 ★）：这张参考不改变报价。
+ *   ★ prepRefImage 失败就退回纯文字（跟随句同步消失——图没发就不许说"跟随参考图"）。
  */
 async function mintCards(
   defs: CardDef[],
@@ -1391,6 +1418,7 @@ async function mintCards(
   styleHint: string,
   existing: Array<Pick<Card, "type" | "name" | "summary">>,
   onProgress?: (status: string) => void,
+  styleRef?: string,
 ): Promise<Card[]> {
   if (defs.length === 0) return []; // 已有卡把实体全覆盖了：无需补卡，合法结果
   // 模型偶尔把已有实体换个叫法再提出来（"义肢少女"→"义肢电玩少女"）——
@@ -1409,17 +1437,20 @@ async function mintCards(
     .slice(0, spec.cap)
     .filter((d) => d.name && TYPE_LABEL[d.type as CardType] && !isDupOfExisting(d.name, d.type as CardType));
   if (jobs.length === 0) return []; // 提出来的全是已有实体的换皮：等于无需补卡
+  // 画风参考帧整批只备一次（mapLimit 3 路并发，逐张 prep 是白做三遍同一件事）
+  const styleRefUrl = styleRef ? await prepRefImage(styleRef) : null;
   await mapLimit(jobs, 3, async (d) => {
     const type = d.type as CardType;
     try {
       // 完整生成提示词随卡保存（生成蓝图）：卡片详情页展示，
       // 后续用它就能复刻出与卡面一致的画面/建模
-      // ★ 画风卡同样不拼 STYLE_SUFFIX（与 forgePrimary 同一条理由）：派生出来的那张
-      //   style 卡是给后面整片当画风参考的，被按上"二次元厚涂"就等于把这条片的画风
-      //   悄悄换掉，而卡上写的还是模型总结出来的那个名字
-      const genPrompt = `${TYPE_LABEL[type]}：${d.name}。${d.imagePrompt ?? d.summary ?? ""}。${styleHint ? `画风：${styleHint}。` : ""}${cardStyleSuffix(type, "卡面")}`;
+      // ★ 跟随句只在参考帧**真备成了**才拼（铁律五的措辞版：图没发不许说"跟随参考图"）
+      const genPrompt = `${TYPE_LABEL[type]}：${d.name}。${d.imagePrompt ?? d.summary ?? ""}。${styleHint ? `画风：${styleHint}。` : ""}${styleRefUrl ? STYLE_FOLLOW_MINT : ""}${cardStyleSuffix(type, "卡面")}`;
       // 画布与素材卡一致（CARD_SIZE）：两种卡摆在同一副卡组里，画幅不一致一眼就看得出
-      const cover = await genImageAsDataUrl(genPrompt, { size: CARD_SIZE });
+      const cover = await genImageAsDataUrl(genPrompt, {
+        size: CARD_SIZE,
+        ...(styleRefUrl ? { imageRefs: [styleRefUrl] } : {}),
+      });
       out.push({
         id: uid("card"),
         type,
@@ -1472,7 +1503,9 @@ export async function extractCardsFromVideo(
   if (!Array.isArray(defs)) throw new Error("视频提卡 JSON 结构不符");
   // 画风由模型自己在 style 卡里判断，这里不再额外注入风格提示
   const styleHint = defs.find((d) => d.type === "style")?.name ?? "";
-  return await mintCards(defs, VIDEO_MINT, styleHint, existing, onProgress);
+  // 画风参考帧取中间那张：开头常是黑场/片头字，中段才是这段视频真正的样子
+  const styleRef = frames[Math.floor(frames.length / 2)] ?? frames[0];
+  return await mintCards(defs, VIDEO_MINT, styleHint, existing, onProgress, styleRef);
 }
 
 /**
@@ -1565,8 +1598,17 @@ export async function extractTemplateFromVideo(
       frames,
     );
     const defs = JSON.parse(rawCards.replace(/```json|```/g, "").trim()) as CardDef[];
+    // 画风参考帧同视频提卡取中段。只有经典模板走到这里（白模在上面整段跳过），
+    // 所以这张帧一定是真实成片而不是灰白模——白模帧当画风参考会把卡面画成素模渲染
     cards = Array.isArray(defs)
-      ? await mintCards(defs.filter((d) => d.type !== "character"), TEMPLATE_MINT, styleHint, [], onProgress)
+      ? await mintCards(
+          defs.filter((d) => d.type !== "character"),
+          TEMPLATE_MINT,
+          styleHint,
+          [],
+          onProgress,
+          frames[Math.floor(frames.length / 2)] ?? frames[0],
+        )
       : [];
   }
 
