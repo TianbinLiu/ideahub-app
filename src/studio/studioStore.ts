@@ -1,13 +1,13 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
-import { BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, uid } from "../types";
+import { BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, npcChat, npcChatOffline, prepareMaterialRefs, refineFrame, searchMarket } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, walletOf, type AddCardsResult } from "../data/account";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalRedrawCost, proposalsCost, styleWants3d } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
-import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, chosenOf, nodeVideo, tplOfNode, useFlow } from "./flowStore";
+import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeVideo, tplOfNode, useFlow } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, saveDraft } from "../data/drafts";
@@ -132,6 +132,10 @@ export const rederiveKey = (nodeId: string) => `rederive:${nodeId}`;
  */
 export function placeholderVisible(nodes: FlowNode[]): boolean {
   if (nodes.length === 0) return true;
+  // ★★ 末段是白模段就不亮（判据在 flowStore.appendBlocked 一处，与 addNode/appendNode 同门）：
+  //   亮着的话用户点进去写素材、付**推演费**，方案炼好落桌时才被 appendNode 拒——
+  //   钱已经花了、三套方案没处放（generateNode 的扣费在 appendNode 之前，铁律五的钱坑）。
+  if (appendBlocked(nodes, null)) return false;
   return proposalDone(chosenProposal(nodes[nodes.length - 1]));
 }
 
@@ -530,6 +534,9 @@ interface StudioState {
   /** 自定义直出：不推演，把编辑器里的帧+要求铺成一张**已选定单方案**的节点卡。
    *  出片仍走方案台那颗「炼这一段视频」（generateSegment/报价一行没改） */
   layCustomNode: () => void;
+  /** 铸段向导第①步选「套模板」：就地落一张白模节点卡（不再把人赶去画布那一面）。
+   *  规则全在 flowStore（appendNode 门禁 + setNodeTemplate 快照/闸），这里只是编排 */
+  layTemplateNode: (t: VideoTemplate) => void;
   setRequirement: (v: string) => void;
   setDurationMode: (m: "ai" | "manual") => void;
   setDurationSec: (v: number) => void;
@@ -1484,6 +1491,42 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
     set({ spreadOpen: false, focus: { nodeId: newId }, projection: "proposals", editor: null });
     get().npcSay("自定义方案摆上桌了——帧和提示词确认没问题，就点「炼这一段视频」。");
+  },
+
+  /**
+   * 套模板落节点（2026-08-30 主人点名"选模板别把人赶出工坊"）。
+   * ★ 先 appendNode 一张已选定的空方案卡，再 setNodeTemplate 套快照 —— 与画布
+   *   「＋ 加一段 → 🧪 套模板」两拍等价，门禁与快照规则全在 flowStore 那两处。
+   * ★ 套不上就把刚落的空卡收回（铁律八的另一半：失败不能留一张自称模板段的裸卡在桌上）。
+   */
+  layTemplateNode: (t) => {
+    const editor = get().editor;
+    if (editor?.generating) return;
+    const flow = useFlow.getState();
+    const p: Proposal = {
+      id: uid("prop"),
+      title: t.title,
+      plot: "",
+      firstFrame: "",
+      lastFrame: "",
+      durationSec: t.refVideo?.durationSec ?? 5,
+    };
+    const newId = flow.appendNode({ proposals: [p], chosenId: p.id });
+    if (!newId) {
+      get().npcSay(useFlow.getState().err || "现在铺不了这一段，稍后再试。");
+      return;
+    }
+    if (!useFlow.getState().setNodeTemplate(newId, t)) {
+      useFlow.getState().removeNode(newId);
+      get().npcSay(useFlow.getState().err || "这个模板套不上，换一个试试。");
+      return;
+    }
+    set({ spreadOpen: false, focus: { nodeId: newId }, projection: "proposals", editor: null });
+    get().npcSay(
+      t.roles?.length
+        ? "模板卡摆上桌了——先给人偶挂上你的角色卡，点名句合成好就能开炼。"
+        : "模板卡摆上桌了——写一句换成谁来演，就能开炼。",
+    );
   },
 
   generateNode: async () => {

@@ -28,8 +28,15 @@ import {
   rederiveKey,
   useStudio,
 } from "../studioStore";
-// 只在「套模板」那一步问一眼"流水线上有没有段"（studio → flow 是允许的方向）
-import { CUSTOM_MID_MAX, nodeCost, useFlow, type FlowNode } from "../flowStore";
+import { CUSTOM_MID_MAX, nodeCost, tplOfNode, useFlow, type FlowNode } from "../flowStore";
+// 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
+// FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
+import { TemplatePicker } from "../../components/flow/FlowCanvas";
+// 「进挂卡编辑页要带什么」只有 FlowPage 一处实现（模板详情页也从那儿取）；
+// 回程收口在 hooks/useCastReturn，/studio 与 /flow 都挂了它
+import { castEditorState } from "../../pages/FlowPage";
+// ★ 提示词硬顶与画布同一处（ai 层是唯一出处）——三个数各写各的那段历史见 CLAUDE.md
+import { VIDEO_PROMPT_MAX } from "../../ai";
 import TokenCost from "../../components/TokenCost";
 import { proposalsCost } from "../../data/economy";
 import { fileToFrameDataUrl } from "../../utils/image";
@@ -232,7 +239,6 @@ function DeckPickPanel() {
 
 // ── 编辑投影：铸造节点卡 ─────────────────────────────────────
 function EditorPanel() {
-  const navigate = useNavigate();
   const editor = useStudio((s) => s.editor);
   const deck = useStudio((s) => s.deck);
   const [pickerType, setPickerType] = useState<CardType | null>(null);
@@ -270,20 +276,13 @@ function EditorPanel() {
     (r): r is string => !!r,
   );
 
-  /** 第一步选「套模板」：机器全在画布那一面（flowStore），这里只负责把人送过去。
-   *  桌上已有路径就铺/回工作流；空桌去模板市场（「用它出片」会整条铺好流水线）。 */
-  function goTemplate() {
-    const st = useStudio.getState();
-    st.closeProjection();
-    // 单一真相：桌面与画布是同一条流水线，套模板 = 去画布那一面做（挂卡机器在那边）
-    if (useFlow.getState().nodes.length > 0) {
-      st.npcSay("模板挂卡在画布那一面：点「＋ 加一段」再选「🧪 套模板」。");
-      navigate("/flow");
-    } else {
-      st.npcSay("套模板从模板市场开条新流水线最顺——挑一个点「用它出片」。");
-      navigate("/workshop");
-    }
-  }
+  /** 第一步选「套模板」：**就地**弹选模板层（2026-08-30 主人点名"别把人赶出工坊"；
+   *  此前这里是 closeProjection + navigate 去画布/模板市场）。选定即落节点
+   *  （studioStore.layTemplateNode——appendNode + setNodeTemplate 两拍，规则全在 flowStore） */
+  const [tplPick, setTplPick] = useState(false);
+  /** 自定义车道的素材折叠行（默认收着）：卡在这条车道只在"缺帧要 AI 补画"时当参考，
+   *  摊开一整面卡格会让它与「自选卡片」长得一模一样（主人实测点名"两个小窗口是一样的"） */
+  const [matsOpen, setMatsOpen] = useState(false);
   const crumbSteps = lane === "custom" ? (["mode", "ref", "content", "spec"] as const) : (["mode", "content", "spec"] as const);
   const crumbLabel = { mode: "选模式", ref: "示例视频", content: "写内容", spec: "定规格" } as const;
   const stepCrumb = (
@@ -316,7 +315,7 @@ function EditorPanel() {
         <div className="flex min-h-0 flex-1 flex-col justify-center gap-2.5 overflow-y-auto p-4">
           {(
             [
-              ["🧪", "套模板", "白模复刻：套一个模板，给人偶挂卡换人", goTemplate],
+              ["🧪", "套模板", "白模复刻：套一个模板，给人偶挂卡换人", () => setTplPick(true)],
               ["🃏", "自选卡片", "挑素材卡＋写要求，AI 推演三套方案", () => { setLane("cards"); setStep("content"); }],
               ["✍", "自定义", "上传示例视频或自己给首尾帧，免费铺方案直出", () => { setLane("custom"); setStep("ref"); }],
             ] as const
@@ -547,8 +546,24 @@ function EditorPanel() {
         {/* 右：素材 / 视频要求（撑满剩余空间）/ 时长一行 */}
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
 
-          {/* ② 素材：已选卡在前（同类型可多张——双主角就放两张人物卡），
-              五个类型追加按钮常驻在后 */}
+          {/* ★ 车道身份行 + 素材的形态按车道分（2026-08-30 主人实测点名"自定义和卡片进的
+              小窗口是一样的"）：自选卡片 = 素材大格是主体；自定义 = 帧与要求是主体，
+              素材折成一行（这条车道里卡只在"缺帧要 AI 补画"时当参考——layCustomNode
+              照样把它们存进节点，不是摆设） */}
+          {lane === "custom" && (
+            <button
+              onClick={() => setMatsOpen((v) => !v)}
+              disabled={editor.generating}
+              className="flex w-full items-center gap-2 rounded-lg border border-slate-700/70 bg-black/25 px-2.5 py-2 text-left"
+            >
+              <span className="flex-none text-xs">🃏</span>
+              <span className="min-w-0 flex-1 truncate text-[11px] text-slate-300">
+                素材卡（选）{slotCards.length > 0 ? ` · 已选 ${slotCards.length} 张` : ""} —— 缺帧补画时当参考
+              </span>
+              <span className="flex-none text-[10px] text-slate-500">{matsOpen ? "收起" : "展开"}</span>
+            </button>
+          )}
+          {(lane !== "custom" || matsOpen) && (
           <div>
             <div className="mb-1 flex items-baseline justify-between">
               <span className="text-xs font-semibold text-slate-300">素材</span>
@@ -638,10 +653,13 @@ function EditorPanel() {
               </div>
             )}
           </div>
+          )}
 
           {/* ③ 视频要求：flex-1 吃掉全部剩余空白 */}
           <div className="flex min-h-[72px] flex-1 flex-col">
-            <div className="mb-1 text-xs font-semibold text-slate-300">视频要求（剧情补充）</div>
+            <div className="mb-1 text-xs font-semibold text-slate-300">
+              {lane === "custom" ? "视频要求（缺的帧按这句补画，也是出片提示词）" : "视频要求（剧情补充）"}
+            </div>
             <textarea
               value={editor.requirement}
               onChange={(e) => useStudio.getState().setRequirement(e.target.value)}
@@ -738,6 +756,22 @@ function EditorPanel() {
           onClose={() => setRefSheet(false)}
         />
       )}
+      {/* 就地选模板（与画布同一份弹层，portal 到 body）。选定 → layTemplateNode 落节点并
+          切去方案台投影（本面板整个换掉，tplPick 随之卸载）；落不上时弹层不关——
+          它自带 flow.err 那一行，拒绝原因就写在脸上（铁律八）。
+          「不用模板」那行在"还没有节点"这个语境下就是取消。 */}
+      {tplPick && (
+        <TemplatePicker
+          onPick={(t) => {
+            if (!t) {
+              setTplPick(false);
+              return;
+            }
+            useStudio.getState().layTemplateNode(t);
+          }}
+          onClose={() => setTplPick(false)}
+        />
+      )}
     </>
   );
 }
@@ -751,18 +785,25 @@ function ProposalsPanel() {
   const proposalRegen = useStudio((s) => s.proposalRegen);
   const nodeGen = useStudio((s) => s.nodeGen);
   const node = focus?.nodeId ? path.find((n) => n.id === focus.nodeId) : null;
+  /** 成片回看层（与画布共用 SegPlayer：回看 + ⭕圈选改画面走同一条 addAnn → genNode 路）。
+   *  ★ hook 必须在下面那个早退**之前**：聚焦的节点可以在面板挂着时消失（删段/整表换掉），
+   *    那一拍早退会让 React 数出"更少的 hook"直接整页崩（实测踩到才补的） */
+  const [playing, setPlaying] = useState(false);
   if (!node) return null;
   const idx = path.findIndex((n) => n.id === node.id);
   const prev = idx > 0 ? chosenProposal(path[idx - 1]) : null;
   const chosen = chosenProposal(node);
   const pickedId = chosen?.id ?? null;
   const done = proposalDone(chosen);
-  /** 成片回看层（与画布共用 SegPlayer：回看 + ⭕圈选改画面走同一条 addAnn → genNode 路） */
-  const [playing, setPlaying] = useState(false);
   // 承接判定：本段的设定首帧就是上一段的设定尾帧（AI 顺接铸出来的）→ 这张开头帧不是本段
   // 自己画的，AI 重画方案时不该动它
   const carried = !!(prev?.lastFrame && chosen?.firstFrame === prev.lastFrame);
   const busy = !!nodeGen || !!frameRefining || !!proposalRegen;
+  /** 白模段（r2v 复刻）**没有方案台这一拍**（FlowPage 那句 ★：推演三套走向无从谈起）——
+   *  它要的是画布模板车道那套：换/摘模板、挂卡点名、开炼。此前工坊对模板段也摆 PlanBoard
+   *  （重推/换帧对 r2v 全是死路），2026-08-30 就地选模板落进来后换成专属面板 */
+  const tpl = tplOfNode(node);
+  const blockout = !!tpl?.refVideo;
 
   // ‹› 切换聚焦节点：桌面窗口随焦点实时平移（computeChain 焦点跟随），镜头跟到新卡位
   function go(dir: 1 | -1) {
@@ -808,7 +849,12 @@ function ProposalsPanel() {
       )}
 
       {/* 方案台：与工作流页共用同一个组件（铁律六）。工坊这边的"未选定"天然就是
-          chosenId === null——不需要另一套标记 */}
+          chosenId === null——不需要另一套标记。白模段没有方案台（上面那段 ★）——走专属面板 */}
+      {blockout && chosen ? (
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <TplSegBody node={node} proposal={chosen} onPlay={() => setPlaying(true)} />
+        </div>
+      ) : (
       <div className="min-h-0 flex-1">
         <PlanBoard
           dense
@@ -843,6 +889,7 @@ function ProposalsPanel() {
           actions={(p) => <PickedActions node={node} proposal={p} onPlay={() => setPlaying(true)} />}
         />
       </div>
+      )}
       {/* 圈选标注条（与画布同一份 AnnStrip）：重炼时逐处改画面，改图费已并进重炼报价（nodeCost） */}
       {node.anns.length > 0 && (
         <div className="flex-none px-3 pb-1">
@@ -851,13 +898,204 @@ function ProposalsPanel() {
       )}
       {playing && <SegPlayer nodeId={node.id} onClose={() => setPlaying(false)} onOpenPanel={() => setPlaying(false)} />}
       <div className="flex-none border-t border-cyan-400/15 px-3 py-1.5 text-center text-[10px] leading-4 text-slate-500">
-        {!pickedId
-          ? "挑一套 → 可换首尾帧/改剧情 → 炼出本段视频，桌面上才会亮出下一段的卡位"
-          : done
-            ? "本段已出片 · 桌面上下一段的虚线卡位已亮起"
-            : "炼出本段视频才能开下一段（段与段靠上一段的真实尾帧承接起拍）"}
+        {blockout
+          ? done
+            ? "本段已出片 · 白模复刻段只有一段——点亮法阵去组稿成片"
+            : "画面与运镜整个来自模板视频——写好那句话（或挂完卡）就能开炼"
+          : !pickedId
+            ? "挑一套 → 可换首尾帧/改剧情 → 炼出本段视频，桌面上才会亮出下一段的卡位"
+            : done
+              ? "本段已出片 · 桌面上下一段的虚线卡位已亮起"
+              : "炼出本段视频才能开下一段（段与段靠上一段的真实尾帧承接起拍）"}
       </div>
     </>
+  );
+}
+
+/**
+ * 白模段（r2v）的工坊面板：换/摘模板 + 挂卡点名 + 点名句 + 开炼 —— 画布模板车道的
+ * 工坊面（2026-08-30 就地选模板落进来后补上；此前模板段在工坊被摆成 PlanBoard，
+ * 重推/换帧对 r2v 全是死路）。
+ *
+ * ★ 规则一条不自己判：换/摘 = flowStore.setNodeTemplate；挂卡入参 = FlowPage.castEditorState
+ *   （returnTo:"/studio"，回程收口两页共用 hooks/useCastReturn）；点名句 = updateProposal；
+ *   开炼报价 = PickedActions 里的 nodeCost。本组件只是把画布那一面的话搬到投影里。
+ * ★ castErr/castFallback/castBusy 这仨认 castNodeId 不认 cursor（CLAUDE.md 那条：
+ *   全局状态记「属于哪一段」）；工坊此前一处都没画它们——模板段进了工坊，就得有人画。
+ * ★ 自带一份 flow.err：工坊页没有画布壳那条错误条，setNodeTemplate/挂卡回程的整句拒
+ *   不在这儿画就是"点了没反应"（铁律八，PlanSheet/TemplatePicker 同款）。
+ */
+function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Proposal; onPlay: () => void }) {
+  const navigate = useNavigate();
+  const tpl = tplOfNode(node)!;
+  const named = !!tpl.roles?.length;
+  const done = proposalDone(proposal);
+  const generating = node.status === "generating";
+  const err = useFlow((s) => s.err);
+  const castErr = useFlow((s) => s.castErr);
+  const castFallback = useFlow((s) => s.castFallback);
+  const castBusy = useFlow((s) => s.castBusy);
+  const castOfThisNode = useFlow((s) => s.castNodeId === node.id);
+  // ★ 本段就是光标段时读**实时缓冲**（刚挂完还没回写 node.cast）；不是时读本段落盘那份
+  //   —— 否则「已挂 N/M」印的是别段的数（画布那条 ★ 的同款）
+  const cast = useFlow((s) => (s.nodes[s.cursor]?.id === node.id ? s.cast : (node.cast ?? {})));
+  const mounted = named ? (tpl.roles ?? []).filter((r) => cast[r.label]).length : 0;
+  const [picker, setPicker] = useState(false);
+  const [castAsk, setCastAsk] = useState(false);
+  const [stripAsk, setStripAsk] = useState(false);
+
+  /** 去挂卡：先把光标真挪到本段（cast 缓冲跟光标走），挪不过去就整句拒（画布 goCast 同款） */
+  function goCast() {
+    const flow = useFlow.getState();
+    const i = flow.nodes.findIndex((n) => n.id === node.id);
+    flow.setCursor(i);
+    if (useFlow.getState().cursor !== i) {
+      useFlow.setState({ err: `第 ${i + 1} 段还没轮到（前面的段先炼完才解锁），挂不了卡` });
+      return;
+    }
+    const st = castEditorState(tplOfNode(useFlow.getState().nodes[i])!, useFlow.getState().cast, "/studio");
+    if (st) navigate("/video-editor", { state: st });
+  }
+
+  return (
+    <div className="space-y-2">
+      {err && (
+        <div className="flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5">
+          <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-rose-200">{err}</p>
+          <button onClick={() => useFlow.setState({ err: "" })} className="flex-none text-rose-300">
+            <Icon name="close" size={12} />
+          </button>
+        </div>
+      )}
+
+      {/* 模板行：换/摘的规则都在 store 的 setNodeTemplate（已出片会被整句拒，err 在上面那行） */}
+      <div className="flex items-center gap-2 rounded-lg border border-slate-700/70 bg-black/25 px-2.5 py-2">
+        <span className="flex-none text-xs">🧪</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-xs text-slate-100">{tpl.title}</span>
+          <span className="block text-[10px] text-slate-500">
+            {tpl.refVideo!.durationSec}s 白模复刻{named ? ` · ${tpl.roles!.length} 个角色位` : ""}
+          </span>
+        </span>
+        <button
+          onClick={() => setPicker(true)}
+          disabled={generating || done}
+          className="flex-none rounded-full bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-100 disabled:opacity-40"
+        >
+          换模板
+        </button>
+        <button
+          onClick={() => setStripAsk(true)}
+          disabled={generating || done}
+          className="flex-none rounded-full border border-slate-600 px-2.5 py-1 text-[11px] text-slate-300 disabled:opacity-40"
+        >
+          摘掉
+        </button>
+      </div>
+      {done && <p className="text-[10px] leading-relaxed text-slate-500">已出片：换/摘模板会作废本段（想换先删段重加）</p>}
+      {stripAsk && (
+        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+          <p className="text-[11px] leading-relaxed text-amber-200">
+            摘掉模板：挂的卡与合成好的点名句一起清掉，这一段退回普通段（想回来再套就行）。
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                if (useFlow.getState().setNodeTemplate(node.id, null)) setStripAsk(false);
+              }}
+              className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+            >
+              摘掉模板
+            </button>
+            <button onClick={() => setStripAsk(false)} className="rounded-full border border-slate-600 px-2.5 py-1 text-[11px] text-slate-300">
+              先不
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 挂卡（白模点名路）。覆盖确认与画布/线性视图同一句话、同一个理由 */}
+      {named && !done && (
+        <>
+          <button
+            onClick={() => (proposal.plot.trim() ? setCastAsk(true) : goCast())}
+            disabled={generating}
+            className="flex w-full items-center gap-2 rounded-lg border border-brand/50 bg-black/25 px-2.5 py-2 text-left text-xs text-slate-100 disabled:opacity-40"
+          >
+            <span className="flex-none">🎭</span>
+            <span className="min-w-0 flex-1 truncate">
+              {mounted > 0 ? `已挂 ${mounted}/${tpl.roles!.length} 个角色位 · 点这里改` : `给 ${tpl.roles!.length} 个人偶挂上你的角色卡`}
+            </span>
+            <Icon name="chevron" size={12} className="flex-none text-slate-400" />
+          </button>
+          {castAsk && (
+            <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+              <p className="text-[11px] leading-relaxed text-amber-200">
+                改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉。
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setCastAsk(false);
+                    goCast();
+                  }}
+                  className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+                >
+                  知道了，去改挂卡
+                </button>
+                <button onClick={() => setCastAsk(false)} className="rounded-full border border-slate-600 px-2.5 py-1 text-[11px] text-slate-300">
+                  先不改
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* 挂卡合成失败的出口（画布那条 ★★ 的工坊版）：castErr 写的不是 err，这儿不画就没人画 */}
+      {castErr && castOfThisNode && (
+        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+          <p className="text-[11px] leading-relaxed text-amber-200">{castErr}</p>
+          {castFallback && (
+            <button
+              onClick={() => useFlow.getState().fillCastFallback()}
+              className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+            >
+              填入默认写法（填完还能改）
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 点名句 / 一句话：named 直接编辑 plot（挂卡合成写的就是它）；V1 写一句换谁。
+          castBusy 期间禁编辑：合成结果几秒后会整段覆盖，这几秒打的字会凭空消失 */}
+      <textarea
+        value={proposal.plot}
+        onChange={(e) => useFlow.getState().updateProposal(node.id, { plot: e.target.value })}
+        maxLength={VIDEO_PROMPT_MAX}
+        disabled={generating || (castBusy && castOfThisNode)}
+        placeholder={
+          named
+            ? castBusy && castOfThisNode
+              ? "正在把「人偶 → 角色」合成一段话…"
+              : "先去挂卡，点名句会填进这里（可改）"
+            : "写一句换成谁，例：换成一只戴墨镜的柴犬"
+        }
+        className="h-24 w-full resize-none rounded-lg border border-slate-600 bg-black/30 px-2.5 py-2 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-600 focus:border-cyan-400 disabled:opacity-50"
+      />
+
+      <PickedActions node={node} proposal={proposal} onPlay={onPlay} />
+
+      {picker && (
+        <TemplatePicker
+          current={tpl.id}
+          onPick={(t) => {
+            if (useFlow.getState().setNodeTemplate(node.id, t)) setPicker(false);
+          }}
+          onClose={() => setPicker(false)}
+        />
+      )}
+    </div>
   );
 }
 
@@ -886,11 +1124,15 @@ function PickedActions({ node, proposal, onPlay }: { node: FlowNode; proposal: P
   const flowNow = useFlow.getState();
   const nodeIdx = flowNow.nodes.findIndex((n) => n.id === node.id);
   const cost = nodeCost(flowNow.nodes, nodeIdx, flowNow.mode);
+  /** 白模段（r2v）：改帧/圈选整条不通（画面来自模板视频，segmentGen 的 blockoutIssue
+   *  整句拒）——按钮摆出来就是死路（铁律五）。回看照常给（SegPlayer 自己会藏圈选键） */
+  const blockout = !!tplOfNode(node)?.refVideo;
 
   return (
     <div className="space-y-1.5 border-t border-slate-700/60 pt-1.5">
       {/* AI 改图：图生图按一句要求重画某一帧（保画风）。与"上传本地图"是两条不同的路——
           一条是"让 AI 改成这样"，一条是"就用我这张" */}
+      {!blockout && (
       <div className="flex gap-1.5">
         {(["first", "last"] as const).map((w) => (
           <button
@@ -908,7 +1150,8 @@ function PickedActions({ node, proposal, onPlay }: { node: FlowNode; proposal: P
           </button>
         ))}
       </div>
-      {refine && (
+      )}
+      {!blockout && refine && (
         <div className="rounded-lg bg-black/30 p-2">
           <textarea
             value={refineReq}
@@ -954,10 +1197,10 @@ function PickedActions({ node, proposal, onPlay }: { node: FlowNode; proposal: P
           <button
             onClick={onPlay}
             disabled={busy}
-            title="回看成片 · 在画面上圈出要改的地方"
+            title={blockout ? "回看成片" : "回看成片 · 在画面上圈出要改的地方"}
             className="flex-none rounded-lg border border-slate-500/60 bg-slate-700/50 px-2.5 py-2 text-xs font-semibold text-slate-100 disabled:opacity-40"
           >
-            ▶ 圈选
+            {blockout ? "▶ 回看" : "▶ 圈选"}
           </button>
         )}
         {done && (

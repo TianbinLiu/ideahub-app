@@ -429,6 +429,26 @@ export function tplOfNode(node: FlowNode | undefined | null): FlowTemplate | nul
   return node?.tpl !== undefined ? node.tpl : useFlow.getState().template;
 }
 
+/**
+ * 「现在还能不能在末尾加一段」的门禁 —— addNode / appendNode / 工坊虚线卡位共用**这一处**。
+ * 返回整句原因；null = 能加。
+ * ★ 白模模板只有一段：追加的下一段要么承接（承接帧与参考视频在方舟互斥，任务发不出去）、
+ *   要么不承接（衔接断掉）——两头都不成立。判据是**最后那一段**（tplOfNode），不是
+ *   store 级 template：混合流水线 [白模, 普通] 尾段是普通段，照常能加（addNode 那段 ★★）。
+ * ★★ 工坊的虚线卡位必须问同一句（2026-08-30 抽出的直接动机）：不问的话模板段收尾后
+ *   卡位照亮，用户点进去写素材、付**推演费**，方案炼好落桌时才被 appendNode 拒 ——
+ *   推演的钱已经花了、三套方案没处放，npcSay 一句"铺不上桌"完事。钱坑，不只是体验坑。
+ * @param template 空桌时兜底判 store 级模板（addNode/appendNode 传 store 的；
+ *   虚线卡位传 null——空桌的卡位是"第一段"，恒该亮）
+ */
+export function appendBlocked(nodes: FlowNode[], template: FlowTemplate | null): string | null {
+  const prev = nodes[nodes.length - 1];
+  if (prev ? !!tplOfNode(prev)?.refVideo : !!template?.refVideo) {
+    return "白模复刻段只有一段：画面与运镜整个来自模板视频，没有可续的下一段";
+  }
+  return null;
+}
+
 /** 素材参考模式下中间帧参考图的上限（首/尾帧另算，共 4 张图 —— 方舟 2.5 收 1–30，
  *  取小是给提示词点名句留字数：每多一张就多一句「图片N是…」） */
 export const CUSTOM_MID_MAX = 2;
@@ -1611,16 +1631,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
 
   addNode: () =>
     set((s) => {
-      // 白模模板只有一段：追加的下一段要么承接（承接帧与参考视频在方舟互斥，任务发不出去）、
-      // 要么不承接（衔接断掉）——两头都不成立。拦在追加门槛这一处，与「先把这一段炼出来」
-      // 是同一个门（CLAUDE.md：顺序门禁只在 clampCursor + addNode 两处，别在 UI 另写）
-      // ★★ 判据是**最后那一段**（tplOfNode），不是 store 级 template（2026-08-21 对抗评审）：
-      //   画布能给单独某一段套白模模板，于是流水线可以是 [白模, 普通, 普通] —— 读 store 级
-      //   那份会因为"某一段是白模"就把整条流水线judge成白模流，从此再也加不了段，
-      //   而用户接在后面的明明是普通段。反过来单模板流与分段组仍照旧拒（最后一段就是白模段）。
+      // 白模段后拒：判据与整句都在 appendBlocked 一处（工坊虚线卡位问的也是它）。
+      // 拦在追加门槛这一处，与「先把这一段炼出来」是同一个门
+      // （CLAUDE.md：顺序门禁只在 clampCursor + addNode 两处，别在 UI 另写）
       const prev = s.nodes[s.nodes.length - 1];
-      if (prev ? !!tplOfNode(prev)?.refVideo : !!s.template?.refVideo) {
-        return { err: "白模复刻段只有一段：画面与运镜整个来自模板视频，没有可续的下一段" };
+      {
+        const blocked = appendBlocked(s.nodes, s.template);
+        if (blocked) return { err: blocked };
       }
       // 顺序门禁：只能在末尾追加，且上一段必须已出片
       if (prev && !nodeDone(prev)) return { err: "先把这一段炼出来，再加下一段" };
@@ -1660,12 +1677,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
   appendNode: (spec) => {
     let newId: string | null = null;
     set((s) => {
-      // 门禁与 addNode 逐条同源（白模段后拒 / 末段未出片拒 / 生成中拒 / pinUnstatedTpl 同拍）。
-      // 分开成两个 action 是因为出生形态不同：addNode 生空白段，这里落**推演好的成品段**
-      //（工坊铸段：三套方案或自定义单方案已经在手）
+      // 门禁与 addNode 逐条同源（白模段后拒 = appendBlocked 一处 / 末段未出片拒 /
+      // 生成中拒 / pinUnstatedTpl 同拍）。分开成两个 action 是因为出生形态不同：
+      // addNode 生空白段，这里落**推演好的成品段**（工坊铸段：三套方案或自定义单方案已经在手）
       const prev = s.nodes[s.nodes.length - 1];
-      if (prev ? !!tplOfNode(prev)?.refVideo : !!s.template?.refVideo) {
-        return { err: "白模复刻段只有一段：画面与运镜整个来自模板视频，没有可续的下一段" };
+      {
+        const blocked = appendBlocked(s.nodes, s.template);
+        if (blocked) return { err: blocked };
       }
       if (prev && !nodeDone(prev)) return { err: "先把这一段炼出来，再铸下一段" };
       if (s.busy || s.nodes.some((n) => n.status === "generating")) {

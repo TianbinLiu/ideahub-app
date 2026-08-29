@@ -1882,7 +1882,7 @@ function PickRow({
   );
 }
 
-function TemplatePicker({
+export function TemplatePicker({
   current,
   onPick,
   onClose,

@@ -121,6 +121,13 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   （2026-08-21 收口，收之前两面各写了一份 `!startsWith("mock:")`）、删段确认 `DeleteSegBtn`。
   组稿（`toCut`）、存草稿（`saveNow`）、挂卡入口（`castEditorState`）三样的实现**只在 FlowPage**，
   画布靠 prop 借——组稿要回写真帧、提炼卡组、清流水线、跳剪辑页，抄一份必然与那边分叉。
+  挂卡的 `returnTo` 自 2026-08-30 起**谁发起回谁**（工坊的模板段面板也能发起了，`/studio`）；
+  回程收结果只有一份实现 `hooks/useCastReturn`，FlowPage 与 StudioPage 都挂它——模板对号
+  那道闸只能改一处。工坊侧的模板车道（选模板/换摘/挂卡/点名句）在 `studio/ui/projection` 的
+  `TplSegBody`：选模板弹层借的是 FlowCanvas 导出的同一份 `TemplatePicker`，白模段在工坊
+  不再摆 PlanBoard（r2v 没有方案台这一拍，重推/改帧/圈选对它全是死路）。**「加一段还行不行」
+  连同工坊虚线卡位问的都是 `flowStore.appendBlocked` 一处**——虚线卡位不问的话，模板段收尾后
+  它照亮，用户付完推演费才被 appendNode 拒，钱已花、方案没处落。
 - **「这一段用哪个模板」是三态，且必须当场表态**（`FlowNode.tpl`）：`undefined` = 还没表态
   （退回 store 级 `template`，老草稿与单模板流靠它）、`null` = 明确没有、对象 = 这一段自己的
   快照。读**只准走 `tplOfNode`**。而 store 级那份会随 `setCursor` 换成**当前段**的快照 ——

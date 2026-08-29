@@ -14,7 +14,7 @@
 //   工作流模式 → seedSolo("workflow")，方案台是主路径
 //   简约模式 → seedSolo("simple")，单节点单走向、不推演方案、**不存草稿**，UI 收到最简
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import AnnStrip from "../components/flow/AnnStrip";
 import InfoTip from "../components/InfoTip";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
@@ -57,7 +57,8 @@ import CustomFrameSlots from "../components/flow/CustomFrameSlots";
 import { deckQuoteOf, publishedExit, useStudio } from "../studio/studioStore";
 import { VideoTemplate, aspectCss, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
-import { VIDEO_EDITOR_RESULT_KEY, type CastEditorState, type VideoEditorResult } from "./VideoEditorPage";
+import { type CastEditorState } from "./VideoEditorPage";
+import { useCastReturn } from "../hooks/useCastReturn";
 
 /** 触发换节点/换走向的滑动阈值（px）；低于它按点击处理 */
 const SWIPE = 48;
@@ -71,12 +72,14 @@ const SWIPE = 48;
  *   什么都没发生"——不报错、也不白屏，最难查的那种。
  * ★ 返回值标成 `CastEditorState`，让编译器替我们盯住这份约定：那一页改了字段名，
  *   这里当场编译不过，而不是等到真机上"挂完卡回来输入框还是空的"。
- * ★ `returnTo` 恒为 `/flow`：收结果、把点名句填进输入框、之后出片，全在这一页
- *   （store 侧是 flowStore.applyCast）。
+ * ★ `returnTo` = **谁发起回谁**（2026-08-30 前恒 `/flow`；工坊的模板段面板也能发起了）。
+ *   收结果的实现只有一份（hooks/useCastReturn），/flow 与 /studio 都挂它；
+ *   store 侧仍是 flowStore.applyCast 一处。
  */
 export function castEditorState(
   t: Pick<VideoTemplate, "id" | "title" | "refVideo" | "roles" | "markSlots" | "markBoxes" | "markBoxAtSec">,
   value: Record<string, string> = {},
+  returnTo: "/flow" | "/studio" = "/flow",
 ): CastEditorState | null {
   // 判定一律写存在性（types.ts 的 ★）：老模板天然缺这两样，天然不走挂卡
   if (!t.refVideo?.url || !t.roles?.length) return null;
@@ -94,7 +97,7 @@ export function castEditorState(
     value,
     templateId: t.id,
     title: t.title,
-    returnTo: "/flow",
+    returnTo,
   };
 }
 
@@ -885,7 +888,6 @@ function NodeScreen({
 
 export default function FlowPage() {
   const navigate = useNavigate();
-  const loc = useLocation();
   // 人回到这一页，胶囊那条"待读通知"就算读过了（页内自有完整的进度与结果 UI）
   const clearGenNotice = useFlow((s) => s.clearGenNotice);
   const genNotice = useFlow((s) => s.genNotice);
@@ -990,43 +992,15 @@ export default function FlowPage() {
 
   /**
    * 从视频编辑页（cast 模式）回来 —— 白模 V2 套用链路的**收口**：
-   * 拿到 `编号 → 卡 id` 的映射，交给 flowStore.applyCast 去落 materials + 合成点名句
-   * （合成与对齐规则都在那里一处实现，这一页只负责"把结果接住"）。
-   *
-   * ★ 入参**按形状验收**、不按"应该有"假设：这一格 state 可能来自深链、老包缓存，
-   *   或者是模式一（选段裁剪）的结果（那条路不归这一页收）。硬转 `as` 的话要到
-   *   第一处解引用才崩，而那时页面已经白了（同 VideoEditorPage.parseState 的 ★）。
-   * ★ **先抹掉 state 再干活**：留着它，用户之后从别处按返回回到这一格 /flow 就会
-   *   再合成一次（一次 chat 调用 + 把输入框里他改过的字整段覆盖），而他什么都没点。
-   *   ref 那道判重是为同一次渲染里的重跑兜底，两者都要。
+   * 拿到 `编号 → 卡 id` 的映射，交给 flowStore.applyCast 去落 materials + 合成点名句。
+   * 实现抽在 hooks/useCastReturn（2026-08-30：工坊的模板段面板也能发起挂卡了，
+   * returnTo 变成"谁发起回谁"，收口必须两页共用同一份）——形状验收、先抹 state、
+   * 模板对号那道闸，注释与规则全在那边。
    * ⚠ 编辑页把结果 replace 回来时，App 进程若在挂卡那几分钟里被系统回收过，store 里
    *   的流水线就是空的（内存态，不落盘）—— 那时上面那个 effect 会把人送回 /create，
    *   applyCast 也会整句说"这条流水线上没有可挂卡的白模模板"。不装作没事发生。
    */
-  const castTaken = useRef<unknown>(null);
-  useEffect(() => {
-    const raw = (loc.state as Record<string, unknown> | null)?.[VIDEO_EDITOR_RESULT_KEY];
-    if (!raw || castTaken.current === raw) return;
-    castTaken.current = raw;
-    navigate(loc.pathname, { replace: true, state: null });
-    const r = raw as Partial<VideoEditorResult> & { cast?: unknown };
-    if (r.mode !== "cast" || !r.cast || typeof r.cast !== "object") return;
-    const map: Record<string, string> = {};
-    for (const [k, v] of Object.entries(r.cast as Record<string, unknown>)) if (typeof v === "string" && v) map[k] = v;
-    const st = useFlow.getState();
-    // 对号入座：模板对不上就整句拒绝，绝不"就近用"——编号是**这个模板**的编号，
-    // 张冠李戴地套到另一个模板上，出片时就是换错人且零报错（types.roles 的 ★★）
-    // ★ 比的是**当前这一段**的模板（tplOfNode），不是 store 级那份 —— 后者在换段时
-    //   可能还停在上一段上，那样这道闸恒相等、等于没有（对抗评审确认的 high 的一半）
-    const curTpl = tplOfNode(st.nodes[st.cursor] ?? st.nodes[0]);
-    if (r.templateId && curTpl && r.templateId !== curTpl.id) {
-      useFlow.setState({
-        err: "刚才挂卡的是另一个模板（这条流水线上套的模板中途换过了）——回模板详情页重新套用一次再挂卡",
-      });
-      return;
-    }
-    void st.applyCast(map);
-  }, [loc.state, loc.pathname, navigate]);
+  useCastReturn();
 
   // ★ 自动存盘只挂在"又炼出一段"这一个事件上，不做定时/每次改动都存：
   //   一段视频是几十秒 + 真金白银，丢了补不回来；而草稿正文带整份首尾帧 base64，

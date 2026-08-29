@@ -16,6 +16,7 @@ import AvatarPicker from "./ui/AvatarPicker";
 import AvatarSwapButton from "./ui/AvatarSwapButton";
 import { cancelPendingStop, stopSpeakingSoon } from "./speech";
 import { useStudioBack } from "./useStudioBack";
+import { useCastReturn } from "../hooks/useCastReturn";
 import { autoQualityOnFirstVisit, QUALITY_LABELS, type Quality } from "./quality";
 import DraftTitle from "../components/DraftTitle";
 import Icon from "../components/Icon";
@@ -165,6 +166,8 @@ export default function StudioPage() {
   const navigate = useNavigate();
   // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；顶栏那颗 ? 随时能重看）
   useAutoGuide("studio");
+  // 工坊的模板段面板也能发起挂卡（returnTo:"/studio"）——回程的收口与 /flow 同一份实现
+  useCastReturn();
   const initGreet = useStudio((s) => s.initGreet);
   const spreadOpen = useStudio((s) => s.spreadOpen);
   const deckLen = useStudio((s) => s.deck.length);

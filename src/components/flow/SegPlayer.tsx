@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "../Icon";
 import FrameAnnotator, { drawCover } from "../FrameAnnotator";
-import { chosenOf, realVideoOfNode, useFlow } from "../../studio/flowStore";
+import { chosenOf, realVideoOfNode, tplOfNode, useFlow } from "../../studio/flowStore";
 import { resolveMediaUrl, useMediaUrl } from "../../utils/mediaUrl";
 
 /**
@@ -130,8 +130,10 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
         <span className="text-sm font-bold text-slate-100">第 {idx + 1} 段 · 成片</span>
         <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">{chosenOf(node).durationSec}s</span>
         {/* ⭕ 圈选改画面：在成片上圈出要改的地方，写一句要求 —— 下次重炼这一段时
-            先按它改设定画面（与线性视图同一条路：addAnn → genNode 读 node.anns） */}
-        {src && !failed && (
+            先按它改设定画面（与线性视图同一条路：addAnn → genNode 读 node.anns）。
+            ★ 白模段（r2v）整个不接受圈选（segmentGen 的 blockoutIssue 整句拒、nodeCost
+            对它记 0 张改图）——按钮摆出来就是死路：圈完存上、重炼被拒（铁律五） */}
+        {src && !failed && !tplOfNode(node)?.refVideo && (
           <button
             onClick={() => void openAnn()}
             /* ★ 与线性视图同一道闸（那边是 disabled={busy}）：生成期间圈的标注会被
