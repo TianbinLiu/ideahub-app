@@ -123,6 +123,17 @@ export interface VideoTier {
    */
   refImg: boolean;
   /**
+   * 这一档**协议上**一次最多收几张参考图（只对 refImg/assetRef 为真的档有意义）：
+   * 2.0 系列 1–9 张、2.5 是 1–30 张（方舟官方参数表，与 ai/real.ARK_REF_IMAGES_MAX
+   * 的注释同一出处）。
+   *
+   * ★ 放在档位表而不是散在调用点：预算分配（ai/real.allocateRefs）按它砍，砍错方向
+   *   两头都疼 —— 少发是白白砍功能（挂了卡的角色由模型瞎编，钱照付），多发是整条
+   *   请求 400（2.0 收到第 10 张不是忽略是拒收）。缺省 = ARK_REF_IMAGES_MAX（2.5 上限），
+   *   refImg 为 false 的档没人读它。
+   */
+  refImagesMax?: number;
+  /**
    * 是否开放**白模模板出片**（r2v：参考视频 edit 逐镜头复刻，只换主体）。
    *
    * ★ 四档全部显式写值、不留 undefined（同 refImg 的理由：留空就得到处 `?? false`，
@@ -222,7 +233,7 @@ export const VIDEO_TIERS: VideoTier[] = [
   // ★ hd 的 audio: true 是**免费套餐也听得到声音**的那条路（paidOnly 只挡 ultra）——
   //   实测 2.0-mini 真出声（-30.2dB），且开音频零额外成本，所以 desc 里如实写出来：
   //   不写的话用户只能靠"换个档试试"发现，而多数人只会以为 App 的片本来就是哑的。
-  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refVid: false, r2vMult: null, audio: true, realFace: false, assetRef: true, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音" },
+  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, audio: true, realFace: false, assetRef: true, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音" },
   {
     id: "ultra",
     label: "电影级",
@@ -230,6 +241,7 @@ export const VIDEO_TIERS: VideoTier[] = [
     mult: ULTRA_MULT,
     flf: true,
     refImg: true,
+    refImagesMax: 30,
     // ★ r2v 已开闸（2026-08-14，前置三发实测全过才翻的这个布尔）：
     //   A2 = edit 路线全时长逐镜头复刻（保真度判定）；A3 = 计费公式两发分毫不差
     //   （(输入+输出时长)×W×H×fps÷1024，系数 2.8 = 42元/M÷15 锚）；A4 = 4s 短模板

@@ -450,13 +450,27 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   const needDraw = !blockout && (!first || (!last && tier.flf));
   const notes: string[] = [];
   // 白模也要形象图（混发：视频给画面与运镜，形象图说"换成谁"），所以 blockout 也准备
-  // ★ 白模路传 multiChar：它一张设定帧都不画，参考图直接进 Seedance r2v，而 r2v 带多张
-  //   人物参考图是实测成立的（2026-08-15 G0：3 张卡各自换到对应编号的人偶上，跨帧不串号）。
-  //   不传的话 allocateRefs 会照 Seedream 那条"一张图只画一个角色"的规则只喂第一张，
-  //   用户挂三张卡想换三个人、实际只有一个真换 —— 而那正是白模模板的全部卖点。
+  // ★ 白模路传 true（直通 + 严格闸）：它一张设定帧都不画，参考图直接进 Seedance r2v，
+  //   而 r2v 带多张人物参考图是实测成立的（2026-08-15 G0：3 张卡各自换到对应编号的
+  //   人偶上，跨帧不串号）。不传的话 allocateRefs 会照 Seedream 那条"一张图只画一个
+  //   角色"的规则只喂第一张，用户挂三张卡想换三个人、实际只有一个真换。
+  // ★★ refMode 也走直通分配（2026-08-29 放开，backlog §2.7 P2-a）：它的图与白模一样
+  //   直接进 Seedance，此前却沿用「Seedream 画一张帧塞不下多主体」的 3 张启发式 ——
+  //   挂第 2 张人物卡的用户拿到的是模型瞎编的脸，钱照付零报错。上限按**档位协议**
+  //   （VideoTier.refImagesMax：hd 的 2.0 系 9 张、ultra 的 2.5 是 30 张），付费实测
+  //   见 design/p2a-refmode-budget.mjs（多人物多图各归各位 + 用量与 2 图那发同价）。
+  //   strict:false = 人物卡零图时保住既有降级（下面 494 行一带改画设定帧并说明），
+  //   不学白模整句拒 —— refMode 的提示词里还有素材设定文字兜底，直出仍是同一件商品。
+  //   ⚠ 若 refMode 与 needDraw 同真（refMode 判定成立时首帧必空，needDraw 恒真），
+  //   分配按直通走是对的：refMode 成立就不会画帧；中途降级（refs 全军覆没）时 refs
+  //   本来就是空的，画帧那侧拿不到多主体图，两头都不冲突。
   const refs =
     blockout || refMode || needDraw
-      ? await prepareMaterialRefs(input.materials, (n) => notes.push(n), blockout)
+      ? await prepareMaterialRefs(
+          input.materials,
+          (n) => notes.push(n),
+          blockout ? true : refMode ? { cap: tier.refImagesMax, strict: false } : false,
+        )
       : null;
   // ── 台词音色（卡片系统 V2 阶段 2）────────────────────────────
   // 样本只在 refMode（参考生视频）发。点名句单独 append、不并进 tail 参与截断取舍：

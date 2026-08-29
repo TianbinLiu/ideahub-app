@@ -410,7 +410,11 @@ async function prepRefImage(src: string): Promise<string | null> {
  * ★★ 这个 3 是**我们自己定的启发式**，不是方舟的限制（方舟 2.5 收到 30 张，见
  *   `ARK_REF_IMAGES_MAX`）。它的理由（"堆满了模型反而判断不出该优先保哪些特征"）针对的是
  *   **经典路**：那条路的图最终喂给 Seedream 画一张设定帧，一张图里塞进太多主体本来就画不好。
- *   **白模路（multiChar）不适用这条**，它按角色位数量走 —— 见 allocateRefs 的 `budget`。
+ *   **直进 Seedance 的两条路（白模 r2v / refMode 参考生视频）不适用这条**，它们按
+ *   直通预算走（上限 = 档位协议，economy.VideoTier.refImagesMax）—— 见 allocateRefs 的
+ *   `budget`。refMode 那条 2026-08-29 才放开（backlog §2.7 P2-a）：此前它沿用这个 3，
+ *   而它的图根本不经 Seedream —— 用启发式砍协议能力，挂第 2 张人物卡的用户拿到的是
+ *   模型瞎编的脸，钱照付零报错。
  */
 export const MAX_REF_IMAGES = 3;
 /**
@@ -464,23 +468,27 @@ interface RefPick {
  * `onNote` 是**反静默失败**的那一半：谁被挤掉了要逐张点名（铁律八）。
  * 纯查询（refUsedFlags）不传它。
  */
-function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiChar = false): RefPick[] {
+function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiChar = false, cap?: number): RefPick[] {
   const picks: RefPick[] = [];
   const chars = materials.filter((c) => c.type === "character");
   const hero = chars[0];
   /**
    * 这一次的参考图预算。**两条路两个数，理由不同**（2026-08-15 放开）：
    *   · 经典路 = `MAX_REF_IMAGES`（3）—— 我们自己的启发式，图要喂给 Seedream 画设定帧；
-   *   · 白模路 = `ARK_REF_IMAGES_MAX`（30）—— **跟随方舟协议上限**，图直接进 Seedance r2v。
-   * ★★ 白模路为什么可以放开：那条路一张设定帧都不画，"一张图里画多个角色被拒"那条
-   *   （规则一）根本不适用；而 r2v 一次带多张人物参考图各归各位是**实测通过**的
-   *   （G0：3 张卡分别换到 1/2/4 号人偶上，跨帧不串号）。压在 3 张上的代价是**功能被砍掉**：
-   *   角色位上限已经放到 9，用户挂 9 张卡只有 3 张真进模型，另外 6 个角色由模型瞎编，
+   *   · 直通路（multiChar：白模 r2v / refMode 参考生视频）= **档位协议上限**（`cap`，
+   *     由调用方从 economy.VideoTier.refImagesMax 读来：2.0 系 9 张、2.5 是 30 张；
+   *     缺省 = `ARK_REF_IMAGES_MAX`，即 2.5 的 30）。
+   * ★★ 直通路为什么可以放开：那条路一张设定帧都不画，"一张图里画多个角色被拒"那条
+   *   （规则一）根本不适用；而一次带多张人物参考图各归各位是**实测通过**的
+   *   （r2v：G0，3 张卡分别换到 1/2/4 号人偶上，跨帧不串号；refMode i2v：2026-08-29
+   *   P2-a 付费实测，见 design/p2a-refmode-budget.mjs）。压在 3 张上的代价是**功能被砍掉**：
+   *   用户挂几张卡想出几个人，只有第一张真进模型，其余角色由模型瞎编，
    *   钱照付、零报错（铁律八）。
    * ★ 9 个角色位 × 每卡最多 `MAX_CHAR_REFS`（2）张 = 最坏 18 张，仍在 30 之内 ——
-   *   所以正常用法下一张都不会被挤掉；真超了（比如还挂了几张场景/道具卡）照样**逐张点名**。
+   *   所以白模正常用法下一张都不会被挤掉；hd 档 refMode 的 9 张预算挂 4 张人物卡就会满，
+   *   真超了照样**逐张点名**。
    */
-  const budget = multiChar ? ARK_REF_IMAGES_MAX : MAX_REF_IMAGES;
+  const budget = multiChar ? Math.max(1, cap ?? ARK_REF_IMAGES_MAX) : MAX_REF_IMAGES;
 
   // ── 规则一的例外：白模路（multiChar）每张人物卡各带 face→body 两张形象图 ──
   //
@@ -701,23 +709,33 @@ export interface MaterialRefs {
  * `onNote` 是**反静默失败**的那一半：哪张图没采用、为什么只锁了一个角色，
  * 都要写进生成步骤日志给用户看（铁律八）。
  *
- * @param multiChar 白模路（不画设定帧、参考图直接进 Seedance r2v）传 true，它改**两件事**
+ * @param direct **直通路**（不画设定帧、参考图直接进 Seedance）传它，它改**两件事**
  *   （合起来才成立，只改一半就是"发得出去、说不清谁是谁"）：
- *   ① 预算从 `MAX_REF_IMAGES`（我们的启发式 3 张）换成 `ARK_REF_IMAGES_MAX`（方舟协议 30 张），
+ *   ① 预算从 `MAX_REF_IMAGES`（我们的启发式 3 张）换成**档位协议上限**（`cap`，调用方从
+ *      economy.VideoTier.refImagesMax 读来；缺省 = `ARK_REF_IMAGES_MAX`），
  *      每张人物卡按 face→body 取最多 `MAX_CHAR_REFS` 张，而不是只锁主角一张；
  *   ② 绑定句换成紧凑式 `张三=@图片1@图片2` —— 9 个角色位下经典路那种长句光自己就撑爆
  *      `VIDEO_PROMPT_MAX`，而截断是从**正文**那头下刀的。理由与实测见 allocateRefs 的 ★★。
+ *   两条直通路的差别只有 `strict`（人物卡零图时抛不抛）：
+ *   · 白模 r2v 传 `true`（= `{strict:true}` 的老写法）：换人是商品本体，名字拽不住形象
+ *     （第 2、13 发实证），零图必错的单在花钱前整句拒；
+ *   · refMode 参考生视频传 `{cap, strict:false}`：它的提示词里还有素材设定文字兜底，
+ *     零图走既有降级（改画设定帧并说明），不整句拒 —— 2026-08-29 P2-a 放开时特意保住
+ *     这半边语义。
  */
 export async function prepareMaterialRefs(
   materials: Card[] | undefined,
   onNote?: (note: string) => void,
-  multiChar = false,
+  direct: boolean | { cap?: number; strict: boolean } = false,
 ): Promise<MaterialRefs> {
   const empty: MaterialRefs = { refs: [], bind: () => "", bindCompact: () => "" };
   if (!materials?.length) return empty;
+  // 布尔 true = 白模的老调用形态（严格闸 + 2.5 上限）；对象 = 带档位协议上限的直通路
+  const d = direct === true ? { cap: undefined as number | undefined, strict: true } : direct || null;
+  const multiChar = !!d;
 
   // 分配规则（谁上、上几张、谁被挤掉）全在 allocateRefs 里，这里只负责把它取回来
-  const picks = allocateRefs(materials, onNote, multiChar);
+  const picks = allocateRefs(materials, onNote, multiChar, d?.cap);
   const hero = materials.find((c) => c.type === "character");
   if (picks.length === 0) return empty;
 
@@ -759,13 +777,14 @@ export async function prepareMaterialRefs(
       onNote?.(`第 ${i + 1} 张参考图未采用（「${p.card.name}」的${viewTag(p.card.type, p.view)}，比例越界或读不出来）`);
     }
   });
-  // ★★ 白模路（multiChar）逐卡门禁：挂上的**人物卡**一张形象图都没能进管线时，
+  // ★★ 白模路（strict）逐卡门禁：挂上的**人物卡**一张形象图都没能进管线时，
   //   在创建任务**之前**整句拒 —— 不花钱。2.21 真机实测（2026-08-18，¥27 那发）：
   //   「赛博侦探·凛」丢图后点名句只剩名字，红色位被另一张卡的形象整个吞掉；
   //   名字拽不住形象（第 2、13 发两次实证），这种发出去必错的单不该发。
   //   2.5 时代的门禁只拒"全军覆没"（下面 good.length===0 那条经 segmentGen 整句 throw），
-  //   这里收紧到逐卡。经典路（Seedream）不走这条：那边形象还能靠设定文字烤，丢图只降级。
-  if (multiChar) {
+  //   这里收紧到逐卡。经典路（Seedream）与 refMode（strict:false）不走这条：
+  //   那两条的提示词里还有设定文字烤着，丢图只降级（refMode 的降级在 segmentGen 494 行一带）。
+  if (d?.strict) {
     for (const c of materials) {
       if (c.type !== "character") continue;
       if (!good.some((g) => g.card === c)) {
