@@ -24,6 +24,8 @@ export type DraftMode = "studio" | "flow";
  *  data 层不该依赖 store——依赖方向是 data → store → 组件） */
 export interface FlowSnapshot {
   nodes: unknown[];
+  /** 换走向的分支归档（flowStore.alts）。★ 判否定：老草稿缺省 = 没有归档过分支 */
+  alts?: unknown;
   cursor: number;
   mode: "workflow" | "simple";
   origin: "studio" | "solo";

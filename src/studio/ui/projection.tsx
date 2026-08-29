@@ -14,7 +14,7 @@ import FrameCard from "./FrameCard";
 import PlanBoard from "./PlanBoard";
 import { fuseSourcesOf } from "./FuseFrameSheet";
 import Icon from "../../components/Icon";
-import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType, NodeSlot, Proposal, VIDEO_ASPECTS, aspectCss, aspectOf } from "../../types";
+import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType, Proposal, VIDEO_ASPECTS, aspectCss, aspectOf } from "../../types";
 import {
   activePath,
   chosenProposal,
@@ -24,7 +24,7 @@ import {
   useStudio,
 } from "../studioStore";
 // 只在「套模板」那一步问一眼"流水线上有没有段"（studio → flow 是允许的方向）
-import { useFlow } from "../flowStore";
+import { useFlow, type FlowNode } from "../flowStore";
 import TokenCost from "../../components/TokenCost";
 import { proposalsCost } from "../../data/economy";
 import { fileToFrameDataUrl } from "../../utils/image";
@@ -230,7 +230,6 @@ function EditorPanel() {
   const navigate = useNavigate();
   const editor = useStudio((s) => s.editor);
   const deck = useStudio((s) => s.deck);
-  const root = useStudio((s) => s.root);
   const [pickerType, setPickerType] = useState<CardType | null>(null);
   /**
    * 铸段窗 = **三步向导**（2026-08-30 主人点名，对齐工作流编辑窗的三模式格局）：
@@ -254,9 +253,9 @@ function EditorPanel() {
   const slotCards = editor.slots
     .map((id) => deck.find((c) => c.id === id))
     .filter((c): c is (typeof deck)[number] => !!c);
-  const path = activePath(root);
+  const path = activePath();
   const prev = path.length > 0 ? chosenProposal(path[path.length - 1]) : null;
-  const segIndex = root ? path.length : 0;
+  const segIndex = path.length;
   /** 当前套餐点不动的档位各是为什么（空 = 都能选）。判断在 data/account 一处 */
   const tierBlocks = VIDEO_TIERS.map((t) => tierBlockReason(t) ?? deriveIssue(t.id)).filter(
     (r): r is string => !!r,
@@ -267,13 +266,11 @@ function EditorPanel() {
   function goTemplate() {
     const st = useStudio.getState();
     st.closeProjection();
+    // 单一真相：桌面与画布是同一条流水线，套模板 = 去画布那一面做（挂卡机器在那边）
     if (useFlow.getState().nodes.length > 0) {
       st.npcSay("模板挂卡在画布那一面：点「＋ 加一段」再选「🧪 套模板」。");
       navigate("/flow");
-    } else if (st.startFlow({})) {
-      // startFlow 铺成后 StudioPage 的 0→N 效应自动跳 /flow；脏检查弹层也由那边接手
-      st.npcSay("已铺成工作流——点「＋ 加一段」再选「🧪 套模板」。");
-    } else if (!st.flowConfirm) {
+    } else {
       st.npcSay("套模板从模板市场开条新流水线最顺——挑一个点「用它出片」。");
       navigate("/workshop");
     }
@@ -658,16 +655,17 @@ function EditorPanel() {
 // ── 方案台投影：三套走向，一行一套 ────────────────────────────
 function ProposalsPanel() {
   const focus = useStudio((s) => s.focus);
-  const root = useStudio((s) => s.root);
+  // 单一真相：方案台直接订阅流水线（studio → flow 是允许的方向）
+  const path = useFlow((s) => s.nodes);
   const frameRefining = useStudio((s) => s.frameRefining);
   const proposalRegen = useStudio((s) => s.proposalRegen);
   const nodeGen = useStudio((s) => s.nodeGen);
-  const path = activePath(root);
   const node = focus?.nodeId ? path.find((n) => n.id === focus.nodeId) : null;
   if (!node) return null;
   const idx = path.findIndex((n) => n.id === node.id);
   const prev = idx > 0 ? chosenProposal(path[idx - 1]) : null;
   const chosen = chosenProposal(node);
+  const pickedId = chosen?.id ?? null;
   const done = proposalDone(chosen);
   // 承接判定：本段的设定首帧就是上一段的设定尾帧（AI 顺接铸出来的）→ 这张开头帧不是本段
   // 自己画的，AI 重画方案时不该动它
@@ -679,7 +677,7 @@ function ProposalsPanel() {
     const st = useStudio.getState();
     const target = path[idx + dir];
     if (!target) return;
-    const nx = computeChain(st.root, target.id).items.find((it) => it.node.id === target.id)?.x;
+    const nx = computeChain(useFlow.getState().nodes, target.id).items.find((it) => it.node.id === target.id)?.x;
     if (nx == null) return;
     const cam = focusCam(nx, CHAIN.rowZ);
     st.switchFocusNode(target.id, cam.pos, cam.look);
@@ -697,7 +695,7 @@ function ProposalsPanel() {
           ‹
         </button>
         <h3 className="min-w-0 flex-1 truncate text-center text-sm font-bold text-cyan-100">
-          第 {idx + 1}/{path.length} 段 · {node.chosenId ? (done ? "已出片" : "已选定走向") : "选择走向"}
+          第 {idx + 1}/{path.length} 段 · {pickedId ? (done ? "已出片" : "已选定走向") : "选择走向"}
         </h3>
         <button
           onClick={() => go(1)}
@@ -723,7 +721,7 @@ function ProposalsPanel() {
         <PlanBoard
           dense
           proposals={node.proposals}
-          pickedId={node.chosenId}
+          pickedId={pickedId}
           isDone={proposalDone}
           busy={busy}
           regenId={proposalRegen}
@@ -746,15 +744,15 @@ function ProposalsPanel() {
           })}
           fuseAspect={node.aspect}
           switchWarn={(p) =>
-            node.chosenId != null && node.chosenId !== p.id && node.children[node.chosenId] != null
-              ? "⚠ 换成这一套，原方案已延展的后续节点会被收起（切回可恢复）"
+            pickedId != null && pickedId !== p.id && idx < path.length - 1
+              ? "⚠ 换成这一套，现在这套走向后面的段会整段收起（切回可恢复）"
               : null
           }
           actions={(p) => <PickedActions node={node} proposal={p} />}
         />
       </div>
       <div className="flex-none border-t border-cyan-400/15 px-3 py-1.5 text-center text-[10px] leading-4 text-slate-500">
-        {!node.chosenId
+        {!pickedId
           ? "挑一套 → 可换首尾帧/改剧情 → 炼出本段视频，桌面上才会亮出下一段的卡位"
           : done
             ? "本段已出片 · 桌面上下一段的虚线卡位已亮起"
@@ -774,7 +772,7 @@ function ProposalsPanel() {
  * 「编辑本段」去的就是剪辑页（与工作流跑完后进的是同一页），只带这一段——在那里可以拖到
  * 任意一帧圈出物体写修改要求，重新生成后新的尾帧会顶替设定尾帧，下一段就从这一帧接着拍。
  */
-function PickedActions({ node, proposal }: { node: NodeSlot; proposal: Proposal }) {
+function PickedActions({ node, proposal }: { node: FlowNode; proposal: Proposal }) {
   const navigate = useNavigate();
   const nodeGen = useStudio((s) => s.nodeGen);
   const frameRefining = useStudio((s) => s.frameRefining);

@@ -65,15 +65,22 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   `studioStore` 认识 `flowStore`，反过来**绝不**——两个 store 互相 import，Vite 下会
   拿到半初始化的模块。需要同时读写两边的逻辑（存草稿、法阵铺流水线）一律放 `studioStore`
   或页面组件里。
-- **一段视频只有一份**：出片结果挂在 `Proposal.videoUrl` 上，不挂在某个 store 里——
-  工坊节点卡上单独炼的和工作流里逐段炼的是同一份，换个模式打开不会要求重炼、重复收费。
-  「怎么炼一段」也只有一份实现（`studio/segmentGen.ts`），两个模式共用。
+- **流水线只有一份**（2026-08-30 主人点名"两个模式的节点数据是同一份"）：节点数据的
+  唯一真相是 `flowStore.nodes`，工坊桌面/投影窗与工作流画布是它的两个**面**——工坊侧
+  不再自持 NodeSlot 树（该类型只活在存量草稿正文里，openWorkDraft 经 `flowFromRoot`
+  一次性换算）。工坊的写一律走 flowStore 的 action（appendNode/chooseProposal/
+  updateProposal(…,pid)/genNode/setNodeProposals），读经 `studioStore.activePath()/
+  chosenProposal()`（后者把 plan==="picking" 翻译成"待挑"，别在调用点各判）。
+  换走向**保分支**：旧走向的后续段归档进 `flowStore.alts`、发布分支互动视频从它取材。
+  「怎么炼一段」也只有一份实现（`studio/segmentGen.ts`；工坊单炼已委托 `flowStore.genNode`，
+  连报价带门禁同一处）。出片结果挂在 `Proposal.videoUrl` + 节点的 `videoByProposal`
+  （两处由 genNode/setProposalVideo 同拍写），换个模式打开不会要求重炼、重复收费。
   mock 构建（没配 `ARK_API_KEY`）下 Seedance 不返回地址，两边一致写 `"mock:"` 占位串：
   问「出片了吗」用 `proposalDone()`，问「能不能播」用 `realVideoOf()`，别直接看 `videoUrl`。
 - **一段的推进是三拍，不是一拍**：写要求 → 推演三套方案（方案台，各带首尾帧预览）→ 挑定
   一套（可换帧、改剧情、按修改重画）→ 才炼视频。方案台组件两边共用
-  （`studio/ui/PlanBoard.tsx`）；工坊用 `NodeSlot.chosenId === null` 表示"待挑"，
-  工作流用 `FlowNode.plan === "picking"`（形状不同，所以组件不认 store，只收 props）。
+  （`studio/ui/PlanBoard.tsx`，不认 store 只收 props）；"待挑"两面都是
+  `FlowNode.plan === "picking"`（单一真相后同一形状，工坊读经 chosenProposal 翻译）。
   **炼出本段视频才能开下一段**——段与段靠上一段的**真实尾帧**承接起拍，攒着最后一起炼会让
   衔接断掉，也会让"第 1 段人物就不对"这种最该早止损的错拖到铺完五段才暴露。这条门禁在
   每一侧都只有一处实现（铁律六）：工作流是 `flowStore.clampCursor`（左右箭头、横划手势、
@@ -81,9 +88,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   （虚线卡位亮不亮）加 `composable`（法阵亮不亮）。UI 上的 disabled/锁图标只是把"为什么
   点不动"画出来，别在那里另写一遍判断。
 - **凡是"整表换掉 `nodes`"的入口，都要先问 `flowDirty`、成功之后断开旧草稿**。
-  这样的入口有**八条**：创作入口换模式（`seedSolo` ×2）、模板货架套用、模板详情页套用、
-  工作流页「提取模板」、简约模板栏那颗「不用」（也是 `seedSolo`）、工坊法阵重铺
-  （`startFlow({force})`）、**个人页/草稿箱打开草稿**（`openWorkDraft`，DraftSheet 两页共用）、
+  这样的入口有**七条**（2026-08-30 少一条：单一真相后「工坊法阵重铺」不存在了——法阵
+  只是去画布那一面的门 `requestFlow`，没有第二份数据要铺）：创作入口换模式（`seedSolo`
+  ×2）、模板货架套用、模板详情页套用、工作流页「提取模板」、简约模板栏那颗「不用」
+  （也是 `seedSolo`）、**个人页/草稿箱打开草稿**（`openWorkDraft`，DraftSheet 两页共用）、
   **做同款**（首页 chip 与详情页整宽键，`remakeNodesOf` → `seed`，2026-08-29）。三件事缺一不可：
   ① **先问**——已经花钱炼出来的段就在 `nodes` 上，换掉就没了（确认卡是共用的
   `components/flow/DiscardFlowDialog`，它按 `savedDoneCount` 如实说清哪些其实存住了）；

@@ -199,11 +199,12 @@ export type FlowTemplate = {
  */
 function clearTemplate(): Pick<
   FlowState,
-  "template" | "subject" | "cast" | "castErr" | "castFallback" | "castBusy" | "castNodeId" | "deckOff"
+  "template" | "subject" | "cast" | "castErr" | "castFallback" | "castBusy" | "castNodeId" | "deckOff" | "alts"
 > {
   // deckOff 也在这里回默认：本函数的调用点恰好就是全部「整表换流水线/复位」点，
-  // 而「只出片不出卡组」是**每条片各自**的选择，不该跟到下一条片上
-  return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false, castNodeId: null, deckOff: false };
+  // 而「只出片不出卡组」是**每条片各自**的选择，不该跟到下一条片上。
+  // alts（换走向的分支归档）同理：换整条流水线后，旧归档指着已不存在的节点 id
+  return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false, castNodeId: null, deckOff: false, alts: {} };
 }
 
 /**
@@ -528,8 +529,55 @@ export function flowDirty(nodes: FlowNode[] = useFlow.getState().nodes): boolean
   );
 }
 
+/**
+ * 换走向的**唯一实现**（chooseProposal 与 shiftProposal 共用）：挑定 + 保分支。
+ * 旧走向的后续链整段归档进 alts、目标走向此前归档的链取回来接上 —— 谁都不丢。
+ * ★ 生成中整句拒：归档会把正在炼的段搬下线，几分钟后的回包就打在已不存在的段上
+ *   （与 canReplaceNodes 拦"在途换表"同一机理——那也是零报错的钱事故）。
+ */
+function repickInner(s: FlowState, nodeId: string, proposalId: string): Partial<FlowState> {
+  const i = s.nodes.findIndex((n) => n.id === nodeId);
+  const node = s.nodes[i];
+  if (!node || !node.proposals.some((p) => p.id === proposalId)) return {};
+  const same = node.chosenId === proposalId;
+  if (!same && (s.busy || s.nodes.some((x) => x.status === "generating"))) {
+    return { err: "有一段正在生成中，等它跑完再换走向（换走向会挪动后面的段）" };
+  }
+  const picked = s.nodes.map((x) =>
+    x.id === nodeId ? { ...x, chosenId: proposalId, plan: "picked" as const, anns: [] } : x,
+  );
+  // 同一套（含 picking→picked 落定）：不动后续，也不动归档
+  if (same) return { nodes: picked, err: "" };
+  const tail = picked.slice(i + 1);
+  const restored = s.alts[nodeId]?.[proposalId] ?? [];
+  const nodeAlts = { ...(s.alts[nodeId] ?? {}) };
+  // 旧走向的后续链归档（空数组也存：那是"这套走向明确没有后续"的事实，不是没存过）
+  if (node.chosenId) nodeAlts[node.chosenId] = tail;
+  delete nodeAlts[proposalId];
+  return {
+    nodes: [...picked.slice(0, i + 1), ...restored],
+    alts: { ...s.alts, [nodeId]: nodeAlts },
+    // 光标收到换走向的这一段上：后面的世界刚整段换过，停在原下标会落在另一段上
+    cursor: Math.min(s.cursor, i),
+    err: "",
+  };
+}
+
 interface FlowState {
   nodes: FlowNode[];
+  /**
+   * 未选走向的**后续段归档**：nodeId → proposalId → 当初跟在那套走向后面的整段链。
+   *
+   * ★★ 2026-08-30「两个模式的节点数据是同一份」（主人点名）：流水线唯一真相就是上面的
+   *   `nodes`，工坊桌面不再自持一棵 NodeSlot 树。原来树的 `children` 承担的"分支探索"
+   *   （换走向时旧走向的后续段不丢，发布时铺成分支互动视频）由这份归档接管：
+   *   chooseProposal/shiftProposal 换走向时把当前后续链存进来、把目标走向的旧链取回去。
+   *   两个面共用同一套 —— 画布换走向从此也不再丢后续段。
+   * ★ seed（整表覆盖）清空它；removeNode 删段时把该段的归档一并删。
+   * ★ 归档里的段**不参与**任何报价/门禁/生成（它们不在 `nodes` 上）；只有
+   *   buildBranchTree（发布分支互动）和换回那套走向时才被读。
+   */
+  alts: Record<string, Record<string, FlowNode[]>>;
   /** 横向游标：当前展示第几个节点 */
   cursor: number;
   mode: FlowMode;
@@ -633,7 +681,31 @@ interface FlowState {
   reset: () => void;
 
   /** 改当前走向的内容（标题/剧情/时长/帧） */
-  updateProposal: (nodeId: string, patch: Partial<Proposal>) => void;
+  /** 改一套方案。缺省改**选中那套**；传 proposalId 改指定那套（工坊方案台上未选中的
+   *  行也能改帧/改剧情——单一真相后写路只有这一条，别绕开它去摸 proposals 数组） */
+  updateProposal: (nodeId: string, patch: Partial<Proposal>, proposalId?: string) => void;
+  /**
+   * 追加一个**成品段**（带着推演好的方案落地，工坊铸段用；与 addNode 的空白段互补）。
+   * 门禁与 addNode 完全同源：末段必须已出片、生成中拒、白模段后拒、pinUnstatedTpl 同拍。
+   * 返回 false = 被拒（原因在 err，铁律八）。
+   */
+  appendNode: (spec: {
+    proposals: Proposal[];
+    /** null = 三套待挑（plan:"picking"） */
+    chosenId: string | null;
+    materials?: Card[];
+    videoTier?: string;
+    aspect?: VideoAspect;
+    requirement?: string;
+    /** 首帧承接上一段真实尾帧（缺省 = 有上一段就承接） */
+    chain?: boolean;
+  }) => string | null;
+  /** 把一段真实成片写到某套方案名下（videoByProposal + proposal.videoUrl 两处一起，
+   *  两处是同一份出片的两个读法——剪辑页「只编辑本段」写回走这里，别只写一半） */
+  setProposalVideo: (nodeId: string, proposalId: string, url: string) => void;
+  /** 整批换掉一段的方案表并回到"摊开待挑"（工坊「重新推演三套」用）。
+   *  被换掉的方案名下的分支归档一并清（留着就是指向已不存在走向的死链） */
+  setNodeProposals: (nodeId: string, proposals: Proposal[]) => void;
   updateNode: (nodeId: string, patch: Partial<FlowNode>) => void;
   /** 改用户对这一段的原话（「重新生成方案」的依据） */
   setRequirement: (nodeId: string, v: string) => void;
@@ -698,6 +770,7 @@ interface FlowState {
 
 export const useFlow = create<FlowState>()((set, get) => ({
   nodes: [],
+  alts: {},
   cursor: 0,
   mode: "workflow",
   origin: "solo",
@@ -1276,21 +1349,21 @@ export const useFlow = create<FlowState>()((set, get) => ({
 
   updateNode: (nodeId, patch) => set((s) => ({ nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, ...patch } : n)) })),
 
-  updateProposal: (nodeId, patch) =>
+  updateProposal: (nodeId, patch, proposalId) =>
     set((s) => {
       // 只有改到"用户写的东西"才置 edited：genNode 内部也用这个 action 回填首尾帧
       // （patchProp），那属于生成产物，不该让一个失败的生成把节点标成"用户改过"
       const authored = "title" in patch || "plot" in patch || "durationSec" in patch;
       return {
-        nodes: s.nodes.map((n) =>
-          n.id === nodeId
-            ? {
-                ...n,
-                ...(authored ? { edited: true } : {}),
-                proposals: n.proposals.map((p) => (p.id === n.chosenId ? { ...p, ...patch } : p)),
-              }
-            : n,
-        ),
+        nodes: s.nodes.map((n) => {
+          if (n.id !== nodeId) return n;
+          const pid = proposalId ?? n.chosenId;
+          return {
+            ...n,
+            ...(authored ? { edited: true } : {}),
+            proposals: n.proposals.map((p) => (p.id === pid ? { ...p, ...patch } : p)),
+          };
+        }),
       };
     }),
 
@@ -1299,22 +1372,19 @@ export const useFlow = create<FlowState>()((set, get) => ({
 
   // 挑定一套 = 方案台落定：按钮从「重新生成方案」变回「生成本段」，这一套的帧与剧情
   // 从此可以逐字改（见 PlanBoard）。anns 清空同 shiftProposal：换了一套戏，对旧画面
-  // 提的圈选要求不再适用
-  chooseProposal: (nodeId, proposalId) =>
-    set((s) => ({
-      nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, chosenId: proposalId, plan: "picked", anns: [] } : n)),
-    })),
+  // 提的圈选要求不再适用。
+  // ★★ 换走向**保分支**（repickInner）：旧走向的后续段归档进 alts、目标走向的旧后续
+  //   链取回来 —— 这原来是工坊节点树 children 的本事，单一真相后两个面都有了。
+  chooseProposal: (nodeId, proposalId) => set((s) => repickInner(s, nodeId, proposalId)),
 
   shiftProposal: (nodeId, dir) =>
-    set((s) => ({
-      nodes: s.nodes.map((n) => {
-        if (n.id !== nodeId || n.proposals.length < 2) return n;
-        const i = n.proposals.findIndex((p) => p.id === n.chosenId);
-        const j = (i + dir + n.proposals.length) % n.proposals.length;
-        // 换走向 = 换了一段戏，之前对旧走向画面提的圈选要求不再适用
-        return { ...n, chosenId: n.proposals[j].id, plan: "picked", anns: [] };
-      }),
-    })),
+    set((s) => {
+      const n = s.nodes.find((x) => x.id === nodeId);
+      if (!n || n.proposals.length < 2) return {};
+      const i = n.proposals.findIndex((p) => p.id === n.chosenId);
+      const j = (i + dir + n.proposals.length) % n.proposals.length;
+      return repickInner(s, nodeId, n.proposals[j].id);
+    }),
 
   deriveProposals: async (nodeId) => {
     const s0 = get();
@@ -1587,6 +1657,74 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return { nodes: [...pinUnstatedTpl(s.nodes, s.template), node], cursor: i, err: "" };
     }),
 
+  appendNode: (spec) => {
+    let newId: string | null = null;
+    set((s) => {
+      // 门禁与 addNode 逐条同源（白模段后拒 / 末段未出片拒 / 生成中拒 / pinUnstatedTpl 同拍）。
+      // 分开成两个 action 是因为出生形态不同：addNode 生空白段，这里落**推演好的成品段**
+      //（工坊铸段：三套方案或自定义单方案已经在手）
+      const prev = s.nodes[s.nodes.length - 1];
+      if (prev ? !!tplOfNode(prev)?.refVideo : !!s.template?.refVideo) {
+        return { err: "白模复刻段只有一段：画面与运镜整个来自模板视频，没有可续的下一段" };
+      }
+      if (prev && !nodeDone(prev)) return { err: "先把这一段炼出来，再铸下一段" };
+      if (s.busy || s.nodes.some((n) => n.status === "generating")) {
+        return { err: "有一段正在生成中，等它跑完再铸下一段" };
+      }
+      if (spec.proposals.length === 0) return { err: "这一炉一个方案都没有，铸不成段" };
+      const i = s.nodes.length;
+      const node: FlowNode = {
+        id: uid("fn"),
+        proposals: spec.proposals,
+        chosenId: spec.chosenId ?? spec.proposals[0].id,
+        plan: spec.chosenId === null ? "picking" : "picked",
+        requirement: spec.requirement ?? "",
+        videoTier: spec.videoTier ?? prev?.videoTier ?? DEFAULT_TIER,
+        aspect: spec.aspect ?? prev?.aspect ?? DEFAULT_ASPECT,
+        materials: spec.materials,
+        chain: spec.chain ?? !!prev,
+        videoByProposal: Object.fromEntries(
+          spec.proposals.filter((p) => p.videoUrl).map((p) => [p.id, p.videoUrl as string]),
+        ),
+        status: "idle",
+        anns: [],
+        // 新段恒"明确没有模板"（理由与 addNode 那段 ★★★ 逐字相同）
+        tpl: null,
+      };
+      newId = node.id;
+      return { nodes: [...pinUnstatedTpl(s.nodes, s.template), node], cursor: i, err: "" };
+    });
+    return newId;
+  },
+
+  setNodeProposals: (nodeId, proposals) =>
+    set((s) => {
+      if (proposals.length === 0) return {};
+      const ids = new Set(proposals.map((p) => p.id));
+      const nodeAlts = Object.fromEntries(Object.entries(s.alts[nodeId] ?? {}).filter(([pid]) => ids.has(pid)));
+      return {
+        nodes: s.nodes.map((n) =>
+          n.id === nodeId
+            ? { ...n, proposals, chosenId: proposals[0].id, plan: "picking" as const, anns: [] }
+            : n,
+        ),
+        alts: { ...s.alts, [nodeId]: nodeAlts },
+      };
+    }),
+
+  setProposalVideo: (nodeId, proposalId, url) =>
+    set((s) => ({
+      nodes: s.nodes.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              videoByProposal: { ...n.videoByProposal, [proposalId]: url },
+              proposals: n.proposals.map((p) => (p.id === proposalId ? { ...p, videoUrl: url, degraded: undefined } : p)),
+            }
+          : n,
+      ),
+    })),
+
   setNodeCustom: (id, on) => {
     const s = get();
     const node = s.nodes.find((n) => n.id === id);
@@ -1775,7 +1913,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return;
     }
     const i = s.nodes.findIndex((n) => n.id === id);
-    set({ nodes: s.nodes.filter((n) => n.id !== id) });
+    // 该段的分支归档一并删：留着的话是一堆指着已不存在节点的死链
+    const alts = { ...s.alts };
+    delete alts[id];
+    set({ nodes: s.nodes.filter((n) => n.id !== id), alts });
     // ★★ 走 setCursor，别自己 set 一个下标（2026-08-21 第三轮验证）：换段这件事还要把
     //   store 级模板与挂卡缓冲换成那一段自己的。自己 set 的话，删完之后这两样还停在
     //   **被删那一段**上 —— 线性视图的挂卡区按已经不存在的角色位渲染，挂法直接串段。

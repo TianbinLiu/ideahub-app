@@ -17,7 +17,6 @@ import AvatarSwapButton from "./ui/AvatarSwapButton";
 import { cancelPendingStop, stopSpeakingSoon } from "./speech";
 import { useStudioBack } from "./useStudioBack";
 import { autoQualityOnFirstVisit, QUALITY_LABELS, type Quality } from "./quality";
-import DiscardFlowDialog from "../components/flow/DiscardFlowDialog";
 import DraftTitle from "../components/DraftTitle";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
@@ -83,7 +82,7 @@ function StudioLoader() {
 
 function useHint(): string {
   const deckLen = useStudio((s) => s.deck.length);
-  const root = useStudio((s) => s.root);
+  const nodes = useFlow((s) => s.nodes);
   const projection = useStudio((s) => s.projection);
   const focus = useStudio((s) => s.focus);
   const marketOpen = useStudio((s) => s.market.open);
@@ -98,11 +97,11 @@ function useHint(): string {
   if (marketEmpty) return "市场还空着——用「从视频提取」圈几张卡，分享后这里就会有";
   if (marketOpen) return "点桌上的市场卡放大查看，喜欢就收进卡组";
   if (spreadOpen) return "拖卡片到虚线卡位铸段 · 单点看详情";
-  if (!root && deckLen === 0) return "先把素材交给铸卡师炼卡，或让 TA 摊开市场";
-  if (!root) return "点击虚线卡位，铸造第一段视频节点";
+  if (nodes.length === 0 && deckLen === 0) return "先把素材交给铸卡师炼卡，或让 TA 摊开市场";
+  if (nodes.length === 0) return "点击虚线卡位，铸造第一段视频节点";
   // 「金色圆台」这个说法在圆台改成法阵后就对不上了（它现在暗着的时候是冷灰的）；
   // 统一叫「法阵」，与台前铭牌上的「点亮法阵」同一套词
-  if (placeholderVisible(root) && composable(root)) return "点虚线卡位延展下一段 · 点亮法阵去剪辑成片";
+  if (placeholderVisible(nodes) && composable(nodes)) return "点虚线卡位延展下一段 · 点亮法阵去剪辑成片";
   // 虚线卡位没亮 = 当前段还没挑方案或还没出片：把"下一段为什么开不了"说清楚，
   // 不然用户只会觉得桌面少了个卡位
   return "点击节点卡：挑定方案并炼出本段视频，才能延展下一段";
@@ -122,25 +121,6 @@ function MarketArrow({ dir, disabled, side }: { dir: 1 | -1; disabled: boolean; 
     >
       {dir < 0 ? "‹" : "›"}
     </button>
-  );
-}
-
-/** 法阵二次确认：桌面上已经有一条在途工作流时，重铺会把还没存进草稿的进度抹掉。
- *  此前这一步是静默执行的，而且 flowLen 不是 0→N，StudioPage 也不会跳页——用户看到的是
- *  "点了没反应"，钱和进度却没了。顺带补上工坊里唯一的「回到在途工作流」入口
- *  （以前只能靠法阵，而法阵正是清空它的那个）。
- *  ★ 对话框本体与创作入口那道**共用一份**（components/flow/DiscardFlowDialog）：那段话要
- *    说清"丢弃会不会烧掉已经花过的钱"，抄两份必然分叉——此前正是两份，且两份都在撒谎。 */
-function FlowConfirm({ onResume, onRebuild }: { onResume: () => void; onRebuild: () => void }) {
-  const open = useStudio((s) => s.flowConfirm);
-  if (!open) return null;
-  return (
-    <DiscardFlowDialog
-      discardLabel="按现在的走向重铺（丢弃上面这些）"
-      onResume={onResume}
-      onDiscard={onRebuild}
-      onCancel={() => useStudio.getState().setFlowConfirm(false)}
-    />
   );
 }
 
@@ -221,26 +201,18 @@ export default function StudioPage() {
     }
   }, []);
 
-  // ★ 进工坊先把工作流上的改动并回节点树（syncFlowBack 的 ★★）：不并的话，从画布
-  //   点「🎴 工坊」过来看到的是上次铺出去时的快照——帧旧、剧情旧、已出片显示没出片、
-  //   新加的段整个不见，零报错。只跑一次（挂载时）就够：停留期间两边不会同时被操作
-  useEffect(() => {
-    useStudio.getState().syncFlowBack();
-  }, []);
-
-  // 点金色圆台 → 铺成工作流后跳 /flow（逐段生成逐段确认，全部满意才进剪辑页）。
-  // 只在"节点数从 0 变成有"的那一刻跳，避免从工作流返回工坊时又被弹走
+  // 法阵/铸段落地后的"去画布那一面"：store 里没有 router，意图记在 goFlowAt 上由这里执行
   const flowLen = useFlow((s) => s.nodes.length);
-  const prevFlowLen = useRef(flowLen);
+  const goFlowAt = useStudio((s) => s.goFlowAt);
+  const goFlowSeen = useRef(goFlowAt);
   useEffect(() => {
-    if (prevFlowLen.current === 0 && flowLen > 0) navigate("/flow");
-    prevFlowLen.current = flowLen;
-  }, [flowLen, navigate]);
+    if (goFlowAt && goFlowAt !== goFlowSeen.current) navigate("/flow");
+    goFlowSeen.current = goFlowAt;
+  }, [goFlowAt, navigate]);
 
   // 存草稿
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
-  const hasRoot = useStudio((s) => s.root != null);
-  const hasWork = hasRoot || flowLen > 0;
+  const hasWork = flowLen > 0; // 单一真相：桌面有没有活只看流水线
   async function saveNow() {
     setSaveState("saving");
     const meta = await useStudio.getState().saveWorkDraft({ from: "studio" });
@@ -351,29 +323,6 @@ export default function StudioPage() {
         </>
       )}
 
-      {/* 法阵二次确认。重铺走 force 分支，此时 flowLen 是 N→N、上面那个 0→N 的跳转
-          效应不会触发，所以要自己跳 */}
-      <FlowConfirm
-        onResume={() => {
-          useStudio.getState().setFlowConfirm(false);
-          navigate("/flow");
-        }}
-        onRebuild={() => {
-          useStudio.getState().setFlowConfirm(false);
-          if (useStudio.getState().startFlow({ force: true })) {
-            // ★★ **重铺成功就断开旧草稿**（2026-08-21 第六轮收尾扫描抓到的 high）：
-            //   四个宿主里只有这一条漏了 newWorkDraft()。不断的话，上面那张确认卡刚
-            //   对用户说完「已出片的 N 段在炼成那一刻就自动存进了草稿，不用重花 token」，
-            //   新流水线炼成第 1 段时的自动存盘就会拿 workDraftId **原地覆盖**那条草稿 ——
-            //   而重铺那一刻那几段成片已经从内存里消失（它们只活在流水线上，节点树上
-            //   那份 proposal 没有 videoUrl），草稿是唯一的备份。于是确认卡说的与事实相反，
-            //   钱真没了，全程零报错。
-            //   ★ 与 useApplyTemplate.commit 同一个口径：**成了才断**（startFlow 会整句拒）。
-            useStudio.getState().newWorkDraft();
-            navigate("/flow");
-          }
-        }}
-      />
 
       {/* 返回被拒绝之类的瞬时提示（投影窗盖着时铸卡师说话用户看不见，只能走这里） */}
       <Toast notice={notice} />
