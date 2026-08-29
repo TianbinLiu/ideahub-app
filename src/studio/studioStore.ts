@@ -7,7 +7,7 @@ import type { PlayerAvatar } from "./quality";
 import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, walletOf, type AddCardsResult } from "../data/account";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalRedrawCost, proposalsCost, styleWants3d } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
-import { FlowMode, FlowNode, FlowTemplate, chosenOf, nodeVideo, tplOfNode, useFlow } from "./flowStore";
+import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, chosenOf, nodeVideo, tplOfNode, useFlow } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, saveDraft } from "../data/drafts";
@@ -61,6 +61,9 @@ export interface EditorState {
   /** 用户上传的本段**结束帧**（dataURL）——只有「直接生成（自定义直出）」那条路读它：
    *  推演三套时尾帧由各方案自拟，这一位不参与（null=没给）。 */
   endFrame: string | null;
+  /** 自定义车道第①页挂的示例视频（2026-08-30 翻页版）。落地时随 layCustomNode 一起
+   *  写进节点（setNodeCustom + setCustomRefVideo + mids）；localUrl 只给截帧用不落库 */
+  refVideo: { url: string; publicId: string; durationSec: number; localUrl?: string; mids: string[] } | null;
   generating: boolean;
   /** 生成期间的实时阶段播报（真实 AI 全程约 1-1.5 分钟，没进度=卡死体感） */
   progress: string;
@@ -520,6 +523,10 @@ interface StudioState {
   /** 上传/清除本段开头帧（null=恢复默认承接上一节点尾帧） */
   setStartFrame: (dataUrl: string | null) => void;
   setEndFrame: (dataUrl: string | null) => void;
+  /** 向导第①页：挂/摘示例视频（editor 期暂存，layCustomNode 落地进节点） */
+  setEditorRefVideo: (ref: { url: string; publicId: string; durationSec: number; localUrl?: string } | null) => void;
+  addEditorMid: (dataUrl: string) => void;
+  removeEditorMid: (idx: number) => void;
   /** 自定义直出：不推演，把编辑器里的帧+要求铺成一张**已选定单方案**的节点卡。
    *  出片仍走方案台那颗「炼这一段视频」（generateSegment/报价一行没改） */
   layCustomNode: () => void;
@@ -674,6 +681,7 @@ const DEFAULT_EDITOR: EditorState = {
   aspect: DEFAULT_ASPECT,
   startFrame: null,
   endFrame: null,
+  refVideo: null,
   generating: false,
   progress: "",
 };
@@ -1398,6 +1406,20 @@ export const useStudio = create<StudioState>()((set, get) => ({
   setAspect: (a) => set((s) => (s.editor ? { editor: { ...s.editor, aspect: a } } : {})),
   setStartFrame: (dataUrl) => set((s) => (s.editor ? { editor: { ...s.editor, startFrame: dataUrl } } : {})),
   setEndFrame: (dataUrl) => set((s) => (s.editor ? { editor: { ...s.editor, endFrame: dataUrl } } : {})),
+  setEditorRefVideo: (ref) =>
+    set((s) => (s.editor ? { editor: { ...s.editor, refVideo: ref ? { ...ref, mids: s.editor.refVideo?.mids ?? [] } : null } } : {})),
+  addEditorMid: (dataUrl) =>
+    set((s) =>
+      s.editor?.refVideo && s.editor.refVideo.mids.length < CUSTOM_MID_MAX
+        ? { editor: { ...s.editor, refVideo: { ...s.editor.refVideo, mids: [...s.editor.refVideo.mids, dataUrl] } } }
+        : {},
+    ),
+  removeEditorMid: (idx) =>
+    set((s) =>
+      s.editor?.refVideo
+        ? { editor: { ...s.editor, refVideo: { ...s.editor.refVideo, mids: s.editor.refVideo.mids.filter((_, i) => i !== idx) } } }
+        : {},
+    ),
   closeEditor: () => set({ editor: null }),
 
   /**
@@ -1447,6 +1469,18 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (!newId) {
       get().npcSay(useFlow.getState().err || "现在铺不了这一段，稍后再试。");
       return;
+    }
+    // 向导第①页挂的示例视频落进节点：素材参考模式三件套（custom 开关 + 参考视频 + 中间帧）。
+    // 写路全在 flowStore（单一真相）；刚 append 的段必不 done/不在生成，三道 set 不会被拒
+    if (editor.refVideo) {
+      const flow = useFlow.getState();
+      flow.setNodeCustom(newId, true);
+      flow.setCustomRefVideo(newId, {
+        url: editor.refVideo.url,
+        publicId: editor.refVideo.publicId,
+        durationSec: editor.refVideo.durationSec,
+      });
+      for (const m of editor.refVideo.mids) flow.addCustomMid(newId, m);
     }
     set({ spreadOpen: false, focus: { nodeId: newId }, projection: "proposals", editor: null });
     get().npcSay("自定义方案摆上桌了——帧和提示词确认没问题，就点「炼这一段视频」。");

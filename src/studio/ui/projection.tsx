@@ -3,15 +3,20 @@
 // proposals = 方案台：三套走向一行一套（左首尾帧卡 / 右剧情），挑定一套后就地改图改剧情、
 //             炼出本段视频——**炼出来才能开下一张卡**（见 studioStore.placeholderVisible）
 // decks = 卡组选择（两段式第一步；选中后回第一人称把该组卡摊上桌）
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { deckCoverOf, myCards, myDecks, tierBlockReason } from "../../data/account";
-import { DEFAULT_TIER, VIDEO_TIERS, deriveIssue, fmtTokens, modelLabel, segTokens, segmentCost, tierOf } from "../../data/economy";
+import { VIDEO_TIERS, deriveIssue, fmtTokens, modelLabel, segTokens, tierOf } from "../../data/economy";
 import TarotCard from "../../components/TarotCard";
 import DeckCard from "../../components/DeckCard";
 import GenTrace from "../../components/GenTrace";
 import FrameCard from "./FrameCard";
 import PlanBoard from "./PlanBoard";
+import AnnStrip from "../../components/flow/AnnStrip";
+import RefFrameSheet from "../../components/flow/RefFrameSheet";
+import { registerMaterialVideo, uploadTemplateVideo } from "../../api/uploads";
+import { captureFirstLast } from "../../utils/videoFrames";
+import SegPlayer from "../../components/flow/SegPlayer";
 import { fuseSourcesOf } from "./FuseFrameSheet";
 import Icon from "../../components/Icon";
 import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType, Proposal, VIDEO_ASPECTS, aspectCss, aspectOf } from "../../types";
@@ -24,7 +29,7 @@ import {
   useStudio,
 } from "../studioStore";
 // 只在「套模板」那一步问一眼"流水线上有没有段"（studio → flow 是允许的方向）
-import { useFlow, type FlowNode } from "../flowStore";
+import { CUSTOM_MID_MAX, nodeCost, useFlow, type FlowNode } from "../flowStore";
 import TokenCost from "../../components/TokenCost";
 import { proposalsCost } from "../../data/economy";
 import { fileToFrameDataUrl } from "../../utils/image";
@@ -244,10 +249,14 @@ function EditorPanel() {
    *   价钱就贴在最后要按的那颗键上（docs/ui-copy-grammar 文法②）。
    * ★ 拖素材卡进占位开的窗跳过第一步直接落在②：拖卡这个动作本身就是在选「自选卡片」。
    */
-  const [step, setStep] = useState<"mode" | "content" | "spec">(() =>
+  const [step, setStep] = useState<"mode" | "ref" | "content" | "spec">(() =>
     (useStudio.getState().editor?.slots.length ?? 0) > 0 ? "content" : "mode",
   );
   const [lane, setLane] = useState<"cards" | "custom">("cards");
+  /** 示例视频上传中的进度句 / 调帧小窗 / 选文件口（自定义·第①页） */
+  const [refUploading, setRefUploading] = useState("");
+  const [refSheet, setRefSheet] = useState(false);
+  const refFileRef = useRef<HTMLInputElement>(null);
   if (!editor) return null;
 
   const slotCards = editor.slots
@@ -275,12 +284,14 @@ function EditorPanel() {
       navigate("/workshop");
     }
   }
+  const crumbSteps = lane === "custom" ? (["mode", "ref", "content", "spec"] as const) : (["mode", "content", "spec"] as const);
+  const crumbLabel = { mode: "选模式", ref: "示例视频", content: "写内容", spec: "定规格" } as const;
   const stepCrumb = (
     <span className="flex items-center gap-1 text-[9px] text-slate-500">
-      {(["mode", "content", "spec"] as const).map((s, i) => (
+      {crumbSteps.map((s, i) => (
         <span key={s} className={s === step ? "font-bold text-cyan-200" : ""}>
           {i > 0 && <span className="pr-1 text-slate-600">›</span>}
-          {i + 1} {s === "mode" ? "选模式" : s === "content" ? "写内容" : "定规格"}
+          {i + 1} {crumbLabel[s]}
         </span>
       ))}
     </span>
@@ -307,7 +318,7 @@ function EditorPanel() {
             [
               ["🧪", "套模板", "白模复刻：套一个模板，给人偶挂卡换人", goTemplate],
               ["🃏", "自选卡片", "挑素材卡＋写要求，AI 推演三套方案", () => { setLane("cards"); setStep("content"); }],
-              ["✍", "自定义", "自己给首尾帧，免费铺方案直出", () => { setLane("custom"); setStep("content"); }],
+              ["✍", "自定义", "上传示例视频或自己给首尾帧，免费铺方案直出", () => { setLane("custom"); setStep("ref"); }],
             ] as const
           ).map(([icon, label, desc, go]) => (
             <button
@@ -323,6 +334,68 @@ function EditorPanel() {
               <span className="ml-auto flex-none text-slate-500">›</span>
             </button>
           ))}
+        </div>
+      ) : step === "ref" ? (
+        /* ══ 自定义·第②步：示例视频（可跳过，跳过是小字附庸——主人点名的主从关系） ══ */
+        <div className="flex min-h-0 flex-1 flex-col justify-center gap-2.5 overflow-y-auto p-4">
+          {editor.refVideo ? (
+            <div className="rounded-xl border border-sky-500/40 bg-sky-500/5 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 flex-1 truncate text-[12px] text-sky-200">🎬 参考视频已挂上（{editor.refVideo.durationSec.toFixed(1)}s）</span>
+                <button onClick={() => useStudio.getState().setEditorRefVideo(null)} className="flex-none text-[10px] text-slate-500">移除</button>
+              </div>
+              <p className="mt-1 text-[10px] leading-relaxed text-slate-500">已自动取它的首尾帧当本段首尾帧；可细调、加中间帧（最多 {CUSTOM_MID_MAX} 张）</p>
+              <button onClick={() => setRefSheet(true)} className="mt-2 w-full rounded-lg border border-sky-500/40 py-1.5 text-[11px] text-sky-200">🎞 调节首尾帧 / 加中间帧</button>
+              <button onClick={() => setStep("content")} className="mt-2 w-full rounded-xl bg-brand/90 py-2 text-sm font-bold text-ink">下一步：写内容 ›</button>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => refFileRef.current?.click()}
+                disabled={editor.generating || !!refUploading}
+                className="w-full rounded-xl border border-dashed border-sky-500/60 py-8 text-sm font-semibold text-sky-200 disabled:opacity-40"
+              >
+                {refUploading || "🎬 上传一段示例视频当整段参考"}
+              </button>
+              <p className="text-center text-[10px] text-slate-500">上传后自动用它的首尾帧当本段首尾帧，之后还能细调、加中间帧</p>
+              <button onClick={() => setStep("content")} className="mx-auto text-[11px] text-slate-500 underline underline-offset-2">
+                不上传，直接给首尾帧 ›
+              </button>
+            </>
+          )}
+          <input
+            ref={refFileRef}
+            type="file"
+            accept="video/mp4,video/quicktime"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (!f) return;
+              void (async () => {
+                try {
+                  setRefUploading("上传参考视频 0%…");
+                  const receipt = await uploadTemplateVideo(f, (frac) => setRefUploading(`上传参考视频 ${Math.round(frac * 100)}%…`));
+                  setRefUploading("登记素材…");
+                  const reg = await registerMaterialVideo(receipt.publicId);
+                  const local = URL.createObjectURL(f);
+                  useStudio.getState().setEditorRefVideo({ url: reg.url, publicId: receipt.publicId, durationSec: reg.durationSec, localUrl: local });
+                  try {
+                    setRefUploading("取首尾帧…");
+                    const fr = await captureFirstLast(local, reg.durationSec);
+                    useStudio.getState().setStartFrame(fr.first);
+                    useStudio.getState().setEndFrame(fr.last);
+                  } catch {
+                    useStudio.getState().npcSay("自动取首尾帧没成——点「🎞 调节首尾帧」手动截。");
+                  }
+                } catch (err) {
+                  useStudio.getState().npcSay(`参考视频没挂上：${err instanceof Error ? err.message : String(err)}`);
+                } finally {
+                  setRefUploading("");
+                }
+              })();
+            }}
+          />
         </div>
       ) : /* ══ 第③步：定规格（时长 / 画幅 / 档位）。整块投影归它一个，不与"拍什么"混在一屏 ══ */
       step === "spec" ? (
@@ -590,11 +663,11 @@ function EditorPanel() {
         {step === "content" ? (
           <div className="flex gap-2">
             <button
-              onClick={() => setStep("mode")}
+              onClick={() => setStep(lane === "custom" ? "ref" : "mode")}
               disabled={editor.generating}
               className="rounded-xl bg-slate-700/70 px-4 py-2 text-sm text-slate-200 disabled:opacity-40"
             >
-              ‹ 模式
+              {lane === "custom" ? "‹ 示例视频" : "‹ 模式"}
             </button>
             <button
               onClick={() => setStep("spec")}
@@ -606,6 +679,11 @@ function EditorPanel() {
           </div>
         ) : step === "spec" ? (
           <>
+            {lane === "custom" && editor.refVideo && !tierOf(editor.videoTier).refVid && (
+              <p className="mb-1.5 text-center text-[10px] leading-relaxed text-amber-300">
+                ⚠「{tierOf(editor.videoTier).label}」档带不了参考视频——选「电影级」，否则出片会被整句拒
+              </p>
+            )}
             {lane === "cards" ? (
               <TokenCost
                 tokens={proposalsCost(!!editor.startFrame)}
@@ -648,6 +726,18 @@ function EditorPanel() {
           </>
         ) : null}
       </div>
+      {refSheet && editor.refVideo && (
+        <RefFrameSheet
+          videoUrl={editor.refVideo.localUrl ?? editor.refVideo.url}
+          remote={!editor.refVideo.localUrl}
+          midCount={editor.refVideo.mids.length}
+          midMax={CUSTOM_MID_MAX}
+          onFirst={(d) => useStudio.getState().setStartFrame(d)}
+          onLast={(d) => useStudio.getState().setEndFrame(d)}
+          onAddMid={(d) => useStudio.getState().addEditorMid(d)}
+          onClose={() => setRefSheet(false)}
+        />
+      )}
     </>
   );
 }
@@ -667,6 +757,8 @@ function ProposalsPanel() {
   const chosen = chosenProposal(node);
   const pickedId = chosen?.id ?? null;
   const done = proposalDone(chosen);
+  /** 成片回看层（与画布共用 SegPlayer：回看 + ⭕圈选改画面走同一条 addAnn → genNode 路） */
+  const [playing, setPlaying] = useState(false);
   // 承接判定：本段的设定首帧就是上一段的设定尾帧（AI 顺接铸出来的）→ 这张开头帧不是本段
   // 自己画的，AI 重画方案时不该动它
   const carried = !!(prev?.lastFrame && chosen?.firstFrame === prev.lastFrame);
@@ -748,9 +840,16 @@ function ProposalsPanel() {
               ? "⚠ 换成这一套，现在这套走向后面的段会整段收起（切回可恢复）"
               : null
           }
-          actions={(p) => <PickedActions node={node} proposal={p} />}
+          actions={(p) => <PickedActions node={node} proposal={p} onPlay={() => setPlaying(true)} />}
         />
       </div>
+      {/* 圈选标注条（与画布同一份 AnnStrip）：重炼时逐处改画面，改图费已并进重炼报价（nodeCost） */}
+      {node.anns.length > 0 && (
+        <div className="flex-none px-3 pb-1">
+          <AnnStrip anns={node.anns} onRemove={(annId) => useFlow.getState().removeAnn(node.id, annId)} />
+        </div>
+      )}
+      {playing && <SegPlayer nodeId={node.id} onClose={() => setPlaying(false)} onOpenPanel={() => setPlaying(false)} />}
       <div className="flex-none border-t border-cyan-400/15 px-3 py-1.5 text-center text-[10px] leading-4 text-slate-500">
         {!pickedId
           ? "挑一套 → 可换首尾帧/改剧情 → 炼出本段视频，桌面上才会亮出下一段的卡位"
@@ -772,7 +871,7 @@ function ProposalsPanel() {
  * 「编辑本段」去的就是剪辑页（与工作流跑完后进的是同一页），只带这一段——在那里可以拖到
  * 任意一帧圈出物体写修改要求，重新生成后新的尾帧会顶替设定尾帧，下一段就从这一帧接着拍。
  */
-function PickedActions({ node, proposal }: { node: FlowNode; proposal: Proposal }) {
+function PickedActions({ node, proposal, onPlay }: { node: FlowNode; proposal: Proposal; onPlay: () => void }) {
   const navigate = useNavigate();
   const nodeGen = useStudio((s) => s.nodeGen);
   const frameRefining = useStudio((s) => s.frameRefining);
@@ -782,15 +881,11 @@ function PickedActions({ node, proposal }: { node: FlowNode; proposal: Proposal 
   const mine = nodeGen?.proposalId === proposal.id;
   const busy = !!nodeGen || !!frameRefining || !!proposalRegen;
   const done = proposalDone(proposal);
-  // ★ 与 studioStore.genNodeVideo 真扣的钱同一个函数：出片 + 还得补画的设定帧。
-  //   按钮上的数字和实际扣款分两处算必然分叉（铁律六）
-  const cost = segmentCost({
-    durationSec: proposal.durationSec,
-    tierId: node.videoTier ?? DEFAULT_TIER,
-    hasFirstFrame: !!proposal.firstFrame,
-    hasLastFrame: !!proposal.lastFrame,
-    refMode: false, // 工坊不走参考生视频：它的整条链路建立在首尾帧上
-  });
+  // ★ 报价与真扣同一把尺：genNodeVideo 已委托 flowStore.genNode（扣 nodeCost），按钮上的数
+  //   必须也是 nodeCost —— 圈选改图费、承接省一张帧、素材参考模式它都算得对，另拼一份必分叉
+  const flowNow = useFlow.getState();
+  const nodeIdx = flowNow.nodes.findIndex((n) => n.id === node.id);
+  const cost = nodeCost(flowNow.nodes, nodeIdx, flowNow.mode);
 
   return (
     <div className="space-y-1.5 border-t border-slate-700/60 pt-1.5">
@@ -839,15 +934,32 @@ function PickedActions({ node, proposal }: { node: FlowNode; proposal: Proposal 
           </button>
         </div>
       )}
-      {mine && <GenTrace steps={nodeGen!.steps} running className="rounded-lg bg-black/25 px-2 py-1.5" />}
+      {/* 进度画在节点自己身上（单一真相：flowStore.genNode 写 node.steps） */}
+      {(mine || node.status === "generating") && (
+        <GenTrace steps={node.steps ?? []} running className="rounded-lg bg-black/25 px-2 py-1.5" />
+      )}
       <div className="flex gap-1.5">
         <button
           onClick={() => void useStudio.getState().genNodeVideo(node.id, proposal.id)}
           disabled={busy || !proposal.plot.trim()}
           className="flex-1 rounded-lg bg-brand/90 py-2 text-xs font-bold text-ink disabled:opacity-40"
         >
-          {mine ? "炼制中…" : done ? `♻ 重炼本段（${fmtTokens(cost)}）` : `⚡ 生成本段视频（${fmtTokens(cost)}）`}
+          {mine
+            ? "炼制中…"
+            : done
+              ? `♻ 重炼本段（${node.anns.length ? `含 ${node.anns.length} 处圈选改图 · ` : ""}${fmtTokens(cost)}）`
+              : `⚡ 生成本段视频（${fmtTokens(cost)}）`}
         </button>
+        {done && (
+          <button
+            onClick={onPlay}
+            disabled={busy}
+            title="回看成片 · 在画面上圈出要改的地方"
+            className="flex-none rounded-lg border border-slate-500/60 bg-slate-700/50 px-2.5 py-2 text-xs font-semibold text-slate-100 disabled:opacity-40"
+          >
+            ▶ 圈选
+          </button>
+        )}
         {done && (
           <button
             onClick={() => {
