@@ -26,8 +26,9 @@ import { shareVideoToQQ } from "../utils/qqLogin";
 import { shareVideoToWeChat, wechatSupported } from "../utils/wechat";
 
 /** 剪贴板：优先标准 API（Capacitor WebView 的 https origin 是安全上下文，可用），
- *  拿不到就退 execCommand —— 老 WebView 上 navigator.clipboard 可能整个 undefined */
-async function copyText(text: string): Promise<void> {
+ *  拿不到就退 execCommand —— 老 WebView 上 navigator.clipboard 可能整个 undefined。
+ *  export 给个人页复制 UID 用（铁律六：剪贴板兜底只写这一份） */
+export async function copyText(text: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text);
     return;

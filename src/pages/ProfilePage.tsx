@@ -28,6 +28,7 @@ import Icon, { type IconName } from "../components/Icon";
 import DeckCard from "../components/DeckCard";
 import Avatar from "../components/Avatar";
 import AvatarPicker from "../components/AvatarPicker";
+import { copyText } from "../components/ShareSheet";
 import {
   authorIdOfName,
   dropPendingPublish,
@@ -177,6 +178,21 @@ export default function ProfilePage() {
       ? userDisplayName(stranger.profile)
       : nameHint;
   const handle = self ? (user?.account ?? "") : (stranger.profile?.username ?? nameHint);
+  /** 公开数字 UID。两边都可能没有：离线账号压根没有；老服务端/老缓存也不回 ——
+   *  没有就整行不画（画 0 或画空是编的，铁律八），所以别给默认值 */
+  const uidNum = (self ? user?.uid : stranger.profile?.uid) ?? null;
+  /** UID 已复制的短暂反馈（1.5s 后自己退回；就算中途切去别人主页，1.5s 也把它冲干净了） */
+  const [uidCopied, setUidCopied] = useState(false);
+  const copyUid = async () => {
+    if (uidNum == null) return;
+    try {
+      await copyText(String(uidNum));
+      setUidCopied(true);
+      window.setTimeout(() => setUidCopied(false), 1500);
+    } catch {
+      /* 剪贴板都失败的话数字就在屏幕上，用户能看着抄，不值得为此弹错 */
+    }
+  };
 
   const videos = useMemo(() => listVideos(), [videoV]);
   /** 本地库里名字对得上的那些。远端问到了就不用它，问不到时它至少不是空白 */
@@ -485,6 +501,23 @@ export default function ProfilePage() {
             见 data/account.toLocalUser），别人的取服务端那份 username；两边都问不到时
             才退回展示名 —— 不编。 */}
         <div className="mt-0.5 max-w-full truncate text-xs text-slate-500">@{handle || display}</div>
+
+        {/* 公开数字 UID：随机 9 位、与注册顺序无关（服务端 utils/uid.js 记着为什么不用顺序号）。
+            回答的是"客服/搜索里怎么精确指到这个人"——搜索框输这串数字能直接命中。
+            点按复制；没有 uid（离线账号、老服务端）就整行不出现，不画 0。 */}
+        {uidNum != null && (
+          <button
+            onClick={copyUid}
+            className="mt-1 flex items-center gap-1.5 text-[11px] tabular-nums text-slate-600 active:opacity-60"
+          >
+            <span>UID {uidNum}</span>
+            {uidCopied ? (
+              <span className="text-emerald-500">已复制</span>
+            ) : (
+              <span className="text-slate-700">点按复制</span>
+            )}
+          </button>
+        )}
 
         {/* 统计：竖线分隔，数字大、标签小（TikTok 同款视觉层级）。
             ★ 别人的主页可能有四栏（多一个「粉丝」），每格得从 84px 收到 70px ——
