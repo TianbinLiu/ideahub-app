@@ -11,6 +11,7 @@ import { AGREEMENTS } from "../data/agreements";
 import { CoverSection } from "../components/CoverPicker";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
+import AigcBadge from "../components/AigcBadge";
 import Icon from "../components/Icon";
 import VisibilityPicker from "../components/VisibilityPicker";
 import SegmentPlayer from "../components/SegmentPlayer";
@@ -370,15 +371,28 @@ export default function PublishPage() {
               放弃本次合成
             </button>
           </div>
-          {/* AIGC 须知：一句常驻 + 全文小窗（2026-08-28）。标识那半句说的是已实现的
-              事实——合并时 drawAigcBadge 真的把「AI 生成」角标画进了每一帧 */}
-          <p className="text-[11px] leading-relaxed text-slate-500">
-            发布即视为同意
-            <button onClick={() => setAigcOpen(true)} className="text-brand">
-              《AIGC 内容须知》
-            </button>
-            ——成片右下角已自动带「AI 生成」标识。
-          </p>
+          {/* ★★ 内容声明。**恒开、不可关**，而且是**主动声明**不是默示同意（2026-08-30 改）。
+              《人工智能生成合成内容标识办法》第十条要求用户"主动声明并使用服务提供者提供的
+              标识功能进行标识"—— 原来这里是一句"发布即视为同意《AIGC 内容须知》"的脚注，
+              那在法律上是**默示**，而且藏在按钮下面像免责声明，不像声明。
+              ⚠ 不给关：本 app 的每一条作品都是 AI 生成的（画面要么是 Seedance 出的片、
+                要么是两张 AI 设定帧之间的渐变），给一个永远不能选"否"的开关只是装样子，
+                还会让人以为可以关掉。所以画成"已声明"的既成事实 + 说清楚都做了什么。 */}
+          <div className="rounded-xl border border-slate-700 bg-panel/60 px-3 py-2.5">
+            <div className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-200">
+              <AigcBadge />
+              内容声明：本作品由 AI 生成
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+              发布后会做三件事：成片每一帧的右下角带「AI 生成」角标；首页与详情页在作品旁显示
+              「AI 生成」标识；并按
+              <button onClick={() => setAigcOpen(true)} className="text-brand">
+                《AIGC 内容须知》
+              </button>
+              承担发布者责任。
+              <span className="text-slate-500">这项声明不可关闭。</span>
+            </p>
+          </div>
         </div>
       </main>
 

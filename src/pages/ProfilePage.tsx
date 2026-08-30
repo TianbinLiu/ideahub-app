@@ -24,6 +24,7 @@ import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Sheet from "../components/Sheet";
 import DraftSheet from "../components/DraftSheet";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
+import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import Icon, { type IconName } from "../components/Icon";
 import DeckCard from "../components/DeckCard";
 import Avatar from "../components/Avatar";
@@ -147,6 +148,8 @@ export default function ProfilePage() {
   const drafts = useDrafts();
 
   const [tab, setTab] = useState<TabKey>("works");
+  /** 作品墙的可见性筛选（只对自己有意义）。判否定：老作品没有 visibility = 公开 */
+  const [visFilter, setVisFilter] = useState<"all" | "public" | "private">("all");
   const [pickDraft, setPickDraft] = useState<WorkDraftMeta | null>(null);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
@@ -225,6 +228,14 @@ export default function ProfilePage() {
    *   在那儿显示「—」只会把一个本来准确的数字变成问号。
    */
   const worksKnown = self || !remoteOn() || stranger.works?.status === "ok";
+  /** 按可见性筛过的那份（只自己的墙用）。★ 判**否定**：老作品没有这个字段 = 公开 */
+  const shownWorks = useMemo(
+    () =>
+      visFilter === "all"
+        ? works
+        : works.filter((v) => (visFilter === "private" ? v.visibility === "private" : v.visibility !== "private")),
+    [works, visFilter],
+  );
   // accV 是必需的依赖，不是保险：collects 是原地 push/splice 的同一个数组，
   // 只写 user?.collects 的话取消收藏后这份 memo 永远不会重算
   const collects = useMemo(() => {
@@ -719,10 +730,38 @@ export default function ProfilePage() {
             （作品只活在内存里），发布失败又只进了一个看不见的队列 —— 于是用户的表现是
             「辛苦几十分钟的作品过一会儿自己没了」。失败可以，但要响且局部（铁律八）。 */}
         {activeTab === "works" && self && <PendingBanner />}
+        {/* ★★ 「公开 / 仅自己可见」筛选（2026-08-30）。这不是锦上添花，是**另一处修复的前提**：
+            作品编辑页那颗「改成仅自己可见就好」的软替代按钮（用来劝住"只是不想被人看见
+            就把作品删了"的人）要成立，前提是他之后**找得回来**那些藏起来的作品。
+            改完就从列表里消失、再也没有入口的话，用户只会得出"藏起来 = 丢了"，
+            下次直接选删除 —— 那颗按钮就白做了。
+            ★ 只在**自己**的主页出现：别人的墙上本来就看不到 private 的作品。
+            ★ 一条 private 都没有时**不画**这一排：没有可筛的东西时，筛选器只是噪声。 */}
+        {activeTab === "works" && self && works.some((v) => v.visibility === "private") && (
+          <div className="mb-2.5 flex gap-1.5">
+            {([
+              ["all", `全部 ${works.length}`],
+              ["public", `公开 ${works.filter((v) => v.visibility !== "private").length}`],
+              ["private", `仅自己可见 ${works.filter((v) => v.visibility === "private").length}`],
+            ] as const).map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => setVisFilter(k)}
+                className={`rounded-full px-3 py-1 text-[11px] ${
+                  visFilter === k ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-400"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         {activeTab === "works" &&
           (self ? (
-            works.length ? (
-              <WorkGrid items={works} />
+            shownWorks.length ? (
+              <WorkGrid items={shownWorks} />
+            ) : visFilter === "private" ? (
+              <Empty text="没有仅自己可见的作品" />
             ) : (
               <Empty text="还没有发布作品" cta="去创作" to="/create" />
             )
@@ -1060,6 +1099,16 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
             {paid && (
               <span className="absolute right-1 top-1 rounded bg-gold/90 px-1 py-0.5 text-[9px] font-bold text-ink">
                 付费
+              </span>
+            )}
+            {/* 「AI 生成」标识（合规要求"内容周边"，见 components/AigcBadge 的 ★★）。
+                ★ 挂**右下**：左上那格已被 已下架/仅自己可见/互动 那条 if 链占满、右上是付费，
+                  左下是播放量。⚠ 不许挤进那条 if —— 它是"三选一"，而 AI 标识是**恒有**的，
+                  混进去会变成"是互动片就不标 AI"。
+                ★ 这是同一枚组件的第 3 次**渲染**，不是第 3 份**判据**（判据仍只有 isAigcWork）。 */}
+            {isAigcWork(v) && (
+              <span className="absolute bottom-1 right-1">
+                <AigcBadge tone="overlay" />
               </span>
             )}
           </Link>
