@@ -2,6 +2,7 @@
 // （铸卡时的完整提示词，具体到可复刻卡面）+ 3D 建模全息预览（有 modelUrl 的角色卡）。
 // 创意工坊/我的/卡组详情点卡进来。
 import { useRef, useMemo, useState, useSyncExternalStore } from "react";
+import DeleteCardDialog from "../components/DeleteCardDialog";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 // ★ 出片管线的规则一律**从管线本身取**，这一页不再抄一份（铁律六）。
@@ -14,7 +15,7 @@ import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
-import { isRemoteMode, myCards, myDecks, shareCard } from "../data/account";
+import { isRemoteMode, myCards, myDecks, removeCard, shareCard } from "../data/account";
 import { addCardView, removeCardView } from "../data/cardViews";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
 import { assetOf, assetsVersion, saveAsset, subscribeAssets } from "../data/cardAsset";
@@ -474,6 +475,8 @@ export default function CardDetailPage() {
   // ★ 这一页也会渲染**别人的**卡（工坊市场点进来时卡是由路由 state 带过来的），
   //   所以分享条必须按"这张卡在不在我库里"开门，不能只看有没有登录。
   const owned = useMemo(() => myCards().some((c) => c.id === id), [id, accountV]);
+  /** 删卡确认开着没有 */
+  const [ask, setAsk] = useState(false);
   const heat = heatOf("card", id ?? "");
   // ★ hook 必须在下面那个 `if (!card) return` 之前跑完，否则卡在不在库里会改变
   //   hook 数量，切换时直接崩。所以这里用 card?.，不是 card.
@@ -628,6 +631,31 @@ export default function CardDetailPage() {
       >
         🎬 去 3D 工坊用这张卡创作
       </Link>
+
+      {/* 删除（2026-08-30 主人点名"详情页没有删除功能"）。★ 只对自己库里的卡出现 ——
+          这一页也渲染别人分享的卡，那种情况下"删除"删的是谁的卡讲不清楚。
+          ★ 摆在最下面、用文字链而不是大按钮：这是不可逆操作，不该与主行动抢注意力；
+            确认卡（DeleteCardDialog，与工坊页共用一份）会把后果按事实说全。 */}
+      {owned && (
+        <button
+          onClick={() => setAsk(true)}
+          className="mt-4 block w-full py-2 text-center text-[11px] text-slate-500"
+        >
+          删除这张卡
+        </button>
+      )}
+      {ask && card && (
+        <DeleteCardDialog
+          card={card}
+          onCancel={() => setAsk(false)}
+          onConfirm={() => {
+            removeCard(card.id);
+            setAsk(false);
+            // 卡没了，这一页就是死页 —— replace 回上一屏（多半是工坊/卡组），别留一格
+            nav(-1);
+          }}
+        />
+      )}
 
       <SocialPanel kind="card" id={card.id} />
     </div>

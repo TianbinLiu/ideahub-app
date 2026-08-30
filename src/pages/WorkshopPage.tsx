@@ -1,12 +1,15 @@
 // 创意工坊页：管理自己的卡片与卡组——搜索添加市场卡片、建组、增删卡。
 // 与 3D 卡片工坊（/studio）分工：这里是资产管理，那里是创作现场。
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import Icon from "../components/Icon";
+import DeleteCardDialog from "../components/DeleteCardDialog";
 import AuthPending from "../components/AuthPending";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { Link } from "react-router";
 import {
+  type Deck,
   addCards,
   browseSharedCards,
   browseSharedDecks,
@@ -139,6 +142,11 @@ export default function WorkshopPage() {
   //   同一行页签）。内容整块复用 components/TemplateShelf —— 它自带「模板市场/我的模板」
   //   两个来源，所以模板市场也一并住进了本页；/templates 独立页照旧（深链在用）。
   const [tab, setTab] = useState<"cards" | "decks" | "templates">("cards");
+  /** 待确认删除的卡（删卡确认与详情页共用 DeleteCardDialog 一份） */
+  const [askCard, setAskCard] = useState<Card | null>(null);
+  /** 待确认删除的卡组。★ 删卡组**不删卡**（deleteDeck 只摘卡组本身）——这件事必须说，
+   *  否则用户会以为"删卡组 = 把里面的卡也删了"而不敢删，或者删了之后到处找卡 */
+  const [askDeck, setAskDeck] = useState<Deck | null>(null);
   const [q, setQ] = useState("");
   const [market, setMarket] = useState<Card[]>([]);
   /**
@@ -263,10 +271,68 @@ export default function WorkshopPage() {
         </div>
       ) : tab === "cards" ? (
         <>
+          {askDeck &&
+            createPortal(
+              <div
+                className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-6"
+                onClick={() => setAskDeck(null)}
+              >
+                <div
+                  className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h3 className="text-sm font-bold text-slate-100">删掉卡组「{askDeck.name}」？</h3>
+                  <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-slate-400">
+                    <p>
+                      · 里面那 {askDeck.cardIds.length} 张卡<span className="text-slate-200">不会被删</span>，
+                      它们还在你的卡片库里，只是不再归到这一组。
+                    </p>
+                    {askDeck.published && (
+                      <p>
+                        · 这个卡组已分享到创意工坊：删掉会<span className="text-slate-200">同时下架</span>；
+                        别人已经装走的那份是发布时的快照，留在他们库里不受影响。
+                      </p>
+                    )}
+                    <p className="text-rose-300">卡组本身删了就找不回来。</p>
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      onClick={() => setAskDeck(null)}
+                      className="flex-1 rounded-xl border border-slate-600 py-2.5 text-xs text-slate-300"
+                    >
+                      先不删
+                    </button>
+                    <button
+                      onClick={() => {
+                        deleteDeck(askDeck.id);
+                        setAskDeck(null);
+                      }}
+                      className="flex-1 rounded-xl bg-rose-500/90 py-2.5 text-xs font-bold text-white"
+                    >
+                      删掉这个卡组
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body,
+            )}
+          {askCard && (
+            <DeleteCardDialog
+              card={askCard}
+              onCancel={() => setAskCard(null)}
+              onConfirm={() => {
+                removeCard(askCard.id);
+                setAskCard(null);
+              }}
+            />
+          )}
           {cards.length > 0 && (
             <div className="mb-5 grid grid-cols-3 gap-2.5">
               {cards.map((c) => (
-                <CardTile key={c.id} card={c} to={`/card/${c.id}`} onRemove={() => removeCard(c.id)} />
+                /* ★ 删卡走确认（2026-08-30）：此前这颗 ✕ 点下去当场就删，而卡可能正挂在
+                   卡组里、已分享到工坊、还带着声音样本与肖像授权 —— 全是删了找不回的东西。
+                   确认卡与详情页共用同一份（DeleteCardDialog），它按事实说清后果 */
+                <CardTile key={c.id} card={c} to={`/card/${c.id}`} onRemove={() => setAskCard(c)} />
               ))}
             </div>
           )}
@@ -543,7 +609,7 @@ export default function WorkshopPage() {
                     <button onClick={() => setEditing(open ? null : d.id)} className="text-xs text-brand">
                       {open ? "完成" : "编辑"}
                     </button>
-                    <button onClick={() => deleteDeck(d.id)} className="text-xs text-rose-400">
+                    <button onClick={() => setAskDeck(d)} className="text-xs text-rose-400">
                       删除
                     </button>
                   </div>
