@@ -13,7 +13,8 @@
     "apk:release": "npm run build:app && cd android && gradlew assembleSideloadRelease",
     "aab": "npm run build:app && cd android && gradlew bundlePlayRelease",
     "release": "node scripts/release.mjs",
-    "guides": "node scripts/check-guides.mjs"
+    "guides": "node scripts/check-guides.mjs",
+    "land": "node scripts/land.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
