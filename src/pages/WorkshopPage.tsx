@@ -8,7 +8,7 @@ import AuthPending from "../components/AuthPending";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { Link } from "react-router";
-import {
+import { cardsLoadIssue,
   type Deck,
   browseSharedCards,
   browseSharedDecks,
@@ -276,7 +276,9 @@ export default function WorkshopPage() {
           )}
           {cards.length === 0 && (
             <div className="mb-3 rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
-              还没有卡片——用下面几种方式做第一张
+              {/* ★ 「没问到」不许说成「没有」：卡是真花过 token 铸的，说错这一句
+                  用户读到的是「我付钱铸的卡全没了」（同 ProfilePage 的 worksKnown） */}
+              {cardsLoadIssue() ? `这会儿没能取到你的卡片（${cardsLoadIssue()}）——它们还在，联网后重开一次` : "还没有卡片——用下面几种方式做第一张"}
             </div>
           )}
 

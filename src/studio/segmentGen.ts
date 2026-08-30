@@ -429,11 +429,15 @@ export async function generateSegment(
         },
       ],
       (_d, _t, status) => prog(status),
+      // ★ 受理回调**必须给**：不给就没有凭据，"没接到结果"这一支等于不存在
+      (taskId) => onTask?.(taskId),
     );
-    // ★ 三件连动已经做齐（2026-08-31）：minimaxVideo 补了 onTask、VideoJob 记 provider、
-    //   takeVideoTask 按 provider 分流 —— 所以这一档现在与其它支路走同一处结局函数。
-    //   ⚠ 那三件缺任何一件都不许走到这里：抛了 unknown 却没有分流，等于摆一颗
-    //   按下去必然告诉用户"钱没了"的按钮，比不抛更坏。
+    // ★ **四**件连动（2026-08-31，当天补第四件）：minimaxVideo 补 onTask、
+    //   segmentGen 这一层**把它递下去**、VideoJob 记 provider、takeVideoTask 按 provider 分流。
+    //   ⚠⚠ 第二件当天就漏过一次，而且注释里还写着"三件已齐" —— 表现是：抛了 unknown、
+    //   节点打成 pending、屏幕上写「用下面的「取回」领回来」，而 rememberVideoJob 一次都没跑、
+    //   取回卡一张不画，连能发给客服的任务号都看不到（比不改更坏）。零报错、类型也过 ——
+    //   因为 composeSegments 的第三参当时是可选的。**现在它是必填的**，同样的漏法编译期就红。
     settleSegment(res);
     return { url: res?.url, firstFrame: firstSrc, lastFrame: res?.lastFrame || firstSrc };
   }

@@ -1507,8 +1507,24 @@ async function loadDetail(item: VideoItem): Promise<void> {
     //   于是详情回填会把 toVideoItem 归一好的那份**又换回没有 id 的原始快照**
     const deck = toVideoDeck(v.deck);
     if (deck) item.deck = deck;
-    if (Array.isArray(v.comments)) item.comments = v.comments.map(toComment);
-    if (typeof v.commentCount === "number") item.commentCount = v.commentCount;
+    // ★★ 评论**按 id 归并**，不整段替换（2026-08-31 修，与 danmaku.merge 同一条规则）。
+    //   整段替换会吃掉这一发 GET 在途期间用户刚发出去的那条：抽屉一打开就发详情请求，
+    //   慢网下要几秒，用户在这期间打完字点发送、POST 先回来（addReply 把它插进
+    //   `v.comments` 并 emit，屏幕上出现），随后 GET 到货用**发送之前的快照**整段覆盖
+    //   ⇒ 用户亲眼看着自己刚发的评论出现、然后消失，标题上的条数也退回去。
+    //   评论其实在服务端好好存着，下次冷启动又冒出来 —— 正是 addReply 注释里
+    //   「不做乐观插入」要消灭的那种观感，只是这次是从另一头造成的。
+    // ★ 远端那份权威（同一条 id 以它为准），本地有而远端没有的**保留**。
+    if (Array.isArray(v.comments)) {
+      const remote = v.comments.map(toComment);
+      const byId = new Map(remote.map((c) => [c.id, c]));
+      for (const c of item.comments ?? []) if (!byId.has(c.id)) byId.set(c.id, c);
+      item.comments = [...byId.values()].sort((a, b) => a.at - b.at);
+    }
+    // ★ 条数同样不许倒退：服务端那个数是发送之前的快照，本地已经多出一条
+    if (typeof v.commentCount === "number") {
+      item.commentCount = Math.max(v.commentCount, item.comments?.length ?? 0);
+    }
     if (v.liked) likedIds.add(id);
     emitVideos();
   } catch (e) {
@@ -1759,6 +1775,25 @@ async function flushPending(): Promise<void> {
   // ★★ 把**别人那几条原样并回去**：它们这一轮压根没参与，但 writePending 是整表覆盖，
   //   不并回去就等于替上一个登录者把他花钱炼的片子删了（见 PendingPublish.owner 的 ★★）。
   await writePending([...others, ...left]);
+}
+
+/**
+ * 待发队列的**原始全量**（不看 owner、不看 inflight、不看镜像）—— 只给 `cacheSweep` 用。
+ *
+ * ★★ 为什么不能让清缓存读 `pendingPublishes()`：那一份是**界面视图**，它按 owner 过滤
+ *   （换账号后别人那几条不显示给你）、按 inflight 过滤，而且它读的是 `pendingMirror`
+ *   —— 那个镜像只有在 `flushPending()` 跑过之后才有值。于是有两条都会真删东西的路：
+ *   ① 冷启动没连上服务器 ⇒ flushPending 从没跑 ⇒ 镜像是空的 ⇒ 队列里那条几十分钟的
+ *      付费成片在清缓存眼里"没人引用"；
+ *   ② 换账号 ⇒ A 的那条被 owner 过滤掉 ⇒ B 点一次清理就把 A 的成片删了。
+ *   而远端模式下 `save()` 是 no-op、发布成功那一拍又把剪辑稿与工程草稿都清了 ——
+ *   **队列项是这条成片在磁盘上唯一的指针**，删了就再也传不上去
+ *   （`materializeDraft` 会抛「本机的成片文件已丢失」）。
+ *   而设置页的确认卡上白纸黑字写着「还没传上去的作品不会动」。
+ * ★ 直接读盘（readPending）而不是读镜像：这件事上"多认几个"永远比"漏一个"好。
+ */
+export async function allPendingDraftsForSweep(): Promise<DraftVideo[]> {
+  return (await readPending()).map((p) => p.draft);
 }
 
 /** 手动重试（个人页那条横幅上的按钮）。返回还剩几条没传上去 */
