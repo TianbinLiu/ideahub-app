@@ -27,6 +27,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from "reac
 import Icon, { type IconName } from "../components/Icon";
 import DeckCard from "../components/DeckCard";
 import Avatar from "../components/Avatar";
+import AuthPending from "../components/AuthPending";
 import AvatarPicker from "../components/AvatarPicker";
 import { copyText } from "../components/ShareSheet";
 import {
@@ -63,7 +64,7 @@ import { fetchOrder, fetchPayConfig } from "../api/wallet";
 import { API_ON } from "../api/client";
 import { PLANS, RECHARGE_PACKS, fmtTokens } from "../data/economy";
 import { notificationsState, refreshUnreadCount, subscribeNotifications } from "../data/notifications";
-import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
+import { useAccountVersion, useAuthState, useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoItem, formatPlays, relativeTime } from "../types";
 
@@ -142,6 +143,7 @@ export default function ProfilePage() {
   const accV = useAccountVersion();
   const videoV = useVideosVersion();
   const user = useCurrentUser();
+  const auth = useAuthState();
   const drafts = useDrafts();
 
   const [tab, setTab] = useState<TabKey>("works");
@@ -283,6 +285,11 @@ export default function ProfilePage() {
     toastTimer.current = window.setTimeout(() => setToast(""), 1800);
   }
 
+  // ★ 会话还没水合完时**不要**摆"登录后可以…"那一屏：那句话是个结论（"你没登录"），
+  //   而这一刻我们还不知道。用户刚冷启动就点进「我的」，看到的会是一次假登出。
+  if (self && auth === "pending") {
+    return <AuthPending className="safe-top min-h-[70vh]" />;
+  }
   if (self && !user) {
     return (
       <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-4 px-6">
@@ -362,6 +369,11 @@ export default function ProfilePage() {
   }
 
   function onFollow() {
+    // 还没水合完就先别把人送去登录页（见 hooks/useAccount 的 useAuthState）
+    if (auth === "pending") {
+      flash("正在确认登录状态…");
+      return;
+    }
     if (!user) {
       // 回跳回**这一页**（含 ?name=），不是回一个按名字拼出来的地址
       navigate(`/login?next=${encodeURIComponent(`${loc.pathname}${loc.search}`)}`);
