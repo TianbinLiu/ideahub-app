@@ -1548,6 +1548,9 @@ export function toLocalCard(c: branch.ApiCard): Card {
     views: Array.isArray(c.views) ? c.views : undefined,
     published: c.published,
     shareNote: c.description || undefined,
+    // ★ 只留"是不是转发件"这一位，不留原主 id（客户端拿它没用，留着只会诱使人去显示它）。
+    //   判**有值**：老数据没有 sourceOwner = 原创（判否定会把存量卡全判成转发件）。
+    ...(c.sourceOwner ? { fromOthers: true } : {}),
   };
 }
 

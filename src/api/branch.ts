@@ -172,6 +172,8 @@ export interface ApiCard {
   publishedAt?: string | number;
   /** 分享时写的一句话推荐 */
   description?: string;
+  /** 有值 = 这份是从别人那儿装来的（服务端 BranchCard.sourceOwner）。客户端只关心有没有 */
+  sourceOwner?: string;
   stats?: ApiAssetStats;
   createdAt?: string | number;
 }

@@ -695,6 +695,7 @@ export default function CardDetailPage() {
           owned,
           modelUrl: card.modelUrl,
           realPerson: card.realPerson,
+          fromOthers: card.fromOthers,
         })}
         note={shareModelNote(card)}
         onToggle={(next, note) => shareCard(card.id, next, note)}
