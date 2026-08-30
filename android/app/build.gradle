@@ -1,11 +1,25 @@
 apply plugin: 'com.android.application'
 
-// 签名配置从 android/keystore/keystore.properties 读取（整个 keystore/ 目录被 gitignore，
-// 公开仓库不含任何口令；目录缺失时 release 退化为无签名包并给出警告）
+// 签名配置从 android/keystore/keystore.properties 读取。整个 keystore/ 目录被 .gitignore
+// 排除（仓库是 public，口令绝不能上传）—— 也就是说**新机器、新 worktree 克隆下来默认就是
+// 缺的**，恢复办法见 docs/signing-keystore.md。
+//
+// ★ keystoreProblem 判的不是"目录在不在"而是"够不够签一个包"：四个键缺一个、或者
+//   .jks 本身不在了，后果和整个目录都没有时**完全一样**（出一个装不上的包），
+//   所以三种情况在同一处一起判掉。
 def keystorePropertiesFile = rootProject.file("keystore/keystore.properties")
 def keystoreProperties = new Properties()
-if (keystorePropertiesFile.exists()) {
+def keystoreProblem = null
+if (!keystorePropertiesFile.exists()) {
+    keystoreProblem = "找不到 ${keystorePropertiesFile}"
+} else {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+    def missingKeys = ['storeFile', 'storePassword', 'keyAlias', 'keyPassword'].findAll { !keystoreProperties[it] }
+    if (!missingKeys.isEmpty()) {
+        keystoreProblem = "${keystorePropertiesFile} 里缺少这几个键：${missingKeys.join(', ')}"
+    } else if (!rootProject.file(keystoreProperties['storeFile']).exists()) {
+        keystoreProblem = "keystore.properties 指向的密钥库不存在：${rootProject.file(keystoreProperties['storeFile'])}"
+    }
 }
 
 android {
@@ -44,7 +58,7 @@ android {
         }
     }
     signingConfigs {
-        if (keystorePropertiesFile.exists()) {
+        if (keystoreProblem == null) {
             release {
                 storeFile rootProject.file(keystoreProperties['storeFile'])
                 storePassword keystoreProperties['storePassword']
@@ -89,11 +103,78 @@ android {
             // webview 壳应用：原生代码只有 Capacitor 桥，minify 收益小，保持关闭省心
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            if (keystorePropertiesFile.exists()) {
+            // keystore 缺失时**故意不设** signingConfig —— 但那不是"降级出个无签名包"，
+            // 而是由下面的任务图守卫把整个 release 构建拦死。别在这里加 else 分支。
+            if (keystoreProblem == null) {
                 signingConfig signingConfigs.release
-            } else {
-                logger.warn("android/keystore/ 缺失：release 包将不签名，无法安装或上架（见 android/keystore/README.md 的换机说明）")
             }
+        }
+    }
+}
+
+/**
+ * ★★ keystore 不齐时，release 构建【当场失败】。这里以前只是 logger.warn ——
+ *    而"警告"在这条路上等于没有：gradlew 照样返回 0，产物照样在，文件名照样对，
+ *    只是那个包**没签名**。拿去发给别人，对方装到最后只看到「应用未安装」，
+ *    看不出是签名问题；发的人也不会知道，因为自己手上那台早就装着旧版了。
+ *
+ *    而 .gitignore 里那条兜住所有子工程的 android/keystore/ 规则，保证了**每台新机器、
+ *    每个新 worktree 默认就处在这个状态**，所以这不是罕见情况，是默认情况。
+ *
+ *    下游只有 npm run release（scripts/release.mjs 第 3 步读不出签名证书就 die）
+ *    拦得住；单跑 npm run apk:release 直接把包发出去则完全没有防线 —— 补在这里。
+ *
+ * ★ 为什么用任务图判断，而不是在 buildTypes.release 里直接 throw：
+ *   buildTypes 是**每次 gradle 调用都要配置**的，直接 throw 会把 assembleSideloadDebug、
+ *   Android Studio 同步、gradlew tasks 一起打死。debug 包本来就用调试签名，不需要 keystore。
+ *   也不看 startParameter.taskNames（那只有命令行字面量）—— 看解析后的任务图，
+ *   `gradlew build` 这种间接拉起 release 的写法才拦得住。
+ */
+if (keystoreProblem != null) {
+    def keystoreDir = rootProject.file("keystore")
+    // ★ 开头四行**只用 ASCII**，是故意的：Gradle 打到控制台用的是 stdout.encoding，
+    //   Windows 上非 UTF-8 代码页（实测这台是 Cp1252）会把中文整段变成 "?????"。
+    //   真出事的时候只剩这几行可读，所以"怎么恢复"的落脚点必须落在这里。
+    def help = """[!] RELEASE BUILD ABORTED - signing keystore is missing or incomplete.
+    Restore android/keystore/ (ideahub-release.jks + keystore.properties), then rebuild.
+    Full instructions: docs/signing-keystore.md
+    (Chinese details below; if they show as "?????" your console codepage is not UTF-8.)
+
+release 构建已中止：签名 keystore 不可用，绝不产出无签名包。
+
+  原因：${keystoreProblem}
+
+无签名的 release 包看起来完全正常（gradlew 返回 0、文件就在 outputs 下），
+装到别人手机上却只提示「应用未安装」，谁都看不出是签名问题。所以这里失败，不警告。
+
+怎么恢复（整个 keystore/ 目录被 .gitignore 排除，永远不会随 git clone 带过来，
+新机器 / 新 worktree 默认就是缺的）：
+
+  1. 从备份取回整个 keystore 目录（密码管理器附件 / 加密网盘 / U 盘），放到：
+       ${keystoreDir}
+  2. 目录里要有这两个文件：
+       ideahub-release.jks     签名密钥库本体（alias: ideahub）
+       keystore.properties     四个键缺一不可：
+                                 storeFile=keystore/ideahub-release.jks   ← 相对 android/
+                                 storePassword=<keystore 口令>
+                                 keyAlias=ideahub
+                                 keyPassword=<密钥口令>
+  3. 重新跑原来的命令（npm run apk:release / npm run aab）
+
+⚠ 必须是原来那一把。重新生成一把同名的不算 —— 签名一变，所有老用户点更新都会
+  看到「应用未安装」，只能卸载重装（scripts/release.mjs 里钉着证书指纹，会当场拦下）。
+
+完整说明（含备份要求与丢失后果）见 docs/signing-keystore.md。
+debug 构建不需要 keystore，不受这条影响：gradlew assembleSideloadDebug
+"""
+    // 任务图就绪时判一次：只要图里有本模块的 release 出包/安装任务就拦下，
+    // 在任何编译工作开始之前失败。
+    gradle.taskGraph.whenReady { graph ->
+        def wantsRelease = graph.allTasks.any { t ->
+            t.project.path == project.path && t.name ==~ /(?i)^(assemble|bundle|install|package|publish).*release.*/
+        }
+        if (wantsRelease) {
+            throw new GradleException(help)
         }
     }
 }

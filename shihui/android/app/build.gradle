@@ -3,7 +3,7 @@ apply plugin: 'com.android.application'
 // 签名配置从 android/keystore/keystore.properties 读取（整个 keystore/ 被 gitignore，
 // 公开仓库不含任何口令；目录缺失时 release 退化为无签名包并给出警告）。
 // ★ 与主 App「启梦」共用同一把 keystore：一把密钥可以签多个应用，两个 applicationId
-//   互不影响，也省得再保管第二份口令（丢了同样无法挽回，见 keystore/README.md）。
+//   互不影响，也省得再保管第二份口令（丢了同样无法挽回，见主 App 的 docs/signing-keystore.md）。
 def keystorePropertiesFile = rootProject.file("keystore/keystore.properties")
 def keystoreProperties = new Properties()
 if (keystorePropertiesFile.exists()) {
@@ -59,7 +59,7 @@ android {
             if (keystorePropertiesFile.exists()) {
                 signingConfig signingConfigs.release
             } else {
-                logger.warn("android/keystore/ 缺失：release 包将不签名，无法安装（见主 App 的 android/keystore/README.md）")
+                logger.warn("android/keystore/ 缺失：release 包将不签名，无法安装（见主 App 的 docs/signing-keystore.md）")
             }
         }
     }

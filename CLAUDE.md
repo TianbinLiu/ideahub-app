@@ -27,7 +27,9 @@ npm run dev                    # http://localhost:5173
 出安装包：`npm run apk`（debug，自己测）/ `npm run apk:release`（**发给别人的只发这个**）/ `npm run aab`（上架）。
 发版走 `npm run release` —— 它会**自检"这次更新能不能到老用户手里"**（签名、版本号、
 清单可达性），任何一条不过就当场停下。完整流程见 [`docs/app-distribution.md`](docs/app-distribution.md)。
-签名 keystore 不在仓库里，见 `android/keystore/README.md`。
+签名 keystore 不在仓库里（`android/keystore/` 被 gitignore 排除），换机 / 新 worktree
+怎么恢复见 [`docs/signing-keystore.md`](docs/signing-keystore.md)。**缺了它 release 构建会直接失败**，
+不再退化成无签名包 —— 那种包装到别人手机上只提示「应用未安装」，看不出是签名问题。
 
 ## 目录
 
@@ -235,6 +237,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 拿**名字**当身份判「这条是不是我发的」 | 用户改完昵称回首页：右侧头像退回字母底、点进去还是旧名字的主页，重启才好 | `VideoItem.author` 是**显示名**，会变。缓存里那些作品的 author 还是旧值，`isMyAuthor` 就判否了。改名时按 `authorId` 精确改写缓存（`videos.ts` 的 `renameMyVideos`），别按旧名字模糊匹配——会误伤重名的别人 |
 | 界面上摆一个永远点不动的选项 | 「极致」画质在 App 里是灰的，说明写着"安装包不含 4K 贴图" —— 用户只会觉得功能坏了 | 要么让它真能用（现在 4K 随包发布），要么别显示。同理：设置页那个「已用 xx MB」原来只是个用户看不懂也做不了事的数字，现在配了真能清的「清理缓存」 |
 | 出包时忘了涨 `versionCode` | 已经装了的人**永远收不到这次更新** —— 更新检查靠这个整数判新旧，不涨就等于没发 | 每次 `npm run apk:release` 前先改 `android/app/build.gradle`，见 `docs/app-distribution.md` |
+| 新 worktree 缺 `android/keystore/` | release 构建**当场失败**（这是有意的）：以前只 warn，产出的无签名包看起来完全正常，装到别人手机上只提示「应用未安装」 | 报错里写了恢复步骤；完整说明见 [`docs/signing-keystore.md`](docs/signing-keystore.md)。debug 构建不受影响 |
 | 把 debug 包发给别人装 | 下次发 release 包时对方装不上，只提示「应用未安装」，看不出是签名不同 | 发给别人的永远只发 `npm run apk:release` 的产物；debug 包只留在自己机器上 |
 | 想把 QQ 登录塞进 `providers[]`，复用「系统浏览器 + 深链」那条路 | 授权页直接被 QQ 拒 | QQ 互联注册的是**移动应用**，后台**没有回调地址那一栏**——网页版 OAuth2.0 要求先在「网站应用」里登记域名与回调地址（还要 ICP 备案）。所以 QQ 是**另一条链路**：原生 SDK（`QQLoginPlugin.java`）拿一次性 code，结果**同步返回**，不经过 `OauthDeepLinkBridge`。也因此它不看 `caps.providers`，只看跑没跑在 App 壳里 |
 | QQ 登录让客户端把 openid 一起传给服务端 | 报谁的 openid 就登谁的号 | 用 `loginServerSide` 只取 code，openid 由服务端拿 AppKey 去 QQ 换。AppKey 只准待在 server 的环境变量里，AppID（`1905467096`）才是可以随包发的那个 |
@@ -258,6 +261,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
 - [`docs/app-distribution.md`](docs/app-distribution.md) — 发包给别人装、应用内更新怎么走
+- [`docs/signing-keystore.md`](docs/signing-keystore.md) — 签名 keystore 换机 / 新 worktree 怎么恢复
 - [`public/perch/README.md`](public/perch/README.md) — 角色动画资源怎么生成、踩过什么坑
 - [`public/createbtn/README.md`](public/createbtn/README.md) — 底栏 ➕ 上那只常驻宠物（含并排版式的取值）
 - [`public/avatars/README.md`](public/avatars/README.md) — 官方 Q 版看板娘头像怎么裁、选了之后存的是什么
