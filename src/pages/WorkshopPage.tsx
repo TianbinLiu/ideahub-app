@@ -122,6 +122,7 @@ function toLocalShape(c: ApiSharedCard): Card {
     tags: c.tags,
     modelUrl: c.modelUrl || undefined,
     genPrompt: c.genPrompt || undefined,
+    idLine: c.idLine || undefined,
   };
 }
 

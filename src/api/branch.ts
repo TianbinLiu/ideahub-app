@@ -3,7 +3,7 @@
 //
 // 服务端字段用 `_id` / ISO 时间字符串，客户端领域模型用 `id` / 毫秒时间戳，
 // 转换统一放在 data/*.ts（因为只有它知道要往哪个 cache 里塞）。
-import type { BranchTree, Card, CardType, DraftVideo, TemplateRecipe, VideoDeck, VideoPart, VideoSegment } from "../types";
+import type { BranchTree, Card, CardRole, CardType, DraftVideo, TemplateRecipe, VideoDeck, VideoPart, VideoSegment } from "../types";
 import { API_BASE, ApiError, apiDelete, apiGet, apiPatch, apiPost, getToken } from "./client";
 
 // ── DTO ──────────────────────────────────────────────────
@@ -129,7 +129,12 @@ export interface ApiAssetStats {
 /** 卡片的一张形象参考图（对应本地 types.CardView）。**只收 http(s) URL**，不收 dataURL */
 export interface ApiCardView {
   url: string;
+  /** 跨仓**冻结**三值（server 的 z.enum）。一个取值都不许加，理由见 types.CardView.kind 的 ★★ */
   kind: "face" | "body" | "detail";
+  /** 灵活图位：这张图在出片管线里干什么（受控词表）。缺省 = 老数据 = 按 kind 推 */
+  role?: CardRole;
+  /** 灵活图位：界面上的花名（方案/用户起的）。只给人看 */
+  tag?: string;
   note?: string;
 }
 
@@ -156,6 +161,8 @@ export interface ApiCard {
   modelUrl?: string;
   /** 生成蓝图 */
   genPrompt?: string;
+  /** 固定身份句（出片提示词用，见 types.Card.idLine；服务端五处 2026-08-28 已加） */
+  idLine?: string;
   /** 真人声明（缺省 = 老卡 = 非真人，读侧判否定，见 types.Card.realPerson） */
   realPerson?: boolean;
   /** 已分享到创意工坊 */
@@ -553,6 +560,7 @@ export async function addCards(cards: Card[]): Promise<ApiCard[]> {
     //   那份记录的一部分；发布给别人时由服务端 shareableModelUrl 剥掉。
     modelUrl: c.modelUrl,
     genPrompt: c.genPrompt,
+    idLine: c.idLine, // 与 genPrompt 同一批搬运点（漏了 = 换台设备登录身份句无声消失）
     // ★ 真人声明与卡同生同灭：POST 是 $setOnInsert，漏在这里的话服务端那份永远是
     //   "非真人"，换台设备登录声明就无声消失、出片档位分流静默失效（modelUrl/genPrompt
     //   2026-08-11 就是这么丢的）。undefined 会被 JSON 序列化丢掉，等价于"没声明"。
@@ -575,7 +583,16 @@ function httpViews(views: Card["views"]): ApiCardView[] | undefined {
   if (!Array.isArray(views)) return undefined;
   const out = views
     .filter((v) => !!v && /^https?:\/\//i.test(v.url))
-    .map((v) => ({ url: v.url, kind: v.kind, ...(v.note ? { note: v.note } : {}) }));
+    // ★★ role / tag 必须一起发（"加字段五处一起改"的第五处）：漏了的表现是
+    //   方案做出来的卡**发上去再读回来就退回固定三格** —— 花名没了、display 位变成
+    //   能进模型的 aux，画面变差且全程零报错（`deck` / `modelUrl` / `views` 都这么丢过）。
+    .map((v) => ({
+      url: v.url,
+      kind: v.kind,
+      ...(v.role ? { role: v.role } : {}),
+      ...(v.tag ? { tag: v.tag } : {}),
+      ...(v.note ? { note: v.note } : {}),
+    }));
   return out.length > 0 ? out : [];
 }
 
@@ -727,6 +744,8 @@ export interface ApiBranchTemplate {
   authorName?: string;
   title?: string;
   intro?: string;
+  /** 市场人话分类（types.TPL_CATEGORIES 的 id；空串/缺省 = 未分类） */
+  category?: string;
   /** https 或空串（服务端 zod 拒 dataURL） */
   coverUrl?: string;
   recipe?: {
@@ -1300,6 +1319,20 @@ export async function patchTemplateRoles(
   const res = await apiPatch<Record<string, unknown>>(`/api/branch/templates/${encodeURIComponent(id)}/roles`, {
     roles,
   });
+  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+}
+
+/**
+ * PATCH /api/branch/templates/:id/category（requireAuth，仅作者）——市场人话分类。
+ * 分类的**唯一写路**（详情页作者工作台；四条建模板车道都不带它，存量模板也靠这里补）。
+ * 空串 = 清掉分类。
+ * @returns null = 老服务端没有这个端点（回包形状判定，不看状态码——SPA 回退恒 200）。
+ */
+export async function patchTemplateCategory(id: string, category: string): Promise<ApiBranchTemplate | null> {
+  const res = await apiPatch<Record<string, unknown>>(
+    `/api/branch/templates/${encodeURIComponent(id)}/category`,
+    { category },
+  );
   return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
 }
 

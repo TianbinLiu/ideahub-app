@@ -672,3 +672,27 @@ export async function deleteTemplateVideo(publicId: string): Promise<void> {
     throw new ApiError(String(data.message ?? "这台服务器不支持回收模板视频（可能需要升级服务端）"), res.status);
   }
 }
+
+/**
+ * 把一段**已直传完成**的自有视频登记成「素材参考视频」（工作流自定义 = 多图 + 参考视频）。
+ * 上传本身走 uploadTemplateVideo（同一张票、同一套直传与验收）；这一步只是登记 ——
+ * 服务端会自己再向 Cloudinary 取一遍元数据，**时长以它写库的那份为准**（计价输入）。
+ */
+export async function registerMaterialVideo(publicId: string): Promise<{ url: string; durationSec: number }> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE}/api/uploads/material-video/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ publicId }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const ct = res.headers.get("content-type") ?? "";
+  if (!ct.includes("application/json")) {
+    throw new ApiError("这台服务器还没有素材视频登记端点（请更新服务端）", res.status);
+  }
+  const j = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; durationSec?: number; message?: string };
+  if (!res.ok || !j.url || !Number.isFinite(j.durationSec)) {
+    throw new ApiError(j.message || `登记失败（${res.status}）`, res.status);
+  }
+  return { url: j.url, durationSec: Number(j.durationSec) };
+}

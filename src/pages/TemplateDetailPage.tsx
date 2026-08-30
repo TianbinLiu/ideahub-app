@@ -39,6 +39,7 @@ import {
   registerIssueOf,
   registerTemplate,
   remoteStateOf,
+  setTemplateCategory,
   setTemplatePublished,
   templateGroupOf,
   updateTemplate,
@@ -47,7 +48,7 @@ import { VIDEO_TIERS, fmtTokens, r2vPriceIssue, r2vTokens } from "../data/econom
 import { useCurrentUser } from "../hooks/useAccount";
 import { useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
-import { CARD_TYPE_LABELS, VideoTemplate } from "../types";
+import { CARD_TYPE_LABELS, TPL_CATEGORIES, VideoTemplate } from "../types";
 
 /**
  * 白模出片会走哪一档。refVid 的**唯一出处**是 economy.VIDEO_TIERS（开闸 = 仓库主人翻
@@ -247,6 +248,27 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
           />
         </>
       )}
+      {/* 市场人话分类（2026-08-29，分类的唯一写路——四条建模板车道都不带它，存量模板
+          也在这里补）。★ 摆在 editable 闸**外面**：分类走服务端（PATCH /category），
+          换设备没有本机记录照样能改——与只写本机库的改名/改简介不是一回事。
+          点亮着的那颗 = 再点一下清掉。 */}
+      <div className="mb-2">
+        <div className="mb-1 text-[10px] text-slate-500">市场分类（发布前挑一个）</div>
+        <div className="flex flex-wrap gap-1.5">
+          {TPL_CATEGORIES.map((c) => (
+            <button
+              key={c.id}
+              disabled={busy}
+              onClick={() => void run(() => setTemplateCategory(t.id, t.category === c.id ? "" : c.id))}
+              className={`rounded-full px-2.5 py-1 text-[11px] disabled:opacity-50 ${
+                t.category === c.id ? "bg-brand/25 text-brand ring-1 ring-brand/50" : "bg-slate-700/60 text-slate-300"
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         {editable && (
           <button

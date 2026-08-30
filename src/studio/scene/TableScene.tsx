@@ -3,8 +3,8 @@
 import { Suspense, useEffect, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 import { ThreeEvent, advance, useFrame, useLoader, useThree } from "@react-three/fiber";
-import { NodeSlot } from "../../types";
-import { activePath, chosenProposal, composable, placeholderVisible, useStudio, Flight } from "../studioStore";
+import { FlowNode, useFlow } from "../flowStore";
+import { chosenProposal, composable, placeholderVisible, useStudio, Flight } from "../studioStore";
 import {
   CARD,
   CHAIN,
@@ -181,7 +181,7 @@ const NPC_VARIANT = new URLSearchParams(window.location.search).get("npc") ?? "f
 // 但**聚焦中的节点必须平摊在窗口内**——聚焦窗外节点时窗口平移把它居中
 // （被挤出去的后段节点收到右侧堆）。堆里的卡可点击聚焦，窗口随之跟过去。
 export interface ChainLayout {
-  items: Array<{ node: NodeSlot; x: number | null; stack: "left" | "right" | null; stackIndex: number }>;
+  items: Array<{ node: FlowNode; x: number | null; stack: "left" | "right" | null; stackIndex: number }>;
   placeholderX: number | null;
 }
 
@@ -194,9 +194,8 @@ function camOk(c: unknown): c is { pos: number[]; look: number[] } {
   return ok3(v?.pos) && ok3(v?.look);
 }
 
-export function computeChain(root: NodeSlot | null, focusId?: string | null): ChainLayout {
-  const path = activePath(root);
-  const ph = placeholderVisible(root);
+export function computeChain(path: FlowNode[], focusId?: string | null): ChainLayout {
+  const ph = placeholderVisible(path);
   const total = path.length + (ph ? 1 : 0);
   let start = Math.max(0, total - CHAIN.maxVisible);
   if (focusId) {
@@ -681,12 +680,12 @@ function CenterLine() {
 // 状态表达也重做了。旧版无论能不能点都写死"生成视频"，圆台暗着也不解释为什么，
 // 用户只能瞎试；现在铭牌副题随状态换文案，把前置条件说出来。
 function ComposePad() {
-  const root = useStudio((s) => s.root);
-  const enabled = composable(root);
+  const nodes = useFlow((s) => s.nodes);
+  const enabled = composable(nodes);
   // 亮不起来时要说清缺什么：末段还没挑方案，还是挑了没炼。以前一律写"先为当前段选定一个
   // 方案"，而现在选定之后还要炼出本段视频才算就绪——照旧那句话用户会以为按钮坏了
-  const tail = activePath(root).at(-1);
-  const picked = !!tail?.chosenId;
+  const tail = nodes.at(-1);
+  const picked = !!(tail && chosenProposal(tail));
   const base = useRef<THREE.MeshStandardMaterial>(null);
   const ring = useRef<THREE.Mesh>(null);
   const beam = useRef<THREE.Mesh>(null);
@@ -749,7 +748,7 @@ function ComposePad() {
       onClick={(e) => {
         e.stopPropagation();
         // 不再一把梭合成整片：铺成工作流，去 /flow 逐段生成逐段确认
-        if (enabled) useStudio.getState().startFlow();
+        if (enabled) useStudio.getState().requestFlow();
       }}
     >
       {/* 台座：黄铜而不是土棕。金属度拉高、粗糙度中等，才吃得到烛光的高光 */}
@@ -1106,11 +1105,11 @@ function DeckSpread() {
 function DragLayer() {
   const dragCardId = useStudio((s) => s.dragCardId);
   const deck = useStudio((s) => s.deck);
-  const root = useStudio((s) => s.root);
+  const nodes = useFlow((s) => s.nodes);
   const card = deck.find((c) => c.id === dragCardId) ?? null;
   const ghost = useRef<THREE.Group>(null);
 
-  const phX = computeChain(root).placeholderX;
+  const phX = computeChain(nodes).placeholderX;
 
   useEffect(() => {
     if (!dragCardId) return;
@@ -1260,11 +1259,11 @@ function Placeholder({ x }: { x: number }) {
 }
 
 function NodeChainView() {
-  const root = useStudio((s) => s.root);
+  const nodes = useFlow((s) => s.nodes);
   const focus = useStudio((s) => s.focus);
   const projection = useStudio((s) => s.projection);
   // 焦点跟随：聚焦节点保证平摊在窗口内（点堆中的卡时窗口平移过去）
-  const layout = computeChain(root, focus?.nodeId ?? null);
+  const layout = computeChain(nodes, focus?.nodeId ?? null);
   if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__chainDbg = layout;
   const visibleXs: number[] = [];
 
@@ -1290,7 +1289,7 @@ function NodeChainView() {
             e.stopPropagation();
             const st = useStudio.getState();
             if (st.projection) return; // 投影开着时与平摊卡一致：不抢焦
-            const nx = computeChain(st.root, node.id).items.find((it) => it.node.id === node.id)?.x;
+            const nx = computeChain(useFlow.getState().nodes, node.id).items.find((it) => it.node.id === node.id)?.x;
             if (nx == null) return;
             const cam = focusCam(nx, CHAIN.rowZ);
             st.focusNode(node.id, cam.pos, cam.look);

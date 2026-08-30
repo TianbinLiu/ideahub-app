@@ -19,6 +19,22 @@ export const CARD_TYPE_COLORS: Record<CardType, string> = {
   style: "#34d399",
 };
 
+/**
+ * 卡种封面：看板娘亲自比划着推销每一类卡（design/gen-cardtype-covers.mjs 出的图）。
+ * 她就是创作入口三张封面里那位、也是工坊里的铸卡师——全 app 同一个人。
+ * 640×960 webp，五张合计 258KB；想换姿势/换构图重跑那个脚本，别手改图。
+ * ★ 唯一一份（铁律六）：工坊铸卡小窗（NpcDialog）与「自己传图做卡片」选卡种
+ *   （CustomCardPage）用的是同一套——2026-08-28 主人点名两窗封面要一致，
+ *   在页面里各抄一份就是下一次"改了一处忘了另一处"。
+ */
+export const CARD_TYPE_COVERS: Record<CardType, string> = {
+  character: "/cardtype/character.webp",
+  scene: "/cardtype/scene.webp",
+  background: "/cardtype/background.webp",
+  prop: "/cardtype/prop.webp",
+  style: "/cardtype/style.webp",
+};
+
 /** 画幅：一条视频拍成竖的还是横的。竖屏对齐首页全屏流，横屏是影视/横版观感 */
 export type VideoAspect = "portrait" | "landscape";
 
@@ -120,9 +136,100 @@ export function aspectFromSize(w: number, h: number): VideoAspect {
 export interface CardView {
   /** http(s) 永久地址。★ 不接受 dataURL，理由见上 */
   url: string;
+  /**
+   * **跨仓冻结的三值**（server `schemas/branchAsset.schemas.js` 的 `z.enum`）。
+   *
+   * ★★ 一个取值都不许加：加了 = 老服务端整批 400 → `emitApiError` 全 app 没人监听
+   *   → **静默丢卡**。灵活图位靠下面的 `role`/`tag` 表达，`kind` 只当"存储层与老客户端
+   *   看的那一份"，**每次写卡都要照写**（由 role 反推，见 roleToKind）——
+   *   这样老服务端拿到的仍是完全合法的三值数据，只是丢了花名：**降级而不是损坏**。
+   */
   kind: "face" | "body" | "detail";
+  /**
+   * 这张图在**出片管线**里干什么（机器读）。缺省 = 从 `kind` 推（见 roleOf）。
+   *
+   * ★★ 与 `tag` 分家是本设计的地基：`tag` 一旦是自由文本，管线就没法再回答
+   *   "这张图该不该喂给模型"。合成一位的下场是同一个词在两档方案里管线行为相反 ——
+   *   而那正是**静默扣错钱**的形状（详情页标着"出片用"、模型根本没收到）。
+   * ★ `display` 是**新增**的那一态，也是"提示词方案"能灵活的关键：方案产出的
+   *   **合成规格图**（左右分栏的设定稿、三视图、多肖像拼版）对人极有用，但方舟指南
+   *   原文说多视图素材「模型易将其识别为多个不同主体，反而加剧 ID 漂移」——
+   *   拿它当人物参考图是**主动把画面变差**。所以这类图一律 `display`：只展示、
+   *   永不进模型、也**不按"出片用"收费**。
+   */
+  role?: CardRole;
+  /**
+   * 这张图叫什么（人读）。缺省 = `slotLabel(type, kind)`（老卡与固定图位流的行为不变）。
+   * ★ 只用于界面标签，**绝不进** allocateRefs 的判断（理由见 role 的 ★★）。
+   */
+  tag?: string;
   /** 这张图的说明（例如"原图过长，已居中裁成 3:1"），详情页放大时显示 */
   note?: string;
+}
+
+/**
+ * 图位在出片管线里的语义。**受控词表**（与自由文本的 `tag` 分家，见 CardView.role）。
+ *
+ * · `face`    锁面部特征与发型发色
+ * · `primary` 锁主体（服装/体型/造型），也是能当卡面的那张
+ * · `aux`     进模型的补充参考（非人物卡第二轮真的会取它）
+ * · `display` **只展示、永不进模型**（合成规格图、原片截图这类）
+ */
+export type CardRole = "face" | "primary" | "aux" | "display";
+
+/**
+ * 图位花名的长度上限。**跨仓镜像**：server 的 `CARD_VIEW_TAG_MAX`（zod `.max(24)`）。
+ *
+ * ★★ 那边是 `.max()` —— **超了是整发 400，不是截断**。也就是说用户在方案编辑屏里
+ *   多打几个字，后果不是"标签被截短"，而是这张卡**整个发不上去**（而 app 全局没人
+ *   监听 emitApiError ⇒ 静默丢卡）。所以每个能写 tag 的输入框都要 maxLength 硬拦，
+ *   并且用**同一个常量**（此前这个 24 只活在一句注释里）。
+ */
+export const VIEW_TAG_MAX = 24;
+
+/**
+ * role 的人话标签与它到底管什么 —— **唯一实现**（方案编辑屏与将来的详情页共用）。
+ * ★ 这几句话要说的是"选了它会怎样"，不是把枚举名翻译一遍：用户挑图位角色时唯一关心的
+ *   就是"这张图会不会真的喂给 AI、会不会因此花钱"。
+ */
+export const ROLE_LABELS: Record<CardRole, { label: string; hint: string }> = {
+  face: { label: "锁脸", hint: "面部特征与发型发色，出片时优先喂给 AI" },
+  primary: { label: "锁主体", hint: "服装、体型与整体造型；也是这张卡的卡面" },
+  aux: { label: "补充参考", hint: "参考图预算还有余时才轮到它" },
+  display: { label: "只展示", hint: "永不进模型（三视图/规格稿这类多视图会让 AI 认错人）" },
+};
+
+/**
+ * 读一张图的 role。**唯一实现**——别在调用点写 `v.role ?? 推一下`（那是第二处默认值）。
+ *
+ * ★ 判**存在性**：后加字段，老卡恒缺省，缺省即"按 kind 推"（CLAUDE.md「后加字段判否定」）。
+ * ★ `kind→role` 的映射逐位对齐老的 `KIND_ORDER`（face:0/body:1/detail:2）——
+ *   所以**老卡的分配结果一字节不变**（人物卡仍只取 face+body，非人物卡第二轮仍取第 2 张）。
+ * ★ 认不出的取值退 `aux` 而不是抛：`role` 和 `views` 一样是被原样收下的服务端 JSON，
+ *   编译期类型在那里是"声明出来的谎"（同 normalizeSlot 的 ★）。
+ */
+export function roleOf(view: Pick<CardView, "kind" | "role">): CardRole {
+  const r = view.role;
+  if (r === "face" || r === "primary" || r === "aux" || r === "display") return r;
+  return view.kind === "face" ? "face" : view.kind === "body" ? "primary" : "aux";
+}
+
+/**
+ * 写卡时由 role 反推那个**必须照写**的 `kind`（跨仓冻结三值，理由见 CardView.kind 的 ★★）。
+ * ★ `display` 与 `aux` 都落 `detail`：老客户端读到的是"第三优先级的补充图"，
+ *   而它在老逻辑里本来就排最后、人物卡根本取不到 —— 降级方向是安全的那一侧。
+ */
+export function roleToKind(role: CardRole): CardView["kind"] {
+  return role === "face" ? "face" : role === "primary" ? "body" : "detail";
+}
+
+/**
+ * 这张图在界面上叫什么。**唯一实现**：方案给的花名优先，没有就退回固定图位表的名字。
+ * ★ 退回而不是留空：老卡没有 tag，留空的表现是详情页三个格子都没标题。
+ */
+export function viewTag(type: CardType, view: Pick<CardView, "kind" | "tag">): string {
+  const t = typeof view.tag === "string" ? view.tag.trim() : "";
+  return t || slotLabel(type, view.kind);
 }
 
 /**
@@ -196,6 +303,35 @@ export const CARD_SLOTS: Record<CardType, readonly CardSlot[]> = {
     { kind: "detail", label: "笔触特写", locks: "线条与颗粒的近距离质感" },
   ],
 };
+
+/**
+ * 发给 Seedance 的提示词上限（字符）。再长模型开始各记各的，前面的要求被稀释。
+ *
+ * ★ 提出来是因为**截断从哪一头下手是有讲究的**：提示词的尾巴挂着素材设定与参考图
+ *   绑定句（「将<图片1>的面部特征定义为角色「XX」」），而参考生视频模式下"谁是谁"
+ *   全靠那句话 —— 从尾巴切掉的话，参考图照样发出去、绑定句没了，模型只会把它们
+ *   当风格图用：**卡挂了、片出了、人物一点都不像、零报错**。所以拼提示词的那一处
+ *   （studio/segmentGen）按这个数**先给尾巴留位**，ai/real 里的 slice 只是最后一道硬顶。
+ * ★ 本体放这里（而不是 ai/real）是依赖方向逼的：data 层的叶子模块（agentSkills 的
+ *   正文上限）也要引它，而 ai/real 反向依赖着一串 data 模块，data → ai 就成环了。
+ *   ai/index 仍转出同一个名字，调用点照旧从 "../ai" 引。
+ */
+export const VIDEO_PROMPT_MAX = 400;
+
+/** 身份句上限。60 是按提示词预算反推的：8 张卡 × 60 字 = 480 已超 VIDEO_PROMPT_MAX，
+ *  所以出片侧只给**人物卡**用整句，其余卡种仍是短句（见 segmentGen.materialText） */
+export const ID_LINE_MAX = 60;
+
+/**
+ * 这张卡在**视频提示词**里的那一句 —— 唯一实现（铁律六：兜底只写这一处）。
+ * 有 idLine 用 idLine；老卡/自传图卡退回「名字：简介前 40 字」（正是 2026-08-28 之前
+ * 的老行为，所以存量卡的出片提示词一个字不变）。
+ */
+export function idLineOf(c: Card): string {
+  const line = (c.idLine || "").trim();
+  if (line) return line.slice(0, ID_LINE_MAX);
+  return `${c.name}${c.summary ? `：${c.summary.slice(0, 40)}` : ""}`;
+}
 
 /**
  * 卡面兜底那张算哪个槽 —— 五类一律 `body`（卡面就是这张卡的主图）。
@@ -281,8 +417,23 @@ export interface Card {
   tags?: string[];
   /** 3D 建模文件（glb/glbx）：有值则卡详情显示全息实体预览（3D 风格视频的角色卡） */
   modelUrl?: string;
-  /** 铸卡时的完整文生图提示词（详情页的「<类型>信息」）——具体到能让 AI 复刻出与卡面一致的画面/建模 */
+  /** 铸卡时的完整文生图提示词（详情页的「<类型>信息」）——具体到能让 AI 复刻出与卡面一致的画面/建模。
+   *  ★ 只喂 Seedream（出形象图/卡面），**不进视频提示词**——那边的分工见 idLine */
   genPrompt?: string;
+  /**
+   * 固定身份句（≤60 字）：出片提示词里代表这张卡的那一句。铸卡时由豆包随文案一并产出
+   * （名字 + 2~3 个不变的视觉特征 + 标志物，**不写性格词**）。
+   *
+   * ★★ 为什么不直接把 genPrompt 塞进视频提示词（2026-08-28 调研钉死，来源见
+   *   docs/backlog.md 2.9）：方舟官方明说"主体用 2~3 个稳定静态特征描述、勿贴长文，
+   *   字数过多信息分散"；LibTV 主体库/火宝短剧也都是资产期压一句短描述复用。
+   *   长设定归图（genPrompt→Seedream），短身份句归片（idLine→Seedance）。
+   * ★ 铸卡时一次性压好而不是出片时现压：零新增调用/延迟，且每段拿到**同一句**
+   *   （逐镜复用同一措辞本身就是一致性手段——Sora/CHAR 都这么讲）。
+   * ★ 缺省 = 老卡/自传图卡：读侧一律走 idLineOf()（兜底"名字+简介"，老行为），
+   *   绝不在调用点各写一份兜底。
+   */
+  idLine?: string;
   /**
    * 铸这张卡时用的出图档位（data/economy.IMAGE_TIERS 的 id）。
    * ★ 缺省 = 老卡，一律当默认档读（imageTierOf 的兜底）；**不要**拿它和某个值等值判，
@@ -619,12 +770,36 @@ export interface MarkBox {
 }
 
 /** 视频模板 = 卡组 + 生成配方。发布后进模板市场，别人一句话就能复刻同类视频 */
+/**
+ * 模板市场的人话分类（2026-08-29，backlog 2.8-③ 对标落地：Vidu 的 Love/整活/变身/节日/
+ * 电商那套按情绪与用途分，不按模型参数分）。
+ * ★ id 是跨仓契约（server BranchTemplate.category 存的就是它），label 只活在客户端 ——
+ *   改名/加分类只动这张表，服务端存宽松字符串不 enum。
+ * ★ 老模板没有分类（判否定：缺省/认不出的 id 一律当未分类，只在「全部」下出现）。
+ */
+export const TPL_CATEGORIES = [
+  { id: "story", label: "剧情" },
+  { id: "emotion", label: "情感互动" },
+  { id: "fun", label: "整活" },
+  { id: "morph", label: "变身" },
+  { id: "festival", label: "节日" },
+  { id: "commerce", label: "带货" },
+] as const;
+
+/** 分类 id → 人话标签。null = 未分类/认不出（读侧判否定的唯一实现，别在页面各写一遍 find） */
+export function tplCategoryLabel(id: string | undefined): string | null {
+  if (!id) return null;
+  return TPL_CATEGORIES.find((c) => c.id === id)?.label ?? null;
+}
+
 export interface VideoTemplate {
   id: string;
   title: string;
   intro: string;
   /** 封面（dataURL 或站内路径） */
   cover: string;
+  /** 市场人话分类（TPL_CATEGORIES 的 id）。缺省 = 未分类（存量模板全是，判否定） */
+  category?: string;
   author: string;
   createdAt: number;
   /** 模板自带素材卡：套用时直接作为本次生成的素材 */

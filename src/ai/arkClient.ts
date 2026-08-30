@@ -415,6 +415,9 @@ export async function generateVideo(
      * edit 的输出时长与画幅都跟随源片，是协议行为不是我们的参数）。
      */
     refVideoUrl?: string;
+    /** 参考视频的子任务：缺省 "edit"（白模复刻，BLOCKOUT_TASK 接管参数）；
+     *  "reference" = 素材参考（用户视频 + 多图，输出时长用户选、画幅照传）。 */
+    refTask?: "edit" | "reference";
     /** 白模参考视频的源片时长（秒）。只用来给轮询死线定尺寸（见下），不进请求体 */
     refVideoSec?: number;
     /**
@@ -510,10 +513,13 @@ export async function generateVideo(
         //     原因），不是静默降级 —— 但它意味着**服务端要先发**。
         ...(videoAudioOn(model) ? { generate_audio: true } : {}),
         watermark: false,
-        ...(refVideoUrl
+        ...(refVideoUrl && opts?.refTask !== "reference"
           ? // 白模：duration / ratio / omni_reference_task_type 三件由 BLOCKOUT_TASK 整体
             // 接管（理由钉在那个常量上）。duration:-1 在**且仅在**这条展开里出现 ——
             // 结构上就保证了别的路径传不出 -1。
+            // ★ refTask:"reference"（素材参考：用户视频 + 多图 + 提示词点名首中尾帧）
+            //   走下面的普通参数分支：输出时长用户选、画幅照传、omni 显式 reference ——
+            //   这三件正是服务端素材钉子（resolveR2v 分支三）钉住的计价假设。
             BLOCKOUT_TASK
           : {
               // 画幅只由这个参数决定：提示词里写"竖版"没用，首尾帧是竖的也没用——
@@ -542,7 +548,7 @@ export async function generateVideo(
   //   短段保底 12 分钟。放弃线只是放弃线：成功早到早返回，代价只是真卡死时多等一会。
   //   白模段的输出时长跟模板走（refVideoSec；没传按上传窗口上限 15s 取保守值），
   //   其余路径用夹过的 durationSec（与请求体同一套夹法）。
-  const outSec = refVideoUrl
+  const outSec = refVideoUrl && opts?.refTask !== "reference"
     ? opts?.refVideoSec ?? 15
     : Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5)));
   const deadlineMs = Math.max(12 * 60_000, outSec * 90_000 + 3 * 60_000);

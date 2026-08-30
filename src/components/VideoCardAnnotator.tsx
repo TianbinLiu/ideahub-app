@@ -10,10 +10,51 @@
 // ★ 全程本机：视频不上传、不抽帧喂模型、不花 token（与「自己传图做卡片」同一承诺）。
 //   存卡走 data/account.addCards（dataURL 转永久地址是它的活，铁律六），建组走 createDeck。
 // ★ 人物卡的"定段取声音样本"是阶段 2（等参考音频音色跟随的实听结论），本组件先留位。
-import { useEffect, useRef, useState } from "react";
-import { addCards, createDeck } from "../data/account";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { AI_REAL, portraitViews } from "../ai";
+import { addCards, canAfford, createDeck, spendTokens } from "../data/account";
+import { fmtTokens, schemeCost } from "../data/economy";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
-import { Card, CARD_SLOTS, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType, CardView, uid } from "../types";
+import { saveAsset } from "../data/cardAsset";
+import { pcmToVoiceWav } from "../utils/wav";
+import PortraitAuthPanel from "./PortraitAuthPanel";
+import {
+  defaultScheme,
+  defaultSchemeFor,
+  exampleIssue,
+  isGenerated,
+  listSchemes,
+  removeScheme,
+  schemeOf,
+  schemesVersion,
+  setSchemeExamples,
+  subscribeSchemes,
+  SCHEME_EXAMPLE_MAX,
+  SCHEME_EXAMPLE_MAX_W,
+  type PromptScheme,
+} from "../data/promptSchemes";
+import { shrinkDataUrl } from "../utils/image";
+import SchemeEditorSheet from "../studio/ui/SchemeEditorSheet";
+import SchemeMarketSheet from "../studio/ui/SchemeMarketSheet";
+// 市场那半边单独成模块（promptSchemes 保持叶子，避免 videos↔account 那条环）
+import { schemeMarketErr, schemeMarketOn, shareScheme } from "../data/schemeMarket";
+import {
+  Card,
+  CARD_TYPE_COLORS,
+  CARD_TYPE_LABELS,
+  CardRole,
+  CardType,
+  CardView,
+  roleToKind,
+  slotLabel,
+  uid,
+} from "../types";
+
+/**
+ * 命名屏手里那几张图。**认 `role` 不认 `kind`**：图位由方案决定，`kind` 只是
+ * 落卡时写回服务端的兼容值（`types.roleToKind`，跨仓冻结三值）。
+ */
+type Crop = { role: CardRole; tag: string; dataUrl: string };
 import Icon from "./Icon";
 import TarotCard from "./TarotCard";
 
@@ -57,9 +98,21 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
   /** 人物卡的第二张（脸部特写）在标谁：null = 正在标主图 */
   const [facePass, setFacePass] = useState(false);
   /** 已裁好、等命名入库的图（人物卡可能两张：body + face） */
-  const [crops, setCrops] = useState<{ kind: CardView["kind"]; dataUrl: string }[]>([]);
+  const [crops, setCrops] = useState<Crop[]>([]);
   const [name, setName] = useState("");
   const [summary, setSummary] = useState("");
+  /** AI 立绘生成前的原片裁剪（撤销用）。null = 当前 crops 就是原片 */
+  const [rawCrops, setRawCrops] = useState<Crop[] | null>(null);
+  /** 选中的提示词方案（决定这张卡出哪几个图位）。缺省 = 干净立绘（老行为） */
+  const [schemeId, setSchemeId] = useState<string>(defaultScheme().id);
+  /** 方案选择器展开着？ */
+  const [schemeOpen, setSchemeOpen] = useState(false);
+  /** 方案编辑屏：undefined=没开；{source:undefined}=新建；{source:某套}=改/另存为 */
+  const [schemeEdit, setSchemeEdit] = useState<{ source?: PromptScheme } | null>(null);
+  /** 方案市场浮层开着？ */
+  const [marketOpen, setMarketOpen] = useState(false);
+  // 方案库是模块级的侧库（不是 React state）——自建/删掉之后要重渲染，靠它订阅
+  useSyncExternalStore(subscribeSchemes, schemesVersion, () => 0);
   /**
    * 真人声明（仅人物卡）。产品决定开放任意真人照片，肖像同意的责任压给用户——
    * 所以勾了 realPerson 就必须同时勾 consentOk（协议确认），否则 saveCard 整句拒。
@@ -67,6 +120,17 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
    */
   const [realPerson, setRealPerson] = useState(false);
   const [consentOk, setConsentOk] = useState(false);
+  /**
+   * 造卡时就拿到的授权素材（PortraitAuthPanel 交出来的）。此时卡还没有 id，
+   * 只能攒在这里 —— addCards 成功后才写 cardAsset 侧库（与 pendingVoice 同一条规则：
+   * 卡没入库，挂上去就是永远读不到的孤儿）。
+   */
+  const [pendingAsset, setPendingAsset] = useState<{ assetId: string; note: string } | null>(null);
+  /**
+   * 用户有没有**亲手**挑过方案。勾「真人」时只在没挑过的情况下把默认换成无脸
+   * （defaultSchemeFor 的 ★：主推是默认值不是强制，不许覆盖用户已经挑好的）。
+   */
+  const schemeTouched = useRef(false);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   /** 本次会话已入库的卡（卡组模式攒着最后建组；卡片模式只作"已存 N 张"计数） */
@@ -227,36 +291,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     return cv.toDataURL("image/jpeg", 0.9);
   }
 
-  /** 16-bit 单声道 WAV 封装（44 字节头 + PCM）。24k 采样下 15s ≈ 720KB，dataURL ≈ 960KB */
-  function wavDataUrl(samples: Float32Array, rate: number): string {
-    const buf = new ArrayBuffer(44 + samples.length * 2);
-    const dv = new DataView(buf);
-    const ws = (o: number, str: string) => {
-      for (let i = 0; i < str.length; i++) dv.setUint8(o + i, str.charCodeAt(i));
-    };
-    ws(0, "RIFF");
-    dv.setUint32(4, 36 + samples.length * 2, true);
-    ws(8, "WAVEfmt ");
-    dv.setUint32(16, 16, true);
-    dv.setUint16(20, 1, true);
-    dv.setUint16(22, 1, true);
-    dv.setUint32(24, rate, true);
-    dv.setUint32(28, rate * 2, true);
-    dv.setUint16(32, 2, true);
-    dv.setUint16(34, 16, true);
-    ws(36, "data");
-    dv.setUint32(40, samples.length * 2, true);
-    for (let i = 0; i < samples.length; i++) {
-      const x = Math.max(-1, Math.min(1, samples[i]));
-      dv.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7fff, true);
-    }
-    let bin = "";
-    const u8 = new Uint8Array(buf);
-    for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode(...u8.subarray(i, i + 0x8000));
-    return "data:audio/wav;base64," + btoa(bin);
-  }
-
-  /** 播一遍选段并抓 PCM → 重采样 24k 单声道 → WAV。失败整句报（铁律八） */
+  /** 播一遍选段并抓 PCM → 重采样 24k 单声道 → WAV（编码走 utils/wav 唯一实现）。失败整句报（铁律八） */
   async function grabVoice() {
     const v = videoRef.current;
     if (!v || vStart === null || vEnd === null || recording) return;
@@ -317,17 +352,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         off += a.length;
       }
       pcm.current = [];
-      // 重采样到 24k 单声道：体积减半，人声音色无损（16k 就够电话级，24k 留了余量）
-      const out = 24000;
-      const off2 = new OfflineAudioContext(1, Math.ceil((keep / rate) * out), out);
-      const ab = off2.createBuffer(1, keep, rate);
-      ab.copyToChannel(flat, 0);
-      const node = off2.createBufferSource();
-      node.buffer = ab;
-      node.connect(off2.destination);
-      node.start();
-      const rendered = await off2.startRendering();
-      const dataUrl = wavDataUrl(rendered.getChannelData(0), out);
+      // 重采样 + WAV 封装走共用件（采样率的取舍钉在 utils/wav 的 VOICE_SAMPLE_RATE 上）
+      const dataUrl = await pcmToVoiceWav(flat, rate);
       setPendingVoice({
         dataUrl,
         durationSec: Math.round(secs * 10) / 10,
@@ -351,10 +377,79 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     setErr("");
     // 人物卡两遍：主图（body）→ 可选的脸部特写（face）。kind 跟 CARD_SLOTS 对齐，
     // viewsOf() 与出片管线按 kind 取图，写错了不报错、只是图被当成别的用途
-    const kind: CardView["kind"] = type === "character" ? (facePass ? "face" : "body") : CARD_SLOTS[type!][0].kind;
-    setCrops((c) => [...c.filter((x) => x.kind !== kind), { kind, dataUrl }]);
+    // 圈选阶段只产出两种角色：主图（primary）与可选的脸部特写（face）。
+    // ★ 认 role 不认 kind：图位灵活之后 kind 只是写回服务端时的兼容值（types.roleToKind）。
+    const role: CardRole = type === "character" && facePass ? "face" : "primary";
+    const tag = role === "face" ? "脸部特写" : slotLabel(type!, "body");
+    setCrops((c) => [...c.filter((x) => x.role !== role), { role, tag, dataUrl }]);
     setShape(null);
     setFacePass(false);
+  }
+
+  /**
+   * 「按提示词方案炼形象图」（人物卡命名屏的可选付费步）：拿圈选裁剪当 i2i 参考，
+   * **按所选方案的图位**逐格出图（无脸白模三视图 / 分栏设定规格图 / 干净立绘…）。
+   *
+   * ★ 报价与实扣读**同一个** `schemeCost(scheme.slots)`（按钮上印的、这里判余额的、
+   *   真扣钱的三处同源）—— 抄第二份就是本仓头号事故的形状：页面按 2 张报价、
+   *   实际炼了 3 张，多出来那张照扣钱且两个方向都不报错。
+   * ★ 原片裁剪**不丢**：方案里那个 `fromCrop` 的格子直接放它（不调模型、不计费），
+   *   没有这种格子时也留在 rawCrops 里供「↺ 用回原片」撤销。
+   */
+  async function makePortraits() {
+    if (busy || crops.length === 0) return;
+    const scheme = schemeOf(schemeId) ?? defaultScheme();
+    const price = schemeCost(scheme.slots);
+    if (AI_REAL && !canAfford(price)) {
+      setErr(`「${scheme.title}」要炼 ${scheme.slots.filter(isGenerated).length} 张图、约 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
+      return;
+    }
+    setErr("");
+    const raw = crops;
+    try {
+      const body = raw.find((c) => c.role === "primary") ?? raw[0];
+      const face = raw.find((c) => c.role === "face");
+      const out = await portraitViews({
+        scheme,
+        bodyCrop: body.dataUrl,
+        faceCrop: face?.dataUrl ?? null,
+        subject: summary.trim() || name.trim(),
+        onProgress: (s) => setBusy(s),
+      });
+      if (AI_REAL) spendTokens(price);
+      setRawCrops(raw);
+      setCrops(out.map((v) => ({ role: v.role, tag: v.tag, dataUrl: v.dataUrl })));
+    } catch (e) {
+      // 失败不动原 crops（原片裁剪照旧能存卡），但必须整句说清（铁律八）
+      setErr(`形象图没画成：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}——原片裁剪没受影响，可以直接存或再试一次`);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  /**
+   * 把这次炼出来的图存成这套方案的示例图（选方案时给别人看"产出长什么样"）。
+   * ★ 存**缩图**：方案库在 localStorage，塞原图会把整份写失败，而 persist() 吞配额错误
+   *   ⇒ 表现成"自建方案下次打开就没了"（见 PromptScheme.examples 的 ★★）。
+   * ★ 规则判据只有 exampleIssue 一处（真人不得当示例，design doc §B2）。
+   */
+  async function saveExamples(sc: PromptScheme) {
+    const issue = exampleIssue({ scheme: sc, realPerson });
+    if (issue) {
+      setErr(issue);
+      return;
+    }
+    setErr("");
+    setBusy("存示例图…");
+    try {
+      const picks = crops.slice(0, SCHEME_EXAMPLE_MAX);
+      const thumbs = await Promise.all(picks.map((c) => shrinkDataUrl(c.dataUrl, SCHEME_EXAMPLE_MAX_W)));
+      setSchemeExamples(sc.id, thumbs);
+    } catch (e) {
+      setErr(`示例图没存上：${(e instanceof Error ? e.message : String(e)).slice(0, 80)}`);
+    } finally {
+      setBusy("");
+    }
   }
 
   async function saveCard() {
@@ -372,7 +467,14 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     setErr("");
     setBusy("存卡中…");
     try {
-      const views: CardView[] = crops.map((c) => ({ kind: c.kind, url: c.dataUrl }));
+      // ★★ `kind` 由 role 反推**并且必须照写**（types.roleToKind）：它是跨仓冻结的三值，
+      //   老服务端/老客户端只认它 —— 不写的话那边拿到的是个非法 view。role/tag 是新增位。
+      const views: CardView[] = crops.map((c) => ({
+        kind: roleToKind(c.role),
+        role: c.role,
+        tag: c.tag,
+        url: c.dataUrl,
+      }));
       const card: Card = {
         id: uid("card"),
         type,
@@ -397,8 +499,13 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       if (type === "character" && pendingVoice) {
         await saveVoice(card.id, pendingVoice);
       }
+      // 造卡时做完的肖像授权同理（不进 Card——理由见 data/cardAsset 顶注）
+      if (declareReal && pendingAsset) {
+        await saveAsset(card.id, { assetId: pendingAsset.assetId, scope: "private", note: pendingAsset.note });
+      }
       setSaved((s) => [...s, card]);
       setCrops([]);
+      setRawCrops(null);
       setName("");
       setSummary("");
       setType(null);
@@ -406,9 +513,11 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       setPendingVoice(null);
       setVStart(null);
       setVEnd(null);
-      // 声明是逐卡的表态，不许带到下一张：残留一个勾着的"真人"比空着危险得多
+      // 声明是逐卡的表态，不许带到下一张：残留一个勾着的"真人"比空着危险得多。
+      // 授权素材同理 —— 它属于**这个人**，带到下一张就是把 A 的肖像绑给 B 的卡
       setRealPerson(false);
       setConsentOk(false);
+      setPendingAsset(null);
     } finally {
       setBusy("");
     }
@@ -481,9 +590,9 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
           // ── 命名入库屏：圈完了，起名 + 简介 ──
           <div className="space-y-3">
             <div className="flex gap-2">
-              {crops.map((c) => (
-                <div key={c.kind} className="w-24 flex-none">
-                  <TarotCard cover={c.dataUrl} title={name || "未命名"} sub={c.kind === "face" ? "脸部特写" : CARD_TYPE_LABELS[type!]} type={type!} />
+              {crops.map((c, i) => (
+                <div key={`${c.role}:${i}`} className="w-24 flex-none">
+                  <TarotCard cover={c.dataUrl} title={name || "未命名"} sub={c.tag} type={type!} />
                 </div>
               ))}
             </div>
@@ -513,7 +622,16 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                       setRealPerson(e.target.checked);
                       // 取消真人 = 撤回整个声明，协议勾选一起清：留着它，下次一勾"真人"
                       // 就直接带着"已同意"入库，那一下用户根本没看协议
-                      if (!e.target.checked) setConsentOk(false);
+                      if (!e.target.checked) {
+                        setConsentOk(false);
+                        // 授权素材是跟着"真人"声明走的：声明撤了它就没有挂处
+                        setPendingAsset(null);
+                      }
+                      // 真人素材默认主推无脸方案（唯一实现 defaultSchemeFor）；
+                      // 用户亲手挑过的不动 —— 主推是默认值，不是强制
+                      if (!schemeTouched.current) {
+                        setSchemeId(defaultSchemeFor({ realPerson: e.target.checked }).id);
+                      }
                       setErr("");
                     }}
                     className="h-4 w-4 flex-none accent-brand"
@@ -538,11 +656,33 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                       />
                       我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担
                     </label>
+                    {/* 授权挪进造卡流程（2026-08-28 拍板）：勾了真人当场就能把肖像授权做掉，
+                        不必等卡存完再去详情页找。拿到的 assetId 攒在 pendingAsset，
+                        存卡成功才落 cardAsset 侧库（与声音样本同一条规则）。 */}
+                    <div className="mt-1 rounded-lg border border-slate-700/70 bg-ink/30 p-2">
+                      <p className="mb-1.5 text-[10px] leading-relaxed text-slate-400">
+                        🪪 <b className="text-slate-300">方舟可信素材</b>（真人出片的合规通道）：「高清」「电影级」档
+                        <b className="text-slate-300">不收直接上传的真人照片</b>，只收本人授权过的素材。现在就能做：
+                      </p>
+                      {pendingAsset ? (
+                        <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
+                          <span className="min-w-0">
+                            <span className="block text-[10px] text-emerald-200">已接上授权素材，存卡时一并绑定</span>
+                            <span className="block truncate font-mono text-[9px] text-emerald-300/80">{pendingAsset.assetId}</span>
+                          </span>
+                          <button onClick={() => setPendingAsset(null)} className="flex-none text-[10px] text-slate-500">
+                            取消
+                          </button>
+                        </div>
+                      ) : (
+                        <PortraitAuthPanel onBound={(assetId, note) => setPendingAsset({ assetId, note })} />
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
             )}
-            {type === "character" && !crops.some((c) => c.kind === "face") && (
+            {type === "character" && !crops.some((c) => c.role === "face") && (
               <button
                 onClick={() => {
                   setFacePass(true);
@@ -554,6 +694,188 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                 ＋ 再标一张脸部特写（可选，出片时锁面部特征更稳）
               </button>
             )}
+            {type === "character" &&
+              (rawCrops ? (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-2">
+                    <span className="text-[11px] text-emerald-200">✨ 已按「{schemeOf(schemeId)?.title ?? "方案"}」炼好形象图</span>
+                    <button
+                      onClick={() => {
+                        setCrops(rawCrops);
+                        setRawCrops(null);
+                      }}
+                      disabled={!!busy}
+                      className="flex-none text-[11px] text-slate-400 disabled:opacity-40"
+                    >
+                      ↺ 用回原片
+                    </button>
+                  </div>
+                  {/* 「存成方案示例图」：只对**自己的**方案、且不是真人素材时才给
+                      （判据唯一实现在 promptSchemes.exampleIssue）。不给的时候把原因写出来，
+                      别摆一颗永远点不动的按钮（CLAUDE.md 那条坑）。 */}
+                  {(() => {
+                    const sc = schemeOf(schemeId);
+                    if (!sc) return null;
+                    const issue = exampleIssue({ scheme: sc, realPerson });
+                    if (issue) {
+                      // 内置那条不必啰嗦（用户没主动想存），只有真人那条值得说
+                      return realPerson ? <p className="text-[9px] leading-relaxed text-slate-600">{issue}</p> : null;
+                    }
+                    return (
+                      <button
+                        onClick={() => void saveExamples(sc)}
+                        disabled={!!busy}
+                        className="w-full rounded-lg border border-slate-700 py-1.5 text-[10px] text-slate-400 disabled:opacity-40"
+                      >
+                        {sc.examples?.length ? "🖼 更新这套方案的示例图" : "🖼 把这次的产出存成方案示例图"}
+                      </button>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {/* ── 方案选择器 ──
+                      ★ 折叠着只占一行：绝大多数人用默认那套，把三四套方案永远摊开
+                        会把"起名字"这件正事挤到屏幕外。 */}
+                  <button
+                    onClick={() => setSchemeOpen((v) => !v)}
+                    disabled={!!busy}
+                    className="flex w-full items-center justify-between rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-left disabled:opacity-40"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-[11px] font-semibold text-slate-200">
+                        方案：{schemeOf(schemeId)?.title ?? defaultScheme().title}
+                        {schemeOf(schemeId)?.faceless && <span className="ml-1 text-emerald-300">· 无脸</span>}
+                      </span>
+                      <span className="block truncate text-[10px] text-slate-500">{schemeOf(schemeId)?.intro}</span>
+                    </span>
+                    <span className="ml-2 flex-none text-[10px] text-slate-500">{schemeOpen ? "收起" : "换一套"}</span>
+                  </button>
+                  {schemeOpen && !!schemeMarketErr() && (
+                    <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[10px] leading-relaxed text-rose-300">
+                      {schemeMarketErr()}
+                    </p>
+                  )}
+                  {schemeOpen && (
+                    <div className="space-y-1 rounded-lg border border-slate-700/70 bg-ink/40 p-1.5">
+                      {listSchemes("character").map((sc) => (
+                        <button
+                          key={sc.id}
+                          onClick={() => {
+                            setSchemeId(sc.id);
+                            schemeTouched.current = true; // 亲手挑过 → 勾真人时不再替他换成无脸
+                            setSchemeOpen(false);
+                          }}
+                          className={`w-full rounded-md px-2 py-1.5 text-left ${
+                            sc.id === schemeId ? "bg-brand/15 ring-1 ring-brand/40" : "hover:bg-white/5"
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <span className="truncate text-[11px] font-semibold text-slate-200">{sc.title}</span>
+                            {/* ★ 「无脸」是**产出形态**的标注，不是"绕过成功率"——市场不做那种标注，
+                                理由见 docs/card-prompt-scheme-market-design.md §B2 */}
+                            {sc.faceless && (
+                              <span className="flex-none rounded-full bg-emerald-500/15 px-1.5 py-px text-[9px] text-emerald-300">
+                                无脸
+                              </span>
+                            )}
+                          </span>
+                          <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">{sc.intro}</span>
+                          {/* 示例缩图：只有作者存过才有（内置那几套没有，见 backlog） */}
+                          {!!sc.examples?.length && (
+                            <span className="mt-1 flex gap-1">
+                              {sc.examples.map((ex, k) => (
+                                <img
+                                  key={k}
+                                  src={ex}
+                                  alt=""
+                                  className="h-10 w-8 rounded border border-slate-700 object-cover"
+                                  loading="lazy"
+                                />
+                              ))}
+                            </span>
+                          )}
+                          <span className="mt-0.5 block text-[9px] text-slate-600">
+                            {sc.slots.map((x) => x.tag).join(" · ")}
+                            {AI_REAL ? ` · 约 ${fmtTokens(schemeCost(sc.slots))}` : " · 演示"}
+                          </span>
+                          {/* 每一套都能拿去改：内置的会另存成自己的一份（内置不可改） */}
+                          <span className="mt-1 flex gap-2">
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSchemeEdit({ source: sc });
+                              }}
+                              onKeyDown={(e) => e.key === "Enter" && setSchemeEdit({ source: sc })}
+                              className="text-[9px] text-slate-400 underline"
+                            >
+                              {sc.builtin ? "另存为我的" : "改"}
+                            </span>
+                            {!sc.builtin && schemeMarketOn() && (
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void shareScheme(sc.id, !sc.published);
+                                }}
+                                className="text-[9px] text-sky-300/90 underline"
+                              >
+                                {sc.published ? "下架" : "发布到市场"}
+                              </span>
+                            )}
+                            {!sc.builtin && (
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // 删掉正在用的那套就退回默认，别让 schemeId 指着一个不存在的 id
+                                  if (sc.id === schemeId) setSchemeId(defaultScheme().id);
+                                  removeScheme(sc.id);
+                                }}
+                                onKeyDown={(e) => e.key === "Enter" && removeScheme(sc.id)}
+                                className="text-[9px] text-rose-400/80 underline"
+                              >
+                                删
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      ))}
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => setSchemeEdit({})}
+                          className="flex-1 rounded-md border border-dashed border-slate-600 px-2 py-1.5 text-[10px] text-slate-400"
+                        >
+                          ＋ 自建一套
+                        </button>
+                        {/* ★ 没连服务端就整个不显示，而不是摆一颗点不动的按钮 */}
+                        {schemeMarketOn() && (
+                          <button
+                            onClick={() => setMarketOpen(true)}
+                            className="flex-1 rounded-md border border-slate-600 px-2 py-1.5 text-[10px] text-slate-300"
+                          >
+                            🛒 逛方案市场
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => void makePortraits()}
+                    disabled={!!busy}
+                    className="w-full rounded-lg border border-brand/50 bg-brand/10 py-2 text-xs font-semibold text-brand disabled:opacity-40"
+                  >
+                    {busy ||
+                      `✨ 按这套方案炼形象图（${schemeOf(schemeId)?.slots.filter(isGenerated).length ?? 2} 张${
+                        AI_REAL ? ` · 约 ${fmtTokens(schemeCost((schemeOf(schemeId) ?? defaultScheme()).slots))}` : " · 演示"
+                      }）`}
+                  </button>
+                </div>
+              ))}
             {type === "character" &&
               (pendingVoice ? (
                 <div className="rounded-lg border border-sky-500/40 bg-sky-500/10 p-2.5">
@@ -590,6 +912,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
               <button
                 onClick={() => {
                   setCrops([]);
+                  setRawCrops(null);
                   setErr("");
                 }}
                 disabled={!!busy}
@@ -829,6 +1152,17 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
           </div>
         )}
       </div>
+      {/* 方案编辑屏：存完直接切到新存的那套（用户刚写完，当然是想用它） */}
+      {marketOpen && (
+        <SchemeMarketSheet onInstalled={(sc) => setSchemeId(sc.id)} onClose={() => setMarketOpen(false)} />
+      )}
+      {schemeEdit && (
+        <SchemeEditorSheet
+          source={schemeEdit.source}
+          onSaved={(sc) => setSchemeId(sc.id)}
+          onClose={() => setSchemeEdit(null)}
+        />
+      )}
     </div>
   );
 }

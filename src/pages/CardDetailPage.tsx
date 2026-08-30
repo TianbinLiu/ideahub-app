@@ -1,7 +1,7 @@
 // 卡片详情页：大卡面 + 类型/标签 + 简介 + 形象参考图（多图）+「<类型>信息」
 // （铸卡时的完整提示词，具体到可复刻卡面）+ 3D 建模全息预览（有 modelUrl 的角色卡）。
 // 创意工坊/我的/卡组详情点卡进来。
-import { useRef, useMemo, useState } from "react";
+import { useRef, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 // ★ 出片管线的规则一律**从管线本身取**，这一页不再抄一份（铁律六）。
@@ -16,6 +16,9 @@ import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareB
 import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
 import { isRemoteMode, myCards, myDecks, shareCard } from "../data/account";
 import { addCardView, removeCardView } from "../data/cardViews";
+import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
+import { assetOf, assetsVersion, saveAsset, subscribeAssets } from "../data/cardAsset";
+import PortraitAuthPanel from "../components/PortraitAuthPanel";
 import { formatHeat, heatOf } from "../data/social";
 import {
   CARD_INFO_LABELS,
@@ -28,6 +31,7 @@ import {
   MAX_CARD_VIEWS,
   publishableModelUrl,
   slotLabel,
+  viewTag,
   viewsOf,
 } from "../types";
 import { useAccountVersion } from "../hooks/useAccount";
@@ -119,11 +123,13 @@ function hintFor(type: CardType): string {
  */
 function pipelineNoteFor(type: CardType, views: CardView[]): string {
   if (type !== "character") {
-    const first = views[0] ? slotLabel(type, views[0].kind) : CARD_SLOTS[type][0].label;
+    const first = views[0] ? viewTag(type, views[0]) : CARD_SLOTS[type][0].label;
     return (
       `出片时这类卡先保证第 1 张（${first}）喂给 AI；同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，` +
       `预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。` +
-      `预算不够时**先被丢的就是各卡的第 2 张**，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。`
+      `预算不够时「先被丢的就是各卡的第 2 张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。` +
+      // ★ P2-a（2026-08-29）后直通路的预算跟档位协议走（9/30），3 张那句只描述经典路
+      `（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）`
     );
   }
   return (
@@ -133,11 +139,109 @@ function pipelineNoteFor(type: CardType, views: CardView[]): string {
     )} + ${slotLabel("character", "body")}）；同一段里的其余人物卡一张都不带，只按文字设定参与` +
     `——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按"这张卡就是那第一张人物卡"标的：` +
     `它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。` +
-    // ★ 白模模板那条路是**例外**，必须说：那条路一张设定帧都不画（参考图直接进 r2v），
-    //   "一张图里画多个角色被拒"根本不适用，所以每个角色位挂的卡各带各的形象图。
-    //   不说这一句，用挂卡出片的用户会照上面那半句自我设限：以为挂第 2 张人物卡没用。
-    `（白模模板挂卡那条路是例外：它不画设定帧，每个角色位挂的人物卡都各带自己的形象图。）` +
+    // ★ 不画设定帧的两条路是**例外**，必须说：白模 r2v 与简约参考图直出（P2-a 放宽后）
+    //   的参考图直接进视频模型，"一张图里画多个角色被拒"根本不适用，每张人物卡各带各的
+    //   形象图。不说这一句，用户会照上面那半句自我设限：以为挂第 2 张人物卡没用。
+    `（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）` +
     `${slotLabel("character", "detail")}这一格铸卡不会自动出图（只能自己传），三张挂满时它也排在最后，出片轮不到它。`
+  );
+}
+
+/**
+ * 「方舟可信素材」窄条 —— 只在**坏了**的时候出现：真人卡 + 还没绑上素材。
+ *
+ * ★★ 2026-08-28 仓库主人拍板：授权的主路挪进**造卡流程**（自己传图 / 从视频提取里
+ *   勾「真人」当场做，共用 components/PortraitAuthPanel 一份实现），详情页不再常驻
+ *   整块授权区 —— 绑上素材后这里**整块消失**。
+ *   这条窄条存在的唯一理由是授权**异步**：本人可能隔天才扫码，照片还可能被内容审核
+ *   拒掉（2026-08-28 第一发实测就被拒：InputImageSensitiveContentDetected）——
+ *   造卡时没接上的真人卡总得有个就地修复的地方，不能逼人删卡重来。
+ * ★ 只对自己的卡出现（别人的卡看不到本机侧库）。
+ * ★ 绑定后**没有解绑入口**是有意的（同一次拍板「绑上即消失」）：绑错只剩"手填填错"
+ *   一种来路，而手填两处都过 normalizeAssetId。真要换绑，等出现真实需求再开口子，
+ *   别为想象中的操作摆按钮。
+ */
+function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
+  useSyncExternalStore(subscribeAssets, assetsVersion, () => 0);
+  const [saveErr, setSaveErr] = useState("");
+  if (card.type !== "character" || card.realPerson !== true || !owned) return null;
+  if (assetOf(card.id)) return null; // 绑上即消失（见顶注）
+  return (
+    <div className="mb-4 rounded-xl border border-amber-400/40 bg-amber-400/5 p-3">
+      <p className="mb-1.5 text-[11px] leading-relaxed text-amber-200/90">
+        🪪 这张真人卡还<b className="text-amber-100">没接上已授权的肖像素材</b>——
+        「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。
+      </p>
+      <PortraitAuthPanel
+        onBound={(assetId, note) => {
+          // 窄条是"卡已存在"的场景，当场落库。写失败要出声（铁律八）：
+          // 静默失败的话用户以为绑好了，出片那一刻才发现还是拒
+          saveAsset(card.id, { assetId, scope: "private", note }).catch(() =>
+            setSaveErr("绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"),
+          );
+        }}
+      />
+      {saveErr && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-400">{saveErr}</p>}
+    </div>
+  );
+}
+
+/**
+ * 人物声音区：🔊 标识 + 试听 + 移除。数据在本机侧库（data/cardVoice——样本不进 Card、
+ * 不随分享，理由见那边顶注），所以**别人的卡**这里永远是空的，整块不渲染而不是摆一句
+ * "他没有声音"（我们根本不知道他那台设备上有没有）。
+ */
+function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
+  useSyncExternalStore(subscribeVoices, voicesVersion, () => 0);
+  const [confirmRm, setConfirmRm] = useState(false);
+  const v = voiceOf(card.id);
+  if (card.type !== "character") return null;
+  if (!v) {
+    // 只对自己的卡提示"怎么补"：别人的卡看不到侧库，说什么都是猜
+    if (!owned) return null;
+    return (
+      <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+        <span className="text-xs font-semibold text-slate-300">🔊 人物声音</span>
+        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+          这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——
+          出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-300">🔊 人物声音 · {v.durationSec}s</span>
+        {owned &&
+          (confirmRm ? (
+            <span className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  removeVoice(card.id);
+                  setConfirmRm(false);
+                }}
+                className="rounded-full bg-rose-500/90 px-2.5 py-1 text-[11px] font-bold text-white"
+              >
+                确认移除
+              </button>
+              <button onClick={() => setConfirmRm(false)} className="text-[11px] text-slate-400">
+                不了
+              </button>
+            </span>
+          ) : (
+            <button onClick={() => setConfirmRm(true)} className="text-[11px] text-slate-500">
+              移除
+            </button>
+          ))}
+      </div>
+      {/* 试听就是这一块存在的意义：样本干不干净只有耳朵能判 */}
+      <audio controls src={v.dataUrl} className="h-9 w-full" />
+      <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+        {v.note ? `${v.note} · ` : ""}出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段声音的音色
+        （尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。
+      </p>
+    </div>
   );
 }
 
@@ -249,7 +353,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
             >
               <img
                 src={v.url}
-                alt={slotLabel(card.type, v.kind)}
+                alt={viewTag(card.type, v)}
                 className="h-full w-full object-cover"
                 loading="lazy"
               />
@@ -263,7 +367,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                 {used[i] ? "出片用" : "仅展示"}
               </span>
               <span className="absolute inset-x-0 bottom-0 bg-ink/75 py-0.5 text-center text-[9px] text-slate-300">
-                {slotLabel(card.type, v.kind)}
+                {viewTag(card.type, v)}
               </span>
             </button>
           ))}
@@ -320,7 +424,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
           >
             <img src={views[zoom].url} alt="" className="max-h-[70vh] max-w-full rounded-lg object-contain" />
             <div className="text-xs text-slate-300">
-              {slotLabel(card.type, views[zoom].kind)}
+              {viewTag(card.type, views[zoom])}
               {/* ★ 放大层是 portal 到 body 的整屏浮层，图下那段说明这时看不见 —— 所以
                   "可能让位"这半句必须在这里也说一次，否则用户读到的就是一句无条件的
                   "会喂给 AI"（人物卡排在别人后面、或一段挂满 3 张时都不成立）。
@@ -445,6 +549,26 @@ export default function CardDetailPage() {
       {/* 形象参考图：AI 画设定帧时真的会照着它们锁形象，不是相册 */}
       <CardViewsSection card={card} owned={owned} />
 
+      {/* 人物声音：标识 + 试听 + 移除（样本在本机侧库，不随卡同步/分享） */}
+      <CardVoiceSection card={card} owned={owned} />
+
+      {/* 方舟可信素材：真人卡做完肖像授权后填 asset ID，出片改走 asset:// */}
+      <CardAssetSection card={card} owned={owned} />
+
+      {/* 固定身份句（Card.idLine）：出片提示词里代表这张卡的那一句（铸卡时压好、逐段复用）。
+          只在真有的时候显示——老卡/自传图卡走 idLineOf 的兜底，那不是"留下来的身份句"，
+          摆出来说成是就违反铁律五 */}
+      {card.idLine && (
+        <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+          <div className="mb-1 text-xs font-semibold text-slate-300">🎯 出片身份句</div>
+          <p className="text-xs leading-relaxed text-slate-400">{card.idLine}</p>
+          <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+            出片时提示词里代表这张卡的固定一句（逐段复用同一措辞，形象更稳）。长设定进画面靠上面的参考图与
+            {CARD_INFO_LABELS[card.type]}，不直接塞进视频提示词。
+          </p>
+        </div>
+      )}
+
       {/* 「<类型>信息」：铸卡时的完整提示词——照着它 AI 就能复刻出与卡面一致的画面/建模。
           ★ 标题按卡种叫（人物信息/场景信息/…），表在 types.CARD_INFO_LABELS 一处 */}
       <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
@@ -493,7 +617,7 @@ export default function CardDetailPage() {
         kind="card"
         className="mb-4"
         published={!!card.published}
-        disabledReason={shareBlockReason({ remote: isRemoteMode(), owned, modelUrl: card.modelUrl })}
+        disabledReason={shareBlockReason({ remote: isRemoteMode(), owned, modelUrl: card.modelUrl, realPerson: card.realPerson })}
         note={shareModelNote(card)}
         onToggle={(next) => shareCard(card.id, next)}
       />

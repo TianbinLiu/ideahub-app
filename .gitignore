@@ -45,3 +45,6 @@ shihui/public/clips/
 .clips-packed/
 # 生成的图标/封面原图（切好的图标进仓，原图不进）
 assets-art/
+
+# E2E 临时喂给 dev 服务器的测试媒体（曾把版权测试视频带进过一次提交，2026-08-24 强推清史）
+public/__e2e_*

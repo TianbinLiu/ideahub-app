@@ -393,6 +393,8 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
     remoteId: rid,
     title: api.title || "未命名模板",
     intro: api.intro || "",
+    // 分类：存在性透出（空串/缺省 = 未分类，读侧 tplCategoryLabel 判否定）
+    ...(api.category ? { category: String(api.category) } : {}),
     cover: api.coverUrl || "",
     author: api.authorName || "创作者",
     createdAt: toMs(api.createdAt ?? null) ?? Date.now(),
@@ -999,6 +1001,36 @@ export async function registerTemplate(id: string): Promise<void> {
 }
 
 /**
+ * 改市场人话分类 —— 分类的**唯一写路**（详情页作者工作台调；四条建模板车道都不带分类，
+ * 存量老模板也靠这里补）。空串 = 清掉。
+ *
+ * ★ 已登记（remoteId 非空）的先推服务端、成了再落本机：反过来的话老服务端（没有这个
+ *   端点）会留下"本机有分类、市场上没有"的静默分叉，而分类正是市场筛选的判据。
+ * ★ 本机 mine 与 mineRemote 可能各有一份（同一条模板两个视图），两份一起写 ——
+ *   只写一份的话列表显示随去重顺序摇摆。
+ * 失败 throw 整句人话（铁律八：这是写路径，必须响）。
+ */
+export async function setTemplateCategory(id: string, category: string): Promise<void> {
+  const t = getTemplate(id);
+  if (!t) throw new Error("这个模板不在本机库里");
+  if (!isMyTemplate(t)) throw new Error("只有模板作者能改分类");
+  if (t.remoteId) {
+    if (!remoteOn()) throw new Error("现在连不上服务器，分类暂时改不了——联网后再试");
+    const api = await branch.patchTemplateCategory(t.remoteId, category);
+    if (!api) throw new Error("这台服务器还不支持模板分类（旧版服务端）——升级后再试");
+  }
+  // shared 也一起写（换设备场景：本机 mine 没有这条，作者看的是 shared 缓存那份）
+  for (const list of [mine, mineRemote, shared]) {
+    const local = list.find((x) => x.id === id || (t.remoteId && x.remoteId === t.remoteId));
+    if (!local) continue;
+    if (category) local.category = category;
+    else delete local.category;
+  }
+  persist();
+  emit();
+}
+
+/**
  * 刷新远端状态（GET /:id → 更新状态快照，并把本机 published 校准成服务端的说法）。
  * 详情页打开时、以及作者点「我已出过片，刷新状态」时调。失败静默降级为"用上次的快照"
  * —— 这是**读**路径，读失败还有旧值可看；写路径（发布/删除）失败必须响，别学这里。
@@ -1069,6 +1101,12 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
       const realSec = refRealSecKey(api.refVideo?.realDurationSec).realDurationSec;
       if (local.refVideo && realSec !== undefined && local.refVideo.realDurationSec !== realSec) {
         local.refVideo = { ...local.refVideo, realDurationSec: realSec };
+        dirty = true;
+      }
+      // 分类跟着服务端走（作者可能在另一台设备上改的）。只在真有时回写，
+      // 这次没回不删本机那份（读路径抖动不该把分类抹掉——判否定的方向）
+      if (api.category && api.category !== local.category) {
+        local.category = String(api.category);
         dirty = true;
       }
       if (dirty) persist();
@@ -1302,6 +1340,9 @@ export async function deleteTemplateEverywhere(id: string): Promise<void> {
 export interface NewTemplate {
   title: string;
   intro: string;
+  /** 市场人话分类（types.TPL_CATEGORIES 的 id）。★ 类型里必须有名字（CLAUDE.md 那条坑）：
+   *  adoptRemoteTemplate 逐字段搬，这里没名字的话服务端带回来的分类会在本机静默丢掉 */
+  category?: string;
   cover: string;
   cards: Card[];
   recipe: VideoTemplate["recipe"];
@@ -2311,6 +2352,7 @@ function adoptRemoteTemplate(api: branch.ApiBranchTemplate, missingRefMsg: strin
   return saveTemplate({
     title: mapped.title,
     intro: mapped.intro,
+    ...(mapped.category ? { category: mapped.category } : {}),
     cover: mapped.cover,
     cards: [], // 白模不带素材卡：「换成谁」由套用者在编辑页逐个角色位挂
     recipe: mapped.recipe,

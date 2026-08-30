@@ -11,7 +11,7 @@ import { Link, useNavigate } from "react-router";
 import Icon from "./Icon";
 // ★ 核对编号那一屏（含"删掉一个角色位"）在 components/blockout/RoleConfirmSheet：
 //   详情页 OwnerBar 要用同一个入口，一份实现两处用（两页各写一份必然分叉）
-import { useSocialVersion } from "./SocialPanel";
+// （播放/点赞数 2026-08-29 随卡片减法收进详情页，本文件不再读 social）
 import VideoTemplateExtractor from "./VideoTemplateExtractor";
 import {
   groupRows,
@@ -37,17 +37,12 @@ import {
   templatesVersion,
   type BlockoutJob,
 } from "../data/templates";
-import { readSocial } from "../data/social";
 import { useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "./flow/useApplyTemplate";
-import { VideoTemplate } from "../types";
+import { TPL_CATEGORIES, VideoTemplate, tplCategoryLabel } from "../types";
 
 export function useTemplatesVersion(): number {
   return useSyncExternalStore(subscribeTemplates, templatesVersion, () => 0);
-}
-
-function fmt(n: number): string {
-  return n >= 10000 ? (n / 10000).toFixed(1) + "万" : String(n);
 }
 
 export function TemplateCard({
@@ -68,40 +63,51 @@ export function TemplateCard({
    *  下面那颗 guidePick 更是包不得（见那条注释），两个锚点统一走 prop，
    *  免得一个包一个不包。 */
   guide?: string;
-  /** 同上，落到「用它出片」那颗按钮上（卡片与按钮在引导里是两步，各要自己的圈）。
-   *  ★ 这颗尤其不能在外面包一层：按钮是底下那行 `flex … gap-2 p-2.5` 里的 `flex-none` 项，
-   *  套一层 span 之后 flex 项变成了那层盒子（它不带 flex-none），简介那段能占的宽度
-   *  跟着变 —— 而 line-clamp-2 的截断位置就是按这个宽度算的。 */
+  /** 同上，落到「用它出片」那颗按钮上（卡片与按钮在引导里是两步，各要自己的圈） */
   guidePick?: string;
 }) {
-  // 走唯一入口 readSocial（模板的互动计数首发仍是本机的——服务端 ASSET_KINDS 还没有
-  // "template"，那是 P2 快跟；到那天这里一行不用改，data/social 换个来源就行）。
-  // ★ 别在这儿读 likedBy.length —— 数字从哪来只该由 data/social 说了算
-  const s = readSocial("template", t.id);
-  // 白模模板的参考视频就地预览（存在性判定 t.refVideo，types.ts 的 ★）。
-  // 视频挂在 Link 里面：靠 e.preventDefault() 拦掉 <a> 的默认跳转——预览时点视频
-  // 是在操作播放器，不是想进详情页
-  const [preview, setPreview] = useState(false);
   /** 封面：自己上传的那份优先；没有就从模板视频派生一帧。
    *  ★★ 「自己传白模视频」那条路建出来的模板 `cover` 一直是空串 —— 在此之前那张卡是
    *    **纯黑**的（`t.cover && <img>` 直接不渲染），看起来像模板坏了。 */
   const cover = t.cover || refVideoPoster(t.refVideo);
+  /**
+   * 自动循环预览（2026-08-29，backlog 2.8-④ 对标 Higgsfield 的"名字+动图+一个键"）：
+   * 白模模板的卡面就是它的参考视频在静音循环——替掉原来那颗「▶ 预览」开关。
+   * ★ 只在卡片**大半进入视口**时播、滑走就停（IntersectionObserver 0.6 阈值）：
+   *   货架是全宽大卡，同屏最多一两张在解码，不会撞上首页视频流那条"滚动本就吃紧"的红线；
+   *   preload="metadata" 保证屏外的卡只拉元数据不拉整段。
+   * ★ 循环预览不带 controls：点卡面是进详情页（Link 语义原样），不是操作播放器。
+   */
+  const vidRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = vidRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting && e.intersectionRatio >= 0.6) void el.play().catch(() => {});
+        else el.pause();
+      },
+      { threshold: [0, 0.6] },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [t.refVideo?.url]);
+  const catLabel = tplCategoryLabel(t.category);
   return (
     <div data-guide={guide} className="overflow-hidden rounded-2xl border border-slate-700/70 bg-panel">
       <Link to={`/template/${t.id}`} className="block">
         <div className="relative aspect-[16/10] bg-black/40">
-          {preview && t.refVideo ? (
-            <div className="h-full w-full" onClick={(e) => e.preventDefault()}>
-              <video
-                src={t.refVideo.url}
-                poster={cover || undefined}
-                controls
-                autoPlay
-                muted
-                playsInline
-                className="h-full w-full bg-black object-contain"
-              />
-            </div>
+          {t.refVideo ? (
+            <video
+              ref={vidRef}
+              src={t.refVideo.url}
+              poster={cover || undefined}
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              className="h-full w-full bg-black object-cover"
+            />
           ) : (
             cover && <img src={cover} alt="" className="h-full w-full object-cover" />
           )}
@@ -119,37 +125,30 @@ export function TemplateCard({
               {t.roles.length} 个角色位可换人
             </span>
           ) : null}
-          {t.refVideo && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                setPreview((v) => !v);
-              }}
-              className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-slate-100"
-            >
-              {preview ? "封面" : "▶ 预览"}
-            </button>
+          {/* 「新」角标（backlog 2.8-① 的 marker 位，PixVerse 式）：七天内登记的标出来。
+              只做 new 不做 hot——模板互动计数首发是**本机**的（服务端 ASSET_KINDS 还没有
+              template），拿本机数标「热」是在撒谎；等计数上服务端再补那半。
+              右上角是 ▶预览 钮退役后空出来的位置 */}
+          {Date.now() - t.createdAt < 7 * 24 * 3600 * 1000 && (
+            <span className="absolute right-2 top-2 rounded bg-amber-400/95 px-1.5 py-0.5 text-[9px] font-bold text-ink">
+              新
+            </span>
           )}
+          {/* ★ 卡片做减法（2026-08-29 主人点名走 backlog 2.8-④）：@作者、播放/点赞数、
+              简介两行全部收进详情页——卡面只剩「标题 + 循环预览 + 一个生成键」。
+              保留的三枚角标（白模/角色位/暂时不可用）是能力与健康位，不是装饰。 */}
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 pb-2 pt-8">
             <div className="truncate text-sm font-bold text-slate-50">{t.title}</div>
-            <div className="mt-0.5 flex items-center gap-2.5 text-[10px] text-slate-300">
-              <span>@{t.author}</span>
-              <span className="flex items-center gap-0.5">
-                <Icon name="play" size={10} /> {fmt(s.views)}
-              </span>
-              <span className="flex items-center gap-0.5">
-                <Icon name="heart" size={10} /> {fmt(s.likes)}
-              </span>
-              {/* 白模只有一段（整段复刻），报"模板视频几秒"比"1 段"信息量大。
-                  ★ 有真实秒数就报真实的（计价那个整数锚点在详情页说清楚）。 */}
+            <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-300">
+              {catLabel && <span className="rounded-full bg-white/15 px-1.5 py-px text-[9px]">{catLabel}</span>}
+              {/* 白模只有一段（整段复刻），报"模板视频几秒"比"1 段"信息量大 */}
               <span>
                 {t.refVideo
                   ? `${(refVideoRealSec(t.refVideo) ?? t.refVideo.durationSec).toFixed(1)}s 复刻`
                   : `${t.recipe.beats.length} 段`}
               </span>
-              {/* ★★ 模板视频本身出不了片时打角标并置灰，**但不从列表里拿掉**：东西静默消失，
-                  用户只会以为是我们弄丢了（铁律八）。判据只有 refVideoIssue 一处，
-                  点进详情页会读到完整的那句原因（作者本人还会看到"不是你操作错了"）。 */}
+              {/* ★★ 模板视频本身出不了片时打角标，**但不从列表里拿掉**：东西静默消失，
+                  用户只会以为是我们弄丢了（铁律八）。判据只有 refVideoIssue 一处 */}
               {refVideoIssue(t.refVideo) && (
                 <span className="rounded-full bg-rose-500/20 px-1.5 py-px text-[9px] text-rose-200">暂时不可用</span>
               )}
@@ -157,18 +156,17 @@ export function TemplateCard({
           </div>
         </div>
       </Link>
-      <div className="flex items-center gap-2 p-2.5">
-        <p className="line-clamp-2 min-w-0 flex-1 text-[11px] leading-relaxed text-slate-400">{t.intro}</p>
-        {onPick && (
+      {onPick && (
+        <div className="p-2">
           <button
             data-guide={guidePick}
             onClick={onPick}
-            className="flex-none rounded-full bg-brand px-3 py-1.5 text-[11px] font-bold text-ink"
+            className="w-full rounded-full bg-brand py-2 text-[12px] font-bold text-ink"
           >
             用它出片
           </button>
-        )}
-      </div>
+        </div>
+      )}
       {actions && <div className="border-t border-slate-700/60 px-2.5 pb-2.5 pt-2">{actions}</div>}
     </div>
   );
@@ -341,10 +339,11 @@ function GroupRow({
 /** 货架本体。embedded = 摆在别的页里（创意工坊）：不带页头，其余一模一样 */
 export default function TemplateShelf({ initialTab }: { initialTab?: "market" | "mine" }) {
   const ver = useTemplatesVersion();
-  useSocialVersion();
   const nav = useNavigate();
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"market" | "mine">(initialTab ?? "market");
+  /** 人话分类筛选（backlog 2.8-③，Vidu 式按情绪与用途分）。"" = 全部 */
+  const [cat, setCat] = useState("");
   // 白模上传入口按能力门控渲染（探测走 remoteTemplatesCapable 唯一实现）：
   // 老服务端 / 离线时不摆一个走到上传那步才失败的按钮（CLAUDE.md「永远点不动的选项」）
   const [blockoutCap, setBlockoutCap] = useState(false);
@@ -371,7 +370,13 @@ export default function TemplateShelf({ initialTab }: { initialTab?: "market" | 
   //   列表才会重算——只依赖 tab/q 的话，远端模板到了也不上屏
   const list = useMemo(() => (tab === "market" ? browseTemplates(q) : myTemplates()), [tab, q, ver]);
   /** 分段组收成一行（用户点名：分段的模板要在同一模板下）。tab 标签上的数字也数**行** */
-  const rows = useMemo(() => groupRows(list), [list]);
+  const allRows = useMemo(() => groupRows(list), [list]);
+  /** 分类筛选按**行**过（组按组头的分类归类——组是一次登记出来的整体，别把组拆散）。
+   *  ★ 过滤只影响陈列：pick 的整组校验读的是 templateGroupOf（三份完整列表），不受影响 */
+  const rows = useMemo(
+    () => (cat ? allRows.filter((r) => r.parts[0].category === cat) : allRows),
+    [allRows, cat],
+  );
   const mineRows = useMemo(() => groupRows(myTemplates()).length, [ver]);
 
   // ★★ 冷启动后远端状态快照是空的（本机库只存模板本身，不存 status/provenAt/待核对）。
@@ -463,6 +468,22 @@ export default function TemplateShelf({ initialTab }: { initialTab?: "market" | 
         </div>
       )}
 
+      {/* 人话分类 chips（backlog 2.8-③）：按情绪与用途分，不按模型参数分。
+          两个 tab 都给——「我的模板」里筛自己的也说得通。老模板没有分类，只在「全部」下出现 */}
+      <div className="scrollbar-none mb-3 flex gap-1.5 overflow-x-auto">
+        {[{ id: "", label: "全部" }, ...TPL_CATEGORIES].map((c) => (
+          <button
+            key={c.id}
+            onClick={() => setCat(c.id)}
+            className={`flex-none rounded-full px-3 py-1 text-[11px] ${
+              cat === c.id ? "bg-brand/25 text-brand ring-1 ring-brand/50" : "bg-panel text-slate-400"
+            }`}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
       {pickErr && (
         <p className="mb-2 rounded-lg bg-amber-500/10 px-3 py-1.5 text-[11px] leading-relaxed text-amber-300/90">{pickErr}</p>
       )}
@@ -551,11 +572,15 @@ export default function TemplateShelf({ initialTab }: { initialTab?: "market" | 
             ⚠ 别退回一句放之四海的"暂无数据"：三种情形的下一步动作完全不同。 */}
         {rows.length === 0 && (
           <div className="py-16 text-center text-sm leading-relaxed text-slate-500">
-            {tab === "mine"
-              ? "还没有你自己的模板——上面那两个入口都能做一个"
-              : q.trim()
-                ? "没有匹配的模板，换个词试试"
-                : "市场上还没有公开的模板。做一个自己的、发布出来，这里就有了。"}
+            {/* 第四种空态（2026-08-29 分类筛选带来的）：分类下没货 ≠ 市场空。
+                allRows 非空说明货在别的分类（或还没分类），指路要指对 */}
+            {cat && allRows.length > 0
+              ? `「${tplCategoryLabel(cat)}」分类下还没有模板——点「全部」看现有的，或做一个发布出来占坑`
+              : tab === "mine"
+                ? "还没有你自己的模板——上面那两个入口都能做一个"
+                : q.trim()
+                  ? "没有匹配的模板，换个词试试"
+                  : "市场上还没有公开的模板。做一个自己的、发布出来，这里就有了。"}
           </div>
         )}
       </div>

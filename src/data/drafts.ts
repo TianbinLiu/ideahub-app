@@ -24,11 +24,15 @@ export type DraftMode = "studio" | "flow";
  *  data 层不该依赖 store——依赖方向是 data → store → 组件） */
 export interface FlowSnapshot {
   nodes: unknown[];
+  /** 换走向的分支归档（flowStore.alts）。★ 判否定：老草稿缺省 = 没有归档过分支 */
+  alts?: unknown;
   cursor: number;
   mode: "workflow" | "simple";
   origin: "studio" | "solo";
   template: unknown;
   subject: string;
+  /** 「只出片不出卡组」的选择（flowStore.deckOff）。★ 判否定：老草稿缺省 = false = 随片出卡组 */
+  deckOff?: boolean;
 }
 
 export interface WorkDraft {
@@ -68,8 +72,9 @@ const INDEX_KEY = "drafts.v1";
 const bodyKey = (id: string) => `draft.${id}`;
 
 /** 上限：草稿带整帧 base64，一条几 MB 到几十 MB。超过就从最旧的开始清，
- *  否则 IndexedDB 配额被吃满后连成片都写不进去（publishVideo 曾因此静默丢过作品）。 */
-const MAX_DRAFTS = 20;
+ *  否则 IndexedDB 配额被吃满后连成片都写不进去（publishVideo 曾因此静默丢过作品）。
+ *  ★ 导出：个人页/草稿箱页把这个数说给用户听，别在文案里手写第二份 */
+export const MAX_DRAFTS = 20;
 
 let index: WorkDraftMeta[] = [];
 let version = 0;

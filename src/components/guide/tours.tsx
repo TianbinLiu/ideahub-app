@@ -582,8 +582,8 @@ export const TOURS: GuideTour[] = [
         anchor: "workshop-extract-card",
         body: (
           <>
-            只有工坊铸卡（AI 出图）<b className="font-bold text-slate-100">要花 token</b>。
-            从视频圈选提取、自己传图、从市场拿都<b className="font-bold text-slate-100">不花</b>——
+            只有 AI 出图<b className="font-bold text-slate-100">要花 token</b>（工坊铸卡，或「自己传图」里
+            选了 AI 生成图位）。从视频圈选提取、自己传图、从市场拿都<b className="font-bold text-slate-100">不花</b>——
             提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。
           </>
         ),
@@ -954,28 +954,46 @@ export const TOURS: GuideTour[] = [
     title: "自己传图做卡片",
     // 2026-08-28 文案收纳：页面顶上那块三条 bullet 的对比说明压成一句，展开讲在这。
     // 首次进页强制放一遍，"这是另一条路、默认铸卡不用传图"这件事仍然人人看得到。
-    version: 1,
+    // ★ version 4（2026-08-30 人物卡拆成四步向导）：选来源（自传图/AI 生成）→ 图位预览
+    //   （可圈选改图）→ 人物信息 → 定名铸卡。第 1 屏仍只有五个卡种大按钮；
+    //   第 1 屏在场的锚只有 cc-type——cc-slots / cc-info 在后面的步骤，自动弹时找不到
+    //   会退成居中卡片（GuideOverlay 的既定行为），照样能读。
+    version: 4,
     steps: [
       {
         title: "这是另一条路",
-        anchor: "cc-compare",
         body: (
           <>
-            默认铸卡是 <b className="font-bold text-slate-100">AI 全自动出图</b>（3D 工坊找铸卡师），
-            一张图都不用传。这一页反过来：全用你自己的图，
-            <b className="font-bold text-slate-100">不调模型、不耗 token</b>，也没有 AI 帮你补图位。
+            默认铸卡是 <b className="font-bold text-slate-100">AI 全自动出图</b>（3D 工坊找铸卡师）。
+            这一页反过来：<b className="font-bold text-slate-100">用你自己的图，不耗 token</b>；
+            也可以只交一张素材，让 AI 按方案把图位都画出来（只有那条才计费，价钱印在按钮上）。
             铸出来的卡与 AI 铸的完全同一种东西 —— 能进卡组、当出片的形象参考、发布到创意工坊。
           </>
         ),
       },
       {
-        title: "图位怎么摆",
+        title: "先挑卡种，再挑方案",
+        anchor: "cc-type",
+        body: (
+          <>
+            第 1 屏只做一件事：<b className="font-bold text-slate-100">挑卡种</b>。点「人物卡」会弹一扇小窗，
+            <b className="font-bold text-slate-100">看图挑一套图位方案</b>（无面部白模三视图 / 全身立绘+面部特写 /
+            角色设定规格图），或者选<b className="font-bold text-slate-100">「真人素材扫脸认证」</b>——那条路先做
+            肖像授权（授权照片自动填进卡面）、跟读录音或上传本地音频。之后人物卡按四步走：
+            <b className="font-bold text-slate-100">选来源 → 图位预览 → 人物信息 → 定名铸卡</b>。
+          </>
+        ),
+      },
+      {
+        title: "图位怎么摆、怎么改",
         anchor: "cc-slots",
         body: (
           <>
-            卡种决定有哪几个图位、每格锁住什么（一把剑不该有「全身立绘」）；换卡种时对不上的格子会被
-            取下来并当场告诉你。<b className="font-bold text-slate-100">第一格既是卡面也是主形象参考</b>：
-            卡框是竖版 2:3，别的比例会居中显示，不裁你的图。
+            人物卡的图位由<b className="font-bold text-slate-100">方案</b>决定（格数也随方案走）；其余卡种由卡种决定
+            （一把剑不该有「全身立绘」）。<b className="font-bold text-slate-100">第一格既是卡面也是主形象参考</b>：
+            卡框是竖版 2:3，别的比例会居中显示，不裁你的图。已有图的格子可以
+            <b className="font-bold text-slate-100">⭕ 圈选改图</b>：圈出要改的地方写一句要求，AI 重画这一格
+            （单张图的价，改坏了不扣钱）。
           </>
         ),
       },
@@ -995,9 +1013,10 @@ export const TOURS: GuideTour[] = [
         anchor: "cc-info",
         body: (
           <>
-            第 ④ 步那段信息，之后 AI 复刻这张卡的画面 / 建模时会读，
+            「人物信息」那一步的文字，之后 AI 复刻这张卡的画面 / 建模时会读，
             <b className="font-bold text-slate-100">写得越具体越像</b>。不填也行 ——
-            详情页会按卡名与简介现补一份。
+            详情页会按卡名与简介现补一份；选了 AI 生成图位的话，这段连同卡名、标签
+            都已按素材写好，随意改。
           </>
         ),
       },
