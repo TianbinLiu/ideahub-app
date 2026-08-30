@@ -142,9 +142,10 @@ export function useFlowActions(opts?: {
         // ★ 回执是**整句人话**（null = 存住了）。⚠ 别写成 `if (!(await …))` —— 那在
         //   回执从 boolean 换成 string|null 之后会**整个反过来**：成功时报错、失败时沉默。
         const why = await useStudio.getState().persistCutDraft();
-        if (why) {
-          useFlow.setState({ err: `卡组已经铸好了，但${why}——现在切后台会丢掉它，请先把片子剪完发出去。` });
-        }
+        // ★★ 这句话**不能写进 flowStore.err**（2026-08-30 复核抓到）：下面两行同一个
+        //   同步续体里就 `reset()`（它 `set({ …, err: "" })`）并 `navigate` 换路由，
+        //   而 err 的消费者一个都不在 /cut 上 —— 于是这句提示在任何路径上都显示不出来，
+        //   而它说的正是"你刚花掉的钱现在没有备份"。⇒ 随导航把话带到剪辑页去说。
         opts?.onLeave?.();
         useFlow.getState().reset();
         // ★ 工坊那一面的投影窗/聚焦是**独立的一份状态**，reset() 只清流水线 ——
@@ -152,7 +153,10 @@ export function useFlowActions(opts?: {
         useStudio.getState().closeProjection();
         // ★ replace 而不是 push：组稿成功那一下 reset() 已经把流水线清空了，历史里这一格
         //   就是个死页 —— 从剪辑页按返回退到它，它当场又把人 replace 走，白闪一下
-        navigate("/cut", { replace: true });
+        navigate("/cut", {
+          replace: true,
+          ...(why ? { state: { warn: `卡组已经铸好了，但${why}——现在切后台会丢掉它，请先把片子剪完发出去。` } } : {}),
+        });
       }
     } catch (e) {
       console.warn("[flow] 组稿失败:", e);

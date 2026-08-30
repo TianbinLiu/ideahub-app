@@ -7,7 +7,7 @@
 //        音频 —— 本地 BGM，音量可调，合并时混进成片
 // 最后「下一步」把时间轴按顺序与裁剪范围重编码成单条视频，进发布页。
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import FrameAnnotator, { drawAigcBadge, drawCover, loadImg } from "../components/FrameAnnotator";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -99,7 +99,13 @@ export default function CutPage() {
    */
   const wentHiddenRef = useRef(false);
   const [hiddenWarn, setHiddenWarn] = useState(false);
-  const [err, setErr] = useState("");
+  // ★ 组稿那一拍如果没能落盘，话是**随导航带过来的**（flowStore.err 活不过 reset()
+  //   与换路由，见 useFlowActions 的 ★★）。这一页是用户接下来唯一会看的一屏。
+  const loc = useLocation();
+  const [err, setErr] = useState(() => {
+    const st = loc.state as { warn?: unknown } | null;
+    return typeof st?.warn === "string" ? st.warn : "";
+  });
   const dragClip = useRef<string | null>(null);
 
   // 预览播放器：播当前片段的源视频（代理 blob 供圈选截帧），到出点自动跳下一片段
@@ -361,6 +367,15 @@ export default function CutPage() {
     const target = view.find((c) => c.id === sel);
     const seg = target && segs[target.segIndex];
     if (!target || !seg) return;
+    // ★★ 分割出来的兄弟片段**共用同一个 segIndex**，只靠 start/end 分区间（见 Clip 类型注释）。
+    //   无条件回到整段 = 与旁边那一半重叠 ⇒ 合并循环按各自的 start/end 逐个录，
+    //   **同一截会被录两遍**：A[0,10] + B[5,10] 出来是 15 秒、第 5~10 秒出现两次。
+    //   而屏幕上两半共用同一张缩略图、没有任何重叠提示，合并又是几十秒的实时录制、
+    //   录完直接进发布页 —— 用户很可能就这么发出去了，且本页没有撤销。
+    if (view.some((c) => c.id !== target.id && c.segIndex === target.segIndex)) {
+      setErr("这个片段是分割出来的，同一段还有另一半在时间轴上——回到整段会和它重叠，成片里同一截会播两遍。想撤销分割，先删掉另一半。");
+      return;
+    }
     setErr("");
     setClips((cs) => cs.map((c) => (c.id === target.id ? { ...c, start: 0, end: seg.durationSec } : c)));
   }
@@ -570,6 +585,13 @@ export default function CutPage() {
       });
       rec.start(250);
       for (let i = 0; i < view.length; i++) {
+        // ★★ 取消要在**每一段开头**也判（2026-08-30 复核抓到）：rAF 里那两处只结束
+        //   「当前这一段」，不 break 的话剩下每段照样 setBusy(`合并中 · 片段 i/N`)
+        //   把按钮写的「正在停止…」顶掉、照样把进度条推到下一格，还要照样去
+        //   resolveMediaUrl（它失败是**抛**不是返回 null，带重试，最坏 2×120s）——
+        //   那些异常落进外层 catch，于是用户点的是「取消」、收到的却是「合并失败：取媒体超时」。
+        //   我上次实测取消"停下来了"，是因为那条稿子只剩最后一段，正好掩住了这个洞。
+        if (cancelRef.current) break;
         const clip = view[i];
         const seg = mergeSegs[clip.segIndex];
         const doneBefore = view.slice(0, i).reduce((sum, x) => sum + clipDur(x), 0);
@@ -676,7 +698,13 @@ export default function CutPage() {
       if (cutWhy) setErr(`成片已经合好了，但${cutWhy}`);
       navigate("/publish");
     } catch (e) {
-      setErr(`合并失败：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}`);
+      // ★ 取消可能正好按在某一段的 await 中途（取流/加载/播放）——那时抛出来的异常
+      //   是"因为取消"，不是失败。报成失败就是对用户说了假话（铁律八）。
+      if (cancelRef.current) {
+        setErr("已取消合并。片段、圈选和配乐都还在，随时可以重新开始。");
+      } else {
+        setErr(`合并失败：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}`);
+      }
     } finally {
       void audioCtx?.close().catch(() => {});
       setBusy("");
@@ -1047,7 +1075,11 @@ export default function CutPage() {
                 {(() => {
                   const t = view.find((c) => c.id === sel);
                   const seg = t && segs[t.segIndex];
-                  const trimmed = !!t && !!seg && (t.start > 0.01 || t.end < seg.durationSec - 0.01);
+                  // ★ 「分割出来的」不算"裁过"：两半的 start/end 天然不等于整段，
+                  //   照这个表达式判会把分割也标成裁剪、并摆出一颗按下去必被拒的「还原整段」。
+                  const hasSibling = !!t && view.some((c) => c.id !== t.id && c.segIndex === t.segIndex);
+                  const trimmed =
+                    !!t && !!seg && !hasSibling && (t.start > 0.01 || t.end < seg.durationSec - 0.01);
                   return trimmed ? (
                     <button
                       onClick={resetTrim}
