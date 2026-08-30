@@ -12,7 +12,7 @@
 //
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
-import { ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateCover, prepareMaterialRefs, refineFrame } from "../ai";
+import { ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateCover, prepareMaterialRefs, refineFrame } from "../ai";
 import { uploadImage } from "../api/uploads";
 import { r2vPriceIssue, tierOf, providerOf, clampDuration } from "../data/economy";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
@@ -270,14 +270,15 @@ export type SegmentProgress = (status: string) => void;
  * ⚠ 这是**提示词层的软约束**：reference 子任务没有硬性的首尾帧参数（那与参考媒体
  *   互斥），模型对时序点名的服从度没有协议保证——文案与门禁都不许把它说成硬承诺。
  */
-export function customRefPrompt(o: { hasFirst: boolean; midCount: number; hasLast: boolean }): string {
+export function customRefPrompt(o: { hasFirst: boolean; midCount: number; hasLast: boolean; hasVideo?: boolean }): string {
   const parts: string[] = [];
   let n = 1;
   if (o.hasFirst) parts.push(`图片${n++}是这段视频的第一帧画面，视频从它开始`);
   for (let k = 0; k < o.midCount; k++) parts.push(`图片${n++}是视频中间的关键画面，按顺序经过它`);
   if (o.hasLast) parts.push(`图片${n}是这段视频的最后一帧画面，视频结束在它`);
-  if (parts.length === 0) return "。参考视频提供整体画面、运镜与节奏。";
-  return `。参考视频提供整体画面、运镜与节奏；${parts.join("；")}。画面按图片编号顺序推进，衔接自然。`;
+  const head = o.hasVideo ? "。参考视频提供整体画面、运镜与节奏" : "";
+  if (parts.length === 0) return head ? `${head}。` : "";
+  return `${head}${head ? "；" : "。"}${parts.join("；")}。画面按图片编号顺序推进，衔接自然。`;
 }
 
 /**
@@ -338,7 +339,7 @@ export async function generateSegment(
       const blob = await (await fetch(u)).blob();
       refUrls.push(await uploadImage(blob, `custom-ref-${i + 1}.jpg`));
     }
-    const roles = customRefPrompt({ hasFirst: !!firstRef, midCount: mids.length, hasLast: !!input.lastFrame });
+    const roles = customRefPrompt({ hasVideo: true, hasFirst: !!firstRef, midCount: mids.length, hasLast: !!input.lastFrame });
     // 点名句是这条路的**功能本体**，截断优先保它（与白模 tail 同一条纪律）
     const mats = materialText(input.materials);
     const tail = `${roles}${mats}`;
@@ -439,6 +440,21 @@ export async function generateSegment(
   // ★ 判定用的是**顶替过承接帧之后**的 first：段间承接一旦成立就必须走首尾帧
   //   （方舟三种场景互斥），这一步的顺序不能反（refVideoOn 的条件④）
   let refMode = refVideoOn({ ...input, firstFrame: first });
+  /**
+   * **帧不再走 first_frame/last_frame 参数，改当 reference_image 发 + 提示词点名**
+   * （2026-08-30 主人点名：“app 里不要有单纯的首尾帧生成视频”）。
+   *
+   * ★★ 为什么值得换：首尾帧与参考媒体在方舟是**互斥场景** —— 走首尾帧那一条，
+   *   挂在这一段上的素材卡形象图**一张都发不出去**，人像不像全靠那两张设定帧烤进去。
+   *   改走参考图之后，帧与卡能同发：帧给构图与起止，卡给身份。
+   * ★ **价钱一分没变**：economy.segmentCost 的视频那半只按 时长×档位 算，帧的张数
+   *   只影响要不要画设定帧，而这条路上的帧本来就已经在手（报价=实扣不受影响）。
+   * ⚠ **代价要说清楚**：first_frame 是协议级**硬约束**（必须从这一帧起拍），
+   *   点名句是**软引导**（customRefPrompt 那条 ⚠）——段间承接的严丝合缝会退一档。
+   * ⚠ 1.0 两档（极速/标准）与真人档协议上**根本不收** reference_image（VideoTier.refImg 硬白名单），
+   *   它们仍然只能走首尾帧 —— 要真的全 app 没有首尾帧出片，得把那两档下线。
+   */
+  const framesAsRefs = !blockout && !refMode && !tier.flatCost && tier.refImg;
   /** 用户的意图是"直接拿卡片形象出片"（refAllowed + 挂了卡 + 没有帧可用）。
    *  白模段除外：它的意图是"复刻模板"，对它播"改画设定帧"那句就是宣布降级——
    *  而白模走不成早在门口 throw 了，能到这里的白模段不该收到这句话 */
@@ -463,6 +479,8 @@ export async function generateSegment(
   // ★ 白模一张设定帧都不画：画面整个来自模板视频（报价侧 economy.segmentCost 的
   //   refVideo 位同一口径——报了"不画帧"的价就真不能画）
   const needDraw = !blockout && (!first || (!last && tier.flf));
+  /** 帧当参考图发时它们要占掉的图位数（首帧恒有；尾帧只有支持首尾帧的档才画） */
+  const frameSlots = framesAsRefs ? (tier.flf ? 2 : 1) : 0;
   const notes: string[] = [];
   // 白模也要形象图（混发：视频给画面与运镜，形象图说"换成谁"），所以 blockout 也准备
   // ★ 白模路传 true（直通 + 严格闸）：它一张设定帧都不画，参考图直接进 Seedance r2v，
@@ -479,19 +497,32 @@ export async function generateSegment(
   //   ⚠ 若 refMode 与 needDraw 同真（refMode 判定成立时首帧必空，needDraw 恒真），
   //   分配按直通走是对的：refMode 成立就不会画帧；中途降级（refs 全军覆没）时 refs
   //   本来就是空的，画帧那侧拿不到多主体图，两头都不冲突。
+  // ★ framesAsRefs 也要备图：帧改当参考图发之后，卡片形象**可以与帧同发**了 ——
+  //   此前“帧齐了就不准备”是因为那条路发不出去（互斥），现在不成立了。
+  //   分配口径：要画设定帧时继续用 Seedream 那套启发式（一张图只画一个角色）；
+  //   帧已在手时走直通分配（按档位协议上限，与 refMode 同口径）。
   const refs =
-    blockout || refMode || needDraw
+    blockout || refMode || needDraw || framesAsRefs
       ? await prepareMaterialRefs(
           input.materials,
           (n) => notes.push(n),
-          blockout ? true : refMode ? { cap: tier.refImagesMax, strict: false } : false,
+          blockout
+            ? true
+            : refMode || (framesAsRefs && !needDraw)
+              ? // ★★ 帧要占掉前几个图位，所以**准备时就把预算扣掉**，而不是发之前截 ——
+                //   bindCompact 是按 refs 全量编号的（`张三=@图片5`），发之前截掉两张就会
+                //   点名到根本没发出去的编号上：模型按"图片5"去找一张不存在的图，
+                //   那个角色的形象于是由它自己编，而全程零报错。
+                { cap: Math.max(1, (tier.refImagesMax ?? ARK_REF_IMAGES_MAX) - frameSlots), strict: false }
+              : false,
         )
       : null;
   // ── 台词音色（卡片系统 V2 阶段 2）────────────────────────────
   // 样本只在 refMode（参考生视频）发。点名句单独 append、不并进 tail 参与截断取舍：
   // 它丢了只是音色随机（软降级），正文被截才是内容错——两者不该抢同一段配额。
   const voiced = voicedCardsOf({ plot: input.plot, materials: input.materials });
-  const voiceOk = refMode && tier.audio === true && voiced.length > 0;
+  // ★ framesAsRefs 之后这条路也发得了音色样本：它已经不是首尾帧任务了（互斥不再成立）
+  const voiceOk = (refMode || framesAsRefs) && tier.audio === true && voiced.length > 0;
   const refAudios = voiceOk ? voiced.map((c) => voiceOf(c.id)!.dataUrl) : undefined;
   const voiceLine = voiceOk
     ? `。${voiced.map((c, i) => `「${c.name}」的台词使用参考音频${i + 1}的音色`).join("；")}`
@@ -504,9 +535,19 @@ export async function generateSegment(
           ? `「${tier.label}」档暂无配音，台词只以画面呈现`
           : `「${tier.label}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）`,
       );
-    else if (!refMode) notes.push("这一段走首尾帧承接，带不了声音样本（方舟协议互斥）——台词仍会被配音，但音色随机");
+    else if (!refMode && !framesAsRefs)
+      // ★ 能走到这里的只有白模段（它自己就是 r2v，且 tier.audio 为真的两档都收参考图）——
+      //   所以话要按白模说。原话「本档只能走首尾帧」在这唯一的场合是假的（白模根本没有首尾帧）
+      notes.push(
+        blockout
+          ? "白模复刻不带声音样本：音轨在「完成视频」那一步回填原片，台词音色由模型自定"
+          : "这一段带不了声音样本（本档的出片方式与参考音频互斥）——台词仍会被配音，但音色随机",
+      );
   }
-  const noteTail = notes.length ? `（${notes.join("；")}）` : "";
+  /** ★ **现算不定死**（2026-08-30 修）：notes 在这一行之后还会被追加
+   *  （帧转参考图失败就在更后面），写成 const 串的话那几条**永远不会出现在任何一行 prog 里**
+   *  —— 静默降级，正是铁律八要防的那种。每个插值点调它一次。 */
+  const noteTail = () => (notes.length ? `（${notes.join("；")}）` : "");
   // 没有承接帧/底图时素材卡的图就是 <图片1> 起，offset = 0
   const bind = refs ? refs.bind(0) : "";
   const refUrls = refs?.refs.length ? refs.refs : undefined;
@@ -527,7 +568,7 @@ export async function generateSegment(
   // 补画只属于经典路（!blockout）：白模段 first/last 天然为空（门禁保证），
   // 但空≠要补——它的画面在模板视频里
   if (!blockout && !refMode && !first) {
-    prog(`绘制起拍画面…${noteTail}`);
+    prog(`绘制起拍画面…${noteTail()}`);
     first = await generateCover(
       `${input.framePrompt || input.plot.slice(0, 200)}${mats}${bind}`,
       undefined,
@@ -536,9 +577,45 @@ export async function generateSegment(
     );
   }
   if (!blockout && !refMode && !last && tier.flf) {
-    prog(`绘制结束画面…${noteTail}`);
+    prog(`绘制结束画面…${noteTail()}`);
     last = await generateCover(`${input.plot.slice(0, 180)} 的结束瞬间${mats}${bind}`, undefined, input.aspect, refUrls);
   }
+
+  // ── 帧 → 参考图（framesAsRefs 的落地）────────────────────────────
+  // reference_image 只实测过 https（cardViews 那条 ★），用户/AI 的帧是 dataURL —— 逐张转存。
+  // ★ 转存失败**不 throw**：这条路退回首尾帧仍是同一件商品（拍的还是这段剧情），
+  //   与素材参考那条（转存失败 throw）不同 —— 那条没有可退的模式。但要出声（铁律八）。
+  let frameRefs: string[] = [];
+  if (framesAsRefs && (first || last)) {
+    const ordered = [first, last].filter(Boolean);
+    try {
+      for (let i = 0; i < ordered.length; i++) {
+        const u = ordered[i];
+        if (/^https?:\/\//i.test(u)) {
+          frameRefs.push(u);
+          continue;
+        }
+        prog(`上传本段设定帧 ${i + 1}/${ordered.length}…`);
+        frameRefs.push(await uploadImage(await (await fetch(u)).blob(), `seg-frame-${i + 1}.jpg`));
+      }
+    } catch {
+      frameRefs = [];
+      notes.push(
+        `设定帧没能转成参考图，这一段退回首尾帧模式出片（卡片形象图这次发不出去${
+          refAudios ? "，台词音色样本也带不了" : ""
+        }）`,
+      );
+    }
+  }
+  const sendFrameRefs = frameRefs.length > 0;
+  /** 帧当参考图时的时序点名句：图片1=第一帧、图片N=最后一帧（软引导，见 customRefPrompt 的 ⚠） */
+  const frameRoles = sendFrameRefs
+    ? customRefPrompt({ hasFirst: !!first, midCount: 0, hasLast: !!last && frameRefs.length > 1 })
+    : "";
+  // 卡片形象图接在帧后面（编号顺延），绑定句按这个 offset 说话 —— 差一位就是"张三的脸给了李四"
+  // ★ **不截**：图位预算在 prepareMaterialRefs 那一步就按 frameSlots 扣过了（见那段 ★★），
+  //   这里再截会让绑定句（按 refs 全量编号）点到没发出去的编号上
+  const cardRefs = sendFrameRefs && refUrls ? refUrls : [];
 
   // ④ 出片。圈选要求并进提示词——只改设定帧不够，Seedance 得知道这一段要拍成什么样
   const reqs = input.anns.map((a) => a.req).join("；");
@@ -574,6 +651,8 @@ export async function generateSegment(
   //   接续用的句号——它是给尾置拼接设计的，站句首是个病句。
   //   Seedream 画帧那半（上面 needDraw 用的 bind）**未做 A/B，仍是长句**，别顺手统一。
   const bindHead = refMode && refs ? refs.bindCompact(0).replace(/^。/, "") : "";
+  /** 帧当参考图那条的绑定句：卡片图排在帧之后，offset = 帧的张数（错一位就是张冠李戴） */
+  const frameBind = sendFrameRefs && refs && cardRefs.length ? refs.bindCompact(frameRefs.length).replace(/^。/, "") : "";
   // ★★ V2（点名）那条路**不拼素材设定文字**（`mats`），只留绑定句。这不是省字的洁癖，是算出来的：
   //   `mats` 每张卡 ≈ 50 字（卡种 + 名字 + 30~40 字设定），角色位上限放到 9 之后光它一项就
   //   400 字打底 —— 而提示词硬顶就是 400，截断又是**从正文这头切**的（见下面的 room），
@@ -584,15 +663,15 @@ export async function generateSegment(
   //   ⚠ 例外：某张卡的形象图全都读不出来时，它就只剩名字了 —— 那种情况由 prepareMaterialRefs
   //   的 onNote 逐张点名（"第 N 张参考图未采用…"），一张都没成还会整句 throw，不是静默。
   // refMode 的绑定句已前置（bindHead），尾巴只剩素材设定文字
-  const tail = blockout ? (named ? bind : `${BLOCKOUT_SWAP}${mats}${bind}`) : mats;
+  const tail = blockout ? (named ? bind : `${BLOCKOUT_SWAP}${mats}${bind}`) : `${frameRoles}${mats}`;
   const story = reqs ? `${input.plot}。修改要求（必须满足）：${reqs}` : input.plot;
   // ★ 提示词有 VIDEO_PROMPT_MAX 的硬顶，而截的是**正文** —— 头（点名句）与尾（素材设定/
   //   白模绑定句）都要先留位。直接拼起来交上去的话：简约模式的输入框本身就允许 400 字，
   //   用户写满（或套个字数多一点的模板再挂张卡）就把绑定句整句切没了，而参考图照样发出去
   //   —— 模型于是只把它们当风格图用：卡挂了、片出了、人物一点都不像，且**零报错**。
   //   截正文是唯一诚实的刀口（少几个字用户看得出来，也不改变"谁是谁"）。
-  const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length - bindHead.length);
-  const plot = `${bindHead}${story.slice(0, room)}${tail}`;
+  const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length - bindHead.length - frameBind.length);
+  const plot = `${bindHead}${frameBind}${story.slice(0, room)}${tail}`;
   // ★ 但"截了要说"（铁律八）。V2 白模路把这条从"理论风险"变成了"每天都可能发生"：
   //   正文那段点名合成句本身就有一两百字，挂满三张卡时尾巴也有两百字上下 ——
   //   悄悄切掉正文末尾，用户看到的是"我写的最后几条要求模型完全没照做"，零报错。
@@ -600,27 +679,33 @@ export async function generateSegment(
   //   没画过它，等于这句话没说过）—— 与 noteTail 同一个理由，所以并进同一行说。
   const cut =
     story.length > room
-      ? `（⚠ 这一段的要求太长，末尾 ${story.length - room} 字没能发出去：提示词上限 ${VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 ${tail.length + bindHead.length} 字——把要求写短些，或少挂一张卡）`
+      ? `（⚠ 这一段的要求太长，末尾 ${story.length - room} 字没能发出去：提示词上限 ${VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 ${tail.length + bindHead.length + frameBind.length} 字——把要求写短些，或少挂一张卡）`
       : "";
   if (blockout)
     prog(
-      `按模板视频逐镜头复刻出片（时长跟随模板${input.refVideo?.durationSec ? ` ${input.refVideo.durationSec} 秒` : ""}）…${noteTail}${cut}`,
+      `按模板视频逐镜头复刻出片（时长跟随模板${input.refVideo?.durationSec ? ` ${input.refVideo.durationSec} 秒` : ""}）…${noteTail()}${cut}`,
     );
-  else if (refMode) prog(`参考卡片形象直接出片（省掉设定帧）…${noteTail}${cut}`);
-  else if (cut) prog(`出片中…${cut}`);
+  else if (refMode) prog(`参考卡片形象直接出片（省掉设定帧）…${noteTail()}${cut}`);
+  // ★ 这一支以前是 `else if (cut)` —— 没有截断就一个字不说，于是“帧当参考图发”这条路上
+  //   的提示（含上传失败退回首尾帧）没有任何出口。改成无条件说一句，把 notes 带上。
+  else prog(`${sendFrameRefs ? `按 ${frameRefs.length + cardRefs.length} 张参考图出片（帧与卡片形象同发）` : "出片中"}…${noteTail()}${cut}`);
   const [res] = await composeSegments(
     [
       {
         plot: `${plot}${voiceLine}`,
-        firstFrame: first,
-        lastFrame: last,
+        // 帧当参考图发时 first/last 必须空 —— 方舟三场景互斥，混发直接 400
+        firstFrame: sendFrameRefs ? "" : first,
+        lastFrame: sendFrameRefs ? "" : last,
         durationSec: input.durationSec,
         videoTier: input.videoTier,
         aspect: input.aspect,
         // 白模也发形象图（混发：视频给画面与运镜，形象图说"换成谁"）；refUrls 非空由
         // 上面那道 throw 保证
-        refImages: refMode || blockout ? refUrls : undefined,
-        refAudios,
+        refImages: refMode || blockout ? refUrls : sendFrameRefs ? [...frameRefs, ...cardRefs] : undefined,
+        // ★★ 退回首尾帧那一支必须**同时撤掉参考音频**（2026-08-30 复核抓到）：
+        //   arkClient 对「非 reference 模式 + 参考音频」是当场 throw（方舟侧 400），
+        //   于是帧转参考图失败之后这一段不是降级出片，而是直接失败。
+        refAudios: refMode || sendFrameRefs ? refAudios : undefined,
         // 报价（economy.segmentCost 的 refVideo 位）与这里必须同进同出：报了 r2v 的价
         // 就必须真发参考视频，反之亦然（flowStore.nodeCost 与 genNode 读同一份模板快照）
         refVideoUrl: input.refVideoUrl,

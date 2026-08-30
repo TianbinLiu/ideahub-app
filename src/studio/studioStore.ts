@@ -383,6 +383,16 @@ interface StudioState {
    *  卡片悬浮当且仅当投影打开 */
   projection: "editor" | "proposals" | "decks" | null;
   /** 卡组选择视角：镜头拍玩家上半身（思考姿势），投影里选一套卡组 */
+  /**
+   * 工作流画布这一面开着没有（2026-08-30 合并后新增）。
+   * ★★ 必须放 store 而不是 StudioPage 的 useState：这一页会在**去挂卡编辑页再回来**时
+   *   整个重挂（路由离开 /studio），局部 state 归零 —— 用户本来在画布里给白模段挂卡，
+   *   回来却落回 3D 桌面，画布上的工作现场没了。store 是模块级单例，跨路由活着；
+   *   projection / deckView / spreadOpen 这些「哪一面开着」本来就都在这里。
+   * ★ 顺带它也就进了返回栈（backStepOf）：按返回先收画布，而不是越过它退工坊。
+   */
+  canvasOpen: boolean;
+  setCanvasOpen: (v: boolean) => void;
   deckView: boolean;
   /** 点卡组堆：打开卡组小窗（窗内右上角在"卡组/卡片"两个视图间切换） */
   openDeckView: () => void;
@@ -727,6 +737,7 @@ let nodeGenInFlight = false;
 export type BackStep =
   | "avatar"
   | "cardDetail"
+  | "canvas"
   | "projectionBusy"
   | "projection"
   | "market"
@@ -739,6 +750,8 @@ export type BackStep =
 export function backStepOf(s: StudioState): BackStep {
   if (s.avatarPickerOpen) return "avatar";
   if (s.marketDetail) return "cardDetail";
+  // 画布是 z-40 全屏浮层，盖住投影窗与整个桌面 —— 用户眼里的「上一步」就是收起它
+  if (s.canvasOpen) return "canvas";
   if (s.projection) return s.projection === "editor" && s.editor?.generating ? "projectionBusy" : "projection";
   if (s.market.open) return "market";
   if (s.dialogView) return "dialog";
@@ -752,10 +765,11 @@ export function backStepOf(s: StudioState): BackStep {
  *  这是"按返回可以退出对话"最主要的可发现性来源。 */
 export function backLabelOf(s: StudioState): string {
   const step = backStepOf(s);
+  if (step === "canvas") return "收起画布";
   if (step === "projectionBusy") return "推演中";
   if (step === "projection")
     return s.projection === "decks" ? "退出卡组" : s.projection === "editor" ? "取消铸段" : "收起方案";
-  const map: Record<Exclude<BackStep, "projection" | "projectionBusy">, string> = {
+  const map: Record<Exclude<BackStep, "projection" | "projectionBusy" | "canvas">, string> = {
     avatar: "返回",
     cardDetail: "返回",
     market: "收起市场",
@@ -765,12 +779,14 @@ export function backLabelOf(s: StudioState): string {
     spread: "收起卡组",
     home: "首页",
   };
-  return map[step as Exclude<BackStep, "projection" | "projectionBusy">] ?? "返回";
+  return map[step as Exclude<BackStep, "projection" | "projectionBusy" | "canvas">] ?? "返回";
 }
 
 export const useStudio = create<StudioState>()((set, get) => ({
   deck: [],
   spreadOpen: false,
+  canvasOpen: false,
+  setCanvasOpen: (v) => set({ canvasOpen: v }),
   deckView: false,
   orbit: null,
   spreadCenter: 0,
@@ -1345,6 +1361,17 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (!node) return false;
     const prev = idx > 0 ? chosenProposal(path[idx - 1]) : null;
     // 起拍帧沿用原来那一套的（承接上一段的真实结尾）——重推的是"走向"，不是"从哪起拍"
+    // ★★ 按发计价档（真人档）走不了推演 —— 判定在 economy.deriveIssue 一处，
+    //   flowStore.deriveProposals 与 studioStore.generateNode 早就有这道闸，**唯独这里漏了**
+    //   （2026-08-30 复核抓到）。漏的后果不是"点了没反应"：下面 spendTokens 照扣，
+    //   炼出三套真人档一张都用不上的首尾帧，还把用户亲手写的那段话换成 AI 重写的。
+    {
+      const flatIssue = deriveIssue(node.videoTier);
+      if (flatIssue) {
+        get().npcSay(`${flatIssue}。真人档直接出片，不经过方案台。`);
+        return false;
+      }
+    }
     const startFrame = prev?.lastFrame ?? null;
     const propCost = proposalsCost(!!startFrame);
     if (AI_REAL && !canAfford(propCost)) {
@@ -1477,11 +1504,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
       get().npcSay(useFlow.getState().err || "现在铺不了这一段，稍后再试。");
       return;
     }
-    // 向导第①页挂的示例视频落进节点：素材参考模式三件套（custom 开关 + 参考视频 + 中间帧）。
-    // 写路全在 flowStore（单一真相）；刚 append 的段必不 done/不在生成，三道 set 不会被拒
+    // ★★ 车道开关**无条件打**（2026-08-30 修）：`FlowNode.custom` 记的是"这一段属于自定义
+    //   车道"，与有没有挂示例视频无关。此前它被包在 `if (editor.refVideo)` 里 —— 没传示例
+    //   视频的自定义段在 store 里与「自选卡片」段一模一样，于是画布的模式页签把它显示成
+    //   自选卡片、方案台把它当成"还没推演三套"（实测：面板上给的是「生成三套方案」）。
+    useFlow.getState().setNodeCustom(newId, true);
+    // 示例视频落进节点：素材参考模式三件套（车道开关已在上面打过 + 参考视频 + 中间帧）。
+    // 写路全在 flowStore（单一真相）；刚 append 的段必不 done/不在生成，几道 set 不会被拒
     if (editor.refVideo) {
       const flow = useFlow.getState();
-      flow.setNodeCustom(newId, true);
       flow.setCustomRefVideo(newId, {
         url: editor.refVideo.url,
         publicId: editor.refVideo.publicId,
@@ -2147,6 +2178,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
         // 消费掉但不关：这一炉真烧 token，退出等于把用户丢给一个看不见进度的后台任务。
         // 与投影窗里 ✕/取消 的 disabled={editor.generating} 是同一条规则
         set({ notice: { text: "这一炉还在推演，等它出炉再退出", at: Date.now() } });
+        return true;
+      case "canvas":
+        set({ canvasOpen: false });
         return true;
       case "projection":
       case "deck":

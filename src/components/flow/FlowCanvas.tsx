@@ -409,6 +409,18 @@ export default function FlowCanvas({
           onPointerCancel={onPointerUp}
           onWheel={onWheel}
         >
+          {/* ── 底图：原创作入口「工作流模式」那张封面（2026-08-30 主人点名）──
+              ★ 合并之后创作入口不再有那张卡，图闲下来了 —— 而它画的正是"看板娘在一排
+                全息分镜面板前审片"，与这一屏是同一件事，比纯点阵背景更像"工作现场"。
+              ★ 压得很暗（opacity 0.18 + 上面一层 ink 渐变）：节点卡与连线是这一屏的主角，
+                底图一亮就开始抢读；cover + center 保证任何画幅都不留白边。
+              ★ 它**不跟着画布平移缩放**：跟着动会让人误以为图是画布内容的一部分
+                （而且大图缩放很吃 GPU）；点阵那层才是"这是可拖的平面"的线索。 */}
+          <div
+            className="absolute inset-0 bg-cover bg-center opacity-[0.18]"
+            style={{ backgroundImage: "url(/create/workflow.jpg)" }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-ink/80 via-ink/55 to-ink/85" />
           <div
             ref={gridRef}
             className="absolute inset-0 opacity-[0.14]"

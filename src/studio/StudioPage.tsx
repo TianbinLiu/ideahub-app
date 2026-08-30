@@ -17,6 +17,10 @@ import AvatarSwapButton from "./ui/AvatarSwapButton";
 import { cancelPendingStop, stopSpeakingSoon } from "./speech";
 import { useStudioBack } from "./useStudioBack";
 import { useCastReturn } from "../hooks/useCastReturn";
+import { useFlowActions } from "../hooks/useFlowActions";
+// 工作流画布现在是工坊里的一层全屏浮层（2026-08-30 合并：创作入口不再有「工作流模式」）
+import FlowCanvas from "../components/flow/FlowCanvas";
+import { castEditorState } from "../pages/FlowPage";
 import { autoQualityOnFirstVisit, QUALITY_LABELS, type Quality } from "./quality";
 import DraftTitle from "../components/DraftTitle";
 import Icon from "../components/Icon";
@@ -168,6 +172,18 @@ export default function StudioPage() {
   useAutoGuide("studio");
   // 工坊的模板段面板也能发起挂卡（returnTo:"/studio"）——回程的收口与 /flow 同一份实现
   useCastReturn();
+  /**
+   * 工作流画布开着没有（2026-08-30 主人点名「工坊与工作流为一体」）。
+   * ★ 它是**同一条流水线的另一个面**，不是另一页：所以做成浮层而不是 navigate ——
+   *   跳页会把 3D 场景整个卸载再装回来（模型重新解码、镜头归位），而用户的心智是
+   *   "把桌子换个看法"。
+   * ★ 画布自带 z-40 全屏 portal，这里只管开关与那三件页级活儿（存草稿/组稿/挂卡）。
+   */
+  // 画布开着没有：**放 store**（studioStore.canvasOpen 那段 ★★）—— 去挂卡编辑页再回来时
+  // 这一页会整个重挂，局部 state 归零，用户会从画布掉回 3D 桌面。它也因此进了返回栈。
+  const canvasOpen = useStudio((s) => s.canvasOpen);
+  const setCanvasOpen = useStudio((s) => s.setCanvasOpen);
+  const flowActions = useFlowActions({ onLeave: () => setCanvasOpen(false) });
   const initGreet = useStudio((s) => s.initGreet);
   const spreadOpen = useStudio((s) => s.spreadOpen);
   const deckLen = useStudio((s) => s.deck.length);
@@ -209,7 +225,8 @@ export default function StudioPage() {
   const goFlowAt = useStudio((s) => s.goFlowAt);
   const goFlowSeen = useRef(goFlowAt);
   useEffect(() => {
-    if (goFlowAt && goFlowAt !== goFlowSeen.current) navigate("/flow");
+    // 合并之后「去画布那一面」= 就地开浮层（此前是 navigate("/flow")）
+    if (goFlowAt && goFlowAt !== goFlowSeen.current) setCanvasOpen(true);
     goFlowSeen.current = goFlowAt;
   }, [goFlowAt, navigate]);
 
@@ -245,20 +262,21 @@ export default function StudioPage() {
         <button
           data-guide="studio-back"
           onClick={onBack}
-          className="pointer-events-auto flex h-12 items-center gap-1 rounded-full bg-panel/85 pl-2.5 pr-4 text-slate-200 backdrop-blur active:bg-panel"
+          /* ★ 只留图标（2026-08-30 主人点名"顶部文案太多"）：文字去掉，但**退到哪儿**
+             这件事仍然由 backLabel 说 —— 它进了 aria-label 与 title，读屏与长按都取得到。
+             热区仍是 48px（移动端下限 44） */
+          className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full bg-panel/85 text-slate-200 backdrop-blur active:bg-panel"
           aria-label={backLabel}
+          title={backLabel}
         >
           <Icon name="back" size={20} />
-          <span className="text-xs">{backLabel}</span>
         </button>
         <div className="pointer-events-auto flex min-w-0 items-center gap-2 pt-2">
           {/* 工程标题（与工作流画布同一枚 DraftTitle，2026-08-29）：多草稿并存后
               "现在这摊活是哪条"得有名字。摆在右组最左而不是绝对居中——这一屏是 3D
               画布，absolute 的小控件会压住法阵/卡位（量过的位置，别加新的绝对定位） */}
           {hasWork && (
-            <div className="min-w-0 max-w-[38vw] rounded-full bg-panel/85 px-3 py-1.5 backdrop-blur">
-              <DraftTitle from="studio" className="w-full" />
-            </div>
+            <DraftTitle from="studio" collapsed className="bg-panel/85 backdrop-blur" />
           )}
           {/* 「🧩 工作流」：同一条流水线换到画布那一面 —— 与画布顶栏「🎴 工坊」对称
               （2026-08-30 主人点名：此前只有画布→工坊单向有键，反向只剩法阵那条隐路）。
@@ -266,10 +284,12 @@ export default function StudioPage() {
               键就是"永远点不动的选项"的变体；0 段时铺流水线本来就是法阵的差事 */}
           {flowLen > 0 && (
             <button
-              onClick={() => navigate("/flow")}
-              className="rounded-full bg-panel/85 px-3 py-1.5 text-xs text-slate-200 backdrop-blur"
+              onClick={() => setCanvasOpen(true)}
+              title="工作流画布"
+              aria-label="工作流画布"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-base backdrop-blur"
             >
-              🧩 工作流
+              🧩
             </button>
           )}
           {/* ★ 摆在浮动顶栏右侧这一组里，而不是画面角落硬定位：这一屏是 3D 画布，
@@ -278,18 +298,20 @@ export default function StudioPage() {
           {/* 存草稿：桌面上有东西才亮。工坊侧此前完全没有落盘手段——摆了半天卡、
               推演了几炉，刷新一下全没（两个 store 都是纯内存单例） */}
           {hasWork && (
+            /* 存草稿只留图标；**四种状态仍要看得出来**（保存中/成功/失败不能只靠一个静态图标
+               ——那等于把"存住了没有"藏起来，铁律八）：图标换字符 + title 说全 */
             <button
               onClick={() => void saveNow()}
               disabled={saveState === "saving"}
-              className="rounded-full bg-panel/85 px-3 py-1.5 text-xs text-slate-200 backdrop-blur disabled:opacity-50"
+              title={
+                saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存" : saveState === "failed" ? "保存失败" : "存草稿"
+              }
+              aria-label="存草稿"
+              className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-sm backdrop-blur disabled:opacity-50 ${
+                saveState === "failed" ? "text-rose-300" : saveState === "saved" ? "text-emerald-300" : "text-slate-200"
+              }`}
             >
-              {saveState === "saving"
-                ? "保存中…"
-                : saveState === "saved"
-                  ? "已保存 ✓"
-                  : saveState === "failed"
-                    ? "保存失败"
-                    : "存草稿"}
+              {saveState === "saving" ? "…" : saveState === "saved" ? "✓" : saveState === "failed" ? "!" : "💾"}
             </button>
           )}
           {/* 只在演示模式亮牌。「● 真实 AI」是常态，天天挂在那儿只是噪音；
@@ -355,6 +377,31 @@ export default function StudioPage() {
       <AvatarPicker />
       <AvatarSwapButton />
       <StudioLoader />
+      {/* ── 工作流画布：同一条流水线的另一个面，就地铺满这一屏（2026-08-30 合并）──
+          ★ 它自带 z-40 全屏 portal，所以挂在这里不影响上面那些浮层的层级关系。
+          ★ 那三件页级活儿（存草稿 / 组稿 / 挂卡）实现只有一份：存草稿与组稿在
+            hooks/useFlowActions，挂卡入参在 FlowPage.castEditorState（回程 useCastReturn
+            两页共用）—— 画布照旧只借按钮与状态，工坊这一面不抄第二份（铁律六）。
+          ★ ✕ 与「🎴 工坊」都是关掉浮层回到桌面：合并之后它们不再是"去另一页"。 */}
+      {canvasOpen && flowLen > 0 && (
+        <FlowCanvas
+          onExit={() => setCanvasOpen(false)}
+          onLinear={() => setCanvasOpen(false)}
+          onCast={(tpl, value) => {
+            const st = castEditorState(tpl, value, "/studio");
+            if (st) navigate("/video-editor", { state: st });
+          }}
+          draft={{ state: flowActions.saveState, onSave: flowActions.saveNow }}
+          finish={{
+            allDone: flowActions.allDone,
+            finalizing: flowActions.finalizing,
+            note: flowActions.deckNote,
+            onRun: flowActions.toCut,
+            deckOn: !flowActions.deckOff,
+            onDeckToggle: flowActions.toggleDeck,
+          }}
+        />
+      )}
     </div>
   );
 }

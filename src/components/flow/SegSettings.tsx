@@ -8,15 +8,13 @@
 //   抄第二份的话，这些规则会一条一条地在另一面走样，而走样了不报错。
 // ★ 组件自己认 node.id 从 store 读（与 PlanSheet / CardPicker 同款）：宿主只给一个 id，
 //   不必把 index/nodes/mode 一路传下来，也就不会出现"传的是上一段"那类错。
-import { Link } from "react-router";
-import { tierBlockReason } from "../../data/account";
-import { clampDuration, fmtTokens, modelLabel, r2vPriceIssue, realFaceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
-import { chosenOf, nodeCost, nodeDone, tplOfNode, useFlow } from "../../studio/flowStore";
+import { clampDuration, modelLabel, r2vPriceIssue, realFaceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { chosenOf, nodeDone, tplOfNode, useFlow } from "../../studio/flowStore";
 import { DURATIONS, VIDEO_ASPECTS } from "../../types";
+import TierRow from "./TierRow";
 
 export default function SegSettings({ nodeId }: { nodeId: string }) {
   const nodes = useFlow((s) => s.nodes);
-  const mode = useFlow((s) => s.mode);
   const { updateProposal, updateNode } = useFlow();
   const index = nodes.findIndex((n) => n.id === nodeId);
   const node = index >= 0 ? nodes[index] : undefined;
@@ -26,7 +24,6 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
   const tpl = tplOfNode(node);
   /** 这一段走白模复刻（判据与报价、出片同源：模板快照带 refVideo） */
   const blockout = !!tpl?.refVideo;
-  const tierBlocks = VIDEO_TIERS.map((t) => tierBlockReason(t)).filter((r): r is string => !!r);
   /**
    * 白模节点下各档位点不动的 r2v 原因（判断在 economy.r2vPriceIssue 一处，铁律六）。
    *
@@ -143,57 +140,19 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="w-10 flex-none text-[11px] text-slate-400">画质</span>
-        {VIDEO_TIERS.map((t) => {
-          // ★ 白模节点上，不支持 r2v 的档位也要禁掉（判断在 economy.r2vPriceIssue
-          //   一处）：切过去出片必被 segmentGen 的门禁整句拒绝，让人选一个必失败的
-          //   档位不如当场说不能选。价目也不能对这些档位问 nodeCost —— 那会走进
-          //   segmentCost 的"没 r2v 价还硬报"兜底（按最贵系数 + console.error 点名），
-          //   而这里不是门禁被改坏，只是一排比价按钮
-          const r2vBlock = blockout ? r2vPriceIssue(t.id) : null;
-          const block = tierBlockReason(t) ?? r2vBlock;
-          return (
-            <button
-              key={t.id}
-              onClick={() => {
-                updateNode(node.id, { videoTier: t.id });
-                // ★ 换档同一拍把时长**吸附写回**（2026-08-24 真机抓到）：换到按发档时
-                //   durationSec 可能停在 5/8，实扣按 clampDuration 吸附后的整档算——
-                //   不写回的话段卡标签、总时长条这些读原始值的地方全在写 5、账按 6。
-                //   ark 档下 clamp 基本恒等，写回无害。
-                const snapped = clampDuration(prop.durationSec, t.id);
-                if (snapped !== prop.durationSec) updateProposal(node.id, { durationSec: snapped });
-              }}
-              disabled={!!block}
-              title={block ?? `${t.desc}（${t.model}）`}
-              className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${node.videoTier === t.id ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
-            >
-              {/* ★ 与主按钮同一把尺子（nodeCost，只是把档位换成这一档）：光报 segTokens
-                  会漏掉"这一档还得补画几张设定帧"，而简约模式正是两张都要补的那条路 ——
-                  于是抽屉里写 108k、外面按钮写 134.6k，用户在**比价**的这一步被少报 */}
-              {r2vBlock ? t.label : <>{t.label} · {fmtTokens(nodeCost(nodes, index, mode, t.id))}</>}
-            </button>
-          );
-        })}
-      </div>
+      {/* 画质那一排（含逐档报价、r2v 禁用、换档代价确认）抽在 TierRow 一处，
+          工坊节点卡角落用的是同一份 */}
+      <TierRow nodeId={node.id} />
+
       {/* ★ 点不动就必须写出为什么。只把按钮灰掉的话，用户只会觉得"这功能坏了"
           （CLAUDE.md「界面上摆一个永远点不动的选项」）。title 在手机上没有 hover，
           所以原因得**印在页面上**，不能只挂在 title 里 */}
-      {(tierBlocks.length > 0 || r2vBlocks.length > 0 || realFaceBlock) && (
+      {/* ★ 套餐门槛那一类原因（含「去升级」）现在由 TierRow 印 —— 它拥有那排按钮。
+          这里只剩**本页自己的**理由：r2v 闸没开、真人卡与本段不搭。两份都印过一阵子，
+          结果是同一句话在抽屉里出现两遍 */}
+      {(r2vBlocks.length > 0 || realFaceBlock) && (
         <p className="text-[10px] leading-4 text-amber-300/80">
-          {[...tierBlocks, ...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])].join("；")}
-          {/* 「去升级」只治得了套餐门槛那类原因；r2v 闸门没开不是充钱能解决的，
-              只有套餐原因在场时才给这个链接。间隔用全角空格字面量——JSX 会把
-              行间换行整个吃掉，靠折行留空隙是留不住的 */}
-          {tierBlocks.length > 0 && (
-            <>
-              {"　"}
-              <Link to="/me" className="underline">
-                去升级
-              </Link>
-            </>
-          )}
+          {[...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])].join("；")}
         </p>
       )}
       {/* ★ 把**真正会被调用的那个模型**写出来。「极速/标准/高清」只说了画质档次，
