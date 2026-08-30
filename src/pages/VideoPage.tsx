@@ -1,5 +1,6 @@
 // 视频详情页：播放器（多 P 可切换）+ 信息 + 分段剧情 + 评论区
 import { useEffect, useMemo, useRef, useState } from "react";
+import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import Icon from "../components/Icon";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import BranchPlayer from "../components/BranchPlayer";
@@ -471,19 +472,20 @@ export default function VideoPage() {
         {/* 话题标签。★ 是**可点的**——不可点的标签只是装饰，而作者填它的理由就是"让人搜得到"。
             点了带着词去 /discover（那一页与服务端的搜索都已经把 tags 算进去了，
             不接那一步的话点下去是"没有结果"，比没有芯片更糟）。 */}
-        {(video.tags?.length ?? 0) > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {video.tags!.map((t) => (
-              <button
-                key={t}
-                onClick={() => navigate("/discover", { state: { q: t } })}
-                className="rounded-full bg-brand/15 px-2.5 py-1 text-[12px] text-brand hover:bg-brand/25"
-              >
-                #{t}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* 「AI 生成」标识：合规要求"发布内容周边"有显著提示（见 components/AigcBadge 的 ★★）。
+            与话题标签同一排 —— 它本身也是"关于这条内容是什么"的说明。 */}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {isAigcWork(video) && <AigcBadge />}
+          {(video.tags ?? []).map((t) => (
+            <button
+              key={t}
+              onClick={() => navigate("/discover", { state: { q: t } })}
+              className="rounded-full bg-brand/15 px-2.5 py-1 text-[12px] text-brand hover:bg-brand/25"
+            >
+              #{t}
+            </button>
+          ))}
+        </div>
 
         {/* 举报这个作品。
             ★★ 为什么放在详情页而不是首页右侧那一栏：那一栏是 bottom 定位的 flex-col，

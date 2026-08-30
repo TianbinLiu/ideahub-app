@@ -33,6 +33,7 @@ import ShareSheet from "../components/ShareSheet";
 import DanmakuGlyph from "../components/DanmakuGlyph";
 import DanmakuInput from "../components/DanmakuInput";
 import DanmakuLayer from "../components/DanmakuLayer";
+import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import Icon, { type IconName } from "../components/Icon";
 import CharacterPerch, { usePerchBurst, type PerchPose } from "../components/CharacterPerch";
 import { remakeNodesOf, remakeableOf, useFlow } from "../studio/flowStore";
@@ -801,6 +802,11 @@ function FeedItem({
           </span>
         </button>
         <p className="line-clamp-2 text-xs leading-relaxed text-white/85 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
+          {/* ★ 「AI 生成」标识挂在描述**行内**，不另起一行：底缘那 100px 里的四样东西
+              （进度条 / 时长 / 右侧栏 / 底栏挂件）位置是联动算出来的，纵向多堆一行就得
+              把那几个数重算一遍（CLAUDE.md 那格坑）。行内 chip 高度变化为 0。
+              合规位置要求的是"播放画面周边的显著位置"，这里正是抖音同款的落点。 */}
+          {isAigcWork(video) && <AigcBadge tone="overlay" className="mr-1 align-[1px]" />}
           {video.description} <span className="text-white/70">#{video.category}</span>
         </p>
         {(isInteractive || canRemake) && (
