@@ -18,7 +18,6 @@ import SegmentPlayer from "../components/SegmentPlayer";
 import TagInput from "../components/TagInput";
 import { isArkAssetUrl } from "../ai/arkClient";
 import { addCards, createDeck, deckSynced } from "../data/account";
-import { MIN_PAID_PRICE, PLATFORM_CUT, fmtTokens } from "../data/economy";
 import { publishVideo } from "../data/videos";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, visibilityWire } from "../types";
@@ -32,8 +31,6 @@ export default function PublishPage() {
   const [description, setDescription] = useState(draft?.description ?? "");
   const [cover, setCover] = useState(draft?.cover ?? "");
   const [tags, setTags] = useState<string[]>([]);
-  const [paid, setPaid] = useState(false);
-  const [price, setPrice] = useState<number>(5000);
   // 可见性默认公开：发布这个动作本身的意思就是"给人看"。
   // 想先自己留着的人可以在这里改，发完在作品编辑页也随时能改回来。
   const [visibility, setVisibility] = useState<Visibility>("public");
@@ -87,12 +84,6 @@ export default function PublishPage() {
       setErr("先给视频起个标题");
       return;
     }
-    // ★★ 选了付费就必须真有价（见 economy.MIN_PAID_PRICE 的 ★★）：不拦的话
-    //   「付费解锁」亮着、pricing 却一个字没写进去，静默发成永久免费。
-    if (paid && price < MIN_PAID_PRICE) {
-      setErr(`选了「付费解锁」就得填个价：最低 ${fmtTokens(MIN_PAID_PRICE)}。发布后改不了定价，所以这里不能留空。`);
-      return;
-    }
     // 本片卡组定名（合成时聚合了素材/派生卡，名字要等最终标题定下来）
     const deck = draft.deck?.cards.length
       ? { name: `《${title.trim()}》卡组`, cards: draft.deck.cards }
@@ -109,8 +100,6 @@ export default function PublishPage() {
       merged: draft.merged,
       // 三档 → 两个字段，映射只有 types.visibilityWire 一处
       ...visibilityWire(over?.visibility ?? visibility),
-      // 上面已经拦掉了 paid 而价不足的情况，这里的条件与那道闸是同一把尺
-      ...(paid && price >= MIN_PAID_PRICE ? { pricing: { mode: "paid" as const, partPrices: [price] } } : {}),
     });
     // ★ 作品已经落库了，从这一刻起不许再发第二条（下面要 await，窗口比原来长）
     publishedRef.current = true;
@@ -270,52 +259,26 @@ export default function PublishPage() {
 
           <VisibilityPicker value={visibility} onChange={setVisibility} />
 
-          {/* 付费设置：免费 / 付费（本 P 的解锁价，观众用 token 解锁，平台抽成后进你的 add-on） */}
+          {/* ★★ 「付费解锁」这一档 2026-08-31 **下架**（主人拍板），别顺手加回来 ——
+              先把结算做出来，再放开关。当时的事实（逐处核过）：
+              ① `toVideoItem` 根本不映射 pricing（`ApiVideo` 里连这个键都没有，所以 TS
+                 连"你忘了传"都提示不了）⇒ 发布之后**任何一次从服务端读回**这条作品都没有
+                 定价 ⇒ `partPrice = 0`、`locked = false`，那把锁一次都不会出现；
+              ② 就算把映射补上也只是一把**假锁**：远端模式 `spendTokens` 直接返回、一分不扣，
+                 `creditAuthorAddon` 按显示名在本机 db 里找作者、必然找不到，`persist()`
+                 是 no-op、purchases 从不上行，服务端**没有任何解锁/分账端点**，
+                 `segments[].videoUrl` 对所有读得到这条作品的人原样返回；
+              ③ 于是这颗开关的真实含义是"作者以为自己在收钱，实际一分没有，也没人被拦"。
+                 生产库当时 7 条作品、标了付费的 0 条 —— 趁没人踩上去先收起来。
+              ⇒ 要恢复它，先做服务端那一侧：解锁端点（扣费 + 落购买记录 + 给作者入账）、
+                按购买态决定发不发 `segments[].videoUrl`、客户端购买态从服务端读。
+              ★ 这个 `data-guide` 锚点留着：引导里那一步（tours 的「谁能看」）指着它。 */}
           <div data-guide="publish-pricing">
             <div className="mb-1.5 text-sm font-semibold text-slate-300">收费方式</div>
-            <div className="flex gap-2">
-              {(["free", "paid"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setPaid(m === "paid")}
-                  className={`rounded-full px-3.5 py-1.5 text-sm ${
-                    (m === "paid") === paid ? "bg-gold font-semibold text-ink" : "bg-panel text-slate-300 hover:bg-slate-700"
-                  }`}
-                >
-                  {m === "free" ? "免费观看" : "付费解锁"}
-                </button>
-              ))}
+            <div className="rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-xs leading-relaxed text-slate-400">
+              目前所有作品都是<b className="font-semibold text-slate-200">免费观看</b>。付费解锁还没开放——
+              等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。
             </div>
-            {paid && (
-              <div className="mt-2.5 flex items-center gap-2.5 rounded-xl border border-gold/30 bg-gold/5 px-3.5 py-2.5">
-                <span className="flex-none text-xs text-slate-300">
-                  本片解锁价
-                </span>
-                <input
-                  type="number"
-                  min={MIN_PAID_PRICE}
-                  step={100}
-                  value={price}
-                  onChange={(e) => {
-                    setPrice(Math.max(0, Number(e.target.value) || 0));
-                    setErr("");
-                  }}
-                  className={`w-28 rounded-lg border bg-panel px-2.5 py-1.5 text-sm tabular-nums outline-none ${
-                    price < MIN_PAID_PRICE
-                      ? "border-rose-500/60 text-rose-200 focus:border-rose-400"
-                      : "border-slate-700 text-gold focus:border-gold"
-                  }`}
-                />
-                <span className="flex-none text-xs text-slate-400">token</span>
-                <span className="ml-auto flex-none text-[11px] text-slate-500">
-                  {/* ★ 价不够时这里说的是"为什么发不出去"，而不是一个算给 0 的到手价 */}
-                  {price < MIN_PAID_PRICE
-                    ? `最低 ${fmtTokens(MIN_PAID_PRICE)}，不然发不出去`
-                    : `你到手 ${fmtTokens(Math.floor(price * (1 - PLATFORM_CUT)))}（平台抽 ${Math.round(PLATFORM_CUT * 100)}%）`}
-                </span>
-              </div>
-            )}
-            {/* 「收益进 add-on、可直接用于生成」那句常驻说明搬进了引导（tours 的 publish） */}
           </div>
 
           {/* ★ 错误行挂在**发布键这一侧**（2026-08-30 移）：用户按的是这颗键，而原来它

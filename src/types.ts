@@ -640,7 +640,18 @@ export interface VideoDeck {
   cards: Card[];
 }
 
-/** 作品付费设置 */
+/**
+ * 作品付费设置。
+ *
+ * ★★ **这一档 2026-08-31 起没有入口**（发布页那颗「付费解锁」已下架，理由写在
+ *   PublishPage 那段 ★★）。类型与 `VideoPage` / `FeedPage` 里那把锁的渲染都留着，
+ *   但**现在没有任何地方会造出 `mode:"paid"`**，所以别照着这些代码得出"付费功能能用"
+ *   的结论 —— 那正是这次要防的误会：
+ *   服务端存得下也回得来，可客户端 `toVideoItem` 从来不映射它；就算补上映射，
+ *   远端模式 `spendTokens` 一分不扣、`creditAuthorAddon` 找不到作者、`persist()` 是
+ *   no-op、服务端也**没有解锁/分账端点**，`segments[].videoUrl` 照发给所有人。
+ *   ⇒ 要重新开放，先做服务端那一侧，再放开关。
+ */
 export interface VideoPricing {
   mode: "free" | "paid";
   /** 每个 P 的解锁价（token），与 parts 对齐；单 P 作品长度为 1 */
