@@ -42,6 +42,7 @@ import {
   authorIdOfName,
   dropPendingPublish,
   fetchAuthorWorks,
+  fetchVideoById,
   isMyAuthor,
   listVideos,
   pendingPublishes,
@@ -295,10 +296,47 @@ export default function ProfilePage() {
   );
   // accV 是必需的依赖，不是保险：collects 是原地 push/splice 的同一个数组，
   // 只写 user?.collects 的话取消收藏后这份 memo 永远不会重算
-  const collects = useMemo(() => {
-    const ids = new Set(user?.collects ?? []);
-    return ids.size ? videos.filter((v) => ids.has(v.id)) : [];
-  }, [videos, user, accV]);
+  const collectIds = useMemo(() => user?.collects ?? [], [user, accV]);
+  /**
+   * 收藏页：**按 id 逐条取回来**，不是在本机缓存里筛（2026-08-31 修）。
+   *
+   * ★★ 原来是 `videos.filter(...)`，而远端模式下 `videos` 只有推荐流前 30 条 ——
+   *   于是收藏页显示的其实是「收藏 ∩ 首屏 30 条」，而页签上那个数用的是**同一个数组**，
+   *   所以格子和数字**一致地缩水**：用户读到的不是"坏了"，是"我大概没收藏过那么多"，
+   *   于是他不再把收藏当仓库用（这是作品墙那条坑的同族，同一天修）。
+   * ★ 为什么按 id 而不是给服务端加一个 `feed=collected`：列表口径是
+   *   `{visibility: {$ne:"private"}}`，**不认「凭链接可见」**；而按 id 那把尺认。
+   *   走列表会让"别人发链接给我、我收藏了"的那些在收藏页永远看不到，且零报错。
+   *   （服务端两把尺故意不一致，见 readableFilter 的 ★★。）
+   */
+  const [collectMap, setCollectMap] = useState<Record<string, VideoItem | null>>({});
+  useEffect(() => {
+    // ★ 用 `tab` 不是 `activeTab`：后者要到下面几百行才声明（TDZ）。
+    //   两者只在 tab 是非法值时不同，那时也不会等于 "collects"。
+    if (!self || tab !== "collects" || collectIds.length === 0) return;
+    let alive = true;
+    void Promise.all(
+      collectIds.map(async (id) => {
+        const r = await fetchVideoById(id);
+        return [id, r.status === "ok" ? r.video : null] as const;
+      }),
+    ).then((pairs) => {
+      if (alive) setCollectMap(Object.fromEntries(pairs));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [self, tab, collectIds]);
+  const collects = useMemo(
+    // 顺序跟着 collects 数组走（服务端给的是收藏时间倒序）；还没取到的先不画
+    () => collectIds.map((id) => collectMap[id]).filter((v): v is VideoItem => !!v),
+    [collectIds, collectMap],
+  );
+  /** 取过一轮之后确实取不回来的那几条（作者删了 / 设成私密了）—— 要说出来，别静默消失 */
+  const collectGone = useMemo(
+    () => collectIds.filter((id) => id in collectMap && collectMap[id] === null).length,
+    [collectIds, collectMap],
+  );
   // 别人的「卡组」页签：他发布的作品里随片带的素材卡组（VideoDeck 挂在作品上，
   // 不在账号库里，所以点开去的是那支作品——收卡的按钮在详情页）
   const workDecks = useMemo(
@@ -941,6 +979,11 @@ export default function ProfilePage() {
             </div>
           ))}
 
+        {activeTab === "collects" && collectGone > 0 && (
+          <p className="mb-2 rounded-xl border border-slate-700 bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
+            有 {collectGone} 条收藏打不开了：作者可能把它删了，或者改成了仅自己可见。
+          </p>
+        )}
         {activeTab === "collects" &&
           (collects.length ? (
             <WorkGrid items={collects} />

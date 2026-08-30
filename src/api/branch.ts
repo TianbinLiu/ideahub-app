@@ -551,6 +551,23 @@ export async function listCards(): Promise<ApiCard[]> {
 }
 
 /** POST /api/branch/cards（requireAuth，按 cardId 幂等）。卡面是 dataURL，超时放宽 */
+/** 收藏 / 取消收藏一条作品。★ 服务端幂等（唯一索引 upsert），重复点不会出错 */
+export async function setCollected(videoId: string, on: boolean): Promise<void> {
+  const path = `/api/branch/videos/${encodeURIComponent(videoId)}/collect`;
+  if (on) await apiPost(path, {});
+  else await apiDelete(path);
+}
+
+/**
+ * 我收藏了哪些作品的 **id**（按收藏时间倒序）。
+ * ★ 只回 id 是有意的：收藏页拿 id 逐条走**按 id** 那把可见性尺（`fetchVideoById`），
+ *   这样「凭链接可见」的作品才回得来 —— 列表那把尺不认它（见服务端 listMyCollects 的 ★★）。
+ */
+export async function listMyCollects(): Promise<{ ids: string[]; truncated?: boolean }> {
+  const res = await apiGet<{ ids?: string[]; truncated?: boolean }>("/api/branch/me/collects");
+  return { ids: Array.isArray(res?.ids) ? res.ids : [], ...(res?.truncated ? { truncated: true } : {}) };
+}
+
 export async function addCards(cards: Card[]): Promise<ApiCard[]> {
   const payload: ApiCard[] = cards.map((c) => ({
     cardId: c.id,

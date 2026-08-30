@@ -483,7 +483,7 @@ export function isFollowing(author: string): boolean {
 // 此前首页的"收藏"是组件本地 useState——点亮之后划走再回来就灭了，
 // 也谈不上"取消收藏"。收藏是账号资产，落账号库并广播。
 /**
- * 收藏态的本机盘。**远端模式下这是唯一的真相** —— 与点赞（videos.LIKED_KEY）反过来。
+ * 收藏态的本机盘 —— **离线兜底与冷启动首帧**，权威在服务端（2026-08-31 起）。
  *
  * ★★ 2026-08-31 补。在这之前收藏在**正式包里根本存不住**：`toggleCollect` 只改内存
  *   `u.collects` 然后 `persist()`，而 `persist()` 在 `remoteOn()` 时一个字节都不写盘
@@ -495,9 +495,11 @@ export function isFollowing(author: string): boolean {
  * ★ 为什么**不是**放开 `persist()` 的 remote 闸：那会把整个账号库写进本地，
  *   下次离线启动读到一份幽灵账号（那条闸存在的全部理由）。只把收藏这一项单独存。
  * ★ 连 owner 一起存（照 videos.LikedStore）：换账号后这份不该被算到新账号头上。
- * ⚠ 这只是"存住"，**不是"跨设备"** —— 换台设备就没有。要跨设备得服务端补
- *   `POST/DELETE /api/branch/videos/:id/collect` 与 `/api/me/collects`，
- *   那是另一件事；在补上之前，界面不许暗示收藏是账号资产。
+ * ★ 2026-08-31 服务端补上了 `POST/DELETE /branch/videos/:id/collect` 与
+ *   `GET /branch/me/collects`，收藏从此**跟着账号走**。本机这一份留着不删，它管两件事：
+ *   ① 离线模式下的唯一存放地；② 远端模式冷启动时先画出来，别让书签闪一下空心。
+ * ⚠ 上面那段事故记录**别删**：它是"远端模式下往 persist() 里存东西 = 什么都没存"
+ *   这条坑的现场，而那条坑对别的字段仍然成立。
  */
 const COLLECTS_KEY = "ideahub-app.collects.v1";
 interface CollectsStore {
@@ -521,6 +523,36 @@ function saveCollects(): void {
   void idbSet(COLLECTS_KEY, { owner: u.id, ids: [...(u.collects ?? [])] });
 }
 
+/**
+ * 与服务端对一次收藏：本机那份并上去，再以服务端为准。**只在冷启动那一跳调**。
+ *
+ * ★ 失败不抛、不清空：收藏是轻量数据，取不到时留着本机那份比清空强得多
+ *   （清空的表现正是这次要修的"收藏全没了"）。
+ */
+async function syncCollects(u: User): Promise<void> {
+  if (!remoteOn()) return;
+  let remoteIds: string[];
+  try {
+    remoteIds = (await branch.listMyCollects()).ids;
+  } catch (e) {
+    emitApiError("listMyCollects", e);
+    return; // 拿不到就保持本机那份（宁可多显示，不可少显示）
+  }
+  const localOnly = (u.collects ?? []).filter((id) => !remoteIds.includes(id) && !id.startsWith("v_"));
+  // 本机独有的那几条上行（v_* 是本地临时 id，服务端不认识，跳过）
+  for (const id of localOnly) {
+    try {
+      await branch.setCollected(id, true);
+      remoteIds.unshift(id);
+    } catch {
+      // 单条失败不影响其它条：这条留在本机那份里，下次冷启动再试
+    }
+  }
+  u.collects = remoteIds;
+  persist();
+  saveCollects();
+}
+
 export function toggleCollect(videoId: string): boolean {
   const u = currentUser();
   if (!u || !db) return false;
@@ -529,8 +561,25 @@ export function toggleCollect(videoId: string): boolean {
   if (i >= 0) u.collects.splice(i, 1);
   else u.collects.push(videoId);
   persist();
-  saveCollects(); // 远端模式下 persist() 是空转，收藏得自己落一份（见 COLLECTS_KEY 的 ★★）
-  return u.collects.includes(videoId);
+  saveCollects(); // 本机那一份仍然写：离线兜底 + 远端失败时界面已经翻过来的那一拍
+  const on = u.collects.includes(videoId);
+  if (remoteOn()) {
+    // ★ 乐观 + 失败回滚，照 toggleFollow 那套（同一形状，别另写一份）。
+    //   ⚠ 收藏是**显式的两个方向**（POST/DELETE），不是服务端 toggle —— 服务端
+    //   toggle 在弱网重发时会把状态翻回去，而这里的重发是幂等的。
+    void branch
+      .setCollected(videoId, on)
+      .then(() => saveCollects())
+      .catch((e) => {
+        const j = u.collects?.indexOf(videoId) ?? -1;
+        if (on && j >= 0) u.collects!.splice(j, 1);
+        else if (!on) u.collects!.push(videoId);
+        persist();
+        saveCollects();
+        emitApiError("toggleCollect", e);
+      });
+  }
+  return on;
 }
 
 export function isCollected(videoId: string): boolean {
@@ -1982,9 +2031,15 @@ async function loadRemoteAssets(): Promise<void> {
   }));
   // 本地按作者名关注，顺手把 名字→userId 登记进 api/branch，让 toggleFollow 能反查
   u.following = following.map((f) => branch.authorName(f));
-  // ★ 收藏在服务端没有对应端点，本机那一份就是全部真相 —— 在这儿装回来
-  //   （放在 db 重建之后：上面几行刚把 db.cards/decks 整表换过）。见 COLLECTS_KEY 的 ★★
+  // ★★ 收藏：**服务端那份是权威**（2026-08-31 起有端点了）。顺序有讲究 ——
+  //   先把本机那份装进来（它可能有这台设备上离线/旧版本攒下的），再与服务端**并集**上行，
+  //   最后以服务端回来的那份为准。
+  //   ⚠ 迁移是**只增不删**的一次性并集：这里分不清"服务端没有 = 我在别的设备取消了"
+  //   还是"服务端没有 = 还没上行过"，而两者的失败方向天差地别（前者把取消撤销回来，
+  //   后者把收藏丢掉）。只增不删在两种情形下都只会多留一条，不会弄丢任何东西。
+  //   日常的 toggle 走的是显式 POST/DELETE，不受这条影响。
   await loadCollects();
+  await syncCollects(u);
   // ★ 到这儿就算"问过服务端了"（哪怕某一块拉挂了 —— 那是"问过没问到"，不是"还在问"）。
   //   卡片详情页靠它区分"你没有这张卡"与"还没装载完"（见 cardsReady 的 ★★）。
   assetsHydrated = true;
