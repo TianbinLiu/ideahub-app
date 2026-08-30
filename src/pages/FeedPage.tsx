@@ -174,9 +174,11 @@ function FeedItem({
   // 初值从库里取：划走再划回来时点赞态不该丢（isLiked 之前一直没人调用）
   const [liked, setLiked] = useState(() => isLiked(video.id));
   const [likes, setLikes] = useState(video.likes);
-  // 收藏态取自账号库（划走再划回来、乃至刷新后都还在），计数取自作品自身
+  // 收藏态取自账号库（划走再划回来、乃至刷新后都还在）。
+  // ★ 计数那一半 2026-08-30 撤了（见下面 RailBtn 的 ★★）：服务端没有收藏端点，
+  //   本地自增出来的数不是"多少人收藏了"。`setSave` 仍然照调 —— 它维护的是本机库里
+  //   那个字段，个人页的「收藏」页签还靠账号库的 collects 列人。
   const [saved, setSaved] = useState(() => isCollected(video.id));
-  const [saves, setSaves] = useState(video.saves ?? 0);
   const [cmtOpen, setCmtOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [dmOpen, setDmOpen] = useState(false);
@@ -714,11 +716,17 @@ function FeedItem({
           {/* ★ 走 commentCountOf，不读 comments.length：列表接口不返回 comments，
               直接读长度的话，没点进去过的作品评论数永远是 0（真机上抓到的） */}
           <RailBtn icon="comment" label={String(commentCountOf(video))} onClick={() => setCmtOpen(true)} />
+          {/* ★★ 收藏**不显示数字**（2026-08-30）：服务端根本没有收藏端点，`setSave` 只在
+              这台设备的本地库里自增 —— 那个数既不是"多少人收藏了"，也不会跟着账号走
+              （种子作品上更是 mock 里手打的 786/604/341）。**显示一个骗人的数比不显示更糟**：
+              作者会拿它判断作品受不受欢迎，而它只反映他自己点了几下。
+              图标本身仍然照常填充/取消 —— "我收没收藏"是本机真相，那一半是真的。
+              ⇒ 等服务端补了 /saves 再把数字接回来（接法照 setLike 的 remoteOn() 分支）。 */}
           <RailBtn
             icon="bookmark"
             filled={saved}
             tint="text-gold"
-            label={String(saves)}
+            label="收藏"
             perch="save"
             onClick={() => {
               // 收藏要认人：未登录先去登录，否则"收藏了"只是一个划走就没的错觉。
@@ -730,11 +738,14 @@ function FeedItem({
               }
               const on = toggleCollect(video.id); // 账号库为准
               setSaved(on);
-              setSaves(setSave(video.id, on)); // 只借它维护计数
+              setSave(video.id, on); // 维护本机库那个字段（界面上不再拿它当计数显示）
               navigator.vibrate?.(10);
             }}
           />
-          <RailBtn icon="share" label={String(video.shares ?? 0)} onClick={share} />
+          {/* ★★ 分享数同理，而且更彻底：`VideoItem.shares` **全仓没有任何地方写过它**
+              （`rg "\.shares"` 只命中 mock 种子与这一行）—— 也就是说真实作品上它恒为 0，
+              而种子作品上是手打的假数。摆一个恒 0 的计数只会让作者以为"没人分享过"。 */}
+          <RailBtn icon="share" label="分享" onClick={share} />
         </div>
 
         {/* 全屏键挂在整栏最下面：它不属于"对这条作品做点什么"那一组，
