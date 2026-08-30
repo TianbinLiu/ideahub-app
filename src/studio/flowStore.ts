@@ -2236,8 +2236,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
           error: "没接到出片结果，任务可能还在方舟那边跑——用下面的「取回」领回来，别重新生成",
         });
         // ★ 可行动的那半句在**这里**接上，不在 arkClient 里：那一层不知道调用它的路上
-        //   有没有取回入口（工作流有，工坊没有）。而走到这一支就一定落过凭据 ——
-        //   ArkTaskUnknown 只在任务被受理之后才抛，受理那一刻 onTask 已经写过盘了。
+        //   有没有取回入口。而走到这一支就一定落过凭据 —— ArkTaskUnknown 只在任务被
+        //   受理之后才抛，受理那一刻 onTask 已经写过盘了。
+        // ⚠ 这句话说的「下面那颗取回」**必须真的在**：2026-08-31 之前它只长在
+        //   FlowPage 的 simple 闸里，画布与工坊两面一个像素都看不到，于是这句提示
+        //   指向一个不存在的出口。现在三个宿主共用 components/flow/SegmentRecoverCards。
+        //   以后再加新的出片宿主，先把那个组件挂上再说这句话。
         set({
           busy: false,
           err:

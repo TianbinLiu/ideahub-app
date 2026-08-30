@@ -1573,7 +1573,9 @@ async function queuePending(draft: DraftVideo, error: unknown, opts?: { insuranc
   // 同一条（clientId 幂等键）只留一份，反复重试不会堆成一摞
   const rest = list.filter((p) => p.draft.clientId !== draft.clientId);
   if (opts?.insurance && rest.length >= 5) return; // 见上面的 ★★：满了就不上保险，别顶掉真失败的
-  await writePending([...rest, { draft, error: errText(error), at: Date.now() }].slice(-5)); // 只留最近 5 条，别把配额吃光
+  // ★ owner 必须在**入队**这一刻写死（见 PendingPublish.owner 的 ★★）：flush 那会儿
+  //   登录的可能已经是另一个人了，那时候再问 currentUser() 正好问到错的那个。
+  await writePending([...rest, { draft, error: errText(error), at: Date.now(), owner: ownerKey() }].slice(-5)); // 只留最近 5 条，别把配额吃光
 }
 
 /**
@@ -1592,6 +1594,23 @@ export interface PendingPublish {
   /** 上一次失败的原因，直接给用户看 */
   error: string;
   at: number;
+  /**
+   * 这条是**谁的**（`ownerKey()`，即 user.id）。
+   *
+   * ★★ 2026-08-31 补。没有这一位的后果不是"少显示一个字段"，而是**换账号后 A 的
+   *   付费成片被自动发布成 B 的作品**：队列存在设备级单键（PENDING_KEY）里，
+   *   `subscribeAccount` 判出换人 → `readyVideos()` → `readyRemote()` → `flushPending()`
+   *   → `branch.createVideo()` 带的是 **B 的 Authorization**，而服务端一行
+   *   `author: req.user._id` 只认 token。成功之后 `writePending(left)` 把条目删掉，
+   *   A 重新登录时队列已空。两个人屏幕上都是「正常」，全程 200、零报错。
+   *   在自动 flush 抢先之前，个人页那条横幅还会把 A 的作品标题、失败原因**显示给 B**，
+   *   并给一颗「立即重试」。
+   * ★ 同文件的 `LikedStore` 早就是这条规则的正确实现（连 owner 一起存，对不上就当没有）
+   *   —— 那只是个点赞态，而这里是会真发到广场上的付费成片。
+   * ★ 缺省（老队列里的存量）**当成"当前这个人的"**：那些是升级前留下的，
+   *   绝大多数就是本人的；判成"别人的"会让它们永远发不出去也删不掉。
+   */
+  owner?: string;
 }
 
 let pendingMirror: PendingPublish[] = [];
@@ -1603,6 +1622,14 @@ let uploadStatus: { title: string; done: number; total: number; label: string } 
 /** 页面同步读：现在正在传什么 */
 export function publishUploadStatus(): typeof uploadStatus {
   return uploadStatus;
+}
+
+/**
+ * 这条待发记录是不是**当前这个人**的 —— 唯一实现（flush 与横幅共用，铁律六）。
+ * ★ 缺省判成"是"：老队列里的存量没有这一位（见 PendingPublish.owner 的 ★）。
+ */
+function pendingMine(p: PendingPublish): boolean {
+  return !p.owner || p.owner === ownerKey();
 }
 
 /** 老版本存的是裸 DraftVideo[]，读的时候归一 */
@@ -1632,7 +1659,11 @@ const inflightPublish = new Set<string>();
 
 /** 页面同步读：还有几条没传上去（在传的那几条不算，见 inflightPublish 的 ★） */
 export function pendingPublishes(): PendingPublish[] {
-  return pendingMirror.filter((p) => !p.draft.clientId || !inflightPublish.has(p.draft.clientId));
+  // ★ 同样按 owner 过滤：不过滤的话，个人页横幅会把**上一个登录者**没传上去的作品
+  //   标题与失败原因显示给现在这个人，旁边还有一颗「立即重试」（= 发成自己的）。
+  return pendingMirror.filter(
+    (p) => pendingMine(p) && (!p.draft.clientId || !inflightPublish.has(p.draft.clientId)),
+  );
 }
 
 function errText(e: unknown): string {
@@ -1646,12 +1677,18 @@ function errText(e: unknown): string {
 
 /** 启动时重试待发队列（成功的移出队列，失败的留着并记下原因） */
 async function flushPending(): Promise<void> {
-  const list = await readPending();
+  const all = await readPending();
   // ★ 先把镜像填上再开始传：镜像原来只在 writePending 时才写，于是从启动到第一个
   //   上传结束之间（成片就要十几秒）个人页什么都不显示——用户眼里又是"作品没了"。
   //   真机实测踩到过：队列里明明有 1 条，横幅却是空的。
-  pendingMirror = list;
+  pendingMirror = all;
   emitVideos();
+  if (all.length === 0) return;
+  // ★★ **只发自己的那几条**（见 PendingPublish.owner 的 ★★）：别人的原样留着 ——
+  //   `others` 从头到尾不参与这一轮，最后与 `left` 一起写回去。
+  //   ⚠ 绝不能因为"不是我的"就删掉：那等于替上一个人把他花钱炼的片子丢了。
+  const list = all.filter(pendingMine);
+  const others = all.filter((p) => !pendingMine(p));
   if (list.length === 0) return;
   const left: PendingPublish[] = [];
   for (const p of list) {
@@ -1684,16 +1721,21 @@ async function flushPending(): Promise<void> {
       uploadStatus = null;
       // ★ 不再是空 catch：原因要留住，用户和排查的人都靠它
       console.warn("[videos] 待发作品重试失败:", errText(e));
-      left.push({ draft: (e as MaterializeError).partial ?? sending, error: errText(e), at: Date.now() });
+      // ★ owner 原样带回去：重写队列时丢掉这一位，下一轮就又变成"谁登录发给谁"
+      left.push({ draft: (e as MaterializeError).partial ?? sending, error: errText(e), at: Date.now(), owner: p.owner });
     }
   }
-  await writePending(left);
+  // ★★ 把**别人那几条原样并回去**：它们这一轮压根没参与，但 writePending 是整表覆盖，
+  //   不并回去就等于替上一个登录者把他花钱炼的片子删了（见 PendingPublish.owner 的 ★★）。
+  await writePending([...others, ...left]);
 }
 
 /** 手动重试（个人页那条横幅上的按钮）。返回还剩几条没传上去 */
 export async function retryPendingPublishes(): Promise<number> {
   await flushPending();
-  return pendingMirror.length;
+  // ★ 数**自己**那几条：pendingMirror 是整张表（可能还留着上一个登录者的），
+  //   直接数它会告诉用户"还剩 1 条没传上去"而横幅上一条都不显示（见 pendingPublishes）
+  return pendingPublishes().length;
 }
 
 /** 放弃某一条（用户自己决定不要了）。★ 必须给这条出路：

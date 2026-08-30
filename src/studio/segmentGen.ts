@@ -292,6 +292,26 @@ export function customRefPrompt(o: { hasFirst: boolean; midCount: number; hasLas
  */
 export type SegmentTaskAccepted = (taskId: string) => void;
 
+/**
+ * 一发出片回来之后**怎么把结局交上去** —— 三条出片支路共用的**唯一实现**（铁律六）。
+ *
+ * ★★ 为什么非抽不可（2026-08-31 复核抓到）：主路径一直是对的，而 materialRef
+ *   （自定义参考视频，按"输入秒+输出秒"计价、最贵的一档）那条抄漏了这两行 ——
+ *   `composeSegments` 少传受理回调 ⇒ `onTask` 从没被调用 ⇒ `rememberVideoJob`
+ *   一次都没执行、**凭据压根不存在**；再加上直接 `throw new Error(res.error)`
+ *   把 `ArkTaskUnknown` 这个类型判据**抹平成一个字符串** ⇒ 上层判不出"没接到"，
+ *   节点被打成 failed，用户唯一能点的是全价的「♻ 重新生成」= 第二次付费，
+ *   而成片正在方舟那边好好地存着、24 小时后随凭据一起作废。
+ *   零报错、零症状，只有多花的那一次钱。
+ * ★ 抽成函数是为了"下次再加一条支路也漏不掉"：新支路只要调它，两件事一起有。
+ */
+function settleSegment(res: { error?: string; pendingTaskId?: string } | undefined): void {
+  // 「没接到结果」要**原样保持它的类型**往上抛：调用方据此决定凭据留不留
+  // （留 = 亮取回入口，销毁 = 只剩「重新生成」= 再花一次钱）。
+  if (res?.pendingTaskId) throw new ArkTaskUnknown(res.error ?? "没接到这一段的出片结果", res.pendingTaskId);
+  if (res?.error) throw new Error(res.error);
+}
+
 export async function generateSegment(
   input: SegmentGenInput,
   onProgress?: SegmentProgress,
@@ -365,8 +385,10 @@ export async function generateSegment(
         },
       ],
       (_d, _t, status) => prog(status),
+      // ★ 受理回调**必须给**：不给就没有凭据，"没接到结果"这一支等于不存在
+      (taskId) => onTask?.(taskId),
     );
-    if (res?.error) throw new Error(res.error);
+    settleSegment(res);
     return {
       url: res?.url,
       firstFrame: res?.firstFrame || firstRef || input.firstFrame,
@@ -408,6 +430,12 @@ export async function generateSegment(
       ],
       (_d, _t, status) => prog(status),
     );
+    // ★★ 这一档**故意不走 settleSegment**：`pendingTaskId` 那条路通向「取回」，而
+    //   `takeVideoTask` 只认方舟任务号（data/videoJobs 的凭据里没有 provider 这一位）。
+    //   在这里抛 ArkTaskUnknown 只会摆出一颗按下去必然告诉用户"钱没了"的按钮 ——
+    //   比现在更坏。要给真人档也做取回，是三件连动的事：minimaxVideo 补 onTask、
+    //   VideoJob 记 provider、takeVideoTask 按 provider 分流。⚠ 别只做一半。
+    //   在那之前，这一档"没接到结果"只能如实说清楚（见 minimaxVideo 的死线文案）。
     if (res?.error) throw new Error(res.error);
     return { url: res?.url, firstFrame: firstSrc, lastFrame: res?.lastFrame || firstSrc };
   }
@@ -717,12 +745,7 @@ export async function generateSegment(
     (_d, _t, status) => prog(status),
     (taskId) => onTask?.(taskId),
   );
-  // ★ 「没接到结果」要**原样保持它的类型**往上抛：调用方据此决定凭据留不留
-  //   （留 = 亮取回入口，销毁 = 只剩「重新生成」= 再花一次钱）。这里图省事统一
-  //   `new Error(res.error)` 的话，那个判据在本行就被抹平成一个字符串了 ——
-  //   而抹平之后没有任何编译期或运行期症状，只有用户多付一次钱。
-  if (res?.pendingTaskId) throw new ArkTaskUnknown(res.error ?? "没接到这一段的出片结果", res.pendingTaskId);
-  if (res?.error) throw new Error(res.error);
+  settleSegment(res); // 与另外两条支路同一处实现（见 settleSegment 的 ★★）
   return {
     url: res?.url,
     firstFrame: res?.firstFrame || first,
