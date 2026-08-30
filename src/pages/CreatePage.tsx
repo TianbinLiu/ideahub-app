@@ -6,7 +6,7 @@
 // 三条路是同一条流水线的不同入口，而不是三套并行实现：
 //   工坊模式  —— 3D 铸卡桌面推演三套方案、挑一套炼一段，逐段落地 → 剪辑 → 发布
 //   简约模式  —— 单节点，一句话出一条几秒短片 → 剪辑 → 发布（**不进草稿库**，见下）
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
@@ -73,8 +73,8 @@ export default function CreatePage() {
   const navigate = useNavigate();
   // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；那颗 ? 随时能重看）
   useAutoGuide("create");
-  const railRef = useRef<HTMLDivElement>(null);
-  const [at, setAt] = useState(0);
+  /** 正面 = 工坊，背面 = 简约（一张卡的两面，2026-08-30 主人点名） */
+  const [flipped, setFlipped] = useState(false);
   // 在途工作流保护：seedSolo 是整表覆盖，直接进会静默抹掉已出片的段（每段真金白银 +
   // 几分钟）与手敲的剧情，而且 origin 会从 "studio" 翻成 "solo"——工作流页的返回键
   // 从此回 /create 而不是工坊，那棵节点树就再也走不回去了。
@@ -82,12 +82,6 @@ export default function CreatePage() {
   const flowNodes = useFlow((s) => s.nodes);
   // 主 CTA 被整句拒时的原因（这一页此前不读它，见下面渲染处的 ★★）
   const flowErr = useFlow((s) => s.err);
-
-  function scrollTo(i: number) {
-    const rail = railRef.current;
-    if (!rail) return;
-    rail.scrollTo({ left: i * rail.clientWidth, behavior: "smooth" });
-  }
 
   return (
     <div className="fixed inset-0 flex flex-col bg-ink">
@@ -98,23 +92,30 @@ export default function CreatePage() {
           <Icon name="back" size={20} />
         </button>
         <span className="font-bold text-slate-100">开始创作</span>
-        <span className="flex-1 text-right text-xs text-slate-500">左右滑动挑一种</span>
+        <span className="flex-1" />
         <HelpButton tour="create" />
       </header>
 
-      {/* 卡片轨 + 贴左右边缘垂直居中的翻页箭头 */}
-      <div className="relative min-h-0 flex-1">
-        <div
-          ref={railRef}
-          onScroll={(e) => {
-            const el = e.currentTarget;
-            setAt(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)));
-          }}
-          className="no-scrollbar flex h-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden"
-        >
-          {MODES.map((m, i) => (
-            <div key={m.key} className="flex h-full w-full flex-none snap-center items-stretch px-4 pb-3">
-              <div className={`relative w-full overflow-hidden rounded-3xl border ${m.skin}`}>
+      {/* ══ 一张卡的正反面（2026-08-30 主人点名：不再是并排两张 + 左右箭头）══
+          ★ 为什么是"翻面"而不是"换一张"：工坊与简约是同一件事的两种做法（同一条流水线的
+            两个入口），正反面把这层关系画出来了；两张并排读起来像两条不同的产品线。
+          ★ 翻面钮贴在卡片右上角外侧：卡面上任何位置都是内容（封面 + 说明 + CTA），
+            压在上面必然遮住画；而它必须离卡近 —— 远了就与"这张卡能翻"失去关联。
+          ★ transform-3d + backface-hidden：两面都在 DOM 里（各自 absolute 铺满），
+            靠父层 rotateY 翻转。**不用两套内容切换**——那样没有中间态，翻面动画就成了闪切。 */}
+      <div className="relative min-h-0 flex-1 px-4 pb-3">
+        <div className="relative h-full [perspective:1600px]">
+          <div
+            className="relative h-full transition-transform duration-500 [transform-style:preserve-3d]"
+            style={{ transform: `rotateY(${flipped ? 180 : 0}deg)` }}
+          >
+            {MODES.map((m, i) => (
+              <div
+                key={m.key}
+                aria-hidden={i === 1 ? !flipped : flipped}
+                className={`absolute inset-0 overflow-hidden rounded-3xl border [backface-visibility:hidden] ${m.skin}`}
+                style={i === 1 ? { transform: "rotateY(180deg)" } : undefined}
+              >
                 <img
                   src={m.cover}
                   alt=""
@@ -123,7 +124,7 @@ export default function CreatePage() {
                   className="absolute inset-0 h-full w-full object-cover object-top"
                 />
                 {/* 压字层：跟着封面明暗走。收敛得快是有意的——底部 38% 压成实底给
-                    文字，62% 以上完全透明，画面主体（悬浮塔罗牌/全息面板/猫）不被糊掉 */}
+                    文字，62% 以上完全透明，画面主体（悬浮塔罗牌/猫）不被糊掉 */}
                 <div
                   className={`absolute inset-0 bg-gradient-to-t to-transparent to-62% ${
                     m.light ? "from-[#fdf7fb] from-38% via-[#fdf7fb]/85 via-50%" : "from-ink from-38% via-ink/80 via-50%"
@@ -155,11 +156,7 @@ export default function CreatePage() {
                     ))}
                   </ul>
                   <button
-                    // 引导高亮只挂在**当前这一张**上：轮播是三张并排、靠 scroll 吸附，
-                    // 非当前那两张仍在 DOM 里且 getBoundingClientRect 返回非零宽高（只是
-                    // 在视口外），写死 i === 0 会在用户已划到第二张时把圈画到屏幕外，而
-                    // 「找不到锚点就退成居中卡片」的兜底判的是元素存在与否，根本不会触发。
-                    {...(i === at ? { "data-guide": "create-cta" } : {})}
+                    {...(i === (flipped ? 1 : 0) ? { "data-guide": "create-cta" } : {})}
                     onClick={() => (m.resets && flowDirty(flowNodes) ? setPending(m) : m.go(navigate))}
                     className={`mt-4 w-full rounded-2xl py-3 text-sm font-bold transition active:scale-[0.98] ${
                       m.light ? "bg-ink text-white" : "bg-white/90 text-ink"
@@ -169,38 +166,22 @@ export default function CreatePage() {
                   </button>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
 
-        <button
-          onClick={() => scrollTo(Math.max(0, at - 1))}
-          disabled={at === 0}
-          className="absolute left-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition disabled:pointer-events-none disabled:opacity-0"
-          aria-label="上一个"
-        >
-          <Icon name="back" size={22} />
-        </button>
-        <button
-          onClick={() => scrollTo(Math.min(MODES.length - 1, at + 1))}
-          disabled={at === MODES.length - 1}
-          className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition disabled:pointer-events-none disabled:opacity-0"
-          aria-label="下一个"
-        >
-          <Icon name="chevron" size={22} />
-        </button>
-      </div>
-
-      {/* 页点：翻页箭头已经贴在轨道两侧，这里只留位置指示 */}
-      <div data-guide="create-dots" className="safe-bottom flex flex-none items-center justify-center gap-2 py-3">
-        {MODES.map((m, i) => (
+          {/* 翻面钮：贴卡片右上角外侧。写出**背面是谁**（"翻到简约模式"）而不是一个
+              光秃秃的循环箭头——不写的话用户不知道翻过去会看到什么（ui-copy-grammar 文法④的近亲） */}
           <button
-            key={m.key}
-            onClick={() => scrollTo(i)}
-            aria-label={m.title}
-            className={`h-2 rounded-full transition-all ${i === at ? "w-6 bg-brand" : "w-2 bg-slate-600"}`}
-          />
-        ))}
+            data-guide="create-dots"
+            onClick={() => setFlipped((v) => !v)}
+            aria-label={`翻到${MODES[flipped ? 0 : 1].title}`}
+            title={`翻到${MODES[flipped ? 0 : 1].title}`}
+            className="absolute -top-2 right-1 z-10 flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-2 text-white backdrop-blur transition active:scale-95"
+          >
+            <Icon name="replay" size={16} />
+            <span className="text-[11px] font-semibold">{MODES[flipped ? 0 : 1].title}</span>
+          </button>
+        </div>
       </div>
 
       {/* ★★ 这一页也要画 store.err（2026-08-21 第八轮扫描）：主 CTA 现在会被

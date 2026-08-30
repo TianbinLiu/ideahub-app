@@ -259,20 +259,21 @@ export default function StudioPage() {
         <button
           data-guide="studio-back"
           onClick={onBack}
-          className="pointer-events-auto flex h-12 items-center gap-1 rounded-full bg-panel/85 pl-2.5 pr-4 text-slate-200 backdrop-blur active:bg-panel"
+          /* ★ 只留图标（2026-08-30 主人点名"顶部文案太多"）：文字去掉，但**退到哪儿**
+             这件事仍然由 backLabel 说 —— 它进了 aria-label 与 title，读屏与长按都取得到。
+             热区仍是 48px（移动端下限 44） */
+          className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full bg-panel/85 text-slate-200 backdrop-blur active:bg-panel"
           aria-label={backLabel}
+          title={backLabel}
         >
           <Icon name="back" size={20} />
-          <span className="text-xs">{backLabel}</span>
         </button>
         <div className="pointer-events-auto flex min-w-0 items-center gap-2 pt-2">
           {/* 工程标题（与工作流画布同一枚 DraftTitle，2026-08-29）：多草稿并存后
               "现在这摊活是哪条"得有名字。摆在右组最左而不是绝对居中——这一屏是 3D
               画布，absolute 的小控件会压住法阵/卡位（量过的位置，别加新的绝对定位） */}
           {hasWork && (
-            <div className="min-w-0 max-w-[38vw] rounded-full bg-panel/85 px-3 py-1.5 backdrop-blur">
-              <DraftTitle from="studio" className="w-full" />
-            </div>
+            <DraftTitle from="studio" collapsed className="bg-panel/85 backdrop-blur" />
           )}
           {/* 「🧩 工作流」：同一条流水线换到画布那一面 —— 与画布顶栏「🎴 工坊」对称
               （2026-08-30 主人点名：此前只有画布→工坊单向有键，反向只剩法阵那条隐路）。
@@ -281,9 +282,11 @@ export default function StudioPage() {
           {flowLen > 0 && (
             <button
               onClick={() => setCanvasOpen(true)}
-              className="rounded-full bg-panel/85 px-3 py-1.5 text-xs text-slate-200 backdrop-blur"
+              title="工作流画布"
+              aria-label="工作流画布"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-base backdrop-blur"
             >
-              🧩 工作流画布
+              🧩
             </button>
           )}
           {/* ★ 摆在浮动顶栏右侧这一组里，而不是画面角落硬定位：这一屏是 3D 画布，
@@ -292,18 +295,20 @@ export default function StudioPage() {
           {/* 存草稿：桌面上有东西才亮。工坊侧此前完全没有落盘手段——摆了半天卡、
               推演了几炉，刷新一下全没（两个 store 都是纯内存单例） */}
           {hasWork && (
+            /* 存草稿只留图标；**四种状态仍要看得出来**（保存中/成功/失败不能只靠一个静态图标
+               ——那等于把"存住了没有"藏起来，铁律八）：图标换字符 + title 说全 */
             <button
               onClick={() => void saveNow()}
               disabled={saveState === "saving"}
-              className="rounded-full bg-panel/85 px-3 py-1.5 text-xs text-slate-200 backdrop-blur disabled:opacity-50"
+              title={
+                saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存" : saveState === "failed" ? "保存失败" : "存草稿"
+              }
+              aria-label="存草稿"
+              className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-sm backdrop-blur disabled:opacity-50 ${
+                saveState === "failed" ? "text-rose-300" : saveState === "saved" ? "text-emerald-300" : "text-slate-200"
+              }`}
             >
-              {saveState === "saving"
-                ? "保存中…"
-                : saveState === "saved"
-                  ? "已保存 ✓"
-                  : saveState === "failed"
-                    ? "保存失败"
-                    : "存草稿"}
+              {saveState === "saving" ? "…" : saveState === "saved" ? "✓" : saveState === "failed" ? "!" : "💾"}
             </button>
           )}
           {/* 只在演示模式亮牌。「● 真实 AI」是常态，天天挂在那儿只是噪音；

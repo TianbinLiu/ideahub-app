@@ -12,12 +12,24 @@
 //   drafts.saveDraft 落库时 `input.title ?? prev.title`——那条既有纪律正是这枚组件
 //   能薄成这样的原因。
 import { useEffect, useState } from "react";
+import Icon from "./Icon";
 import { renameDraft } from "../data/drafts";
 import { useDrafts } from "../hooks/useDrafts";
 import { useStudio } from "../studio/studioStore";
 import type { DraftMode } from "../data/drafts";
 
-export default function DraftTitle({ from, className = "" }: { from: DraftMode; className?: string }) {
+export default function DraftTitle({
+  from,
+  className = "",
+  collapsed,
+}: {
+  from: DraftMode;
+  className?: string;
+  /** 收起态（2026-08-30 主人点名，工坊顶栏用）：平时只是一枚圆形 ✎，点开才展开输入栏。
+   *  ★ 收起时**不显示标题**是用户明确要的形态；代价是"现在这摊活叫什么"要点一下才知道，
+   *    草稿箱与画布顶栏（不传这个 prop）仍然直接显示标题。 */
+  collapsed?: boolean;
+}) {
   const draftId = useStudio((s) => s.workDraftId);
   const drafts = useDrafts();
   const title = (draftId && drafts.find((d) => d.id === draftId)?.title) || "";
@@ -63,6 +75,21 @@ export default function DraftTitle({ from, className = "" }: { from: DraftMode; 
         placeholder="给这条工程起个名"
         className={`min-w-0 rounded-lg border border-brand/60 bg-black/40 px-2 py-1 text-sm font-bold text-slate-100 outline-none ${className}`}
       />
+    );
+  }
+  if (collapsed) {
+    return (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setEditing(true);
+        }}
+        title={title || "给这条工程起个名"}
+        aria-label="工程名"
+        className={`flex h-9 w-9 flex-none items-center justify-center rounded-full ${className}`}
+      >
+        <Icon name="pen" size={15} className={title ? "text-slate-200" : "text-slate-400"} />
+      </button>
     );
   }
   return (

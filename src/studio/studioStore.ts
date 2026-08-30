@@ -1477,11 +1477,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
       get().npcSay(useFlow.getState().err || "现在铺不了这一段，稍后再试。");
       return;
     }
-    // 向导第①页挂的示例视频落进节点：素材参考模式三件套（custom 开关 + 参考视频 + 中间帧）。
-    // 写路全在 flowStore（单一真相）；刚 append 的段必不 done/不在生成，三道 set 不会被拒
+    // ★★ 车道开关**无条件打**（2026-08-30 修）：`FlowNode.custom` 记的是"这一段属于自定义
+    //   车道"，与有没有挂示例视频无关。此前它被包在 `if (editor.refVideo)` 里 —— 没传示例
+    //   视频的自定义段在 store 里与「自选卡片」段一模一样，于是画布的模式页签把它显示成
+    //   自选卡片、方案台把它当成"还没推演三套"（实测：面板上给的是「生成三套方案」）。
+    useFlow.getState().setNodeCustom(newId, true);
+    // 示例视频落进节点：素材参考模式三件套（车道开关已在上面打过 + 参考视频 + 中间帧）。
+    // 写路全在 flowStore（单一真相）；刚 append 的段必不 done/不在生成，几道 set 不会被拒
     if (editor.refVideo) {
       const flow = useFlow.getState();
-      flow.setNodeCustom(newId, true);
       flow.setCustomRefVideo(newId, {
         url: editor.refVideo.url,
         publicId: editor.refVideo.publicId,

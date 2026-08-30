@@ -30,6 +30,7 @@ import {
   useStudio,
 } from "../studioStore";
 import { CUSTOM_MID_MAX, nodeCost, tplOfNode, useFlow, type FlowNode } from "../flowStore";
+import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
 import { TemplatePicker } from "../../components/flow/FlowCanvas";
@@ -307,6 +308,19 @@ function EditorPanel() {
   return (
     <>
       <div className="flex items-center justify-between gap-2 border-b border-cyan-400/20 px-4 py-2.5">
+        {/* ★ 每一步都要能退（2026-08-30 主人点名"选择了选项后无法回到上一步"）：
+            脚上那排「‹ 上一步」只长在②③两步，示例视频那一页压根没有脚 —— 顶栏这枚
+            是所有步骤共用的退路，第①步时不渲染（那一步的退出是右边的 ✕） */}
+        {step !== "mode" && (
+          <button
+            onClick={() => setStep(step === "spec" ? "content" : step === "content" ? (lane === "custom" ? "ref" : "mode") : "mode")}
+            disabled={editor.generating}
+            aria-label="上一步"
+            className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-slate-700/60 text-slate-200 disabled:opacity-30"
+          >
+            ‹
+          </button>
+        )}
         <h3 className="flex-none text-sm font-bold text-cyan-100">铸造节点卡 · 第 {segIndex + 1} 段</h3>
         {stepCrumb}
         <button
@@ -359,13 +373,23 @@ function EditorPanel() {
             </div>
           ) : (
             <>
+              {/* ★ 档位带不动参考视频就**不给传**（2026-08-30）：此前照样能传，等到出片
+                  那一刻才被 segmentGen 整句拒 —— 用户白传一次几十 MB。原因写在按钮下面，
+                  并指出去哪儿换档（本步的 ⚙ 在第③步，所以直接说档名） */}
               <button
                 onClick={() => refFileRef.current?.click()}
-                disabled={editor.generating || !!refUploading}
+                disabled={editor.generating || !!refUploading || !tierOf(editor.videoTier).refVid}
+                title={!tierOf(editor.videoTier).refVid ? `「${tierOf(editor.videoTier).label}」档带不了参考视频` : undefined}
                 className="w-full rounded-xl border border-dashed border-sky-500/60 py-8 text-sm font-semibold text-sky-200 disabled:opacity-40"
               >
                 {refUploading || "🎬 上传一段示例视频当整段参考"}
               </button>
+              {!tierOf(editor.videoTier).refVid && (
+                <p className="text-center text-[10px] leading-relaxed text-amber-300/90">
+                  「{tierOf(editor.videoTier).label}」档带不了参考视频——到第③步「定规格」换成「电影级」，
+                  或直接跳过这一步自己给首尾帧
+                </p>
+              )}
               <p className="text-center text-[10px] text-slate-500">上传后自动用它的首尾帧当本段首尾帧，之后还能细调、加中间帧</p>
               <button onClick={() => setStep("content")} className="mx-auto text-[11px] text-slate-500 underline underline-offset-2">
                 不上传，直接给首尾帧 ›
@@ -858,6 +882,8 @@ function ProposalsPanel() {
    *  ★ hook 必须在下面那个早退**之前**：聚焦的节点可以在面板挂着时消失（删段/整表换掉），
    *    那一拍早退会让 React 数出"更少的 hook"直接整页崩（实测踩到才补的） */
   const [playing, setPlaying] = useState(false);
+  /** 档位那一排开着没有（顶栏那枚芯片） */
+  const [tierOpen, setTierOpen] = useState(false);
   if (!node) return null;
   const idx = path.findIndex((n) => n.id === node.id);
   const prev = idx > 0 ? chosenProposal(path[idx - 1]) : null;
@@ -914,10 +940,27 @@ function ProposalsPanel() {
         >
           ›
         </button>
+        {/* 档位芯片（2026-08-30 主人点名"把切换档位放入节点卡的角落"）：
+            换档不只是换价 —— 1.0 两档收不了参考图，出片方式与这一段能做的事都会变，
+            所以点开的是**共用的那一排**（TierRow），代价由它在换之前说清楚 */}
+        <button
+          onClick={() => setTierOpen((v) => !v)}
+          title="这一段的画质档"
+          className={`flex-none rounded-full px-2 py-1 text-[10px] ${
+            tierOpen ? "bg-cyan-400/20 text-cyan-100" : "bg-slate-700/60 text-slate-300"
+          }`}
+        >
+          {tierOf(node.videoTier).label}
+        </button>
         <button onClick={() => useStudio.getState().closeProjection()} className="flex-none text-slate-400 hover:text-white">
           ✕
         </button>
       </div>
+      {tierOpen && (
+        <div className="flex-none border-b border-cyan-400/15 px-3 py-2">
+          <TierRow nodeId={node.id} onDone={() => setTierOpen(false)} />
+        </div>
+      )}
       {/* 重推三套的进度：真实 AI 下一分钟出头（1 次豆包 + 最多 6 张 Seedream）。
           它占的是 nodeGen，但没有对应的方案 id，所以进度条挂在整个方案台上方而不是某一行 */}
       {nodeGen?.proposalId === rederiveKey(node.id) && (
