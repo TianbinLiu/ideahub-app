@@ -231,8 +231,14 @@ export default function ProfilePage() {
    *   **别把它悄悄截掉当没事**（下面 worksKnown 只在真拿到整页时才敢说"就这些"）。
    */
   const [myWorks, setMyWorks] = useState<AuthorWorks | null>(null);
+  // ★★ `remoteOn()` 必须**进依赖**（实测踩到）：它答的是"配了 API_BASE **而且**服务端
+  //   真的应答了"，而应答是 readyVideos() 之后的事 —— 挂载那一拍它还是 false。
+  //   不进依赖的话这个 effect 只跑一次、当场早退，之后再没人重跑：页面永远停在
+  //   「正在取你的作品…」。它在 videoV 变化引起的重渲染里翻成 true，effect 随之重跑。
+  //   ⚠ 别改成直接依赖 videoV：那样点一次赞就重拉一遍作品列表。
+  const remoteLive = remoteOn();
   useEffect(() => {
-    if (!self || !remoteOn() || !user?.id) {
+    if (!self || !remoteLive || !user?.id) {
       setMyWorks(null);
       return;
     }
@@ -243,7 +249,7 @@ export default function ProfilePage() {
     return () => {
       alive = false;
     };
-  }, [self, user?.id, reloadKey]);
+  }, [self, remoteLive, user?.id, reloadKey]);
   /**
    * 自己的作品墙。★ 服务端那份**并上**本地那份，不是二选一：这一趟问完之后发布的
    *   作品（pushPublish 只写内存 cache）不在服务端回包里，二选一会让"刚发完就不见了"。
@@ -280,7 +286,7 @@ export default function ProfilePage() {
    */
   //   ⚠ self 这一支原来是无条件 `true` —— 于是那份"全站最新 30 条里的我"被当成了
   //     权威列表，页面据此写「还没有发布作品」「作品 0」。判据必须是"服务端认账了吗"。
-  const worksKnown = !remoteOn() || (self ? myWorks?.status === "ok" : stranger.works?.status === "ok");
+  const worksKnown = !remoteLive || (self ? myWorks?.status === "ok" : stranger.works?.status === "ok");
   /** 按可见性筛过的那份（只自己的墙用）。★ 判**否定**：老作品没有这个字段 = 公开 */
   const shownWorks = useMemo(
     () =>
