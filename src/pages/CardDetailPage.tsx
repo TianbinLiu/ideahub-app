@@ -15,7 +15,7 @@ import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
-import { isRemoteMode, myCards, myDecks, removeCard, shareCard } from "../data/account";
+import { acquireCard, isRemoteMode, myCards, myDecks, removeCard, shareCard } from "../data/account";
 import { addCardView, removeCardView } from "../data/cardViews";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
 import { assetOf, assetsVersion, saveAsset, subscribeAssets } from "../data/cardAsset";
@@ -30,6 +30,7 @@ import {
   CardType,
   CardView,
   MAX_CARD_VIEWS,
+  SHARE_NOTE_MAX,
   publishableModelUrl,
   slotLabel,
   viewTag,
@@ -477,6 +478,9 @@ export default function CardDetailPage() {
   const owned = useMemo(() => myCards().some((c) => c.id === id), [id, accountV]);
   /** 删卡确认开着没有 */
   const [ask, setAsk] = useState(false);
+  /** 「添加到我的卡片」的在途与失败原因（只对别人的卡出现） */
+  const [getting, setGetting] = useState(false);
+  const [getErr, setGetErr] = useState<string | null>(null);
   const heat = heatOf("card", id ?? "");
   // ★ hook 必须在下面那个 `if (!card) return` 之前跑完，否则卡在不在库里会改变
   //   hook 数量，切换时直接崩。所以这里用 card?.，不是 card.
@@ -620,14 +624,57 @@ export default function CardDetailPage() {
         kind="card"
         className="mb-4"
         published={!!card.published}
-        disabledReason={shareBlockReason({ remote: isRemoteMode(), owned, modelUrl: card.modelUrl, realPerson: card.realPerson })}
+        disabledReason={shareBlockReason({
+          remote: isRemoteMode(),
+          published: !!card.published,
+          owned,
+          modelUrl: card.modelUrl,
+          realPerson: card.realPerson,
+        })}
         note={shareModelNote(card)}
-        onToggle={(next) => shareCard(card.id, next)}
+        onToggle={(next, note) => shareCard(card.id, next, note)}
+        noteMax={SHARE_NOTE_MAX}
       />
+
+      {/* ★★ 别人的卡：这一页原来**没有任何"装到我的卡片"的入口**（2026-08-30 补）。
+          观众看完只能 nav(-1) 回工坊、在网格里把这张卡再找一遍 —— 而分享条上那句
+          「只能分享自己库里的卡：先把它添加到我的卡片」指的正是这个不存在的动作（铁律八：
+          说了出路就得有出路）。装法走 account.acquireCard 一处（广场卡走 install、
+          快照卡走落库，判据只在那儿）。 */}
+      {/* ⚠ 这一格的显示条件是 `!owned || getErr` 而**不是** `!owned`（复核抓到）：
+          快照卡那条路 `addCards` 会**先落本地**再同步，落完 `myCards()` 就有它了 ⇒
+          `owned` 当场翻真 ⇒ 这一整块卸载 ⇒ 刚 set 进去的那句「没同步到服务器」画在了
+          一个已经不存在的分支里 = 零提示，而卡此刻只在这台设备上、下次冷启动会被
+          `loadRemoteAssets` 整表覆盖掉。留着这一格，那句话才有落点（铁律八）。 */}
+      {(!owned || getErr) && (
+        <div className="mb-2">
+          <button
+            onClick={() => {
+              if (getting) return;
+              setGetting(true);
+              setGetErr(null);
+              void acquireCard(card)
+                .then((r) => {
+                  if (!r.ok) setGetErr(r.why);
+                })
+                .finally(() => setGetting(false));
+            }}
+            disabled={getting}
+            className={`block w-full rounded-xl py-2.5 text-center text-sm font-bold disabled:opacity-50 ${
+              owned ? "bg-panel text-slate-300 ring-1 ring-slate-700" : "bg-brand/90 text-ink"
+            }`}
+          >
+            {getting ? "添加中…" : getErr ? "再同步一次" : "＋ 添加到我的卡片"}
+          </button>
+          {getErr && <p className="mt-1 text-[11px] leading-relaxed text-rose-400">{getErr}</p>}
+        </div>
+      )}
 
       <Link
         to="/studio"
-        className="block w-full rounded-xl bg-brand/90 py-2.5 text-center text-sm font-bold text-ink"
+        className={`block w-full rounded-xl py-2.5 text-center text-sm font-bold ${
+          owned ? "bg-brand/90 text-ink" : "bg-panel text-slate-300 ring-1 ring-slate-700"
+        }`}
       >
         🎬 去 3D 工坊用这张卡创作
       </Link>

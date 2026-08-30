@@ -15,8 +15,8 @@ import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import SpriteToggle, { type SpriteSheet } from "../components/SpriteToggle";
 import UserRow from "../components/UserRow";
-import { Link } from "react-router";
-import { listVideos, profileHref, remoteOn } from "../data/videos";
+import { Link, useLocation } from "react-router";
+import { listVideos, profileHref, remoteOn, searchVideos } from "../data/videos";
 import { searchUsers, userDisplayName, type ApiUserLite } from "../api/users";
 import { VIDEO_CATEGORIES, VideoItem, formatDuration, formatPlays } from "../types";
 
@@ -66,8 +66,27 @@ const USER_LIMIT = 6;
 export default function DiscoverPage() {
   // ★ 无条件弹：这一页没有登录墙，谁都能逛
   useAutoGuide("discover", true);
-  const [videos] = useState(() => listVideos());
-  const [q, setQ] = useState("");
+  /**
+   * 搜索结果。★★ 2026-08-30 之前这里是 `useState(() => listVideos())` —— 挂载时把本地
+   *   cache **快照一份**就再也不问服务端，而远端模式下那份 cache 只有推荐流的 30 条。
+   *   于是"搜索"其实是"在最近 30 条里筛"：从通知/别人主页/分享链接进来的作品，
+   *   在这一页一律搜不到，而页面画的是「没有找到相关作品」—— 说的是假话。
+   *   （同一页的**搜人**那半早就走服务端了，注释里还写着这个坑，视频这半一直没跟上。）
+   *   现在走 data 层的 searchVideos 一处：远端就问服务端，离线就筛本地。
+   */
+  const [videos, setVideos] = useState<VideoItem[]>(() => listVideos());
+  const [vidBusy, setVidBusy] = useState(false);
+  /** 非空 = 这次没搜成（退回了本地那几条）。空结果与"没搜成"必须分得开（铁律八） */
+  const [vidErr, setVidErr] = useState("");
+  const vseq = useRef(0);
+  // ★ 初始搜索词可以由别处带进来（作品详情页的标签芯片：navigate("/discover", { state: { q } })）。
+  //   放在 useState 的初值里而不是 effect 里同步：effect 那种写法会先渲染一屏"全部作品"
+  //   再跳成结果，而且用户改完搜索词一返回又被盖回去。
+  const nav0 = useLocation();
+  const [q, setQ] = useState<string>(() => {
+    const s = nav0.state as { q?: unknown } | null;
+    return typeof s?.q === "string" ? s.q : "";
+  });
   const [cat, setCat] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>("new");
 
@@ -114,18 +133,28 @@ export default function DiscoverPage() {
     return () => window.clearTimeout(timer);
   }, [key, canSearchUsers]);
 
-  const results = useMemo(() => {
-    const hit = videos.filter(
-      (v) =>
-        (!cat || v.category === cat) &&
-        (!key ||
-          v.title.includes(key) ||
-          v.description.includes(key) ||
-          v.author.includes(key) ||
-          v.category.includes(key)),
-    );
-    return sortVideos(hit, sort);
-  }, [videos, key, cat, sort]);
+  // 搜索词/分区变了就重问一次（防抖与搜人同一个常量）。
+  // ★ 竞态用 seq 挡：慢的那一发回来时不许覆盖新结果（与上面搜人那段同款）。
+  useEffect(() => {
+    const mine = ++vseq.current;
+    setVidBusy(true);
+    const timer = window.setTimeout(() => {
+      void searchVideos({ q: key, category: cat, limit: 50 })
+        .then((r) => {
+          if (vseq.current !== mine) return;
+          setVideos(r.items);
+          setVidErr(r.reason ?? "");
+        })
+        .finally(() => {
+          if (vseq.current === mine) setVidBusy(false);
+        });
+    }, USER_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [key, cat]);
+
+  // ★ 排序只在**这一页拿到的这批**里做（服务端按时间给，"最火"没有服务端口径）。
+  //   条数上限 50，够用且不至于把一整页塞满 —— 真要翻页是另一件事。
+  const results = useMemo(() => sortVideos(videos, sort), [videos, sort]);
 
   return (
     <div className="safe-top min-h-full px-4 pt-3">
@@ -310,11 +339,21 @@ export default function DiscoverPage() {
           </Link>
         ))}
       </div>
-      {results.length === 0 && (
-        <div className="py-16 text-center text-sm text-slate-500">
-          {cat ? `「${cat}」还没有作品` : "没有找到相关作品"}
+      {/* ★ 四种结局分开说（与本页搜人那半同一条理由）：在搜 / 没搜成 / 真的没有 / 这个分区没有。
+          原来只有最后两种，于是"服务器没搜成"被画成了"没有找到相关作品"。 */}
+      {vidBusy && results.length === 0 ? (
+        <div className="py-16 text-center text-sm text-slate-500">正在搜…</div>
+      ) : vidErr ? (
+        <div className="py-12 text-center text-sm leading-relaxed text-rose-300">
+          没搜成：{vidErr}
+          <br />
+          <span className="text-xs text-slate-500">上面列的是这台设备上已有的那几条，不是全部结果。</span>
         </div>
-      )}
+      ) : results.length === 0 ? (
+        <div className="py-16 text-center text-sm text-slate-500">
+          {key ? `没有找到「${key}」相关的作品` : cat ? `「${cat}」还没有作品` : "还没有作品"}
+        </div>
+      ) : null}
     </div>
   );
 }

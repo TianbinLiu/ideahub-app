@@ -9,10 +9,12 @@ import * as real from "./real";
 export type { MaterialFile, ProposalContext } from "../mock/ai";
 export type { SegmentResult } from "./real";
 
-// 卡片系统 V2（2026-08-24）：离线种子市场随旧卡一并下架 —— 留着的话，一键"从市场添加"
-// 会把 mkt_* 旧卡装回来，下次启动又被清库迁移删掉，用户看到的是"添加了个寂寞"。
-// 远端模式的市场是服务端广场（browseSharedCards），不走这里。
-export const searchMarket: typeof mock.searchMarket = async () => [];
+// ★ 这里原来还有 `searchMarket`：卡片系统 V2（2026-08-24）把离线种子市场随旧卡一并下架，
+//   它就被硬写成了 `async () => []`。留着那个空壳的代价是**两个界面对着它演戏** ——
+//   工坊页为它保留了 loading 态与整片网格，3D 桌面市场让铸卡师"抽出一叠卡摊在桌上"，
+//   而桌上永远一张都没有（2026-08-30 查实）。两处都已改接服务端广场
+//   （data/account.plazaCards / browseSharedCards），这个空壳随之删除。
+//   ⚠ 别再加回来：市场只有"服务端广场"一个来源，多一个空实现就多一处会说假话的地方。
 export const generateCards = AI_REAL ? real.generateCards : mock.generateCards;
 /** mock 构建忽略 onProgress（本地 2 秒内出结果，无进度可报） */
 export const generateProposals: typeof real.generateProposals = AI_REAL

@@ -468,6 +468,23 @@ export default function VideoPage() {
           </p>
         )}
 
+        {/* 话题标签。★ 是**可点的**——不可点的标签只是装饰，而作者填它的理由就是"让人搜得到"。
+            点了带着词去 /discover（那一页与服务端的搜索都已经把 tags 算进去了，
+            不接那一步的话点下去是"没有结果"，比没有芯片更糟）。 */}
+        {(video.tags?.length ?? 0) > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {video.tags!.map((t) => (
+              <button
+                key={t}
+                onClick={() => navigate("/discover", { state: { q: t } })}
+                className="rounded-full bg-brand/15 px-2.5 py-1 text-[12px] text-brand hover:bg-brand/25"
+              >
+                #{t}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* 举报这个作品。
             ★★ 为什么放在详情页而不是首页右侧那一栏：那一栏是 bottom 定位的 flex-col，
               每加一个键整栏就往上长 64px，640 高的小屏上最上面的头像会被 section 的

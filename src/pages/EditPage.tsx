@@ -12,11 +12,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { CoverSection } from "../components/CoverPicker";
 import Icon from "../components/Icon";
+import TagInput from "../components/TagInput";
 import VisibilityPicker from "../components/VisibilityPicker";
 import { deleteVideoItem, getVideo, isMyAuthor, partsOf, updateVideoMeta } from "../data/videos";
 import { coverToPermanentUrl } from "../data/publishAssets";
 import { useVideosVersion } from "../hooks/useVideos";
-import { VIDEO_CATEGORIES, formatDuration } from "../types";
+import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, formatDuration, parseTags } from "../types";
 
 export default function EditPage() {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +30,7 @@ export default function EditPage() {
   const [category, setCategory] = useState(video?.category ?? "剧情");
   const [description, setDescription] = useState(video?.description ?? "");
   const [cover, setCover] = useState(video?.cover ?? "");
+  const [tags, setTags] = useState<string[]>(video?.tags ?? []);
   const [visibility, setVisibility] = useState<"public" | "private">(video?.visibility ?? "public");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -58,6 +60,12 @@ export default function EditPage() {
   useEffect(() => {
     setVisibility(video?.visibility ?? "public");
   }, [video?.id, video?.visibility]);
+
+  // ★ 标签与 visibility 同款处理，理由一样：空数组既可能是"还没填"也可能是"用户清空了"，
+  //   分辨不出来，所以只在**换了一部作品**时重置，同一部作品内不覆盖用户的编辑。
+  useEffect(() => {
+    setTags(video?.tags ?? []);
+  }, [video?.id]);
 
   // 截帧/候选帧覆盖整部作品：多 P 全拼进时间轴
   const allSegments = useMemo(() => parts.flatMap((p) => p.segments), [parts]);
@@ -118,6 +126,7 @@ export default function EditPage() {
         category,
         description: description.trim(),
         cover: coverUrl,
+        tags,
         visibility: over?.visibility ?? visibility,
       });
       setSaved(true);
@@ -236,6 +245,14 @@ export default function EditPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* 话题标签：与发布页共用 TagInput 一份（上限/切分都在 types 一处）。
+              ★ 这里必须也有：服务端 PATCH 支持改 tags，不给入口的话打错一个字就永久错着
+                —— 而发布页那边"发布后改不了"的东西已经够多了（定价那条就是） */}
+          <div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300">话题标签</div>
+            <TagInput tags={tags} onChange={setTags} max={VIDEO_TAG_MAX} maxLen={VIDEO_TAG_LEN} split={parseTags} />
           </div>
 
           <div>

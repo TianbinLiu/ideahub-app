@@ -248,10 +248,10 @@ BranchAssetView  { kind, key, viewer, expiresAt }                        唯一 
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| GET | `/api/branch/videos` | optional | 列表。query：`feed=recommend\|following`、`category`、`q`、`author`(用户 id)、`cursor`、`limit`(默认 12)。返回 `{ ok, items, nextCursor, author? }`；`items[].liked` 表示当前用户是否已赞。**只返回公开作品 + 自己的作品**（见下「可见性」）。★ `author` 生效时会**原样回显**在响应里 —— 老服务端会把这个 query strip 掉然后照常回推荐流，客户端只能靠"这个键在不在"分辨"按作者筛过、这人没作品"与"压根没筛"，判内容或判状态码都分不出来 |
-| POST | `/api/branch/videos` | required | 发布。body=DraftVideo（title/category/description/cover/segments/branchTree/**deck**/**visibility**/**clientId**）。**服务端负责把 body 里的外链资源转存**（见下）。带 `clientId` 时按 `{author, clientId}` 幂等：重发返回首次那条、状态码 200（首发是 201） |
+| GET | `/api/branch/videos` | optional | 列表。query：`feed=recommend\|following`、`category`、`q`（对 **title / description / tags** 三者做不区分大小写的子串匹配）、`author`(用户 id)、`cursor`、`limit`(默认 12)。返回 `{ ok, items, nextCursor, author? }`；`items[].liked` 表示当前用户是否已赞。**只返回公开作品 + 自己的作品**（见下「可见性」）。★ `author` 生效时会**原样回显**在响应里 —— 老服务端会把这个 query strip 掉然后照常回推荐流，客户端只能靠"这个键在不在"分辨"按作者筛过、这人没作品"与"压根没筛"，判内容或判状态码都分不出来 |
+| POST | `/api/branch/videos` | required | 发布。body=DraftVideo（title/category/description/**tags**/cover/segments/branchTree/**deck**/**visibility**/**clientId**）。**服务端负责把 body 里的外链资源转存**（见下）。带 `clientId` 时按 `{author, clientId}` 幂等：重发返回首次那条、状态码 200（首发是 201） |
 | GET | `/api/branch/videos/:id` | optional | 详情（含 comments 前 50 条）。非作者访问 private 作品返回 **404**（不是 403） |
-| PATCH | `/api/branch/videos/:id` | required | 作品编辑，仅作者。body `{ title?, category?, description?, visibility? }`，**至少给一个字段**（空对象 400）。segments / branchTree / deck 一律被 strip —— 发布即定稿 |
+| PATCH | `/api/branch/videos/:id` | required | 作品编辑，仅作者。body `{ title?, category?, description?, tags?, visibility?, cover? }`，**至少给一个字段**（空对象 400）。segments / branchTree / deck 一律被 strip —— 发布即定稿 |
 | DELETE | `/api/branch/videos/:id` | required | 仅作者可删 |
 | POST | `/api/branch/videos/:id/play` | optional | 播放计数 +1，返回 `{ ok, plays }` |
 | POST | `/api/branch/videos/:id/like` | required | 点赞，返回 `{ ok, likes, liked: true }` |
@@ -417,6 +417,25 @@ query `q`、`limit`(默认 8，上限 20)。返回 `{ ok, users: [{ _id, usernam
 - 超时返回 **503**，不返回空列表：`users: []` 会让"服务器没查完"和"查无此人"在界面上长得一模一样。
 - 限流按 **IP**（`users:search`，120/分钟）。这条是 `optionalAuth`，按账号限流等于没限
   —— 攻击者不带 token 就绕过去了。
+
+## 话题标签（`tags`）
+
+作品级的话题标签，2026-08-30 加。**与卡组快照里每张卡的 `tags` 同名不同物**：那是卡的
+关键词（进出图提示词），这是作品的话题（给人搜）。审计里就把两者搞混过一次，据此得出
+"服务端早就收 tags 了"的错误结论 —— 其实作品这条链路当时三处都没有。
+
+- **判否定**：老作品库里根本没有这个字段。服务端一律归一成 `[]` 再发（`toVideoPayload`），
+  客户端 `tags?: string[]` 缺省 = 没打过标签。任何地方都**不许**拿"有没有 tags"判新旧。
+- **两组上限是有意不相等的**：
+  - 服务端 `publishBody.tags` / `updateBody.tags` = `z.array(z.string().trim().max(40)).max(20)`
+    —— **安全上界**，超了是**整发 400 而不是截断**；
+  - 客户端 `types.VIDEO_TAG_MAX = 6` / `VIDEO_TAG_LEN = 10` —— **产品口径**，只要 ≤ 服务端
+    那对，用户就撞不到那个 400，而且以后放宽不必发服务端。
+  ⚠ 别"顺手对齐"这两组数：一旦客户端调到超过 20，用户会在发布一条几十分钟的付费成片时
+  吃一个 400，而那一发的 token 已经花掉了。
+- **`q` 搜索包含 tags**（`$or: [title, description, tags]`）。作品详情页的标签芯片是**可点的**，
+  点了就跳这条查询 —— 不搜 tags 的话点自己刚打的标签会得到"没有结果"，比没有芯片更糟。
+  ⚠ `q` 占用顶层 `$or`，可见性条件必须继续走 `$and`（server 那处有注释与用例，别改）。
 
 ## 可见性（`visibility`）
 
