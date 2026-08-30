@@ -604,14 +604,22 @@ export default function CutPage() {
           v.muted = true;
           v.playsInline = true;
           v.src = src;
+          // ★★ 这两个等待也要带上限（2026-08-31 补，同 VideoCardAnnotator 那两处）：
+          //   合并是几十秒的实时录制，用户很容易在中途切出去；窗口不可见时解码被挂起，
+          //   `canplaythrough` / `seeked` 永远不到 ⇒ 卡死在「合并中 · 片段 i/N」。
+          //   ⚠ 循环开头那道 `cancelRef` 闸救不了这里 —— 卡在 await 里，取消轮不到判。
+          //   超时按**失败**处理而不是硬往下走：往下走会把一段没解码好的画面录进成片，
+          //   而这条路的产物直接进发布页、本页没有撤销。
           await new Promise<void>((resolve, reject) => {
             v.oncanplaythrough = () => resolve();
             v.onerror = () => reject(new Error(`片段 ${i + 1} 加载失败`));
+            window.setTimeout(() => reject(new Error(`片段 ${i + 1} 载入超时（切到后台时视频会停止解码，回到这一页再试）`)), 60_000);
             v.load();
           });
           v.currentTime = clip.start;
-          await new Promise<void>((resolve) => {
+          await new Promise<void>((resolve, reject) => {
             v.onseeked = () => resolve();
+            window.setTimeout(() => reject(new Error(`片段 ${i + 1} 定位超时（切到后台时视频会停止解码，回到这一页再试）`)), 30_000);
           });
           await v.play();
           await new Promise<void>((resolve) => {

@@ -24,6 +24,7 @@ import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType, Proposa
 import {
   activePath,
   chosenProposal,
+  nextStartFrame,
   proposalDone,
   proposalRedrawCostOf,
   rederiveKey,
@@ -579,7 +580,7 @@ function EditorPanel() {
           <FrameCard
             framed
             framedTitle={`第 ${segIndex + 1} 段`}
-            firstFrame={editor.startFrame ?? prev?.lastFrame ?? null}
+            firstFrame={nextStartFrame(editor.startFrame)}
             lastFrame={null}
             originNote={
               editor.startFrame ? "已用你上传的图" : prev?.lastFrame ? "承接上一段尾帧" : "AI 将自拟开头帧"
@@ -798,11 +799,19 @@ function EditorPanel() {
               </p>
             )}
             {lane === "cards" ? (
-              <TokenCost
-                tokens={proposalsCost(!!editor.startFrame)}
-                note={editor.startFrame ? "承接上段尾帧，三个方案共用开头帧，只画尾帧" : undefined}
-                className="mb-2"
-              />
+              (() => {
+                // ★ 与真扣共用同一份开头帧判定（studioStore.nextStartFrame）——这里自己
+                //   `!!editor.startFrame` 算一遍的话，从第 2 段起会按 6 张图报价而实际只画 3 张，
+                //   而减半的说明也因为同一个错条件不显示（2026-08-31 修）
+                const sf = nextStartFrame(editor.startFrame);
+                return (
+                  <TokenCost
+                    tokens={proposalsCost(!!sf)}
+                    note={sf ? "承接上段尾帧，三个方案共用开头帧，只画尾帧" : undefined}
+                    className="mb-2"
+                  />
+                );
+              })()
             ) : (
               <p className="mb-2 text-center text-[10px] text-slate-500">铺方案免费 · 出片时在方案台按原价结算</p>
             )}
