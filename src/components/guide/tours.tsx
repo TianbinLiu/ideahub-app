@@ -636,7 +636,7 @@ export const TOURS: GuideTour[] = [
         body: (
           <>
             打字之后上面先出<b className="font-bold text-slate-100">人</b>、下面出作品。
-            作品是拿标题、简介、作者、分区一起对的，不只对标题。
+            作品是拿标题、简介、作者、分区、话题标签一起对的，不只对标题。
           </>
         ),
       },

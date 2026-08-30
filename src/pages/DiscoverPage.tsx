@@ -15,7 +15,7 @@ import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import SpriteToggle, { type SpriteSheet } from "../components/SpriteToggle";
 import UserRow from "../components/UserRow";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { listVideos, profileHref, remoteOn } from "../data/videos";
 import { searchUsers, userDisplayName, type ApiUserLite } from "../api/users";
 import { VIDEO_CATEGORIES, VideoItem, formatDuration, formatPlays } from "../types";
@@ -67,7 +67,14 @@ export default function DiscoverPage() {
   // ★ 无条件弹：这一页没有登录墙，谁都能逛
   useAutoGuide("discover", true);
   const [videos] = useState(() => listVideos());
-  const [q, setQ] = useState("");
+  // ★ 初始搜索词可以由别处带进来（作品详情页的标签芯片：navigate("/discover", { state: { q } })）。
+  //   放在 useState 的初值里而不是 effect 里同步：effect 那种写法会先渲染一屏"全部作品"
+  //   再跳成结果，而且用户改完搜索词一返回又被盖回去。
+  const nav0 = useLocation();
+  const [q, setQ] = useState<string>(() => {
+    const s = nav0.state as { q?: unknown } | null;
+    return typeof s?.q === "string" ? s.q : "";
+  });
   const [cat, setCat] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>("new");
 
@@ -122,7 +129,9 @@ export default function DiscoverPage() {
           v.title.includes(key) ||
           v.description.includes(key) ||
           v.author.includes(key) ||
-          v.category.includes(key)),
+          v.category.includes(key) ||
+          // 标签也要能搜到：详情页那些芯片点了就落到这一页（服务端那条 $or 同款）
+          (v.tags ?? []).some((t) => t.includes(key))),
     );
     return sortVideos(hit, sort);
   }, [videos, key, cat, sort]);

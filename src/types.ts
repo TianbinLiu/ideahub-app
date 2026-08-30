@@ -188,6 +188,20 @@ export type CardRole = "face" | "primary" | "aux" | "display";
 export const VIEW_TAG_MAX = 24;
 
 /**
+ * 分享推荐语的长度上限（卡片的 `Card.shareNote` 与卡组的 `Deck.intro` 是**同一条规则**：
+ * 服务端 `schemas/branchAsset.schemas.js` 的 `assetDescription = z.string().trim().max(200)`
+ * 被卡片/卡组的 publish 与 PATCH 全部共用，两个 mongoose 模型的 maxlength 也是 200）。
+ *
+ * ★★ 那边是 zod `.max()` —— 超了是**整发 400，不是截断**。所以每个能写推荐语的输入框
+ *   都要 maxLength 硬拦，且用**这一个**常量。收之前这个数活在三个互不相识的地方：
+ *   DeckDetailPage 的 `maxLength={120}`、account 里 PATCH 的 `slice(0, 200)`、服务端的
+ *   `max(200)` —— 用户在卡组简介里打到第 121 个字就打不出来了，而真正的边界在 200，
+ *   那个 120 不是规则，只是当时随手拍的。
+ * ★ 跨仓镜像：改这个数必须同时改 server 的 assetDescription。
+ */
+export const SHARE_NOTE_MAX = 200;
+
+/**
  * role 的人话标签与它到底管什么 —— **唯一实现**（方案编辑屏与将来的详情页共用）。
  * ★ 这几句话要说的是"选了它会怎样"，不是把枚举名翻译一遍：用户挑图位角色时唯一关心的
  *   就是"这张图会不会真的喂给 AI、会不会因此花钱"。
@@ -673,6 +687,15 @@ export interface VideoItem {
   /** 剪辑页合并导出的整条视频：发布后不可再修改（只能用同款卡组重新生成） */
   merged?: boolean;
   /**
+   * 话题标签（发布页那一行，作者自己打）。缺省 = 老作品没打过标签，**判否定**。
+   *
+   * ★ 与 `Card.tags` 同名不同物：那是一张卡的关键词（进提示词），这是**作品**的话题
+   *   （给人找内容用）。2026-08-30 之前这条链路一处都不存在，而审计误把 Card 那份
+   *   当成了"作品的 tags 早就有了" —— 真做的时候是四处一起加：
+   *   类型（这里）、发布/编辑页入口、api/branch 的两个形状、server 的 zod+model+回包。
+   */
+  tags?: string[];
+  /**
    * 发布幂等键（与 `DraftVideo.clientId` 同一个值）。
    *
    * ★★ 加它是为了修一条**会把用户删过的作品重新发上公网**的路：发布时这条作品会
@@ -984,6 +1007,8 @@ export interface DraftVideo {
   title: string;
   category: string;
   description: string;
+  /** 话题标签（发布页填）。见 VideoItem.tags */
+  tags?: string[];
   cover: string;
   segments: VideoSegment[];
   branchTree?: BranchTree;
@@ -1004,6 +1029,38 @@ export interface DraftVideo {
 }
 
 export const VIDEO_CATEGORIES = ["剧情", "科幻", "古风", "搞笑", "动画", "其他"];
+
+/**
+ * 作品话题标签的两个上限（**产品规则**，与服务端那两个数**故意不相等**）。
+ *
+ * ★★ 分工：服务端 `publishBody.tags` 是 `z.array(z.string().max(40)).max(20)` —— 那是
+ *   **安全上界**（防伪造客户端塞一整本书），超了是**整发 400 而不是截断**；这两个数是
+ *   **产品口径**，只要 ≤ 服务端那对，用户就永远撞不到那个 400，而且以后想放宽到 10 个
+ *   不用发服务端。⚠ 所以**别把它们"对齐成一样"** —— 那会把"改产品口径"变成一次跨仓
+ *   发布，而且一旦谁把这边调大过 20，用户会在发布一条几十分钟的付费成片时吃一个 400。
+ * ★ 数字取 6/10：与卡片标签（CustomCardPage 的 TAG_MAX/TAG_LEN_MAX）同一口径，
+ *   用户心智统一，6 个也正好一行芯片不换行。⚠ 但它们**不是同一条规则**（卡的标签是
+ *   素材检索用的关键词，作品的是给读者点进去的话题），所以各自具名、互不 import。
+ */
+export const VIDEO_TAG_MAX = 6;
+export const VIDEO_TAG_LEN = 10;
+
+/**
+ * 「用户打的一串字 → 标签数组」。空格 / 逗号 / 顿号 / # 都当分隔符（三种都有人打）。
+ * **唯一一处**：卡片那条（CustomCardPage）与作品那条（发布/编辑页的 TagInput）共用，
+ * 只是把各自的上限传进来。
+ *
+ * ★ 抽出来的理由是真踩过的形状：两份分隔符正则一旦分叉（比如新的那份忘了顿号），
+ *   用户在一处打顿号能分开、在另一处变成一个超长标签被截掉一半，全程零报错（铁律六）。
+ */
+export function parseTags(raw: string, opts: { max: number; maxLen: number }): string[] {
+  const list = raw
+    .split(/[\s,，、#]+/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((t) => t.slice(0, opts.maxLen));
+  return Array.from(new Set(list)).slice(0, opts.max);
+}
 
 export function uid(prefix = "id"): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;

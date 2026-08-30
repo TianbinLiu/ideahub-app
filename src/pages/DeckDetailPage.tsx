@@ -9,7 +9,7 @@ import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareB
 import { deckCoverOf, isRemoteMode, myCards, myDecks, shareDeck, updateDeck } from "../data/account";
 import { formatHeat, heatOf } from "../data/social";
 import { useAccountVersion } from "../hooks/useAccount";
-import { CARD_TYPE_LABELS } from "../types";
+import { CARD_TYPE_LABELS, SHARE_NOTE_MAX } from "../types";
 
 export default function DeckDetailPage() {
   useAccountVersion();
@@ -77,7 +77,7 @@ export default function DeckDetailPage() {
               <textarea
                 value={deck.intro ?? ""}
                 onChange={(e) => updateDeck(deck.id, { intro: e.target.value })}
-                maxLength={120}
+                maxLength={SHARE_NOTE_MAX}
                 rows={3}
                 className="w-full resize-none rounded-lg border border-slate-600 bg-panel px-2.5 py-1.5 text-xs text-slate-200 outline-none placeholder:text-slate-500 focus:border-brand"
                 placeholder="写一段卡组简介：这套卡适合生成什么样的视频？"
@@ -107,7 +107,7 @@ export default function DeckDetailPage() {
         className="mb-4"
         published={!!deck.published}
         installs={deck.installs ?? 0}
-        disabledReason={shareBlockReason({ remote: isRemoteMode(), cardCount: deck.cardIds.length })}
+        disabledReason={shareBlockReason({ remote: isRemoteMode(), published: !!deck.published, cardCount: deck.cardIds.length })}
         onToggle={(next) => shareDeck(deck.id, next)}
       />
 

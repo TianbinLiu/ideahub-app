@@ -14,12 +14,13 @@ import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
 import VisibilityPicker from "../components/VisibilityPicker";
 import SegmentPlayer from "../components/SegmentPlayer";
+import TagInput from "../components/TagInput";
 import { isArkAssetUrl } from "../ai/arkClient";
 import { addCards, createDeck, deckSynced } from "../data/account";
 import { MIN_PAID_PRICE, PLATFORM_CUT, fmtTokens } from "../data/economy";
 import { publishVideo } from "../data/videos";
 import { publishedExit, useStudio } from "../studio/studioStore";
-import { VIDEO_CATEGORIES, formatDuration } from "../types";
+import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, formatDuration, parseTags } from "../types";
 
 export default function PublishPage() {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ export default function PublishPage() {
   const [category, setCategory] = useState(draft?.category ?? "剧情");
   const [description, setDescription] = useState(draft?.description ?? "");
   const [cover, setCover] = useState(draft?.cover ?? "");
+  const [tags, setTags] = useState<string[]>([]);
   const [paid, setPaid] = useState(false);
   const [price, setPrice] = useState<number>(5000);
   // 可见性默认公开：发布这个动作本身的意思就是"给人看"。
@@ -97,6 +99,7 @@ export default function PublishPage() {
       title: title.trim(),
       category,
       description: description.trim(),
+      ...(tags.length > 0 ? { tags } : {}),
       cover,
       segments: draft.segments,
       branchTree: draft.branchTree,
@@ -234,6 +237,19 @@ export default function PublishPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* 话题标签：分区只有 6 个固定值，长尾内容没有落点，标签就是给它们准备的。
+              上限与规范化都在 types 一处，与服务端 zod 逐字相等（那边有用例钉着） */}
+          <div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300">话题标签</div>
+            <TagInput
+              tags={tags}
+              onChange={setTags}
+              max={VIDEO_TAG_MAX}
+              maxLen={VIDEO_TAG_LEN}
+              split={parseTags}
+            />
           </div>
 
           <div>

@@ -77,6 +77,8 @@ export interface ApiVideo {
   title: string;
   category: string;
   description: string;
+  /** 话题标签；老作品/未升级服务端缺省（服务端已归一成空数组） */
+  tags?: string[];
   cover: string;
   segments: VideoSegment[];
   branchTree?: BranchTree;
@@ -362,7 +364,7 @@ export async function deleteVideo(id: string): Promise<void> {
 /**
  * PATCH /api/branch/videos/:id（requireAuth，仅作者）——作品编辑。
  *
- * ★ 服务端只收 title / category / description / visibility / cover 五个字段，其余一律 strip。
+ * ★ 服务端只收 title / category / description / tags / visibility / cover 六个字段，其余一律 strip。
  *   cover **必须是 http(s) 永久 URL**：服务端不收 dataURL（MB 级请求体会撞网关 1MB 上限），
  *   调用方先走 publishAssets.imageToUrl 传成 URL 再 PATCH。
  *   片段与卡组是「发布那一刻的样子」，改了就意味着已经看过、已经收藏过的人看到的东西变了。
@@ -370,7 +372,7 @@ export async function deleteVideo(id: string): Promise<void> {
  *   类型上挡住比运行时纳闷强（契约见 docs/api-contract.md「端点」表）。
  * 服务端未实现该端点时调用方会收到 ApiError，由 data 层降级为"仅本地生效"并 toast。
  */
-export type VideoMetaPatch = Partial<Pick<ApiVideo, "title" | "category" | "description" | "visibility" | "cover">>;
+export type VideoMetaPatch = Partial<Pick<ApiVideo, "title" | "category" | "description" | "tags" | "visibility" | "cover">>;
 
 export async function updateVideo(id: string, patch: VideoMetaPatch): Promise<ApiVideo | null> {
   const res = await apiPatch<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}`, patch);

@@ -6,7 +6,7 @@
 //
 // 页面读的全是同步函数（myCards() / currentUser() / isFollowing()…），签名一个没动；
 // 变更仍通过 subscribeAccount + 版本号广播，远端回包回填时也走同一条广播。
-import { Card, uid, viewTag, type CardView } from "../types";
+import { Card, SHARE_NOTE_MAX, uid, viewTag, type CardView } from "../types";
 // data → mock 是既有方向（data/videos.ts 也从 mock/frames 取种子帧），不成环
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
 import { reconcileTermsWithServer } from "./agreements";
@@ -1155,15 +1155,22 @@ export async function shareDeck(deckId: string, on: boolean): Promise<void> {
  *   从别人拿到的那份里剥掉。调用方（CardDetailPage）在按钮旁边先把这件事说清楚，
  *   见 types.ts 的 publishableModelUrl。
  */
-export async function shareCard(cardId: string, on: boolean): Promise<void> {
+export async function shareCard(cardId: string, on: boolean, note?: string): Promise<void> {
   const u = currentUser();
   if (!u || !db) throw new Error("请先登录");
   if (!remoteOn()) throw new Error("分享需要先连接服务器并登录");
   const c = db.cards.find((x) => x.ownerId === u.id && x.id === cardId);
   if (!c) throw new Error("这张卡不在你的库里");
 
-  const remote = on ? await branch.publishCard(cardId) : await branch.unpublishCard(cardId);
+  // ★ 推荐语随分享一起发（口径与 shareDeck 的 intro 逐字相同）：
+  //   `undefined` = 这次不改，服务端保留原值；空串会把原来那句清掉，所以只在
+  //   用户真的写了东西时才发。链路的另外三段（api.publishCard 的 description、
+  //   服务端存并发回、toLocalCard 解析成 shareNote）2026-08 就通了，**只差这一发**
+  //   —— 于是"卡片分享推荐语"这个功能在库里、在协议里都存在，界面上却写不进也看不到。
+  const trimmed = note?.trim().slice(0, SHARE_NOTE_MAX);
+  const remote = on ? await branch.publishCard(cardId, trimmed || undefined) : await branch.unpublishCard(cardId);
   c.published = remote?.published ?? on;
+  if (on && trimmed) c.shareNote = trimmed;
   persist();
 }
 
@@ -1176,9 +1183,14 @@ export async function shareCard(cardId: string, on: boolean): Promise<void> {
  *   而全 app 没有任何地方监听 emitApiError（铁律八）—— 工坊页看到空数组就
  *   整块不渲染，用户面对的是"社区分享的卡怎么没了"，没有任何线索也没得重试。
  */
+/** 广场一次拉多少。★ 服务端两个广场端点都是 `Math.min(50, Number(limit)||20)`，
+ *  这里取满：广场是那一格**唯一**的来源（本地种子市场 2026-08-24 就下架了），
+ *  客户端沿用默认的 20 等于白白少一半，而且没有翻页可以补。 */
+const PLAZA_LIMIT = 50;
+
 export async function browseSharedCards(q = ""): Promise<branch.ApiSharedCard[]> {
   if (!remoteOn()) return [];
-  return branch.listSharedCards(q);
+  return branch.listSharedCards(q, PLAZA_LIMIT);
 }
 
 /** 把别人分享的一张卡装进我的库（服务端按 { owner, cardId } 幂等） */
@@ -1198,6 +1210,45 @@ export async function installSharedCard(cardId: string): Promise<Card | null> {
 }
 
 /**
+ * 「把这张卡装进我的库」—— **唯一实现**，判"该走哪条路"也只在这里。
+ *
+ * ★★ 为什么必须收口：装一张卡有**两条完全不同的路**，而它们的失败方式也不同：
+ *   ① 广场卡（服务端有权威那份）走 `installSharedCard` —— 服务端按 {owner,cardId} 幂等，
+ *      装到的是**权威版本**（参考图、剥过 idb: 指针的建模都跟着走），还会计装机数；
+ *   ② 作品卡组/模板带来的**快照卡**没有 published，`installCard` 必然 404，
+ *      只能按快照落库（`addCards`）。
+ *   收口之前这两条各自长在工坊页的两颗按钮上；再给详情页加第三颗，装法就三方分叉了
+ *   （铁律六）。查法：`rg "installSharedCard|addCards\(\["`。
+ * ★ 已经在库里 = 成功（幂等）：用户要的结果已经成立，报"已存在"是自找麻烦。
+ * ★ 回执是整句人话，不是 boolean —— 失败原因有好几种，上层只拿 false 只能瞎猜（铁律八）。
+ */
+export type AcquireResult = { ok: true } | { ok: false; why: string };
+
+export async function acquireCard(card: Card): Promise<AcquireResult> {
+  const u = currentUser();
+  if (!u || !db) return { ok: false, why: "还没登录，装不了。" };
+  if (db.cards.some((c) => c.ownerId === u.id && c.id === card.id)) return { ok: true };
+
+  // ① 广场那份：published 由广场那一跳显式标上（服务端的 shared payload 不发这个字段，
+  //    但广场列出来的每一张按定义都是已分享的）
+  if (card.published === true) {
+    if (!remoteOn()) return { ok: false, why: "这次没连上服务器，装不了广场上的卡——联网后再试。" };
+    try {
+      const got = await installSharedCard(card.id);
+      return got ? { ok: true } : { ok: false, why: "服务器没有返回这张卡（可能作者刚把它撤下了）。" };
+    } catch (e) {
+      return { ok: false, why: e instanceof Error ? e.message : "装不上，原因不明。" };
+    }
+  }
+
+  // ② 快照卡（作品卡组/模板带来的）：服务端不认这个 cardId，只能按快照落库
+  const r = await addCards([card]);
+  if (r.added.length === 0) return { ok: false, why: "没能存进你的卡片库：登录态可能已经失效。" };
+  if (!r.synced) return { ok: false, why: `${r.reason || "没能同步到服务器"}——卡在这台设备上有，但换台设备可能就没了。` };
+  return { ok: true };
+}
+
+/**
  * 逛广场：别人分享出来的卡组。
  *
  * ★ 离线模式返回**主题种子卡组**而不是空数组：卡片那一侧本来就是本地种子
@@ -1208,7 +1259,7 @@ export async function installSharedCard(cardId: string): Promise<Card | null> {
 export async function browseSharedDecks(q = ""): Promise<branch.ApiSharedDeck[]> {
   if (!remoteOn()) return seedSharedDecks(q);
   // 失败抛给调用方，理由同 browseSharedCards：吞掉就是一块凭空消失的区域
-  return branch.listSharedDecks(q);
+  return branch.listSharedDecks(q, PLAZA_LIMIT);
 }
 
 function seedSharedDecks(q: string): branch.ApiSharedDeck[] {
@@ -1353,7 +1404,7 @@ async function flushDeckPatch(localId: string, patch: DeckPatch): Promise<void> 
   //   这里以前压根没发 —— 于是用户在卡组详情页写的简介永远到不了服务端，
   //   广场那行简介恒为空，而且一点错都不报（铁律八的典型形态）。
   //   允许发空串：那是用户真的把简介删了。
-  if (typeof patch.intro === "string") body.description = patch.intro.trim().slice(0, 200);
+  if (typeof patch.intro === "string") body.description = patch.intro.trim().slice(0, SHARE_NOTE_MAX);
   if (Object.keys(body).length === 0) return;
   await branch.updateDeck(id, body).catch((e) => emitApiError("updateDeck", e));
 }
@@ -1370,11 +1421,19 @@ function toMs(v: string | number | undefined): number {
 }
 
 /**
- * 服务端卡片 → 本地 Card。**只有这一处映射**（拉列表 / 装卡组 / 装单卡三条路共用）：
+ * 服务端卡片 → 本地 Card。**只有这一处映射**（拉列表 / 装卡组 / 装单卡 / 广场渲染四条路共用）：
  * 抄第二遍必然漏字段，而漏字段在这里的表现是"卡还在，但 3D 建模和生成蓝图没了"——
  * 不报错，只是内容凭空少了一块。
+ *
+ * ★★ 上面这句不是假设，是**已经发生过一次**（2026-08-30 修）：工坊页曾经另写了一份
+ *   `toLocalShape`，理由是"只为渲染卡面、不落库"。它漏了 `views` —— 于是逛广场的人
+ *   点进任何一张别人的卡，「🖼 形象参考」**整块不见**（详情页判的是 `card.views` 有没有，
+ *   而那份映射从不写它）。服务端明明特意把 views 发到了广场那一跳，注释就写在
+ *   `toSharedCardPayload` 里：「广场里就要能看到这张卡挂了几张参考图，否则装回来才发现
+ *   是两张卡」。装回来之后图又全回来了 —— 用户能观察到的只是"装之前没有、装之后突然多出三张"。
+ *   ⇒ 别再以"不落库"为由抄第二份：渲染同样要用全字段。
  */
-function toLocalCard(c: branch.ApiCard): Card {
+export function toLocalCard(c: branch.ApiCard): Card {
   return {
     id: c.cardId,
     type: c.type,

@@ -502,13 +502,13 @@ export function partsOf(v: VideoItem): VideoPart[] {
  *    这是最坏的一种失败：用户以为自己藏起来了，其实没有（铁律八）。
  *    回滚之后 UI 会自己弹回「公开」——和服务端一致，用户至少能看出没成功。
  *
- *  ★ 发上去的**只有服务端认的那四个字段**（title/category/description/visibility）。
+ *  ★ 发上去的**只有服务端认的那几个字段**（title/category/description/tags/visibility）。
  *    deck / pricing 会被服务端 strip；cover 走另一条路（EditPage 先把它传成永久 URL
  *    再随 patch 发，见下面的 remotePatch.cover）。 */
 export function updateVideoMeta(
   id: string,
   patch: Partial<
-    Pick<VideoItem, "title" | "category" | "description" | "cover" | "deck" | "pricing" | "visibility">
+    Pick<VideoItem, "title" | "category" | "description" | "tags" | "cover" | "deck" | "pricing" | "visibility">
   >,
 ): VideoItem | null {
   const v = find(id);
@@ -518,6 +518,7 @@ export function updateVideoMeta(
     title: v.title,
     category: v.category,
     description: v.description,
+    tags: v.tags,
     cover: v.cover,
     visibility: v.visibility,
   };
@@ -528,6 +529,8 @@ export function updateVideoMeta(
     if (patch.title !== undefined) remotePatch.title = patch.title;
     if (patch.category !== undefined) remotePatch.category = patch.category;
     if (patch.description !== undefined) remotePatch.description = patch.description;
+    // ★ 空数组要发出去（那是"把标签全清掉"），所以判的是 undefined 不是长度
+    if (patch.tags !== undefined) remotePatch.tags = patch.tags;
     if (patch.visibility !== undefined) remotePatch.visibility = patch.visibility;
     // 封面只在已经是永久 URL 时才发：dataURL 是 MB 级的，直接 PATCH 会撞上网关的
     // 请求体上限（1MB），而且撞了也只是 fetch failed，看不出是因为太大
@@ -620,6 +623,7 @@ export function publishVideo(draft: DraftVideo): VideoItem {
     title: draft.title,
     category: draft.category,
     description: draft.description,
+    tags: draft.tags?.length ? draft.tags : undefined,
     cover: draft.cover,
     segments: draft.segments,
     branchTree: draft.branchTree,
@@ -1177,6 +1181,8 @@ function toVideoItem(v: branch.ApiVideo): VideoItem {
     title: v.title,
     category: v.category,
     description: v.description,
+    // 老作品/老服务端没有这个字段 → undefined（读侧判否定，别落成空数组当"打过标签"）
+    tags: Array.isArray(v.tags) && v.tags.length > 0 ? v.tags : undefined,
     cover: v.cover,
     segments: Array.isArray(v.segments) ? v.segments : [],
     branchTree: v.branchTree,

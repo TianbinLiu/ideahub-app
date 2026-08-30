@@ -62,6 +62,7 @@ import {
   Card,
   CardType,
   CardView,
+  parseTags as parseTagsShared,
   roleToKind,
   slotLabel,
   uid,
@@ -95,14 +96,10 @@ interface Shot {
   fileName: string;
 }
 
-/** 标签输入 → tags。空格 / 逗号 / 顿号 / # 都当分隔符（用户三种都会打） */
+/** 标签输入 → tags。分隔符规则**只有一处**（types.parseTags），这里只把卡片的上限传进去
+ *  —— 卡片与作品的上限是两条独立规则，但"怎么切"必须是同一条（见 types 那处的 ★） */
 function parseTags(raw: string): string[] {
-  const list = raw
-    .split(/[\s,，、#]+/)
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .map((t) => t.slice(0, TAG_LEN_MAX));
-  return Array.from(new Set(list)).slice(0, TAG_MAX);
+  return parseTagsShared(raw, { max: TAG_MAX, maxLen: TAG_LEN_MAX });
 }
 
 /** Blob → dataURL。纯编码，不是规则（规则都在 prepareCardImage 里） */
