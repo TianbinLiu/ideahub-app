@@ -54,17 +54,27 @@ export default function SimpleModePage() {
   }, []);
 
   const node = nodes[0];
-  if (!node) return null;
-  const prop = chosenOf(node);
-  const tpl = tplOfNode(node);
-  const generating = node.status === "generating";
-  const done = nodeDone(node);
-  const cost = nodeCost(nodes, 0, mode);
+  // ★★ 下面这些派生值与那个 useEffect 都必须排在 `if (!node) return null` **之前**
+  //   （2026-08-30 被新加的构建门禁 scripts/check-hook-order.mjs 抓出来）：
+  //   首帧进来时 `nodes` 可能是空的（上面那个 effect 才去 seedSolo），于是第一次渲染
+  //   早退、只注册了 1 个 hook；seedSolo 填上之后重渲染变成 2 个 —— React 抛
+  //   「Rendered more hooks than during the previous render」，**整页白屏且这一页没有
+  //   ErrorBoundary**。用户读到的是"简约模式打不开了"。
+  //   ⇒ hook 照常跑，把"没有节点"的情况挡在 effect 体内。
+  // ★ 只有**下面那个 effect 依赖的**两个值需要提前算（它们必须在早退之前，见上面的 ★★）；
+  //   其余派生值留在早退之后 —— 那样类型上 node 已经收窄，不用到处补空判。
+  const generating = node?.status === "generating";
+  const done = !!node && nodeDone(node);
 
   /** 出片后直接去剪辑/发布：简约不留草稿，出完就该往外走 */
   useEffect(() => {
     if (done && !generating) navigate("/cut");
   }, [done, generating, navigate]);
+
+  if (!node) return null;
+  const prop = chosenOf(node);
+  const tpl = tplOfNode(node);
+  const cost = nodeCost(nodes, 0, mode);
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-6 pt-3">
