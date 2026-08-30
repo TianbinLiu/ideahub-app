@@ -528,7 +528,10 @@ export async function generateSegment(
     else if (!refMode && !framesAsRefs)
       notes.push("「" + tier.label + "」档只能走首尾帧，带不了声音样本（方舟协议互斥）——台词仍会被配音，但音色随机");
   }
-  const noteTail = notes.length ? `（${notes.join("；")}）` : "";
+  /** ★ **现算不定死**（2026-08-30 修）：notes 在这一行之后还会被追加
+   *  （帧转参考图失败就在更后面），写成 const 串的话那几条**永远不会出现在任何一行 prog 里**
+   *  —— 静默降级，正是铁律八要防的那种。每个插值点调它一次。 */
+  const noteTail = () => (notes.length ? `（${notes.join("；")}）` : "");
   // 没有承接帧/底图时素材卡的图就是 <图片1> 起，offset = 0
   const bind = refs ? refs.bind(0) : "";
   const refUrls = refs?.refs.length ? refs.refs : undefined;
@@ -549,7 +552,7 @@ export async function generateSegment(
   // 补画只属于经典路（!blockout）：白模段 first/last 天然为空（门禁保证），
   // 但空≠要补——它的画面在模板视频里
   if (!blockout && !refMode && !first) {
-    prog(`绘制起拍画面…${noteTail}`);
+    prog(`绘制起拍画面…${noteTail()}`);
     first = await generateCover(
       `${input.framePrompt || input.plot.slice(0, 200)}${mats}${bind}`,
       undefined,
@@ -558,7 +561,7 @@ export async function generateSegment(
     );
   }
   if (!blockout && !refMode && !last && tier.flf) {
-    prog(`绘制结束画面…${noteTail}`);
+    prog(`绘制结束画面…${noteTail()}`);
     last = await generateCover(`${input.plot.slice(0, 180)} 的结束瞬间${mats}${bind}`, undefined, input.aspect, refUrls);
   }
 
@@ -658,10 +661,12 @@ export async function generateSegment(
       : "";
   if (blockout)
     prog(
-      `按模板视频逐镜头复刻出片（时长跟随模板${input.refVideo?.durationSec ? ` ${input.refVideo.durationSec} 秒` : ""}）…${noteTail}${cut}`,
+      `按模板视频逐镜头复刻出片（时长跟随模板${input.refVideo?.durationSec ? ` ${input.refVideo.durationSec} 秒` : ""}）…${noteTail()}${cut}`,
     );
-  else if (refMode) prog(`参考卡片形象直接出片（省掉设定帧）…${noteTail}${cut}`);
-  else if (cut) prog(`出片中…${cut}`);
+  else if (refMode) prog(`参考卡片形象直接出片（省掉设定帧）…${noteTail()}${cut}`);
+  // ★ 这一支以前是 `else if (cut)` —— 没有截断就一个字不说，于是“帧当参考图发”这条路上
+  //   的提示（含上传失败退回首尾帧）没有任何出口。改成无条件说一句，把 notes 带上。
+  else prog(`${sendFrameRefs ? `按 ${frameRefs.length + cardRefs.length} 张参考图出片（帧与卡片形象同发）` : "出片中"}…${noteTail()}${cut}`);
   const [res] = await composeSegments(
     [
       {
