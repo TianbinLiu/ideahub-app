@@ -32,6 +32,19 @@ import { hasAsset } from "./cardAsset";
 /** 观看付费的平台抽成比例（其余进创作者 add-on 余额） */
 export const PLATFORM_CUT = 0.3;
 
+/**
+ * 付费作品的最低解锁价（token）。**唯一一处**：输入框的 `min` 与发布前的校验都用它。
+ *
+ * ★★ 为什么必须有真校验、而不是只在 input 上写个 `min`：`min`/`step` 在 HTML 里只是
+ *   浏览器的提示，**不参与任何拦截**。发布那一句写的是 `paid && price > 0`，于是
+ *   「选了付费 → 把价格框清空」= chip 上「付费解锁」还高亮着、pricing 一个字都没写进去
+ *   ⇒ **静默发成免费**。而作品发布后不可回炉、编辑页也没有定价控件（服务端还会 strip），
+ *   一次手滑就是永久免费 —— 丢的是用户的收入（2026-08-30 修）。
+ * ★ 100 这个数：低于它平台抽成后作者到手不足 70 token，不够炼任何东西，
+ *   与其让人定一个没意义的价，不如让他确认一次。
+ */
+export const MIN_PAID_PRICE = 100;
+
 /** 订阅套餐（演示环境模拟支付；套餐 token 按月发放，优先扣减） */
 export interface TokenPlan {
   id: string;

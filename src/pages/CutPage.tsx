@@ -140,11 +140,24 @@ export default function CutPage() {
   // 真混排了也只能挑一个——合并只有一块画布，另一种必然被裁或补边
   const portrait = aspectOf(segs[0]?.aspect).id === "portrait";
   const out = outSize(res.long, portrait);
+  /**
+   * **还在成片里**的那些圈选 —— 计价、按钮上的数、重拍三处都只准用这一份。
+   *
+   * ★★ 2026-08-30 修：`anns` 是按 `segIndex` 攒的，而删片段（`removeClip`）只动 `clips`。
+   *   于是"在第 3 段圈了 5 处、又把第 3 段整个删掉"之后，按钮上仍写着 5 处、
+   *   报价里仍含着那一段的 `segTokens + annRedrawCost(5)`，点下去**真扣钱、真重拍**
+   *   一段根本不会出现在成片里的画面（铁律六：报价与实扣必须是同一把尺，
+   *   而它们当时是同一把**错的**尺——两处各自从 anns 聚合）。
+   * ★ 不在这里顺手删掉那些 ann：用户可能只是先删段、待会儿再撤销顺序（`clips` 是本地
+   *   state，加回来那一段的圈选就还在）。它们只是**不参与计价与重拍**。
+   */
+  const liveSegs = useMemo(() => new Set(view.map((c) => c.segIndex)), [view]);
+  const liveAnns = useMemo(() => anns.filter((a) => liveSegs.has(a.segIndex)), [anns, liveSegs]);
   const annBySeg = useMemo(() => {
     const m = new Map<number, number>();
-    for (const a of anns) m.set(a.segIndex, (m.get(a.segIndex) ?? 0) + 1);
+    for (const a of liveAnns) m.set(a.segIndex, (m.get(a.segIndex) ?? 0) + 1);
     return m;
-  }, [anns]);
+  }, [liveAnns]);
   // ★★ 每段 = 重出一次片 + **每处圈选一张改图**（regenerateAll 里对每条 ann 跑一次
   //   refineFrame）。原来只算了视频那一半 —— 5 秒标准档圈 5 处，按钮印 108k、实扣约 175k，
   //   而按钮旁边还写着「这一步才计费」（2026-08-21 第九轮扫描的 high）。
@@ -194,16 +207,34 @@ export default function CutPage() {
     }
   }
 
+  /**
+   * 把**选中的**片段从播放头处切成两半。
+   *
+   * ★★ 2026-08-30 修：这颗按钮的 disabled 判的是 `sel`（选中的），函数体用的却是
+   *   `active`（正在播的）—— 而 `onTimeUpdate` 播到出点会自动 `setActiveIdx(+1)`
+   *   却**不动 `sel`**。于是屏幕上亮着边框的是第 2 段，剪刀落在第 3 段上；
+   *   连那句"离边缘太近"也是拿另一段的边界算的。
+   *   （CLAUDE.md「弹层按第几段记」那格坑的同型：`Clip.segIndex` 是下标、`sel` 是 id，
+   *   两套身份混着用必然错位。一律认 id。）
+   * ★ 播放头不在选中的那段里就整句拒 —— 这时候"在播放头处分割"本身没有意义，
+   *   而默认切成正在播的那一段就是上面那个 bug 本身。
+   */
   function splitAtPlayhead() {
-    if (!active || !vref.current) return;
+    const target = view.find((c) => c.id === sel);
+    if (!target || !vref.current) return;
+    if (!active || active.id !== target.id) {
+      setErr("播放头不在选中的片段里——先点一下这个片段（它会从头开始播），再切。");
+      return;
+    }
     const cur = vref.current.currentTime;
-    if (cur - active.start < 0.4 || active.end - cur < 0.4) {
+    if (cur - target.start < 0.4 || target.end - cur < 0.4) {
       setErr("分割点离片段边缘太近（至少留 0.4s）");
       return;
     }
     setErr("");
     setClips((cs) => {
-      const i = cs.findIndex((c) => c.id === active.id);
+      const i = cs.findIndex((c) => c.id === target.id);
+      if (i < 0) return cs;
       const a = { ...cs[i], end: cur };
       const b = { ...cs[i], id: uid("clip"), start: cur };
       return [...cs.slice(0, i), a, b, ...cs.slice(i + 1)];
@@ -248,9 +279,10 @@ export default function CutPage() {
 
   /** ✨ 按全部圈选标注重新生成：逐段合并该段所有要求，改首/尾帧 + 重拍 */
   async function regenerateAll() {
-    if (busy || anns.length === 0) return;
+    // ★ 与报价同一份输入（liveAnns）：删掉的段上那些圈选不计价、也不重拍
+    if (busy || liveAnns.length === 0) return;
     const bySeg = new Map<number, Ann[]>();
-    for (const a of anns) bySeg.set(a.segIndex, [...(bySeg.get(a.segIndex) ?? []), a]);
+    for (const a of liveAnns) bySeg.set(a.segIndex, [...(bySeg.get(a.segIndex) ?? []), a]);
     if (AI_REAL && !canAfford(annCost)) {
       const w = walletOf();
       setErr(
@@ -783,11 +815,17 @@ export default function CutPage() {
               {anns.length > 0 && (
                 <>
                   <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1">
-                    {anns.map((a) => (
-                      <div key={a.id} className="relative w-32 flex-none overflow-hidden rounded-lg bg-black/40">
+                    {anns.map((a) => {
+                      // 这一处圈选所在的段还在不在成片里（删掉的段上那些不计价也不重拍）
+                      const live = liveSegs.has(a.segIndex);
+                      return (
+                      <div
+                        key={a.id}
+                        className={`relative w-32 flex-none overflow-hidden rounded-lg bg-black/40 ${live ? "" : "opacity-40"}`}
+                      >
                         <img src={a.frame} alt="" className="h-16 w-full object-cover" />
                         <div className="truncate px-1.5 py-1 text-[10px] text-slate-300" title={a.req}>
-                          段{a.segIndex + 1} · {a.req}
+                          {live ? `段${a.segIndex + 1}` : "段已删"} · {a.req}
                         </div>
                         <button
                           onClick={() => setAnns((l) => l.filter((x) => x.id !== a.id))}
@@ -796,15 +834,24 @@ export default function CutPage() {
                           ✕
                         </button>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
+                  {/* ★ 数与钱都只认还在成片里的那些（见 liveAnns 的 ★★）。
+                      被删段上的圈选留在上面那一排里、灰着，但不进这颗按钮 —— 直接抹掉
+                      会让用户以为是自己点错删了圈选。 */}
                   <button
                     onClick={() => void regenerateAll()}
-                    disabled={!!busy}
+                    disabled={!!busy || liveAnns.length === 0}
                     className="mt-2 w-full rounded-xl bg-cyan-500/85 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                   >
-                    ✨ 按 {anns.length} 处圈选重新生成（{annBySeg.size} 段 · {fmtTokens(annCost)}）
+                    ✨ 按 {liveAnns.length} 处圈选重新生成（{annBySeg.size} 段 · {fmtTokens(annCost)}）
                   </button>
+                  {liveAnns.length < anns.length && (
+                    <p className="mt-1 text-center text-[10px] text-slate-500">
+                      另有 {anns.length - liveAnns.length} 处落在已删掉的段上，不计费也不会重拍
+                    </p>
+                  )}
                 </>
               )}
             </>

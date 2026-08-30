@@ -13,7 +13,12 @@
 //   · 分享：published 为真时删卡会连远端那份一起删（branch.removeCard）→ 别人**已经装走**的
 //     是他们自己库里的副本，不受影响 → 两句都要说
 //   · 声音样本与肖像授权是本机侧库，跟着一起清（removeVoice / cardAsset）
-import { createPortal } from "react-dom";
+//
+// ★★ 删除是**等得起**的：`removeCard` 现在会先跟服务端确认删掉了才动本地
+//   （不这么做的话删失败的卡下次冷启动会长回来，见 account.removeCard 的 ★★）。
+//   所以这张卡自己扛两件事：等的时候说「删除中…」，没删成就把**整句原因**留在
+//   卡上、卡不关 —— 关掉卡再去别处报错，用户只会看见"点了没反应"（铁律八）。
+import DeleteConfirmShell from "./DeleteConfirmShell";
 import { myDecks } from "../data/account";
 import { useFlow } from "../studio/flowStore";
 import type { Card } from "../types";
@@ -24,7 +29,8 @@ export default function DeleteCardDialog({
   onCancel,
 }: {
   card: Card;
-  onConfirm: () => void;
+  /** 返回 null = 真删掉了（卡自己关）；返回字符串 = 整句失败原因，留在卡上 */
+  onConfirm: () => Promise<string | null>;
   onCancel: () => void;
 }) {
   const decks = myDecks().filter((d) => d.cardIds.includes(card.id));
@@ -35,11 +41,13 @@ export default function DeleteCardDialog({
     .nodes.map((n, i) => ((n.materials ?? []).some((m) => m.id === card.id) ? i + 1 : 0))
     .filter(Boolean);
 
-  return createPortal(
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-6" onClick={onCancel}>
-      <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-sm font-bold text-slate-100">删掉「{card.name}」？</h3>
-        <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-slate-400">
+  return (
+    <DeleteConfirmShell
+      title={`删掉「${card.name}」？`}
+      danger="删掉这张卡"
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    >
           <p>
             <span className="text-rose-300">删了就找不回来</span>：卡面、形象参考图、
             {card.genPrompt ? "铸造提示词、" : ""}声音样本与肖像授权都会一起清掉。
@@ -59,17 +67,6 @@ export default function DeleteCardDialog({
             <p>· 它已经分享到创意工坊：删卡会<span className="text-slate-200">同时下架</span>；
             别人已经装走的那份在他们自己的库里，不受影响。</p>
           )}
-        </div>
-        <div className="mt-4 flex gap-2">
-          <button onClick={onCancel} className="flex-1 rounded-xl border border-slate-600 py-2.5 text-xs text-slate-300">
-            先不删
-          </button>
-          <button onClick={onConfirm} className="flex-1 rounded-xl bg-rose-500/90 py-2.5 text-xs font-bold text-white">
-            删掉这张卡
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+    </DeleteConfirmShell>
   );
 }
