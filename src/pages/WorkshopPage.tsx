@@ -1,9 +1,9 @@
 // 创意工坊页：管理自己的卡片与卡组——搜索添加市场卡片、建组、增删卡。
 // 与 3D 卡片工坊（/studio）分工：这里是资产管理，那里是创作现场。
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
 import Icon from "../components/Icon";
 import DeleteCardDialog from "../components/DeleteCardDialog";
+import DeleteDeckDialog from "../components/DeleteDeckDialog";
 import AuthPending from "../components/AuthPending";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -265,67 +265,36 @@ export default function WorkshopPage() {
         ))}
       </div>
 
+      {/* ★★ 两张删除确认摆在**页签分支之外**（2026-08-30 复核抓到）：删卡组那颗按钮在
+          「我的卡组」分支，而确认卡一度写在「我的卡片」分支里 —— 两分支互斥，
+          于是卡组按钮点了纹丝不动，而 DeckDetailPage 没有第二个删除入口，
+          等于卡组根本删不掉。删除类浮层与触发它的按钮不该分属不同的条件分支。 */}
+      {askCard && (
+        <DeleteCardDialog
+          card={askCard}
+          onCancel={() => setAskCard(null)}
+          onConfirm={() => {
+            removeCard(askCard.id);
+            setAskCard(null);
+          }}
+        />
+      )}
+      {askDeck && (
+        <DeleteDeckDialog
+          deck={askDeck}
+          onCancel={() => setAskDeck(null)}
+          onConfirm={() => {
+            deleteDeck(askDeck.id);
+            setAskDeck(null);
+          }}
+        />
+      )}
       {tab === "templates" ? (
         <div className="pb-4">
           <TemplateShelf initialTab="mine" />
         </div>
       ) : tab === "cards" ? (
         <>
-          {askDeck &&
-            createPortal(
-              <div
-                className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-6"
-                onClick={() => setAskDeck(null)}
-              >
-                <div
-                  className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <h3 className="text-sm font-bold text-slate-100">删掉卡组「{askDeck.name}」？</h3>
-                  <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-slate-400">
-                    <p>
-                      · 里面那 {askDeck.cardIds.length} 张卡<span className="text-slate-200">不会被删</span>，
-                      它们还在你的卡片库里，只是不再归到这一组。
-                    </p>
-                    {askDeck.published && (
-                      <p>
-                        · 这个卡组已分享到创意工坊：删掉会<span className="text-slate-200">同时下架</span>；
-                        别人已经装走的那份是发布时的快照，留在他们库里不受影响。
-                      </p>
-                    )}
-                    <p className="text-rose-300">卡组本身删了就找不回来。</p>
-                  </div>
-                  <div className="mt-4 flex gap-2">
-                    <button
-                      onClick={() => setAskDeck(null)}
-                      className="flex-1 rounded-xl border border-slate-600 py-2.5 text-xs text-slate-300"
-                    >
-                      先不删
-                    </button>
-                    <button
-                      onClick={() => {
-                        deleteDeck(askDeck.id);
-                        setAskDeck(null);
-                      }}
-                      className="flex-1 rounded-xl bg-rose-500/90 py-2.5 text-xs font-bold text-white"
-                    >
-                      删掉这个卡组
-                    </button>
-                  </div>
-                </div>
-              </div>,
-              document.body,
-            )}
-          {askCard && (
-            <DeleteCardDialog
-              card={askCard}
-              onCancel={() => setAskCard(null)}
-              onConfirm={() => {
-                removeCard(askCard.id);
-                setAskCard(null);
-              }}
-            />
-          )}
           {cards.length > 0 && (
             <div className="mb-5 grid grid-cols-3 gap-2.5">
               {cards.map((c) => (
