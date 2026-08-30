@@ -83,6 +83,22 @@ export default function CutPage() {
   const [busy, setBusy] = useState("");
   /** 合并的防重入闸。★ 用 ref 不用 busy：setBusy 异步生效，挡不住同一帧内的第二次点击 */
   const mergingRef = useRef(false);
+  /**
+   * 合并进度（秒）。★★ 原来只显示「合并中 · 片段 i/N」——而合并是**实时录屏**：
+   *   成片多长就录多长，一条 30 秒的片子要等 30 秒，屏幕上那个 i/N 十几秒才跳一次，
+   *   用户完全不知道还要多久、也不知道它是不是卡死了。
+   */
+  const [mergeDone, setMergeDone] = useState(0);
+  /** 用户点了取消。★ 用 ref：录制循环在 rAF 里跑，读 state 拿到的是闭包里的旧值 */
+  const cancelRef = useRef(false);
+  /**
+   * 合并期间页面被切走过。
+   * ★★ 这不是"可能有影响"，是**这一炉基本就废了**：页面不可见时 `<video>` 不解码、
+   *   rAF 被节流到约 1 帧/500ms（CLAUDE.md 那格坑量过）。录出来的会是一段卡住的画面，
+   *   而且**不报错** —— 用户拿到一条几十秒的坏片，还以为是生成质量的问题。
+   */
+  const wentHiddenRef = useRef(false);
+  const [hiddenWarn, setHiddenWarn] = useState(false);
   const [err, setErr] = useState("");
   const dragClip = useRef<string | null>(null);
 
@@ -219,16 +235,32 @@ export default function CutPage() {
    * ★ 播放头不在选中的那段里就整句拒 —— 这时候"在播放头处分割"本身没有意义，
    *   而默认切成正在播的那一段就是上面那个 bug 本身。
    */
-  function splitAtPlayhead() {
+  /** 一刀落在哪儿必须留够的余量（秒）。分割与裁剪**同一个数**：两处都是"别切出一个
+   *  没法播的碎片"，各写一个数必然分叉成"能切但切完删不掉"。 */
+  const MIN_CLIP_SEC = 0.4;
+
+  /**
+   * 「现在能不能对选中的片段下刀」——分割与裁头裁尾**共用这一处判断**。
+   * @returns 能下刀时返回 {clip, at}；否则就地写错并返回 null（铁律八：说清为什么点不动）
+   */
+  function cutPoint(): { clip: Clip; at: number } | null {
     const target = view.find((c) => c.id === sel);
-    if (!target || !vref.current) return;
+    if (!target || !vref.current) return null;
+    // ★ 播放头不在选中的那段里就整句拒：`sel`（选中的）与 `active`（正在播的）会分开
+    //   —— 播到出点会自动换 active 却不动 sel（2026-08-30 修过的那个错位）。
     if (!active || active.id !== target.id) {
-      setErr("播放头不在选中的片段里——先点一下这个片段（它会从头开始播），再切。");
-      return;
+      setErr("播放头不在选中的片段里——先点一下这个片段（它会从头开始播），再操作。");
+      return null;
     }
-    const cur = vref.current.currentTime;
-    if (cur - target.start < 0.4 || target.end - cur < 0.4) {
-      setErr("分割点离片段边缘太近（至少留 0.4s）");
+    return { clip: target, at: vref.current.currentTime };
+  }
+
+  function splitAtPlayhead() {
+    const pt = cutPoint();
+    if (!pt) return;
+    const { clip: target, at: cur } = pt;
+    if (cur - target.start < MIN_CLIP_SEC || target.end - cur < MIN_CLIP_SEC) {
+      setErr(`分割点离片段边缘太近（至少留 ${MIN_CLIP_SEC}s）`);
       return;
     }
     setErr("");
@@ -239,6 +271,39 @@ export default function CutPage() {
       const b = { ...cs[i], id: uid("clip"), start: cur };
       return [...cs.slice(0, i), a, b, ...cs.slice(i + 1)];
     });
+  }
+
+  /**
+   * 裁头 / 裁尾：把选中片段的入点或出点挪到播放头。
+   *
+   * ★★ 为什么补这个：`Clip.start/end` **一直支持裁剪**，UI 上却只有"分割"一条路，
+   *   而删除在只剩一个片段时是灰的 ⇒ **简约模式出来的单段作品根本裁不了**
+   *   （想去掉开头两秒？做不到）。这是"能力在数据结构里、入口没做出来"的典型。
+   * ★ 为什么不做拖拽把手：这条时间轴是**等宽故事板卡**（宽度不正比于时长，
+   *   段数是个位数、时长在推演时就定死了，不上等比时间轴是有意的取舍）。
+   *   在等宽卡上摆把手，"拖到一半"在视觉上不对应任何时长 —— 那才是骗人。
+   *   入点/出点复用已经存在的播放头概念，单段作品也照样用得了。
+   */
+  function trimTo(edge: "start" | "end") {
+    const pt = cutPoint();
+    if (!pt) return;
+    const { clip: target, at: cur } = pt;
+    const next = edge === "start" ? { ...target, start: cur } : { ...target, end: cur };
+    if (next.end - next.start < MIN_CLIP_SEC) {
+      setErr(`这样裁完只剩不到 ${MIN_CLIP_SEC}s，片段太短了`);
+      return;
+    }
+    setErr("");
+    setClips((cs) => cs.map((c) => (c.id === target.id ? next : c)));
+  }
+
+  /** 还原这一段的裁剪（回到整段）。★ 必须有：裁剪不可撤销的话，用户不敢用它 */
+  function resetTrim() {
+    const target = view.find((c) => c.id === sel);
+    const seg = target && segs[target.segIndex];
+    if (!target || !seg) return;
+    setErr("");
+    setClips((cs) => cs.map((c) => (c.id === target.id ? { ...c, start: 0, end: seg.durationSec } : c)));
   }
 
   function removeClip(id: string) {
@@ -326,6 +391,11 @@ export default function CutPage() {
         //   nextSegs 一起丢弃，圈选也没清 —— 用户点「重试」对同一份内容再收一遍。
         //   逐段写回 + 逐段清掉这一段的圈选：失败时前面付过的钱全都留在成片里。
         useStudio.setState({ draft: { ...useStudio.getState().draft!, segments: nextSegs.slice() } });
+        // ★ 钱刚扣过（segTokens + annRedrawCost）：这一段落盘，别让一次切后台把它烧掉。
+        //   与 useFlowActions 那条「又炼出一段就自动存盘」是同一条规则、同一个理由。
+        if (!(await useStudio.getState().persistCutDraft())) {
+          setErr("这一段已经改好、钱也扣过了，但没能存进本地库——先别切后台，把片子剪完发出去。");
+        }
         setAnns((prev) => prev.filter((a) => a.segIndex !== segIndex));
         void resolveMediaUrl(url, { forCapture: true }).then((u) => u && setSrcMap((m) => ({ ...m, [segIndex]: u })));
       }
@@ -348,7 +418,21 @@ export default function CutPage() {
     //   它自己那条录得更烂的（2026-08-21 对抗评审确认）。
     if (busy || mergingRef.current) return;
     mergingRef.current = true;
+    cancelRef.current = false;
+    wentHiddenRef.current = false;
+    setHiddenWarn(false);
+    setMergeDone(0);
     setErr("");
+    // ★★ 合并期间页面被切走 = 这一炉基本就废了（不可见时 `<video>` 不解码、rAF 被节流到
+    //   约 1 帧/500ms），而且**不报错**。记下来，结束时如实说一句 —— 不说的话用户拿到
+    //   一条卡住的坏片，只会以为是生成质量的问题。
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") {
+        wentHiddenRef.current = true;
+        setHiddenWarn(true);
+      }
+    };
+    document.addEventListener("visibilitychange", onHidden);
     let audioCtx: AudioContext | null = null;
     try {
       // ★ 老草稿自救：还是方舟直链的段先转存成永久地址（服务端拉，全球 CDN）。
@@ -370,6 +454,8 @@ export default function CutPage() {
         mergeSegs = next;
         // 写回草稿：预览、重试合并、发布都用转存后的地址，别让下一步再拉一次跨境
         useStudio.setState({ draft: { ...draft!, segments: next } });
+        // 跨境转存的成果，不值得再拉一遍
+        void useStudio.getState().persistCutDraft();
       }
       // ★ 音轨与画布准备是**同步长活**（预置的原片音轨是整条原视频，几十 MB、跨境要十几秒）：
       //   不先点亮 busy 的话，这段时间按钮亮着、屏幕上一个字都没有 = 用户眼里的"点了没反应"
@@ -428,6 +514,8 @@ export default function CutPage() {
       for (let i = 0; i < view.length; i++) {
         const clip = view[i];
         const seg = mergeSegs[clip.segIndex];
+        const doneBefore = view.slice(0, i).reduce((sum, x) => sum + clipDur(x), 0);
+        setMergeDone(doneBefore);
         setBusy(`合并中 · 片段 ${i + 1}/${view.length}`);
         if (seg.videoUrl) {
           const src = srcMap[clip.segIndex] ?? (await resolveMediaUrl(seg.videoUrl, { forCapture: true }));
@@ -448,13 +536,15 @@ export default function CutPage() {
           await v.play();
           await new Promise<void>((resolve) => {
             const draw = () => {
-              if (v.ended || v.currentTime >= clip.end) {
+              // ★ 取消要在**循环里**判：rAF 跑着的时候没有别的地方能打断它
+              if (cancelRef.current || v.ended || v.currentTime >= clip.end) {
                 v.pause();
                 resolve();
                 return;
               }
               drawCover(ctx, v, canvas.width, canvas.height);
               drawAigcBadge(ctx, canvas.width, canvas.height);
+              setMergeDone(doneBefore + Math.max(0, v.currentTime - clip.start));
               requestAnimationFrame(draw);
             };
             draw();
@@ -471,6 +561,11 @@ export default function CutPage() {
               drawCover(ctx, b, canvas.width, canvas.height);
               ctx.globalAlpha = 1;
               drawAigcBadge(ctx, canvas.width, canvas.height);
+              setMergeDone(doneBefore + (p * dur) / 1000);
+              if (cancelRef.current) {
+                resolve();
+                return;
+              }
               if (p >= 1) {
                 resolve();
                 return;
@@ -483,6 +578,17 @@ export default function CutPage() {
       }
       rec.stop();
       await stopped;
+      // ★ 取消：录到一半的这段不写库、不跳页。用户要的是"别录了"，不是"录个半截给我"
+      if (cancelRef.current) {
+        setBusy("");
+        setErr("已取消合并。片段、圈选和配乐都还在，随时可以重新开始。");
+        return;
+      }
+      // ★★ 切走过就**如实说**，别把一条卡住的坏片当成品交出去（铁律八）。
+      //   不拦着他继续（片子已经录出来了，也许还能用），但那句话必须说在前面。
+      if (wentHiddenRef.current) {
+        setErr("合并过程中 App 被切到后台过——那段时间画面不会更新，成片里多半有一截是卡住的。建议回来重新合并一次（不花 token）。");
+      }
       setBusy("写入本地库…");
       const blob = new Blob(chunks, { type: mime });
       const key = `merged:${uid("mv")}`;
@@ -503,12 +609,17 @@ export default function CutPage() {
       };
       leftRef.current = true;
       useStudio.setState({ draft: { ...draft!, segments: [merged], branchTree: undefined, merged: true } });
+      // ★★ 这一拍把 `idb:merged:` 指针钉到盘上 —— 在此之前那条几十 MB 的成片
+      //   **只被内存里的 store 引用着**，磁盘上找不到任何指针（cacheSweep 文件头记的
+      //   正是这个洞，它靠 24h 时间闸门兜着）。实时录制几分钟的成果，不能只活在内存里。
+      await useStudio.getState().persistCutDraft();
       navigate("/publish");
     } catch (e) {
       setErr(`合并失败：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}`);
     } finally {
       void audioCtx?.close().catch(() => {});
       setBusy("");
+      document.removeEventListener("visibilitychange", onHidden);
       mergingRef.current = false;
     }
   }
@@ -666,10 +777,45 @@ export default function CutPage() {
         />
 
         {busy && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/70">
-            <div className="flex flex-col items-center gap-3">
+          // ★ 合并时这一层**不能**是 pointer-events-none：取消键在里面
+          <div className={`absolute inset-0 flex items-center justify-center bg-black/70 ${mergingRef.current ? "" : "pointer-events-none"}`}>
+            <div className="flex w-full max-w-[16rem] flex-col items-center gap-3 px-6">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-600 border-t-brand" />
-              <span className="px-6 text-center text-xs text-slate-200">{busy}</span>
+              <span className="text-center text-xs text-slate-200">{busy}</span>
+              {/* ★★ 合并是**实时录屏**：成片多长就录多长。原来只有一句「片段 i/N」，
+                  十几秒才跳一次 —— 用户既不知道还要多久，也不知道是不是卡死了。
+                  这里给的是**真百分比**（已录秒数 / 成片总秒数）。 */}
+              {mergingRef.current && total > 0 && (
+                <>
+                  <div className="h-1 w-full overflow-hidden rounded-full bg-white/15">
+                    <div
+                      className="h-full rounded-full bg-brand transition-all duration-200"
+                      style={{ width: `${Math.min(100, Math.round((mergeDone / total) * 100))}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] tabular-nums text-slate-400">
+                    {Math.min(100, Math.round((mergeDone / total) * 100))}% · 还剩约{" "}
+                    {formatDuration(Math.max(0, total - mergeDone))}
+                  </span>
+                  {/* ★★ 这句要说在**前面**，不是事后：合并期间切走，画面不会更新
+                      （不可见时 `<video>` 不解码、rAF 被节流到约 1 帧/500ms），
+                      而且不报错 —— 用户会拿到一条有一截卡住的成片。 */}
+                  <p className={`text-center text-[10px] leading-relaxed ${hiddenWarn ? "text-rose-300" : "text-slate-500"}`}>
+                    {hiddenWarn
+                      ? "刚才切到后台了——那段时间的画面没录上，建议取消后重来"
+                      : "别切到别的应用：这一步是实时录屏，切走那几秒会录成卡住的画面"}
+                  </p>
+                  <button
+                    onClick={() => {
+                      cancelRef.current = true;
+                      setBusy("正在停止…");
+                    }}
+                    className="rounded-full border border-slate-500 px-4 py-1.5 text-[11px] text-slate-200"
+                  >
+                    取消合并
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -755,6 +901,8 @@ export default function CutPage() {
                       <img src={seg.firstFrame} alt="" className="h-14 w-full object-cover" draggable={false} />
                       <span className="absolute left-1 top-0.5 rounded bg-black/65 px-1 text-[9px] text-slate-200">
                         段{c.segIndex + 1} · {clipDur(c).toFixed(1)}s
+                        {/* ★ 裁过要看得出来：否则"这段怎么短了"只能靠回忆，而裁剪是可还原的 */}
+                        {(c.start > 0.01 || c.end < seg.durationSec - 0.01) && <span className="ml-0.5">✂</span>}
                       </span>
                       {nAnn > 0 && (
                         <span className="absolute right-1 top-0.5 rounded-full bg-rose-500/90 px-1 text-[9px] font-bold text-white">
@@ -794,6 +942,40 @@ export default function CutPage() {
                 >
                   🗑 删除片段
                 </button>
+              </div>
+              {/* 裁头裁尾。★★ 补它是因为 `Clip.start/end` 一直支持裁剪、UI 上却只有分割，
+                  而删除在只剩一个片段时是灰的 ⇒ 简约模式出来的**单段作品根本裁不了**。
+                  ★ 单独一排：上面那排是"这一段与别的段的关系"（切开/换位/删掉），
+                    这一排是"这一段自己留哪一截"，混在一起点错的代价不一样。 */}
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <button
+                  onClick={() => trimTo("start")}
+                  disabled={!sel}
+                  className="rounded-lg bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
+                >
+                  ⇤ 从这里开始
+                </button>
+                <button
+                  onClick={() => trimTo("end")}
+                  disabled={!sel}
+                  className="rounded-lg bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
+                >
+                  到这里结束 ⇥
+                </button>
+                {/* 只在**真裁过**时才出现：没裁过的时候它是一颗永远没反应的键 */}
+                {(() => {
+                  const t = view.find((c) => c.id === sel);
+                  const seg = t && segs[t.segIndex];
+                  const trimmed = !!t && !!seg && (t.start > 0.01 || t.end < seg.durationSec - 0.01);
+                  return trimmed ? (
+                    <button
+                      onClick={resetTrim}
+                      className="rounded-lg border border-slate-600 px-2.5 py-1.5 text-[11px] text-slate-300"
+                    >
+                      还原整段
+                    </button>
+                  ) : null;
+                })()}
               </div>
               {!sel && <p className="mt-1.5 text-[10px] text-slate-500">先点上面的片段选中，再用这排按钮</p>}
             </>

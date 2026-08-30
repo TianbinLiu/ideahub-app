@@ -68,6 +68,8 @@ import { notificationsState, refreshUnreadCount, subscribeNotifications } from "
 import { useAccountVersion, useAuthState, useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoItem, formatPlays, relativeTime } from "../types";
+import { cutSession, dropCutSession, subscribeCutSession } from "../data/cutSession";
+import { useStudio } from "../studio/studioStore";
 
 type TabKey = "works" | "drafts" | "cards" | "decks" | "collects";
 
@@ -730,6 +732,7 @@ export default function ProfilePage() {
             （作品只活在内存里），发布失败又只进了一个看不见的队列 —— 于是用户的表现是
             「辛苦几十分钟的作品过一会儿自己没了」。失败可以，但要响且局部（铁律八）。 */}
         {activeTab === "works" && self && <PendingBanner />}
+        {activeTab === "works" && self && <CutSessionBanner />}
         {/* ★★ 「公开 / 仅自己可见」筛选（2026-08-30）。这不是锦上添花，是**另一处修复的前提**：
             作品编辑页那颗「改成仅自己可见就好」的软替代按钮（用来劝住"只是不想被人看见
             就把作品删了"的人）要成立，前提是他之后**找得回来**那些藏起来的作品。
@@ -915,6 +918,72 @@ export default function ProfilePage() {
  * ★ 必须给「不要了」这条出路：一条永远传不上去的作品（比如体积超了网关上限）
  *   会把这条横幅永久钉在这儿。
  */
+/**
+ * 「有一条剪到一半的成片」横幅 —— 落盘的剪辑稿的**唯一恢复入口**。
+ *
+ * ★★ 为什么不自动灌回剪辑页：冷启动时用户可能已经从草稿箱开了另一摊活，自动灌等于
+ *   绕过「整表换掉 nodes 前先问一句」那道闸的同型风险；而且会让 CutPage 的守卫
+ *   变成"永远进得去"，`publishedExit()` 那条死页逻辑跟着失效。所以摆一条横幅，
+ *   由用户自己决定接着剪还是丢掉。
+ * ★ 与「没传上去」那条同一位置、同一种语气：都是"你的东西还在，但需要你做点什么"。
+ */
+function CutSessionBanner() {
+  useSyncExternalStore(subscribeCutSession, () => cutSession(), () => null);
+  const navigate = useNavigate();
+  const [asking, setAsking] = useState(false);
+  const cut = cutSession();
+  if (!cut) return null;
+  const segCount = cut.draft.segments.length;
+  const deckCount = cut.draft.deck?.cards.length ?? 0;
+
+  return (
+    <div className="mx-3 mt-3 rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3">
+      <div className="text-xs font-semibold text-cyan-100">有一条剪到一半的成片</div>
+      <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
+        {segCount} 段{deckCount > 0 ? ` · 卡组 ${deckCount} 张已经铸好` : ""} ·{" "}
+        {cut.at ? relativeTime(cut.at) : "刚刚"}
+        {/* ★ 这句要说清"为什么值得回去"：里面是**已经花过钱**的东西 */}
+        <br />
+        <span className="text-slate-400">这些是已经花过 token 生成的内容，丢掉就得重做一遍。</span>
+      </p>
+      <div className="mt-2 flex gap-2">
+        <button
+          onClick={() => {
+            useStudio.setState({ draft: cut.draft });
+            navigate("/cut");
+          }}
+          className="flex-1 rounded-lg bg-cyan-400/90 py-2 text-xs font-bold text-ink"
+        >
+          接着剪
+        </button>
+        {asking ? (
+          <>
+            <button
+              onClick={() => void dropCutSession()}
+              className="rounded-lg bg-rose-500/90 px-3 py-2 text-xs font-bold text-white"
+            >
+              确认丢掉
+            </button>
+            <button
+              onClick={() => setAsking(false)}
+              className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300"
+            >
+              取消
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={() => setAsking(true)}
+            className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300"
+          >
+            不要了
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PendingBanner() {
   useVideosVersion();
   const [busy, setBusy] = useState(false);

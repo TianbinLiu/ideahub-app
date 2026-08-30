@@ -11,6 +11,7 @@ import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosen
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, saveDraft } from "../data/drafts";
+import { dropCutSession, saveCutSession } from "../data/cutSession";
 import { GenStep, createGenLog } from "./genLog";
 import { SPEAK_MOOD, speak, stopSpeaking } from "./speech";
 import { CRISIS_LINE, HELP_LINE, NPC_SYSTEM, chatFailLine, chatWindow, deskBlock } from "./npcPersona";
@@ -624,6 +625,12 @@ interface StudioState {
    *   守卫就会抢在跳转前把人送去工坊。
    */
   finishPublish: (videoId: string) => void;
+  /**
+   * 把当前合成稿落盘。**唯一一处**（`draft` 的写路有五处，各写一遍 idbSet 必然分叉）。
+   * @returns false = 没存住（存储空间不足 / 隐私模式），调用方必须说出来（铁律八）——
+   *   它的每一个调用点都恰好是"钱刚花出去"的那一拍。
+   */
+  persistCutDraft: () => Promise<boolean>;
 
   // ── 在途工程草稿（data/drafts.ts）─────────────────────────
   // ⚠ 与上面的 `draft` 不是一回事：`draft` 是组稿产物（待发布的成片稿），
@@ -1979,9 +1986,22 @@ export const useStudio = create<StudioState>()((set, get) => ({
   clearDraft: () => set({ draft: null }),
 
   publishedWorkId: null,
+  persistCutDraft: async () => {
+    const { draft, segEdit } = get();
+    if (!draft) return true; // 没稿子就没什么要存的，不算失败
+    // ★ segEdit 那条路整段跳过：那份 draft 是 flowStore 的**派生物**，真相在 nodes 上、
+    //   而那条路上 flow 没被 reset、草稿里也有。存它只会在恢复时得到一份没有活节点可
+    //   写回的孤稿（closeSegmentEdit 按 nodeId 找节点，找不到就静默什么都不写）。
+    if (segEdit) return true;
+    return saveCutSession(draft);
+  },
+
   finishPublish: (videoId) => {
     // ★ 记作品与清合成稿在**同一个 set** 里（理由见接口那段 ★）
     set({ publishedWorkId: videoId, draft: null });
+    // 这摊活已经变成作品了，落盘的那份剪辑稿也该收工 —— 不清的话个人页会一直挂着
+    // 一条"剪到一半"，点进去是已经发出去的那条，用户会再发一遍
+    void dropCutSession();
     // 这摊活已经变成作品了：退休对应的在途草稿，别在个人页留一条重复的半成品。
     // 即发即忘 —— 删本地库慢一点/失败了都不该挡住跳转
     void get().retireWorkDraft();
