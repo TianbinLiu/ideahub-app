@@ -1,9 +1,13 @@
 // 短视频 App 式底栏：首页 / 分区 / ➕创作 / 创意工坊 / 我的。
-// 中间 ➕ 进创作岔路口（未登录先去登录页）：工坊 / 工作流 / 简约三种方式差别足够大
+// 中间 ➕ 直接进 /create，**登录与否由路由那层的 RequireAuth 一处说了算**：
+// 这里原来写的是 `navigate(user ? "/create" : "/login?next=/create")`，等于把同一道
+// 登录门禁判了两遍，而这一遍还判得更早 —— 冷启动后会话还在水合时 `user` 是 null，
+// 于是登录着的用户被弹去登录页，读起来就是"我被登出了"（2026-08-20 真机）。
+// RequireAuth 未登录时同样带 next=/create 回跳，用户看到的东西一点没少（铁律六）。
+// 创作岔路口：工坊 / 工作流 / 简约三种方式差别足够大
 // ——工坊要摆卡推演剧情，简约是一句话出片——直接把人扔进其中一种都是错的默认。
 // （main 上曾是「➕ 直达卡片工坊、不做选择面板」，三模式落地后那个前提不再成立）
 import { NavLink, useLocation, useNavigate } from "react-router";
-import { useCurrentUser } from "../hooks/useAccount";
 import Icon, { type IconName } from "./Icon";
 import CharacterPerch, { usePerchBurst, type PerchPose } from "./CharacterPerch";
 import CreatePerch from "./CreatePerch";
@@ -44,7 +48,6 @@ function TabInner({ tab, isActive }: { tab: Tab; isActive: boolean }) {
 
 export default function TabBar() {
   const navigate = useNavigate();
-  const user = useCurrentUser();
   const path = useLocation().pathname;
   // 首页是全出血视频，底栏浮在渐变上而不是压一条实心板（对标抖音/TikTok/Reels）
   const onFeed = path === "/";
@@ -87,7 +90,7 @@ export default function TabBar() {
           ) : (
             <button
               key="create"
-              onClick={() => navigate(user ? "/create" : "/login?next=/create")}
+              onClick={() => navigate("/create")}
               className="flex min-h-[44px] flex-1 items-center justify-center"
               aria-label="创作"
             >

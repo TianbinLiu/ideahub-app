@@ -30,7 +30,9 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../data/templates";
-import { VideoTemplate } from "../types";
+import { VideoTemplate, aspectCss } from "../types";
+import CustomFrameSlots from "../components/flow/CustomFrameSlots";
+import FuseFrameSheet, { fuseSourcesOf } from "../studio/ui/FuseFrameSheet";
 
 type Step = "start" | "fill" | "go";
 
@@ -324,6 +326,14 @@ function StepGo({
   progress: string;
   onGo: () => void;
 }) {
+  // ── 自定义首尾帧（选填，主人点名的第三条路·简约面）──
+  // 帧就写在这一段的方案上（flowStore.setFrame 唯一实现），给了就走首尾帧直出、
+  // 报价当场跟着变（nodeCost 读的就是方案上的帧）。融图 = 既有 FuseFrameSheet。
+  const node = useFlow((s) => s.nodes.find((n) => n.id === nodeId));
+  const setFrame = useFlow((s) => s.setFrame);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [fuse, setFuse] = useState<"first" | "last" | null>(null);
+  const prop = node ? chosenOf(node) : null;
   return (
     <div className="flex flex-1 flex-col">
       <p className="mb-3 text-sm text-slate-300">确认一下就出片</p>
@@ -343,6 +353,54 @@ function StepGo({
           className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3 py-2 text-xs leading-relaxed text-slate-100 outline-none focus:border-brand"
         />
       </div>
+      {/* 套模板时不给：模板的画面来自配方/参考视频，再塞用户帧是两套世界打架 */}
+      {!tplTitle && node && prop && (
+        <div className="mb-3">
+          <button
+            onClick={() => setCustomOpen((v) => !v)}
+            className="flex w-full items-center justify-between rounded-xl border border-slate-700 bg-panel px-3 py-2 text-[11px] text-slate-300"
+          >
+            <span className="min-w-0 truncate">
+              ✍ 自定义首尾帧
+              {prop.firstFrame || prop.lastFrame
+                ? ` · 已给${prop.firstFrame ? "首" : ""}${prop.firstFrame && prop.lastFrame ? "、" : ""}${prop.lastFrame ? "尾" : ""}帧`
+                : "（选填 · 传自己的图或融图，AI 只补缺的）"}
+            </span>
+            <span className="ml-2 flex-none text-[10px] text-slate-500">{customOpen ? "收起" : "展开"}</span>
+          </button>
+          {customOpen && (
+            <div className="mt-2 space-y-1.5">
+              <CustomFrameSlots
+                first={prop.firstFrame}
+                last={prop.lastFrame}
+                aspectCssValue={aspectCss(node.aspect)}
+                canEdit={!busy}
+                firstEmptyNote="空 = AI 按上面那句话补画（计费）"
+                onFrame={(which, url) => setFrame(nodeId, which, url)}
+                onFuse={setFuse}
+                onError={(msg) => useFlow.setState({ err: msg })}
+              />
+            </div>
+          )}
+        </div>
+      )}
+      {fuse && node && prop && (
+        <FuseFrameSheet
+          which={fuse}
+          sources={fuseSourcesOf({
+            materials: node.materials,
+            carryFrame: null, // 简约恒单段
+            firstFrame: prop.firstFrame,
+            lastFrame: prop.lastFrame,
+          })}
+          aspect={node.aspect}
+          onDone={(url) => {
+            setFrame(nodeId, fuse, url);
+            setFuse(null);
+          }}
+          onClose={() => setFuse(null)}
+        />
+      )}
       <SegSettings nodeId={nodeId} />
       <span className="flex-1" />
       {progress && <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-400">{progress}</p>}

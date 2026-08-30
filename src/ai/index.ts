@@ -20,6 +20,12 @@ export const generateProposals: typeof real.generateProposals = AI_REAL
   : (ctx) => mock.generateProposals(ctx);
 export const composeVideo = mock.composeVideo; // 合成动画节奏（真实生成由 composeSegments 负责）
 /** 封面工坊：mock 构建出本地占位帧（带演示水标语义），真实构建走 Seedream */
+/** 融图：把 2~3 张参考图融成一张边界帧（段间无缝用），落地走 PlanBoard.onFrame */
+export const fuseFrame: typeof real.fuseFrame = AI_REAL ? real.fuseFrame : mock.fuseFrame;
+/** 圈选提取的「按提示词方案炼形象图」（图位由方案决定，风格跟随原图） */
+export const portraitViews: typeof real.portraitViews = AI_REAL ? real.portraitViews : mock.portraitViews;
+/** 圈选改卡图；mock 原图返回（与 refineFrame 的 mock 同款：演示档不装作改了） */
+export const refineCardImage: typeof real.refineCardImage = AI_REAL ? real.refineCardImage : async (o) => o.annotated;
 export const generateCover: typeof real.generateCover = AI_REAL
   ? real.generateCover
   : async (req, _ref, aspect) =>
@@ -94,7 +100,7 @@ export const deriveCharacterModels: typeof real.deriveCharacterModels = AI_REAL
  */
 export const prepareMaterialRefs: typeof real.prepareMaterialRefs = AI_REAL
   ? real.prepareMaterialRefs
-  : async () => ({ refs: [], bind: () => "" });
+  : async () => ({ refs: [], bind: () => "", bindCompact: () => "" });
 export type { MaterialRefs } from "./real";
 /** 设定图按要求改图（方案选帧改图/剪辑页圈选修改）；mock 原图返回 */
 export const refineFrame: typeof real.refineFrame = AI_REAL ? real.refineFrame : async (_req, ref) => ref;
@@ -106,6 +112,19 @@ export const regenSegment: typeof real.regenSegment = AI_REAL
 export const composeSegments: typeof real.composeSegments = AI_REAL
   ? real.composeSegments
   : async (segs) => segs.map(() => ({}));
+/**
+ * 把一发已经付过钱、当时没接到的成片取回来（见 real.takeVideoTask）。
+ * ★ mock 构建**响亮地失败**而不是返回空：mock 从来不建方舟任务，所以本机根本不会有
+ *   待取回凭据，能走到这里说明凭据是脏的或者判断串了 —— 静默返回一个空地址只会让
+ *   那一段变成"取回成功但没有视频"，比报错难查得多（铁律八）。
+ */
+export const takeVideoTask: typeof real.takeVideoTask = AI_REAL
+  ? real.takeVideoTask
+  : async () => {
+      throw new Error("演示模式没有真实出片任务，取不回什么（这条凭据不该存在）");
+    };
+/** 「没接到结果 ≠ 这一发废了」的那个错误类型 —— 调用方据它决定凭据留不留（见 arkClient） */
+export { ArkTaskUnknown } from "./arkClient";
 /** 视频提示词的字数上限。两种构建下都是同一个数——拼提示词的那一处要按它给尾巴留位 */
 export { VIDEO_PROMPT_MAX } from "./real";
 export { AI_REAL };

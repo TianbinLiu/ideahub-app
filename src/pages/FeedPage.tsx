@@ -21,10 +21,10 @@ import {
   setLike,
   setSave,
 } from "../data/videos";
-import { danmakuNeedsLogin, danmakuOn, subscribeDanmaku } from "../data/danmaku";
+import { danmakuNeedsLogin, danmakuOn, danmakuSessionPending, subscribeDanmaku } from "../data/danmaku";
 import { hasPurchased, isCollected, isFollowing, toggleCollect, toggleFollow } from "../data/account";
 import { fmtTokens } from "../data/economy";
-import { useCurrentUser } from "../hooks/useAccount";
+import { useAuthState, useCurrentUser } from "../hooks/useAccount";
 import { requestLandscape } from "../hooks/useOrientationLock";
 import { useVideosVersion } from "../hooks/useVideos";
 import Avatar from "../components/Avatar";
@@ -35,6 +35,8 @@ import DanmakuInput from "../components/DanmakuInput";
 import DanmakuLayer from "../components/DanmakuLayer";
 import Icon, { type IconName } from "../components/Icon";
 import CharacterPerch, { usePerchBurst, type PerchPose } from "../components/CharacterPerch";
+import { remakeNodesOf, remakeableOf, useFlow } from "../studio/flowStore";
+import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import { VideoAspect, VideoItem, aspectFromSize, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 
@@ -270,7 +272,20 @@ function FeedItem({
   const countedRef = useRef(false);
   const tapRef = useRef<{ x: number; y: number; t: number; last: number }>({ x: 0, y: 0, t: 0, last: 0 });
   const user = useCurrentUser();
+  // ★ 右侧栏那几个键要区分「没登录」和「还不知道」：冷启动后立刻点收藏/发弹幕的人
+  //   多半是登录着的，只是会话还没认领上。判 `!user` 会把他弹去登录页（见 useAuthState）。
+  const auth = useAuthState();
   const navigate = useNavigate();
+  // 登录态还没结论时的一句话回执。★ 不能"点了没反应"——那和坏了分不出来（铁律八）。
+  const [authTip, setAuthTip] = useState("");
+  const authTipTimer = useRef(0);
+  function sessionBusy(): boolean {
+    if (auth !== "pending") return false;
+    setAuthTip("正在确认登录状态…");
+    window.clearTimeout(authTipTimer.current);
+    authTipTimer.current = window.setTimeout(() => setAuthTip(""), 1800);
+    return true;
+  }
   // 多段顺序连播：si=当前段（播完切下一段，最后一段回到 0 循环）。
   // 新作品经剪辑页合并成单条视频后天然只有一段；这里保证老的多段作品也能播完整
   const [si, setSi] = useState(0);
@@ -397,6 +412,30 @@ function FeedItem({
     onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
     onPointerUp: (e: React.PointerEvent) => e.stopPropagation(),
   };
+
+  // 做同款（第八条整表覆盖入口，守卫与套模板同一份实现）。付费未解锁的不给：
+  // 配方（分段剧本）是付费内容的一部分，锁着的只出封面
+  const canRemake = !locked && remakeableOf(video.segments);
+  const { guard: remakeGuard, dialog: remakeDialog } = useApplyTemplate();
+  /** 做同款被就地拒时那句话（flowStore.err 只画在工作流页，这里不接就没人看得见）。
+   *  几秒后自清：feed 上没有常驻错误位，这行是临时的 */
+  const [remakeErr, setRemakeErr] = useState("");
+  function remake() {
+    remakeGuard(
+      () => {
+        const ok = useFlow
+          .getState()
+          .seed(remakeNodesOf(video.segments, video.deck?.cards ?? []), { mode: "workflow", origin: "solo" });
+        if (ok) navigate("/flow");
+        else {
+          setRemakeErr(useFlow.getState().err || "现在铺不了（可能有一段正在生成中），稍后再试");
+          window.setTimeout(() => setRemakeErr(""), 5000);
+        }
+        return ok;
+      },
+      { label: "做同款（丢弃上面那条流水线）", noun: "做同款" },
+    );
+  }
 
   /** 开分享面板（QQ / 微信占位 / 复制预览链接）。
    *  ★ 此前这里直接 navigator.share 一个 `${location.origin}/#/video/…`——
@@ -616,6 +655,13 @@ function FeedItem({
           {...(active ? { "data-guide": "feed-rail" } : {})}
           className="flex flex-col items-center gap-2"
         >
+          {/* 登录态还没结论时的回执。挂在栏内而不是屏幕中央：用户的视线就在这几个键上，
+              而且首页任何居中浮层都会盖住画面。max-w 收窄避免把视频压掉半屏。 */}
+          {authTip && (
+            <span className="mb-1 max-w-[7.5rem] rounded-full bg-black/75 px-2.5 py-1 text-center text-[11px] leading-tight text-white">
+              {authTip}
+            </span>
+          )}
           {/* 头像 + 关注：未关注时下挂一个 + 号，点了变对勾后淡出（TikTok 同款反馈）。
               点头像去【作者主页】而不是作品详情页——这是 TikTok/抖音的通用心智，
               也是唯一能走到别人主页的入口。详情页改由下方标题进入。 */}
@@ -651,6 +697,10 @@ function FeedItem({
               // ★ 在这儿挡住未登录，而不是让 POST 去吃 401：client.ts 收到 401 会把用户
               //   **直接登出**，"我只是想发条弹幕，怎么账号退了"是最莫名其妙的一种失败。
               //   （与上面收藏键同一条处理。）
+              if (danmakuSessionPending()) {
+                sessionBusy();
+                return;
+              }
               if (danmakuNeedsLogin()) {
                 navigate("/login?next=/");
                 return;
@@ -670,7 +720,9 @@ function FeedItem({
             label={String(saves)}
             perch="save"
             onClick={() => {
-              // 收藏要认人：未登录先去登录，否则"收藏了"只是一个划走就没的错觉
+              // 收藏要认人：未登录先去登录，否则"收藏了"只是一个划走就没的错觉。
+              // ★ 但"还不知道"不算未登录 —— 那一段先等着，别把登录着的人弹去登录页
+              if (sessionBusy()) return;
               if (!user) {
                 navigate("/login?next=/");
                 return;
@@ -751,15 +803,38 @@ function FeedItem({
         <p className="line-clamp-2 text-xs leading-relaxed text-white/85 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
           {video.description} <span className="text-white/70">#{video.category}</span>
         </p>
-        {isInteractive && (
-          <button
-            onClick={() => navigate(`/video/${video.id}`)}
-            className="pointer-events-auto mt-2 inline-flex min-h-[28px] items-center gap-1 rounded-full bg-gold/90 px-3 text-[11px] font-semibold text-ink active:scale-95"
-          >
-            <Icon name="branch" size={13} strokeWidth={2.25} />
-            互动 · 你来选
-          </button>
+        {(isInteractive || canRemake) && (
+          <div className="mt-2 flex items-center gap-2">
+            {isInteractive && (
+              <button
+                {...stopTap}
+                onClick={() => navigate(`/video/${video.id}`)}
+                className="pointer-events-auto inline-flex min-h-[28px] items-center gap-1 rounded-full bg-gold/90 px-3 text-[11px] font-semibold text-ink active:scale-95"
+              >
+                <Icon name="branch" size={13} strokeWidth={2.25} />
+                互动 · 你来选
+              </button>
+            )}
+            {/* 做同款（backlog 2.8-②）：从流里一键把这条片的分段剧本+卡组铺成自己的
+                工作流（可灵/即梦的做同款闭环）。与互动 chip 同排同高——底缘几何是
+                量出来的联动值，只加横向内容不改纵向堆叠。守卫三件套在 remake() 里 */}
+            {canRemake && (
+              <button
+                {...stopTap}
+                onClick={remake}
+                className="pointer-events-auto inline-flex min-h-[28px] items-center gap-1 rounded-full bg-white/20 px-3 text-[11px] font-semibold text-white backdrop-blur-sm active:scale-95"
+              >
+                ⚡ 做同款
+              </button>
+            )}
+          </div>
         )}
+        {remakeErr && (
+          <p className="mt-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] leading-relaxed text-amber-300">
+            {remakeErr}
+          </p>
+        )}
+        {remakeDialog}
       </div>
 
     </section>

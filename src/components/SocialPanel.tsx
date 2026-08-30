@@ -15,7 +15,7 @@ import {
   toggleCollect,
   toggleLike,
 } from "../data/social";
-import { useCurrentUser } from "../hooks/useAccount";
+import { useAuthState, useCurrentUser } from "../hooks/useAccount";
 import { relativeTime } from "../types";
 import Icon from "./Icon";
 
@@ -49,6 +49,7 @@ function fmt(n: number): string {
 export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string }) {
   useSocialVersion();
   const user = useCurrentUser();
+  const auth = useAuthState();
   const [draft, setDraft] = useState("");
   const [tip, setTip] = useState("");
   // ★★ 四个计数与上方那个「社区热度」**必须来自同一个宇宙**：都走 readSocial。
@@ -60,7 +61,9 @@ export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string
 
   function need(): boolean {
     if (user) return false;
-    setTip("登录后才能互动");
+    // ★ "登录后才能互动"是个结论，会话还没水合完时说它就是错的（见 useAuthState）：
+    //   冷启动后立刻点赞的人是登录着的，只是还没认领上。如实说在等什么。
+    setTip(auth === "pending" ? "正在确认登录状态…" : "登录后才能互动");
     setTimeout(() => setTip(""), 1800);
     return true;
   }

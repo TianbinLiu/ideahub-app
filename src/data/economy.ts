@@ -26,6 +26,8 @@ import {
   type CardSlot,
   type CardType,
 } from "../types";
+// ★ 「这张卡有没有做过肖像授权」只有 cardAsset 一处判据（侧库，leaf：只依赖 ./db）
+import { hasAsset } from "./cardAsset";
 
 /** 观看付费的平台抽成比例（其余进创作者 add-on 余额） */
 export const PLATFORM_CUT = 0.3;
@@ -121,6 +123,17 @@ export interface VideoTier {
    */
   refImg: boolean;
   /**
+   * 这一档**协议上**一次最多收几张参考图（只对 refImg/assetRef 为真的档有意义）：
+   * 2.0 系列 1–9 张、2.5 是 1–30 张（方舟官方参数表，与 ai/real.ARK_REF_IMAGES_MAX
+   * 的注释同一出处）。
+   *
+   * ★ 放在档位表而不是散在调用点：预算分配（ai/real.allocateRefs）按它砍，砍错方向
+   *   两头都疼 —— 少发是白白砍功能（挂了卡的角色由模型瞎编，钱照付），多发是整条
+   *   请求 400（2.0 收到第 10 张不是忽略是拒收）。缺省 = ARK_REF_IMAGES_MAX（2.5 上限），
+   *   refImg 为 false 的档没人读它。
+   */
+  refImagesMax?: number;
+  /**
    * 是否开放**白模模板出片**（r2v：参考视频 edit 逐镜头复刻，只换主体）。
    *
    * ★ 四档全部显式写值、不留 undefined（同 refImg 的理由：留空就得到处 `?? false`，
@@ -177,6 +190,17 @@ export interface VideoTier {
    */
   realFace: boolean;
   /**
+   * 这一档的模型收不收**方舟可信素材**（`asset://<id>`，即已授权的真人/预置虚拟人像）。
+   *
+   * ★★ 与 `realFace` 是**两件事**，别合并：`realFace` 说的是"能不能直接上传真人照片"
+   *   （方舟 2.0/2.5 一律不能）；`assetRef` 说的是"能不能用**已授权**的那份"。
+   *   官方文档（docs/82379/2608626）明说 Seedance 2.0 与 2.5 系列支持 asset://，
+   *   1.0 系列不支持 —— 所以这一位跟着**模型代次**走，不是跟着价钱走。
+   * ★ 逐档显式写（同 refImg/refVid/realFace 的理由）：留空就得到处 `?? false`，
+   *   那是第二处默认值。
+   */
+  assetRef: boolean;
+  /**
    * 只有付费套餐能选。免费版**看得见但选不了**，并写出原因（藏起来用户不知道有这回事）。
    * ★ 这只是界面提示，**不是安全边界** —— 真正的拦截在服务端按当前用户套餐判。
    *   判断本身只有一处：data/account.tierBlockReason。
@@ -199,8 +223,8 @@ export const VIDEO_TIERS: VideoTier[] = [
   //   ⚠ fast 与 hd 此前是拍出来的 0.3 / 1.6，比真实成本高 7% / 4.3%（**多收用户**的方向）。
   // fast/std 是 1.0-pro：`generate_audio` 收下就扔（实测），所以 audio 显式 false ——
   // 不是"我们不给"，是这一代模型出不了（见 VideoTier.audio 的 ★★）
-  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 4.2 / 15, flf: false, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, minSec: 3, desc: "省 token · 首帧起拍，不锁尾帧" },
-  { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, minSec: 3, desc: "首尾帧可控（默认）" },
+  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 4.2 / 15, flf: false, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, assetRef: false, minSec: 3, desc: "省 token · 首帧起拍，不锁尾帧" },
+  { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, assetRef: false, minSec: 3, desc: "首尾帧可控（默认）" },
   // ★ desc 是给**用户**看的，不是给运维看的。原来这里写的是「需在方舟控制台开通 2.0 系列」——
   //   那是部署方的事，终端用户既看不懂也做不了（CLAUDE.md 那条「界面上摆一个用户看不懂
   //   也做不了事的东西」）。开通与否的后果由服务端 ALLOWED_MODELS 与方舟的 ModelNotOpen 负责。
@@ -209,7 +233,7 @@ export const VIDEO_TIERS: VideoTier[] = [
   // ★ hd 的 audio: true 是**免费套餐也听得到声音**的那条路（paidOnly 只挡 ultra）——
   //   实测 2.0-mini 真出声（-30.2dB），且开音频零额外成本，所以 desc 里如实写出来：
   //   不写的话用户只能靠"换个档试试"发现，而多数人只会以为 App 的片本来就是哑的。
-  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refVid: false, r2vMult: null, audio: true, realFace: false, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音" },
+  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, audio: true, realFace: false, assetRef: true, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音" },
   {
     id: "ultra",
     label: "电影级",
@@ -217,6 +241,7 @@ export const VIDEO_TIERS: VideoTier[] = [
     mult: ULTRA_MULT,
     flf: true,
     refImg: true,
+    refImagesMax: 30,
     // ★ r2v 已开闸（2026-08-14，前置三发实测全过才翻的这个布尔）：
     //   A2 = edit 路线全时长逐镜头复刻（保真度判定）；A3 = 计费公式两发分毫不差
     //   （(输入+输出时长)×W×H×fps÷1024，系数 2.8 = 42元/M÷15 锚）；A4 = 4s 短模板
@@ -228,6 +253,8 @@ export const VIDEO_TIERS: VideoTier[] = [
     audio: true,
     // 最贵一档也一样收不了真人照片：方舟的两套真人探测器不分档位（见 VideoTier.realFace）
     realFace: false,
+    // asset:// 是 Seedance 2.0/2.5 的能力（官方 docs/82379/2608626）；跟模型代次走
+    assetRef: true,
     paidOnly: true,
     // 2.5 的时长区间是 [4,30]，3 秒会被同步 400（见 VideoTier.minSec）
     minSec: 4,
@@ -256,6 +283,8 @@ export const VIDEO_TIERS: VideoTier[] = [
     audio: false,
     // ★ 全表唯一的 true：realFaceIssue 靠它放行（唯一判定处）
     realFace: true,
+    // asset:// 是 Seedance 2.0/2.5 的能力（官方 docs/82379/2608626）；跟模型代次走
+    assetRef: false,
     minSec: 6,
     desc: "唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它",
   },
@@ -371,6 +400,27 @@ function r2vRawTokens(inputSec: number, mult: number): number {
 }
 
 /**
+ * 素材参考出片（自定义 = 多图 + 参考视频，reference 子任务）的报价。
+ *
+ * ★ 与白模那条 r2vRawTokens 是**两个公式**：edit 输出≈输入所以 输入×2；
+ *   reference 的输出时长由用户选（3~10s），式子是 (输入 + 输出)×21,600×系数。
+ * ★★ 夹取区间与 server 的 tokens.materialRefTokens **逐字相等**（报价=实扣，
+ *   跨仓契约）：输入夹 [4,30]、输出夹 [3,10]。系数走档位表 r2vMult（方舟按
+ *   "有没有视频输入"分档，不按子任务分档 —— 与白模同一档 2.8）。
+ * ★ 档位没有 r2v 价（r2vMult 为 null）时**抛错**：这是报价函数，开发期就该当场炸
+ *   （与 server 那份"结算不能炸"的分工相反，理由见 server tokens.imageTokensOf 注释）。
+ */
+export function materialRefCost(inputSec: number, outputSec: number, tierId?: string): number {
+  const t = tierOf(tierId);
+  if (t.r2vMult === null) {
+    throw new Error(`档位 ${t.id} 没有 r2v 价目（r2vMult=null），不能带参考视频出片——调用方该先判 refVid`);
+  }
+  const i = Math.max(4, Math.min(30, Math.round(inputSec)));
+  const o = Math.max(3, Math.min(10, Math.round(outputSec)));
+  return Math.round((i + o) * SEC_720P_TOKENS * t.r2vMult);
+}
+
+/**
  * 白模模板（r2v）一段出片的 token 估算。**null = 这一档报不出 r2v 价**，不是免费
  * （类型逼着调用方处理，同 imageTierTokens；人话侧走 r2vPriceIssue）。
  *
@@ -462,16 +512,42 @@ export function blockoutTier(): VideoTier | null {
  * ★ r2v/白模路不用单独设闸：它与经典路都从 genNode 那道门走，天然被盖住。
  * ★ 原因句不点名 MiniMax/Runway：对用户那是没上线的内部选型，说了也做不了任何事；
  *   接入哪家写在 VideoTier.realFace 的注释里，给接入的人看。
+ * ★ `blockout` 只改**出路那半句**（2026-08-24 真机走查抓到）：白模节点上「真人」档
+ *   整个按不动（没有 r2v 能力，r2vPriceIssue 拦着），默认那句「换成真人档就能出」
+ *   在那儿是一条死路 —— 两行提示并排自相矛盾，用户照着点只会发现按钮不生效。
+ *   真人卡 × 白模模板是**双向都无解**的组合，出路只有取卡或去模板，就照实说。
  */
-export function realFaceIssue(materials: Card[] | undefined, tierId: string | undefined): string | null {
+export function realFaceIssue(
+  materials: Card[] | undefined,
+  tierId: string | undefined,
+  opts?: { blockout?: boolean },
+): string | null {
   const real = (materials ?? []).filter((c) => c.realPerson === true);
   if (real.length === 0) return null;
   const t = tierOf(tierId);
-  if (t.realFace !== true) {
-    const names = real.map((c) => `「${c.name}」`).join("、");
-    return `${names}是声明过的真人素材，「${t.label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——把画质换成「真人」档就能出，或先把真人卡取下`;
+  // 这一档本身就收真人照片（MiniMax 真人档）——不用绕方舟那套
+  if (t.realFace === true) return null;
+
+  // ★★ 方舟合规通道：真人卡**做过肖像授权、拿到了可信素材 ID** 时，出片走的是
+  //   `asset://<id>` 而不是那张照片，方舟的人脸审核因此不适用（官方三条路之一，
+  //   docs/backlog.md §1）。所以这里放行的前提是**两件事同时成立**：
+  //     ① 每一张真人卡都有可信素材（缺一张就等于那个人要靠照片进模型 → 必被拒）；
+  //     ② 这一档的模型收 asset://（Seedance 2.0/2.5 收，1.0 不收，见 VideoTier.assetRef）。
+  //   ⚠ 判据只有这一处：别在界面或 segmentGen 里另翻一遍 hasAsset。
+  const noAsset = real.filter((c) => !hasAsset(c.id));
+  if (t.assetRef === true && noAsset.length === 0) return null;
+
+  const names = real.map((c) => `「${c.name}」`).join("、");
+  // 这一档收 asset://，只是有卡还没做授权 —— 出路是"去做授权"，与"换档位"完全不同，
+  // 说错的话用户会去换一个同样出不了的档（铁律五：指路必须指对）
+  if (t.assetRef === true) {
+    const lack = noAsset.map((c) => `「${c.name}」`).join("、");
+    return `${lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「${t.label}」档不收直接上传的真人照片，只收**本人授权过**的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下`;
   }
-  return null;
+  const head = `${names}是声明过的真人素材，「${t.label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）`;
+  return opts?.blockout
+    ? `${head}；而「真人」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「真人」档以卡上照片起拍直出`
+    : `${head}——换成「高清」「电影级」档并给这张卡做肖像授权，或换「真人」档，或先把真人卡取下`;
 }
 
 // ── 出图模型与铸卡档位 ─────────────────────────────────────────
@@ -1063,6 +1139,20 @@ export function proposalsCost(hasStartFrame: boolean): number {
 
 /** 单张图的重画：方案设定图改图（refineFrame）、AI 封面（generateCover） */
 export const ONE_IMAGE = IMAGE_TOKENS;
+
+/**
+ * 「按一套提示词方案炼形象图」要多少 token —— **唯一实现**（报价与实扣共用）。
+ *
+ * ★★ 图位数**随方案变**，所以这个数不能写死成 `2 * ONE_IMAGE`（上一版就是写死的，
+ *   那时只有"全身+特写"两张）。命名屏按钮上印的数、`canAfford` 的门、真扣钱的
+ *   `spendTokens`，三处都必须读这一个函数 —— 抄第二份的下场就是本仓头号事故的形状：
+ *   页面按 2 张报价、实际炼了 3 张，多出来的那张照扣钱，两个方向都不报错。
+ * ★ 只数**生成型**图位（`isGenerated`）：`fromCrop` 那种直接放原片裁剪、一次模型都不调，
+ *   把它算进报价就是收了不存在的钱。判据只有 promptSchemes.isGenerated 一处。
+ */
+export function schemeCost(slots: readonly { fromCrop?: boolean }[]): number {
+  return slots.filter((s) => !s.fromCrop).length * ONE_IMAGE;
+}
 
 /**
  * 「按 N 处圈选重新生成」里那几张改图的钱 —— **唯一实现**。

@@ -82,6 +82,30 @@ type Op =
   | { op: "derive"; seg: number }
   | { op: "generate"; seg: number };
 
+/**
+ * 「/」唤起面板的指令句式（AgentBar 用，2026-08-29，backlog 2.8-⑤ 的交互半：
+ * updream 在对话里按 "/" 唤技能的形——这里唤起的是**本 agent 真听得懂的句式**）。
+ *
+ * ★★ 铁律六 + 铁律五的合订本：这张表必须与上面的 Op 白名单**同文件同批改**——
+ *   句式只许覆盖 Op 里真有的动作。改 Op 时对着这张表过一遍；**绝不**把「改时长/换画幅/
+ *   调画质」这类词条加进来：Op 里没有对应操作，两档都只能拒 —— 摆一个点了必拒的
+ *   选项，就是 CLAUDE.md「永远点不动的选项」在词表上的变体（那三样的家在编辑窗 ⚙，
+ *   agent 被问到时会指路过去）。
+ * ★ 填空句是**起手**不是成品：插进输入框后用户接着改（补内容/换段号），所以句式停在
+ *   自然的接写点上（「第N段拍」后面就是要写的画面）。
+ * ★ seg 传 1 起的段号（调用方拿 cursor+1）。
+ */
+export const AGENT_PHRASES: ReadonlyArray<{ label: string; make: (seg: number) => string; hint: string }> = [
+  { label: "✎ 拍摄要求", make: (s) => `第${s}段拍`, hint: "接着写这一段的画面" },
+  { label: "🧪 套模板", make: (s) => `第${s}段套模板「」`, hint: "引号里填模板名（下面可直接点）" },
+  { label: "🧪 摘掉模板", make: (s) => `第${s}段摘掉模板`, hint: "退回普通段" },
+  { label: "🃏 挂卡换人", make: (s) => `第${s}段挂卡：角色位=卡名`, hint: "白模段用，改成真实角色位与卡名" },
+  { label: "＋ 加一段", make: () => "加一段", hint: "在末尾追加" },
+  { label: "🗑 删掉某段", make: (s) => `删掉第${s}段`, hint: "会先摆确认" },
+  { label: "🎲 重演方案", make: (s) => `重新推演第${s}段的方案`, hint: "花钱操作，会先摆确认卡" },
+  { label: "⚡ 生成本段", make: (s) => `生成第${s}段`, hint: "花钱操作，会先摆确认卡" },
+];
+
 /** 流水线现状 → 紧凑 JSON（进提示词）。截断都在这里做，别把整条 plot 灌给模型 */
 function snapshot(): string {
   const s = useFlow.getState();

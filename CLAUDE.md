@@ -27,7 +27,9 @@ npm run dev                    # http://localhost:5173
 出安装包：`npm run apk`（debug，自己测）/ `npm run apk:release`（**发给别人的只发这个**）/ `npm run aab`（上架）。
 发版走 `npm run release` —— 它会**自检"这次更新能不能到老用户手里"**（签名、版本号、
 清单可达性），任何一条不过就当场停下。完整流程见 [`docs/app-distribution.md`](docs/app-distribution.md)。
-签名 keystore 不在仓库里，见 `android/keystore/README.md`。
+签名 keystore 不在仓库里（`android/keystore/` 被 gitignore 排除），换机 / 新 worktree
+怎么恢复见 [`docs/signing-keystore.md`](docs/signing-keystore.md)。**缺了它 release 构建会直接失败**，
+不再退化成无签名包 —— 那种包装到别人手机上只提示「应用未安装」，看不出是签名问题。
 
 ## 目录
 
@@ -65,15 +67,22 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   `studioStore` 认识 `flowStore`，反过来**绝不**——两个 store 互相 import，Vite 下会
   拿到半初始化的模块。需要同时读写两边的逻辑（存草稿、法阵铺流水线）一律放 `studioStore`
   或页面组件里。
-- **一段视频只有一份**：出片结果挂在 `Proposal.videoUrl` 上，不挂在某个 store 里——
-  工坊节点卡上单独炼的和工作流里逐段炼的是同一份，换个模式打开不会要求重炼、重复收费。
-  「怎么炼一段」也只有一份实现（`studio/segmentGen.ts`），两个模式共用。
+- **流水线只有一份**（2026-08-30 主人点名"两个模式的节点数据是同一份"）：节点数据的
+  唯一真相是 `flowStore.nodes`，工坊桌面/投影窗与工作流画布是它的两个**面**——工坊侧
+  不再自持 NodeSlot 树（该类型只活在存量草稿正文里，openWorkDraft 经 `flowFromRoot`
+  一次性换算）。工坊的写一律走 flowStore 的 action（appendNode/chooseProposal/
+  updateProposal(…,pid)/genNode/setNodeProposals），读经 `studioStore.activePath()/
+  chosenProposal()`（后者把 plan==="picking" 翻译成"待挑"，别在调用点各判）。
+  换走向**保分支**：旧走向的后续段归档进 `flowStore.alts`、发布分支互动视频从它取材。
+  「怎么炼一段」也只有一份实现（`studio/segmentGen.ts`；工坊单炼已委托 `flowStore.genNode`，
+  连报价带门禁同一处）。出片结果挂在 `Proposal.videoUrl` + 节点的 `videoByProposal`
+  （两处由 genNode/setProposalVideo 同拍写），换个模式打开不会要求重炼、重复收费。
   mock 构建（没配 `ARK_API_KEY`）下 Seedance 不返回地址，两边一致写 `"mock:"` 占位串：
   问「出片了吗」用 `proposalDone()`，问「能不能播」用 `realVideoOf()`，别直接看 `videoUrl`。
 - **一段的推进是三拍，不是一拍**：写要求 → 推演三套方案（方案台，各带首尾帧预览）→ 挑定
   一套（可换帧、改剧情、按修改重画）→ 才炼视频。方案台组件两边共用
-  （`studio/ui/PlanBoard.tsx`）；工坊用 `NodeSlot.chosenId === null` 表示"待挑"，
-  工作流用 `FlowNode.plan === "picking"`（形状不同，所以组件不认 store，只收 props）。
+  （`studio/ui/PlanBoard.tsx`，不认 store 只收 props）；"待挑"两面都是
+  `FlowNode.plan === "picking"`（单一真相后同一形状，工坊读经 chosenProposal 翻译）。
   **炼出本段视频才能开下一段**——段与段靠上一段的**真实尾帧**承接起拍，攒着最后一起炼会让
   衔接断掉，也会让"第 1 段人物就不对"这种最该早止损的错拖到铺完五段才暴露。这条门禁在
   每一侧都只有一处实现（铁律六）：工作流是 `flowStore.clampCursor`（左右箭头、横划手势、
@@ -81,9 +90,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   （虚线卡位亮不亮）加 `composable`（法阵亮不亮）。UI 上的 disabled/锁图标只是把"为什么
   点不动"画出来，别在那里另写一遍判断。
 - **凡是"整表换掉 `nodes`"的入口，都要先问 `flowDirty`、成功之后断开旧草稿**。
-  这样的入口有**七条**：创作入口换模式（`seedSolo` ×2）、模板货架套用、模板详情页套用、
-  工作流页「提取模板」、简约模板栏那颗「不用」（也是 `seedSolo`）、工坊法阵重铺
-  （`startFlow({force})`）、**个人页打开草稿**（`openWorkDraft`）。三件事缺一不可：
+  这样的入口有**七条**（2026-08-30 少一条：单一真相后「工坊法阵重铺」不存在了——法阵
+  只是去画布那一面的门 `requestFlow`，没有第二份数据要铺）：创作入口换模式（`seedSolo`
+  ×2）、模板货架套用、模板详情页套用、工作流页「提取模板」、简约模板栏那颗「不用」
+  （也是 `seedSolo`）、**个人页/草稿箱打开草稿**（`openWorkDraft`，DraftSheet 两页共用）、
+  **做同款**（首页 chip 与详情页整宽键，`remakeNodesOf` → `seed`，2026-08-29）。三件事缺一不可：
   ① **先问**——已经花钱炼出来的段就在 `nodes` 上，换掉就没了（确认卡是共用的
   `components/flow/DiscardFlowDialog`，它按 `savedDoneCount` 如实说清哪些其实存住了）；
   ② **成了再断**（`newWorkDraft()`）——不断的话 `workDraftId` 还指着旧草稿，新流水线
@@ -112,6 +123,16 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   （2026-08-21 收口，收之前两面各写了一份 `!startsWith("mock:")`）、删段确认 `DeleteSegBtn`。
   组稿（`toCut`）、存草稿（`saveNow`）、挂卡入口（`castEditorState`）三样的实现**只在 FlowPage**，
   画布靠 prop 借——组稿要回写真帧、提炼卡组、清流水线、跳剪辑页，抄一份必然与那边分叉。
+  挂卡的 `returnTo` 自 2026-08-30 起**谁发起回谁**（工坊的模板段面板也能发起了，`/studio`）；
+  回程收结果只有一份实现 `hooks/useCastReturn`，FlowPage 与 StudioPage 都挂它——模板对号
+  那道闸只能改一处。工坊侧的模板车道（选模板/换摘/挂卡/点名句）在 `studio/ui/projection` 的
+  `TplSegBody`：选模板弹层借的是 FlowCanvas 导出的同一份 `TemplatePicker`，白模段在工坊
+  不再摆 PlanBoard（r2v 没有方案台这一拍，重推/改帧/圈选对它全是死路）。**「加一段还行不行」
+  连同工坊虚线卡位问的都是 `flowStore.appendBlocked` 一处**——虚线卡位不问的话，模板段收尾后
+  它照亮，用户付完推演费才被 appendNode 拒，钱已花、方案没处落。**已存在的段换模式靠
+  `SegModeRow`**（与画布那排页签同名同义、同一批 action：setNodeTemplate / setNodeCustom）——
+  铸段窗那三步只管新段，老段此前在工坊换不了模式而画布一直能换；切到自定义的老段另有
+  `CustomRefRow`（示例视频挂/摘 + 调帧），上传链路与画布逐字同源。
 - **「这一段用哪个模板」是三态，且必须当场表态**（`FlowNode.tpl`）：`undefined` = 还没表态
   （退回 store 级 `template`，老草稿与单模板流靠它）、`null` = 明确没有、对象 = 这一段自己的
   快照。读**只准走 `tplOfNode`**。而 store 级那份会随 `setCursor` 换成**当前段**的快照 ——
@@ -198,6 +219,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 以为 `ARK_API_KEY` 能用来做 TTS | —— | 方舟没有 TTS（实测 129 个模型里一个都没有）。语音合成是 openspeech 另一条产品线，另配 `TTS_APPID`/`TTS_TOKEN`，见 `.env.example` |
 | 前端把服务端接口写成同源相对路径（`/api/ark`、`/api/asset`、`/api/tts`） | 真机上"出片第 1 段就失败：`Unexpected token '<',"<!doctype"...`"、工坊 NPC 不回话、试听没声音 | 这些端点在 dev 是 `vite.config.ts` 的中间件/代理，**APK 里根本不存在**；而 Capacitor 的本地静态服务器对未命中路径做 SPA 回退，返回 **200 + index.html** 不是 404，于是 `res.ok` 恒真、`res.json()` 撞上 HTML。一律走 `API_BASE`（`src/api/client.ts`），并且判断"这台服务器有没有这个能力"要看 `Content-Type` 或专门的健康端点（`GET /api/ark/health`），**永远不要信状态码** |
 | 指望给图生 3D 出来的角色加眨眼/口型/表情 | 做不成，而且**要走到很后面才发现**：几何形键无从下手（那种脸是**贴图画的眼睛 + 光滑面**，没有眼睑可动），退而求其次做贴图闭眼又会卡在合成——自动展开的 UV 是碎片图集，眼睛被切成几百个几像素的小岛紧挨着不相干的面，遮罩一膨胀就串岛（眼周灰斑）、一腐蚀就啃掉眼睛（漏出睁眼的虹膜）| **表情能力是资产属性，不是后期能补的**。要表情就用画师做的、自带形键的资产（铸卡师 milltina 有 22 个形键；玩家形象新旧两版都是 0 个）。重展 UV 救不回来：实测整体重展只修好了贴图质量（图集利用率 17.5%→83.2%，关键是 `angle_limit` 要给到上限 89°，因为 Collapse 减面后相邻面法线跳变大、默认 66° 下几乎每面一岛），但仍是几千个碎片岛，脸成不了整块；把头拆成独立贴图也一样（1024² 空洞率 52.8%）。全过程与判据见 `assets-private/playerf-v2/blink-abandoned/README.md` |
+| 靠**包围盒跨度**判断「新模型该绕竖轴转多少度」才对得上现网骨架 | 人形的 x/y 跨度**前后对称**：player-m 实测 yaw=90° 与 270° 的误差逐位相同（x 7.7% / y 1.4%），选哪个纯看谁先被扫到 —— 而**抛错了零报错**：蒙皮成功、`think` 能播、导出正常，只是工坊第三人称转过去看到的是后脑勺 | 再加一条**能分前后**的判据：鞋尖比鞋跟伸得远，脚尖指的方向就是正面（纯几何、不用采样贴图，新旧网格都成立）。加上之后 90°/270° 的一致度是 +0.972 / −0.972，干净分开。一处实现在 `assets-private/playerm-v2/scripts/rig_transfer.py` 的 `toe_dir`，`gen_preview.py` / `nose_mask.py` / `face_cmp.py` 都复用它 —— 凡是要摆一台「看正面」的相机，都得先问它，别假定正面朝 -Y |
+| 在 Blender 里按包围盒取景、或按 z 区间选面，却没剔掉 glTF 导入器造的**骨架显示辅助球** | 那颗球是个 MESH、**不在文件里**，会把包围盒撑成「和身高一样宽」。后果不止「框歪一点」：凡是按 z 区间取点的判据（取鞋尖、取头部）都会取到球上的点，结论完全是垃圾 —— 本次它让对照相机转到了后脑勺，而「前后两张图逐像素比」照样跑出一个数（3 个像素差），看着像「修复没生效」。一天之内咬了三次 | 一律按「有没有 ARMATURE 修饰器」挑出真正的角色网格，别按 `o.type == "MESH"` 或名字挑 |
+| 在 Blender Python 里用 `is` 比较节点/物体 | `link.from_node is node` **恒为假** —— RNA 包装对象每次访问都新建。表现是「一处都没换到」，而打印节点图明明有那条连线 | 按 `.name` 比，或者干脆从连线那头直接写（`link.from_node.image = new`）|
+| 给图生 3D 的贴图做**局部修补**时用了任何跨像素的空间滤波（模糊 / 膨胀 / inpaint） | 自动展开的 UV 是碎片图集，一块部位在图集里的邻居可能是头发或眼睛：修鼻子时「把整图模糊一遍当填充底」把暗色吸了过来，出来一块带锯齿边（正好是岛边界）的灰褐斑，比不修还显眼。与 player-f 那次眨眼失败是同一个根因 | 补色只能用**不跨岛**的办法：常数填充（颜色从遮罩外一圈采样）+ 只羽化遮罩本身。遮罩还要先做闭运算补洞 —— 只改外圈会得到「灰环套粉心」的花斑。另外「这块是不是鼻子」不能靠「最靠前的点」找（那是刘海）也不能靠「最大的粉团」找（整张脸是连片的粉），只能拿一张标定过的正脸渲染图**量**出高度层。四次失败的写法与判据见 `assets-private/playerm-v2/README.md` |
 | 用 `onBeforeCompile` 改了材质着色器，却没给 `customProgramCacheKey` | 换一组参数**画面纹丝不动**，且完全不报错——你会以为是参数没调对，接着一路调到怀疑人生 | three 复用已编译 program 的键里**不含** `onBeforeCompile` 改出来的源码。同一种材质（例：`MeshToonMaterial`）只要 uniform 定义一样就命中同一个 program，后编译的那份直接被丢掉。凡是按参数生成不同 GLSL 的地方，都要把参数拼进 `material.customProgramCacheKey`（`toonify` 的 rim/spec 就是这么钉的） |
 | 抄别处（教程/Blender 插件/别的引擎）的着色阈值，直接填进来 | 要么**一点效果都看不见**，要么**全屏死白**——两头都不报错，只让人以为"这招在我们这儿没用" | 阈值是绑定在**产生它的那条分布**上的，不是通用常数。移植 Blender 二次元插件那两笔时实测：菲涅尔边缘光原值 0.55/0.85 对应 N·V 0.151→0.040（比 1px 还窄，等于没有），高光原值 0.84/0.93 配 Blinn 指数 86.9 则散成一颗颗白点。搬配方可以，**阈值必须在本项目灯光下重量一遍**（`toonify` 里记了两组的实测过程） |
 | 换了 `public/models/protected/*.glbx` 却没顶 `?v=` | 老用户的浏览器/WebView 拿的还是缓存里那份**旧模型**，全程零报错，本机清了缓存又一切正常 | 换模型必须同步顶版本号（NPC 在 `TableScene.tsx` 的 `?v=mNN`，玩家/预览档在 `quality.ts` 的 `NPC_VER`/`PLAYER_VER`）。出货全链见 `scripts/bl_milltina_convert.py` 头部 |
@@ -209,9 +234,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 确认卡上的价钱在卡摆着的时候不会变 | 卡不关，用户去方案台把时长 5s 点成 10s（那正是计价输入）→ 回来点「执行」：标价 507.6k、实扣 1.0M，屏幕上那个数从头到尾没动过 | `executeAgentProposal` 真跑之前用**同一把尺**重算（`nodeCost` / `proposalsCost`），对不上就整句拒并请用户重说一句。所以 `AgentProposal.cost` 存的是**数值**，不只是那句字符串 |
 | z-50 的弹层盖住 z-40 画布壳上那条错误条 | store 的整句拒绝（换模板被拒、挂卡被拒）正好落在被盖住的那条上 = 用户眼里的「点了没反应」 | 盖住谁就**自带一份**：`PlanSheet` 与 `TemplatePicker` 各画一份 `useFlow(s => s.err)`；能提前判死的干脆 disable 并在旁边写清为什么点不动 |
 | store 的 action 撞上全局 `busy` 时静默 `return false` | 上层拿不到原因：画布的确认卡把**没点着的火**报成绿勾 ✓ 并跳窗过去，用户以为两段都在炼，实际只有一段在跑、另一段一个 token 都没花 | store 里**任何早退分支**（busy / 已出片 / 越界）都要 `set({ err: 整句人话 })` 再 `return false` —— 静默 false = 上层只能瞎猜（本次给 `genNode` / `deriveProposals` / `regenProposal` 补齐，`setNodeTemplate` / `applyCast` 早就这么写）；调用方判成败一律看 `store.err` 或**真实结果**，探不到就当没点着 |
+| 拿 `!currentUser()` 当「没登录」 | 冷启动后**立刻**点底栏 ➕ 弹出登录页，而人明明登录着（退出去点「我的」头像昵称钱包全在，再点 ➕ 就好了）。用户读到的是**「我被登出了」**，且每次冷启动手快就撞得上 | `currentUser()` 回答的是"手里有没有人"，回答不了"是没登录、还是会话还没水合完"。远端模式下有一段窗口是**手里有 token、人还没认领上**（`fetchMe` 失败在退避自愈中，或探活失败退了本地库），那一段两者的答案相反。判据只有一处：`account.authState()` 的三态 `in / out / pending`（hook 是 `useAuthState`），**只有 `"out"` 才可以把人送去登录页**，`"pending"` 给 `<AuthPending/>`。pending 是有边界的：自愈五轮退避跑完会如实退回 `out`，不会永远转圈。硬登录墙也只有一处：`App.tsx` 的 `RequireAuth` —— 底栏 ➕ 那类入口只 `navigate`，不许自己再判一遍（判两遍必然有一遍先跑，2026-08-20 就是这么撞上的） |
 | 拿**名字**当身份判「这条是不是我发的」 | 用户改完昵称回首页：右侧头像退回字母底、点进去还是旧名字的主页，重启才好 | `VideoItem.author` 是**显示名**，会变。缓存里那些作品的 author 还是旧值，`isMyAuthor` 就判否了。改名时按 `authorId` 精确改写缓存（`videos.ts` 的 `renameMyVideos`），别按旧名字模糊匹配——会误伤重名的别人 |
 | 界面上摆一个永远点不动的选项 | 「极致」画质在 App 里是灰的，说明写着"安装包不含 4K 贴图" —— 用户只会觉得功能坏了 | 要么让它真能用（现在 4K 随包发布），要么别显示。同理：设置页那个「已用 xx MB」原来只是个用户看不懂也做不了事的数字，现在配了真能清的「清理缓存」 |
 | 出包时忘了涨 `versionCode` | 已经装了的人**永远收不到这次更新** —— 更新检查靠这个整数判新旧，不涨就等于没发 | 每次 `npm run apk:release` 前先改 `android/app/build.gradle`，见 `docs/app-distribution.md` |
+| 新 worktree 缺 `android/keystore/` | release 构建**当场失败**（这是有意的）：以前只 warn，产出的无签名包看起来完全正常，装到别人手机上只提示「应用未安装」 | 报错里写了恢复步骤；完整说明见 [`docs/signing-keystore.md`](docs/signing-keystore.md)。debug 构建不受影响 |
 | 把 debug 包发给别人装 | 下次发 release 包时对方装不上，只提示「应用未安装」，看不出是签名不同 | 发给别人的永远只发 `npm run apk:release` 的产物；debug 包只留在自己机器上 |
 | 想把 QQ 登录塞进 `providers[]`，复用「系统浏览器 + 深链」那条路 | 授权页直接被 QQ 拒 | QQ 互联注册的是**移动应用**，后台**没有回调地址那一栏**——网页版 OAuth2.0 要求先在「网站应用」里登记域名与回调地址（还要 ICP 备案）。所以 QQ 是**另一条链路**：原生 SDK（`QQLoginPlugin.java`）拿一次性 code，结果**同步返回**，不经过 `OauthDeepLinkBridge`。也因此它不看 `caps.providers`，只看跑没跑在 App 壳里 |
 | QQ 登录让客户端把 openid 一起传给服务端 | 报谁的 openid 就登谁的号 | 用 `loginServerSide` 只取 code，openid 由服务端拿 AppKey 去 QQ 换。AppKey 只准待在 server 的环境变量里，AppID（`1905467096`）才是可以随包发的那个 |
@@ -226,7 +253,9 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 靠"首字白名单 + 字数阈值"判断一句话是什么意思 | 本地降级档拿它区分"改属性"和"写要求"，结果 `^(拍\|画\|讲\|演\|要)` 与「**画**质换成高清」「**要**删掉」正面撞车 —— 判成要求就**静默整段覆盖**用户写好的一大段，不可撤销 | 改用**剥词法**：把改动动词/属性名/属性值/语气词剥净，剩不下东西才算属性指令（属性句剥完必然为空，画面句剥完必然还剩主体）。判据写完要拿一批正反例**实跑**，而且测试直接从源文件抠正则，别在测试里重打一遍（重打一遍就是同一条规则的第二处实现） |
 | 把正则写成**字符串常量**再 `new RegExp` | `"\d"` 在 JS 里是转义序列，运行时退化成字母 `d` —— 那一档从此永远匹配不上，而且**零症状**（构建过、类型过、也不报错）。`blockoutPrompt` 里那条模板字符串的 `\s` 是同一个坑的另一面，这次在 `canvasAgent` 的词表上又栽一次 | 一律用**正则字面量**；需要同一份规则的另一种标志位（比如去掉 `g`）时用 `new RegExp(那条.source, "i")` **派生**，别另抄一份字符串。判据写完拿正反例实跑，而且测试直接从源文件抠正则 |
 | 上传大视频失败，只说「网络不可用」 | 47MB 传不上去、11.6MB 同一条网传得上去；客户端只拿到 fetch reject（**没有状态码**） | **真因（2026-08-22 用 nginx `$request_time` 实证，三发连续复现）：Cloudflare 的 Proxy Read Timeout = 125 秒。** `rt=125.006 / 125.005 / 125.006` 精确到毫秒一致；`len` 只有 18~23MB（body 根本没传完）、`urt=-`（nginx 还在读 body，没转发给 Node）；nginx 记 **499**。机理：nginx 默认 `proxy_request_buffering on`，**要把整个 body 收完才回包** ⇒ 整个上传期间 CF 看到的是「源站零响应」⇒ 125 秒到点掐断。⇒ **这条路真正的天花板不是那个 100MB，是「125 秒内能推上去多少」** —— 实测同一台手机 5G 上行 0.126MB/s（curl 发 10MB 用 83 秒）⇒ 约 15MB；WiFi 0.69MB/s ⇒ 约 86MB。而且**服务端处理时间也算在这 125 秒里**（`upload_stream` 同步等 Cloudinary 吃完才回包，11.6MB 那发就花了约 79 秒），所以可用体积还要再打折。⚠ **别升 CF 套餐**：这个值只有 Enterprise 能调，Pro/Business 一样 125 秒。⚠ **别拿「路由不存在」的路径做探针**（`/api/health` 收 POST 时 Express 立刻回 404、不等 body，读超时永远不触发）—— 我被这个无效对照骗过一次，还据此写下「不存在 125 秒时间墙」的错误结论。**已修（2026-08-23 上线并真机验过）**：模板视频改走**客户端签名直传 Cloudinary + 分块**（`api/uploads.ts` 的 `directTicket`/`putDirect`/`confirmDirect` ↔ server 的 `/uploads/template-video/sign` + `/confirm`）—— 字节不经过 CF 与源站，每块都远短于 125 秒，断了只重传那一块。真机复验：同一条 47MB 素材此前三次都在 125.00 秒被砍，改后约 100 秒传完，界面上有真进度（「上传视频 63%」）。老路**保留不删**（旧版 App 只认它），新版在 `/sign` 回 404 时退回去。⚠ 三条防线都在服务端且缺一不可，改之前先读 `docs/api-contract.md` 那一节：public_id 服务端生成并签死、`overwrite:false` 进签名（防过审后原地换内容）、`allowed_formats` 进签名（防拿 /video 的票往 /raw 传任意文件 —— 实测过这个洞真的存在）。⚠ 这一格纠正过四次（体积超限 → CF ~100 秒 → 两分钟计时器 → 无固定时间墙），前三次都是「听起来合理但没量过」——`$request_time` 一加上去，一条日志就定案了 |
+| 组件里把 hook 写在早退（`if (!x) return null`）**之后** | 那一格状态从有变无的那一拍 hook 数对不上，React 抛「Rendered fewer/more hooks」——**整棵树当场崩**，而工坊/画布都没有 ErrorBoundary：屏幕上是一块空白，不是一条报错。表现会被描述成"某个功能不见了、之前的改动回退了" | hook 一律排在所有早退**之前**（2026-08-30 一天内 `projection.tsx` 两处各栽一次：ProposalsPanel 的 `playing`、EditorPanel 的 `tplPick`/`matsOpen`）。查法：函数体里第一个早退之后不允许再出现 `use*(`（回调体内的 return 不算） |
 | 在**看不见的**窗口里测（最小化/被挡住/标签页在后台） | 三类假故障：① `scrollTo({behavior:"smooth"})` 完全不动、scroll 事件一次都不触发（轮播翻页、首页上下滑看起来全坏）② `<video>` 不加载不解码，`loadedmetadata`/`seeked` 永不到达（出片卡在「捕获本段真实尾帧…」、剪辑页卡在「合并中」）③ rAF 被节流到 ~1 帧/500ms，Three.js 画布是黑的 | 先查 `document.visibilityState`，是 `hidden` 就别下结论。自动化测试必须让窗口真正可见（CDP 截图能骗过去，rAF 和媒体解码骗不过去）。代码侧的对策是**等媒体事件一律带超时**（见 `ai/real.ts` 的 `withTimeout`）——否则用户在几分钟的出片过程里切出去，回来就是永久卡死 |
+| 出片没接到结果就按「失败」处理 | 用户面前唯一可点的是「♻ 重新生成（N token）」= **重新下一单 = 再花一次钱**，而那一发的成片往往在方舟那边好好地存在着（2026-08-18 实测：15s 白模模板方舟约 13 分钟出片，App 10 分钟就放弃了，¥27 的成片是事后用任务号从方舟侧捞回来的）。计费在**受理那一刻**就发生（契约「先扣钱、再转发」+「受理之后失败不退」），所以「没接到」和「没花钱」毫无关系 | 「没接到」与「失败」是**两个**结局，判据是**类型**（`ai/arkClient.ArkTaskUnknown`）而不是错误文案里的关键词。三件一起做：① 任务**受理即落凭据**（`data/videoJobs`，用 localStorage —— 要扛得住进程被系统回收，那正是丢结果最常见的方式），落在开始等待**之前**而不是失败分支里；② 节点打 `status:"pending"` 而不是 `"failed"`；③ 段卡上给 24 小时取回入口（查询不计费，取回不再花钱）。同仓另有一份正确形态可对照：`data/templates.waitBlockoutTask`（白模化两阶段），改一处时对着看另一处 |
 
 ## 相关文档
 
@@ -234,6 +263,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
 - [`docs/app-distribution.md`](docs/app-distribution.md) — 发包给别人装、应用内更新怎么走
+- [`docs/signing-keystore.md`](docs/signing-keystore.md) — 签名 keystore 换机 / 新 worktree 怎么恢复
 - [`public/perch/README.md`](public/perch/README.md) — 角色动画资源怎么生成、踩过什么坑
 - [`public/createbtn/README.md`](public/createbtn/README.md) — 底栏 ➕ 上那只常驻宠物（含并排版式的取值）
 - [`public/avatars/README.md`](public/avatars/README.md) — 官方 Q 版看板娘头像怎么裁、选了之后存的是什么

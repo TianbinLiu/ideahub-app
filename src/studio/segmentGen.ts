@@ -12,12 +12,13 @@
 //
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
-import { VIDEO_PROMPT_MAX, composeSegments, generateCover, prepareMaterialRefs, refineFrame } from "../ai";
+import { ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateCover, prepareMaterialRefs, refineFrame } from "../ai";
+import { uploadImage } from "../api/uploads";
 import { r2vPriceIssue, tierOf, providerOf, clampDuration } from "../data/economy";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
-import { CARD_TYPE_LABELS, viewsOf, type Card, type VideoAspect, type VideoTemplate } from "../types";
+import { CARD_TYPE_LABELS, idLineOf, viewsOf, type Card, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
 
 export interface SegmentAnn {
@@ -66,6 +67,15 @@ export interface SegmentGenInput {
    * ★ 走不走白模仍由 `refVideoUrl` 的存在性决定（它才是真正发出去的那一位），本字段只是判据来源。
    */
   refVideo?: VideoTemplate["refVideo"];
+  /**
+   * **素材参考**（自定义 = 多图 + 参考视频，主人点名的形态）：用户自传的参考视频
+   * （服务端 /uploads/material-video/register 登记过的地址）+ 首/中/尾帧参考图，
+   * 时序靠**默认提示词点名**（customRefPrompt 唯一实现——「图片1是第一帧画面…」）。
+   * 走 reference 子任务：输出时长用户选（3~10s），计价 (输入+输出)×系数
+   * （economy.materialRefCost ↔ server tokens.materialRefTokens，跨仓逐字相等）。
+   * ★ 与 refVideoUrl（白模 edit 复刻）互斥使用：调用方不该两个都给。
+   */
+  materialRef?: { url: string; durationSec: number; mids?: string[] };
   /**
    * 白模模板的**角色位**（`template.roles` 的镜像，见 types.VideoTemplate.roles）。
    *
@@ -225,7 +235,15 @@ function materialText(materials?: Card[]): string {
   if (!materials?.length) return "";
   const list = materials
     .slice(0, 8) // 再多提示词就被稀释了，模型开始各记各的
-    .map((c) => `${CARD_TYPE_LABELS[c.type]}「${c.name}」${c.summary ? `（${c.summary.slice(0, 40)}）` : ""}`)
+    .map((c) =>
+      // ★ 人物卡用**固定身份句**（idLineOf：铸卡时压好的「名字+2~3个不变的视觉特征」，
+      //   逐段逐字复用——同一措辞本身就是一致性手段；老卡兜底"名字+简介40字"=老行为）。
+      //   非人物卡仍是短句：8 张卡 × 60 字会撑爆 VIDEO_PROMPT_MAX，而"主体身份"
+      //   这件事只有人物卡真正需要整句（types.ID_LINE_MAX 的注释是同一笔账）。
+      c.type === "character"
+        ? `${CARD_TYPE_LABELS[c.type]}「${c.name}」＝${idLineOf(c)}`
+        : `${CARD_TYPE_LABELS[c.type]}「${c.name}」${c.summary ? `（${c.summary.slice(0, 24)}）` : ""}`,
+    )
     .join("；");
   return `。本段固定素材设定（必须严格遵守，不得改动其外形与身份）：${list}`;
 }
@@ -242,7 +260,42 @@ export interface SegmentGenResult {
 /** 进度回调：一路平铺的短句，由调用方归一进步骤日志（见 genLog.splitStatus） */
 export type SegmentProgress = (status: string) => void;
 
-export async function generateSegment(input: SegmentGenInput, onProgress?: SegmentProgress): Promise<SegmentGenResult> {
+/**
+ * 素材参考的**时序点名句** —— 唯一实现（主人点名的机制：让 Seedance 通过默认提示词
+ * 明白哪张图是首帧、哪些是中间帧、哪张是尾帧）。
+ *
+ * ★ 编号从 1 起、按「首 → 中… → 尾」的发送顺序对齐（segmentGen 那侧 ordered 的顺序
+ *   就是这里的编号顺序，两处同一个排列——错位一格就是"开头画成了结尾"）。
+ * ★ 用「图片N」称呼（方舟官方点名法，与白模点名句同一习惯）；参考视频不占编号。
+ * ⚠ 这是**提示词层的软约束**：reference 子任务没有硬性的首尾帧参数（那与参考媒体
+ *   互斥），模型对时序点名的服从度没有协议保证——文案与门禁都不许把它说成硬承诺。
+ */
+export function customRefPrompt(o: { hasFirst: boolean; midCount: number; hasLast: boolean }): string {
+  const parts: string[] = [];
+  let n = 1;
+  if (o.hasFirst) parts.push(`图片${n++}是这段视频的第一帧画面，视频从它开始`);
+  for (let k = 0; k < o.midCount; k++) parts.push(`图片${n++}是视频中间的关键画面，按顺序经过它`);
+  if (o.hasLast) parts.push(`图片${n}是这段视频的最后一帧画面，视频结束在它`);
+  if (parts.length === 0) return "。参考视频提供整体画面、运镜与节奏。";
+  return `。参考视频提供整体画面、运镜与节奏；${parts.join("；")}。画面按图片编号顺序推进，衔接自然。`;
+}
+
+/**
+ * 出片任务**刚被方舟受理**（从这一刻起这一发的钱已经花掉了，见 arkClient 的 onTask）。
+ *
+ * ★ 本模块只是把它递上去，一个字都不解释 —— 与文件头那条「计费与 store 写入不在这里」
+ *   同一条分工：谁在等这一发、要不要落凭据、落哪儿，是 store 的事
+ *   （唯一的落方是 flowStore.genNode → data/videoJobs）。
+ * ★ 它**只对出片那一发**触发。这一函数里还会花钱的另外两处（按圈选改帧、补画设定帧）
+ *   走的是同步出图，没有任务号也没有“等一会儿再来取”这回事。
+ */
+export type SegmentTaskAccepted = (taskId: string) => void;
+
+export async function generateSegment(
+  input: SegmentGenInput,
+  onProgress?: SegmentProgress,
+  onTask?: SegmentTaskAccepted,
+): Promise<SegmentGenResult> {
   const prog = (s: string) => onProgress?.(s);
   let first = input.firstFrame;
   let last = input.lastFrame;
@@ -255,6 +308,69 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   if (blockout) {
     const issue = blockoutIssue(input);
     if (issue) throw new Error(issue);
+  }
+
+  // ── 素材参考（自定义 = 多图 + 参考视频，reference 子任务）──────────────
+  // 首/中/尾帧作为 reference_image 发出去，时序由默认提示词点名（customRefPrompt）。
+  // 与白模复刻是两种商品：这条输出时长用户选、画幅照传、计价 (输入+输出)×系数。
+  if (input.materialRef) {
+    const t = tierOf(input.videoTier);
+    if (!t.refVid) {
+      throw new Error(`「${t.label}」档不支持带参考视频出片——去 ⚙ 本段设置换成「电影级」档，或移除参考视频`);
+    }
+    if (input.anns.length) {
+      throw new Error("带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片");
+    }
+    // 承接的真实尾帧优先当首帧参考（段间无缝正是这条链的意义）
+    const firstRef = input.carryFrame || input.firstFrame || "";
+    const mids = input.materialRef.mids ?? [];
+    const ordered = [firstRef, ...mids, input.lastFrame || ""].filter(Boolean);
+    // ★ reference_image 只实测过 https（cardViews 那条 ★），用户帧是 dataURL ——
+    //   逐张转存成公网地址再发。转存失败整句 throw（这一步不花钱，别带着坏图去花钱）。
+    const refUrls: string[] = [];
+    for (let i = 0; i < ordered.length; i++) {
+      const u = ordered[i];
+      if (/^https?:\/\//i.test(u)) {
+        refUrls.push(u);
+        continue;
+      }
+      prog(`上传参考帧 ${i + 1}/${ordered.length}…`);
+      const blob = await (await fetch(u)).blob();
+      refUrls.push(await uploadImage(blob, `custom-ref-${i + 1}.jpg`));
+    }
+    const roles = customRefPrompt({ hasFirst: !!firstRef, midCount: mids.length, hasLast: !!input.lastFrame });
+    // 点名句是这条路的**功能本体**，截断优先保它（与白模 tail 同一条纪律）
+    const mats = materialText(input.materials);
+    const tail = `${roles}${mats}`;
+    const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length);
+    const cut =
+      input.plot.length > room
+        ? `（⚠ 要求太长，末尾 ${input.plot.length - room} 字没能发出去——时序点名句要占 ${tail.length} 字）`
+        : "";
+    prog(`按参考视频 + ${refUrls.length} 张关键帧出片（输入 ${input.materialRef.durationSec}s + 输出 ${clampDuration(input.durationSec, input.videoTier)}s 计价）…${cut}`);
+    const [res] = await composeSegments(
+      [
+        {
+          plot: `${input.plot.slice(0, room)}${tail}`,
+          firstFrame: "",
+          lastFrame: "",
+          durationSec: input.durationSec,
+          videoTier: input.videoTier,
+          aspect: input.aspect,
+          refImages: refUrls,
+          refVideoUrl: input.materialRef.url,
+          refTask: "reference",
+          refVideoSec: input.materialRef.durationSec,
+        },
+      ],
+      (_d, _t, status) => prog(status),
+    );
+    if (res?.error) throw new Error(res.error);
+    return {
+      url: res?.url,
+      firstFrame: res?.firstFrame || firstRef || input.firstFrame,
+      lastFrame: res?.lastFrame || input.lastFrame || firstRef,
+    };
   }
 
   // ── 真人档（MiniMax，flatCost 计价）：帧来源整个不同，在这里备好再交 composeSegments ──
@@ -349,13 +465,27 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   const needDraw = !blockout && (!first || (!last && tier.flf));
   const notes: string[] = [];
   // 白模也要形象图（混发：视频给画面与运镜，形象图说"换成谁"），所以 blockout 也准备
-  // ★ 白模路传 multiChar：它一张设定帧都不画，参考图直接进 Seedance r2v，而 r2v 带多张
-  //   人物参考图是实测成立的（2026-08-15 G0：3 张卡各自换到对应编号的人偶上，跨帧不串号）。
-  //   不传的话 allocateRefs 会照 Seedream 那条"一张图只画一个角色"的规则只喂第一张，
-  //   用户挂三张卡想换三个人、实际只有一个真换 —— 而那正是白模模板的全部卖点。
+  // ★ 白模路传 true（直通 + 严格闸）：它一张设定帧都不画，参考图直接进 Seedance r2v，
+  //   而 r2v 带多张人物参考图是实测成立的（2026-08-15 G0：3 张卡各自换到对应编号的
+  //   人偶上，跨帧不串号）。不传的话 allocateRefs 会照 Seedream 那条"一张图只画一个
+  //   角色"的规则只喂第一张，用户挂三张卡想换三个人、实际只有一个真换。
+  // ★★ refMode 也走直通分配（2026-08-29 放开，backlog §2.7 P2-a）：它的图与白模一样
+  //   直接进 Seedance，此前却沿用「Seedream 画一张帧塞不下多主体」的 3 张启发式 ——
+  //   挂第 2 张人物卡的用户拿到的是模型瞎编的脸，钱照付零报错。上限按**档位协议**
+  //   （VideoTier.refImagesMax：hd 的 2.0 系 9 张、ultra 的 2.5 是 30 张），付费实测
+  //   见 design/p2a-refmode-budget.mjs（多人物多图各归各位 + 用量与 2 图那发同价）。
+  //   strict:false = 人物卡零图时保住既有降级（下面 494 行一带改画设定帧并说明），
+  //   不学白模整句拒 —— refMode 的提示词里还有素材设定文字兜底，直出仍是同一件商品。
+  //   ⚠ 若 refMode 与 needDraw 同真（refMode 判定成立时首帧必空，needDraw 恒真），
+  //   分配按直通走是对的：refMode 成立就不会画帧；中途降级（refs 全军覆没）时 refs
+  //   本来就是空的，画帧那侧拿不到多主体图，两头都不冲突。
   const refs =
     blockout || refMode || needDraw
-      ? await prepareMaterialRefs(input.materials, (n) => notes.push(n), blockout)
+      ? await prepareMaterialRefs(
+          input.materials,
+          (n) => notes.push(n),
+          blockout ? true : refMode ? { cap: tier.refImagesMax, strict: false } : false,
+        )
       : null;
   // ── 台词音色（卡片系统 V2 阶段 2）────────────────────────────
   // 样本只在 refMode（参考生视频）发。点名句单独 append、不并进 tail 参与截断取舍：
@@ -412,9 +542,10 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
 
   // ④ 出片。圈选要求并进提示词——只改设定帧不够，Seedance 得知道这一段要拍成什么样
   const reqs = input.anns.map((a) => a.req).join("；");
-  // 参考生视频没有设定帧兜底，"谁是谁"全靠这句绑定句（<图片1> 的面部特征 = 角色 XX），
-  // 所以它必须进**视频**提示词；首尾帧模式下它已经写进 Seedream 的提示词里了，
-  // 再塞一遍只会让 Seedance 去找并不存在的 <图片1>
+  // 参考生视频没有设定帧兜底，"谁是谁"全靠点名句（2026-08-29 起是前置的紧凑式
+  // 「凛=@图片1@图片2」，见下面 bindHead），所以它必须进**视频**提示词；
+  // 首尾帧模式下长句 bind 已经写进 Seedream 的提示词里了，
+  // 视频提示词再塞一遍只会让 Seedance 去找并不存在的 <图片1>
   // 白模的尾巴 = （V1 才有的）统一替换句 + 素材文字 + 绑定句：替换句说"干什么"（换主体、
   // 严格保留背景道具运镜——BLOCKOUT_SWAP，一处实现），素材文字与绑定句说"换成谁"
   // （<图片1> 的面部特征 = 角色 XX）。参考视频不占 <图片N> 编号（见 arkClient 的 content
@@ -436,6 +567,13 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   //     提前知道 —— 合成句里说的是角色**名**，全靠这一句把名字接到图上
   //     （白模路是紧凑式 `张三=@图片1@图片2`，理由见 ai/real 的 bind）。
   const named = blockout && !!input.roles?.length;
+  // ★ refMode 的点名句 2026-08-29 起换**紧凑式 @槽位并前置**（backlog 2.8-⑥，付费 A/B
+  //   采纳：design/ab-bind-syntax.mjs 两发同素材同档，身份贴合与遵词同水平、省约 90 字
+  //   正文额度、语法与白模路统一、契合方舟官方「重要素材前置」）。
+  //   构造器与白模 bind() 同一个（prepareMaterialRefs.bindCompact）；砍掉开头那个
+  //   接续用的句号——它是给尾置拼接设计的，站句首是个病句。
+  //   Seedream 画帧那半（上面 needDraw 用的 bind）**未做 A/B，仍是长句**，别顺手统一。
+  const bindHead = refMode && refs ? refs.bindCompact(0).replace(/^。/, "") : "";
   // ★★ V2（点名）那条路**不拼素材设定文字**（`mats`），只留绑定句。这不是省字的洁癖，是算出来的：
   //   `mats` 每张卡 ≈ 50 字（卡种 + 名字 + 30~40 字设定），角色位上限放到 9 之后光它一项就
   //   400 字打底 —— 而提示词硬顶就是 400，截断又是**从正文这头切**的（见下面的 room），
@@ -445,15 +583,16 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   //   是豆包写的卡面简介，对"把白模换成这个人"几乎不添信息。
   //   ⚠ 例外：某张卡的形象图全都读不出来时，它就只剩名字了 —— 那种情况由 prepareMaterialRefs
   //   的 onNote 逐张点名（"第 N 张参考图未采用…"），一张都没成还会整句 throw，不是静默。
-  const tail = blockout ? (named ? bind : `${BLOCKOUT_SWAP}${mats}${bind}`) : `${mats}${refMode ? bind : ""}`;
+  // refMode 的绑定句已前置（bindHead），尾巴只剩素材设定文字
+  const tail = blockout ? (named ? bind : `${BLOCKOUT_SWAP}${mats}${bind}`) : mats;
   const story = reqs ? `${input.plot}。修改要求（必须满足）：${reqs}` : input.plot;
-  // ★ 提示词有 VIDEO_PROMPT_MAX 的硬顶，而它是**从尾巴切**的 —— 尾巴恰好就是素材设定
-  //   与绑定句。直接拼起来交上去的话：简约模式的输入框本身就允许 400 字，用户写满
-  //   （或套个字数多一点的模板再挂张卡）就把绑定句整句切没了，而参考图照样发出去 ——
-  //   模型于是只把它们当风格图用：卡挂了、片出了、人物一点都不像，且**零报错**。
-  //   所以先给尾巴留位，要截就截故事正文（那部分少几个字用户看得出来，也不改变"谁是谁"）。
-  const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length);
-  const plot = `${story.slice(0, room)}${tail}`;
+  // ★ 提示词有 VIDEO_PROMPT_MAX 的硬顶，而截的是**正文** —— 头（点名句）与尾（素材设定/
+  //   白模绑定句）都要先留位。直接拼起来交上去的话：简约模式的输入框本身就允许 400 字，
+  //   用户写满（或套个字数多一点的模板再挂张卡）就把绑定句整句切没了，而参考图照样发出去
+  //   —— 模型于是只把它们当风格图用：卡挂了、片出了、人物一点都不像，且**零报错**。
+  //   截正文是唯一诚实的刀口（少几个字用户看得出来，也不改变"谁是谁"）。
+  const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length - bindHead.length);
+  const plot = `${bindHead}${story.slice(0, room)}${tail}`;
   // ★ 但"截了要说"（铁律八）。V2 白模路把这条从"理论风险"变成了"每天都可能发生"：
   //   正文那段点名合成句本身就有一两百字，挂满三张卡时尾巴也有两百字上下 ——
   //   悄悄切掉正文末尾，用户看到的是"我写的最后几条要求模型完全没照做"，零报错。
@@ -461,7 +600,7 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
   //   没画过它，等于这句话没说过）—— 与 noteTail 同一个理由，所以并进同一行说。
   const cut =
     story.length > room
-      ? `（⚠ 这一段的要求太长，末尾 ${story.length - room} 字没能发出去：提示词上限 ${VIDEO_PROMPT_MAX} 字，其中素材设定与形象绑定句占了 ${tail.length} 字——把要求写短些，或少挂一张卡）`
+      ? `（⚠ 这一段的要求太长，末尾 ${story.length - room} 字没能发出去：提示词上限 ${VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 ${tail.length + bindHead.length} 字——把要求写短些，或少挂一张卡）`
       : "";
   if (blockout)
     prog(
@@ -491,7 +630,13 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
       },
     ],
     (_d, _t, status) => prog(status),
+    (taskId) => onTask?.(taskId),
   );
+  // ★ 「没接到结果」要**原样保持它的类型**往上抛：调用方据此决定凭据留不留
+  //   （留 = 亮取回入口，销毁 = 只剩「重新生成」= 再花一次钱）。这里图省事统一
+  //   `new Error(res.error)` 的话，那个判据在本行就被抹平成一个字符串了 ——
+  //   而抹平之后没有任何编译期或运行期症状，只有用户多付一次钱。
+  if (res?.pendingTaskId) throw new ArkTaskUnknown(res.error ?? "没接到这一段的出片结果", res.pendingTaskId);
   if (res?.error) throw new Error(res.error);
   return {
     url: res?.url,

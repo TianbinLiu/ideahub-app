@@ -22,7 +22,7 @@ import {
   modelLabel,
   slotsFor,
 } from "../../data/economy";
-import { Card, CARD_TYPES, CARD_TYPE_LABELS, CardType } from "../../types";
+import { Card, CARD_TYPES, CARD_TYPE_COVERS, CARD_TYPE_LABELS, CardType } from "../../types";
 import TarotCard from "../../components/TarotCard";
 import TokenCost from "../../components/TokenCost";
 import { NPC_SCREEN } from "../scene/cameraOrbit";
@@ -407,16 +407,8 @@ const TYPE_HINT: Record<CardType, string> = {
   style: "画风与镜头语言的基调",
 };
 
-/** 卡种封面：看板娘亲自比划着推销每一类卡（design/gen-cardtype-covers.mjs 出的图）。
- *  她就是创作入口三张封面里那位、也是工坊里的铸卡师——全 app 同一个人。
- *  640×960 webp，五张合计 258KB；想换姿势/换构图重跑那个脚本，别手改图。 */
-const TYPE_COVER: Record<CardType, string> = {
-  character: "/cardtype/character.webp",
-  scene: "/cardtype/scene.webp",
-  background: "/cardtype/background.webp",
-  prop: "/cardtype/prop.webp",
-  style: "/cardtype/style.webp",
-};
+// 卡种封面表 2026-08-28 收进 types.CARD_TYPE_COVERS（「自己传图做卡片」也要同一套，
+// 各抄一份必然分叉）。看板娘导览图的出处与注意事项见那边的注释。
 
 function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initialDesc?: string }) {
   const pending = useStudio((s) => s.pendingFiles);
@@ -604,7 +596,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
             <div className="grid grid-cols-3 gap-2.5">
               {CARD_TYPES.map((t) => (
                 <button key={t} onClick={() => { setType(t); setStep("input"); }} className="group text-left">
-                  <TarotCard cover={TYPE_COVER[t]} title={CARD_TYPE_LABELS[t]} type={t} active={type === t} />
+                  <TarotCard cover={CARD_TYPE_COVERS[t]} title={CARD_TYPE_LABELS[t]} type={t} active={type === t} />
                   <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-slate-500 group-hover:text-slate-300">
                     {TYPE_HINT[t]}
                   </p>

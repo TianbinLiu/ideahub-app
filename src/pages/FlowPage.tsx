@@ -13,9 +13,10 @@
 //   工坊模式 → startFlow() 把活动路径整卡搬进来（含全部走向、素材卡、档位，且每段都已出片）
 //   工作流模式 → seedSolo("workflow")，方案台是主路径
 //   简约模式 → seedSolo("simple")，单节点单走向、不推演方案、**不存草稿**，UI 收到最简
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Link, useNavigate } from "react-router";
 import AnnStrip from "../components/flow/AnnStrip";
+import InfoTip from "../components/InfoTip";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import DeleteSegBtn from "../components/flow/DeleteSegBtn";
 import SegSettings from "../components/flow/SegSettings";
@@ -34,6 +35,15 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
 import { balanceNote } from "../data/account";
 import { markNoun, markSpecOf, myTemplates, splitCastRoles, templateGroupOf } from "../data/templates";
+import {
+  dismissVideoJob,
+  pendingVideoJobs,
+  subscribeVideoJobs,
+  videoJobExpired,
+  videoJobNote,
+  videoJobsVersion,
+  type VideoJob,
+} from "../data/videoJobs";
 import { clampDuration, fmtTokens, proposalsCost, tierOf } from "../data/economy";
 import {
   FlowNode,
@@ -51,10 +61,13 @@ import {
   useFlow,
 } from "../studio/flowStore";
 import PlanBoard from "../studio/ui/PlanBoard";
+import FuseFrameSheet, { fuseSourcesOf } from "../studio/ui/FuseFrameSheet";
+import CustomFrameSlots from "../components/flow/CustomFrameSlots";
 import { deckQuoteOf, publishedExit, useStudio } from "../studio/studioStore";
 import { VideoTemplate, aspectCss, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
-import { VIDEO_EDITOR_RESULT_KEY, type CastEditorState, type VideoEditorResult } from "./VideoEditorPage";
+import { type CastEditorState } from "./VideoEditorPage";
+import { useCastReturn } from "../hooks/useCastReturn";
 
 /** 触发换节点/换走向的滑动阈值（px）；低于它按点击处理 */
 const SWIPE = 48;
@@ -68,12 +81,14 @@ const SWIPE = 48;
  *   什么都没发生"——不报错、也不白屏，最难查的那种。
  * ★ 返回值标成 `CastEditorState`，让编译器替我们盯住这份约定：那一页改了字段名，
  *   这里当场编译不过，而不是等到真机上"挂完卡回来输入框还是空的"。
- * ★ `returnTo` 恒为 `/flow`：收结果、把点名句填进输入框、之后出片，全在这一页
- *   （store 侧是 flowStore.applyCast）。
+ * ★ `returnTo` = **谁发起回谁**（2026-08-30 前恒 `/flow`；工坊的模板段面板也能发起了）。
+ *   收结果的实现只有一份（hooks/useCastReturn），/flow 与 /studio 都挂它；
+ *   store 侧仍是 flowStore.applyCast 一处。
  */
 export function castEditorState(
   t: Pick<VideoTemplate, "id" | "title" | "refVideo" | "roles" | "markSlots" | "markBoxes" | "markBoxAtSec">,
   value: Record<string, string> = {},
+  returnTo: "/flow" | "/studio" = "/flow",
 ): CastEditorState | null {
   // 判定一律写存在性（types.ts 的 ★）：老模板天然缺这两样，天然不走挂卡
   if (!t.refVideo?.url || !t.roles?.length) return null;
@@ -91,7 +106,7 @@ export function castEditorState(
     value,
     templateId: t.id,
     title: t.title,
-    returnTo: "/flow",
+    returnTo,
   };
 }
 
@@ -225,19 +240,119 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
         maxLength={VIDEO_PROMPT_MAX}
         disabled={castBusy && castOfThisNode}
         placeholder={
-          castBusy && castOfThisNode
-            ? `正在把「${noun} → 角色」合成一段话…`
-            : "先去挂卡：合成好的点名要求会填在这里，你可以逐字改"
+          castBusy && castOfThisNode ? `正在把「${noun} → 角色」合成一段话…` : "先去挂卡，点名句会填进这里（可改）"
         }
         className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-60"
       />
-      <p className="text-[10px] leading-4 text-slate-500">
-        {castBusy && castOfThisNode
-          ? "合成中…（一次对话，几秒）"
-          : prop.plot.trim()
-            ? `这就是真正发给 AI 的那段话：${noun}与角色名是机器生成的（改错就会换错人），其余随便改；改挂卡会按新映射重新合成、覆盖这里。`
-            : `这一段的要求由挂卡合成：AI 会把「${noun} → 你挂的角色」写成一段话填在这里，出片前你能逐字过目和修改。`}
+      {/* ★ 常驻只留风险内核一句（改错就会换错人是要在改之前看到的，不许全收进 ⓘ——
+          ui-copy-grammar 文法④）；「为什么/覆盖规则」那截进 ⓘ */}
+      <p className="flex items-center gap-1 text-[10px] leading-4 text-slate-500">
+        {castBusy && castOfThisNode ? (
+          "合成中…（一次对话，几秒）"
+        ) : (
+          <>
+            <span>
+              {prop.plot.trim() ? `这段话直接发给 AI：${noun}与角色名改错会换错人，其余随便改` : "挂卡后自动合成，出片前可逐字改"}
+            </span>
+            <InfoTip title="点名句">
+              这一段的要求由挂卡合成：AI 把「{noun} → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。{noun}
+              与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。
+            </InfoTip>
+          </>
+        )}
       </p>
+    </div>
+  );
+}
+
+/** 待取回凭据的变动订阅（凭据落在 localStorage，见 data/videoJobs） */
+function useVideoJobs(): number {
+  return useSyncExternalStore(subscribeVideoJobs, videoJobsVersion, () => 0);
+}
+
+/**
+ * ★★ **「取回这一段」—— 这一整块是本次改造的目的本身。**
+ *
+ * 出片是先扣钱后等的（受理即计费，受理之后失败不退，见 docs/api-contract.md「扣费」），
+ * 而等待窗口最长 25.5 分钟。在这块 UI 之前，客户端没接到结果 = 节点被打成
+ * `failed` = 屏幕上唯一可点的是「♻ 重新生成（N token）」，也就是**再花一次钱**——
+ * 而那一发的成片往往在方舟那边好好地存在着（2026-08-18 实测：15s 模板方舟约 13 分钟
+ * 出片，当时 App 10 分钟就放弃了，那 ¥27 的成片是事后用任务号从方舟侧捞回来的）。
+ *
+ * ★★ 文案的重点**不是"重试"，是"别重复付费"**：用户看不出「取回」和「重新生成」的区别，
+ *   而这两者差的是一次真金白银。整句由 `videoJobNote` 一处生成（列表、失败回话共用）。
+ * ★ 剩余时间要**真的在走**（每分钟重算）：一条永远停在"还剩 3 小时"的提示比不显示更坏。
+ *   24 小时不是我们定的时限，是方舟产物的物理寿命。
+ * ★ 过期的那条**不给取回键**（摆一颗点了必然失败的按钮 = 让用户以为还有救），
+ *   改给一颗"知道了"——否则这条提醒永远关不掉，久了连还能救的那几发一起被当成噪音。
+ * ★ 取回失败**绝不自动重试、也绝不补一句"再试试"**：这条路上"再试"和"再下一单"
+ *   长得一模一样。原样显示 data/ai 层给的整句人话。
+ */
+function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean }) {
+  const takeJob = useFlow((s) => s.takeJob);
+  const busy = useFlow((s) => s.busy);
+  const [working, setWorking] = useState("");
+  const [issue, setIssue] = useState("");
+  // videoJobNote 是纯函数，重渲即刷新剩余时间
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  const expired = videoJobExpired(job);
+
+  async function take() {
+    setIssue("");
+    setWorking("正在取回…");
+    try {
+      await takeJob(job, (st) => setWorking(st));
+    } catch (e) {
+      setIssue(e instanceof Error ? e.message : String(e));
+    } finally {
+      setWorking("");
+    }
+  }
+
+  return (
+    <div
+      className={`rounded-lg border px-2.5 py-2 ${
+        expired ? "border-slate-600/60 bg-black/25" : "border-amber-500/50 bg-amber-500/10"
+      }`}
+    >
+      <div className="text-[11px] font-bold text-amber-200">
+        {expired ? `第 ${job.seg} 段那一发已经取不回来了` : `第 ${job.seg} 段有一发成片还没取回`}
+      </div>
+      <div className="mt-0.5 truncate text-[10px] text-slate-400">{job.label}</div>
+      <p className={`mt-1 text-[10px] leading-relaxed ${expired ? "text-slate-400" : "text-amber-200/90"}`}>
+        {videoJobNote(job)}
+      </p>
+      {/* ★ 「这一发不是这条工作流的」要说出来，而且**不给按钮**：凭据跨草稿存活，
+          用户完全可能是在另一条工作流里看到它的。硬取会把成片挂到别人身上，
+          而凭据一销毁就真的没了。判据与 takeJob 里那道拦截同源（节点在不在本流里）。 */}
+      {!expired && !mine && (
+        <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+          这一发不是这条工作流炼的：回到当初炼它的那条工作流（草稿在「我的」页），这颗取回键才会亮。凭据还在，没有浪费。
+        </p>
+      )}
+      {issue && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{issue}</p>}
+      {expired ? (
+        <button
+          onClick={() => dismissVideoJob(job)}
+          className="mt-1.5 w-full rounded-lg border border-slate-600 py-1.5 text-[11px] text-slate-300"
+        >
+          知道了，不用再提醒我这一发
+        </button>
+      ) : (
+        <button
+          onClick={() => void take()}
+          disabled={!mine || !!working || busy}
+          className="mt-1.5 w-full rounded-lg bg-amber-500/90 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
+        >
+          {working ? "取回中…" : "📥 取回这一段的成片（不重新下单，不再花钱）"}
+        </button>
+      )}
+      {/* 进度摆在按钮下面而不是塞进按钮里：它是整句（"正在向方舟核对…"），塞进去会折行 */}
+      {working && <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{working}</p>}
     </div>
   );
 }
@@ -298,6 +413,9 @@ function NodeScreen({
   const vref = useRef<HTMLVideoElement>(null);
   const [annOpen, setAnnOpen] = useState<{ frame: string; atSec: number } | null>(null);
   const [sheet, setSheet] = useState(false); // 底部「本段设置」抽屉
+  /** 简约面的「自定义首尾帧」折叠条 + 它的融图开在哪一帧上 */
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customFuse, setCustomFuse] = useState<"first" | "last" | null>(null);
   /** 出片浮层。只由「出片」这一拍开——推演方案也会把 status 置成 generating，
    *  跟着 status 走的话"挑方案"这一步会莫名其妙弹出炼卡动画 */
   const [forge, setForge] = useState<ForgePhase | null>(null);
@@ -350,6 +468,17 @@ function NodeScreen({
   const named = blockout && !!tpl?.roles?.length;
   const req = requirementOf(node);
   const generating = node.status === "generating";
+  /** 「没接到结果」——**不是失败**，成片多半还在方舟那边（见 FlowNode.status 的 ★★） */
+  const pending = node.status === "pending";
+  // ── 待取回的那几发（凭据在 localStorage，跨进程回收存活）──
+  useVideoJobs();
+  const allNodes = useFlow((s) => s.nodes);
+  const jobs = pendingVideoJobs();
+  /** 这一发落得回来吗：它当初炼的那一段那一套走向，还在**这条**工作流里。
+   *  ★ 这只是**显示**的门（决定按钮亮不亮）；真正的拦截在 `flowStore.takeJob`
+   *    ——那边同样问一遍，理由是落错地方 = 成片挂到别人身上、凭据还被销毁。 */
+  const jobMine = (j: VideoJob) =>
+    allNodes.some((n) => n.id === j.nodeId && n.proposals.some((pp) => pp.id === j.proposalId));
   /** 主按钮这一下干什么：没方案台先推演，摊开着就重推，挑定了才真出片。
    *  **这是唯一的推进入口**——三套方案原来藏在「本段设置」抽屉的一枚小按钮后面，
    *  绝大多数用户没见过它，于是最贵的一步（出片）反而没有选择余地。 */
@@ -375,9 +504,14 @@ function NodeScreen({
       ? `♻ 重新生成方案（${fmtTokens(propCost)}）`
       : stage === "derive"
         ? `⚡ 生成本段（${fmtTokens(propCost)}）`
-        : done
-          ? `♻ 重新生成（${fmtTokens(cost)}）`
-          : `⚡ 生成本段（${fmtTokens(cost)}）`;
+        : pending
+          ? // ★ 「没接到结果」这一拍上主按钮**必须把"再花一次"写在脸上**：它和上面那颗
+            // 「取回」长得一样近，而用户默认把没出片理解成"重试一下"。这一下不是重试，
+            // 是重新下一单 —— 这正是 2026-08-18 那 ¥27 会被再花一次的入口。
+            `♻ 重新生成（再花 ${fmtTokens(cost)}）`
+          : done
+            ? `♻ 重新生成（${fmtTokens(cost)}）`
+            : `⚡ 生成本段（${fmtTokens(cost)}）`;
 
   async function onMain() {
     if (busy) return;
@@ -387,9 +521,23 @@ function NodeScreen({
       void deriveProposals(node.id);
       return;
     }
+    // ★★ 开炼**之前**先落一次草稿。理由不是"防丢文案"，是取回入口的另一半：
+    //   出片受理那一刻会落一条带 nodeId 的凭据（flowStore.genNode 的 onTask），而凭据
+    //   要在**进程被系统回收**之后还能用，前提是那个节点届时还找得到 —— 草稿是它唯一
+    //   的落脚处。此前只有"出片成功"才存盘（见本页 doneCount 那个 effect），于是最需要
+    //   凭据的那条路（这一段从来没成过）恰恰是节点没被存下来的那条，取回卡只能显示
+    //   "这一发不是这条工作流炼的"。
+    // ★ 不 await：存盘要写 MB 级的帧，而后面那一步本来就要跑几分钟，没必要让用户等它。
+    // ★ 简约模式在 saveWorkDraft 里被挡掉（它本来就不进草稿库），这一行对它是空转 ——
+    //   那条路上的凭据只在本次会话内取得回，是那条产品定义的既有代价，不是这里漏了。
+    void useStudio.getState().saveWorkDraft({ from: "flow" });
     setForge("forging");
     const ok = await genNode(node.id);
-    setForge(ok ? "done" : "failed");
+    // ★ 收场分三相而不是两相：`pending`（没接到结果、成片多半还在）画成"失败"的话，
+    //   用户下一步就会去点「重新生成」= 重新下一单 = 再花一次钱。判据读 store 里
+    //   刚落下的 status（唯一实现在 genNode 的 catch），别在这里凭错误文案猜。
+    const after = useFlow.getState().nodes.find((n) => n.id === node.id)?.status;
+    setForge(ok ? "done" : after === "pending" ? "unknown" : "failed");
   }
 
   // 大屏幕放什么：成片 > 方案台 > 起拍画面 > 一句"还没有画面"
@@ -484,6 +632,14 @@ function NodeScreen({
               {node.progress || "生成中…"}
             </span>
           )}
+          {/* ★ 「没接到结果」用琥珀色的 ⏳，**不是**红叉：红叉说的是"这一发废了"，
+              而它其实多半还在方舟那边跑、钱也已经花了。颜色在这里不是装饰，
+              它决定用户下一步去点「取回」还是点「重新生成」（后者再花一次钱） */}
+          {pending && (
+            <span className="min-w-0 flex-1 truncate rounded-full bg-amber-500/90 px-1.5 text-[10px] font-semibold text-ink">
+              ⏳ {node.error}
+            </span>
+          )}
           {node.status === "failed" && (
             <span className="min-w-0 flex-1 truncate rounded-full bg-rose-500/85 px-1.5 text-[10px] text-white">
               ✗ {node.error}
@@ -528,6 +684,14 @@ function NodeScreen({
               onPick={(id) => chooseProposal(node.id, id)}
               onPatch={(_id, patch) => updateProposal(node.id, patch)}
               onFrame={(_id, which, dataUrl) => setFrame(node.id, which, dataUrl)}
+              // 融图候选（唯一实现在 FuseFrameSheet.fuseSourcesOf，三条路共用）
+              fuseSources={fuseSourcesOf({
+                materials: node.materials,
+                carryFrame: carried ? prevProp?.lastFrame : null,
+                firstFrame: prop.firstFrame,
+                lastFrame: prop.lastFrame,
+              })}
+              fuseAspect={node.aspect}
               onRegen={() => void regenProposal(node.id)}
               regenCost={(p) => redrawCost(node, p, prevProp)}
               onRederive={() => void deriveProposals(node.id)}
@@ -547,15 +711,15 @@ function NodeScreen({
               ? node.progress || "生成中…"
               : simple || blockout // 白模没有方案台（直出复刻），别许诺"三套方案"
                 ? blockout && named
-                  ? "还没有画面——先给人偶挂上角色卡，出片就按模板逐镜头复刻"
+                  ? "还没有画面——先给人偶挂上角色卡"
                   : hasInput
-                    ? "还没有画面——点下面的「生成本段」就开炼"
-                    : "还没有画面——在下面写清楚这一段要拍什么"
+                    ? "还没有画面——点「生成本段」开炼"
+                    : "还没有画面——先写这一段拍什么"
                 : /* ★ 写没写过要分开说（见上面 hasInput 的 ★）：都说"去写"的话，
-                     写完的人会以为自己那行字没存上 */
+                     写完的人会以为自己那行字没存上。空态一句话（文法①） */
                   hasInput
-                  ? "还没有画面——点下面的「生成本段」先看三套方案（各带首尾帧预览）"
-                  : "还没有画面——在下面写清楚这一段要拍什么，点「生成本段」先看三套方案"}
+                  ? "还没有画面——点「生成本段」先看三套方案"
+                  : "还没有画面——先写这一段拍什么"}
           </div>
         )}
       </div>
@@ -638,6 +802,42 @@ function NodeScreen({
                     : `「${tierOf(node.videoTier).label}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」`}
               </p>
             )}
+            {/* ── 自定义首尾帧（选填，主人点名的第三车道·简约面）──
+                折叠着只占一行：绝大多数人一句话直出，摊开两格图框会把主按钮挤下屏。
+                写入走 setFrame（唯一实现），markup 与画布共用 CustomFrameSlots。 */}
+            <button
+              onClick={() => setCustomOpen((v) => !v)}
+              className="flex w-full items-center justify-between rounded-lg border border-slate-700/70 bg-panel px-2.5 py-1.5 text-[11px] text-slate-300"
+            >
+              <span className="min-w-0 truncate">
+                🖼 自定义首尾帧
+                {prop.firstFrame || prop.lastFrame
+                  ? ` · 已给${prop.firstFrame ? "首" : ""}${prop.firstFrame && prop.lastFrame ? "、" : ""}${prop.lastFrame ? "尾" : ""}帧`
+                  : "（选填 · 传自己的图或融图）"}
+              </span>
+              <span className="ml-2 flex-none text-[10px] text-slate-500">{customOpen ? "收起" : "展开"}</span>
+            </button>
+            {customOpen && (
+              <>
+                <CustomFrameSlots
+                  first={prop.firstFrame}
+                  last={prop.lastFrame}
+                  aspectCssValue={aspectCss(node.aspect)}
+                  canEdit={!generating && !busy}
+                  firstEmptyNote="空 = AI 按提示词补画（计费）"
+                  onFrame={(which, url) => setFrame(node.id, which, url)}
+                  onFuse={setCustomFuse}
+                  onError={(msg) => useFlow.setState({ err: msg })}
+                />
+                {/* 与「直接用卡片形象」互斥要明说：首尾帧与参考图在方舟不能同发（refVideoOn
+                    的判定），给了首帧那条省钱的路就自动让位——不说的话用户以为卡片没生效 */}
+                {matCount > 0 && tierOf(node.videoTier).refImg && (prop.firstFrame || prop.lastFrame) && (
+                  <p className="text-[10px] leading-4 text-slate-500">
+                    给了自己的帧就走首尾帧模式（与「直接用卡片形象出片」互斥）——清掉两帧才会回到那条路。
+                  </p>
+                )}
+              </>
+            )}
           </div>
         ) : (
           /* 工作流：这一栏是**用户自己的话**（推演三套方案的依据），不是某一套的剧情。
@@ -648,7 +848,7 @@ function NodeScreen({
               onChange={(e) => setRequirement(node.id, e.target.value)}
               rows={2}
               maxLength={400}
-              placeholder="这一段要拍什么？（AI 会按它推演三套走向）"
+              placeholder="这一段拍什么？"
               data-guide="flow-req-input"
               className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
@@ -664,6 +864,18 @@ function NodeScreen({
 
         {/* 圈选标注缩略（与画布同一个组件：那边圈完也要能看见、删得掉） */}
         <AnnStrip anns={node.anns} onRemove={(annId) => removeAnn(node.id, annId)} />
+
+        {/* ★★ 取回入口摆在**主按钮正上方**，不是折进某个抽屉：这块 UI 要挡住的正是
+            "屏幕上唯一可点的是「♻ 重新生成」"那一拍。列的是**本机所有**待取回的那几发，
+            不只当前这一段 —— 每一条都是一笔已经花掉的钱，藏起来（哪怕只是藏到别的段里）
+            就等于让它悄悄过期。 */}
+        {jobs.length > 0 && (
+          <div className="space-y-1.5">
+            {jobs.map((j) => (
+              <SegmentRecoverCard key={j.taskId} job={j} mine={jobMine(j)} />
+            ))}
+          </div>
+        )}
 
         <div className="flex items-center gap-1.5">
           <button
@@ -757,12 +969,36 @@ function NodeScreen({
         <ForgeOverlay
           phase={forge}
           steps={node.steps ?? []}
-          // 余额不足这类"还没进流程就被拦下"的失败没有 node.error，只有 store 的 err
-          error={err || node.error}
+          /* 工作流/简约模式的每一段出片都落凭据（flowStore.genNode 的 onTask），
+             所以等待时那句"可以退出"在这一页恒为真 */
+          recoverable
+          // 余额不足这类"还没进流程就被拦下"的失败没有 node.error，只有 store 的 err。
+          // ★ 「没接到结果」这一相反过来优先取 err：node.error 是给段导航条那颗角标用的
+          //   短句，而这一屏要说清楚的是那笔钱（等了多久、为什么不是失败、去哪儿取回）
+          error={forge === "unknown" ? err || node.error : node.error || err}
           onClose={() => setForge(null)}
           // 「先去逛逛」：生成链条活在 flowStore，站内切页不断；全局胶囊（GenerationPill）
           // 接手进度显示，出完把人叫回来
           onLeave={() => nav("/")}
+        />
+      )}
+
+      {/* 简约面「自定义首尾帧」的融图（组件自己 portal 到 body；候选唯一实现 fuseSourcesOf） */}
+      {customFuse && (
+        <FuseFrameSheet
+          which={customFuse}
+          sources={fuseSourcesOf({
+            materials: node.materials,
+            carryFrame: null, // 简约恒单段，没有上一段
+            firstFrame: prop.firstFrame,
+            lastFrame: prop.lastFrame,
+          })}
+          aspect={node.aspect}
+          onDone={(url) => {
+            setFrame(node.id, customFuse, url);
+            setCustomFuse(null);
+          }}
+          onClose={() => setCustomFuse(null)}
         />
       )}
 
@@ -808,7 +1044,6 @@ function NodeScreen({
 
 export default function FlowPage() {
   const navigate = useNavigate();
-  const loc = useLocation();
   // 人回到这一页，胶囊那条"待读通知"就算读过了（页内自有完整的进度与结果 UI）
   const clearGenNotice = useFlow((s) => s.clearGenNotice);
   const genNotice = useFlow((s) => s.genNotice);
@@ -819,8 +1054,22 @@ export default function FlowPage() {
   useEffect(() => {
     if (genNotice) clearGenNotice();
   }, [genNotice, clearGenNotice]);
-  const { nodes, cursor, mode, origin, busy, err, setCursor, addNode, removeNode, addMaterials, removeMaterial, reset } =
-    useFlow();
+  const {
+    nodes,
+    cursor,
+    mode,
+    origin,
+    busy,
+    err,
+    deckOff,
+    setDeckOff,
+    setCursor,
+    addNode,
+    removeNode,
+    addMaterials,
+    removeMaterial,
+    reset,
+  } = useFlow();
   const [finalizing, setFinalizing] = useState("");
   const [tplExtract, setTplExtract] = useState(false);
   /**
@@ -899,43 +1148,15 @@ export default function FlowPage() {
 
   /**
    * 从视频编辑页（cast 模式）回来 —— 白模 V2 套用链路的**收口**：
-   * 拿到 `编号 → 卡 id` 的映射，交给 flowStore.applyCast 去落 materials + 合成点名句
-   * （合成与对齐规则都在那里一处实现，这一页只负责"把结果接住"）。
-   *
-   * ★ 入参**按形状验收**、不按"应该有"假设：这一格 state 可能来自深链、老包缓存，
-   *   或者是模式一（选段裁剪）的结果（那条路不归这一页收）。硬转 `as` 的话要到
-   *   第一处解引用才崩，而那时页面已经白了（同 VideoEditorPage.parseState 的 ★）。
-   * ★ **先抹掉 state 再干活**：留着它，用户之后从别处按返回回到这一格 /flow 就会
-   *   再合成一次（一次 chat 调用 + 把输入框里他改过的字整段覆盖），而他什么都没点。
-   *   ref 那道判重是为同一次渲染里的重跑兜底，两者都要。
+   * 拿到 `编号 → 卡 id` 的映射，交给 flowStore.applyCast 去落 materials + 合成点名句。
+   * 实现抽在 hooks/useCastReturn（2026-08-30：工坊的模板段面板也能发起挂卡了，
+   * returnTo 变成"谁发起回谁"，收口必须两页共用同一份）——形状验收、先抹 state、
+   * 模板对号那道闸，注释与规则全在那边。
    * ⚠ 编辑页把结果 replace 回来时，App 进程若在挂卡那几分钟里被系统回收过，store 里
    *   的流水线就是空的（内存态，不落盘）—— 那时上面那个 effect 会把人送回 /create，
    *   applyCast 也会整句说"这条流水线上没有可挂卡的白模模板"。不装作没事发生。
    */
-  const castTaken = useRef<unknown>(null);
-  useEffect(() => {
-    const raw = (loc.state as Record<string, unknown> | null)?.[VIDEO_EDITOR_RESULT_KEY];
-    if (!raw || castTaken.current === raw) return;
-    castTaken.current = raw;
-    navigate(loc.pathname, { replace: true, state: null });
-    const r = raw as Partial<VideoEditorResult> & { cast?: unknown };
-    if (r.mode !== "cast" || !r.cast || typeof r.cast !== "object") return;
-    const map: Record<string, string> = {};
-    for (const [k, v] of Object.entries(r.cast as Record<string, unknown>)) if (typeof v === "string" && v) map[k] = v;
-    const st = useFlow.getState();
-    // 对号入座：模板对不上就整句拒绝，绝不"就近用"——编号是**这个模板**的编号，
-    // 张冠李戴地套到另一个模板上，出片时就是换错人且零报错（types.roles 的 ★★）
-    // ★ 比的是**当前这一段**的模板（tplOfNode），不是 store 级那份 —— 后者在换段时
-    //   可能还停在上一段上，那样这道闸恒相等、等于没有（对抗评审确认的 high 的一半）
-    const curTpl = tplOfNode(st.nodes[st.cursor] ?? st.nodes[0]);
-    if (r.templateId && curTpl && r.templateId !== curTpl.id) {
-      useFlow.setState({
-        err: "刚才挂卡的是另一个模板（这条流水线上套的模板中途换过了）——回模板详情页重新套用一次再挂卡",
-      });
-      return;
-    }
-    void st.applyCast(map);
-  }, [loc.state, loc.pathname, navigate]);
+  useCastReturn();
 
   // ★ 自动存盘只挂在"又炼出一段"这一个事件上，不做定时/每次改动都存：
   //   一段视频是几十秒 + 真金白银，丢了补不回来；而草稿正文带整份首尾帧 base64，
@@ -983,7 +1204,7 @@ export default function FlowPage() {
    *   同一份文字、同一批常量（见 studioStore.deckQuoteOf）。简约模式它返回全 0 ——
    *   那条路**不报也不收**。
    */
-  const deck = useMemo(() => deckQuoteOf(nodes, mode), [nodes, mode]);
+  const deck = useMemo(() => deckQuoteOf(nodes, mode, deckOff), [nodes, mode, deckOff]);
   /** 顶栏那个"剩余约"。★ 把组稿那一笔一起算进去：分开显示两个数，用户没有任何理由
    *  相信它们要相加，而"我还得准备多少 token"是一个数不是两个。 */
   const remain = useMemo(() => flowCost(nodes, mode) + deck.total, [nodes, mode, deck.total]);
@@ -1004,13 +1225,16 @@ export default function FlowPage() {
   const deckNote =
     deck.on && AI_REAL
       ? [
-          `点「完成视频」还会提炼本片卡组：最多 ${deck.maxCards} 张卡，约 ${fmtTokens(deck.cards)} token`,
+          `点「完成视频」还会提炼本片卡组：你挂过的卡直接入组，缺的卡种（风格卡必有）AI 补齐，最多 ${deck.maxCards} 张、约 ${fmtTokens(deck.cards)} token`,
           deck.wants3d
             ? `；这条片写了 3D / 建模一类的画风，还会给派生的角色卡铸最多 ${deck.max3d} 个 3D 建模，另约 ${fmtTokens(deck.model3d)} token`
             : "",
           "。都按实际出卡结算，余额不够会自动跳过（成片不受影响）。",
         ].join("")
-      : "";
+      : // 勾了「只出片」：报价行也要如实换话——空着的话用户看不出这个选择生效了没有
+        deckOff && mode !== "simple"
+        ? "已选择只出片：这次「完成视频」不提炼卡组，也不收那笔钱。"
+        : "";
 
   /** 存盘。失败要说出来：配额满/隐私模式下 IndexedDB 写不进去，
    *  静默"保存成功"会让用户放心地关掉页面，然后什么都没了（铁律八） */
@@ -1031,7 +1255,8 @@ export default function FlowPage() {
       //   useFlow 的话，这个调用点上根本看不出"模式会改变这次组稿花多少钱"。
       //   与上面 deckQuoteOf 报价时读的是同一个 mode —— 报什么价就收什么钱。
       const st = useFlow.getState();
-      const ok = await useStudio.getState().finalizeFromFlow(st.nodes, st.mode, (s) => setFinalizing(s));
+      // ★ deckOff 与 mode 同一拍读同一个 store：报价（deckQuoteOf）读的就是这两个
+      const ok = await useStudio.getState().finalizeFromFlow(st.nodes, st.mode, (s) => setFinalizing(s), st.deckOff);
       if (ok) {
         leavingRef.current = true;
         reset();
@@ -1456,7 +1681,15 @@ export default function FlowPage() {
              提炼卡组、清空流水线、跳剪辑页，在画布里另写一份必然与这边分叉（铁律六）。
              画布只借按钮与状态，与 onCast 同一个套路。 */
           draft={{ state: saveState, onSave: () => void saveNow() }}
-          finish={{ allDone, finalizing, note: deckNote, onRun: () => void toCut() }}
+          finish={{
+            allDone,
+            finalizing,
+            note: deckNote,
+            onRun: () => void toCut(),
+            // 「随片出不出卡组」的开关（值在 flowStore.deckOff：报价与实收读同一份）
+            deckOn: !deckOff,
+            onDeckToggle: () => setDeckOff(!deckOff),
+          }}
         />
       )}
     </div>

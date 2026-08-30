@@ -19,7 +19,7 @@
 //   改成 Promise 就得把整个播放循环异步化。远端那份靠"按作品懒加载 + 到货后 emit"
 //   补进内存 cache，与 videos.ts 的 loadDetail 是同一招。
 import { idbGet, idbSet } from "./db";
-import { currentUser } from "./account";
+import { authState } from "./account";
 import { readyVideos, realId, remoteOn } from "./videos";
 import * as branch from "../api/branch";
 import { uid } from "../types";
@@ -313,9 +313,17 @@ export async function removeDanmaku(videoId: string, danmakuId: string): Promise
 
 /** 发弹幕要不要先登录（远端模式下服务端是 requireAuth）。
  *  ★ 在 UI 上挡住，而不是让它 401 —— client.ts 收到 401 会把用户**直接登出**，
- *    "我只是想发条弹幕，怎么账号退了"是最莫名其妙的一种失败。 */
+ *    "我只是想发条弹幕，怎么账号退了"是最莫名其妙的一种失败。
+ *  ★★ 判据是 `authState() === "out"`，不是 `!currentUser()`：会话还在水合的那一小段
+ *    窗口里人是登录着的，判 `!user` 会把他弹去登录页（见 account.authState）。
+ *    那一段用 danmakuSessionPending() 让 UI 说"正在确认登录状态"，两者是两句不同的话。 */
 export function danmakuNeedsLogin(): boolean {
-  return remoteOn() && !currentUser();
+  return remoteOn() && authState() === "out";
+}
+
+/** 登录态还没有结论：UI 该说"稍等"，而不是"去登录"，也不该放行（放行就是 401 登出） */
+export function danmakuSessionPending(): boolean {
+  return remoteOn() && authState() === "pending";
 }
 
 /** 弹幕这次会话是存在服务端还是只在本机（UI 要如实说明，别让人以为发给了所有人） */

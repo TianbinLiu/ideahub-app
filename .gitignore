@@ -9,7 +9,8 @@ dist
 #   连同加密产物一起提交进来了，只锚根的老规则一个都没拦住。那一笔已重写抹掉。
 **/models/protected/
 assets-private/
-# 签名 keystore 与口令：公开仓库绝不入仓（备份见 android/keystore/README.md）
+# 签名 keystore 与口令：公开仓库绝不入仓（换机怎么恢复见 docs/signing-keystore.md ——
+# 那份说明**必须在仓库里**，写在这个目录里的话，只有已经拿到 keystore 的人才看得到）
 # ★ 必须用 **/ 前缀：`android/keystore/` 这样带斜杠的规则**只锚定仓库根**，
 #   诗绘的 shihui/android/keystore/ 不会被它挡住 —— 2026-08 给 shihui 复制 keystore
 #   时实测过，密钥和口令当场处于"可提交"状态。任何新增子工程都靠这条兜住。
@@ -45,3 +46,6 @@ shihui/public/clips/
 .clips-packed/
 # 生成的图标/封面原图（切好的图标进仓，原图不进）
 assets-art/
+
+# E2E 临时喂给 dev 服务器的测试媒体（曾把版权测试视频带进过一次提交，2026-08-24 强推清史）
+public/__e2e_*

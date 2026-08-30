@@ -2,6 +2,7 @@
 // 与 3D 卡片工坊（/studio）分工：这里是资产管理，那里是创作现场。
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Icon from "../components/Icon";
+import AuthPending from "../components/AuthPending";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { Link } from "react-router";
@@ -22,7 +23,7 @@ import {
   updateDeck,
 } from "../data/account";
 import type { ApiSharedCard, ApiSharedDeck } from "../api/branch";
-import { useAccountVersion, useCurrentUser } from "../hooks/useAccount";
+import { useAccountVersion, useAuthState, useCurrentUser } from "../hooks/useAccount";
 import { searchMarket } from "../ai";
 import TarotCard from "../components/TarotCard";
 import TemplateShelf from "../components/TemplateShelf";
@@ -122,6 +123,7 @@ function toLocalShape(c: ApiSharedCard): Card {
     tags: c.tags,
     modelUrl: c.modelUrl || undefined,
     genPrompt: c.genPrompt || undefined,
+    idLine: c.idLine || undefined,
   };
 }
 
@@ -130,6 +132,7 @@ export default function WorkshopPage() {
   // 一级 Tab 不做硬登录墙：未登录就地给软提示，而不是被路由弹去登录页出不来。
   // ★ 这个判断必须放在下面所有 hook 之后再 return，否则登录前后 hook 数量不一致会直接崩。
   const me = useCurrentUser();
+  const auth = useAuthState();
   const cards = myCards();
   const decks = myDecks();
   // ★ 2026-08-21 加第三个页签「我的模板」（用户点名：模板与卡片/卡组同住创意工坊，
@@ -198,6 +201,10 @@ export default function WorkshopPage() {
   //   等于对着一个不存在的界面说话，而且走完就记成"看过了"，用户真登录后再也不会自动看到。
   useAutoGuide("workshop", !!me);
 
+  // ★ 与「我的」同一条：pending 时给加载态，别把"你没登录"当结论说出去
+  if (auth === "pending") {
+    return <AuthPending className="safe-top min-h-[70vh]" />;
+  }
   if (!me) {
     return (
       <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-4 px-6">

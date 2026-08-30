@@ -273,7 +273,12 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      port: 5178,
+      // 端口默认 5178（.env.production / 文档 / launch.json 都按这个数写），但允许
+      // 用 PORT 顶掉：仓库里有十几个 worktree，端口写死 + strictPort 的后果是
+      // **第二个 worktree 起不来**（"Port 5178 is already in use" 直接退出），
+      // 于是只能去改另一份代码或者盲改。顶掉时也保持 strictPort —— 我们要的是
+      // "端口由外面指定"，不是"vite 自己往后找一个"（那样浏览器就不知道该开哪个了）。
+      port: Number(process.env.PORT) || 5178,
       strictPort: true,
       proxy: {
         "/api/ark": {

@@ -6,7 +6,7 @@
 //
 // 页面读的全是同步函数（myCards() / currentUser() / isFollowing()…），签名一个没动；
 // 变更仍通过 subscribeAccount + 版本号广播，远端回包回填时也走同一条广播。
-import { Card, slotLabel, uid, type CardView } from "../types";
+import { Card, uid, viewTag, type CardView } from "../types";
 // data → mock 是既有方向（data/videos.ts 也从 mock/frames 取种子帧），不成环
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
 import { reconcileTermsWithServer } from "./agreements";
@@ -106,26 +106,33 @@ export function subscribeAccount(fn: () => void): () => void {
 }
 
 export async function readyAccount(): Promise<void> {
-  if (db) return;
+  // ★★ 先看**装载还在不在跑**，再看 db 有没有值 —— 顺序反过来就是一个静默的抢跑口子：
+  //   `readyRemote()` 在 `await adoptFromToken()` **之前**就把 db 赋上了（那一步要先
+  //   建好空库才能挂 auth:expired 监听）。于是在"库有了、人还没认领上"这段窗口里
+  //   `if (db) return` 会让调用方**立刻拿到 resolve**，而它拿到的是一个
+  //   `currentUser() === null` 的账号库 —— 和"这个人确实没登录"长得一模一样。
+  //   readySocial() / videos.loadLiked() 都在注释里写着"必须先等账号库装完"，
+  //   它们等到的其实是半截。（同一形状的坑见 authState 那段说明。）
   // StrictMode 下 effect 跑两遍，两次都可能在 db 还是 null 时进来 —— 复用同一个 Promise，
   // 远端模式下才不会连打两次 /api/auth/me + 卡片卡组。
-  if (!readyPromise) {
-    readyPromise = (async () => {
-      if (API_ON) {
-        const ok = await readyRemote();
-        if (ok) return;
-        console.warn("[account] 服务器不可达，本次回退本地账号库");
-        // ★ 关键：开机那一刻没网 ≠ 这一整次会话都该是离线的。
-        //   探活结论整个会话只算一次，不重探的话网回来了也永远不会回到远端模式
-        //   （真机实测：飞行模式冷启动 → 关飞行模式 → 等 120 秒仍是未登录）。
-        armOnlineRetry();
-      }
-      await readyLocal();
-    })().finally(() => {
-      readyPromise = null;
-    });
-  }
-  await readyPromise;
+  if (readyPromise) return readyPromise;
+  if (db) return;
+  const p = (async () => {
+    if (API_ON) {
+      const ok = await readyRemote();
+      if (ok) return;
+      console.warn("[account] 服务器不可达，本次回退本地账号库");
+      // ★ 关键：开机那一刻没网 ≠ 这一整次会话都该是离线的。
+      //   探活结论整个会话只算一次，不重探的话网回来了也永远不会回到远端模式
+      //   （真机实测：飞行模式冷启动 → 关飞行模式 → 等 120 秒仍是未登录）。
+      armOnlineRetry();
+    }
+    await readyLocal();
+  })().finally(() => {
+    readyPromise = null;
+  });
+  readyPromise = p;
+  await p;
 }
 
 let readyPromise: Promise<void> | null = null;
@@ -213,8 +220,52 @@ export function currentUser(): User | null {
   return db.users.find((u) => u.id === db!.currentId) ?? null;
 }
 
-export function isLoggedIn(): boolean {
-  return !!currentUser();
+// ★ 这里原来还有个 `isLoggedIn()`（= `!!currentUser()`）。2026-08-20 删掉：
+//   它已经零调用方，而它回答的那个问题**本身就是错的** —— "手里有没有人"不等于
+//   "登没登录"，冷启动水合期两者的答案相反。留着只会让下一个人顺手用它再写一遍
+//   同一个 bug。要判登录一律用下面的 authState()。
+
+/**
+ * 登录态的三态。**全 app 唯一的一处判断**（铁律六）。
+ *
+ *   "in"      确定登录着
+ *   "out"     确定没登录 —— 可以放心把人送去登录页
+ *   "pending" **还不知道**：会话正在水合（冷启动认领 token）或正在联网自愈
+ *
+ * ★★ 为什么必须有第三态（2026-08-20 真机报的 bug）：冷启动后立刻点底栏 ➕，
+ *   弹出的是登录页；退出去点「我的」，头像昵称钱包全都在，再点 ➕ 就正常了。
+ *   因为那一刻 `currentUser()` 确实是 null —— 但那是"还没认领上"，不是"没登录"。
+ *   `!user` 把这两件事写成了同一个条件，于是**登录着的用户被当成游客弹去登录页**，
+ *   用户读到的意思是「我被登出了」。这正是 CLAUDE.md 那条铁律的形状：
+ *   把「未知」和「否」判成一样，两者就再也分不开了。
+ *
+ * ★★ pending 必须**有边界**，不能一直转圈（铁律八：别静默挂着）。它只在两种
+ *   有人正在推进的状态下成立：装载中（`!db`）、自愈中（`sessionResolving`）。
+ *   自愈试到头会 stop()，那时候如实退回 "out" —— 我们确实尽力了，让用户能自己动手。
+ * ★ 再叠一道 `getToken()`：手里连 token 都没有就没什么可等的，哪怕自愈标志因为
+ *   哪条路径漏关而挂着，也不会把一个真游客钉死在加载态上。
+ */
+export type AuthState = "in" | "out" | "pending";
+
+export function authState(): AuthState {
+  if (currentUser()) return "in";
+  if (!db) return "pending"; // 账号库还没装完 —— 这时候谁也不知道
+  if (sessionResolving && API_ON && getToken()) return "pending";
+  return "out";
+}
+
+/**
+ * 「远端会话还没有结论」。authState 的 pending 就靠它，别的地方不要各判一次。
+ *
+ * ★ 每次变化都要 emit()：订阅方（useAuthState）拿版本号当快照，
+ *   不广播的话页面会停在 pending 上一直转圈 —— 又是一个静默卡死。
+ */
+let sessionResolving = false;
+
+function setResolving(v: boolean): void {
+  if (sessionResolving === v) return;
+  sessionResolving = v;
+  emit();
 }
 
 /** 服务端 User.role 里代表管理员的那个值（server 的 enum 逐字对应） */
@@ -301,6 +352,10 @@ export function signIn(account: string, name?: string): User {
 export function signOut(): void {
   if (!db) return;
   db.currentId = null;
+  // ★ 用户自己按的登出是个**确定**的结论。离线模式下 signOut 不清 token
+  //   （那边登录态不由 token 承载），标志留着的话 authState() 会判成 pending，
+  //   于是他按完"退出登录"看到的是一个转圈的加载态，而不是登录页。
+  sessionResolving = false;
   if (remoteOn()) {
     // JWT 是无状态的，清掉本地 token 就是登出；要踢掉全部设备用 authApi.logoutAllSessions()
     authApi.logout();
@@ -882,7 +937,7 @@ async function materializeViews(added: Card[], rows: Card[]): Promise<{ lostView
         next.push({ ...v, url });
       } catch (e) {
         next.push(v); // 留着原图，理由见上面的 ★
-        lostViews.push(`「${card.name}」的${slotLabel(card.type, v.kind)}`);
+        lostViews.push(`「${card.name}」的${viewTag(card.type, v)}`);
         reason ??= e instanceof Error ? e.message : String(e);
       }
     }
@@ -1261,6 +1316,7 @@ function toLocalCard(c: branch.ApiCard): Card {
     tags: c.tags,
     modelUrl: c.modelUrl || undefined,
     genPrompt: c.genPrompt || undefined,
+    idLine: c.idLine || undefined,
     // 真人声明：false/缺省都归一成 undefined —— 读侧判否定，两者本就同义（非真人），
     // 落一个显式 false 只会让人误以为"声明过不是"是个存在的状态
     realPerson: c.realPerson || undefined,
@@ -1330,6 +1386,9 @@ function adoptUser(remote: authApi.ApiUser): User {
   reconcileTermsWithServer(remote.termsAcceptedVersion);
   const user = toLocalUser(remote);
   db = { users: [user], currentId: user.id, cards: [], decks: [] };
+  // ★ 认领成功 = "还不知道"结束。所有产生登录用户的路（冷启动认领、四条登录路、
+  //   自愈重试）都经过这里，所以标志在这一处关掉就够（铁律六）。
+  sessionResolving = false;
   // 钱包镜像跟着登录态走：换了人就必须重取，否则新登录的账号会先看到上一个人的余额。
   // 不 await —— 余额是个数字，晚半秒显示出来没关系，但不能拖慢登录跳转。
   remoteWallet = null;
@@ -1342,6 +1401,9 @@ async function readyRemote(): Promise<boolean> {
   // 先探活：服务器没起就整体回退本地库，别把空库当成"你还没登录"展示给用户
   if (!(await serverAlive())) return false;
   remoteLive = true;
+  // ★ 手里有 token 就先进入"还不知道"：下面这一行把 db 赋上之后，`!db` 那道
+  //   pending 判据就失效了，而人还要等 fetchMe 回来才认领得上（见 authState）。
+  if (getToken()) setResolving(true);
   db = { ...EMPTY, users: [], cards: [], decks: [] };
   // token 失效（任何请求 401）时把内存里的登录态一起清掉，
   // 否则页面还以为登录着、每次操作都再撞一次 401。
@@ -1355,17 +1417,22 @@ async function readyRemote(): Promise<boolean> {
       deckAlias.clear();
       // 掉线也要把钱包镜像清掉：留着的话下一个人登进来会先看到上一个人的余额
       remoteWallet = null;
+      // token 已被 client.ts 清掉，这是**确定**的未登录，不是"还不知道"——
+      // 挂着 pending 的话，创作入口会永远停在"正在确认登录状态…"上（铁律八）
+      sessionResolving = false;
       emit();
     });
   }
   if (!getToken()) {
+    setResolving(false); // 确定没登录：可以放心把人送去登录页
     emit();
     return true; // 未登录：可以匿名浏览（列表/详情是 optionalAuth）
   }
   const ok = await adoptFromToken();
   if (!ok) {
     // 没认出用户但 token 还留着（见 adoptFromToken）：挂上自愈钩子，
-    // 网络回来或 App 回到前台时再试一次，别逼用户重开 App
+    // 网络回来或 App 回到前台时再试一次，别逼用户重开 App。
+    // ★ 这段窗口里 authState() 仍是 pending —— 人是登录着的，只是还没认领上。
     armOnlineRetry();
     return true;
   }
@@ -1460,9 +1527,15 @@ let healStep = 0;
 let selfHealArmed = false;
 
 function armOnlineRetry(): void {
-  if (selfHealArmed || typeof window === "undefined") return;
-  if (!API_ON || !getToken()) return; // 没配服务端 / 本来就没登录过，没什么可恢复的
+  if (selfHealArmed) return; // 已经在自愈了，状态维持"还不知道"
+  if (typeof window === "undefined" || !API_ON || !getToken()) {
+    // 没配服务端 / 本来就没登录过 / 没有 window 可挂监听：没什么可恢复的，
+    // 那这就不是"还不知道"，而是**确定**的未登录（见 authState）
+    setResolving(false);
+    return;
+  }
   selfHealArmed = true;
+  setResolving(true);
   healStep = 0;
 
   const stop = () => {
@@ -1470,6 +1543,10 @@ function armOnlineRetry(): void {
     window.removeEventListener("online", kick);
     document.removeEventListener("visibilitychange", kick);
     selfHealArmed = false;
+    // ★★ 两种收场都走这里：认领成功（这时 currentUser() 已经有了，authState 直接是 "in"），
+    //   以及**试到头了**。后者必须如实退回 "out"：pending 是"有人正在推进"，
+    //   五轮退避跑完就没人推进了，再挂着就是让用户对着一个永远转圈的按钮（铁律八）。
+    setResolving(false);
   };
 
   const attempt = async () => {
@@ -1638,6 +1715,7 @@ export function isRemoteMode(): boolean {
 if (import.meta.env.DEV && typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).__account = {
     currentUser,
+    authState,
     walletOf,
     myCards,
     myDecks,
@@ -1655,6 +1733,9 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
       users: db?.users.length ?? -1,
       remote: remoteOn(),
       role: currentUser()?.role ?? null,
+      // 「还不知道」是这次修的那个 bug 的核心状态，调试时必须看得见
+      auth: authState(),
+      resolving: sessionResolving,
     }),
   };
 }

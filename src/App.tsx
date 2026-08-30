@@ -5,6 +5,7 @@ import GuideGate from "./components/guide/GuideGate";
 import InfoDialog from "./components/InfoDialog";
 import { AGREEMENTS, recordTermsAccepted, termsAccepted, type AgreementId } from "./data/agreements";
 import GenerationPill from "./components/GenerationPill";
+import AuthPending from "./components/AuthPending";
 import FeedPage from "./pages/FeedPage";
 import DiscoverPage from "./pages/DiscoverPage";
 import WorkshopPage from "./pages/WorkshopPage";
@@ -24,6 +25,7 @@ import PublishPage from "./pages/PublishPage";
 import EditPage from "./pages/EditPage";
 import CardDetailPage from "./pages/CardDetailPage";
 import CustomCardPage from "./pages/CustomCardPage";
+import DraftsPage from "./pages/DraftsPage";
 import DeckDetailPage from "./pages/DeckDetailPage";
 import TemplateDetailPage from "./pages/TemplateDetailPage";
 import TemplateMarketPage from "./pages/TemplateMarketPage";
@@ -42,7 +44,7 @@ import UpdateSheet from "./components/UpdateSheet";
 import { readyTemplates } from "./data/templates";
 import { readyDrafts } from "./data/drafts";
 import { readyAccount } from "./data/account";
-import { useCurrentUser } from "./hooks/useAccount";
+import { useAuthState, useCurrentUser } from "./hooks/useAccount";
 import useOrientationLock from "./hooks/useOrientationLock";
 import { signInWithOauthToken, signOut } from "./data/account";
 import { initOauthDeepLink, onOauthResult } from "./utils/oauth";
@@ -173,11 +175,24 @@ function TermsGate() {
   );
 }
 
-/** 需要登录的路由：未登录跳登录页并带回跳地址 */
+/**
+ * 需要登录的路由：**确定**没登录才跳登录页并带回跳地址。
+ *
+ * ★★ 判据是 authState() 的三态，不是 `!user`（2026-08-20 真机报的 bug）：
+ *   冷启动后立刻点底栏 ➕ 会弹出登录页，而那个人明明登录着 —— 退出去点「我的」，
+ *   头像昵称钱包全在，再点 ➕ 就正常了。原因是那一刻会话还在水合／联网自愈，
+ *   `currentUser()` 是 null，而 `!user` 把「还不知道」和「确定没登录」判成了同一件事。
+ *   对用户来说那不是一次加载，是**「我被登出了」**。
+ * ★ pending 时给加载态而不是放行：放行的话页面会拿着一个空账号库往下跑
+ *   （myCards() 返回空、扣费判余额不足…），那是另一种更难懂的坏。
+ * ★ 这是全 app **唯一**的一处硬登录墙（铁律六）：底栏 ➕ 那类入口只管 navigate，
+ *   不许自己再判一遍 —— 判两遍就必然有一遍先跑。
+ */
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const user = useCurrentUser();
+  const auth = useAuthState();
   const loc = useLocation();
-  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname)}`} replace />;
+  if (auth === "pending") return <AuthPending />;
+  if (auth === "out") return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname)}`} replace />;
   return <>{children}</>;
 }
 
@@ -296,6 +311,8 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* 草稿箱整页（2026-08-29）。不设登录墙：草稿是这台设备的 IndexedDB，与账号无关 */}
+      <Route path="/drafts" element={<DraftsPage />} />
       <Route path="/deck/:id" element={<DeckDetailPage />} />
       <Route path="/template/:id" element={<TemplateDetailPage />} />
       <Route path="/templates" element={<TemplateMarketPage />} />
