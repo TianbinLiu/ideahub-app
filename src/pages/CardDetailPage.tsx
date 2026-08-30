@@ -1,7 +1,7 @@
 // 卡片详情页：大卡面 + 类型/标签 + 简介 + 形象参考图（多图）+「<类型>信息」
 // （铸卡时的完整提示词，具体到可复刻卡面）+ 3D 建模全息预览（有 modelUrl 的角色卡）。
 // 创意工坊/我的/卡组详情点卡进来。
-import { useRef, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useMemo, useState, useSyncExternalStore } from "react";
 import DeleteCardDialog from "../components/DeleteCardDialog";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
@@ -15,7 +15,7 @@ import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
-import { acquireCard, isRemoteMode, myCards, myDecks, removeCard, shareCard } from "../data/account";
+import { acquireCard, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, removeCard, shareCard } from "../data/account";
 import { addCardView, removeCardView } from "../data/cardViews";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
 import { assetOf, assetsVersion, saveAsset, subscribeAssets } from "../data/cardAsset";
@@ -467,7 +467,7 @@ export default function CardDetailPage() {
   // 优先账号库；不在库里（比如看别人作品的卡组）用路由 state 里带来的卡
   // ★ 依赖里带上 accountV：账号库是原地改对象的单例，不把版本号写进依赖，
   //   "刚把这张卡加进库"之后这里还会拿着路由 state 里那份只读副本。
-  const card = useMemo<Card | null>(() => {
+  const localCard = useMemo<Card | null>(() => {
     const mine = myCards().find((c) => c.id === id);
     if (mine) return mine;
     const passed = (loc.state as { card?: Card } | null)?.card;
@@ -486,15 +486,76 @@ export default function CardDetailPage() {
   const [getting, setGetting] = useState(false);
   const [getErr, setGetErr] = useState<string | null>(null);
   const heat = heatOf("card", id ?? "");
-  // ★ hook 必须在下面那个 `if (!card) return` 之前跑完，否则卡在不在库里会改变
-  //   hook 数量，切换时直接崩。所以这里用 card?.，不是 card.
+
+  /**
+   * 库里没有、路由 state 也没带 → **去广场上按 id 取一次**（深链回源）。
+   *
+   * ★★ 这一段是为了堵一条"撒谎路径"：这一页此前只有两条来路（自己库里那份 / 上一页
+   *   递过来的对象），于是**一条卡片链接是打不开的** —— 分享出去的链接、会话恢复、
+   *   通知深链，落地都是一句"这张卡不在你的收藏里"，而那张卡在广场上好好挂着。
+   *   （模板那边 2026-08-14 因为同一形状补过 fetchRemoteTemplateById，这条照它做。）
+   * ★ hook 排在所有早退**之前**：卡在不在库里会改变早退与否，写在后面就是
+   *   "Rendered fewer hooks"，整棵树当场崩（CLAUDE.md 那格坑）。
+   */
+  const [remote, setRemote] = useState<{ card: Card | null; err: string } | null>(null);
+  const hydrating = !cardsReady();
+  useEffect(() => {
+    // 库里有 / state 带了 / 账号资产还没装完 → 都不该在这一拍去问服务端
+    if (localCard || !id || hydrating || !isRemoteMode()) return;
+    let alive = true;
+    void fetchSharedCard(id)
+      .then((c) => alive && setRemote({ card: c, err: "" }))
+      .catch((e) => alive && setRemote({ card: null, err: e instanceof Error ? e.message : String(e) }));
+    return () => {
+      alive = false;
+    };
+  }, [localCard, id, hydrating]);
+
+  /** 这一页要画的那张卡：自己库里那份优先，其次是刚从广场取回来的那份 */
+  const card = localCard ?? remote?.card ?? null;
+
+  // ★ hook 必须在下面那些早退之前跑完，否则"卡在不在库里"会改变 hook 数量，切换时直接崩
+  //   （所以这里用 card?.，不是 card.）。★ 放在 card 算出来之后：深链回源拿到的卡也带
+  //   modelUrl，用 localCard 的话那种卡的全息预览会永远不出来。
   const model = useHologramModel(card?.modelUrl ?? (card ? CARD_MODELS[card.name] : undefined));
+
+  if (!card) {
+    // ★ 四种结局分开说（原来四件事共用一句"这张卡不在你的收藏里"，那是铁律八没有出路）：
+    //   ① 账号资产还在装 ② 正在去广场上取 ③ 这次没取成 ④ 真的没有
+    if (hydrating || (isRemoteMode() && !remote)) {
+      return (
+        <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-3 px-6">
+          <Icon name="cards" size={40} className="text-slate-600" />
+          <p className="text-sm text-slate-400">{hydrating ? "正在装载你的卡片库…" : "正在从创意工坊取这张卡…"}</p>
+        </div>
+      );
+    }
+    if (remote?.err) {
+      return (
+        <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-3 px-6">
+          <Icon name="cards" size={40} className="text-slate-600" />
+          <p className="text-center text-sm leading-relaxed text-rose-300">这次没取到这张卡：{remote.err}</p>
+          <p className="text-[11px] text-slate-500">这不代表它不存在，只是这次没问到</p>
+          <button
+            onClick={() => setRemote(null)}
+            className="rounded-full bg-panel px-5 py-2 text-sm font-semibold text-slate-100 ring-1 ring-slate-700"
+          >
+            重试
+          </button>
+        </div>
+      );
+    }
+  }
 
   if (!card) {
     return (
       <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-3 px-6">
         <Icon name="cards" size={40} className="text-slate-600" />
-        <p className="text-sm text-slate-400">这张卡不在你的收藏里</p>
+        {/* ★ 走到这儿是**真的没有**：库里没有、路由 state 没带、广场上也没有（或离线）。
+            前面三种"还不知道"的情况已经各自说过话了。 */}
+        <p className="text-center text-sm leading-relaxed text-slate-400">
+          这张卡不在你的收藏里{isRemoteMode() ? "，创意工坊的广场上也没有" : ""}
+        </p>
         <Link to="/workshop" className="rounded-full bg-brand px-5 py-2 text-sm font-bold text-ink">
           去创意工坊
         </Link>

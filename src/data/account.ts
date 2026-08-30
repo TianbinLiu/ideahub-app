@@ -1201,6 +1201,53 @@ export async function browseSharedCards(q = ""): Promise<branch.ApiSharedCard[]>
  *   install 那条路（走错就是按快照落库：拿不到权威版本、也不计装机数）。
  * ★ 字段映射本身仍然只有 `toLocalCard` 一份（那份的 ★★ 记着"抄第二遍会漏 views"）。
  */
+/**
+ * 远端资产（卡片/卡组/关注）**问过服务端了没有**。
+ *
+ * ★★ 这一位是为了拆开"没有"和"还不知道"（CLAUDE.md 那条坑的同型，只是这次混的是
+ *   资产不是身份）：`adoptUser` 认领成功那一刻 `authState()` 就是 `"in"` 了，而
+ *   `loadRemoteAssets()` 是在它**之后**才 await 的 —— 中间这段窗口里 `db.cards` 是 `[]`。
+ *   契约自己写着「一次性返回全部卡面会撑出几十 MB 的响应体」，所以这段窗口不短。
+ *   期间任何 `/card/<我自己的卡>` 都会渲染成"这张卡不在你的收藏里" —— 对着**用户自己的卡**
+ *   说的，过一秒又自己变回来。
+ * ★ 失败也置真：那是"问过了、没问到"，不是"还在问"。界面据此可以说人话，
+ *   而不是永远转圈（铁律八：pending 必须有边界）。
+ */
+let assetsHydrated = false;
+
+export function cardsReady(): boolean {
+  return !remoteOn() || assetsHydrated;
+}
+
+/** 按 id 回源的缓存：同一张卡别反复打接口（详情页会重渲染很多次） */
+const sharedCardCache = new Map<string, Card | null>();
+
+/**
+ * 按 id 去广场上取一张卡（详情页深链的回源）。
+ *
+ * ★ `null` = 服务端说没有（未分享 / 已撤下 / 不存在）—— 调用方据此才敢说"这张卡不在广场上"。
+ *   抛出 = 这次没问成（网络/服务端挂了），那是另一回事，不能说成"不存在"。
+ * ★ 映射走 `sharedToCard`（带 `published: true`）而不是 `toLocalCard`：
+ *   少了那一位，「添加到我的卡片」会走错分支——按快照落库而不是 install。
+ */
+export async function fetchSharedCard(cardId: string): Promise<Card | null> {
+  if (!remoteOn()) return null;
+  if (sharedCardCache.has(cardId)) return sharedCardCache.get(cardId) ?? null;
+  try {
+    const remote = await branch.getSharedCard(cardId);
+    const card = remote ? sharedToCard(remote) : null;
+    sharedCardCache.set(cardId, card);
+    return card;
+  } catch (e) {
+    // 404 = 真的不在广场上，缓存下来（别每次重渲染都再打一次）
+    if (e instanceof ApiError && e.status === 404) {
+      sharedCardCache.set(cardId, null);
+      return null;
+    }
+    throw e; // 其它错误交给调用方说"这次没取到"，不许说成"不存在"
+  }
+}
+
 export function sharedToCard(c: branch.ApiSharedCard): Card {
   return { ...toLocalCard(c), published: true };
 }
@@ -1792,6 +1839,9 @@ async function loadRemoteAssets(): Promise<void> {
   }));
   // 本地按作者名关注，顺手把 名字→userId 登记进 api/branch，让 toggleFollow 能反查
   u.following = following.map((f) => branch.authorName(f));
+  // ★ 到这儿就算"问过服务端了"（哪怕某一块拉挂了 —— 那是"问过没问到"，不是"还在问"）。
+  //   卡片详情页靠它区分"你没有这张卡"与"还没装载完"（见 cardsReady 的 ★★）。
+  assetsHydrated = true;
   // 卡片系统 V2：远端旧卡一次性清场（见 wipeLegacyAssetsRemote 的 ★）
   // ★ 不 await：这是后台清理，让它去跑，别把登录路径卡在一串删除请求上
   void wipeLegacyAssetsRemote();

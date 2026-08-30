@@ -710,6 +710,19 @@ export async function unpublishCard(cardId: string): Promise<ApiCard | null> {
 }
 
 /** GET /api/branch/cards/shared（optionalAuth）——卡片广场，不登录也能逛 */
+/**
+ * GET /api/branch/cards/:cardId（optionalAuth）—— 按 id 读一张**已分享**的卡。
+ *
+ * ★ 未分享 / 不存在 / 已取消分享一律 **404**（服务端刻意不用 403：403 等于承认
+ *   "这个 id 存在但你不能看"）。所以调用方拿到 ApiError 时不该说"出错了"，
+ *   该说"这张卡不在广场上"。
+ * ★ 回包与广场列表**同一份形状**（含 installed / isOwner），客户端共用 sharedToCard 那份映射。
+ */
+export async function getSharedCard(cardId: string): Promise<ApiSharedCard | null> {
+  const res = await apiGet<Record<string, unknown>>(`/api/branch/cards/${encodeURIComponent(cardId)}`);
+  return pick<ApiSharedCard>(res, ["card", "item", "data"]);
+}
+
 export async function listSharedCards(q = "", limit = 20): Promise<ApiSharedCard[]> {
   const res = await apiGet<Record<string, unknown>>("/api/branch/cards/shared", { query: { q, limit } });
   return pickList<ApiSharedCard>(res, ["cards", "items", "data"]);
