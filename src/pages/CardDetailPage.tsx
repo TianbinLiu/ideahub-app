@@ -15,7 +15,7 @@ import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
-import { acquireCard, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, removeCard, shareCard } from "../data/account";
+import { acquireCard, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, removeCard, shareCard, updateCardMeta } from "../data/account";
 import { addCardView, removeCardView } from "../data/cardViews";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
 import { assetOf, assetsVersion, saveAsset, subscribeAssets } from "../data/cardAsset";
@@ -23,6 +23,8 @@ import PortraitAuthPanel from "../components/PortraitAuthPanel";
 import { formatHeat, heatOf } from "../data/social";
 import {
   CARD_INFO_LABELS,
+  CARD_NAME_MAX,
+  CARD_SUMMARY_MAX,
   CARD_SLOTS,
   CARD_TYPE_COLORS,
   CARD_TYPE_LABELS,
@@ -482,6 +484,12 @@ export default function CardDetailPage() {
   const owned = useMemo(() => myCards().some((c) => c.id === id), [id, accountV]);
   /** 删卡确认开着没有 */
   const [ask, setAsk] = useState(false);
+  /** 改名弹层（只对自己的卡）。★ 与删卡确认并排放在这里：都在所有早退之前 */
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editSummary, setEditSummary] = useState("");
+  const [editBusy, setEditBusy] = useState(false);
+  const [editErr, setEditErr] = useState<string | null>(null);
   /** 「添加到我的卡片」的在途与失败原因（只对别人的卡出现） */
   const [getting, setGetting] = useState(false);
   const [getErr, setGetErr] = useState<string | null>(null);
@@ -597,6 +605,22 @@ export default function CardDetailPage() {
 
       <div className="mb-1 flex items-center gap-2">
         <h2 className="text-lg font-bold text-slate-100">{card.name}</h2>
+        {/* ★★ 改名入口（2026-08-30）。此前**根本改不了** —— 客户端的 updateCard 只写本地，
+            服务端那条 PATCH 只收 views ⇒ 名字打错一个字的唯一出路是**删了重铸**，
+            而铸卡是花钱的（顶档一张连带 3D 建模十几万 token）。只对自己的卡出现。 */}
+        {owned && (
+          <button
+            onClick={() => {
+              setEditName(card.name);
+              setEditSummary(card.summary);
+              setEditErr(null);
+              setEditing(true);
+            }}
+            className="rounded-full border border-slate-600 px-2 py-0.5 text-[10px] text-slate-400"
+          >
+            改名
+          </button>
+        )}
         <span className="rounded-full border px-2 py-0.5 text-xs" style={{ color, borderColor: color }}>
           {CARD_TYPE_LABELS[card.type]}
         </span>
@@ -757,6 +781,69 @@ export default function CardDetailPage() {
           删除这张卡
         </button>
       )}
+      {editing && card && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-6" onClick={() => !editBusy && setEditing(false)}>
+          <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-bold text-slate-100">改这张卡的名字与简介</h3>
+            <input
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              maxLength={CARD_NAME_MAX}
+              placeholder="卡名"
+              className="mt-3 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-sm text-slate-100 outline-none focus:border-brand"
+            />
+            <textarea
+              value={editSummary}
+              onChange={(e) => setEditSummary(e.target.value)}
+              maxLength={CARD_SUMMARY_MAX}
+              rows={3}
+              placeholder="一句话简介"
+              className="mt-2 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-sm leading-relaxed text-slate-100 outline-none focus:border-brand"
+            />
+            {/* ★ 如实说清改的是哪一份：随作品/卡组发出去的是**快照**（逐字段复制的），
+                不会跟着改。不说的话用户以为"全网都改了"，回头发现别人那份还是旧名字。 */}
+            <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+              改的是你库里这一份。已经随作品发布、或被别人装走的那些是当时的副本，不会跟着变。
+            </p>
+            {editErr && (
+              <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-rose-200">
+                {editErr}
+              </p>
+            )}
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => setEditing(false)}
+                disabled={editBusy}
+                className="flex-1 rounded-xl border border-slate-600 py-2.5 text-xs text-slate-300 disabled:opacity-40"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  const name = editName.trim();
+                  if (!name) {
+                    setEditErr("卡名不能空着 —— 卡组里全靠它认人。");
+                    return;
+                  }
+                  setEditBusy(true);
+                  setEditErr(null);
+                  void updateCardMeta(card.id, { name, summary: editSummary.trim() })
+                    .then((why) => {
+                      if (why) setEditErr(why);
+                      else setEditing(false);
+                    })
+                    .finally(() => setEditBusy(false));
+                }}
+                disabled={editBusy}
+                className="flex-1 rounded-xl bg-brand py-2.5 text-xs font-bold text-ink disabled:opacity-50"
+              >
+                {editBusy ? "保存中…" : editErr ? "再试一次" : "保存"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {ask && card && (
         <DeleteCardDialog
           card={card}

@@ -997,6 +997,47 @@ function whyOf(e: unknown): string {
 }
 
 /**
+ * 改一张卡的**名字 / 简介 / 关键词**（本地 + 远端）。**唯一入口**。
+ *
+ * ★★ 为什么这条值得单开一个函数、且必须同步远端：此前根本改不了 —— 客户端的
+ *   `updateCard` 只写本地（`persist()` 就完了），服务端那条 PATCH **只收 views**。
+ *   于是"名字打错一个字"的唯一出路是**删了重铸**，而铸卡是花钱的（顶档一张连带
+ *   3D 建模十几万 token）。只写本地也不行：`loadRemoteAssets` 每次登录整表覆盖，
+ *   改完换台设备就打回原形（与 setCardViews 那条 ★★ 同一个理由）。
+ * ★ 改的是**卡主自己这一份**。已经随作品/卡组发出去的是**快照**（逐字段复制的），
+ *   不会跟着改 —— 这一点界面要如实说，别许诺"全网都改"。
+ * @returns null = 成功；字符串 = 整句失败原因（铁律八）
+ */
+export async function updateCardMeta(
+  cardId: string,
+  patch: { name?: string; summary?: string; tags?: string[] },
+): Promise<string | null> {
+  const u = currentUser();
+  if (!u || !db) return "还没登录，改不了。";
+  const c = db.cards.find((x) => x.ownerId === u.id && x.id === cardId);
+  if (!c) return "这张卡不在你的库里。";
+  if (Object.keys(patch).length === 0) return null; // 什么都没改，不算失败
+
+  // 本地先落：远端要一个往返，输入框不该吊在那儿等
+  const before = { name: c.name, summary: c.summary, tags: c.tags };
+  Object.assign(c, patch);
+  persist();
+
+  if (!remoteOn()) return null;
+  try {
+    await branch.updateCardMeta(cardId, patch);
+    return null;
+  } catch (e) {
+    // ★ 回滚本地：留着的话界面显示新名字、服务端还是旧的，下次冷启动又变回去 ——
+    //   那种"改了又变回来"比"这次没改成"难查得多（同 videos.updateVideoMeta 的 ★）
+    Object.assign(c, before);
+    persist();
+    emitApiError("updateCardMeta", e);
+    return `没能同步到服务器（${whyOf(e)}）——改动已撤回，联网后再试。`;
+  }
+}
+
+/**
  * 删一张卡（本地 + 远端）。**唯一入口**，回执见 `DeleteResult`。
  *
  * ★★ 为什么这条必须 async、且远端没删成就**不许动本地**：`loadRemoteAssets()` 每次
