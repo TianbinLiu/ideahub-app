@@ -390,6 +390,23 @@ function find(id: string): VideoItem | null {
   return inFeed ?? byId.get(real) ?? byId.get(id) ?? null;
 }
 
+/**
+ * 这条作品**在服务端落库了没有** —— 分享链接能不能用，只看它。
+ *
+ * ★★ 为什么需要它（2026-08-30 发版前复核抓到）：发布是"同步返回乐观条目 + 后台上传"，
+ *   那几秒里 `video.id` 还是本机 id（`v_xxx`）。而发布成功会跳到作品详情页，那一页
+ *   （2026-08-30）刚加了分享键 —— 用户一落地就点，发出去的是
+ *   `https://…/v/v_mtf…` 这种**永远打不开的死链**，而且零报错：他不会知道，
+ *   收到链接的人也只会看到一个 404。
+ * ★ 判据用现成的 `realId`（上传成功时 pushPublish 会把本机 id 映射成服务端 id），
+ *   别在调用点各写一遍 `startsWith("v_")`。离线模式下没有"服务端那份"，一律 false。
+ */
+export function isShareable(v: VideoItem): boolean {
+  if (!remoteOn()) return false;
+  const rid = realId(v.id);
+  return rid !== v.id || !rid.startsWith("v_");
+}
+
 export function listVideos(): VideoItem[] {
   return [...all()].sort((a, b) => b.createdAt - a.createdAt);
 }
