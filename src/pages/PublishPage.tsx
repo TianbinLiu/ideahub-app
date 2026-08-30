@@ -15,8 +15,8 @@ import Icon from "../components/Icon";
 import VisibilityPicker from "../components/VisibilityPicker";
 import SegmentPlayer from "../components/SegmentPlayer";
 import { isArkAssetUrl } from "../ai/arkClient";
-import { addCards, createDeck } from "../data/account";
-import { PLATFORM_CUT, fmtTokens } from "../data/economy";
+import { addCards, createDeck, deckSynced } from "../data/account";
+import { MIN_PAID_PRICE, PLATFORM_CUT, fmtTokens } from "../data/economy";
 import { publishVideo } from "../data/videos";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { VIDEO_CATEGORIES, formatDuration } from "../types";
@@ -35,6 +35,18 @@ export default function PublishPage() {
   // 想先自己留着的人可以在这里改，发完在作品编辑页也随时能改回来。
   const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [err, setErr] = useState("");
+  /** 发布途中的一句进度（存卡组要等网络，不说话就是"点了没反应"） */
+  const [busy, setBusy] = useState("");
+  /**
+   * 作品发出去了、但**本片卡组没能存进工坊**。
+   * ★ 单独一格而不是并进 err：这两件事的处置完全不同 —— err 是"没发成，改完再发"，
+   *   这一格是"已经发成了，卡组要不要再试一次"，而且它必须给一条离开这一页的路。
+   */
+  const [deckIssue, setDeckIssue] = useState<{
+    videoId: string;
+    why: string;
+    retry: () => Promise<string | null>;
+  } | null>(null);
   /** 「放弃本次合成」的确认小窗。丢的是已经合成好的整条成片，一点就没太草率 */
   const [discardOpen, setDiscardOpen] = useState(false);
   /** AIGC 内容须知全文（data/agreements 唯一一份） */
@@ -65,10 +77,16 @@ export default function PublishPage() {
   if (!draft) return null;
   const total = draft.segments.reduce((s, x) => s + x.durationSec, 0);
 
-  function publish() {
+  async function publish() {
     if (!draft || publishedRef.current) return;
     if (!title.trim()) {
       setErr("先给视频起个标题");
+      return;
+    }
+    // ★★ 选了付费就必须真有价（见 economy.MIN_PAID_PRICE 的 ★★）：不拦的话
+    //   「付费解锁」亮着、pricing 却一个字没写进去，静默发成永久免费。
+    if (paid && price < MIN_PAID_PRICE) {
+      setErr(`选了「付费解锁」就得填个价：最低 ${fmtTokens(MIN_PAID_PRICE)}。发布后改不了定价，所以这里不能留空。`);
       return;
     }
     // 本片卡组定名（合成时聚合了素材/派生卡，名字要等最终标题定下来）
@@ -85,18 +103,49 @@ export default function PublishPage() {
       deck,
       merged: draft.merged,
       visibility,
-      ...(paid && price > 0 ? { pricing: { mode: "paid" as const, partPrices: [price] } } : {}),
+      // 上面已经拦掉了 paid 而价不足的情况，这里的条件与那道闸是同一把尺
+      ...(paid && price >= MIN_PAID_PRICE ? { pricing: { mode: "paid" as const, partPrices: [price] } } : {}),
     });
-    // 同名卡组落进作者自己的创意工坊（派生场景卡先入账号卡库，卡组引用才不悬空）
-    if (deck) {
-      addCards(deck.cards);
-      createDeck(deck.name, deck.cards.map((c) => c.id));
-    }
+    // ★ 作品已经落库了，从这一刻起不许再发第二条（下面要 await，窗口比原来长）
     publishedRef.current = true;
-    // 收工三件事（记下作品 + 清合成稿 + 退休在途草稿）收在 store 一处：
-    // 顺序错一点，守卫就会抢在跳转前把人送去工坊（见 finishPublish 的 ★）
-    useStudio.getState().finishPublish(item.id);
-    navigate(`/video/${item.id}`, { replace: true });
+
+    // 同名卡组落进作者自己的创意工坊（派生场景卡先入账号卡库，卡组引用才不悬空）
+    //
+    // ★★ **要等结果，不能即发即忘**（2026-08-30 修）：原来这两句是同步调完就跳走。
+    //   两条同步失败都是 `emitApiError` 静默的（全 app 没有任何地方监听它），于是
+    //   用户看着「本片卡组」已经在工坊里，下次冷启动 `loadRemoteAssets` 拿服务端那份
+    //   整体覆盖 —— 整组卡无声消失。而这批卡里可能有派生角色卡，一张的 3D 建模就是
+    //   十几万 token（铁律八：钱花出去的失败必须响）。
+    // ★ 失败也**不回滚、不拦着人走**：作品本身已经发出去了，把用户扣在这一页上更糟。
+    //   这里只做两件事：如实说没存上、给一条"再试一次"的出路。
+    if (deck) {
+      setBusy("正在把本片卡组存进你的工坊…");
+      const r = await addCards(deck.cards);
+      const d = createDeck(deck.name, deck.cards.map((c) => c.id));
+      const deckOk = !!d && (await deckSynced(d.id));
+      setBusy("");
+      if (!r.synced || !deckOk) {
+        setDeckIssue({
+          videoId: item.id,
+          why: r.reason || "这组卡没能同步到服务器",
+          retry: async () => {
+            const again = await addCards(deck.cards);
+            if (!again.synced) return again.reason || "还是没能同步到服务器";
+            const d2 = createDeck(deck.name, deck.cards.map((c) => c.id));
+            return !d2 || !(await deckSynced(d2.id)) ? "卡片存上了，卡组本身没建成" : null;
+          },
+        });
+        return;
+      }
+    }
+    finishAndGo(item.id);
+  }
+
+  /** 收工三件事（记下作品 + 清合成稿 + 退休在途草稿）收在 store 一处：
+   *  顺序错一点，守卫就会抢在跳转前把人送去工坊（见 finishPublish 的 ★） */
+  function finishAndGo(videoId: string) {
+    useStudio.getState().finishPublish(videoId);
+    navigate(`/video/${videoId}`, { replace: true });
   }
 
   return (
@@ -168,7 +217,6 @@ export default function PublishPage() {
               placeholder="给这支视频起个好名字"
               className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
-            {err && <div className="mt-1 text-xs text-red-400">{err}</div>}
           </div>
 
           <div>
@@ -226,28 +274,82 @@ export default function PublishPage() {
                 </span>
                 <input
                   type="number"
-                  min={100}
+                  min={MIN_PAID_PRICE}
                   step={100}
                   value={price}
-                  onChange={(e) => setPrice(Math.max(0, Number(e.target.value) || 0))}
-                  className="w-28 rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-sm tabular-nums text-gold outline-none focus:border-gold"
+                  onChange={(e) => {
+                    setPrice(Math.max(0, Number(e.target.value) || 0));
+                    setErr("");
+                  }}
+                  className={`w-28 rounded-lg border bg-panel px-2.5 py-1.5 text-sm tabular-nums outline-none ${
+                    price < MIN_PAID_PRICE
+                      ? "border-rose-500/60 text-rose-200 focus:border-rose-400"
+                      : "border-slate-700 text-gold focus:border-gold"
+                  }`}
                 />
                 <span className="flex-none text-xs text-slate-400">token</span>
                 <span className="ml-auto flex-none text-[11px] text-slate-500">
-                  你到手 {fmtTokens(Math.floor(price * (1 - PLATFORM_CUT)))}（平台抽 {Math.round(PLATFORM_CUT * 100)}%）
+                  {/* ★ 价不够时这里说的是"为什么发不出去"，而不是一个算给 0 的到手价 */}
+                  {price < MIN_PAID_PRICE
+                    ? `最低 ${fmtTokens(MIN_PAID_PRICE)}，不然发不出去`
+                    : `你到手 ${fmtTokens(Math.floor(price * (1 - PLATFORM_CUT)))}（平台抽 ${Math.round(PLATFORM_CUT * 100)}%）`}
                 </span>
               </div>
             )}
             {/* 「收益进 add-on、可直接用于生成」那句常驻说明搬进了引导（tours 的 publish） */}
           </div>
 
+          {/* ★ 错误行挂在**发布键这一侧**（2026-08-30 移）：用户按的是这颗键，而原来它
+              画在最上面那个标题输入框底下 —— 定价那条整句拒绝报在两屏之外，
+              在手机上等于没报（铁律八：报错要落在动作发生的地方）。 */}
+          {err && (
+            <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">
+              {err}
+            </div>
+          )}
+
+          {/* 作品发出去了、卡组没存上：如实说 + 再试一次 + 一条离开的路（铁律八） */}
+          {deckIssue && (
+            <div className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2.5 text-xs leading-relaxed text-amber-100">
+              <span className="font-bold">作品已经发布成功了</span>，但本片卡组没能存进你的工坊：{deckIssue.why}。
+              <span className="text-amber-200/80">卡还在这台设备上，重试一次多半就好。</span>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => {
+                    setBusy("正在重试…");
+                    void deckIssue.retry().then((why) => {
+                      setBusy("");
+                      if (why) setDeckIssue({ ...deckIssue, why });
+                      else finishAndGo(deckIssue.videoId);
+                    });
+                  }}
+                  disabled={!!busy}
+                  className="rounded-lg bg-amber-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-50"
+                >
+                  {busy ? "重试中…" : "再试一次"}
+                </button>
+                <button
+                  onClick={() => finishAndGo(deckIssue.videoId)}
+                  className="rounded-lg border border-amber-400/40 px-3 py-1.5 text-[11px] text-amber-100"
+                >
+                  先去看作品
+                </button>
+              </div>
+            </div>
+          )}
+
           <div data-guide="publish-actions" className="flex items-center gap-3 pt-2">
-            <button onClick={publish} className="rounded-xl bg-brand px-6 py-2.5 font-bold text-ink hover:brightness-110">
-              发布
+            <button
+              onClick={() => void publish()}
+              disabled={!!busy || !!deckIssue}
+              className="rounded-xl bg-brand px-6 py-2.5 font-bold text-ink hover:brightness-110 disabled:opacity-50"
+            >
+              {busy || "发布"}
             </button>
             <button
               onClick={() => setDiscardOpen(true)}
-              className="rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-400 hover:text-slate-200"
+              disabled={!!busy || !!deckIssue}
+              className="rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-400 hover:text-slate-200 disabled:opacity-40"
             >
               放弃本次合成
             </button>

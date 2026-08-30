@@ -149,6 +149,10 @@ export default function WorkshopPage() {
   const [askDeck, setAskDeck] = useState<Deck | null>(null);
   const [q, setQ] = useState("");
   const [market, setMarket] = useState<Card[]>([]);
+  /** 正在从市场添加的那张卡（同时只让点一张：addCards 是串行上传，并发只会互相拖慢） */
+  const [addingId, setAddingId] = useState<string | null>(null);
+  /** 添加失败的那张 + 原因。就近显示：市场是网格，报在别处认不出是哪张 */
+  const [addErr, setAddErr] = useState<{ id: string; why: string } | null>(null);
   /**
    * 市场里**已经拥有的**那些要不要一起摊出来。默认不摊（2026-08-23）。
    * ★★ 病症是量出来的：种子市场 17 张，老用户基本全拿过 —— 于是「从市场添加」下面
@@ -273,9 +277,11 @@ export default function WorkshopPage() {
         <DeleteCardDialog
           card={askCard}
           onCancel={() => setAskCard(null)}
-          onConfirm={() => {
-            removeCard(askCard.id);
-            setAskCard(null);
+          // ★ 成了才关：没删成时那句原因要留在卡上（见 DeleteConfirmShell 的 ★★）
+          onConfirm={async () => {
+            const why = await removeCard(askCard.id);
+            if (!why) setAskCard(null);
+            return why;
           }}
         />
       )}
@@ -283,9 +289,10 @@ export default function WorkshopPage() {
         <DeleteDeckDialog
           deck={askDeck}
           onCancel={() => setAskDeck(null)}
-          onConfirm={() => {
-            deleteDeck(askDeck.id);
-            setAskDeck(null);
+          onConfirm={async () => {
+            const why = await deleteDeck(askDeck.id);
+            if (!why) setAskDeck(null);
+            return why;
           }}
         />
       )}
@@ -466,13 +473,28 @@ export default function WorkshopPage() {
                       <Link to={`/card/${c.id}`} state={{ card: c }} className={`block ${owned ? "opacity-40" : ""}`}>
                         <CardTile card={c} />
                       </Link>
+                      {/* ★★ 要等结果：`addCards` 的远端失败只在返回值里说（synced:false），
+                          扔掉它就是"字变成已拥有、下次冷启动卡没了"（2026-08-30 修，
+                          与详情页/发布页同一口径）。失败原因就近写在这张卡下面。 */}
                       <button
-                        onClick={() => !owned && addCards([c])}
-                        disabled={owned}
+                        onClick={() => {
+                          if (owned || addingId) return;
+                          setAddingId(c.id);
+                          setAddErr(null);
+                          void addCards([c])
+                            .then((r) => {
+                              if (!r.synced) setAddErr({ id: c.id, why: r.reason || "没能同步到服务器" });
+                            })
+                            .finally(() => setAddingId(null));
+                        }}
+                        disabled={owned || addingId === c.id}
                         className="mt-1 w-full text-center text-[10px] text-slate-400 disabled:text-slate-600"
                       >
-                        {owned ? "已拥有" : "＋ 添加"}
+                        {owned ? "已拥有" : addingId === c.id ? "添加中…" : "＋ 添加"}
                       </button>
+                      {addErr?.id === c.id && (
+                        <p className="mt-0.5 text-center text-[10px] leading-tight text-amber-300">{addErr.why}，再点一次</p>
+                      )}
                     </div>
                   );
                 })}

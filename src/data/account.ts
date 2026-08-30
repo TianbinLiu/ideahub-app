@@ -180,18 +180,24 @@ function wipeLegacyAssetsLocal(): void {
  * 挂在 loadRemoteAssets 结尾（它是远端资产落地的唯一口，三条登录/恢复路都过它）。
  * ★ localStorage 按账号记"清过了"，只为省下每次启动的一串删除 API；
  *   标记丢了重跑也无害 —— 截线保证 V2 新卡一张不动。
+ * ★★ **有一条没删成就不许落标记**：两条删除现在会在服务端拒绝时保住本地那份
+ *   （见 removeCard 的 ★★）。这时候若照样落标记，这批老卡就永远不再被清 ——
+ *   它们会一直躺在库里，而下次登录 loadRemoteAssets 又把服务端那份拉回来。
+ *   宁可下次启动再试一遍（删除接口幂等，重跑不花钱）。
  */
-function wipeLegacyAssetsRemote(): void {
+async function wipeLegacyAssetsRemote(): Promise<void> {
   const u = currentUser();
   if (!u || !db) return;
   const flag = `ideahub-app.cardWipeV2.${u.id}`;
   if (localStorage.getItem(flag)) return;
   const cards = db.cards.filter((c) => c.ownerId === u.id && isLegacyCard(c));
   const decks = db.decks.filter((d) => d.ownerId === u.id && isLegacyDeck(d));
+  let allGone = true;
   // 先删组再删卡：removeCard 会顺手把卡从组里摘掉，反过来做是白做一遍
-  for (const d of decks) deleteDeck(d.id);
-  for (const c of cards) removeCard(c.id);
-  localStorage.setItem(flag, "1");
+  // ★ 串行不并发：这是启动路径上的后台清理，抢不过用户正在做的事更重要
+  for (const d of decks) if ((await deleteDeck(d.id)) !== null) allGone = false;
+  for (const c of cards) if ((await removeCard(c.id)) !== null) allGone = false;
+  if (allGone) localStorage.setItem(flag, "1");
 }
 
 /**
@@ -976,21 +982,60 @@ export async function setCardViews(cardId: string, views: Card["views"]): Promis
   await branch.updateCardViews(cardId, views);
 }
 
-export function removeCard(cardId: string): void {
-  // 声音样本是本机侧库（data/cardVoice），卡没了它就成了永远读不到的孤儿——顺手清
-  removeVoice(cardId);
+/**
+ * 删除类操作的回执：`null` = 真的删掉了；字符串 = **整句人话**的失败原因（铁律八）。
+ * ★ 为什么不是 boolean：删失败的原因不止一种（没登录 / 这次没连上 / 服务端拒了），
+ *   而这三种对用户来说是三件不同的事，上层只拿 false 只能瞎猜着写提示。
+ */
+export type DeleteResult = string | null;
+
+/** 把异常压成一句能摆在确认卡上的短话（太长的原文会把弹层撑破） */
+function whyOf(e: unknown): string {
+  const m = e instanceof Error ? e.message : String(e ?? "");
+  const one = m.replace(/\s+/g, " ").trim();
+  return one.length > 40 ? `${one.slice(0, 40)}…` : one || "原因不明";
+}
+
+/**
+ * 删一张卡（本地 + 远端）。**唯一入口**，回执见 `DeleteResult`。
+ *
+ * ★★ 为什么这条必须 async、且远端没删成就**不许动本地**：`loadRemoteAssets()` 每次
+ *   登录都拿服务端那份**整体覆盖** `db.cards`（见那处的 `db.cards = cards.map(...)`）。
+ *   原来这里是 `void branch.removeCard(...).catch(emitApiError)`，而全 app **没有任何
+ *   地方监听 emitApiError** —— 删失败时屏幕上那张卡当场消失、用户以为删掉了，
+ *   下次冷启动它**原样长回来**。「删了又长回来」比「这次没删成」难查得多，而且用户
+ *   多半会以为是自己没点上，于是再删一次、再回来一次。
+ * ★ 配了服务器却这次会话没连上（`API_ON` 真而 `remoteOn()` 假）：**当场拒**。
+ *   这时候删本地是删了个寂寞 —— 服务端那份还在，下次登录照样覆盖回来。
+ * ★ 顺带修一处顺序：声音样本原来在函数最前面清，而后面还有 `if (!u || !db) return`
+ *   的早退 —— 没登录时会留下"卡还在、声音没了"。现在一律等真删成了再清。
+ */
+export async function removeCard(cardId: string): Promise<DeleteResult> {
   const u = currentUser();
-  if (!u || !db) return;
+  if (!u || !db) return "还没登录，删不了。";
+  if (API_ON && !remoteOn()) {
+    return "这次没连上服务器。现在删只会删掉这台设备上的那份，下次登录它还会回来——等联网了再删。";
+  }
+  if (remoteOn()) {
+    try {
+      await branch.removeCard(cardId);
+    } catch (e) {
+      emitApiError("removeCard", e);
+      return `服务器没能删掉这张卡（${whyOf(e)}）。本地这份先留着——删了它下次登录也会回来。`;
+    }
+  }
+  // 声音样本是本机侧库（data/cardVoice），卡真没了它才成为永远读不到的孤儿
+  removeVoice(cardId);
   db.cards = db.cards.filter((c) => !(c.ownerId === u.id && c.id === cardId));
   const touchedDecks = db.decks.filter((d) => d.cardIds.includes(cardId));
   for (const d of db.decks) d.cardIds = d.cardIds.filter((id) => id !== cardId);
   persist();
   if (remoteOn()) {
-    void branch.removeCard(cardId).catch((e) => emitApiError("removeCard", e));
     // 契约没写删卡是否会顺带清理卡组里的引用，这里显式同步一次，幂等且便宜
     // （走同一条防抖队列，和用户正在改的名字合并成一次 PATCH）
     for (const d of touchedDecks) queueDeckPatch(d.id, { cardIds: d.cardIds });
   }
+  return null;
 }
 
 // ── 卡组 ──────────────────────────────────────────────
@@ -1050,20 +1095,30 @@ export function deckCoverOf(d: Deck): Card | null {
   return (coverId && byId.get(coverId)) || null;
 }
 
-export function deleteDeck(deckId: string): void {
-  if (!db) return;
+/** 删卡组（**不删里面的卡**）。远端没删成就不动本地，理由同 `removeCard` 的 ★★ */
+export async function deleteDeck(deckId: string): Promise<DeleteResult> {
+  if (!db) return "还没登录，删不了。";
   const d = findDeck(deckId);
-  db.decks = db.decks.filter((x) => x !== d);
-  persist();
-  if (remoteOn() && d) {
+  if (!d) return null; // 已经不在了：用户要的结果已经成立，不算失败
+  if (API_ON && !remoteOn()) {
+    return "这次没连上服务器。现在删只会删掉这台设备上的那份，下次登录它还会回来——等联网了再删。";
+  }
+  if (remoteOn()) {
     const localId = d.id;
     cancelDeckPatch(localId); // 都要删了，别再把排队中的改名发出去
-    void (async () => {
+    try {
       const id = await resolveDeckId(localId);
-      if (!id) return;
-      await branch.deleteDeck(id).catch((e) => emitApiError("deleteDeck", e));
-    })();
+      // ★ 解析不出远端 id = 这个组还没在服务端落过库（POST 失败/还在路上）。
+      //   本地删掉就是干净的，不是失败。
+      if (id) await branch.deleteDeck(id);
+    } catch (e) {
+      emitApiError("deleteDeck", e);
+      return `服务器没能删掉这个卡组（${whyOf(e)}）。本地这份先留着——删了它下次登录也会回来。`;
+    }
   }
+  db.decks = db.decks.filter((x) => x !== d);
+  persist();
+  return null;
 }
 
 // ── 卡组分享 ──────────────────────────────────────────
@@ -1232,6 +1287,20 @@ const deckCreating = new Map<string, Promise<string | null>>();
 
 function realDeckId(id: string): string {
   return deckAlias.get(id) ?? id;
+}
+
+/**
+ * 这个卡组到底存进服务端了没有 —— 建组是"同步返回临时 id、POST 还在路上"，
+ * 想知道结果只能等那个回包。
+ *
+ * ★ 给发布页用：它建完组就跳走，而 `createDeck` 的远端失败是 `emitApiError` 静默的
+ *   （没有任何地方监听）⇒ 用户看着「本片卡组」已经在工坊里了，下次冷启动
+ *   `loadRemoteAssets` 一覆盖就没了，而那些卡里可能有花了十几万 token 的派生角色。
+ * ★ 离线模式恒真：那边 persist() 写的是 IndexedDB，组是真落地了（口径同 addCards）。
+ */
+export async function deckSynced(localId: string): Promise<boolean> {
+  if (!remoteOn()) return true;
+  return (await resolveDeckId(localId)) !== null;
 }
 
 /** 等建组回包后拿服务端 id；建组失败（或压根不是远端建的）返回 null，调用方跳过同步 */
@@ -1621,7 +1690,8 @@ async function loadRemoteAssets(): Promise<void> {
   // 本地按作者名关注，顺手把 名字→userId 登记进 api/branch，让 toggleFollow 能反查
   u.following = following.map((f) => branch.authorName(f));
   // 卡片系统 V2：远端旧卡一次性清场（见 wipeLegacyAssetsRemote 的 ★）
-  wipeLegacyAssetsRemote();
+  // ★ 不 await：这是后台清理，让它去跑，别把登录路径卡在一串删除请求上
+  void wipeLegacyAssetsRemote();
 }
 
 // ── 远端登录（新增导出；LoginPage 接上密码框后改调这两个即可）──

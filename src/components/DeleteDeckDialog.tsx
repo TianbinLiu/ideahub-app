@@ -8,7 +8,7 @@
 // ★ 抽成组件的直接原因（2026-08-30 复核抓到）：它原来是内联在工坊页某个页签分支里的
 //   一段 JSX，而触发它的按钮在**另一个页签分支** —— 两分支互斥，卡组因此根本删不掉。
 //   删除类浮层与触发它的按钮不该分属不同的条件分支；做成组件后挂在顶层，这类错就不会再犯。
-import { createPortal } from "react-dom";
+import DeleteConfirmShell from "./DeleteConfirmShell";
 import type { Deck } from "../data/account";
 
 export default function DeleteDeckDialog({
@@ -17,14 +17,17 @@ export default function DeleteDeckDialog({
   onCancel,
 }: {
   deck: Deck;
-  onConfirm: () => void;
+  /** 返回 null = 真删掉了（调用方关闭）；返回字符串 = 整句失败原因，留在卡上 */
+  onConfirm: () => Promise<string | null>;
   onCancel: () => void;
 }) {
-  return createPortal(
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-6" onClick={onCancel}>
-      <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-sm font-bold text-slate-100">删掉卡组「{deck.name}」？</h3>
-        <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-slate-400">
+  return (
+    <DeleteConfirmShell
+      title={`删掉卡组「${deck.name}」？`}
+      danger="删掉这个卡组"
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    >
           <p>
             · 里面那 {deck.cardIds.length} 张卡<span className="text-slate-200">不会被删</span>，
             它们还在你的卡片库里，只是不再归到这一组。
@@ -36,17 +39,6 @@ export default function DeleteDeckDialog({
             </p>
           )}
           <p className="text-rose-300">卡组本身删了就找不回来。</p>
-        </div>
-        <div className="mt-4 flex gap-2">
-          <button onClick={onCancel} className="flex-1 rounded-xl border border-slate-600 py-2.5 text-xs text-slate-300">
-            先不删
-          </button>
-          <button onClick={onConfirm} className="flex-1 rounded-xl bg-rose-500/90 py-2.5 text-xs font-bold text-white">
-            删掉这个卡组
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+    </DeleteConfirmShell>
   );
 }

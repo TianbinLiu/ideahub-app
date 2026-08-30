@@ -35,6 +35,12 @@ export default function EditPage() {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const [confirmDel, setConfirmDel] = useState(false);
+  // 删除现在要等服务端确认（见 videos.deleteVideoItem 的 ★★），所以这一格自己扛
+  // "在删"和"没删成的原因"——失败后弹层一关、原因没了，就又回到"点了没反应"
+  const [deleting, setDeleting] = useState(false);
+  /** 确认卡上那条失败原因。★ 带 kind：这张卡上有两个会失败的动作（删除、改成仅自己可见），
+   *  不分开的话改可见性失败会让**删除键**变成「再试一次」——按下去删的是作品 */
+  const [delErr, setDelErr] = useState<{ why: string; kind: "delete" | "soft" } | null>(null);
 
   // 深链刚进来时 video 可能还没就绪（远端补详情）；就绪后把表单初值补上。
   // 只在"表单还是空白"时回填，避免覆盖用户已输入的内容。
@@ -84,12 +90,19 @@ export default function EditPage() {
    * ★ 传失败/存失败就**不许显示「✓ 已保存」**。原来这里是无条件 setSaved(true)，
    *   于是远端模式下换封面永远显示保存成功、实际一次都没存上，重启就变回去
    *   ——AI 封面还是真花了 token 的（铁律八）。
+   *
+   * ★ 成败要**返回**、不能只写进 `err`：调用方据此决定收不收弹层、要不要把开关翻回去。
+   *   「改成仅自己可见」那颗按钮实测栽过一次（2026-08-30）：保存失败时确认卡照样关、
+   *   开关照样翻过去 —— 用户以为作品藏起来了，其实还公开挂着，正是这颗按钮要防的事。
+   *
+   * @param over 立刻要生效、还来不及经过 state 的字段（「改成仅自己可见」那颗按钮用）
+   * @returns null = 真存上了；字符串 = 没存上的原因（同时也写进了 `err`）
    */
-  async function save() {
-    if (!video) return;
+  async function save(over?: { visibility?: "public" | "private" }): Promise<string | null> {
+    if (!video) return "作品不存在";
     if (!title.trim()) {
       setErr("标题不能为空");
-      return;
+      return "标题不能为空";
     }
     setSaving(true);
     setErr("");
@@ -105,23 +118,37 @@ export default function EditPage() {
         category,
         description: description.trim(),
         cover: coverUrl,
-        visibility,
+        visibility: over?.visibility ?? visibility,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 1800);
+      return null;
     } catch (e) {
-      setErr(e instanceof Error ? `封面上传失败：${e.message}` : "保存失败，请重试");
+      const why = e instanceof Error ? `封面上传失败：${e.message}` : "保存失败，请重试";
+      setErr(why);
+      return why;
     } finally {
       setBusy("");
       setSaving(false);
     }
   }
 
-  function remove() {
+  async function remove() {
     if (!video) return;
-    deleteVideoItem(video.id);
-    // 回个人页而不是回作品页——那条作品已经没了，跳回去只会看到"作品不存在"
-    navigate("/me", { replace: true });
+    setDeleting(true);
+    setDelErr(null);
+    try {
+      // ★ 没删成就别跳页：跳走等于把那句失败原因一起带走，而作品其实还在
+      const why = await deleteVideoItem(video.id);
+      if (why) {
+        setDelErr({ why, kind: "delete" });
+        return;
+      }
+      // 回个人页而不是回作品页——那条作品已经没了，跳回去只会看到"作品不存在"
+      navigate("/me", { replace: true });
+    } finally {
+      setDeleting(false);
+    }
   }
 
   const totalOf = (i: number) => parts[i].segments.reduce((s, x) => s + x.durationSec, 0);
@@ -245,22 +272,62 @@ export default function EditPage() {
             {confirmDel ? (
               <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3.5">
                 <div className="text-sm font-bold text-rose-200">删除《{video.title}》？</div>
-                <p className="mt-1 text-[11px] leading-relaxed text-rose-200/70">
-                  成片、评论和点赞会一起消失，不能撤销。
-                  {visibility === "private" && "只是暂时不想让人看到的话，选「仅自己可见」就够了。"}
-                </p>
+                <p className="mt-1 text-[11px] leading-relaxed text-rose-200/70">成片、评论和点赞会一起消失，不能撤销。</p>
+                {/* ★★ 软替代：**这条只对还公开着的作品有意义**（2026-08-30 修）。
+                    原来判的是 `visibility === "private"` —— 恰好反了：已经藏起来的人
+                    才被劝"藏起来就够了"，而真正想把作品从别人眼前拿走的那位一个字看不到。
+                    ★ 做成一颗**直达按钮**而不是一句话：多数人删作品是因为"不想被人看见"，
+                      而不是"要腾地方"。这是四家同类产品里唯一被普遍验证有效的止损设计
+                      —— 但前提是它得点得动，光说一句"你可以去上面那个选择器改"约等于没有。 */}
+                {visibility !== "private" && (
+                  <button
+                    onClick={() => {
+                      // ★★ **存成了才收卡、才认这个开关**（2026-08-30 实测抓到）：
+                      //   保存这条路是会失败的（封面是 dataURL 时要先上传），而原来这里
+                      //   是"翻开关 → 关卡 → 甩出去一个不看结果的 save" —— 失败时用户
+                      //   看着开关已经在「仅自己可见」上、卡也关了，作品其实还公开挂着。
+                      //   这正是这颗按钮要解决的问题的反面。
+                      setVisibility("private");
+                      setDelErr(null);
+                      void save({ visibility: "private" }).then((why) => {
+                        if (!why) {
+                          setConfirmDel(false);
+                          return;
+                        }
+                        setVisibility(video?.visibility ?? "public"); // 开关翻回去，别让它说谎
+                        setDelErr({ why: `没能改成「仅自己可见」：${why}`, kind: "soft" });
+                      });
+                    }}
+                    disabled={saving}
+                    className="mt-2.5 w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-50"
+                  >
+                    <span className="font-bold">改成「仅自己可见」就好</span>
+                    <br />
+                    别人的首页和你的主页上都不再出现，成片和评论都留着，随时能改回来。
+                  </button>
+                )}
+                {delErr && (
+                  <p className="mt-2.5 rounded-lg border border-rose-500/50 bg-rose-500/15 px-2.5 py-2 text-[11px] leading-relaxed text-rose-100">
+                    {delErr.why}
+                  </p>
+                )}
                 <div className="mt-3 flex gap-2">
                   <button
-                    onClick={() => setConfirmDel(false)}
-                    className="flex-1 rounded-xl bg-slate-700/70 py-2 text-sm text-slate-200"
+                    onClick={() => {
+                      setConfirmDel(false);
+                      setDelErr(null);
+                    }}
+                    disabled={deleting}
+                    className="flex-1 rounded-xl bg-slate-700/70 py-2 text-sm text-slate-200 disabled:opacity-50"
                   >
                     取消
                   </button>
                   <button
-                    onClick={remove}
-                    className="rounded-xl bg-rose-500 px-4 py-2 text-sm font-bold text-white hover:brightness-110"
+                    onClick={() => void remove()}
+                    disabled={deleting}
+                    className="rounded-xl bg-rose-500 px-4 py-2 text-sm font-bold text-white hover:brightness-110 disabled:opacity-50"
                   >
-                    确认删除
+                    {deleting ? "删除中…" : delErr?.kind === "delete" ? "再试一次" : "确认删除"}
                   </button>
                 </div>
               </div>

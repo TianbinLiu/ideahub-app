@@ -53,12 +53,34 @@ function VideoDeckSection({
     const mine = new Set(myCards().map((c) => c.id));
     return deck.cards.every((c) => mine.has(c.id));
   });
+  const [adding, setAdding] = useState(false);
+  const [addErr, setAddErr] = useState<string | null>(null);
 
-  function collect(): boolean {
-    if (!loggedIn) return false;
-    addCards(deck.cards);
-    setGot(true);
-    return true;
+  /**
+   * 把本片卡组收进自己的库。
+   *
+   * ★★ **要等结果**（2026-08-30 修）：原来是 `addCards(...)` 调完立刻 `setGot(true)`。
+   *   `addCards` 的远端失败是它自己在返回值里说的（`synced:false`），扔掉返回值 =
+   *   按钮当场变成「✓ 已在我的卡组」，而下次冷启动 `loadRemoteAssets` 拿服务端那份
+   *   整体覆盖 —— 卡一张不剩，全程零报错。
+   * ★ 失败时把按钮**退回可点**并把原因写在旁边：卡在本机其实是有的（persist 已经写了），
+   *   所以话要说准 —— 是"没同步到服务器"，不是"没收进来"。
+   */
+  async function collect(): Promise<boolean> {
+    if (!loggedIn || adding) return false;
+    setAdding(true);
+    setAddErr(null);
+    try {
+      const r = await addCards(deck.cards);
+      if (!r.synced) {
+        setAddErr(`${r.reason || "这组卡没能同步到服务器"}——卡在这台设备上有，但换台设备或重启后可能就没了，联网后再点一次。`);
+        return false;
+      }
+      setGot(true);
+      return true;
+    } finally {
+      setAdding(false);
+    }
   }
 
   return (
@@ -77,18 +99,26 @@ function VideoDeckSection({
           </Link>
         ))}
       </div>
+      {addErr && (
+        <p className="mt-2 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+          {addErr}
+        </p>
+      )}
       <div className="mt-2.5 flex gap-2">
         <button
-          onClick={collect}
-          disabled={got}
+          onClick={() => void collect()}
+          disabled={got || adding}
           className="rounded-xl bg-panel px-4 py-2 text-sm text-slate-200 ring-1 ring-slate-700 disabled:opacity-50"
           title={loggedIn ? "" : auth === "pending" ? "正在确认登录状态…" : "登录后可收入卡组"}
         >
-          {got ? "✓ 已在我的卡组" : "收入我的卡组"}
+          {got ? "✓ 已在我的卡组" : adding ? "收取中…" : addErr ? "再试一次" : "收入我的卡组"}
         </button>
         <button
           onClick={() => {
-            collect(); // 未登录时静默跳过（/studio 的登录墙会接手，登录后卡组仍在会话里）
+            // 未登录时静默跳过（/studio 的登录墙会接手，登录后卡组仍在会话里）
+            // ★ 这条路**不等**收卡结果：用户要的是"去创作"，而桌面那份是内存里的副本，
+            //   同步与否不挡他开工；真没同步成功时上面那行提示会留在这一页上。
+            void collect();
             // 并进工坊桌面（去重），进门就能直接拖卡铸节点
             useStudio.setState((s) => ({
               deck: [...s.deck, ...deck.cards.filter((c) => !s.deck.some((d) => d.id === c.id))],

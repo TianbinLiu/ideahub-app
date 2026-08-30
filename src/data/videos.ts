@@ -553,21 +553,44 @@ export function updateVideoMeta(
 }
 
 /**
- * 删除作品（仅作者）。本地先删、服务端后删——删除是用户明确要的动作，
- * 等一个网络往返再消失只会让人以为没点上。
- * 服务端删失败会 toast，下次 readyVideos 拉回来时那条会重新出现（本地不是权威）。
+ * 删除作品（仅作者）。回执：`null` = 真删掉了；字符串 = **整句人话**的失败原因（铁律八）。
+ *
+ * ★★ 原来这里是"本地先删、服务端 `void ... .catch(emitApiError)`"，注释还写着
+ *   "服务端删失败会 toast" —— **那句是假的**：全 app 没有任何地方监听 emitApiError。
+ *   而 `readyVideos` 每次启动拿服务端那份整体替换 cache ⇒ 删失败的作品下次冷启动
+ *   **原样长回来**，用户以为是自己没点上，再删一次、再回来一次。
+ *   ⇒ 远端模式下先跟服务端确认删掉了，再动本地。
+ * ★★ **顺手清待发队列**（2026-08-30，全仓唯一一条"用户删过的内容会自己重回公网"的路）：
+ *   上传失败的作品在列表里是一条本地 id 的乐观条目、在队列里是一份草稿。只 filter
+ *   cache 的话队列项还在，下次启动 `flushPending` 把它**发布上去** —— 而这条作品
+ *   此时 `realId` 还是 `v_xxx`，DELETE 打过去是 400，也就是说服务端那边根本没这条，
+ *   "删除"从头到尾一件事都没做成。
+ * ★ 配了服务器却这次会话没连上：**拒**（同 account.removeCard 的 ★）。
  */
-export function deleteVideoItem(id: string): void {
+export async function deleteVideoItem(id: string): Promise<string | null> {
   const v = find(id);
-  if (!v) return;
+  if (!v) return null; // 已经不在了：用户要的结果已经成立
   const rid = realId(v.id);
+  // ★ 只在**服务端认得这条**时才要求联网：还没落库的那条（本地 id）删的是队列，离线也能删干净
+  const onServer = rid !== v.id || !rid.startsWith("v_");
+  if (API_ON && !remoteOn() && onServer) {
+    return "这次没连上服务器。现在删只会删掉这台设备上的那份，下次启动它还会回来——等联网了再删。";
+  }
+  if (remoteOn() && onServer) {
+    try {
+      await branch.deleteVideo(rid);
+    } catch (e) {
+      emitApiError("deleteVideo", e);
+      return `服务器没能删掉这条作品（${e instanceof Error ? e.message.slice(0, 40) : "原因不明"}）。本地这份先留着——删了它下次启动也会回来。`;
+    }
+  }
+  // ★ 队列先清再动列表：反过来的话中间那一拍崩了，作品从列表消失而队列还在 = 最糟的组合
+  if (v.clientId) await dropPendingPublish(v.clientId);
   const list = all().filter((x) => x.id !== v.id);
   cache = list;
   save(list);
   emitVideos();
-  if (remoteOn()) {
-    void branch.deleteVideo(rid).catch((e) => emitApiError("deleteVideo", e));
-  }
+  return null;
 }
 
 // ★ 这里原来有 setVideoParts（整组替换 P 列表：重制某 P / 新增 P / 删除 P / 改名）
@@ -591,6 +614,9 @@ export function publishVideo(draft: DraftVideo): VideoItem {
   draft = { ...draft, clientId: draft.clientId ?? uid("cv") };
   const item: VideoItem = {
     id: uid("v"),
+    // ★ 把幂等键带到列表这一条上：删除时要靠它把队列里的那份一起清掉
+    //   （见 deleteVideoItem 的第二个 ★★ —— 不带的话删过的作品会自己重回公网）
+    clientId: draft.clientId,
     title: draft.title,
     category: draft.category,
     description: draft.description,

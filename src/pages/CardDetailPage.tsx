@@ -648,11 +648,15 @@ export default function CardDetailPage() {
         <DeleteCardDialog
           card={card}
           onCancel={() => setAsk(false)}
-          onConfirm={() => {
-            removeCard(card.id);
+          // ★ 真删成了才退页：没删成还退的话，那句失败原因跟着这一页一起没了，
+          //   用户回到工坊看见卡还在，只会以为"点了没反应"
+          onConfirm={async () => {
+            const why = await removeCard(card.id);
+            if (why) return why;
             setAsk(false);
             // 卡没了，这一页就是死页 —— replace 回上一屏（多半是工坊/卡组），别留一格
             nav(-1);
+            return null;
           }}
         />
       )}
