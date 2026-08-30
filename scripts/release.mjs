@@ -46,6 +46,19 @@ const MANIFEST_URL = `https://github.com/${REPO}/releases/latest/download/latest
  *   照样"发布成功"，而所有人收不到更新。
  */
 const APP_MANIFEST_URL = "https://api.ideahubs.org/api/app/latest.json";
+/**
+ * 安装包镜像（国内下载走这条）。
+ *
+ * ★★ 2026-08-30 线上事故：国内用户点「本地更新」报「GitHub 无法连接」。清单本身没问题
+ *   （它走这台服务器），断的是**下载** —— 清单里的 apkUrl 原样透传了 GitHub Releases，
+ *   83MB 的包国内基本下不动。所以发版**必须**把包也传一份到自家服务器，并让服务端把
+ *   apkUrl 改写过去（server 的 APP_APK_BASE）。
+ * ★ GitHub Release 仍然发（它是权威产物与归档），只是不再是用户下载的那条路。
+ * ⚠ 镜像文件必须与 Release 资产**逐字节相同**：App 侧会校验清单里的 sha256，
+ *   不一致时插件会丢弃并报「校验不通过」—— 那种失败比下不动更难查。
+ */
+const APK_MIRROR_HOST = process.env.APK_MIRROR_HOST || "deploy@8.217.8.225";
+const APK_MIRROR_DIR = process.env.APK_MIRROR_DIR || "/var/www/ideahub-server/releases";
 
 const APK = path.join(root, "android/app/build/outputs/apk/sideload/release/app-sideload-release.apk");
 const AAB = path.join(root, "android/app/build/outputs/bundle/playRelease/app-play-release.aab");
@@ -206,6 +219,21 @@ async function main() {
       "--repo", REPO]);
   }
 
+  // ── 6.5 传安装包镜像（国内下载源）──────────────────────────
+  //    ★ 排在验证之前：下面那一步会**真的去下载**它，传晚了自检必然失败。
+  console.log("");
+  console.log("上传安装包镜像…");
+  try {
+    runShell("ssh", [APK_MIRROR_HOST, `mkdir -p ${APK_MIRROR_DIR}`]);
+    runShell("scp", [path.join(out, apkAsset), `${APK_MIRROR_HOST}:${APK_MIRROR_DIR}/`]);
+    console.log(`✓ 已传到 ${APK_MIRROR_HOST}:${APK_MIRROR_DIR}/${apkAsset}`);
+  } catch (e) {
+    die(
+      `安装包镜像没传上去（${e.message}）—— 不传的话国内用户点更新会卡在 GitHub 下载失败。
+手动补：scp "${path.join(out, apkAsset)}" ${APK_MIRROR_HOST}:${APK_MIRROR_DIR}/`,
+    );
+  }
+
   // ── 7. ★ 回头验证：从公网真的拉一遍，确认老用户能看到、能下 ──
   //    这一步才是这个脚本存在的意义 —— 前面每一条都可能"看着对但线上是错的"。
   console.log("\n验证更新链…");
@@ -244,6 +272,18 @@ async function main() {
     die(`App 用的清单地址还停在 ${app.versionName}(${app.versionCode})。
 ` +
         `服务端缓存最多 60 秒，等了两分钟还没变说明它拉不到上游。`);
+  }
+
+  // ★★ 下载源必须**不是 GitHub**（2026-08-30 事故的那条断言）：
+  //   这个脚本的全部意义是「这次更新能不能到老用户手里」，而它一直跑在**能连 GitHub
+  //   的机器上** —— 于是 apkUrl 指着 github.com 时下面那个 HEAD 照样绿灯，国内用户却
+  //   一个都下不动。机器连得上 ≠ 用户连得上，这条得显式判。
+  if (new URL(app.apkUrl).hostname.toLowerCase().endsWith("github.com")) {
+    die(
+      `清单里的下载地址还指着 GitHub：${app.apkUrl}
+国内用户下不动（2026-08-30 就是这么出的事）。检查服务端的 APP_APK_BASE 配了没有，
+以及这一版的包有没有传到镜像目录（${APK_MIRROR_DIR}）。`,
+    );
   }
 
   const head = await fetch(app.apkUrl, { method: "HEAD", redirect: "follow" });
