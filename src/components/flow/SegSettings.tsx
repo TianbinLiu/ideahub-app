@@ -8,8 +8,6 @@
 //   抄第二份的话，这些规则会一条一条地在另一面走样，而走样了不报错。
 // ★ 组件自己认 node.id 从 store 读（与 PlanSheet / CardPicker 同款）：宿主只给一个 id，
 //   不必把 index/nodes/mode 一路传下来，也就不会出现"传的是上一段"那类错。
-import { Link } from "react-router";
-import { tierBlockReason } from "../../data/account";
 import { clampDuration, modelLabel, r2vPriceIssue, realFaceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { chosenOf, nodeDone, tplOfNode, useFlow } from "../../studio/flowStore";
 import { DURATIONS, VIDEO_ASPECTS } from "../../types";
@@ -26,7 +24,6 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
   const tpl = tplOfNode(node);
   /** 这一段走白模复刻（判据与报价、出片同源：模板快照带 refVideo） */
   const blockout = !!tpl?.refVideo;
-  const tierBlocks = VIDEO_TIERS.map((t) => tierBlockReason(t)).filter((r): r is string => !!r);
   /**
    * 白模节点下各档位点不动的 r2v 原因（判断在 economy.r2vPriceIssue 一处，铁律六）。
    *
@@ -150,20 +147,12 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
       {/* ★ 点不动就必须写出为什么。只把按钮灰掉的话，用户只会觉得"这功能坏了"
           （CLAUDE.md「界面上摆一个永远点不动的选项」）。title 在手机上没有 hover，
           所以原因得**印在页面上**，不能只挂在 title 里 */}
-      {(tierBlocks.length > 0 || r2vBlocks.length > 0 || realFaceBlock) && (
+      {/* ★ 套餐门槛那一类原因（含「去升级」）现在由 TierRow 印 —— 它拥有那排按钮。
+          这里只剩**本页自己的**理由：r2v 闸没开、真人卡与本段不搭。两份都印过一阵子，
+          结果是同一句话在抽屉里出现两遍 */}
+      {(r2vBlocks.length > 0 || realFaceBlock) && (
         <p className="text-[10px] leading-4 text-amber-300/80">
-          {[...tierBlocks, ...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])].join("；")}
-          {/* 「去升级」只治得了套餐门槛那类原因；r2v 闸门没开不是充钱能解决的，
-              只有套餐原因在场时才给这个链接。间隔用全角空格字面量——JSX 会把
-              行间换行整个吃掉，靠折行留空隙是留不住的 */}
-          {tierBlocks.length > 0 && (
-            <>
-              {"　"}
-              <Link to="/me" className="underline">
-                去升级
-              </Link>
-            </>
-          )}
+          {[...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])].join("；")}
         </p>
       )}
       {/* ★ 把**真正会被调用的那个模型**写出来。「极速/标准/高清」只说了画质档次，

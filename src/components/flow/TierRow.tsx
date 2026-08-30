@@ -11,6 +11,7 @@
 //   极速连尾帧都锁不住。这些都要在**换之前**说清楚，并且真正说不通的（挂着参考视频）
 //   得当场清掉，否则出片会被 segmentGen 的门禁整句拒（钱没花，但用户白等一轮）。
 import { useState } from "react";
+import { Link } from "react-router";
 import { tierBlockReason } from "../../data/account";
 import { clampDuration, fmtTokens, r2vPriceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { chosenOf, nodeCost, tplOfNode, useFlow } from "../../studio/flowStore";
@@ -105,8 +106,20 @@ export default function TierRow({ nodeId, onDone }: { nodeId: string; onDone?: (
           );
         })}
       </div>
-      {/* 点不动就必须写出为什么（手机上没有 hover，title 看不见） */}
-      {tierBlocks.length > 0 && <p className="text-[10px] leading-4 text-amber-300/80">{tierBlocks.join("；")}</p>}
+      {/* ★ 点不动就必须写出为什么（手机上没有 hover，title 看不见），而且**只在这里写**：
+          这排按钮归本组件，理由跟着按钮走 —— 宿主再写一份就会两处都印（实测本段设置抽屉
+          里出现过两遍）。宿主自己的别的理由（r2v 闸、真人卡）仍由宿主印，那是另一件事。
+          「去升级」只治得了套餐门槛那一类原因，所以跟着 tierBlocks 一起出现。 */}
+      {tierBlocks.length > 0 && (
+        <p className="text-[10px] leading-4 text-amber-300/80">
+          {tierBlocks.join("；")}
+          {/* 间隔用全角空格字面量——JSX 会把行间换行整个吃掉，靠折行留空隙留不住 */}
+          {"　"}
+          <Link to="/me" className="underline">
+            去升级
+          </Link>
+        </p>
+      )}
       {/* 换档的代价：**换之前**说，说的是这一段真的有的东西（tierSwitchLoss 一处判定） */}
       {ask && (
         <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
