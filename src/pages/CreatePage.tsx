@@ -5,7 +5,6 @@
 //
 // 三条路是同一条流水线的不同入口，而不是三套并行实现：
 //   工坊模式  —— 3D 铸卡桌面推演三套方案、挑一套炼一段，逐段落地 → 剪辑 → 发布
-//   工作流模式 —— 一屏一段：写要求 → 三套方案摊开挑一套 → 炼这一段 → 下一段 → 剪辑 → 发布
 //   简约模式  —— 单节点，一句话出一条几秒短片 → 剪辑 → 发布（**不进草稿库**，见下）
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
@@ -41,37 +40,12 @@ const MODES: Mode[] = [
     emoji: "🎴",
     title: "工坊模式",
     tag: "完整作品",
-    desc: "在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑一套炼一段，逐段往下铺。",
-    bullets: ["用素材卡定人物场景，全片一致", "每段三选一，可回头改", "炼好这段才开下一张，坏了立刻止损"],
+    desc: "在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑一套炼一段，逐段往下铺；顶栏「🧩 工作流画布」把同一条流水线换成画布那一面。",
+    bullets: ["用素材卡定人物场景，全片一致", "每段三选一，可回头改", "3D 桌面与工作流画布是同一条流水线的两个面"],
     cover: "/create/studio.jpg",
     skin: "border-amber-400/45",
     cta: "进铸卡桌面",
     go: (nav) => nav("/studio"),
-  },
-  {
-    key: "workflow",
-    emoji: "🧩",
-    title: "工作流模式",
-    tag: "自己写分镜",
-    desc: "一屏一段：写一句要求，AI 先给三套方案（各带首尾帧预览），挑定一套再炼视频。",
-    bullets: [
-      "三套方案摊开挑，选中的可换首尾帧、改剧情",
-      "一段一结账，不满意只重炼这段",
-      "和工坊用同一种卡，只是没有 3D 桌面",
-    ],
-    cover: "/create/workflow.jpg",
-    skin: "border-cyan-400/45",
-    cta: "开一条工作流",
-    resets: true,
-    go: (nav) => {
-      // ★ 被 canReplaceNodes 拒了就**留在原地**（原因已写进 store.err，画布/线性都画它）：
-      //   照旧跳页的话，用户会落到一条"没换成"的流水线上，而他以为自己开了新的
-      if (!useFlow.getState().seedSolo("workflow")) return;
-      // 这是"另起一摊活"：断开与上一条草稿的关联，否则在新工作流里点保存会把
-      // 之前那条草稿原地覆盖掉
-      useStudio.getState().newWorkDraft();
-      nav("/flow");
-    },
   },
   {
     key: "simple",

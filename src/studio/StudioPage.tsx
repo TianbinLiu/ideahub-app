@@ -17,6 +17,10 @@ import AvatarSwapButton from "./ui/AvatarSwapButton";
 import { cancelPendingStop, stopSpeakingSoon } from "./speech";
 import { useStudioBack } from "./useStudioBack";
 import { useCastReturn } from "../hooks/useCastReturn";
+import { useFlowActions } from "../hooks/useFlowActions";
+// 工作流画布现在是工坊里的一层全屏浮层（2026-08-30 合并：创作入口不再有「工作流模式」）
+import FlowCanvas from "../components/flow/FlowCanvas";
+import { castEditorState } from "../pages/FlowPage";
 import { autoQualityOnFirstVisit, QUALITY_LABELS, type Quality } from "./quality";
 import DraftTitle from "../components/DraftTitle";
 import Icon from "../components/Icon";
@@ -168,6 +172,15 @@ export default function StudioPage() {
   useAutoGuide("studio");
   // 工坊的模板段面板也能发起挂卡（returnTo:"/studio"）——回程的收口与 /flow 同一份实现
   useCastReturn();
+  /**
+   * 工作流画布开着没有（2026-08-30 主人点名「工坊与工作流为一体」）。
+   * ★ 它是**同一条流水线的另一个面**，不是另一页：所以做成浮层而不是 navigate ——
+   *   跳页会把 3D 场景整个卸载再装回来（模型重新解码、镜头归位），而用户的心智是
+   *   "把桌子换个看法"。
+   * ★ 画布自带 z-40 全屏 portal，这里只管开关与那三件页级活儿（存草稿/组稿/挂卡）。
+   */
+  const [canvasOpen, setCanvasOpen] = useState(false);
+  const flowActions = useFlowActions({ onLeave: () => setCanvasOpen(false) });
   const initGreet = useStudio((s) => s.initGreet);
   const spreadOpen = useStudio((s) => s.spreadOpen);
   const deckLen = useStudio((s) => s.deck.length);
@@ -209,7 +222,8 @@ export default function StudioPage() {
   const goFlowAt = useStudio((s) => s.goFlowAt);
   const goFlowSeen = useRef(goFlowAt);
   useEffect(() => {
-    if (goFlowAt && goFlowAt !== goFlowSeen.current) navigate("/flow");
+    // 合并之后「去画布那一面」= 就地开浮层（此前是 navigate("/flow")）
+    if (goFlowAt && goFlowAt !== goFlowSeen.current) setCanvasOpen(true);
     goFlowSeen.current = goFlowAt;
   }, [goFlowAt, navigate]);
 
@@ -266,10 +280,10 @@ export default function StudioPage() {
               键就是"永远点不动的选项"的变体；0 段时铺流水线本来就是法阵的差事 */}
           {flowLen > 0 && (
             <button
-              onClick={() => navigate("/flow")}
+              onClick={() => setCanvasOpen(true)}
               className="rounded-full bg-panel/85 px-3 py-1.5 text-xs text-slate-200 backdrop-blur"
             >
-              🧩 工作流
+              🧩 工作流画布
             </button>
           )}
           {/* ★ 摆在浮动顶栏右侧这一组里，而不是画面角落硬定位：这一屏是 3D 画布，
@@ -355,6 +369,31 @@ export default function StudioPage() {
       <AvatarPicker />
       <AvatarSwapButton />
       <StudioLoader />
+      {/* ── 工作流画布：同一条流水线的另一个面，就地铺满这一屏（2026-08-30 合并）──
+          ★ 它自带 z-40 全屏 portal，所以挂在这里不影响上面那些浮层的层级关系。
+          ★ 那三件页级活儿（存草稿 / 组稿 / 挂卡）实现只有一份：存草稿与组稿在
+            hooks/useFlowActions，挂卡入参在 FlowPage.castEditorState（回程 useCastReturn
+            两页共用）—— 画布照旧只借按钮与状态，工坊这一面不抄第二份（铁律六）。
+          ★ ✕ 与「🎴 工坊」都是关掉浮层回到桌面：合并之后它们不再是"去另一页"。 */}
+      {canvasOpen && flowLen > 0 && (
+        <FlowCanvas
+          onExit={() => setCanvasOpen(false)}
+          onLinear={() => setCanvasOpen(false)}
+          onCast={(tpl, value) => {
+            const st = castEditorState(tpl, value, "/studio");
+            if (st) navigate("/video-editor", { state: st });
+          }}
+          draft={{ state: flowActions.saveState, onSave: flowActions.saveNow }}
+          finish={{
+            allDone: flowActions.allDone,
+            finalizing: flowActions.finalizing,
+            note: flowActions.deckNote,
+            onRun: flowActions.toCut,
+            deckOn: !flowActions.deckOff,
+            onDeckToggle: flowActions.toggleDeck,
+          }}
+        />
+      )}
     </div>
   );
 }

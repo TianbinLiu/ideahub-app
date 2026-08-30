@@ -16,6 +16,7 @@
 // AI 画"的出口，否则用户上传错一张就再也回不到 AI 自拟。
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { TAROT_FRAME_URL } from "../../components/TarotCard";
 
 /** 一轮 = 停留 + 渐变。停留 2.6s 是量出来的：再短像闪烁，再长会让人以为是张静态图 */
 const HOLD_MS = 2600;
@@ -94,6 +95,8 @@ export default function FrameCard({
   /** 卡下面那行说明；null = 不要（方案台的行里位置很紧） */
   caption,
   aspectRatio = "2 / 3",
+  framed,
+  framedTitle,
 }: {
   firstFrame: string | null;
   lastFrame: string | null;
@@ -109,6 +112,13 @@ export default function FrameCard({
   /** 卡的框形（CSS aspect-ratio）。缺省 2/3 = 塔罗卡的形；方案台按本段**画幅**传，
    *  否则竖屏帧会被裁成一条、横屏帧只剩中间一块（见 PlanBoard.frameAspect） */
   aspectRatio?: string;
+  /** 装裱成一张**卡**（塔罗细边框 + 底部题名条，与全仓卡片同一个形）。
+   *  ★ 铸段窗那一格用它：主人实测点名"左侧的虚框并不是卡片形式" —— 它的比例本来
+   *    就是 2:3，缺的是"看上去像张牌"这件事（卡框与题名条）。方案台那边不装裱：
+   *    那里一行三张、按画幅撑形状，加卡框会把预览挤没。 */
+  framed?: boolean;
+  /** 装裱态底部题名条上的字（缺省用状态角标那套词） */
+  framedTitle?: string;
 }) {
   const [zoom, setZoom] = useState(false);
   const complete = !!firstFrame && !!lastFrame;
@@ -133,7 +143,7 @@ export default function FrameCard({
       {/* ── 小卡（左栏原位）── */}
       <button
         onClick={() => setZoom(true)}
-        className={`group relative w-full overflow-hidden rounded-xl border-2 ${border} bg-slate-800/40 transition active:scale-[0.98]`}
+        className={`group relative w-full overflow-hidden border-2 ${framed ? "rounded-[6%]" : "rounded-xl"} ${border} bg-slate-800/40 transition active:scale-[0.98]`}
         style={{ aspectRatio }}
         title={onPickLastFile ? "点开看大图 / 换首尾帧" : "点开看大图 / 换开头帧"}
       >
@@ -144,12 +154,27 @@ export default function FrameCard({
             AI 自拟首尾帧
           </div>
         )}
+        {/* 装裱：塔罗细边框（框图内部纯黑，screen 混合下黑=透明，只有金线发光）——
+            与 TarotCard 同一张框图、同一种叠法，卡片在全仓长一个样 */}
+        {framed && (
+          <img
+            src={TAROT_FRAME_URL}
+            alt=""
+            aria-hidden
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            style={{ mixBlendMode: "screen" }}
+          />
+        )}
         {/* 角标：这张卡现在是什么状态 */}
         <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] text-cyan-200">
           {complete ? "首尾帧" : firstFrame ? "开头帧" : "待推演"}
         </span>
-        <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-1.5 pb-1 pt-3 text-[9px] leading-tight text-slate-300">
-          {complete ? "首尾帧轮播 · 点开换图" : originNote}
+        <span
+          className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-1.5 pb-1 leading-tight text-slate-300 ${
+            framed ? "pt-4 text-center text-[10px] font-semibold text-slate-100" : "pt-3 text-[9px]"
+          }`}
+        >
+          {framed ? (framedTitle ?? (complete ? "首尾帧" : "本段画面")) : complete ? "首尾帧轮播 · 点开换图" : originNote}
         </span>
       </button>
       {caption !== null && (
