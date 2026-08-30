@@ -29,6 +29,29 @@ npm run dev                    # http://localhost:5173
 清单可达性），任何一条不过就当场停下。完整流程见 [`docs/app-distribution.md`](docs/app-distribution.md)。
 签名 keystore 不在仓库里，见 `android/keystore/README.md`。
 
+## 分支纪律：单主干，做完就落回 main
+
+**这个仓库只认一条长期分支：`main`。** session 开的分支是临时的，任务一完成就并回去 ——
+
+```bash
+npm run land          # 构建门禁 → 合进 main → 推（main 受保护时自动改走 PR）→ 删掉本分支
+npm run land -- --dry # 只检查不动手
+```
+
+★★ 为什么要有纪律而不是"想起来再合"：本仓同时开着十几个 worktree，**各自出包、各自涨
+`versionCode`，谁装谁覆盖手机上那一份**。2026-08-29 真出过事故：主人手机上装的是 A 分支的
+44，而当时正在验的是 B 分支的改动 —— 屏幕上表现为「功能不见了、之前的改动回退了」，查到
+`dumpsys package` 的 `lastUpdateTime` 才定案。合流晚一天，就多一天这种"查半天原来是装错包"。
+
+- **出包前先 `git log --oneline -1` 对一眼**，装完用 `adb shell dumpsys package com.ideahub.branchvideo | grep -E "versionCode|lastUpdateTime"` 确认装上的就是刚出的那个。
+- **`versionCode` 只在 main 上涨**（`android/app/build.gradle`）。分支里临时涨了不算数，
+  落回 main 时以 main 为准 —— 两条分支各涨各的必然撞车（44 vs 45 就是这么来的）。
+- **不合流就删的分支要先打 tag 存档**（`archive/<名字>`）：删掉的分支在远端也一并没了，
+  没有 tag 就只剩 reflog 那点时间窗。2026-08-29 那次合流留了两条：
+  `archive/laughing-chebyshev-blockout-split`（功能在 main 里已有另一份实现）、
+  `archive/nostalgic-pasteur-server-merge-cut`（剪辑页服务端合并，落后太多先存着）。
+  整体回滚点 `backup/pre-consolidation-2026-08-29`。
+
 ## 目录
 
 ```
