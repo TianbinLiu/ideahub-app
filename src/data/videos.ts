@@ -394,6 +394,62 @@ export function listVideos(): VideoItem[] {
   return [...all()].sort((a, b) => b.createdAt - a.createdAt);
 }
 
+/**
+ * 「这条作品配不配得上这个搜索词」——本地那条路的**唯一判据**。
+ *
+ * ★ 与服务端的 `$or: [title, description, tags]` **有意不完全相同**：本地这份还认作者名
+ *   与分区（离线库里能直接比，服务端那边作者是外键、分区另有 query 参数）。两边都要覆盖
+ *   title/description/tags 这三样 —— 那是标签芯片点下去必须命中的最小集合。
+ */
+export function matchesQuery(v: VideoItem, key: string): boolean {
+  if (!key) return true;
+  return (
+    v.title.includes(key) ||
+    v.description.includes(key) ||
+    v.author.includes(key) ||
+    v.category.includes(key) ||
+    (v.tags ?? []).some((t) => t.includes(key))
+  );
+}
+
+/**
+ * 搜作品。**这是全 app 唯一会把搜索词发给服务端的地方**。
+ *
+ * ★★ 2026-08-30 补。在此之前发现页是 `useState(() => listVideos())` —— 挂载时把本地
+ *   cache 快照一份就再也不问服务端了，而远端模式下那份 cache 只有推荐流的 **30 条**。
+ *   于是"搜索"实际上是"在最近 30 条里筛"，而 `branch.listVideos({ q })` 全 app **零调用方**。
+ *   这条平时只是"搜不全"，但作品详情页的话题标签芯片点下去就落在这儿 —— 从推荐流以外
+ *   进来的作品（通知、别人主页、分享链接）点自己的标签，必然得到「没有找到相关作品」，
+ *   而服务端那边明明搜得到。界面说假话比功能缺失更糟。
+ * ★ 失败**不假装成空结果**：空结果与"没搜成"在界面上必须分得开（铁律八），
+ *   所以回执带 `reason`，由调用方画出来并给重试。
+ */
+export async function searchVideos(opts: {
+  q?: string;
+  category?: string | null;
+  limit?: number;
+}): Promise<{ items: VideoItem[]; remote: boolean; reason?: string }> {
+  const key = (opts.q ?? "").trim();
+  const localHit = () => all().filter((v) => (!opts.category || v.category === opts.category) && matchesQuery(v, key));
+  if (!remoteOn()) return { items: localHit(), remote: false };
+  try {
+    const res = await branch.listVideos({
+      q: key || undefined,
+      category: opts.category || undefined,
+      limit: opts.limit ?? 30,
+    });
+    return { items: res.items.map(toVideoItem), remote: true };
+  } catch (e) {
+    emitApiError("searchVideos", e);
+    // 退回本地这份（至少还有推荐流那几条），但**要说清楚这是退化的结果**
+    return {
+      items: localHit(),
+      remote: false,
+      reason: e instanceof Error ? e.message : "没能连上服务器搜索",
+    };
+  }
+}
+
 export function getVideo(id: string): VideoItem | null {
   const hit = find(id);
   // 远端模式：列表接口不带 comments，进详情页时后台补一次（原地改同一个对象引用，

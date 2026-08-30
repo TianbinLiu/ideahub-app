@@ -166,7 +166,13 @@ export default function WorkshopShareBar({
           : `私有：只在你自己的库里。分享后会出现在创意工坊的「从市场添加」里，别人可以把${target}装走。`}
       </p>
       {/* 推荐语：只在"还没分享出去、且这次能分享"时露出来 —— 已经在广场上的那句要改，
-          去卡片详情页改（这里再放一个就是两个写入口互相覆盖）。 */}
+          去卡片详情页改（这里再放一个就是两个写入口互相覆盖）。
+          ⚠ **已知缺口（2026-08-30 复核查实，正解在服务端）**：如果这张卡是从广场**装来的**，
+            用户在这儿写的推荐语会进服务器与本机库，但广场那一行显示的是
+            `dedupeAuthoritative` 选出的**最早发布那份**（原作者的），所以这句话谁也看不到
+            —— 是一次静默空操作（它仍会影响搜索命中，因为广场查询的 $or 里含 description）。
+            不在客户端粉饰：正解是服务端**拒绝转发装来的卡**（调研 A3：`BranchCard` 加
+            `sourceCard`，publishCard 判它），那条是下一批的服务端工单。 */}
       {noteMax !== undefined && !published && !blocked && (
         <input
           value={shareNote}
@@ -178,7 +184,14 @@ export default function WorkshopShareBar({
       )}
       {note && <p className="mt-1 text-[11px] leading-relaxed text-amber-400/90">{note}</p>}
       {disabledReason && <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{disabledReason}</p>}
-      {err && <p className="mt-1 text-[11px] leading-relaxed text-rose-400">分享失败：{err}</p>}
+      {/* ★ 按方向说（复核抓到）：这颗键两个方向共用，而失败时写死"分享失败"正好落在
+          这批改动存在的那个场景上 —— 用户点的是「取消分享」，读到的却是"分享失败"，
+          会以为自己点错了、再点一次（而那一次同样会失败）。 */}
+      {err && (
+        <p className="mt-1 text-[11px] leading-relaxed text-rose-400">
+          {published ? "取消分享失败" : "分享失败"}：{err}
+        </p>
+      )}
     </div>
   );
 }

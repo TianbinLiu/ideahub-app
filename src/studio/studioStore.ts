@@ -1,10 +1,10 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
 import { BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
-import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, npcChat, npcChatOffline, prepareMaterialRefs, refineFrame, searchMarket } from "../ai";
+import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, npcChat, npcChatOffline, prepareMaterialRefs, refineFrame } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, spendTokens, walletOf, type AddCardsResult } from "../data/account";
+import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalRedrawCost, proposalsCost, styleWants3d } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeVideo, tplOfNode, useFlow } from "./flowStore";
@@ -856,15 +856,19 @@ export const useStudio = create<StudioState>()((set, get) => ({
       camera: { kind: "default" },
     }));
     // ★「下面」是假的：MarketTopBar 钉在 top-12，搜索框在**上面**
+    // ★★ 这句话曾经是**假的**（2026-08-30 修）：这张桌子读的是 `ai.searchMarket`，
+    //   而它 2026-08-24 起硬写成 `async () => []` —— 铸卡师照常演"抽出一叠卡摊在桌上"，
+    //   桌上永远一张都没有。现在真接到服务端广场（data/account.plazaCards，与创意工坊
+    //   那一格同一个来源、同一份映射），演出与事实对上了。
     get().npcSay("（抽出一叠卡摊在桌上）社区里最近热的。要找特定的，上面那条写词。", "act");
-    const items = await searchMarket("");
+    const items = await plazaCards("");
     if (seq !== marketSeq) return; // 期间发起过新检索，丢弃本次结果
     set((s) => ({ market: { ...s.market, items, loading: false } }));
   },
   marketSearch: async (q) => {
     const seq = ++marketSeq;
     set((s) => ({ market: { ...s.market, loading: true, query: q, page: 0 } })); // 换了词就回第一页
-    const items = await searchMarket(q);
+    const items = await plazaCards(q);
     if (seq !== marketSeq) return; // 过期响应
     set((s) => ({ market: { ...s.market, items, loading: false } }));
     // 0 张时不能说"翻出了 0 张，都给你摊开了"——自相矛盾

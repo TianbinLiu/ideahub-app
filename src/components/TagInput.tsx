@@ -71,7 +71,12 @@ export default function TagInput({
             // ★ 失焦也收：手机上填完直接去点「发布」的人不会先按回车，
             //   不收的话他打的那条标签会凭空消失（而且他多半不会发现）
             onBlur={() => add(draft)}
-            maxLength={maxLen}
+            // ★ **不设 maxLength={maxLen}**（复核抓到）：那会把整条草稿截到单个标签的长度，
+            //   于是上面 add() 里"一口气粘一串"的处理**永远走不到** —— 粘 "#雨夜 #赛博朋克"
+            //   会被浏览器当场截成 10 个字符，尾巴静默丢掉。长度是**每条标签**的上限，
+            //   由 split()（types.parseTags）逐条切，不是草稿框的上限。
+            //   这里给一个只防"粘进一整篇文章"的宽上限。
+            maxLength={maxLen * max * 2}
             placeholder={tags.length === 0 ? "加个话题，让人搜得到（回车分隔）" : "再加一个"}
             className="min-w-[9rem] flex-1 rounded-xl border border-slate-700 bg-panel px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
           />

@@ -22,7 +22,7 @@ import {
   myDecks,
   removeCard,
   shareDeck,
-  toLocalCard,
+  sharedToCard,
   updateDeck,
 } from "../data/account";
 import type { ApiSharedCard, ApiSharedDeck } from "../api/branch";
@@ -44,7 +44,10 @@ import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType } from "../types";
  */
 function usePlaza<T>(enabled: boolean, load: () => Promise<T[]>, deps: unknown[]) {
   const [items, setItems] = useState<T[]>([]);
-  const [loading, setLoading] = useState(false);
+  // ★ 初值跟着 enabled 走（复核抓到）：给 false 的话，enabled 为真的**第一帧**会是
+  //   "不在加载、也没有数据" —— 空态当场闪一句「还没有人分享卡片」，而那会儿请求
+  //   连发都还没发出去。空结果与"还没问"必须分得开。
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -383,12 +386,9 @@ export default function WorkshopPage() {
                     {sharedCards.map((c) => {
                       const owned = ownedIds.has(c.cardId) || c.installed || c.isOwner;
                       // ★ 一次映射两处用（调两遍会每帧造两个不同引用的对象，白费 memo、
-                      //   也让路由 state 每次都变）。
-                      // ★ `published: true` 是**这一跳才知道的事实**，不是猜：广场列出来的
-                      //   每一张按定义都是已分享的，而服务端的 shared payload 不发这个字段。
-                      //   带上它，详情页那颗「＋ 添加到我的卡片」才知道该走 install 那条路
-                      //   （走错就是按快照落库：拿不到权威版本、也不计装机数）。
-                      const local: Card = { ...toLocalCard(c), published: true };
+                      //   也让路由 state 每次都变）。映射与 published 标记都在
+                      //   data/account.sharedToCard 一处（3D 桌面市场用的是同一份）。
+                      const local: Card = sharedToCard(c);
                       return (
                         <div key={c.cardId}>
                           <Link

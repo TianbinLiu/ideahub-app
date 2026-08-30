@@ -641,7 +641,12 @@ export default function CardDetailPage() {
           「只能分享自己库里的卡：先把它添加到我的卡片」指的正是这个不存在的动作（铁律八：
           说了出路就得有出路）。装法走 account.acquireCard 一处（广场卡走 install、
           快照卡走落库，判据只在那儿）。 */}
-      {!owned && (
+      {/* ⚠ 这一格的显示条件是 `!owned || getErr` 而**不是** `!owned`（复核抓到）：
+          快照卡那条路 `addCards` 会**先落本地**再同步，落完 `myCards()` 就有它了 ⇒
+          `owned` 当场翻真 ⇒ 这一整块卸载 ⇒ 刚 set 进去的那句「没同步到服务器」画在了
+          一个已经不存在的分支里 = 零提示，而卡此刻只在这台设备上、下次冷启动会被
+          `loadRemoteAssets` 整表覆盖掉。留着这一格，那句话才有落点（铁律八）。 */}
+      {(!owned || getErr) && (
         <div className="mb-2">
           <button
             onClick={() => {
@@ -655,9 +660,11 @@ export default function CardDetailPage() {
                 .finally(() => setGetting(false));
             }}
             disabled={getting}
-            className="block w-full rounded-xl bg-brand/90 py-2.5 text-center text-sm font-bold text-ink disabled:opacity-50"
+            className={`block w-full rounded-xl py-2.5 text-center text-sm font-bold disabled:opacity-50 ${
+              owned ? "bg-panel text-slate-300 ring-1 ring-slate-700" : "bg-brand/90 text-ink"
+            }`}
           >
-            {getting ? "添加中…" : getErr ? "再试一次" : "＋ 添加到我的卡片"}
+            {getting ? "添加中…" : getErr ? "再同步一次" : "＋ 添加到我的卡片"}
           </button>
           {getErr && <p className="mt-1 text-[11px] leading-relaxed text-rose-400">{getErr}</p>}
         </div>

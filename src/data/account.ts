@@ -1175,10 +1175,10 @@ export async function shareCard(cardId: string, on: boolean, note?: string): Pro
 }
 
 /**
- * 逛卡片广场：别人分享出来的卡。
- * ★ 离线模式返回本地市场种子（mock/ai 的 MARKET_DEFS 由 searchMarket 提供），
- *   这里直接返回空数组即可 —— 工坊页的「卡片」来源本来就走 searchMarket，
- *   这条只服务于「别人真的分享出来的卡」。
+ * 逛卡片广场：别人分享出来的卡。**这是"从市场添加"的唯一来源**。
+ * ★ 离线返回空数组：广场在服务器上，离线库里没有「别人」。调用方据此画整句空态
+ *   （原来这句注释写的是"离线走本地种子市场"，那条 2026-08-24 就随卡片系统 V2 下架了 ——
+ *   注释比代码活得久，读的人会以为离线还有卡可装）。
  * ★★ 失败**不吞**，抛给调用方：以前这里 catch 掉、emitApiError、返回 []，
  *   而全 app 没有任何地方监听 emitApiError（铁律八）—— 工坊页看到空数组就
  *   整块不渲染，用户面对的是"社区分享的卡怎么没了"，没有任何线索也没得重试。
@@ -1191,6 +1191,36 @@ const PLAZA_LIMIT = 50;
 export async function browseSharedCards(q = ""): Promise<branch.ApiSharedCard[]> {
   if (!remoteOn()) return [];
   return branch.listSharedCards(q, PLAZA_LIMIT);
+}
+
+/**
+ * 广场上的一条 → 本地 Card。**唯一一处**（工坊页网格与 3D 桌面市场共用）。
+ *
+ * ★ `published: true` 是**这一跳才知道的事实**，不是猜：广场列出来的每一张按定义都是
+ *   已分享的，而服务端的 shared payload 不发这个字段。带上它，`acquireCard` 才知道该走
+ *   install 那条路（走错就是按快照落库：拿不到权威版本、也不计装机数）。
+ * ★ 字段映射本身仍然只有 `toLocalCard` 一份（那份的 ★★ 记着"抄第二遍会漏 views"）。
+ */
+export function sharedToCard(c: branch.ApiSharedCard): Card {
+  return { ...toLocalCard(c), published: true };
+}
+
+/**
+ * 3D 桌面市场的取数。
+ *
+ * ★★ 这张桌子此前**恒空**：它读的是 `ai.searchMarket`，而那个 2026-08-24 起就硬写成了
+ *   `async () => []`（离线种子市场随卡片系统 V2 下架）。分享出去的卡落在**服务端广场**，
+ *   桌面根本不去取 —— 而铸卡师还在演「（抽出一叠卡摊在桌上）社区里最近热的」，
+ *   StudioPage 的空态更写着「分享后这里就会有」。演出、文案、事实三样对不上。
+ *   ⇒ 直接接到广场上（与工坊页那一格同一个来源、同一份映射）。
+ * ★ 离线返回空数组：广场在服务器上，离线库里没有「别人」。调用方据此画空态。
+ */
+export async function plazaCards(q = ""): Promise<Card[]> {
+  const list = await browseSharedCards(q).catch((e) => {
+    emitApiError("plazaCards", e);
+    return [] as branch.ApiSharedCard[];
+  });
+  return list.map(sharedToCard);
 }
 
 /** 把别人分享的一张卡装进我的库（服务端按 { owner, cardId } 幂等） */
@@ -1225,6 +1255,10 @@ export async function installSharedCard(cardId: string): Promise<Card | null> {
 export type AcquireResult = { ok: true } | { ok: false; why: string };
 
 export async function acquireCard(card: Card): Promise<AcquireResult> {
+  // ★ 判"没登录"只认 authState()（CLAUDE.md 那条坑）：`!currentUser()` 在冷启动水合期
+  //   对**登录着的**用户也是真，那会儿点添加会被告知"还没登录"。
+  const st = authState();
+  if (st === "pending") return { ok: false, why: "正在确认登录状态，稍等一下再点。" };
   const u = currentUser();
   if (!u || !db) return { ok: false, why: "还没登录，装不了。" };
   if (db.cards.some((c) => c.ownerId === u.id && c.id === card.id)) return { ok: true };
@@ -1242,9 +1276,19 @@ export async function acquireCard(card: Card): Promise<AcquireResult> {
   }
 
   // ② 快照卡（作品卡组/模板带来的）：服务端不认这个 cardId，只能按快照落库
+  // ★ 配了服务器却这次没连上：**先说清楚**再落。远端模式下 persist() 不写 IndexedDB，
+  //   卡只活在内存，下次冷启动 loadRemoteAssets 拿服务端那份整表覆盖 —— 静默消失。
+  //   这里不拦着不让装（本次会话里它确实能用），但那句话必须说出去。
   const r = await addCards([card]);
   if (r.added.length === 0) return { ok: false, why: "没能存进你的卡片库：登录态可能已经失效。" };
-  if (!r.synced) return { ok: false, why: `${r.reason || "没能同步到服务器"}——卡在这台设备上有，但换台设备可能就没了。` };
+  if (!r.synced) return { ok: false, why: `${r.reason || "没能同步到服务器"}——卡在这台设备上有，但换台设备或重启后可能就没了。` };
+  // ⚠ **这里刻意不报 `r.lostViews`**（2026-08-30 复核逐段核过的反向结论，别再"补"上）：
+  //   lostViews 只在"POST 那一发发的是空 views、只能靠后续 PATCH 补"时才代表真丢了图，
+  //   而那种卡是**本机现铸、views 还是 dataURL** 的（VideoCardAnnotator / CustomCardPage /
+  //   studioStore 那三处报它是对的）。走到这一条的卡恰恰相反：快照卡的 views 一律是
+  //   服务端 `shareableViews` 过滤出来的 http(s) 地址，`api/branch` 建卡那一发就带上去了，
+  //   服务端 `$setOnInsert` 一并落库 ⇒ 后面那发 PATCH 是冗余补写，失败什么也带不走。
+  //   在这里报出来是**多报**：告诉用户去补一张其实好好挂着的图。
   return { ok: true };
 }
 
