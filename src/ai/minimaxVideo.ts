@@ -86,10 +86,37 @@ export async function minimaxVideo(o: {
 
   // 实测 768P/6s 约 40~90 秒出片；10 分钟死线（与方舟侧的轮询纪律同精神：不无限等）
   const deadline = Date.now() + 10 * 60_000;
+  // ★★ 单次查询抖动**不放弃整发**（2026-08-31 补，照 arkClient 的同一条纪律）：
+  //   原来这一行是裸的 `await jsonOf(fetch(...))`，`jsonOf` 对任何非 2xx / 非 JSON
+  //   当场抛 —— 手机在 5G/WiFi 之间切一下、或代理吃到一次上游 504，整发就被判死。
+  //   而**钱在提交那一刻就已经扣掉且不退**，任务在 MiniMax 那边照跑照出片。
+  //   连查五次才放弃，与方舟侧同一个数。
+  let pollFails = 0;
   for (;;) {
-    if (Date.now() > deadline) throw new Error("真人档出片超时（10 分钟没出结果）——稍后在流水线上重试这一段");
+    if (Date.now() > deadline) {
+      // ★ 不说「重试这一段」：在这条路上「重试」= 重新下一单 = 再扣一次整档的钱
+      //   （真人档按发计价）。而这一发多半还在上游跑。真人档暂时没有「取回」
+      //   （凭据只认方舟任务号，见 segmentGen 那段 ★★），所以只能如实说清楚。
+      throw new Error(
+        `真人档出片超时（10 分钟没出结果，任务号 ${taskId}）——这一发的钱在提交那一刻就已经花掉了，` +
+          "任务多半还在上游跑。「重新生成」是重新下一单、会再花一次钱，先等几分钟再决定。",
+      );
+    }
     await new Promise((r) => setTimeout(r, 8000));
-    const st = await jsonOf(await fetch(`${BASE}/video/${encodeURIComponent(taskId)}`, { headers: authHeaders() }), "查询");
+    let st: Record<string, unknown>;
+    try {
+      st = await jsonOf(await fetch(`${BASE}/video/${encodeURIComponent(taskId)}`, { headers: authHeaders() }), "查询");
+      pollFails = 0;
+    } catch (e) {
+      if (++pollFails >= 5) {
+        throw new Error(
+          `盯不住这一发的进度了（${e instanceof Error ? e.message.slice(0, 60) : "查询失败"}，任务号 ${taskId}）——` +
+            "任务还在上游跑，不是失败：钱在提交那一刻就已经花掉了。「重新生成」会再花一次钱。",
+        );
+      }
+      prog(`真人档生成中…（查询失败 ${pollFails}/5，重试中）`);
+      continue;
+    }
     const status = String(st.status ?? "");
     prog(`真人档生成中…（${status || "排队"}）`);
     if (status === "Fail") {

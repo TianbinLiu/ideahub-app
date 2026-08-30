@@ -19,6 +19,7 @@ import { captureFirstLast } from "../../utils/videoFrames";
 import SegPlayer from "../../components/flow/SegPlayer";
 import FuseFrameSheet, { fuseSourcesOf } from "./FuseFrameSheet";
 import CustomFrameSlots from "../../components/flow/CustomFrameSlots";
+import { SegmentRecoverList } from "../../components/flow/SegmentRecoverCards";
 import Icon from "../../components/Icon";
 import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType, Proposal, VIDEO_ASPECTS, aspectCss, aspectOf } from "../../types";
 import {
@@ -1365,6 +1366,11 @@ function PickedActions({
       {(mine || node.status === "generating") && (
         <GenTrace steps={node.steps ?? []} running className="rounded-lg bg-black/25 px-2 py-1.5" />
       )}
+      {/* ★★ 待取回的那几发摆在主按钮正上方（2026-08-31 补，与画布同一份组件）：
+          工坊经 genNode 出片，同样会走到「没接到结果」那一支、同样会落凭据，
+          而在这之前这一面根本不渲染取回入口 —— 唯一可点的是「⚡ 生成本段视频」＝
+          再花一次钱。理由与实现见 components/flow/SegmentRecoverCards 的 ★★。 */}
+      <SegmentRecoverList />
       <div className="flex gap-1.5">
         {notDerived ? (
           /* 还没推演三套：这一格的主按钮是「生成三套方案」（报价与真扣同一处 proposalsCost） */

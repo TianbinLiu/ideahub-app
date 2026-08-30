@@ -31,14 +31,23 @@ export default function SettingsProfilePage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   /** 头像换失败的原因（AvatarPicker 的 onError）。失败必须看得见，铁律八 */
   const [avatarErr, setAvatarErr] = useState("");
+  /** 昵称/简介没能同步到服务器的原因。★ 与 avatarErr 分开：两个动作在两块 UI 上 */
+  const [profileErr, setProfileErr] = useState("");
   const timer = useRef<number | undefined>(undefined);
   useAutoGuide("setprofile", !!user);
 
   // 路由已套 RequireAuth；这里只为 TS 收窄（render 里 navigate 会被 React 丢弃，别改回来）
   if (!user) return null;
 
-  function save() {
-    updateProfile({ name: name.trim().slice(0, NAME_MAX) || user!.name, bio: bio.slice(0, BIO_MAX) });
+  // ★ 等回包再说「已保存」（见 account.updateProfile 的 ★★）：远端模式下本机不落盘，
+  //   那一发 PUT 就是唯一的真相，即发即忘等于对用户说了一句没有依据的话
+  async function save() {
+    setProfileErr("");
+    const why = await updateProfile({ name: name.trim().slice(0, NAME_MAX) || user!.name, bio: bio.slice(0, BIO_MAX) });
+    if (why) {
+      setProfileErr(why);
+      return;
+    }
     setSaved(true);
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => setSaved(false), 1500);
@@ -75,7 +84,8 @@ export default function SettingsProfilePage() {
             {AVATARS.map((a) => (
               <button
                 key={a}
-                onClick={() => updateProfile({ avatar: a })}
+                // ★ emoji 头像走的是同一条路，同样要接住失败（不然又是"点了变了、重启变回来"）
+                onClick={() => void updateProfile({ avatar: a }).then((why) => setAvatarErr(why ?? ""))}
                 className={`flex aspect-square items-center justify-center rounded-xl text-2xl transition ${
                   user.avatar === a ? "bg-brand/25 ring-2 ring-brand" : "bg-panel"
                 }`}
@@ -104,7 +114,13 @@ export default function SettingsProfilePage() {
           rows={3}
           className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-brand"
         />
-        <button onClick={save} className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
+        {/* ★ 失败那句话摆在**按钮这一侧**：用户按的是这颗键，报在别处等于没报（铁律八） */}
+        {profileErr && (
+          <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">
+            {profileErr}
+          </p>
+        )}
+        <button onClick={() => void save()} className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
           {saved ? "已保存 ✓" : "保存资料"}
         </button>
       </section>

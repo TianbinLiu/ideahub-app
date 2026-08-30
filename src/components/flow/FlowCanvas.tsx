@@ -22,6 +22,7 @@ import AnnStrip from "./AnnStrip";
 import DraftTitle from "../DraftTitle";
 import CameraChips from "./CameraChips";
 import DeleteSegBtn from "./DeleteSegBtn";
+import { SegmentRecoverList } from "./SegmentRecoverCards";
 import SegSettings from "./SegSettings";
 import SegPlayer from "./SegPlayer";
 import RefFrameSheet from "./RefFrameSheet";
@@ -1287,6 +1288,13 @@ function NodePanel({
           <GenTrace steps={node.steps ?? []} running={generating} />
         </div>
       )}
+
+      {/* ★★ 待取回的那几发**摆在主按钮正上方**（2026-08-31 补）：这块 UI 要挡住的正是
+          "屏幕上唯一可点的是「♻ 重新生成」"那一拍。在这之前它只长在 FlowPage 的
+          simple 闸里 —— 画布这一面一个像素都看不到，而 genNode 的 pending 提示
+          （画布自己读 s.err，看得见）还写着「用下面的「取回」领回来」，指向一个
+          不存在的出口，24 小时后那笔钱彻底沉没。组件是三宿主共用的那一份。 */}
+      <SegmentRecoverList />
 
       {/* 行动区。报价与扣费同一把尺（nodeCost/genNode、proposalsCost/deriveProposals） */}
       {(tplMode || flatTier || custom) && !locked && (

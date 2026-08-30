@@ -13,7 +13,7 @@
 //   工坊模式 → startFlow() 把活动路径整卡搬进来（含全部走向、素材卡、档位，且每段都已出片）
 //   工作流模式 → seedSolo("workflow")，方案台是主路径
 //   简约模式 → seedSolo("simple")，单节点单走向、不推演方案、**不存草稿**，UI 收到最简
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import AnnStrip from "../components/flow/AnnStrip";
 import InfoTip from "../components/InfoTip";
@@ -35,15 +35,9 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
 import { balanceNote } from "../data/account";
 import { markNoun, markSpecOf, myTemplates, splitCastRoles, templateGroupOf } from "../data/templates";
-import {
-  dismissVideoJob,
-  pendingVideoJobs,
-  subscribeVideoJobs,
-  videoJobExpired,
-  videoJobNote,
-  videoJobsVersion,
-  type VideoJob,
-} from "../data/videoJobs";
+// ★ 取回那一整块 2026-08-31 搬去 components/flow/SegmentRecoverCards（三个宿主共用，
+//   理由见那边的 ★★：它原来只长在这一页的 simple 闸里，画布与工坊一个像素都看不到）
+import { SegmentRecoverList } from "../components/flow/SegmentRecoverCards";
 import { clampDuration, fmtTokens, proposalsCost, tierOf } from "../data/economy";
 import {
   FlowNode,
@@ -266,98 +260,6 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
   );
 }
 
-/** 待取回凭据的变动订阅（凭据落在 localStorage，见 data/videoJobs） */
-function useVideoJobs(): number {
-  return useSyncExternalStore(subscribeVideoJobs, videoJobsVersion, () => 0);
-}
-
-/**
- * ★★ **「取回这一段」—— 这一整块是本次改造的目的本身。**
- *
- * 出片是先扣钱后等的（受理即计费，受理之后失败不退，见 docs/api-contract.md「扣费」），
- * 而等待窗口最长 25.5 分钟。在这块 UI 之前，客户端没接到结果 = 节点被打成
- * `failed` = 屏幕上唯一可点的是「♻ 重新生成（N token）」，也就是**再花一次钱**——
- * 而那一发的成片往往在方舟那边好好地存在着（2026-08-18 实测：15s 模板方舟约 13 分钟
- * 出片，当时 App 10 分钟就放弃了，那 ¥27 的成片是事后用任务号从方舟侧捞回来的）。
- *
- * ★★ 文案的重点**不是"重试"，是"别重复付费"**：用户看不出「取回」和「重新生成」的区别，
- *   而这两者差的是一次真金白银。整句由 `videoJobNote` 一处生成（列表、失败回话共用）。
- * ★ 剩余时间要**真的在走**（每分钟重算）：一条永远停在"还剩 3 小时"的提示比不显示更坏。
- *   24 小时不是我们定的时限，是方舟产物的物理寿命。
- * ★ 过期的那条**不给取回键**（摆一颗点了必然失败的按钮 = 让用户以为还有救），
- *   改给一颗"知道了"——否则这条提醒永远关不掉，久了连还能救的那几发一起被当成噪音。
- * ★ 取回失败**绝不自动重试、也绝不补一句"再试试"**：这条路上"再试"和"再下一单"
- *   长得一模一样。原样显示 data/ai 层给的整句人话。
- */
-function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean }) {
-  const takeJob = useFlow((s) => s.takeJob);
-  const busy = useFlow((s) => s.busy);
-  const [working, setWorking] = useState("");
-  const [issue, setIssue] = useState("");
-  // videoJobNote 是纯函数，重渲即刷新剩余时间
-  const [, tick] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 60_000);
-    return () => clearInterval(t);
-  }, []);
-  const expired = videoJobExpired(job);
-
-  async function take() {
-    setIssue("");
-    setWorking("正在取回…");
-    try {
-      await takeJob(job, (st) => setWorking(st));
-    } catch (e) {
-      setIssue(e instanceof Error ? e.message : String(e));
-    } finally {
-      setWorking("");
-    }
-  }
-
-  return (
-    <div
-      className={`rounded-lg border px-2.5 py-2 ${
-        expired ? "border-slate-600/60 bg-black/25" : "border-amber-500/50 bg-amber-500/10"
-      }`}
-    >
-      <div className="text-[11px] font-bold text-amber-200">
-        {expired ? `第 ${job.seg} 段那一发已经取不回来了` : `第 ${job.seg} 段有一发成片还没取回`}
-      </div>
-      <div className="mt-0.5 truncate text-[10px] text-slate-400">{job.label}</div>
-      <p className={`mt-1 text-[10px] leading-relaxed ${expired ? "text-slate-400" : "text-amber-200/90"}`}>
-        {videoJobNote(job)}
-      </p>
-      {/* ★ 「这一发不是这条工作流的」要说出来，而且**不给按钮**：凭据跨草稿存活，
-          用户完全可能是在另一条工作流里看到它的。硬取会把成片挂到别人身上，
-          而凭据一销毁就真的没了。判据与 takeJob 里那道拦截同源（节点在不在本流里）。 */}
-      {!expired && !mine && (
-        <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-          这一发不是这条工作流炼的：回到当初炼它的那条工作流（草稿在「我的」页），这颗取回键才会亮。凭据还在，没有浪费。
-        </p>
-      )}
-      {issue && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{issue}</p>}
-      {expired ? (
-        <button
-          onClick={() => dismissVideoJob(job)}
-          className="mt-1.5 w-full rounded-lg border border-slate-600 py-1.5 text-[11px] text-slate-300"
-        >
-          知道了，不用再提醒我这一发
-        </button>
-      ) : (
-        <button
-          onClick={() => void take()}
-          disabled={!mine || !!working || busy}
-          className="mt-1.5 w-full rounded-lg bg-amber-500/90 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
-        >
-          {working ? "取回中…" : "📥 取回这一段的成片（不重新下单，不再花钱）"}
-        </button>
-      )}
-      {/* 进度摆在按钮下面而不是塞进按钮里：它是整句（"正在向方舟核对…"），塞进去会折行 */}
-      {working && <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{working}</p>}
-    </div>
-  );
-}
-
 /** 一屏一个节点：大屏幕（方案台/画面/成片）+ 本段要求 + 可调项 + 主按钮 */
 function NodeScreen({
   node,
@@ -471,15 +373,6 @@ function NodeScreen({
   const generating = node.status === "generating";
   /** 「没接到结果」——**不是失败**，成片多半还在方舟那边（见 FlowNode.status 的 ★★） */
   const pending = node.status === "pending";
-  // ── 待取回的那几发（凭据在 localStorage，跨进程回收存活）──
-  useVideoJobs();
-  const allNodes = useFlow((s) => s.nodes);
-  const jobs = pendingVideoJobs();
-  /** 这一发落得回来吗：它当初炼的那一段那一套走向，还在**这条**工作流里。
-   *  ★ 这只是**显示**的门（决定按钮亮不亮）；真正的拦截在 `flowStore.takeJob`
-   *    ——那边同样问一遍，理由是落错地方 = 成片挂到别人身上、凭据还被销毁。 */
-  const jobMine = (j: VideoJob) =>
-    allNodes.some((n) => n.id === j.nodeId && n.proposals.some((pp) => pp.id === j.proposalId));
   /** 主按钮这一下干什么：没方案台先推演，摊开着就重推，挑定了才真出片。
    *  **这是唯一的推进入口**——三套方案原来藏在「本段设置」抽屉的一枚小按钮后面，
    *  绝大多数用户没见过它，于是最贵的一步（出片）反而没有选择余地。 */
@@ -870,13 +763,7 @@ function NodeScreen({
             "屏幕上唯一可点的是「♻ 重新生成」"那一拍。列的是**本机所有**待取回的那几发，
             不只当前这一段 —— 每一条都是一笔已经花掉的钱，藏起来（哪怕只是藏到别的段里）
             就等于让它悄悄过期。 */}
-        {jobs.length > 0 && (
-          <div className="space-y-1.5">
-            {jobs.map((j) => (
-              <SegmentRecoverCard key={j.taskId} job={j} mine={jobMine(j)} />
-            ))}
-          </div>
-        )}
+        <SegmentRecoverList />
 
         <div className="flex items-center gap-1.5">
           <button

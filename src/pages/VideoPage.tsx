@@ -15,6 +15,7 @@ import {
   authorAvatarOf,
   fetchVideoById,
   getVideo,
+  isLiked,
   isMyAuthor,
   partsOf,
   profileHref,
@@ -146,7 +147,14 @@ export default function VideoPage() {
   // 回填是原地改同一个对象，不订阅就永远渲染不出来。
   const version = useVideosVersion();
   const video = useMemo(() => (id ? getVideo(id) : null), [id, version]);
-  const [liked, setLiked] = useState(false);
+  // ★★ 「我赞没赞过」的唯一真相是 `videos.isLiked`（2026-08-31 修）。恒从 false 起的
+  //   后果不是"图标画错了"：进已赞过的作品显示「🤍 11」（数字里含着自己那票），点一下
+  //   撞上 `videos.setLike` 里的幂等短路 —— 不发请求、数字纹丝不动，只有图标变红，
+  //   用户读到的是"点了没生效"；再点一下这一次 on=false 走通，**把自己的赞取消了**。
+  //   想取消赞的人则必须点两下。全程零报错。
+  // ⚠ 不能照抄 FeedPage 的 lazy 初值：这条路上挂载时 `video` 还是 null、远端模式下
+  //   `likedIds` 也要等 `loadDetail` 回包才填 —— 真正的同步点在下面那个回填 effect。
+  const [liked, setLiked] = useState(() => (id ? isLiked(id) : false));
   const [likes, setLikes] = useState(video?.likes ?? 0);
   const [plays, setPlays] = useState(video?.plays ?? 0);
   const [comments, setComments] = useState<VideoComment[]>(video?.comments ?? []);
@@ -179,6 +187,7 @@ export default function VideoPage() {
   // 本地已有的乐观值（刚点的赞、刚发的评论）取较大/较长的一边，别被回包覆盖掉。
   useEffect(() => {
     if (!video) return;
+    setLiked(isLiked(video.id)); // 回填晚于首帧：远端模式下 liked 由详情回包填进 likedIds
     setLikes((v) => Math.max(v, video.likes));
     setPlays((v) => Math.max(v, video.plays));
     setComments((cs) => (video.comments.length > cs.length ? video.comments : cs));

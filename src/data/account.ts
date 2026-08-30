@@ -383,17 +383,39 @@ export async function deactivateAccount(confirmUsername: string): Promise<void> 
   signOut();
 }
 
-export function updateProfile(patch: Partial<Pick<User, "name" | "avatar" | "bio">>): void {
+/**
+ * 改昵称 / 简介 / emoji 头像。**回执是整句人话**（null = 真存住了）。
+ *
+ * ★★ 2026-08-31 由 `void … .catch(emitApiError)` 改成 await + 回执。原来那个写法在
+ *   远端模式下是**纯粹的骗人**：`persist()` 在 `remoteOn()` 时一个字节都不写盘
+ *   （见它自己的 ★，那是有意的），所以那一发 PUT **就是唯一的真相**；而失败侧唯一的
+ *   动作是 `emitApiError` —— 全 app 没有任何地方监听 `api:error`。于是网络抖一下：
+ *   屏幕上「已保存 ✓」，`renameMyVideos` 还把新名字铺满作品列表，冷启动
+ *   `adoptUser` 整库重建后原样退回旧值，用户读到的是「App 把我的改动吞了」。
+ * ★ 失败要**把内存那份改回去**：留着新值的话，这一会话里到处显示新名字、
+ *   重启又变回旧的 —— "改了又变回来"比"这次没改成"难查得多（同 videos.updateVideoMeta）。
+ * ★ 同一页十几行之下的 `setAvatarImage` 早就是这个形态（await + 抛给 avatarErr）。
+ */
+export async function updateProfile(
+  patch: Partial<Pick<User, "name" | "avatar" | "bio">>,
+): Promise<string | null> {
   const u = currentUser();
-  if (!u || !db) return;
+  if (!u || !db) return "还没登录，改不了。";
+  const before: Partial<User> = { name: u.name, avatar: u.avatar, bio: u.bio };
   Object.assign(u, patch);
   persist();
   if (remoteOn()) {
-    // 本 app 的头像是 emoji（或 dataURL），服务端字段叫 avatarUrl，直接塞进去
-    void authApi
-      .updateProfile({ displayName: patch.name, bio: patch.bio, avatarUrl: patch.avatar })
-      .catch((e) => emitApiError("updateProfile", e));
+    try {
+      // 本 app 的头像是 emoji（或 dataURL），服务端字段叫 avatarUrl，直接塞进去
+      await authApi.updateProfile({ displayName: patch.name, bio: patch.bio, avatarUrl: patch.avatar });
+    } catch (e) {
+      Object.assign(u, before);
+      persist();
+      emitApiError("updateProfile", e);
+      return `没能同步到服务器（${e instanceof Error ? e.message.slice(0, 40) : "原因不明"}）——改动已撤回，联网后再试一次。`;
+    }
   }
+  return null;
 }
 
 /**
