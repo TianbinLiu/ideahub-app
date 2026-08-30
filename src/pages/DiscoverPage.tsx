@@ -10,6 +10,7 @@
 //   （未选中 = 道具收着、神情安静；选中 = 道具亮出来、表情张扬），
 //   与工作流页「生成本段」旁那颗素材按钮是同一套做法（见 components/SpriteToggle）。
 import { useEffect, useMemo, useRef, useState } from "react";
+import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -326,6 +327,14 @@ export default function DiscoverPage() {
               <span className="absolute bottom-1.5 right-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-slate-200">
                 {formatDuration(v.segments.reduce((s, x) => s + x.durationSec, 0))}
               </span>
+              {/* 「AI 生成」标识：这一格是"发布内容周边"的第四个面，而封面默认就是
+                  segments[0].firstFrame —— 一张**没过 drawAigcBadge** 的 AI 图，
+                  所以这里不是可有可无（见 components/AigcBadge 的 ★★）。放左下，避开右下的时长。 */}
+              {isAigcWork(v) && (
+                <span className="absolute bottom-1.5 left-1.5">
+                  <AigcBadge tone="overlay" />
+                </span>
+              )}
               {v.branchTree && (
                 <span className="absolute left-1.5 top-1.5 rounded bg-brand/85 px-1.5 py-0.5 text-[9px] font-semibold text-ink">
                   互动

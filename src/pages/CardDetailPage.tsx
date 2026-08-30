@@ -471,7 +471,11 @@ export default function CardDetailPage() {
     const mine = myCards().find((c) => c.id === id);
     if (mine) return mine;
     const passed = (loc.state as { card?: Card } | null)?.card;
-    return passed && passed.id === id ? passed : (passed ?? null);
+    // ★★ 这道 id 校验原来**形同虚设**：写的是 `passed && passed.id === id ? passed : (passed ?? null)`,
+    //   不匹配时 else 分支返回的还是 `passed`。于是 URL 指着 B 卡、路由 state 里躺着 A 卡时
+    //   （返回栈里翻回来、或从两个入口先后点进来），页面画的是 A，而同一个组件里的
+    //   `useCountView("card", id)` 把这次浏览记在 **B** 头上 —— 两件事都零报错。
+    return passed && passed.id === id ? passed : null;
   }, [id, loc.state, accountV]);
   // ★ 这一页也会渲染**别人的**卡（工坊市场点进来时卡是由路由 state 带过来的），
   //   所以分享条必须按"这张卡在不在我库里"开门，不能只看有没有登录。
