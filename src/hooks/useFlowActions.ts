@@ -15,6 +15,7 @@ import { AI_REAL } from "../ai";
 import { fmtTokens } from "../data/economy";
 import { nodeDone, useFlow } from "../studio/flowStore";
 import { deckQuoteOf, useStudio } from "../studio/studioStore";
+import { cutSession } from "../data/cutSession";
 
 export interface FlowActions {
   /** 存草稿按钮的四态（idle/saving/saved/failed） */
@@ -112,6 +113,21 @@ export function useFlowActions(opts?: {
   /** 全部满意 → 组稿（回写真帧 + 提炼卡组）→ 进剪辑页 */
   async function cut() {
     if (busy || finalizing) return;
+    // ★★ **先看有没有一条剪到一半的**（2026-08-30 发版前复核抓到）。
+    //   组稿会整表换掉合成稿并覆盖那个唯一的落盘键，而里面躺着的是**真钱**：
+    //   最多 8 张铸好的卡组（约 110k）+ 最多 2 个 3D 建模（各 160k）+ 可能已经实时
+    //   录制了几分钟的成片。这些派生卡在发布之前**只存在于那份稿子里**，账号卡库里
+    //   没有第二份。而同一份东西用户自己点「不要了」要两步确认、横幅上还写着
+    //   "丢掉就得重做一遍" —— App 替他丢的时候却一声不吭。
+    //   ⇒ 照本仓对「整表换掉 nodes」的成方办：**整句拒 + 给出路**，不静默覆盖。
+    //   （不做"再问一句"的弹层是因为这个 hook 有两个宿主页面，弹层要各接一遍；
+    //     而拒绝在这里只有一处实现，出路就在他刚看过的那条横幅上。）
+    if (cutSession()) {
+      useFlow.setState({
+        err: "你还有一条剪到一半的成片（里面的卡组已经铸好、花过 token 了）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。",
+      });
+      return;
+    }
     setFinalizing("组稿中…");
     try {
       // ★ mode 与 deckOff 同一拍从 store 现读：报价（deckQuoteOf）读的就是这两个 ——
@@ -123,10 +139,11 @@ export function useFlowActions(opts?: {
         //   **指针只在内存 draft 上**。下面马上要 reset() 流水线，此后这摊活的唯一副本
         //   就是那份内存 draft —— 切后台被系统回收就得从草稿箱重来一遍，**再收一次那笔钱**。
         //   存不住不挡人进剪辑页（那只会更糟），但必须说出来（铁律八）。
-        if (!(await useStudio.getState().persistCutDraft())) {
-          useFlow.setState({
-            err: "卡组已经铸好了，但这一稿没能存进本地库（存储空间不足或隐私模式）——现在切后台会丢掉它，请先把片子剪完发出去。",
-          });
+        // ★ 回执是**整句人话**（null = 存住了）。⚠ 别写成 `if (!(await …))` —— 那在
+        //   回执从 boolean 换成 string|null 之后会**整个反过来**：成功时报错、失败时沉默。
+        const why = await useStudio.getState().persistCutDraft();
+        if (why) {
+          useFlow.setState({ err: `卡组已经铸好了，但${why}——现在切后台会丢掉它，请先把片子剪完发出去。` });
         }
         opts?.onLeave?.();
         useFlow.getState().reset();

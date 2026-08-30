@@ -627,10 +627,13 @@ interface StudioState {
   finishPublish: (videoId: string) => void;
   /**
    * 把当前合成稿落盘。**唯一一处**（`draft` 的写路有五处，各写一遍 idbSet 必然分叉）。
-   * @returns false = 没存住（存储空间不足 / 隐私模式），调用方必须说出来（铁律八）——
+   * @returns `null` = 存住了；字符串 = **整句人话**的失败原因，调用方必须说出来（铁律八）——
    *   它的每一个调用点都恰好是"钱刚花出去"的那一拍。
+   *   ⚠ 回执从 boolean 换成了句子（2026-08-30）：`segEdit` 那条路**根本不落盘**，
+   *   而它原来 `return true` —— 调用方被告知"存住了"，实际一个字节都没写。
+   *   两种结局用同一个 `false` 也不行：存储写失败与"这条路不该落盘"要说的话完全不同。
    */
-  persistCutDraft: () => Promise<boolean>;
+  persistCutDraft: () => Promise<string | null>;
 
   // ── 在途工程草稿（data/drafts.ts）─────────────────────────
   // ⚠ 与上面的 `draft` 不是一回事：`draft` 是组稿产物（待发布的成片稿），
@@ -1995,12 +1998,18 @@ export const useStudio = create<StudioState>()((set, get) => ({
   publishedWorkId: null,
   persistCutDraft: async () => {
     const { draft, segEdit } = get();
-    if (!draft) return true; // 没稿子就没什么要存的，不算失败
-    // ★ segEdit 那条路整段跳过：那份 draft 是 flowStore 的**派生物**，真相在 nodes 上、
-    //   而那条路上 flow 没被 reset、草稿里也有。存它只会在恢复时得到一份没有活节点可
-    //   写回的孤稿（closeSegmentEdit 按 nodeId 找节点，找不到就静默什么都不写）。
-    if (segEdit) return true;
-    return saveCutSession(draft);
+    if (!draft) return null; // 没稿子就没什么要存的，不算失败
+    // ★★ segEdit 那条路**不落这个键**：那份 draft 是 flowStore 的派生物，真相在 nodes 上，
+    //   存它只会在恢复时得到一份没有活节点可写回的孤稿（closeSegmentEdit 按 nodeId 找节点，
+    //   找不到就静默什么都不写）。
+    //   ⚠ 但**不能因此谎报成功**（原来这里 return true）：这条路上同样会扣钱
+    //   （剪辑页的「按圈选重新生成」），而钱扣完之后结果只在内存里 —— 调用方被告知
+    //   "存住了"，于是一个字都不提醒。如实说清楚：这一档要靠**回到工作流保存**来兜住。
+    if (segEdit) {
+      return "这一段是从工作流里单独打开的，改动还只在内存里——回工作流把它保存进草稿，再切后台。";
+    }
+    const ok = await saveCutSession(draft);
+    return ok ? null : "没能存进本地库（存储空间不足或浏览器隐私模式）";
   },
 
   finishPublish: (videoId) => {

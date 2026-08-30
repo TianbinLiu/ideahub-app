@@ -21,6 +21,7 @@ import { type VideoItem, visibilityOf } from "../types";
 import Icon from "./Icon";
 import BrandIcon, { BRAND_CHIP } from "./BrandIcon";
 import { previewUrlOf } from "../utils/shareLink";
+import { isShareable } from "../data/videos";
 import { isNative } from "../utils/oauth";
 import { shareVideoToQQ } from "../utils/qqLogin";
 import { shareVideoToWeChat, wechatSupported } from "../utils/wechat";
@@ -51,6 +52,8 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const url = previewUrlOf(video.id);
+  /** 还没传上服务器：这时候的 id 是本机 id，发出去是一条永远打不开的死链（见 videos.isShareable 的 ★★） */
+  const notUploaded = !isShareable(video);
   /** 私密作品的链接别人打开是 404 —— 面板上先说清，别让用户发出去才发现。
    *  ★★ 判据必须走 `visibilityOf`（2026-08-30 三档之后）：直接写
    *    `visibility === "private"` 会把**凭链接可见**的作品也说成"别人打不开" ——
@@ -134,6 +137,7 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
           <BrandIcon name="qq" size={26} />
         </span>
       ),
+      disabled: notUploaded,
       onTap: () => void toQQ(),
     },
     {
@@ -144,6 +148,7 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
           <BrandIcon name="wechat" size={26} />
         </span>
       ),
+      disabled: notUploaded,
       onTap: () => void toWeChat(),
     },
     {
@@ -154,6 +159,8 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
           <Icon name="share" size={22} />
         </span>
       ),
+      // ★ 三个入口一起禁：只在上面写一句提示、按钮照样能点的话，用户还是会发出去一条死链
+      disabled: notUploaded,
       onTap: () => void copyLink(),
     },
   ];
@@ -171,6 +178,11 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
         style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
         <p className="text-sm font-semibold text-slate-100">分享这条作品</p>
+        {notUploaded && (
+          <p className="mt-1 text-xs text-amber-300">
+            这条还在上传中（或没连上服务器）——现在分享出去的链接别人打不开。等它传完再分享。
+          </p>
+        )}
         {isPrivate && (
           <p className="mt-1 text-xs text-amber-300">
             这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。
@@ -186,7 +198,15 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
 
         <div className="mt-4 flex items-start gap-7">
           {options.map((o) => (
-            <button key={o.key} onClick={o.onTap} className="flex w-16 flex-col items-center gap-1.5 active:scale-95" aria-label={o.label}>
+            // ★★ `disabled` 以前**只改了字的颜色**，按钮照样点得动 —— 那不叫禁用，
+            //   叫"看着像禁用"。真按下去照样会发出一条打不开的链接（2026-08-30 修）。
+            <button
+              key={o.key}
+              onClick={o.onTap}
+              disabled={o.disabled}
+              className={`flex w-16 flex-col items-center gap-1.5 active:scale-95 ${o.disabled ? "opacity-40" : ""}`}
+              aria-label={o.label}
+            >
               {o.render}
               <span className={`text-[11px] ${o.disabled ? "text-slate-500" : "text-slate-300"}`}>{o.label}</span>
             </button>

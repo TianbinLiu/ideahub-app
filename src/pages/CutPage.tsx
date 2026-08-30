@@ -246,6 +246,21 @@ export default function CutPage() {
     }
   }
 
+  /**
+   * 停下来 —— **唯一一处**（三条路共用：暂停键 / 播到末尾 / 圈选前）。
+   *
+   * ★★ 抽它是因为漏了两条就出过事（2026-08-30 发版前复核抓到）：BGM 是 `loop = true` 的，
+   *   而"播到时间轴末尾"和"圈选前"两条只停了 `<video>`。于是视频停在末尾、音乐一直响，
+   *   而 `togglePlay` 判的是 `v.paused` —— 视频已经是暂停态，再按只会走**播放**分支，
+   *   暂停分支永远进不去：**音乐再也停不下来**，播放键还画着 ▶（界面说没在放，耳朵里在响）。
+   *   用户唯一的出路是把 BGM 整个删掉或退出这一页 —— 而这个功能本来是为了让他边听边调音量。
+   */
+  function stopPlayback() {
+    vref.current?.pause();
+    bgmRef.current?.pause();
+    setPlaying(false);
+  }
+
   function togglePlay() {
     const v = vref.current;
     if (!v) return;
@@ -263,9 +278,7 @@ export default function CutPage() {
       }
       setPlaying(true);
     } else {
-      v.pause();
-      bgmRef.current?.pause();
-      setPlaying(false);
+      stopPlayback();
     }
   }
 
@@ -373,8 +386,7 @@ export default function CutPage() {
     if (!active) return;
     const v = vref.current;
     if (activeSeg?.videoUrl && v && v.videoWidth) {
-      v.pause();
-      setPlaying(false);
+      stopPlayback(); // ★ 圈选前也要连 BGM 一起停（见 stopPlayback 的 ★★）
       // 标注底图要按本段画幅截：截成 16:9 再拿去图生图，改回来的设定帧也是 16:9，
       // 竖屏段就此被悄悄改横
       const shot = outSize(1280, portrait);
@@ -439,9 +451,9 @@ export default function CutPage() {
         useStudio.setState({ draft: { ...useStudio.getState().draft!, segments: nextSegs.slice() } });
         // ★ 钱刚扣过（segTokens + annRedrawCost）：这一段落盘，别让一次切后台把它烧掉。
         //   与 useFlowActions 那条「又炼出一段就自动存盘」是同一条规则、同一个理由。
-        if (!(await useStudio.getState().persistCutDraft())) {
-          setErr("这一段已经改好、钱也扣过了，但没能存进本地库——先别切后台，把片子剪完发出去。");
-        }
+        // ★ null = 存住了；有句子就原样说出去（segEdit 那条路说的是另一件事，见 store）
+        const why = await useStudio.getState().persistCutDraft();
+        if (why) setErr(`这一段已经改好、钱也扣过了，但${why}`);
         setAnns((prev) => prev.filter((a) => a.segIndex !== segIndex));
         void resolveMediaUrl(url, { forCapture: true }).then((u) => u && setSrcMap((m) => ({ ...m, [segIndex]: u })));
       }
@@ -658,7 +670,10 @@ export default function CutPage() {
       // ★★ 这一拍把 `idb:merged:` 指针钉到盘上 —— 在此之前那条几十 MB 的成片
       //   **只被内存里的 store 引用着**，磁盘上找不到任何指针（cacheSweep 文件头记的
       //   正是这个洞，它靠 24h 时间闸门兜着）。实时录制几分钟的成果，不能只活在内存里。
-      await useStudio.getState().persistCutDraft();
+      // ★ 合并那一拍的回执也要判（模块契约就是这么写的）：这时候刚录完几分钟的成片，
+      //   指针只在内存里 —— 存不住而不吭声，正是最贵的那种静默失败
+      const cutWhy = await useStudio.getState().persistCutDraft();
+      if (cutWhy) setErr(`成片已经合好了，但${cutWhy}`);
       navigate("/publish");
     } catch (e) {
       setErr(`合并失败：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}`);
@@ -781,8 +796,9 @@ export default function CutPage() {
                       pendingSeek.current = view[activeIdx + 1].start;
                       setActiveIdx(activeIdx + 1);
                     } else {
-                      v.pause();
-                      setPlaying(false);
+                      // ★ 播到时间轴末尾：**连 BGM 一起停**。只停 video 的话音乐会一直循环，
+                      //   而 togglePlay 判的是 v.paused（已经是暂停态）—— 再也停不下来
+                      stopPlayback();
                     }
                   }
                 }}
