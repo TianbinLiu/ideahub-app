@@ -83,6 +83,22 @@ export default function CutPage() {
   const [busy, setBusy] = useState("");
   /** 合并的防重入闸。★ 用 ref 不用 busy：setBusy 异步生效，挡不住同一帧内的第二次点击 */
   const mergingRef = useRef(false);
+  /**
+   * 合并进度（秒）。★★ 原来只显示「合并中 · 片段 i/N」——而合并是**实时录屏**：
+   *   成片多长就录多长，一条 30 秒的片子要等 30 秒，屏幕上那个 i/N 十几秒才跳一次，
+   *   用户完全不知道还要多久、也不知道它是不是卡死了。
+   */
+  const [mergeDone, setMergeDone] = useState(0);
+  /** 用户点了取消。★ 用 ref：录制循环在 rAF 里跑，读 state 拿到的是闭包里的旧值 */
+  const cancelRef = useRef(false);
+  /**
+   * 合并期间页面被切走过。
+   * ★★ 这不是"可能有影响"，是**这一炉基本就废了**：页面不可见时 `<video>` 不解码、
+   *   rAF 被节流到约 1 帧/500ms（CLAUDE.md 那格坑量过）。录出来的会是一段卡住的画面，
+   *   而且**不报错** —— 用户拿到一条几十秒的坏片，还以为是生成质量的问题。
+   */
+  const wentHiddenRef = useRef(false);
+  const [hiddenWarn, setHiddenWarn] = useState(false);
   const [err, setErr] = useState("");
   const dragClip = useRef<string | null>(null);
 
@@ -402,7 +418,21 @@ export default function CutPage() {
     //   它自己那条录得更烂的（2026-08-21 对抗评审确认）。
     if (busy || mergingRef.current) return;
     mergingRef.current = true;
+    cancelRef.current = false;
+    wentHiddenRef.current = false;
+    setHiddenWarn(false);
+    setMergeDone(0);
     setErr("");
+    // ★★ 合并期间页面被切走 = 这一炉基本就废了（不可见时 `<video>` 不解码、rAF 被节流到
+    //   约 1 帧/500ms），而且**不报错**。记下来，结束时如实说一句 —— 不说的话用户拿到
+    //   一条卡住的坏片，只会以为是生成质量的问题。
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") {
+        wentHiddenRef.current = true;
+        setHiddenWarn(true);
+      }
+    };
+    document.addEventListener("visibilitychange", onHidden);
     let audioCtx: AudioContext | null = null;
     try {
       // ★ 老草稿自救：还是方舟直链的段先转存成永久地址（服务端拉，全球 CDN）。
@@ -484,6 +514,8 @@ export default function CutPage() {
       for (let i = 0; i < view.length; i++) {
         const clip = view[i];
         const seg = mergeSegs[clip.segIndex];
+        const doneBefore = view.slice(0, i).reduce((sum, x) => sum + clipDur(x), 0);
+        setMergeDone(doneBefore);
         setBusy(`合并中 · 片段 ${i + 1}/${view.length}`);
         if (seg.videoUrl) {
           const src = srcMap[clip.segIndex] ?? (await resolveMediaUrl(seg.videoUrl, { forCapture: true }));
@@ -504,13 +536,15 @@ export default function CutPage() {
           await v.play();
           await new Promise<void>((resolve) => {
             const draw = () => {
-              if (v.ended || v.currentTime >= clip.end) {
+              // ★ 取消要在**循环里**判：rAF 跑着的时候没有别的地方能打断它
+              if (cancelRef.current || v.ended || v.currentTime >= clip.end) {
                 v.pause();
                 resolve();
                 return;
               }
               drawCover(ctx, v, canvas.width, canvas.height);
               drawAigcBadge(ctx, canvas.width, canvas.height);
+              setMergeDone(doneBefore + Math.max(0, v.currentTime - clip.start));
               requestAnimationFrame(draw);
             };
             draw();
@@ -527,6 +561,11 @@ export default function CutPage() {
               drawCover(ctx, b, canvas.width, canvas.height);
               ctx.globalAlpha = 1;
               drawAigcBadge(ctx, canvas.width, canvas.height);
+              setMergeDone(doneBefore + (p * dur) / 1000);
+              if (cancelRef.current) {
+                resolve();
+                return;
+              }
               if (p >= 1) {
                 resolve();
                 return;
@@ -539,6 +578,17 @@ export default function CutPage() {
       }
       rec.stop();
       await stopped;
+      // ★ 取消：录到一半的这段不写库、不跳页。用户要的是"别录了"，不是"录个半截给我"
+      if (cancelRef.current) {
+        setBusy("");
+        setErr("已取消合并。片段、圈选和配乐都还在，随时可以重新开始。");
+        return;
+      }
+      // ★★ 切走过就**如实说**，别把一条卡住的坏片当成品交出去（铁律八）。
+      //   不拦着他继续（片子已经录出来了，也许还能用），但那句话必须说在前面。
+      if (wentHiddenRef.current) {
+        setErr("合并过程中 App 被切到后台过——那段时间画面不会更新，成片里多半有一截是卡住的。建议回来重新合并一次（不花 token）。");
+      }
       setBusy("写入本地库…");
       const blob = new Blob(chunks, { type: mime });
       const key = `merged:${uid("mv")}`;
@@ -569,6 +619,7 @@ export default function CutPage() {
     } finally {
       void audioCtx?.close().catch(() => {});
       setBusy("");
+      document.removeEventListener("visibilitychange", onHidden);
       mergingRef.current = false;
     }
   }
@@ -726,10 +777,45 @@ export default function CutPage() {
         />
 
         {busy && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/70">
-            <div className="flex flex-col items-center gap-3">
+          // ★ 合并时这一层**不能**是 pointer-events-none：取消键在里面
+          <div className={`absolute inset-0 flex items-center justify-center bg-black/70 ${mergingRef.current ? "" : "pointer-events-none"}`}>
+            <div className="flex w-full max-w-[16rem] flex-col items-center gap-3 px-6">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-600 border-t-brand" />
-              <span className="px-6 text-center text-xs text-slate-200">{busy}</span>
+              <span className="text-center text-xs text-slate-200">{busy}</span>
+              {/* ★★ 合并是**实时录屏**：成片多长就录多长。原来只有一句「片段 i/N」，
+                  十几秒才跳一次 —— 用户既不知道还要多久，也不知道是不是卡死了。
+                  这里给的是**真百分比**（已录秒数 / 成片总秒数）。 */}
+              {mergingRef.current && total > 0 && (
+                <>
+                  <div className="h-1 w-full overflow-hidden rounded-full bg-white/15">
+                    <div
+                      className="h-full rounded-full bg-brand transition-all duration-200"
+                      style={{ width: `${Math.min(100, Math.round((mergeDone / total) * 100))}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] tabular-nums text-slate-400">
+                    {Math.min(100, Math.round((mergeDone / total) * 100))}% · 还剩约{" "}
+                    {formatDuration(Math.max(0, total - mergeDone))}
+                  </span>
+                  {/* ★★ 这句要说在**前面**，不是事后：合并期间切走，画面不会更新
+                      （不可见时 `<video>` 不解码、rAF 被节流到约 1 帧/500ms），
+                      而且不报错 —— 用户会拿到一条有一截卡住的成片。 */}
+                  <p className={`text-center text-[10px] leading-relaxed ${hiddenWarn ? "text-rose-300" : "text-slate-500"}`}>
+                    {hiddenWarn
+                      ? "刚才切到后台了——那段时间的画面没录上，建议取消后重来"
+                      : "别切到别的应用：这一步是实时录屏，切走那几秒会录成卡住的画面"}
+                  </p>
+                  <button
+                    onClick={() => {
+                      cancelRef.current = true;
+                      setBusy("正在停止…");
+                    }}
+                    className="rounded-full border border-slate-500 px-4 py-1.5 text-[11px] text-slate-200"
+                  >
+                    取消合并
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
