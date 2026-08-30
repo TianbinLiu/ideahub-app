@@ -621,6 +621,21 @@ export async function updateCardViews(cardId: string, views: Card["views"]): Pro
   return pick<ApiCard>(res, ["card", "item", "data"]);
 }
 
+/**
+ * PATCH /api/branch/cards/:cardId —— 改名字 / 简介 / 关键词（仅卡主）。
+ *
+ * ★ 与 `updateCardViews` 是**同一个端点**、不同用途：服务端定向 $set，只动这次给的字段
+ *   （无条件写 views 会让"只改名字"顺手把参考图清空 —— 那边有用例钉着）。
+ * ★ 空对象服务端回 400（"至少给一个字段"），所以调用方别发空 patch。
+ */
+export async function updateCardMeta(
+  cardId: string,
+  patch: { name?: string; summary?: string; tags?: string[] },
+): Promise<ApiCard | null> {
+  const res = await apiPatch<Record<string, unknown>>(`/api/branch/cards/${encodeURIComponent(cardId)}`, patch);
+  return pick<ApiCard>(res, ["card", "item", "data"]);
+}
+
 /** DELETE /api/branch/cards/:cardId（requireAuth） */
 export async function removeCard(cardId: string): Promise<void> {
   await apiDelete(`/api/branch/cards/${encodeURIComponent(cardId)}`);

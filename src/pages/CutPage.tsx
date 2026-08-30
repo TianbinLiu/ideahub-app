@@ -868,7 +868,26 @@ export default function CutPage() {
       </div>
 
       {/* ── 底部工具面板 ── */}
-      <div className="safe-bottom flex max-h-[46%] flex-none flex-col border-t border-slate-800 bg-[#141821]">
+      {/* ★★ B18：选了 1080P 就**常驻**说明它不会更清晰（2026-08-30）。
+          我们的素材只有 720P，1080P 是放大出来的 —— 而这句话原来只写在下拉项里，
+          点完就看不见了。在最后一步给一个会误导的选项、又把唯一的说明藏起来，
+          等于让用户为一个更大的文件多等一倍时间还以为画质更好了。 */}
+      {res.id !== "720" && (
+        <div className="flex-none bg-amber-500/10 px-4 py-1 text-center text-[10px] leading-relaxed text-amber-200/90">
+          {res.label} 是由 720P 素材放大的 —— 文件更大、合并更久，但<b className="text-amber-100">不会</b>更清晰
+        </div>
+      )}
+
+      {/* ★ B20：面板高度随内容走，不再固定 46%。
+          固定值的代价是两头都不舒服：3 个片段时浪费近一半屏，而「圈选」这一页
+          恰恰是最需要大画面的（要看清要圈的东西）。
+          ⚠ 只改高度上限，不动"面板收起时 `<video>` 会不会进不可见状态"那条 ——
+            圈选取帧走的正是"等 seeked"那条路，画面真被隐藏就永远等不到。 */}
+      <div
+        className={`safe-bottom flex flex-none flex-col border-t border-slate-800 bg-[#141821] ${
+          tab === "mark" ? "max-h-[38%]" : "max-h-[52%]"
+        }`}
+      >
         <div data-guide="cut-tabs" className="flex flex-none items-center justify-center gap-7 px-4 pt-3">
           {TABS.map((t) => (
             <button

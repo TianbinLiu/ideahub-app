@@ -24,6 +24,7 @@ import {
 import { markNotificationRead } from "../data/notifications";
 import type { MentionPick } from "../utils/mention";
 import CommentDelete from "../components/CommentDelete";
+import ShareSheet from "../components/ShareSheet";
 import ReportButton from "../components/ReportButton";
 import MentionInput from "../components/MentionInput";
 import MentionText from "../components/MentionText";
@@ -171,6 +172,8 @@ export default function VideoPage() {
   const partPrice = video?.pricing?.mode === "paid" ? (video.pricing.partPrices[piSafe] ?? 0) : 0;
   const locked = !!video && partPrice > 0 && !isMyAuthor(video.author) && !hasPurchased(video.id, piSafe);
   const [payErr, setPayErr] = useState("");
+  /** 分享面板（与首页右侧栏那颗共用 ShareSheet 一份实现） */
+  const [shareOpen, setShareOpen] = useState(false);
 
   // 详情回填晚于首帧渲染：把服务端那份同步进来。
   // 本地已有的乐观值（刚点的赞、刚发的评论）取较大/较长的一边，别被回包覆盖掉。
@@ -328,7 +331,19 @@ export default function VideoPage() {
           <Link to="/" className="text-slate-400 hover:text-white">
             <Icon name="back" size={20} />
           </Link>
-          <span className="truncate text-sm text-slate-300">{video.title}</span>
+          <span className="min-w-0 flex-1 truncate text-sm text-slate-300">{video.title}</span>
+          {/* ★★ 分享入口（2026-08-30 补）。此前它**只长在首页右侧栏上** —— 而发布成功之后
+              是 `navigate("/video/:id", {replace:true})` 落到这一页，也就是说"刚发完片的人
+              没有任何办法把它给别人看"（App 里也没有地址栏）。QQ/微信那条链路 2026-08-29
+              就通了，缺的只是这一个门。面板复用 ShareSheet 一份（它自己会说清私密作品的
+              链接别人打不开）。 */}
+          <button
+            onClick={() => setShareOpen(true)}
+            aria-label="分享这条作品"
+            className="flex-none rounded-full bg-panel px-2.5 py-1.5 text-slate-300 ring-1 ring-slate-700"
+          >
+            <Icon name="share" size={16} />
+          </button>
           {/* ★ 这里原来对「合并发布的成片」（video.merged）单独走一条"不可修改"的分支，
               把作者挡在编辑页外面 —— 连改个标题、把作品设成仅自己可见都做不到。
               现在**所有**作品的成片都不可修改（发布即定稿），编辑页本身就只改壳，
@@ -336,7 +351,7 @@ export default function VideoPage() {
           {isMyAuthor(video.author) ? (
             <Link
               to={`/edit/${video.id}`}
-              className="ml-auto flex-none rounded-full bg-amber-500/15 px-3 py-1.5 text-xs text-amber-300"
+              className="flex-none rounded-full bg-amber-500/15 px-3 py-1.5 text-xs text-amber-300"
             >
               ✏️ 编辑
             </Link>
@@ -588,6 +603,7 @@ export default function VideoPage() {
           </div>
         </section>
       </main>
+      {shareOpen && <ShareSheet video={video} onClose={() => setShareOpen(false)} />}
     </div>
   );
 }

@@ -1211,7 +1211,7 @@ const ACTIONS: Array<{ id: ReportAction; label: string; why: string; danger?: bo
   //   下架必须是**作者自己翻不回来**的状态，否则这个按钮等于没有。
   { id: "takedown", label: "下架", why: "内容还在，但所有人都看不到；作者自己也改不回来" },
   { id: "dismiss", label: "驳回", why: "举报不成立，内容照旧" },
-  { id: "delete", label: "删除", why: "连内容一起删掉，**不可撤销**", danger: true },
+  { id: "delete", label: "删除", why: "连内容一起删掉，不可撤销", danger: true }, // ★ 别写 Markdown 星号：这条 why 是当纯文本渲染的，会原样显示成 **不可撤销**
 ];
 
 function ReportCard({
