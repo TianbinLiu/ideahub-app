@@ -43,7 +43,7 @@ import { idbSet } from "../data/db";
 // ★ 别名 schemeSlotPrompt：本文件下面已经有一个**铸卡**用的 slotPrompt(type,name,...)，
 //   两者管的是完全不同的两件事（那个拼铸卡提示词，这个拼方案图位提示词）。
 import { isGenerated, slotPrompt as schemeSlotPrompt, slotSize, type PromptScheme } from "../data/promptSchemes";
-import { minimaxVideo } from "./minimaxVideo";
+import { minimaxVideo, takeMinimaxTask } from "./minimaxVideo";
 import { refableViews } from "../data/cardViews";
 // 已授权的可信素材：整张卡改发 asset:// URI（判据与拼法各只有一处，见 data/cardAsset）
 import { assetOf, assetUri } from "../data/cardAsset";
@@ -2029,6 +2029,9 @@ export async function composeSegments(
           // 与报价同一把尺：clampDuration 对 flatCost 档吸附到 6/10 整档
           durationSec: clampDuration(sg.durationSec, sg.videoTier),
           onProgress: (st) => onProgress?.(i, segments.length, `${tier.label}档 · ${st}`),
+          // ★ 受理回调必须给：不给就没有凭据，"没接到结果"那一支等于不存在
+          //   （与方舟那条同一条约定，见 minimaxVideo 的 onTask）
+          onTask: (taskId) => onTask?.(taskId, i),
         });
         res.url = url2;
         try {
@@ -2108,7 +2111,24 @@ export async function composeSegments(
 export async function takeVideoTask(
   taskId: string,
   onProgress?: (status: string) => void,
+  provider?: "ark" | "minimax",
 ): Promise<{ url: string; lastFrame?: string }> {
+  // ★★ 按家分流（2026-08-31）。**分错家的后果不是"取不到"**：下面那条 404 分支会对着
+  //   一发在上游好好活着的真人档成片说「已经花掉的钱无法挽回」—— 一句权威的死刑判决，
+  //   而听到它的用户不会来报 bug，他会直接走。
+  // ★ 判**有值**（`=== "minimax"`）而不是判否定：老凭据没有 provider 这一位，
+  //   它们全是方舟的，缺省必须落回方舟那条路。
+  if (provider === "minimax") {
+    const { url } = await takeMinimaxTask(taskId, onProgress);
+    let lastFrame: string | undefined;
+    try {
+      onProgress?.("捕获本段真实尾帧…");
+      lastFrame = await captureVideoTail(url);
+    } catch {
+      // 与主路径同款兜底：尾帧捕获失败不拖垮取回本身（片子已经到手了）
+    }
+    return { url, ...(lastFrame ? { lastFrame } : {}) };
+  }
   onProgress?.("正在向方舟核对这一发的状态…（查询不花钱）");
   let st: ArkTaskState;
   try {

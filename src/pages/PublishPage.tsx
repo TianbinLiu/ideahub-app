@@ -34,6 +34,17 @@ export default function PublishPage() {
   // 可见性默认公开：发布这个动作本身的意思就是"给人看"。
   // 想先自己留着的人可以在这里改，发完在作品编辑页也随时能改回来。
   const [visibility, setVisibility] = useState<Visibility>("public");
+  /**
+   * 「随片带上这套卡组」。★ **默认开**，不是默认关。
+   *
+   * ★★ 这颗开关 2026-08-31 加，是为了给作者一条**退出**的路，不是把功能关掉：
+   *   新人最低成本的入口就是抄一套现成卡组接着改（「收入卡组」「做同款」都靠它），
+   *   默认关等于事实上永远关，广场的冷启动池会当场空掉。
+   *   但"我这条片子用了哪几张卡"确实是作者该有权决定的 —— 尤其是他用了自己家人
+   *   的照片做真人卡的时候（那种卡的形象图服务端已经对别人扣下了，见
+   *   types.Card.portraitWithheld，但连名字都不想给别人看的诉求同样成立）。
+   */
+  const [shareDeck, setShareDeck] = useState(true);
   const [err, setErr] = useState("");
   /** 发布途中的一句进度（存卡组要等网络，不说话就是"点了没反应"） */
   const [busy, setBusy] = useState("");
@@ -85,9 +96,10 @@ export default function PublishPage() {
       return;
     }
     // 本片卡组定名（合成时聚合了素材/派生卡，名字要等最终标题定下来）
-    const deck = draft.deck?.cards.length
-      ? { name: `《${title.trim()}》卡组`, cards: draft.deck.cards }
-      : undefined;
+    const deck =
+      shareDeck && draft.deck?.cards.length
+        ? { name: `《${title.trim()}》卡组`, cards: draft.deck.cards }
+        : undefined;
     const item = publishVideo({
       title: title.trim(),
       category,
@@ -258,6 +270,31 @@ export default function PublishPage() {
           <CoverSection cover={cover} onCover={setCover} segments={draft.segments} />
 
           <VisibilityPicker value={visibility} onChange={setVisibility} />
+
+          {/* 随片带卡组：只在这条片子真的有卡组时才摆（没有卡组时摆一颗恒灰的开关是噪声） */}
+          {!!draft.deck?.cards.length && (
+            <div>
+              <div className="mb-1.5 text-sm font-semibold text-slate-300">这套卡组</div>
+              <button
+                onClick={() => setShareDeck((v) => !v)}
+                className={`flex w-full items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-left ${
+                  shareDeck ? "border-brand/40 bg-brand/5" : "border-slate-700 bg-panel"
+                }`}
+              >
+                <span className={`mt-0.5 flex-none text-base ${shareDeck ? "text-brand" : "text-slate-500"}`}>
+                  {shareDeck ? "☑" : "☐"}
+                </span>
+                <span className="text-xs leading-relaxed text-slate-300">
+                  随片带上这 {draft.deck.cards.length} 张卡
+                  <span className="mt-0.5 block text-[11px] text-slate-500">
+                    {shareDeck
+                      ? "看到这条片子的人能看到卡面与设定，也能「收入卡组」接着创作——这是别人找到你的主要方式。声明过真实人物的卡，形象图不会给出去。"
+                      : "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。"}
+                  </span>
+                </span>
+              </button>
+            </div>
+          )}
 
           {/* ★★ 「付费解锁」这一档 2026-08-31 **下架**（主人拍板），别顺手加回来 ——
               先把结算做出来，再放开关。当时的事实（逐处核过）：

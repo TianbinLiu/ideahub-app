@@ -430,13 +430,11 @@ export async function generateSegment(
       ],
       (_d, _t, status) => prog(status),
     );
-    // ★★ 这一档**故意不走 settleSegment**：`pendingTaskId` 那条路通向「取回」，而
-    //   `takeVideoTask` 只认方舟任务号（data/videoJobs 的凭据里没有 provider 这一位）。
-    //   在这里抛 ArkTaskUnknown 只会摆出一颗按下去必然告诉用户"钱没了"的按钮 ——
-    //   比现在更坏。要给真人档也做取回，是三件连动的事：minimaxVideo 补 onTask、
-    //   VideoJob 记 provider、takeVideoTask 按 provider 分流。⚠ 别只做一半。
-    //   在那之前，这一档"没接到结果"只能如实说清楚（见 minimaxVideo 的死线文案）。
-    if (res?.error) throw new Error(res.error);
+    // ★ 三件连动已经做齐（2026-08-31）：minimaxVideo 补了 onTask、VideoJob 记 provider、
+    //   takeVideoTask 按 provider 分流 —— 所以这一档现在与其它支路走同一处结局函数。
+    //   ⚠ 那三件缺任何一件都不许走到这里：抛了 unknown 却没有分流，等于摆一颗
+    //   按下去必然告诉用户"钱没了"的按钮，比不抛更坏。
+    settleSegment(res);
     return { url: res?.url, firstFrame: firstSrc, lastFrame: res?.lastFrame || firstSrc };
   }
 

@@ -102,6 +102,14 @@ function VideoDeckSection({
           </Link>
         ))}
       </div>
+      {/* ★ 真人卡的形象图被扣下时要说清楚为什么，不然用户只会觉得"这张卡坏了"（铁律八）。
+          这句话面向**观众**，所以说的是"你拿不到"，不是"作者做错了什么"。 */}
+      {deck.cards.some((c) => c.portraitWithheld) && (
+        <p className="mt-2 rounded-xl border border-slate-600/60 bg-black/25 px-3 py-2 text-[11px] leading-relaxed text-slate-400">
+          这套卡里有声明过「真实人物」的卡，它的形象参考图只留给作者本人 —— 照片里的人授权的是作者用，不是所有人用。
+          你仍然收得下这张卡的设定（名字、简介、身份句），但出片时得自己给形象。
+        </p>
+      )}
       {addErr && (
         <p className="mt-2 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
           {addErr}

@@ -22,6 +22,7 @@ import { AI_REAL, ArkTaskUnknown, generateCover, generateProposals, prepareMater
 import { canAfford, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import {
   DEFAULT_TIER,
+  providerOf,
   VIDEO_TIERS,
   annRedrawCost,
   clampDuration,
@@ -2161,6 +2162,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
           taskId = id2;
           rememberVideoJob({
             taskId: id2,
+            // ★ 记下这一发是哪家出的：取回按它分流。分错家会让方舟那条 404 分支
+            //   对着一发还活着的真人档成片说「钱无法挽回」（见 VideoJob.provider 的 ★）
+            provider: providerOf(node.videoTier ?? DEFAULT_TIER) === "minimax" ? "minimax" : "ark",
             nodeId: id,
             proposalId: node.chosenId,
             seg: idx + 1,
@@ -2285,7 +2289,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
     set({ busy: true, err: "" });
     try {
-      const { url, lastFrame } = await takeVideoTask(job.taskId, prog);
+      const { url, lastFrame } = await takeVideoTask(job.taskId, prog, job.provider);
       // ★ 与 genNode 成功那一行**同一条规则**（"拿到结果才扣"）：接不到结果的那一发
       //   在本机账上没扣过，取回等于这一段终于成了。不扣的话"等超时再取回"就是白嫖，
       //   而一段视频只该扣一次钱。远端模式下这只是改本机镜像（真扣费在提交那一刻由
