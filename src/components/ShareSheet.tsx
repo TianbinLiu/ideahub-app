@@ -60,6 +60,19 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
    *    而那一档的全部意义就是"链接能打开"，说反了用户就不会去分享它。 */
   const isPrivate = visibilityOf(video) === "private";
   const isUnlisted = visibilityOf(video) === "unlisted";
+  /**
+   * 已被平台下架 —— 别人打开是 404。
+   *
+   * ★★ 2026-08-31 补。作者很可能不知道：首页刷到自己那条时封面在、点得开、能播，
+   *   与平常毫无区别（下架只对**别人**生效）。于是他照常分享，朋友收到一条死链，
+   *   而他这边零提示 —— 与 2026-08-30 刚修掉的「刚发布就分享发出死链」是同一类，
+   *   只是触发原因从"还没传上去"换成"已被下架"。
+   * ★ 判据走 `video.takedown` **有没有这个键**（与 data/videos 那条 ★ 同源）：
+   *   服务端没下架时压根不发它，别新写一个布尔。
+   */
+  const takenDown = !!video.takedown;
+  /** 三颗分享键一起禁：任何一条都会发出去一条别人打不开的链接 */
+  const cantShare = notUploaded || takenDown;
 
   async function toQQ() {
     if (busy) return;
@@ -137,7 +150,7 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
           <BrandIcon name="qq" size={26} />
         </span>
       ),
-      disabled: notUploaded,
+      disabled: cantShare,
       onTap: () => void toQQ(),
     },
     {
@@ -148,7 +161,7 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
           <BrandIcon name="wechat" size={26} />
         </span>
       ),
-      disabled: notUploaded,
+      disabled: cantShare,
       onTap: () => void toWeChat(),
     },
     {
@@ -160,7 +173,7 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
         </span>
       ),
       // ★ 三个入口一起禁：只在上面写一句提示、按钮照样能点的话，用户还是会发出去一条死链
-      disabled: notUploaded,
+      disabled: cantShare,
       onTap: () => void copyLink(),
     },
   ];
@@ -178,6 +191,12 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
         style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
         <p className="text-sm font-semibold text-slate-100">分享这条作品</p>
+        {takenDown && (
+          <p className="mt-1 text-xs text-amber-300">
+            这条已被平台下架，链接别人打不开，所以先不能分享。
+            {video.takedown?.reason ? `原因：${video.takedown.reason}` : ""}
+          </p>
+        )}
         {notUploaded && (
           <p className="mt-1 text-xs text-amber-300">
             这条还在上传中（或没连上服务器）——现在分享出去的链接别人打不开。等它传完再分享。

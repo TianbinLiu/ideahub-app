@@ -20,7 +20,7 @@
 //   拿它兜住这一类"正在用但还没落盘"的情况。
 import { idbDel, idbGet, idbKeys } from "./db";
 import { listDrafts, loadDraft } from "./drafts";
-import { listVideos, pendingPublishes } from "./videos";
+import { allPendingDraftsForSweep, listVideos } from "./videos";
 import { cutSession } from "./cutSession";
 import { myCards } from "./account";
 import type { VideoSegment } from "../types";
@@ -72,15 +72,23 @@ async function collectReferenced(): Promise<Set<string>> {
     });
   }
 
-  // 2) 待上传队列 —— 还没传上去的成果，里面的指针必须算数
-  for (const p of pendingPublishes()) {
-    const cover = pointerKey(p.draft.cover);
-    if (cover) refs.add(cover);
-    p.draft.segments?.forEach((s) => collectSegment(s, refs));
-    p.draft.deck?.cards?.forEach((c) => {
-      const k = pointerKey(c.cover);
-      if (k) refs.add(k);
-    });
+  // 2) 待上传队列 —— 还没传上去的成果，里面的指针必须算数。
+  //
+  // ★★ 读的是**原始全量**（allPendingDraftsForSweep 直接读盘），不是界面那份
+  //    `pendingPublishes()`：后者按 owner 与 inflight 过滤、且读的是只有 flushPending
+  //    跑过才有值的镜像 —— 用它会在两种正常情形下真删东西（冷启动没连上服务器、
+  //    换过账号），而队列项是那条付费成片在磁盘上**唯一**的指针。详见那个函数的 ★★。
+  // ★ 逐字段枚举改成**序列化后扫 `idb:` 指针**（与下面第 3、5 段同一种写法）：
+  //    原来那份漏了 `deck.cards[].modelUrl` 与 `branchTree` 里的段 —— 漏一个就删掉
+  //    一份还在用的东西，而这一段偏偏是最不能漏的。
+  try {
+    for (const draft of await allPendingDraftsForSweep()) {
+      for (const m of JSON.stringify(draft).matchAll(/"idb:([^"]+)"/g)) refs.add(m[1]);
+    }
+  } catch {
+    // 读不出来 = 引用收集不完整。★ 这时候**一个都不许删**（与第 3/5 段同一条纪律）：
+    //   宁可这次清不掉，也不能把还在用的东西删了。
+    refs.add("*");
   }
 
   // 3) 草稿正文（用户唯一的副本）。索引里只有缩略图，指针在正文里

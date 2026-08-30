@@ -2230,6 +2230,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   用户面前唯一可点的就是「♻ 重新生成」= 重新下一单，而那一发的成片其实
       //   在方舟那边好好地存在着（2026-08-18 那 ¥27 就是这么丢的）。
       if (e instanceof ArkTaskUnknown) {
+        // 这一发是哪家出的（判据与上面落凭据那处同源）
+        const flat = providerOf(node.videoTier ?? DEFAULT_TIER) === "minimax";
         // 凭据**留着**（这一支绝不 dropVideoJob）：它是取回入口能不能出现的唯一依据。
         // 日志那一行也不许写"失败"——步骤日志是用户回看这一段怎么回事的地方。
         log.fail(`没接到结果：${msg.slice(0, 80)}`);
@@ -2237,7 +2239,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
           status: "pending",
           progress: "",
           // 短句给段导航条上那颗角标；那笔钱的完整说明在取回卡上（videoJobNote 一处实现）
-          error: "没接到出片结果，任务可能还在方舟那边跑——用下面的「取回」领回来，别重新生成",
+          // ★ 说"哪家"要按 provider 说：真人档那一发在海螺（MiniMax）那边，
+          //   写死"方舟"会让用户拿着错的词去问客服
+          error: `没接到出片结果，任务可能还在${flat ? "上游" : "方舟"}那边跑——用下面的「取回」领回来，别重新生成`,
         });
         // ★ 可行动的那半句在**这里**接上，不在 arkClient 里：那一层不知道调用它的路上
         //   有没有取回入口。而走到这一支就一定落过凭据 —— ArkTaskUnknown 只在任务被
@@ -2250,7 +2254,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
           busy: false,
           err:
             `第 ${idx + 1} 段${msg.slice(0, 150)}` +
-            `成片 24 小时内都能取回：点下面那颗「取回」，不再花一分钱；「重新生成」是重新下一单、会再花一次。`,
+            // ★ 24 小时是**方舟产物**的物理事实；真人档那边我们没量过留存，不许编一个数
+            //   （同 videoJobNote 里那条 ★★）
+            (flat
+              ? "点下面那颗「取回」把它领回来，不再花一分钱；「重新生成」是重新下一单、会再花一次。"
+              : "成片 24 小时内都能取回：点下面那颗「取回」，不再花一分钱；「重新生成」是重新下一单、会再花一次。"),
         });
         return false;
       }

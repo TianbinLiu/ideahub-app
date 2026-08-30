@@ -15,7 +15,7 @@
 //   全部沿用 store 里那份（铁律六）。
 // ★ 简约恒单段、恒直出（不推演方案）：所以没有方案台、没有节点条、不存草稿
 //   （saveWorkDraft 自己会挡掉 simple，见 studioStore）。
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
 import SegSettings from "../components/flow/SegSettings";
@@ -32,6 +32,7 @@ import {
 } from "../data/templates";
 import { VideoTemplate, aspectCss } from "../types";
 import CustomFrameSlots from "../components/flow/CustomFrameSlots";
+import { useFlowActions } from "../hooks/useFlowActions";
 import FuseFrameSheet, { fuseSourcesOf } from "../studio/ui/FuseFrameSheet";
 
 type Step = "start" | "fill" | "go";
@@ -66,10 +67,29 @@ export default function SimpleModePage() {
   const generating = node?.status === "generating";
   const done = !!node && nodeDone(node);
 
-  /** 出片后直接去剪辑/发布：简约不留草稿，出完就该往外走 */
+  // ★★ 出片之后必须**组稿**再走，不能光 navigate("/cut")（2026-08-31 修）。
+  //   `navigate("/cut")` 只是换路由，而剪辑页读的是 `studioStore.draft` —— 这条路
+  //   从来没调过 finalizeFromFlow，draft 恒为 null ⇒ CutPage 挂载那一拍就
+  //   `navigate(publishedExit() ?? "/studio", { replace: true })`，把人 replace 进
+  //   3D 铸卡桌面。而简约模式**不进草稿库**（saveWorkDraft 挡掉 simple），
+  //   这条刚花钱炼出来的片子在 app 里没有第二份副本；按返回键回 /simple 又会被同一个
+  //   effect 再推去 /cut、再弹回 /studio，来回弹。钱花了、片没了、零报错。
+  //   ⇒ 走与工作流/工坊**同一份**组稿实现（铁律六）：cut() 负责
+  //   finalizeFromFlow → persistCutDraft → reset → navigate("/cut", {replace}) ，
+  //   连 cutSession 冲突拦截与落盘失败那句话的透传都在里面。
+  const fa = useFlowActions();
+  // ★★ **只许触发一次**：`fa.toCut` 每次渲染都是新函数（返回对象里现造的），放进依赖
+  //   会让这个 effect 每渲染一次就跑一遍；而 `cut()` 里那道 `if (busy || finalizing)`
+  //   挡不住并发的第一拍（setFinalizing 是异步的）—— 而组稿会**铸卡组、建 3D 模型**，
+  //   那是真扣 token 的。用 ref 而不是 state：ref 的写立刻生效，state 要等下一次渲染。
+  const cutFired = useRef(false);
+  const toCutRef = useRef(fa.toCut);
+  toCutRef.current = fa.toCut;
   useEffect(() => {
-    if (done && !generating) navigate("/cut");
-  }, [done, generating, navigate]);
+    if (!done || generating || cutFired.current) return;
+    cutFired.current = true;
+    toCutRef.current();
+  }, [done, generating]);
 
   if (!node) return null;
   const prop = chosenOf(node);

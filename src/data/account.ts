@@ -1405,6 +1405,18 @@ export function cardsReady(): boolean {
   return !remoteOn() || assetsHydrated;
 }
 
+/**
+ * 这一趟**没问到**卡片/卡组的原因（空串 = 问到了）。
+ *
+ * ★ 与 `cardsReady()` 是两个问题：那个答"装载完了吗"，这个答"装载的结果是不是真的"。
+ *   空状态文案要靠它分「没问到」与「问过是空的」—— 把前者说成后者，用户读到的是
+ *   「我付钱铸的卡全没了」（同 ProfilePage 的 worksKnown 那条）。
+ */
+export function cardsLoadIssue(): string {
+  return cardsIssue;
+}
+let cardsIssue = "";
+
 /** 按 id 回源的缓存：同一张卡别反复打接口（详情页会重渲染很多次） */
 const sharedCardCache = new Map<string, Card | null>();
 
@@ -2003,19 +2015,29 @@ function armOnlineRetry(): void {
 async function loadRemoteAssets(): Promise<void> {
   const u = currentUser();
   if (!u || !db) return;
+  // ★★ 拉挂了**不许把本地那份整表覆盖成空**（2026-08-31 修）。原来两条 catch 都
+  //   `return []`，于是一次弱网冷启动就等于：用户真花过 token 铸的卡在工坊里全没了、
+  //   个人页「卡片」页签空了，而 `assetsHydrated` 照样置真、`cardsReady()` 也返回 true，
+  //   错误只进 `emitApiError` —— 全 app 没有任何地方监听它。用户读到的是
+  //   「我付钱铸的卡全没了」，重启一次又全回来。作品那一侧同一屏就分了
+  //   「没问到 / 问过是空的」两句话（worksKnown），卡片这条路没有。
+  //   ⇒ 失败回 `null`（≠ 空数组），下面据此**跳过覆盖**并把原因留下来。
   const [cards, decks, following] = await Promise.all([
     branch.listCards().catch((e) => {
       emitApiError("listCards", e);
-      return [] as branch.ApiCard[];
+      cardsIssue = e instanceof Error ? e.message.slice(0, 60) : "没能取到你的卡片";
+      return null;
     }),
     branch.listDecks().catch((e) => {
       emitApiError("listDecks", e);
-      return [] as branch.ApiDeck[];
+      cardsIssue = cardsIssue || (e instanceof Error ? e.message.slice(0, 60) : "没能取到你的卡组");
+      return null;
     }),
     branch.listFollowing(u.id).catch(() => [] as branch.ApiAuthor[]),
   ]);
-  db.cards = cards.map((c) => ({ ...toLocalCard(c), ownerId: u.id, createdAt: toMs(c.createdAt) }));
-  db.decks = decks.map((d) => ({
+  if (cards) cardsIssue = "";
+  if (cards) db.cards = cards.map((c) => ({ ...toLocalCard(c), ownerId: u.id, createdAt: toMs(c.createdAt) }));
+  if (decks) db.decks = decks.map((d) => ({
     id: d._id,
     ownerId: u.id,
     name: d.name,

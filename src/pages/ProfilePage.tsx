@@ -43,6 +43,7 @@ import {
   dropPendingPublish,
   fetchAuthorWorks,
   fetchVideoById,
+  type VideoLookup,
   isMyAuthor,
   listVideos,
   pendingPublishes,
@@ -56,7 +57,7 @@ import {
 import { getUser, userDisplayName, type ApiUserProfile } from "../api/users";
 import { MAX_DRAFTS, type WorkDraftMeta } from "../data/drafts";
 import { useDrafts } from "../hooks/useDrafts";
-import {
+import { cardsLoadIssue,
   billingExempt,
   buyPlan,
   deckCoverOf,
@@ -309,32 +310,46 @@ export default function ProfilePage() {
    *   走列表会让"别人发链接给我、我收藏了"的那些在收藏页永远看不到，且零报错。
    *   （服务端两把尺故意不一致，见 readableFilter 的 ★★。）
    */
-  const [collectMap, setCollectMap] = useState<Record<string, VideoItem | null>>({});
+  //
+  // ★★ 结果**原样存四档**，不许压成"有 / 没有"（2026-08-31 当天补的教训）：
+  //   `fetchVideoById` 回的是 ok / missing / failed / offline 四种，压成 null 之后
+  //   "作者把它删了"与"我这会儿没网"就再也分不开 —— 弱网下打开收藏页，20 条全部超时，
+  //   屏幕上会同时出现两句都不成立的话：「有 20 条收藏打不开了：作者可能把它删了」
+  //   和「还没有收藏」。而服务端那 20 条好好活着。这正是本仓「编出来的空状态」那条铁律。
+  const [collectMap, setCollectMap] = useState<Record<string, VideoLookup>>({});
+  /** 手动重试用：网络回来之后依赖里没有任何值会变，不给这一颗就永远不重试 */
+  const [collectTry, setCollectTry] = useState(0);
   useEffect(() => {
     // ★ 用 `tab` 不是 `activeTab`：后者要到下面几百行才声明（TDZ）。
     //   两者只在 tab 是非法值时不同，那时也不会等于 "collects"。
     if (!self || tab !== "collects" || collectIds.length === 0) return;
     let alive = true;
     void Promise.all(
-      collectIds.map(async (id) => {
-        const r = await fetchVideoById(id);
-        return [id, r.status === "ok" ? r.video : null] as const;
-      }),
+      collectIds.map(async (id) => [id, await fetchVideoById(id)] as const),
     ).then((pairs) => {
       if (alive) setCollectMap(Object.fromEntries(pairs));
     });
     return () => {
       alive = false;
     };
-  }, [self, tab, collectIds]);
+  }, [self, tab, collectIds, collectTry]);
   const collects = useMemo(
     // 顺序跟着 collects 数组走（服务端给的是收藏时间倒序）；还没取到的先不画
-    () => collectIds.map((id) => collectMap[id]).filter((v): v is VideoItem => !!v),
+    () =>
+      collectIds
+        .map((id) => collectMap[id])
+        .filter((r): r is { status: "ok"; video: VideoItem } => r?.status === "ok")
+        .map((r) => r.video),
     [collectIds, collectMap],
   );
-  /** 取过一轮之后确实取不回来的那几条（作者删了 / 设成私密了）—— 要说出来，别静默消失 */
+  /** 服务端**明说没有**的那几条（作者删了 / 改成仅自己可见）—— 要说出来，别静默消失 */
   const collectGone = useMemo(
-    () => collectIds.filter((id) => id in collectMap && collectMap[id] === null).length,
+    () => collectIds.filter((id) => collectMap[id]?.status === "missing").length,
+    [collectIds, collectMap],
+  );
+  /** 这一趟**没问出结果**的那几条（没网 / 超时 / 5xx）。与上面一条说的是完全不同的两件事 */
+  const collectUnknown = useMemo(
+    () => collectIds.filter((id) => { const st = collectMap[id]?.status; return st === "failed" || st === "offline"; }).length,
     [collectIds, collectMap],
   );
   // 别人的「卡组」页签：他发布的作品里随片带的素材卡组（VideoDeck 挂在作品上，
@@ -946,7 +961,11 @@ export default function ProfilePage() {
               ))}
             </div>
           ) : (
-            <Empty text="还没有卡片" cta="去创意工坊" to="/workshop" />
+            <Empty
+              // ★ 同 WorkshopPage：分「没问到」与「问过是空的」两句话
+              text={cardsLoadIssue() ? "这会儿没能取到你的卡片——它们还在，联网后重开一次" : "还没有卡片"}
+              {...(cardsLoadIssue() ? {} : { cta: "去创意工坊", to: "/workshop" })}
+            />
           ))}
 
         {/* 卡组按"一叠牌"呈现（与 3D 工坊选卡组同一套视觉），不再是文件夹行。
@@ -984,9 +1003,26 @@ export default function ProfilePage() {
             有 {collectGone} 条收藏打不开了：作者可能把它删了，或者改成了仅自己可见。
           </p>
         )}
+        {/* ★ 「没问到」与「确实没了」分开说，而且要给一条重试的路：这一页的 effect
+            依赖里没有任何值会因为网络恢复而变（collectIds 是原地 mutate 的同一个数组），
+            不给这颗按钮就只能离开页面再进来 */}
+        {activeTab === "collects" && collectUnknown > 0 && (
+          <p className="mb-2 flex items-center gap-2 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+            <span className="flex-1">有 {collectUnknown} 条这会儿没取回来（网络没通）——它们还在，不是被删了。</span>
+            <button
+              onClick={() => setCollectTry((n) => n + 1)}
+              className="flex-none rounded-lg bg-amber-400/20 px-2.5 py-1 font-semibold text-amber-100"
+            >
+              重试
+            </button>
+          </p>
+        )}
         {activeTab === "collects" &&
           (collects.length ? (
             <WorkGrid items={collects} />
+          ) : collectIds.length > 0 ? (
+            // ★ 有收藏、只是这一趟一条都没取到 —— 这时候说「还没有收藏」是编出来的空状态
+            <Empty text={collectUnknown > 0 ? "这会儿没取回来，网络通了再试一次" : "正在取你的收藏…"} />
           ) : (
             <Empty text="还没有收藏——首页右侧的书签键收进来" cta="去首页逛逛" to="/" />
           ))}

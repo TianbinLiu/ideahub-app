@@ -1975,12 +1975,17 @@ export async function composeSegments(
     /** 参考视频的子任务（透传 arkClient）：缺省 edit（白模复刻）；"reference" = 素材参考 */
     refTask?: "edit" | "reference";
   }>,
-  onProgress?: (done: number, total: number, status: string) => void,
+  // ★ 与 onTask 一起改成必填（TS 不许必填参跟在可选参后面）—— 三个调用点本来就都传了
+  onProgress: (done: number, total: number, status: string) => void,
   /**
-   * 第 index 段的方舟任务**刚被受理**（钱已经花了，见 arkClient 的 onTask）。
-   * ★ 纯透传，这一层一个字都不解释：谁在等这一发、存不存凭据是 store 的事。
+   * 第 index 段的任务**刚被受理**（钱已经花了）。
+   * ★★ **必填**（2026-08-31 由可选改过来）：可选那会儿，真人档那条支路漏传了它，
+   *   而漏传**没有任何编译期或运行期症状** —— 凭据一条不落，界面却照常指着一颗
+   *   不存在的「取回」，用户手里只剩一段永远 pending 的节点和已经扣掉的钱。
+   *   改成必填之后，同样的漏法在 `tsc` 就红。调用方真的不需要就显式传 `() => {}`，
+   *   那是一个**看得见的决定**，不是一次遗漏。
    */
-  onTask?: (taskId: string, index: number) => void,
+  onTask: (taskId: string, index: number) => void,
 ): Promise<SegmentResult[]> {
   const out: SegmentResult[] = [];
   // 衔接判定要对照"原始设定帧"：后面会用真实尾帧顶替首帧，不能拿改过的值比
