@@ -289,7 +289,13 @@ export default function EditPage() {
             {confirmDel ? (
               <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3.5">
                 <div className="text-sm font-bold text-rose-200">删除《{video.title}》？</div>
-                <p className="mt-1 text-[11px] leading-relaxed text-rose-200/70">成片、评论和点赞会一起消失，不能撤销。</p>
+                {/* ★ 这句以前只说"成片、评论和点赞会一起消失" —— 而当时服务端一次
+                    `uploader.destroy` 都没有：作品从库里没了，成片与封面那几个地址
+                    仍然人人可访问。2026-08-30 服务端补上了回收，这句话才配得上"删除"两个字，
+                    所以把它写全（铁律五：文案只按已实现的事实写）。 */}
+                <p className="mt-1 text-[11px] leading-relaxed text-rose-200/70">
+                  成片、评论和点赞会一起消失，云端存的视频与封面也会一并删除。不能撤销。
+                </p>
                 {/* ★★ 软替代：**这条只对还公开着的作品有意义**（2026-08-30 修）。
                     原来判的是 `visibility === "private"` —— 恰好反了：已经藏起来的人
                     才被劝"藏起来就够了"，而真正想把作品从别人眼前拿走的那位一个字看不到。
