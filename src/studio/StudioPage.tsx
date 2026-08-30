@@ -179,7 +179,10 @@ export default function StudioPage() {
    *   "把桌子换个看法"。
    * ★ 画布自带 z-40 全屏 portal，这里只管开关与那三件页级活儿（存草稿/组稿/挂卡）。
    */
-  const [canvasOpen, setCanvasOpen] = useState(false);
+  // 画布开着没有：**放 store**（studioStore.canvasOpen 那段 ★★）—— 去挂卡编辑页再回来时
+  // 这一页会整个重挂，局部 state 归零，用户会从画布掉回 3D 桌面。它也因此进了返回栈。
+  const canvasOpen = useStudio((s) => s.canvasOpen);
+  const setCanvasOpen = useStudio((s) => s.setCanvasOpen);
   const flowActions = useFlowActions({ onLeave: () => setCanvasOpen(false) });
   const initGreet = useStudio((s) => s.initGreet);
   const spreadOpen = useStudio((s) => s.spreadOpen);
