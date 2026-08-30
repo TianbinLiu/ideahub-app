@@ -6,7 +6,7 @@
 // 三条路是同一条流水线的不同入口，而不是三套并行实现：
 //   工坊模式  —— 3D 铸卡桌面推演三套方案、挑一套炼一段，逐段落地 → 剪辑 → 发布
 //   简约模式  —— 单节点，一句话出一条几秒短片 → 剪辑 → 发布（**不进草稿库**，见下）
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
@@ -73,8 +73,25 @@ export default function CreatePage() {
   const navigate = useNavigate();
   // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；那颗 ? 随时能重看）
   useAutoGuide("create");
-  /** 正面 = 工坊，背面 = 简约（一张卡的两面，2026-08-30 主人点名） */
-  const [flipped, setFlipped] = useState(false);
+  /**
+   * 翻了几次（2026-08-30 加左右滑动后从布尔改成计数）。
+   *
+   * ★★ 为什么不是 `flipped: boolean`：布尔只知道"现在是哪一面"，不知道**从哪边翻过去** ——
+   *   而主人要的正是「翻面方向跟着手指走」。用整数累计之后，向左滑 +1、向右滑 -1，
+   *   角度恒等于 `turns * 180`，两个方向的动画天然是反的，连翻两次也不会突然倒转。
+   * ★ 奇偶决定当前是哪一面（负数取模要补正，JS 的 % 会给负值）。
+   */
+  const [turns, setTurns] = useState(0);
+  const flipped = ((turns % 2) + 2) % 2 === 1;
+  /** 拖动中的位移与卡宽（px，向左为负）。x≠0 = 正在跟手，此时关掉过渡。
+   *  ★ 宽度一起放进 state：角度按「拖了卡宽的百分之几」算，写死一个近似值会让
+   *    宽屏上转得太快、窄屏上转不动 */
+  const [drag, setDrag] = useState({ x: 0, w: 1 });
+  const dragRef = useRef<{ x: number; y: number; w: number; moved: boolean } | null>(null);
+  /** 这一下是"滑"不是"点"：给 CTA 的 onClick 兜底，别在滑完之后又跳进某个模式 */
+  const swipedRef = useRef(false);
+  /** 超过这个位移就算一次翻面（与全仓横划阈值同一个数量级；也接受快甩） */
+  const SWIPE_MIN = 56;
   // 在途工作流保护：seedSolo 是整表覆盖，直接进会静默抹掉已出片的段（每段真金白银 +
   // 几分钟）与手敲的剧情，而且 origin 会从 "studio" 翻成 "solo"——工作流页的返回键
   // 从此回 /create 而不是工坊，那棵节点树就再也走不回去了。
@@ -104,10 +121,62 @@ export default function CreatePage() {
           ★ transform-3d + backface-hidden：两面都在 DOM 里（各自 absolute 铺满），
             靠父层 rotateY 翻转。**不用两套内容切换**——那样没有中间态，翻面动画就成了闪切。 */}
       <div className="relative min-h-0 flex-1 px-4 pb-3">
-        <div className="relative h-full [perspective:1600px]">
+        <div
+          className="relative h-full touch-none [perspective:1600px]"
+          onPointerDown={(e) => {
+            // ★★ **这里绝不能 setPointerCapture**（2026-08-30 实测抓到）：一旦在按下这一刻
+            //   就抓走指针，浏览器会把随后的 pointerup 与 **click 一起重定向到捕获元素** ——
+            //   卡面上那颗 CTA 的 onClick 从此永远不执行，用户点「进铸卡桌面」毫无反应。
+            //   捕获挪到"确认是拖动"那一刻（见 pointermove），只有真的在滑时才需要它。
+            if (!e.isPrimary) return;
+            const el = e.currentTarget;
+            dragRef.current = { x: e.clientX, y: e.clientY, w: el.clientWidth || 1, moved: false };
+            swipedRef.current = false;
+          }}
+          onPointerMove={(e) => {
+            const d = dragRef.current;
+            if (!d) return;
+            const dx = e.clientX - d.x;
+            const dy = e.clientY - d.y;
+            // ★ 先判方向再认这一下是拖：竖向手势留给页面（这一屏虽然不滚，但按住卡片
+            //   上下微动是常见的"我只是想点"，那时不该让卡转起来）
+            if (!d.moved) {
+              if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy)) return;
+              d.moved = true;
+              // 确认是横滑了才抓指针：这样手指滑出卡面也收得到 move/up，而普通点击
+              // （从不进这一支）仍然能把 click 正常送到按钮上
+              e.currentTarget.setPointerCapture?.(e.pointerId);
+            }
+            // 夹在一张卡的宽度内：拖过头也只转到 180°，不出现连翻
+            setDrag({ x: Math.max(-d.w, Math.min(d.w, dx)), w: d.w });
+          }}
+          onPointerUp={(e) => {
+            const d = dragRef.current;
+            dragRef.current = null;
+            if (!d) return;
+            if (d.moved && e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+              e.currentTarget.releasePointerCapture(e.pointerId);
+            }
+            const dx = e.clientX - d.x;
+            setDrag({ x: 0, w: d.w });
+            if (!d.moved) return;
+            swipedRef.current = true;
+            // ★ 方向：**向左滑 = 角度增加**。理由是"跟手" —— rotateY 增大时，正面的右半边
+            //   朝画面中心（也就是左）扫过去，正好跟着向左的手指；向右滑反之。
+            //   写反的话动画会与手指对着干，比不做跟随更别扭。
+            if (Math.abs(dx) >= SWIPE_MIN) setTurns((n) => (dx < 0 ? n + 1 : n - 1));
+          }}
+          onPointerCancel={() => {
+            dragRef.current = null;
+            setDrag((s) => ({ x: 0, w: s.w }));
+          }}
+        >
           <div
-            className="relative h-full transition-transform duration-500 [transform-style:preserve-3d]"
-            style={{ transform: `rotateY(${flipped ? 180 : 0}deg)` }}
+            className={`relative h-full [transform-style:preserve-3d] ${drag.x === 0 ? "transition-transform duration-500" : ""}`}
+            style={{
+              // 拖动中的角度 = 已翻的整圈 + 这一下拖出来的那部分（同一个方向约定）
+              transform: `rotateY(${turns * 180 + (-drag.x / drag.w) * 180}deg)`,
+            }}
           >
             {MODES.map((m, i) => (
               <div
@@ -157,7 +226,16 @@ export default function CreatePage() {
                   </ul>
                   <button
                     {...(i === (flipped ? 1 : 0) ? { "data-guide": "create-cta" } : {})}
-                    onClick={() => (m.resets && flowDirty(flowNodes) ? setPending(m) : m.go(navigate))}
+                    onClick={() => {
+                      // 滑动结束那一拍浏览器仍会派发一次 click（指针没移出按钮时）——
+                      // 不挡的话"滑一下换个模式"会变成"滑一下直接进了某个模式"
+                      if (swipedRef.current) {
+                        swipedRef.current = false;
+                        return;
+                      }
+                      if (m.resets && flowDirty(flowNodes)) setPending(m);
+                      else m.go(navigate);
+                    }}
                     className={`mt-4 w-full rounded-2xl py-3 text-sm font-bold transition active:scale-[0.98] ${
                       m.light ? "bg-ink text-white" : "bg-white/90 text-ink"
                     }`}
@@ -173,7 +251,7 @@ export default function CreatePage() {
               光秃秃的循环箭头——不写的话用户不知道翻过去会看到什么（ui-copy-grammar 文法④的近亲） */}
           <button
             data-guide="create-dots"
-            onClick={() => setFlipped((v) => !v)}
+            onClick={() => setTurns((n) => n + 1)}
             aria-label={`翻到${MODES[flipped ? 0 : 1].title}`}
             title={`翻到${MODES[flipped ? 0 : 1].title}`}
             className="absolute -top-2 right-1 z-10 flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-2 text-white backdrop-blur transition active:scale-95"
