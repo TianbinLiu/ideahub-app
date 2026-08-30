@@ -5,12 +5,19 @@
 //   /u/:author    别人的主页（老路径，按展示名）—— 分享出去的链接、老包缓存、
 //                 已经发出去的评论里都还带着它，必须继续能开
 //
-// ★★ 别人的主页**要真的去问服务端**（getUser + fetchAuthorWorks），不能只拿
+// ★★ 主页上那份作品列表**要真的去问服务端**（getUser + fetchAuthorWorks），不能只拿
 //   `listVideos()` 去筛。远端模式下那份 cache 只有推荐流的前 30 条 —— 从搜索结果
 //   点一个陌生人进来，筛出来必然是 0 条，页面就会显示「作品 0 / 获赞 0 / 播放 0」
 //   加一句「TA 还没有发布作品」。那是**编出来的空状态**：真相是"App 从来没问过
 //   服务器这个人的事"（铁律八）。所以下面把「在问」「问不到」「真的没有」画成
 //   三种不同的样子，一种都不能省。
+//   ⚠ **自己的主页同样如此**（2026-08-31 补）：这条规则原来只写在"别人"那一支上，
+//   而 self 那一支无条件 `works = localWorks`、`worksKnown = true` —— 于是"我的作品"
+//   实际是"全站最新 30 条里恰好是我的那几条"，平台上再发 30 条我的墙就空了，
+//   页面还斩钉截铁地写「还没有发布作品」。公开作品还能从首页刷回来，
+//   **「仅自己可见」在 app 内没有第二个入口**，而作品编辑页那颗软替代按钮
+//   （见下面 visFilter 那段 ★）的全部前提正是"他之后找得回来"。
+//   同一条规则的两个入口，漏一个就等于没有（铁律六）。
 //
 // ★ 不拆成两个组件：版式、统计口径、作品栅格三样必须永远一致（铁律六）。
 //   拆开之后「获赞怎么算」「封面上放什么」就会各写一遍，改一处漏一处。
@@ -206,6 +213,48 @@ export default function ProfilePage() {
     () => videos.filter((v) => (self ? isMyAuthor(v.author) : !!display && v.author === display)),
     [videos, self, display],
   );
+  /**
+   * 自己那份作品，**也要真的去问服务端**（2026-08-31 修）。
+   *
+   * ★★ 为什么这条必须有：`self` 这一支原来只从 `listVideos()` 里筛，而远端模式下那份
+   *   cache 的唯一来源是 `feed:"recommend", limit:30`（`videos.readyRemote`），
+   *   `save()` 在远端模式还是 no-op、`feedCursor()` 至今零调用方 —— 所以"我的作品"
+   *   实际等于**全站最新 30 条里恰好是我的那几条**。平台上（含我自己）再发 30 条，
+   *   冷启动后我的作品墙就空了：上面那排可见性筛选芯片整排不画，页面斩钉截铁地写
+   *   「还没有发布作品」，而服务端那份好好存着。公开作品还能从首页刷回来，
+   *   **「仅自己可见」在 app 内再没有第二个入口** —— 那正是上面那段 ★ 里
+   *   「藏起来 = 丢了」要防的事。全程零报错。
+   * ★ 与别人那条走**同一处实现** `fetchAuthorWorks`（铁律六）：服务端 `readableFilter`
+   *   的 `{author: user._id}` 分支本来就会把自己的 private/unlisted 一并返回。
+   * ★ 上限 50 是服务端 listQuery 的硬顶（zod `max(50)`），不是我们挑的数。
+   *   超过 50 条作品的人这里会看不全 —— 那要接 `nextCursor` 分页，不在这次改动里；
+   *   **别把它悄悄截掉当没事**（下面 worksKnown 只在真拿到整页时才敢说"就这些"）。
+   */
+  const [myWorks, setMyWorks] = useState<AuthorWorks | null>(null);
+  useEffect(() => {
+    if (!self || !remoteOn() || !user?.id) {
+      setMyWorks(null);
+      return;
+    }
+    let alive = true;
+    void fetchAuthorWorks(user.id, 50).then((w) => {
+      if (alive) setMyWorks(w);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [self, user?.id, reloadKey]);
+  /**
+   * 自己的作品墙。★ 服务端那份**并上**本地那份，不是二选一：这一趟问完之后发布的
+   *   作品（pushPublish 只写内存 cache）不在服务端回包里，二选一会让"刚发完就不见了"。
+   *   失败方向是"多显示自己的东西"，而不是"把自己的东西藏起来"。
+   */
+  const myWall = useMemo(() => {
+    const remote = myWorks?.status === "ok" ? myWorks.items : [];
+    if (remote.length === 0) return localWorks;
+    const seen = new Set(remote.map((v) => v.id));
+    return [...remote, ...localWorks.filter((v) => !seen.has(v.id))].sort((a, b) => b.createdAt - a.createdAt);
+  }, [myWorks, localWorks]);
   /** 远端那份到手了没（partial = 服务端没认 author 参数，只能算"刷到的那些"） */
   const remoteWorks =
     stranger.works && (stranger.works.status === "ok" || stranger.works.status === "partial")
@@ -215,7 +264,7 @@ export default function ProfilePage() {
   //   只有在没问到 / 问到的不完整（partial 且一条都没筛出来）时才退回本地那份，
   //   总比一片空白强，代价是页面必须说清楚"这不是全部"（见 StrangerWorks）。
   const works = self
-    ? localWorks
+    ? myWall
     : stranger.works?.status === "ok"
       ? stranger.works.items
       : remoteWorks && remoteWorks.length > 0
@@ -229,7 +278,9 @@ export default function ProfilePage() {
    *   "本地没有他任何作品"的陌生人主页——入口都是从本地那几条作品点进来的）。
    *   在那儿显示「—」只会把一个本来准确的数字变成问号。
    */
-  const worksKnown = self || !remoteOn() || stranger.works?.status === "ok";
+  //   ⚠ self 这一支原来是无条件 `true` —— 于是那份"全站最新 30 条里的我"被当成了
+  //     权威列表，页面据此写「还没有发布作品」「作品 0」。判据必须是"服务端认账了吗"。
+  const worksKnown = !remoteOn() || (self ? myWorks?.status === "ok" : stranger.works?.status === "ok");
   /** 按可见性筛过的那份（只自己的墙用）。★ 判**否定**：老作品没有这个字段 = 公开 */
   const shownWorks = useMemo(
     () =>
@@ -767,8 +818,12 @@ export default function ProfilePage() {
               <WorkGrid items={shownWorks} />
             ) : visFilter === "private" ? (
               <Empty text="没有仅自己可见的作品" />
-            ) : (
+            ) : worksKnown ? (
               <Empty text="还没有发布作品" cta="去创作" to="/create" />
+            ) : (
+              // ★ 没问到就**不许**说"还没有发布作品"（铁律八）：那句话会让人以为作品没了，
+              //   而"仅自己可见"的那些在 app 里没有第二个入口
+              <Empty text={myWorks?.status === "failed" ? `没能取到你的作品：${myWorks.error}` : "正在取你的作品…"} />
             )
           ) : (
             <StrangerWorks
@@ -951,7 +1006,10 @@ function CutSessionBanner() {
       <div className="mt-2 flex gap-2">
         <button
           onClick={() => {
-            useStudio.setState({ draft: cut.draft });
+            // ★ segEdit 一并清（同 finalizeInner 的 ★★）：这是一份**整条**剪辑稿，
+            //   而 segEdit 说的是"当前打开的是流水线里的某一段"——两者同时成立时，
+            //   剪辑页顶栏会渲染成「保存本段」，用户就没有合并发布的入口了
+            useStudio.setState({ draft: cut.draft, segEdit: null });
             navigate("/cut");
           }}
           className="flex-1 rounded-lg bg-cyan-400/90 py-2 text-xs font-bold text-ink"

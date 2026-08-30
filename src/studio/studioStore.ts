@@ -4,7 +4,7 @@ import { BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DraftVideo,
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, npcChat, npcChatOffline, prepareMaterialRefs, refineFrame } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { addCards as saveCardsToAccount, canAfford, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
+import { acquireCard, addCards as saveCardsToAccount, canAfford, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalRedrawCost, proposalsCost, styleWants3d } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeVideo, tplOfNode, useFlow } from "./flowStore";
@@ -87,6 +87,24 @@ export function activePath(): FlowNode[] {
 export function chosenProposal(node: FlowNode): Proposal | null {
   if (node.plan === "picking") return null;
   return node.proposals.find((p) => p.id === node.chosenId) ?? null;
+}
+
+/**
+ * 铸段窗这一段的**开头帧** —— 报价、真发、UI 三处的**唯一实现**（铁律六）。
+ *
+ * ★★ 为什么要收口：优先级是"用户上传的图 > 上一段已选方案的尾帧 > 无（AI 自拟）"，
+ *   而 2026-08-31 之前报价那一处只看了第一项。真实尾帧是 canvas `toDataURL` 出来的
+ *   data: URI，`ai/real.ts` 认 data: 就只排 3 个出图任务（三个方案共用开头帧、各画一张
+ *   尾帧）—— 于是从第 2 段起，界面按 6 张图报价、方舟只画 3 张，每段多扣
+ *   3×IMAGE_TOKENS，同一屏上「承接上一段尾帧」那句提示还明明白白写着。
+ *   两个方向都不报错，只是钱多收了。
+ * ★ 与 `chain` 差一位：承接与否只问"帧是不是上一段给的"，用户自己传图时不算承接。
+ */
+export function nextStartFrame(uploaded: string | null | undefined): string | null {
+  if (uploaded) return uploaded;
+  const path = activePath();
+  const tail = path.length > 0 ? path[path.length - 1] : null;
+  return (tail ? chosenProposal(tail)?.lastFrame : null) ?? null;
 }
 
 /**
@@ -907,10 +925,32 @@ export const useStudio = create<StudioState>()((set, get) => ({
   addMarketToDeck: (from) => {
     const card = get().marketDetail;
     if (!card) return;
-    // 市场收藏同样归入账号资产。★ 即发即忘但**接住结果**：市场卡今天的图基本都是
-    //   现成的 URL（没有要转存的 dataURL），可"基本都是"不是不变量 —— 真有转存失败时
-    //   也得有人说出来，而这句话与收卡那条共用同一处实现
-    void saveCardsToAccount([card]).then((r) => sayLostViews(r, get()));
+    // ★★ 装卡走 `account.acquireCard` 这一处（2026-08-31 修）。原来这里直接 `addCards`，
+    //   那正是 acquireCard 注释里点名要防的"第三颗按钮"（铁律六），后果有两层：
+    //   ① 广场卡由 `sharedToCard` 打了 `published: true`，`addCards` 原样 `{...c}` 入库，
+    //      于是**我库里那份**带着 published:true，而服务端那行是 false —— 卡片详情页据此
+    //      显示「已在工坊 · 取消分享」、删卡确认卡说「删卡会同时下架」，全是假的
+    //      （我从没分享过这一份）；点「取消分享」是打在一行本来就 false 的文档上的空操作，
+    //      点完按钮翻成亮着的「分享到创意工坊」，按下去必被服务端 400。
+    //   ② 绕过 `installSharedCard` = 拿不到**权威版本**（剥过 idb: 指针的建模、参考图）、
+    //      没有 sourceOwner 标记、装机计数也不涨。
+    //   ⚠ 别再改回 addCards：import 在这里叫 `saveCardsToAccount`，acquireCard 注释里
+    //     写的自查命令 `rg "installSharedCard|addCards\(\["` 搜不到这个别名 ——
+    //     这个洞就是这么藏了一路的。
+    void acquireCard(card).then((r) => {
+      if (!r.ok) {
+        // 装不进库就别让它留在桌上：桌上的卡组下次进工坊是从 myCards() 重铺的，
+        // 留着只会变成"上次明明加了、今天不见了"（铁律八：失败要当场说，别留到下次）
+        set((st) => ({ deck: st.deck.filter((c) => c.id !== card.id) }));
+        get().npcSay(`「${card.name}」没能装进你的卡片库：${r.why}`);
+        get().setMood(-0.6, 3000);
+        return;
+      }
+      // 装成了就用**库里那份**顶掉桌上的广场快照：install 拿回来的是权威版本，
+      // 且 published 是本人视角的真值（我没分享过它）—— 详情页那排按钮读的正是它
+      const mine = myCards().find((c) => c.id === card.id);
+      if (mine) set((st) => ({ deck: st.deck.map((c) => (c.id === card.id ? mine : c)) }));
+    });
     if (get().deck.some((c) => c.id === card.id)) {
       get().npcSay(`「${card.name}」已经在你的卡组里了。`);
       set({ marketDetail: null, camera: { kind: "default" } });
@@ -1597,10 +1637,24 @@ export const useStudio = create<StudioState>()((set, get) => ({
         return;
       }
     }
+    // 锚点快照：生成期间用户可能改选路径/换整条流水线，完成时必须校验挂载点仍一致。
+    // ★★ 这三行**必须排在报价之前**（2026-08-31 复核抓到）：开头帧是"用户上传的 > 上一段
+    //   已选方案的尾帧 > 无"，而计价当初只看了第一项 —— 于是从第 2 段起，报价按"没有开头帧"
+    //   收 6 张图的钱，真发出去的 startFrame 却是 prev.lastFrame（真实尾帧是 toDataURL，
+    //   `real.ts` 认 data: 就只排 3 个出图任务）。用户为 6 张付钱、只拿到 3 张，
+    //   每段多扣 3×IMAGE_TOKENS，而且同一函数下面那行 `chain:` 自己就知道它承接了。
+    //   零报错：面板上那句"承接上段尾帧、只画尾帧"的减半说明因为同一个错条件也不显示。
+    const path = activePath();
+    const tail0 = path.length > 0 ? path[path.length - 1] : null;
+    const anchor = tail0 ? { id: tail0.id, chosenId: tail0.chosenId } : null;
+    const prev = tail0 ? chosenProposal(tail0) : null;
+    // 段间无缝衔接：开头帧 = 用户上传的本地图 > 上一节点已选方案的尾帧 > 无（AI 自拟）。
+    // ★ 报价、真发、UI 三处共用 `nextStartFrame` 一份实现（铁律六，理由见那里的 ★★）
+    const startFrame = nextStartFrame(editor.startFrame);
     // 三方案推演 = 1 次豆包 + 最多 6 张 Seedream。以前这一步一分钱不收，
     // 而它是工坊里用得最频繁的操作。有确定开头帧时三个方案共用它、只画尾帧，
     // 图量减半，报价也跟着减半
-    const propCost = proposalsCost(!!editor.startFrame);
+    const propCost = proposalsCost(!!startFrame);
     if (AI_REAL && !canAfford(propCost)) {
       const w = walletOf();
       get().npcSay(
@@ -1619,11 +1673,6 @@ export const useStudio = create<StudioState>()((set, get) => ({
       set({ editor: live });
       return true;
     };
-    // 锚点快照：生成期间用户可能改选路径/换整条流水线，完成时必须校验挂载点仍一致
-    const path = activePath();
-    const tail0 = path.length > 0 ? path[path.length - 1] : null;
-    const anchor = tail0 ? { id: tail0.id, chosenId: tail0.chosenId } : null;
-    const prev = tail0 ? chosenProposal(tail0) : null;
     try {
       if (AI_REAL) spendTokens(propCost); // 推演真跑起来才扣
       const proposals = await generateProposals(
@@ -1634,8 +1683,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
           durationMode: editor.durationMode,
           durationSec: editor.durationSec,
           prevFrameSeed: prev ? `${prev.id}#last` : null,
-          // 段间无缝衔接：开头帧 = 用户上传的本地图 > 上一节点已选方案的尾帧 > 无（AI 自拟）
-          startFrame: editor.startFrame ?? prev?.lastFrame ?? null,
+          // 与上面报价用的是**同一个变量**，别在这里重算（见 startFrame 的 ★）
+          startFrame,
           aspect: editor.aspect,
           pathPlots: path.map((n) => chosenProposal(n)?.plot ?? "").filter(Boolean),
         },
@@ -1665,7 +1714,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         videoTier: editor.videoTier,
         aspect: editor.aspect,
         requirement: editor.requirement,
-        chain: !editor.startFrame && !!prev?.lastFrame,
+        chain: !editor.startFrame && !!prev?.lastFrame, // 承接与否只看"帧是不是上一段给的"，与报价那个 startFrame 差一位（用户自己传图时不算承接）
       });
       if (!newId) {
         get().npcSay(useFlow.getState().err || "推演好了，但现在铺不上桌——稍后再试。");
@@ -1751,6 +1800,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
       const path = flow.nodes;
       const slot = path.find((n) => n.id === segEdit.nodeId);
       const p = slot?.proposals.find((q) => q.id === segEdit.proposalId);
+      // ★★ 找不到落点就**说出来**（2026-08-31 补）：原来这里是静默跳过、
+      //   下面照样 `draft: null` —— 用户按的是「保存本段」，屏幕上一个字都不给，
+      //   而这一段的改动（包括剪辑页里花钱重生成的那一版）当场蒸发（铁律八）。
+      //   走到这里只有一种可能：这一段挂着的节点已经不在流水线上了（被删、或整条被换掉）。
+      if (!p) {
+        get().npcSay("这一段改动写不回去了——它挂着的那个节点已经不在流水线上（被删掉，或者整条流水线被换过了）。");
+        get().setMood(-0.6, 3200);
+      }
       if (p) {
         // 剪辑页可能把这一段切成了几个片段：写回时只取首段起、末段止——
         // 流水线里一个方案就是一段，不承载"段内再分片"的结构。写路只有 flowStore 一条
@@ -1962,6 +2019,16 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // ★ 新的合成稿一出现，上一次发布就翻篇（publishedWorkId 的清零规则只有这一条：
       //   "draft 被赋新值"。openSegmentEdit 是另一个赋新值的地方，同样清）
       publishedWorkId: null,
+      // ★★ 单段编辑也一并翻篇（2026-08-31 补）。segEdit 原来**只**由剪辑页顶栏那两颗
+      //   按钮清，而安卓物理返回键是 `webView.goBack()`（全 app 没有人监听 backButton），
+      //   那两颗一次都不跑 —— 于是从单段编辑用返回键退出后 segEdit 一直留着，接下来：
+      //   `persistCutDraft` 因它整条稿子一个字节都不落盘（还回一句与处境完全不搭的话），
+      //   落到 /cut 时顶栏渲染的是「保存本段」而不是「下一步」= **根本没有发布入口**，
+      //   而按下「保存本段」时流水线已被 cut() reset 成空 ⇒ 找不到落点 ⇒ 刚花钱铸出来的
+      //   卡组/3D/分支树被一并清掉。零报错。
+      //   ⇒ 规则收在"有新草稿就翻篇"这一处（与上面 publishedWorkId 同一条理由），
+      //   不靠"用户会不会点那两颗按钮"。
+      segEdit: null,
       // 分段模板组：原片地址给剪辑页当音轨预置（用户点名要的"成片保留原视频音频"）。
       // ★ 必须在这里搭草稿的车 —— 「完成视频」会把 flow store 清掉，剪辑页挂载时
       //   nodes 已经空了（2026-08-20 dev 实测：读 flow 那版预置永远落空）
@@ -2164,6 +2231,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       savedDoneCount: flowNodes.filter((n) => Object.keys(n.videoByProposal ?? {}).length > 0).length,
       // 视图层一律回到干净状态：草稿存的是内容，不是"上次停在哪个浮层"
       draft: null,
+      // 同 finalizeInner：换了一整条流水线，上一次单段编辑的落点（nodeId）必然已经不在了
+      segEdit: null,
       focus: null,
       projection: null,
       editor: null,

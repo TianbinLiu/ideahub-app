@@ -324,11 +324,25 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       await graph.current.ctx.resume();
       pcm.current = [];
       v.pause();
+      // ★★ 这两个等待**都要带上限**（2026-08-31 补，仓里其余同类早就带了：
+      //   utils/videoFrames、blockout/VideoStage、flow/SegPlayer、CoverPicker）。
+      //   录制本来就要真播几秒到十几秒（按钮上写着"实际播一遍"），正是最容易切出去的时刻；
+      //   窗口一旦不可见，解码被挂起 ⇒ `seeked` 不来、`currentTime` 不再推进 ⇒
+      //   这两个 Promise 永不 settle ⇒ 下面 `finally` 里的 `setRecording(false)` 永不执行：
+      //   按钮永远写着「录制中…」，起点/终点/不取了/录制四颗键全部 disabled，err 一个字不写。
+      //   用户既停不下来也没法重来，只能整个关掉标注器 —— 连带丢掉已经圈好的框、
+      //   裁好的图，以及**已经扣过 token 的形象图**（makePortraits 的产物要到 saveCard 才落库）。
+      let timedOut = false;
       v.currentTime = vStart;
-      await new Promise<void>((res) => v.addEventListener("seeked", () => res(), { once: true }));
+      await new Promise<void>((res) => {
+        v.addEventListener("seeked", () => res(), { once: true });
+        window.setTimeout(() => res(), 8_000); // 窗口不可见时 seeked 永远不到
+      });
       capOn.current = true;
       await v.play();
-      // 播到终点就停。timeupdate 的粒度 ~250ms，尾巴多出的一点在重采样前按秒数掐掉
+      // 播到终点就停。timeupdate 的粒度 ~250ms，尾巴多出的一点在重采样前按秒数掐掉。
+      // ★ 上限按"这段本身该播多久"给出宽裕量（+8s），不是一个拍脑袋的固定值：
+      //   选段最长 VOICE_MAX_SEC，卡在这里的唯一原因是解码停了，不是播得慢。
       await new Promise<void>((res) => {
         const onT = () => {
           if (v.currentTime >= vEnd) {
@@ -337,8 +351,16 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
           }
         };
         v.addEventListener("timeupdate", onT);
+        window.setTimeout(() => {
+          timedOut = true;
+          v.removeEventListener("timeupdate", onT);
+          res();
+        }, (secs + 8) * 1000);
       });
       capOn.current = false;
+      // ★ 超时不是"录好了"：抓到的 PCM 是半截的。说清楚再退出，别让用户拿着半句话去合成
+      //   （下面那道"够不够 VOICE_MIN_SEC"的闸只挡得住太短的，挡不住"刚好够但被截断"）
+      if (timedOut) throw new Error("录制中途被系统暂停了（多半是切到了后台）——回到这一页重新点一次「录这一段」");
       v.pause();
       const rate = graph.current.ctx.sampleRate;
       const total = pcm.current.reduce((n, a) => n + a.length, 0);

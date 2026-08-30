@@ -1336,7 +1336,10 @@ export async function installSharedCard(cardId: string): Promise<Card | null> {
  *   ② 作品卡组/模板带来的**快照卡**没有 published，`installCard` 必然 404，
  *      只能按快照落库（`addCards`）。
  *   收口之前这两条各自长在工坊页的两颗按钮上；再给详情页加第三颗，装法就三方分叉了
- *   （铁律六）。查法：`rg "installSharedCard|addCards\(\["`。
+ *   （铁律六）。查法：`rg "installSharedCard|addCards\(\[|saveCardsToAccount"` ——
+ *   ⚠ **别漏掉最后那个别名**：studioStore 是 `import { addCards as saveCardsToAccount }`，
+ *   桌面市场的「加入我的卡组」就这么绕过了本函数一路没被发现（2026-08-31 修）。
+ *   下次再有人给 addCards 起别名，这条查法还会失效 —— 先 `rg "addCards as"` 一遍。
  * ★ 已经在库里 = 成功（幂等）：用户要的结果已经成立，报"已存在"是自找麻烦。
  * ★ 回执是整句人话，不是 boolean —— 失败原因有好几种，上层只拿 false 只能瞎猜（铁律八）。
  */
