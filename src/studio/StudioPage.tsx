@@ -230,17 +230,9 @@ export default function StudioPage() {
     goFlowSeen.current = goFlowAt;
   }, [goFlowAt, navigate]);
 
-  // 存草稿
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  // 存草稿走 useFlowActions（本页已经在用它给画布浮层供状态）——此前这里还自持一份，
+  // 同一颗按钮在工坊顶栏与画布顶栏各走各的实现（铁律六）
   const hasWork = flowLen > 0; // 单一真相：桌面有没有活只看流水线
-  async function saveNow() {
-    setSaveState("saving");
-    const meta = await useStudio.getState().saveWorkDraft({ from: "studio" });
-    setSaveState(meta ? "saved" : "failed");
-    // 失败必须说出来：配额满/隐私模式下写不进去，静默"保存成功"会让用户放心关页面
-    if (!meta) useStudio.setState({ notice: { text: "草稿保存失败（存储空间不足或隐私模式）", at: Date.now() } });
-    setTimeout(() => setSaveState("idle"), 2200);
-  }
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-ink">
@@ -275,45 +267,73 @@ export default function StudioPage() {
           {/* 工程标题（与工作流画布同一枚 DraftTitle，2026-08-29）：多草稿并存后
               "现在这摊活是哪条"得有名字。摆在右组最左而不是绝对居中——这一屏是 3D
               画布，absolute 的小控件会压住法阵/卡位（量过的位置，别加新的绝对定位） */}
-          {hasWork && (
+          {/* ★ 空桌时**留着但点不动**（2026-08-30 主人点名"草稿/工作流都不见了"）：
+              原来是 `hasWork &&` 整个不渲染 —— 顶栏在刚进工坊时只剩返回与 ?，用户不知道
+              这两件事存在。灰着 + 一句为什么，比藏起来诚实（CLAUDE.md 那条「永远点不动
+              的选项」说的是**永远**，这两颗铺一段就亮） */}
+          {hasWork ? (
             <DraftTitle from="studio" collapsed className="bg-panel/85 backdrop-blur" />
+          ) : (
+            <span
+              title="铸出第一段之后就能给这条工程起名"
+              className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-panel/50 opacity-45 backdrop-blur"
+            >
+              <Icon name="pen" size={15} className="text-slate-400" />
+            </span>
           )}
           {/* 「🧩 工作流」：同一条流水线换到画布那一面 —— 与画布顶栏「🎴 工坊」对称
               （2026-08-30 主人点名：此前只有画布→工坊单向有键，反向只剩法阵那条隐路）。
               只在流水线上真有段时亮：0 段时 /flow 会把人弹回创作入口，摆一颗必弹走的
               键就是"永远点不动的选项"的变体；0 段时铺流水线本来就是法阵的差事 */}
-          {flowLen > 0 && (
-            <button
-              onClick={() => setCanvasOpen(true)}
-              title="工作流画布"
-              aria-label="工作流画布"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-base backdrop-blur"
-            >
-              🧩
-            </button>
-          )}
+          <button
+            onClick={() => setCanvasOpen(true)}
+            disabled={!hasWork}
+            title={hasWork ? "工作流画布：同一条流水线的另一面" : "桌面还空着——先点虚线卡位铸一段"}
+            aria-label="工作流画布"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-base backdrop-blur disabled:opacity-40"
+          >
+            🧩
+          </button>
           {/* ★ 摆在浮动顶栏右侧这一组里，而不是画面角落硬定位：这一屏是 3D 画布，
               任何 absolute 的小控件都可能压住法阵/卡位（都是量出来的位置） */}
           <HelpButton tour="studio" className="bg-panel/85 backdrop-blur" />
           {/* 存草稿：桌面上有东西才亮。工坊侧此前完全没有落盘手段——摆了半天卡、
               推演了几炉，刷新一下全没（两个 store 都是纯内存单例） */}
-          {hasWork && (
+          {
             /* 存草稿只留图标；**四种状态仍要看得出来**（保存中/成功/失败不能只靠一个静态图标
                ——那等于把"存住了没有"藏起来，铁律八）：图标换字符 + title 说全 */
             <button
-              onClick={() => void saveNow()}
-              disabled={saveState === "saving"}
+              onClick={flowActions.saveNow}
+              disabled={!hasWork || flowActions.saveState === "saving"}
               title={
-                saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存" : saveState === "failed" ? "保存失败" : "存草稿"
+                !hasWork
+                  ? "桌面还空着，没什么可存"
+                  : flowActions.saveState === "saving"
+                    ? "保存中…"
+                    : flowActions.saveState === "saved"
+                      ? "已保存"
+                      : flowActions.saveState === "failed"
+                        ? "保存失败"
+                        : "存草稿"
               }
               aria-label="存草稿"
-              className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-sm backdrop-blur disabled:opacity-50 ${
-                saveState === "failed" ? "text-rose-300" : saveState === "saved" ? "text-emerald-300" : "text-slate-200"
+              className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-sm backdrop-blur disabled:opacity-40 ${
+                flowActions.saveState === "failed"
+                  ? "text-rose-300"
+                  : flowActions.saveState === "saved"
+                    ? "text-emerald-300"
+                    : "text-slate-200"
               }`}
             >
-              {saveState === "saving" ? "…" : saveState === "saved" ? "✓" : saveState === "failed" ? "!" : "💾"}
+              {flowActions.saveState === "saving"
+                ? "…"
+                : flowActions.saveState === "saved"
+                  ? "✓"
+                  : flowActions.saveState === "failed"
+                    ? "!"
+                    : "💾"}
             </button>
-          )}
+          }
           {/* 只在演示模式亮牌。「● 真实 AI」是常态，天天挂在那儿只是噪音；
               而没配 Key 时全程 mock——用户以为在测 Seedance、产物却全是本地占位，
               这一条必须留着。标题栏的「🎴 卡片工坊」也去掉了：画面本身就是工坊 */}

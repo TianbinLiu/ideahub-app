@@ -1,0 +1,7 @@
+# Capacitor 每次 `cap sync` 都会重写这两个文件（用 LF），而 Windows 上的 autocrlf 让
+# 工作区里那份是 CRLF —— 于是**内容一个字没变**，git 却报 modified。后果不是洁癖问题：
+# `npm run land` 的第一道闸是"main 那边工作区干净"，它每次出包后都会被这两个文件绊住，
+# 而真正该被拦下的（有人在 main 上改了东西没提交）反而混在里面看不出来。
+# 标成 -text = 不做行尾转换，两边都按文件里的字节算，diff 从此只反映真实改动。
+android/app/capacitor.build.gradle -text
+android/capacitor.settings.gradle -text
