@@ -905,10 +905,19 @@ export interface AddCardsResult {
 export async function addCards(cards: Card[]): Promise<AddCardsResult> {
   const u = currentUser();
   if (!u || !db) return { added: [], synced: false, lostViews: [] };
+  // ★★ 没有 id 的卡**一张都不许往下走**（2026-08-31 补）。这不是防御性编程，是修一次
+  //   真事故：作品卡组快照里那张卡的 id 叫 `cardId`，客户端却按 `c.id` 发
+  //   （`cardId: undefined`）⇒ 服务端 `String(raw.cardId || raw.id || "")` 得空串、
+  //   整批 `continue`、**201 回 added:0** ⇒ 这里不抛错 ⇒ `synced` 为真 ⇒ 按钮翻成
+  //   「✓ 已在我的卡组」。而本地这几行 `db.cards.push` 在远端模式下 `persist()`
+  //   一个字节都不写盘，下次冷启动 `loadRemoteAssets` 整表覆盖 —— **一张不剩**。
+  //   归一已经收在 `videos.toVideoDeck` 一处；这里是最后一道，防的是下一个新入口。
+  const nameless = cards.filter((c) => !c.id);
+  const list = cards.filter((c) => !!c.id);
   const existing = new Set(db.cards.filter((c) => c.ownerId === u.id).map((c) => c.id));
   const added: Card[] = [];
   const rows: Card[] = [];
-  for (const c of cards) {
+  for (const c of list) {
     if (existing.has(c.id)) continue;
     const row = { ...c, ownerId: u.id, createdAt: Date.now() };
     db.cards.push(row);
@@ -918,6 +927,14 @@ export async function addCards(cards: Card[]): Promise<AddCardsResult> {
   // 先让卡出现在库里：上传一张 1MB 级的图在手机上要好几秒，这段时间里卡该已经在
   // 卡组/个人页里了，不能吊在屏幕上等网络
   persist();
+  if (nameless.length) {
+    return {
+      added,
+      synced: false,
+      lostViews: [],
+      reason: `有 ${nameless.length} 张卡没有有效的卡片编号，存不进你的卡片库（多半是这条作品是老版本发布的）`,
+    };
+  }
   // 离线模式 synced 记 true：那边 persist() 写的是 IndexedDB，卡是真落地了（见字段注释）
   if (added.length === 0 || !remoteOn()) return { added, synced: true, lostViews: [] };
 
@@ -931,7 +948,24 @@ export async function addCards(cards: Card[]): Promise<AddCardsResult> {
   //   **补不进去**，只能走 PATCH（api/branch.updateCardViews 就是为这件事存在的）。
   //   顺序反过来写成"POST 空 views、再 POST 一次带图的"是无效操作。
   try {
-    await branch.addCards(added); // 服务端按 cardId 幂等，重发不会长出重复卡
+    // ★★ **要比对条数**（2026-08-31 补）：服务端对认不出 cardId 的卡是 `continue` 跳过、
+    //   然后照常 201 —— 不比对的话"一张都没收下"和"全都收下了"长得一模一样，
+    //   而这里返回的 synced 正是上层用来说「✓ 已在我的卡组」的依据（铁律八）。
+    const back = await branch.addCards(added); // 服务端按 cardId 幂等，重发不会长出重复卡
+    // 幂等：已经在服务端的那些不会再出现在回包里，所以只在**一张都没回来**时才判失败
+    if (Array.isArray(back) && back.length === 0 && added.length > 0) {
+      const mine = await branch.listCards().catch(() => null);
+      const has = mine ? new Set(mine.map((c) => c.cardId)) : null;
+      const missing = has ? added.filter((c) => !has.has(c.id)) : added;
+      if (missing.length) {
+        return {
+          added,
+          synced: false,
+          lostViews: [],
+          reason: `服务器一张都没收下（${missing.length} 张）——这些卡只在这台设备上，重启后会没`,
+        };
+      }
+    }
   } catch (e) {
     emitApiError("addCards", e);
     // 卡都没存上，转存那几张图没有意义（PATCH 会打在一张不存在的卡上）。

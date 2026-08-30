@@ -10,7 +10,7 @@
 //
 // IndexedDB 而不是 localStorage 的原因（保留原注释）：真实 AI 首尾帧是 1MB 级 base64，
 // 一支 2 段视频≈4MB 直接撑爆 5MB 配额 → 用户视频被配额兜底静默丢弃（首页永远看不到自己的作品）。
-import { CommentMention, DraftVideo, VideoComment, VideoItem, VideoPart, uid } from "../types";
+import { CommentMention, DraftVideo, VideoComment, VideoDeck, VideoItem, VideoPart, uid } from "../types";
 import { makeFrame } from "../mock/frames";
 import { idbGet, idbSet } from "./db";
 import { materializeDraft, type MaterializeError } from "./publishAssets";
@@ -1259,6 +1259,34 @@ function toComment(c: branch.ApiComment): VideoComment {
   return { ...cmt, parentId: cmt.parentId ?? null };
 }
 
+/**
+ * 服务端来的**卡组快照** → 本地 `VideoDeck`。**唯一实现**（两个 deck 读点共用，铁律六）。
+ *
+ * ★★ 它只做一件事，但这件事今天是坏的：快照里那张卡的稳定 id 叫 **`cardId`**
+ *   （`server/models/BranchVideo.deckCardSchema` + `{_id:false}`，`toVideoPayload`
+ *   把整份 `doc.deck` 原样下发），而本地 `Card` 用的是 **`id`**。类型上它被当成
+ *   `Card[]`，所以 TS 一个字都不会提示 —— 于是：
+ *   ① 作品页「收入卡组」把这几张发上去时 `cardId: c.id` = `undefined`，服务端
+ *      `String(raw.cardId || raw.id || "")` 得空串、`continue` 跳过，最后 **201 回 added:0**；
+ *      客户端不抛错 ⇒ `synced` 为真 ⇒ 按钮翻成「✓ 已在我的卡组」。用户带着这句话去开工，
+ *      而远端模式 `persist()` 不写盘，下次冷启动 `loadRemoteAssets` 整表覆盖 —— **一张不剩**。
+ *   ② 并进工坊桌面时的去重是 `d.id === c.id` ⇒ `undefined === undefined` 恒真 ⇒
+ *      **第二部作品的卡组会被整批判成"已存在"，一张都进不去**，同样零报错。
+ *   ⇒ 归一收在这一处。别在调用点写 `c.cardId ?? c.id` 就地兜：`remakeNodesOf`、
+ *   个人页卡组页签、`voicedCardsOf` 那几处还会各漏各的。
+ */
+function toVideoDeck(deck: branch.ApiVideo["deck"]): VideoDeck | undefined {
+  if (!deck?.cards?.length) return undefined;
+  return {
+    name: deck.name ?? "",
+    cards: deck.cards.map((c) => {
+      const raw = c as unknown as { cardId?: string; id?: string };
+      // 判**有值**：老服务端只发 cardId，将来两个都发时以 id 为准（同 toCardPayload 的给法）
+      return { ...c, id: raw.id || raw.cardId || "" };
+    }),
+  };
+}
+
 function toVideoItem(v: branch.ApiVideo): VideoItem {
   if (v.liked) likedIds.add(v._id);
   return {
@@ -1272,7 +1300,7 @@ function toVideoItem(v: branch.ApiVideo): VideoItem {
     segments: Array.isArray(v.segments) ? v.segments : [],
     branchTree: v.branchTree,
     parts: Array.isArray(v.parts) && v.parts.length > 0 ? v.parts : undefined,
-    deck: v.deck?.cards?.length ? v.deck : undefined,
+    deck: toVideoDeck(v.deck),
     visibility: v.visibility === "private" ? "private" : "public",
     // ★ 只在为真时带上：与服务端同一口径（判有值），读侧一律走 types.visibilityOf
     ...(v.linkOnly === true ? { linkOnly: true } : {}),
@@ -1475,7 +1503,10 @@ async function loadDetail(item: VideoItem): Promise<void> {
     item.segments = Array.isArray(v.segments) ? v.segments : item.segments;
     item.branchTree = v.branchTree ?? item.branchTree;
     if (Array.isArray(v.parts) && v.parts.length > 0) item.parts = v.parts;
-    if (v.deck?.cards?.length) item.deck = v.deck;
+    // ★ 走同一处归一（见 toVideoDeck 的 ★★）：这一行原来直接赋 v.deck，
+    //   于是详情回填会把 toVideoItem 归一好的那份**又换回没有 id 的原始快照**
+    const deck = toVideoDeck(v.deck);
+    if (deck) item.deck = deck;
     if (Array.isArray(v.comments)) item.comments = v.comments.map(toComment);
     if (typeof v.commentCount === "number") item.commentCount = v.commentCount;
     if (v.liked) likedIds.add(id);
