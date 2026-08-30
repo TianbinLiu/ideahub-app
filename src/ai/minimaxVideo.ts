@@ -11,7 +11,7 @@
 //   （Capacitor 的 SPA 回退对未命中路径回 200 + index.html，CLAUDE.md 有专条）。
 import { API_BASE } from "../api/client";
 import { getToken } from "../api/client";
-import { syncWalletFromHeaders } from "./arkClient";
+import { ArkTaskUnknown, syncWalletFromHeaders } from "./arkClient";
 
 /** 上游受理回执的业务码：0 = 成功。非 0 时 status_msg 是给人看的原因 */
 interface BaseResp {
@@ -46,6 +46,56 @@ function baseRespOf(j: Record<string, unknown>): BaseResp | null {
   return b && typeof b.status_code === "number" ? b : null;
 }
 
+/** 一条 Success 的任务状态 → 下载地址。**唯一实现**：出片主路径与「取回」共用 */
+async function minimaxFileUrl(st: Record<string, unknown>): Promise<string> {
+  const fileId = String(st.file_id ?? "");
+  if (!fileId) throw new Error("真人档出片成功却没有文件号——上游协议变了，把这句话反馈给我们");
+  const f = await jsonOf(await fetch(`${BASE}/file/${encodeURIComponent(fileId)}`, { headers: authHeaders() }), "取件");
+  const file = f.file as { download_url?: string; backup_download_url?: string } | undefined;
+  const url = file?.download_url || file?.backup_download_url;
+  if (!url) throw new Error("真人档取件失败：上游没有返回下载地址");
+  return url;
+}
+
+/**
+ * 把一发已经受理过、当时没接到的真人档成片取回来。
+ *
+ * ★★ **这条路上不许出现下定论的句子**（除非上游明说 Fail）。方舟那边有一句
+ *   「已经花掉的钱无法挽回」是对的 —— 那是 404 = 产物真过期了。而这一档我们
+ *   **没有量过 MiniMax 的留存**，任何"没了"的断语都可能是对着一发还活着的成片说的，
+ *   而听到这句话的用户不会来报 bug，他会直接走。
+ * ★ 查询与取件都**不计费**（server 的 minimax.routes 里这两条只挂 pollLimit，
+ *   没走 chargedArkCall）—— 所以"取回不再花一分钱"这句话在这一档同样是真的。
+ */
+export async function takeMinimaxTask(
+  taskId: string,
+  onProgress?: (s: string) => void,
+): Promise<{ url: string }> {
+  onProgress?.("正在向上游核对这一发的状态…（查询不花钱）");
+  let st: Record<string, unknown>;
+  try {
+    st = await jsonOf(await fetch(`${BASE}/video/${encodeURIComponent(taskId)}`, { headers: authHeaders() }), "查询");
+  } catch (e) {
+    // 查不动 ≠ 取不回。凭据必须留着，话也不能说死。
+    throw new Error(
+      `暂时查不到这一发（${e instanceof Error ? e.message.slice(0, 60) : "查询失败"}）——凭据还在，过一会儿再点一次，查询不花钱。`,
+    );
+  }
+  const status = String(st.status ?? "");
+  if (status === "Success") return { url: await minimaxFileUrl(st) };
+  if (status === "Fail") {
+    // 上游明说失败：这时候"受理之后失败不退"是真的，必须照说 —— 藏起来会让用户
+    // 以为重试免费，而重试是重新下一单
+    const b = baseRespOf(st);
+    throw new Error(
+      `上游说这一发失败了：${b?.status_msg || "未说明原因"}。按约定，受理之后的失败不退款；重新生成会再花一次钱。`,
+    );
+  }
+  throw new Error(
+    `这一发还在上游排队或生成中（当前状态：${status || "未知"}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。`,
+  );
+}
+
 /**
  * 一发海螺出片：创建 → 轮询 → 取下载地址。
  * durationSec 必须已经被 economy.clampDuration 吸附到价表档位（6/10）——
@@ -58,6 +108,12 @@ export async function minimaxVideo(o: {
   firstFrame: string;
   durationSec: number;
   onProgress?: (s: string) => void;
+  /**
+   * 任务**刚被上游受理**（从这一刻起这一发的钱已经花掉了）。
+   * ★ 与 arkClient 的 onTask 同一条约定：调用方拿它去落凭据，而落凭据必须发生在
+   *   开始等待**之前** —— 进程被系统回收时，落过盘的那一份是唯一还活着的线索。
+   */
+  onTask?: (taskId: string) => void;
 }): Promise<string> {
   const prog = (s: string) => o.onProgress?.(s);
   prog("真人档任务创建中…");
@@ -83,6 +139,7 @@ export async function minimaxVideo(o: {
   }
   const taskId = String(created.task_id ?? "");
   if (!taskId) throw new Error("真人档任务受理了却没给任务号——上游协议变了，把这句话反馈给我们");
+  o.onTask?.(taskId); // ★ 在开始等之前落凭据（理由见 onTask 的 ★）
 
   // 实测 768P/6s 约 40~90 秒出片；10 分钟死线（与方舟侧的轮询纪律同精神：不无限等）
   const deadline = Date.now() + 10 * 60_000;
@@ -94,12 +151,16 @@ export async function minimaxVideo(o: {
   let pollFails = 0;
   for (;;) {
     if (Date.now() > deadline) {
-      // ★ 不说「重试这一段」：在这条路上「重试」= 重新下一单 = 再扣一次整档的钱
-      //   （真人档按发计价）。而这一发多半还在上游跑。真人档暂时没有「取回」
-      //   （凭据只认方舟任务号，见 segmentGen 那段 ★★），所以只能如实说清楚。
-      throw new Error(
-        `真人档出片超时（10 分钟没出结果，任务号 ${taskId}）——这一发的钱在提交那一刻就已经花掉了，` +
-          "任务多半还在上游跑。「重新生成」是重新下一单、会再花一次钱，先等几分钟再决定。",
+      // ★★ 抛 **ArkTaskUnknown**（2026-08-31）：这不是失败，是"我们没接到"。
+      //   凭据留着、取回入口亮起来 —— 而在这之前唯一亮着的是「重新生成」= 再扣一次
+      //   整档的钱（真人档按发计价，10 秒档 270k，而免费版月额一共 300k：
+      //   一个免费用户到这一步连那颗按钮都按不动，这个月就此结束）。
+      //   ⚠ 这一行与下面那个 pollFails 分支**必须同时**是 ArkTaskUnknown：
+      //   只改一个的话，另一个仍抛普通 Error → flowStore 的真失败分支
+      //   `if (taskId) dropVideoJob(taskId)` 会把刚落的凭据当场删掉，比不改更坏。
+      throw new ArkTaskUnknown(
+        "真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败：钱在提交那一刻就已经花掉了。",
+        taskId,
       );
     }
     await new Promise((r) => setTimeout(r, 8000));
@@ -109,9 +170,12 @@ export async function minimaxVideo(o: {
       pollFails = 0;
     } catch (e) {
       if (++pollFails >= 5) {
-        throw new Error(
-          `盯不住这一发的进度了（${e instanceof Error ? e.message.slice(0, 60) : "查询失败"}，任务号 ${taskId}）——` +
-            "任务还在上游跑，不是失败：钱在提交那一刻就已经花掉了。「重新生成」会再花一次钱。",
+        // 与上面那个死线分支同一个类型（理由见那里的 ★★）：连查五次查不动 =
+        // **我们瞎了，不是这一发废了**。我们自己代理回的 429/504 也落在这儿，
+        // 它们更是"可重试"，绝不能进任何一个下定论的分支。
+        throw new ArkTaskUnknown(
+          `盯不住这一发的进度了（${e instanceof Error ? e.message.slice(0, 60) : "查询失败"}）——任务还在上游跑，不是失败。`,
+          taskId,
         );
       }
       prog(`真人档生成中…（查询失败 ${pollFails}/5，重试中）`);
@@ -124,12 +188,7 @@ export async function minimaxVideo(o: {
       throw new Error(`真人档出片失败：${b?.status_msg || "上游未说明原因"}`);
     }
     if (status === "Success") {
-      const fileId = String(st.file_id ?? "");
-      if (!fileId) throw new Error("真人档出片成功却没有文件号——上游协议变了，把这句话反馈给我们");
-      const f = await jsonOf(await fetch(`${BASE}/file/${encodeURIComponent(fileId)}`, { headers: authHeaders() }), "取件");
-      const file = f.file as { download_url?: string; backup_download_url?: string } | undefined;
-      const url = file?.download_url || file?.backup_download_url;
-      if (!url) throw new Error("真人档取件失败：上游没有返回下载地址");
+      const url = await minimaxFileUrl(st);
       return url;
     }
   }
