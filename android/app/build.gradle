@@ -21,8 +21,8 @@ android {
         //   versionName 是给人看的，versionCode 是给系统看的，两个都要动。
         // ⚠ 并行分支各自出过包：更新清单发布到 40/2.29；主人真机上先后装过 41/2.30
         //   （本支）与 42/2.31（UI 梳理支，已并入 main）。合流后跳到 43 越过全部在外的号。
-        versionCode 43
-        versionName "2.32"
+        versionCode 45
+        versionName "2.33"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // ★ QQ 互联的 AppID 只写这一处，下面两个用处都从它派生：
         //     BuildConfig.QQ_APP_ID  —— 起授权时给 SDK
