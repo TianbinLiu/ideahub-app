@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && node scripts/check-guides.mjs && vite build",
+    "build": "tsc && node scripts/check-guides.mjs && node scripts/check-hook-order.mjs && vite build",
     "preview": "vite preview",
     "protect": "node scripts/protect-asset.mjs",
     "build:app": "npm run build && node scripts/prune-app-assets.mjs && npx cap sync android",
@@ -14,6 +14,7 @@
     "aab": "npm run build:app && cd android && gradlew bundlePlayRelease",
     "release": "node scripts/release.mjs",
     "guides": "node scripts/check-guides.mjs",
+    "hooks:order": "node scripts/check-hook-order.mjs",
     "land": "node scripts/land.mjs"
   },
   "dependencies": {

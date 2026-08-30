@@ -275,6 +275,8 @@ export function CoverSection({
   const [frameDlg, setFrameDlg] = useState(false);
   const [aiDlg, setAiDlg] = useState(false);
   const [coverErr, setCoverErr] = useState("");
+  /** 封面预览上要不要画出"首页会挡住哪儿"（默认开：这件事不主动说，用户就发现不了） */
+  const [safeArea, setSafeArea] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
   // 整部作品的画幅取第一段（各段本该一致，见 CutPage 的同款取法）：
   // 上传/AI 生成的封面都按它出，预览框也按它排版
@@ -299,12 +301,30 @@ export function CoverSection({
       <div className="mb-1.5 text-sm font-semibold text-slate-300">封面</div>
       {/* 当前封面预览：截帧/上传/AI 的产物不在下方候选条里，必须有个地方能看到选中的是什么 */}
       {cover ? (
-        <img
-          src={cover}
-          alt="当前封面"
-          style={box}
-          className="mb-2 w-full rounded-xl border border-slate-700 object-cover"
-        />
+        <div style={box} className="relative mb-2 w-full overflow-hidden rounded-xl border border-slate-700">
+          <img src={cover} alt="当前封面" className="h-full w-full object-cover" />
+          {/* ★★ 首页会挡住哪儿 —— 这个遮罩不是装饰（2026-08-30 加）。封面在首页是**整屏铺满**的，
+              而底缘那一片压着作者名/标题/简介、右侧压着一整栏按钮：竖版封面把主体放正中
+              偏下的话，在流里正好被文字盖住，而用户在这一页**完全看不出来**（这一页的
+              预览是个小方框，什么都不挡）。
+              两个数按真实版式折算：底部 ≈ 屏高的 20%（底栏 56px + 文字块三行 + 间距），
+              右侧 ≈ 屏宽的 16%（右侧栏那一列按钮）。它们是**近似**，所以文案说"大致"。 */}
+          {safeArea && (
+            <>
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[20%] bg-black/55 backdrop-blur-[1px]" />
+              <div className="pointer-events-none absolute bottom-[20%] right-0 top-[18%] w-[16%] bg-black/45" />
+              <div className="pointer-events-none absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] text-white/90">
+                暗处在首页会被文字和按钮盖住（大致）
+              </div>
+            </>
+          )}
+          <button
+            onClick={() => setSafeArea((v) => !v)}
+            className="absolute right-1 top-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white/90"
+          >
+            {safeArea ? "隐藏遮挡" : "看首页遮挡"}
+          </button>
+        </div>
       ) : (
         <div
           style={box}

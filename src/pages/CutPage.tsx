@@ -187,6 +187,41 @@ export default function CutPage() {
     [annBySeg, segs],
   );
 
+  /**
+   * 预览用的 BGM。
+   *
+   * ★★ 为什么要有它：预览的 `<video muted>`，而 BGM 只在 `mergeAndGo` 那一次性混轨 ——
+   *   也就是说**音量滑杆是盲调的**：调完对不对得上，要等几十秒的实时录制跑完、
+   *   跳到发布页才知道；不合适就得整条重录一遍。
+   * ★ 它**不进导出链路**：合并那边仍然走 AudioContext 混轨（那条才是成片里的声音）。
+   *   这一份纯粹是"让耳朵先听见"，所以它出问题也不该影响导出（下面全都 catch 掉）。
+   */
+  const bgmRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => {
+    // 换了曲子/去掉了：把上一个收掉
+    bgmRef.current?.pause();
+    bgmRef.current = null;
+    if (!audio) return;
+    const el = new Audio(audio.url);
+    el.loop = true; // 与合并那边一致：BGM 短于成片时循环补齐
+    el.volume = Math.max(0, Math.min(1, audio.volume));
+    bgmRef.current = el;
+    return () => {
+      el.pause();
+    };
+  }, [audio?.url]);
+
+  // 音量滑杆实时生效（这正是这一整段存在的理由）
+  useEffect(() => {
+    if (bgmRef.current && audio) bgmRef.current.volume = Math.max(0, Math.min(1, audio.volume));
+  }, [audio?.volume]);
+
+  // 合并期间别让预览的 BGM 跟着响：那会儿在录屏，两条声音会让人以为混轨出了问题
+  useEffect(() => {
+    if (busy) bgmRef.current?.pause();
+  }, [busy]);
+
+
   if (!draft) return null;
 
   /** 当前播放头（全局秒）：前面片段时长之和 + 片内偏移 */
@@ -216,9 +251,20 @@ export default function CutPage() {
     if (!v) return;
     if (v.paused) {
       void v.play();
+      // ★ BGM 跟着画面走：播放头在哪儿，BGM 就从哪儿开始（成片里它是从 0 铺到尾的）
+      const bgm = bgmRef.current;
+      if (bgm) {
+        try {
+          bgm.currentTime = playhead % Math.max(0.1, bgm.duration || 1);
+        } catch {
+          /* duration 还没解出来：从头放，差几百毫秒不影响"听个响" */
+        }
+        void bgm.play().catch(() => {});
+      }
       setPlaying(true);
     } else {
       v.pause();
+      bgmRef.current?.pause();
       setPlaying(false);
     }
   }

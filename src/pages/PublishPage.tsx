@@ -80,7 +80,8 @@ export default function PublishPage() {
   if (!draft) return null;
   const total = draft.segments.reduce((s, x) => s + x.durationSec, 0);
 
-  async function publish() {
+  /** @param over 立刻要生效、还来不及经过 state 的字段（放弃确认卡里那条"先私密发出去"用） */
+  async function publish(over?: { visibility?: "public" | "private" }) {
     if (!draft || publishedRef.current) return;
     if (!title.trim()) {
       setErr("先给视频起个标题");
@@ -106,7 +107,7 @@ export default function PublishPage() {
       branchTree: draft.branchTree,
       deck,
       merged: draft.merged,
-      visibility,
+      visibility: over?.visibility ?? visibility,
       // 上面已经拦掉了 paid 而价不足的情况，这里的条件与那道闸是同一把尺
       ...(paid && price >= MIN_PAID_PRICE ? { pricing: { mode: "paid" as const, partPrices: [price] } } : {}),
     });
@@ -418,7 +419,29 @@ export default function PublishPage() {
         >
           {/* 只说已知事实：丢的是这条合成稿和填好的发布信息。各段素材/草稿丢没丢
               取决于上游存盘情况，这里不知道，就不许诺（DiscardFlowDialog 那条教训） */}
-          这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。
+          <p>这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。</p>
+          {/* ★★ 第三条路（2026-08-30）：这一页原来只有"现在就定死"和"全丢掉"两个选项，
+              而用户手上是一条**真金白银炼出来的成片** —— 它是一次性的（发布即定稿，
+              合成稿丢了就没了），而**可见性发布后随时能改**。两者的代价完全不对等。
+              所以给一条中间路：先按「仅自己可见」发出去，人还在、片还在，什么时候想好了
+              再去作品编辑页改成公开。⚠ 这不是"偷偷替他发布"：按钮上写清楚了这一下会做什么。 */}
+          <button
+            onClick={() => {
+              setVisibility("private");
+              setDiscardOpen(false);
+              void publish({ visibility: "private" });
+            }}
+            // ★ 没标题就禁用，而不是"点了之后关掉弹层再在两屏之外报错"——
+            //   那种失败方式用户读不出因果（发布键那条整句拒也是同一个理由挪的位置）
+            disabled={!!busy || !title.trim()}
+            className="mt-3 w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-50"
+          >
+            <span className="font-bold">还是先按「仅自己可见」发出去吧</span>
+            <br />
+            {title.trim()
+              ? "片子留住、不出现在任何人的首页；想好了再去作品编辑页改成公开。"
+              : "得先给它起个标题，才发得出去（关掉这张卡去填一个）。"}
+          </button>
         </ConfirmDialog>
       )}
     </div>

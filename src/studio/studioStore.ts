@@ -1983,7 +1983,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
     });
     return true;
   },
-  clearDraft: () => set({ draft: null }),
+  clearDraft: () => {
+    set({ draft: null });
+    // ★★ 落盘那份也要清（2026-08-30 补）：剪辑稿持久化上线之后，只清内存会留下一条
+    //   **用户刚刚明确丢掉**的稿子挂在个人页横幅上 —— 点进去是他已经放弃的那摊活。
+    //   `clearDraft` 的唯一调用点就是发布页那颗「放弃本次合成」，语义正是"不要了"。
+    //   ⚠ blob 不在这里删：交给 cacheSweep 24h 后收（那边才有"还有没有别人引用"的全局视野）。
+    void dropCutSession();
+  },
 
   publishedWorkId: null,
   persistCutDraft: async () => {
