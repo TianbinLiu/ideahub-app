@@ -929,13 +929,13 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
-        title: "谁能看、要不要钱",
+        title: "谁能看",
         anchor: "publish-pricing",
         body: (
           <>
-            可见性管<b className="font-bold text-slate-100">谁看得到</b>，收费管
-            <b className="font-bold text-slate-100">看要不要花 token</b>。付费解锁的收益按平台抽成后进你的
-            add-on 钱包，能直接拿来生成视频 —— 具体到手多少，定价那一行会当场算给你看。
+            可见性管<b className="font-bold text-slate-100">谁看得到</b>：公开、凭链接可见、仅自己可见。
+            发完在作品编辑页随时能改。收费这一栏现在<b className="font-bold text-slate-100">所有作品都是免费观看</b>
+            —— 付费解锁等收款和分账真的通了再放出来。
           </>
         ),
       },
