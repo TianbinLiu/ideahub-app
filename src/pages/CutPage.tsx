@@ -326,6 +326,11 @@ export default function CutPage() {
         //   nextSegs 一起丢弃，圈选也没清 —— 用户点「重试」对同一份内容再收一遍。
         //   逐段写回 + 逐段清掉这一段的圈选：失败时前面付过的钱全都留在成片里。
         useStudio.setState({ draft: { ...useStudio.getState().draft!, segments: nextSegs.slice() } });
+        // ★ 钱刚扣过（segTokens + annRedrawCost）：这一段落盘，别让一次切后台把它烧掉。
+        //   与 useFlowActions 那条「又炼出一段就自动存盘」是同一条规则、同一个理由。
+        if (!(await useStudio.getState().persistCutDraft())) {
+          setErr("这一段已经改好、钱也扣过了，但没能存进本地库——先别切后台，把片子剪完发出去。");
+        }
         setAnns((prev) => prev.filter((a) => a.segIndex !== segIndex));
         void resolveMediaUrl(url, { forCapture: true }).then((u) => u && setSrcMap((m) => ({ ...m, [segIndex]: u })));
       }
@@ -370,6 +375,8 @@ export default function CutPage() {
         mergeSegs = next;
         // 写回草稿：预览、重试合并、发布都用转存后的地址，别让下一步再拉一次跨境
         useStudio.setState({ draft: { ...draft!, segments: next } });
+        // 跨境转存的成果，不值得再拉一遍
+        void useStudio.getState().persistCutDraft();
       }
       // ★ 音轨与画布准备是**同步长活**（预置的原片音轨是整条原视频，几十 MB、跨境要十几秒）：
       //   不先点亮 busy 的话，这段时间按钮亮着、屏幕上一个字都没有 = 用户眼里的"点了没反应"
@@ -503,6 +510,10 @@ export default function CutPage() {
       };
       leftRef.current = true;
       useStudio.setState({ draft: { ...draft!, segments: [merged], branchTree: undefined, merged: true } });
+      // ★★ 这一拍把 `idb:merged:` 指针钉到盘上 —— 在此之前那条几十 MB 的成片
+      //   **只被内存里的 store 引用着**，磁盘上找不到任何指针（cacheSweep 文件头记的
+      //   正是这个洞，它靠 24h 时间闸门兜着）。实时录制几分钟的成果，不能只活在内存里。
+      await useStudio.getState().persistCutDraft();
       navigate("/publish");
     } catch (e) {
       setErr(`合并失败：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}`);

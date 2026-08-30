@@ -21,6 +21,7 @@
 import { idbDel, idbGet, idbKeys } from "./db";
 import { listDrafts, loadDraft } from "./drafts";
 import { listVideos, pendingPublishes } from "./videos";
+import { cutSession } from "./cutSession";
 import { myCards } from "./account";
 import type { VideoSegment } from "../types";
 
@@ -95,6 +96,19 @@ async function collectReferenced(): Promise<Set<string>> {
     } catch {
       /* 正文里有循环引用之类：那就保守地把这条草稿相关的都当成"引用中" */
       return new Set([...refs, "*"]);
+    }
+  }
+
+  // 5) 剪到一半的那条成片（data/cutSession）——它引用着 merged webm 与组稿铸出来的 GLB，
+  //    而那些**只被这一份稿子引用着**。⚠ 顺序上这一段必须与持久化同拍上线：
+  //    漏了它，一条放过夜的剪辑稿会被这里把成片和模型真删掉，稿子还在、指针指向空气。
+  //    写法照第 3 段（序列化后正则扫）：逐字段遍历容易漏。
+  const cut = cutSession();
+  if (cut) {
+    try {
+      for (const m of JSON.stringify(cut).matchAll(/"idb:([^"]+)"/g)) refs.add(m[1]);
+    } catch {
+      return new Set([...refs, "*"]); // 循环引用之类：保守起见这一轮什么都别删
     }
   }
 

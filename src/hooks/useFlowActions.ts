@@ -119,6 +119,15 @@ export function useFlowActions(opts?: {
       const st = useFlow.getState();
       const ok = await useStudio.getState().finalizeFromFlow(st.nodes, st.mode, (s) => setFinalizing(s), st.deckOff);
       if (ok) {
+        // ★★ 落盘就在这一拍：卡组刚铸完（最多 8 张，真扣过钱）、3D 建模的 GLB 刚落 idb 而
+        //   **指针只在内存 draft 上**。下面马上要 reset() 流水线，此后这摊活的唯一副本
+        //   就是那份内存 draft —— 切后台被系统回收就得从草稿箱重来一遍，**再收一次那笔钱**。
+        //   存不住不挡人进剪辑页（那只会更糟），但必须说出来（铁律八）。
+        if (!(await useStudio.getState().persistCutDraft())) {
+          useFlow.setState({
+            err: "卡组已经铸好了，但这一稿没能存进本地库（存储空间不足或隐私模式）——现在切后台会丢掉它，请先把片子剪完发出去。",
+          });
+        }
         opts?.onLeave?.();
         useFlow.getState().reset();
         // ★ 工坊那一面的投影窗/聚焦是**独立的一份状态**，reset() 只清流水线 ——

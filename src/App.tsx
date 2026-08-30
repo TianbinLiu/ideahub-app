@@ -43,6 +43,7 @@ import { checkUpdateForPrompt, type UpdateInfo } from "./data/appUpdate";
 import UpdateSheet from "./components/UpdateSheet";
 import { readyTemplates } from "./data/templates";
 import { readyDrafts } from "./data/drafts";
+import { readyCutSession } from "./data/cutSession";
 import { readyAccount } from "./data/account";
 import { useAuthState, useCurrentUser } from "./hooks/useAccount";
 import useOrientationLock from "./hooks/useOrientationLock";
@@ -207,6 +208,8 @@ export default function App() {
       readyTemplates(),
       readyDrafts(),
       readyDanmaku(),
+      // 剪到一半的那条成片（钱已经花在里面了，见 data/cutSession 的 ★★）
+      readyCutSession(),
     ]).then(() => setReady(true));
   }, []);
 
