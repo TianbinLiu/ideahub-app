@@ -578,14 +578,14 @@ export function partsOf(v: VideoItem): VideoPart[] {
  *  ★ 发上去的**只有服务端认的那几个字段**（title/category/description/tags/visibility）。
  *    deck / pricing 会被服务端 strip；cover 走另一条路（EditPage 先把它传成永久 URL
  *    再随 patch 发，见下面的 remotePatch.cover）。 */
-export function updateVideoMeta(
+export async function updateVideoMeta(
   id: string,
   patch: Partial<
     Pick<VideoItem, "title" | "category" | "description" | "tags" | "cover" | "deck" | "pricing" | "visibility" | "linkOnly">
   >,
-): VideoItem | null {
+): Promise<string | null> {
   const v = find(id);
-  if (!v) return null;
+  if (!v) return "作品不存在或已删除";
   // 回滚用的快照：只记这次真要发给服务端的那几项，别的（deck/pricing）本来就只在本地
   const before: Partial<VideoItem> = {
     title: v.title,
@@ -614,22 +614,29 @@ export function updateVideoMeta(
     if (patch.cover !== undefined && /^https?:\/\//.test(patch.cover)) remotePatch.cover = patch.cover;
     // 空 patch 服务端会 400（"至少给一个字段"），别为纯本地字段白跑一趟
     if (Object.keys(remotePatch).length > 0) {
-      void branch
-        .updateVideo(realId(v.id), remotePatch)
-        .then((remote) => {
-          if (remote?.cover) v.cover = remote.cover;
-          emitVideos();
-        })
-        .catch((e) => {
-          Object.assign(v, before); // ★ 撤回，别让界面继续显示一个服务端根本不认的状态
-          save(all());
-          emitVideos();
-          emitApiError("updateVideo", e);
-        });
+      // ★★ **要等回包**（2026-08-30 发版前复核抓到）。原来这里是 `void … .catch(…)` ——
+      //   函数当场同步 return，调用方（EditPage.save）拿不到网络结果，于是 PATCH 失败时
+      //   照样 `setSaved(true)` 闪一句「✓ 已保存」，而 catch 里唯一的动作是 emitApiError
+      //   —— 全 app 零监听。用户看到的是"保存成功"，服务端一个字都没改。
+      //   ⚠ 这与本文件 `deleteVideoItem` 是同一条教训，而那一条的注释就写在下面几行：
+      //     失败必须能被调用方说出来（铁律八）。
+      //   ★ 失败仍然**回滚本地**：留着的话界面显示新值、服务端是旧值，下次冷启动又变回去
+      //     —— "改了又变回来"比"这次没改成"难查得多。
+      try {
+        const remote = await branch.updateVideo(realId(v.id), remotePatch);
+        if (remote?.cover) v.cover = remote.cover;
+        emitVideos();
+      } catch (e) {
+        Object.assign(v, before); // ★ 撤回，别让界面继续显示一个服务端根本不认的状态
+        save(all());
+        emitVideos();
+        emitApiError("updateVideo", e);
+        return `没能同步到服务器（${e instanceof Error ? e.message.slice(0, 40) : "原因不明"}）——改动已撤回。`;
+      }
     }
   }
   emitVideos();
-  return v;
+  return null;
 }
 
 /**

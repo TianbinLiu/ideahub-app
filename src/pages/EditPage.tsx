@@ -122,7 +122,12 @@ export default function EditPage() {
         coverUrl = await coverToPermanentUrl(cover);
         setCover(coverUrl); // 回填，避免用户再点一次又传一遍
       }
-      updateVideoMeta(video.id, {
+      // ★★ **要 await 并判回执**（2026-08-30 复核抓到）：`updateVideoMeta` 原来是同步的、
+      //   远端那半是即发即忘 —— PATCH 失败时这里照样 `setSaved(true)` 闪一句「✓ 已保存」，
+      //   而失败侧唯一的动作是 emitApiError（全 app 零监听）。用户看到"保存成功"，
+      //   服务端一个字都没改；那颗「改成仅自己可见」的按钮更是照样收卡、翻开关 ——
+      //   而它存在的全部理由正是防这件事。
+      const syncWhy = await updateVideoMeta(video.id, {
         title: title.trim(),
         category,
         description: description.trim(),
@@ -132,6 +137,10 @@ export default function EditPage() {
         //   "从凭链接可见改成仅自己可见，界面收紧了、链接却照样打得开"（零报错）
         ...visibilityWire(over?.visibility ?? visibility),
       });
+      if (syncWhy) {
+        setErr(syncWhy);
+        return syncWhy;
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 1800);
       return null;
