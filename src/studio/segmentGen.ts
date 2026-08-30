@@ -12,7 +12,7 @@
 //
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
-import { VIDEO_PROMPT_MAX, composeSegments, generateCover, prepareMaterialRefs, refineFrame } from "../ai";
+import { ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateCover, prepareMaterialRefs, refineFrame } from "../ai";
 import { uploadImage } from "../api/uploads";
 import { r2vPriceIssue, tierOf, providerOf, clampDuration } from "../data/economy";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
@@ -280,7 +280,22 @@ export function customRefPrompt(o: { hasFirst: boolean; midCount: number; hasLas
   return `。参考视频提供整体画面、运镜与节奏；${parts.join("；")}。画面按图片编号顺序推进，衔接自然。`;
 }
 
-export async function generateSegment(input: SegmentGenInput, onProgress?: SegmentProgress): Promise<SegmentGenResult> {
+/**
+ * 出片任务**刚被方舟受理**（从这一刻起这一发的钱已经花掉了，见 arkClient 的 onTask）。
+ *
+ * ★ 本模块只是把它递上去，一个字都不解释 —— 与文件头那条「计费与 store 写入不在这里」
+ *   同一条分工：谁在等这一发、要不要落凭据、落哪儿，是 store 的事
+ *   （唯一的落方是 flowStore.genNode → data/videoJobs）。
+ * ★ 它**只对出片那一发**触发。这一函数里还会花钱的另外两处（按圈选改帧、补画设定帧）
+ *   走的是同步出图，没有任务号也没有“等一会儿再来取”这回事。
+ */
+export type SegmentTaskAccepted = (taskId: string) => void;
+
+export async function generateSegment(
+  input: SegmentGenInput,
+  onProgress?: SegmentProgress,
+  onTask?: SegmentTaskAccepted,
+): Promise<SegmentGenResult> {
   const prog = (s: string) => onProgress?.(s);
   let first = input.firstFrame;
   let last = input.lastFrame;
@@ -615,7 +630,13 @@ export async function generateSegment(input: SegmentGenInput, onProgress?: Segme
       },
     ],
     (_d, _t, status) => prog(status),
+    (taskId) => onTask?.(taskId),
   );
+  // ★ 「没接到结果」要**原样保持它的类型**往上抛：调用方据此决定凭据留不留
+  //   （留 = 亮取回入口，销毁 = 只剩「重新生成」= 再花一次钱）。这里图省事统一
+  //   `new Error(res.error)` 的话，那个判据在本行就被抹平成一个字符串了 ——
+  //   而抹平之后没有任何编译期或运行期症状，只有用户多付一次钱。
+  if (res?.pendingTaskId) throw new ArkTaskUnknown(res.error ?? "没接到这一段的出片结果", res.pendingTaskId);
   if (res?.error) throw new Error(res.error);
   return {
     url: res?.url,

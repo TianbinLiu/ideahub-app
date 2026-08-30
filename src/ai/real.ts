@@ -48,10 +48,15 @@ import { refableViews } from "../data/cardViews";
 // 已授权的可信素材：整张卡改发 asset:// URI（判据与拼法各只有一处，见 data/cardAsset）
 import { assetOf, assetUri } from "../data/cardAsset";
 import {
+  ArkHttpError,
+  ArkTaskUnknown,
+  briefArkReason,
+  type ArkTaskState,
   chat,
   chatTurns,
   chatVision,
   fetchArkAsset,
+  fetchArkTask,
   generate3dModel,
   generateImage,
   generateVideo,
@@ -1826,6 +1831,15 @@ export interface SegmentResult {
   error?: string;
   firstFrame?: string;
   lastFrame?: string;
+  /**
+   * 这一段**没接到结果、但任务还在方舟那边跑**时的任务号（见 arkClient.ArkTaskUnknown）。
+   *
+   * ★ 与 `error` 并存而不是二选一：那句话仍旧要说给用户听（"等了 25 分钟还没出片…"），
+   *   但它的**语义**由这一位决定 —— 有它 = 未知（凭据留着、给取回入口），
+   *   没有 = 真失败（凭据该销毁）。调用方靠它分叉，别去 `error` 里找关键词
+   *   （那种判断改一次文案就静默失效，而判错的代价是让用户再付一次钱）。
+   */
+  pendingTaskId?: string;
 }
 
 /**
@@ -1962,6 +1976,11 @@ export async function composeSegments(
     refTask?: "edit" | "reference";
   }>,
   onProgress?: (done: number, total: number, status: string) => void,
+  /**
+   * 第 index 段的方舟任务**刚被受理**（钱已经花了，见 arkClient 的 onTask）。
+   * ★ 纯透传，这一层一个字都不解释：谁在等这一发、存不存凭据是 store 的事。
+   */
+  onTask?: (taskId: string, index: number) => void,
 ): Promise<SegmentResult[]> {
   const out: SegmentResult[] = [];
   // 衔接判定要对照"原始设定帧"：后面会用真实尾帧顶替首帧，不能拿改过的值比
@@ -2041,6 +2060,7 @@ export async function composeSegments(
         refTask: sg.refTask,
         model: tier.model,
         ratio: aspectOf(sg.aspect).ratio,
+        onTask: (taskId) => onTask?.(taskId, i),
         onProgress: (s) => onProgress?.(i, segments.length, `${tier.label}档 · ${s}`),
       });
       // 视频较大（数 MB），存 URL 而非 dataURL——localStorage 放不下 base64 视频；
@@ -2057,12 +2077,89 @@ export async function composeSegments(
       }
     } catch (e) {
       res.error = e instanceof Error ? e.message : String(e);
-      console.warn(`[ai] 第 ${i + 1} 段视频失败，回退首尾帧:`, e);
+      // ★ 「没接到结果」与「这一发废了」在这里就分岔（判据是**类型**，不是文案里的关键词）：
+      //   前者把任务号带上去，调用方据此留住凭据、亮出取回入口；后者什么都不带，
+      //   凭据当场销毁。混成一个 error 字符串的话，两种情况在上层就再也分不开了。
+      if (e instanceof ArkTaskUnknown) res.pendingTaskId = e.taskId;
+      console.warn(`[ai] 第 ${i + 1} 段视频${e instanceof ArkTaskUnknown ? "没接到结果（任务可能还在跑）" : "失败"}，回退首尾帧:`, e);
     }
     out.push(res);
   }
   onProgress?.(segments.length, segments.length, "完成");
   return out;
+}
+
+/**
+ * 「**把一发已经付过钱、当时没接到的成片取回来**」—— 取回路径的唯一实现。
+ *
+ * ★★ 为什么放在这一层而不是 store 里：从任务号到"节点上能用的一段"中间有两步
+ *   （拿 video_url、捕获真实尾帧），而这两步在 composeSegments 里已经有一份实现了。
+ *   在 store 里再拼一遍的结局是**取回来的段和当场炼出来的段长得不一样**（少一张尾帧，
+ *   于是节点卡上没画面、下一段也接不上），而且零报错 —— 那正是铁律六防的东西。
+ * ★ 只查**一次**，不在这里蹲守：查询本身不花钱，但把用户按在一个转圈的按钮上几分钟、
+ *   还没有取消键，等于把刚刚那 25 分钟的等待再来一遍。没出完就如实说"还在出片中，
+ *   过几分钟再点一次" —— 凭据还在，点几次都不花钱。
+ * ★ 抛什么决定的是**这句话怎么说**（"一会儿再来" vs "多半没了"）：
+ *   还在跑 / 网络不通 → `ArkTaskUnknown`；方舟明说 failed / 查无此任务 / 成功却没地址 →
+ *   普通 Error。★★ 但**凭据一律不在这里销毁**，调用方也不该因为取回失败就摘掉它 ——
+ *   失败恰恰是那条"这一发花过钱"的记录最该留在屏幕上的时候（templates 那边同一条：
+ *   `dropPendingJob` 只在成功时调）。真正的销毁只有两处：取回成功，与过期后用户亲手消掉。
+ */
+export async function takeVideoTask(
+  taskId: string,
+  onProgress?: (status: string) => void,
+): Promise<{ url: string; lastFrame?: string }> {
+  onProgress?.("正在向方舟核对这一发的状态…（查询不花钱）");
+  let st: ArkTaskState;
+  try {
+    st = await fetchArkTask(taskId);
+  } catch (e) {
+    // ★ 404 = 方舟那边**查无此任务**，与"网络不通"是相反的两件事（判据是状态码，不是
+    //   文案里的关键词 —— 见 ArkHttpError）。把前者说成"联网后再试"，用户会一直点一颗
+    //   永远不会成功的按钮；说成"没了"又可能吓跑一发其实还在的。所以两句话分开说，
+    //   而且都不下"绝对"的断语。
+    if (e instanceof ArkHttpError && e.status === 404) {
+      throw new Error(
+        "方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉。" +
+          "真是这样的话这一段取不回来了，已经花掉的钱无法挽回；重新生成是重新下一单、会再花一次钱",
+      );
+    }
+    // 查不动 ≠ 取不回：任务在方舟那边好好的，是我们这边的网络。凭据必须留着。
+    // ★ 原因只带一行摘要，**不把方舟的 JSON 原样糊到屏幕上**：用户看不懂 request id，
+    //   而那一坨还会把真正有用的后半句（"再点一次、凭据还在"）挤出可视区（同 arkFetch
+    //   里 403 那条注释记过的坑）
+    throw new ArkTaskUnknown(
+      `这一发的状态暂时查不到（${briefArkReason(e)}）——联网后再点一次「取回」，凭据还在，也不花钱`,
+      taskId,
+    );
+  }
+  if (st.status === "failed" || st.status === "cancelled") {
+    // 真失败。★ 必须把"钱不退"写进整句里（契约：受理之后才失败不退）——
+    //   不说的话用户只会理解成"再点一次就好了"，而那是再花一次钱
+    throw new Error(
+      `方舟报这一发没能出片（${st.status}${st.error?.message ? `：${st.error.message}` : ""}）。` +
+        `任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）`,
+    );
+  }
+  if (st.status !== "succeeded") {
+    const label = st.status === "queued" ? "还在排队" : st.status === "running" ? "还在出片中" : `状态：${st.status}`;
+    throw new ArkTaskUnknown(`${label}——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱`, taskId);
+  }
+  const url = st.content?.video_url;
+  if (!url) {
+    // 成功却没有地址：再查一次也是同一个答复，所以话要说死（普通 Error），
+    // 别让用户对着一颗永远不会成功的「取回」反复点
+    throw new Error("方舟说这一发成功了，却没有给视频地址——这一段取不回来了（费用已经花过，重新生成是再花一次钱）");
+  }
+  let lastFrame: string | undefined;
+  try {
+    onProgress?.("取到成片了，正在捕获这一段的真实尾帧…");
+    lastFrame = await captureVideoTail(url);
+  } catch (e) {
+    // 尾帧只是卡面与下一段的起拍画面，捕获失败不该把已经到手的成片再丢一次
+    console.warn("[ai] 取回段的真实尾帧捕获失败（节点卡少一张画面，成片本身不受影响）:", e);
+  }
+  return { url, lastFrame };
 }
 
 export { makeCover };

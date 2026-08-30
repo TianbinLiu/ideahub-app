@@ -18,7 +18,7 @@
 //   于是工作流退化成"写一句话直接出片"——最贵的那一步（出片）反而没有选择余地。
 //   现在它是主路径：便宜的一步（推演 ~80k token）摆在前面挑，贵的一步（出片）挑完再走。
 import { create } from "zustand";
-import { AI_REAL, generateCover, generateProposals, prepareMaterialRefs } from "../ai";
+import { AI_REAL, ArkTaskUnknown, generateCover, generateProposals, prepareMaterialRefs, takeVideoTask } from "../ai";
 import { canAfford, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import {
   DEFAULT_TIER,
@@ -37,6 +37,7 @@ import {
 import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
+import { dropVideoJob, rememberVideoJob, type VideoJob } from "../data/videoJobs";
 import {
   BLOCKOUT_MAX_ROLES,
   markDescOfLabel,
@@ -124,8 +125,16 @@ export interface FlowNode {
    *  重铺前的脏检查靠它区分"工坊铺过来的原文"与"用户自己敲的字"——前者重铺即可复现，
    *  后者补不回来。setSubject 走模板配方覆盖，不算用户逐字敲的，故不置位。 */
   edited?: boolean;
-  /** 只描述"当前正在发生什么"，出片与否看 videoByProposal（见 nodeDone） */
-  status: "idle" | "generating" | "failed";
+  /**
+   * 只描述"当前正在发生什么"，出片与否看 videoByProposal（见 nodeDone）。
+   *
+   * ★★ `"pending"` = **我们没接到结果，但这一发多半还在方舟那边跑**（arkClient 的
+   *   ArkTaskUnknown）。它和 `"failed"` 分成两个值不是为了好看：打成 failed 时界面上
+   *   唯一可点的是「♻ 重新生成」= 重新下一单 = **再花一次钱**，而那一发的成片其实
+   *   好好地存在着（2026-08-18 那 ¥27 就是这么丢的）。取回入口据它显示。
+   * ★ 后加的值，老草稿天然没有 —— 读的那几处一律按"不是 pending"处理即可，零迁移。
+   */
+  status: "idle" | "generating" | "failed" | "pending";
   error?: string;
   /** 生成期实时阶段（"标准档 · 排队中…"）——按钮上那一行，取 steps 的当前步 */
   progress?: string;
@@ -786,6 +795,15 @@ interface FlowState {
    */
   genRun: number;
   clearGenNotice: () => void;
+  /**
+   * **取回**一发已经付过钱、当时没接到的成片（凭据见 data/videoJobs）。
+   *
+   * ★★ 这个 action 是这次改造的**目的本身**：没有它，出片到点就等于"钱花了、片没了、
+   *   界面上只剩一颗会再花一次钱的按钮"。查询不计费（GET tasks/:id），所以点几次都不花钱。
+   * ★ 失败原样 throw 整句人话给调用方显示 —— 这里**绝不**自己补一句"重试一下"：
+   *   这条路上"重试"和"重新下一单"长得一模一样，而后者是再花一次钱。
+   */
+  takeJob: (job: VideoJob, prog: (s: string) => void) => Promise<void>;
 }
 
 export const useFlow = create<FlowState>()((set, get) => ({
@@ -2070,6 +2088,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const myRun = get().genRun + 1;
     set({ busy: true, err: "", genRun: myRun });
     patchNode({ status: "generating", progress: "准备中…", error: undefined, steps: [] });
+    /** 这一发的方舟任务号（受理之后才有）。空 = 还没被受理，也就一分钱都没花 */
+    let taskId = "";
     try {
       // 承接判定：上一段真出过片，它的尾帧才是"真实结尾"，才配顶替本段起拍帧
       const prevNode = get().nodes[idx - 1];
@@ -2127,9 +2147,37 @@ export const useFlow = create<FlowState>()((set, get) => ({
           refAllowed: get().mode === "simple",
         },
         prog,
+        // ★★ 受理即落凭据 —— 在**等结果之前**，不是在失败分支里。这一发要等最长 25.5
+        //   分钟（死线按输出秒数缩放，见 arkClient），而这段时间里最典型的丢结果方式
+        //   是进程被系统回收：那时这整个 try/catch 连同 store 一起没了，只有已经落过盘
+        //   的那一条还在（data/videoJobs 用 localStorage 就是为了这一拍）。
+        // ★ 不只白模段：**工作流里每一段都落**。判"是不是 r2v"再决定落不落是多写一个
+        //   条件换来一个更差的结果 —— 经典段一样是先扣钱后等，一样会到点，一样只剩
+        //   「♻ 重新生成」可点。白模只是最贵、等得最久的那一类（也是本次修的由来）。
+        // ★ 工坊（studioStore）那条路**没有**这一手，是结论不是遗漏：取回入口长在工作流
+        //   的段卡上，工坊的节点树里没有这一屏。要给工坊也补，得连入口一起补 ——
+        //   只在那边落凭据只会攒下一堆没人能取的记录。
+        (id2) => {
+          taskId = id2;
+          rememberVideoJob({
+            taskId: id2,
+            nodeId: id,
+            proposalId: node.chosenId,
+            seg: idx + 1,
+            // 认得出是哪一发就够。★ 段序不进这句话：卡片标题已经写着"第 N 段"，
+            //   重复一遍只会挤掉真正有辨识度的那半句（套的哪个模板 / 这一段讲什么）
+            //   ★ 用 `||` 不是 `??`：空标题/空剧情是空**串**不是 undefined，`??` 接不住，
+            //   结果是卡片上一行空白（而这张卡的用处就是让人认出是哪一发）
+            label: get().template?.title || prop.plot.trim().slice(0, 24) || prop.title || `第 ${idx + 1} 段`,
+            cost,
+            createdAt: Date.now(),
+          });
+        },
       );
       log.end();
       if (res.url && AI_REAL) spendTokens(cost);
+      // 成片已经到手，凭据结案（留着只会在界面上多一颗"取回"，点了拿回同一段）
+      if (taskId) dropVideoJob(taskId);
       // 真实帧顶替设定帧：节点卡显示的就是视频里实际的画面，也是下一段的起拍帧。
       // videoUrl 同时挂在方案上——工坊侧的节点卡读的就是它（两个模式共用同一份出片）
       patchProp({
@@ -2173,6 +2221,35 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      // ★★ 「没接到结果」与「这一发废了」在这里分岔，判据是**类型**（ArkTaskUnknown），
+      //   不是错误文案里的关键词 —— 判错的代价直接是钱：把 unknown 说成 failed，
+      //   用户面前唯一可点的就是「♻ 重新生成」= 重新下一单，而那一发的成片其实
+      //   在方舟那边好好地存在着（2026-08-18 那 ¥27 就是这么丢的）。
+      if (e instanceof ArkTaskUnknown) {
+        // 凭据**留着**（这一支绝不 dropVideoJob）：它是取回入口能不能出现的唯一依据。
+        // 日志那一行也不许写"失败"——步骤日志是用户回看这一段怎么回事的地方。
+        log.fail(`没接到结果：${msg.slice(0, 80)}`);
+        patchNode({
+          status: "pending",
+          progress: "",
+          // 短句给段导航条上那颗角标；那笔钱的完整说明在取回卡上（videoJobNote 一处实现）
+          error: "没接到出片结果，任务可能还在方舟那边跑——用下面的「取回」领回来，别重新生成",
+        });
+        // ★ 可行动的那半句在**这里**接上，不在 arkClient 里：那一层不知道调用它的路上
+        //   有没有取回入口（工作流有，工坊没有）。而走到这一支就一定落过凭据 ——
+        //   ArkTaskUnknown 只在任务被受理之后才抛，受理那一刻 onTask 已经写过盘了。
+        set({
+          busy: false,
+          err:
+            `第 ${idx + 1} 段${msg.slice(0, 150)}` +
+            `成片 24 小时内都能取回：点下面那颗「取回」，不再花一分钱；「重新生成」是重新下一单、会再花一次。`,
+        });
+        return false;
+      }
+      // 真失败：方舟明说 failed/cancelled，或者根本没走到受理那一步。
+      // ★ 凭据要销毁 —— 留一颗点了必然失败的「取回」比不给更坏（同 templates 那边
+      //   "过期的不给按钮"）。没受理过的那些 taskId 为空，这一行本来就是空转。
+      if (taskId) dropVideoJob(taskId);
       // 失败也留在日志里：卡在哪一步、跑了多久，比一句"生成失败"有用得多
       log.fail(`失败：${msg.slice(0, 80)}`);
       patchNode({ status: "failed", progress: "", error: msg.slice(0, 160) });
@@ -2186,6 +2263,62 @@ export const useFlow = create<FlowState>()((set, get) => ({
           : {},
       );
       return false;
+    }
+  },
+
+  takeJob: async (job, prog) => {
+    const s0 = get();
+    if (s0.busy) throw new Error("正在忙别的，等这一步完了再取");
+    const idx = s0.nodes.findIndex((n) => n.id === job.nodeId);
+    const node = idx >= 0 ? s0.nodes[idx] : null;
+    // ★ 取回来的成片要**落回原来那一段的那一套走向**，落不回去就别取：
+    //   凭据是跨草稿存活的（localStorage），用户完全可能是在另一条工作流里看到它的。
+    //   这时候硬取只会把片挂到别人身上，而凭据一销毁就再也取不回来了。
+    if (!node || !node.proposals.some((p) => p.id === job.proposalId)) {
+      throw new Error(
+        "这一发是另一条工作流炼的，在这里取回没有地方安放它——去「我的」页打开那条草稿、进工作流，再点取回（凭据还在，没有浪费）",
+      );
+    }
+    set({ busy: true, err: "" });
+    try {
+      const { url, lastFrame } = await takeVideoTask(job.taskId, prog);
+      // ★ 与 genNode 成功那一行**同一条规则**（"拿到结果才扣"）：接不到结果的那一发
+      //   在本机账上没扣过，取回等于这一段终于成了。不扣的话"等超时再取回"就是白嫖，
+      //   而一段视频只该扣一次钱。远端模式下这只是改本机镜像（真扣费在提交那一刻由
+      //   服务端做完了），所以"取回不额外花钱"那句话两种模式下都成立。
+      if (AI_REAL) spendTokens(job.cost);
+      // ★ 按 **proposalId** 落，不按"当前选中的走向"落：凭据存的是当初炼的那一套，
+      //   而用户在这几十分钟里完全可能纵向切过走向（videoByProposal 按方案分键，
+      //   本来就是为这件事存在的）。落错一套 = 用户看到的是另一条剧情的画面。
+      set((st) => ({
+        nodes: st.nodes.map((n) =>
+          n.id !== job.nodeId
+            ? n
+            : {
+                ...n,
+                status: "idle",
+                progress: "",
+                error: undefined,
+                anns: [],
+                videoByProposal: { ...n.videoByProposal, [job.proposalId]: url },
+                proposals: n.proposals.map((p) =>
+                  p.id === job.proposalId
+                    ? { ...p, videoUrl: url, ...(lastFrame ? { lastFrame } : {}), degraded: undefined }
+                    : p,
+                ),
+              },
+        ),
+      }));
+      // 成片已经落到节点上，凭据结案
+      dropVideoJob(job.taskId);
+      set({ busy: false });
+    } catch (e) {
+      set({ busy: false });
+      // ★ 凭据在这里**一律不动**：takeVideoTask 已经把"还能再来取"与"真没了"分成了
+      //   两种抛法，但两者的善后都不是"悄悄删掉" —— 真失败那一条要留在屏幕上让用户
+      //   看见"钱不退"，销毁它等于把这句话也一起吞了。真正的销毁只发生在取回成功
+      //   （上面那行）与过期后用户亲手点「知道了」（data/videoJobs.dismissVideoJob）。
+      throw e;
     }
   },
 }));

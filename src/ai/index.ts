@@ -112,6 +112,19 @@ export const regenSegment: typeof real.regenSegment = AI_REAL
 export const composeSegments: typeof real.composeSegments = AI_REAL
   ? real.composeSegments
   : async (segs) => segs.map(() => ({}));
+/**
+ * 把一发已经付过钱、当时没接到的成片取回来（见 real.takeVideoTask）。
+ * ★ mock 构建**响亮地失败**而不是返回空：mock 从来不建方舟任务，所以本机根本不会有
+ *   待取回凭据，能走到这里说明凭据是脏的或者判断串了 —— 静默返回一个空地址只会让
+ *   那一段变成"取回成功但没有视频"，比报错难查得多（铁律八）。
+ */
+export const takeVideoTask: typeof real.takeVideoTask = AI_REAL
+  ? real.takeVideoTask
+  : async () => {
+      throw new Error("演示模式没有真实出片任务，取不回什么（这条凭据不该存在）");
+    };
+/** 「没接到结果 ≠ 这一发废了」的那个错误类型 —— 调用方据它决定凭据留不留（见 arkClient） */
+export { ArkTaskUnknown } from "./arkClient";
 /** 视频提示词的字数上限。两种构建下都是同一个数——拼提示词的那一处要按它给尾巴留位 */
 export { VIDEO_PROMPT_MAX } from "./real";
 export { AI_REAL };
