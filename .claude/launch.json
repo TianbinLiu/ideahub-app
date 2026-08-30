@@ -5,7 +5,8 @@
       "name": "ideahub-dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 5178
+      "port": 5178,
+      "autoPort": true
     },
     {
       "name": "shihui-dev",
