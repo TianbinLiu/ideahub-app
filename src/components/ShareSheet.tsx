@@ -17,7 +17,7 @@
 // ★ 面板自带 err/note 显示（盖住谁就自带一份——别指望底下的错误条）。
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import type { VideoItem } from "../types";
+import { type VideoItem, visibilityOf } from "../types";
 import Icon from "./Icon";
 import BrandIcon, { BRAND_CHIP } from "./BrandIcon";
 import { previewUrlOf } from "../utils/shareLink";
@@ -51,8 +51,12 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const url = previewUrlOf(video.id);
-  /** 私密作品的链接别人打开是 404 —— 面板上先说清，别让用户发出去才发现 */
-  const isPrivate = video.visibility === "private";
+  /** 私密作品的链接别人打开是 404 —— 面板上先说清，别让用户发出去才发现。
+   *  ★★ 判据必须走 `visibilityOf`（2026-08-30 三档之后）：直接写
+   *    `visibility === "private"` 会把**凭链接可见**的作品也说成"别人打不开" ——
+   *    而那一档的全部意义就是"链接能打开"，说反了用户就不会去分享它。 */
+  const isPrivate = visibilityOf(video) === "private";
+  const isUnlisted = visibilityOf(video) === "unlisted";
 
   async function toQQ() {
     if (busy) return;
@@ -168,7 +172,16 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
       >
         <p className="text-sm font-semibold text-slate-100">分享这条作品</p>
         {isPrivate && (
-          <p className="mt-1 text-xs text-amber-300">这是私密作品：链接只有你自己打得开。想给别人看，先在编辑里改成公开。</p>
+          <p className="mt-1 text-xs text-amber-300">
+            这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。
+          </p>
+        )}
+        {/* ★ 这一档要说清**代价**：链接是可转发的。用户选它多半是"只想给几个人看"，
+            而链接一旦被转出去，我们拦不住 —— 这句话必须在他分享**之前**出现。 */}
+        {isUnlisted && (
+          <p className="mt-1 text-xs text-slate-400">
+            凭链接可见：不进首页和搜索，但<span className="text-amber-300">拿到链接的人都能看，也能转给别人</span>。
+          </p>
         )}
 
         <div className="mt-4 flex items-start gap-7">

@@ -51,7 +51,7 @@ import {
 import { deleteVideo, removeComment, removeDanmaku, type ApiVideo } from "../api/branch";
 import { isAdmin, isRemoteMode } from "../data/account";
 import { useCurrentUser } from "../hooks/useAccount";
-import { relativeTime } from "../types";
+import { relativeTime, visibilityOf } from "../types";
 
 /** 同页子视图。home = 总览（统计卡 + 举报队列），其余五个是钻取列表 */
 type AdminView = "home" | "users" | "videos" | "comments" | "danmaku" | "takedowns";
@@ -802,7 +802,10 @@ function VideoRow({ v, onDone }: { v: ApiVideo; onDone: () => void }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="truncate text-sm font-semibold text-slate-100">{v.title || "（无标题）"}</span>
-            {v.visibility === "private" && <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300">私密</span>}
+            {/* ★ 三档要分得开：管理员看一条作品时得知道它"为什么不在流里" ——
+                「凭链接可见」和「仅自己可见」的处置完全不同（前者链接是活的） */}
+            {visibilityOf(v) === "private" && <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300">私密</span>}
+            {visibilityOf(v) === "unlisted" && <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-amber-300">凭链接</span>}
             {down && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300">已下架</span>}
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">

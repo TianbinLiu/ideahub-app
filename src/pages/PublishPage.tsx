@@ -21,7 +21,7 @@ import { addCards, createDeck, deckSynced } from "../data/account";
 import { MIN_PAID_PRICE, PLATFORM_CUT, fmtTokens } from "../data/economy";
 import { publishVideo } from "../data/videos";
 import { publishedExit, useStudio } from "../studio/studioStore";
-import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, formatDuration, parseTags } from "../types";
+import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, visibilityWire } from "../types";
 
 export default function PublishPage() {
   const navigate = useNavigate();
@@ -36,7 +36,7 @@ export default function PublishPage() {
   const [price, setPrice] = useState<number>(5000);
   // 可见性默认公开：发布这个动作本身的意思就是"给人看"。
   // 想先自己留着的人可以在这里改，发完在作品编辑页也随时能改回来。
-  const [visibility, setVisibility] = useState<"public" | "private">("public");
+  const [visibility, setVisibility] = useState<Visibility>("public");
   const [err, setErr] = useState("");
   /** 发布途中的一句进度（存卡组要等网络，不说话就是"点了没反应"） */
   const [busy, setBusy] = useState("");
@@ -81,7 +81,7 @@ export default function PublishPage() {
   const total = draft.segments.reduce((s, x) => s + x.durationSec, 0);
 
   /** @param over 立刻要生效、还来不及经过 state 的字段（放弃确认卡里那条"先私密发出去"用） */
-  async function publish(over?: { visibility?: "public" | "private" }) {
+  async function publish(over?: { visibility?: Visibility }) {
     if (!draft || publishedRef.current) return;
     if (!title.trim()) {
       setErr("先给视频起个标题");
@@ -107,7 +107,8 @@ export default function PublishPage() {
       branchTree: draft.branchTree,
       deck,
       merged: draft.merged,
-      visibility: over?.visibility ?? visibility,
+      // 三档 → 两个字段，映射只有 types.visibilityWire 一处
+      ...visibilityWire(over?.visibility ?? visibility),
       // 上面已经拦掉了 paid 而价不足的情况，这里的条件与那道闸是同一把尺
       ...(paid && price >= MIN_PAID_PRICE ? { pricing: { mode: "paid" as const, partPrices: [price] } } : {}),
     });

@@ -211,6 +211,36 @@ export const SHARE_NOTE_MAX = 200;
  * ★ 与话题标签那对（VIDEO_TAG_MAX/LEN）不同：那两个是**产品口径**、故意小于服务端；
  *   这两个就是服务端那对本身 —— 卡名简介没有"产品上想更短"的理由，同步即可。
  */
+/**
+ * 作品可见性的**三档**，以及它与线上两个字段之间的映射。**唯一一处**。
+ *
+ * ★★ 线上存的是两个字段而不是三个枚举值（`visibility` + `linkOnly`），理由在服务端
+ *   `models/BranchVideo.linkOnly` 的 ★★ 里：客户端**分不出新老**（请求里没有版本号），
+ *   而老客户端的归一是 `=== "private" ? "private" : "public"` —— 收到第三个枚举值会把它
+ *   当成 **public**，之后随便改个标题保存就把"只给链接看"的作品静默变成全站公开。
+ *   存成 `private + linkOnly` 之后，老客户端读到的是"仅自己可见"（**更严格**），
+ *   而且它的 PATCH 不带 linkOnly，碰不到这一位。失败方向从"泄漏"翻成"过度保守"。
+ * ★ 所以界面上这三档是**派生**出来的，映射只准在这两个函数里做：
+ *   到处各写一遍 `visibility === "private" && linkOnly` 必然有一处漏掉 linkOnly，
+ *   而那一处会把"凭链接可见"显示成"仅自己可见"（或反过来放行分享）。
+ */
+export type Visibility = "public" | "unlisted" | "private";
+
+/** 线上两个字段 → 界面那三档 */
+export function visibilityOf(v: { visibility?: string; linkOnly?: boolean }): Visibility {
+  if (v.visibility !== "private") return "public"; // ★ 判否定：老作品没有这个字段 = 公开
+  return v.linkOnly === true ? "unlisted" : "private";
+}
+
+/** 界面那三档 → 线上两个字段（发布/编辑时发给服务端的形状） */
+export function visibilityWire(v: Visibility): { visibility: "public" | "private"; linkOnly?: boolean } {
+  if (v === "public") return { visibility: "public" };
+  if (v === "unlisted") return { visibility: "private", linkOnly: true };
+  // ★ 纯私密要**显式把 linkOnly 关掉**：从"凭链接可见"改成"仅自己可见"时，
+  //   不发这一位的话服务端 $set 碰不到它，作品仍然凭链接可见 —— 用户以为收紧了，其实没有。
+  return { visibility: "private", linkOnly: false };
+}
+
 export const CARD_NAME_MAX = 120;
 export const CARD_SUMMARY_MAX = 2000;
 
@@ -697,6 +727,11 @@ export interface VideoItem {
    *  `!== "private"` 而不是 `=== "public"`（服务端同一条规则，见 api-contract.md） */
   visibility?: "public" | "private";
   /**
+   * 「只有拿到链接的人能看」。**只在 `visibility === "private"` 时有意义**，
+   * 两者合起来才是界面上那三档 —— 读它一律走 `visibilityOf()`，别在调用点各判一遍。
+   */
+  linkOnly?: boolean;
+  /**
    * 被平台下架了（管理员操作）。**有值 = 已下架**，缺省 = 没下架。
    *
    * ★ 只有作者本人和管理员的接口回包里会出现它 —— 别人根本读不到这条作品。
@@ -1040,6 +1075,8 @@ export interface DraftVideo {
   deck?: VideoDeck;
   /** 发布时选的可见性；缺省 public */
   visibility?: "public" | "private";
+  /** 「凭链接可见」，见 VideoItem.linkOnly */
+  linkOnly?: boolean;
   /** 发布页选定的付费设置（免费/付费+每 P 价） */
   pricing?: VideoPricing;
   /** 剪辑页已合并成单条视频（segments 长度为 1，videoUrl 为 idb: 指针） */

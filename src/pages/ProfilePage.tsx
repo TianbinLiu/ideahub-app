@@ -67,7 +67,7 @@ import { PLANS, RECHARGE_PACKS, fmtTokens } from "../data/economy";
 import { notificationsState, refreshUnreadCount, subscribeNotifications } from "../data/notifications";
 import { useAccountVersion, useAuthState, useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
-import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoItem, formatPlays, relativeTime } from "../types";
+import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoItem, type Visibility, formatPlays, relativeTime, visibilityOf } from "../types";
 import { cutSession, dropCutSession, subscribeCutSession } from "../data/cutSession";
 import { useStudio } from "../studio/studioStore";
 
@@ -151,7 +151,7 @@ export default function ProfilePage() {
 
   const [tab, setTab] = useState<TabKey>("works");
   /** 作品墙的可见性筛选（只对自己有意义）。判否定：老作品没有 visibility = 公开 */
-  const [visFilter, setVisFilter] = useState<"all" | "public" | "private">("all");
+  const [visFilter, setVisFilter] = useState<"all" | Visibility>("all");
   const [pickDraft, setPickDraft] = useState<WorkDraftMeta | null>(null);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
@@ -233,9 +233,7 @@ export default function ProfilePage() {
   /** 按可见性筛过的那份（只自己的墙用）。★ 判**否定**：老作品没有这个字段 = 公开 */
   const shownWorks = useMemo(
     () =>
-      visFilter === "all"
-        ? works
-        : works.filter((v) => (visFilter === "private" ? v.visibility === "private" : v.visibility !== "private")),
+      visFilter === "all" ? works : works.filter((v) => visibilityOf(v) === visFilter),
     [works, visFilter],
   );
   // accV 是必需的依赖，不是保险：collects 是原地 push/splice 的同一个数组，
@@ -740,13 +738,17 @@ export default function ProfilePage() {
             下次直接选删除 —— 那颗按钮就白做了。
             ★ 只在**自己**的主页出现：别人的墙上本来就看不到 private 的作品。
             ★ 一条 private 都没有时**不画**这一排：没有可筛的东西时，筛选器只是噪声。 */}
-        {activeTab === "works" && self && works.some((v) => v.visibility === "private") && (
-          <div className="mb-2.5 flex gap-1.5">
+        {activeTab === "works" && self && works.some((v) => visibilityOf(v) !== "public") && (
+          <div className="mb-2.5 flex flex-wrap gap-1.5">
             {([
               ["all", `全部 ${works.length}`],
-              ["public", `公开 ${works.filter((v) => v.visibility !== "private").length}`],
-              ["private", `仅自己可见 ${works.filter((v) => v.visibility === "private").length}`],
-            ] as const).map(([k, label]) => (
+              ["public", `公开 ${works.filter((v) => visibilityOf(v) === "public").length}`],
+              ["unlisted", `凭链接 ${works.filter((v) => visibilityOf(v) === "unlisted").length}`],
+              ["private", `仅自己可见 ${works.filter((v) => visibilityOf(v) === "private").length}`],
+            ] as const)
+              // 一档都没有的就不摆（三个 chip 里两个是 0 只是噪声）
+              .filter(([k]) => k === "all" || works.some((v) => visibilityOf(v) === k))
+              .map(([k, label]) => (
               <button
                 key={k}
                 onClick={() => setVisFilter(k)}
@@ -1155,10 +1157,17 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
               >
                 已下架
               </span>
-            ) : v.visibility === "private" ? (
+            ) : visibilityOf(v) === "private" ? (
               <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/70 px-1 py-0.5 text-[9px] text-white">
                 <Icon name="lock" size={9} strokeWidth={2.5} />
                 仅自己可见
+              </span>
+            ) : visibilityOf(v) === "unlisted" ? (
+              /* ★ 这一档也要一眼认得出：作者会拿"它怎么没人看"来判断内容好不好，
+                 而它压根不在任何人的首页里 —— 与"仅自己可见"那条角标同一个理由 */
+              <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/70 px-1 py-0.5 text-[9px] text-white">
+                <Icon name="share" size={9} strokeWidth={2.5} />
+                凭链接
               </span>
             ) : v.branchTree ? (
               <span className="absolute left-1 top-1 rounded bg-brand/90 px-1 py-0.5 text-[9px] font-semibold text-ink">
