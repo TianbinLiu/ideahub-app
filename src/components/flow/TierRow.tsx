@@ -13,7 +13,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { tierBlockReason } from "../../data/account";
-import { clampDuration, fmtTokens, r2vPriceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { clampDuration, deriveIssue, fmtTokens, r2vPriceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { chosenOf, nodeCost, tplOfNode, useFlow } from "../../studio/flowStore";
 
 /**
@@ -42,30 +42,58 @@ export function tierSwitchLoss(nodeId: string, nextId: string): string[] {
   if (cur.flf && !next.flf && prop.lastFrame) {
     loss.push(`这一段的结束画面不再锁得住（「${next.label}」档只认起拍帧）`);
   }
-  // 音色样本
-  if (cur.audio && !next.audio) loss.push(`台词不再带音色样本（「${next.label}」档${next.flatCost ? "暂无配音" : "出片无声"}）`);
+  // 音色样本。★ 与相邻两条同口径：只在**这一段真的有台词**时才提（引号里的台词才会被配音）
+  if (cur.audio && !next.audio && /[「"']/.test(prop.plot)) {
+    loss.push(`台词不再带音色样本（「${next.label}」档${next.flatCost ? "暂无配音" : "出片无声"}）`);
+  }
+  // ★ **升档也有变化**（2026-08-30 补）：收参考图的档上，帧改当参考图发 + 提示词点名
+  //   （segmentGen 的 framesAsRefs）—— 卡片形象能同发了，但"必须从这一帧起拍"从协议级
+  //   硬约束降成软引导。这是好事也是代价，两头都要说，不能只在降档时说。
+  if (!cur.refImg && next.refImg && (prop.firstFrame || prop.lastFrame)) {
+    loss.push(`首尾帧会改成"参考图 + 提示词点名"发出去（换来的是素材卡形象能一起发；代价是起止画面不再是硬约束）`);
+  }
   // 圈选改画面：白模那条不接受圈选，1.0 仍可（它就是首尾帧路），所以这里不提
   return loss;
 }
 
-export default function TierRow({ nodeId, onDone }: { nodeId: string; onDone?: () => void }) {
+export default function TierRow({
+  nodeId,
+  onDone,
+  needsDerive,
+}: {
+  nodeId: string;
+  onDone?: () => void;
+  /** 宿主的主路要不要经过「推演三套」（工坊方案台 = 要）。为真时把走不了推演的档一并禁掉，
+   *  否则用户切过去、再点重推，钱花在一次必被拒的操作上 */
+  needsDerive?: boolean;
+}) {
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   const index = nodes.findIndex((n) => n.id === nodeId);
   const node = index >= 0 ? nodes[index] : undefined;
   /** 待确认的换档（非空 = 这一换有代价，先把话说完） */
-  const [ask, setAsk] = useState<{ id: string; label: string; loss: string[] } | null>(null);
+  /** 待确认的换档。**存 nodeId** —— 卡摆着的时候用户可以用 ‹ › 翻到别的段（本组件不重挂，
+   *  只是换了 prop），点「知道了」就会把这张卡的决定落到**另一段**上并静默摘掉它的示例视频。
+   *  这是 CLAUDE.md「弹层按第几段记」那条坑的同款，判据一律认 id（2026-08-30 复核抓到）。 */
+  const [ask, setAsk] = useState<{ nodeId: string; id: string; label: string; loss: string[] } | null>(null);
   if (!node) return null;
   const prop = chosenOf(node);
   const blockout = !!tplOfNode(node)?.refVideo;
   const tierBlocks = VIDEO_TIERS.map((t) => tierBlockReason(t)).filter((r): r is string => !!r);
 
-  /** 真正落地：换档 + 时长吸附写回 + 清掉带不动的东西 */
+  /** 真正落地：换档 + 时长吸附写回 + 清掉带不动的东西。
+   *  ★ 从确认卡来的那一路会先核对 nodeId（见 ask 的注释）——对不上就整句拒，不静默照做 */
   function apply(id: string) {
     const flow = useFlow.getState();
     const next = tierOf(id);
-    // ★ 带不动的参考视频当场摘（不摘的话出片会被 segmentGen 的门禁整句拒）
-    if (node!.customRef && !next.refVid) flow.setCustomRefVideo(node!.id, null);
+    // ★★ 摘示例视频**要判返回值**（2026-08-30 复核抓到）：store 在生成中/已出片时会整句拒，
+    //   而确认卡刚刚承诺过"它会被摘掉"。不判就会变成"档换了、视频还挂着"——下一次出片
+    //   被 segmentGen 的门禁整句拒，用户拿着一句自相矛盾的界面无从下手（铁律八）。
+    //   摘不掉就**整个不换**，把 store 给的那句原因摆出来。
+    if (node!.customRef && !next.refVid && !flow.setCustomRefVideo(node!.id, null)) {
+      setAsk(null);
+      return; // 原因已在 flow.err 上（宿主都画它）
+    }
     flow.updateNode(node!.id, { videoTier: id });
     // ★ 换档同一拍把时长**吸附写回**：换到按发档时 durationSec 可能停在 5/8，
     //   实扣按 clampDuration 吸附后的整档算 —— 不写回的话卡上写 5、账按 6
@@ -83,14 +111,17 @@ export default function TierRow({ nodeId, onDone }: { nodeId: string; onDone?: (
           // ★ 白模节点上，不支持 r2v 的档位也要禁掉（判断在 economy.r2vPriceIssue 一处）：
           //   切过去出片必被门禁整句拒，让人选一个必失败的档不如当场说不能选
           const r2vBlock = blockout ? r2vPriceIssue(t.id) : null;
-          const block = tierBlockReason(t) ?? r2vBlock;
+          // ★ 按发计价档（真人）走不了推演（判定在 economy.deriveIssue 一处）——工坊这一面
+          //   的主路正是推演，切过去之后「重新推演三套」必被拒。宿主是画布时那条路还在
+          //   （画布可以直出），所以这一条只在**需要推演**的宿主上拦：由 prop 决定。
+          const block = tierBlockReason(t) ?? r2vBlock ?? (needsDerive ? deriveIssue(t.id) : null);
           return (
             <button
               key={t.id}
               onClick={() => {
                 if (t.id === node.videoTier) return;
                 const loss = tierSwitchLoss(node.id, t.id);
-                if (loss.length) setAsk({ id: t.id, label: t.label, loss });
+                if (loss.length) setAsk({ nodeId: node.id, id: t.id, label: t.label, loss });
                 else apply(t.id);
               }}
               disabled={!!block}
@@ -137,7 +168,15 @@ export default function TierRow({ nodeId, onDone }: { nodeId: string; onDone?: (
           </p>
           <div className="flex gap-2">
             <button
-              onClick={() => apply(ask.id)}
+              onClick={() => {
+                if (ask.nodeId !== node.id) {
+                  // 卡摆着的时候用户翻到了别的段：这张卡说的是**那一段**的事，不能落到这一段上
+                  useFlow.setState({ err: "这张确认卡是上一段的，已经作废——回到那一段再换档" });
+                  setAsk(null);
+                  return;
+                }
+                apply(ask.id);
+              }}
               className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
             >
               知道了，换到「{ask.label}」

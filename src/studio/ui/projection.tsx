@@ -6,7 +6,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { deckCoverOf, myCards, myDecks, tierBlockReason } from "../../data/account";
-import { VIDEO_TIERS, deriveIssue, fmtTokens, modelLabel, segTokens, tierOf } from "../../data/economy";
+import { VIDEO_TIERS, deriveIssue, fmtTokens, modelLabel, r2vPriceIssue, realFaceIssue, segTokens, tierOf } from "../../data/economy";
 import TarotCard from "../../components/TarotCard";
 import DeckCard from "../../components/DeckCard";
 import GenTrace from "../../components/GenTrace";
@@ -386,8 +386,8 @@ function EditorPanel() {
               </button>
               {!tierOf(editor.videoTier).refVid && (
                 <p className="text-center text-[10px] leading-relaxed text-amber-300/90">
-                  「{tierOf(editor.videoTier).label}」档带不了参考视频——到第③步「定规格」换成「电影级」，
-                  或直接跳过这一步自己给首尾帧
+                  「{tierOf(editor.videoTier).label}」档带不了参考视频——到「定规格」那一步换成「电影级」
+                  {tierBlockReason(tierOf("ultra")) ? "（付费档，套餐不够会点不动）" : ""}，或直接跳过这一步自己给首尾帧
                 </p>
               )}
               <p className="text-center text-[10px] text-slate-500">上传后自动用它的首尾帧当本段首尾帧，之后还能细调、加中间帧</p>
@@ -905,7 +905,21 @@ function ProposalsPanel() {
    * 没推演过的空方案去烧钱；而「♻ 重新推演三套」在这一刻也不该出现（还没有
    * “三套”可重）。自定义/白模车道天生就是一套，不适用。
    */
-  const notDerived = !node.custom && !blockout && node.proposals.length < 2;
+  const notDerived =
+    !node.custom &&
+    !blockout &&
+    node.proposals.length < 2 &&
+    // ★★ 「只有一套方案」**不等于**「还没推演过」（2026-08-30 复核抓到）：做同款铺进来的段、
+    //   已经出过片的段、老草稿里的段都可能只有一套，而且里面是真内容。按张数判会把它们的
+    //   **出片入口整个换掉** —— 用户只剩一颗"再花 40~80k 推演"的按钮，那是唯一出路。
+    //   判据收紧成"这一套是空白占位"：没剧情、没帧、没出片，那才是真的什么都还没有。
+    !proposalDone(chosen) &&
+    !chosen?.plot.trim() &&
+    !chosen?.firstFrame &&
+    !chosen?.lastFrame &&
+    // ★ 真人档没有方案台这一拍（deriveIssue 一处判定）——给它摆「生成三套方案」等于
+    //   把唯一的主按钮换成一条必被拒的路（store 那边现在会整句拒，但更不该摆出来）
+    !deriveIssue(node.videoTier);
 
   // ‹› 切换聚焦节点：桌面窗口随焦点实时平移（computeChain 焦点跟随），镜头跟到新卡位
   function go(dir: 1 | -1) {
@@ -958,7 +972,13 @@ function ProposalsPanel() {
       </div>
       {tierOpen && (
         <div className="flex-none border-b border-cyan-400/15 px-3 py-2">
-          <TierRow nodeId={node.id} onDone={() => setTierOpen(false)} />
+          {/* key 认 node.id：换段时整块重挂，档位卡上的待确认状态不会跨段残留 */}
+          {/* needsDerive：工坊这一面的主路是「推演三套」，走不了推演的档一并禁掉 */}
+          <TierRow key={node.id} nodeId={node.id} needsDerive onDone={() => setTierOpen(false)} />
+          {/* ★ 宿主要印自己那两类「为什么点不动」（套餐门槛那类归 TierRow）：
+              白模段上不支持 r2v 的档、真人卡与本段不搭 —— 工坊这面此前一个字都没印，
+              用户只看到一排灰按钮（CLAUDE.md「永远点不动的选项」） */}
+          <TierBlockNote node={node} />
         </div>
       )}
       {/* 重推三套的进度：真实 AI 下一分钟出头（1 次豆包 + 最多 6 张 Seedream）。
@@ -1006,7 +1026,15 @@ function ProposalsPanel() {
               : null
           }
           actions={(p) => (
-            <PickedActions node={node} proposal={p} onPlay={() => setPlaying(true)} notDerived={notDerived} />
+            <PickedActions
+              node={node}
+              proposal={p}
+              onPlay={() => setPlaying(true)}
+              notDerived={notDerived}
+              /* ★ 与真扣同一个输入：regenNodeProposals 按**上一段的尾帧**算（三套共用开头帧
+                 时只画尾帧、图量减半）。此前这里传的是本段方案的首帧，第 1 段少报一半 */
+              deriveCost={proposalsCost(!!prev?.lastFrame)}
+            />
           )}
         />
       </div>
@@ -1034,6 +1062,24 @@ function ProposalsPanel() {
 }
 
 
+
+/**
+ * 「这一段为什么有几档点不动」的宿主侧提示（工坊面）。
+ *
+ * ★ 分工与本段设置抽屉一致：**套餐门槛那一类归 TierRow**（它拥有那排按钮，还带「去升级」），
+ *   这里只印宿主才知道的两条 —— 白模段上不支持 r2v 的档、真人卡与本段不搭。
+ *   工坊此前一条都没印，用户只看到一排灰按钮（CLAUDE.md「界面上摆一个永远点不动的选项」）。
+ */
+function TierBlockNote({ node }: { node: FlowNode }) {
+  const blockout = !!tplOfNode(node)?.refVideo;
+  const r2vBlocks = blockout
+    ? VIDEO_TIERS.map((t) => r2vPriceIssue(t.id)).filter((r): r is string => !!r)
+    : [];
+  const realFaceBlock = realFaceIssue(node.materials, node.videoTier, { blockout });
+  const all = [...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])];
+  if (all.length === 0) return null;
+  return <p className="mt-1 text-[10px] leading-4 text-amber-300/80">{all.join("；")}</p>;
+}
 
 /**
  * 白模段（r2v）的工坊面板：换/摘模板 + 挂卡点名 + 点名句 + 开炼 —— 画布模板车道的
@@ -1209,12 +1255,15 @@ function PickedActions({
   proposal,
   onPlay,
   notDerived,
+  deriveCost,
 }: {
   node: FlowNode;
   proposal: Proposal;
   onPlay: () => void;
   /** 自选卡片车道还没推演过三套：主按钮改成「生成三套方案」（见 ProposalsPanel 的 ★） */
   notDerived?: boolean;
+  /** 推演三套的报价 —— 由 ProposalsPanel 用**与真扣同一个输入**算好传进来（铁律六） */
+  deriveCost?: number;
 }) {
   const navigate = useNavigate();
   const nodeGen = useStudio((s) => s.nodeGen);
@@ -1295,7 +1344,7 @@ function PickedActions({
             disabled={busy}
             className="flex-1 rounded-lg bg-brand/90 py-2 text-xs font-bold text-ink disabled:opacity-40"
           >
-            {busy ? "推演中…" : `🎲 生成三套方案（${fmtTokens(proposalsCost(!!proposal.firstFrame))}）`}
+            {busy ? "推演中…" : `🎲 生成三套方案（${fmtTokens(deriveCost ?? 0)}）`}
           </button>
         ) : (
         <button

@@ -1361,6 +1361,17 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (!node) return false;
     const prev = idx > 0 ? chosenProposal(path[idx - 1]) : null;
     // 起拍帧沿用原来那一套的（承接上一段的真实结尾）——重推的是"走向"，不是"从哪起拍"
+    // ★★ 按发计价档（真人档）走不了推演 —— 判定在 economy.deriveIssue 一处，
+    //   flowStore.deriveProposals 与 studioStore.generateNode 早就有这道闸，**唯独这里漏了**
+    //   （2026-08-30 复核抓到）。漏的后果不是"点了没反应"：下面 spendTokens 照扣，
+    //   炼出三套真人档一张都用不上的首尾帧，还把用户亲手写的那段话换成 AI 重写的。
+    {
+      const flatIssue = deriveIssue(node.videoTier);
+      if (flatIssue) {
+        get().npcSay(`${flatIssue}。真人档直接出片，不经过方案台。`);
+        return false;
+      }
+    }
     const startFrame = prev?.lastFrame ?? null;
     const propCost = proposalsCost(!!startFrame);
     if (AI_REAL && !canAfford(propCost)) {

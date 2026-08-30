@@ -68,6 +68,7 @@ import { VideoTemplate, aspectCss, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 import { type CastEditorState } from "./VideoEditorPage";
 import { useCastReturn } from "../hooks/useCastReturn";
+import { useFlowActions } from "../hooks/useFlowActions";
 
 /** 触发换节点/换走向的滑动阈值（px）；低于它按点击处理 */
 const SWIPE = 48;
@@ -1068,9 +1069,7 @@ export default function FlowPage() {
     removeNode,
     addMaterials,
     removeMaterial,
-    reset,
   } = useFlow();
-  const [finalizing, setFinalizing] = useState("");
   const [tplExtract, setTplExtract] = useState(false);
   /**
    * 画布视图（全屏覆盖层，竖横皆可）：点格子就地开编辑窗，不再跳回线性视图。
@@ -1096,7 +1095,6 @@ export default function FlowPage() {
   //   （它只在画布挂载时跑，两边天然互斥）。此前它因为讲的是已下线的线性视图而被
   //   整个关掉（2026-08-23），现在内容对上了，恢复自动弹。
   useAutoGuide("flow", mode === "simple");
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   // 「提取模板」出来的那一下也是整表覆盖，走与模板货架同一处守卫（唯一实现）
   const { guard: applyGuard, dialog: applyDialog } = useApplyTemplate();
   /** 素材窗口开着 = 底部那条也换成本段素材（见下面的底部区） */
@@ -1146,6 +1144,10 @@ export default function FlowPage() {
     navigate(publishedExit() ?? "/create", { replace: true });
   }, [nodes.length, navigate]);
 
+  // ★ hook 排在**所有早退之前**（本文件下面有 `if (nodes.length === 0 || !node) return null`）——
+  //   CLAUDE.md「hook 写在早退之后 → 整棵树当场崩」那条
+  const fa = useFlowActions({ onLeave: () => (leavingRef.current = true) });
+
   /**
    * 从视频编辑页（cast 模式）回来 —— 白模 V2 套用链路的**收口**：
    * 拿到 `编号 → 卡 id` 的映射，交给 flowStore.applyCast 去落 materials + 合成点名句。
@@ -1158,40 +1160,8 @@ export default function FlowPage() {
    */
   useCastReturn();
 
-  // ★ 自动存盘只挂在"又炼出一段"这一个事件上，不做定时/每次改动都存：
-  //   一段视频是几十秒 + 真金白银，丢了补不回来；而草稿正文带整份首尾帧 base64，
-  //   一条几 MB，频繁写盘会拖慢主线程还费配额。改文字这种廉价改动交给手动按钮。
-  //   写在 FlowPage 而不是 flowStore：flowStore 绝不 import studioStore（互相 import
-  //   在 Vite 下会拿到半初始化的模块），而这一页两边都拿得到。
-  //   ★ 简约模式不落草稿：它只有一段、几十秒就出片，一路直通剪辑与发布，中间没有"回来
-  //     接着做"的状态可言。给它存草稿只会在个人页堆一串一次性的半成品，而每条都带 1MB
-  //     级的帧，把真正需要草稿的工坊/工作流那 20 条上限挤掉（见 data/drafts.MAX_DRAFTS）。
-  const doneCount = nodes.filter(nodeDone).length;
-  const prevDone = useRef(doneCount);
-  useEffect(() => {
-    if (simple) return;
-    if (doneCount > prevDone.current) {
-      // ★★ 这一刻钱刚花出去，存盘失败必须当场说（铁律八）。原来这里是 `void` 掉的：
-      //   失败零提示，而「已经有一条工作流在跑」那道确认卡又是按"存住了"来劝人放心的
-      //   —— 两件一叠，用户会踏踏实实地把刚花钱炼出来的段丢掉。
-      //   （谁存住了由 studioStore.savedDoneCount 一处记账，确认卡读的就是它）
-      void (async () => {
-        let ok = false;
-        try {
-          ok = !!(await useStudio.getState().saveWorkDraft({ from: "flow" }));
-        } catch {
-          ok = false;
-        }
-        if (!ok)
-          useFlow.setState({
-            err: "这一段炼好了，但自动存草稿失败（存储空间不足或浏览器隐私模式）——先别离开这一页，点上面的「存草稿」再试一次",
-          });
-      })();
-    }
-    prevDone.current = doneCount;
-  }, [doneCount, simple]);
-
-  const allDone = nodes.length > 0 && nodes.every(nodeDone);
+  // 自动存盘（又炼出一段就存）搬进 hooks/useFlowActions —— 两个宿主共用一份：
+  // 此前它只长在本页上，工坊里的画布浮层出片就不会自动存草稿（复核抓到）
   /** 还没出片的第一段 = 用户最远能走到的地方（-1 表示全出片了，随便看） */
   const frontier = frontierOf(nodes);
   /**
@@ -1222,57 +1192,11 @@ export default function FlowPage() {
    *   火山账单对过，见 economy 的 ⚠）、以及余额不足会自动跳过（那是 finalizeFromFlow
    *   真实的行为，不写的话用户会以为钱不够就完不成片）。
    */
-  const deckNote =
-    deck.on && AI_REAL
-      ? [
-          `点「完成视频」还会提炼本片卡组：你挂过的卡直接入组，缺的卡种（风格卡必有）AI 补齐，最多 ${deck.maxCards} 张、约 ${fmtTokens(deck.cards)} token`,
-          deck.wants3d
-            ? `；这条片写了 3D / 建模一类的画风，还会给派生的角色卡铸最多 ${deck.max3d} 个 3D 建模，另约 ${fmtTokens(deck.model3d)} token`
-            : "",
-          "。都按实际出卡结算，余额不够会自动跳过（成片不受影响）。",
-        ].join("")
-      : // 勾了「只出片」：报价行也要如实换话——空着的话用户看不出这个选择生效了没有
-        deckOff && mode !== "simple"
-        ? "已选择只出片：这次「完成视频」不提炼卡组，也不收那笔钱。"
-        : "";
-
-  /** 存盘。失败要说出来：配额满/隐私模式下 IndexedDB 写不进去，
-   *  静默"保存成功"会让用户放心地关掉页面，然后什么都没了（铁律八） */
-  async function saveNow() {
-    setSaveState("saving");
-    const meta = await useStudio.getState().saveWorkDraft({ from: "flow" });
-    setSaveState(meta ? "saved" : "failed");
-    if (!meta) useFlow.setState({ err: "草稿保存失败（存储空间不足或浏览器隐私模式）" });
-    setTimeout(() => setSaveState("idle"), 2200);
-  }
-
-  /** 全部满意 → 组稿（回写真帧 + 提炼卡组）→ 进剪辑页 */
-  async function toCut() {
-    if (busy || finalizing) return;
-    setFinalizing("组稿中…");
-    try {
-      // ★ mode 显式传过去：「简约模式不出卡组」这条规则由它决定，而 store 里偷读
-      //   useFlow 的话，这个调用点上根本看不出"模式会改变这次组稿花多少钱"。
-      //   与上面 deckQuoteOf 报价时读的是同一个 mode —— 报什么价就收什么钱。
-      const st = useFlow.getState();
-      // ★ deckOff 与 mode 同一拍读同一个 store：报价（deckQuoteOf）读的就是这两个
-      const ok = await useStudio.getState().finalizeFromFlow(st.nodes, st.mode, (s) => setFinalizing(s), st.deckOff);
-      if (ok) {
-        leavingRef.current = true;
-        reset();
-        // ★ replace 而不是 push：组稿成功那一下 reset() 已经把流水线清空了，历史里这一格
-        //   /flow 就是个死页 —— 从剪辑页按返回退到它，它当场又把人 replace 走（今天是
-        //   /create），白闪一下。少留一格死页，发布之后按返回也少一次落空
-        navigate("/cut", { replace: true });
-      }
-    } catch (e) {
-      console.warn("[flow] 组稿失败:", e);
-      useFlow.setState({ err: `组稿失败：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}` });
-    } finally {
-      setFinalizing("");
-    }
-  }
-
+  // 存草稿 / 组稿 / 组稿报价句：实现在 hooks/useFlowActions，本页只是它的**另一个宿主**
+  // （工坊里的画布浮层是第一个）。此前这三样长在本页上、画布靠 prop 借，工坊要挂画布时
+  // 就出现了第二份 —— 同一笔钱两处报价、同一颗按钮一处会自动存草稿一处不会（复核抓到）。
+  // ★ onLeave 里置 leavingRef：组稿成功后 reset() 会清空 nodes，上面那个"没节点就跳走"
+  //   的 effect 会抢在 navigate("/cut") 之前把人按回 /create（实测踩过）。
   return (
     <div className="fixed inset-0 flex flex-col bg-ink">
       {/* ══════════ 以下整块只属于【简约模式】 ══════════
@@ -1287,7 +1211,7 @@ export default function FlowPage() {
             "为什么画这一块"讲的是**模式**（简约就是这套单段 UI），不是"哪个面在前面"。
           ⚠ 闸只管**看得见的那部分**。下面三样刻意留在闸外，它们都是自带条件的 fixed
             浮层，与"哪一面在前面"无关：素材窗口 / 提取模板 / 套模板确认卡。
-          ⚠ saveNow / toCut / castEditorState 一个都没动 —— 实现仍只有本文件这一份，
+          ⚠ castEditorState 的实现仍只有本文件这一份；存草稿/组稿已抽到 hooks/useFlowActions（两宿主共用），
             画布靠 prop 借（铁律六，见下面 FlowCanvas 调用点的 ★）。 */}
       {simple && (
         <>
@@ -1378,15 +1302,15 @@ export default function FlowPage() {
                 纯改文字不会自动存——想留住就点这里。简约模式没有这颗按钮（它不进草稿库） */}
             {!simple && (
               <button
-                onClick={() => void saveNow()}
-                disabled={saveState === "saving"}
+                onClick={fa.saveNow}
+                disabled={fa.saveState === "saving"}
                 className="flex-none rounded-full bg-slate-700/80 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-50"
               >
-                {saveState === "saving"
+                {fa.saveState === "saving"
                   ? "保存中…"
-                  : saveState === "saved"
+                  : fa.saveState === "saved"
                     ? "已保存 ✓"
-                    : saveState === "failed"
+                    : fa.saveState === "failed"
                       ? "保存失败"
                       : "存草稿"}
               </button>
@@ -1396,9 +1320,9 @@ export default function FlowPage() {
                 它让用户在没看过第一段效果之前，就把后面几段的钱一次性烧掉。
                 现在只留一个终点，没出片时明说还差几段，而不是给一个点了就批量扣费的入口。 */}
             <button
-              onClick={() => void toCut()}
-              disabled={!allDone || busy || !!finalizing}
-              title={allDone ? "把各段合成一条完整视频" : "每段都出片之后才能合成"}
+              onClick={fa.toCut}
+              disabled={!fa.allDone || busy || !!fa.finalizing}
+              title={fa.allDone ? "把各段合成一条完整视频" : "每段都出片之后才能合成"}
               data-guide="flow-finish"
               className="flex-none rounded-full bg-brand px-3.5 py-1.5 text-xs font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
             >
@@ -1406,8 +1330,8 @@ export default function FlowPage() {
                   标题下面那行去了，量法见 header 上那段注释）。这颗按钮量到 84px，是这一行里
                   最宽的一件；带上「还差 N 段」会再宽出一截，把左边那一格连标题带进度一起压瘦。
                   "还差几段"由标题下面那行的「N 段 · 已出片 M」交代，这里只留终点本身 */}
-              {finalizing || "完成视频"}
-              {allDone && " ›"}
+              {fa.finalizing || "完成视频"}
+              {fa.allDone && " ›"}
             </button>
           </header>
     
@@ -1422,7 +1346,7 @@ export default function FlowPage() {
                   </Link>
                   <span className="flex-none text-[10px] text-slate-500">{nodes.length} 段</span>
                   {/* 出片了、模板是自己提取的、还没发布 → 就地引导发布（详情页的作者区管标题/简介） */}
-                  {allDone && myTemplates().some((x) => x.id === tpl.id && !x.published) ? (
+                  {fa.allDone && myTemplates().some((x) => x.id === tpl.id && !x.published) ? (
                     <Link
                       to={`/template/${tpl.id}`}
                       className="flex-none rounded-full bg-gold/90 px-2.5 py-1 text-[11px] font-bold text-ink"
@@ -1483,9 +1407,9 @@ export default function FlowPage() {
               ⚠ 措辞三处都不许含糊：**最多**（张数是上限，按实际出卡结算）、
               **约**（单价还没与火山账单对过，见 economy 的 ⚠）、以及余额不足会自动跳过
               （那是 finalizeFromFlow 真实的行为，不写的话用户会以为钱不够就完不成片）。 */}
-          {deck.on && AI_REAL && allDone && !planFocus && (
+          {deck.on && AI_REAL && fa.allDone && !planFocus && (
             <div className="mx-4 mb-1.5 flex-none rounded-xl border border-slate-700/70 bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
-              {deckNote}
+              {fa.deckNote}
             </div>
           )}
     
@@ -1677,15 +1601,15 @@ export default function FlowPage() {
             const st = castEditorState(t, value);
             if (st) navigate("/video-editor", { state: st });
           }}
-          /* ★ 存草稿与组稿的实现**只有本页一处**（saveNow / toCut）：组稿要回写真帧、
+          /* ★ 存草稿与组稿的实现在 hooks/useFlowActions（两个宿主共用一份）：组稿要回写真帧、
              提炼卡组、清空流水线、跳剪辑页，在画布里另写一份必然与这边分叉（铁律六）。
              画布只借按钮与状态，与 onCast 同一个套路。 */
-          draft={{ state: saveState, onSave: () => void saveNow() }}
+          draft={{ state: fa.saveState, onSave: fa.saveNow }}
           finish={{
-            allDone,
-            finalizing,
-            note: deckNote,
-            onRun: () => void toCut(),
+            allDone: fa.allDone,
+            finalizing: fa.finalizing,
+            note: fa.deckNote,
+            onRun: fa.toCut,
             // 「随片出不出卡组」的开关（值在 flowStore.deckOff：报价与实收读同一份）
             deckOn: !deckOff,
             onDeckToggle: () => setDeckOff(!deckOff),

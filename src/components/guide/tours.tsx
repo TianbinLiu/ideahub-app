@@ -115,14 +115,16 @@ export const TOURS: GuideTour[] = [
   {
     id: "create",
     title: "创作入口",
-    version: 1,
+    // version 2（2026-08-30）：轮播换成一张卡的正反面，工作流并进工坊 —— 老文案教的
+    // 「左右滑动/边上的箭头/底部圆点」在页面上全都不存在了
+    version: 2,
     steps: [
       {
         title: "挑一种创作方式",
         anchor: "create-dots",
         body: (
           <>
-            底栏的 ➕ 先落到这里：每张卡是一种创作方式，左右滑动，或者点画面边上的箭头、底部的圆点，都能翻到下一张。它们<b className="font-bold text-slate-100">不是各走各的</b>，而是同一条流水线的不同入口，最后都汇到剪辑与发布。
+            底栏的 ➕ 先落到这里。这是<b className="font-bold text-slate-100">一张卡的正反面</b>：正面工坊、背面简约，点右上角那枚按钮翻面（上面写着背面是谁）。两面<b className="font-bold text-slate-100">不是各走各的</b>，而是同一条流水线的两个入口，最后都汇到剪辑与发布。
           </>
         ),
       },
@@ -131,7 +133,7 @@ export const TOURS: GuideTour[] = [
         anchor: "create-cta",
         body: (
           <>
-            看中哪张，就点卡片底部那枚按钮从这条路进去：工坊落到 3D 铸卡桌面，工作流落到一屏摊开的流水线画布，简约落到一步一屏的向导。出片之后都汇到<b className="font-bold text-slate-100">同一个剪辑页</b>，再从那里发布。
+            挑定了就点卡片底部那枚按钮：工坊落到 3D 铸卡桌面（顶栏 🧩 随时把同一条流水线换成<b className="font-bold text-slate-100">工作流画布</b>那一面），简约落到一步一屏的向导。出片之后都汇到<b className="font-bold text-slate-100">同一个剪辑页</b>，再从那里发布。
           </>
         ),
       },

@@ -23,6 +23,8 @@ export const composeVideo = mock.composeVideo; // 合成动画节奏（真实生
 /** 融图：把 2~3 张参考图融成一张边界帧（段间无缝用），落地走 PlanBoard.onFrame */
 export const fuseFrame: typeof real.fuseFrame = AI_REAL ? real.fuseFrame : mock.fuseFrame;
 /** 圈选提取的「按提示词方案炼形象图」（图位由方案决定，风格跟随原图） */
+/** 参考图协议上限的兜底值（档位表没写 refImagesMax 时用它）——与 real.ts 同一个常量 */
+export { ARK_REF_IMAGES_MAX } from "./real";
 export const portraitViews: typeof real.portraitViews = AI_REAL ? real.portraitViews : mock.portraitViews;
 /** 圈选改卡图；mock 原图返回（与 refineFrame 的 mock 同款：演示档不装作改了） */
 export const refineCardImage: typeof real.refineCardImage = AI_REAL ? real.refineCardImage : async (o) => o.annotated;
