@@ -564,7 +564,7 @@ export function partsOf(v: VideoItem): VideoPart[] {
 export function updateVideoMeta(
   id: string,
   patch: Partial<
-    Pick<VideoItem, "title" | "category" | "description" | "tags" | "cover" | "deck" | "pricing" | "visibility">
+    Pick<VideoItem, "title" | "category" | "description" | "tags" | "cover" | "deck" | "pricing" | "visibility" | "linkOnly">
   >,
 ): VideoItem | null {
   const v = find(id);
@@ -577,6 +577,7 @@ export function updateVideoMeta(
     tags: v.tags,
     cover: v.cover,
     visibility: v.visibility,
+    linkOnly: v.linkOnly,
   };
   Object.assign(v, patch);
   save(all());
@@ -588,6 +589,9 @@ export function updateVideoMeta(
     // ★ 空数组要发出去（那是"把标签全清掉"），所以判的是 undefined 不是长度
     if (patch.tags !== undefined) remotePatch.tags = patch.tags;
     if (patch.visibility !== undefined) remotePatch.visibility = patch.visibility;
+    // ★ 这一位要跟着发：不发的话服务端 $set 碰不到它 —— 用户从"凭链接可见"改成
+    //   "仅自己可见"，界面显示收紧了，实际那条链接照样打得开（见 types.visibilityWire 的 ★）
+    if (patch.linkOnly !== undefined) remotePatch.linkOnly = patch.linkOnly;
     // 封面只在已经是永久 URL 时才发：dataURL 是 MB 级的，直接 PATCH 会撞上网关的
     // 请求体上限（1MB），而且撞了也只是 fetch failed，看不出是因为太大
     if (patch.cover !== undefined && /^https?:\/\//.test(patch.cover)) remotePatch.cover = patch.cover;
@@ -687,6 +691,7 @@ export function publishVideo(draft: DraftVideo): VideoItem {
     pricing: draft.pricing,
     merged: draft.merged,
     visibility: draft.visibility ?? "public",
+    ...(draft.linkOnly === true ? { linkOnly: true } : {}),
     author: currentUser()?.name ?? ME,
     // 刚发布、还没落库的这条也要带上 id，否则改名时它是唯一漏改的一条
     authorId: currentUser()?.id,
@@ -1245,6 +1250,8 @@ function toVideoItem(v: branch.ApiVideo): VideoItem {
     parts: Array.isArray(v.parts) && v.parts.length > 0 ? v.parts : undefined,
     deck: v.deck?.cards?.length ? v.deck : undefined,
     visibility: v.visibility === "private" ? "private" : "public",
+    // ★ 只在为真时带上：与服务端同一口径（判有值），读侧一律走 types.visibilityOf
+    ...(v.linkOnly === true ? { linkOnly: true } : {}),
     // ★ 判据是"这个键在不在"，不是它里面某个值等不等于什么：服务端没下架时压根不发它，
     //   而 `takedown: null` 这种坏数据的失败方向必须是"作品照常"而不是"作品被判成已下架"
     takedown: v.takedown && typeof v.takedown === "object" ? { at: toMs(v.takedown.at ?? 0), reason: String(v.takedown.reason ?? "") } : undefined,

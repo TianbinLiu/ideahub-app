@@ -17,7 +17,7 @@ import VisibilityPicker from "../components/VisibilityPicker";
 import { deleteVideoItem, getVideo, isMyAuthor, partsOf, updateVideoMeta } from "../data/videos";
 import { coverToPermanentUrl } from "../data/publishAssets";
 import { useVideosVersion } from "../hooks/useVideos";
-import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, formatDuration, parseTags } from "../types";
+import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, visibilityOf, visibilityWire } from "../types";
 
 export default function EditPage() {
   const { id } = useParams<{ id: string }>();
@@ -31,7 +31,8 @@ export default function EditPage() {
   const [description, setDescription] = useState(video?.description ?? "");
   const [cover, setCover] = useState(video?.cover ?? "");
   const [tags, setTags] = useState<string[]>(video?.tags ?? []);
-  const [visibility, setVisibility] = useState<"public" | "private">(video?.visibility ?? "public");
+  // ★ 界面上是三档，线上是两个字段 —— 映射只在 types.visibilityOf/visibilityWire 两处
+  const [visibility, setVisibility] = useState<Visibility>(video ? visibilityOf(video) : "public");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState("");
@@ -58,8 +59,8 @@ export default function EditPage() {
   //   它的合法值里就有一个是默认值，"是不是空"分辨不出"用户还没改"和"用户选了公开"。
   //   改用「作品 id 变了就重置」——同一部作品内不覆盖用户的选择。
   useEffect(() => {
-    setVisibility(video?.visibility ?? "public");
-  }, [video?.id, video?.visibility]);
+    setVisibility(video ? visibilityOf(video) : "public");
+  }, [video?.id, video?.visibility, video?.linkOnly]);
 
   // ★ 标签与 visibility 同款处理，理由一样：空数组既可能是"还没填"也可能是"用户清空了"，
   //   分辨不出来，所以只在**换了一部作品**时重置，同一部作品内不覆盖用户的编辑。
@@ -106,7 +107,7 @@ export default function EditPage() {
    * @param over 立刻要生效、还来不及经过 state 的字段（「改成仅自己可见」那颗按钮用）
    * @returns null = 真存上了；字符串 = 没存上的原因（同时也写进了 `err`）
    */
-  async function save(over?: { visibility?: "public" | "private" }): Promise<string | null> {
+  async function save(over?: { visibility?: Visibility }): Promise<string | null> {
     if (!video) return "作品不存在";
     if (!title.trim()) {
       setErr("标题不能为空");
@@ -127,7 +128,9 @@ export default function EditPage() {
         description: description.trim(),
         cover: coverUrl,
         tags,
-        visibility: over?.visibility ?? visibility,
+        // ★ 三档 → 两个字段。别在这里手写 `{visibility, linkOnly}`：漏掉 linkOnly 的表现是
+        //   "从凭链接可见改成仅自己可见，界面收紧了、链接却照样打得开"（零报错）
+        ...visibilityWire(over?.visibility ?? visibility),
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 1800);
@@ -302,6 +305,8 @@ export default function EditPage() {
                     ★ 做成一颗**直达按钮**而不是一句话：多数人删作品是因为"不想被人看见"，
                       而不是"要腾地方"。这是四家同类产品里唯一被普遍验证有效的止损设计
                       —— 但前提是它得点得动，光说一句"你可以去上面那个选择器改"约等于没有。 */}
+                {/* ★ 「凭链接可见」也算"还在外面"：链接是活的、能被转发，所以这一档同样
+                    该被劝一句。判 `!== "private"` 正好把两档都包含进来（三档之后这条依然对）。 */}
                 {visibility !== "private" && (
                   <button
                     onClick={() => {
@@ -317,7 +322,7 @@ export default function EditPage() {
                           setConfirmDel(false);
                           return;
                         }
-                        setVisibility(video?.visibility ?? "public"); // 开关翻回去，别让它说谎
+                        setVisibility(video ? visibilityOf(video) : "public"); // 开关翻回去，别让它说谎
                         setDelErr({ why: `没能改成「仅自己可见」：${why}`, kind: "soft" });
                       });
                     }}
