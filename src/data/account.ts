@@ -482,6 +482,45 @@ export function isFollowing(author: string): boolean {
 // ── 视频收藏 ──────────────────────────────────────────
 // 此前首页的"收藏"是组件本地 useState——点亮之后划走再回来就灭了，
 // 也谈不上"取消收藏"。收藏是账号资产，落账号库并广播。
+/**
+ * 收藏态的本机盘。**远端模式下这是唯一的真相** —— 与点赞（videos.LIKED_KEY）反过来。
+ *
+ * ★★ 2026-08-31 补。在这之前收藏在**正式包里根本存不住**：`toggleCollect` 只改内存
+ *   `u.collects` 然后 `persist()`，而 `persist()` 在 `remoteOn()` 时一个字节都不写盘
+ *   （那是有意的，见它自己的 ★）；同时服务端**没有 branch 作品的收藏端点**
+ *   （`rg collect|bookmark src/routes/` 只有 assets/ideas/meme/template），
+ *   `loadRemoteAssets` 冷启动整表重建 db、也不会把 collects 带回来。
+ *   ⇒ 用户收藏 10 条，书签点亮、个人页「收藏 10」都对；杀掉 App 再打开，全部归零。
+ *   而 FeedPage 那句注释白纸黑字写着「划走再划回来、乃至刷新后都还在」。零报错。
+ * ★ 为什么**不是**放开 `persist()` 的 remote 闸：那会把整个账号库写进本地，
+ *   下次离线启动读到一份幽灵账号（那条闸存在的全部理由）。只把收藏这一项单独存。
+ * ★ 连 owner 一起存（照 videos.LikedStore）：换账号后这份不该被算到新账号头上。
+ * ⚠ 这只是"存住"，**不是"跨设备"** —— 换台设备就没有。要跨设备得服务端补
+ *   `POST/DELETE /api/branch/videos/:id/collect` 与 `/api/me/collects`，
+ *   那是另一件事；在补上之前，界面不许暗示收藏是账号资产。
+ */
+const COLLECTS_KEY = "ideahub-app.collects.v1";
+interface CollectsStore {
+  owner: string;
+  ids: string[];
+}
+
+async function loadCollects(): Promise<void> {
+  if (!remoteOn()) return; // 离线模式整个账号库都落盘了，collects 在里面
+  const u = currentUser();
+  if (!u) return;
+  const saved = await idbGet<CollectsStore>(COLLECTS_KEY);
+  if (!saved || !Array.isArray(saved.ids) || saved.owner !== u.id) return;
+  u.collects = [...saved.ids];
+}
+
+function saveCollects(): void {
+  if (!remoteOn()) return;
+  const u = currentUser();
+  if (!u) return;
+  void idbSet(COLLECTS_KEY, { owner: u.id, ids: [...(u.collects ?? [])] });
+}
+
 export function toggleCollect(videoId: string): boolean {
   const u = currentUser();
   if (!u || !db) return false;
@@ -490,6 +529,7 @@ export function toggleCollect(videoId: string): boolean {
   if (i >= 0) u.collects.splice(i, 1);
   else u.collects.push(videoId);
   persist();
+  saveCollects(); // 远端模式下 persist() 是空转，收藏得自己落一份（见 COLLECTS_KEY 的 ★★）
   return u.collects.includes(videoId);
 }
 
@@ -1908,6 +1948,9 @@ async function loadRemoteAssets(): Promise<void> {
   }));
   // 本地按作者名关注，顺手把 名字→userId 登记进 api/branch，让 toggleFollow 能反查
   u.following = following.map((f) => branch.authorName(f));
+  // ★ 收藏在服务端没有对应端点，本机那一份就是全部真相 —— 在这儿装回来
+  //   （放在 db 重建之后：上面几行刚把 db.cards/decks 整表换过）。见 COLLECTS_KEY 的 ★★
+  await loadCollects();
   // ★ 到这儿就算"问过服务端了"（哪怕某一块拉挂了 —— 那是"问过没问到"，不是"还在问"）。
   //   卡片详情页靠它区分"你没有这张卡"与"还没装载完"（见 cardsReady 的 ★★）。
   assetsHydrated = true;
