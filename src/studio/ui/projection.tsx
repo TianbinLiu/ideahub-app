@@ -65,18 +65,22 @@ export default function ProjectionWindow() {
   return (
     <div className="absolute inset-0 z-20">
       {/* 背景灰化+模糊；底部留出浮卡区域保持清晰 */}
-      <div className="absolute inset-x-0 top-0 bottom-[36%] bg-slate-900/55 backdrop-blur-md" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[36%] bg-gradient-to-t from-transparent via-transparent to-slate-900/55" />
+      <div className="absolute inset-x-0 top-0 bottom-[12%] bg-slate-900/55 backdrop-blur-md" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[12%] bg-gradient-to-t from-transparent via-transparent to-slate-900/55" />
       {/* 投影光束：从悬浮卡射向窗口 */}
       <div
-        className="pointer-events-none absolute bottom-[31%] left-1/2 h-[8%] w-32 -translate-x-1/2 opacity-70"
+        className="pointer-events-none absolute bottom-[9%] left-1/2 h-[4%] w-32 -translate-x-1/2 opacity-70"
         style={{
           clipPath: "polygon(50% 100%, 2% 0, 98% 0)",
           background: "linear-gradient(to bottom, rgba(103,232,249,0.4), rgba(103,232,249,0.04))",
         }}
       />
-      {/* 半透明全息面板：透出后方 3D 桌景，靠模糊保证可读性 */}
-      <div className="absolute inset-x-2 top-[3%] bottom-[35%] flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142b]/40 shadow-[0_0_60px_rgba(103,232,249,0.28)] backdrop-blur-lg">
+      {/* 半透明全息面板：透出后方 3D 桌景，靠模糊保证可读性。
+          ★ 2026-08-30 主人点名放到**近乎全屏**：底部原来留 35% 给悬浮卡，而铸段窗那三步
+            （尤其三张模式卡与首尾帧格）在剩下的 62% 里被压得很小。现在只留 11% ——
+            够看见悬浮卡的上沿与那道投影光束（"这块面板是从卡上投出来的"这个隐喻还在），
+            但不再为它牺牲主内容。 */}
+      <div className="absolute inset-x-2 top-[2%] bottom-[11%] flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142b]/40 shadow-[0_0_60px_rgba(103,232,249,0.28)] backdrop-blur-lg">
         {projection === "editor" ? <EditorPanel /> : <ProposalsPanel />}
       </div>
     </div>
@@ -338,9 +342,14 @@ function EditorPanel() {
            封面是同一位看板娘的三张场景图（design/gen-segmode-covers.mjs 出，与创作入口
            那三张同一张定妆照——角色一致靠同一张参考图，不靠文案描述）。
            卡框借 TarotCard：全仓卡片是同一个形，这一屏也就长得像"在选一张牌"。 */
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
           <p className="flex-none text-center text-[11px] text-slate-400">这一段怎么拍？挑一张</p>
-          <div className="grid flex-none grid-cols-3 gap-2">
+          {/* ★ 竖排三行、**卡按高度定尺寸**（2026-08-30 主人点名"占八成空间"）：
+              三张并排时卡是**宽度**受限的 —— 336px 宽的面板分三列，每列 104px、卡只有
+              156px 高（面板的 23%），说明文字还会被 flex-1 撑到最底下与卡脱开（实测）。
+              竖排之后每行吃掉三分之一屏高，卡自己按 aspect-[2/3] 由高度反推宽度，
+              三行合计约八成，说明文字就在卡旁边。 */}
+          <div className="flex min-h-0 flex-1 flex-col gap-2.5">
             {(
               [
                 ["/create/mode-tpl.jpg", "套模板", "白模复刻", "套一个模板，给人偶挂卡换人", () => setTplPick(true)],
@@ -348,12 +357,23 @@ function EditorPanel() {
                 ["/create/mode-custom.jpg", "自定义", "全按你的来", "示例视频 / 自己给帧，免费铺方案直出", () => { setLane("custom"); setStep("ref"); }],
               ] as const
             ).map(([cover, label, tag, desc, go]) => (
-              <button key={label} onClick={go} className="group text-left transition active:scale-[0.97]">
-                {/* ★ 副题不进卡框：题名条只有一行的宽度，四个字 + 副题会被压成「自选…」
-                    （实测）。卡上只放题名，短标签与说明都放卡下 */}
-                <TarotCard cover={cover} title={label} />
-                <span className="mt-1 block text-[10px] font-semibold text-cyan-200">{tag}</span>
-                <span className="block text-[9px] leading-[13px] text-slate-500">{desc}</span>
+              <button
+                key={label}
+                onClick={go}
+                className="flex min-h-0 flex-1 items-center gap-3 rounded-2xl border border-slate-600/70 bg-black/25 p-2.5 text-left transition active:scale-[0.98] hover:border-cyan-400/60"
+              >
+                {/* 卡按行高定尺寸：外框 h-full + 2:3，TarotCard 自己 w-full + 同比例正好贴合 */}
+                <span className="flex h-full flex-none" style={{ aspectRatio: "2 / 3" }}>
+                  <TarotCard cover={cover} title={label} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="text-base font-bold text-cyan-100">{label}</span>
+                    <span className="rounded-full bg-cyan-400/15 px-2 py-0.5 text-[10px] text-cyan-200">{tag}</span>
+                  </span>
+                  <span className="mt-1.5 block text-[11px] leading-relaxed text-slate-400">{desc}</span>
+                </span>
+                <span className="flex-none text-slate-500">›</span>
               </button>
             ))}
           </div>
