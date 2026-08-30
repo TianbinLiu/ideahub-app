@@ -219,16 +219,32 @@ export default function CutPage() {
    * ★ 播放头不在选中的那段里就整句拒 —— 这时候"在播放头处分割"本身没有意义，
    *   而默认切成正在播的那一段就是上面那个 bug 本身。
    */
-  function splitAtPlayhead() {
+  /** 一刀落在哪儿必须留够的余量（秒）。分割与裁剪**同一个数**：两处都是"别切出一个
+   *  没法播的碎片"，各写一个数必然分叉成"能切但切完删不掉"。 */
+  const MIN_CLIP_SEC = 0.4;
+
+  /**
+   * 「现在能不能对选中的片段下刀」——分割与裁头裁尾**共用这一处判断**。
+   * @returns 能下刀时返回 {clip, at}；否则就地写错并返回 null（铁律八：说清为什么点不动）
+   */
+  function cutPoint(): { clip: Clip; at: number } | null {
     const target = view.find((c) => c.id === sel);
-    if (!target || !vref.current) return;
+    if (!target || !vref.current) return null;
+    // ★ 播放头不在选中的那段里就整句拒：`sel`（选中的）与 `active`（正在播的）会分开
+    //   —— 播到出点会自动换 active 却不动 sel（2026-08-30 修过的那个错位）。
     if (!active || active.id !== target.id) {
-      setErr("播放头不在选中的片段里——先点一下这个片段（它会从头开始播），再切。");
-      return;
+      setErr("播放头不在选中的片段里——先点一下这个片段（它会从头开始播），再操作。");
+      return null;
     }
-    const cur = vref.current.currentTime;
-    if (cur - target.start < 0.4 || target.end - cur < 0.4) {
-      setErr("分割点离片段边缘太近（至少留 0.4s）");
+    return { clip: target, at: vref.current.currentTime };
+  }
+
+  function splitAtPlayhead() {
+    const pt = cutPoint();
+    if (!pt) return;
+    const { clip: target, at: cur } = pt;
+    if (cur - target.start < MIN_CLIP_SEC || target.end - cur < MIN_CLIP_SEC) {
+      setErr(`分割点离片段边缘太近（至少留 ${MIN_CLIP_SEC}s）`);
       return;
     }
     setErr("");
@@ -239,6 +255,39 @@ export default function CutPage() {
       const b = { ...cs[i], id: uid("clip"), start: cur };
       return [...cs.slice(0, i), a, b, ...cs.slice(i + 1)];
     });
+  }
+
+  /**
+   * 裁头 / 裁尾：把选中片段的入点或出点挪到播放头。
+   *
+   * ★★ 为什么补这个：`Clip.start/end` **一直支持裁剪**，UI 上却只有"分割"一条路，
+   *   而删除在只剩一个片段时是灰的 ⇒ **简约模式出来的单段作品根本裁不了**
+   *   （想去掉开头两秒？做不到）。这是"能力在数据结构里、入口没做出来"的典型。
+   * ★ 为什么不做拖拽把手：这条时间轴是**等宽故事板卡**（宽度不正比于时长，
+   *   段数是个位数、时长在推演时就定死了，不上等比时间轴是有意的取舍）。
+   *   在等宽卡上摆把手，"拖到一半"在视觉上不对应任何时长 —— 那才是骗人。
+   *   入点/出点复用已经存在的播放头概念，单段作品也照样用得了。
+   */
+  function trimTo(edge: "start" | "end") {
+    const pt = cutPoint();
+    if (!pt) return;
+    const { clip: target, at: cur } = pt;
+    const next = edge === "start" ? { ...target, start: cur } : { ...target, end: cur };
+    if (next.end - next.start < MIN_CLIP_SEC) {
+      setErr(`这样裁完只剩不到 ${MIN_CLIP_SEC}s，片段太短了`);
+      return;
+    }
+    setErr("");
+    setClips((cs) => cs.map((c) => (c.id === target.id ? next : c)));
+  }
+
+  /** 还原这一段的裁剪（回到整段）。★ 必须有：裁剪不可撤销的话，用户不敢用它 */
+  function resetTrim() {
+    const target = view.find((c) => c.id === sel);
+    const seg = target && segs[target.segIndex];
+    if (!target || !seg) return;
+    setErr("");
+    setClips((cs) => cs.map((c) => (c.id === target.id ? { ...c, start: 0, end: seg.durationSec } : c)));
   }
 
   function removeClip(id: string) {
@@ -766,6 +815,8 @@ export default function CutPage() {
                       <img src={seg.firstFrame} alt="" className="h-14 w-full object-cover" draggable={false} />
                       <span className="absolute left-1 top-0.5 rounded bg-black/65 px-1 text-[9px] text-slate-200">
                         段{c.segIndex + 1} · {clipDur(c).toFixed(1)}s
+                        {/* ★ 裁过要看得出来：否则"这段怎么短了"只能靠回忆，而裁剪是可还原的 */}
+                        {(c.start > 0.01 || c.end < seg.durationSec - 0.01) && <span className="ml-0.5">✂</span>}
                       </span>
                       {nAnn > 0 && (
                         <span className="absolute right-1 top-0.5 rounded-full bg-rose-500/90 px-1 text-[9px] font-bold text-white">
@@ -805,6 +856,40 @@ export default function CutPage() {
                 >
                   🗑 删除片段
                 </button>
+              </div>
+              {/* 裁头裁尾。★★ 补它是因为 `Clip.start/end` 一直支持裁剪、UI 上却只有分割，
+                  而删除在只剩一个片段时是灰的 ⇒ 简约模式出来的**单段作品根本裁不了**。
+                  ★ 单独一排：上面那排是"这一段与别的段的关系"（切开/换位/删掉），
+                    这一排是"这一段自己留哪一截"，混在一起点错的代价不一样。 */}
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <button
+                  onClick={() => trimTo("start")}
+                  disabled={!sel}
+                  className="rounded-lg bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
+                >
+                  ⇤ 从这里开始
+                </button>
+                <button
+                  onClick={() => trimTo("end")}
+                  disabled={!sel}
+                  className="rounded-lg bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
+                >
+                  到这里结束 ⇥
+                </button>
+                {/* 只在**真裁过**时才出现：没裁过的时候它是一颗永远没反应的键 */}
+                {(() => {
+                  const t = view.find((c) => c.id === sel);
+                  const seg = t && segs[t.segIndex];
+                  const trimmed = !!t && !!seg && (t.start > 0.01 || t.end < seg.durationSec - 0.01);
+                  return trimmed ? (
+                    <button
+                      onClick={resetTrim}
+                      className="rounded-lg border border-slate-600 px-2.5 py-1.5 text-[11px] text-slate-300"
+                    >
+                      还原整段
+                    </button>
+                  ) : null;
+                })()}
               </div>
               {!sel && <p className="mt-1.5 text-[10px] text-slate-500">先点上面的片段选中，再用这排按钮</p>}
             </>
