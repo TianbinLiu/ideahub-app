@@ -174,7 +174,9 @@ function FeedItem({
   // 初值从库里取：划走再划回来时点赞态不该丢（isLiked 之前一直没人调用）
   const [liked, setLiked] = useState(() => isLiked(video.id));
   const [likes, setLikes] = useState(video.likes);
-  // 收藏态取自账号库（划走再划回来、乃至刷新后都还在）。
+  // 收藏态取自账号库（划走再划回来、乃至冷启动之后都还在 —— 远端模式下靠
+  // account.COLLECTS_KEY 单独落一份盘，见那里的 ★★；⚠ 只存在**这台设备**上，
+  // 服务端还没有收藏端点，换台设备就没有）。
   // ★ 计数那一半 2026-08-30 撤了（见下面 RailBtn 的 ★★）：服务端没有收藏端点，
   //   本地自增出来的数不是"多少人收藏了"。`setSave` 仍然照调 —— 它维护的是本机库里
   //   那个字段，个人页的「收藏」页签还靠账号库的 collects 列人。
