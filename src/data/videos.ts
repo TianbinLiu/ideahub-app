@@ -1519,7 +1519,13 @@ async function loadDetail(item: VideoItem): Promise<void> {
       const remote = v.comments.map(toComment);
       const byId = new Map(remote.map((c) => [c.id, c]));
       for (const c of item.comments ?? []) if (!byId.has(c.id)) byId.set(c.id, c);
-      item.comments = [...byId.values()].sort((a, b) => a.at - b.at);
+      // ★★ **降序**（新的在前）—— 与服务端 `sort({ createdAt: -1 })` 和 `addReply` 的
+      //   插入端（`[cmt, ...v.comments]`）同一口径。这一行第一版写成了升序，后果是
+      //   **详情页评论区整个倒过来**、用户刚发的那条沉到列表最底 —— 观感正是这次修复
+      //   要消灭的"刚发的评论不见了"，只是从"消失"换成"跑到看不见的地方"。
+      //   ⚠ 评论抽屉那一面自带排序（CommentSheet 的 buildThreads），所以只测抽屉
+      //   **看不出来**；出问题的是 `VideoPage` —— 它平铺渲染、全页一个 sort 都没有。
+      item.comments = [...byId.values()].sort((a, b) => b.at - a.at);
     }
     // ★ 条数同样不许倒退：服务端那个数是发送之前的快照，本地已经多出一条
     if (typeof v.commentCount === "number") {
