@@ -59,6 +59,32 @@ public class AppUpdaterPlugin extends Plugin {
      */
     private static final int RESUME_ATTEMPTS = 5;
 
+    /**
+     * 这个错**再试也不会好**（镜像上没有这个文件、地址过期、被拒）。
+     * ★ 为什么要单开一个类型而不是去认错误文案里的「404」：本仓已经栽过一次
+     *   （`ArkTaskUnknown` 那条），文案是会变的，类型不会。
+     * ★ 拿它换来的两件事：不白等 15 秒重试；不对用户说「再点一次会接着下」——
+     *   那是一条走不通的路，而用户会照着一直点。
+     */
+    private static class PermanentDownloadError extends Exception {
+        PermanentDownloadError(String msg) {
+            super(msg);
+        }
+    }
+
+    /**
+     * 「这一半留着了」这句话**只在真留下字节时才说**。
+     * ★ 2026-09-01 复核抓到：原来它是无条件拼在错误后面的，而完全没网/镜像 404 时
+     *   `.part` 压根没建（响应码检查在建文件之前）—— 屏幕上写着「已经下好的部分留着了」，
+     *   目录里一个字节都没有。往"让人放心"的方向说错不比往吓人的方向说错高尚：
+     *   用户会以为下次能接着下，实际每次都从 0 开始。
+     */
+    private static String resumeTail(File part) {
+        long have = part.exists() ? part.length() : 0;
+        if (have <= 0) return "（这一次一个字节都没下到）";
+        return String.format(java.util.Locale.US, "已经下好的 %.1fMB 留着了，再点一次会接着下，不用从头来。", have / 1048576.0);
+    }
+
     private final ExecutorService io = Executors.newSingleThreadExecutor();
 
     /** 当前包的版本号 + 这个渠道支不支持自更新 + 这台机器现在能不能装。UI 靠它决定显示什么 */
@@ -224,12 +250,15 @@ public class AppUpdaterPlugin extends Plugin {
         for (int attempt = 1; attempt <= RESUME_ATTEMPTS && !done; attempt++) {
             try {
                 done = fetchInto(url, part);
+            } catch (PermanentDownloadError e) {
+                // ★ 再试也不会好：当场抛，别让用户白等 15 秒重试，更别许一个不存在的出口
+                throw new Exception(e.getMessage() + "。这个地址上没有这一版的包了，等下一版或者去官网重下。");
             } catch (Exception e) {
                 // ★ 断了就接着试，**不删残包** —— 它正是下一轮要接着下的那一半。
-                //   最后一轮还不成才把原因抛上去，并告诉用户"下次会接着下"（别让他以为白下了）。
+                //   最后一轮还不成才把原因抛上去，并如实说这一半在不在（见 resumeTail）。
                 if (attempt == RESUME_ATTEMPTS) {
                     String why = e.getMessage() == null ? "下载中断" : e.getMessage();
-                    throw new Exception(why + "。已经下好的部分留着了，再点一次会接着下，不用从头来。");
+                    throw new Exception(why + "。" + resumeTail(part));
                 }
                 try {
                     Thread.sleep(1500L * attempt);
@@ -244,7 +273,7 @@ public class AppUpdaterPlugin extends Plugin {
         //   没下完的文件走到那里，就会被当成坏包删掉 —— 用户白下的那几十 MB 就没了，
         //   而他下次还得从 0 开始，正是这次改动要消灭的事。
         if (!done) {
-            throw new Exception("这一次没下完（网络断了几次）。已经下好的部分留着了，再点一次会接着下。");
+            throw new Exception("这一次没下完（网络断了几次）。" + resumeTail(part));
         }
 
         // ★ 校验放在最后、对整个文件算：续传拼出来的包与一次下完的包走同一道闸
@@ -296,6 +325,10 @@ public class AppUpdaterPlugin extends Plugin {
         }
         if (code < 200 || code >= 300) {
             conn.disconnect();
+            // 408 请求超时 / 429 太频繁 —— 这两个恰恰是"待会儿再来"，不算永久
+            if (code >= 400 && code < 500 && code != 408 && code != 429) {
+                throw new PermanentDownloadError("下载失败（HTTP " + code + "）");
+            }
             throw new Exception("下载失败（HTTP " + code + "）");
         }
         // ★★ 服务端**没理会** Range（回 200 而不是 206）：这一发是从头开始的，必须把已有的

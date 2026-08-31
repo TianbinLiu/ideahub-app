@@ -195,6 +195,28 @@ async function main() {
   fs.copyFileSync(AAB, path.join(out, `qimeng-${versionName}-play-store.aab`));
   console.log(`✓ 清单已生成（${(apkBuf.length / 1048576).toFixed(0)}MB，sha256 ${manifest.sha256.slice(0, 12)}…）`);
 
+  // ── 5b. 同名重发：内容变了就不许发（2026-09-01 加，发版前复核抓到）────────
+  // ★★ 为什么到今天才需要这道闸：APK 直到 2026-08-31 才**真的**被 Cloudflare 缓存住
+  //   （在那之前全局 CORS 的 `Vary: Origin` 让 CF 一律不缓存这条路，所以"同名换内容"
+  //   一直碰巧能用）。现在镜像那条是 `max-age=1y, immutable` —— 同一个文件名换了内容，
+  //   边缘上那份**一年不变**。后果不是"慢一点"，是**这一版的更新对这批用户永久下不动**：
+  //   客户端按清单里的 sha 校验整个文件 → 对不上 → 删残包 → 报「校验不通过（可能没下完
+  //   或被中间人改过）」→ 再点还是同一份缓存。屏幕上那句话还指向一个不存在的原因。
+  // ★ 触发它的正是本仓自己新写的纪律「复核发现问题、改完必须重新出包」：出包本身安全
+  //   （还没上传过），**发布之后**再改同一个版本号才致命。所以闸只拦"已经发过 + 内容不同"。
+  if (exists && live && live.sha256 && live.sha256 !== manifest.sha256) {
+    die(`${tag} 已经发过了，而这次的包与线上那一份**内容不同**` +
+        `（线上 ${live.sha256.slice(0, 12)}… / 本次 ${manifest.sha256.slice(0, 12)}…）。
+` +
+        `同一个版本号不能发第二份内容：镜像上的 ${apkAsset} 在 Cloudflare 是 immutable 缓存一年，
+` +
+        `已经取到过旧包的用户会永远校验失败、永远更新不了这一版。
+` +
+        `→ 改 android/app/build.gradle 涨一档 versionName/versionCode 重新出包（推荐）；
+` +
+        `  或者先去 Cloudflare 清掉 /api/app/file/${apkAsset} 那条缓存，再回来重跑。`);
+  }
+
   if (DRY) {
     console.log("\n--dry：检查全部通过，没有发布。\n");
     return;

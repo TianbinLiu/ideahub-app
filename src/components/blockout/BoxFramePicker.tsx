@@ -61,6 +61,13 @@ export type BoxFrameClip = Pick<BlockoutSelection, "startSec" | "durSec">;
 export const BOX_FRAME_QUANT = 0.5;
 export const quantBoxSec = (t: number): number => Math.round(t / BOX_FRAME_QUANT) * BOX_FRAME_QUANT;
 
+/** 切段刀的栅格：0.1 秒。★ 写成 `*10/10` 而不是 `/0.1*0.1` 的理由见组件里那段 ★。 */
+const quantSplitSec = (t: number): number => Math.round(t * 10) / 10;
+/** 这一屏「把时间拍到格子上」的**唯一实现**（铁律六）：读数、判重、门禁、插入值、
+ *  以及播放中的 rAF 采样全问它。两条尺为什么必须不同，见组件里那段 ★★。 */
+export const quantOf = (kind: BoxFrameKind): ((t: number) => number) =>
+  kind === "split" ? quantSplitSec : quantBoxSec;
+
 /**
  * 一份标记在当前选段下的分拣 —— **唯一实现**（换算 + 判据合在一处）。
  *
@@ -179,6 +186,37 @@ export default function BoxFramePicker({
   const [slow, setSlow] = useState(false);
 
   /**
+   * 播放中用 rAF 把 `at` 追到画面上（约 60Hz），**不靠 `onTimeUpdate`**（约 4Hz）。
+   *
+   * ★★ 为什么必须修在这儿，而不是"点的时候单独读一次 `currentTime`"（2026-08-31 的
+   *   第一版就是那样，2026-09-01 发版前复核当场抓到）：这一屏所有"现在是第几秒"的判断
+   *   都算在 `at` 上 —— 读数「第 X.X 秒」、判重 `already`、灰按钮的理由 `block`、
+   *   选段内外 `hereOutside`。只把**插入值**换成 `currentTime`，就成了本仓最常复发的
+   *   那种**两把尺**：播放中 `at` 最多落后 250ms（0.1 栅格 = 2.5 格），于是
+   *     · 冒出来的那枚芯片与它正上方的读数对不上，最多差 0.25 秒；
+   *     · `already` 按落后的 `at` 算成 false（按钮亮着），真插入值却撞上已有的一刀 ——
+   *       那句 `return` 把这一下**静默吞掉**，用户读到的是"点了没反应"（铁律八）。
+   *   把尺子修准，两处就又同源了。
+   * ★ 只在**跨格**时 setState：1× 下每秒最多 10 次重渲而不是 60 次 —— 读数本来就只画到
+   *   0.1 位，格内那些重渲一个像素都改变不了。
+   * ★ 停下来那一刻由 `onPause`/`onEnded` **精确对齐**一次：rAF 最后一拍最多差 16ms，
+   *   正好压在格子边界上时会差一格，而暂停之后这个数会一直摆在屏幕上。
+   * ★ 页面不可见时 rAF 被节流到约 2Hz —— 那时视频也不解码，没有"看着画面标帧"这回事。
+   */
+  useEffect(() => {
+    if (!playing) return;
+    const q = quantOf(kind);
+    let raf = 0;
+    const tick = () => {
+      const v = vid.current;
+      if (v) setAt((prev) => (q(prev) === q(v.currentTime) ? prev : v.currentTime));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, kind]);
+
+  /**
    * 这一形态的**时间栅格**。
    *
    * ★★ 两条路的栅格**必须不同**，这不是可以统一的事：
@@ -194,7 +232,7 @@ export default function BoxFramePicker({
    *   `0.30000000000000004` 这种值，与 `templates.planSplits` 的 `Math.round(m*100)/100`
    *   不是同一个浮点数 —— 而那边的去重与"离前一刀够不够 4 秒"都按数值比。
    */
-  const quant = kind === "split" ? (t: number) => Math.round(t * 10) / 10 : quantBoxSec;
+  const quant = quantOf(kind);
   const step = kind === "split" ? 0.1 : BOX_FRAME_QUANT;
 
   /** 播放/暂停。★ `play()` 回的是 Promise，**必须接住** —— 后台标签页/自动播放策略下它会
@@ -331,8 +369,14 @@ export default function BoxFramePicker({
             onLoadedMetadata={(e) => setDur(e.currentTarget.duration || 0)}
             onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
             onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            onEnded={() => setPlaying(false)}
+            onPause={(e) => {
+              setPlaying(false);
+              setAt(e.currentTarget.currentTime); // rAF 最后一拍最多差 16ms，停住的这个数要准
+            }}
+            onEnded={(e) => {
+              setPlaying(false);
+              setAt(e.currentTarget.currentTime);
+            }}
             onClick={() => togglePlay()}
             className="max-h-[34vh] w-full cursor-pointer rounded-lg bg-black object-contain"
           />
@@ -401,15 +445,12 @@ export default function BoxFramePicker({
 
           <div className="flex items-center gap-2">
             <button
-              // ★★ 标的那个数**读视频真实的 currentTime**，不读 `at`（2026-08-31 改）。
-              //   `at` 由 onTimeUpdate 驱动，粒度约 4Hz —— 在这一屏还不能播的时候它与滑杆
-              //   同源所以无所谓；**一旦能播就不同源了**：用户按暂停的那一瞬间画面停在 A 帧，
-              //   而 `at` 最多落后 250ms 指着 B 秒，标下去的是 B。那正是本文件 attachVideo
-              //   上面那段 ★★（2026-08-17 修的那个事故）的同一种形状。
+              // ★★ 标的就是屏幕上那个数（`here`）—— **一把尺**。播放中 `at` 由上面那个 rAF
+              //   追着画面走，所以这里不需要（也不许）另读一次 `currentTime`：那样读数、
+              //   判重、门禁算的是一个时刻，插进去的是另一个时刻，最多差 0.25 秒。
               onClick={() => {
-                const t = quant(vid.current ? vid.current.currentTime : at);
-                if (marks.some((m) => m === t)) return; // 与上面 `already` 同一条判据
-                onMarksChange([...marks, t].sort((a, b) => a - b));
+                if (already) return; // 门禁（`block`）已经把这颗键灰掉了，这里只是兜底
+                onMarksChange([...marks, here].sort((a, b) => a - b));
               }}
               disabled={disabled || !!block}
               className="flex-1 rounded-xl border border-sky-500/60 bg-sky-500/10 py-2 text-xs font-bold text-sky-200 disabled:opacity-40"

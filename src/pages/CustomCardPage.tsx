@@ -134,6 +134,16 @@ export default function CustomCardPage() {
   const [schemeOpen, setSchemeOpen] = useState(false);
   /** 用户亲手挑过方案没有 —— 勾「真人」只在没挑过时才换默认（主推≠强制） */
   const schemeTouched = useRef(false);
+  /**
+   * 当前方案的**当下值**，专给跨 `await` 的地方读（唯一写点在 `changeScheme`，
+   * 也是全页唯一的 `setSchemeId`）。
+   * ★★ 为什么需要（2026-09-01 复核抓到）：`importAssetPhoto` 要跨三次 await（服务端从
+   *   TOS 代取约 2MB + decode + 重编码，好几秒），而**方案选择块就摆在它正下方**
+   *   （本版新加的）—— 用户完全可能在这几秒里换一套。闭包里的 `schemeId` 是发起那一拍
+   *   的旧值，照片会被写进新方案里根本不存在的 tag：本页按当前 `pageSlots` 取图，
+   *   于是**不画、不当卡面、mint 也不带走**，而屏幕上还打着「✅ 已填进「X」」。零报错。
+   */
+  const schemeIdRef = useRef(defaultScheme().id);
   /** 人物卡各图位（按方案的 tag 键）。换方案时 tag 对得上的留着，对不上的取下并说明 */
   const [schemeShots, setSchemeShots] = useState<Record<string, Shot>>({});
   /**
@@ -268,15 +278,23 @@ export default function CustomCardPage() {
     schemeTouched.current = true;
     const next = schemeOf(nextId) ?? defaultScheme();
     const keep = new Set(next.slots.map((s) => s.tag));
-    const gone = Object.keys(schemeShots).filter((t) => !keep.has(t));
+    // ★ 只数**这一页现在画得出来、且新方案里没有**的那几格：`schemeShots` 现在会攒下
+    //   历史方案的键（见下面那段 ★★），拿 Object.keys 去数会把用户从没见过的格子也报出来
+    const gone = pageSlots.filter((sl) => schemeShots[sl.tag] && !keep.has(sl.tag)).map((sl) => sl.tag);
     if (gone.length > 0) {
-      const kept: Record<string, Shot> = {};
-      for (const [t, s] of Object.entries(schemeShots)) if (keep.has(t)) kept[t] = s;
-      setSchemeShots(kept);
-      setDropped(`「${next.title}」里没有「${gone.join("、")}」这一格，你传的那张已经取下来了——换回原方案还能找回。`);
+      // ★★ **收起来 ≠ 删掉**（2026-09-01 发版前复核抓到）：这里原本真的把它从 schemeShots
+      //   里删了，而同一句话写着"换回原方案还能找回"—— 换回去那一格是空的，那句话是假的。
+      //   现在一张都不删。留着的键谁也看不见：本页每一处读法都按**当前方案**的 pageSlots
+      //   取 tag（charCover / mint 的 picked / 图位渲染三处都是），mint 也只带走那几格。
+      setDropped(`「${next.title}」里没有「${gone.join("、")}」这一格，你传的那张先收起来了——换回原方案还在。`);
+      // ★ 那句「✅ 已把授权照片接进来了（既是卡面的「X」…）」到这一刻可能已经不成立了。
+      //   它是**当时**的一句确认，不是状态显示——状态由上面那条绿条与这条 `dropped` 说。
+      //   留着它，屏幕上就同时挂着两句互相矛盾的话。
+      setImportMsg("");
     } else {
       setDropped("");
     }
+    schemeIdRef.current = nextId;
     setSchemeId(nextId);
     setSchemeOpen(false);
   }
@@ -304,7 +322,8 @@ export default function CustomCardPage() {
       });
       const { blob: prepped, note } = await prepareCardImage(file);
       const dataUrl = await blobToDataUrl(prepped);
-      const sc = schemeOf(schemeId) ?? defaultScheme();
+      // ★★ 读 ref 不读闭包里的 `schemeId`：这几秒里用户可能已经换过方案了（见 schemeIdRef）
+      const sc = schemeOf(schemeIdRef.current) ?? defaultScheme();
       // ★★ 取**这一页画得出来的**第一格，不是 `slots[0]`：本页只渲染/只落
       //   `slots.filter(s => !s.fromCrop)`（见 pageSlots）。三套内置方案的第一格恰好都不是
       //   fromCrop，所以今天撞不上；但真人路一旦能选任意方案（含市场装来的、第一格可以是
