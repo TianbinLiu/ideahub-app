@@ -305,12 +305,26 @@ export default function CustomCardPage() {
       const { blob: prepped, note } = await prepareCardImage(file);
       const dataUrl = await blobToDataUrl(prepped);
       const sc = schemeOf(schemeId) ?? defaultScheme();
-      const slot0 = sc.slots[0];
+      // ★★ 取**这一页画得出来的**第一格，不是 `slots[0]`：本页只渲染/只落
+      //   `slots.filter(s => !s.fromCrop)`（见 pageSlots）。三套内置方案的第一格恰好都不是
+      //   fromCrop，所以今天撞不上；但真人路一旦能选任意方案（含市场装来的、第一格可以是
+      //   fromCrop 的自建方案），授权照片就会被写进一个**这一页根本不画、mint 也不带走**
+      //   的 tag，而屏幕上还打着「✅ 已填进 X」。零报错。
+      const slot0 = sc.slots.find((x) => !x.fromCrop);
+      if (!slot0) {
+        setImportMsg("这套方案没有可以放照片的图位——换一套再试");
+        return;
+      }
       setSchemeShots((prev) => ({
         ...prev,
         [slot0.tag]: { dataUrl, fileName: "授权素材（自动填入）", ...(note ? { note } : {}) },
       }));
-      setImportMsg(`✅ 已把授权照片填进「${slot0.tag}」（它就是卡面）——下一步里可以换`);
+      // ★★ 同一张也灌进 **AI 生成那条车道的主素材**（2026-09-01 补）：不灌的话，用户在
+      //   「① 选来源」里点「传素材，AI 生成图位」时那颗键仍然是灰的、title 写「先传主素材图」
+      //   （`runAiForge` 第一行就 `if (!aiBody) return`）—— 授权照片明明已经在手上了，
+      //   却要他再传一次本地图。这正是主人反馈的那件事的后半截。
+      setAiBody({ dataUrl, fileName: "授权素材（自动填入）", ...(note ? { note } : {}) });
+      setImportMsg(`✅ 已把授权照片接进来了（既是卡面的「${slot0.tag}」，也能直接交给 AI 按方案生成图位）`);
     } catch (e) {
       setImportMsg(
         `没取到授权照片（${(e instanceof Error ? e.message : String(e)).slice(0, 80)}）——授权时传的照片就在你相册里，下一步从相册选一样`,
@@ -746,6 +760,52 @@ export default function CustomCardPage() {
               </>
             )}
           </div>
+          {/* ★★ 方案就在这一步选（2026-09-01 主人点名）。在这之前真人路是**四选一互斥**的
+              第四张牌：进来时硬编码套「全身立绘+面部特写」，而唯一的换方案入口「重选方案」
+              跳回 type 之后，点任何一张方案牌都会 `setRealPerson(false)` ——
+              **换方案就把真人绑定丢了**，用户只能在"选方案"和"用授权素材"之间二选一。
+              这里用的 `changeScheme` 不碰 realPerson，两件事从此正交。
+              ★ 只在**接上授权素材之后**才摆：没素材时选方案没有意义（图位没有输入），
+                摆出来只会让人以为选完就能生成。
+              ★ 无脸方案要说清**不豁免授权**：`economy.realFaceIssue` 的放行判据看的是
+                档位与 asset 绑定，**不看图里有没有脸** —— 选了无脸却不绑 asset，
+                在 hd/ultra 上照样被整句拒。 */}
+          {pendingAsset && (
+            <div className="mt-3 rounded-xl border border-slate-700/70 bg-panel p-2.5">
+              <div className="mb-1.5 text-[11px] font-semibold text-slate-300">用哪一套方案生成这张卡</div>
+              <div className="space-y-1">
+                {listSchemes("character").map((sc) => (
+                  <button
+                    key={sc.id}
+                    onClick={() => changeScheme(sc.id)}
+                    className={`w-full rounded-md px-2 py-1.5 text-left ${
+                      sc.id === schemeId ? "bg-brand/15 ring-1 ring-brand/40" : "hover:bg-white/5"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate text-[11px] font-semibold text-slate-200">{sc.title}</span>
+                      {sc.id === schemeId && <span className="flex-none text-[10px] text-brand">当前</span>}
+                      {sc.faceless && (
+                        <span className="flex-none rounded-full bg-emerald-500/15 px-1.5 py-px text-[9px] text-emerald-300">
+                          无脸
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">{sc.intro}</span>
+                  </button>
+                ))}
+              </div>
+              {scheme.faceless && (
+                <p className="mt-1.5 rounded-lg bg-amber-500/10 px-2 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                  {/* ⚠ 这是**给用户看的文案**，不是注释：JSX 里的 ** 和反引号会原样显示出来 */}
+                  无脸方案画出来的图里没有脸，但出片时
+                  <span className="font-semibold text-amber-100">仍然要靠这份授权素材</span>
+                  （合规看的是有没有绑定授权，不看图里有没有脸）——所以上面那份授权别取消。
+                </p>
+              )}
+              {dropped && <p className="mt-1.5 text-[10px] leading-relaxed text-amber-200/90">{dropped}</p>}
+            </div>
+          )}
           <button onClick={() => setStep("source")} className="mt-4 w-full rounded-xl bg-brand py-3 text-sm font-bold text-ink">
             下一步：传图与信息 ›
           </button>
