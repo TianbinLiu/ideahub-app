@@ -158,6 +158,36 @@ WebView 的 origin 是 `https://localhost`，在 Web 层 `fetch` GitHub 上的�
 ★ 因此 `APP_APK_BASE` 这个换源开关现在有**两个**下游（App 的自更新 + 官网下载页），
 换 CDN 时两边一起生效，仍然只改一个环境变量。
 
+## 下载慢的时候先查这三样（2026-08-31 实测定位过一次）
+
+主人反馈「App 内更新下载太慢」。按这个顺序查，一次定位：
+
+| 量什么 | 怎么量 | 当时的数 |
+|---|---|---|
+| ① 源站本机读文件 | 在 ECS 上 `curl localhost:4000/api/app/file/<name>` | **141 MB/s** —— 排除磁盘/node/express |
+| ② 客户端整包拉 | `curl -w "%{speed_download}"` | 136 KB/s |
+| ③ 同一条链路上的小片段 | 加 `-r 0-3145727` | **1.95 MB/s** |
+| ④ 绕开 CDN 直连源站 | `ssh` 拉一段（22 端口不经 CF） | 52 KB/s |
+
+**②③ 差一个数量级 = 边缘缓存没命中**。当时的根因是：全局 CORS 中间件给每个响应加
+`Vary: Origin`，而**带 `Vary` 的响应 Cloudflare 不缓存** —— 每一次下载都在回源拉 60MB，
+而源站在香港、海外用户 RTT 173ms，单条 TCP 流在长肥管道上就是一百多 KB/s。
+
+两处修复缺一不可：
+
+1. **代码侧**：`/api/app/file/:name` 这条路由 `res.removeHeader("Vary")`（它不需要 CORS ——
+   是安卓原生 `HttpURLConnection` 下的，不是浏览器 XHR）。用例钉在
+   `server/tests/appRelease.spec.js` 的 F1/F2。
+2. **Cloudflare 后台**：`.apk` **不在 CF 默认可缓存的扩展名清单里**，所以还要一条 Cache Rule ——
+   已建：`APK 镜像长缓存`，`starts_with(http.request.uri.path, "/api/app/file/")` →
+   Eligible for cache，Edge TTL 跟随源站的 `cache-control`（源站已发 `max-age=31536000, immutable`，
+   **别在 CF 那边再写死一个数**，单一真相）。
+
+修完实测：整包 **136 KB/s → 1.46 MB/s**（44 秒下完 61MB），`cf-cache-status: HIT`。
+
+⚠ 判断「CF 到底缓没缓」看响应头：**没有 `cf-cache-status` 这个头 = CF 压根没把它当可缓存资源**
+（不是 MISS —— MISS 是"可缓存但还没存"）。这两者差别很大，别看成一回事。
+
 ## 更新源现在长什么样
 
 ```

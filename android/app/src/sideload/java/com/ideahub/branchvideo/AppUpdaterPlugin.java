@@ -18,6 +18,7 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -51,6 +52,12 @@ public class AppUpdaterPlugin extends Plugin {
     /** 进度事件的节流：每多下这么多字节才报一次。
      *  不节流的话 60MB 会打出上千次 bridge 调用，光序列化就够卡一会儿 */
     private static final long PROGRESS_STEP_BYTES = 512 * 1024;
+    /**
+     * 断了自动接着下几次。
+     * ★ 这个数不是拍的：一发 60MB 在慢网上要几十秒到几分钟，中途掉一两次是常态；
+     *   而**每一次重试都从上次断的地方接着下**，所以多试几次的代价只有时间，不是流量。
+     */
+    private static final int RESUME_ATTEMPTS = 5;
 
     private final ExecutorService io = Executors.newSingleThreadExecutor();
 
@@ -182,33 +189,128 @@ public class AppUpdaterPlugin extends Plugin {
         return getContext().getPackageManager().canRequestPackageInstalls();
     }
 
+    /**
+     * 下载安装包，**支持断点续传**。
+     *
+     * ★★ 2026-08-31 加。原来是「每次先把目录清空、从 0 重下」，在这个场景下代价特别大：
+     *   包 60MB 出头，而手机上下到一半断线是常态 —— 断一次前面下的就全白费，
+     *   用户看到的是进度条反复从 0 开始、永远下不完。
+     * ★ 续传的三个前提我们都占着：文件名带版本号（内容不会变）、服务端 `res.sendFile`
+     *   本来就支持 Range、清单里带 sha256。所以"接着下"不会悄悄拼出一个坏包 ——
+     *   最后那道校验是兜底。
+     *
+     * ⚠ 摘要**不能再边下边算**：续传时前半截不经过这一轮的流。改成下完之后整个文件读一遍
+     *   （60MB 顺序读在手机上不到一秒），这样"续传拼出来的包"与"一次下完的包"走同一道闸。
+     * ⚠ 残包要**按文件名分开存**：不同版本共用一个 update.apk 的话，上一版没下完的半截
+     *   会被当成这一版的前半段接着下 —— 拼出来必然校验不过，而用户要先白等一场。
+     */
     private File download(String url, String expectSha) throws Exception {
         File dir = new File(getContext().getCacheDir(), "updates");
         if (!dir.exists() && !dir.mkdirs()) throw new Exception("建不了下载目录");
-        // 每次先清空：上一次下到一半的残包留着，只会在下次校验时白白失败一轮
-        File[] stale = dir.listFiles();
-        if (stale != null) for (File f : stale) //noinspection ResultOfMethodCallIgnored
-            f.delete();
 
-        File out = new File(dir, "update.apk");
+        // 这一版自己的落点（按 URL 里的文件名分开），顺带把**别的**残包清掉
+        String base = url.substring(url.lastIndexOf("/") + 1).replaceAll("[^\\w.-]", "_");
+        if (base.isEmpty()) base = "update.apk";
+        final File part = new File(dir, base + ".part");
+        File[] stale = dir.listFiles();
+        if (stale != null) {
+            for (File f : stale) {
+                if (!f.getName().equals(part.getName())) //noinspection ResultOfMethodCallIgnored
+                    f.delete();
+            }
+        }
+
+        boolean done = false;
+        for (int attempt = 1; attempt <= RESUME_ATTEMPTS && !done; attempt++) {
+            try {
+                done = fetchInto(url, part);
+            } catch (Exception e) {
+                // ★ 断了就接着试，**不删残包** —— 它正是下一轮要接着下的那一半。
+                //   最后一轮还不成才把原因抛上去，并告诉用户"下次会接着下"（别让他以为白下了）。
+                if (attempt == RESUME_ATTEMPTS) {
+                    String why = e.getMessage() == null ? "下载中断" : e.getMessage();
+                    throw new Exception(why + "。已经下好的部分留着了，再点一次会接着下，不用从头来。");
+                }
+                try {
+                    Thread.sleep(1500L * attempt);
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+
+        // ★★ 「没下完」与「下坏了」是**两个结局**，绝不能合并：下面那道 sha 校验失败时会
+        //   把残包删掉（它必须删，否则坏包会被当成"下了一半"永远接下去）。而一个仅仅是
+        //   没下完的文件走到那里，就会被当成坏包删掉 —— 用户白下的那几十 MB 就没了，
+        //   而他下次还得从 0 开始，正是这次改动要消灭的事。
+        if (!done) {
+            throw new Exception("这一次没下完（网络断了几次）。已经下好的部分留着了，再点一次会接着下。");
+        }
+
+        // ★ 校验放在最后、对整个文件算：续传拼出来的包与一次下完的包走同一道闸
+        if (expectSha != null && !expectSha.isEmpty()) {
+            MessageDigest sha = MessageDigest.getInstance("SHA-256");
+            try (InputStream in = new FileInputStream(part)) {
+                byte[] buf = new byte[64 * 1024];
+                int n;
+                while ((n = in.read(buf)) > 0) sha.update(buf, 0, n);
+            }
+            StringBuilder hex = new StringBuilder();
+            for (byte b : sha.digest()) hex.append(String.format("%02x", b));
+            if (!hex.toString().equalsIgnoreCase(expectSha)) {
+                // ★ 校验不过**必须删**：留着它，下一次会被当成"下了一半"接着下，
+                //   而它本来就是坏的 —— 用户会陷进一个永远修不好的循环。
+                //noinspection ResultOfMethodCallIgnored
+                part.delete();
+                throw new Exception("下载的文件校验不通过，已丢弃（可能没下完或被中间人改过）");
+            }
+        }
+
+        // 安装器要一个正常后缀的文件
+        File apk = new File(dir, base.endsWith(".apk") ? base : base + ".apk");
+        //noinspection ResultOfMethodCallIgnored
+        apk.delete();
+        if (!part.renameTo(apk)) throw new Exception("下载完了但改名失败，存储可能已满");
+        return apk;
+    }
+
+    /**
+     * 从 `out.length()` 处接着下。
+     * @return true = 这一发把文件下完了；false = 还没下完（调用方接着重试）
+     */
+    private boolean fetchInto(String url, File out) throws Exception {
+        long have = out.length();
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
         conn.setReadTimeout(READ_TIMEOUT_MS);
         // GitHub Release 的下载地址会 302 到对象存储，不跟跳转就只拿到一个空响应
         conn.setInstanceFollowRedirects(true);
+        if (have > 0) conn.setRequestProperty("Range", "bytes=" + have + "-");
         conn.connect();
         int code = conn.getResponseCode();
-        if (code < 200 || code >= 300) throw new Exception("下载失败（HTTP " + code + "）");
+        // ★ 416 = 手上这半截已经不小于服务端那个文件了（多半上次其实下完了）。当成"下完"
+        //   交给外面那道 sha 去判 —— 它才是权威，在这儿自己下结论只会多一种猜错的方式。
+        if (code == 416) {
+            conn.disconnect();
+            return true;
+        }
+        if (code < 200 || code >= 300) {
+            conn.disconnect();
+            throw new Exception("下载失败（HTTP " + code + "）");
+        }
+        // ★★ 服务端**没理会** Range（回 200 而不是 206）：这一发是从头开始的，必须把已有的
+        //   那半截丢掉重写 —— 直接追加会拼出一个前半段重复的坏包，而它要到最后校验才暴露。
+        boolean append = code == HttpURLConnection.HTTP_PARTIAL && have > 0;
+        if (!append) have = 0;
         long total = conn.getContentLengthLong();
+        if (total > 0) total += have; // Range 回的是**剩余**长度，进度条要的是整包大小
 
-        MessageDigest sha = MessageDigest.getInstance("SHA-256");
-        long got = 0, lastReported = 0;
-        try (InputStream in = conn.getInputStream(); FileOutputStream fos = new FileOutputStream(out)) {
+        long got = have, lastReported = have;
+        try (InputStream in = conn.getInputStream(); FileOutputStream fos = new FileOutputStream(out, append)) {
             byte[] buf = new byte[64 * 1024];
             int n;
             while ((n = in.read(buf)) > 0) {
                 fos.write(buf, 0, n);
-                sha.update(buf, 0, n);
                 got += n;
                 if (got - lastReported >= PROGRESS_STEP_BYTES) {
                     lastReported = got;
@@ -218,20 +320,12 @@ public class AppUpdaterPlugin extends Plugin {
                     notifyListeners("downloadProgress", ev);
                 }
             }
+            // 落盘再说"下完了"：进程被系统杀掉时才不会留下一个长度对不上的残包
+            fos.getFD().sync();
         } finally {
             conn.disconnect();
         }
-
-        if (expectSha != null && !expectSha.isEmpty()) {
-            StringBuilder hex = new StringBuilder();
-            for (byte b : sha.digest()) hex.append(String.format("%02x", b));
-            if (!hex.toString().equalsIgnoreCase(expectSha)) {
-                //noinspection ResultOfMethodCallIgnored
-                out.delete();
-                throw new Exception("下载的文件校验不通过，已丢弃（可能没下完或被中间人改过）");
-            }
-        }
-        return out;
+        return total <= 0 || got >= total;
     }
 
     private void launchInstaller(File apk) {
