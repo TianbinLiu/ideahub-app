@@ -291,7 +291,17 @@ export default function CustomCardPage() {
     setImportMsg("正在把授权照片取来填进卡面…");
     try {
       const blob = await fetchPortraitAssetImage(assetId);
-      const file = new File([blob], "授权素材.jpg", { type: blob.type || "image/jpeg" });
+      // ★★ 判**形状**不判真值（2026-09-01 修）：`blob.type || "image/jpeg"` 看着是兜底，
+      //   其实是死的 —— 方舟素材桶回的是 `binary/octet-stream`，它是真值，`||` 永远不走
+      //   右边。于是 File 带着这个类型进 `decodeImageFile`，那里第一行
+      //   `!type.startsWith("image/")` 当场 throw「请选择图片文件」，用户读到的是
+      //   「没取到授权照片（请选择图片文件）」，而照片一直好好地在方舟上。
+      //   ⚠ 服务端那一侧同日也改成只透传 `image/*`（两头都修：这一头保护任何上游，
+      //     那一头让端点本身诚实）。这一行**不能因为那边修了就退回 `||`** ——
+      //     老版本 App 打的是同一个端点，而它们只有这一头。
+      const file = new File([blob], "授权素材.jpg", {
+        type: blob.type.startsWith("image/") ? blob.type : "image/jpeg",
+      });
       const { blob: prepped, note } = await prepareCardImage(file);
       const dataUrl = await blobToDataUrl(prepped);
       const sc = schemeOf(schemeId) ?? defaultScheme();

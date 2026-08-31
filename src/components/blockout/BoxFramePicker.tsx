@@ -26,6 +26,7 @@
 //   atSecs 变成空数组 → `api/branch` 那句 `atSecs.length ? {atSecs} : {}` 发出空请求体 →
 //   服务端退回几何自动铺。而界面上还写着「已标 5/5」，全程一个字都没说，且这一步是付费的。
 import { useCallback, useEffect, useRef, useState } from "react";
+import Icon from "../Icon";
 import { BLOCKOUT_BOX_TRIES } from "../../data/economy";
 import { SPLIT_MAX_PARTS } from "../../data/templates";
 import type { BlockoutSelection } from "./arkVideoRules";
@@ -170,7 +171,58 @@ export default function BoxFramePicker({
     setAt(0);
   }, [src]);
 
-  const here = quantBoxSec(at);
+  /** 播放中（决定那颗键画播放还是暂停）。★ 由 video 的 play/pause 事件驱动，
+   *  不是自己 setState 记的 —— 播到结尾会自动 pause，自己记的那份就和画面对不上了 */
+  const [playing, setPlaying] = useState(false);
+  /** 慢放。★ 只有两档：1× 与 0.25×。找镜头切点时 0.25× 已经够看清转场那一两帧了，
+   *  再多档只是让人多点几下 */
+  const [slow, setSlow] = useState(false);
+
+  /**
+   * 这一形态的**时间栅格**。
+   *
+   * ★★ 两条路的栅格**必须不同**，这不是可以统一的事：
+   *   · `analyze`（AI 看哪几帧）：服务端 `blockoutize.service.FRAME_QUANT_SEC = 0.5`
+   *     **无条件把任何值拍回 0.5 的倍数**，所以这一侧必须也是 0.5 ——
+   *     不然屏幕上写的秒数与 AI 真看的那一帧不是同一张，而那一步是付费的、零报错。
+   *   · `split`（在哪几帧切开）：服务端按 `so_${a.toFixed(2)}` 切
+   *     （`branchTemplate.routes.js`），**契约精度是 0.01**，0.5 完全是客户端自己加的。
+   * ★ 为什么切段这一侧取 **0.1 而不是 0.01**：0.01 的半格是 0.005 秒，而 24fps 的半帧是
+   *   0.021 秒 —— 比半格还大，于是**同一帧上能标出好几刀**，用户看着同一个画面却得到
+   *   两个不同的秒数。0.1 的半格 0.05 > 半帧，安全。
+   * ★ 写法用 `Math.round(t * 10) / 10` 而**不是** `Math.round(t / 0.1) * 0.1`：后者会产出
+   *   `0.30000000000000004` 这种值，与 `templates.planSplits` 的 `Math.round(m*100)/100`
+   *   不是同一个浮点数 —— 而那边的去重与"离前一刀够不够 4 秒"都按数值比。
+   */
+  const quant = kind === "split" ? (t: number) => Math.round(t * 10) / 10 : quantBoxSec;
+  const step = kind === "split" ? 0.1 : BOX_FRAME_QUANT;
+
+  /** 播放/暂停。★ `play()` 回的是 Promise，**必须接住** —— 后台标签页/自动播放策略下它会
+   *  reject，不接就是一条没人管的 unhandledrejection。muted 视频不受自动播放策略限制，
+   *  所以正常路径上不会走到 catch */
+  function togglePlay(): void {
+    const v = vid.current;
+    if (!v || dur <= 0 || disabled) return;
+    if (v.paused) {
+      v.playbackRate = slow ? 0.25 : 1;
+      void v.play().catch(() => setPlaying(false));
+    } else {
+      v.pause();
+    }
+  }
+
+  /** 把播放头挪一格。★ 挪之前先暂停：一边播一边 seek，下一个 timeupdate 立刻把它冲掉，
+   *  用户看到的是"点了没反应" */
+  function nudge(delta: number): void {
+    const v = vid.current;
+    if (!v || dur <= 0 || disabled) return;
+    if (!v.paused) v.pause();
+    const t = Math.min(Math.max(0, quant(v.currentTime + delta)), dur);
+    v.currentTime = t;
+    setAt(t);
+  }
+
+  const here = quant(at);
   /** 上限按形态走：认人帧是"服务端依次试"的预算，切段刀是 zod 的跨仓契约（12 段 = 11 刀） */
   const cap = kind === "split" ? SPLIT_MAX_PARTS - 1 : BLOCKOUT_BOX_TRIES;
   /** ★ 计数、门禁、红字、提交值全从这一处来（见 boxMarksInSelection 的 ★★） */
@@ -265,6 +317,11 @@ export default function BoxFramePicker({
             </p>
           )}
 
+          {/* ★★ 点画面 = 播放/暂停（2026-08-31 加）。在这之前这一屏**根本播不了** ——
+              没有 controls、没有 onClick、没有任何播放键，用户找"镜头切在哪一帧"的唯一
+              手段是盲拖滑杆。而镜头边界是**看**出来的，不是拖出来的。
+              ★ 不用原生 controls：那一条会连带出全屏、倍速、下载等一堆与这一屏无关的入口，
+              而且各机型样式不一，会把下面那排真正要用的按钮挤走。 */}
           <video
             ref={attachVideo}
             src={src}
@@ -273,15 +330,42 @@ export default function BoxFramePicker({
             preload="metadata"
             onLoadedMetadata={(e) => setDur(e.currentTarget.duration || 0)}
             onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
-            className="max-h-[34vh] w-full rounded-lg bg-black object-contain"
+            onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
+            onEnded={() => setPlaying(false)}
+            onClick={() => togglePlay()}
+            className="max-h-[34vh] w-full cursor-pointer rounded-lg bg-black object-contain"
           />
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => togglePlay()}
+              disabled={disabled || dur <= 0}
+              aria-label={playing ? "暂停" : "播放"}
+              className="flex-none rounded-lg bg-slate-700/70 px-2.5 py-1.5 text-slate-200 disabled:opacity-40"
+            >
+              <Icon name={playing ? "pause" : "play"} size={14} />
+            </button>
+            {/* ★ 慢放：转场那一两帧在 1× 下会一闪而过。0.25× 是"看得清"与"等得起"的折中 */}
+            <button
+              onClick={() => {
+                const next = !slow;
+                setSlow(next);
+                if (vid.current) vid.current.playbackRate = next ? 0.25 : 1;
+              }}
+              disabled={disabled || dur <= 0}
+              aria-label={slow ? "恢复正常速度" : "慢放 0.25 倍"}
+              className={`flex-none rounded-lg px-2 py-1.5 text-[11px] font-semibold tabular-nums disabled:opacity-40 ${
+                slow ? "bg-brand text-ink" : "bg-slate-700/70 text-slate-300"
+              }`}
+            >
+              0.25×
+            </button>
             <input
               type="range"
               min={0}
               max={Math.max(0, dur)}
-              step={BOX_FRAME_QUANT}
+              step={step}
               value={Math.min(at, dur)}
               onChange={(e) => {
                 const t = Number(e.target.value);
@@ -294,10 +378,39 @@ export default function BoxFramePicker({
             />
             <span className="flex-none text-[11px] tabular-nums text-slate-400">第 {here.toFixed(1)} 秒</span>
           </div>
+          {/* ★ 微调：手指在 300px 的轨道上拖不出 0.1 秒（360 秒素材是 1.2 秒/px）。
+              "先粗后细"——滑杆拖到大概，这两颗按住这一步走一格 */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => nudge(-step)}
+              disabled={disabled || dur <= 0}
+              aria-label={`往前 ${step} 秒`}
+              className="flex-1 rounded-lg bg-slate-700/70 py-1.5 text-[11px] tabular-nums text-slate-200 disabled:opacity-40"
+            >
+              ◀ −{step}s
+            </button>
+            <button
+              onClick={() => nudge(step)}
+              disabled={disabled || dur <= 0}
+              aria-label={`往后 ${step} 秒`}
+              className="flex-1 rounded-lg bg-slate-700/70 py-1.5 text-[11px] tabular-nums text-slate-200 disabled:opacity-40"
+            >
+              +{step}s ▶
+            </button>
+          </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => onMarksChange([...marks, here].sort((a, b) => a - b))}
+              // ★★ 标的那个数**读视频真实的 currentTime**，不读 `at`（2026-08-31 改）。
+              //   `at` 由 onTimeUpdate 驱动，粒度约 4Hz —— 在这一屏还不能播的时候它与滑杆
+              //   同源所以无所谓；**一旦能播就不同源了**：用户按暂停的那一瞬间画面停在 A 帧，
+              //   而 `at` 最多落后 250ms 指着 B 秒，标下去的是 B。那正是本文件 attachVideo
+              //   上面那段 ★★（2026-08-17 修的那个事故）的同一种形状。
+              onClick={() => {
+                const t = quant(vid.current ? vid.current.currentTime : at);
+                if (marks.some((m) => m === t)) return; // 与上面 `already` 同一条判据
+                onMarksChange([...marks, t].sort((a, b) => a - b));
+              }}
               disabled={disabled || !!block}
               className="flex-1 rounded-xl border border-sky-500/60 bg-sky-500/10 py-2 text-xs font-bold text-sky-200 disabled:opacity-40"
             >
