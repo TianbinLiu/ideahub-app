@@ -523,7 +523,14 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       }
       // 造卡时做完的肖像授权同理（不进 Card——理由见 data/cardAsset 顶注）
       if (declareReal && pendingAsset) {
-        await saveAsset(card.id, { assetId: pendingAsset.assetId, scope: "private", note: pendingAsset.note });
+        // ★ 落盘失败要出声：卡已经铸出来了（撤不回），但绑定只在内存里，重启就没了 ——
+        //   而这张卡挂着真人声明，出片那一刻会被拒（判返回值，saveAsset 不抛）
+        const bound = await saveAsset(card.id, {
+          assetId: pendingAsset.assetId,
+          scope: "private",
+          note: pendingAsset.note,
+        });
+        if (!bound) setErr("卡铸好了，但肖像授权绑定没存住（本机存储写入失败）——去卡详情页把授权再做一次，否则出片时会被拒。");
       }
       setSaved((s) => [...s, card]);
       setCrops([]);

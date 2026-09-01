@@ -92,19 +92,52 @@ export function hasAsset(cardId: string | undefined): boolean {
   return !!assetOf(cardId);
 }
 
-export async function saveAsset(cardId: string, a: CardAsset): Promise<void> {
-  map = { ...map, [cardId]: a };
-  emit();
-  await idbSet(KEY, map);
+/**
+ * 落一条肖像授权绑定。
+ * @returns `false` = **只写进了内存，没落盘**（配额满 / 隐私模式），重启就没了。
+ *
+ * ★★ 为什么必须回布尔（2026-09-01 复核抓到）：`idbSet` 自己 try/catch 把异常吞掉、回 false
+ *   （见 data/db.ts），所以这里原来的 `await idbSet(...)` **永远不会抛**。后果是
+ *   `CardDetailPage` 那处认认真真写着「写失败要出声（铁律八）」的 `.catch` 一次都跑不到 ——
+ *   用户以为授权绑好了，重启后绑定消失，卡上还挂着真人声明，出片那一刻才被拒。
+ * ★ 内存那份**照写不误**：这一次会话里出片仍然走得通，回 false 只是说"别指望它还在"。
+ */
+/**
+ * 哪几条**只写进了内存、没落盘**。
+ * ★★ 为什么必须记（2026-09-01 复核抓到）：`saveAsset` 是"内存照写不误 + 落盘可能失败"，
+ *   而卡详情页那条授权窄条的隐藏判据是 `assetOf(card.id)`（绑上即消失）——写内存那一拍
+ *   `emit()` 就把窄条收了，**连同它自己那句错误提示一起**。于是「写失败要出声」这件事
+ *   在那一页做不到，而铸卡页给的出路（「去卡详情页重做一次授权」）也当场走不通：
+ *   到了那一页，窄条根本不出现。判据换成"落盘了吗"，这两条才通。
+ * ★ 只在本次会话有效（进程重启后内存那份本来就没了，窄条会因为 assetOf 为空自然出现）。
+ */
+const unpersisted = new Set<string>();
+
+/** 这张卡的授权绑定**真的存住了吗**（false = 只在内存里，重启就没）。没绑过也回 false */
+export function assetPersisted(cardId: string | undefined): boolean {
+  if (!cardId || !map[cardId]) return false;
+  return !unpersisted.has(cardId);
 }
 
-export async function removeAsset(cardId: string): Promise<void> {
-  if (!map[cardId]) return;
+export async function saveAsset(cardId: string, a: CardAsset): Promise<boolean> {
+  map = { ...map, [cardId]: a };
+  unpersisted.add(cardId); // 先当成没存住，落盘成了再摘掉 —— 中间那一拍窄条不该消失
+  emit();
+  const ok = await idbSet(KEY, map);
+  if (ok) unpersisted.delete(cardId);
+  emit(); // 落盘结果本身也是可见状态（窄条按 assetPersisted 判去留）
+  return ok;
+}
+
+/** 撤掉绑定。@returns `false` = 内存里撤了但没落盘（重启会"复活"）——同 saveAsset 的 ★★ */
+export async function removeAsset(cardId: string): Promise<boolean> {
+  if (!map[cardId]) return true;
   const next = { ...map };
   delete next[cardId];
   map = next;
+  unpersisted.delete(cardId);
   emit();
-  await idbSet(KEY, next);
+  return await idbSet(KEY, next);
 }
 
 // 模块加载时 hydrate 一次（同 cardVoice）。失败就当没有 —— 侧库不该让工坊打不开。
