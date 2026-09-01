@@ -18,7 +18,7 @@ import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHo
 import { acquireCard, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, removeCard, shareCard, updateCardMeta } from "../data/account";
 import { addCardView, removeCardView } from "../data/cardViews";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
-import { assetOf, assetsVersion, saveAsset, subscribeAssets } from "../data/cardAsset";
+import { assetPersisted, assetsVersion, saveAsset, subscribeAssets } from "../data/cardAsset";
 import PortraitAuthPanel from "../components/PortraitAuthPanel";
 import { formatHeat, heatOf } from "../data/social";
 import {
@@ -169,7 +169,10 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
   useSyncExternalStore(subscribeAssets, assetsVersion, () => 0);
   const [saveErr, setSaveErr] = useState("");
   if (card.type !== "character" || card.realPerson !== true || !owned) return null;
-  if (assetOf(card.id)) return null; // 绑上即消失（见顶注）
+  // ★★ 判**落盘了吗**，不是"内存里有吗"（2026-09-01 复核抓到）：saveAsset 写内存那一拍就
+  //   emit()，只问 assetOf 的话窄条在点下去那一瞬间就没了 —— 连同它下面那句错误提示，
+  //   而提示里还写着「再点一次」，那时已经无处可点。落盘失败时窄条留住，这条路才是真的。
+  if (assetPersisted(card.id)) return null; // 绑上（且存住了）即消失（见顶注）
   return (
     <div className="mb-4 rounded-xl border border-amber-400/40 bg-amber-400/5 p-3">
       <p className="mb-1.5 text-[11px] leading-relaxed text-amber-200/90">
