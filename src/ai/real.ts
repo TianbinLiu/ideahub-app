@@ -741,8 +741,16 @@ export interface MaterialRefs {
  *     零图走既有降级（改画设定帧并说明），不整句拒 —— 2026-08-29 P2-a 放开时特意保住
  *     这半边语义。
  */
+/**
+ * 这批参考图是发给**谁**的 —— `"video"` = Seedance 出片，`"image"` = Seedream 画帧。
+ * ★★ 必填，不给默认值（2026-09-01 复核抓到）：这两条路对"已授权真人卡"的处理**相反**，
+ *   而漏传是零症状的（画面里那个人由模型自己编，没有任何报错）。见下面 trusted 分支的 ★★。
+ */
+export type RefTarget = "image" | "video";
+
 export async function prepareMaterialRefs(
   materials: Card[] | undefined,
+  target: RefTarget,
   onNote?: (note: string) => void,
   direct: boolean | { cap?: number; strict: boolean } = false,
 ): Promise<MaterialRefs> {
@@ -779,7 +787,18 @@ export async function prepareMaterialRefs(
     //   于是这张卡被当成"坏图"整张丢掉（零报错，只是画面里那个人由模型自己编）。
     //   所以要在守门**之前**分流。
     // ★ 拼 URI 只有 cardAsset.assetUri 一处（别在这写 `"asset://" + id`）。
-    const trusted = assetOf(p.card.id);
+    // ★★ **只有出片那条路换 asset://**（2026-09-01 复核抓到，改之前是无条件换）：
+    //   `asset://` 是 **Seedance**（视频侧）的能力 —— 方舟 2.0/2.5 不收直接上传的真人人脸，
+    //   但收授权过的素材（economy 的 `VideoTier.assetRef`）。**Seedream 没有这个协议**：
+    //   服务端 `billedForward` 把 body 原样透传，于是 `image: "asset://asset-…"` 直接进了
+    //   出图请求 —— 要么整发 400（catch 里退回纯文字重画，每帧多打一发、按调用计费），
+    //   要么被静默忽略。两种结局都是**画出来的那个人不是他授权的那个人**，而后面出片
+    //   正是照着这些帧拍的：做授权的全部意义在这条路上落空，全程零报错。
+    //   ⚠ 出图这条本来就不需要替换：Seedream i2i 对真人照片是放行的（2026-09-01 实测
+    //     `doubao-seedream-4-0-250828` + 授权照片 → HTTP 200 出图），拦真人的是 Seedance。
+    //   ⇒ 画帧这条走下面的正常路：用这张卡自己的形象图（那本来就是那张授权照片）。
+    // ★ 拼 URI 只有 cardAsset.assetUri 一处（别在这写 `"asset://" + id`）。
+    const trusted = target === "video" ? assetOf(p.card.id) : null;
     if (trusted) return { ...p, url: assetUri(trusted.assetId) };
     const r = await refableViews(p.card, multiChar);
     if (r.why && !failWhy.has(p.card)) failWhy.set(p.card, r.why);
@@ -1303,7 +1322,7 @@ export async function generateProposals(
   //   等于这句话根本没说过（铁律八：失败要"响"，写进一个没人看得见的地方不算响）。
   //   攒到开画前最后一发，它会一直挂到第一张图回来（实测 20s+），用户才真读得到。
   const matNotes: string[] = [];
-  const mat = await prepareMaterialRefs(ctx.materials, (n) => matNotes.push(n));
+  const mat = await prepareMaterialRefs(ctx.materials, "image", (n) => matNotes.push(n));
   // 顺序固定为 [方案0首帧, 方案0尾帧, 方案1首帧, …]，与最终 results[pi*2] 取值对应
   const jobs = three.flatMap((p) =>
     (startFrame ? (["last"] as const) : (["first", "last"] as const)).map((which) => ({ p, which })),

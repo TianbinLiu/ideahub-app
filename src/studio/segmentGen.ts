@@ -535,6 +535,7 @@ export async function generateSegment(
     blockout || refMode || needDraw || framesAsRefs
       ? await prepareMaterialRefs(
           input.materials,
+          "video",
           (n) => notes.push(n),
           blockout
             ? true
@@ -581,6 +582,29 @@ export async function generateSegment(
   // 没有承接帧/底图时素材卡的图就是 <图片1> 起，offset = 0
   const bind = refs ? refs.bind(0) : "";
   const refUrls = refs?.refs.length ? refs.refs : undefined;
+  /**
+   * **画帧**要的是另一份参考图（2026-09-01 复核抓到）。
+   *
+   * ★★ 上面那份是给 **Seedance** 的：已做过肖像授权的真人卡在那份里是 `asset://<id>`，
+   *   因为方舟视频侧不收直接上传的真人人脸、只收授权素材。**Seedream 没有这个协议** ——
+   *   服务端把 body 原样透传，`image: "asset://asset-…"` 要么整发 400（退回纯文字重画，
+   *   每帧多打一发、按调用计费），要么被静默忽略。两种结局都是**画出来的人不是他授权的
+   *   那个人**，而这一段的视频正是照着这两张帧拍的：做授权的意义在这条路上整个落空。
+   * ★★ 为什么不拿上面那份改一改：绑定句是按**各自那一份的全量编号**说话的
+   *   （`张三=@图片2`），替换或抽掉其中一张就会让点名句指到另一个角色身上。所以各备一份、
+   *   各自 bind —— 这也是为什么 `prepareMaterialRefs` 的 target 是必填的。
+   * ★ 懒准备：只有真要画帧那条路（!blockout && !refMode）才多跑这一趟；白模/参考生视频
+   *   一步都不多走。notes 去重，免得同一条提示在进度里出现两遍。
+   */
+  let drawRefsCache: Awaited<ReturnType<typeof prepareMaterialRefs>> | null = null;
+  const drawRefs = async () => {
+    if (!drawRefsCache) {
+      drawRefsCache = await prepareMaterialRefs(input.materials, "image", (nt) => {
+        if (!notes.includes(nt)) notes.push(nt);
+      });
+    }
+    return drawRefsCache;
+  };
   // ★ 白模：形象图一张都没准备成（图裂了/跨域读不出来）→ **整句失败，不降级**。
   //   refImg 那条能退回首尾帧（拍的还是这段剧情），白模退无可退：没有形象图的 r2v
   //   任务要么被方舟拒、要么受理后拍出一段没换主体的复刻片——受理后失败不退费，
@@ -598,17 +622,24 @@ export async function generateSegment(
   // 补画只属于经典路（!blockout）：白模段 first/last 天然为空（门禁保证），
   // 但空≠要补——它的画面在模板视频里
   if (!blockout && !refMode && !first) {
+    const dr = await drawRefs();
     prog(`绘制起拍画面…${noteTail()}`);
     first = await generateCover(
-      `${input.framePrompt || input.plot.slice(0, 200)}${mats}${bind}`,
+      `${input.framePrompt || input.plot.slice(0, 200)}${mats}${dr.bind(0)}`,
       undefined,
       input.aspect,
-      refUrls,
+      dr.refs.length ? dr.refs : undefined,
     );
   }
   if (!blockout && !refMode && !last && tier.flf) {
+    const dr = await drawRefs();
     prog(`绘制结束画面…${noteTail()}`);
-    last = await generateCover(`${input.plot.slice(0, 180)} 的结束瞬间${mats}${bind}`, undefined, input.aspect, refUrls);
+    last = await generateCover(
+      `${input.plot.slice(0, 180)} 的结束瞬间${mats}${dr.bind(0)}`,
+      undefined,
+      input.aspect,
+      dr.refs.length ? dr.refs : undefined,
+    );
   }
 
   // ── 帧 → 参考图（framesAsRefs 的落地）────────────────────────────

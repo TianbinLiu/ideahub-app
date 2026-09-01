@@ -92,19 +92,30 @@ export function hasAsset(cardId: string | undefined): boolean {
   return !!assetOf(cardId);
 }
 
-export async function saveAsset(cardId: string, a: CardAsset): Promise<void> {
+/**
+ * 落一条肖像授权绑定。
+ * @returns `false` = **只写进了内存，没落盘**（配额满 / 隐私模式），重启就没了。
+ *
+ * ★★ 为什么必须回布尔（2026-09-01 复核抓到）：`idbSet` 自己 try/catch 把异常吞掉、回 false
+ *   （见 data/db.ts），所以这里原来的 `await idbSet(...)` **永远不会抛**。后果是
+ *   `CardDetailPage` 那处认认真真写着「写失败要出声（铁律八）」的 `.catch` 一次都跑不到 ——
+ *   用户以为授权绑好了，重启后绑定消失，卡上还挂着真人声明，出片那一刻才被拒。
+ * ★ 内存那份**照写不误**：这一次会话里出片仍然走得通，回 false 只是说"别指望它还在"。
+ */
+export async function saveAsset(cardId: string, a: CardAsset): Promise<boolean> {
   map = { ...map, [cardId]: a };
   emit();
-  await idbSet(KEY, map);
+  return await idbSet(KEY, map);
 }
 
-export async function removeAsset(cardId: string): Promise<void> {
-  if (!map[cardId]) return;
+/** 撤掉绑定。@returns `false` = 内存里撤了但没落盘（重启会"复活"）——同 saveAsset 的 ★★ */
+export async function removeAsset(cardId: string): Promise<boolean> {
+  if (!map[cardId]) return true;
   const next = { ...map };
   delete next[cardId];
   map = next;
   emit();
-  await idbSet(KEY, next);
+  return await idbSet(KEY, next);
 }
 
 // 模块加载时 hydrate 一次（同 cardVoice）。失败就当没有 —— 侧库不该让工坊打不开。

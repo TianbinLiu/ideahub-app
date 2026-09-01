@@ -1609,7 +1609,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // progress 只有一行，紧接着的"重画结束画面…"在同一个同步块里就把它盖了（保留首帧
       // 只重画尾帧时正是这条路），React 连画都没画过。挂在后面那几行的行尾才看得见（铁律八）
       const notes: string[] = [];
-      const mat = await prepareMaterialRefs(node.materials, (n) => notes.push(n));
+      const mat = await prepareMaterialRefs(node.materials, "image", (n) => notes.push(n));
       const noteTail = notes.length ? `（${notes.join("；")}）` : "";
       const refUrls = mat.refs.length > 0 ? mat.refs : undefined;
       let first = prop.firstFrame;

@@ -179,9 +179,13 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
       <PortraitAuthPanel
         onBound={(assetId, note) => {
           // 窄条是"卡已存在"的场景，当场落库。写失败要出声（铁律八）：
-          // 静默失败的话用户以为绑好了，出片那一刻才发现还是拒
-          saveAsset(card.id, { assetId, scope: "private", note }).catch(() =>
-            setSaveErr("绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"),
+          // 静默失败的话用户以为绑好了，出片那一刻才发现还是拒。
+          // ★ 判**返回值**不判 reject：saveAsset 底下的 idbSet 把异常吞了回 false，
+          //   原来那条 `.catch` 一次都跑不到（2026-09-01 修 cardAsset 契约时一并改）。
+          void saveAsset(card.id, { assetId, scope: "private", note }).then(
+            (ok) =>
+              ok || setSaveErr("绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"),
+            () => setSaveErr("绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"),
           );
         }}
       />
