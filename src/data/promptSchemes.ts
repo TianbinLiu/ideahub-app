@@ -287,16 +287,28 @@ export function defaultScheme(): PromptScheme {
 }
 
 /**
- * 按"是不是真人素材"给默认方案 —— **「无脸方案主推」这条产品规则的唯一实现**
- * （设计文档 §B2 / backlog"三条合规真人路"：真人素材最不容易被拒的产出形态是无脸/背影，
- *   所以勾了真人就把它当默认；市场排序的无脸置顶在 listSchemes，是同一条规则的另一半）。
+ * 按"是不是真人素材、有没有做过肖像授权"给默认方案 —— **「无脸方案主推」这条产品规则的
+ * 唯一实现**（设计文档 §B2 / backlog"三条合规真人路"：没有授权的真人素材，最不容易被拒的
+ * 产出形态是无脸/背影，所以那时把它当默认；市场排序的无脸置顶在 listSchemes，是同一条规则
+ * 的另一半）。
  *
- * ★ 只管**默认值**，不管强制：用户手动换成别的（比如已做完肖像授权、想要正脸立绘）
- *   完全合法 —— 调用方要自己记「用户碰过没有」，别在勾选真人时把人家挑好的方案覆盖掉。
+ * ★★ `authorized` 这一档是 2026-09-01 补的，补之前这条规则**有两份相反的实现**：
+ *   本函数对任何真人都回无脸，而 CustomCardPage 的「真人素材扫脸认证」那颗键手写了
+ *   `find(s => s.builtin && !s.faceless)` 直接套 clean。两边各自都有道理，错的是这段注释
+ *   还写着"唯一实现"——主人因此问过一次「为什么真人扫脸认证默认是全身立绘+面部特写」，
+ *   而代码里根本找不到答案（真正的答案在另一处的一行注释里）。
+ *   现在把**区别本身**写进签名：
+ *     · 没授权（圈选提卡那条路）⇒ 无脸主推，画面里没有脸就绕开了肖像问题；
+ *     · 已授权（asset:// 绑定）⇒ 合规靠**绑定**不靠无脸，用户要的正是正脸立绘，
+ *       而无脸方案的图位（白模/三视图）根本放不下他刚授权的那张照片。
+ * ★ 漏传 `authorized` 退回**更保守**的那一档（无脸）：新调用点忘了传，后果是主推得更谨慎，
+ *   不是把没授权的正脸推出去。
+ * ★ 只管**默认值**，不管强制：用户手动换成别的完全合法 —— 调用方要自己记「用户碰过没有」，
+ *   别在勾选真人时把人家挑好的方案覆盖掉。
  * ★ 判否定兜底：无脸内置项万一被下掉，退回 defaultScheme() 而不是 undefined 崩掉调用方。
  */
-export function defaultSchemeFor(o: { realPerson?: boolean }): PromptScheme {
-  if (o.realPerson) return BUILTIN_SCHEMES.find((s) => s.faceless) ?? defaultScheme();
+export function defaultSchemeFor(o: { realPerson?: boolean; authorized?: boolean }): PromptScheme {
+  if (o.realPerson && !o.authorized) return BUILTIN_SCHEMES.find((s) => s.faceless) ?? defaultScheme();
   return defaultScheme();
 }
 

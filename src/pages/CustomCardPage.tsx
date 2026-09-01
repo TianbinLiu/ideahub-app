@@ -47,6 +47,7 @@ import { saveVoice } from "../data/cardVoice";
 // 走 ai/portraitViews（与工坊提卡同一条出图路），报价同一把尺 schemeCost。
 import {
   defaultScheme,
+  defaultSchemeFor,
   listSchemes,
   schemeOf,
   schemesVersion,
@@ -174,6 +175,25 @@ export default function CustomCardPage() {
   const [consentOk, setConsentOk] = useState(false);
   /** 造卡时就做完的肖像授权。卡还没有 id，先攒着，addCards 成功后才落 cardAsset 侧库 */
   const [pendingAsset, setPendingAsset] = useState<{ assetId: string; note: string } | null>(null);
+  /**
+   * 从授权素材取回来的那张照片本身。
+   * ★★ 为什么要单独存一份，而不是"看 aiBody 有没有值"（2026-09-01 主人第二次点名同一件事）：
+   *   照片到手之后，下游有**三个**地方要据此改口——页面标题、「下一步」那颗键、以及
+   *   「选来源」整屏。它们问的都是同一个问题「授权照片在不在手上」，那就只能有一个答案源。
+   *   `aiBody` 回答不了它：用户自己传一张也会填 aiBody；`schemeShots` 也回答不了：
+   *   换成无脸方案时那张会被收起来（见 changeScheme），而照片**仍然在手上**。
+   */
+  const [authShot, setAuthShot] = useState<Shot | null>(null);
+  /**
+   * 「授权已经撤掉了」这句话。**单独一个字段**，因为它要跨屏活着。
+   * ★★ 为什么不能写进 importMsg（2026-09-01 发版前复核抓到，两名反方都判成立）：
+   *   importMsg 全页只在 `{step === "real"}` 那一屏渲染，而撤绑定的第二个入口
+   *   「重选方案」同一拍就 `setStep("source")` —— 这句话在那条路上**永远显示不出来**，
+   *   而它说的正是"你那张授权照片被删掉了"。等下次回到真人屏它又原样浮出来，
+   *   那时人正在重新授权，读到的是一句已经不成立的话。
+   *   这就是 CLAUDE.md 记的那条坑：「话写进某个 msg，而同一拍就换路由」。
+   */
+  const [unbindNote, setUnbindNote] = useState("");
   /** 跟读录到的声音样本。同上，addCards 成功后才落 cardVoice 侧库 */
   const [pendingVoice, setPendingVoice] = useState<{ dataUrl: string; durationSec: number; note: string } | null>(null);
 
@@ -197,7 +217,7 @@ export default function CustomCardPage() {
    */
   const [partial, setPartial] = useState<{
     id: string;
-    kind: "unsynced" | "views";
+    kind: "unsynced" | "views" | "asset";
     lost: string[];
     reason?: string;
   } | null>(null);
@@ -236,6 +256,30 @@ export default function CustomCardPage() {
   /** 人物卡：按方案顺序取第一张已传的图 —— 它就是卡面（与非人物卡"第一格即卡面"同规则） */
   const charCover = isChar ? (pageSlots.map((s) => schemeShots[s.tag]).find(Boolean)?.dataUrl ?? null) : null;
   const declareReal = isChar && realPerson;
+  /**
+   * 授权照片到手了没有 —— 「选来源」那一屏据此**整屏改口**。
+   * ★★ 主人两次报的是同一件事：屏幕上刚说完「✅ 已把授权照片接进来了」，下一屏却摆着
+   *   「自己上传图片 / 传素材，AI 生成图位」两个都写着"传"的选项，页面标题还挂着
+   *   「自己传图做卡片」。App 明明已经拿着那张照片（`schemeShots` 里一份、`aiBody` 里一份），
+   *   **屏幕上一个像素都没说**。这不是功能缺失，是"知道却不说"——用户只能读成"它要我再传一次"。
+   */
+  const haveAuthShot = !!pendingAsset && !!authShot;
+  /** 授权那张**此刻还是不是** AI 车道的主素材（用户可以点缩略图换一张，那一下只动 aiBody）。
+   *  ★ 与 `haveAuthShot` 分开：后者答"照片在不在手上"，而"AI 会拿哪张脸出图"是另一件事 ——
+   *    拿前者去断言后者，就会在用户换过主素材之后仍然写着「主素材图就是你刚授权的那张」。 */
+  const authIsMaterial = !!authShot && aiBody === authShot;
+  /**
+   * 授权照片落在**当前方案**的哪一格（无脸方案里放不下，是 null —— 那时话要换一种说法）。
+   * ★★ 判据是**对象身份**（`=== authShot`），不是"第一个有图的格子"：后者在用户自己往别的
+   *   格子传过图之后会指错人 —— 屏幕会指着一张他自己传的图说"授权照片已经在这一格了"。
+   *   引用相等在这里是**精确**的：importAssetPhoto 把同一个 shot 对象同时放进 schemeShots
+   *   与 authShot，用户一旦替换那一格，引用就变了，这里自动不再认它。
+   */
+  const authSlotTag = authShot ? (pageSlots.find((s2) => schemeShots[s2.tag] === authShot)?.tag ?? null) : null;
+  /** AI 面板默认展开：照片已经在手上时，"交给 AI 按方案出图"就是主人要的那条路。
+   *  ★ 只在用户还没表过态时（lane === null）才替他展开，点过"自己传图"就不再自作主张。
+   *  ★ 展开 ≠ 花钱：真扣钱在面板里那颗生成键上，用户还得自己按。 */
+  const aiOpen = lane === "ai" || (lane === null && haveAuthShot);
   // 路由套着 RequireAuth，进来就有内容，无条件弹（引导来自 origin/main 的 UI 梳理批）
   useAutoGuide("customcard", true);
 
@@ -273,14 +317,50 @@ export default function CustomCardPage() {
     setErr("");
   }
 
+  /**
+   * 撤掉真人授权 —— **唯一实现**（铁律六），两个入口共用：授权条上那颗「取消」、
+   * 以及「重选方案」里改挑一套普通方案（那一下会 setRealPerson(false)）。
+   *
+   * ★★ 为什么撤绑定必须**连照片一起撤**（2026-09-01 复核四条镜头独立指出）：那张照片是
+   *   **随授权取回来的**，它在本机的存在理由就是这份绑定。原来「取消」只清 pendingAsset，
+   *   照片仍然躺在卡面和 AI 主素材里 —— 用户以为自己撤回了对这个真人的授权，
+   *   而那张脸接着被铸进卡、被拿去出图，屏幕上再没有任何一句话提过它。
+   * ★★ 「重选方案」那条更狠：它清 realPerson 却留着 pendingAsset ⇒ `declareReal` 为假 ⇒
+   *   mint 既不写 realPerson 也不 saveAsset（第 585/607 行都挂在 declareReal 上），
+   *   而第④步那行字照旧写着「授权素材已接上（铸卡时绑定）」。**说的与做的正好相反**。
+   * ★ 只取下**还是那一张**的格子（引用相等）：用户后来自己换过那一格就别动他的图。
+   */
+  function clearAuthBinding(why: string): void {
+    setPendingAsset(null);
+    setAuthShot(null);
+    setSchemeShots((prev) => {
+      const next: Record<string, Shot> = {};
+      for (const [t, sh] of Object.entries(prev)) if (sh !== authShot) next[t] = sh;
+      return next;
+    });
+    setAiBody((prev) => (prev === authShot ? null : prev));
+    // ★ 不碰 `dropped`：那句说的是**别的**图位（那些确实只是收起来、换回去还在）。
+    //   与授权照片撞车的那一份由 changeScheme 的 dropAuth 参数在源头排除掉 ——
+    //   在这儿一刀清掉的话，用户自己传过的那几张图"去哪了"就没人说了。
+    setImportMsg(""); // 那句「✅ 已把授权照片接进来了」到这一刻已经不成立
+    setUnbindNote(why);
+  }
+
   /** 换方案：tag 对得上的图留着，对不上的取下**并说明**（与 changeType 同一条纪律） */
-  function changeScheme(nextId: string) {
+  /**
+   * @param opts.dropAuth 调用方紧接着要 `clearAuthBinding()`（授权照片会被**真删**）——
+   *   那一格就别再报成"先收起来了、换回原方案还在"了，那是假话。
+   */
+  function changeScheme(nextId: string, opts?: { dropAuth?: boolean }) {
     schemeTouched.current = true;
     const next = schemeOf(nextId) ?? defaultScheme();
     const keep = new Set(next.slots.map((s) => s.tag));
     // ★ 只数**这一页现在画得出来、且新方案里没有**的那几格：`schemeShots` 现在会攒下
     //   历史方案的键（见下面那段 ★★），拿 Object.keys 去数会把用户从没见过的格子也报出来
-    const gone = pageSlots.filter((sl) => schemeShots[sl.tag] && !keep.has(sl.tag)).map((sl) => sl.tag);
+    const gone = pageSlots
+      .filter((sl) => schemeShots[sl.tag] && !keep.has(sl.tag))
+      .filter((sl) => !(opts?.dropAuth && schemeShots[sl.tag] === authShot))
+      .map((sl) => sl.tag);
     if (gone.length > 0) {
       // ★★ **收起来 ≠ 删掉**（2026-09-01 发版前复核抓到）：这里原本真的把它从 schemeShots
       //   里删了，而同一句话写着"换回原方案还能找回"—— 换回去那一格是空的，那句话是假的。
@@ -307,6 +387,7 @@ export default function CustomCardPage() {
    */
   async function importAssetPhoto(assetId: string) {
     setImportMsg("正在把授权照片取来填进卡面…");
+    setUnbindNote(""); // 又接上一份新的了，上一句「已经撤掉」就此翻篇
     try {
       const blob = await fetchPortraitAssetImage(assetId);
       // ★★ 判**形状**不判真值（2026-09-01 修）：`blob.type || "image/jpeg"` 看着是兜底，
@@ -329,21 +410,27 @@ export default function CustomCardPage() {
       //   fromCrop，所以今天撞不上；但真人路一旦能选任意方案（含市场装来的、第一格可以是
       //   fromCrop 的自建方案），授权照片就会被写进一个**这一页根本不画、mint 也不带走**
       //   的 tag，而屏幕上还打着「✅ 已填进 X」。零报错。
-      const slot0 = sc.slots.find((x) => !x.fromCrop);
-      if (!slot0) {
-        setImportMsg("这套方案没有可以放照片的图位——换一套再试");
-        return;
-      }
-      setSchemeShots((prev) => ({
-        ...prev,
-        [slot0.tag]: { dataUrl, fileName: "授权素材（自动填入）", ...(note ? { note } : {}) },
-      }));
+      const shot: Shot = { dataUrl, fileName: "授权素材（自动填入）", ...(note ? { note } : {}) };
+      // ★★ **先认下"照片到手了"**——这与"它能不能放进某一格"是两件事（2026-09-01 拆开）。
+      //   拆之前：找不到可用图位就当场 return，照片连 aiBody 都没进，而屏幕说「换一套再试」——
+      //   可换方案**不会**重新取图（全 app 没有第二个触发 importAssetPhoto 的入口），
+      //   那张照片就此消失，用户只能解除授权重走一遍。
+      setAuthShot(shot);
+      setAiBody(shot);
       // ★★ 同一张也灌进 **AI 生成那条车道的主素材**（2026-09-01 补）：不灌的话，用户在
       //   「① 选来源」里点「传素材，AI 生成图位」时那颗键仍然是灰的、title 写「先传主素材图」
       //   （`runAiForge` 第一行就 `if (!aiBody) return`）—— 授权照片明明已经在手上了，
       //   却要他再传一次本地图。这正是主人反馈的那件事的后半截。
-      setAiBody({ dataUrl, fileName: "授权素材（自动填入）", ...(note ? { note } : {}) });
-      setImportMsg(`✅ 已把授权照片接进来了（既是卡面的「${slot0.tag}」，也能直接交给 AI 按方案生成图位）`);
+      // ★★ 无脸方案的第一格是「白模全身」，那一格要的是**白模渲染图**。把一张真人照片填进去，
+      //   它就成了卡面、还会被当成"这一格已经有图了"——而这套方案存在的全部理由就是画面里没有脸。
+      //   照片不进格子，但仍然在手上：AI 那条路拿它当主素材，那正是无脸方案用得上它的唯一方式。
+      const slot0 = sc.faceless ? undefined : sc.slots.find((x) => !x.fromCrop);
+      if (slot0) {
+        setSchemeShots((prev) => ({ ...prev, [slot0.tag]: shot }));
+        setImportMsg(`✅ 已把授权照片接进来了（既是卡面的「${slot0.tag}」，也能直接交给 AI 按方案生成图位）`);
+      } else {
+        setImportMsg(`✅ 授权照片已取回。「${sc.title}」这套的图位要白模/设定稿，照片不进格子——交给 AI 出图时它就是主素材。`);
+      }
     } catch (e) {
       setImportMsg(
         `没取到授权照片（${(e instanceof Error ? e.message : String(e)).slice(0, 80)}）——授权时传的照片就在你相册里，下一步从相册选一样`,
@@ -428,7 +515,13 @@ export default function CustomCardPage() {
       if (AI_REAL) spendTokens(schemeCost(pageSlots)); // 图那一半：出齐才扣
       const shots: Record<string, Shot> = {};
       for (const v of out) shots[v.tag] = { dataUrl: v.dataUrl, fileName: "AI 生成" };
-      setSchemeShots(shots);
+      // ★★ **合并**不是整表替换（2026-09-01 复核抓到）：整表替换会把"换方案时收起来、
+      //   换回去还能找回"的那几张一起删掉 —— 而那句承诺是 v2.42 刚修好的。
+      //   当前方案的每一格 AI 都会出，所以合并不会留下半新半旧。
+      setSchemeShots((prev) => ({ ...prev, ...shots }));
+      // ★ 跑过 AI 就是走了 AI 这条路：lane 要表态。第③屏的标题按 lane 判
+      //   （"AI 已按素材写好，可随意改"），而 aiOpen 让"面板开着"不再等于"lane 是 ai"。
+      setLane("ai");
       // ── 文案那一半：看图写人物信息（AI 车道连人物信息一起生成，主人点名）──
       setAiBusy("按素材撰写人物信息…");
       try {
@@ -574,11 +667,27 @@ export default function CustomCardPage() {
       }
       // 造卡时攒下的授权素材与声音样本 —— addCards 成了才写（卡没入库，挂上去就是孤儿）。
       // 侧库只在本机，与 synced/lostViews 无关：卡到没到服务端都要写，写在跳转之前。
+      // ★ 判返回值（saveAsset 不抛，底下的 idbSet 把异常吞了）：绑定没落盘 = 重启后这张
+      //   真人卡就没有可信素材了，出片那一刻被整发拒。卡已经铸出来了，所以不能静默跳转 ——
+      //   摆在这一屏说清楚，并给一条真能走的路（去卡详情页重做授权）。
+      // ★★ 但**先把该写的都写完再报**（第一版写成"写失败就当场 return"，自查时抓到）：
+      //   那样一来录音就被这条早退一起跳过了 —— 用户丢的是两样东西，而屏幕只提了一样。
+      let assetLost = false;
       if (declareReal && pendingAsset) {
-        await saveAsset(id, { assetId: pendingAsset.assetId, scope: "private", note: pendingAsset.note });
+        assetLost = !(await saveAsset(id, {
+          assetId: pendingAsset.assetId,
+          scope: "private",
+          note: pendingAsset.note,
+        }));
       }
       if (isChar && pendingVoice) {
         await saveVoice(id, pendingVoice);
+      }
+      if (assetLost) {
+        // ★ 把 lostViews 一并带上：两件事可能同时发生，而 partial 一次只画一块 ——
+        //   不带的话"还有 N 张图没同步"就被这一档静默吞了（复核抓到）
+        setPartial({ id, kind: "asset", lost: r.lostViews, reason: "本机存储写入失败（配额满或隐私模式）" });
+        return;
       }
       if (r.lostViews.length > 0) {
         setPartial({ id, kind: "views", lost: r.lostViews, reason: r.reason });
@@ -597,7 +706,11 @@ export default function CustomCardPage() {
         <button onClick={() => nav(-1)} className="flex h-8 w-8 items-center justify-center rounded-full bg-panel">
           <Icon name="back" size={18} className="text-slate-300" />
         </button>
-        <h1 className="text-base font-bold text-slate-100">自己传图做卡片</h1>
+        {/* ★ 标题跟着走的那条路改口：真人路上照片是**授权取回来的**，挂着「自己传图」
+            正是主人两次引用的那句话（"为什么说没取到授权照片还需要再上传"）。 */}
+        <h1 className="text-base font-bold text-slate-100">
+          {realPerson || pendingAsset ? "用真人素材做卡片" : "自己传图做卡片"}
+        </h1>
         <HelpButton tour="customcard" />
         <span className="ml-auto text-[10px] text-slate-500">
           {step === "type"
@@ -659,9 +772,13 @@ export default function CustomCardPage() {
                     <button
                       key={sc.id}
                       onClick={() => {
-                        changeScheme(sc.id);
+                        changeScheme(sc.id, { dropAuth: true });
                         setRealPerson(false);
                         setConsentOk(false);
+                        // ★★ 离开真人这条路 = 绑定作废。只清 realPerson 会留下一个
+                        //   「有 pendingAsset 但 declareReal 为假」的状态：屏幕说"铸卡时绑定"、
+                        //   mint 一行都不写，而那张真人照片照样进卡（见 clearAuthBinding 的 ★★）。
+                        clearAuthBinding("已经离开真人素材这条路：授权绑定和随它取来的那张照片都撤掉了。");
                         setSchemePick(false);
                         setStep("source");
                       }}
@@ -681,10 +798,13 @@ export default function CustomCardPage() {
                   ))}
                   <button
                     onClick={() => {
-                      // 真人路的图位用「全身立绘+面部特写」（传的是真人照片，正合适；
-                      // 出片端合规靠 asset://，不靠无脸——那是 AI 出图路的主推）
-                      const clean = listSchemes("character").find((s) => s.builtin && !s.faceless);
-                      if (clean) changeScheme(clean.id);
+                      // 真人路的图位用「全身立绘+面部特写」：传的是真人照片，正合适；
+                      // 出片端合规靠 asset:// 绑定，不靠无脸（无脸主推是**没授权**那一档）。
+                      // ★ 这一句以前是手写的 `find(s => s.builtin && !s.faceless)`，
+                      //   与 defaultSchemeFor 自称的"唯一实现"正好相反 —— 2026-09-01 收口，
+                      //   区别写进了那个函数的签名（authorized 一档）。
+                      changeScheme(defaultSchemeFor({ realPerson: true, authorized: true }).id);
+                      setUnbindNote("");
                       setRealPerson(true);
                       setSchemePick(false);
                       setStep("real");
@@ -739,10 +859,9 @@ export default function CustomCardPage() {
                   <span className="block truncate font-mono text-[9px] text-emerald-300/80">{pendingAsset.assetId}</span>
                 </span>
                 <button
-                  onClick={() => {
-                    setPendingAsset(null);
-                    setImportMsg("");
-                  }}
+                  onClick={() =>
+                    clearAuthBinding("已解除授权绑定——随授权取来的那张照片也一并取下了（卡面与 AI 主素材都不再留着它）。")
+                  }
                   className="flex-none text-[10px] text-slate-500"
                 >
                   取消
@@ -758,26 +877,13 @@ export default function CustomCardPage() {
               />
             )}
             {importMsg && <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400">{importMsg}</p>}
-          </div>
-          <div className="mt-3 space-y-2">
-            {pendingVoice ? (
-              <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[10px] text-emerald-200">
-                    🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）
-                  </span>
-                  <audio src={pendingVoice.dataUrl} controls className="mt-1 h-8 w-full" />
-                </span>
-                <button onClick={() => setPendingVoice(null)} className="flex-none text-[10px] text-slate-500">
-                  重来
-                </button>
-              </div>
-            ) : (
-              <>
-                <VoiceRecorder onDone={setPendingVoice} />
-                <VoiceUploadButton onDone={setPendingVoice} />
-              </>
-            )}
+          {/* ★ 撤授权那句话**两屏都要画**：撤绑定的两个入口一个留在本屏、一个当场跳到
+              「① 选来源」，只画一屏就等于有一条路上永远看不到（见 unbindNote 的 ★★）。 */}
+          {unbindNote && (
+            <p className="mt-2 rounded-lg bg-amber-500/10 px-2 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+              {unbindNote}
+            </p>
+          )}
           </div>
           {/* ★★ 方案就在这一步选（2026-09-01 主人点名）。在这之前真人路是**四选一互斥**的
               第四张牌：进来时硬编码套「全身立绘+面部特写」，而唯一的换方案入口「重选方案」
@@ -825,8 +931,30 @@ export default function CustomCardPage() {
               {dropped && <p className="mt-1.5 text-[10px] leading-relaxed text-amber-200/90">{dropped}</p>}
             </div>
           )}
+          <div className="mt-3 space-y-2">
+            {pendingVoice ? (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[10px] text-emerald-200">
+                    🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）
+                  </span>
+                  <audio src={pendingVoice.dataUrl} controls className="mt-1 h-8 w-full" />
+                </span>
+                <button onClick={() => setPendingVoice(null)} className="flex-none text-[10px] text-slate-500">
+                  重来
+                </button>
+              </div>
+            ) : (
+              <>
+                <VoiceRecorder onDone={setPendingVoice} />
+                <VoiceUploadButton onDone={setPendingVoice} />
+              </>
+            )}
+          </div>
+          {/* ★ 这颗键去的是「① 选来源」，不是「传图与信息」——旧文案指错了屏，
+              而照片已经到手时更不该出现"传图"两个字（主人 2026-09-01 点名）。 */}
           <button onClick={() => setStep("source")} className="mt-4 w-full rounded-xl bg-brand py-3 text-sm font-bold text-ink">
-            下一步：传图与信息 ›
+            {haveAuthShot ? "下一步：这几张图怎么来 ›" : "下一步：选图片来源 ›"}
           </button>
         </>
       )}
@@ -845,34 +973,84 @@ export default function CustomCardPage() {
           <p className="mb-2 text-[11px] text-slate-400">
             方案「{scheme.title}」· {pageSlots.length} 个图位——这些图从哪来？
           </p>
-          <div className="space-y-2.5">
+          {/* ★ 撤授权那句话**两屏都要画**：撤绑定的两个入口一个留在本屏、一个当场跳到
+              「① 选来源」，只画一屏就等于有一条路上永远看不到（见 unbindNote 的 ★★）。 */}
+          {unbindNote && (
+            <p className="mt-2 rounded-lg bg-amber-500/10 px-2 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+              {unbindNote}
+            </p>
+          )}
+          {/* ★★ 照片已经在手上时，**这一屏必须先说这件事**。不说的话，两个都写着"传"的
+              选项就是在问一个用户刚刚做完的问题。`authSlotTag` 为空 = 这套方案的图位
+              （白模/设定稿）放不下真人照片，那就换一种说法，别许一个做不到的事。 */}
+          {haveAuthShot && authShot && (
+            <div className="mb-3 flex items-start gap-2.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-2.5">
+              <img src={authShot.dataUrl} alt="" className="h-16 w-12 flex-none rounded-lg object-cover" />
+              <p className="min-w-0 text-[10px] leading-relaxed text-emerald-200">
+                {/* ★★ 三档，别压成两档（2026-09-01 复核抓到）：`authSlotTag` 为空**至少有三种
+                    原因**——方案无脸放不下、那一格的图被换过（AI 出图会覆盖）、授权时是无脸
+                    方案后来换成了有脸。原来的 else 一律用「这套的图位要白模/设定稿」解释，
+                    在后两种情况下是**假话**。判「放不放得下」一律问 `scheme.faceless`，
+                    与 importAssetPhoto 决定放不放格子时同一把尺（铁律六）。 */}
+                {authSlotTag ? (
+                  <>
+                    授权照片已经取回来了，还填进了卡面的「{authSlotTag}」这一格——
+                    <span className="font-semibold">下面两条路都不用你再传图</span>。
+                  </>
+                ) : scheme.faceless ? (
+                  <>
+                    授权照片已经取回来了。「{scheme.title}」这套的图位要的是白模/设定稿，
+                    照片放不进去，但<span className="font-semibold">交给 AI 出图那条路会拿它当主素材</span>。
+                  </>
+                ) : (
+                  <>
+                    授权照片还在手上（绑定也还在），但「{scheme.title}」的图位里已经不是它了——那一格的图被换过。
+                    {authIsMaterial ? "交给 AI 出图那条路用的仍然是它。" : "AI 那条路的主素材也已经换成了别的图。"}
+                  </>
+                )}
+              </p>
+            </div>
+          )}
+          {/* ★ 照片已经到手时，「AI 按方案出图」才是主人说的那条「选一套方案去生成人物卡」——
+              把它排到第一位。用 **CSS order** 换位而不是搬 JSX：两条路的标记原地不动，
+              非授权路径的 DOM 顺序与视觉顺序都与改动前逐字相同。 */}
+          <div className="flex flex-col gap-2.5">
             <button
               onClick={() => { setLane("upload"); setStep("form"); }}
-              className="flex w-full items-center gap-3 rounded-xl border border-slate-600 bg-panel px-4 py-4 text-left"
+              className={`${haveAuthShot ? "order-2 " : ""}flex w-full items-center gap-3 rounded-xl border border-slate-600 bg-panel px-4 py-4 text-left`}
             >
               <span className="flex-none text-xl">🖼</span>
               <span className="min-w-0">
-                <span className="block text-sm font-bold text-slate-100">自己上传图片</span>
-                <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">逐格传自己的图 · 不花钱</span>
-              </span>
-              <span className="ml-auto flex-none text-slate-500">›</span>
-            </button>
-            <button
-              onClick={() => setLane("ai")}
-              className={`flex w-full items-center gap-3 rounded-xl border px-4 py-4 text-left ${lane === "ai" ? "border-brand/70 bg-brand/10" : "border-slate-600 bg-panel"}`}
-            >
-              <span className="flex-none text-xl">✨</span>
-              <span className="min-w-0">
-                <span className="block text-sm font-bold text-slate-100">传素材，AI 生成图位</span>
+                <span className="block text-sm font-bold text-slate-100">
+                  {authSlotTag ? "就用这张照片，自己补其余格子" : "自己上传图片"}
+                </span>
                 <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">
-                  按方案逐格出图 + 撰写人物信息 · {AI_REAL ? `约 ${fmtTokens(aiPrice)} token` : "演示档"}
+                  {authSlotTag
+                    ? `授权照片已经在「${authSlotTag}」那一格了 · 不花钱`
+                    : "逐格传自己的图 · 不花钱"}
                 </span>
               </span>
               <span className="ml-auto flex-none text-slate-500">›</span>
             </button>
-          </div>
-          {lane === "ai" && (
-            <div className="mt-3 rounded-xl border border-slate-700 bg-panel p-3">
+            <div className={`${haveAuthShot ? "order-1 " : ""}space-y-2.5`}>
+            <button
+              onClick={() => setLane("ai")}
+              className={`flex w-full items-center gap-3 rounded-xl border px-4 py-4 text-left ${aiOpen ? "border-brand/70 bg-brand/10" : "border-slate-600 bg-panel"}`}
+            >
+              <span className="flex-none text-xl">✨</span>
+              <span className="min-w-0">
+                <span className="block text-sm font-bold text-slate-100">
+                  {authIsMaterial ? `用这张照片，AI 按方案出 ${pageSlots.length} 张图位` : "传素材，AI 生成图位"}
+                </span>
+                <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">
+                  {authIsMaterial ? "主素材已就位（就是那张授权照片），不用再传 · " : "按方案逐格出图 + 撰写人物信息 · "}
+                  {AI_REAL ? `约 ${fmtTokens(aiPrice)} token` : "演示档"}
+                </span>
+              </span>
+              <span className="ml-auto flex-none text-slate-500">›</span>
+            </button>
+            {aiOpen && (
+            <div className="rounded-xl border border-slate-700 bg-panel p-3">
               <div className="flex gap-2.5">
                 {(["body", "face"] as const).map((w) => {
                   const shot = w === "body" ? aiBody : aiFace;
@@ -895,8 +1073,9 @@ export default function CustomCardPage() {
                   );
                 })}
                 <p className="min-w-0 flex-1 text-[10px] leading-relaxed text-slate-500">
-                  主素材图 = 这个角色最完整的一张（照片/截图/画都行）；有面部近照的话脸会锁得更准。
-                  画风严格跟随素材（照片出写实、插画出同风格）。
+                  {authIsMaterial
+                    ? "主素材图就是你刚授权的那张照片（点它可以换一张）。再补一张面部近照，脸会锁得更准。画风跟随素材，照片出写实。"
+                    : "主素材图 = 这个角色最完整的一张（照片/截图/画都行）；有面部近照的话脸会锁得更准。画风严格跟随素材（照片出写实、插画出同风格）。"}
                 </p>
               </div>
               <input
@@ -915,7 +1094,9 @@ export default function CustomCardPage() {
                 {aiBusy || `✨ 生成 ${pageSlots.length} 张图位与人物信息${AI_REAL ? `（${fmtTokens(aiPrice)}）` : ""}`}
               </button>
             </div>
-          )}
+            )}
+            </div>
+          </div>
           <input
             ref={aiFileRef}
             type="file"
@@ -1330,6 +1511,27 @@ export default function CustomCardPage() {
               重试
             </button>
           </div>
+        </div>
+      )}
+      {partial?.kind === "asset" && (
+        <div className="mt-4 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3">
+          <p className="text-[11px] leading-relaxed text-amber-200">
+            卡铸好了，但<span className="font-semibold">肖像授权的绑定没能存在这台设备上</span>
+            （{partial.reason}）。这张卡挂着真人声明，没有绑定的话出片那一刻会被整发拒——
+            去卡详情页把授权再做一次就好，卡本身不用重铸。
+            {partial.lost.length > 0 && (
+              <>
+                {" "}另外还有 <span className="font-semibold">{partial.lost.length} 张图没能同步到服务器</span>，
+                它们只留在这台设备上。
+              </>
+            )}
+          </p>
+          <button
+            onClick={() => nav(`/card/${partial.id}`, { replace: true })}
+            className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
+          >
+            去这张卡，重做一次授权
+          </button>
         </div>
       )}
       {partial?.kind === "views" && (

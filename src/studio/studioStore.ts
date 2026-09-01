@@ -5,7 +5,7 @@ import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generate
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
-import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalRedrawCost, proposalsCost, styleWants3d } from "../data/economy";
+import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalRedrawCost, proposalsCost, realFaceIssue, styleWants3d } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeVideo, tplOfNode, useFlow } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
@@ -1287,7 +1287,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // ★ 带上素材卡的形象参考图：改一帧最常见的写法就是"让她换个表情/转个身"，
       //   而这类改动最容易把脸改跑。被改的那张帧恒为 <图片1>，所以绑定句 offset = 1。
       //   （没采用哪张、为什么只锁一个角色，由 npcSay 说出来 —— 这一条路没有步骤日志）
-      const mat = await prepareMaterialRefs(node.materials, (n) => get().npcSay(n));
+      const mat = await prepareMaterialRefs(node.materials, "image", (n) => get().npcSay(n));
       // 画幅跟节点走：改一次图就把竖屏方案的帧重画成横版，出片时又要被裁一刀
       const next = await refineFrame(
         `${req.trim()}${mat.bind(1)}`,
@@ -1369,7 +1369,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   是横的，喂给竖屏 Seedance 任务会被静默裁一刀（人物常被裁掉半个头）。
       //   见 CLAUDE.md「改了画幅却发现出片还是横的」那一条
       // 素材卡的形象参考图一并带上：重画的是这一段的设定帧，人物当然还得是同一个人
-      const mat = await prepareMaterialRefs(node.materials, (n) => get().npcSay(n));
+      const mat = await prepareMaterialRefs(node.materials, "image", (n) => get().npcSay(n));
       const refUrls = mat.refs.length > 0 ? mat.refs : undefined;
       let first = p.firstFrame;
       // 首帧没有底图 → 素材卡的图就是 <图片1>，offset = 0
@@ -1423,6 +1423,22 @@ export const useStudio = create<StudioState>()((set, get) => ({
       const flatIssue = deriveIssue(node.videoTier);
       if (flatIssue) {
         get().npcSay(`${flatIssue}。真人档直接出片，不经过方案台。`);
+        return false;
+      }
+    }
+    // ★★ 真人卡门禁（判断在 economy.realFaceIssue 一处，铁律六）—— 2026-09-01 复核抓到：
+    //   上面那条 deriveIssue 是 2026-08-30 补的，补的时候**只补了它自己**，同一条路上的
+    //   realFaceIssue 又漏了一遍（本仓「加门禁只加在最近的那一处」这条坑的第二次复发）。
+    //   推演画首尾帧一样会把素材卡的形象参考喂给方舟（generateProposals →
+    //   prepareMaterialRefs），真人照片整发被拒；而这条路**先扣费后开跑**，
+    //   漏了就是"钱扣了、供应商拒了、屏幕上只有一句原始报错"。
+    //   ⚠ 出片那条（genNodeVideo）没事：它委托给带闸的 flowStore.genNode。漏的只有推演这两条。
+    {
+      const realBlocked = realFaceIssue(node.materials, node.videoTier, {
+        blockout: !!tplOfNode(node)?.refVideo,
+      });
+      if (realBlocked) {
+        get().npcSay(realBlocked);
         return false;
       }
     }
@@ -1634,6 +1650,16 @@ export const useStudio = create<StudioState>()((set, get) => ({
       const flatIssue = deriveIssue(editor.videoTier);
       if (flatIssue) {
         get().npcSay(`${flatIssue}。真人档去「工作流」或「简约模式」直出。`);
+        return;
+      }
+    }
+    // ★★ 真人卡门禁（同上，与 flowStore.deriveProposals 逐字同源）。
+    //   blockout 传 false 是**事实**不是省事：这条路建出来的是自定义段（下面 appendNode
+    //   不传 tpl），白模段在工坊根本不摆方案台，走不到这儿。
+    {
+      const realBlocked = realFaceIssue(materials, editor.videoTier, { blockout: false });
+      if (realBlocked) {
+        get().npcSay(realBlocked);
         return;
       }
     }
