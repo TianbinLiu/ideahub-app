@@ -1041,12 +1041,14 @@ function ProposalsPanel() {
           工坊的 nodeGen 从此只是"有一炉在跑"的旗标、steps 恒为空 —— 再读它就是一块
           永不渲染的死码，而注释还写着"方案台直接读它"。
           ★ running 与守卫同源：跑完还读秒的话，那条日志看着像永远没结束。 */}
-      {(nodeGen?.proposalId === rederiveKey(node.id) || node.status === "generating") && (
-        <GenTrace
-          steps={node.steps ?? []}
-          running={nodeGen?.proposalId === rederiveKey(node.id) || node.status === "generating"}
-          className="mx-3 mt-2 rounded-lg bg-black/25 px-2 py-1.5"
-        />
+      {/* 顶部这条**只服务重推**（守卫认的是 rederiveKey 那把钥匙）。
+          ⚠ 别扩成笼统的 `node.status === "generating"`：那同时是**出片**的状态，
+          而 PickedActions 里那条日志的守卫本来就含它 —— 一扩就会在出片期间同屏并排
+          两份一模一样的日志，用户会以为有两炉在跑（而"同时只炼一段"正是这个 store 的硬规矩）。
+          2026-09-03 发版前复核抓到：当时我要修的其实只是**数据源**（委托之后进度写在
+          node.steps 上，nodeGen.steps 恒为空），守卫本来就是对的。 */}
+      {nodeGen?.proposalId === rederiveKey(node.id) && (
+        <GenTrace steps={node.steps ?? []} running className="mx-3 mt-2 rounded-lg bg-black/25 px-2 py-1.5" />
       )}
 
       {/* ★★ 「这一段拍什么」——**推演的输入**（node.requirement）。2026-09-03 两面对照抓到：
