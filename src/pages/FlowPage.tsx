@@ -50,6 +50,7 @@ import {
   nodeRefOn,
   realVideoOfNode,
   planOf,
+  annSkipNote,
   redrawCost,
   requirementOf,
   useFlow,
@@ -328,6 +329,8 @@ function NodeScreen({
 
   // ── 白模 V2 的挂卡入口（结果由 FlowPage 收，见那边的 effect）──
   const nav = useNavigate();
+  /** 同画布那一处：整句由 flowStore.annSkipNote 出；先取 nodes 再算（新对象不能进选择器） */
+  const allNodes = useFlow((s) => s.nodes);
   const cast = useFlow((s) => s.cast);
   /**
    * 「改挂卡会覆盖你在输入框里改过的字」的确认（false = 不用问）。
@@ -757,7 +760,7 @@ function NodeScreen({
         )}
 
         {/* 圈选标注缩略（与画布同一个组件：那边圈完也要能看见、删得掉） */}
-        <AnnStrip anns={node.anns} onRemove={(annId) => removeAnn(node.id, annId)} />
+        <AnnStrip anns={node.anns} onRemove={(annId) => removeAnn(node.id, annId)} note={annSkipNote(allNodes, index)} />
 
         {/* ★★ 取回入口摆在**主按钮正上方**，不是折进某个抽屉：这块 UI 要挡住的正是
             "屏幕上唯一可点的是「♻ 重新生成」"那一拍。列的是**本机所有**待取回的那几发，

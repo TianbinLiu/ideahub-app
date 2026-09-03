@@ -41,6 +41,7 @@ import {
   nodeDone,
   planOf,
   realVideoOfNode,
+  annSkipNote,
   redrawCost,
   tplOfNode,
   useFlow,
@@ -720,6 +721,10 @@ function NodePanel({
     removeAnn,
   } = useFlow();
   // 挂卡合成的三个状态：画布这一面此前一个都没引用（见下面 castErr 那块的 ★★）
+  /** 圈选跳过的那句话（整句由 flowStore.annSkipNote 出，三面共用）。
+   *  ★ 先取 nodes 再在外面算：annSkipNote 每次返回**新对象**，直接塞进 useFlow 选择器
+   *    会因为引用永远不等而无限重渲染。 */
+  const allNodes = useFlow((s) => s.nodes);
   const castErr = useFlow((s) => s.castErr);
   const castFallback = useFlow((s) => s.castFallback);
   const castBusy = useFlow((s) => s.castBusy);
@@ -1295,7 +1300,7 @@ function NodePanel({
 
       {/* 圈选标注：**看得见、删得掉**（与线性视图同一个组件）。没有它的话，画布上
           圈完零反馈、白模段还会被 genNode 指着一件这一面做不到的事（删标注） */}
-      <AnnStrip anns={node.anns} onRemove={(annId) => removeAnn(node.id, annId)} />
+      <AnnStrip anns={node.anns} onRemove={(annId) => removeAnn(node.id, annId)} note={annSkipNote(allNodes, index)} />
 
       {/* 进度/报错：与线性视图同源（node.steps / store.err） */}
       {(generating || (node.steps?.length ?? 0) > 0) && (

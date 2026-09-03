@@ -307,7 +307,8 @@ export function requirementOf(node: FlowNode): string {
 }
 
 /** 这张开头帧不是本方案自己画的（用户上传的，或承接上一段的真实结尾）→ 重画时不许动它 */
-function keepFirstFrame(node: FlowNode, p: Proposal, prev: Proposal | null): boolean {
+/** ★ 导出：工坊的 regenProposal 也问它（2026-09-03 收口掉那边的第二份，见 studioStore 的 ★★）*/
+export function keepFirstFrame(node: FlowNode, p: Proposal, prev: Proposal | null): boolean {
   return !!p.pinned?.first || !!(node.chain && prev?.lastFrame && p.firstFrame === prev.lastFrame);
 }
 
@@ -499,6 +500,38 @@ export function nodeAnnPlan(
   const redrawn = redrawnAnns(node.anns, chosenOf(node).durationSec, !!nodeCarry(nodes, idx)).length;
   const skipped = node.anns.length - redrawn;
   return { redrawn, skipped, why: skipped > 0 ? "carry" : null };
+}
+
+/**
+ * 圈选里有几条不会重画、**该对用户说哪句话** —— 整句由这里生成一次（铁律六）。
+ *
+ * ★★ 为什么句子要收在 store 而不是各面自己写（2026-09-03 主人点名「工坊和工作流画布要
+ *   完全一样，只不过表现形式/UI 不同」）：`AnnStrip` 有**三个宿主**（画布 FlowCanvas、
+ *   简约 FlowPage、工坊 projection）。v2.44 只在工坊那一面写了这段解释，画布上一个字都没有 ——
+ *   而圈选主要就发生在画布上。三处各写一遍必然漂开（本仓最熟的那种分叉），
+ *   所以这里出**整句**，UI 只负责画。
+ * ★ `tone`：warn = 这一段整条不接受圈选（不清掉就炼不动，是**拦路**的）；
+ *   info = 只是这几条不重画、也不收钱（不拦路）。
+ */
+export function annSkipNote(
+  nodes: FlowNode[],
+  idx: number,
+  tierOverride?: string,
+): { text: string; tone: "warn" | "info" } | null {
+  const plan = nodeAnnPlan(nodes, idx, tierOverride);
+  if (plan.why === "unsupported") {
+    return {
+      tone: "warn",
+      text: `这一段带着参考视频，出片时不接受圈选改画面——这 ${plan.skipped} 处得先清掉才能开炼（它们也不计费）。`,
+    };
+  }
+  if (plan.why === "carry") {
+    return {
+      tone: "info",
+      text: `另有 ${plan.skipped} 处落在承接段的前半段（开头画面用的是上一段的真实结尾，不重画）——不计费，但你写的要求仍会随出片提示词发出去。`,
+    };
+  }
+  return null;
 }
 
 export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOverride?: string): number {
@@ -1545,10 +1578,23 @@ export const useFlow = create<FlowState>()((set, get) => ({
         },
         (status) => get().updateNode(nodeId, { progress: status }),
       );
-      // ★ 只保留**已经炼出成片**的旧走向（真金白银 + 几分钟，丢了补不回来）。
-      //   以前是"有剧情就留"，那在"三套方案摊开挑一套"的流程下等于每重推一次方案台
-      //   就多三行——推三次屏幕上就是九套，用户根本分不清哪三套是新的。
-      const keep = node.proposals.filter((p) => node.videoByProposal[p.id]);
+      // ★ 只保留**丢了就补不回来**的旧走向：已经炼出成片的（真金白银 + 几分钟），
+      //   以及**名下归档着分支续链的**（alts 挂在方案 id 上，方案没了那条链就成了孤儿，
+      //   而分支互动视频正是从它取材）。以前是"有剧情就留"，那在"三套摊开挑一套"的流程下
+      //   等于每重推一次就多三行——推三次屏幕上九套，用户分不清哪三套是新的。
+      // ★★ 2026-09-03 收口：这条规则此前有两份，工坊那份（studioStore.regenNodeProposals）
+      //   多考虑了 alts、**更对**，所以是把它搬过来、让工坊委托本函数，而不是反过来。
+      //   ⚠ 读的是**当下**的节点不是入口那一拍的快照：推演是分钟级异步，期间用户可能
+      //   在另一面挑定/出片过。段没了就整句认账（钱已经花了，别静默吞掉）。
+      const liveNode = get().nodes.find((n) => n.id === nodeId);
+      if (!liveNode) {
+        set({ err: "推演好了，但那一段已经不在流水线上了——没处摆（这一次的推演费已经花掉了）" });
+        return false;
+      }
+      const altsOf = get().alts[nodeId] ?? {};
+      const keep = liveNode.proposals.filter(
+        (p) => liveNode.videoByProposal[p.id] || (altsOf[p.id]?.length ?? 0) > 0,
+      );
       get().updateNode(nodeId, {
         // ★ 顺手清掉 error（第十轮扫描）：它只在 genNode 开跑时清，
         //   于是“出片失败 → 改要求 → 重新推演成功”之后，三套崭新的方案上方

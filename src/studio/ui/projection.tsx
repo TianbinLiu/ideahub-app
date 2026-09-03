@@ -27,11 +27,10 @@ import {
   chosenProposal,
   nextStartFrame,
   proposalDone,
-  proposalRedrawCostOf,
   rederiveKey,
   useStudio,
 } from "../studioStore";
-import { CUSTOM_MID_MAX, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan } from "../flowStore";
+import { CUSTOM_MID_MAX, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost } from "../flowStore";
 import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
@@ -917,8 +916,6 @@ function ProposalsPanel() {
   if (!node) return null;
   const idx = path.findIndex((n) => n.id === node.id);
   const prev = idx > 0 ? chosenProposal(path[idx - 1]) : null;
-  /** 圈选里有几条真会重画、为什么 —— 与重炼报价同源（flowStore 一处实现，见它的 ★★）*/
-  const annPlan = nodeAnnPlan(path, idx);
   const chosen = chosenProposal(node);
   const pickedId = chosen?.id ?? null;
   const done = proposalDone(chosen);
@@ -1038,9 +1035,12 @@ function ProposalsPanel() {
           onPatch={(id, patch) => useStudio.getState().patchProposal(node.id, id, patch)}
           onFrame={(id, which, dataUrl) => useStudio.getState().setProposalFrame(node.id, id, which, dataUrl)}
           onRegen={(id) => void useStudio.getState().regenProposal(node.id, id)}
-          regenCost={(p) => proposalRedrawCostOf(p, prev)}
+          /* ★ 与真扣同一把尺：flowStore.redrawCost（工坊那份第二实现已退役，见 studioStore 的 ★★）*/
+          regenCost={(p) => redrawCost(node, p, prev)}
           onRederive={notDerived ? undefined : () => void useStudio.getState().regenNodeProposals(node.id)}
-          rederiveCost={proposalsCost(!!prev?.lastFrame)}
+          /* ★ 认 node.chain：与 flowStore.deriveProposals 的报价表达式逐字同源 —— 
+             用户在 ⚙ 里关掉承接之后，三套不再共用开头帧，图量与价都翻倍 */
+          rederiveCost={proposalsCost(!!(node.chain && prev?.lastFrame))}
           carriedFrom={carried}
           // 预览卡的框跟本段画幅走：写死一个比例，另一种画幅的帧会被裁掉一大半
           frameAspect={aspectCss(node.aspect)}
@@ -1065,7 +1065,7 @@ function ProposalsPanel() {
               notDerived={notDerived}
               /* ★ 与真扣同一个输入：regenNodeProposals 按**上一段的尾帧**算（三套共用开头帧
                  时只画尾帧、图量减半）。此前这里传的是本段方案的首帧，第 1 段少报一半 */
-              deriveCost={proposalsCost(!!prev?.lastFrame)}
+              deriveCost={proposalsCost(!!(node.chain && prev?.lastFrame))}
             />
           )}
         />
@@ -1074,22 +1074,13 @@ function ProposalsPanel() {
       {/* 圈选标注条（与画布同一份 AnnStrip）：重炼时逐处改画面，改图费已并进重炼报价（nodeCost） */}
       {node.anns.length > 0 && (
         <div className="flex-none px-3 pb-1">
-          <AnnStrip anns={node.anns} onRemove={(annId) => useFlow.getState().removeAnn(node.id, annId)} />
-          {/* ★ 承接段的开头画面由上一段真实尾帧顶替，圈在前半段的那几处不会重画（也不收钱）。
-              话要说在**点击之前**——只写进出片进度里的话，用户看到的是"圈选坏了"。
-              写法与 CutPage 那条同源（「另有 N 处…不计费也不会重拍」）。 */}
-          {annPlan.why === "carry" && (
-            <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-              另有 {annPlan.skipped} 处落在承接段的前半段（开头画面用的是上一段的真实结尾，不重画）——不计费，但你写的要求仍会随出片提示词发出去。
-            </p>
-          )}
-          {/* ★ 这一支是**整段拒收圈选**（出片时 segmentGen 直接 throw），不能套用上面那句
-              「不计费但要求照样发」——那是假话，而且用户会一直等到点下去才撞上。 */}
-          {annPlan.why === "unsupported" && (
-            <p className="mt-1 text-[10px] leading-relaxed text-amber-300/90">
-              这一段带着参考视频，出片时不接受圈选改画面——这 {annPlan.skipped} 处得先清掉才能开炼（它们也不计费）。
-            </p>
-          )}
+          {/* ★ 那句解释的**整句**由 flowStore.annSkipNote 出（三个宿主共用，见它的 ★★）——
+              2026-09-03 主人点名「工坊和画布要完全一样，只有 UI 不同」，而它此前只长在这一面。 */}
+          <AnnStrip
+            anns={node.anns}
+            onRemove={(annId) => useFlow.getState().removeAnn(node.id, annId)}
+            note={annSkipNote(path, idx)}
+          />
         </div>
       )}
       {playing && <SegPlayer nodeId={node.id} onClose={() => setPlaying(false)} onOpenPanel={() => setPlaying(false)} />}
