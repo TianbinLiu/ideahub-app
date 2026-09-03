@@ -36,8 +36,8 @@ android {
         // ⚠ 并行分支各自出过包，号互相追：更新清单发到 40/2.29；主人真机上先后装过 44（public-uid 支）
         //   与 45（工坤/造卡支）。2026-08-30 全分支合流时跳到 46 越过全部已知在外的号。
         //   此后一律 +1，且只在 main 上涨（见 CLAUDE.md「分支纪律」）。
-        versionCode 56
-        versionName "2.44"
+        versionCode 57
+        versionName "2.45"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // ★ QQ 互联的 AppID 只写这一处，下面两个用处都从它派生：
         //     BuildConfig.QQ_APP_ID  —— 起授权时给 SDK
