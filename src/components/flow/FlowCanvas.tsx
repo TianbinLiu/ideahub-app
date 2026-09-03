@@ -1083,7 +1083,7 @@ function NodePanel({
                       </>
                     ) : (
                       <>
-                        承接 = 把上一段的真实尾帧当<span className="font-semibold">第一张参考图</span>发出去，并在提示词里点名「从这一帧接着演」——接缝多半连得上，但这一档<span className="font-semibold">不是硬保证</span>。上传自己的首帧会改为不承接。
+                        承接 = 把上一段的真实尾帧当<span className="font-semibold">第一张参考图</span>发出去，并在提示词里点名「从这一帧接着演」——接缝多半连得上，但这一档<span className="font-semibold">不是硬保证</span>。上传自己的首帧会改为不承接；想恢复承接：清掉首帧，再到 ⚙ 本段设置里打开。
                       </>
                     )}
                   </InfoTip>
@@ -1184,7 +1184,7 @@ function NodePanel({
                       disabled={locked || generating || busy}
                       className="w-full rounded-lg border border-dashed border-slate-600 py-2 text-[11px] text-slate-300 disabled:opacity-40"
                     >
-                      ＋ 插一张中间帧（把这一段拆成两段，接缝由这一帧对齐）
+                      ＋ 插一张中间帧（把这一段拆成两段，从这一帧断开）
                     </button>
                   )}
                 </>

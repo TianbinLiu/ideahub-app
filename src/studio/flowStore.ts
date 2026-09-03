@@ -464,7 +464,8 @@ export function appendBlocked(nodes: FlowNode[], template: FlowTemplate | null):
 export const CUSTOM_MID_MAX = 2;
 
 /**
- * 这一段**真会重画**的圈选条数 —— 给 UI 用，与报价（nodeCost 的 annsCost）同源。
+ * 这一段的圈选**有几条真会重画、几条不会、以及为什么** —— 给 UI 用，
+ * 与报价（`nodeCost` 的 annsCost）同源。
  *
  * ★★ 为什么要专门导出（2026-09-03 复核抓到，是这一版自己造的分叉）：`redrawnAnns` 要
  *   三个入参（anns / 本段时长 / 有没有承接帧），UI 手上只有 node —— 让每个按钮自己去凑
@@ -472,17 +473,32 @@ export const CUSTOM_MID_MAX = 2;
  *   按钮标签还在数总数**：承接段上会出现「含 5 处圈选改图 · 只按 2 处收的价」，
  *   点下去也只有 2 处生效，而用户最自然的结论是"圈选坏了"。
  */
-export function nodeRedrawnAnnCount(nodes: FlowNode[], idx: number): number {
+export function nodeAnnPlan(
+  nodes: FlowNode[],
+  idx: number,
+  tierOverride?: string,
+): { redrawn: number; skipped: number; why: "carry" | "unsupported" | null } {
   const node = nodes[idx];
-  if (!node) return 0;
+  if (!node) return { redrawn: 0, skipped: 0, why: null };
   // ★ 这两条早退必须与 nodeCost **逐条对齐**（下面那个函数里同样的两处）：
   //   · 素材参考（自定义 = 多图 + 参考视频）：nodeCost 在那一支**提前 return**，
   //     整笔改图费都不收；segmentGen 那条支路也直接 throw 拒收圈选。
   //   · 白模：整条不接受圈选（segmentGen.blockoutIssue 整句拒），报价里也是 0。
   //   漏掉任何一条，这个"单一来源"从第一天起就与报价不符 —— 而它存在的全部理由就是同源。
-  if (node.custom && node.customRef && tierOf(node.videoTier).r2vMult !== null) return 0;
-  if (tplOfNode(node)?.refVideo) return 0;
-  return redrawnAnns(node.anns, chosenOf(node).durationSec, !!nodeCarry(nodes, idx)).length;
+  // ★ `tierOverride` 必须跟着传（2026-09-03 复核抓到）：nodeCost 的这条早退判的是
+  //   `tierOf(tierOverride ?? node.videoTier)`，少传的话档位预览态下两者会在 r2vMult
+  //   的边界上分家 —— 而这个函数存在的全部理由就是与它同源。
+  const unsupported =
+    (node.custom && node.customRef && tierOf(tierOverride ?? node.videoTier).r2vMult !== null) ||
+    !!tplOfNode(node)?.refVideo;
+  if (unsupported) {
+    // ⚠ 这两条路不是"少画几张"，是**整段拒收圈选**（segmentGen 里各有一句 throw）——
+    //   UI 必须按这个原因说话，不能套用承接段那句"不计费但要求照样发出去"（那是假话）。
+    return { redrawn: 0, skipped: node.anns.length, why: node.anns.length ? "unsupported" : null };
+  }
+  const redrawn = redrawnAnns(node.anns, chosenOf(node).durationSec, !!nodeCarry(nodes, idx)).length;
+  const skipped = node.anns.length - redrawn;
+  return { redrawn, skipped, why: skipped > 0 ? "carry" : null };
 }
 
 export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOverride?: string): number {
