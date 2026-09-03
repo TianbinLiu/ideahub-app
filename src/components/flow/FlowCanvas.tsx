@@ -41,6 +41,7 @@ import {
   nodeDone,
   planOf,
   realVideoOfNode,
+  annSkipNote,
   redrawCost,
   tplOfNode,
   useFlow,
@@ -720,6 +721,10 @@ function NodePanel({
     removeAnn,
   } = useFlow();
   // 挂卡合成的三个状态：画布这一面此前一个都没引用（见下面 castErr 那块的 ★★）
+  /** 圈选跳过的那句话（整句由 flowStore.annSkipNote 出，三面共用）。
+   *  ★ 先取 nodes 再在外面算：annSkipNote 每次返回**新对象**，直接塞进 useFlow 选择器
+   *    会因为引用永远不等而无限重渲染。 */
+  const allNodes = useFlow((s) => s.nodes);
   const castErr = useFlow((s) => s.castErr);
   const castFallback = useFlow((s) => s.castFallback);
   const castBusy = useFlow((s) => s.castBusy);
@@ -1295,7 +1300,7 @@ function NodePanel({
 
       {/* 圈选标注：**看得见、删得掉**（与线性视图同一个组件）。没有它的话，画布上
           圈完零反馈、白模段还会被 genNode 指着一件这一面做不到的事（删标注） */}
-      <AnnStrip anns={node.anns} onRemove={(annId) => removeAnn(node.id, annId)} />
+      <AnnStrip anns={node.anns} onRemove={(annId) => removeAnn(node.id, annId)} note={annSkipNote(allNodes, index)} />
 
       {/* 进度/报错：与线性视图同源（node.steps / store.err） */}
       {(generating || (node.steps?.length ?? 0) > 0) && (
@@ -1802,7 +1807,12 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
 
 /** 自选模式的选卡面板：点一下选中/取消（拖拽那套隐喻留在线性视图的素材窗口——
  *  画布的半窗里没地方给看板娘落卡）。加/删直接走 store 的 addMaterials/removeMaterial */
-function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => void }) {
+/**
+ * 给这一段选素材卡 —— **两面共用的唯一实现**（导出的理由与 TemplatePicker 同一条）。
+ * ★ 自足：只收 {node, onClose}，写路直接走 flowStore 的 addMaterials/removeMaterial，
+ *   portal 到 body —— 所以工坊那一面直接挂它就行，别另写一份（2026-09-03 两面对齐）。
+ */
+export function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => void }) {
   useAccountVersion();
   useSyncExternalStore(subscribeVoices, voicesVersion, () => 0);
   const addMaterials = useFlow((s) => s.addMaterials);

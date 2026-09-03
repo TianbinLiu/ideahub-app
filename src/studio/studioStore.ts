@@ -5,14 +5,14 @@ import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generate
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
-import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalRedrawCost, proposalsCost, realFaceIssue, styleWants3d } from "../data/economy";
+import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
-import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeVideo, tplOfNode, useFlow } from "./flowStore";
+import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, saveDraft } from "../data/drafts";
 import { dropCutSession, saveCutSession } from "../data/cutSession";
-import { GenStep, createGenLog } from "./genLog";
+import { GenStep } from "./genLog";
 import { SPEAK_MOOD, speak, stopSpeaking } from "./speech";
 import { CRISIS_LINE, HELP_LINE, NPC_SYSTEM, chatFailLine, chatWindow, deskBlock } from "./npcPersona";
 
@@ -123,14 +123,31 @@ export function realVideoOf(p: Proposal | null | undefined): string | undefined 
   return p?.videoUrl && !p.videoUrl.startsWith("mock:") ? p.videoUrl : undefined;
 }
 
-/** 这张开头帧不是本方案自己画的（用户上传的，或承接上一段的真实结尾）→ 重画时不许动它 */
-function keepFirstFrame(p: Proposal, prev: Proposal | null): boolean {
-  return !!p.pinned?.first || !!(prev?.lastFrame && p.firstFrame === prev.lastFrame);
-}
+// ★★ 「这张开头帧要不要重画」这条规则**只在 flowStore.keepFirstFrame 一处**（2026-09-03 收口）。
+//   这里原来有第二份，而且已经实际漂开：那边判 `node.chain && prev?.lastFrame && ...`，
+//   这里漏了 `node.chain` —— 于是"在 ⚙ 里关掉承接、但开头帧还停在上一段尾帧那张"的段，
+//   同一颗「✨ 重新生成这一套的画面」在画布标 2 张图的价并真重画首帧、在工坊标 1 张图的价
+//   且首帧原样不动：两面两个价、两种结果，全程零报错。报价改调 flowStore.redrawCost。
 
-/** 「按修改重画这一套」的报价。★ regenProposal 扣钱走的是同一个函数（铁律六） */
-export function proposalRedrawCostOf(p: Proposal, prev: Proposal | null): number {
-  return proposalRedrawCost(keepFirstFrame(p, prev), !!p.pinned?.last);
+/**
+ * 「同时只跑一炉」—— **两面共用的那道闸**（2026-09-03 收口）。
+ *
+ * ★★ 为什么必须问 `flowStore.busy` 而不是只看工坊自己那几个旗标：两面跑的是**同一条**
+ *   流水线（flowStore.nodes 是唯一真相），而工坊那几个旗标画布根本不认。收口之前：
+ *   在画布点「⚡ 炼这一段」（几分钟的异步、没有 AbortController），退回 3D 桌面点
+ *   「♻ 重新推演三套」/「✨ 重画这一套」——工坊这边一路放行：钱先扣、proposals 整表换掉，
+ *   几分钟后出片回包的 setProposalVideo 打在一个已经不存在的 proposal id 上**静默落空**。
+ *   两笔钱都花了，成片一个都拿不到，全程零报错。反方向同样不设防（flowStore.busy 恒 false）。
+ * ★ 回**整句人话**而不是布尔：调用方直接摆进 notice（铁律八；静默 return false = 上层只能瞎猜）。
+ * ★ 用 notice 不用 npcSay：投影窗开着时 NpcDialog 整个 return null，那些话等于没说。
+ */
+function otherFaceBusy(nodeId?: string): string | null {
+  const f = useFlow.getState();
+  if (f.busy) return "有一段正在生成（画布那一面也算同一条流水线）——等它跑完再动这一段。";
+  if (nodeId && f.nodes.find((n) => n.id === nodeId)?.status === "generating") {
+    return "这一段正在生成，等它跑完再改。";
+  }
+  return null;
 }
 
 /** 「重新推演三套」跑起来时占用 nodeGen 的那个 key。
@@ -1272,14 +1289,24 @@ export const useStudio = create<StudioState>()((set, get) => ({
 
   frameRefining: null,
   refineProposalFrame: async (nodeId, proposalId, which, req) => {
+    // ★ 这条路上的话一律走 notice 不走 npcSay：投影窗开着时 NpcDialog 整个 return null，
+    //   而用户按下「按要求重画首/尾帧」的那一刻投影窗必然开着 —— npcSay 等于没说
+    //   （2026-09-03 两面对照抓到，与 genNodeVideo 的写法同源）。
     const { frameRefining } = get();
     if (frameRefining || !req.trim()) return false;
+    {
+      const blocked = otherFaceBusy(nodeId); // 两面共用的那道闸，见它的 ★★
+      if (blocked) {
+        set({ notice: { text: blocked, at: Date.now() } });
+        return false;
+      }
+    }
     const node = activePath().find((n) => n.id === nodeId);
     const prop = node?.proposals.find((p) => p.id === proposalId);
     if (!node || !prop) return false;
     // 改一次图 = 一张 Seedream。以前这里既不看余额也不扣费，用户改十版是白送十张
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
-      get().npcSay(`改图要 ${fmtTokens(ONE_IMAGE)} token，余额不够了——去「我的」页充值。`);
+      set({ notice: { at: Date.now(), text: `改图要 ${fmtTokens(ONE_IMAGE)} token，余额不够了——去「我的」页充值。` } });
       return false;
     }
     set({ frameRefining: `${proposalId}:${which}` });
@@ -1287,7 +1314,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // ★ 带上素材卡的形象参考图：改一帧最常见的写法就是"让她换个表情/转个身"，
       //   而这类改动最容易把脸改跑。被改的那张帧恒为 <图片1>，所以绑定句 offset = 1。
       //   （没采用哪张、为什么只锁一个角色，由 npcSay 说出来 —— 这一条路没有步骤日志）
-      const mat = await prepareMaterialRefs(node.materials, "image", (n) => get().npcSay(n));
+      // ★ 逐张参考图的提示**攒起来**接在终局那句后面：一条条 npcSay 在投影窗开着时看不见，
+      //   一条条 notice 又会互相顶掉（Toast 只有一条）—— 攒起来才是真的被看见（铁律八）。
+      const refNotes: string[] = [];
+      const refTail = () => (refNotes.length ? `（${refNotes.join("；")}）` : "");
+      const mat = await prepareMaterialRefs(node.materials, "image", (n) => refNotes.push(n));
       // 画幅跟节点走：改一次图就把竖屏方案的帧重画成横版，出片时又要被裁一刀
       const next = await refineFrame(
         `${req.trim()}${mat.bind(1)}`,
@@ -1301,15 +1332,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   找不到就如实说，别把改动写进另一摊活里。
       const still = useFlow.getState().nodes.find((n) => n.id === nodeId)?.proposals.some((q) => q.id === proposalId);
       if (!still) {
-        get().npcSay("这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。");
+        set({ notice: { at: Date.now(), text: "这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。" } });
         return false;
       }
       // 写路只有 flowStore 一条（单一真相）：指定方案改帧
       useFlow.getState().updateProposal(nodeId, which === "first" ? { firstFrame: next } : { lastFrame: next }, proposalId);
-      get().npcSay(`${which === "first" ? "首" : "尾"}帧已按你的要求重画好了。`);
+      set({ notice: { at: Date.now(), text: `${which === "first" ? "首" : "尾"}帧已按你的要求重画好了。${refTail()}` } });
       return true;
     } catch (e) {
-      get().npcSay(`改图没成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}`);
+      set({ notice: { at: Date.now(), text: `改图没成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}` } });
       get().setMood(-0.4, 2200);
       return false;
     } finally {
@@ -1340,7 +1371,18 @@ export const useStudio = create<StudioState>()((set, get) => ({
   proposalRegen: null,
   regenProposal: async (nodeId, proposalId) => {
     const { proposalRegen, frameRefining, nodeGen } = get();
-    if (proposalRegen || frameRefining || nodeGen) return false;
+    // ★ 早退也要说话（铁律八）：原来这里是静默 return false，用户读到的是"点了没反应"
+    if (proposalRegen || frameRefining || nodeGen) {
+      set({ notice: { text: "上一炉还在跑，等它出炉再说。", at: Date.now() } });
+      return false;
+    }
+    {
+      const blocked = otherFaceBusy(nodeId); // 两面共用的那道闸，见它的 ★★
+      if (blocked) {
+        set({ notice: { text: blocked, at: Date.now() } });
+        return false;
+      }
+    }
     const path = activePath();
     const idx = path.findIndex((n) => n.id === nodeId);
     const node = path[idx];
@@ -1352,15 +1394,17 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
     // 承接上一段真实结尾的开头帧、以及用户自己上传的帧，一律不动
     const prev = idx > 0 ? chosenProposal(path[idx - 1]) : null;
-    const keepFirst = keepFirstFrame(p, prev);
+    // ★ 两条都走 flowStore 的同一处判据/同一把尺（工坊那份第二实现 2026-09-03 退役）：
+    //   keepFirstFrame 认 node.chain，redrawCost 就是画布报价用的那个函数。
+    const keepFirst = keepFirstFrame(node, p, prev);
     const keepLast = !!p.pinned?.last;
-    const cost = proposalRedrawCostOf(p, prev);
+    const cost = redrawCost(node, p, prev);
     if (cost === 0) {
-      get().npcSay("首尾帧都是你自己换的图，没有可让我重画的地方——想重画就先在卡里清掉那一帧。");
+      set({ notice: { at: Date.now(), text: "首尾帧都是你自己换的图，没有可让我重画的地方——想重画就先在卡里清掉那一帧。" } });
       return false;
     }
     if (AI_REAL && !canAfford(cost)) {
-      get().npcSay(`重画这一套要 ${fmtTokens(cost)} token，余额不够了——去「我的」页充值。`);
+      set({ notice: { at: Date.now(), text: `重画这一套要 ${fmtTokens(cost)} token，余额不够了——去「我的」页充值。` } });
       return false;
     }
     set({ proposalRegen: proposalId });
@@ -1369,7 +1413,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   是横的，喂给竖屏 Seedance 任务会被静默裁一刀（人物常被裁掉半个头）。
       //   见 CLAUDE.md「改了画幅却发现出片还是横的」那一条
       // 素材卡的形象参考图一并带上：重画的是这一段的设定帧，人物当然还得是同一个人
-      const mat = await prepareMaterialRefs(node.materials, "image", (n) => get().npcSay(n));
+      // ★ 逐张参考图的提示**攒起来**接在终局那句后面：一条条 npcSay 在投影窗开着时看不见，
+      //   一条条 notice 又会互相顶掉（Toast 只有一条）—— 攒起来才是真的被看见（铁律八）。
+      const refNotes: string[] = [];
+      const refTail = () => (refNotes.length ? `（${refNotes.join("；")}）` : "");
+      const mat = await prepareMaterialRefs(node.materials, "image", (n) => refNotes.push(n));
       const refUrls = mat.refs.length > 0 ? mat.refs : undefined;
       let first = p.firstFrame;
       // 首帧没有底图 → 素材卡的图就是 <图片1>，offset = 0
@@ -1388,14 +1436,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // 段还在才写回（同 refineProposalFrame 那道闸）；写路只有 flowStore 一条
       const still = useFlow.getState().nodes.find((n) => n.id === nodeId)?.proposals.some((q) => q.id === proposalId);
       if (!still) {
-        get().npcSay("重画好了，但那一段已经不在流水线上了——没处写回（钱已经花了，抱歉）。");
+        set({ notice: { at: Date.now(), text: "重画好了，但那一段已经不在流水线上了——没处写回（钱已经花了，抱歉）。" } });
         return false;
       }
       useFlow.getState().updateProposal(nodeId, { firstFrame: first, lastFrame: last, degraded: undefined }, proposalId);
-      get().npcSay("按你的改动重画好了。不满意就再改剧情、或者直接换成你自己的图。");
+      set({ notice: { at: Date.now(), text: `按你的改动重画好了。不满意就再改剧情、或者直接换成你自己的图。${refTail()}` } });
       return true;
     } catch (e) {
-      get().npcSay(`重画没成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}`);
+      set({ notice: { at: Date.now(), text: `重画没成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}` } });
       get().setMood(-0.4, 2200);
       return false;
     } finally {
@@ -1404,99 +1452,42 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
 
   regenNodeProposals: async (nodeId) => {
+    // ★★ **委托 flowStore.deriveProposals（单一真相 + 单一实现）** —— 2026-09-03 收口，
+    //   与 genNodeVideo 委托 genNode 是同一条纪律。收口之前这里自持了第二份推演实现，
+    //   三处已经实际漂开、而且都零报错：
+    //     ① 起拍帧：那边是 `node.chain && prev ? prev.lastFrame : null`，这里是
+    //        `prev?.lastFrame ?? null` —— 用户在 ⚙ 里**明确关掉**的承接，在工坊被悄悄接回来；
+    //     ② 报价：那边 `proposalsCost(!!(node.chain && prev.lastFrame))`，这里按 `!!startFrame`
+    //        —— 同一段同一颗键，两面标价不同（承接时图量减半、价也减半）；
+    //     ③ 「同时只跑一炉」的闸：这里只看工坊自己那三个旗标，**不问 flowStore.busy**
+    //        —— 画布正在出片（几分钟、无 AbortController）时在工坊点重推照样放行：
+    //        推演费先扣、整表换掉 proposals，几分钟后出片回包打在一个已经不存在的
+    //        proposal id 上静默落空。两笔钱都花了，成片一个都拿不到。
+    //   委托之后这三条连同 deriveIssue / realFaceIssue / 余额门槛 / spendTokens / genRun
+    //   全部继承那一处；"保留哪些旧方案"那条更对的规则已经搬进 flowStore（见它的 ★★）。
+    // ★ 失败一律走 `notice` 不走 `npcSay`：投影窗开着时 NpcDialog 整个 return null
+    //   （NpcDialog.tsx 的那句 `if (projection) return null`），而这些话恰恰都发生在
+    //   投影窗开着的时候 —— 用 npcSay 等于没说（与 genNodeVideo 同一条纪律）。
     const { nodeGen, proposalRegen } = get();
     if (nodeGenInFlight || nodeGen || proposalRegen) {
-      get().npcSay("上一炉还在跑，等它出炉再说。");
+      set({ notice: { text: "上一炉还在跑，等它出炉再说。", at: Date.now() } });
       return false;
     }
-    const path = activePath();
-    const idx = path.findIndex((n) => n.id === nodeId);
-    const node = path[idx];
-    if (!node) return false;
-    const prev = idx > 0 ? chosenProposal(path[idx - 1]) : null;
-    // 起拍帧沿用原来那一套的（承接上一段的真实结尾）——重推的是"走向"，不是"从哪起拍"
-    // ★★ 按发计价档（真人档）走不了推演 —— 判定在 economy.deriveIssue 一处，
-    //   flowStore.deriveProposals 与 studioStore.generateNode 早就有这道闸，**唯独这里漏了**
-    //   （2026-08-30 复核抓到）。漏的后果不是"点了没反应"：下面 spendTokens 照扣，
-    //   炼出三套真人档一张都用不上的首尾帧，还把用户亲手写的那段话换成 AI 重写的。
-    {
-      const flatIssue = deriveIssue(node.videoTier);
-      if (flatIssue) {
-        get().npcSay(`${flatIssue}。真人档直接出片，不经过方案台。`);
-        return false;
-      }
-    }
-    // ★★ 真人卡门禁（判断在 economy.realFaceIssue 一处，铁律六）—— 2026-09-01 复核抓到：
-    //   上面那条 deriveIssue 是 2026-08-30 补的，补的时候**只补了它自己**，同一条路上的
-    //   realFaceIssue 又漏了一遍（本仓「加门禁只加在最近的那一处」这条坑的第二次复发）。
-    //   推演画首尾帧一样会把素材卡的形象参考喂给方舟（generateProposals →
-    //   prepareMaterialRefs），真人照片整发被拒；而这条路**先扣费后开跑**，
-    //   漏了就是"钱扣了、供应商拒了、屏幕上只有一句原始报错"。
-    //   ⚠ 出片那条（genNodeVideo）没事：它委托给带闸的 flowStore.genNode。漏的只有推演这两条。
-    {
-      const realBlocked = realFaceIssue(node.materials, node.videoTier, {
-        blockout: !!tplOfNode(node)?.refVideo,
-      });
-      if (realBlocked) {
-        get().npcSay(realBlocked);
-        return false;
-      }
-    }
-    const startFrame = prev?.lastFrame ?? null;
-    const propCost = proposalsCost(!!startFrame);
-    if (AI_REAL && !canAfford(propCost)) {
-      const w = walletOf();
-      get().npcSay(
-        `重推一次约 ${fmtTokens(propCost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不够——去「我的」页充值。`,
-      );
-      return false;
-    }
+    const flow0 = useFlow.getState();
+    if (!flow0.nodes.some((n) => n.id === nodeId)) return false;
     nodeGenInFlight = true;
+    // 进度画在**节点自己身上**（node.status/progress，deriveProposals 一路写），
+    // 方案台直接读它；这里的 nodeGen 只是工坊侧"有一炉在跑"的旗标（键与旧实现一致）
     const key = rederiveKey(nodeId);
     set({ nodeGen: { proposalId: key, steps: [] } });
-    const log = createGenLog((steps) => set({ nodeGen: { proposalId: key, steps } }));
-    log.begin("重新推演三套走向");
     try {
-      if (AI_REAL) spendTokens(propCost);
-      const fresh = await generateProposals(
-        {
-          index: idx,
-          materials: node.materials ?? [],
-          requirement: node.requirement ?? chosenProposal(node)?.plot ?? "",
-          durationMode: "manual",
-          durationSec: chosenProposal(node)?.durationSec ?? 6,
-          prevFrameSeed: prev ? `${prev.id}#last` : null,
-          startFrame,
-          // 重推的是"走向"，画幅照原节点——换一批剧情不该顺手把片子从竖的变成横的
-          aspect: node.aspect,
-          pathPlots: path
-            .slice(0, idx)
-            .map((n) => chosenProposal(n)?.plot ?? "")
-            .filter(Boolean),
-        },
-        (status) => log.detail(status),
-      );
-      log.end();
-      // ★ 只留"丢了就补不回来"的旧方案：已出片的（真金白银）和名下归档着分支续链的
-      //   （alts 挂在方案 id 上，方案没了那条链就成了孤儿）。段不在了就整句认账
-      const flow = useFlow.getState();
-      const live = flow.nodes.find((n) => n.id === nodeId);
-      if (!live) {
-        set({ nodeGen: null });
-        get().npcSay("推演好了，但那一段已经不在流水线上了——没处摆（钱已经花了，抱歉）。");
+      const ok = await useFlow.getState().deriveProposals(nodeId);
+      if (!ok) {
+        set({ notice: { text: useFlow.getState().err || "这一次没推成", at: Date.now() } });
         return false;
       }
-      const keep = live.proposals.filter((q) => proposalDone(q) || (flow.alts[nodeId]?.[q.id]?.length ?? 0) > 0);
-      // 重推完是"摊开等挑"（plan:"picking"），虚线卡位随之收起（末段没选定就开不了下一段）
-      flow.setNodeProposals(nodeId, [...fresh, ...keep]);
-      set({ nodeGen: null });
       get().npcSay("换了一批走向，投影在你面前了——点开挑一套。");
       return true;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      log.fail(`失败：${msg.slice(0, 80)}`);
-      set({ nodeGen: null, notice: { text: `重推没成：${msg.slice(0, 60)}`, at: Date.now() } });
-      return false;
     } finally {
       nodeGenInFlight = false;
       set({ nodeGen: null });
@@ -1634,8 +1625,16 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const { editor, deck } = get();
     if (!editor || editor.generating) return;
     if (nodeGenInFlight) {
-      get().npcSay("上一炉还在推演，等它出炉再开新的。");
+      set({ notice: { text: "上一炉还在推演，等它出炉再开新的。", at: Date.now() } });
       return;
+    }
+    {
+      // 新段没有 nodeId，只问全局那把闸（两面共用，见 otherFaceBusy 的 ★★）
+      const blocked = otherFaceBusy();
+      if (blocked) {
+        set({ notice: { text: blocked, at: Date.now() } });
+        return;
+      }
     }
     const materials = editor.slots
       .map((id) => deck.find((c) => c.id === id))

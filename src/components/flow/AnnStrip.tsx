@@ -11,15 +11,24 @@ import type { FlowAnn } from "../../studio/flowStore";
 export default function AnnStrip({
   anns,
   onRemove,
+  note,
   className = "",
 }: {
   anns: FlowAnn[];
   onRemove: (annId: string) => void;
+  /**
+   * 「这几条不会重画 / 这一段整条不接受圈选」那句话。**整句由宿主传**
+   * （唯一实现是 `flowStore.annSkipNote`）—— 本组件只画不判，与它顶上那条 ★ 同一条纪律。
+   * ★★ 三个宿主都要传（画布 / 简约 / 工坊）：2026-09-03 主人点名「两面完全一样，
+   *   只有 UI 不同」，而这句话此前只长在工坊那一面，圈选却主要发生在画布上。
+   */
+  note?: { text: string; tone: "warn" | "info" } | null;
   className?: string;
 }) {
   if (anns.length === 0) return null;
   return (
-    <div className={`flex gap-1.5 overflow-x-auto pb-0.5 ${className}`}>
+    <div className={className}>
+    <div className="flex gap-1.5 overflow-x-auto pb-0.5">
       {anns.map((a) => (
         <div key={a.id} className="relative w-24 flex-none overflow-hidden rounded-lg bg-panel">
           <img src={a.frame} alt="" className="h-12 w-full object-cover" />
@@ -34,6 +43,14 @@ export default function AnnStrip({
           </button>
         </div>
       ))}
+      </div>
+      {note && (
+        <p
+          className={`mt-1 text-[10px] leading-relaxed ${note.tone === "warn" ? "text-amber-300/90" : "text-slate-500"}`}
+        >
+          {note.text}
+        </p>
+      )}
     </div>
   );
 }

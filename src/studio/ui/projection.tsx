@@ -27,15 +27,14 @@ import {
   chosenProposal,
   nextStartFrame,
   proposalDone,
-  proposalRedrawCostOf,
   rederiveKey,
   useStudio,
 } from "../studioStore";
-import { CUSTOM_MID_MAX, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan } from "../flowStore";
+import { CUSTOM_MID_MAX, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf } from "../flowStore";
 import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
-import { TemplatePicker } from "../../components/flow/FlowCanvas";
+import { CardPicker, TemplatePicker } from "../../components/flow/FlowCanvas";
 // 「进挂卡编辑页要带什么」只有 FlowPage 一处实现（模板详情页也从那儿取）；
 // 回程收口在 hooks/useCastReturn，/studio 与 /flow 都挂了它
 import { castEditorState } from "../../pages/FlowPage";
@@ -46,6 +45,7 @@ import { proposalsCost } from "../../data/economy";
 import { fileToFrameDataUrl } from "../../utils/image";
 import { computeChain } from "../scene/TableScene";
 import { CHAIN, focusCam } from "../scene/layout";
+import DeleteSegBtn from "../../components/flow/DeleteSegBtn";
 
 export default function ProjectionWindow() {
   const projection = useStudio((s) => s.projection);
@@ -914,11 +914,16 @@ function ProposalsPanel() {
   const [playing, setPlaying] = useState(false);
   /** 档位那一排开着没有（顶栏那枚芯片） */
   const [tierOpen, setTierOpen] = useState(false);
+  /** 选素材卡弹层（与画布共用同一份 CardPicker）。★ hook 必须排在下面那句早退之前 */
+  const [cardPick, setCardPick] = useState(false);
+  /** store 的整句拒绝（与画布壳那条错误条同源，见下面渲染处的 ★★）。
+   *  ★ hook 排在早退之前 —— 本文件为这条栽过三次了（第三次就是刚才） */
+  const flowErr = useFlow((s) => s.err);
+  /** 另一面（画布）发起的那一炉也算 —— 判据与 studioStore.otherFaceBusy 同源 */
+  const flowBusy = useFlow((s) => s.busy);
   if (!node) return null;
   const idx = path.findIndex((n) => n.id === node.id);
   const prev = idx > 0 ? chosenProposal(path[idx - 1]) : null;
-  /** 圈选里有几条真会重画、为什么 —— 与重炼报价同源（flowStore 一处实现，见它的 ★★）*/
-  const annPlan = nodeAnnPlan(path, idx);
   const chosen = chosenProposal(node);
   const pickedId = chosen?.id ?? null;
   const done = proposalDone(chosen);
@@ -937,6 +942,17 @@ function ProposalsPanel() {
    * 没推演过的空方案去烧钱；而「♻ 重新推演三套」在这一刻也不该出现（还没有
    * “三套”可重）。自定义/白模车道天生就是一套，不适用。
    */
+  /** 这一段还没轮到（顺序门禁）—— 判据只有 flowStore.clampCursor 一处，
+   *  真闸在 flowStore.genNode 里（任何宿主都绕不过去），这里只负责画出来。 */
+  const locked = nodeLocked(path, node.id);
+  /**
+   * 这一段**正在出片**吗 —— 与画布逐字同源（那边用的就是 node.status === "generating"）。
+   * ★★ 别用工坊本地的 `nodeGen`（2026-09-03 复核抓到）：画布直接调 flowStore.genNode 时
+   *   它恒为 null，于是"画布发起的那一炉在跑"期间，工坊这几个写路是亮的 ——
+   *   而 addMaterials/removeMaterial 是裸 set、没有任何门禁，改了真落地，可在途那一炉
+   *   早就把 materials 从快照取走了：界面显示已经撤掉那张卡，几分钟后成片里还是那个人。
+   */
+  const genHere = node.status === "generating" || flowBusy;
   const notDerived =
     !node.custom &&
     !blockout &&
@@ -977,6 +993,11 @@ function ProposalsPanel() {
         </button>
         <h3 className="min-w-0 flex-1 truncate text-center text-sm font-bold text-cyan-100">
           第 {idx + 1}/{path.length} 段 · {pickedId ? (done ? "已出片" : "已选定走向") : "选择走向"}
+          {/* ★ 顺序门禁的**判据**在 flowStore（clampCursor，而且 genNode 自己也拦一道）——
+              这里只是把"为什么点不动"画出来，别在这儿另写一遍（铁律六）。
+              收口之前工坊一个字都不画、主按钮照亮：点下去真扣钱真炼，而这一段拿不到
+              上一段的真实尾帧承接。 */}
+          {locked && <span className="ml-1 text-[11px] font-normal text-amber-300/90">· 🔒 前面的段炼完才解锁</span>}
         </h3>
         <button
           onClick={() => go(1)}
@@ -1015,8 +1036,85 @@ function ProposalsPanel() {
       )}
       {/* 重推三套的进度：真实 AI 下一分钟出头（1 次豆包 + 最多 6 张 Seedream）。
           它占的是 nodeGen，但没有对应的方案 id，所以进度条挂在整个方案台上方而不是某一行 */}
-      {nodeGen?.proposalId === rederiveKey(node.id) && (
-        <GenTrace steps={nodeGen.steps} running className="mx-3 mt-2 rounded-lg bg-black/25 px-2 py-1.5" />
+      {/* 重推的进度。★★ 读的是 **node.steps** 不是 nodeGen.steps（2026-09-03 复核抓到）：
+          重推已委托 flowStore.deriveProposals，进度写在**节点自己身上**（单一真相），
+          工坊的 nodeGen 从此只是"有一炉在跑"的旗标、steps 恒为空 —— 再读它就是一块
+          永不渲染的死码，而注释还写着"方案台直接读它"。
+          ★ running 与守卫同源：跑完还读秒的话，那条日志看着像永远没结束。 */}
+      {(nodeGen?.proposalId === rederiveKey(node.id) || node.status === "generating") && (
+        <GenTrace
+          steps={node.steps ?? []}
+          running={nodeGen?.proposalId === rederiveKey(node.id) || node.status === "generating"}
+          className="mx-3 mt-2 rounded-lg bg-black/25 px-2 py-1.5"
+        />
+      )}
+
+      {/* ★★ 「这一段拍什么」——**推演的输入**（node.requirement）。2026-09-03 两面对照抓到：
+          工坊此前只在**铸新段**的窗里能写这句话（那写的是 editor.requirement），落段之后
+          整块面板没有任何一处写 node.requirement —— 而工坊那颗「♻ 重新推演三套」读的正是它
+          （flowStore.deriveProposals）。于是用户觉得三套都不对、想换个说法再推：工坊里
+          没有任何地方能换那句说法，只能拿**同一句话**反复付费重推，每次约 40~80k token，
+          结果当然还是同一类走向。画布那一面 FlowCanvas 的那栏 textarea 一直能改。
+          ★ 只对走推演的段摆（derivesProposals 一处判据）：真人档/自定义段这一栏在画布上
+            写的是 plot，而工坊的 PlanBoard 已经能改 plot（onPatch），不必重复摆一个。
+          ★ maxLength 与画布同一个常量：提示词硬顶是从**正文**那头下刀的（见 CLAUDE.md）。 */}
+      {/* ★★ store 的整句拒绝要有地方画（铁律八）。2026-09-03 复核抓到：工坊的经典/自定义段
+          此前**没有任何**渲染 flowStore.err 的地方 —— 于是「删段被拒」「换模板被拒」这类
+          整句拒绝在这一面等于没说过，而删段那颗键还会照常关窗，让失败长得和成功一样。
+          ★ 画布壳上那条是常驻的（FlowCanvas 的错误条），这里同源：读同一个字段。 */}
+      {flowErr && (
+        <div className="flex-none px-3 pt-2">
+          <p className="rounded-lg bg-rose-500/15 px-2 py-1.5 text-[10px] leading-relaxed text-rose-200">{flowErr}</p>
+        </div>
+      )}
+
+      {/* ★★ 这一段的素材卡 —— 加/撤都在这儿。2026-09-03 两面对照抓到：工坊此前只有
+          **铸新段的窗**里有素材格（写的是 editor.slots，未落段的暂存），已存在的段在整块
+          面板里只被**读**过（传给 fuseSources / realFaceIssue），没有任何写点。
+          而素材卡决定这一段人物长什么样（形象图会当参考图发出去）：铸完段发现漏挂了主角卡、
+          或挂错一张，唯一的出路是删段重来——而删段在工坊当时也没有（见下面那颗键）。
+          ⇒ 弹层直接借画布导出的同一份 CardPicker，写路走 flowStore（别另写一份）。 */}
+      {!blockout && (
+        <div className="flex-none px-3 pt-2">
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="mr-1 text-[10px] text-slate-400">素材卡</span>
+            {(node.materials ?? []).map((c) => (
+              <span key={c.id} className="flex items-center gap-1 rounded-full bg-panel px-2 py-0.5 text-[10px] text-slate-200">
+                {c.name}
+                <button
+                  onClick={() => useFlow.getState().removeMaterial(node.id, c.id)}
+                  disabled={locked || genHere}
+                  className="text-slate-500 disabled:opacity-40"
+                  aria-label={`撤掉 ${c.name}`}
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+            <button
+              onClick={() => setCardPick(true)}
+              disabled={locked || genHere}
+              className="rounded-full border border-slate-600 px-2 py-0.5 text-[10px] text-slate-300 disabled:opacity-40"
+            >
+              ＋ 选卡片
+            </button>
+          </div>
+        </div>
+      )}
+      {cardPick && <CardPicker node={node} onClose={() => setCardPick(false)} />}
+
+      {derivesProposals(node) && !blockout && (
+        <div className="flex-none px-3 pt-2">
+          <label className="mb-1 block text-[10px] text-slate-400">这一段拍什么（重新推演就按这句话）</label>
+          <textarea
+            value={node.requirement ?? ""}
+            onChange={(e) => useFlow.getState().setRequirement(node.id, e.target.value)}
+            maxLength={VIDEO_PROMPT_MAX}
+            disabled={locked || genHere}
+            placeholder="这一段拍什么？"
+            className="h-16 w-full resize-none rounded-lg border border-slate-600 bg-black/30 px-2.5 py-2 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-600 focus:border-cyan-400 disabled:opacity-50"
+          />
+        </div>
       )}
 
       {/* 方案台：与工作流页共用同一个组件（铁律六）。工坊这边的"未选定"天然就是
@@ -1038,9 +1136,19 @@ function ProposalsPanel() {
           onPatch={(id, patch) => useStudio.getState().patchProposal(node.id, id, patch)}
           onFrame={(id, which, dataUrl) => useStudio.getState().setProposalFrame(node.id, id, which, dataUrl)}
           onRegen={(id) => void useStudio.getState().regenProposal(node.id, id)}
-          regenCost={(p) => proposalRedrawCostOf(p, prev)}
-          onRederive={notDerived ? undefined : () => void useStudio.getState().regenNodeProposals(node.id)}
-          rederiveCost={proposalsCost(!!prev?.lastFrame)}
+          /* ★ 与真扣同一把尺：flowStore.redrawCost（工坊那份第二实现已退役，见 studioStore 的 ★★）*/
+          regenCost={(p) => redrawCost(node, p, prev)}
+          /* ★ 「这一段经不经过方案台」走 flowStore.derivesProposals 一处（两面共用）：
+             收口之前自定义段与真人档在工坊都摆着这颗键，而画布上压根没有 —— 点下去
+             要么真扣钱再把你自己的帧顶掉，要么被拒而话又看不见（见它的 ★★） */
+          onRederive={
+            notDerived || !derivesProposals(node)
+              ? undefined
+              : () => void useStudio.getState().regenNodeProposals(node.id)
+          }
+          /* ★ 与真扣同一处实现：flowStore.deriveCostOf（收口之前这里的 prev 用的是
+             chosenProposal，"待挑"时回 null，与真扣那边的 chosenOf 差出成倍的价） */
+          rederiveCost={deriveCostOf(path, idx)}
           carriedFrom={carried}
           // 预览卡的框跟本段画幅走：写死一个比例，另一种画幅的帧会被裁掉一大半
           frameAspect={aspectCss(node.aspect)}
@@ -1062,10 +1170,11 @@ function ProposalsPanel() {
               node={node}
               proposal={p}
               onPlay={() => setPlaying(true)}
+              locked={locked}
               notDerived={notDerived}
               /* ★ 与真扣同一个输入：regenNodeProposals 按**上一段的尾帧**算（三套共用开头帧
                  时只画尾帧、图量减半）。此前这里传的是本段方案的首帧，第 1 段少报一半 */
-              deriveCost={proposalsCost(!!prev?.lastFrame)}
+              deriveCost={deriveCostOf(path, idx)}
             />
           )}
         />
@@ -1074,22 +1183,13 @@ function ProposalsPanel() {
       {/* 圈选标注条（与画布同一份 AnnStrip）：重炼时逐处改画面，改图费已并进重炼报价（nodeCost） */}
       {node.anns.length > 0 && (
         <div className="flex-none px-3 pb-1">
-          <AnnStrip anns={node.anns} onRemove={(annId) => useFlow.getState().removeAnn(node.id, annId)} />
-          {/* ★ 承接段的开头画面由上一段真实尾帧顶替，圈在前半段的那几处不会重画（也不收钱）。
-              话要说在**点击之前**——只写进出片进度里的话，用户看到的是"圈选坏了"。
-              写法与 CutPage 那条同源（「另有 N 处…不计费也不会重拍」）。 */}
-          {annPlan.why === "carry" && (
-            <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-              另有 {annPlan.skipped} 处落在承接段的前半段（开头画面用的是上一段的真实结尾，不重画）——不计费，但你写的要求仍会随出片提示词发出去。
-            </p>
-          )}
-          {/* ★ 这一支是**整段拒收圈选**（出片时 segmentGen 直接 throw），不能套用上面那句
-              「不计费但要求照样发」——那是假话，而且用户会一直等到点下去才撞上。 */}
-          {annPlan.why === "unsupported" && (
-            <p className="mt-1 text-[10px] leading-relaxed text-amber-300/90">
-              这一段带着参考视频，出片时不接受圈选改画面——这 {annPlan.skipped} 处得先清掉才能开炼（它们也不计费）。
-            </p>
-          )}
+          {/* ★ 那句解释的**整句**由 flowStore.annSkipNote 出（三个宿主共用，见它的 ★★）——
+              2026-09-03 主人点名「工坊和画布要完全一样，只有 UI 不同」，而它此前只长在这一面。 */}
+          <AnnStrip
+            anns={node.anns}
+            onRemove={(annId) => useFlow.getState().removeAnn(node.id, annId)}
+            note={annSkipNote(path, idx)}
+          />
         </div>
       )}
       {playing && <SegPlayer nodeId={node.id} onClose={() => setPlaying(false)} onOpenPanel={() => setPlaying(false)} />}
@@ -1142,6 +1242,8 @@ function TierBlockNote({ node }: { node: FlowNode }) {
  *   不在这儿画就是"点了没反应"（铁律八，PlanSheet/TemplatePicker 同款）。
  */
 function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Proposal; onPlay: () => void }) {
+  /** 顺序门禁（判据一处：flowStore.nodeLocked；真闸在 genNode）——模板车道也要画出来 */
+  const lockedSeg = useFlow((s) => nodeLocked(s.nodes, node.id));
   const navigate = useNavigate();
   const tpl = tplOfNode(node)!;
   const named = !!tpl.roles?.length;
@@ -1272,7 +1374,7 @@ function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Prop
         className="h-24 w-full resize-none rounded-lg border border-slate-600 bg-black/30 px-2.5 py-2 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-600 focus:border-cyan-400 disabled:opacity-50"
       />
 
-      <PickedActions node={node} proposal={proposal} onPlay={onPlay} />
+      <PickedActions node={node} proposal={proposal} onPlay={onPlay} locked={lockedSeg} />
 
       {picker && (
         <TemplatePicker
@@ -1303,10 +1405,14 @@ function PickedActions({
   onPlay,
   notDerived,
   deriveCost,
+  locked,
 }: {
   node: FlowNode;
   proposal: Proposal;
   onPlay: () => void;
+  /** 顺序门禁：这一段还没轮到（判据 flowStore.clampCursor，真闸在 genNode）——
+   *  这里只把"为什么点不动"画出来。画布那一面整个行动区都闸在 !locked 里，工坊此前一个字不画 */
+  locked?: boolean;
   /** 自选卡片车道还没推演过三套：主按钮改成「生成三套方案」（见 ProposalsPanel 的 ★） */
   notDerived?: boolean;
   /** 推演三套的报价 —— 由 ProposalsPanel 用**与真扣同一个输入**算好传进来（铁律六） */
@@ -1318,6 +1424,9 @@ function PickedActions({
   const proposalRegen = useStudio((s) => s.proposalRegen);
   const [refine, setRefine] = useState<"first" | "last" | null>(null);
   const [refineReq, setRefineReq] = useState("");
+  /** 另一面（画布）发起的那一炉也算 —— **响应式**读：flowNow 是 getState() 的快照，
+   *  拿它当 disabled 的判据的话 busy 变了不会重渲（2026-09-03 自查）。 */
+  const flowBusy = useFlow((s) => s.busy);
   const mine = nodeGen?.proposalId === proposal.id;
   const busy = !!nodeGen || !!frameRefining || !!proposalRegen;
   const done = proposalDone(proposal);
@@ -1381,9 +1490,45 @@ function PickedActions({
           </button>
         </div>
       )}
-      {/* 进度画在节点自己身上（单一真相：flowStore.genNode 写 node.steps） */}
-      {(mine || node.status === "generating") && (
-        <GenTrace steps={node.steps ?? []} running className="rounded-lg bg-black/25 px-2 py-1.5" />
+      {/* ★★ 删除本段 —— **共用组件**（确认两下、已出片的说清楚都在 DeleteSegBtn 一处）。
+          2026-09-03 两面对照抓到：工坊此前整面没有这颗键，而工坊自己的提示语正指着它
+          （模板车道那句「已出片：换模板会作废本段——想换先删段重加」）。用户照着找一圈，
+          最后只能自己猜到要去点法阵开画布 —— 正是 CLAUDE.md 记过的「提示语指向一个
+          不存在的出口」。门禁与画布同源：只剩一段时不给删。
+          ★ 删完关掉投影窗：面板认的是 focus.nodeId，段没了会 return null 留一块空白。 */}
+      {!locked && (
+        <div className="mt-1.5 flex items-center gap-2">
+          <DeleteSegBtn
+            done={done}
+            /* ★ 与画布同源：画布那颗读的是 store 上的 busy，工坊本地那个 busy 认不出
+               画布发起的那一炉（见 ProposalsPanel 里 genHere 的 ★★） */
+            disabled={busy || flowBusy || node.status === "generating" || flowNow.nodes.length <= 1}
+            onConfirm={() => {
+              // ★ removeNode 会整句拒（生成中、只剩一段…），拒了就**别关窗** ——
+              //   无条件关窗会让"删失败"长得和"删成功"一模一样（2026-09-03 复核抓到）。
+              //   判据看真实结果：段还在不在（store 的 err 由下面那条错误条画出来）。
+              useFlow.getState().removeNode(node.id);
+              if (!useFlow.getState().nodes.some((n) => n.id === node.id)) {
+                useStudio.getState().closeProjection();
+              }
+            }}
+            className="rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300 disabled:opacity-40"
+          />
+          {flowNow.nodes.length <= 1 && <span className="text-[10px] text-slate-500">只剩一段了，删不掉</span>}
+        </div>
+      )}
+      {/* 进度画在节点自己身上（单一真相：flowStore.genNode 写 node.steps）。
+          ★★ 守卫与画布同源（FlowCanvas 是 `generating || steps.length > 0`）：只按"这一炉是不是
+          我的"判的话，**失败之后整块 unmount** —— nodeGen 一清、status 变 failed/pending，
+          Toast 2.4 秒也没了，屏幕上再没有任何字说这一段为什么没成、卡在哪一步，
+          用户唯一能做的判断是"再点一次"＝再花一次钱。画布上同一段留着完整日志。
+          ★ running 也不能写死 true：跑完还读秒的话，那条日志看着像永远没结束。 */}
+      {(mine || node.status === "generating" || (node.steps?.length ?? 0) > 0) && (
+        <GenTrace
+          steps={node.steps ?? []}
+          running={mine || node.status === "generating"}
+          className="rounded-lg bg-black/25 px-2 py-1.5"
+        />
       )}
       {/* ★★ 待取回的那几发摆在主按钮正上方（2026-08-31 补，与画布同一份组件）：
           工坊经 genNode 出片，同样会走到「没接到结果」那一支、同样会落凭据，
@@ -1403,7 +1548,8 @@ function PickedActions({
         ) : (
         <button
           onClick={() => void useStudio.getState().genNodeVideo(node.id, proposal.id)}
-          disabled={busy || !proposal.plot.trim()}
+          disabled={busy || locked || !proposal.plot.trim()}
+          title={locked ? "前面还有没炼完的段——段与段靠上一段的真实结尾接着拍，得按顺序来" : undefined}
           className="flex-1 rounded-lg bg-brand/90 py-2 text-xs font-bold text-ink disabled:opacity-40"
         >
           {mine
@@ -1416,7 +1562,9 @@ function PickedActions({
         {done && (
           <button
             onClick={onPlay}
-            disabled={busy}
+            /* ★ **不加 disabled={busy}**（2026-09-03 两面对照抓到）：回看是只读的，而 busy 在
+               工坊是"任何一炉在跑"——包括在**别的段**上炼视频（3~25 分钟）。画布那一面
+               从来没有这道闸；真正该拦的圈选那一下由 SegPlayer 自己拦（它还写了 title 说明原因）。 */
             title={blockout ? "回看成片" : "回看成片 · 在画面上圈出要改的地方"}
             className="flex-none rounded-lg border border-slate-500/60 bg-slate-700/50 px-2.5 py-2 text-xs font-semibold text-slate-100 disabled:opacity-40"
           >

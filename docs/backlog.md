@@ -733,6 +733,27 @@ idLine strip 掉（app 读侧兜底成老行为，不炸但弱化）。
   `AnnStrip` 收一个 `note` prop 把它画出来，三个宿主各传一次。
 - **触发条件**：下次动 `AnnStrip` 或圈选那条路时顺手；或有人反馈"画布上圈了没反应"。
 
+### 2.11.7 铸段窗第①步那三张卡"偶发不见、重进 App 又回来"（2026-09-03，未复现）
+
+主人报：3D 工坊里点**虚框节点卡**弹出的小窗，第①步那三个选择不见了；**重进 App 之后又出现了**。
+
+**已经排除的（别重复查）**：
+- 三张卡的代码完好（`projection.tsx` 的 `step === "mode"` 那一支），最近一次改动是把它们**放大**到吃满八成屏；
+- 封面图 `/create/mode-*.jpg` 在源码、`dist`、主仓里都在（本仓有"缺 public 资源、出包不报错"的先例，特意查过）；
+- 点虚框走 `focusPlaceholder` → `editor: freshEditor([])`，**slots 是空的**；
+- 投影外壳 `if (!projection) return null`，开关是真卸载真重挂。
+
+**最可能的成因（下次照这条查）**：`step` 的初值是
+`useState(() => (editor?.slots.length ?? 0) > 0 ? "content" : "mode")` —— 它**只在挂载那一拍算一次**。
+只要开窗那一刻 `editor.slots` 非空，就会**跳过第①步**直接落在"写内容"，三张卡自然看不见。
+已知会让 slots 非空的路：**拖素材卡到占位**（`editor: freshEditor([card.id])`，那是有意的）。
+"重进 App 就好了"完全符合这个形状 —— 进程重启后 `editor` 回到 null。
+⇒ 复现时要抓的就一件事：**开窗那一刻 `useStudio.getState().editor?.slots` 是不是空的**。
+若确实非空，修法是把"跳过第①步"的依据从"slots 非空"换成**明确的意图**
+（例如 `focusPlaceholderWithCard` 显式传一个 `startStep`），别让一个残留状态替用户做选择。
+
+**触发条件**：再次出现时（记下当时是不是刚拖过卡/刚从别的段切过来），或下次动铸段窗时顺手改掉那个初值。
+
 ### 2.11.4 成片 20MB 上限（2026-09-01 确认，暂不处理）
 
 - `publishAssets.videoToUrl` 对成片判 `MAX_MEDIA_BYTES = 20MB`，超了整句拒；
