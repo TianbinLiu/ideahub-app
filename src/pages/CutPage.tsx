@@ -583,6 +583,18 @@ export default function CutPage() {
       const stopped = new Promise<void>((r) => {
         rec.onstop = () => r();
       });
+      // ★★ **开录之前先把画布画成"有内容的一帧"**（2026-09-03 核 backlog 那条 AIGC 角标时抓到）。
+      //   时序：`captureStream(30)` 早在上面就挂上了，`rec.start()` 在这一行，而第一次
+      //   `drawCover + drawAigcBadge` 要等到循环里 —— 那之前还有 `resolveMediaUrl`（走网络、
+      //   带重试）与 `<video>` 的 load/seek 等待，**秒级**。这中间录进去的是透明/黑帧，
+      //   **而且没有 AIGC 角标**。
+      //   角标是法规要求的 AI 生成标识：成片开头那几帧没有它，等于那几帧是**没标识的**
+      //   AI 生成内容。而它零报错、也不会在预览里被注意到（开头黑一下像是加载）。
+      //   ⚠ 底色要自己铺：画布初始是透明的，编码器把它压成黑帧，但角标的半透明底衬
+      //   在透明画布上读不出来 —— 铺一层黑再画，第 0 帧就是合规的。
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      drawAigcBadge(ctx, canvas.width, canvas.height);
       rec.start(250);
       for (let i = 0; i < view.length; i++) {
         // ★★ 取消要在**每一段开头**也判（2026-08-30 复核抓到）：rAF 里那两处只结束
