@@ -1807,7 +1807,12 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
 
 /** 自选模式的选卡面板：点一下选中/取消（拖拽那套隐喻留在线性视图的素材窗口——
  *  画布的半窗里没地方给看板娘落卡）。加/删直接走 store 的 addMaterials/removeMaterial */
-function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => void }) {
+/**
+ * 给这一段选素材卡 —— **两面共用的唯一实现**（导出的理由与 TemplatePicker 同一条）。
+ * ★ 自足：只收 {node, onClose}，写路直接走 flowStore 的 addMaterials/removeMaterial，
+ *   portal 到 body —— 所以工坊那一面直接挂它就行，别另写一份（2026-09-03 两面对齐）。
+ */
+export function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => void }) {
   useAccountVersion();
   useSyncExternalStore(subscribeVoices, voicesVersion, () => 0);
   const addMaterials = useFlow((s) => s.addMaterials);

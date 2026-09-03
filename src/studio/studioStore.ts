@@ -1289,6 +1289,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
 
   frameRefining: null,
   refineProposalFrame: async (nodeId, proposalId, which, req) => {
+    // ★ 这条路上的话一律走 notice 不走 npcSay：投影窗开着时 NpcDialog 整个 return null，
+    //   而用户按下「按要求重画首/尾帧」的那一刻投影窗必然开着 —— npcSay 等于没说
+    //   （2026-09-03 两面对照抓到，与 genNodeVideo 的写法同源）。
     const { frameRefining } = get();
     if (frameRefining || !req.trim()) return false;
     {
@@ -1303,7 +1306,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (!node || !prop) return false;
     // 改一次图 = 一张 Seedream。以前这里既不看余额也不扣费，用户改十版是白送十张
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
-      get().npcSay(`改图要 ${fmtTokens(ONE_IMAGE)} token，余额不够了——去「我的」页充值。`);
+      set({ notice: { at: Date.now(), text: `改图要 ${fmtTokens(ONE_IMAGE)} token，余额不够了——去「我的」页充值。` } });
       return false;
     }
     set({ frameRefining: `${proposalId}:${which}` });
@@ -1311,7 +1314,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // ★ 带上素材卡的形象参考图：改一帧最常见的写法就是"让她换个表情/转个身"，
       //   而这类改动最容易把脸改跑。被改的那张帧恒为 <图片1>，所以绑定句 offset = 1。
       //   （没采用哪张、为什么只锁一个角色，由 npcSay 说出来 —— 这一条路没有步骤日志）
-      const mat = await prepareMaterialRefs(node.materials, "image", (n) => get().npcSay(n));
+      // ★ 逐张参考图的提示**攒起来**接在终局那句后面：一条条 npcSay 在投影窗开着时看不见，
+      //   一条条 notice 又会互相顶掉（Toast 只有一条）—— 攒起来才是真的被看见（铁律八）。
+      const refNotes: string[] = [];
+      const refTail = () => (refNotes.length ? `（${refNotes.join("；")}）` : "");
+      const mat = await prepareMaterialRefs(node.materials, "image", (n) => refNotes.push(n));
       // 画幅跟节点走：改一次图就把竖屏方案的帧重画成横版，出片时又要被裁一刀
       const next = await refineFrame(
         `${req.trim()}${mat.bind(1)}`,
@@ -1325,15 +1332,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   找不到就如实说，别把改动写进另一摊活里。
       const still = useFlow.getState().nodes.find((n) => n.id === nodeId)?.proposals.some((q) => q.id === proposalId);
       if (!still) {
-        get().npcSay("这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。");
+        set({ notice: { at: Date.now(), text: "这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。" } });
         return false;
       }
       // 写路只有 flowStore 一条（单一真相）：指定方案改帧
       useFlow.getState().updateProposal(nodeId, which === "first" ? { firstFrame: next } : { lastFrame: next }, proposalId);
-      get().npcSay(`${which === "first" ? "首" : "尾"}帧已按你的要求重画好了。`);
+      set({ notice: { at: Date.now(), text: `${which === "first" ? "首" : "尾"}帧已按你的要求重画好了。${refTail()}` } });
       return true;
     } catch (e) {
-      get().npcSay(`改图没成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}`);
+      set({ notice: { at: Date.now(), text: `改图没成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}` } });
       get().setMood(-0.4, 2200);
       return false;
     } finally {
@@ -1393,11 +1400,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const keepLast = !!p.pinned?.last;
     const cost = redrawCost(node, p, prev);
     if (cost === 0) {
-      get().npcSay("首尾帧都是你自己换的图，没有可让我重画的地方——想重画就先在卡里清掉那一帧。");
+      set({ notice: { at: Date.now(), text: "首尾帧都是你自己换的图，没有可让我重画的地方——想重画就先在卡里清掉那一帧。" } });
       return false;
     }
     if (AI_REAL && !canAfford(cost)) {
-      get().npcSay(`重画这一套要 ${fmtTokens(cost)} token，余额不够了——去「我的」页充值。`);
+      set({ notice: { at: Date.now(), text: `重画这一套要 ${fmtTokens(cost)} token，余额不够了——去「我的」页充值。` } });
       return false;
     }
     set({ proposalRegen: proposalId });
@@ -1406,7 +1413,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   是横的，喂给竖屏 Seedance 任务会被静默裁一刀（人物常被裁掉半个头）。
       //   见 CLAUDE.md「改了画幅却发现出片还是横的」那一条
       // 素材卡的形象参考图一并带上：重画的是这一段的设定帧，人物当然还得是同一个人
-      const mat = await prepareMaterialRefs(node.materials, "image", (n) => get().npcSay(n));
+      // ★ 逐张参考图的提示**攒起来**接在终局那句后面：一条条 npcSay 在投影窗开着时看不见，
+      //   一条条 notice 又会互相顶掉（Toast 只有一条）—— 攒起来才是真的被看见（铁律八）。
+      const refNotes: string[] = [];
+      const refTail = () => (refNotes.length ? `（${refNotes.join("；")}）` : "");
+      const mat = await prepareMaterialRefs(node.materials, "image", (n) => refNotes.push(n));
       const refUrls = mat.refs.length > 0 ? mat.refs : undefined;
       let first = p.firstFrame;
       // 首帧没有底图 → 素材卡的图就是 <图片1>，offset = 0
@@ -1425,14 +1436,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // 段还在才写回（同 refineProposalFrame 那道闸）；写路只有 flowStore 一条
       const still = useFlow.getState().nodes.find((n) => n.id === nodeId)?.proposals.some((q) => q.id === proposalId);
       if (!still) {
-        get().npcSay("重画好了，但那一段已经不在流水线上了——没处写回（钱已经花了，抱歉）。");
+        set({ notice: { at: Date.now(), text: "重画好了，但那一段已经不在流水线上了——没处写回（钱已经花了，抱歉）。" } });
         return false;
       }
       useFlow.getState().updateProposal(nodeId, { firstFrame: first, lastFrame: last, degraded: undefined }, proposalId);
-      get().npcSay("按你的改动重画好了。不满意就再改剧情、或者直接换成你自己的图。");
+      set({ notice: { at: Date.now(), text: `按你的改动重画好了。不满意就再改剧情、或者直接换成你自己的图。${refTail()}` } });
       return true;
     } catch (e) {
-      get().npcSay(`重画没成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}`);
+      set({ notice: { at: Date.now(), text: `重画没成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}` } });
       get().setMood(-0.4, 2200);
       return false;
     } finally {

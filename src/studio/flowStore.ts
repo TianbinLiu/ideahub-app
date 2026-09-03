@@ -409,6 +409,53 @@ export function frontierOf(nodes: FlowNode[]): number {
 /** 顺序门禁的唯一实现之一（另一处是 addNode，CLAUDE.md 钉过）。
  *  2026-08-21 导出：画布视图要给"还没解锁的段"画锁并解释为什么点不动 ——
  *  它必须问同一道闸，别在画布里另写 `nodeDone(prev)` 之类的第二份判断。 */
+/**
+ * 「推演/重推这一段三套走向」要多少 token —— **唯一实现**：UI 上那个数与
+ * `deriveProposals` 真扣的钱都问它。
+ *
+ * ★★ 2026-09-03 复核抓到：收口之前 UI 自己算 `proposalsCost(!!(node.chain && prev?.lastFrame))`，
+ *   而它的 `prev` 用的是工坊的 `chosenProposal`（"待挑"时回 **null**），真扣那边用的是
+ *   `chosenOf`（照样返回第一套）—— 同一段两个 prev、两个价。承接时三套共用开头帧、
+ *   图量与价都减半，所以这个差是**成倍**的，而且零报错。
+ * ★ 承接与否只认 `node.chain`：用户在 ⚙ 里关掉的承接不许被悄悄接回来。
+ */
+export function deriveCostOf(nodes: FlowNode[], idx: number): number {
+  const node = nodes[idx];
+  if (!node) return 0;
+  const prev = idx > 0 ? chosenOf(nodes[idx - 1]) : null;
+  return proposalsCost(!!(node.chain && prev?.lastFrame));
+}
+
+/**
+ * 这一段**还没轮到**吗（顺序门禁的**显示**判据）—— UI 两面共用，别在调用点各算一遍下标。
+ * ★ 真正的闸在 `genNode` 里（写 err 再 return false），任何宿主都绕不过去；
+ *   这个函数只回答"要不要画 🔒、要不要把按钮灰掉"。
+ */
+export function nodeLocked(nodes: FlowNode[], nodeId: string): boolean {
+  const idx = nodes.findIndex((n) => n.id === nodeId);
+  return idx >= 0 && clampCursor(nodes, idx) !== idx;
+}
+
+/**
+ * 这一段的产线**经不经过方案台**（推演三套走向）—— **唯一实现**（铁律六），两面共用。
+ *
+ * ★★ 2026-09-03 两面对照抓到：这条判据此前只以"分支条件"的形式长在画布的 JSX 里
+ *   （`!tplMode && !flatTier && !custom`），工坊那一面按另一套条件决定要不要摆
+ *   「♻ 重新推演三套」，于是**自定义段与真人档在工坊都摆着这颗键，而画布上压根没有**：
+ *     · 自定义段点下去 —— 真扣推演费，再把用户亲手上传/融出来的首尾帧与那句自定义要求
+ *       用 AI 重写的三套整表顶掉，不可撤销；
+ *     · 真人档点下去 —— 被 deriveIssue 拒，而那句拒绝当时走 npcSay = 投影窗盖着，
+ *       屏幕纹丝不动（"点了没反应"）。
+ * ★ 三条的理由各不相同，别合并：白模的画面来自模板视频（没有"走向"可推）；
+ *   真人档按发计价、直出，协议上就没有方案台这一拍；自定义段的帧与参考视频是用户给的。
+ */
+export function derivesProposals(node: FlowNode): boolean {
+  if (tplOfNode(node)?.refVideo) return false;
+  if (deriveIssue(node.videoTier)) return false;
+  if (node.custom) return false;
+  return true;
+}
+
 export function clampCursor(nodes: FlowNode[], to: number): number {
   const target = Math.max(0, Math.min(to, nodes.length - 1));
   const frontier = frontierOf(nodes);
@@ -1513,15 +1560,28 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const idx = s0.nodes.findIndex((n) => n.id === nodeId);
     const node = s0.nodes[idx];
     if (!node) return false;
-    // 按发计价档（真人档）没有方案台——判定在 economy.deriveIssue 一处。
-    // UI 已把推演入口换成直出，这里是兜底（agent 确认卡那条路能绕过 UI 直呼本函数）
-    {
-      const flatIssue = deriveIssue(node.videoTier);
-      if (flatIssue) {
-        set({ err: flatIssue });
-        return false;
-      }
+    // ★★ 顺序门禁：推演同样**真花钱**（一次 40~80k），所以这道闸不能只立在 genNode 上
+    //   （2026-09-03 复核抓到：工坊在同一块面板上画着 🔒，旁边却摆着一颗能点的付费按钮）。
+    if (clampCursor(s0.nodes, idx) !== idx) {
+      set({ err: "前面还有没炼完的段——先把前面那段炼出来，再推演这一段。" });
+      return false;
     }
+    // ★ 这一段的产线经不经过方案台 —— 一处判据（derivesProposals），两面共用。
+    //   自定义段以前只被 UI 挡着（而工坊那一面没挡），点下去会真扣钱再把用户自己的帧顶掉。
+    if (!derivesProposals(node)) {
+      // ★ 真人档那一支用 deriveIssue 的**整句**（它带着出路："换回其它档再推演"）——
+      //   写一句半截的「这一档直接出片」等于把出路吞掉（2026-09-03 复核抓到）。
+      set({
+        err: tplOfNode(node)?.refVideo
+          ? "白模复刻段的画面来自模板视频，没有走向可推演——改的话去换模板或改点名句。"
+          : node.custom
+            ? "自定义段的首尾帧与参考视频是你自己给的，没有走向可推演——直接改帧或改这一段的要求。"
+            : (deriveIssue(node.videoTier) ?? "这一档不经过方案台。"),
+      });
+      return false;
+    }
+    // （原来这里还有一段 deriveIssue 兜底：derivesProposals 自己就调它，那段永远进不去，
+    //   2026-09-03 连同它的注释一起删掉 —— 到不了的兜底比没有更坏，读的人会以为它在守着。）
     const cur = chosenOf(node);
     // 推演的依据是**用户那句话**，不是某一套方案的剧情（见 FlowNode.requirement）
     const req = requirementOf(node);
@@ -1544,8 +1604,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // 与工坊的 generateNode 同一口径：1 次豆包 + 最多 6 张 Seedream。
     // 这里以前既没有余额门槛也不扣费
     // 承接上一段尾帧时三个方案共用同一张开头帧，只画尾帧——图量减半，报价同步减半
-    const prevOfCost = idx > 0 ? chosenOf(s0.nodes[idx - 1]) : null;
-    const propCost = proposalsCost(!!(node.chain && prevOfCost?.lastFrame));
+    const propCost = deriveCostOf(s0.nodes, idx); // 与 UI 上那个数同一处实现（见它的 ★★）
     if (AI_REAL && !canAfford(propCost)) {
       const w = walletOf();
       set({
@@ -2123,6 +2182,19 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const prop = chosenOf(node);
     // ★ 方案台还摊着就不许出片：不然屏幕上三套并排、用户点一下按钮却按 fresh[0] 炼了
     //   一段几万 token 的视频——他从来没选过那一套
+    // ★★ **顺序门禁补在这一处**（2026-09-03 两面对照抓到）：段与段靠上一段的**真实尾帧**
+    //   承接起拍，所以"炼出本段才能开下一段"。这条规则此前只长在**画布的 UI 上**
+    //   （clampCursor 算 reachable → 卡上画 🔒 → 整个行动区闸在 !locked 里），
+    //   而工坊那一面一个字都不画、主按钮照亮：做同款 / 白模分段组整组套用 / 打开多段
+    //   未出片的草稿，都会铺出「第 2..N 段全未出片」，在工坊点第 3 段 → 真扣钱真炼，
+    //   而它拿不到第 2 段的真实尾帧（接缝断），还把"第 1 段人物就不对"这种最该早止损的
+    //   错拖到最后。全程零报错。
+    //   ⇒ 闸放进 store：**任何宿主都绕不过去**（agent 那条路也走这儿），
+    //   UI 上的 🔒 只是把"为什么点不动"画出来，不是判据本身（铁律六）。
+    if (clampCursor(s0.nodes, idx) !== idx) {
+      set({ err: "前面还有没炼完的段——段与段靠上一段的真实结尾画面接着拍，得按顺序来。先把前面那段炼出来。" });
+      return false;
+    }
     if (nodePicking(node)) {
       set({ err: "先从三套方案里挑一套（点方案卡），再生成本段" });
       return false;
