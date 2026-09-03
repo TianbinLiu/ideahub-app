@@ -778,6 +778,110 @@ idLine strip 掉（app 读侧兜底成老行为，不炸但弱化）。
 
 ---
 
+## 2.12 Google Play 付费怎么收（2026-09-03 联网调研，36 个 agent，结论带来源）
+
+> 主人问：「付费我需要你研究 google play 的付费，是否我需要借用第三方付费平台比如 sprite 之类的」。
+> ⚠ 这一节的每条结论都**必须带来源**：Play 的支付政策 2025–2026 改过多轮，凭记忆答等于给错答案。
+> 调研里有 10 条初稿结论被反方推翻，**推翻的理由本身才是准确答案**（典型是"引文真、结论过期"）。
+
+### 2.12.1 决定性的那一条：**Play 的支付政策只管「从 Play 分发的包」**
+
+官方页面同时写了正面表述：Android 允许开发者把应用分发到其他商店、直接从网站分发、或随设备预装，
+**这些都不需要用 Google Play 的 billing system**。
+来源：<https://support.google.com/googleplay/android-developer/answer/10281818>
+
+⇒ 我们**已有的两条分发渠道正好是这条政策的天然分界线**，而且 `sideload` / `play` 两个 flavor
+已经因为自更新权限被隔开过一次（`android/app/build.gradle`）。同一把工具直接用来隔支付：
+
+| 渠道 | 支付 | Google 分成 | 分账自由度 |
+|---|---|---|---|
+| **sideload**（自建分发，大陆主力 —— Play 在大陆本来就不可用） | 微信 / 支付宝 | 无 | 自由 |
+| **play**（海外） | **必须 GPB** | 按 Play 费率 | 受限（见 2.12.5） |
+
+⚠ **必须是编译期 flavor 切，不能运行期按地区判**：审核看的是上传到 Play 的那个二进制，
+里面**存在**一条能绕开 GPB 的支付路径本身就是风险。理由与自更新权限那次一模一样
+（`src/play/AndroidManifest.xml` 里那条 `tools:node="remove"` 之所以是兜底，就是因为
+"上架前记得手动删"是一颗只在审核时才炸的雷）。
+
+### 2.12.2 主人问的「第三方付费平台」——两种可能，答案完全不同
+
+**Stripe / PayPal 这类 PSP（sprite 大概是 Stripe 的口误）**
+- **Play 上架包里用它直收 App 内数字内容 = 违规。** 我特意让反方复核过这一条，它的原话是
+  「不要因为我判 refuted=true 就去接 Stripe」——被推翻的只是初稿里那份**过期的例外清单**，
+  不是这个结论。来源：<https://support.google.com/googleplay/android-developer/answer/9858738>
+- 后果不是"仅拒审"，是一条升级阶梯：Rejection（不影响账号）→ **Removal**（连历史版本一起下架，
+  期间用户无法完成任何应用内购买）→ **Suspension**（记 strike）→ **Account Termination**
+  （目录里所有应用移除，**关联的开发者账号一并永久封停**）。
+  来源：<https://support.google.com/googleplay/android-developer/answer/9899234>
+  ⇒ 「先偷偷用，被发现再改」的最坏结局是丢掉整个 Play 通道，而我们只有一个开发者账号、
+  诗绘等新产品也要挂同一主体。**不值得赌。**
+- 在**自建分发**那条路上 Stripe 是"可选"——但对大陆用户，微信/支付宝比它合适得多
+  （Stripe 在大陆收款、退款义务、跨境税都是问题）。
+
+**RevenueCat / Adapty 这类中间层 —— 现在不接**
+- **它们不是支付渠道**：钱仍然由 Play / App Store / Stripe 收，开发者的收款银行信息填在
+  **各商店的后台**、不是填给它们。
+  来源：<https://www.revenuecat.com/docs/platform-resources/developer-store-payments>
+  ⇒ 我们现在的处境是「一条真渠道都没接」（`channels.js` 里只有 mock），
+  中间层**一分钱都不能解决这件事**——它属于"已经有渠道之后要不要加一层管理"，是后置话题。
+- 它唯一**现在就值钱**的东西是收据生命周期，尤其 Play 那条硬规则：购买后必须在
+  **3 天内 acknowledge**，否则 Google **自动退款并撤销权益**；消耗型商品还要 consume，
+  且官方要求服务端自己核 purchase token 有没有被用过（consume 请求偶发失败）。
+  来源：<https://developer.android.com/google/play/billing/integrate>
+  ⚠ 这正好撞我们的软肋：`order.service.grantForOrder` 一发就落 ledger，**没有反向撤销路径**
+  ——3 天没 ack = 钱退了、token 已经发出去了，而且零报错。**这条自己做对即可，不必为它上中间层。**
+
+### 2.12.3 「网站买、App 内用」这条路：分三层，一层比一层严
+
+1. **App 外沟通完全自由**（邮件等渠道推优惠、特殊定价都可以）。
+2. **App 内引导默认禁止** —— 原文点名包含「直链到一个可能通向替代支付方式的网页」与
+   「鼓励用户在 App 外购买的措辞」。能放的只有行政类页面（账号管理/隐私政策/帮助中心），
+   **且那个网页最终不能通向替代支付**。
+3. **consumption-only（reader）豁免存在，但与「App 内卖 token」互斥** —— 要么 App 内卖
+   （必须 GPB，且一句"去网站买"都不能说），要么 App 内彻底不卖（才能放不带直链的说明）。
+   来源：<https://support.google.com/googleplay/android-developer/answer/10281818>
+
+⚠ 另有一条豁免**看起来像救命稻草但对我们不适用**：数字内容「只在 Play 应用之外消费、
+且无法在 Play 分发的应用里访问」可以不用 GPB —— 我们的 token 是**在 App 内消耗**的，走不了这条。
+
+⚠ 落到代码上要注意：`/api/pay/config` 现在的形状是「客户端问服务端有哪些渠道、显示哪些按钮」。
+Play 版必须让它**返回空**，而且不能顺手渲染一个"去官网充值"的入口——那正是原文点名的
+in-app call to action。
+
+### 2.12.4 真做 GPB 时**已经踩过的两个坑**（调研阶段被反方逮到，代码还没写）
+
+- **`obfuscatedAccountId` ≠ 我们的订单号**。把 `obfuscatedExternalAccountId === orderNo`
+  当服务端校验项写进去，会**拒掉正常购买**（与官方那一页原文相反）。
+- **「Play 不返回实付金额所以做不了金额校验」是错的**：`ProductPurchase` 那个端点确实没有价格字段，
+  但 Play **能**返回实付金额（在别的端点上）。所以 O2（金额只读订单快照 + 少付即拒）这条不变量
+  在 GPB 上仍然做得到，别因为看错一个端点就放弃它。
+
+### 2.12.5 分账（付费解锁给作者分钱）：**和"买 token"是两条独立的路**
+
+Play Billing 收得了钱，但它**付不出钱给我们的作者用户**。所以 §3「付费解锁」那条记的冲突
+（给作者入账 vs token 钱包不可提现转赠的红线）**不会因为接了 GPB 而消失**，仍然要单独拍板。
+⇒ 决策上要拆成两件事：**用户怎么买** 与 **作者怎么拿到钱**。
+
+### 2.12.6 还没查实的（别当结论用）
+
+- **alternative billing（user choice billing / 替代计费）的具体适用市场与费率折扣**：初稿给的
+  "只有三个市场"被反方判为落后约 10 个月，但反方也没给出完整的替代清单。
+  ⇒ 真要走这条（在 Play 里并列一个自有支付）之前，必须自己去 Play Console 的
+  billing choice 页面核当期清单与费率，别照抄任何二手数字。
+
+### 2.12.7 建议的落地顺序（都还没做）
+
+1. **先把 sideload 那条路接通**（微信/支付宝）——它服务大陆主力用户、不受 Play 政策约束、
+   分账也自由，而且**不需要企业主体之外的任何 Google 关系**。
+   ⚠ 前置仍是主体资质（见 memory 里那条"注册有限公司"）。
+2. **Play 版先不卖 token**（consumption-only 形态上架），把上架跑通；等真有海外付费需求再接 GPB。
+   这样也顺手绕开 2.12.4 那两个坑与 3 天 acknowledge 的风险窗。
+3. GPB 真接的时候：复用 `order.service` 已有的两条不变量（幂等锚点 `settledAt` 的条件原子更新、
+   金额只读订单快照），新增的只是"验 purchase token + acknowledge/consume"这一段。
+4. 中间层（RevenueCat/Adapty）留到"有订阅形态 + 已经有真渠道"之后再评估。
+
+---
+
 ## 3. 其它（较小）
 
 - **合成成片的 AIGC 角标**（2026-09-03 复核 backlog 时**发现并修掉了一个真缺口**，剩下的只差真机留证）：
