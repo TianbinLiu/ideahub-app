@@ -66,6 +66,7 @@ import { requestLandscape } from "../../hooks/useOrientationLock";
 //   在这里另抄一个 400，改上限时画布就开始说假话
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../../ai";
 import { aspectCss, type VideoTemplate } from "../../types";
+import { carryIsHard } from "../../studio/segmentGen";
 
 const CARD_W = 216;
 const CARD_H = 158;
@@ -1069,8 +1070,22 @@ function NodePanel({
               {index > 0 && (
                 <p className="flex items-center gap-1 text-[10px] text-slate-500">
                   <span>{node.chain ? "首帧承接上一段尾帧" : "不承接（用自己的首帧起拍）"}</span>
+                  {/* ★ 承接的**硬度随档位变**，说法也要跟着变（backlog §2.11.3⑤）：
+                      判据只有 segmentGen.carryIsHard 一处，framesAsRefs 自己读的也是它。
+                      ⚠ 软 ≠ 接不上：措辞写「不是硬保证」，别往吓人的方向说。 */}
                   <InfoTip title="段间承接">
-                    承接 = 本段首帧自动用上一段的真实尾帧，段与段无缝；上传自己的首帧会改为不承接。想恢复承接：清掉首帧，再到 ⚙ 本段设置里打开。
+                    {carryIsHard(node.videoTier) ? (
+                      <>
+                        {/* ⚠ 两条给用户看的文案纪律：① JSX 里的 ** 和反引号会原样显示；
+                            ② **文本中间的换行会被压成一个半角空格**（贴着标签的换行才会被删掉）——
+                            中文句子里冒出空格很显眼，所以每一段连续中文各占一行，别为了排版换行。 */}
+                        承接 = 本段首帧自动用上一段的真实尾帧。这一档是<span className="font-semibold">协议级约束</span>，画面一定从那一帧起拍；上传自己的首帧会改为不承接。想恢复承接：清掉首帧，再到 ⚙ 本段设置里打开。
+                      </>
+                    ) : (
+                      <>
+                        承接 = 把上一段的真实尾帧当<span className="font-semibold">第一张参考图</span>发出去，并在提示词里点名「从这一帧接着演」——接缝多半连得上，但这一档<span className="font-semibold">不是硬保证</span>。上传自己的首帧会改为不承接。
+                      </>
+                    )}
                   </InfoTip>
                 </p>
               )}
@@ -1169,7 +1184,7 @@ function NodePanel({
                       disabled={locked || generating || busy}
                       className="w-full rounded-lg border border-dashed border-slate-600 py-2 text-[11px] text-slate-300 disabled:opacity-40"
                     >
-                      ＋ 插一张中间帧（把这一段拆成两段，接缝无缝）
+                      ＋ 插一张中间帧（把这一段拆成两段，接缝由这一帧对齐）
                     </button>
                   )}
                 </>

@@ -49,7 +49,7 @@ import {
 } from "../data/templates";
 import { type BlockoutCastSlot, blockoutApplySkeleton, castNameIssue, composeBlockoutPrompt } from "./blockoutPrompt";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
-import { blockoutIssue, generateSegment, refVideoOn } from "./segmentGen";
+import { blockoutIssue, generateSegment, redrawnAnns, refVideoOn } from "./segmentGen";
 
 /** 画面圈选标注：某一帧上圈出的物体 + 修改要求（重生成时并入提示词并改设定帧） */
 export interface FlowAnn {
@@ -463,6 +463,28 @@ export function appendBlocked(nodes: FlowNode[], template: FlowTemplate | null):
  *  取小是给提示词点名句留字数：每多一张就多一句「图片N是…」） */
 export const CUSTOM_MID_MAX = 2;
 
+/**
+ * 这一段**真会重画**的圈选条数 —— 给 UI 用，与报价（nodeCost 的 annsCost）同源。
+ *
+ * ★★ 为什么要专门导出（2026-09-03 复核抓到，是这一版自己造的分叉）：`redrawnAnns` 要
+ *   三个入参（anns / 本段时长 / 有没有承接帧），UI 手上只有 node —— 让每个按钮自己去凑
+ *   就是"同一条规则第二处实现"。改之前报价与 `node.anns.length` 恒相等，改之后**只有
+ *   按钮标签还在数总数**：承接段上会出现「含 5 处圈选改图 · 只按 2 处收的价」，
+ *   点下去也只有 2 处生效，而用户最自然的结论是"圈选坏了"。
+ */
+export function nodeRedrawnAnnCount(nodes: FlowNode[], idx: number): number {
+  const node = nodes[idx];
+  if (!node) return 0;
+  // ★ 这两条早退必须与 nodeCost **逐条对齐**（下面那个函数里同样的两处）：
+  //   · 素材参考（自定义 = 多图 + 参考视频）：nodeCost 在那一支**提前 return**，
+  //     整笔改图费都不收；segmentGen 那条支路也直接 throw 拒收圈选。
+  //   · 白模：整条不接受圈选（segmentGen.blockoutIssue 整句拒），报价里也是 0。
+  //   漏掉任何一条，这个"单一来源"从第一天起就与报价不符 —— 而它存在的全部理由就是同源。
+  if (node.custom && node.customRef && tierOf(node.videoTier).r2vMult !== null) return 0;
+  if (tplOfNode(node)?.refVideo) return 0;
+  return redrawnAnns(node.anns, chosenOf(node).durationSec, !!nodeCarry(nodes, idx)).length;
+}
+
 export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOverride?: string): number {
   const node = nodes[idx];
   if (!node) return 0;
@@ -486,7 +508,11 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
   //   圈选都会跑一次 refineFrame（segmentGen 里那个 for 循环，一次真的 Seedream 图生图），
   //   而这里原来只算视频那一半 —— 圈 5 处就少报 5 张图的钱，按钮上的数比实扣少一大截。
   //   ★ 白模段没有这一笔：那条路整个不接受圈选（segmentGen 的 blockoutIssue 会整句拒）。
-  const annsCost = refVideo ? 0 : annRedrawCost(node.anns.length);
+  // ★★ 数的是**真会重画**的那几条，不是圈选总数（2026-09-XX 修，backlog §2.11.2①）：
+  //   承接段的开头画面由上一段真实尾帧顶替，圈在前半段的那几条重画出来就被整张覆盖 ——
+  //   原来按总数收，等于为一张必然作废的图收钱。判据只有一处：segmentGen.redrawnAnns，
+  //   出片那边的循环遍历的就是它（两处各写一遍 = 本仓头号事故形状）。
+  const annsCost = refVideo ? 0 : annRedrawCost(redrawnAnns(node.anns, prop.durationSec, !!carry).length);
   return annsCost + segmentCost({
     durationSec: prop.durationSec,
     tierId: tierOverride ?? node.videoTier,
@@ -2092,10 +2118,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
     /** 这一发的方舟任务号（受理之后才有）。空 = 还没被受理，也就一分钱都没花 */
     let taskId = "";
     try {
-      // 承接判定：上一段真出过片，它的尾帧才是"真实结尾"，才配顶替本段起拍帧
-      const prevNode = get().nodes[idx - 1];
-      const prevProp = prevNode ? chosenOf(prevNode) : null;
-      const carry = node.chain && prevNode && nodeDone(prevNode) ? prevProp?.lastFrame : null;
+      // 承接判定走**唯一实现** nodeCarry（报价那边读的就是它）。
+      // ★★ 2026-09-XX 收口：这里原来手抄了一份逐字相同的判断。判据相同的时候它只是冗余，
+      //   但从这一版起**报价依赖它**了（annsCost 按"真会重画的圈选"数，而那取决于有没有
+      //   承接帧）—— 两份一旦漂移就是报价与实扣两把尺，本仓头号事故形状。
+      const carry = nodeCarry(get().nodes, idx);
       // 套了模板就用配方里的起拍提示词：它专门为"这个模板长什么样"写过，
       // 比从剧情正文截前 200 字更贴（剧情前半段常常是动作描述而非画面描述）
       // ★ 一律走 tplOfNode（分段组每节点自带快照）：与 nodeCost 读**同一份** ——

@@ -14,7 +14,7 @@
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
 import { ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateCover, prepareMaterialRefs, refineFrame } from "../ai";
 import { uploadImage } from "../api/uploads";
-import { r2vPriceIssue, tierOf, providerOf, clampDuration } from "../data/economy";
+import { r2vPriceIssue, tierOf, providerOf, clampDuration, type VideoTier } from "../data/economy";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
@@ -217,6 +217,46 @@ export function blockoutOn(o: Parameters<typeof blockoutIssue>[0] & { refVideoUr
 }
 
 /**
+ * 这一档的**段间承接是不是协议级硬约束** —— 唯一实现（铁律六）。
+ *
+ * ★★ 方舟三种场景互斥（图生视频-首帧 / 首尾帧 / 全模态参考生视频），所以「能发素材卡形象图」
+ *   与「首帧是硬约束」不可兼得。我们 2026-08-30 主动选了前者（帧一律当参考图发），于是：
+ *     · fast / std / real（收不了参考图）⇒ 仍走协议级 first_frame = **硬**；
+ *     · hd / ultra（收参考图）          ⇒ 帧当 reference_image + 提示词点名 = **软引导**。
+ *   ⚠ 界面上四处「段与段无缝」在软的那两档上是**假话**（backlog §2.11.3⑤）。
+ * ★ `framesAsRefs` 自己也读它 —— 两处各写一遍就是本仓最熟的那种分叉（改一处漏一处、零症状）。
+ * ★ 措辞纪律：软 ≠ 接不上。往吓人方向说错不比往放心方向说错高尚，一律写「不是硬保证」。
+ */
+export function carryIsHard(tierId: string | undefined): boolean {
+  const t = tierOf(tierId);
+  return !!t.flatCost || !t.refImg;
+}
+
+/**
+ * 这一段的圈选里，**真的会重画出一张图**的是哪几条 —— **唯一实现**（铁律六）：
+ * 报价（`flowStore.nodeCost` 的 annsCost）与真跑（`generateSegment` 里那个循环）问同一个。
+ *
+ * ★★ 为什么不是"全部"（2026-09-01 拿一份外部工作流逐条对照时挖到，backlog §2.11.2①）：
+ *   承接段的开头画面由上一段的**真实尾帧**顶替（`if (input.carryFrame) first = ...`），
+ *   于是圈在**前半段**的那几条重画出来之后会被**整张覆盖** —— 每一条都是一次真的
+ *   Seedream 图生图（真花钱），图却作废，只有文字要求随 `reqs` 进提示词。
+ *   全程零报错，进度行还写着「按圈选改画面 1/N…」，而报价按圈选**总数**全额收。
+ * ★★ ⚠ **不能反过来修**（让编辑后的帧赢、把承接帧丢掉）：段与段靠上一段的真实尾帧承接
+ *   起拍，打断接缝比少改一次图坏得多。所以这里的选择是「不跑、不收钱、并且说出来」。
+ * ★ `atSec < durationSec/2` 与循环里那个 `half` 是同一条判据 —— 循环现在遍历本函数的
+ *   结果，两处不会再各写一遍（这正是本仓头号事故形状：报价与实扣两把尺）。
+ */
+export function redrawnAnns<T extends { atSec: number }>(
+  anns: T[],
+  durationSec: number,
+  hasCarry: boolean,
+): T[] {
+  if (!hasCarry) return anns;
+  const half = durationSec / 2;
+  return anns.filter((a) => a.atSec >= half);
+}
+
+/**
  * 素材卡 → 一句提示词后缀（**文字那一半**）。
  *
  * ★ 这里以前写着「只走文字，不把卡面当参考图」，理由是：generateCover 的 ref 语义是
@@ -270,10 +310,38 @@ export type SegmentProgress = (status: string) => void;
  * ⚠ 这是**提示词层的软约束**：reference 子任务没有硬性的首尾帧参数（那与参考媒体
  *   互斥），模型对时序点名的服从度没有协议保证——文案与门禁都不许把它说成硬承诺。
  */
-export function customRefPrompt(o: { hasFirst: boolean; midCount: number; hasLast: boolean; hasVideo?: boolean }): string {
+export function customRefPrompt(o: {
+  hasFirst: boolean;
+  midCount: number;
+  hasLast: boolean;
+  hasVideo?: boolean;
+  /**
+   * 首帧是**上一镜的最后一帧**（段间承接）吗。
+   * ★★ 为什么要分这一档（2026-09-XX，backlog §2.11.3④）：「从这一帧开始」与「接着这一帧
+   *   往下演」对模型是两件事。参考模式下首帧只是软引导（协议级 first_frame 与参考媒体
+   *   互斥，见本函数的 ⚠），承接的连续性**全靠这句话**——而它此前一个字都没说。
+   *   对照：剧情那一步反而说过（real.ts 喂给豆包的「本段开头画面已经确定（上一段的收尾
+   *   画面），剧情必须从那一瞬间直接继续」），出片提示词里却没有。
+   * ★ 判据用 `!!input.carryFrame`：它非空**恰好**等价于"承接且上一段已出片"
+   *   （flowStore.carryOf 的三个条件），不需要另外把 `chain` 传下来。
+   * ★ **这笔交换记在账上**：默认句 21 字，承接句 44 字 —— 多出的 23 字直接从正文可用额度里扣
+   *   （`VIDEO_PROMPT_MAX` 400 字，约 5.75%），两个调用点都吃这一刀。`cut` 那句警告按
+   *   `tail.length` 现算，所以是如实告知不是静默；但**再想往这句里加词之前，先看这个数**
+   *   （本文件的成文习惯：BLOCKOUT_SWAP 的 21 字、白模泛指句的 60 字都是这么记的）。
+   * ⚠ 这一句**没有做过 A/B 对照实测**（照 design/ab-bind-syntax.mjs 那种形式要花两发真钱）。
+   *   它只是把已知事实说给模型听，不改任何协议，最坏情况是模型不理它 —— 但也别因此
+   *   在任何文案里把承接说成"硬保证"（那条规则在 backlog §2.11.1）。
+   */
+  carried?: boolean;
+}): string {
   const parts: string[] = [];
   let n = 1;
-  if (o.hasFirst) parts.push(`图片${n++}是这段视频的第一帧画面，视频从它开始`);
+  if (o.hasFirst)
+    parts.push(
+      o.carried
+        ? `图片${n++}是上一镜的最后一帧，本段从这一帧接着往下演——人物、服装、场景、光线与机位保持连续`
+        : `图片${n++}是这段视频的第一帧画面，视频从它开始`,
+    );
   for (let k = 0; k < o.midCount; k++) parts.push(`图片${n++}是视频中间的关键画面，按顺序经过它`);
   if (o.hasLast) parts.push(`图片${n}是这段视频的最后一帧画面，视频结束在它`);
   const head = o.hasVideo ? "。参考视频提供整体画面、运镜与节奏" : "";
@@ -312,6 +380,70 @@ function settleSegment(res: { error?: string; pendingTaskId?: string } | undefin
   if (res?.error) throw new Error(res.error);
 }
 
+/**
+ * 这一段能不能带上人物卡的**音色样本**、带不上时该说哪句话 —— **唯一实现**（铁律六）。
+ *
+ * ★★ 为什么抽出来（2026-09-XX，backlog §2.11.2②）：这套判断原来只长在经典路上，而
+ *   **自定义参考视频那条支路（最贵的一档）在它之前就 return 了** —— 于是那条路 `refAudios`
+ *   一次都没发过，连「为什么没带上」那几句说明也一并跳过：用户挂了带 🔊 的卡、写了「」台词，
+ *   拿回随机音色，屏幕上一个字都没有。与 `settleSegment` 那次「第二条支路抄漏两行」同形。
+ * @param referenceMode 这一发是不是"参考"类请求（参考生视频 / 帧当参考图 / 自定义参考视频）。
+ *   ⚠ 非 reference 模式带参考音频，`arkClient` 是**当场 throw**（方舟侧 400），不是降级 ——
+ *   所以这个参数必须按**实际要发出去的那种请求**填，不能想当然。
+ */
+function voiceRefsFor(o: {
+  plot: string;
+  materials?: Card[];
+  tier: VideoTier;
+  referenceMode: boolean;
+  blockout: boolean;
+}): { refAudios?: string[]; voiceLine: string; notes: string[] } {
+  const voiced = voicedCardsOf({ plot: o.plot, materials: o.materials });
+  const ok = o.referenceMode && o.tier.audio === true && voiced.length > 0;
+  const notes: string[] = [];
+  // 带了声音的卡 + 有台词，却走不了音色参考 —— 一律说清为什么（铁律八：静默降级没人看）
+  if (!ok && voiced.length > 0) {
+    if (!o.tier.audio)
+      notes.push(
+        o.tier.flatCost
+          ? `「${o.tier.label}」档暂无配音，台词只以画面呈现`
+          : `「${o.tier.label}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）`,
+      );
+    else if (!o.referenceMode)
+      // ★ 能走到这里的只有白模段（它自己就是 r2v，且 tier.audio 为真的两档都收参考图）——
+      //   所以话要按白模说。原话「本档只能走首尾帧」在这唯一的场合是假的（白模根本没有首尾帧）
+      notes.push(
+        o.blockout
+          ? "白模复刻不带声音样本：音轨在「完成视频」那一步回填原片，台词音色由模型自定"
+          : "这一段带不了声音样本（本档的出片方式与参考音频互斥）——台词仍会被配音，但音色随机",
+      );
+  }
+  return {
+    refAudios: ok ? voiced.map((c) => voiceOf(c.id)!.dataUrl) : undefined,
+    voiceLine: ok
+      ? `。${voiced.map((c, i) => `「${c.name}」的台词使用参考音频${i + 1}的音色`).join("；")}`
+      : "",
+    notes,
+  };
+}
+
+/**
+ * 把音色点名句接到提示词尾巴上 —— 放不下就**整句不发**，并让调用方说出来。
+ *
+ * ★★ 原来它是无条件 `${plot}${voiceLine}` 拼上去的，而 `plot` 已经按 room 截到接近硬顶，
+ *   最后 `real.ts` 那一刀 `slice(0, VIDEO_PROMPT_MAX)` 从**尾巴**下刀 ⇒ 正文写满时这句话
+ *   **必然**被切掉，而参考音频照样发出去（零加价）⇒ 两张以上带声音的卡时音色随机。
+ *   `cut` 那句警告只按正文与 room 算，一个字不数它 —— 静默降级（backlog §2.11.2③）。
+ * ★ 这里**不推翻原来的取舍**（「正文优先，点名句丢了只是软降级」，见它原处的注释）：
+ *   仍然不让它跟正文抢配额，只是把"丢了"这件事从静默改成说出来；顺带避免发出半句
+ *   （截一半的「…使用参考音」比不发更糟）。
+ */
+function withVoiceLine(plot: string, voiceLine: string): { plot: string; dropped: boolean } {
+  if (!voiceLine) return { plot, dropped: false };
+  if (plot.length + voiceLine.length <= VIDEO_PROMPT_MAX) return { plot: plot + voiceLine, dropped: false };
+  return { plot, dropped: true };
+}
+
 export async function generateSegment(
   input: SegmentGenInput,
   onProgress?: SegmentProgress,
@@ -320,6 +452,11 @@ export async function generateSegment(
   const prog = (s: string) => onProgress?.(s);
   let first = input.firstFrame;
   let last = input.lastFrame;
+  /** 这一段一路攒下的「顺带说一句」。**声明必须在最顶上**：素材参考那条支路在中途就 return，
+   *  声明放在它后面的话，那条路上的每一句提示都无处可放（这正是 §2.11.2② 的成因之一）。 */
+  const notes: string[] = [];
+  /** 进度行的尾巴。★ 不能单独 prog：同一个同步块里的下一行 prog 会立刻把它盖掉 */
+  const noteTail = () => (notes.length ? `（${notes.join("；")}）` : "");
 
   // ★ 白模门禁放在最前（步骤①之前）：圈选改帧那一步要花真钱出图，走进去再拒就白烧了。
   //   走不成一律 throw 整句原因（绝不降级——理由钉在 blockoutIssue 的 ★ 上），
@@ -359,7 +496,13 @@ export async function generateSegment(
       const blob = await (await fetch(u)).blob();
       refUrls.push(await uploadImage(blob, `custom-ref-${i + 1}.jpg`));
     }
-    const roles = customRefPrompt({ hasVideo: true, hasFirst: !!firstRef, midCount: mids.length, hasLast: !!input.lastFrame });
+    const roles = customRefPrompt({
+      hasVideo: true,
+      hasFirst: !!firstRef,
+      midCount: mids.length,
+      hasLast: !!input.lastFrame,
+      carried: !!input.carryFrame, // firstRef 就是 carryFrame || firstFrame（见上面那行）
+    });
     // 点名句是这条路的**功能本体**，截断优先保它（与白模 tail 同一条纪律）
     const mats = materialText(input.materials);
     const tail = `${roles}${mats}`;
@@ -368,17 +511,32 @@ export async function generateSegment(
       input.plot.length > room
         ? `（⚠ 要求太长，末尾 ${input.plot.length - room} 字没能发出去——时序点名句要占 ${tail.length} 字）`
         : "";
-    prog(`按参考视频 + ${refUrls.length} 张关键帧出片（输入 ${input.materialRef.durationSec}s + 输出 ${clampDuration(input.durationSec, input.videoTier)}s 计价）…${cut}`);
+    // ★★ 音色样本这条路**以前整条漏了**（§2.11.2②）：判断只长在经典路上，而这条支路在它
+    //   之前就 return —— 用户挂了带 🔊 的卡、写了「」台词，拿回随机音色，屏幕上一个字没有。
+    //   这条路协议上就是 reference 子任务（refTask:"reference"），tier 又是 ultra（refVid
+    //   只有它 true，且 audio 为真），完全够格发。判断走唯一实现，不在这儿另写一遍。
+    const voice = voiceRefsFor({
+      plot: input.plot,
+      materials: input.materials,
+      tier: t,
+      referenceMode: true,
+      blockout: false,
+    });
+    notes.push(...voice.notes);
+    const fitted = withVoiceLine(`${input.plot.slice(0, room)}${tail}`, voice.voiceLine);
+    if (fitted.dropped) notes.push("音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上");
+    prog(`按参考视频 + ${refUrls.length} 张关键帧出片（输入 ${input.materialRef.durationSec}s + 输出 ${clampDuration(input.durationSec, input.videoTier)}s 计价）…${cut}${noteTail()}`);
     const [res] = await composeSegments(
       [
         {
-          plot: `${input.plot.slice(0, room)}${tail}`,
+          plot: fitted.plot,
           firstFrame: "",
           lastFrame: "",
           durationSec: input.durationSec,
           videoTier: input.videoTier,
           aspect: input.aspect,
           refImages: refUrls,
+          refAudios: voice.refAudios,
           refVideoUrl: input.materialRef.url,
           refTask: "reference",
           refVideoSec: input.materialRef.durationSec,
@@ -449,9 +607,19 @@ export async function generateSegment(
   //   保障——被改的这张帧当初就是带着卡的参考图画出来的，改图只动圈里那一处。
   //   （方案卡上那个"按要求改这一帧"没有红线，所以那条路是带参考图的，见 studioStore）
   const half = input.durationSec / 2;
-  for (let k = 0; k < input.anns.length; k++) {
-    const a = input.anns[k];
-    prog(`按圈选改画面 ${k + 1}/${input.anns.length}…`);
+  /** 真会重画的那几条（承接段的前半段圈选不重画——判据与报价同一处，见 redrawnAnns 的 ★★）*/
+  const redrawn = redrawnAnns(input.anns, input.durationSec, !!input.carryFrame);
+  const skippedAnns = input.anns.length - redrawn.length;
+  if (skippedAnns > 0) {
+    // ★ 少收了钱也要说：用户圈了却看不到画面变化，不说的话他只会以为"圈选坏了"。
+    //   文字要求仍然随 reqs 发出去，所以这句话要把"没白圈"讲清楚（铁律八）。
+    notes.push(
+      `本段承接上一段的结尾画面，开头画面不重画——你圈在前半段的 ${skippedAnns} 处只作为文字要求写进出片提示词（这几处不计费）`,
+    );
+  }
+  for (let k = 0; k < redrawn.length; k++) {
+    const a = redrawn[k];
+    prog(`按圈选改画面 ${k + 1}/${redrawn.length}…`);
     const edited = await refineFrame(
       `${a.req}。参考图中红色圈线标注了目标物体：只对该物体做上述处理，并彻底去掉红色圈线本身`,
       a.frame,
@@ -484,7 +652,8 @@ export async function generateSegment(
    * ⚠ 1.0 两档（极速/标准）与真人档协议上**根本不收** reference_image（VideoTier.refImg 硬白名单），
    *   它们仍然只能走首尾帧 —— 要真的全 app 没有首尾帧出片，得把那两档下线。
    */
-  const framesAsRefs = !blockout && !refMode && !tier.flatCost && tier.refImg;
+  // ★ 判据走 carryIsHard 一处（文案那几屏读的是同一个函数，见它的 ★）
+  const framesAsRefs = !blockout && !refMode && !carryIsHard(input.videoTier);
   /** 用户的意图是"直接拿卡片形象出片"（refAllowed + 挂了卡 + 没有帧可用）。
    *  白模段除外：它的意图是"复刻模板"，对它播"改画设定帧"那句就是宣布降级——
    *  而白模走不成早在门口 throw 了，能到这里的白模段不该收到这句话 */
@@ -511,7 +680,6 @@ export async function generateSegment(
   const needDraw = !blockout && (!first || (!last && tier.flf));
   /** 帧当参考图发时它们要占掉的图位数（首帧恒有；尾帧只有支持首尾帧的档才画） */
   const frameSlots = framesAsRefs ? (tier.flf ? 2 : 1) : 0;
-  const notes: string[] = [];
   // 白模也要形象图（混发：视频给画面与运镜，形象图说"换成谁"），所以 blockout 也准备
   // ★ 白模路传 true（直通 + 严格闸）：它一张设定帧都不画，参考图直接进 Seedance r2v，
   //   而 r2v 带多张人物参考图是实测成立的（2026-08-15 G0：3 张卡各自换到对应编号的
@@ -549,36 +717,19 @@ export async function generateSegment(
         )
       : null;
   // ── 台词音色（卡片系统 V2 阶段 2）────────────────────────────
-  // 样本只在 refMode（参考生视频）发。点名句单独 append、不并进 tail 参与截断取舍：
-  // 它丢了只是音色随机（软降级），正文被截才是内容错——两者不该抢同一段配额。
-  const voiced = voicedCardsOf({ plot: input.plot, materials: input.materials });
+  // 样本只在 reference 类请求上发（点名句单独 append、不与正文抢配额——见 withVoiceLine 的 ★）。
+  // ★ 判断走**唯一实现** voiceRefsFor：素材参考那条支路调的是同一个
+  //   （§2.11.2② 正是"第二条支路抄漏两行"造成的，别在这儿再写一遍）。
   // ★ framesAsRefs 之后这条路也发得了音色样本：它已经不是首尾帧任务了（互斥不再成立）
-  const voiceOk = (refMode || framesAsRefs) && tier.audio === true && voiced.length > 0;
-  const refAudios = voiceOk ? voiced.map((c) => voiceOf(c.id)!.dataUrl) : undefined;
-  const voiceLine = voiceOk
-    ? `。${voiced.map((c, i) => `「${c.name}」的台词使用参考音频${i + 1}的音色`).join("；")}`
-    : "";
-  // 带了声音的卡 + 有台词，却走不了音色参考 —— 一律说清为什么（铁律八：静默降级没人看）
-  if (!voiceOk && voiced.length > 0) {
-    if (!tier.audio)
-      notes.push(
-        tier.flatCost
-          ? `「${tier.label}」档暂无配音，台词只以画面呈现`
-          : `「${tier.label}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）`,
-      );
-    else if (!refMode && !framesAsRefs)
-      // ★ 能走到这里的只有白模段（它自己就是 r2v，且 tier.audio 为真的两档都收参考图）——
-      //   所以话要按白模说。原话「本档只能走首尾帧」在这唯一的场合是假的（白模根本没有首尾帧）
-      notes.push(
-        blockout
-          ? "白模复刻不带声音样本：音轨在「完成视频」那一步回填原片，台词音色由模型自定"
-          : "这一段带不了声音样本（本档的出片方式与参考音频互斥）——台词仍会被配音，但音色随机",
-      );
-  }
-  /** ★ **现算不定死**（2026-08-30 修）：notes 在这一行之后还会被追加
-   *  （帧转参考图失败就在更后面），写成 const 串的话那几条**永远不会出现在任何一行 prog 里**
-   *  —— 静默降级，正是铁律八要防的那种。每个插值点调它一次。 */
-  const noteTail = () => (notes.length ? `（${notes.join("；")}）` : "");
+  const voice = voiceRefsFor({
+    plot: input.plot,
+    materials: input.materials,
+    tier,
+    referenceMode: refMode || framesAsRefs,
+    blockout,
+  });
+  const refAudios = voice.refAudios;
+  notes.push(...voice.notes);
   // 没有承接帧/底图时素材卡的图就是 <图片1> 起，offset = 0
   const bind = refs ? refs.bind(0) : "";
   const refUrls = refs?.refs.length ? refs.refs : undefined;
@@ -671,7 +822,12 @@ export async function generateSegment(
   const sendFrameRefs = frameRefs.length > 0;
   /** 帧当参考图时的时序点名句：图片1=第一帧、图片N=最后一帧（软引导，见 customRefPrompt 的 ⚠） */
   const frameRoles = sendFrameRefs
-    ? customRefPrompt({ hasFirst: !!first, midCount: 0, hasLast: !!last && frameRefs.length > 1 })
+    ? customRefPrompt({
+        hasFirst: !!first,
+        midCount: 0,
+        hasLast: !!last && frameRefs.length > 1,
+        carried: !!input.carryFrame, // 承接成立时 first 已被上一段真实尾帧顶替（见上面那行 ②）
+      })
     : "";
   // 卡片形象图接在帧后面（编号顺延），绑定句按这个 offset 说话 —— 差一位就是"张三的脸给了李四"
   // ★ **不截**：图位预算在 prepareMaterialRefs 那一步就按 frameSlots 扣过了（见那段 ★★），
@@ -742,6 +898,15 @@ export async function generateSegment(
     story.length > room
       ? `（⚠ 这一段的要求太长，末尾 ${story.length - room} 字没能发出去：提示词上限 ${VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 ${tail.length + bindHead.length + frameBind.length} 字——把要求写短些，或少挂一张卡）`
       : "";
+  // ★★ 音色点名句接在硬顶之内接得下才接（§2.11.2③）：原来是无条件 `${plot}${voiceLine}`，
+  //   而 real.ts 那一刀从**尾巴**下刀 ⇒ 正文写满时它必然被切掉，参考音频却照发 ⇒ 音色随机，
+  //   而 `cut` 那句警告一个字不数它。**必须排在下面那几行 prog 之前**：noteTail 只把
+  //   此刻已经在 notes 里的话带出去，晚一行就等于这句话没说过。
+  const fitted = withVoiceLine(plot, voice.voiceLine);
+  if (fitted.dropped)
+    notes.push(
+      "音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上",
+    );
   if (blockout)
     prog(
       `按模板视频逐镜头复刻出片（时长跟随模板${input.refVideo?.durationSec ? ` ${input.refVideo.durationSec} 秒` : ""}）…${noteTail()}${cut}`,
@@ -753,7 +918,7 @@ export async function generateSegment(
   const [res] = await composeSegments(
     [
       {
-        plot: `${plot}${voiceLine}`,
+        plot: fitted.plot,
         // 帧当参考图发时 first/last 必须空 —— 方舟三场景互斥，混发直接 400
         firstFrame: sendFrameRefs ? "" : first,
         lastFrame: sendFrameRefs ? "" : last,

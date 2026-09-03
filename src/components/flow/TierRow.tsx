@@ -15,6 +15,7 @@ import { Link } from "react-router";
 import { tierBlockReason } from "../../data/account";
 import { clampDuration, deriveIssue, fmtTokens, r2vPriceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { chosenOf, nodeCost, tplOfNode, useFlow } from "../../studio/flowStore";
+import { carryIsHard } from "../../studio/segmentGen";
 
 /**
  * 把这一段换到 `nextId` 档会**失去什么** —— 唯一实现（确认卡与提示语都读它）。
@@ -49,7 +50,10 @@ export function tierSwitchLoss(nodeId: string, nextId: string): string[] {
   // ★ **升档也有变化**（2026-08-30 补）：收参考图的档上，帧改当参考图发 + 提示词点名
   //   （segmentGen 的 framesAsRefs）—— 卡片形象能同发了，但"必须从这一帧起拍"从协议级
   //   硬约束降成软引导。这是好事也是代价，两头都要说，不能只在降档时说。
-  if (!cur.refImg && next.refImg && (prop.firstFrame || prop.lastFrame)) {
+  // ★ 判据走 segmentGen.carryIsHard 一处（2026-09-XX 收口）：这里原来手写
+  //   `!cur.refImg && next.refImg`，与 framesAsRefs 是同一条规则的第二份实现 ——
+  //   哪天加一档 flatCost 且收参考图的，两份必然只改到一份，而且零症状。
+  if (carryIsHard(cur.id) && !carryIsHard(next.id) && (prop.firstFrame || prop.lastFrame)) {
     loss.push(`首尾帧会改成"参考图 + 提示词点名"发出去（换来的是素材卡形象能一起发；代价是起止画面不再是硬约束）`);
   }
   // 圈选改画面：白模那条不接受圈选，1.0 仍可（它就是首尾帧路），所以这里不提
