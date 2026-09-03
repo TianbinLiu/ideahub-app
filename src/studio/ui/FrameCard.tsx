@@ -179,7 +179,10 @@ export default function FrameCard({
       </button>
       {caption !== null && (
         <div className="text-center text-[10px] leading-4 text-slate-500">
-          {caption ?? (complete ? "视频将在这两帧之间生成" : "尾帧由所选方案决定；视频从开头帧无缝续拍")}
+          {/* ★ 默认句必须在**两种档位下都成立**：承接的硬度随档位变（segmentGen.carryIsHard），
+              而本组件是纯 props 件、不认 store —— 所以这里不说"无缝"，把带档位的说法留给
+              宿主用 caption 传（backlog §2.11.3⑤）。 */}
+          {caption ?? (complete ? "视频将在这两帧之间生成" : "尾帧由所选方案决定；视频从开头帧往下拍")}
         </div>
       )}
 

@@ -12,6 +12,7 @@ import { clampDuration, modelLabel, r2vPriceIssue, realFaceIssue, tierOf, VIDEO_
 import { chosenOf, nodeDone, tplOfNode, useFlow } from "../../studio/flowStore";
 import { DURATIONS, VIDEO_ASPECTS } from "../../types";
 import TierRow from "./TierRow";
+import { carryIsHard } from "../../studio/segmentGen";
 
 export default function SegSettings({ nodeId }: { nodeId: string }) {
   const nodes = useFlow((s) => s.nodes);
@@ -180,7 +181,11 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
             onChange={(e) => updateNode(node.id, { chain: e.target.checked })}
             className="accent-brand"
           />
+          {/* ★ 同 FlowCanvas 那条 ⓘ：硬度随档位变，判据同一处（segmentGen.carryIsHard） */}
           从上一段的真实结尾画面接着拍
+          {!carryIsHard(node.videoTier) && (
+            <span className="text-slate-500">（这一档是参考+点名，不是硬保证）</span>
+          )}
         </label>
       )}
 
