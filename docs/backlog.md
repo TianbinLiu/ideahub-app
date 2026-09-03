@@ -722,6 +722,17 @@ idLine strip 掉（app 读侧兜底成老行为，不炸但弱化）。
 - 「无缝」文案随档位改口 → `segmentGen.carryIsHard` 一处判据，`framesAsRefs`、`TierRow`、
   `FlowCanvas` 的 ⓘ、`SegSettings` 都读它；`FrameCard` 是纯 props 件，默认句改成两档都成立的说法。
 
+### 2.11.6 圈选跳过的说明只长在工坊那一面（2026-09-03，复核提出、判为不挡发版）
+
+- v2.44 修好了「承接段前半段的圈选不重画也不收钱」，并在**工坊**的标注条下面把原因说了出来
+  （`projection.tsx`，两种成因两句话，判据走 `flowStore.nodeAnnPlan`）。
+- 但 `AnnStrip` 有**三个宿主**：`FlowCanvas`、`FlowPage`、`projection`。画布那两处旁边一个字都没有，
+  而圈选主要发生在画布上。那两处的**价钱已经是对的**（`nodeCost` 同源），出片进度里也会说，
+  差的只是"点击之前就告诉他"。
+- 修法（别在三处各写一遍句子）：句子由 `flowStore` 生成一次（形如 `videoJobNote` 那样），
+  `AnnStrip` 收一个 `note` prop 把它画出来，三个宿主各传一次。
+- **触发条件**：下次动 `AnnStrip` 或圈选那条路时顺手；或有人反馈"画布上圈了没反应"。
+
 ### 2.11.4 成片 20MB 上限（2026-09-01 确认，暂不处理）
 
 - `publishAssets.videoToUrl` 对成片判 `MAX_MEDIA_BYTES = 20MB`，超了整句拒；
