@@ -33,7 +33,7 @@ import {
   listReports,
   listTakedownVideos,
   notifyUser,
-  isUrgentReason,
+  isUrgentReport,
   reasonLabel,
   reportTimeMs,
   resolveReport,
@@ -660,7 +660,13 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
             <li>账号本身永久删除，无法恢复，也无法用同名重建找回任何数据</li>
             <li>其<b>全部作品</b>（含私密与已下架的）从平台删除；⚠ 视频/图片<b>文件</b>暂不随删，已流出的直链仍可访问</li>
             <li>其发出的<b>评论、弹幕</b>全部删除；别人作品下的也一样；⚠ <b>其他用户</b>回复在这些评论下的楼中楼会被连带删除</li>
-            <li>相关的举报记录、通知、代币流水、卡片/卡组一并清除</li>
+            <li>
+              相关的举报记录、通知、代币流水、卡片/卡组一并清除；
+              {/* ★ 这一句不是备注，是对外承诺：ideahubs.org/child-safety 写着儿童安全的记录
+                  不因删除操作而消失，而删号是产品里人人可点的一颗按钮 —— 不留这个口子，
+                  被举报的人自己注销一次就把证据带走了。服务端的实现在 branchAdmin 的 ⑧。 */}
+              <b className="text-amber-300">⚠ 涉及未成年人（csae）的举报记录会保留</b>，不随删号清除（法定义务例外）。
+            </li>
           </ul>
           <p className="text-[11px] text-slate-400">
             输入该用户的用户名 <code className="rounded bg-panel px-1 text-slate-200">{u.username ?? "（无用户名）"}</code> 以确认：
@@ -1105,8 +1111,17 @@ function ReportsSection({ onChanged }: { onChanged: () => void }) {
     try {
       const page = await listReports(t);
       setSupported(page.supported);
-      // 新的在上：后台是"我现在要干的活"，最旧的那条反而最可能已经被别人处理过
-      setItems([...page.items].sort((a, b) => reportTimeMs(b.createdAt) - reportTimeMs(a.createdAt)));
+      // ★★ **原样用服务端的顺序，这里不许再排一遍**（2026-09-03 复核抓到）。
+      //   原来这行按 createdAt 降序重排，把服务端刚做的「csae 插队」整个丢掉 ——
+      //   而这是**唯一的人工复核界面**，于是那条链路从头白做：服务端把「涉及未成年人」
+      //   顶到队首、这一页又按时间排回去，最该先看的那条沉在几十条刷屏举报中间，
+      //   而 ideahubs.org/child-safety 上白纸黑字写着「这一类举报优先于其他所有举报
+      //   进入人工复核」。零报错，屏幕上什么都不会提示。
+      // ★ 「新的在上」这个诉求没丢：服务端的 sort 是 {priority:-1, createdAt:-1, _id:-1},
+      //   同一优先级内本来就是新的在前。老服务端（没有 priority）排的是 {createdAt:-1}，
+      //   与这行原来的效果逐条相同 —— 所以删掉它两个方向都安全。
+      // ⇒ 排序规则只有服务端一处（铁律六）。要改顺序去改 report.controller 的 sort。
+      setItems(page.items);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "举报列表没拉到");
     } finally {
@@ -1262,9 +1277,10 @@ function ReportCard({
       <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
         <span className="rounded bg-slate-700 px-1.5 py-0.5 text-slate-300">{TARGET_LABEL[report.targetType] ?? report.targetType}</span>
         {/* ★ 紧急件（涉及未成年人）画成红底而不是与其它理由同色：这一类的处置不是
-            "下架就完了"，而是下架 + 封号 + 留证 + 依法报告，而且服务端已经把它排在
+            "下架就完了"，而是下架 + 封号 + **举报记录留住**（删号级联也不清）+ 依法报告，
+            而且服务端已经把它排在
             队首 —— 队首那条如果看起来和刷屏广告一样，排序就白做了。 */}
-        {isUrgentReason(report.reason) ? (
+        {isUrgentReport(report) ? (
           <span className="rounded bg-rose-500/20 px-1.5 py-0.5 font-bold text-rose-300">
             ⚠ {reasonLabel(report.reason)}
           </span>

@@ -18,6 +18,7 @@ import { signOut, isAdmin, isRemoteMode } from "../data/account";
 import { useCurrentUser } from "../hooks/useAccount";
 import { resetGuidesSeen } from "../data/guide";
 import { childSafetyUrl } from "../utils/shareLink";
+import { isNative } from "../data/appUpdate";
 import { QUALITY_LABELS, getQuality } from "../studio/quality";
 import { currentVoice } from "../studio/voices";
 import { checkUpdate, currentVersion, selfUpdateSupported, type UpdateInfo } from "../data/appUpdate";
@@ -193,9 +194,13 @@ function DocRow({ id, emoji, sub }: { id: AgreementId; emoji: string; sub: strin
 /**
  * 站外文档行：点开在系统浏览器里读（正文在官网，不在这个包里）。
  *
- * ★ 用 Capacitor 的 Browser 而不是 <a target="_blank">：APK 里 origin 是
+ * ★ 原生壳里用 Capacitor 的 Browser 而不是 <a target="_blank">：APK 里 origin 是
  *   https://localhost，`target=_blank` 会被 WebView 当成站内导航吞掉 ——
  *   表现是"点了没反应"（与 utils/oauth 走 Browser.open 同一个理由）。
+ * ★★ **网页那一支不能靠 try/catch**（2026-09-03 复核抓到）：
+ *   @capacitor/browser 的 web 实现就是 `window.open(...)`，被拦截时它
+ *   **返回 null 而不抛错** —— catch 永远不会进，于是这里原本写着"要防的静默失败"
+ *   恰恰就是它自己的行为。所以网页下直接 window.open 并**看返回值**。
  * ★ 打不开要**说出来**（铁律八）：这一行通向的是一份对外承诺，静默失败等于
  *   政策要求的"应用内找得到"其实没做到，而屏幕上什么都不会显示。
  */
@@ -207,9 +212,14 @@ function ExtDocRow({ emoji, title, sub, url }: { emoji: string; title: string; s
         onClick={async () => {
           setErr("");
           try {
-            await Browser.open({ url });
+            if (isNative()) {
+              await Browser.open({ url });
+            } else if (!window.open(url, "_blank", "noopener")) {
+              // 拦截弹窗时 window.open 回 null（不抛错）—— 这才是网页下真正的失败形状
+              throw new Error("popup blocked");
+            }
           } catch {
-            setErr(`没能打开浏览器。你可以直接访问 ${url}`);
+            setErr(`没能打开浏览器（可能被拦截了）。你可以直接访问 ${url}`);
           }
         }}
         className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40"
