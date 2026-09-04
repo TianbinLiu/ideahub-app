@@ -10,12 +10,12 @@
 | 口型 | ✅ 连续张合 | Mouth Open Warp 两键 + ParamMouthForm 三键；运行时 `包络^0.7 × 0.85` 写 ParamMouthOpenY |
 | 眨眼 | ✅ 平滑 | Eye L/R Warp 压扁到睫毛线 + 闭眼补片不透明度键；70/40/120ms 曲线 |
 | 头部 / 上身 | ✅ | 自动生成的 Face/Upper Body 变形器 + 3D 旋转表达（Body X/Y）+ Breath |
-| 裙摆 | ✅ 会动 | Skirt Warp「自动生成摆动」摆幅 25 + 运行时二阶弹簧（增益 3、0.37Hz 微摆） |
-| 头发 | ✅ 会动 | Front/Back Hair Warp 摆动键（16 / 20）+ 弹簧追头部/身体角度 |
+| 裙摆 | ✅ 会动 | Skirt Warp「自动生成摆动」摆幅 25 + physics3 摆锤（身体 X 既作平移又作角度：转身时瞬态甩动 + 持续跟随） |
+| 头发 | ✅ 会动 | Front/Side/Back Hair Warp 摆动键 + physics3 摆锤（前发/侧发 2 节，后发 3 节，发梢比发根晚半拍） |
 | 手臂 | ◐ 微动 | Arm L/R Rotation 旋转键（±8°）：呼吸开合、随身体倾斜、[action:wave] 右臂挥；没有前臂/手的分段 |
 | 触摸 | ✅ | model3.json HitAreas（Head/Hair/Body/Skirt/ArmL/ArmR/Legs）→ `hitTest` → 预置台词 + 表情/动作 |
 | 表情随对话 | ✅ | 服务端 `[情绪][face][action]` 标签 → exp3/motion3 + 补片；9 种 face、11 种 action |
-| 物理文件 | ✗ | 没有 physics3.json，摆动全靠运行时弹簧（两端共用 companionModel.ts） |
+| 物理文件 | ✅ mascot.physics3.json（手写） | 前发/侧发/后发/裙摆 4 组摆锤，输入头身角度；运行时只吹"微风"让静止时也晃；没物理的老模型/市场包仍走 companionModel.ts 的弹簧兜底 |
 | 拼接感 | ✅ 已清理（mascot12 贴图） | 见 §2：LaMa 逐层重画被遮挡的边带，moc3 不变 |
 
 ## 2. 拼接感（"披风挪开后有一圈虚框"）的根因与修法 —— 已做（mascot12）
@@ -68,7 +68,12 @@
 ## 5. 下一步（按性价比排序）
 
 1. ~~**残影清理**（§2）~~ 已完成（2026-09-05，mascot12 贴图，只改贴图集）。
-2. **physics3.json**：把裙/前发/后发/披风改成 Cubism 物理（链式摆锤），运行时弹簧只留兜底；两端零代码改动。
+2. ~~**physics3.json**~~ 已完成（2026-09-05）：`public/live2d/mascot/mascot.physics3.json` 是手写的（格式照官方 Hiyori 示例），
+   4 组：前发（2 节，Scale 6）、侧发（2 节，Scale 5）、后发（3 节，Scale 24）、裙摆（3 节，Scale 240）；头发参数量程是 ±1、裙摆 ±10，
+   Scale 是按 `scratchpad/physics-tune.cjs` 的实测调的（正弦驱动头 ±20°/身体 ±8° 时前发 ±0.85、裙摆 ±6；慢速空闲时裙摆 ±3～5）。
+   运行时（companionModel.ts）有物理时不再写这几个参数，只每帧改 `physics._options.wind.x`（0.37Hz×0.12 + 0.11Hz×0.05）当微风；
+   注意 `_options` 里的向量是框架的 CubismVector2，只能改 x/y，整个换掉物理会崩。物理输出只在 model.update() 前存在（update 末尾
+   loadParameters 会还原），要读它们得挂 `internalModel.on("beforeModelUpdate")`。披风没做摆锤（它跟着呼吸缩放，没有独立摆动参数）。
 3. **手臂分段**：把 `02_handwear` 再拆成上臂/前臂/手（See-through 不分，手工在 PSD 里切），旋转变形器两级，才能做抬手/摆手/托腮。
 4. **面部微表情键**：眉形（ParamBrowL/RForm）、眼形（ParamEyeL/RSmile 眯眼）、脸红（ParamCheek）补关键帧，exp3 才有内容可驱动。
 5. **动作库**：用 Cubism Animator 做 8～10 段带手臂的 motion3（挥手、思考托腮、惊讶后仰、鞠躬），替换现在的手写 JSON。

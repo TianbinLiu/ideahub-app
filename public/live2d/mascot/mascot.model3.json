@@ -58,7 +58,8 @@
           "File": "excited.motion3.json"
         }
       ]
-    }
+    },
+    "Physics": "mascot.physics3.json"
   },
   "Groups": [
     {
