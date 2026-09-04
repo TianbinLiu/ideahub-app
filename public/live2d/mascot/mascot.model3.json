@@ -57,6 +57,26 @@
         {
           "File": "excited.motion3.json"
         }
+      ],
+      "wave": [
+        {
+          "File": "wave.motion3.json"
+        }
+      ],
+      "shy": [
+        {
+          "File": "shy.motion3.json"
+        }
+      ],
+      "surprised": [
+        {
+          "File": "surprised.motion3.json"
+        }
+      ],
+      "bow": [
+        {
+          "File": "bow.motion3.json"
+        }
       ]
     },
     "Physics": "mascot.physics3.json"
@@ -92,20 +112,36 @@
       "Name": "Hair"
     },
     {
+      "Id": "hand_L",
+      "Name": "HandL"
+    },
+    {
+      "Id": "hand_R",
+      "Name": "HandR"
+    },
+    {
+      "Id": "armU_L",
+      "Name": "ArmL"
+    },
+    {
+      "Id": "armF_L",
+      "Name": "ArmL"
+    },
+    {
+      "Id": "armU_R",
+      "Name": "ArmR"
+    },
+    {
+      "Id": "armF_R",
+      "Name": "ArmR"
+    },
+    {
       "Id": "topwear",
       "Name": "Body"
     },
     {
       "Id": "bottomwear",
       "Name": "Skirt"
-    },
-    {
-      "Id": "arm_L",
-      "Name": "ArmL"
-    },
-    {
-      "Id": "arm_R",
-      "Name": "ArmR"
     },
     {
       "Id": "legwear",

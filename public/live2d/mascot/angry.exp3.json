@@ -15,12 +15,12 @@
   },
   {
    "Id": "ParamBrowLAngle",
-   "Value": -0.5,
+   "Value": 0.8,
    "Blend": "Add"
   },
   {
    "Id": "ParamBrowRAngle",
-   "Value": -0.5,
+   "Value": 0.8,
    "Blend": "Add"
   },
   {

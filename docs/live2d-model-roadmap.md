@@ -1,9 +1,9 @@
-# 看板娘 Live2D 模型：现状、差距与优化路线（2026-09-04 调研，09-05 更新）
+# 看板娘 Live2D 模型：现状、差距与优化路线（2026-09-04 调研，09-05 二次更新：mascot13）
 
 > 目标：让自研的「小梦」达到市面数字人对话产品（VTuber 级 Live2D 绑定）的观感——动作自然、表情随对话变、
 > 摸哪儿有哪儿的反应。本文是给下一轮模型工作的依据，官网仓 `docs/COMPANION.md` 记的是运行时行为，这里记资产与工具。
 
-## 1. 现状（mascot10 绑定 + mascot12 贴图，2026-09-05）
+## 1. 现状（mascot13：手臂三段 + 眼球/眉毛键 + 披风摆动，2026-09-05）
 
 | 能力 | 状态 | 实现方式 |
 |---|---|---|
@@ -12,10 +12,10 @@
 | 头部 / 上身 | ✅ | 自动生成的 Face/Upper Body 变形器 + 3D 旋转表达（Body X/Y）+ Breath |
 | 裙摆 | ✅ 会动 | Skirt Warp「自动生成摆动」摆幅 25 + physics3 摆锤（身体 X 既作平移又作角度：转身时瞬态甩动 + 持续跟随） |
 | 头发 | ✅ 会动 | Front/Side/Back Hair Warp 摆动键 + physics3 摆锤（前发/侧发 2 节，后发 3 节，发梢比发根晚半拍） |
-| 手臂 | ◐ 微动 | Arm L/R Rotation 旋转键（±8°）：呼吸开合、随身体倾斜、[action:wave] 右臂挥；没有前臂/手的分段 |
-| 触摸 | ✅ | model3.json HitAreas（Head/Hair/Body/Skirt/ArmL/ArmR/Legs）→ `hitTest` → 预置台词 + 表情/动作 |
-| 表情随对话 | ✅ | 服务端 `[情绪][face][action]` 标签 → exp3/motion3 + 补片；9 种 face、11 种 action |
-| 物理文件 | ✅ mascot.physics3.json（手写） | 前发/侧发/后发/裙摆 4 组摆锤，输入头身角度；运行时只吹"微风"让静止时也晃；没物理的老模型/市场包仍走 companionModel.ts 的弹簧兜底 |
+| 手臂 | ✅ 三段 | 上臂/前臂/手各自网格（split_arms.py 切 + 圆帽重叠），肩 ±8°、前臂 ParamForearmL/R（+10 向内弯 70°，-10 外张 25°）、手腕 ParamHandL/R ±25°；挥手/害羞/惊讶/鞠躬/思考都是带前臂曲线的 motion3 |
+| 触摸 | ✅ | model3.json HitAreas（Head/Hair/HandL/HandR/ArmL/ArmR/Body/Skirt/Legs，顺序即优先级）→ `hitTest` → 预置台词 + 表情/动作；牵手/击掌落在手上 |
+| 表情随对话 | ✅ | 服务端 `[情绪][face][action]` 标签 → exp3/motion3 + 补片；9 种 face、11 种 action。眉毛（Y/Angle/Form）、眼球（X/Y）现在有键，exp3 和 FACE_POSES 里的眉毛/眼球参数真的动了；头 Angle X/Y 由「Auto Generation of Face Motion」生成（眼/眉/鼻/口/耳跟着转，头发不跟） |
+| 物理文件 | ✅ mascot.physics3.json（手写） | 前发/侧发/后发/裙摆/披风 5 组摆锤（披风 ParamCapeSway 是 Cubism 自动摆动生成的 Cape Warp），输入头身角度；运行时只吹"微风"让静止时也晃；没物理的老模型/市场包仍走 companionModel.ts 的弹簧兜底 |
 | 拼接感 | ✅ 已清理（mascot12 贴图） | 见 §2：LaMa 逐层重画被遮挡的边带，moc3 不变 |
 
 ## 2. 拼接感（"披风挪开后有一圈虚框"）的根因与修法 —— 已做（mascot12）
@@ -48,10 +48,10 @@
 
 | 维度 | 官方示例 | 小梦 | 差在哪 |
 |---|---|---|---|
-| 图层 | 画师按绑定需求分 60～100 层（眉毛、上下睫毛、瞳孔、高光、衣服前后片、手指…） | 16 层（AI 拆分） | 分层决定上限：没有上下睫毛就做不出眯眼，没有前臂就做不出抬手 |
+| 图层 | 画师按绑定需求分 60～100 层（眉毛、上下睫毛、瞳孔、高光、衣服前后片、手指…） | 20 层（AI 拆分 + 手臂手工切三段） | 分层决定上限：没有上下睫毛就做不出眯眼（ParamEyeL/RSmile 仍无键），没有手指分层就做不出手势 |
 | 变形 | 每层多级 Warp + 旋转，手工键 | 自动生成 + 少量手工 | 面部微表情（眉形、眼形）缺键 |
 | 物理 | physics3.json（头发/裙/胸 10+ 组摆锤） | 运行时弹簧 3 组 | 官方物理有链式摆锤（发梢比发根晚半拍），弹簧只有一级 |
-| 动作 | 10 段 motion3（含身体、手臂） | 5 段手写 | 缺"手臂参与"的动作 |
+| 动作 | 10 段 motion3（含身体、手臂） | 9 段程序生成（make_motions2.py：idle/nod/shake/think/excited/wave/shy/surprised/bow，都带前臂/手腕曲线） | 官方的是动画师手 K，我们是正弦 + smoothstep 包络，节奏偏机械 |
 
 ## 4. 开源工具评估
 
@@ -74,7 +74,17 @@
    运行时（companionModel.ts）有物理时不再写这几个参数，只每帧改 `physics._options.wind.x`（0.37Hz×0.12 + 0.11Hz×0.05）当微风；
    注意 `_options` 里的向量是框架的 CubismVector2，只能改 x/y，整个换掉物理会崩。物理输出只在 model.update() 前存在（update 末尾
    loadParameters 会还原），要读它们得挂 `internalModel.on("beforeModelUpdate")`。披风没做摆锤（它跟着呼吸缩放，没有独立摆动参数）。
-3. **手臂分段**：把 `02_handwear` 再拆成上臂/前臂/手（See-through 不分，手工在 PSD 里切），旋转变形器两级，才能做抬手/摆手/托腮。
-4. **面部微表情键**：眉形（ParamBrowL/RForm）、眼形（ParamEyeL/RSmile 眯眼）、脸红（ParamCheek）补关键帧，exp3 才有内容可驱动。
-5. **动作库**：用 Cubism Animator 做 8～10 段带手臂的 motion3（挥手、思考托腮、惊讶后仰、鞠躬），替换现在的手写 JSON。
+3. ~~**手臂分段**~~ 已完成（2026-09-05，mascot13）：`live2d-lab/split_arms.py` 按肘/腕（关节坐标在脚本 JOINTS 表）把 LaMa 清理版手臂切成
+   上臂/前臂/手，子块在关节处带以关节为圆心的圆帽（藏在父块下，转动时不露缝；手的圆帽落在袖口里，用皮肤平滑填充）。
+   Cubism 里：只含 6 块的 `sheet-6-arms-only.psd` 走「Add all layers as new ArtMesh」→ 自动网格 → Forearm L/R、Hand L/R 旋转变形器
+   （原点用 Inspector「Vertices Info」数值填肘/腕坐标）挂在 Arm L/R Rotation 下 → ParamForearmL/R、ParamHandL/R 各 3 键 → 贴图集里
+   右键「Place selected objects to texture atlas」+ 自动排布 → 导出。旧 arm_L/arm_R 删除，HitAreas 改成 armU/armF/hand。
+4. ~~**面部微表情键**~~ 已完成：眼球（Eyeball L/R Move 旋转变形器当父级，原点 X±22/Y±12 px，虹膜 Clipping ID = 眼白）、
+   眉毛（Eyebrow L/R Move：Y ±22px，Angle ±10°，Form +8/-12°）、头 Angle X/Y（自动生成；Eye L/R Warp、Mouth Warp 各套了一个空 warp
+   才肯生成）。没做：ParamEyeL/RSmile（眯眼要上下睫毛分层）、ParamCheek（没有腮红层）、ParamAngleZ、前发跟头转。
+5. ~~**动作库**~~ 已完成（程序生成，`live2d-lab/make_motions2.py`）：idle 加了前臂/手腕微晃；wave（右前臂抬起手腕摆 4 下）、
+   shy（双手收胸前、头低偏、眼神躲）、surprised（头扬、双臂微张、眉飞）、think（左手到胸前、眉挑、眼看上）、excited（双臂抬、两手交替甩）、
+   bow（低头前倾、双手收身前）、nod/shake 带手部跟随。ACTION_MOTIONS：wave→wave、shy→shy、surprised→surprised。
+   Cubism Animator 手 K 的版本仍然会更自然，留给以后。
 6. 重绘一版分层更细的立绘（画师或 Bunraku 发布后），才是"官方示例级"的根本解。
+7. 剩下的小项：前发/后发跟随头转（把 Front/Back Hair Warp 放进 Face Rotation 或手动补 Angle X/Y 键）、眯眼（拆上下睫毛）、腮红层、ParamAngleZ。

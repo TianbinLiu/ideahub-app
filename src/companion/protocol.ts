@@ -83,19 +83,19 @@ export const FACE_POSES: Record<CompanionFace, FacePose> = {
   normal: { parts: {}, params: {}, holdMs: 0, blink: true },
   happy: {
     parts: {},
-    params: { ParamMouthForm: 1, ParamCheek: 0.6, ParamEyeLSmile: 0.3, ParamEyeRSmile: 0.3 },
+    params: { ParamMouthForm: 1, ParamCheek: 0.6, ParamEyeLSmile: 0.3, ParamEyeRSmile: 0.3, ParamBrowLY: 0.3, ParamBrowRY: 0.3, ParamBrowLForm: 0.5, ParamBrowRForm: 0.5 },
     holdMs: 3200,
     blink: true,
   },
   laughing: {
     parts: { ExprSmile: 1 },
-    params: { ParamMouthForm: 1, ParamCheek: 1, ParamAngleY: 6 },
+    params: { ParamMouthForm: 1, ParamCheek: 1, ParamAngleY: 6, ParamBrowLY: 0.4, ParamBrowRY: 0.4 },
     holdMs: TIMING.strongHoldMs,
     blink: false,
   },
   angry: {
     parts: { ExprAngry: 1 },
-    params: { ParamBrowLY: -0.6, ParamBrowRY: -0.6, ParamMouthForm: -0.6 },
+    params: { ParamBrowLY: -0.6, ParamBrowRY: -0.6, ParamBrowLAngle: 0.8, ParamBrowRAngle: 0.8, ParamMouthForm: -0.6 },
     holdMs: TIMING.strongHoldMs,
     blink: true,
   },
@@ -104,8 +104,8 @@ export const FACE_POSES: Record<CompanionFace, FacePose> = {
     params: {
       ParamBrowLY: -0.3,
       ParamBrowRY: -0.3,
-      ParamBrowLAngle: 0.6,
-      ParamBrowRAngle: 0.6,
+      ParamBrowLForm: -1,
+      ParamBrowRForm: -1,
       ParamMouthForm: -0.7,
       ParamAngleY: -8,
       ParamEyeBallY: -0.4,
@@ -118,8 +118,8 @@ export const FACE_POSES: Record<CompanionFace, FacePose> = {
     params: {
       ParamBrowLY: -0.4,
       ParamBrowRY: -0.4,
-      ParamBrowLAngle: 0.8,
-      ParamBrowRAngle: 0.8,
+      ParamBrowLForm: -1,
+      ParamBrowRForm: -1,
       ParamMouthForm: -0.9,
       ParamAngleY: -12,
     },
@@ -128,7 +128,7 @@ export const FACE_POSES: Record<CompanionFace, FacePose> = {
   },
   shy: {
     parts: {},
-    params: { ParamCheek: 1, ParamAngleZ: 6, ParamAngleY: -6, ParamEyeBallY: -0.5, ParamMouthForm: 0.4 },
+    params: { ParamCheek: 1, ParamAngleZ: 6, ParamAngleY: -6, ParamEyeBallY: -0.5, ParamMouthForm: 0.4, ParamBrowLY: -0.3, ParamBrowRY: -0.3, ParamBrowLForm: -0.5, ParamBrowRForm: -0.5 },
     holdMs: TIMING.strongHoldMs,
     blink: true,
   },
@@ -154,9 +154,9 @@ export const ACTION_MOTIONS: Record<CompanionAction, string | null> = {
   think: "think",
   explain: "nod",
   excited: "excited",
-  wave: "excited",
-  shy: null,
-  surprised: "excited",
+  wave: "wave",
+  shy: "shy",
+  surprised: "surprised",
   comfort: "nod",
   playful: "excited",
 };
@@ -168,7 +168,8 @@ export function estimateSpeechMs(text: string) {
 }
 
 /** model3.json HitAreas 的区名（两端模型文件里写死的一套）；点到多个区（披风叠在身上）时按这个顺序取最靠前的 */
-export const TOUCH_AREAS = ["Head", "Hair", "Body", "Skirt", "ArmL", "ArmR", "Legs"] as const;
+/** 顺序 = 优先级：手/前臂的包围盒和披风、裙子重叠，先判小的 */
+export const TOUCH_AREAS = ["Head", "Hair", "HandL", "HandR", "ArmL", "ArmR", "Body", "Skirt", "Legs"] as const;
 export type TouchArea = (typeof TOUCH_AREAS)[number];
 
 export type TouchReaction = { area: TouchArea; zh: string; en: string; emotion: string; face: CompanionFace; action: CompanionAction };
@@ -191,8 +192,16 @@ export const TOUCH_REACTIONS: Record<TouchArea, Array<Omit<TouchReaction, "area"
     { zh: "裙子…不要拉啦！", en: "My skirt... stop pulling it!", emotion: "angry", face: "angry", action: "disagree" },
     { zh: "再这样我可要生气了哦。", en: "Do that again and I'll get mad.", emotion: "angry", face: "angry", action: "shy" },
   ],
-  ArmL: [{ zh: "牵手？那就一小会儿。", en: "Holding hands? Just for a moment.", emotion: "shy", face: "shy", action: "acknowledge" }],
-  ArmR: [{ zh: "要击掌吗？来！", en: "High five? Let's go!", emotion: "excited", face: "happy", action: "wave" }],
+  HandL: [
+    { zh: "牵手？那就一小会儿。", en: "Holding hands? Just for a moment.", emotion: "shy", face: "shy", action: "shy" },
+    { zh: "手心好暖…你的也是。", en: "Your palm is warm... so is mine.", emotion: "shy", face: "shy", action: "acknowledge" },
+  ],
+  HandR: [
+    { zh: "要击掌吗？来！", en: "High five? Let's go!", emotion: "excited", face: "happy", action: "wave" },
+    { zh: "嗨～挥挥手！", en: "Hi there, wave hello!", emotion: "happy", face: "happy", action: "wave" },
+  ],
+  ArmL: [{ zh: "袖子会皱的，轻一点～", en: "You'll wrinkle my sleeve, gently!", emotion: "shy", face: "shy", action: "shy" }],
+  ArmR: [{ zh: "胳膊上沾了什么吗？", en: "Is there something on my arm?", emotion: "neutral", face: "normal", action: "think" }],
   Legs: [{ zh: "脚痒痒的，别闹～", en: "That tickles, stop it!", emotion: "happy", face: "laughing", action: "playful" }],
 };
 
