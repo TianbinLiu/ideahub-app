@@ -123,6 +123,11 @@ function OtherDanmakuRow({ videoId, item }: { videoId: string; item: DanmakuItem
         {item.text}
       </span>
       <ReportButton targetType="danmaku" targetId={item.id} videoId={videoId} className="flex-none" />
+      {/* ★ 这里**没有**拉黑键，不是遗漏：弹幕项只回 `mine` 布尔、**不带作者 id**（见
+          data/danmaku 的 ★ —— 回作者等于泄漏「谁在什么时间看了这个视频」）。
+          而拉黑那一半仍然生效：被拉黑者的弹幕在服务端就不会下发
+          （branchVideo.controller 的 blockedAuthorFilter）。要在这儿加键，得先决定
+          「弹幕要不要暴露发送者」，那是另一件事，且与上面那条隐私取舍冲突。 */}
     </li>
   );
 }

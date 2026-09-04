@@ -48,6 +48,12 @@ export default function SettingsPage() {
         <NavRow to="/settings/quality" emoji="🎨" title="画面质量" sub={`${QUALITY_LABELS[getQuality()].name} · 只影响 3D 工坊`} />
       </Group>
 
+      {/* ── 账号 · 安全 ────────────────────────────────────────
+          ★ 拉黑是**账号级**的（跟着人走、换设备还在），所以不放在下面「本机」那一组里 */}
+      <Group>
+        <NavRow to="/settings/blocked" emoji="🚫" title="已拉黑的人" sub="看名单 · 随时解除" />
+      </Group>
+
       {/* ── 本机 ─────────────────────────────────────────────── */}
       <Group>
         <NavRow

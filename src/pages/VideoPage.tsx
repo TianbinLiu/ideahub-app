@@ -37,6 +37,7 @@ import { remakeNodesOf, remakeableOf, useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import TarotCard from "../components/TarotCard";
 import { CARD_TYPE_LABELS, VideoComment, formatPlays, relativeTime } from "../types";
+import BlockButton from "../components/BlockButton";
 
 /** 本片卡组：卡片横滑条 + 收入/去创作。收入 = 卡片拷进观众账号；
  *  去创作 = 顺手并进工坊桌面卡组并跳工坊（工坊卡组是会话态，必须显式合并） */
@@ -528,6 +529,9 @@ export default function VideoPage() {
             ★ 自己的作品不显示（mine）：自己的东西该编辑该删，不该举报。 */}
         <div className="mt-2 flex justify-end">
           <ReportButton targetType="video" targetId={video.id} videoId={video.id} mine={isMyAuthor(video.author)} />
+          {/* ★ 拉黑与举报并排、不合并成菜单：两件事、政策也分别要求，
+              合并会让举报变难点到，而举报是我们唯一的内容治理输入（见 BlockButton 顶注） */}
+          <BlockButton userId={video.authorId ?? ""} userName={video.author} mine={isMyAuthor(video.author)} />
         </div>
 
         {/* 做同款（backlog 2.8-②，可灵/即梦式闭环）：把**当前这一 P**的分段剧本+时长+
@@ -612,6 +616,7 @@ export default function VideoPage() {
                     <CommentDelete videoId={video.id} comment={c} onDeleted={() => setComments([...video.comments])} />
                     {/* 举报入口与首页评论抽屉共用同一份实现（铁律六） */}
                     <ReportButton targetType="comment" targetId={c.id} videoId={video.id} mine={isMyAuthor(c.author)} />
+                    <BlockButton userId={c.authorId ?? ""} userName={c.author} mine={isMyAuthor(c.author)} />
                   </div>
                 </div>
               </div>

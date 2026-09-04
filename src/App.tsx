@@ -15,6 +15,7 @@ import SettingsProfilePage from "./pages/SettingsProfilePage";
 import SettingsVoicePage from "./pages/SettingsVoicePage";
 import SettingsQualityPage from "./pages/SettingsQualityPage";
 import SettingsStoragePage from "./pages/SettingsStoragePage";
+import SettingsBlockedPage from "./pages/SettingsBlockedPage";
 import SettingsDeactivatePage from "./pages/SettingsDeactivatePage";
 import AdminPage from "./pages/AdminPage";
 import NotificationsPage from "./pages/NotificationsPage";
@@ -273,6 +274,7 @@ export default function App() {
       <Route path="/settings/voice" element={<RequireAuth><SettingsVoicePage /></RequireAuth>} />
       <Route path="/settings/quality" element={<RequireAuth><SettingsQualityPage /></RequireAuth>} />
       <Route path="/settings/storage" element={<RequireAuth><SettingsStoragePage /></RequireAuth>} />
+      <Route path="/settings/blocked" element={<RequireAuth><SettingsBlockedPage /></RequireAuth>} />
       <Route path="/settings/deactivate" element={<RequireAuth><SettingsDeactivatePage /></RequireAuth>} />
       {/* 管理后台。全屏推入页，入口在设置页（非管理员看不见那一行）。
           ★★ 两道门缺一不可：RequireAuth 管"没登录"（带 next 回跳），
