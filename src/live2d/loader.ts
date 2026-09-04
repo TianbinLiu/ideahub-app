@@ -54,6 +54,8 @@ export type Live2DModelInstance = {
   };
   motion(group: string, index?: number, priority?: number): Promise<boolean>;
   expression(id?: string | number): Promise<boolean>;
+  /** 画布坐标（css px，相对画布左上）→ 命中的 HitAreas 名字 */
+  hitTest(x: number, y: number): string[];
   destroy(options?: { children?: boolean }): void;
 };
 

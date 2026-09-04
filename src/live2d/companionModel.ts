@@ -14,6 +14,11 @@
  *   - ParamSkirtSway -10→10 = 裙摆左右摆（mascot9 的 Skirt Warp，Cubism「Auto Generation of Sway Motion」生成，支点在腰）。
  *     模型里没有 physics3.json，"布料的惯性"由这里的二阶弹簧代劳：每帧读动作/呼吸算出的 ParamBodyAngleX，
  *     裙摆慢半拍跟上、过冲再回摆。idle 动作的身体摆只有 ±2、框架呼吸 ±4，所以要乘增益才看得见。
+ *   - ParamHairFront / ParamHairBack（mascot10 的 Front/Back Hair Warp，同样是「Auto Generation of Sway Motion」）：
+ *     弹簧追头部角度（AngleX/AngleZ）+ 一点身体角度，头一转发梢就跟着甩。
+ *   - ParamArmL / ParamArmR（-10→10 = 肩部旋转，+ 为向外张）：呼吸时轻轻开合、随身体倾斜、[action:wave] 时右臂来回挥。
+ *   - 触摸：model3.json 的 HitAreas 把 脸/头发/披风/裙子/双臂/腿 标成命中区，hitTest() 回区名，
+ *     页面据此演一句（protocol.ts 的 TOUCH_REACTIONS）。
  * ★ 所有写参数的操作都挂在 ticker 的 LOW 优先级：pixi-live2d-display 每帧先跑 动作→表情→呼吸→物理，
  *   之后我们再叠加（addParameterValueById）或覆盖，否则会被动作覆盖掉。框架自带的自动眨眼（EyeBlink 组）
  *   在构造时拆掉，否则它和我们的曲线会各眨各的。
@@ -58,8 +63,22 @@ const MOUTH_PATCH_FADE = 0.1;
 const SKIRT_STIFFNESS = 28;
 const SKIRT_DAMPING = 4.2;
 /** 身体摆 ±6（idle ±2 + 呼吸 ±4）→ 裙摆参数 ±10 */
-const SKIRT_GAIN = 1.6;
+const SKIRT_GAIN = 3;
 const SKIRT_RANGE = 10;
+/** 没人碰也在飘：叠一个 0.37Hz 的微摆，裙子永远不是死的 */
+const SKIRT_IDLE_AMP = 1.2;
+const SKIRT_IDLE_HZ = 0.37;
+/** 头发弹簧：比裙子硬、回摆快；前发只跟头，后发跟头 + 身体（后发长，摆幅大） */
+const HAIR_STIFFNESS = 46;
+const HAIR_DAMPING = 5.5;
+const HAIR_FRONT_GAIN = 0.45;
+const HAIR_BACK_GAIN = 0.6;
+/** 手臂：呼吸微开合 + 随身体倾斜；挥手 1.8s、2.2Hz、±9 */
+const ARM_BREATH_AMP = 1.4;
+const ARM_FOLLOW_GAIN = 0.35;
+const ARM_WAVE_MS = 1800;
+const ARM_WAVE_HZ = 2.2;
+const ARM_WAVE_AMP = 9;
 
 function clamp01(v: number) {
   return v < 0 ? 0 : v > 1 ? 1 : v;
@@ -115,6 +134,13 @@ export class CompanionModel {
   /** 裙摆弹簧的位置与速度（ParamSkirtSway 的单位） */
   private skirt = 0;
   private skirtVel = 0;
+  private hairFront = 0;
+  private hairFrontVel = 0;
+  private hairBack = 0;
+  private hairBackVel = 0;
+  /** 挥手手势的起点；0 = 没在挥 */
+  private waveStart = 0;
+  private readonly bornAt = performance.now();
   private mouthTarget = 0;
   private mouthLevel = 0;
   private synthetic: { until: number; start: number } | null = null;
@@ -257,7 +283,19 @@ export class CompanionModel {
     if (now < this.actionSuppressUntil) return; // 上一个语义动作还没做完，别抢戏
     if (!this.model.internalModel.settings.motions?.[group]) return;
     this.actionSuppressUntil = now + TIMING.actionSuppressMs;
+    // 挥手没有单独的动作文件（动作走 excited），手臂的来回由 tick 里的手势叠上去
+    if (action === "wave") this.waveStart = now;
     void this.model.motion(group, 0, this.pixi.live2d.MotionPriority.FORCE).catch(() => undefined);
+  }
+
+  /** 舞台里的点击落在哪些命中区（model3.json HitAreas 的名字：Head/Hair/Body/Skirt/ArmL/ArmR/Legs）；空数组 = 没点到人 */
+  hitTest(clientX: number, clientY: number, stageOrigin: { left: number; top: number }): string[] {
+    if (this.disposed || typeof this.model.hitTest !== "function") return [];
+    try {
+      return this.model.hitTest(clientX - stageOrigin.left, clientY - stageOrigin.top);
+    } catch {
+      return [];
+    }
   }
 
   /** 音频包络（0~1），由 SpeechPlayer 每 ~20ms 喂一次 */
@@ -403,11 +441,35 @@ export class CompanionModel {
 
     // 裙摆：二阶弹簧追这一帧的身体角度（动作 + 呼吸 + 表情叠加之后的值）。
     // 老模型没有 ParamSkirtSway 时 setParameterValueById 被 Cubism 忽略，无害
-    const bodyX = typeof core.getParameterValueById === "function" ? core.getParameterValueById("ParamBodyAngleX") || 0 : 0;
+    const readParam = (id: string) => (typeof core.getParameterValueById === "function" ? core.getParameterValueById(id) || 0 : 0);
+    const bodyX = readParam("ParamBodyAngleX");
+    const headX = readParam("ParamAngleX");
+    const headZ = readParam("ParamAngleZ");
+    const breath = readParam("ParamBreath");
     const dtSec = Math.min(0.05, dt / 1000);
-    const skirtTarget = Math.max(-SKIRT_RANGE, Math.min(SKIRT_RANGE, bodyX * SKIRT_GAIN));
-    this.skirtVel += (SKIRT_STIFFNESS * (skirtTarget - this.skirt) - SKIRT_DAMPING * this.skirtVel) * dtSec;
-    this.skirt = Math.max(-SKIRT_RANGE, Math.min(SKIRT_RANGE, this.skirt + this.skirtVel * dtSec));
+    const tSec = (now - this.bornAt) / 1000;
+    // 二阶弹簧一步：返回 [新位置, 新速度]；所有摆动参数都是 -10..10
+    const spring = (pos: number, vel: number, target: number, k: number, c: number): [number, number] => {
+      const v = vel + (k * (target - pos) - c * vel) * dtSec;
+      return [Math.max(-SKIRT_RANGE, Math.min(SKIRT_RANGE, pos + v * dtSec)), v];
+    };
+    const idleSway = Math.sin(tSec * 2 * Math.PI * SKIRT_IDLE_HZ) * SKIRT_IDLE_AMP;
+    [this.skirt, this.skirtVel] = spring(this.skirt, this.skirtVel, bodyX * SKIRT_GAIN + idleSway, SKIRT_STIFFNESS, SKIRT_DAMPING);
     core.setParameterValueById("ParamSkirtSway", this.skirt);
+    // 头发：前发只跟头，后发跟头 + 身体
+    [this.hairFront, this.hairFrontVel] = spring(this.hairFront, this.hairFrontVel, (headX + headZ * 0.6) * HAIR_FRONT_GAIN, HAIR_STIFFNESS, HAIR_DAMPING);
+    [this.hairBack, this.hairBackVel] = spring(this.hairBack, this.hairBackVel, (headX * 0.5 + headZ * 0.8 + bodyX * 1.2) * HAIR_BACK_GAIN, HAIR_STIFFNESS, HAIR_DAMPING);
+    core.setParameterValueById("ParamHairFront", this.hairFront);
+    core.setParameterValueById("ParamHairBack", this.hairBack);
+    // 手臂：呼吸时两臂一起轻轻开合、身体倾斜时同向摆；挥手时右臂叠一段带包络的来回
+    const armIdle = (breath - 0.5) * 2 * ARM_BREATH_AMP + bodyX * ARM_FOLLOW_GAIN;
+    let wave = 0;
+    if (this.waveStart) {
+      const phase = now - this.waveStart;
+      if (phase >= ARM_WAVE_MS) this.waveStart = 0;
+      else wave = Math.sin((phase / 1000) * 2 * Math.PI * ARM_WAVE_HZ) * ARM_WAVE_AMP * Math.sin((phase / ARM_WAVE_MS) * Math.PI);
+    }
+    core.setParameterValueById("ParamArmL", Math.max(-10, Math.min(10, armIdle)));
+    core.setParameterValueById("ParamArmR", Math.max(-10, Math.min(10, armIdle + wave)));
   }
 }

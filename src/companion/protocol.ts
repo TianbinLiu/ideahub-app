@@ -166,3 +166,41 @@ export function estimateSpeechMs(text: string) {
   const chars = Array.from(String(text || "")).length;
   return Math.min(TIMING.maxSyntheticMs, Math.max(600, chars * TIMING.msPerChar));
 }
+
+/** model3.json HitAreas 的区名（两端模型文件里写死的一套）；点到多个区（披风叠在身上）时按这个顺序取最靠前的 */
+export const TOUCH_AREAS = ["Head", "Hair", "Body", "Skirt", "ArmL", "ArmR", "Legs"] as const;
+export type TouchArea = (typeof TOUCH_AREAS)[number];
+
+export type TouchReaction = { area: TouchArea; zh: string; en: string; emotion: string; face: CompanionFace; action: CompanionAction };
+
+/** 触摸反应台词：不走 LLM（要的是"一碰就有反应"），也不进聊天记录；两种语言各一份，客服页只用中文 */
+export const TOUCH_REACTIONS: Record<TouchArea, Array<Omit<TouchReaction, "area">>> = {
+  Head: [
+    { zh: "别摸头啦，头发会乱的～", en: "Hey, don't pat my head, you'll mess up my hair!", emotion: "shy", face: "shy", action: "shy" },
+    { zh: "嗯…被摸头的话，会想撒娇的。", en: "Mm... head pats make me want to be spoiled.", emotion: "happy", face: "happy", action: "acknowledge" },
+  ],
+  Hair: [
+    { zh: "喜欢我的头发吗？薄荷色是我自己挑的。", en: "Like my hair? I picked the mint color myself.", emotion: "happy", face: "happy", action: "playful" },
+    { zh: "轻一点，头发很娇气的。", en: "Gently, please. My hair is delicate.", emotion: "shy", face: "shy", action: "none" },
+  ],
+  Body: [
+    { zh: "喂，那里不可以随便碰哦！", en: "Hey! You can't just touch there!", emotion: "angry", face: "angry", action: "disagree" },
+    { zh: "披风好看吧？这是启梦的制服。", en: "Nice cape, right? It's the QiMeng uniform.", emotion: "happy", face: "tease", action: "explain" },
+  ],
+  Skirt: [
+    { zh: "裙子…不要拉啦！", en: "My skirt... stop pulling it!", emotion: "angry", face: "angry", action: "disagree" },
+    { zh: "再这样我可要生气了哦。", en: "Do that again and I'll get mad.", emotion: "angry", face: "angry", action: "shy" },
+  ],
+  ArmL: [{ zh: "牵手？那就一小会儿。", en: "Holding hands? Just for a moment.", emotion: "shy", face: "shy", action: "acknowledge" }],
+  ArmR: [{ zh: "要击掌吗？来！", en: "High five? Let's go!", emotion: "excited", face: "happy", action: "wave" }],
+  Legs: [{ zh: "脚痒痒的，别闹～", en: "That tickles, stop it!", emotion: "happy", face: "laughing", action: "playful" }],
+};
+
+/** 命中区 → 一句反应（随机挑）；没点到任何区回 null */
+export function pickTouchReaction(areas: string[], lang: "zh" | "en" = "zh"): (TouchReaction & { text: string }) | null {
+  const area = TOUCH_AREAS.find((a) => areas.includes(a));
+  if (!area) return null;
+  const lines = TOUCH_REACTIONS[area];
+  const line = lines[Math.floor(Math.random() * lines.length)];
+  return { area, ...line, text: lang === "en" ? line.en : line.zh };
+}

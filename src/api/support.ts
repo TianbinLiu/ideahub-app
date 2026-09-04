@@ -9,7 +9,7 @@
  *   所以能力判断看 Content-Type，不看状态码。
  */
 import { API_BASE, ApiError, apiGet, apiPatch, apiPost, getToken } from "./client";
-import type { Live2dModelItem, PersonaSource, PersonaSummary, VoiceSettings } from "./companion";
+import type { Live2dModelItem, PersonaSource, PersonaSummary, VoiceMixEntry, VoiceSettings } from "./companion";
 import { createSseParser } from "../companion/sse";
 import type { CompanionSentence } from "../companion/protocol";
 
@@ -177,13 +177,26 @@ export async function streamSupportChat(
 }
 
 /**
+ * /api/tts 的请求体。voice 与 mix 二选一：有 mix（1.0 混音）时 voice / instruct / expressive 服务端都不看（直接丢弃），
+ * 所以调用方（SupportPage.ttsBodyFor、面板的试听）混音时只发 text + mix + rate + pitch。
+ */
+export interface TtsRequest {
+  text: string;
+  voice?: string;
+  /** 1～3 味 1.0 音色（须在 /api/tts/voices 的 mixable 里）；权重服务端归一，speaker 固定 custom_mix_bigtts */
+  mix?: VoiceMixEntry[];
+  emotion?: string;
+  instruct?: string;
+  expressive?: boolean;
+  rate?: number;
+  pitch?: number;
+}
+
+/**
  * 豆包 TTS → audio/mpeg Blob。登录 + 30 次/分钟限流（服务端）。
  * rate = speech_rate [-50,100]（倍速 1 + r/100），pitch = post_process.pitch [-12,12]；缺省 = 不传（原速原调）。
  */
-export async function synthesizeSpeech(
-  body: { text: string; voice?: string; emotion?: string; instruct?: string; expressive?: boolean; rate?: number; pitch?: number },
-  signal?: AbortSignal,
-): Promise<Blob> {
+export async function synthesizeSpeech(body: TtsRequest, signal?: AbortSignal): Promise<Blob> {
   const res = await fetch(`${API_BASE}/api/tts`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),

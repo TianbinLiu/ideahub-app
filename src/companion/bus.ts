@@ -10,9 +10,11 @@ import type { CompanionModel } from "../live2d/companionModel";
 import type { CompanionAction, CompanionFace } from "./protocol";
 
 type ModelListener = (model: CompanionModel | null) => void;
+type HitListener = (areas: string[]) => void;
 
 let current: CompanionModel | null = null;
 const listeners = new Set<ModelListener>();
+const hitListeners = new Set<HitListener>();
 
 export const companionBus = {
   get model() {
@@ -42,5 +44,16 @@ export const companionBus = {
   },
   stopSpeaking() {
     current?.stopSpeaking();
+  },
+  /** 舞台里点到了模型的哪些命中区（HitAreas 名）；对话框据此演一句（protocol.ts 的 TOUCH_REACTIONS） */
+  hit(areas: string[]) {
+    if (!areas.length) return;
+    hitListeners.forEach((fn) => fn(areas));
+  },
+  onHit(fn: HitListener) {
+    hitListeners.add(fn);
+    return () => {
+      hitListeners.delete(fn);
+    };
   },
 };

@@ -74,15 +74,30 @@ export default function SupportStage({ className = "", topPx = 56, heightFractio
       const r = wrap.getBoundingClientRect();
       model.lookAtClient(event.clientX, event.clientY, { left: r.left, top: r.top });
     };
-    const onUp = () => modelRef.current?.lookForward();
+    // 轻点（按下到抬起 < 350ms、位移 < 12px）= 摸了模型：问它点到哪个命中区，交给页面演一句（protocol.ts 的 TOUCH_REACTIONS）
+    let pressed: { x: number; y: number; at: number } | null = null;
+    const onDown = (event: PointerEvent) => {
+      pressed = { x: event.clientX, y: event.clientY, at: performance.now() };
+      onMove(event);
+    };
+    const onUp = (event: PointerEvent) => {
+      const model = modelRef.current;
+      model?.lookForward();
+      const p = pressed;
+      pressed = null;
+      if (!model || !p || !(event.target instanceof Node) || !wrap.contains(event.target)) return;
+      if (performance.now() - p.at > 350 || Math.hypot(event.clientX - p.x, event.clientY - p.y) > 12) return;
+      const r = wrap.getBoundingClientRect();
+      companionBus.hit(model.hitTest(event.clientX, event.clientY, { left: r.left, top: r.top }));
+    };
     // 手机上没有 hover：按住/滑动时看向手指，抬手回正
     wrap.addEventListener("pointermove", onMove, { passive: true });
-    wrap.addEventListener("pointerdown", onMove, { passive: true });
+    wrap.addEventListener("pointerdown", onDown, { passive: true });
     window.addEventListener("pointerup", onUp);
     return () => {
       observer.disconnect();
       wrap.removeEventListener("pointermove", onMove);
-      wrap.removeEventListener("pointerdown", onMove);
+      wrap.removeEventListener("pointerdown", onDown);
       window.removeEventListener("pointerup", onUp);
     };
   }, []);

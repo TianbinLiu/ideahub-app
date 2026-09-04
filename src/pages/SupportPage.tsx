@@ -20,7 +20,7 @@
  * ★ 登录墙由路由的 RequireAuth 管；这里拿到的 user 一定存在。
  * ★ 所有失败就地整句说明（api:error 没人听），绝不静默。
  * ★ 换装（2026-09-04）：人格 / 形象 / 声音三项选择存在服务端（/api/companion/settings，官网与 App 同一份）。
- *   形象与人格各是一页市场（/support/models、/support/personas），声音是页内的底部面板（VoiceSheet）；
+ *   形象与人格各是一页市场（/support/models、/support/personas），声音是页内的底部面板（VoiceSheet：单音色 / 混音 / 声音市场三页）；
  *   顶栏右下挂一列「形象 / 人格 / 声音」小键 —— 顶栏本身已经放不下三颗带字的键（360 宽的机器上会把名字挤没）。
  *   念台词的 /api/tts 参数来自 config.voiceSettings（服务端算好的合并结果），老服务端没有它就按旧写法只传 voice。
  *   舞台的模型地址来自 settings.model.modelJsonUrl；设置还没回来之前舞台先等（最多 1.5s），免得先起官方再销毁重建。
@@ -34,7 +34,7 @@ import HoldToTalk from "../components/support/HoldToTalk";
 import VoiceSheet from "../components/support/VoiceSheet";
 import { companionBus } from "../companion/bus";
 import { SpeechPlayer } from "../companion/speech";
-import { estimateSpeechMs, normalizeAction, normalizeFace, type CompanionSentence } from "../companion/protocol";
+import { estimateSpeechMs, normalizeAction, normalizeFace, type CompanionSentence, pickTouchReaction } from "../companion/protocol";
 import { setVoiceEnabled, voiceEnabled } from "../studio/speech";
 import { ApiError } from "../api/client";
 import { getCompanionSettings, resolveModelJsonUrl, type CompanionSettings } from "../api/companion";
@@ -51,6 +51,7 @@ import {
   type SupportCategory,
   type SupportConfig,
   type SupportTicket,
+  type TtsRequest,
 } from "../api/support";
 import { relativeTime } from "../types";
 
@@ -102,10 +103,15 @@ const STAGE_WAIT_MS = 1500;
  * 一句台词的 /api/tts 请求体（一处实现）。voiceSettings 是服务端算好的三层合并结果
  * （用户覆盖 > 人格自带 > 模型推荐 > 默认）；情绪与语调指令来自这一句 —— 服务端已把「人设语调；情绪语调」
  * 合并进 sentence.tts.instruct。老服务端没有 voiceSettings → 退回旧写法（只有 voice + expressive:true）。
+ * ★ 混音（voiceSettings.mix，1.0 音色）只发 mix + rate + pitch：voice 不传（服务端 speaker 固定 custom_mix_bigtts）、
+ *   instruct / expressive 不传（context_texts 与表现力增强都是 2.0 专属，服务端对混音也直接丢弃）、emotion 也不传 ——
+ *   混音 speaker 吃不吃 emotion 上游没写明，而 TTS 失败在这一页是**静默**退成合成口型（整段对话哑掉、没有一句报错），
+ *   为一点情绪起伏赌整条声音不值。面板里的试听（VoiceMixer / VoiceMarket）发的也是这三个字段：听到的就是之后念台词的。
  */
-function ttsBodyFor(config: SupportConfig | null, sentence: CompanionSentence) {
+function ttsBodyFor(config: SupportConfig | null, sentence: CompanionSentence): TtsRequest {
   const vs = config?.voiceSettings;
   if (!vs) return { text: sentence.text, voice: config?.voice || undefined, emotion: sentence.tts?.emotion, instruct: sentence.tts?.instruct, expressive: true };
+  if (vs.mix?.length) return { text: sentence.text, mix: vs.mix, rate: vs.rate ?? undefined, pitch: vs.pitch ?? undefined };
   return {
     text: sentence.text,
     voice: vs.voiceId || undefined,
@@ -137,6 +143,8 @@ export default function SupportPage() {
   const [input, setInput] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [subtitle, setSubtitle] = useState("");
+  /** 触摸反应正在说 / 刚说完的那句（不进 messages，所以单独记一份给字幕气泡） */
+  const [reaction, setReaction] = useState("");
   const [voiceOn, setVoiceOn] = useState(voiceEnabled);
   const [chatErr, setChatErr] = useState("");
   const [micErr, setMicErr] = useState("");
@@ -296,6 +304,33 @@ export default function SupportPage() {
     await sleep(ms, signal);
   }
 
+  // 触摸反应：舞台报上来的命中区 → 演一句预置台词（不进 LLM、不进聊天记录，只是"碰一下有反应"）；说话/思考中不打断，1.8s 内只理一次
+  const phaseRef = useRef<Phase>("idle");
+  phaseRef.current = phase;
+  const lastTouchRef = useRef(0);
+  useEffect(
+    () =>
+      companionBus.onHit((areas) => {
+        const nowMs = Date.now();
+        if (phaseRef.current !== "idle" || nowMs - lastTouchRef.current < 1800) return;
+        const pick = pickTouchReaction(areas, "zh");
+        if (!pick) return;
+        lastTouchRef.current = nowMs;
+        stopAll();
+        setReaction(pick.text);
+        const run = runRef.current;
+        const controller = new AbortController();
+        const sentence: CompanionSentence = { index: 0, text: pick.text, emotion: pick.emotion, face: pick.face, action: pick.action, tts: { emotion: pick.emotion, instruct: "" } };
+        const audio: Promise<Blob | null> =
+          voiceOn && Boolean(config?.tts) ? synthesizeSpeech(ttsBodyFor(config, sentence), controller.signal).catch(() => null) : Promise.resolve(null);
+        void enqueue(run, () => perform(run, sentence, audio, controller.signal)).then(() => {
+          if (runRef.current === run) setPhase("idle");
+        });
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stopAll/enqueue/perform 是组件内的函数声明，随渲染同步
+    [config, voiceOn],
+  );
+
   function toggleVoice() {
     const next = !voiceOn;
     setVoiceOn(next);
@@ -313,6 +348,7 @@ export default function SupportPage() {
     setChatErr("");
     setMicErr("");
     setStageNotice("");
+    setReaction("");
     setHandoffHint(null);
     const run = runRef.current;
     const controller = new AbortController();
@@ -446,8 +482,9 @@ export default function SupportPage() {
       />
 
       {/* 顶栏浮层 */}
-      <div className="safe-top absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-ink/85 via-ink/40 to-transparent pb-8">
-        <div className="flex h-14 items-center gap-1 px-2">
+      {/* 渐变只是装饰：pointer-events-none 让它下面的模型头部能被摸到（真机上头正好在这块渐变里），按钮那一行再打开 */}
+      <div className="safe-top pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-ink/85 via-ink/40 to-transparent pb-8">
+        <div className="pointer-events-auto flex h-14 items-center gap-1 px-2">
           <button onClick={() => navigate(-1)} aria-label="返回" className="flex h-11 w-11 items-center justify-center text-slate-200">
             <Icon name="back" size={20} />
           </button>
@@ -490,11 +527,13 @@ export default function SupportPage() {
       <div className="absolute right-2 z-10 flex flex-col gap-2" style={{ top: `calc(env(safe-area-inset-top, 0px) + ${TOP_BAR_PX + 14}px)` }}>
         <RailButton emoji="👗" label="形象" onClick={() => navigate("/support/models")} />
         <RailButton emoji="🎭" label="人格" onClick={() => navigate("/support/personas")} />
-        <RailButton emoji="🎙️" label="声音" onClick={() => setVoiceSheetOpen(true)} />
+        {/* 在用混音（自己调的或声音市场的模板）时写「混音」：让人知道这颗键后面的东西变了 */}
+        <RailButton emoji="🎙️" label={config?.voiceSettings?.mix?.length ? "混音" : "声音"} onClick={() => setVoiceSheetOpen(true)} />
       </div>
 
       {/* 底部浮层：最近一问一答 + 转人工卡 + 快捷问题 + 输入区 */}
-      <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end bg-gradient-to-t from-ink via-ink/80 to-transparent px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-20">
+      {/* 同上：底部渐变的 pt-20 会盖住裙摆/腿，容器不吃事件，里面每一块（字幕、快捷问、输入框）再打开 */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end bg-gradient-to-t from-ink via-ink/80 to-transparent px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-20 [&>*]:pointer-events-auto">
         {lastUser && (
           <div className="mb-2 flex justify-end">
             <div className="max-w-[78%] truncate rounded-2xl rounded-br-sm bg-brand/90 px-3 py-1.5 text-[13px] text-ink">{lastUser.text}</div>
@@ -517,7 +556,7 @@ export default function SupportPage() {
             aria-label="查看完整对话记录"
             className={`max-h-[26vh] overflow-y-auto text-[14px] leading-6 ${lastAssistant?.system ? "text-emerald-100" : "text-slate-100"}`}
           >
-            {lastAssistant?.text || (phase === "thinking" ? "…" : greeting)}
+            {reaction || lastAssistant?.text || (phase === "thinking" ? "…" : greeting)}
             {configErr && !messages.length && <p className="mt-1 text-[12px] text-amber-300">{configErr}</p>}
             {!enabled && !configErr && !messages.length && <p className="mt-1 text-[12px] text-amber-300">服务端还没开通 AI 对话，你可以直接转人工。</p>}
           </div>
