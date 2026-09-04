@@ -140,6 +140,16 @@
 			"Id": "ParamHairBack",
 			"GroupId": "",
 			"Name": "Hair Move Back"
+		},
+		{
+			"Id": "ParamArmL",
+			"GroupId": "",
+			"Name": "Arm L"
+		},
+		{
+			"Id": "ParamArmR",
+			"GroupId": "",
+			"Name": "Arm R"
 		}
 	],
 	"ParameterGroups": [],

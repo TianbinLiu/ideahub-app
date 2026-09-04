@@ -34,7 +34,7 @@ import HoldToTalk from "../components/support/HoldToTalk";
 import VoiceSheet from "../components/support/VoiceSheet";
 import { companionBus } from "../companion/bus";
 import { SpeechPlayer } from "../companion/speech";
-import { estimateSpeechMs, normalizeAction, normalizeFace, type CompanionSentence } from "../companion/protocol";
+import { estimateSpeechMs, normalizeAction, normalizeFace, type CompanionSentence, pickTouchReaction } from "../companion/protocol";
 import { setVoiceEnabled, voiceEnabled } from "../studio/speech";
 import { ApiError } from "../api/client";
 import { getCompanionSettings, resolveModelJsonUrl, type CompanionSettings } from "../api/companion";
@@ -137,6 +137,8 @@ export default function SupportPage() {
   const [input, setInput] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [subtitle, setSubtitle] = useState("");
+  /** 触摸反应正在说 / 刚说完的那句（不进 messages，所以单独记一份给字幕气泡） */
+  const [reaction, setReaction] = useState("");
   const [voiceOn, setVoiceOn] = useState(voiceEnabled);
   const [chatErr, setChatErr] = useState("");
   const [micErr, setMicErr] = useState("");
@@ -296,6 +298,33 @@ export default function SupportPage() {
     await sleep(ms, signal);
   }
 
+  // 触摸反应：舞台报上来的命中区 → 演一句预置台词（不进 LLM、不进聊天记录，只是"碰一下有反应"）；说话/思考中不打断，1.8s 内只理一次
+  const phaseRef = useRef<Phase>("idle");
+  phaseRef.current = phase;
+  const lastTouchRef = useRef(0);
+  useEffect(
+    () =>
+      companionBus.onHit((areas) => {
+        const nowMs = Date.now();
+        if (phaseRef.current !== "idle" || nowMs - lastTouchRef.current < 1800) return;
+        const pick = pickTouchReaction(areas, "zh");
+        if (!pick) return;
+        lastTouchRef.current = nowMs;
+        stopAll();
+        setReaction(pick.text);
+        const run = runRef.current;
+        const controller = new AbortController();
+        const sentence: CompanionSentence = { index: 0, text: pick.text, emotion: pick.emotion, face: pick.face, action: pick.action, tts: { emotion: pick.emotion, instruct: "" } };
+        const audio: Promise<Blob | null> =
+          voiceOn && Boolean(config?.tts) ? synthesizeSpeech(ttsBodyFor(config, sentence), controller.signal).catch(() => null) : Promise.resolve(null);
+        void enqueue(run, () => perform(run, sentence, audio, controller.signal)).then(() => {
+          if (runRef.current === run) setPhase("idle");
+        });
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stopAll/enqueue/perform 是组件内的函数声明，随渲染同步
+    [config, voiceOn],
+  );
+
   function toggleVoice() {
     const next = !voiceOn;
     setVoiceOn(next);
@@ -313,6 +342,7 @@ export default function SupportPage() {
     setChatErr("");
     setMicErr("");
     setStageNotice("");
+    setReaction("");
     setHandoffHint(null);
     const run = runRef.current;
     const controller = new AbortController();
@@ -517,7 +547,7 @@ export default function SupportPage() {
             aria-label="查看完整对话记录"
             className={`max-h-[26vh] overflow-y-auto text-[14px] leading-6 ${lastAssistant?.system ? "text-emerald-100" : "text-slate-100"}`}
           >
-            {lastAssistant?.text || (phase === "thinking" ? "…" : greeting)}
+            {reaction || lastAssistant?.text || (phase === "thinking" ? "…" : greeting)}
             {configErr && !messages.length && <p className="mt-1 text-[12px] text-amber-300">{configErr}</p>}
             {!enabled && !configErr && !messages.length && <p className="mt-1 text-[12px] text-amber-300">服务端还没开通 AI 对话，你可以直接转人工。</p>}
           </div>

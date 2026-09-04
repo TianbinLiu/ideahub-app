@@ -76,5 +76,39 @@
         "ParamMouthOpenY"
       ]
     }
+  ],
+  "HitAreas": [
+    {
+      "Id": "face",
+      "Name": "Head"
+    },
+    {
+      "Id": "ArtMesh",
+      "Name": "Hair"
+    },
+    {
+      "Id": "headwear",
+      "Name": "Hair"
+    },
+    {
+      "Id": "topwear",
+      "Name": "Body"
+    },
+    {
+      "Id": "bottomwear",
+      "Name": "Skirt"
+    },
+    {
+      "Id": "arm_L",
+      "Name": "ArmL"
+    },
+    {
+      "Id": "arm_R",
+      "Name": "ArmR"
+    },
+    {
+      "Id": "legwear",
+      "Name": "Legs"
+    }
   ]
 }
