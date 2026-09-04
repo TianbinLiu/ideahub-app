@@ -11,15 +11,20 @@
  *     （1 时 0%、0 时 100%），眨眼是一条 闭 70ms → 停 40ms → 睁 120ms 的曲线，不是瞬间切换。
  *   - ExprSmile / ExprAngry 仍是补片（笑眼、怒目整块贴图），靠 Part 不透明度开关；
  *     ExprClosed / ExprMouthOpen 这两个 Part 现在【常开】，露不露由上面的参数关键帧决定。
+ *   - ParamSkirtSway -10→10 = 裙摆左右摆（mascot9 的 Skirt Warp，Cubism「Auto Generation of Sway Motion」生成，支点在腰）。
+ *     模型里没有 physics3.json，"布料的惯性"由这里的二阶弹簧代劳：每帧读动作/呼吸算出的 ParamBodyAngleX，
+ *     裙摆慢半拍跟上、过冲再回摆。idle 动作的身体摆只有 ±2、框架呼吸 ±4，所以要乘增益才看得见。
  * ★ 所有写参数的操作都挂在 ticker 的 LOW 优先级：pixi-live2d-display 每帧先跑 动作→表情→呼吸→物理，
  *   之后我们再叠加（addParameterValueById）或覆盖，否则会被动作覆盖掉。框架自带的自动眨眼（EyeBlink 组）
  *   在构造时拆掉，否则它和我们的曲线会各眨各的。
  * ★ 口型包络的起落时间（40ms / 90ms）决定了嘴是"抖"还是"说"，改之前看 protocol.ts 的注释。
- * ★★ 全站只允许一个实例、一个 WebGL 上下文（acquire / attach / detach）：Cubism 框架把编译好的着色器缓存在
- *   单例里，第一次用的是哪个 WebGL 上下文就绑死了；组件卸载再挂载时如果新建 pixi Application，
- *   第二个上下文拿到的是旧程序 —— 控制台刷 "useProgram: object does not belong to this context"，画布一片空白
- *   （2026-09-04 在 App 客服页切「我的工单」再切回来实测）。所以画布是模型自己造的、跟着模型活一辈子，
- *   组件只负责把它挂进/摘出自己的容器。
+ * ★★ 全页只有一个 pixi Application、一个画布、一个 WebGL 上下文，活到页面关闭；换模型（换装）只换 stage 里的模型。
+ *   Cubism 框架把编译好的着色器缓存在单例里（CubismShader_WebGL._shaderSets），pixi-live2d-display 只在模型
+ *   【带裁剪蒙版】时才在上下文变化时清这份缓存（updateWebGLContext 里包在 _clippingManager 判断内）——
+ *   看板娘没有蒙版，于是任何"销毁 Application 再新建"都会让新上下文拿到旧程序：控制台刷
+ *   "useProgram: object does not belong to this context"，画布一片空白。两次踩坑：2026-09-04 客服页切「我的工单」
+ *   再切回来（组件重挂）、同日换装（acquire 新 url 时销毁重建）。所以 Application/画布是模块级的、从不销毁，
+ *   CompanionModel 实例只拥有"模型 + 驱动状态"；组件只负责把画布挂进/摘出自己的容器。
  */
 
 import { loadLive2DRuntime, type Live2DModelInstance, type PixiApplication, type PixiRuntime } from "./loader";
@@ -49,6 +54,12 @@ const PART_FADE_MS = 140;
 const MOUTH_OPEN_MAX = 0.85;
 /** 张嘴补片在这个开度以内从 0 淡入到 100%（避免开度极小的时候一条黑线突然出现） */
 const MOUTH_PATCH_FADE = 0.1;
+/** 裙摆弹簧：刚度（1/s²）与阻尼（1/s）。刚度越小摆得越慢越"飘"，阻尼越小晃得越久；这组值 ≈ 0.8s 一个来回、过冲一次 */
+const SKIRT_STIFFNESS = 28;
+const SKIRT_DAMPING = 4.2;
+/** 身体摆 ±6（idle ±2 + 呼吸 ±4）→ 裙摆参数 ±10 */
+const SKIRT_GAIN = 1.6;
+const SKIRT_RANGE = 10;
 
 function clamp01(v: number) {
   return v < 0 ? 0 : v > 1 ? 1 : v;
@@ -56,6 +67,32 @@ function clamp01(v: number) {
 
 let singleton: CompanionModel | null = null;
 let pending: Promise<CompanionModel> | null = null;
+/** 正在加载的那次是哪个 url（acquire 串行化用，见 acquire 的 ★） */
+let pendingUrl = "";
+
+type SharedStage = { pixi: PixiRuntime; app: PixiApplication; canvas: HTMLCanvasElement };
+/** 全页唯一的 Application + 画布（见文件头 ★★），第一次 acquire 时创建，之后换模型都复用 */
+let sharedStage: SharedStage | null = null;
+
+async function getSharedStage(): Promise<SharedStage> {
+  if (sharedStage) return sharedStage;
+  const pixi = await loadLive2DRuntime();
+  if (sharedStage) return sharedStage;
+  const canvas = document.createElement("canvas");
+  canvas.style.display = "block";
+  canvas.setAttribute("aria-hidden", "true");
+  const app = new pixi.Application({
+    view: canvas,
+    backgroundAlpha: 0,
+    antialias: true,
+    autoDensity: true,
+    resolution: Math.min(window.devicePixelRatio || 1, 1.5),
+    width: 2,
+    height: 2,
+  });
+  sharedStage = { pixi, app, canvas };
+  return sharedStage;
+}
 
 export class CompanionModel {
   /** 模型自己的画布：由 attach() 挂进容器、detach() 摘出来，从不销毁（见文件头 ★★） */
@@ -75,6 +112,9 @@ export class CompanionModel {
   private blinkStart = 0;
   /** 表情要求的闭眼程度（crying 等），向目标渐变 */
   private eyeClose = 0;
+  /** 裙摆弹簧的位置与速度（ParamSkirtSway 的单位） */
+  private skirt = 0;
+  private skirtVel = 0;
   private mouthTarget = 0;
   private mouthLevel = 0;
   private synthetic: { until: number; start: number } | null = null;
@@ -112,35 +152,26 @@ export class CompanionModel {
 
   /**
    * 取全站唯一的模型实例；第一次调用才真正加载运行时与模型，之后原样复用。
-   * 换了 modelUrl 才会销毁重建（同一页面里不会发生，留作将来换装）。
+   * 换了 modelUrl 就销毁重建（2026-09-04 起客服页可以换成市场模型，SupportStage 按 url 变化调这里）。
+   * ★ 正在加载的那次是别的 url 时，排在它后面再换，而不是把那次的 pending 直接递出去：
+   *   客服页会出现「先按官方 url 起加载、几十毫秒后设置回来要换市场模型」—— 老写法不看 url，
+   *   换装方拿到的是官方模型还以为换成功了（零报错，屏幕上就是没换）。
    */
   static acquire(modelUrl: string): Promise<CompanionModel> {
     if (singleton && !singleton.disposed && singleton.modelUrl === modelUrl) return Promise.resolve(singleton);
-    if (pending) return pending;
+    if (pending) {
+      if (pendingUrl === modelUrl) return pending;
+      const retry = () => CompanionModel.acquire(modelUrl);
+      return pending.then(retry, retry);
+    }
+    pendingUrl = modelUrl;
     pending = (async () => {
+      const { pixi, app, canvas } = await getSharedStage();
+      // 先加载新模型再拆旧的：加载失败（作者删了包 / 贴图坏了）时旧模型原样留着，舞台不会空掉
+      const model = await pixi.live2d.Live2DModel.from(modelUrl, { autoInteract: false, idleMotionGroup: "Idle" });
       if (singleton) {
         singleton.destroy();
         singleton = null;
-      }
-      const canvas = document.createElement("canvas");
-      canvas.style.display = "block";
-      canvas.setAttribute("aria-hidden", "true");
-      const pixi = await loadLive2DRuntime();
-      const app = new pixi.Application({
-        view: canvas,
-        backgroundAlpha: 0,
-        antialias: true,
-        autoDensity: true,
-        resolution: Math.min(window.devicePixelRatio || 1, 1.5),
-        width: 2,
-        height: 2,
-      });
-      let model: Live2DModelInstance;
-      try {
-        model = await pixi.live2d.Live2DModel.from(modelUrl, { autoInteract: false, idleMotionGroup: "Idle" });
-      } catch (error) {
-        app.destroy(false);
-        throw error;
       }
       app.stage.addChild(model);
       model.anchor.set(0.5, 0.5);
@@ -148,6 +179,7 @@ export class CompanionModel {
       return singleton;
     })().finally(() => {
       pending = null;
+      pendingUrl = "";
     });
     return pending;
   }
@@ -245,7 +277,10 @@ export class CompanionModel {
     this.mouthTarget = 0;
   }
 
-  /** 彻底销毁（换模型时用；正常卸载走 detach） */
+  /**
+   * 拆掉这个模型（换模型时由 acquire 调；正常卸载走 detach）。
+   * ★ 只拆模型，不动 Application / 画布 / WebGL 上下文（文件头 ★★）：画布留在原容器里，下一个模型直接画上去
+   */
   destroy() {
     if (this.disposed) return;
     this.disposed = true;
@@ -256,8 +291,6 @@ export class CompanionModel {
     } catch {
       // 模型已经被 pixi 回收
     }
-    this.app.destroy(false, { children: true });
-    this.canvas.remove();
     if (singleton === this) singleton = null;
   }
 
@@ -367,5 +400,14 @@ export class CompanionModel {
     core.setParameterValueById("ParamMouthOpenY", mouthOpen);
     core.setParameterValueById("ParamEyeLOpen", eyeOpen);
     core.setParameterValueById("ParamEyeROpen", eyeOpen);
+
+    // 裙摆：二阶弹簧追这一帧的身体角度（动作 + 呼吸 + 表情叠加之后的值）。
+    // 老模型没有 ParamSkirtSway 时 setParameterValueById 被 Cubism 忽略，无害
+    const bodyX = typeof core.getParameterValueById === "function" ? core.getParameterValueById("ParamBodyAngleX") || 0 : 0;
+    const dtSec = Math.min(0.05, dt / 1000);
+    const skirtTarget = Math.max(-SKIRT_RANGE, Math.min(SKIRT_RANGE, bodyX * SKIRT_GAIN));
+    this.skirtVel += (SKIRT_STIFFNESS * (skirtTarget - this.skirt) - SKIRT_DAMPING * this.skirtVel) * dtSec;
+    this.skirt = Math.max(-SKIRT_RANGE, Math.min(SKIRT_RANGE, this.skirt + this.skirtVel * dtSec));
+    core.setParameterValueById("ParamSkirtSway", this.skirt);
   }
 }

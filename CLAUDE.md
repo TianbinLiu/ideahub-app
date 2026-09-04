@@ -59,16 +59,21 @@ npm run land -- --dry # 只检查不动手
 ```
 src/
   ai/          方舟（Seedream 生图 / Seedance 生视频 / 豆包对话）客户端与真假实现切换
-  api/         与 server 的 HTTP 调用
+  api/         与 server 的 HTTP 调用；`companion.ts` = 数字人的人格/形象/声音设置（/api/companion/settings）
+               与两个市场（Live2D 形象 / 人格）的请求层 + 共用报错文案
   companion/   AI 客服/看板娘的演出协议（表情/动作标签、SSE 解析、语音包络、舞台总线）——与官网 client 同源拷贝
-  live2d/      Live2D 运行时加载与模型驱动（pixi + Cubism Core，全部自托管在 public/live2d/）
+  live2d/      Live2D 运行时加载与模型驱动（pixi + Cubism Core，全部自托管在 public/live2d/）；
+               `prefetch.ts` = 换市场形象前把 model3.json 引用的文件各拉一遍，热 WebView 缓存
   components/  通用组件；`flow/` = 工作流画布：`FlowCanvas.tsx`（画布壳 + 就地编辑窗 +
                agent 输入条 + 四个 portal 弹层：方案台/成片回看/选卡/选模板）、
-               `DeleteSegBtn.tsx`（删段确认，与 FlowPage 那份共用一处实现）
+               `DeleteSegBtn.tsx`（删段确认，与 FlowPage 那份共用一处实现）；
+               `support/` = AI 客服页专用：`SupportStage`（Live2D 舞台，按 modelUrl 换装）、`HoldToTalk`、
+               `VoiceSheet`（声音面板：音色/语速/语调存服务端，官网同步）
   data/        本地库（IndexedDB）与账号库，含种子数据与迁移
   hooks/
   mock/        无后端时的假数据
-  pages/       路由页面（hash 路由）
+  pages/       路由页面（hash 路由）；`SupportPage` = AI 客服，`SupportModelsPage` / `SupportPersonasPage` =
+               数字人形象 / 人格市场（/support/models、/support/personas，入口在客服页顶栏那一列小键与设置页）
   studio/      创作/工坊相关
   utils/
 public/

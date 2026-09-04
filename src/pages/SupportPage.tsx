@@ -19,17 +19,25 @@
  * ★ 舞台常驻不卸载：「记录」「我的工单」都是盖在舞台上的浮层，切来切去不会重建 WebGL 上下文。
  * ★ 登录墙由路由的 RequireAuth 管；这里拿到的 user 一定存在。
  * ★ 所有失败就地整句说明（api:error 没人听），绝不静默。
+ * ★ 换装（2026-09-04）：人格 / 形象 / 声音三项选择存在服务端（/api/companion/settings，官网与 App 同一份）。
+ *   形象与人格各是一页市场（/support/models、/support/personas），声音是页内的底部面板（VoiceSheet）；
+ *   顶栏右下挂一列「形象 / 人格 / 声音」小键 —— 顶栏本身已经放不下三颗带字的键（360 宽的机器上会把名字挤没）。
+ *   念台词的 /api/tts 参数来自 config.voiceSettings（服务端算好的合并结果），老服务端没有它就按旧写法只传 voice。
+ *   舞台的模型地址来自 settings.model.modelJsonUrl；设置还没回来之前舞台先等（最多 1.5s），免得先起官方再销毁重建。
+ *   从市场页回来这一页会重新挂载（不同路由），config 与 settings 都在挂载时重拉，所以换完立即生效。
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import Icon from "../components/Icon";
 import SupportStage from "../components/support/SupportStage";
 import HoldToTalk from "../components/support/HoldToTalk";
+import VoiceSheet from "../components/support/VoiceSheet";
 import { companionBus } from "../companion/bus";
 import { SpeechPlayer } from "../companion/speech";
 import { estimateSpeechMs, normalizeAction, normalizeFace, type CompanionSentence } from "../companion/protocol";
 import { setVoiceEnabled, voiceEnabled } from "../studio/speech";
 import { ApiError } from "../api/client";
+import { getCompanionSettings, resolveModelJsonUrl, type CompanionSettings } from "../api/companion";
 import {
   CATEGORY_LABEL,
   TICKET_STATUS_LABEL,
@@ -87,6 +95,37 @@ function errorText(e: unknown, fallback: string): string {
 }
 
 const GLASS = "border border-white/10 bg-slate-950/55 backdrop-blur-md";
+/** 设置这么久还没回来就先按官方形象起舞台（之后设置到了再换）：别让一个卡住的请求把人也拖没了 */
+const STAGE_WAIT_MS = 1500;
+
+/**
+ * 一句台词的 /api/tts 请求体（一处实现）。voiceSettings 是服务端算好的三层合并结果
+ * （用户覆盖 > 人格自带 > 模型推荐 > 默认）；情绪与语调指令来自这一句 —— 服务端已把「人设语调；情绪语调」
+ * 合并进 sentence.tts.instruct。老服务端没有 voiceSettings → 退回旧写法（只有 voice + expressive:true）。
+ */
+function ttsBodyFor(config: SupportConfig | null, sentence: CompanionSentence) {
+  const vs = config?.voiceSettings;
+  if (!vs) return { text: sentence.text, voice: config?.voice || undefined, emotion: sentence.tts?.emotion, instruct: sentence.tts?.instruct, expressive: true };
+  return {
+    text: sentence.text,
+    voice: vs.voiceId || undefined,
+    rate: vs.rate ?? undefined,
+    pitch: vs.pitch ?? undefined,
+    expressive: vs.expressive,
+    emotion: sentence.tts?.emotion,
+    instruct: sentence.tts?.instruct,
+  };
+}
+
+/** 顶栏右下那一列小键（形象 / 人格 / 声音）：图标 + 两个字，和顶栏其它键同一套玻璃材质 */
+function RailButton({ emoji, label, onClick }: { emoji: string; label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} aria-label={label} className={`${GLASS} flex h-12 w-12 flex-col items-center justify-center rounded-2xl text-slate-100 active:bg-slate-800/70`}>
+      <span className="text-[16px] leading-none">{emoji}</span>
+      <span className="mt-1 text-[10px] leading-none">{label}</span>
+    </button>
+  );
+}
 
 export default function SupportPage() {
   const navigate = useNavigate();
@@ -110,6 +149,14 @@ export default function SupportPage() {
   const [sheetErr, setSheetErr] = useState("");
   const [tickets, setTickets] = useState<SupportTicket[] | null>(null);
   const [ticketsErr, setTicketsErr] = useState("");
+  /** 数字人三项选择（人格 / 形象 / 声音覆盖）；null = 还没读到 / 老服务端 */
+  const [settings, setSettings] = useState<CompanionSettings | null>(null);
+  /** settings 请求已有结果（成功或失败）：舞台据此决定用哪个模型 */
+  const [settingsSettled, setSettingsSettled] = useState(false);
+  const [stageSlow, setStageSlow] = useState(false);
+  /** 形象 / 设置这条线上的一句交代（市场形象加载失败退回官方、设置读不到…） */
+  const [stageNotice, setStageNotice] = useState("");
+  const [voiceSheetOpen, setVoiceSheetOpen] = useState(false);
   const ticketsOpen = params.get("tab") === "tickets";
   const highlightTicket = params.get("ticket") || "";
 
@@ -135,6 +182,24 @@ export default function SupportPage() {
       });
     return () => {
       alive = false;
+    };
+  }, []);
+
+  // 数字人设置：舞台要它决定模型地址，顶栏芯片要它显示形象名。
+  // 404 = 老服务端没有这个接口、0 = 没网（config 那边已经整句说明了）：这两种静默按官方形象走；其它失败要交代一句。
+  useEffect(() => {
+    let alive = true;
+    getCompanionSettings()
+      .then((s) => alive && setSettings(s))
+      .catch((e) => {
+        if (!alive || (e instanceof ApiError && (e.status === 404 || e.status === 0))) return;
+        setStageNotice(`读不到数字人设置（${errorText(e, "服务端出错")}），先按官方形象和默认声音走。`);
+      })
+      .finally(() => alive && setSettingsSettled(true));
+    const timer = window.setTimeout(() => alive && setStageSlow(true), STAGE_WAIT_MS);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
     };
   }, []);
 
@@ -178,6 +243,16 @@ export default function SupportPage() {
   function getPlayer() {
     if (!playerRef.current) playerRef.current = new SpeechPlayer();
     return playerRef.current;
+  }
+
+  /** 声音面板存过之后重拉：voiceSettings 是服务端算的合并结果，本地拼不出来 */
+  function refreshCompanion() {
+    getSupportConfig()
+      .then(setConfig)
+      .catch((e) => setStageNotice(`设置已保存，但重新读取配置失败（${errorText(e, "网络问题")}），下次进来会按新设置念。`));
+    getCompanionSettings()
+      .then(setSettings)
+      .catch(() => undefined);
   }
 
   function stopAll() {
@@ -237,6 +312,7 @@ export default function SupportPage() {
     stopAll();
     setChatErr("");
     setMicErr("");
+    setStageNotice("");
     setHandoffHint(null);
     const run = runRef.current;
     const controller = new AbortController();
@@ -260,10 +336,7 @@ export default function SupportPage() {
             // 文字先上屏（市面客服都是文字即时、语音随后），语音按句排队
             setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, text: m.text ? `${m.text} ${sentence.text}` : sentence.text } : m)));
             const audio: Promise<Blob | null> = wantVoice
-              ? synthesizeSpeech(
-                  { text: sentence.text, voice: config?.voice || undefined, emotion: sentence.tts?.emotion, instruct: sentence.tts?.instruct, expressive: true },
-                  controller.signal,
-                ).catch(() => null)
+              ? synthesizeSpeech(ttsBodyFor(config, sentence), controller.signal).catch(() => null)
               : Promise.resolve(null);
             void enqueue(run, () => perform(run, sentence, audio, controller.signal));
           },
@@ -351,6 +424,10 @@ export default function SupportPage() {
     setParams(next, { replace: true });
   }
 
+  // 顶栏芯片与舞台地址：settings 与 config 都带人格/形象，哪个先到用哪个（两者同拍重拉，不会打架）
+  const persona = config?.persona ?? settings?.persona ?? null;
+  const marketModel = settings?.model ?? config?.model ?? null;
+  const marketModelUrl = marketModel ? resolveModelJsonUrl(marketModel.modelJsonUrl) : "";
   const quick = config?.quickQuestions ?? [];
   const statusLabel = phase === "thinking" ? "思考中" : phase === "speaking" ? "说话中" : enabled ? "在线" : "对话未开通";
   const greeting = `你好，我是${name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。`;
@@ -363,6 +440,9 @@ export default function SupportPage() {
         className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_38%,rgba(56,189,248,0.22),transparent_62%),linear-gradient(180deg,#0b1220_0%,#070d18_60%,#040810_100%)]"
         topPx={TOP_BAR_PX}
         heightFraction={MODEL_HEIGHT_FRACTION}
+        modelUrl={marketModelUrl}
+        waiting={!settingsSettled && !stageSlow}
+        onFallback={(reason) => setStageNotice(`这套形象加载失败（${reason.slice(0, 80)}），先换回官方形象；可以去「形象」里重新下载或换一套。`)}
       />
 
       {/* 顶栏浮层 */}
@@ -379,7 +459,14 @@ export default function SupportPage() {
                 {statusLabel}
               </span>
             </div>
-            <div className="truncate text-[11px] text-slate-400">启梦 AI 客服 · 解决不了转人工</div>
+            {persona || marketModel ? (
+              <div className="flex min-w-0 items-center gap-1 text-[11px]">
+                {persona && <span className="max-w-[48%] truncate rounded-full bg-fuchsia-500/20 px-1.5 text-fuchsia-200">人格：{persona.name}</span>}
+                {marketModel && <span className="max-w-[48%] truncate rounded-full bg-sky-500/20 px-1.5 text-sky-200">形象：{marketModel.name}</span>}
+              </div>
+            ) : (
+              <div className="truncate text-[11px] text-slate-400">启梦 AI 客服 · 解决不了转人工</div>
+            )}
           </div>
           <button
             onClick={toggleVoice}
@@ -397,6 +484,13 @@ export default function SupportPage() {
             工单
           </button>
         </div>
+      </div>
+
+      {/* 形象 / 人格 / 声音：挂在顶栏右下的一列小键（见文件头 ★ 换装） */}
+      <div className="absolute right-2 z-10 flex flex-col gap-2" style={{ top: `calc(env(safe-area-inset-top, 0px) + ${TOP_BAR_PX + 14}px)` }}>
+        <RailButton emoji="👗" label="形象" onClick={() => navigate("/support/models")} />
+        <RailButton emoji="🎭" label="人格" onClick={() => navigate("/support/personas")} />
+        <RailButton emoji="🎙️" label="声音" onClick={() => setVoiceSheetOpen(true)} />
       </div>
 
       {/* 底部浮层：最近一问一答 + 转人工卡 + 快捷问题 + 输入区 */}
@@ -472,6 +566,7 @@ export default function SupportPage() {
         )}
         {chatErr && <p className="mb-2 px-1 text-[12px] leading-5 text-rose-300">{chatErr}</p>}
         {micErr && <p className="mb-2 px-1 text-[12px] leading-5 text-amber-300">{micErr}</p>}
+        {stageNotice && <p className="mb-2 px-1 text-[12px] leading-5 text-amber-300">{stageNotice}</p>}
 
         {messages.length === 0 && phase === "idle" && quick.length > 0 && (
           <div className="mb-2 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -533,6 +628,10 @@ export default function SupportPage() {
       </div>
 
       {historyOpen && <HistorySheet name={name} messages={messages} onClose={() => setHistoryOpen(false)} />}
+
+      {voiceSheetOpen && (
+        <VoiceSheet name={name} settings={settings} merged={config?.voiceSettings} onClose={() => setVoiceSheetOpen(false)} onSaved={refreshCompanion} />
+      )}
 
       {ticketsOpen && (
         <div className="absolute inset-0 z-20 flex flex-col bg-ink">

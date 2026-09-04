@@ -107,6 +107,11 @@
 			"Name": "Body X"
 		},
 		{
+			"Id": "ParamSkirtSway",
+			"GroupId": "",
+			"Name": "Skirt Sway"
+		},
+		{
 			"Id": "ParamBodyAngleY",
 			"GroupId": "",
 			"Name": "Body Y"

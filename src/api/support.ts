@@ -9,6 +9,7 @@
  *   所以能力判断看 Content-Type，不看状态码。
  */
 import { API_BASE, ApiError, apiGet, apiPatch, apiPost, getToken } from "./client";
+import type { Live2dModelItem, PersonaSource, PersonaSummary, VoiceSettings } from "./companion";
 import { createSseParser } from "../companion/sse";
 import type { CompanionSentence } from "../companion/protocol";
 
@@ -30,6 +31,17 @@ export interface SupportConfig {
   loginRequired: boolean;
   quickQuestions: string[];
   categories: SupportCategory[];
+  /**
+   * 以下四项 2026-09-04 起登录时才带（老服务端一个都没有 → 全走旧逻辑）。
+   * voiceSettings = 服务端算好的三层合并（用户覆盖 > 人格自带 > 模型推荐 > 默认），念台词直接展开进 /api/tts；
+   * 老字段 voice 与 voiceSettings.voiceId 相等。
+   */
+  voiceSettings?: VoiceSettings;
+  /** 装了的人格（用户选的 → 形象作者推荐的）；null / 缺省 = 默认人设 */
+  persona?: PersonaSummary | null;
+  personaSource?: PersonaSource;
+  /** 在用的市场模型；null / 缺省 = 官方内置 */
+  model?: Live2dModelItem | null;
 }
 
 export interface TicketReply {
@@ -71,8 +83,13 @@ export const CATEGORY_LABEL: Record<SupportCategory, string> = {
   other: "其他",
 };
 
+/**
+ * 有 token 就带上：服务端按登录用户解析人格 / 形象 / 声音（voiceSettings 等四个字段），游客只有服务端默认。
+ * ★ 以前写死 `auth: false`——那时 config 是纯公共配置，不带 token 顺便避开"token 过期被 401 踢登出"；
+ *   现在这一页本来就在 RequireAuth 后面，过期就该登出，与其它带 token 的请求一致。
+ */
 export function getSupportConfig(): Promise<SupportConfig> {
-  return apiGet<SupportConfig>("/api/support/config", { auth: false });
+  return apiGet<SupportConfig>("/api/support/config");
 }
 
 export interface SupportChatHandlers {
@@ -159,9 +176,12 @@ export async function streamSupportChat(
   if (state.failure) throw new ApiError(state.failure, 502, "SUPPORT_UPSTREAM");
 }
 
-/** 豆包 TTS → audio/mpeg Blob。登录 + 30 次/分钟限流（服务端）。 */
+/**
+ * 豆包 TTS → audio/mpeg Blob。登录 + 30 次/分钟限流（服务端）。
+ * rate = speech_rate [-50,100]（倍速 1 + r/100），pitch = post_process.pitch [-12,12]；缺省 = 不传（原速原调）。
+ */
 export async function synthesizeSpeech(
-  body: { text: string; voice?: string; emotion?: string; instruct?: string; expressive?: boolean },
+  body: { text: string; voice?: string; emotion?: string; instruct?: string; expressive?: boolean; rate?: number; pitch?: number },
   signal?: AbortSignal,
 ): Promise<Blob> {
   const res = await fetch(`${API_BASE}/api/tts`, {

@@ -69,6 +69,9 @@ export default function SettingsPage() {
       {/* ── 帮助 ─────────────────────────────────────────────── */}
       <Group>
         <NavRow to="/support" emoji="🎧" title="AI 客服 · 帮助与反馈" sub="问小梦，解决不了转人工" />
+        {/* 数字人的形象 / 人格：主入口在客服页顶栏那一列小键，这里再给一条找得到的路（设置存服务端，官网同步） */}
+        <NavRow to="/support/models" emoji="👗" title="数字人形象" sub="给小梦换一套 Live2D 形象" />
+        <NavRow to="/support/personas" emoji="🎭" title="数字人人格" sub="换一种说话风格，官网同步" />
       </Group>
 
       {/* ── 协议与须知 ────────────────────────────────────────────

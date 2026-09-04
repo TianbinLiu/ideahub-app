@@ -36,6 +36,8 @@ import CreatePage from "./pages/CreatePage";
 import FlowPage from "./pages/FlowPage";
 import SimpleModePage from "./pages/SimpleModePage";
 import SupportPage from "./pages/SupportPage";
+import SupportModelsPage from "./pages/SupportModelsPage";
+import SupportPersonasPage from "./pages/SupportPersonasPage";
 import StudioPage from "./studio/StudioPage";
 import TabBar from "./components/TabBar";
 import { readyVideos } from "./data/videos";
@@ -401,6 +403,23 @@ export default function App() {
         element={
           <RequireAuth>
             <SupportPage />
+          </RequireAuth>
+        }
+      />
+      {/* 数字人的形象 / 人格市场：入口在客服页顶栏那一列小键（与设置页）。设置接口 /api/companion/settings 要登录 */}
+      <Route
+        path="/support/models"
+        element={
+          <RequireAuth>
+            <SupportModelsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/support/personas"
+        element={
+          <RequireAuth>
+            <SupportPersonasPage />
           </RequireAuth>
         }
       />
