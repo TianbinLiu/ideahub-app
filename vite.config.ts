@@ -239,6 +239,9 @@ const CSP = [
 const cspFor = (mode: string) =>
   mode === "e2e"
     ? CSP.replace("connect-src 'self' data: blob: https:", "connect-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*")
+        // 市场 Live2D 模型的贴图是 <img> 载入的（pixi Texture.from），走 img-src：本机 server 的 /uploads 也要放行，
+        // 否则真机上换装只会看到 "Texture loading error" 然后回落官方形象（2026-09-04 真机实测）
+        .replace("img-src 'self' data: blob: https:", "img-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*")
     : CSP;
 
 const cspPlugin = (mode: string) => ({

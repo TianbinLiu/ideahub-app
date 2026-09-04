@@ -374,6 +374,6 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 
 1. 本机起 server（内存库也行），CORS 白名单要包含 `https://localhost`（Capacitor WebView 的 origin）。
 2. `.env.e2e.local` 写 `VITE_API_BASE=http://localhost:4000`，然后 `npx vite build --mode e2e && node scripts/prune-app-assets.mjs && npx cap sync android && cd android && ./gradlew.bat assembleSideloadDebug`。
-3. `adb reverse tcp:4000 tcp:4000`：手机上的 localhost:4000 就是电脑。debug 变体的网络安全配置（`android/app/src/debug/res/xml/`）只给 localhost 放行明文；release 一个字没动。
+3. `adb reverse tcp:4000 tcp:4000`：手机上的 localhost:4000 就是电脑。e2e 模式的 CSP 除了 connect-src，**img-src 也放行了 localhost**——市场 Live2D 模型的贴图是 `<img>` 载入的，不放行的话真机换装只会看到 "Texture loading error" 然后回落官方形象。debug 变体的网络安全配置（`android/app/src/debug/res/xml/`）只给 localhost 放行明文；release 一个字没动。
 4. debug 包是 `com.ideahub.branchvideo.debug`，和正式包并排装，测完 `adb uninstall com.ideahub.branchvideo.debug`，不碰手机上正式版的草稿与登录态。
 5. QQ/微信登录在 debug 包里不能用（按正式包名 + 正式签名注册的），用密码登录测。
