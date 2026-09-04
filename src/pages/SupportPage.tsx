@@ -1,15 +1,20 @@
 /**
  * AI 客服页（/support）：看板娘数字人 + 流式问答 + 转人工工单。
  *
+ * 布局是「数字人占屏」：舞台铺满整页、看板娘占约 8 成高度；顶栏、字幕、输入区都是压在舞台上的半透明浮层，
+ * 对话区只留最近的一问一答（用户小气泡 + 数字人字幕气泡），完整记录收进底部抽屉「记录」——
+ * 这是豆包语音通话 / Character.AI 语音模式 / 各家数字人客服的通用构图：人是主体，文字是字幕。
+ *
  * 一句话的旅程：
  *   POST /api/support/chat（SSE）每来一条 sentence → 立刻发起该句的 /api/tts（不等上一句播完）
  *   → 按顺序排进演出队列：切表情 + 触发动作 + 舞台字幕 + 播放（口型跟包络）
  *   → 没音频（语音关 / TTS 失败 / 未配置）就按字数合成口型撑时长。
- *   服务端判定该转人工时发 `handoff` 事件 → 对话下方出现「转人工」卡；用户也随时可以自己点「转人工」。
+ *   服务端判定该转人工时发 `handoff` 事件 → 输入区上方出现「转人工」卡；用户也随时可以自己点「转人工」。
  *
  * ★ 演出是串行 Promise 链而不是 state：句子异步乱序到达，用 state 排队会丢句/乱序（与官网首页同一套做法）。
  * ★ runId 递增 = 「停止」：队列里的旧任务看到 run 变了就放弃，不用逐个取消。
  * ★ 语音开关与「铸卡师的声音」共用 data 层那一个键（studio/speech.voiceEnabled）：一个规则一处实现。
+ * ★ 舞台常驻不卸载：「记录」「我的工单」都是盖在舞台上的浮层，切来切去不会重建 WebGL 上下文。
  * ★ 登录墙由路由的 RequireAuth 管；这里拿到的 user 一定存在。
  * ★ 所有失败就地整句说明（api:error 没人听），绝不静默。
  */
@@ -44,6 +49,10 @@ type Phase = "idle" | "thinking" | "speaking";
 const MAX_HISTORY = 12;
 const MAX_INPUT_CHARS = 1000;
 const TRANSCRIPT_MAX = 30;
+/** 顶栏高度：模型的头顶从它下面开始 */
+const TOP_BAR_PX = 64;
+/** 看板娘身高占整页高度的比例 */
+const MODEL_HEIGHT_FRACTION = 0.8;
 
 let seq = 0;
 const nextId = () => `m${Date.now().toString(36)}${(seq++).toString(36)}`;
@@ -72,6 +81,8 @@ function errorText(e: unknown, fallback: string): string {
   return fallback;
 }
 
+const GLASS = "border border-white/10 bg-slate-950/55 backdrop-blur-md";
+
 export default function SupportPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -85,6 +96,7 @@ export default function SupportPage() {
   const [voiceOn, setVoiceOn] = useState(voiceEnabled);
   const [chatErr, setChatErr] = useState("");
   const [handoffHint, setHandoffHint] = useState<{ category: SupportCategory } | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [note, setNote] = useState("");
   const [contactEmail, setContactEmail] = useState("");
@@ -99,7 +111,7 @@ export default function SupportPage() {
   const runRef = useRef(0);
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const abortRef = useRef<AbortController | null>(null);
-  const listRef = useRef<HTMLDivElement>(null);
+  const captionRef = useRef<HTMLDivElement>(null);
 
   const name = config?.name || "小梦";
   const enabled = config ? config.enabled : true;
@@ -142,10 +154,14 @@ export default function SupportPage() {
     [],
   );
 
+  const lastUser = useMemo(() => [...messages].reverse().find((m) => m.role === "user") || null, [messages]);
+  const lastAssistant = useMemo(() => [...messages].reverse().find((m) => m.role === "assistant") || null, [messages]);
+
+  // 字幕随流式文字增长时保持滚到底
   useEffect(() => {
-    const el = listRef.current;
+    const el = captionRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, handoffHint]);
+  }, [lastAssistant?.text]);
 
   const transcript = useMemo(
     () => messages.filter((m) => !m.system && m.text.trim()).slice(-TRANSCRIPT_MAX).map((m) => ({ role: m.role, content: m.text.slice(0, 2000) })),
@@ -208,7 +224,7 @@ export default function SupportPage() {
     const text = (textArg ?? input).trim().slice(0, MAX_INPUT_CHARS);
     if (!text) return;
     if (!enabled) {
-      setChatErr(`服务端还没开通 AI 对话，${name}暂时不能回答；可以直接点下面的「转人工」。`);
+      setChatErr(`服务端还没开通 AI 对话，${name}暂时不能回答；可以直接点「转人工」。`);
       return;
     }
     stopAll();
@@ -319,141 +335,160 @@ export default function SupportPage() {
   }
 
   const quick = config?.quickQuestions ?? [];
+  const statusLabel = phase === "thinking" ? "思考中" : phase === "speaking" ? "说话中" : enabled ? "在线" : "对话未开通";
+  const captionText = lastAssistant?.text || (lastAssistant?.streaming ? "" : "");
+  const greeting = `你好，我是${name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。`;
 
   return (
-    <div className="safe-top flex h-dvh flex-col bg-ink text-slate-100">
-      {/* 顶栏 */}
-      <div className="flex h-12 shrink-0 items-center gap-2 px-2">
-        <button onClick={() => (ticketsOpen ? showTickets(false) : navigate(-1))} aria-label="返回" className="flex h-11 w-11 items-center justify-center text-slate-300">
-          <Icon name="back" size={20} />
-        </button>
-        <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold">{ticketsOpen ? "我的工单" : `AI 客服 · ${name}`}</h1>
-        {!ticketsOpen && (
-          <button onClick={() => showTickets(true)} className="rounded-full border border-slate-700 px-3 py-1.5 text-[12px] text-slate-200 active:bg-slate-800/60">
-            我的工单
+    <div className="relative h-dvh overflow-hidden bg-ink text-slate-100">
+      {/* 舞台：铺满整页，环境光打在人身上 */}
+      <SupportStage
+        className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_38%,rgba(56,189,248,0.22),transparent_62%),linear-gradient(180deg,#0b1220_0%,#070d18_60%,#040810_100%)]"
+        topPx={TOP_BAR_PX}
+        heightFraction={MODEL_HEIGHT_FRACTION}
+      />
+
+      {/* 顶栏浮层 */}
+      <div className="safe-top absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-ink/85 via-ink/40 to-transparent pb-8">
+        <div className="flex h-14 items-center gap-1 px-2">
+          <button onClick={() => navigate(-1)} aria-label="返回" className="flex h-11 w-11 items-center justify-center text-slate-200">
+            <Icon name="back" size={20} />
           </button>
-        )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="truncate text-[15px] font-semibold">{name}</span>
+              <span className="flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-slate-200">
+                <span className={`h-1.5 w-1.5 rounded-full ${phase === "idle" ? (enabled ? "bg-emerald-400" : "bg-slate-500") : "bg-brand animate-pulse"}`} />
+                {statusLabel}
+              </span>
+            </div>
+            <div className="truncate text-[11px] text-slate-400">启梦 AI 客服 · 解决不了转人工</div>
+          </div>
+          <button onClick={() => setHistoryOpen(true)} className={`${GLASS} rounded-full px-3 py-1.5 text-[12px] text-slate-100 active:bg-slate-800/70`}>
+            记录{messages.length > 0 ? ` ${Math.ceil(messages.filter((m) => !m.system).length / 2)}` : ""}
+          </button>
+          <button onClick={() => showTickets(true)} className={`${GLASS} rounded-full px-3 py-1.5 text-[12px] text-slate-100 active:bg-slate-800/70`}>
+            工单
+          </button>
+        </div>
       </div>
 
-      {ticketsOpen ? (
-        <TicketsPanel tickets={tickets} err={ticketsErr} highlight={highlightTicket} onChanged={setTickets} />
-      ) : (
-        <>
-          {/* 舞台 */}
-          <div className="relative h-[36vh] shrink-0">
-            <SupportStage className="absolute inset-0" />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-ink to-transparent" />
-            {subtitle && (
-              <div className="absolute inset-x-4 bottom-2 rounded-2xl bg-slate-900/85 px-3 py-2 text-[13px] leading-5 text-slate-100 shadow-lg backdrop-blur">
-                <span className="mr-1.5 text-[11px] font-semibold text-brand">{name}</span>
-                {subtitle}
-              </div>
-            )}
+      {/* 底部浮层：最近一问一答 + 转人工卡 + 快捷问题 + 输入区 */}
+      <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end bg-gradient-to-t from-ink via-ink/80 to-transparent px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-20">
+        {lastUser && (
+          <div className="mb-2 flex justify-end">
+            <div className="max-w-[78%] truncate rounded-2xl rounded-br-sm bg-brand/90 px-3 py-1.5 text-[13px] text-ink">{lastUser.text}</div>
           </div>
+        )}
 
-          {/* 对话 */}
-          <div ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2">
-            {messages.length === 0 && (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-[13px] leading-6 text-slate-300">
-                你好，我是{name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新这些都可以问我；我解决不了的会帮你转给人工。
-                {configErr && <p className="mt-1 text-[12px] text-amber-300">{configErr}</p>}
-                {!enabled && !configErr && <p className="mt-1 text-[12px] text-amber-300">服务端还没开通 AI 对话，你可以直接转人工。</p>}
-              </div>
-            )}
-            {messages.map((m) => (
-              <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-[14px] leading-6 ${
-                    m.role === "user"
-                      ? "rounded-br-sm bg-brand text-ink"
-                      : m.system
-                        ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
-                        : "rounded-bl-sm bg-slate-800 text-slate-100"
-                  }`}
-                >
-                  {m.text || (m.streaming ? `${name}在想…` : "")}
-                </div>
-              </div>
-            ))}
-            {handoffHint && phase === "idle" && (
-              <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3 text-[13px] leading-6 text-amber-100">
-                这个问题需要人工处理（{CATEGORY_LABEL[handoffHint.category]}）。转人工会把这段对话一起交给客服，你不用再讲一遍。
-                <div className="mt-2 flex gap-2">
-                  <button onClick={openSheet} className="rounded-full bg-amber-400 px-3.5 py-1.5 text-[13px] font-semibold text-ink active:opacity-80">
-                    转人工
-                  </button>
-                  <button onClick={() => setHandoffHint(null)} className="rounded-full border border-slate-600 px-3.5 py-1.5 text-[13px] text-slate-300 active:bg-slate-800/60">
-                    先不用
-                  </button>
-                </div>
-              </div>
-            )}
-            {chatErr && <p className="px-1 text-[12px] leading-5 text-rose-300">{chatErr}</p>}
+        {/* 字幕气泡：数字人正在说 / 刚说完的整段；点开看完整记录 */}
+        <button
+          type="button"
+          onClick={() => setHistoryOpen(true)}
+          className={`${GLASS} mb-2 w-full rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-left shadow-lg`}
+          aria-label="查看完整对话记录"
+        >
+          <div className="mb-0.5 flex items-center gap-2 text-[11px] text-brand">
+            <span className="font-semibold">{name}</span>
+            {phase === "speaking" && subtitle && <span className="text-slate-400">正在说这句 →</span>}
+            {phase === "thinking" && <span className="text-slate-400">在想…</span>}
           </div>
+          <div ref={captionRef} className={`max-h-[26vh] overflow-y-auto text-[14px] leading-6 ${lastAssistant?.system ? "text-emerald-100" : "text-slate-100"}`}>
+            {captionText || (phase === "thinking" ? "…" : greeting)}
+            {configErr && !messages.length && <p className="mt-1 text-[12px] text-amber-300">{configErr}</p>}
+            {!enabled && !configErr && !messages.length && <p className="mt-1 text-[12px] text-amber-300">服务端还没开通 AI 对话，你可以直接转人工。</p>}
+          </div>
+        </button>
 
-          {/* 输入区 */}
-          <div className="shrink-0 border-t border-slate-800 px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-2">
-            {messages.length === 0 && quick.length > 0 && (
-              <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-                {quick.map((q) => (
-                  <button key={q} onClick={() => void send(q)} className="shrink-0 rounded-full border border-slate-700 bg-slate-900/70 px-3 py-1.5 text-[12px] text-slate-200 active:bg-slate-800">
-                    {q}
-                  </button>
-                ))}
-              </div>
-            )}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void send();
-              }}
-              className="flex items-center gap-1.5"
-            >
-              <button
-                type="button"
-                onClick={toggleVoice}
-                aria-pressed={voiceOn}
-                aria-label={voiceOn ? "语音：开" : "语音：关"}
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${voiceOn ? "text-brand" : "text-slate-500"}`}
-              >
-                <span className="text-lg">{voiceOn ? "🔊" : "🔇"}</span>
-              </button>
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                maxLength={MAX_INPUT_CHARS}
-                enterKeyHint="send"
-                placeholder={enabled ? `问${name}：哪里不对？` : "AI 对话未开通，可直接转人工"}
-                disabled={!enabled}
-                className="h-10 min-w-0 flex-1 rounded-full border border-slate-700 bg-slate-900 px-4 text-[14px] text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-60"
-              />
-              {phase !== "idle" ? (
-                <button type="button" onClick={stopAll} aria-label="停止" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500/20 text-rose-200">
-                  <span className="block h-3.5 w-3.5 rounded-sm bg-current" />
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={!input.trim() || !enabled}
-                  aria-label="发送"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-ink disabled:opacity-40"
-                >
-                  <Icon name="send" size={18} />
-                </button>
-              )}
-            </form>
-            <div className="mt-1.5 flex items-center justify-between px-1 text-[11px] text-slate-500">
-              <span>{phase === "thinking" ? `${name}在想…` : phase === "speaking" ? `${name}在说…` : "AI 回答仅供参考，涉及退款与账号的事会转人工"}</span>
-              <button onClick={openSheet} className="text-slate-300 underline decoration-slate-600 active:text-white">
+        {handoffHint && phase === "idle" && (
+          <div className="mb-2 rounded-2xl border border-amber-400/40 bg-amber-500/15 p-3 text-[13px] leading-6 text-amber-50 backdrop-blur-md">
+            这个问题需要人工处理（{CATEGORY_LABEL[handoffHint.category]}）。转人工会把这段对话一起交给客服，你不用再讲一遍。
+            <div className="mt-2 flex gap-2">
+              <button onClick={openSheet} className="rounded-full bg-amber-400 px-3.5 py-1.5 text-[13px] font-semibold text-ink active:opacity-80">
                 转人工
+              </button>
+              <button onClick={() => setHandoffHint(null)} className="rounded-full border border-white/20 px-3.5 py-1.5 text-[13px] text-slate-200 active:bg-slate-800/60">
+                先不用
               </button>
             </div>
           </div>
-        </>
+        )}
+        {chatErr && <p className="mb-2 px-1 text-[12px] leading-5 text-rose-300">{chatErr}</p>}
+
+        {messages.length === 0 && phase === "idle" && quick.length > 0 && (
+          <div className="mb-2 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]">
+            {quick.map((q) => (
+              <button key={q} onClick={() => void send(q)} className={`${GLASS} shrink-0 rounded-full px-3 py-1.5 text-[12px] text-slate-100 active:bg-slate-800/70`}>
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void send();
+          }}
+          className={`${GLASS} flex items-center gap-1 rounded-full p-1.5 shadow-xl`}
+        >
+          <button
+            type="button"
+            onClick={toggleVoice}
+            aria-pressed={voiceOn}
+            aria-label={voiceOn ? "语音：开" : "语音：关"}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${voiceOn ? "text-brand" : "text-slate-500"}`}
+          >
+            <span className="text-lg">{voiceOn ? "🔊" : "🔇"}</span>
+          </button>
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            maxLength={MAX_INPUT_CHARS}
+            enterKeyHint="send"
+            placeholder={enabled ? `问${name}：哪里不对？` : "AI 对话未开通，可直接转人工"}
+            disabled={!enabled}
+            className="h-10 min-w-0 flex-1 bg-transparent px-2 text-[14px] text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-60"
+          />
+          {phase !== "idle" ? (
+            <button type="button" onClick={stopAll} aria-label="停止" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500/25 text-rose-200">
+              <span className="block h-3.5 w-3.5 rounded-sm bg-current" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!input.trim() || !enabled}
+              aria-label="发送"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-ink disabled:opacity-40"
+            >
+              <Icon name="send" size={18} />
+            </button>
+          )}
+        </form>
+        <div className="mt-1.5 flex items-center justify-between px-2 text-[11px] text-slate-400">
+          <span>AI 回答仅供参考，涉及退款与账号的事会转人工</span>
+          <button onClick={openSheet} className="text-slate-200 underline decoration-slate-500 active:text-white">
+            转人工
+          </button>
+        </div>
+      </div>
+
+      {historyOpen && <HistorySheet name={name} messages={messages} onClose={() => setHistoryOpen(false)} />}
+
+      {ticketsOpen && (
+        <div className="absolute inset-0 z-20 flex flex-col bg-ink">
+          <div className="safe-top flex h-12 shrink-0 items-center gap-2 px-2">
+            <button onClick={() => showTickets(false)} aria-label="返回" className="flex h-11 w-11 items-center justify-center text-slate-300">
+              <Icon name="back" size={20} />
+            </button>
+            <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold">我的工单</h1>
+          </div>
+          <TicketsPanel tickets={tickets} err={ticketsErr} highlight={highlightTicket} onChanged={setTickets} />
+        </div>
       )}
 
       {sheetOpen && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={() => !submitting && setSheetOpen(false)}>
+        <div className="fixed inset-0 z-30 flex items-end bg-black/60" onClick={() => !submitting && setSheetOpen(false)}>
           <div className="w-full rounded-t-3xl bg-slate-900 px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-4" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-[15px] font-semibold">转人工客服</h2>
             <p className="mt-1 text-[12px] leading-5 text-slate-400">
@@ -488,6 +523,48 @@ export default function SupportPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** 完整对话记录：底部抽屉，数字人仍在后面 */
+function HistorySheet({ name, messages, onClose }: { name: string; messages: ChatMessage[]; onClose: () => void }) {
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  return (
+    <div className="fixed inset-0 z-30 flex items-end bg-black/40" onClick={onClose}>
+      <div className="flex max-h-[72vh] w-full flex-col rounded-t-3xl border-t border-white/10 bg-slate-950/95 backdrop-blur-md" onClick={(e) => e.stopPropagation()}>
+        <div className="flex h-12 shrink-0 items-center px-4">
+          <span className="text-[14px] font-semibold text-slate-100">对话记录</span>
+          <span className="ml-2 text-[11px] text-slate-500">{messages.filter((m) => !m.system).length} 条</span>
+          <button onClick={onClose} aria-label="关闭" className="ml-auto flex h-10 w-10 items-center justify-center text-slate-300">
+            <Icon name="close" size={18} />
+          </button>
+        </div>
+        <div ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-[max(env(safe-area-inset-bottom),16px)]">
+          {messages.length === 0 && <p className="py-6 text-center text-[12px] text-slate-500">还没有对话。</p>}
+          {messages.map((m) => (
+            <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-[14px] leading-6 ${
+                  m.role === "user"
+                    ? "rounded-br-sm bg-brand text-ink"
+                    : m.system
+                      ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
+                      : "rounded-bl-sm bg-slate-800 text-slate-100"
+                }`}
+              >
+                {m.role === "assistant" && !m.system && <span className="mr-1.5 text-[11px] text-brand">{name}</span>}
+                {m.text || (m.streaming ? "…" : "")}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -529,7 +606,7 @@ function TicketsPanel({
   if (!tickets.length) return <p className="m-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-[13px] leading-6 text-slate-400">还没有工单。和 AI 客服聊不明白的问题，点「转人工」就会出现在这里。</p>;
 
   return (
-    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-2">
+    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-2 pb-[max(env(safe-area-inset-bottom),16px)]">
       {tickets.map((t) => (
         <section key={t.id} className={`rounded-2xl border p-3 ${t.id === highlight ? "border-brand/60 bg-brand/5" : "border-slate-800 bg-slate-900/60"}`}>
           <div className="flex items-center gap-2 text-[11px] text-slate-400">

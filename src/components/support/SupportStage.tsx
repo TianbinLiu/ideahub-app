@@ -1,8 +1,10 @@
 /**
  * AI 客服页的看板娘舞台（Live2D 画布）。
  *
- * 与官网首页的 CompanionStage 同源（live2d/companionModel.ts 驱动、companion/bus.ts 总线），
- * 但手机竖屏没有"留白区"概念：模型直接站满这块固定高度的舞台，脸在上三分之一。
+ * 与官网首页的 CompanionStage 同源（live2d/companionModel.ts 驱动、companion/bus.ts 总线）。
+ * 客服页是"数字人占屏"的布局：舞台铺满整页，顶栏/字幕/输入区都是压在上面的半透明浮层，
+ * 所以模型按 `topPx`（顶栏高度）与 `heightFraction`（占整页高度的比例，默认 0.8）摆位——
+ * 头在顶栏之下、脚伸到输入区后面，和豆包语音通话、Character.AI 语音模式那种构图一致。
  * 表情/动作/口型由 SupportPage 通过 companionBus 驱动，本组件只管挂载、摆位、跟随手指转头。
  *
  * ★ 运行时脚本与模型都在 public/live2d/（随 APK 打包，WebView 里同源 https://localhost），
@@ -17,9 +19,19 @@ import { companionBus } from "../../companion/bus";
 
 const MODEL_URL = "/live2d/mascot/mascot.model3.json";
 
-export default function SupportStage({ className = "" }: { className?: string }) {
+type Props = {
+  className?: string;
+  /** 顶栏占掉的高度：模型的头顶从这里开始 */
+  topPx?: number;
+  /** 模型身高占整页高度的比例 */
+  heightFraction?: number;
+};
+
+export default function SupportStage({ className = "", topPx = 56, heightFraction = 0.8 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "failed">("loading");
+  const layoutRef = useRef({ topPx, heightFraction });
+  layoutRef.current = { topPx, heightFraction };
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -32,8 +44,9 @@ export default function SupportStage({ className = "" }: { className?: string })
       const r = wrap.getBoundingClientRect();
       if (r.width < 2 || r.height < 2) return;
       model.resize(r.width, r.height);
-      // 竖屏舞台不高：让整个人（含头）都进画面，脚踩底边，身高略小于舞台高，留出字幕的位置
-      model.fitTo({ x: 0, y: 0, width: r.width, height: r.height - 8 }, { heightRatio: 0.96, xBias: 0.5 });
+      const { topPx: top, heightFraction: frac } = layoutRef.current;
+      const height = Math.max(120, Math.min(r.height - top, r.height * frac));
+      model.fitTo({ x: 0, y: top, width: r.width, height }, { heightRatio: 1, xBias: 0.5 });
     };
     const observer = new ResizeObserver(() => fit());
     observer.observe(wrap);
@@ -85,7 +98,9 @@ export default function SupportStage({ className = "" }: { className?: string })
   //   两个 position 类叠在一起时以 Tailwind 生成顺序为准，曾把调用方的 absolute 顶掉，容器高度塌成画布默认的 2px。
   return (
     <div ref={wrapRef} className={`overflow-hidden ${className}`} aria-hidden="true">
-      {status === "loading" && <div className="absolute inset-0 flex items-center justify-center text-[12px] text-slate-500">正在请小梦出场…</div>}
+      {status === "loading" && (
+        <div className="absolute inset-x-0 top-[40%] flex items-center justify-center text-[12px] text-slate-400/80">正在请小梦出场…</div>
+      )}
     </div>
   );
 }
