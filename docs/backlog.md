@@ -882,6 +882,102 @@ Play Billing 收得了钱，但它**付不出钱给我们的作者用户**。所
 
 ---
 
+## 2.13 走 GPB 上架 Play：资质答案 + 落地方案（2026-09-03 联网调研，主人已拍板走这条）
+
+> 主人拍板：**先 Google Play + GPB 上架，拿到成果与营收之后再回国内注册公司**。
+> 并问：「微信支付宝不是需要企业资质吗？还是说支付宝限制宽一点，个人开发者能成功上线？」
+
+### 2.13.1 国内支付资质：微信是零路径，**支付宝真的更宽**（主人猜对了）
+
+**微信支付 —— 自然人拿不到任何 App 内收款形态。**
+- APP支付只支持 个体工商户／企业／事业单位／政府机关／社会组织，**五类全部要营业执照**。
+- **小微商户**（唯一免执照的口子）不支持 APP支付与 H5支付，只能服务商代申请，且行业上明写
+  「暂不支持通过此渠道入驻线上行业（如直播及游戏行业等）」。
+- 「个人卖家(2500)」要求"持续经营满 6 个月且累计收入超 20 万"，且只存在于电商收付通链路 —— 鸡生蛋。
+  来源：<https://pay.weixin.qq.com/doc/v3/merchant/4015420731>、<https://pay.weixin.qq.com/doc/v2/partner/4014115330>
+⇒ **别在"找服务商开小微商户"上浪费时间**，它连 APP支付这个产品都没有。
+
+**支付宝 —— 个人账号能真跑通，代价是限额。**
+- 《APP支付申请签约的条件》（更新 2026-06-22）**通篇没有营业执照这一项**，也不限主体类型，
+  且允许 App 尚未上架（交三张关键页面截图，过审后可用 30 天）。
+- 《支付产品额度规则介绍》（更新 2026-06-18）写明「营业执照（**选填**）：个人账号建议补充营业执照
+  （可提升额度）」，四档额度里我们能用的那档是：**App 已上线 + 未提供执照 → 单笔 ≤¥50、单日 ≤¥1000，长期有效**。
+  来源：<https://opendocs.alipay.com/b/03ajjb>、<https://opendocs.alipay.com/b/039qjw>
+⇒ 这是**唯一一条"没有公司也能真收到国内的钱"的路**，而且不要求上架任何市场，正好适配 sideload。
+  但 ¥50/笔封死了大额套餐 —— 只能做小额档（¥9.9/¥19.9 加油包）做**真实付费验证**，撑不起营收。
+  补一张执照即解除限额。
+
+### 2.13.2 Play 个人开发者：**不需要公司**，但有三道容易卡住的验证
+
+- **强制组织账号的只有四类**（金融／健康／VpnService／政府），我们不在内 ⇒ 个人账号能走完整条路。
+  D-U-N-S 只有组织账号要。来源：<https://support.google.com/googleplay/android-developer/answer/13634885>
+- US$25 一次性，**预付卡不接受** ⇒ 要一张能跨境支付的双币信用卡。
+- ⚠ **身份验证是"提交应用"的前置**，不是发布前补材料。中国接受 护照/身份证/驾照/居留证 +
+  地址证明；**所有文件必须与 payments profile 完全一致**（个人账号的姓名地址是从 payments profile 取的）。
+  来源：<https://support.google.com/googleplay/android-developer/answer/15633622?co=GENIE.CountryCode%3DCN>
+- ⚠ **设备验证**：必须用 **Play Console 手机版 App** 在真实、非 root、Android 10+ 手机上验证。
+  **国行机常缺 GMS，这一条在国内最容易卡住** —— 建议注册当天就验掉。
+  来源：<https://support.google.com/googleplay/android-developer/answer/14316361>
+- 封闭测试要求（12 人 × 14 天）见 memory `google-play-launch-requirements`；**它不需要支付先接好**，
+  所以封测应该与支付开发并行启动，别串行等。
+
+### 2.13.3 技术选型：**PBL v7 的截止日已经过了**
+
+- 官方硬门禁：`By Aug 31, 2026, all new apps and updates must use Billing Library version 8 or later.`
+  今天是 2026-09-03，**这个日子已过** ⇒ 新 app 用 PBL < 8 一律发不出去。
+  弃用时刻表：v8 → 2027-08-31、v9 → 2028-08-31。⇒ 我们是全新 app，**直接上 9.x**。
+- `android/variables.gradle` 的 `minSdkVersion = 24` ≥ PBL 8.1 要求的 23，**不用动**。
+- **没有官方 Capacitor 计费插件**。建议**自写原生 Plugin**（仓里已有三个先例：`AppUpdaterPlugin` /
+  `QQLoginPlugin` / `WeChatPlugin`），落在 `android/app/src/play/java/…/BillingPlugin.java` ——
+  **只在 play flavor 里存在**，与 `AppUpdaterPlugin` 只在 sideload 里存在正好对称。
+- ★ 选型时抓到一个正撞坑表那格的例子：`@capgo/native-purchases` 的 **README 写 PBL 7.x（今天已不能上架）,
+  而它的 `android/build.gradle` 里实际是 9.1.0**。⇒ **选型别信 README，`curl` 一下它的 build.gradle。**
+
+### 2.13.4 落地的四个硬点（每一条漏了都是钱）
+
+**① `verify(req)` 这个形状对 GPB 根本没有对应物。**
+现有 adapter 是为「渠道主动回调 + 验签」设计的；GPB 没有带我们订单号的签名回调，真相只能靠**出站**
+查 `androidpublisher`。⇒ 新开一条 `requireAuth` 的 **redeem 路由**（客户端把 purchaseToken 交上来），
+但**结算内核（幂等抢占 + 发币）必须与现有那份共用一份**。
+
+**② O2 必须换一把尺，而且要做成 adapter 上的「必填」字段。**
+GPB 拿不到金额 ⇒ 现有判据 `paidFen < amountFen` 会**恒成立**，把**每一笔真购买判成 underpaid**
+（钱付了、token 没到）—— 这是本次改动里失败方向最坏的一处。
+新形状：`amountCheck` 必填，`"channel"`（微信/支付宝，保持现状）或 `"product"`（GPB：判
+productId 等于订单快照里的 storeProductId，发币量只从服务端映射表取 × quantity，金额一概不参与）。
+⚠ **必填不给默认**：默认 "channel" 会让新渠道悄悄退回一条走不通的判据，默认 "product" 会让新渠道
+悄悄跳过金额校验 —— 两个方向都坏（坑表「可选参数漏传零症状」那一格）。
+⇒ `TokenOrder` 要加快照字段 `storeProductId`（与 packTokens/amountFen 同一批快照语义）。
+
+**③ 3 天不 acknowledge = 用户自动退款、权益被撤销。** 官方逐字。计时从 PENDING → PURCHASED 开始
+（PENDING 期间不计）。测试期更快：license tester **3 分钟**不 ack 就退。
+- token 包是**可消耗**商品 ⇒ 服务端调 `purchases.products…:consume`（**consume 隐含 acknowledge**）。
+- ⚠ **顺序不能反**：先发币落 settled，**再** consume。反过来中间崩一次就是「钱付了、Google 认为已交付、
+  我们没发币、也不会退款」。
+- ⚠ consume 失败**不能吞**（别写成 `void p.catch(...)` —— 坑表那格的同型）：加 `acknowledgedAt` +
+  重试计数 + 清扫器，照抄仓里现成的 `PendingAssetPurge` + 清扫器样板。
+  **漏了它，上线第 4 天开始批量退款，而且全程零报错。**
+
+**④ purchaseToken 去重要落在服务端表上**（客户端 `queryPurchasesAsync` 只返回未消耗的，
+consume 之后就查不回来了）—— 这逼着账本唯一真相留在服务端，正好与 O1 一致。
+
+### 2.13.5 要主人拍板的一条
+
+**退款回收「扣不动怎么办」**：用户退款后 token 已经花掉了，钱包扣成负数还是记欠账？
+这条不定，退款回收就只能选择性执行 —— 属于产品口径，不是技术问题。
+
+### 2.13.6 建议顺序
+
+1. **先注册 Play 个人账号 + 过身份验证 + 设备验证**（这三样是提交前置，且设备验证在国内最容易卡）。
+2. **同时**把封闭测试跑起来（12 人 × 14 天，**不需要支付先接好**）。
+3. 并行做 §2.13.4 的四个硬点 + 自写 `BillingPlugin`（play flavor）。
+4. 支付宝那条（个人、¥50/笔）留给 sideload 做**小额真实付费验证**，不指望它撑营收。
+5. ⚠ 上架前还有一件**比支付更挡路**的：UGC 政策强制的**拉黑用户功能**，本仓至今没有
+   （服务端 `utils/blocking.js` 只服务旧的「点子」那条线，分支视频这一侧连 API 都没有）。
+   见 memory `google-play-launch-requirements`。
+
+---
+
 ## 3. 其它（较小）
 
 - **合成成片的 AIGC 角标**（2026-09-03 复核 backlog 时**发现并修掉了一个真缺口**，剩下的只差真机留证）：
