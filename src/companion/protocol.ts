@@ -47,7 +47,12 @@ export function normalizeAction(value: unknown): CompanionAction {
   return (ACTIONS as readonly string[]).includes(String(value)) ? (value as CompanionAction) : "none";
 }
 
-/** 模型里的四块「表情补片」Part（Cubism 工程里的顶层 Part 名，运行时用不透明度开关） */
+/**
+ * 模型里的四块「表情补片」Part（Cubism 工程里的顶层 Part 名）。
+ * ExprSmile / ExprAngry 靠 Part 不透明度开关；ExprClosed / ExprMouthOpen 自 mascot8 起常开，
+ * 露出与否钉在 ParamEyeL/ROpen、ParamMouthOpenY 的关键帧上 —— FacePose.parts 里的 ExprClosed 值
+ * 因此表示「闭眼程度」（companionModel 把它写进眼睛参数），不再是补片开关。
+ */
 export type ExpressionPart = "ExprSmile" | "ExprAngry" | "ExprClosed" | "ExprMouthOpen";
 export const EXPRESSION_PARTS: ExpressionPart[] = ["ExprSmile", "ExprAngry", "ExprClosed", "ExprMouthOpen"];
 
