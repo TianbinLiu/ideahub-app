@@ -35,6 +35,10 @@ function actionText(n: NotificationItem): string {
     case "ADMIN_NOTICE":
       // 平台口吻的那一行不走这个句式（见 NoticeRow），这里只是类型上兜全
       return "平台通知";
+    case "SUPPORT_TICKET":
+      return "提交了客服工单";
+    case "SUPPORT_REPLY":
+      return "客服回复了你的工单";
     default:
       // ★★ 铁律七：**不认识的类型原样显示类型名**，不吞、不崩。这一支在类型上是
       //   never（白名单是闭合联合），但运行时形状由服务端决定 —— 哪天两边版本错开，
@@ -92,6 +96,12 @@ export default function NotificationsPage() {
    *   它本来就只能"看一眼"，不标的话红点永远消不掉。
    */
   function open(n: NotificationItem) {
+    // 客服工单：管理员进后台队列，用户进「我的工单」。工单页打开即算处理过，就地标已读。
+    if (n.ticketId) {
+      void markNotificationRead(n.id);
+      navigate(n.type === "SUPPORT_TICKET" ? "/admin?view=support" : `/support?tab=tickets&ticket=${encodeURIComponent(n.ticketId)}`);
+      return;
+    }
     if (n.videoId) {
       navigate(`/video/${n.videoId}`, { state: { fromNotification: n.id } });
       return;

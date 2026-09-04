@@ -50,11 +50,12 @@ import {
 } from "../api/admin";
 import { deleteVideo, removeComment, removeDanmaku, type ApiVideo } from "../api/branch";
 import { isAdmin, isRemoteMode } from "../data/account";
+import AdminTicketsView from "../components/support/AdminTicketsView";
 import { useCurrentUser } from "../hooks/useAccount";
 import { relativeTime, visibilityOf } from "../types";
 
 /** 同页子视图。home = 总览（统计卡 + 举报队列），其余五个是钻取列表 */
-type AdminView = "home" | "users" | "videos" | "comments" | "danmaku" | "takedowns";
+type AdminView = "home" | "users" | "videos" | "comments" | "danmaku" | "takedowns" | "support";
 
 const VIEW_TITLE: Record<AdminView, string> = {
   home: "管理后台",
@@ -63,6 +64,7 @@ const VIEW_TITLE: Record<AdminView, string> = {
   comments: "评论",
   danmaku: "弹幕",
   takedowns: "已下架",
+  support: "客服工单",
 };
 
 export default function AdminPage() {
@@ -72,7 +74,8 @@ export default function AdminPage() {
   const navigate = useNavigate();
   // ★ 必须在 early return **之前**声明：hooks 不许有条件地调用
   const [reloadKey, setReloadKey] = useState(0);
-  const [view, setView] = useState<AdminView>("home");
+  // 通知深链 /admin?view=support 直达客服工单队列；其它情况从总览进
+  const [view, setView] = useState<AdminView>(() => (new URLSearchParams(window.location.hash.split("?")[1] || "").get("view") === "support" ? "support" : "home"));
 
   if (!isAdmin()) return <Denied remote={isRemoteMode()} loggedIn={!!user} onBack={() => navigate("/", { replace: true })} />;
 
@@ -100,6 +103,17 @@ export default function AdminPage() {
           <div id="admin-reports">
             <ReportsSection onChanged={bump} />
           </div>
+          {/* 客服工单：单独一个视图（列表可能很长，且要在里面打字回复） */}
+          <button
+            onClick={() => setView("support")}
+            className="mt-4 flex w-full items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-left active:bg-slate-800/40"
+          >
+            <span>
+              <span className="block text-sm text-slate-100">🎧 客服工单</span>
+              <span className="block text-[11px] text-slate-500">用户从 AI 客服转人工的问题，在这里回复</span>
+            </span>
+            <Icon name="chevron" size={16} className="text-slate-600" />
+          </button>
           <p className="mt-8 text-center text-[10px] leading-relaxed text-slate-600">
             这里的每一个动作都由服务端按 role 重新鉴权一次。
             <br />
@@ -112,6 +126,7 @@ export default function AdminPage() {
       {view === "comments" && <ContentView kind="comment" onChanged={bump} />}
       {view === "danmaku" && <ContentView kind="danmaku" onChanged={bump} />}
       {view === "takedowns" && <TakedownsView onChanged={bump} />}
+      {view === "support" && <AdminTicketsView />}
     </div>
   );
 }

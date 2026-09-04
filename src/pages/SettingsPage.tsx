@@ -66,6 +66,11 @@ export default function SettingsPage() {
         <VersionRow />
       </Group>
 
+      {/* ── 帮助 ─────────────────────────────────────────────── */}
+      <Group>
+        <NavRow to="/support" emoji="🎧" title="AI 客服 · 帮助与反馈" sub="问小梦，解决不了转人工" />
+      </Group>
+
       {/* ── 协议与须知 ────────────────────────────────────────────
           应用商店与监管都要求协议在应用内可随时找到；文本只有 data/agreements 一份 */}
       <Group>

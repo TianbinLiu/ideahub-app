@@ -1,0 +1,217 @@
+/**
+ * AI 客服（/api/support）与豆包 TTS（/api/tts）的请求层。
+ * 契约：ideahub-server `src/routes/support.routes.js`，文档 docs/api-contract.md「客服」一节。
+ *
+ * ★ /chat 与 /tts 不走 apiPost/apiGet：一个是 SSE 流（要 ReadableStream 逐块读），一个回二进制（要 Blob），
+ *   client.ts 那条只解 JSON。鉴权头与 client 同一来源（getToken），API_BASE 也同一来源。
+ * ★ 与全 app 同一条铁律：所有请求都打 API_BASE，绝不写同源相对路径 —— Capacitor 的静态服务器对未命中
+ *   路径做 SPA 回退（200 + index.html），`res.ok` 永远为真、`res.json()` 卡在 "<!doctype"（CLAUDE.md 坑表）。
+ *   所以能力判断看 Content-Type，不看状态码。
+ */
+import { API_BASE, ApiError, apiGet, apiPatch, apiPost, getToken } from "./client";
+import { createSseParser } from "../companion/sse";
+import type { CompanionSentence } from "../companion/protocol";
+
+export type SupportCategory = "billing" | "account" | "content" | "bug" | "other";
+export type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
+
+export interface SupportConfig {
+  ok: true;
+  /** 客服叫什么（服务端 SUPPORT_AGENT_NAME / COMPANION_NAME，缺省「小梦」） */
+  name: string;
+  /** 服务端有没有配 AI key；false = 只能转人工 */
+  enabled: boolean;
+  /** 服务端有没有配 TTS key；false = 只有字幕 + 合成口型 */
+  tts: boolean;
+  /** 指定的豆包音色 id；空串 = 服务端默认音色 */
+  voice: string;
+  loginRequired: boolean;
+  quickQuestions: string[];
+  categories: SupportCategory[];
+}
+
+export interface TicketReply {
+  id: string;
+  by: "admin" | "user";
+  content: string;
+  at: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  status: TicketStatus;
+  category: SupportCategory;
+  subject: string;
+  summary: string;
+  note: string;
+  transcript: Array<{ role: "user" | "assistant"; content: string; at: string }>;
+  replies: TicketReply[];
+  createdAt: string;
+  updatedAt: string;
+  lastMessageAt: string;
+  /** 只有管理员接口才带 */
+  contactEmail?: string;
+  user?: { id: string; username: string; displayName: string; avatarUrl: string; email: string };
+}
+
+export const TICKET_STATUS_LABEL: Record<TicketStatus, string> = {
+  open: "待处理",
+  in_progress: "处理中",
+  resolved: "已解决",
+  closed: "已关闭",
+};
+
+export const CATEGORY_LABEL: Record<SupportCategory, string> = {
+  billing: "费用与退款",
+  account: "账号",
+  content: "内容处置",
+  bug: "程序问题",
+  other: "其他",
+};
+
+export function getSupportConfig(): Promise<SupportConfig> {
+  return apiGet<SupportConfig>("/api/support/config", { auth: false });
+}
+
+export interface SupportChatHandlers {
+  onSentence?: (sentence: CompanionSentence) => void;
+  onToken?: (token: string) => void;
+  /** 模型判定该转人工（一次对话最多一次） */
+  onHandoff?: (info: { category: SupportCategory; reason: string }) => void;
+  onDone?: (result: { text: string; handoff: boolean; category: SupportCategory | "" }) => void;
+}
+
+function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const token = getToken();
+  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;
+}
+
+async function throwHttp(res: Response): Promise<never> {
+  let message = `HTTP ${res.status}`;
+  let code = "";
+  try {
+    const j = (await res.json()) as { message?: string; code?: string };
+    if (j.message) message = j.message;
+    if (j.code) code = j.code;
+  } catch {
+    /* 非 JSON 就用状态码 */
+  }
+  throw new ApiError(message, res.status, code || undefined);
+}
+
+/**
+ * 流式问答。resolve = 流正常结束；服务端 `error` 事件或非 2xx 都 reject。
+ * ★ Content-Type 不是 text/event-stream 就当"服务端没有这个功能"抛出：SPA 回退给的是 200 + HTML。
+ */
+export async function streamSupportChat(
+  body: { messages: Array<{ role: "user" | "assistant"; content: string }>; lang?: "zh" | "en" },
+  handlers: SupportChatHandlers,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/support/chat`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json", Accept: "text/event-stream" }),
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!res.ok) await throwHttp(res);
+  const ctype = res.headers.get("content-type") || "";
+  if (!ctype.includes("text/event-stream")) {
+    throw new ApiError("服务端还没有 AI 客服（返回的不是事件流）", 501, "UNSUPPORTED");
+  }
+
+  const state = { failure: "" };
+  const parser = createSseParser(({ event, data }) => {
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(data) as Record<string, unknown>;
+    } catch {
+      return;
+    }
+    if (event === "sentence") handlers.onSentence?.(payload as unknown as CompanionSentence);
+    else if (event === "token") handlers.onToken?.(String(payload.t ?? ""));
+    else if (event === "handoff")
+      handlers.onHandoff?.({ category: (payload.category as SupportCategory) || "other", reason: String(payload.reason ?? "") });
+    else if (event === "done")
+      handlers.onDone?.({
+        text: String(payload.text ?? ""),
+        handoff: Boolean(payload.handoff),
+        category: (payload.category as SupportCategory) || "",
+      });
+    else if (event === "error") state.failure = String(payload.message || "support upstream failed");
+  });
+
+  if (!res.body) {
+    parser.push(await res.text());
+  } else {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      parser.push(decoder.decode(value, { stream: true }));
+    }
+    parser.push(decoder.decode());
+  }
+  parser.flush();
+  if (state.failure) throw new ApiError(state.failure, 502, "SUPPORT_UPSTREAM");
+}
+
+/** 豆包 TTS → audio/mpeg Blob。登录 + 30 次/分钟限流（服务端）。 */
+export async function synthesizeSpeech(
+  body: { text: string; voice?: string; emotion?: string; instruct?: string; expressive?: boolean },
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/api/tts`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!res.ok) await throwHttp(res);
+  const ctype = res.headers.get("content-type") || "";
+  if (!ctype.startsWith("audio/")) throw new ApiError("服务端没有返回音频", 501, "UNSUPPORTED");
+  return res.blob();
+}
+
+export function createSupportTicket(body: {
+  transcript: Array<{ role: "user" | "assistant"; content: string }>;
+  note?: string;
+  contactEmail?: string;
+  category?: SupportCategory;
+}): Promise<{ ok: true; ticket: SupportTicket; reused: boolean }> {
+  return apiPost("/api/support/tickets", body);
+}
+
+export function listMySupportTickets(): Promise<{ ok: true; items: SupportTicket[] }> {
+  return apiGet("/api/support/tickets/mine");
+}
+
+export function appendTicketMessage(ticketId: string, content: string): Promise<{ ok: true; ticket: SupportTicket }> {
+  return apiPost(`/api/support/tickets/${encodeURIComponent(ticketId)}/messages`, { content });
+}
+
+// ── 管理员侧 ──────────────────────────────────────────────
+export interface AdminTicketPage {
+  ok: true;
+  items: SupportTicket[];
+  total: number;
+  page: number;
+  limit: number;
+  status: string;
+  openCount: number;
+}
+
+export function adminListTickets(opts: { status?: TicketStatus | ""; page?: number; limit?: number } = {}): Promise<AdminTicketPage> {
+  return apiGet("/api/admin/support/tickets", {
+    query: { status: opts.status || undefined, page: opts.page, limit: opts.limit },
+  });
+}
+
+export function adminReplyTicket(ticketId: string, content: string): Promise<{ ok: true; ticket: SupportTicket }> {
+  return apiPost(`/api/admin/support/tickets/${encodeURIComponent(ticketId)}/reply`, { content });
+}
+
+export function adminSetTicketStatus(ticketId: string, status: TicketStatus): Promise<{ ok: true; ticket: SupportTicket }> {
+  return apiPatch(`/api/admin/support/tickets/${encodeURIComponent(ticketId)}/status`, { status });
+}

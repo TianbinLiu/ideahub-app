@@ -60,6 +60,8 @@ npm run land -- --dry # 只检查不动手
 src/
   ai/          方舟（Seedream 生图 / Seedance 生视频 / 豆包对话）客户端与真假实现切换
   api/         与 server 的 HTTP 调用
+  companion/   AI 客服/看板娘的演出协议（表情/动作标签、SSE 解析、语音包络、舞台总线）——与官网 client 同源拷贝
+  live2d/      Live2D 运行时加载与模型驱动（pixi + Cubism Core，全部自托管在 public/live2d/）
   components/  通用组件；`flow/` = 工作流画布：`FlowCanvas.tsx`（画布壳 + 就地编辑窗 +
                agent 输入条 + 四个 portal 弹层：方案台/成片回看/选卡/选模板）、
                `DeleteSegBtn.tsx`（删段确认，与 FlowPage 那份共用一处实现）
@@ -75,6 +77,7 @@ public/
   mascot/      工作流页屏幕中央的看板娘逐帧演出（二次元正片，交卡/炼卡/炼成三段）
   cards/       卡牌素材
   models/      3D 模型（protected/ 下的加密产物不入仓）
+  live2d/      看板娘 Live2D 模型（mascot/）与运行时脚本（runtime/，许可说明见其 README）——AI 客服页用
   avatars/     官方 Q 版看板娘头像（「我的」页换头像用，从 createbtn 精灵图里裁的）
 design/        ★ 建模/出图的【离线工具与素材】，不参与 App 构建
                （角色转换、LOD 生成、封面生成脚本 + 参考图 + 授权笔记）

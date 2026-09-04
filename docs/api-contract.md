@@ -306,6 +306,29 @@ likes×6 + comments×4 + bookmarks×3 + min(views, 5000)×0.04
 两份必须**权重与入参都相等**：入参不等的话，联网那一刻数字会当着用户的面跳一截。
 （同价目表的处境——两仓不在一个 CI 里，只能各留一份，改一边必须改另一边。）
 
+## 客服（AI 客服 + 转人工工单）
+
+App「我的 → AI 客服」（`/support`）的服务端。数字人是官网首页那位看板娘（Live2D，随 APK 打包在 `public/live2d/`），
+对话协议与官网 `/api/companion/chat` 相同（逐句 `sentence` 事件带 `[情绪][face][action]` 演出标签 + TTS 参数），多一个 `handoff`。
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/api/support/config` | optional | `{ ok, name, enabled, tts, voice, loginRequired: true, quickQuestions[], categories[] }`。`enabled=false`（服务端没配 AI）时输入框禁用，只剩「转人工」 |
+| POST | `/api/support/chat` | required | SSE。body `{ messages: [{role: user\|assistant, content ≤1000}] ≤20, lang? }`。事件：`sentence {index, text, emotion, face, action, tts:{emotion, instruct}}`、`token {t}`、**`handoff {category, reason}`**（模型判定该转人工，一次对话最多一条）、`done {text, handoff, category}`、`error {message}`。限流 **20/分钟按账号**。★ Content-Type 不是 `text/event-stream` 就当服务端没有这个功能（SPA 回退给的是 200 + HTML） |
+| POST | `/api/support/tickets` | required | 转人工建单。body `{ transcript: [{role, content ≤2000}] ≤30, note? ≤500, contactEmail?, category? }`；`transcript` 与 `note` 至少一个。**201** `{ ok, ticket, reused: false }`；同一用户 10 分钟内已有未结工单 → **200** `{ ok, ticket, reused: true }`（不重复建）。服务端用 AI 归纳 `subject/summary/category`（失败退回用户原话），然后给所有管理员发 `SUPPORT_TICKET` 通知 + 邮件（`SUPPORT_NOTIFY_EMAIL` 或有真实邮箱的管理员）。限流 5/分钟 |
+| GET | `/api/support/tickets/mine` | required | `{ ok, items: Ticket[] }` 最近 20 张（不含 `contactEmail`） |
+| POST | `/api/support/tickets/:id/messages` | required | 在自己的工单里追加 `{ content ≤2000 }`；已结的单会重新 `open`；再通知管理员（10 分钟去重）。别人的工单 404 |
+| GET | `/api/admin/support/tickets` | admin | query `status?`（非法值 400）、`page`、`limit≤50`。`{ ok, items, total, page, limit, status, openCount }`；`items[].user` 带 `username/displayName/avatarUrl/email`，并含 `contactEmail` |
+| GET | `/api/admin/support/tickets/:id` | admin | 详情 |
+| POST | `/api/admin/support/tickets/:id/reply` | admin | `{ content ≤2000 }` → `replies` 追加 `by: admin`；`open → in_progress`；用户收 `SUPPORT_REPLY {ticketId, kind: "reply", preview}` 通知 + 邮件（尽力而为） |
+| PATCH | `/api/admin/support/tickets/:id/status` | admin | `{ status: open\|in_progress\|resolved\|closed }`；结单（resolved/closed）给用户发 `SUPPORT_REPLY {kind: "status", status}` |
+
+Ticket 形状：`{ id, status, category: billing\|account\|content\|bug\|other, subject, summary, note, transcript[], replies: [{id, by: admin\|user, content, at}], createdAt, updatedAt, lastMessageAt }`。
+
+★ 转人工判定是**模型**做的：提示词里写明五类情形（退款/余额、注销恢复/封禁申诉/被盗、下架申诉/侵权、用户明确要人工或两轮未解决、知识库无依据），满足时回复开头写 `[handoff:类别]`，服务端剥掉后发 `handoff` 事件；App 收到后在对话下方出「转人工」卡，用户确认才建单。用户也随时可以自己点「转人工」。
+★ 知识库是 `ideahub-server/src/knowledge/support-kb.md`，由本仓 `docs/support-knowledge-base.md` 剥掉代码出处生成——**改知识改本仓源文件再重新生成**，两边不要各改各的。
+★ 评测：`ideahub-server/scripts/evalSupport.js`（题库 `tests/fixtures/support-eval.json`）量关键词召回、禁止承诺零命中、转人工判定、首句延迟。
+
 ## 通知（分支视频）
 
 沿用既有的 `/api/notifications`（列表 / `unread-count` / `:id/read` / `read-all`），新增：
