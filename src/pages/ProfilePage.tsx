@@ -544,6 +544,10 @@ export default function ProfilePage() {
               {/* 通知入口。★ 放这儿而不是底栏加一格：TabBar 是五格，底缘那 100px 的
                   几何是承重的（CLAUDE.md「动了首页底缘任何一个元素」那条）。 */}
               <HelpButton tour="profile" />
+              {/* AI 客服入口：和铃铛、齿轮并排，同一 44px 热区规格 */}
+              <Link to="/support" className="flex h-11 w-11 items-center justify-center text-slate-300" aria-label="AI 客服">
+                <Icon name="headset" size={21} />
+              </Link>
               <Link
                 data-guide="profile-notify"
                 to="/notifications"

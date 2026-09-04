@@ -1,0 +1,80 @@
+{
+  "Version": 3,
+  "FileReferences": {
+    "Moc": "mascot.moc3",
+    "Textures": [
+      "mascot.4096/texture_00.webp"
+    ],
+    "DisplayInfo": "mascot.cdi3.json",
+    "Expressions": [
+      {
+        "Name": "neutral",
+        "File": "neutral.exp3.json"
+      },
+      {
+        "Name": "smile",
+        "File": "smile.exp3.json"
+      },
+      {
+        "Name": "angry",
+        "File": "angry.exp3.json"
+      },
+      {
+        "Name": "sad",
+        "File": "sad.exp3.json"
+      },
+      {
+        "Name": "surprised",
+        "File": "surprised.exp3.json"
+      },
+      {
+        "Name": "shy",
+        "File": "shy.exp3.json"
+      }
+    ],
+    "Motions": {
+      "Idle": [
+        {
+          "File": "idle.motion3.json"
+        }
+      ],
+      "nod": [
+        {
+          "File": "nod.motion3.json"
+        }
+      ],
+      "shake": [
+        {
+          "File": "shake.motion3.json"
+        }
+      ],
+      "think": [
+        {
+          "File": "think.motion3.json"
+        }
+      ],
+      "excited": [
+        {
+          "File": "excited.motion3.json"
+        }
+      ]
+    }
+  },
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": [
+        "ParamEyeLOpen",
+        "ParamEyeROpen"
+      ]
+    },
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": [
+        "ParamMouthOpenY"
+      ]
+    }
+  ]
+}

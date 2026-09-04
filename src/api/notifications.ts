@@ -34,6 +34,14 @@ export const BRANCH_NOTIFICATION_TYPES = [
    * ★ 老服务端不认这个 type：列表查询把它放进 type 白名单只会匹配不到任何行，无害。
    */
   "ADMIN_NOTICE",
+  /**
+   * 客服工单（AI 客服转人工，见 pages/SupportPage）。
+   *   SUPPORT_TICKET：发给管理员——有新工单/用户追加了消息，payload { ticketId, subject, category, username, kind }
+   *   SUPPORT_REPLY： 发给用户——人工回复了 / 状态变了，payload { ticketId, kind: reply|status, preview, status }
+   * 深链目标是 ticketId（data/notifications.toItem 会搬到 NotificationItem.ticketId），不是 videoId。
+   */
+  "SUPPORT_TICKET",
+  "SUPPORT_REPLY",
 ] as const;
 
 export type BranchNotificationType = (typeof BRANCH_NOTIFICATION_TYPES)[number];

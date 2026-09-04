@@ -26,6 +26,8 @@ export interface NotificationItem {
   videoTitle: string;
   /** 评论/回复的正文预览（服务端已截到 60 字） */
   commentText: string;
+  /** 客服工单通知的深链目标（SUPPORT_TICKET / SUPPORT_REPLY）；其它类型为 null */
+  ticketId: string | null;
   at: number;
   read: boolean;
 }
@@ -134,7 +136,14 @@ function toItem(n: api.ApiNotification): NotificationItem | null {
     //   两个都收 —— 这里原来只读 commentText，而服务端按契约写的是 text：
     //   管理员发的每一条平台通知到用户手里都会显示成「（通知内容缺失）」，
     //   发送方还看着"已发送"的成功回执（2026-08-14 复查抓到的跨仓键名分叉）。
-    commentText: payload.commentText || (payload as { text?: string }).text || "",
+    commentText:
+      payload.commentText ||
+      (payload as { text?: string }).text ||
+      // 客服工单：用户看回复预览，管理员看工单标题
+      (payload as { preview?: string }).preview ||
+      (payload as { subject?: string }).subject ||
+      "",
+    ticketId: typeof (payload as { ticketId?: unknown }).ticketId === "string" ? ((payload as { ticketId: string }).ticketId) : null,
     at: toMs(n.createdAt),
     // ★ 判**未读**用「readAt 有没有值」，不是和某个哨兵值比：服务端未读写的是 null，
     //   而更老的记录里这一项可能压根不存在（undefined）。两种都必须算未读。

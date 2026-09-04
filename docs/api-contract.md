@@ -306,6 +306,45 @@ likes×6 + comments×4 + bookmarks×3 + min(views, 5000)×0.04
 两份必须**权重与入参都相等**：入参不等的话，联网那一刻数字会当着用户的面跳一截。
 （同价目表的处境——两仓不在一个 CI 里，只能各留一份，改一边必须改另一边。）
 
+## 客服（AI 客服 + 转人工工单）
+
+App「我的 → AI 客服」（`/support`）的服务端。数字人是官网首页那位看板娘（Live2D，随 APK 打包在 `public/live2d/`），
+对话协议与官网 `/api/companion/chat` 相同（逐句 `sentence` 事件带 `[情绪][face][action]` 演出标签 + TTS 参数），多一个 `handoff`。
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/api/support/config` | optional | `{ ok, name, enabled, tts, asr, voice, loginRequired: true, quickQuestions[], categories[] }`。`asr=false`（或老服务端没这个字段）时不画麦克风。`enabled=false`（服务端没配 AI）时输入框禁用，只剩「转人工」。**2026-09-04 起登录时另带** `voiceSettings: VoiceSettings`（三层合并结果，见下）、`persona: PersonaSummary\|null`、`personaSource: "user"\|"model"\|""`、`model: Live2dModel\|null`（null = 官方内置）；老字段 `voice` = `voiceSettings.voiceId`。老服务端没有这四项 → App 按旧写法只传 `voice` |
+| POST | `/api/support/chat` | required | SSE。body `{ messages: [{role: user\|assistant, content ≤1000}] ≤20, lang? }`。事件：`sentence {index, text, emotion, face, action, tts:{emotion, instruct}}`、`token {t}`、**`handoff {category, reason}`**（模型判定该转人工，一次对话最多一条）、`done {text, handoff, category}`、`error {message}`。限流 **20/分钟按账号**。★ Content-Type 不是 `text/event-stream` 就当服务端没有这个功能（SPA 回退给的是 200 + HTML） |
+| POST | `/api/support/tickets` | required | 转人工建单。body `{ transcript: [{role, content ≤2000}] ≤30, note? ≤500, contactEmail?, category? }`；`transcript` 与 `note` 至少一个。**201** `{ ok, ticket, reused: false }`；同一用户 10 分钟内已有未结工单 → **200** `{ ok, ticket, reused: true }`（不重复建）。服务端用 AI 归纳 `subject/summary/category`（失败退回用户原话），然后给所有管理员发 `SUPPORT_TICKET` 通知 + 邮件（`SUPPORT_NOTIFY_EMAIL` 或有真实邮箱的管理员）。限流 5/分钟 |
+| GET | `/api/support/tickets/mine` | required | `{ ok, items: Ticket[] }` 最近 20 张（不含 `contactEmail`） |
+| POST | `/api/support/tickets/:id/messages` | required | 在自己的工单里追加 `{ content ≤2000 }`；已结的单会重新 `open`；再通知管理员（10 分钟去重）。别人的工单 404 |
+| GET | `/api/admin/support/tickets` | admin | query `status?`（非法值 400）、`page`、`limit≤50`。`{ ok, items, total, page, limit, status, openCount }`；`items[].user` 带 `username/displayName/avatarUrl/email`，并含 `contactEmail` |
+| GET | `/api/admin/support/tickets/:id` | admin | 详情 |
+| POST | `/api/admin/support/tickets/:id/reply` | admin | `{ content ≤2000 }` → `replies` 追加 `by: admin`；`open → in_progress`；用户收 `SUPPORT_REPLY {ticketId, kind: "reply", preview}` 通知 + 邮件（尽力而为） |
+| PATCH | `/api/admin/support/tickets/:id/status` | admin | `{ status: open\|in_progress\|resolved\|closed }`；结单（resolved/closed）给用户发 `SUPPORT_REPLY {kind: "status", status}` |
+| POST | `/api/support/feedback` | required | 回答的 👍/👎：`{ question ≤1000, answer ≤4000, rating: up\|down, reason? ≤200 }` → **201** `{ ok, id }`。连原文一起存，差评是改知识库的线索。限流 30/分钟 |
+| GET | `/api/admin/support/feedback` | admin | query `rating?`（非法值 400）、`page`、`limit≤50` → `{ ok, items: [{ id, rating, question, answer, reason, createdAt, user }], total, page, limit, stats: { up, down } }` |
+| POST | `/api/asr` | required | **语音识别**：请求体是音频二进制（`Content-Type: audio/wav \| audio/mpeg \| audio/ogg`，或 `?format=`），≤ 6MB → `{ ok, text, durationMs }`。服务端转火山「大模型录音文件识别·极速版」；结果不落库、不留音频。限流 20/分钟。老服务端没有这条路（SPA 回退给 200 + HTML），App 按回包 Content-Type 判能力 |
+| GET | `/api/companion/settings` | required | **数字人三项选择**（人格 / Live2D 形象 / 声音覆盖）+ 解析结果：`{ ok, settings: { personaId: string\|null, modelId: string\|null, voice: VoiceSettings\|null }, persona: PersonaSummary\|null, personaSource: "user"\|"model"\|"", model: Live2dModel\|null, voice: VoiceSettings }`。`persona` = 用户选的 → 否则形象作者推荐的（`personaSource` 说来源）→ 否则 null（默认人设）；`voice` = **合并结果**（用户覆盖 > 人格自带 > 模型推荐 > 服务端默认），可直接展开进 `/api/tts` 的 body；`model` = null 表示官方内置。官网首页那位看板娘与 App 客服共用同一份 |
+| PUT | `/api/companion/settings` | required | `{ personaId?: string\|null, modelId?: string\|null, voice?: VoiceSettings\|null }`（缺省不动，null 清掉；`modelId: "official-mascot"` 等价 null）→ 同 GET 形状。人格不可选用 → **403** `{ code: "FORBIDDEN", details: { reason: "private" \| "unpaid" } }`（付费人格要先在官网 `POST /api/personas/:id/purchase`，App 只提示去官网）；不存在 → 404 |
+| GET | `/api/live2d-models` | optional | Live2D 形象市场：`?page&limit(≤40)&sort=new\|hot&q&tag&scope=all\|installed\|mine` → `{ ok, models: Live2dModel[], total, page, limit, totalPages }`。`scope=all` 第一页最前是官方条目 `official-mascot`（`modelJsonUrl: ""`，不计 total）：App 拿到空串就用打包的 `/live2d/mascot/mascot.model3.json`；`installed/mine` 未登录 401。上传（`POST /`，multipart zip ≤25MB）只在官网做 |
+| POST / DELETE | `/api/live2d-models/:id/install` | required | 收藏下载 / 取消：`{ ok, installed, downloadCount }`；官方条目 400。**「使用」不是 install**：使用 = `PUT /api/companion/settings { modelId }`。App 的「下载并使用」= install → 预取 model3.json 引用的全部文件（`live2d/prefetch.ts`，热 WebView 缓存）→ PUT modelId |
+| GET | `/api/personas` | optional | 人格市场列表（App 只用这一条 + install）：`?scope=all\|installed&page&limit(≤40)&sort=new\|hot&q` → `{ ok, personas: Persona[], total, page, limit, totalPages }`，Persona 含 `_id, name, description, coverEmoji, coverImageUrl, tags, styleDescriptor, price, shared, installed, purchased, isOwner, voice: VoiceSettings\|null, stats`。「给数字人装人格」= `PUT /api/companion/settings { personaId }`；`POST /:id/install` 只是收藏（书签，幂等），`DELETE /:id/install` 取消 |
+| GET | `/api/tts/voices` | 无 | 豆包音色目录 `{ ok, voices: [{ id, name, why, expressive?, rate? }], defaultVoiceId }`。目录之外的 id 也允许（App 的声音面板列的是 `studio/voices.ts` 那份单音色清单） |
+
+Ticket 形状：`{ id, status, category: billing\|account\|content\|bug\|other, subject, summary, note, transcript[], replies: [{id, by: admin\|user, content, at}], createdAt, updatedAt, lastMessageAt }`。
+
+VoiceSettings 形状（三处共用：人格自带 / 形象作者推荐 / 用户覆盖，字段都可缺省）：
+`{ voiceId: string（"" = 跟随；/^[a-zA-Z0-9_.-]{1,64}$/）, rate: number|null（speech_rate [-50,100]，倍速 = 1 + r/100）, pitch: number|null（[-12,12]）, instruct: string（≤200 字，只对 2.0 音色生效）, expressive: boolean（默认 true） }`。
+
+★ App 念一句台词的 `/api/tts` body（`SupportPage.ttsBodyFor`，一处实现）：`{ text, voice: voiceSettings.voiceId || undefined, rate: voiceSettings.rate ?? undefined, pitch: voiceSettings.pitch ?? undefined, expressive: voiceSettings.expressive, emotion: sentence.tts.emotion, instruct: sentence.tts.instruct }` —— `sentence.tts.instruct` 已是服务端合并好的「人设语调；情绪语调」。`rate` / `pitch` 是 `/api/tts` 一直就收的字段（见「语音合成」一节），只是 App 的 `synthesizeSpeech` 此前没传。老服务端没有 `voiceSettings` → 退回只传 `voice`。
+★ 音频三层：人格自带 → 形象作者推荐 → 用户在客服页「声音」面板手调（存 `settings.voice`，官网与 App 同步）；面板的「恢复跟随人格/模型」= `PUT { voice: null }`。装了人格后服务端提示词自动带人设，App 的聊天请求一个字不用改。
+★ 换形象在 App 里 = `CompanionModel.acquire(url)`（换 url 销毁重建，`SupportStage` 的 `modelUrl`）；市场形象加载失败退回官方并提示一次。
+
+★ 转人工判定是**模型**做的：提示词里写明五类情形（退款/余额、注销恢复/封禁申诉/被盗、下架申诉/侵权、用户明确要人工或两轮未解决、知识库无依据），满足时回复开头写 `[handoff:类别]`，服务端剥掉后发 `handoff` 事件；App 收到后在对话下方出「转人工」卡，用户确认才建单。用户也随时可以自己点「转人工」。
+★ 知识库是 `ideahub-server/src/knowledge/support-kb.md`，由本仓 `docs/support-knowledge-base.md` 剥掉代码出处生成——**改知识改本仓源文件再重新生成**，两边不要各改各的。
+★ 评测：`ideahub-server/scripts/evalSupport.js`（题库 `tests/fixtures/support-eval.json`）量关键词召回、禁止承诺零命中、转人工判定、首句延迟。
+
 ## 通知（分支视频）
 
 沿用既有的 `/api/notifications`（列表 / `unread-count` / `:id/read` / `read-all`），新增：

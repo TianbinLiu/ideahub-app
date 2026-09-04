@@ -35,6 +35,9 @@ import VideoEditorPage from "./pages/VideoEditorPage";
 import CreatePage from "./pages/CreatePage";
 import FlowPage from "./pages/FlowPage";
 import SimpleModePage from "./pages/SimpleModePage";
+import SupportPage from "./pages/SupportPage";
+import SupportModelsPage from "./pages/SupportModelsPage";
+import SupportPersonasPage from "./pages/SupportPersonasPage";
 import StudioPage from "./studio/StudioPage";
 import TabBar from "./components/TabBar";
 import { readyVideos } from "./data/videos";
@@ -390,6 +393,33 @@ export default function App() {
         element={
           <RequireAuth>
             <EditPage />
+          </RequireAuth>
+        }
+      />
+      {/* AI 客服（看板娘数字人 + 转人工工单）：全屏推入页，入口在个人页顶栏耳机图标与设置页。
+          服务端 /api/support/chat 本身就要求登录，这里套 RequireAuth 让未登录的人先去登录再回来。 */}
+      <Route
+        path="/support"
+        element={
+          <RequireAuth>
+            <SupportPage />
+          </RequireAuth>
+        }
+      />
+      {/* 数字人的形象 / 人格市场：入口在客服页顶栏那一列小键（与设置页）。设置接口 /api/companion/settings 要登录 */}
+      <Route
+        path="/support/models"
+        element={
+          <RequireAuth>
+            <SupportModelsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/support/personas"
+        element={
+          <RequireAuth>
+            <SupportPersonasPage />
           </RequireAuth>
         }
       />

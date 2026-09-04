@@ -59,14 +59,21 @@ npm run land -- --dry # 只检查不动手
 ```
 src/
   ai/          方舟（Seedream 生图 / Seedance 生视频 / 豆包对话）客户端与真假实现切换
-  api/         与 server 的 HTTP 调用
+  api/         与 server 的 HTTP 调用；`companion.ts` = 数字人的人格/形象/声音设置（/api/companion/settings）
+               与两个市场（Live2D 形象 / 人格）的请求层 + 共用报错文案
+  companion/   AI 客服/看板娘的演出协议（表情/动作标签、SSE 解析、语音包络、舞台总线）——与官网 client 同源拷贝
+  live2d/      Live2D 运行时加载与模型驱动（pixi + Cubism Core，全部自托管在 public/live2d/）；
+               `prefetch.ts` = 换市场形象前把 model3.json 引用的文件各拉一遍，热 WebView 缓存
   components/  通用组件；`flow/` = 工作流画布：`FlowCanvas.tsx`（画布壳 + 就地编辑窗 +
                agent 输入条 + 四个 portal 弹层：方案台/成片回看/选卡/选模板）、
-               `DeleteSegBtn.tsx`（删段确认，与 FlowPage 那份共用一处实现）
+               `DeleteSegBtn.tsx`（删段确认，与 FlowPage 那份共用一处实现）；
+               `support/` = AI 客服页专用：`SupportStage`（Live2D 舞台，按 modelUrl 换装）、`HoldToTalk`、
+               `VoiceSheet`（声音面板：音色/语速/语调存服务端，官网同步）
   data/        本地库（IndexedDB）与账号库，含种子数据与迁移
   hooks/
   mock/        无后端时的假数据
-  pages/       路由页面（hash 路由）
+  pages/       路由页面（hash 路由）；`SupportPage` = AI 客服，`SupportModelsPage` / `SupportPersonasPage` =
+               数字人形象 / 人格市场（/support/models、/support/personas，入口在客服页顶栏那一列小键与设置页）
   studio/      创作/工坊相关
   utils/
 public/
@@ -75,6 +82,7 @@ public/
   mascot/      工作流页屏幕中央的看板娘逐帧演出（二次元正片，交卡/炼卡/炼成三段）
   cards/       卡牌素材
   models/      3D 模型（protected/ 下的加密产物不入仓）
+  live2d/      看板娘 Live2D 模型（mascot/）与运行时脚本（runtime/，许可说明见其 README）——AI 客服页用
   avatars/     官方 Q 版看板娘头像（「我的」页换头像用，从 createbtn 精灵图里裁的）
 design/        ★ 建模/出图的【离线工具与素材】，不参与 App 构建
                （角色转换、LOD 生成、封面生成脚本 + 参考图 + 授权笔记）
@@ -361,3 +369,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`public/avatars/README.md`](public/avatars/README.md) — 官方 Q 版看板娘头像怎么裁、选了之后存的是什么
 - [`public/mascot/README.md`](public/mascot/README.md) — 工作流页看板娘三段演出的出图流水线与坑
 - [`design/README-tsumire.md`](design/README-tsumire.md) — 购入模型的接入笔记与**授权结论**（上线前必读）
+
+## 真机联调（客服页这类要打本机 server 的功能）
+
+1. 本机起 server（内存库也行），CORS 白名单要包含 `https://localhost`（Capacitor WebView 的 origin）。
+2. `.env.e2e.local` 写 `VITE_API_BASE=http://localhost:4000`，然后 `npx vite build --mode e2e && node scripts/prune-app-assets.mjs && npx cap sync android && cd android && ./gradlew.bat assembleSideloadDebug`。
+3. `adb reverse tcp:4000 tcp:4000`：手机上的 localhost:4000 就是电脑。e2e 模式的 CSP 除了 connect-src，**img-src 也放行了 localhost**——市场 Live2D 模型的贴图是 `<img>` 载入的，不放行的话真机换装只会看到 "Texture loading error" 然后回落官方形象。debug 变体的网络安全配置（`android/app/src/debug/res/xml/`）只给 localhost 放行明文；release 一个字没动。
+4. debug 包是 `com.ideahub.branchvideo.debug`，和正式包并排装，测完 `adb uninstall com.ideahub.branchvideo.debug`，不碰手机上正式版的草稿与登录态。
+5. QQ/微信登录在 debug 包里不能用（按正式包名 + 正式签名注册的），用密码登录测。
