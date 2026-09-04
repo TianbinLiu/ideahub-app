@@ -23,6 +23,8 @@ export interface SupportConfig {
   enabled: boolean;
   /** 服务端有没有配 TTS key；false = 只有字幕 + 合成口型 */
   tts: boolean;
+  /** 语音输入（/api/asr）可用；老服务端没有这个字段 → 当 false，不画麦克风 */
+  asr?: boolean;
   /** 指定的豆包音色 id；空串 = 服务端默认音色 */
   voice: string;
   loginRequired: boolean;
@@ -172,6 +174,31 @@ export async function synthesizeSpeech(
   const ctype = res.headers.get("content-type") || "";
   if (!ctype.startsWith("audio/")) throw new ApiError("服务端没有返回音频", 501, "UNSUPPORTED");
   return res.blob();
+}
+
+/** 👍 / 👎：连问题与回答原文一起交给服务端（差评是改知识库的线索）。失败不影响对话，调用方自己吞 */
+export function rateSupportAnswer(body: { question: string; answer: string; rating: "up" | "down"; reason?: string }): Promise<{ ok: true; id: string }> {
+  return apiPost("/api/support/feedback", body);
+}
+
+/**
+ * 语音识别：把录好的音频二进制原样 POST 给 /api/asr（服务端转火山「录音文件识别·极速版」）。
+ * ★ 不走 apiPost：那条只发 JSON；这里 body 是 Blob，Content-Type 就是音频类型。
+ * ★ 回包 Content-Type 不是 JSON 就当服务端没有这个功能（SPA 回退 200 + HTML 的坑）。
+ */
+export async function transcribeAudio(blob: Blob, format: "wav" | "mp3" | "ogg" = "wav", signal?: AbortSignal): Promise<{ text: string; durationMs: number }> {
+  const mime = format === "wav" ? "audio/wav" : format === "mp3" ? "audio/mpeg" : "audio/ogg";
+  const res = await fetch(`${API_BASE}/api/asr?format=${format}`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": mime }),
+    body: blob,
+    signal,
+  });
+  const ctype = res.headers.get("content-type") || "";
+  if (!ctype.includes("application/json")) throw new ApiError("服务端还没有语音识别（返回的不是 JSON）", 501, "UNSUPPORTED");
+  if (!res.ok) await throwHttp(res);
+  const j = (await res.json()) as { ok?: boolean; text?: string; durationMs?: number };
+  return { text: String(j.text || "").trim(), durationMs: Number(j.durationMs || 0) };
 }
 
 export function createSupportTicket(body: {

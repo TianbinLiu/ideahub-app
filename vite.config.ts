@@ -233,13 +233,21 @@ const CSP = [
   "worker-src 'self' blob:",
 ].join("; ");
 
-const cspPlugin = () => ({
+// ★ 真机联调（`vite build --mode e2e`，见 CLAUDE.md「真机联调」）：App 打的是 http://localhost:4000（adb reverse），
+//   而生产 CSP 的 connect-src 只放行 https:。只在 e2e 模式给 localhost 明文开一道口子；
+//   正式构建（mode production）拿到的 CSP 一个字不变。
+const cspFor = (mode: string) =>
+  mode === "e2e"
+    ? CSP.replace("connect-src 'self' data: blob: https:", "connect-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*")
+    : CSP;
+
+const cspPlugin = (mode: string) => ({
   name: "inject-csp",
   apply: "build" as const,
   transformIndexHtml(html: string) {
     return html.replace(
       "<meta charset=\"UTF-8\" />",
-      `<meta charset="UTF-8" />\n    <meta http-equiv="Content-Security-Policy" content="${CSP}" />`,
+      `<meta charset="UTF-8" />\n    <meta http-equiv="Content-Security-Policy" content="${cspFor(mode)}" />`,
     );
   },
 });
@@ -251,7 +259,7 @@ export default defineConfig(({ mode }) => {
   // 豆包语音（openspeech）：与 ARK_API_KEY 是两套凭据，见 ttsPlugin 的注释
   const ttsKey = env.TTS_API_KEY ?? "";
   return {
-    plugins: [react(), arkFetchPlugin(), ttsPlugin(ttsKey), cspPlugin()],
+    plugins: [react(), arkFetchPlugin(), ttsPlugin(ttsKey), cspPlugin(mode)],
     define: {
       // 客户端只知道"有没有钥匙"，不知道钥匙本身
       __AI_REAL__: JSON.stringify(arkKey.length > 0),

@@ -10,6 +10,8 @@
  *   → 按顺序排进演出队列：切表情 + 触发动作 + 舞台字幕 + 播放（口型跟包络）
  *   → 没音频（语音关 / TTS 失败 / 未配置）就按字数合成口型撑时长。
  *   服务端判定该转人工时发 `handoff` 事件 → 输入区上方出现「转人工」卡；用户也随时可以自己点「转人工」。
+ *   回答完整后字幕下方出 👍👎，连问题与回答原文交给服务端（差评是改知识库的线索）；👎 顺手给转人工入口。
+ *   输入条左侧「按住说话」→ /api/asr 识别 → 识别出的文字直接当作一句提问发出（语音助手的惯例）。
  *
  * ★ 演出是串行 Promise 链而不是 state：句子异步乱序到达，用 state 排队会丢句/乱序（与官网首页同一套做法）。
  * ★ runId 递增 = 「停止」：队列里的旧任务看到 run 变了就放弃，不用逐个取消。
@@ -22,6 +24,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import Icon from "../components/Icon";
 import SupportStage from "../components/support/SupportStage";
+import HoldToTalk from "../components/support/HoldToTalk";
 import { companionBus } from "../companion/bus";
 import { SpeechPlayer } from "../companion/speech";
 import { estimateSpeechMs, normalizeAction, normalizeFace, type CompanionSentence } from "../companion/protocol";
@@ -34,6 +37,7 @@ import {
   createSupportTicket,
   getSupportConfig,
   listMySupportTickets,
+  rateSupportAnswer,
   streamSupportChat,
   synthesizeSpeech,
   type SupportCategory,
@@ -43,7 +47,8 @@ import {
 import { relativeTime } from "../types";
 
 type Role = "user" | "assistant";
-type ChatMessage = { id: string; role: Role; text: string; streaming?: boolean; system?: boolean };
+type Rating = "up" | "down";
+type ChatMessage = { id: string; role: Role; text: string; streaming?: boolean; system?: boolean; rating?: Rating };
 type Phase = "idle" | "thinking" | "speaking";
 
 const MAX_HISTORY = 12;
@@ -95,6 +100,7 @@ export default function SupportPage() {
   const [subtitle, setSubtitle] = useState("");
   const [voiceOn, setVoiceOn] = useState(voiceEnabled);
   const [chatErr, setChatErr] = useState("");
+  const [micErr, setMicErr] = useState("");
   const [handoffHint, setHandoffHint] = useState<{ category: SupportCategory } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -115,6 +121,7 @@ export default function SupportPage() {
 
   const name = config?.name || "小梦";
   const enabled = config ? config.enabled : true;
+  const asrOn = Boolean(config?.asr);
 
   useEffect(() => {
     let alive = true;
@@ -123,7 +130,7 @@ export default function SupportPage() {
       .catch((e) => {
         if (!alive) return;
         // 老服务端 / 离线：对话不可用，但转人工入口（邮箱）还在
-        setConfig({ ok: true, name: "小梦", enabled: false, tts: false, voice: "", loginRequired: true, quickQuestions: [], categories: [] });
+        setConfig({ ok: true, name: "小梦", enabled: false, tts: false, asr: false, voice: "", loginRequired: true, quickQuestions: [], categories: [] });
         setConfigErr(errorText(e, "读不到客服配置"));
       });
     return () => {
@@ -229,6 +236,7 @@ export default function SupportPage() {
     }
     stopAll();
     setChatErr("");
+    setMicErr("");
     setHandoffHint(null);
     const run = runRef.current;
     const controller = new AbortController();
@@ -279,6 +287,15 @@ export default function SupportPage() {
       setChatErr(errorText(e, `${name}走神了，再发一次试试。`));
       setPhase("idle");
     }
+  }
+
+  /** 👍👎：先本地记下（立刻有反馈），再尽力交给服务端；失败不打扰用户 */
+  function rate(msg: ChatMessage, rating: Rating) {
+    if (msg.rating === rating) return;
+    setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, rating } : m)));
+    const idx = messages.findIndex((m) => m.id === msg.id);
+    const question = [...messages.slice(0, Math.max(0, idx))].reverse().find((m) => m.role === "user")?.text || "";
+    void rateSupportAnswer({ question: question.slice(0, 1000) || "（无）", answer: msg.text.slice(0, 4000), rating }).catch(() => undefined);
   }
 
   function openSheet() {
@@ -336,8 +353,8 @@ export default function SupportPage() {
 
   const quick = config?.quickQuestions ?? [];
   const statusLabel = phase === "thinking" ? "思考中" : phase === "speaking" ? "说话中" : enabled ? "在线" : "对话未开通";
-  const captionText = lastAssistant?.text || (lastAssistant?.streaming ? "" : "");
   const greeting = `你好，我是${name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。`;
+  const canRate = Boolean(lastAssistant && !lastAssistant.system && !lastAssistant.streaming && lastAssistant.text && phase === "idle");
 
   return (
     <div className="relative h-dvh overflow-hidden bg-ink text-slate-100">
@@ -364,6 +381,15 @@ export default function SupportPage() {
             </div>
             <div className="truncate text-[11px] text-slate-400">启梦 AI 客服 · 解决不了转人工</div>
           </div>
+          <button
+            onClick={toggleVoice}
+            aria-pressed={voiceOn}
+            aria-label={voiceOn ? "语音播报：开" : "语音播报：关"}
+            title={voiceOn ? "语音播报：开" : "语音播报：关"}
+            className={`${GLASS} flex h-9 w-9 items-center justify-center rounded-full text-[15px] ${voiceOn ? "text-brand" : "text-slate-500"}`}
+          >
+            {voiceOn ? "🔊" : "🔇"}
+          </button>
           <button onClick={() => setHistoryOpen(true)} className={`${GLASS} rounded-full px-3 py-1.5 text-[12px] text-slate-100 active:bg-slate-800/70`}>
             记录{messages.length > 0 ? ` ${Math.ceil(messages.filter((m) => !m.system).length / 2)}` : ""}
           </button>
@@ -381,24 +407,55 @@ export default function SupportPage() {
           </div>
         )}
 
-        {/* 字幕气泡：数字人正在说 / 刚说完的整段；点开看完整记录 */}
-        <button
-          type="button"
-          onClick={() => setHistoryOpen(true)}
-          className={`${GLASS} mb-2 w-full rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-left shadow-lg`}
-          aria-label="查看完整对话记录"
-        >
+        {/* 字幕气泡：数字人正在说 / 刚说完的整段；点正文看完整记录；说完后出 👍👎 */}
+        <div className={`${GLASS} mb-2 w-full rounded-2xl rounded-bl-sm px-3.5 py-2.5 shadow-lg`}>
           <div className="mb-0.5 flex items-center gap-2 text-[11px] text-brand">
             <span className="font-semibold">{name}</span>
             {phase === "speaking" && subtitle && <span className="text-slate-400">正在说这句 →</span>}
             {phase === "thinking" && <span className="text-slate-400">在想…</span>}
           </div>
-          <div ref={captionRef} className={`max-h-[26vh] overflow-y-auto text-[14px] leading-6 ${lastAssistant?.system ? "text-emerald-100" : "text-slate-100"}`}>
-            {captionText || (phase === "thinking" ? "…" : greeting)}
+          <div
+            ref={captionRef}
+            role="button"
+            tabIndex={0}
+            onClick={() => setHistoryOpen(true)}
+            onKeyDown={(e) => e.key === "Enter" && setHistoryOpen(true)}
+            aria-label="查看完整对话记录"
+            className={`max-h-[26vh] overflow-y-auto text-[14px] leading-6 ${lastAssistant?.system ? "text-emerald-100" : "text-slate-100"}`}
+          >
+            {lastAssistant?.text || (phase === "thinking" ? "…" : greeting)}
             {configErr && !messages.length && <p className="mt-1 text-[12px] text-amber-300">{configErr}</p>}
             {!enabled && !configErr && !messages.length && <p className="mt-1 text-[12px] text-amber-300">服务端还没开通 AI 对话，你可以直接转人工。</p>}
           </div>
-        </button>
+          {canRate && lastAssistant && (
+            <div className="mt-2 flex items-center gap-2 border-t border-white/10 pt-2 text-[11px] text-slate-400">
+              <span className="min-w-0 flex-1 truncate">
+                {lastAssistant.rating === "up" ? "谢谢反馈" : lastAssistant.rating === "down" ? "抱歉没帮上，要不要转人工？" : "这个回答有帮助吗？"}
+              </span>
+              {lastAssistant.rating === "down" && (
+                <button onClick={openSheet} className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-semibold text-ink active:opacity-80">
+                  转人工
+                </button>
+              )}
+              <button
+                onClick={() => rate(lastAssistant, "up")}
+                aria-label="有帮助"
+                aria-pressed={lastAssistant.rating === "up"}
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-[15px] ${lastAssistant.rating === "up" ? "bg-emerald-500/25" : "active:bg-white/10"}`}
+              >
+                👍
+              </button>
+              <button
+                onClick={() => rate(lastAssistant, "down")}
+                aria-label="没帮上"
+                aria-pressed={lastAssistant.rating === "down"}
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-[15px] ${lastAssistant.rating === "down" ? "bg-rose-500/25" : "active:bg-white/10"}`}
+              >
+                👎
+              </button>
+            </div>
+          )}
+        </div>
 
         {handoffHint && phase === "idle" && (
           <div className="mb-2 rounded-2xl border border-amber-400/40 bg-amber-500/15 p-3 text-[13px] leading-6 text-amber-50 backdrop-blur-md">
@@ -414,6 +471,7 @@ export default function SupportPage() {
           </div>
         )}
         {chatErr && <p className="mb-2 px-1 text-[12px] leading-5 text-rose-300">{chatErr}</p>}
+        {micErr && <p className="mb-2 px-1 text-[12px] leading-5 text-amber-300">{micErr}</p>}
 
         {messages.length === 0 && phase === "idle" && quick.length > 0 && (
           <div className="mb-2 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -432,21 +490,22 @@ export default function SupportPage() {
           }}
           className={`${GLASS} flex items-center gap-1 rounded-full p-1.5 shadow-xl`}
         >
-          <button
-            type="button"
-            onClick={toggleVoice}
-            aria-pressed={voiceOn}
-            aria-label={voiceOn ? "语音：开" : "语音：关"}
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${voiceOn ? "text-brand" : "text-slate-500"}`}
-          >
-            <span className="text-lg">{voiceOn ? "🔊" : "🔇"}</span>
-          </button>
+          {asrOn && enabled && (
+            <HoldToTalk
+              disabled={phase !== "idle"}
+              onText={(text) => {
+                setMicErr("");
+                void send(text);
+              }}
+              onError={setMicErr}
+            />
+          )}
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             maxLength={MAX_INPUT_CHARS}
             enterKeyHint="send"
-            placeholder={enabled ? `问${name}：哪里不对？` : "AI 对话未开通，可直接转人工"}
+            placeholder={enabled ? (asrOn ? `按住说话，或问${name}：哪里不对？` : `问${name}：哪里不对？`) : "AI 对话未开通，可直接转人工"}
             disabled={!enabled}
             className="h-10 min-w-0 flex-1 bg-transparent px-2 text-[14px] text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-60"
           />
@@ -560,6 +619,7 @@ function HistorySheet({ name, messages, onClose }: { name: string; messages: Cha
               >
                 {m.role === "assistant" && !m.system && <span className="mr-1.5 text-[11px] text-brand">{name}</span>}
                 {m.text || (m.streaming ? "…" : "")}
+                {m.rating && <span className="ml-1.5 text-[11px]">{m.rating === "up" ? "👍" : "👎"}</span>}
               </div>
             </div>
           ))}

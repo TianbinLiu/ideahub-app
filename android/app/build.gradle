@@ -100,6 +100,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            // ★ debug 包用独立的包名，和正式包**并排装**：真机联调时不用卸掉自己手机上的正式版
+            //   （卸载 = 本机草稿/待上传队列全没了，KB 里写得明明白白），测完直接卸 .debug 那个即可。
+            //   代价只有 QQ/微信登录在 debug 包里不能用 —— 它们本来就按"正式包名 + 正式签名"注册，
+            //   debug 签名下原本也不能用；WXEntryActivity 的包名规矩只对正式包成立。
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
         release {
             // webview 壳应用：原生代码只有 Capacitor 桥，minify 收益小，保持关闭省心
             minifyEnabled false

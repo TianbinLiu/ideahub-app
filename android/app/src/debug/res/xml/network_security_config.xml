@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ★ 只对 debug 变体生效（src/debug 覆盖 src/main 的同名资源）：
+     真机联调时 App 打的是 http://localhost:4000（adb reverse tcp:4000 tcp:4000 把它接到电脑），
+     main 里的全局禁明文会把这条拦成"连接失败"。这里只给 localhost / 模拟器宿主放行明文，
+     其它域名仍然禁明文、仍然只信系统 CA；release 包用的还是 main 那份，一个字没动。 -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

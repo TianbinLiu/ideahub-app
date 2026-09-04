@@ -16,6 +16,13 @@
 const CUBISM_CORE_URL = "/live2d/runtime/live2dcubismcore.min.js";
 const CUBISM_CORE_FALLBACK_URL = "https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js";
 const PIXI_URL = "/live2d/runtime/pixi-7.4.2.min.js";
+/**
+ * ★ pixi 7 默认用 new Function 生成着色器 uniform 同步代码；APK 的 CSP 是 script-src 'self' 'wasm-unsafe-eval'
+ *   （没有 'unsafe-eval'），模型一加载就抛 "Current environment does not allow unsafe-eval"（2026-09-04 真机实测）。
+ *   官方的 @pixi/unsafe-eval 是无 eval 的替代实现，UMD 版加载即自动打补丁（要求 window.PIXI 已存在，所以排在 pixi 之后）。
+ *   官网没有 CSP 也一起带上：两边同一份 loader，少一个"只在 App 里坏"的分叉。
+ */
+const PIXI_UNSAFE_EVAL_URL = "/live2d/runtime/pixi-unsafe-eval-7.4.2.min.js";
 const LIVE2D_DISPLAY_URL = "/live2d/runtime/pixi-live2d-display-cubism4-0.5.0-ls-8.min.js";
 
 /** 我们用到的 pixi / pixi-live2d-display 子集；全局包没有类型，这里只描述真正调用的成员 */
@@ -122,6 +129,7 @@ export function loadLive2DRuntime(): Promise<PixiRuntime> {
       await loadScript(CUBISM_CORE_FALLBACK_URL);
     }
     await loadScript(PIXI_URL);
+    await loadScript(PIXI_UNSAFE_EVAL_URL);
     await loadScript(LIVE2D_DISPLAY_URL);
     const pixi = (window as Live2DWindow).PIXI;
     if (!pixi || !pixi.live2d) throw new Error("PIXI.live2d is not available after loading runtime scripts");

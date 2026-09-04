@@ -2,6 +2,8 @@ package com.ideahub.branchvideo;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -16,6 +18,18 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(QQLoginPlugin.class);
         registerPlugin(WeChatPlugin.class);
         super.onCreate(savedInstanceState);
+
+        // ★ 仅 debug 包：真机联调时页面 origin 是 https://localhost，而本机 server 是 http://localhost:4000
+        //   （adb reverse），对 WebView 来说这是"混合内容"，默认整条请求静默拦掉——症状是 App 安静地
+        //   回退到离线模式、登录页写着"当前为本地账号"，一个报错都没有（2026-09-04 真机实测）。
+        //   网络安全配置（src/debug/res/xml）只管"明文能不能走"，混合内容是 WebView 另一道闸，得在这儿开。
+        //   release 包不进这个分支，线上仍然 HTTPS-only。
+        if (BuildConfig.DEBUG) {
+            WebView webView = getBridge().getWebView();
+            if (webView != null) {
+                webView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+            }
+        }
     }
 
     /**

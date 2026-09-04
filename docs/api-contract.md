@@ -313,7 +313,7 @@ App「我的 → AI 客服」（`/support`）的服务端。数字人是官网�
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| GET | `/api/support/config` | optional | `{ ok, name, enabled, tts, voice, loginRequired: true, quickQuestions[], categories[] }`。`enabled=false`（服务端没配 AI）时输入框禁用，只剩「转人工」 |
+| GET | `/api/support/config` | optional | `{ ok, name, enabled, tts, asr, voice, loginRequired: true, quickQuestions[], categories[] }`。`asr=false`（或老服务端没这个字段）时不画麦克风。`enabled=false`（服务端没配 AI）时输入框禁用，只剩「转人工」 |
 | POST | `/api/support/chat` | required | SSE。body `{ messages: [{role: user\|assistant, content ≤1000}] ≤20, lang? }`。事件：`sentence {index, text, emotion, face, action, tts:{emotion, instruct}}`、`token {t}`、**`handoff {category, reason}`**（模型判定该转人工，一次对话最多一条）、`done {text, handoff, category}`、`error {message}`。限流 **20/分钟按账号**。★ Content-Type 不是 `text/event-stream` 就当服务端没有这个功能（SPA 回退给的是 200 + HTML） |
 | POST | `/api/support/tickets` | required | 转人工建单。body `{ transcript: [{role, content ≤2000}] ≤30, note? ≤500, contactEmail?, category? }`；`transcript` 与 `note` 至少一个。**201** `{ ok, ticket, reused: false }`；同一用户 10 分钟内已有未结工单 → **200** `{ ok, ticket, reused: true }`（不重复建）。服务端用 AI 归纳 `subject/summary/category`（失败退回用户原话），然后给所有管理员发 `SUPPORT_TICKET` 通知 + 邮件（`SUPPORT_NOTIFY_EMAIL` 或有真实邮箱的管理员）。限流 5/分钟 |
 | GET | `/api/support/tickets/mine` | required | `{ ok, items: Ticket[] }` 最近 20 张（不含 `contactEmail`） |
@@ -322,6 +322,9 @@ App「我的 → AI 客服」（`/support`）的服务端。数字人是官网�
 | GET | `/api/admin/support/tickets/:id` | admin | 详情 |
 | POST | `/api/admin/support/tickets/:id/reply` | admin | `{ content ≤2000 }` → `replies` 追加 `by: admin`；`open → in_progress`；用户收 `SUPPORT_REPLY {ticketId, kind: "reply", preview}` 通知 + 邮件（尽力而为） |
 | PATCH | `/api/admin/support/tickets/:id/status` | admin | `{ status: open\|in_progress\|resolved\|closed }`；结单（resolved/closed）给用户发 `SUPPORT_REPLY {kind: "status", status}` |
+| POST | `/api/support/feedback` | required | 回答的 👍/👎：`{ question ≤1000, answer ≤4000, rating: up\|down, reason? ≤200 }` → **201** `{ ok, id }`。连原文一起存，差评是改知识库的线索。限流 30/分钟 |
+| GET | `/api/admin/support/feedback` | admin | query `rating?`（非法值 400）、`page`、`limit≤50` → `{ ok, items: [{ id, rating, question, answer, reason, createdAt, user }], total, page, limit, stats: { up, down } }` |
+| POST | `/api/asr` | required | **语音识别**：请求体是音频二进制（`Content-Type: audio/wav \| audio/mpeg \| audio/ogg`，或 `?format=`），≤ 6MB → `{ ok, text, durationMs }`。服务端转火山「大模型录音文件识别·极速版」；结果不落库、不留音频。限流 20/分钟。老服务端没有这条路（SPA 回退给 200 + HTML），App 按回包 Content-Type 判能力 |
 
 Ticket 形状：`{ id, status, category: billing\|account\|content\|bug\|other, subject, summary, note, transcript[], replies: [{id, by: admin\|user, content, at}], createdAt, updatedAt, lastMessageAt }`。
 
