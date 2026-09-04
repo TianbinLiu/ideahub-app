@@ -482,8 +482,9 @@ export default function SupportPage() {
       />
 
       {/* 顶栏浮层 */}
-      <div className="safe-top absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-ink/85 via-ink/40 to-transparent pb-8">
-        <div className="flex h-14 items-center gap-1 px-2">
+      {/* 渐变只是装饰：pointer-events-none 让它下面的模型头部能被摸到（真机上头正好在这块渐变里），按钮那一行再打开 */}
+      <div className="safe-top pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-ink/85 via-ink/40 to-transparent pb-8">
+        <div className="pointer-events-auto flex h-14 items-center gap-1 px-2">
           <button onClick={() => navigate(-1)} aria-label="返回" className="flex h-11 w-11 items-center justify-center text-slate-200">
             <Icon name="back" size={20} />
           </button>
@@ -531,7 +532,8 @@ export default function SupportPage() {
       </div>
 
       {/* 底部浮层：最近一问一答 + 转人工卡 + 快捷问题 + 输入区 */}
-      <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end bg-gradient-to-t from-ink via-ink/80 to-transparent px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-20">
+      {/* 同上：底部渐变的 pt-20 会盖住裙摆/腿，容器不吃事件，里面每一块（字幕、快捷问、输入框）再打开 */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end bg-gradient-to-t from-ink via-ink/80 to-transparent px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-20 [&>*]:pointer-events-auto">
         {lastUser && (
           <div className="mb-2 flex justify-end">
             <div className="max-w-[78%] truncate rounded-2xl rounded-br-sm bg-brand/90 px-3 py-1.5 text-[13px] text-ink">{lastUser.text}</div>
