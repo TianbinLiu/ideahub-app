@@ -17,6 +17,7 @@ import Icon from "./Icon";
 import ReportButton from "./ReportButton";
 import MentionInput from "./MentionInput";
 import MentionText from "./MentionText";
+import BlockButton from "./BlockButton";
 
 /** 顶层评论 + 挂在它下面的回复。渲染前分一次组，不在 JSX 里现算 */
 interface Thread {
@@ -185,6 +186,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
             {/* 举报入口同样是共用的那一份（理由表、重复举报的说法、失败红字都在里面）。
                 mine 传 isMyAuthor：自己的评论该删不该举报，传了就整块不渲染 */}
             <ReportButton targetType="comment" targetId={c.id} videoId={video.id} mine={isMyAuthor(c.author)} />
+            <BlockButton userId={c.authorId ?? ""} userName={c.author} mine={isMyAuthor(c.author)} />
           </div>
         </div>
         {/* 心 + 数字。热区给到 32px 宽——评论行密，小了会点到隔壁那条 */}
