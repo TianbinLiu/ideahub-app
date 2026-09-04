@@ -57,6 +57,12 @@ const PATHS = {
 //   管理页把 id 翻回中文，两边都从这里取 —— 分两处写的后果是管理员看到一个
 //   认不出来的 `abuse`，而那正是他判断要不要下架的主要依据。
 export const REPORT_REASONS = [
+  // ★★ csae 排第一、也**必须**排第一：它是 Google Play 上架的硬要求（UGC 儿童安全
+  //   标准要求应用内有报告 CSAE 的入口），而排在第七位的选项等于没有。
+  //   ⚠ 它不是 porn 的子类：porn 是"这条要下架"，csae 是"要下架、要封号、要留证、
+  //   还要依法报告主管机关"。合并成一个 key 会让它沉进刷屏举报里 —— 服务端靠这个 key
+  //   把它顶到待处理队列最前（Report.URGENT_REASONS + priority）。
+  { id: "csae", label: "涉及未成年人" },
   { id: "porn", label: "色情低俗" },
   { id: "violence", label: "血腥暴力" },
   { id: "abuse", label: "人身攻击 / 辱骂" },
@@ -66,6 +72,19 @@ export const REPORT_REASONS = [
 ] as const;
 
 export type ReportReason = (typeof REPORT_REASONS)[number]["id"];
+
+/**
+ * 这条举报要不要按**紧急件**对待（后台画成红色、排在最前）。
+ *
+ * ★ 与服务端 `Report.URGENT_REASONS` 是同一张表的两侧。判**这个函数**而不是在
+ *   渲染处手写 `r.reason === "csae"`：以后多一类紧急理由时，手写的那几处漏掉一处
+ *   没有任何症状 —— 只是那条举报在后台看起来和刷屏广告一样普通。
+ * ★ 收的是 string 不是 ReportReason：服务端可能先上一个这个包还不认识的 key，
+ *   那种情况按不紧急处理（宁可少标一条，也不要把普通举报染成红色让人麻木）。
+ */
+export function isUrgentReason(id: string): boolean {
+  return id === "csae";
+}
 
 /** id → 中文。认不出的 id（服务端加了新理由而这个包还没更新）**原样显示**，
  *  不要退成"其他" —— 那会把一条真实的举报理由悄悄改写成另一个意思（铁律七/八）。 */

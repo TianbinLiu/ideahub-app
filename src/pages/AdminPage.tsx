@@ -33,6 +33,7 @@ import {
   listReports,
   listTakedownVideos,
   notifyUser,
+  isUrgentReason,
   reasonLabel,
   reportTimeMs,
   resolveReport,
@@ -1260,7 +1261,16 @@ function ReportCard({
     <article className="rounded-xl border border-slate-700 bg-panel p-3">
       <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
         <span className="rounded bg-slate-700 px-1.5 py-0.5 text-slate-300">{TARGET_LABEL[report.targetType] ?? report.targetType}</span>
-        <span className="text-amber-300">{reasonLabel(report.reason)}</span>
+        {/* ★ 紧急件（涉及未成年人）画成红底而不是与其它理由同色：这一类的处置不是
+            "下架就完了"，而是下架 + 封号 + 留证 + 依法报告，而且服务端已经把它排在
+            队首 —— 队首那条如果看起来和刷屏广告一样，排序就白做了。 */}
+        {isUrgentReason(report.reason) ? (
+          <span className="rounded bg-rose-500/20 px-1.5 py-0.5 font-bold text-rose-300">
+            ⚠ {reasonLabel(report.reason)}
+          </span>
+        ) : (
+          <span className="text-amber-300">{reasonLabel(report.reason)}</span>
+        )}
         <span>· {displayNameOf(report.reporter)} 举报</span>
         {at > 0 && <span>· {relativeTime(at)}</span>}
         {!pending && (
