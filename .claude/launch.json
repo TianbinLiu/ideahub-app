@@ -4,27 +4,61 @@
     {
       "name": "ideahub-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5178,
       "autoPort": true
     },
     {
       "name": "ideahub-dev-b",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "5180", "--host", "127.0.0.1", "--strictPort"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5180",
+        "--host",
+        "127.0.0.1",
+        "--strictPort"
+      ],
       "port": 5180
     },
     {
       "name": "shihui-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "shihui", "run", "dev"],
+      "runtimeArgs": [
+        "--prefix",
+        "shihui",
+        "run",
+        "dev"
+      ],
       "port": 5174
     },
     {
       "name": "ideahub-api-mem",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["C:/Users/tliu7/ideahub/server/scripts/dev-memory-server.js"],
+      "runtimeArgs": [
+        "C:/Users/tliu7/ideahub/server/scripts/dev-memory-server.js"
+      ],
       "port": 4200
+    },
+    {
+      "name": "site-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "C:/Users/tliu7/ideahub/client",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5182",
+        "--strictPort"
+      ],
+      "port": 5182
     }
   ]
 }

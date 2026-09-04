@@ -27,11 +27,22 @@ import {
   type ReportTargetType,
 } from "../api/admin";
 import { isRemoteMode } from "../data/account";
+import { SUPPORT_EMAIL } from "../data/agreements";
 import { useAuthState, useCurrentUser } from "../hooks/useAccount";
 import AuthPending from "./AuthPending";
 import Icon from "./Icon";
 
-const DETAIL_MAX = 100;
+/**
+ * 「补充说明」的字数上限。
+ *
+ * ★★ 契约值是 **500**（server 的 `Report.detail` maxlength，那行注释写着"客户端输入框
+ *   上限必须与它相等"）。这里原来是 100 且没写任何理由 —— 于是举报人打到第 100 个字
+ *   就被 `slice` 无声截断，而最需要写清楚的恰恰是新加的「涉及未成年人」那一类：
+ *   哪一段、第几秒、为什么判断是未成年人。截掉的部分不会有任何提示。
+ * ★ 与「客户端上限有意小于服务端」那一族**不是一回事**（那是产品口径 vs 安全上界，
+ *   例如 VIDEO_TAG_MAX）：那些地方服务端的注释说的是"上界"，而这里说的是"必须相等"。
+ */
+const DETAIL_MAX = 500;
 
 export default function ReportButton({
   targetType,
@@ -72,7 +83,7 @@ export default function ReportButton({
       setTimeout(() => setOpen(false), 1400);
     } catch (e) {
       // 失败**不关窗、不清空**：理由还选着，用户改一下就能再提交
-      setErr(reportErrorText(e));
+      setErr(reportErrorText(e, { reason, supportEmail: SUPPORT_EMAIL }));
     } finally {
       setBusy(false);
     }

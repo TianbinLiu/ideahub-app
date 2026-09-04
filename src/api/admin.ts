@@ -57,6 +57,13 @@ const PATHS = {
 //   管理页把 id 翻回中文，两边都从这里取 —— 分两处写的后果是管理员看到一个
 //   认不出来的 `abuse`，而那正是他判断要不要下架的主要依据。
 export const REPORT_REASONS = [
+  // ★★ csae 排第一、也**必须**排第一：它是 Google Play 上架的硬要求（UGC 儿童安全
+  //   标准要求应用内有报告 CSAE 的入口），而排在第七位的选项等于没有。
+  //   ⚠ 它不是 porn 的子类：porn 是"这条要下架"，csae 是"要下架、要封号、
+  //   **举报记录要留住（不随删号级联清掉）**、
+  //   还要依法报告主管机关"。合并成一个 key 会让它沉进刷屏举报里 —— 服务端靠这个 key
+  //   把它顶到待处理队列最前（Report.URGENT_REASONS + priority）。
+  { id: "csae", label: "涉及未成年人" },
   { id: "porn", label: "色情低俗" },
   { id: "violence", label: "血腥暴力" },
   { id: "abuse", label: "人身攻击 / 辱骂" },
@@ -66,6 +73,32 @@ export const REPORT_REASONS = [
 ] as const;
 
 export type ReportReason = (typeof REPORT_REASONS)[number]["id"];
+
+/**
+ * 这条举报要不要按**紧急件**对待（后台画成红色、排在最前）。
+ *
+ * ★ 与服务端 `Report.URGENT_REASONS` 是同一张表的两侧。判**这个函数**而不是在
+ *   渲染处手写 `r.reason === "csae"`：以后多一类紧急理由时，手写的那几处漏掉一处
+ *   没有任何症状 —— 只是那条举报在后台看起来和刷屏广告一样普通。
+ * ★ 收的是 string 不是 ReportReason：服务端可能先上一个这个包还不认识的 key，
+ *   那种情况按不紧急处理（宁可少标一条，也不要把普通举报染成红色让人麻木）。
+ */
+export function isUrgentReason(id: string): boolean {
+  return id === "csae";
+}
+
+/**
+ * 一条举报要不要按紧急件画。
+ *
+ * ★★ **以服务端的 `priority` 为准**（它就是排序用的那个数），拿不到才退回本地那张表。
+ *   两边各判一次的话，服务端往 `URGENT_REASONS` 里加一类而这个包没跟上时，
+ *   队首那条会被画成普通件 —— 而它正排在第一行（2026-09-03 复核指出的重复实现）。
+ * ★ 老服务端不回 `priority`（判**有没有**这个字段，不是判等值：写成 `priority > 0` 的话
+ *   老服务端那边恒为 false，连 csae 都不标了 —— 后加字段一律判否定）。
+ */
+export function isUrgentReport(r: { reason: string; priority?: number }): boolean {
+  return typeof r.priority === "number" ? r.priority > 0 : isUrgentReason(r.reason);
+}
 
 /** id → 中文。认不出的 id（服务端加了新理由而这个包还没更新）**原样显示**，
  *  不要退成"其他" —— 那会把一条真实的举报理由悄悄改写成另一个意思（铁律七/八）。 */
@@ -143,6 +176,11 @@ export interface ApiReport {
   reason: string;
   /** 举报人补充的说明（可空） */
   detail?: string;
+  /**
+   * 服务端的队列插队位（`csae` = 1，其余 0）。**老服务端不回这一项**，
+   * 所以判据走 `isUrgentReport()`，别在渲染处直接读它。
+   */
+  priority?: number;
   /**
    * 处理状态。★★ 跨仓字符串，取值来自服务端 `models/Report.js` 的 ACTION_STATUS：
    *   动作 takedown → `taken_down`，delete → `deleted`，dismiss → `dismissed`。
@@ -497,12 +535,25 @@ export async function submitReport(input: SubmitReportInput): Promise<void> {
  * ★ 「你已经举报过了」要**如实说**，不能装成"举报成功"：装成功之后用户会以为
  *   自己第一次没点上，于是反复点 —— 每一次都撞同一个 409。
  */
-export function reportErrorText(e: unknown): string {
+export function reportErrorText(e: unknown, ctx?: { reason?: string; supportEmail?: string }): string {
   if (e instanceof ApiError) {
     if (e.status === 409) return "你已经举报过这一条了，管理员还在处理";
     if (e.status === 401) return "登录已过期，请重新登录后再举报";
     if (e.status === 429) return "举报太频繁了，过一会儿再试";
     if (e.status === 404 || e.code === "UNSUPPORTED") return "这台服务器还不支持举报（需要升级服务端）";
+    // ★★ 400 = 服务端的 zod 拒了。实践中只可能是 `reason` —— 其余入参（targetId 的形状、
+    //   detail 长度）客户端都已经挡住了。而服务端**可能比这个包旧**（跨仓上线本该服务端先上，
+    //   但用户手里的版本组合我们管不着）：那时原样回 `e.message` 就是一句裸的英文
+    //   "Validation error"，而他要报的可能正是最紧急的那一类，屏幕上还没有任何出路。
+    //   ⇒ 说人话，并给两条真能走的路：换「其他」+ 写清楚，或直接发信。
+    if (e.status === 400 && ctx?.reason) {
+      const mail = ctx.supportEmail ? `，也可以直接发信到 ${ctx.supportEmail}` : "";
+      return (
+        `这台服务器还不认识「${reasonLabel(ctx.reason)}」这个理由（服务端版本比 App 旧）。` +
+        `你可以改选「其他」，把情况写在补充说明里${mail}` +
+        (isUrgentReason(ctx.reason) ? "（主题写「儿童安全」，我们会优先处理）。" : "。")
+      );
+    }
     return e.message;
   }
   return e instanceof Error ? e.message : "举报没提交上去，请重试";
