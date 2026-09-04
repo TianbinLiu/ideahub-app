@@ -20,7 +20,7 @@
  * ★ 登录墙由路由的 RequireAuth 管；这里拿到的 user 一定存在。
  * ★ 所有失败就地整句说明（api:error 没人听），绝不静默。
  * ★ 换装（2026-09-04）：人格 / 形象 / 声音三项选择存在服务端（/api/companion/settings，官网与 App 同一份）。
- *   形象与人格各是一页市场（/support/models、/support/personas），声音是页内的底部面板（VoiceSheet）；
+ *   形象与人格各是一页市场（/support/models、/support/personas），声音是页内的底部面板（VoiceSheet：单音色 / 混音 / 声音市场三页）；
  *   顶栏右下挂一列「形象 / 人格 / 声音」小键 —— 顶栏本身已经放不下三颗带字的键（360 宽的机器上会把名字挤没）。
  *   念台词的 /api/tts 参数来自 config.voiceSettings（服务端算好的合并结果），老服务端没有它就按旧写法只传 voice。
  *   舞台的模型地址来自 settings.model.modelJsonUrl；设置还没回来之前舞台先等（最多 1.5s），免得先起官方再销毁重建。
@@ -51,6 +51,7 @@ import {
   type SupportCategory,
   type SupportConfig,
   type SupportTicket,
+  type TtsRequest,
 } from "../api/support";
 import { relativeTime } from "../types";
 
@@ -102,10 +103,15 @@ const STAGE_WAIT_MS = 1500;
  * 一句台词的 /api/tts 请求体（一处实现）。voiceSettings 是服务端算好的三层合并结果
  * （用户覆盖 > 人格自带 > 模型推荐 > 默认）；情绪与语调指令来自这一句 —— 服务端已把「人设语调；情绪语调」
  * 合并进 sentence.tts.instruct。老服务端没有 voiceSettings → 退回旧写法（只有 voice + expressive:true）。
+ * ★ 混音（voiceSettings.mix，1.0 音色）只发 mix + rate + pitch：voice 不传（服务端 speaker 固定 custom_mix_bigtts）、
+ *   instruct / expressive 不传（context_texts 与表现力增强都是 2.0 专属，服务端对混音也直接丢弃）、emotion 也不传 ——
+ *   混音 speaker 吃不吃 emotion 上游没写明，而 TTS 失败在这一页是**静默**退成合成口型（整段对话哑掉、没有一句报错），
+ *   为一点情绪起伏赌整条声音不值。面板里的试听（VoiceMixer / VoiceMarket）发的也是这三个字段：听到的就是之后念台词的。
  */
-function ttsBodyFor(config: SupportConfig | null, sentence: CompanionSentence) {
+function ttsBodyFor(config: SupportConfig | null, sentence: CompanionSentence): TtsRequest {
   const vs = config?.voiceSettings;
   if (!vs) return { text: sentence.text, voice: config?.voice || undefined, emotion: sentence.tts?.emotion, instruct: sentence.tts?.instruct, expressive: true };
+  if (vs.mix?.length) return { text: sentence.text, mix: vs.mix, rate: vs.rate ?? undefined, pitch: vs.pitch ?? undefined };
   return {
     text: sentence.text,
     voice: vs.voiceId || undefined,
@@ -520,7 +526,8 @@ export default function SupportPage() {
       <div className="absolute right-2 z-10 flex flex-col gap-2" style={{ top: `calc(env(safe-area-inset-top, 0px) + ${TOP_BAR_PX + 14}px)` }}>
         <RailButton emoji="👗" label="形象" onClick={() => navigate("/support/models")} />
         <RailButton emoji="🎭" label="人格" onClick={() => navigate("/support/personas")} />
-        <RailButton emoji="🎙️" label="声音" onClick={() => setVoiceSheetOpen(true)} />
+        {/* 在用混音（自己调的或声音市场的模板）时写「混音」：让人知道这颗键后面的东西变了 */}
+        <RailButton emoji="🎙️" label={config?.voiceSettings?.mix?.length ? "混音" : "声音"} onClick={() => setVoiceSheetOpen(true)} />
       </div>
 
       {/* 底部浮层：最近一问一答 + 转人工卡 + 快捷问题 + 输入区 */}

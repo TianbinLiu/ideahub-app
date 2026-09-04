@@ -330,15 +330,25 @@ App「我的 → AI 客服」（`/support`）的服务端。数字人是官网�
 | GET | `/api/live2d-models` | optional | Live2D 形象市场：`?page&limit(≤40)&sort=new\|hot&q&tag&scope=all\|installed\|mine` → `{ ok, models: Live2dModel[], total, page, limit, totalPages }`。`scope=all` 第一页最前是官方条目 `official-mascot`（`modelJsonUrl: ""`，不计 total）：App 拿到空串就用打包的 `/live2d/mascot/mascot.model3.json`；`installed/mine` 未登录 401。上传（`POST /`，multipart zip ≤25MB）只在官网做 |
 | POST / DELETE | `/api/live2d-models/:id/install` | required | 收藏下载 / 取消：`{ ok, installed, downloadCount }`；官方条目 400。**「使用」不是 install**：使用 = `PUT /api/companion/settings { modelId }`。App 的「下载并使用」= install → 预取 model3.json 引用的全部文件（`live2d/prefetch.ts`，热 WebView 缓存）→ PUT modelId |
 | GET | `/api/personas` | optional | 人格市场列表（App 只用这一条 + install）：`?scope=all\|installed&page&limit(≤40)&sort=new\|hot&q` → `{ ok, personas: Persona[], total, page, limit, totalPages }`，Persona 含 `_id, name, description, coverEmoji, coverImageUrl, tags, styleDescriptor, price, shared, installed, purchased, isOwner, voice: VoiceSettings\|null, stats`。「给数字人装人格」= `PUT /api/companion/settings { personaId }`；`POST /:id/install` 只是收藏（书签，幂等），`DELETE /:id/install` 取消 |
-| GET | `/api/tts/voices` | 无 | 豆包音色目录 `{ ok, voices: [{ id, name, why, expressive?, rate? }], defaultVoiceId }`。目录之外的 id 也允许（App 的声音面板列的是 `studio/voices.ts` 那份单音色清单） |
+| GET | `/api/tts/voices` | 无 | 豆包音色目录 `{ ok, voices: [{ id, name, why, expressive?, rate?, generation: "2.0", mixable: false }], mixable: [{ id, name, gender: "female"\|"male", generation: "1.0", mixable: true }], defaultVoiceId, maxMixVoices: 3 }`。`voices` = 19 个 2.0 单音色（目录之外的 id 也允许；App 的「单音色」页列的是 `studio/voices.ts` 那份清单）；`mixable` = 23 个逐个验证过的 1.0 音色，**混音配方只能从这里选**（2026-09-04 起；老服务端没有 `mixable` / `maxMixVoices`，App 的「混音」页据此提示服务端要更新） |
+| GET | `/api/voice-templates` | optional | **声音市场**（混音模板）列表：`?page&limit(≤40)&sort=new\|hot&q(≤80)&scope=all\|mine` → `{ ok, templates: VoiceTemplate[], total, page, limit, totalPages }`。`all` 只有公开的；`mine` 未登录 401 |
+| GET | `/api/voice-templates/:id` | optional | `{ ok, template }`；私有且非作者 403 |
+| POST | `/api/voice-templates` | required | `{ name(1..60), description?(≤300), recipe: VoiceMixEntry[](1..3 味，每味都得在 `mixable` 目录里), rate?, pitch?, instruct?(≤200), expressive?, shared?(默认 false) }` → **201** `{ ok, template }`。2.0 id / 超 3 味 → 400，`message` 是中文人话（App 直接展示）。限流 10/分钟 |
+| PUT | `/api/voice-templates/:id` | 作者 | 同 POST 的字段，都可省 → `{ ok, template }` |
+| DELETE | `/api/voice-templates/:id` | 作者 | `{ ok: true }`。引用它的数字人设置 / 人格 / 模型只把 `voice.templateId` 置 null，配方（快照）原样保留 —— 用的人嗓子不变，只是不再显示「使用中」 |
+| POST | `/api/voice-templates/:id/like` | required | 点赞开关 `{ ok, liked, likeCount }` |
+| POST | `/api/voice-templates/:id/use` | required | 「使用」计数 `{ ok, useCount }`：把模板设为数字人的声音时调一次（App 的 `markVoiceTemplateUsed`，失败不影响）。**真正的应用是 `PUT /api/companion/settings { voice: { templateId } }`** |
 
 Ticket 形状：`{ id, status, category: billing\|account\|content\|bug\|other, subject, summary, note, transcript[], replies: [{id, by: admin\|user, content, at}], createdAt, updatedAt, lastMessageAt }`。
 
 VoiceSettings 形状（三处共用：人格自带 / 形象作者推荐 / 用户覆盖，字段都可缺省）：
-`{ voiceId: string（"" = 跟随；/^[a-zA-Z0-9_.-]{1,64}$/）, rate: number|null（speech_rate [-50,100]，倍速 = 1 + r/100）, pitch: number|null（[-12,12]）, instruct: string（≤200 字，只对 2.0 音色生效）, expressive: boolean（默认 true） }`。
+`{ voiceId: string（"" = 跟随；/^[a-zA-Z0-9_.-]{1,64}$/；有 mix 时服务端清空）, mix: VoiceMixEntry[]|null（1～3 味 1.0 音色 `{ voiceId, weight }`，服务端归一到和 = 1、三位小数；与 voiceId 二选一的「声音身份」，合并时整体取第一个带身份的层）, templateId: string|null（配方来自声音市场哪个模板，只做「使用中」展示；没有 mix 时服务端清空）, rate: number|null（speech_rate [-50,100]，倍速 = 1 + r/100）, pitch: number|null（[-12,12]）, instruct: string（≤200 字，只对 2.0 音色生效，混音时服务端丢弃）, expressive: boolean（默认 true；混音时无效） }`。老服务端没有 `mix` / `templateId` → App 一律按 `mix?.length` 判，读到 undefined 就是单音色。
 
-★ App 念一句台词的 `/api/tts` body（`SupportPage.ttsBodyFor`，一处实现）：`{ text, voice: voiceSettings.voiceId || undefined, rate: voiceSettings.rate ?? undefined, pitch: voiceSettings.pitch ?? undefined, expressive: voiceSettings.expressive, emotion: sentence.tts.emotion, instruct: sentence.tts.instruct }` —— `sentence.tts.instruct` 已是服务端合并好的「人设语调；情绪语调」。`rate` / `pitch` 是 `/api/tts` 一直就收的字段（见「语音合成」一节），只是 App 的 `synthesizeSpeech` 此前没传。老服务端没有 `voiceSettings` → 退回只传 `voice`。
+VoiceTemplate 形状：`{ _id, author: { _id, username }|string, name, description, recipe: VoiceMixEntry[], rate, pitch, instruct, expressive, shared, stats: { useCount, likeCount }, liked, isOwner, createdAt, updatedAt, voice: VoiceSettings }` —— `voice` 是已拼好的快照（`voiceId: ""`、`mix: recipe`、`templateId: _id`）。
+
+★ App 念一句台词的 `/api/tts` body（`SupportPage.ttsBodyFor`，一处实现）：`{ text, voice: voiceSettings.voiceId || undefined, rate: voiceSettings.rate ?? undefined, pitch: voiceSettings.pitch ?? undefined, expressive: voiceSettings.expressive, emotion: sentence.tts.emotion, instruct: sentence.tts.instruct }` —— `sentence.tts.instruct` 已是服务端合并好的「人设语调；情绪语调」。`rate` / `pitch` 是 `/api/tts` 一直就收的字段（见「语音合成」一节），只是 App 的 `synthesizeSpeech` 此前没传。老服务端没有 `voiceSettings` → 退回只传 `voice`。**有 `voiceSettings.mix` 时只发 `{ text, mix, rate, pitch }`**：`voice` 不传（speaker 固定 custom_mix_bigtts）、`instruct` / `expressive` 不传（2.0 专属，服务端对混音也丢弃）、`emotion` 也不传（混音 speaker 吃不吃 emotion 上游没写明，而 TTS 失败在客服页是静默退成合成口型，整段对话哑掉）。面板里的试听（混音页 / 市场卡片）发同样三个字段，听到的就是之后念台词的。
 ★ 音频三层：人格自带 → 形象作者推荐 → 用户在客服页「声音」面板手调（存 `settings.voice`，官网与 App 同步）；面板的「恢复跟随人格/模型」= `PUT { voice: null }`。装了人格后服务端提示词自动带人设，App 的聊天请求一个字不用改。
+★ 声音市场（2026-09-04，面板第三页）：「声音模板」= 1～3 味 1.0 基础音色按比例调和 + 语速 + 音高。「设为我的声音」= `PUT /api/companion/settings { voice: { templateId } }`（服务端展开成快照）+ `POST /:id/use` 计数；「发布」= 混音页调好 → `POST /api/voice-templates` → 再 PUT `{ voice: { templateId } }` 设为自己的声音。自己调的混音直接 PUT `{ voice: { mix, rate, pitch, expressive } }`（服务端把 templateId 清空；配方没动只改语速时 App 把原 templateId 带上，「使用中」不掉）。「使用中」= `settings.voice.templateId === template._id`（合并结果那份）。**混音只支持 1.0 音色，语调指令对混音无效**——面板上原话提示；2.0 id 进配方服务端 400（中文 message 直接展示）。
 ★ 换形象在 App 里 = `CompanionModel.acquire(url)`（换 url 销毁重建，`SupportStage` 的 `modelUrl`）；市场形象加载失败退回官方并提示一次。
 
 ★ 转人工判定是**模型**做的：提示词里写明五类情形（退款/余额、注销恢复/封禁申诉/被盗、下架申诉/侵权、用户明确要人工或两轮未解决、知识库无依据），满足时回复开头写 `[handoff:类别]`，服务端剥掉后发 `handoff` 事件；App 收到后在对话下方出「转人工」卡，用户确认才建单。用户也随时可以自己点「转人工」。
@@ -1678,7 +1688,7 @@ openid 由服务端拿 AppKey 向 `graph.qq.com` 换取，客户端没有机会�
 {
   "text": "≤300 字，超出截断",
   "voice": "zh_female_gaolengyujie_uranus_bigtts",  // 只允许 [A-Za-z0-9_.-]{1,64}，非法值回落默认音色
-  "mix":   [{ "id": "…", "w": 0.6 }],               // 混音配方，权重服务端再归一化；只吃 1.0 音色
+  "mix":   [{ "voiceId": "…", "weight": 0.6 }],     // 混音配方（1～3 味，只吃 1.0 音色，须在 /api/tts/voices 的 mixable 里），权重服务端再归一；老形状 { id, w } 也认。有 mix 时 voice / instruct / expressive 都不看
   "emotion": "happy", "instruct": "用更冷静的语气",
   "rate": 0,        // [-50,100]，0 = 1.0 倍
   "pitch": -1,      // [-12,12]

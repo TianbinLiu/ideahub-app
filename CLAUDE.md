@@ -4,6 +4,7 @@ Claude Code 会自动读取本文件。**工程铁律在 [`AGENTS.md`](AGENTS.md
 本文件只给"这个仓库长什么样、怎么跑、有哪些坑"。
 
 新成员从零上手看 [`docs/ONBOARDING.md`](docs/ONBOARDING.md)。
+看板娘（Live2D 数字人）模型的现状、与官方示例的差距、工具评估与下一步见 [`docs/live2d-model-roadmap.md`](docs/live2d-model-roadmap.md)。
 
 ---
 
@@ -68,7 +69,9 @@ src/
                agent 输入条 + 四个 portal 弹层：方案台/成片回看/选卡/选模板）、
                `DeleteSegBtn.tsx`（删段确认，与 FlowPage 那份共用一处实现）；
                `support/` = AI 客服页专用：`SupportStage`（Live2D 舞台，按 modelUrl 换装）、`HoldToTalk`、
-               `VoiceSheet`（声音面板：音色/语速/语调存服务端，官网同步）
+               `VoiceSheet`（声音面板，三页：单音色 / 混音 / 声音市场；存服务端，官网同步）、
+               `VoiceMixer`（混音调配 + 发布成模板）、`VoiceMarket`（声音市场列表：试听 / 设为我的声音 / 点赞 / 删自己的）、
+               `voicePreview.ts`（三页试听共用的合成 + 播放 + 喂口型，同一时刻只响一段）
   data/        本地库（IndexedDB）与账号库，含种子数据与迁移
   hooks/
   mock/        无后端时的假数据
