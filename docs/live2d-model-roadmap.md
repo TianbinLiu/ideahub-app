@@ -1,35 +1,42 @@
-# 看板娘 Live2D 模型：现状、差距与优化路线（2026-09-04 调研）
+# 看板娘 Live2D 模型：现状、差距与优化路线（2026-09-04 调研，09-05 更新）
 
 > 目标：让自研的「小梦」达到市面数字人对话产品（VTuber 级 Live2D 绑定）的观感——动作自然、表情随对话变、
 > 摸哪儿有哪儿的反应。本文是给下一轮模型工作的依据，官网仓 `docs/COMPANION.md` 记的是运行时行为，这里记资产与工具。
 
-## 1. 现状（mascot10，2026-09-04）
+## 1. 现状（mascot10 绑定 + mascot12 贴图，2026-09-05）
 
 | 能力 | 状态 | 实现方式 |
 |---|---|---|
 | 口型 | ✅ 连续张合 | Mouth Open Warp 两键 + ParamMouthForm 三键；运行时 `包络^0.7 × 0.85` 写 ParamMouthOpenY |
 | 眨眼 | ✅ 平滑 | Eye L/R Warp 压扁到睫毛线 + 闭眼补片不透明度键；70/40/120ms 曲线 |
 | 头部 / 上身 | ✅ | 自动生成的 Face/Upper Body 变形器 + 3D 旋转表达（Body X/Y）+ Breath |
-| 裙摆 | ✅ 会动 | Skirt Warp「自动生成摆动」摆幅 25 + 运行时二阶弹簧（增益 3、0.37Hz 微摆） |
-| 头发 | ✅ 会动 | Front/Back Hair Warp 摆动键（16 / 20）+ 弹簧追头部/身体角度 |
+| 裙摆 | ✅ 会动 | Skirt Warp「自动生成摆动」摆幅 25 + physics3 摆锤（身体 X 既作平移又作角度：转身时瞬态甩动 + 持续跟随） |
+| 头发 | ✅ 会动 | Front/Side/Back Hair Warp 摆动键 + physics3 摆锤（前发/侧发 2 节，后发 3 节，发梢比发根晚半拍） |
 | 手臂 | ◐ 微动 | Arm L/R Rotation 旋转键（±8°）：呼吸开合、随身体倾斜、[action:wave] 右臂挥；没有前臂/手的分段 |
 | 触摸 | ✅ | model3.json HitAreas（Head/Hair/Body/Skirt/ArmL/ArmR/Legs）→ `hitTest` → 预置台词 + 表情/动作 |
 | 表情随对话 | ✅ | 服务端 `[情绪][face][action]` 标签 → exp3/motion3 + 补片；9 种 face、11 种 action |
-| 物理文件 | ✗ | 没有 physics3.json，摆动全靠运行时弹簧（两端共用 companionModel.ts） |
-| 拼接感 | ✗ 未解决 | 见 §2 |
+| 物理文件 | ✅ mascot.physics3.json（手写） | 前发/侧发/后发/裙摆 4 组摆锤，输入头身角度；运行时只吹"微风"让静止时也晃；没物理的老模型/市场包仍走 companionModel.ts 的弹簧兜底 |
+| 拼接感 | ✅ 已清理（mascot12 贴图） | 见 §2：LaMa 逐层重画被遮挡的边带，moc3 不变 |
 
-## 2. 拼接感（"披风挪开后有一圈虚框"）的根因与修法
+## 2. 拼接感（"披风挪开后有一圈虚框"）的根因与修法 —— 已做（mascot12）
 
 立绘是 AI 生成 → See-through（`shitagaki-lab/see-through`）拆 16 层 → 各层被遮挡的部分是模型"脑补"的。
-脑补区域带着上层的轮廓残影（披风的边在裙子层里、手臂层里都有一道淡淡的线），平时被披风盖住看不见，
-披风一动（呼吸缩放、身体旋转）就露出来，看起来像"贴图拼起来的"。
+脑补区域带着上层的轮廓残影：披风的领口线印在脖子上、刘海的形状印在额头和披风上、披风/裙摆的阴影烙在袖子和大腿上，
+平时被上层盖住看不见，上层一动（呼吸缩放、转头、甩发、摆裙）就露出来，看起来像"贴图拼起来的"。
 
-修法只有一条：**把每一层被遮挡区域的残影抹干净**，不是绑定层面的问题。
-- 工具：[IOPaint](https://github.com/Sanster/IOPaint)（原 lama-cleaner，开源，LaMa 模型 CPU 可跑，`iopaint run --model=lama --image= --mask= --output=` 支持批处理）。
-- 遮罩：对每一层，遮罩 = 上层（披风/前发/手臂）alpha 向外膨胀 20～40px ∩ 本层 alpha，只修边缘带，不动可见区。
-- 流程：`live2d-lab/out/psd-lr/*.png` → 修补 → `build_grouped_psd5.py` 重建 PSD → Cubism「重新导入 PSD」（图层名不变则网格/变形器保留）→ 导出。
-  之前脸层用 `fix_face.py` 的归一化卷积做过同样的事（眼睛残影），效果可参考；衣服褶皱这类有结构的区域必须用 LaMa。
-- 顺带做：给披风/裙子的网格边缘留 2px 羽化（Cubism 自动网格的边缘硬，缩放时锯齿明显）。
+修法：**把每一层被遮挡区域的残影抹干净**，不是绑定层面的问题。2026-09-05 已用下面这条流水线做完，只改贴图集，moc3/网格不动：
+
+| 脚本（`C:/Users/tliu7/live2d-lab/`） | 做什么 |
+|---|---|
+| `lama_seams.py` | 对每个 (下层, 上层) 组合算遮罩 = 上层轮廓往里 120～160px（露得出来的带；小区域整块）∪ 往外 6～90px（烙在可见区里的阴影/描边），裁出包围盒，透明区先用可见像素延伸填充，跑 `iopaint run --model=lama`（CPU 8 张图 30s），只写回遮罩内 RGB（羽化 4px）。皮肤层（脸/脖子/耳朵）不用 LaMa——大块光滑皮肤它会脑补出皱纹划痕——改用可见皮肤的归一化卷积平滑延伸 |
+| `despeckle.py` | 披风/袖子这类平滑区域里 LaMa 留下的小点和细划痕：中值差 + 连通域面积过滤 + Telea 修补。裙子/腿有褶皱线，**不能**跑 |
+| `patch_atlas.py` | alpha 模板匹配找到每层在 4096 贴图集里的位置（手臂按脸中线拆 L/R），把改动贴回去 → `out/mascot12.4096/texture_00.{png,webp}` |
+| `scratchpad/render-compare.cjs` | Playwright 离屏渲染 stage-test，两版贴图同一姿势（呼吸满 + 转头 + 刘海/后发/裙摆/双臂推到极限）截上/下半身对比图 |
+
+结果（`out/seams/render/cmp-*.jpg`）：转头时披风上不再有刘海的黑色残影，摆裙时大腿上没有裙摆线，袖子上没有披风阴影带，
+额头/脖子没有发丝/领口印子。IOPaint 装在 `live2d-lab/iopaint-venv`（Python 3.12，CPU torch）；LaMa 权重在 `~/.cache/torch/hub/checkpoints/big-lama.pt`。
+下次立绘重拆层后，按 lama_seams → despeckle → patch_atlas 顺序重跑即可（PAIRS 表按新分层改）。
+没做的：耳朵层在贴图集里匹配不到（可能拆成了两块），残影极小，跳过。
 
 ## 3. 和官方示例模型的差距（对比标杆已上传到模型市场）
 
@@ -60,8 +67,13 @@
 
 ## 5. 下一步（按性价比排序）
 
-1. **残影清理**（§2）：IOPaint 批处理 + PSD 重导入，一次性消掉拼接感。约半天。
-2. **physics3.json**：把裙/前发/后发/披风改成 Cubism 物理（链式摆锤），运行时弹簧只留兜底；两端零代码改动。
+1. ~~**残影清理**（§2）~~ 已完成（2026-09-05，mascot12 贴图，只改贴图集）。
+2. ~~**physics3.json**~~ 已完成（2026-09-05）：`public/live2d/mascot/mascot.physics3.json` 是手写的（格式照官方 Hiyori 示例），
+   4 组：前发（2 节，Scale 6）、侧发（2 节，Scale 5）、后发（3 节，Scale 24）、裙摆（3 节，Scale 240）；头发参数量程是 ±1、裙摆 ±10，
+   Scale 是按 `scratchpad/physics-tune.cjs` 的实测调的（正弦驱动头 ±20°/身体 ±8° 时前发 ±0.85、裙摆 ±6；慢速空闲时裙摆 ±3～5）。
+   运行时（companionModel.ts）有物理时不再写这几个参数，只每帧改 `physics._options.wind.x`（0.37Hz×0.12 + 0.11Hz×0.05）当微风；
+   注意 `_options` 里的向量是框架的 CubismVector2，只能改 x/y，整个换掉物理会崩。物理输出只在 model.update() 前存在（update 末尾
+   loadParameters 会还原），要读它们得挂 `internalModel.on("beforeModelUpdate")`。披风没做摆锤（它跟着呼吸缩放，没有独立摆动参数）。
 3. **手臂分段**：把 `02_handwear` 再拆成上臂/前臂/手（See-through 不分，手工在 PSD 里切），旋转变形器两级，才能做抬手/摆手/托腮。
 4. **面部微表情键**：眉形（ParamBrowL/RForm）、眼形（ParamEyeL/RSmile 眯眼）、脸红（ParamCheek）补关键帧，exp3 才有内容可驱动。
 5. **动作库**：用 Cubism Animator 做 8～10 段带手臂的 motion3（挥手、思考托腮、惊讶后仰、鞠躬），替换现在的手写 JSON。

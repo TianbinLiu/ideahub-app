@@ -12,7 +12,11 @@
  *   - ExprSmile / ExprAngry 仍是补片（笑眼、怒目整块贴图），靠 Part 不透明度开关；
  *     ExprClosed / ExprMouthOpen 这两个 Part 现在【常开】，露不露由上面的参数关键帧决定。
  *   - ParamSkirtSway -10→10 = 裙摆左右摆（mascot9 的 Skirt Warp，Cubism「Auto Generation of Sway Motion」生成，支点在腰）。
- *     模型里没有 physics3.json，"布料的惯性"由这里的二阶弹簧代劳：每帧读动作/呼吸算出的 ParamBodyAngleX，
+ *     ★ 2026-09-05 起模型自带 mascot.physics3.json（手写：前发/侧发/后发/裙摆 4 组摆锤，输入是头身角度）：
+ *     有物理时这几个参数由 Cubism 物理在 update 里算，我们的弹簧不再写（写了也会被物理覆盖），只每帧改物理的
+ *     wind 向量吹一阵慢正弦"微风"，让静止时摆锤也自己轻轻晃；没有物理的老模型/市场包才走下面的弹簧兜底。
+ *     物理输出只在 model.update() 之前那一刻存在（update 末尾 loadParameters 会还原），所以别在 tick 里读它们。
+ *     没物理时"布料的惯性"由这里的二阶弹簧代劳：每帧读动作/呼吸算出的 ParamBodyAngleX，
  *     裙摆慢半拍跟上、过冲再回摆。idle 动作的身体摆只有 ±2、框架呼吸 ±4，所以要乘增益才看得见。
  *   - ParamHairFront / ParamHairBack（mascot10 的 Front/Back Hair Warp，同样是「Auto Generation of Sway Motion」）：
  *     弹簧追头部角度（AngleX/AngleZ）+ 一点身体角度，头一转发梢就跟着甩。
@@ -71,8 +75,15 @@ const SKIRT_IDLE_HZ = 0.37;
 /** 头发弹簧：比裙子硬、回摆快；前发只跟头，后发跟头 + 身体（后发长，摆幅大） */
 const HAIR_STIFFNESS = 46;
 const HAIR_DAMPING = 5.5;
-const HAIR_FRONT_GAIN = 0.45;
-const HAIR_BACK_GAIN = 0.6;
+/** ParamHairFront/Back 量程是 -1..1（不是 -10..10）：头转 20° 时前发到 ±0.8 左右，和物理版对齐 */
+const HAIR_FRONT_GAIN = 0.04;
+const HAIR_BACK_GAIN = 0.05;
+const HAIR_RANGE = 1;
+/** 有 physics3 时的微风：两个不同频率的正弦叠加（相对重力 1；实测 0.1 → 前发约 ±0.45、裙摆约 ±0.6，0.4 就把前发吹到满） */
+const WIND_AMP = 0.12;
+const WIND_HZ = 0.37;
+const WIND_AMP2 = 0.05;
+const WIND_HZ2 = 0.11;
 /** 手臂：呼吸微开合 + 随身体倾斜；挥手 1.8s、2.2Hz、±9 */
 const ARM_BREATH_AMP = 1.4;
 const ARM_FOLLOW_GAIN = 0.35;
@@ -448,19 +459,26 @@ export class CompanionModel {
     const breath = readParam("ParamBreath");
     const dtSec = Math.min(0.05, dt / 1000);
     const tSec = (now - this.bornAt) / 1000;
-    // 二阶弹簧一步：返回 [新位置, 新速度]；所有摆动参数都是 -10..10
-    const spring = (pos: number, vel: number, target: number, k: number, c: number): [number, number] => {
+    // 二阶弹簧一步：返回 [新位置, 新速度]；裙摆量程 ±10，头发量程 ±1
+    const spring = (pos: number, vel: number, target: number, k: number, c: number, range = SKIRT_RANGE): [number, number] => {
       const v = vel + (k * (target - pos) - c * vel) * dtSec;
-      return [Math.max(-SKIRT_RANGE, Math.min(SKIRT_RANGE, pos + v * dtSec)), v];
+      return [Math.max(-range, Math.min(range, pos + v * dtSec)), v];
     };
-    const idleSway = Math.sin(tSec * 2 * Math.PI * SKIRT_IDLE_HZ) * SKIRT_IDLE_AMP;
-    [this.skirt, this.skirtVel] = spring(this.skirt, this.skirtVel, bodyX * SKIRT_GAIN + idleSway, SKIRT_STIFFNESS, SKIRT_DAMPING);
-    core.setParameterValueById("ParamSkirtSway", this.skirt);
-    // 头发：前发只跟头，后发跟头 + 身体
-    [this.hairFront, this.hairFrontVel] = spring(this.hairFront, this.hairFrontVel, (headX + headZ * 0.6) * HAIR_FRONT_GAIN, HAIR_STIFFNESS, HAIR_DAMPING);
-    [this.hairBack, this.hairBackVel] = spring(this.hairBack, this.hairBackVel, (headX * 0.5 + headZ * 0.8 + bodyX * 1.2) * HAIR_BACK_GAIN, HAIR_STIFFNESS, HAIR_DAMPING);
-    core.setParameterValueById("ParamHairFront", this.hairFront);
-    core.setParameterValueById("ParamHairBack", this.hairBack);
+    const wind = this.model.internalModel.physics?._options?.wind;
+    if (wind) {
+      // 模型自带 physics3：裙摆/头发由 Cubism 物理按头身角度算（读的是上一帧我们和动作写进去的值），
+      // 这里只吹微风——静止时摆锤也会自己轻轻晃，比往参数上叠正弦自然（各组摆锤相位、幅度都不一样）
+      wind.x = Math.sin(tSec * 2 * Math.PI * WIND_HZ) * WIND_AMP + Math.sin(tSec * 2 * Math.PI * WIND_HZ2 + 1) * WIND_AMP2;
+    } else {
+      const idleSway = Math.sin(tSec * 2 * Math.PI * SKIRT_IDLE_HZ) * SKIRT_IDLE_AMP;
+      [this.skirt, this.skirtVel] = spring(this.skirt, this.skirtVel, bodyX * SKIRT_GAIN + idleSway, SKIRT_STIFFNESS, SKIRT_DAMPING);
+      core.setParameterValueById("ParamSkirtSway", this.skirt);
+      // 头发：前发只跟头，后发跟头 + 身体（量程 ±1）
+      [this.hairFront, this.hairFrontVel] = spring(this.hairFront, this.hairFrontVel, (headX + headZ * 0.6) * HAIR_FRONT_GAIN, HAIR_STIFFNESS, HAIR_DAMPING, HAIR_RANGE);
+      [this.hairBack, this.hairBackVel] = spring(this.hairBack, this.hairBackVel, (headX * 0.5 + headZ * 0.8 + bodyX * 1.2) * HAIR_BACK_GAIN, HAIR_STIFFNESS, HAIR_DAMPING, HAIR_RANGE);
+      core.setParameterValueById("ParamHairFront", this.hairFront);
+      core.setParameterValueById("ParamHairBack", this.hairBack);
+    }
     // 手臂：呼吸时两臂一起轻轻开合、身体倾斜时同向摆；挥手时右臂叠一段带包络的来回
     const armIdle = (breath - 0.5) * 2 * ARM_BREATH_AMP + bodyX * ARM_FOLLOW_GAIN;
     let wave = 0;

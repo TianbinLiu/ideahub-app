@@ -51,6 +51,8 @@ export type Live2DModelInstance = {
     originalHeight?: number;
     settings: { motions?: Record<string, unknown[]>; expressions?: Array<{ Name: string }> };
     motionManager: { expressionManager?: { resetExpression(): void } };
+    /** model3.json 引用了 physics3.json 才有；_options 里的 gravity/wind 是框架的 CubismVector2，只能改 x/y，不能整个换掉 */
+    physics?: { _options?: { gravity: { x: number; y: number }; wind: { x: number; y: number } } } | null;
   };
   motion(group: string, index?: number, priority?: number): Promise<boolean>;
   expression(id?: string | number): Promise<boolean>;
