@@ -20,8 +20,12 @@
  *     裙摆慢半拍跟上、过冲再回摆。idle 动作的身体摆只有 ±2、框架呼吸 ±4，所以要乘增益才看得见。
  *   - ParamHairFront / ParamHairBack（mascot10 的 Front/Back Hair Warp，同样是「Auto Generation of Sway Motion」）：
  *     弹簧追头部角度（AngleX/AngleZ）+ 一点身体角度，头一转发梢就跟着甩。
- *   - ParamArmL / ParamArmR（-10→10 = 肩部旋转，+ 为向外张）：呼吸时轻轻开合、随身体倾斜、[action:wave] 时右臂来回挥。
- *   - 触摸：model3.json 的 HitAreas 把 脸/头发/披风/裙子/双臂/腿 标成命中区，hitTest() 回区名，
+ *   - ParamArmL / ParamArmR（-10→10 = 肩部旋转 ±8°，+ 为向外张）：呼吸时轻轻开合、随身体倾斜。
+ *   - ★ mascot13（2026-09-05）手臂拆成 上臂/前臂/手 三段：ParamForearmL/R（+10 = 前臂向内弯 70° 手到胸前，-10 = 外张 25°）、
+ *     ParamHandL/R（手腕 ±25°）；挥手/害羞/惊讶/鞠躬/思考都是 motion3 文件里带前臂曲线的动作（protocol.ts ACTION_MOTIONS），
+ *     这里的运行时挥手（右肩来回）只给没有前臂参数的老模型/市场包兜底。眼球 ParamEyeBallX/Y、眉毛 BrowY/Angle/Form、
+ *     披风 ParamCapeSway（physics3 摆锤）也是 mascot13 才有键。
+ *   - 触摸：model3.json 的 HitAreas 把 脸/头发/双手/双臂/披风/裙子/腿 标成命中区，hitTest() 回区名，
  *     页面据此演一句（protocol.ts 的 TOUCH_REACTIONS）。
  * ★ 所有写参数的操作都挂在 ticker 的 LOW 优先级：pixi-live2d-display 每帧先跑 动作→表情→呼吸→物理，
  *   之后我们再叠加（addParameterValueById）或覆盖，否则会被动作覆盖掉。框架自带的自动眨眼（EyeBlink 组）
@@ -482,6 +486,8 @@ export class CompanionModel {
     // 手臂：呼吸时两臂一起轻轻开合、身体倾斜时同向摆；挥手时右臂叠一段带包络的来回
     const armIdle = (breath - 0.5) * 2 * ARM_BREATH_AMP + bodyX * ARM_FOLLOW_GAIN;
     let wave = 0;
+    // 有前臂参数的模型（mascot13+）挥手走 wave.motion3.json，不再在肩上硬摆
+    if (this.waveStart && typeof core.getParameterIndex === "function" && core.getParameterIndex("ParamForearmR") >= 0) this.waveStart = 0;
     if (this.waveStart) {
       const phase = now - this.waveStart;
       if (phase >= ARM_WAVE_MS) this.waveStart = 0;

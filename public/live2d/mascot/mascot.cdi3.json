@@ -7,6 +7,31 @@
 			"Name": "Angle X"
 		},
 		{
+			"Id": "ParamCapeSway",
+			"GroupId": "",
+			"Name": "Cape Sway"
+		},
+		{
+			"Id": "ParamForearmL",
+			"GroupId": "",
+			"Name": "Forearm L"
+		},
+		{
+			"Id": "ParamForearmR",
+			"GroupId": "",
+			"Name": "Forearm R"
+		},
+		{
+			"Id": "ParamHandL",
+			"GroupId": "",
+			"Name": "Hand L"
+		},
+		{
+			"Id": "ParamHandR",
+			"GroupId": "",
+			"Name": "Hand R"
+		},
+		{
 			"Id": "ParamAngleY",
 			"GroupId": "",
 			"Name": "Angle Y"
@@ -155,6 +180,14 @@
 	"ParameterGroups": [],
 	"Parts": [
 		{
+			"Id": "Part15",
+			"Name": "sheet-6-arms-only.psd"
+		},
+		{
+			"Id": "Part25",
+			"Name": "sheet-6-arms.psd (Corresponding layer not found)"
+		},
+		{
 			"Id": "Part",
 			"Name": "Hair Front"
 		},
@@ -233,6 +266,22 @@
 		{
 			"Id": "Part12",
 			"Name": "Hair Back"
+		},
+		{
+			"Id": "Part13",
+			"Name": "Arm L"
+		},
+		{
+			"Id": "Part14",
+			"Name": "Arm R"
+		},
+		{
+			"Id": "Part22",
+			"Name": "Arm L"
+		},
+		{
+			"Id": "Part23",
+			"Name": "Arm R"
 		},
 		{
 			"Id": "Part5",

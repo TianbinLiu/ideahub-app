@@ -15,12 +15,12 @@
   },
   {
    "Id": "ParamBrowLY",
-   "Value": 0.8,
+   "Value": 1,
    "Blend": "Add"
   },
   {
    "Id": "ParamBrowRY",
-   "Value": 0.8,
+   "Value": 1,
    "Blend": "Add"
   },
   {
