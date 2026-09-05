@@ -75,6 +75,7 @@ import { API_ON } from "../api/client";
 import { PLANS, RECHARGE_PACKS, fmtTokens } from "../data/economy";
 import { notificationsState, refreshUnreadCount, subscribeNotifications } from "../data/notifications";
 import { useAccountVersion, useAuthState, useCurrentUser } from "../hooks/useAccount";
+import { useBackOr } from "../hooks/useBackOr";
 import { useVideosVersion } from "../hooks/useVideos";
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoItem, type Visibility, formatPlays, relativeTime, visibilityOf } from "../types";
 import { cutSession, dropCutSession, subscribeCutSession } from "../data/cutSession";
@@ -151,6 +152,7 @@ export default function ProfilePage() {
   const [searchParams] = useSearchParams();
   const loc = useLocation();
   const navigate = useNavigate();
+  const backOrHome = useBackOr("/");
   // 版本号订阅要在最前面：关注/收藏/钱包都是原地改对象，不订阅拿不到变更
   const accV = useAccountVersion();
   const videoV = useVideosVersion();
@@ -514,14 +516,9 @@ export default function ProfilePage() {
             <span className="h-11 w-11" />
           ) : (
             <button
-              onClick={() => {
-                // 分享出去的主页链接被人直接点开时，history 里没有"上一页"——
-                // 这时候 navigate(-1) 是退出 App（Capacitor 的 WebView 里就是白屏），
-                // 得退回首页。react-router 把自己的历史下标存在 history.state.idx
-                const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
-                if (idx > 0) navigate(-1);
-                else navigate("/");
-              }}
+              // 分享出去的主页链接被人直接点开时 history 里没有"上一页"——退回首页而不是退出 App
+              //（判据只在 hooks/useBackOr 一处）
+              onClick={backOrHome}
               aria-label="返回"
               className="flex h-11 w-11 items-center justify-center text-slate-300"
             >
