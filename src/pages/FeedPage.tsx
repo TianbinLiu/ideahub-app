@@ -16,7 +16,10 @@ import {
   hasCountedPlay,
   isLiked,
   isMyAuthor,
+  listFollowingVideos,
   listVideos,
+  refreshFeed,
+  refreshFollowingFeed,
   profileHref,
   setLike,
   setSave,
@@ -859,16 +862,34 @@ function FeedItem({
   );
 }
 
+/**
+ * 首页整份重拉的最小间隔。★ 不是拍脑袋：底栏在首页/分区/工坊/我的之间来回点是几秒一次的事，
+ * 每次挂载都打一发就是把列表接口当心跳；而"别人刚发的作品一分钟后才出现"没有人会觉得慢。
+ */
+const FEED_STALE_MS = 60_000;
+
 export default function FeedPage() {
   const user = useCurrentUser();
   const version = useVideosVersion();
   const [feed, setFeed] = useState<"recommend" | "following">("recommend");
   const all = useMemo(() => listVideos(), [version]);
+  const followingRemote = useMemo(() => listFollowingVideos(), [version]);
   const videos = useMemo(() => {
     if (feed !== "following") return all;
+    // ★ 服务端按关注表筛的那份优先（不受推荐首屏 30 条限制）；离线 / 还没拉到时才退回
+    //   本机按作者名筛 —— 见 videos.listFollowingVideos 的 ★★
+    if (followingRemote) return followingRemote;
     const set = new Set(user?.following ?? []);
     return all.filter((v) => set.has(v.author));
-  }, [all, feed, user?.following]);
+  }, [all, followingRemote, feed, user?.following]);
+  // ★★ 会话内刷新（2026-09-05 巡检补）：回到首页且距上次整份拉取超过 FEED_STALE_MS 就重拉，
+  //   关注页签切进来同理。挂载那一拍 activeIdx 必然是 0，整份替换不会把人甩到别的位置。
+  useEffect(() => {
+    void refreshFeed({ minAgeMs: FEED_STALE_MS });
+  }, []);
+  useEffect(() => {
+    if (feed === "following") void refreshFollowingFeed({ minAgeMs: FEED_STALE_MS });
+  }, [feed]);
   // 第一次进首页强制放一遍引导。★★ 两条都要紧：
   //   ① 必须写在下面那个 `if (videos.length === 0) return` **之前** —— 那是提前返回，
   //      写在它后面就是条件调用 hook，React 当场报错；
@@ -876,6 +897,22 @@ export default function FeedPage() {
   //      五步里四步的锚点都不存在，对着一屏空白讲"点这里"没有意义。
   useAutoGuide("feed", videos.length > 0);
   const [activeIdx, setActiveIdx] = useState(0);
+  // 从后台回来也重拉一次，但**只在停在第一条时**：中途整份换掉列表，用户正看的那条会
+  // 被顶到别处（甚至消失），比看到旧列表更像坏了。用 ref 读当下的下标与页签，
+  // 监听器只挂一次。
+  const activeIdxRef = useRef(0);
+  activeIdxRef.current = activeIdx;
+  const feedRef = useRef(feed);
+  feedRef.current = feed;
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || activeIdxRef.current !== 0) return;
+      void refreshFeed({ minAgeMs: FEED_STALE_MS });
+      if (feedRef.current === "following") void refreshFollowingFeed({ minAgeMs: FEED_STALE_MS });
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
   const wrapRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const firstRun = useRef(true);

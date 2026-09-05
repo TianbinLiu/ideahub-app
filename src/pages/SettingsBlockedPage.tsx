@@ -15,6 +15,7 @@ import Icon from "../components/Icon";
 import { isRemoteMode } from "../data/account";
 import { useCurrentUser } from "../hooks/useAccount";
 import { listBlocked, unblockUser, type BlockedUser } from "../api/blocking";
+import { refreshFeed, refreshFollowingFeed } from "../data/videos";
 
 export default function SettingsBlockedPage() {
   const navigate = useNavigate();
@@ -56,6 +57,9 @@ export default function SettingsBlockedPage() {
     //   上一版是无条件乐观移除，于是"删不掉"长得和"删掉了"一模一样 —— 退出去再进来
     //   那个人原封不动还在（零报错空操作，复核抓到的那条）。
     setList((prev) => (prev ? prev.filter((x) => x.id !== u.id) : prev));
+    // 解除之后他的作品该回到首页/关注流里：那两份是会话内缓存，得重拉
+    void refreshFeed();
+    void refreshFollowingFeed();
   }
 
   return (

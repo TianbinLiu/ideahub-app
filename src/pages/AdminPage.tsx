@@ -37,6 +37,7 @@ import {
   reasonLabel,
   reportTimeMs,
   resolveReport,
+  takedownReasonText,
   revokeTakedown,
   takedownVideo,
   unbanUser,
@@ -837,7 +838,7 @@ function VideoRow({ v, onDone }: { v: ApiVideo; onDone: () => void }) {
             {reportTimeMs(v.createdAt) > 0 && <span>· {relativeTime(reportTimeMs(v.createdAt))}</span>}
           </div>
           {down && v.takedown?.reason && (
-            <p className="mt-1 text-[11px] leading-relaxed text-amber-300/80">下架原因：{v.takedown.reason}</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-amber-300/80">下架原因：{takedownReasonText(v.takedown.reason)}</p>
           )}
         </div>
       </div>

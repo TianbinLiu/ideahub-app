@@ -1,5 +1,6 @@
 // 视频详情页：播放器（多 P 可切换）+ 信息 + 分段剧情 + 评论区
 import { useEffect, useMemo, useRef, useState } from "react";
+import { takedownReasonText } from "../api/admin";
 import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import Icon from "../components/Icon";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
@@ -459,7 +460,7 @@ export default function VideoPage() {
           <div className="mt-4 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3">
             <p className="text-sm font-semibold text-rose-200">这条作品已被平台下架</p>
             <p className="mt-1 text-xs leading-relaxed text-rose-100/80">
-              {video.takedown.reason || "（管理员没有填写原因）"}
+              {takedownReasonText(video.takedown.reason) || "（管理员没有填写原因）"}
             </p>
             <p className="mt-1.5 text-[11px] text-slate-400">
               只有你自己看得到它。把可见性改回公开也没用 —— 这是平台的开关，不是你的那一个。

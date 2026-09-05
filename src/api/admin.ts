@@ -75,6 +75,19 @@ export const REPORT_REASONS = [
 export type ReportReason = (typeof REPORT_REASONS)[number]["id"];
 
 /**
+ * 给作者看的下架原因。
+ * ★ 服务端从**举报队列**下架时写进 `takedown.reason` 的是举报理由的 key（如 "porn"），
+ *   存量数据里就是这样（2026-09-05 巡检：作者页面上写着「已被平台下架 porn」）；
+ *   管理员在作品列表手填的原因则是任意中文。认得出 key 就翻成上面那张表的标签，
+ *   认不出原样显示 —— 四处显示原因的地方都走它，别各自再查一遍表。
+ */
+export function takedownReasonText(reason: string | null | undefined): string {
+  const key = (reason ?? "").trim();
+  if (!key) return "";
+  return REPORT_REASONS.find((r) => r.id === key)?.label ?? key;
+}
+
+/**
  * 这条举报要不要按**紧急件**对待（后台画成红色、排在最前）。
  *
  * ★ 与服务端 `Report.URGENT_REASONS` 是同一张表的两侧。判**这个函数**而不是在
