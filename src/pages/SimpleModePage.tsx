@@ -16,8 +16,8 @@
 // ★ 简约恒单段、恒直出（不推演方案）：所以没有方案台、没有节点条、不存草稿
 //   （saveWorkDraft 自己会挡掉 simple，见 studioStore）。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
-import Icon from "../components/Icon";
 import SegSettings from "../components/flow/SegSettings";
 import { chosenOf, nodeCost, nodeDone, tplOfNode, useFlow } from "../studio/flowStore";
 import { fmtTokens } from "../data/economy";
@@ -97,21 +97,20 @@ export default function SimpleModePage() {
   const cost = nodeCost(nodes, 0, mode);
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-6 pt-3">
-      {/* 顶栏：只有返回 + 第几步。简约不需要存草稿/完成视频那一排 */}
-      <div className="mb-4 flex items-center gap-2">
-        <button
-          onClick={() => (step === "start" ? navigate("/create") : setStep(step === "go" ? "fill" : "start"))}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-panel"
-        >
-          <Icon name="back" size={18} className="text-slate-300" />
-        </button>
-        <span className="text-sm font-bold text-slate-100">写一句话出片</span>
-        <span className="flex-1" />
-        <span className="text-[11px] text-slate-500">
-          第 {step === "start" ? 1 : step === "fill" ? 2 : 3} / 3 步
-        </span>
-      </div>
+    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-6">
+      {/* 顶栏：只有返回 + 第几步。简约不需要存草稿/完成视频那一排。
+          ★ 走 PageHeader（2026-09-05 主人截图：这一页此前没留状态栏的位置，返回键压在时间上、
+            「第 1/3 步」压在电量图标上 —— 全 app 唯一一页顶栏没 safe-top 的） */}
+      <PageHeader
+        className="mb-4"
+        onBack={() => (step === "start" ? navigate("/create") : setStep(step === "go" ? "fill" : "start"))}
+        title="写一句话出片"
+        right={
+          <span className="flex-none text-[11px] text-slate-500">
+            第 {step === "start" ? 1 : step === "fill" ? 2 : 3} / 3 步
+          </span>
+        }
+      />
 
       {/* store 的整句拒绝（换模板被拒、生成被拒…）—— 不画一份就是"点了没反应"（铁律八） */}
       {err && <p className="mb-3 rounded-lg bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
