@@ -3,11 +3,11 @@
 > 目标：让自研的「小梦」达到市面数字人对话产品（VTuber 级 Live2D 绑定）的观感——动作自然、表情随对话变、
 > 摸哪儿有哪儿的反应。本文是给下一轮模型工作的依据，官网仓 `docs/COMPANION.md` 记的是运行时行为，这里记资产与工具。
 
-## 1. 现状（mascot14：手臂三段 + 眼球/眉毛键 + 头转带发/眼/口 + 头歪 + 腮红，2026-09-05）
+## 1. 现状（mascot16：手臂三段 + 眼球/眉毛/眯眼键 + 头转带发/眼/口 + 头歪 + 腮红 + 笑/哭嘴，2026-09-05）
 
 | 能力 | 状态 | 实现方式 |
 |---|---|---|
-| 口型 | ✅ 连续张合 | Mouth Open Warp 两键 + ParamMouthForm 三键；运行时 `包络^0.7 × 0.85` 写 ParamMouthOpenY |
+| 口型 | ✅ 连续张合 + 嘴形 | Mouth Open Warp 两键；ParamMouthForm 由三张嘴补片交叉淡入（-1 哭嘴 ∩ / 0 原嘴 / +1 笑嘴 ∪，mascot16），运行时 `包络^0.7 × 0.85` 写 ParamMouthOpenY |
 | 眨眼 | ✅ 平滑 | Eye L/R Warp 压扁到睫毛线 + 闭眼补片不透明度键；70/40/120ms 曲线 |
 | 头部 / 上身 | ✅ | 自动生成的 Face/Upper Body 变形器 + 3D 旋转表达（Body X/Y）+ Breath |
 | 裙摆 | ✅ 会动 | Skirt Warp「自动生成摆动」摆幅 25 + physics3 摆锤（身体 X 既作平移又作角度：转身时瞬态甩动 + 持续跟随） |
@@ -48,7 +48,7 @@
 
 | 维度 | 官方示例 | 小梦 | 差在哪 |
 |---|---|---|---|
-| 图层 | 画师按绑定需求分 60～100 层（眉毛、上下睫毛、瞳孔、高光、衣服前后片、手指…） | 20 层（AI 拆分 + 手臂手工切三段） | 分层决定上限：没有上下睫毛就做不出眯眼（ParamEyeL/RSmile 仍无键），没有手指分层就做不出手势 |
+| 图层 | 画师按绑定需求分 60～100 层（眉毛、上下睫毛、瞳孔、高光、衣服前后片、手指…） | 20 层（AI 拆分 + 手臂手工切三段） | 分层决定上限：眯眼只能靠整眼压扁（没有下睫毛层），没有手指分层就做不出手势 |
 | 变形 | 每层多级 Warp + 旋转，手工键 | 自动生成 + 少量手工 | 面部微表情（眉形、眼形）缺键 |
 | 物理 | physics3.json（头发/裙/胸 10+ 组摆锤） | 运行时弹簧 3 组 | 官方物理有链式摆锤（发梢比发根晚半拍），弹簧只有一级 |
 | 动作 | 10 段 motion3（含身体、手臂） | 9 段程序生成（make_motions2.py：idle/nod/shake/think/excited/wave/shy/surprised/bow，都带前臂/手腕曲线） | 官方的是动画师手 K，我们是正弦 + smoothstep 包络，节奏偏机械 |
@@ -87,6 +87,10 @@
    bow（低头前倾、双手收身前）、nod/shake 带手部跟随。ACTION_MOTIONS：wave→wave、shy→shy、surprised→surprised。
    Cubism Animator 手 K 的版本仍然会更自然，留给以后。
 6. 重绘一版分层更细的立绘（画师或 Bunraku 发布后），才是"官方示例级"的根本解。
+8. ~~嘴形~~ 已完成（2026-09-05，mascot16）：原嘴只有 43×17px 的一条线，ParamMouthForm 的 warp 键只动 5px 看不出笑。
+   改成补片：`out/psd-mouth/mouth_smile.png`（∪ 弧线，56px 宽）和 `mouth_frown.png`（∩，34px）程序画在原嘴的粉底上，
+   `sheet-6-mouth.psd` 导入挂 Mouth Warp 下，三张嘴的不透明度都键在 MouthForm 上（-1/0/+1 各显一张，中间交叉淡入）。
+   试过在 Mouth Warp 外套 warp 拖控制点弯嘴：包围盒比嘴宽十倍弯不出弧度，且点在包围盒边中点/角上抓到的是缩放手柄不是控制点，放弃。
 7. ~~前发/后发跟随头转、腮红层、ParamAngleZ~~ 已完成（2026-09-05，mascot14）：
    - 扫描发现眼/口其实没跟着头转（第一次自动生成的目标是一组空的重复变形器），改为在真正的 Eye L/R Warp、Mouth Warp、
      Front/Back Hair Warp 外各套两层旋转变形器「… Shift X / Shift Y」（X 和 Y 分开，避免多参数组合键），原点数值 = 默认 ± 位移
@@ -95,4 +99,7 @@
    - Angle Z：Face Rotation ±30 → ±12°（支点在下巴，前发跟着歪，后发不歪）。
    - 腮红：`out/psd-cheek/cheek.png`（两团高斯粉晕，眼下 72px）→ `sheet-6-cheek.psd` 导入为 cheek 网格挂在 Face Warp 下，
      ParamCheek 0/1 → 不透明度 0/100%（smile/shy 的 exp3、FACE_POSES 里的 ParamCheek 现在真的有效）。
-   - 眯眼（ParamEyeL/RSmile）仍没做：Eye Warp 的控制点要拖，Cubism 里点在网格上会选中下面的表情补片，且真正的眯眼需要上下睫毛分层。
+   - 眯眼（ParamEyeL/RSmile，mascot15）：不拆睫毛，在真正的 Eye L/R Warp 外再套一个 2×2 / Bezier 1×1 的「Eye L/R Squint」warp，
+     EyeSmile=1 时把它的底边整体拖高 40px（顶边不动，双线性压缩：眼白下缘抬 28px、瞳孔中心抬 20px、上睫毛几乎不动）。
+     控制点要点在变形器包围盒的角上才不会误选下面的补片网格。效果是"眼睛眯成弯月"，smile 表情 1.0、happy 姿势 0.3～0.4。
+     真正带下睫毛弧线的眯眼仍要拆上下睫毛层，先这样。
