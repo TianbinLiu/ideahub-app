@@ -14,6 +14,7 @@
 //   工作流模式 → seedSolo("workflow")，方案台是主路径
 //   简约模式 → seedSolo("simple")，单节点单走向、不推演方案、**不存草稿**，UI 收到最简
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BackButton } from "../components/IconTapButton";
 import { Link, useNavigate } from "react-router";
 import AnnStrip from "../components/flow/AnnStrip";
 import InfoTip from "../components/InfoTip";
@@ -1180,12 +1181,8 @@ export default function FlowPage() {
                 ② 只把进度挪到第二行、? 仍留在主行：顶栏只长 8.5px，但进度 111px，
                    「剩余约」照样被切成「· 剩…」，等于把钱那半句丢了。 */}
           <header className={`${planFocus ? "hidden" : "flex"} safe-top flex-none items-center gap-2.5 px-4 py-2.5`}>
-            <button
-              onClick={() => (origin === "studio" ? navigate("/studio") : backOrTemplates())}
-              className="flex-none text-slate-300"
-            >
-              <Icon name="back" size={20} />
-            </button>
+            {/* ★ 命中区 44×44（IconTapButton 的 ★★）：此前是裸 20px 图标，主人真机上"点了没反应" */}
+            <BackButton size={20} onClick={() => (origin === "studio" ? navigate("/studio") : backOrTemplates())} />
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="flex items-center gap-2">
                 <span className="flex-none text-sm font-bold text-slate-100">{simple ? "简约模式" : "工作流"}</span>

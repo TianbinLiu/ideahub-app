@@ -16,8 +16,8 @@
 //   不成立，代码把一段 HTML 当音频塞进 <audio> 去播——静悄悄地失败。
 //   dev 时 API_BASE 是空串，同源就落回 vite 的 dev 中间件。
 import { useRef, useState } from "react";
+import { BackButton } from "../components/IconTapButton";
 import { useNavigate } from "react-router";
-import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { useCurrentUser } from "../hooks/useAccount";
@@ -101,9 +101,7 @@ export default function SettingsVoicePage() {
   return (
     <div className="safe-top min-h-full px-4 pb-10 pt-3">
       <div className="mb-4 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="text-xl text-slate-400" aria-label="返回">
-          <Icon name="back" size={20} />
-        </button>
+        <BackButton size={20} tone="text-slate-400" onClick={() => navigate(-1)} />
         <h1 className="flex-1 text-lg font-bold text-slate-100">铸卡师的声音</h1>
         <HelpButton tour="setvoice" />
       </div>

@@ -11,18 +11,37 @@
 import { openGuide } from "../../data/guide";
 import { tourById } from "./tours";
 
-export default function HelpButton({ tour, className = "" }: { tour: string; className?: string }) {
+/**
+ * @param className 摆位用（flex-none / ml-auto 之类），落在**外层**那个 44×44 的命中区上
+ * @param circleClassName 那颗 28px 圆本身的样式（首页要它半透明白边）
+ * ★ 命中区 44×44、圆仍是 28（与 IconTapButton 同一条理由：手指按不准一颗 28 的圆）。
+ *   `-m-2` 把撑出来的那一圈吃回去，圆在版面里的位置与改之前相同。
+ */
+export default function HelpButton({
+  tour,
+  className = "",
+  circleClassName = "",
+}: {
+  tour: string;
+  className?: string;
+  circleClassName?: string;
+}) {
   // ★ 还没写内容的引导不摆按钮：点了什么都不会发生，正是本仓明令禁止的
   //   「界面上摆一个永远点不动的选项」
   const t = tourById(tour);
   if (!t || t.steps.length === 0) return null;
   return (
     <button
+      type="button"
       onClick={() => openGuide(tour)}
       aria-label="使用说明"
-      className={`flex h-7 w-7 flex-none items-center justify-center rounded-full border border-slate-500 text-xs font-bold text-slate-300 ${className}`}
+      className={`-m-2 flex h-11 w-11 flex-none items-center justify-center ${className}`}
     >
-      ?
+      <span
+        className={`flex h-7 w-7 items-center justify-center rounded-full border border-slate-500 text-xs font-bold text-slate-300 ${circleClassName}`}
+      >
+        ?
+      </span>
     </button>
   );
 }

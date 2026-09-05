@@ -53,6 +53,7 @@
 //   （confirmTemplateRoles / setTemplatePublished / remoteStateOf）不算"认 store"：
 //   那几个函数本身就是"一处实现"。
 import { useState, useSyncExternalStore } from "react";
+import { CloseButton } from "../IconTapButton";
 import { createPortal } from "react-dom";
 import Icon from "../Icon";
 import HelpButton from "../guide/HelpButton";
@@ -190,9 +191,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
   return createPortal(
     <div className="fixed inset-0 z-[70] flex flex-col bg-black/85 backdrop-blur-sm">
       <div className="safe-top flex items-center gap-2 px-4 py-3">
-        <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-panel">
-          <Icon name="close" size={16} className="text-slate-300" />
-        </button>
+        <CloseButton chip="md" size={16} onClick={onClose} />
         <h2 className="text-sm font-bold text-slate-100">核对角色位{noun}</h2>
         <HelpButton tour="roleconfirm" className="ml-auto" />
       </div>

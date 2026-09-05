@@ -12,6 +12,7 @@
 //   与线性视图共享"当前段"的全部机制（store 级模板同步、挂卡缓冲切换）。
 // · 手势只动 transform（合成层）：拖 = translate，捏合/滚轮 = scale。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { CloseButton } from "../IconTapButton";
 import { createPortal } from "react-dom";
 import GenTrace from "../GenTrace";
 import Icon from "../Icon";
@@ -332,9 +333,7 @@ export default function FlowCanvas({
   const body = (
     <div className="fixed inset-0 z-40 flex flex-col bg-ink">
       <div className="safe-top flex flex-none items-center gap-2 px-3 py-2">
-        <button onClick={onExit} className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-panel text-slate-200">
-          <Icon name="close" size={16} />
-        </button>
+        <CloseButton chip="md" size={16} tone="text-slate-200" label="退出编辑" onClick={onExit} />
         {/* 2026-08-29 主人点名：顶栏那句写死的「流水线画布」换成 Google 文档式**工程标题**
             （点击就地改名，命名即建档）。"这是画布"由整个画面自己说明，标题位留给
             "这是哪条工程"——多草稿并存后这才是用户真正分不清的事。实现在 DraftTitle 一处
@@ -829,9 +828,7 @@ function NodePanel({
         >
           ⚙
         </button>
-        <button onClick={onClose} className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-300">
-          <Icon name="close" size={13} />
-        </button>
+        <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
       </div>
 
       {realVideoOfNode(node) && (
@@ -1497,9 +1494,7 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
             第 {index + 1} 段 · {picking ? "挑一套方案" : "已选定的方案"}
           </span>
           <span className="min-w-0 flex-1" />
-          <button onClick={onClose} className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-300">
-            <Icon name="close" size={13} />
-          </button>
+          <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
         {/* ★ store 的整句错误必须在**这一层**也看得见：推演/重画/余额不足都写在 store.err，
             而编辑窗那份被这块遮罩盖住了 —— 不画就是静默失败（铁律八） */}
@@ -1584,9 +1579,7 @@ function SegSettingsSheet({ nodeId, onClose }: { nodeId: string; onClose: () => 
         <div className="mb-2 flex flex-none items-center">
           <span className="text-sm font-bold text-slate-100">本段设置</span>
           <span className="flex-1" />
-          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-full bg-panel text-slate-300">
-            <Icon name="close" size={13} />
-          </button>
+          <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
         <SegSettings nodeId={nodeId} />
       </div>
@@ -1830,9 +1823,7 @@ export function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => v
         <div className="mb-1 flex items-center">
           <span className="text-sm font-bold text-slate-100">给这一段选素材卡</span>
           <span className="flex-1" />
-          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-full bg-panel text-slate-300">
-            <Icon name="close" size={13} />
-          </button>
+          <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
         <p className="mb-2 text-[10px] leading-relaxed text-slate-500">
           点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进推演与出片。
@@ -1973,9 +1964,7 @@ export function TemplatePicker({
         <div className="mb-2 flex items-center">
           <span className="text-sm font-bold text-slate-100">给这一段选个白模模板</span>
           <span className="flex-1" />
-          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-full bg-panel text-slate-300">
-            <Icon name="close" size={13} />
-          </button>
+          <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
         {err && <p className="mb-1.5 flex-none text-[11px] leading-relaxed text-rose-300">{err}</p>}
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">

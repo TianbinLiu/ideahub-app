@@ -23,6 +23,7 @@
 // ④ **图太大 / 比例超 3:1 怎么办？** 走 `data/cardViews.prepareCardImage`（与详情页
 //    「+ 图位」同一份实现）：越界居中裁并把这件事**说出来**，超 5MB 直接报错。
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { BackButton } from "../components/IconTapButton";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import HelpButton from "../components/guide/HelpButton";
@@ -707,9 +708,7 @@ export default function CustomCardPage() {
   return (
     <div className="safe-top min-h-full px-4 pb-10 pt-3">
       <div className="mb-3 flex items-center gap-2">
-        <button onClick={() => nav(-1)} className="flex h-8 w-8 items-center justify-center rounded-full bg-panel">
-          <Icon name="back" size={18} className="text-slate-300" />
-        </button>
+        <BackButton chip="md" size={18} onClick={() => nav(-1)} />
         {/* ★ 标题跟着走的那条路改口：真人路上照片是**授权取回来的**，挂着「自己传图」
             正是主人两次引用的那句话（"为什么说没取到授权照片还需要再上传"）。 */}
         <h1 className="text-base font-bold text-slate-100">

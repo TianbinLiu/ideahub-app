@@ -1028,7 +1028,7 @@ export default function FeedPage() {
           那一带的触摸被系统 UI 吃掉。改成走正常流（flex 项），它自然落在安全区之下。
         ★ 右边补一个同宽占位，让「关注 / 推荐」保持真正居中（否则会被 ? 挤偏 14px）。 */}
       <div className="pointer-events-auto flex-none">
-        <HelpButton tour="feed" className="border-white/50 bg-black/35 text-white backdrop-blur" />
+        <HelpButton tour="feed" circleClassName="border-white/50 bg-black/35 text-white backdrop-blur" />
       </div>
       {/* 纯文字 + 下划线：胶囊底色在全出血画面上会切出一个实心矩形，
           抖音/TikTok/小红书四家一致用的是文字态 */}

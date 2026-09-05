@@ -7,6 +7,7 @@
 //        音频 —— 本地 BGM，音量可调，合并时混进成片
 // 最后「下一步」把时间轴按顺序与裁剪范围重编码成单条视频，进发布页。
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BackButton } from "../components/IconTapButton";
 import { useLocation, useNavigate } from "react-router";
 import FrameAnnotator, { drawAigcBadge, drawCover, loadImg } from "../components/FrameAnnotator";
 import HelpButton from "../components/guide/HelpButton";
@@ -800,7 +801,8 @@ export default function CutPage() {
     <div className="fixed inset-0 flex flex-col bg-black">
       {/* ── 顶栏 ── */}
       <header className="safe-top flex flex-none items-center gap-3 px-4 py-3">
-        <button
+        <BackButton
+          tone="text-slate-200"
           onClick={() => {
             // 单段编辑的返回 = 放弃这次改动（不写回方案），得先把单段草稿清掉，
             // 否则那份一段的 draft 会被后面的组稿流程当成真草稿
@@ -810,10 +812,7 @@ export default function CutPage() {
               navigate("/studio");
             } else navigate(-1);
           }}
-          className="text-slate-200"
-        >
-          <Icon name="back" size={22} />
-        </button>
+        />
         <HelpButton tour="cut" />
         <div className="flex-1" />
         <div className="relative">

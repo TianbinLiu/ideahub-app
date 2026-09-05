@@ -9,8 +9,8 @@
 // ★ "存的东西在本机还是服务器"那两句是**模式条件**下的事实，留在页面上
 //   （藏进看一遍就不弹的引导 = 静默失败，tours.tsx 文件头 ❌ 那条）。
 import { useEffect, useState } from "react";
+import { BackButton } from "../components/IconTapButton";
 import { useNavigate } from "react-router";
-import Icon from "../components/Icon";
 import ConfirmDialog from "../components/ConfirmDialog";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -37,9 +37,7 @@ export default function SettingsStoragePage() {
   return (
     <div className="safe-top min-h-full px-4 pb-10 pt-3">
       <div className="mb-4 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="text-xl text-slate-400" aria-label="返回">
-          <Icon name="back" size={20} />
-        </button>
+        <BackButton size={20} tone="text-slate-400" onClick={() => navigate(-1)} />
         <h1 className="flex-1 text-lg font-bold text-slate-100">{remote ? "本机缓存" : "存储"}</h1>
         <HelpButton tour="setstorage" />
       </div>

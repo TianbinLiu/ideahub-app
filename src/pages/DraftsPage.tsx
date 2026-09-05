@@ -8,8 +8,8 @@
 // ★ 不设登录墙：草稿是**这台设备**的 IndexedDB（与账号无关），锁在登录后面只会让
 //   离线用户找不到自己昨天存的东西。
 import { useState } from "react";
+import { BackButton } from "../components/IconTapButton";
 import { Link, useNavigate } from "react-router";
-import Icon from "../components/Icon";
 import DraftSheet from "../components/DraftSheet";
 import { MAX_DRAFTS, type WorkDraftMeta } from "../data/drafts";
 import { useDrafts } from "../hooks/useDrafts";
@@ -26,9 +26,7 @@ export default function DraftsPage() {
   return (
     <div className="safe-top min-h-full px-4 pb-10 pt-3">
       <div className="mb-1 flex items-center gap-2">
-        <button onClick={() => nav(-1)} className="flex h-8 w-8 items-center justify-center rounded-full bg-panel">
-          <Icon name="back" size={18} className="text-slate-300" />
-        </button>
+        <BackButton chip="md" size={18} onClick={() => nav(-1)} />
         <h1 className="text-base font-bold text-slate-100">草稿箱</h1>
         <span className="ml-auto text-[11px] text-slate-500">
           {drafts.length}/{MAX_DRAFTS}

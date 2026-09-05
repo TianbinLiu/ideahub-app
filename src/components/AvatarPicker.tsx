@@ -9,6 +9,7 @@
 //   的捷径 —— 那个字符串 PUT 给服务端之后，别的客户端拿到的就是一张坏图
 //   （理由写在 urlToSquareImage 的注释里）。
 import { useEffect, useRef, useState } from "react";
+import { CloseButton } from "./IconTapButton";
 import { createPortal } from "react-dom";
 import { MASCOT_AVATARS } from "../data/mascotAvatars";
 import { setAvatarImage } from "../data/account";
@@ -84,9 +85,7 @@ export default function AvatarPicker({
     <Shell onClose={onClose}>
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-base font-bold text-slate-100">选个头像</h3>
-        <button onClick={onClose} className="text-slate-400" aria-label="关闭">
-          <Icon name="close" size={20} />
-        </button>
+        <CloseButton size={20} align="end" tone="text-slate-400" onClick={onClose} />
       </div>
 
       <div className="grid grid-cols-4 gap-x-3 gap-y-4">
