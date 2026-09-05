@@ -32,8 +32,9 @@
 //   这么写的：宿主有活状态时直接嵌组件）。
 // ★ 入口按能力门控渲染：服务端不认这套端点时开关根本不出现（remoteTemplatesCapable，
 //   唯一实现）—— 不摆永远点不动的东西。
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import BoxFramePicker, { boxMarksInSelection, type BoxFrameMode } from "./blockout/BoxFramePicker";
+import { DetectRolesEntry } from "./blockout/DetectRolesEntry";
 import HelpButton from "./guide/HelpButton";
 import { useAutoGuide } from "./guide/useAutoGuide";
 import { AI_REAL, extractTemplateFromVideo } from "../ai";
@@ -59,6 +60,9 @@ import {
   refVideoRealSec,
   remoteTemplatesCapable,
   saveTemplate,
+  subscribeTemplates,
+  templateGroupOf,
+  templatesVersion,
 } from "../data/templates";
 import { VideoAspect, VideoTemplate, aspectFromSize } from "../types";
 import BlockoutTrimmer from "./blockout/BlockoutTrimmer";
@@ -407,6 +411,9 @@ export default function VideoTemplateExtractor({
    * ★ 跟着回执走，由 dropReceipt 一处清（与 boxMarks 同一条纪律）。
    */
   const [splitMarks, setSplitMarks] = useState<number[]>([]);
+  /** 模板库的版本号 —— 结果页那块「哪几段还没认出角色位」读的是库里的现值，重认成功要当场刷新。
+   *  ★ 直接订阅 data 层（不从 TemplateShelf 借 useTemplatesVersion：那边 import 本组件，会成环） */
+  const tplV = useSyncExternalStore(subscribeTemplates, templatesVersion, () => 0);
   /**
    * BlockoutTrimmer 现在框出来的那一段（它每次变化都往上报一次）。
    *
@@ -997,6 +1004,35 @@ export default function VideoTemplateExtractor({
                 </p>
               )}
             </div>
+            {/* ★ 没认出角色位的段**就地**给「换一帧重认」（2026-09-05 主人点名）：以前只有下面
+                那几行灰字让人去「我的模板」里找，而那个入口折在卡片格子里、又是付费重试。
+                列出的是**库里的现值**（tplV 一变就重算），不是登记那一刻的快照——认成一段就少一条。
+                ★ 同时说清「没认出也能整组套用」：出片时那一段退回整段泛指换人（segmentGen 的
+                  V1 路），不是坏了。不说的话作者会以为整组白做，去删了重传（再付一遍 N 段的钱）。 */}
+            {got.group &&
+              (() => {
+                void tplV;
+                const missing = templateGroupOf(got).filter((p) => !(p.roles?.length ?? 0));
+                if (!missing.length) return null;
+                return (
+                  <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">
+                    <p>
+                      有 {missing.length} 段还没认出角色位。这几段现在也能随整组套用出片，只是那一段不能逐人挂卡
+                      （AI 会整段泛指换人）。想让它们也能逐人挂卡，就在这里换一帧再认一次（每认一次都计费）：
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {missing.map((p) => (
+                        <div key={p.id} className="rounded-lg bg-black/25 p-2">
+                          <div className="mb-1 text-[11px] font-semibold text-slate-200">
+                            第 {(p.group?.index ?? 0) + 1} 段 · {p.title}
+                          </div>
+                          <DetectRolesEntry t={p} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             {/* 逐段认人的结果（哪段成了、哪段要重试）——分段路的 note 是多行的，整句保留 */}
             {warn && (
               <p className="whitespace-pre-line rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">

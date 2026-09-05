@@ -5,6 +5,7 @@
 //   用户看到一个空列表，然后自己去猜到底是"没人理我"还是"坏了"（铁律八）。
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import Avatar from "../components/Avatar";
 import Icon from "../components/Icon";
 import {
@@ -51,6 +52,7 @@ function actionText(n: NotificationItem): string {
 
 export default function NotificationsPage() {
   const navigate = useNavigate();
+  const backOrMe = useBackOr("/me");
   const state = useSyncExternalStore(subscribeNotifications, notificationsState);
 
   // 重复刷新（切回本页 / App 从后台恢复）才看可见性。
@@ -114,11 +116,7 @@ export default function NotificationsPage() {
       <header className="safe-top sticky top-0 z-20 bg-ink">
         <div className="flex h-11 items-center px-2">
           <button
-            onClick={() => {
-              const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
-              if (idx > 0) navigate(-1);
-              else navigate("/me");
-            }}
+            onClick={backOrMe}
             aria-label="返回"
             className="flex h-11 w-11 items-center justify-center text-slate-300"
           >

@@ -46,6 +46,7 @@ import {
 } from "../data/templates";
 import { VIDEO_TIERS, fmtTokens, r2vPriceIssue, r2vTokens } from "../data/economy";
 import { useCurrentUser } from "../hooks/useAccount";
+import { useBackOr } from "../hooks/useBackOr";
 import { useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import { CARD_TYPE_LABELS, TPL_CATEGORIES, VideoTemplate } from "../types";
@@ -298,7 +299,9 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
             }
             void run(async () => {
               await deleteTemplateEverywhere(t.id);
-              nav("/templates");
+              // ★ replace 不是 push：被删的这一页不能留在历史栈里 —— 留着的话在市场页按返回
+              //   会回到一个已经不存在的模板（2026-09-05 主人真机：「返回到上一访问的模板页」）
+              nav("/templates", { replace: true });
             });
           }}
           onBlur={() => setArmed(false)}
@@ -384,6 +387,8 @@ export default function TemplateDetailPage() {
   useSocialVersion();
   const { id } = useParams();
   const nav = useNavigate();
+  // 有上一页就回退，深链冷启动时退回模板市场（hooks/useBackOr）
+  const back = useBackOr("/templates");
   const user = useCurrentUser();
   useCountView("template", id);
   const t = id ? getTemplate(id) : null;
@@ -426,7 +431,8 @@ export default function TemplateDetailPage() {
       <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-3 px-6">
         <Icon name="cards" size={40} className="text-slate-600" />
         <p className="text-sm text-slate-400">这个模板不存在或已被作者删除</p>
-        <Link to="/templates" className="rounded-full bg-brand px-5 py-2 text-sm font-bold text-ink">
+        {/* replace：这一页是死页，别让它留在历史栈里等着被"返回"回来 */}
+        <Link to="/templates" replace className="rounded-full bg-brand px-5 py-2 text-sm font-bold text-ink">
           去模板市场
         </Link>
       </div>
@@ -512,7 +518,7 @@ export default function TemplateDetailPage() {
   return (
     <div className="safe-top min-h-full px-4 pb-10 pt-3">
       <div className="mb-3 flex items-center gap-2">
-        <button onClick={() => nav(-1)} className="flex h-8 w-8 items-center justify-center rounded-full bg-panel">
+        <button onClick={back} className="flex h-8 w-8 items-center justify-center rounded-full bg-panel">
           <Icon name="back" size={18} className="text-slate-300" />
         </button>
         <h1 className="text-base font-bold text-slate-100">模板详情</h1>

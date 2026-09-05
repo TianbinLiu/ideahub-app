@@ -5,8 +5,8 @@
 //   本页只剩页头与引导；/templates 路由保留（深链、详情页返回、教程都指着它）。
 // ★ TemplateCard / useTemplatesVersion 从这里**转口**：TemplateDetailPage 一直从本页
 //   import，路径不动（组件不 import 页面的铁律只约束 components/*，页面互引本仓有先例）。
-import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
+import { useBackOr } from "../hooks/useBackOr";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import TemplateShelf from "../components/TemplateShelf";
@@ -16,11 +16,12 @@ export { TemplateCard, useTemplatesVersion } from "../components/TemplateShelf";
 export default function TemplateMarketPage() {
   // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；那颗 ? 随时能重看）
   useAutoGuide("templates");
-  const nav = useNavigate();
+  // 深链冷启动没有上一页时退回首页，别退出 App（hooks/useBackOr 的 ★★）
+  const back = useBackOr("/");
   return (
     <div className="safe-top min-h-full px-4 pb-10 pt-3">
       <div className="mb-3 flex items-center gap-2">
-        <button onClick={() => nav(-1)} className="flex h-8 w-8 items-center justify-center rounded-full bg-panel">
+        <button onClick={back} className="flex h-8 w-8 items-center justify-center rounded-full bg-panel">
           <Icon name="back" size={18} className="text-slate-300" />
         </button>
         <h1 className="text-base font-bold text-slate-100">视频模板</h1>
