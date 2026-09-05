@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQueryTab } from "../hooks/useQueryTab";
+import { useVideosVersion } from "../hooks/useVideos";
 import Icon from "./Icon";
 // ★ 核对编号那一屏（含"删掉一个角色位"）在 components/blockout/RoleConfirmSheet：
 //   详情页 OwnerBar 要用同一个入口，一份实现两处用（两页各写一份必然分叉）
@@ -38,6 +39,7 @@ import {
   templatesVersion,
   type BlockoutJob,
 } from "../data/templates";
+import { remoteOn } from "../data/videos";
 import { useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "./flow/useApplyTemplate";
 import { TPL_CATEGORIES, VideoTemplate, tplCategoryLabel } from "../types";
@@ -369,6 +371,17 @@ export default function TemplateShelf({
   const [pickErr, setPickErr] = useState("");
   // 套用前的在途流水线守卫（唯一实现，与模板详情页共用）
   const { guard, dialog: discardDialog } = useApplyTemplate();
+  // ★★ `remoteOn()` 必须**当值读进渲染、再进依赖**（2026-09-05 实测踩到；CLAUDE.md
+  //   「effect 依赖里漏了 remoteOn() 这类时机型布尔」那条）：它答的是"配了 API_BASE
+  //   **而且**服务端真的应答了"，而 remoteTemplatesCapable() 在它为假时不探、直接回 false。
+  //   App 虽然等 readyVideos() 才挂路由，但账号层认领到人（与它并发）之后 videos.ts 会按
+  //   新 owner 把库整个重装 —— 那段窗口里 remoteOn() 又是 false。此前这个 effect 只在挂载
+  //   跑一次：冷启动直接进「我的模板」时探测落在窗口里，那颗「传一段视频做白模模板」
+  //   **永远不出现**，切一次页签让货架重挂才有，零报错。订阅 useVideosVersion 是为了让
+  //   重装完成那一拍（readyRemote 结尾的 emitVideos）引起一次重渲染，remoteLive 随之翻真、
+  //   effect 重跑。⚠ 别改成直接依赖那个版本号：每一次点赞/补详情都会重探、重拉待取回名单。
+  useVideosVersion();
+  const remoteLive = remoteOn();
   useEffect(() => {
     let alive = true;
     void remoteTemplatesCapable().then((ok) => {
@@ -377,14 +390,20 @@ export default function TemplateShelf({
     // ★★ 进这一页就拉一次「还没取回结果」的名单（服务端那份是唯一真相 —— 进程被系统
     //   回收时本机 state 一起没了，只有它还在）。强制重拉而不是用缓存：用户点进来，
     //   多半就是因为刚才那一发被打断了，这时候给他看一份可能已经过时的名单没有意义。
+    //   它在 remoteOn() 为假时也是直接 return，所以同样要跟着 remoteLive 重跑。
     void refreshPendingBlockoutJobs();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [remoteLive]);
   // ★ 依赖里带 ver：远端 shared 是「懒加载 + 到货 emit」，到货那一拍 version 变了
-  //   列表才会重算——只依赖 tab/q 的话，远端模板到了也不上屏
-  const list = useMemo(() => (tab === "market" ? browseTemplates(q) : myTemplates()), [tab, q, ver]);
+  //   列表才会重算——只依赖 tab/q 的话，远端模板到了也不上屏。
+  // ★ 也带 remoteLive：browseTemplates / myTemplates 只在 remoteOn() 为真时才**触发**那次
+  //   懒加载，翻真那一拍不重算的话，远端那份要等到别的什么事碰巧 emit 一次才开始拉。
+  const list = useMemo(
+    () => (tab === "market" ? browseTemplates(q) : myTemplates()),
+    [tab, q, ver, remoteLive],
+  );
   /** 分段组收成一行（用户点名：分段的模板要在同一模板下）。tab 标签上的数字也数**行** */
   const allRows = useMemo(() => groupRows(list), [list]);
   /** 分类筛选按**行**过（组按组头的分类归类——组是一次登记出来的整体，别把组拆散）。
@@ -393,22 +412,25 @@ export default function TemplateShelf({
     () => (cat ? allRows.filter((r) => r.parts[0].category === cat) : allRows),
     [allRows, cat],
   );
-  const mineRows = useMemo(() => groupRows(myTemplates()).length, [ver]);
+  const mineRows = useMemo(() => groupRows(myTemplates()).length, [ver, remoteLive]);
 
   // ★★ 冷启动后远端状态快照是空的（本机库只存模板本身，不存 status/provenAt/待核对）。
   //   不补的话，「角色位待核对」那条提示重启后就**不出现了**，而服务端那道发布闸还在 ——
   //   作者看到的是"点发布失败"却找不到任何出口（正是铁律八说的静默）。
   //   只补 **有角色位、已登记、且还没有快照** 的那几条，每条一次（asked 记名防重）；
   //   refreshRemoteTemplate 是读路径，失败静默降级为"用上次的快照"，到货会 emit。
+  //   ★ remoteOn() 没翻真之前**不许跑**：refreshRemoteTemplate 在 !remoteOn() 时是直接
+  //     return，而这里是先记名再调用 —— 那一拍跑了的话，这几条会被记成"问过了"，之后
+  //     服务端应答了也不再问，「角色位待核对」照样不出现（与上面的探测同一个时机坑）。
   const asked = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (tab !== "mine") return;
+    if (tab !== "mine" || !remoteLive) return;
     for (const t of myTemplates()) {
       if (!t.roles?.length || !t.remoteId || remoteStateOf(t) || asked.current.has(t.id)) continue;
       asked.current.add(t.id);
       void refreshRemoteTemplate(t.id);
     }
-  }, [tab, ver]);
+  }, [tab, ver, remoteLive]);
 
   /** 套用模板。applyTemplate 返回 false = 被整句拒绝（白模在 refVid 全关时，或**模板视频
    *  本身不满足方舟窗口** —— 2026-08-16 起多了这一条），这时改跳详情页：那里印着拒绝的
