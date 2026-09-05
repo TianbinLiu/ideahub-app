@@ -361,7 +361,7 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
           <button
             onClick={send}
             disabled={busy || thinking || !text.trim()}
-            className="rounded-xl bg-brand/80 px-4 py-2 text-sm font-semibold text-ink disabled:opacity-40"
+            className="rounded-full bg-brand/80 px-4 py-2 text-sm font-semibold text-ink disabled:opacity-40"
           >
             发送
           </button>
@@ -376,11 +376,11 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
               onClose();
               void useStudio.getState().openMarket();
             }}
-            className="flex-1 rounded-lg bg-slate-700/60 py-1.5 text-xs text-slate-300"
+            className="flex-1 rounded-full bg-slate-700/60 py-1.5 text-xs text-slate-300"
           >
             🛒 逛市场
           </button>
-          <button onClick={() => onOpenForge("")} className="flex-1 rounded-lg bg-slate-700/60 py-1.5 text-xs text-slate-300">
+          <button onClick={() => onOpenForge("")} className="flex-1 rounded-full bg-slate-700/60 py-1.5 text-xs text-slate-300">
             📎 递素材
           </button>
         </div>
@@ -758,14 +758,14 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
             <button
               onClick={onClose}
               disabled={busy}
-              className="rounded-xl bg-slate-700/70 px-4 py-2 text-sm text-slate-200 disabled:opacity-40"
+              className="rounded-xl bg-slate-700/70 px-4 py-2.5 text-sm text-slate-200 disabled:opacity-40"
             >
               取消
             </button>
             <button
               onClick={() => void forge()}
               disabled={busy || !canForge}
-              className="flex-1 rounded-xl bg-brand/85 py-2 text-sm font-bold text-ink disabled:opacity-40"
+              className="flex-1 rounded-xl bg-brand/85 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
               {/* 顶档一炉要画两张图、每张 70 秒以上。一个不动的"炼卡中…"与卡死无从区分，
                   所以按钮直接显示阶段播报（store.forgeProgress ← generateCards.onProgress） */}
@@ -780,7 +780,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
             <button
               onClick={accept}
               disabled={busy}
-              className="w-full rounded-xl bg-brand/85 py-2 text-sm font-bold text-ink disabled:opacity-40"
+              className="w-full rounded-xl bg-brand/85 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
               收下这批卡
             </button>
@@ -791,14 +791,14 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                   setStep("input");
                 }}
                 disabled={busy}
-                className="flex-1 rounded-xl bg-slate-700/70 px-3 py-2 text-xs text-slate-200 disabled:opacity-40"
+                className="flex-1 rounded-xl bg-slate-700/70 px-3 py-2.5 text-xs text-slate-200 disabled:opacity-40"
               >
                 回去改素材
               </button>
               <button
                 onClick={() => void forge()}
                 disabled={busy}
-                className="flex-1 rounded-xl bg-slate-700/70 px-3 py-2 text-xs text-slate-200 disabled:opacity-40"
+                className="flex-1 rounded-xl bg-slate-700/70 px-3 py-2.5 text-xs text-slate-200 disabled:opacity-40"
               >
                 {busy ? "…" : AI_REAL && cost !== null ? `↻ 再炼一炉（${fmtTokens(cost)}）` : "↻ 再炼一炉"}
               </button>

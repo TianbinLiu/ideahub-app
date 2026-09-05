@@ -720,7 +720,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   setShape(null);
                   setTool("circle");
                 }}
-                className="w-full rounded-lg border border-slate-600 py-2 text-xs text-slate-300"
+                className="w-full rounded-xl border border-slate-600 py-2.5 text-xs text-slate-300"
               >
                 ＋ 再标一张脸部特写（可选，出片时锁面部特征更稳）
               </button>
@@ -756,7 +756,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                       <button
                         onClick={() => void saveExamples(sc)}
                         disabled={!!busy}
-                        className="w-full rounded-lg border border-slate-700 py-1.5 text-[10px] text-slate-400 disabled:opacity-40"
+                        className="w-full rounded-full border border-slate-700 py-1.5 text-[10px] text-slate-400 disabled:opacity-40"
                       >
                         {sc.examples?.length ? "🖼 更新这套方案的示例图" : "🖼 把这次的产出存成方案示例图"}
                       </button>
@@ -887,7 +887,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                         {schemeMarketOn() && (
                           <button
                             onClick={() => setMarketOpen(true)}
-                            className="flex-1 rounded-md border border-slate-600 px-2 py-1.5 text-[10px] text-slate-300"
+                            className="flex-1 rounded-full border border-slate-600 px-2 py-1.5 text-[10px] text-slate-300"
                           >
                             🛒 逛方案市场
                           </button>
@@ -898,7 +898,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   <button
                     onClick={() => void makePortraits()}
                     disabled={!!busy}
-                    className="w-full rounded-lg border border-brand/50 bg-brand/10 py-2 text-xs font-semibold text-brand disabled:opacity-40"
+                    className="w-full rounded-xl border border-brand/50 bg-brand/10 py-2.5 text-xs font-semibold text-brand disabled:opacity-40"
                   >
                     {busy ||
                       `✨ 按这套方案炼形象图（${schemeOf(schemeId)?.slots.filter(isGenerated).length ?? 2} 张${
@@ -933,7 +933,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                     setVEnd(null);
                     setErr("");
                   }}
-                  className="w-full rounded-lg border border-slate-600 py-2 text-xs text-slate-300"
+                  className="w-full rounded-xl border border-slate-600 py-2.5 text-xs text-slate-300"
                 >
                   🎤 取一段他的声音（可选，{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒 · 出片时台词可用这个音色）
                 </button>
@@ -947,7 +947,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   setErr("");
                 }}
                 disabled={!!busy}
-                className="rounded-xl bg-slate-700/70 px-4 py-2 text-sm text-slate-200 disabled:opacity-40"
+                className="rounded-xl bg-slate-700/70 px-4 py-2.5 text-sm text-slate-200 disabled:opacity-40"
               >
                 重圈
               </button>
@@ -1068,7 +1068,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   <button
                     onClick={() => setVoicePick(false)}
                     disabled={recording}
-                    className="rounded-lg bg-slate-700/70 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-40"
+                    className="rounded-full bg-slate-700/70 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-40"
                   >
                     不取了
                   </button>

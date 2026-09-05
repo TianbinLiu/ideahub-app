@@ -36,7 +36,7 @@ export default function OauthCallbackPage() {
         <>
           <span className="text-3xl">🚫</span>
           <p className="text-sm leading-relaxed text-rose-300">{err}</p>
-          <button onClick={() => navigate("/login", { replace: true })} className="rounded-full bg-panel px-4 py-2 text-xs text-slate-200">
+          <button onClick={() => navigate("/login", { replace: true })} className="rounded-xl bg-panel px-5 py-2.5 text-sm text-slate-200">
             回登录页
           </button>
         </>

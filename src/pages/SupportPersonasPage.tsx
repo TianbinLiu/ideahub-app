@@ -320,7 +320,7 @@ export default function SupportPersonasPage() {
         <button
           onClick={() => void loadMore()}
           disabled={moreLoading}
-          className="mt-3 w-full rounded-full border border-slate-700 py-2 text-[12px] text-slate-300 disabled:opacity-50"
+          className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-[12px] text-slate-300 disabled:opacity-50"
         >
           {moreLoading ? "加载中…" : "加载更多"}
         </button>

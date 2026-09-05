@@ -217,7 +217,7 @@ export default function PortraitAuthPanel({
             <button
               onClick={() => void checkStatus()}
               disabled={busy}
-              className="rounded-lg border border-slate-600 px-3 text-[11px] text-slate-300 disabled:opacity-40"
+              className="rounded-full border border-slate-600 px-3 text-[11px] text-slate-300 disabled:opacity-40"
             >
               {busy ? "查…" : "查授权状态"}
             </button>
@@ -242,7 +242,7 @@ export default function PortraitAuthPanel({
         <button
           onClick={() => void startInvite()}
           disabled={busy}
-          className="w-full rounded-lg border border-sky-500/40 py-1.5 text-[11px] text-sky-200 disabled:opacity-40"
+          className="w-full rounded-full border border-sky-500/40 py-1.5 text-[11px] text-sky-200 disabled:opacity-40"
         >
           {busy ? "生成中…" : "🔗 发起肖像授权（本人扫码 / 本机打开）"}
         </button>
@@ -329,7 +329,7 @@ export default function PortraitAuthPanel({
                 setManualOpen(false);
                 setDraftErr("");
               }}
-              className="rounded-lg border border-slate-700 px-3 text-[11px] text-slate-400"
+              className="rounded-full border border-slate-700 px-3 text-[11px] text-slate-400"
             >
               取消
             </button>
@@ -338,7 +338,7 @@ export default function PortraitAuthPanel({
       ) : (
         <button
           onClick={() => setManualOpen(true)}
-          className="w-full rounded-lg border border-slate-600 py-1.5 text-[11px] text-slate-300"
+          className="w-full rounded-full border border-slate-600 py-1.5 text-[11px] text-slate-300"
         >
           ＋ 已在控制台授权过？直接填 asset ID
         </button>

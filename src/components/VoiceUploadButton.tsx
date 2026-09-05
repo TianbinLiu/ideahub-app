@@ -17,7 +17,7 @@ export default function VoiceUploadButton({
       <button
         onClick={() => fileRef.current?.click()}
         disabled={busy}
-        className="w-full rounded-lg border border-slate-600 py-2 text-[11px] text-slate-300 disabled:opacity-40"
+        className="w-full rounded-full border border-slate-600 py-2 text-[11px] text-slate-300 disabled:opacity-40"
       >
         {busy ? "处理中…" : `🎵 上传本地音频（${VOICE_MIN_SEC}~${VOICE_MAX_SEC} 秒）`}
       </button>

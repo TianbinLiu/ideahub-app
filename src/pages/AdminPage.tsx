@@ -301,7 +301,7 @@ function LoadMore({ hasMore, loading, total, shown, onMore }: { hasMore: boolean
     <button
       onClick={onMore}
       disabled={loading}
-      className="mt-2 w-full rounded-lg border border-slate-700 bg-panel py-2 text-xs text-slate-300 disabled:opacity-40"
+      className="mt-2 w-full rounded-xl border border-slate-700 bg-panel py-2.5 text-xs text-slate-300 disabled:opacity-40"
     >
       {loading ? "加载中…" : `加载更多（已显示 ${shown} / 共 ${total} 条）`}
     </button>

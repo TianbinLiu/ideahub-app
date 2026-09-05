@@ -673,13 +673,13 @@ export default function ProfilePage() {
               <Link
                 /* 直达编辑资料子页（设置页 2026-08-27 拆分后它不再住在 /settings 本页） */
                 to="/settings/profile"
-                className="flex h-10 flex-1 items-center justify-center rounded-full bg-panel text-sm font-semibold text-slate-100 ring-1 ring-slate-700 active:scale-[.98]"
+                className="flex h-10 flex-1 items-center justify-center rounded-xl bg-panel text-sm font-semibold text-slate-100 ring-1 ring-slate-700 active:scale-[.98]"
               >
                 编辑资料
               </Link>
               <button
                 onClick={shareProfile}
-                className="flex h-10 flex-1 items-center justify-center rounded-full bg-panel text-sm font-semibold text-slate-100 ring-1 ring-slate-700 active:scale-[.98]"
+                className="flex h-10 flex-1 items-center justify-center rounded-xl bg-panel text-sm font-semibold text-slate-100 ring-1 ring-slate-700 active:scale-[.98]"
               >
                 分享主页
               </button>
@@ -697,7 +697,7 @@ export default function ProfilePage() {
               </button>
               <button
                 onClick={shareProfile}
-                className="flex h-10 flex-1 items-center justify-center rounded-full bg-panel text-sm font-semibold text-slate-100 ring-1 ring-slate-700 active:scale-[.98]"
+                className="flex h-10 flex-1 items-center justify-center rounded-xl bg-panel text-sm font-semibold text-slate-100 ring-1 ring-slate-700 active:scale-[.98]"
               >
                 分享主页
               </button>
@@ -998,7 +998,7 @@ export default function ProfilePage() {
             <span className="flex-1">有 {collectUnknown} 条这会儿没取回来（网络没通）——它们还在，不是被删了。</span>
             <button
               onClick={() => setCollectTry((n) => n + 1)}
-              className="flex-none rounded-lg bg-amber-400/20 px-2.5 py-1 font-semibold text-amber-100"
+              className="flex-none rounded-full bg-amber-400/20 px-2.5 py-1 font-semibold text-amber-100"
             >
               重试
             </button>
@@ -1097,7 +1097,7 @@ function CutSessionBanner() {
             useStudio.setState({ draft: cut.draft, segEdit: null });
             navigate("/cut");
           }}
-          className="flex-1 rounded-lg bg-cyan-400/90 py-2 text-xs font-bold text-ink"
+          className="flex-1 rounded-xl bg-cyan-400/90 py-2.5 text-xs font-bold text-ink"
         >
           接着剪
         </button>
@@ -1105,13 +1105,13 @@ function CutSessionBanner() {
           <>
             <button
               onClick={() => void dropCutSession()}
-              className="rounded-lg bg-rose-500/90 px-3 py-2 text-xs font-bold text-white"
+              className="rounded-xl bg-rose-500/90 px-3 py-2.5 text-xs font-bold text-white"
             >
               确认丢掉
             </button>
             <button
               onClick={() => setAsking(false)}
-              className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300"
+              className="rounded-xl border border-slate-600 px-3 py-2.5 text-xs text-slate-300"
             >
               取消
             </button>
@@ -1119,7 +1119,7 @@ function CutSessionBanner() {
         ) : (
           <button
             onClick={() => setAsking(true)}
-            className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300"
+            className="rounded-xl border border-slate-600 px-3 py-2.5 text-xs text-slate-300"
           >
             不要了
           </button>
@@ -1180,13 +1180,13 @@ function PendingBanner() {
               .finally(() => setBusy(false));
           }}
           disabled={busy}
-          className="flex-1 rounded-lg bg-amber-400/90 py-2 text-xs font-bold text-ink disabled:opacity-50"
+          className="flex-1 rounded-xl bg-amber-400/90 py-2.5 text-xs font-bold text-ink disabled:opacity-50"
         >
           {busy ? "重试中…" : "立即重试"}
         </button>
         <button
           onClick={() => void dropPendingPublish(first.draft.clientId ?? "")}
-          className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300"
+          className="rounded-xl border border-slate-600 px-3 py-2.5 text-xs text-slate-300"
         >
           不要了
         </button>
@@ -1243,7 +1243,7 @@ function StrangerWorks({
         <p className="mt-1 px-8 text-[11px] text-slate-600">这不代表 TA 没有作品，只是这次没取到</p>
         <button
           onClick={onRetry}
-          className="mt-4 rounded-full bg-panel px-5 py-2 text-sm font-semibold text-slate-100 ring-1 ring-slate-700"
+          className="mt-4 rounded-xl bg-panel px-5 py-2.5 text-sm font-semibold text-slate-100 ring-1 ring-slate-700"
         >
           重试
         </button>
@@ -1624,7 +1624,7 @@ function Empty({ text, cta, to }: { text: string; cta?: string; to?: string }) {
     <div className="flex flex-col items-center gap-3 py-16">
       <p className="text-sm text-slate-500">{text}</p>
       {cta && to && (
-        <Link to={to} className="rounded-full bg-panel px-4 py-2 text-xs text-slate-300">
+        <Link to={to} className="rounded-xl bg-panel px-5 py-2.5 text-sm text-slate-300">
           {cta}
         </Link>
       )}

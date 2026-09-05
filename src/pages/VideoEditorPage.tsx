@@ -262,7 +262,7 @@ export default function VideoEditorPage() {
             </p>
             <button
               onClick={() => nav("/", { replace: true })}
-              className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200"
+              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-200"
             >
               回首页
             </button>

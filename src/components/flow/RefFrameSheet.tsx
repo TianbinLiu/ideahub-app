@@ -97,17 +97,17 @@ export default function RefFrameSheet({
       <div className="flex-none px-3 pb-4 pt-2" onClick={(e) => e.stopPropagation()}>
         <p className="mb-1.5 text-center text-[10px] text-slate-500">拖进度条到想要的画面，再点下面的键</p>
         <div className="flex gap-2">
-          <button onClick={() => take("first")} className="flex-1 rounded-xl bg-brand/90 py-2 text-xs font-bold text-ink">
+          <button onClick={() => take("first")} className="flex-1 rounded-xl bg-brand/90 py-2.5 text-xs font-bold text-ink">
             设为首帧
           </button>
-          <button onClick={() => take("last")} className="flex-1 rounded-xl bg-brand/90 py-2 text-xs font-bold text-ink">
+          <button onClick={() => take("last")} className="flex-1 rounded-xl bg-brand/90 py-2.5 text-xs font-bold text-ink">
             设为尾帧
           </button>
           <button
             onClick={() => take("mid")}
             disabled={midCount >= midMax}
             title={midCount >= midMax ? `中间帧最多 ${midMax} 张` : undefined}
-            className="flex-1 rounded-xl border border-slate-500 py-2 text-xs font-semibold text-slate-200 disabled:opacity-40"
+            className="flex-1 rounded-xl border border-slate-500 py-2.5 text-xs font-semibold text-slate-200 disabled:opacity-40"
           >
             ＋中间帧（{midCount}/{midMax}）
           </button>

@@ -93,7 +93,7 @@ export default function SettingsDeactivatePage() {
         <button
           onClick={() => void run()}
           disabled={!matched || busy}
-          className="mt-3 w-full rounded-xl bg-rose-500 py-3 text-sm font-bold text-white disabled:bg-slate-700 disabled:text-slate-400"
+          className="mt-3 w-full rounded-xl bg-rose-500 py-2.5 text-sm font-bold text-white disabled:bg-slate-700 disabled:text-slate-400"
         >
           {busy ? "注销中…" : "注销这个账号"}
         </button>

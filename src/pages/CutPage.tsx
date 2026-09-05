@@ -818,7 +818,7 @@ export default function CutPage() {
         <div className="relative">
           <button
             onClick={() => setResOpen((v) => !v)}
-            className="flex items-center gap-1 rounded-lg bg-slate-700/70 px-3 py-1.5 text-sm font-semibold text-slate-100"
+            className="flex items-center gap-1 rounded-full bg-slate-700/70 px-3 py-1.5 text-sm font-semibold text-slate-100"
           >
             {res.label}
             <span className="text-[10px]">▾</span>
@@ -1131,28 +1131,28 @@ export default function CutPage() {
                 <button
                   onClick={splitAtPlayhead}
                   disabled={!sel}
-                  className="rounded-lg bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
+                  className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
                 >
                   ✂️ 播放头处分割
                 </button>
                 <button
                   onClick={() => sel && moveClip(sel, -1)}
                   disabled={!sel}
-                  className="rounded-lg bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
+                  className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
                 >
                   ◀ 前移
                 </button>
                 <button
                   onClick={() => sel && moveClip(sel, 1)}
                   disabled={!sel}
-                  className="rounded-lg bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
+                  className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
                 >
                   后移 ▶
                 </button>
                 <button
                   onClick={() => sel && removeClip(sel)}
                   disabled={!sel || view.length <= 1}
-                  className="rounded-lg bg-rose-500/15 px-2.5 py-1.5 text-[11px] text-rose-300 disabled:opacity-35"
+                  className="rounded-full bg-rose-500/15 px-2.5 py-1.5 text-[11px] text-rose-300 disabled:opacity-35"
                 >
                   🗑 删除片段
                 </button>
@@ -1165,14 +1165,14 @@ export default function CutPage() {
                 <button
                   onClick={() => trimTo("start")}
                   disabled={!sel}
-                  className="rounded-lg bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
+                  className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
                 >
                   ⇤ 从这里开始
                 </button>
                 <button
                   onClick={() => trimTo("end")}
                   disabled={!sel}
-                  className="rounded-lg bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
+                  className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-35"
                 >
                   到这里结束 ⇥
                 </button>
@@ -1188,7 +1188,7 @@ export default function CutPage() {
                   return trimmed ? (
                     <button
                       onClick={resetTrim}
-                      className="rounded-lg border border-slate-600 px-2.5 py-1.5 text-[11px] text-slate-300"
+                      className="rounded-full border border-slate-600 px-2.5 py-1.5 text-[11px] text-slate-300"
                     >
                       还原整段
                     </button>

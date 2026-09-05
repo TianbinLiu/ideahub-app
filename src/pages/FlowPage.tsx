@@ -773,7 +773,7 @@ function NodeScreen({
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setSheet(true)}
-            className="flex-none rounded-lg bg-panel px-2.5 py-2 text-[11px] text-slate-300"
+            className="flex-none rounded-xl bg-panel px-2.5 py-2.5 text-[11px] text-slate-300"
           >
             {/* 时长显示的是**真正会发出去**的秒数（2.5 不收 3 秒，见 clampDuration）——
                 写 3 秒却出 4 秒的片，用户对不上账。
@@ -788,7 +788,7 @@ function NodeScreen({
               disabled={busy}
               /* 收成两个字：这一行现在还要放素材按钮，"圈选改画面"会把生成按钮挤到折行 */
               title="圈选改画面"
-              className="flex-none rounded-lg bg-panel px-2.5 py-2 text-[11px] text-slate-300 disabled:opacity-40"
+              className="flex-none rounded-xl bg-panel px-2.5 py-2.5 text-[11px] text-slate-300 disabled:opacity-40"
             >
               ⭕ 圈选
             </button>
@@ -798,7 +798,7 @@ function NodeScreen({
             disabled={mainDisabled}
             title={AI_REAL ? `预计消耗 ${fmtTokens(mainCost)} token` : undefined}
             data-guide="flow-main-btn"
-            className={`min-w-0 flex-1 rounded-lg py-2 text-xs font-bold disabled:opacity-40 ${
+            className={`min-w-0 flex-1 rounded-xl py-2.5 text-xs font-bold disabled:opacity-40 ${
               stage === "rederive" ? "bg-gold/90 text-ink" : "bg-brand text-ink"
             }`}
           >
@@ -842,7 +842,7 @@ function NodeScreen({
             <button
               onClick={() => shiftCursor(1)}
               disabled={busy}
-              className="w-full rounded-lg border border-emerald-400/40 bg-emerald-500/15 py-2 text-xs font-bold text-emerald-200 disabled:opacity-40"
+              className="w-full rounded-xl border border-emerald-400/40 bg-emerald-500/15 py-2.5 text-xs font-bold text-emerald-200 disabled:opacity-40"
             >
               ✓ 这段满意，去下一段
             </button>
@@ -850,7 +850,7 @@ function NodeScreen({
             <button
               onClick={() => addNode()}
               disabled={busy}
-              className="w-full rounded-lg border border-emerald-400/40 bg-emerald-500/15 py-2 text-xs font-bold text-emerald-200 disabled:opacity-40"
+              className="w-full rounded-xl border border-emerald-400/40 bg-emerald-500/15 py-2.5 text-xs font-bold text-emerald-200 disabled:opacity-40"
             >
               ✓ 这段满意，再加一段
             </button>

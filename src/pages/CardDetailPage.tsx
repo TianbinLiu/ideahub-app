@@ -554,7 +554,7 @@ export default function CardDetailPage() {
           <p className="text-[11px] text-slate-500">这不代表它不存在，只是这次没问到</p>
           <button
             onClick={() => setRemote(null)}
-            className="rounded-full bg-panel px-5 py-2 text-sm font-semibold text-slate-100 ring-1 ring-slate-700"
+            className="rounded-xl bg-panel px-5 py-2.5 text-sm font-semibold text-slate-100 ring-1 ring-slate-700"
           >
             重试
           </button>

@@ -246,7 +246,7 @@ export function FrameCaptureDialog({
       </div>
       {err && <div className="mt-2 text-xs text-red-400">{err}</div>}
       <div className="mt-3 flex gap-2">
-        <button onClick={onCancel} className="rounded-xl bg-slate-700/70 px-4 py-2 text-sm text-slate-200">
+        <button onClick={onCancel} className="rounded-xl bg-slate-700/70 px-4 py-2.5 text-sm text-slate-200">
           取消
         </button>
         <button
@@ -336,19 +336,19 @@ export function CoverSection({
       <div className="mb-2 flex flex-wrap gap-2">
         <button
           onClick={() => setFrameDlg(true)}
-          className="rounded-xl bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700"
+          className="rounded-full bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700"
         >
           🎞 从成片截帧
         </button>
         <button
           onClick={() => fileRef.current?.click()}
-          className="rounded-xl bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700"
+          className="rounded-full bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700"
         >
           🖼 本地上传
         </button>
         <button
           onClick={() => setAiDlg(true)}
-          className="rounded-xl bg-panel px-3.5 py-2 text-xs text-cyan-200 ring-1 ring-cyan-400/40 hover:bg-slate-700"
+          className="rounded-full bg-panel px-3.5 py-2 text-xs text-cyan-200 ring-1 ring-cyan-400/40 hover:bg-slate-700"
         >
           ✨ AI 封面（改图/生成）
         </button>
@@ -491,14 +491,14 @@ export function AiCoverDialog({
       {err && <div className="mt-2 text-xs text-red-400">生成失败：{err.slice(0, 140)}</div>}
 
       <div className="mt-3 flex flex-wrap gap-2">
-        <button onClick={onCancel} className="rounded-xl bg-slate-700/70 px-4 py-2 text-sm text-slate-200">
+        <button onClick={onCancel} className="rounded-xl bg-slate-700/70 px-4 py-2.5 text-sm text-slate-200">
           取消
         </button>
         <button
           onClick={() => void run(true)}
           disabled={busy || !req.trim() || !canRef}
           title={canRef ? "以当前封面为参考图，按要求修改" : "当前封面不可作参考图"}
-          className="flex-1 rounded-xl bg-slate-600/80 py-2 text-sm font-semibold text-slate-100 disabled:opacity-40"
+          className="flex-1 rounded-xl bg-slate-600/80 py-2.5 text-sm font-semibold text-slate-100 disabled:opacity-40"
         >
           {busy ? "绘制中…" : "按要求改当前封面"}
         </button>

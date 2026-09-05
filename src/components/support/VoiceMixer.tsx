@@ -245,7 +245,7 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
             setFormOpen((v) => !v);
           }}
           disabled={locked || !rows.length}
-          className="flex-1 rounded-full border border-slate-600 py-2 text-[13px] text-slate-200 disabled:opacity-40"
+          className="flex-1 rounded-xl border border-slate-600 py-2.5 text-[13px] text-slate-200 disabled:opacity-40"
         >
           发布到声音市场
         </button>
@@ -283,7 +283,7 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
             <button
               onClick={() => setFormOpen(false)}
               disabled={busy === "publish"}
-              className="rounded-full border border-slate-600 px-4 py-2 text-[13px] text-slate-300 disabled:opacity-40"
+              className="rounded-xl border border-slate-600 px-4 py-2.5 text-[13px] text-slate-300 disabled:opacity-40"
             >
               取消
             </button>

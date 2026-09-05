@@ -70,7 +70,7 @@ export default function CustomFrameSlots({
               <button
                 onClick={() => onFuse(which)}
                 disabled={!canEdit}
-                className="mt-1 w-full rounded-md border border-slate-600 py-1 text-[10px] text-slate-300 disabled:opacity-40"
+                className="mt-1 w-full rounded-full border border-slate-600 py-1 text-[10px] text-slate-300 disabled:opacity-40"
               >
                 🎨 融图合成这一帧
               </button>

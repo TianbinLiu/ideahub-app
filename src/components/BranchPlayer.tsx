@@ -152,7 +152,7 @@ export default function BranchPlayer({ tree, cover }: { tree: BranchTree; cover:
                       setStarted(true);
                       setPlaying(true);
                     }}
-                    className="rounded-xl bg-white/90 px-4 py-3 text-sm font-medium text-ink transition hover:bg-white"
+                    className="rounded-xl bg-white/90 px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-white"
                   >
                     {c.label}
                   </button>

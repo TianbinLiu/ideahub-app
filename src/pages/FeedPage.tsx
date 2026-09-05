@@ -1067,7 +1067,7 @@ export default function FeedPage() {
               : "还没有作品"}
           </p>
           {feed === "following" ? (
-            <button onClick={() => setFeed("recommend")} className="rounded-full bg-panel px-4 py-2 text-sm text-slate-300">
+            <button onClick={() => setFeed("recommend")} className="rounded-xl bg-panel px-5 py-2.5 text-sm text-slate-300">
               去推荐流看看
             </button>
           ) : (

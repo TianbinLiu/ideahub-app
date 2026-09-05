@@ -87,7 +87,7 @@ export default function SettingsBlockedPage() {
           </p>
           <button
             onClick={() => setNonce((n) => n + 1)}
-            className="mt-3 rounded-xl border border-slate-600 px-4 py-2 text-[12px] text-slate-200"
+            className="mt-3 rounded-xl border border-slate-600 px-4 py-2.5 text-[12px] text-slate-200"
           >
             重试
           </button>

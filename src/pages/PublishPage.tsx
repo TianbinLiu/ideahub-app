@@ -338,13 +338,13 @@ export default function PublishPage() {
                     });
                   }}
                   disabled={!!busy}
-                  className="rounded-lg bg-amber-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-50"
+                  className="rounded-full bg-amber-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-50"
                 >
                   {busy ? "重试中…" : "再试一次"}
                 </button>
                 <button
                   onClick={() => finishAndGo(deckIssue.videoId)}
-                  className="rounded-lg border border-amber-400/40 px-3 py-1.5 text-[11px] text-amber-100"
+                  className="rounded-full border border-amber-400/40 px-3 py-1.5 text-[11px] text-amber-100"
                 >
                   先去看作品
                 </button>

@@ -365,7 +365,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
           <button
             onClick={() => void reset()}
             disabled={!!busy || following}
-            className={`rounded-full border border-slate-600 px-4 py-2.5 text-[13px] text-slate-300 disabled:opacity-40 ${tab === "market" ? "flex-1" : ""}`}
+            className={`rounded-xl border border-slate-600 px-4 py-2.5 text-[13px] text-slate-300 disabled:opacity-40 ${tab === "market" ? "flex-1" : ""}`}
           >
             {busy === "reset" ? "恢复中…" : "恢复跟随人格/模型"}
           </button>

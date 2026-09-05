@@ -477,7 +477,7 @@ export default function BoxFramePicker({
               onClick={() => togglePlay()}
               disabled={disabled || dur <= 0}
               aria-label={playing ? "暂停" : "播放"}
-              className="flex-none rounded-lg bg-slate-700/70 px-2.5 py-1.5 text-slate-200 disabled:opacity-40"
+              className="flex-none rounded-full bg-slate-700/70 px-2.5 py-1.5 text-slate-200 disabled:opacity-40"
             >
               <Icon name={playing ? "pause" : "play"} size={14} />
             </button>
@@ -523,7 +523,7 @@ export default function BoxFramePicker({
               onClick={() => nudge(-step)}
               disabled={disabled || dur <= 0}
               aria-label={`往前 ${step} 秒`}
-              className="flex-1 rounded-lg bg-slate-700/70 py-1.5 text-[11px] tabular-nums text-slate-200 disabled:opacity-40"
+              className="flex-1 rounded-full bg-slate-700/70 py-1.5 text-[11px] tabular-nums text-slate-200 disabled:opacity-40"
             >
               ◀ −{step}s
             </button>
@@ -531,7 +531,7 @@ export default function BoxFramePicker({
               onClick={() => nudge(step)}
               disabled={disabled || dur <= 0}
               aria-label={`往后 ${step} 秒`}
-              className="flex-1 rounded-lg bg-slate-700/70 py-1.5 text-[11px] tabular-nums text-slate-200 disabled:opacity-40"
+              className="flex-1 rounded-full bg-slate-700/70 py-1.5 text-[11px] tabular-nums text-slate-200 disabled:opacity-40"
             >
               +{step}s ▶
             </button>

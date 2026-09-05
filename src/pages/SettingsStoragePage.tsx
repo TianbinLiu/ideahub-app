@@ -100,7 +100,7 @@ function CacheSweeper({ onDone }: { onDone: () => void }) {
     <div className="mt-3">
       <button
         onClick={() => setConfirming(true)}
-        className="w-full rounded-xl border border-slate-600 py-2 text-xs text-slate-200"
+        className="w-full rounded-xl border border-slate-600 py-2.5 text-xs text-slate-200"
       >
         清理缓存（可释放 {mbLabel} MB）
       </button>
