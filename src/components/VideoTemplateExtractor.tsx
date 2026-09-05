@@ -70,6 +70,7 @@ import {
   blockoutSourceDurationIssue,
   ownRefSingleVerdict,
   ownRefSplitVerdict,
+  selectionSummary,
   type BlockoutSelection,
   type VideoNatural,
 } from "./blockout/arkVideoRules";
@@ -417,13 +418,30 @@ export default function VideoTemplateExtractor({
   /**
    * BlockoutTrimmer 现在框出来的那一段（它每次变化都往上报一次）。
    *
-   * ★★ 唯一用途是**转给 BoxFramePicker**：那一块要知道"标记落在选段里没有"才说得出
+   * ★★ 用途一：**转给 BoxFramePicker**：那一块要知道"标记落在选段里没有"才说得出
    *   后果与出路（不知道的话它只能装作每一帧都作数，而提取器在提交前把落在外面的
-   *   无声滤掉 —— 2026-08-17 修掉的那个洞）。选段的持有者仍然只有 Trimmer 一个，
-   *   这里是**镜像**：不参与任何判断，也绝不回喂给它。
-   * ★ 真正提交的那一份是 `onSubmit` 带上来的（同一个 outSel），不是这份镜像。
+   *   无声滤掉 —— 2026-08-17 修掉的那个洞）。
+   * ★★ 用途二（2026-09-05 拆两步之后）：ownRef 路的第 2 步把 Trimmer 卸掉了，这份就是
+   *   **唯一的**选段 —— 第 1 步点「下一步」时用 onSubmit 带上来的那份（= Trimmer 的 outSel）
+   *   覆盖一次，第 2 步提交的就是它；点「上一步」时又作为 `initial` 喂回 Trimmer，
+   *   用户回去看到的是自己框的那一段而不是默认框。
+   * ★ 拖动期间它仍只是镜像（每次变化 Trimmer 报一次），不参与任何判断、也不在拖动中回喂。
    */
   const [trimSel, setTrimSel] = useState<BlockoutSelection | null>(null);
+  /**
+   * ownRef 路在框选之后的**第二步**（2026-09-05 主人实测点名拆开的）。
+   *
+   * ★★ 为什么拆：此前「框选段」与「AI 分析哪几帧 · 自己挑」挤在同一屏，而后者的时间轴是
+   *   **整条原片**（标记按原片秒存，选段随时会被拖动）—— 用户把 34 秒裁成 19 秒之后，
+   *   下面那条轴还是 34 秒，即使有黄字说"只有选段里的才作数"也照样混淆。拆开之后：
+   *   第 1 步只回答"用原片的哪一段、裁到哪"，第 2 步的时间轴**就是那一段**
+   *   （BoxFramePicker 的 axis="clip"），标记从片段第 0 秒起算。
+   * ★ "trim" = 第 1 步（Trimmer：裁剪框 + 时间段），"frames" = 第 2 步（标帧 / 标刀 +
+   *   标题 + 报价 + 提交）。跟着回执走，由 dropReceipt 一处清回 "trim"。
+   * ★ aiBlockout 路**不拆**：它的"看哪几帧"（VisionFramePicker）与选段共用同一条播放头、
+   *   帧数还是报价的一半，那一屏本来就是围着同一份选段转的。
+   */
+  const [ownRefStep, setOwnRefStep] = useState<"trim" | "frames">("trim");
   /** 走的是不是白模那两条（决定选文件的 accept、上传、以及整屏换成框选器）。
    *  ★ 派生值，不是第二个状态 —— 它与 route 不可能不一致 */
   const blockout = route !== "classic";
@@ -501,6 +519,7 @@ export default function VideoTemplateExtractor({
     setBoxMarks([]);
     setSplitMarks([]);
     setBoxMode("auto");
+    setOwnRefStep("trim");
   }
 
   function close() {
@@ -692,6 +711,46 @@ export default function VideoTemplateExtractor({
         </p>
       </div>
     ) : undefined;
+
+  /**
+   * ownRef 第 1 步（框选）注入 Trimmer 的 pricing 口 —— **必须是个非空节点**：
+   * pricing 不给的话 Trimmer 会退回白模化那两笔 + F11，那就是「页面报 A 路的价、实收 B 路
+   * 的钱」。真正的报价（ownRefPricing）在第 2 步、按「做成模板」之前整句报出 ——
+   * "先说钱再花钱"仍然成立，这一步只是把"这里还不花钱、钱在下一步说"讲清楚。
+   */
+  const ownRefTrimPricing =
+    route === "ownRef" && receipt ? (
+      <p className="rounded-lg border border-slate-700 bg-panel/60 px-3 py-2 text-[11px] leading-relaxed text-slate-400">
+        这一步不花钱：框好要用的那一段点「下一步」，下一步在<b className="text-slate-200">框出来的这一段</b>
+        上标帧，报价也在那一步、按「做成模板」之前整句报出。
+      </p>
+    ) : undefined;
+  /**
+   * 第 2 步上的选段裁决 —— 与第 1 步是**同一个 judge**（ownRefJudge），不是第二份判据。
+   * ★ 为什么第 2 步还要再判一次：分段形态的判词读的是 planSplits(…, splitMarks)，
+   *   而刀是在第 2 步标的 —— 标得太碎会切出 >12 段，那句拒绝只能在这一步说、并把提交灰掉
+   *   （第 1 步时刀还没标，那时的判词按自动对半算，放行了）。
+   *   单段形态的判词只看选段，第 1 步已经放行过，这里再算一遍结果必然相同，只是不画出来。
+   */
+  const frameStepVerdict =
+    route === "ownRef" && ownRefStep === "frames" && trimSel && receipt && ownRefJudge
+      ? ownRefJudge(trimSel, {
+          width: receipt.data.width,
+          height: receipt.data.height,
+          durationSec: receipt.data.durationSec,
+        })
+      : null;
+  /** 模板标题输入：第 1 步（aiBlockout 路）与 ownRef 第 2 步共用同一份 */
+  const titleField = (
+    <input
+      value={title}
+      onChange={(e) => setTitle(e.target.value)}
+      maxLength={40}
+      disabled={!!busy}
+      placeholder="模板标题（别人在市场里看到的就是它）"
+      className="w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-60"
+    />
+  );
 
   /**
    * @param n 抽几帧。★ **必须由调用方显式传**，不能在函数体里读 frameN：
@@ -1215,8 +1274,115 @@ export default function VideoTemplateExtractor({
                   ★ 取回的入口仍然只有一处（「我的模板」那张卡），那里现在能把**已经过期**的
                     那种消掉（data/templates.dismissBlockoutJob，没过期的一律拒）。 */}
 
-                {blockout && receipt ? (
+                {blockout && receipt && route === "ownRef" && ownRefStep === "frames" && trimSel ? (
+              // ── ownRef 第 2 步：在框出来的那一段上标帧（或标刀）→ 标题 → 报价 → 做成模板 ──
+              // ★ Trimmer 在这一步是**卸掉**的（不是 hidden）：两个 <video> 同时解码同一份
+              //   objectURL 在手机上是白花的；选段由 trimSel 冻住，回上一步靠 initial 恢复。
+              <div className="space-y-3">
+                <div className="flex items-start gap-2 rounded-lg border border-slate-700 bg-panel/60 px-3 py-2">
+                  <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-300">
+                    <b className="text-slate-100">第 1 步已框出：</b>
+                    {selectionSummary(
+                      trimSel,
+                      { width: receipt.data.width, height: receipt.data.height, durationSec: receipt.data.durationSec },
+                      { frames: false },
+                    )}
+                  </p>
+                  <button
+                    onClick={() => setOwnRefStep("trim")}
+                    disabled={!!busy}
+                    className="flex-none rounded-full border border-slate-600 px-2.5 py-0.5 text-[10px] text-slate-300 disabled:opacity-40"
+                  >
+                    ← 改选段
+                  </button>
+                </div>
+
+                {segLong ? (
+                  <>
+                    {/* 分段形态：标的是**切段刀**（splitMarks），不是认人帧 —— 两份状态
+                        两种含义，见 splitMarks 的 ★★。整条都要登记（judge 已把选段钉在整条），
+                        所以不传 sel、轴就是整条原片。mode 在 split 形态下不参与渲染。 */}
+                    <BoxFramePicker
+                      kind="split"
+                      mode="manual"
+                      onModeChange={() => {}}
+                      src={receipt.src}
+                      marks={splitMarks}
+                      onMarksChange={setSplitMarks}
+                      disabled={!!busy}
+                    />
+                    {/* ★★ 被丢弃的刀必须整句点名（planSplits 只丢不响，响的责任在这儿）：
+                        不说的话，用户标了 3 刀、绿字却说"切成 3 段"，他只会以为标丢了 */}
+                    {splitPlan && splitPlan.dropped.length > 0 && (
+                      <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">
+                        有 {splitPlan.dropped.length} 刀落不下去，已被忽略：第{" "}
+                        {splitPlan.dropped.map((m) => m.toFixed(1)).join(" / ")} 秒——离片头、片尾或相邻的刀不足
+                        4 秒，切出来会有短于 4 秒的段（AI 引擎收不下）。把这几刀删掉，或挪远一点再标。
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <BoxFramePicker
+                    mode={boxMode}
+                    onModeChange={setBoxMode}
+                    src={receipt.src}
+                    // ★★ src 仍是**整条原片**（回执那份本机文件），做成模板的只有选段：
+                    //   axis="clip" 让时间轴只画选段那一截（滑杆两端 = 选段起止、读数从片段
+                    //   第 0 秒起），而标记照旧按原片秒存、提交用的 atSecs 与它读同一个函数
+                    //   （boxMarksInSelection，见 runOwnRef）—— 回上一步挪了选段，帧不会跟着漂。
+                    sel={trimSel}
+                    axis="clip"
+                    marks={boxMarks}
+                    onMarksChange={setBoxMarks}
+                    disabled={!!busy}
+                  />
+                )}
+
+                {titleField}
+                {ownRefPricing}
+
+                {/* 分段形态的裁决在这一步才定（刀是这一步标的，见 frameStepVerdict 的 ★）：
+                    红字就灰掉提交，绿字把段清单画出来 —— 与第 1 步同一份判词 */}
+                {segLong && frameStepVerdict && (
+                  frameStepVerdict.issue ? (
+                    <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+                      ✗ {frameStepVerdict.issue}
+                    </p>
+                  ) : (
+                    <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] leading-relaxed text-emerald-200">
+                      ✓ {frameStepVerdict.ok}
+                    </p>
+                  )
+                )}
+
+                {/* 失败原因一律整句显示（第 1 步那份由 Trimmer 画，这一步 Trimmer 不在，自己画） */}
+                {err && (
+                  <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+                    {err}
+                  </p>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setOwnRefStep("trim")}
+                    disabled={!!busy}
+                    className="flex-none rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 disabled:opacity-40"
+                  >
+                    上一步
+                  </button>
+                  <button
+                    onClick={() => void runOwnRef(trimSel)}
+                    disabled={!!busy || !!(segLong && frameStepVerdict?.issue)}
+                    className="min-w-0 flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
+                  >
+                    {busy || "做成模板（不出片）"}
+                  </button>
+                </div>
+              </div>
+            ) : blockout && receipt ? (
               // ── 传完了：交给 BlockoutTrimmer 框选 + 报价 + 开炼 ──
+              //   （ownRef 路这里是**第 1 步**：只框选段与裁剪，标帧、标题、报价、提交都在
+              //   上面那块第 2 步里 —— 见 ownRefStep 的 ★★）
               // ★ 本组件在这一屏只当宿主：**不重复它说过的任何一句话**（报价、
               //   「受理后失败不退费」、框选差在哪，全在组件内部一处实现），
               //   也不再摆自己的错误行 —— error 交给它显示，两处各显示一遍
@@ -1244,6 +1410,9 @@ export default function VideoTemplateExtractor({
                 //   标记是对着**整条原片**标的，而只有落在选段里的那些才会被采用 ——
                 //   不把选段递给它，它就只能装作每一帧都作数（见 trimSel 的 ★★）。
                 onSelectionChange={setTrimSel}
+                // ★ ownRef 路从第 2 步点「上一步」回来时恢复成刚才框的那一段（不给就是默认框，
+                //   等于把用户刚做的事丢了）。aiBlockout 路只有一步，用不着。
+                initial={route === "ownRef" ? trimSel : undefined}
                 // ★ 自带白模片那条路**不做白模化**，所以「AI 看哪几帧」整块不出：
                 //   它要挑的帧由同一屏 extra 里的 BoxFramePicker 管（认人量框那一步）。
                 //   两块同时在，同一屏上就有两个叫法几乎一样的"看哪几帧"，而上限与后果都不同。
@@ -1252,22 +1421,19 @@ export default function VideoTemplateExtractor({
                 //   说的必须是同一条路的话 —— 只换其中一样，屏幕上就会自相矛盾
                 //   （aiBlockout 三个都 undefined = Trimmer 原行为，一个字不变）
                 judge={ownRefJudge}
-                pricing={ownRefPricing}
+                // ★ ownRef 第 1 步的报价口给一句"钱在下一步说"（非空节点，见 ownRefTrimPricing）；
+                //   真报价 ownRefPricing 在第 2 步。aiBlockout 路不给 = Trimmer 自己报白模化那两笔
+                pricing={ownRefTrimPricing}
                 trimWindow={ownRefWindow}
                 extra={
                   <div className="space-y-2">
-                    <input
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      maxLength={40}
-                      placeholder="模板标题（别人在市场里看到的就是它）"
-                      className="w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
-                    />
+                    {/* 标题：aiBlockout 路只有这一屏，在这里填；ownRef 路挪到第 2 步（提交那一屏）填 */}
+                    {route === "aiBlockout" && titleField}
                     {/* ★ 补充说明只对**要 AI 白模化**那条路有用（它进的是"看帧认人"那一发的
                         提示词）。自带白模片那条不看它 —— 摆着而不起作用就是在骗人 */}
-                    {/* ★ 「AI 分析哪几帧」只对**自带白模片**那条路出：aiBlockout 那条的
-                        "看几帧"是白模化之前的点名清单，由 BlockoutTrimmer 自己的
-                        VisionFramePicker 管 —— 同一屏摆两个"看几帧"只会让人分不清。 */}
+                    {/* ★ 「AI 分析哪几帧」只对**自带白模片**那条路出，且自 2026-09-05 起在
+                        **第 2 步**（上面那块）：aiBlockout 那条的"看几帧"是白模化之前的点名清单，
+                        由 BlockoutTrimmer 自己的 VisionFramePicker 管 —— 同一屏摆两个"看几帧"只会让人分不清。 */}
                     {/* ★ 长素材的出路要在还没拖到 30 秒以上时就说（不说的话没人知道能拖过去）：
                         初始选段是 30 秒，分段那条路的入口就是"把右把手继续往右拖"。
                         ★ 超过 12×30=360 秒的素材**不出这句**：那种整条装不下，请人把把手拉满、
@@ -1322,46 +1488,6 @@ export default function VideoTemplateExtractor({
                           {SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec} 秒以内再传。
                         </p>
                       )}
-                    {route === "ownRef" && receipt && segLong && (
-                      <>
-                        {/* 分段形态：标的是**切段刀**（splitMarks），不是认人帧 —— 两份状态
-                            两种含义，见 splitMarks 的 ★★。整条都要登记，所以不传 sel。
-                            mode 在 split 形态下不参与渲染（picker 里没有模式档）。 */}
-                        <BoxFramePicker
-                          kind="split"
-                          mode="manual"
-                          onModeChange={() => {}}
-                          src={receipt.src}
-                          marks={splitMarks}
-                          onMarksChange={setSplitMarks}
-                          disabled={!!busy}
-                        />
-                        {/* ★★ 被丢弃的刀必须整句点名（planSplits 只丢不响，响的责任在这儿）：
-                            不说的话，用户标了 3 刀、绿字却说"切成 3 段"，他只会以为标丢了 */}
-                        {splitPlan && splitPlan.dropped.length > 0 && (
-                          <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">
-                            有 {splitPlan.dropped.length} 刀落不下去，已被忽略：第{" "}
-                            {splitPlan.dropped.map((m) => m.toFixed(1)).join(" / ")} 秒——离片头、片尾或相邻的刀不足
-                            4 秒，切出来会有短于 4 秒的段（AI 引擎收不下）。把这几刀删掉，或挪远一点再标。
-                          </p>
-                        )}
-                      </>
-                    )}
-                    {route === "ownRef" && receipt && !segLong && (
-                      <BoxFramePicker
-                        mode={boxMode}
-                        onModeChange={setBoxMode}
-                        src={receipt.src}
-                        // ★★ src 是**整条原片**（回执那份本机文件），而做成模板的只有选段 ——
-                        //   两者的差就靠这一个 prop 说出来：picker 据此把落在选段外的标记
-                        //   列出来、写清"不会被采用也不计费"，并把计数与「标满」门禁改成
-                        //   只数选段内的。提交用的 atSecs 与它读同一个函数（见 runOwnRef）。
-                        sel={trimSel}
-                        marks={boxMarks}
-                        onMarksChange={setBoxMarks}
-                        disabled={!!busy}
-                      />
-                    )}
                     {route === "aiBlockout" && (
                       <textarea
                         value={note}
@@ -1373,8 +1499,20 @@ export default function VideoTemplateExtractor({
                     )}
                   </div>
                 }
-                  submitLabel={route === "ownRef" ? "做成模板（不出片）" : undefined}
-                  onSubmit={(sel) => void (route === "ownRef" ? runOwnRef(sel) : runBlockoutize(sel))}
+                  // ★ ownRef 第 1 步的按钮是「下一步」，不花钱、不提交：按钮上得说清下一步是干什么
+                  //   （分段形态标的是刀，单段形态挑的是 AI 分析帧 —— 两件事，两句话）
+                  submitLabel={
+                    route === "ownRef" ? (segLong ? "下一步：标切段刀" : "下一步：挑 AI 分析帧") : undefined
+                  }
+                  onSubmit={(sel) => {
+                    if (route === "ownRef") {
+                      // 冻住 Trimmer 交上来的这一份（= 它的 outSel）：第 2 步提交的就是它
+                      setTrimSel(sel);
+                      setOwnRefStep("frames");
+                      return;
+                    }
+                    void runBlockoutize(sel);
+                  }}
                   onCancel={close}
                 />
               </>

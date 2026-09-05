@@ -485,8 +485,12 @@ export default function TemplateShelf({
       )}
 
       {/* 人话分类 chips（backlog 2.8-③）：按情绪与用途分，不按模型参数分。
-          两个 tab 都给——「我的模板」里筛自己的也说得通。老模板没有分类，只在「全部」下出现 */}
-      <div className="scrollbar-none mb-3 flex gap-1.5 overflow-x-auto">
+          两个 tab 都给——「我的模板」里筛自己的也说得通。老模板没有分类，只在「全部」下出现
+          ★ 滚动容器要留 2px 内边距、再用负外边距抵回去（2026-09-05 主人实测点名）：
+            `overflow-x-auto` 会把 overflow-y 一并算成 auto，选中那颗的 `ring-1`（画在盒子外
+            1px 的 box-shadow）上下两条边就被裁掉了，首尾两颗的左右边同理 —— 看起来是
+            "圆边框缺了一截"。负外边距让这 2px 不占版面，与改之前逐像素同位。 */}
+      <div className="scrollbar-none -mx-0.5 -my-0.5 mb-2.5 flex gap-1.5 overflow-x-auto px-0.5 py-0.5">
         {[{ id: "", label: "全部" }, ...TPL_CATEGORIES].map((c) => (
           <button
             key={c.id}
