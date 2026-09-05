@@ -9,8 +9,8 @@
 //   文案只按已知事实写：软删除、可联系邮箱恢复/彻底删除（server me.controller 的注释
 //   与 docs/api-contract.md 是出处），不说"数据将在 X 天后删除"这类没有实现的话。
 import { useState } from "react";
+import { BackButton } from "../components/IconTapButton";
 import { useNavigate } from "react-router";
-import Icon from "../components/Icon";
 import { deactivateAccount, isRemoteMode } from "../data/account";
 import { SUPPORT_EMAIL } from "../data/agreements";
 import { useCurrentUser } from "../hooks/useAccount";
@@ -109,9 +109,7 @@ export default function SettingsDeactivatePage() {
 function Header({ onBack }: { onBack: () => void }) {
   return (
     <div className="flex items-center gap-3">
-      <button onClick={onBack} className="text-xl text-slate-400" aria-label="返回">
-        <Icon name="back" size={20} />
-      </button>
+      <BackButton size={20} tone="text-slate-400" onClick={onBack} />
       <h1 className="text-lg font-bold text-slate-100">注销账号</h1>
     </div>
   );

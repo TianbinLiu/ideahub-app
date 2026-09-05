@@ -10,8 +10,8 @@
 //   ③ 有名单 → 列出来。
 //   把 ① 和 ② 合并的话，弱网下会显示"你还没拉黑过谁"，而名单其实好好地在服务器上。
 import { useCallback, useEffect, useState } from "react";
+import { BackButton } from "../components/IconTapButton";
 import { useNavigate } from "react-router";
-import Icon from "../components/Icon";
 import { isRemoteMode } from "../data/account";
 import { useCurrentUser } from "../hooks/useAccount";
 import { listBlocked, unblockUser, type BlockedUser } from "../api/blocking";
@@ -65,13 +65,7 @@ export default function SettingsBlockedPage() {
   return (
     <div className="safe-top min-h-full px-4 pb-10 pt-3">
       <div className="mb-3 flex items-center gap-2">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-panel"
-          aria-label="返回"
-        >
-          <Icon name="back" size={18} className="text-slate-300" />
-        </button>
+        <BackButton chip="md" size={18} onClick={() => navigate(-1)} />
         <h1 className="text-base font-bold text-slate-100">已拉黑的人</h1>
       </div>
 

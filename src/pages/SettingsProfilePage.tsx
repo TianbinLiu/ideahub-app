@@ -6,6 +6,7 @@
 //   小路保留（新账号默认值就是 emoji，不想上传照片的人还得有它）。
 // ★ 使用说明在引导弹窗里（tours.tsx 的 setprofile），页面上只留控件与失败提示。
 import { useRef, useState } from "react";
+import { BackButton } from "../components/IconTapButton";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
 import Avatar from "../components/Avatar";
@@ -56,9 +57,7 @@ export default function SettingsProfilePage() {
   return (
     <div className="safe-top min-h-full px-4 pb-10 pt-3">
       <div className="mb-6 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="text-xl text-slate-400" aria-label="返回">
-          <Icon name="back" size={20} />
-        </button>
+        <BackButton size={20} tone="text-slate-400" onClick={() => navigate(-1)} />
         <h1 className="flex-1 text-lg font-bold text-slate-100">编辑资料</h1>
         <HelpButton tour="setprofile" />
       </div>
