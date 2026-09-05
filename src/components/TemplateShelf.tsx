@@ -8,6 +8,7 @@
 //   发布/删除操作原样住在各自的卡里，规则零复制。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Link, useNavigate } from "react-router";
+import { useQueryTab } from "../hooks/useQueryTab";
 import Icon from "./Icon";
 // ★ 核对编号那一屏（含"删掉一个角色位"）在 components/blockout/RoleConfirmSheet：
 //   详情页 OwnerBar 要用同一个入口，一份实现两处用（两页各写一份必然分叉）
@@ -337,11 +338,26 @@ function GroupRow({
 }
 
 /** 货架本体。embedded = 摆在别的页里（创意工坊）：不带页头，其余一模一样 */
-export default function TemplateShelf({ initialTab }: { initialTab?: "market" | "mine" }) {
+export default function TemplateShelf({
+  initialTab,
+  queryKey,
+}: {
+  initialTab?: "market" | "mine";
+  /**
+   * 给了就把「模板市场/我的模板」这一层页签写进地址栏 query（键名由宿主定，工坊与市场页都用
+   * `shelf`）：去详情再返回时页签还在。不给 = 只活在组件 state 里（简约模式的选模板浮层那种
+   * 宿主，它自己的地址不该被这一层改动）。
+   */
+  queryKey?: string;
+}) {
   const ver = useTemplatesVersion();
   const nav = useNavigate();
   const [q, setQ] = useState("");
-  const [tab, setTab] = useState<"market" | "mine">(initialTab ?? "market");
+  // ★ 两条状态都无条件建（hook 顺序不能随 prop 变），用哪条由 queryKey 定
+  const [queryTab, setQueryTab] = useQueryTab(queryKey ?? "shelf", ["market", "mine"] as const, initialTab ?? "market");
+  const [localTab, setLocalTab] = useState<"market" | "mine">(initialTab ?? "market");
+  const tab = queryKey ? queryTab : localTab;
+  const setTab = queryKey ? setQueryTab : setLocalTab;
   /** 人话分类筛选（backlog 2.8-③，Vidu 式按情绪与用途分）。"" = 全部 */
   const [cat, setCat] = useState("");
   // 白模上传入口按能力门控渲染（探测走 remoteTemplatesCapable 唯一实现）：

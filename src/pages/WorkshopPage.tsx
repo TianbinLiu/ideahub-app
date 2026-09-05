@@ -27,6 +27,7 @@ import { cardsLoadIssue,
 } from "../data/account";
 import type { ApiSharedCard, ApiSharedDeck } from "../api/branch";
 import { useAccountVersion, useAuthState, useCurrentUser } from "../hooks/useAccount";
+import { useQueryTab } from "../hooks/useQueryTab";
 import TarotCard from "../components/TarotCard";
 import TemplateShelf from "../components/TemplateShelf";
 import VideoCardAnnotator from "../components/VideoCardAnnotator";
@@ -127,7 +128,10 @@ export default function WorkshopPage() {
   // ★ 2026-08-21 加第三个页签「我的模板」（用户点名：模板与卡片/卡组同住创意工坊，
   //   同一行页签）。内容整块复用 components/TemplateShelf —— 它自带「模板市场/我的模板」
   //   两个来源，所以模板市场也一并住进了本页；/templates 独立页照旧（深链在用）。
-  const [tab, setTab] = useState<"cards" | "decks" | "templates">("cards");
+  // ★ 页签在地址里（`?tab=`）而不是组件 state：去模板详情/卡片详情再返回，这一页整个重挂，
+  //   state 归零就把人从「我的模板」扔回「我的卡片」（2026-09-05 主人真机点名）。
+  //   唯一实现 hooks/useQueryTab；TemplateShelf 内层的「模板市场/我的模板」用同一个 hook（`?shelf=`）。
+  const [tab, setTab] = useQueryTab("tab", ["cards", "decks", "templates"] as const, "cards");
   /** 待确认删除的卡（删卡确认与详情页共用 DeleteCardDialog 一份） */
   const [askCard, setAskCard] = useState<Card | null>(null);
   /** 待确认删除的卡组。★ 删卡组**不删卡**（deleteDeck 只摘卡组本身）——这件事必须说，
@@ -260,7 +264,7 @@ export default function WorkshopPage() {
       )}
       {tab === "templates" ? (
         <div className="pb-4">
-          <TemplateShelf initialTab="mine" />
+          <TemplateShelf initialTab="mine" queryKey="shelf" />
         </div>
       ) : tab === "cards" ? (
         <>
