@@ -44,7 +44,7 @@ import { wechatSupported, signInWithWeChat } from "../utils/wechat";
 import BrandIcon, { BRAND_CHIP, type BrandName } from "../components/BrandIcon";
 
 const INPUT =
-  "w-full rounded-xl border border-slate-700 bg-panel px-4 py-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand";
+  "w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand";
 
 /** 验证码重发冷却。与服务端 OTP_RESEND_COOLDOWN_SECONDS 默认值对齐——
  *  比它短的话用户点了只会拿到一个 429，看起来像坏了 */

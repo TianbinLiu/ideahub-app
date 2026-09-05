@@ -57,10 +57,10 @@ export default function SettingsDeactivatePage() {
   }
 
   return (
-    <div className="safe-top min-h-full px-4 pb-10 pt-3">
+    <div className="min-h-full px-4 pb-10">
       <Header onBack={() => navigate(-1)} />
 
-      <div className="mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-4">
+      <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4">
         <p className="text-sm font-bold text-rose-200">注销后会发生什么</p>
         <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-300">
           <li>· 立即生效：所有设备退出登录，这个账号无法再使用。</li>
@@ -87,7 +87,7 @@ export default function SettingsDeactivatePage() {
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
-          className="w-full rounded-xl border border-slate-700 bg-panel px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-rose-400"
+          className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-rose-400"
         />
         {err && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-400">{err}</p>}
         <button
@@ -108,6 +108,6 @@ export default function SettingsDeactivatePage() {
 
 function Header({ onBack }: { onBack: () => void }) {
   return (
-    <PageHeader className="" onBack={onBack} title="注销账号" />
+    <PageHeader onBack={onBack} title="注销账号" />
   );
 }

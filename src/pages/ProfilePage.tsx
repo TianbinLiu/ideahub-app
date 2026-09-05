@@ -26,6 +26,7 @@
 // 图标页签 → 3 列贴边栅格。旧版是左对齐的资料卡 + 文字页签，与首页的
 // 短视频形态完全不搭，而且首页压根没有入口能走到"别人"的主页。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { takedownReasonText } from "../api/admin";
 import HelpButton from "../components/guide/HelpButton";
@@ -417,13 +418,12 @@ export default function ProfilePage() {
   }
   if (self && !user) {
     return (
-      <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-4 px-6">
-        <Icon name="user" size={44} className="text-slate-700" />
-        <p className="text-center text-sm text-slate-400">登录后可以创作视频、收藏卡片、管理卡组</p>
-        <Link to="/login?next=/me" className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink">
-          登录 / 注册
-        </Link>
-      </div>
+      <EmptyState
+        full
+        icon="user"
+        text="登录后可以创作视频、收藏卡片、管理卡组"
+        cta={{ label: "登录 / 注册", to: "/login?next=/me", primary: true }}
+      />
     );
   }
 
@@ -1225,10 +1225,7 @@ function StrangerWorks({
 }) {
   if (stranger.loading) {
     return (
-      <div className="flex flex-col items-center gap-3 py-16 text-slate-500">
-        <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-700 border-t-brand" />
-        <span className="text-xs">正在打开 TA 的主页…</span>
-      </div>
+      <EmptyState loading text="正在打开 TA 的主页…" />
     );
   }
   if (stranger.missing) {
@@ -1238,16 +1235,12 @@ function StrangerWorks({
   const err = stranger.error || worksErr;
   if (err && works.length === 0) {
     return (
-      <div className="py-16 text-center">
-        <p className="px-8 text-sm leading-relaxed text-rose-300">没打开 TA 的主页：{err}</p>
-        <p className="mt-1 px-8 text-[11px] text-slate-600">这不代表 TA 没有作品，只是这次没取到</p>
-        <button
-          onClick={onRetry}
-          className="mt-4 rounded-xl bg-panel px-5 py-2.5 text-sm font-semibold text-slate-100 ring-1 ring-slate-700"
-        >
-          重试
-        </button>
-      </div>
+      <EmptyState
+        error
+        text={`没打开 TA 的主页：${err}`}
+        hint="这不代表 TA 没有作品，只是这次没取到"
+        cta={{ label: "重试", onClick: onRetry }}
+      />
     );
   }
   // 拿到了一些、但不完整：先把有的摆出来，再在下面挑明"这不是全部"
@@ -1620,14 +1613,5 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
 }
 
 function Empty({ text, cta, to }: { text: string; cta?: string; to?: string }) {
-  return (
-    <div className="flex flex-col items-center gap-3 py-16">
-      <p className="text-sm text-slate-500">{text}</p>
-      {cta && to && (
-        <Link to={to} className="rounded-xl bg-panel px-5 py-2.5 text-sm text-slate-300">
-          {cta}
-        </Link>
-      )}
-    </div>
-  );
+  return <EmptyState text={text} cta={cta && to ? { label: cta, to } : undefined} />;
 }

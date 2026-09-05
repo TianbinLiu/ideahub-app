@@ -11,6 +11,7 @@
  * ★ 与形象市场同一套页面骨架（tab / 列表 / 就地报错在那张卡上）。
  */
 import { useEffect, useRef, useState } from "react";
+import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
@@ -195,7 +196,7 @@ export default function SupportPersonasPage() {
   return (
     <div className="min-h-full px-4 pb-10">
       <PageHeader className="mb-2" onBack={() => navigate(-1)} title="数字人人格" />
-      <p className="mb-3 text-[11px] text-slate-500">换一种说话风格，客服页与官网首页共用同一份设置；人格自带嗓子的话声音也会跟着换。</p>
+      <p className="mb-3 text-[11px] leading-relaxed text-slate-500">换一种说话风格，客服页与官网首页共用同一份设置；人格自带嗓子的话声音也会跟着换。</p>
 
       {/* 当前人格 + 恢复默认：读不到设置就只报错，不摆一个不知道恢复成什么的按钮 */}
       {settings && (
@@ -255,9 +256,9 @@ export default function SupportPersonasPage() {
       {listErr && <p className="mb-2 rounded-lg bg-rose-500/10 px-3 py-1.5 text-[12px] leading-relaxed text-rose-300">{listErr}</p>}
 
       {loading ? (
-        <p className="py-8 text-center text-[12px] text-slate-500">读取中…</p>
+        <EmptyState loading text="读取中…" />
       ) : items.length === 0 && !listErr ? (
-        <p className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-[13px] leading-6 text-slate-400">{emptyText}</p>
+        <EmptyState text={emptyText} />
       ) : (
         <div className="space-y-3">
           {items.map((p) => {

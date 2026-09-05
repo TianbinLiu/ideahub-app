@@ -379,7 +379,7 @@ function StepGo({
           onChange={(e) => onPlot(e.target.value)}
           rows={3}
           maxLength={400}
-          className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3 py-2 text-xs leading-relaxed text-slate-100 outline-none focus:border-brand"
+          className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
         />
       </div>
       {/* 套模板时不给：模板的画面来自配方/参考视频，再塞用户帧是两套世界打架 */}

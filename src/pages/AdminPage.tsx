@@ -13,6 +13,7 @@
 //   来回切是高频动作，走路由会把「返回=退出后台」和「返回=回到总览」搅在一起；
 //   子视图里顶栏的返回键固定回总览，语义只有一种。
 import { useCallback, useEffect, useState } from "react";
+import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { Link, useNavigate } from "react-router";
 import Avatar from "../components/Avatar";
@@ -141,20 +142,19 @@ export default function AdminPage() {
  */
 function Denied({ remote, loggedIn, onBack }: { remote: boolean; loggedIn: boolean; onBack: () => void }) {
   return (
-    <div className="safe-top flex min-h-full flex-col items-center justify-center gap-4 px-8 text-center">
-      <span className="text-4xl">🔒</span>
-      <h1 className="text-base font-bold text-slate-100">这一页只有管理员能进</h1>
-      <p className="text-xs leading-relaxed text-slate-400">
-        {!remote
+    <EmptyState
+      full
+      emoji="🔒"
+      title="这一页只有管理员能进"
+      text={
+        !remote
           ? "当前是离线模式（没连服务器），管理功能需要服务端才能用。"
           : loggedIn
             ? "你的账号不是管理员。权限由服务端保管，改不了本地设置就进得来——需要的话请让管理员在服务端给你的账号升权，升完立刻生效，不用重新登录。"
-            : "请先登录。"}
-      </p>
-      <button onClick={onBack} className="rounded-xl bg-panel px-5 py-2.5 text-sm text-slate-100">
-        返回首页
-      </button>
-    </div>
+            : "请先登录。"
+      }
+      cta={{ label: "返回首页", onClick: onBack }}
+    />
   );
 }
 

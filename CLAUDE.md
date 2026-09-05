@@ -259,6 +259,15 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   此前 `bg-brand` 按钮有十来种圆角 × 高度组合，`bg-panel` / 描边那批次级键又是另一套。
   查法：`rg 'bg-brand' --glob '*.tsx' | rg 'rounded-(lg|md)'` 应为空；`rg 'rounded-lg' --glob '*.tsx' | rg '<button|<Link'`
   剩下的只该是选项卡 / 列表行 / 多行的 tile（`text-left`、`justify-between`）。
+- **空态 / 整页态只有一份实现 `components/EmptyState`**（2026-09-05 收口）：图标 40px slate-600（或 emoji）→ 正文
+  text-sm slate-400（出错 rose-300）→ 补充 text-xs slate-600 → 按钮（主 bg-brand / 次 bg-panel+ring，同上一条）。
+  列表里的空态 `py-16`，整页态（卡/卡组/模板不存在、未登录墙、取回中）传 `full`（min-h-[70vh] 居中 + safe-top）。
+  收之前草稿箱 / 消息 / 个人页 / 模板市场 / 三个详情页各是一副面孔。**别再手拼 `flex flex-col items-center gap-3 py-16`**。
+  评论区那种嵌在列表里的一行「还没有评论」不算，留着。
+- **页面级表单字段一个规格**：`rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none
+  placeholder:text-slate-500 focus:border-brand`（textarea 加 `resize-none leading-relaxed`）—— 高 40px，与主按钮同高。
+  登录 / 设置 / 发布 / 编辑 / 卡片 / 卡组 / 模板详情 / 自建卡 / 简约模式的输入框都是它。画布、工坊面板、
+  弹层里的**紧凑**字段（`rounded-lg px-2.5 py-1.5 text-xs`）与深色弹层上的 `bg-black/30` 不在此列。
 - **数值不要拍脑袋**。涉及尺寸/间距/重叠的值先量再定，并在注释里写清量法与结论
   （例：`CharacterPerch` 的 `bottom` 系数调过四轮，注释里记了每一轮为什么不行）。
 - 动画只动 `transform` / `opacity`（合成层）。视频流滚动时本就吃紧，触发重排会掉帧。

@@ -10,6 +10,7 @@
 //   （未选中 = 道具收着、神情安静；选中 = 道具亮出来、表情张扬），
 //   与工作流页「生成本段」旁那颗素材按钮是同一套做法（见 components/SpriteToggle）。
 import { useEffect, useMemo, useRef, useState } from "react";
+import EmptyState from "../components/EmptyState";
 import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
@@ -352,17 +353,11 @@ export default function DiscoverPage() {
       {/* ★ 四种结局分开说（与本页搜人那半同一条理由）：在搜 / 没搜成 / 真的没有 / 这个分区没有。
           原来只有最后两种，于是"服务器没搜成"被画成了"没有找到相关作品"。 */}
       {vidBusy && results.length === 0 ? (
-        <div className="py-16 text-center text-sm text-slate-500">正在搜…</div>
+        <EmptyState loading text="正在搜…" />
       ) : vidErr ? (
-        <div className="py-12 text-center text-sm leading-relaxed text-rose-300">
-          没搜成：{vidErr}
-          <br />
-          <span className="text-xs text-slate-500">上面列的是这台设备上已有的那几条，不是全部结果。</span>
-        </div>
+        <EmptyState error text={`没搜成：${vidErr}`} hint="上面列的是这台设备上已有的那几条，不是全部结果。" />
       ) : results.length === 0 ? (
-        <div className="py-16 text-center text-sm text-slate-500">
-          {key ? `没有找到「${key}」相关的作品` : cat ? `「${cat}」还没有作品` : "还没有作品"}
-        </div>
+        <EmptyState icon="search" text={key ? `没有找到「${key}」相关的作品` : cat ? `「${cat}」还没有作品` : "还没有作品"} />
       ) : null}
     </div>
   );

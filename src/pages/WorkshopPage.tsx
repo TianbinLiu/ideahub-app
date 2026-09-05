@@ -1,6 +1,7 @@
 // 创意工坊页：管理自己的卡片与卡组——搜索添加市场卡片、建组、增删卡。
 // 与 3D 卡片工坊（/studio）分工：这里是资产管理，那里是创作现场。
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import Icon from "../components/Icon";
 import DeleteCardDialog from "../components/DeleteCardDialog";
@@ -186,13 +187,12 @@ export default function WorkshopPage() {
   }
   if (!me) {
     return (
-      <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-4 px-6">
-        <Icon name="cards" size={44} className="text-slate-600" />
-        <p className="text-center text-sm text-slate-400">登录后可以收藏卡片、组建卡组</p>
-        <Link to="/login?next=/workshop" className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink">
-          登录 / 注册
-        </Link>
-      </div>
+      <EmptyState
+        full
+        icon="cards"
+        text="登录后可以收藏卡片、组建卡组"
+        cta={{ label: "登录 / 注册", to: "/login?next=/workshop", primary: true }}
+      />
     );
   }
 

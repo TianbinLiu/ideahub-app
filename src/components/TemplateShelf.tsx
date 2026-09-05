@@ -7,6 +7,7 @@
 //   组头是第 1 段的卡，下面一条「共 N 段」的横条能展开其余段——每段的核对/识别/
 //   发布/删除操作原样住在各自的卡里，规则零复制。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import EmptyState from "./EmptyState";
 import { Link, useNavigate } from "react-router";
 import { useQueryTab } from "../hooks/useQueryTab";
 import { useVideosVersion } from "../hooks/useVideos";
@@ -613,17 +614,20 @@ export default function TemplateShelf({
                  这里不重复、也不冒充成"市场是空的"。
             ⚠ 别退回一句放之四海的"暂无数据"：三种情形的下一步动作完全不同。 */}
         {rows.length === 0 && (
-          <div className="py-16 text-center text-sm leading-relaxed text-slate-500">
-            {/* 第四种空态（2026-08-29 分类筛选带来的）：分类下没货 ≠ 市场空。
-                allRows 非空说明货在别的分类（或还没分类），指路要指对 */}
-            {cat && allRows.length > 0
-              ? `「${tplCategoryLabel(cat)}」分类下还没有模板——点「全部」看现有的，或做一个发布出来占坑`
-              : tab === "mine"
-                ? "还没有你自己的模板——上面那两个入口都能做一个"
-                : q.trim()
-                  ? "没有匹配的模板，换个词试试"
-                  : "市场上还没有公开的模板。做一个自己的、发布出来，这里就有了。"}
-          </div>
+          /* 第四种空态（2026-08-29 分类筛选带来的）：分类下没货 ≠ 市场空。
+              allRows 非空说明货在别的分类（或还没分类），指路要指对 */
+          <EmptyState
+            icon="search"
+            text={
+              cat && allRows.length > 0
+                ? `「${tplCategoryLabel(cat)}」分类下还没有模板——点「全部」看现有的，或做一个发布出来占坑`
+                : tab === "mine"
+                  ? "还没有你自己的模板——上面那两个入口都能做一个"
+                  : q.trim()
+                    ? "没有匹配的模板，换个词试试"
+                    : "市场上还没有公开的模板。做一个自己的、发布出来，这里就有了。"
+            }
+          />
         )}
       </div>
 

@@ -8,8 +8,9 @@
 // ★ 不设登录墙：草稿是**这台设备**的 IndexedDB（与账号无关），锁在登录后面只会让
 //   离线用户找不到自己昨天存的东西。
 import { useState } from "react";
+import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import DraftSheet from "../components/DraftSheet";
 import { MAX_DRAFTS, type WorkDraftMeta } from "../data/drafts";
 import { useDrafts } from "../hooks/useDrafts";
@@ -37,18 +38,16 @@ export default function DraftsPage() {
       />
       {/* 容量规则说在明处：超限清最旧不是 bug，是防配额吃满（drafts.MAX_DRAFTS 的 ★）。
           别等用户丢了草稿才在这行字里找答案 */}
-      <p className="mb-3 text-[10px] leading-relaxed text-slate-500">
+      <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
         草稿只存在这台设备上；超过 {MAX_DRAFTS} 条会从最旧的清起。每炼成一段都会自动存进当前草稿。
       </p>
 
       {drafts.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-20 text-center">
-          <span className="text-4xl">📝</span>
-          <p className="text-sm text-slate-400">还没有草稿——工坊和工作流里做到一半的工程都会存到这里</p>
-          <Link to="/create" className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-ink">
-            去创作
-          </Link>
-        </div>
+        <EmptyState
+          emoji="📝"
+          text="还没有草稿——工坊和工作流里做到一半的工程都会存到这里"
+          cta={{ label: "去创作", to: "/create", primary: true }}
+        />
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {drafts.map((d) => (

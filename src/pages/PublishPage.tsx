@@ -217,7 +217,7 @@ export default function PublishPage() {
               }}
               maxLength={40}
               placeholder="给这支视频起个好名字"
-              className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+              className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
           </div>
 

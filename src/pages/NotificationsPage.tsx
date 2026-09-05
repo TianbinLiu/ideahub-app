@@ -4,6 +4,7 @@
 // ★ 四种状态都要画出来：加载中 / 出错 / 空 / 离线。少画一种的表现都是同一件事 ——
 //   用户看到一个空列表，然后自己去猜到底是"没人理我"还是"坏了"（铁律八）。
 import { useCallback, useEffect, useSyncExternalStore } from "react";
+import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import { useBackOr } from "../hooks/useBackOr";
@@ -135,10 +136,7 @@ export default function NotificationsPage() {
             跑过一次才有意义（它在 useEffect 里，首帧之后），先判 online 的话每次进来
             都会先闪一下"当前是离线模式"——一个还没查证就下的结论。 */}
         {state.loading ? (
-          <div className="flex flex-col items-center gap-3 py-20 text-slate-500">
-            <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-700 border-t-brand" />
-            <span className="text-xs">正在取消息…</span>
-          </div>
+          <EmptyState loading text="正在取消息…" />
         ) : !state.online ? (
           // ★ 措辞不能说成"这个版本没有服务器"：!remoteOn() 也包括「配了地址但连不上」。
           //   说死了会让一个只是断网的人以为要换个包。
@@ -146,15 +144,7 @@ export default function NotificationsPage() {
         ) : !state.supported ? (
           <Empty text="这台服务器还没有通知功能" hint="服务端升级后即可使用，App 不用重装" />
         ) : state.error ? (
-          <div className="py-16 text-center">
-            <p className="text-sm text-rose-300">通知没拉到：{state.error}</p>
-            <button
-              onClick={() => void refreshNotifications()}
-              className="mt-4 rounded-xl bg-panel px-5 py-2.5 text-sm font-semibold text-slate-100 ring-1 ring-slate-700"
-            >
-              重试
-            </button>
-          </div>
+          <EmptyState error text={`通知没拉到：${state.error}`} cta={{ label: "重试", onClick: () => void refreshNotifications() }} />
         ) : state.items.length === 0 ? (
           <Empty text="还没有新消息" hint="别人赞你、评论你、回复你、在评论里 @ 你，或平台发来通知时会出现在这里" />
         ) : (
@@ -220,11 +210,5 @@ export default function NotificationsPage() {
 }
 
 function Empty({ text, hint }: { text: string; hint: string }) {
-  return (
-    <div className="flex flex-col items-center gap-3 py-20 text-center">
-      <Icon name="bell" size={40} className="text-slate-700" />
-      <p className="text-sm text-slate-400">{text}</p>
-      <p className="text-xs text-slate-600">{hint}</p>
-    </div>
-  );
+  return <EmptyState icon="bell" text={text} hint={hint} />;
 }

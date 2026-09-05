@@ -103,7 +103,7 @@ export default function SettingsVoicePage() {
       <PageHeader className="mb-4" onBack={() => navigate(-1)} title="铸卡师的声音" right={<HelpButton tour="setvoice" />} />
 
       {/* 条件触发的降级说明，留在页面上（没配云端语音的设备靠它解释"怎么换了把嗓子"） */}
-      <p className="mb-3 text-[11px] text-slate-500">没配云端语音时退回系统内置合成器（需装中文语音包）。</p>
+      <p className="mb-3 text-[11px] leading-relaxed text-slate-500">没配云端语音时退回系统内置合成器（需装中文语音包）。</p>
 
       <div data-guide="setvoice-list" className="space-y-2">
         {VOICES.map((v) => (
@@ -195,7 +195,7 @@ export default function SettingsVoicePage() {
             rows={3}
             maxLength={120}
             placeholder="用一句话描述你想要的语气，例如：请用成熟冷静的语气，语速放慢"
-            className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
+            className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
           />
         </div>
       </div>

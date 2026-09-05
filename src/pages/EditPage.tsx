@@ -228,7 +228,7 @@ export default function EditPage() {
                 setErr("");
               }}
               maxLength={40}
-              className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-slate-100 outline-none focus:border-brand"
+              className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none focus:border-brand"
             />
             {err && <div className="mt-1 text-xs text-red-400">{err}</div>}
           </div>
