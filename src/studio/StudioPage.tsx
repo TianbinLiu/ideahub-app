@@ -255,7 +255,7 @@ export default function StudioPage() {
           手机上够不着；44px 是移动端热区下限，这里给到 48。
           ⚠ safe-top 写在 @tailwind utilities 之后，同特异性下会**覆盖** p-3 的
           padding-top——所以竖排间距靠 pt-* 单独给，别指望 p-3 */}
-      <div className="safe-top pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between px-3 pb-3 pt-3">
+      <div className="safe-top pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between px-4 pb-3 pt-3">
         <button
           data-guide="studio-back"
           onClick={onBack}
@@ -268,7 +268,8 @@ export default function StudioPage() {
         >
           <Icon name="back" size={20} />
         </button>
-        <div className="pointer-events-auto flex min-w-0 items-center gap-2 pt-2">
+        {/* pt-1.5：右组是 36px 的圆，返回键是 48px 的圆，各自的中线都落在状态栏 +34px（PageHeader 那条线） */}
+        <div className="pointer-events-auto flex min-w-0 items-center gap-2 pt-1.5">
           {/* 工程标题（与工作流画布同一枚 DraftTitle，2026-08-29）：多草稿并存后
               "现在这摊活是哪条"得有名字。摆在右组最左而不是绝对居中——这一屏是 3D
               画布，absolute 的小控件会压住法阵/卡位（量过的位置，别加新的绝对定位） */}

@@ -332,7 +332,7 @@ export default function FlowCanvas({
 
   const body = (
     <div className="fixed inset-0 z-40 flex flex-col bg-ink">
-      <div className="safe-top flex flex-none items-center gap-2 px-3 py-2">
+      <div className="safe-top flex flex-none items-center gap-2 px-4 py-2">
         <CloseButton chip="md" size={16} tone="text-slate-200" label="退出编辑" onClick={onExit} />
         {/* 2026-08-29 主人点名：顶栏那句写死的「流水线画布」换成 Google 文档式**工程标题**
             （点击就地改名，命名即建档）。"这是画布"由整个画面自己说明，标题位留给

@@ -15,6 +15,7 @@
 //
 // 离线（没配 VITE_API_BASE 或服务器不可达）时整页退回本地账号：账号不存在即注册。
 import { useEffect, useState } from "react";
+import { BackButton } from "../components/IconTapButton";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InfoDialog from "../components/InfoDialog";
@@ -270,13 +271,11 @@ export default function LoginPage() {
     <div className="safe-top relative flex min-h-full flex-col items-center justify-center px-6 py-10">
       {/* 登录页不在 TabLayout 里（没有底栏），必须自带出口——
           否则用户点了「创意工坊」Tab 被弹到这里就出不去了 */}
-      <button
-        onClick={() => navigate(-1)}
-        className="absolute left-3 top-3 flex h-10 w-10 items-center justify-center rounded-full text-slate-400"
-        aria-label="返回"
-      >
-        <Icon name="back" size={22} />
-      </button>
+      {/* ★ 位置与 PageHeader 同一条线（状态栏 + 10px 呼吸，48px 行内居中）：此前 `absolute top-3`
+          是相对容器顶边算的，容器的 safe-top 留白被它跳过，真机上箭头压在状态栏里 */}
+      <div className="absolute left-4 flex h-12 items-center" style={{ top: "calc(env(safe-area-inset-top, 0px) + 10px)" }}>
+        <BackButton size={22} tone="text-slate-400" onClick={() => navigate(-1)} />
+      </div>
 
       <div className="mb-7 text-center">
         {/* App 图标本体（Q版看板娘 + 亮着的灯泡），见 design/gen-app-icon.mjs。
