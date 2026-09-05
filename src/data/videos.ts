@@ -699,6 +699,10 @@ export function publishVideo(draft: DraftVideo): VideoItem {
   // 幂等键跟着草稿走：pushPublish 超时后进待发队列，flushPending 重发的是同一个 draft，
   // 服务端认这个键返回首次那条，不会重复落库
   draft = { ...draft, clientId: draft.clientId ?? uid("cv") };
+  // ★ 段上的 poster（成片第一帧，dataURL、百 KB 级）只给剪辑/画布看，**不进发布体**：
+  //   服务端不存它（zod strip），带着走只会把请求体和待发队列（localStorage，几 MB 上限）
+  //   各撑大 N × 百 KB —— 待发队列写失败是吞掉的，那正是"作品唯一备份"所在（2026-09-05）。
+  draft = stripPosters(draft);
   const item: VideoItem = {
     id: uid("v"),
     // ★ 把幂等键带到列表这一条上：删除时要靠它把队列里的那份一起清掉
@@ -1829,4 +1833,25 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
     removeComment,
     canDeleteComment,
   };
+}
+
+/**
+ * 发布体里剥掉各段的 `poster`（成片第一帧 dataURL，只管显示）。branchTree 各节点的段一并剥。
+ * ★ 只在 publishVideo 入口调一次：pushPublish / queuePending / 本机缓存条目拿到的都是剥过的那份。
+ */
+function stripPosters(d: DraftVideo): DraftVideo {
+  type Seg = DraftVideo["segments"][number];
+  const strip = (s: Seg): Seg => {
+    if (!s.poster) return s;
+    const rest = { ...s };
+    delete rest.poster;
+    return rest;
+  };
+  const out: DraftVideo = { ...d, segments: d.segments.map(strip) };
+  if (d.branchTree) {
+    const nodes: NonNullable<DraftVideo["branchTree"]>["nodes"] = {};
+    for (const [k, n] of Object.entries(d.branchTree.nodes)) nodes[k] = { ...n, segment: strip(n.segment) };
+    out.branchTree = { ...d.branchTree, nodes };
+  }
+  return out;
 }
