@@ -726,6 +726,14 @@ export interface VideoComment {
    *   那会把所有存量评论判成"不是我的"，用户连自己刚发的都删不掉（而且不报错）。
    */
   authorId?: string;
+  /**
+   * 作者头像（服务端 populate 的 author.avatarUrl 快照；离线库里是本地账号的头像）。
+   * ★ 2026-09-05 补：此前评论行永远画首字母底 —— 类型里没有这一格，服务端明明随
+   *   每条评论把 avatarUrl 发下来了。缺省（存量评论 / 老服务端）= 退回首字母，Avatar 自己兜。
+   * ★ 读一律走 `videos.commentAvatarOf`：自己的评论用**活的**那份头像（刚换完头像
+   *   要立刻看到），别人的用快照 —— 与 `authorAvatarOf` 同一条规则。
+   */
+  authorAvatar?: string;
   text: string;
   at: number;
   /** 解析成功的 @提及。★ 缺省（老服务端 / 离线库里的存量评论）= 这条没有提及，

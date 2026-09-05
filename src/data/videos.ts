@@ -560,6 +560,17 @@ export function authorAvatarOf(v: VideoItem): string | undefined {
   return (isMyAuthor(v.author) ? currentUser()?.avatar : undefined) || v.authorAvatar;
 }
 
+/**
+ * 一条评论该画哪张头像 —— 与 authorAvatarOf 同一条规则的评论版（唯一实现，两个评论面共用）：
+ * 自己发的用**活的**那份（刚换完头像立刻能看到），别人的用随评论下发的快照。
+ * ★ 「是不是我发的」优先按 authorId（名字会变、会重名），拿不到才退回展示名 —— 与 canDeleteComment 同口径。
+ */
+export function commentAvatarOf(c: VideoComment): string | undefined {
+  const me = currentUser();
+  const mine = c.authorId && me?.id ? c.authorId === me.id : isMyAuthor(c.author);
+  return (mine ? me?.avatar : undefined) || c.authorAvatar;
+}
+
 /** 统一读 P 列表：老数据（无 parts）视作单 P，顶层 segments/branchTree 即 P1 */
 export function partsOf(v: VideoItem): VideoPart[] {
   if (v.parts && v.parts.length > 0) return v.parts;
@@ -970,6 +981,7 @@ function toCommentFields(remote: branch.ApiComment): VideoComment {
     // ★ 后加字段：老服务端不 populate 作者（author 是裸 id 字符串）时拿不到，
     //   落 undefined 由 canDeleteComment 退回按展示名判
     authorId: branch.authorId(remote.author) ?? undefined,
+    authorAvatar: branch.authorAvatar(remote.author) ?? undefined,
     text: remote.text,
     at: toMs(remote.createdAt),
     mentions: toMentions(remote.mentions),
@@ -1031,6 +1043,7 @@ export async function addReply(
     id: uid("cmt"),
     author: currentUser()?.name ?? ME,
     authorId: currentUser()?.id,
+    authorAvatar: currentUser()?.avatar,
     text: body,
     at: Date.now(),
     parentId: parentId ?? null,

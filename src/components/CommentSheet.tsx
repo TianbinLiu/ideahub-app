@@ -8,10 +8,11 @@
 //   直接跳去 /create，评论在手机上根本发不出来（只有回车能提交）。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { addReply, commentCountOf, commentPending, ensureComments, isMyAuthor, setCommentLike } from "../data/videos";
+import { addReply, commentAvatarOf, commentCountOf, commentPending, ensureComments, isMyAuthor, setCommentLike } from "../data/videos";
 import { VideoComment, VideoItem, relativeTime } from "../types";
 import type { MentionPick } from "../utils/mention";
 import { useVideosVersion } from "../hooks/useVideos";
+import Avatar from "./Avatar";
 import CommentDelete from "./CommentDelete";
 import Icon from "./Icon";
 import ReportButton from "./ReportButton";
@@ -156,13 +157,8 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
     const pending = commentPending(c);
     return (
       <div key={c.id} className={`flex gap-2.5 ${indented ? "pl-10" : ""}`}>
-        <span
-          className={`flex flex-none items-center justify-center rounded-full bg-slate-700 font-bold text-slate-300 ${
-            indented ? "h-6 w-6 text-[10px]" : "h-8 w-8 text-xs"
-          }`}
-        >
-          {c.author.charAt(0)}
-        </span>
+        {/* 真头像（服务端随评论下发 / 自己的用活的那份），没有才退首字母底——Avatar 自己兜 */}
+        <Avatar name={c.author} src={commentAvatarOf(c)} size={indented ? 24 : 32} />
         <div className="min-w-0 flex-1">
           <div className="text-xs text-slate-500">
             {c.author} · {relativeTime(c.at)}
