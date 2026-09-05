@@ -4,6 +4,7 @@
 // ★ 四种状态都要画出来：加载中 / 出错 / 空 / 离线。少画一种的表现都是同一件事 ——
 //   用户看到一个空列表，然后自己去猜到底是"没人理我"还是"坏了"（铁律八）。
 import { useCallback, useEffect, useSyncExternalStore } from "react";
+import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import { useBackOr } from "../hooks/useBackOr";
 import Avatar from "../components/Avatar";
@@ -113,28 +114,21 @@ export default function NotificationsPage() {
 
   return (
     <div className="min-h-full bg-ink">
-      <header className="safe-top sticky top-0 z-20 bg-ink">
-        <div className="flex h-11 items-center px-2">
-          <button
-            onClick={backOrMe}
-            aria-label="返回"
-            className="flex h-11 w-11 items-center justify-center text-slate-300"
-          >
-            <Icon name="back" size={22} />
-          </button>
-          <span className="min-w-0 flex-1 truncate text-center text-[15px] font-semibold text-slate-100">消息</span>
-          {state.unread > 0 ? (
+      <PageHeader
+        sticky
+        onBack={backOrMe}
+        title="消息"
+        right={
+          state.unread > 0 ? (
             <button
               onClick={() => void markAllNotificationsRead()}
-              className="h-11 whitespace-nowrap px-2 text-xs font-semibold text-slate-400 active:opacity-60"
+              className="h-11 flex-none whitespace-nowrap px-2 text-xs font-semibold text-slate-400 active:opacity-60"
             >
               全部已读
             </button>
-          ) : (
-            <span className="h-11 w-11" />
-          )}
-        </div>
-      </header>
+          ) : null
+        }
+      />
 
       <div className="px-4 pb-8">
         {/* ★ 顺序是承重的：**先**看"问出结果没有"。online 要等 refreshNotifications

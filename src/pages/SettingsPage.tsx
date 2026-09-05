@@ -8,7 +8,7 @@
 // ★ 「新手引导」「退出登录」不配子页：各自只有一颗按钮的量，点行弹确认小窗
 //   （ConfirmDialog），说明写在窗里——用户要动手那一刻才需要那段话。
 import { useEffect, useState } from "react";
-import { BackButton } from "../components/IconTapButton";
+import PageHeader from "../components/PageHeader";
 import { Link, useNavigate } from "react-router";
 import { Browser } from "@capacitor/browser";
 import Icon from "../components/Icon";
@@ -36,11 +36,8 @@ export default function SettingsPage() {
   if (!user) return null;
 
   return (
-    <div className="safe-top min-h-full px-4 pb-10 pt-3">
-      <div className="mb-5 flex items-center gap-3">
-        <BackButton size={20} tone="text-slate-400" onClick={() => navigate(-1)} />
-        <h1 className="text-lg font-bold text-slate-100">设置</h1>
-      </div>
+    <div className="min-h-full px-4 pb-10">
+      <PageHeader className="mb-5" onBack={() => navigate(-1)} title="设置" />
 
       {/* ── 个性化 ────────────────────────────────────────────── */}
       <Group>

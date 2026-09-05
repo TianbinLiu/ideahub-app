@@ -11,6 +11,7 @@
  * ★ 与形象市场同一套页面骨架（tab / 列表 / 就地报错在那张卡上）。
  */
 import { useEffect, useRef, useState } from "react";
+import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
 import { ApiError } from "../api/client";
@@ -192,13 +193,8 @@ export default function SupportPersonasPage() {
       : "市场里还没有公开的人格。";
 
   return (
-    <div className="safe-top min-h-full px-4 pb-10 pt-3">
-      <div className="mb-2 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="text-xl text-slate-400" aria-label="返回">
-          <Icon name="back" size={20} />
-        </button>
-        <h1 className="flex-1 text-lg font-bold text-slate-100">数字人人格</h1>
-      </div>
+    <div className="min-h-full px-4 pb-10">
+      <PageHeader className="mb-2" onBack={() => navigate(-1)} title="数字人人格" />
       <p className="mb-3 text-[11px] text-slate-500">换一种说话风格，客服页与官网首页共用同一份设置；人格自带嗓子的话声音也会跟着换。</p>
 
       {/* 当前人格 + 恢复默认：读不到设置就只报错，不摆一个不知道恢复成什么的按钮 */}

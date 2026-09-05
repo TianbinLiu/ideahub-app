@@ -1,5 +1,6 @@
 // 视频详情页：播放器（多 P 可切换）+ 信息 + 分段剧情 + 评论区
 import { useEffect, useMemo, useRef, useState } from "react";
+import PageHeader from "../components/PageHeader";
 import { takedownReasonText } from "../api/admin";
 import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import Icon from "../components/Icon";
@@ -346,12 +347,13 @@ export default function VideoPage() {
       {/* ★ safe-top 挂在 header 自己身上、不挂页面根：header 是 sticky top-0，
           安全区留白必须【在它内部】，否则它会滑到状态栏底下（ProfilePage 那条注释同理）。
           原来这三页压根没挂，顶栏文案直接压在状态栏上。 */}
-      <header className="safe-top sticky top-0 z-10 border-b border-slate-800 bg-ink/90 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
-          <Link to="/" className="text-slate-400 hover:text-white">
-            <Icon name="back" size={20} />
-          </Link>
-          <span className="min-w-0 flex-1 truncate text-sm text-slate-300">{video.title}</span>
+      <PageHeader
+        sticky
+        onBack={() => navigate("/")}
+        title={video.title}
+        titleClassName="text-sm font-normal text-slate-300"
+        right={
+          <>
           {/* ★★ 分享入口（2026-08-30 补）。此前它**只长在首页右侧栏上** —— 而发布成功之后
               是 `navigate("/video/:id", {replace:true})` 落到这一页，也就是说"刚发完片的人
               没有任何办法把它给别人看"（App 里也没有地址栏）。QQ/微信那条链路 2026-08-29
@@ -376,12 +378,13 @@ export default function VideoPage() {
               ✏️ 编辑
             </Link>
           ) : (
-            <Link to="/studio" className="ml-auto flex-none rounded-full bg-brand/15 px-3 py-1.5 text-xs text-brand">
+            <Link to="/studio" className="flex-none rounded-full bg-brand/15 px-3 py-1.5 text-xs text-brand">
               🎴 我也要创作
             </Link>
           )}
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <main className="mx-auto max-w-5xl px-4 py-4">
         {/* 多 P 选集：单 P 不显示（绝大多数作品），有分集才占这一行 */}

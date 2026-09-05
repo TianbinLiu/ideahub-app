@@ -5,7 +5,7 @@
 //   本页只剩页头与引导；/templates 路由保留（深链、详情页返回、教程都指着它）。
 // ★ TemplateCard / useTemplatesVersion 从这里**转口**：TemplateDetailPage 一直从本页
 //   import，路径不动（组件不 import 页面的铁律只约束 components/*，页面互引本仓有先例）。
-import Icon from "../components/Icon";
+import PageHeader from "../components/PageHeader";
 import { useBackOr } from "../hooks/useBackOr";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -19,15 +19,8 @@ export default function TemplateMarketPage() {
   // 深链冷启动没有上一页时退回首页，别退出 App（hooks/useBackOr 的 ★★）
   const back = useBackOr("/");
   return (
-    <div className="safe-top min-h-full px-4 pb-10 pt-3">
-      <div className="mb-3 flex items-center gap-2">
-        <button onClick={back} className="flex h-8 w-8 items-center justify-center rounded-full bg-panel">
-          <Icon name="back" size={18} className="text-slate-300" />
-        </button>
-        <h1 className="text-base font-bold text-slate-100">视频模板</h1>
-        <span className="ml-auto text-[11px] text-slate-500">套上模板，一句话出片</span>
-        <HelpButton tour="templates" />
-      </div>
+    <div className="min-h-full px-4 pb-10">
+      <PageHeader onBack={back} title="视频模板" subtitle="套上模板，一句话出片" right={<HelpButton tour="templates" />} />
       {/* 「模板市场/我的模板」那层页签进地址（?shelf=），去详情再返回还在原页签 */}
       <TemplateShelf queryKey="shelf" />
     </div>

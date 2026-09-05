@@ -26,8 +26,8 @@
 // ★ 入参一律**按形状验收**、不按"应该有"假设：深链、老包缓存、冷启动都可能给到空 state。
 //   验不过就整句说明 + 一个回得去的按钮，不是白屏（白屏时用户连"我在哪"都不知道）。
 import { useEffect, useMemo, useState } from "react";
+import PageHeader from "../components/PageHeader";
 import { useLocation, useNavigate } from "react-router";
-import Icon from "../components/Icon";
 import BlockoutTrimmer from "../components/blockout/BlockoutTrimmer";
 import RoleCastBoard from "../components/blockout/RoleCastBoard";
 import type { BlockoutSelection, TemplateRole, VideoNatural } from "../components/blockout/arkVideoRules";
@@ -235,24 +235,21 @@ export default function VideoEditorPage() {
 
   return (
     <div className="min-h-full bg-ink">
-      <header className="safe-top sticky top-0 z-10 flex items-center gap-2 border-b border-slate-800 bg-ink/95 px-3 pb-2 backdrop-blur">
-        <button onClick={() => nav(-1)} className="flex-none text-slate-300" aria-label="返回">
-          <Icon name="back" size={20} />
-        </button>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold text-slate-100">
-            {state?.title || (state?.mode === "cast" ? "挂上你的角色" : "选段与裁剪")}
-          </p>
-          <p className="truncate text-[10px] text-slate-500">
+      <PageHeader
+        sticky
+        onBack={() => nav(-1)}
+        title={state?.title || (state?.mode === "cast" ? "挂上你的角色" : "选段与裁剪")}
+        subtitle={
+          <>
             {state?.mode === "cast"
               ? `白模模板 · 给${state.spec.scheme === "ordinal" ? "白色" : "编号的"}人偶挂人物卡`
               : "白模化 · 框出一段并裁掉水印"}
-          </p>
-        </div>
-        {/* ★ 只给「选段与裁剪」这一档：cast 那一档的引导挂在 RoleCastBoard 自己身上
-            （它才知道有没有框、有没有格子），这里再放一颗就是两处入口教同一件事。 */}
-        {state?.mode === "blockoutize" && <HelpButton tour="trim" />}
-      </header>
+          </>
+        }
+        // ★ 「?」只给「选段与裁剪」这一档：cast 那一档的引导挂在 RoleCastBoard 自己身上
+        //   （它才知道有没有框、有没有格子），这里再放一颗就是两处入口教同一件事。
+        right={state?.mode === "blockoutize" ? <HelpButton tour="trim" /> : null}
+      />
 
       <main className="px-3 py-3">
         {!state ? (

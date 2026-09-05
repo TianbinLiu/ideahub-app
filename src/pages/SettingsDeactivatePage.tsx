@@ -9,7 +9,7 @@
 //   文案只按已知事实写：软删除、可联系邮箱恢复/彻底删除（server me.controller 的注释
 //   与 docs/api-contract.md 是出处），不说"数据将在 X 天后删除"这类没有实现的话。
 import { useState } from "react";
-import { BackButton } from "../components/IconTapButton";
+import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import { deactivateAccount, isRemoteMode } from "../data/account";
 import { SUPPORT_EMAIL } from "../data/agreements";
@@ -28,7 +28,7 @@ export default function SettingsDeactivatePage() {
   // 离线包：说清楚为什么这里没有注销，给条真的走得通的路
   if (!isRemoteMode()) {
     return (
-      <div className="safe-top min-h-full px-4 pt-3">
+      <div className="min-h-full px-4">
         <Header onBack={() => navigate(-1)} />
         <p className="mt-6 rounded-xl border border-slate-700 bg-panel p-4 text-sm leading-relaxed text-slate-300">
           当前是本地账号：没有服务器，也就没有可注销的云端账号。
@@ -108,9 +108,6 @@ export default function SettingsDeactivatePage() {
 
 function Header({ onBack }: { onBack: () => void }) {
   return (
-    <div className="flex items-center gap-3">
-      <BackButton size={20} tone="text-slate-400" onClick={onBack} />
-      <h1 className="text-lg font-bold text-slate-100">注销账号</h1>
-    </div>
+    <PageHeader className="" onBack={onBack} title="注销账号" />
   );
 }

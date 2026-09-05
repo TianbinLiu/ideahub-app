@@ -8,7 +8,7 @@
 // ★ 不设登录墙：草稿是**这台设备**的 IndexedDB（与账号无关），锁在登录后面只会让
 //   离线用户找不到自己昨天存的东西。
 import { useState } from "react";
-import { BackButton } from "../components/IconTapButton";
+import PageHeader from "../components/PageHeader";
 import { Link, useNavigate } from "react-router";
 import DraftSheet from "../components/DraftSheet";
 import { MAX_DRAFTS, type WorkDraftMeta } from "../data/drafts";
@@ -24,14 +24,17 @@ export default function DraftsPage() {
   const currentId = useStudio((s) => s.workDraftId);
 
   return (
-    <div className="safe-top min-h-full px-4 pb-10 pt-3">
-      <div className="mb-1 flex items-center gap-2">
-        <BackButton chip="md" size={18} onClick={() => nav(-1)} />
-        <h1 className="text-base font-bold text-slate-100">草稿箱</h1>
-        <span className="ml-auto text-[11px] text-slate-500">
-          {drafts.length}/{MAX_DRAFTS}
-        </span>
-      </div>
+    <div className="min-h-full px-4 pb-10">
+      <PageHeader
+        className="mb-1"
+        onBack={() => nav(-1)}
+        title="草稿箱"
+        right={
+          <span className="flex-none text-[11px] text-slate-500">
+            {drafts.length}/{MAX_DRAFTS}
+          </span>
+        }
+      />
       {/* 容量规则说在明处：超限清最旧不是 bug，是防配额吃满（drafts.MAX_DRAFTS 的 ★）。
           别等用户丢了草稿才在这行字里找答案 */}
       <p className="mb-3 text-[10px] leading-relaxed text-slate-500">

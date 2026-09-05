@@ -16,7 +16,7 @@
 //   不成立，代码把一段 HTML 当音频塞进 <audio> 去播——静悄悄地失败。
 //   dev 时 API_BASE 是空串，同源就落回 vite 的 dev 中间件。
 import { useRef, useState } from "react";
-import { BackButton } from "../components/IconTapButton";
+import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -99,12 +99,8 @@ export default function SettingsVoicePage() {
   }
 
   return (
-    <div className="safe-top min-h-full px-4 pb-10 pt-3">
-      <div className="mb-4 flex items-center gap-3">
-        <BackButton size={20} tone="text-slate-400" onClick={() => navigate(-1)} />
-        <h1 className="flex-1 text-lg font-bold text-slate-100">铸卡师的声音</h1>
-        <HelpButton tour="setvoice" />
-      </div>
+    <div className="min-h-full px-4 pb-10">
+      <PageHeader className="mb-4" onBack={() => navigate(-1)} title="铸卡师的声音" right={<HelpButton tour="setvoice" />} />
 
       {/* 条件触发的降级说明，留在页面上（没配云端语音的设备靠它解释"怎么换了把嗓子"） */}
       <p className="mb-3 text-[11px] text-slate-500">没配云端语音时退回系统内置合成器（需装中文语音包）。</p>

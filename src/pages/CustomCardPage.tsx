@@ -23,7 +23,7 @@
 // ④ **图太大 / 比例超 3:1 怎么办？** 走 `data/cardViews.prepareCardImage`（与详情页
 //    「+ 图位」同一份实现）：越界居中裁并把这件事**说出来**，超 5MB 直接报错。
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { BackButton } from "../components/IconTapButton";
+import PageHeader from "../components/PageHeader";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import HelpButton from "../components/guide/HelpButton";
@@ -706,29 +706,31 @@ export default function CustomCardPage() {
   }
 
   return (
-    <div className="safe-top min-h-full px-4 pb-10 pt-3">
-      <div className="mb-3 flex items-center gap-2">
-        <BackButton chip="md" size={18} onClick={() => nav(-1)} />
-        {/* ★ 标题跟着走的那条路改口：真人路上照片是**授权取回来的**，挂着「自己传图」
+    <div className="min-h-full px-4 pb-10">
+      {/* ★ 标题跟着走的那条路改口：真人路上照片是**授权取回来的**，挂着「自己传图」
             正是主人两次引用的那句话（"为什么说没取到授权照片还需要再上传"）。 */}
-        <h1 className="text-base font-bold text-slate-100">
-          {realPerson || pendingAsset ? "用真人素材做卡片" : "自己传图做卡片"}
-        </h1>
-        <HelpButton tour="customcard" />
-        <span className="ml-auto text-[10px] text-slate-500">
-          {step === "type"
-            ? "选卡种"
-            : step === "real"
-              ? "真人素材"
-              : step === "source"
-                ? "① 选来源"
-                : step === "form"
-                  ? isChar ? "② 图位预览" : "传图与信息"
-                  : step === "info"
-                    ? "③ 人物信息"
-                    : "④ 定名完成"}
-        </span>
-      </div>
+      <PageHeader
+        onBack={() => nav(-1)}
+        title={realPerson || pendingAsset ? "用真人素材做卡片" : "自己传图做卡片"}
+        right={
+          <>
+            <HelpButton tour="customcard" />
+            <span className="flex-none text-[10px] text-slate-500">
+              {step === "type"
+                ? "选卡种"
+                : step === "real"
+                  ? "真人素材"
+                  : step === "source"
+                    ? "① 选来源"
+                    : step === "form"
+                      ? isChar ? "② 图位预览" : "传图与信息"
+                      : step === "info"
+                        ? "③ 人物信息"
+                        : "④ 定名完成"}
+                </span>
+          </>
+        }
+      />
 
       {/* ── 第 1 屏：只有五个卡种（主人点名的形状：无文案、约八成屏、不滚动）。
           2026-08-28 二改（主人点名"符合 app 风格"）：五条纯色平板 → 五张**塔罗卡面**
