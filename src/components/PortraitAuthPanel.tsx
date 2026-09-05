@@ -10,7 +10,16 @@
 //   四分支 checkStatus、二维码、本机打开、手填退路，行为与详情页时代逐条一致。
 // ★ 服务端没配 AK/SK 时 invite/check 都会 503 —— 面板把整句错摆出来并留手填那条路
 //   （铁律八：坏了要有出口）。
-import { useState } from "react";
+//
+// ★★ 2026-09-05 主人点名：**进面板就自动查**，不再让授权过的人每次点「查一下并自动接上」。
+//   · 查到可用素材 → 直接列出来让他挑，「发起肖像授权」那颗大按钮不出（只留一行小字
+//     「授权另一个人」，否则第二个真人永远没入口）；
+//   · 一份都没有 → 才出「发起肖像授权」——第一次来的人看到的就只有它；
+//   · 上次查到的可用素材按账号记在本机（localStorage），进面板先画这份、再去方舟刷新，
+//     弱网下也不用盯着空白等。缓存只是预览，绑的时候用的仍是方舟现查的那份 id。
+//   · 自动那一发**不自动绑**：宿主「取消绑定」之后面板会重新挂载，自动绑回去等于取消键失灵。
+//     只有用户自己按「查授权状态」（刚扫完码那一刻）且正好一份可用时才顺手接上（老行为）。
+import { useEffect, useState } from "react";
 import {
   assetUsable,
   createPortraitInvite,
@@ -19,9 +28,33 @@ import {
   type PortraitAsset,
   type PortraitInvite,
 } from "../api/portrait";
+import { currentUser } from "../data/account";
 import { normalizeAssetId } from "../data/cardAsset";
 import QrCode from "./QrCode";
 import { isNative } from "../utils/oauth";
+
+/** 上次查到的可用素材（按账号）。只存展示要用的三位，别把整份回包塞进 localStorage */
+type CachedAsset = Pick<PortraitAsset, "id" | "name" | "createTime">;
+const CACHE_PREFIX = "ideahub.portraitAssets.";
+function cacheKey(): string {
+  return `${CACHE_PREFIX}${currentUser()?.id ?? "anon"}`;
+}
+function readCache(): CachedAsset[] {
+  try {
+    const raw = localStorage.getItem(cacheKey());
+    const v: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(v) ? v.filter((x): x is CachedAsset => !!x && typeof x.id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+function writeCache(list: PortraitAsset[]): void {
+  try {
+    localStorage.setItem(cacheKey(), JSON.stringify(list.map(({ id, name, createTime }) => ({ id, name, createTime }))));
+  } catch {
+    // 配额满/隐私模式：只是下次进来少一份预览，方舟现查照旧
+  }
+}
 
 export default function PortraitAuthPanel({
   onBound,
@@ -32,8 +65,12 @@ export default function PortraitAuthPanel({
   const [invite, setInvite] = useState<PortraitInvite | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  /** 查回来的素材。存全部（含审核失败的）——失败原因正是用户最需要看见的 */
+  /** 查回来的素材。存全部（含审核失败的）——失败原因正是用户最需要看见的。null = 还没查到过 */
   const [found, setFound] = useState<PortraitAsset[] | null>(null);
+  /** 本机记的上次结果：found 为 null 时拿它顶着画列表 */
+  const [cached] = useState<CachedAsset[]>(() => readCache());
+  /** 进面板那一发自动查的状态：查完（成或败）才决定「发起授权」那颗按钮出不出 */
+  const [autoChecked, setAutoChecked] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [draftErr, setDraftErr] = useState("");
@@ -71,14 +108,16 @@ export default function PortraitAuthPanel({
   }
 
   /**
-   * 查授权状态，能确定就直接交给宿主绑。
+   * 查授权状态。
    * ★★ 查的是**素材**不是资产组：组「已授权」≠ 有素材能出片 —— 素材要单独过内容审核，
    *   可能整张 Failed 而组照样 Authorized（2026-08-28 实测第一发就是）。
-   * ★ 四种结局各说各的：①正好一份可用 → 直接绑；②多份 → 列出来挑；
-   *   ③只有失败的 → 把方舟的原话摆出来（红字逐条，这里不重复）；
-   *   ④一条都没有 → 再问一次组，分清"还没授权"与"授权了但没传素材"。
+   * ★ 四种结局各说各的：①可用的列出来挑（用户自己按的那一发且正好一份 → 顺手接上）；
+   *   ②只有失败的 → 把方舟的原话摆出来（红字逐条，这里不重复）；
+   *   ③一条都没有 → 再问一次组，分清"还没授权"与"授权了但没传素材"；
+   *   ④查失败 → 整句说，并让「发起授权」照常可点（不能因为查不到就把第一次来的人堵在门外）。
+   * @param auto 进面板那一发：不自动绑、结果不用话说（列表本身就是答复）
    */
-  async function checkStatus() {
+  async function checkStatus(auto = false) {
     if (busy) return;
     setBusy(true);
     setMsg("");
@@ -87,22 +126,24 @@ export default function PortraitAuthPanel({
       setFound(r.items);
       const usable = r.items.filter(assetUsable);
       const failed = r.items.filter((x) => !assetUsable(x));
-      if (usable.length === 1) {
-        const id = normalizeAssetId(usable[0].id || "");
-        if (!id) {
-          setMsg(`方舟回了一份素材，但 ID 形状不认识（${usable[0].id}）——用「填 asset ID」那条路确认一下。`);
-        } else {
-          onBound(id, "本人授权（方舟可信素材库）");
-          setMsg("已经接上这份已授权素材了。");
+      writeCache(usable);
+      if (usable.length > 0) {
+        if (!auto && usable.length === 1) {
+          const id = normalizeAssetId(usable[0].id || "");
+          if (!id) {
+            setMsg(`方舟回了一份素材，但 ID 形状不认识（${usable[0].id}）——用「填 asset ID」那条路确认一下。`);
+          } else {
+            onBound(id, "本人授权（方舟可信素材库）");
+            setMsg("已经接上这份已授权素材了。");
+          }
         }
-      } else if (usable.length > 1) {
-        setMsg(`方舟里有 ${usable.length} 份可用素材，挑一份：`);
+        // 自动那一发 / 多份：列表就是答复，不另说一句
       } else if (failed.length > 0) {
         setMsg(
           `授权是成了，但${failed.length > 1 ? `这 ${failed.length} 份素材都` : "上传的那份素材"}` +
             `没过方舟的内容审核（原因见下），所以还不能用来出片。请本人重新打开授权链接、换一张照片再传一次。`,
         );
-      } else {
+      } else if (!auto) {
         const g = await fetchPortraitGroups();
         setMsg(
           g.totalCount > 0
@@ -111,11 +152,18 @@ export default function PortraitAuthPanel({
         );
       }
     } catch (e) {
-      setMsg(`查状态没成：${(e instanceof Error ? e.message : String(e)).slice(0, 100)}`);
+      setMsg(`${auto ? "自动查授权没成" : "查状态没成"}：${(e instanceof Error ? e.message : String(e)).slice(0, 100)}`);
     } finally {
       setBusy(false);
+      if (auto) setAutoChecked(true);
     }
   }
+
+  // ★★ 进面板就查一次（主人点名）。宿主取消绑定后面板重挂，这一发也只列不绑，见文件头 ★★
+  useEffect(() => {
+    void checkStatus(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function saveManual() {
     // 归一（"asset://xxx" 与纯 id 都收）与格式判据都只有 cardAsset 一处
@@ -130,7 +178,9 @@ export default function PortraitAuthPanel({
     onBound(id, "手工填入（方舟控制台授权）");
   }
 
-  const usableFound = found?.filter(assetUsable) ?? [];
+  /** 画列表用的可用素材：现查到的优先，没查到过就用本机记的那份顶着 */
+  const usableFound: CachedAsset[] = found ? found.filter(assetUsable) : cached;
+  const fromCache = !found && cached.length > 0;
 
   return (
     <div className="space-y-1.5">
@@ -176,46 +226,46 @@ export default function PortraitAuthPanel({
             扫不动了？这条邀约码会过期，回来重新「发起授权」生成一张新的即可。
           </p>
         </div>
+      ) : usableFound.length > 0 ? (
+        // 授权过的人：直接挑。「发起授权」退成一行小字——第二个真人要有入口，但不该再是大按钮
+        <p className="text-[10px] leading-relaxed text-slate-400">
+          {fromCache
+            ? autoChecked
+              ? "上次查到的已授权素材（这次没能向方舟刷新，原因见下；仍可点一份接上）："
+              : "上次查到的已授权素材（正在向方舟刷新…）："
+            : `方舟里有 ${usableFound.length} 份已授权素材，点一份接上：`}
+        </p>
+      ) : !autoChecked && cached.length === 0 ? (
+        // 第一次进、还没查完：别先闪一下「发起授权」再换成列表
+        <p className="text-[10px] text-slate-500">正在查你之前有没有授权过…</p>
       ) : (
-        <>
-          <button
-            onClick={() => void startInvite()}
-            disabled={busy}
-            className="w-full rounded-lg border border-sky-500/40 py-1.5 text-[11px] text-sky-200 disabled:opacity-40"
-          >
-            {busy ? "生成中…" : "🔗 发起肖像授权（本人扫码 / 本机打开）"}
-          </button>
-          {/* ★ 没有邀约时也点得到：授权常常隔一会儿甚至隔天才完成，那时邀约早随页面没了。
-              只挂在邀约块里的话，用户为了"查一下"得先再发一条新邀约 */}
-          <button
-            onClick={() => void checkStatus()}
-            disabled={busy}
-            className="w-full rounded-lg border border-slate-600 py-1.5 text-[11px] text-slate-300 disabled:opacity-40"
-          >
-            {busy ? "查…" : "已经授权过了？查一下并自动接上"}
-          </button>
-        </>
+        <button
+          onClick={() => void startInvite()}
+          disabled={busy}
+          className="w-full rounded-lg border border-sky-500/40 py-1.5 text-[11px] text-sky-200 disabled:opacity-40"
+        >
+          {busy ? "生成中…" : "🔗 发起肖像授权（本人扫码 / 本机打开）"}
+        </button>
       )}
 
-      {msg && <p className="text-[10px] leading-relaxed text-slate-400">{msg}</p>}
-
-      {/* 多份可用 → 列出来挑（我们无从知道哪份是这张卡的人） */}
-      {usableFound.length > 1 && (
+      {/* 可用素材列表（自动查到的 / 本机记的 / 扫完码查到的）。★ 一律列出来让用户挑，
+          不替他绑：绑错人是零报错的（出片时换成另一个人的脸） */}
+      {!invite && usableFound.length > 0 && (
         <div className="space-y-1">
           {usableFound.map((it) => (
             <button
               key={it.id}
+              disabled={busy && fromCache}
               onClick={() => {
                 const id = normalizeAssetId(it.id || "");
                 if (!id) {
                   setMsg(`这份的 ID 形状不认识（${it.id}）——用「填 asset ID」那条路试试。`);
                   return;
                 }
-                setFound(null);
                 onBound(id, "本人授权（方舟可信素材库）");
                 setMsg("接上了。");
               }}
-              className="w-full rounded-lg border border-slate-700 bg-ink/40 px-2 py-1.5 text-left"
+              className="w-full rounded-lg border border-slate-700 bg-ink/40 px-2 py-1.5 text-left disabled:opacity-50"
             >
               <span className="block font-mono text-[10px] text-emerald-300">{it.id}</span>
               <span className="block text-[9px] text-slate-500">
@@ -224,8 +274,25 @@ export default function PortraitAuthPanel({
               </span>
             </button>
           ))}
+          <div className="flex gap-3 px-1 text-[10px] text-slate-500">
+            <button onClick={() => void checkStatus()} disabled={busy} className="underline disabled:opacity-40">
+              {busy ? "刷新中…" : "刷新"}
+            </button>
+            <button onClick={() => void startInvite()} disabled={busy} className="underline disabled:opacity-40">
+              授权另一个人
+            </button>
+          </div>
         </div>
       )}
+
+      {/* 自动查失败时给一条重试的路（列表空着、按钮已经出了，但用户该知道为什么没列出来） */}
+      {!invite && autoChecked && !found && cached.length === 0 && (
+        <button onClick={() => void checkStatus()} disabled={busy} className="px-1 text-[10px] text-slate-500 underline disabled:opacity-40">
+          {busy ? "查…" : "已经授权过了？再查一次"}
+        </button>
+      )}
+
+      {msg && <p className="text-[10px] leading-relaxed text-slate-400">{msg}</p>}
 
       {/* 审核失败的逐条红字：方舟的原话是用户唯一能据以补救的信息 */}
       {found?.some((x) => !assetUsable(x)) && (
