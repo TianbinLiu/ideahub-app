@@ -3,7 +3,7 @@
 > 目标：让自研的「小梦」达到市面数字人对话产品（VTuber 级 Live2D 绑定）的观感——动作自然、表情随对话变、
 > 摸哪儿有哪儿的反应。本文是给下一轮模型工作的依据，官网仓 `docs/COMPANION.md` 记的是运行时行为，这里记资产与工具。
 
-## 1. 现状（mascot13：手臂三段 + 眼球/眉毛键 + 披风摆动，2026-09-05）
+## 1. 现状（mascot14：手臂三段 + 眼球/眉毛键 + 头转带发/眼/口 + 头歪 + 腮红，2026-09-05）
 
 | 能力 | 状态 | 实现方式 |
 |---|---|---|
@@ -14,7 +14,7 @@
 | 头发 | ✅ 会动 | Front/Side/Back Hair Warp 摆动键 + physics3 摆锤（前发/侧发 2 节，后发 3 节，发梢比发根晚半拍） |
 | 手臂 | ✅ 三段 | 上臂/前臂/手各自网格（split_arms.py 切 + 圆帽重叠），肩 ±8°、前臂 ParamForearmL/R（+10 向内弯 70°，-10 外张 25°）、手腕 ParamHandL/R ±25°；挥手/害羞/惊讶/鞠躬/思考都是带前臂曲线的 motion3 |
 | 触摸 | ✅ | model3.json HitAreas（Head/Hair/HandL/HandR/ArmL/ArmR/Body/Skirt/Legs，顺序即优先级）→ `hitTest` → 预置台词 + 表情/动作；牵手/击掌落在手上 |
-| 表情随对话 | ✅ | 服务端 `[情绪][face][action]` 标签 → exp3/motion3 + 补片；9 种 face、11 种 action。眉毛（Y/Angle/Form）、眼球（X/Y）现在有键，exp3 和 FACE_POSES 里的眉毛/眼球参数真的动了；头 Angle X/Y 由「Auto Generation of Face Motion」生成（眼/眉/鼻/口/耳跟着转，头发不跟） |
+| 表情随对话 | ✅ | 服务端 `[情绪][face][action]` 标签 → exp3/motion3 + 补片；9 种 face、11 种 action。眉毛（Y/Angle/Form）、眼球（X/Y）、腮红（ParamCheek → cheek 网格不透明度）有键；头 Angle X/Y：脸/眉/鼻/耳由自动生成，眼/口/前发/后发/发夹由手写的 Shift X/Y 旋转变形器平移跟随；Angle Z 由 Face Rotation ±12° |
 | 物理文件 | ✅ mascot.physics3.json（手写） | 前发/侧发/后发/裙摆/披风 5 组摆锤（披风 ParamCapeSway 是 Cubism 自动摆动生成的 Cape Warp），输入头身角度；运行时只吹"微风"让静止时也晃；没物理的老模型/市场包仍走 companionModel.ts 的弹簧兜底 |
 | 拼接感 | ✅ 已清理（mascot12 贴图） | 见 §2：LaMa 逐层重画被遮挡的边带，moc3 不变 |
 
@@ -87,4 +87,12 @@
    bow（低头前倾、双手收身前）、nod/shake 带手部跟随。ACTION_MOTIONS：wave→wave、shy→shy、surprised→surprised。
    Cubism Animator 手 K 的版本仍然会更自然，留给以后。
 6. 重绘一版分层更细的立绘（画师或 Bunraku 发布后），才是"官方示例级"的根本解。
-7. 剩下的小项：前发/后发跟随头转（把 Front/Back Hair Warp 放进 Face Rotation 或手动补 Angle X/Y 键）、眯眼（拆上下睫毛）、腮红层、ParamAngleZ。
+7. ~~前发/后发跟随头转、腮红层、ParamAngleZ~~ 已完成（2026-09-05，mascot14）：
+   - 扫描发现眼/口其实没跟着头转（第一次自动生成的目标是一组空的重复变形器），改为在真正的 Eye L/R Warp、Mouth Warp、
+     Front/Back Hair Warp 外各套两层旋转变形器「… Shift X / Shift Y」（X 和 Y 分开，避免多参数组合键），原点数值 = 默认 ± 位移
+     （眼 ±55/∓30px、口 ±50/∓28、前发 ±60/∓35、后发 ±25/∓12），发夹 headwear 挂到 Front Hair Shift X 下。后发原本挂在 Arm R Rotation
+     下（右肩一动后发跟着转），改挂 Breath。
+   - Angle Z：Face Rotation ±30 → ±12°（支点在下巴，前发跟着歪，后发不歪）。
+   - 腮红：`out/psd-cheek/cheek.png`（两团高斯粉晕，眼下 72px）→ `sheet-6-cheek.psd` 导入为 cheek 网格挂在 Face Warp 下，
+     ParamCheek 0/1 → 不透明度 0/100%（smile/shy 的 exp3、FACE_POSES 里的 ParamCheek 现在真的有效）。
+   - 眯眼（ParamEyeL/RSmile）仍没做：Eye Warp 的控制点要拖，Cubism 里点在网格上会选中下面的表情补片，且真正的眯眼需要上下睫毛分层。

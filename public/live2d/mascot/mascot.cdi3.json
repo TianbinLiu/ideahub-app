@@ -180,6 +180,10 @@
 	"ParameterGroups": [],
 	"Parts": [
 		{
+			"Id": "Part16",
+			"Name": "sheet-6-cheek.psd"
+		},
+		{
 			"Id": "Part15",
 			"Name": "sheet-6-arms-only.psd"
 		},
@@ -266,6 +270,10 @@
 		{
 			"Id": "Part12",
 			"Name": "Hair Back"
+		},
+		{
+			"Id": "Cheek",
+			"Name": "Cheek"
 		},
 		{
 			"Id": "Part13",
