@@ -235,7 +235,7 @@ export default function SchemeEditorSheet({
         </p>
 
         {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-400">{err}</p>}
-        <button onClick={save} className="mt-2.5 w-full rounded-xl bg-brand py-2 text-sm font-bold text-ink">
+        <button onClick={save} className="mt-2.5 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
           {copying ? "存成我的方案" : "保存修改"}
           {AI_REAL && cost > 0 ? `（用它炼一次约 ${fmtTokens(cost)}）` : ""}
         </button>

@@ -252,7 +252,7 @@ export function FrameCaptureDialog({
         <button
           onClick={() => void capture()}
           disabled={busy || resolving}
-          className="flex-1 rounded-xl bg-brand py-2 text-sm font-bold text-ink disabled:opacity-50"
+          className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-50"
         >
           {busy ? "截取中…" : "用这一帧作封面"}
         </button>
@@ -505,7 +505,7 @@ export function AiCoverDialog({
         <button
           onClick={() => void run(false)}
           disabled={busy || !req.trim()}
-          className="flex-1 rounded-xl bg-brand py-2 text-sm font-bold text-ink disabled:opacity-40"
+          className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
           {busy ? "绘制中…" : "全新生成"}
         </button>

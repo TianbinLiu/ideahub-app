@@ -1320,7 +1320,7 @@ function NodePanel({
         <button
           onClick={() => void genNode(node.id)}
           disabled={busy || generating || !p.plot.trim()}
-          className="w-full rounded-full bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
         >
           {generating ? node.progress || "生成中…" : done ? `♻ 重新生成（${AI_REAL ? fmtTokens(cost) : "演示"}）` : `⚡ 生成本段（${AI_REAL ? fmtTokens(cost) : "演示"}）`}
         </button>
@@ -1333,7 +1333,7 @@ function NodePanel({
                 线性视图那条路仍在（顶栏「≡ 线性」），只是不再是唯一出口。 */}
             <button
               onClick={() => setPlanSheet(node.id)}
-              className="w-full rounded-full bg-brand py-2.5 text-sm font-bold text-ink"
+              className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
             >
               🎬 挑一套方案（{node.proposals.length} 套已推演好）
             </button>
@@ -1351,7 +1351,7 @@ function NodePanel({
             <button
               onClick={() => void genNode(node.id)}
               disabled={busy || generating}
-              className="w-full rounded-full bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+              className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
             >
               {generating ? node.progress || "生成中…" : done ? `♻ 重新生成（${AI_REAL ? fmtTokens(cost) : "演示"}）` : `⚡ 炼这一段视频（${AI_REAL ? fmtTokens(cost) : "演示"}）`}
             </button>
@@ -1370,7 +1370,7 @@ function NodePanel({
           <button
             onClick={() => void deriveProposals(node.id)}
             disabled={busy || generating || !(node.requirement ?? "").trim()}
-            className="w-full rounded-full bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+            className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
           >
             {generating ? node.progress || "推演中…" : `🎲 推演三套方案（${AI_REAL ? fmtTokens(propCost) : "演示"}）`}
           </button>
@@ -1869,7 +1869,7 @@ export function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => v
             </div>
           )}
         </div>
-        <button onClick={onClose} className="mt-2 w-full rounded-full bg-brand py-2 text-sm font-bold text-ink">
+        <button onClick={onClose} className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
           好了（选中 {chosen.size} 张）
         </button>
       </div>
@@ -2056,7 +2056,7 @@ export function TemplatePicker({
                   setPreviewing(null);
                   onPick(picked);
                 }}
-                className="min-w-0 flex-1 rounded-full bg-brand px-3.5 py-2 text-xs font-bold text-ink"
+                className="min-w-0 flex-1 rounded-xl bg-brand px-3.5 py-2.5 text-xs font-bold text-ink"
               >
                 就用这一段
               </button>

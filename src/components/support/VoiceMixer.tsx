@@ -276,7 +276,7 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
             <button
               onClick={() => void publish()}
               disabled={locked || !tplName.trim()}
-              className="flex-1 rounded-full bg-brand py-2 text-[13px] font-semibold text-ink disabled:opacity-50"
+              className="flex-1 rounded-xl bg-brand py-2.5 text-[13px] font-semibold text-ink disabled:opacity-50"
             >
               {busy === "publish" ? "发布中…" : "发布并设为我的声音"}
             </button>

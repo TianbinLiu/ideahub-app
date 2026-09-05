@@ -572,7 +572,7 @@ export default function CardDetailPage() {
         <p className="text-center text-sm leading-relaxed text-slate-400">
           这张卡不在你的收藏里{isRemoteMode() ? "，创意工坊的广场上也没有" : ""}
         </p>
-        <Link to="/workshop" className="rounded-full bg-brand px-5 py-2 text-sm font-bold text-ink">
+        <Link to="/workshop" className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-ink">
           去创意工坊
         </Link>
       </div>

@@ -1071,7 +1071,7 @@ export default function FeedPage() {
               去推荐流看看
             </button>
           ) : (
-            <Link to="/studio" className="rounded-full bg-brand px-4 py-2 text-sm font-bold text-ink">
+            <Link to="/studio" className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-ink">
               去卡片工坊创作
             </Link>
           )}

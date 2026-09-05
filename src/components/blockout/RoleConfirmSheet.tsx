@@ -520,7 +520,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
           data-guide="roleconfirm-submit"
           onClick={() => void save()}
           disabled={busy}
-          className="w-full rounded-full bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-50"
+          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-50"
         >
           {busy
             ? "提交中…"

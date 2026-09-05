@@ -187,7 +187,7 @@ export default function FuseFrameSheet({
         <button
           onClick={() => void run()}
           disabled={!!busy}
-          className="w-full rounded-xl bg-brand py-2 text-sm font-bold text-ink disabled:opacity-50"
+          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-50"
         >
           {busy || `🧬 融成${label}${AI_REAL ? `（约 ${fmtTokens(price)}）` : "（演示）"}`}
         </button>
