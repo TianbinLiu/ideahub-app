@@ -923,7 +923,37 @@ export async function detectTemplateRoles(id: string, atSecs?: number[]): Promis
   return out.note;
 }
 
-export async function registerTemplate(id: string): Promise<void> {
+/**
+ * 同一个模板**在途的那一发登记**（id → Promise）。
+ *
+ * ★★ 为什么必须有（2026-09-05 浏览器全链巡检抓到的真 bug）：`saveTemplate` 存完会
+ *   fire-and-forget 地登记一次（见它的 ★），而 `makeOwnRefTemplate` 紧接着又 `await
+ *   registerTemplate(id)` 一次 —— 第二发出发时第一发还没回，`t.remoteId` 还是空，
+ *   于是两个 POST 同时在路上：网络面板里第一个 201、第二个 409（服务端按参考视频去重）。
+ *   用户看到的是「这段视频已经登记过一个模板了」，模板其实已经建好，但异常在认人之前
+ *   抛出，**认角色位那一步根本没跑**。两处都调同一个函数、各自却发一发请求，就是
+ *   "同一条规则两处实现"的变体。⇒ 同一个 id 在途时一律复用同一个 Promise：先到的那发
+ *   成功，后到的等它、拿同一个结果；失败也是同一个失败，谁都不会再多打一枪。
+ */
+const registering = new Map<string, Promise<void>>();
+
+export function registerTemplate(id: string): Promise<void> {
+  const inflight = registering.get(id);
+  if (inflight) return inflight;
+  const p = registerTemplateOnce(id).finally(() => {
+    if (registering.get(id) === p) registering.delete(id);
+  });
+  registering.set(id, p);
+  return p;
+}
+
+/** 服务端「我的模板」里按参考视频地址找那一条 —— 409 之后的认领用（见 registerTemplateOnce 的 ★★） */
+async function findMineByVideo(videoUrl: string): Promise<branch.ApiBranchTemplate | null> {
+  const list = await branch.listMyTemplates();
+  return list.find((x) => x.refVideo?.url === videoUrl) ?? null;
+}
+
+async function registerTemplateOnce(id: string): Promise<void> {
   // mineRemote 条目天生带 remoteId，下面会走"已登记 → 刷新"那条路（同 setTemplatePublished 的 ★★）
   const t = mine.find((x) => x.id === id) ?? mineRemote.find((x) => x.id === id);
   if (!t) throw new Error("这个模板不在本机库里");
@@ -940,13 +970,26 @@ export async function registerTemplate(id: string): Promise<void> {
   }
   try {
     const coverUrl = await toPermanentUrl(t.cover, `tpl-${t.id}-cover`);
-    const { template: api } = await branch.createTemplate({
-      title: t.title,
-      intro: t.intro,
-      coverUrl,
-      recipe: t.recipe,
-      videoUrl: t.refVideo.url,
-    });
+    let api: branch.ApiBranchTemplate | null;
+    try {
+      const created = await branch.createTemplate({
+        title: t.title,
+        intro: t.intro,
+        coverUrl,
+        recipe: t.recipe,
+        videoUrl: t.refVideo.url,
+      });
+      api = created.template;
+    } catch (e) {
+      // ★★ 409 = 服务端已经有一条**同一段参考视频**的模板。在途去重（registering）挡住了
+      //   本进程里的重复登记，但"上一次登记成功、回包还没落到本机 remoteId 就被杀进程"
+      //   这种也会走到这儿 —— 那条模板是我们自己的，把它认领回来就是正确结果，
+      //   报"已经登记过"让用户去删模板重传才是错的。认领不到（真是别人的 / 列表拉挂）
+      //   再把原错误原样抛出去。
+      if (!(e instanceof ApiError && e.status === 409)) throw e;
+      api = await findMineByVideo(t.refVideo.url);
+      if (!api) throw e;
+    }
     const rid = String(api?._id ?? api?.id ?? "");
     if (!api || !rid) throw new Error("服务器没有返回模板登记信息（可能是旧版服务端），模板还没登记上");
     t.remoteId = rid;

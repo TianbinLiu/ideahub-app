@@ -224,6 +224,10 @@ if (typeof window !== "undefined") {
     cacheOwner = null;
     cacheOwnerName = null;
     nextCursor = null;
+    // 关注流与"上次拉取时刻"同样跟人走：留着的话新登录的人会先看到上一个人的关注流
+    followingCache = null;
+    feedFetchedAt = 0;
+    followingFetchedAt = 0;
     detailed.clear();
     // ★ 旁路表同样是**隐私边界**（与 cache 同一条理由）：它装的是按 id 单取回来的
     //   作品，其中可能有上一个账号自己的私密作品——服务端只对作者本人返回它。
@@ -403,6 +407,15 @@ function find(id: string): VideoItem | null {
  */
 export function isShareable(v: VideoItem): boolean {
   if (!remoteOn()) return false;
+  return onServer(v);
+}
+
+/**
+ * 这条作品**在服务端有没有一份**（本机乐观条目 `v_xxx` 且还没映射到服务端 id = 没有）。
+ * ★ 唯一实现：isShareable / deleteVideoItem / refreshFeed 三处读的都是它，别在调用点
+ *   各写一遍 `startsWith("v_")`。
+ */
+function onServer(v: VideoItem): boolean {
   const rid = realId(v.id);
   return rid !== v.id || !rid.startsWith("v_");
 }
@@ -670,11 +683,11 @@ export async function deleteVideoItem(id: string): Promise<string | null> {
   if (!v) return null; // 已经不在了：用户要的结果已经成立
   const rid = realId(v.id);
   // ★ 只在**服务端认得这条**时才要求联网：还没落库的那条（本地 id）删的是队列，离线也能删干净
-  const onServer = rid !== v.id || !rid.startsWith("v_");
-  if (API_ON && !remoteOn() && onServer) {
+  const landed = onServer(v);
+  if (API_ON && !remoteOn() && landed) {
     return "这次没连上服务器。现在删只会删掉这台设备上的那份，下次启动它还会回来——等联网了再删。";
   }
-  if (remoteOn() && onServer) {
+  if (remoteOn() && landed) {
     try {
       await branch.deleteVideo(rid);
     } catch (e) {
@@ -1346,11 +1359,122 @@ export function commentCountOf(v: VideoItem): number {
   return typeof v.commentCount === "number" ? v.commentCount : v.comments.length;
 }
 
+/** 上一次从服务端整份拉到推荐流的时刻（0 = 还没拉过）。refreshFeed 按它判"够不够旧" */
+let feedFetchedAt = 0;
+let feedRefreshing: Promise<boolean> | null = null;
+/**
+ * 「关注」流 —— **服务端按关注表筛出来的那份**（`feed=following`），与推荐流的 cache 分开存。
+ * null = 这次会话还没拉过（离线模式永远是 null，首页退回本机按作者名筛）。
+ * ★★ 为什么不再从推荐 cache 里筛（2026-09-05 巡检）：cache 只是推荐流首屏 30 条，
+ *   "关注"页签从里面按作者名挑，等于"我关注的人恰好挤进推荐前 30 的那几条"，
+ *   平台一多作品就永远是空的，而服务端这条筛选路一直都在、客户端从没调过。
+ * ★ 同一条作品在两份列表里**必须是同一个对象**（见 refreshFollowingFeed）：点赞/评论
+ *   走 find() 改的是 cache 里那份，另一份是拷贝的话关注页签上的数字就不动。
+ */
+let followingCache: VideoItem[] | null = null;
+let followingFetchedAt = 0;
+let followingRefreshing: Promise<boolean> | null = null;
+
+export function listFollowingVideos(): VideoItem[] | null {
+  return followingCache;
+}
+
+/**
+ * 会话内重拉推荐流（远端模式）。
+ *
+ * ★★ 为什么需要（2026-09-05 浏览器全链巡检抓到）：`readyVideos` 有 cache 就直接返回，
+ *   首页也没有任何刷新入口 —— 于是一次会话里首页**永远是冷启动那 30 条**：别人新发的
+ *   作品要重启才出现；拉黑了某人他的作品还留在首页（分区页已经隐藏）；被下架的作品照样
+ *   在首页播。这里给一条唯一的重拉路，首页在"回到首页且够旧""从后台回来"时调它，
+ *   拉黑/解除拉黑之后强制调它。
+ * ★ `minAgeMs`：距上次整份拉取不足这么久就不打（首页每次挂载都会调，别把它变成刷接口）。
+ * ★ 本机乐观条目（还没落库的 `v_xxx`）保留在最前：它们不在服务端回包里，整份替换会把
+ *   刚发布、还在传的那条从首页抹掉（与 readyRemote 冷启动那次不同：那时 flushPending
+ *   会把它们补回来，这里没有那一步）。
+ * ★ 在途去重：并发两次只打一发。换人期间 cache 被清成 null，回包作废。
+ */
+export async function refreshFeed(opts: { minAgeMs?: number } = {}): Promise<boolean> {
+  if (!remoteOn() || !cache) return false;
+  const minAge = opts.minAgeMs ?? 0;
+  if (minAge > 0 && Date.now() - feedFetchedAt < minAge) return false;
+  if (feedRefreshing) return feedRefreshing;
+  feedRefreshing = (async () => {
+    try {
+      const res = await branch.listVideos({ feed: "recommend", limit: 30 });
+      if (!cache) return false;
+      const fresh = res.items.map(toVideoItem);
+      const freshIds = new Set(fresh.map((v) => v.id));
+      const localOnly = cache.filter((v) => !onServer(v) && !freshIds.has(v.id));
+      cache = [...localOnly, ...fresh];
+      nextCursor = res.nextCursor;
+      feedFetchedAt = Date.now();
+      emitVideos();
+      return true;
+    } catch (e) {
+      // 刷新失败不算故障：屏幕上还是上一份，冷启动那条路才是保底
+      emitApiError("refreshFeed", e);
+      return false;
+    } finally {
+      feedRefreshing = null;
+    }
+  })();
+  return feedRefreshing;
+}
+
+/** 重拉「关注」流（远端模式；没登录服务端会 401，这里在 remoteOn 之外不再判） */
+export async function refreshFollowingFeed(opts: { minAgeMs?: number } = {}): Promise<boolean> {
+  if (!remoteOn() || !currentUser()) return false;
+  const minAge = opts.minAgeMs ?? 0;
+  if (minAge > 0 && Date.now() - followingFetchedAt < minAge) return false;
+  if (followingRefreshing) return followingRefreshing;
+  followingRefreshing = (async () => {
+    try {
+      const res = await branch.listVideos({ feed: "following", limit: 30 });
+      if (!cache) return false;
+      const feedNow = cache;
+      followingCache = res.items.map((raw) => {
+        const item = toVideoItem(raw);
+        // ★ 推荐流里已有的那条用**同一个对象**（点赞/评论改的是它）；其余登记进旁路表，
+        //   详情页 / 点赞按 id 才找得到（find() 两边都查）
+        const inFeed = feedNow.find((v) => v.id === item.id);
+        if (inFeed) return inFeed;
+        byId.set(item.id, item);
+        return item;
+      });
+      followingFetchedAt = Date.now();
+      emitVideos();
+      return true;
+    } catch (e) {
+      emitApiError("refreshFollowingFeed", e);
+      return false;
+    } finally {
+      followingRefreshing = null;
+    }
+  })();
+  return followingRefreshing;
+}
+
+/**
+ * 拉黑某人之后**立刻**把他的作品从首页/关注流/旁路表里拿掉。
+ * ★ 不等下一次重拉：拉黑是用户刚做的动作，屏幕上那条要当场消失才对得上「已拉黑」；
+ *   顺手把"上次拉取时刻"清零，下一次 refreshFeed 不会因为"还不够旧"而跳过。
+ */
+export function purgeAuthorVideos(authorId: string): void {
+  if (!authorId) return;
+  if (cache) cache = cache.filter((v) => v.authorId !== authorId);
+  if (followingCache) followingCache = followingCache.filter((v) => v.authorId !== authorId);
+  for (const [k, v] of byId) if (v.authorId === authorId) byId.delete(k);
+  feedFetchedAt = 0;
+  followingFetchedAt = 0;
+  emitVideos();
+}
+
 async function readyRemote(): Promise<boolean> {
   try {
     const res = await branch.listVideos({ feed: "recommend", limit: 30 });
     cache = res.items.map(toVideoItem);
     nextCursor = res.nextCursor;
+    feedFetchedAt = Date.now();
     remoteLive = true;
   } catch (e) {
     emitApiError("readyVideos", e);

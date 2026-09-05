@@ -26,6 +26,7 @@
 // 图标页签 → 3 列贴边栅格。旧版是左对齐的资料卡 + 文字页签，与首页的
 // 短视频形态完全不搭，而且首页压根没有入口能走到"别人"的主页。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { takedownReasonText } from "../api/admin";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Sheet from "../components/Sheet";
@@ -1310,7 +1311,7 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
             {v.takedown ? (
               <span
                 className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-rose-600/90 px-1 py-0.5 text-[9px] font-semibold text-white"
-                title={v.takedown.reason ? `下架原因：${v.takedown.reason}` : undefined}
+                title={v.takedown.reason ? `下架原因：${takedownReasonText(v.takedown.reason)}` : undefined}
               >
                 已下架
               </span>

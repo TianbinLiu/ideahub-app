@@ -14,6 +14,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import { blockUser } from "../api/blocking";
+import { purgeAuthorVideos, refreshFeed } from "../data/videos";
 import { isRemoteMode } from "../data/account";
 import { useAuthState } from "../hooks/useAccount";
 import AuthPending from "./AuthPending";
@@ -53,6 +54,10 @@ export default function BlockButton({
       return;
     }
     setDone(true);
+    // ★ 首页那份列表是会话内缓存，不动它的话他的作品会一直留在首页直到重启
+    //   （分区页是现拉的，早就不见了 —— 两个面对不上）。当场拿掉，再重拉一份
+    purgeAuthorVideos(userId);
+    void refreshFeed();
     setTimeout(() => setOpen(false), 1600);
   }
 

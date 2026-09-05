@@ -16,6 +16,7 @@
 //   但 React 合成事件仍沿组件树冒泡到 FeedItem 的手势处理。
 // ★ 面板自带 err/note 显示（盖住谁就自带一份——别指望底下的错误条）。
 import { useState } from "react";
+import { takedownReasonText } from "../api/admin";
 import { createPortal } from "react-dom";
 import { type VideoItem, visibilityOf } from "../types";
 import Icon from "./Icon";
@@ -194,7 +195,7 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
         {takenDown && (
           <p className="mt-1 text-xs text-amber-300">
             这条已被平台下架，链接别人打不开，所以先不能分享。
-            {video.takedown?.reason ? `原因：${video.takedown.reason}` : ""}
+            {video.takedown?.reason ? `原因：${takedownReasonText(video.takedown.reason)}` : ""}
           </p>
         )}
         {notUploaded && (
