@@ -28,7 +28,8 @@ export default function TemplateMarketPage() {
         <span className="ml-auto text-[11px] text-slate-500">套上模板，一句话出片</span>
         <HelpButton tour="templates" />
       </div>
-      <TemplateShelf />
+      {/* 「模板市场/我的模板」那层页签进地址（?shelf=），去详情再返回还在原页签 */}
+      <TemplateShelf queryKey="shelf" />
     </div>
   );
 }
