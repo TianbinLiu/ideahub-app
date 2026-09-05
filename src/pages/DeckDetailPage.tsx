@@ -28,7 +28,7 @@ export default function DeckDetailPage() {
       <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-3 px-6">
         <Icon name="cards" size={40} className="text-slate-600" />
         <p className="text-sm text-slate-400">卡组不存在或不属于你</p>
-        <Link to="/workshop" className="rounded-full bg-brand px-5 py-2 text-sm font-bold text-ink">
+        <Link to="/workshop" className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-ink">
           去创意工坊
         </Link>
       </div>

@@ -710,7 +710,7 @@ export default function SupportPage() {
             />
             {sheetErr && <p className="mt-2 text-[12px] leading-5 text-rose-300">{sheetErr}</p>}
             <div className="mt-3 flex gap-2">
-              <button onClick={() => void submitTicket()} disabled={submitting} className="flex-1 rounded-full bg-brand py-2.5 text-[14px] font-semibold text-ink disabled:opacity-60">
+              <button onClick={() => void submitTicket()} disabled={submitting} className="flex-1 rounded-xl bg-brand py-2.5 text-[14px] font-semibold text-ink disabled:opacity-60">
                 {submitting ? "提交中…" : "提交给人工客服"}
               </button>
               <button onClick={() => setSheetOpen(false)} disabled={submitting} className="rounded-full border border-slate-600 px-4 py-2.5 text-[14px] text-slate-300">

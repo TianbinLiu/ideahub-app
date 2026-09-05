@@ -420,7 +420,7 @@ export default function ProfilePage() {
       <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-4 px-6">
         <Icon name="user" size={44} className="text-slate-700" />
         <p className="text-center text-sm text-slate-400">登录后可以创作视频、收藏卡片、管理卡组</p>
-        <Link to="/login?next=/me" className="rounded-full bg-brand px-6 py-2.5 text-sm font-bold text-ink">
+        <Link to="/login?next=/me" className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink">
           登录 / 注册
         </Link>
       </div>

@@ -193,7 +193,7 @@ export default function PortraitAuthPanel({
           </p>
           <button
             onClick={() => void openHere(invite.url)}
-            className="mb-2 w-full rounded-lg bg-brand py-2 text-[12px] font-bold text-ink"
+            className="mb-2 w-full rounded-xl bg-brand py-2.5 text-[12px] font-bold text-ink"
           >
             📱 就是我本人 · 在这台手机上完成授权
           </button>
@@ -210,7 +210,7 @@ export default function PortraitAuthPanel({
           <div className="flex gap-2">
             <button
               onClick={() => void navigator.clipboard?.writeText(invite.url).then(() => setMsg("链接已复制，可以发给本人"))}
-              className="flex-1 rounded-lg bg-brand py-1.5 text-[11px] font-bold text-ink"
+              className="flex-1 rounded-full bg-brand py-1.5 text-[11px] font-bold text-ink"
             >
               复制链接
             </button>
@@ -321,7 +321,7 @@ export default function PortraitAuthPanel({
           />
           {draftErr && <p className="mt-1 text-[10px] leading-relaxed text-rose-400">{draftErr}</p>}
           <div className="mt-1.5 flex gap-2">
-            <button onClick={saveManual} className="flex-1 rounded-lg bg-brand py-1.5 text-[11px] font-bold text-ink">
+            <button onClick={saveManual} className="flex-1 rounded-full bg-brand py-1.5 text-[11px] font-bold text-ink">
               绑定
             </button>
             <button

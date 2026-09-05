@@ -958,7 +958,7 @@ export default function CustomCardPage() {
           </div>
           {/* ★ 这颗键去的是「① 选来源」，不是「传图与信息」——旧文案指错了屏，
               而照片已经到手时更不该出现"传图"两个字（主人 2026-09-01 点名）。 */}
-          <button onClick={() => setStep("source")} className="mt-4 w-full rounded-xl bg-brand py-3 text-sm font-bold text-ink">
+          <button onClick={() => setStep("source")} className="mt-4 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
             {haveAuthShot ? "下一步：这几张图怎么来 ›" : "下一步：选图片来源 ›"}
           </button>
         </>
@@ -1569,7 +1569,7 @@ export default function CustomCardPage() {
       <button
         onClick={() => void mint()}
         disabled={!ready || minting || busySlot !== null || !!partial}
-        className="w-full rounded-xl bg-brand py-3 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+        className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
       >
         {minting ? "铸造中…" : partial ? "已铸成" : "🎴 铸成卡片"}
       </button>

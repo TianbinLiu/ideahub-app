@@ -592,7 +592,7 @@ export default function VideoPage() {
             <button
               onClick={() => void submitComment()}
               disabled={!draft.trim() || busyComment}
-              className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-ink disabled:opacity-40"
+              className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-ink disabled:opacity-40"
             >
               {busyComment ? "发布中…" : "发布"}
             </button>

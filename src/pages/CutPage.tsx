@@ -857,7 +857,7 @@ export default function CutPage() {
               navigate("/studio");
             }}
             disabled={!!busy}
-            className="rounded-lg bg-brand px-4 py-1.5 text-sm font-bold text-ink disabled:opacity-45"
+            className="rounded-full bg-brand px-4 py-1.5 text-sm font-bold text-ink disabled:opacity-45"
           >
             保存本段
           </button>
@@ -866,7 +866,7 @@ export default function CutPage() {
             data-guide="cut-next"
             onClick={() => void mergeAndGo()}
             disabled={!!busy}
-            className="rounded-lg bg-brand px-4 py-1.5 text-sm font-bold text-ink disabled:opacity-45"
+            className="rounded-full bg-brand px-4 py-1.5 text-sm font-bold text-ink disabled:opacity-45"
           >
             下一步
           </button>

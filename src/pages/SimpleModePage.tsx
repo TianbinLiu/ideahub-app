@@ -327,7 +327,7 @@ function StepCustom({ value, onChange, onNext }: { value: string; onChange: (v: 
       <button
         onClick={onNext}
         disabled={!value.trim()}
-        className="mt-4 w-full rounded-xl bg-brand py-3 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-500"
+        className="mt-4 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-500"
       >
         下一步
       </button>
@@ -436,7 +436,7 @@ function StepGo({
       <button
         onClick={onGo}
         disabled={busy || (!tplTitle && !plot.trim())}
-        className="mt-3 w-full rounded-xl bg-brand py-3.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-500"
+        className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-500"
       >
         {busy ? "生成中…" : `⚡ 出片（${fmtTokens(cost)}）`}
       </button>
