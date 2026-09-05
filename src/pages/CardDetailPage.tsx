@@ -2,6 +2,7 @@
 // （铸卡时的完整提示词，具体到可复刻卡面）+ 3D 建模全息预览（有 modelUrl 的角色卡）。
 // 创意工坊/我的/卡组详情点卡进来。
 import { useEffect, useRef, useMemo, useState, useSyncExternalStore } from "react";
+import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import DeleteCardDialog from "../components/DeleteCardDialog";
 import { createPortal } from "react-dom";
@@ -10,7 +11,6 @@ import { Link, useLocation, useNavigate, useParams } from "react-router";
 //   抄的那份漏过规则一（只有第一张人物卡进参考图），于是「出片用」这个标签会对着
 //   一张从来不进模型的图亮起来 —— 用户为它多付了钱，界面还告诉他钱花在了出片上。
 import { MAX_CHAR_REFS, MAX_REF_IMAGES, TYPE_LABEL, cardStyleSuffix, refUsedFlags } from "../ai/real";
-import Icon from "../components/Icon";
 import InfoDialog from "../components/InfoDialog";
 import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
@@ -540,42 +540,33 @@ export default function CardDetailPage() {
     //   ① 账号资产还在装 ② 正在去广场上取 ③ 这次没取成 ④ 真的没有
     if (hydrating || (isRemoteMode() && !remote)) {
       return (
-        <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-3 px-6">
-          <Icon name="cards" size={40} className="text-slate-600" />
-          <p className="text-sm text-slate-400">{hydrating ? "正在装载你的卡片库…" : "正在从创意工坊取这张卡…"}</p>
-        </div>
+        <EmptyState full loading text={hydrating ? "正在装载你的卡片库…" : "正在从创意工坊取这张卡…"} />
       );
     }
     if (remote?.err) {
       return (
-        <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-3 px-6">
-          <Icon name="cards" size={40} className="text-slate-600" />
-          <p className="text-center text-sm leading-relaxed text-rose-300">这次没取到这张卡：{remote.err}</p>
-          <p className="text-[11px] text-slate-500">这不代表它不存在，只是这次没问到</p>
-          <button
-            onClick={() => setRemote(null)}
-            className="rounded-xl bg-panel px-5 py-2.5 text-sm font-semibold text-slate-100 ring-1 ring-slate-700"
-          >
-            重试
-          </button>
-        </div>
+        <EmptyState
+          full
+          icon="cards"
+          error
+          text={`这次没取到这张卡：${remote.err}`}
+          hint="这不代表它不存在，只是这次没问到"
+          cta={{ label: "重试", onClick: () => setRemote(null) }}
+        />
       );
     }
   }
 
   if (!card) {
     return (
-      <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-3 px-6">
-        <Icon name="cards" size={40} className="text-slate-600" />
-        {/* ★ 走到这儿是**真的没有**：库里没有、路由 state 没带、广场上也没有（或离线）。
-            前面三种"还不知道"的情况已经各自说过话了。 */}
-        <p className="text-center text-sm leading-relaxed text-slate-400">
-          这张卡不在你的收藏里{isRemoteMode() ? "，创意工坊的广场上也没有" : ""}
-        </p>
-        <Link to="/workshop" className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-ink">
-          去创意工坊
-        </Link>
-      </div>
+      /* ★ 走到这儿是**真的没有**：库里没有、路由 state 没带、广场上也没有（或离线）。
+          前面三种"还不知道"的情况已经各自说过话了。 */
+      <EmptyState
+        full
+        icon="cards"
+        text={`这张卡不在你的收藏里${isRemoteMode() ? "，创意工坊的广场上也没有" : ""}`}
+        cta={{ label: "去创意工坊", to: "/workshop", primary: true }}
+      />
     );
   }
 
@@ -793,7 +784,7 @@ export default function CardDetailPage() {
               onChange={(e) => setEditName(e.target.value)}
               maxLength={CARD_NAME_MAX}
               placeholder="卡名"
-              className="mt-3 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-sm text-slate-100 outline-none focus:border-brand"
+              className="mt-3 w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
             <textarea
               value={editSummary}
@@ -801,7 +792,7 @@ export default function CardDetailPage() {
               maxLength={CARD_SUMMARY_MAX}
               rows={3}
               placeholder="一句话简介"
-              className="mt-2 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-sm leading-relaxed text-slate-100 outline-none focus:border-brand"
+              className="mt-2 w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
             />
             {/* ★ 如实说清改的是哪一份：随作品/卡组发出去的是**快照**（逐字段复制的），
                 不会跟着改。不说的话用户以为"全网都改了"，回头发现别人那份还是旧名字。 */}

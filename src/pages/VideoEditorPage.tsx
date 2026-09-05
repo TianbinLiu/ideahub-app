@@ -26,6 +26,7 @@
 // ★ 入参一律**按形状验收**、不按"应该有"假设：深链、老包缓存、冷启动都可能给到空 state。
 //   验不过就整句说明 + 一个回得去的按钮，不是白屏（白屏时用户连"我在哪"都不知道）。
 import { useEffect, useMemo, useState } from "react";
+import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useLocation, useNavigate } from "react-router";
 import BlockoutTrimmer from "../components/blockout/BlockoutTrimmer";
@@ -254,19 +255,11 @@ export default function VideoEditorPage() {
       <main className="px-3 py-3">
         {!state ? (
           // 入参验不过：说清是什么情况、给一条出路（白屏是最坏的一种失败）
-          <div className="space-y-3 py-10 text-center">
-            <p className="text-sm text-slate-200">这一页需要从上传或模板页进来</p>
-            <p className="mx-auto max-w-sm text-[11px] leading-relaxed text-slate-400">
-              它拿不到"要编辑哪段视频"这个信息（直接输入地址、或从后台回来时页面已被系统回收，
-              都会这样）。请回到上一步重新进入。
-            </p>
-            <button
-              onClick={() => nav("/", { replace: true })}
-              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-200"
-            >
-              回首页
-            </button>
-          </div>
+          <EmptyState
+            text="这一页需要从上传或模板页进来"
+            hint="它拿不到“要编辑哪段视频”这个信息（直接输入地址、或从后台回来时页面已被系统回收，都会这样）。请回到上一步重新进入。"
+            cta={{ label: "回首页", onClick: () => nav("/", { replace: true }) }}
+          />
         ) : state.mode === "blockoutize" ? (
           playable ? (
             <BlockoutTrimmer

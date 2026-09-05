@@ -15,6 +15,7 @@
  * ★ 失败就地整句说明在那张卡上（api:error 没人听）。
  */
 import { useEffect, useRef, useState } from "react";
+import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import { ApiError } from "../api/client";
@@ -174,7 +175,7 @@ export default function SupportModelsPage() {
   return (
     <div className="min-h-full px-4 pb-10">
       <PageHeader className="mb-2" onBack={() => navigate(-1)} title="数字人形象" />
-      <p className="mb-3 text-[11px] text-slate-500">给客服页和官网首页的看板娘换一套 Live2D 形象，两边共用同一份设置。</p>
+      <p className="mb-3 text-[11px] leading-relaxed text-slate-500">给客服页和官网首页的看板娘换一套 Live2D 形象，两边共用同一份设置。</p>
 
       <div className="mb-3 flex gap-2">
         {(["all", "installed"] as const).map((t) => (
@@ -197,9 +198,9 @@ export default function SupportModelsPage() {
       {listErr && <p className="mb-2 rounded-lg bg-rose-500/10 px-3 py-1.5 text-[12px] leading-relaxed text-rose-300">{listErr}</p>}
 
       {loading ? (
-        <p className="py-8 text-center text-[12px] text-slate-500">读取中…</p>
+        <EmptyState loading text="读取中…" />
       ) : models.length === 0 && !listErr ? (
-        <p className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-[13px] leading-6 text-slate-400">{emptyText}</p>
+        <EmptyState text={emptyText} />
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {models.map((m) => {

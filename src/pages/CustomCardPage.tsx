@@ -1162,7 +1162,7 @@ export default function CustomCardPage() {
             onChange={(e) => setName(e.target.value)}
             maxLength={NAME_MAX}
             placeholder={`卡名（最多 ${NAME_MAX} 字）`}
-            className="mb-2 w-full rounded-xl border border-slate-700 bg-panel px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+            className="mb-2 w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
           />
           <textarea
             value={summary}
@@ -1170,7 +1170,7 @@ export default function CustomCardPage() {
             rows={3}
             maxLength={SUMMARY_MAX}
             placeholder="一句话简介：这张卡是谁 / 是什么地方 / 是什么东西"
-            className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3 py-2 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+            className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
           />
           <div className="mt-0.5 text-right text-[10px] text-slate-600">
             {summary.length}/{SUMMARY_MAX}
@@ -1447,7 +1447,7 @@ export default function CustomCardPage() {
                 ? "例：水墨留白，淡墨皴擦，大面积留白，边缘晕染"
                 : "把这张卡的样子写具体：造型、材质、配色、光线……"
           }
-          className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3 py-2 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+          className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
         />
         <div className="mt-0.5 flex items-start justify-between gap-2">
           {/* "不填会怎样"那句在引导第四步——选填两个字本身已经说了可跳过 */}
@@ -1477,7 +1477,7 @@ export default function CustomCardPage() {
           value={tagText}
           onChange={(e) => setTagText(e.target.value)}
           placeholder={`用空格或逗号分隔，最多 ${TAG_MAX} 个`}
-          className="w-full rounded-xl border border-slate-700 bg-panel px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+          className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
         />
         {tags.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1">

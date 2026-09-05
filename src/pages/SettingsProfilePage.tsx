@@ -99,7 +99,7 @@ export default function SettingsProfilePage() {
           onChange={(e) => setName(e.target.value)}
           maxLength={NAME_MAX}
           placeholder="昵称"
-          className="w-full rounded-xl border border-slate-700 bg-panel px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-brand"
+          className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
         />
         <textarea
           value={bio}
@@ -107,7 +107,7 @@ export default function SettingsProfilePage() {
           maxLength={BIO_MAX}
           placeholder="一句话简介"
           rows={3}
-          className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-brand"
+          className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
         />
         {/* ★ 失败那句话摆在**按钮这一侧**：用户按的是这颗键，报在别处等于没报（铁律八） */}
         {profileErr && (
