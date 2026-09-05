@@ -64,6 +64,7 @@ import {
   templateGroupOf,
   templatesVersion,
 } from "../data/templates";
+import { readyVideos } from "../data/videos";
 import { VideoAspect, VideoTemplate, aspectFromSize } from "../types";
 import BlockoutTrimmer from "./blockout/BlockoutTrimmer";
 import {
@@ -555,21 +556,35 @@ export default function VideoTemplateExtractor({
 
   useEffect(() => {
     let alive = true;
-    void remoteTemplatesCapable().then((ok) => {
-      if (!alive) return;
-      setBlockoutReady(ok);
-      // ★★ 探测没过 = 白模那两条根本不渲染，"三选一"那一屏就只剩**一条**可选 ——
-      //   一个只有一个选项的选择题是纯粹的多一步，直接跳到选文件。
-      //   ★ 放在这里而不是 render 里按 `routeOpts.length` 派生：派生的话，探测**晚到**
-      //     且结果为真时会把已经在选文件的用户**拽回**选路线那一屏（他刚点开文件选择器）。
-      //     写在这一拍就没有这个歧义 —— 只有 `!ok` 才跳，而 `!ok` 意味着选项列表不会再变长，
-      //     那一屏此后永远只有一条，跳过去不丢任何东西。
-      if (!ok) setStep("pick");
-      // 入口要求直达白模时，探测过了才真的拨上去（探测没过 = 开关都不存在，
-      // 初值当然也不能生效）。此刻还没选过文件，不需要走开关按钮里那套清空逻辑
-      // ★ 入口方要求直接进白模：落到「AI 白模化」那一条（三条里唯一"任意视频都能用"的）
-      if (ok && defaultBlockout) setRoute("aiBlockout");
-    });
+    // ★★ 先等作品库就绪再探（2026-09-05 与 TemplateShelf 同一个时机坑）：remoteTemplatesCapable
+    //   在 remoteOn() 为假时**不探、直接回 false**，而 remoteOn() 在账号认领到人之后那次
+    //   按新 owner 重装作品库的窗口里就是 false。这里的 `!ok` 带副作用（下面直接跳过选路线
+    //   那一屏），只能在**定案**的答案上做 —— 窗口里的 false 不是定案：等它翻真，白模那两条
+    //   才会长出来，而用户已经被送到只有经典一条的选文件屏。readyVideos() 正是 remoteOn()
+    //   注释里写明的前提（"调用方在 readyVideos() 之后再问"，danmaku.ts 同款）：库装载中
+    //   它等那一发，装好了立刻返回；等完之后 remoteOn() 在这次会话里就是定数，`!ok` 的
+    //   那条推理（"选项列表不会再变长"）重新成立。
+    //   ⚠ 货架那一侧用的是「remoteLive 进依赖」的写法（CLAUDE.md 那条），这里没照抄：
+    //     依赖翻转会让这个 effect 重跑，而重跑那一发的 `!ok`/`defaultBlockout` 会在用户
+    //     已经选定路线、甚至选好文件之后再改一次 step/route（白模与经典的预检不同，带着
+    //     没过预检的文件切过去会拖到付费那步才撞 400）。等就绪再探一次，两件事都不发生。
+    void readyVideos()
+      .then(() => remoteTemplatesCapable())
+      .then((ok) => {
+        if (!alive) return;
+        setBlockoutReady(ok);
+        // ★★ 探测没过 = 白模那两条根本不渲染，"三选一"那一屏就只剩**一条**可选 ——
+        //   一个只有一个选项的选择题是纯粹的多一步，直接跳到选文件。
+        //   ★ 放在这里而不是 render 里按 `routeOpts.length` 派生：派生的话，探测**晚到**
+        //     且结果为真时会把已经在选文件的用户**拽回**选路线那一屏（他刚点开文件选择器）。
+        //     写在这一拍就没有这个歧义 —— 只有 `!ok` 才跳，而 `!ok` 意味着选项列表不会再变长，
+        //     那一屏此后永远只有一条，跳过去不丢任何东西。
+        if (!ok) setStep("pick");
+        // 入口要求直达白模时，探测过了才真的拨上去（探测没过 = 开关都不存在，
+        // 初值当然也不能生效）。此刻还没选过文件，不需要走开关按钮里那套清空逻辑
+        // ★ 入口方要求直接进白模：落到「AI 白模化」那一条（三条里唯一"任意视频都能用"的）
+        if (ok && defaultBlockout) setRoute("aiBlockout");
+      });
     return () => {
       alive = false;
     };

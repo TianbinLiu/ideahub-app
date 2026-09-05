@@ -62,6 +62,7 @@ import { deckQuoteOf, publishedExit, useStudio } from "../studio/studioStore";
 import { VideoTemplate, aspectCss, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 import { type CastEditorState } from "./VideoEditorPage";
+import { useBackOr } from "../hooks/useBackOr";
 import { useCastReturn } from "../hooks/useCastReturn";
 import { useFlowActions } from "../hooks/useFlowActions";
 
@@ -935,6 +936,15 @@ function NodeScreen({
 
 export default function FlowPage() {
   const navigate = useNavigate();
+  /**
+   * 简约模式左上角那枚返回：**回到来的那一页**（模板列表 / 模板详情 / 首页「做同款」），
+   * 历史里没有上一页（冷启动直接落到 /flow）才退回模板列表。
+   * ★ 此前写死 `navigate("/create")`：从「我的模板」点「用它出片」进来，按返回落到的是
+   *   创作入口而不是刚才那张列表（2026-09-05 主人真机点名）。判"有没有上一页"只有
+   *   `useBackOr` 一处实现（个人页 / 通知页 / 模板两页同款）。工坊那一面
+   *   （origin === "studio"）仍回 /studio —— 那是同一条流水线的另一个面，不是"上一页"。
+   */
+  const backOrTemplates = useBackOr("/templates");
   // 人回到这一页，胶囊那条"待读通知"就算读过了（页内自有完整的进度与结果 UI）
   const clearGenNotice = useFlow((s) => s.clearGenNotice);
   const genNotice = useFlow((s) => s.genNotice);
@@ -1171,7 +1181,7 @@ export default function FlowPage() {
                    「剩余约」照样被切成「· 剩…」，等于把钱那半句丢了。 */}
           <header className={`${planFocus ? "hidden" : "flex"} safe-top flex-none items-center gap-2.5 px-4 py-2.5`}>
             <button
-              onClick={() => navigate(origin === "studio" ? "/studio" : "/create")}
+              onClick={() => (origin === "studio" ? navigate("/studio") : backOrTemplates())}
               className="flex-none text-slate-300"
             >
               <Icon name="back" size={20} />
