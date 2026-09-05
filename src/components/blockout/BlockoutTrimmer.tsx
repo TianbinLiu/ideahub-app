@@ -111,8 +111,46 @@ export interface BlockoutTrimmerProps {
   trimWindow?: { minSec: number; maxSec: number };
   /** 每次框选变化都报一次（宿主要镜像/存草稿时用）。不给就纯内部状态 */
   onSelectionChange?: (sel: BlockoutSelection) => void;
+  /**
+   * 挂载时恢复成这一份选段（不给 = `initialSelection(geo)` 的默认框）。
+   *
+   * ★ 给「先框选、再标帧」那种**两步页**用（2026-09-05 提取器的自带白模片路拆成了两步）：
+   *   第 2 步把本组件卸掉，用户点「上一步」回来时不该看到裁剪框与选段全部归零 ——
+   *   那等于把他刚做的事丢了，且零报错。
+   * ★ 只在几何就绪 / 换素材那一拍读一次（ref），之后由内部状态接管：宿主每次渲染传一个
+   *   新对象进来不会把用户正在拖的框顶掉。
+   * ★ 这里会核一遍它装不装得进 geo，装不进就退默认：宿主换了素材却忘了清它的话，
+   *   上一条素材的选段套在新素材上是一个一上来就错的框（提取器在 dropReceipt 里清）。
+   * ★ 恢复时 `frameTimes` 一律抹掉：visionMode 同一拍退回「自动」，而自动模式的契约是
+   *   **一个字段都不带**（见 outSel 的 ★）—— 带着上一轮的 frameTimes 就是"界面说自动、
+   *   请求体却是自己挑"。
+   */
+  initial?: BlockoutSelection | null;
   onSubmit: (sel: BlockoutSelection) => void;
   onCancel?: () => void;
+}
+
+/**
+ * 宿主要求恢复的那份选段，装得进这条素材就原样还回去（去掉 frameTimes），装不进回 null。
+ * ★ 判"装得进"用与裁剪/时间轴同一组数（selectableSeconds / 登记宽高），别另立门槛。
+ */
+function restoredSelection(want: BlockoutSelection | null | undefined, geo: VideoNatural): BlockoutSelection | null {
+  if (!want) return null;
+  const w = Math.round(geo.width);
+  const h = Math.round(geo.height);
+  const { crop } = want;
+  const fits =
+    want.startSec >= 0 &&
+    want.durSec > 0 &&
+    want.startSec + want.durSec <= selectableSeconds(geo) &&
+    crop.x >= 0 &&
+    crop.y >= 0 &&
+    crop.w > 0 &&
+    crop.h > 0 &&
+    crop.x + crop.w <= w &&
+    crop.y + crop.h <= h;
+  if (!fits) return null;
+  return { startSec: want.startSec, durSec: want.durSec, crop: { ...crop } };
 }
 
 export default function BlockoutTrimmer({
@@ -128,6 +166,7 @@ export default function BlockoutTrimmer({
   pricing,
   trimWindow,
   onSelectionChange,
+  initial,
   onSubmit,
   onCancel,
 }: BlockoutTrimmerProps) {
@@ -153,10 +192,14 @@ export default function BlockoutTrimmer({
   /** 画时间轴与裁剪框用的那组数。登记值优先（服务端按它裁），没有才退本机 */
   const geo = natural ?? probe;
 
+  /** `initial` 的镜像（见 props 的 ★：只在初始化那一拍读，不进 effect 依赖） */
+  const initialRef = useRef(initial);
+  initialRef.current = initial;
+
   // 拿到几何就初始化选段；换了一条素材（宿主复用同一个实例）也重置 ——
   // 留着上一条的框会出现"框在画面外/选段超片尾"这种一上来就是错的状态
   useEffect(() => {
-    setSel(geo ? initialSelection(geo) : null);
+    setSel(geo ? restoredSelection(initialRef.current, geo) ?? initialSelection(geo) : null);
     // ★ 标记也必须一起清：它们是**上一条素材**里的秒数与缩略图，留着就是"标的是别的视频"
     //   ——而它们会真的被提交上去（帧数还决定报价）。模式退回默认同理。
     setMarks([]);

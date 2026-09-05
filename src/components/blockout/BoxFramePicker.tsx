@@ -16,8 +16,10 @@
 // ★ 标记一律按**用户在这个播放器里看到的那一秒**存（`src` 这条时间轴上的绝对秒）——
 //   调用方不必先换算。两个调用点的 `src` 不是同一种东西，差别**只由 `sel` 一个 prop 表达**：
 //     · 「识别角色位」重试：`src` 就是已经裁好的模板视频，不传 `sel` —— 每一帧都作数；
-//     · 提取器里第一次做：`src` 是**整条原片**、用户还在上面框选段，`sel` 就是那个选段 ——
+//     · 提取器里第一次做：`src` 是**整条原片**、`sel` 就是用户框出的那一段 ——
 //       只有落在选段里的标记才会被采用，「减去选段起点」那一次换算也在这里。
+//       时间轴画整条原片还是只画选段那一截由 `axis` 决定（2026-09-05 加了 "clip"，
+//       见 props）—— 只是画法，存的秒数与判据都不变。
 // ★★ 判据只有 `boxMarksInSelection` 一处：计数条、「标满」门禁、"这几帧在选段外"那句红字，
 //   以及调用方提交用的 `atSecs`，读的都是它。
 // ★★ 2026-08-17 修的就是它不在的时候：在此之前本组件**根本不知道选段存在** —— 滑杆铺满
@@ -123,6 +125,19 @@ export interface BoxFramePickerProps {
    *   调用方不许自己再滤一遍（那就是第二处判据，而两处漂开时界面与实收对不上）。
    */
   sel?: BoxFrameClip | null;
+  /**
+   * 有 `sel` 时时间轴怎么画（默认 "source"）：
+   *   · "source"：时间轴是**整条原片**、选段只是其中一截 —— 用户还在同一屏拖选段的老形态，
+   *     靠那句黄字说清"只有选段里的才作数"。
+   *   · "clip"：时间轴**只画选段那一截** —— 滑杆两端就是选段起止、读数从片段第 0 秒起、
+   *     播到选段末尾自动停。给「先框选、再标帧」那种两步页用：选段已经定了，再把整条原片
+   *     铺出来只会让人对着 34 秒的轴找 19 秒的片（2026-09-05 主人实测点名：
+   *     "即使有黄色提示还是太容易混淆"）。
+   * ★ 只是**画法**不同：marks 仍按原片绝对秒存、判据仍只有 boxMarksInSelection 一处 ——
+   *   改存相对秒的话，回上一步把选段起点挪一下，同一条标记就悄悄指向了另一帧。
+   * ★ 没传 `sel` 时这个值没有意义（整条 src 都作数）。
+   */
+  axis?: "source" | "clip";
   /** 已标的秒数（`src` 这条时间轴上的绝对秒），升序。调用方持有，本组件不留状态 */
   marks: number[];
   onMarksChange: (next: number[]) => void;
@@ -135,6 +150,7 @@ export default function BoxFramePicker({
   onModeChange,
   src,
   sel,
+  axis = "source",
   marks,
   onMarksChange,
   disabled,
@@ -142,6 +158,38 @@ export default function BoxFramePicker({
   const vid = useRef<HTMLVideoElement | null>(null);
   const [at, setAt] = useState(0);
   const [dur, setDur] = useState(0);
+
+  /** 时间轴只画选段那一截（见 props.axis）。★ 派生值：没有 sel 就不可能成立 */
+  const clipAxis = !!sel && axis === "clip";
+  /**
+   * 滑杆两端（**原片绝对秒**）：clip 形态是选段起止，source 形态是整条 0~dur。
+   * ★ 上端取 min(本机时长)：登记时长与本机解出的可以差零点几秒，选段末尾越过本机时长时
+   *   拖不到也 seek 不到，滑杆画到那儿就是一截永远到不了的空轨。
+   * ★ 播放、微调、滑杆、判"到末尾了"全读这两个数 —— source 形态下它们就是 0 与 dur，
+   *   所以老形态一个像素都不变。
+   */
+  const winStart = clipAxis && sel ? sel.startSec : 0;
+  const winEnd = clipAxis && sel ? Math.min(dur, sel.startSec + sel.durSec) : dur;
+  /** 给 ref 回调 / 换 src 那两处读的镜像（它们的闭包是挂载时那一份，读 state 会读到旧值） */
+  const winStartRef = useRef(winStart);
+  winStartRef.current = winStart;
+  /**
+   * clip 形态：播放头到了选段末尾就停住、钉在末尾。返回 true = 已停住（调用方别再推进读数）。
+   * ★★ rAF 与 `timeupdate` **两条路都要调它**：页面/面板不在渲染时（切后台、被遮住、
+   *   浏览器面板隐藏）rAF 一拍都不来，而 `<video>` 照样解码 —— 只挂在 rAF 上的话，那种
+   *   状态下它会一路播进选段外面（2026-09-05 在隐藏的浏览器面板里实测：播到 24.3 秒还没停）。
+   *   `timeupdate` 约 4Hz，最多晚 250ms 停，停下来的那一拍钉回 winEnd，读数不会越界。
+   * ★ 用 ref 给 rAF 那个 effect 读：它每次渲染都是新函数，进依赖会让 effect 每帧重挂。
+   */
+  const stopAtWindowEnd = (v: HTMLVideoElement): boolean => {
+    if (!clipAxis || v.currentTime < winEnd) return false;
+    if (!v.paused) v.pause();
+    v.currentTime = winEnd;
+    setAt(winEnd);
+    return true;
+  };
+  const stopAtWindowEndRef = useRef(stopAtWindowEnd);
+  stopAtWindowEndRef.current = stopAtWindowEnd;
 
   /**
    * 播放头与时长**跟着这个 `<video>` 元素的生死归零**。
@@ -165,7 +213,8 @@ export default function BoxFramePicker({
   const attachVideo = useCallback((el: HTMLVideoElement | null) => {
     vid.current = el;
     if (!el) return;
-    setAt(0);
+    // clip 形态下播放头从选段起点算（元素本身还在第 0 秒 —— 元数据到了由下面那个 effect seek 过去）
+    setAt(winStartRef.current);
     // 刚挂上来的元素 duration 是 NaN（元数据还没读）——归 0，由 onLoadedMetadata 填真值
     setDur(el.duration || 0);
   }, []);
@@ -175,8 +224,25 @@ export default function BoxFramePicker({
    *  ★ 这里**故意不碰 `dur`**：它归 `loadedmetadata` 管，在 effect 里清一次的话就又回到
    *    上面那个"清在事件后面 = 永久灰"的形状了。新那条的元数据到货时它自己会换。 */
   useEffect(() => {
-    setAt(0);
+    setAt(winStartRef.current);
   }, [src]);
+
+  /**
+   * clip 形态：播放头跑到选段外面就拉回起点。
+   * ★ 这一个 effect 同时管三件事：元数据刚到（dur 从 0 变成真值，元素还停在第 0 秒）、
+   *   换了选段、以及任何把 currentTime 写到窗口外的路。不拆成三处是因为判据只有一条
+   *   （"在不在 [winStart, winEnd] 里"），三处各写一遍迟早漂开。
+   */
+  useEffect(() => {
+    if (!clipAxis) return;
+    const v = vid.current;
+    if (!v || dur <= 0) return;
+    if (v.currentTime < winStart || v.currentTime > winEnd) {
+      if (!v.paused) v.pause();
+      v.currentTime = winStart;
+      setAt(winStart);
+    }
+  }, [clipAxis, winStart, winEnd, dur]);
 
   /** 播放中（决定那颗键画播放还是暂停）。★ 由 video 的 play/pause 事件驱动，
    *  不是自己 setState 记的 —— 播到结尾会自动 pause，自己记的那份就和画面对不上了 */
@@ -209,7 +275,13 @@ export default function BoxFramePicker({
     let raf = 0;
     const tick = () => {
       const v = vid.current;
-      if (v) setAt((prev) => (q(prev) === q(v.currentTime) ? prev : v.currentTime));
+      if (v) {
+        // clip 形态：播到选段末尾就停在那儿（onPause 会把 playing 关掉、本 effect 随之清理）。
+        // 不停的话它会一路播进选段外面，而那一段的画面根本不会被做成模板。
+        // 判据在 stopAtWindowEnd 一处（timeupdate 那条路也调它）
+        if (stopAtWindowEndRef.current(v)) return;
+        setAt((prev) => (q(prev) === q(v.currentTime) ? prev : v.currentTime));
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -242,6 +314,11 @@ export default function BoxFramePicker({
     const v = vid.current;
     if (!v || dur <= 0 || disabled) return;
     if (v.paused) {
+      // clip 形态：停在选段末尾（或不知怎么跑到了选段外）再点播放 = 从选段开头重来
+      if (clipAxis && (v.currentTime < winStart || v.currentTime >= winEnd - BOX_FRAME_QUANT / 10)) {
+        v.currentTime = winStart;
+        setAt(winStart);
+      }
       v.playbackRate = slow ? 0.25 : 1;
       void v.play().catch(() => setPlaying(false));
     } else {
@@ -255,7 +332,7 @@ export default function BoxFramePicker({
     const v = vid.current;
     if (!v || dur <= 0 || disabled) return;
     if (!v.paused) v.pause();
-    const t = Math.min(Math.max(0, quant(v.currentTime + delta)), dur);
+    const t = Math.min(Math.max(winStart, quant(v.currentTime + delta)), winEnd);
     v.currentTime = t;
     setAt(t);
   }
@@ -279,7 +356,10 @@ export default function BoxFramePicker({
         // 所以话要说成"等一下"而不是"你做错了"。
         "还在读这段视频的时长，读到之前标不了帧。应用切到后台时系统会暂停解码——回到前台等一两秒就好；一直读不出来就是这个文件解不开，换一个 mp4 试试。"
       : hereOutside && sel
-        ? `现在这一帧（原片第 ${here.toFixed(1)} 秒）在选段外面——选段是原片的第 ${sel.startSec}~${sel.startSec + sel.durSec} 秒，只有那一段会被做成模板。把播放头挪进选段再标，或者先把上面的选段拖到这儿来。`
+        ? clipAxis
+          ? // clip 形态下唯一能跑到选段外的位置是**末尾那一格**（上界是开区间：裁出来的片子没有它）
+            `已经到片段末尾了（片段共 ${sel.durSec} 秒，不含第 ${sel.durSec} 秒这一格）——往前挪一格再标。`
+          : `现在这一帧（原片第 ${here.toFixed(1)} 秒）在选段外面——选段是原片的第 ${sel.startSec}~${sel.startSec + sel.durSec} 秒，只有那一段会被做成模板。把播放头挪进选段再标，或者先把上面的选段拖到这儿来。`
         : full
           ? kind === "split"
             ? `已经标满 ${cap} 刀了——一次分段登记最多切 ${SPLIT_MAX_PARTS} 段（超过 30 秒的段还会自动补刀，不用标太密）。先删一刀再标。`
@@ -342,7 +422,7 @@ export default function BoxFramePicker({
           {/* ★★ 播放器里是**整条原片**，而做成模板的只有选段 —— 这件事必须在拖滑杆之前说。
               不说的话用户会在中后段标一串帧，读数写着「已标 5/5」，实际一帧都没发出去
               （2026-08-17 之前就是这样，而这一步是付费的）。 */}
-          {sel && (
+          {sel && !clipAxis && (
             <p className="rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
               下面这条时间轴是<b className="font-bold">整条原片</b>，而真正做成模板的只有你在上面框出的
               <b className="font-bold">
@@ -352,6 +432,13 @@ export default function BoxFramePicker({
                   （标 1 帧和标满 5 帧报的是同一个数，见 economy.ownRefTemplateCost），
                   说"不计费"会让人以为每多标一帧就多花一笔 —— 那是另一条路的价目。 */}
               ——只有落在这一段里的标记才作数，落在外面的 AI 根本不会看，等于白标。
+            </p>
+          )}
+          {/* clip 形态：轴就是选段本身，说一句"从哪到哪"就够 —— 不再需要那段黄字 */}
+          {sel && clipAxis && (
+            <p className="text-[10px] leading-relaxed text-slate-500">
+              下面这条时间轴就是你框出的那 {sel.durSec} 秒（原片第 {sel.startSec}~{sel.startSec + sel.durSec} 秒），
+              从片段第 0 秒起算。
             </p>
           )}
 
@@ -367,7 +454,11 @@ export default function BoxFramePicker({
             muted
             preload="metadata"
             onLoadedMetadata={(e) => setDur(e.currentTarget.duration || 0)}
-            onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
+            // ★ 末尾钳位也挂在这条媒体事件上（不只 rAF）：不渲染的页面里只有它还在来
+            onTimeUpdate={(e) => {
+              if (stopAtWindowEnd(e.currentTarget)) return;
+              setAt(e.currentTarget.currentTime);
+            }}
             onPlay={() => setPlaying(true)}
             onPause={(e) => {
               setPlaying(false);
@@ -407,10 +498,10 @@ export default function BoxFramePicker({
             </button>
             <input
               type="range"
-              min={0}
-              max={Math.max(0, dur)}
+              min={winStart}
+              max={Math.max(winStart, winEnd)}
               step={step}
-              value={Math.min(at, dur)}
+              value={Math.min(Math.max(at, winStart), winEnd)}
               onChange={(e) => {
                 const t = Number(e.target.value);
                 setAt(t);
@@ -420,7 +511,10 @@ export default function BoxFramePicker({
               className="min-w-0 flex-1 accent-sky-400 disabled:opacity-40"
               aria-label="把播放头挪到第几秒"
             />
-            <span className="flex-none text-[11px] tabular-nums text-slate-400">第 {here.toFixed(1)} 秒</span>
+            {/* ★ 读数与滑杆同一把尺：clip 形态按片段内秒报（滑杆左端就是片段第 0 秒） */}
+            <span className="flex-none text-[11px] tabular-nums text-slate-400">
+              {clipAxis ? `片段第 ${(here - winStart).toFixed(1)} 秒` : `第 ${here.toFixed(1)} 秒`}
+            </span>
           </div>
           {/* ★ 微调：手指在 300px 的轨道上拖不出 0.1 秒（360 秒素材是 1.2 秒/px）。
               "先粗后细"——滑杆拖到大概，这两颗按住这一步走一格 */}
@@ -486,10 +580,18 @@ export default function BoxFramePicker({
             )
           ) : (
             <div className="flex flex-wrap gap-1.5">
-              {/* ★ 秒数一律按**原片**报（与上面的滑杆、下面那句红字同一条时间轴）：
-                  这里改报"片段内第几秒"的话，同一屏上就有两把尺子，而用户点它是要跳回去看画面的 */}
+              {/* ★ 秒数按**滑杆那条时间轴**报（source 形态 = 原片秒，clip 形态 = 片段内秒）：
+                  同一屏只许有一把尺子，用户点它是要跳回去看画面的。clip 形态下落在选段外的
+                  那几枚没法用片段内秒表达（负数 / 超出），改报原片秒并点明 */}
               {marks.map((m) => {
                 const ok = boxMarkInSelection(m, sel);
+                const label = !ok
+                  ? clipAxis
+                    ? `原片第 ${m.toFixed(1)} 秒（选段外）`
+                    : `第 ${m.toFixed(1)} 秒（选段外）`
+                  : clipAxis
+                    ? `第 ${(m - winStart).toFixed(1)} 秒`
+                    : `第 ${m.toFixed(1)} 秒`;
                 return (
                   <span
                     key={m}
@@ -497,8 +599,18 @@ export default function BoxFramePicker({
                       ok ? "bg-slate-700/70 text-slate-200" : "bg-rose-500/20 text-rose-200 ring-1 ring-rose-500/50"
                     }`}
                   >
-                    <button onClick={() => (vid.current ? (vid.current.currentTime = m) : undefined)} className="tabular-nums">
-                      第 {m.toFixed(1)} 秒{ok ? "" : "（选段外）"}
+                    <button
+                      onClick={() => {
+                        const v = vid.current;
+                        if (!v) return;
+                        // clip 形态：选段外的那枚跳到离它最近的窗口边（跳出去就看不见了、也标不了）
+                        const t = clipAxis ? Math.min(Math.max(m, winStart), winEnd) : m;
+                        v.currentTime = t;
+                        setAt(t);
+                      }}
+                      className="tabular-nums"
+                    >
+                      {label}
                     </button>
                     <button
                       onClick={() => onMarksChange(marks.filter((x) => x !== m))}
@@ -519,9 +631,20 @@ export default function BoxFramePicker({
               选段拖回去（后者要知道它们在原片的第几秒，所以秒数也报出来）。 */}
           {outside.length > 0 && (
             <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">
-              有 {outside.length} 帧落在选段外面（选段后来被拖动过——标的时候它们还在里面），
-              <b>不会被采用</b>，AI 一眼都不会看它们。把它们删掉，或者把上面的选段拖回去
-              （它们在原片的第 {outside.map((m) => m.toFixed(1)).join(" / ")} 秒）。
+              {clipAxis ? (
+                // clip 形态下选段不在这一屏：出路是"回上一步"，不是"把上面的选段拖回去"
+                <>
+                  有 {outside.length} 帧落在现在的选段外面（是回上一步改选段之前标的），<b>不会被采用</b>，
+                  AI 一眼都不会看它们。把它们删掉，或者回上一步把选段拖回去
+                  （它们在原片的第 {outside.map((m) => m.toFixed(1)).join(" / ")} 秒）。
+                </>
+              ) : (
+                <>
+                  有 {outside.length} 帧落在选段外面（选段后来被拖动过——标的时候它们还在里面），
+                  <b>不会被采用</b>，AI 一眼都不会看它们。把它们删掉，或者把上面的选段拖回去
+                  （它们在原片的第 {outside.map((m) => m.toFixed(1)).join(" / ")} 秒）。
+                </>
+              )}
             </p>
           )}
         </>
