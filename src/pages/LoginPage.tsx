@@ -486,7 +486,7 @@ export default function LoginPage() {
         <button
           onClick={() => requireAgree(() => void submit())}
           disabled={busy || capsLoading}
-          className="w-full rounded-xl bg-brand py-3 text-sm font-bold text-ink transition hover:brightness-110 disabled:opacity-60"
+          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink transition hover:brightness-110 disabled:opacity-60"
         >
           {busy
             ? "处理中…"

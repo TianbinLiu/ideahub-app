@@ -433,7 +433,7 @@ export default function TemplateDetailPage() {
         <Icon name="cards" size={40} className="text-slate-600" />
         <p className="text-sm text-slate-400">这个模板不存在或已被作者删除</p>
         {/* replace：这一页是死页，别让它留在历史栈里等着被"返回"回来 */}
-        <Link to="/templates" replace className="rounded-full bg-brand px-5 py-2 text-sm font-bold text-ink">
+        <Link to="/templates" replace className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-ink">
           去模板市场
         </Link>
       </div>
@@ -552,7 +552,7 @@ export default function TemplateDetailPage() {
         onClick={apply}
         disabled={!!applyBlocked}
         title={applyBlocked ?? undefined}
-        className="mb-1 block w-full rounded-xl bg-brand py-3 text-center text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+        className="mb-1 block w-full rounded-xl bg-brand py-2.5 text-center text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
       >
         ⚡ 用这个模板出片{t.refVideo ? "（挂上你的角色卡）" : "（只需一句话）"}
       </button>

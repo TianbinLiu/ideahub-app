@@ -954,7 +954,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
               <button
                 onClick={() => void saveCard()}
                 disabled={!!busy}
-                className="flex-1 rounded-xl bg-brand py-2 text-sm font-bold text-ink disabled:opacity-50"
+                className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-50"
               >
                 {busy || "存这张卡"}
               </button>
@@ -1081,7 +1081,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                       vEnd - vStart < VOICE_MIN_SEC ||
                       vEnd - vStart > VOICE_MAX_SEC
                     }
-                    className="flex-1 rounded-lg bg-brand py-1.5 text-xs font-bold text-ink disabled:opacity-40"
+                    className="flex-1 rounded-full bg-brand py-1.5 text-xs font-bold text-ink disabled:opacity-40"
                   >
                     {recording ? "录制中…（实际播这一段）" : "🎙 录这一段"}
                   </button>
@@ -1146,7 +1146,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                 <button
                   onClick={confirmCrop}
                   disabled={tool !== "full" && !shape}
-                  className="w-full rounded-xl bg-brand py-2 text-sm font-bold text-ink disabled:opacity-40"
+                  className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                 >
                   ✂ 就取这一块
                 </button>
@@ -1173,7 +1173,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                       placeholder="卡组名"
                       className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500"
                     />
-                    <button onClick={finishDeck} className="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-ink">
+                    <button onClick={finishDeck} className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink">
                       存为卡组
                     </button>
                   </div>

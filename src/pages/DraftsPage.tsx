@@ -45,7 +45,7 @@ export default function DraftsPage() {
         <div className="flex flex-col items-center gap-3 py-20 text-center">
           <span className="text-4xl">📝</span>
           <p className="text-sm text-slate-400">还没有草稿——工坊和工作流里做到一半的工程都会存到这里</p>
-          <Link to="/create" className="rounded-full bg-brand px-5 py-2 text-sm font-bold text-ink">
+          <Link to="/create" className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-ink">
             去创作
           </Link>
         </div>

@@ -164,7 +164,7 @@ export function TemplateCard({
           <button
             data-guide={guidePick}
             onClick={onPick}
-            className="w-full rounded-full bg-brand py-2 text-[12px] font-bold text-ink"
+            className="w-full rounded-xl bg-brand py-2.5 text-[12px] font-bold text-ink"
           >
             用它出片
           </button>
@@ -241,7 +241,7 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
         <button
           onClick={() => void take()}
           disabled={!!busy}
-          className="mt-2 w-full rounded-full bg-brand py-2 text-[12px] font-bold text-ink disabled:opacity-50"
+          className="mt-2 w-full rounded-xl bg-brand py-2.5 text-[12px] font-bold text-ink disabled:opacity-50"
         >
           {busy ? "取回中…" : "取回这一发的结果（不额外花钱）"}
         </button>

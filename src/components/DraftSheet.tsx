@@ -80,7 +80,7 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
           />
           <button
             onClick={() => void renameDraft(meta.id, name).then(() => setRenaming(false))}
-            className="rounded-xl bg-brand px-4 text-sm font-bold text-ink"
+            className="rounded-full bg-brand px-4 text-sm font-bold text-ink"
           >
             改名
           </button>
