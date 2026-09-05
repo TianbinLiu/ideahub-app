@@ -5,6 +5,7 @@
 // ★ 拿到 token 后立刻把它从地址栏抹掉（replace 掉这条历史）：
 //   token 是完整的会话凭证，留在 URL 里会进历史记录、进分享链接、进 Referer。
 import { useEffect, useRef, useState } from "react";
+import EmptyState from "../components/EmptyState";
 import { useNavigate, useSearchParams } from "react-router";
 import { signInWithOauthToken } from "../data/account";
 
@@ -30,22 +31,9 @@ export default function OauthCallbackPage() {
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
   }, [params, navigate]);
 
-  return (
-    <div className="flex min-h-full flex-col items-center justify-center gap-4 px-8 text-center">
-      {err ? (
-        <>
-          <span className="text-3xl">🚫</span>
-          <p className="text-sm leading-relaxed text-rose-300">{err}</p>
-          <button onClick={() => navigate("/login", { replace: true })} className="rounded-xl bg-panel px-5 py-2.5 text-sm text-slate-200">
-            回登录页
-          </button>
-        </>
-      ) : (
-        <>
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-brand" />
-          <p className="text-xs text-slate-400">正在完成登录…</p>
-        </>
-      )}
-    </div>
+  return err ? (
+    <EmptyState full emoji="🚫" error text={err} cta={{ label: "回登录页", onClick: () => navigate("/login", { replace: true }) }} />
+  ) : (
+    <EmptyState full loading text="正在完成登录…" />
   );
 }

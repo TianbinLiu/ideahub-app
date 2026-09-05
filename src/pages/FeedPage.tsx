@@ -1,7 +1,8 @@
 // 首页：TikTok 式全屏上下滑视频流。每屏一支，进入视口自动播放、离开暂停。
 // 互动视频（带 branchTree）在流里播开场段，点"进入互动"跳详情页做分支选择。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router";
+import EmptyState from "../components/EmptyState";
+import { useNavigate } from "react-router";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 // 收藏取两边之长：**状态**用账号库（挂在用户对象上，刷新/换账号都还在），
@@ -1057,25 +1058,22 @@ export default function FeedPage() {
     return (
       <div className="fixed inset-0 bg-black">
         {tabs}
-        <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
-          <Icon name={feed === "following" ? "user" : "play"} size={40} className="text-slate-600" />
-          <p className="text-sm">
-            {feed === "following"
+        <EmptyState
+          className="h-full justify-center"
+          icon={feed === "following" ? "user" : "play"}
+          text={
+            feed === "following"
               ? user
                 ? "关注的创作者还没有新作品"
                 : "登录后可以关注喜欢的创作者"
-              : "还没有作品"}
-          </p>
-          {feed === "following" ? (
-            <button onClick={() => setFeed("recommend")} className="rounded-xl bg-panel px-5 py-2.5 text-sm text-slate-300">
-              去推荐流看看
-            </button>
-          ) : (
-            <Link to="/studio" className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-ink">
-              去卡片工坊创作
-            </Link>
-          )}
-        </div>
+              : "还没有作品"
+          }
+          cta={
+            feed === "following"
+              ? { label: "去推荐流看看", onClick: () => setFeed("recommend") }
+              : { label: "去卡片工坊创作", to: "/studio", primary: true }
+          }
+        />
       </div>
     );
   }

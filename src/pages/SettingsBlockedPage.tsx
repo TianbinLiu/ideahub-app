@@ -10,6 +10,7 @@
 //   ③ 有名单 → 列出来。
 //   把 ① 和 ② 合并的话，弱网下会显示"你还没拉黑过谁"，而名单其实好好地在服务器上。
 import { useCallback, useEffect, useState } from "react";
+import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import { isRemoteMode } from "../data/account";
@@ -81,20 +82,15 @@ export default function SettingsBlockedPage() {
         <p className="text-[12px] text-slate-500">正在取名单…</p>
       ) : list === null ? (
         // ① 没问到 —— 与"一个都没有"分开说，并给一条真能走的路
-        <div>
-          <p className="text-[12px] leading-relaxed text-amber-300/90">
-            没能取到黑名单（网络不通，或这台服务器还没有这个功能）。这不代表名单是空的。
-          </p>
-          <button
-            onClick={() => setNonce((n) => n + 1)}
-            className="mt-3 rounded-xl border border-slate-600 px-4 py-2.5 text-[12px] text-slate-200"
-          >
-            重试
-          </button>
-        </div>
+        <EmptyState
+          error
+          text="没能取到黑名单（网络不通，或这台服务器还没有这个功能）"
+          hint="这不代表名单是空的"
+          cta={{ label: "重试", onClick: () => setNonce((n) => n + 1) }}
+        />
       ) : list.length === 0 ? (
         // ② 问过了，确实一个都没有
-        <p className="text-[12px] text-slate-400">你还没拉黑过谁。</p>
+        <EmptyState text="你还没拉黑过谁" />
       ) : (
         <div className="space-y-2">
           {err && <p className="text-[11px] leading-relaxed text-rose-400">{err}</p>}

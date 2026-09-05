@@ -1,9 +1,9 @@
 // 卡组详情页：标题/简介/封面卡 + 卡片网格（点卡进卡片详情）。
 // 内置编辑模式：改标题、写简介、设封面卡、增删卡——工坊列表里的"编辑"也跳这里。
 import { useState } from "react";
+import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { Link, useNavigate, useParams } from "react-router";
-import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
@@ -25,13 +25,7 @@ export default function DeckDetailPage() {
 
   if (!deck) {
     return (
-      <div className="safe-top flex min-h-[70vh] flex-col items-center justify-center gap-3 px-6">
-        <Icon name="cards" size={40} className="text-slate-600" />
-        <p className="text-sm text-slate-400">卡组不存在或不属于你</p>
-        <Link to="/workshop" className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-ink">
-          去创意工坊
-        </Link>
-      </div>
+      <EmptyState full icon="cards" text="卡组不存在或不属于你" cta={{ label: "去创意工坊", to: "/workshop", primary: true }} />
     );
   }
 
@@ -72,7 +66,7 @@ export default function DeckDetailPage() {
                   if (!e.target.value.trim()) updateDeck(deck.id, { name: "未命名卡组" });
                 }}
                 maxLength={24}
-                className="mb-2 w-full rounded-lg border border-slate-600 bg-panel px-2.5 py-1.5 text-base font-bold text-slate-100 outline-none focus:border-brand"
+                className="mb-2 w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-base font-bold text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                 placeholder="卡组标题"
               />
               <textarea
@@ -80,7 +74,7 @@ export default function DeckDetailPage() {
                 onChange={(e) => updateDeck(deck.id, { intro: e.target.value })}
                 maxLength={SHARE_NOTE_MAX}
                 rows={3}
-                className="w-full resize-none rounded-lg border border-slate-600 bg-panel px-2.5 py-1.5 text-xs text-slate-200 outline-none placeholder:text-slate-500 focus:border-brand"
+                className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
                 placeholder="写一段卡组简介：这套卡适合生成什么样的视频？"
               />
             </>
