@@ -2348,6 +2348,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
       patchProp({
         firstFrame: res.firstFrame,
         lastFrame: res.lastFrame,
+        // 成片第一帧只管显示（白模/参考直出段没有设定首帧，卡面靠它）；这一炉没截到就清掉
+        // 上一炉的旧图，别让卡面挂着另一发的画面
+        poster: res.poster,
         // mock 构建下 Seedance 不返回地址：这里和 videoByProposal 用同一个 "mock:" 占位串，
         // 否则同一段在工作流里算"已出片"、回工坊却算"没出片"（工坊读的是 proposal.videoUrl），
         // 于是演示模式下桌面永远开不出下一张卡。需要"能播的地址"的地方走 realVideoOf 过滤
@@ -2458,7 +2461,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
     set({ busy: true, err: "" });
     try {
-      const { url, lastFrame } = await takeVideoTask(job.taskId, prog, job.provider);
+      const { url, lastFrame, poster } = await takeVideoTask(job.taskId, prog, job.provider);
       // ★ 与 genNode 成功那一行**同一条规则**（"拿到结果才扣"）：接不到结果的那一发
       //   在本机账上没扣过，取回等于这一段终于成了。不扣的话"等超时再取回"就是白嫖，
       //   而一段视频只该扣一次钱。远端模式下这只是改本机镜像（真扣费在提交那一刻由
@@ -2480,7 +2483,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
                 videoByProposal: { ...n.videoByProposal, [job.proposalId]: url },
                 proposals: n.proposals.map((p) =>
                   p.id === job.proposalId
-                    ? { ...p, videoUrl: url, ...(lastFrame ? { lastFrame } : {}), degraded: undefined }
+                    ? { ...p, videoUrl: url, ...(lastFrame ? { lastFrame } : {}), ...(poster ? { poster } : {}), degraded: undefined }
                     : p,
                 ),
               },

@@ -600,8 +600,8 @@ function NodeScreen({
           </div>
         ) : done && vsrc ? (
           <video ref={vref} src={vsrc} muted playsInline controls className="max-h-full max-w-full" />
-        ) : prop.firstFrame ? (
-          <img src={prop.firstFrame} alt="" className="max-h-full max-w-full" />
+        ) : prop.poster || prop.firstFrame ? (
+          <img src={prop.poster || prop.firstFrame} alt="" className="max-h-full max-w-full" />
         ) : (
           <div className="px-8 text-center text-xs leading-relaxed text-slate-500">
             {generating
@@ -1366,8 +1366,8 @@ export default function FlowPage() {
                             i === cursor ? "border-brand" : "border-transparent"
                           }`}
                         >
-                          {p.firstFrame ? (
-                            <img src={p.firstFrame} alt="" className="h-full w-full object-cover" />
+                          {p.poster || p.firstFrame ? (
+                            <img src={p.poster || p.firstFrame} alt="" className="h-full w-full object-cover" />
                           ) : (
                             <span className="flex h-full w-full items-center justify-center bg-panel text-[10px] text-slate-500">
                               {i + 1}
