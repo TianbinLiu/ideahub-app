@@ -7,7 +7,7 @@
 //   工坊模式  —— 3D 铸卡桌面推演三套方案、挑一套炼一段，逐段落地 → 剪辑 → 发布
 //   简约模式  —— 单节点，一句话出一条几秒短片 → 剪辑 → 发布（**不进草稿库**，见下）
 import { useRef, useState } from "react";
-import { BackButton } from "../components/IconTapButton";
+import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
@@ -103,14 +103,9 @@ export default function CreatePage() {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-ink">
-      <header className="safe-top flex flex-none items-center gap-3 px-4 py-3">
-        {/* 直接回首页而不是 navigate(-1)：这一页常从登录重定向落地（历史里上一条
+      {/* 直接回首页而不是 navigate(-1)：这一页常从登录重定向落地（历史里上一条
             是登录页），也可能本身就是首个历史记录，后退会退出应用而不是回首页 */}
-        <BackButton size={20} onClick={() => navigate("/")} />
-        <span className="font-bold text-slate-100">开始创作</span>
-        <span className="flex-1" />
-        <HelpButton tour="create" />
-      </header>
+      <PageHeader className="flex-none px-4" onBack={() => navigate("/")} title="开始创作" right={<HelpButton tour="create" />} />
 
       {/* ══ 一张卡的正反面（2026-08-30 主人点名：不再是并排两张 + 左右箭头）══
           ★ 为什么是"翻面"而不是"换一张"：工坊与简约是同一件事的两种做法（同一条流水线的

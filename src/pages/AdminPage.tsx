@@ -13,7 +13,7 @@
 //   来回切是高频动作，走路由会把「返回=退出后台」和「返回=回到总览」搅在一起；
 //   子视图里顶栏的返回键固定回总览，语义只有一种。
 import { useCallback, useEffect, useState } from "react";
-import { BackButton } from "../components/IconTapButton";
+import PageHeader from "../components/PageHeader";
 import { Link, useNavigate } from "react-router";
 import Avatar from "../components/Avatar";
 import Icon from "../components/Icon";
@@ -88,13 +88,14 @@ export default function AdminPage() {
   const bump = () => setReloadKey((n) => n + 1);
 
   return (
-    <div className="safe-top min-h-full px-4 pb-16 pt-3">
-      <div className="mb-5 flex items-center gap-3">
-        {/* 子视图里返回键固定回总览；只有总览上才真的退出这一页 */}
-        <BackButton size={20} tone="text-slate-400" onClick={() => (view === "home" ? navigate(-1) : setView("home"))} />
-        <h1 className="text-lg font-bold text-slate-100">{VIEW_TITLE[view]}</h1>
-        <span className="ml-auto rounded-full bg-brand/15 px-2.5 py-1 text-[11px] text-brand">管理员</span>
-      </div>
+    <div className="min-h-full px-4 pb-16">
+      {/* 子视图里返回键固定回总览；只有总览上才真的退出这一页 */}
+      <PageHeader
+        className="mb-5"
+        onBack={() => (view === "home" ? navigate(-1) : setView("home"))}
+        title={VIEW_TITLE[view]}
+        right={<span className="flex-none rounded-full bg-brand/15 px-2.5 py-1 text-[11px] text-brand">管理员</span>}
+      />
 
       {view === "home" && (
         <>

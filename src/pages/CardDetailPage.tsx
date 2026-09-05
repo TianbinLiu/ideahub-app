@@ -2,7 +2,7 @@
 // （铸卡时的完整提示词，具体到可复刻卡面）+ 3D 建模全息预览（有 modelUrl 的角色卡）。
 // 创意工坊/我的/卡组详情点卡进来。
 import { useEffect, useRef, useMemo, useState, useSyncExternalStore } from "react";
-import { BackButton } from "../components/IconTapButton";
+import PageHeader from "../components/PageHeader";
 import DeleteCardDialog from "../components/DeleteCardDialog";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
@@ -584,11 +584,8 @@ export default function CardDetailPage() {
   const cardInfo = cardInfoOf(card);
 
   return (
-    <div className="safe-top min-h-full px-4 pb-8 pt-3">
-      <div className="mb-3 flex items-center gap-2">
-        <BackButton chip="md" size={18} onClick={() => nav(-1)} />
-        <h1 className="text-base font-bold text-slate-100">卡片详情</h1>
-      </div>
+    <div className="min-h-full px-4 pb-8">
+      <PageHeader onBack={() => nav(-1)} title="卡片详情" />
 
       {/* 大卡面 / 全息建模 双栏 */}
       <div className="mb-4 flex justify-center gap-3">

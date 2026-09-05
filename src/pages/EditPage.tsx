@@ -9,9 +9,9 @@
 //        典型的"静默且全局"的坏失败（铁律八）。与其留个假按钮不如拿掉。
 //   多 P 的**读**路径保留（VideoPage 的选集条），老作品里已有的分集照常播。
 import { useEffect, useMemo, useState } from "react";
+import PageHeader from "../components/PageHeader";
 import { Link, useNavigate, useParams } from "react-router";
 import { CoverSection } from "../components/CoverPicker";
-import Icon from "../components/Icon";
 import TagInput from "../components/TagInput";
 import VisibilityPicker from "../components/VisibilityPicker";
 import { deleteVideoItem, getVideo, isMyAuthor, partsOf, updateVideoMeta } from "../data/videos";
@@ -179,16 +179,7 @@ export default function EditPage() {
       {/* ★ safe-top 挂在 header 自己身上、不挂页面根：header 是 sticky top-0，
           安全区留白必须【在它内部】，否则它会滑到状态栏底下（ProfilePage 那条注释同理）。
           原来这三页压根没挂，顶栏文案直接压在状态栏上。 */}
-      <header className="safe-top sticky top-0 z-10 border-b border-slate-800 bg-ink/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-          <Link to={`/video/${video.id}`} className="flex items-center gap-1 text-slate-400 hover:text-white">
-            <Icon name="back" size={18} />
-            回到作品
-          </Link>
-          <span className="font-bold text-slate-100">编辑作品</span>
-          <span className="truncate text-xs text-slate-500">{video.title}</span>
-        </div>
-      </header>
+      <PageHeader sticky onBack={() => navigate(`/video/${video.id}`)} backLabel="回到作品" title="编辑作品" subtitle={video.title} />
 
       <main className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1.2fr_1fr]">
         {/* 左：内容一览（只读） */}

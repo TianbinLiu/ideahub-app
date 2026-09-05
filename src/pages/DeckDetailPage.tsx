@@ -1,7 +1,7 @@
 // 卡组详情页：标题/简介/封面卡 + 卡片网格（点卡进卡片详情）。
 // 内置编辑模式：改标题、写简介、设封面卡、增删卡——工坊列表里的"编辑"也跳这里。
 import { useState } from "react";
-import { BackButton } from "../components/IconTapButton";
+import PageHeader from "../components/PageHeader";
 import { Link, useNavigate, useParams } from "react-router";
 import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
@@ -39,17 +39,19 @@ export default function DeckDetailPage() {
   const cover = deckCoverOf(deck);
 
   return (
-    <div className="safe-top min-h-full px-4 pb-8 pt-3">
-      <div className="mb-3 flex items-center gap-2">
-        <BackButton chip="md" size={18} onClick={() => nav(-1)} />
-        <h1 className="min-w-0 flex-1 truncate text-base font-bold text-slate-100">卡组详情</h1>
-        <button
-          onClick={() => setEditing((v) => !v)}
-          className={`rounded-full px-3.5 py-1.5 text-xs font-semibold ${editing ? "bg-brand text-ink" : "bg-panel text-slate-200"}`}
-        >
-          {editing ? "完成" : "✏️ 编辑"}
-        </button>
-      </div>
+    <div className="min-h-full px-4 pb-8">
+      <PageHeader
+        onBack={() => nav(-1)}
+        title="卡组详情"
+        right={
+          <button
+            onClick={() => setEditing((v) => !v)}
+            className={`flex-none rounded-full px-3.5 py-1.5 text-xs font-semibold ${editing ? "bg-brand text-ink" : "bg-panel text-slate-200"}`}
+          >
+            {editing ? "完成" : "✏️ 编辑"}
+          </button>
+        }
+      />
 
       {/* 头部：封面卡 + 标题/简介 */}
       <div className="mb-4 flex gap-3">

@@ -10,6 +10,7 @@
 //     → 发布（published）。状态的权威在服务端，这里只显示与转发；
 //   · 身份判定走服务端按 ownerId 算的 isOwner——**绝不拿显示名比对**。
 import { useEffect, useState } from "react";
+import PageHeader from "../components/PageHeader";
 import { Link, useNavigate, useParams } from "react-router";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
@@ -516,17 +517,19 @@ export default function TemplateDetailPage() {
   }
 
   return (
-    <div className="safe-top min-h-full px-4 pb-10 pt-3">
-      <div className="mb-3 flex items-center gap-2">
-        <button onClick={back} className="flex h-8 w-8 items-center justify-center rounded-full bg-panel">
-          <Icon name="back" size={18} className="text-slate-300" />
-        </button>
-        <h1 className="text-base font-bold text-slate-100">模板详情</h1>
-        <HelpButton tour="tpldetail" />
-        {!t.published && isMine && (
-          <span className="ml-auto rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] text-amber-400">未发布</span>
-        )}
-      </div>
+    <div className="min-h-full px-4 pb-10">
+      <PageHeader
+        onBack={back}
+        title="模板详情"
+        right={
+          <>
+            <HelpButton tour="tpldetail" />
+            {!t.published && isMine && (
+              <span className="flex-none rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] text-amber-400">未发布</span>
+            )}
+          </>
+        }
+      />
 
       <div className="mb-3 overflow-hidden rounded-2xl bg-black/40">
         {t.cover && <img src={t.cover} alt="" className="aspect-[16/10] w-full object-cover" />}

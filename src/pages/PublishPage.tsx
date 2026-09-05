@@ -4,7 +4,8 @@
 //   某一 P），2026-08 随「作品一经发布不可回炉」一并删除 —— 理由见 studioStore 里
 //   那段注释：已经有人看过的作品不该被换掉内容。想改内容 = 重新发一条。
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import PageHeader from "../components/PageHeader";
+import { useNavigate } from "react-router";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InfoDialog from "../components/InfoDialog";
 import { AGREEMENTS } from "../data/agreements";
@@ -12,7 +13,6 @@ import { CoverSection } from "../components/CoverPicker";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import AigcBadge from "../components/AigcBadge";
-import Icon from "../components/Icon";
 import VisibilityPicker from "../components/VisibilityPicker";
 import SegmentPlayer from "../components/SegmentPlayer";
 import TagInput from "../components/TagInput";
@@ -160,19 +160,14 @@ export default function PublishPage() {
       {/* ★ safe-top 挂在 header 自己身上、不挂页面根：header 是 sticky top-0，
           安全区留白必须【在它内部】，否则它会滑到状态栏底下（ProfilePage 那条注释同理）。
           原来这三页压根没挂，顶栏文案直接压在状态栏上。 */}
-      <header className="safe-top sticky top-0 z-10 border-b border-slate-800 bg-ink/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-          <Link to="/studio" className="flex items-center gap-1 text-slate-400 hover:text-white">
-            <Icon name="back" size={18} />
-            返回工坊
-          </Link>
-          <span className="font-bold text-slate-100">发布视频</span>
-          <span className="text-xs text-slate-500">
-            {draft.segments.length} 段 · 共 {formatDuration(total)}
-          </span>
-          <HelpButton tour="publish" className="ml-auto" />
-        </div>
-      </header>
+      <PageHeader
+        sticky
+        onBack={() => navigate("/studio")}
+        backLabel="返回工坊"
+        title="发布视频"
+        subtitle={`${draft.segments.length} 段 · 共 ${formatDuration(total)}`}
+        right={<HelpButton tour="publish" />}
+      />
 
       <main className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1.2fr_1fr]">
         {/* 成片预览 */}

@@ -26,6 +26,7 @@
 // 图标页签 → 3 列贴边栅格。旧版是左对齐的资料卡 + 文字页签，与首页的
 // 短视频形态完全不搭，而且首页压根没有入口能走到"别人"的主页。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import PageHeader from "../components/PageHeader";
 import { takedownReasonText } from "../api/admin";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -510,34 +511,18 @@ export default function ProfilePage() {
   return (
     <div className="min-h-full">
       {/* 顶栏：sticky 而不是随内容滚走——作品墙可以很长，返回和设置得一直够得着。
-          safe-top 放在这里而不是页面根上，否则 sticky 会顶到刘海底下 */}
-      <header className="safe-top sticky top-0 z-20 bg-ink">
-        <div className="flex h-11 items-center px-2">
-          {self ? (
-            <span className="h-11 w-11" />
-          ) : (
-            <button
-              // 分享出去的主页链接被人直接点开时 history 里没有"上一页"——退回首页而不是退出 App
-              //（判据只在 hooks/useBackOr 一处）
-              onClick={backOrHome}
-              aria-label="返回"
-              className="flex h-11 w-11 items-center justify-center text-slate-300"
-            >
-              <Icon name="back" size={22} />
-            </button>
-          )}
-          {/* ★ 自己的主页顶栏不再写 @账号：底下的资料区已经把名字和 @账号都列了一遍，
-              顶栏那一行等于把同一个信息说两遍，还把整页最贵的那条视觉带占满了。
-              别人的主页保留 —— 作品墙一长就滚到看不见头像，那时候顶栏是唯一还能
-              回答"这是谁的主页"的地方。 */}
-          {self ? (
-            <span className="flex-1" />
-          ) : (
-            <span className="min-w-0 flex-1 truncate text-center text-[15px] font-semibold text-slate-100">
-              @{handle}
-            </span>
-          )}
-          {self ? (
+          ★ 自己的主页顶栏不写 @账号：底下的资料区已经把名字和 @账号都列了一遍，
+            顶栏那一行等于把同一个信息说两遍。别人的主页保留 —— 作品墙一长就滚到看不见头像，
+            那时候顶栏是唯一还能回答"这是谁的主页"的地方。
+          ★ 分享出去的主页链接被人直接点开时 history 里没有"上一页"——退回首页而不是退出 App
+            （判据只在 hooks/useBackOr 一处） */}
+      <PageHeader
+        sticky
+        onBack={self ? undefined : backOrHome}
+        title={self ? "" : `@${handle}`}
+        titleClassName="text-[15px] font-semibold text-slate-100"
+        right={
+          self ? (
             <div className="flex items-center">
               {/* 通知入口。★ 放这儿而不是底栏加一格：TabBar 是五格，底缘那 100px 的
                   几何是承重的（CLAUDE.md「动了首页底缘任何一个元素」那条）。 */}
@@ -576,9 +561,9 @@ export default function ProfilePage() {
             >
               <Icon name="share" size={21} />
             </button>
-          )}
-        </div>
-      </header>
+          )
+        }
+      />
 
       {/* ── 资料区（居中竖排，TikTok 同构）────────────────────────────── */}
       <div className="flex flex-col items-center px-5 pt-1">

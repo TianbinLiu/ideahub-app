@@ -64,7 +64,7 @@ const MAX_HISTORY = 12;
 const MAX_INPUT_CHARS = 1000;
 const TRANSCRIPT_MAX = 30;
 /** 顶栏高度：模型的头顶从它下面开始 */
-const TOP_BAR_PX = 64;
+const TOP_BAR_PX = 58; // = safe-top 的 10px 呼吸 + 48px 一行（与 PageHeader 同高）
 /** 看板娘身高占整页高度的比例 */
 const MODEL_HEIGHT_FRACTION = 0.8;
 
@@ -484,7 +484,7 @@ export default function SupportPage() {
       {/* 顶栏浮层 */}
       {/* 渐变只是装饰：pointer-events-none 让它下面的模型头部能被摸到（真机上头正好在这块渐变里），按钮那一行再打开 */}
       <div className="safe-top pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-ink/85 via-ink/40 to-transparent pb-8">
-        <div className="pointer-events-auto flex h-14 items-center gap-1 px-2">
+        <div className="pointer-events-auto flex h-12 items-center gap-1 px-2">
           <button onClick={() => navigate(-1)} aria-label="返回" className="flex h-11 w-11 items-center justify-center text-slate-200">
             <Icon name="back" size={20} />
           </button>

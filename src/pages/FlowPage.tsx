@@ -14,7 +14,7 @@
 //   工作流模式 → seedSolo("workflow")，方案台是主路径
 //   简约模式 → seedSolo("simple")，单节点单走向、不推演方案、**不存草稿**，UI 收到最简
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BackButton } from "../components/IconTapButton";
+import PageHeader from "../components/PageHeader";
 import { Link, useNavigate } from "react-router";
 import AnnStrip from "../components/flow/AnnStrip";
 import InfoTip from "../components/InfoTip";
@@ -1180,19 +1180,21 @@ export default function FlowPage() {
                    「完成视频」右半边被切在屏外，点不全，且零报错；
                 ② 只把进度挪到第二行、? 仍留在主行：顶栏只长 8.5px，但进度 111px，
                    「剩余约」照样被切成「· 剩…」，等于把钱那半句丢了。 */}
-          <header className={`${planFocus ? "hidden" : "flex"} safe-top flex-none items-center gap-2.5 px-4 py-2.5`}>
-            {/* ★ 命中区 44×44（IconTapButton 的 ★★）：此前是裸 20px 图标，主人真机上"点了没反应" */}
-            <BackButton size={20} onClick={() => (origin === "studio" ? navigate("/studio") : backOrTemplates())} />
-            <div className="flex min-w-0 flex-1 flex-col">
-              <div className="flex items-center gap-2">
-                <span className="flex-none text-sm font-bold text-slate-100">{simple ? "简约模式" : "工作流"}</span>
-                <HelpButton tour="flow" />
-              </div>
-              <span className="min-w-0 truncate text-[11px] text-slate-500">
+          {/* 顶栏走全 app 同一份 PageHeader（返回 / 标题 / ? 的位置与别的页逐像素相同）。
+              专注态整条隐藏（className 里那个 hidden），退出时原样回来。 */}
+          <PageHeader
+            className={`${planFocus ? "hidden" : ""} flex-none px-4`}
+            onBack={() => (origin === "studio" ? navigate("/studio") : backOrTemplates())}
+            title={simple ? "简约模式" : "工作流"}
+            subtitle={
+              <>
                 {simple ? "一个节点，一条短片" : `${nodes.length} 段 · 已出片 ${nodes.filter(nodeDone).length}`}
                 {AI_REAL && remain > 0 && ` · 剩余约 ${fmtTokens(remain)}`}
-              </span>
-            </div>
+              </>
+            }
+            right={
+              <>
+            <HelpButton tour="flow" />
             {/* ★ 「进画布」那颗键 2026-08-23 撤掉：非简约恒画布，这条顶栏只有简约模式还在用，
                 而简约恒单段、画布没有信息量（用户点名：简约不要画布）。 */}
             {/* 手动存盘。自动保存只在"炼完一段"那种昂贵节点触发（见上面的 effect），
@@ -1230,7 +1232,9 @@ export default function FlowPage() {
               {fa.finalizing || "完成视频"}
               {fa.allDone && " ›"}
             </button>
-          </header>
+              </>
+            }
+          />
     
           {/* 简约模式的模板栏：套上模板 = 配方负责画风与分镜，用户只写一句话 */}
           {simple && (

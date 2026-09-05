@@ -1,6 +1,7 @@
 // 创意工坊页：管理自己的卡片与卡组——搜索添加市场卡片、建组、增删卡。
 // 与 3D 卡片工坊（/studio）分工：这里是资产管理，那里是创作现场。
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import PageHeader from "../components/PageHeader";
 import Icon from "../components/Icon";
 import DeleteCardDialog from "../components/DeleteCardDialog";
 import DeleteDeckDialog from "../components/DeleteDeckDialog";
@@ -196,14 +197,18 @@ export default function WorkshopPage() {
   }
 
   return (
-    <div className="safe-top min-h-full px-4 pt-3">
-      <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-lg font-bold text-slate-100">创意工坊</h1>
-        <HelpButton tour="workshop" className="ml-auto mr-2" />
-        <Link data-guide="workshop-studio-entry" to="/studio" className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink">
-          🎴 进入 3D 工坊
-        </Link>
-      </div>
+    <div className="min-h-full px-4">
+      <PageHeader
+        title="创意工坊"
+        right={
+          <>
+            <HelpButton tour="workshop" className="mr-2" />
+            <Link data-guide="workshop-studio-entry" to="/studio" className="flex-none rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink">
+              🎴 进入 3D 工坊
+            </Link>
+          </>
+        }
+      />
 
       {/* 统计条 */}
       <div className="mb-3 flex gap-2 overflow-x-auto pb-1 text-[11px]">

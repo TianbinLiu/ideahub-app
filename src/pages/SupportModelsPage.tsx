@@ -15,8 +15,8 @@
  * ★ 失败就地整句说明在那张卡上（api:error 没人听）。
  */
 import { useEffect, useRef, useState } from "react";
+import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
-import Icon from "../components/Icon";
 import { ApiError } from "../api/client";
 import {
   OFFICIAL_MODEL_ID,
@@ -172,13 +172,8 @@ export default function SupportModelsPage() {
   const emptyText = scope === "installed" ? "还没有下载过形象，去「全部」里挑一套。" : "市场里还没有形象。";
 
   return (
-    <div className="safe-top min-h-full px-4 pb-10 pt-3">
-      <div className="mb-2 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="text-xl text-slate-400" aria-label="返回">
-          <Icon name="back" size={20} />
-        </button>
-        <h1 className="flex-1 text-lg font-bold text-slate-100">数字人形象</h1>
-      </div>
+    <div className="min-h-full px-4 pb-10">
+      <PageHeader className="mb-2" onBack={() => navigate(-1)} title="数字人形象" />
       <p className="mb-3 text-[11px] text-slate-500">给客服页和官网首页的看板娘换一套 Live2D 形象，两边共用同一份设置。</p>
 
       <div className="mb-3 flex gap-2">

@@ -5,7 +5,7 @@
 // ★ setQuality 会 location.reload()（模型经 useLoader 按 URL 缓存，整页重载最干净）。
 //   hash 路由下 reload 回到的还是本页，选中态自然对上，不用额外善后。
 import { useState } from "react";
-import { BackButton } from "../components/IconTapButton";
+import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -22,12 +22,8 @@ export default function SettingsQualityPage() {
   if (!user) return null;
 
   return (
-    <div className="safe-top min-h-full px-4 pb-10 pt-3">
-      <div className="mb-4 flex items-center gap-3">
-        <BackButton size={20} tone="text-slate-400" onClick={() => navigate(-1)} />
-        <h1 className="flex-1 text-lg font-bold text-slate-100">画面质量</h1>
-        <HelpButton tour="setquality" />
-      </div>
+    <div className="min-h-full px-4 pb-10">
+      <PageHeader className="mb-4" onBack={() => navigate(-1)} title="画面质量" right={<HelpButton tour="setquality" />} />
 
       <div data-guide="setquality-opts" className="space-y-2">
         {(Object.keys(QUALITY_LABELS) as Quality[]).map((q) => (

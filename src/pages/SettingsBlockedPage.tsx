@@ -10,7 +10,7 @@
 //   ③ 有名单 → 列出来。
 //   把 ① 和 ② 合并的话，弱网下会显示"你还没拉黑过谁"，而名单其实好好地在服务器上。
 import { useCallback, useEffect, useState } from "react";
-import { BackButton } from "../components/IconTapButton";
+import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import { isRemoteMode } from "../data/account";
 import { useCurrentUser } from "../hooks/useAccount";
@@ -63,11 +63,8 @@ export default function SettingsBlockedPage() {
   }
 
   return (
-    <div className="safe-top min-h-full px-4 pb-10 pt-3">
-      <div className="mb-3 flex items-center gap-2">
-        <BackButton chip="md" size={18} onClick={() => navigate(-1)} />
-        <h1 className="text-base font-bold text-slate-100">已拉黑的人</h1>
-      </div>
+    <div className="min-h-full px-4 pb-10">
+      <PageHeader onBack={() => navigate(-1)} title="已拉黑的人" />
 
       <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
         拉黑是双向的：你们不会再看见彼此的作品、评论和弹幕，也不会收到对方的任何通知。解除之后立刻恢复。
