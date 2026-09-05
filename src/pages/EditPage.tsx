@@ -346,14 +346,14 @@ export default function EditPage() {
                       setDelErr(null);
                     }}
                     disabled={deleting}
-                    className="flex-1 rounded-xl bg-slate-700/70 py-2 text-sm text-slate-200 disabled:opacity-50"
+                    className="flex-1 rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200 disabled:opacity-50"
                   >
                     取消
                   </button>
                   <button
                     onClick={() => void remove()}
                     disabled={deleting}
-                    className="rounded-xl bg-rose-500 px-4 py-2 text-sm font-bold text-white hover:brightness-110 disabled:opacity-50"
+                    className="rounded-xl bg-rose-500 px-4 py-2.5 text-sm font-bold text-white hover:brightness-110 disabled:opacity-50"
                   >
                     {deleting ? "删除中…" : delErr?.kind === "delete" ? "再试一次" : "确认删除"}
                   </button>

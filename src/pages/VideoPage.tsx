@@ -123,7 +123,7 @@ function VideoDeckSection({
         <button
           onClick={() => void collect()}
           disabled={got || adding}
-          className="rounded-xl bg-panel px-4 py-2 text-sm text-slate-200 ring-1 ring-slate-700 disabled:opacity-50"
+          className="rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-200 ring-1 ring-slate-700 disabled:opacity-50"
           title={loggedIn ? "" : auth === "pending" ? "正在确认登录状态…" : "登录后可收入卡组"}
         >
           {got ? "✓ 已在我的卡组" : adding ? "收取中…" : addErr ? "再试一次" : "收入我的卡组"}
@@ -140,7 +140,7 @@ function VideoDeckSection({
             }));
             onGo();
           }}
-          className="flex-1 rounded-xl bg-brand/90 px-4 py-2 text-sm font-bold text-ink"
+          className="flex-1 rounded-xl bg-brand/90 px-4 py-2.5 text-sm font-bold text-ink"
         >
           🎴 用这套卡去创作
         </button>
@@ -278,7 +278,7 @@ export default function VideoPage() {
             {/* 失败可以，但要能自己重试 —— 而且这一条**没被标已读**，消息页那个红点还在 */}
             <button
               onClick={() => setRetry((n) => n + 1)}
-              className="rounded-full bg-panel px-5 py-2 text-sm font-semibold text-slate-100 ring-1 ring-slate-700"
+              className="rounded-xl bg-panel px-5 py-2.5 text-sm font-semibold text-slate-100 ring-1 ring-slate-700"
             >
               重试
             </button>

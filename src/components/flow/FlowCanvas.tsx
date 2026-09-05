@@ -1137,7 +1137,7 @@ function NodePanel({
                   <button
                     onClick={() => setRefSheet(true)}
                     disabled={locked || generating || busy}
-                    className="mt-1.5 w-full rounded-lg border border-sky-500/40 py-1.5 text-[11px] text-sky-200 disabled:opacity-40"
+                    className="mt-1.5 w-full rounded-full border border-sky-500/40 py-1.5 text-[11px] text-sky-200 disabled:opacity-40"
                   >
                     🎞 调节首尾帧 / 加中间帧
                   </button>
@@ -2046,7 +2046,7 @@ export function TemplatePicker({
             <div className="flex gap-2">
               <button
                 onClick={() => setPreviewing(null)}
-                className="flex-none rounded-full bg-panel px-3.5 py-2 text-xs text-slate-300"
+                className="flex-none rounded-xl bg-panel px-3.5 py-2.5 text-xs text-slate-300"
               >
                 返回挑选
               </button>

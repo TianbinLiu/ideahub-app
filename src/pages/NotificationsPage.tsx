@@ -150,7 +150,7 @@ export default function NotificationsPage() {
             <p className="text-sm text-rose-300">通知没拉到：{state.error}</p>
             <button
               onClick={() => void refreshNotifications()}
-              className="mt-4 rounded-full bg-panel px-5 py-2 text-sm font-semibold text-slate-100 ring-1 ring-slate-700"
+              className="mt-4 rounded-xl bg-panel px-5 py-2.5 text-sm font-semibold text-slate-100 ring-1 ring-slate-700"
             >
               重试
             </button>

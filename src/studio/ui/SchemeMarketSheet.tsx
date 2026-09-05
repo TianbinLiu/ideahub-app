@@ -115,7 +115,7 @@ export default function SchemeMarketSheet({
                   <button
                     onClick={() => void install(sc.id)}
                     disabled={busy || installing === sc.id}
-                    className={`flex-none rounded-lg px-2.5 py-1 text-[11px] font-semibold disabled:opacity-40 ${
+                    className={`flex-none rounded-full px-2.5 py-1 text-[11px] font-semibold disabled:opacity-40 ${
                       owned ? "bg-slate-700 text-slate-300" : "bg-brand text-ink"
                     }`}
                   >

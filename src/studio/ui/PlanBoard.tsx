@@ -196,7 +196,7 @@ export default function PlanBoard({
                             key={w}
                             onClick={() => setFusing({ id: p.id, which: w })}
                             disabled={busy || regenId === p.id}
-                            className="flex-1 rounded-md border border-slate-700 py-1 text-[9px] text-slate-300 disabled:opacity-40"
+                            className="flex-1 rounded-full border border-slate-700 py-1 text-[9px] text-slate-300 disabled:opacity-40"
                           >
                             🧬 融{w === "first" ? "首" : "尾"}帧
                           </button>
@@ -255,7 +255,7 @@ export default function PlanBoard({
                     <button
                       onClick={() => onRegen(p.id)}
                       disabled={busy || !p.plot.trim()}
-                      className="w-full rounded-lg border border-cyan-400/50 bg-cyan-500/10 py-1.5 text-[11px] font-semibold text-cyan-100 disabled:opacity-40"
+                      className="w-full rounded-full border border-cyan-400/50 bg-cyan-500/10 py-1.5 text-[11px] font-semibold text-cyan-100 disabled:opacity-40"
                     >
                       {regenId === p.id
                         ? "重画中…"

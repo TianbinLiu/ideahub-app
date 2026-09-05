@@ -253,7 +253,7 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
            ★ 措辞不写"删除"：什么都没被删，那笔钱也不会回来，消掉的只是这条提醒。 */
         <button
           onClick={() => dismissBlockoutJob(job)}
-          className="mt-2 w-full rounded-full border border-slate-600 py-2 text-[12px] text-slate-300"
+          className="mt-2 w-full rounded-xl border border-slate-600 py-2.5 text-[12px] text-slate-300"
         >
           知道了，不用再提醒我这一发
         </button>

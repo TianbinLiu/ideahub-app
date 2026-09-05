@@ -97,7 +97,7 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
       {expired ? (
         <button
           onClick={() => dismissVideoJob(job)}
-          className="mt-1.5 w-full rounded-lg border border-slate-600 py-1.5 text-[11px] text-slate-300"
+          className="mt-1.5 w-full rounded-full border border-slate-600 py-1.5 text-[11px] text-slate-300"
         >
           知道了，不用再提醒我这一发
         </button>
@@ -105,7 +105,7 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
         <button
           onClick={() => void take()}
           disabled={!mine || !!working || busy}
-          className="mt-1.5 w-full rounded-lg bg-amber-500/90 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
+          className="mt-1.5 w-full rounded-full bg-amber-500/90 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
         >
           {working ? "取回中…" : "📥 取回这一段的成片（不重新下单，不再花钱）"}
         </button>

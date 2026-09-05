@@ -82,7 +82,7 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
             </p>
             <button
               onClick={() => void openInstallPermission()}
-              className="mt-2 w-full rounded-lg bg-amber-400/90 py-2 text-xs font-bold text-ink"
+              className="mt-2 w-full rounded-xl bg-amber-400/90 py-2.5 text-xs font-bold text-ink"
             >
               去开启「允许安装未知应用」
             </button>

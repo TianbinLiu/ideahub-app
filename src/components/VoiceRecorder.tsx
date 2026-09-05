@@ -208,7 +208,7 @@ export default function VoiceRecorder({
         }}
         onContextMenu={(e) => e.preventDefault()}
         disabled={busy}
-        className={`mt-2 w-full select-none rounded-lg py-2.5 text-[12px] font-bold ${
+        className={`mt-2 w-full select-none rounded-xl py-2.5 text-[12px] font-bold ${
           recording ? "bg-rose-500 text-white" : "bg-brand text-ink"
         } disabled:opacity-40`}
         style={{ touchAction: "none" }}

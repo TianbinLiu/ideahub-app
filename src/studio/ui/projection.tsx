@@ -390,8 +390,8 @@ function EditorPanel() {
                 <button onClick={() => useStudio.getState().setEditorRefVideo(null)} className="flex-none text-[10px] text-slate-500">移除</button>
               </div>
               <p className="mt-1 text-[10px] leading-relaxed text-slate-500">已自动取它的首尾帧当本段首尾帧；可细调、加中间帧（最多 {CUSTOM_MID_MAX} 张）</p>
-              <button onClick={() => setRefSheet(true)} className="mt-2 w-full rounded-lg border border-sky-500/40 py-1.5 text-[11px] text-sky-200">🎞 调节首尾帧 / 加中间帧</button>
-              <button onClick={() => setStep("content")} className="mt-2 w-full rounded-xl bg-brand/90 py-2 text-sm font-bold text-ink">下一步：写内容 ›</button>
+              <button onClick={() => setRefSheet(true)} className="mt-2 w-full rounded-full border border-sky-500/40 py-1.5 text-[11px] text-sky-200">🎞 调节首尾帧 / 加中间帧</button>
+              <button onClick={() => setStep("content")} className="mt-2 w-full rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink">下一步：写内容 ›</button>
             </div>
           ) : (
             <>
@@ -780,14 +780,14 @@ function EditorPanel() {
             <button
               onClick={() => setStep(lane === "custom" ? "ref" : "mode")}
               disabled={editor.generating}
-              className="rounded-xl bg-slate-700/70 px-4 py-2 text-sm text-slate-200 disabled:opacity-40"
+              className="rounded-xl bg-slate-700/70 px-4 py-2.5 text-sm text-slate-200 disabled:opacity-40"
             >
               {lane === "custom" ? "‹ 示例视频" : "‹ 模式"}
             </button>
             <button
               onClick={() => setStep("spec")}
               disabled={editor.generating}
-              className="flex-1 rounded-xl bg-brand/90 py-2 text-sm font-bold text-ink disabled:opacity-60"
+              className="flex-1 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-60"
             >
               下一步：定规格 ›
             </button>
@@ -820,7 +820,7 @@ function EditorPanel() {
               <button
                 onClick={() => setStep("content")}
                 disabled={editor.generating}
-                className="rounded-xl bg-slate-700/70 px-4 py-2 text-sm text-slate-200 disabled:opacity-40"
+                className="rounded-xl bg-slate-700/70 px-4 py-2.5 text-sm text-slate-200 disabled:opacity-40"
               >
                 ‹ 上一步
               </button>
@@ -828,7 +828,7 @@ function EditorPanel() {
                 <button
                   onClick={() => void useStudio.getState().generateNode()}
                   disabled={editor.generating}
-                  className="flex-1 rounded-xl bg-brand/90 py-2 text-sm font-bold text-ink disabled:opacity-60"
+                  className="flex-1 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-60"
                 >
                   {editor.generating ? editor.progress || "AI 正在推演三种走向…" : "🎲 推演三套方案"}
                 </button>
@@ -837,7 +837,7 @@ function EditorPanel() {
                   onClick={() => useStudio.getState().layCustomNode()}
                   disabled={editor.generating || !editor.requirement.trim()}
                   title={!editor.requirement.trim() ? "先写一句视频要求（缺的帧按它补画）" : undefined}
-                  className="flex-1 rounded-xl bg-slate-200/90 py-2 text-sm font-bold text-ink disabled:opacity-40"
+                  className="flex-1 rounded-xl bg-slate-200/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                 >
                   ✍ 铺成方案（免费）
                 </button>
@@ -1486,7 +1486,7 @@ function PickedActions({
                 })
             }
             disabled={!refineReq.trim() || busy}
-            className="mt-1.5 w-full rounded-lg bg-cyan-500/80 py-1.5 text-xs font-bold text-ink disabled:opacity-40"
+            className="mt-1.5 w-full rounded-full bg-cyan-500/80 py-1.5 text-xs font-bold text-ink disabled:opacity-40"
           >
             {frameRefining ? "重画中…" : `按要求重画${refine === "first" ? "首" : "尾"}帧`}
           </button>
@@ -1543,7 +1543,7 @@ function PickedActions({
           <button
             onClick={() => void useStudio.getState().regenNodeProposals(node.id)}
             disabled={busy}
-            className="flex-1 rounded-lg bg-brand/90 py-2 text-xs font-bold text-ink disabled:opacity-40"
+            className="flex-1 rounded-xl bg-brand/90 py-2.5 text-xs font-bold text-ink disabled:opacity-40"
           >
             {busy ? "推演中…" : `🎲 生成三套方案（${fmtTokens(deriveCost ?? 0)}）`}
           </button>
@@ -1552,7 +1552,7 @@ function PickedActions({
           onClick={() => void useStudio.getState().genNodeVideo(node.id, proposal.id)}
           disabled={busy || locked || !proposal.plot.trim()}
           title={locked ? "前面还有没炼完的段——段与段靠上一段的真实结尾接着拍，得按顺序来" : undefined}
-          className="flex-1 rounded-lg bg-brand/90 py-2 text-xs font-bold text-ink disabled:opacity-40"
+          className="flex-1 rounded-xl bg-brand/90 py-2.5 text-xs font-bold text-ink disabled:opacity-40"
         >
           {mine
             ? "炼制中…"
@@ -1568,7 +1568,7 @@ function PickedActions({
                工坊是"任何一炉在跑"——包括在**别的段**上炼视频（3~25 分钟）。画布那一面
                从来没有这道闸；真正该拦的圈选那一下由 SegPlayer 自己拦（它还写了 title 说明原因）。 */
             title={blockout ? "回看成片" : "回看成片 · 在画面上圈出要改的地方"}
-            className="flex-none rounded-lg border border-slate-500/60 bg-slate-700/50 px-2.5 py-2 text-xs font-semibold text-slate-100 disabled:opacity-40"
+            className="flex-none rounded-xl border border-slate-500/60 bg-slate-700/50 px-2.5 py-2.5 text-xs font-semibold text-slate-100 disabled:opacity-40"
           >
             {blockout ? "▶ 回看" : "▶ 圈选"}
           </button>
@@ -1580,7 +1580,7 @@ function PickedActions({
               navigate("/cut");
             }}
             disabled={busy}
-            className="flex-none rounded-lg border border-slate-500/60 bg-slate-700/50 px-2.5 py-2 text-xs font-semibold text-slate-100 disabled:opacity-40"
+            className="flex-none rounded-xl border border-slate-500/60 bg-slate-700/50 px-2.5 py-2.5 text-xs font-semibold text-slate-100 disabled:opacity-40"
           >
             ✂ 编辑
           </button>
