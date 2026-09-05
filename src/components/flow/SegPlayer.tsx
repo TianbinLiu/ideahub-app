@@ -202,8 +202,8 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
         ) : failed ? (
           <>
             {/* 拉不动时先用这一套的开头帧顶着，别留全屏黑（线性视图也是这么退的） */}
-            {chosenOf(node).firstFrame && (
-              <img src={chosenOf(node).firstFrame} alt="" className="max-h-[50%] max-w-full rounded-lg opacity-70" />
+            {(chosenOf(node).poster || chosenOf(node).firstFrame) && (
+              <img src={chosenOf(node).poster || chosenOf(node).firstFrame} alt="" className="max-h-[50%] max-w-full rounded-lg opacity-70" />
             )}
             <p className="max-w-xs text-center text-xs leading-relaxed text-rose-200">
               这一段的视频拉不下来

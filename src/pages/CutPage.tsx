@@ -19,7 +19,8 @@ import { idbSet } from "../data/db";
 import { annRedrawCost, fmtTokens, segTokens } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { VideoSegment, aspectOf, formatDuration, uid } from "../types";
-import { resolveMediaUrl } from "../utils/mediaUrl";
+import { resolveMediaUrl, useMediaUrl } from "../utils/mediaUrl";
+import { loadVideoAt } from "../utils/videoFrames";
 
 /** 时间轴上的一个片段：引用草稿段 + 裁剪范围（分割产生的子片段各占一段区间） */
 interface Clip {
@@ -112,6 +113,18 @@ export default function CutPage() {
   const vref = useRef<HTMLVideoElement>(null);
   const [activeIdx, setActiveIdx] = useState(0);
   const [srcMap, setSrcMap] = useState<Record<number, string>>({});
+  /** 各段截帧流没取到的原因（按段号）。★ 必须上屏：以前只 console.warn，release 包连 logcat
+   *  都不写控制台，真机上就是一句永远的「视频载入中…」（2026-09-04 主人真机撞见） */
+  const [srcErr, setSrcErr] = useState<Record<number, string>>({});
+  /** 直连播放器自己报的错（地址过期 / 解码失败），同样上屏 */
+  const [playErr, setPlayErr] = useState("");
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    aliveRef.current = true; // StrictMode 下 mount→unmount→mount，别让第一次 cleanup 把它永久关掉
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
   const [, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
   const pendingSeek = useRef<number | null>(null);
@@ -130,22 +143,42 @@ export default function CutPage() {
     navigate(publishedExit() ?? "/studio", { replace: true });
   }, [draft, navigate]);
 
-  // 初始化片段 + 预解析各段视频为可截帧的 blob 地址
+  /**
+   * 取这一段的**截帧流**（代理/直连抓成 blob，canvas 才不被跨域污染）——只喂圈选与合并。
+   * ★★ 播放**不等它**：播放器直连 https 地址（<video> 不受 CORS 限制，见 utils/mediaUrl）。
+   *   以前播放也等这个 blob，于是取流一失败整页就是一句永远的「视频载入中…」，而失败原因
+   *   只 console.warn —— release 包看不到控制台，用户与开发者都拿不到一个字（铁律八）。
+   *   现在失败写进 srcErr 上屏并给重试；成片本身照常能看。
+   * ★ 换过视频（圈选重拍）要先把旧 blob 清掉：不清的话圈选截的是上一发的画面。
+   */
+  function loadCaptureSrc(i: number, url: string) {
+    setSrcMap((m) => {
+      const n = { ...m };
+      delete n[i];
+      return n;
+    });
+    setSrcErr((m) => {
+      const n = { ...m };
+      delete n[i];
+      return n;
+    });
+    void resolveMediaUrl(url, { forCapture: true })
+      .then((u) => {
+        if (aliveRef.current && u) setSrcMap((m) => ({ ...m, [i]: u }));
+      })
+      .catch((e) => {
+        console.warn(`[cut] 第 ${i + 1} 段视频取流失败:`, e);
+        if (aliveRef.current) setSrcErr((m) => ({ ...m, [i]: e instanceof Error ? e.message : String(e) }));
+      });
+  }
+
+  // 初始化片段 + 后台预取各段的截帧流（播放不等它，见 loadCaptureSrc 的 ★★）
   useEffect(() => {
     if (!draft) return;
     setClips(draft.segments.map((sg, i) => ({ id: uid("clip"), segIndex: i, start: 0, end: sg.durationSec })));
-    let alive = true;
     draft.segments.forEach((sg, i) => {
-      if (!sg.videoUrl) return;
-      void resolveMediaUrl(sg.videoUrl, { forCapture: true })
-        .then((u) => {
-          if (alive && u) setSrcMap((m) => ({ ...m, [i]: u }));
-        })
-        .catch((e) => console.warn(`[cut] 第 ${i + 1} 段视频取流失败:`, e));
+      if (sg.videoUrl) loadCaptureSrc(i, sg.videoUrl);
     });
-    return () => {
-      alive = false;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!draft]);
 
@@ -157,6 +190,8 @@ export default function CutPage() {
   const total = view.reduce((s, c) => s + clipDur(c), 0);
   const active = view[Math.min(activeIdx, Math.max(0, view.length - 1))] ?? null;
   const activeSeg: VideoSegment | undefined = active ? segs[active.segIndex] : undefined;
+  /** 播放用地址：https 直连（同步拿到）、idb: 换 objectURL（异步）。不是截帧流（见 loadCaptureSrc） */
+  const playSrc = useMediaUrl(activeSeg?.videoUrl);
   const res = RESOLUTIONS.find((r) => r.id === resId) ?? RESOLUTIONS[0];
   // 整条成片的画幅取第一段：时间轴上各段本该是同一个画幅（铸段时就跟着上一段走），
   // 真混排了也只能挑一个——合并只有一块画布，另一种必然被裁或补边
@@ -396,22 +431,43 @@ export default function CutPage() {
     });
   }
 
-  /** ⭕ 圈选当前帧：从预览视频截图（无真视频的段用首帧图顶替） */
-  function openAnnotator() {
-    if (!active) return;
+  /**
+   * ⭕ 圈选当前帧：从**截帧流**（blob）上离屏截图，不从播放器上截（无真视频的段用预览图顶替）。
+   * ★ 播放器现在直连跨域地址，从它 drawImage 会污染画布、toDataURL 直接抛 SecurityError；
+   *   截帧流还没到 / 没取到时整句说清（原因 + 去哪儿重试），别让按钮"点了没反应"（铁律八）。
+   */
+  async function openAnnotator() {
+    if (!active || !activeSeg) return;
     const v = vref.current;
-    if (activeSeg?.videoUrl && v && v.videoWidth) {
-      stopPlayback(); // ★ 圈选前也要连 BGM 一起停（见 stopPlayback 的 ★★）
+    if (!activeSeg.videoUrl || !v) {
+      setAnnOpen({ segIndex: active.segIndex, atSec: active.start, frame: activeSeg.poster || activeSeg.firstFrame });
+      return;
+    }
+    const blobSrc = srcMap[active.segIndex];
+    if (!blobSrc) {
+      const why = srcErr[active.segIndex];
+      setErr(
+        why
+          ? `圈选要先取到这一段的截帧流，刚才没取到：${why} —— 点预览下方的「重试」`
+          : "这一段的截帧流还在取（成片有 20MB 级，稍等几秒再点圈选）",
+      );
+      return;
+    }
+    stopPlayback(); // ★ 圈选前也要连 BGM 一起停（见 stopPlayback 的 ★★）
+    const at = v.currentTime;
+    try {
+      const src = await loadVideoAt(blobSrc, at);
       // 标注底图要按本段画幅截：截成 16:9 再拿去图生图，改回来的设定帧也是 16:9，
       // 竖屏段就此被悄悄改横
       const shot = outSize(1280, portrait);
       const c = document.createElement("canvas");
       c.width = shot.w;
       c.height = shot.h;
-      drawCover(c.getContext("2d")!, v, shot.w, shot.h);
-      setAnnOpen({ segIndex: active.segIndex, atSec: v.currentTime, frame: c.toDataURL("image/jpeg", 0.9) });
-    } else if (activeSeg) {
-      setAnnOpen({ segIndex: active.segIndex, atSec: active.start, frame: activeSeg.firstFrame });
+      drawCover(c.getContext("2d")!, src, shot.w, shot.h);
+      setAnnOpen({ segIndex: active.segIndex, atSec: at, frame: c.toDataURL("image/jpeg", 0.9) });
+      setErr(""); // 上一次「截帧流还在取」那句到这里已经不成立，别挂着
+    } catch (e) {
+      setErr(`截取当前画面失败：${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -451,9 +507,10 @@ export default function CutPage() {
         }
         setBusy(`第 ${segIndex + 1} 段 · 重拍视频（${n}/${bySeg.size} 段）…`);
         const reqAll = list.map((a) => a.req).join("；");
-        const { url, lastFrame } = await regenSegment(seg, reqAll, (s) => setBusy(`第 ${segIndex + 1} 段 · ${s}`));
+        const { url, lastFrame, poster } = await regenSegment(seg, reqAll, (s) => setBusy(`第 ${segIndex + 1} 段 · ${s}`));
         seg.videoUrl = url;
         if (lastFrame) seg.lastFrame = lastFrame;
+        seg.poster = poster; // 没截到就清掉：别让缩略图挂着上一发的画面
         // ★ 必须判 AI_REAL：演示模式下根本没调方舟，却照样扣本地余额，
         //   用户在 mock 里点几次就"没钱"了，还查不出钱花在哪
         // ★ 与按钮上那个数同源：视频那一半 + 每处圈选一张改图（annRedrawCost 唯一实现）
@@ -470,7 +527,7 @@ export default function CutPage() {
         const why = await useStudio.getState().persistCutDraft();
         if (why) setErr(`这一段已经改好、钱也扣过了，但${why}`);
         setAnns((prev) => prev.filter((a) => a.segIndex !== segIndex));
-        void resolveMediaUrl(url, { forCapture: true }).then((u) => u && setSrcMap((m) => ({ ...m, [segIndex]: u })));
+        loadCaptureSrc(segIndex, url);
       }
       setBusy("");
     } catch (e) {
@@ -821,14 +878,19 @@ export default function CutPage() {
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1 items-center justify-center">
           {activeSeg?.videoUrl ? (
-            srcMap[active!.segIndex] ? (
+            playSrc ? (
               <video
-                key={`${active!.id}:${srcMap[active!.segIndex]}`}
+                key={`${active!.id}:${playSrc}`}
                 ref={vref}
-                src={srcMap[active!.segIndex]}
+                src={playSrc}
                 muted
                 playsInline
                 className="max-h-full max-w-full"
+                // ★ 播放器自己的失败也要上屏（地址过期 / 解码失败），否则又是一块沉默的黑
+                onError={(e) => {
+                  const code = e.currentTarget.error?.code;
+                  setPlayErr(`这一段播不出来（错误码 ${code ?? "?"}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍`);
+                }}
                 onLoadedMetadata={(e) => {
                   const v = e.currentTarget;
                   v.currentTime = pendingSeek.current ?? active!.start;
@@ -856,9 +918,26 @@ export default function CutPage() {
               <span className="text-xs text-slate-500">视频载入中…</span>
             )
           ) : activeSeg ? (
-            <img src={activeSeg.firstFrame} alt="" className="max-h-full max-w-full" />
+            <img src={activeSeg.poster || activeSeg.firstFrame} alt="" className="max-h-full max-w-full" />
           ) : null}
         </div>
+        {/* 取流/播放失败一律说在预览正下方（用户正盯着的那块），并给一条真能走的路 */}
+        {activeSeg?.videoUrl && (playErr || srcErr[active!.segIndex]) && (
+          <div className="mx-3 mb-1 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-200">
+            {playErr && <p>{playErr}</p>}
+            {srcErr[active!.segIndex] && (
+              <p>
+                圈选与合并要用的截帧流没取到：{srcErr[active!.segIndex]}
+                <button
+                  onClick={() => loadCaptureSrc(active!.segIndex, activeSeg.videoUrl!)}
+                  className="ml-2 rounded bg-rose-500/30 px-2 py-0.5 font-semibold text-rose-100"
+                >
+                  重试
+                </button>
+              </p>
+            )}
+          </div>
+        )}
 
         {/* 时间码 + 播放键（对齐参考稿：时间码贴左，播放键居中） */}
         <div className="relative flex flex-none items-center px-4 py-2.5">
@@ -1027,7 +1106,12 @@ export default function CutPage() {
                         isSel ? "border-brand" : isActive ? "border-cyan-400/70" : "border-transparent"
                       }`}
                     >
-                      <img src={seg.firstFrame} alt="" className="h-14 w-full object-cover" draggable={false} />
+                      {/* 白模/直出段可能两张图都没有：空串 src 会让浏览器把整页再请求一遍，不如画个底 */}
+                      {seg.poster || seg.firstFrame ? (
+                        <img src={seg.poster || seg.firstFrame} alt="" className="h-14 w-full object-cover" draggable={false} />
+                      ) : (
+                        <div className="h-14 w-full bg-ink/60" />
+                      )}
                       <span className="absolute left-1 top-0.5 rounded bg-black/65 px-1 text-[9px] text-slate-200">
                         段{c.segIndex + 1} · {clipDur(c).toFixed(1)}s
                         {/* ★ 裁过要看得出来：否则"这段怎么短了"只能靠回忆，而裁剪是可还原的 */}

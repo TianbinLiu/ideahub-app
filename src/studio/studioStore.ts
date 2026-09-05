@@ -1968,6 +1968,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         plot: p.plot,
         firstFrame: p.firstFrame,
         lastFrame: p.lastFrame,
+        poster: p.poster,
         durationSec: p.durationSec,
         videoTier: n.videoTier,
         aspect: n.aspect,

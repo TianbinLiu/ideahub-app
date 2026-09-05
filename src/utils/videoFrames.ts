@@ -6,11 +6,12 @@
 //   教训：loadeddata 先到、videoWidth 仍可能是 0，画出来是全黑）。
 // ★ 跨域地址必须 crossOrigin="anonymous" 且对端真发 CORS 头（Cloudinary 发），否则画布
 //   被污染、toDataURL 抛 SecurityError —— 本地 objectURL 没有这个问题，调用方按来源传。
-export async function captureVideoFrame(
-  url: string,
-  atSec: number,
-  opts?: { crossOrigin?: boolean },
-): Promise<string> {
+/**
+ * 离屏解码一段视频并定位到某一秒，返回**已就绪、可 drawImage** 的 <video>。
+ * ★ 「等就绪 + 带超时 + 钳位 seek」只有这一份：captureVideoFrame 与剪辑页的圈选截图
+ *   （从截帧流上截，不从直连播放器上截——那会污染画布）都调它，别再各写一份等媒体事件的代码。
+ */
+export async function loadVideoAt(url: string, atSec: number, opts?: { crossOrigin?: boolean }): Promise<HTMLVideoElement> {
   const v = document.createElement("video");
   if (opts?.crossOrigin) v.crossOrigin = "anonymous";
   v.muted = true;
@@ -36,6 +37,15 @@ export async function captureVideoFrame(
       window.setTimeout(() => res(), 8_000);
     });
   }
+  return v;
+}
+
+export async function captureVideoFrame(
+  url: string,
+  atSec: number,
+  opts?: { crossOrigin?: boolean },
+): Promise<string> {
+  const v = await loadVideoAt(url, atSec, opts);
   // 按视频原比例出图，长边压到 1280（设定帧的既有量级；再大只是把 IndexedDB 吃掉）
   const scale = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight));
   const w = Math.max(2, Math.round(v.videoWidth * scale));

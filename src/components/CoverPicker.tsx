@@ -219,7 +219,7 @@ export function FrameCaptureDialog({
         ) : (
           seg && (
             <div style={box} className="relative w-full">
-              <img src={seg.firstFrame} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <img src={seg.poster || seg.firstFrame} alt="" className="absolute inset-0 h-full w-full object-cover" />
               <img src={seg.lastFrame} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ opacity: ease }} />
             </div>
           )
