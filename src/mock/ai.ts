@@ -110,6 +110,8 @@ export async function portraitViews(o: {
   bodyCrop: string;
   faceCrop?: string | null;
   subject?: string;
+  /** 与 real 同形：演示档不拼提示词，但类型上必填，调用点漏传在 tsc 就拦下 */
+  realPhoto: boolean;
   onProgress?: (s: string) => void;
 }): Promise<{ role: CardRole; tag: string; dataUrl: string }[]> {
   const out: { role: CardRole; tag: string; dataUrl: string }[] = [];

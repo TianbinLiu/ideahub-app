@@ -436,6 +436,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         bodyCrop: body.dataUrl,
         faceCrop: face?.dataUrl ?? null,
         subject: summary.trim() || name.trim(),
+        // 勾了「这是真人」= 参考图是照片是已知事实，画风句锁死（见 promptSchemes.PHOTO_LOCK_CLAUSE）
+        realPhoto: realPerson,
         onProgress: (s) => setBusy(s),
       });
       if (AI_REAL) spendTokens(price);
