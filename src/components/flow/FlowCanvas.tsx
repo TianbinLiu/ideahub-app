@@ -488,12 +488,13 @@ export default function FlowCanvas({
                     }`}
                     style={{ width: CARD_W, height: CARD_H }}
                   >
-                    {p.firstFrame ? (
+                    {p.poster || p.firstFrame ? (
                       /* ★ 屏外的格子别急着解码（第六轮评审的完备性批评）：草稿里那份首帧是
                          1MB 级 base64、竖屏 1440×2560，十几段同时解码就是上百 MB 位图，
-                         低端安卓 WebView 上的表现是"画布一开就白/闪退"，而没人会往帧尺寸上想 */
+                         低端安卓 WebView 上的表现是"画布一开就白/闪退"，而没人会往帧尺寸上想
+                         ★ 出过片优先画成片第一帧（poster）：设定首帧只是蓝图，白模/直出段根本没有 */
                       <img
-                        src={p.firstFrame}
+                        src={p.poster || p.firstFrame}
                         alt=""
                         loading="lazy"
                         decoding="async"
@@ -503,7 +504,8 @@ export default function FlowCanvas({
                     ) : (
                       <div className="flex h-full w-full items-center justify-center px-3 text-center text-[11px] leading-relaxed text-slate-500">
                         {done
-                          ? "已出片（预览帧没抓到）"
+                          ? /* 到这里 = 既没有设定首帧、成片第一帧也没截到（截帧失败只 warn），如实说 */
+                            "已出片（成片预览没截到，点开可回看）"
                           : tpl?.refVideo
                             ? "白模复刻段（还没出片）"
                             : p.plot

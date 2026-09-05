@@ -1803,7 +1803,7 @@ export async function regenSegment(
   },
   extraReq: string,
   onProgress?: (status: string) => void,
-): Promise<{ url: string; lastFrame?: string }> {
+): Promise<{ url: string; lastFrame?: string; poster?: string }> {
   const tier = tierOf(seg.videoTier);
   const prompt = `${seg.plot.slice(0, 320)}。修改要求（必须满足）：${extraReq.slice(0, 160)}`;
   const url = await generateVideo(prompt, await shrinkFrameFor720p(seg.firstFrame), {
@@ -1816,13 +1816,14 @@ export async function regenSegment(
     onProgress: (s) => onProgress?.(`${tier.label}档 · ${s}`),
   });
   let lastFrame: string | undefined;
+  let poster: string | undefined;
   try {
     onProgress?.("捕获真实尾帧…");
-    lastFrame = await captureVideoTail(url);
+    ({ tail: lastFrame, head: poster } = await captureVideoHeadTail(url));
   } catch (e) {
     console.warn("[ai] 重生成段尾帧捕获失败:", e);
   }
-  return { url, lastFrame };
+  return { url, lastFrame, poster };
 }
 
 /** 封面工坊：按用户要求出封面。refDataUrl 给了就是"改当前封面"（Seedream 图生图，
@@ -1854,6 +1855,8 @@ export interface SegmentResult {
   error?: string;
   firstFrame?: string;
   lastFrame?: string;
+  /** 成片第一帧（与 lastFrame 同一次解码截的），只管显示；截不到就缺省（见 types.Proposal.poster） */
+  poster?: string;
   /**
    * 这一段**没接到结果、但任务还在方舟那边跑**时的任务号（见 arkClient.ArkTaskUnknown）。
    *
@@ -1913,7 +1916,16 @@ function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
   ]).finally(() => clearTimeout(timer)) as Promise<T>;
 }
 
-async function captureVideoTail(videoUrl: string): Promise<string> {
+/**
+ * 从一段成片里截**首尾两帧**：tail 给下一段起拍与卡面结尾，head 只管当预览（Proposal.poster）。
+ *
+ * ★ 两帧一次解码：视频是 20MB 级，分两次拉就是两次跨境下载；同一个 <video> 上 seek 两回即可。
+ * ★ head 不截 0 秒整：部分编码的第一个关键帧 seek 到 0 时 seeked 会在画面就绪前到，
+ *   截出全黑；往后挪 40ms 一律稳（与 utils/videoFrames 取"结尾前一瞬"是同一种保守）。
+ * ★ 出片前**没有设定首帧**的段（白模复刻 / 参考卡片直出）以前在画布上就是一张空卡
+ *   （2026-09-04 主人真机撞见「预览帧没抓到」），这一格就是为它们补的。
+ */
+async function captureVideoHeadTail(videoUrl: string): Promise<{ head: string; tail: string }> {
   const res = await fetchArkAsset(videoUrl, 120_000);
   if (!res.ok) throw new Error(`取视频失败 ${res.status}`);
   const blobUrl = URL.createObjectURL(await res.blob());
@@ -1922,7 +1934,7 @@ async function captureVideoTail(videoUrl: string): Promise<string> {
     video.muted = true;
     video.preload = "auto";
     video.src = blobUrl;
-    // ★ 这两步都必须带超时。浏览器把页面切到后台时会挂起媒体元素的加载与解码，
+    // ★ 每一步都必须带超时。浏览器把页面切到后台时会挂起媒体元素的加载与解码，
     //   loadedmetadata / seeked 都不会再来——而出片要跑几十秒到几分钟，用户切出去
     //   看别的几乎是必然。以前 metadata 这一步是**无超时**的 await，一旦切后台就永久
     //   卡在「捕获本段真实尾帧…」，flowStore 的 busy 永远为 true、整页按钮全禁用，
@@ -1936,20 +1948,29 @@ async function captureVideoTail(videoUrl: string): Promise<string> {
       15_000,
       "视频元数据加载超时",
     );
-    video.currentTime = Math.max(0, video.duration - 0.05);
-    await withTimeout(
-      new Promise<void>((resolve, reject) => {
-        video.onseeked = () => resolve();
-        video.onerror = () => reject(new Error("视频 seek 失败"));
-      }),
-      15_000,
-      "视频 seek 超时",
-    );
-    const c = document.createElement("canvas");
-    c.width = video.videoWidth || 1280;
-    c.height = video.videoHeight || 720;
-    c.getContext("2d")!.drawImage(video, 0, 0, c.width, c.height);
-    return c.toDataURL("image/jpeg", 0.9);
+    const seekTo = async (t: number) => {
+      video.currentTime = t;
+      await withTimeout(
+        new Promise<void>((resolve, reject) => {
+          video.onseeked = () => resolve();
+          video.onerror = () => reject(new Error("视频 seek 失败"));
+        }),
+        15_000,
+        "视频 seek 超时",
+      );
+    };
+    const grab = () => {
+      const c = document.createElement("canvas");
+      c.width = video.videoWidth || 1280;
+      c.height = video.videoHeight || 720;
+      c.getContext("2d")!.drawImage(video, 0, 0, c.width, c.height);
+      return c.toDataURL("image/jpeg", 0.9);
+    };
+    await seekTo(Math.min(0.04, Math.max(0, video.duration - 0.05)));
+    const head = grab();
+    await seekTo(Math.max(0, video.duration - 0.05));
+    const tail = grab();
+    return { head, tail };
   } finally {
     URL.revokeObjectURL(blobUrl);
   }
@@ -2064,8 +2085,9 @@ export async function composeSegments(
         res.url = url2;
         try {
           onProgress?.(i, segments.length, "捕获本段真实尾帧…");
-          const tail = await captureVideoTail(url2);
+          const { head, tail } = await captureVideoHeadTail(url2);
           res.lastFrame = tail;
+          res.poster = head;
           carryTail = tail;
         } catch {
           // 与方舟路同款兜底：捕获失败不拖垮整段，下一段退回设定衔接
@@ -2100,8 +2122,9 @@ export async function composeSegments(
       // 捕获真实尾帧：回填节点/草稿（卡面显示真实结尾），并作为下一段的起拍帧
       try {
         onProgress?.(i, segments.length, "捕获本段真实尾帧…");
-        const tail = await captureVideoTail(url);
+        const { head, tail } = await captureVideoHeadTail(url);
         res.lastFrame = tail;
+        res.poster = head;
         carryTail = tail;
       } catch (e2) {
         console.warn(`[ai] 第 ${i + 1} 段真实尾帧捕获失败（下一段沿用设定帧）:`, e2);
@@ -2140,7 +2163,7 @@ export async function takeVideoTask(
   taskId: string,
   onProgress?: (status: string) => void,
   provider?: "ark" | "minimax",
-): Promise<{ url: string; lastFrame?: string }> {
+): Promise<{ url: string; lastFrame?: string; poster?: string }> {
   // ★★ 按家分流（2026-08-31）。**分错家的后果不是"取不到"**：下面那条 404 分支会对着
   //   一发在上游好好活着的真人档成片说「已经花掉的钱无法挽回」—— 一句权威的死刑判决，
   //   而听到它的用户不会来报 bug，他会直接走。
@@ -2149,13 +2172,14 @@ export async function takeVideoTask(
   if (provider === "minimax") {
     const { url } = await takeMinimaxTask(taskId, onProgress);
     let lastFrame: string | undefined;
+    let poster: string | undefined;
     try {
       onProgress?.("捕获本段真实尾帧…");
-      lastFrame = await captureVideoTail(url);
+      ({ tail: lastFrame, head: poster } = await captureVideoHeadTail(url));
     } catch {
       // 与主路径同款兜底：尾帧捕获失败不拖垮取回本身（片子已经到手了）
     }
-    return { url, ...(lastFrame ? { lastFrame } : {}) };
+    return { url, ...(lastFrame ? { lastFrame } : {}), ...(poster ? { poster } : {}) };
   }
   onProgress?.("正在向方舟核对这一发的状态…（查询不花钱）");
   let st: ArkTaskState;
@@ -2200,14 +2224,15 @@ export async function takeVideoTask(
     throw new Error("方舟说这一发成功了，却没有给视频地址——这一段取不回来了（费用已经花过，重新生成是再花一次钱）");
   }
   let lastFrame: string | undefined;
+  let poster: string | undefined;
   try {
     onProgress?.("取到成片了，正在捕获这一段的真实尾帧…");
-    lastFrame = await captureVideoTail(url);
+    ({ tail: lastFrame, head: poster } = await captureVideoHeadTail(url));
   } catch (e) {
     // 尾帧只是卡面与下一段的起拍画面，捕获失败不该把已经到手的成片再丢一次
     console.warn("[ai] 取回段的真实尾帧捕获失败（节点卡少一张画面，成片本身不受影响）:", e);
   }
-  return { url, lastFrame };
+  return { url, lastFrame, poster };
 }
 
 export { makeCover };

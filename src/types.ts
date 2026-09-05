@@ -577,6 +577,19 @@ export interface Proposal {
    *    "我要的就是这张"，被 AI 悄悄覆盖掉是最刺痛的一种丢数据。
    *    想让 AI 重画就在卡里清掉那一帧（置空串），锁随之解除。 */
   pinned?: { first?: boolean; last?: boolean };
+  /**
+   * 成片的**第一帧**（出片时从视频里截的，与 lastFrame 同一次解码），**只管显示**。
+   *
+   * ★★ 与 `firstFrame` 同名不同物：那是出片**前**画好的设定首帧（Seedream 画的 / 承接来的 /
+   *   用户传的），出片路上有三条规则挂在它身上——`refVideoOn` 见它非空就退出参考直出、
+   *   白模的 `blockoutIssue` 见它非空整句拒、承接判定拿 `p.firstFrame === prev.lastFrame`
+   *   认亲。白模段与参考直出段**一张设定帧都不画**，firstFrame 恒空，出片后画布上那张卡
+   *   就没有预览（2026-09-04 主人真机撞见「已出片（预览帧没抓到）」，而其实没有任何代码
+   *   去截过它）。把截到的帧写回 firstFrame 会让这一段下次重炼时被自己截的帧挡住，
+   *   所以单开一格。读预览一律 `poster || firstFrame`。
+   * ★ 服务端不存它（发布时 zod 会 strip）：已发布作品的段没有这一格，那边照旧用 firstFrame。
+   */
+  poster?: string;
   /** 这个走向已经炼出来的那段视频。
    *  ★ 挂在方案上而不是某个 store 里，是为了让工坊与工作流看到同一份出片——
    *  工坊节点卡上单独生成的、工作流里逐段生成的，都写在这里；换走向时各走向的成片
@@ -606,6 +619,8 @@ export interface VideoSegment {
   plot: string;
   firstFrame: string;
   lastFrame: string;
+  /** 成片第一帧，只管显示（与 Proposal.poster 同义，组稿时原样带过来；服务端不存） */
+  poster?: string;
   durationSec: number;
   /** 真实生成的视频片段（Seedance）；缺省时播放器回退首尾帧渐变 */
   videoUrl?: string;
