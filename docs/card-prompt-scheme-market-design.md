@@ -60,7 +60,7 @@
 
 一套方案 = **N 个图位模板**，每个图位 `{ tag, role, size/aspect, promptTemplate }` + 方案级 `{ id, title, author, cardTypes[], coverExamples[], remoteId? }`。
 
-- **`promptTemplate`**：带占位符的提示词（如实操案例的 `{{角色类型}}`）。占位符=用户自定义 tag 的注入点。**必须硬编码那条"风格跟随参考图、不点名画风"**（`portraitViews` 现有那条实测结论）——方案作者可改构图/图位，但画风跟随源图这条不开放，否则又回到"动漫化真人"那个老坑。
+- **`promptTemplate`**：带占位符的提示词（如实操案例的 `{{角色类型}}`）。占位符=用户自定义 tag 的注入点。**必须硬编码那条"风格跟随参考图、不点名画风"**（`portraitViews` 现有那条实测结论）——方案作者可改构图/图位，但画风跟随源图这条不开放，否则又回到"动漫化真人"那个老坑。（2026-09-04 补：这条句子是**条件句**，由模型判参考图是不是照片；参考图低清/重压缩时它会判错。所以调用方已知是真人时走 `slotPrompt` 的 `realPhoto` 档 —— 无条件锁成真实摄影，见 `promptSchemes.PHOTO_LOCK_CLAUSE`。）
 - **市场基建直接复用模板市场那套**（`data/templates.ts` 的 mine/shared、`registerTemplate`、`refreshRemoteTemplate`）。⚠ CLAUDE.md 头号坑照搬：**服务端给 `PromptScheme` 加字段 = 本机那几跳（解析/类型/落库/mine+shared 刷新）四处一起改**，漏一处零报错走上一代逻辑。
 - **方案预览图**：作者出一次、存成 `coverExamples`，**不每次重画**（省钱、也让市场加载快）。
 

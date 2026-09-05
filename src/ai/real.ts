@@ -107,6 +107,8 @@ async function genImageAsDataUrl(
  * ★ 串行不并行：Seedream 顶档一张可到 70 秒，几张并发在限流上撞车得不偿失；
  *   而且逐格报进度（onProgress）用户才知道自己在等第几张。
  * ★ 失败**整发抛**、不吞：调用方（命名屏）拿它写整句 err 并保住原裁剪（铁律八）。
+ * ★ `realPhoto` 必填：真人那条路上画风句换成无条件的照片锁定（`promptSchemes.PHOTO_LOCK_CLAUSE`
+ *   的 ★★ 写了为什么条件句不够）。写成可选的话漏传零症状 —— 全身立绘又开始随参考图质量飘。
  */
 export async function portraitViews(o: {
   scheme: PromptScheme;
@@ -114,6 +116,8 @@ export async function portraitViews(o: {
   faceCrop?: string | null;
   /** 用户写的那句描述，插进方案的 {{主体}} 占位符 */
   subject?: string;
+  /** 调用方已知参考图是真人照片（用户走了真人路 / 勾了「这是真人」）。传 `realPerson` 状态 */
+  realPhoto: boolean;
   onProgress?: (s: string) => void;
 }): Promise<{ role: CardRole; tag: string; dataUrl: string }[]> {
   const out: { role: CardRole; tag: string; dataUrl: string }[] = [];
@@ -127,7 +131,7 @@ export async function portraitViews(o: {
     }
     o.onProgress?.(`绘制${slot.tag}…（${i + 1}/${slots.length}）`);
     const ref = slot.ref === "face" ? o.faceCrop || o.bodyCrop : o.bodyCrop;
-    const dataUrl = await genImageAsDataUrl(schemeSlotPrompt(slot, o.subject), {
+    const dataUrl = await genImageAsDataUrl(schemeSlotPrompt(slot, o.subject, { realPhoto: o.realPhoto }), {
       imageRefs: [ref],
       size: slotSize(slot),
     });

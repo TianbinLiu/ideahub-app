@@ -510,6 +510,10 @@ export default function CustomCardPage() {
         bodyCrop: aiBody.dataUrl,
         faceCrop: aiFace?.dataUrl ?? null,
         subject: aiSubject.trim() || undefined,
+        // ★ 真人路（扫脸认证）上参考图是照片是已知事实：画风句锁死成"真实摄影"，不让模型
+        //   自己判 —— 2026-09-04 主人实测授权自拍出的「全身立绘」是厚涂二次元（同一张参考的
+        //   「面部特写」却是照片），机理见 promptSchemes.PHOTO_LOCK_CLAUSE
+        realPhoto: realPerson,
         onProgress: setAiBusy,
       });
       if (AI_REAL) spendTokens(schemeCost(pageSlots)); // 图那一半：出齐才扣
