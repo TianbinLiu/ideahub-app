@@ -11,6 +11,7 @@ import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosen
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, saveDraft } from "../data/drafts";
+import { showToast } from "../data/toast";
 import { dropCutSession, saveCutSession } from "../data/cutSession";
 import { GenStep } from "./genLog";
 import { SPEAK_MOOD, speak, stopSpeaking } from "./speech";
@@ -1921,7 +1922,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
     //   进度画在节点自己身上（node.steps/progress），方案台直接读它。
     set({ nodeGen: { proposalId, steps: [] } });
     try {
-      const ok = await useFlow.getState().genNode(nodeId);
+      const run = useFlow.getState().genNode(nodeId);
+      // ★ 受理即收窗（2026-09-06 主人点名）：genNode 的门禁与「打上 generating」都在它第一个 await 之前，
+      //   这一拍状态已经是 generating = 真的开始炼了 —— 投影窗收掉、说一句"可以离开这一页"，用户才知道
+      //   出片不需要守着。被门禁整句拒的那一发状态不变、窗留着，原因照常显示在窗里。
+      if (useFlow.getState().nodes.find((n) => n.id === nodeId)?.status === "generating") {
+        get().closeProjection();
+        showToast("已开始生成，可以离开这一页，出片后会提醒你", 2600);
+      }
+      const ok = await run;
       if (!ok) {
         set({ notice: { text: useFlow.getState().err || "这一段没炼成", at: Date.now() } });
         return false;
