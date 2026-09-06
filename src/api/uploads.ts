@@ -397,10 +397,16 @@ function chunkError(message: string, retriable: boolean): Error & { retriable?: 
   return Object.assign(new Error(message), { retriable });
 }
 
-/** 一块的超时。★ 按**最慢的网**给：6MB 在 0.05MB/s 上要 120 秒，留一倍余量。
- *  分块最大的好处就在这儿 —— 超时是"每块"的，不再是"整发一个 600 秒"，
- *  47MB 在慢网上要走十分钟也不会有哪一次请求跑到那么久。 */
-const CHUNK_TIMEOUT_MS = 240_000;
+/**
+ * 一块的超时按「多久没动」算，不按「一块总共多久」。
+ * ★★ 2026-09-06 主人真机：5G 上行只有 30~40KB/s，6MB 一块要 150~200 秒，此前固定 240 秒的总上限只差一口气
+ *   （XHR 的 `timeout` 正是这种总上限）。字节还在动就不该掐 —— 该掐的是"停了"：STALL 秒内一个字节都没
+ *   传出去才放弃（可重试，下一次多半也是同一条网，但至少不是我们自己把一条慢却在走的路掐断）。
+ *   HARD 是兜底的绝对上限，防一条以字节计爬行的连接把整次发布挂上一小时。
+ *   分块最大的好处仍在：超时是"每块"的，断了只重传这一块。
+ */
+const CHUNK_STALL_MS = 90_000;
+const CHUNK_HARD_MS = 30 * 60_000;
 
 /**
  * 把一块推给 Cloudinary。用 XHR 不用 fetch —— **fetch 拿不到上传进度**，
@@ -431,8 +437,34 @@ function putChunk(
       xhr.setRequestHeader("X-Unique-Upload-Id", uploadId);
       xhr.setRequestHeader("Content-Range", `bytes ${range.start}-${range.end}/${range.total}`);
     }
-    xhr.timeout = CHUNK_TIMEOUT_MS;
-    xhr.upload.onprogress = (ev) => onBytes(ev.loaded);
+    // 看门狗：每 5 秒看一眼有没有进展（见 CHUNK_STALL_MS 的 ★★）。loadend 在成功 / 失败 / 中止后都会到，统一在那儿清
+    let lastLoaded = 0;
+    let lastMoveAt = Date.now();
+    const startedAt = lastMoveAt;
+    const watchdog = setInterval(() => {
+      const now = Date.now();
+      const stalled = now - lastMoveAt > CHUNK_STALL_MS;
+      if (!stalled && now - startedAt < CHUNK_HARD_MS) return;
+      clearInterval(watchdog);
+      xhr.onabort = null; // 这一下 abort 是我们自己掐的，别报成「已取消」
+      xhr.abort();
+      reject(
+        chunkError(
+          stalled
+            ? `这一小段有 ${Math.round(CHUNK_STALL_MS / 1000)} 秒没传出去一个字节——网络断了或太不稳，换个网络再试`
+            : `这一小段传了 ${Math.round(CHUNK_HARD_MS / 60_000)} 分钟还没完成——网络太慢，换个网络再试`,
+          true,
+        ),
+      );
+    }, 5_000);
+    xhr.onloadend = () => clearInterval(watchdog);
+    xhr.upload.onprogress = (ev) => {
+      if (ev.loaded > lastLoaded) {
+        lastLoaded = ev.loaded;
+        lastMoveAt = Date.now();
+      }
+      onBytes(ev.loaded);
+    };
     xhr.onload = () => {
       let body: Record<string, unknown> = {};
       try {
@@ -449,8 +481,6 @@ function putChunk(
       reject(chunkError(`视频存储拒绝了这一段：${msg}`, false));
     };
     xhr.onerror = () => reject(chunkError("上传中断了（网络不可用）", true));
-    xhr.ontimeout = () =>
-      reject(chunkError("这一小段传了 4 分钟还没完成——网络太慢或不稳，换个网络再试", true));
     // ★★ 关窗要真的把它停下来：不 abort 的话 XHR 会**在组件卸载之后继续跑**，
     //   最后在 Cloudinary 上落一份**没有任何人认得**的资产（本机没有 receipt ⇒
     //   dropReceipt 够不着它），配额只增不减、零症状。中途 abort 留下的是一次
