@@ -27,6 +27,7 @@ import DeleteSegBtn from "./DeleteSegBtn";
 import { SegmentRecoverList } from "./SegmentRecoverCards";
 import SegSettings from "./SegSettings";
 import SegPlayer from "./SegPlayer";
+import { showToast } from "../../data/toast";
 import RefFrameSheet from "./RefFrameSheet";
 import SkillPanel from "./SkillPanel";
 import InfoTip from "../InfoTip";
@@ -291,6 +292,26 @@ export default function FlowCanvas({
   const addNode = useFlow((s) => s.addNode);
   const reachable = useMemo(() => nodes.map((_, i) => clampCursor(nodes, i) === i), [nodes]);
   const selNode: FlowNode | undefined = sel === null ? undefined : nodes[sel];
+
+  /**
+   * ★ 提交出片即收窗（2026-09-06 主人点名）：编辑窗开着时，这一段的状态从"没在炼"翻到 generating 的那一拍
+   *   把窗收起来，并说一句"可以离开这一页" —— 窗一直开着，用户不知道出片不需要守着。
+   *   判**跳变**不判状态：用户点开一张正在炼的卡看进度，也是 sel 指着一段 generating 的段，那时不该关。
+   *   工坊那一面（投影窗）在 studioStore 的 genNode 委托处做同一件事。
+   */
+  const genEdge = useRef<{ id: string; status: FlowNode["status"] } | null>(null);
+  useEffect(() => {
+    if (!selNode) {
+      genEdge.current = null;
+      return;
+    }
+    const prev = genEdge.current;
+    genEdge.current = { id: selNode.id, status: selNode.status };
+    if (prev && prev.id === selNode.id && prev.status !== "generating" && selNode.status === "generating") {
+      setSel(null);
+      showToast("已开始生成，可以离开这一页，出片后会提醒你", 2600);
+    }
+  }, [selNode]);
 
   /**
    * 把某一格挪进视野。**加段与 agent 聚焦都必须调它**：新加的那一段在画布右边几百像素外，

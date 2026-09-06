@@ -109,6 +109,9 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   chosenProposal()`（后者把 plan==="picking" 翻译成"待挑"，别在调用点各判）。
   换走向**保分支**：旧走向的后续段归档进 `flowStore.alts`、发布分支互动视频从它取材。
   「随片出卡组」（`flowStore.deckOff`）**2026-09-06 起缺省不出**：主人点名默认不勾，想要再勾；老草稿没记过这一位的也按不出算。
+  **提交出片即收窗**（2026-09-06 主人点名）：画布的编辑窗在这一段状态翻到 generating 的那一拍自动收起（`FlowCanvas` 判跳变，
+  点开一张正在炼的卡看进度不算），工坊投影窗在 `studioStore` 委托 `genNode` 受理的那一拍收起（`closeProjection`），
+  两处都吐一句「已开始生成，可以离开这一页」—— 窗一直开着，用户不知道出片不需要守着。
   「怎么炼一段」也只有一份实现（`studio/segmentGen.ts`；工坊单炼已委托 `flowStore.genNode`，
   连报价带门禁同一处）。出片结果挂在 `Proposal.videoUrl` + 节点的 `videoByProposal`
   （两处由 genNode/setProposalVideo 同拍写），换个模式打开不会要求重炼、重复收费。
