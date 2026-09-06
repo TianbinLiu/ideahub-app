@@ -278,6 +278,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   （z 按层叠需要），面板 `w-full max-w-{xs|sm|md} rounded-2xl border border-slate-700 bg-ink p-4`，标题
   `text-sm font-bold text-slate-100`。确认卡用 `components/ConfirmDialog` / `DeleteConfirmShell`，说明卡用 `InfoDialog`。
   图片放大层（`bg-black/90`）与 3D 桌面内的就地弹层（`studio/ui/NpcDialog`、`modals.tsx`）不在此列。
+  遮罩透明度只有这两档（第十三轮把说明气泡的 `/50`、工坊帧卡放大层的 `/75` 收了）；层级上抽屉 / 对话框 z-50、
+  盖在它们之上的确认卡 z-[60] / z-[70]、轻提示 z-[90]，客服页自己的抽屉 z-30 只因为那一页没有底栏。
   收之前遮罩有 /60 /65 /70 /80 六档、面板 bg-panel 带阴影 / bg-ink 无边各一半。
 - **页签与筛选芯片两档**：紧凑 `rounded-full px-3 py-1 text-[11px]`（顶栏 / 列表头的筛选），常规
   `rounded-full px-3.5 py-1.5 text-xs`（分区 / 分类 / 排序）；选中态一律 `bg-brand font-semibold text-ink`，
