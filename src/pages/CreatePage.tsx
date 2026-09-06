@@ -13,6 +13,7 @@ import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import DiscardFlowDialog from "../components/flow/DiscardFlowDialog";
+import { SegmentRecoverList } from "../components/flow/SegmentRecoverCards";
 import { flowDirty, useFlow } from "../studio/flowStore";
 import { useStudio } from "../studio/studioStore";
 
@@ -106,6 +107,12 @@ export default function CreatePage() {
       {/* 直接回首页而不是 navigate(-1)：这一页常从登录重定向落地（历史里上一条
             是登录页），也可能本身就是首个历史记录，后退会退出应用而不是回首页 */}
       <PageHeader className="flex-none px-4" onBack={() => navigate("/")} title="开始创作" right={<HelpButton tour="create" />} />
+
+      {/* ★★ 待取回的那几发也摆在创作入口（2026-09-05）：App 被重启后流水线是空的，而取回卡此前
+          只长在"有节点的地方"（简约页 / 画布 / 工坊投影窗）—— 空流水线上没有任何一个节点可点，
+          凭据就此看不见，24 小时后作废。这里是冷启动后人最先落的一页；取回来会新开一段
+          落进流水线（flowStore.placeRescuedSegment），进工坊 / 工作流就能接着剪。 */}
+      <SegmentRecoverList className="flex-none px-4 pb-3" />
 
       {/* ══ 一张卡的正反面（2026-08-30 主人点名：不再是并排两张 + 左右箭头）══
           ★ 为什么是"翻面"而不是"换一张"：工坊与简约是同一件事的两种做法（同一条流水线的
