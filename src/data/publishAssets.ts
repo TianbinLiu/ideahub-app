@@ -16,7 +16,7 @@
 // ★ 失败就抛，不吞。调用方（pushPublish）会把原始草稿放进待发队列并把原因显示出来 ——
 //   悄悄发一份缺图的作品比发不出去更糟（铁律八）。
 import { idbGet } from "./db";
-import { uploadImage, uploadMedia, MAX_IMAGE_BYTES, MAX_MEDIA_BYTES } from "../api/uploads";
+import { uploadImage, uploadMedia, MAX_IMAGE_BYTES } from "../api/uploads";
 import { slotLabel, type Card, type CardView, type DraftVideo } from "../types";
 
 /** 已经是永久地址、不用动的：http(s) 且不是方舟临时域 */
@@ -49,8 +49,9 @@ async function imageToUrl(value: string | undefined, label: string): Promise<str
   return uploadImage(blob, `${label}.${extOf(blob.type)}`);
 }
 
-/** 成片：`idb:` 本地键 → 取出 Blob 上传。方舟链接与永久 URL 原样留给服务端 */
-async function videoToUrl(value: string | undefined): Promise<string | undefined> {
+/** 成片：`idb:` 本地键 → 取出 Blob 上传。方舟链接与永久 URL 原样留给服务端。
+ *  ★ 体积上限不在这里判：直传（100MB）与老路（20MB）不一样，由 uploadMedia 按拿到的票说 */
+async function videoToUrl(value: string | undefined, onFrac?: (frac: number) => void): Promise<string | undefined> {
   if (!value) return value;
   if (!value.startsWith("idb:")) return value;
   const blob = await idbGet<Blob>(value.slice(4));
@@ -58,10 +59,7 @@ async function videoToUrl(value: string | undefined): Promise<string | undefined
     // 本地那份没了（配额清理/换设备）：这条作品已经无法完整发布，说清楚而不是发个空壳
     throw new Error("本机的成片文件已丢失，无法上传");
   }
-  if (blob.size > MAX_MEDIA_BYTES) {
-    throw new Error(`成片太大（${Math.round(blob.size / 1048576)}MB，上限 20MB）`);
-  }
-  return uploadMedia(blob, `film.${extOf(blob.type)}`);
+  return uploadMedia(blob, `film.${extOf(blob.type)}`, onFrac);
 }
 
 /**
@@ -155,7 +153,8 @@ export async function materializeDraft(draft: DraftVideo, onProgress?: UploadPro
       if (s.lastFrame?.startsWith("data:")) finish();
       out.segments[i] = { ...out.segments[i], lastFrame };
       if (s.videoUrl?.startsWith("idb:")) begin(`第${i + 1}段成片（较大，请稍候）`);
-      const videoUrl = await videoToUrl(s.videoUrl);
+      // 成片是分块直传，有真进度：把百分比写进那一行，别让最长的一步全程只有一句"请稍候"
+      const videoUrl = await videoToUrl(s.videoUrl, (f) => onProgress?.(done, total, `第${i + 1}段成片 ${Math.round(f * 100)}%`));
       if (s.videoUrl?.startsWith("idb:")) finish();
       out.segments[i] = { ...out.segments[i], videoUrl };
     }
