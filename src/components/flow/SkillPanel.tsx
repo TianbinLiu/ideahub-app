@@ -131,7 +131,7 @@ export default function SkillPanel({ draft, onPick }: { draft: string; onPick: (
             <div key={s.id} className="flex items-center gap-2 rounded-xl border border-slate-700/70 bg-panel px-2.5 py-2">
               <button onClick={() => onPick(s.text)} className="min-w-0 flex-1 text-left">
                 <div className="flex items-center gap-1.5">
-                  <span className="min-w-0 truncate text-[12px] font-semibold text-slate-100">{s.title}</span>
+                  <span className="min-w-0 truncate text-xs font-semibold text-slate-100">{s.title}</span>
                   {s.published && (
                     <span className="flex-none rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] text-emerald-300">已发布</span>
                   )}
@@ -166,7 +166,7 @@ export default function SkillPanel({ draft, onPick }: { draft: string; onPick: (
             setMarketOpen(next);
             if (next) void refreshSharedSkills();
           }}
-          className="mt-2 w-full rounded-xl border border-slate-700/70 bg-panel px-2.5 py-2 text-left text-[12px] font-semibold text-slate-100"
+          className="mt-2 w-full rounded-xl border border-slate-700/70 bg-panel px-2.5 py-2 text-left text-xs font-semibold text-slate-100"
         >
           逛技能市场 {marketOpen ? "▴" : "▾"}
         </button>
@@ -183,7 +183,7 @@ export default function SkillPanel({ draft, onPick }: { draft: string; onPick: (
               <div key={s.id} className="flex items-center gap-2 rounded-xl border border-slate-700/70 bg-panel px-2.5 py-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="min-w-0 truncate text-[12px] font-semibold text-slate-100">{s.title}</span>
+                    <span className="min-w-0 truncate text-xs font-semibold text-slate-100">{s.title}</span>
                     {s.author && <span className="flex-none text-[9px] text-slate-500">by {s.author}</span>}
                   </div>
                   <div className="mt-0.5 truncate text-[10px] text-slate-500">{s.intro || s.text}</div>

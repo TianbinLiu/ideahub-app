@@ -113,8 +113,8 @@ export default function FrameAnnotator({
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-700 bg-ink p-3.5" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-6" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-2xl border border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>
         <div className="mb-2 flex items-center justify-between">
           <span className="text-sm font-bold text-slate-100">⭕ 圈选要修改的物体</span>
           <button onClick={onClose} className="text-slate-400">

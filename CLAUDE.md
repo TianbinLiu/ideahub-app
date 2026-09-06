@@ -272,6 +272,24 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   bg-<色>-500/10`，紧凑（`py-1.5`）配 `px-2.5`、常规（`py-2`）配 `px-3`；整块的卡式提示（`p-3` 及以上）
   才用 `rounded-xl`。收之前 120 条里 35 条没边框、圆角与内边距十几种组合，同一页上下两条就不一样。
 - **段落 / 字段标题一律 `text-sm font-semibold text-slate-300`**（字段 `mb-1.5`、段落 `mb-2`）；抽屉标题见上。
+- **居中对话框只有一种壳**（2026-09-06 第四轮）：遮罩 `fixed inset-0 z-* flex items-center justify-center bg-black/60 p-6`
+  （z 按层叠需要），面板 `w-full max-w-{xs|sm|md} rounded-2xl border border-slate-700 bg-ink p-4`，标题
+  `text-sm font-bold text-slate-100`。确认卡用 `components/ConfirmDialog` / `DeleteConfirmShell`，说明卡用 `InfoDialog`。
+  图片放大层（`bg-black/90`）与 3D 桌面内的就地弹层（`studio/ui/NpcDialog`、`modals.tsx`）不在此列。
+  收之前遮罩有 /60 /65 /70 /80 六档、面板 bg-panel 带阴影 / bg-ink 无边各一半。
+- **页签与筛选芯片两档**：紧凑 `rounded-full px-3 py-1 text-[11px]`（顶栏 / 列表头的筛选），常规
+  `rounded-full px-3.5 py-1.5 text-xs`（分区 / 分类 / 排序）；选中态一律 `bg-brand font-semibold text-ink`，
+  未选中 `bg-panel text-slate-300`（无底的排在 `text-slate-400`）。别再用 `bg-brand/25 ring-1` 这种淡选中态。
+  分段控件（一个 `rounded-xl bg-panel p-1` 容器里的 `rounded-lg` 段）是另一种控件，不按这条。
+- **CTA 字号两档**：页面 / 抽屉里的整宽或配对 CTA `text-sm font-bold`；对话框（`max-w-xs` 确认卡）脚部的键
+  `text-xs font-bold`。客服系列卡片里的「设为 / 下载并使用 / 安装并使用」是整宽 CTA，形状字号都按这条。
+- **字号只用刻度**：`text-[9px]` / `text-[10px]` / `text-[11px]` / `text-xs` / `text-sm` / `text-base` / `text-lg`…
+  `text-[12px]` 与 `text-xs` 同一个像素但行高不同，`text-[13px]` / `text-[15px]` 根本不在刻度上 —— 第四轮把
+  128 处像素写法归到刻度（12→xs、13→sm 或 xs、14→sm、15/16→base、17→lg、19→xl）。
+  查法：`rg 'text-\[1[2-9]px\]' --glob '*.tsx'` 应为空。
+- **卡片容器边线一律 `border-slate-700/70`**（`rounded-xl border border-slate-700/70 bg-panel p-3`）；输入框与按钮的
+  描边仍是 `border-slate-700`。空态文案不再手拼 `rounded-2xl bg-slate-900/60` 的段落，走 `EmptyState`。
+- **徽标（`rounded-full` 小字非交互）按字号定内边距**：9px `px-1.5 py-0.5`、10px `px-2 py-0.5`、11px `px-2.5 py-1`。
 - **空态 / 整页态只有一份实现 `components/EmptyState`**（2026-09-05 收口）：图标 40px slate-600（或 emoji）→ 正文
   text-sm slate-400（出错 rose-300）→ 补充 text-xs slate-600 → 按钮（主 bg-brand / 次 bg-panel+ring，同上一条）。
   列表里的空态 `py-16`，整页态（卡/卡组/模板不存在、未登录墙、取回中）传 `full`（min-h-[70vh] 居中 + safe-top）。

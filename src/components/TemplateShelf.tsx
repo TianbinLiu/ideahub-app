@@ -144,7 +144,7 @@ export function TemplateCard({
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 pb-2 pt-8">
             <div className="truncate text-sm font-bold text-slate-50">{t.title}</div>
             <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-300">
-              {catLabel && <span className="rounded-full bg-white/15 px-1.5 py-px text-[9px]">{catLabel}</span>}
+              {catLabel && <span className="rounded-full px-1.5 py-0.5 bg-white/15 text-[9px]">{catLabel}</span>}
               {/* 白模只有一段（整段复刻），报"模板视频几秒"比"1 段"信息量大 */}
               <span>
                 {t.refVideo
@@ -154,7 +154,7 @@ export function TemplateCard({
               {/* ★★ 模板视频本身出不了片时打角标，**但不从列表里拿掉**：东西静默消失，
                   用户只会以为是我们弄丢了（铁律八）。判据只有 refVideoIssue 一处 */}
               {refVideoIssue(t.refVideo) && (
-                <span className="rounded-full bg-rose-500/20 px-1.5 py-px text-[9px] text-rose-200">暂时不可用</span>
+                <span className="rounded-full px-1.5 py-0.5 bg-rose-500/20 text-[9px] text-rose-200">暂时不可用</span>
               )}
             </div>
           </div>
@@ -165,7 +165,7 @@ export function TemplateCard({
           <button
             data-guide={guidePick}
             onClick={onPick}
-            className="w-full rounded-xl bg-brand py-2.5 text-[12px] font-bold text-ink"
+            className="w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink"
           >
             用它出片
           </button>
@@ -242,7 +242,7 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
         <button
           onClick={() => void take()}
           disabled={!!busy}
-          className="mt-2 w-full rounded-xl bg-brand py-2.5 text-[12px] font-bold text-ink disabled:opacity-50"
+          className="mt-2 w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink disabled:opacity-50"
         >
           {busy ? "取回中…" : "取回这一发的结果（不额外花钱）"}
         </button>
@@ -254,7 +254,7 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
            ★ 措辞不写"删除"：什么都没被删，那笔钱也不会回来，消掉的只是这条提醒。 */
         <button
           onClick={() => dismissBlockoutJob(job)}
-          className="mt-2 w-full rounded-xl border border-slate-600 py-2.5 text-[12px] text-slate-300"
+          className="mt-2 w-full rounded-xl border border-slate-600 py-2.5 text-xs text-slate-300"
         >
           知道了，不用再提醒我这一发
         </button>
@@ -519,7 +519,7 @@ export default function TemplateShelf({
             key={c.id}
             onClick={() => setCat(c.id)}
             className={`flex-none rounded-full px-3 py-1 text-[11px] ${
-              cat === c.id ? "bg-brand/25 text-brand ring-1 ring-brand/50" : "bg-panel text-slate-400"
+              cat === c.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-400"
             }`}
           >
             {c.label}

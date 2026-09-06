@@ -228,7 +228,7 @@ export default function PublishPage() {
                 <button
                   key={c}
                   onClick={() => setCategory(c)}
-                  className={`rounded-full px-3.5 py-1.5 text-sm ${
+                  className={`rounded-full px-3.5 py-1.5 text-xs ${
                     category === c ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300 hover:bg-slate-700"
                   }`}
                 >
@@ -307,7 +307,7 @@ export default function PublishPage() {
               ★ 这个 `data-guide` 锚点留着：引导里那一步（tours 的「谁能看」）指着它。 */}
           <div data-guide="publish-pricing">
             <div className="mb-1.5 text-sm font-semibold text-slate-300">收费方式</div>
-            <div className="rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-xs leading-relaxed text-slate-400">
+            <div className="rounded-xl border border-slate-700/70 bg-panel px-3.5 py-2.5 text-xs leading-relaxed text-slate-400">
               目前所有作品都是<b className="font-semibold text-slate-200">免费观看</b>。付费解锁还没开放——
               等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。
             </div>
@@ -356,7 +356,7 @@ export default function PublishPage() {
             <button
               onClick={() => void publish()}
               disabled={!!busy || !!deckIssue}
-              className="rounded-xl bg-brand px-6 py-2.5 font-bold text-ink hover:brightness-110 disabled:opacity-50"
+              className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-50"
             >
               {busy || "发布"}
             </button>
@@ -375,8 +375,8 @@ export default function PublishPage() {
               ⚠ 不给关：本 app 的每一条作品都是 AI 生成的（画面要么是 Seedance 出的片、
                 要么是两张 AI 设定帧之间的渐变），给一个永远不能选"否"的开关只是装样子，
                 还会让人以为可以关掉。所以画成"已声明"的既成事实 + 说清楚都做了什么。 */}
-          <div className="rounded-xl border border-slate-700 bg-panel/60 px-3 py-2.5">
-            <div className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-200">
+          <div className="rounded-xl border border-slate-700/70 bg-panel/60 px-3 py-2.5">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
               <AigcBadge />
               内容声明：本作品由 AI 生成
             </div>

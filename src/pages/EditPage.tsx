@@ -240,7 +240,7 @@ export default function EditPage() {
                 <button
                   key={c}
                   onClick={() => setCategory(c)}
-                  className={`rounded-full px-3.5 py-1.5 text-sm ${
+                  className={`rounded-full px-3.5 py-1.5 text-xs ${
                     category === c ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300 hover:bg-slate-700"
                   }`}
                 >
@@ -277,7 +277,7 @@ export default function EditPage() {
             <button
               onClick={() => void save()}
               disabled={saving}
-              className="rounded-xl bg-brand px-6 py-2.5 font-bold text-ink hover:brightness-110 disabled:opacity-50"
+              className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-50"
             >
               {saving ? "保存中…" : "保存修改"}
             </button>

@@ -164,7 +164,7 @@ export default function DiscoverPage() {
           而它必须在**正常流**里 —— absolute 定位会钻到系统状态栏底下去（首页栽过一次）。
           ★ 这一行按 PageHeader 的规格摆（safe-top + 48px 行内居中），和别的页顶栏同一条线 */}
       <div className="safe-top mb-4 flex h-[58px] items-center gap-2">
-        <div data-guide="discover-search" className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-700 bg-panel px-4 py-2.5">
+        <div data-guide="discover-search" className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-700/70 bg-panel px-4 py-2.5">
         <Icon name="search" size={17} className="text-slate-500" />
         <input
           value={q}
@@ -311,7 +311,7 @@ export default function DiscoverPage() {
               key={k}
               onClick={() => setSort(k)}
               aria-pressed={sort === k}
-              className={`rounded-full px-2.5 py-1 text-[11px] transition ${
+              className={`rounded-full px-3 py-1 text-[11px] transition ${
                 sort === k ? "bg-brand font-semibold text-ink" : "text-slate-400"
               }`}
             >

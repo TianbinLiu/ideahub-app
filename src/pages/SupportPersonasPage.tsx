@@ -200,10 +200,10 @@ export default function SupportPersonasPage() {
 
       {/* 当前人格 + 恢复默认：读不到设置就只报错，不摆一个不知道恢复成什么的按钮 */}
       {settings && (
-        <div className="mb-3 flex items-center gap-2 rounded-xl border border-slate-700 bg-panel px-3 py-2">
+        <div className="mb-3 flex items-center gap-2 rounded-xl border border-slate-700/70 bg-panel px-3 py-2">
           <div className="min-w-0 flex-1">
             <div className="text-[11px] text-slate-500">当前人格</div>
-            <div className="truncate text-[13px] text-slate-100">
+            <div className="truncate text-sm text-slate-100">
               {effective
                 ? `${effective.coverEmoji || "🎭"} ${effective.name}${settings.personaSource === "model" ? "（形象作者推荐）" : ""}`
                 : "默认人设"}
@@ -212,13 +212,13 @@ export default function SupportPersonasPage() {
           <button
             onClick={() => void resetPersona()}
             disabled={!chosenId || !!busy}
-            className="shrink-0 rounded-full border border-slate-600 px-3 py-1.5 text-[12px] text-slate-300 disabled:opacity-40"
+            className="shrink-0 rounded-full border border-slate-600 px-3 py-1.5 text-xs text-slate-300 disabled:opacity-40"
           >
             {busy === "reset" ? "恢复中…" : "恢复默认人格"}
           </button>
         </div>
       )}
-      {headErr && <p className="mb-2 text-[12px] leading-5 text-rose-300">{headErr}</p>}
+      {headErr && <p className="mb-2 text-xs leading-5 text-rose-300">{headErr}</p>}
       {settingsErr && (
         <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
           读不到当前设置：{settingsErr}这里不标「使用中」，选用时以服务端为准。
@@ -252,8 +252,8 @@ export default function SupportPersonasPage() {
         )}
       </div>
 
-      {notice && <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-[12px] text-emerald-200">{notice}</p>}
-      {listErr && <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[12px] leading-relaxed text-rose-300">{listErr}</p>}
+      {notice && <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200">{notice}</p>}
+      {listErr && <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-rose-300">{listErr}</p>}
 
       {loading ? (
         <EmptyState loading text="读取中…" />
@@ -266,23 +266,23 @@ export default function SupportPersonasPage() {
             const isBusy = busy === p._id;
             const needPay = p.price > 0 && !p.purchased && !p.isOwner;
             return (
-              <section key={p._id} className={`rounded-2xl border p-3 ${current ? "border-brand/60 bg-brand/5" : "border-slate-700 bg-panel"}`}>
+              <section key={p._id} className={`rounded-xl border p-3 ${current ? "border-brand/60 bg-brand/5" : "border-slate-700/70 bg-panel"}`}>
                 <div className="flex gap-3">
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-900 text-2xl">
                     {p.coverImageUrl ? <img src={p.coverImageUrl} alt="" loading="lazy" className="h-full w-full object-cover" /> : p.coverEmoji || "🎭"}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="truncate text-[14px] font-semibold text-slate-100">{p.name}</span>
-                      {current && <span className="rounded-full bg-brand px-1.5 py-px text-[10px] font-semibold text-ink">使用中</span>}
+                      <span className="truncate text-sm font-semibold text-slate-100">{p.name}</span>
+                      {current && <span className="rounded-full px-2 py-0.5 bg-brand text-[10px] font-semibold text-ink">使用中</span>}
                       {p.price > 0 && (
                         <span className={`rounded-full px-1.5 py-px text-[10px] ${needPay ? "bg-gold/20 text-gold" : "bg-slate-800 text-slate-400"}`}>
                           {p.isOwner ? "我的" : p.purchased ? "已购" : `💰 ${p.price}`}
                         </span>
                       )}
-                      {p.voice && <span className="rounded-full bg-sky-500/20 px-1.5 py-px text-[10px] text-sky-200">自带音色</span>}
+                      {p.voice && <span className="rounded-full px-2 py-0.5 bg-sky-500/20 text-[10px] text-sky-200">自带音色</span>}
                     </div>
-                    {p.description && <p className="mt-0.5 line-clamp-2 text-[12px] leading-5 text-slate-400">{p.description}</p>}
+                    {p.description && <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-400">{p.description}</p>}
                     <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
                       {p.tags.length > 0 && <span className="min-w-0 truncate">{p.tags.slice(0, 4).map((t) => `#${t}`).join(" ")}</span>}
                       <span className="ml-auto shrink-0">
@@ -295,7 +295,7 @@ export default function SupportPersonasPage() {
                   <button
                     onClick={() => void applyPersona(p)}
                     disabled={current || !!busy}
-                    className={`flex-1 rounded-full py-1.5 text-[12px] font-bold ${current ? "bg-slate-800 text-slate-500" : "bg-brand text-ink"} disabled:opacity-60`}
+                    className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${current ? "bg-slate-800 text-slate-500" : "bg-brand text-ink"} disabled:opacity-60`}
                   >
                     {isBusy ? "切换中…" : current ? "使用中" : "安装并使用"}
                   </button>
@@ -303,7 +303,7 @@ export default function SupportPersonasPage() {
                     <button
                       onClick={() => void unfavorite(p)}
                       disabled={!!busy}
-                      className="rounded-full border border-slate-600 px-3 py-1.5 text-[11px] text-slate-400 disabled:opacity-40"
+                      className="rounded-xl border border-slate-700 px-3.5 py-2.5 text-sm text-slate-400 disabled:opacity-40"
                     >
                       取消收藏
                     </button>
@@ -321,7 +321,7 @@ export default function SupportPersonasPage() {
         <button
           onClick={() => void loadMore()}
           disabled={moreLoading}
-          className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-[12px] text-slate-300 disabled:opacity-50"
+          className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-xs text-slate-300 disabled:opacity-50"
         >
           {moreLoading ? "加载中…" : "加载更多"}
         </button>

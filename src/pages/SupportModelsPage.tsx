@@ -194,8 +194,8 @@ export default function SupportModelsPage() {
           读不到当前设置：{settingsErr}这里不标「使用中」，选用时以服务端为准。
         </p>
       )}
-      {notice && <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-[12px] text-emerald-200">{notice}</p>}
-      {listErr && <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[12px] leading-relaxed text-rose-300">{listErr}</p>}
+      {notice && <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200">{notice}</p>}
+      {listErr && <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-rose-300">{listErr}</p>}
 
       {loading ? (
         <EmptyState loading text="读取中…" />
@@ -207,7 +207,7 @@ export default function SupportModelsPage() {
             const current = !!currentId && m._id === currentId;
             const step = busy && busy.id === m._id ? busy.step : "";
             return (
-              <section key={m._id} className={`overflow-hidden rounded-2xl border ${current ? "border-brand/60 bg-brand/5" : "border-slate-700 bg-panel"}`}>
+              <section key={m._id} className={`overflow-hidden rounded-xl border ${current ? "border-brand/60 bg-brand/5" : "border-slate-700/70 bg-panel"}`}>
                 <div className="relative aspect-[3/4] bg-slate-900">
                   {m.coverImageUrl || m.official ? (
                     <img src={m.coverImageUrl || OFFICIAL_COVER} alt="" loading="lazy" className="h-full w-full object-cover" />
@@ -215,12 +215,12 @@ export default function SupportModelsPage() {
                     <div className="flex h-full items-center justify-center text-4xl">🧍</div>
                   )}
                   <div className="absolute left-1.5 top-1.5 flex gap-1">
-                    {m.official && <span className="rounded-full bg-gold/90 px-1.5 py-px text-[10px] font-semibold text-ink">官方</span>}
-                    {current && <span className="rounded-full bg-brand px-1.5 py-px text-[10px] font-semibold text-ink">使用中</span>}
+                    {m.official && <span className="rounded-full px-2 py-0.5 bg-gold/90 text-[10px] font-semibold text-ink">官方</span>}
+                    {current && <span className="rounded-full px-2 py-0.5 bg-brand text-[10px] font-semibold text-ink">使用中</span>}
                   </div>
                 </div>
                 <div className="p-2.5">
-                  <div className="truncate text-[13px] font-semibold text-slate-100">{m.name}</div>
+                  <div className="truncate text-sm font-semibold text-slate-100">{m.name}</div>
                   <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-500">
                     <span className="min-w-0 truncate">{m.official ? "启梦官方" : `@${authorName(m.author) || "匿名"}`}</span>
                     <span className="ml-auto shrink-0">⬇ {m.stats.downloadCount}</span>
@@ -239,7 +239,7 @@ export default function SupportModelsPage() {
                   <button
                     onClick={() => void applyModel(m)}
                     disabled={current || !!busy}
-                    className={`mt-2 w-full rounded-full py-1.5 text-[12px] font-bold ${current ? "bg-slate-800 text-slate-500" : "bg-brand text-ink"} disabled:opacity-60`}
+                    className={`mt-2 w-full rounded-xl py-2.5 text-sm font-bold ${current ? "bg-slate-800 text-slate-500" : "bg-brand text-ink"} disabled:opacity-60`}
                   >
                     {step || (current ? "使用中" : m.official ? "使用官方形象" : "下载并使用")}
                   </button>
@@ -247,7 +247,7 @@ export default function SupportModelsPage() {
                     <button
                       onClick={() => void unfavorite(m)}
                       disabled={!!busy}
-                      className="mt-1.5 w-full rounded-full border border-slate-600 py-1 text-[11px] text-slate-400 disabled:opacity-40"
+                      className="mt-1.5 w-full rounded-xl border border-slate-700 py-2.5 text-sm text-slate-400 disabled:opacity-40"
                     >
                       取消收藏
                     </button>
@@ -264,7 +264,7 @@ export default function SupportModelsPage() {
         <button
           onClick={() => void loadMore()}
           disabled={moreLoading}
-          className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-[12px] text-slate-300 disabled:opacity-50"
+          className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-xs text-slate-300 disabled:opacity-50"
         >
           {moreLoading ? "加载中…" : "加载更多"}
         </button>

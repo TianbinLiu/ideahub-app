@@ -193,7 +193,7 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
         <div className="flex flex-wrap gap-1">
           <span className="w-10 flex-none text-[11px] text-slate-400">素材</span>
           {node.materials.map((c) => (
-            <span key={c.id} className="rounded-full bg-panel px-2 py-0.5 text-[10px] text-slate-300">
+            <span key={c.id} className="rounded-full px-2 py-0.5 bg-panel text-[10px] text-slate-300">
               {c.name}
             </span>
           ))}

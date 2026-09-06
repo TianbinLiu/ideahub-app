@@ -29,7 +29,7 @@ export default function ConfirmDialog({
   onClose: () => void;
 }) {
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-8" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6" onClick={onClose}>
       <div
         className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4"
         onClick={(e) => e.stopPropagation()}

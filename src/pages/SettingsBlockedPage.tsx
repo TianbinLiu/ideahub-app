@@ -72,14 +72,14 @@ export default function SettingsBlockedPage() {
       </p>
 
       {!user ? (
-        <p className="text-[12px] text-slate-400">登录之后才能管理黑名单。</p>
+        <p className="text-xs text-slate-400">登录之后才能管理黑名单。</p>
       ) : !remote ? (
         // ★ 离线模式下没有"别人"，说清楚而不是显示一个永远空的名单
-        <p className="text-[12px] leading-relaxed text-slate-400">
+        <p className="text-xs leading-relaxed text-slate-400">
           当前是本地模式（没有连服务器），黑名单是账号级的功能——接上服务器之后才会有。
         </p>
       ) : loading ? (
-        <p className="text-[12px] text-slate-500">正在取名单…</p>
+        <p className="text-xs text-slate-500">正在取名单…</p>
       ) : list === null ? (
         // ① 没问到 —— 与"一个都没有"分开说，并给一条真能走的路
         <EmptyState
@@ -99,11 +99,11 @@ export default function SettingsBlockedPage() {
               {u.avatar ? (
                 <img src={u.avatar} alt="" className="h-9 w-9 flex-none rounded-full object-cover" />
               ) : (
-                <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-slate-700 text-[13px] text-slate-300">
+                <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-slate-700 text-xs text-slate-300">
                   {u.name.slice(0, 1)}
                 </span>
               )}
-              <span className="min-w-0 flex-1 truncate text-[13px] text-slate-100">{u.name}</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-slate-100">{u.name}</span>
               <button
                 onClick={() => void undo(u)}
                 disabled={!!busyId}

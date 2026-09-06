@@ -346,7 +346,7 @@ export default function FlowCanvas({
           onClick={draft.onSave}
           disabled={draft.state === "saving"}
           title="存草稿"
-          className={`flex h-8 w-8 flex-none items-center justify-center rounded-full text-[13px] disabled:opacity-50 ${
+          className={`flex h-8 w-8 flex-none items-center justify-center rounded-full text-xs disabled:opacity-50 ${
             draft.state === "failed" ? "bg-rose-500/20 text-rose-300" : draft.state === "saved" ? "bg-emerald-500/20 text-emerald-300" : "bg-panel text-slate-200"
           }`}
         >
@@ -549,7 +549,7 @@ export default function FlowCanvas({
                     <button
                       onClick={() => !moved.current && setPlaying(n.id)}
                       title="看这一段成片"
-                      className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-[12px] text-white"
+                      className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-xs text-white"
                     >
                       ▶
                     </button>
@@ -825,7 +825,7 @@ function NodePanel({
             只在线性视图里能改的话，画布上那颗标着价的生成键就是个改不动的数 */}
         <button
           onClick={() => setSettings(true)}
-          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-[13px] text-slate-300"
+          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-xs text-slate-300"
           title="本段设置"
         >
           ⚙
@@ -851,7 +851,7 @@ function NodePanel({
           onClick={() => !tplMode && setPicker(true)}
           disabled={locked || generating || busy || done}
           className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
-            tplMode ? "bg-brand font-bold text-ink" : "text-slate-400"
+            tplMode ? "bg-brand font-semibold text-ink" : "text-slate-400"
           }`}
         >
           🧪 套模板
@@ -1684,12 +1684,12 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
           {(log.applied.length > 0 || log.refused.length > 0) && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {log.applied.map((s, i) => (
-                <span key={`a${i}`} className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-300">
+                <span key={`a${i}`} className="rounded-full px-2 py-0.5 bg-emerald-500/15 text-[10px] text-emerald-300">
                   ✓ {s}
                 </span>
               ))}
               {log.refused.map((s, i) => (
-                <span key={`r${i}`} className="rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] leading-relaxed text-rose-300">
+                <span key={`r${i}`} className="rounded-full px-2 py-0.5 bg-rose-500/15 text-[10px] leading-relaxed text-rose-300">
                   ✗ {s}
                 </span>
               ))}
@@ -1774,7 +1774,7 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
               onClick={() => onPick(p.make(seg))}
               className="rounded-xl border border-slate-700/70 bg-panel px-2.5 py-2 text-left"
             >
-              <div className="text-[12px] font-semibold text-slate-100">{p.label}</div>
+              <div className="text-xs font-semibold text-slate-100">{p.label}</div>
               <div className="mt-0.5 text-[10px] leading-relaxed text-slate-500">{p.hint}</div>
             </button>
           ))}
@@ -1790,7 +1790,7 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
                   onClick={() => onPick(`第${seg}段套模板「${t.title}」`)}
                   className="flex w-full items-center gap-2 rounded-xl border border-slate-700/70 bg-panel px-2.5 py-2 text-left"
                 >
-                  <span className="min-w-0 flex-1 truncate text-[12px] text-slate-100">{t.title}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-slate-100">{t.title}</span>
                   {t.refVideo && (
                     <span className="flex-none rounded bg-sky-500/20 px-1.5 py-0.5 text-[9px] text-sky-300">白模</span>
                   )}
@@ -1837,7 +1837,7 @@ export function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => v
         {all.some((c) => voiceOf(c.id)) && (
           <button
             onClick={() => setVoicedOnly((v) => !v)}
-            className={`mb-2 self-start rounded-full px-2.5 py-1 text-[10px] ${
+            className={`mb-2 self-start rounded-full px-3 py-1 text-[11px] ${
               voicedOnly ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-400"
             }`}
           >
@@ -1989,7 +1989,7 @@ export function TemplatePicker({
             const count = head.group?.count ?? row.parts.length;
             const partial = row.parts.length !== count;
             return (
-              <div key={row.key} className="rounded-xl border border-slate-700 bg-panel">
+              <div key={row.key} className="rounded-xl border border-slate-700/70 bg-panel">
                 <button
                   onClick={() => setOpenKey(open ? null : row.key)}
                   className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left"
@@ -2035,10 +2035,10 @@ export function TemplatePicker({
           ★ z-[60] 盖在选择弹层（z-50）之上；点背景 = 取消，回列表继续挑。 */}
       {previewing && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-6"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-6"
           onClick={() => setPreviewing(null)}
         >
-          <div className="w-full max-w-sm rounded-2xl bg-ink p-3" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>
             <div className="mb-2 truncate text-xs font-semibold text-slate-100">{previewing.title}</div>
             <video
               src={previewing.refVideo!.url}

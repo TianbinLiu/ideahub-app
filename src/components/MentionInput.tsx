@@ -234,7 +234,7 @@ export default function MentionInput({
         // 面板开在输入框**上方**：手机上键盘从底部升起来，开在下方就被键盘盖住了。
         // 只是 absolute（不是 fixed）——祖先里有 backdrop-blur/transform 时 fixed 会
         // 认错包含块（CLAUDE.md 里那条坑），而这里本来也只需要贴着输入框。
-        <div className="absolute bottom-full left-0 right-0 z-10 mb-2 overflow-hidden rounded-xl border border-slate-700 bg-panel shadow-[0_8px_30px_rgba(0,0,0,.5)]">
+        <div className="absolute bottom-full left-0 right-0 z-10 mb-2 overflow-hidden rounded-xl border border-slate-700/70 bg-panel shadow-[0_8px_30px_rgba(0,0,0,.5)]">
           {note && <p className="px-3 py-2 text-[11px] leading-relaxed text-amber-300/90">{note}</p>}
           {users.length > 0 && (
             <ul className="max-h-52 overflow-y-auto">

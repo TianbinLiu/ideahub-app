@@ -175,14 +175,14 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
 
       <div className="space-y-2">
         {rows.map((r, i) => (
-          <div key={i} className="rounded-xl border border-slate-700 bg-panel px-3 py-2">
+          <div key={i} className="rounded-xl border border-slate-700/70 bg-panel px-3 py-2">
             <div className="flex items-center gap-2">
               <select
                 value={r.voiceId}
                 onChange={(e) => setRow(i, { voiceId: e.target.value })}
                 disabled={locked}
                 aria-label={`第 ${i + 1} 味音色`}
-                className="h-9 min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-2 text-[13px] text-slate-100 outline-none focus:border-brand disabled:opacity-60"
+                className="h-9 min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-2 text-sm text-slate-100 outline-none focus:border-brand disabled:opacity-60"
               >
                 {/* 目录里没有的 id（老数据 / 目录还没到）也得显示出来，否则下拉会静默跳到第一项 */}
                 {!mixable.some((v) => v.id === r.voiceId) && <option value={r.voiceId}>{r.voiceId}</option>}
@@ -197,7 +197,7 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
                   </optgroup>
                 )}
               </select>
-              <span className="w-10 shrink-0 text-right text-[12px] font-semibold text-brand">{Math.round(shares[i] * 100)}%</span>
+              <span className="w-10 shrink-0 text-right text-xs font-semibold text-brand">{Math.round(shares[i] * 100)}%</span>
               <button
                 onClick={() => removeRow(i)}
                 disabled={locked || rows.length <= 1}
@@ -224,7 +224,7 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
       <button
         onClick={addRow}
         disabled={locked || !canAdd}
-        className="mt-2 w-full rounded-full border border-dashed border-slate-600 py-1.5 text-[12px] text-slate-300 disabled:opacity-40"
+        className="mt-2 w-full rounded-full border border-dashed border-slate-600 py-1.5 text-xs text-slate-300 disabled:opacity-40"
       >
         + 加一味（{rows.length}/{maxMix}）
       </button>
@@ -235,7 +235,7 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
         <button
           onClick={() => void preview()}
           disabled={disabled || busy === "publish" || !rows.length}
-          className="flex-1 rounded-full border border-brand/60 py-2 text-[13px] font-semibold text-brand disabled:opacity-40"
+          className="flex-1 rounded-xl border border-brand/60 py-2.5 text-sm font-semibold text-brand disabled:opacity-40"
         >
           {busy === "preview" ? "■ 停止" : "▶ 试听"}
         </button>
@@ -245,20 +245,20 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
             setFormOpen((v) => !v);
           }}
           disabled={locked || !rows.length}
-          className="flex-1 rounded-xl border border-slate-600 py-2.5 text-[13px] text-slate-200 disabled:opacity-40"
+          className="flex-1 rounded-xl border border-slate-600 py-2.5 text-sm text-slate-200 disabled:opacity-40"
         >
           发布到声音市场
         </button>
       </div>
 
       {formOpen && (
-        <div className="mt-2 rounded-xl border border-slate-700 bg-panel p-3">
+        <div className="mt-2 rounded-xl border border-slate-700/70 bg-panel p-3">
           <input
             value={tplName}
             onChange={(e) => setTplName(e.target.value)}
             maxLength={NAME_MAX}
             placeholder="模板名字（必填，例：清冷知性）"
-            className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-[13px] text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
+            className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
           />
           <textarea
             value={tplDesc}
@@ -266,9 +266,9 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
             rows={2}
             maxLength={DESC_MAX}
             placeholder="一句话介绍（选填）"
-            className="mt-2 w-full resize-none rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[12px] text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
+            className="mt-2 w-full resize-none rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
           />
-          <label className="mt-2 flex items-center gap-2 text-[12px] text-slate-300">
+          <label className="mt-2 flex items-center gap-2 text-xs text-slate-300">
             <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} className="accent-brand" />
             公开到声音市场（不勾 = 只在「我的」里）
           </label>
@@ -276,14 +276,14 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
             <button
               onClick={() => void publish()}
               disabled={locked || !tplName.trim()}
-              className="flex-1 rounded-xl bg-brand py-2.5 text-[13px] font-semibold text-ink disabled:opacity-50"
+              className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-semibold text-ink disabled:opacity-50"
             >
               {busy === "publish" ? "发布中…" : "发布并设为我的声音"}
             </button>
             <button
               onClick={() => setFormOpen(false)}
               disabled={busy === "publish"}
-              className="rounded-xl border border-slate-600 px-4 py-2.5 text-[13px] text-slate-300 disabled:opacity-40"
+              className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 disabled:opacity-40"
             >
               取消
             </button>

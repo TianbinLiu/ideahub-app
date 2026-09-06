@@ -323,7 +323,7 @@ export default function LoginPage() {
                 <button
                   key={m.k}
                   onClick={() => pick(m.k)}
-                  className={`flex-1 rounded-lg py-2 text-[13px] transition ${
+                  className={`flex-1 rounded-lg py-2 text-sm transition ${
                     method === m.k ? "bg-brand font-bold text-ink" : "text-slate-400"
                   }`}
                 >

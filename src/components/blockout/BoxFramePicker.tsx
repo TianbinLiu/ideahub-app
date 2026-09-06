@@ -382,7 +382,7 @@ export default function BoxFramePicker({
   );
 
   return (
-    <div className="space-y-2 rounded-lg border border-slate-700 bg-panel/60 px-3 py-2.5">
+    <div className="space-y-2 rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2.5">
       <p className="text-[11px] font-bold text-slate-200">{kind === "split" ? "在哪几帧切开" : "AI 分析哪几帧"}</p>
 
       {/* split 形态没有模式档：不标 = 自动对半、标了不够 = 自动补刀，都在 planSplits 一处，

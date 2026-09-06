@@ -96,10 +96,10 @@ export default function SchemeMarketSheet({
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="truncate text-[12px] font-semibold text-slate-100">{sc.title}</span>
+                      <span className="truncate text-xs font-semibold text-slate-100">{sc.title}</span>
                       {/* ★ 只标产出形态，绝不标"过检率"（§B2） */}
                       {sc.faceless && (
-                        <span className="flex-none rounded-full bg-emerald-500/15 px-1.5 py-px text-[9px] text-emerald-300">
+                        <span className="flex-none rounded-full px-1.5 py-0.5 bg-emerald-500/15 text-[9px] text-emerald-300">
                           无脸
                         </span>
                       )}
@@ -114,7 +114,7 @@ export default function SchemeMarketSheet({
                   <button
                     onClick={() => void install(sc.id)}
                     disabled={busy || installing === sc.id}
-                    className={`flex-none rounded-full px-2.5 py-1 text-[11px] font-semibold disabled:opacity-40 ${
+                    className={`flex-none rounded-full px-3 py-1 text-[11px] font-semibold disabled:opacity-40 ${
                       owned ? "bg-slate-700 text-slate-300" : "bg-brand text-ink"
                     }`}
                   >

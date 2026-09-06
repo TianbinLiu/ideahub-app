@@ -252,7 +252,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
               onClick={() => switchTab(t.key)}
               disabled={saving}
               aria-pressed={tab === t.key}
-              className={`flex-1 rounded-full py-1.5 text-[12px] font-semibold ${tab === t.key ? "bg-brand text-ink" : "bg-panel text-slate-300"} disabled:opacity-60`}
+              className={`flex-1 rounded-full py-1.5 text-xs font-semibold ${tab === t.key ? "bg-brand text-ink" : "bg-panel text-slate-300"} disabled:opacity-60`}
             >
               {t.label}
             </button>
@@ -332,7 +332,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
           {tab === "market" && (
             <>
               {published && (
-                <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-[12px] leading-5 text-emerald-200">
+                <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs leading-5 text-emerald-200">
                   已发布「{published.name}」{published.shared ? "到声音市场" : "（未公开，只在「我的」里）"}，并设为你的声音。
                 </p>
               )}
@@ -356,14 +356,14 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
 
         <div className="flex shrink-0 gap-2 border-t border-white/10 px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-3">
           {tab !== "market" && (
-            <button onClick={() => void save()} disabled={!!busy} className="flex-1 rounded-xl bg-brand py-2.5 text-[14px] font-semibold text-ink disabled:opacity-60">
+            <button onClick={() => void save()} disabled={!!busy} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-semibold text-ink disabled:opacity-60">
               {busy === "save" ? "保存中…" : tab === "mix" ? "保存这把混音" : "保存"}
             </button>
           )}
           <button
             onClick={() => void reset()}
             disabled={!!busy || following}
-            className={`rounded-xl border border-slate-600 px-4 py-2.5 text-[13px] text-slate-300 disabled:opacity-40 ${tab === "market" ? "flex-1" : ""}`}
+            className={`rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 disabled:opacity-40 ${tab === "market" ? "flex-1" : ""}`}
           >
             {busy === "reset" ? "恢复中…" : "恢复跟随人格/模型"}
           </button>

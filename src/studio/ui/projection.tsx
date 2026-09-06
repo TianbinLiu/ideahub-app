@@ -132,7 +132,7 @@ function DeckPickPanel() {
           {view === "decks" ? "选择卡组" : activeDeck?.name ?? "卡片"}
         </h3>
         {/* 右上角：卡组/卡片视图切换 + 关闭 */}
-        <div className="flex flex-none overflow-hidden rounded-full border border-cyan-400/30 text-[11px]">
+        <div className="flex flex-none overflow-hidden rounded-full px-2.5 py-1 border border-cyan-400/30 text-[11px]">
           <button
             onClick={() => setView("decks")}
             className={`px-2.5 py-1 ${view === "decks" ? "bg-cyan-400/25 font-semibold text-cyan-100" : "text-slate-400 hover:text-slate-200"}`}
@@ -157,7 +157,7 @@ function DeckPickPanel() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={view === "decks" ? "搜卡组名…" : "搜卡名 / 类型…"}
-          className="min-w-0 flex-1 bg-transparent text-[12px] text-cyan-50 outline-none placeholder:text-slate-500"
+          className="min-w-0 flex-1 bg-transparent text-xs text-cyan-50 outline-none placeholder:text-slate-500"
         />
         {q && (
           <button onClick={() => setQ("")} className="flex-none text-[11px] text-slate-400 hover:text-slate-200">
@@ -373,7 +373,7 @@ function EditorPanel() {
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">
                     <span className="text-base font-bold text-cyan-100">{label}</span>
-                    <span className="rounded-full bg-cyan-400/15 px-2 py-0.5 text-[10px] text-cyan-200">{tag}</span>
+                    <span className="rounded-full px-2 py-0.5 bg-cyan-400/15 text-[10px] text-cyan-200">{tag}</span>
                   </span>
                   <span className="mt-1.5 block text-[11px] leading-relaxed text-slate-400">{desc}</span>
                 </span>
@@ -388,7 +388,7 @@ function EditorPanel() {
           {editor.refVideo ? (
             <div className="rounded-xl border border-sky-500/40 bg-sky-500/5 p-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="min-w-0 flex-1 truncate text-[12px] text-sky-200">🎬 参考视频已挂上（{editor.refVideo.durationSec.toFixed(1)}s）</span>
+                <span className="min-w-0 flex-1 truncate text-xs text-sky-200">🎬 参考视频已挂上（{editor.refVideo.durationSec.toFixed(1)}s）</span>
                 <button onClick={() => useStudio.getState().setEditorRefVideo(null)} className="flex-none text-[10px] text-slate-500">移除</button>
               </div>
               <p className="mt-1 text-[10px] leading-relaxed text-slate-500">已自动取它的首尾帧当本段首尾帧；可细调、加中间帧（最多 {CUSTOM_MID_MAX} 张）</p>
@@ -1095,7 +1095,7 @@ function ProposalsPanel() {
           <div className="flex flex-wrap items-center gap-1">
             <span className="mr-1 text-[10px] text-slate-400">素材卡</span>
             {(node.materials ?? []).map((c) => (
-              <span key={c.id} className="flex items-center gap-1 rounded-full bg-panel px-2 py-0.5 text-[10px] text-slate-200">
+              <span key={c.id} className="flex items-center gap-1 rounded-full px-2 py-0.5 bg-panel text-[10px] text-slate-200">
                 {c.name}
                 <button
                   onClick={() => useFlow.getState().removeMaterial(node.id, c.id)}

@@ -147,7 +147,7 @@ export default function SettingsPage() {
 /** 一组入口行：一个圆角框，行间细分隔线（比每行各自一张卡安静得多） */
 function Group({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-4 divide-y divide-slate-800 overflow-hidden rounded-xl border border-slate-700 bg-panel">
+    <div className="mb-4 divide-y divide-slate-800 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
       {children}
     </div>
   );

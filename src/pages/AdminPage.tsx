@@ -95,7 +95,7 @@ export default function AdminPage() {
         className="mb-5"
         onBack={() => (view === "home" ? navigate(-1) : setView("home"))}
         title={VIEW_TITLE[view]}
-        right={<span className="flex-none rounded-full bg-brand/15 px-2.5 py-1 text-[11px] text-brand">管理员</span>}
+        right={<span className="flex-none rounded-full px-2.5 py-1 bg-brand/15 text-[11px] text-brand">管理员</span>}
       />
 
       {view === "home" && (
@@ -519,7 +519,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
   }
 
   return (
-    <article className="rounded-xl border border-slate-700 bg-panel p-3">
+    <article className="rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="flex items-center gap-3">
         <Avatar name={name} src={u.avatarUrl} size={40} />
         <div className="min-w-0 flex-1">
@@ -819,7 +819,7 @@ function VideoRow({ v, onDone }: { v: ApiVideo; onDone: () => void }) {
   }
 
   return (
-    <article className="rounded-xl border border-slate-700 bg-panel p-3">
+    <article className="rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="flex items-start gap-3">
         {v.cover && <img src={v.cover} alt="" className="h-14 w-10 flex-none rounded object-cover" />}
         <div className="min-w-0 flex-1">
@@ -1057,7 +1057,7 @@ function ContentRow({ kind, c, onDone }: { kind: "comment" | "danmaku"; c: ApiAd
   }
 
   return (
-    <article className="rounded-xl border border-slate-700 bg-panel p-3">
+    <article className="rounded-xl border border-slate-700/70 bg-panel p-3">
       <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-200">{c.text || "（空）"}</p>
       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
         {/* ★ 弹幕对外匿名，但管理端带作者（唯一透出处，见 api/admin 的说明）——
@@ -1289,7 +1289,7 @@ function ReportCard({
   }
 
   return (
-    <article className="rounded-xl border border-slate-700 bg-panel p-3">
+    <article className="rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
         <span className="rounded bg-slate-700 px-1.5 py-0.5 text-slate-300">{TARGET_LABEL[report.targetType] ?? report.targetType}</span>
         {/* ★ 紧急件（涉及未成年人）画成红底而不是与其它理由同色：这一类的处置不是

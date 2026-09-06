@@ -65,7 +65,7 @@ export default function DraftsPage() {
               )}
               <div className="p-2.5">
                 <div className="flex items-center gap-1.5">
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-slate-100">{d.title}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-100">{d.title}</span>
                   {d.id === currentId && (
                     <span className="flex-none rounded bg-brand/20 px-1 py-0.5 text-[9px] font-semibold text-brand">
                       当前

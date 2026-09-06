@@ -114,14 +114,14 @@ function TicketCard({ t, onChanged }: { t: SupportTicket; onChanged: (t: Support
         <span>{CATEGORY_LABEL[t.category]}</span>
         <span className="ml-auto">#{t.id.slice(-6).toUpperCase()} · {relativeTime(Date.parse(t.createdAt))}</span>
       </div>
-      <h3 className="mt-1.5 text-[14px] font-semibold text-slate-100">{t.subject || "（无标题）"}</h3>
+      <h3 className="mt-1.5 text-sm font-semibold text-slate-100">{t.subject || "（无标题）"}</h3>
       <p className="mt-0.5 text-[11px] text-slate-500">
         {t.user ? `@${t.user.username}${t.user.displayName ? `（${t.user.displayName}）` : ""}` : "用户"}
         {t.user?.email && !/no-email\.ideahub\.local$/.test(t.user.email) ? ` · ${t.user.email}` : ""}
         {t.contactEmail ? ` · 联系邮箱 ${t.contactEmail}` : ""}
       </p>
-      {t.summary && <p className="mt-1.5 text-[12px] leading-5 text-slate-300">{t.summary}</p>}
-      {t.note && <p className="mt-1 text-[12px] leading-5 text-slate-400">用户补充：{t.note}</p>}
+      {t.summary && <p className="mt-1.5 text-xs leading-5 text-slate-300">{t.summary}</p>}
+      {t.note && <p className="mt-1 text-xs leading-5 text-slate-400">用户补充：{t.note}</p>}
 
       {t.transcript.length > 0 && (
         <button onClick={() => setShowTranscript((v) => !v)} className="mt-2 text-[11px] text-slate-400 underline decoration-slate-700">
@@ -129,9 +129,9 @@ function TicketCard({ t, onChanged }: { t: SupportTicket; onChanged: (t: Support
         </button>
       )}
       {showTranscript && (
-        <div className="mt-1.5 space-y-1 rounded-xl bg-slate-950/60 p-2">
+        <div className="mt-1.5 space-y-1 rounded-lg bg-black/25 p-2">
           {t.transcript.map((m, i) => (
-            <p key={i} className="text-[12px] leading-5 text-slate-300">
+            <p key={i} className="text-xs leading-5 text-slate-300">
               <span className="mr-1 text-slate-500">{m.role === "user" ? "用户" : "AI"}</span>
               {m.content}
             </p>
@@ -142,7 +142,7 @@ function TicketCard({ t, onChanged }: { t: SupportTicket; onChanged: (t: Support
       {t.replies.length > 0 && (
         <div className="mt-2 space-y-1.5">
           {t.replies.map((r) => (
-            <div key={r.id} className={`rounded-xl px-3 py-2 text-[12px] leading-5 ${r.by === "admin" ? "bg-emerald-500/10 text-emerald-100" : "bg-slate-800 text-slate-200"}`}>
+            <div key={r.id} className={`rounded-xl px-3 py-2 text-xs leading-5 ${r.by === "admin" ? "bg-emerald-500/10 text-emerald-100" : "bg-slate-800 text-slate-200"}`}>
               <span className="mr-1.5 text-[11px] text-slate-400">{r.by === "admin" ? "客服" : "用户"} · {relativeTime(Date.parse(r.at))}</span>
               {r.content}
             </div>
@@ -156,7 +156,7 @@ function TicketCard({ t, onChanged }: { t: SupportTicket; onChanged: (t: Support
           onChange={(e) => setReply(e.target.value)}
           maxLength={2000}
           placeholder="回复用户（会发通知 + 邮件）"
-          className="h-9 min-w-0 flex-1 rounded-full border border-slate-700 bg-slate-950 px-3 text-[13px] text-slate-100 outline-none placeholder:text-slate-500"
+          className="h-9 min-w-0 flex-1 rounded-full border border-slate-700 bg-slate-950 px-3 text-xs text-slate-100 outline-none placeholder:text-slate-500"
         />
         <button
           onClick={() =>
@@ -167,7 +167,7 @@ function TicketCard({ t, onChanged }: { t: SupportTicket; onChanged: (t: Support
             })
           }
           disabled={!reply.trim() || busy}
-          className="rounded-full bg-brand px-3 py-1.5 text-[12px] font-semibold text-ink disabled:opacity-40"
+          className="rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-ink disabled:opacity-40"
         >
           回复
         </button>
@@ -186,7 +186,7 @@ function TicketCard({ t, onChanged }: { t: SupportTicket; onChanged: (t: Support
             </button>
           ))}
       </div>
-      {err && <p className="mt-1.5 text-[12px] text-rose-300">{err}</p>}
+      {err && <p className="mt-1.5 text-xs text-rose-300">{err}</p>}
     </article>
   );
 }

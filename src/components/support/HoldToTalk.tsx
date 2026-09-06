@@ -214,7 +214,7 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
   return (
     <div className={`relative shrink-0 ${className}`}>
       {(recording || busy) && (
-        <div className="pointer-events-none absolute bottom-[calc(100%+10px)] left-0 z-10 flex w-52 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/85 px-3 py-2 text-[12px] text-slate-100 shadow-xl backdrop-blur-md">
+        <div className="pointer-events-none absolute bottom-[calc(100%+10px)] left-0 z-10 flex w-52 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/85 px-3 py-2 text-xs text-slate-100 shadow-xl backdrop-blur-md">
           {busy ? (
             <span>识别中…</span>
           ) : (

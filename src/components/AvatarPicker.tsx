@@ -125,7 +125,7 @@ export default function AvatarPicker({
         </button>
       </div>
 
-      <div className="mt-4 flex items-center gap-3 rounded-xl bg-panel px-3 py-2.5">
+      <div className="mt-4 flex items-center gap-3 rounded-xl border border-slate-700/70 bg-panel px-3 py-2.5">
         <Avatar name={name} src={current} size={40} />
         <span className="text-[11px] leading-relaxed text-slate-500">
           {busy || "当前头像。换成官方看板娘或自己的照片都行"}

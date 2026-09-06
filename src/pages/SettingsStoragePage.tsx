@@ -38,7 +38,7 @@ export default function SettingsStoragePage() {
     <div className="min-h-full px-4 pb-10">
       <PageHeader className="mb-4" onBack={() => navigate(-1)} title={remote ? "本机缓存" : "存储"} right={<HelpButton tour="setstorage" />} />
 
-      <div data-guide="setstorage-usage" className="rounded-xl border border-slate-700 bg-panel p-4">
+      <div data-guide="setstorage-usage" className="rounded-xl border border-slate-700/70 bg-panel p-4">
         {storage ? (
           <>
             <div className="mb-2 flex justify-between text-xs text-slate-300">

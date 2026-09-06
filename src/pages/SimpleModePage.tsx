@@ -225,7 +225,7 @@ function StepTemplate({
           if (!multi) return <TplRow key={row.key} t={head} currentId={currentId} onPick={() => onPick(head)} />;
           const open = openKey === row.key;
           return (
-            <div key={row.key} className="rounded-xl border border-slate-700 bg-panel">
+            <div key={row.key} className="rounded-xl border border-slate-700/70 bg-panel">
               <button
                 onClick={() => setOpenKey(open ? null : row.key)}
                 className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left"
@@ -367,7 +367,7 @@ function StepGo({
     <div className="flex flex-1 flex-col">
       <p className="mb-3 text-sm text-slate-300">确认一下就出片</p>
       {tplTitle && (
-        <div className="mb-3 rounded-xl border border-slate-700 bg-panel px-3 py-2.5">
+        <div className="mb-3 rounded-xl border border-slate-700/70 bg-panel px-3 py-2.5">
           <div className="text-[10px] text-slate-500">套用的模板</div>
           <div className="truncate text-xs font-semibold text-slate-100">{tplTitle}</div>
         </div>

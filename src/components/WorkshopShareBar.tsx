@@ -161,7 +161,7 @@ export default function WorkshopShareBar({
         <button
           onClick={click}
           disabled={working || blocked}
-          className={`inline-flex min-h-[30px] items-center gap-1.5 rounded-full px-3.5 text-[12px] font-semibold transition disabled:opacity-40 ${
+          className={`inline-flex min-h-[30px] items-center gap-1.5 rounded-full px-3.5 text-xs font-semibold transition disabled:opacity-40 ${
             published ? "bg-gold/20 text-gold" : "bg-brand/15 text-brand"
           }`}
         >
@@ -187,7 +187,7 @@ export default function WorkshopShareBar({
           onChange={(e) => setShareNote(e.target.value)}
           maxLength={noteMax}
           placeholder="一句话推荐（选填）：这张卡适合画什么？"
-          className="mt-2 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-[12px] text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+          className="mt-2 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
         />
       )}
       {note && <p className="mt-1 text-[11px] leading-relaxed text-amber-400/90">{note}</p>}

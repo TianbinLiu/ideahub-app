@@ -54,7 +54,7 @@ export interface MarkBadgeProps {
 }
 
 export default function MarkBadge({ spec, label, tone = "primary", small = false, wrap = false, className = "" }: MarkBadgeProps) {
-  const size = wrap ? "px-1 py-0.5 text-[10px] leading-tight" : small ? "px-1.5 py-0.5 text-[11px]" : "px-2 py-0.5 text-[13px]";
+  const size = wrap ? "px-1 py-0.5 text-[10px] leading-tight" : small ? "px-1.5 py-0.5 text-[11px]" : "px-2 py-0.5 text-sm";
   if (spec.scheme === "number") {
     // 编号版逐字保留今天的样子（含 tabular-nums：一列数字对齐了才好比对）
     return (

@@ -121,7 +121,7 @@ export default function NpcDialog() {
               </button>
             )}
           </div>
-          <div className="max-h-24 overflow-y-auto whitespace-pre-wrap text-[13px] leading-relaxed text-slate-100">
+          <div className="max-h-24 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-slate-100">
             {busy ? forgeProgress || "炉火正旺，卡片成形中…" : thinking ? "……" : (lastNpc?.text ?? "……")}
           </div>
         </div>
@@ -170,7 +170,7 @@ export default function NpcDialog() {
             两边对不上反而更迷惑。这里只指路，具体做什么由按钮自己说。
             垫一层半透明底：它正好压在角色身上，纯文字在浅色头发上会看不见 */}
         <div className="mt-1.5 flex justify-center">
-          <span className="pointer-events-none rounded-full bg-black/45 px-2 py-0.5 text-[10px] text-slate-400 backdrop-blur">
+          <span className="pointer-events-none rounded-full px-2 py-0.5 bg-black/45 text-[10px] text-slate-400 backdrop-blur">
             左上角的返回按钮可逐层退出
           </span>
         </div>

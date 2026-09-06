@@ -520,7 +520,7 @@ export default function ProfilePage() {
         sticky
         onBack={self ? undefined : backOrHome}
         title={self ? "" : `@${handle}`}
-        titleClassName="text-[15px] font-semibold text-slate-100"
+        titleClassName="text-base font-semibold text-slate-100"
         right={
           self ? (
             <div className="flex items-center">
@@ -646,7 +646,7 @@ export default function ProfilePage() {
             const cell = stats.length > 3 ? "min-w-[70px]" : "min-w-[84px]";
             const body = (
               <>
-                <span className="text-[17px] font-bold tabular-nums text-slate-100">{s.value}</span>
+                <span className="text-lg font-bold tabular-nums text-slate-100">{s.value}</span>
                 <span className="mt-0.5 text-[11px] text-slate-500">{s.label}</span>
               </>
             );
@@ -1383,7 +1383,7 @@ function FollowingSheet({
             </Link>
             <button
               onClick={() => toggleFollow(a)}
-              className={`flex-none rounded-full px-3 py-1.5 text-xs ${
+              className={`flex-none rounded-full px-3.5 py-1.5 text-xs ${
                 isFollowing(a) ? "bg-slate-700 text-slate-300" : "bg-brand font-bold text-ink"
               }`}
             >
@@ -1533,11 +1533,11 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
       )}
 
       <div className="mb-4 grid grid-cols-2 gap-2">
-        <div className="rounded-xl bg-panel p-3">
+        <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="text-lg font-bold tabular-nums text-slate-100">{fmtTokens(wallet.plan)}</div>
           <div className="text-[11px] text-slate-500">套餐 token · 优先扣减</div>
         </div>
-        <div className="rounded-xl bg-panel p-3">
+        <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="text-lg font-bold tabular-nums text-gold">{fmtTokens(wallet.addon)}</div>
           <div className="text-[11px] text-slate-500">add-on token · 直充/创作收益</div>
         </div>
@@ -1567,7 +1567,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         {PLANS.map((p) => {
           const current = wallet.planId === p.id;
           return (
-            <div key={p.id} className="flex items-center gap-3 rounded-xl border border-slate-700/60 bg-panel p-3">
+            <div key={p.id} className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-panel p-3">
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-slate-100">
                   {p.name}

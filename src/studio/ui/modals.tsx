@@ -63,7 +63,7 @@ export function CardDetailModal() {
           {card.tags && card.tags.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {card.tags.map((t) => (
-                <span key={t} className="rounded-full bg-slate-700/70 px-1.5 py-0.5 text-[10px] text-slate-300">
+                <span key={t} className="rounded-full px-2 py-0.5 bg-slate-700/70 text-[10px] text-slate-300">
                   #{t}
                 </span>
               ))}

@@ -150,7 +150,7 @@ export default function SupportStage({ className = "", topPx = 56, heightFractio
   return (
     <div ref={wrapRef} className={`overflow-hidden ${className}`} aria-hidden="true">
       {status === "loading" && (
-        <div className="absolute inset-x-0 top-[40%] flex items-center justify-center text-[12px] text-slate-400/80">正在请小梦出场…</div>
+        <div className="absolute inset-x-0 top-[40%] flex items-center justify-center text-xs text-slate-400/80">正在请小梦出场…</div>
       )}
     </div>
   );

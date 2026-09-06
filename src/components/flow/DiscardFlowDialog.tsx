@@ -61,9 +61,9 @@ export default function DiscardFlowDialog({
   //   靠"祖先恰好是定位容器"太脆；而祖先上任何一个 backdrop-blur / transform 都会给
   //   fixed 后代造包含块（CLAUDE.md「全屏浮层只铺满一小块」那条）。
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 p-4" onClick={onCancel}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6" onClick={onCancel}>
       <div
-        className="w-full max-w-md rounded-2xl border border-slate-700 bg-panel p-4 shadow-2xl"
+        className="w-full max-w-md rounded-2xl border border-slate-700 bg-ink p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-sm font-bold text-slate-100">已经有一条工作流在跑</h3>
