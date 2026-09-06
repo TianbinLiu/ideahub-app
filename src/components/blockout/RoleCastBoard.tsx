@@ -863,7 +863,7 @@ export default function RoleCastBoard({
       {/* 落点同时压在两个人偶上（前后站位重叠）——**不猜**，摆出来让他点。
           ★ 宁可多问一次：误挂是零报错故障，而"猜一个"猜错了没有任何人会发现 */}
       {ambiguous && (
-        <div className="space-y-2 rounded-xl border border-amber-500/50 bg-amber-500/10 px-3 py-2.5">
+        <div className="space-y-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
           <p className="text-[11px] leading-relaxed text-amber-200">
             这一下同时落在 {ambiguous.slots.length} 个人偶上（他们在画面上叠着）——
             「{ambiguous.card.name}」要挂给哪一个？

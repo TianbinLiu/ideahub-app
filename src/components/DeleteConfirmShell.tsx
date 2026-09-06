@@ -42,7 +42,7 @@ export default function DeleteConfirmShell({
         <h3 className="text-sm font-bold text-slate-100">{title}</h3>
         <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-slate-400">{children}</div>
         {err && (
-          <p className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-rose-200">
+          <p className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
             {err}
           </p>
         )}

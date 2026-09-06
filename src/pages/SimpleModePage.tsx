@@ -113,7 +113,7 @@ export default function SimpleModePage() {
       />
 
       {/* store 的整句拒绝（换模板被拒、生成被拒…）—— 不画一份就是"点了没反应"（铁律八） */}
-      {err && <p className="mb-3 rounded-lg bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
 
       {step === "start" && (
         <StepStart

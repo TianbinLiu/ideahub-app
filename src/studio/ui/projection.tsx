@@ -1080,7 +1080,7 @@ function ProposalsPanel() {
           ★ 画布壳上那条是常驻的（FlowCanvas 的错误条），这里同源：读同一个字段。 */}
       {flowErr && (
         <div className="flex-none px-3 pt-2">
-          <p className="rounded-lg bg-rose-500/15 px-2 py-1.5 text-[10px] leading-relaxed text-rose-200">{flowErr}</p>
+          <p className="rounded-lg border border-rose-500/40 bg-rose-500/15 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">{flowErr}</p>
         </div>
       )}
 
@@ -1265,7 +1265,12 @@ function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Prop
   const named = !!tpl.roles?.length;
   const done = proposalDone(proposal);
   const generating = node.status === "generating";
-  const err = useFlow((s) => s.err);
+  const errRaw = useFlow((s) => s.err);
+  // ★ 同一句话不印两遍（2026-09-05 主人真机截图：真人卡 × 电影级的那句门禁原因，SegSettings 已经
+  //   常驻印着，用户点「生成」被 genNode 整句拒时又原样写进 err —— 屏幕上并排两条一模一样）。
+  //   判据只有 realFaceIssue 一处，这里只是"已经在屏上了就别重复"，不是第二份规则。
+  const dupBlock = realFaceIssue(node.materials, node.videoTier, { blockout: !!tpl.refVideo });
+  const err = errRaw && errRaw === dupBlock ? "" : errRaw;
   const castErr = useFlow((s) => s.castErr);
   const castFallback = useFlow((s) => s.castFallback);
   const castBusy = useFlow((s) => s.castBusy);
@@ -1335,7 +1340,7 @@ function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Prop
             <Icon name="chevron" size={12} className="flex-none text-slate-400" />
           </button>
           {castAsk && (
-            <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+            <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
               <p className="text-[11px] leading-relaxed text-amber-200">
                 改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉。
               </p>
@@ -1360,7 +1365,7 @@ function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Prop
 
       {/* 挂卡合成失败的出口（画布那条 ★★ 的工坊版）：castErr 写的不是 err，这儿不画就没人画 */}
       {castErr && castOfThisNode && (
-        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
           <p className="text-[11px] leading-relaxed text-amber-200">{castErr}</p>
           {castFallback && (
             <button

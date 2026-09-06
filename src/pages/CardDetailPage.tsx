@@ -178,7 +178,7 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
     // 绑定属于账号（server BranchCard.portrait），没上行 = 换台设备暂时看不到；下次登录会自动补传
     const issue = assetSyncIssue(card.id);
     return issue ? (
-      <p className="mb-4 rounded-xl border border-amber-400/40 bg-amber-400/5 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+      <p className="mb-4 rounded-lg border border-amber-400/40 bg-amber-400/5 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
         🪪 肖像授权已在本机接上，但还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。
       </p>
     ) : null;
@@ -809,7 +809,7 @@ export default function CardDetailPage() {
               改的是你库里这一份。已经随作品发布、或被别人装走的那些是当时的副本，不会跟着变。
             </p>
             {editErr && (
-              <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-rose-200">
+              <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
                 {editErr}
               </p>
             )}

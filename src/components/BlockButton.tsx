@@ -86,13 +86,13 @@ export default function BlockButton({
         //   仍沿**组件树**冒泡回 FeedItem 的 onPointerDown/Up（暂停 / 双击点赞）。
         //   与 ReportButton 那处同一个理由，别删。
         <div
-          className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/50"
+          className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/60"
           onPointerDown={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex-1" onClick={() => setOpen(false)} />
-          <div className="rounded-t-2xl bg-panel px-4 pb-6 pt-3 shadow-[0_-8px_30px_rgba(0,0,0,.5)]">
+          <div className="rounded-t-2xl border-t border-slate-700 bg-ink px-4 pb-6 pt-4">
             {auth === "pending" ? (
               <AuthPending />
             ) : auth === "out" ? (

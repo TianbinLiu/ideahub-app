@@ -994,7 +994,7 @@ export default function ProfilePage() {
             依赖里没有任何值会因为网络恢复而变（collectIds 是原地 mutate 的同一个数组），
             不给这颗按钮就只能离开页面再进来 */}
         {activeTab === "collects" && collectUnknown > 0 && (
-          <p className="mb-2 flex items-center gap-2 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+          <p className="mb-2 flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
             <span className="flex-1">有 {collectUnknown} 条这会儿没取回来（网络没通）——它们还在，不是被删了。</span>
             <button
               onClick={() => setCollectTry((n) => n + 1)}
@@ -1562,7 +1562,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      <div className="mb-1.5 text-xs font-semibold text-slate-300">订阅套餐</div>
+      <div className="mb-1.5 text-sm font-semibold text-slate-300">订阅套餐</div>
       <div className="mb-4 space-y-2">
         {PLANS.map((p) => {
           const current = wallet.planId === p.id;

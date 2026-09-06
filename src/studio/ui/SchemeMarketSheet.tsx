@@ -10,6 +10,7 @@
 // ★ 整屏浮层 portal 到 body（祖先的 backdrop-blur 会给 fixed 造包含块）。
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import { CloseButton } from "../../components/IconTapButton";
 import { schemeOf, schemesVersion, subscribeSchemes, type PromptScheme } from "../../data/promptSchemes";
 import {
   installSharedScheme,
@@ -52,16 +53,14 @@ export default function SchemeMarketSheet({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 sm:items-center" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 sm:items-center" onClick={onClose}>
       <div
-        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-slate-700 bg-ink p-3.5 sm:rounded-2xl"
+        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-2xl border-t border-slate-700 bg-ink p-4 sm:rounded-2xl sm:border"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-100">🛒 方案市场</h3>
-          <button onClick={onClose} className="text-xs text-slate-400">
-            关闭
-          </button>
+          <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
         <p className="mb-2.5 text-[10px] leading-relaxed text-slate-500">
           别人做的出图配方。装进来之后就是你自己的一套，可以随便改。

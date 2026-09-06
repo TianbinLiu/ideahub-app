@@ -259,6 +259,19 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   此前 `bg-brand` 按钮有十来种圆角 × 高度组合，`bg-panel` / 描边那批次级键又是另一套。
   查法：`rg 'bg-brand' --glob '*.tsx' | rg 'rounded-(lg|md)'` 应为空；`rg 'rounded-lg' --glob '*.tsx' | rg '<button|<Link'`
   剩下的只该是选项卡 / 列表行 / 多行的 tile（`text-left`、`justify-between`）。
+- **底部抽屉只有一种壳**（2026-09-05 第三轮收口，收之前四种皮：`bg-panel + 阴影` / `bg-ink` 无边 /
+  `rounded-t-3xl bg-slate-950/95 backdrop-blur` / `border` 全边）：遮罩 `bg-black/60`，面板
+  `rounded-t-2xl border-t border-slate-700 bg-ink`，内边距 `p-4`（自带布局的抽屉至少 px-4），底部
+  `calc(… + env(safe-area-inset-bottom))`。标题行 `text-sm font-bold text-slate-100`，关闭键一律
+  `<CloseButton chip="sm" size={13} align="end" />`（`components/IconTapButton`，44px 命中区），
+  不再手写 `-m-2 p-2` 的裸图标或「关闭」文字键。简单内容直接用 `components/Sheet`。
+  查法：`rg 'rounded-t-' --glob '*.tsx' | rg -v 'border-t border-slate-700 bg-ink'` 只该剩
+  `studio/ui/modals.tsx`（那是 3D 桌面里的就地卡片弹层，不是抽屉）。⚠ 别把 `backdrop-blur` 加回壳上：
+  它会给 `position: fixed` 后代造包含块（已知的坑那一格）。
+- **提示条（amber / rose / sky / emerald 底）一律带同色 `/40` 边框**：`rounded-lg border border-<色>-500/40
+  bg-<色>-500/10`，紧凑（`py-1.5`）配 `px-2.5`、常规（`py-2`）配 `px-3`；整块的卡式提示（`p-3` 及以上）
+  才用 `rounded-xl`。收之前 120 条里 35 条没边框、圆角与内边距十几种组合，同一页上下两条就不一样。
+- **段落 / 字段标题一律 `text-sm font-semibold text-slate-300`**（字段 `mb-1.5`、段落 `mb-2`）；抽屉标题见上。
 - **空态 / 整页态只有一份实现 `components/EmptyState`**（2026-09-05 收口）：图标 40px slate-600（或 emoji）→ 正文
   text-sm slate-400（出错 rose-300）→ 补充 text-xs slate-600 → 按钮（主 bg-brand / 次 bg-panel+ring，同上一条）。
   列表里的空态 `py-16`，整页态（卡/卡组/模板不存在、未登录墙、取回中）传 `full`（min-h-[70vh] 居中 + safe-top）。

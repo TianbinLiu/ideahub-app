@@ -239,7 +239,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
             服务端的重号闸还在，撞上闸的作者必须读得懂那句话并知道下一步。
             ★ 这里**不出现任何百分比**：钱已经花完了，讲概率没有用，只讲"你现在看到的是
             哪一种错、下一步做什么"。命中率那句话在花钱**之前**的两屏说（提取器/看帧那屏）。 */}
-        <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
           {ordinal ? (
             <>
               下面这份「从左往右第几个是谁」是生成时<b className="font-bold">按 AI 量的位置排的猜测</b>，
@@ -283,18 +283,18 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
           <div className="space-y-2 px-3 pb-3">
         {ordinal ? (
           <>
-            <p className="rounded-lg bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
+            <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
               最常见的一种：<b className="font-bold">有个人根本没被换成人偶</b>（还是原来的样子），
               尤其是画面正中央、看起来最像主角的那一个。这时清单里就多出一个画面上不存在的位子 ——
               <b className="font-bold">把它删掉就行，不用重炼</b>。
               ⚠ 但删完要顺手检查一遍：画面上少了一个人偶，<b className="font-bold">它右边那些人从左数
               就都要往左挪一位</b>（这一条是按位置指认独有的，编号版没有）。
             </p>
-            <p className="rounded-lg bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
+            <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
               第二种：<b className="font-bold">相邻两行的位置排反了</b>（清单说他是从左数第 2 个，
               画面上他其实是第 3 个）。把这两行的位置互换过来就行，同样不用重炼。
             </p>
-            <p className="rounded-lg bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
+            <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
               万一<b className="font-bold">两个人偶站得几乎重叠</b>、从左往右数不出先后：挂在这个位置上
               的卡<b className="font-bold">可能会换错人</b>（模型也只能按从左到右去找）。
               不想赌，就把这个位子删掉 —— 那两个人偶会保持白色人偶原样出现在片子里。
@@ -302,12 +302,12 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
           </>
         ) : (
           <>
-            <p className="rounded-lg bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
+            <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
               画面上<b className="font-bold">可能有两个人偶印着同一个号</b>，也可能<b className="font-bold">某个号在画面上
               根本找不到</b>（实测都出现过：一段 5 人素材实出 2/2/1/1/5，3 号和 4 号整个没出现）。
               这两种<b className="font-bold">都不用重炼</b>：把找不到的那个位子删掉就行，剩下的编号一个都不会变。
             </p>
-            <p className="rounded-lg bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
+            <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
               如果两个人偶印着同一个号：挂在这个号上的卡<b className="font-bold">可能会把两个人一起换成同一张卡</b>
               （模型只认数字，分不出哪个是你要的）。不想要这个效果，就把这个号的位子也删掉 ——
               那两个人偶会保持白模原样出现在片子里。
@@ -328,7 +328,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
             // 待删态：整行降透明度 + 整句后果 + 一颗撤销。★ 此刻**不从 rows 里移除**
             <div
               key={r.key}
-              className="rounded-xl border border-dashed border-rose-500/50 bg-rose-500/5 p-2.5 opacity-80"
+              className="rounded-lg border border-dashed border-rose-500/40 bg-rose-500/5 p-2.5 opacity-80"
             >
               <div className="flex items-center gap-2">
                 <MarkBadge spec={spec} label={r.label || `（空${noun}）`} tone="doomed" />
@@ -485,7 +485,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
           </p>
         )}
 
-        {issue && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{issue}</p>}
+        {issue && <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{issue}</p>}
       </div>
 
       <div className="safe-bottom absolute inset-x-0 bottom-0 border-t border-slate-800 bg-black/80 px-4 py-3">
