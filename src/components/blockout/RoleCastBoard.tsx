@@ -641,6 +641,80 @@ export default function RoleCastBoard({
         </div>
       )}
 
+      {/* 二次确认。★ 摆在**卡轨正下方**的内联条（2026-09-06 主人真机点名），不是弹窗、更不是 window.confirm：
+          ★★ 此前它摆在画面与格子行**下面**——把卡拖到画面上的虚框、松手，反馈出现在一屏之外，
+            用户眼里就是"拖上去没反应、这条路不通"，转头去点格子行。手刚从卡轨拖出去，
+            视线还停在卡轨与画面之间，确认条就该长在这儿：卡轨下一行、画面上方，画面仍整块可见，
+            "一边看画面一边确认"照旧成立（高亮的那个人偶就在正下方）。
+          ★★ 四行缺一不可：挂给谁、这个位子原来是谁（套用者认人的唯一依据）、卡面、
+            以及"换错人不会报错"这句 —— 少了最后一句，这一问就退化成走过场。 */}
+      {ask && (
+        <div className="space-y-2 rounded-xl border border-gold/60 bg-gold/10 px-3 py-2.5">
+          <p className="text-xs leading-relaxed text-slate-100">
+            把「<b className="font-bold">{ask.card.name}</b>」挂到{" "}
+            <b className="font-bold">{personNameOf(dropSlots[ask.slot])}</b> 身上？
+          </p>
+          <div className="flex items-start gap-2">
+            <div className="h-16 w-[43px] flex-none overflow-hidden rounded-md border border-gold/70 bg-slate-800">
+              {ask.card.cover ? (
+                <img src={ask.card.cover} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-lg opacity-40">🔮</div>
+              )}
+            </div>
+            <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-300">
+              这个位子原来是：
+              {castable.find((r) => r.label === dropSlots[ask.slot])?.desc || "（这个位子没有描述）"}
+            </p>
+          </div>
+          <p className="text-[11px] leading-relaxed text-amber-200/90">
+            换错人<b className="font-bold">不会报错</b>，成片出来才看得见 —— 请对着画面上高亮的那个人偶确认。
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => confirmAsk(ask.card, ask.slot)}
+              className="rounded-full bg-brand px-3 py-1 text-[11px] font-bold text-ink"
+            >
+              就是他
+            </button>
+            <button onClick={() => setAsk(null)} className="rounded-full px-3 py-1 text-[11px] text-slate-300">
+              点错了
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 落点同时压在两个人偶上（前后站位重叠）——**不猜**，摆出来让他点。同上，紧贴卡轨。
+          ★ 宁可多问一次：误挂是零报错故障，而"猜一个"猜错了没有任何人会发现 */}
+      {ambiguous && (
+        <div className="space-y-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
+          <p className="text-[11px] leading-relaxed text-amber-200">
+            这一下同时落在 {ambiguous.slots.length} 个人偶上（他们在画面上叠着）——
+            「{ambiguous.card.name}」要挂给哪一个？
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {ambiguous.slots.map((i) => (
+              <button
+                key={dropSlots[i]}
+                onClick={() => {
+                  setAmbiguous(null);
+                  setAsk({ card: ambiguous.card, slot: i });
+                }}
+                className="rounded-full bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-100"
+              >
+                {personNameOf(dropSlots[i])}
+              </button>
+            ))}
+            <button
+              onClick={() => setAmbiguous(null)}
+              className="rounded-full px-2.5 py-1 text-[11px] text-slate-300"
+            >
+              算了
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ★ 引导要圈的是**画面**，而 VideoStage 自己声明 props、不透传 rest；这里外面这层
           只是给它一个可量的盒子，不带任何 className —— 不引入任何布局变化
           （父级是 space-y-3 的纵向流，多一层无样式 div 的渲染结果一模一样）。 */}
@@ -817,77 +891,6 @@ export default function RoleCastBoard({
           >
             回到标记帧
           </button>
-        </div>
-      )}
-
-      {/* 二次确认。★ 摆在画面**下方**的内联条，不是弹窗、更不是 window.confirm：
-          用户要一边看画面一边确认，遮住画面等于让他闭着眼点。
-          ★★ 四行缺一不可：挂给谁、这个位子原来是谁（套用者认人的唯一依据）、卡面、
-            以及"换错人不会报错"这句 —— 少了最后一句，这一问就退化成走过场。 */}
-      {ask && (
-        <div className="space-y-2 rounded-xl border border-gold/60 bg-gold/10 px-3 py-2.5">
-          <p className="text-xs leading-relaxed text-slate-100">
-            把「<b className="font-bold">{ask.card.name}</b>」挂到{" "}
-            <b className="font-bold">{personNameOf(dropSlots[ask.slot])}</b> 身上？
-          </p>
-          <div className="flex items-start gap-2">
-            <div className="h-16 w-[43px] flex-none overflow-hidden rounded-md border border-gold/70 bg-slate-800">
-              {ask.card.cover ? (
-                <img src={ask.card.cover} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-lg opacity-40">🔮</div>
-              )}
-            </div>
-            <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-300">
-              这个位子原来是：
-              {castable.find((r) => r.label === dropSlots[ask.slot])?.desc || "（这个位子没有描述）"}
-            </p>
-          </div>
-          <p className="text-[11px] leading-relaxed text-amber-200/90">
-            换错人<b className="font-bold">不会报错</b>，成片出来才看得见 —— 请对着画面上高亮的那个人偶确认。
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => confirmAsk(ask.card, ask.slot)}
-              className="rounded-full bg-brand px-3 py-1 text-[11px] font-bold text-ink"
-            >
-              就是他
-            </button>
-            <button onClick={() => setAsk(null)} className="rounded-full px-3 py-1 text-[11px] text-slate-300">
-              点错了
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 落点同时压在两个人偶上（前后站位重叠）——**不猜**，摆出来让他点。
-          ★ 宁可多问一次：误挂是零报错故障，而"猜一个"猜错了没有任何人会发现 */}
-      {ambiguous && (
-        <div className="space-y-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
-          <p className="text-[11px] leading-relaxed text-amber-200">
-            这一下同时落在 {ambiguous.slots.length} 个人偶上（他们在画面上叠着）——
-            「{ambiguous.card.name}」要挂给哪一个？
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {ambiguous.slots.map((i) => (
-              <button
-                key={dropSlots[i]}
-                onClick={() => {
-                  setAmbiguous(null);
-                  setAsk({ card: ambiguous.card, slot: i });
-                }}
-                className="rounded-full bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-100"
-              >
-                {personNameOf(dropSlots[i])}
-              </button>
-            ))}
-            <button
-              onClick={() => setAmbiguous(null)}
-              className="rounded-full px-2.5 py-1 text-[11px] text-slate-300"
-            >
-              算了
-            </button>
-          </div>
         </div>
       )}
 
