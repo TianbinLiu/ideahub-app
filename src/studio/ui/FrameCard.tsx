@@ -178,7 +178,7 @@ export default function FrameCard({
         </span>
       </button>
       {caption !== null && (
-        <div className="text-center text-[10px] leading-4 text-slate-500">
+        <div className="text-center text-[10px] leading-relaxed text-slate-500">
           {/* ★ 默认句必须在**两种档位下都成立**：承接的硬度随档位变（segmentGen.carryIsHard），
               而本组件是纯 props 件、不认 store —— 所以这里不说"无缝"，把带档位的说法留给
               宿主用 caption 传（backlog §2.11.3⑤）。 */}

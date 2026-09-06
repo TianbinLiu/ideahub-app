@@ -108,7 +108,7 @@ function TicketCard({ t, onChanged }: { t: SupportTicket; onChanged: (t: Support
   const done = t.status === "resolved" || t.status === "closed";
 
   return (
-    <article className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
+    <article className="rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="flex items-center gap-2 text-[11px] text-slate-400">
         <span className={`rounded-full px-2 py-0.5 ${done ? "bg-slate-800 text-slate-300" : "bg-amber-500/20 text-amber-200"}`}>{TICKET_STATUS_LABEL[t.status]}</span>
         <span>{CATEGORY_LABEL[t.category]}</span>
@@ -120,8 +120,8 @@ function TicketCard({ t, onChanged }: { t: SupportTicket; onChanged: (t: Support
         {t.user?.email && !/no-email\.ideahub\.local$/.test(t.user.email) ? ` · ${t.user.email}` : ""}
         {t.contactEmail ? ` · 联系邮箱 ${t.contactEmail}` : ""}
       </p>
-      {t.summary && <p className="mt-1.5 text-xs leading-5 text-slate-300">{t.summary}</p>}
-      {t.note && <p className="mt-1 text-xs leading-5 text-slate-400">用户补充：{t.note}</p>}
+      {t.summary && <p className="mt-1.5 text-xs leading-relaxed text-slate-300">{t.summary}</p>}
+      {t.note && <p className="mt-1 text-xs leading-relaxed text-slate-400">用户补充：{t.note}</p>}
 
       {t.transcript.length > 0 && (
         <button onClick={() => setShowTranscript((v) => !v)} className="mt-2 text-[11px] text-slate-500 underline underline-offset-2">
@@ -131,7 +131,7 @@ function TicketCard({ t, onChanged }: { t: SupportTicket; onChanged: (t: Support
       {showTranscript && (
         <div className="mt-1.5 space-y-1 rounded-lg bg-black/25 p-2">
           {t.transcript.map((m, i) => (
-            <p key={i} className="text-xs leading-5 text-slate-300">
+            <p key={i} className="text-xs leading-relaxed text-slate-300">
               <span className="mr-1 text-slate-500">{m.role === "user" ? "用户" : "AI"}</span>
               {m.content}
             </p>
@@ -142,7 +142,7 @@ function TicketCard({ t, onChanged }: { t: SupportTicket; onChanged: (t: Support
       {t.replies.length > 0 && (
         <div className="mt-2 space-y-1.5">
           {t.replies.map((r) => (
-            <div key={r.id} className={`rounded-xl px-3 py-2 text-xs leading-5 ${r.by === "admin" ? "bg-emerald-500/10 text-emerald-100" : "bg-slate-800 text-slate-200"}`}>
+            <div key={r.id} className={`rounded-xl px-3 py-2 text-xs leading-relaxed ${r.by === "admin" ? "bg-emerald-500/10 text-emerald-100" : "bg-slate-800 text-slate-200"}`}>
               <span className="mr-1.5 text-[11px] text-slate-400">{r.by === "admin" ? "客服" : "用户"} · {relativeTime(Date.parse(r.at))}</span>
               {r.content}
             </div>

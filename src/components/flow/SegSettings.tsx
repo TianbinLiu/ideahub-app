@@ -152,7 +152,7 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
           这里只剩**本页自己的**理由：r2v 闸没开、真人卡与本段不搭。两份都印过一阵子，
           结果是同一句话在抽屉里出现两遍 */}
       {(r2vBlocks.length > 0 || realFaceBlock) && (
-        <p className="text-[10px] leading-4 text-amber-300/80">
+        <p className="text-[10px] leading-relaxed text-amber-300/80">
           {[...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])].join("；")}
         </p>
       )}

@@ -109,7 +109,7 @@ export default function AdminPage() {
           {/* 客服工单：单独一个视图（列表可能很长，且要在里面打字回复） */}
           <button
             onClick={() => setView("support")}
-            className="mt-4 flex w-full items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-left active:bg-slate-800/40"
+            className="mt-4 flex w-full items-center justify-between rounded-xl border border-slate-700/70 bg-panel px-4 py-3 text-left active:bg-slate-800/40"
           >
             <span>
               <span className="block text-sm text-slate-100">🎧 客服工单</span>

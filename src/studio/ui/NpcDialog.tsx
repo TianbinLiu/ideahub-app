@@ -692,7 +692,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                   </div>
                   {/* 这一档给这类卡出几张、分别是什么。名字来自 types.CARD_SLOTS
                       （经 slotsFor），不在这儿另编一套说法 */}
-                  <p className="text-[10px] leading-4 text-slate-400">
+                  <p className="text-[10px] leading-relaxed text-slate-400">
                     {slots
                       ? `每张卡出 ${slots.length} 张图：${slots.map((s) => s.label).join(" · ")}`
                       : `每张卡最多 ${maxSlots} 张图 —— 卡种交给铸卡师判，这里先按最贵的${CARD_TYPE_LABELS[dearest]}报价；少画的那张不会去调出图，也就不计费`}

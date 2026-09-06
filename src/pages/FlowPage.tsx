@@ -245,7 +245,7 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
       />
       {/* ★ 常驻只留风险内核一句（改错就会换错人是要在改之前看到的，不许全收进 ⓘ——
           ui-copy-grammar 文法④）；「为什么/覆盖规则」那截进 ⓘ */}
-      <p className="flex items-center gap-1 text-[10px] leading-4 text-slate-500">
+      <p className="flex items-center gap-1 text-[10px] leading-relaxed text-slate-500">
         {castBusy && castOfThisNode ? (
           "合成中…（一次对话，几秒）"
         ) : (
@@ -664,7 +664,7 @@ function NodeScreen({
                 （输出还≈输入），"42<70 所以更便宜"的直觉是反的——只报一个总数，
                 用户会拿纯任务的价一比就觉得被多收了。数字与主按钮同一把尺子（nodeCost） */}
             {tpl.refVideo && (
-              <p className="text-[10px] leading-4 text-slate-500">
+              <p className="text-[10px] leading-relaxed text-slate-500">
                 {/* ★ 措辞是「按 N 秒计」不是「N 秒」：这个数是**计价锚点**（整数、向上取整），
                     模板视频的真实文件更短。写成"模板视频 4s"会与详情页那句"实际约 3.7 秒"
                     看起来互相打架，而它们说的是两件事 —— 一件是账、一件是文件。 */}
@@ -694,7 +694,7 @@ function NodeScreen({
                 也就更便宜）；不支持的档位只能先按文字重画一张设定帧再出片，形象是"照着描述
                 画的"而不是"照着卡片用的"。悄悄换一种做法 = 用户以为卡片没生效（铁律八） */}
             {matCount > 0 && (
-              <p className="text-[10px] leading-4 text-slate-500">
+              <p className="text-[10px] leading-relaxed text-slate-500">
                 {refOn
                   ? `直接把素材卡的形象参考图交给「${tierOf(node.videoTier).label}」档出片，不再画设定帧（更快也更省）`
                   : tierOf(node.videoTier).refImg
@@ -732,7 +732,7 @@ function NodeScreen({
                 {/* 与「直接用卡片形象」互斥要明说：首尾帧与参考图在方舟不能同发（refVideoOn
                     的判定），给了首帧那条省钱的路就自动让位——不说的话用户以为卡片没生效 */}
                 {matCount > 0 && tierOf(node.videoTier).refImg && (prop.firstFrame || prop.lastFrame) && (
-                  <p className="text-[10px] leading-4 text-slate-500">
+                  <p className="text-[10px] leading-relaxed text-slate-500">
                     给了自己的帧就走首尾帧模式（与「直接用卡片形象出片」互斥）——清掉两帧才会回到那条路。
                   </p>
                 )}
@@ -752,7 +752,7 @@ function NodeScreen({
               data-guide="flow-req-input"
               className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
-            <p className="text-[10px] leading-4 text-slate-500">
+            <p className="text-[10px] leading-relaxed text-slate-500">
               {picking
                 ? "改完这句话可以「重新生成方案」；挑定一套之后按钮才变回「生成本段」"
                 : plan === "picked"

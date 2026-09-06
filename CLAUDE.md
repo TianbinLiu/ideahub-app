@@ -292,7 +292,9 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   128 处像素写法归到刻度（12→xs、13→sm 或 xs、14→sm、15/16→base、17→lg、19→xl）。
   查法：`rg 'text-\[1[2-9]px\]' --glob '*.tsx'` 应为空。
 - **卡片容器边线一律 `border-slate-700/70`**（`rounded-xl border border-slate-700/70 bg-panel p-3`）；输入框与按钮的
-  描边仍是 `border-slate-700`。空态文案不再手拼 `rounded-2xl bg-slate-900/60` 的段落，走 `EmptyState`。
+  描边仍是 `border-slate-700`。内容卡片圆角只有 `rounded-xl`（第十二轮把模板货架 / 工单卡 / 管理页行卡的 `2xl`
+  收了）；整块可选的"砖"（简约模式的两块、自建卡的照片位、草稿箱的封面卡）仍是 `rounded-2xl`，那是另一种控件。
+  小字段落的行高只有 `leading-relaxed`（`leading-4` / `leading-5` 与它只差半个像素，却让同一页两行不一样）。空态文案不再手拼 `rounded-2xl bg-slate-900/60` 的段落，走 `EmptyState`。
 - **徽标（`rounded-full` 小字非交互）按字号定内边距**：9px `px-1.5 py-0.5`、10px `px-2 py-0.5`、11px `px-2.5 py-1`。
 - **全屏覆盖层的表头**（画布 / 成片回看 / 调首尾帧 / 核对角色位 / 客服页，第五轮收口）：`safe-top flex h-[58px] flex-none
   items-center gap-2 px-4`，关闭 / 返回键走 `CloseButton` / `BackButton`（覆盖层上用 `chip="md" size={16}`，
