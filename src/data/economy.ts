@@ -794,6 +794,10 @@ export const IMAGE_TOKENS: number = ((): number => {
 /** 视觉模型看图（每帧）的 token 等价：豆包 seed-2.1 图文输入远比出图便宜，取一个保守值 */
 export const VISION_FRAME_TOKENS = 900;
 
+/** 成片提炼卡组时最多看几帧（V3：豆包看成片抽帧而不是只读剧情文字）。报价（deckCardsCost）与真实抽帧
+ *  （real.deckFrameUrls）同一个数 —— 分叉就是"报 6 帧、看 8 帧"这种零报错的报价漂移。 */
+export const DECK_VISION_FRAMES = 6;
+
 /** 每张卡的文案精炼（豆包一次短对话）token 等价。图文输入按保守值给，
  *  与 VISION_FRAME_TOKENS 同量级——真正贵的是出图，这一项只是别装作免费。 */
 export const CARD_META_TOKENS = 400;
@@ -936,33 +940,25 @@ function visionCardsTokens(frameCount: number, cards: number, visionPasses = 1):
 /**
  * 上传视频提炼卡组的预估：看 N 帧 + 最多铸 cap 张卡面。
  * 张数是上限而非确数（模型认出几个实体就出几张，重复的还会被剔掉），
- * 所以 UI 必须说"最多"，并用 extractSettle 按实际出卡张数结算。
+ * 所以 UI 必须说"最多"；实收由 real.mintCards 逐笔记（看帧 + 文案 + 真出的图 + 去人复核），只会比这个上限少。
  * ★ 第二个参数只收 CardMintCap：这里能手写数字的话，就又有了一处会和提示词分叉的 8。
  */
 export function extractCost(frameCount: number, cap: CardMintCap): number {
-  return visionCardsTokens(frameCount, cap);
-}
-
-/** 视频提卡的**实际结算**：看帧照收（已经看过了），卡面按真出了几张收。 */
-export function extractSettle(frameCount: number, minted: number): number {
-  return visionCardsTokens(frameCount, minted);
+  // ★ V3：多一项每张卡的去人复核上限（只有场景卡真复核）；实收由 real.mintCards 逐笔记
+  return visionCardsTokens(frameCount, cap) + cap * VISION_FRAME_TOKENS;
 }
 
 /** 视频提**模板**的预估。看帧要两遍（总结配方 + 认素材卡），所以视觉部分 2×。
  *  ★ 这式子原来长在 VideoTemplateExtractor 里，那里同时还自带一个 `MAX_CARDS = 6`——
  *    正是上面说的那处分叉。搬到这里是为了让它和 mintCards 读同一个 cap。 */
 export function templateCost(frameCount: number, cap: CardMintCap): number {
-  return visionCardsTokens(frameCount, cap, 2);
-}
-
-/** 视频提模板的实际结算：同样按真出了几张卡面收。 */
-export function templateSettle(frameCount: number, minted: number): number {
-  return visionCardsTokens(frameCount, minted, 2);
+  // ★ V3：多一项每张卡的去人复核上限（只有场景卡真复核）；实收由 real.extractTemplateFromVideo 逐笔记
+  return visionCardsTokens(frameCount, cap, 2) + cap * VISION_FRAME_TOKENS;
 }
 
 /**
  * 提**白模模板**的预估：看 N 帧总结配方，**单遍视觉、卡面恒 0 张**（预估即结算 ——
- * 没有"按实出卡"的浮动项，所以不像 templateCost 那样配一个 Settle 伴生函数）。
+ * 没有"按实出卡"的浮动项，所以不需要逐笔结算）。
  *
  * ★ 与 templateCost（两遍视觉 + 最多 TEMPLATE_MAX_CARDS 张卡）**不是一回事，别复用**：
  *   白模里全是大色块和红色小人，「认素材卡」那一遍必然空手而归 —— 跑了是白烧钱，
@@ -1225,17 +1221,11 @@ export function styleWants3d(text: string): boolean {
 const DECK_CARD_TOKENS = CARD_META_TOKENS + IMAGE_TOKENS;
 
 /** 成片派生卡组：最多 DECK_MAX_CARDS 张，每张一次文案 + 一次卡面。
- *  与 extractCost 一样给的是**上限**——重复实体会被剔掉，按 deckCardsSettle 结算。 */
+ *  与 extractCost 一样给的是**上限**——重复实体会被剔掉，实收按 real.mintCards 逐笔记的 tokens。 */
 export function deckCardsCost(cap: CardMintCap = DECK_MAX_CARDS): number {
-  return cap * DECK_CARD_TOKENS;
-}
-
-/** 派生卡组的**实际结算**：按真出了几张收。
- *  ★ 与 deckCardsCost 分成两个函数（同 forgeCost / forgeSettle）是因为参数类型不同：
- *    报价只能拿上限常量，结算拿的是运行期数出来的张数。合成一个的话，那个
- *    `CardMintCap` 牌子就得摘掉，"界面按 8 报价、实际切 12 张"又能编过了。 */
-export function deckCardsSettle(minted: number): number {
-  return minted * DECK_CARD_TOKENS;
+  // ★ V3 上限：每张 文案 + 卡面 + 一次去人复核（只有场景卡真复核，按最贵情形报）+ 看成片抽帧那一遍。
+  //   实收由 real.mintCards 逐笔记（道具裁剪、风格整帧不出图 = 0 图钱），只会少不会多。
+  return cap * (DECK_CARD_TOKENS + VISION_FRAME_TOKENS) + DECK_VISION_FRAMES * VISION_FRAME_TOKENS;
 }
 
 /** 派生角色卡顺带铸 3D 建模的上限报价。★ 与实际结算（按 minted 张数）同一个单价。 */

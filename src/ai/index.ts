@@ -43,7 +43,7 @@ export const deriveDeckCards: typeof real.deriveDeckCards = AI_REAL
       const have = new Set(existing.map((c) => c.name));
       // ★ 演示模式也照上限切：这里不花钱（spendTokens 被 AI_REAL 挡着），但界面那句
       //   "最多 N 张"两种模式共用一份文案，出到第 9 张就成了当场打脸。
-      return segments
+      const cards = segments
         .slice(0, DECK_MAX_CARDS)
         .map((sg, i) => ({
           id: `card_drv_${Date.now().toString(36)}_${i}`,
@@ -53,19 +53,22 @@ export const deriveDeckCards: typeof real.deriveDeckCards = AI_REAL
           cover: sg.firstFrame,
         }))
         .filter((c) => !have.has(c.name));
+      return { cards, tokens: 0 };
     };
 /** 上传本地视频提炼卡组（抽帧 → 视觉模型识别 → 铸卡面）；
  *  mock 构建直接把抽帧当卡面出场景卡，好歹能走通流程 */
 export const extractCardsFromVideo: typeof real.extractCardsFromVideo = AI_REAL
   ? real.extractCardsFromVideo
-  : async (frames, note) =>
-      frames.slice(0, 3).map((f, i) => ({
+  : async (frames, note) => ({
+      tokens: 0,
+      cards: frames.slice(0, 3).map((f, i) => ({
         id: `card_vid_${Date.now().toString(36)}_${i}`,
         type: "scene" as const,
         name: `${(note || "视频").slice(0, 4)}片段${i + 1}`,
         summary: "演示模式：直接用抽帧当卡面，未经 AI 识别",
         cover: f,
-      }));
+      })),
+    });
 /** 上传参考视频提炼**模板**（画风配方 + 分镜骨架 + 可复用素材卡）；
  *  mock 构建给一份能跑通流程的假配方 */
 export const extractTemplateFromVideo: typeof real.extractTemplateFromVideo = AI_REAL
@@ -73,6 +76,7 @@ export const extractTemplateFromVideo: typeof real.extractTemplateFromVideo = AI
   : async (frames, note, _onProgress, opts) => ({
       title: `${(note || "参考").slice(0, 6)}模板`,
       intro: "演示模式：未经 AI 分析的占位模板",
+      tokens: 0,
       source: "演示模式占位",
       recipe: {
         styleHint: "演示模式：这里本应是 AI 总结出的画面质感与运镜要求。",

@@ -5,7 +5,7 @@ import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generate
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
-import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d } from "../data/economy";
+import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeRecastable, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
@@ -2047,15 +2047,23 @@ export const useStudio = create<StudioState>()((set, get) => ({
         if (!canDerive) throw new Error("skip-derive");
         say("提炼本片卡组…");
         const derived = await deriveDeckCards(
-          segments.map((sg) => ({ title: sg.title, plot: sg.plot, firstFrame: sg.firstFrame })),
+          // ★ V3：带上成片地址与实测时长，deriveDeckCards 能抽帧就看片提炼（卡面贴合原片）
+          segments.map((sg) => ({
+            title: sg.title,
+            plot: sg.plot,
+            firstFrame: sg.firstFrame,
+            videoUrl: sg.videoUrl,
+            durationSec: sg.realDurationSec ?? sg.durationSec,
+          })),
           styleHint,
           deckCards.map((c) => ({ type: c.type, name: c.name, summary: c.summary })),
           say,
         );
         const names = new Set(deckCards.map((c) => c.name));
-        const fresh = derived.filter((c) => !names.has(c.name));
+        const fresh = derived.cards.filter((c) => !names.has(c.name));
         deckCards.push(...fresh);
-        if (AI_REAL && fresh.length > 0) spendTokens(deckCardsSettle(fresh.length)); // 按实际出卡结算
+        // ★ V3：按真实调用结算（看帧 + 文案 + 真出的图 + 去人复核，real.mintCards 逐笔记），只会比 deckCardsCost 的上限少
+        if (AI_REAL && derived.tokens > 0) spendTokens(derived.tokens);
         // 3D 画风的作品：给派生的角色卡自动铸 3D 建模（Seed3D，上限 DECK_MAX_3D 个）。
         // ★★ 触发判定走 economy.styleWants3d —— **报价（FlowPage 顶栏 / 「完成视频」
         //   旁那句话）读的是同一个函数、同一坨文字**（deckStyleBlob）。这条正则原来

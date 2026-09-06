@@ -113,7 +113,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   背景卡 = **故事背景 / 简介**，纯文字参与出片（`segmentGen.materialText` 末尾「故事背景：」一句），卡面只展示、
   `allocateRefs` 从不分配、三条提卡路一律不自动出；风格卡 = 画风 + 材质 + 色调光影 + 镜头语言，出片句（`idLine`）
   同时进 `frameArtStyle` 与视频提示词。提卡的措辞纪律（禁「参考视频 / 复刻 / 还原 / 一致」）在 `real.sanitizeCardDefs`
-  用正则复核，白模段的点名骨架句在提炼前由 `stripBlockoutSkeleton` 剥掉。全文见 docs/card-roles-v3-design.md。
+  用正则复核，白模段的点名骨架句在提炼前由 `stripBlockoutSkeleton` 剥掉。**卡面贴合原片**（第二期）：成片提炼看
+  Cloudinary 抽帧（`deckFrameUrls`，与报价的 `DECK_VISION_FRAMES` 同一个数），场景卡面 = 原帧去人留景 + 视觉复核、不干净退回
+  原帧（`sceneCoverFromFrame`），道具卡面 = 原帧按位置框裁剪（0 token），风格样张 = 原帧本身；三条提卡路的**实收由
+  `mintCards` 逐笔记的 `tokens` 结算**（`deckCardsCost` / `extractCost` / `templateCost` 只是上限），`*Settle` 那几个函数已删。
+  全文见 docs/card-roles-v3-design.md。
   **提交出片即收窗**（2026-09-06 主人点名）：画布的编辑窗在这一段状态翻到 generating 的那一拍自动收起（`FlowCanvas` 判跳变，
   点开一张正在炼的卡看进度不算），工坊投影窗在 `studioStore` 委托 `genNode` 受理的那一拍收起（`closeProjection`），
   两处都吐一句「已开始生成，可以离开这一页」—— 窗一直开着，用户不知道出片不需要守着。
