@@ -224,7 +224,8 @@ function clearTemplate(): Pick<
   // deckOff 也在这里回默认：本函数的调用点恰好就是全部「整表换流水线/复位」点，
   // 而「只出片不出卡组」是**每条片各自**的选择，不该跟到下一条片上。
   // alts（换走向的分支归档）同理：换整条流水线后，旧归档指着已不存在的节点 id
-  return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false, castNodeId: null, deckOff: false, alts: {} };
+  // ★ deckOff 缺省 **true**（2026-09-06 主人点名：「生成对应视频卡组」默认不勾，想要再勾）
+  return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false, castNodeId: null, deckOff: true, alts: {} };
 }
 
 /**
@@ -1039,7 +1040,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
   castFallback: "",
   castBusy: false,
   castNodeId: null,
-  deckOff: false,
+  deckOff: true,
   setDeckOff: (v) => set({ deckOff: v }),
 
   // ★ template/subject（连同挂卡那两格，见 clearTemplate）必须一起清：工坊铺过来的是
