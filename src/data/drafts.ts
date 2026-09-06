@@ -31,7 +31,7 @@ export interface FlowSnapshot {
   origin: "studio" | "solo";
   template: unknown;
   subject: string;
-  /** 「只出片不出卡组」的选择（flowStore.deckOff）。★ 判否定：老草稿缺省 = false = 随片出卡组 */
+  /** 「只出片不出卡组」的选择（flowStore.deckOff）。★ 2026-09-06 起缺省不出卡组：读的时候只有明确 false 才出 */
   deckOff?: boolean;
 }
 

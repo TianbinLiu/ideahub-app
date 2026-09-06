@@ -243,7 +243,7 @@ export interface DeckQuote {
  *   撞上了才按上限 2 个报。它随用户改剧情实时变 —— 这正是它诚实的地方：
  *   报的永远是"照现在这些字，组稿会花多少"。
  */
-export function deckQuoteOf(nodes: FlowNode[], mode: FlowMode, deckOff = false): DeckQuote {
+export function deckQuoteOf(nodes: FlowNode[], mode: FlowMode, deckOff = true): DeckQuote {
   const off: DeckQuote = { on: false, maxCards: 0, cards: 0, wants3d: false, max3d: 0, model3d: 0, total: 0 };
   if (mode === "simple" || deckOff || nodes.length === 0) return off;
   const cards = deckCardsCost(DECK_MAX_CARDS);
@@ -2099,7 +2099,16 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   store 级那份，而从模板详情页套用**分段组里的某一段**走的正是那条（applyTemplate
       //   铺单节点、tpl 不写）。漏读的后果是剪辑页静默丢掉原片音轨预置 —— 用户点名要的
       //   "成片保留原视频音频"没了，而全程零报错。
-      draftAudioHint: nodes.map((n) => tplOfNode(n)?.group?.sourceUrl).find(Boolean) ?? null,
+      // ★ 非分段的白模模板也要回填（2026-09-06 主人真机：拿有声音的模板出的片，合并后照样是哑的）：
+      //   refVideo.url 正是与这一段对齐的那段裁剪，从 0 秒起对得上；分段组仍优先用整条源片（跨段连续）。
+      //   多段作品里只预置第一条模板的那份，后面的段在音频页自己调。
+      draftAudioHint:
+        nodes
+          .map((n) => {
+            const t = tplOfNode(n);
+            return t?.group?.sourceUrl || t?.refVideo?.url || "";
+          })
+          .find(Boolean) ?? null,
       draft: {
         title: "",
         category: "剧情",
@@ -2321,7 +2330,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
         template: (d.flow?.template as FlowTemplate) ?? null,
         subject: d.flow?.subject ?? "",
         // ★ 判否定（drafts.FlowSnapshot.deckOff 的 ★）：老草稿缺省 = 随片出卡组
-        deckOff: d.flow?.deckOff === true,
+        // ★ 2026-09-06 起缺省不出卡组：没记过这一位的老草稿也按不出算（判否定：只有明确 false 才出）
+        deckOff: d.flow?.deckOff !== false,
         busy: false,
         err: "",
       });

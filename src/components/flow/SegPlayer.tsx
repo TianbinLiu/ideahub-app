@@ -25,6 +25,29 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
   const node = idx >= 0 ? nodes[idx] : undefined;
   const url = node ? realVideoOfNode(node) : undefined;
   const src = useMediaUrl(url);
+  /**
+   * ★★ 白模出片本身无声（ai/arkClient.BLOCKOUT_TASK 钉着 generate_audio:false —— edit 会连参考视频的歌一起复刻，
+   *   带歌模板会被方舟在输出端整发拒掉、钱不退），于是拿「有声音的模板」出的片在这里放出来是哑的、播放器上的
+   *   声音键灰着（2026-09-06 主人真机）。回看时把模板那一段的**原片音轨**叠上去：refVideo.url 正是与这一段
+   *   对齐的那段裁剪（分段组的每一段各自一份），从 0 秒起跟着视频走；合并成片时 CutPage 回填的也是同一条
+   *   （studioStore.draftAudioHint）。
+   * ★ 只对白模段叠（有 refVideo 的段）：别的档位成片自带 AI 环境音，叠上去是两层声。
+   */
+  const tplAudioUrl = node ? tplOfNode(node)?.refVideo?.url : undefined;
+  const audioSrc = useMediaUrl(tplAudioUrl);
+  const aref = useRef<HTMLAudioElement>(null);
+  const [audioOn, setAudioOn] = useState(true);
+  /** 叠上去的音轨跟着视频走：播 / 停 / 拖动就对表，平时漂移超过 0.35s 才对（别每一拍都 seek，seek 本身会卡一下） */
+  const followVideo = (v: HTMLVideoElement, why: "play" | "pause" | "seek" | "tick") => {
+    const a = aref.current;
+    if (!a) return;
+    if (why === "pause") {
+      a.pause();
+      return;
+    }
+    if (why !== "tick" || Math.abs(a.currentTime - v.currentTime) > 0.35) a.currentTime = v.currentTime;
+    if (why === "play" || (why === "tick" && a.paused && !v.paused)) void a.play().catch(() => {});
+  };
   /** 拉不动（跨境慢、链接过期、离线）。★★ 必须有：地址在这条路上是**同步原样返回**的
    *  （不传 forCapture 时 mediaUrl 对 http(s) 直接放行），所以"取不到"根本不会表现为
    *  src 为空 —— 它只会落在 <video> 的 error 上。没有这一手，用户得到的是一块全屏黑
@@ -146,6 +169,15 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
             {ann === "loading" ? "取帧中…" : "⭕ 圈选改画面"}
           </button>
         )}
+        {audioSrc && src && !failed && (
+          <button
+            onClick={() => setAudioOn((v) => !v)}
+            title="白模成片本身无声，这里配的是模板原片的音轨；合并成片时也会带上"
+            className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200"
+          >
+            {audioOn ? "🔊 模板原声" : "🔇 已静音"}
+          </button>
+        )}
         <CloseButton chip="md" size={16} tone="text-slate-200" align="end" onClick={onClose} />
       </div>
       {/* ★★ 自带一份错误条（2026-08-21 第六轮对抗评审）：本层是 z-50 全屏，把画布壳上
@@ -214,17 +246,32 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
             </button>
           </>
         ) : src ? (
-          <video
-            key={retry}
-            ref={vref}
-            src={src}
-            poster={chosenOf(node).firstFrame || undefined}
-            controls
-            autoPlay
-            playsInline
-            onError={() => setFailed(true)}
-            className="max-h-full max-w-full rounded-lg"
-          />
+          <>
+            <video
+              key={retry}
+              ref={vref}
+              src={src}
+              poster={chosenOf(node).firstFrame || undefined}
+              controls
+              autoPlay
+              playsInline
+              onError={() => setFailed(true)}
+              onPlay={(e) => followVideo(e.currentTarget, "play")}
+              onPause={(e) => followVideo(e.currentTarget, "pause")}
+              onEnded={(e) => followVideo(e.currentTarget, "pause")}
+              onSeeked={(e) => followVideo(e.currentTarget, "seek")}
+              onTimeUpdate={(e) => followVideo(e.currentTarget, "tick")}
+              className="max-h-full max-w-full rounded-lg"
+            />
+            {audioSrc && (
+              <>
+                <audio ref={aref} src={audioSrc} preload="auto" muted={!audioOn} />
+                <p className="max-w-xs text-center text-[11px] leading-relaxed text-slate-500">
+                  白模成片本身无声，回看配的是模板原片的音轨，合并成片时也会带上
+                </p>
+              </>
+            )}
+          </>
         ) : (
           <p className="text-center text-xs leading-relaxed text-slate-400">正在取这一段的视频地址…</p>
         )}
