@@ -2691,6 +2691,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 成片已经落到节点上，凭据结案
       dropVideoJob(job.taskId);
       set({ busy: false });
+      // ★ 取回拿到的是方舟临时链接（takeVideoTask 不转存），而转存登记表里多半已经有永久地址（出片那一拍
+      //   服务端就在搬）：后台问一遍换上，预览帧也改走 Cloudinary 抽帧 —— 与 genNode 成功那一拍同一条收尾
+      const placedId = orphan ? (get().nodes[get().cursor]?.id ?? "") : job.nodeId;
+      if (placedId) get().settleNodeMedia(placedId);
     } catch (e) {
       set({ busy: false });
       // ★ 凭据在这里**一律不动**：takeVideoTask 已经把"还能再来取"与"真没了"分成了
