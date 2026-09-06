@@ -84,6 +84,7 @@ function RailBtn({
   filled,
   tint,
   label,
+  name,
   perch,
   className = "",
   guide,
@@ -96,6 +97,8 @@ function RailBtn({
   filled?: boolean;
   tint?: string;
   label?: string;
+  /** 无障碍名。★ 点赞 / 评论那两颗的 label 是**数字**（计数），读屏读出来只是「3」——名字另给一个 */
+  name?: string;
   /** 给了姿势名，【激活的那一下】角色跳上来演一段再缩回去。
    *  姿势同时决定贴图、翻页帧和进出场动画（见 CharacterPerch）。 */
   perch?: PerchPose;
@@ -113,6 +116,7 @@ function RailBtn({
     <button
       onClick={onClick}
       data-guide={guide}
+      aria-label={name ?? label}
       /* ★ mt-8 挂在【有角色演出的键】自己身上，而不是整栏一个大 gap。
          激活态的角色会从图标顶沿向上探出约 45px，压住**上一个键的计数数字**
          （实测收藏后评论数「3」整个消失，计数是信息，装饰盖掉信息就是回退）。
@@ -716,11 +720,11 @@ function FeedItem({
               setDmOpen(true);
             }}
           />
-          <RailBtn icon="heart" filled={liked} tint="text-rose-500" label={String(likes)} perch="like" onClick={toggleLike} />
+          <RailBtn icon="heart" filled={liked} tint="text-rose-500" label={String(likes)} name="点赞" perch="like" onClick={toggleLike} />
           {/* 评论就地滑出抽屉（对标短视频 App），不跳详情页打断刷视频的节奏 */}
           {/* ★ 走 commentCountOf，不读 comments.length：列表接口不返回 comments，
               直接读长度的话，没点进去过的作品评论数永远是 0（真机上抓到的） */}
-          <RailBtn icon="comment" label={String(commentCountOf(video))} onClick={() => setCmtOpen(true)} />
+          <RailBtn icon="comment" label={String(commentCountOf(video))} name="评论" onClick={() => setCmtOpen(true)} />
           {/* ★★ 收藏**不显示数字**（2026-08-30）：服务端根本没有收藏端点，`setSave` 只在
               这台设备的本地库里自增 —— 那个数既不是"多少人收藏了"，也不会跟着账号走
               （种子作品上更是 mock 里手打的 786/604/341）。**显示一个骗人的数比不显示更糟**：

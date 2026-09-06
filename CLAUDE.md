@@ -266,6 +266,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   `calc(… + env(safe-area-inset-bottom))`。标题行 `text-sm font-bold text-slate-100`，关闭键一律
   `<CloseButton chip="sm" size={13} align="end" />`（`components/IconTapButton`，44px 命中区），
   不再手写 `-m-2 p-2` 的裸图标或「关闭」文字键。简单内容直接用 `components/Sheet`。
+  自带固定表头的抽屉（评论 / 声音）表头一行 `h-12 px-4 items-center`，与页顶栏同高（第十七轮量出来评论抽屉的
+  `py-3` 比声音面板低 2px）。图标键的名字：计数不是名字，点赞 / 评论那两颗另给 `aria-label`（`RailBtn` 的 `name`）。
   查法：`rg 'rounded-t-' --glob '*.tsx' | rg -v 'border-t border-slate-700 bg-ink'` 只该剩
   `studio/ui/modals.tsx`（那是 3D 桌面里的就地卡片弹层，不是抽屉）。⚠ 别把 `backdrop-blur` 加回壳上：
   它会给 `position: fixed` 后代造包含块（已知的坑那一格）。
