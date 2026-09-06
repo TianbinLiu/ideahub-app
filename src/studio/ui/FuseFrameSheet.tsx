@@ -10,6 +10,7 @@
 // ★ 整屏浮层一律 portal 到 body：方案台祖先上有 backdrop-blur / transform，
 //   它们会给 position:fixed 后代造包含块，inset-0 会缩到那个盒子里（CLAUDE.md 那条坑）。
 import { useState } from "react";
+import EmptyState from "../../components/EmptyState";
 import { createPortal } from "react-dom";
 import { CloseButton } from "../../components/IconTapButton";
 import { AI_REAL, fuseFrame } from "../../ai";
@@ -140,9 +141,7 @@ export default function FuseFrameSheet({
           挑参考图（{picked.length}/{FUSE_MAX}）
         </div>
         {sources.length === 0 ? (
-          <p className="mb-2.5 rounded-lg border border-dashed border-slate-700 p-3 text-center text-[10px] text-slate-500">
-            这一段还没有可融的图——先挂一张素材卡，或让 AI 先推演出首尾帧
-          </p>
+          <EmptyState compact emoji="🧬" text="这一段还没有可融的图" hint="先挂一张素材卡，或让 AI 先推演出首尾帧" className="mb-2.5" />
         ) : (
           <div className="mb-2.5 flex gap-2 overflow-x-auto pb-1">
             {sources.map((s) => {

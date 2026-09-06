@@ -315,7 +315,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   别再把按钮文字换成「已复制 ✓」或在抽屉里写一行 note。⚠ `window.confirm` / `alert` 一个都不许用：确认走
   `ConfirmDialog`，回执走 toast。
 - **列表的加载态与空态也走 `EmptyState`**（`loading` / `emoji + text + hint`），别再手拼 `py-8 text-center text-xs`
-  或 `border-dashed py-10` 的框。
+  或 `border-dashed py-10` 的框（第八轮逐页目视后把最后 8 个虚线框与工坊广场那条行内报错都收了；弹层里用 `compact`）。
+  查法：`rg 'border-dashed' --glob '*.tsx' | rg 'text-center'` 只该剩 `studio/ui/NpcDialog`（那是 3D 桌面的空卡位，不是空态）。
 - **上万折「x.x 万」只有一份 `types.formatPlays`**：热度 / 播放 / 卡片热度 / 3D 卡面小字都用它（此前四处各抄一份）。
 - **空态 / 整页态只有一份实现 `components/EmptyState`**（2026-09-05 收口）：图标 40px slate-600（或 emoji）→ 正文
   text-sm slate-400（出错 rose-300）→ 补充 text-xs slate-600 → 按钮（主 bg-brand / 次 bg-panel+ring，同上一条）。

@@ -83,15 +83,9 @@ function usePlaza<T>(enabled: boolean, load: () => Promise<T[]>, deps: unknown[]
 }
 
 /** 广场取数失败时的那一行：说清楚 + 能重试。两个广场共用 */
+/** 广场拉挂了：列表反正是空的，就按空态那一份画（error 红字 + 重试键），别再另画一条行内报错 */
 function PlazaError({ error, onRetry }: { error: string; onRetry: () => void }) {
-  return (
-    <div className="mb-3 flex items-center gap-3 rounded-xl border border-rose-500/40 bg-rose-500/5 px-3 py-2.5">
-      <span className="min-w-0 flex-1 text-[11px] leading-relaxed text-rose-300">没取到：{error}</span>
-      <button onClick={onRetry} className="flex-none rounded-full bg-panel px-3 py-1 text-[11px] text-slate-200">
-        重试
-      </button>
-    </div>
-  );
+  return <EmptyState error emoji="📡" text={`没取到：${error}`} cta={{ label: "重试", onClick: onRetry }} />;
 }
 
 function CardTile({ card, onRemove, to }: { card: Card; onRemove?: () => void; to?: string }) {
@@ -284,11 +278,13 @@ export default function WorkshopPage() {
             </div>
           )}
           {cards.length === 0 && (
-            <div className="mb-3 rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
-              {/* ★ 「没问到」不许说成「没有」：卡是真花过 token 铸的，说错这一句
-                  用户读到的是「我付钱铸的卡全没了」（同 ProfilePage 的 worksKnown） */}
-              {cardsLoadIssue() ? `这会儿没能取到你的卡片（${cardsLoadIssue()}）——它们还在，联网后重开一次` : "还没有卡片——用下面几种方式做第一张"}
-            </div>
+            /* ★ 「没问到」不许说成「没有」：卡是真花过 token 铸的，说错这一句
+                用户读到的是「我付钱铸的卡全没了」（同 ProfilePage 的 worksKnown） */
+            cardsLoadIssue() ? (
+              <EmptyState error emoji="🃏" text={`这会儿没能取到你的卡片（${cardsLoadIssue()}）`} hint="它们还在，联网后重开一次" />
+            ) : (
+              <EmptyState emoji="🃏" text="还没有卡片" hint="用下面几种方式做第一张" />
+            )
           )}
 
           {/* 从本地视频圈选提卡（V2，2026-08-24 换代）：旧路是"AI 看抽帧自动认"，又贵又不可控；
@@ -365,11 +361,7 @@ export default function WorkshopPage() {
                —— 用户看到的是"社区分享的卡凭空没了"，既不知道为什么、也不知道该干什么
                （铁律八）。口径照 TemplateShelf 那份。 */
             !remote ? (
-              <div className="rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm leading-relaxed text-slate-500">
-                这次没连上服务器，看不到别人分享的卡。
-                <br />
-                <span className="text-xs">卡片广场在服务器上——离线库里没有「别人」。</span>
-              </div>
+              <EmptyState emoji="📡" text="这次没连上服务器，看不到别人分享的卡" hint="卡片广场在服务器上，离线库里没有「别人」" />
             ) : cardPlaza.error ? (
               <PlazaError error={cardPlaza.error} onRetry={cardPlaza.reload} />
             ) : cardPlaza.loading && sharedCards.length === 0 ? (
@@ -435,9 +427,7 @@ export default function WorkshopPage() {
               </>
             )
           ) : !remote ? (
-            <div className="rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
-              登录服务器后可以浏览别人分享的卡组
-            </div>
+            <EmptyState emoji="📡" text="登录服务器后可以浏览别人分享的卡组" />
           ) : deckPlaza.error ? (
             <PlazaError error={deckPlaza.error} onRetry={deckPlaza.reload} />
           ) : deckPlaza.loading ? (
@@ -600,9 +590,7 @@ export default function WorkshopPage() {
               );
             })}
             {decks.length === 0 && (
-              <div className="rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
-                还没有卡组——建一个把常用素材归到一起
-              </div>
+              <EmptyState emoji="🗂️" text="还没有卡组" hint="建一个把常用素材归到一起" />
             )}
           </div>
         </>

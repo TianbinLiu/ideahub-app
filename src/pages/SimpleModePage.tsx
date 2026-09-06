@@ -16,6 +16,7 @@
 // ★ 简约恒单段、恒直出（不推演方案）：所以没有方案台、没有节点条、不存草稿
 //   （saveWorkDraft 自己会挡掉 simple，见 studioStore）。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import SegSettings from "../components/flow/SegSettings";
@@ -256,12 +257,7 @@ function StepTemplate({
           );
         })}
         {rows.length === 0 && (
-          <div className="rounded-xl border border-dashed border-slate-700 py-10 text-center text-xs leading-relaxed text-slate-500">
-            还没有可用的模板
-            <button onClick={onBack} className="mt-2 block w-full text-[11px] text-brand">
-              ← 换成自己写一句
-            </button>
-          </div>
+          <EmptyState emoji="🧪" text="还没有可用的模板" cta={{ label: "← 换成自己写一句", onClick: onBack }} />
         )}
       </div>
     </div>

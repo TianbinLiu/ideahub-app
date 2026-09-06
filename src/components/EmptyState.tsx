@@ -35,6 +35,7 @@ export default function EmptyState({
   error,
   cta,
   full,
+  compact,
   className = "",
 }: {
   /** 40px 线性图标（消息页的铃铛、卡片页的卡组） */
@@ -51,9 +52,11 @@ export default function EmptyState({
   cta?: EmptyStateCta;
   /** 整页态：min-h-[70vh] 居中 + safe-top */
   full?: boolean;
+  /** 紧凑态（弹层 / 面板里的空态）：py-8、emoji 与正文各小一号。与 full 互斥，full 优先 */
+  compact?: boolean;
   className?: string;
 }) {
-  const shell = full ? "safe-top min-h-[70vh] justify-center" : "py-16";
+  const shell = full ? "safe-top min-h-[70vh] justify-center" : compact ? "gap-2 py-8" : "py-16";
   const ctaCls = cta?.primary
     ? "rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-ink"
     : "rounded-xl bg-panel px-5 py-2.5 text-sm font-semibold text-slate-100 ring-1 ring-slate-700";
@@ -64,11 +67,11 @@ export default function EmptyState({
       ) : icon ? (
         <Icon name={icon} size={40} className="text-slate-600" />
       ) : emoji ? (
-        <span className="text-4xl leading-none">{emoji}</span>
+        <span className={`${compact ? "text-2xl" : "text-4xl"} leading-none`}>{emoji}</span>
       ) : null}
       {title && <h2 className="text-base font-bold text-slate-100">{title}</h2>}
-      <p className={`text-sm leading-relaxed ${error ? "text-rose-300" : "text-slate-400"}`}>{text}</p>
-      {hint && <p className="text-xs leading-relaxed text-slate-600">{hint}</p>}
+      <p className={`${compact ? "text-xs" : "text-sm"} leading-relaxed ${error ? "text-rose-300" : "text-slate-400"}`}>{text}</p>
+      {hint && <p className={`${compact ? "text-[11px]" : "text-xs"} leading-relaxed text-slate-600`}>{hint}</p>}
       {cta &&
         (cta.to ? (
           <Link to={cta.to} replace={cta.replace} className={ctaCls}>
