@@ -34,14 +34,13 @@ import PortraitAuthPanel from "../components/PortraitAuthPanel";
 import VoiceRecorder from "../components/VoiceRecorder";
 import VoiceUploadButton from "../components/VoiceUploadButton";
 import { fetchPortraitAssetImage } from "../api/portrait";
-import { addCards, canAfford, isRemoteMode, spendTokens, walletOf } from "../data/account";
+import { addCards, bindCardAsset, canAfford, isRemoteMode, spendTokens, walletOf } from "../data/account";
 import { API_ON } from "../api/client";
 import { prepareCardImage } from "../data/cardViews";
 import { AI_REAL, portraitViews, refineCardImage } from "../ai";
 import { chatVision } from "../ai/arkClient";
 import FrameAnnotator from "../components/FrameAnnotator";
 import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
-import { saveAsset } from "../data/cardAsset";
 import { saveVoice } from "../data/cardVoice";
 import { startJob } from "../data/jobs";
 // ★★ 这一页的表单状态全在 store 里（理由见 customCardStore 文件头）：AI 出图 / 铸卡上传
@@ -706,11 +705,14 @@ export default function CustomCardPage() {
       //   那样一来录音就被这条早退一起跳过了 —— 用户丢的是两样东西，而屏幕只提了一样。
       let assetLost = false;
       if (declareReal && pendingAsset) {
-        assetLost = !(await saveAsset(id, {
+        // 本机镜像 + 服务端两步（唯一写入口 account.bindCardAsset）。这里只管"本机没存住"；
+        // "服务端没收下"由 bindCardAsset 记进 cardAsset 侧库，跳过去的卡详情页会把话说出来
+        const b = await bindCardAsset(id, {
           assetId: pendingAsset.assetId,
           scope: "private",
           note: pendingAsset.note,
-        }));
+        });
+        assetLost = !b.stored;
       }
       if (isChar && pendingVoice) {
         await saveVoice(id, pendingVoice);

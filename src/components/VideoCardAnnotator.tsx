@@ -12,10 +12,9 @@
 // ★ 人物卡的"定段取声音样本"是阶段 2（等参考音频音色跟随的实听结论），本组件先留位。
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AI_REAL, portraitViews } from "../ai";
-import { addCards, canAfford, createDeck, spendTokens } from "../data/account";
+import { addCards, bindCardAsset, canAfford, createDeck, spendTokens } from "../data/account";
 import { fmtTokens, schemeCost } from "../data/economy";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
-import { saveAsset } from "../data/cardAsset";
 import { startJob } from "../data/jobs";
 import { pcmToVoiceWav } from "../utils/wav";
 import PortraitAuthPanel from "./PortraitAuthPanel";
@@ -594,12 +593,13 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       if (declareReal && pendingAsset) {
         // ★ 落盘失败要出声：卡已经铸出来了（撤不回），但绑定只在内存里，重启就没了 ——
         //   而这张卡挂着真人声明，出片那一刻会被拒（判返回值，saveAsset 不抛）
-        const bound = await saveAsset(card.id, {
+        //   本机镜像 + 服务端两步（唯一写入口 account.bindCardAsset）；"服务端没收下"由它记进侧库，卡详情页会说
+        const bound = await bindCardAsset(card.id, {
           assetId: pendingAsset.assetId,
           scope: "private",
           note: pendingAsset.note,
         });
-        if (!bound) setErr("卡铸好了，但肖像授权绑定没存住（本机存储写入失败）——去卡详情页把授权再做一次，否则出片时会被拒。");
+        if (!bound.stored) setErr("卡铸好了，但肖像授权绑定没存住（本机存储写入失败）——去卡详情页把授权再做一次，否则出片时会被拒。");
       }
       setSaved((s) => [...s, card]);
       setCrops([]);

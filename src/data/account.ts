@@ -11,6 +11,7 @@ import { Card, SHARE_NOTE_MAX, uid, viewTag, type CardView } from "../types";
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
 import { reconcileTermsWithServer } from "./agreements";
 import { removeVoice } from "./cardVoice";
+import { adoptRemoteAssets, assetOf, removeAsset, saveAsset, setAssetSyncIssue, type CardAsset } from "./cardAsset";
 import { PLANS, PLATFORM_CUT, fmtTokens, type VideoTier } from "./economy";
 import { idbGet, idbSet } from "./db";
 // 转存（dataURL → 永久 URL）的唯一入口，与发布/换封面/详情页加图共用（铁律六）
@@ -1210,8 +1211,10 @@ export async function removeCard(cardId: string): Promise<DeleteResult> {
       return `服务器没能删掉这张卡（${whyOf(e)}）。本地这份先留着——删了它下次登录也会回来。`;
     }
   }
-  // 声音样本是本机侧库（data/cardVoice），卡真没了它才成为永远读不到的孤儿
+  // 声音样本是本机侧库（data/cardVoice），卡真没了它才成为永远读不到的孤儿；
+  // 肖像授权绑定的本机镜像同理（服务端那份随卡文档一起删了）
   removeVoice(cardId);
+  void removeAsset(cardId);
   db.cards = db.cards.filter((c) => !(c.ownerId === u.id && c.id === cardId));
   const touchedDecks = db.decks.filter((d) => d.cardIds.includes(cardId));
   for (const d of db.decks) d.cardIds = d.cardIds.filter((id) => id !== cardId);
@@ -2012,6 +2015,82 @@ function armOnlineRetry(): void {
 }
 
 /** 拉当前用户的卡片 / 卡组 / 关注列表（任一失败只影响自己那块） */
+/** 绑定的回执：stored = 本机镜像落盘了；synced = 服务端收下了（null = 离线模式，没有这一步） */
+export interface BindAssetResult {
+  stored: boolean;
+  synced: boolean | null;
+  reason?: string;
+}
+
+/**
+ * 给一张卡绑上肖像授权（方舟可信素材 id）—— **唯一写入口**（本机镜像 + 服务端）。
+ * ★★ 先写本机再上行，两步各自回执，调用方要**分开说**（铁律五）：
+ *   · 本机没落盘（stored=false）= 这一次会话能出片、重启就没（配额满 / 隐私模式）；
+ *   · 服务端没收下（synced=false）= 只在这台设备上、换机就没 —— 但下次登录 syncCardAssets 会把
+ *     本机独有的补传，所以这是"暂未同步"，不是丢。原因同时记进 cardAsset.setAssetSyncIssue，
+ *     卡详情页读它把话说出来（绑上之后授权窄条就消失了，话只能说在那儿）。
+ * ★ 离线模式（没配服务器 / 这次没连上）synced 回 null：不是失败，是没有这一步。
+ */
+export async function bindCardAsset(cardId: string, a: CardAsset): Promise<BindAssetResult> {
+  const stored = await saveAsset(cardId, a);
+  if (!remoteOn()) return { stored, synced: null };
+  try {
+    await branch.updateCardPortrait(cardId, { assetId: a.assetId, note: a.note });
+    setAssetSyncIssue(cardId, null);
+    return { stored, synced: true };
+  } catch (e) {
+    emitApiError("updateCardPortrait", e);
+    const reason = whyOf(e);
+    setAssetSyncIssue(cardId, reason);
+    return { stored, synced: false, reason };
+  }
+}
+
+/** 解绑（本机镜像 + 服务端）。目前没有界面入口；删卡时 removeCard 只清本机那份（服务端随卡文档走） */
+export async function unbindCardAsset(cardId: string): Promise<BindAssetResult> {
+  const stored = await removeAsset(cardId);
+  setAssetSyncIssue(cardId, null);
+  if (!remoteOn()) return { stored, synced: null };
+  try {
+    await branch.updateCardPortrait(cardId, null);
+    return { stored, synced: true };
+  } catch (e) {
+    emitApiError("updateCardPortrait", e);
+    return { stored, synced: false, reason: whyOf(e) };
+  }
+}
+
+/**
+ * 把服务端那份肖像授权绑定装回本机镜像，再把本机独有的补传上去（挂在 loadRemoteAssets 结尾）。
+ * ★ 补传失败只记 setAssetSyncIssue 不弹：本机那份还在，下次登录再试；这不是丢数据。
+ * ★ 串行不并发：登录路径上的后台清理，抢不过用户正在做的事。
+ */
+async function syncCardAssets(cards: branch.ApiCard[]): Promise<void> {
+  const remote: Record<string, CardAsset> = {};
+  for (const c of cards) {
+    if (c.portrait?.assetId) {
+      remote[c.cardId] = {
+        assetId: c.portrait.assetId,
+        scope: c.portrait.scope === "public" ? "public" : "private",
+        ...(c.portrait.note ? { note: c.portrait.note } : {}),
+      };
+    }
+  }
+  const localOnly = await adoptRemoteAssets(remote, cards.map((c) => c.cardId));
+  for (const id of Object.keys(remote)) setAssetSyncIssue(id, null);
+  for (const id of localOnly) {
+    const a = assetOf(id);
+    if (!a || !remoteOn()) continue;
+    try {
+      await branch.updateCardPortrait(id, { assetId: a.assetId, note: a.note });
+      setAssetSyncIssue(id, null);
+    } catch (e) {
+      emitApiError("updateCardPortrait", e);
+      setAssetSyncIssue(id, whyOf(e));
+    }
+  }
+}
+
 async function loadRemoteAssets(): Promise<void> {
   const u = currentUser();
   if (!u || !db) return;
@@ -2037,6 +2116,10 @@ async function loadRemoteAssets(): Promise<void> {
   ]);
   if (cards) cardsIssue = "";
   if (cards) db.cards = cards.map((c) => ({ ...toLocalCard(c), ownerId: u.id, createdAt: toMs(c.createdAt) }));
+  // ★★ 肖像授权绑定以服务端为准装回本机镜像（2026-09-05）：绑定属于账号，换机 / 重装 / 并排装
+  //   debug 包再登录都得回来。本机独有的（老版本 / 离线时绑的）补传上去。
+  //   不 await：补传是一串 PATCH，抢不过用户正在做的事；对齐本机那一步自己会 emit，界面跟着刷。
+  if (cards) void syncCardAssets(cards);
   if (decks) db.decks = decks.map((d) => ({
     id: d._id,
     ownerId: u.id,
