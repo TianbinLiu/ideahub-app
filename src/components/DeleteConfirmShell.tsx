@@ -35,7 +35,7 @@ export default function DeleteConfirmShell({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-6"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-6"
       onClick={busy ? undefined : onCancel}
     >
       <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>

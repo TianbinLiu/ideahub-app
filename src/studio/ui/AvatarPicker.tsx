@@ -22,9 +22,9 @@ export default function AvatarPicker() {
   const setAvatar = useStudio((s) => s.setPlayerAvatar);
   if (!open) return null;
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setOpen(false)}>
-      <div className="mx-6 w-full max-w-sm rounded-2xl bg-panel p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-1 text-center text-base font-semibold text-slate-100">选择你的形象</div>
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 p-6" onClick={() => setOpen(false)}>
+      <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-1 text-center text-sm font-bold text-slate-100">选择你的形象</div>
         <div className="mb-4 text-center text-xs text-slate-400">决定牌桌上属于你的那双手</div>
         <div className="grid grid-cols-2 gap-3">
           {OPTIONS.map((o) => (

@@ -87,7 +87,7 @@ export default function TarotCard({
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-[7%] pb-[4.5%] pt-[10%]">
         <div className="flex items-baseline justify-center gap-1 overflow-hidden whitespace-nowrap text-center">
           <span
-            className={`truncate font-bold text-amber-100 ${size === "md" ? "text-[13px]" : "text-[10px]"}`}
+            className={`truncate font-bold text-amber-100 ${size === "md" ? "text-sm" : "text-[10px]"}`}
             style={{ fontFamily: SERIF, letterSpacing: "0.14em", textShadow: "0 0 5px rgba(251,191,36,0.35)" }}
           >
             {title}

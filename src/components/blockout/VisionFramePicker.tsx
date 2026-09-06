@@ -130,7 +130,7 @@ export default function VisionFramePicker({
   );
 
   return (
-    <div className="space-y-2 rounded-lg border border-slate-700 bg-panel/60 px-3 py-2.5">
+    <div className="space-y-2 rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2.5">
       <p className="text-[11px] font-bold text-slate-200">AI 看哪几帧</p>
       <p className="text-[10px] leading-relaxed text-slate-500">
         白模化前，AI 先看几帧、列出<b className="text-slate-300">画面里有哪些人</b>，再按这份清单

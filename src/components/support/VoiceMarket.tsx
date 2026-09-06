@@ -13,6 +13,7 @@
  */
 import { useEffect, useState } from "react";
 import Icon from "../Icon";
+import EmptyState from "../EmptyState";
 import { ApiError } from "../../api/client";
 import {
   authorName,
@@ -208,7 +209,7 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
             onChange={(e) => setQ(e.target.value)}
             maxLength={80}
             placeholder="搜模板：名字、介绍…"
-            className="min-w-0 flex-1 bg-transparent text-[13px] text-slate-100 outline-none placeholder:text-slate-500"
+            className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
           />
           {q && (
             <button onClick={() => setQ("")} aria-label="清空" className="text-slate-500">
@@ -219,18 +220,18 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
         <button
           onClick={() => setMine((v) => !v)}
           aria-pressed={mine}
-          className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-semibold ${mine ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+          className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold ${mine ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
         >
           我的
         </button>
       </div>
 
-      {listErr && <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[12px] leading-relaxed text-rose-300">{listErr}</p>}
+      {listErr && <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-rose-300">{listErr}</p>}
 
       {loading ? (
-        <p className="py-6 text-center text-[12px] text-slate-500">读取中…</p>
+        <p className="py-6 text-center text-xs text-slate-500">读取中…</p>
       ) : items.length === 0 && !listErr ? (
-        <p className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-[13px] leading-6 text-slate-400">{emptyText}</p>
+        <EmptyState emoji="🎙️" text={emptyText} />
       ) : (
         <div className="space-y-2">
           {items.map((t) => {
@@ -239,14 +240,14 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
             const author = authorName(t.author);
             const confirming = confirmId === t._id;
             return (
-              <section key={t._id} className={`rounded-2xl border p-3 ${current ? "border-brand/60 bg-brand/5" : "border-slate-700 bg-panel"}`}>
+              <section key={t._id} className={`rounded-xl border p-3 ${current ? "border-brand/60 bg-brand/5" : "border-slate-700/70 bg-panel"}`}>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="truncate text-[14px] font-semibold text-slate-100">{t.name}</span>
-                  {current && <span className="rounded-full bg-brand px-1.5 py-px text-[10px] font-semibold text-ink">使用中</span>}
-                  {t.isOwner && <span className="rounded-full bg-slate-800 px-1.5 py-px text-[10px] text-slate-400">{t.shared ? "我的" : "我的 · 未公开"}</span>}
+                  <span className="truncate text-sm font-semibold text-slate-100">{t.name}</span>
+                  {current && <span className="rounded-full px-2 py-0.5 bg-brand text-[10px] font-semibold text-ink">使用中</span>}
+                  {t.isOwner && <span className="rounded-full px-2 py-0.5 bg-slate-800 text-[10px] text-slate-400">{t.shared ? "我的" : "我的 · 未公开"}</span>}
                 </div>
-                <div className="mt-0.5 text-[12px] leading-5 text-sky-200">{mixRecipeText(t.recipe, nameOf)}</div>
-                {t.description && <p className="mt-0.5 line-clamp-2 text-[12px] leading-5 text-slate-400">{t.description}</p>}
+                <div className="mt-0.5 text-xs leading-5 text-sky-200">{mixRecipeText(t.recipe, nameOf)}</div>
+                {t.description && <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-400">{t.description}</p>}
                 <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
                   <span className="min-w-0 truncate">
                     {author ? `@${author}` : "匿名"} · 语速 {t.rate === null ? "跟随" : rateLabel(t.rate)}
@@ -267,14 +268,14 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
                   <button
                     onClick={() => void preview(t)}
                     disabled={disabled || (!!busy && step !== "preview")}
-                    className="rounded-full border border-brand/60 px-3.5 py-1.5 text-[12px] font-semibold text-brand disabled:opacity-40"
+                    className="rounded-xl border border-brand/60 px-3.5 py-2.5 text-sm font-semibold text-brand disabled:opacity-40"
                   >
                     {step === "preview" ? "■ 停止" : "▶ 试听"}
                   </button>
                   <button
                     onClick={() => void apply(t)}
                     disabled={current || !!busy || disabled}
-                    className={`flex-1 rounded-full py-1.5 text-[12px] font-bold ${current ? "bg-slate-800 text-slate-500" : "bg-brand text-ink"} disabled:opacity-60`}
+                    className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${current ? "bg-slate-800 text-slate-500" : "bg-brand text-ink"} disabled:opacity-60`}
                   >
                     {step === "apply" ? "设置中…" : current ? "使用中" : "设为我的声音"}
                   </button>
@@ -282,7 +283,7 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
                     <button
                       onClick={() => void remove(t)}
                       disabled={!!busy || disabled}
-                      className={`rounded-full border px-3 py-1.5 text-[11px] disabled:opacity-40 ${
+                      className={`rounded-xl border px-3.5 py-2.5 text-sm disabled:opacity-40 ${
                         confirming ? "border-rose-400 bg-rose-500/20 text-rose-200" : "border-slate-600 text-slate-400"
                       }`}
                     >
@@ -309,7 +310,7 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
         <button
           onClick={() => void loadMore()}
           disabled={moreLoading}
-          className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-[12px] text-slate-300 disabled:opacity-50"
+          className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-xs text-slate-300 disabled:opacity-50"
         >
           {moreLoading ? "加载中…" : "加载更多"}
         </button>

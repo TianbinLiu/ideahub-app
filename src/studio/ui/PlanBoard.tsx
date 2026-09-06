@@ -221,9 +221,9 @@ export default function PlanBoard({
                         placeholder="这一段叫什么"
                         className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-100 outline-none placeholder:text-slate-600"
                       />
-                      <span className="flex-none rounded-full bg-gold/20 px-1.5 text-[10px] text-gold">✓ 已选定</span>
+                      <span className="flex-none rounded-full px-2 py-0.5 bg-gold/20 text-[10px] text-gold">✓ 已选定</span>
                       {done && (
-                        <span className="flex-none rounded-full bg-emerald-500/20 px-1.5 text-[10px] text-emerald-300">
+                        <span className="flex-none rounded-full px-2 py-0.5 bg-emerald-500/20 text-[10px] text-emerald-300">
                           已出片
                         </span>
                       )}
@@ -280,14 +280,14 @@ export default function PlanBoard({
                   <PreviewCard first={p.firstFrame} last={p.lastFrame} width={cardW} aspect={frameAspect} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-slate-100">
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-100">
                         {p.title || `方案 ${i + 1}`}
                       </span>
-                      <span className="flex-none rounded-full bg-slate-700/70 px-1.5 text-[10px] text-slate-300">
+                      <span className="flex-none rounded-full px-2 py-0.5 bg-slate-700/70 text-[10px] text-slate-300">
                         {p.durationSec}s
                       </span>
                       {done && (
-                        <span className="flex-none rounded-full bg-emerald-500/20 px-1.5 text-[10px] text-emerald-300">
+                        <span className="flex-none rounded-full px-2 py-0.5 bg-emerald-500/20 text-[10px] text-emerald-300">
                           已出片
                         </span>
                       )}

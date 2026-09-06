@@ -823,7 +823,7 @@ export default function CustomCardPage() {
           {schemePick &&
             createPortal(
               <div
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
                 onClick={() => setSchemePick(false)}
               >
                 <div className="grid w-full max-w-sm grid-cols-2 gap-3" onClick={(e) => e.stopPropagation()}>
@@ -970,7 +970,7 @@ export default function CustomCardPage() {
                       <span className="truncate text-[11px] font-semibold text-slate-200">{sc.title}</span>
                       {sc.id === schemeId && <span className="flex-none text-[10px] text-brand">当前</span>}
                       {sc.faceless && (
-                        <span className="flex-none rounded-full bg-emerald-500/15 px-1.5 py-px text-[9px] text-emerald-300">
+                        <span className="flex-none rounded-full px-1.5 py-0.5 bg-emerald-500/15 text-[9px] text-emerald-300">
                           无脸
                         </span>
                       )}
@@ -1109,7 +1109,7 @@ export default function CustomCardPage() {
               <span className="ml-auto flex-none text-slate-500">›</span>
             </button>
             {aiOpen && (
-            <div className="rounded-xl border border-slate-700 bg-panel p-3">
+            <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
               <div className="flex gap-2.5">
                 {(["body", "face"] as const).map((w) => {
                   const shot = w === "body" ? aiBody : aiFace;
@@ -1292,7 +1292,7 @@ export default function CustomCardPage() {
                     <span className="flex items-center gap-1.5">
                       <span className="truncate text-[11px] font-semibold text-slate-200">{sc.title}</span>
                       {sc.faceless && (
-                        <span className="flex-none rounded-full bg-emerald-500/15 px-1.5 py-px text-[9px] text-emerald-300">无脸</span>
+                        <span className="flex-none rounded-full px-1.5 py-0.5 bg-emerald-500/15 text-[9px] text-emerald-300">无脸</span>
                       )}
                     </span>
                     <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">{sc.intro}</span>
@@ -1335,7 +1335,7 @@ export default function CustomCardPage() {
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-xs font-semibold text-slate-200">{s.tag}</span>
                       {isCover && (
-                        <span className="rounded-full bg-brand/20 px-1.5 py-0.5 text-[9px] font-semibold text-brand">
+                        <span className="rounded-full px-1.5 py-0.5 bg-brand/20 text-[9px] font-semibold text-brand">
                           {shot ? "卡面" : "第一张 · 同时就是卡面"}
                         </span>
                       )}
@@ -1405,11 +1405,11 @@ export default function CustomCardPage() {
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-xs font-semibold text-slate-200">{s.label}</span>
                     {isPrimary ? (
-                      <span className="rounded-full bg-brand/20 px-1.5 py-0.5 text-[9px] font-semibold text-brand">
+                      <span className="rounded-full px-1.5 py-0.5 bg-brand/20 text-[9px] font-semibold text-brand">
                         必填 · 同时就是卡面
                       </span>
                     ) : (
-                      <span className="rounded-full bg-slate-700/60 px-1.5 py-0.5 text-[9px] text-slate-400">选填</span>
+                      <span className="rounded-full px-1.5 py-0.5 bg-slate-700/60 text-[9px] text-slate-400">选填</span>
                     )}
                   </div>
                   <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">锁住{s.locks}。</p>
@@ -1576,7 +1576,7 @@ export default function CustomCardPage() {
         {tags.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1">
             {tags.map((t) => (
-              <span key={t} className="rounded-full bg-slate-700/70 px-2 py-0.5 text-[10px] text-slate-300">
+              <span key={t} className="rounded-full px-2 py-0.5 bg-slate-700/70 text-[10px] text-slate-300">
                 #{t}
               </span>
             ))}

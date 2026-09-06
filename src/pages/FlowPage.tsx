@@ -525,8 +525,8 @@ function NodeScreen({
           <span className="flex-none text-[11px] text-slate-300">
             {total > 1 ? `第 ${index + 1}/${total} 段` : "本段"}
           </span>
-          {done && <span className="flex-none rounded-full bg-emerald-500/85 px-1.5 text-[10px] text-ink">✓ 已出片</span>}
-          {picking && <span className="flex-none rounded-full bg-gold/20 px-1.5 text-[10px] text-gold">待挑方案</span>}
+          {done && <span className="flex-none rounded-full px-2 py-0.5 bg-emerald-500/85 text-[10px] text-ink">✓ 已出片</span>}
+          {picking && <span className="flex-none rounded-full px-2 py-0.5 bg-gold/20 text-[10px] text-gold">待挑方案</span>}
           {generating && (
             <span className="min-w-0 flex-1 animate-pulse truncate rounded-full bg-brand px-1.5 text-[10px] font-semibold text-ink">
               {node.progress || "生成中…"}
@@ -774,7 +774,7 @@ function NodeScreen({
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setSheet(true)}
-            className="flex-none rounded-xl bg-panel px-2.5 py-2.5 text-[11px] text-slate-300"
+            className="flex-none rounded-full bg-panel px-3 py-2.5 text-[11px] text-slate-300"
           >
             {/* 时长显示的是**真正会发出去**的秒数（2.5 不收 3 秒，见 clampDuration）——
                 写 3 秒却出 4 秒的片，用户对不上账。

@@ -637,7 +637,7 @@ export default function CardDetailPage() {
       {card.tags && card.tags.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1">
           {card.tags.map((t) => (
-            <span key={t} className="rounded-full bg-slate-700/70 px-2 py-0.5 text-[10px] text-slate-300">
+            <span key={t} className="rounded-full px-2 py-0.5 bg-slate-700/70 text-[10px] text-slate-300">
               #{t}
             </span>
           ))}
@@ -785,7 +785,7 @@ export default function CardDetailPage() {
         </button>
       )}
       {editing && card && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-6" onClick={() => !editBusy && setEditing(false)}>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-6" onClick={() => !editBusy && setEditing(false)}>
           <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-bold text-slate-100">改这张卡的名字与简介</h3>
             <input

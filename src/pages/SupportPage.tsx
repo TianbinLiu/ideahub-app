@@ -29,6 +29,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import Icon from "../components/Icon";
+import EmptyState from "../components/EmptyState";
+import PageHeader from "../components/PageHeader";
 import { CloseButton } from "../components/IconTapButton";
 import SupportStage from "../components/support/SupportStage";
 import HoldToTalk from "../components/support/HoldToTalk";
@@ -128,7 +130,7 @@ function ttsBodyFor(config: SupportConfig | null, sentence: CompanionSentence): 
 function RailButton({ emoji, label, onClick }: { emoji: string; label: string; onClick: () => void }) {
   return (
     <button onClick={onClick} aria-label={label} className={`${GLASS} flex h-12 w-12 flex-col items-center justify-center rounded-2xl text-slate-100 active:bg-slate-800/70`}>
-      <span className="text-[16px] leading-none">{emoji}</span>
+      <span className="text-base leading-none">{emoji}</span>
       <span className="mt-1 text-[10px] leading-none">{label}</span>
     </button>
   );
@@ -491,8 +493,8 @@ export default function SupportPage() {
           </button>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="truncate text-[15px] font-semibold">{name}</span>
-              <span className="flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-slate-200">
+              <span className="truncate text-base font-bold text-slate-100">{name}</span>
+              <span className="flex items-center gap-1 rounded-full px-2 py-0.5 bg-white/10 text-[10px] text-slate-200">
                 <span className={`h-1.5 w-1.5 rounded-full ${phase === "idle" ? (enabled ? "bg-emerald-400" : "bg-slate-500") : "bg-brand animate-pulse"}`} />
                 {statusLabel}
               </span>
@@ -511,14 +513,14 @@ export default function SupportPage() {
             aria-pressed={voiceOn}
             aria-label={voiceOn ? "语音播报：开" : "语音播报：关"}
             title={voiceOn ? "语音播报：开" : "语音播报：关"}
-            className={`${GLASS} flex h-9 w-9 items-center justify-center rounded-full text-[15px] ${voiceOn ? "text-brand" : "text-slate-500"}`}
+            className={`${GLASS} flex h-9 w-9 items-center justify-center rounded-full text-base ${voiceOn ? "text-brand" : "text-slate-500"}`}
           >
             {voiceOn ? "🔊" : "🔇"}
           </button>
-          <button onClick={() => setHistoryOpen(true)} className={`${GLASS} rounded-full px-3 py-1.5 text-[12px] text-slate-100 active:bg-slate-800/70`}>
+          <button onClick={() => setHistoryOpen(true)} className={`${GLASS} rounded-full px-3 py-1.5 text-xs text-slate-100 active:bg-slate-800/70`}>
             记录{messages.length > 0 ? ` ${Math.ceil(messages.filter((m) => !m.system).length / 2)}` : ""}
           </button>
-          <button onClick={() => showTickets(true)} className={`${GLASS} rounded-full px-3 py-1.5 text-[12px] text-slate-100 active:bg-slate-800/70`}>
+          <button onClick={() => showTickets(true)} className={`${GLASS} rounded-full px-3 py-1.5 text-xs text-slate-100 active:bg-slate-800/70`}>
             工单
           </button>
         </div>
@@ -537,7 +539,7 @@ export default function SupportPage() {
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end bg-gradient-to-t from-ink via-ink/80 to-transparent px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-20 [&>*]:pointer-events-auto">
         {lastUser && (
           <div className="mb-2 flex justify-end">
-            <div className="max-w-[78%] truncate rounded-2xl rounded-br-sm bg-brand/90 px-3 py-1.5 text-[13px] text-ink">{lastUser.text}</div>
+            <div className="max-w-[78%] truncate rounded-2xl rounded-br-sm bg-brand/90 px-3 py-1.5 text-sm text-ink">{lastUser.text}</div>
           </div>
         )}
 
@@ -555,11 +557,11 @@ export default function SupportPage() {
             onClick={() => setHistoryOpen(true)}
             onKeyDown={(e) => e.key === "Enter" && setHistoryOpen(true)}
             aria-label="查看完整对话记录"
-            className={`max-h-[26vh] overflow-y-auto text-[14px] leading-6 ${lastAssistant?.system ? "text-emerald-100" : "text-slate-100"}`}
+            className={`max-h-[26vh] overflow-y-auto text-sm leading-6 ${lastAssistant?.system ? "text-emerald-100" : "text-slate-100"}`}
           >
             {reaction || lastAssistant?.text || (phase === "thinking" ? "…" : greeting)}
-            {configErr && !messages.length && <p className="mt-1 text-[12px] text-amber-300">{configErr}</p>}
-            {!enabled && !configErr && !messages.length && <p className="mt-1 text-[12px] text-amber-300">服务端还没开通 AI 对话，你可以直接转人工。</p>}
+            {configErr && !messages.length && <p className="mt-1 text-xs text-amber-300">{configErr}</p>}
+            {!enabled && !configErr && !messages.length && <p className="mt-1 text-xs text-amber-300">服务端还没开通 AI 对话，你可以直接转人工。</p>}
           </div>
           {canRate && lastAssistant && (
             <div className="mt-2 flex items-center gap-2 border-t border-white/10 pt-2 text-[11px] text-slate-400">
@@ -575,7 +577,7 @@ export default function SupportPage() {
                 onClick={() => rate(lastAssistant, "up")}
                 aria-label="有帮助"
                 aria-pressed={lastAssistant.rating === "up"}
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-[15px] ${lastAssistant.rating === "up" ? "bg-emerald-500/25" : "active:bg-white/10"}`}
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${lastAssistant.rating === "up" ? "bg-emerald-500/25" : "active:bg-white/10"}`}
               >
                 👍
               </button>
@@ -583,7 +585,7 @@ export default function SupportPage() {
                 onClick={() => rate(lastAssistant, "down")}
                 aria-label="没帮上"
                 aria-pressed={lastAssistant.rating === "down"}
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-[15px] ${lastAssistant.rating === "down" ? "bg-rose-500/25" : "active:bg-white/10"}`}
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${lastAssistant.rating === "down" ? "bg-rose-500/25" : "active:bg-white/10"}`}
               >
                 👎
               </button>
@@ -592,26 +594,26 @@ export default function SupportPage() {
         </div>
 
         {handoffHint && phase === "idle" && (
-          <div className="mb-2 rounded-xl border border-amber-400/40 bg-amber-500/15 p-3 text-[13px] leading-6 text-amber-50 backdrop-blur-md">
+          <div className="mb-2 rounded-xl border border-amber-400/40 bg-amber-500/15 p-3 text-xs leading-relaxed text-amber-50 backdrop-blur-md">
             这个问题需要人工处理（{CATEGORY_LABEL[handoffHint.category]}）。转人工会把这段对话一起交给客服，你不用再讲一遍。
             <div className="mt-2 flex gap-2">
-              <button onClick={openSheet} className="rounded-full bg-amber-400 px-3.5 py-1.5 text-[13px] font-semibold text-ink active:opacity-80">
+              <button onClick={openSheet} className="rounded-full bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-ink active:opacity-80">
                 转人工
               </button>
-              <button onClick={() => setHandoffHint(null)} className="rounded-full border border-white/20 px-3.5 py-1.5 text-[13px] text-slate-200 active:bg-slate-800/60">
+              <button onClick={() => setHandoffHint(null)} className="rounded-full border border-white/20 px-3.5 py-1.5 text-xs text-slate-200 active:bg-slate-800/60">
                 先不用
               </button>
             </div>
           </div>
         )}
-        {chatErr && <p className="mb-2 px-1 text-[12px] leading-5 text-rose-300">{chatErr}</p>}
-        {micErr && <p className="mb-2 px-1 text-[12px] leading-5 text-amber-300">{micErr}</p>}
-        {stageNotice && <p className="mb-2 px-1 text-[12px] leading-5 text-amber-300">{stageNotice}</p>}
+        {chatErr && <p className="mb-2 px-1 text-xs leading-5 text-rose-300">{chatErr}</p>}
+        {micErr && <p className="mb-2 px-1 text-xs leading-5 text-amber-300">{micErr}</p>}
+        {stageNotice && <p className="mb-2 px-1 text-xs leading-5 text-amber-300">{stageNotice}</p>}
 
         {messages.length === 0 && phase === "idle" && quick.length > 0 && (
           <div className="mb-2 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]">
             {quick.map((q) => (
-              <button key={q} onClick={() => void send(q)} className={`${GLASS} shrink-0 rounded-full px-3 py-1.5 text-[12px] text-slate-100 active:bg-slate-800/70`}>
+              <button key={q} onClick={() => void send(q)} className={`${GLASS} shrink-0 rounded-full px-3 py-1.5 text-xs text-slate-100 active:bg-slate-800/70`}>
                 {q}
               </button>
             ))}
@@ -642,7 +644,7 @@ export default function SupportPage() {
             enterKeyHint="send"
             placeholder={enabled ? (asrOn ? `按住说话，或问${name}：哪里不对？` : `问${name}：哪里不对？`) : "AI 对话未开通，可直接转人工"}
             disabled={!enabled}
-            className="h-10 min-w-0 flex-1 bg-transparent px-2 text-[14px] text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-60"
+            className="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-60"
           />
           {phase !== "idle" ? (
             <button type="button" onClick={stopAll} aria-label="停止" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500/25 text-rose-200">
@@ -675,12 +677,8 @@ export default function SupportPage() {
 
       {ticketsOpen && (
         <div className="absolute inset-0 z-20 flex flex-col bg-ink">
-          <div className="safe-top flex h-12 shrink-0 items-center gap-2 px-2">
-            <button onClick={() => showTickets(false)} aria-label="返回" className="flex h-11 w-11 items-center justify-center text-slate-300">
-              <Icon name="back" size={20} />
-            </button>
-            <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold">我的工单</h1>
-          </div>
+          {/* 页顶栏只有一份实现（CLAUDE.md）：这一层是整页视图，不是覆盖层 */}
+          <PageHeader title="我的工单" onBack={() => showTickets(false)} />
           <TicketsPanel tickets={tickets} err={ticketsErr} highlight={highlightTicket} onChanged={setTickets} />
         </div>
       )}
@@ -689,7 +687,7 @@ export default function SupportPage() {
         <div className="fixed inset-0 z-30 flex items-end bg-black/60" onClick={() => !submitting && setSheetOpen(false)}>
           <div className="w-full rounded-t-2xl border-t border-slate-700 bg-ink px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-4" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-sm font-bold text-slate-100">转人工客服</h2>
-            <p className="mt-1 text-[12px] leading-5 text-slate-400">
+            <p className="mt-1 text-xs leading-5 text-slate-400">
               会把{transcript.length ? `最近 ${transcript.length} 条对话` : "你的描述"}一起交给人工客服，回复会出现在「通知」和「我的工单」里。
             </p>
             <textarea
@@ -698,7 +696,7 @@ export default function SupportPage() {
               maxLength={500}
               rows={3}
               placeholder="还想补充什么？任务号、大概时间、屏幕上的提示…"
-              className="mt-3 w-full resize-none rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-[14px] text-slate-100 outline-none placeholder:text-slate-500"
+              className="mt-3 w-full resize-none rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500"
             />
             <input
               value={contactEmail}
@@ -707,14 +705,14 @@ export default function SupportPage() {
               inputMode="email"
               maxLength={120}
               placeholder="联系邮箱（选填，用手机号/QQ 登录的建议留一个）"
-              className="mt-2 h-10 w-full rounded-full border border-slate-700 bg-slate-950 px-4 text-[13px] text-slate-100 outline-none placeholder:text-slate-500"
+              className="mt-2 h-10 w-full rounded-full border border-slate-700 bg-slate-950 px-4 text-xs text-slate-100 outline-none placeholder:text-slate-500"
             />
-            {sheetErr && <p className="mt-2 text-[12px] leading-5 text-rose-300">{sheetErr}</p>}
+            {sheetErr && <p className="mt-2 text-xs leading-5 text-rose-300">{sheetErr}</p>}
             <div className="mt-3 flex gap-2">
-              <button onClick={() => void submitTicket()} disabled={submitting} className="flex-1 rounded-xl bg-brand py-2.5 text-[14px] font-semibold text-ink disabled:opacity-60">
+              <button onClick={() => void submitTicket()} disabled={submitting} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-semibold text-ink disabled:opacity-60">
                 {submitting ? "提交中…" : "提交给人工客服"}
               </button>
-              <button onClick={() => setSheetOpen(false)} disabled={submitting} className="rounded-xl border border-slate-600 px-4 py-2.5 text-[14px] text-slate-300">
+              <button onClick={() => setSheetOpen(false)} disabled={submitting} className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300">
                 取消
               </button>
             </div>
@@ -742,11 +740,11 @@ function HistorySheet({ name, messages, onClose }: { name: string; messages: Cha
           <CloseButton chip="sm" size={13} align="end" className="ml-auto" onClick={onClose} />
         </div>
         <div ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-[max(env(safe-area-inset-bottom),16px)]">
-          {messages.length === 0 && <p className="py-6 text-center text-[12px] text-slate-500">还没有对话。</p>}
+          {messages.length === 0 && <p className="py-6 text-center text-xs text-slate-500">还没有对话。</p>}
           {messages.map((m) => (
             <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-[14px] leading-6 ${
+                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-6 ${
                   m.role === "user"
                     ? "rounded-br-sm bg-brand text-ink"
                     : m.system
@@ -798,25 +796,25 @@ function TicketsPanel({
     }
   }
 
-  if (err) return <p className="m-3 rounded-xl border border-rose-500/40 bg-rose-500/5 p-3 text-[12px] leading-relaxed text-rose-300">{err}</p>;
-  if (!tickets) return <p className="m-3 text-[12px] text-slate-500">读取中…</p>;
-  if (!tickets.length) return <p className="m-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-[13px] leading-6 text-slate-400">还没有工单。和 AI 客服聊不明白的问题，点「转人工」就会出现在这里。</p>;
+  if (err) return <p className="m-3 rounded-xl border border-rose-500/40 bg-rose-500/5 p-3 text-xs leading-relaxed text-rose-300">{err}</p>;
+  if (!tickets) return <p className="m-3 text-xs text-slate-500">读取中…</p>;
+  if (!tickets.length) return <EmptyState emoji="🎫" text="还没有工单" hint="和 AI 客服聊不明白的问题，点「转人工」就会出现在这里" />;
 
   return (
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-2 pb-[max(env(safe-area-inset-bottom),16px)]">
       {tickets.map((t) => (
-        <section key={t.id} className={`rounded-2xl border p-3 ${t.id === highlight ? "border-brand/60 bg-brand/5" : "border-slate-800 bg-slate-900/60"}`}>
+        <section key={t.id} className={`rounded-xl border p-3 ${t.id === highlight ? "border-brand/60 bg-brand/5" : "border-slate-700/70 bg-panel"}`}>
           <div className="flex items-center gap-2 text-[11px] text-slate-400">
             <span className="rounded-full bg-slate-800 px-2 py-0.5 text-slate-200">{TICKET_STATUS_LABEL[t.status]}</span>
             <span>{CATEGORY_LABEL[t.category]}</span>
             <span className="ml-auto">#{t.id.slice(-6).toUpperCase()} · {relativeTime(Date.parse(t.createdAt))}</span>
           </div>
-          <h3 className="mt-1.5 text-[14px] font-semibold text-slate-100">{t.subject || "客服工单"}</h3>
-          {t.summary && <p className="mt-1 text-[12px] leading-5 text-slate-400">{t.summary}</p>}
+          <h3 className="mt-1.5 text-sm font-semibold text-slate-100">{t.subject || "客服工单"}</h3>
+          {t.summary && <p className="mt-1 text-xs leading-5 text-slate-400">{t.summary}</p>}
           {t.replies.length > 0 && (
             <div className="mt-2 space-y-1.5">
               {t.replies.map((r) => (
-                <div key={r.id} className={`rounded-xl px-3 py-2 text-[13px] leading-5 ${r.by === "admin" ? "bg-emerald-500/10 text-emerald-100" : "bg-slate-800 text-slate-200"}`}>
+                <div key={r.id} className={`rounded-xl px-3 py-2 text-sm leading-5 ${r.by === "admin" ? "bg-emerald-500/10 text-emerald-100" : "bg-slate-800 text-slate-200"}`}>
                   <span className="mr-1.5 text-[11px] text-slate-400">{r.by === "admin" ? "客服" : "我"} · {relativeTime(Date.parse(r.at))}</span>
                   {r.content}
                 </div>
@@ -829,17 +827,17 @@ function TicketsPanel({
               onChange={(e) => setDrafts((p) => ({ ...p, [t.id]: e.target.value }))}
               maxLength={2000}
               placeholder={t.status === "resolved" || t.status === "closed" ? "问题又出现了？补一句会重新打开" : "补充给客服…"}
-              className="h-9 min-w-0 flex-1 rounded-full border border-slate-700 bg-slate-950 px-3 text-[13px] text-slate-100 outline-none placeholder:text-slate-500"
+              className="h-9 min-w-0 flex-1 rounded-full border border-slate-700 bg-slate-950 px-3 text-xs text-slate-100 outline-none placeholder:text-slate-500"
             />
             <button
               onClick={() => void sendMore(t)}
               disabled={!(drafts[t.id] || "").trim() || busy === t.id}
-              className="rounded-full bg-slate-700 px-3 py-1.5 text-[12px] text-slate-100 disabled:opacity-40"
+              className="rounded-full bg-slate-700 px-3 py-1.5 text-xs text-slate-100 disabled:opacity-40"
             >
               {busy === t.id ? "…" : "发送"}
             </button>
           </div>
-          {rowErr[t.id] && <p className="mt-1 text-[12px] text-rose-300">{rowErr[t.id]}</p>}
+          {rowErr[t.id] && <p className="mt-1 text-xs text-rose-300">{rowErr[t.id]}</p>}
         </section>
       ))}
     </div>

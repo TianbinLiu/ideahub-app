@@ -666,7 +666,7 @@ function FeedItem({
           {/* 登录态还没结论时的回执。挂在栏内而不是屏幕中央：用户的视线就在这几个键上，
               而且首页任何居中浮层都会盖住画面。max-w 收窄避免把视频压掉半屏。 */}
           {authTip && (
-            <span className="mb-1 max-w-[7.5rem] rounded-full bg-black/75 px-2.5 py-1 text-center text-[11px] leading-tight text-white">
+            <span className="mb-1 max-w-[7.5rem] rounded-full px-2.5 py-1 bg-black/75 text-center text-[11px] leading-tight text-white">
               {authTip}
             </span>
           )}
@@ -1038,7 +1038,7 @@ export default function FeedPage() {
           <button
             key={f}
             onClick={() => setFeed(f)}
-            className={`relative min-h-[36px] px-1 text-[15px] transition ${
+            className={`relative min-h-[36px] px-1 text-base transition ${
               feed === f ? "font-semibold text-white" : "text-white/65"
             } [text-shadow:0_1px_3px_rgba(0,0,0,.6)]`}
           >

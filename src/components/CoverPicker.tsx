@@ -72,9 +72,9 @@ export async function fileToCoverDataUrl(file: File, aspect?: VideoAspect): Prom
 /** 弹窗骨架（发布页是普通 2D 页，不用工坊的全息投影样式） */
 function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-2xl border border-slate-700 bg-panel p-4 shadow-2xl"
+        className="w-full max-w-md rounded-2xl border border-slate-700 bg-ink p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">

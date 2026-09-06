@@ -209,7 +209,7 @@ export default function DanmakuInput({
       <div className="flex-1" onClick={onClose} />
 
       <div
-        className="border-t border-slate-700/60 bg-panel/95 backdrop-blur"
+        className="border-t border-slate-700/70 bg-panel/95 backdrop-blur"
         style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
       >
         {/* 「我发过的」：删自己弹幕的**唯一**入口。
@@ -296,7 +296,7 @@ export default function DanmakuInput({
           <button
             onClick={() => setStyleOpen((v) => !v)}
             aria-label="弹幕样式"
-            className="relative flex-none text-[19px] font-bold leading-none text-slate-300 transition active:scale-90"
+            className="relative flex-none text-xl font-bold leading-none text-slate-300 transition active:scale-90"
           >
             <span className="underline decoration-2 underline-offset-4">A</span>
             {/* 当前颜色就点在这儿：不然展开样式行之前，用户看不出自己选的是什么色 */}

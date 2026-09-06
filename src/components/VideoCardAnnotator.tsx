@@ -877,7 +877,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                             {/* ★ 「无脸」是**产出形态**的标注，不是"绕过成功率"——市场不做那种标注，
                                 理由见 docs/card-prompt-scheme-market-design.md §B2 */}
                             {sc.faceless && (
-                              <span className="flex-none rounded-full bg-emerald-500/15 px-1.5 py-px text-[9px] text-emerald-300">
+                              <span className="flex-none rounded-full px-1.5 py-0.5 bg-emerald-500/15 text-[9px] text-emerald-300">
                                 无脸
                               </span>
                             )}

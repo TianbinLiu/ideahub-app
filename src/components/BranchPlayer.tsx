@@ -205,7 +205,7 @@ export default function BranchPlayer({ tree, cover }: { tree: BranchTree; cover:
           <div className="absolute left-3 top-3 flex items-center gap-2">
             <span className="rounded-full bg-black/55 px-2.5 py-1 text-xs text-slate-200">{seg.title}</span>
             {forkCount > 0 && (
-              <span className="rounded-full bg-brand/80 px-2 py-1 text-[10px] text-white">已过 {forkCount} 个分支点</span>
+              <span className="rounded-full px-2 py-0.5 bg-brand/80 text-[10px] text-white">已过 {forkCount} 个分支点</span>
             )}
           </div>
 

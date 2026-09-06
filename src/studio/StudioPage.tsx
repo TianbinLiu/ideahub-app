@@ -164,7 +164,7 @@ function AutoQualityHint({ q }: { q: Quality }) {
   if (gone) return null;
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-24 z-30 flex justify-center px-6">
-      <div className="rounded-full bg-black/70 px-3.5 py-1.5 text-center text-[11px] text-slate-300 backdrop-blur">
+      <div className="rounded-full px-2.5 py-1 bg-black/70 text-center text-[11px] text-slate-300 backdrop-blur">
         已自动选「{QUALITY_LABELS[q].name}」画质 · 设置里可改
       </div>
     </div>
@@ -367,7 +367,7 @@ export default function StudioPage() {
           <MarketArrow dir={-1} disabled={marketPage === 0} side="left" />
           <MarketArrow dir={1} disabled={(marketPage + 1) * MARKET.perPage >= marketLen} side="right" />
           <div className="pointer-events-none absolute inset-x-0 bottom-28 flex justify-center">
-            <span className="rounded-full bg-black/45 px-2.5 py-0.5 text-[11px] text-slate-300 backdrop-blur">
+            <span className="rounded-full px-2.5 py-1 bg-black/45 text-[11px] text-slate-300 backdrop-blur">
               {marketPage + 1} / {Math.ceil(marketLen / MARKET.perPage)}
             </span>
           </div>

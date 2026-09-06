@@ -19,7 +19,7 @@ export default function InfoDialog({
   onClose: () => void;
 }) {
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6" onClick={onClose}>
       <div
         className="max-h-[76vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-slate-700 bg-ink p-4"
         onClick={(e) => e.stopPropagation()}

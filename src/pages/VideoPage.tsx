@@ -394,7 +394,7 @@ export default function VideoPage() {
               <button
                 key={i}
                 onClick={() => setPi(i)}
-                className={`flex-none rounded-lg px-3 py-1.5 text-xs ${
+                className={`flex-none rounded-full px-3.5 py-1.5 text-xs ${
                   i === Math.min(pi, parts.length - 1)
                     ? "bg-brand font-semibold text-ink"
                     : "bg-panel text-slate-300 hover:bg-slate-700"
@@ -518,7 +518,7 @@ export default function VideoPage() {
             <button
               key={t}
               onClick={() => navigate("/discover", { state: { q: t } })}
-              className="rounded-full bg-brand/15 px-2.5 py-1 text-[12px] text-brand hover:bg-brand/25"
+              className="rounded-full bg-brand/15 px-2.5 py-1 text-xs text-brand hover:bg-brand/25"
             >
               #{t}
             </button>

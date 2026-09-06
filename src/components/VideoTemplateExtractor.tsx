@@ -706,7 +706,7 @@ export default function VideoTemplateExtractor({
    */
   const ownRefPricing =
     route === "ownRef" && receipt ? (
-      <div className="rounded-lg border border-slate-700 bg-panel/60 px-3 py-2">
+      <div className="rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2">
         {segLong && splitPlan ? (
           <>
             <p className="text-[11px] leading-relaxed text-slate-400">
@@ -1255,7 +1255,7 @@ export default function VideoTemplateExtractor({
                       {route === o.v ? "●" : "○"}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] font-semibold text-slate-100">{o.t}</span>
+                      <span className="block text-sm font-semibold text-slate-100">{o.t}</span>
                       <span className="block text-[11px] text-slate-400">{o.short}</span>
                     </span>
                     <span className="flex-none text-slate-500">›</span>
@@ -1291,7 +1291,7 @@ export default function VideoTemplateExtractor({
                     人已经站在下一步里了）。 */}
                 {!receipt && (
                   <div className="mb-3 rounded-xl border border-slate-700 bg-black/25 px-3 py-2">
-                    <div className="text-[13px] font-semibold text-slate-100">{routeNow.t}</div>
+                    <div className="text-sm font-semibold text-slate-100">{routeNow.t}</div>
                     <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{routeNow.long}</p>
                   </div>
                 )}
@@ -1349,7 +1349,7 @@ export default function VideoTemplateExtractor({
               // ★ Trimmer 在这一步是**卸掉**的（不是 hidden）：两个 <video> 同时解码同一份
               //   objectURL 在手机上是白花的；选段由 trimSel 冻住，回上一步靠 initial 恢复。
               <div className="space-y-3">
-                <div className="flex items-start gap-2 rounded-lg border border-slate-700 bg-panel/60 px-3 py-2">
+                <div className="flex items-start gap-2 rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2">
                   <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-300">
                     <b className="text-slate-100">第 1 步已框出：</b>
                     {selectionSummary(

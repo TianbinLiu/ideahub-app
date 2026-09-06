@@ -193,7 +193,7 @@ export default function PortraitAuthPanel({
           </p>
           <button
             onClick={() => void openHere(invite.url)}
-            className="mb-2 w-full rounded-xl bg-brand py-2.5 text-[12px] font-bold text-ink"
+            className="mb-2 w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink"
           >
             📱 就是我本人 · 在这台手机上完成授权
           </button>

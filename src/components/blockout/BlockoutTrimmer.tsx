@@ -440,7 +440,7 @@ export default function BlockoutTrimmer({
       {/* 报价。★ pricing 给了就整块换成宿主那份（连下面 F11 一起，见 props 的 ★★）——
           默认这块报的是白模化那两笔，别条路挂着它就是「页面报 A 路的价、实收 B 路的钱」 */}
       {pricing ?? (
-      <div className="rounded-lg border border-slate-700 bg-panel/60 px-3 py-2">
+      <div className="rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2">
         {priceIssue ? (
           <p className="text-[11px] leading-relaxed text-amber-200">⚠ {priceIssue}</p>
         ) : (

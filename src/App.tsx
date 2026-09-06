@@ -135,7 +135,7 @@ function TermsGate() {
   return (
     <>
       {createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
           <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4">
             <h3 className="text-sm font-bold text-slate-100">用户协议与隐私政策</h3>
             <div className="mt-2 text-xs leading-relaxed text-slate-400">

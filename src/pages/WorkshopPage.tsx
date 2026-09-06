@@ -231,7 +231,7 @@ export default function WorkshopPage() {
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`rounded-full px-3.5 py-1.5 text-sm ${
+            className={`rounded-full px-3.5 py-1.5 text-xs ${
               tab === t ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
             }`}
           >
@@ -308,7 +308,7 @@ export default function WorkshopPage() {
               >
                 <span className="text-xl">{icon}</span>
                 <span className="min-w-0">
-                  <span className="block truncate text-[13px] font-semibold text-slate-100">{title}</span>
+                  <span className="block truncate text-sm font-semibold text-slate-100">{title}</span>
                   <span className="block truncate text-[10px] text-slate-400">{sub}</span>
                 </span>
               </button>
@@ -349,7 +349,7 @@ export default function WorkshopPage() {
               ))}
             </div>
           </div>
-          <div className="mb-3 flex items-center gap-2 rounded-full border border-slate-700 bg-panel px-4 py-2">
+          <div className="mb-3 flex items-center gap-2 rounded-full border border-slate-700/70 bg-panel px-4 py-2">
             <Icon name="search" size={17} className="text-slate-500" />
             <input
               value={q}
@@ -459,7 +459,7 @@ export default function WorkshopPage() {
           ) : (
             <div className="space-y-2.5 pb-4">
               {shared.map((d) => (
-                <div key={d._id} className="flex items-center gap-3 rounded-xl border border-slate-700/60 bg-panel p-2.5">
+                <div key={d._id} className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-panel p-2.5">
                   {/* 前四张卡面拼一个缩略 */}
                   <div className="grid h-14 w-14 shrink-0 grid-cols-2 gap-0.5 overflow-hidden rounded-lg bg-slate-800">
                     {(d.covers.length ? d.covers : [""]).slice(0, 4).map((cv, i) =>
@@ -519,7 +519,7 @@ export default function WorkshopPage() {
               const open = editing === d.id;
               const cover = deckCoverOf(d);
               return (
-                <div key={d.id} className="rounded-xl border border-slate-700/60 bg-panel p-3">
+                <div key={d.id} className="rounded-xl border border-slate-700/70 bg-panel p-3">
                   <div className="flex items-center gap-2">
                     {/* 封面卡缩略：点它进卡组详情页（标题/简介/卡片全览） */}
                     <Link to={`/deck/${d.id}`} className="flex-none">

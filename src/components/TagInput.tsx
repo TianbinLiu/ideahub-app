@@ -42,7 +42,7 @@ export default function TagInput({
         {tags.map((t) => (
           <span
             key={t}
-            className="inline-flex items-center gap-1 rounded-full bg-brand/15 px-2.5 py-1 text-[12px] text-brand"
+            className="inline-flex items-center gap-1 rounded-full bg-brand/15 px-2.5 py-1 text-xs text-brand"
           >
             #{t}
             <button

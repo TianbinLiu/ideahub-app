@@ -187,16 +187,16 @@ export default function NotificationsPage() {
                       // ★ 正文**不截断**（互动通知那行是预览，这行是内容本身）：
                       //   平台通知多半在解释一次处置，被截掉一半比没收到更糟。
                       n.commentText ? (
-                        <div className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-slate-300">
+                        <div className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-300">
                           {n.commentText}
                         </div>
                       ) : (
                         // 服务端没把正文放进 payload.commentText —— 契约问题，说出来（铁律八）
-                        <div className="mt-0.5 text-[13px] text-rose-300">（通知内容缺失）</div>
+                        <div className="mt-0.5 text-xs text-rose-300">（通知内容缺失）</div>
                       )
                     ) : (
                       n.commentText && (
-                        <div className="mt-0.5 truncate text-[13px] text-slate-300">「{n.commentText}」</div>
+                        <div className="mt-0.5 truncate text-xs text-slate-300">「{n.commentText}」</div>
                       )
                     )}
                     {n.videoTitle && (

@@ -576,7 +576,7 @@ export default function RoleCastBoard({
             选卡浮层之后这条轨是**唯一**的选卡入口，卡一多，右边那些就再也够不到了。
             两种毛病桌面鼠标下都看不出来（滚轮/拖拽都不受 touch-action 管），所以最容易漏过。 */}
       {castable.length > 0 && (
-        <div className="space-y-1 rounded-lg border border-slate-700 bg-panel/50 px-2 py-2">
+        <div className="space-y-1 rounded-lg border border-slate-700/70 bg-panel/50 px-2 py-2">
           <p className="flex items-center gap-2 px-1 text-[10px] text-slate-500">
             <span className="min-w-0 flex-1">
               {cards.length === 0
@@ -732,7 +732,7 @@ export default function RoleCastBoard({
             唯一的挂卡入口。也正因如此，`!dragOn` 时格子上要补出原始标记（见下面的 MarkBadge）。 */}
 
       {castable.length > 0 && (
-        <div data-guide="cast-slot-strip" className="rounded-lg border border-slate-700 bg-panel/50 px-2 py-2">
+        <div data-guide="cast-slot-strip" className="rounded-lg border border-slate-700/70 bg-panel/50 px-2 py-2">
           <div ref={stripRef} className="no-scrollbar flex gap-1.5 overflow-x-auto pb-1" style={{ touchAction: "pan-x" }}>
             {castable.map((r, i) => {
               const card = value[r.label] ? byId.get(value[r.label]) : undefined;
@@ -826,7 +826,7 @@ export default function RoleCastBoard({
             以及"换错人不会报错"这句 —— 少了最后一句，这一问就退化成走过场。 */}
       {ask && (
         <div className="space-y-2 rounded-xl border border-gold/60 bg-gold/10 px-3 py-2.5">
-          <p className="text-[12px] leading-relaxed text-slate-100">
+          <p className="text-xs leading-relaxed text-slate-100">
             把「<b className="font-bold">{ask.card.name}</b>」挂到{" "}
             <b className="font-bold">{personNameOf(dropSlots[ask.slot])}</b> 身上？
           </p>
@@ -963,7 +963,7 @@ export default function RoleCastBoard({
           ★ 不摆一个点不动的按钮（本仓的老坑：界面上摆永远点不动的东西，用户只会觉得功能坏了），
             所以这里只有标记 + 描述 + 一句原因。 */}
       {overflowRoles.length > 0 && (
-        <div className="space-y-1.5 rounded-lg border border-slate-700 bg-panel/60 px-3 py-2">
+        <div className="space-y-1.5 rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2">
           <p className="text-[11px] leading-relaxed text-slate-300">
             这个模板认出了 {roles.length} 个人物，超过了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限。
             下面这 {overflowRoles.length} 个<b className="text-slate-200">会保持人偶原样、挂不了卡</b>

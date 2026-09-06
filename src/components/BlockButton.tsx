@@ -97,7 +97,7 @@ export default function BlockButton({
               <AuthPending />
             ) : auth === "out" ? (
               <>
-                <p className="text-[12px] leading-relaxed text-slate-300">登录之后才能拉黑。</p>
+                <p className="text-xs leading-relaxed text-slate-300">登录之后才能拉黑。</p>
                 <button
                   onClick={() => navigate("/login")}
                   className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
@@ -106,7 +106,7 @@ export default function BlockButton({
                 </button>
               </>
             ) : done ? (
-              <p className="py-2 text-center text-[12px] leading-relaxed text-emerald-300">
+              <p className="py-2 text-center text-xs leading-relaxed text-emerald-300">
                 已拉黑「{who}」——你们不会再看见彼此的内容。
               </p>
             ) : (

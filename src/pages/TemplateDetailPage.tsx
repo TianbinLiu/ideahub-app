@@ -174,7 +174,7 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
       return (
         <button
           onClick={() => void run(() => setTemplatePublished(t.id, !t.published))}
-          className={`rounded-full px-3.5 py-1.5 text-xs font-bold ${t.published ? "bg-slate-700 text-slate-200" : "bg-brand text-ink"}`}
+          className={`rounded-full px-3.5 py-1.5 text-xs font-semibold ${t.published ? "bg-slate-700 text-slate-200" : "bg-brand text-ink"}`}
         >
           {t.published ? "取消发布" : "发布到模板市场"}
         </button>
@@ -522,7 +522,7 @@ export default function TemplateDetailPage() {
           <>
             <HelpButton tour="tpldetail" />
             {!t.published && isMine && (
-              <span className="flex-none rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] text-amber-400">未发布</span>
+              <span className="flex-none rounded-full px-2 py-0.5 bg-amber-500/15 text-[10px] text-amber-400">未发布</span>
             )}
           </>
         }
