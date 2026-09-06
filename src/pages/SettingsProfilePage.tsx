@@ -117,7 +117,7 @@ export default function SettingsProfilePage() {
         />
         {/* ★ 失败那句话摆在**按钮这一侧**：用户按的是这颗键，报在别处等于没报（铁律八） */}
         {profileErr && (
-          <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">
+          <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">
             {profileErr}
           </p>
         )}

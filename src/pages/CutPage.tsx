@@ -980,7 +980,7 @@ export default function CutPage() {
         </div>
         {/* 取流/播放失败一律说在预览正下方（用户正盯着的那块），并给一条真能走的路 */}
         {activeSeg?.videoUrl && (playErr || srcErr[active!.segIndex]) && (
-          <div className="mx-3 mb-1 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-200">
+          <div className="mx-3 mb-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-200">
             {playErr && <p>{playErr}</p>}
             {srcErr[active!.segIndex] && (
               <p>
@@ -1109,7 +1109,7 @@ export default function CutPage() {
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
           {err && (
-            <div className="mb-2.5 flex items-start gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+            <div className="mb-2.5 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
               <span className="min-w-0 flex-1">{err}</span>
               <button onClick={() => setErr("")} className="flex-none">
                 <Icon name="close" size={14} />

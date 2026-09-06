@@ -912,7 +912,7 @@ export default function CustomCardPage() {
           </label>
           <div className="mt-3 rounded-xl border border-slate-700/70 bg-panel p-2.5">
             {pendingAsset ? (
-              <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
                 <span className="min-w-0">
                   <span className="block text-[10px] text-emerald-200">已接上授权素材，铸卡时一并绑定</span>
                   <span className="block truncate font-mono text-[9px] text-emerald-300/80">{pendingAsset.assetId}</span>
@@ -939,7 +939,7 @@ export default function CustomCardPage() {
           {/* ★ 撤授权那句话**两屏都要画**：撤绑定的两个入口一个留在本屏、一个当场跳到
               「① 选来源」，只画一屏就等于有一条路上永远看不到（见 unbindNote 的 ★★）。 */}
           {unbindNote && (
-            <p className="mt-2 rounded-lg bg-amber-500/10 px-2 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+            <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
               {unbindNote}
             </p>
           )}
@@ -962,7 +962,7 @@ export default function CustomCardPage() {
                   <button
                     key={sc.id}
                     onClick={() => changeScheme(sc.id)}
-                    className={`w-full rounded-md px-2 py-1.5 text-left ${
+                    className={`w-full rounded-lg px-2 py-1.5 text-left ${
                       sc.id === schemeId ? "bg-brand/15 ring-1 ring-brand/40" : "hover:bg-white/5"
                     }`}
                   >
@@ -980,7 +980,7 @@ export default function CustomCardPage() {
                 ))}
               </div>
               {scheme.faceless && (
-                <p className="mt-1.5 rounded-lg bg-amber-500/10 px-2 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                <p className="mt-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
                   {/* ⚠ 这是**给用户看的文案**，不是注释：JSX 里的 ** 和反引号会原样显示出来 */}
                   无脸方案画出来的图里没有脸，但出片时
                   <span className="font-semibold text-amber-100">仍然要靠这份授权素材</span>
@@ -992,7 +992,7 @@ export default function CustomCardPage() {
           )}
           <div className="mt-3 space-y-2">
             {pendingVoice ? (
-              <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
                 <span className="min-w-0 flex-1">
                   <span className="block text-[10px] text-emerald-200">
                     🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）
@@ -1035,7 +1035,7 @@ export default function CustomCardPage() {
           {/* ★ 撤授权那句话**两屏都要画**：撤绑定的两个入口一个留在本屏、一个当场跳到
               「① 选来源」，只画一屏就等于有一条路上永远看不到（见 unbindNote 的 ★★）。 */}
           {unbindNote && (
-            <p className="mt-2 rounded-lg bg-amber-500/10 px-2 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+            <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
               {unbindNote}
             </p>
           )}
@@ -1043,7 +1043,7 @@ export default function CustomCardPage() {
               选项就是在问一个用户刚刚做完的问题。`authSlotTag` 为空 = 这套方案的图位
               （白模/设定稿）放不下真人照片，那就换一种说法，别许一个做不到的事。 */}
           {haveAuthShot && authShot && (
-            <div className="mb-3 flex items-start gap-2.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-2.5">
+            <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2.5">
               <img src={authShot.dataUrl} alt="" className="h-16 w-12 flex-none rounded-lg object-cover" />
               <p className="min-w-0 text-[10px] leading-relaxed text-emerald-200">
                 {/* ★★ 三档，别压成两档（2026-09-01 复核抓到）：`authSlotTag` 为空**至少有三种
@@ -1285,7 +1285,7 @@ export default function CustomCardPage() {
                   <button
                     key={sc.id}
                     onClick={() => changeScheme(sc.id)}
-                    className={`w-full rounded-md px-2 py-1.5 text-left ${
+                    className={`w-full rounded-lg px-2 py-1.5 text-left ${
                       sc.id === schemeId ? "bg-brand/15 ring-1 ring-brand/40" : "hover:bg-white/5"
                     }`}
                   >
@@ -1487,9 +1487,9 @@ export default function CustomCardPage() {
           "自己传图做卡片没有可选的人物声音上传或录入"。真人路的那份在第 1 步（连着授权），这里不重复摆 */}
       {isChar && step === "final" && !realPerson && (
         <section className="mb-4">
-          <h2 className="mb-1.5 text-xs font-semibold text-slate-300">声音样本（选填）</h2>
+          <h2 className="mb-1.5 text-sm font-semibold text-slate-300">声音样本（选填）</h2>
           {pendingVoice ? (
-            <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
               <span className="min-w-0 flex-1">
                 <span className="block text-[10px] text-emerald-200">
                   🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）
@@ -1591,7 +1591,7 @@ export default function CustomCardPage() {
       {(!isChar || step === "final") && (
         <>
       {partial?.kind === "unsynced" && (
-        <div className="mb-3 rounded-xl border border-rose-500/50 bg-rose-500/10 p-3">
+        <div className="mb-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
           <p className="text-xs font-semibold text-rose-200">这张卡没能存到服务器</p>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
             原因：{partial.reason ?? "网络异常"}。
@@ -1613,7 +1613,7 @@ export default function CustomCardPage() {
         </div>
       )}
       {partial?.kind === "asset" && (
-        <div className="mt-4 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3">
+        <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
           <p className="text-[11px] leading-relaxed text-amber-200">
             卡铸好了，但<span className="font-semibold">肖像授权的绑定没能存在这台设备上</span>
             （{partial.reason}）。这张卡挂着真人声明，没有绑定的话出片那一刻会被整发拒——

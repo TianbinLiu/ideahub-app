@@ -186,12 +186,12 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
       onPointerUp={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
       <div
-        className="absolute inset-x-0 bottom-0 rounded-t-2xl bg-panel px-5 pt-4 shadow-[0_-8px_30px_rgba(0,0,0,.5)]"
+        className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-700 bg-ink px-4 pt-4"
         style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
-        <p className="text-sm font-semibold text-slate-100">分享这条作品</p>
+        <p className="text-sm font-bold text-slate-100">分享这条作品</p>
         {takenDown && (
           <p className="mt-1 text-xs text-amber-300">
             这条已被平台下架，链接别人打不开，所以先不能分享。

@@ -29,6 +29,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import Icon from "../components/Icon";
+import { CloseButton } from "../components/IconTapButton";
 import SupportStage from "../components/support/SupportStage";
 import HoldToTalk from "../components/support/HoldToTalk";
 import VoiceSheet from "../components/support/VoiceSheet";
@@ -591,7 +592,7 @@ export default function SupportPage() {
         </div>
 
         {handoffHint && phase === "idle" && (
-          <div className="mb-2 rounded-2xl border border-amber-400/40 bg-amber-500/15 p-3 text-[13px] leading-6 text-amber-50 backdrop-blur-md">
+          <div className="mb-2 rounded-xl border border-amber-400/40 bg-amber-500/15 p-3 text-[13px] leading-6 text-amber-50 backdrop-blur-md">
             这个问题需要人工处理（{CATEGORY_LABEL[handoffHint.category]}）。转人工会把这段对话一起交给客服，你不用再讲一遍。
             <div className="mt-2 flex gap-2">
               <button onClick={openSheet} className="rounded-full bg-amber-400 px-3.5 py-1.5 text-[13px] font-semibold text-ink active:opacity-80">
@@ -686,8 +687,8 @@ export default function SupportPage() {
 
       {sheetOpen && (
         <div className="fixed inset-0 z-30 flex items-end bg-black/60" onClick={() => !submitting && setSheetOpen(false)}>
-          <div className="w-full rounded-t-3xl bg-slate-900 px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-4" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-[15px] font-semibold">转人工客服</h2>
+          <div className="w-full rounded-t-2xl border-t border-slate-700 bg-ink px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-sm font-bold text-slate-100">转人工客服</h2>
             <p className="mt-1 text-[12px] leading-5 text-slate-400">
               会把{transcript.length ? `最近 ${transcript.length} 条对话` : "你的描述"}一起交给人工客服，回复会出现在「通知」和「我的工单」里。
             </p>
@@ -733,14 +734,12 @@ function HistorySheet({ name, messages, onClose }: { name: string; messages: Cha
   }, [messages]);
 
   return (
-    <div className="fixed inset-0 z-30 flex items-end bg-black/40" onClick={onClose}>
-      <div className="flex max-h-[72vh] w-full flex-col rounded-t-3xl border-t border-white/10 bg-slate-950/95 backdrop-blur-md" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-30 flex items-end bg-black/60" onClick={onClose}>
+      <div className="flex max-h-[72vh] w-full flex-col rounded-t-2xl border-t border-slate-700 bg-ink" onClick={(e) => e.stopPropagation()}>
         <div className="flex h-12 shrink-0 items-center px-4">
-          <span className="text-[14px] font-semibold text-slate-100">对话记录</span>
+          <span className="text-sm font-bold text-slate-100">对话记录</span>
           <span className="ml-2 text-[11px] text-slate-500">{messages.filter((m) => !m.system).length} 条</span>
-          <button onClick={onClose} aria-label="关闭" className="ml-auto flex h-10 w-10 items-center justify-center text-slate-300">
-            <Icon name="close" size={18} />
-          </button>
+          <CloseButton chip="sm" size={13} align="end" className="ml-auto" onClick={onClose} />
         </div>
         <div ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-[max(env(safe-area-inset-bottom),16px)]">
           {messages.length === 0 && <p className="py-6 text-center text-[12px] text-slate-500">还没有对话。</p>}
@@ -799,7 +798,7 @@ function TicketsPanel({
     }
   }
 
-  if (err) return <p className="m-3 rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 text-[12px] leading-relaxed text-rose-300">{err}</p>;
+  if (err) return <p className="m-3 rounded-xl border border-rose-500/40 bg-rose-500/5 p-3 text-[12px] leading-relaxed text-rose-300">{err}</p>;
   if (!tickets) return <p className="m-3 text-[12px] text-slate-500">读取中…</p>;
   if (!tickets.length) return <p className="m-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-[13px] leading-6 text-slate-400">还没有工单。和 AI 客服聊不明白的问题，点「转人工」就会出现在这里。</p>;
 

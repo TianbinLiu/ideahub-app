@@ -24,7 +24,7 @@
  *   发布模板例外：成功后不关，切到市场页「我的」让人看见自己那条（带「使用中」）——发布这件事需要一个看得见的结果。
  */
 import { useEffect, useMemo, useState } from "react";
-import Icon from "../Icon";
+import { CloseButton } from "../IconTapButton";
 import {
   companionErrorText,
   getTtsVoices,
@@ -232,19 +232,17 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
   );
 
   return (
-    <div className="fixed inset-0 z-30 flex items-end bg-black/40" onClick={saving ? undefined : onClose}>
+    <div className="fixed inset-0 z-30 flex items-end bg-black/60" onClick={saving ? undefined : onClose}>
       <div
-        className="flex max-h-[86vh] w-full flex-col rounded-t-3xl border-t border-white/10 bg-slate-950/95 backdrop-blur-md"
+        className="flex max-h-[86vh] w-full flex-col rounded-t-2xl border-t border-slate-700 bg-ink"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex h-12 shrink-0 items-center gap-2 px-4">
-          <span className="shrink-0 text-[14px] font-semibold text-slate-100">{name}的声音</span>
+          <span className="shrink-0 text-sm font-bold text-slate-100">{name}的声音</span>
           <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">
             {following ? "跟随人格/模型" : "你的设置（官网同步）"} · {effectiveText}
           </span>
-          <button onClick={onClose} disabled={saving} aria-label="关闭" className="flex h-10 w-10 shrink-0 items-center justify-center text-slate-300 disabled:opacity-40">
-            <Icon name="close" size={18} />
-          </button>
+          <CloseButton chip="sm" size={13} align="end" disabled={saving} onClick={onClose} />
         </div>
 
         <div className="flex shrink-0 gap-1.5 px-4 pb-2">
@@ -334,7 +332,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
           {tab === "market" && (
             <>
               {published && (
-                <p className="mb-2 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-[12px] leading-5 text-emerald-200">
+                <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-[12px] leading-5 text-emerald-200">
                   已发布「{published.name}」{published.shared ? "到声音市场" : "（未公开，只在「我的」里）"}，并设为你的声音。
                 </p>
               )}

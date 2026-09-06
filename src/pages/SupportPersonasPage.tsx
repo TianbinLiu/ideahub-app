@@ -220,7 +220,7 @@ export default function SupportPersonasPage() {
       )}
       {headErr && <p className="mb-2 text-[12px] leading-5 text-rose-300">{headErr}</p>}
       {settingsErr && (
-        <p className="mb-2 rounded-lg bg-amber-500/10 px-3 py-1.5 text-[11px] leading-relaxed text-amber-300">
+        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
           读不到当前设置：{settingsErr}这里不标「使用中」，选用时以服务端为准。
         </p>
       )}
@@ -252,8 +252,8 @@ export default function SupportPersonasPage() {
         )}
       </div>
 
-      {notice && <p className="mb-2 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-[12px] text-emerald-200">{notice}</p>}
-      {listErr && <p className="mb-2 rounded-lg bg-rose-500/10 px-3 py-1.5 text-[12px] leading-relaxed text-rose-300">{listErr}</p>}
+      {notice && <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-[12px] text-emerald-200">{notice}</p>}
+      {listErr && <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[12px] leading-relaxed text-rose-300">{listErr}</p>}
 
       {loading ? (
         <EmptyState loading text="读取中…" />

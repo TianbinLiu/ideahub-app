@@ -335,7 +335,7 @@ export default function EditPage() {
                   </button>
                 )}
                 {delErr && (
-                  <p className="mt-2.5 rounded-lg border border-rose-500/50 bg-rose-500/15 px-2.5 py-2 text-[11px] leading-relaxed text-rose-100">
+                  <p className="mt-2.5 rounded-lg border border-rose-500/40 bg-rose-500/15 px-3 py-2 text-[11px] leading-relaxed text-rose-100">
                     {delErr.why}
                   </p>
                 )}

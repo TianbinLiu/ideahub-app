@@ -882,7 +882,7 @@ function NodePanel({
         <p className="text-[10px] leading-relaxed text-slate-500">已出片：换模板/模式会作废本段（想换先删段重加）</p>
       )}
       {stripAsk && (
-        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
           <p className="text-[11px] leading-relaxed text-amber-200">
             切到自选会<b>摘掉模板</b>：挂的卡与合成好的点名句一起清掉，这一段退回普通段（想回来再套就行）。
           </p>
@@ -934,7 +934,7 @@ function NodePanel({
                 <Icon name="chevron" size={12} className="flex-none text-slate-400" />
               </button>
               {castAsk && (
-                <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+                <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
                   <p className="text-[11px] leading-relaxed text-amber-200">
                     改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉。
                   </p>
@@ -965,7 +965,7 @@ function NodePanel({
               此刻正被这张 z-40 的画布整块盖着 —— 用户既看不见也不知道它存在，
               只能反复挂卡、每次白跑一次对话。 */}
           {castErr && castOfThisNode && (
-            <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+            <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
               <p className="text-[11px] leading-relaxed text-amber-200">{castErr}</p>
               {castFallback && (
                 <button
@@ -1489,9 +1489,9 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
   const carried = !!(node.chain && prevProp?.lastFrame);
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
       <div
-        className="flex h-[92%] w-full max-w-lg flex-col rounded-t-2xl bg-ink p-3"
+        className="flex h-[92%] w-full max-w-lg flex-col rounded-t-2xl border-t border-slate-700 bg-ink p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex flex-none items-center gap-2">
@@ -1576,9 +1576,9 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
  *    当包含块（CLAUDE.md 那条坑）；编辑窗外壳又是滚动容器，内联会被裁。 */
 function SegSettingsSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void }) {
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
       <div
-        className="flex max-h-[80%] w-full max-w-md flex-col overflow-y-auto rounded-t-2xl bg-ink p-3"
+        className="flex max-h-[80%] w-full max-w-md flex-col overflow-y-auto rounded-t-2xl border-t border-slate-700 bg-ink p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex flex-none items-center">
@@ -1823,8 +1823,8 @@ export function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => v
   const cards = voicedOnly ? all.filter((c) => voiceOf(c.id)) : all;
   const chosen = new Set((node.materials ?? []).map((c) => c.id));
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={onClose}>
-      <div className="flex max-h-[70%] w-full max-w-md flex-col rounded-t-2xl bg-ink p-3" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
+      <div className="flex max-h-[70%] w-full max-w-md flex-col rounded-t-2xl border-t border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>
         <div className="mb-1 flex items-center">
           <span className="text-sm font-bold text-slate-100">给这一段选素材卡</span>
           <span className="flex-1" />
@@ -1961,9 +1961,9 @@ export function TemplatePicker({
    *  而同一条素材切出来的几段封面常常长得差不多，光看缩略图分不出是哪一段。 */
   const [previewing, setPreviewing] = useState<VideoTemplate | null>(null);
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
       <div
-        className="flex max-h-[70%] w-full max-w-md flex-col rounded-t-2xl bg-ink p-3"
+        className="flex max-h-[70%] w-full max-w-md flex-col rounded-t-2xl border-t border-slate-700 bg-ink p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex items-center">

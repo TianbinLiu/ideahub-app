@@ -423,7 +423,7 @@ export default function BoxFramePicker({
               不说的话用户会在中后段标一串帧，读数写着「已标 5/5」，实际一帧都没发出去
               （2026-08-17 之前就是这样，而这一步是付费的）。 */}
           {sel && !clipAxis && (
-            <p className="rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
               下面这条时间轴是<b className="font-bold">整条原片</b>，而真正做成模板的只有你在上面框出的
               <b className="font-bold">
                 第 {sel.startSec}~{sel.startSec + sel.durSec} 秒

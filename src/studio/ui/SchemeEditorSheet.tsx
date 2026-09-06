@@ -13,6 +13,7 @@
 //   包含块，inset-0 会缩到那个盒子里（CLAUDE.md 那条坑）。
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { CloseButton } from "../../components/IconTapButton";
 import { MAX_CARD_VIEWS, ROLE_LABELS, VIEW_TAG_MAX, type CardRole } from "../../types";
 import { isGenerated, saveScheme, schemeIssue, type PromptScheme, type SchemeSlot } from "../../data/promptSchemes";
 import { fmtTokens, schemeCost } from "../../data/economy";
@@ -74,18 +75,16 @@ export default function SchemeEditorSheet({
   const cost = schemeCost(slots);
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 sm:items-center" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 sm:items-center" onClick={onClose}>
       <div
-        className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-slate-700 bg-ink p-3.5 sm:rounded-2xl"
+        className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-2xl border-t border-slate-700 bg-ink p-4 sm:rounded-2xl sm:border"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-100">
             {copying ? (source ? "另存为我的方案" : "自建一套方案") : "改这套方案"}
           </h3>
-          <button onClick={onClose} className="text-xs text-slate-400">
-            关闭
-          </button>
+          <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
         {/* 内置不可改这件事要说出来，不然用户改半天发现存出来的是另一套 */}
         {source?.builtin && (

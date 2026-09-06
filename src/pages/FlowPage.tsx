@@ -26,6 +26,7 @@ import ForgeOverlay, { type ForgePhase } from "../components/ForgeOverlay";
 import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
 import GenTrace from "../components/GenTrace";
 import Icon from "../components/Icon";
+import { CloseButton } from "../components/IconTapButton";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { MaterialButtonArt } from "../components/MascotStage";
@@ -218,7 +219,7 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
           （blockoutPrompt 的 ★，铁律八）。骨架是确定性的那一份（第五章模板逐字实现），
           填进去照样可以改 */}
       {castErr && castOfThisNode && (
-        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
           <p className="text-[11px] leading-relaxed text-amber-200">{castErr}</p>
           {castFallback && (
             <button
@@ -644,7 +645,7 @@ function NodeScreen({
                 V1 与经典模板一个字没变，还是这个「一句话」框 */}
             {named ? <BlockoutCastBox node={node} onCast={requestCast} /> : <TemplateSubjectBox />}
             {castAsk && (
-              <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+              <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
                 <p className="text-[11px] leading-relaxed text-amber-200">
                   改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉 ——
                   因为旧的那段话里写的还是旧的挂卡，留着它 AI 就会照旧的换人。
@@ -897,18 +898,16 @@ function NodeScreen({
 
       {/* ── 本段设置抽屉 ── */}
       {sheet && (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/70" onClick={() => setSheet(false)}>
+        <div className="fixed inset-0 z-40 flex items-end bg-black/60" onClick={() => setSheet(false)}>
           {/* 同上：safe-bottom 会把 p-4 的下内边距吃成 0，两个值合成一个写 */}
           <div
-            className="w-full space-y-3 rounded-t-2xl bg-ink p-4"
+            className="w-full space-y-3 rounded-t-2xl border-t border-slate-700 bg-ink p-4"
             style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom, 0px))" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-slate-100">第 {index + 1} 段设置</span>
-              <button onClick={() => setSheet(false)} className="text-slate-400">
-                <Icon name="close" size={18} />
-              </button>
+              <CloseButton chip="sm" size={13} align="end" onClick={() => setSheet(false)} />
             </div>
 
             {/* 时长/画幅/画质/承接：规则只有一处（components/flow/SegSettings），画布用的是同一个 */}
@@ -1317,7 +1316,7 @@ export default function FlowPage() {
           {/* ★ 报错条**不跟着专注态收起**（其余都收）：推演/重画失败、余额不足都从这里说话，
               藏起来就是静默失败（铁律八）。它是 flex-none，出现时把方案台顶下去一点点而已 */}
           {err && (
-            <div className="mx-4 mb-1.5 flex flex-none items-start gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+            <div className="mx-4 mb-1.5 flex flex-none items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
               <span className="min-w-0 flex-1">{err}</span>
               <button onClick={() => useFlow.setState({ err: "" })} className="flex-none">
                 <Icon name="close" size={14} />

@@ -15,6 +15,7 @@ import { useVideosVersion } from "../hooks/useVideos";
 import Avatar from "./Avatar";
 import CommentDelete from "./CommentDelete";
 import Icon from "./Icon";
+import { CloseButton } from "./IconTapButton";
 import ReportButton from "./ReportButton";
 import MentionInput from "./MentionInput";
 import MentionText from "./MentionText";
@@ -214,15 +215,13 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
     >
       {/* 上半留给视频（点击关闭抽屉），下半是评论面板 */}
       <div className="absolute inset-x-0 top-0 h-[38%]" onClick={onClose} />
-      <div className="absolute inset-x-0 bottom-0 flex h-[62%] flex-col rounded-t-2xl bg-panel shadow-[0_-8px_30px_rgba(0,0,0,.5)]">
+      <div className="absolute inset-x-0 bottom-0 flex h-[62%] flex-col rounded-t-2xl border-t border-slate-700 bg-ink">
         <div className="flex items-center justify-between border-b border-slate-700/60 px-4 py-3">
           {/* ★ 与首页那一栏同一个口径（commentCountOf）：服务端的总数优先。
               读 list.length 的话，详情还没补回来时标题会先写「0 条评论」——
               而下面可能马上就渲染出好几条，自相矛盾。 */}
-          <span className="text-sm font-semibold text-slate-100">{commentCountOf(video)} 条评论</span>
-          <button onClick={onClose} aria-label="关闭评论" className="-m-2 p-2 text-slate-400 hover:text-white">
-            <Icon name="close" size={20} />
-          </button>
+          <span className="text-sm font-bold text-slate-100">{commentCountOf(video)} 条评论</span>
+          <CloseButton chip="sm" size={13} align="end" label="关闭评论" onClick={onClose} />
         </div>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
           {threads.map((t) => (
