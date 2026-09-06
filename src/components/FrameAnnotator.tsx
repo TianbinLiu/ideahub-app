@@ -2,7 +2,7 @@
 // 工作流页（逐段确认时改这一段）与剪辑页（成片前跨段批改）共用同一个弹窗——
 // 产物都是"带红圈的标注图 + 要求文本"，交给 Seedream 图生图改设定帧。
 import { useEffect, useRef, useState } from "react";
-import Icon from "./Icon";
+import { CloseButton } from "./IconTapButton";
 
 /** object-cover 语义地把图/视频画满画布（保持比例、居中裁切） */
 export function drawCover(ctx: CanvasRenderingContext2D, src: HTMLVideoElement | HTMLImageElement, w: number, h: number) {
@@ -117,9 +117,7 @@ export default function FrameAnnotator({
       <div className="w-full max-w-2xl rounded-2xl border border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>
         <div className="mb-2 flex items-center justify-between">
           <span className="text-sm font-bold text-slate-100">⭕ 圈选要修改的物体</span>
-          <button onClick={onClose} className="text-slate-400">
-            <Icon name="close" size={18} />
-          </button>
+          <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
         <canvas
           ref={canvasRef}
