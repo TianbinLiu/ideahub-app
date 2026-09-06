@@ -503,10 +503,14 @@ export default function FlowCanvas({
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center px-3 text-center text-[11px] leading-relaxed text-slate-500">
-                        {done
-                          ? /* 到这里 = 既没有设定首帧、成片第一帧也没截到（截帧失败只 warn），如实说 */
-                            "已出片（成片预览没截到，点开可回看）"
-                          : tpl?.refVideo
+                        {done ? (
+                          /* 到这里 = 既没有设定首帧、成片第一帧也没截到，如实说，并给一条重截的路
+                             （2026-09-06：截帧失败不再是死路——转存收尾后会自动补截，这里是手动那一下） */
+                          <span className="flex flex-col items-center gap-1.5">
+                            <span>已出片（成片预览没截到，点开可回看）</span>
+                            <RecaptureButton nodeId={n.id} />
+                          </span>
+                        ) : tpl?.refVideo
                             ? "白模复刻段（还没出片）"
                             : p.plot
                               ? p.plot.slice(0, 40)
@@ -1575,6 +1579,33 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
 /** 「本段设置」弹层：正文是两面共用的 SegSettings（规则只有那一处）。
  *  ★ portal + z-50 与另外几个弹层同级：画布的变换层带 transform，内联的 fixed 会被它
  *    当包含块（CLAUDE.md 那条坑）；编辑窗外壳又是滚动容器，内联会被裁。 */
+/**
+ * 卡面上的「重截预览」：截帧失败不该是死路。走 flowStore.recaptureNode（方舟临时链接会先问一遍转存进度）。
+ * ★ 是 span 不是 button：它长在节点卡那颗 <button> 里面，button 套 button 是非法嵌套
+ */
+function RecaptureButton({ nodeId }: { nodeId: string }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      aria-disabled={busy}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (busy) return;
+        setBusy(true);
+        void useFlow
+          .getState()
+          .recaptureNode(nodeId)
+          .finally(() => setBusy(false));
+      }}
+      className={`rounded-full bg-panel px-3 py-1 text-[11px] text-slate-200 ${busy ? "opacity-40" : ""}`}
+    >
+      {busy ? "截帧中…" : "重截预览"}
+    </span>
+  );
+}
+
 function SegSettingsSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void }) {
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
