@@ -131,6 +131,9 @@ export const takeVideoTask: typeof real.takeVideoTask = AI_REAL
 export { ArkTaskUnknown } from "./arkClient";
 /** 视频提示词的字数上限。两种构建下都是同一个数——拼提示词的那一处要按它给尾巴留位 */
 export { VIDEO_PROMPT_MAX } from "./real";
+/** 事后重截成片首尾帧 / 问转存进度 —— 真假两侧同一份（mock 出片是 "mock:" 占位串，调用方按 realVideoOfNode 先筛掉） */
+export { recaptureSegment } from "./real";
+export { transferStatus } from "./arkClient";
 export { AI_REAL };
 
 export type { NpcChatContext } from "../mock/ai";

@@ -18,7 +18,8 @@
 //   于是工作流退化成"写一句话直接出片"——最贵的那一步（出片）反而没有选择余地。
 //   现在它是主路径：便宜的一步（推演 ~80k token）摆在前面挑，贵的一步（出片）挑完再走。
 import { create } from "zustand";
-import { AI_REAL, ArkTaskUnknown, generateCover, generateProposals, prepareMaterialRefs, takeVideoTask } from "../ai";
+import { AI_REAL, ArkTaskUnknown, generateCover, generateProposals, prepareMaterialRefs, recaptureSegment, takeVideoTask, transferStatus } from "../ai";
+import { isArkAssetUrl } from "../ai/arkClient";
 import { canAfford, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import {
   DEFAULT_TIER,
@@ -50,6 +51,15 @@ import {
 import { type BlockoutCastSlot, blockoutApplySkeleton, castNameIssue, composeBlockoutPrompt } from "./blockoutPrompt";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
 import { blockoutIssue, generateSegment, redrawnAnns, refVideoOn } from "./segmentGen";
+
+/** 正在后台盯转存收尾的段（settleNodeMedia）：同一段只盯一份，出片一次、打开草稿一次都可能起一份 */
+const settling = new Set<string>();
+
+/** 这一段的成片还欠着收尾：还是方舟临时链接（转存没赶上）、或成片预览帧没截到（出片时与打开草稿时同一把尺） */
+function mediaUnsettled(n: FlowNode): boolean {
+  const url = realVideoOfNode(n);
+  return !!url && (isArkAssetUrl(url) || !chosenOf(n).poster);
+}
 
 /** 画面圈选标注：某一帧上圈出的物体 + 修改要求（重生成时并入提示词并改设定帧） */
 export interface FlowAnn {
@@ -925,6 +935,17 @@ interface FlowState {
   /** 把一段真实成片写到某套方案名下（videoByProposal + proposal.videoUrl 两处一起，
    *  两处是同一份出片的两个读法——剪辑页「只编辑本段」写回走这里，别只写一半） */
   setProposalVideo: (nodeId: string, proposalId: string, url: string) => void;
+  /** 重截这一段成片的首尾帧（画布卡片「重截预览」与转存收尾后的自动补截共用）。方舟临时链接先问一遍转存进度 */
+  recaptureNode: (nodeId: string, opts?: { quiet?: boolean }) => Promise<boolean>;
+  /** 出片时转存没赶上（还是方舟临时链接）或预览帧没截到：后台盯着转存收尾，拿到永久地址就换上并补截 */
+  settleNodeMedia: (nodeId: string) => void;
+  /** 整条流水线过一遍 settleNodeMedia（打开草稿时调：上次没截到的预览这次补上） */
+  settleAllMedia: () => void;
+  /**
+   * 成片媒体的修订号：补截到预览帧 / 换成永久地址就 +1。useFlowActions 靠它自动存一次草稿 ——
+   * 不存的话补上的帧只活在内存里，下次打开草稿又是「成片预览没截到」、又要截一遍
+   */
+  mediaRev: number;
   /** 整批换掉一段的方案表并回到"摊开待挑"（工坊「重新推演三套」用）。
    *  被换掉的方案名下的分支归档一并清（留着就是指向已不存在走向的死链） */
   setNodeProposals: (nodeId: string, proposals: Proposal[]) => void;
@@ -1009,6 +1030,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
   err: "",
   genNotice: null,
   genRun: 0,
+  mediaRev: 0,
   clearGenNotice: () => set({ genNotice: null }),
   template: null,
   subject: "",
@@ -1978,6 +2000,80 @@ export const useFlow = create<FlowState>()((set, get) => ({
           : n,
       ),
     })),
+  recaptureNode: async (nodeId, opts) => {
+    const node = get().nodes.find((n) => n.id === nodeId);
+    if (!node) return false;
+    let url = realVideoOfNode(node);
+    if (!url) {
+      if (!opts?.quiet) set({ err: "这一段还没有能播的成片，没什么可截的" });
+      return false;
+    }
+    // 方舟临时链接：先问一遍服务端转存到哪一步了 —— 拿到永久地址就换上（截帧改走 Cloudinary 抽帧，几秒的事）
+    if (isArkAssetUrl(url)) {
+      const st = await transferStatus([url]).catch(() => null);
+      const hit = st?.[url];
+      if (hit?.state === "done" && hit.url) {
+        get().setProposalVideo(node.id, node.chosenId, hit.url);
+        set((s) => ({ mediaRev: s.mediaRev + 1 }));
+        url = hit.url;
+      }
+    }
+    try {
+      const cap = await recaptureSegment(url);
+      // ★ 钉住起手那套方案（node.chosenId）：截帧是几秒的异步，期间用户可能换了走向
+      get().updateProposal(
+        node.id,
+        {
+          poster: cap.head,
+          lastFrame: cap.tail,
+          ...(cap.durationSec && Number.isFinite(cap.durationSec) ? { realDurationSec: cap.durationSec } : {}),
+        },
+        node.chosenId,
+      );
+      set((s) => ({ mediaRev: s.mediaRev + 1 }));
+      return true;
+    } catch (e) {
+      if (!opts?.quiet) {
+        set({ err: `预览帧还是没截到（${e instanceof Error ? e.message.slice(0, 80) : String(e)}）——成片本身没事，点开卡片可回看` });
+      }
+      return false;
+    }
+  },
+  settleNodeMedia: (nodeId) => {
+    if (settling.has(nodeId)) return;
+    settling.add(nodeId);
+    void (async () => {
+      try {
+        // 最多盯 12 分钟：服务端后台搬一条几十 MB 的成片，跨境 1MB/s 也就两三分钟；盯不到就交给发布时的再转存
+        for (let i = 0; i < 24; i++) {
+          const node = get().nodes.find((n) => n.id === nodeId);
+          if (!node) return;
+          const url = realVideoOfNode(node);
+          if (!url) return;
+          if (!isArkAssetUrl(url)) {
+            if (!chosenOf(node).poster) await get().recaptureNode(nodeId, { quiet: true });
+            return;
+          }
+          const st = await transferStatus([url]).catch(() => null);
+          const hit = st?.[url];
+          if (hit?.state === "done" && hit.url) {
+            get().setProposalVideo(node.id, node.chosenId, hit.url);
+            set((s) => ({ mediaRev: s.mediaRev + 1 }));
+            await get().recaptureNode(nodeId, { quiet: true });
+            return;
+          }
+          // 服务端不会再动它了（失败 / 根本没登记）：留给发布时的再转存，别在这儿空转
+          if (hit?.state === "failed" || hit?.state === "none") return;
+          await new Promise((r) => setTimeout(r, 30_000));
+        }
+      } finally {
+        settling.delete(nodeId);
+      }
+    })();
+  },
+  settleAllMedia: () => {
+    for (const n of get().nodes) if (mediaUnsettled(n)) get().settleNodeMedia(n.id);
+  },
 
   setNodeCustom: (id, on) => {
     const s = get();
@@ -2468,6 +2564,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // ★ 只有"还是我这一炉"才有资格清 busy（见 genRun 的 ★★）：作废的回包清掉的话，
       //   新那一炉跑着而闸开着，可以并发出第三炉
       set(get().genRun === myRun ? { busy: false, genNotice: { ok: true, msg: `第 ${idx + 1} 段出片完成` } } : {});
+      // ★ 转存没赶上（还是方舟临时链接）或预览帧没截到：后台盯着转存收尾，拿到永久地址就换上并补截
+      //   （2026-09-06 主人真机：截帧在 120s 超时上死掉，卡片上永远是「成片预览没截到」）
+      {
+        const nn = get().nodes.find((n) => n.id === id);
+        if (nn && mediaUnsettled(nn)) get().settleNodeMedia(id);
+      }
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

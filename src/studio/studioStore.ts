@@ -2322,6 +2322,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
         busy: false,
         err: "",
       });
+      // ★ 上次出片时预览帧没截到 / 转存没赶上的段，这次打开顺手收尾（后台，不挡打开）
+      useFlow.getState().settleAllMedia();
     } else {
       useFlow.getState().reset();
     }

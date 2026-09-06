@@ -41,6 +41,7 @@ export function useFlowActions(opts?: {
   const mode = useFlow((s) => s.mode);
   const busy = useFlow((s) => s.busy);
   const deckOff = useFlow((s) => s.deckOff);
+  const mediaRev = useFlow((s) => s.mediaRev);
   const [saveState, setSaveState] = useState<FlowActions["saveState"]>("idle");
   const [finalizing, setFinalizing] = useState("");
 
@@ -57,12 +58,18 @@ export function useFlowActions(opts?: {
   //   劝人放心的确认卡，两件一叠会让用户踏实地把刚花钱炼出来的段丢掉。
   const doneCount = nodes.filter(nodeDone).length;
   const prevDone = useRef(doneCount);
+  // ★ 事后补截到预览帧 / 换成永久地址（flowStore.mediaRev）也算一次"该存"：不存的话这几张帧只活在内存里，
+  //   下次打开草稿卡片上又是「成片预览没截到」。它只在已出片的段上发生，所以不会比"又炼出一段"更频繁
+  const prevRev = useRef(mediaRev);
   useEffect(() => {
     if (mode === "simple") {
       prevDone.current = doneCount;
+      prevRev.current = mediaRev;
       return;
     }
-    if (doneCount > prevDone.current) {
+    const revBumped = mediaRev > prevRev.current;
+    prevRev.current = mediaRev;
+    if (doneCount > prevDone.current || revBumped) {
       void (async () => {
         let ok = false;
         try {
@@ -77,7 +84,7 @@ export function useFlowActions(opts?: {
       })();
     }
     prevDone.current = doneCount;
-  }, [doneCount, mode]);
+  }, [doneCount, mode, mediaRev]);
   const deck = useMemo(() => deckQuoteOf(nodes, mode, deckOff), [nodes, mode, deckOff]);
 
   /**

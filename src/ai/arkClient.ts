@@ -123,6 +123,28 @@ export async function transferArkVideo(url: string): Promise<string> {
   return j.url;
 }
 
+/**
+ * 问服务端「这几条方舟链接转存到哪一步了」（POST /api/ark/transfer-video/status）。
+ * ★ 出片当口转存没赶上服务端 165s 的预算时，客户端拿到的是方舟临时链接，但服务端那个后台搬运还在跑 ——
+ *   这里就是事后把永久地址接回来的口子（flowStore.settleNodeMedia / recaptureNode 用）。
+ *   `none` = 服务端没有这条的登记（老服务端 / 从没提交过转存）。
+ */
+export async function transferStatus(
+  urls: string[],
+): Promise<Record<string, { state: "done" | "pending" | "failed" | "none"; url?: string; message?: string }>> {
+  const token = getToken();
+  const res = await fetch(`${BASE}/transfer-video/status`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ urls }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const ct = res.headers.get("content-type") ?? "";
+  if (!res.ok || !ct.includes("application/json")) throw new Error(`转存状态查询失败（${res.status}）`);
+  const j = (await res.json().catch(() => ({}))) as { results?: Record<string, { state: "done" | "pending" | "failed" | "none"; url?: string; message?: string }> };
+  return j.results ?? {};
+}
+
 // 模型 ID（2026-08-01 实测于本账号：GET /api/v3/models 取活跃 ID + 控制台开通状态）
 // 选型依据=已开通且有免费额度：Seedance 1.5-pro（200 万 tokens）、Seed-2.1-turbo（50 万 tokens）。
 // Seedance 2.0 系列需账户余额>200 元才能开通，暂不可用。

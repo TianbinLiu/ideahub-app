@@ -1925,6 +1925,79 @@ function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
 }
 
 /**
+ * Cloudinary 上的成片：把 `…/video/upload/<rest>.mp4` 变成「第 so 秒那一帧」的 JPEG 地址（`so_` 是它的抽帧变换）。
+ * 不是 Cloudinary 的地址回 null。★ 未签名变换本账号能用（2026-09-06 实测：so_0.04 / so_99p 都 200，带 ACAO:*）。
+ */
+function cloudinaryFrameUrl(videoUrl: string): ((so: string) => string) | null {
+  const m = /^(https:\/\/res\.cloudinary\.com\/[^/]+\/video\/upload\/)(.+)\.(mp4|webm|mov)$/i.exec(videoUrl);
+  if (!m) return null;
+  return (so) => `${m[1]}so_${so}/${m[2]}.jpg`;
+}
+
+async function fetchDataUrl(url: string, timeoutMs: number): Promise<string> {
+  const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+  if (!res.ok) throw new Error(`取帧图失败 ${res.status}`);
+  const blob = await res.blob();
+  return await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+/** 只读元数据（时长 / 尺寸），不解码画面：moov 就几百 KB，慢网也快；读不到不算失败（帧图另有来路） */
+async function probeMeta(src: string): Promise<{ durationSec: number; width: number; height: number }> {
+  const video = document.createElement("video");
+  video.crossOrigin = "anonymous";
+  video.muted = true;
+  video.preload = "metadata";
+  video.src = src;
+  try {
+    await withTimeout(
+      new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error(`视频元数据加载失败（${video.error?.code ?? "?"}）`));
+      }),
+      20_000,
+      "视频元数据加载超时",
+    );
+    return { durationSec: video.duration, width: video.videoWidth, height: video.videoHeight };
+  } finally {
+    video.src = "";
+  }
+}
+
+/** 转存后的成片：帧图让 Cloudinary 在它那边抽，手机只拉两张几十 KB 的 JPEG，不再把整条成片拉下来解码 */
+async function grabViaCloudinary(
+  videoUrl: string,
+  frameUrl: (so: string) => string,
+): Promise<{ head: string; tail: string; durationSec?: number; width?: number; height?: number }> {
+  const [meta, head, tail] = await Promise.all([
+    probeMeta(videoUrl).catch((e) => {
+      console.warn("[ai] 成片元数据没读到（不影响截帧，剪辑页会从播放器学到时长）:", e);
+      return null;
+    }),
+    fetchDataUrl(frameUrl("0.04"), 30_000),
+    // 结尾前一瞬（百分比写法不依赖时长；100p 也能出图，但取整段最后一帧偶尔是黑场）
+    fetchDataUrl(frameUrl("99p"), 30_000),
+  ]);
+  return {
+    head,
+    tail,
+    ...(meta && Number.isFinite(meta.durationSec) ? { durationSec: meta.durationSec } : {}),
+    ...(meta && meta.width > 0 ? { width: meta.width, height: meta.height } : {}),
+  };
+}
+
+/** 事后重截成片的首尾帧（画布卡片上的「重截预览」、转存收尾后的自动补截都走它） */
+export async function recaptureSegment(
+  videoUrl: string,
+): Promise<{ head: string; tail: string; durationSec?: number; width?: number; height?: number }> {
+  return captureVideoHeadTail(videoUrl);
+}
+
+/**
  * 从一段成片里截**首尾两帧**：tail 给下一段起拍与卡面结尾，head 只管当预览（Proposal.poster）。
  *
  * ★ 两帧一次解码：视频是 20MB 级，分两次拉就是两次跨境下载；同一个 <video> 上 seek 两回即可。
@@ -1935,11 +2008,21 @@ function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
  */
 async function captureVideoHeadTail(
   videoUrl: string,
-): Promise<{ head: string; tail: string; durationSec: number; width: number; height: number }> {
-  // ★★ 有 CORS 的地址（转存后的 Cloudinary）**直连** <video crossOrigin>：靠 Range 只拉两帧附近
-  //   的数据，不必先把整条几十 MB 的成片 fetch 成 blob（20 秒 1080p 的片子在手机网上那条路
-  //   很容易撞 120s 超时，画布上就是「成片预览没截到」——2026-09-05 主人真机）。
-  //   直连不成（对端不发 CORS 头之类）再退回下载后截。方舟直链没有 CORS，仍走代理 fetch→blob。
+): Promise<{ head: string; tail: string; durationSec?: number; width?: number; height?: number }> {
+  // ★★ 转存后的成片（Cloudinary）不在手机上解码：让 Cloudinary 抽两帧（`so_` 变换），手机只拉两张几十 KB 的
+  //   JPEG（grabViaCloudinary）。2026-09-06 主人真机：21 秒的白模复刻成片，「捕获本段真实尾帧」整整跑满 120s 后
+  //   The user aborted a request —— 下面那两条路（直连 <video> Range 截帧、fetch→blob 整条下载）在手机网络上
+  //   都拉不完几十 MB 的成片。它们现在只是兜底。
+  const frameUrl = cloudinaryFrameUrl(videoUrl);
+  if (frameUrl) {
+    try {
+      return await grabViaCloudinary(videoUrl, frameUrl);
+    } catch (e) {
+      console.warn("[ai] Cloudinary 抽帧没成，改为本机解码:", e);
+    }
+  }
+  // ★ 有 CORS 的地址**直连** <video crossOrigin>：靠 Range 只拉两帧附近的数据；直连不成再退回下载后截。
+  //   方舟直链没有 CORS，仍走代理 fetch→blob。
   if (!isArkAssetUrl(videoUrl)) {
     try {
       return await grabHeadTail(videoUrl, true);
@@ -2218,7 +2301,7 @@ export async function takeVideoTask(
     const { url } = await takeMinimaxTask(taskId, onProgress);
     let lastFrame: string | undefined;
     let poster: string | undefined;
-    let meta: { durationSec: number; width: number; height: number } | undefined;
+    let meta: { durationSec?: number; width?: number; height?: number } | undefined;
     try {
       onProgress?.("捕获本段真实尾帧…");
       const cap = await captureVideoHeadTail(url);
@@ -2274,7 +2357,7 @@ export async function takeVideoTask(
   }
   let lastFrame: string | undefined;
   let poster: string | undefined;
-  let meta: { durationSec: number; width: number; height: number } | undefined;
+  let meta: { durationSec?: number; width?: number; height?: number } | undefined;
   try {
     onProgress?.("取到成片了，正在捕获这一段的真实尾帧…");
     const cap = await captureVideoHeadTail(url);
