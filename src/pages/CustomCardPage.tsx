@@ -333,6 +333,10 @@ export default function CustomCardPage() {
    * ★ 只取下**还是那一张**的格子（引用相等）：用户后来自己换过那一格就别动他的图。
    */
   function clearAuthBinding(why: string): void {
+    // ★ 没绑过就没什么可撤的，那句「授权绑定和照片都撤掉了」只在真有东西被撤时才说
+    //   （2026-09-05 主人真机点名：选普通方案的人根本没走过真人路，却被告知撤掉了授权）。
+    //   读的是这一拍的值：两个调用点都在点击回调里，不跨 await。
+    const hadBinding = !!pendingAsset || !!authShot;
     setPendingAsset(null);
     setAuthShot(null);
     setSchemeShots((prev) => {
@@ -345,7 +349,7 @@ export default function CustomCardPage() {
     //   与授权照片撞车的那一份由 changeScheme 的 dropAuth 参数在源头排除掉 ——
     //   在这儿一刀清掉的话，用户自己传过的那几张图"去哪了"就没人说了。
     setImportMsg(""); // 那句「✅ 已把授权照片接进来了」到这一刻已经不成立
-    setUnbindNote(why);
+    setUnbindNote(hadBinding ? why : "");
   }
 
   /** 换方案：tag 对得上的图留着，对不上的取下**并说明**（与 changeType 同一条纪律） */
