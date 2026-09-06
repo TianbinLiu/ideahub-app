@@ -55,15 +55,15 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end bg-black/70" onClick={busy ? undefined : onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end bg-black/60" onClick={busy ? undefined : onClose}>
       <div
-        className="w-full rounded-t-2xl border-t border-slate-700 bg-ink p-5"
+        className="w-full rounded-t-2xl border-t border-slate-700 bg-ink p-4"
         style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center gap-2">
           <span className="text-lg">🎉</span>
-          <h3 className="text-base font-bold text-slate-100">
+          <h3 className="text-sm font-bold text-slate-100">
             有新版本 {info.versionName}
           </h3>
           {info.sizeBytes > 0 && <span className="text-[11px] text-slate-500">{fmtSize(info.sizeBytes)}</span>}

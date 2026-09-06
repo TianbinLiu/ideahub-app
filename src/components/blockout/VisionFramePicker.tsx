@@ -142,7 +142,7 @@ export default function VisionFramePicker({
       {/* ★★ 命中率：这一屏是**花钱之前的最后一屏**，目的是让作者多标几帧 / 减少人数。
           与提取器那一屏逐字同源，同样**不给具体数字**（旧的那句"7 发 4 发全对"是颜色方案
           那一版提示词的实测，那一版已经删了 —— 理由见提取器那一处的 ⚠）。 */}
-      <p className="rounded-lg bg-amber-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-amber-200/90">
+      <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[10px] leading-relaxed text-amber-200/90">
         <b className="font-bold">这一步不是每次都全对。</b>
         实测每隔几发就会有 1~2 个人<b className="font-bold">根本没被换成人偶</b>（还是原来的样子）
         —— 最常出错的是<b className="font-bold">画面正中央、看起来最像主角的那一个</b>。

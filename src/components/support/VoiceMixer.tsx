@@ -162,13 +162,13 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
 
   return (
     <div>
-      <p className="mb-2 rounded-lg bg-sky-500/10 px-3 py-1.5 text-[11px] leading-relaxed text-sky-200">
+      <p className="mb-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-sky-200">
         混音只支持 1.0 音色，语调指令对混音无效。最多 {maxMix} 味：滑杆是相对权重，右侧是归一后的占比。
       </p>
       {catalogErr && <p className="mb-2 text-[11px] leading-4 text-rose-300">读不到混音目录：{catalogErr}</p>}
       {!catalog && !catalogErr && <p className="mb-2 text-[11px] text-slate-500">读取音色目录…</p>}
       {catalog && mixable.length === 0 && (
-        <p className="mb-2 rounded-lg bg-amber-500/10 px-3 py-1.5 text-[11px] leading-relaxed text-amber-300">
+        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
           这台服务器还没有可混音的 1.0 音色目录（服务端需要更新），先用「单音色」。
         </p>
       )}

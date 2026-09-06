@@ -77,6 +77,7 @@ import {
   type VideoNatural,
 } from "./blockout/arkVideoRules";
 import Icon from "./Icon";
+import { CloseButton } from "./IconTapButton";
 import TokenCost from "./TokenCost";
 import { sampleFrames } from "./videoFrames";
 
@@ -1077,18 +1078,16 @@ export default function VideoTemplateExtractor({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/70" onClick={close}>
+    <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={close}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[88vh] w-full overflow-y-auto rounded-t-2xl bg-panel p-4"
+        className="max-h-[88vh] w-full overflow-y-auto rounded-t-2xl border-t border-slate-700 bg-ink p-4"
         style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-100">🎬 从视频提取模板</h3>
           <HelpButton tour="extractor" className="ml-auto" />
-          <button onClick={close} className="-m-2 p-2 text-slate-400">
-            <Icon name="close" size={20} />
-          </button>
+          <CloseButton chip="sm" size={13} align="end" onClick={close} />
         </div>
 
         {got ? (
@@ -1192,7 +1191,7 @@ export default function VideoTemplateExtractor({
               ★★ 措辞里不许出现「上面 / 下面」的方位词：这句话现在会在两步里出现，
                 方位在其中一步必然是错的。 */}
             {blockout && blockoutBlock && (
-              <p className="mb-3 rounded-lg bg-rose-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-rose-300">
+              <p className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">
                 {blockoutBlock}
                 <br />
                 白模那两条路都只走这一档，所以现在还开不了 —— 改选「经典配方」仍然可以做模板，它不需要付费套餐。
@@ -1307,7 +1306,7 @@ export default function VideoTemplateExtractor({
                     ★ 这一段**没有搬进新手引导**：引导看过一次就不再自动弹，而这句话紧挨着
                       一次真实付费的决策点，必须每次都在。 */}
                 {route === "aiBlockout" && !receipt && (
-                  <p className="mb-3 rounded-lg bg-amber-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-amber-200/90">
+                  <p className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
                     {/* ★ 压字数时**这两处不许再削**（2026-08-23 削过一轮又加回来）：
                         · 「会有人根本没被换成人偶」是**具体的失败长相** —— 只说"不是每次都全对"
                           等于没说，用户不知道该拿什么去核对；
@@ -1420,7 +1419,7 @@ export default function VideoTemplateExtractor({
                       ✗ {frameStepVerdict.issue}
                     </p>
                   ) : (
-                    <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] leading-relaxed text-emerald-200">
+                    <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[11px] leading-relaxed text-emerald-200">
                       ✓ {frameStepVerdict.ok}
                     </p>
                   )
@@ -1522,7 +1521,7 @@ export default function VideoTemplateExtractor({
                       //   素材说"拉满就会自动切成多段"，用户照做立刻撞红字。那一档改在
                       //   下面单独说（要自己标刀）。
                       Math.floor(receipt.data.durationSec) <= 8 * BLOCKOUT_INPUT_RULES.maxSec && (
-                        <p className="rounded-lg bg-sky-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-sky-200/90">
+                        <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-sky-200/90">
                           这条素材有 {receipt.data.durationSec.toFixed(1)} 秒：把上面的选段
                           <b className="font-bold">拉满整条</b>，就会自动切成多段登记成一组（每段 ≤30 秒、逐段认人）；
                           只想用其中一段就框 {BLOCKOUT_INPUT_RULES.maxSec} 秒以内。
@@ -1535,7 +1534,7 @@ export default function VideoTemplateExtractor({
                       !segLong &&
                       Math.floor(receipt.data.durationSec) > 8 * BLOCKOUT_INPUT_RULES.maxSec &&
                       Math.floor(receipt.data.durationSec) <= SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec && (
-                        <p className="rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
                           这条素材有 {receipt.data.durationSec.toFixed(1)} 秒：把选段<b className="font-bold">拉满整条</b>
                           之后还要<b className="font-bold">自己标切段刀</b>（把 {SPLIT_MAX_PARTS - 1} 刀尽量摆匀）——
                           这个长度上"自动对半"会一步切到 16 段，超过一次最多 {SPLIT_MAX_PARTS} 段。
@@ -1550,7 +1549,7 @@ export default function VideoTemplateExtractor({
                       receipt &&
                       !segLong &&
                       Math.floor(receipt.data.durationSec) > SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec && (
-                        <p className="rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
                           这条素材有 {receipt.data.durationSec.toFixed(1)} 秒，
                           <b className="font-bold">整条登记做不了</b>（一次最多 {SPLIT_MAX_PARTS} 段 × {BLOCKOUT_INPUT_RULES.maxSec}
                           秒 = {SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec} 秒），所以上面的选段拉到{" "}

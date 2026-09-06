@@ -157,7 +157,7 @@ export default function TierRow({
       )}
       {/* 换档的代价：**换之前**说，说的是这一段真的有的东西（tierSwitchLoss 一处判定） */}
       {ask && (
-        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
           <p className="text-[11px] font-semibold text-amber-200">换到「{ask.label}」档会有这些变化：</p>
           <ul className="space-y-0.5">
             {ask.loss.map((l) => (

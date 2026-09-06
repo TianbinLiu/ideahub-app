@@ -528,13 +528,13 @@ export default function TemplateShelf({
       </div>
 
       {pickErr && (
-        <p className="mb-2 rounded-lg bg-amber-500/10 px-3 py-1.5 text-[11px] leading-relaxed text-amber-300/90">{pickErr}</p>
+        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300/90">{pickErr}</p>
       )}
 
       {/* 远端市场拉挂了要明说：不说的话"远端加载失败"看起来和"市场就这么几个模板"
           一模一样（铁律八——失败要响；本机与种子照常显示，所以是"响且局部"） */}
       {tab === "market" && sharedLoadIssue() && (
-        <p className="mb-2 rounded-lg bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-300/90">{sharedLoadIssue()}</p>
+        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-300/90">{sharedLoadIssue()}</p>
       )}
 
       {/* ★★ 「还没取回结果」摆在**两个 tab 都看得见**的位置，而不是只在「我的模板」里：
@@ -558,7 +558,7 @@ export default function TemplateShelf({
       {/* 名单拉不到要说出来：不说的话"拉挂了"看起来和"你没有待取回的"一模一样，
           而后者是在钱上撒谎（铁律八） */}
       {pendingBlockoutIssue() && (
-        <p className="mb-2 rounded-lg bg-amber-500/10 px-3 py-1.5 text-[11px] leading-relaxed text-amber-300/90">
+        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300/90">
           {pendingBlockoutIssue()}
         </p>
       )}

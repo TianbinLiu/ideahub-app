@@ -85,7 +85,7 @@ function usePlaza<T>(enabled: boolean, load: () => Promise<T[]>, deps: unknown[]
 /** 广场取数失败时的那一行：说清楚 + 能重试。两个广场共用 */
 function PlazaError({ error, onRetry }: { error: string; onRetry: () => void }) {
   return (
-    <div className="mb-3 flex items-center gap-3 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2.5">
+    <div className="mb-3 flex items-center gap-3 rounded-xl border border-rose-500/40 bg-rose-500/5 px-3 py-2.5">
       <span className="min-w-0 flex-1 text-[11px] leading-relaxed text-rose-300">没取到：{error}</span>
       <button onClick={onRetry} className="flex-none rounded-full bg-panel px-3 py-1 text-[11px] text-slate-200">
         重试

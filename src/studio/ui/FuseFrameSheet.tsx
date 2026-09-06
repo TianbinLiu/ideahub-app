@@ -11,6 +11,7 @@
 //   它们会给 position:fixed 后代造包含块，inset-0 会缩到那个盒子里（CLAUDE.md 那条坑）。
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { CloseButton } from "../../components/IconTapButton";
 import { AI_REAL, fuseFrame } from "../../ai";
 import { canAfford, spendTokens } from "../../data/account";
 import { ONE_IMAGE, fmtTokens } from "../../data/economy";
@@ -120,16 +121,14 @@ export default function FuseFrameSheet({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 sm:items-center" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 sm:items-center" onClick={onClose}>
       <div
-        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-slate-700 bg-ink p-3.5 sm:rounded-2xl"
+        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-2xl border-t border-slate-700 bg-ink p-4 sm:rounded-2xl sm:border"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-100">🧬 融图 · 做这一段的{label}</h3>
-          <button onClick={onClose} className="text-xs text-slate-400">
-            关闭
-          </button>
+          <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
         {/* ★ 这句话是这个功能存在的全部理由，值得占一行：用户不知道"为什么要融" */}
         <p className="mb-2.5 text-[10px] leading-relaxed text-slate-500">

@@ -317,7 +317,7 @@ export default function PublishPage() {
               画在最上面那个标题输入框底下 —— 定价那条整句拒绝报在两屏之外，
               在手机上等于没报（铁律八：报错要落在动作发生的地方）。 */}
           {err && (
-            <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">
+            <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">
               {err}
             </div>
           )}

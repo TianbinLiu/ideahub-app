@@ -422,7 +422,7 @@ export default function BlockoutTrimmer({
       ) : (
         !sizeMismatch &&
         verdict && (
-          <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] leading-relaxed text-emerald-200">
+          <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[11px] leading-relaxed text-emerald-200">
             ✓ {verdict.ok}
           </p>
         )

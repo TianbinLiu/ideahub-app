@@ -30,7 +30,7 @@ import { isRemoteMode } from "../data/account";
 import { SUPPORT_EMAIL } from "../data/agreements";
 import { useAuthState, useCurrentUser } from "../hooks/useAccount";
 import AuthPending from "./AuthPending";
-import Icon from "./Icon";
+import { CloseButton } from "./IconTapButton";
 
 /**
  * 「补充说明」的字数上限。
@@ -111,21 +111,19 @@ export default function ReportButton({
         // 整层拦 pointer/click：portal 之后 DOM 上已不在播放器里，但 React 合成事件
         // 仍沿**组件树**冒泡回 FeedItem 的 onPointerDown/Up（暂停 / 双击点赞）
         <div
-          className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/50"
+          className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/60"
           onPointerDown={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex-1" onClick={() => setOpen(false)} />
           <div
-            className="rounded-t-2xl bg-panel px-4 pt-3 shadow-[0_-8px_30px_rgba(0,0,0,.5)]"
+            className="rounded-t-2xl border-t border-slate-700 bg-ink px-4 pt-4"
             style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
           >
             <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-100">举报这条{TARGET_LABEL[targetType]}</span>
-              <button onClick={() => setOpen(false)} aria-label="关闭" className="-m-2 p-2 text-slate-400">
-                <Icon name="close" size={18} />
-              </button>
+              <span className="text-sm font-bold text-slate-100">举报这条{TARGET_LABEL[targetType]}</span>
+              <CloseButton chip="sm" size={13} align="end" onClick={() => setOpen(false)} />
             </div>
 
             {auth === "pending" ? (

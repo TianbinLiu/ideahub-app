@@ -56,6 +56,7 @@ import {
  */
 type Crop = { role: CardRole; tag: string; dataUrl: string };
 import Icon from "./Icon";
+import { CloseButton } from "./IconTapButton";
 import TarotCard from "./TarotCard";
 
 const NAME_MAX = 8;
@@ -636,17 +637,15 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
   const v = videoRef.current;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/70" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[92vh] w-full flex-col overflow-y-auto rounded-t-2xl bg-panel p-4"
+        className="flex max-h-[92vh] w-full flex-col overflow-y-auto rounded-t-2xl border-t border-slate-700 bg-ink p-4"
         style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-100">🎯 从视频提取{deckMode ? "卡组" : "卡片"}</h3>
-          <button onClick={onClose} className="-m-2 p-2 text-slate-400">
-            <Icon name="close" size={20} />
-          </button>
+          <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
 
         <input
@@ -768,7 +767,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                         <b className="text-slate-300">不收直接上传的真人照片</b>，只收本人授权过的素材。现在就能做：
                       </p>
                       {pendingAsset ? (
-                        <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
+                        <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
                           <span className="min-w-0">
                             <span className="block text-[10px] text-emerald-200">已接上授权素材，存卡时一并绑定</span>
                             <span className="block truncate font-mono text-[9px] text-emerald-300/80">{pendingAsset.assetId}</span>
@@ -800,7 +799,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
             {type === "character" &&
               (rawCrops ? (
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-2">
+                  <div className="flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
                     <span className="text-[11px] text-emerald-200">✨ 已按「{schemeOf(schemeId)?.title ?? "方案"}」炼好形象图</span>
                     <button
                       onClick={() => {
@@ -869,7 +868,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                             schemeTouched.current = true; // 亲手挑过 → 勾真人时不再替他换成无脸
                             setSchemeOpen(false);
                           }}
-                          className={`w-full rounded-md px-2 py-1.5 text-left ${
+                          className={`w-full rounded-lg px-2 py-1.5 text-left ${
                             sc.id === schemeId ? "bg-brand/15 ring-1 ring-brand/40" : "hover:bg-white/5"
                           }`}
                         >
@@ -951,7 +950,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                       <div className="flex gap-1.5">
                         <button
                           onClick={() => setSchemeEdit({})}
-                          className="flex-1 rounded-md border border-dashed border-slate-600 px-2 py-1.5 text-[10px] text-slate-400"
+                          className="flex-1 rounded-lg border border-dashed border-slate-600 px-2 py-1.5 text-[10px] text-slate-400"
                         >
                           ＋ 自建一套
                         </button>

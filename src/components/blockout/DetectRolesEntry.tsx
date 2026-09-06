@@ -64,7 +64,7 @@ export function DetectRolesEntry({ t }: { t: VideoTemplate }) {
         {has ? "重新识别角色位" : "识别角色位"}
       </button>
       {openPanel && (
-        <div className="w-full space-y-2 rounded-xl border border-sky-500/30 bg-sky-500/5 px-2.5 py-2">
+        <div className="w-full space-y-2 rounded-lg border border-sky-500/40 bg-sky-500/5 px-3 py-2">
           {/* ★ 一句话说清这个面板是干嘛的。"每一段视频"不是笔误：挑的帧同时就是
               长视频的分段点（场景/人数一变就该标一帧），见分段出片那条产品线 */}
           <div className="text-[11px] leading-relaxed text-sky-100">

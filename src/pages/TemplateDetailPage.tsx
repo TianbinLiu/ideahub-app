@@ -84,7 +84,7 @@ function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
   const realSec = refVideoRealSec(t.refVideo);
   const ownerNote = isOwner ? refVideoOwnerNote(t.refVideo) : null;
   return (
-    <div className="mb-4 rounded-xl border border-sky-500/30 bg-sky-500/5 p-3">
+    <div className="mb-4 rounded-xl border border-sky-500/40 bg-sky-500/5 p-3">
       {/* ★ 计价锚点（durationSec，整数）与文件真实秒数（realDurationSec，小数）**都说**：
           只说锚点会让"按 4 秒收费、文件其实 3.7 秒"这件事永远看不见；只说真实秒数又对不上
           账单。老模板没有真实秒数（后加字段，缺一律当好），那时就只显示锚点。 */}
@@ -115,7 +115,7 @@ function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
           选 5 秒"。它替代（不是叠加）下面那句给套用者的话 —— 两句一起显示会让作者以为
           出了两个错。判据同一处（refVideoOwnerNote 内部先问 refVideoIssue）。 */}
       {ownerNote ? (
-        <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-rose-200">
+        <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
           {ownerNote}
         </p>
       ) : issue !== null ? (
