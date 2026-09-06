@@ -36,6 +36,8 @@
  *   兜底；这边只有本机推算这一条路）。合并成一个 import 会让"服务端改了留存"这类变化
  *   看起来只该改一处，而实际上要改两处。
  */
+import type { VideoAspect } from "../types";
+
 export const VIDEO_JOB_TTL_MS = 24 * 3600_000;
 
 /**
@@ -89,6 +91,16 @@ export interface VideoJob {
    *   两种模式下"这一段一共扣一次"都成立。
    */
   cost: number;
+  /**
+   * 原段的时长 / 画幅 / 档位 / 剧情（2026-09-05 加，老凭据没有——**判否定**）。
+   * ★ 为什么要存：原节点已经不在流水线里时（App 被重启、而那一段从没存过草稿），取回来的成片
+   *   要**新开一段**安放（flowStore.placeRescuedSegment），这几样定的是那一段长什么样。
+   *   缺了按成片实测（时长 / 画幅）与缺省（档位）补，不整句拒。
+   */
+  durationSec?: number;
+  aspect?: VideoAspect;
+  videoTier?: string;
+  plot?: string;
   createdAt: number;
 }
 

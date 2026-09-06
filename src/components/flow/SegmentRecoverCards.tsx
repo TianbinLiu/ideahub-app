@@ -88,9 +88,12 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
       {/* ★ 「这一发不是这条工作流的」要说出来，而且**不给按钮**：凭据跨草稿存活，
           用户完全可能是在另一条工作流里看到它的。硬取会把成片挂到别人身上，
           而凭据一销毁就真的没了。判据与 takeJob 里那道拦截同源（节点在不在本流里）。 */}
+      {/* ★ 不是这条流水线炼的（原节点没了：重启后没打开草稿、或那一段从没存过草稿）——**照样能取**，
+          取回来会新开一段安放（flowStore.placeRescuedSegment）。以前这里把键灰掉并指路"去打开那条草稿"，
+          而最常见的情形正是根本没有那条草稿（2026-09-05 主人真机） */}
       {!expired && !mine && (
         <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-          这一发不是这条工作流炼的：回到当初炼它的那条工作流（草稿在「我的」页），这颗取回键才会亮。凭据还在，没有浪费。
+          当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。
         </p>
       )}
       {issue && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{issue}</p>}
@@ -104,10 +107,10 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
       ) : (
         <button
           onClick={() => void take()}
-          disabled={!mine || !!working || busy}
+          disabled={!!working || busy}
           className="mt-1.5 w-full rounded-full bg-amber-500/90 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
         >
-          {working ? "取回中…" : "📥 取回这一段的成片（不重新下单，不再花钱）"}
+          {working ? "取回中…" : mine ? "📥 取回这一段的成片（不重新下单，不再花钱）" : "📥 取回到这条流水线（新开一段 · 不再花钱）"}
         </button>
       )}
       {/* 进度摆在按钮下面而不是塞进按钮里：它是整句（"正在向方舟核对…"），塞进去会折行 */}
