@@ -246,8 +246,8 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
                   {current && <span className="rounded-full px-2 py-0.5 bg-brand text-[10px] font-semibold text-ink">使用中</span>}
                   {t.isOwner && <span className="rounded-full px-2 py-0.5 bg-slate-800 text-[10px] text-slate-400">{t.shared ? "我的" : "我的 · 未公开"}</span>}
                 </div>
-                <div className="mt-0.5 text-xs leading-5 text-sky-200">{mixRecipeText(t.recipe, nameOf)}</div>
-                {t.description && <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-400">{t.description}</p>}
+                <div className="mt-0.5 text-xs leading-relaxed text-sky-200">{mixRecipeText(t.recipe, nameOf)}</div>
+                {t.description && <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-slate-400">{t.description}</p>}
                 <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
                   <span className="min-w-0 truncate">
                     {author ? `@${author}` : "匿名"} · 语速 {t.rate === null ? "跟随" : rateLabel(t.rate)}
@@ -292,14 +292,14 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
                   )}
                 </div>
                 {confirming && (
-                  <p className="mt-1.5 text-[11px] leading-4 text-slate-500">
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
                     再点一次就删。正在用它的人嗓子不变，只是不再显示「使用中」。
                     <button onClick={() => setConfirmId("")} className="ml-1 underline underline-offset-2">
                       取消
                     </button>
                   </p>
                 )}
-                {cardErr?.id === t._id && <p className="mt-1.5 text-[11px] leading-4 text-rose-300">{cardErr.text}</p>}
+                {cardErr?.id === t._id && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{cardErr.text}</p>}
               </section>
             );
           })}

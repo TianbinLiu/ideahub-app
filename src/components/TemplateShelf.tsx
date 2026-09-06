@@ -98,7 +98,7 @@ export function TemplateCard({
   }, [t.refVideo?.url]);
   const catLabel = tplCategoryLabel(t.category);
   return (
-    <div data-guide={guide} className="overflow-hidden rounded-2xl border border-slate-700/70 bg-panel">
+    <div data-guide={guide} className="overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
       <Link to={`/template/${t.id}`} className="block">
         <div className="relative aspect-[16/10] bg-black/40">
           {t.refVideo ? (

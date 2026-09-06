@@ -604,9 +604,9 @@ export default function SupportPage() {
             </div>
           </div>
         )}
-        {chatErr && <p className="mb-2 px-1 text-xs leading-5 text-rose-300">{chatErr}</p>}
-        {micErr && <p className="mb-2 px-1 text-xs leading-5 text-amber-300">{micErr}</p>}
-        {stageNotice && <p className="mb-2 px-1 text-xs leading-5 text-amber-300">{stageNotice}</p>}
+        {chatErr && <p className="mb-2 px-1 text-xs leading-relaxed text-rose-300">{chatErr}</p>}
+        {micErr && <p className="mb-2 px-1 text-xs leading-relaxed text-amber-300">{micErr}</p>}
+        {stageNotice && <p className="mb-2 px-1 text-xs leading-relaxed text-amber-300">{stageNotice}</p>}
 
         {messages.length === 0 && phase === "idle" && quick.length > 0 && (
           <div className="mb-2 flex gap-2 no-scrollbar overflow-x-auto pb-1">
@@ -685,7 +685,7 @@ export default function SupportPage() {
         <div className="fixed inset-0 z-30 flex items-end bg-black/60" onClick={() => !submitting && setSheetOpen(false)}>
           <div className="w-full rounded-t-2xl border-t border-slate-700 bg-ink px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-4" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-sm font-bold text-slate-100">转人工客服</h2>
-            <p className="mt-1 text-xs leading-5 text-slate-400">
+            <p className="mt-1 text-xs leading-relaxed text-slate-400">
               会把{transcript.length ? `最近 ${transcript.length} 条对话` : "你的描述"}一起交给人工客服，回复会出现在「通知」和「我的工单」里。
             </p>
             <textarea
@@ -705,7 +705,7 @@ export default function SupportPage() {
               placeholder="联系邮箱（选填，用手机号/QQ 登录的建议留一个）"
               className="mt-2 h-10 w-full rounded-full border border-slate-700 bg-slate-950 px-4 text-xs text-slate-100 outline-none placeholder:text-slate-500"
             />
-            {sheetErr && <p className="mt-2 text-xs leading-5 text-rose-300">{sheetErr}</p>}
+            {sheetErr && <p className="mt-2 text-xs leading-relaxed text-rose-300">{sheetErr}</p>}
             <div className="mt-3 flex gap-2">
               <button onClick={() => void submitTicket()} disabled={submitting} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-semibold text-ink disabled:opacity-40">
                 {submitting ? "提交中…" : "提交给人工客服"}
@@ -808,7 +808,7 @@ function TicketsPanel({
             <span className="ml-auto">#{t.id.slice(-6).toUpperCase()} · {relativeTime(Date.parse(t.createdAt))}</span>
           </div>
           <h3 className="mt-1.5 text-sm font-semibold text-slate-100">{t.subject || "客服工单"}</h3>
-          {t.summary && <p className="mt-1 text-xs leading-5 text-slate-400">{t.summary}</p>}
+          {t.summary && <p className="mt-1 text-xs leading-relaxed text-slate-400">{t.summary}</p>}
           {t.replies.length > 0 && (
             <div className="mt-2 space-y-1.5">
               {t.replies.map((r) => (

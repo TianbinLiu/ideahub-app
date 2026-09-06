@@ -199,7 +199,7 @@ export default function PublishPage() {
           {/* 2026-08-20 起成片出片即转存永久地址，这句只对"转存失败退回方舟直链"的少数段成立 ——
               无条件挂着就是对多数用户撒谎（他们的链接根本不会过期） */}
           {draft.segments.some((sg) => isArkAssetUrl(sg.videoUrl)) && (
-            <div className="mt-2 text-center text-[11px] leading-4 text-slate-500">
+            <div className="mt-2 text-center text-[11px] leading-relaxed text-slate-500">
               有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址
             </div>
           )}

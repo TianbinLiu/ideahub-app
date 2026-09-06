@@ -146,7 +146,7 @@ export default function TierRow({
           里出现过两遍）。宿主自己的别的理由（r2v 闸、真人卡）仍由宿主印，那是另一件事。
           「去升级」只治得了套餐门槛那一类原因，所以跟着 tierBlocks 一起出现。 */}
       {tierBlocks.length > 0 && (
-        <p className="text-[10px] leading-4 text-amber-300/80">
+        <p className="text-[10px] leading-relaxed text-amber-300/80">
           {tierBlocks.join("；")}
           {/* 间隔用全角空格字面量——JSX 会把行间换行整个吃掉，靠折行留空隙留不住 */}
           {"　"}

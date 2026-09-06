@@ -1209,7 +1209,7 @@ function ProposalsPanel() {
         </div>
       )}
       {playing && <SegPlayer nodeId={node.id} onClose={() => setPlaying(false)} onOpenPanel={() => setPlaying(false)} />}
-      <div className="flex-none border-t border-cyan-400/15 px-3 py-1.5 text-center text-[10px] leading-4 text-slate-500">
+      <div className="flex-none border-t border-cyan-400/15 px-3 py-1.5 text-center text-[10px] leading-relaxed text-slate-500">
         {blockout
           ? done
             ? "本段已出片 · 白模复刻段只有一段——点亮法阵去组稿成片"
@@ -1241,7 +1241,7 @@ function TierBlockNote({ node }: { node: FlowNode }) {
   const realFaceBlock = realFaceIssue(node.materials, node.videoTier, { blockout });
   const all = [...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])];
   if (all.length === 0) return null;
-  return <p className="mt-1 text-[10px] leading-4 text-amber-300/80">{all.join("；")}</p>;
+  return <p className="mt-1 text-[10px] leading-relaxed text-amber-300/80">{all.join("；")}</p>;
 }
 
 /**

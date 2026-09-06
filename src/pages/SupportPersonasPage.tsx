@@ -218,7 +218,7 @@ export default function SupportPersonasPage() {
           </button>
         </div>
       )}
-      {headErr && <p className="mb-2 text-xs leading-5 text-rose-300">{headErr}</p>}
+      {headErr && <p className="mb-2 text-xs leading-relaxed text-rose-300">{headErr}</p>}
       {settingsErr && (
         <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
           读不到当前设置：{settingsErr}这里不标「使用中」，选用时以服务端为准。
@@ -282,7 +282,7 @@ export default function SupportPersonasPage() {
                       )}
                       {p.voice && <span className="rounded-full px-2 py-0.5 bg-sky-500/20 text-[10px] text-sky-200">自带音色</span>}
                     </div>
-                    {p.description && <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-400">{p.description}</p>}
+                    {p.description && <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-slate-400">{p.description}</p>}
                     <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
                       {p.tags.length > 0 && <span className="min-w-0 truncate">{p.tags.slice(0, 4).map((t) => `#${t}`).join(" ")}</span>}
                       <span className="ml-auto shrink-0">
@@ -310,7 +310,7 @@ export default function SupportPersonasPage() {
                   )}
                 </div>
                 {needPay && !current && <p className="mt-1.5 text-[11px] text-slate-500">付费人格：先在官网购买，买过之后这里就能用。</p>}
-                {cardErr?.id === p._id && <p className="mt-1.5 text-[11px] leading-4 text-rose-300">{cardErr.text}</p>}
+                {cardErr?.id === p._id && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{cardErr.text}</p>}
               </section>
             );
           })}

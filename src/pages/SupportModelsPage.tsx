@@ -252,7 +252,7 @@ export default function SupportModelsPage() {
                       取消收藏
                     </button>
                   )}
-                  {cardErr?.id === m._id && <p className="mt-1.5 text-[11px] leading-4 text-rose-300">{cardErr.text}</p>}
+                  {cardErr?.id === m._id && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{cardErr.text}</p>}
                 </div>
               </section>
             );
