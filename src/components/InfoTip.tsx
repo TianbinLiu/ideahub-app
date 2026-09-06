@@ -27,7 +27,7 @@ export default function InfoTip({ title, children }: { title?: string; children:
       {open &&
         createPortal(
           <div
-            className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50"
+            className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60"
             onClick={(e) => {
               e.stopPropagation();
               setOpen(false);
