@@ -376,6 +376,7 @@ export function placeRescuedSegment(
     lastFrame: res.lastFrame ?? "",
     durationSec: job.durationSec ?? measured ?? 5,
     ...(res.poster ? { poster: res.poster } : {}),
+    ...(measured ? { realDurationSec: res.durationSec } : {}),
     videoUrl: res.url,
   };
   const node = newFlowNode(at, {
@@ -2430,6 +2431,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
         // 成片第一帧只管显示（白模/参考直出段没有设定首帧，卡面靠它）；这一炉没截到就清掉
         // 上一炉的旧图，别让卡面挂着另一发的画面
         poster: res.poster,
+        // 实测时长同源（截帧那一步读的）：剪辑页按它铺片段出点，别再按申报值切短 20 秒的片子
+        realDurationSec: res.realDurationSec,
         // mock 构建下 Seedance 不返回地址：这里和 videoByProposal 用同一个 "mock:" 占位串，
         // 否则同一段在工作流里算"已出片"、回工坊却算"没出片"（工坊读的是 proposal.videoUrl），
         // 于是演示模式下桌面永远开不出下一张卡。需要"能播的地址"的地方走 realVideoOf 过滤
@@ -2569,7 +2572,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
                   videoByProposal: { ...n.videoByProposal, [job.proposalId]: url },
                   proposals: n.proposals.map((p) =>
                     p.id === job.proposalId
-                      ? { ...p, videoUrl: url, ...(lastFrame ? { lastFrame } : {}), ...(poster ? { poster } : {}), degraded: undefined }
+                      ? {
+                          ...p,
+                          videoUrl: url,
+                          ...(lastFrame ? { lastFrame } : {}),
+                          ...(poster ? { poster } : {}),
+                          ...(res.durationSec ? { realDurationSec: res.durationSec } : {}),
+                          degraded: undefined,
+                        }
                       : p,
                   ),
                 },

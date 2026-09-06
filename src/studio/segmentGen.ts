@@ -299,6 +299,8 @@ export interface SegmentGenResult {
   lastFrame: string;
   /** 成片第一帧（与尾帧同一次截的），只管显示；截不到就没有（见 types.Proposal.poster） */
   poster?: string;
+  /** 成片实测时长（与尾帧同一次解码读的）；截不到就没有 —— 剪辑页按它铺片段（types.Proposal.realDurationSec） */
+  realDurationSec?: number;
 }
 
 /** 进度回调：一路平铺的短句，由调用方归一进步骤日志（见 genLog.splitStatus） */
@@ -557,6 +559,7 @@ export async function generateSegment(
       firstFrame: res?.firstFrame || firstRef || input.firstFrame,
       lastFrame: res?.lastFrame || input.lastFrame || firstRef,
       poster: res?.poster,
+      realDurationSec: res?.durationSec,
     };
   }
 
@@ -603,7 +606,7 @@ export async function generateSegment(
     //   取回卡一张不画，连能发给客服的任务号都看不到（比不改更坏）。零报错、类型也过 ——
     //   因为 composeSegments 的第三参当时是可选的。**现在它是必填的**，同样的漏法编译期就红。
     settleSegment(res);
-    return { url: res?.url, firstFrame: firstSrc, lastFrame: res?.lastFrame || firstSrc, poster: res?.poster };
+    return { url: res?.url, firstFrame: firstSrc, lastFrame: res?.lastFrame || firstSrc, poster: res?.poster, realDurationSec: res?.durationSec };
   }
 
   // ① 圈选 → 改设定帧。同一帧的多条标注串行叠加（上一次的产物当下一次的底图），
@@ -955,5 +958,6 @@ export async function generateSegment(
     firstFrame: res?.firstFrame || first,
     lastFrame: res?.lastFrame || last,
     poster: res?.poster,
+    realDurationSec: res?.durationSec,
   };
 }

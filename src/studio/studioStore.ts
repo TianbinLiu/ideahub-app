@@ -304,6 +304,7 @@ function buildBranchTree(
         firstFrame: proposal.firstFrame,
         lastFrame: proposal.lastFrame,
         durationSec: proposal.durationSec,
+        ...(proposal.realDurationSec ? { realDurationSec: proposal.realDurationSec } : {}),
         videoUrl: videoByProposal?.[proposal.id],
       },
       choices,
@@ -1838,6 +1839,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
             firstFrame: p.firstFrame,
             lastFrame: p.lastFrame,
             durationSec: p.durationSec,
+            ...(p.realDurationSec ? { realDurationSec: p.realDurationSec } : {}),
             videoTier: slot.videoTier ?? DEFAULT_TIER,
             aspect: slot.aspect,
             // 必须过 realVideoOf：mock 构建下 videoUrl 是 "mock:" 占位串，交给剪辑页的
@@ -2003,6 +2005,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         lastFrame: p.lastFrame,
         poster: p.poster,
         durationSec: p.durationSec,
+        ...(p.realDurationSec ? { realDurationSec: p.realDurationSec } : {}),
         videoTier: n.videoTier,
         aspect: n.aspect,
         ...(real ? { videoUrl: real } : {}),

@@ -590,6 +590,14 @@ export interface Proposal {
    * ★ 服务端不存它（发布时 zod 会 strip）：已发布作品的段没有这一格，那边照旧用 firstFrame。
    */
   poster?: string;
+  /**
+   * 成片的**实测**时长（秒），出片时与尾帧同一次解码读到的；截帧失败就没有。
+   * ★★ 与 `durationSec` 同名不同物：那是下单时申报的数（报价按它），这是片子真实的长度。
+   *   白模复刻 / 参考视频直出的成片长度跟着参考走（20 秒模板出 20 秒的片），申报值仍是 5 ——
+   *   剪辑页原来按申报值铺片段出点，20 秒的片子进去只剩 5 秒、合并也只录 5 秒
+   *   （2026-09-05 主人真机）。剪辑页铺片段一律读 `realDurationSec ?? durationSec`。
+   */
+  realDurationSec?: number;
   /** 这个走向已经炼出来的那段视频。
    *  ★ 挂在方案上而不是某个 store 里，是为了让工坊与工作流看到同一份出片——
    *  工坊节点卡上单独生成的、工作流里逐段生成的，都写在这里；换走向时各走向的成片
@@ -622,6 +630,8 @@ export interface VideoSegment {
   /** 成片第一帧，只管显示（与 Proposal.poster 同义，组稿时原样带过来；服务端不存） */
   poster?: string;
   durationSec: number;
+  /** 成片实测时长（见 Proposal.realDurationSec）；剪辑页按它铺片段，没有就按 durationSec */
+  realDurationSec?: number;
   /** 真实生成的视频片段（Seedance）；缺省时播放器回退首尾帧渐变 */
   videoUrl?: string;
   /** 该段选用的 Seedance 档位 id（见 data/economy VIDEO_TIERS）；缺省=标准档 */
