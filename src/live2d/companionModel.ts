@@ -38,24 +38,32 @@
  *   "useProgram: object does not belong to this context"，画布一片空白。两次踩坑：2026-09-04 客服页切「我的工单」
  *   再切回来（组件重挂）、同日换装（acquire 新 url 时销毁重建）。所以 Application/画布是模块级的、从不销毁，
  *   CompanionModel 实例只拥有"模型 + 驱动状态"；组件只负责把画布挂进/摘出自己的容器。
+ * ★ 第三方模型（市场包）的名字对不上我们的协议：动作组不叫 nod/wave、表情是 exp3 文件、命中区不叫 Head/Body、参数 id 可能是旧式
+ *   PARAM_ANGLE_X。2026-09-05 起 acquire() 先读 model3.json 旁边的 companion.json（服务器上传时生成 / 校验，见 ./mapping.ts），
+ *   playAction / setFace / hitTest / 每帧读写的参数 id 全部走映射；官方 mascot 没这个文件 → 与从前逐字相同。
+ *   刚点过的触摸区若映射了模型自己的动作（nizima 的 Tap@Head），紧接着的 playAction 播它而不是通用动作。
  */
 
 import { loadLive2DRuntime, type Live2DModelInstance, type PixiApplication, type PixiRuntime } from "./loader";
+import { loadCompanionMapping, mapHitAreas, motionGroupFor, resolveParamIds, touchMotionFor, type CompanionMapping, type ParamIds } from "./mapping";
 import {
-  ACTION_MOTIONS,
   EXPRESSION_PARTS,
   FACE_POSES,
   TIMING,
+  TOUCH_AREAS,
   type CompanionAction,
   type CompanionFace,
   type ExpressionPart,
   type FacePose,
+  type TouchArea,
 } from "../companion/protocol";
 
 export type StageRect = { x: number; y: number; width: number; height: number };
 
 type PartState = Record<ExpressionPart, number>;
 
+/** hitTest 之后多久内的 playAction 优先播触摸区自己映射的动作（页面是先 hitTest 再挑台词再 playAction，几十毫秒） */
+const TOUCH_MOTION_WINDOW_MS = 1500;
 /** 眨眼曲线：闭 → 停 → 睁（毫秒）。真人眨眼 100~150ms 合眼、稍慢睁开，比这快看着像抽搐 */
 const BLINK_CLOSE_MS = 70;
 const BLINK_HOLD_MS = 40;
@@ -136,6 +144,14 @@ export class CompanionModel {
   private readonly app: PixiApplication;
   private readonly model: Live2DModelInstance;
   private readonly partIndex = new Map<ExpressionPart, number>();
+  /** companion.json（第三方模型的协议映射）；官方 mascot 为 null */
+  private readonly mapping: CompanionMapping | null;
+  /** 每帧读写的参数 id（按映射解析；null = 这个模型没这个功能，跳过） */
+  private readonly P: ParamIds;
+  /** 当前挂着的 exp3 表情名（映射到 expression 的表情槽用）；null = 没挂 */
+  private currentExpression: string | null = null;
+  /** 最近一次 hitTest 命中的触摸区：TOUCH_MOTION_WINDOW_MS 内的 playAction 优先播它映射的动作 */
+  private lastTouch: { area: TouchArea; at: number } | null = null;
   /** ExprClosed 常开（闭眼补片由 ParamEyeL/ROpen 的关键帧控制露出），其余补片默认关 */
   private readonly partCurrent: PartState = { ExprSmile: 0, ExprAngry: 0, ExprClosed: 1, ExprMouthOpen: 0 };
   private pose: FacePose = FACE_POSES.normal;
@@ -170,12 +186,14 @@ export class CompanionModel {
   private fitOptions = { heightRatio: 1.2, xBias: 0.5 };
   private readonly tick = () => this.onTick();
 
-  private constructor(pixi: PixiRuntime, app: PixiApplication, model: Live2DModelInstance, canvas: HTMLCanvasElement, modelUrl: string) {
+  private constructor(pixi: PixiRuntime, app: PixiApplication, model: Live2DModelInstance, canvas: HTMLCanvasElement, modelUrl: string, mapping: CompanionMapping | null) {
     this.pixi = pixi;
     this.app = app;
     this.model = model;
     this.canvas = canvas;
     this.modelUrl = modelUrl;
+    this.mapping = mapping;
+    this.P = resolveParamIds(mapping);
     const core = model.internalModel.coreModel;
     const rawParts = core.getModel ? Array.from(core.getModel().parts.ids) : [];
     for (const id of EXPRESSION_PARTS) {
@@ -209,14 +227,16 @@ export class CompanionModel {
     pending = (async () => {
       const { pixi, app, canvas } = await getSharedStage();
       // 先加载新模型再拆旧的：加载失败（作者删了包 / 贴图坏了）时旧模型原样留着，舞台不会空掉
-      const model = await pixi.live2d.Live2DModel.from(modelUrl, { autoInteract: false, idleMotionGroup: "Idle" });
+      // 市场包旁边可能有 companion.json（协议映射）：先读它——待机动作组的名字要在加载前定下来；官方模型是相对路径，直接跳过
+      const mapping = await loadCompanionMapping(modelUrl);
+      const model = await pixi.live2d.Live2DModel.from(modelUrl, { autoInteract: false, idleMotionGroup: mapping?.idle || "Idle" });
       if (singleton) {
         singleton.destroy();
         singleton = null;
       }
       app.stage.addChild(model);
       model.anchor.set(0.5, 0.5);
-      singleton = new CompanionModel(pixi, app, model, canvas, modelUrl);
+      singleton = new CompanionModel(pixi, app, model, canvas, modelUrl, mapping);
       return singleton;
     })().finally(() => {
       pending = null;
@@ -286,15 +306,34 @@ export class CompanionModel {
 
   setFace(face: CompanionFace) {
     if (this.disposed) return;
-    this.pose = FACE_POSES[face] || FACE_POSES.normal;
+    const base = FACE_POSES[face] || FACE_POSES.normal;
+    if (!this.mapping) {
+      this.pose = base;
+    } else {
+      // 第三方模型：映射到 exp3 表情就挂表情（参数可选叠加）；映射为 null 的表情退到我们的参数版（缺的参数 Cubism 自己忽略；补片它没有，写了也白写）
+      const mapped = face === "normal" ? null : (this.mapping.faces[face] ?? null);
+      this.pose = mapped ? { parts: {}, params: mapped.params ?? {}, holdMs: base.holdMs, blink: base.blink } : base;
+      this.applyExpression(mapped?.expression ?? null);
+    }
     this.poseUntil = this.pose.holdMs > 0 ? performance.now() + this.pose.holdMs : 0;
+  }
+
+  /** 挂 / 摘 exp3 表情（只有映射到 expression 的表情槽会用到）；同名不重复挂，null = 摘掉回到中性 */
+  private applyExpression(name: string | null) {
+    if (name === this.currentExpression) return;
+    this.currentExpression = name;
+    if (name) void this.model.expression(name).catch(() => undefined);
+    else this.model.internalModel.motionManager.expressionManager?.resetExpression();
   }
 
   playAction(action: CompanionAction) {
     if (this.disposed) return;
-    const group = ACTION_MOTIONS[action];
-    if (!group) return;
     const now = performance.now();
+    // 刚点过的触摸区若映射了模型自己的动作（nizima 的 Tap@Head 之类），这一下播它，比通用动作贴切；只认这一次
+    const touchGroup = this.lastTouch && now - this.lastTouch.at < TOUCH_MOTION_WINDOW_MS ? touchMotionFor(this.mapping, this.lastTouch.area) : null;
+    this.lastTouch = null;
+    const group = touchGroup || motionGroupFor(this.mapping, action);
+    if (!group) return;
     if (now < this.actionSuppressUntil) return; // 上一个语义动作还没做完，别抢戏
     if (!this.model.internalModel.settings.motions?.[group]) return;
     this.actionSuppressUntil = now + TIMING.actionSuppressMs;
@@ -303,11 +342,17 @@ export class CompanionModel {
     void this.model.motion(group, 0, this.pixi.live2d.MotionPriority.FORCE).catch(() => undefined);
   }
 
-  /** 舞台里的点击落在哪些命中区（model3.json HitAreas 的名字：Head/Hair/Body/Skirt/ArmL/ArmR/Legs）；空数组 = 没点到人 */
+  /**
+   * 舞台里的点击落在哪些触摸区（protocol.ts TOUCH_AREAS 的名字，按优先级排序）；空数组 = 没点到人。
+   * 官方 mascot 的 HitAreas 名字就是区名；第三方模型按 companion.json 把它自己的命中区名翻译过来。
+   */
   hitTest(clientX: number, clientY: number, stageOrigin: { left: number; top: number }): string[] {
     if (this.disposed || typeof this.model.hitTest !== "function") return [];
     try {
-      return this.model.hitTest(clientX - stageOrigin.left, clientY - stageOrigin.top);
+      const areas = mapHitAreas(this.mapping, this.model.hitTest(clientX - stageOrigin.left, clientY - stageOrigin.top));
+      const top = areas.find((a) => (TOUCH_AREAS as readonly string[]).includes(a)) as TouchArea | undefined;
+      this.lastTouch = top ? { area: top, at: performance.now() } : null;
+      return areas;
     } catch {
       return [];
     }
@@ -386,6 +431,7 @@ export class CompanionModel {
     if (this.poseUntil && now > this.poseUntil) {
       this.pose = FACE_POSES.normal;
       this.poseUntil = 0;
+      this.applyExpression(null);
     }
 
     // 眨眼调度：起一条曲线，之后每帧按曲线写参数（笑眼/闭眼类表情不眨，见 protocol.ts）
@@ -444,23 +490,23 @@ export class CompanionModel {
     // 视线：跟着鼠标轻微转头 + 眼球
     this.gaze.x += (this.gazeTarget.x - this.gaze.x) * Math.min(1, dt / 260);
     this.gaze.y += (this.gazeTarget.y - this.gaze.y) * Math.min(1, dt / 260);
-    core.addParameterValueById("ParamAngleX", this.gaze.x * 14);
-    core.addParameterValueById("ParamAngleY", -this.gaze.y * 8);
-    core.addParameterValueById("ParamEyeBallX", this.gaze.x * 0.6);
-    core.addParameterValueById("ParamEyeBallY", -this.gaze.y * 0.4);
+    if (this.P.angleX) core.addParameterValueById(this.P.angleX, this.gaze.x * 14);
+    if (this.P.angleY) core.addParameterValueById(this.P.angleY, -this.gaze.y * 8);
+    if (this.P.eyeBallX) core.addParameterValueById(this.P.eyeBallX, this.gaze.x * 0.6);
+    if (this.P.eyeBallY) core.addParameterValueById(this.P.eyeBallY, -this.gaze.y * 0.4);
 
     // 口型与眼睛：每帧【覆盖】写入（动作/表情文件里没有这两组参数，覆盖不会吃掉别的演出）
-    core.setParameterValueById("ParamMouthOpenY", mouthOpen);
-    core.setParameterValueById("ParamEyeLOpen", eyeOpen);
-    core.setParameterValueById("ParamEyeROpen", eyeOpen);
+    if (this.P.mouthOpen) core.setParameterValueById(this.P.mouthOpen, mouthOpen);
+    if (this.P.eyeL) core.setParameterValueById(this.P.eyeL, eyeOpen);
+    if (this.P.eyeR) core.setParameterValueById(this.P.eyeR, eyeOpen);
 
     // 裙摆：二阶弹簧追这一帧的身体角度（动作 + 呼吸 + 表情叠加之后的值）。
     // 老模型没有 ParamSkirtSway 时 setParameterValueById 被 Cubism 忽略，无害
     const readParam = (id: string) => (typeof core.getParameterValueById === "function" ? core.getParameterValueById(id) || 0 : 0);
-    const bodyX = readParam("ParamBodyAngleX");
-    const headX = readParam("ParamAngleX");
-    const headZ = readParam("ParamAngleZ");
-    const breath = readParam("ParamBreath");
+    const bodyX = this.P.bodyX ? readParam(this.P.bodyX) : 0;
+    const headX = this.P.angleX ? readParam(this.P.angleX) : 0;
+    const headZ = this.P.angleZ ? readParam(this.P.angleZ) : 0;
+    const breath = this.P.breath ? readParam(this.P.breath) : 0.5;
     const dtSec = Math.min(0.05, dt / 1000);
     const tSec = (now - this.bornAt) / 1000;
     // 二阶弹簧一步：返回 [新位置, 新速度]；裙摆量程 ±10，头发量程 ±1
