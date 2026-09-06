@@ -3,7 +3,7 @@
 //
 // ★ 四种状态都要画出来：加载中 / 出错 / 空 / 离线。少画一种的表现都是同一件事 ——
 //   用户看到一个空列表，然后自己去猜到底是"没人理我"还是"坏了"（铁律八）。
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
@@ -56,6 +56,8 @@ export default function NotificationsPage() {
   const navigate = useNavigate();
   const backOrMe = useBackOr("/me");
   const state = useSyncExternalStore(subscribeNotifications, notificationsState);
+  /** 「全部已读」在路上（要等服务端回包）：按钮上要有字 */
+  const [marking, setMarking] = useState(false);
 
   // 重复刷新（切回本页 / App 从后台恢复）才看可见性。
   //
@@ -122,10 +124,15 @@ export default function NotificationsPage() {
         right={
           state.unread > 0 ? (
             <button
-              onClick={() => void markAllNotificationsRead()}
-              className="h-11 flex-none whitespace-nowrap px-2 text-xs font-semibold text-slate-400 active:opacity-60"
+              onClick={() => {
+                if (marking) return;
+                setMarking(true);
+                void Promise.resolve(markAllNotificationsRead()).finally(() => setMarking(false));
+              }}
+              disabled={marking}
+              className="h-11 flex-none whitespace-nowrap px-2 text-xs font-semibold text-slate-400 active:opacity-60 disabled:opacity-50"
             >
-              全部已读
+              {marking ? "标记中…" : "全部已读"}
             </button>
           ) : null
         }

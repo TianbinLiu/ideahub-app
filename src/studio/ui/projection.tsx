@@ -30,7 +30,7 @@ import {
   rederiveKey,
   useStudio,
 } from "../studioStore";
-import { CUSTOM_MID_MAX, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf } from "../flowStore";
+import { CUSTOM_MID_MAX, nodeBlank, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf } from "../flowStore";
 import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
@@ -270,6 +270,8 @@ function EditorPanel() {
   /** 示例视频上传中的进度句 / 调帧小窗 / 选文件口（自定义·第①页） */
   const [refUploading, setRefUploading] = useState("");
   const [refSheet, setRefSheet] = useState(false);
+  /** 上传开头帧：解码 + 压制那一两秒要让人看见（2026-09-05 主人点名"没有上传中的反馈"） */
+  const [frameReading, setFrameReading] = useState(false);
   const refFileRef = useRef<HTMLInputElement>(null);
   /** 第一步选「套模板」：**就地**弹选模板层（2026-08-30 主人点名"别把人赶出工坊"；
    *  此前这里是 closeProjection + navigate 去画布/模板市场）。选定即落节点
@@ -584,11 +586,19 @@ function EditorPanel() {
             firstFrame={nextStartFrame(editor.startFrame)}
             lastFrame={null}
             originNote={
-              editor.startFrame ? "已用你上传的图" : prev?.lastFrame ? "承接上一段尾帧" : "AI 将自拟开头帧"
+              frameReading ? "读取图片…" : editor.startFrame ? "已用你上传的图" : prev?.lastFrame ? "承接上一段尾帧" : "AI 将自拟开头帧"
             }
             canEdit={!editor.generating}
             uploaded={!!editor.startFrame}
-            onPickFile={(f) => void fileToFrameDataUrl(f).then((d) => useStudio.getState().setStartFrame(d))}
+            onPickFile={(f) => {
+              setFrameReading(true);
+              void fileToFrameDataUrl(f)
+                .then(
+                  (d) => useStudio.getState().setStartFrame(d),
+                  (err) => useStudio.getState().npcSay(`这张图读不出来：${err instanceof Error ? err.message : String(err)}`),
+                )
+                .finally(() => setFrameReading(false));
+            }}
             onResetStart={() => useStudio.getState().setStartFrame(null)}
             onClearFrame={() => useStudio.getState().setStartFrame(null)}
             pinned={{ first: !!editor.startFrame }}
@@ -953,21 +963,10 @@ function ProposalsPanel() {
    *   早就把 materials 从快照取走了：界面显示已经撤掉那张卡，几分钟后成片里还是那个人。
    */
   const genHere = node.status === "generating" || flowBusy;
-  const notDerived =
-    !node.custom &&
-    !blockout &&
-    node.proposals.length < 2 &&
-    // ★★ 「只有一套方案」**不等于**「还没推演过」（2026-08-30 复核抓到）：做同款铺进来的段、
-    //   已经出过片的段、老草稿里的段都可能只有一套，而且里面是真内容。按张数判会把它们的
-    //   **出片入口整个换掉** —— 用户只剩一颗"再花 40~80k 推演"的按钮，那是唯一出路。
-    //   判据收紧成"这一套是空白占位"：没剧情、没帧、没出片，那才是真的什么都还没有。
-    !proposalDone(chosen) &&
-    !chosen?.plot.trim() &&
-    !chosen?.firstFrame &&
-    !chosen?.lastFrame &&
-    // ★ 真人档没有方案台这一拍（deriveIssue 一处判定）——给它摆「生成三套方案」等于
-    //   把唯一的主按钮换成一条必被拒的路（store 那边现在会整句拒，但更不该摆出来）
-    !deriveIssue(node.videoTier);
+  /** 判据 flowStore.nodeBlank 一处（与「‹ 回铸段窗」、"只剩一段也能删"共用）。
+   *  ★ 真人档没有方案台这一拍（deriveIssue 一处判定）——给它摆「生成三套方案」等于
+   *    把唯一的主按钮换成一条必被拒的路（store 那边现在会整句拒，但更不该摆出来） */
+  const notDerived = nodeBlank(node) && !deriveIssue(node.videoTier);
 
   // ‹› 切换聚焦节点：桌面窗口随焦点实时平移（computeChain 焦点跟随），镜头跟到新卡位
   function go(dir: 1 | -1) {
@@ -1023,6 +1022,21 @@ function ProposalsPanel() {
           ✕
         </button>
       </div>
+      {/* ★ 空白占位段（还没推演）：这一行就是它的「上一步」——退回铸段窗重选模式 / 改要求，
+          不花钱。没有它的话，用户被困在一张空白卡上：顶栏那枚 ‹ 是"上一段"（第 1 段时灰着），
+          删段又被"只剩一段"挡住（2026-09-05 主人真机点名） */}
+      {notDerived && (
+        <div className="flex flex-none items-center gap-2 border-b border-cyan-400/10 px-3 py-1.5">
+          <button
+            onClick={() => useStudio.getState().recastBlankNode(node.id)}
+            disabled={genHere || busy}
+            className="flex-none rounded-full border border-slate-600 px-2.5 py-1 text-[11px] text-slate-200 disabled:opacity-40"
+          >
+            ‹ 回铸段窗重选模式
+          </button>
+          <span className="min-w-0 flex-1 truncate text-[10px] text-slate-500">这一段还没推演，退回去不花钱</span>
+        </div>
+      )}
       {tierOpen && (
         <div className="flex-none border-b border-cyan-400/15 px-3 py-2">
           {/* key 认 node.id：换段时整块重挂，档位卡上的待确认状态不会跨段残留 */}
@@ -1504,7 +1518,7 @@ function PickedActions({
             done={done}
             /* ★ 与画布同源：画布那颗读的是 store 上的 busy，工坊本地那个 busy 认不出
                画布发起的那一炉（见 ProposalsPanel 里 genHere 的 ★★） */
-            disabled={busy || flowBusy || node.status === "generating" || flowNow.nodes.length <= 1}
+            disabled={busy || flowBusy || node.status === "generating" || (flowNow.nodes.length <= 1 && !nodeBlank(node))}
             onConfirm={() => {
               // ★ removeNode 会整句拒（生成中、只剩一段…），拒了就**别关窗** ——
               //   无条件关窗会让"删失败"长得和"删成功"一模一样（2026-09-03 复核抓到）。
@@ -1516,7 +1530,7 @@ function PickedActions({
             }}
             className="rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300 disabled:opacity-40"
           />
-          {flowNow.nodes.length <= 1 && <span className="text-[10px] text-slate-500">只剩一段了，删不掉</span>}
+          {flowNow.nodes.length <= 1 && !nodeBlank(node) && <span className="text-[10px] text-slate-500">只剩一段了，删不掉</span>}
         </div>
       )}
       {/* 进度画在节点自己身上（单一真相：flowStore.genNode 写 node.steps）。

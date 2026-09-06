@@ -141,11 +141,15 @@ export default function AvatarPicker({
           const f = e.target.files?.[0];
           e.target.value = ""; // 清掉，否则选同一张图第二次不触发 change
           if (!f) return;
+          // ★ 大照片解码 + 按 EXIF 摆正要一两秒，这期间得让人看见（2026-09-05 主人点名"没有上传中的反馈"）
+          setBusy("读取图片…");
           try {
             const bitmap = await decodeImageFile(f);
             setCropping({ bitmap, url: await makePreview(bitmap) });
           } catch (err) {
             onError(err instanceof Error ? err.message : "这张图片打不开");
+          } finally {
+            setBusy("");
           }
         }}
       />

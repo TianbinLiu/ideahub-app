@@ -22,7 +22,7 @@
 //    就没人读得到，而它说的正是"你的图可能会没"。
 // ④ **图太大 / 比例超 3:1 怎么办？** 走 `data/cardViews.prepareCardImage`（与详情页
 //    「+ 图位」同一份实现）：越界居中裁并把这件事**说出来**，超 5MB 直接报错。
-import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import PageHeader from "../components/PageHeader";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
@@ -43,6 +43,10 @@ import FrameAnnotator from "../components/FrameAnnotator";
 import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
 import { saveAsset } from "../data/cardAsset";
 import { saveVoice } from "../data/cardVoice";
+import { startJob } from "../data/jobs";
+// ★★ 这一页的表单状态全在 store 里（理由见 customCardStore 文件头）：AI 出图 / 铸卡上传
+//   退出这一页也不断，人回来时原样还在；胶囊（GenerationPill）负责人不在时的通知
+import { type Shot, draftBusy, draftDirty, resetCardDraft, useCardDraft, useDraftField } from "../studio/customCardStore";
 // 人物卡的图位不再写死三格，由**提示词方案**定（与「从视频提取」同一套方案库）。
 // 方案在这里决定**图位结构**（几格、各叫什么、锁什么）；「AI 生成图位」车道
 // 走 ai/portraitViews（与工坊提卡同一条出图路），报价同一把尺 schemeCost。
@@ -88,15 +92,7 @@ const TAG_LEN_MAX = 10;
 /** 方案小窗的占位图（内置方案都带真实示例图了，这份只兜自定义方案没存示例的情况） */
 const SCHEME_EMOJI: Record<string, string> = { scheme_clean: "🧍", scheme_faceless: "🫥", scheme_specsheet: "📐" };
 
-/** 一个图位上已经准备好的那张图 */
-interface Shot {
-  /** 已按 prepareCardImage 处理过（比例裁 + 尺寸压制）的 dataURL */
-  dataUrl: string;
-  /** 我们动过这张图就有值，必须显示出来 */
-  note?: string;
-  /** 原文件名，只为让用户认得出自己传的是哪张 */
-  fileName: string;
-}
+// 「一个图位上已经准备好的那张图」（Shot）的定义搬到了 studio/customCardStore（表单状态的家）
 
 /** 标签输入 → tags。分隔符规则**只有一处**（types.parseTags），这里只把卡片的上限传进去
  *  —— 卡片与作品的上限是两条独立规则，但"怎么切"必须是同一条（见 types 那处的 ★） */
@@ -118,22 +114,22 @@ export default function CustomCardPage() {
   const nav = useNavigate();
   const remote = isRemoteMode();
 
-  const [type, setType] = useState<CardType>("character");
+  const [type, setType] = useDraftField("type");
   // 按 **kind** 存，不按下标存：换卡种时图位的**数量和含义**都会变，按下标存会让
   // "人物卡的面部特写"在切成场景卡之后变成"局部特征"——一声不响地指鹿为马。
   // ★ 这份 kind 库只服务**非人物卡**了：人物卡的图位由方案定，另存 schemeShots（按 tag 键，
   //   同一条"不按下标"的理由）。两库互不相通，换卡种时各自原样留着 —— 切回来图还在。
-  const [shots, setShots] = useState<Partial<Record<CardView["kind"], Shot>>>({});
-  const [name, setName] = useState("");
-  const [summary, setSummary] = useState("");
-  const [info, setInfo] = useState("");
-  const [tagText, setTagText] = useState("");
+  const [shots, setShots] = useDraftField("shots");
+  const [name, setName] = useDraftField("name");
+  const [summary, setSummary] = useDraftField("summary");
+  const [info, setInfo] = useDraftField("info");
+  const [tagText, setTagText] = useDraftField("tagText");
 
   // ── 人物卡：方案驱动的图位 ─────────────────────────────
   // 方案库是模块级侧库，自建/删除后要重渲染靠订阅（与 VideoCardAnnotator 同一套）
   useSyncExternalStore(subscribeSchemes, schemesVersion, () => 0);
-  const [schemeId, setSchemeId] = useState<string>(defaultScheme().id);
-  const [schemeOpen, setSchemeOpen] = useState(false);
+  const [schemeId, setSchemeId] = useDraftField("schemeId");
+  const [schemeOpen, setSchemeOpen] = useDraftField("schemeOpen");
   /** 用户亲手挑过方案没有 —— 勾「真人」只在没挑过时才换默认（主推≠强制） */
   const schemeTouched = useRef(false);
   /**
@@ -145,37 +141,39 @@ export default function CustomCardPage() {
    *   的旧值，照片会被写进新方案里根本不存在的 tag：本页按当前 `pageSlots` 取图，
    *   于是**不画、不当卡面、mint 也不带走**，而屏幕上还打着「✅ 已填进「X」」。零报错。
    */
-  const schemeIdRef = useRef(defaultScheme().id);
+  const schemeIdRef = useRef(useCardDraft.getState().schemeId);
   /** 人物卡各图位（按方案的 tag 键）。换方案时 tag 对得上的留着，对不上的取下并说明 */
-  const [schemeShots, setSchemeShots] = useState<Record<string, Shot>>({});
+  const [schemeShots, setSchemeShots] = useDraftField("schemeShots");
   /**
    * 两步向导（主人 2026-08-28 二次点名的形状）：**先**选方案 + 做真人授权/跟读，
    * **再**进传图表单。一页摊平的上一版被实测认定"没改"——方案行折叠在图位区里、
    * 真人区沉在两屏之下，用户按老动线走完全程都不会遇到它们。步骤化不是装饰，
    * 是把"先表态，再干活"变成动线本身。
    */
-  const [step, setStep] = useState<"type" | "real" | "source" | "form" | "info" | "final">("type");
+  const [step, setStep] = useDraftField("step");
   /** 人物卡第②屏的来源选择（2026-08-30 主人点名的四步向导）：自己传图 or 素材交给 AI */
-  const [lane, setLane] = useState<"upload" | "ai" | null>(null);
+  const [lane, setLane] = useDraftField("lane");
   /** AI 车道的素材：主素材图（必）+ 面部近照（选）+ 一句主体描述（选） */
-  const [aiBody, setAiBody] = useState<Shot | null>(null);
-  const [aiFace, setAiFace] = useState<Shot | null>(null);
-  const [aiSubject, setAiSubject] = useState("");
-  const [aiBusy, setAiBusy] = useState("");
+  const [aiBody, setAiBody] = useDraftField("aiBody");
+  const [aiFace, setAiFace] = useDraftField("aiFace");
+  const [aiSubject, setAiSubject] = useDraftField("aiSubject");
+  const [aiBusy, setAiBusy] = useDraftField("aiBusy");
+  /** AI 素材口正在读哪张图（解码 + 裁切要一两秒，得让人看见） */
+  const [aiPick, setAiPick] = useDraftField("aiPick");
   /** AI 素材选图口（body/face 复用一个 input） */
   const aiPickRef = useRef<{ which: "body" | "face" }>({ which: "body" });
   const aiFileRef = useRef<HTMLInputElement>(null);
   /** 圈选改图：开在哪一格上（人物卡 tag 键） */
-  const [annot, setAnnot] = useState<{ tag: string; frame: string } | null>(null);
+  const [annot, setAnnot] = useDraftField("annot");
   /** 人物卡的方案小窗开没开（第 1 屏点「人物卡」弹出） */
-  const [schemePick, setSchemePick] = useState(false);
+  const [schemePick, setSchemePick] = useDraftField("schemePick");
   /** 授权照片自动填卡面的进行态/结果（铁律八：取失败要整句说，并给退路） */
-  const [importMsg, setImportMsg] = useState("");
+  const [importMsg, setImportMsg] = useDraftField("importMsg");
   /** 真人声明（仅人物卡）。勾了就必须同时勾 consentOk，否则铸卡整句拒（同提取那条路） */
-  const [realPerson, setRealPerson] = useState(false);
-  const [consentOk, setConsentOk] = useState(false);
+  const [realPerson, setRealPerson] = useDraftField("realPerson");
+  const [consentOk, setConsentOk] = useDraftField("consentOk");
   /** 造卡时就做完的肖像授权。卡还没有 id，先攒着，addCards 成功后才落 cardAsset 侧库 */
-  const [pendingAsset, setPendingAsset] = useState<{ assetId: string; note: string } | null>(null);
+  const [pendingAsset, setPendingAsset] = useDraftField("pendingAsset");
   /**
    * 从授权素材取回来的那张照片本身。
    * ★★ 为什么要单独存一份，而不是"看 aiBody 有没有值"（2026-09-01 主人第二次点名同一件事）：
@@ -184,7 +182,7 @@ export default function CustomCardPage() {
    *   `aiBody` 回答不了它：用户自己传一张也会填 aiBody；`schemeShots` 也回答不了：
    *   换成无脸方案时那张会被收起来（见 changeScheme），而照片**仍然在手上**。
    */
-  const [authShot, setAuthShot] = useState<Shot | null>(null);
+  const [authShot, setAuthShot] = useDraftField("authShot");
   /**
    * 「授权已经撤掉了」这句话。**单独一个字段**，因为它要跨屏活着。
    * ★★ 为什么不能写进 importMsg（2026-09-01 发版前复核抓到，两名反方都判成立）：
@@ -194,18 +192,18 @@ export default function CustomCardPage() {
    *   那时人正在重新授权，读到的是一句已经不成立的话。
    *   这就是 CLAUDE.md 记的那条坑：「话写进某个 msg，而同一拍就换路由」。
    */
-  const [unbindNote, setUnbindNote] = useState("");
+  const [unbindNote, setUnbindNote] = useDraftField("unbindNote");
   /** 跟读录到的声音样本。同上，addCards 成功后才落 cardVoice 侧库 */
-  const [pendingVoice, setPendingVoice] = useState<{ dataUrl: string; durationSec: number; note: string } | null>(null);
+  const [pendingVoice, setPendingVoice] = useDraftField("pendingVoice");
 
-  const [busySlot, setBusySlot] = useState<string | null>(null);
+  const [busySlot, setBusySlot] = useDraftField("busySlot");
   /** 选图失败：**贴在出事的那一格上**，不是页面底部那条通用红字（见 onFile 的 catch）。
    *  key = 非人物卡的 kind 或人物卡的 tag（两个库的键都是字符串，一份提示态够用） */
-  const [slotErr, setSlotErr] = useState<{ key: string; msg: string } | null>(null);
-  const [err, setErr] = useState("");
+  const [slotErr, setSlotErr] = useDraftField("slotErr");
+  const [err, setErr] = useDraftField("err");
   /** 换卡种时被丢掉的图位（必须说，见 changeType） */
-  const [dropped, setDropped] = useState("");
-  const [minting, setMinting] = useState(false);
+  const [dropped, setDropped] = useDraftField("dropped");
+  const [minting, setMinting] = useDraftField("minting");
   /** 铸成了、但有图没能存到服务器 —— 停在这一页把话说完，不自动跳走 */
   /**
    * 铸完之后**没有全成**的那个状态。
@@ -216,12 +214,7 @@ export default function CustomCardPage() {
    *     绝不能说"卡已经建好了"然后放他安心退出。
    *   · "views" —— 卡在服务端，只是某几张图没挂上。这时才是"去详情页补挂"。
    */
-  const [partial, setPartial] = useState<{
-    id: string;
-    kind: "unsynced" | "views" | "asset";
-    lost: string[];
-    reason?: string;
-  } | null>(null);
+  const [partial, setPartial] = useDraftField("partial");
   /**
    * 「配了服务端、但这次会话没连上」。
    *
@@ -283,6 +276,14 @@ export default function CustomCardPage() {
   const aiOpen = lane === "ai" || (lane === null && haveAuthShot);
   // 路由套着 RequireAuth，进来就有内容，无条件弹（引导来自 origin/main 的 UI 梳理批）
   useAutoGuide("customcard", true);
+  // ★ 页面在不在（AI 出图 / 铸卡上传都活在 store 与 Promise 里，退出页面不断）：
+  //   在 → 结果直接画在页上（就地显示 / 跳转）；不在 → 交给全局胶囊通知，人回来时 store 里的状态原样还在
+  useEffect(() => {
+    useCardDraft.setState({ mounted: true });
+    return () => useCardDraft.setState({ mounted: false });
+  }, []);
+  const dirty = useCardDraft(draftDirty);
+  const working = useCardDraft(draftBusy);
 
   /**
    * 换卡种。★ 图位是按卡种给的（人物卡三格、其余两格），换过去没有的那一格**必须
@@ -505,6 +506,8 @@ export default function CustomCardPage() {
     }
     setErr("");
     setAiBusy("准备中…");
+    // ★ 登记成后台任务：退出这一页它照跑，胶囊接手进度；结果写进 store，人回来原样在
+    const job = startJob({ kind: "card-ai", title: "AI 生成图位", page: "/custom-card", route: "/custom-card", progress: "准备中…" });
     try {
       const out = await portraitViews({
         scheme: { ...scheme, slots: pageSlots },
@@ -515,7 +518,10 @@ export default function CustomCardPage() {
         //   自己判 —— 2026-09-04 主人实测授权自拍出的「全身立绘」是厚涂二次元（同一张参考的
         //   「面部特写」却是照片），机理见 promptSchemes.PHOTO_LOCK_CLAUSE
         realPhoto: realPerson,
-        onProgress: setAiBusy,
+        onProgress: (st) => {
+          setAiBusy(st);
+          job.update(st);
+        },
       });
       if (AI_REAL) spendTokens(schemeCost(pageSlots)); // 图那一半：出齐才扣
       const shots: Record<string, Shot> = {};
@@ -529,6 +535,7 @@ export default function CustomCardPage() {
       setLane("ai");
       // ── 文案那一半：看图写人物信息（AI 车道连人物信息一起生成，主人点名）──
       setAiBusy("按素材撰写人物信息…");
+      job.update("按素材撰写人物信息…");
       try {
         const raw = AI_REAL
           ? await chatVision(
@@ -552,7 +559,9 @@ export default function CustomCardPage() {
         setErr("图生成好了，但人物信息没写成（这一半没扣钱）——下一步自己填就行");
       }
       setStep("form");
+      job.done({ msg: "形象图生成好了，回去接着做卡", silent: useCardDraft.getState().mounted });
     } catch (e) {
+      job.fail("形象图没画成（没扣钱），回去看原因", "/custom-card");
       setErr(`形象图没画成：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}——一分钱没扣，可以再试或改选自己传图`);
     } finally {
       setAiBusy("");
@@ -570,11 +579,14 @@ export default function CustomCardPage() {
     }
     setBusySlot(tag);
     setSlotErr(null);
+    const job = startJob({ kind: "card-refine", title: "圈选改图", page: "/custom-card", route: "/custom-card", progress: "重画中…" });
     try {
       const next = await refineCardImage({ annotated, req, size: slotSize(slot) });
       if (AI_REAL) spendTokens(ONE_IMAGE);
       setSchemeShots((prev) => ({ ...prev, [tag]: { dataUrl: next, fileName: shot.fileName, note: "已按圈选修改" } }));
+      job.done({ msg: "圈选改图完成，回去看看", silent: useCardDraft.getState().mounted });
     } catch (e) {
+      job.fail("圈选改图没成（没扣钱）", "/custom-card");
       setSlotErr({ key: tag, msg: `没改成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}（没扣钱）` });
     } finally {
       setBusySlot(null);
@@ -601,6 +613,15 @@ export default function CustomCardPage() {
     setMinting(true);
     setErr("");
     setPartial(null);
+    // ★ 登记成后台任务（远端模式要串行传几张图，弱网几十秒）：退出这一页照传，胶囊接手；
+    //   页不在时结局走通知（铸成 → 点通知直达卡片；没全成 → 回来看这一页上的说明）
+    const job = startJob({
+      kind: "card-mint",
+      title: "铸卡上传",
+      page: "/custom-card",
+      progress: remote ? "存卡并把图传到服务器…" : "存进本机卡片库…",
+    });
+    const here = () => useCardDraft.getState().mounted;
     try {
       const id = uid("card");
       // ★ 顺序**照图位表**（重要性降序），不照用户上传的先后：出片管线取的是
@@ -662,12 +683,14 @@ export default function CustomCardPage() {
       if (r.added.length === 0) {
         // addCards 永不 reject：没入库只有一种可能——账号库里没有当前用户（登录态失效）
         setErr("没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（这一页填的内容还在）。");
+        job.fail("没能存进卡片库：登录态可能已失效", "/custom-card");
         return;
       }
       // ★ 判据是 addCards 显式给的 `synced`，**不是**"哪个字段有值"。
       //   靠字段猜的话，POST 挂了（卡根本没上去）会被说成"只是有图没传上"。
       if (!r.synced) {
         setPartial({ id, kind: "unsynced", lost: [], reason: r.reason });
+        job.done({ msg: "卡存在本机了，但没同步到服务端——回去看看", route: "/custom-card", silent: here() });
         return;
       }
       // 造卡时攒下的授权素材与声音样本 —— addCards 成了才写（卡没入库，挂上去就是孤儿）。
@@ -692,14 +715,28 @@ export default function CustomCardPage() {
         // ★ 把 lostViews 一并带上：两件事可能同时发生，而 partial 一次只画一块 ——
         //   不带的话"还有 N 张图没同步"就被这一档静默吞了（复核抓到）
         setPartial({ id, kind: "asset", lost: r.lostViews, reason: "本机存储写入失败（配额满或隐私模式）" });
+        job.done({ msg: "卡铸好了，但授权绑定没存住——回去看看", route: "/custom-card", silent: here() });
         return;
       }
       if (r.lostViews.length > 0) {
         setPartial({ id, kind: "views", lost: r.lostViews, reason: r.reason });
+        job.done({ msg: "卡铸好了，但有图没传上——回去看看", route: "/custom-card", silent: here() });
         return;
       }
       // 发布/加图/删图详情页都已经有了，这一页不再实现一遍（铁律六）
-      nav(`/card/${id}`, { replace: true });
+      if (here()) {
+        job.done({ silent: true });
+        resetCardDraft();
+        nav(`/card/${id}`, { replace: true });
+      } else {
+        // 人不在这一页（正在别处做别的事）：不替他跳转，发一条通知，点了直达这张卡
+        resetCardDraft();
+        job.done({ msg: `「${card.name}」铸好了`, route: `/card/${id}` });
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setErr(`铸卡没成：${msg.slice(0, 120)}`);
+      job.fail("铸卡没成，回去看原因", "/custom-card");
     } finally {
       setMinting(false);
     }
@@ -728,6 +765,17 @@ export default function CustomCardPage() {
                         ? "③ 人物信息"
                         : "④ 定名完成"}
                 </span>
+            {/* 表单活在 store 里（退出再进来原样还在），所以要给一条"清空重来"的路；有活在跑时不给 */}
+            {dirty && !working && (
+              <button
+                onClick={() => {
+                  if (window.confirm("清空这一页重新开始？已选的图和填的内容都会丢掉。")) resetCardDraft();
+                }}
+                className="flex-none text-[10px] text-slate-500 underline underline-offset-2"
+              >
+                重新开始
+              </button>
+            )}
           </>
         }
       />
@@ -1063,10 +1111,15 @@ export default function CustomCardPage() {
                     <button
                       key={w}
                       onClick={() => { aiPickRef.current = { which: w }; aiFileRef.current?.click(); }}
-                      disabled={!!aiBusy}
+                      disabled={!!aiBusy || !!aiPick}
                       className="relative h-28 w-20 flex-none overflow-hidden rounded-lg border border-dashed border-slate-600 bg-ink/60 disabled:opacity-50"
                     >
-                      {shot ? (
+                      {aiPick === w ? (
+                        <span className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-slate-300">
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-brand" />
+                          <span className="text-[9px]">处理中…</span>
+                        </span>
+                      ) : shot ? (
                         <img src={shot.dataUrl} alt="" className="h-full w-full object-cover" />
                       ) : (
                         <span className="flex h-full w-full flex-col items-center justify-center gap-1 text-slate-500">
@@ -1111,16 +1164,22 @@ export default function CustomCardPage() {
               const f = e.target.files?.[0];
               e.target.value = "";
               if (!f) return;
+              const which = aiPickRef.current.which;
+              // ★ 选完图到能显示之间要解码 + 裁切 + 重编码（大照片一两秒）——这一段必须有反馈，
+              //   否则用户以为 App 没收到（2026-09-05 主人真机点名"主素材图那个虚框点了没有上传中"）
+              setAiPick(which);
               void (async () => {
                 try {
                   const prep = await prepareCardImage(f);
                   const dataUrl = await blobToDataUrl(prep.blob);
                   const shot: Shot = { dataUrl, fileName: f.name, ...(prep.note ? { note: prep.note } : {}) };
-                  if (aiPickRef.current.which === "body") setAiBody(shot);
+                  if (which === "body") setAiBody(shot);
                   else setAiFace(shot);
                   setErr("");
                 } catch (err2) {
                   setErr(err2 instanceof Error ? err2.message : String(err2));
+                } finally {
+                  setAiPick(null);
                 }
               })();
             }}
@@ -1418,8 +1477,37 @@ export default function CustomCardPage() {
       </section>
       )}
 
-      {/* 真人/授权/声音都在第 1 步表过态了，这里只留一行事实摘要（想改就返回上一步） */}
-      {isChar && step === "final" && (realPerson || pendingAsset || pendingVoice) && (
+      {/* ── 声音样本（人物卡·非真人路）：跟读或传本地音频，出片时当参考音色。2026-09-05 主人点名
+          "自己传图做卡片没有可选的人物声音上传或录入"。真人路的那份在第 1 步（连着授权），这里不重复摆 */}
+      {isChar && step === "final" && !realPerson && (
+        <section className="mb-4">
+          <h2 className="mb-1.5 text-xs font-semibold text-slate-300">声音样本（选填）</h2>
+          {pendingVoice ? (
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
+              <span className="min-w-0 flex-1">
+                <span className="block text-[10px] text-emerald-200">
+                  🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）
+                </span>
+                <audio src={pendingVoice.dataUrl} controls className="mt-1 h-8 w-full" />
+              </span>
+              <button onClick={() => setPendingVoice(null)} className="flex-none text-[10px] text-slate-500">
+                重来
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <VoiceRecorder onDone={setPendingVoice} />
+              <VoiceUploadButton onDone={setPendingVoice} />
+            </div>
+          )}
+          <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+            出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。
+          </p>
+        </section>
+      )}
+
+      {/* 真人/授权在第 1 步表过态了，这里只留一行事实摘要（想改就返回上一步） */}
+      {isChar && step === "final" && (realPerson || pendingAsset) && (
         <p className="mb-4 rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-[10px] leading-relaxed text-slate-400">
           {realPerson ? "已声明真人" : ""}
           {pendingAsset ? `${realPerson ? " · " : ""}授权素材已接上（铸卡时绑定）` : ""}

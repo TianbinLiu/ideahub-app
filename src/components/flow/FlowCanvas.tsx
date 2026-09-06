@@ -787,6 +787,8 @@ function NodePanel({
   const midFileRef = useRef<HTMLInputElement>(null);
   const refVideoFileRef = useRef<HTMLInputElement>(null);
   const [refUploading, setRefUploading] = useState("");
+  /** 中间帧选图读取中（解码 + 压制那一两秒要让人看见） */
+  const [midReading, setMidReading] = useState(false);
   const [picker, setPicker] = useState(false);
   const [cardPick, setCardPick] = useState(false);
   const [castAsk, setCastAsk] = useState(false);
@@ -1158,10 +1160,10 @@ function NodePanel({
                     {node.customRef.mids.length < CUSTOM_MID_MAX && (
                       <button
                         onClick={() => midFileRef.current?.click()}
-                        disabled={locked || generating || busy}
+                        disabled={locked || generating || busy || midReading}
                         className="flex h-10 w-8 items-center justify-center rounded border border-dashed border-slate-600 text-slate-500 disabled:opacity-40"
                       >
-                        ＋
+                        {midReading ? "…" : "＋"}
                       </button>
                     )}
                   </div>
@@ -1185,10 +1187,10 @@ function NodePanel({
                   {mode === "workflow" && (
                     <button
                       onClick={() => midFileRef.current?.click()}
-                      disabled={locked || generating || busy}
+                      disabled={locked || generating || busy || midReading}
                       className="w-full rounded-lg border border-dashed border-slate-600 py-2 text-[11px] text-slate-300 disabled:opacity-40"
                     >
-                      ＋ 插一张中间帧（把这一段拆成两段，从这一帧断开）
+                      {midReading ? "读取图片…" : "＋ 插一张中间帧（把这一段拆成两段，从这一帧断开）"}
                     </button>
                   )}
                 </>
@@ -1202,7 +1204,10 @@ function NodePanel({
                   const f = e.target.files?.[0];
                   e.target.value = "";
                   if (!f) return;
-                  void fileToFrameDataUrl(f).then(
+                  setMidReading(true);
+                  void fileToFrameDataUrl(f)
+                    .finally(() => setMidReading(false))
+                    .then(
                     (d) => {
                       const st = useFlow.getState();
                       // 同一个选图口两种去向：挂了参考视频 = 加中间帧参考图（进同一段）；

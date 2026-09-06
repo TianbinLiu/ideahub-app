@@ -16,6 +16,7 @@ import { addCards, canAfford, createDeck, spendTokens } from "../data/account";
 import { fmtTokens, schemeCost } from "../data/economy";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
 import { saveAsset } from "../data/cardAsset";
+import { startJob } from "../data/jobs";
 import { pcmToVoiceWav } from "../utils/wav";
 import PortraitAuthPanel from "./PortraitAuthPanel";
 import {
@@ -86,6 +87,25 @@ const DEFAULT_TOOL: Record<CardType, Tool> = {
   background: "rect",
   style: "full",
 };
+
+/**
+ * 离开时还没存的 AI 图位（真花了钱的）—— 停在模块里，下次打开这一窗原样接回来。
+ * ★ 组件卸载后 setCrops 打在空气上，portraitViews 的产物会静默丢掉（2026-09-05 主人点名
+ *   "退出页面不能打断生成"）。停的只有"存卡需要的那几样"，视频本身不停（objectURL 已随
+ *   卸载释放）—— 接回来直接落在命名那一屏，能存卡；要重圈得重新选视频。
+ */
+let parked: {
+  crops: Crop[];
+  type: CardType;
+  name: string;
+  summary: string;
+  schemeId: string;
+  realPerson: boolean;
+  consentOk: boolean;
+  pendingAsset: { assetId: string; note: string } | null;
+  pendingVoice: { dataUrl: string; durationSec: number; note: string } | null;
+  at: number;
+} | null = null;
 
 export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: boolean; onClose: () => void }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -162,6 +182,36 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
   const capOn = useRef(false);
 
   useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url]);
+
+  /** 窗还开着没有：后台任务的结局分叉（在 → 画在窗里；不在 → 图停进 parked + 胶囊通知） */
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
+  /** 上次离开时停在模块里的 AI 图位接回来了（见 parked）：没有视频也直接落在命名屏 */
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    if (!parked || Date.now() - parked.at > 24 * 3600_000) {
+      parked = null;
+      return;
+    }
+    const pk = parked;
+    parked = null;
+    setCrops(pk.crops);
+    setRawCrops(null);
+    setType(pk.type);
+    setName(pk.name);
+    setSummary(pk.summary);
+    setSchemeId(pk.schemeId);
+    setRealPerson(pk.realPerson);
+    setConsentOk(pk.consentOk);
+    setPendingAsset(pk.pendingAsset);
+    setPendingVoice(pk.pendingVoice);
+    setRestored(true);
+  }, []);
 
   // 圈选层重画：暗幕 + 挖亮选区。依赖 shape/type 而不是自己攒状态——
   // 每一拍整体重画，就不存在"上一笔残留"这类状态错位
@@ -428,6 +478,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     }
     setErr("");
     const raw = crops;
+    // ★ 登记成后台任务：窗关了也照画；画完窗不在就把图停进 parked，胶囊叫人回来存卡
+    const job = startJob({ kind: "card-ai", title: "AI 生成图位", page: "/workshop", route: "/workshop", progress: "准备中…" });
     try {
       const body = raw.find((c) => c.role === "primary") ?? raw[0];
       const face = raw.find((c) => c.role === "face");
@@ -438,12 +490,24 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         subject: summary.trim() || name.trim(),
         // 勾了「这是真人」= 参考图是照片是已知事实，画风句锁死（见 promptSchemes.PHOTO_LOCK_CLAUSE）
         realPhoto: realPerson,
-        onProgress: (s) => setBusy(s),
+        onProgress: (st) => {
+          setBusy(st);
+          job.update(st);
+        },
       });
       if (AI_REAL) spendTokens(price);
+      const made: Crop[] = out.map((v) => ({ role: v.role, tag: v.tag, dataUrl: v.dataUrl }));
+      if (!mountedRef.current) {
+        // 窗已经关了：图停在模块里，下次打开这一窗接回来（见 parked 的 ★）
+        parked = { crops: made, type: type ?? "character", name, summary, schemeId, realPerson, consentOk, pendingAsset, pendingVoice, at: Date.now() };
+        job.done({ msg: "AI 图位生成好了——回工坊点「从视频提取」接着存卡", route: "/workshop" });
+        return;
+      }
       setRawCrops(raw);
-      setCrops(out.map((v) => ({ role: v.role, tag: v.tag, dataUrl: v.dataUrl })));
+      setCrops(made);
+      job.done({ silent: true });
     } catch (e) {
+      job.fail("形象图没画成（没扣钱）", "/workshop");
       // 失败不动原 crops（原片裁剪照旧能存卡），但必须整句说清（铁律八）
       setErr(`形象图没画成：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}——原片裁剪没受影响，可以直接存或再试一次`);
     } finally {
@@ -490,6 +554,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     }
     setErr("");
     setBusy("存卡中…");
+    // ★ 登记成后台任务：远端模式要串行传几张图，窗关了也照存（卡进的是账号库，与窗无关）
+    const job = startJob({ kind: "card-mint", title: "存卡", page: "/workshop", route: "/workshop", progress: "存卡中…" });
     try {
       // ★★ `kind` 由 role 反推**并且必须照写**（types.roleToKind）：它是跨仓冻结的三值，
       //   老服务端/老客户端只认它 —— 不写的话那边拿到的是个非法 view。role/tag 是新增位。
@@ -513,6 +579,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       const r = await addCards([card]);
       if (r.added.length === 0) {
         setErr("没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（圈好的图还在）。");
+        job.fail("没能存进卡片库：登录态可能已失效", "/workshop");
         return;
       }
       // ★ 与 CustomCardPage 同一套诚实口径：unsynced = 卡没到服务端，冷启动会整张消失
@@ -549,6 +616,11 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       setRealPerson(false);
       setConsentOk(false);
       setPendingAsset(null);
+      job.done({ msg: `「${card.name}」已存进卡片库`, route: "/workshop", silent: mountedRef.current });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setErr(`存卡没成：${msg.slice(0, 120)}`);
+      job.fail("存卡没成，回去看原因", "/workshop");
     } finally {
       setBusy("");
     }
@@ -604,7 +676,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
               完成
             </button>
           </div>
-        ) : !url ? (
+        ) : !url && !(restored && crops.length > 0) ? (
           <>
             <button
               onClick={() => inputRef.current?.click()}
@@ -966,7 +1038,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
             <div className="relative">
               <video
                 ref={videoRef}
-                src={url}
+                src={url ?? undefined}
                 playsInline
                 className="max-h-[42vh] w-full rounded-xl bg-black object-contain"
                 onLoadedMetadata={(e) => {

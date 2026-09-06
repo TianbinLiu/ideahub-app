@@ -29,6 +29,8 @@ export default function SettingsProfilePage() {
   const [name, setName] = useState(user?.name ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
   const [saved, setSaved] = useState(false);
+  /** 保存中（远端模式要等 PUT 回包，弱网一两秒）：按钮上要有字 */
+  const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   /** 头像换失败的原因（AvatarPicker 的 onError）。失败必须看得见，铁律八 */
   const [avatarErr, setAvatarErr] = useState("");
@@ -43,8 +45,12 @@ export default function SettingsProfilePage() {
   // ★ 等回包再说「已保存」（见 account.updateProfile 的 ★★）：远端模式下本机不落盘，
   //   那一发 PUT 就是唯一的真相，即发即忘等于对用户说了一句没有依据的话
   async function save() {
+    if (saving) return;
     setProfileErr("");
-    const why = await updateProfile({ name: name.trim().slice(0, NAME_MAX) || user!.name, bio: bio.slice(0, BIO_MAX) });
+    setSaving(true);
+    const why = await updateProfile({ name: name.trim().slice(0, NAME_MAX) || user!.name, bio: bio.slice(0, BIO_MAX) }).finally(() =>
+      setSaving(false),
+    );
     if (why) {
       setProfileErr(why);
       return;
@@ -115,8 +121,12 @@ export default function SettingsProfilePage() {
             {profileErr}
           </p>
         )}
-        <button onClick={() => void save()} className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
-          {saved ? "已保存 ✓" : "保存资料"}
+        <button
+          onClick={() => void save()}
+          disabled={saving}
+          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-60"
+        >
+          {saving ? "保存中…" : saved ? "已保存 ✓" : "保存资料"}
         </button>
       </section>
 
