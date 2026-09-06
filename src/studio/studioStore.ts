@@ -7,7 +7,7 @@ import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
-import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeBlank, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost } from "./flowStore";
+import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeRecastable, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, saveDraft } from "../data/drafts";
@@ -553,7 +553,8 @@ interface StudioState {
    *   方案台的"上一段"，铸段窗那枚"上一步"随窗一起没了，而删段又被"只剩一段"挡住，
    *   用户被困在一张空白占位卡上。这里把段撤掉、铸段窗按原来的要求/档位/画幅/素材重开。
    */
-  recastBlankNode: (nodeId: string) => boolean;
+  /** 退回铸段窗重选模式：还没出片的段都行（flowStore.nodeRecastable 一处判据）；撤段 + 按原要求/档位/画幅/素材重开铸段窗 */
+  recastNode: (nodeId: string) => boolean;
   toggleSpread: () => void;
   shiftSpread: (dir: 1 | -1) => void;
   pickDeckCard: (cardId: string) => void;
@@ -1200,11 +1201,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
       camera: { kind: "default" },
       orbit: null,
     }),
-  recastBlankNode: (nodeId) => {
+  recastNode: (nodeId) => {
     const flow = useFlow.getState();
     const node = flow.nodes.find((n) => n.id === nodeId);
-    if (!node || !nodeBlank(node)) {
-      set({ notice: { text: "这一段已经有内容了，退不回铸段窗——想重来就删掉这一段再铸", at: Date.now() } });
+    // ★ 2026-09-06 从"只有空白段"放宽到"还没出片的段"：选定模板 / 挑定走向之后想换个模式，此前 ‹ 灰着、
+    //   删段被"只剩一段"挡住，人被困在窗里。丢的东西由投影窗按情况先确认（推演过的三套花过 token）。
+    if (!node || !nodeRecastable(node)) {
+      set({ notice: { text: "这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸", at: Date.now() } });
       return false;
     }
     flow.removeNode(nodeId);
