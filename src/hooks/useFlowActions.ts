@@ -96,7 +96,7 @@ export function useFlowActions(opts?: {
   const deckNote =
     deck.on && AI_REAL
       ? [
-          `点「完成视频」还会提炼本片卡组：你挂过的卡直接入组，缺的卡种（风格卡必有）AI 补齐，最多 ${deck.maxCards} 张、约 ${fmtTokens(deck.cards)} token`,
+          `点「完成视频」还会提炼本片卡组：你挂过的卡直接入组，缺的卡种 AI 补齐（风格卡必有；背景卡是你写的故事背景，不自动出），最多 ${deck.maxCards} 张、约 ${fmtTokens(deck.cards)} token`,
           deck.wants3d
             ? `；这条片写了 3D / 建模一类的画风，还会给派生的角色卡铸最多 ${deck.max3d} 个 3D 建模，另约 ${fmtTokens(deck.model3d)} token`
             : "",

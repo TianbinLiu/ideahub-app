@@ -121,9 +121,9 @@ z.object 默认 strip，塞进去会被丢掉。★ 这条靠的是 strip 语义
 |---|---|---|---|
 | `character` 人物 | `body` 全身立绘 | `face` 面部特写 | `detail` 标志性细节 |
 | `scene` 场景 | `body` 全景主视图 | `detail` 局部特征 | — |
-| `background` 背景 | `body` 色光基调 | `detail` 质感特写 | — |
+| `background` 背景（V3：故事背景，纯文字参与出片） | `body` 故事示意图（只展示，永不进模型） | — | — |
 | `prop` 道具 | `body` 净底主视图 | `detail` 局部细节 | — |
-| `style` 画风 | `body` 画风样张 | `detail` 笔触特写 | — |
+| `style` 风格（V3：画风 + 材质 + 色调光影 + 镜头语言） | `body` 风格样张 | `detail` 质感特写 | — |
 
 - **不许往枚举里加值。** 老服务端的 `z.enum` 会把带新 kind 的请求整批 400，而全 app
   **没有任何地方监听 `emitApiError`** —— 表现就是"炼完的卡一张都没同步上去，且一句提示

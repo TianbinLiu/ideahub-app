@@ -84,7 +84,8 @@ const DEFAULT_TOOL: Record<CardType, Tool> = {
   character: "circle",
   prop: "circle",
   scene: "full",
-  background: "rect",
+  // ★ V3：背景卡 = 故事背景（纯文字参与出片），圈出来的整帧只是展示用的示意图
+  background: "full",
   style: "full",
 };
 
@@ -451,7 +452,9 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     // viewsOf() 与出片管线按 kind 取图，写错了不报错、只是图被当成别的用途
     // 圈选阶段只产出两种角色：主图（primary）与可选的脸部特写（face）。
     // ★ 认 role 不认 kind：图位灵活之后 kind 只是写回服务端时的兼容值（types.roleToKind）。
-    const role: CardRole = type === "character" && facePass ? "face" : "primary";
+    // ★ V3：背景卡的图 role 记成 display——allocateRefs 从不分配它（types.CardView.role 的 ★★），
+    //   这张卡以文字（简介 / 出片句）参与出片
+    const role: CardRole = type === "background" ? "display" : type === "character" && facePass ? "face" : "primary";
     const tag = role === "face" ? "脸部特写" : slotLabel(type!, "body");
     setCrops((c) => [...c.filter((x) => x.role !== role), { role, tag, dataUrl }]);
     setShape(null);

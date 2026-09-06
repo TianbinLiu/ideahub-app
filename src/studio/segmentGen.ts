@@ -18,7 +18,7 @@ import { r2vPriceIssue, tierOf, providerOf, clampDuration, type VideoTier } from
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
-import { CARD_TYPE_LABELS, idLineOf, viewsOf, type Card, type VideoAspect, type VideoTemplate } from "../types";
+import { CardType, ID_LINE_MAX, CARD_TYPE_LABELS, idLineOf, viewsOf, type Card, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
 
 export interface SegmentAnn {
@@ -275,19 +275,27 @@ export function redrawnAnns<T extends { atSec: number }>(
  */
 function materialText(materials?: Card[]): string {
   if (!materials?.length) return "";
-  const list = materials
+  // ★ V3（2026-09-06）：按"离了它画面最先走样"排序——人物 > 风格 > 场景 > 道具；上游是从**尾巴**截到
+  //   VIDEO_PROMPT_MAX 的（plot + 本串再 slice），排在后面的先被截。背景卡不在这串里，单独一句挂在最后。
+  const ORDER: Record<CardType, number> = { character: 0, style: 1, scene: 2, prop: 3, background: 4 };
+  const list = [...materials]
     .slice(0, 8) // 再多提示词就被稀释了，模型开始各记各的
-    .map((c) =>
-      // ★ 人物卡用**固定身份句**（idLineOf：铸卡时压好的「名字+2~3个不变的视觉特征」，
+    .sort((a, b) => ORDER[a.type] - ORDER[b.type])
+    .filter((c) => c.type !== "background")
+    .map((c) => {
       //   逐段逐字复用——同一措辞本身就是一致性手段；老卡兜底"名字+简介40字"=老行为）。
-      //   非人物卡仍是短句：8 张卡 × 60 字会撑爆 VIDEO_PROMPT_MAX，而"主体身份"
-      //   这件事只有人物卡真正需要整句（types.ID_LINE_MAX 的注释是同一笔账）。
-      c.type === "character"
-        ? `${CARD_TYPE_LABELS[c.type]}「${c.name}」＝${idLineOf(c)}`
-        : `${CARD_TYPE_LABELS[c.type]}「${c.name}」${c.summary ? `（${c.summary.slice(0, 24)}）` : ""}`,
-    )
+      if (c.type === "character") return `${CARD_TYPE_LABELS[c.type]}「${c.name}」＝${idLineOf(c)}`;
+      // ★ V3：非人物卡有出片句（idLine：场景的空间结构、风格的画风+镜头语言）就整句进；
+      //   老卡没有 idLine 的仍是简介前 24 字（存量卡的提示词一个字不变）
+      const line = (c.idLine || "").trim().slice(0, ID_LINE_MAX);
+      return `${CARD_TYPE_LABELS[c.type]}「${c.name}」${line ? `＝${line}` : c.summary ? `（${c.summary.slice(0, 24)}）` : ""}`;
+    })
     .join("；");
-  return `。本段固定素材设定（必须严格遵守，不得改动其外形与身份）：${list}`;
+  // ★ V3：背景卡 = 故事背景，纯文字、不发图（allocateRefs 不分配它），也不套"不得改动其外形"那句——
+  //   对一段设定说"外形"是胡话，模型会去找一个不存在的物体
+  const bg = materials.find((c) => c.type === "background");
+  const bgLine = bg ? ((bg.idLine || "").trim() || bg.summary || "").slice(0, ID_LINE_MAX) : "";
+  return `${list ? `。本段固定素材设定（必须严格遵守，不得改动其外形与身份）：${list}` : ""}${bgLine ? `。故事背景：${bgLine}` : ""}`;
 }
 
 export interface SegmentGenResult {

@@ -24,9 +24,9 @@ const MARKET_DEFS: Array<{ type: CardType; name: string; summary: string; hot: n
   { type: "scene", name: "废土集市", summary: "由报废飞船残骸搭成的黑市，什么都卖，包括昨天的天气预报。", hot: 8867, tags: ["废土", "市集"] },
   { type: "scene", name: "深海观测站", summary: "一万米深处的孤独观测站，舷窗外偶尔游过发光的未知生物。", hot: 7208, tags: ["科幻", "悬疑"] },
   { type: "scene", name: "老式绿皮车厢", summary: "摇晃的绿皮火车穿过九十年代的麦田，车窗上有一层薄薄的灰。", hot: 6931, tags: ["怀旧", "旅途"] },
-  { type: "background", name: "黄昏金", summary: "整体笼罩在落日熔金的暖色氛围里，逆光轮廓带柔和光晕。", hot: 9312, tags: ["氛围", "暖色"] },
-  { type: "background", name: "雨幕青", summary: "冷青色调的连绵雨幕，高光锐利，阴影里泛着蓝。", hot: 8455, tags: ["氛围", "冷色"] },
-  { type: "background", name: "星野紫", summary: "银河横贯天幕的深紫夜空，地景压暗，星光作主光源。", hot: 7770, tags: ["氛围", "夜空"] },
+  { type: "style", name: "黄昏金", summary: "整体笼罩在落日熔金的暖色氛围里，逆光轮廓带柔和光晕。", hot: 9312, tags: ["风格", "暖色"] },
+  { type: "style", name: "雨幕青", summary: "冷青色调的连绵雨幕，高光锐利，阴影里泛着蓝。", hot: 8455, tags: ["风格", "冷色"] },
+  { type: "style", name: "星野紫", summary: "银河横贯天幕的深紫夜空，地景压暗，星光作主光源。", hot: 7770, tags: ["风格", "夜空"] },
   { type: "prop", name: "会说谎的罗盘", summary: "永远指向持有者最不想去的方向，但从未错过真正的宝藏。", hot: 6520, tags: ["奇幻", "道具"] },
   { type: "prop", name: "老式拍立得", summary: "拍出的照片会比现实晚三秒——有时能拍到即将发生的事。", hot: 6118, tags: ["悬疑", "道具"] },
   { type: "style", name: "水墨留白", summary: "大写意水墨风，浓淡干湿之间大量留白，运镜如卷轴展开。", hot: 10240, tags: ["国风", "艺术"] },
@@ -166,9 +166,10 @@ export interface MaterialFile {
 function matchType(hint: string): CardType | null {
   if (/人物|角色|主角|char|hero|少女|少年|侦探|机器人/i.test(hint)) return "character";
   if (/场景|地图|scene|街|城|站|海|山|市|房间/i.test(hint)) return "scene";
-  if (/背景|氛围|天空|光|色调|bg/i.test(hint)) return "background";
+  // ★ V3：氛围 / 色调 / 光影 / 运镜归风格卡；背景卡只认"故事 / 设定 / 简介"这类词
+  if (/风格|画风|氛围|色调|光影|运镜|镜头|style|水墨|像素|胶片/i.test(hint)) return "style";
+  if (/背景|故事|设定|简介|世界观|bg/i.test(hint)) return "background";
   if (/道具|物品|武器|prop|item/i.test(hint)) return "prop";
-  if (/风格|画风|style|水墨|像素|胶片/i.test(hint)) return "style";
   return null;
 }
 
@@ -314,7 +315,7 @@ export async function generateProposals(ctx: ProposalContext): Promise<Proposal[
     const rng = makeRng(`plot:${id}:${v.key}:${ctx.index}`);
     const sentences: string[] = [];
     sentences.push(`${pick(rng, v.open)}${char}的身影出现在${scene}。`);
-    if (bg) sentences.push(`整段画面浸在「${bg}」的氛围里。`);
+    if (bg) sentences.push(`（故事背景：${bg}）`);
     if (prop) sentences.push(`那件「${prop}」在此刻显出了它真正的分量。`);
     if (ctx.requirement.trim()) sentences.push(`按照“${ctx.requirement.trim().slice(0, 50)}”的设想，${pick(rng, v.turn)}`);
     else sentences.push(pick(rng, v.turn));
