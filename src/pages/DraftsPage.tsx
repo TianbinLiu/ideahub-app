@@ -27,7 +27,6 @@ export default function DraftsPage() {
   return (
     <div className="min-h-full px-4 pb-10">
       <PageHeader sticky inset
-        className="mb-1"
         onBack={() => nav(-1)}
         title="草稿箱"
         right={

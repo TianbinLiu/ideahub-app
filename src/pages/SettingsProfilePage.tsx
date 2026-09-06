@@ -62,7 +62,7 @@ export default function SettingsProfilePage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset className="mb-6" onBack={() => navigate(-1)} title="编辑资料" right={<HelpButton tour="setprofile" />} />
+      <PageHeader sticky inset onBack={() => navigate(-1)} title="编辑资料" right={<HelpButton tour="setprofile" />} />
 
       {/* ── 头像 ──────────────────────────────────────────────── */}
       <section data-guide="setprofile-avatar" className="mb-7 flex flex-col items-center">

@@ -92,7 +92,6 @@ export default function AdminPage() {
     <div className="min-h-full px-4 pb-10">
       {/* 子视图里返回键固定回总览；只有总览上才真的退出这一页 */}
       <PageHeader sticky inset
-        className="mb-5"
         onBack={() => (view === "home" ? navigate(-1) : setView("home"))}
         title={VIEW_TITLE[view]}
         right={<span className="flex-none rounded-full px-2.5 py-1 bg-brand/15 text-[11px] text-brand">管理员</span>}
