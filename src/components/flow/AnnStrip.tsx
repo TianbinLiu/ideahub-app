@@ -28,7 +28,7 @@ export default function AnnStrip({
   if (anns.length === 0) return null;
   return (
     <div className={className}>
-    <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+    <div className="flex gap-1.5 no-scrollbar overflow-x-auto pb-0.5">
       {anns.map((a) => (
         <div key={a.id} className="relative w-24 flex-none overflow-hidden rounded-lg bg-panel">
           <img src={a.frame} alt="" className="h-12 w-full object-cover" />

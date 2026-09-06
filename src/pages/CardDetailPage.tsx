@@ -366,7 +366,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
 
       {gallery && (
         // 横滑小图：宽内容必须自己滚，别让整页横向滚（见 CLAUDE.md 底缘那几条的同类教训）
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        <div className="-mx-1 flex gap-2 no-scrollbar overflow-x-auto px-1 pb-1">
           {views.map((v, i) => (
             <button
               key={`${v.url}#${i}`}

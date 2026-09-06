@@ -513,7 +513,7 @@ export default function TemplateShelf({
             `overflow-x-auto` 会把 overflow-y 一并算成 auto，选中那颗的 `ring-1`（画在盒子外
             1px 的 box-shadow）上下两条边就被裁掉了，首尾两颗的左右边同理 —— 看起来是
             "圆边框缺了一截"。负外边距让这 2px 不占版面，与改之前逐像素同位。 */}
-      <div className="scrollbar-none -mx-0.5 -my-0.5 mb-2.5 flex gap-1.5 overflow-x-auto px-0.5 py-0.5">
+      <div className="-mx-0.5 -my-0.5 mb-2.5 flex gap-1.5 no-scrollbar overflow-x-auto px-0.5 py-0.5">
         {[{ id: "", label: "全部" }, ...TPL_CATEGORIES].map((c) => (
           <button
             key={c.id}

@@ -410,7 +410,7 @@ export default function CutPage() {
     if (!pt) return;
     const { clip: target, at: cur } = pt;
     if (cur - target.start < MIN_CLIP_SEC || target.end - cur < MIN_CLIP_SEC) {
-      setErr(`分割点离片段边缘太近（至少留 ${MIN_CLIP_SEC}s）`);
+      setErr(`分割点离片段边缘太近（至少留 ${MIN_CLIP_SEC} 秒）`);
       return;
     }
     setErr("");
@@ -440,7 +440,7 @@ export default function CutPage() {
     const { clip: target, at: cur } = pt;
     const next = edge === "start" ? { ...target, start: cur } : { ...target, end: cur };
     if (next.end - next.start < MIN_CLIP_SEC) {
-      setErr(`这样裁完只剩不到 ${MIN_CLIP_SEC}s，片段太短了`);
+      setErr(`这样裁完只剩不到 ${MIN_CLIP_SEC} 秒，片段太短了`);
       return;
     }
     setErr("");
@@ -1124,7 +1124,7 @@ export default function CutPage() {
                 <span>{view.length} 个片段 · 共 {formatDuration(total)}</span>
                 <span>拖拽换序 · 点击选中</span>
               </div>
-              <div data-guide="cut-timeline" className="flex gap-1 overflow-x-auto rounded-xl bg-black/40 p-1.5">
+              <div data-guide="cut-timeline" className="flex gap-1 no-scrollbar overflow-x-auto rounded-xl bg-black/40 p-1.5">
                 {view.map((c, i) => {
                   const seg = segs[c.segIndex];
                   const isSel = sel === c.id;
@@ -1271,7 +1271,7 @@ export default function CutPage() {
               </p>
               {anns.length > 0 && (
                 <>
-                  <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1">
+                  <div className="mt-2.5 flex gap-2 no-scrollbar overflow-x-auto pb-1">
                     {anns.map((a) => {
                       // 这一处圈选所在的段还在不在成片里（删掉的段上那些不计价也不重拍）
                       const live = liveSegs.has(a.segIndex);

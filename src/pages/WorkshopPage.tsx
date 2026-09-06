@@ -206,7 +206,7 @@ export default function WorkshopPage() {
       />
 
       {/* 统计条 */}
-      <div className="mb-3 flex gap-2 overflow-x-auto pb-1 text-[11px]">
+      <div className="mb-3 flex gap-2 no-scrollbar overflow-x-auto pb-1 text-[11px]">
         <span className="flex-none rounded-full bg-panel px-2.5 py-1 text-slate-300">共 {cards.length} 张卡</span>
         {Object.entries(byType).map(([t, n]) => (
           <span

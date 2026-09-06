@@ -324,7 +324,7 @@ export default function LoginPage() {
                   key={m.k}
                   onClick={() => pick(m.k)}
                   className={`flex-1 rounded-lg py-2 text-sm transition ${
-                    method === m.k ? "bg-brand font-bold text-ink" : "text-slate-400"
+                    method === m.k ? "bg-brand font-semibold text-ink" : "text-slate-400"
                   }`}
                 >
                   {m.label}

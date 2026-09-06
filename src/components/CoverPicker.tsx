@@ -377,7 +377,7 @@ export function CoverSection({
       </div>
       {coverErr && <div className="mb-2 text-xs text-red-400">{coverErr}</div>}
       <div className="mb-1 text-xs text-slate-500">或从各段首尾帧中选择：</div>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex gap-2 no-scrollbar overflow-x-auto pb-1">
         {frameChoices.map((f, i) => (
           <button
             key={i}

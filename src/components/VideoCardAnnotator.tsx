@@ -1230,7 +1230,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                 <div className="mb-1.5 text-[11px] text-slate-400">
                   本次已存 {saved.length} 张{deckMode ? "（最后一步打包成卡组）" : "（已在「我的卡片」里）"}
                 </div>
-                <div className="flex gap-1.5 overflow-x-auto">
+                <div className="flex gap-1.5 no-scrollbar overflow-x-auto">
                   {saved.map((c) => (
                     <img key={c.id} src={c.cover} alt={c.name} className="h-14 w-10 flex-none rounded object-cover" />
                   ))}

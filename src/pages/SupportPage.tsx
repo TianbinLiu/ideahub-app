@@ -609,7 +609,7 @@ export default function SupportPage() {
         {stageNotice && <p className="mb-2 px-1 text-xs leading-5 text-amber-300">{stageNotice}</p>}
 
         {messages.length === 0 && phase === "idle" && quick.length > 0 && (
-          <div className="mb-2 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="mb-2 flex gap-2 no-scrollbar overflow-x-auto pb-1">
             {quick.map((q) => (
               <button key={q} onClick={() => void send(q)} className={`${GLASS} shrink-0 rounded-full px-3 py-1.5 text-xs text-slate-100 active:bg-slate-800/70`}>
                 {q}
