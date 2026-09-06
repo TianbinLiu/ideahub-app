@@ -121,9 +121,65 @@ export function uploadImage(blob: Blob, filename = "frame.jpg"): Promise<string>
   return post("/api/uploads/image", "image", blob, filename, 60_000);
 }
 
-/** 图片或视频（成片）。服务端限 20MB */
-export function uploadMedia(blob: Blob, filename = "video.webm"): Promise<string> {
-  return post("/api/uploads/media", "media", blob, filename, 180_000);
+/**
+ * 成片（剪辑页导出的 webm / mp4）。
+ *
+ * ★★ 2026-09-06 起先走**签名直传 Cloudinary + 分块**（与模板视频同一套 putDirect）：主人真机上一条作品的
+ *   6 张图几秒钟传完，10.3MB 的成片却在 180 秒里连一个字节都没到服务端（pm2 里没有那一跳的任何日志）——
+ *   老路是整份 multipart 经 Cloudflare（125 秒读超时）→ nginx 收完整个 body → Node 同步等 Cloudinary，
+ *   慢网上任何一段慢一点就整发作废、从头再来。直传后每块（6MB）各自 240 秒超时、断了只重传那一块，
+ *   还有真进度。老服务端（/media/sign 回 404）退回老路，上限仍 20MB。
+ * @param onProgress 0~1，直传才有真进度
+ */
+export async function uploadMedia(blob: Blob, filename = "video.webm", onProgress?: (frac: number) => void): Promise<string> {
+  const ticket = await directTicket("/api/uploads/media/sign");
+  if (ticket) {
+    // 提前量：服务端 confirm 还会按 Cloudinary 回执的真实字节再判一次
+    if (ticket.maxSizeBytes > 0 && blob.size > ticket.maxSizeBytes) {
+      throw new ApiError(
+        `成片最大 ${Math.round(ticket.maxSizeBytes / 1024 / 1024)}MB（这份约 ${(blob.size / 1024 / 1024).toFixed(1)}MB），请先压小再传。`,
+        400,
+      );
+    }
+    // putDirect 收 File：IndexedDB 里存的是裸 Blob，包一层（名字只影响 Cloudinary 回执里的 original_filename）
+    const file = blob instanceof File ? blob : new File([blob], filename, { type: blob.type || "video/webm" });
+    onProgress?.(0);
+    await putDirect(ticket, file, onProgress);
+    return await confirmMedia(ticket.publicId);
+  }
+  if (blob.size > MAX_MEDIA_BYTES) {
+    throw new ApiError(`成片太大（${Math.round(blob.size / 1024 / 1024)}MB，这台服务器的上限是 20MB）——先在剪辑页压一档画质再发。`, 400);
+  }
+  onProgress?.(0);
+  const url = await post("/api/uploads/media", "media", blob, filename, 180_000);
+  onProgress?.(1);
+  return url;
+}
+
+/**
+ * 成片直传后的服务端验收（POST /api/uploads/media/confirm）：只报 publicId，地址以服务端向 Cloudinary
+ * 取回的那份为准。与 confirmDirect 同一套重试口径（网络 / 超时 / 滚动部署期的 404 各再试两次）。
+ * ★ 验收失败**不做兜底回收**：成片没有 DELETE 端点，服务端验收不过（格式 / 超限）时自己会 destroy；
+ *   网络类失败留下的孤儿由 RECYCLABLE_FOLDERS 那套回收兜着（同目录、同 public_id 形状）。
+ */
+async function confirmMedia(publicId: string): Promise<string> {
+  const waits = [0, 1_500, 4_000];
+  let last: unknown;
+  for (const wait of waits) {
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    try {
+      const data = await apiPost<Record<string, unknown>>("/api/uploads/media/confirm", { publicId });
+      const url = data?.mediaUrl;
+      if (typeof url !== "string" || !url) throw new ApiError("上传成功但没拿到地址", 502);
+      return url;
+    } catch (e) {
+      last = e;
+      const st = e instanceof ApiError ? e.status : -1;
+      const retriable = e instanceof ApiError && (e.code === "NETWORK" || e.code === "TIMEOUT" || st === 404);
+      if (!retriable) break;
+    }
+  }
+  throw last instanceof Error ? last : new Error(String(last));
 }
 
 // ── 白模模板的参考视频 ────────────────────────────────────────────────
@@ -311,10 +367,10 @@ interface DirectTicket {
  *   （HTML/老服务端）都当"不支持"，而**别的**错（401、限流 429）必须原样抛出去 ——
  *   把"你被限流了"吞成"退回老路"，用户会在老路上再撞一次 125 秒的墙。
  */
-async function directTicket(): Promise<DirectTicket | null> {
+async function directTicket(signPath = "/api/uploads/template-video/sign"): Promise<DirectTicket | null> {
   let data: Record<string, unknown>;
   try {
-    data = await apiPost<Record<string, unknown>>("/api/uploads/template-video/sign", {});
+    data = await apiPost<Record<string, unknown>>(signPath, {});
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return null; // 老服务端
     throw e;
