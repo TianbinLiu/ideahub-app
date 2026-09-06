@@ -328,6 +328,16 @@ export function nodeBlank(node: FlowNode): boolean {
   return !p.videoUrl && !p.plot.trim() && !p.firstFrame && !p.lastFrame;
 }
 
+/**
+ * 这一段能不能退回铸段窗重来（2026-09-06 主人真机：选定白模模板之后 ‹ 灰着、删段又被"只剩一段"挡住，人被困在窗里）。
+ * 判据只有一条：**还没出片、也没在炼**。空白段 ⊂ 它；模板段 / 自定义段 / 推演过的段都算 —— 退回去丢的东西各不相同
+ * （模板与挂卡不花钱、推演过的三套花过 token），那由 UI 按 `node.proposals.length >= 2` 先确认，这里不管。
+ * 与 removeNode 的"只剩一段也能删"同一把尺（唯一实现，铁律六）。
+ */
+export function nodeRecastable(node: FlowNode): boolean {
+  return !nodeDone(node) && node.status !== "generating";
+}
+
 /** 用户对这一段的原话（老草稿没有这个字段，退回当前方案的剧情——
  *  那正是旧版 deriveProposals 当作 requirement 用的东西，行为不变） */
 export function requirementOf(node: FlowNode): string {
@@ -2252,8 +2262,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   「✗ 删第 1 段：先把这一段炼出来，再加下一段」这种驴唇不对马嘴的解释。
     // ★ 空白占位段例外（nodeBlank 一处判据）：什么都还没花，删掉 = 退回空流水线，桌面上
     //   虚线卡位重新亮起 —— 这是"选完模式退出再进来走不回铸段窗"的出路（2026-09-05）
-    if (s.nodes.length <= 1 && !(s.nodes[0] && nodeBlank(s.nodes[0]))) {
-      set({ err: "只剩这一段了，删不掉（想重来就用「删除本段」旁边的重新生成，或退出去开一条新的）" });
+    // ★ 只剩一段时，**已出片**的才删不掉（那是真金白银）；还没出片的删了就是回铸段窗重来（nodeRecastable 一处判据）
+    if (s.nodes.length <= 1 && s.nodes[0] && !nodeRecastable(s.nodes[0])) {
+      set({ err: "只剩这一段而且已经出片了，删不掉（想重来就用「删除本段」旁边的重新生成，或退出去开一条新的）" });
       return;
     }
     // ★★ 生成中一律拒（第七轮扫描）：两个面的删段按钮都 `disabled={busy||generating}`，
@@ -2269,7 +2280,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // 该段的分支归档一并删：留着的话是一堆指着已不存在节点的死链
     const alts = { ...s.alts };
     delete alts[id];
-    set({ nodes: s.nodes.filter((n) => n.id !== id), alts });
+    const rest = s.nodes.filter((n) => n.id !== id);
+    // ★★ 删到一段不剩时，store 级模板快照与挂卡缓冲一起清（2026-09-06 回铸段窗放宽到模板段时抓到）：
+    //   setCursor 只在"当前段有自己的 tpl"时换 template、从不清它，于是撤掉唯一的白模段之后 template 还指着
+    //   那个模板；而 placeholderVisible 问的是 appendBlocked(nodes, null)（亮）、appendNode 问的是
+    //   appendBlocked(nodes, s.template)（拒「白模复刻段只有一段」）—— 用户在铸段窗付完推演费、三套方案落桌
+    //   那一拍才被拒，钱已花、方案没处放（铁律五的钱坑，零报错）。空流水线没有模板，这里就是唯一的清点。
+    set({ nodes: rest, alts, ...(rest.length === 0 ? { template: null, cast: {} } : {}) });
     // ★★ 走 setCursor，别自己 set 一个下标（2026-08-21 第三轮验证）：换段这件事还要把
     //   store 级模板与挂卡缓冲换成那一段自己的。自己 set 的话，删完之后这两样还停在
     //   **被删那一段**上 —— 线性视图的挂卡区按已经不存在的角色位渲染，挂法直接串段。

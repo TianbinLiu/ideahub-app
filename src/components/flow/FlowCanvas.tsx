@@ -42,6 +42,7 @@ import {
   clampCursor,
   nodeCost,
   nodeDone,
+  nodeRecastable,
   planOf,
   realVideoOfNode,
   annSkipNote,
@@ -1408,14 +1409,15 @@ function NodePanel({
         )
       )}
 
-      {/* 删除本段。★ 门禁在 store 的 removeNode（只剩一段时不许删）—— 这里只把
+      {/* 删除本段。★ 门禁在 store 的 removeNode（只剩一段而且**已出片**时不许删；还没出片的删了就是退回去重来，
+          与工坊投影窗的「‹ 回铸段窗」同一把尺 flowStore.nodeRecastable，2026-09-06）—— 这里只把
           "为什么点不动"画出来（disabled + 说明），不另写判断。
           ★ 「已出片要点两下」这条规则在 DeleteSegBtn 一处（线性视图用的是同一个组件）。 */}
       {!locked && (
         <div className="flex items-center gap-2">
           <DeleteSegBtn
             done={done}
-            disabled={busy || generating || nodes.length <= 1}
+            disabled={busy || generating || (nodes.length <= 1 && !nodeRecastable(node))}
             onConfirm={() => {
               removeNode(node.id);
               // ★★ 删完必须关窗：sel 是**下标**，删掉这一段之后 nodes[sel] 变成原来的后一段，
@@ -1426,7 +1428,7 @@ function NodePanel({
             }}
             className="rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300 disabled:opacity-40"
           />
-          {nodes.length <= 1 && <span className="text-[10px] text-slate-500">只剩一段了，删不掉</span>}
+          {nodes.length <= 1 && !nodeRecastable(node) && <span className="text-[10px] text-slate-500">只剩一段且已出片，删不掉</span>}
         </div>
       )}
 

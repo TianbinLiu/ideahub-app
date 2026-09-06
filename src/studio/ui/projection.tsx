@@ -30,7 +30,7 @@ import {
   rederiveKey,
   useStudio,
 } from "../studioStore";
-import { CUSTOM_MID_MAX, nodeBlank, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf } from "../flowStore";
+import { CUSTOM_MID_MAX, nodeBlank, nodeRecastable, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf } from "../flowStore";
 import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
@@ -46,6 +46,7 @@ import { fileToFrameDataUrl } from "../../utils/image";
 import { computeChain } from "../scene/TableScene";
 import { CHAIN, focusCam } from "../scene/layout";
 import DeleteSegBtn from "../../components/flow/DeleteSegBtn";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 export default function ProjectionWindow() {
   const projection = useStudio((s) => s.projection);
@@ -924,6 +925,8 @@ function ProposalsPanel() {
   const [playing, setPlaying] = useState(false);
   /** 档位那一排开着没有（顶栏那枚芯片） */
   const [tierOpen, setTierOpen] = useState(false);
+  /** 「回铸段窗重选模式」要先确认的那一下（推演过的段：三套方案花过 token） */
+  const [recastAsk, setRecastAsk] = useState(false);
   /** 选素材卡弹层（与画布共用同一份 CardPicker）。★ hook 必须排在下面那句早退之前 */
   const [cardPick, setCardPick] = useState(false);
   /** store 的整句拒绝（与画布壳那条错误条同源，见下面渲染处的 ★★）。
@@ -967,6 +970,19 @@ function ProposalsPanel() {
    *  ★ 真人档没有方案台这一拍（deriveIssue 一处判定）——给它摆「生成三套方案」等于
    *    把唯一的主按钮换成一条必被拒的路（store 那边现在会整句拒，但更不该摆出来） */
   const notDerived = nodeBlank(node) && !deriveIssue(node.videoTier);
+  /**
+   * 能不能退回铸段窗重选模式（flowStore.nodeRecastable 一处判据）：还没出片、没在炼。
+   * ★ 第一段的 ‹ 就是这条路（2026-09-06 主人真机：选定白模模板之后 ‹ 灰着、删段又被挡住，人被困在窗里）。
+   * ★ 推演过三套的段（proposals ≥ 2）退回去会丢掉花过 token 的方案 —— 先确认，别静默丢。
+   */
+  const canRecast = nodeRecastable(node) && !genHere && !busy;
+  const recastCostly = node.proposals.length >= 2;
+  const recastNodeId = node.id;
+  function requestRecast() {
+    if (!canRecast) return;
+    if (recastCostly) setRecastAsk(true);
+    else useStudio.getState().recastNode(recastNodeId);
+  }
 
   // ‹› 切换聚焦节点：桌面窗口随焦点实时平移（computeChain 焦点跟随），镜头跟到新卡位
   function go(dir: 1 | -1) {
@@ -983,9 +999,11 @@ function ProposalsPanel() {
     <>
       <div className="flex items-center gap-2 border-b border-cyan-400/20 px-3 py-2.5">
         <button
-          onClick={() => go(-1)}
-          disabled={idx <= 0}
-          aria-label="上一段"
+          /* 第一段没有"上一段"：这枚 ‹ 就是「回铸段窗重选模式」（还没出片时亮着） */
+          onClick={() => (idx <= 0 ? requestRecast() : go(-1))}
+          disabled={idx <= 0 ? !canRecast : false}
+          aria-label={idx <= 0 ? "回铸段窗重选模式" : "上一段"}
+          title={idx <= 0 ? (canRecast ? "退回铸段窗重选模式" : "这一段已经出片，退不回去了") : "上一段"}
           className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-slate-700/60 text-slate-200 disabled:opacity-40"
         >
           ‹
@@ -1025,17 +1043,36 @@ function ProposalsPanel() {
       {/* ★ 空白占位段（还没推演）：这一行就是它的「上一步」——退回铸段窗重选模式 / 改要求，
           不花钱。没有它的话，用户被困在一张空白卡上：顶栏那枚 ‹ 是"上一段"（第 1 段时灰着），
           删段又被"只剩一段"挡住（2026-09-05 主人真机点名） */}
-      {notDerived && (
+      {canRecast && (
         <div className="flex flex-none items-center gap-2 border-b border-cyan-400/10 px-3 py-1.5">
           <button
-            onClick={() => useStudio.getState().recastBlankNode(node.id)}
-            disabled={genHere || busy}
+            onClick={requestRecast}
             className="flex-none rounded-full border border-slate-600 px-2.5 py-1 text-[11px] text-slate-200 disabled:opacity-40"
           >
             ‹ 回铸段窗重选模式
           </button>
-          <span className="min-w-0 flex-1 truncate text-[10px] text-slate-500">这一段还没推演，退回去不花钱</span>
+          <span className="min-w-0 flex-1 truncate text-[10px] text-slate-500">
+            {recastCostly
+              ? "会丢掉这一段推演出的方案（已花的 token 不退）"
+              : blockout
+                ? "这一段还没出片，模板与挂卡都能重选，不花钱"
+                : "这一段还没出片，退回去不花钱"}
+          </span>
         </div>
+      )}
+      {recastAsk && (
+        <ConfirmDialog
+          title="退回铸段窗重选模式？"
+          confirmLabel="退回去"
+          danger
+          onClose={() => setRecastAsk(false)}
+          onConfirm={() => {
+            setRecastAsk(false);
+            useStudio.getState().recastNode(recastNodeId);
+          }}
+        >
+          这一段推演出的 {node.proposals.length} 套方案会一起丢掉，推演已经花掉的 token 不退；这一段还没出片，没有别的损失。
+        </ConfirmDialog>
       )}
       {tierOpen && (
         <div className="flex-none border-b border-cyan-400/15 px-3 py-2">
@@ -1523,7 +1560,7 @@ function PickedActions({
             done={done}
             /* ★ 与画布同源：画布那颗读的是 store 上的 busy，工坊本地那个 busy 认不出
                画布发起的那一炉（见 ProposalsPanel 里 genHere 的 ★★） */
-            disabled={busy || flowBusy || node.status === "generating" || (flowNow.nodes.length <= 1 && !nodeBlank(node))}
+            disabled={busy || flowBusy || node.status === "generating" || (flowNow.nodes.length <= 1 && nodeDone(node))}
             onConfirm={() => {
               // ★ removeNode 会整句拒（生成中、只剩一段…），拒了就**别关窗** ——
               //   无条件关窗会让"删失败"长得和"删成功"一模一样（2026-09-03 复核抓到）。
@@ -1535,7 +1572,7 @@ function PickedActions({
             }}
             className="rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300 disabled:opacity-40"
           />
-          {flowNow.nodes.length <= 1 && !nodeBlank(node) && <span className="text-[10px] text-slate-500">只剩一段了，删不掉</span>}
+          {flowNow.nodes.length <= 1 && nodeDone(node) && <span className="text-[10px] text-slate-500">只剩一段且已出片，删不掉</span>}
         </div>
       )}
       {/* 进度画在节点自己身上（单一真相：flowStore.genNode 写 node.steps）。
