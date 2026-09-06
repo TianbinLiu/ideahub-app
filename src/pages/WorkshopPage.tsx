@@ -104,6 +104,7 @@ function CardTile({ card, onRemove, to }: { card: Card; onRemove?: () => void; t
       {onRemove && (
         <button
           onClick={onRemove}
+          aria-label="移除"
           className="absolute right-1.5 top-1.5 hidden h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs text-slate-200 group-hover:flex"
         >
           <Icon name="close" size={16} />
@@ -365,7 +366,7 @@ export default function WorkshopPage() {
             ) : cardPlaza.error ? (
               <PlazaError error={cardPlaza.error} onRetry={cardPlaza.reload} />
             ) : cardPlaza.loading && sharedCards.length === 0 ? (
-              <EmptyState loading text="加载中…" />
+              <EmptyState loading text="正在取卡片广场…" />
             ) : sharedCards.length === 0 ? (
               <EmptyState
                 emoji="🃏"
@@ -431,7 +432,7 @@ export default function WorkshopPage() {
           ) : deckPlaza.error ? (
             <PlazaError error={deckPlaza.error} onRetry={deckPlaza.reload} />
           ) : deckPlaza.loading ? (
-            <EmptyState loading text="加载中…" />
+            <EmptyState loading text="正在取卡组广场…" />
           ) : shared.length === 0 ? (
             <EmptyState emoji="🗂️" text={q ? "没有匹配的卡组" : "还没有人分享卡组"} hint={q ? undefined : "你可以第一个"} />
           ) : (
