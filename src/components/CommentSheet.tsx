@@ -216,7 +216,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
       {/* 上半留给视频（点击关闭抽屉），下半是评论面板 */}
       <div className="absolute inset-x-0 top-0 h-[38%]" onClick={onClose} />
       <div className="absolute inset-x-0 bottom-0 flex h-[62%] flex-col rounded-t-2xl border-t border-slate-700 bg-ink">
-        <div className="flex items-center justify-between border-b border-slate-700/60 px-4 py-3">
+        <div className="flex h-12 items-center justify-between border-b border-slate-700/60 px-4">
           {/* ★ 与首页那一栏同一个口径（commentCountOf）：服务端的总数优先。
               读 list.length 的话，详情还没补回来时标题会先写「0 条评论」——
               而下面可能马上就渲染出好几条，自相矛盾。 */}
