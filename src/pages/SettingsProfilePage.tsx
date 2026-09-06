@@ -76,7 +76,7 @@ export default function SettingsProfilePage() {
             <Icon name="plus" size={15} strokeWidth={2.5} />
           </span>
         </button>
-        {avatarErr && <p className="mt-2 text-center text-[11px] text-rose-400">{avatarErr}</p>}
+        {avatarErr && <p className="mt-2 text-center text-[11px] text-rose-300">{avatarErr}</p>}
 
         {/* 不想上传照片的用户仍可用 emoji（新账号的默认值也是 emoji） */}
         <details className="mt-3 w-full">
@@ -124,7 +124,7 @@ export default function SettingsProfilePage() {
         <button
           onClick={() => void save()}
           disabled={saving}
-          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-60"
+          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
           {saving ? "保存中…" : saved ? "已保存 ✓" : "保存资料"}
         </button>

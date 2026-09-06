@@ -212,7 +212,7 @@ function StatsSection({ reloadKey, onOpen }: { reloadKey: number; onOpen: (v: Ad
  *  值是 null 也**照样可点**：钻取视图自己会说"需要升级服务端"，比一张点不动的卡诚实 */
 function StatCell({ label, v, accent = false, onOpen }: { label: string; v: number | null; accent?: boolean; onOpen: () => void }) {
   return (
-    <button onClick={onOpen} className="rounded-xl border border-slate-700 bg-panel px-3 py-2.5 text-left active:opacity-70">
+    <button onClick={onOpen} className="rounded-xl border border-slate-700 bg-panel px-3 py-2.5 text-left active:opacity-60">
       <div className="flex items-start justify-between">
         <div className={`text-lg font-bold tabular-nums ${accent && (v ?? 0) > 0 ? "text-amber-300" : "text-slate-100"}`}>
           {v === null ? "—" : v}
@@ -326,12 +326,12 @@ function ErrBox({ text }: { text: string }) {
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
     <label className="flex items-center gap-2 rounded-xl bg-panel px-3 py-2">
-      <Icon name="search" size={14} className="shrink-0 text-slate-500" />
+      <Icon name="search" size={16} className="shrink-0 text-slate-500" />
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-600"
+        className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
       />
       {value && (
         <button onClick={() => onChange("")} aria-label="清空" className="shrink-0 text-slate-500">
@@ -601,7 +601,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
             maxLength={BAN_REASON_MAX}
             rows={2}
             placeholder="封禁原因（必填，会展示给该用户）"
-            className="w-full rounded-lg bg-panel p-2 text-sm text-slate-100 outline-none placeholder:text-slate-600"
+            className="w-full rounded-lg bg-panel p-2 text-sm text-slate-100 outline-none placeholder:text-slate-500"
           />
           <div className="flex items-center gap-2">
             <button
@@ -635,7 +635,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
             maxLength={ADMIN_NOTICE_MAX}
             rows={3}
             placeholder="通知内容（以平台名义送达对方的消息页）"
-            className="w-full rounded-lg bg-panel p-2 text-sm text-slate-100 outline-none placeholder:text-slate-600"
+            className="w-full rounded-lg bg-panel p-2 text-sm text-slate-100 outline-none placeholder:text-slate-500"
           />
           <div className="flex items-center gap-2">
             <button
@@ -691,7 +691,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
             placeholder="输入用户名确认"
-            className="w-full rounded-lg bg-panel p-2 text-sm text-slate-100 outline-none placeholder:text-slate-600"
+            className="w-full rounded-lg bg-panel p-2 text-sm text-slate-100 outline-none placeholder:text-slate-500"
           />
           <div className="flex items-center gap-2">
             {/* ★ 用户名逐字相等才亮删除键。u.username 缺失时永远点不亮 ——
@@ -903,7 +903,7 @@ function VideoRow({ v, onDone }: { v: ApiVideo; onDone: () => void }) {
             maxLength={TAKEDOWN_REASON_MAX}
             rows={2}
             placeholder="下架原因（必填，作者会看到这句话）"
-            className="w-full rounded-lg bg-panel p-2 text-sm text-slate-100 outline-none placeholder:text-slate-600"
+            className="w-full rounded-lg bg-panel p-2 text-sm text-slate-100 outline-none placeholder:text-slate-500"
           />
           <div className="flex items-center gap-2">
             <button
@@ -1096,7 +1096,7 @@ function ContentRow({ kind, c, onDone }: { kind: "comment" | "danmaku"; c: ApiAd
         ) : (
           // 契约缺口要**说出来**：删除端点的路径要 videoId，服务端这条没带就删不了。
           // 摆一个点了必然失败的按钮更糟（CLAUDE.md「永远点不动的选项」那条坑）
-          <span className="text-[10px] text-rose-300/70">服务端没带所属作品 id，这条删不了（需要升级服务端）</span>
+          <span className="text-[10px] text-rose-300">服务端没带所属作品 id，这条删不了（需要升级服务端）</span>
         )}
         {c.videoId && (
           <Link to={`/video/${c.videoId}`} className="ml-auto text-[11px] text-brand underline underline-offset-2">

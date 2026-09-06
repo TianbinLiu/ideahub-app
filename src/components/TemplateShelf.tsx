@@ -242,7 +242,7 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
         <button
           onClick={() => void take()}
           disabled={!!busy}
-          className="mt-2 w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink disabled:opacity-50"
+          className="mt-2 w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink disabled:opacity-40"
         >
           {busy ? "取回中…" : "取回这一发的结果（不额外花钱）"}
         </button>
@@ -497,7 +497,7 @@ export default function TemplateShelf({
 
       {tab === "market" && (
         <div className="mb-3 flex items-center gap-2 rounded-full border border-slate-700 bg-black/30 px-3.5 py-2">
-          <Icon name="search" size={15} className="text-slate-500" />
+          <Icon name="search" size={16} className="text-slate-500" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}

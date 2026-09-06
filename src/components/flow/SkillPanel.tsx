@@ -71,7 +71,7 @@ export default function SkillPanel({ draft, onPick }: { draft: string; onPick: (
   return (
     <div className="mt-3">
       <div className="mb-1.5 flex items-center gap-2">
-        <span className="text-xs font-semibold text-slate-300">我的技能（点一个 = 填进输入框）</span>
+        <span className="mb-1.5 text-xs font-semibold text-slate-300">我的技能（点一个 = 填进输入框）</span>
         <span className="flex-1" />
         {!saving && (
           <button
@@ -97,14 +97,14 @@ export default function SkillPanel({ draft, onPick }: { draft: string; onPick: (
             onChange={(e) => setName(e.target.value)}
             maxLength={SKILL_TITLE_MAX}
             placeholder={`技能名（≤${SKILL_TITLE_MAX} 字）`}
-            className="mt-1.5 w-full rounded-lg border border-slate-700 bg-ink px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-600"
+            className="mt-1.5 w-full rounded-lg border border-slate-700 bg-ink px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500"
           />
           <input
             value={intro}
             onChange={(e) => setIntro(e.target.value)}
             maxLength={SKILL_INTRO_MAX}
             placeholder="一句话简介（可空）"
-            className="mt-1.5 w-full rounded-lg border border-slate-700 bg-ink px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-600"
+            className="mt-1.5 w-full rounded-lg border border-slate-700 bg-ink px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500"
           />
           <div className="mt-1.5 flex items-center gap-2">
             <button onClick={doSave} className="rounded-full bg-brand px-3 py-1 text-[11px] font-bold text-ink">
@@ -142,7 +142,7 @@ export default function SkillPanel({ draft, onPick }: { draft: string; onPick: (
                 <button
                   onClick={() => void shareSkill(s.id, !s.published)}
                   disabled={busy}
-                  className="flex-none rounded-full border border-slate-600 px-2 py-1 text-[10px] text-slate-300 disabled:opacity-50"
+                  className="flex-none rounded-full border border-slate-600 px-2 py-1 text-[10px] text-slate-300 disabled:opacity-40"
                 >
                   {s.published ? "下架" : "发布"}
                 </button>
@@ -191,7 +191,7 @@ export default function SkillPanel({ draft, onPick }: { draft: string; onPick: (
                 <button
                   onClick={() => void installSharedSkill(s.id)}
                   disabled={busy || installed}
-                  className="flex-none rounded-full border border-slate-600 px-2.5 py-1 text-[10px] text-slate-300 disabled:opacity-50"
+                  className="flex-none rounded-full border border-slate-600 px-2.5 py-1 text-[10px] text-slate-300 disabled:opacity-40"
                 >
                   {installed ? "已装" : "装"}
                 </button>

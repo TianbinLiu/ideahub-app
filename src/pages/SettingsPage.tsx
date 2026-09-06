@@ -235,7 +235,7 @@ function ExtDocRow({ emoji, title, sub, url }: { emoji: string; title: string; s
         </span>
         <Icon name="chevron" size={16} className="flex-none text-slate-600" />
       </button>
-      {err && <p className="px-4 pb-3 text-[11px] leading-relaxed text-rose-400">{err}</p>}
+      {err && <p className="px-4 pb-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
     </>
   );
 }
@@ -331,7 +331,7 @@ function VersionRow() {
               .finally(() => setBusy(false));
           }}
           disabled={busy}
-          className="flex-none rounded-full bg-slate-700 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-50"
+          className="flex-none rounded-full bg-slate-700 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-40"
         >
           {busy ? "检查中…" : "检查更新"}
         </button>

@@ -654,7 +654,7 @@ export default function ProfilePage() {
               <div key={s.label} className="flex items-center">
                 {i > 0 && <span className="h-6 w-px bg-slate-700/70" />}
                 {s.onTap ? (
-                  <button onClick={s.onTap} className={`flex ${cell} flex-col items-center px-2 active:opacity-70`}>
+                  <button onClick={s.onTap} className={`flex ${cell} flex-col items-center px-2 active:opacity-60`}>
                     {body}
                   </button>
                 ) : (
@@ -926,7 +926,7 @@ export default function ProfilePage() {
             套进作品墙那种 2px 无缝栅格会糊成一片 */}
         {activeTab === "cards" &&
           (cards.length ? (
-            <div className="grid grid-cols-3 gap-2 px-3 pt-3">
+            <div className="grid grid-cols-3 gap-2.5 px-3 pt-3">
               {cards.map((c) => (
                 <Link
                   key={c.id}
@@ -1180,7 +1180,7 @@ function PendingBanner() {
               .finally(() => setBusy(false));
           }}
           disabled={busy}
-          className="flex-1 rounded-xl bg-amber-400/90 py-2.5 text-xs font-bold text-ink disabled:opacity-50"
+          className="flex-1 rounded-xl bg-amber-400/90 py-2.5 text-xs font-bold text-ink disabled:opacity-40"
         >
           {busy ? "重试中…" : "立即重试"}
         </button>
@@ -1532,7 +1532,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      <div className="mb-4 grid grid-cols-2 gap-2">
+      <div className="mb-4 grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="text-lg font-bold tabular-nums text-slate-100">{fmtTokens(wallet.plan)}</div>
           <div className="text-[11px] text-slate-500">套餐 token · 优先扣减</div>
@@ -1596,7 +1596,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
             key={pk.tokens}
             onClick={() => void submit(() => rechargeAddon(pk.tokens))}
             disabled={busy}
-            className="rounded-xl border border-slate-700/60 bg-panel p-3 text-center disabled:opacity-50"
+            className="rounded-xl border border-slate-700/60 bg-panel p-3 text-center disabled:opacity-40"
           >
             <div className="text-sm font-bold tabular-nums text-slate-100">{fmtTokens(pk.tokens)}</div>
             <div className="mt-0.5 text-[11px] text-gold">¥{pk.price}</div>

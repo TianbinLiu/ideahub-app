@@ -795,7 +795,7 @@ function FeedItem({
         <button
           {...stopTap}
           onClick={() => navigate(authorHref)}
-          className="pointer-events-auto mb-1.5 block max-w-full truncate text-left text-sm font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,.6)] active:opacity-70"
+          className="pointer-events-auto mb-1.5 block max-w-full truncate text-left text-sm font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,.6)] active:opacity-60"
         >
           {/* ★ 这里**不带 `@` 前缀**：`video.author` 是**显示名**，而本 app 的 @ 句柄是
               不可改的 username（见 utils/mention 与 MentionInput）。给显示名前面加个 @
@@ -810,7 +810,7 @@ function FeedItem({
           {...stopTap}
           {...(active ? { "data-guide": "feed-title" } : {})}
           onClick={() => navigate(`/video/${video.id}`)}
-          className="pointer-events-auto mb-1 block max-w-full text-left text-base font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.7)] active:opacity-70"
+          className="pointer-events-auto mb-1 block max-w-full text-left text-base font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.7)] active:opacity-60"
         >
           <span className="line-clamp-2">
             {video.title}

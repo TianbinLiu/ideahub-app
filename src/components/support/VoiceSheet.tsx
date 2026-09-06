@@ -252,7 +252,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
               onClick={() => switchTab(t.key)}
               disabled={saving}
               aria-pressed={tab === t.key}
-              className={`flex-1 rounded-full py-1.5 text-xs font-semibold ${tab === t.key ? "bg-brand text-ink" : "bg-panel text-slate-300"} disabled:opacity-60`}
+              className={`flex-1 rounded-full py-1.5 text-xs font-semibold ${tab === t.key ? "bg-brand text-ink" : "bg-panel text-slate-300"} disabled:opacity-40`}
             >
               {t.label}
             </button>
@@ -268,7 +268,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
                     key={v.id}
                     onClick={() => void preview(v)}
                     disabled={saving}
-                    className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left disabled:opacity-60 ${
+                    className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left disabled:opacity-40 ${
                       voiceId === v.id ? "border-brand bg-brand/10" : "border-slate-700 bg-panel"
                     }`}
                   >
@@ -302,7 +302,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
                       ? `留空 = 跟随人格/模型：${merged.instruct}`
                       : "用一句话描述想要的语气，例如：温柔一点，语速放慢。留空 = 跟随人格/模型"
                   }
-                  className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
+                  className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                 />
               </div>
             </>
@@ -356,7 +356,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
 
         <div className="flex shrink-0 gap-2 border-t border-slate-700/60 px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-3">
           {tab !== "market" && (
-            <button onClick={() => void save()} disabled={!!busy} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-semibold text-ink disabled:opacity-60">
+            <button onClick={() => void save()} disabled={!!busy} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-semibold text-ink disabled:opacity-40">
               {busy === "save" ? "保存中…" : tab === "mix" ? "保存这把混音" : "保存"}
             </button>
           )}

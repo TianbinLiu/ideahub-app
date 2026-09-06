@@ -92,7 +92,7 @@ export default function NpcDialog() {
         <div className="pointer-events-auto rounded-2xl border border-slate-600/70 bg-panel/95 px-3.5 py-2.5 shadow-[0_6px_24px_rgba(0,0,0,0.5)] backdrop-blur">
           <div className="mb-0.5 flex items-center gap-1.5">
             <span className={`h-2 w-2 rounded-full ${busy ? "animate-pulse bg-amber-400" : "bg-emerald-400"}`} />
-            <span className="text-[11px] font-semibold text-slate-300">铸卡师</span>
+            <span className="mb-1.5 text-xs font-semibold text-slate-300">铸卡师</span>
             {/* ★ 合规：《AI 生成合成内容标识办法》第 4 条的**显式标识**。
                 火山原生的做法（aigc_watermark）是在每句话末尾加一串"滴滴"提示音，
                 NPC 对话里每说一句响一次，没法听。第 4 条同时允许"在交互场景界面
@@ -643,7 +643,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                 </div>
               )}
               <div className="mt-3">
-                <div className="mb-1 text-xs font-semibold text-slate-300">文字描述</div>
+                <div className="mb-1.5 text-xs font-semibold text-slate-300">文字描述</div>
                 <textarea
                   value={desc}
                   onChange={(e) => setDesc(e.target.value)}

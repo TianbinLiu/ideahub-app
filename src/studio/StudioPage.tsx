@@ -125,7 +125,7 @@ function MarketArrow({ dir, disabled, side }: { dir: 1 | -1; disabled: boolean; 
       onClick={() => useStudio.getState().shiftMarket(dir)}
       disabled={disabled}
       aria-label={dir < 0 ? "上一页" : "下一页"}
-      className={`absolute top-[46%] z-10 flex h-14 w-14 items-center justify-center rounded-full bg-panel/75 text-2xl text-slate-200 backdrop-blur transition-opacity disabled:opacity-25 ${
+      className={`absolute top-[46%] z-10 flex h-14 w-14 items-center justify-center rounded-full bg-panel/75 text-2xl text-slate-200 backdrop-blur transition-opacity disabled:opacity-40 ${
         side === "left" ? "left-2" : "right-2"
       }`}
     >

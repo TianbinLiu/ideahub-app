@@ -58,7 +58,7 @@ export default function CustomFrameSlots({
                   fileRef.current?.click();
                 }}
                 disabled={!canEdit || reading !== null}
-                className="relative w-full overflow-hidden rounded-md border border-dashed border-slate-600 bg-ink/60 disabled:opacity-50"
+                className="relative w-full overflow-hidden rounded-md border border-dashed border-slate-600 bg-ink/60 disabled:opacity-40"
                 style={{ aspectRatio: aspectCssValue }}
               >
                 {reading === which ? (

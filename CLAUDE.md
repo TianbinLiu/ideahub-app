@@ -303,6 +303,12 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   能点的话题标签（作品页 / 标签输入框）是另一种：`bg-brand/15 text-brand text-xs`。
 - **复选框一律 `accent-brand`**；页面根容器一律 `min-h-full px-4 pb-10`（登录页居中布局除外）；
   媒体上的进度条轨道 `h-1 bg-white/25`，面板里的 `h-1.5 bg-slate-700`。
+- **禁用态一律 `disabled:opacity-40`**（第六轮收口，收之前 25 / 30 / 35 / 40 / 45 / 50 / 60 七档，279 处）；
+  按压反馈用到时 `active:opacity-60`（图标键 `active:scale-95`）。
+- **控件下方的报错小字一律 `text-rose-300`、成功小字 `text-emerald-300`**（字号跟着所在面板：页面级 `text-xs`，
+  紧凑面板 `text-[11px]` / `text-[10px]`）；输入框 `placeholder:text-slate-500`，紧凑字段也一样。
+- **卡片 / 面板内的小标题 `mb-1.5 text-xs font-semibold text-slate-300`**（页面级段落标题是 `text-sm`，见上）。
+- **网格间距**：三列卡片网格 `gap-2.5`，两列 `gap-3`；搜索框里的放大镜图标 `size={16}`。
 - **空态 / 整页态只有一份实现 `components/EmptyState`**（2026-09-05 收口）：图标 40px slate-600（或 emoji）→ 正文
   text-sm slate-400（出错 rose-300）→ 补充 text-xs slate-600 → 按钮（主 bg-brand / 次 bg-panel+ring，同上一条）。
   列表里的空态 `py-16`，整页态（卡/卡组/模板不存在、未登录墙、取回中）传 `full`（min-h-[70vh] 居中 + safe-top）。

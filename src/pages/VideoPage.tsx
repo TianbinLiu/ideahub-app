@@ -124,7 +124,7 @@ function VideoDeckSection({
         <button
           onClick={() => void collect()}
           disabled={got || adding}
-          className="rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-200 ring-1 ring-slate-700 disabled:opacity-50"
+          className="rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
           title={loggedIn ? "" : auth === "pending" ? "正在确认登录状态…" : "登录后可收入卡组"}
         >
           {got ? "✓ 已在我的卡组" : adding ? "收取中…" : addErr ? "再试一次" : "收入我的卡组"}
@@ -479,7 +479,7 @@ export default function VideoPage() {
           <Link
             // 有 authorId 就按 id 跳（名字会变、会重名，见 profileHref）
             to={profileHref({ id: video.authorId, name: video.author })}
-            className="flex items-center gap-2 active:opacity-70"
+            className="flex items-center gap-2 active:opacity-60"
           >
             <Avatar name={video.author} src={authorAvatarOf(video)} size={32} />
             <span className="text-slate-200">{video.author}</span>

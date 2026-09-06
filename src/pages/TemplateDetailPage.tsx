@@ -186,7 +186,7 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
         <button
           onClick={() => void run(() => registerTemplate(t.id))}
           disabled={busy}
-          className="rounded-full bg-amber-500/90 px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-50"
+          className="rounded-full bg-amber-500/90 px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-40"
         >
           重新登记到服务器
         </button>
@@ -202,7 +202,7 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
         <button
           onClick={() => void run(() => setTemplatePublished(t.id, false))}
           disabled={busy}
-          className="rounded-full bg-slate-700 px-3.5 py-1.5 text-xs font-bold text-slate-200 disabled:opacity-50"
+          className="rounded-full bg-slate-700 px-3.5 py-1.5 text-xs font-bold text-slate-200 disabled:opacity-40"
         >
           取消发布
         </button>
@@ -215,7 +215,7 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
       <button
         onClick={() => void run(() => setTemplatePublished(t.id, true))}
         disabled={busy}
-        className="rounded-full bg-brand px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-50"
+        className="rounded-full bg-brand px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-40"
       >
         {rs?.provenAt ? "发布到模板市场" : "发布（需先试炼）"}
       </button>
@@ -224,7 +224,7 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
 
   return (
     <div className="mt-4 rounded-xl border border-slate-700/70 bg-panel p-3">
-      <div className="mb-2 text-xs font-semibold text-slate-300">✎ 模板信息（只有你能改）</div>
+      <div className="mb-1.5 text-xs font-semibold text-slate-300">✎ 模板信息（只有你能改）</div>
       {/* 改名改简介写的是本机库；换设备后本机没有这条记录，改了也无处可存（V1 服务端
           没有元数据编辑端点）——藏掉输入框，只留下架/删除这些走服务端的操作，
           别摆一个"保存了却什么都没发生"的假按钮 */}
@@ -262,7 +262,7 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
               key={c.id}
               disabled={busy}
               onClick={() => void run(() => setTemplateCategory(t.id, t.category === c.id ? "" : c.id))}
-              className={`rounded-full px-2.5 py-1 text-[11px] disabled:opacity-50 ${
+              className={`rounded-full px-2.5 py-1 text-[11px] disabled:opacity-40 ${
                 t.category === c.id ? "bg-brand/25 text-brand ring-1 ring-brand/50" : "bg-slate-700/60 text-slate-300"
               }`}
             >
@@ -307,7 +307,7 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
           }}
           onBlur={() => setArmed(false)}
           disabled={busy}
-          className={`ml-auto rounded-full px-3 py-1.5 text-xs disabled:opacity-50 ${
+          className={`ml-auto rounded-full px-3 py-1.5 text-xs disabled:opacity-40 ${
             armed ? "bg-rose-500 font-bold text-white" : "text-rose-400"
           }`}
         >
@@ -353,7 +353,7 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
                 <button
                   onClick={() => void run(() => refreshRemoteTemplate(t.id))}
                   disabled={busy}
-                  className="rounded-full bg-slate-700/60 px-2.5 py-1 text-[11px] text-slate-300 disabled:opacity-50"
+                  className="rounded-full bg-slate-700/60 px-2.5 py-1 text-[11px] text-slate-300 disabled:opacity-40"
                 >
                   出过了？刷新状态
                 </button>
@@ -372,7 +372,7 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
           标题/简介的修改只改本机显示；市场里展示的是登记那一刻的版本。
         </p>
       )}
-      {opErr && <p className="mt-2 text-[11px] leading-relaxed text-rose-400">{opErr}</p>}
+      {opErr && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{opErr}</p>}
       {t.published && <p className="mt-2 text-[10px] text-slate-500">已在模板市场公开，别人可以直接套用出片。</p>}
     </div>
   );
@@ -554,7 +554,7 @@ export default function TemplateDetailPage() {
         ⚡ 用这个模板出片{t.refVideo ? "（挂上你的角色卡）" : "（只需一句话）"}
       </button>
       {discardDialog}
-      {applyErr && <p className="mb-3 text-xs leading-relaxed text-rose-400">{applyErr}</p>}
+      {applyErr && <p className="mb-3 text-xs leading-relaxed text-rose-300">{applyErr}</p>}
       <div className="mb-3" />
 
       {/* ★ 第 2 区「怎么做出来的」——默认折叠（2026-08-23）。
@@ -567,7 +567,7 @@ export default function TemplateDetailPage() {
         <div className="px-3 pb-3">
         {/* 生成配方：明着给，用户才知道它为什么像，也才能照着改 */}
         <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
-          <div className="mb-2 text-xs font-semibold text-slate-300">🧪 生成配方</div>
+          <div className="mb-1.5 text-xs font-semibold text-slate-300">🧪 生成配方</div>
           <div className="mb-2">
             <div className="mb-1 text-[11px] text-slate-500">画面质感与运镜</div>
             <p className="text-xs leading-relaxed text-slate-400">{t.recipe.styleHint}</p>
@@ -593,7 +593,7 @@ export default function TemplateDetailPage() {
 
         {t.cards.length > 0 && (
           <div className="mb-4">
-            <div className="mb-2 text-xs font-semibold text-slate-300">🎴 模板卡组 · {t.cards.length} 张</div>
+            <div className="mb-1.5 text-xs font-semibold text-slate-300">🎴 模板卡组 · {t.cards.length} 张</div>
             <div className="grid grid-cols-3 gap-2">
               {t.cards.map((c) => (
                 <Link key={c.id} to={`/card/${c.id}`} state={{ card: c }}>

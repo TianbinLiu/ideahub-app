@@ -296,7 +296,7 @@ function TplRow({
       disabled={!!issue}
       className={`flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left ${
         cur ? "border-brand/70 bg-brand/10" : "border-slate-700 bg-panel"
-      } disabled:opacity-60`}
+      } disabled:opacity-40`}
     >
       <Thumb t={t} />
       <div className="min-w-0 flex-1">

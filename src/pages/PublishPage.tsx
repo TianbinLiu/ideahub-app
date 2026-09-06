@@ -338,7 +338,7 @@ export default function PublishPage() {
                     });
                   }}
                   disabled={!!busy}
-                  className="rounded-full bg-amber-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-50"
+                  className="rounded-full bg-amber-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
                 >
                   {busy ? "重试中…" : "再试一次"}
                 </button>
@@ -356,7 +356,7 @@ export default function PublishPage() {
             <button
               onClick={() => void publish()}
               disabled={!!busy || !!deckIssue}
-              className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-50"
+              className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-40"
             >
               {busy || "发布"}
             </button>
@@ -430,7 +430,7 @@ export default function PublishPage() {
             // ★ 没标题就禁用，而不是"点了之后关掉弹层再在两屏之外报错"——
             //   那种失败方式用户读不出因果（发布键那条整句拒也是同一个理由挪的位置）
             disabled={!!busy || !title.trim()}
-            className="mt-3 w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-50"
+            className="mt-3 w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-40"
           >
             <span className="font-bold">还是先按「仅自己可见」发出去吧</span>
             <br />

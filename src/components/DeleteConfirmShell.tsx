@@ -65,7 +65,7 @@ export default function DeleteConfirmShell({
                 .finally(() => setBusy(false));
             }}
             disabled={busy}
-            className="flex-1 rounded-xl bg-rose-500/90 py-2.5 text-xs font-bold text-white disabled:opacity-50"
+            className="flex-1 rounded-xl bg-rose-500/90 py-2.5 text-xs font-bold text-white disabled:opacity-40"
           >
             {busy ? "删除中…" : err ? "再试一次" : danger}
           </button>

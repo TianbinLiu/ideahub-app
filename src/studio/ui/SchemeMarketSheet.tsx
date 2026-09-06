@@ -66,7 +66,7 @@ export default function SchemeMarketSheet({
           别人做的出图配方。装进来之后就是你自己的一套，可以随便改。
         </p>
 
-        {err && <p className="mb-2 text-[11px] leading-relaxed text-rose-400">{err}</p>}
+        {err && <p className="mb-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
         {busy && !list.length && <p className="py-6 text-center text-[11px] text-slate-500">正在打开市场…</p>}
         {!busy && !err && !list.length && (
           <p className="rounded-lg border border-dashed border-slate-700 py-6 text-center text-[11px] text-slate-500">

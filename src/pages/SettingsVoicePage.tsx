@@ -111,7 +111,7 @@ export default function SettingsVoicePage() {
             key={v.id}
             onClick={() => void preview(v)}
             disabled={!!busy}
-            className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left disabled:opacity-60 ${
+            className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left disabled:opacity-40 ${
               id === v.id ? "border-brand bg-brand/10" : "border-slate-700 bg-panel"
             }`}
           >

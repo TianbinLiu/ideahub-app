@@ -21,7 +21,7 @@ export default function VoiceUploadButton({
       >
         {busy ? "处理中…" : `🎵 上传本地音频（${VOICE_MIN_SEC}~${VOICE_MAX_SEC} 秒）`}
       </button>
-      {err && <p className="mt-1 text-[10px] leading-relaxed text-rose-400">{err}</p>}
+      {err && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{err}</p>}
       <input
         ref={fileRef}
         type="file"

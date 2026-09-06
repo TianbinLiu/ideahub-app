@@ -202,7 +202,7 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
           );
         }}
       />
-      {saveErr && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-400">{saveErr}</p>}
+      {saveErr && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-300">{saveErr}</p>}
     </div>
   );
 }
@@ -222,7 +222,7 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
     if (!owned) return null;
     return (
       <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
-        <span className="text-xs font-semibold text-slate-300">🔊 人物声音</span>
+        <span className="mb-1.5 text-xs font-semibold text-slate-300">🔊 人物声音</span>
         <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
           这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——
           出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。
@@ -233,7 +233,7 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
   return (
     <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-xs font-semibold text-slate-300">🔊 人物声音 · {v.durationSec}s</span>
+        <span className="mb-1.5 text-xs font-semibold text-slate-300">🔊 人物声音 · {v.durationSec}s</span>
         {owned &&
           (confirmRm ? (
             <span className="flex items-center gap-2">
@@ -354,7 +354,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                 key={s.kind}
                 disabled={busy}
                 onClick={() => pick(s.kind)}
-                className="rounded-full bg-slate-700/70 px-2.5 py-1 text-[11px] text-slate-200 disabled:opacity-50"
+                className="rounded-full bg-slate-700/70 px-2.5 py-1 text-[11px] text-slate-200 disabled:opacity-40"
               >
                 + {s.label}
               </button>
@@ -418,7 +418,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
         </p>
       )}
       {note && <p className="mt-1 text-[11px] text-amber-400">{note}</p>}
-      {err && <p className="mt-1 text-[11px] text-rose-400">{err}</p>}
+      {err && <p className="mt-1 text-[11px] text-rose-300">{err}</p>}
       {busy && <p className="mt-1 text-[11px] text-slate-400">处理中…</p>}
 
       <input
@@ -462,7 +462,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                   e.stopPropagation();
                   void onRemove(zoom);
                 }}
-                className="rounded-full bg-rose-500/90 px-4 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                className="rounded-full bg-rose-500/90 px-4 py-1.5 text-xs font-bold text-white disabled:opacity-40"
               >
                 删掉这张
               </button>
@@ -659,7 +659,7 @@ export default function CardDetailPage() {
           摆出来说成是就违反铁律五 */}
       {card.idLine && (
         <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
-          <div className="mb-1 text-xs font-semibold text-slate-300">🎯 出片身份句</div>
+          <div className="mb-1.5 text-xs font-semibold text-slate-300">🎯 出片身份句</div>
           <p className="text-xs leading-relaxed text-slate-400">{card.idLine}</p>
           <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
             出片时提示词里代表这张卡的固定一句（逐段复用同一措辞，形象更稳）。长设定进画面靠上面的参考图与
@@ -672,7 +672,7 @@ export default function CardDetailPage() {
           ★ 标题按卡种叫（人物信息/场景信息/…），表在 types.CARD_INFO_LABELS 一处 */}
       <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
         <div className="mb-1.5 flex items-center justify-between">
-          <span className="text-xs font-semibold text-slate-300">🧬 {CARD_INFO_LABELS[card.type]}</span>
+          <span className="mb-1.5 text-xs font-semibold text-slate-300">🧬 {CARD_INFO_LABELS[card.type]}</span>
           <button
             onClick={() => {
               void navigator.clipboard?.writeText(cardInfo).then(() => {
@@ -753,13 +753,13 @@ export default function CardDetailPage() {
                 .finally(() => setGetting(false));
             }}
             disabled={getting}
-            className={`block w-full rounded-xl py-2.5 text-center text-sm font-bold disabled:opacity-50 ${
+            className={`block w-full rounded-xl py-2.5 text-center text-sm font-bold disabled:opacity-40 ${
               owned ? "bg-panel text-slate-300 ring-1 ring-slate-700" : "bg-brand/90 text-ink"
             }`}
           >
             {getting ? "添加中…" : getErr ? "再同步一次" : "＋ 添加到我的卡片"}
           </button>
-          {getErr && <p className="mt-1 text-[11px] leading-relaxed text-rose-400">{getErr}</p>}
+          {getErr && <p className="mt-1 text-[11px] leading-relaxed text-rose-300">{getErr}</p>}
         </div>
       )}
 
@@ -838,7 +838,7 @@ export default function CardDetailPage() {
                     .finally(() => setEditBusy(false));
                 }}
                 disabled={editBusy}
-                className="flex-1 rounded-xl bg-brand py-2.5 text-xs font-bold text-ink disabled:opacity-50"
+                className="flex-1 rounded-xl bg-brand py-2.5 text-xs font-bold text-ink disabled:opacity-40"
               >
                 {editBusy ? "保存中…" : editErr ? "再试一次" : "保存"}
               </button>

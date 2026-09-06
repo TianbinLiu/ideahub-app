@@ -203,7 +203,7 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
     <div>
       <div className="mb-2 flex items-center gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-700 bg-black/30 px-3 py-1.5">
-          <Icon name="search" size={14} className="text-slate-500" />
+          <Icon name="search" size={16} className="text-slate-500" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -259,7 +259,7 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
                     disabled={!!busy || disabled}
                     aria-pressed={t.liked}
                     aria-label={t.liked ? "取消点赞" : "点赞"}
-                    className={`shrink-0 rounded-full px-1.5 py-0.5 ${t.liked ? "text-rose-300" : "text-slate-400"} disabled:opacity-50`}
+                    className={`shrink-0 rounded-full px-1.5 py-0.5 ${t.liked ? "text-rose-300" : "text-slate-400"} disabled:opacity-40`}
                   >
                     {t.liked ? "❤" : "♡"} {t.stats.likeCount}
                   </button>
@@ -275,7 +275,7 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
                   <button
                     onClick={() => void apply(t)}
                     disabled={current || !!busy || disabled}
-                    className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${current ? "bg-slate-800 text-slate-500" : "bg-brand text-ink"} disabled:opacity-60`}
+                    className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${current ? "bg-slate-800 text-slate-500" : "bg-brand text-ink"} disabled:opacity-40`}
                   >
                     {step === "apply" ? "设置中…" : current ? "使用中" : "设为我的声音"}
                   </button>
@@ -310,7 +310,7 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
         <button
           onClick={() => void loadMore()}
           disabled={moreLoading}
-          className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-xs text-slate-300 disabled:opacity-50"
+          className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-xs text-slate-300 disabled:opacity-40"
         >
           {moreLoading ? "加载中…" : "加载更多"}
         </button>

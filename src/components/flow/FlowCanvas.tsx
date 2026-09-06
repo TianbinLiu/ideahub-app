@@ -347,7 +347,7 @@ export default function FlowCanvas({
           onClick={draft.onSave}
           disabled={draft.state === "saving"}
           title="存草稿"
-          className={`flex h-8 w-8 flex-none items-center justify-center rounded-full text-xs disabled:opacity-50 ${
+          className={`flex h-8 w-8 flex-none items-center justify-center rounded-full text-xs disabled:opacity-40 ${
             draft.state === "failed" ? "bg-rose-500/20 text-rose-300" : draft.state === "saved" ? "bg-emerald-500/20 text-emerald-300" : "bg-panel text-slate-200"
           }`}
         >
@@ -379,7 +379,7 @@ export default function FlowCanvas({
           编辑窗里那份已经撤掉，只留这一处（方案台弹层自带一份，因为它盖住了这里）。 */}
       {err && (
         <div className="mx-3 mb-1 flex flex-none items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5">
-          <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-rose-200">{err}</p>
+          <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-rose-300">{err}</p>
           <button onClick={() => useFlow.setState({ err: "" })} className="flex-none text-rose-300">
             <Icon name="close" size={12} />
           </button>
@@ -992,7 +992,7 @@ function NodePanel({
               maxLength={VIDEO_PROMPT_MAX}
               disabled={locked || generating || (castBusy && castOfThisNode)}
               placeholder={castBusy && castOfThisNode ? "正在把「人偶 → 角色」合成一段话…" : "先去挂卡，点名句会填进这里（可改）"}
-              className="h-24 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
+              className="h-24 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-500 disabled:opacity-40"
             />
           ) : (
             <textarea
@@ -1001,7 +1001,7 @@ function NodePanel({
               maxLength={VIDEO_PROMPT_MAX}
               disabled={locked || generating || (castBusy && castOfThisNode)}
               placeholder="写一句换成谁，例：换成一只戴墨镜的柴犬"
-              className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
+              className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-500 disabled:opacity-40"
             />
           )}
         </>
@@ -1107,7 +1107,7 @@ function NodePanel({
                       onClick={() => updateProposal(node.id, { durationSec: sec })}
                       disabled={locked || generating || below}
                       title={below ? `${tierOf(node.videoTier).label}档最短 ${tierOf(node.videoTier).minSec}s` : undefined}
-                      className={`rounded-full px-2.5 py-1 text-[10px] disabled:opacity-30 ${
+                      className={`rounded-full px-2.5 py-1 text-[10px] disabled:opacity-40 ${
                         p.durationSec === sec ? "bg-brand font-bold text-ink" : "bg-panel text-slate-300"
                       }`}
                     >
@@ -1287,7 +1287,7 @@ function NodePanel({
               // ★ placeholder = 一句提问（ui-copy-grammar 文法⑦）：教学交给引导与按钮本身
               flatTier ? "这一段拍什么？写好直接生成" : custom ? "这一段拍什么？缺的帧按这句补画" : "这一段拍什么？"
             }
-            className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
+            className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-500 disabled:opacity-40"
           />
           )}
           {/* 运镜 chips（对标落地，backlog 2.8-⑦）：点选把受控词表的短语插进上面那栏 ——
@@ -1666,14 +1666,14 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
                     <button
                       onClick={() => void confirm(p)}
                       disabled={!!runningProp}
-                      className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-bold text-ink disabled:opacity-50"
+                      className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-bold text-ink disabled:opacity-40"
                     >
                       {runningProp === p ? "执行中…" : p.kind === "cast" ? "执行（免费）" : `执行（${p.costLabel}）`}
                     </button>
                     <button
                       onClick={() => setLog((prev) => prev && { ...prev, proposals: prev.proposals.filter((x) => x !== p) })}
                       disabled={!!runningProp}
-                      className="rounded-full border border-slate-600 px-2.5 py-1 text-[10px] text-slate-300 disabled:opacity-50"
+                      className="rounded-full border border-slate-600 px-2.5 py-1 text-[10px] text-slate-300 disabled:opacity-40"
                     >
                       不了
                     </button>
@@ -1720,7 +1720,7 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
           onKeyDown={(e) => e.key === "Enter" && void send()}
           // ★ placeholder 只留一句示例（文法⑦）；"/" 的入口是旁边那颗魔杖钮本身
           placeholder={AI_REAL ? "对画布说话：第2段套宗主模板" : "对画布说话：第1段拍主角雨夜狂奔"}
-          className="min-w-0 flex-1 bg-transparent text-xs text-slate-100 outline-none placeholder:text-slate-600"
+          className="min-w-0 flex-1 bg-transparent text-xs text-slate-100 outline-none placeholder:text-slate-500"
         />
         {/* 每句的价（真实收费，报价=实扣）：数字芯片常驻（文法②），不再挤进 placeholder ——
             placeholder 在打第一个字时就消失，把价钱写在那里等于只报价给还没花钱的人看 */}
@@ -1767,7 +1767,7 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
         style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-2 text-xs font-semibold text-slate-300">指令句式（点一个填进输入框，接着改）</div>
+        <div className="mb-1.5 text-xs font-semibold text-slate-300">指令句式（点一个填进输入框，接着改）</div>
         <div className="grid grid-cols-2 gap-1.5">
           {AGENT_PHRASES.map((p) => (
             <button
@@ -1907,7 +1907,7 @@ function PickRow({
       disabled={!!issue || cur}
       className={`flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left ${
         cur ? "border-brand/70 bg-brand/10" : "border-slate-700 bg-panel"
-      } disabled:opacity-60`}
+      } disabled:opacity-40`}
     >
       <div className="h-12 w-20 flex-none overflow-hidden rounded-lg bg-black/40">
         {(t.cover || refVideoPoster(t.refVideo)) && (
