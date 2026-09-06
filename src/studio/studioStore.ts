@@ -10,7 +10,7 @@ import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIE
 import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeBlank, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
-import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, saveDraft } from "../data/drafts";
+import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, saveDraft } from "../data/drafts";
 import { dropCutSession, saveCutSession } from "../data/cutSession";
 import { GenStep } from "./genLog";
 import { SPEAK_MOOD, speak, stopSpeaking } from "./speech";
@@ -2327,6 +2327,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
       });
       // ★ 上次出片时预览帧没截到 / 转存没赶上的段，这次打开顺手收尾（后台，不挡打开）
       useFlow.getState().settleAllMedia();
+      // ★ 缩略图补一次：老草稿的缩略图是按"设定首帧"存的（白模复刻 / 直出段根本没有），首段其实已经有
+      //   截到的真实首帧（poster）而索引里缩略图还是空的 —— 补存一次让草稿箱那张卡不再是占位符。
+      //   只是缩略图，存不上也不写 err（正文早就在库里，这一存不关钱的事）
+      const head0 = chosenOf(flowNodes[0]);
+      if (head0?.poster && !getDraftMeta(d.id)?.thumb) void get().saveWorkDraft({ from: "flow" });
     } else {
       useFlow.getState().reset();
     }
