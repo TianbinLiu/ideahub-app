@@ -31,7 +31,7 @@ import { useNavigate, useSearchParams } from "react-router";
 import Icon from "../components/Icon";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
-import { CloseButton } from "../components/IconTapButton";
+import { BackButton, CloseButton } from "../components/IconTapButton";
 import SupportStage from "../components/support/SupportStage";
 import HoldToTalk from "../components/support/HoldToTalk";
 import VoiceSheet from "../components/support/VoiceSheet";
@@ -487,10 +487,8 @@ export default function SupportPage() {
       {/* 顶栏浮层 */}
       {/* 渐变只是装饰：pointer-events-none 让它下面的模型头部能被摸到（真机上头正好在这块渐变里），按钮那一行再打开 */}
       <div className="safe-top pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-ink/85 via-ink/40 to-transparent pb-8">
-        <div className="pointer-events-auto flex h-12 items-center gap-1 px-2">
-          <button onClick={() => navigate(-1)} aria-label="返回" className="flex h-11 w-11 items-center justify-center text-slate-200">
-            <Icon name="back" size={20} />
-          </button>
+        <div className="pointer-events-auto flex h-[58px] items-center gap-1 px-4">
+          <BackButton size={20} tone="text-slate-200" onClick={() => navigate(-1)} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="truncate text-base font-bold text-slate-100">{name}</span>
@@ -663,7 +661,7 @@ export default function SupportPage() {
         </form>
         <div className="mt-1.5 flex items-center justify-between px-2 text-[11px] text-slate-400">
           <span>AI 回答仅供参考，涉及退款与账号的事会转人工</span>
-          <button onClick={openSheet} className="text-slate-200 underline decoration-slate-500 active:text-white">
+          <button onClick={openSheet} className="text-brand underline underline-offset-2">
             转人工
           </button>
         </div>

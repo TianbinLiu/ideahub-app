@@ -135,7 +135,7 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
             完全看不出原因 */}
         <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-600">
           若安装时提示「应用未安装」，多半是早期测试包的签名不同，先卸载旧版再装即可
-          <button onClick={onClose} className="ml-1 inline-flex items-center text-slate-500 underline">
+          <button onClick={onClose} className="ml-1 inline-flex items-center text-slate-500 underline underline-offset-2">
             关闭
             <Icon name="close" size={10} className="ml-0.5" />
           </button>

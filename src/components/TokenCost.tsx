@@ -55,7 +55,7 @@ export default function TokenCost({
           {" "}· 余额 {fmtTokens(bal)} 不够，
           {/* 路由是 /me，不是 /profile——写错了编译器不拦，运行时点了没反应，
               而这在余额不足时是用户唯一的出路 */}
-          <Link to="/me" className="underline">
+          <Link to="/me" className="underline underline-offset-2">
             去充值
           </Link>
         </>

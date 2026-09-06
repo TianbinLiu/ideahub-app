@@ -150,7 +150,7 @@ export default function TierRow({
           {tierBlocks.join("；")}
           {/* 间隔用全角空格字面量——JSX 会把行间换行整个吃掉，靠折行留空隙留不住 */}
           {"　"}
-          <Link to="/me" className="underline">
+          <Link to="/me" className="underline underline-offset-2">
             去升级
           </Link>
         </p>

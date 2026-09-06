@@ -228,7 +228,7 @@ export default function SupportModelsPage() {
                   {m.tags.length > 0 && (
                     <div className="mt-1 flex flex-wrap gap-1">
                       {m.tags.slice(0, 3).map((t) => (
-                        <span key={t} className="rounded bg-slate-800 px-1 text-[10px] text-slate-400">
+                        <span key={t} className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
                           #{t}
                         </span>
                       ))}

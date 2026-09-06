@@ -402,7 +402,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
       <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
         出片时<span className="text-slate-400">不是每张都会喂进模型</span>——「出片用」按单卡乐观口径标，
         同一段挂的卡多时可能让位。
-        <button onClick={() => setRulesOpen(true)} className="ml-1 text-brand underline">
+        <button onClick={() => setRulesOpen(true)} className="ml-1 text-brand underline underline-offset-2">
           取舍规则 ›
         </button>
       </p>
@@ -584,7 +584,7 @@ export default function CardDetailPage() {
   const cardInfo = cardInfoOf(card);
 
   return (
-    <div className="min-h-full px-4 pb-8">
+    <div className="min-h-full px-4 pb-10">
       <PageHeader onBack={() => nav(-1)} title="卡片详情" />
 
       {/* 大卡面 / 全息建模 双栏 */}
@@ -637,7 +637,7 @@ export default function CardDetailPage() {
       {card.tags && card.tags.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1">
           {card.tags.map((t) => (
-            <span key={t} className="rounded-full px-2 py-0.5 bg-slate-700/70 text-[10px] text-slate-300">
+            <span key={t} className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
               #{t}
             </span>
           ))}

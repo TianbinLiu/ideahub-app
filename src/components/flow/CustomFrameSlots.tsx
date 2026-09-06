@@ -5,6 +5,7 @@
 //   两个宿主各抄一份 60 行的格子，哪天空态文案或清帧按钮改了就会各长各的样。
 // ★ 上传的解码/压制走 utils/image.fileToFrameDataUrl（工坊上传开头帧同一条路）。
 import { useRef, useState } from "react";
+import Spinner from "../Spinner";
 import { fileToFrameDataUrl } from "../../utils/image";
 
 export default function CustomFrameSlots({
@@ -62,7 +63,7 @@ export default function CustomFrameSlots({
               >
                 {reading === which ? (
                   <span className="flex h-full w-full flex-col items-center justify-center gap-1 text-slate-300">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-brand" />
+                    <Spinner size="sm" />
                     <span className="text-[9px]">读取中…</span>
                   </span>
                 ) : url ? (

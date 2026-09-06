@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Spinner from "./components/Spinner";
 import { createPortal } from "react-dom";
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router";
 import GuideGate from "./components/guide/GuideGate";
@@ -221,7 +222,7 @@ export default function App() {
     return (
       <div className="flex min-h-full items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-slate-400">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-brand" />
+          <Spinner size="lg" />
           <span className="text-xs">正在打开作品库…</span>
         </div>
       </div>

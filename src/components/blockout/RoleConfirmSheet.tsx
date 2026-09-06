@@ -488,7 +488,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
         {issue && <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{issue}</p>}
       </div>
 
-      <div className="safe-bottom absolute inset-x-0 bottom-0 border-t border-slate-800 bg-black/80 px-4 py-3">
+      <div className="safe-bottom absolute inset-x-0 bottom-0 border-t border-slate-700/60 bg-black/80 px-4 py-3">
         {/* ★★ 提交前的汇总：整份替换意味着"少发一条 = 删掉它"，而服务端**分不清**"作者有意
             删"和"客户端状态丢了一条"。把这次会少哪几条摆在最终按钮上方，是这个风险在
             App 侧唯一的对冲 —— 点下去之前它是看得见的。 */}

@@ -209,7 +209,7 @@ export default function DanmakuInput({
       <div className="flex-1" onClick={onClose} />
 
       <div
-        className="border-t border-slate-700/70 bg-panel/95 backdrop-blur"
+        className="border-t border-slate-700/60 bg-panel/95 backdrop-blur"
         style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
       >
         {/* 「我发过的」：删自己弹幕的**唯一**入口。
@@ -219,7 +219,7 @@ export default function DanmakuInput({
               最自然会打开的地方。
             一条都没有就不显示这一行：摆一个永远空的入口比不摆更糟（CLAUDE.md）。 */}
         {mine.length > 0 && (
-          <div className="border-b border-slate-700/40 px-4 pt-2.5">
+          <div className="border-b border-slate-700/60 px-4 pt-2.5">
             <button
               onClick={() => setMineOpen((v) => !v)}
               className="flex w-full items-center gap-1.5 pb-2 text-[11px] text-slate-400 active:opacity-60"
@@ -241,7 +241,7 @@ export default function DanmakuInput({
         {/* 「本片弹幕」：举报别人弹幕的**唯一**入口（理由见 OtherDanmakuRow 顶部）。
             一条都没有就不显示这一行，与上面「我发过的」同一条规矩。 */}
         {others.length > 0 && (
-          <div className="border-b border-slate-700/40 px-4 pt-2.5">
+          <div className="border-b border-slate-700/60 px-4 pt-2.5">
             <button
               onClick={() => setAllOpen((v) => !v)}
               className="flex w-full items-center gap-1.5 pb-2 text-[11px] text-slate-400 active:opacity-60"

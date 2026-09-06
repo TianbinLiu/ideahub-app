@@ -4,6 +4,7 @@
 // 上半屏继续看视频），详情页是普通滚动页面，评论直接铺在页尾更顺——硬套抽屉反而
 // 多一层遮罩和一次点击。两者共享的是数据语义而不是布局。
 import { useEffect, useState, useSyncExternalStore } from "react";
+import Avatar from "./Avatar";
 import {
   SocialKind,
   addComment,
@@ -132,9 +133,7 @@ export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string
         <div className="space-y-3.5">
           {comments.map((c) => (
             <div key={c.id} className="flex gap-2.5">
-              <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-slate-700 text-xs font-bold text-slate-300">
-                {c.author.charAt(0)}
-              </span>
+              <Avatar name={c.author} size={32} className="flex-none" />
               <div className="min-w-0">
                 <div className="text-xs text-slate-500">
                   {c.author} · {relativeTime(c.at)}

@@ -1,3 +1,4 @@
+import Spinner from "./Spinner";
 // 「还不知道你登没登录」的加载态。
 //
 // ★★ 为什么需要一个独立的态（2026-08-20 真机报的 bug）：冷启动后立刻点底栏 ➕
@@ -17,7 +18,7 @@ export default function AuthPending({
 }) {
   return (
     <div className={`flex flex-col items-center justify-center gap-3 text-slate-400 ${className}`}>
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-brand" />
+      <Spinner size="lg" />
       <span className="text-xs">{label}</span>
     </div>
   );

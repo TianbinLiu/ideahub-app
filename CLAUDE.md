@@ -290,6 +290,19 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - **卡片容器边线一律 `border-slate-700/70`**（`rounded-xl border border-slate-700/70 bg-panel p-3`）；输入框与按钮的
   描边仍是 `border-slate-700`。空态文案不再手拼 `rounded-2xl bg-slate-900/60` 的段落，走 `EmptyState`。
 - **徽标（`rounded-full` 小字非交互）按字号定内边距**：9px `px-1.5 py-0.5`、10px `px-2 py-0.5`、11px `px-2.5 py-1`。
+- **全屏覆盖层的表头**（画布 / 成片回看 / 调首尾帧 / 核对角色位 / 客服页，第五轮收口）：`safe-top flex h-[58px] flex-none
+  items-center gap-2 px-4`，关闭 / 返回键走 `CloseButton` / `BackButton`（覆盖层上用 `chip="md" size={16}`，
+  客服页那种透明顶栏用裸图标 `size={20}`），标题 `text-sm font-bold text-slate-100`。不再手写 `h-8 w-8 rounded-full bg-panel`
+  的圆钮 —— 那是 chip md 的手抄版，命中区只有 32px。
+- **加载圈只有一份 `components/Spinner`**（xs / sm / lg），别再手写 `animate-spin rounded-full border-2 …`。
+- **内联链接**：`underline underline-offset-2`；能点出动作的 `text-brand`，说明性的灰链接一律 `text-slate-500`，
+  不写 `decoration-*`。
+- **分隔线一律 `border-slate-700/60`**（`border-t` / `border-b`）；抽屉壳与顶部下拉窗的那条边线仍是 `border-slate-700`。
+- **字母头像走 `components/Avatar`**（按名字取色），别再手拼 `rounded-full bg-slate-700` 的首字母圈。
+- **非交互的关键词芯片**（卡片 #标签、形象 #标签）`rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300`；
+  能点的话题标签（作品页 / 标签输入框）是另一种：`bg-brand/15 text-brand text-xs`。
+- **复选框一律 `accent-brand`**；页面根容器一律 `min-h-full px-4 pb-10`（登录页居中布局除外）；
+  媒体上的进度条轨道 `h-1 bg-white/25`，面板里的 `h-1.5 bg-slate-700`。
 - **空态 / 整页态只有一份实现 `components/EmptyState`**（2026-09-05 收口）：图标 40px slate-600（或 emoji）→ 正文
   text-sm slate-400（出错 rose-300）→ 补充 text-xs slate-600 → 按钮（主 bg-brand / 次 bg-panel+ring，同上一条）。
   列表里的空态 `py-16`，整页态（卡/卡组/模板不存在、未登录墙、取回中）传 `full`（min-h-[70vh] 居中 + safe-top）。

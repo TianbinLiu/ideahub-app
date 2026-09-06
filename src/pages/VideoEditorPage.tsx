@@ -252,7 +252,7 @@ export default function VideoEditorPage() {
         right={state?.mode === "blockoutize" ? <HelpButton tour="trim" /> : null}
       />
 
-      <main className="px-3 py-3">
+      <main className="px-4 py-3">
         {!state ? (
           // 入参验不过：说清是什么情况、给一条出路（白屏是最坏的一种失败）
           <EmptyState

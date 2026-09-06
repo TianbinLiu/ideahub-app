@@ -294,7 +294,7 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
                 {confirming && (
                   <p className="mt-1.5 text-[11px] leading-4 text-slate-500">
                     再点一次就删。正在用它的人嗓子不变，只是不再显示「使用中」。
-                    <button onClick={() => setConfirmId("")} className="ml-1 underline">
+                    <button onClick={() => setConfirmId("")} className="ml-1 underline underline-offset-2">
                       取消
                     </button>
                   </p>

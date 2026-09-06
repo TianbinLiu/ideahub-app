@@ -73,7 +73,7 @@ export default function AdminTicketsView() {
           </button>
         ))}
         <span className="ml-auto text-[11px] text-slate-500">{total === null ? "" : `${total} 张`}</span>
-        <button onClick={() => void load(filter)} className="text-[11px] text-slate-400 underline decoration-slate-700">
+        <button onClick={() => void load(filter)} className="text-[11px] text-slate-500 underline underline-offset-2">
           刷新
         </button>
       </div>
@@ -124,7 +124,7 @@ function TicketCard({ t, onChanged }: { t: SupportTicket; onChanged: (t: Support
       {t.note && <p className="mt-1 text-xs leading-5 text-slate-400">用户补充：{t.note}</p>}
 
       {t.transcript.length > 0 && (
-        <button onClick={() => setShowTranscript((v) => !v)} className="mt-2 text-[11px] text-slate-400 underline decoration-slate-700">
+        <button onClick={() => setShowTranscript((v) => !v)} className="mt-2 text-[11px] text-slate-500 underline underline-offset-2">
           {showTranscript ? "收起对话" : `查看转人工前的对话（${t.transcript.length} 条）`}
         </button>
       )}

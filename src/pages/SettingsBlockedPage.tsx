@@ -10,6 +10,7 @@
 //   ③ 有名单 → 列出来。
 //   把 ① 和 ② 合并的话，弱网下会显示"你还没拉黑过谁"，而名单其实好好地在服务器上。
 import { useCallback, useEffect, useState } from "react";
+import Avatar from "../components/Avatar";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
@@ -96,13 +97,7 @@ export default function SettingsBlockedPage() {
           {err && <p className="text-[11px] leading-relaxed text-rose-400">{err}</p>}
           {list.map((u) => (
             <div key={u.id} className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-panel px-3 py-2.5">
-              {u.avatar ? (
-                <img src={u.avatar} alt="" className="h-9 w-9 flex-none rounded-full object-cover" />
-              ) : (
-                <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-slate-700 text-xs text-slate-300">
-                  {u.name.slice(0, 1)}
-                </span>
-              )}
+              <Avatar name={u.name} src={u.avatar} size={36} className="flex-none" />
               <span className="min-w-0 flex-1 truncate text-sm text-slate-100">{u.name}</span>
               <button
                 onClick={() => void undo(u)}

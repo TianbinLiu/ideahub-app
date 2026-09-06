@@ -224,7 +224,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
         <span>1.20× 快</span>
       </div>
       {rate !== null && (
-        <button onClick={() => setRate(null)} className="mt-1 text-[11px] text-slate-500 underline">
+        <button onClick={() => setRate(null)} className="mt-1 text-[11px] text-slate-500 underline underline-offset-2">
           跟随人格/模型
         </button>
       )}
@@ -354,7 +354,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
           )}
         </div>
 
-        <div className="flex shrink-0 gap-2 border-t border-white/10 px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-3">
+        <div className="flex shrink-0 gap-2 border-t border-slate-700/60 px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-3">
           {tab !== "market" && (
             <button onClick={() => void save()} disabled={!!busy} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-semibold text-ink disabled:opacity-60">
               {busy === "save" ? "保存中…" : tab === "mix" ? "保存这把混音" : "保存"}

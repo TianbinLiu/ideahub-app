@@ -3,6 +3,7 @@
 // 谁开都一样。onOpenPanel = 圈选存好后"把该段的工作现场带到用户面前"（画布开编辑窗、
 // 工坊聚焦方案台），由宿主自己定义。
 import { useEffect, useRef, useState } from "react";
+import { CloseButton } from "../IconTapButton";
 import { createPortal } from "react-dom";
 import Icon from "../Icon";
 import FrameAnnotator, { drawCover } from "../FrameAnnotator";
@@ -126,7 +127,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
   if (!node) return null;
   return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col bg-black/90" onClick={onClose}>
-      <div className="safe-top flex flex-none items-center gap-2 px-3 py-2" onClick={(e) => e.stopPropagation()}>
+      <div className="safe-top flex h-[58px] flex-none items-center gap-2 px-4" onClick={(e) => e.stopPropagation()}>
         <span className="text-sm font-bold text-slate-100">第 {idx + 1} 段 · 成片</span>
         <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">{chosenOf(node).durationSec}s</span>
         {/* ⭕ 圈选改画面：在成片上圈出要改的地方，写一句要求 —— 下次重炼这一段时
@@ -145,9 +146,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
             {ann === "loading" ? "取帧中…" : "⭕ 圈选改画面"}
           </button>
         )}
-        <button onClick={onClose} className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-panel text-slate-200">
-          <Icon name="close" size={16} />
-        </button>
+        <CloseButton chip="md" size={16} tone="text-slate-200" align="end" onClick={onClose} />
       </div>
       {/* ★★ 自带一份错误条（2026-08-21 第六轮对抗评审）：本层是 z-50 全屏，把画布壳上
           唯一那条 err（z-40）整个盖住 —— 而**本层自己**就会写 err（上面 openAnn 的失败分支

@@ -10,6 +10,7 @@
 // ★ `full` = 整页态（卡不存在 / 未登录墙 / 取回中）：min-h-[70vh] 居中，自带 safe-top——
 //   这类页面没有 PageHeader，状态栏那一圈只能由它自己让。
 import { type ReactNode } from "react";
+import Spinner from "./Spinner";
 import { Link } from "react-router";
 import Icon, { type IconName } from "./Icon";
 
@@ -59,7 +60,7 @@ export default function EmptyState({
   return (
     <div className={`flex flex-col items-center gap-3 px-6 text-center ${shell} ${className}`}>
       {loading ? (
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-brand" />
+        <Spinner size="lg" />
       ) : icon ? (
         <Icon name={icon} size={40} className="text-slate-600" />
       ) : emoji ? (
