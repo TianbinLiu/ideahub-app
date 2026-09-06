@@ -9,6 +9,7 @@
 //   ③ 没连服务端就整个不显示这一屏，而不是摆一排点不动的按钮。
 // ★ 整屏浮层 portal 到 body（祖先的 backdrop-blur 会给 fixed 造包含块）。
 import { useEffect, useState, useSyncExternalStore } from "react";
+import EmptyState from "../../components/EmptyState";
 import { createPortal } from "react-dom";
 import { CloseButton } from "../../components/IconTapButton";
 import { schemeOf, schemesVersion, subscribeSchemes, type PromptScheme } from "../../data/promptSchemes";
@@ -67,11 +68,9 @@ export default function SchemeMarketSheet({
         </p>
 
         {err && <p className="mb-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
-        {busy && !list.length && <p className="py-6 text-center text-[11px] text-slate-500">正在打开市场…</p>}
+        {busy && !list.length && <EmptyState compact loading text="正在打开市场…" />}
         {!busy && !err && !list.length && (
-          <p className="rounded-lg border border-dashed border-slate-700 py-6 text-center text-[11px] text-slate-500">
-            市场上还没有人发布方案——自建一套之后可以发上来
-          </p>
+          <EmptyState compact emoji="🛒" text="市场上还没有人发布方案" hint="自建一套之后可以发上来" />
         )}
 
         <div className="space-y-1.5">

@@ -150,9 +150,7 @@ export default function DeckDetailPage() {
           ))}
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
-          空卡组——点右上角「编辑」挑几张卡进来
-        </div>
+        <EmptyState emoji="🃏" text="空卡组" hint="点右上角「编辑」挑几张卡进来" />
       )}
 
       <SocialPanel kind="deck" id={deck.id} />
