@@ -337,6 +337,14 @@ export interface CardSlot {
   locks: string;
 }
 
+// ★★ V3（2026-09-06 主人拍板）三种卡的分工，全仓的五张读法表（real.ts 的 TYPE_LABEL / CARD_COMPOSITION /
+//   SUBJECT_WORD / REF_HINT / BIND_HINT、NpcDialog.TYPE_HINT、mock.matchType、api-contract 的 kind 表）都按它写：
+//   · 场景卡 = 视频里的地点 / 空间 / 舞台（卡面当定场参考图发）；
+//   · 背景卡 = **故事背景 / 简介**（纯文字参与出片：segmentGen.materialText 的「故事背景：」一句；
+//     图只用于展示，allocateRefs **从不分配**它；提卡路一律不自动出——画面里推断不出故事）；
+//   · 风格卡 = 画风 + 材质质感 + 色调光影 + 镜头语言（吸收了老背景卡"色光氛围"那一半），
+//     出片句进设定帧开头与视频提示词，像一条可套用的风格预设。
+//   完整调研与分期见 docs/card-roles-v3-design.md。`card.type` 与 `views[].kind` 的枚举一个字没改。
 export const CARD_SLOTS: Record<CardType, readonly CardSlot[]> = {
   character: [
     { kind: "body", label: "全身立绘", locks: "服装、体型与整体配色" },
@@ -348,16 +356,16 @@ export const CARD_SLOTS: Record<CardType, readonly CardSlot[]> = {
     { kind: "detail", label: "局部特征", locks: "局部材质与陈设特征" },
   ],
   background: [
-    { kind: "body", label: "色光基调", locks: "整体色调、光比与光线方向" },
-    { kind: "detail", label: "质感特写", locks: "颗粒、笔触与材质质感" },
+    // ★ V3：背景卡只以文字参与出片，这一格是展示用的示意图（永不进模型），所以只有一格
+    { kind: "body", label: "故事示意图", locks: "故事的时代、地点与氛围" },
   ],
   prop: [
     { kind: "body", label: "净底主视图", locks: "造型、比例、材质与配色" },
     { kind: "detail", label: "局部细节", locks: "局部纹样与磨损" },
   ],
   style: [
-    { kind: "body", label: "画风样张", locks: "笔触、线条、上色方式与质感" },
-    { kind: "detail", label: "笔触特写", locks: "线条与颗粒的近距离质感" },
+    { kind: "body", label: "风格样张", locks: "画风、材质质感、色调与光影" },
+    { kind: "detail", label: "质感特写", locks: "材质、颗粒与光影的近距离质感" },
   ],
 };
 
@@ -426,9 +434,9 @@ export function slotLabel(type: CardType, kind: unknown): string {
 export const CARD_INFO_LABELS: Record<CardType, string> = {
   character: "人物信息",
   scene: "场景信息",
-  background: "背景信息",
+  background: "故事背景",
   prop: "道具信息",
-  style: "画风信息",
+  style: "风格信息",
 };
 
 /**

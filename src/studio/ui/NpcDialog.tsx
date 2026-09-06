@@ -402,9 +402,9 @@ type ForgeStep = "type" | "input" | "preview";
 const TYPE_HINT: Record<CardType, string> = {
   character: "谁在故事里——长相 / 性格 / 口癖",
   scene: "故事发生在哪——地点与空间",
-  background: "整体色调与光线氛围",
+  background: "这条片的故事背景 / 简介（只以文字参与出片）",
   prop: "会被拿起来用的关键物件",
-  style: "画风与镜头语言的基调",
+  style: "画风、材质质感、色调光影与镜头语言",
 };
 
 // 卡种封面表 2026-08-28 收进 types.CARD_TYPE_COVERS（「自己传图做卡片」也要同一套，

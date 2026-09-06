@@ -263,10 +263,11 @@ const CARD_SAFE_AREA =
 const CARD_COMPOSITION: Record<CardType, string> = {
   character: CARD_SAFE_AREA,
   scene: `这是一张定场图：完整交代这个地点的空间结构、规模与光线关系，一眼能认出是哪里，不要拍成局部特写。画面中不要出现任何人物或角色。${CARD_SAFE_AREA}`,
-  background:
-    "这是一张氛围底色图：只画色调、光比与光线方向，以及空气感与质感，不要有明确主体；画面中不出现任何可辨认的人物、建筑、物体或文字。",
+  // ★ V3：背景卡 = 故事背景，这张图只用于展示（永不进模型），画的是"这个故事长什么样"的示意画面
+  background: `这是一张故事背景的示意画面：按故事的时代、地点与氛围画一张有叙事感的场景或象征画面，不要出现具体人物的脸，画面中不出现文字。${CARD_SAFE_AREA}`,
   prop: `只画这一件物件，背景干净不抢戏。${CARD_SAFE_AREA}`,
-  style: `画一张能代表这套画法的示意画面，题材随意，重点是画法本身。${CARD_SAFE_AREA}`,
+  // ★ V3：风格卡 = 画风 + 材质 + 色调光影 + 镜头语言，样张要把这几样都摆出来
+  style: `画一张能代表这套画面风格的示意画面：画风、材质质感、色调光影与构图景别都要体现出来，题材随意，重点是风格本身。${CARD_SAFE_AREA}`,
 };
 
 /**
@@ -277,9 +278,9 @@ const CARD_COMPOSITION: Record<CardType, string> = {
 const SUBJECT_WORD: Record<CardType, string> = {
   character: "个角色",
   scene: "个地点",
-  background: "套色光氛围",
+  background: "个故事设定",
   prop: "件物件",
-  style: "套画法",
+  style: "套画面风格",
 };
 
 /**
@@ -292,9 +293,9 @@ const SUBJECT_WORD: Record<CardType, string> = {
 export const TYPE_LABEL: Record<CardType, string> = {
   character: "人物立绘卡面",
   scene: "场景概念图卡面",
-  background: "氛围底色卡面",
+  background: "故事背景示意卡面",
   prop: "道具特写卡面",
-  style: "画风示意卡面",
+  style: "风格样张卡面",
 };
 
 /**
@@ -314,9 +315,9 @@ const ID_LINE_SPEC = "30~60字的固定身份句：名字+2~3个不会变的视�
 const REF_HINT: Record<CardType, string> = {
   character: "参考图是用户提供的角色素材：沿用其中人物的脸型、发型发色、服饰与配色特征，据此重新绘制一张竖版立绘卡面。",
   scene: "参考图是用户提供的场景素材：沿用其中的空间结构、地貌与建筑特征及整体色调，据此重新绘制一张竖版场景概念图。",
-  background: "参考图是用户提供的氛围素材：只提取它的色调、光线方向与质感，绘制一张没有明确主体的氛围底色画面。",
+  background: "参考图是用户提供的故事氛围素材：据此画一张有叙事感的示意画面（这张图只用于展示，不进出片管线）。",
   prop: "参考图是用户提供的物件素材：沿用该物件的造型、材质与配色，据此重新绘制一张竖版特写。",
-  style: "参考图是用户提供的画风素材：只提取它的笔触、色彩倾向与质感，用这套画风另画一张示意画面。",
+  style: "参考图是用户提供的风格素材：只提取它的画风、材质质感、色调光影与构图感，用这套风格另画一张示意画面。",
 };
 
 /**
@@ -581,7 +582,10 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
     const ordered = allocatable(hero).sort((a, b) => ROLE_ORDER[roleOf(a.view)] - ROLE_ORDER[roleOf(b.view)]);
     for (const it of ordered.slice(0, MAX_CHAR_REFS)) picks.push({ card: hero, index: it.index, view: it.view });
   }
-  const others = materials.filter((c) => c.type !== "character");
+  // ★ V3（2026-09-06）：背景卡 = 故事背景，**只以文字参与**（segmentGen.materialText 的「故事背景：」一句），
+  //   卡面永不当参考图发 —— 一段文字设定没有"形象"可锁，发图只会把示意画面里的东西画进片子。
+  //   refUsedFlags 复用本函数，详情页那排「出片用」徽标自动跟着变（同一实现）。
+  const others = materials.filter((c) => c.type !== "character" && c.type !== "background");
   for (const card of others) {
     // ★ 走 allocatable 而不是 viewsOf()[0]：这两轮是**按下标**取图的，而灵活图位之后
     //   下标 0/1 上可能坐着一张 display（方案产出的合成规格图）—— 直接按下标取就会把
@@ -697,9 +701,10 @@ function slotLocks(type: CardType, kind: unknown): string {
 const BIND_HINT: Record<CardType, string> = {
   character: "的形象参考：该角色出现时长相、发色与服装必须与之一致",
   scene: "的定场参考：本段画面的空间结构、地貌与建筑轮廓要与之一致；光线、天气与时间跟着剧情走，不必与参考图相同",
-  background: "的色调参考：只取它的色调、光比与光线方向，不要把它当成一个物体画进画面",
+  // ★ V3：背景卡只以文字参与出片、allocateRefs 从不分配它——这一句永远到不了提示词，留着只为 Record 完整
+  background: "（背景卡只以文字参与出片，不发图）",
   prop: "的实物参考，画面中出现它时必须与之一致",
-  style: "的画法参考：只沿用它的笔触、线条与上色方式，不要把样张里的内容画进画面",
+  style: "的风格参考：只沿用它的画风、材质质感与色调光影，不要把样张里的内容画进画面",
 };
 
 export interface MaterialRefs {
@@ -1235,10 +1240,11 @@ export async function generateCards(
  */
 function frameArtStyle(materials?: Card[], refsOn = true): string {
   const styleCard = materials?.find((c) => c.type === "style");
-  if (styleCard)
-    return `整体画风严格跟随风格卡「${styleCard.name}」${
-      styleCard.summary ? `（${styleCard.summary.slice(0, 24)}）` : ""
-    }，全片统一，高细节，`;
+  if (styleCard) {
+    // ★ V3：风格卡的出片句（idLine：画风 + 材质 + 色调光影 + 镜头语言）整句进来；老卡没有 idLine 退回简介前 24 字
+    const line = (styleCard.idLine || "").trim().slice(0, ID_LINE_MAX) || styleCard.summary.slice(0, 24);
+    return `整体画风与镜头语言严格跟随风格卡「${styleCard.name}」${line ? `（${line}）` : ""}，全片统一，高细节，`;
+  }
   if (materials?.some((c) => c.realPerson === true)) return "照片级写实画面，高细节，电影感构图，氛围光，";
   if (refsOn && materials?.some((c) => viewsOf(c).length > 0))
     return "整体画风严格跟随参考图（照片则照片级写实，插画则同风格插画），高细节，";
@@ -1413,17 +1419,34 @@ function mintSpec(cap: CardMintCap, head: string, tail: string): MintSpec {
   return { cap, prompt: `${head}输出 JSON 数组（0~${cap} 张）${tail}` };
 }
 
+/**
+ * 三条提卡路（成片提炼 / 视频提卡 / 模板提卡）共用的**卡种定义与措辞纪律**（V3，2026-09-06 主人拍板）。
+ * ★ background 一律不出：背景卡 = 作者写的故事背景（纯文字），画面里推断不出来。
+ * ★ style 恰出一张，且必须是 画风 + 材质质感 + 色调光影 + 镜头语言 的整体描述——它就是这条片的"风格预设"。
+ * ★ idLine 是出片句：只写画面里能看到的事实、离了原片也成立。禁用词在 sanitizeCardDefs 里用正则复核，
+ *   提示词说了不算（与 canvasAgent"钱上的闸写在白名单层"同一条纪律）。
+ * ★ 2026-09-06 之前的版本要求「background＝恰出一张（总结整片色调、光比与氛围）」，而白模段的剧情就是
+ *   点名骨架「以参考视频复刻…」，于是提炼出「运镜还原参考视频」「3D卡通人偶复刻舞蹈的画面风格」这种
+ *   离了原片就不成立的卡（主人真机点名）。
+ */
+const CARD_RULES =
+  "卡种定义：character＝主要角色；scene＝视频里的地点/空间/舞台，idLine 写空间结构、地面、背景、光源与时间；prop＝画面里被使用或显眼的物件；style＝这条视频的画面风格与镜头语言（画风、材质质感、色调光影、运镜、剪辑节奏），name 就是风格名（如「暗调赛博」「胶片日系」）；**不出 background 卡**（背景卡是作者写的故事背景，不能从画面推断）。每张卡的 idLine 是出片时用的一句（不超过 60 字）：人物卡按身份句写（" +
+  ID_LINE_SPEC +
+  "），其它卡种只写画面里能看到的事实；措辞必须**独立成立**——读者手上没有这段视频，禁止出现「参考视频」「原视频」「复刻」「还原」「参考」「一致」这类字眼。";
+const CARD_JSON =
+  '：[{"type":"character|scene|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","idLine":"出片句，见规则","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围","frameIndex":最能代表它的那一帧（从1起；没给抽帧时省略）,"box":[x1,y1,x2,y2]（道具卡在该帧里的位置，0~1 相对坐标，左上到右下；没给抽帧时省略）}]。';
+
 /** 成片剧情 → 本片卡组。上限与报价（economy.deckCardsCost）同一个常量。
  *  ★ 2026-08-28 主人拍板改成**卡种级**规则（原来是实体级"补缺的角色"）：
  *    用户挂过某一卡种 = 那一种整个关门（他的卡直接入组，AI 一张都不出）；
  *    没挂过的卡种按需补齐，其中 style 是**硬要求**（每条片的卡组都要有风格卡）。 */
 const DECK_MINT = mintSpec(
   DECK_MAX_CARDS,
-  "你是卡牌游戏的铸卡师。用户为这条视频挂过一些素材卡（那些卡种已经关门），请只为下面点名的「缺失卡种」从剧情中提炼补卡，",
-  `：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","idLine":"${ID_LINE_SPEC}","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：**只出「缺失卡种」清单里点名的卡种**，其它卡种一张都不要出。缺失卡种按需出：character＝剧情每个主要角色各一张；scene＝每个主要场景/地点各一张；background＝恰出一张（总结整片色调、光比与氛围）；style＝**必须恰出一张**（总结整片画风，name 就是画风名，如「水墨留白」「胶片质感」）；prop＝剧情确有关键道具时各一张，没有就不出。缺失卡种清单为空时输出 []。只输出 JSON。`,
+  "你是卡牌游戏的铸卡师。用户为这条视频挂过一些素材卡（那些卡种已经关门），请只为下面点名的「缺失卡种」从剧情（若给了抽帧，以画面为准）中提炼补卡，",
+  `${CARD_JSON}${CARD_RULES}规则：**只出「缺失卡种」清单里点名的卡种**，其它卡种一张都不要出。缺失卡种按需出：character＝每个主要角色各一张；scene＝每个主要场景/地点各一张；style＝**必须恰出一张**；prop＝确有关键道具时各一张，没有就不出。缺失卡种清单为空时输出 []。只输出 JSON。`,
 );
 
-/** 从成片剧情提炼"本片卡组"：豆包分类型出卡（主要角色/场景/氛围底色/画风），
+/** 从成片剧情提炼"本片卡组"：豆包分类型出卡（主要角色/场景/道具/风格；背景卡不自动出，见 CARD_RULES），
  *  Seedream 逐张出竖版卡面。视频是什么画风，卡面就跟什么画风（styleHint 注入）。
  *
  *  ★★ 卡种级关门是**代码闸**不是提示词请求（与 canvasAgent"钱上的闸写在白名单层"
@@ -1440,7 +1463,8 @@ export async function deriveDeckCards(
   onProgress?.("提炼本片卡组…");
   // 用户挂过的卡种整个关门；没挂过的点名为「缺失卡种」
   const covered = new Set(existing.map((c) => c.type));
-  const missing = CARD_TYPES.filter((t) => !covered.has(t));
+  // ★ V3：background 永远不算"缺失卡种"——故事背景不从画面/剧情推断（用户想要就自己写一张）
+  const missing = CARD_TYPES.filter((t) => !covered.has(t) && t !== "background");
   if (missing.length === 0) return []; // 五种都挂全了：素材卡并集就是完整卡组，一张不铸
   const existingDesc =
     existing.length > 0
@@ -1448,20 +1472,20 @@ export async function deriveDeckCards(
       : "（无）";
   const raw = await chat(
     DECK_MINT.prompt,
-    `缺失卡种（只出这些）：${missing.map((t) => `${t}（${CARD_TYPE_LABELS[t]}）`).join("、")}\n用户已挂的卡（这些卡种关门）：${existingDesc}\n剧情（按段）：${segments.map((s) => s.plot).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从剧情画面推断）"}`,
+    `缺失卡种（只出这些）：${missing.map((t) => `${t}（${CARD_TYPE_LABELS[t]}）`).join("、")}\n用户已挂的卡（这些卡种关门）：${existingDesc}\n剧情（按段）：${segments.map((s) => stripBlockoutSkeleton(s.plot)).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从剧情画面推断）"}`,
   );
   let defs = JSON.parse(raw.replace(/```json|```/g, "").trim()) as CardDef[];
   if (!Array.isArray(defs)) throw new Error("卡组提炼 JSON 结构不符");
-  // 代码闸：已关门的卡种一张不铸（见函数头 ★★）
-  defs = defs.filter((d) => d.type && missing.includes(d.type));
+  // 代码闸：已关门的卡种一张不铸（见函数头 ★★）；措辞复核（禁用词 / background）见 sanitizeCardDefs
+  defs = sanitizeCardDefs(defs).filter((d) => d.type && missing.includes(d.type));
   // style 硬要求的兜底（见函数头 ★）
   if (missing.includes("style") && !defs.some((d) => d.type === "style")) {
     defs.push({
       type: "style",
-      name: "本片画风",
-      summary: "从整片画面总结的画风基调，复用它可让新片延续同一画风。",
-      idLine: "本片画风：延续整片画面的笔触、上色方式与光影基调",
-      imagePrompt: "一张能代表本片整体画风的示意画面：延续剧情画面的笔触、上色与光影质感，题材随意，重点是画法本身",
+      name: "本片风格",
+      summary: "从整片画面总结的画风与镜头语言，复用它可让新片延续同一风格。",
+      idLine: "本片风格：延续整片画面的画风、材质质感、色调光影与镜头语言",
+      imagePrompt: "一张能代表本片整体风格的示意画面：延续剧情画面的画风、材质质感、色调光影与构图景别，题材随意，重点是风格本身",
     });
   }
   // 画风参考帧：成片里第一张真帧（组稿前已回写真帧）。"视频是什么画风，卡面就跟
@@ -1470,14 +1494,66 @@ export async function deriveDeckCards(
   return await mintCards(defs, DECK_MINT, styleHint, existing, onProgress, styleRef);
 }
 
-/** 模型吐出的卡定义（提炼与视频提卡共用一套结构） */
+/** 模型吐出的卡定义（三条提卡路共用一套结构） */
 interface CardDef {
   type?: CardType;
   name?: string;
   summary?: string;
-  /** 固定身份句（ID_LINE_SPEC 的产物），随卡保存供出片提示词复用 */
+  /** 出片句：人物卡是固定身份句（ID_LINE_SPEC），其它卡种是"画面里能看到的事实"（CARD_RULES），随卡保存供出片提示词复用 */
   idLine?: string;
   imagePrompt?: string;
+  /** 最能代表这张卡的那一帧（从 1 起）；只有喂了抽帧的路才有 */
+  frameIndex?: number;
+  /** 道具在那一帧里的位置（0~1 相对坐标，左上到右下）；只有喂了抽帧的路才有 */
+  box?: [number, number, number, number];
+}
+
+/**
+ * 出片句里不许出现的"离了原片就不成立"的措辞（V3 措辞纪律的**代码闸**）。
+ * ★ 提示词里写了禁用词清单，但模型偶尔照抄剧情里的「与参考视频一致」——那张卡挂到别的片子上，
+ *   模型会去找一段不存在的参考视频。所以这里再复核一遍，命中的子句剥掉。
+ */
+const REF_WORD_RE = /参考视频|原视频|参考图|参考画面|复刻|还原|与.{0,8}一致/;
+/**
+ * 白模点名骨架里描述"照着参考视频做"的那几句（studio/blockoutPrompt 生成：「以参考视频复刻原视频的人物站位…」
+ * 「…都要与参考视频一致」），提炼卡组前先剥掉 —— 它们描述的是**白模**，不是成片；「人偶」同理换成「人」。
+ * 点名绑定（「最左边=凛」）留着：谁是谁对人物卡有用。
+ */
+const BLOCKOUT_SKELETON_RE = /以参考视频复刻[^。]*。|[^。]*与参考视频一致[^。]*。/g;
+export function stripBlockoutSkeleton(plot: string): string {
+  return (plot || "")
+    .replace(BLOCKOUT_SKELETON_RE, "")
+    .replace(/红色人偶/g, "主角位")
+    .replace(/白色人偶/g, "配角位")
+    .replace(/人偶/g, "人")
+    .trim();
+}
+/** 剥掉命中禁用词的子句（按标点切）；剥空了返回空串，由调用方决定退回什么 */
+function dropRefClauses(text: string | undefined): string {
+  return (text ?? "")
+    .split(/(?<=[，。；;,.])/)
+    .filter((c) => !REF_WORD_RE.test(c))
+    .join("")
+    .replace(/[，；,;]+$/, "")
+    .trim();
+}
+/**
+ * 卡定义的措辞复核（三条提卡路共用，铸卡面之前跑）：
+ * · background 一律丢（背景卡 = 作者写的故事背景，不从画面出）；
+ * · 名字带禁用词整张丢（改名等于替模型编一张卡）；
+ * · 简介 / 出片句 / 画面描述剥掉命中的子句，剥空了互相兜底，两样都空就丢。
+ */
+function sanitizeCardDefs(defs: CardDef[]): CardDef[] {
+  const out: CardDef[] = [];
+  for (const d of defs) {
+    if (!d.type || d.type === "background" || !d.name || REF_WORD_RE.test(d.name)) continue;
+    const summary = dropRefClauses(d.summary);
+    const idLine = dropRefClauses(d.idLine) || summary;
+    if (!summary && !idLine) continue;
+    const imagePrompt = dropRefClauses(d.imagePrompt);
+    out.push({ ...d, summary: summary || idLine, idLine, ...(imagePrompt ? { imagePrompt } : { imagePrompt: undefined }) });
+  }
+  return out;
 }
 
 /**
@@ -1523,7 +1599,8 @@ async function mintCards(
       // 完整生成提示词随卡保存（生成蓝图）：卡片详情页展示，
       // 后续用它就能复刻出与卡面一致的画面/建模
       // ★ 跟随句只在参考帧**真备成了**才拼（铁律五的措辞版：图没发不许说"跟随参考图"）
-      const genPrompt = `${TYPE_LABEL[type]}：${d.name}。${d.imagePrompt ?? d.summary ?? ""}。${styleHint ? `画风：${styleHint}。` : ""}${styleRefUrl ? STYLE_FOLLOW_MINT : ""}${cardStyleSuffix(type, "卡面")}`;
+      // ★ V3：带上卡种构图（CARD_COMPOSITION）——场景卡面"不要出现人物"这一条此前只有用户素材铸卡那条路有
+      const genPrompt = `${TYPE_LABEL[type]}：${d.name}。${d.imagePrompt ?? d.summary ?? ""}。${styleHint ? `画风：${styleHint}。` : ""}${styleRefUrl ? STYLE_FOLLOW_MINT : ""}${CARD_COMPOSITION[type]}${cardStyleSuffix(type, "卡面")}`;
       // 画布与素材卡一致（CARD_SIZE）：两种卡摆在同一副卡组里，画幅不一致一眼就看得出
       const cover = await genImageAsDataUrl(genPrompt, {
         size: CARD_SIZE,
@@ -1553,7 +1630,7 @@ async function mintCards(
 const VIDEO_MINT = mintSpec(
   DECK_MAX_CARDS,
   "你是卡牌游戏的铸卡师。用户给你一段视频里按时间顺序抽的若干帧。请辨认画面里可复用的创作素材，",
-  `：[{"type":"character|scene|background|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","idLine":"${ID_LINE_SPEC}","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围"}]。规则：出现的每个主要角色各出一张 character 卡；主要场景/地点各出一张 scene 卡；整体色调氛围至多一张 background 卡；画风鲜明时至多一张 style 卡；关键道具可出 prop 卡。已有卡覆盖的实体绝对不要再出。只输出 JSON。`,
+  `${CARD_JSON}${CARD_RULES}规则：出现的每个主要角色各出一张 character 卡；主要场景/地点各出一张 scene 卡；style 必须恰出一张；关键道具可出 prop 卡并给出 box。已有卡覆盖的实体绝对不要再出。只输出 JSON。`,
 );
 
 /**
@@ -1577,8 +1654,9 @@ export async function extractCardsFromVideo(
     `已有卡：${existingDesc}\n用户补充说明：${note || "无"}\n以下是这段视频按时间顺序的抽帧：`,
     frames,
   );
-  const defs = JSON.parse(raw.replace(/```json|```/g, "").trim()) as CardDef[];
-  if (!Array.isArray(defs)) throw new Error("视频提卡 JSON 结构不符");
+  const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim()) as CardDef[];
+  if (!Array.isArray(parsed)) throw new Error("视频提卡 JSON 结构不符");
+  const defs = sanitizeCardDefs(parsed);
   // 画风由模型自己在 style 卡里判断，这里不再额外注入风格提示
   const styleHint = defs.find((d) => d.type === "style")?.name ?? "";
   // 画风参考帧取中间那张：开头常是黑场/片头字，中段才是这段视频真正的样子
@@ -1596,7 +1674,7 @@ export async function extractCardsFromVideo(
 const TEMPLATE_MINT = mintSpec(
   TEMPLATE_MAX_CARDS,
   '你是卡牌游戏的铸卡师。用户给你一段参考视频的抽帧，这段视频将被做成"可换主角的模板"。请辨认画面里**与具体主角无关、可复用**的创作素材，',
-  `：[{"type":"scene|background|prop|style","name":"不超过8字","summary":"30字内简介","idLine":"${ID_LINE_SPEC}","imagePrompt":"卡面文生图描述，60字内"}]。规则：主要场景/地点各出一张 scene 卡；整体色调氛围至多一张 background 卡；画风鲜明时至多一张 style 卡；标志性道具可出 prop 卡。**绝对不要出 character 卡**——主角是模板使用者自己指定的。只输出 JSON。`,
+  `${CARD_JSON.replace("character|scene|prop|style", "scene|prop|style")}${CARD_RULES}规则：主要场景/地点各出一张 scene 卡；style 必须恰出一张；标志性道具可出 prop 卡并给出 box。**绝对不要出 character 卡**——主角是模板使用者自己指定的。只输出 JSON。`,
 );
 
 /** 经典模板的配方总结提示词（两遍视觉里的第一遍）。 */
@@ -1670,7 +1748,7 @@ export async function extractTemplateFromVideo(
     onProgress?.("提炼模板素材卡…");
     const rawCards = await chatVision(
       TEMPLATE_MINT.prompt,
-      `这段视频的画风要求是：${styleHint}
+      `导演对这段视频画面的总结（只作参考；卡上的话必须自己独立成立）：${styleHint}
 用户补充说明：${note || "无"}
 以下是抽帧：`,
       frames,
@@ -1680,7 +1758,7 @@ export async function extractTemplateFromVideo(
     // 所以这张帧一定是真实成片而不是灰白模——白模帧当画风参考会把卡面画成素模渲染
     cards = Array.isArray(defs)
       ? await mintCards(
-          defs.filter((d) => d.type !== "character"),
+          sanitizeCardDefs(defs).filter((d) => d.type !== "character"),
           TEMPLATE_MINT,
           styleHint,
           [],
