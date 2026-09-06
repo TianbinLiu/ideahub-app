@@ -15,7 +15,7 @@ import { useEffect, useState } from "react";
 import { useSyncExternalStore } from "react";
 import {
   dismissVideoJob,
-  pendingVideoJobs,
+  recoverableVideoJobs,
   subscribeVideoJobs,
   videoJobExpired,
   videoJobNote,
@@ -126,7 +126,9 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
 export function SegmentRecoverList({ className = "" }: { className?: string }) {
   useVideoJobs(); // 凭据变了要重渲（落在 localStorage，不订阅就看不见新增/取回后的消失）
   const nodes = useFlow((s) => s.nodes);
-  const jobs = pendingVideoJobs();
+  // ★ 读 recoverable 不读 pending：这一会话正在等的那一发不摆（2026-09-05 主人点名
+  //   "每次生成视频出片之前都弹『还没取回』"——凭据受理即落盘，等的时候它就在名单里）
+  const jobs = recoverableVideoJobs();
   if (jobs.length === 0) return null;
   /** 这一发落得回来吗：它当初炼的那一段那一套走向，还在**这条**工作流里。
    *  ★ 这只是**显示**的门（决定按钮亮不亮），判据必须与 `flowStore.takeJob` 里那道
