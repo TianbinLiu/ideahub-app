@@ -163,7 +163,7 @@ export default function ReportButton({
                   rows={2}
                   maxLength={DETAIL_MAX}
                   placeholder="补充说明（选填，管理员会看到）"
-                  className="mt-3 w-full resize-none rounded-xl border border-slate-700 bg-black/30 px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
+                  className="mt-3 w-full resize-none rounded-xl border border-slate-700 bg-black/30 px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                 />
                 {/* 失败就地说清楚（"你已经举报过了"也在这儿），并且不关窗 */}
                 {err && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{err}</p>}

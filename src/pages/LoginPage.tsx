@@ -441,7 +441,7 @@ export default function LoginPage() {
                 <button
                   onClick={() => void sendCode()}
                   disabled={busy || cooldown > 0}
-                  className="flex-none rounded-xl bg-panel px-3.5 text-xs text-slate-200 ring-1 ring-slate-700 disabled:opacity-45"
+                  className="flex-none rounded-xl bg-panel px-3.5 text-xs text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
                 >
                   {cooldown > 0 ? `${cooldown}s` : sent ? "重发" : "发送验证码"}
                 </button>
@@ -450,8 +450,8 @@ export default function LoginPage() {
           </>
         )}
 
-        {err && <div className="text-xs leading-relaxed text-rose-400">{err}</div>}
-        {note && !err && <div className="text-xs text-emerald-400">{note}</div>}
+        {err && <div className="text-xs leading-relaxed text-rose-300">{err}</div>}
+        {note && !err && <div className="text-xs text-emerald-300">{note}</div>}
 
         {/* 协议勾选行。链接是嵌在文字里的两颗小按钮——不能把整行做成一颗大按钮
             再往里嵌按钮（button 套 button 是非法嵌套，React 也会告警） */}
@@ -486,7 +486,7 @@ export default function LoginPage() {
         <button
           onClick={() => requireAgree(() => void submit())}
           disabled={busy || capsLoading}
-          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink transition hover:brightness-110 disabled:opacity-60"
+          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink transition hover:brightness-110 disabled:opacity-40"
         >
           {busy
             ? "处理中…"

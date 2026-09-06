@@ -89,7 +89,7 @@ export default function SettingsDeactivatePage() {
           spellCheck={false}
           className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-rose-400"
         />
-        {err && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-400">{err}</p>}
+        {err && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{err}</p>}
         <button
           onClick={() => void run()}
           disabled={!matched || busy}

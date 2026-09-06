@@ -165,7 +165,7 @@ export default function DiscoverPage() {
           ★ 这一行按 PageHeader 的规格摆（safe-top + 48px 行内居中），和别的页顶栏同一条线 */}
       <div className="safe-top mb-4 flex h-[58px] items-center gap-2">
         <div data-guide="discover-search" className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-700/70 bg-panel px-4 py-2.5">
-        <Icon name="search" size={17} className="text-slate-500" />
+        <Icon name="search" size={16} className="text-slate-500" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -228,7 +228,7 @@ export default function DiscoverPage() {
                     //   点进去甚至是另一个人的主页（都是静默的）。
                     //   带上 name 只是让目标页在问到服务端之前有个名字可显示。
                     to={profileHref({ id: u._id, name: userDisplayName(u) })}
-                    className="flex items-center gap-3 rounded-xl px-1 py-1.5 active:opacity-70"
+                    className="flex items-center gap-3 rounded-xl px-1 py-1.5 active:opacity-60"
                   >
                     {/* ★ 与 @补全面板**同一个组件**（铁律六）。第二行那个 @username 就是
                         @ 他时要打的那一串，也是补全面板真正插进正文的令牌 ——

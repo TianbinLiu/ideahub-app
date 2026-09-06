@@ -210,7 +210,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
             <button
               onClick={() => void unpublish()}
               disabled={pubBusy}
-              className="mt-2 rounded-full bg-amber-500/90 px-3 py-1 text-[11px] font-bold text-ink disabled:opacity-50"
+              className="mt-2 rounded-full bg-amber-500/90 px-3 py-1 text-[11px] font-bold text-ink disabled:opacity-40"
             >
               {pubBusy ? "下架中…" : `先下架，再改${noun}`}
             </button>
@@ -341,7 +341,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
                   撤销
                 </button>
               </div>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-rose-200/90">
+              <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">
                 {ordinal ? (
                   <>
                     删掉之后，<b className="font-bold">{r.label || "这个位置"}</b>那个人偶就
@@ -417,7 +417,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
                     onChange={(e) => setRow(r.key, { desc: e.target.value })}
                     maxLength={300}
                     placeholder={descGoesToPrompt ? "例：白色、弯腰前倾、在最左那盏路灯下" : "例：白发、黑袍的少年"}
-                    className="w-full rounded-lg bg-black/40 px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-600"
+                    className="w-full rounded-lg bg-black/40 px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500"
                   />
                 </div>
                 {/* ★ 最后一条不给删：**不摆点不动的按钮**（本仓老坑），整句解释与出口画在列表下方。
@@ -494,7 +494,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
             App 侧唯一的对冲 —— 点下去之前它是看得见的。 */}
         {doomed.length > 0 && (
           <div className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2">
-            <p className="text-[11px] leading-relaxed text-rose-200">
+            <p className="text-[11px] leading-relaxed text-rose-300">
               这次提交会删掉{noun}{" "}
               <b className="font-bold">{doomed.map((r) => r.label || `（空${noun}）`).join("、")}</b>
               {doomed.length > 1 ? ` 共 ${doomed.length} 个角色位` : " 这一个角色位"}，
@@ -503,13 +503,13 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
             {/* ★ 「随时能再加回来」这句在序数方案下**靠 markSlots 才成立**（它存着白模化那一刻
                 算出来的整份位置清单，删过位之后仍然查得到）——所以这一位当初才没做成一个
                 只回答"是不是序数方案"的枚举 */}
-            <p className="mt-1 text-[10px] leading-relaxed text-rose-200/80">
+            <p className="mt-1 text-[10px] leading-relaxed text-rose-300">
               提交后这几条的描述文字找不回来（这几{ordinal ? "个位置" : "个编号"}随时能再加回来，描述要自己重写）。
             </p>
             {/* ★★ 序数独有：删掉一个位子会让它右边那些位子的序数变。提交前**再说一次** ——
                 待删行里说过一次，但那时作者在逐行看；这里是他按下最终按钮之前的最后一眼 */}
             {ordinal && (
-              <p className="mt-1 text-[10px] leading-relaxed text-rose-200/80">
+              <p className="mt-1 text-[10px] leading-relaxed text-rose-300">
                 ⚠ 如果删它是因为画面上根本没有那个人偶，记得把它<b className="font-bold">右边</b>那些位子
                 各往左挪一位再提交（按位置指认独有的一条，编号版没有）。
               </p>
@@ -520,7 +520,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
           data-guide="roleconfirm-submit"
           onClick={() => void save()}
           disabled={busy}
-          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-50"
+          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
           {busy
             ? "提交中…"
@@ -581,7 +581,7 @@ export function RoleConfirmEntry({ t, compact }: { t: VideoTemplate; compact?: b
           onClick={() => void openSheet()}
           disabled={opening}
           title={pending ? `核对之前不能发布（${noun}对不上会让别人的角色卡换到别人身上）` : "改错了不用重炼"}
-          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold disabled:opacity-50 ${
+          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold disabled:opacity-40 ${
             pending
               ? "border border-amber-500/50 bg-amber-500/15 text-amber-200"
               : "border border-slate-600 text-slate-300"
@@ -609,7 +609,7 @@ export function RoleConfirmEntry({ t, compact }: { t: VideoTemplate; compact?: b
         <button
           onClick={() => void openSheet()}
           disabled={opening}
-          className="flex w-full items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-200/90 disabled:opacity-60"
+          className="flex w-full items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-200/90 disabled:opacity-40"
         >
           <Icon name="pen" size={13} className="flex-none" />
           {/* ★ 这是**拦路条**，不是科普位：命中率那句话（"7 发里 4 发全对"）说在花钱之前的
@@ -636,7 +636,7 @@ export function RoleConfirmEntry({ t, compact }: { t: VideoTemplate; compact?: b
         <button
           onClick={() => void openSheet()}
           disabled={opening}
-          className="flex w-full items-center gap-2 rounded-xl border border-slate-700/70 bg-panel/60 px-3 py-2 text-left text-[11px] leading-relaxed text-slate-400 disabled:opacity-60"
+          className="flex w-full items-center gap-2 rounded-xl border border-slate-700/70 bg-panel/60 px-3 py-2 text-left text-[11px] leading-relaxed text-slate-400 disabled:opacity-40"
         >
           <Icon name="pen" size={13} className="flex-none" />
           <span>

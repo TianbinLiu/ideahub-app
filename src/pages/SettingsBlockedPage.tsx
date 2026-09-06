@@ -94,7 +94,7 @@ export default function SettingsBlockedPage() {
         <EmptyState text="你还没拉黑过谁" />
       ) : (
         <div className="space-y-2">
-          {err && <p className="text-[11px] leading-relaxed text-rose-400">{err}</p>}
+          {err && <p className="text-[11px] leading-relaxed text-rose-300">{err}</p>}
           {list.map((u) => (
             <div key={u.id} className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-panel px-3 py-2.5">
               <Avatar name={u.name} src={u.avatar} size={36} className="flex-none" />

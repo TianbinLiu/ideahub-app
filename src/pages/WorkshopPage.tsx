@@ -350,7 +350,7 @@ export default function WorkshopPage() {
             </div>
           </div>
           <div className="mb-3 flex items-center gap-2 rounded-full border border-slate-700/70 bg-panel px-4 py-2">
-            <Icon name="search" size={17} className="text-slate-500" />
+            <Icon name="search" size={16} className="text-slate-500" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -441,7 +441,7 @@ export default function WorkshopPage() {
                       );
                     })}
                   </div>
-                {cardErr && <div className="mb-3 text-xs text-rose-400">{cardErr}</div>}
+                {cardErr && <div className="mb-3 text-xs text-rose-300">{cardErr}</div>}
               </>
             )
           ) : !remote ? (
@@ -501,11 +501,11 @@ export default function WorkshopPage() {
               ))}
             </div>
           )}
-          {deckErr && <div className="pb-4 text-xs text-rose-400">{deckErr}</div>}
+          {deckErr && <div className="pb-4 text-xs text-rose-300">{deckErr}</div>}
         </>
       ) : (
         <>
-          {deckErr && <div className="mb-2 text-xs text-rose-400">{deckErr}</div>}
+          {deckErr && <div className="mb-2 text-xs text-rose-300">{deckErr}</div>}
           <button
             data-guide="workshop-deck-new"
             onClick={() => createDeck(`卡组 ${decks.length + 1}`)}

@@ -143,7 +143,7 @@ export default function FrameCard({
       {/* ── 小卡（左栏原位）── */}
       <button
         onClick={() => setZoom(true)}
-        className={`group relative w-full overflow-hidden border-2 ${framed ? "rounded-[6%]" : "rounded-xl"} ${border} bg-slate-800/40 transition active:scale-[0.98]`}
+        className={`group relative w-full overflow-hidden border-2 ${framed ? "rounded-[6%]" : "rounded-xl"} ${border} bg-slate-800/40 transition active:scale-[.98]`}
         style={{ aspectRatio }}
         title={onPickLastFile ? "点开看大图 / 换首尾帧" : "点开看大图 / 换开头帧"}
       >

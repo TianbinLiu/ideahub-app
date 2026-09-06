@@ -769,8 +769,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                       {pendingAsset ? (
                         <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
                           <span className="min-w-0">
-                            <span className="block text-[10px] text-emerald-200">已接上授权素材，存卡时一并绑定</span>
-                            <span className="block truncate font-mono text-[9px] text-emerald-300/80">{pendingAsset.assetId}</span>
+                            <span className="block text-[10px] text-emerald-300">已接上授权素材，存卡时一并绑定</span>
+                            <span className="block truncate font-mono text-[9px] text-emerald-300">{pendingAsset.assetId}</span>
                           </span>
                           <button onClick={() => setPendingAsset(null)} className="flex-none text-[10px] text-slate-500">
                             取消
@@ -800,7 +800,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
               (rawCrops ? (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
-                    <span className="text-[11px] text-emerald-200">✨ 已按「{schemeOf(schemeId)?.title ?? "方案"}」炼好形象图</span>
+                    <span className="text-[11px] text-emerald-300">✨ 已按「{schemeOf(schemeId)?.title ?? "方案"}」炼好形象图</span>
                     <button
                       onClick={() => {
                         setCrops(rawCrops);
@@ -1009,7 +1009,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   🎤 取一段他的声音（可选，{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒 · 出片时台词可用这个音色）
                 </button>
               ))}
-            {err && <p className="text-xs leading-relaxed text-rose-400">{err}</p>}
+            {err && <p className="text-xs leading-relaxed text-rose-300">{err}</p>}
             <div className="flex gap-2">
               <button
                 onClick={() => {
@@ -1025,7 +1025,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
               <button
                 onClick={() => void saveCard()}
                 disabled={!!busy}
-                className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-50"
+                className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
                 {busy || "存这张卡"}
               </button>
@@ -1157,7 +1157,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                     {recording ? "录制中…（实际播这一段）" : "🎙 录这一段"}
                   </button>
                 </div>
-                {err && <p className="text-[11px] text-rose-400">{err}</p>}
+                {err && <p className="text-[11px] text-rose-300">{err}</p>}
               </div>
             )}
 
@@ -1213,7 +1213,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   ))}
                   <span className="ml-auto text-[10px] text-slate-500">{tool === "full" ? "取整个画面" : "在画面上拖一下；不满意再拖就重画"}</span>
                 </div>
-                {err && <p className="text-xs text-rose-400">{err}</p>}
+                {err && <p className="text-xs text-rose-300">{err}</p>}
                 <button
                   onClick={confirmCrop}
                   disabled={tool !== "full" && !shape}

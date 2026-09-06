@@ -94,7 +94,7 @@ export default function AvatarPicker({
             key={a.key}
             disabled={!!busy}
             onClick={() => void apply(() => urlToSquareImage(a.src), "换头像…")}
-            className="flex flex-col items-center gap-1.5 disabled:opacity-50"
+            className="flex flex-col items-center gap-1.5 disabled:opacity-40"
           >
             <img
               src={a.src}
@@ -116,7 +116,7 @@ export default function AvatarPicker({
         <button
           disabled={!!busy}
           onClick={() => fileRef.current?.click()}
-          className="flex flex-col items-center gap-1.5 disabled:opacity-50"
+          className="flex flex-col items-center gap-1.5 disabled:opacity-40"
         >
           <span className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-dashed border-slate-600 text-slate-500 transition active:scale-95">
             <Icon name="plus" size={22} strokeWidth={2.5} />

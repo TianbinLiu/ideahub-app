@@ -141,7 +141,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
                这次出片成功时的 patchNode({anns: []}) 整表抹掉 —— 存了等于没存，且零提示 */
             disabled={ann === "loading" || busy || node.status === "generating"}
             title={busy || node.status === "generating" ? "这一段正在生成，炼完再圈" : undefined}
-            className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 disabled:opacity-50"
+            className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
           >
             {ann === "loading" ? "取帧中…" : "⭕ 圈选改画面"}
           </button>
@@ -204,10 +204,10 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
             {(chosenOf(node).poster || chosenOf(node).firstFrame) && (
               <img src={chosenOf(node).poster || chosenOf(node).firstFrame} alt="" className="max-h-[50%] max-w-full rounded-lg opacity-70" />
             )}
-            <p className="max-w-xs text-center text-xs leading-relaxed text-rose-200">
+            <p className="max-w-xs text-center text-xs leading-relaxed text-rose-300">
               这一段的视频拉不下来
               <br />
-              <span className="text-[11px] text-rose-300/80">网络不好，或者这条链接已经过期（隔天打开的草稿常见）</span>
+              <span className="text-[11px] text-rose-300">网络不好，或者这条链接已经过期（隔天打开的草稿常见）</span>
             </p>
             <button onClick={() => setRetry((k) => k + 1)} className="rounded-full bg-panel px-4 py-1.5 text-[11px] text-slate-200">
               重试

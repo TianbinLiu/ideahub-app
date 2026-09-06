@@ -265,7 +265,7 @@ export default function PortraitAuthPanel({
                 onBound(id, "本人授权（方舟可信素材库）");
                 setMsg("接上了。");
               }}
-              className="w-full rounded-lg border border-slate-700 bg-ink/40 px-2 py-1.5 text-left disabled:opacity-50"
+              className="w-full rounded-lg border border-slate-700 bg-ink/40 px-2 py-1.5 text-left disabled:opacity-40"
             >
               <span className="block font-mono text-[10px] text-emerald-300">{it.id}</span>
               <span className="block text-[9px] text-slate-500">
@@ -317,9 +317,9 @@ export default function PortraitAuthPanel({
               setDraftErr("");
             }}
             placeholder="粘贴 asset ID 或 asset://…"
-            className="w-full rounded-lg border border-slate-700 bg-ink/60 px-2.5 py-2 font-mono text-[11px] text-slate-100 placeholder:text-slate-600"
+            className="w-full rounded-lg border border-slate-700 bg-ink/60 px-2.5 py-2 font-mono text-[11px] text-slate-100 placeholder:text-slate-500"
           />
-          {draftErr && <p className="mt-1 text-[10px] leading-relaxed text-rose-400">{draftErr}</p>}
+          {draftErr && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{draftErr}</p>}
           <div className="mt-1.5 flex gap-2">
             <button onClick={saveManual} className="flex-1 rounded-full bg-brand py-1.5 text-[11px] font-bold text-ink">
               绑定

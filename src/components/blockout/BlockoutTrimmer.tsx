@@ -494,7 +494,7 @@ export default function BlockoutTrimmer({
           blockoutizeCost 返回 null 时 blockoutizeIssue 必然有话说）。宁可多一行也不能让
           按钮"灰着且不说话"：那时用户唯一能做的就是反复点它。 */}
       {blocked && !sizeMismatch && !loading && !issue && !priceIssue && (
-        <p className="text-[11px] leading-relaxed text-rose-200">{blocked}</p>
+        <p className="text-[11px] leading-relaxed text-rose-300">{blocked}</p>
       )}
 
       <div className="flex gap-2">

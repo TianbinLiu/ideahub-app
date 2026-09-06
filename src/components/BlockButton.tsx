@@ -124,7 +124,7 @@ export default function BlockButton({
                 <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
                   随时可以解除：「我的 → 设置 → 已拉黑的人」。
                 </p>
-                {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-400">{err}</p>}
+                {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
                 <div className="mt-3 flex gap-2">
                   <button
                     onClick={() => setOpen(false)}

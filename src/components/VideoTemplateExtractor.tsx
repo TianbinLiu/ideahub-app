@@ -773,7 +773,7 @@ export default function VideoTemplateExtractor({
       maxLength={40}
       disabled={!!busy}
       placeholder="模板标题（别人在市场里看到的就是它）"
-      className="w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-60"
+      className="w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-40"
     />
   );
 
@@ -1152,7 +1152,7 @@ export default function VideoTemplateExtractor({
                     <div className="mt-2 space-y-2">
                       {missing.map((p) => (
                         <div key={p.id} className="rounded-lg bg-black/25 p-2">
-                          <div className="mb-1 text-[11px] font-semibold text-slate-200">
+                          <div className="mb-1.5 text-xs font-semibold text-slate-300">
                             第 {(p.group?.index ?? 0) + 1} 段 · {p.title}
                           </div>
                           <DetectRolesEntry t={p} />
@@ -1247,7 +1247,7 @@ export default function VideoTemplateExtractor({
                       setStep("pick");
                     }}
                     disabled={!!busy}
-                    className={`flex w-full items-center gap-2 rounded-xl px-3 py-3 text-left disabled:opacity-50 ${
+                    className={`flex w-full items-center gap-2 rounded-xl px-3 py-3 text-left disabled:opacity-40 ${
                       route === o.v ? "bg-brand/20 ring-1 ring-brand" : "bg-black/25"
                     }`}
                   >
@@ -1604,7 +1604,7 @@ export default function VideoTemplateExtractor({
                 <button
                   onClick={() => inputRef.current?.click()}
                   disabled={!!busy || !!blockoutBlock}
-                  className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-600 py-6 text-sm text-slate-300 disabled:opacity-50"
+                  className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-600 py-6 text-sm text-slate-300 disabled:opacity-40"
                 >
                   <Icon name="plus" size={18} />
                   {file ? file.name : blockout ? "选一段视频（传完再框选）" : "选一段参考视频"}
@@ -1669,7 +1669,7 @@ export default function VideoTemplateExtractor({
                 {/* 黄 = 文件收下了但有事说（不拦人），红 = 这一步失败了。两条会同时出现，
                     这是对的：比如"右上角疑似有水印"＋"上传超时"，两件事都得说 */}
                 {warn && <p className="mb-2 text-xs leading-relaxed text-amber-400">⚠ {warn}</p>}
-                {err && <p className="mb-2 text-xs leading-relaxed text-rose-400">{err}</p>}
+                {err && <p className="mb-2 text-xs leading-relaxed text-rose-300">{err}</p>}
 
                 {blockout ? (
                   <p className="text-[10px] leading-relaxed text-slate-500">

@@ -215,7 +215,7 @@ export default function VoiceRecorder({
       >
         {busy ? "处理中…" : recording ? `松手结束 · ${elapsed.toFixed(1)}s` : "🎙 按住跟读（长按录音）"}
       </button>
-      {err && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-400">{err}</p>}
+      {err && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-300">{err}</p>}
     </div>
   );
 }

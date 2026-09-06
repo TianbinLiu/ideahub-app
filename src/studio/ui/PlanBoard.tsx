@@ -219,7 +219,7 @@ export default function PlanBoard({
                         maxLength={24}
                         disabled={busy}
                         placeholder="这一段叫什么"
-                        className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-100 outline-none placeholder:text-slate-600"
+                        className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-100 outline-none placeholder:text-slate-500"
                       />
                       <span className="flex-none rounded-full px-2 py-0.5 bg-gold/20 text-[10px] text-gold">✓ 已选定</span>
                       {done && (
@@ -275,7 +275,7 @@ export default function PlanBoard({
                 <button
                   onClick={() => onPick(p.id)}
                   disabled={busy}
-                  className="flex w-full items-start gap-2.5 text-left disabled:opacity-60"
+                  className="flex w-full items-start gap-2.5 text-left disabled:opacity-40"
                 >
                   <PreviewCard first={p.firstFrame} last={p.lastFrame} width={cardW} aspect={frameAspect} />
                   <div className="min-w-0 flex-1">

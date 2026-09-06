@@ -241,7 +241,7 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
         placeholder={
           castBusy && castOfThisNode ? `正在把「${noun} → 角色」合成一段话…` : "先去挂卡，点名句会填进这里（可改）"
         }
-        className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-60"
+        className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-40"
       />
       {/* ★ 常驻只留风险内核一句（改错就会换错人是要在改之前看到的，不许全收进 ⓘ——
           ui-copy-grammar 文法④）；「为什么/覆盖规则」那截进 ⓘ */}
@@ -517,7 +517,7 @@ function NodeScreen({
           onClick={() => shiftCursor(-1)}
           disabled={index === 0 || busy}
           aria-label="上一段"
-          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 disabled:opacity-25"
+          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 disabled:opacity-40"
         >
           <Icon name="back" size={15} />
         </button>
@@ -560,7 +560,7 @@ function NodeScreen({
           disabled={index >= total - 1 || !done || busy}
           title={index >= total - 1 ? "没有下一段了" : done ? "下一段" : "先把这一段炼出来"}
           aria-label={done ? "下一段" : "下一段（本段还没出片）"}
-          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 disabled:opacity-25"
+          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 disabled:opacity-40"
         >
           <Icon name={done || index >= total - 1 ? "chevron" : "lock"} size={done || index >= total - 1 ? 15 : 13} />
         </button>
@@ -1202,7 +1202,7 @@ export default function FlowPage() {
               <button
                 onClick={fa.saveNow}
                 disabled={fa.saveState === "saving"}
-                className="flex-none rounded-full bg-slate-700/80 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-50"
+                className="flex-none rounded-full bg-slate-700/80 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-40"
               >
                 {fa.saveState === "saving"
                   ? "保存中…"
@@ -1407,7 +1407,7 @@ export default function FlowPage() {
                       onClick={() => addNode()}
                       disabled={busy || !nodeDone(nodes[nodes.length - 1])}
                       title={nodeDone(nodes[nodes.length - 1]) ? "加一段" : "先把当前这段炼出来"}
-                      className="h-11 w-11 flex-none rounded-lg border border-dashed border-slate-600 text-slate-400 disabled:opacity-30"
+                      className="h-11 w-11 flex-none rounded-lg border border-dashed border-slate-600 text-slate-400 disabled:opacity-40"
                       aria-label="加一段"
                     >
                       ＋
@@ -1421,7 +1421,7 @@ export default function FlowPage() {
                       done={nodeDone(node)}
                       disabled={busy || nodes.length <= 1}
                       onConfirm={() => removeNode(node.id)}
-                      className="rounded bg-rose-500/15 px-2 py-1 text-rose-300 disabled:opacity-30"
+                      className="rounded bg-rose-500/15 px-2 py-1 text-rose-300 disabled:opacity-40"
                     />
                     <span className="min-w-0 flex-1 truncate text-right text-slate-500">
                       总时长 {formatDuration(nodes.reduce((s, n) => s + chosenOf(n).durationSec, 0))}

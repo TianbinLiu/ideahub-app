@@ -106,7 +106,7 @@ export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string
 
       {/* 评论区 */}
       <div className="mt-4">
-        <div className="mb-2 text-xs font-semibold text-slate-300">评论 {comments.length > 0 && `· ${comments.length}`}</div>
+        <div className="mb-1.5 text-xs font-semibold text-slate-300">评论 {comments.length > 0 && `· ${comments.length}`}</div>
         <div className="mb-3 flex gap-2">
           <input
             value={draft}

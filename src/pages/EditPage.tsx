@@ -277,7 +277,7 @@ export default function EditPage() {
             <button
               onClick={() => void save()}
               disabled={saving}
-              className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-50"
+              className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-40"
             >
               {saving ? "保存中…" : "保存修改"}
             </button>
@@ -296,7 +296,7 @@ export default function EditPage() {
                     `uploader.destroy` 都没有：作品从库里没了，成片与封面那几个地址
                     仍然人人可访问。2026-08-30 服务端补上了回收，这句话才配得上"删除"两个字，
                     所以把它写全（铁律五：文案只按已实现的事实写）。 */}
-                <p className="mt-1 text-[11px] leading-relaxed text-rose-200/70">
+                <p className="mt-1 text-[11px] leading-relaxed text-rose-300">
                   成片、评论和点赞会一起消失，云端存的视频与封面也会一并删除。不能撤销。
                 </p>
                 {/* ★★ 软替代：**这条只对还公开着的作品有意义**（2026-08-30 修）。
@@ -327,7 +327,7 @@ export default function EditPage() {
                       });
                     }}
                     disabled={saving}
-                    className="mt-2.5 w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-50"
+                    className="mt-2.5 w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-40"
                   >
                     <span className="font-bold">改成「仅自己可见」就好</span>
                     <br />
@@ -346,14 +346,14 @@ export default function EditPage() {
                       setDelErr(null);
                     }}
                     disabled={deleting}
-                    className="flex-1 rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200 disabled:opacity-50"
+                    className="flex-1 rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200 disabled:opacity-40"
                   >
                     取消
                   </button>
                   <button
                     onClick={() => void remove()}
                     disabled={deleting}
-                    className="rounded-xl bg-rose-500 px-4 py-2.5 text-sm font-bold text-white hover:brightness-110 disabled:opacity-50"
+                    className="rounded-xl bg-rose-500 px-4 py-2.5 text-sm font-bold text-white hover:brightness-110 disabled:opacity-40"
                   >
                     {deleting ? "删除中…" : delErr?.kind === "delete" ? "再试一次" : "确认删除"}
                   </button>

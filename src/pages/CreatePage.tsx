@@ -237,7 +237,7 @@ export default function CreatePage() {
                       if (m.resets && flowDirty(flowNodes)) setPending(m);
                       else m.go(navigate);
                     }}
-                    className={`mt-4 w-full rounded-2xl py-3 text-sm font-bold transition active:scale-[0.98] ${
+                    className={`mt-4 w-full rounded-2xl py-3 text-sm font-bold transition active:scale-[.98] ${
                       m.light ? "bg-ink text-white" : "bg-white/90 text-ink"
                     }`}
                   >

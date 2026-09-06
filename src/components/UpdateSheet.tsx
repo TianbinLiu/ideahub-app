@@ -117,7 +117,7 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
               onClose();
             }}
             disabled={busy}
-            className="flex-1 rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200 disabled:opacity-50"
+            className="flex-1 rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200 disabled:opacity-40"
           >
             以后再说
           </button>

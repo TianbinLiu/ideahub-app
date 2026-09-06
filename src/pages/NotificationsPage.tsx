@@ -130,7 +130,7 @@ export default function NotificationsPage() {
                 void Promise.resolve(markAllNotificationsRead()).finally(() => setMarking(false));
               }}
               disabled={marking}
-              className="h-11 flex-none whitespace-nowrap px-2 text-xs font-semibold text-slate-400 active:opacity-60 disabled:opacity-50"
+              className="h-11 flex-none whitespace-nowrap px-2 text-xs font-semibold text-slate-400 active:opacity-60 disabled:opacity-40"
             >
               {marking ? "标记中…" : "全部已读"}
             </button>
@@ -160,7 +160,7 @@ export default function NotificationsPage() {
               <li key={n.id}>
                 <button
                   onClick={() => open(n)}
-                  className="flex w-full items-start gap-3 py-3.5 text-left active:opacity-70"
+                  className="flex w-full items-start gap-3 py-3.5 text-left active:opacity-60"
                 >
                   {n.type === "ADMIN_NOTICE" ? (
                     // ★ 平台口吻：**不显示是哪个管理员发的**（数据里 actor 是那位管理员，

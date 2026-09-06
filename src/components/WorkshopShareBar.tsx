@@ -196,7 +196,7 @@ export default function WorkshopShareBar({
           这批改动存在的那个场景上 —— 用户点的是「取消分享」，读到的却是"分享失败"，
           会以为自己点错了、再点一次（而那一次同样会失败）。 */}
       {err && (
-        <p className="mt-1 text-[11px] leading-relaxed text-rose-400">
+        <p className="mt-1 text-[11px] leading-relaxed text-rose-300">
           {published ? "取消分享失败" : "分享失败"}：{err}
         </p>
       )}

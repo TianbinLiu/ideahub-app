@@ -567,7 +567,7 @@ export default function SupportPage() {
                 {lastAssistant.rating === "up" ? "谢谢反馈" : lastAssistant.rating === "down" ? "抱歉没帮上，要不要转人工？" : "这个回答有帮助吗？"}
               </span>
               {lastAssistant.rating === "down" && (
-                <button onClick={openSheet} className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-semibold text-ink active:opacity-80">
+                <button onClick={openSheet} className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-semibold text-ink active:opacity-60">
                   转人工
                 </button>
               )}
@@ -595,7 +595,7 @@ export default function SupportPage() {
           <div className="mb-2 rounded-xl border border-amber-400/40 bg-amber-500/15 p-3 text-xs leading-relaxed text-amber-50 backdrop-blur-md">
             这个问题需要人工处理（{CATEGORY_LABEL[handoffHint.category]}）。转人工会把这段对话一起交给客服，你不用再讲一遍。
             <div className="mt-2 flex gap-2">
-              <button onClick={openSheet} className="rounded-full bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-ink active:opacity-80">
+              <button onClick={openSheet} className="rounded-full bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-ink active:opacity-60">
                 转人工
               </button>
               <button onClick={() => setHandoffHint(null)} className="rounded-full border border-white/20 px-3.5 py-1.5 text-xs text-slate-200 active:bg-slate-800/60">
@@ -642,7 +642,7 @@ export default function SupportPage() {
             enterKeyHint="send"
             placeholder={enabled ? (asrOn ? `按住说话，或问${name}：哪里不对？` : `问${name}：哪里不对？`) : "AI 对话未开通，可直接转人工"}
             disabled={!enabled}
-            className="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-60"
+            className="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-40"
           />
           {phase !== "idle" ? (
             <button type="button" onClick={stopAll} aria-label="停止" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500/25 text-rose-200">
@@ -707,7 +707,7 @@ export default function SupportPage() {
             />
             {sheetErr && <p className="mt-2 text-xs leading-5 text-rose-300">{sheetErr}</p>}
             <div className="mt-3 flex gap-2">
-              <button onClick={() => void submitTicket()} disabled={submitting} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-semibold text-ink disabled:opacity-60">
+              <button onClick={() => void submitTicket()} disabled={submitting} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-semibold text-ink disabled:opacity-40">
                 {submitting ? "提交中…" : "提交给人工客服"}
               </button>
               <button onClick={() => setSheetOpen(false)} disabled={submitting} className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300">

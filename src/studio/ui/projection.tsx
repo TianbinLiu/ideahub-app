@@ -152,7 +152,7 @@ function DeckPickPanel() {
       </div>
 
       <div className="flex flex-none items-center gap-2 border-b border-cyan-400/10 px-4 py-1.5">
-        <Icon name="search" size={13} className="flex-none text-cyan-300/60" />
+        <Icon name="search" size={16} className="flex-none text-cyan-300/60" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -324,7 +324,7 @@ function EditorPanel() {
             onClick={() => setStep(step === "spec" ? "content" : step === "content" ? (lane === "custom" ? "ref" : "mode") : "mode")}
             disabled={editor.generating}
             aria-label="上一步"
-            className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-slate-700/60 text-slate-200 disabled:opacity-30"
+            className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-slate-700/60 text-slate-200 disabled:opacity-40"
           >
             ‹
           </button>
@@ -334,7 +334,7 @@ function EditorPanel() {
         <button
           onClick={() => useStudio.getState().closeProjection()}
           disabled={editor.generating}
-          className="text-slate-400 hover:text-white disabled:opacity-30"
+          className="text-slate-400 hover:text-white disabled:opacity-40"
         >
           ✕
         </button>
@@ -364,7 +364,7 @@ function EditorPanel() {
               <button
                 key={label}
                 onClick={go}
-                className="flex min-h-0 flex-1 items-center gap-3 rounded-2xl border border-slate-600/70 bg-black/25 p-2.5 text-left transition active:scale-[0.98] hover:border-cyan-400/60"
+                className="flex min-h-0 flex-1 items-center gap-3 rounded-2xl border border-slate-600/70 bg-black/25 p-2.5 text-left transition active:scale-[.98] hover:border-cyan-400/60"
               >
                 {/* 卡按行高定尺寸：外框 h-full + 2:3，TarotCard 自己 w-full + 同比例正好贴合 */}
                 <span className="flex h-full flex-none" style={{ aspectRatio: "2 / 3" }}>
@@ -492,7 +492,7 @@ function EditorPanel() {
               9:16/16:9 这种写法在这一步反而要多想一步 */}
           <div className="flex-none">
             <div className="mb-1 flex items-baseline justify-between">
-              <span className="text-xs font-semibold text-slate-300">画幅</span>
+              <span className="mb-1.5 text-xs font-semibold text-slate-300">画幅</span>
               <span className="text-[10px] text-slate-500">{aspectOf(editor.aspect).desc}</span>
             </div>
             <div className="flex gap-1.5">
@@ -524,7 +524,7 @@ function EditorPanel() {
           {/* ⑥ 生成档位：Seedance 模型分级，按档位×时长预估本段合成 token 消耗 */}
           <div className="flex-none">
             <div className="mb-1 flex items-baseline justify-between">
-              <span className="text-xs font-semibold text-slate-300">视频档位</span>
+              <span className="mb-1.5 text-xs font-semibold text-slate-300">视频档位</span>
               <span className="text-[10px] text-slate-500">合成本段预计消耗</span>
             </div>
             <div className="flex gap-1.5">
@@ -673,7 +673,7 @@ function EditorPanel() {
           {(lane !== "custom" || matsOpen) && (
           <div>
             <div className="mb-1 flex items-baseline justify-between">
-              <span className="text-xs font-semibold text-slate-300">素材</span>
+              <span className="mb-1.5 text-xs font-semibold text-slate-300">素材</span>
               {slotCards.length > 0 && (
                 <span className="text-[10px] tabular-nums text-slate-500">{slotCards.length}/20 张 · 同类型可多张</span>
               )}
@@ -764,7 +764,7 @@ function EditorPanel() {
 
           {/* ③ 视频要求：flex-1 吃掉全部剩余空白 */}
           <div className="flex min-h-[72px] flex-1 flex-col">
-            <div className="mb-1 text-xs font-semibold text-slate-300">
+            <div className="mb-1.5 text-xs font-semibold text-slate-300">
               {lane === "custom" ? "视频要求（缺的帧按这句补画，也是出片提示词）" : "视频要求（剧情补充）"}
             </div>
             <textarea
@@ -797,7 +797,7 @@ function EditorPanel() {
             <button
               onClick={() => setStep("spec")}
               disabled={editor.generating}
-              className="flex-1 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-60"
+              className="flex-1 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
               下一步：定规格 ›
             </button>
@@ -838,7 +838,7 @@ function EditorPanel() {
                 <button
                   onClick={() => void useStudio.getState().generateNode()}
                   disabled={editor.generating}
-                  className="flex-1 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-60"
+                  className="flex-1 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                 >
                   {editor.generating ? editor.progress || "AI 正在推演三种走向…" : "🎲 推演三套方案"}
                 </button>
@@ -986,7 +986,7 @@ function ProposalsPanel() {
           onClick={() => go(-1)}
           disabled={idx <= 0}
           aria-label="上一段"
-          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-slate-700/60 text-slate-200 disabled:opacity-25"
+          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-slate-700/60 text-slate-200 disabled:opacity-40"
         >
           ‹
         </button>
@@ -1002,7 +1002,7 @@ function ProposalsPanel() {
           onClick={() => go(1)}
           disabled={idx >= path.length - 1}
           aria-label="下一段"
-          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-slate-700/60 text-slate-200 disabled:opacity-25"
+          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-slate-700/60 text-slate-200 disabled:opacity-40"
         >
           ›
         </button>
@@ -1128,7 +1128,7 @@ function ProposalsPanel() {
             maxLength={VIDEO_PROMPT_MAX}
             disabled={locked || genHere}
             placeholder="这一段拍什么？"
-            className="h-16 w-full resize-none rounded-lg border border-slate-600 bg-black/30 px-2.5 py-2 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-600 focus:border-cyan-400 disabled:opacity-50"
+            className="h-16 w-full resize-none rounded-lg border border-slate-600 bg-black/30 px-2.5 py-2 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400 disabled:opacity-40"
           />
         </div>
       )}
@@ -1299,7 +1299,7 @@ function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Prop
     <div className="space-y-2">
       {err && (
         <div className="flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5">
-          <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-rose-200">{err}</p>
+          <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-rose-300">{err}</p>
           <button onClick={() => useFlow.setState({ err: "" })} className="flex-none text-rose-300">
             <Icon name="close" size={12} />
           </button>
@@ -1392,7 +1392,7 @@ function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Prop
               : "先去挂卡，点名句会填进这里（可改）"
             : "写一句换成谁，例：换成一只戴墨镜的柴犬"
         }
-        className="h-24 w-full resize-none rounded-lg border border-slate-600 bg-black/30 px-2.5 py-2 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-600 focus:border-cyan-400 disabled:opacity-50"
+        className="h-24 w-full resize-none rounded-lg border border-slate-600 bg-black/30 px-2.5 py-2 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400 disabled:opacity-40"
       />
 
       <PickedActions node={node} proposal={proposal} onPlay={onPlay} locked={lockedSeg} />

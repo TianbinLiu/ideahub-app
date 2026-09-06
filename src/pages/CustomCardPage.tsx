@@ -915,8 +915,8 @@ export default function CustomCardPage() {
             {pendingAsset ? (
               <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
                 <span className="min-w-0">
-                  <span className="block text-[10px] text-emerald-200">已接上授权素材，铸卡时一并绑定</span>
-                  <span className="block truncate font-mono text-[9px] text-emerald-300/80">{pendingAsset.assetId}</span>
+                  <span className="block text-[10px] text-emerald-300">已接上授权素材，铸卡时一并绑定</span>
+                  <span className="block truncate font-mono text-[9px] text-emerald-300">{pendingAsset.assetId}</span>
                 </span>
                 <button
                   onClick={() =>
@@ -957,7 +957,7 @@ export default function CustomCardPage() {
                 在 hd/ultra 上照样被整句拒。 */}
           {pendingAsset && (
             <div className="mt-3 rounded-xl border border-slate-700/70 bg-panel p-2.5">
-              <div className="mb-1.5 text-[11px] font-semibold text-slate-300">用哪一套方案生成这张卡</div>
+              <div className="mb-1.5 text-xs font-semibold text-slate-300">用哪一套方案生成这张卡</div>
               <div className="space-y-1">
                 {listSchemes("character").map((sc) => (
                   <button
@@ -995,7 +995,7 @@ export default function CustomCardPage() {
             {pendingVoice ? (
               <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[10px] text-emerald-200">
+                  <span className="block text-[10px] text-emerald-300">
                     🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）
                   </span>
                   <audio src={pendingVoice.dataUrl} controls className="mt-1 h-8 w-full" />
@@ -1046,7 +1046,7 @@ export default function CustomCardPage() {
           {haveAuthShot && authShot && (
             <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2.5">
               <img src={authShot.dataUrl} alt="" className="h-16 w-12 flex-none rounded-lg object-cover" />
-              <p className="min-w-0 text-[10px] leading-relaxed text-emerald-200">
+              <p className="min-w-0 text-[10px] leading-relaxed text-emerald-300">
                 {/* ★★ 三档，别压成两档（2026-09-01 复核抓到）：`authSlotTag` 为空**至少有三种
                     原因**——方案无脸放不下、那一格的图被换过（AI 出图会覆盖）、授权时是无脸
                     方案后来换成了有脸。原来的 else 一律用「这套的图位要白模/设定稿」解释，
@@ -1119,7 +1119,7 @@ export default function CustomCardPage() {
                       key={w}
                       onClick={() => { aiPickRef.current = { which: w }; aiFileRef.current?.click(); }}
                       disabled={!!aiBusy || !!aiPick}
-                      className="relative h-28 w-20 flex-none overflow-hidden rounded-lg border border-dashed border-slate-600 bg-ink/60 disabled:opacity-50"
+                      className="relative h-28 w-20 flex-none overflow-hidden rounded-lg border border-dashed border-slate-600 bg-ink/60 disabled:opacity-40"
                     >
                       {aiPick === w ? (
                         <span className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-slate-300">
@@ -1148,7 +1148,7 @@ export default function CustomCardPage() {
                 onChange={(e) => setAiSubject(e.target.value)}
                 maxLength={60}
                 placeholder="一句主体描述（选）：例「银白长发的星星发夹少女」"
-                className="mt-2 w-full rounded-lg border border-slate-700 bg-ink/50 px-2.5 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
+                className="mt-2 w-full rounded-lg border border-slate-700 bg-ink/50 px-2.5 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
               />
               <button
                 onClick={() => void runAiForge()}
@@ -1191,7 +1191,7 @@ export default function CustomCardPage() {
               })();
             }}
           />
-          {err && <p className="mt-3 text-[11px] leading-relaxed text-rose-400">{err}</p>}
+          {err && <p className="mt-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
         </>
       )}
 
@@ -1319,7 +1319,7 @@ export default function CustomCardPage() {
                   <button
                     onClick={() => pick({ tag: s.tag })}
                     disabled={busySlot !== null}
-                    className={`relative h-24 w-[4.5rem] flex-none overflow-hidden rounded-lg border bg-ink/60 disabled:opacity-50 ${
+                    className={`relative h-24 w-[4.5rem] flex-none overflow-hidden rounded-lg border bg-ink/60 disabled:opacity-40 ${
                       shot ? "border-slate-600" : isCover ? "border-dashed border-brand/60" : "border-dashed border-slate-600"
                     }`}
                   >
@@ -1334,7 +1334,7 @@ export default function CustomCardPage() {
                   </button>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-xs font-semibold text-slate-200">{s.tag}</span>
+                      <span className="mb-1.5 text-xs font-semibold text-slate-300">{s.tag}</span>
                       {isCover && (
                         <span className="rounded-full px-1.5 py-0.5 bg-brand/20 text-[9px] font-semibold text-brand">
                           {shot ? "卡面" : "第一张 · 同时就是卡面"}
@@ -1344,7 +1344,7 @@ export default function CustomCardPage() {
                     {/* 方案里这一格的出图提示词当"参照"给用户看：告诉他该传一张什么样的图。
                         这一页不出图，所以它只是说明文字，不进任何请求 */}
                     <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-slate-500">{s.prompt}</p>
-                    {slotErr?.key === s.tag && <p className="mt-1 text-[10px] leading-relaxed text-rose-400">{slotErr.msg}</p>}
+                    {slotErr?.key === s.tag && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{slotErr.msg}</p>}
                     {shot && (
                       <>
                         <p className="mt-1 truncate text-[10px] text-slate-500">{shot.fileName}</p>
@@ -1353,21 +1353,21 @@ export default function CustomCardPage() {
                           <button
                             onClick={() => pick({ tag: s.tag })}
                             disabled={busySlot !== null}
-                            className="text-[11px] text-brand disabled:opacity-50"
+                            className="text-[11px] text-brand disabled:opacity-40"
                           >
                             换一张
                           </button>
                           <button
                             onClick={() => removeShot({ tag: s.tag })}
                             disabled={busySlot !== null}
-                            className="text-[11px] text-rose-400 disabled:opacity-50"
+                            className="text-[11px] text-rose-400 disabled:opacity-40"
                           >
                             移除
                           </button>
                           <button
                             onClick={() => setAnnot({ tag: s.tag, frame: shot.dataUrl })}
                             disabled={busySlot !== null}
-                            className="text-[11px] text-brand disabled:opacity-50"
+                            className="text-[11px] text-brand disabled:opacity-40"
                           >
                             {busySlot === s.tag ? "改图中…" : `⭕ 圈选改图${AI_REAL ? `（${fmtTokens(ONE_IMAGE)}）` : ""}`}
                           </button>
@@ -1389,7 +1389,7 @@ export default function CustomCardPage() {
                 <button
                   onClick={() => pick({ kind: s.kind })}
                   disabled={busySlot !== null}
-                  className={`relative h-24 w-[4.5rem] flex-none overflow-hidden rounded-lg border bg-ink/60 disabled:opacity-50 ${
+                  className={`relative h-24 w-[4.5rem] flex-none overflow-hidden rounded-lg border bg-ink/60 disabled:opacity-40 ${
                     shot ? "border-slate-600" : isPrimary ? "border-dashed border-brand/60" : "border-dashed border-slate-600"
                   }`}
                 >
@@ -1404,7 +1404,7 @@ export default function CustomCardPage() {
                 </button>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs font-semibold text-slate-200">{s.label}</span>
+                    <span className="mb-1.5 text-xs font-semibold text-slate-300">{s.label}</span>
                     {isPrimary ? (
                       <span className="rounded-full px-1.5 py-0.5 bg-brand/20 text-[9px] font-semibold text-brand">
                         必填 · 同时就是卡面
@@ -1426,7 +1426,7 @@ export default function CustomCardPage() {
                       而那儿隔着「<类型>信息」和「标签」两整节 —— 手机上用户看到的就是
                       "点了没反应"，解释在两屏之下（铁律八）。 */}
                   {slotErr?.key === s.kind && (
-                    <p className="mt-1 text-[10px] leading-relaxed text-rose-400">{slotErr.msg}</p>
+                    <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{slotErr.msg}</p>
                   )}
                   {shot && (
                     <>
@@ -1437,14 +1437,14 @@ export default function CustomCardPage() {
                         <button
                           onClick={() => pick({ kind: s.kind })}
                           disabled={busySlot !== null}
-                          className="text-[11px] text-brand disabled:opacity-50"
+                          className="text-[11px] text-brand disabled:opacity-40"
                         >
                           换一张
                         </button>
                         <button
                           onClick={() => removeShot({ kind: s.kind })}
                           disabled={busySlot !== null}
-                          className="text-[11px] text-rose-400 disabled:opacity-50"
+                          className="text-[11px] text-rose-400 disabled:opacity-40"
                         >
                           移除
                         </button>
@@ -1492,7 +1492,7 @@ export default function CustomCardPage() {
           {pendingVoice ? (
             <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
               <span className="min-w-0 flex-1">
-                <span className="block text-[10px] text-emerald-200">
+                <span className="block text-[10px] text-emerald-300">
                   🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）
                 </span>
                 <audio src={pendingVoice.dataUrl} controls className="mt-1 h-8 w-full" />
@@ -1586,14 +1586,14 @@ export default function CustomCardPage() {
       </section>
       )}
 
-      {err && <p className="mb-2 text-[11px] leading-relaxed text-rose-400">{err}</p>}
+      {err && <p className="mb-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
 
       {/* 没有全成：**停在这儿**把话说完，不自动跳走 —— 跳走那段话就没人读得到 */}
       {(!isChar || step === "final") && (
         <>
       {partial?.kind === "unsynced" && (
         <div className="mb-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
-          <p className="text-xs font-semibold text-rose-200">这张卡没能存到服务器</p>
+          <p className="text-xs font-semibold text-rose-300">这张卡没能存到服务器</p>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
             原因：{partial.reason ?? "网络异常"}。
             <span className="text-rose-200">它现在只在这次会话里活着</span> —— 你现在能在卡片库里看到它，

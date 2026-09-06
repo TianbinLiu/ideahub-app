@@ -94,7 +94,7 @@ export function DetectRolesEntry({ t }: { t: VideoTemplate }) {
               .finally(() => setBusy(false));
           }}
           disabled={busy}
-          className="flex-none rounded-full bg-sky-400 px-3 py-1 text-[11px] font-bold text-ink disabled:opacity-50"
+          className="flex-none rounded-full bg-sky-400 px-3 py-1 text-[11px] font-bold text-ink disabled:opacity-40"
         >
           {busy ? "识别中…（要一到几分钟）" : `开始识别（${fmtTokens(cost)}）`}
             </button>

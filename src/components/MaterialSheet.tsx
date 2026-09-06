@@ -219,12 +219,12 @@ export default function MaterialSheet({
         </div>
 
         <div className="mb-2 flex items-center gap-2 rounded-lg border border-slate-700 bg-black/25 px-2.5 py-1.5">
-          <Icon name="search" size={14} className="flex-none text-slate-500" />
+          <Icon name="search" size={16} className="flex-none text-slate-500" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={tab === "cards" ? "搜卡名 / 简介 / 类型" : "搜卡组名，或组里的卡名"}
-            className="min-w-0 flex-1 bg-transparent text-xs text-slate-100 outline-none placeholder:text-slate-600"
+            className="min-w-0 flex-1 bg-transparent text-xs text-slate-100 outline-none placeholder:text-slate-500"
           />
           {q && (
             <button onClick={() => setQ("")} aria-label="清空搜索" className="flex-none text-slate-500">
@@ -396,7 +396,7 @@ export function MaterialStrip({ materials, onRemove }: { materials: Card[]; onRe
   return (
     <div>
       <div className="mb-1.5 flex items-center gap-2">
-        <span className="text-[11px] font-semibold text-slate-300">本段素材</span>
+        <span className="mb-1.5 text-xs font-semibold text-slate-300">本段素材</span>
         <span className="text-[11px] text-slate-500">{materials.length} 张</span>
         {materials.length > 0 && <span className="text-[10px] text-slate-600">· 点 ✕ 移出本段</span>}
       </div>

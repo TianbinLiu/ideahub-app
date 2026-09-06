@@ -97,11 +97,11 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
         {meta.segCount} 段 · 已出片 {meta.doneCount} · {relativeTime(meta.updatedAt)}改过
       </p>
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
+      <div className="mt-4 grid grid-cols-2 gap-3">
         <button
           onClick={() => void open("studio")}
           disabled={!!busy}
-          className="rounded-xl border border-amber-400/40 bg-amber-500/10 p-3 text-left disabled:opacity-50"
+          className="rounded-xl border border-amber-400/40 bg-amber-500/10 p-3 text-left disabled:opacity-40"
         >
           <div className="text-sm font-bold text-amber-200">🎴 工坊模式</div>
           <div className="mt-0.5 text-[10px] leading-relaxed text-slate-400">
@@ -111,7 +111,7 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
         <button
           onClick={() => void open("flow")}
           disabled={!!busy}
-          className="rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3 text-left disabled:opacity-50"
+          className="rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3 text-left disabled:opacity-40"
         >
           <div className="text-sm font-bold text-cyan-200">🧩 工作流模式</div>
           <div className="mt-0.5 text-[10px] leading-relaxed text-slate-400">
@@ -125,7 +125,7 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
         <div className="mt-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
           {/* ★ 后果只按**已知事实**说（本仓「别往吓人的方向说错」那条）：doneCount 是这条
               草稿里确实已经出片的段数，0 就老实说没有花掉的钱，不要吓唬人。 */}
-          <p className="text-[11px] leading-relaxed text-rose-200">
+          <p className="text-[11px] leading-relaxed text-rose-300">
             {meta.doneCount > 0 ? (
               <>
                 删掉「{meta.title}」？里面有 <b className="font-bold">{meta.doneCount} 段已经花钱炼出来的成片</b>，

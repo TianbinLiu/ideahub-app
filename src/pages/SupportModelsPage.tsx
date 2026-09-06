@@ -239,7 +239,7 @@ export default function SupportModelsPage() {
                   <button
                     onClick={() => void applyModel(m)}
                     disabled={current || !!busy}
-                    className={`mt-2 w-full rounded-xl py-2.5 text-sm font-bold ${current ? "bg-slate-800 text-slate-500" : "bg-brand text-ink"} disabled:opacity-60`}
+                    className={`mt-2 w-full rounded-xl py-2.5 text-sm font-bold ${current ? "bg-slate-800 text-slate-500" : "bg-brand text-ink"} disabled:opacity-40`}
                   >
                     {step || (current ? "使用中" : m.official ? "使用官方形象" : "下载并使用")}
                   </button>
@@ -264,7 +264,7 @@ export default function SupportModelsPage() {
         <button
           onClick={() => void loadMore()}
           disabled={moreLoading}
-          className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-xs text-slate-300 disabled:opacity-50"
+          className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-xs text-slate-300 disabled:opacity-40"
         >
           {moreLoading ? "加载中…" : "加载更多"}
         </button>

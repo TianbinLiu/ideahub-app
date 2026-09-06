@@ -101,14 +101,14 @@ export default function SchemeEditorSheet({
           }}
           maxLength={20}
           placeholder="方案名字（例如「白模三视图·我的版」）"
-          className="mb-1.5 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+          className="mb-1.5 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-sm text-slate-100 placeholder:text-slate-500"
         />
         <input
           value={intro}
           onChange={(e) => setIntro(e.target.value)}
           maxLength={60}
           placeholder="一句话说清它产出什么（选方案时会显示）"
-          className="mb-1.5 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-xs text-slate-100 placeholder:text-slate-600"
+          className="mb-1.5 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-xs text-slate-100 placeholder:text-slate-500"
         />
         {/* ★ 「无脸」只描述**产出形态**，措辞绝不能暗示"更容易过检测"（design doc §B2） */}
         <label className="mb-2.5 flex items-start gap-2 text-[11px] leading-relaxed text-slate-300">
@@ -127,7 +127,7 @@ export default function SchemeEditorSheet({
         </label>
 
         <div className="mb-1 flex items-center justify-between">
-          <span className="text-[11px] font-semibold text-slate-300">
+          <span className="mb-1.5 text-xs font-semibold text-slate-300">
             图位（{slots.length}/{MAX_CARD_VIEWS}）
           </span>
           <span className="text-[10px] text-slate-500">{AI_REAL ? `炼一次约 ${fmtTokens(cost)}` : "演示模式不计费"}</span>
@@ -144,7 +144,7 @@ export default function SchemeEditorSheet({
                      （这张卡发不上去且零报错），不是把标签截短 */
                   maxLength={VIEW_TAG_MAX}
                   placeholder={`图位 ${i + 1} 的名字，如「白模全身」`}
-                  className="min-w-0 flex-1 rounded-md border border-slate-700 bg-ink/60 px-2 py-1 text-xs text-slate-100 placeholder:text-slate-600"
+                  className="min-w-0 flex-1 rounded-md border border-slate-700 bg-ink/60 px-2 py-1 text-xs text-slate-100 placeholder:text-slate-500"
                 />
                 {slots.length > 1 && (
                   <button
@@ -205,7 +205,7 @@ export default function SchemeEditorSheet({
                     onChange={(e) => patchSlot(i, { prompt: e.target.value })}
                     maxLength={400}
                     placeholder="这一格要画成什么样？（画风句会自动接上）"
-                    className="h-16 w-full resize-none rounded-md border border-slate-700 bg-ink/60 px-2 py-1.5 text-[11px] leading-relaxed text-slate-100 placeholder:text-slate-600"
+                    className="h-16 w-full resize-none rounded-md border border-slate-700 bg-ink/60 px-2 py-1.5 text-[11px] leading-relaxed text-slate-100 placeholder:text-slate-500"
                   />
                 </>
               ) : (
@@ -233,7 +233,7 @@ export default function SchemeEditorSheet({
           动漫截图出同风格插画。这一条不开放修改，免得真人素材被画成另一个画风。
         </p>
 
-        {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-400">{err}</p>}
+        {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
         <button onClick={save} className="mt-2.5 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
           {copying ? "存成我的方案" : "保存修改"}
           {AI_REAL && cost > 0 ? `（用它炼一次约 ${fmtTokens(cost)}）` : ""}

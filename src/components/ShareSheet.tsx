@@ -234,7 +234,7 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
         </div>
 
         {(err || note) && (
-          <p className={`mt-3 break-all text-xs leading-relaxed ${err ? "text-red-400" : "text-emerald-400"}`}>{err || note}</p>
+          <p className={`mt-3 break-all text-xs leading-relaxed ${err ? "text-red-400" : "text-emerald-300"}`}>{err || note}</p>
         )}
 
         <button onClick={onClose} className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-sm text-slate-300">

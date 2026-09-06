@@ -238,7 +238,7 @@ export default function SupportPersonasPage() {
       </div>
 
       <div className="mb-3 flex items-center gap-2 rounded-full border border-slate-700 bg-black/30 px-3.5 py-2">
-        <Icon name="search" size={15} className="text-slate-500" />
+        <Icon name="search" size={16} className="text-slate-500" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -295,7 +295,7 @@ export default function SupportPersonasPage() {
                   <button
                     onClick={() => void applyPersona(p)}
                     disabled={current || !!busy}
-                    className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${current ? "bg-slate-800 text-slate-500" : "bg-brand text-ink"} disabled:opacity-60`}
+                    className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${current ? "bg-slate-800 text-slate-500" : "bg-brand text-ink"} disabled:opacity-40`}
                   >
                     {isBusy ? "切换中…" : current ? "使用中" : "安装并使用"}
                   </button>
@@ -321,7 +321,7 @@ export default function SupportPersonasPage() {
         <button
           onClick={() => void loadMore()}
           disabled={moreLoading}
-          className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-xs text-slate-300 disabled:opacity-50"
+          className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-xs text-slate-300 disabled:opacity-40"
         >
           {moreLoading ? "加载中…" : "加载更多"}
         </button>

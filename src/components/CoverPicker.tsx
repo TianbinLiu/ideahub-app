@@ -252,7 +252,7 @@ export function FrameCaptureDialog({
         <button
           onClick={() => void capture()}
           disabled={busy || resolving}
-          className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-50"
+          className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
           {busy ? "截取中…" : "用这一帧作封面"}
         </button>
@@ -345,7 +345,7 @@ export function CoverSection({
         <button
           onClick={() => fileRef.current?.click()}
           disabled={reading}
-          className="rounded-full bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700 disabled:opacity-50"
+          className="rounded-full bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700 disabled:opacity-40"
         >
           {reading ? "读取中…" : "🖼 本地上传"}
         </button>

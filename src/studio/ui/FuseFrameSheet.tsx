@@ -136,7 +136,7 @@ export default function FuseFrameSheet({
           <b className="text-slate-400">开头帧</b>，两段接起来就没有跳变——这是做长片"看不出接缝"的常用手法。
         </p>
 
-        <div className="mb-1 text-[11px] font-semibold text-slate-300">
+        <div className="mb-1.5 text-xs font-semibold text-slate-300">
           挑参考图（{picked.length}/{FUSE_MAX}）
         </div>
         {sources.length === 0 ? (
@@ -180,13 +180,13 @@ export default function FuseFrameSheet({
           maxLength={200}
           disabled={!!busy}
           placeholder={`这张${label}要什么画面？例："他站在门口回头，半身，暖光"`}
-          className="mb-2 h-16 w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-xs text-slate-100 placeholder:text-slate-600 disabled:opacity-50"
+          className="mb-2 h-16 w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-xs text-slate-100 placeholder:text-slate-500 disabled:opacity-40"
         />
-        {err && <p className="mb-2 text-[11px] leading-relaxed text-rose-400">{err}</p>}
+        {err && <p className="mb-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
         <button
           onClick={() => void run()}
           disabled={!!busy}
-          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-50"
+          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
           {busy || `🧬 融成${label}${AI_REAL ? `（约 ${fmtTokens(price)}）` : "（演示）"}`}
         </button>
