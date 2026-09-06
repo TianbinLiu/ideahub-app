@@ -37,7 +37,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader className="mb-5" onBack={() => navigate(-1)} title="设置" />
+      <PageHeader sticky inset className="mb-5" onBack={() => navigate(-1)} title="设置" />
 
       {/* ── 个性化 ────────────────────────────────────────────── */}
       <Group>

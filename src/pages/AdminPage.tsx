@@ -91,7 +91,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-full px-4 pb-10">
       {/* 子视图里返回键固定回总览；只有总览上才真的退出这一页 */}
-      <PageHeader
+      <PageHeader sticky inset
         className="mb-5"
         onBack={() => (view === "home" ? navigate(-1) : setView("home"))}
         title={VIEW_TITLE[view]}
@@ -1415,7 +1415,7 @@ function ReportCard({
 
       {/* 处置的语义写在按钮下面而不是塞进 title：手机上没有 hover，title 等于不存在 */}
       {pending && !confirmingDelete && (
-        <p className="mt-1.5 text-[10px] leading-relaxed text-slate-600">
+        <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
           下架＝内容还在但谁都看不到（作者也翻不回来） · 驳回＝举报不成立 · 删除＝连内容一起删，不可撤销
         </p>
       )}

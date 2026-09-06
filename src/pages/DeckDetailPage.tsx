@@ -34,7 +34,7 @@ export default function DeckDetailPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader
+      <PageHeader sticky inset
         onBack={() => nav(-1)}
         title="卡组详情"
         right={

@@ -23,7 +23,7 @@ export default function SettingsQualityPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader className="mb-4" onBack={() => navigate(-1)} title="画面质量" right={<HelpButton tour="setquality" />} />
+      <PageHeader sticky inset className="mb-4" onBack={() => navigate(-1)} title="画面质量" right={<HelpButton tour="setquality" />} />
 
       <div data-guide="setquality-opts" className="space-y-2">
         {(Object.keys(QUALITY_LABELS) as Quality[]).map((q) => (

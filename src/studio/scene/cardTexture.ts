@@ -2,6 +2,7 @@
 // 素材卡走塔罗版式：Seedream 生成的魔法边框 + 画窗铺满封面 + 牌匾衬线题名，
 // 与 2D 的 TarotCard 组件共用同一张框图和同一组画窗/牌匾常量。
 import * as THREE from "three";
+import { formatPlays } from "../../types";
 import { TAROT_FRAME_URL, TAROT_LAYOUT, TYPE_GLYPH } from "../../components/TarotCard";
 import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Proposal } from "../../types";
 
@@ -152,7 +153,7 @@ export function cardFaceTexture(card: Card): THREE.CanvasTexture {
     const name = card.name.length > 7 ? card.name.slice(0, 7) + "…" : card.name;
     const sub =
       card.hot != null
-        ? `${CARD_TYPE_LABELS[card.type]} · ${card.hot >= 10000 ? (card.hot / 10000).toFixed(1) + "万" : card.hot}`
+        ? `${CARD_TYPE_LABELS[card.type]} · ${formatPlays(card.hot)}`
         : CARD_TYPE_LABELS[card.type];
     const canSpace = "letterSpacing" in ctx;
     const cx2 = ctx as CanvasRenderingContext2D & { letterSpacing: string };

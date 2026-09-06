@@ -4,6 +4,7 @@
 // 上半屏继续看视频），详情页是普通滚动页面，评论直接铺在页尾更顺——硬套抽屉反而
 // 多一层遮罩和一次点击。两者共享的是数据语义而不是布局。
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { formatPlays } from "../types";
 import Avatar from "./Avatar";
 import {
   SocialKind,
@@ -43,9 +44,7 @@ export function useCountView(kind: SocialKind, id: string | undefined) {
   }, [kind, id]);
 }
 
-function fmt(n: number): string {
-  return n >= 10000 ? (n / 10000).toFixed(1) + "万" : String(n);
-}
+const fmt = formatPlays;
 
 export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string }) {
   useSocialVersion();

@@ -309,6 +309,14 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   紧凑面板 `text-[11px]` / `text-[10px]`）；输入框 `placeholder:text-slate-500`，紧凑字段也一样。
 - **卡片 / 面板内的小标题 `mb-1.5 text-xs font-semibold text-slate-300`**（页面级段落标题是 `text-sm`，见上）。
 - **网格间距**：三列卡片网格 `gap-2.5`，两列 `gap-3`；搜索框里的放大镜图标 `size={16}`。
+- **会滚动的页一律 `<PageHeader sticky>`**（第七轮）：页面根已经是 `min-h-full px-4 pb-10` 的传 `sticky inset`
+  （顶栏自己 -mx-4 顶满、间距不变），根没有 px 的传 `sticky`。收之前 6 页钉、16 页不钉，同一组设置页都不一样。
+- **轻提示只有一份 `data/toast.showToast()` + `components/Toast`**（挂在 App 根）。「已复制」这类回执一律走它，
+  别再把按钮文字换成「已复制 ✓」或在抽屉里写一行 note。⚠ `window.confirm` / `alert` 一个都不许用：确认走
+  `ConfirmDialog`，回执走 toast。
+- **列表的加载态与空态也走 `EmptyState`**（`loading` / `emoji + text + hint`），别再手拼 `py-8 text-center text-xs`
+  或 `border-dashed py-10` 的框。
+- **上万折「x.x 万」只有一份 `types.formatPlays`**：热度 / 播放 / 卡片热度 / 3D 卡面小字都用它（此前四处各抄一份）。
 - **空态 / 整页态只有一份实现 `components/EmptyState`**（2026-09-05 收口）：图标 40px slate-600（或 emoji）→ 正文
   text-sm slate-400（出错 rose-300）→ 补充 text-xs slate-600 → 按钮（主 bg-brand / 次 bg-panel+ring，同上一条）。
   列表里的空态 `py-16`，整页态（卡/卡组/模板不存在、未登录墙、取回中）传 `full`（min-h-[70vh] 居中 + safe-top）。

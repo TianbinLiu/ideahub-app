@@ -373,23 +373,13 @@ export default function WorkshopPage() {
             ) : cardPlaza.error ? (
               <PlazaError error={cardPlaza.error} onRetry={cardPlaza.reload} />
             ) : cardPlaza.loading && sharedCards.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-500">加载中…</div>
+              <EmptyState loading text="加载中…" />
             ) : sharedCards.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm leading-relaxed text-slate-500">
-                {q.trim() ? (
-                  <>
-                    没有搜到「{q.trim()}」相关的卡。
-                    <br />
-                    <span className="text-xs">换个词试试，或者清空搜索框看看大家都分享了什么。</span>
-                  </>
-                ) : (
-                  <>
-                    还没有人分享卡片。
-                    <br />
-                    <span className="text-xs">你可以在自己的卡片详情页按「分享到创意工坊」，成为第一个。</span>
-                  </>
-                )}
-              </div>
+              <EmptyState
+                emoji="🃏"
+                text={q.trim() ? `没有搜到「${q.trim()}」相关的卡` : "还没有人分享卡片"}
+                hint={q.trim() ? "换个词试试，或者清空搜索框看看大家都分享了什么" : "你可以在自己的卡片详情页按「分享到创意工坊」，成为第一个"}
+              />
             ) : (
               <>
                 <div className="mb-1.5 text-[11px] text-slate-400">社区分享的卡</div>
@@ -451,11 +441,9 @@ export default function WorkshopPage() {
           ) : deckPlaza.error ? (
             <PlazaError error={deckPlaza.error} onRetry={deckPlaza.reload} />
           ) : deckPlaza.loading ? (
-            <div className="py-8 text-center text-xs text-slate-500">加载中…</div>
+            <EmptyState loading text="加载中…" />
           ) : shared.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-700 py-10 text-center text-sm text-slate-500">
-              {q ? "没有匹配的卡组" : "还没有人分享卡组——你可以第一个"}
-            </div>
+            <EmptyState emoji="🗂️" text={q ? "没有匹配的卡组" : "还没有人分享卡组"} hint={q ? undefined : "你可以第一个"} />
           ) : (
             <div className="space-y-2.5 pb-4">
               {shared.map((d) => (

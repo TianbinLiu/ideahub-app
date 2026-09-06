@@ -108,6 +108,6 @@ export default function SettingsDeactivatePage() {
 
 function Header({ onBack }: { onBack: () => void }) {
   return (
-    <PageHeader onBack={onBack} title="注销账号" />
+    <PageHeader sticky inset onBack={onBack} title="注销账号" />
   );
 }
