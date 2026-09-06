@@ -73,7 +73,13 @@
    Scale 是按 `scratchpad/physics-tune.cjs` 的实测调的（正弦驱动头 ±20°/身体 ±8° 时前发 ±0.85、裙摆 ±6；慢速空闲时裙摆 ±3～5）。
    运行时（companionModel.ts）有物理时不再写这几个参数，只每帧改 `physics._options.wind.x`（0.37Hz×0.12 + 0.11Hz×0.05）当微风；
    注意 `_options` 里的向量是框架的 CubismVector2，只能改 x/y，整个换掉物理会崩。物理输出只在 model.update() 前存在（update 末尾
-   loadParameters 会还原），要读它们得挂 `internalModel.on("beforeModelUpdate")`。披风没做摆锤（它跟着呼吸缩放，没有独立摆动参数）。
+   loadParameters 会还原），要读它们得挂 `internalModel.on("beforeModelUpdate")`。披风 mascot13 起是第 5 组（ParamCapeSway，Scale 25）。
+   **开场大幅甩动（2026-09-05 修）**：摆锤链初始笔直下垂，头几帧输入（动作 + 运行时写的头身角度 → 摆锤根部平移）从 0 跳到
+   当前值，链节之间瞬间弯折；裙摆/后发的输出是「相邻两节的夹角 × Scale」（VertexIndex 2），弯 0.5° 就顶满 ±10，看起来像模型一出场
+   就左右大甩（实测 ParamSkirtSway 0.3s 内到 10、2s 才衰完）。现在 companionModel.ts 构造时挂一个 `beforeModelUpdate`：前 6 帧
+   每帧用同样输入多跑 60 步 `physics.evaluate(core, 1/30)` 让链条当场收敛（框架的 `physics.stabilization()` 和风缓升都试过，没用）；
+   physics3 的 `Meta.Fps: 30` 让积分固定步长；裙摆不再吃 ParamAngleX 平移输入、披风只吃 8%（转头本来就不该带裙子）。
+   实测（`scratchpad/swaylog.cjs`，官网首页）开场 0～2s 裙摆峰值 3.9 / 披风 3.6，与稳态 3.1 / 3.5 同量级。
 3. ~~**手臂分段**~~ 已完成（2026-09-05，mascot13）：`live2d-lab/split_arms.py` 按肘/腕（关节坐标在脚本 JOINTS 表）把 LaMa 清理版手臂切成
    上臂/前臂/手，子块在关节处带以关节为圆心的圆帽（藏在父块下，转动时不露缝；手的圆帽落在袖口里，用皮肤平滑填充）。
    Cubism 里：只含 6 块的 `sheet-6-arms-only.psd` 走「Add all layers as new ArtMesh」→ 自动网格 → Forearm L/R、Hand L/R 旋转变形器
