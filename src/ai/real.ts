@@ -1925,7 +1925,9 @@ function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
  * ★ 出片前**没有设定首帧**的段（白模复刻 / 参考卡片直出）以前在画布上就是一张空卡
  *   （2026-09-04 主人真机撞见「预览帧没抓到」），这一格就是为它们补的。
  */
-async function captureVideoHeadTail(videoUrl: string): Promise<{ head: string; tail: string }> {
+async function captureVideoHeadTail(
+  videoUrl: string,
+): Promise<{ head: string; tail: string; durationSec: number; width: number; height: number }> {
   const res = await fetchArkAsset(videoUrl, 120_000);
   if (!res.ok) throw new Error(`取视频失败 ${res.status}`);
   const blobUrl = URL.createObjectURL(await res.blob());
@@ -1970,7 +1972,8 @@ async function captureVideoHeadTail(videoUrl: string): Promise<{ head: string; t
     const head = grab();
     await seekTo(Math.max(0, video.duration - 0.05));
     const tail = grab();
-    return { head, tail };
+    // 时长与尺寸顺手带出：取回一发原节点已不在的成片时，新开的那一段要靠它们定时长与画幅
+    return { head, tail, durationSec: video.duration, width: video.videoWidth, height: video.videoHeight };
   } finally {
     URL.revokeObjectURL(blobUrl);
   }
@@ -2163,7 +2166,7 @@ export async function takeVideoTask(
   taskId: string,
   onProgress?: (status: string) => void,
   provider?: "ark" | "minimax",
-): Promise<{ url: string; lastFrame?: string; poster?: string }> {
+): Promise<{ url: string; lastFrame?: string; poster?: string; durationSec?: number; width?: number; height?: number }> {
   // ★★ 按家分流（2026-08-31）。**分错家的后果不是"取不到"**：下面那条 404 分支会对着
   //   一发在上游好好活着的真人档成片说「已经花掉的钱无法挽回」—— 一句权威的死刑判决，
   //   而听到它的用户不会来报 bug，他会直接走。
@@ -2173,13 +2176,17 @@ export async function takeVideoTask(
     const { url } = await takeMinimaxTask(taskId, onProgress);
     let lastFrame: string | undefined;
     let poster: string | undefined;
+    let meta: { durationSec: number; width: number; height: number } | undefined;
     try {
       onProgress?.("捕获本段真实尾帧…");
-      ({ tail: lastFrame, head: poster } = await captureVideoHeadTail(url));
+      const cap = await captureVideoHeadTail(url);
+      lastFrame = cap.tail;
+      poster = cap.head;
+      meta = { durationSec: cap.durationSec, width: cap.width, height: cap.height };
     } catch {
       // 与主路径同款兜底：尾帧捕获失败不拖垮取回本身（片子已经到手了）
     }
-    return { url, ...(lastFrame ? { lastFrame } : {}), ...(poster ? { poster } : {}) };
+    return { url, ...(lastFrame ? { lastFrame } : {}), ...(poster ? { poster } : {}), ...(meta ?? {}) };
   }
   onProgress?.("正在向方舟核对这一发的状态…（查询不花钱）");
   let st: ArkTaskState;
@@ -2225,14 +2232,18 @@ export async function takeVideoTask(
   }
   let lastFrame: string | undefined;
   let poster: string | undefined;
+  let meta: { durationSec: number; width: number; height: number } | undefined;
   try {
     onProgress?.("取到成片了，正在捕获这一段的真实尾帧…");
-    ({ tail: lastFrame, head: poster } = await captureVideoHeadTail(url));
+    const cap = await captureVideoHeadTail(url);
+    lastFrame = cap.tail;
+    poster = cap.head;
+    meta = { durationSec: cap.durationSec, width: cap.width, height: cap.height };
   } catch (e) {
     // 尾帧只是卡面与下一段的起拍画面，捕获失败不该把已经到手的成片再丢一次
     console.warn("[ai] 取回段的真实尾帧捕获失败（节点卡少一张画面，成片本身不受影响）:", e);
   }
-  return { url, lastFrame, poster };
+  return { url, lastFrame, poster, ...(meta ?? {}) };
 }
 
 export { makeCover };

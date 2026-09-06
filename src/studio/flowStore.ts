@@ -35,7 +35,7 @@ import {
   tierOf,
   deriveIssue,
 } from "../data/economy";
-import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
+import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoSegment, VideoTemplate, aspectFromSize, uid } from "../types";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
 import { dropVideoJob, rememberVideoJob, setVideoJobWaiting, type VideoJob } from "../data/videoJobs";
@@ -343,6 +343,58 @@ function fillSubject(text: string, subject: string): string {
 
 export function blankProposal(i: number): Proposal {
   return { id: uid("prop"), title: `第 ${i + 1} 段`, plot: "", firstFrame: "", lastFrame: "", durationSec: 5 };
+}
+
+/**
+ * 把一发取回来的成片**新开一段**安放进流水线 —— 原节点已不在时的取回路（takeJob 的 ★★）。
+ *
+ * ★★ 为什么要有它（2026-09-05 主人真机）：App 被重启，原节点随进程没了，而那一段从没存过草稿
+ *   （第一段炼成之前没有任何自动存盘）。以前 takeJob 整句拒「去打开那条草稿」——可根本没有那条草稿，
+ *   一颗永远灰着的取回键守着一笔已经花掉的钱。
+ * ★ 落点 = 第一段还没出片的段**之前**（没有就是末尾）：顺序门禁按"已出片的段连续"算，
+ *   插在没出片的段后面会让它一出生就被锁住。
+ * ★ chain:false（它不承接谁）、tpl:null（明确没有模板，理由与 appendNode 那段 ★★★ 相同）；
+ *   其余段经 pinUnstatedTpl 钉住，与「加一段」同一拍纪律。
+ * ★ **不写 firstFrame**：那一格是"设定首帧"，截到的成片头帧只进 poster（CLAUDE.md 那条坑：
+ *   写回去会让重炼被自己截的帧挡住）。尾帧照主路径写 lastFrame（真实尾帧顶替设定尾帧）。
+ * ★ 简约流水线只认一段：多出一段就翻成工作流形态（画布两段都能看到、能剪）。
+ * ★ 纯函数、导出：预览里不用真去方舟取一发也能验落点。
+ */
+export function placeRescuedSegment(
+  st: { nodes: FlowNode[]; template: FlowTemplate; mode: FlowMode },
+  job: VideoJob,
+  res: { url: string; lastFrame?: string; poster?: string; durationSec?: number; width?: number; height?: number },
+): { nodes: FlowNode[]; mode: FlowMode; at: number } {
+  const f = frontierOf(st.nodes);
+  const at = f < 0 ? st.nodes.length : f;
+  const measured = res.durationSec && Number.isFinite(res.durationSec) ? Math.max(1, Math.round(res.durationSec)) : null;
+  const p: Proposal = {
+    id: job.proposalId,
+    title: job.label || `第 ${job.seg} 段`,
+    plot: job.plot ?? job.label ?? "",
+    firstFrame: "",
+    lastFrame: res.lastFrame ?? "",
+    durationSec: job.durationSec ?? measured ?? 5,
+    ...(res.poster ? { poster: res.poster } : {}),
+    videoUrl: res.url,
+  };
+  const node = newFlowNode(at, {
+    proposals: [p],
+    chosenId: p.id,
+    plan: "picked",
+    requirement: job.plot ?? job.label ?? "",
+    ...(job.videoTier ? { videoTier: job.videoTier } : {}),
+    aspect: job.aspect ?? (res.width && res.height ? aspectFromSize(res.width, res.height) : DEFAULT_ASPECT),
+    chain: false,
+    videoByProposal: { [p.id]: res.url },
+    tpl: null,
+  });
+  const pinned = pinUnstatedTpl(st.nodes, st.template);
+  return {
+    nodes: [...pinned.slice(0, at), node, ...pinned.slice(at)],
+    mode: st.mode === "simple" && st.nodes.length > 0 ? "workflow" : st.mode,
+    at,
+  };
 }
 
 export function newFlowNode(i: number, patch: Partial<FlowNode> = {}): FlowNode {
@@ -2354,6 +2406,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
             //   结果是卡片上一行空白（而这张卡的用处就是让人认出是哪一发）
             label: get().template?.title || prop.plot.trim().slice(0, 24) || prop.title || `第 ${idx + 1} 段`,
             cost,
+            // ★ 原节点不在了也能安放（重启 + 那一段从没存过草稿）：新开的那一段按这几样长（见 placeRescuedSegment）
+            durationSec: prop.durationSec,
+            aspect: node.aspect,
+            videoTier: node.videoTier,
+            plot: prop.plot,
             createdAt: Date.now(),
           });
           // ★ 这一炉正在等它：取回卡先别摆（显示门在 data/videoJobs.setVideoJobWaiting，
@@ -2475,46 +2532,50 @@ export const useFlow = create<FlowState>()((set, get) => ({
   takeJob: async (job, prog) => {
     const s0 = get();
     if (s0.busy) throw new Error("正在忙别的，等这一步完了再取");
-    const idx = s0.nodes.findIndex((n) => n.id === job.nodeId);
-    const node = idx >= 0 ? s0.nodes[idx] : null;
-    // ★ 取回来的成片要**落回原来那一段的那一套走向**，落不回去就别取：
-    //   凭据是跨草稿存活的（localStorage），用户完全可能是在另一条工作流里看到它的。
-    //   这时候硬取只会把片挂到别人身上，而凭据一销毁就再也取不回来了。
-    if (!node || !node.proposals.some((p) => p.id === job.proposalId)) {
-      throw new Error(
-        "这一发是另一条工作流炼的，在这里取回没有地方安放它——去「我的」页打开那条草稿、进工作流，再点取回（凭据还在，没有浪费）",
-      );
-    }
+    const node = s0.nodes.find((n) => n.id === job.nodeId) ?? null;
+    /**
+     * 原来那一段那一套走向还在不在这条流水线里。
+     *   在 → 成片**落回原位**（按 proposalId 落，不按"当前选中的走向"：这几十分钟里用户完全可能
+     *        纵向切过走向，videoByProposal 按方案分键本来就是为这件事存在的）；
+     *   不在 → **新开一段安放它**（placeRescuedSegment 的 ★★）。以前这一支整句拒并把键灰掉，
+     *        而"不在"最常见的原因是 App 被重启且那一段从没存过草稿 —— 没有任何一条路能回去。
+     */
+    const orphan = !node || !node.proposals.some((p) => p.id === job.proposalId);
     set({ busy: true, err: "" });
     try {
-      const { url, lastFrame, poster } = await takeVideoTask(job.taskId, prog, job.provider);
+      const res = await takeVideoTask(job.taskId, prog, job.provider);
+      const { url, lastFrame, poster } = res;
       // ★ 与 genNode 成功那一行**同一条规则**（"拿到结果才扣"）：接不到结果的那一发
       //   在本机账上没扣过，取回等于这一段终于成了。不扣的话"等超时再取回"就是白嫖，
       //   而一段视频只该扣一次钱。远端模式下这只是改本机镜像（真扣费在提交那一刻由
       //   服务端做完了），所以"取回不额外花钱"那句话两种模式下都成立。
       if (AI_REAL) spendTokens(job.cost);
-      // ★ 按 **proposalId** 落，不按"当前选中的走向"落：凭据存的是当初炼的那一套，
-      //   而用户在这几十分钟里完全可能纵向切过走向（videoByProposal 按方案分键，
-      //   本来就是为这件事存在的）。落错一套 = 用户看到的是另一条剧情的画面。
-      set((st) => ({
-        nodes: st.nodes.map((n) =>
-          n.id !== job.nodeId
-            ? n
-            : {
-                ...n,
-                status: "idle",
-                progress: "",
-                error: undefined,
-                anns: [],
-                videoByProposal: { ...n.videoByProposal, [job.proposalId]: url },
-                proposals: n.proposals.map((p) =>
-                  p.id === job.proposalId
-                    ? { ...p, videoUrl: url, ...(lastFrame ? { lastFrame } : {}), ...(poster ? { poster } : {}), degraded: undefined }
-                    : p,
-                ),
-              },
-        ),
-      }));
+      if (orphan) {
+        const placed = placeRescuedSegment(get(), job, res);
+        set({ nodes: placed.nodes, mode: placed.mode });
+        // ★ 走 setCursor 不自己 set 下标：换段要把模板快照与挂卡缓冲一起换（setCursor 的 ★★）
+        get().setCursor(placed.at);
+      } else {
+        set((st) => ({
+          nodes: st.nodes.map((n) =>
+            n.id !== job.nodeId
+              ? n
+              : {
+                  ...n,
+                  status: "idle",
+                  progress: "",
+                  error: undefined,
+                  anns: [],
+                  videoByProposal: { ...n.videoByProposal, [job.proposalId]: url },
+                  proposals: n.proposals.map((p) =>
+                    p.id === job.proposalId
+                      ? { ...p, videoUrl: url, ...(lastFrame ? { lastFrame } : {}), ...(poster ? { poster } : {}), degraded: undefined }
+                      : p,
+                  ),
+                },
+          ),
+        }));
+      }
       // 成片已经落到节点上，凭据结案
       dropVideoJob(job.taskId);
       set({ busy: false });
