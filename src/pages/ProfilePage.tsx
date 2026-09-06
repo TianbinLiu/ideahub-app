@@ -985,7 +985,7 @@ export default function ProfilePage() {
             依赖里没有任何值会因为网络恢复而变（collectIds 是原地 mutate 的同一个数组），
             不给这颗按钮就只能离开页面再进来 */}
         {activeTab === "collects" && collectUnknown > 0 && (
-          <p className="mb-2 flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+          <p className="mb-2 flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
             <span className="flex-1">有 {collectUnknown} 条这会儿没取回来（网络没通）——它们还在，不是被删了。</span>
             <button
               onClick={() => setCollectTry((n) => n + 1)}
@@ -1143,7 +1143,7 @@ function PendingBanner() {
   }
   if (!first) return null;
   return (
-    <div className="mx-3 mt-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-3">
+    <div className="mx-3 mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
       <div className="flex items-center gap-2">
         <span className="flex-none text-sm">⚠️</span>
         <span className="min-w-0 flex-1 text-xs font-semibold text-amber-200">
@@ -1166,13 +1166,13 @@ function PendingBanner() {
               .finally(() => setBusy(false));
           }}
           disabled={busy}
-          className="flex-1 rounded-xl bg-amber-400/90 py-2.5 text-xs font-bold text-ink disabled:opacity-40"
+          className="flex-1 rounded-xl bg-amber-400/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
           {busy ? "重试中…" : "立即重试"}
         </button>
         <button
           onClick={() => void dropPendingPublish(first.draft.clientId ?? "")}
-          className="rounded-xl border border-slate-600 px-3 py-2.5 text-xs text-slate-300"
+          className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm text-slate-300"
         >
           不要了
         </button>
@@ -1537,10 +1537,10 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         <div
           className={`mb-3 rounded-xl border px-3 py-2.5 text-[11px] leading-relaxed ${
             order.tone === "warn"
-              ? "border-amber-400/40 bg-amber-500/10 text-amber-200"
+              ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
               : order.tone === "bad"
                 ? "border-rose-500/40 bg-rose-500/10 text-rose-200"
-                : "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
+                : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
           }`}
         >
           {order.text}

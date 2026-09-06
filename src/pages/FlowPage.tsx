@@ -843,7 +843,7 @@ function NodeScreen({
             <button
               onClick={() => shiftCursor(1)}
               disabled={busy}
-              className="w-full rounded-xl border border-emerald-400/40 bg-emerald-500/15 py-2.5 text-xs font-bold text-emerald-200 disabled:opacity-40"
+              className="w-full rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-2.5 text-xs font-bold text-emerald-200 disabled:opacity-40"
             >
               ✓ 这段满意，去下一段
             </button>
@@ -851,7 +851,7 @@ function NodeScreen({
             <button
               onClick={() => addNode()}
               disabled={busy}
-              className="w-full rounded-xl border border-emerald-400/40 bg-emerald-500/15 py-2.5 text-xs font-bold text-emerald-200 disabled:opacity-40"
+              className="w-full rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-2.5 text-xs font-bold text-emerald-200 disabled:opacity-40"
             >
               ✓ 这段满意，再加一段
             </button>

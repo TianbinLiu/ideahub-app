@@ -84,7 +84,7 @@ function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
   const realSec = refVideoRealSec(t.refVideo);
   const ownerNote = isOwner ? refVideoOwnerNote(t.refVideo) : null;
   return (
-    <div className="mb-4 rounded-xl border border-sky-500/40 bg-sky-500/5 p-3">
+    <div className="mb-4 rounded-xl border border-sky-500/40 bg-sky-500/10 p-3">
       {/* ★ 计价锚点（durationSec，整数）与文件真实秒数（realDurationSec，小数）**都说**：
           只说锚点会让"按 4 秒收费、文件其实 3.7 秒"这件事永远看不见；只说真实秒数又对不上
           账单。老模板没有真实秒数（后加字段，缺一律当好），那时就只显示锚点。 */}

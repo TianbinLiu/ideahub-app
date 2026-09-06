@@ -328,7 +328,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
             // 待删态：整行降透明度 + 整句后果 + 一颗撤销。★ 此刻**不从 rows 里移除**
             <div
               key={r.key}
-              className="rounded-lg border border-dashed border-rose-500/40 bg-rose-500/5 p-2.5 opacity-80"
+              className="rounded-lg border border-dashed border-rose-500/40 bg-rose-500/10 p-2.5 opacity-80"
             >
               <div className="flex items-center gap-2">
                 <MarkBadge spec={spec} label={r.label || `（空${noun}）`} tone="doomed" />

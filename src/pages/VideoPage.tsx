@@ -116,7 +116,7 @@ function VideoDeckSection({
         </p>
       )}
       {addErr && (
-        <p className="mt-2 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+        <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
           {addErr}
         </p>
       )}

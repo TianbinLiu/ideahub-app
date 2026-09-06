@@ -101,7 +101,7 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
         <button
           onClick={() => void open("studio")}
           disabled={!!busy}
-          className="rounded-xl border border-amber-400/40 bg-amber-500/10 p-3 text-left disabled:opacity-40"
+          className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-left disabled:opacity-40"
         >
           <div className="text-sm font-bold text-amber-200">🎴 工坊模式</div>
           <div className="mt-0.5 text-[10px] leading-relaxed text-slate-400">

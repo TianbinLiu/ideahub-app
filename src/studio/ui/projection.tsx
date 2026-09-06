@@ -386,7 +386,7 @@ function EditorPanel() {
         /* ══ 自定义·第②步：示例视频（可跳过，跳过是小字附庸——主人点名的主从关系） ══ */
         <div className="flex min-h-0 flex-1 flex-col justify-center gap-2.5 overflow-y-auto p-4">
           {editor.refVideo ? (
-            <div className="rounded-xl border border-sky-500/40 bg-sky-500/5 p-3">
+            <div className="rounded-xl border border-sky-500/40 bg-sky-500/10 p-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="min-w-0 flex-1 truncate text-xs text-sky-200">🎬 参考视频已挂上（{editor.refVideo.durationSec.toFixed(1)}s）</span>
                 <button onClick={() => useStudio.getState().setEditorRefVideo(null)} className="flex-none text-[10px] text-slate-500">移除</button>
@@ -615,7 +615,7 @@ function EditorPanel() {
           {lane === "custom" && (
             <>
               {editor.refVideo && (
-                <div className="flex items-center gap-2 rounded-lg border border-sky-500/40 bg-sky-500/5 px-2.5 py-1.5">
+                <div className="flex items-center gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5">
                   <span className="min-w-0 flex-1 truncate text-[10px] text-sky-200">
                     🎬 示例视频 {editor.refVideo.durationSec.toFixed(1)}s
                     {editor.refVideo.mids.length > 0 ? ` · 中间帧 ${editor.refVideo.mids.length}/${CUSTOM_MID_MAX}` : ""}
@@ -1080,7 +1080,7 @@ function ProposalsPanel() {
           ★ 画布壳上那条是常驻的（FlowCanvas 的错误条），这里同源：读同一个字段。 */}
       {flowErr && (
         <div className="flex-none px-3 pt-2">
-          <p className="rounded-lg border border-rose-500/40 bg-rose-500/15 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">{flowErr}</p>
+          <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">{flowErr}</p>
         </div>
       )}
 
