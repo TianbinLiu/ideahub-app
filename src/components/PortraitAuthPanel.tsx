@@ -193,7 +193,7 @@ export default function PortraitAuthPanel({
   return (
     <div className="space-y-1.5">
       {invite ? (
-        <div className="rounded-lg border border-sky-500/40 bg-sky-500/5 p-2">
+        <div className="rounded-lg border border-sky-500/40 bg-sky-500/10 p-2">
           {/* ⚠ 别在这里写"有效期至 X"：自己授权自己时火山会把有效期直接改成永久
               （实测原文见 docs/backlog.md §1.6），邀约刚发出去时我们不知道扫码的是谁 */}
           <p className="mb-1.5 text-[10px] leading-relaxed text-sky-200">
@@ -308,7 +308,7 @@ export default function PortraitAuthPanel({
           {found
             .filter((x) => !assetUsable(x))
             .map((it) => (
-              <p key={it.id} className="rounded-lg border border-rose-500/40 bg-rose-500/5 px-2.5 py-1.5 text-[9px] leading-relaxed text-rose-300">
+              <p key={it.id} className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[9px] leading-relaxed text-rose-300">
                 ✗ {it.name || it.id} 没过审核：{it.error?.message || it.error?.code || "方舟没给原因"}
               </p>
             ))}

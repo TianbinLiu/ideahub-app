@@ -324,7 +324,7 @@ export default function PublishPage() {
 
           {/* 作品发出去了、卡组没存上：如实说 + 再试一次 + 一条离开的路（铁律八） */}
           {deckIssue && (
-            <div className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2.5 text-xs leading-relaxed text-amber-100">
+            <div className="rounded-xl border border-amber-500/40 bg-amber-400/10 px-3 py-2.5 text-xs leading-relaxed text-amber-100">
               <span className="font-bold">作品已经发布成功了</span>，但本片卡组没能存进你的工坊：{deckIssue.why}。
               <span className="text-amber-200/80">卡还在这台设备上，重试一次多半就好。</span>
               <div className="mt-2 flex gap-2">
@@ -344,7 +344,7 @@ export default function PublishPage() {
                 </button>
                 <button
                   onClick={() => finishAndGo(deckIssue.videoId)}
-                  className="rounded-full border border-amber-400/40 px-3 py-1.5 text-[11px] text-amber-100"
+                  className="rounded-full border border-amber-500/40 px-3 py-1.5 text-[11px] text-amber-100"
                 >
                   先去看作品
                 </button>

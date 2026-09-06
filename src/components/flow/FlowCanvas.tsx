@@ -1124,7 +1124,7 @@ function NodePanel({
                   挂上后整段切成「多图 + 参考视频」（reference 子任务）：首/中/尾帧变成
                   参考图，时序由默认提示词点名（segmentGen.customRefPrompt 唯一实现）。 */}
               {node.customRef ? (
-                <div className="rounded-lg border border-sky-500/40 bg-sky-500/5 p-2">
+                <div className="rounded-lg border border-sky-500/40 bg-sky-500/10 p-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="min-w-0 flex-1 truncate text-[11px] text-sky-200">
                       🎬 参考视频已挂上（{node.customRef.durationSec.toFixed(1)}s · 计价按输入 {Math.round(node.customRef.durationSec)}s + 输出 {p.durationSec}s）
@@ -1697,7 +1697,7 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
                     <button
                       onClick={() => void confirm(p)}
                       disabled={!!runningProp}
-                      className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-bold text-ink disabled:opacity-40"
+                      className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-semibold text-ink disabled:opacity-40"
                     >
                       {runningProp === p ? "执行中…" : p.kind === "cast" ? "执行（免费）" : `执行（${p.costLabel}）`}
                     </button>

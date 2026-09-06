@@ -179,13 +179,13 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
     // 绑定属于账号（server BranchCard.portrait），没上行 = 换台设备暂时看不到；下次登录会自动补传
     const issue = assetSyncIssue(card.id);
     return issue ? (
-      <p className="mb-4 rounded-lg border border-amber-400/40 bg-amber-400/5 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+      <p className="mb-4 rounded-lg border border-amber-500/40 bg-amber-400/5 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
         🪪 肖像授权已在本机接上，但还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。
       </p>
     ) : null;
   }
   return (
-    <div className="mb-4 rounded-xl border border-amber-400/40 bg-amber-400/5 p-3">
+    <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-400/5 p-3">
       <p className="mb-1.5 text-[11px] leading-relaxed text-amber-200/90">
         🪪 这张真人卡还<b className="text-amber-100">没接上已授权的肖像素材</b>——
         「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。

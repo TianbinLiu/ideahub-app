@@ -187,7 +187,7 @@ function StatsSection({ reloadKey, onOpen }: { reloadKey: number; onOpen: (v: Ad
     <section className="mb-6">
       <h2 className="mb-2 text-sm font-semibold text-slate-300">平台数据 · 点卡片进入管理</h2>
       {loading && <p className="text-xs text-slate-500">读取中…</p>}
-      {err && <p className="rounded-xl border border-rose-500/40 bg-rose-500/5 p-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
       {stats && (
         <div className="grid grid-cols-3 gap-2">
           <StatCell label="用户" v={stats.users} onOpen={() => onOpen("users")} />
@@ -313,14 +313,14 @@ function LoadMore({ hasMore, loading, total, shown, onMore }: { hasMore: boolean
  *  后台永远显示"天下太平"。 */
 function Unsupported({ what }: { what: string }) {
   return (
-    <p className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 text-[11px] leading-relaxed text-amber-300">
+    <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-[11px] leading-relaxed text-amber-300">
       这台服务器还没有{what}接口（需要升级服务端）。这不代表列表是空的 —— 是这一头根本问不到。
     </p>
   );
 }
 
 function ErrBox({ text }: { text: string }) {
-  return <p className="rounded-xl border border-rose-500/40 bg-rose-500/5 p-3 text-[11px] leading-relaxed text-rose-300">{text}</p>;
+  return <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-[11px] leading-relaxed text-rose-300">{text}</p>;
 }
 
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
@@ -431,7 +431,7 @@ function UsersView({ onChanged }: { onChanged: () => void }) {
       )}
 
       {deletedNote && (
-        <p className="mb-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-2.5 text-[11px] leading-relaxed text-emerald-300">
+        <p className="mb-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-[11px] leading-relaxed text-emerald-300">
           {deletedNote}
         </p>
       )}
@@ -543,7 +543,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
 
       {/* 封禁原因：管理员应当一眼看到"这人当时为什么被封"，不该藏在 title 里（手机没有 hover） */}
       {banned && u.banned?.reason && (
-        <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/5 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300/80">
+        <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300/80">
           封禁原因：{u.banned.reason}
         </p>
       )}
@@ -1183,11 +1183,11 @@ function ReportsSection({ onChanged }: { onChanged: () => void }) {
       {/* ★★ 「这台服务器没有这套端点」与「没有举报」必须分开说。混成一句的后果是
           管理员看着空列表以为没事，而实际上举报根本发不上来（铁律七 + 八）。 */}
       {!loading && !supported && !err && (
-        <p className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 text-[11px] leading-relaxed text-amber-300">
+        <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-[11px] leading-relaxed text-amber-300">
           这台服务器还没有举报接口（需要升级服务端）。这不代表没有举报 —— 是这一头根本收不到。
         </p>
       )}
-      {err && <p className="rounded-xl border border-rose-500/40 bg-rose-500/5 p-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
 
       {!loading && supported && items.length === 0 && !err && (
         <p className="py-8 text-center text-sm text-slate-500">{tab === "pending" ? "没有待处理的举报" : "还没有任何举报"}</p>

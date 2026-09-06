@@ -592,7 +592,7 @@ export default function SupportPage() {
         </div>
 
         {handoffHint && phase === "idle" && (
-          <div className="mb-2 rounded-xl border border-amber-400/40 bg-amber-500/15 p-3 text-xs leading-relaxed text-amber-50 backdrop-blur-md">
+          <div className="mb-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-50 backdrop-blur-md">
             这个问题需要人工处理（{CATEGORY_LABEL[handoffHint.category]}）。转人工会把这段对话一起交给客服，你不用再讲一遍。
             <div className="mt-2 flex gap-2">
               <button onClick={openSheet} className="rounded-full bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-ink active:opacity-60">
@@ -794,7 +794,7 @@ function TicketsPanel({
     }
   }
 
-  if (err) return <p className="m-3 rounded-xl border border-rose-500/40 bg-rose-500/5 p-3 text-xs leading-relaxed text-rose-300">{err}</p>;
+  if (err) return <p className="m-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs leading-relaxed text-rose-300">{err}</p>;
   if (!tickets) return <p className="m-3 text-xs text-slate-500">读取中…</p>;
   if (!tickets.length) return <EmptyState emoji="🎫" text="还没有工单" hint="和 AI 客服聊不明白的问题，点「转人工」就会出现在这里" />;
 

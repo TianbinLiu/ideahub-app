@@ -78,7 +78,7 @@ export default function AdminTicketsView() {
         </button>
       </div>
       {loading && <p className="text-xs text-slate-500">读取中…</p>}
-      {err && <p className="rounded-xl border border-rose-500/40 bg-rose-500/5 p-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
       {!loading && !err && items && items.length === 0 && <p className="text-xs text-slate-500">{filter === "active" ? "没有进行中的工单" : "还没有任何工单"}</p>}
       <div className="space-y-3">{(items || []).map((t) => <TicketCard key={t.id} t={t} onChanged={replace} />)}</div>
     </section>

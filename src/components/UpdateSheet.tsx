@@ -76,7 +76,7 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
         )}
 
         {allowed === false && (
-          <div className="mb-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-3">
+          <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
             <p className="text-[11px] leading-relaxed text-amber-100">
               这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。
             </p>

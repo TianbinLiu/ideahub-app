@@ -271,6 +271,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - **提示条（amber / rose / sky / emerald 底）一律带同色 `/40` 边框**：`rounded-lg border border-<色>-500/40
   bg-<色>-500/10`，紧凑（`py-1.5`）配 `px-2.5`、常规（`py-2`）配 `px-3`；整块的卡式提示（`p-3` 及以上）
   才用 `rounded-xl`。收之前 120 条里 35 条没边框、圆角与内边距十几种组合，同一页上下两条就不一样。
+  底色透明度只有 `/10` 一档（第十一轮把管理页 / 客服页 / 模板详情的 `/5` `/15` 收了）；徽标与胶囊那种无边框的
+  `/15` `/20` 是另一种控件，不按这条。边线是 `500/40`，别写 `400/40`。
 - **段落 / 字段标题一律 `text-sm font-semibold text-slate-300`**（字段 `mb-1.5`、段落 `mb-2`）；抽屉标题见上。
 - **居中对话框只有一种壳**（2026-09-06 第四轮）：遮罩 `fixed inset-0 z-* flex items-center justify-center bg-black/60 p-6`
   （z 按层叠需要），面板 `w-full max-w-{xs|sm|md} rounded-2xl border border-slate-700 bg-ink p-4`，标题

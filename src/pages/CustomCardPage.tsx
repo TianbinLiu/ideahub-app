@@ -1650,7 +1650,7 @@ export default function CustomCardPage() {
         </div>
       )}
       {partial?.kind === "views" && (
-        <div className="mb-3 rounded-xl border border-amber-400/40 bg-amber-400/5 p-3">
+        <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-400/5 p-3">
           <p className="text-xs font-semibold text-amber-300">卡建好了，但有图没能存到服务器</p>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
             {partial.lost.slice(0, 3).join("、")}
