@@ -487,7 +487,9 @@ export default function SupportPage() {
       {/* 顶栏浮层 */}
       {/* 渐变只是装饰：pointer-events-none 让它下面的模型头部能被摸到（真机上头正好在这块渐变里），按钮那一行再打开 */}
       <div className="safe-top pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-ink/85 via-ink/40 to-transparent pb-8">
-        <div className="pointer-events-auto flex h-[58px] items-center gap-1 px-4">
+        {/* ★ 这一行是 h-12 不是别处的 h-[58px]：safe-top 已经加在外层那个渐变容器上，里面再写 58 就多出 10px，
+            返回键中心落在 39 而不是各页统一的 34（2026-09-06 逐页量出来的，第十四轮） */}
+        <div className="pointer-events-auto flex h-12 items-center gap-1 px-4">
           <BackButton size={20} tone="text-slate-200" onClick={() => navigate(-1)} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">

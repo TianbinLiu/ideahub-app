@@ -301,7 +301,9 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - **全屏覆盖层的表头**（画布 / 成片回看 / 调首尾帧 / 核对角色位 / 客服页，第五轮收口）：`safe-top flex h-[58px] flex-none
   items-center gap-2 px-4`，关闭 / 返回键走 `CloseButton` / `BackButton`（覆盖层上用 `chip="md" size={16}`，
   客服页那种透明顶栏用裸图标 `size={20}`），标题 `text-sm font-bold text-slate-100`。不再手写 `h-8 w-8 rounded-full bg-panel`
-  的圆钮 —— 那是 chip md 的手抄版，命中区只有 32px。
+  的圆钮 —— 那是 chip md 的手抄版，命中区只有 32px。⚠ `h-[58px]` 是**含 safe-top 那 10px** 的（58 = 10 + 48），
+  只准写在自己带 `safe-top` 的那一行上；safe-top 已经在外层时里面那行是 `h-12`（客服页第十四轮量出来差 5px）。
+  验法：在浏览器里逐路由量返回键中心的 y，都该是 34。
 - **加载圈只有一份 `components/Spinner`**（xs / sm / lg），别再手写 `animate-spin rounded-full border-2 …`。
 - **内联链接**：`underline underline-offset-2`；能点出动作的 `text-brand`，说明性的灰链接一律 `text-slate-500`，
   不写 `decoration-*`。
