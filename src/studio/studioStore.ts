@@ -1831,13 +1831,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
         title: "",
         category: "剧情",
         description: p.plot,
-        cover: p.firstFrame,
+        cover: p.poster || p.firstFrame,
         segments: [
           {
             title: p.title,
             plot: p.plot,
             firstFrame: p.firstFrame,
             lastFrame: p.lastFrame,
+            ...(p.poster ? { poster: p.poster } : {}),
             durationSec: p.durationSec,
             ...(p.realDurationSec ? { realDurationSec: p.realDurationSec } : {}),
             videoTier: slot.videoTier ?? DEFAULT_TIER,
@@ -2071,7 +2072,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
               type: "scene" as const,
               name: sg.title.replace(/^第\d+段 · /, "").slice(0, 8) || `场景${i + 1}`,
               summary: sg.plot.slice(0, 60),
-              cover: sg.firstFrame,
+              cover: sg.poster || sg.firstFrame,
             })),
           );
         }
@@ -2103,7 +2104,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         title: "",
         category: "剧情",
         description: segments.map((sg) => sg.plot).join("\n"),
-        cover: segments[0]?.firstFrame ?? "",
+        cover: segments[0]?.poster || segments[0]?.firstFrame || "",
         segments,
         branchTree: buildBranchTree(nodes, alts, videoByProposal),
         // ★ 简约模式**连键都不写**（DraftVideo.deck 本来就是可选，全部读取方都用了
@@ -2178,7 +2179,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const nodes = f.mode === "simple" ? [] : f.nodes;
     if (nodes.length === 0) return null; // 空流水线 / 简约模式：没什么可存的
     const head = chosenOf(nodes[0]);
-    const coverFrame = head?.firstFrame;
+    // ★ 预览一律 poster || firstFrame（types.Proposal.poster 的 ★）：白模复刻 / 直出段没有设定帧，
+    //   只读 firstFrame 的话草稿箱那张缩略图永远是占位符，而画布上的卡早就有真实首帧了（2026-09-06 主人真机）
+    const coverFrame = head?.poster || head?.firstFrame;
     // 标题默认取第一段的标题（去掉"第N段 · "前缀），比"未命名草稿"好认；
     // 已经存过的草稿不动标题——用户可能在个人页改过名，自动保存不该把它冲掉。
     // 新建节点的标题就是占位的"第 N 段"（见 flowStore.blankProposal），拿它当草稿名
