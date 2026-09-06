@@ -27,8 +27,13 @@ import { makeCover, makeFrame } from "../mock/frames";
 import type { MaterialFile, ProposalContext } from "../mock/ai";
 import * as mock from "../mock/ai";
 import {
+  CARD_META_TOKENS,
   DECK_MAX_CARDS,
+  DECK_VISION_FRAMES,
+  DEFAULT_IMAGE_TIER,
+  IMAGE_TOKENS,
   TEMPLATE_MAX_CARDS,
+  VISION_FRAME_TOKENS,
   clampDuration,
   imageTierOf,
   providerOf,
@@ -1455,25 +1460,30 @@ const DECK_MINT = mintSpec(
  *  ★ style 兜底：模型没按"必须恰出一张"给风格卡时，用确定性定义补上（总结句式，
  *    不编内容）——「每条片的卡组都有风格卡」是主人点名的硬规格，不能指望提示词。 */
 export async function deriveDeckCards(
-  segments: Array<{ title: string; plot: string; firstFrame: string }>,
+  /** V3：带上成片地址与时长，能抽帧就看片提炼（deckFrameUrls）；没有就退回只读剧情文字 */
+  segments: Array<{ title: string; plot: string; firstFrame: string; videoUrl?: string; durationSec?: number }>,
   styleHint: string,
   existing: Array<Pick<Card, "type" | "name" | "summary">> = [],
   onProgress?: (status: string) => void,
-): Promise<Card[]> {
-  onProgress?.("提炼本片卡组…");
+): Promise<{ cards: Card[]; tokens: number }> {
+  const frames = deckFrameUrls(segments, DECK_VISION_FRAMES);
+  onProgress?.(frames.length > 0 ? `看片提炼本片卡组（${frames.length} 帧）…` : "提炼本片卡组…");
   // 用户挂过的卡种整个关门；没挂过的点名为「缺失卡种」
   const covered = new Set(existing.map((c) => c.type));
   // ★ V3：background 永远不算"缺失卡种"——故事背景不从画面/剧情推断（用户想要就自己写一张）
   const missing = CARD_TYPES.filter((t) => !covered.has(t) && t !== "background");
-  if (missing.length === 0) return []; // 五种都挂全了：素材卡并集就是完整卡组，一张不铸
+  if (missing.length === 0) return { cards: [], tokens: 0 }; // 五种都挂全了：素材卡并集就是完整卡组，一张不铸
   const existingDesc =
     existing.length > 0
       ? existing.map((c) => `${TYPE_LABEL[c.type]}「${c.name}」(${(c.summary ?? "").slice(0, 24)})`).join("、")
       : "（无）";
-  const raw = await chat(
-    DECK_MINT.prompt,
-    `缺失卡种（只出这些）：${missing.map((t) => `${t}（${CARD_TYPE_LABELS[t]}）`).join("、")}\n用户已挂的卡（这些卡种关门）：${existingDesc}\n剧情（按段）：${segments.map((s) => stripBlockoutSkeleton(s.plot)).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从剧情画面推断）"}`,
-  );
+  const userText = `缺失卡种（只出这些）：${missing.map((t) => `${t}（${CARD_TYPE_LABELS[t]}）`).join("、")}\n用户已挂的卡（这些卡种关门）：${existingDesc}\n剧情（按段）：${segments.map((s) => stripBlockoutSkeleton(s.plot)).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从画面推断）"}`;
+  // ★ V3：能抽到成片帧就**看片**提炼（frameIndex / box 才有依据，卡面才能贴合原片）；抽不到退回只读文字
+  const raw =
+    frames.length > 0
+      ? await chatVision(DECK_MINT.prompt, `${userText}\n以下是成片按时间顺序的抽帧（frameIndex 从 1 起）：`, frames)
+      : await chat(DECK_MINT.prompt, userText);
+  let tokens = frames.length * VISION_FRAME_TOKENS;
   let defs = JSON.parse(raw.replace(/```json|```/g, "").trim()) as CardDef[];
   if (!Array.isArray(defs)) throw new Error("卡组提炼 JSON 结构不符");
   // 代码闸：已关门的卡种一张不铸（见函数头 ★★）；措辞复核（禁用词 / background）见 sanitizeCardDefs
@@ -1490,8 +1500,12 @@ export async function deriveDeckCards(
   }
   // 画风参考帧：成片里第一张真帧（组稿前已回写真帧）。"视频是什么画风，卡面就跟
   // 什么画风"从 styleHint 的文字近似升级为真参考（主人 2026-08-28 拍板"卡面也跟素材走"）
-  const styleRef = segments.map((s) => s.firstFrame).find((u) => /^(data:image|https?:)/i.test(u || ""));
-  return await mintCards(defs, DECK_MINT, styleHint, existing, onProgress, styleRef);
+  // ★ V3：有成片帧就拿中段那一帧当画风参考（真成片，比设定帧更准）
+  const styleRef =
+    frames[Math.floor(frames.length / 2)] ?? segments.map((s) => s.firstFrame).find((u) => /^(data:image|https?:)/i.test(u || ""));
+  const r = await mintCards(defs, DECK_MINT, styleHint, existing, onProgress, styleRef, frames);
+  tokens += r.tokens;
+  return { cards: r.cards, tokens };
 }
 
 /** 模型吐出的卡定义（三条提卡路共用一套结构） */
@@ -1557,6 +1571,87 @@ function sanitizeCardDefs(defs: CardDef[]): CardDef[] {
 }
 
 /**
+ * 成片抽帧（V3）：Cloudinary `so_` 变换（与 grabViaCloudinary 同一条路，手机只读几十 KB 的 JPEG，
+ * 不把整条成片拉下来解码）。每段取 30% / 70% 两帧（开头常是黑场/片头），总数按 cap 封顶。
+ * 不是 Cloudinary 地址（还没转存、或 mock）就一帧都没有 —— 调用方退回只读剧情文字的老路。
+ */
+function deckFrameUrls(segments: Array<{ videoUrl?: string; durationSec?: number }>, cap: number): string[] {
+  const out: string[] = [];
+  for (const sg of segments) {
+    const at = sg.videoUrl ? cloudinaryFrameUrl(sg.videoUrl) : null;
+    if (!at) continue;
+    const dur = Math.max(1, sg.durationSec ?? 5);
+    for (const f of [0.3, 0.7]) {
+      if (out.length >= cap) return out;
+      out.push(at((dur * f).toFixed(1)));
+    }
+  }
+  return out;
+}
+
+/**
+ * 场景卡面 = 原片那一帧**去人留景**（V3，2026-09-06 主人点名"卡面要贴合原片"）。
+ * 实测（design/probe，主人的 907 号模板，Seedream 4.0 i2i）：远景群舞帧一次干净（连台标一起去掉）；
+ * 两个人偶占满画面的近景帧留了残影 —— 所以去完要**复核**，不干净就退回带人的原帧（诚实，不退回文生图：
+ * 文生图画的是"一座像那样的城市"，不是原片那座）。
+ */
+const SCENE_CLEAN_PROMPT =
+  "去掉画面里所有人物、人偶与角色，只保留场景本身：舞台、背景、地面与固定道具；被人物遮挡的背景按周围内容自然补全；机位、色调、光线与画风都与原图保持一致，不要添加新的物体，不要改变场景结构；去掉文字水印与台标；改成竖版 3:4 构图，场景主体居中完整可见。" +
+  NO_TEXT;
+const SCENE_CHECK_SYS = '你是审图员。只回答 JSON：{"hasPeople":true|false}——图里还有没有任何人物、人偶、角色或人形轮廓（包括残影、半个身体）。';
+interface FrameCover {
+  cover: string;
+  /** 真出了一张图（收一次图钱） */
+  drewImage: boolean;
+  /** 复核看了几次图（按 VISION_FRAME_TOKENS 收） */
+  visionCalls: number;
+  note?: string;
+}
+async function sceneCoverFromFrame(frame: string, name: string): Promise<FrameCover> {
+  const cover = await genImageAsDataUrl(SCENE_CLEAN_PROMPT, { imageRefs: [frame], size: CARD_SIZE });
+  let hasPeople = false;
+  try {
+    const raw = await chatVision(SCENE_CHECK_SYS, "这张图里还有没有人物、人偶或角色？", [cover]);
+    hasPeople = /"hasPeople"\s*:\s*true/i.test(raw);
+  } catch {
+    // 复核没问到就按通过：这张图本来就是去过人的一次尝试，问不到不该让它退回原帧
+  }
+  return hasPeople
+    ? { cover: frame, drewImage: true, visionCalls: 1, note: `「${name}」的场景卡面去人没去干净，用了原片那一帧` }
+    : { cover, drewImage: true, visionCalls: 1 };
+}
+
+/** 模型给的位置框（0~1 相对坐标）过一遍形状检查——JSON 里什么都可能出现 */
+function boxOf(d: CardDef): [number, number, number, number] | null {
+  const b = d.box;
+  return Array.isArray(b) && b.length === 4 && b.every((n) => typeof n === "number" && Number.isFinite(n))
+    ? (b as [number, number, number, number])
+    : null;
+}
+
+/**
+ * 道具卡面 = 原帧按位置框裁剪（0 token）。外扩 8% 留点环境；裁出来不足 640 宽就放大 ——
+ * 出片管线的参考图有 300px 短边硬门（VideoCardAnnotator 那条坑），一张 200px 的小裁剪存卡时全绿、出片才 400。
+ */
+async function cropFromFrame(frame: string, box: [number, number, number, number]): Promise<string> {
+  const src = /^https?:/i.test(frame) ? await fetchDataUrl(frame, 20_000) : frame;
+  const img = await loadImg(src);
+  const [x1, y1, x2, y2] = box.map((v) => Math.min(1, Math.max(0, v))) as [number, number, number, number];
+  const pad = 0.08;
+  const sx = Math.max(0, (Math.min(x1, x2) - pad) * img.width);
+  const sy = Math.max(0, (Math.min(y1, y2) - pad) * img.height);
+  const sw = Math.min(img.width - sx, (Math.abs(x2 - x1) + 2 * pad) * img.width);
+  const sh = Math.min(img.height - sy, (Math.abs(y2 - y1) + 2 * pad) * img.height);
+  if (sw < 16 || sh < 16) throw new Error("位置框太小");
+  const scale = sw < 640 ? 640 / sw : 1;
+  const c = document.createElement("canvas");
+  c.width = Math.round(sw * scale);
+  c.height = Math.round(sh * scale);
+  c.getContext("2d")!.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.9);
+}
+
+/**
  * 按卡定义批量铸卡面（Seedream，每张一次图生成）。
  * 与已有卡重名的先剔掉——既避免重复出卡，也省下那张卡面的图钱。
  *
@@ -1573,8 +1668,10 @@ async function mintCards(
   existing: Array<Pick<Card, "type" | "name" | "summary">>,
   onProgress?: (status: string) => void,
   styleRef?: string,
-): Promise<Card[]> {
-  if (defs.length === 0) return []; // 已有卡把实体全覆盖了：无需补卡，合法结果
+  /** V3：抽帧（与 CardDef.frameIndex 对齐）。给了就按卡种走"贴合原片"三档：场景去人留景、道具裁剪、风格整帧 */
+  frames?: string[],
+): Promise<{ cards: Card[]; tokens: number }> {
+  if (defs.length === 0) return { cards: [], tokens: 0 }; // 已有卡把实体全覆盖了：无需补卡，合法结果
   // 模型偶尔把已有实体换个叫法再提出来（"义肢少女"→"义肢电玩少女"）——
   // 同类型且已有卡名字符 ≥80% 落进新名的，判定同一实体直接丢弃
   const isDupOfExisting = (name: string, type: CardType) =>
@@ -1590,29 +1687,67 @@ async function mintCards(
   const jobs = defs
     .slice(0, spec.cap)
     .filter((d) => d.name && TYPE_LABEL[d.type as CardType] && !isDupOfExisting(d.name, d.type as CardType));
-  if (jobs.length === 0) return []; // 提出来的全是已有实体的换皮：等于无需补卡
+  if (jobs.length === 0) return { cards: [], tokens: 0 }; // 提出来的全是已有实体的换皮：等于无需补卡
   // 画风参考帧整批只备一次（mapLimit 3 路并发，逐张 prep 是白做三遍同一件事）
   const styleRefUrl = styleRef ? await prepRefImage(styleRef) : null;
+  // ★ V3 结算逐笔记在这里（报价上限在 economy.deckCardsCost / extractCost / templateCost）：
+  //   每张卡一份文案钱；真出图才收图钱；场景卡多一次去人复核。道具裁剪 / 风格整帧 = 0 图钱。
+  let tokens = 0;
+  const notes: string[] = [];
   await mapLimit(jobs, 3, async (d) => {
     const type = d.type as CardType;
+    tokens += CARD_META_TOKENS;
     try {
-      // 完整生成提示词随卡保存（生成蓝图）：卡片详情页展示，
-      // 后续用它就能复刻出与卡面一致的画面/建模
-      // ★ 跟随句只在参考帧**真备成了**才拼（铁律五的措辞版：图没发不许说"跟随参考图"）
-      // ★ V3：带上卡种构图（CARD_COMPOSITION）——场景卡面"不要出现人物"这一条此前只有用户素材铸卡那条路有
-      const genPrompt = `${TYPE_LABEL[type]}：${d.name}。${d.imagePrompt ?? d.summary ?? ""}。${styleHint ? `画风：${styleHint}。` : ""}${styleRefUrl ? STYLE_FOLLOW_MINT : ""}${CARD_COMPOSITION[type]}${cardStyleSuffix(type, "卡面")}`;
-      // 画布与素材卡一致（CARD_SIZE）：两种卡摆在同一副卡组里，画幅不一致一眼就看得出
-      const cover = await genImageAsDataUrl(genPrompt, {
-        size: CARD_SIZE,
-        ...(styleRefUrl ? { imageRefs: [styleRefUrl] } : {}),
-      });
+      // ★ V3：有抽帧且模型点了帧，就按卡种走"贴合原片"三档；任一档没成退回文生图（下面那条老路）
+      const pointed =
+        frames?.length && d.frameIndex ? frames[Math.min(frames.length, Math.max(1, Math.round(d.frameIndex))) - 1] : undefined;
+      // ★ 风格是全画面属性，模型常常不给它点帧（2026-09-06 实测：其它四张都点了、风格卡没点）——没点就取中段那一帧
+      const frame = pointed ?? (type === "style" && frames?.length ? frames[Math.floor(frames.length / 2)] : undefined);
+      let cover: string | undefined;
+      let genPrompt: string | undefined;
+      let drew = false;
+      if (frame && type === "style") {
+        cover = frame; // 风格样张就是原片那一帧本身（0 token）
+      } else if (frame && type === "prop" && boxOf(d)) {
+        try {
+          cover = await cropFromFrame(frame, boxOf(d)!);
+        } catch (e) {
+          console.warn(`[ai] 道具卡「${d.name}」原帧裁剪失败，退回文生图:`, e);
+        }
+      } else if (frame && type === "scene") {
+        try {
+          const r = await sceneCoverFromFrame(frame, d.name!);
+          cover = r.cover;
+          drew = r.drewImage;
+          tokens += r.visionCalls * VISION_FRAME_TOKENS;
+          if (r.note) notes.push(r.note);
+        } catch (e) {
+          console.warn(`[ai] 场景卡「${d.name}」去人留景失败，退回文生图:`, e);
+        }
+      }
+      if (!cover) {
+        // 完整生成提示词随卡保存（生成蓝图）：卡片详情页展示，
+        // 后续用它就能复刻出与卡面一致的画面/建模
+        // ★ 跟随句只在参考帧**真备成了**才拼（铁律五的措辞版：图没发不许说"跟随参考图"）
+        // ★ V3：带上卡种构图（CARD_COMPOSITION）——场景卡面"不要出现人物"这一条此前只有用户素材铸卡那条路有
+        genPrompt = `${TYPE_LABEL[type]}：${d.name}。${d.imagePrompt ?? d.summary ?? ""}。${styleHint ? `画风：${styleHint}。` : ""}${styleRefUrl ? STYLE_FOLLOW_MINT : ""}${CARD_COMPOSITION[type]}${cardStyleSuffix(type, "卡面")}`;
+        // 画布与素材卡一致（CARD_SIZE）：两种卡摆在同一副卡组里，画幅不一致一眼就看得出
+        cover = await genImageAsDataUrl(genPrompt, {
+          size: CARD_SIZE,
+          ...(styleRefUrl ? { imageRefs: [styleRefUrl] } : {}),
+        });
+        drew = true;
+      }
+      if (drew) tokens += IMAGE_TOKENS;
       out.push({
         id: uid("card"),
         type,
         name: d.name!.slice(0, 8),
         summary: (d.summary ?? "").slice(0, 60),
         cover,
-        genPrompt,
+        ...(genPrompt ? { genPrompt } : {}),
+        // ★ imageTier 只在 AI 真画了这张卡面时写（与「自己传图做卡片」/ 圈选提取"一张图都没让 AI 画就不写"同一条规则）
+        ...(drew ? { imageTier: DEFAULT_IMAGE_TIER } : {}),
         // 身份句随卡定义带出（缺省走 idLineOf 兜底）；上限一处（types.ID_LINE_MAX）
         ...(d.idLine ? { idLine: d.idLine.slice(0, ID_LINE_MAX) } : {}),
       });
@@ -1623,7 +1758,9 @@ async function mintCards(
     onProgress?.(`绘制卡面 ${done}/${jobs.length}…`);
   });
   if (out.length === 0) throw new Error("派生卡面全部失败");
-  return out;
+  // 退回原帧这类"没按最好的做"要说出来（铁律八）：挂在最后一条状态行上
+  if (notes.length > 0) onProgress?.(`卡面画好了（${notes.join("；")}）`);
+  return { cards: out, tokens };
 }
 
 /** 上传视频 → 素材卡。与派生卡组同一个上限（VideoCardExtractor 的报价读的也是它）。 */
@@ -1643,7 +1780,7 @@ export async function extractCardsFromVideo(
   note: string,
   existing: Array<Pick<Card, "type" | "name" | "summary">> = [],
   onProgress?: (status: string) => void,
-): Promise<Card[]> {
+): Promise<{ cards: Card[]; tokens: number }> {
   onProgress?.(`看片识别中（${frames.length} 帧）…`);
   const existingDesc =
     existing.length > 0
@@ -1661,7 +1798,8 @@ export async function extractCardsFromVideo(
   const styleHint = defs.find((d) => d.type === "style")?.name ?? "";
   // 画风参考帧取中间那张：开头常是黑场/片头字，中段才是这段视频真正的样子
   const styleRef = frames[Math.floor(frames.length / 2)] ?? frames[0];
-  return await mintCards(defs, VIDEO_MINT, styleHint, existing, onProgress, styleRef);
+  const r = await mintCards(defs, VIDEO_MINT, styleHint, existing, onProgress, styleRef, frames);
+  return { cards: r.cards, tokens: frames.length * VISION_FRAME_TOKENS + r.tokens };
 }
 
 /**
@@ -1717,6 +1855,8 @@ export async function extractTemplateFromVideo(
   source: string;
   recipe: { styleHint: string; beats: string[]; framePrompt: string; durationSec: number };
   cards: Card[];
+  /** V3：这次真实调用的 token（看帧 × 遍数 + 出图 + 复核），逐笔记；报价上限见 economy.templateCost / blockoutTemplateCost */
+  tokens: number;
 }> {
   const blockout = !!opts?.blockout;
   onProgress?.(`分析${blockout ? "场景与运镜" : "画面风格"}（${frames.length} 帧）…`);
@@ -1735,6 +1875,7 @@ export async function extractTemplateFromVideo(
     framePrompt?: string;
   };
   const styleHint = (t.styleHint ?? "").trim();
+  let tokens = frames.length * VISION_FRAME_TOKENS; // 配方那一遍视觉
   // 白模只留 1 条（提示词也只要了 1 条，这刀是模型不守规矩时的保险，同 mintCards 那刀的道理）
   const beats = (Array.isArray(t.beats) ? t.beats : [])
     .filter((b) => typeof b === "string" && b.trim())
@@ -1746,6 +1887,7 @@ export async function extractTemplateFromVideo(
   let cards: Card[] = [];
   if (!blockout) {
     onProgress?.("提炼模板素材卡…");
+    tokens += frames.length * VISION_FRAME_TOKENS; // 认卡那一遍视觉
     const rawCards = await chatVision(
       TEMPLATE_MINT.prompt,
       `导演对这段视频画面的总结（只作参考；卡上的话必须自己独立成立）：${styleHint}
@@ -1756,16 +1898,19 @@ export async function extractTemplateFromVideo(
     const defs = JSON.parse(rawCards.replace(/```json|```/g, "").trim()) as CardDef[];
     // 画风参考帧同视频提卡取中段。只有经典模板走到这里（白模在上面整段跳过），
     // 所以这张帧一定是真实成片而不是灰白模——白模帧当画风参考会把卡面画成素模渲染
-    cards = Array.isArray(defs)
-      ? await mintCards(
-          sanitizeCardDefs(defs).filter((d) => d.type !== "character"),
-          TEMPLATE_MINT,
-          styleHint,
-          [],
-          onProgress,
-          frames[Math.floor(frames.length / 2)] ?? frames[0],
-        )
-      : [];
+    if (Array.isArray(defs)) {
+      const r = await mintCards(
+        sanitizeCardDefs(defs).filter((d) => d.type !== "character"),
+        TEMPLATE_MINT,
+        styleHint,
+        [],
+        onProgress,
+        frames[Math.floor(frames.length / 2)] ?? frames[0],
+        frames,
+      );
+      cards = r.cards;
+      tokens += r.tokens;
+    }
   }
 
   return {
@@ -1780,6 +1925,7 @@ export async function extractTemplateFromVideo(
       durationSec: 5,
     },
     cards,
+    tokens,
   };
 }
 

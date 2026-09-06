@@ -48,7 +48,7 @@ import {
   type TemplateVideoReceipt,
 } from "../api/uploads";
 import { balanceNote, canAfford, spendTokens } from "../data/account";
-import { TEMPLATE_MAX_CARDS, fmtTokens, ownRefTemplateCost, templateCost, templateSettle } from "../data/economy";
+import { TEMPLATE_MAX_CARDS, fmtTokens, ownRefTemplateCost, templateCost } from "../data/economy";
 import {
   BLOCKOUT_INPUT_RULES,
   SPLIT_MAX_PARTS,
@@ -1055,8 +1055,8 @@ export default function VideoTemplateExtractor({
         },
         { blockout: false },
       );
-      // 实际结算：看帧固定、卡面按真出的张数收（与 templateCost 同一条式子）
-      if (AI_REAL) spendTokens(templateSettle(frames.length, r.cards.length));
+      // 实际结算：按真实调用逐笔记（看帧两遍 + 文案 + 真出的图 + 去人复核，real.extractTemplateFromVideo 记的），只会比 templateCost 的上限少
+      if (AI_REAL) spendTokens(r.tokens);
       const tpl = saveTemplate({
         title: r.title,
         intro: r.intro,
