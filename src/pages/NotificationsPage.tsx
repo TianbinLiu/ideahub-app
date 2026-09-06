@@ -202,7 +202,7 @@ export default function NotificationsPage() {
                     {n.videoTitle && (
                       <div className="mt-0.5 truncate text-xs text-slate-500">{n.videoTitle}</div>
                     )}
-                    <div className="mt-1 text-[11px] text-slate-600">{relativeTime(n.at)}</div>
+                    <div className="mt-1 text-[11px] text-slate-500">{relativeTime(n.at)}</div>
                   </div>
                   {/* 未读点：靠右，与头像同一条基线 */}
                   {!n.read && <span className="mt-2 h-2 w-2 flex-none rounded-full bg-rose-500" />}

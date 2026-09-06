@@ -16,6 +16,7 @@
 //   但 React 合成事件仍沿组件树冒泡到 FeedItem 的手势处理。
 // ★ 面板自带 err/note 显示（盖住谁就自带一份——别指望底下的错误条）。
 import { useState } from "react";
+import { showToast } from "../data/toast";
 import { takedownReasonText } from "../api/admin";
 import { createPortal } from "react-dom";
 import { type VideoItem, visibilityOf } from "../types";
@@ -129,7 +130,7 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
     setErr("");
     try {
       await copyText(url);
-      setNote("预览链接已复制，去贴给朋友吧");
+      showToast("预览链接已复制，去贴给朋友吧");
     } catch {
       // 复制被拒时把链接直接亮出来，用户还能长按选中——比一句"失败"有用
       setErr(`复制失败，手动复制：${url}`);

@@ -30,6 +30,9 @@ export interface PageHeaderProps {
   right?: ReactNode;
   /** 钉在顶上（长列表页）：带背景与下边线，横向自带 px-4 */
   sticky?: boolean;
+  /** 页面根已经带 `px-4` 时传它：顶栏用 -mx-4 顶到屏幕两边再自己 px-4 贴回来，不用改页面结构；
+   *  同时保留 mb-3（非 sticky 那档的默认间距），内容位置与改之前逐像素相同 */
+  inset?: boolean;
   /** 追加到 <header> 上。非 sticky 默认 `mb-3`（传了就整个替换） */
   className?: string;
   /** 标题样式覆盖（作品页那种"标题是内容不是页名"的用小一号） */
@@ -43,12 +46,13 @@ export default function PageHeader({
   backLabel,
   right,
   sticky = false,
+  inset = false,
   className,
   titleClassName = "text-lg font-bold text-slate-100",
 }: PageHeaderProps) {
-  const shell = sticky ? "sticky top-0 z-20 border-b border-slate-800 bg-ink/90 px-4 backdrop-blur" : "";
+  const shell = sticky ? `sticky top-0 z-20 border-b border-slate-700/60 bg-ink/90 px-4 backdrop-blur${inset ? " -mx-4" : ""}` : "";
   return (
-    <header className={`safe-top ${shell} ${className ?? (sticky ? "" : "mb-3")}`}>
+    <header className={`safe-top ${shell} ${className ?? (sticky && !inset ? "" : "mb-3")}`}>
       <div className="flex h-12 items-center gap-2">
         {/* ★ label 只在给了时才传：`label={undefined}` 会把 BackButton 自己的默认「返回」盖成空 */}
         {onBack && <BackButton size={22} {...(backLabel ? { label: backLabel } : {})} onClick={onBack} />}

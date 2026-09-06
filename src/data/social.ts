@@ -23,6 +23,7 @@
 // ★ 2026-08-11 从「账号名」改成了「账号 id」：名字是可改的，用户改完昵称，
 //   自己点过的赞会全部变成没点过（而且计数还留着，对不上）。迁移见 readySocial。
 import { idbGet, idbSet } from "./db";
+import { formatPlays } from "../types";
 import { currentUser, readyAccount, userIdOfName } from "./account";
 // ★ "这次会话在不在远端上"只有一处判断（铁律六 + CLAUDE.md 的弹幕那三条）。
 //   各模块各探一次会出现"视频退了本地库、热度还在打远端"这种半边天。
@@ -518,6 +519,5 @@ export function heatOf(kind: SocialKind, id: string): HeatReading {
 
 /** 展示口径：热度是给人看的，小数没有意义；上万折成「x.x 万」与其它计数一致 */
 export function formatHeat(heat: number): string {
-  const n = Math.round(heat);
-  return n >= 10000 ? (n / 10000).toFixed(1) + "万" : String(n);
+  return formatPlays(Math.round(heat));
 }

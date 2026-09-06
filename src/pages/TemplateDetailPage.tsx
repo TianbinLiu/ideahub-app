@@ -515,7 +515,7 @@ export default function TemplateDetailPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader
+      <PageHeader sticky inset
         onBack={back}
         title="模板详情"
         right={

@@ -2,6 +2,7 @@
 // （铸卡时的完整提示词，具体到可复刻卡面）+ 3D 建模全息预览（有 modelUrl 的角色卡）。
 // 创意工坊/我的/卡组详情点卡进来。
 import { useEffect, useRef, useMemo, useState, useSyncExternalStore } from "react";
+import { showToast } from "../data/toast";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import DeleteCardDialog from "../components/DeleteCardDialog";
@@ -481,7 +482,6 @@ export default function CardDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const loc = useLocation();
-  const [copied, setCopied] = useState(false);
   useCountView("card", id);
   // 优先账号库；不在库里（比如看别人作品的卡组）用路由 state 里带来的卡
   // ★ 依赖里带上 accountV：账号库是原地改对象的单例，不把版本号写进依赖，
@@ -585,7 +585,7 @@ export default function CardDetailPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader onBack={() => nav(-1)} title="卡片详情" />
+      <PageHeader sticky inset onBack={() => nav(-1)} title="卡片详情" />
 
       {/* 大卡面 / 全息建模 双栏 */}
       <div className="mb-4 flex justify-center gap-3">
@@ -675,14 +675,11 @@ export default function CardDetailPage() {
           <span className="mb-1.5 text-xs font-semibold text-slate-300">🧬 {CARD_INFO_LABELS[card.type]}</span>
           <button
             onClick={() => {
-              void navigator.clipboard?.writeText(cardInfo).then(() => {
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              });
+              void navigator.clipboard?.writeText(cardInfo).then(() => showToast("已复制"));
             }}
             className="rounded-full bg-slate-700/70 px-2.5 py-1 text-[11px] text-slate-200"
           >
-            {copied ? "已复制 ✓" : "复制"}
+            复制
           </button>
         </div>
         <p className="whitespace-pre-wrap break-all text-xs leading-relaxed text-slate-400">{cardInfo}</p>

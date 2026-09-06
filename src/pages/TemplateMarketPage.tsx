@@ -20,7 +20,7 @@ export default function TemplateMarketPage() {
   const back = useBackOr("/");
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader onBack={back} title="视频模板" subtitle="套上模板，一句话出片" right={<HelpButton tour="templates" />} />
+      <PageHeader sticky inset onBack={back} title="视频模板" subtitle="套上模板，一句话出片" right={<HelpButton tour="templates" />} />
       {/* 「模板市场/我的模板」那层页签进地址（?shelf=），去详情再返回还在原页签 */}
       <TemplateShelf queryKey="shelf" />
     </div>

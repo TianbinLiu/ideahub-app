@@ -22,7 +22,8 @@
 //    就没人读得到，而它说的正是"你的图可能会没"。
 // ④ **图太大 / 比例超 3:1 怎么办？** 走 `data/cardViews.prepareCardImage`（与详情页
 //    「+ 图位」同一份实现）：越界居中裁并把这件事**说出来**，超 5MB 直接报错。
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useState, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import ConfirmDialog from "../components/ConfirmDialog";
 import Spinner from "../components/Spinner";
 import PageHeader from "../components/PageHeader";
 import { createPortal } from "react-dom";
@@ -112,6 +113,7 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 
 export default function CustomCardPage() {
   const nav = useNavigate();
+  const [resetAsk, setResetAsk] = useState(false);
   const remote = isRemoteMode();
 
   const [type, setType] = useDraftField("type");
@@ -753,7 +755,7 @@ export default function CustomCardPage() {
     <div className="min-h-full px-4 pb-10">
       {/* ★ 标题跟着走的那条路改口：真人路上照片是**授权取回来的**，挂着「自己传图」
             正是主人两次引用的那句话（"为什么说没取到授权照片还需要再上传"）。 */}
-      <PageHeader
+      <PageHeader sticky inset
         onBack={() => nav(-1)}
         title={realPerson || pendingAsset ? "用真人素材做卡片" : "自己传图做卡片"}
         right={
@@ -775,13 +777,26 @@ export default function CustomCardPage() {
             {/* 表单活在 store 里（退出再进来原样还在），所以要给一条"清空重来"的路；有活在跑时不给 */}
             {dirty && !working && (
               <button
-                onClick={() => {
-                  if (window.confirm("清空这一页重新开始？已选的图和填的内容都会丢掉。")) resetCardDraft();
-                }}
+                onClick={() => setResetAsk(true)}
                 className="flex-none text-[10px] text-slate-500 underline underline-offset-2"
               >
                 重新开始
               </button>
+            )}
+            {/* 确认卡走全 app 同一份（原来是 window.confirm：系统弹窗，样子与别处都不一样） */}
+            {resetAsk && (
+              <ConfirmDialog
+                title="清空这一页重新开始？"
+                confirmLabel="清空"
+                danger
+                onConfirm={() => {
+                  resetCardDraft();
+                  setResetAsk(false);
+                }}
+                onClose={() => setResetAsk(false)}
+              >
+                已选的图和填的内容都会丢掉。
+              </ConfirmDialog>
             )}
           </>
         }

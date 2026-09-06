@@ -80,7 +80,7 @@ export default function SettingsBlockedPage() {
           当前是本地模式（没有连服务器），黑名单是账号级的功能——接上服务器之后才会有。
         </p>
       ) : loading ? (
-        <p className="text-xs text-slate-500">正在取名单…</p>
+        <EmptyState loading text="正在取名单…" />
       ) : list === null ? (
         // ① 没问到 —— 与"一个都没有"分开说，并给一条真能走的路
         <EmptyState

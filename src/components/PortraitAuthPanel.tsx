@@ -20,6 +20,7 @@
 //   · 自动那一发**不自动绑**：宿主「取消绑定」之后面板会重新挂载，自动绑回去等于取消键失灵。
 //     只有用户自己按「查授权状态」（刚扫完码那一刻）且正好一份可用时才顺手接上（老行为）。
 import { useEffect, useState } from "react";
+import { showToast } from "../data/toast";
 import {
   assetUsable,
   createPortraitInvite,
@@ -209,7 +210,7 @@ export default function PortraitAuthPanel({
           <p className="mb-1.5 break-all rounded bg-ink/60 px-2 py-1 font-mono text-[9px] text-slate-400">{invite.url}</p>
           <div className="flex gap-2">
             <button
-              onClick={() => void navigator.clipboard?.writeText(invite.url).then(() => setMsg("链接已复制，可以发给本人"))}
+              onClick={() => void navigator.clipboard?.writeText(invite.url).then(() => showToast("链接已复制，可以发给本人"))}
               className="flex-1 rounded-full bg-brand py-1.5 text-[11px] font-bold text-ink"
             >
               复制链接

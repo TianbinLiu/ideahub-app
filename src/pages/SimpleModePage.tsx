@@ -101,7 +101,7 @@ export default function SimpleModePage() {
       {/* 顶栏：只有返回 + 第几步。简约不需要存草稿/完成视频那一排。
           ★ 走 PageHeader（2026-09-05 主人截图：这一页此前没留状态栏的位置，返回键压在时间上、
             「第 1/3 步」压在电量图标上 —— 全 app 唯一一页顶栏没 safe-top 的） */}
-      <PageHeader
+      <PageHeader sticky inset
         className="mb-4"
         onBack={() => (step === "start" ? navigate("/create") : setStep(step === "go" ? "fill" : "start"))}
         title="写一句话出片"

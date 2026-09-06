@@ -25,7 +25,8 @@
 // 版式抄 TikTok 那套竖排居中：头像 → @账号 → 三连统计 → 动作按钮 → 简介 →
 // 图标页签 → 3 列贴边栅格。旧版是左对齐的资料卡 + 文字页签，与首页的
 // 短视频形态完全不搭，而且首页压根没有入口能走到"别人"的主页。
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { showToast } from "../data/toast";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { takedownReasonText } from "../api/admin";
@@ -170,8 +171,6 @@ export default function ProfilePage() {
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
   const [followListOpen, setFollowListOpen] = useState(false);
-  const [toast, setToast] = useState("");
-  const toastTimer = useRef<number | undefined>(undefined);
 
   // /u/<我自己>、/user/<我自己的 id> 也走「我的」那套：同一个人不该因为从哪个入口
   // 进来就少半页功能。未登录时一律按"别人"处理，否则会把陌生人的主页顶成登录墙。
@@ -202,13 +201,11 @@ export default function ProfilePage() {
    *  没有就整行不画（画 0 或画空是编的，铁律八），所以别给默认值 */
   const uidNum = (self ? user?.uid : stranger.profile?.uid) ?? null;
   /** UID 已复制的短暂反馈（1.5s 后自己退回；就算中途切去别人主页，1.5s 也把它冲干净了） */
-  const [uidCopied, setUidCopied] = useState(false);
   const copyUid = async () => {
     if (uidNum == null) return;
     try {
       await copyText(String(uidNum));
-      setUidCopied(true);
-      window.setTimeout(() => setUidCopied(false), 1500);
+      showToast("UID 已复制");
     } catch {
       /* 剪贴板都失败的话数字就在屏幕上，用户能看着抄，不值得为此弹错 */
     }
@@ -368,7 +365,6 @@ export default function ProfilePage() {
   // ★ 依赖是**路由上的身份**而不是 display：display 会在资料到货那一拍从"链接里带的名字"
   //   变成"服务端的名字"，跟着它复位会把用户刚点开的页签又弹回去。
   useEffect(() => setTab("works"), [strangerId, routeAuthor, self]);
-  useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
   // 铃铛上的红点。★ 不做 setInterval 轮询：后台/最小化的 WebView 会把定时器节流到
   //   几乎不跑，轮询既不生效又白耗电。改成"每次进这一页 + 每次 App 恢复"各问一次，
@@ -405,10 +401,9 @@ export default function ProfilePage() {
   //   用户真正登录之后**再也不会自动看到**。登录墙挡得住 JSX，挡不住 hook。
   useAutoGuide("profile", self && !!user);
 
+  /** 轻提示走全 app 唯一那份（data/toast）；留这个短名字只为少改调用点 */
   function flash(msg: string) {
-    setToast(msg);
-    window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(""), 1800);
+    showToast(msg);
   }
 
   // ★ 会话还没水合完时**不要**摆"登录后可以…"那一屏：那句话是个结论（"你没登录"），
@@ -630,11 +625,7 @@ export default function ProfilePage() {
             className="mt-1 flex items-center gap-1.5 text-[11px] tabular-nums text-slate-600 active:opacity-60"
           >
             <span>UID {uidNum}</span>
-            {uidCopied ? (
-              <span className="text-emerald-500">已复制</span>
-            ) : (
-              <span className="text-slate-700">点按复制</span>
-            )}
+            <span className="text-slate-700">点按复制</span>
           </button>
         )}
 
@@ -1035,11 +1026,6 @@ export default function ProfilePage() {
       {walletOpen && <WalletSheet onClose={() => setWalletOpen(false)} />}
       {followListOpen && user && (
         <FollowingSheet names={user.following} videos={videos} onClose={() => setFollowListOpen(false)} />
-      )}
-      {toast && (
-        <div className="pointer-events-none fixed inset-x-0 z-50 flex justify-center" style={{ bottom: "calc(var(--tabbar-h) + 1rem)" }}>
-          <span className="rounded-full bg-black/80 px-4 py-2 text-xs text-white">{toast}</span>
-        </div>
       )}
     </div>
   );
@@ -1511,7 +1497,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
   if (!wallet)
     return (
       <Sheet onClose={onClose}>
-        <div className="py-10 text-center text-sm text-slate-500">正在读取余额…</div>
+        <EmptyState loading text="正在读取余额…" />
       </Sheet>
     );
   return (

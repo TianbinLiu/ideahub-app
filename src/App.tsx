@@ -6,6 +6,7 @@ import GuideGate from "./components/guide/GuideGate";
 import InfoDialog from "./components/InfoDialog";
 import { AGREEMENTS, recordTermsAccepted, termsAccepted, type AgreementId } from "./data/agreements";
 import GenerationPill from "./components/GenerationPill";
+import Toast from "./components/Toast";
 import AuthPending from "./components/AuthPending";
 import FeedPage from "./pages/FeedPage";
 import DiscoverPage from "./pages/DiscoverPage";
@@ -243,6 +244,7 @@ export default function App() {
       {/* 出片状态胶囊：生成期间人不在 /flow 时显示进度，出完显示"回去继续"的通知。
           与 GuideGate 同一条理由挂在 Routes 外面（要盖住任何一页，不随路由卸载） */}
       <GenerationPill />
+      <Toast />
       <Routes>
       <Route element={<TabLayout />}>
         <Route path="/" element={<FeedPage />} />
