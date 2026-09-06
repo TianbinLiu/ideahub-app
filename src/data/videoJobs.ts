@@ -232,6 +232,30 @@ export function dismissVideoJob(job: VideoJob): void {
   dropVideoJob(job.taskId);
 }
 
+/**
+ * 这一会话里**正在等结果**的那几发（只在内存里，不落盘）。
+ *
+ * ★★ 为什么要有它（2026-09-05 主人真机点名"每次生成视频，出片之前都会弹一个黄色提示
+ *   『第 1 段有一发成片还没取回』"）：凭据是**受理即落盘**的（理由见 rememberVideoJob），
+ *   而取回卡读的是"本机所有凭据" —— 于是正在等的那一发从受理那一刻起就被当成"没接到"
+ *   摆了出来，取回键还灰着（busy）。用户读到的是"刚下单就丢了一发"。
+ * ★ **不落盘是设计**：进程一没，"正在等"就不成立了，那正是取回入口该出现的时刻
+ *   （冷启动回来 waiting 为空，凭据照常摆出来）。
+ * ★ 只是**显示门**：pendingVideoJobs / takeJob 那些读的仍是全部凭据，判据一处没变。
+ */
+const waiting = new Set<string>();
+
+export function setVideoJobWaiting(taskId: string, on: boolean): void {
+  if (on === waiting.has(taskId)) return;
+  if (on) waiting.add(taskId);
+  else waiting.delete(taskId);
+  emit();
+}
+
+export function videoJobWaiting(taskId: string): boolean {
+  return waiting.has(taskId);
+}
+
 /** 本机所有待取回的出片（新的在前）。★ 过期的**照样返回** —— 那句"钱无法挽回"要给人看见 */
 export function pendingVideoJobs(): VideoJob[] {
   const live = jobs.filter((j) => !prunable(j));
@@ -242,7 +266,12 @@ export function pendingVideoJobs(): VideoJob[] {
   return [...live].sort((a, b) => b.createdAt - a.createdAt);
 }
 
+/** 该**摆出来让人取回**的那几发 = 全部凭据里去掉这一会话正在等的（取回卡列表读这个） */
+export function recoverableVideoJobs(): VideoJob[] {
+  return pendingVideoJobs().filter((j) => !waiting.has(j.taskId));
+}
+
 /** 这一段的这一套方案有没有待取回的那一发（节点卡上的取回入口据它显示） */
 export function videoJobOf(nodeId: string, proposalId: string): VideoJob | null {
-  return pendingVideoJobs().find((j) => j.nodeId === nodeId && j.proposalId === proposalId) ?? null;
+  return recoverableVideoJobs().find((j) => j.nodeId === nodeId && j.proposalId === proposalId) ?? null;
 }

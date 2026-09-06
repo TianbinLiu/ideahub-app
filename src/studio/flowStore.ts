@@ -38,7 +38,7 @@ import {
 import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
-import { dropVideoJob, rememberVideoJob, type VideoJob } from "../data/videoJobs";
+import { dropVideoJob, rememberVideoJob, setVideoJobWaiting, type VideoJob } from "../data/videoJobs";
 import {
   BLOCKOUT_MAX_ROLES,
   markDescOfLabel,
@@ -2356,6 +2356,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
             cost,
             createdAt: Date.now(),
           });
+          // ★ 这一炉正在等它：取回卡先别摆（显示门在 data/videoJobs.setVideoJobWaiting，
+          //   任何结局都在下面的 finally 里解除——冷启动回来 waiting 天然为空，凭据照常摆出来）
+          setVideoJobWaiting(id2, true);
         },
       );
       log.end();
@@ -2462,6 +2465,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
           : {},
       );
       return false;
+    } finally {
+      // ★ 不论成了、废了、还是没接到：这一会话"正在等这一发"到此为止。
+      //   凭据本身留不留由上面各支路决定（成了/废了 drop，没接到留着），这里只管显示门
+      if (taskId) setVideoJobWaiting(taskId, false);
     }
   },
 
