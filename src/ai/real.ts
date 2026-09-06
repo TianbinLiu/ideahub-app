@@ -60,6 +60,7 @@ import {
   generate3dModel,
   generateImage,
   generateVideo,
+  isArkAssetUrl,
 } from "./arkClient";
 
 /** 方舟返回的图片 URL 有时效（约 24h），落地成 dataURL 再入库（草稿存 localStorage） */
@@ -1803,7 +1804,7 @@ export async function regenSegment(
   },
   extraReq: string,
   onProgress?: (status: string) => void,
-): Promise<{ url: string; lastFrame?: string; poster?: string }> {
+): Promise<{ url: string; lastFrame?: string; poster?: string; durationSec?: number }> {
   const tier = tierOf(seg.videoTier);
   const prompt = `${seg.plot.slice(0, 320)}。修改要求（必须满足）：${extraReq.slice(0, 160)}`;
   const url = await generateVideo(prompt, await shrinkFrameFor720p(seg.firstFrame), {
@@ -1817,13 +1818,18 @@ export async function regenSegment(
   });
   let lastFrame: string | undefined;
   let poster: string | undefined;
+  let durationSec: number | undefined;
   try {
     onProgress?.("捕获真实尾帧…");
-    ({ tail: lastFrame, head: poster } = await captureVideoHeadTail(url));
+    const cap = await captureVideoHeadTail(url);
+    lastFrame = cap.tail;
+    poster = cap.head;
+    durationSec = cap.durationSec;
   } catch (e) {
     console.warn("[ai] 重生成段尾帧捕获失败:", e);
+    onProgress?.(captureIssueLine(e));
   }
-  return { url, lastFrame, poster };
+  return { url, lastFrame, poster, durationSec };
 }
 
 /** 封面工坊：按用户要求出封面。refDataUrl 给了就是"改当前封面"（Seedream 图生图，
@@ -1857,6 +1863,8 @@ export interface SegmentResult {
   lastFrame?: string;
   /** 成片第一帧（与 lastFrame 同一次解码截的），只管显示；截不到就缺省（见 types.Proposal.poster） */
   poster?: string;
+  /** 成片实测时长（与尾帧同一次解码读的）；截不到就缺省（见 types.Proposal.realDurationSec） */
+  durationSec?: number;
   /**
    * 这一段**没接到结果、但任务还在方舟那边跑**时的任务号（见 arkClient.ArkTaskUnknown）。
    *
@@ -1928,55 +1936,85 @@ function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
 async function captureVideoHeadTail(
   videoUrl: string,
 ): Promise<{ head: string; tail: string; durationSec: number; width: number; height: number }> {
+  // ★★ 有 CORS 的地址（转存后的 Cloudinary）**直连** <video crossOrigin>：靠 Range 只拉两帧附近
+  //   的数据，不必先把整条几十 MB 的成片 fetch 成 blob（20 秒 1080p 的片子在手机网上那条路
+  //   很容易撞 120s 超时，画布上就是「成片预览没截到」——2026-09-05 主人真机）。
+  //   直连不成（对端不发 CORS 头之类）再退回下载后截。方舟直链没有 CORS，仍走代理 fetch→blob。
+  if (!isArkAssetUrl(videoUrl)) {
+    try {
+      return await grabHeadTail(videoUrl, true);
+    } catch (e) {
+      console.warn("[ai] 直连截帧没成，改为下载后截:", e);
+    }
+  }
   const res = await fetchArkAsset(videoUrl, 120_000);
   if (!res.ok) throw new Error(`取视频失败 ${res.status}`);
   const blobUrl = URL.createObjectURL(await res.blob());
   try {
-    const video = document.createElement("video");
-    video.muted = true;
-    video.preload = "auto";
-    video.src = blobUrl;
-    // ★ 每一步都必须带超时。浏览器把页面切到后台时会挂起媒体元素的加载与解码，
-    //   loadedmetadata / seeked 都不会再来——而出片要跑几十秒到几分钟，用户切出去
-    //   看别的几乎是必然。以前 metadata 这一步是**无超时**的 await，一旦切后台就永久
-    //   卡在「捕获本段真实尾帧…」，flowStore 的 busy 永远为 true、整页按钮全禁用，
-    //   两个 store 又都没有持久化，只能刷新重来（草稿全丢）。
-    //   超时不是灾难：调用方 catch 住就用设定尾帧顶上，成片本身不受影响。
-    await withTimeout(
-      new Promise<void>((resolve, reject) => {
-        video.onloadedmetadata = () => resolve();
-        video.onerror = () => reject(new Error("视频元数据加载失败"));
-      }),
-      15_000,
-      "视频元数据加载超时",
-    );
-    const seekTo = async (t: number) => {
-      video.currentTime = t;
-      await withTimeout(
-        new Promise<void>((resolve, reject) => {
-          video.onseeked = () => resolve();
-          video.onerror = () => reject(new Error("视频 seek 失败"));
-        }),
-        15_000,
-        "视频 seek 超时",
-      );
-    };
-    const grab = () => {
-      const c = document.createElement("canvas");
-      c.width = video.videoWidth || 1280;
-      c.height = video.videoHeight || 720;
-      c.getContext("2d")!.drawImage(video, 0, 0, c.width, c.height);
-      return c.toDataURL("image/jpeg", 0.9);
-    };
-    await seekTo(Math.min(0.04, Math.max(0, video.duration - 0.05)));
-    const head = grab();
-    await seekTo(Math.max(0, video.duration - 0.05));
-    const tail = grab();
-    // 时长与尺寸顺手带出：取回一发原节点已不在的成片时，新开的那一段要靠它们定时长与画幅
-    return { head, tail, durationSec: video.duration, width: video.videoWidth, height: video.videoHeight };
+    return await grabHeadTail(blobUrl, false);
   } finally {
     URL.revokeObjectURL(blobUrl);
   }
+}
+
+/** captureVideoHeadTail 的解码那一半：一个 <video> 上 seek 两回。★ 每一步都带超时（理由见调用方） */
+async function grabHeadTail(
+  src: string,
+  crossOrigin: boolean,
+): Promise<{ head: string; tail: string; durationSec: number; width: number; height: number }> {
+  const video = document.createElement("video");
+  if (crossOrigin) video.crossOrigin = "anonymous";
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "auto";
+  video.src = src;
+  // ★ 每一步都必须带超时。浏览器把页面切到后台时会挂起媒体元素的加载与解码，
+  //   loadedmetadata / seeked 都不会再来——而出片要跑几十秒到几分钟，用户切出去
+  //   看别的几乎是必然。以前 metadata 这一步是**无超时**的 await，一旦切后台就永久
+  //   卡在「捕获本段真实尾帧…」，flowStore 的 busy 永远为 true、整页按钮全禁用，
+  //   两个 store 又都没有持久化，只能刷新重来（草稿全丢）。
+  //   超时不是灾难：调用方 catch 住就用设定尾帧顶上，成片本身不受影响。
+  await withTimeout(
+    new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error(`视频元数据加载失败（${video.error?.code ?? "?"}）`));
+    }),
+    15_000,
+    "视频元数据加载超时",
+  );
+  const seekTo = async (t: number) => {
+    video.currentTime = t;
+    await withTimeout(
+      new Promise<void>((resolve, reject) => {
+        video.onseeked = () => resolve();
+        video.onerror = () => reject(new Error("视频 seek 失败"));
+      }),
+      15_000,
+      "视频 seek 超时",
+    );
+  };
+  const grab = () => {
+    const c = document.createElement("canvas");
+    c.width = video.videoWidth || 1280;
+    c.height = video.videoHeight || 720;
+    c.getContext("2d")!.drawImage(video, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.9);
+  };
+  // ★ head 不截 0 秒整：部分编码的第一个关键帧 seek 到 0 时 seeked 会在画面就绪前到，
+  //   截出全黑；往后挪 40ms 一律稳（与 utils/videoFrames 取"结尾前一瞬"是同一种保守）。
+  await seekTo(Math.min(0.04, Math.max(0, video.duration - 0.05)));
+  const head = grab();
+  await seekTo(Math.max(0, video.duration - 0.05));
+  const tail = grab();
+  const out = { head, tail, durationSec: video.duration, width: video.videoWidth, height: video.videoHeight };
+  video.src = "";
+  return out;
+}
+
+/** 截帧失败要上屏（进节点的步骤日志），别只 console.warn：release 包看不到控制台（2026-09-05 主人真机） */
+function captureIssueLine(e: unknown): string {
+  const m = e instanceof Error ? e.message : String(e);
+  return `预览帧没截到（${m.slice(0, 80)}）——成片本身没受影响，点开卡片可回看；下一段起拍退回设定尾帧`;
 }
 
 // 提示词上限本体在 types.ts（data 层叶子也要引，放这边会让 data → ai 成环）。
@@ -2088,12 +2126,14 @@ export async function composeSegments(
         res.url = url2;
         try {
           onProgress?.(i, segments.length, "捕获本段真实尾帧…");
-          const { head, tail } = await captureVideoHeadTail(url2);
-          res.lastFrame = tail;
-          res.poster = head;
-          carryTail = tail;
-        } catch {
-          // 与方舟路同款兜底：捕获失败不拖垮整段，下一段退回设定衔接
+          const cap = await captureVideoHeadTail(url2);
+          res.lastFrame = cap.tail;
+          res.poster = cap.head;
+          res.durationSec = cap.durationSec;
+          carryTail = cap.tail;
+        } catch (e2) {
+          // 与方舟路同款兜底：捕获失败不拖垮整段，下一段退回设定衔接 —— 但原因要进步骤日志
+          onProgress?.(i, segments.length, captureIssueLine(e2));
         }
         out.push(res);
         continue;
@@ -2125,12 +2165,14 @@ export async function composeSegments(
       // 捕获真实尾帧：回填节点/草稿（卡面显示真实结尾），并作为下一段的起拍帧
       try {
         onProgress?.(i, segments.length, "捕获本段真实尾帧…");
-        const { head, tail } = await captureVideoHeadTail(url);
-        res.lastFrame = tail;
-        res.poster = head;
-        carryTail = tail;
+        const cap = await captureVideoHeadTail(url);
+        res.lastFrame = cap.tail;
+        res.poster = cap.head;
+        res.durationSec = cap.durationSec;
+        carryTail = cap.tail;
       } catch (e2) {
         console.warn(`[ai] 第 ${i + 1} 段真实尾帧捕获失败（下一段沿用设定帧）:`, e2);
+        onProgress?.(i, segments.length, captureIssueLine(e2));
       }
     } catch (e) {
       res.error = e instanceof Error ? e.message : String(e);

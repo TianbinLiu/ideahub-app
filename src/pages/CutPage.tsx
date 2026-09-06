@@ -59,6 +59,11 @@ function clipDur(c: Clip): number {
   return Math.max(0.1, c.end - c.start);
 }
 
+/** 一段该铺多长：**实测**时长优先（见 types.Proposal.realDurationSec），没有才按申报值 */
+function segLen(sg: VideoSegment): number {
+  return sg.realDurationSec ?? sg.durationSec;
+}
+
 export default function CutPage() {
   const navigate = useNavigate();
   const draft = useStudio((s) => s.draft);
@@ -119,6 +124,25 @@ export default function CutPage() {
   const [srcErr, setSrcErr] = useState<Record<number, string>>({});
   /** 直连播放器自己报的错（地址过期 / 解码失败），同样上屏 */
   const [playErr, setPlayErr] = useState("");
+  /**
+   * 各段**实测**时长（秒）。★★ 申报时长（durationSec）只是下单时写的数：白模复刻 / 参考视频直出
+   * 的成片长度跟着参考走（20 秒的模板出 20 秒的片），可片段出点一直按申报值铺 —— 2026-09-05 主人真机：
+   * 20 秒的片子进剪辑页只剩 5 秒，合并也只录了 5 秒。出片时截帧那一步会把实测时长记进
+   * segment.realDurationSec；没记上的（老草稿 / 截帧失败）在这里从播放器与截帧流的 metadata 里补。
+   */
+  const [realDur, setRealDur] = useState<Record<number, number>>({});
+  const probedRef = useRef(new Set<number>());
+  const lenOf = (i: number): number => realDur[i] ?? (segs[i] ? segLen(segs[i]) : 0);
+  /** 学到一段的真实时长：没裁过（出点还停在申报值上）的片段跟着真实时长走 */
+  function learnRealDur(i: number, real: number) {
+    if (!Number.isFinite(real) || real <= 0) return;
+    const declared = lenOf(i);
+    if (Math.abs(real - declared) < 0.25) return;
+    setRealDur((m) => ({ ...m, [i]: real }));
+    setClips((cs) =>
+      cs.map((c) => (c.segIndex === i && c.start <= 0.01 && Math.abs(c.end - declared) < 0.01 ? { ...c, end: real } : c)),
+    );
+  }
   const aliveRef = useRef(true);
   useEffect(() => {
     aliveRef.current = true; // StrictMode 下 mount→unmount→mount，别让第一次 cleanup 把它永久关掉
@@ -173,10 +197,34 @@ export default function CutPage() {
       });
   }
 
+  // 截帧流一到就读一次 metadata 把实测时长学进来（播放器只在轮到那一段时才知道，而合并
+  // 可能在那之前就开始）。★ 带超时、读完就释放；失败无所谓，播放器 / 合并那两处还会再学
+  useEffect(() => {
+    for (const [k, src] of Object.entries(srcMap)) {
+      const i = Number(k);
+      if (probedRef.current.has(i)) continue;
+      probedRef.current.add(i);
+      const v = document.createElement("video");
+      v.muted = true;
+      v.preload = "metadata";
+      const t = window.setTimeout(() => {
+        v.src = "";
+      }, 15_000);
+      v.onloadedmetadata = () => {
+        window.clearTimeout(t);
+        if (aliveRef.current) learnRealDur(i, v.duration);
+        v.src = "";
+      };
+      v.onerror = () => window.clearTimeout(t);
+      v.src = src;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [srcMap]);
+
   // 初始化片段 + 后台预取各段的截帧流（播放不等它，见 loadCaptureSrc 的 ★★）
   useEffect(() => {
     if (!draft) return;
-    setClips(draft.segments.map((sg, i) => ({ id: uid("clip"), segIndex: i, start: 0, end: sg.durationSec })));
+    setClips(draft.segments.map((sg, i) => ({ id: uid("clip"), segIndex: i, start: 0, end: segLen(sg) })));
     draft.segments.forEach((sg, i) => {
       if (sg.videoUrl) loadCaptureSrc(i, sg.videoUrl);
     });
@@ -413,7 +461,7 @@ export default function CutPage() {
       return;
     }
     setErr("");
-    setClips((cs) => cs.map((c) => (c.id === target.id ? { ...c, start: 0, end: seg.durationSec } : c)));
+    setClips((cs) => cs.map((c) => (c.id === target.id ? { ...c, start: 0, end: lenOf(target.segIndex) } : c)));
   }
 
   function removeClip(id: string) {
@@ -492,7 +540,7 @@ export default function CutPage() {
       for (const [segIndex, list] of bySeg) {
         n++;
         const seg = { ...nextSegs[segIndex] };
-        const half = seg.durationSec / 2;
+        const half = lenOf(segIndex) / 2;
         // 逐个标注改帧：前半段的圈选改首帧、后半段的改尾帧（Seedance 只收首尾帧），
         // 同一帧多个标注串行叠加（上一次的修改结果作为下一次的底图）
         for (let k = 0; k < list.length; k++) {
@@ -686,6 +734,12 @@ export default function CutPage() {
             window.setTimeout(() => reject(new Error(`片段 ${i + 1} 载入超时（切到后台时视频会停止解码，回到这一页再试）`)), 60_000);
             v.load();
           });
+          // ★ 申报时长与成片对不上时，没裁过的片段按成片**真实**长度录（见 learnRealDur 的 ★★）：
+          //   20 秒的片子按申报的 5 秒录，成片里就只剩 5 秒
+          const real = v.duration;
+          const untrimmed = clip.start <= 0.01 && Math.abs(clip.end - segLen(seg)) < 0.01;
+          const endAt = untrimmed && Number.isFinite(real) && real > clip.end + 0.25 ? real : clip.end;
+          if (Number.isFinite(real)) learnRealDur(clip.segIndex, real);
           v.currentTime = clip.start;
           await new Promise<void>((resolve, reject) => {
             v.onseeked = () => resolve();
@@ -695,7 +749,7 @@ export default function CutPage() {
           await new Promise<void>((resolve) => {
             const draw = () => {
               // ★ 取消要在**循环里**判：rAF 跑着的时候没有别的地方能打断它
-              if (cancelRef.current || v.ended || v.currentTime >= clip.end) {
+              if (cancelRef.current || v.ended || v.currentTime >= endAt) {
                 v.pause();
                 resolve();
                 return;
@@ -894,6 +948,8 @@ export default function CutPage() {
                 }}
                 onLoadedMetadata={(e) => {
                   const v = e.currentTarget;
+                  // 真实时长与申报值对不上：没裁过的片段跟着真实时长走（见 learnRealDur 的 ★★）
+                  if (active) learnRealDur(active.segIndex, v.duration);
                   v.currentTime = pendingSeek.current ?? active!.start;
                   pendingSeek.current = null;
                   if (playing) void v.play().catch(() => {});
@@ -1116,7 +1172,7 @@ export default function CutPage() {
                       <span className="absolute left-1 top-0.5 rounded bg-black/65 px-1 text-[9px] text-slate-200">
                         段{c.segIndex + 1} · {clipDur(c).toFixed(1)}s
                         {/* ★ 裁过要看得出来：否则"这段怎么短了"只能靠回忆，而裁剪是可还原的 */}
-                        {(c.start > 0.01 || c.end < seg.durationSec - 0.01) && <span className="ml-0.5">✂</span>}
+                        {(c.start > 0.01 || c.end < lenOf(c.segIndex) - 0.01) && <span className="ml-0.5">✂</span>}
                       </span>
                       {nAnn > 0 && (
                         <span className="absolute right-1 top-0.5 rounded-full bg-rose-500/90 px-1 text-[9px] font-bold text-white">
@@ -1184,7 +1240,7 @@ export default function CutPage() {
                   //   照这个表达式判会把分割也标成裁剪、并摆出一颗按下去必被拒的「还原整段」。
                   const hasSibling = !!t && view.some((c) => c.id !== t.id && c.segIndex === t.segIndex);
                   const trimmed =
-                    !!t && !!seg && !hasSibling && (t.start > 0.01 || t.end < seg.durationSec - 0.01);
+                    !!t && !!seg && !hasSibling && (t.start > 0.01 || t.end < lenOf(t.segIndex) - 0.01);
                   return trimmed ? (
                     <button
                       onClick={resetTrim}
