@@ -174,7 +174,7 @@ export default function SupportModelsPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset className="mb-2" onBack={() => navigate(-1)} title="数字人形象" />
+      <PageHeader sticky inset onBack={() => navigate(-1)} title="数字人形象" />
       <p className="mb-3 text-[11px] leading-relaxed text-slate-500">给客服页和官网首页的看板娘换一套 Live2D 形象，两边共用同一份设置。</p>
 
       <div className="mb-3 flex gap-2">

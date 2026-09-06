@@ -30,7 +30,7 @@ export default function SettingsDeactivatePage() {
     return (
       <div className="min-h-full px-4 pb-10">
         <Header onBack={() => navigate(-1)} />
-        <p className="mt-6 rounded-xl border border-slate-700 bg-panel p-4 text-sm leading-relaxed text-slate-300">
+        <p className="rounded-xl border border-slate-700 bg-panel p-4 text-sm leading-relaxed text-slate-300">
           当前是本地账号：没有服务器，也就没有可注销的云端账号。
           你的数据都在这台设备上——清掉 App 数据（或卸载）即等同于注销。
         </p>

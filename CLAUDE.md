@@ -321,6 +321,9 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - **网格间距**：三列卡片网格 `gap-2.5`，两列 `gap-3`；搜索框里的放大镜图标 `size={16}`。
 - **会滚动的页一律 `<PageHeader sticky>`**（第七轮）：页面根已经是 `min-h-full px-4 pb-10` 的传 `sticky inset`
   （顶栏自己 -mx-4 顶满、间距不变），根没有 px 的传 `sticky`。收之前 6 页钉、16 页不钉，同一组设置页都不一样。
+  **顶栏到第一块内容一律 12px**（PageHeader 自己的 `mb-3`）：别再给它传 `className="mb-N"`（第十五轮量出来
+  草稿箱 4、市场页 8、设置子页 16、设置页 20、编辑资料与注销页 24，一页一个数），第一块也别再自带 `mt-*`。
+  验法：逐路由量 `header` 的 bottom 到下一个兄弟元素 top 的差，都该是 12。
 - **轻提示只有一份 `data/toast.showToast()` + `components/Toast`**（挂在 App 根）。「已复制」这类回执一律走它，
   别再把按钮文字换成「已复制 ✓」或在抽屉里写一行 note。⚠ `window.confirm` / `alert` 一个都不许用：确认走
   `ConfirmDialog`，回执走 toast。

@@ -195,7 +195,7 @@ export default function SupportPersonasPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset className="mb-2" onBack={() => navigate(-1)} title="数字人人格" />
+      <PageHeader sticky inset onBack={() => navigate(-1)} title="数字人人格" />
       <p className="mb-3 text-[11px] leading-relaxed text-slate-500">换一种说话风格，客服页与官网首页共用同一份设置；人格自带嗓子的话声音也会跟着换。</p>
 
       {/* 当前人格 + 恢复默认：读不到设置就只报错，不摆一个不知道恢复成什么的按钮 */}
