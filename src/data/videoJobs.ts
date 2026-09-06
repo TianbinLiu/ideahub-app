@@ -37,6 +37,7 @@
  *   看起来只该改一处，而实际上要改两处。
  */
 import type { VideoAspect } from "../types";
+import { API_BASE, apiGet, getToken } from "../api/client";
 
 export const VIDEO_JOB_TTL_MS = 24 * 3600_000;
 
@@ -105,6 +106,40 @@ export interface VideoJob {
 }
 
 const KEY = "ideahub-app.videoJobs.v1";
+/**
+ * 本机「已处理」名单：取回成功 / 正常收到结果 / 过期后点了「知道了」的任务 id。
+ * ★★ 服务端登记表（GET /api/ark/video-tasks）不知道客户端取没取回 —— 没有这份名单，每次冷启动都会把
+ *   已经落到节点上的那一发再补成一张「还没取回」的卡，用户点下去等于把同一段再放一遍。
+ *   72 小时后自动忘掉（服务端那份 48 小时就没了）。
+ */
+const TAKEN_KEY = "ideahub-app.videoJobs.taken.v1";
+const TAKEN_TTL_MS = 72 * 60 * 60 * 1000;
+let taken: Record<string, number> = loadTaken();
+
+function loadTaken(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(TAKEN_KEY);
+    const obj: unknown = raw ? JSON.parse(raw) : {};
+    if (!obj || typeof obj !== "object") return {};
+    const now = Date.now();
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      if (typeof v === "number" && now - v < TAKEN_TTL_MS) out[k] = v;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function markTaken(taskId: string): void {
+  taken[taskId] = Date.now();
+  try {
+    localStorage.setItem(TAKEN_KEY, JSON.stringify(taken));
+  } catch {
+    /* 同 persist：存不下就只活在内存里 */
+  }
+}
 
 let jobs: VideoJob[] = load();
 let version = 0;
@@ -225,6 +260,8 @@ export function rememberVideoJob(job: VideoJob): void {
  *   而销毁一条还能取回的凭据没有任何症状：界面上只剩「♻ 重新生成」，用户照付第二次。
  */
 export function dropVideoJob(taskId: string): void {
+  // 不管本机有没有这条凭据都记进已处理名单：正常收到结果那条路也走这里，而服务端登记表会再把它送回来
+  markTaken(taskId);
   const next = jobs.filter((j) => j.taskId !== taskId);
   if (next.length === jobs.length) return;
   jobs = next;
@@ -286,4 +323,76 @@ export function recoverableVideoJobs(): VideoJob[] {
 /** 这一段的这一套方案有没有待取回的那一发（节点卡上的取回入口据它显示） */
 export function videoJobOf(nodeId: string, proposalId: string): VideoJob | null {
   return recoverableVideoJobs().find((j) => j.nodeId === nodeId && j.proposalId === proposalId) ?? null;
+}
+
+// ── 服务端登记表 → 本机凭据 ────────────────────────────────────────────
+//
+// ★★ 为什么（2026-09-06 主人真机）：出片到一半 App 被重启（那次是我们出包装机），流水线是内存里的、凭据在
+//   localStorage 里还在 —— 用户按「取回」成功后凭据被销毁、成片落进内存里的新一段；紧接着 App **又**被重启一次，
+//   这一发就谁都找不回来了：钱在受理那一刻已经扣了、方舟侧好好存着 24 小时、App 里一颗按钮都没有。
+//   服务端从此在受理那一刻记一条（server ArkVideoTask，契约见 api-contract「视频任务登记与找回」），这里把
+//   本机不认识、也没处理过的任务补成凭据 —— 取回走的仍是同一条 takeJob（不计费、不重新下单）。
+// ★ 补来的凭据 nodeId / proposalId 为空：takeJob 见"原节点不在"就走 placeRescuedSegment 新开一段，正是要的。
+// ★ 一分钟内只问一次；离线模式（没配 API_BASE / 没登录）一个请求都不发。
+let lastImportAt = 0;
+
+interface ServerVideoTask {
+  taskId: string;
+  createdAt: string | number;
+  model?: string;
+  durationSec?: number;
+  ratio?: string;
+  prompt?: string;
+  r2v?: boolean;
+}
+
+function aspectOfRatio(ratio: string | undefined): VideoAspect | undefined {
+  const m = /^(\d+)\s*[:x×]\s*(\d+)$/.exec(String(ratio || "").trim());
+  if (!m) return undefined;
+  return Number(m[1]) >= Number(m[2]) ? "landscape" : "portrait";
+}
+
+/** 把服务端登记表里本机不认识、也没处理过的视频任务补成「待取回」凭据。回补了几条 */
+export async function importServerVideoJobs(): Promise<number> {
+  if (!API_BASE || !getToken()) return 0;
+  if (Date.now() - lastImportAt < 60_000) return 0;
+  lastImportAt = Date.now();
+  let tasks: ServerVideoTask[] = [];
+  try {
+    const data = await apiGet<{ tasks?: ServerVideoTask[] }>("/api/ark/video-tasks", { timeoutMs: 15_000 });
+    tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+  } catch {
+    return 0; // 老服务端（404）/ 弱网：下次再问，没有这张表也不影响本机凭据
+  }
+  let added = 0;
+  for (const t of tasks) {
+    if (!t?.taskId || typeof t.taskId !== "string") continue;
+    if (taken[t.taskId] || jobs.some((j) => j.taskId === t.taskId)) continue;
+    const createdAt = new Date(t.createdAt).getTime();
+    if (!Number.isFinite(createdAt)) continue;
+    const when = new Date(createdAt);
+    const hh = String(when.getHours()).padStart(2, "0");
+    const mm = String(when.getMinutes()).padStart(2, "0");
+    const job: VideoJob = {
+      provider: "ark",
+      taskId: t.taskId,
+      nodeId: "",
+      proposalId: "",
+      seg: 0,
+      label: `${hh}:${mm} 提交的那一发（服务器登记）${t.prompt ? " · " + t.prompt.slice(0, 24) : ""}`,
+      cost: 0, // 服务端受理那一刻已经扣过，取回不再花钱；本机镜像也不必再扣一次
+      ...(t.durationSec && Number.isFinite(t.durationSec) ? { durationSec: t.durationSec } : {}),
+      ...(aspectOfRatio(t.ratio) ? { aspect: aspectOfRatio(t.ratio) } : {}),
+      ...(t.prompt ? { plot: t.prompt } : {}),
+      createdAt,
+    };
+    if (prunable(job)) continue;
+    jobs = [...jobs, job];
+    added++;
+  }
+  if (added) {
+    persist();
+    emit();
+  }
+  return added;
 }
