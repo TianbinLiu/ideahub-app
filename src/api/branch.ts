@@ -142,6 +142,18 @@ export interface ApiCardView {
   note?: string;
 }
 
+/**
+ * 肖像授权绑定（方舟可信素材 id）—— 服务端 2026-09-05 起按卡存一份（BranchCard.portrait）。
+ * ★ **只在卡主自己的列表 / PATCH 回执里**，广场（/cards/shared、/cards/:id）与安装回执都不带：
+ *   它属于账号，不是卡的内容属性。app 侧库 data/cardAsset 是它的本机镜像，登录时以它为准。
+ */
+export interface ApiCardPortrait {
+  assetId: string;
+  scope?: "private" | "public";
+  note?: string;
+  boundAt?: string;
+}
+
 export interface ApiCard {
   _id?: string;
   /** 客户端生成的稳定 id（市场卡为 mkt_*），与本地 Card.id 一一对应 */
@@ -158,6 +170,8 @@ export interface ApiCard {
    *   controller 的 `toCardPayload`，以及这里。`deck` 字段当年就是这么丢的。
    */
   views?: ApiCardView[];
+  /** 肖像授权绑定。缺省 = 没绑过（读侧判否定）；只有卡主自己读得到，见 ApiCardPortrait */
+  portrait?: ApiCardPortrait;
   /** ⚠ 客户端发上去的种子值，**不是**热度。真热度看 stats.heat */
   hot?: number;
   tags?: string[];
@@ -652,6 +666,20 @@ export async function updateCardMeta(
   patch: { name?: string; summary?: string; tags?: string[] },
 ): Promise<ApiCard | null> {
   const res = await apiPatch<Record<string, unknown>>(`/api/branch/cards/${encodeURIComponent(cardId)}`, patch);
+  return pick<ApiCard>(res, ["card", "item", "data"]);
+}
+
+/**
+ * PATCH /api/branch/cards/:cardId —— 肖像授权绑定：对象 = 绑上，null = 解绑。
+ * 与 updateCardViews / updateCardMeta 是**同一个端点**（定向 $set，只动 portrait）。
+ * ★ 服务端对认不出的 assetId 回 400（形状同 data/cardAsset.normalizeAssetId）。
+ * ★ 别直接调：写入口只有 `data/account.bindCardAsset`（本机镜像 + 服务端两步各自回执）。
+ */
+export async function updateCardPortrait(
+  cardId: string,
+  portrait: { assetId: string; note?: string } | null,
+): Promise<ApiCard | null> {
+  const res = await apiPatch<Record<string, unknown>>(`/api/branch/cards/${encodeURIComponent(cardId)}`, { portrait });
   return pick<ApiCard>(res, ["card", "item", "data"]);
 }
 

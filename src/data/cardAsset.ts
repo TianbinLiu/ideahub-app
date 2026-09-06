@@ -12,7 +12,15 @@
 //      拿这个 id 只会收到 400 asset not found），存进卡里等于承诺了一件做不到的事；
 //   ③ 它背后是**某个真人的肖像授权**。授权给的是"这个账号"，不是"拿到这张卡的任何人"。
 //      让它随卡走，就是我们替被授权人做了一个他没同意的授权。
-//   ⇒ 代价是资产 ID 不跨设备、不随分享。这是**有意的**，与「真人卡不可分享」同一条产品决定。
+//   ⇒ 不随分享是**有意的**，与「真人卡不可分享」同一条产品决定。
+//
+// ★★ 但「不跨设备」不是（2026-09-05 主人真机：并排装了 debug 包再登录，卡从服务端回来了、
+//   绑定却没有 —— 屏幕上就是「退出再登录，授权就失效了」）。授权给的是**账号**，所以服务端
+//   按卡存一份（server BranchCard.portrait：只有卡主自己读得到，广场与安装都不带），
+//   这个侧库退成它的**本机镜像**：登录时 `adoptRemoteAssets` 以服务端那份为准装回来，
+//   本机独有的（离线绑的 / 老版本绑的）由 account.syncCardAssets 补传上去。
+//   ⇒ **写入口只有一处 `account.bindCardAsset`**（本机 + 服务端两步各自回执），
+//     这里的 saveAsset / removeAsset 是它的本机那一半，别在页面里直接调。
 //
 // ★ 读是同步的（渲染层每拍都问），全部数据靠模块加载时 hydrate 一次（同 cardVoice）。
 import { idbGet, idbSet } from "./db";
@@ -113,6 +121,25 @@ export function hasAsset(cardId: string | undefined): boolean {
  */
 const unpersisted = new Set<string>();
 
+/**
+ * 本机绑上了、**服务端还没收下**的那几张：卡 id → 原因（整句人话）。
+ * ★ 与 unpersisted 是两件事：那个说"重启就没"，这个说"换台设备就没"。后者不是丢 ——
+ *   下次登录 account.syncCardAssets 会把本机独有的补传，所以只要有人把话说出来（卡详情页）。
+ * 唯一写方：account.bindCardAsset / syncCardAssets。只在本次会话有效。
+ */
+const syncIssues = new Map<string, string>();
+
+export function setAssetSyncIssue(cardId: string, reason: string | null): void {
+  if (reason) syncIssues.set(cardId, reason);
+  else if (!syncIssues.delete(cardId)) return;
+  emit();
+}
+
+/** 这张卡的绑定服务端还没收下的原因；null = 收下了 / 没绑过 / 离线模式 */
+export function assetSyncIssue(cardId: string | undefined): string | null {
+  return cardId ? (syncIssues.get(cardId) ?? null) : null;
+}
+
 /** 这张卡的授权绑定**真的存住了吗**（false = 只在内存里，重启就没）。没绑过也回 false */
 export function assetPersisted(cardId: string | undefined): boolean {
   if (!cardId || !map[cardId]) return false;
@@ -141,14 +168,41 @@ export async function removeAsset(cardId: string): Promise<boolean> {
 }
 
 // 模块加载时 hydrate 一次（同 cardVoice）。失败就当没有 —— 侧库不该让工坊打不开。
-void (async () => {
+// ★ 与内存里已有的**合并**（内存优先）：hydrate 还没回来时就绑上的那一条不该被盘上那份盖掉。
+const hydrated: Promise<void> = (async () => {
   try {
     const saved = await idbGet<Record<string, CardAsset>>(KEY);
     if (saved && typeof saved === "object") {
-      map = saved;
+      map = { ...saved, ...map };
       emit();
     }
   } catch {
     /* 读不出来就当空的 */
   }
 })();
+
+/**
+ * 登录 / 冷启动时用服务端那份（BranchCard.portrait）对齐本机镜像 —— **服务端为准**。
+ * @param remote 卡 id → 绑定（服务端有的那些）
+ * @param ownedIds 这次从服务端拉回来的、我名下的全部卡 id
+ * @returns 本机有、服务端没有的那几张（**只限我名下的卡**）—— 调用方补传上去。
+ * ★ 只增不删：服务端没有 ≠ 用户在别处解绑了（app 至今没有解绑入口），更可能是老版本 /
+ *   离线时绑的还没上行 —— 删了就是把用户做过的授权丢掉。
+ * ★ 不在我名下的卡（别人的、已删的）原样留着不动：侧库只按 id 记，不认主人。
+ * ★ 等 hydrate 回来再算，否则"本机独有"会把盘上那些也算进去、白白补传一遍。
+ */
+export async function adoptRemoteAssets(remote: Record<string, CardAsset>, ownedIds: Iterable<string>): Promise<string[]> {
+  await hydrated;
+  const owned = new Set(ownedIds);
+  const localOnly = Object.keys(map).filter((id) => owned.has(id) && !remote[id]);
+  const changed = Object.keys(remote).some(
+    (id) => map[id]?.assetId !== remote[id].assetId || (map[id]?.note ?? "") !== (remote[id].note ?? ""),
+  );
+  if (changed) {
+    map = { ...map, ...remote };
+    for (const id of Object.keys(remote)) unpersisted.delete(id);
+    emit();
+    await idbSet(KEY, map);
+  }
+  return localOnly;
+}

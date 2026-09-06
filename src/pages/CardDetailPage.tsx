@@ -16,10 +16,10 @@ import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
-import { acquireCard, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, removeCard, shareCard, updateCardMeta } from "../data/account";
+import { acquireCard, bindCardAsset, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, removeCard, shareCard, updateCardMeta } from "../data/account";
 import { addCardView, removeCardView } from "../data/cardViews";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
-import { assetPersisted, assetsVersion, saveAsset, subscribeAssets } from "../data/cardAsset";
+import { assetPersisted, assetSyncIssue, assetsVersion, subscribeAssets } from "../data/cardAsset";
 import PortraitAuthPanel from "../components/PortraitAuthPanel";
 import { formatHeat, heatOf } from "../data/social";
 import {
@@ -173,7 +173,16 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
   // ★★ 判**落盘了吗**，不是"内存里有吗"（2026-09-01 复核抓到）：saveAsset 写内存那一拍就
   //   emit()，只问 assetOf 的话窄条在点下去那一瞬间就没了 —— 连同它下面那句错误提示，
   //   而提示里还写着「再点一次」，那时已经无处可点。落盘失败时窄条留住，这条路才是真的。
-  if (assetPersisted(card.id)) return null; // 绑上（且存住了）即消失（见顶注）
+  if (assetPersisted(card.id)) {
+    // 绑上（且存住了）即窄条消失（见顶注）——只剩一句可能要说的话：服务端还没收下。
+    // 绑定属于账号（server BranchCard.portrait），没上行 = 换台设备暂时看不到；下次登录会自动补传
+    const issue = assetSyncIssue(card.id);
+    return issue ? (
+      <p className="mb-4 rounded-xl border border-amber-400/40 bg-amber-400/5 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+        🪪 肖像授权已在本机接上，但还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。
+      </p>
+    ) : null;
+  }
   return (
     <div className="mb-4 rounded-xl border border-amber-400/40 bg-amber-400/5 p-3">
       <p className="mb-1.5 text-[11px] leading-relaxed text-amber-200/90">
@@ -186,9 +195,9 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
           // 静默失败的话用户以为绑好了，出片那一刻才发现还是拒。
           // ★ 判**返回值**不判 reject：saveAsset 底下的 idbSet 把异常吞了回 false，
           //   原来那条 `.catch` 一次都跑不到（2026-09-01 修 cardAsset 契约时一并改）。
-          void saveAsset(card.id, { assetId, scope: "private", note }).then(
-            (ok) =>
-              ok || setSaveErr("绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"),
+          //   服务端那半（换台设备看得到）由 bindCardAsset 记进侧库，上面 assetPersisted 那支把话说出来
+          void bindCardAsset(card.id, { assetId, scope: "private", note }).then(
+            (b) => b.stored || setSaveErr("绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"),
             () => setSaveErr("绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"),
           );
         }}
