@@ -865,7 +865,7 @@ function NodePanel({
           onClick={() => (tplMode ? setStripAsk(true) : custom ? setNodeCustom(node.id, false) : undefined)}
           disabled={locked || generating || busy || done}
           className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
-            !tplMode && !custom ? "bg-brand font-bold text-ink" : "text-slate-400"
+            !tplMode && !custom ? "bg-brand font-semibold text-ink" : "text-slate-400"
           }`}
         >
           🃏 自选卡片
@@ -875,7 +875,7 @@ function NodePanel({
           disabled={locked || generating || busy || done || flatTier}
           title={flatTier ? "真人档本来就是直出，不需要再切自定义" : undefined}
           className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
-            custom ? "bg-brand font-bold text-ink" : "text-slate-400"
+            custom ? "bg-brand font-semibold text-ink" : "text-slate-400"
           }`}
         >
           ✍ 自定义

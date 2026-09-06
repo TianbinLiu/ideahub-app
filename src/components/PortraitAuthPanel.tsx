@@ -33,6 +33,13 @@ import { currentUser } from "../data/account";
 import { normalizeAssetId } from "../data/cardAsset";
 import QrCode from "./QrCode";
 import { isNative } from "../utils/oauth";
+import { relativeTime } from "../types";
+
+/** 方舟素材的 createTime 是 ISO 串；解析不了就原样给（别让一个坏时间把整行吞掉） */
+function assetTime(raw: string): string {
+  const t = Date.parse(raw);
+  return Number.isFinite(t) ? relativeTime(t) : raw;
+}
 
 /** 上次查到的可用素材（按账号）。只存展示要用的三位，别把整份回包塞进 localStorage */
 type CachedAsset = Pick<PortraitAsset, "id" | "name" | "createTime">;
@@ -271,7 +278,7 @@ export default function PortraitAuthPanel({
               <span className="block font-mono text-[10px] text-emerald-300">{it.id}</span>
               <span className="block text-[9px] text-slate-500">
                 {it.name || "（无文件名）"}
-                {it.createTime ? ` · ${new Date(it.createTime).toLocaleString()}` : ""}
+                {it.createTime ? ` · ${assetTime(it.createTime)}` : ""}
               </span>
             </button>
           ))}

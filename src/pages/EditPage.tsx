@@ -197,7 +197,7 @@ export default function EditPage() {
                     {p.branchTree ? " · 互动分支" : ""}
                   </span>
                 </div>
-                <div className="mt-2 flex gap-1.5 overflow-x-auto">
+                <div className="mt-2 flex gap-1.5 no-scrollbar overflow-x-auto">
                   {p.segments.map((sg, si) => (
                     <img
                       key={si}

@@ -223,7 +223,7 @@ export default function VisionFramePicker({
               还没标任何一帧。至少要标 1 帧才能开炼——拖上面的滑杆到有人的地方，点「标记这一帧」。
             </p>
           ) : (
-            <div className="flex gap-1.5 overflow-x-auto pb-1">
+            <div className="flex gap-1.5 no-scrollbar overflow-x-auto pb-1">
               {marks.map((m) => {
                 const at = Math.round(m.atSec);
                 const ok = markInSelection(at, sel);

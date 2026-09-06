@@ -143,7 +143,7 @@ export default function FuseFrameSheet({
         {sources.length === 0 ? (
           <EmptyState compact emoji="🧬" text="这一段还没有可融的图" hint="先挂一张素材卡，或让 AI 先推演出首尾帧" className="mb-2.5" />
         ) : (
-          <div className="mb-2.5 flex gap-2 overflow-x-auto pb-1">
+          <div className="mb-2.5 flex gap-2 no-scrollbar overflow-x-auto pb-1">
             {sources.map((s) => {
               const on = picked.includes(s.url);
               const order = picked.indexOf(s.url) + 1;

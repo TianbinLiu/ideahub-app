@@ -280,7 +280,9 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - **页签与筛选芯片两档**：紧凑 `rounded-full px-3 py-1 text-[11px]`（顶栏 / 列表头的筛选），常规
   `rounded-full px-3.5 py-1.5 text-xs`（分区 / 分类 / 排序）；选中态一律 `bg-brand font-semibold text-ink`，
   未选中 `bg-panel text-slate-300`（无底的排在 `text-slate-400`）。别再用 `bg-brand/25 ring-1` 这种淡选中态。
-  分段控件（一个 `rounded-xl bg-panel p-1` 容器里的 `rounded-lg` 段）是另一种控件，不按这条。
+  分段控件是另一种控件，两档：整宽 `rounded-xl bg-panel p-1` 容器 + `rounded-lg py-2 text-sm` 段（登录方式），
+  紧凑 `rounded-full bg-panel p-0.5 gap-1` 容器 + `rounded-full px-3 py-1 text-[11px]` 段（画布模式页签、管理页筛选）；
+  选中态同样 `bg-brand font-semibold text-ink`（第十轮把混进去的 `font-bold` 收了）。
 - **CTA 字号两档**：页面 / 抽屉里的整宽或配对 CTA `text-sm font-bold`；对话框（`max-w-xs` 确认卡）脚部的键
   `text-xs font-bold`。客服系列卡片里的「设为 / 下载并使用 / 安装并使用」是整宽 CTA，形状字号都按这条。
 - **字号只用刻度**：`text-[9px]` / `text-[10px]` / `text-[11px]` / `text-xs` / `text-sm` / `text-base` / `text-lg`…
@@ -317,6 +319,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - **列表的加载态与空态也走 `EmptyState`**（`loading` / `emoji + text + hint`），别再手拼 `py-8 text-center text-xs`
   或 `border-dashed py-10` 的框（第八轮逐页目视后把最后 8 个虚线框与工坊广场那条行内报错都收了；弹层里用 `compact`）。
   查法：`rg 'border-dashed' --glob '*.tsx' | rg 'text-center'` 只该剩 `studio/ui/NpcDialog`（那是 3D 桌面的空卡位，不是空态）。
+- **横向滚动的芯片 / 缩略图行一律 `no-scrollbar overflow-x-auto`**（第十轮）：安卓 WebView 上不加就会在行下方闪一条
+  滚动条（剪辑页片段条在桌面浏览器里直接画出一条灰轨）。`scrollbar-none` 这个类**不存在**（模板货架那行写了等于没写），
+  `[scrollbar-width:none]` 一类的任意值写法也别再手拼。查法：`rg 'overflow-x-auto' --glob '*.tsx' | rg -v no-scrollbar` 只该剩注释。
+- **时长写法两档**：句子里「N 秒」（`至少留 2 秒`、`2~15 秒`），角标 / 读数 `Ns`（卡片右下角 `21s`、`20.7s`），
+  播放头位置 `mm:ss`。**相对时间只有一份 `types.relativeTime`**（刚刚 / 3分钟前 / 9月6日），别再冒 `toLocaleString()`。
 - **上万折「x.x 万」只有一份 `types.formatPlays`**：热度 / 播放 / 卡片热度 / 3D 卡面小字都用它（此前四处各抄一份）。
 - **空态 / 整页态只有一份实现 `components/EmptyState`**（2026-09-05 收口）：图标 40px slate-600（或 emoji）→ 正文
   text-sm slate-400（出错 rose-300）→ 补充 text-xs slate-600 → 按钮（主 bg-brand / 次 bg-panel+ring，同上一条）。

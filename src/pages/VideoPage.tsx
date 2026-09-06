@@ -99,7 +99,7 @@ function VideoDeckSection({
           {deck.name || `${deck.cards.length} 张`}
         </span>
       </h2>
-      <div className="flex gap-2.5 overflow-x-auto pb-1">
+      <div className="flex gap-2.5 no-scrollbar overflow-x-auto pb-1">
         {deck.cards.map((c) => (
           // 点卡看详情：不在观众账号库里的卡经路由 state 带过去（详情页优先查账号库）
           <Link key={c.id} to={`/card/${c.id}`} state={{ card: c }} className="w-24 flex-none">
@@ -390,7 +390,7 @@ export default function VideoPage() {
       <main className="mx-auto max-w-5xl px-4 py-4">
         {/* 多 P 选集：单 P 不显示（绝大多数作品），有分集才占这一行 */}
         {parts.length > 1 && (
-          <div className="mb-2.5 flex gap-2 overflow-x-auto pb-0.5">
+          <div className="mb-2.5 flex gap-2 no-scrollbar overflow-x-auto pb-0.5">
             {parts.map((p, i) => (
               <button
                 key={i}

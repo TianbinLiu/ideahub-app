@@ -1639,7 +1639,7 @@ export default function VideoTemplateExtractor({
                     </div>
 
                     {frames.length > 0 && (
-                      <div className="mb-3 flex gap-1.5 overflow-x-auto">
+                      <div className="mb-3 flex gap-1.5 no-scrollbar overflow-x-auto">
                         {frames.map((f, i) => (
                           <img key={i} src={f} alt="" className="h-16 flex-none rounded-lg object-cover" />
                         ))}
