@@ -4,7 +4,7 @@
 //   帧写入的唯一实现是 flowStore.setFrame（pinned/承接语义都在那边），这里只负责画。
 //   两个宿主各抄一份 60 行的格子，哪天空态文案或清帧按钮改了就会各长各的样。
 // ★ 上传的解码/压制走 utils/image.fileToFrameDataUrl（工坊上传开头帧同一条路）。
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { fileToFrameDataUrl } from "../../utils/image";
 
 export default function CustomFrameSlots({
@@ -33,6 +33,8 @@ export default function CustomFrameSlots({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const pickRef = useRef<"first" | "last">("first");
+  /** 哪一格正在读图（解码 + 压制那一两秒要让人看见） */
+  const [reading, setReading] = useState<"first" | "last" | null>(null);
   return (
     <>
       <div className="flex gap-2">
@@ -54,11 +56,16 @@ export default function CustomFrameSlots({
                   pickRef.current = which;
                   fileRef.current?.click();
                 }}
-                disabled={!canEdit}
+                disabled={!canEdit || reading !== null}
                 className="relative w-full overflow-hidden rounded-md border border-dashed border-slate-600 bg-ink/60 disabled:opacity-50"
                 style={{ aspectRatio: aspectCssValue }}
               >
-                {url ? (
+                {reading === which ? (
+                  <span className="flex h-full w-full flex-col items-center justify-center gap-1 text-slate-300">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-brand" />
+                    <span className="text-[9px]">读取中…</span>
+                  </span>
+                ) : url ? (
                   <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
                 ) : (
                   <span className="flex h-full w-full flex-col items-center justify-center gap-1 px-1 text-center text-slate-500">
@@ -88,10 +95,13 @@ export default function CustomFrameSlots({
           e.target.value = ""; // 同一张图连选两次也要能触发
           if (!f) return;
           const which = pickRef.current;
-          void fileToFrameDataUrl(f).then(
-            (d) => onFrame(which, d),
-            (err) => onError(err instanceof Error ? err.message : String(err)),
-          );
+          setReading(which);
+          void fileToFrameDataUrl(f)
+            .then(
+              (d) => onFrame(which, d),
+              (err) => onError(err instanceof Error ? err.message : String(err)),
+            )
+            .finally(() => setReading(null));
         }}
       />
     </>

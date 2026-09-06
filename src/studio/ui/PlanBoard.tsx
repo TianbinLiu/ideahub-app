@@ -97,6 +97,8 @@ export default function PlanBoard({
   const scroller = useRef<HTMLDivElement>(null);
   const pickedRow = useRef<HTMLDivElement>(null);
   const [err, setErr] = useState("");
+  /** 上传首尾帧读图中（解码 + 压制那一两秒要让人看见） */
+  const [reading, setReading] = useState(false);
   /** 融图浮层开在哪一套的哪一端。null = 没开 */
   const [fusing, setFusing] = useState<{ id: string; which: "first" | "last" } | null>(null);
 
@@ -110,11 +112,14 @@ export default function PlanBoard({
 
   async function pickFile(id: string, which: "first" | "last", f: File) {
     setErr("");
+    setReading(true);
     try {
       onFrame(id, which, await fileToFrameDataUrl(f));
     } catch {
       // 吞掉就成了"点了没反应"（铁律八）：坏图/超大图必须说出来
       setErr("这张图读不出来——换一张试试（支持 jpg/png/webp）");
+    } finally {
+      setReading(false);
     }
   }
 
@@ -141,6 +146,7 @@ export default function PlanBoard({
       </div>
 
       {err && <div className="flex-none px-3 pb-1 text-[10px] text-rose-300">{err}</div>}
+      {reading && <div className="flex-none px-3 pb-1 text-[10px] text-slate-400">读取图片…</div>}
 
       <div ref={scroller} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
         {proposals.map((p, i) => {

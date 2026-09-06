@@ -7,7 +7,7 @@ import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckCardsSettle, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
-import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost } from "./flowStore";
+import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeBlank, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, saveDraft } from "../data/drafts";
@@ -545,6 +545,13 @@ interface StudioState {
   unfocus: () => void;
   /** 关闭投影窗（保持聚焦机位，卡片落下；再点空白桌面拉远） */
   closeProjection: () => void;
+  /**
+   * 空白占位段 → 退回铸段窗重选模式（不花钱）。判据 flowStore.nodeBlank 一处。
+   * ★ 2026-09-05 主人真机点名：选完模式退出工坊再进来，点节点卡只剩一枚灰掉的 ‹——那是
+   *   方案台的"上一段"，铸段窗那枚"上一步"随窗一起没了，而删段又被"只剩一段"挡住，
+   *   用户被困在一张空白占位卡上。这里把段撤掉、铸段窗按原来的要求/档位/画幅/素材重开。
+   */
+  recastBlankNode: (nodeId: string) => boolean;
   toggleSpread: () => void;
   shiftSpread: (dir: 1 | -1) => void;
   pickDeckCard: (cardId: string) => void;
@@ -1191,6 +1198,32 @@ export const useStudio = create<StudioState>()((set, get) => ({
       camera: { kind: "default" },
       orbit: null,
     }),
+  recastBlankNode: (nodeId) => {
+    const flow = useFlow.getState();
+    const node = flow.nodes.find((n) => n.id === nodeId);
+    if (!node || !nodeBlank(node)) {
+      set({ notice: { text: "这一段已经有内容了，退不回铸段窗——想重来就删掉这一段再铸", at: Date.now() } });
+      return false;
+    }
+    flow.removeNode(nodeId);
+    // ★ 判真实结果（removeNode 会整句拒：生成中…），拒了就别把窗换掉
+    if (useFlow.getState().nodes.some((n) => n.id === nodeId)) {
+      set({ notice: { text: useFlow.getState().err || "这一段现在删不掉", at: Date.now() } });
+      return false;
+    }
+    set({
+      focus: { nodeId: null },
+      projection: "editor",
+      editor: {
+        ...freshEditor((node.materials ?? []).map((c) => c.id)),
+        requirement: node.requirement ?? "",
+        videoTier: node.videoTier,
+        aspect: node.aspect,
+      },
+      spreadOpen: false,
+    });
+    return true;
+  },
   toggleSpread: () =>
     set((s) => ({ spreadOpen: s.deck.length > 0 && !s.spreadOpen })),
   // 点卡组堆：镜头移到玩家左侧拍上半身（思考姿势），投影里选一套卡组。

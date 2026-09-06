@@ -275,6 +275,8 @@ export function CoverSection({
   const [frameDlg, setFrameDlg] = useState(false);
   const [aiDlg, setAiDlg] = useState(false);
   const [coverErr, setCoverErr] = useState("");
+  /** 本地图读取中（解码 + 按画幅裁）：按钮上要有字，别让人以为没点上 */
+  const [reading, setReading] = useState(false);
   /** 封面预览上要不要画出"首页会挡住哪儿"（默认开：这件事不主动说，用户就发现不了） */
   const [safeArea, setSafeArea] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -342,9 +344,10 @@ export function CoverSection({
         </button>
         <button
           onClick={() => fileRef.current?.click()}
-          className="rounded-full bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700"
+          disabled={reading}
+          className="rounded-full bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700 disabled:opacity-50"
         >
-          🖼 本地上传
+          {reading ? "读取中…" : "🖼 本地上传"}
         </button>
         <button
           onClick={() => setAiDlg(true)}
@@ -362,10 +365,13 @@ export function CoverSection({
             e.target.value = ""; // 同一文件可重复选择
             if (!f) return;
             setCoverErr("");
-            void fileToCoverDataUrl(f, aspect).then((url) => {
-              if (url) onCover(url);
-              else setCoverErr("这张图读不出来，换一张试试（仅支持图片文件）");
-            });
+            setReading(true);
+            void fileToCoverDataUrl(f, aspect)
+              .then((url) => {
+                if (url) onCover(url);
+                else setCoverErr("这张图读不出来，换一张试试（仅支持图片文件）");
+              })
+              .finally(() => setReading(false));
           }}
         />
       </div>

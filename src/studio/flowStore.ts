@@ -300,6 +300,23 @@ export function nodePicking(node: FlowNode): boolean {
   return planOf(node) === "picking";
 }
 
+/**
+ * 这一段还是一张**空白占位**：没剧情、没帧、没出片，也不是自定义 / 白模段 —— 什么都还没花。
+ *
+ * ★★ 三处共用这一个判据（2026-09-05 主人真机点名：选完模式退出工坊再进来，节点卡上只剩
+ *   一枚灰掉的 ‹，走不回铸段窗）：工坊方案台的「🎲 生成三套方案」入口、「‹ 回铸段窗重选模式」、
+ *   以及 removeNode 的"只剩一段也能删"例外。抄成三份的下场是：一处认它空白、另一处认它有内容。
+ * ★ 判"这一套是空白"而不是"只有一套"：做同款铺进来的段、老草稿里的段也只有一套，但里面是真内容。
+ */
+export function nodeBlank(node: FlowNode): boolean {
+  if (node.custom || tplOfNode(node)?.refVideo) return false;
+  if (node.proposals.length >= 2) return false;
+  const p = planOf(node) === "picking" ? null : (node.proposals.find((q) => q.id === node.chosenId) ?? null);
+  if (!p) return false;
+  // 「出片了吗」与 studioStore.proposalDone 同一口径（videoUrl 非空，含 "mock:" 占位）
+  return !p.videoUrl && !p.plot.trim() && !p.firstFrame && !p.lastFrame;
+}
+
 /** 用户对这一段的原话（老草稿没有这个字段，退回当前方案的剧情——
  *  那正是旧版 deriveProposals 当作 requirement 用的东西，行为不变） */
 export function requirementOf(node: FlowNode): string {
@@ -2083,7 +2100,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // ★ 早退要说人话（铁律八）：静默 return 时，agent 那条路按"删完了没变"判失败，
     //   然后去读 store.err —— 读到的是**上一次别的操作**留下的那句，于是回执上会出现
     //   「✗ 删第 1 段：先把这一段炼出来，再加下一段」这种驴唇不对马嘴的解释。
-    if (s.nodes.length <= 1) {
+    // ★ 空白占位段例外（nodeBlank 一处判据）：什么都还没花，删掉 = 退回空流水线，桌面上
+    //   虚线卡位重新亮起 —— 这是"选完模式退出再进来走不回铸段窗"的出路（2026-09-05）
+    if (s.nodes.length <= 1 && !(s.nodes[0] && nodeBlank(s.nodes[0]))) {
       set({ err: "只剩这一段了，删不掉（想重来就用「删除本段」旁边的重新生成，或退出去开一条新的）" });
       return;
     }

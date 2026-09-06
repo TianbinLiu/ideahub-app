@@ -36,6 +36,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import BoxFramePicker, { boxMarksInSelection, type BoxFrameMode } from "./blockout/BoxFramePicker";
 import { DetectRolesEntry } from "./blockout/DetectRolesEntry";
 import HelpButton from "./guide/HelpButton";
+import { currentRoute, startJob } from "../data/jobs";
 import { useAutoGuide } from "./guide/useAutoGuide";
 import { AI_REAL, extractTemplateFromVideo } from "../ai";
 import {
@@ -357,6 +358,14 @@ export default function VideoTemplateExtractor({
   // 合成一个的话，"疑似有水印"会长得跟"传不上去"一模一样，用户只会以为自己失败了
   const [warn, setWarn] = useState("");
   const [got, setGot] = useState<VideoTemplate | null>(null);
+  /** 窗还开着没有：后台任务的结局分叉（在 → 窗里画；不在 → 胶囊通知，模板本身已在库里） */
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
   /**
    * 这一屏的**第一层岔路**，三选一 —— 全组件唯一的"走哪条路"状态。
    *
@@ -823,14 +832,29 @@ export default function VideoTemplateExtractor({
         //   静态的"大文件在慢网上要等一会" —— 而这一步在手机网上要走好几分钟，
         //   没有进度条的话，用户唯一能做的判断就是"是不是卡死了"。
         setBusy("上传视频 0%");
+        // ★ 登记成后台任务（手机网上要走几分钟）：退出这一页胶囊接手进度。
+        //   但回执只活在这一窗里 —— 窗关了传完也接不上，通知里要把这句话说出来
+        const job = startJob({ kind: "template-upload", title: "上传参考视频", page: currentRoute(), progress: "上传视频 0%" });
         uploadAbort.current?.abort(); // 上一发若还在跑（换文件），先停掉它
         const ac = new AbortController();
         uploadAbort.current = ac;
-        const data = await uploadTemplateVideo(
-          f,
-          (frac) => setBusy(`上传视频 ${Math.round(frac * 100)}%`),
-          ac.signal,
-        );
+        let data;
+        try {
+          data = await uploadTemplateVideo(
+            f,
+            (frac) => {
+              const t = `上传视频 ${Math.round(frac * 100)}%`;
+              setBusy(t);
+              job.update(t);
+            },
+            ac.signal,
+          );
+        } catch (e) {
+          job.fail("参考视频没传上", currentRoute());
+          throw e;
+        }
+        if (mountedRef.current) job.done({ silent: true });
+        else job.done({ msg: "视频传完了，但提取窗已经关了——回模板页重新打开、再选一次", route: currentRoute() });
         // spent:false —— 新的一份素材，还没有任何一发付过钱的白模化用过它（见 receipt 的 ★★）
         setReceipt({ file: f, data, src: URL.createObjectURL(f), spent: false });
         // 标题给个能用的默认值（文件名去掉扩展名）：服务端 zod 要求 title 非空，
@@ -891,6 +915,8 @@ export default function VideoTemplateExtractor({
     setErr("");
     setBusy("提交中…");
     flightRef.current = true;
+    // ★ 登记成后台任务：登记落在服务端 + 本机模板库，窗关了也照样成；人不在就发通知
+    const job = startJob({ kind: "template-register", title: "登记模板", page: currentRoute(), route: "/templates?shelf=mine", progress: "提交中…" });
     try {
       // ── 分段形态（选段拖过 30 秒）：整条切段登记成模板组 ──
       if (sel.durSec > BLOCKOUT_INPUT_RULES.maxSec) {
@@ -907,9 +933,13 @@ export default function VideoTemplateExtractor({
           //   从此归模板组管，关窗时不许再回收（与 blockoutize 的 onBilled 同一条纪律，
           //   标在**这一份回执**上）。服务端那头也会拒删，但拒之前客户端不该去试。
           onRegistered: () => setReceipt((r) => (r ? { ...r, spent: true } : r)),
-          onStep: (s) => setBusy(s),
+          onStep: (st) => {
+            setBusy(st);
+            job.update(st);
+          },
         });
         if (out.note) setWarn(out.note);
+        job.done({ msg: "模板组登记好了，去「我的模板」看看", silent: mountedRef.current });
         const made = getTemplate(out.id);
         // ★ 分段成功**不直接跳出片**（与单段那条 onDone 直通不同）：N 段各自的认人结果
         //   都在 note 里，直通的话它们一闪就没（onDone 多半立刻导航走）。先给成功卡 ——
@@ -936,14 +966,20 @@ export default function VideoTemplateExtractor({
         // ⚠ "manual 但规范化之后一帧都不剩"必须**响亮拒绝**，那道门在 data 层
         //   （makeOwnRefTemplate，与 blockoutizeTemplate 逐字同源）—— 别在这里补第二处。
         atSecs: boxMode === "manual" ? boxMarksInSelection(boxMarks, sel).atSecs : undefined,
-        onStep: (n) => setBusy(n),
+        onStep: (st) => {
+          setBusy(st);
+          job.update(st);
+        },
       });
       const made = getTemplate(out.id);
       if (out.note) setWarn(out.note);
+      job.done({ msg: "模板登记好了，去「我的模板」看看", silent: mountedRef.current });
       if (made) onDone?.(made);
       else close();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      job.fail(`登记没成：${msg.slice(0, 60)}`, "/templates?shelf=mine");
+      setErr(msg);
     } finally {
       flightRef.current = false;
       setBusy("");
@@ -958,6 +994,8 @@ export default function VideoTemplateExtractor({
     //   白模化（两次真实付费出片）。
     setBusy("提交中…");
     flightRef.current = true;
+    // ★ 登记成后台任务：白模化是服务端两阶段 + 分钟级等待，窗关了也照跑；人不在就发通知
+    const job = startJob({ kind: "template-blockout", title: "白模化", page: currentRoute(), route: "/templates?shelf=mine", progress: "提交中…" });
     try {
       const tpl = await blockoutizeTemplate({
         publicId: receipt.data.publicId,
@@ -979,11 +1017,17 @@ export default function VideoTemplateExtractor({
         //   不回收。注意这里**不清 receipt**：清了这一屏会当场从"框选 + 进度"退回
         //   选文件按钮，而任务其实正在跑（用户会以为白花了钱）。
         onBilled: () => setReceipt((r) => (r ? { ...r, spent: true } : r)),
-        onProgress: (s) => setBusy(s),
+        onProgress: (st) => {
+          setBusy(st);
+          job.update(st);
+        },
       });
       setGot(tpl);
+      job.done({ msg: "白模模板做好了，去「我的模板」看看", silent: mountedRef.current });
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      job.fail(`白模化没成：${msg.slice(0, 60)}`, "/templates?shelf=mine");
+      setErr(msg);
     } finally {
       flightRef.current = false;
       setBusy("");
@@ -998,9 +1042,18 @@ export default function VideoTemplateExtractor({
       return;
     }
     setErr("");
+    const job = startJob({ kind: "template-analyze", title: "分析模板", page: currentRoute(), route: "/templates?shelf=mine", progress: "分析中…" });
     try {
       setBusy("分析中…");
-      const r = await extractTemplateFromVideo(frames, note, (st) => setBusy(st), { blockout: false });
+      const r = await extractTemplateFromVideo(
+        frames,
+        note,
+        (st) => {
+          setBusy(st);
+          job.update(st);
+        },
+        { blockout: false },
+      );
       // 实际结算：看帧固定、卡面按真出的张数收（与 templateCost 同一条式子）
       if (AI_REAL) spendTokens(templateSettle(frames.length, r.cards.length));
       const tpl = saveTemplate({
@@ -1013,8 +1066,11 @@ export default function VideoTemplateExtractor({
         source: r.source,
       });
       setGot(tpl);
+      job.done({ msg: "模板分析好了，去「我的模板」看看", silent: mountedRef.current });
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      job.fail(`分析没成：${msg.slice(0, 60)}`, "/templates?shelf=mine");
+      setErr(msg);
     } finally {
       setBusy("");
     }
