@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import { useSyncExternalStore } from "react";
 import {
   dismissVideoJob,
+  importServerVideoJobs,
   recoverableVideoJobs,
   subscribeVideoJobs,
   videoJobExpired,
@@ -23,6 +24,7 @@ import {
   type VideoJob,
 } from "../../data/videoJobs";
 import { useFlow } from "../../studio/flowStore";
+import { useStudio } from "../../studio/studioStore";
 
 /** 待取回凭据的变动订阅（凭据落在 localStorage，见 data/videoJobs） */
 export function useVideoJobs(): number {
@@ -65,6 +67,12 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
     setWorking("正在取回…");
     try {
       await takeJob(job, (st) => setWorking(st));
+      // ★★ 取回成功**当场存草稿**（2026-09-06 主人真机）：取回那一拍凭据已销毁、成片只落在内存里的流水线上，
+      //   这时 App 再被重启一次（系统回收 / 出包装机）这一发就谁都找不回来了。创作入口这个宿主没挂
+      //   useFlowActions（那条"又炼出一段就自动存盘"只长在工作流 / 工坊页上），所以这里自己存。
+      setWorking("成片已落回流水线，正在存草稿…");
+      const meta = await useStudio.getState().saveWorkDraft({ from: "flow" }).catch(() => null);
+      if (!meta) setIssue("成片已经落回流水线，但自动存草稿没成（存储空间不足或隐私模式）——先别关 App，去工坊点一次「存草稿」");
     } catch (e) {
       setIssue(e instanceof Error ? e.message : String(e));
     } finally {
@@ -79,7 +87,14 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
       }`}
     >
       <div className="text-[11px] font-bold text-amber-200">
-        {expired ? `第 ${job.seg} 段那一发已经取不回来了` : `第 ${job.seg} 段有一发成片还没取回`}
+        {/* seg=0 = 服务端登记表补来的（本机没认领过它属于哪一段） */}
+        {expired
+          ? job.seg > 0
+            ? `第 ${job.seg} 段那一发已经取不回来了`
+            : "有一发成片已经取不回来了"
+          : job.seg > 0
+            ? `第 ${job.seg} 段有一发成片还没取回`
+            : "服务器上有一发你付过钱的成片还没取回"}
       </div>
       <div className="mt-0.5 truncate text-[10px] text-slate-400">{job.label}</div>
       <p className={`mt-1 text-[10px] leading-relaxed ${expired ? "text-slate-400" : "text-amber-200/90"}`}>
@@ -129,6 +144,11 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
 export function SegmentRecoverList({ className = "" }: { className?: string }) {
   useVideoJobs(); // 凭据变了要重渲（落在 localStorage，不订阅就看不见新增/取回后的消失）
   const nodes = useFlow((s) => s.nodes);
+  // 服务端登记表里本机不认识的那几发补成凭据（一分钟内只问一次；离线模式不发请求）。
+  // ★ hook 排在早退之前（CLAUDE.md 那条坑：早退之后的 hook 会让整棵树崩）
+  useEffect(() => {
+    void importServerVideoJobs();
+  }, []);
   // ★ 读 recoverable 不读 pending：这一会话正在等的那一发不摆（2026-09-05 主人点名
   //   "每次生成视频出片之前都弹『还没取回』"——凭据受理即落盘，等的时候它就在名单里）
   const jobs = recoverableVideoJobs();
