@@ -2,9 +2,10 @@
   "Version": 3,
   "Meta": {
     "PhysicsSettingCount": 5,
-    "TotalInputCount": 20,
+    "TotalInputCount": 19,
     "TotalOutputCount": 5,
     "VertexCount": 12,
+    "Fps": 30.0,
     "EffectiveForces": {
       "Gravity": {
         "X": 0,
@@ -263,15 +264,6 @@
           "Weight": 50,
           "Type": "Angle",
           "Reflect": false
-        },
-        {
-          "Source": {
-            "Target": "Parameter",
-            "Id": "ParamAngleX"
-          },
-          "Weight": 15,
-          "Type": "X",
-          "Reflect": false
         }
       ],
       "Output": [
@@ -446,7 +438,7 @@
             "Target": "Parameter",
             "Id": "ParamAngleX"
           },
-          "Weight": 20,
+          "Weight": 8,
           "Type": "X",
           "Reflect": false
         }
@@ -458,7 +450,7 @@
             "Id": "ParamCapeSway"
           },
           "VertexIndex": 1,
-          "Scale": 60.0,
+          "Scale": 25.0,
           "Weight": 100,
           "Type": "Angle",
           "Reflect": false

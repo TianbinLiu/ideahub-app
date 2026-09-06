@@ -88,6 +88,9 @@ const WIND_AMP = 0.12;
 const WIND_HZ = 0.37;
 const WIND_AMP2 = 0.05;
 const WIND_HZ2 = 0.11;
+/** 开场前几帧每帧多迭代的物理步数 / 帧数（见构造函数里「开场稳定」的说明） */
+const PHYSICS_SETTLE_STEPS = 60;
+const PHYSICS_SETTLE_FRAMES = 6;
 /** 手臂：呼吸微开合 + 随身体倾斜；挥手 1.8s、2.2Hz、±9 */
 const ARM_BREATH_AMP = 1.4;
 const ARM_FOLLOW_GAIN = 0.35;
@@ -188,6 +191,28 @@ export class CompanionModel {
     (model.internalModel as { eyeBlink?: unknown }).eyeBlink = undefined;
     // 导出的 moc3 里补片 Part 默认不透明度是 1（笑眼/怒目全都露出来 = 表情叠在脸上），挂载第一帧就得关掉
     this.applyParts();
+    // ★ 开场稳定（2026-09-05）：Cubism 物理的摆锤链初始是笔直下垂的，头几帧输入（动作 + 我们写的头身角度 → 摆锤根部平移）
+    //   从 0 跳到当前值，链节之间瞬间弯折；裙摆/后发的输出是「相邻两节的夹角 × Scale(240)」，弯 0.5° 就顶满 ±10，
+    //   看起来像模型一出场就大幅左右甩（实测 ParamSkirtSway 0.3s 内到 10、2s 才衰完）。
+    //   办法：前 PHYSICS_SETTLE_FRAMES 帧里，每帧物理算完（beforeModelUpdate，在 coreModel.update 之前）用同样的输入
+    //   再多迭代 PHYSICS_SETTLE_STEPS 步，让链条当场收敛到当前姿势；之后逐帧输入都是连续的，正常摆。
+    //   要盯好几帧是因为我们的 tick 在 LOW 优先级、渲染之后才写参数——第 1 帧物理只看到动作的值，第 2 帧才看到我们的。
+    //   （试过框架的 physics.stabilization()：它把链条摆到 重力+风 的方向，下一帧照样弯折跳满；风从 0 缓升也没用，
+    //   因为根本不是风推的。physics3.json 的 Meta.Fps=30 另外把积分改成固定步长，页面卡一下 dt 大也不会飞。）
+    const physics = model.internalModel.physics;
+    if (physics && typeof physics.evaluate === "function" && typeof model.internalModel.on === "function") {
+      const evaluate = physics.evaluate;
+      let frames = 0;
+      const settle = () => {
+        try {
+          for (let i = 0; i < PHYSICS_SETTLE_STEPS; i++) evaluate.call(physics, core, 1 / 30);
+        } catch {
+          frames = PHYSICS_SETTLE_FRAMES; // 框架版本不对就不再试，最多开场甩两下
+        }
+        if (++frames >= PHYSICS_SETTLE_FRAMES) model.internalModel.off?.("beforeModelUpdate", settle);
+      };
+      model.internalModel.on("beforeModelUpdate", settle);
+    }
     app.ticker.add(this.tick, undefined, pixi.UPDATE_PRIORITY.LOW);
   }
 

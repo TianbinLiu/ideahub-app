@@ -52,7 +52,14 @@ export type Live2DModelInstance = {
     settings: { motions?: Record<string, unknown[]>; expressions?: Array<{ Name: string }> };
     motionManager: { expressionManager?: { resetExpression(): void } };
     /** model3.json 引用了 physics3.json 才有；_options 里的 gravity/wind 是框架的 CubismVector2，只能改 x/y，不能整个换掉 */
-    physics?: { _options?: { gravity: { x: number; y: number }; wind: { x: number; y: number } } } | null;
+    physics?: {
+      _options?: { gravity: { x: number; y: number }; wind: { x: number; y: number } };
+      /** Cubism 框架 CubismPhysics.evaluate(model, 秒)：pixi-live2d-display 每帧调一次，我们开场多调几十次让摆锤收敛 */
+      evaluate?: (model: Live2DCoreModel, deltaTimeSeconds: number) => void;
+    } | null;
+    /** InternalModel 是 EventEmitter：beforeModelUpdate 在 动作/物理 之后、coreModel.update() 之前触发 */
+    on?: (event: "beforeModelUpdate", fn: () => void) => unknown;
+    off?: (event: "beforeModelUpdate", fn: () => void) => unknown;
   };
   motion(group: string, index?: number, priority?: number): Promise<boolean>;
   expression(id?: string | number): Promise<boolean>;
