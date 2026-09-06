@@ -162,7 +162,7 @@ export default function SettingsVoicePage() {
                 setRateState(null);
                 setRate(null);
               }}
-              className="mt-1 text-[11px] text-slate-500 underline"
+              className="mt-1 text-[11px] text-slate-500 underline underline-offset-2"
             >
               恢复跟随音色
             </button>
@@ -180,7 +180,7 @@ export default function SettingsVoicePage() {
                   setIns(DEFAULT_INSTRUCT);
                   setInstruct(DEFAULT_INSTRUCT);
                 }}
-                className="text-[11px] text-slate-500 underline"
+                className="text-[11px] text-slate-500 underline underline-offset-2"
               >
                 恢复默认
               </button>

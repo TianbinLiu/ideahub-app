@@ -795,7 +795,7 @@ export default function ProfilePage() {
       {/* ── 页签：只有图标 + 计数（TikTok 同款），sticky 在顶栏正下方 ────── */}
       <div
         data-guide="profile-tabs"
-        className="sticky z-10 mt-4 flex border-b border-slate-800 bg-ink"
+        className="sticky z-10 mt-4 flex border-b border-slate-700/60 bg-ink"
         style={{ top: `calc(env(safe-area-inset-top, 0px) + ${HEADER_H})` }}
       >
         {tabKeys.map((k) => {
@@ -1145,7 +1145,7 @@ function PendingBanner() {
         <div className="text-xs font-semibold text-cyan-200">
           正在上传「{up.title}」 {up.done}/{up.total}
         </div>
-        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-black/30">
+        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/25">
           <div
             className="h-full rounded-full bg-cyan-400 transition-all duration-300"
             style={{ width: `${Math.round((up.done / Math.max(1, up.total)) * 100)}%` }}

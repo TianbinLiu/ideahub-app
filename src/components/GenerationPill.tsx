@@ -13,6 +13,7 @@
 // ★ 只动 transform/opacity 做进出场（合成层，首页视频流滚动时不触发重排）。
 // ★ 同时只画一条：进行中优先（最新发起的那条），其次是最早的一条结局；关掉一条下一条顶上来。
 import { useLocation, useNavigate } from "react-router";
+import Spinner from "./Spinner";
 import { dismissJob } from "../data/jobs";
 import { useJobs } from "../hooks/useJobs";
 import { useFlow } from "../studio/flowStore";
@@ -70,7 +71,7 @@ export default function GenerationPill() {
           onClick={() => go(show.route)}
           className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full border border-slate-600/70 bg-ink/95 py-1.5 pl-3 pr-4 text-[11px] text-slate-100 shadow-lg shadow-black/40"
         >
-          <span className="h-3 w-3 flex-none animate-spin rounded-full border-2 border-slate-600 border-t-brand" />
+          <Spinner size="xs" />
           <span className="min-w-0 truncate">{show.text}</span>
           {show.route && <span className="flex-none text-slate-400">点击返回</span>}
         </button>

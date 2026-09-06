@@ -159,7 +159,7 @@ export default function DiscoverPage() {
   const results = useMemo(() => sortVideos(videos, sort), [videos, sort]);
 
   return (
-    <div className="min-h-full px-4">
+    <div className="min-h-full px-4 pb-10">
       {/* ★ `?` 摆在搜索框同一行的右边：这一页没有标题栏，没有别的地方好放，
           而它必须在**正常流**里 —— absolute 定位会钻到系统状态栏底下去（首页栽过一次）。
           ★ 这一行按 PageHeader 的规格摆（safe-top + 48px 行内居中），和别的页顶栏同一条线 */}

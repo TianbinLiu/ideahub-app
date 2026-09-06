@@ -275,10 +275,10 @@ export default function PortraitAuthPanel({
             </button>
           ))}
           <div className="flex gap-3 px-1 text-[10px] text-slate-500">
-            <button onClick={() => void checkStatus()} disabled={busy} className="underline disabled:opacity-40">
+            <button onClick={() => void checkStatus()} disabled={busy} className="underline underline-offset-2 disabled:opacity-40">
               {busy ? "刷新中…" : "刷新"}
             </button>
-            <button onClick={() => void startInvite()} disabled={busy} className="underline disabled:opacity-40">
+            <button onClick={() => void startInvite()} disabled={busy} className="underline underline-offset-2 disabled:opacity-40">
               授权另一个人
             </button>
           </div>
@@ -287,7 +287,7 @@ export default function PortraitAuthPanel({
 
       {/* 自动查失败时给一条重试的路（列表空着、按钮已经出了，但用户该知道为什么没列出来） */}
       {!invite && autoChecked && !found && cached.length === 0 && (
-        <button onClick={() => void checkStatus()} disabled={busy} className="px-1 text-[10px] text-slate-500 underline disabled:opacity-40">
+        <button onClick={() => void checkStatus()} disabled={busy} className="px-1 text-[10px] text-slate-500 underline underline-offset-2 disabled:opacity-40">
           {busy ? "查…" : "已经授权过了？再查一次"}
         </button>
       )}

@@ -118,7 +118,7 @@ export default function SettingsPage() {
           只在远端模式显示：离线包没有可注销的云端账号（子页里也有同一判断兜底，
           这里藏入口只是别引人去点） */}
       {isRemoteMode() && (
-        <Link to="/settings/deactivate" className="mt-3 block text-center text-[11px] text-slate-600 underline">
+        <Link to="/settings/deactivate" className="mt-3 block text-center text-[11px] text-slate-500 underline underline-offset-2">
           注销账号
         </Link>
       )}

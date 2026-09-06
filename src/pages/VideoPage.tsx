@@ -1,5 +1,6 @@
 // 视频详情页：播放器（多 P 可切换）+ 信息 + 分段剧情 + 评论区
 import { useEffect, useMemo, useRef, useState } from "react";
+import Spinner from "../components/Spinner";
 import PageHeader from "../components/PageHeader";
 import { takedownReasonText } from "../api/admin";
 import AigcBadge, { isAigcWork } from "../components/AigcBadge";
@@ -259,7 +260,7 @@ export default function VideoPage() {
     if (!lookup) {
       return (
         <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
-          <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-700 border-t-brand" />
+          <Spinner size="lg" />
           <div className="text-xs">正在打开这条作品…</div>
         </div>
       );
@@ -440,7 +441,7 @@ export default function VideoPage() {
                   ⚡ 解锁观看
                 </button>
                 {payErr && (
-                  <Link to="/me" className="text-xs text-rose-300 underline">
+                  <Link to="/me" className="text-xs text-rose-300 underline underline-offset-2">
                     {payErr}
                   </Link>
                 )}

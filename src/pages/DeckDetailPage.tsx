@@ -33,7 +33,7 @@ export default function DeckDetailPage() {
   const cover = deckCoverOf(deck);
 
   return (
-    <div className="min-h-full px-4 pb-8">
+    <div className="min-h-full px-4 pb-10">
       <PageHeader
         onBack={() => nav(-1)}
         title="卡组详情"

@@ -12,6 +12,7 @@
 //   与线性视图共享"当前段"的全部机制（store 级模板同步、挂卡缓冲切换）。
 // · 手势只动 transform（合成层）：拖 = translate，捏合/滚轮 = scale。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import Spinner from "../Spinner";
 import { CloseButton } from "../IconTapButton";
 import { createPortal } from "react-dom";
 import GenTrace from "../GenTrace";
@@ -332,7 +333,7 @@ export default function FlowCanvas({
 
   const body = (
     <div className="fixed inset-0 z-40 flex flex-col bg-ink">
-      <div className="safe-top flex flex-none items-center gap-2 px-4 py-2">
+      <div className="safe-top flex h-[58px] flex-none items-center gap-2 px-4">
         <CloseButton chip="md" size={16} tone="text-slate-200" label="退出编辑" onClick={onExit} />
         {/* 2026-08-29 主人点名：顶栏那句写死的「流水线画布」换成 Google 文档式**工程标题**
             （点击就地改名，命名即建档）。"这是画布"由整个画面自己说明，标题位留给
@@ -528,7 +529,7 @@ export default function FlowCanvas({
                       {done && <span className="rounded bg-emerald-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">✓</span>}
                       {n.status === "generating" && (
                         <span className="flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-sky-300">
-                          <span className="h-2.5 w-2.5 animate-spin rounded-full border border-slate-500 border-t-sky-300" />
+                          <Spinner size="xs" />
                           生成中
                         </span>
                       )}
@@ -655,7 +656,7 @@ export default function FlowCanvas({
             className={`flex min-h-0 flex-col overflow-y-auto bg-ink ${
               isLand
                 ? "h-full w-[42%] flex-none border-l border-slate-800"
-                : "max-h-[52%] w-full flex-none border-t border-slate-800"
+                : "max-h-[52%] w-full flex-none border-t border-slate-700/60"
             }`}
           >
             <NodePanel
@@ -2012,7 +2013,7 @@ export function TemplatePicker({
                   <span className="flex-none text-[11px] text-slate-400">{open ? "▴" : "▾"}</span>
                 </button>
                 {open && (
-                  <div className="space-y-1.5 border-t border-slate-700/70 p-1.5">
+                  <div className="space-y-1.5 border-t border-slate-700/60 p-1.5">
                     {row.parts.map((part) => (
                       <PickRow
                         key={part.id}

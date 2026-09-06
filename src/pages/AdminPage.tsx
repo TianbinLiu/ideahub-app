@@ -89,7 +89,7 @@ export default function AdminPage() {
   const bump = () => setReloadKey((n) => n + 1);
 
   return (
-    <div className="min-h-full px-4 pb-16">
+    <div className="min-h-full px-4 pb-10">
       {/* 子视图里返回键固定回总览；只有总览上才真的退出这一页 */}
       <PageHeader
         className="mb-5"
@@ -890,7 +890,7 @@ function VideoRow({ v, onDone }: { v: ApiVideo; onDone: () => void }) {
             删除…
           </button>
         )}
-        <Link to={`/video/${v._id}`} className="ml-auto text-[11px] text-brand underline">
+        <Link to={`/video/${v._id}`} className="ml-auto text-[11px] text-brand underline underline-offset-2">
           去现场 →
         </Link>
       </div>
@@ -1099,7 +1099,7 @@ function ContentRow({ kind, c, onDone }: { kind: "comment" | "danmaku"; c: ApiAd
           <span className="text-[10px] text-rose-300/70">服务端没带所属作品 id，这条删不了（需要升级服务端）</span>
         )}
         {c.videoId && (
-          <Link to={`/video/${c.videoId}`} className="ml-auto text-[11px] text-brand underline">
+          <Link to={`/video/${c.videoId}`} className="ml-auto text-[11px] text-brand underline underline-offset-2">
             去现场 →
           </Link>
         )}
@@ -1349,7 +1349,7 @@ function ReportCard({
       {report.detail && <p className="mt-2 text-[11px] leading-relaxed text-slate-400">举报人补充：{report.detail}</p>}
 
       {sceneId && (
-        <Link to={`/video/${sceneId}`} className="mt-2 inline-block text-[11px] text-brand underline">
+        <Link to={`/video/${sceneId}`} className="mt-2 inline-block text-[11px] text-brand underline underline-offset-2">
           去现场看上下文 →
         </Link>
       )}

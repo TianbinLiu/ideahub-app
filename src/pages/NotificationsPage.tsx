@@ -138,7 +138,7 @@ export default function NotificationsPage() {
         }
       />
 
-      <div className="px-4 pb-8">
+      <div className="px-4 pb-10">
         {/* ★ 顺序是承重的：**先**看"问出结果没有"。online 要等 refreshNotifications
             跑过一次才有意义（它在 useEffect 里，首帧之后），先判 online 的话每次进来
             都会先闪一下"当前是离线模式"——一个还没查证就下的结论。 */}

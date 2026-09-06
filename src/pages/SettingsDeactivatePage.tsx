@@ -28,7 +28,7 @@ export default function SettingsDeactivatePage() {
   // 离线包：说清楚为什么这里没有注销，给条真的走得通的路
   if (!isRemoteMode()) {
     return (
-      <div className="min-h-full px-4">
+      <div className="min-h-full px-4 pb-10">
         <Header onBack={() => navigate(-1)} />
         <p className="mt-6 rounded-xl border border-slate-700 bg-panel p-4 text-sm leading-relaxed text-slate-300">
           当前是本地账号：没有服务器，也就没有可注销的云端账号。

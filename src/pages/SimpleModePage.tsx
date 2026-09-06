@@ -240,7 +240,7 @@ function StepTemplate({
                 <span className="flex-none text-[11px] text-slate-400">{open ? "▴" : "▾"}</span>
               </button>
               {open && (
-                <div className="space-y-1.5 border-t border-slate-700/70 p-1.5">
+                <div className="space-y-1.5 border-t border-slate-700/60 p-1.5">
                   {row.parts.map((p) => (
                     <TplRow
                       key={p.id}

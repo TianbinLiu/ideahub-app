@@ -288,7 +288,7 @@ export default function EditPage() {
           {/* 删除放最后、要二次确认：这是本页唯一不可撤销的动作。
               ★ 不用 window.confirm —— Capacitor 的 WebView 里它是个系统弹窗，
               样式与整个 app 割裂，而且在部分机型上会被当成"网页弹窗"直接拦掉。 */}
-          <div className="mt-2 border-t border-slate-800 pt-4">
+          <div className="mt-2 border-t border-slate-700/60 pt-4">
             {confirmDel ? (
               <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3.5">
                 <div className="text-sm font-bold text-rose-200">删除《{video.title}》？</div>

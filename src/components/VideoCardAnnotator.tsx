@@ -911,7 +911,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                                 setSchemeEdit({ source: sc });
                               }}
                               onKeyDown={(e) => e.key === "Enter" && setSchemeEdit({ source: sc })}
-                              className="text-[9px] text-slate-400 underline"
+                              className="text-[9px] text-slate-500 underline underline-offset-2"
                             >
                               {sc.builtin ? "另存为我的" : "改"}
                             </span>
@@ -923,7 +923,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                                   e.stopPropagation();
                                   void shareScheme(sc.id, !sc.published);
                                 }}
-                                className="text-[9px] text-sky-300/90 underline"
+                                className="text-[9px] text-sky-300/90 underline underline-offset-2"
                               >
                                 {sc.published ? "下架" : "发布到市场"}
                               </span>
@@ -939,7 +939,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                                   removeScheme(sc.id);
                                 }}
                                 onKeyDown={(e) => e.key === "Enter" && removeScheme(sc.id)}
-                                className="text-[9px] text-rose-400/80 underline"
+                                className="text-[9px] text-rose-400/80 underline underline-offset-2"
                               >
                                 删
                               </span>

@@ -7,6 +7,7 @@
 //        音频 —— 本地 BGM，音量可调，合并时混进成片
 // 最后「下一步」把时间轴按顺序与裁剪范围重编码成单条视频，进发布页。
 import { useEffect, useMemo, useRef, useState } from "react";
+import Spinner from "../components/Spinner";
 import PageHeader from "../components/PageHeader";
 import { useLocation, useNavigate } from "react-router";
 import FrameAnnotator, { drawAigcBadge, drawCover, loadImg } from "../components/FrameAnnotator";
@@ -1026,14 +1027,14 @@ export default function CutPage() {
           // ★ 合并时这一层**不能**是 pointer-events-none：取消键在里面
           <div className={`absolute inset-0 flex items-center justify-center bg-black/70 ${mergingRef.current ? "" : "pointer-events-none"}`}>
             <div className="flex w-full max-w-[16rem] flex-col items-center gap-3 px-6">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-600 border-t-brand" />
+              <Spinner size="lg" />
               <span className="text-center text-xs text-slate-200">{busy}</span>
               {/* ★★ 合并是**实时录屏**：成片多长就录多长。原来只有一句「片段 i/N」，
                   十几秒才跳一次 —— 用户既不知道还要多久，也不知道是不是卡死了。
                   这里给的是**真百分比**（已录秒数 / 成片总秒数）。 */}
               {mergingRef.current && total > 0 && (
                 <>
-                  <div className="h-1 w-full overflow-hidden rounded-full bg-white/15">
+                  <div className="h-1 w-full overflow-hidden rounded-full bg-white/25">
                     <div
                       className="h-full rounded-full bg-brand transition-all duration-200"
                       style={{ width: `${Math.min(100, Math.round((mergeDone / total) * 100))}%` }}
@@ -1084,7 +1085,7 @@ export default function CutPage() {
           ⚠ 只改高度上限，不动"面板收起时 `<video>` 会不会进不可见状态"那条 ——
             圈选取帧走的正是"等 seeked"那条路，画面真被隐藏就永远等不到。 */}
       <div
-        className={`safe-bottom flex flex-none flex-col border-t border-slate-800 bg-[#141821] ${
+        className={`safe-bottom flex flex-none flex-col border-t border-slate-700/60 bg-[#141821] ${
           tab === "mark" ? "max-h-[38%]" : "max-h-[52%]"
         }`}
       >

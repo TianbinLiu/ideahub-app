@@ -16,6 +16,7 @@
 //   拖拽在真机上会时灵时不灵。所以每个页签里都是一条 `touch-action: pan-x` 的横轨，
 //   卡多了排成两行继续往右接，而不是换行往下堆。
 import { useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "react";
+import { CloseButton } from "./IconTapButton";
 import { createPortal } from "react-dom";
 import Icon from "./Icon";
 import MascotStage from "./MascotStage";
@@ -194,9 +195,7 @@ export default function MaterialSheet({
           <Icon name="card" size={17} className="flex-none text-brand" />
           <span className="flex-none text-sm font-bold text-slate-100">素材库</span>
           <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">往下拖出窗口，交给她</span>
-          <button onClick={onClose} aria-label="关闭素材库" className="flex h-9 w-9 flex-none items-center justify-center text-slate-400">
-            <Icon name="close" size={18} />
-          </button>
+          <CloseButton chip="md" size={16} align="end" label="关闭素材库" onClick={onClose} />
         </div>
 
         {/* 卡组 / 卡片分成两个页签：两者的拖拽语义完全不同（整组 vs 单张），

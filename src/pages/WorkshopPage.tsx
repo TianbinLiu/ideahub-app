@@ -197,7 +197,7 @@ export default function WorkshopPage() {
   }
 
   return (
-    <div className="min-h-full px-4">
+    <div className="min-h-full px-4 pb-10">
       <PageHeader
         title="创意工坊"
         right={

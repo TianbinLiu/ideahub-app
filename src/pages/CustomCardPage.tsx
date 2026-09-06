@@ -23,6 +23,7 @@
 // ④ **图太大 / 比例超 3:1 怎么办？** 走 `data/cardViews.prepareCardImage`（与详情页
 //    「+ 图位」同一份实现）：越界居中裁并把这件事**说出来**，超 5MB 直接报错。
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import Spinner from "../components/Spinner";
 import PageHeader from "../components/PageHeader";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
@@ -1122,7 +1123,7 @@ export default function CustomCardPage() {
                     >
                       {aiPick === w ? (
                         <span className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-slate-300">
-                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-brand" />
+                          <Spinner size="sm" />
                           <span className="text-[9px]">处理中…</span>
                         </span>
                       ) : shot ? (
@@ -1576,7 +1577,7 @@ export default function CustomCardPage() {
         {tags.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1">
             {tags.map((t) => (
-              <span key={t} className="rounded-full px-2 py-0.5 bg-slate-700/70 text-[10px] text-slate-300">
+              <span key={t} className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
                 #{t}
               </span>
             ))}

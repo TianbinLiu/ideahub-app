@@ -65,7 +65,7 @@ export default function TabBar() {
       className={`safe-bottom fixed inset-x-0 bottom-0 z-40 ${
         onFeed
           ? "bg-gradient-to-t from-black/85 via-black/45 to-transparent"
-          : "border-t border-slate-800 bg-ink/95 backdrop-blur"
+          : "border-t border-slate-700/60 bg-ink/95 backdrop-blur"
       }`}
     >
       {/* 固定 h-14：内容区的 padding-bottom 用同一个 --tabbar-h 计算，

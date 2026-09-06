@@ -629,7 +629,7 @@ function NodeScreen({
           ★ 用 hidden 而不是不渲染：这里面有用户正在敲的输入框（要求、剧情），
             卸载再挂回来会丢焦点、丢输入法候选，退出专注态时也就不是"原样展开"了。 */}
       <div
-        className={`${focus ? "hidden" : ""} flex-none space-y-2 border-t border-slate-800 bg-ink px-4 pb-3 pt-2.5`}
+        className={`${focus ? "hidden" : ""} flex-none space-y-2 border-t border-slate-700/60 bg-ink px-4 pb-3 pt-2.5`}
         data-noswipe
       >
         {/* 出片过程日志：跑着时展开，跑完自动收起但留着可回看 */}
@@ -1346,7 +1346,7 @@ export default function FlowPage() {
               此时还占着位置的节点条只是噪音（而且那会儿他也不该跳段）。 */}
           {(!simple || matWindow) && !planFocus && (
             <div
-              className="flex-none border-t border-slate-800 bg-[#141821] px-3 pt-2.5"
+              className="flex-none border-t border-slate-700/60 bg-[#141821] px-3 pt-2.5"
               /* ★ 不能写 `safe-bottom pb-3`：.safe-bottom 在 index.css 里排在 @tailwind utilities
                  之后，两条都是 padding-bottom，后写的赢 —— 于是没有安全区的设备（桌面、
                  大多数安卓）padding-bottom 直接变成 0，素材卡整排贴死在屏幕最底边。
