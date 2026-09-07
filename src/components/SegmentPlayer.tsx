@@ -2,7 +2,7 @@
 // 接入真实视频生成后，本组件替换为 <video> 播放合成片即可，外层接口不变。
 import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
-import { VideoSegment, aspectCss, formatDuration } from "../types";
+import { VideoSegment, aspectCss, formatDuration, segLen, segsTotal } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 
 export default function SegmentPlayer({ segments, cover }: { segments: VideoSegment[]; cover: string }) {
@@ -19,7 +19,12 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
     const t = setTimeout(() => setCtrl(false), 3000);
     return () => clearTimeout(t);
   }, [ctrl, playing, time]);
-  const total = Math.max(0.001, segments.reduce((s, x) => s + x.durationSec, 0));
+  // ★★ 走 segsTotal（实测优先）：这个数就是"播到哪儿算完"（下面 tick 里 nt >= total 就 setPlaying(false)）。
+  //   按申报值算的话，比申报值长的成片会被**当场掐掉尾巴** —— 主人真机上 33 秒的合并成片播到 21 秒就停，
+  //   而屏幕上一个字都不说（见 types.segLen 的 ★★）
+  const total = Math.max(0.001, segsTotal(segments));
+  /** 封面兜底链（见下面渲染处的 ★）：用户选的封面 → 成片第一帧 → 设定首帧 */
+  const coverSrc = cover || segments[0]?.poster || segments[0]?.firstFrame || "";
 
   useEffect(() => {
     if (!playing) return;
@@ -47,15 +52,15 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
   let segIdx = 0;
   let local = 0;
   for (let i = 0; i < segments.length; i++) {
-    if (time < acc + segments[i].durationSec || i === segments.length - 1) {
+    if (time < acc + segLen(segments[i]) || i === segments.length - 1) {
       segIdx = i;
       local = time - acc;
       break;
     }
-    acc += segments[i].durationSec;
+    acc += segLen(segments[i]);
   }
   const seg = segments[segIdx];
-  const frac = seg ? Math.min(1, Math.max(0, local / seg.durationSec)) : 0;
+  const frac = seg ? Math.min(1, Math.max(0, local / segLen(seg))) : 0;
   const ease = frac * frac * (3 - 2 * frac);
   const ended = time >= total && !playing;
 
@@ -90,7 +95,7 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
   const marks: number[] = [];
   let m = 0;
   for (let i = 0; i < segments.length - 1; i++) {
-    m += segments[i].durationSec;
+    m += segLen(segments[i]);
     marks.push(m / total);
   }
 
@@ -105,7 +110,15 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
     >
       {!started ? (
         <>
-          <img src={cover} alt="封面" className="h-full w-full object-cover" />
+          {/* ★ 封面还没选时退到**成片第一帧**（poster || firstFrame，全 app 同一条兜底）：
+              `<img src="">` 在浏览器里画出来是一张**碎图**，而这一格正好压在发布页最显眼的位置 ——
+              用户读到的是「成片坏了」，其实只是还没挑封面（2026-09-06 主人真机那张截图里就有一张）。
+              白模复刻段没有设定帧，全靠合并时留下的 poster（见 CutPage.posterFromCanvas）。 */}
+          {coverSrc ? (
+            <img src={coverSrc} alt="封面" className="h-full w-full object-cover" />
+          ) : (
+            <div className="h-full w-full bg-slate-900" />
+          )}
           <button
             onClick={() => {
               setStarted(true);

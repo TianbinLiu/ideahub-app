@@ -20,7 +20,7 @@ import UserRow from "../components/UserRow";
 import { Link, useLocation } from "react-router";
 import { listVideos, profileHref, remoteOn, searchVideos } from "../data/videos";
 import { searchUsers, userDisplayName, type ApiUserLite } from "../api/users";
-import { VIDEO_CATEGORIES, VideoItem, formatDuration, formatPlays } from "../types";
+import { VIDEO_CATEGORIES, VideoItem, formatDuration, formatPlays, segsTotal } from "../types";
 
 /**
  * 每个分区的看板娘贴图与托盘配色。
@@ -327,7 +327,7 @@ export default function DiscoverPage() {
             <div className="relative overflow-hidden rounded-xl">
               <img src={v.cover} alt={v.title} className="aspect-[3/4] w-full object-cover" />
               <span className="absolute bottom-1.5 right-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-slate-200">
-                {formatDuration(v.segments.reduce((s, x) => s + x.durationSec, 0))}
+                {formatDuration(segsTotal(v.segments))}
               </span>
               {/* 「AI 生成」标识：这一格是"发布内容周边"的第四个面，而封面默认就是
                   segments[0].firstFrame —— 一张**没过 drawAigcBadge** 的 AI 图，

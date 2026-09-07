@@ -12,7 +12,7 @@ import { AI_REAL, generateCover } from "../ai";
 import { canAfford, spendTokens } from "../data/account";
 import { ONE_IMAGE, fmtTokens } from "../data/economy";
 import TokenCost from "./TokenCost";
-import { VideoAspect, VideoSegment, aspectCss, aspectOf, formatDuration } from "../types";
+import { VideoAspect, VideoSegment, aspectCss, aspectOf, formatDuration, segLen, segsTotal } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 // （CoverSection 在下方定义，供发布页与作品编辑页共用同一套封面来源）
 
@@ -99,7 +99,9 @@ export function FrameCaptureDialog({
   onCancel: () => void;
   onConfirm: (dataUrl: string) => void;
 }) {
-  const total = Math.max(0.001, segments.reduce((s, x) => s + x.durationSec, 0));
+  // ★★ 走 segsTotal（实测优先）：按申报值算的话，滑杆最大值会**短于成片本身** ——
+  //   主人真机上 21 秒的滑杆配一条真实 33 秒的成片，后 12 秒根本拖不到（见 types.segLen 的 ★★）
+  const total = Math.max(0.001, segsTotal(segments));
   const [at, setAt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -109,11 +111,12 @@ export function FrameCaptureDialog({
   const { seg, local, frac } = useMemo(() => {
     let acc = 0;
     for (let i = 0; i < segments.length; i++) {
-      if (at < acc + segments[i].durationSec || i === segments.length - 1) {
-        const l = Math.min(at - acc, segments[i].durationSec);
-        return { seg: segments[i], local: l, frac: Math.min(1, Math.max(0, l / segments[i].durationSec)) };
+      const len = segLen(segments[i]);
+      if (at < acc + len || i === segments.length - 1) {
+        const l = Math.min(at - acc, len);
+        return { seg: segments[i], local: l, frac: Math.min(1, Math.max(0, l / len)) };
       }
-      acc += segments[i].durationSec;
+      acc += len;
     }
     return { seg: segments[0], local: 0, frac: 0 };
   }, [at, segments]);
@@ -288,8 +291,12 @@ export function CoverSection({
     const seen = new Set<string>();
     const out: string[] = [];
     for (const s of segments) {
-      for (const f of [s.firstFrame, s.lastFrame]) {
-        if (!seen.has(f)) {
+      // ★★ 必须**滤空**，而且 poster（成片第一帧）要排在最前（2026-09-06 主人真机）：
+      //   白模复刻段天然没有设定帧（firstFrame/lastFrame 恒空串），不滤的话这一行会渲染出一个
+      //   `<img src="">` —— 屏幕上就是一张碎图，还占着「帧1」这个名字，用户以为是成片坏了。
+      //   poster 是合并那一步从画布上留的真实第一帧，正好补上白模段没有设定帧的洞。
+      for (const f of [s.poster, s.firstFrame, s.lastFrame]) {
+        if (f && !seen.has(f)) {
           seen.add(f);
           out.push(f);
         }
@@ -376,7 +383,11 @@ export function CoverSection({
         />
       </div>
       {coverErr && <div className="mb-2 text-xs text-red-400">{coverErr}</div>}
-      <div className="mb-1 text-xs text-slate-500">或从各段首尾帧中选择：</div>
+      {/* 候选一张都没有时整块不摆（白模段没有设定帧、也还没合并出 poster）——
+          摆一行空框比不摆更像坏了 */}
+      {frameChoices.length > 0 && (
+        <>
+      <div className="mb-1 text-xs text-slate-500">或从各段画面中选择：</div>
       <div className="flex gap-2 no-scrollbar overflow-x-auto pb-1">
         {frameChoices.map((f, i) => (
           <button
@@ -390,6 +401,8 @@ export function CoverSection({
           </button>
         ))}
       </div>
+        </>
+      )}
 
       {frameDlg && (
         <FrameCaptureDialog
