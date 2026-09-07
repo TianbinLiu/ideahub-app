@@ -128,7 +128,13 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   （`FlowNode.castPreview`，`flowStore.makeCastPreview`，两面共用 `components/flow/CastPreviewCard`）：只是可审核的中间物，
   **绝不写进 firstFrame**（blockoutIssue 会整句拒），换模板 / 改挂法时作废。**返修**（`genNode(id, { revise })`）是同一条
   出片路的一个可选项：本段成片当参考视频走 edit、`REVISE_TAIL` 代替白模的换人句、不要求挂人物卡；门禁 / 计费 / 凭据 / 写回
-  与正常出片一份实现，只留最近一版（`Proposal.prevVideoUrl`）可还原。全文见 docs/competitor-canvas-skill-mapping.md。
+  与正常出片一份实现，只留最近一版（`Proposal.prevVideoUrl`）可还原。**导演台**（`studio/stage/`，2026-09-06 对标 LibTV）：
+  投影窗 / 画布上「🎬 导演台」开一层自己的 `<Canvas>`（不碰 TableScene 那台演出用相机；`preserveDrawingBuffer` 不开截图是黑的），
+  摆灰人偶、拧机位；截图**不直接**当出片输入（人偶会被原样画进去）—— `flowStore.applyStageShot` 拿它与人物卡 / 场景卡走
+  `real.fuseStageFrame`（导演台专用提示词，**别借 fuseFrame 的外壳**：那句"与各参考图人物一致"会把人偶当人物，实测画出塑料人偶 +
+  手机外壳）成开头帧，走 `setFrame` 那条换帧缝钉住；截图一律浅灰影棚 + 灰人偶（深色底会被认成手机截图）；站位与机位随段存在
+  `FlowNode.stage`。白模段没有它（画面来自模板视频）。
+  全文见 docs/competitor-canvas-skill-mapping.md。
   **提交出片即收窗**（2026-09-06 主人点名）：画布的编辑窗在这一段状态翻到 generating 的那一拍自动收起（`FlowCanvas` 判跳变，
   点开一张正在炼的卡看进度不算），工坊投影窗在 `studioStore` 委托 `genNode` 受理的那一拍收起（`closeProjection`），
   两处都吐一句「已开始生成，可以离开这一页」—— 窗一直开着，用户不知道出片不需要守着。

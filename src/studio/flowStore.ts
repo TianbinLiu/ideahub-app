@@ -19,7 +19,7 @@
 //   现在它是主路径：便宜的一步（推演 ~80k token）摆在前面挑，贵的一步（出片）挑完再走。
 import { startJob } from "../data/jobs";
 import { create } from "zustand";
-import { castPreviewImage, frameUrlAt, AI_REAL, ArkTaskUnknown, generateCover, generateProposals, prepareMaterialRefs, recaptureSegment, takeVideoTask, transferStatus } from "../ai";
+import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskUnknown, generateCover, generateProposals, prepareMaterialRefs, recaptureSegment, takeVideoTask, transferStatus } from "../ai";
 import { isArkAssetUrl } from "../ai/arkClient";
 import { canAfford, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import {
@@ -39,10 +39,12 @@ import {
   tierOf,
   deriveIssue,
 } from "../data/economy";
-import { aspectOf, Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoSegment, VideoTemplate, aspectFromSize, uid } from "../types";
+import { aspectOf, Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoSegment, VideoTemplate, aspectFromSize, uid, viewsOf } from "../types";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
 import { dropVideoJob, rememberVideoJob, setVideoJobWaiting, type VideoJob } from "../data/videoJobs";
+// 导演台的状态与融图指令（纯数据 / 纯函数，见 stage/stageState 头部的 ★）
+import { stageFuseInstruction, type StageState } from "./stage/stageState";
 import {
   BLOCKOUT_MAX_ROLES,
   markDescOfLabel,
@@ -94,6 +96,11 @@ export interface FlowNode {
    * ★ 换模板 / 改挂法都要作废（setNodeTemplate / setNodeCustom / applyCast 里一起清），否则屏幕上是上一套挂法的图。
    */
   castPreview?: string;
+  /**
+   * 导演台（2026-09-06 对标 LibTV）：这一段的人偶站位 + 机位，随段存着（关窗再开、换段回来都在）。
+   * 截图本身只是构图示意，真正落地的是 applyStageShot 融出来的开头帧（写进 proposal.firstFrame，钉住）。
+   */
+  stage?: StageState;
   /** 走向方案：工坊铸的三选一，或工作流现场推演/手写的若干个 */
   proposals: Proposal[];
   chosenId: string;
@@ -990,6 +997,14 @@ interface FlowState {
    * 登记进 data/jobs（几十秒的长活，人可以离开）；失败整句写 err。返回是否出了图。
    */
   makeCastPreview: (nodeId: string) => Promise<boolean>;
+  /** 导演台：记下这一段的人偶站位与机位（草稿随节点存） */
+  setStage: (nodeId: string, stage: StageState) => void;
+  /**
+   * 导演台截图 → 与主角人物卡 / 场景卡融成这一段的**开头帧**（real.fuseStageFrame，一张图钱，economy.ONE_IMAGE），
+   * 走 setFrame 那条换帧缝落地（pinned.first，重推方案不动它）。灰白人偶**不直接**当出片输入。
+   * 白模段整句拒（画面来自模板视频，blockoutIssue 见 firstFrame 非空就拒）。失败整句写 err，返回是否落地。
+   */
+  applyStageShot: (nodeId: string, shot: string, onProgress?: (s: string) => void) => Promise<boolean>;
   /** 改用户对这一段的原话（「重新生成方案」的依据） */
   setRequirement: (nodeId: string, v: string) => void;
   chooseProposal: (nodeId: string, proposalId: string) => void;
@@ -2357,6 +2372,83 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const why = e instanceof Error ? e.message : String(e);
       job.fail(`合成预览没画成：${why.slice(0, 60)}`, "/studio");
       set({ err: `合成预览没画成（${why.slice(0, 80)}）——不影响出片，可以直接生成` });
+      return false;
+    }
+  },
+
+  setStage: (nodeId, stage) => set((s) => ({ nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, stage } : n)) })),
+
+  applyStageShot: async (nodeId, shot, onProgress) => {
+    const node = get().nodes.find((n) => n.id === nodeId);
+    const prop = node?.proposals.find((p) => p.id === node.chosenId);
+    if (!node || !prop) {
+      set({ err: "这一段还没有选定的方案，导演台的截图没处放" });
+      return false;
+    }
+    if (tplOfNode(node)?.refVideo) {
+      set({ err: "白模段的画面整个来自模板视频，导演台的构图用不上" });
+      return false;
+    }
+    if (node.status === "generating" || get().busy) {
+      set({ err: "这一段正在出片，等它结束再换开头帧" });
+      return false;
+    }
+    if (!shot.startsWith("data:image/")) {
+      set({ err: "导演台截图不是一张图（截图失败了，再试一次）" });
+      return false;
+    }
+    // 参考图最多 3 张（fuseFrame 同一条经验）：截图 + 主角人物卡形象 + 场景卡定场图。背景卡是文字，不当参考（V3 规则）
+    const mats = node.materials ?? [];
+    const hero = mats.find((c) => c.type === "character");
+    const scene = mats.find((c) => c.type === "scene");
+    const styleCard = mats.find((c) => c.type === "style");
+    const imageOf = (c: Card | undefined): string => {
+      if (!c) return "";
+      const u = (viewsOf(c)[0]?.url || c.cover || "").trim();
+      return u && !u.startsWith("mock:") ? u : "";
+    };
+    const heroUrl = imageOf(hero);
+    const sceneUrl = imageOf(scene);
+    const sources = [shot, heroUrl, sceneUrl].filter(Boolean);
+    const styleLine = styleCard ? (styleCard.idLine || "").trim().slice(0, 80) || styleCard.summary.slice(0, 24) : "";
+    const instruction = stageFuseInstruction({
+      plot: prop.plot,
+      figures: node.stage?.figures.length ?? 1,
+      heroName: heroUrl ? hero?.name : undefined,
+      hasScene: !!sceneUrl,
+      style: styleLine ? `跟随风格卡「${styleCard?.name}」（${styleLine}）` : hero?.realPerson ? "照片级写实" : undefined,
+    });
+    if (AI_REAL && !canAfford(ONE_IMAGE)) {
+      set({ err: `导演台融图要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });
+      return false;
+    }
+    const job = startJob({ kind: "stage-fuse", title: "导演台融图", page: "/studio", route: "/studio", progress: "把构图示意融成开头帧…" });
+    try {
+      const url = await fuseStageFrame({
+        sources,
+        instruction,
+        aspect: node.aspect,
+        onProgress: (s) => {
+          job.update(s);
+          onProgress?.(s);
+        },
+      });
+      if (AI_REAL) spendTokens(ONE_IMAGE);
+      // 期间方案可能换了（换走向 / 重推）：以**当下**为准，别把帧写到另一套方案上
+      const live = get().nodes.find((n) => n.id === nodeId);
+      if (!live || live.chosenId !== prop.id) {
+        job.fail("这一段的方案已经换了，融好的开头帧没处放（图钱已经花掉）", "/studio");
+        set({ err: "这一段的方案已经换了，融好的开头帧没处放（图钱已经花掉）" });
+        return false;
+      }
+      get().setFrame(nodeId, "first", url);
+      set((s) => ({ nodes: s.nodes.map((n) => (n.id === nodeId && n.stage ? { ...n, stage: { ...n.stage, shot } } : n)) }));
+      job.done({ msg: "导演台的开头帧融好了", silent: true });
+      return true;
+    } catch (e) {
+      const why = e instanceof Error ? e.message : String(e);
+      job.fail(`导演台融图没成：${why.slice(0, 60)}`, "/studio");
+      set({ err: `导演台融图没成（${why.slice(0, 80)}）——没扣钱，可以再截一次` });
       return false;
     }
   },

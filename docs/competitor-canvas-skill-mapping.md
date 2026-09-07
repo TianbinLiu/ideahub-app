@@ -93,6 +93,7 @@ Skill 与模板只是"把这些槽位填对"的流程；它们的稳定来自四
 - §四 4 已落：`types.ShotSpec`（景别 / 运镜 / 情绪节拍）—— 推演按字段写、`segmentGen.shotPrefix` 拼在正文最前、方案台显示、发布折进剧本。
 - §四 6 已落：片段返修（`flowStore.genNode(id, { revise })`，本段成片当参考视频走 edit，`REVISE_TAIL` 代替换人句；`Proposal.prevVideoUrl` 留上一版可还原；两面共用 `ReviseBox`）。限制如实写在框里：按 r2v 计价、产物无声。
 - §四 2 已落一半：白模段挂卡后可出「合成预览图」（`flowStore.makeCastPreview` → `real.castPreviewImage`，投影窗与画布共用 `CastPreviewCard`，一张图钱，换模板 / 改挂法作废）。真人档的首帧本来就是照片。
+- §四 3 已落第一版：**导演台**（`studio/stage/StageOverlay`，投影窗与画布共用，非白模段挑定方案后出现）：自己一个 `<Canvas>`，摆灰白人偶（自产 player-f 模型，最多 8 个，点地面放 / 挪，滑杆调朝向与身高）、拧机位（空处拖环绕、两指缩放；俯 / 平 / 仰 × 特写~全景预设），画幅框跟本段走；截图经 `flowStore.applyStageShot` 与主角人物卡 / 场景卡走 `real.fuseStageFrame`（导演台专用提示词：前两发实测借 fuseFrame 外壳会画出塑料人偶 + 手机外壳 + 参考图拼贴）成开头帧（一张图钱，走 `setFrame` 钉住，重推方案不动它）。站位与机位随段存（`FlowNode.stage`）。**没做**：录预演视频当 r2v 参考（updream 那一步，我们白模链路现成、只差把人偶动画录下来）、姿势库、群众阵列。
 
 ## 五、方舟协议 ↔ 卡片 的槽位表（"固定输入"这件事的证据）
 
