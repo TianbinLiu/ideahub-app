@@ -47,6 +47,7 @@ import { computeChain } from "../scene/TableScene";
 import { CHAIN, focusCam } from "../scene/layout";
 import DeleteSegBtn from "../../components/flow/DeleteSegBtn";
 import CastPreviewCard from "../../components/flow/CastPreviewCard";
+import ReviseBox from "../../components/flow/ReviseBox";
 import ConfirmDialog from "../../components/ConfirmDialog";
 
 export default function ProjectionWindow() {
@@ -1645,6 +1646,14 @@ function PickedActions({
           </button>
         )}
       </div>
+      {/* 返修：已出片才有（ReviseBox 自己判有没有能播的成片）。走 studioStore.genNodeVideo 是为了顺带收窗（提交出片即收窗） */}
+      {done && !locked && (
+        <ReviseBox
+          node={node}
+          disabled={busy || node.status === "generating"}
+          onRun={(instruction) => void useStudio.getState().genNodeVideo(node.id, proposal.id, { revise: { instruction } })}
+        />
+      )}
     </div>
   );
 }

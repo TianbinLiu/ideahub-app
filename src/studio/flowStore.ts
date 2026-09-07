@@ -23,6 +23,7 @@ import { castPreviewImage, frameUrlAt, AI_REAL, ArkTaskUnknown, generateCover, g
 import { isArkAssetUrl } from "../ai/arkClient";
 import { canAfford, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import {
+  r2vTokens,
   ONE_IMAGE,
   DEFAULT_TIER,
   providerOf,
@@ -38,7 +39,7 @@ import {
   tierOf,
   deriveIssue,
 } from "../data/economy";
-import { Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoSegment, VideoTemplate, aspectFromSize, uid } from "../types";
+import { aspectOf, Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoSegment, VideoTemplate, aspectFromSize, uid } from "../types";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
 import { dropVideoJob, rememberVideoJob, setVideoJobWaiting, type VideoJob } from "../data/videoJobs";
@@ -167,6 +168,20 @@ export interface FlowNode {
 }
 
 export type FlowMode = "workflow" | "simple";
+
+/**
+ * genNode 的可选项。`revise` = **返修**（2026-09-06 对标 LibTV 片段重拍）：本段成片当参考视频、作者的改法当正文，
+ * 走与白模同一条 edit 路、同一套结算与取回凭据；产物无声（edit 子任务不出声）、时长跟随成片。
+ * ★ 放在 genNode 里而不是另写一个 action：出片的门禁 / 计费 / 凭据 / 写回是一份实现（铁律六），返修只改"发什么"。
+ */
+export interface GenNodeOpts {
+  revise?: { instruction: string };
+}
+
+/** 返修的输入时长（秒）：成片实测优先，退回申报值；报价与 refVideo 校验读同一个数 */
+export function reviseSecOf(p: Proposal): number {
+  return Math.max(1, Math.round(p.realDurationSec ?? p.durationSec));
+}
 
 /** 套用中的模板快照（草稿要整份存下来，所以单独成型）。
  *  refVideo 是白模模板的参考视频登记值镜像，跟着快照进草稿：报价（nodeCost）与出片
@@ -1016,7 +1031,9 @@ interface FlowState {
   removeMaterial: (nodeId: string, cardId: string) => void;
 
   /** 生成/重生成某节点：先按圈选改设定帧，再承接上一段真尾帧起拍，最后出片 */
-  genNode: (id: string) => Promise<boolean>;
+  genNode: (id: string, opts?: GenNodeOpts) => Promise<boolean>;
+  /** 返修后还原上一版成片（Proposal.prevVideoUrl ↔ videoUrl 对调，videoByProposal 同拍） */
+  restoreProposalVideo: (nodeId: string) => boolean;
 
   /**
    * 出片结束（成/败）留下的"待读通知"。给全局悬浮胶囊（GenerationPill）读的：
@@ -2271,6 +2288,27 @@ export const useFlow = create<FlowState>()((set, get) => ({
       ),
     })),
 
+  restoreProposalVideo: (nodeId) => {
+    const s = get();
+    const node = s.nodes.find((n) => n.id === nodeId);
+    const prop = node ? chosenOf(node) : null;
+    if (!node || !prop?.prevVideoUrl) {
+      set({ err: "没有可还原的上一版" });
+      return false;
+    }
+    if (s.busy || node.status === "generating") {
+      set({ err: "有一段正在生成，等它跑完再还原" });
+      return false;
+    }
+    const cur = node.videoByProposal[node.chosenId];
+    const prev = prop.prevVideoUrl;
+    // 对调：还原之后"上一版"变成刚才那版，再点一次就换回来
+    get().updateProposal(nodeId, { videoUrl: prev, prevVideoUrl: cur, poster: undefined, realDurationSec: undefined });
+    get().updateNode(nodeId, { videoByProposal: { ...node.videoByProposal, [node.chosenId]: prev } });
+    void get().recaptureNode(nodeId, { quiet: true });
+    return true;
+  },
+
   makeCastPreview: async (nodeId) => {
     const node = get().nodes.find((n) => n.id === nodeId);
     const tpl = node ? tplOfNode(node) : null;
@@ -2424,8 +2462,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
       ),
     })),
 
-  genNode: async (id) => {
+  genNode: async (id, opts) => {
     const s0 = get();
+    const rv = opts?.revise;
     if (s0.busy) {
       set({ err: "有一段正在生成，等它跑完再炼下一段" }); // 理由同 deriveProposals 的 ★（不许静默）
       return false;
@@ -2453,9 +2492,33 @@ export const useFlow = create<FlowState>()((set, get) => ({
       set({ err: "先从三套方案里挑一套（点方案卡），再生成本段" });
       return false;
     }
-    if (!prop.plot.trim()) {
+    if (!rv && !prop.plot.trim()) {
       set({ err: "先写清楚这一段要拍什么" });
       return false;
+    }
+    /** 返修：本段自己的成片当参考视频。校验与白模模板视频同一把尺（refVideoIssue：4~30 秒、有真实地址） */
+    // ★ 宽高只喂给 refVideoIssue 的边长 / 画幅校验（成片本身由方舟按地址去取）：按本段画幅取名义尺寸，
+    //   成片实际是 720p（1280×720 / 720×1280），同样落在 ARK_EDIT_RULES 的边长与画幅窗口里
+    const reviseRef = rv
+      ? (() => {
+          const [w, h] = aspectOf(node.aspect).frameSize.split("x").map(Number);
+          return { url: realVideoOfNode(node) ?? "", durationSec: reviseSecOf(prop), width: w, height: h };
+        })()
+      : null;
+    if (rv) {
+      if (!rv.instruction.trim()) {
+        set({ err: "先写一句要改什么（例：把背景换成雨夜 / 去掉右上角的台标）" });
+        return false;
+      }
+      if (!reviseRef?.url) {
+        set({ err: "这一段还没有能返修的成片——先生成，或者等转存完成" });
+        return false;
+      }
+      const issue = refVideoIssue(reviseRef);
+      if (issue) {
+        set({ err: `这一段返修不了：${issue}` });
+        return false;
+      }
     }
     // 付费档位的门禁。UI 上那一档本来就点不动，会走到这里的是"草稿里存着这一档、
     // 而套餐后来降了"这种存量情况 —— 与其让它飞到服务端换一句 403，不如当场说人话。
@@ -2471,13 +2534,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   SegSettings 在档位区印的是同一句；r2v/白模路也从这里走，天然同一道门。
     //   blockout 位按本段事实传（白模节点上「换真人档」是死路，出路那半句要换说法）
     const realFaceBlocked = realFaceIssue(node.materials, node.videoTier, {
-      blockout: !!tplOfNode(node)?.refVideo,
+      blockout: !!rv || !!tplOfNode(node)?.refVideo,
     });
     if (realFaceBlocked) {
       set({ err: realFaceBlocked });
       return false;
     }
-    const cost = nodeCost(s0.nodes, idx, s0.mode);
+    // 返修按 r2v 报价（输入 = 成片时长，与 ReviseBox 上印的同一把尺）；否则照旧 nodeCost
+    const cost = rv && reviseRef ? (r2vTokens(reviseRef.durationSec, node.videoTier) ?? 0) : nodeCost(s0.nodes, idx, s0.mode);
     if (AI_REAL && !canAfford(cost)) {
       const w = walletOf();
       set({
@@ -2520,26 +2584,28 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const tplRef = nodeTpl?.refVideo;
       const res = await generateSegment(
         {
-          plot: prop.plot,
-          firstFrame: prop.firstFrame,
-          lastFrame: prop.lastFrame,
+          // 返修：正文是作者的改法，帧一张不带（参考视频与首尾帧在方舟互斥），其余走成片自己
+          plot: rv ? rv.instruction.trim() : prop.plot,
+          firstFrame: rv ? "" : prop.firstFrame,
+          lastFrame: rv ? "" : prop.lastFrame,
           durationSec: prop.durationSec,
           videoTier: node.videoTier,
           aspect: node.aspect,
-          shot: prop.shot,
-          anns: node.anns,
-          carryFrame: carry,
-          refVideoUrl: tplRef?.url,
+          shot: rv ? undefined : prop.shot,
+          anns: rv ? [] : node.anns,
+          carryFrame: rv ? null : carry,
+          refVideoUrl: rv ? reviseRef!.url : tplRef?.url,
+          revise: !!rv,
           // 自定义段的素材参考（多图+参考视频）：报价（上面 nodeCost 的 materialRefCost
           // 分支）与这里必须同进同出 —— 报了 (输入+输出) 的价就必须真发参考视频
           materialRef:
-            node.custom && node.customRef
+            !rv && node.custom && node.customRef
               ? { url: node.customRef.url, durationSec: node.customRef.durationSec, mids: node.customRef.mids }
               : undefined,
           // ★ 登记值**整份**透传（不只时长）：出片门口那道「模板视频自己合不合方舟窗口」
           //   的判据要读 realDurationSec ?? durationSec，在这里只挑一个数传下去，
           //   segmentGen 就得自己拼那个 `??` —— 那是同一条规则的第二份实现。
-          refVideo: tplRef,
+          refVideo: rv ? reviseRef! : tplRef,
           // ★★ 角色位：白模两条互斥的路由它分叉（segmentGen 的 `named`，判据是**存在性**
           //   `roles?.length`）。有 = V2，`plot` 里已经是编辑页合成好的点名映射，出片时
           //   **不再拼**泛指的 BLOCKOUT_SWAP（泛指与点名摆在同一段话里自相矛盾，而实测
@@ -2548,8 +2614,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
           //   一处实现，且用户在输入框里改过之后**以输入框为准**（方案 B2）。
           //   从模板快照读而不是现查模板库：套用那一刻的那份 roles 才与已合成的点名句、
           //   已落的 materials 对得上（见 FlowTemplate.roles 的 ★）。
-          roles: nodeTpl?.roles,
-          framePrompt: tplFrame ? fillSubject(tplFrame, get().subject) : undefined,
+          roles: rv ? undefined : nodeTpl?.roles,
+          framePrompt: rv ? undefined : tplFrame ? fillSubject(tplFrame, get().subject) : undefined,
           // 本段素材卡要真的进提示词。此前它只喂给「推演三种走向」，
           // 用户在这一段挂了人物卡再点生成，出片其实完全不认识那张卡。
           // ★★ V2 白模上这一份是 applyCast **按角色位原序**写进来的，这里不许重排：
@@ -2588,13 +2654,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
             //   重复一遍只会挤掉真正有辨识度的那半句（套的哪个模板 / 这一段讲什么）
             //   ★ 用 `||` 不是 `??`：空标题/空剧情是空**串**不是 undefined，`??` 接不住，
             //   结果是卡片上一行空白（而这张卡的用处就是让人认出是哪一发）
-            label: get().template?.title || prop.plot.trim().slice(0, 24) || prop.title || `第 ${idx + 1} 段`,
+            label: rv ? `返修：${rv.instruction.trim().slice(0, 20)}` : get().template?.title || prop.plot.trim().slice(0, 24) || prop.title || `第 ${idx + 1} 段`,
             cost,
             // ★ 原节点不在了也能安放（重启 + 那一段从没存过草稿）：新开的那一段按这几样长（见 placeRescuedSegment）
             durationSec: prop.durationSec,
             aspect: node.aspect,
             videoTier: node.videoTier,
-            plot: prop.plot,
+            plot: rv ? rv.instruction : prop.plot,
             createdAt: Date.now(),
           });
           // ★ 这一炉正在等它：取回卡先别摆（显示门在 data/videoJobs.setVideoJobWaiting，
@@ -2609,7 +2675,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 真实帧顶替设定帧：节点卡显示的就是视频里实际的画面，也是下一段的起拍帧。
       // videoUrl 同时挂在方案上——工坊侧的节点卡读的就是它（两个模式共用同一份出片）
       patchProp({
-        firstFrame: res.firstFrame,
+        // 返修：上一版留一份可还原（只留最近一版）；成片首帧原本就空，别用返修结果的空串盖掉设定帧
+        ...(rv ? { prevVideoUrl: realVideoOfNode(node) ?? undefined } : {}),
+        firstFrame: rv ? prop.firstFrame : res.firstFrame,
         lastFrame: res.lastFrame,
         // 成片第一帧只管显示（白模/参考直出段没有设定首帧，卡面靠它）；这一炉没截到就清掉
         // 上一炉的旧图，别让卡面挂着另一发的画面

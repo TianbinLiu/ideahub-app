@@ -628,6 +628,8 @@ export interface Proposal {
   pinned?: { first?: boolean; last?: boolean };
   /** 结构化镜头字段（景别 / 运镜 / 情绪节拍），见 ShotSpec */
   shot?: ShotSpec;
+  /** 返修（flowStore.genNode 的 opts.revise）之前那一版成片地址：返修一次覆盖一次，只留最近一版可还原（restoreProposalVideo） */
+  prevVideoUrl?: string;
   /**
    * 成片的**第一帧**（出片时从视频里截的，与 lastFrame 同一次解码），**只管显示**。
    *
