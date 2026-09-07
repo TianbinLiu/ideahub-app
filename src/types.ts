@@ -578,6 +578,39 @@ export function publishableModelUrl(url: string | undefined | null): string | nu
 }
 
 /** 一个节点生成出的候选方案（视频片段提案） */
+/**
+ * 一套方案的**结构化镜头字段**（2026-09-06，对标 updream 分镜 Skill 输出的六个字段里我们缺的三个）。
+ * 推演时由豆包按字段写（real.generateProposals），出片提示词按字段读（segmentGen 的 shotLineOf 前缀），
+ * 方案台原样显示，发布时折进 VideoSegment.plot（做同款 / 提炼卡组都能读到）。
+ * ★ 全部可选：老方案与 mock 没有，读侧一律判存在性；字段值是短语不是句子（各 ≤ 12 字）。
+ */
+export interface ShotSpec {
+  /** 景别：远景 / 全景 / 中景 / 近景 / 特写 */
+  size?: string;
+  /** 运镜：固定 / 推 / 拉 / 摇 / 移 / 跟 / 环绕 / 手持…（可带方向） */
+  camera?: string;
+  /** 情绪节拍：如「压抑→爆发」「轻快」 */
+  beat?: string;
+}
+
+/** 镜头字段 → 提示词里那一句（唯一实现）。没有任何字段时返回空串 */
+export function shotLineOf(shot?: ShotSpec | null): string {
+  const parts = [shot?.size, shot?.camera, shot?.beat].map((s) => (s ?? "").trim()).filter(Boolean);
+  return parts.length ? `镜头：${parts.join(" · ")}` : "";
+}
+
+/** 模型吐出来的 shot 过一遍形状检查（JSON 里什么都可能出现）；没有可用字段就不带这个键 */
+export function cleanShot(raw: unknown): ShotSpec | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+  const pick = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim().slice(0, 12) : "");
+  const shot: ShotSpec = {};
+  if (pick("size")) shot.size = pick("size");
+  if (pick("camera")) shot.camera = pick("camera");
+  if (pick("beat")) shot.beat = pick("beat");
+  return Object.keys(shot).length ? shot : undefined;
+}
+
 export interface Proposal {
   id: string;
   title: string;
@@ -593,6 +626,8 @@ export interface Proposal {
    *    "我要的就是这张"，被 AI 悄悄覆盖掉是最刺痛的一种丢数据。
    *    想让 AI 重画就在卡里清掉那一帧（置空串），锁随之解除。 */
   pinned?: { first?: boolean; last?: boolean };
+  /** 结构化镜头字段（景别 / 运镜 / 情绪节拍），见 ShotSpec */
+  shot?: ShotSpec;
   /**
    * 成片的**第一帧**（出片时从视频里截的，与 lastFrame 同一次解码），**只管显示**。
    *

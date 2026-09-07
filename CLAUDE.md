@@ -121,6 +121,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   `templates.readyTemplates`、`studioStore.openWorkDraft` 按截线过滤——按时间判不按卡种判，截线之后铸的 V3 卡要留）。
   白模模板的素材卡从**原片**抽帧铸（`real.extractTemplateCards`，登记那一屏报 `blockoutCardsCost`）。
   全文见 docs/card-roles-v3-design.md。
+- **方案有结构化镜头字段**（`types.ShotSpec`：景别 / 运镜 / 情绪节拍，2026-09-06 对标 updream 分镜 Skill）：推演按字段写、
+  `segmentGen.shotPrefix` 把它拼在正文最前、方案台显示、发布时折进 `VideoSegment.plot`。**一段出片的生成契约**是
+  `real.GenSpec`（composeSegments 的入参），提交前 `describeGenSpec` 写一行「生成契约 · 模式 · 档 · 画幅 · 时长 · 参考图 N」进步骤日志——
+  四条出片路的分叉只允许发生在"卡 → 这份契约"的翻译里，契约之后只有一条路。全文见 docs/competitor-canvas-skill-mapping.md。
   **提交出片即收窗**（2026-09-06 主人点名）：画布的编辑窗在这一段状态翻到 generating 的那一拍自动收起（`FlowCanvas` 判跳变，
   点开一张正在炼的卡看进度不算），工坊投影窗在 `studioStore` 委托 `genNode` 受理的那一拍收起（`closeProjection`），
   两处都吐一句「已开始生成，可以离开这一页」—— 窗一直开着，用户不知道出片不需要守着。

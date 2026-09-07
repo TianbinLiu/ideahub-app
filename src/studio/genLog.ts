@@ -94,6 +94,9 @@ export function splitStatus(status: string): { title: string; detail?: string; t
   const t = status.match(/^(?:.+?档\s*·\s*)?(成片转存.*)$/);
   if (t) return { title: t[1].replace(/[…\.]+$/, "") };
   // "标准档 · 生成中 12s" / "极速档 · 排队中 6s" —— 同一步的读秒
+  // 生成契约（real.describeGenSpec）：标题固定、正文是那一串参数，别让整行当标题
+  const c = status.match(/^契约\s*·\s*(.+)$/);
+  if (c) return { title: "生成契约", detail: c[1] };
   const m = status.match(/^(.+?档)\s*·\s*(.+)$/);
   if (m) return { title: "渲染视频", detail: `${m[1]} · ${m[2]}` };
   return { title: status.replace(/[…\.]+$/, "") };

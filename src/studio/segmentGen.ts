@@ -18,7 +18,7 @@ import { r2vPriceIssue, tierOf, providerOf, clampDuration, type VideoTier } from
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
-import { CardType, ID_LINE_MAX, CARD_TYPE_LABELS, idLineOf, viewsOf, type Card, type VideoAspect, type VideoTemplate } from "../types";
+import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_LABELS, idLineOf, viewsOf, type Card, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
 
 export interface SegmentAnn {
@@ -29,6 +29,8 @@ export interface SegmentAnn {
 
 export interface SegmentGenInput {
   plot: string;
+  /** 结构化镜头字段（types.ShotSpec）：出片提示词前缀「镜头：景别 · 运镜 · 情绪节拍。」，三条路同一处实现 shotPrefix */
+  shot?: ShotSpec;
   firstFrame: string;
   lastFrame: string;
   durationSec: number;
@@ -273,6 +275,12 @@ export function redrawnAnns<T extends { atSec: number }>(
  *   所以现在是「文字 + 参考图 + 绑定句」三件一起给，文字这一半仍旧保留 ——
  *   没有 views 的卡、以及被规则一让位的第二张人物卡，全靠它。
  */
+/** 镜头字段的提示词前缀（唯一实现）：有字段才拼，句号收尾；三条出片路都从这里拿 */
+function shotPrefix(shot?: ShotSpec): string {
+  const line = shotLineOf(shot);
+  return line ? `${line}。` : "";
+}
+
 function materialText(materials?: Card[]): string {
   if (!materials?.length) return "";
   // ★ V3（2026-09-06）：按"离了它画面最先走样"排序——人物 > 风格 > 场景 > 道具；上游是从**尾巴**截到
@@ -538,7 +546,7 @@ export async function generateSegment(
       blockout: false,
     });
     notes.push(...voice.notes);
-    const fitted = withVoiceLine(`${input.plot.slice(0, room)}${tail}`, voice.voiceLine);
+    const fitted = withVoiceLine(`${`${shotPrefix(input.shot)}${input.plot}`.slice(0, room)}${tail}`, voice.voiceLine);
     if (fitted.dropped) notes.push("音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上");
     prog(`按参考视频 + ${refUrls.length} 张关键帧出片（输入 ${input.materialRef.durationSec}s + 输出 ${clampDuration(input.durationSec, input.videoTier)}s 计价）…${cut}${noteTail()}`);
     const [res] = await composeSegments(
@@ -595,7 +603,7 @@ export async function generateSegment(
     const [res] = await composeSegments(
       [
         {
-          plot: `${input.plot}${materialText(input.materials)}`.slice(0, VIDEO_PROMPT_MAX),
+          plot: `${shotPrefix(input.shot)}${input.plot}${materialText(input.materials)}`.slice(0, VIDEO_PROMPT_MAX),
           firstFrame: firstSrc,
           lastFrame: "",
           durationSec: input.durationSec,
@@ -898,7 +906,8 @@ export async function generateSegment(
   //   的 onNote 逐张点名（"第 N 张参考图未采用…"），一张都没成还会整句 throw，不是静默。
   // refMode 的绑定句已前置（bindHead），尾巴只剩素材设定文字
   const tail = blockout ? (named ? bind : `${BLOCKOUT_SWAP}${mats}${bind}`) : `${frameRoles}${mats}`;
-  const story = reqs ? `${input.plot}。修改要求（必须满足）：${reqs}` : input.plot;
+  // ★ 镜头字段放正文最前（景别 / 运镜 / 情绪节拍），模型先读到"怎么拍"再读"拍什么"
+  const story = `${shotPrefix(input.shot)}${reqs ? `${input.plot}。修改要求（必须满足）：${reqs}` : input.plot}`;
   // ★ 提示词有 VIDEO_PROMPT_MAX 的硬顶，而截的是**正文** —— 头（点名句）与尾（素材设定/
   //   白模绑定句）都要先留位。直接拼起来交上去的话：简约模式的输入框本身就允许 400 字，
   //   用户写满（或套个字数多一点的模板再挂张卡）就把绑定句整句切没了，而参考图照样发出去

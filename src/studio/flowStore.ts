@@ -2458,6 +2458,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
           durationSec: prop.durationSec,
           videoTier: node.videoTier,
           aspect: node.aspect,
+          shot: prop.shot,
           anns: node.anns,
           carryFrame: carry,
           refVideoUrl: tplRef?.url,
