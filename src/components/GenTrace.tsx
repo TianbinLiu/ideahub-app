@@ -87,7 +87,7 @@ export default function GenTrace({
                     {s.title}
                     {s.ms != null && <span className="ml-1.5 text-[10px] text-slate-600">· {fmtMs(s.ms)}</span>}
                   </div>
-                  {isRun && s.detail && (
+                  {(isRun || s.keep) && s.detail && (
                     <div className="text-[10.5px] leading-relaxed text-slate-500">{s.detail}</div>
                   )}
                 </div>
