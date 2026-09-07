@@ -81,7 +81,7 @@ import { notificationsState, refreshUnreadCount, subscribeNotifications } from "
 import { useAccountVersion, useAuthState, useCurrentUser } from "../hooks/useAccount";
 import { useBackOr } from "../hooks/useBackOr";
 import { useVideosVersion } from "../hooks/useVideos";
-import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoItem, type Visibility, formatPlays, relativeTime, visibilityOf } from "../types";
+import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoItem, type Visibility, formatPlays, relativeTime, revisionLabel, visibilityOf } from "../types";
 import { cutSession, dropCutSession, subscribeCutSession } from "../data/cutSession";
 import { useStudio } from "../studio/studioStore";
 
@@ -1269,10 +1269,14 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
             {/* 「回炉过」的角标。★ 判据是 `revisedAt` **有没有值**（同详情页那一行，铁律六）：
                 没回炉过的作品与老数据都没有这一格。三列网格里塞不下整句话，只留版次 ——
                 完整那句「N 月 N 日重新剪辑过 · 第 N 版」在详情页上。
-                ★ 版次口径同样是 revision + 1：回炉一次之后是第 2 版。 */}
+                ★ 版次口径走 types.revisionLabel 那**一处**（详情页那一行、这里、回炉成功
+                  那句横幅共用；2026-09-07 合并前这里是第三份手写的 `?? 0` 再 +1）。
+                ★ 报不出版次（老数据只有 revisedAt、没有 revision）时退成「回炉过」——
+                  原来那份会印出「第 1 版」，那是把一条明明回炉过的作品标成"没改过"，
+                  而且同一份数据在详情页上什么版次都不印，两处对不上。 */}
             {!!v.revisedAt && (
               <span className="absolute bottom-1 right-1.5 rounded bg-black/60 px-1 py-0.5 text-[9px] tabular-nums text-slate-200">
-                第 {Number(v.revision ?? 0) + 1} 版
+                {revisionLabel(v.revision) ?? "回炉过"}
               </span>
             )}
             {/* 私密作品要在墙上一眼认得出来：否则作者只会看到"这条怎么没人看"，

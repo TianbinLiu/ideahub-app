@@ -42,7 +42,7 @@ import { useStudio } from "../studio/studioStore";
 import { remakeNodesOf, remakeableOf, useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import TarotCard from "../components/TarotCard";
-import { CARD_TYPE_LABELS, VideoComment, formatPlays, relativeTime } from "../types";
+import { CARD_TYPE_LABELS, VideoComment, formatPlays, relativeTime, revisionLabel } from "../types";
 import BlockButton from "../components/BlockButton";
 
 /** 本片卡组：卡片横滑条 + 收入/去创作。收入 = 卡片拷进观众账号；
@@ -517,10 +517,12 @@ export default function VideoPage() {
         <h1 className="mt-4 text-xl font-bold text-slate-100">{video.title}</h1>
         {/* ★★ 「这条片被重新剪辑过」必须让**观众**看得见（2026-08-10 删掉回炉的理由①正是
             "内容变了而观众没有任何提示"）。判据是 `revisedAt` **有没有值** —— 没回炉过的
-            作品、老服务端、老数据都不该凭空长出一行。日期口径走 types.relativeTime 那一份。 */}
+            作品、老服务端、老数据都不该凭空长出一行。日期口径走 types.relativeTime 那一份，
+            版次口径走 types.revisionLabel 那一份（个人页角标与回炉成功那句横幅共用同一把尺，
+            null = 老数据报不出版次，这里就只说"重新剪辑过"，不补一个编出来的数）。 */}
         {!!video.revisedAt && (
           <p className="mt-1 text-xs text-slate-500">
-            {relativeTime(video.revisedAt)}重新剪辑过{video.revision ? ` · 第 ${video.revision + 1} 版` : ""}
+            {relativeTime(video.revisedAt)}重新剪辑过{revisionLabel(video.revision) ? ` · ${revisionLabel(video.revision)}` : ""}
           </p>
         )}
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-400">

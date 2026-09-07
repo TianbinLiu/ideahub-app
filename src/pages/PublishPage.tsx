@@ -30,7 +30,7 @@ import { addCards, createDeck, deckSynced } from "../data/account";
 import { getVideo, publishVideo, reviseVideo, type ReviseResult } from "../data/videos";
 import { useVideosVersion } from "../hooks/useVideos";
 import { publishedExit, useStudio } from "../studio/studioStore";
-import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, visibilityOf, visibilityWire } from "../types";
+import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, revisionLabel, visibilityOf, visibilityWire } from "../types";
 
 export default function PublishPage() {
   const navigate = useNavigate();
@@ -178,9 +178,13 @@ export default function PublishPage() {
       replace: true,
       // 成功要说一句"发生了什么"，而且要说在**结果所在的那一页**上（本 app 没有 toast）。
       // ★ 只说已知事实：版次是回包里的；"会收到通知的人"数拿不到就不提（不许拼一个数）
-      // ★ 版次的说法与详情页那一行**同一把尺**：revision 是"回炉过几次"，第一次回炉之后
-      //   是第 2 版。两处印不同的数比不印更糟。
-      state: { banner: `已替换。这条作品现在是第 ${res.revision + 1} 版，收藏过它的人会收到通知。` },
+      // ★ 版次的说法与详情页那一行、个人页那颗角标**同一把尺**（types.revisionLabel，
+      //   全仓一处）：revision 是"回炉过几次"，第一次回炉之后是第 2 版。三处印不同的数
+      //   比不印更糟。这条路上 res.revision 一定 ≥ 1（回执自己校过 base+1），所以
+      //   revisionLabel 不会是 null；`?? "新的一版"` 只是不让一句 UI 文案依赖那个推理。
+      state: {
+        banner: `已替换。这条作品现在是${revisionLabel(res.revision) ?? "新的一版"}，收藏过它的人会收到通知。`,
+      },
     });
   }
 

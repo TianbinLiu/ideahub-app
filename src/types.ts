@@ -1332,3 +1332,22 @@ export function relativeTime(at: number): string {
   if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}月${d.getDate()}日`;
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
+
+/**
+ * 「第 N 版」那句话——**全仓唯一一处口径**（详情页那一行、个人页作品角标、回炉成功后
+ * 带去详情页的那句横幅，三处共用；铁律六）。
+ *
+ * `revision` = **回炉过几次**（0 / 缺省 = 从没回炉过），所以第一次回炉之后是「第 2 版」。
+ *
+ * ★★ 返回 `null` = **报不出版次**，调用方各自决定这一档画什么（详情页省掉后半句，
+ *   个人页角标退成「回炉过」）。这一档真实存在：老服务端 / 老数据只回了 `revisedAt`
+ *   而没有 `revision`（两个字段是分两跳搬过来的，见 VideoItem.revision 的 ★★）。
+ *   ⛔ 不许拿 `0` 当「第 1 版」印出去 —— 那是把一条**明明回炉过**的作品标成「没改过」，
+ *     比不标版次更坏，而且它跟同一份数据在详情页上的说法（什么都不印）直接对不上。
+ *     2026-09-07 合并三处实现时，个人页角标那一份原本正是这么写的（`?? 0` 再 +1）。
+ */
+export function revisionLabel(revision: number | undefined): string | null {
+  const n = Number(revision ?? 0);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return `第 ${n + 1} 版`;
+}
