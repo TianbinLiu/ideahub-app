@@ -242,12 +242,39 @@ function refsOf(entry: string, json: Model3Json): { path: string | null; ref: st
  * @param maxBytes **zip 文件本身**的大小上限（调用方从 `api/uploads.MAX_LIVE2D_BUNDLE_BYTES` 传进来，那儿是唯一实现，
  *   与服务端的 zip 上限、直传票上的 `maxSizeBytes` 是同一把尺）。解压后的总大小另说，见下面那段 ★★。
  */
+/**
+ * 把 File 读成字节。★ 不用 `file.arrayBuffer()`：那是 Chrome 76+ 才有的，而本仓 `minSdkVersion = 24`
+ * （Android 7 自带的 WebView 可以老到 Chrome 51），在那种机器上它是 undefined，会以 TypeError 的形式炸在别处。
+ */
+function readFileBytes(file: File): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(reader.error || new Error("读取失败"));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 export async function readLive2dBundle(file: File, maxBytes: number): Promise<BundleCheck> {
   // ★ 动态 import：jszip 只有这一页用，静态 import 会把它压进主包，让所有人为一个没打开过的向导买单
   const JSZipCtor = (await import("jszip")).default;
+  // ★★ 2026-09-07 真机实测（OPPO CPH2771 / Android 16）挖出来的：**「读不出来」和「不是 zip」是两回事**。
+  //   原来这里直接把 File 交给 JSZip，任何失败都说成"看起来不是 zip 压缩包"。而实测文件读不到时，
+  //   浏览器抛的是 "A requested file or directory could not be found at the time an operation was processed."，
+  //   屏幕上却写着"不是 zip 压缩包" —— 用户会去换一个压缩包，而真正该做的是把文件先存到本地。
+  //   真实场景：从网盘/云盘选一个还没下下来的文件、SD 卡被拔、系统把分享来的临时文件清理掉。
+  //   所以先自己读字节，把这两条失败分开说。
+  let bytes: ArrayBuffer;
+  try {
+    bytes = await readFileBytes(file);
+  } catch (e) {
+    throw new Error(
+      `这个文件读不出来（${e instanceof Error ? e.message : "读取失败"}）。多半是它还在网盘/云端没下到本机，或者已经被移动、删除了 —— 先把它存进手机里再选一次。`,
+    );
+  }
   let zip: JSZip;
   try {
-    zip = await JSZipCtor.loadAsync(file);
+    zip = await JSZipCtor.loadAsync(bytes);
   } catch (e) {
     throw new Error(`这个文件打不开，看起来不是 zip 压缩包（${e instanceof Error ? e.message : "解压失败"}）。`);
   }
