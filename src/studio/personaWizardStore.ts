@@ -29,6 +29,7 @@ import {
   createPersona,
   generatePersonaDraft,
   streamPersonaPreviewChat,
+  updateCompanionSettings,
   type MarketPersona,
   type PersonaAnalysis,
   type PersonaBasics,
@@ -120,6 +121,16 @@ export interface PersonaWizardState {
 
   // ④ 生成
   analysis: PersonaAnalysis | null;
+  /**
+   * `analysis` 是**照着哪一批素材**算出来的（指纹：每条素材的 id + 字数，加上"哪个是 TA"）。
+   *
+   * ★★ 为什么不能只判 `!analysis`（2026-09-07 补）：加/删素材、换说话人之后 `analysis` 还在，
+   *   于是重新生成时「送去分析」那一步整个被跳过，新素材**一次都没有被读过**，发出去的还是上一份分析。
+   *   零报错，界面上那句「读过你的素材」还理直气壮。而反过来"素材一变就清掉 analysis"又会毁掉
+   *   analyze/generate 分两步的**本意**（重生成不重读素材、不再烧一格 5 次/分钟的额度）——
+   *   指纹同时满足这两件事：没变就复用，变了才重跑。
+   */
+  analyzedKey: string;
   draft: PersonaDraft | null;
   /** 正在跑的那一步的人话（空 = 没在跑）；同时也是"生成键要不要转圈" */
   genBusy: string;
@@ -141,6 +152,14 @@ export interface PersonaWizardState {
   pubErr: string;
   /** 发布成了的那条（成功页读它） */
   published: MarketPersona | null;
+  /**
+   * 成功页那颗「装备为当前人格」的在途 / 回执。
+   * ★ 放 store 不放组件 state（2026-09-07 收口）：与这两份 store 文件头讲的是同一件事 ——
+   *   人点完就退出去，`setState` 打在已卸载的组件上 = 回执静默丢掉，回来时那颗键像从没点过。
+   *   这一发很短，不值得登记一张 job 票；但结果落 store 之后"退出去再回来还看得见"是白拿的。
+   */
+  equipBusy: boolean;
+  equipMsg: WizardBanner | null;
 
   banner: WizardBanner | null;
   /** 页面此刻挂着没有（结局分叉：页在 → 就地画；页不在 → 走胶囊通知） */
@@ -164,6 +183,7 @@ export function initialWizardState(): PersonaWizardState {
     materialErr: "",
     questionnaire: defaultQuestionnaire(),
     analysis: null,
+    analyzedKey: "",
     draft: null,
     genBusy: "",
     genOnly: null,
@@ -177,6 +197,8 @@ export function initialWizardState(): PersonaWizardState {
     pubBusy: false,
     pubErr: "",
     published: null,
+    equipBusy: false,
+    equipMsg: null,
     banner: null,
     mounted: false,
   };
@@ -225,6 +247,16 @@ export function removeMaterial(id: string): void {
   }));
 }
 
+/**
+ * 「这一份 analysis 是照着哪批素材算的」的指纹（见 `analyzedKey` 的 ★★）。
+ * ★ 用 id + 字数而不是原文哈希：原文不进 store，而 id 是每条素材唯一的、字数一变就是另一条内容 ——
+ *   这两样足够回答"送去分析的那一份变了没有"，也不用把几万字再走一遍。
+ * ★ speaker 进指纹：只改「哪个是 TA」不动素材，送出去的正文也完全不同（`linesOfSpeaker` 筛过）。
+ */
+function analyzeKeyOf(s: PersonaWizardState): string {
+  return `${s.materials.map((m) => `${m.id}:${m.chars}`).join("|")}@${s.speaker}`;
+}
+
 /** 素材一共多少字（界面上那个"已导入 n 字"）。原文不出 store，所以由这里算 */
 export function materialChars(): number {
   return usePersonaWizard.getState().materials.reduce((n, m) => n + m.chars, 0);
@@ -247,6 +279,31 @@ export function materialsForAnalyze(): ReturnType<typeof clampMaterials> {
 
 /** 试聊那条 SSE 的闸：换一句话、离开向导、清空重来都要把在途那条掐掉 */
 let previewAbort: AbortController | null = null;
+
+/**
+ * 送出去之前把草稿里**没填完的示例对话**滤掉。**一处实现**，试聊与发布共用。
+ *
+ * ★★ 为什么必须在这里而不只是界面上提醒（2026-09-07 补）：服务端 `exampleSchema` 对 `user` / `reply`
+ *   都是 `min(1)`，而「加一组」插进去的就是一对空串 —— 点了「加一组」还没填完就去试聊或发布，
+ *   整条请求 400，而 zod 的长度错在 server `middleware/error.js` 里被糊成一句英文 "Validation error"，
+ *   不说是哪个字段。`previewChatBody.draft` 与 `createBody.style` 用的是同一个 `styleBody`，
+ *   所以第 ⑤ 步和第 ⑦ 步会一起坏。空组本来就没有意义，滤掉不损失任何东西。
+ * ★ 只在**送出去**那一拍滤：草稿本身留着空组，用户回微调那一步还看得见自己加了一行没填。
+ */
+export function draftForServer(draft: PersonaDraft): PersonaDraft {
+  const examples = draft.style.examples ?? [];
+  const kept = examples.filter(exampleFilled);
+  if (kept.length === examples.length) return draft;
+  return { ...draft, style: { ...draft.style, examples: kept } };
+}
+
+/**
+ * 「这一组填完了没有」的**唯一判据**：滤掉它的这一处与界面上把它说出来的那一处必须同一句话，
+ * 各写一份的话，界面说"这组没问题"而送出去时被滤掉（或反过来）都是零报错的。
+ */
+export function exampleFilled(e: { user: string; reply: string }): boolean {
+  return !!e.user.trim() && !!e.reply.trim();
+}
 
 function basicsOf(s: PersonaWizardState): PersonaBasics | undefined {
   const b: PersonaBasics = {};
@@ -297,15 +354,17 @@ export async function runGeneratePersona(opts: { only?: PersonaDraftField[] } = 
   };
 
   try {
-    // ① 分析素材（只在有素材、且这一份还没分析过、且不是"只换某个字段"时跑）
+    // ① 分析素材（只在有素材、且**这一批**还没分析过、且不是"只换某个字段"时跑）
+    // ★ 判据是指纹不是 `!analysis`：见 `analyzedKey` 的 ★★ —— 判 `!analysis` 的话改过的素材会被静默丢掉。
     let analysis = s0.analysis;
-    if (!only && !analysis && s0.materials.length > 0) {
+    const wantKey = analyzeKeyOf(s0);
+    if (!only && s0.analyzedKey !== wantKey && s0.materials.length > 0) {
       const { materials, droppedChars, droppedItems } = materialsForAnalyze();
       if (materials.length > 0) {
         step("正在读你给的素材…");
         const r = await analyzePersonaMaterials({ materials, speaker: s0.speaker || undefined });
         analysis = r.analysis;
-        usePersonaWizard.setState({ analysis });
+        usePersonaWizard.setState({ analysis, analyzedKey: wantKey });
         if (droppedChars > 0 || droppedItems > 0) {
           // 截了就要说（铁律八）：不说的话症状是"生成出来的不像"，而用户查不到原因
           usePersonaWizard.setState({
@@ -321,14 +380,22 @@ export async function runGeneratePersona(opts: { only?: PersonaDraftField[] } = 
     // ② 生成草稿
     step(only ? "正在重写这一处…" : "正在写说话风格…");
     const s = usePersonaWizard.getState();
+    // ★ 指纹对不上的那一份**不发**：素材被删光时 `materials.length === 0`，上面那一步整个跳过，
+    //   而 `analysis` 还留在 store 里 —— 照发的话就是"用一批已经不存在的素材写出来的人格"。
+    const fresh = s.analyzedKey === wantKey ? analysis : null;
     const r = await generatePersonaDraft({
       basics: basicsOf(s),
       questionnaire: s.questionnaire,
-      analysis: analysis ?? undefined,
+      analysis: fresh ?? undefined,
       only,
       draft: only ? (s.draft ?? undefined) : undefined,
     });
     usePersonaWizard.setState({ draft: r.draft, genBusy: "", genOnly: null });
+    // ★ 整份换了一版草稿 ⇒ 上一版的试聊记录作废（`only` 只改一处，不清）。不清的话有两件坏事：
+    //   ① 第 ⑤ 步一进去就是满 5 轮、再也聊不动（此前唯一的出路是整份「重新开始」）；
+    //   ② 更实的一件：`sendPreviewMessage` 把 `history` 原样发出去 —— 上一版草稿的回答会被当成
+    //      这一版"说过的话"喂给模型，试出来的像不像根本不作数。
+    if (!only) clearPreview();
 
     const back = usePersonaWizard.getState();
     if (back.mounted) {
@@ -341,7 +408,10 @@ export async function runGeneratePersona(opts: { only?: PersonaDraftField[] } = 
   } catch (e) {
     const msg = companionErrorText(e, "生成失败了，稍后再试。");
     usePersonaWizard.setState({ genBusy: "", genOnly: null, genErr: msg });
-    job.fail(msg, "/support/personas/new");
+    // ★ 与成功那一支同一个口径（也与 live2dUploadStore 的两处失败同形）：人就在这一页上时，
+    //   `genErr` 那行红字已经把话说完了，胶囊再报一条 = 同一件事说两遍（CLAUDE.md「长活登记」那条）。
+    if (usePersonaWizard.getState().mounted) job.done({ silent: true });
+    else job.fail(msg, "/support/personas/new");
   }
 }
 
@@ -375,7 +445,8 @@ export async function sendPreviewMessage(text: string): Promise<void> {
   try {
     await streamPersonaPreviewChat(
       {
-        draft: s.draft,
+        // 空的示例对话会让整条请求 400（见 draftForServer 的 ★★）
+        draft: draftForServer(s.draft),
         messages: history.map((m) => ({ role: m.role, content: m.text })),
         lang: "zh",
       },
@@ -416,11 +487,20 @@ export async function sendPreviewMessage(text: string): Promise<void> {
   }
 }
 
-/** 掐掉在途的试聊（离开向导 / 清空重来 / 回上一步重生成） */
+/**
+ * 掐掉在途的试聊（用户点「停下」/ 离开向导 / 清空重来 / 回上一步重生成）。
+ *
+ * ★ 那条 SSE 的 catch 在 `signal.aborted` 时**直接 return**（它不知道是谁掐的、也不该在那儿说话），
+ *   所以收拾现场归这里：一个字都没吐出来的空壳撤掉（留着是一个永远不会有内容的「…」气泡），
+ *   吐了一半的那条留着但摘掉 `streaming`（那半句是真的，只是没说完）。
+ */
 export function abortPreview(): void {
   previewAbort?.abort();
   previewAbort = null;
-  usePersonaWizard.setState({ chatBusy: false });
+  usePersonaWizard.setState((st) => ({
+    chat: st.chat.filter((m) => m.role !== "assistant" || m.text || !m.streaming).map((m) => (m.streaming ? { ...m, streaming: false } : m)),
+    chatBusy: false,
+  }));
 }
 
 export function clearPreview(): void {
@@ -453,15 +533,17 @@ export async function publishPersona(): Promise<MarketPersona | null> {
   }
   const price = Math.min(PERSONA_LIMITS.price, Math.max(0, Math.round(Number(s.priceText) || 0)));
 
+  const wire = draftForServer(s.draft);
+
   usePersonaWizard.setState({ pubBusy: true, pubErr: "", banner: null });
   const job = startJob({ kind: "persona-publish", title: "发布人格", page: currentRoute(), progress: "提交中…" });
   try {
     const r = await createPersona({
       name,
-      description: s.draft.description,
-      coverEmoji: s.draft.coverEmoji || s.coverEmoji,
-      tags: s.draft.tags,
-      style: s.draft.style,
+      description: wire.description,
+      coverEmoji: wire.coverEmoji || s.coverEmoji,
+      tags: wire.tags,
+      style: wire.style,
       shared: s.shared,
       price,
     });
@@ -472,9 +554,36 @@ export async function publishPersona(): Promise<MarketPersona | null> {
   } catch (e) {
     const msg = companionErrorText(e, "发布失败了，稍后再试。");
     usePersonaWizard.setState({ pubBusy: false, pubErr: msg });
-    job.fail(msg, "/support/personas/new");
+    // 同上：页在就 silent，页不在才走胶囊
+    if (usePersonaWizard.getState().mounted) job.done({ silent: true });
+    else job.fail(msg, "/support/personas/new");
     return null;
   }
+}
+
+/**
+ * 把刚发布出去的这个人格装到自己的数字人上（成功页那颗键）。
+ * ★ 结果落 store（见 `equipBusy` 的 ★）：人点完退出去，回来还看得见装没装上。
+ */
+export async function equipPublishedPersona(): Promise<void> {
+  const s = usePersonaWizard.getState();
+  if (s.equipBusy || !s.published) return;
+  usePersonaWizard.setState({ equipBusy: true, equipMsg: null });
+  try {
+    await updateCompanionSettings({ personaId: s.published._id });
+    usePersonaWizard.setState({ equipBusy: false, equipMsg: { kind: "ok", text: "装上了，回客服页就是这个人格在说话。" } });
+  } catch (e) {
+    usePersonaWizard.setState({ equipBusy: false, equipMsg: { kind: "bad", text: companionErrorText(e, "装不上，稍后再试。") } });
+  }
+}
+
+/**
+ * 这一版草稿到底有没有读过素材（成功页 / 生成页那句「读过你的素材」的唯一判据）。
+ * ★ 不能只看 `analysis !== null`：素材改过之后那一份就不作数了（见 `analyzedKey` 的 ★★），
+ *   照着它说「读过你的素材」是一句假话。
+ */
+export function analysisUsed(s: PersonaWizardState): boolean {
+  return s.analysis !== null && s.analyzedKey === analyzeKeyOf(s);
 }
 
 // ── 清空 / 状态判定 / 字段 hook ─────────────────────────────────────────────
@@ -503,9 +612,17 @@ export function wizardDirty(s: PersonaWizardState): boolean {
   );
 }
 
-/** 有活在跑 —— 这时不许清空、不许离开向导时悄悄丢掉 */
+/**
+ * 有活在跑 —— 这时不许清空（顶栏那颗「重新开始」按它灰掉）。
+ *
+ * ★★ `chatBusy` **刻意不在里面**（2026-09-07 改）：试聊既不花钱也不推字节，`resetPersonaWizard()`
+ *   本来就会先 `abortPreview()` 把它掐掉，拦它没有任何意义；而拦它的代价很实 —— 上游卡住不回时
+ *   `chatBusy` 就一直是真，那颗「重新开始」跟着永久灰掉，用户手上一颗能解开的键都没有
+ *   （`abortPreview` / `clearPreview` 此前全仓没有任何调用点）。现在试聊那颗「发」在途时会换成
+ *   「停下」，那是掐它的正路。
+ */
 export function wizardBusy(s: PersonaWizardState): boolean {
-  return !!s.genBusy || s.chatBusy || s.pubBusy || !!s.reading;
+  return !!s.genBusy || s.pubBusy || !!s.reading;
 }
 
 /**

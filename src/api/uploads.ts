@@ -45,7 +45,13 @@ export type MultipartPart = [string, string] | [string, Blob, string];
  * warnings/entries，都不止一个 URL）。错误处理与超时只有这一份 —— 各写一份必然分叉。
  * ★ 超时那句话里要报"这份多大"，所以字节数按**所有 Blob 段之和**算（文本字段可以忽略不计）。
  */
-export async function postMultipart(path: string, parts: MultipartPart[], timeoutMs: number): Promise<Record<string, unknown>> {
+export async function postMultipart(
+  path: string,
+  parts: MultipartPart[],
+  timeoutMs: number,
+  /** 调用方要能中途停下时传进来（Live2D 向导那颗「取消上传」）；不传就只有超时会掐 */
+  signal?: AbortSignal,
+): Promise<Record<string, unknown>> {
   const token = getToken();
   const fd = new FormData();
   let bytes = 0;
@@ -57,7 +63,7 @@ export async function postMultipart(path: string, parts: MultipartPart[], timeou
       fd.append(p[0], p[1]);
     }
   }
-  return postFormData(path, fd, bytes, timeoutMs, token);
+  return postFormData(path, fd, bytes, timeoutMs, token, signal);
 }
 
 /** 单文件的老写法（模板视频 / 图片 / 成片三条老路），转调上面那份 */
@@ -78,6 +84,7 @@ async function postFormData(
   totalBytes: number,
   timeoutMs: number,
   token: string | null,
+  external?: AbortSignal,
 ): Promise<Record<string, unknown>> {
   const ctrl = new AbortController();
   // ★★ 「是不是我们自己掐的」用**一面自己举的旗子**，不嗅探错误形状（2026-08-22 真机撞到）：
@@ -94,6 +101,13 @@ async function postFormData(
     selfAborted = true;
     ctrl.abort();
   }, timeoutMs);
+  // ★ 外部取消（用户点「取消上传」）与我们自己的超时是**两件事，两句话**：超时要说"这条网推不完"，
+  //   取消要原样抛 AbortError 让调用方认出来（说成失败的话，人会以为传坏了再传一次 —— 又是几分钟）。
+  const onExternalAbort = () => ctrl.abort();
+  if (external) {
+    if (external.aborted) ctrl.abort();
+    else external.addEventListener("abort", onExternalAbort);
+  }
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
@@ -105,6 +119,9 @@ async function postFormData(
       signal: ctrl.signal,
     });
   } catch (e) {
+    // 用户点了取消：原样抛 AbortError（旗子优先于错误形状——Android WebView 在上传中途 abort 时
+    // 给的往往是 TypeError，见上面那段 ★★）
+    if (external?.aborted && !selfAborted) throw new DOMException("Aborted", "AbortError");
     // 旗子优先；`AbortError` 只作补充（别处调 ctrl.abort() 时仍认得出来）
     const aborted = selfAborted || (e instanceof DOMException && e.name === "AbortError");
     // ★★ 把**这份文件多大**写进话里（2026-08-21 真机撞到）：47MB 那一发跑到 100 秒
@@ -136,6 +153,7 @@ async function postFormData(
     );
   } finally {
     clearTimeout(timer);
+    external?.removeEventListener("abort", onExternalAbort);
   }
   const text = await res.text();
   let data: Record<string, unknown> = {};
@@ -665,7 +683,20 @@ export async function uploadLive2dBundle(
   /** 关窗 / 离开向导时传进来，真的把在途那一块停下（见 putChunk 的 ★★） */
   signal?: AbortSignal,
 ): Promise<{ bundleRef: string; bytes: number } | null> {
-  const direct = await uploadWithTicket("/api/live2d-models/bundle/sign", file, { noun: "模型包", onProgress, signal });
+  let direct: Awaited<ReturnType<typeof uploadWithTicket>>;
+  try {
+    direct = await uploadWithTicket("/api/live2d-models/bundle/sign", file, { noun: "模型包", onProgress, signal });
+  } catch (e) {
+    // ★★ 503 对**这一条**是「没有直传」，不是「传不了」：服务端 Cloudinary 没配好时
+    //   `signBundleUpload` 回的是 503「服务器还没配好文件存储，暂时不能上传。」，而 Live2D 的
+    //   multipart 退路（`POST /api/live2d-models` 的 `bundle` 字段）**根本不经 Cloudinary** ——
+    //   `installBundle` 是往本机 UPLOADS_ROOT 落盘的。原样抛出去的话，一台只差一个 Cloudinary key
+    //   的服务器上整条上传链路哑掉，而它其实只该慢一点。
+    //   ⚠ 这一条只在这里翻，不动 `directTicket`：那一层是成片 / 模板视频 / 模型包三条路共用的，
+    //   前两条没了 Cloudinary 确实没有退路，在那儿吞掉 503 就是把"传不了"说成"慢一点"。
+    if (e instanceof ApiError && e.status === 503) return null;
+    throw e;
+  }
   if (!direct) return null;
   return { bundleRef: direct.publicId, bytes: direct.bytes };
 }

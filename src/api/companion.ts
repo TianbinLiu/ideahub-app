@@ -295,16 +295,28 @@ export interface Live2dInspectResult {
  * 只看不存（向导第 3 步）：解析包 → 能力档案 + 自动映射 + 入口候选。登录，10 次/分钟。
  * @param input `file`（本地 zip）与 `bundleRef`（已直传的 public_id）**二选一**；`entry` 只在包里有多个 model3.json 时给。
  */
-export async function inspectLive2dBundle(input: { file?: File; bundleRef?: string; entry?: string }): Promise<Live2dInspectResult> {
+export async function inspectLive2dBundle(
+  input: { file?: File; bundleRef?: string; entry?: string },
+  signal?: AbortSignal,
+): Promise<Live2dInspectResult> {
   let data: Record<string, unknown>;
   if (input.file) {
     const parts: MultipartPart[] = [["bundle", input.file, input.file.name || "model.zip"]];
     if (input.entry) parts.push(["entry", input.entry]);
     // 180s：25MB 的包在慢网上要传一会儿，服务端还要解压 + 逐个文件核对。老服务端没这条路 → 404，调用方翻译
-    data = await postMultipart("/api/live2d-models/inspect", parts, 180_000);
+    data = await postMultipart("/api/live2d-models/inspect", parts, 180_000, signal);
   } else {
     if (!input.bundleRef) throw new ApiError("要检查的模型包既没有文件也没有直传编号（这是调用方的 bug）", 400);
-    data = await apiPost("/api/live2d-models/inspect", { bundleRef: input.bundleRef, entry: input.entry || undefined });
+    // ★★ 与上面那条 multipart 兄弟路**同一个数**，这不是可省的：两条路在服务端做的事一样多
+    //   （解压 25MB、逐张探贴图尺寸、算能力档案），直传这条还多一步"服务器去 Cloudinary 把包拉回来"
+    //   （server `live2dBundle.downloadDirectBundle` 自己的 axios 超时就是 60 秒）。
+    //   不给的话吃的是 client.ts 那个 20 秒默认值 —— 于是同一个包走直传必超时、走 multipart 反而过得去，
+    //   而 `/bundle/sign`（ideahub-server#60）一合并，直传就是**默认路径**。超时必须同进同退。
+    data = await apiPost(
+      "/api/live2d-models/inspect",
+      { bundleRef: input.bundleRef, entry: input.entry || undefined },
+      { timeoutMs: 180_000, signal },
+    );
   }
   // ★ 按**回包形状**验收，不看状态码（Capacitor 那条坑：未命中路径回 200 + index.html，uploads.ts 的 receiptOf 同款）。
   //   不验的话老服务端上 `capabilities` 是 undefined，症状要拖到向导第 4 步渲染映射表时才炸，而那时人已经填了三屏。
@@ -369,29 +381,45 @@ function bundleParts(form: Live2dModelForm): MultipartPart[] {
  * 映射里引用了包里没有的动作组 / 表情 / 命中区 → 400，`message` 带那个名字，**原样显示**（自己编一句会把它盖掉）。
  */
 export async function createLive2dModel(form: Live2dModelForm): Promise<Live2dCreateResult> {
+  let data: Record<string, unknown>;
   if (form.file) {
     const parts: MultipartPart[] = [["bundle", form.file, form.file.name || "model.zip"], ...bundleParts(form)];
     // 600s：25MB 走 multipart 时字节要经过我们的服务器（那条路本来就慢），别比 Cloudflare 那道 125 秒墙更早响
-    const data = await postMultipart("/api/live2d-models", parts, 600_000);
-    // 同 inspect：按形状验收。没拿到 model 就是"没建成"，绝不能让向导跳到成功那一屏
-    if (!data || typeof data.model !== "object" || !data.model) throw new ApiError("服务器没有返回建好的模型（可能是旧版服务端），没有创建成功。", 502);
-    return data as unknown as Live2dCreateResult;
+    data = await postMultipart("/api/live2d-models", parts, 600_000);
+  } else {
+    if (!form.bundleRef) throw new ApiError("建模型时既没有文件也没有直传编号（这是调用方的 bug）", 400);
+    // ★★ 与 multipart 兄弟路**逐字相等的 600s**（那个数已经量过）：两条路在服务端做的事有一大半是同一件
+    //   （解压、逐张探贴图、写 companion.json、落库），直传这条还多一步"去 Cloudinary 把 25MB 拉回来"。
+    //   吃 20 秒默认值的后果比 inspect 那条重得多：客户端掐断时**服务端多半已经把模型建出来了**，
+    //   而它的 finally 又无条件 `destroyDirectBundle(bundleRef)` —— 于是屏幕上写着"发布失败"，
+    //   实际是"建好了 + 那份直传包被回收了"，用户再点一次只会拿到 400「没在服务器上找到这份模型包」。
+    data = await apiPost(
+      "/api/live2d-models",
+      {
+        bundleRef: form.bundleRef,
+        bundleName: form.bundleName || undefined,
+        name: form.name,
+        description: form.description ?? "",
+        coverImageUrl: form.coverImageUrl ?? "",
+        tags: form.tags ?? [],
+        shared: Boolean(form.shared),
+        personaId: form.personaId || undefined,
+        voice: form.voice ?? undefined,
+        mapping: form.mapping ?? undefined,
+        entry: form.entry || undefined,
+        selfMade: Boolean(form.selfMade),
+      },
+      { timeoutMs: 600_000 },
+    );
   }
-  if (!form.bundleRef) throw new ApiError("建模型时既没有文件也没有直传编号（这是调用方的 bug）", 400);
-  return apiPost("/api/live2d-models", {
-    bundleRef: form.bundleRef,
-    bundleName: form.bundleName || undefined,
-    name: form.name,
-    description: form.description ?? "",
-    coverImageUrl: form.coverImageUrl ?? "",
-    tags: form.tags ?? [],
-    shared: Boolean(form.shared),
-    personaId: form.personaId || undefined,
-    voice: form.voice ?? undefined,
-    mapping: form.mapping ?? undefined,
-    entry: form.entry || undefined,
-    selfMade: Boolean(form.selfMade),
-  });
+  // ★ 同 inspect：按形状验收，**两条路共用这一句**。没拿到 model 就是"没建成"，绝不能让向导跳到成功那一屏
+  //   （那一屏的渲染条件是 `step === "done" && created`，created 为空时屏幕上是一片空白：步骤条没了、
+  //   顶栏的「重新开始」也因为 step === "done" 不摆，一个可点的东西都没有）。
+  //   2026-09-07 收口：此前这句只长在 multipart 那一支上，而直传是 #60 之后的默认路径。
+  if (!data || typeof data.model !== "object" || !data.model) {
+    throw new ApiError("服务器没有返回建好的模型（可能是旧版服务端），没有创建成功。", 502);
+  }
+  return data as unknown as Live2dCreateResult;
 }
 
 /**
@@ -447,6 +475,17 @@ export function uninstallPersona(id: string): Promise<InstallResult> {
 //   重读一遍既慢又多烧一次限流额度）。素材不落库、不公开。
 // ★ 服务端限流：analyze / generate 各 5 次/分钟，preview-chat 20 次/分钟 —— 429 一律翻成
 //   companionErrorText 那句「操作太频繁了，稍等几秒再试。」
+//
+// ★★ 这一节里**哪几条是模型调用**：`analyze` 与 `generate`（`preview-chat` 是 SSE，走 stream.ts）。
+//   它们必须显式给长超时，别吃 client.ts 那个 20 秒默认值 —— 服务端给上游模型的预算是
+//   `AI_TIMEOUT_MS || 60_000`（server `aiClient.js`），analyze 要读最多 60000 字、generate 一次要吐出
+//   name/description/tags/summary/catchphrases/tone/greeting/examples/boundaries 一整份 JSON，
+//   超过 20 秒是常态。客户端先掐断的后果不是"慢"，是**一句假话 + 一次白烧的额度**：
+//   `companionErrorText` 把 TIMEOUT 翻成「请求超时了，检查网络后再试一次。」（把模型算得慢说成用户网不好），
+//   而服务端照样跑完、5 次/分钟里的那一格已经花掉了。
+//   ⇒ 新加任何一条模型调用都要在这里补一句显式超时。纯落库的那几条（createPersona / install…）不用。
+/** analyze / generate 的超时。120s = 服务端 AI_TIMEOUT_MS 的 60s + 网络往返与排队的余量 —— 客户端不该比服务端先放弃 */
+const PERSONA_AI_TIMEOUT_MS = 120_000;
 
 /** 人格卡的风格段。前四项是老字段，后五项是向导生成的（老数据没有 → 一律判否定） */
 export interface PersonaStyle {
@@ -562,7 +601,11 @@ export function analyzePersonaMaterials(input: {
   materials: PersonaMaterial[];
   speaker?: string;
 }): Promise<{ ok: true; analysis: PersonaAnalysis; model: string; sampledChars: number }> {
-  return apiPost("/api/personas/analyze", { materials: input.materials, speaker: input.speaker || undefined });
+  return apiPost(
+    "/api/personas/analyze",
+    { materials: input.materials, speaker: input.speaker || undefined },
+    { timeoutMs: PERSONA_AI_TIMEOUT_MS },
+  );
 }
 
 /**
@@ -570,15 +613,19 @@ export function analyzePersonaMaterials(input: {
  * ★ `chatText` / `analysis` / `basics` **至少要有一个**，一个都没有服务端 400（这是它唯一的输入来源）。
  */
 export function generatePersonaDraft(input: PersonaGenerateInput): Promise<{ ok: true; draft: PersonaDraft; model: string }> {
-  return apiPost("/api/personas/generate", {
-    chatText: input.chatText || undefined,
-    hint: input.hint || undefined,
-    basics: input.basics,
-    questionnaire: input.questionnaire,
-    analysis: input.analysis,
-    only: input.only?.length ? input.only : undefined,
-    draft: input.draft,
-  });
+  return apiPost(
+    "/api/personas/generate",
+    {
+      chatText: input.chatText || undefined,
+      hint: input.hint || undefined,
+      basics: input.basics,
+      questionnaire: input.questionnaire,
+      analysis: input.analysis,
+      only: input.only?.length ? input.only : undefined,
+      draft: input.draft,
+    },
+    { timeoutMs: PERSONA_AI_TIMEOUT_MS },
+  );
 }
 
 /** 第 7 步：落库。★ `remixable` / `license` 服务端还没有（治理 P5），别发 —— z.object 默认 strip，发了也是静默丢掉 */

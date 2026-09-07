@@ -20,6 +20,10 @@
  *   而服务端那份是 `0 外向 100 内向` —— extroversion / rationality / formality / talkative **四根反了**。
  *   症状是**零报错**：用户把滑杆拉到"很外向"，生成出来的人格却内向；页面、请求、回包全都正常。
  *   （humor / politeness / emotional 三根是「某项的程度（0～100）」，两侧一致，没这个问题。）
+ * ★★ 要对齐的**不只是滑杆的方向，还有单选题的取值词表**（2026-09-07 补的第二条）：服务端那份表里
+ *   `language` 的标签逐字是「语言（zh / en / mixed）」、`emoji` 是「emoji 用量（none / light / heavy）」——
+ *   词表被写进了标签本身。发中文过去拼出来就是「语言（zh / en / mixed）：中文」，同一族的零报错分叉。
+ *   所以 `ChoiceQuestion` 有一个可选的 `values`（显示中文、发英文），取值一律经 `choiceValueAt` 取。
  */
 import type { PersonaMaterial, PersonaMaterialKind, PersonaQuestionKey, PersonaQuestionnaire } from "../api/companion";
 
@@ -53,14 +57,25 @@ export interface SliderQuestion {
   high: string;
   fallback: number;
 }
-/** 单选：值就是选项的文字（发给模型的是中文本身，不是内部 key） */
+/** 单选。默认「值 = 屏幕上那个中文」；给了 `values` 就按它发（见下面 ★★） */
 export interface ChoiceQuestion {
   key: PersonaQuestionKey;
   kind: "choice";
   label: string;
+  /** 屏幕上显示的中文 */
   options: readonly string[];
+  /**
+   * 发给服务端的取值，与 `options` **一一对应**（下标对齐）；缺省 = 就发 options 里那个中文本身。
+   * ★★ 为什么需要它：服务端 `personaAi.service.QUESTIONNAIRE_LABELS` 里，`language` 那句标签逐字是
+   *   「语言（zh / en / mixed）」、`emoji` 是「emoji 用量（none / light / heavy）」—— 它把取值词表
+   *   **写进了标签本身**。发中文过去拼出来就是「语言（zh / en / mixed）：中文」，模型多半读得懂，
+   *   但这是同一族「零报错的分叉」：方向对齐了、词表没对齐。
+   * ★ 所以本文件头那条纪律要读全：与服务端那份表逐条对齐的**不只是滑杆方向，还有取值词表**。
+   */
+  values?: readonly string[];
   /** 选项之外还能自己写一个（"怎么称呼你"那项） */
   freeform?: boolean;
+  /** 发出去的那个默认值（有 `values` 时它是 values 里的一项，不是中文） */
   fallback: string;
 }
 /** 自填一行 */
@@ -101,8 +116,9 @@ export const PERSONA_QUESTIONS = [
   { key: "emotional", kind: "slider", label: "情绪外露度", low: "不动声色", high: "喜怒写在脸上", fallback: 50 },
   { key: "catchphrase", kind: "text", label: "口头禅", placeholder: "比如「确实」「好耶」，可以写好几个", maxLen: 120, fallback: "" },
   { key: "addressUser", kind: "choice", label: "怎么称呼你", options: ["你", "您", "叫我的名字", "起个昵称"], freeform: true, fallback: "你" },
-  { key: "language", kind: "choice", label: "说什么语言", options: ["中文", "英文", "中英混说"], fallback: "中文" },
-  { key: "emoji", kind: "choice", label: "emoji 用量", options: ["不用", "偶尔用", "经常用"], fallback: "偶尔用" },
+  // ↓ 这两项的**取值词表**由服务端的标签写死（zh/en/mixed、none/light/heavy），所以显示中文、发英文
+  { key: "language", kind: "choice", label: "说什么语言", options: ["中文", "英文", "中英混说"], values: ["zh", "en", "mixed"], fallback: "zh" },
+  { key: "emoji", kind: "choice", label: "emoji 用量", options: ["不用", "偶尔用", "经常用"], values: ["none", "light", "heavy"], fallback: "light" },
   { key: "taboos", kind: "tags", label: "不聊什么", options: ["政治", "宗教", "收入和隐私", "病情", "感情经历", "别家产品"], fallback: [] },
 ] as const satisfies readonly PersonaQuestion[];
 
@@ -114,6 +130,15 @@ export const PERSONA_QUESTIONS = [
  */
 export type PersonaQuestionCoverage = Exclude<PersonaQuestionKey, (typeof PERSONA_QUESTIONS)[number]["key"]> extends never ? true : never;
 export const QUESTION_KEYS_COVERED: PersonaQuestionCoverage = true;
+
+/**
+ * 单选题第 i 个选项**发出去的那个值**（有 `values` 就取它，没有就是屏幕上那个中文）。
+ * ★ 界面别自己 `def.values?.[i] ?? def.options[i]`：那就是这条规则的第二处实现，
+ *   下次给第三道题加 values 时会漏掉一处，而漏掉是零症状的。
+ */
+export function choiceValueAt(def: ChoiceQuestion, i: number): string {
+  return def.values?.[i] ?? def.options[i];
+}
 
 export function defaultQuestionnaire(): PersonaQuestionnaire {
   const out: PersonaQuestionnaire = {};
@@ -323,6 +348,14 @@ export const PERSONA_LIMITS = {
    */
   intro: 300,
   summary: 2000,
+  /**
+   * 第 ⑥ 步那格「立场倾向」。★ 与 `summary` **不是同一个字段也不是同一个数**：服务端
+   * `persona.schemas.js` 的 `styleBody.stanceHint` 是 max(500)，`summary` 才是 2000。
+   * 借用 summary 那个数的话，屏幕上会一路绿着「x / 2000」，而 501 字起点发布（以及第 ⑤ 步试聊，
+   * 两处走同一个 `styleBody`）就吃 400 —— 而 zod 的长度错在服务端被糊成一句英文 "Validation error"，
+   * 不说是哪个字段。（`intro` 与 `description` 是同型的另一对，见上。）
+   */
+  stanceHint: 500,
   catchphrase: 120,
   catchphrases: 12,
   tone: 300,

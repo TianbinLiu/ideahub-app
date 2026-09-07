@@ -20,7 +20,7 @@ import PageHeader from "../components/PageHeader";
 import Spinner from "../components/Spinner";
 import TagInput from "../components/TagInput";
 import { useBackOr } from "../hooks/useBackOr";
-import { companionErrorText, updateCompanionSettings, type PersonaDraftField, type PersonaMaterialKind } from "../api/companion";
+import type { PersonaDraftField, PersonaMaterialKind } from "../api/companion";
 import {
   MATERIAL_FILE_ACCEPT,
   MATERIAL_KIND_LABEL,
@@ -31,13 +31,19 @@ import {
   PERSONA_ROLES,
   PERSONA_TAG_LEN,
   PERSONA_TAG_MAX,
+  choiceValueAt,
   overLimitText,
   questionnaireTouched,
 } from "../companion/personaWizard";
 import {
   PERSONA_STEPS,
   PREVIEW_ROUNDS_MAX,
+  abortPreview,
   addMaterial,
+  analysisUsed,
+  clearPreview,
+  equipPublishedPersona,
+  exampleFilled,
   generateBlockedReason,
   materialChars,
   patchDraft,
@@ -420,7 +426,9 @@ function StepQuiz() {
         }
         if (def.kind === "choice") {
           const v = typeof q[def.key] === "string" ? (q[def.key] as string) : def.fallback;
-          const known = (def.options as readonly string[]).includes(v);
+          // ★ 屏幕上是中文、发出去可能是别的词（language / emoji 两项服务端认 zh|en|mixed、none|light|heavy）——
+          //   取值一律经 `choiceValueAt`，别在这里手写 `def.values?.[i] ?? def.options[i]`（那是第二处实现）
+          const known = def.options.some((_, i) => choiceValueAt(def, i) === v);
           // ★ `freeform` 只长在「怎么称呼你」那一项上，联合类型里其余分支根本没有这个属性 ——
           //   `in` 判存在，别给 PersonaQuestion 上补一个"人人都有但多数是 undefined"的字段
           const freeform = "freeform" in def && def.freeform === true;
@@ -428,11 +436,14 @@ function StepQuiz() {
             <div key={def.key} className={CARD}>
               <div className={CARD_LABEL}>{def.label}</div>
               <div className="flex flex-wrap gap-2">
-                {def.options.map((o) => (
-                  <button key={o} type="button" onClick={() => setQ({ ...q, [def.key]: o })} className={`${CHIP} ${v === o ? CHIP_ON : CHIP_OFF}`}>
-                    {o}
-                  </button>
-                ))}
+                {def.options.map((o, i) => {
+                  const val = choiceValueAt(def, i);
+                  return (
+                    <button key={o} type="button" onClick={() => setQ({ ...q, [def.key]: val })} className={`${CHIP} ${v === val ? CHIP_ON : CHIP_OFF}`}>
+                      {o}
+                    </button>
+                  );
+                })}
                 {freeform && (
                   <button
                     type="button"
@@ -552,7 +563,9 @@ function StepGenerate() {
   const genBusy = usePersonaWizard((s) => s.genBusy);
   const genOnly = usePersonaWizard((s) => s.genOnly);
   const genErr = usePersonaWizard((s) => s.genErr);
-  const analysis = usePersonaWizard((s) => s.analysis);
+  // ★ 问的是"这一版**用上了**分析吗"，不是"分析过吗"：素材改过之后那一份就不作数了
+  //   （见 personaWizardStore 的 `analyzedKey` ★★），照着 `analysis !== null` 说「读过你的素材」是假话
+  const analysis = usePersonaWizard(analysisUsed);
   const blocked = usePersonaWizard(generateBlockedReason);
   const mats = usePersonaWizard((s) => s.materials.length);
 
@@ -712,23 +725,43 @@ function StepPreview({ onBackToGenerate }: { onBackToGenerate: () => void }) {
           placeholder={full ? `已经聊满 ${PREVIEW_ROUNDS_MAX} 轮了` : "说点什么"}
           className={`flex-1 ${TEXTAREA} disabled:opacity-40`}
         />
-        <button
-          type="button"
-          disabled={!text.trim() || chatBusy || full || !draft}
-          onClick={() => {
-            void sendPreviewMessage(text);
-            setText("");
-          }}
-          className={`flex items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-xs font-bold text-ink disabled:opacity-40`}
-        >
-          {chatBusy ? <Spinner size="xs" /> : <Icon name="send" size={14} />}
-          发
-        </button>
+        {/* ★ 在途时这颗键换成「停下」（调已经写好、此前全仓没人调过的 abortPreview）：SSE 那条现在虽然
+            带了看门狗，等满 90 秒也是 90 秒 —— 用户得有一颗现在就能按的键 */}
+        {chatBusy ? (
+          <button
+            type="button"
+            onClick={() => abortPreview()}
+            className="flex items-center gap-1.5 rounded-full border border-slate-600 px-4 py-2.5 text-xs font-bold text-slate-300"
+          >
+            <Spinner size="xs" />
+            停下
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={!text.trim() || full || !draft}
+            onClick={() => {
+              void sendPreviewMessage(text);
+              setText("");
+            }}
+            className={`flex items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-xs font-bold text-ink disabled:opacity-40`}
+          >
+            <Icon name="send" size={14} />
+            发
+          </button>
+        )}
       </div>
 
-      <button type="button" onClick={onBackToGenerate} className={`w-full ${SECONDARY}`}>
-        不太像，回去重生成
-      </button>
+      <div className="flex gap-2">
+        {/* ★ 聊满 5 轮之后此前没有任何出路：输入框永久禁用，而「回去重生成」不清 chat（重生成整份草稿
+            现在会顺手清掉，但用户也该能就地重来一次） */}
+        <button type="button" disabled={chat.length === 0} onClick={() => clearPreview()} className={`flex-1 ${SECONDARY} disabled:opacity-40`}>
+          清空重聊
+        </button>
+        <button type="button" onClick={onBackToGenerate} className={`flex-1 ${SECONDARY}`}>
+          不太像，回去重生成
+        </button>
+      </div>
     </div>
   );
 }
@@ -862,7 +895,8 @@ function StepTune() {
       </Field>
 
       <Field label={DRAFT_FIELD_LABEL.stanceHint}>
-        <LimitedInput value={st.stanceHint} onChange={(v) => patchStyle({ stanceHint: v })} max={PERSONA_LIMITS.summary} rows={2} />
+        {/* ★ stanceHint 的服务端上限是 500，不是 summary 那个 2000（见 PERSONA_LIMITS.stanceHint 的 ★） */}
+        <LimitedInput value={st.stanceHint} onChange={(v) => patchStyle({ stanceHint: v })} max={PERSONA_LIMITS.stanceHint} rows={2} />
       </Field>
 
       <Field label={DRAFT_FIELD_LABEL.examples} hint={`一组一问一答，最多 ${PERSONA_LIMITS.examples} 组、每句 ${PERSONA_LIMITS.example} 字以内。`}>
@@ -895,12 +929,18 @@ function ExampleList({
 }) {
   const full = items.length >= PERSONA_LIMITS.examples;
   const over = items.some((e) => e.user.length > PERSONA_LIMITS.example || e.reply.length > PERSONA_LIMITS.example);
+  // ★ 只判"太长"不判"没填完"是不够的：服务端 exampleSchema 对 user / reply 都是 min(1)。
+  //   送出去那一拍由 `draftForServer` 统一滤掉，这里只把"你有一组没填完"说出来 ——
+  //   否则用户会看着自己加的那一行悄无声息地消失。判据共用 `exampleFilled`（一处实现）。
+  const blanks = items.map((e, i) => (exampleFilled(e) ? 0 : i + 1)).filter(Boolean);
   return (
     <div className="space-y-2">
       {items.map((ex, i) => (
         <div key={i} className={CARD}>
           <div className="mb-1.5 flex items-center justify-between">
-            <span className="text-[11px] text-slate-500">第 {i + 1} 组</span>
+            <span className="text-[11px] text-slate-500">
+              第 {i + 1} 组{exampleFilled(ex) ? "" : " · 还没填完"}
+            </span>
             <button type="button" onClick={() => onChange(items.filter((_, k) => k !== i))} className={MINI}>
               删
             </button>
@@ -921,6 +961,11 @@ function ExampleList({
         </div>
       ))}
       {over && <ErrLine text={`有一句超过 ${PERSONA_LIMITS.example} 字了，发布会被服务端拒掉。`} />}
+      {blanks.length > 0 && (
+        <p className="text-xs leading-relaxed text-amber-300">
+          第 {blanks.join(" / ")} 组还没填完 —— 试聊和发布时这几组会被丢掉（一问一答缺一边的示例喂不了模型）。
+        </p>
+      )}
       <button
         type="button"
         disabled={full}
@@ -943,8 +988,9 @@ function StepPublish() {
   const [agreed, setAgreed] = useWizardField("agreed");
   const pubBusy = usePersonaWizard((s) => s.pubBusy);
   const pubErr = usePersonaWizard((s) => s.pubErr);
-  const [equipBusy, setEquipBusy] = useState(false);
-  const [equipMsg, setEquipMsg] = useState<WizardBanner | null>(null);
+  // ★ 装备的在途 / 回执活在 store 里（见 personaWizardStore 的 `equipBusy` ★）：点完就退出去也不会静默丢掉
+  const equipBusy = usePersonaWizard((s) => s.equipBusy);
+  const equipMsg = usePersonaWizard((s) => s.equipMsg);
 
   if (published) {
     return (
@@ -956,14 +1002,7 @@ function StepPublish() {
         <button
           type="button"
           disabled={equipBusy}
-          onClick={() => {
-            setEquipBusy(true);
-            setEquipMsg(null);
-            updateCompanionSettings({ personaId: published._id })
-              .then(() => setEquipMsg({ kind: "ok", text: "装上了，回客服页就是这个人格在说话。" }))
-              .catch((e) => setEquipMsg({ kind: "bad", text: companionErrorText(e, "装不上，稍后再试。") }))
-              .finally(() => setEquipBusy(false));
-          }}
+          onClick={() => void equipPublishedPersona()}
           className={`w-full ${PRIMARY}`}
         >
           {equipBusy ? "装上中…" : "装备为当前人格"}

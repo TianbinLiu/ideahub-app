@@ -58,6 +58,7 @@ import {
   markVerified,
   patchMapping,
   previewMotionGroup,
+  previewOnStage,
   reloadPreview,
   resetLive2dDraft,
   resetMapping,
@@ -204,7 +205,9 @@ function MapRow({
   onPlay?: () => boolean | void;
   children: React.ReactNode;
 }) {
-  const [flash, setFlash] = useState<"" | "playing" | "missing">("");
+  // ★ 演不出来有**两个**原因，说法不一样（别压成一档）：包里真没有这个组 / 表情，
+  //   或者台上现在根本不是我们的包（预览退回官方看板娘了）。后者说成"包里没有它"就是诬告。
+  const [flash, setFlash] = useState<"" | "playing" | "missing" | "offstage">("");
   useEffect(() => {
     if (flash !== "playing") return;
     const t = setTimeout(() => setFlash(""), PLAY_FLASH_MS);
@@ -215,7 +218,7 @@ function MapRow({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={() => setFlash(onPlay?.() === false ? "missing" : "playing")}
+          onClick={() => setFlash(onPlay?.() === false ? (previewOnStage() ? "missing" : "offstage") : "playing")}
           disabled={disabled || !onPlay}
           aria-label={`试演 ${label}`}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-brand disabled:opacity-40"
@@ -226,8 +229,18 @@ function MapRow({
         {children}
       </div>
       {(hint || flash) && (
-        <p className={`mt-1 pl-10 text-[10px] leading-relaxed ${flash === "missing" ? "text-rose-300" : "text-slate-500"}`}>
-          {flash === "missing" ? "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。" : flash === "playing" ? "演出中…" : hint}
+        <p
+          className={`mt-1 pl-10 text-[10px] leading-relaxed ${
+            flash === "missing" ? "text-rose-300" : flash === "offstage" ? "text-amber-300" : "text-slate-500"
+          }`}
+        >
+          {flash === "missing"
+            ? "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。"
+            : flash === "offstage"
+              ? "上面那块现在不是你的包（预览没画出来），演不了 —— 先点「重新加载预览」。"
+              : flash === "playing"
+                ? "演出中…"
+                : hint}
         </p>
       )}
     </div>
@@ -254,6 +267,9 @@ const COVER_MAX_WIDTH = 720;
 const COVER_MIN_OPAQUE = 0.02;
 
 async function captureStage(): Promise<Blob | null> {
+  // ★ 台上不是我们这个包就整句拒（判据一处实现在 store 的 `previewOnStage`）：SupportStage 加载失败会
+  //   退回官方看板娘，而 COVER_MIN_OPAQUE 那道 2% 的闸对她是照过的 —— 不判的话，发布出去的封面是小梦
+  if (!previewOnStage()) return null;
   const shot = companionBus.model?.snapshot();
   if (!shot || !shot.width || !shot.height) return null;
   const w = Math.min(COVER_MAX_WIDTH, shot.width);
@@ -500,24 +516,48 @@ export default function SupportModelNewPage() {
 
   async function runVerify() {
     if (verifyRunning.current) return;
+    // ★ 与第 ② 步同一条判据（store 的 `previewOnStage`）：台上不是我们这个包时整句拒 —— 对着官方看板娘打出来的
+    //   那一列 ✓ 是彻头彻尾的假话，比一列空的更坏
+    if (!previewOnStage()) {
+      useLive2dUpload.setState({ verifyNow: "", previewErr: "上面那块现在不是你的包（预览没画出来）。先点「重新加载预览」，画出来了再试跑。", previewState: "failed" });
+      return;
+    }
     verifyRunning.current = true;
     useLive2dUpload.setState({ verifyDone: [], verifyOk: false });
+    let lost = false;
     for (const it of verifyItems) {
       if (!verifyRunning.current) break;
       useLive2dUpload.setState({ verifyNow: it.label });
       it.run();
       await new Promise((r) => setTimeout(r, it.waitMs));
       if (!verifyRunning.current) break;
+      // ★ 中途也要问一次：跑到一半预览可能掉了（运行时会在模型 destroy 时撤掉我们的 blob 地址，
+      //   见 live2dUploadStore 文件头 ⚠⚠）。一份**没跑完**的 ✓ 列表比没有更坏，整列作废。
+      if (!previewOnStage()) {
+        lost = true;
+        break;
+      }
       markVerified(it.key);
     }
     companionBus.stopSpeaking();
     companionBus.face("normal");
     verifyRunning.current = false;
-    useLive2dUpload.setState({ verifyNow: "" });
+    useLive2dUpload.setState(
+      lost
+        ? { verifyNow: "", verifyDone: [], verifyOk: false, previewState: "failed", previewErr: "试跑跑到一半，上面那块换成了别的模型 —— 这一轮不作数。点「重新加载预览」再跑一遍。" }
+        : { verifyNow: "" },
+    );
   }
 
   async function grabCover() {
     useLive2dUpload.setState({ coverBusy: "正在截图…", coverErr: "" });
+    if (!previewOnStage()) {
+      useLive2dUpload.setState({
+        coverBusy: "",
+        coverErr: "台上现在不是你的模型（预览没画出来），截下来的会是官方看板娘。先点「重新加载预览」，画出来了再截。",
+      });
+      return;
+    }
     const blob = await captureStage();
     if (!blob) {
       useLive2dUpload.setState({
@@ -610,7 +650,8 @@ export default function SupportModelNewPage() {
               <li>· 贴图 png / webp，每张不超过 4096²、最多 4 张</li>
               <li>· 想要会转头 / 眨眼 / 说话，模型里得有 ParamAngleX、ParamAngleY、ParamEyeLOpen、ParamEyeROpen、ParamMouthOpenY 这几个标准参数</li>
               <li>· 有 physics3 / pose3 / cdi3 / exp3 表情 / motion3 动作也一起压进去，我们会自动接上</li>
-              <li>· 整包解压后不超过 {Math.round(MAX_LIVE2D_BUNDLE_BYTES / 1024 / 1024)}MB</li>
+              {/* ★ 量的是 zip 文件本身，不是解压后的总大小（与服务端、与直传票上的 maxSizeBytes 同一把尺） */}
+              <li>· zip 文件本身不超过 {Math.round(MAX_LIVE2D_BUNDLE_BYTES / 1024 / 1024)}MB</li>
             </ul>
           </div>
 
@@ -778,9 +819,11 @@ export default function SupportModelNewPage() {
           {busy && (
             <div className="space-y-2">
               <EmptyState loading text={s.progress || "正在处理…"} compact />
-              {s.busy === "upload" && (
+              {/* ★ `inspect` 也要摆：multipart 那条退路（>15MB 会撞 Cloudflare 125 秒墙的正是它）
+                  整个上传期间 busy 都是 "inspect" —— 只在 "upload" 时摆的话，最需要这颗键的那条路上够不着它 */}
+              {(s.busy === "upload" || s.busy === "inspect") && (
                 <button type="button" onClick={cancelBundleInspect} className={`mx-auto block ${secondaryCls}`}>
-                  取消上传
+                  {s.busy === "upload" ? "取消上传" : "取消"}
                 </button>
               )}
               <p className="text-center text-[11px] leading-relaxed text-slate-500">可以退出这一页去做别的，传完了会有提示。</p>
@@ -914,7 +957,10 @@ export default function SupportModelNewPage() {
                         key={a}
                         label={ACTION_LABEL[a]}
                         disabled={!value}
-                        onPlay={() => (value ? companionBus.motionGroup(value) : false)}
+                        // ★ 与触摸那一行同一个入口（`previewMotionGroup`，判据含"台上是不是我们的包"）——
+                        //   此前这里直接调 `companionBus.motionGroup`，预览退回官方看板娘时会对着小梦说
+                        //   「这个包里没有它 —— 换一个，或者回 Cubism 重新导出」，而那是一句假话
+                        onPlay={() => previewMotionGroup(value)}
                         hint={!value ? "没对上动作组，这个动作不演" : undefined}
                       >
                         <select
@@ -947,7 +993,12 @@ export default function SupportModelNewPage() {
                     const cur = mapping.faces?.[f] ?? null;
                     const value = cur?.expression ?? "";
                     return (
-                      <MapRow key={f} label={FACE_LABEL[f]} onPlay={() => (value ? companionBus.expression(value) : companionBus.face(f))}>
+                      <MapRow
+                        key={f}
+                        label={FACE_LABEL[f]}
+                        // ★ 同上：台上不是我们的包就整句拒，别对着官方看板娘说"这个表情包里没有"
+                        onPlay={() => (previewOnStage() ? (value ? companionBus.expression(value) : companionBus.face(f)) : false)}
+                      >
                         <select
                           value={value}
                           aria-label={`${FACE_LABEL[f]} 用哪个表情`}
@@ -983,7 +1034,14 @@ export default function SupportModelNewPage() {
                 <div className="space-y-1.5">
                   {TOUCH_AREAS.map((t) => {
                     const cur = mapping.touch?.[t] ?? null;
-                    const area = cur?.hitAreas?.[0] ?? "";
+                    // ★★ `hitAreas` 是**数组**：服务端的自动映射可以给一个槽位对上好几个命中区，
+                    //   运行时也是按数组判的（`mapping.ts` 的 `t.hitAreas.some(...)`）。此前这一行
+                    //   把它截成一条 —— 用户只要动一下这行任一个下拉，其余的就被静默丢掉，
+                    //   症状是"装上之后摸头有时没反应"，而向导里既不显示也不报错，
+                    //   `mappingTouched` 还因此置真、这份被截过的映射会原样发布出去。
+                    const areas = cur?.hitAreas ?? [];
+                    const area = areas[0] ?? "";
+                    const rest = areas.slice(1);
                     const motion = cur?.motion ?? "";
                     return (
                       <MapRow
@@ -991,14 +1049,21 @@ export default function SupportModelNewPage() {
                         label={TOUCH_LABEL[t]}
                         disabled={!motion}
                         onPlay={() => (motion ? previewMotionGroup(motion) : false)}
-                        hint={!area ? "没对上命中区，摸这里不会有反应" : undefined}
+                        hint={
+                          !area
+                            ? "没对上命中区，摸这里不会有反应"
+                            : rest.length > 0
+                              ? `这个槽位还对着另外 ${rest.length} 个命中区：${rest.join(" / ")}`
+                              : undefined
+                        }
                       >
                         <select
                           value={area}
                           aria-label={`${TOUCH_LABEL[t]} 对应哪个命中区`}
                           onChange={(e) =>
                             patch({
-                              touch: { ...mapping.touch, [t]: e.target.value ? { hitAreas: [e.target.value], motion: motion || null } : null },
+                              // 只换**第一条**，后面那几条原样留着（见上面 ★★）
+                              touch: { ...mapping.touch, [t]: e.target.value ? { hitAreas: [e.target.value, ...rest], motion: motion || null } : null },
                             })
                           }
                           className={selectCls}
@@ -1016,7 +1081,8 @@ export default function SupportModelNewPage() {
                           disabled={!area}
                           aria-label={`摸${TOUCH_LABEL[t]}播哪个动作`}
                           onChange={(e) =>
-                            patch({ touch: { ...mapping.touch, [t]: { hitAreas: [area], motion: e.target.value || null } } })
+                            // 改动作不动命中区那一列（`areas` 原样带过去，见上面 ★★）
+                            patch({ touch: { ...mapping.touch, [t]: { hitAreas: areas.length ? areas : [area], motion: e.target.value || null } } })
                           }
                           className={selectCls}
                         >
@@ -1099,7 +1165,9 @@ export default function SupportModelNewPage() {
                   void runVerify();
                 }
               }}
-              className="flex-1 rounded-xl border border-brand/60 py-2.5 text-sm font-semibold text-brand"
+              // ★ 与第 ② 步同一道闸：预览没画出来时试跑只会在官方看板娘身上演一遍并打满 ✓
+              disabled={!s.verifyNow && s.previewState !== "ok"}
+              className="flex-1 rounded-xl border border-brand/60 py-2.5 text-sm font-semibold text-brand disabled:opacity-40"
             >
               {s.verifyNow ? "■ 停下" : s.verifyDone.length ? "▶ 再跑一遍" : "▶ 开始试跑"}
             </button>
@@ -1115,6 +1183,11 @@ export default function SupportModelNewPage() {
               没问题，继续
             </button>
           </div>
+          {s.previewState !== "ok" && !s.verifyNow && (
+            <p className="text-center text-[11px] leading-relaxed text-slate-500">
+              预览没画出来，试跑跑不了 —— 跑了也只是在官方看板娘身上演一遍。先点上面的「重新加载预览」。
+            </p>
+          )}
           <button type="button" onClick={() => setStep("mapping")} disabled={!!s.verifyNow} className={`mx-auto block ${secondaryCls}`}>
             回去改映射
           </button>
@@ -1144,7 +1217,9 @@ export default function SupportModelNewPage() {
             <input
               ref={coverRef}
               type="file"
-              accept="image/*"
+              // ★ 不写 image/*：部分安卓会放进 HEIC，而服务端只收 jpeg/png/gif/webp（uploads.ts 那条注释）。
+              //   大小那道闸在 `uploadCover` 里（一处实现），这里只挡类型
+              accept="image/jpeg,image/png,image/webp"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];

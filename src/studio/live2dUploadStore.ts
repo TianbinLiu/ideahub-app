@@ -19,10 +19,20 @@
 //   两者的取舍：**按"这份草稿还在不在"撤，不按"组件挂没挂着"撤。**
 //     · 组件 unmount **不** revoke（那正是"退出再进来还在"要保住的东西，而且 StrictMode 下
 //       effect 会 mount→unmount→mount，unmount 撤等于一进页面就把自己的预览撤掉）；
-//     · 真正撤的时机只有三个，都是"这份草稿不要了"：换文件（`pickBundle` 开头）、
+//     · 我们**自己**撤的时机只有三个，都是"这份草稿不要了"：换文件（`pickBundle` 开头）、
 //       `resetLive2dDraft()`（发布成功 / 用户点重新开始）、以及**换 entry 重建预览**时撤掉上一份。
 //   代价说清楚：用户既不发布也不重开、就那样退出 App —— 那份 blob 活到进程结束。
 //   这是有意的：它换来的是"钱和时间已经花在上传上的那份草稿不会因为切了个页面就没了"。
+//
+//   ⚠⚠ 但**撤 blob 的不只有我们**（2026-09-07 读运行时逐字核出来的，此前这段注释断言的事实与运行时相反）：
+//   pixi-live2d-display 的 ZipLoader factory 里写死了
+//     `s.startsWith("blob:") && t.live2dModel.once("modelLoaded", m => m.once("destroy", () => URL.revokeObjectURL(s)))`
+//   —— `s` 正是我们 `zip://` 后面那半。而 `CompanionModel.acquire()` 换 url 时**就是**调 `singleton.destroy()`。
+//   路径：向导停在第 ②～⑥ 步 → 去客服页看一眼（SupportStage 按用户自己的设置 acquire 另一个 url）
+//   → 我们那个 objectURL 被运行时撤掉 → 回到向导，`previewUrl` 还是那个**已经死掉的地址**。
+//   ⇒ 所以 `markPreviewLoaded(false)` **先自愈一次**（`reloadPreview()` 从 `check.file` 现造一个新地址，
+//     不用重解包），只有再失败一次才判"这个包画不出来"。不这么做的话，屏幕上那句
+//     「这个包在手机上画不出来」是对一个其实完好的包的诬告，而第 ④/⑤ 步还会对着**官方看板娘**下结论。
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
@@ -31,7 +41,8 @@ import { companionBus } from "../companion/bus";
 import { setPreviewMapping, type CompanionMapping } from "../live2d/mapping";
 import type { BundleCheck, BundlePreview } from "../live2d/bundlePreview";
 import { createBundlePreview, readLive2dBundle } from "../live2d/bundlePreview";
-import { MAX_LIVE2D_BUNDLE_BYTES, uploadImage, uploadLive2dBundle } from "../api/uploads";
+import { ApiError } from "../api/client";
+import { MAX_IMAGE_BYTES, MAX_LIVE2D_BUNDLE_BYTES, uploadImage, uploadLive2dBundle } from "../api/uploads";
 import {
   companionErrorText,
   createLive2dModel,
@@ -78,6 +89,11 @@ export interface Live2dUploadDraft {
   previewState: PreviewState;
   /** 画不出来时的整句原因（来自 SupportStage 的 onFallback 或加载异常） */
   previewErr: string;
+  /**
+   * 这一份预览已经自愈重建过一次了（见文件头 ⚠⚠）。★ 必须记在状态里而不是一个模块级布尔：
+   * 它要跟着"这一份预览"作废 —— 换文件 / 换 entry / 手动重载都从头再来一次机会。
+   */
+  previewHealed: boolean;
 
   // ── ③ 自动识别 ──
   /** 直传拿到的 public_id；空 = 这次走的是 multipart 退路 */
@@ -144,6 +160,7 @@ export function initialLive2dDraft(): Live2dUploadDraft {
     previewUrl: "",
     previewState: "idle",
     previewErr: "",
+    previewHealed: false,
     bundleRef: "",
     directOn: false,
     inspect: null,
@@ -255,15 +272,30 @@ export function publishPreviewMapping(url: string, next: CompanionMappingWire | 
 }
 
 /**
- * 在预览里试播**某一个动作组**（第 ④ 步「摸这里播哪个动作」那行左边的 ▶）。
+ * 台上现在挂着的，**是不是我们这个包**。全页共用这一处判据（试播 ▶ / 试跑 / 截封面都问它）。
+ *
+ * ★★ 为什么需要（SupportModelNewPage 文件头那条纪律的执行处）：SupportStage 加载失败会**退回官方看板娘**，
+ *   屏幕上照样有个人在动 —— 不判的话，试播会对着小梦说「这个包里没有它」、试跑会在小梦身上打满 ✓、
+ *   截封面会把小梦发布成这个模型的封面，三句都是假话，而且全程零报错。
+ * ★ 判 `modelUrl` 不判 `previewState`：previewState 是"我们以为的"，modelUrl 是运行时的事实
+ *   （blob 地址被运行时撤掉那一路正是"以为是 ok、其实台上已经换人"，见文件头 ⚠⚠）。
+ */
+export function previewOnStage(): boolean {
+  const url = get().previewUrl;
+  return !!url && companionBus.model?.modelUrl === url;
+}
+
+/**
+ * 在预览里试播**某一个动作组**（第 ④ 步那两行左边的 ▶）。
  *
  * ★ 2026-09-07 起直接走运行时的公开入口 `companionBus.motionGroup`。此前这里是"借 `playful` 这个语义槽
  *   临时指过去、播一下、下一个微任务还原" —— 那种写法要原地改**正在生效的**映射对象，还原一旦没跑到
  *   （异常 / 两次点击撞上），用户表里那一格就被悄悄换成了别的组，然后原样发布出去，零报错。
- * @returns false = 这个组不在包里（调用方就地红字说出来，别静默）
+ * @returns false = 播不了（组不在包里，**或者台上不是我们的模型**）。调用方就地红字说出来，别静默
  */
 export function previewMotionGroup(group: string): boolean {
   if (!group) return false;
+  if (!previewOnStage()) return false;
   return companionBus.motionGroup(group);
 }
 
@@ -324,10 +356,10 @@ export async function buildPreview(entry: string): Promise<void> {
   const detail = s.check.detail.get(entry);
   if (detail?.issues.length) {
     // 这个入口本地就不合格：别去加载它，直接把原因摆出来（加载失败的报错远不如这几句具体）
-    set({ ...wipe, entry, previewState: "failed", previewErr: detail.issues[0], step: "preview" });
+    set({ ...wipe, entry, preview: null, previewUrl: "", previewHealed: false, previewState: "failed", previewErr: detail.issues[0], step: "preview" });
     return;
   }
-  set({ ...wipe, busy: "preview", progress: "正在准备预览…", entry, previewState: "loading", previewErr: "", step: "preview" });
+  set({ ...wipe, busy: "preview", progress: "正在准备预览…", entry, previewState: "loading", previewErr: "", previewHealed: false, step: "preview" });
   try {
     dropPreview();
     const preview = await createBundlePreview(s.check, entry);
@@ -336,7 +368,14 @@ export async function buildPreview(entry: string): Promise<void> {
     publishPreviewMapping(preview.modelUrl, get().mapping);
     set({ preview, previewUrl: preview.modelUrl, busy: "", progress: "" });
   } catch (e) {
+    // ★ `preview` / `previewUrl` 一并清掉：try 的第一行已经 `dropPreview()` 撤过上一份 blob 地址了。
+    //   不清的话舞台仍按 `!!s.previewUrl` 挂着、去加载一个**已经被撤销的地址**，而那颗
+    //   「重新加载预览」（`disabled={!s.preview}`）也仍然亮着 —— 它调的 `preview.reload()` 闭包里
+    //   锁着的是**上一个 entry**，于是"换了入口 → 建预览失败 → 点重新加载"画出来的是用户没选的那个模型，零报错。
     set({
+      preview: null,
+      previewUrl: "",
+      previewHealed: false,
       busy: "",
       progress: "",
       previewState: "failed",
@@ -345,19 +384,39 @@ export async function buildPreview(entry: string): Promise<void> {
   }
 }
 
-/** 换个新地址把模型重加载一遍（改了参数槽之后要，见 publishPreviewMapping 的 ⚠） */
-export function reloadPreview(): void {
+/** 换个新地址重加载。`healed` = 这一次是自愈用掉的那一次机会（见 markPreviewLoaded 的 ★★） */
+function rebuildPreviewUrl(healed: boolean): void {
   const s = get();
   if (!s.preview) return;
   const url = s.preview.reload();
   publishPreviewMapping(url, s.mapping);
-  set({ previewUrl: url, previewState: "loading", previewErr: "" });
+  set({ previewUrl: url, previewState: "loading", previewErr: "", previewHealed: healed });
 }
 
-/** 舞台报回来的结局：画出来了 / 退回官方形象了（SupportStage 的 onFallback） */
+/** 换个新地址把模型重加载一遍（改了参数槽之后要，见 publishPreviewMapping 的 ⚠） */
+export function reloadPreview(): void {
+  // 用户手动点的：重新给一次自愈机会（`previewHealed` 跟着"这一份预览"作废，见状态字段那条 ★）
+  rebuildPreviewUrl(false);
+}
+
+/**
+ * 舞台报回来的结局：画出来了 / 退回官方形象了（SupportStage 的 onFallback）。
+ *
+ * ★★ 失败**先自愈一次**再判死（见文件头 ⚠⚠）：运行时会在模型 destroy 时把我们那个 objectURL 撤掉，
+ *   于是"去客服页看一眼再回来"必然拿到一个死地址 —— 那不是包坏了。`reloadPreview()` 从 `check.file`
+ *   现造一个新地址（不重解包，几十毫秒），只有**再失败一次**才把红字留下。
+ */
 export function markPreviewLoaded(ok: boolean, reason = ""): void {
-  if (ok) set({ previewState: "ok", previewErr: "" });
-  else set({ previewState: "failed", previewErr: reason || "这个包在手机上画不出来。" });
+  if (ok) {
+    set({ previewState: "ok", previewErr: "" });
+    return;
+  }
+  const s = get();
+  if (!s.previewHealed && s.preview) {
+    rebuildPreviewUrl(true);
+    return;
+  }
+  set({ previewState: "failed", previewErr: reason || "这个包在手机上画不出来。" });
 }
 
 // ── ③ 自动识别（上传 + inspect） ──────────────────────────────────────
@@ -393,28 +452,40 @@ export async function startBundleInspect(): Promise<void> {
   };
   set({ busy: "upload", inspectErr: "", step: "inspect" });
   try {
-    let bundleRef = "";
-    let directOn = false;
-    step("正在上传模型包 0%");
-    const direct = await uploadLive2dBundle(
-      file,
-      (frac) => step(`正在上传模型包 ${Math.round(frac * 100)}%`),
-      controller.signal,
-    );
-    if (direct) {
-      bundleRef = direct.bundleRef;
-      directOn = true;
+    // ★★ 已经传上去过就**别再传一遍**（2026-09-07 补）：识别这一步很容易失败一次（限流 10 次/分钟、
+    //   服务端解包报错、网抖），而此前每点一次「开始识别」都从空串起步 —— 同一份 25MB 重推一遍，
+    //   再烧掉一格 `/bundle/sign` 的日额度（5 次/分钟 + 20 次/天），上一次那份直传资产还成了孤儿
+    //   （服务端的 inspect **刻意不回收** bundleRef，见 live2dModel.controller 的 ★）。
+    //   复用是安全的：`pickBundle` 换文件时整份草稿归零（bundleRef 一起清），所以 store 里那个
+    //   bundleRef 一定属于**当前这个 file**；`entry` 只是 inspect 的入参，不影响传上去的那份 zip。
+    let bundleRef = s.bundleRef;
+    let directOn = s.directOn;
+    if (bundleRef) {
+      step("这份包上次已经传上去了，直接让服务器再看一遍…");
     } else {
-      // ★ null = 这台服务器还没有 `/bundle/sign`（ideahub-server#60 未合并）。退回 multipart 直传，
-      //   并把"现在走的是慢的那条"说出来 —— 不说的话大包超时的人只会以为是自己网不好
-      step(`这台服务器还没开直传，改走慢的那条（约 ${(file.size / 1024 / 1024).toFixed(1)}MB，超过 15MB 可能会超时）…`);
+      step("正在上传模型包 0%");
+      const direct = await uploadLive2dBundle(
+        file,
+        (frac) => step(`正在上传模型包 ${Math.round(frac * 100)}%`),
+        controller.signal,
+      );
+      if (direct) {
+        bundleRef = direct.bundleRef;
+        directOn = true;
+      } else {
+        // ★ null = 这台服务器还没有 `/bundle/sign`（ideahub-server#60 未合并），或者它没配 Cloudinary（503）。
+        //   退回 multipart 直传，并把"现在走的是慢的那条"说出来 —— 不说的话大包超时的人只会以为是自己网不好
+        step(`这台服务器还没开直传，改走慢的那条（约 ${(file.size / 1024 / 1024).toFixed(1)}MB，超过 15MB 可能会超时）…`);
+      }
     }
     set({ bundleRef, directOn, busy: "inspect" });
     // ★ 两条路这一步做的事完全不同，别用同一句话糊过去：直传那条只是让服务器去 Cloudinary 取包（秒级），
     //   multipart 那条是**现在才开始把 25MB 推上去**（分钟级）—— 说成"正在解包识别"的话，
     //   用户会以为卡住了，然后退出去重来（又是一次几分钟）。
     step(directOn ? "服务器正在解包识别…" : `正在上传并识别（约 ${(file.size / 1024 / 1024).toFixed(1)}MB，走的是慢的那条）…`);
-    const result = await inspectLive2dBundle(bundleRef ? { bundleRef, entry } : { file, entry });
+    // ★ signal 也要给这一步：multipart 那条路**整个 25MB 是在这里才推上去的**（上面那段只是发现没直传票），
+    //   不给的话「取消上传」在最需要它的那条路上按了没反应（fetch 照跑到 180 秒超时）。
+    const result = await inspectLive2dBundle(bundleRef ? { bundleRef, entry } : { file, entry }, controller.signal);
     // ★ 服务端可能按别的入口读（我们传了 entry，正常会一致）；以它回的那个为准，别两边各记一份
     const mapping = result.mapping ?? null;
     set({
@@ -473,6 +544,12 @@ export function markVerified(key: string): void {
 
 /** 封面：自己选一张图传上去（自动截图那条在页面里，截不到时退到这条） */
 export async function uploadCover(blob: Blob, filename: string): Promise<void> {
+  // ★ 本地先判一次（同仓 cardViews / publishAssets 两处调用方早就这么写了）：一张 10MB 的手机原图
+  //   白传 60 秒才被服务端拒，而这个数（`MAX_IMAGE_BYTES`）与服务端 middleware/upload.js 是镜像的。
+  if (blob.size > MAX_IMAGE_BYTES) {
+    set({ coverBusy: "", coverErr: `这张图太大了（${(blob.size / 1024 / 1024).toFixed(1)}MB，上限 ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)}MB），换一张小一点的。` });
+    return;
+  }
   set({ coverBusy: "正在上传封面…", coverErr: "" });
   try {
     const url = await uploadImage(blob, filename);
@@ -522,8 +599,26 @@ export async function submitLive2dModel(): Promise<void> {
     if (get().mounted) job.done({ silent: true });
     else job.done({ msg: `「${result.model.name}」已经发布好了。`, route: "/support/models" });
   } catch (e) {
-    const text = companionErrorText(e, "发布失败了，再试一次。");
-    set({ busy: "", progress: "", publishErr: text });
+    const status = e instanceof ApiError ? e.status : 0;
+    const timedOut = e instanceof ApiError && e.code === "TIMEOUT";
+    // ★ 这条路上「超时」不等于「失败」：字节和落库都在服务端那边，我们只是不等了 —— 模型很可能已经建好了。
+    //   沿用通用的那句「请求超时了，检查网络后再试一次」会让人再发一遍，市场里就是两条同名模型。
+    let text = timedOut
+      ? "等太久没等到服务器回话。这一发可能已经建好了 —— 先去「我的」里看一眼，没有再回来重发。"
+      : companionErrorText(e, "发布失败了，再试一次。");
+    // ★★ 失败之后那份**直传资产多半已经不在了**（2026-09-07 补）：服务端 `createModel` 的 finally
+    //   无论成败都 `destroyDirectBundle(bundleRef)`。留着这个 ref 会让草稿变成死局 —— 再点一次发布
+    //   还是走 bundleRef 那一支，服务端 `downloadDirectBundle` 拿到 404、回一句
+    //   400「没在服务器上找到这份模型包……请重新选一次文件再传」，而向导里根本没有那条路
+    //   （第 ③ 步有 inspect 之后就只摆「下一步」，唯一出口是顶栏的「重新开始」= 重传 25MB、重走六步）。
+    //   清掉之后重试会走 multipart 那一支（文件还在 store 里），慢一点但一定走得通。
+    //   ⚠ **429 / 401 不清**：限流与鉴权都是路由中间件挡下的，控制器压根没跑 ⇒ 那份资产还在，
+    //   等几秒重试就是秒过；这时候清掉等于白白逼人重传一次 25MB。
+    const refGone = !!s.bundleRef && status !== 429 && status !== 401;
+    if (refGone) {
+      text += " 传上去的那份包服务器已经回收了，再点一次发布会把包重新传一遍（这条路慢一些）。";
+    }
+    set({ busy: "", progress: "", publishErr: text, ...(refGone ? { bundleRef: "", directOn: false } : {}) });
     if (get().mounted) job.done({ silent: true });
     else job.fail(`模型发布失败：${text}`, "/support/models/new");
   }

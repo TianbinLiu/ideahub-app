@@ -239,7 +239,8 @@ function refsOf(entry: string, json: Model3Json): { path: string | null; ref: st
  * 把用户选的 zip 在本地拆开核对。**「包不合格」不抛** —— 那些进 `issues`（整句，页面原样红字显示）；
  * 只有「这个文件根本不是 zip」这类才 throw。
  *
- * @param maxBytes 解压后总大小上限（调用方从 `api/uploads.MAX_LIVE2D_BUNDLE_BYTES` 传进来，那儿是唯一实现）
+ * @param maxBytes **zip 文件本身**的大小上限（调用方从 `api/uploads.MAX_LIVE2D_BUNDLE_BYTES` 传进来，那儿是唯一实现，
+ *   与服务端的 zip 上限、直传票上的 `maxSizeBytes` 是同一把尺）。解压后的总大小另说，见下面那段 ★★。
  */
 export async function readLive2dBundle(file: File, maxBytes: number): Promise<BundleCheck> {
   // ★ 动态 import：jszip 只有这一页用，静态 import 会把它压进主包，让所有人为一个没打开过的向导买单
@@ -286,10 +287,22 @@ export async function readLive2dBundle(file: File, maxBytes: number): Promise<Bu
 
   if (unsafe > 0) issues.push(`包里有 ${unsafe} 个文件的路径带 “..”（会跳出目录），这种包我们不收。请重新压缩一次再传。`);
   if (paths.length === 0) issues.push("包里没有一个我们认识的文件。Live2D 包至少要有 *.model3.json、*.moc3 和贴图。");
-  if (maxBytes > 0 && totalBytes > maxBytes) {
+  // ★★ 这道闸量的是 **zip 文件本身**，不是解压后的总大小（2026-09-07 改）：`MAX_LIVE2D_BUNDLE_BYTES`
+  //   镜像的是服务端 `live2dModel.routes.js` 的 zip 上限与 `/bundle/sign` 票上的 `maxSizeBytes`，
+  //   而 `uploads.ts` 判票也是拿 `file.size` 比。此前这里拿解压后的 `totalBytes` 比同一个数 ——
+  //   一份 12MB 的 zip 解出来 30MB（moc3 / json / wav 的压缩率都不低）会在本地被整句拒掉，
+  //   连传都传不了，**而服务端会收**。两处用同一个数量了两样东西。
+  if (maxBytes > 0 && file.size > maxBytes) {
     issues.push(
-      `解压后一共约 ${(totalBytes / 1024 / 1024).toFixed(1)}MB，超过了 ${Math.round(maxBytes / 1024 / 1024)}MB 的上限。` +
+      `这个 zip 约 ${(file.size / 1024 / 1024).toFixed(1)}MB，超过了 ${Math.round(maxBytes / 1024 / 1024)}MB 的上限。` +
         "贴图通常是大头，导出时压到 2048² 一般就够了。",
+    );
+  }
+  // 解压后的总大小仍然要说一句，但它是**提醒不是拒绝**：手机上加载慢是体验问题，不是不合格。
+  else if (maxBytes > 0 && totalBytes > maxBytes) {
+    warnings.push(
+      `解压后一共约 ${(totalBytes / 1024 / 1024).toFixed(1)}MB（zip 本身 ${(file.size / 1024 / 1024).toFixed(1)}MB，没超上限）。` +
+        "手机上加载会慢一些，介意的话把贴图压到 2048² 再导出一次。",
     );
   }
   // 路径带空格 / 中文时，运行时的路径比对会绕一圈编解码。多数能对上，对不上时症状是「贴图空白」——
