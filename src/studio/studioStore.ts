@@ -1,6 +1,6 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
-import { BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
+import { V3_CARD_WIPE_MS, BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, npcChat, npcChatOffline, prepareMaterialRefs, refineFrame } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
@@ -2283,6 +2283,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // flow 侧有内容时以 flow 为准（树是当年组稿前的旧快照，flow 那份更新）
     const legacy = !((d.flow?.nodes?.length ?? 0) > 0) && d.root ? flowFromRoot(d.root) : null;
     const rawNodes = legacy ? legacy.nodes : ((d.flow?.nodes ?? []) as FlowNode[]);
+    // ★ V3（2026-09-06）：截线之前存的草稿里挂着的非人物卡（老语义的氛围 / 画风 / 场景卡）整批下场，
+    //   与 account.ts 的 V3 清库同一条截线——留着的话它们还会随 materials 进出片提示词与参考图
+    const staleCard = (c: Card) => c.type !== "character" && (d.updatedAt ?? 0) < V3_CARD_WIPE_MS;
     /** 在途状态归一（见下面那段 ★★）—— 主链与归档链都要过一遍，别只洗一半 */
     const normalize = (n: FlowNode): FlowNode => ({
         ...n,
@@ -2306,6 +2309,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         progress: n.status === "generating" ? "" : n.progress,
         regenning: n.status === "generating" ? undefined : n.regenning,
         steps: n.steps?.map((st) => (st.status === "running" ? { ...st, status: "error" as const } : st)),
+        ...(n.materials?.some(staleCard) ? { materials: n.materials.filter((c) => !staleCard(c)) } : {}),
       });
     const flowNodes = rawNodes.map(normalize);
     const rawAlts = legacy
@@ -2318,7 +2322,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       ]),
     );
     set({
-      deck: d.deck ?? [],
+      deck: (d.deck ?? []).filter((c) => !staleCard(c)),
       workDraftId: d.id,
       // ★ 刚从草稿读出来的这些段，按定义就是"已经存住的"——不置位的话，
       //   打开老草稿后那道确认卡会把它们全报成"没存上，丢了要重花钱"

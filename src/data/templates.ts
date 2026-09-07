@@ -17,7 +17,7 @@ import { canAfford, currentUser, refreshRemoteWallet, tierBlockReason } from "./
 import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens } from "./economy";
 import { toPermanentUrl } from "./publishAssets";
 import { remoteOn } from "./videos";
-import { Card, MarkBox, MarkScheme, VideoAspect, VideoTemplate, uid } from "../types";
+import { V3_CARD_WIPE_MS, Card, MarkBox, MarkScheme, VideoAspect, VideoTemplate, uid } from "../types";
 
 const KEY = "templates.v1";
 
@@ -58,6 +58,16 @@ export function templatesVersion(): number {
 export async function readyTemplates(): Promise<void> {
   const saved = await idbGet<VideoTemplate[]>(KEY);
   if (saved) mine = saved;
+  // ★ V3（2026-09-06）：截线之前建的模板身上的非人物卡整批下场（与 account.ts 的 V3 清库同一条截线，
+  //   主人拍板"不用顾及老卡"）；截线之后从原片铸的 V3 素材卡原样保留
+  let wiped = false;
+  for (const t of mine) {
+    if (t.createdAt < V3_CARD_WIPE_MS && t.cards.some((c) => c.type !== "character")) {
+      t.cards = t.cards.filter((c) => c.type === "character");
+      wiped = true;
+    }
+  }
+  if (wiped) persist();
   // ★ 这里以前给两个种子模板灌了一份假的浏览量/点赞（seedStats，2026-08-11 删）。
   //   假数字画在屏幕上与真互动长得一模一样，而同一个页面上还摆着服务端算的真热度 ——
   //   并排放一个编的和一个真的就是骗人（铁律八）。宁可从 0 开始。
@@ -2707,7 +2717,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
   return takeBlockoutResult(job, say);
 }
 
-export function updateTemplate(id: string, patch: Partial<Pick<VideoTemplate, "title" | "intro" | "cover" | "published">>): void {
+export function updateTemplate(id: string, patch: Partial<Pick<VideoTemplate, "title" | "intro" | "cover" | "published" | "cards">>): void {
   const t = mine.find((x) => x.id === id);
   if (!t) return;
   Object.assign(t, patch);

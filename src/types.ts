@@ -3,6 +3,14 @@ export type CardType = "character" | "scene" | "background" | "prop" | "style";
 
 export const CARD_TYPES: CardType[] = ["character", "scene", "background", "prop", "style"];
 
+/**
+ * 卡片职责 V3 的截线（2026-09-06，主人拍板"不用顾及老卡能不能用，除人物卡外全删"）：
+ * 这一刻之前的**非人物卡**——本机卡库、本机模板身上的卡、草稿里挂的素材与桌面卡组——整批下场，
+ * 服务端那份当天已由脚本清过（4 张，备份在会话 scratchpad）。截线之后按 V3 语义铸的场景 / 道具 / 风格卡原样保留。
+ * ★ 放 types.ts 是依赖方向逼的：data/account、data/templates、studio/studioStore 三处都要读它，而它们互相不该 import。
+ */
+export const V3_CARD_WIPE_MS = Date.parse("2026-09-06T17:00:00+08:00");
+
 export const CARD_TYPE_LABELS: Record<CardType, string> = {
   character: "人物卡",
   scene: "场景卡",
