@@ -828,6 +828,12 @@ export const CARD_META_TOKENS = 400;
  */
 export const CHAT_TURN_TOKENS = 400;
 
+/**
+ * 结构化技能「剧本 → 分镜字段」一次运行的价签（studio/structuredSkills）：一篇 ≤2000 字剧本进、最多 8 段带镜头字段的 JSON 出，
+ * 输入输出都是闲聊那一趟的几倍，按两趟计。与 CHAT_TURN_TOKENS 同一条 ⚠：常驻价签，真实结算走接口返回的用量。
+ */
+export const SCRIPT_SPLIT_TOKENS = 2 * CHAT_TURN_TOKENS;
+
 /** 会炼出几张卡：**一份素材 = 一张卡**，一份素材都没有但写了描述也出一张。 */
 export function forgeCardCount(fileCount: number, hasNote: boolean): number {
   return fileCount > 0 ? fileCount : hasNote ? 1 : 0;

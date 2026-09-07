@@ -139,6 +139,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   手机外壳）成开头帧，走 `setFrame` 那条换帧缝钉住；截图一律浅灰影棚 + 灰人偶（深色底会被认成手机截图）；站位与机位随段存在
   `FlowNode.stage`。白模段没有它（画面来自模板视频）。
   全文见 docs/competitor-canvas-skill-mapping.md。
+  **结构化技能**（`studio/structuredSkills`，2026-09-06 对标 updream Skill）：与「出片技能」（一句话，`data/agentSkills`）不同，
+  它是一条有形状的流程 —— `steps[]` / 输出形状检查（`parseShotPlan`，不合形状的段整段丢、一段不剩当失败）/ `confirmAt`（人点头
+  才落地）/ 价签。第一条官方技能「剧本 → 分镜字段」在画布「/」面板里：整篇剧本 → N 段各带 `ShotSpec` → 确认 → 铺成流水线
+  （`shotPlanNodes` 与做同款同一形状；**铺是整表覆盖 nodes 的第九条入口**，守卫走 `useApplyTemplate`）。钱在请求成功那一拍扣一次，
+  形状检查失败不退也不再扣。演示构建走本地按句号切段（面板标「演示」），不冒充模型。
   **提交出片即收窗**（2026-09-06 主人点名）：画布的编辑窗在这一段状态翻到 generating 的那一拍自动收起（`FlowCanvas` 判跳变，
   点开一张正在炼的卡看进度不算），工坊投影窗在 `studioStore` 委托 `genNode` 受理的那一拍收起（`closeProjection`），
   两处都吐一句「已开始生成，可以离开这一页」—— 窗一直开着，用户不知道出片不需要守着。
