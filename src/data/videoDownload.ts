@@ -315,7 +315,12 @@ export function fileNameOf(
   // 线性 01..NN；分支树 `n<nodeId 后 4 位>` —— 保证同一节点在「刚看的走向」与
   // 「存全部分支」两档下拿到同一个文件名，不会存两遍
   const seq = seqNo === null ? `n${ascii(key).slice(-4) || "0000"}` : String(seqNo).padStart(2, "0");
-  const url8 = ascii(url.split("?")[0].split("/").pop() ?? "").slice(-8) || "00000000";
+  // ★★ 先把扩展名摘掉再截后 8 位。ascii() 会把 `.` 一起过滤掉，直接截会把容器名卷进来：
+  //   真机实测（2026-09-07）`…-1788665109067.webm` → 去点后 `…1788665109067webm` → 后 8 位 `4172webm`
+  //   ⇒ 落盘文件名成了 `AIGC-qimeng-20260906-3e91ff-01-4172webm.webm`，多出来那截 `webm` 是噪声，
+  //   而这一格本来是"同一段换了成片就换名字"的唯一判据（见上面 <url8> 那条 ★）。
+  const urlBase = (url.split("?")[0].split("/").pop() ?? "").replace(/\.[A-Za-z0-9]+$/, "");
+  const url8 = ascii(urlBase).slice(-8) || "00000000";
   return `AIGC-qimeng-${ymd}-${vid6}${p}-${seq}-${url8}.${ascii(ext) || "mp4"}`;
 }
 
