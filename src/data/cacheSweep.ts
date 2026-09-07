@@ -18,6 +18,12 @@
 //   按"没人引用"判它就是孤儿，一键清理会把用户刚合完还没保存的成片删掉。
 //   键名里带着生成时刻（uid() = `<前缀>_<Date.now() 的 36 进制>_<随机>`），
 //   拿它兜住这一类"正在用但还没落盘"的情况。
+// ★★ 边界（2026-09-07 补，别让下一个人以为"清理缓存"已经涵盖它）：
+//   「保存到本地」落在**原生** Cache 目录（`Cache/ideahub-downloads/`）的那些视频文件
+//   **不在**这套扫描范围内 —— 这里扫的是 IndexedDB 的 blob 仓，`collectReferenced` 只认
+//   videos / pendingDrafts / listDrafts / cutSession / myCards 五个来源，一个原生文件都看不见。
+//   那一摊归 `data/videoDownload` 的 `listDownloads()` / `clearDownloads()` 管，
+//   入口在设置 → 存储那一页，与这里的「清理缓存」并列成两行、两颗键、两句话。
 import { idbDel, idbGet, idbKeys } from "./db";
 import { listDrafts, loadDraft } from "./drafts";
 import { allPendingDraftsForSweep, listVideos } from "./videos";

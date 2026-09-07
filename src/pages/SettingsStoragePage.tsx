@@ -18,6 +18,7 @@ import { useCurrentUser } from "../hooks/useAccount";
 import { isRemoteMode } from "../data/account";
 import { storageEstimate } from "../data/db";
 import { planSweep, runSweep, type SweepPlan } from "../data/cacheSweep";
+import { clearDownloads, listDownloads, mb as fmtBytes, type DownloadGroup } from "../data/videoDownload";
 
 export default function SettingsStoragePage() {
   // 远端模式下作品的权威副本在服务器，本地这份只是缓存——文案不能再说「存在本机」
@@ -56,12 +57,93 @@ export default function SettingsStoragePage() {
                 ? "作品与卡片已同步到服务器，换设备登录同一账号即可看到；这里是它们在本机的副本，加上生成过程中的中间文件。"
                 : "作品与卡片存在本机数据库里。AI 生成的画面体积较大，空间不足时请删除旧作品。"}
             </p>
+            <SavedVideos />
             <CacheSweeper onDone={() => void storageEstimate().then(setStorage)} />
           </>
         ) : (
           <span className="text-xs text-slate-500">读取中…</span>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * 「保存到本地」存下来的视频（**原生** Cache 目录 `ideahub-downloads/`）。
+ *
+ * ★★ 为什么这一行必须加：上面那条用量条走 `data/db.storageEstimate()` →
+ *   `navigator.storage.estimate()`，它**只数 WebView 那一份配额**，数不到原生 Cache 目录。
+ *   不加的话用户在这一页看到的「已用」永远解释不了系统设置里多出来的几百 MB ——
+ *   正是这一页文件头写着要消灭的那种"看不懂、也做不了任何事"的数字。
+ * ★ 与下面那颗「清理缓存」是**两颗键、两句话**：那颗清的是没人引用的中间文件（可以随便清），
+ *   这颗删的是用户**特意存下来的成品**（删了就没了），措辞绝不能混。
+ * ★ 一个文件都没有时整块不画：空的一行只会让人以为功能坏了。
+ * ★ 认不出的 videoId（作品已删/已下架）归到「已删除的作品」一行 —— 由 listDownloads 兜。
+ */
+function SavedVideos() {
+  const [groups, setGroups] = useState<DownloadGroup[] | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    void listDownloads().then(setGroups);
+  }, []);
+
+  if (!groups || groups.length === 0) return null;
+
+  const files = groups.reduce((s, g) => s + g.files, 0);
+  const bytes = groups.reduce((s, g) => s + g.bytes, 0);
+
+  function run() {
+    setBusy(true);
+    void clearDownloads()
+      .then((r) => {
+        // ★ 正在保存时是**整句拒**，不是"清了 0 个"：那两件事在屏幕上必须长得不一样
+        if (r.blocked) {
+          setNote(r.blocked);
+          setConfirming(false);
+          return;
+        }
+        setNote(`已删掉 ${r.files} 个文件`);
+        setGroups([]);
+        setConfirming(false);
+      })
+      .finally(() => setBusy(false));
+  }
+
+  return (
+    <div className="mt-3 border-t border-slate-700/60 pt-3">
+      <p className="text-xs text-slate-300">
+        已保存的视频 {fmtBytes(bytes)} · {files} 个文件
+      </p>
+      <div className="mt-1 space-y-0.5">
+        {groups.map((g) => (
+          <p key={g.videoId} className="truncate text-[11px] text-slate-500">
+            《{g.title}》 {g.files} 个文件 · {fmtBytes(g.bytes)}
+          </p>
+        ))}
+      </div>
+      <button
+        onClick={() => setConfirming(true)}
+        className="mt-2 w-full rounded-xl border border-slate-600 py-2.5 text-xs text-slate-200"
+      >
+        清空已保存的视频（{fmtBytes(bytes)}）
+      </button>
+      {note && <p className="mt-1.5 text-[11px] leading-relaxed text-amber-300">{note}</p>}
+      {confirming && (
+        <ConfirmDialog
+          title={`清空已保存的视频（${fmtBytes(bytes)}）`}
+          confirmLabel="清空"
+          danger
+          busy={busy}
+          onConfirm={run}
+          onClose={() => setConfirming(false)}
+        >
+          删的是你点「保存到本地」存进 App 的那 {files} 个视频文件。已经用「分享 / 另存为」交给相册或
+          文件管理器的副本不受影响；还留在这里没交出去的，删了就没有了。
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

@@ -2,7 +2,12 @@
 
 > 状态标记：✅ 已就绪 ｜ 🔧 需要动手 ｜ 💰 需要花钱
 > 出包命令：`npm run aab`（**上架用**，play 渠道）/ `npm run apk:release`（直装版，sideload 渠道）
-> 当前产物：直装版 APK **94MB** / 上架 AAB **93MB**（实测；61MB 的模型压缩后约 38MB）
+> 当前产物：直装版 APK **94MB** / 上架 AAB **93MB**（61MB 的模型压缩后约 38MB）
+> ⚠️ **这两个数已经过期，发版前必须当场重出一次再填**。2026-09-07「保存到本地」装进了
+> `@capacitor/filesystem` + `@capacitor/share`，这是本仓**第一次把 Kotlin 工具链拉进纯 Java 构建**
+> （根 `android/build.gradle` 原来只有 AGP + google-services）——**npm 包大小不能当 dex 增量用**。
+> 做法：装插件前后各出一次 `npm run apk:release` 与 `npm run aab`，逐字节记差值；
+> play AAB 增量 > 8MB 就停下来报告（`app-distribution.md` 记着"83MB 的包国内基本下不动"）。
 > （其中 61MB 是「极致」档玩家形象的 4K 贴图模型 —— 2026-08-11 起随包发布，见
 > `scripts/prune-app-assets.mjs`。裁剪仍然剔除零引用的烘焙遗留模型与不可分发的购入素材。）
 >
@@ -10,7 +15,12 @@
 > 而 Google Play **禁止**这种行为。隔离靠 product flavor 做在构建里，不靠人记得删，
 > 细节见 [`app-distribution.md`](app-distribution.md)。上传 Play 前确认 AAB 里
 > 没有 `REQUEST_INSTALL_PACKAGES`：
-> `aapt2 dump permissions <aab 解出来的 base.apk> | grep INSTALL` 应当无输出。
+> `aapt2 dump permissions <aab 解出来的 base.apk>` —— **把整表与上一版逐条比对**，
+> 不要只 `grep INSTALL`。理由：装第三方插件时权限是**插件的 manifest 合并进来的**，
+> 你不会提前知道它想加哪一条（2026-09-07 装 `@capacitor/filesystem` + `@capacitor/share`
+> 时逐个解包核过，两者的 `AndroidManifest.xml` 都是空 `<manifest></manifest>`，
+> 所以这一版整表应当仍然只有 `INTERNET` / `RECORD_AUDIO` / `MODIFY_AUDIO_SETTINGS` 三条）。
+> `grep INSTALL` 只查得出你已经想到的那一条。
 
 ## 一、账号与资质
 

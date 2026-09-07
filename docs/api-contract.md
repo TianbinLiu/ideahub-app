@@ -305,6 +305,21 @@ BranchAssetView  { kind, key, viewer, expiresAt }                        唯一 
 读端点 `/stats` 故意不校验：它不写库，造不出任何行，而客户端手里合法地存在只在本机有的 `cardId`。
 
 关注沿用既有 `/api/users/:id/follow` 与 `Follow` 模型，不新建。
+### 视频「保存到本地」：**不经服务端**
+
+App 的「保存到本地」直接向 Cloudinary 的**原地址**取字节（与播放取的是同一条流、同一个地址，
+早在 `GET /api/branch/videos/:id` 的回包里就给出去了）。**不新增端点、不改任何字段、不加下载计数**。
+判据全在客户端（`app/src/data/videoDownload.planDownload`：只有作者本人、未下架、已落库的作品可存）。
+
+⚠ 反向约束：一旦开启 Cloudinary 的 **strict transformations**，本功能与白模 V2 的
+`so_/du_/c_crop` 裁剪链路（`server-support/src/utils/templateVideoAsset.js`，生产在跑）会**一起 404 且零日志**。
+
+⚠ 客户端下载时可能用 `f_mp4` 派生地址取字节（webm 成片转 H.264）。那个地址**只用于取字节**，
+绝不回流进 `segments[].videoUrl` —— 服务端 `videoCompose.branchVideoName` 与
+`templateVideoAsset.ownedRecyclableAsset` 都只认不带变换的地址，写回去会同时打死合并与资产回收。
+
+契约本身没变，另外两仓不需要跟改。
+
 
 ## 热度（`heat`）
 

@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="my_images" path="." />
+    <!-- ★★ 2026-09-07 删掉了脚手架默认的 <external-path name="my_images" path="." />。
+         它把**整个共享外部存储**（/storage/emulated/0）暴露给本 App 的 FileProvider。
+         装 @capacitor/share 之前没人用得着它；装了之后 SharePlugin.shareFiles() 会对 JS 传来的
+         **任意** file:// 路径直接 getUriForFile —— 等于本 App 可以替共享存储下任意文件
+         签发可读的 content:// URI 递给任意接收方。
+         删它对现有功能零影响：全仓唯一的 FileProvider 使用方是 AppUpdaterPlugin
+         （sideload 渠道的自更新，AppUpdaterPlugin.java:234 用的是 getCacheDir()/updates，
+         :365 才 getUriForFile），由下面两条 <cache-path> 覆盖；
+         「保存到本地」落在 Directory.Cache 下，同样由 path="." 那条覆盖。
+         ⚠ 这是"写坏了不报错"的配置：改动之后**必须把自更新在真机上走一遍**
+         （下载 → 拉起安装器 → 装上），别只看编译过没过。 -->
     <cache-path name="my_cache_images" path="." />
     <!-- 自更新下载的 APK（sideload 渠道，见 AppUpdaterPlugin）。
          上面那条 path="." 其实已经覆盖了整个 cache 目录，单列一条是为了让

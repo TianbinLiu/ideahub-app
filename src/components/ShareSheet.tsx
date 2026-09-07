@@ -49,7 +49,23 @@ export async function copyText(text: string): Promise<void> {
   }
 }
 
-export default function ShareSheet({ video, onClose }: { video: VideoItem; onClose: () => void }) {
+/**
+ * `saveLocal` = 第四项「保存到本地」。**必填**（铁律 5b）：
+ *   · 传对象 —— 这个入口在这里存在。`blocked` 非空时那颗键灰着并把原因写在上面。
+ *   · 传 `null` —— 这个入口**在这里不存在**（首页视频流那颗分享键就是：它没有
+ *     "当前第几集"的上下文，只拿到 video；下载又是低频动作，走一次点击进详情页
+ *     —— 与举报键放详情页的取舍同类）。
+ * ⚠ 做成必填而不是可选：漏传时"少一个入口"是零症状的。
+ */
+export default function ShareSheet({
+  video,
+  onClose,
+  saveLocal,
+}: {
+  video: VideoItem;
+  onClose: () => void;
+  saveLocal: { blocked: string | null; onTap: () => void } | null;
+}) {
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -73,7 +89,12 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
    *   服务端没下架时压根不发它，别新写一个布尔。
    */
   const takenDown = !!video.takedown;
-  /** 三颗分享键一起禁：任何一条都会发出去一条别人打不开的链接 */
+  /** 三颗分享键一起禁：任何一条都会发出去一条别人打不开的链接。
+   *  ★★ 第四项「保存到本地」**不复用它**（判据在 data/videoDownload.planDownload）：
+   *    这一条回答的是"这条链接别人打不打得开"，下载回答的是"这些字节该不该给" ——
+   *    两条不同的规则、两处实现。今天它俩在「已下架」上恰好都判否，但**理由不同**
+   *    （前者是链接 404，后者是"一颗下载键会把原样重发从需要动手变成一次点击"），
+   *    将来一旦放开非作者下载，两条就会分叉。合并它们等于把两个规则焊死。 */
   const cantShare = notUploaded || takenDown;
 
   async function toQQ() {
@@ -178,6 +199,19 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
       disabled: cantShare,
       onTap: () => void copyLink(),
     },
+    {
+      key: "save",
+      label: "保存到本地",
+      render: (
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-700 text-slate-100">
+          <Icon name="download" size={22} />
+        </span>
+      ),
+      // ★ 判据只有 saveLocal 一条（它来自 planDownload），与上面三颗的 cantShare 无关
+      disabled: !saveLocal || !!saveLocal.blocked,
+      // 先关掉分享面板再由详情页开下载面板：两层弹层永不叠加，Sheet 的 z-50 就够用
+      onTap: () => saveLocal?.onTap(),
+    },
   ];
 
   return createPortal(
@@ -192,7 +226,7 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
         className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-700 bg-ink px-4 pt-4"
         style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
-        <p className="text-sm font-bold text-slate-100">分享这条作品</p>
+        <p className="text-sm font-bold text-slate-100">{saveLocal ? "分享或保存这条作品" : "分享这条作品"}</p>
         {takenDown && (
           <p className="mt-1 text-xs text-amber-300">
             这条已被平台下架，链接别人打不开，所以先不能分享。
@@ -217,7 +251,12 @@ export default function ShareSheet({ video, onClose }: { video: VideoItem; onClo
           </p>
         )}
 
-        <div className="mt-4 flex items-start gap-7">
+        {/* 「保存到本地」被就地拒时把原因写在这里（面板盖住谁就自带一份） */}
+        {saveLocal?.blocked && <p className="mt-1 text-xs text-amber-300">{saveLocal.blocked}</p>}
+
+        {/* ★ gap 必须是 5 不是 7：四项 × w-16(64px) + 3 × 28px = 340px，而 360dp 屏减去
+            px-4 两侧 32px 只剩 328px —— 会溢出。gap-5(20px) ⇒ 4×64+3×20 = 316px，刚好。 */}
+        <div className="mt-4 flex items-start gap-5">
           {options.map((o) => (
             // ★★ `disabled` 以前**只改了字的颜色**，按钮照样点得动 —— 那不叫禁用，
             //   叫"看着像禁用"。真按下去照样会发出一条打不开的链接（2026-08-30 修）。

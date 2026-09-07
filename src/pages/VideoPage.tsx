@@ -30,6 +30,8 @@ import { markNotificationRead } from "../data/notifications";
 import type { MentionPick } from "../utils/mention";
 import CommentDelete from "../components/CommentDelete";
 import ShareSheet from "../components/ShareSheet";
+import DownloadSheet from "../components/DownloadSheet";
+import { downloadSupport, planDownload } from "../data/videoDownload";
 import ReportButton from "../components/ReportButton";
 import MentionInput from "../components/MentionInput";
 import MentionText from "../components/MentionText";
@@ -195,6 +197,13 @@ export default function VideoPage() {
   const [payErr, setPayErr] = useState("");
   /** 分享面板（与首页右侧栏那颗共用 ShareSheet 一份实现） */
   const [shareOpen, setShareOpen] = useState(false);
+  /** 「保存到本地」面板。★ 关掉它**不停**下载（队列在 data/videoDownload 里，胶囊接管） */
+  const [dlOpen, setDlOpen] = useState(false);
+  /** 被 planDownload 就地拒时那句整句话（画在下架横幅同一带，amber 底） */
+  const [dlBlocked, setDlBlocked] = useState("");
+  /** 观众刚看的那条走向（互动作品）。BranchPlayer 报上来，「只存刚看的走向」按它取段。
+   *  ★ 线性作品恒空数组 —— 那一档在面板里根本不出现 */
+  const [branchPath, setBranchPath] = useState<string[]>([]);
 
   // 详情回填晚于首帧渲染：把服务端那份同步进来。
   // 本地已有的乐观值（刚点的赞、刚发的评论）取较大/较长的一边，别被回包覆盖掉。
@@ -309,6 +318,16 @@ export default function VideoPage() {
     );
   }
 
+  // 「能不能保存到本地」的判据只有 `data/videoDownload.planDownload` 一处 —— 这里只是把
+  // 它的答案画出来（键灰不灰、拒了写哪句话）。★ 不在这一页复制任何一条规则。
+  const dlSupported = downloadSupport().ok;
+  // ★ 门禁问的是「这条作品能不能存」，与"观众刚看到哪儿"无关，所以用 `scope: "all"` 问。
+  //   用 `"path"` 问会有一拍是错的：BranchPlayer 的 onPathChange 在 effect 里，首帧渲染时
+  //   `branchPath` 还是 []，那一拍互动作品会被判成"没有可下载的成片" —— 一个错的原因
+  //   比没有原因更坏。选哪一档是面板里的事。
+  const dlCheck = planDownload(video, piSafe, { scope: "all", branchPath, convert: false });
+  const dlBlockedNow = dlCheck.ok ? null : dlCheck.blocked;
+
   function toggleLike() {
     if (!video) return;
     const on = !liked;
@@ -362,7 +381,7 @@ export default function VideoPage() {
               链接别人打不开）。 */}
           <button
             onClick={() => setShareOpen(true)}
-            aria-label="分享这条作品"
+            aria-label="分享或保存这条作品"
             className="flex-none rounded-full bg-panel px-2.5 py-1.5 text-slate-300 ring-1 ring-slate-700"
           >
             <Icon name="share" size={16} />
@@ -449,7 +468,7 @@ export default function VideoPage() {
               </div>
             </div>
           ) : part.branchTree ? (
-            <BranchPlayer key={`b${pi}`} tree={part.branchTree} cover={video.cover} />
+            <BranchPlayer key={`b${pi}`} tree={part.branchTree} cover={video.cover} onPathChange={setBranchPath} />
           ) : (
             <SegmentPlayer key={`s${pi}`} segments={part.segments} cover={video.cover} />
           ))}
@@ -469,6 +488,13 @@ export default function VideoPage() {
             <p className="mt-1.5 text-[11px] text-slate-400">
               只有你自己看得到它。把可见性改回公开也没用 —— 这是平台的开关，不是你的那一个。
             </p>
+          </div>
+        )}
+
+        {/* 「保存到本地」被就地拒时那句整句话。与下架横幅同一带：那是用户此刻正在看的地方 */}
+        {dlBlocked && (
+          <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+            <p className="text-[11px] leading-relaxed text-amber-200">{dlBlocked}</p>
           </div>
         )}
 
@@ -539,6 +565,28 @@ export default function VideoPage() {
               合并会让举报变难点到，而举报是我们唯一的内容治理输入（见 BlockButton 顶注） */}
           <BlockButton userId={video.authorId ?? ""} userName={video.author} mine={isMyAuthor(video.author)} />
         </div>
+
+        {/* 「保存到本地」整宽次级键（不与金色 CTA 抢，放在「⚡ 做同款」之上）。
+            ★ `isNative()` 为假（浏览器 / npm run dev）时**整颗键不画**，不画成灰的：
+              那条路上 @capacitor/filesystem 的 web 实现会把文件写进 IndexedDB、
+              share 走 navigator.share —— "保存到手机"是假的。界面上摆一个永远点不动
+              （或者点了假装成功）的选项，比没有这个选项更坏。 */}
+        {dlSupported && (
+          <button
+            onClick={() => {
+              setDlBlocked("");
+              if (dlBlockedNow) {
+                setDlBlocked(dlBlockedNow);
+                return;
+              }
+              setDlOpen(true);
+            }}
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700 py-2.5 text-sm text-slate-200 active:scale-[0.99]"
+          >
+            <Icon name="download" size={16} />
+            {parts.length > 1 ? "保存这一集到本地" : "保存到本地"}
+          </button>
+        )}
 
         {/* 做同款（backlog 2.8-②，可灵/即梦式闭环）：把**当前这一 P**的分段剧本+时长+
             档位+画幅+随片卡组整份铺成观众自己的工作流。帧不带（那是作者花钱炼的成片，
@@ -630,7 +678,28 @@ export default function VideoPage() {
           </div>
         </section>
       </main>
-      {shareOpen && <ShareSheet video={video} onClose={() => setShareOpen(false)} />}
+      {shareOpen && (
+        <ShareSheet
+          video={video}
+          onClose={() => setShareOpen(false)}
+          saveLocal={
+            dlSupported
+              ? {
+                  blocked: dlBlockedNow,
+                  // 先关分享面板再开下载面板：两层弹层永不叠加
+                  onTap: () => {
+                    setShareOpen(false);
+                    setDlBlocked("");
+                    setDlOpen(true);
+                  },
+                }
+              : null
+          }
+        />
+      )}
+      {dlOpen && (
+        <DownloadSheet video={video} partIndex={piSafe} branchPath={branchPath} onClose={() => setDlOpen(false)} />
+      )}
     </div>
   );
 }
