@@ -69,6 +69,9 @@ export const extractCardsFromVideo: typeof real.extractCardsFromVideo = AI_REAL
         cover: f,
       })),
     });
+/** 白模段挂卡后的合成预览图；mock 构建直接把白模帧当预览（0 token） */
+export const castPreviewImage: typeof real.castPreviewImage = AI_REAL ? real.castPreviewImage : async (o) => o.frameUrl;
+export { frameUrlAt } from "./real";
 /** 白模模板登记时从原片抽帧铸 V3 素材卡（场景 / 道具 / 风格）；mock 构建不出卡 */
 export const extractTemplateCards: typeof real.extractTemplateCards = AI_REAL
   ? real.extractTemplateCards

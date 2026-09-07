@@ -24,6 +24,7 @@ import AnnStrip from "./AnnStrip";
 import DraftTitle from "../DraftTitle";
 import CameraChips from "./CameraChips";
 import DeleteSegBtn from "./DeleteSegBtn";
+import CastPreviewCard from "./CastPreviewCard";
 import { SegmentRecoverList } from "./SegmentRecoverCards";
 import SegSettings from "./SegSettings";
 import SegPlayer from "./SegPlayer";
@@ -960,6 +961,8 @@ function NodePanel({
                 </span>
                 <Icon name="chevron" size={12} className="flex-none text-slate-400" />
               </button>
+              {/* 挂卡后的合成预览（可审核的中间物）：一份实现，投影窗 TplSegBody 同款 */}
+              <CastPreviewCard node={node} cast={cast} disabled={generating || busy} />
               {castAsk && (
                 <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
                   <p className="text-[11px] leading-relaxed text-amber-200">

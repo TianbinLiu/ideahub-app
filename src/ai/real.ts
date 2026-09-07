@@ -1574,6 +1574,45 @@ function sanitizeCardDefs(defs: CardDef[]): CardDef[] {
   return out;
 }
 
+/** 转存后的视频在第 sec 秒的一帧（Cloudinary `so_` 变换）；不是转存地址就 null（调用方自己说清） */
+export function frameUrlAt(videoUrl: string, sec: number): string | null {
+  const at = cloudinaryFrameUrl(videoUrl);
+  return at ? at(Math.max(0, sec).toFixed(1)) : null;
+}
+
+/**
+ * 白模段挂卡后的**合成预览图**（2026-09-06 对标 LibTV "每镜先出图再出片"）：白模帧 + 角色卡 → Seedream 把角色放到人偶位。
+ * 只给作者核对"站位对不对、形象对不对"，不进出片管线（见 FlowNode.castPreview 的 ★）。
+ * ★ Seedream 多图参考只带 3 张（fuseFrame 同一条经验：再多平均成一张四不像），所以最多两个角色位；其余人偶保持白模并在文案里说明。
+ * ★ 角色卡只发 face 优先的第 1 张可用形象图（allocatable 同一条规则：display 规格图不进模型）。
+ */
+export async function castPreviewImage(o: {
+  frameUrl: string;
+  roles: Array<{ label: string; desc: string; card: Card }>;
+  aspect?: VideoAspect;
+}): Promise<string> {
+  const refs = [o.frameUrl];
+  const lines: string[] = [];
+  for (const r of o.roles.slice(0, 2)) {
+    const views = allocatable(r.card).sort((a, b) => ROLE_ORDER[roleOf(a.view)] - ROLE_ORDER[roleOf(b.view)]);
+    const img = views[0]?.view.url || r.card.cover;
+    if (!img) continue;
+    refs.push(img);
+    const n = refs.length;
+    // ★ 2026-09-06 实测：只写"放到人偶的位置"，模型会给人偶套上衣服却留着红色的人偶头——脸、发型、服装要逐项点名整个换掉
+    lines.push(
+      `把「${r.label}」那个人偶${r.desc ? `（${r.desc}）` : ""}**整个**换成图片${n}里的角色「${r.card.name}」：脸、发型、肤色、服装都按图片${n}，不要保留人偶的头部、颜色或灰白材质；只沿用该人偶的站位、朝向、姿势与景别`,
+    );
+  }
+  if (lines.length === 0) throw new Error("角色卡上没有可用的形象图");
+  const spec = aspectOf(o.aspect);
+  const prompt =
+    `图片1 是一段白模视频的一帧：灰白人偶只是占位，场景、地面、灯光与机位是真的。${lines.join("；")}；` +
+    `其余人偶原样保留为白模人偶，背景、地面、灯光、机位与图片1 完全一致，不要新增或删除任何人物；这是给作者核对站位与形象的预览图。` +
+    `${NO_TEXT}${spec.promptHint}。`;
+  return await genImageAsDataUrl(prompt, { imageRefs: refs, size: spec.frameSize });
+}
+
 /**
  * 成片抽帧（V3）：Cloudinary `so_` 变换（与 grabViaCloudinary 同一条路，手机只读几十 KB 的 JPEG，
  * 不把整条成片拉下来解码）。每段取 30% / 70% 两帧（开头常是黑场/片头），总数按 cap 封顶。

@@ -17,11 +17,13 @@
 //   三套方案以前藏在「本段设置」抽屉里的一枚小按钮后面，绝大多数用户根本没见过它，
 //   于是工作流退化成"写一句话直接出片"——最贵的那一步（出片）反而没有选择余地。
 //   现在它是主路径：便宜的一步（推演 ~80k token）摆在前面挑，贵的一步（出片）挑完再走。
+import { startJob } from "../data/jobs";
 import { create } from "zustand";
-import { AI_REAL, ArkTaskUnknown, generateCover, generateProposals, prepareMaterialRefs, recaptureSegment, takeVideoTask, transferStatus } from "../ai";
+import { castPreviewImage, frameUrlAt, AI_REAL, ArkTaskUnknown, generateCover, generateProposals, prepareMaterialRefs, recaptureSegment, takeVideoTask, transferStatus } from "../ai";
 import { isArkAssetUrl } from "../ai/arkClient";
 import { canAfford, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import {
+  ONE_IMAGE,
   DEFAULT_TIER,
   providerOf,
   VIDEO_TIERS,
@@ -84,6 +86,13 @@ export interface FlowNode {
   /** 这一段已挂的卡（label → cardId）。分段组切段时 setCursor 拿它恢复编辑缓冲；
    *  真正生效的映射在合成进 plot 的点名句里（applyCast），这份只是面板回显 */
   cast?: Record<string, string>;
+  /**
+   * 挂卡后的**合成预览图**（dataURL，2026-09-06 对标 LibTV"每镜先出图再出片"）：白模帧 + 角色卡 → Seedream 把角色放到人偶位。
+   * 白模路此前没有任何可审核的中间物——挂错人要等成片出来（真花视频钱）才看得见。
+   * ★ 只是预览：不进出片管线（blockoutIssue 见 firstFrame 非空会整句拒，所以**绝不能**写进 firstFrame）。
+   * ★ 换模板 / 改挂法都要作废（setNodeTemplate / setNodeCustom / applyCast 里一起清），否则屏幕上是上一套挂法的图。
+   */
+  castPreview?: string;
   /** 走向方案：工坊铸的三选一，或工作流现场推演/手写的若干个 */
   proposals: Proposal[];
   chosenId: string;
@@ -961,6 +970,11 @@ interface FlowState {
    *  被换掉的方案名下的分支归档一并清（留着就是指向已不存在走向的死链） */
   setNodeProposals: (nodeId: string, proposals: Proposal[]) => void;
   updateNode: (nodeId: string, patch: Partial<FlowNode>) => void;
+  /**
+   * 白模段：按当前挂法出一张**合成预览图**（见 FlowNode.castPreview）。报价 = 实收 = 一张图（economy.ONE_IMAGE）。
+   * 登记进 data/jobs（几十秒的长活，人可以离开）；失败整句写 err。返回是否出了图。
+   */
+  makeCastPreview: (nodeId: string) => Promise<boolean>;
   /** 改用户对这一段的原话（「重新生成方案」的依据） */
   setRequirement: (nodeId: string, v: string) => void;
   chooseProposal: (nodeId: string, proposalId: string) => void;
@@ -1250,7 +1264,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
         err: "",
         // ★ 摘模板写的是 **null**（明确没有），不是 undefined（还没表态）—— 见 tplOfNode 的 ★★
         nodes: pinUnstatedTpl(s.nodes, s.template).map((n) =>
-          n.id === nodeId ? { ...n, tpl: null, materials: undefined, cast: undefined } : n,
+          n.id === nodeId ? { ...n, tpl: null, materials: undefined, cast: undefined, castPreview: undefined } : n,
         ),
         // ★ 这一段的挂卡三态跟着作废：旧的失败提示与骨架点的是已经不存在的角色位，
         //   留着的话下次回到这一段又原样弹出来（第四轮验证抓到的"永远挂着"）
@@ -1287,6 +1301,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
               // 模板自带卡照 applyTemplate 的口径；挂卡结果清零（旧映射对新模板全错）
               materials: t.cards.length ? t.cards : undefined,
               cast: undefined,
+              castPreview: undefined,
               chain: false, // 白模段复刻自己的素材，不走尾帧承接（applyTemplateGroup 同款 ★）
               videoTier: gate.id,
               aspect: t.refVideo!.height > t.refVideo!.width ? "portrait" : "landscape",
@@ -1470,7 +1485,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       });
       // ★ node.cast 一并清（第三轮验证抓到）：不清的话按钮还印着「已挂 4/4」而 materials
       //   已经没了；而且切段一来一回，setCursor 会把这份旧映射灌回缓冲，goCast 再拿它当初值
-      get().updateNode(node.id, { materials: undefined, cast: undefined });
+      get().updateNode(node.id, { materials: undefined, cast: undefined, castPreview: undefined });
       get().updateProposal(node.id, { plot: "" });
       return false;
     }
@@ -1534,7 +1549,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
     });
     // cast 同时落到节点上：分段组切段时编辑缓冲要换成**那一段自己的**挂法
     // （setCursor 负责换），不落节点的话切回来面板就是空的，而出片用的还是旧映射
-    get().updateNode(node.id, { materials: mats, cast: cleaned });
+    // 挂法变了 → 上一套挂法的合成预览作废（它只是这一套挂法的图）
+    get().updateNode(node.id, { materials: mats, cast: cleaned, castPreview: undefined });
 
     // 作者补充的那句话：**直接读 requirement**，不走 requirementOf ——
     // ★ 那个兜底会在 requirement 缺席时退回 `chosenOf(node).plot`，而 plot 里装的正是
@@ -2254,6 +2270,58 @@ export const useFlow = create<FlowState>()((set, get) => ({
           : n,
       ),
     })),
+
+  makeCastPreview: async (nodeId) => {
+    const node = get().nodes.find((n) => n.id === nodeId);
+    const tpl = node ? tplOfNode(node) : null;
+    if (!node || !tpl?.refVideo || !tpl.roles?.length) {
+      set({ err: "这一段不是带角色位的白模段，没有可预览的挂法" });
+      return false;
+    }
+    // 挂法读**当前段的实时缓冲**（与投影窗 / 画布那两面显示的同一份）：光标在本段时是 store.cast，否则是节点上回写的那份
+    const s = get();
+    const cast = s.nodes[s.cursor]?.id === nodeId ? s.cast : (node.cast ?? {});
+    const picks = tpl.roles
+      .map((r) => ({ role: r, card: node.materials?.find((c) => c.id === cast[r.label]) }))
+      .filter((x): x is { role: (typeof tpl.roles)[number]; card: Card } => !!x.card);
+    if (picks.length === 0) {
+      set({ err: "还没给任何人偶挂卡，先去挂卡再合成预览" });
+      return false;
+    }
+    const frame = frameUrlAt(tpl.refVideo.url, tpl.markBoxAtSec ?? 1);
+    if (!frame) {
+      set({ err: "模板视频还没转存到图床，做不了合成预览（稍后再试）" });
+      return false;
+    }
+    if (AI_REAL && !canAfford(ONE_IMAGE)) {
+      set({ err: `合成预览要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });
+      return false;
+    }
+    const job = startJob({ kind: "cast-preview", title: "合成预览", page: "/studio", route: "/studio", progress: "把角色放进白模画面…" });
+    try {
+      const cover = await castPreviewImage({
+        frameUrl: frame,
+        // Seedream 多图参考只带前 3 张（含白模帧），角色位按模板顺序取前两位：主角位在前（见 fuseFrame 的 ★）
+        roles: picks.slice(0, 2).map(({ role, card }) => ({ label: role.label, desc: role.desc ?? "", card })),
+        aspect: node.aspect,
+      });
+      if (AI_REAL) spendTokens(ONE_IMAGE);
+      // 期间用户可能换了模板 / 改了挂法（那两处会把 castPreview 清掉）：以**当下**的节点为准，别把一张过时的图写回去
+      const live = get().nodes.find((n) => n.id === nodeId);
+      if (!live || !tplOfNode(live)?.refVideo) {
+        job.fail("这一段已经不是白模段了，预览没处放（图钱已经花掉）", "/studio");
+        return false;
+      }
+      get().updateNode(nodeId, { castPreview: cover });
+      job.done({ msg: picks.length > 2 ? `合成预览好了（只画了前 2 个角色位，其余人偶保持白模）` : "合成预览好了", silent: true });
+      return true;
+    } catch (e) {
+      const why = e instanceof Error ? e.message : String(e);
+      job.fail(`合成预览没画成：${why.slice(0, 60)}`, "/studio");
+      set({ err: `合成预览没画成（${why.slice(0, 80)}）——不影响出片，可以直接生成` });
+      return false;
+    }
+  },
 
   removeNode: (id) => {
     const s = get();
