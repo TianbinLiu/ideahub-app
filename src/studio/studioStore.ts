@@ -1,6 +1,6 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
-import { V3_CARD_WIPE_MS, BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
+import { shotLineOf, V3_CARD_WIPE_MS, BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, npcChat, npcChatOffline, prepareMaterialRefs, refineFrame } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
@@ -2011,9 +2011,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
       const video = nodeVideo(n);
       const real = video && !video.startsWith("mock:") ? video : undefined;
       if (real) videoByProposal[p.id] = real;
+      // ★ 镜头字段折进发布的剧本（VideoSegment 没有这个字段，服务端 zod 会剥未声明的键）：做同款 / 提炼卡组都能读到
+      const shotLine = shotLineOf(p.shot);
       return {
         title: p.title,
-        plot: p.plot,
+        plot: shotLine ? `${shotLine}。${p.plot}` : p.plot,
         firstFrame: p.firstFrame,
         lastFrame: p.lastFrame,
         poster: p.poster,

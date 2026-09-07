@@ -2,6 +2,7 @@
 // （豆包写剧情 + Seedream 首尾帧，首帧用上一段尾帧作参考图承接色调）。
 // 每个环节失败都回退到 mock 同款产物——AI 网络抖动不阻断工坊流程。
 import {
+  cleanShot,
   CARD_SLOTS,
   CARD_TYPE_LABELS,
   Card,
@@ -1291,12 +1292,13 @@ export async function generateProposals(
   onProgress?: (status: string) => void,
 ): Promise<Proposal[]> {
   const fallback = await mock.generateProposals(ctx);
-  let plots: Array<{ title: string; plot: string; durationSec: number }>;
+  let plots: Array<{ title: string; plot: string; durationSec: number; shot?: unknown }>;
   onProgress?.("剧情推演中…");
   try {
     const mats = ctx.materials.map((m) => `${m.type}:${m.name}(${m.summary?.slice(0, 40) ?? ""})`).join("；");
     const raw = await chat(
-      "你是互动视频编剧。基于素材与要求，为同一段视频写 3 个不同走向（顺势推进/风云突变/柳暗花明），输出 JSON 数组：[{\"title\":\"12字内标题\",\"plot\":\"80-120字剧情，画面感强，小说式\",\"durationSec\":4到9的整数}]。只输出 JSON。",
+      // ★ 2026-09-06：加结构化镜头字段（对标 updream 分镜 Skill）——景别 / 运镜 / 情绪节拍各是短语，出片提示词按字段读
+      "你是互动视频编剧兼分镜师。基于素材与要求，为同一段视频写 3 个不同走向（顺势推进/风云突变/柳暗花明），输出 JSON 数组：[{\"title\":\"12字内标题\",\"plot\":\"80-120字剧情，画面感强，小说式\",\"durationSec\":4到9的整数,\"shot\":{\"size\":\"景别（远景/全景/中景/近景/特写）\",\"camera\":\"运镜（固定/推/拉/摇/移/跟/环绕/手持，可带方向，6字内）\",\"beat\":\"情绪节拍，6字内，如 压抑→爆发\"}}]。只输出 JSON。",
       `这是第${ctx.index + 1}段。素材：${mats}\n要求：${ctx.requirement || "无"}\n已定前情：${ctx.pathPlots.join(" / ") || "无"}${
         ctx.startFrame
           ? "\n注意：本段开头画面已经确定（上一段的收尾画面），剧情必须从那一瞬间直接继续——人物、场景、天气、光线都要连贯，不要另起炉灶。"
@@ -1316,6 +1318,8 @@ export async function generateProposals(
   // 6 张首尾帧拍平成任务队列：限流 3 路并发 + 单张重试，完成数实时回报
   const three = plots.slice(0, 3).map((p) => ({
     ...p,
+    // 镜头字段过形状检查；没有就不带这个键（读侧判存在性）
+    shot: cleanShot(p.shot),
     id: uid("prop"),
     durationSec: ctx.durationMode === "manual" ? ctx.durationSec : Math.min(9, Math.max(4, p.durationSec || 5)),
   }));
@@ -2357,6 +2361,55 @@ function captureIssueLine(e: unknown): string {
 export { VIDEO_PROMPT_MAX } from "../types";
 
 /**
+ * **一段出片的生成契约**（2026-09-06 对标 LibTV 的视频节点：模式 / 模型 / 画幅 / 时长 / 声音 / 提示词 / 连进来的参考）。
+ * 四条出片路（首尾帧 / 参考图 / 白模 edit / 真人 MiniMax）在 studio/segmentGen 里各自把卡片翻译成这一份，
+ * composeSegments 只认它；提交前 describeGenSpec 把它写进步骤日志，用户能看见"这一发到底发了什么"。
+ * ★ 字段语义见各行注释（原来是 composeSegments 的内联参数类型，2026-09-06 抽出来命名，一个字段没改）。
+ */
+export interface GenSpec {
+  plot: string;
+  firstFrame: string;
+  lastFrame: string;
+  durationSec: number;
+  degraded?: boolean;
+  /** 该段选用的 Seedance 档位（data/economy VIDEO_TIERS 的 id）；缺省=标准档 */
+  videoTier?: string;
+  /** 该段画幅（竖/横）；缺省=横屏 */
+  aspect?: VideoAspect;
+  /** 参考生视频用的形象参考图（prepareMaterialRefs 出的 refs）。非空 = 这一段不走首尾帧（方舟：三种场景互斥） */
+  refImages?: string[];
+  /** 参考视频（白模模板 refVideo / 自定义参考 / 返修的本段成片）。非空 = 这一段走 r2v（首尾帧一张不发） */
+  refVideoUrl?: string;
+  /** 参考视频的源片时长（秒），只喂给 arkClient 的轮询死线定尺寸，不进请求体 */
+  refVideoSec?: number;
+  /** 人物卡声音样本（台词音色参考）。只在参考生视频段有意义 */
+  refAudios?: string[];
+  /** 参考视频的子任务（透传 arkClient）：缺省 edit（白模复刻 / 返修）；"reference" = 素材参考 */
+  refTask?: "edit" | "reference";
+}
+
+/** 契约那一行（进步骤日志，genLog.splitStatus 认「契约 · 」前缀）。只描述、不判断——判断在 segmentGen */
+export function describeGenSpec(sg: GenSpec, carried: boolean): string {
+  const tier = tierOf(sg.videoTier);
+  const mode =
+    providerOf(sg.videoTier) === "minimax"
+      ? "真人档首帧图生视频（MiniMax）"
+      : sg.refVideoUrl
+        ? sg.refTask === "reference"
+          ? "参考视频 + 参考图（reference）"
+          : "参考视频逐镜复刻（edit）"
+        : sg.refImages?.length
+          ? "参考图生视频（reference_image）"
+          : sg.firstFrame
+            ? sg.lastFrame
+              ? "首尾帧图生视频"
+              : "首帧图生视频"
+            : "文生视频";
+  const dur = sg.refVideoUrl && sg.refTask !== "reference" ? `时长跟随参考片${sg.refVideoSec ? ` ${sg.refVideoSec}s` : ""}` : `${sg.durationSec}s`;
+  return `契约 · ${mode} · ${tier.label} · ${aspectOf(sg.aspect).ratio} · ${dur} · 参考图 ${sg.refImages?.length ?? 0} · 参考音频 ${sg.refAudios?.length ?? 0}${carried ? " · 承接上一段尾帧" : ""} · 提示词 ${sg.plot.length} 字`;
+}
+
+/**
  * 合成：逐段用 Seedance 首尾帧图生视频。段间串行（免费额度并发有限），
  * 单段失败不阻断整片——该段回退首尾帧渐变播放，但失败原因必须带回给 UI 播报
  * （此前只 console.warn，用户拿到一堆渐变还以为是"生成好的视频"）。
@@ -2364,38 +2417,7 @@ export { VIDEO_PROMPT_MAX } from "../types";
  * 拿占位渐变图去让 Seedance 动起来，产出的"视频"与剧情毫无关系。
  */
 export async function composeSegments(
-  segments: Array<{
-    plot: string;
-    firstFrame: string;
-    lastFrame: string;
-    durationSec: number;
-    degraded?: boolean;
-    /** 该段选用的 Seedance 档位（data/economy VIDEO_TIERS 的 id）；缺省=标准档 */
-    videoTier?: string;
-    /** 该段画幅（竖/横）；缺省=横屏 */
-    aspect?: VideoAspect;
-    /**
-     * 参考生视频用的形象参考图（prepareMaterialRefs 出的 refs）。非空 =
-     * **这一段不走首尾帧**（方舟：三种场景互斥）。由 studio/segmentGen 的 refVideoOn
-     * 决定要不要给，这里只负责发出去。
-     */
-    refImages?: string[];
-    /**
-     * 白模模板的参考视频（模板登记的公网地址，`template.refVideo.url`）。非空 =
-     * 这一段走 **r2v**（edit 逐镜头复刻，与 refImages 混发，首尾帧同样一张不发；
-     * 时长/画幅跟随源片，本段的 durationSec/aspect 在 arkClient 那侧不生效，
-     * 见 BLOCKOUT_TASK）。走不走由 studio/segmentGen 的 blockoutOn 判（唯一判定处，
-     * 同 refVideoOn 的分工），这里只负责透传。
-     */
-    refVideoUrl?: string;
-    /** 白模参考视频的源片时长（秒），只喂给 arkClient 的轮询死线定尺寸，不进请求体 */
-    refVideoSec?: number;
-    /** 人物卡声音样本（台词音色参考）。只在参考生视频段有意义，由 segmentGen 决定给不给 */
-    refAudios?: string[];
-    /** 参考视频的子任务（透传 arkClient）：缺省 edit（白模复刻）；"reference" = 素材参考 */
-    refTask?: "edit" | "reference";
-  }>,
-  // ★ 与 onTask 一起改成必填（TS 不许必填参跟在可选参后面）—— 三个调用点本来就都传了
+  segments: GenSpec[],
   onProgress: (done: number, total: number, status: string) => void,
   /**
    * 第 index 段的任务**刚被受理**（钱已经花了）。
@@ -2420,6 +2442,8 @@ export async function composeSegments(
     let last = sg.lastFrame;
     const prevTail = carryTail;
     carryTail = null;
+    // ★ 契约行：这一发到底发了什么（模式 / 档 / 画幅 / 时长 / 参考几张），进步骤日志给人看（2026-09-06）
+    onProgress?.(i, segments.length, describeGenSpec(sg, !!prevTail));
     try {
       if (sg.degraded) {
         onProgress?.(i, segments.length, "首尾帧此前未出图，正在重画…");

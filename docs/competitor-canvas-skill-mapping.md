@@ -87,6 +87,11 @@ Skill 与模板只是"把这些槽位填对"的流程；它们的稳定来自四
 7. **Skill 结构化**：`agentSkills` 从"一句话"升级为 `{ steps[], outputs(schema), confirmAt[] }`，先做一条"剧本 → 分镜字段"的官方 Skill 验证形状。
 8. **人物参考张数 A/B**（0 代码，先实测）：四合一板一张 vs face+body 两张。
 
+### 进度（2026-09-06）
+
+- §四 1 的第一步：`composeSegments` 的入参命名为 `real.GenSpec`，提交前 `describeGenSpec` 把「模式 / 档 / 画幅 / 时长 / 参考图张数」写进步骤日志（`genLog` 认「契约 ·」前缀）。四条路真正收成"卡 → 契约"的翻译层是下一步。
+- §四 4 已落：`types.ShotSpec`（景别 / 运镜 / 情绪节拍）—— 推演按字段写、`segmentGen.shotPrefix` 拼在正文最前、方案台显示、发布折进剧本。
+
 ## 五、方舟协议 ↔ 卡片 的槽位表（"固定输入"这件事的证据）
 
 | 方舟 Seedance 入参（arkClient） | LibTV 节点设置 | 我们谁来填 |
