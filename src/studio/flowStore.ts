@@ -2678,6 +2678,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
         {
           // 返修：正文是作者的改法，帧一张不带（参考视频与首尾帧在方舟互斥），其余走成片自己
           plot: rv ? rv.instruction.trim() : prop.plot,
+          // 报价 ↔ 契约对账（segmentGen.contractLine）：扣的就是这个 cost；演示构建没有报价，明说 null
+          quotedTokens: AI_REAL ? cost : null,
           firstFrame: rv ? "" : prop.firstFrame,
           lastFrame: rv ? "" : prop.lastFrame,
           durationSec: prop.durationSec,

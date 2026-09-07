@@ -89,7 +89,8 @@ Skill 与模板只是"把这些槽位填对"的流程；它们的稳定来自四
 
 ### 进度（2026-09-06）
 
-- §四 1 的第一步：`composeSegments` 的入参命名为 `real.GenSpec`，提交前 `describeGenSpec` 把「模式 / 档 / 画幅 / 时长 / 参考图张数」写进步骤日志（`genLog` 认「契约 ·」前缀）。四条路真正收成"卡 → 契约"的翻译层是下一步。
+- §四 1 的第一步：`composeSegments` 的入参命名为 `real.GenSpec`，提交前 `describeGenSpec` 把「模式 / 档 / 画幅 / 时长 / 参考图张数」写进步骤日志（`genLog` 认「契约 ·」前缀）。
+- §四 1 的第二步（2026-09-06）：契约有显式 `mode`（`types.GenMode` 七种），segmentGen 的四条路各自**声明**；`real.genModeOf` 是「槽位 → 模式」的唯一判定，`validateGenSpec` 在花钱之前核对声明 / 槽位 / 档位能力 / 互斥，`composeSegments` 与 `arkClient` 的分流只读 `mode`；`economy.videoTokensOfSpec` 按同一个模式报价，出片前与界面报价对账（`segmentGen.contractLine`，差额进步骤日志）。还没做：`arkClient.generateVideo` / `minimaxVideo` 直接收 GenSpec（现在仍是逐参数透传）、`nodeCost` 直接从"干跑"的契约算。
 - §四 4 已落：`types.ShotSpec`（景别 / 运镜 / 情绪节拍）—— 推演按字段写、`segmentGen.shotPrefix` 拼在正文最前、方案台显示、发布折进剧本。
 - §四 6 已落：片段返修（`flowStore.genNode(id, { revise })`，本段成片当参考视频走 edit，`REVISE_TAIL` 代替换人句；`Proposal.prevVideoUrl` 留上一版可还原；两面共用 `ReviseBox`）。限制如实写在框里：按 r2v 计价、产物无声。
 - §四 2 已落一半：白模段挂卡后可出「合成预览图」（`flowStore.makeCastPreview` → `real.castPreviewImage`，投影窗与画布共用 `CastPreviewCard`，一张图钱，换模板 / 改挂法作废）。真人档的首帧本来就是照片。

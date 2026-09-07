@@ -16,6 +16,7 @@
 //   r2v ≈ 纯任务的 2×2.8/4.7 ≈ 1.2 倍 —— 报价行必须写明含输入费。
 // ★ 跨仓契约：server 的 config/tokens.js **VIDEO_MULT_R2V** 必须与本表 r2vMult 逐条
 //   相等（同 VIDEO_MULT ↔ mult 的对账关系，server 侧 spec 有钉子）。
+import type { GenMode } from "../types";
 import {
   CARD_SIZE,
   CARD_SLOTS,
@@ -404,6 +405,21 @@ export function segTokens(durationSec: number, tierId?: string): number {
   const sec = clampDuration(durationSec, tierId);
   if (t.flatCost) return t.flatCost[sec] ?? Math.max(...Object.values(t.flatCost));
   return Math.round(sec * SEC_720P_TOKENS * t.mult);
+}
+
+/**
+ * 按**生成契约**报视频那半的价（2026-09-06 §四 1）：报价（flowStore.nodeCost）与出片（segmentGen）各自算出的数要在
+ * 出片前对得上 —— segmentGen 在 composeSegments 之前拿它与 quotedTokens 对账，对不上把差额写进步骤日志。
+ * ★ 只报视频那半：设定帧 / 圈选改图那几张由调用方按"这一发真画了几张"另加（IMAGE_TOKENS）。
+ * ★ null = 这一档报不出这种模式的价（r2vMult 为 null 的档走 edit / reference）—— 不是免费，调用方该在门口就拒。
+ */
+export function videoTokensOfSpec(o: { mode: GenMode; durationSec: number; tierId?: string; refVideoSec?: number }): number | null {
+  if (o.mode === "edit") return r2vTokens(o.refVideoSec ?? 0, o.tierId);
+  if (o.mode === "reference") {
+    if (tierOf(o.tierId).r2vMult === null) return null;
+    return materialRefCost(o.refVideoSec ?? 0, o.durationSec, o.tierId);
+  }
+  return segTokens(o.durationSec, o.tierId);
 }
 
 /** r2v 公式核心：(输入 + 输出) × 每秒 21,600 × 系数，输出按 = 输入取上界 ⇒ 输入 × 2。

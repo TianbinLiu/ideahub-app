@@ -124,7 +124,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - **方案有结构化镜头字段**（`types.ShotSpec`：景别 / 运镜 / 情绪节拍，2026-09-06 对标 updream 分镜 Skill）：推演按字段写、
   `segmentGen.shotPrefix` 把它拼在正文最前、方案台显示、发布时折进 `VideoSegment.plot`。**一段出片的生成契约**是
   `real.GenSpec`（composeSegments 的入参），提交前 `describeGenSpec` 写一行「生成契约 · 模式 · 档 · 画幅 · 时长 · 参考图 N」进步骤日志——
-  四条出片路的分叉只允许发生在"卡 → 这份契约"的翻译里，契约之后只有一条路。白模段挂卡后有「合成预览图」
+  四条出片路的分叉只允许发生在"卡 → 这份契约"的翻译里，契约之后只有一条路。契约有显式的 `mode`（`types.GenMode`，
+  segmentGen 铸契约时**声明**），「槽位 → 模式」的判定只有 `real.genModeOf` 一处，`validateGenSpec` 在 composeSegments
+  花钱之前核对声明与槽位、档位能力、互斥（不一致整句 throw，此时一分钱没花）；`economy.videoTokensOfSpec` 按同一个模式
+  报视频那半的价，segmentGen 出片前拿它与 `quotedTokens`（必填，genNode 传的就是要扣的 cost）对账，对不上写
+  「⚠ 契约核对」进步骤日志（不拦：钱在服务端按调用结算，拦只会把画好的帧作废）。白模段挂卡后有「合成预览图」
   （`FlowNode.castPreview`，`flowStore.makeCastPreview`，两面共用 `components/flow/CastPreviewCard`）：只是可审核的中间物，
   **绝不写进 firstFrame**（blockoutIssue 会整句拒），换模板 / 改挂法时作废。**返修**（`genNode(id, { revise })`）是同一条
   出片路的一个可选项：本段成片当参考视频走 edit、`REVISE_TAIL` 代替白模的换人句、不要求挂人物卡；门禁 / 计费 / 凭据 / 写回

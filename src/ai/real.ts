@@ -23,6 +23,7 @@ import {
   type CardRole,
   type CardSlot,
   type CardView,
+  type GenMode,
 } from "../types";
 import { makeCover, makeFrame } from "../mock/frames";
 import type { MaterialFile, ProposalContext } from "../mock/ai";
@@ -2437,6 +2438,8 @@ export { VIDEO_PROMPT_MAX } from "../types";
  * ★ 字段语义见各行注释（原来是 composeSegments 的内联参数类型，2026-09-06 抽出来命名，一个字段没改）。
  */
 export interface GenSpec {
+  /** 声明的生成模式（segmentGen 铸契约时定，见 types.GenMode）。validateGenSpec 在花钱之前核对它与槽位一致 */
+  mode: GenMode;
   plot: string;
   firstFrame: string;
   lastFrame: string;
@@ -2458,25 +2461,63 @@ export interface GenSpec {
   refTask?: "edit" | "reference";
 }
 
-/** 契约那一行（进步骤日志，genLog.splitStatus 认「契约 · 」前缀）。只描述、不判断——判断在 segmentGen */
+/** 生成模式的人话（契约行 / 报错用） */
+export const GEN_MODE_LABEL: Record<GenMode, string> = {
+  t2v: "文生视频",
+  i2v: "首帧图生视频",
+  flf: "首尾帧图生视频",
+  "ref-images": "参考图生视频（reference_image）",
+  reference: "参考视频 + 参考图（reference）",
+  edit: "参考视频逐镜复刻（edit）",
+  minimax: "真人档首帧图生视频（MiniMax）",
+};
+
+/**
+ * 槽位里放了什么 → 这一发实际会走哪种模式（**唯一判定**，2026-09-06 §四 1）。
+ * 此前同一条判断在三处各写一遍（describeGenSpec / composeSegments 的 refMode / arkClient 按参数拼装），三份一起漂时零症状。
+ * 顺序就是方舟的优先级：供应商 → 参考视频 → 参考图 → 帧；尾帧只有 VideoTier.flf 的档才真发（composeSegments 同口径）。
+ */
+export function genModeOf(sg: Omit<GenSpec, "mode">): GenMode {
+  if (providerOf(sg.videoTier) === "minimax") return "minimax";
+  if (sg.refVideoUrl) return sg.refTask === "reference" ? "reference" : "edit";
+  if (sg.refImages?.length) return "ref-images";
+  if (sg.firstFrame) return sg.lastFrame && tierOf(sg.videoTier).flf ? "flf" : "i2v";
+  return "t2v";
+}
+
+/**
+ * 花钱之前核对契约（composeSegments 每段开头调，在任何请求发出之前）：
+ *   ① 声明的 mode 与槽位推出来的一致 —— 报价按 A 算、请求按 B 发，正是本仓头号事故形状；
+ *   ② 档位真有这种能力（参考图 / 参考视频的硬白名单）；
+ *   ③ 互斥：帧与参考媒体不混发（方舟 400）、参考音频只跟参考类模式（arkClient 当场 throw）、真人档只收首帧；
+ *   ④ 提示词非空。
+ * 违反任何一条**整句 throw**：这一步一分钱没花，此时停下最便宜。
+ */
+export function validateGenSpec(sg: GenSpec): void {
+  const tier = tierOf(sg.videoTier);
+  const implied = genModeOf(sg);
+  if (sg.mode !== implied) {
+    throw new Error(
+      `生成契约不一致：这一段声明按「${GEN_MODE_LABEL[sg.mode]}」出片，而槽位里实际是「${GEN_MODE_LABEL[implied]}」（报价与请求会是两把尺）——没有花钱，请把这句话反馈给我们`,
+    );
+  }
+  if (!sg.plot.trim()) throw new Error("生成契约不完整：提示词是空的");
+  const refMedia = sg.mode === "ref-images" || sg.mode === "reference" || sg.mode === "edit";
+  if (refMedia && (sg.firstFrame || sg.lastFrame)) throw new Error("生成契约不一致：参考图 / 参考视频与首尾帧不能混发（方舟三种场景互斥）");
+  if (sg.mode === "ref-images" && !tier.refImg) throw new Error(`「${tier.label}」档协议上不收参考图，不能按参考图生视频出片`);
+  if ((sg.mode === "edit" || sg.mode === "reference") && !tier.refVid) throw new Error(`「${tier.label}」档不支持带参考视频出片`);
+  if (sg.mode === "reference" && !sg.refImages?.length) throw new Error("生成契约不完整：素材参考模式至少要一张参考图");
+  if (sg.refAudios?.length && !refMedia) throw new Error("生成契约不一致：参考音频只能随参考图 / 参考视频发（首尾帧任务混参考媒体是 400）");
+  if (sg.mode === "minimax" && (sg.refImages?.length || sg.refVideoUrl || sg.refAudios?.length))
+    throw new Error("生成契约不一致：真人档只收首帧，不收参考图 / 参考视频 / 参考音频");
+  if (sg.mode === "minimax" && !sg.firstFrame) throw new Error("生成契约不完整：真人档需要一张起拍画面");
+}
+
+/** 契约那一行（进步骤日志，genLog.splitStatus 认「契约 · 」前缀）。只描述、不判断——判断在 validateGenSpec / segmentGen */
 export function describeGenSpec(sg: GenSpec, carried: boolean): string {
   const tier = tierOf(sg.videoTier);
-  const mode =
-    providerOf(sg.videoTier) === "minimax"
-      ? "真人档首帧图生视频（MiniMax）"
-      : sg.refVideoUrl
-        ? sg.refTask === "reference"
-          ? "参考视频 + 参考图（reference）"
-          : "参考视频逐镜复刻（edit）"
-        : sg.refImages?.length
-          ? "参考图生视频（reference_image）"
-          : sg.firstFrame
-            ? sg.lastFrame
-              ? "首尾帧图生视频"
-              : "首帧图生视频"
-            : "文生视频";
-  const dur = sg.refVideoUrl && sg.refTask !== "reference" ? `时长跟随参考片${sg.refVideoSec ? ` ${sg.refVideoSec}s` : ""}` : `${sg.durationSec}s`;
-  return `契约 · ${mode} · ${tier.label} · ${aspectOf(sg.aspect).ratio} · ${dur} · 参考图 ${sg.refImages?.length ?? 0} · 参考音频 ${sg.refAudios?.length ?? 0}${carried ? " · 承接上一段尾帧" : ""} · 提示词 ${sg.plot.length} 字`;
+  const dur = sg.mode === "edit" ? `时长跟随参考片${sg.refVideoSec ? ` ${sg.refVideoSec}s` : ""}` : `${sg.durationSec}s`;
+  return `契约 · ${GEN_MODE_LABEL[sg.mode]} · ${tier.label} · ${aspectOf(sg.aspect).ratio} · ${dur} · 参考图 ${sg.refImages?.length ?? 0} · 参考音频 ${sg.refAudios?.length ?? 0}${carried ? " · 承接上一段尾帧" : ""} · 提示词 ${sg.plot.length} 字`;
 }
 
 /**
@@ -2533,6 +2574,9 @@ export async function composeSegments(
         first = prevTail;
         res.firstFrame = prevTail;
       }
+      // ★ 契约核对（花钱之前）：声明的模式 = 槽位实际会走的模式，档位能力与互斥都只在 validateGenSpec 一处查。
+      //   用的是承接顶替**之后**的帧（顶替只换首帧的内容，不换模式）
+      validateGenSpec({ ...sg, firstFrame: first, lastFrame: last });
       onProgress?.(i, segments.length, "任务创建中…");
       const tier = tierOf(sg.videoTier);
       // ── 真人档（MiniMax）在这里分流 ────────────────────────────
@@ -2540,7 +2584,7 @@ export async function composeSegments(
       // 分流点选在这里而不是 segmentGen，就是为了这三样不抄第二份（铁律六）。
       // 首帧一定非空（segmentGen 的 minimax 分支备好了：用户帧/承接帧/真人卡照片，
       // 都没有会在那边整句拒，走不到这里）。
-      if (providerOf(sg.videoTier) === "minimax") {
+      if (sg.mode === "minimax") {
         const url2 = await minimaxVideo({
           model: tier.model,
           prompt: sg.plot.slice(0, VIDEO_PROMPT_MAX),
@@ -2567,16 +2611,16 @@ export async function composeSegments(
         out.push(res);
         continue;
       }
-      // 参考媒体（形象图 / 白模参考视频）非空：一句话直出，**首尾帧一张都不给**（三种场景互斥）
-      const refMode = !!sg.refImages?.length || !!sg.refVideoUrl;
+      // 参考媒体类模式：一句话直出，**首尾帧一张都不给**（三种场景互斥）。判据只读契约的 mode（validateGenSpec 刚核对过）
+      const refMode = sg.mode === "ref-images" || sg.mode === "reference" || sg.mode === "edit";
       const url = await generateVideo(sg.plot.slice(0, VIDEO_PROMPT_MAX), refMode ? "" : await shrinkFrameFor720p(first), {
         // ★ 时长按档位夹（2.5 不收 3 秒）。与 economy.segTokens 用的是同一个函数 ——
         //   只在这一侧夹的话，界面报 3 秒的价、方舟出 4 秒的片。
         //   （白模段不受影响：refVideoUrl 非空时 arkClient 走 BLOCKOUT_TASK 的 duration:-1，
         //   这里传的值根本不上桌 —— 时长跟模板走，报价侧 r2vTokens 同一个口径。）
         durationSec: clampDuration(sg.durationSec, sg.videoTier),
-        // 极速档（pro-fast）不支持首尾帧任务（实测 400 task_type flf2v）——只给首帧起拍
-        lastFrameUrl: !refMode && tier.flf ? await shrinkFrameFor720p(last) : undefined,
+        // 极速档（pro-fast）不支持首尾帧任务（实测 400 task_type flf2v）——只给首帧起拍；判据就是契约的 mode
+        lastFrameUrl: sg.mode === "flf" ? await shrinkFrameFor720p(last) : undefined,
         refImages: sg.refImages,
         refAudios: sg.refAudios,
         // 白模参考视频：透传而已，判定与拼装都不在这层（见字段注释）

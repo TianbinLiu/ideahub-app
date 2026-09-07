@@ -579,6 +579,20 @@ export function publishableModelUrl(url: string | undefined | null): string | nu
 
 /** 一个节点生成出的候选方案（视频片段提案） */
 /**
+ * 一段出片的**生成模式**（2026-09-06 生成契约 §四 1）：segmentGen 铸 GenSpec 时**声明**它，ai/real.validateGenSpec 在花钱之前
+ * 核对"声明的模式"与"槽位里真放了什么"一致（首尾帧 / 参考图 / 参考视频在方舟是互斥场景，混发是 400 或静默出错）；
+ * economy.videoTokensOfSpec 按同一个模式报视频那半的价。★ 「槽位 → 模式」的判定只有 real.genModeOf 一处，别按字段存在性再猜一遍。
+ */
+export type GenMode =
+  | "t2v" // 纯文字（只在设定帧一张都没有时）
+  | "i2v" // 首帧图生视频
+  | "flf" // 首尾帧图生视频（只有 VideoTier.flf 的档）
+  | "ref-images" // 参考图生视频（reference_image：卡片形象图 / 设定帧当参考图）
+  | "reference" // 参考视频 + 参考图（素材参考，reference 子任务）
+  | "edit" // 参考视频逐镜复刻（白模 / 返修，edit 子任务）
+  | "minimax"; // 真人档首帧图生视频（MiniMax）
+
+/**
  * 一套方案的**结构化镜头字段**（2026-09-06，对标 updream 分镜 Skill 输出的六个字段里我们缺的三个）。
  * 推演时由豆包按字段写（real.generateProposals），出片提示词按字段读（segmentGen 的 shotLineOf 前缀），
  * 方案台原样显示，发布时折进 VideoSegment.plot（做同款 / 提炼卡组都能读到）。
