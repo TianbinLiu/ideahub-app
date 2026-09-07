@@ -31,6 +31,11 @@ export interface SegmentGenInput {
   plot: string;
   /** 结构化镜头字段（types.ShotSpec）：出片提示词前缀「镜头：景别 · 运镜 · 情绪节拍。」，三条路同一处实现 shotPrefix */
   shot?: ShotSpec;
+  /**
+   * 返修（2026-09-06 对标 LibTV 片段重拍 / updream 问题视频返修）：refVideoUrl 是**本段自己的成片**，plot 是作者的改法，
+   * 走与白模同一条 edit 路，但换人句换成 REVISE_TAIL，且不要求挂人物卡（有卡照发，锁住形象）。
+   */
+  revise?: boolean;
   firstFrame: string;
   lastFrame: string;
   durationSec: number;
@@ -172,6 +177,13 @@ export function refVideoOn(o: {
  */
 const BLOCKOUT_SWAP =
   "。将视频中的红色小人替换为下列角色，严格保留视频中的背景、道具与运镜，画面中不要出现任何水印、台标、字幕或角标";
+/**
+ * 返修的尾句（与 BLOCKOUT_SWAP 同一位置、同一条 edit 路）：参考视频是本段自己的成片，正文是作者的改法。
+ * ★ 同样是尽力而为（edit 的立身之本是"保住主体、复刻其余"，改法是软引导）；产物无声（arkClient 的 BLOCKOUT_TASK
+ *   钉着 generate_audio:false），UI 上必须说。
+ */
+const REVISE_TAIL =
+  "。以上是要改的地方：在参考视频的基础上只做这些修改，其余画面、人物形象、动作、运镜与时长保持不变，画面中不要出现任何水印、台标、字幕或角标";
 
 /**
  * 白模（blockout r2v）这一段**为什么走不成** —— 条件的唯一实现（铁律六）。
@@ -196,6 +208,8 @@ export function blockoutIssue(o: {
   carryFrame?: string | null;
   anns?: unknown[];
   refVideo?: VideoTemplate["refVideo"];
+  /** 返修：不要求挂人物卡（改的是画面，不是换人） */
+  revise?: boolean;
 }): string | null {
   const price = r2vPriceIssue(o.videoTier);
   if (price) return price;
@@ -208,7 +222,7 @@ export function blockoutIssue(o: {
   if (o.anns?.length) return "白模出片没有设定帧可圈选修改——先删掉圈选标注，想改画面就改那句话";
   if (o.firstFrame) return "白模出片不能带设定首帧（首帧与参考视频在方舟是互斥场景）——清掉这张帧再出片";
   if (o.carryFrame) return "白模段不承接上一段的尾帧（承接帧与参考视频在方舟是互斥场景）——白模模板只有一段";
-  if (!o.materials?.some((c) => viewsOf(c).length > 0))
+  if (!o.revise && !o.materials?.some((c) => viewsOf(c).length > 0))
     return "白模出片要先挂一张带形象参考图的角色卡：模板只提供画面与运镜，「换成谁」全靠卡上的形象图";
   return null;
 }
@@ -731,7 +745,10 @@ export async function generateSegment(
           "video",
           (n) => notes.push(n),
           blockout
-            ? true
+            ? input.revise
+              ? // 返修：有卡就发（锁住形象），没卡也能走——改的是画面不是换人
+                { cap: tier.refImagesMax ?? ARK_REF_IMAGES_MAX, strict: false }
+              : true
             : refMode || (framesAsRefs && !needDraw)
               ? // ★★ 帧要占掉前几个图位，所以**准备时就把预算扣掉**，而不是发之前截 ——
                 //   bindCompact 是按 refs 全量编号的（`张三=@图片5`），发之前截掉两张就会
@@ -905,7 +922,7 @@ export async function generateSegment(
   //   ⚠ 例外：某张卡的形象图全都读不出来时，它就只剩名字了 —— 那种情况由 prepareMaterialRefs
   //   的 onNote 逐张点名（"第 N 张参考图未采用…"），一张都没成还会整句 throw，不是静默。
   // refMode 的绑定句已前置（bindHead），尾巴只剩素材设定文字
-  const tail = blockout ? (named ? bind : `${BLOCKOUT_SWAP}${mats}${bind}`) : `${frameRoles}${mats}`;
+  const tail = blockout ? (named ? bind : `${input.revise ? REVISE_TAIL : BLOCKOUT_SWAP}${mats}${bind}`) : `${frameRoles}${mats}`;
   // ★ 镜头字段放正文最前（景别 / 运镜 / 情绪节拍），模型先读到"怎么拍"再读"拍什么"
   const story = `${shotPrefix(input.shot)}${reqs ? `${input.plot}。修改要求（必须满足）：${reqs}` : input.plot}`;
   // ★ 提示词有 VIDEO_PROMPT_MAX 的硬顶，而截的是**正文** —— 头（点名句）与尾（素材设定/
@@ -933,7 +950,8 @@ export async function generateSegment(
     notes.push(
       "音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上",
     );
-  if (blockout)
+  if (blockout && input.revise) prog(`按你的改法返修这一段（时长跟随成片 ${input.refVideo?.durationSec ?? "?"} 秒，产物无声）…${noteTail()}${cut}`);
+  else if (blockout)
     prog(
       `按模板视频逐镜头复刻出片（时长跟随模板${input.refVideo?.durationSec ? ` ${input.refVideo.durationSec} 秒` : ""}）…${noteTail()}${cut}`,
     );

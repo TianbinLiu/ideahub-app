@@ -25,6 +25,7 @@ import DraftTitle from "../DraftTitle";
 import CameraChips from "./CameraChips";
 import DeleteSegBtn from "./DeleteSegBtn";
 import CastPreviewCard from "./CastPreviewCard";
+import ReviseBox from "./ReviseBox";
 import { SegmentRecoverList } from "./SegmentRecoverCards";
 import SegSettings from "./SegSettings";
 import SegPlayer from "./SegPlayer";
@@ -1399,6 +1400,14 @@ function NodePanel({
               >
                 📋 看/改这一套方案（换首尾帧、改剧情）
               </button>
+            )}
+            {/* 返修：已出片才有（ReviseBox 自己判有没有能播的成片）；投影窗同款，一份实现 */}
+            {done && (
+              <ReviseBox
+                node={node}
+                disabled={busy || generating}
+                onRun={(instruction) => void genNode(node.id, { revise: { instruction } })}
+              />
             )}
           </>
         ) : (

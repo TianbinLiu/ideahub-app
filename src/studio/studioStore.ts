@@ -7,7 +7,7 @@ import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
-import { CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeRecastable, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost } from "./flowStore";
+import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeRecastable, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, saveDraft } from "../data/drafts";
@@ -610,7 +610,7 @@ interface StudioState {
 
   /** 单独炼工坊节点卡上的这一段（不铺整条工作流）。用户可以只挑几段先看效果，
    *  剩下的留到最后一起炼——出片结果写在方案的 videoUrl 上，两个模式都认。 */
-  genNodeVideo: (nodeId: string, proposalId: string) => Promise<boolean>;
+  genNodeVideo: (nodeId: string, proposalId: string, opts?: GenNodeOpts) => Promise<boolean>;
   /** 正在单独炼的那个方案 id（节点卡上转圈用）；null = 没在炼 */
   nodeGen: { proposalId: string; steps: GenStep[] } | null;
 
@@ -1906,7 +1906,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
 
   nodeGen: null,
-  genNodeVideo: async (nodeId, proposalId) => {
+  genNodeVideo: async (nodeId, proposalId, opts) => {
     const { nodeGen } = get();
     if (nodeGen) return false; // 同一时刻只炼一段：并发跑几段既烧钱又抢方舟并发额度
     const flow = useFlow.getState();
@@ -1925,7 +1925,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     //   进度画在节点自己身上（node.steps/progress），方案台直接读它。
     set({ nodeGen: { proposalId, steps: [] } });
     try {
-      const run = useFlow.getState().genNode(nodeId);
+      const run = useFlow.getState().genNode(nodeId, opts);
       // ★ 受理即收窗（2026-09-06 主人点名）：genNode 的门禁与「打上 generating」都在它第一个 await 之前，
       //   这一拍状态已经是 generating = 真的开始炼了 —— 投影窗收掉、说一句"可以离开这一页"，用户才知道
       //   出片不需要守着。被门禁整句拒的那一发状态不变、窗留着，原因照常显示在窗里。
