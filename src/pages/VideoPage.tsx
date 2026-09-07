@@ -328,7 +328,7 @@ export default function VideoPage() {
   //   用 `"path"` 问会有一拍是错的：BranchPlayer 的 onPathChange 在 effect 里，首帧渲染时
   //   `branchPath` 还是 []，那一拍互动作品会被判成"没有可下载的成片" —— 一个错的原因
   //   比没有原因更坏。选哪一档是面板里的事。
-  const dlCheck = planDownload(video, piSafe, { scope: "all", branchPath, convert: false });
+  const dlCheck = planDownload(video, piSafe, { scope: "all", branchPath });
   const dlBlockedNow = dlCheck.ok ? null : dlCheck.blocked;
 
   function toggleLike() {

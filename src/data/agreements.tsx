@@ -135,8 +135,13 @@ export const AGREEMENTS: Record<AgreementId, { title: string; body: ReactNode }>
             就没了。上线「保存到本地」之后不改这段措辞，等于平台一边把标识摘掉、一边告诉
             用户"标识不可移除"。所以按事实重写，并把下载文件那一档说清楚。
             ⚠ `TERMS_UPDATED` **没有动** —— 动它会让所有用户重新过一次同意门，那要另外拍板。
-            ⚠ server-support 仓 `src/knowledge/support-kb.md` 里有同一段文本的镜像，
-              那一份要在 server 侧另开一次改动同步（本仓改不到）。
+            ⚠ 这段文本在客服知识库里有两份镜像：本仓的 `docs/support-knowledge-base.md`
+              （随本次提交改了）与 **server 仓的 `src/knowledge/support-kb.md`**
+              —— 后者在 **server 那个 PR 里一并改了**（2026-09-07；它原本由 app 仓这份源文件
+              经 `scratch/strip_kb.py` 生成，而那个脚本在两个仓里都已经不存在了，所以直接改）。
+              ⚠ **两个 PR 必须一起上线**：只发 App 不合 server，AI 客服会继续对用户说
+              「角标合成导出时逐帧写入…不可关闭」与「发布即定稿，不可回炉」，
+              与 App 内协议正文和产品行为直接矛盾。
 
             ★★ 2026-09-07 第二处（回炉重做上线）：**《用户协议》七**与本篇**四**里那两句
             「发布即定稿：已发布作品的成片内容不可修改 / 请在发布前完成全部修改」同样按事实
@@ -144,7 +149,7 @@ export const AGREEMENTS: Record<AgreementId, { title: string; body: ReactNode }>
             评论都保留）。留着旧措辞就是让协议正文与产品行为直接对着干（铁律五：文案只按
             已实现的事实写）。⚠ 同样**没有动** `TERMS_UPDATED`（那要另外拍板）。
             ⚠ `docs/support-knowledge-base.md` 与 server 仓 `support-kb.md` 里有这两句的
-              镜像（"发布即定稿，不可回炉"），本仓那份随本次提交一起改，server 仓那份改不到。 */}
+              镜像（"发布即定稿，不可回炉"），**两份都改了**（server 那份在服务端 PR 里）。 */}
         <Sec t="二、标识不可移除">
           本应用依据《人工智能生成合成内容标识办法》做显式标识：一是**作品周边**——首页信息流与
           作品详情页在作品旁显示「AI 生成」标识；二是**画面内角标**——在应用内播放时画面上持续

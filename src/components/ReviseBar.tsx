@@ -42,8 +42,15 @@ export default function ReviseBar({ className = "" }: { className?: string }) {
       </div>
       {lostCount > 0 && !lostClosed && (
         <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+          {/* ★★ 说「素材」不说「预览图」（2026-09-07 评审改）：这个数里**混着成片**
+              （data/projects.markLost 把 `videoUrl` 丢失也计进同一个 lostCount），
+              而一段成片没留下要**重新出片、再花一次钱**，不是"重新推演可以补回来"。
+              把要花钱的那一档说成不花钱的那一档，是本仓最不该犯的那种错。
+              ⚠ 服务端只回一个合计数（`lostCount`），这里分不出各是几处 —— 所以**不拆数**、
+                只把两种可能都说到；逐格的准话在方案卡上（PlanBoard 按 `p.lost.video` 分档）。 */}
           <span className="min-w-0 flex-1 text-[11px] leading-relaxed text-amber-200">
-            这份工程有 {lostCount} 处预览图没有留存 · 方案卡上画了虚线框，重新推演可以补回来
+            这份工程有 {lostCount} 处素材没有留存 · 方案卡上逐格标了出来：预览图重新推演就能补回来，
+            成片要重新出片（会再花一次钱）
           </span>
           <button onClick={() => setLostClosed(true)} aria-label="知道了" className="flex-none text-[11px] text-amber-300/80">
             ✕

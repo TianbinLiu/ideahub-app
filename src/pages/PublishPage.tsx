@@ -156,10 +156,18 @@ export default function PublishPage() {
         description: description.trim(),
         ...(tags.length > 0 ? { tags } : { tags: [] }),
         cover,
-        // 本片卡组：随片带上那颗开关在回炉时同样有效（作者随时可以改主意不带卡组）
-        ...(shareDeck && draft.deck?.cards.length
-          ? { deck: { name: `《${title.trim()}》卡组`, cards: draft.deck.cards } }
-          : { deck: undefined }),
+        // 本片卡组：那颗「随片带上这套卡」在回炉时**真的有效**（作者随时可以改主意不带卡组）。
+        // ★★ 关掉时发的是**空卡组**（`{ name: "", cards: [] }`），不是 `deck: undefined`。
+        //   `undefined` 会在序列化时整个键消失、服务端 zod strip 掉、`$set` 碰不到 deck ——
+        //   库里那套旧卡组原样留着，而按钮上写着"别人看不到你用了哪几张卡"。
+        //   一颗看着生效、实际什么都没做的开关，正是本仓点名的那种禁忌。
+        //   服务端把「空卡组」翻成 `$unset deck`（见 branchVideo.controller 的 `clearDeck`）。
+        // ★ 只在**这颗开关真的画出来了**的时候才发这一格（条件与下面那段 UI 逐字同源：
+        //   `draft.deck?.cards.length`）。这一版没有卡组时一个字都不发 —— 那时用户没做过
+        //   "不带卡组"这个决定，替他把原作品上的卡组撤下来是自作主张。
+        ...(draft.deck?.cards.length
+          ? { deck: shareDeck ? { name: `《${title.trim()}》卡组`, cards: draft.deck.cards } : { name: "", cards: [] } }
+          : {}),
         ...visibilityWire(visibility),
       },
       reviseOf.baseRevision,
@@ -384,7 +392,11 @@ export default function PublishPage() {
                   <span className="mt-0.5 block text-[11px] text-slate-500">
                     {shareDeck
                       ? "看到这条片子的人能看到卡面与设定，也能「收入卡组」接着创作——这是别人找到你的主要方式。声明过真实人物的卡，形象图不会给出去。"
-                      : "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。"}
+                      : reviseOf
+                        // ★ 回炉态要多说一句：关掉它**会把原作品上那套卡组一起撤下来**
+                        //   （服务端收到空卡组会 $unset deck）。不说的话用户以为只是"这一版不带"
+                        ? "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。原作品上那套卡组也会一并撤下。"
+                        : "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。"}
                   </span>
                 </span>
               </button>
@@ -463,9 +475,11 @@ export default function PublishPage() {
               }`}
             >
               {reviseFail.why}
-              {reviseFail.kind === "conflict" && (
-                <span className="block text-amber-200/80">合成稿还留在「我的」里，没有丢。</span>
-              )}
+              {/* ★★ 这一句**三档都要说**（2026-09-07 评审改）：这份合成稿是真花过钱的
+                  （卡组最多 8 张 + 3D 建模 + 实时录的成片），而 blocked 那一档原来只有一句
+                  原因加一颗「知道了」—— 用户此刻看得见的另一颗键是「不要了」。
+                  不告诉他东西还在，等于把"稿子没丢"这件事藏起来。 */}
+              <span className="block opacity-80">合成稿还留在「我的」里，没有丢。</span>
               <div className="mt-2 flex flex-wrap gap-2">
                 {reviseFail.kind === "conflict" && (
                   <button
@@ -480,7 +494,13 @@ export default function PublishPage() {
                     取回最新工程重来
                   </button>
                 )}
-                {reviseFail.kind === "network" && (
+                {/* ★ blocked 也给一颗重试：服务端那三档里有两档**会自行解除**
+                    （`REVISE_LOCKED` 是"有待处理的举报"，管理员处理完就没了；`REVISE_TAKEN_DOWN`
+                    的下架也可能被撤销），而 `REVISE_PAID` 要作者自己去把定价改回免费 ——
+                    三档都是"过一会儿/改个设置再来"，唯独不是"这条路永远走不通"。
+                    ⛔ `stale-server`（这台服务器还不支持回炉）**不给**重试：那一档再点一万次
+                    也是同一句话，摆一颗永远不会成的键比不摆更坏。 */}
+                {(reviseFail.kind === "network" || reviseFail.kind === "blocked") && (
                   <button
                     onClick={() => void submitRevise()}
                     disabled={!!busy}

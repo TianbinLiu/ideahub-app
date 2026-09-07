@@ -64,8 +64,9 @@ export const DOWNLOAD_DIR = "ideahub-downloads";
  *   DOM 覆盖层（components/AigcBadge），文件一离开 App 就没了。措辞不改，平台就是在
  *   自己把标识摘掉的同时告诉用户"标识不可移除"。
  *   ⚠ `TERMS_UPDATED` **没有动**：动它 = 全体用户重新过一次同意门，那要另外拍板。
- *   ⚠ server-support 仓的 `src/knowledge/support-kb.md:573` 有同一段文本的镜像，
- *     那一份要在 server 侧另开一次改动同步（本仓改不到）。
+ *   ⚠ 同一段文本在 server 仓 `src/knowledge/support-kb.md` 里有一份镜像（AI 客服的检索语料），
+ *     那一份在**服务端那个 PR 里一并改了**。两个 PR 必须一起上线，否则客服会继续对用户说
+ *     「角标合成导出时逐帧写入…不可关闭」——而下载下来的文件靠的是文件名。
  * ★ 两档都保留：人以后想收回到 "burned-only" 是改这一个字面量的事。
  */
 export const AIGC_MARK_POLICY: "burned-only" | "filename-only" = "filename-only";
@@ -77,9 +78,6 @@ export const AIGC_MARK_POLICY: "burned-only" | "filename-only" = "filename-only"
  * ★ **绝不能用 `VideoItem.merged` 判**：服务端的 BranchVideo 没有这个字段，读回来恒 undefined。
  */
 const BURNED_BADGE_MARK = "/ideahub/workshop-media/";
-
-/** Cloudinary 视频地址的固定前缀段，派生 mp4 时在它后面插变换 */
-const CLOUDINARY_UPLOAD = "/video/upload/";
 
 /**
  * ★ 带牌子的地址容器。裸 `string` 传不进 `startDownload`；反过来
@@ -93,16 +91,31 @@ export interface DownloadTarget {
   readonly partIndex: number;
   /** 行 id：分支树是 nodeId，线性是 `seg<i>` */
   readonly key: string;
-  /** ★ 只在本模块内活着。可能是派生地址（derived=true），一个字都不许回流 */
+  /**
+   * 成片的**原地址**，只在本模块内活着。
+   *
+   * ⛔⛔ 这里**永远是原地址**，一个派生字符串都不生成（规格 §1.4 / §9.4）。2026-09-07 曾
+   *   长出过一颗「转成 MP4 再存」的键（`f_mp4,fl_attachment:` 派生地址），评审当天撤掉，
+   *   撤的理由不是"不好用"而是三条实打实的代价：
+   *     ① 每切一次那颗开关，`probeSizes` 就对**每一段**打一发 HEAD 到派生地址 ——
+   *        一发就当场触发一次计费的 Cloudinary 变换。9 段的分支作品 = 一次点击 9 次转码，
+   *        而用户还没决定要不要下载；
+   *     ② 首次请求的派生产物常常没有 Content-Length ⇒ 落盘校验退成 unverified；
+   *     ③ 它把「谁去后台开了 strict transformations 就同时打死本功能」的爆炸半径
+   *        从零扩到整条下载链路 —— 而"服务端零改动、零新依赖"正是规格 §3.1 特意写下的约束。
+   *   ⚠ 更要紧的是：带变换的地址**一个字都不许回流**进 `segments[].videoUrl` ——
+   *     服务端有两处"只认不带变换的地址"的实现（`videoCompose.branchVideoName`、
+   *     `templateVideoAsset.ownedRecyclableAsset`），回流会同时打死服务端合并与删作品时的
+   *     资产回收，且两件都零报错。不生成派生地址，这条风险就根本不存在。
+   *   「转成 MP4 再存」记在 `docs/backlog.md`，要做先拍板配额。
+   */
   readonly url: string;
   /** 纯 ASCII，见文件末尾 fileNameOf 的注释 */
   readonly fileName: string;
   /** 「第 3 段 · 段标题」 */
   readonly label: string;
-  /** 落盘扩展名（不带点）：mp4 / webm / … */
+  /** 落盘扩展名（不带点）：mp4 / webm / … 直接取自原地址 */
   readonly ext: string;
-  /** true = Cloudinary `f_mp4` 派生地址。**只能用来取字节** */
-  readonly derived: boolean;
 }
 
 export interface DownloadPlan {
@@ -110,10 +123,9 @@ export interface DownloadPlan {
   targets: DownloadTarget[];
   /** 目标文件的扩展名（去重后）。面板上「文件格式」那一行读它 */
   formats: string[];
-  /** 有 webm ⇒ 面板要出那条 amber 提示（安卓相册对 vp9 webm 支持很差） */
+  /** 有 webm ⇒ 面板要出那条 amber 提示（安卓相册对 vp9 webm 支持很差）。
+   *  ⚠ 这条提示是我们能给的**全部**——App 不转码（见 DownloadTarget.url 的 ⛔⛔） */
   hasWebm: boolean;
-  /** 这一批能不能整批换成 Cloudinary 的 f_mp4 派生地址（原地址不是 Cloudinary 的就不能） */
-  canConvert: boolean;
 }
 
 export type PlanResult = { ok: true; plan: DownloadPlan } | { ok: false; blocked: string };
@@ -152,7 +164,7 @@ function allBurned(urls: string[]): boolean {
 export function planDownload(
   video: VideoItem,
   partIndex: number,
-  opt: { scope: "path" | "all"; branchPath: string[]; convert: boolean },
+  opt: { scope: "path" | "all"; branchPath: string[] },
 ): PlanResult {
   const sup = downloadSupport();
   if (!sup.ok) return { ok: false, blocked: sup.reason! };
@@ -232,23 +244,19 @@ export function planDownload(
     };
   }
 
-  const canConvert = urls.every((u) => u.includes(CLOUDINARY_UPLOAD) && !u.toLowerCase().endsWith(".mp4"));
-  const convert = opt.convert && canConvert;
-
   const targets: DownloadTarget[] = withUrl.map((p) => {
     const src = downloadableUrl(p.seg)!;
-    const ext = convert ? "mp4" : extOf(src);
-    const fileName = fileNameOf(video, partIndex, partCount, p.key, p.seqNo, src, ext);
+    const ext = extOf(src);
     return {
       brand: "download-target",
       videoId: video.id,
       partIndex,
       key: p.key,
-      url: convert ? mp4UrlOf(src, fileName.replace(/\.[^.]+$/, "")) : src,
-      fileName,
+      // ⛔ 原地址，一个派生字符串都不生成（见 DownloadTarget.url 的 ⛔⛔）
+      url: src,
+      fileName: fileNameOf(video, partIndex, partCount, p.key, p.seqNo, src, ext),
       label: p.label,
       ext,
-      derived: convert,
     };
   });
 
@@ -259,28 +267,8 @@ export function planDownload(
       targets,
       formats: [...new Set(targets.map((t) => t.ext))],
       hasWebm: targets.some((t) => t.ext === "webm"),
-      canConvert,
     },
   };
-}
-
-/**
- * Cloudinary 的 `f_mp4` 派生地址 —— **只用来取字节**。
- *
- * ★★ 2026-09-07 实测（线上真实成片）：`ideahub/workshop-media` 下相当一部分成片是
- *   剪辑页 MediaRecorder 导出的 **vp9 webm**，安卓相册/播放器对它支持很差。
- *   同一条片 2,308,023 字节的 vp9 webm 经 `f_mp4` 变成 730,055 字节的 avc1 mp4，
- *   Content-Disposition 也正确。代价是一次 Cloudinary 变换（算配额）+ 首次请求的生成延迟，
- *   以及画质会降 —— 所以它是面板上**另一颗键**，不是默认行为。
- * ★ `fl_attachment:<名字>` 里的名字**只能 ASCII**：实测中文（哪怕 URL 编码过）一律 400，
- *   回的还是一张 image/gif 错误图。我们的文件名天生就是 `[A-Za-z0-9_-]`，所以安全。
- * ⚠ 返回值**绝不能写回** `segments[].videoUrl` —— 见文件头 ★★。
- */
-function mp4UrlOf(url: string, asciiBase: string): string {
-  const at = url.indexOf(CLOUDINARY_UPLOAD);
-  if (at < 0) return url;
-  const head = at + CLOUDINARY_UPLOAD.length;
-  return `${url.slice(0, head)}f_mp4,fl_attachment:${asciiBase}/${url.slice(head)}`;
 }
 
 /** 地址末段的扩展名（小写、不带点），取不到默认 mp4 */
@@ -445,7 +433,14 @@ export function startDownload(
     outcomeOk: false,
   };
   emit();
-  void runQueue(targets, meta);
+  // ★ 第二道门：runQueue 自己已经把一切包进 try/finally 了，但一个裸的 `void promise`
+  //   在这个模块里的代价太大（rejection 无人接 = state.running 永远真 = 全局再也存不了东西），
+  //   所以这里也接一手。真走到这句说明 finally 本身出了事，只能记一笔。
+  void runQueue(targets, meta).catch((e) => {
+    console.warn("[dl] runQueue 收尾也失败了", e);
+    state = { ...state, running: false, stopping: false, outcome: "保存意外中断了，再点一次。", outcomeOk: false };
+    emit();
+  });
   return { ok: true };
 }
 
@@ -556,22 +551,35 @@ export async function probeSizes(
 
 // ── 主循环 ──────────────────────────────────────────────────
 
+/**
+ * 整批下载的主循环。
+ *
+ * ★★ **一切都在 try 里**（2026-09-07 评审改）。原来 `startJob()` 与 `await attachProgress()`
+ *   排在 try 外面：`Filesystem.addListener` 一旦拒绝（或 startJob 抛），整个 runQueue 以一个
+ *   **无人接的 rejection** 结束，而 `state.running` 永远停在 true。此后「开始保存」在**所有**
+ *   作品上都被 `startDownload` 的重入闸拒成「已经在保存另一条作品了」，而面板上那颗键显示的
+ *   是「停止」—— 点它只置 stopping、循环压根没在跑，键随即变灰。进程内再也下载不了任何东西，
+ *   且屏幕上没有一个字解释。⇒ 收尾必须**无论从哪里退出都跑**，所以 finally 是唯一的出口。
+ * ★ 调用点也补了 `.catch`（见 startDownload）：这里已经不会抛了，那一发是第二道门。
+ */
 async function runQueue(targets: DownloadTarget[], meta: { videoId: string; title: string }): Promise<void> {
-  const job = startJob({
-    kind: "video-download",
-    title: "保存视频",
-    route: `/video/${meta.videoId}`,
-    progress: `0/${targets.length} 段`,
-  });
-  // ★ 不传 `page`：GenerationPill 是 `if (j.page && j.page === here) continue`，按**当前路由**比。
-  //   设成 /video/:id 之后，用户把面板关掉而人还站在这一页时，屏幕上一个字都没有。
-  //   宁可面板与胶囊各画一份进度。
-  await attachProgress();
   let done = 0;
   let failed = 0;
   let stopped = false;
   let lastErr = "";
+  // ★ 票在 try 外面**声明**、在 try 里面**创建**：finally 要用它收尾，而创建本身也可能抛
+  let job: ReturnType<typeof startJob> | null = null;
   try {
+    job = startJob({
+      kind: "video-download",
+      title: "保存视频",
+      route: `/video/${meta.videoId}`,
+      progress: `0/${targets.length} 段`,
+    });
+    // ★ 不传 `page`：GenerationPill 是 `if (j.page && j.page === here) continue`，按**当前路由**比。
+    //   设成 /video/:id 之后，用户把面板关掉而人还站在这一页时，屏幕上一个字都没有。
+    //   宁可面板与胶囊各画一份进度。
+    await attachProgress();
     // 先建目录。★ `DownloadFileOptions.recursive` 声明里写着「create any missing parent
     //   directories」，但**安卓实现里没人读它**：getFileObject 只对根目录 mkdir()。
     //   删掉这一步就是一句 FileNotFoundException。
@@ -587,7 +595,7 @@ async function runQueue(targets: DownloadTarget[], meta: { videoId: string; titl
         for (const rest of targets.slice(i)) patchRow(rest.key, { status: "stopped" });
         break;
       }
-      job.update(`第 ${i + 1}/${targets.length} 段`);
+      job?.update(`第 ${i + 1}/${targets.length} 段`);
       const pk = pathKeyOf(t);
       if (inFlight.has(pk)) {
         patchRow(t.key, { status: "failed", err: "这一份正在被另一次保存写入，等它跑完再点一次。" });
@@ -596,7 +604,7 @@ async function runQueue(targets: DownloadTarget[], meta: { videoId: string; titl
       }
       inFlight.add(pk);
       try {
-        const r = await downloadOne(t, (pct) => job.update(`第 ${i + 1}/${targets.length} 段 · ${pct}`));
+        const r = await downloadOne(t, (pct) => job?.update(`第 ${i + 1}/${targets.length} 段 · ${pct}`));
         if (r.ok) done++;
         else {
           failed++;
@@ -606,6 +614,13 @@ async function runQueue(targets: DownloadTarget[], meta: { videoId: string; titl
         inFlight.delete(pk);
       }
     }
+  } catch (e) {
+    // ★ 走到这里说明是**循环之外**的意外（建目录/监听/票本身）。这一档以前会让整个模块
+    //   卡在 running:true 上，屏幕上零解释 —— 现在如实说一句，并照常走 finally 归位。
+    const raw = e instanceof Error ? e.message : String(e);
+    console.warn("[dl] runQueue 崩了", raw);
+    failed = failed || targets.length;
+    lastErr = `保存没能开始（${raw.slice(0, 80)}）`;
   } finally {
     await detachProgress();
     // ★★ 停止那句话说的是**真的发生了什么**，不是"取消"：`downloadFile` 没有取消 API
@@ -620,9 +635,9 @@ async function runQueue(targets: DownloadTarget[], meta: { videoId: string; titl
         : `${done} 段都存好了。点每一行的「分享 / 另存为」，在系统面板里选相册或文件管理器。`;
     state = { ...state, running: false, stopping: false, outcome, outcomeOk: !stopped && failed === 0 };
     emit();
-    if (stopped) job.fail(`已停止，存好 ${done} 段`, `/video/${meta.videoId}`);
-    else if (failed > 0) job.fail(`${failed} 段没存下来${lastErr ? `：${lastErr}` : ""}`, `/video/${meta.videoId}`);
-    else job.done({ msg: `${done} 段都存好了，回详情页选去处`, route: `/video/${meta.videoId}` });
+    if (stopped) job?.fail(`已停止，存好 ${done} 段`, `/video/${meta.videoId}`);
+    else if (failed > 0) job?.fail(`${failed} 段没存下来${lastErr ? `：${lastErr}` : ""}`, `/video/${meta.videoId}`);
+    else job?.done({ msg: `${done} 段都存好了，回详情页选去处`, route: `/video/${meta.videoId}` });
   }
 }
 
@@ -703,17 +718,39 @@ async function downloadOne(
     return { ok: false, msg };
   }
 
-  // 校验过了才动正名：旧的那一份在**新文件已经完整落盘之后**才被删
-  await Filesystem.deleteFile({ path: finalPath, directory: Directory.Cache }).catch(() => {});
+  // ★★ 正名这一步**先挪开、不先删**（2026-09-07 评审改）。原来是 `deleteFile(final)` 再
+  //   `rename(part → final)`：rename 一抛，用户手上**两份都没有**了 —— 上一次已经存好、
+  //   可能还没「另存为」出去的那一份被亲手删掉，而新的那份 `.part` 随后被 sweepStaleParts 收走。
+  //   失败文案还只说"这一份没能留下"，把销毁旧文件这件事整个瞒下来了，
+  //   与本模块开头那句「旧的那一份在新文件已经完整落盘之后才被删」直接对着干。
+  //   ⇒ 旧的先改名成 `.bak`（不存在就当没有），新的就位之后才删 `.bak`；
+  //     新的没就位就把 `.bak` 换回去 —— 任何一步失败，用户至少还留着原来那一份。
+  const bakPath = `${finalPath}.bak`;
+  const hadOld = await Filesystem.rename({ from: finalPath, to: bakPath, directory: Directory.Cache }).then(
+    () => true,
+    () => false, // 本来就没有旧文件 —— 这是常态，不是错
+  );
   try {
     await Filesystem.rename({ from: partPath, to: finalPath, directory: Directory.Cache });
   } catch (e) {
     const raw = e instanceof Error ? e.message : String(e);
-    const msg = "文件下好了，但改名失败，这一份没能留下。再点一次。";
     console.warn("[dl] rename failed", raw);
+    let msg = "文件下好了，但改名失败，这一份没能留下。再点一次。";
+    if (hadOld) {
+      // 把旧的换回去。换得回来就如实说"原来那份还在"，换不回来也要说 —— 不许瞒
+      const back = await Filesystem.rename({ from: bakPath, to: finalPath, directory: Directory.Cache }).then(
+        () => true,
+        () => false,
+      );
+      msg = back
+        ? "文件下好了，但改名失败，这一份没能留下（上次存的那一份还在）。再点一次。"
+        : "文件下好了，但改名失败，而且上次存的那一份也没能放回原处。再点一次。";
+    }
     patchRow(t.key, { status: "failed", err: msg, raw });
     return { ok: false, msg };
   }
+  // 新的已经完整就位，这才轮到删旧的
+  if (hadOld) await Filesystem.deleteFile({ path: bakPath, directory: Directory.Cache }).catch(() => {});
 
   const uri = await fileUriOf(finalPath, absPath);
   patchRow(t.key, {
@@ -824,6 +861,9 @@ function explainShareError(raw: string): string {
  *   进程死"），**用户看不见** —— 回来只有一个 `.part` 躺在缓存里。`.part` 的存在本身
  *   就是"上次没下完"的证据（正名永远只有完整文件），所以既不用猜也不用 HEAD 对账。
  * ★ 正在跑的时候**一个都不碰**：那时的 `.part` 是当前这条线程正在写的东西。
+ * ★ `.bak` 同理：那是正名途中被挪开的上一份（见 downloadOne 的 ★★）。正常路径上它活不过
+ *   两行代码，能留下来只可能是进程在那两行中间被杀了。⚠ 它是**完整文件**，所以清扫时
+ *   优先把它换回正名，换不动才删 —— 直接删等于销毁一份用户已经存好的东西。
  */
 export async function sweepStaleParts(videoId: string): Promise<number> {
   if (!isNative() || state.running) return 0;
@@ -831,9 +871,23 @@ export async function sweepStaleParts(videoId: string): Promise<number> {
   if (!inner) return 0;
   let n = 0;
   for (const f of inner.files) {
-    if (f.type !== "file" || !f.name.endsWith(".part")) continue;
-    await Filesystem.deleteFile({ path: `${dirOf(videoId)}/${f.name}`, directory: Directory.Cache }).catch(() => {});
-    n++;
+    if (f.type !== "file") continue;
+    const full = `${dirOf(videoId)}/${f.name}`;
+    if (f.name.endsWith(".part")) {
+      await Filesystem.deleteFile({ path: full, directory: Directory.Cache }).catch(() => {});
+      n++;
+      continue;
+    }
+    if (f.name.endsWith(".bak")) {
+      // 完整文件：能换回正名就换回去（正名此刻多半是空的——新的那一份没就位过），
+      // 换不动（正名已存在）才删。两条路都不产生"用户看不见的丢失"
+      const back = full.replace(/\.bak$/, "");
+      const ok = await Filesystem.rename({ from: full, to: back, directory: Directory.Cache }).then(
+        () => true,
+        () => false,
+      );
+      if (!ok) await Filesystem.deleteFile({ path: full, directory: Directory.Cache }).catch(() => {});
+    }
   }
   return n;
 }
@@ -859,7 +913,9 @@ export async function listDownloads(): Promise<DownloadGroup[]> {
     let files = 0;
     let bytes = 0;
     for (const f of inner.files) {
-      if (f.type !== "file" || f.name.endsWith(".part")) continue; // 半截文件不算数
+      // 半截文件（.part）与正名途中被挪开的上一份（.bak）都不算数：
+      // 前者不完整，后者会被下一次 sweepStaleParts 换回正名或删掉，现在报出来只会重复计数
+      if (f.type !== "file" || f.name.endsWith(".part") || f.name.endsWith(".bak")) continue;
       files++;
       bytes += f.size;
     }

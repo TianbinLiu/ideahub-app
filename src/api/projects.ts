@@ -15,8 +15,18 @@ export interface ApiProjectMeta {
   video: string;
   title: string;
   bytes: number;
+  /**
+   * 这份画布描述的是作品的**哪一版**。
+   *
+   * ★★ 它是「陈旧画布」这一档**唯一**的检出信号，取回时必须与作品当下的 `revision` 比 ——
+   *   对不上就不许铺进工坊（见 data/projects.loadProject 的 ★★）。作品的 `revision`
+   *   挡的是**并发**（两台设备同时提交），它挡的是**陈旧**（画布是上一版），两回事。
+   */
   videoRevision: number;
-  /** 留存时有几处预览图没能留下（回炉打开时那条 amber 横幅要如实报数） */
+  /** 服务端说的「这份工程已经不描述作品当下那一版了」（回炉成功、客户端还没 PUT 新画布）。
+   *  ★ 判否定：老服务端不发这一格 = 不过期。真正的判据是 `videoRevision`，这一格只用来说话。 */
+  stale: boolean;
+  /** 留存时有几处素材没能留下（回炉打开时那条 amber 横幅要如实报数） */
   lostCount: number;
   updatedAt: string | number;
 }
@@ -48,6 +58,8 @@ function readMeta(raw: unknown): ApiProjectMeta | null {
     title: typeof raw.title === "string" ? raw.title : "",
     bytes: typeof raw.bytes === "number" ? raw.bytes : 0,
     videoRevision: typeof raw.videoRevision === "number" ? raw.videoRevision : 0,
+    // ★ 判否定：老服务端不发这一格 = 不过期（缺失 = 老数据 = 否定）
+    stale: raw.stale === true,
     // ★ 判否定：老服务端不发这一格 = 没有缺失（不是"未知"）—— 那条 amber 横幅宁可不出现，
     //   也不能凭空报一个数出来（本仓「不许拼一个骗人的数」那条）
     lostCount: typeof raw.lostCount === "number" ? raw.lostCount : 0,

@@ -68,6 +68,9 @@ export default function EditPage() {
   /** 正在取回工程（整页态）/ 取回失败那句原话 */
   const [fetching, setFetching] = useState(false);
   const [fetchErr, setFetchErr] = useState("");
+  /** 上一次取回失败是不是「留存的那份画布描述的是别的版次」—— 那一档重试与换网络都没用，
+   *  两句话都不该说（见 data/projects.StaleProjectError 的 ★） */
+  const [fetchStale, setFetchStale] = useState(false);
   /** 「重试留存」/「删除留存的工坊工程」那两颗小键各自的状态 */
   const [retainMsg, setRetainMsg] = useState("");
   const [dropAsk, setDropAsk] = useState(false);
@@ -207,20 +210,39 @@ export default function EditPage() {
   const totalOf = (i: number) => segsTotal(parts[i].segments);
 
   // ── 回炉：能不能点，点不动的话为什么 ──────────────────────
-  // ★ 四种（这里是六种：多了"还没问出结果"与"这台服务器不支持"）禁用态都**按钮存在但灰**，
+  // ★ **每一档禁用态都「按钮存在但灰」**，
   //   下面一行说清原因 —— 隐藏按钮会被读成"这个功能没上线"，而它其实只是这一条不行。
   //   ⚠ **不预判「正在被复核」**：那一档只由服务端拒绝。一旦告诉作者"你正在被复核"，
   //     他的最优解不是回炉（已被挡）而是**直接删掉作品**，管理员打开只剩一条不存在的目标 ——
   //     那比回炉规避更糟。
   const supported = projects.projectsSupported();
   const hasProject = projects.hasProject(video.id);
+  /** 留存的那份工程描述的是**别的版次**（多半是上一版）。判据与 loadProject 那道闸同源。 */
+  const projectMeta = projects.projectMetaOf(video.id);
+  const projectStale =
+    !!projectMeta && (projectMeta.stale || projectMeta.videoRevision !== Number(video.revision ?? 0));
   const reforgeWhy: string | null = (() => {
     if (supported === null) return "正在确认这条作品有没有留存工坊工程…";
+    // ★★ 「问了但没问到」与「这台服务器确实没有这个端点」是两句不同的话，摊在四档上
+    //   （见 data/projects.readyProjects 的 ★★）。把一次网络抖动说成"服务器不支持"，
+    //   用户会去等一个根本不会到来的服务器更新 —— 说一句错的原因比不给原因更坏。
+    if (supported === "error") return "暂时问不到服务器，没能确认这条作品有没有留存工坊工程。";
     if (supported === false) return "这台服务器还不支持回炉重做。等服务器更新后再试。";
     if (isUploading(video)) return "这条作品还在上传，传完再回炉。";
     if (video.pricing?.mode === "paid") return "这条作品设为按分集收费，不能换内容。";
     if (video.takedown) return "这条作品已被平台下架，下架期间不能改内容。";
     if (!hasProject) return "这条作品没有留存工坊工程，改不了内容。想换内容请重新发一条。";
+    // ★★ 「留存的那份是上一版」这一档**在按下之前就说**（2026-09-07 补）：判据与
+    //   data/projects.loadProject 那道硬闸同源（都是比 videoRevision 与作品当下的 revision），
+    //   但这里是**预告**、那里是**拦截** —— 让用户点下去再被整页拒，等于把一次必然失败的
+    //   往返摆在他面前。⚠ 这不是把闸挪到 UI 上：真正的门仍然只有 loadProject 一处（铁律六）。
+    //   ★ 服务端给的 `stale` 是同一件事的提示位（回炉成功、客户端还没 PUT 新画布），
+    //     两个都读：meta 可能来自老服务端（没有 stale），也可能来自还没刷新的列表缓存。
+    if (projectStale) {
+      return `留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。${
+        projects.pendingFor(video.id, video.clientId) ? "先点下面的「重新留存这一版」。" : "想换内容请重新发一条。"
+      }`;
+    }
     return null;
   })();
 
@@ -240,6 +262,7 @@ export default function EditPage() {
   async function beginReforge(): Promise<void> {
     setReforgeAsk(false);
     setFetchErr("");
+    setFetchStale(false);
     const busyWhy = useStudio.getState().studioBusyReason();
     if (busyWhy) {
       setFetchErr(busyWhy);
@@ -248,10 +271,14 @@ export default function EditPage() {
     setFetching(true);
     let canvas: Awaited<ReturnType<typeof projects.loadProject>>;
     try {
-      canvas = await projects.loadProject(video!.id);
+      // ★★ 版次是**取回时就要判的硬闸**（见 data/projects.loadProject 的 ★★★）：
+      //   一份描述上一版的画布配上现读的 baseRevision，服务端会正常接受并把线上内容
+      //   静默退回上一版。这里把"作品当下是第几版"递进去，对不上就整句拒、不进工坊。
+      canvas = await projects.loadProject(video!.id, Number(video!.revision ?? 0));
     } catch (e) {
       setFetching(false);
       setFetchErr(e instanceof Error ? e.message : "原因不明");
+      setFetchStale(e instanceof projects.StaleProjectError);
       return;
     }
     setFetching(false);
@@ -260,8 +287,13 @@ export default function EditPage() {
         const v = video!;
         const ok = useStudio.getState().openProject(canvas.canvas, {
           videoId: v.id,
-          // ★ 判否定：没有 revision = 从没回炉过 = 0（服务端那边有专门的 $or 分支接这一档）
-          baseRevision: Number(v.revision ?? 0),
+          // ★★ 报的是**这份画布自己**描述的版次，不是现读作品的 revision。
+          //   后者永远"新鲜"，拿它当 base 的话那道 409 永远不会响 —— 一份陈旧画布会被
+          //   服务端正常接受，把线上内容静默退回（见 data/projects.loadProject 的 ★★★）。
+          //   loadProject 已经保证了它 === Number(v.revision ?? 0)；写成这样是为了让
+          //   "谁是权威"这件事在代码里看得见，而不是靠上面那道闸的记忆。
+          //   ★ 判否定：没有 revision = 从没回炉过 = 0（服务端那边有专门的 $or 分支接这一档）
+          baseRevision: canvas.videoRevision,
           title: v.title,
         });
         if (!ok) {
@@ -336,10 +368,17 @@ export default function EditPage() {
               🛠 回炉重做
             </button>
             {reforgeWhy && <p className="mt-1.5 text-xs leading-relaxed text-slate-500">{reforgeWhy}</p>}
-            {/* 「重试留存」：本机还留着一份没提交上去的画布待办时才摆（发布那一刻留存失败的那条路）。
+            {/* 「重试留存」：本机还留着一份没提交上去的画布待办时才摆。
                 ★ 判据带 clientId —— 待办是**单键**，不比对的话会拿"最近那一摊"去补另一条作品
-                （见 data/projects.pendingFor 的 ★） */}
-            {!hasProject && supported === true && projects.pendingFor(video.id, video.clientId) && (
+                （见 data/projects.pendingFor 的 ★）。
+                ⛔ **不许再加 `!hasProject`**（2026-09-07 评审删掉的那一条）：它把这颗键锁死在
+                  「首次发布时留存失败」那一档，而最需要它的恰恰是相反的一档 ——
+                  **回炉成功、重新留存失败**。那条路上 hasProject 恒为真（首次发布已经留过一份），
+                  于是键永远不出现：用户手上明明有一份 ready 的待办，屏幕上却没有任何补救入口，
+                  工程永久停在上一版，下一次回炉会被那道版次闸整句拒（本该能救的却救不了）。
+                  而留存失败那句话本身还写着「可在编辑页点「重试留存」」—— 在回炉路径上那是句假话。
+                ★ 已经有一份（陈旧的）工程时把键名说清楚：用户要知道现存那份不是这一版。 */}
+            {supported === true && projects.pendingFor(video.id, video.clientId) && (
               <button
                 onClick={() => {
                   setRetainMsg("正在重试…");
@@ -350,7 +389,17 @@ export default function EditPage() {
                 disabled={retainMsg === "正在重试…"}
                 className="mt-2 rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
               >
-                重试留存
+                {hasProject ? "重新留存这一版（现存那份还是上一版）" : "重试留存"}
+              </button>
+            )}
+            {/* 「问不到服务器」那一档给一颗真的能重问的键：`retryReadyProjects` 会把那个失败的
+                Promise memo 置回 null，否则这个会话里再也问不了第二次（见 readyProjects 的 ★★）。 */}
+            {supported === "error" && (
+              <button
+                onClick={() => void projects.retryReadyProjects()}
+                className="mt-2 rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700"
+              >
+                重新问一次服务器
               </button>
             )}
             {retainMsg && <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">{retainMsg}</p>}
@@ -363,16 +412,25 @@ export default function EditPage() {
             {/* 取回失败 / 工坊在途被拒：整句原话，落在按下的那颗键旁边（铁律八） */}
             {fetchErr && (
               <div className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2">
+                {/* ★ 原话原样显示（data 层与服务端写的都是整句中文）。
+                    ⚠ 「换个网络再试一次」与那颗重试键只给**真的可能是网络问题**的那几档：
+                      版次对不上那一档再试一万次也是同一句话，摆一颗永远不会成的重试键
+                      比不摆更坏（本仓那条：说一句错的原因比不给原因更坏）。 */}
                 <p className="text-[11px] leading-relaxed text-rose-200">
-                  没能取回这条作品的工坊工程（{fetchErr}）。换个网络再试一次。
+                  没能取回这条作品的工坊工程（{fetchErr}）。
+                  {fetchStale
+                    ? "本机还留着那一版的画布的话，先点上面的「重新留存这一版」；否则只能重新发一条。"
+                    : "换个网络再试一次。"}
                 </p>
                 <div className="mt-2 flex gap-2">
-                  <button
-                    onClick={() => void beginReforge()}
-                    className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700"
-                  >
-                    重试
-                  </button>
+                  {!fetchStale && (
+                    <button
+                      onClick={() => void beginReforge()}
+                      className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700"
+                    >
+                      重试
+                    </button>
+                  )}
                   <button onClick={() => setFetchErr("")} className="rounded-full px-3 py-1.5 text-[11px] text-slate-400">
                     知道了
                   </button>

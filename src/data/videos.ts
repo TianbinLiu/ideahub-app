@@ -1847,11 +1847,23 @@ export async function reviseVideo(id: string, draft: DraftVideo, baseRevision: n
       ...(/^https?:\/\//.test(sending.cover) ? { cover: sending.cover } : {}),
       ...(sending.visibility !== undefined ? { visibility: sending.visibility } : {}),
       ...(sending.linkOnly !== undefined ? { linkOnly: sending.linkOnly } : {}),
-      // ★ 内容三件：`segments` 恒发（服务端要求 ≥1 段 —— 0 段作品 = 黑屏而 200），
-      //   branchTree / deck 有才发（`deck: undefined` 会被 zod 丢掉，不会清空原卡组）
+      // ★ 内容三件（2026-09-07 评审改，两处都是"静默无效"的形状）：
+      //   · `segments` 恒发（服务端要求 ≥1 段 —— 0 段作品 = 黑屏而 200）；
+      //   · ★★ `branchTree` **恒发**，没有分支树时发 `null`。
+      //     少了这一格就是那条致命项：剪辑页的「合并导出」把互动作品改成
+      //     `{segments:[merged], branchTree: undefined}`（CutPage 的合并出口），
+      //     于是这里不发 branchTree ⇒ 服务端「给了哪几件处理哪几件」⇒ 库里那棵旧树原样留着。
+      //     结果是 segments 换了、revision 涨了、弹幕清了、收藏者收到通知、App 弹「已替换」，
+      //     而播放端是 `part.branchTree ? <BranchPlayer/> : <SegmentPlayer/>` ——
+      //     **观众看到的还是旧的互动内容**，新合并的成片谁也放不到，全程零报错。
+      //     服务端把 `null` 翻成 `$unset branchTree`（`clearBranchTree` 一处）。
+      //   · `deck` **给了才发**，而"给了"包含发布页那颗开关关掉时发的**空卡组**
+      //     （`{ name: "", cards: [] }` → 服务端 `$unset deck`）。⚠ 判据必须是
+      //     `!== undefined` 而不是真值：空卡组是个真对象但 `cards.length === 0`，
+      //     写成 `sending.deck ? …` 时它照样发得出去，可读起来像"有才发"，容易被下一个人改错。
       segments: sending.segments,
-      ...(sending.branchTree ? { branchTree: sending.branchTree } : {}),
-      ...(sending.deck ? { deck: sending.deck } : {}),
+      branchTree: sending.branchTree ?? null,
+      ...(sending.deck !== undefined ? { deck: sending.deck } : {}),
       baseRevision,
     });
   } catch (e) {

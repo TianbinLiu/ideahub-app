@@ -193,9 +193,17 @@ export default function PlanBoard({
                       aspectRatio={frameAspect}
                     />
                     <div className="text-center text-[9px] leading-3 text-slate-500">点开卡片换图</div>
-                    {/* 留存工程时丢掉的图位：如实说一句 + 给一条补回来的路（重新推演）。
-                        不说的话用户只会看到一张空框，以为方案台坏了 */}
-                    {!!p.lost && (
+                    {/* 留存工程时丢掉的东西：如实说一句 + 给一条出路。
+                        不说的话用户只会看到一张空框，以为方案台坏了。
+                        ★★ **成片与预览图分开说**（2026-09-07 评审改）：预览图重新推演就能补回来，
+                        而一段成片没留下只能重新出片、**再花一次钱** —— 把后者说成前者，
+                        等于告诉用户"点一下就好了"，而他点完会被扣一次钱。 */}
+                    {!!p.lost?.video && (
+                      <div className="text-center text-[9px] leading-3 text-amber-300/90">
+                        这一段的成片没有留存，要重新出片（会再花一次钱）
+                      </div>
+                    )}
+                    {!!p.lost && !p.lost.video && (
                       <div className="text-center text-[9px] leading-3 text-amber-300/90">这一格的预览图没有留存</div>
                     )}
                     {/* 「融图」：把几张参考图合成一张边界帧。★ 只在宿主给了候选图时出现，
@@ -283,7 +291,15 @@ export default function PlanBoard({
                   disabled={busy}
                   className="flex w-full items-start gap-2.5 text-left disabled:opacity-40"
                 >
-                  <PreviewCard first={p.firstFrame} last={p.lastFrame} lost={!!p.lost} width={cardW} aspect={frameAspect} />
+                  {/* ★ 虚线框只说"预览图"，所以只把**帧**那几档递进去：`lost.video` 单独一档，
+                      它的话在上面那一行（成片丢了跟这张预览图没关系） */}
+                  <PreviewCard
+                    first={p.firstFrame}
+                    last={p.lastFrame}
+                    lost={!!(p.lost?.first || p.lost?.last || p.lost?.poster)}
+                    width={cardW}
+                    aspect={frameAspect}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-100">

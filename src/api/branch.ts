@@ -424,7 +424,16 @@ export async function updateVideo(id: string, patch: VideoMetaPatch): Promise<Ap
  */
 export interface ReviseBody extends VideoMetaPatch {
   segments?: VideoSegment[];
-  branchTree?: BranchTree;
+  /**
+   * ★★ `null` = **这一版没有分支树**（把互动作品剪成线性），与`undefined`（不带这个键 =
+   *   保留库里那棵旧的）是两件完全不同的事，服务端把 null 翻成 `$unset branchTree`。
+   *   `data/videos.reviseVideo` 因此**恒发**这一格（`sending.branchTree ?? null`）——
+   *   剪辑页的「合并导出」正好产出一份没有 branchTree 的草稿，不发的话观众看到的还是
+   *   旧互动内容，而 revision 涨了、弹幕清了、通知发了，全程零报错。
+   */
+  branchTree?: BranchTree | null;
+  /** ★ 空卡组（`{ name: "", cards: [] }`）= 这一版不带卡组，服务端 `$unset deck`；
+   *  不带这个键 = 保留原作品那套。发布页那颗「随片带上这套卡」关掉时发的就是空卡组。 */
   deck?: VideoDeck;
   baseRevision: number;
 }

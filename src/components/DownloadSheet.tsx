@@ -41,7 +41,6 @@ export default function DownloadSheet({
   // ★ 默认档的分岔：BranchPlayer 的 path 初值是 [rootId]，也就是"还没开始播"。
   //   不做这个分岔的话最常见的一次点击（打开就点保存）会默认只存 1 段，而作品有 9 段。
   const [scope, setScope] = useState<"path" | "all">(() => (branchPath.length <= 1 ? "all" : "path"));
-  const [convert, setConvert] = useState(false);
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
   const [sizes, setSizes] = useState<{ total: number | null; byKey: Record<string, number | null> } | null>(null);
@@ -50,12 +49,12 @@ export default function DownloadSheet({
   // ★ 两档各算一份：单选那两行上印的数字必须是**真的会存下几个文件**（缺 videoUrl 的段
   //   已经被 planDownload 滤掉了），不是树上有几个节点。印错一个数，用户点完只会觉得漏了。
   const resPath = useMemo(
-    () => planDownload(video, partIndex, { scope: "path", branchPath, convert }),
-    [video, partIndex, branchPath, convert],
+    () => planDownload(video, partIndex, { scope: "path", branchPath }),
+    [video, partIndex, branchPath],
   );
   const resAll = useMemo(
-    () => planDownload(video, partIndex, { scope: "all", branchPath, convert }),
-    [video, partIndex, branchPath, convert],
+    () => planDownload(video, partIndex, { scope: "all", branchPath }),
+    [video, partIndex, branchPath],
   );
   const res = scope === "all" ? resAll : resPath;
   const plan = res.ok ? res.plan : null;
@@ -71,10 +70,9 @@ export default function DownloadSheet({
     });
   }, [video.id]);
 
-  // 问一次总量。★ 换档/换格式都要重问；用序号丢弃过期的那一发（不然会把旧数字画上去）。
-  // ⚠ 切到「转成 MP4」之后这一发 HEAD 打的是 f_mp4 派生地址，会**当场触发一次 Cloudinary
-  //   变换**（算配额、首次有生成延迟）。留着它是有意的：用户已经明确点了那颗键，而这一发
-  //   顺带把派生产物烘热，随后真正下载就不用再等一次转码。
+  // 问一次总量。★ 换档要重问；用序号丢弃过期的那一发（不然会把旧数字画上去）。
+  // ★ 打的一律是**原地址**（本模块不生成任何派生地址，见 data/videoDownload 的 ⛔⛔），
+  //   所以这一发不花任何配额，只是一次 HEAD。
   const probeSeq = useRef(0);
   useEffect(() => {
     if (targets.length === 0) return;
@@ -156,23 +154,18 @@ export default function DownloadSheet({
 
           {/* ★★ webm 那条必须说在前面：线上相当一部分成片是剪辑页 MediaRecorder 导出的
               vp9 webm，安卓相册/播放器对它支持很差 —— 用户存完打不开只会以为"下载坏了"。 */}
-          {plan.hasWebm && !convert && (
+          {plan.hasWebm && (
             <p className="mt-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-200">
               这条是 webm 格式，部分相册应用打不开；保存时选文件管理器更稳。
-            </p>
-          )}
-          {convert && (
-            <p className="mt-1.5 rounded-lg border border-slate-600/60 bg-black/25 px-2.5 py-1.5 text-[11px] leading-relaxed text-slate-400">
-              会让服务器现转一份 H.264 的 MP4 再下（画质略降、体积小很多）。原作品一个字都不动。
             </p>
           )}
 
           {/* 行 */}
           <div className="mt-3 space-y-1.5">
             {targets.map((t) => {
-              // ★ 必须**连文件名一起比**，不能只比 key：切到「转成 MP4」之后同一个 key 指的是
-              //   另一个文件（扩展名不同），只比 key 会把上一轮 webm 的「✓ 已存」画在一个
-              //   根本没下过的 mp4 行上 —— 用户会以为已经存好了。
+              // ★ **连文件名一起比**，不只比 key：同一个 key 在换档（只存走向 / 存全部分支）
+              //   之后仍是同一个 key，但指的可能是另一个文件。只比 key 会把上一轮的
+              //   「✓ 已存」画在一个根本没下过的行上 —— 用户会以为已经存好了。
               const row = rows.find((r) => r.key === t.key && r.fileName === t.fileName) ?? null;
               const known = sizes?.byKey[t.key];
               return (
@@ -242,18 +235,11 @@ export default function DownloadSheet({
             <p className="mt-1 text-[11px] text-slate-500">{sizes ? "大小未知" : "正在问总大小…"}</p>
           )}
 
-          {/* 第二个动作：转成 MP4 再存。只有原地址是 Cloudinary 且不是 mp4 时才有意义 */}
-          {plan.canConvert && !running && (
-            <button
-              onClick={() => {
-                setConvert((v) => !v);
-                setErr("");
-              }}
-              className="mt-2 w-full rounded-xl border border-slate-700 py-2.5 text-sm text-slate-200 active:scale-[0.99]"
-            >
-              {convert ? "改回原始格式保存" : "转成 MP4 再存（画质略降）"}
-            </button>
-          )}
+          {/* ⛔ 这里曾有一颗「转成 MP4 再存」（Cloudinary `f_mp4` 派生地址），2026-09-07 评审当天
+              撤掉：切一次开关就对每一段打一发 HEAD 到派生地址、当场触发一次计费的转码
+              （9 段的分支作品 = 一次点击 9 次转码，而用户还没决定要不要下载），
+              而规格 §9.4 本来就写着"不生成任何 Cloudinary 派生地址"。
+              要加回来先拍板配额，记在 docs/backlog.md。 */}
 
           {doneRows.length > 1 && !running && (
             <>

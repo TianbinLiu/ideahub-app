@@ -279,10 +279,10 @@ BranchAssetView  { kind, key, viewer, expiresAt }                        唯一 
 | POST | `/api/branch/videos` | required | 发布。body=DraftVideo（title/category/description/**tags**/cover/segments/branchTree/**deck**/**visibility**/**linkOnly**/**clientId**）。**服务端负责把 body 里的外链资源转存**（见下）。带 `clientId` 时按 `{author, clientId}` 幂等：重发返回首次那条、状态码 200（首发是 201） |
 | GET | `/api/branch/videos/:id` | optional | 详情（含 comments 前 50 条）。非作者访问 private 作品返回 **404**（不是 403） |
 | PATCH | `/api/branch/videos/:id` | required | **两件事共用一条路，判据是带没带内容字段**。①**改壳**：body `{ title?, category?, description?, tags?, visibility?, linkOnly?, cover? }`，**至少给一个字段**（空对象 400），行为与从前一字不变。②**回炉重做**（换内容）：body 里带 `segments` / `branchTree` / `deck` **任意一个** + **必填** `baseRevision`。限流 6/分钟（scope `branch:revise`）。详见下面「回炉重做」 |
-| PUT | `/api/branch/projects/by-video/:videoId` | required | 留存这条作品的工坊工程。body `{ title?, videoRevision, lostCount?, canvas }`（**不收 bytes / owner**，传了被 strip）。限流 12/分钟（scope `branch:project`）。→ `{ ok, project }` |
-| GET | `/api/branch/projects/by-video/:videoId` | required | 取回工程（仅作者）。→ `{ ok, project: { video, title, canvas, videoRevision, lostCount, updatedAt } }`；没有 → 404 `PROJECT_NOT_FOUND`「这条作品没有留存工坊工程。」 |
+| PUT | `/api/branch/projects/by-video/:videoId` | required | 留存这条作品的工坊工程。body `{ title?, videoRevision, lostCount?, canvas }`（**不收 bytes / owner**，传了被 strip）。★★ `videoRevision` **必须等于作品当下的 `revision`**，对不上 400 `PROJECT_REVISION_MISMATCH`（带 `details.currentRevision`）—— 这一格**只能靠这条路往前走**（回炉那边只标 `stale`），它是「陈旧画布」那一档唯一的检出信号。限流 12/分钟（scope `branch:project`）。→ `{ ok, project }` |
+| GET | `/api/branch/projects/by-video/:videoId` | required | 取回工程（仅作者）。→ `{ ok, project: { video, title, canvas, videoRevision, stale, lostCount, updatedAt } }`；没有 → 404 `PROJECT_NOT_FOUND`「这条作品没有留存工坊工程。」。★★ 客户端**必须**拿 `videoRevision` 与作品当下的 `revision` 比，对不上就**不许铺进工坊**（`data/projects.loadProject` 一处）—— 一份描述上一版的画布配上现读的 `baseRevision` 会被服务端正常接受，把线上内容**静默退回**。`stale` 是同一件事的提示位（判否定：老服务端不发 = 不过期） |
 | DELETE | `/api/branch/projects/by-video/:videoId` | required | 作者主动放弃留存 → `{ ok: true }`。**作品本身不受影响** |
-| GET | `/api/branch/projects` | required | 我留存过的工程列表（最多 200 条，按 updatedAt 降序）→ `{ ok, items: [{ video, title, bytes, videoRevision, lostCount, updatedAt }] }`。⛔ **不含 canvas** |
+| GET | `/api/branch/projects` | required | 我留存过的工程列表（最多 200 条，按 updatedAt 降序）→ `{ ok, items: [{ video, title, bytes, videoRevision, stale, lostCount, updatedAt }] }`。⛔ **不含 canvas** |
 | DELETE | `/api/branch/videos/:id` | required | 仅作者可删 |
 | POST | `/api/branch/videos/:id/play` | optional | 播放计数 +1，返回 `{ ok, plays }` |
 | POST | `/api/branch/videos/:id/like` | required | 点赞，返回 `{ ok, likes, liked: true }` |
@@ -346,6 +346,24 @@ App 的「保存到本地」直接向 Cloudinary 的**原地址**取字节（与
 **判据**：`PATCH` body 里带了 `segments` / `branchTree` / `deck` **任意一个** = 回炉；
 一个都没带 = 改壳（行为一字不变）。回炉时 `baseRevision` **必填**。
 
+★★ **`branchTree: null` = 「这一版没有分支树」**，与「不带 `branchTree` 这个键」
+（= 保留库里那棵旧的）是两件完全不同的事，服务端把 `null` 翻成 `$unset`。
+剪辑页的「合并导出」正是把互动作品改成 `{segments:[merged], branchTree: undefined}` ——
+少了这一档，作者把互动作品剪成线性再点「替换原作品」，segments 换了、revision 涨了、
+弹幕清了、通知发了，而播放端是 `part.branchTree ? <BranchPlayer/> : <SegmentPlayer/>`，
+**观众看到的还是旧的互动内容**，全程零报错。
+⇒ `data/videos.reviseVideo` 在回炉体里**恒发**这一格（`sending.branchTree ?? null`）。
+
+★ 同一形状的第二处：**`deck: { name: "", cards: [] }` = 「这一版不带卡组」**
+（发布页那颗「随片带上这套卡」在回炉态关掉时发的就是它），服务端翻成 `$unset deck`；
+**不发**这一格 = 保留原作品那套。⚠ `deck: undefined` 在序列化时整个键会消失，
+等于"不发" —— 那正是这颗开关此前静默无效的原因。
+
+★★ **并发 ≠ 陈旧**，两件事各有一道闸：`BranchVideo.revision` 挡并发（两台设备同时提交 → 409）；
+`BranchProject.videoRevision` 挡陈旧（画布是第 1 版、线上已经是第 2 版）。
+客户端提交时报的 `baseRevision` 必须取自**画布自己的 `videoRevision`**，
+不是现读作品的 `revision` —— 后者永远"新鲜"，那道 409 就永远不会响。
+
 内容字段与发布路径**逐字复用同一份 schema**（`segments` 至少 1 段、至多 60），
 所以它同样**接受 dataURL / 方舟链接**，服务端 `transferAssetsFor` 会转存
 （`/api/branch` 授权后请求体上限 50MB）。⚠ 但客户端仍然要先走 `materializeDraft` 把
@@ -375,7 +393,12 @@ App 的「保存到本地」直接向 Cloudinary 的**原地址**取字节（与
 回炉成功后服务端还做四件事：① 资产**差量**回收（旧有新无、归属是你的、且没有别的作品在用的
 才 destroy）；② 带了 `segments` 或 `branchTree` 时**清空该作品的全部弹幕**（`BranchDanmaku.at`
 是全片累计秒、没有段落锚点，内容一换必然错位且零报错。只带 `deck` 不清）；③ 给收藏者发
-`BRANCH_REVISED`；④ `BranchProject.videoRevision` 对齐成新的 revision（画布正文仍由客户端随后 PUT 覆盖）。
+`BRANCH_REVISED`；④ 把这份工程标成 **`stale: true`**。
+⛔⛔ ④ **不是**「把 `BranchProject.videoRevision` 对齐成新的 revision」（2026-09-07 评审推翻的
+旧行为）：画布正文此刻还是上一版的，要等客户端随后 PUT 才换，而那一发 PUT 是即发即忘的
+（`void projects.retainAfterRevise(...)`，断网 / `PROJECT_QUOTA` / 待办缺失任一档都会让它不发生）。
+盖章之后库里留下「canvas=第 1 版正文、videoRevision=2」这种自相矛盾的行，之后谁也看不出它陈旧了 ——
+客户端拿它和作品 revision 一比正好对上，就着旧画布提交，线上内容被静默退回上一版，全程 200 零报错。
 ⚠ **客户端必须在回炉确认卡上提前报出会删掉多少条弹幕**，而不是事后 —— 事后说等于没说。
 
 #### 「新 App × 老服务端」这一档只有一个检出手段

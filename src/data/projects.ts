@@ -87,7 +87,8 @@ interface PendingCanvas {
 let metas: api.ApiProjectMeta[] = [];
 /** null = 还没问过；true/false = 这台服务器支不支持工程端点。
  *  ★ 三态是必须的：「还没问」「不支持」「支持但这条没有」在编辑页是三句**不同的话** */
-let supported: boolean | null = null;
+/** 三档之外还有第四档，见 `ProjectsSupport` */
+let supported: ProjectsSupport = null;
 let pending: PendingCanvas | null = null;
 let pendingLoaded = false;
 let version = 0;
@@ -115,7 +116,16 @@ let readyOnce: Promise<void> | null = null;
  * ★ **不挂在 App 的启动路径上**：这些端点是 requireAuth 的，而启动那一拍登录态还没结论，
  *   多打一发 401 只会让 `auth:expired` 误触。编辑页挂载时问一次就够了（那正是唯一要用它
  *   的地方），代价是第一次进编辑页那颗键有一拍是"正在确认"。
- * ★ 失败**不抛**：编辑页据 `projectsSupported()` 的三态说话，异常在这里就地记录。
+ * ★ 失败**不抛**：编辑页据 `projectsSupported()` 的四态说话，异常在这里就地记录。
+ *
+ * ★★ 「网络抖了一下」与「这台服务器没有这个端点」**必须分开**（2026-09-07 评审补）：
+ *   压成同一档 `false` 之后，第一次进编辑页撞上一次超时/DNS 失败，整个会话里所有作品的
+ *   「🛠 回炉重做」都灰着并写「这台服务器还不支持回炉重做」—— 一句与事实不符、且**没有
+ *   任何重试出路**的话（说一句错的原因比不给原因更坏）。而 `readyOnce` 是永久 memo，
+ *   失败的那个 Promise 会被缓存一辈子。
+ *   ⇒ 只有「回包形状认不出来」（老服务端）与 404/501（没这个路由）算 `false`；
+ *     其余（断网、401、5xx、超时）落 `"error"` 档，并且**把 readyOnce 置回 null**
+ *     让下一次调用真的重问。
  */
 export function readyProjects(): Promise<void> {
   readyOnce ??= (async () => {
@@ -132,17 +142,38 @@ export function readyProjects(): Promise<void> {
         metas = items;
       }
     } catch (e) {
-      supported = false;
-      console.warn("[projects] 工程列表没拉到:", e instanceof Error ? e.message : e);
+      // 404 / 501 = 这台服务器真的没有这条路由；其余一律是"没问出来"，不是"不支持"
+      const status = e instanceof ApiError ? e.status : 0;
+      if (status === 404 || status === 501) {
+        supported = false;
+      } else {
+        supported = "error";
+        // ★★ 失败的 Promise **不许**永久缓存：不置回 null 的话这个会话里再也问不了第二次
+        readyOnce = null;
+      }
+      console.warn("[projects] 工程列表没拉到:", status, e instanceof Error ? e.message : e);
     }
     emit();
   })();
   return readyOnce;
 }
 
-/** 三态：null = 还没问出结果；false = 这台服务器不支持；true = 支持 */
-export function projectsSupported(): boolean | null {
+/** 「这台服务器支不支持工坊工程」的四档答案。★ 四档各有各的话要说（见 readyProjects 的 ★★）：
+ *  null = 还没问出结果；`"error"` = 问了但没问到（网络原因，**可以重试**）；
+ *  false = 这台服务器确实没有这个端点；true = 支持。 */
+export type ProjectsSupport = boolean | "error" | null;
+
+export function projectsSupported(): ProjectsSupport {
   return supported;
+}
+
+/** 「重新问一次服务器」（编辑页那颗重试键）。★ 只有 `"error"` 档摆得出来 */
+export function retryReadyProjects(): Promise<void> {
+  if (supported === "error") {
+    supported = null;
+    emit();
+  }
+  return readyProjects();
 }
 
 /** 这条作品有没有留存工程（读 meta 缓存，同步） */
@@ -214,11 +245,27 @@ export async function captureCanvas(input: {
   }
 }
 
-/** 给待办盖上发布幂等键：`flushPending` 补发时靠它认出"这份画布是那条作品的" */
+/**
+ * 给待办盖上发布幂等键：`flushPending` 补发时靠它认出"这份画布是那条作品的"。
+ *
+ * ★★ **只盖没盖过章的那一份**（2026-09-07 评审补）。原来是无条件覆盖，而
+ *   `captureCanvas` 对空画布是**静默 return null**（不清、也不覆盖旧待办）——
+ *   两条凑一起就能把上一条作品残留的待办认成这一条的：盖上 clientId 之后 `pendingFor`
+ *   返回真，`retain` 会拿**上一条片**的画布去和这一条的回包配对，配不出映射 ⇒ 整份被
+ *   墓碑化 ⇒ 然后"成功"PUT 上去。用户之后回炉打开的是另一条片的结构（一堆空框），
+ *   而屏幕上一个字都没说错。
+ *   ⇒ 判据：待办身上已经有 clientId（上一次发布盖的）或 reviseOf（那是回炉那摊活的身份）
+ *     就**不盖**。此时这一条作品确实没有本机画布，`retain` 会走"待办缺失"那句实话，
+ *     而上一条那份待办仍留着供它自己的「重试留存」用 —— 两边都不说谎。
+ */
 export async function stampPendingCanvas(clientId: string | undefined): Promise<void> {
   if (!clientId) return;
   const p = await readPending();
   if (!p || p.clientId === clientId) return;
+  if (p.clientId || p.reviseOf) {
+    console.warn("[projects] 待办已属于另一摊活，不盖章", { has: p.clientId ?? "revise", want: clientId });
+    return;
+  }
   await writePending({ ...p, clientId });
 }
 
@@ -316,6 +363,11 @@ function markLost(before: unknown, after: unknown): number {
       flags.last = true;
       lost++;
     }
+    // ★★ 成片丢失与预览图丢失是**两笔账**（2026-09-07 评审补）：预览图重新推演就能补回来，
+    //   而一段付过钱的成片没留下只能**重新出片、再花一次钱**。计数还是合一份（服务端的
+    //   `lostCount` 只有一格），但**说话时必须分开**——把"要再花一次钱"的那一档说成
+    //   "重新推演可以补回来"，是本仓最不该犯的那种错。分档判据在 `Proposal.lost.video`，
+    //   横幅与方案卡各按它挑话（ReviseBar / PlanBoard）。
     if (gone("videoUrl")) {
       flags.video = true;
       lost++;
@@ -369,6 +421,20 @@ function assertClean(canvas: unknown, videoId: string): void {
   // ★ **不打整份画布**：它有几十到几百 KB，日志里刷一屏没人读得完
   console.warn("[projects] 断言不过", { videoId, sample: text.slice(Math.max(0, m.index - 20), m.index + 60) });
   throw new Error("画布里还有本机地址，换台设备取回来会是空的");
+}
+
+/**
+ * 「留存的那份画布描述的是别的版次」——**不是网络问题**。
+ *
+ * ★ 单独一个类型是为了让调用方分得开：这一档重试与换网络都没用（再试一万次还是同一句话），
+ *   摆一颗永远不会成的重试键比不摆更坏。出路只有两条：本机还留着那一版的待办就点
+ *   「重新留存这一版」，否则只能重新发一条。
+ */
+export class StaleProjectError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StaleProjectError";
+  }
 }
 
 function msg(e: unknown): string {
@@ -430,7 +496,9 @@ async function retain(
     const lost = await submit(videoId, before, after, revision, pend);
     job.done({
       msg: lost
-        ? `工程已留存（有 ${lost} 处预览图没能留下，回炉时会标出来）`
+        // ★ 说「素材」不说「预览图」：这个数里混着成片（见 markLost 的 ★★），
+        //   而成片丢了要重新出片、要再花一次钱 —— 不能拿"预览图"把它盖过去
+        ? `工程已留存（有 ${lost} 处素材没能留下，回炉时会逐格标出来）`
         : "工程已留存，之后可在编辑页回炉重做",
       route: `/video/${videoId}`,
     });
@@ -530,16 +598,52 @@ async function writeCache(videoId: string, canvas: CanvasSnapshot, lostCount: nu
  *
  * ★ 失败**原样抛**：404 `PROJECT_NOT_FOUND` 与"网络不通"是两句完全不同的话，
  *   调用方按 `ApiError.code` 分档（编辑页那条灰键 vs 整页取回态的 rose 正文）。
- * ★ 缓存里那份的 `videoRevision` **不当权威**：真正的并发支点是作品自己的 `revision`
- *   （data/videos 那边搬过来的那一格），提交时报的是它。这里回的这个只用来对账/显示。
+ *
+ * ★★★ `expectedRevision` 是**硬闸**，不是对账用的显示值（2026-09-07 评审推翻的旧注释：
+ *   那里写着「缓存里那份的 videoRevision 不当权威」——完全说反了，它是唯一说得出
+ *   "这份画布画的是哪一版"的那一格）。
+ *
+ *   并发与陈旧是两件事，各要一道闸：
+ *     · 作品的 `revision` 挡**并发**（两台设备同时提交，第二发 409）；
+ *     · 画布的 `videoRevision` 挡**陈旧**（画布是第 1 版、线上已经是第 2 版）。
+ *   只有前者时，一份陈旧画布配上现读的 `baseRevision` 会被服务端**正常接受**：
+ *   200、revision 照涨、客户端那道 `revision === base + 1` 的门恰好判它成功，
+ *   而线上内容被**静默退回上一版**，作者上一轮的改动全丢、全程零报错。
+ *
+ *   两条都很常见的可达路径：
+ *     ① 单设备：回炉成功（rev 0→1）但 `retainAfterRevise` 那发 PUT 失败（断网 / PROJECT_QUOTA /
+ *        待办缺失）——`put()` 只在 PUT 成功之后才 writeCache，于是本地缓存与服务端画布**都**
+ *        停在 rev 0；再点一次回炉就是一次退回。
+ *     ② 双设备：B 机点过一次回炉（GET 写了 rev 0 的缓存）后退出；A 机回炉成功（线上 rev 1）；
+ *        B 机再点回炉，缓存命中拿到 rev 0 的画布，而 baseRevision 从 feed 现读是 1。
+ *
+ *   ⇒ 这里两道都判：缓存命中要 `videoRevision === expectedRevision` 才用（否则当没命中），
+ *     GET 回来的也要对得上，对不上**整句拒**、不铺进工坊。
+ * ★ 调用方拿到的 `videoRevision` 就是提交时该报的 `baseRevision`（**用画布自己那一格**，
+ *   不是现读作品的 revision —— 后者永远"新鲜"，那道 409 就永远不会响）。
  */
-export async function loadProject(videoId: string): Promise<CachedProject> {
+export async function loadProject(videoId: string, expectedRevision: number): Promise<CachedProject> {
+  const want = Number(expectedRevision) || 0;
   const hit = await idbGet<CachedProject>(cacheKey(videoId));
-  if (hit?.canvas?.flow?.nodes) return hit;
+  if (hit?.canvas?.flow?.nodes) {
+    if (hit.videoRevision === want) return hit;
+    // 缓存里那份描述的是别的版次：当没命中，去问服务端要最新那份
+    console.warn("[projects] 本地缓存的画布版次对不上，改走网络", { videoId, cached: hit.videoRevision, want });
+  }
   const p = await api.getProject(videoId);
   if (!p) throw new Error("这台服务器还不支持回炉重做（没有工坊工程这个端点）");
   const canvas = p.canvas as CanvasSnapshot;
   if (!canvas?.flow?.nodes?.length) throw new Error("取回的工程是空的，铺不进工坊");
+  if (p.videoRevision !== want) {
+    // ★ 整句人话 + 说得出出路（铁律八）。这一档**不是**网络问题，所以"再试一次"没用，
+    //   要么这台设备上还有那份没交上去的画布（编辑页那颗「重新留存这一版」），
+    //   要么这一版的工程根本没留存成功，只能重新发一条。
+    console.warn("[projects] 服务端那份画布也对不上版次", { videoId, got: p.videoRevision, want, stale: p.stale });
+    throw new StaleProjectError(
+      `留存的这份工程描述的是第 ${p.videoRevision + 1} 版，而这条作品已经是第 ${want + 1} 版了` +
+        `——最新那一版的工程没有留存上来，取不到。`,
+    );
+  }
   const out: CachedProject = { canvas, lostCount: p.lostCount, videoRevision: p.videoRevision };
   await writeCache(videoId, canvas, p.lostCount, p.videoRevision);
   return out;
