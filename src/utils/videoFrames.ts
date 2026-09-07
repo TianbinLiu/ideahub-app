@@ -40,6 +40,56 @@ export async function loadVideoAt(url: string, atSec: number, opts?: { crossOrig
   return v;
 }
 
+/**
+ * 一段视频的**真实时长**（秒）；读不出来回 `null`（调用方自己决定退到什么，别把 null 当 0 用）。
+ *
+ * ★★ 为什么需要它：`MediaRecorder` 录出来的 WebM **没有 Duration 元素** —— `loadedmetadata` 那一拍
+ *   `video.duration` 是 `Infinity`（2026-09-06 本机实测），要 seek 到一个极大的时刻，逼浏览器把整条流
+ *   扫完，才读得出真值。而剪辑页合并成片走的正是这条路，「这条片子有多长」又是播放器 / 封面截帧 /
+ *   进度条**唯一**的依据（文件自己答不上来）。
+ * ★★ 不要拿「录了多久」的墙钟去代替它：机器忙的时候 `captureStream` 会掉帧，编码出来的时间轴比墙钟
+ *   短一截 —— 本机实测同一次合并墙钟 4.87s、文件真身 3.86s，差 26%。**时长要量，不要算。**
+ * ★ 带超时（窗口在后台时浏览器不解码，见本文件头那条）；读完就把 src 摘掉释放解码器。
+ */
+export async function realDurationOf(url: string): Promise<number | null> {
+  const v = document.createElement("video");
+  v.muted = true;
+  v.preload = "metadata";
+  v.src = url;
+  try {
+    await new Promise<void>((res, rej) => {
+      v.onloadedmetadata = () => res();
+      v.onerror = () => rej(new Error("读不出来"));
+      window.setTimeout(() => rej(new Error("超时")), 15_000);
+    });
+    if (Number.isFinite(v.duration) && v.duration > 0) return v.duration;
+    // 没有 Duration 元素：seek 到一个到不了的时刻，浏览器扫完整条流之后会把真值填回 duration
+    return await new Promise<number | null>((res) => {
+      const done = () => res(Number.isFinite(v.duration) && v.duration > 0 ? v.duration : null);
+      v.ontimeupdate = () => {
+        if (Number.isFinite(v.duration)) {
+          v.ontimeupdate = null;
+          done();
+        }
+      };
+      v.onseeked = () => {
+        if (Number.isFinite(v.duration)) done();
+      };
+      try {
+        v.currentTime = 1e101;
+      } catch {
+        done();
+      }
+      window.setTimeout(done, 10_000);
+    });
+  } catch {
+    return null;
+  } finally {
+    v.removeAttribute("src");
+    v.load();
+  }
+}
+
 export async function captureVideoFrame(
   url: string,
   atSec: number,
