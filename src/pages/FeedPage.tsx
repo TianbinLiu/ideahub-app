@@ -42,7 +42,7 @@ import Icon, { type IconName } from "../components/Icon";
 import CharacterPerch, { usePerchBurst, type PerchPose } from "../components/CharacterPerch";
 import { remakeNodesOf, remakeableOf, useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
-import { VideoAspect, VideoItem, aspectFromSize, aspectOf, formatDuration } from "../types";
+import { VideoAspect, VideoItem, aspectFromSize, aspectOf, formatDuration, segsTotal } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 
 /**
@@ -303,8 +303,9 @@ function FeedItem({
   const [si, setSi] = useState(0);
   const seg = video.segments[Math.min(si, video.segments.length - 1)];
   const multiSeg = video.segments.length > 1;
-  const durTotal = video.segments.reduce((s, x) => s + x.durationSec, 0);
-  const durBefore = video.segments.slice(0, si).reduce((s, x) => s + x.durationSec, 0);
+  // 进度条也按实测时长（types.segsTotal 一处实现）：申报值短于成片时，进度条会在片子还没放完时就走到头
+  const durTotal = segsTotal(video.segments);
+  const durBefore = segsTotal(video.segments.slice(0, si));
   const pendingSeek = useRef<number | null>(null);
   const isInteractive = !!video.branchTree;
   const mine = isMyAuthor(video.author);

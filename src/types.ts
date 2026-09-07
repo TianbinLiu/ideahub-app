@@ -712,6 +712,27 @@ export interface VideoSegment {
   aspect?: VideoAspect;
 }
 
+/**
+ * 「这一段成片**该按多长**播 / 铺 / 截」——实测时长优先，没实测过才按申报值。**唯一实现**（2026-09-06 收口）。
+ *
+ * ★★ 为什么必须收口（主人真机实拍）：`durationSec` 是"下单时说要几秒"，而成片的真实长度由生成侧决定 ——
+ *   白模复刻跟着模板走、合并成片跟着录制走，两者都可能比申报值长一大截。收口之前有 **7 处**各自
+ *   `sum(x.durationSec)`，其中就有**播放器**（SegmentPlayer）与**封面截帧**（CoverPicker）：
+ *   一条真实 33 秒的合并成片被按申报的 21 秒播 —— 播到 21 秒就 setPlaying(false) 停住，
+ *   封面滑杆的最大值也是 21，于是**后 12 秒在整个 app 里没有任何入口能看到**，而屏幕上一个字都不说。
+ * ★ 报价**不走这条**：`economy.segmentCost` / `flowStore.nodeCost` 仍按申报值算（那是下单的价，
+ *   见 economy 里那段「报价仍按申报值」）—— 这里管的是"已经拿到手的东西有多长"。
+ * ★ 收 Pick 而不是收整个 VideoSegment：Proposal 也有这两位（同义字段），两边共用同一把尺。
+ */
+export function segLen(sg: Pick<VideoSegment, "durationSec" | "realDurationSec">): number {
+  return sg.realDurationSec ?? sg.durationSec;
+}
+
+/** 一串段的总时长（口径同 segLen）。播放器 / 封面截帧 / 首页进度条 / 列表角标都读它 */
+export function segsTotal(segs: ReadonlyArray<Pick<VideoSegment, "durationSec" | "realDurationSec">>): number {
+  return segs.reduce((s, x) => s + segLen(x), 0);
+}
+
 /** 互动分支树节点：一段视频 + 段尾选项（空数组 = 结局） */
 export interface BranchNodeData {
   id: string;

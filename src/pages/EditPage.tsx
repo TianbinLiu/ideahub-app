@@ -17,7 +17,7 @@ import VisibilityPicker from "../components/VisibilityPicker";
 import { deleteVideoItem, getVideo, isMyAuthor, partsOf, updateVideoMeta } from "../data/videos";
 import { coverToPermanentUrl } from "../data/publishAssets";
 import { useVideosVersion } from "../hooks/useVideos";
-import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, visibilityOf, visibilityWire } from "../types";
+import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, segsTotal, visibilityOf, visibilityWire } from "../types";
 
 export default function EditPage() {
   const { id } = useParams<{ id: string }>();
@@ -172,7 +172,7 @@ export default function EditPage() {
     }
   }
 
-  const totalOf = (i: number) => parts[i].segments.reduce((s, x) => s + x.durationSec, 0);
+  const totalOf = (i: number) => segsTotal(parts[i].segments);
 
   return (
     <div className="min-h-full">

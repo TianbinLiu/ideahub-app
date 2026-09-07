@@ -20,7 +20,7 @@ import { canAfford, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
 import { annRedrawCost, fmtTokens, segTokens } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
-import { VideoSegment, aspectOf, formatDuration, uid } from "../types";
+import { VideoSegment, aspectOf, formatDuration, segLen, uid } from "../types";
 import { resolveMediaUrl, useMediaUrl } from "../utils/mediaUrl";
 import { loadVideoAt } from "../utils/videoFrames";
 
@@ -60,9 +60,20 @@ function clipDur(c: Clip): number {
   return Math.max(0.1, c.end - c.start);
 }
 
-/** 一段该铺多长：**实测**时长优先（见 types.Proposal.realDurationSec），没有才按申报值 */
-function segLen(sg: VideoSegment): number {
-  return sg.realDurationSec ?? sg.durationSec;
+/**
+ * 成片第一帧（发布页拿它当封面候选与缩略图；只在本机显示，发布时 data/videos.stripPosters 会剥掉）。
+ * ★★ 白模复刻段**天然没有设定帧**（firstFrame / lastFrame 恒空，见 segmentGen 的 blockoutIssue），
+ *   所以合并之后如果不留这一张，发布页那一行「各段画面」只剩一个 `<img src="">` 的碎图（2026-09-06 主人真机）。
+ * ★ 缩到长边 720 再转 JPEG：画布是 1080×1920 级的，原样 toDataURL 出来的 base64 能有几百 KB，
+ *   而草稿正文本来就带着 1MB 级的帧、库里只放得下 20 条。
+ */
+function posterFromCanvas(canvas: HTMLCanvasElement): string {
+  const scale = Math.min(1, 720 / Math.max(canvas.width, canvas.height));
+  const c = document.createElement("canvas");
+  c.width = Math.max(2, Math.round(canvas.width * scale));
+  c.height = Math.max(2, Math.round(canvas.height * scale));
+  c.getContext("2d")!.drawImage(canvas, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.85);
 }
 
 export default function CutPage() {
@@ -703,6 +714,36 @@ export default function CutPage() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       drawAigcBadge(ctx, canvas.width, canvas.height);
       rec.start(250);
+      // ★★★ 开录之后**立刻暂停**（2026-09-06 主人真机：22 秒的成片前 12 秒全黑，后 12 秒还看不到）。
+      //   机理：`rec.start()` 之后、第一帧真实画面之前，这条路上还排着 `resolveMediaUrl`
+      //   （**把整条成片 fetch 成 blob**，120 秒超时 + 重试一次）、`<video>` 的 load/canplaythrough、
+      //   以及 seek —— 手机网上就是**十几秒**。而 `canvas.captureStream(30)` 在这期间照样每秒吐 30 帧
+      //   静止画布，于是那十几秒被原样录成了黑头；紧接着申报时长又比真实录制短一大截（见下面 recordedSec 的 ★★），
+      //   播放器播到申报值就停 —— 用户看到的就是「前面全黑、后面没了」。全程零报错。
+      //   实测（本机 2026-09-06）：pause 期间的空档确实不进成片（录 2.77s / 墙上 4.92s），
+      //   resume 之后画面连续，第一帧亮度 160（不是黑的）。
+      rec.pause();
+      /** 真正录进成片的毫秒数：只累计 recording 那几段（实测与文件真实时长差 <0.05s） */
+      let recordedMs = 0;
+      /** 本次 resume 的起点（performance.now） */
+      let recFrom = 0;
+      /** 成片第一帧：第一次真有画面那一拍从画布上留一张（见 posterFromCanvas 的 ★★） */
+      let poster = "";
+      /** 这一段准备好了、第一帧真内容已经画在画布上 —— 从这里开始才录 */
+      const beginRecording = () => {
+        if (!poster) poster = posterFromCanvas(canvas);
+        if (rec.state === "paused") {
+          rec.resume();
+          recFrom = performance.now();
+        }
+      };
+      /** 这一段画完了，下一段还要取流/解码/定位 —— 那段空档不录 */
+      const pauseForPrep = () => {
+        if (rec.state === "recording") {
+          recordedMs += performance.now() - recFrom;
+          rec.pause();
+        }
+      };
       for (let i = 0; i < view.length; i++) {
         // ★★ 取消要在**每一段开头**也判（2026-08-30 复核抓到）：rAF 里那两处只结束
         //   「当前这一段」，不 break 的话剩下每段照样 setBusy(`合并中 · 片段 i/N`)
@@ -747,6 +788,11 @@ export default function CutPage() {
             window.setTimeout(() => reject(new Error(`片段 ${i + 1} 定位超时（切到后台时视频会停止解码，回到这一页再试）`)), 30_000);
           });
           await v.play();
+          // ★★ 这三行的**顺序**就是"黑头存不存在"的分界线：先把第一帧真内容画上（连同 AIGC 角标），
+          //   再恢复录制。反过来的话，resume 与第一次 drawCover 之间那几十毫秒又是黑帧。
+          drawCover(ctx, v, canvas.width, canvas.height);
+          drawAigcBadge(ctx, canvas.width, canvas.height);
+          beginRecording();
           await new Promise<void>((resolve) => {
             const draw = () => {
               // ★ 取消要在**循环里**判：rAF 跑着的时候没有别的地方能打断它
@@ -764,6 +810,10 @@ export default function CutPage() {
           });
         } else {
           const [a, b] = await Promise.all([loadImg(seg.firstFrame), loadImg(seg.lastFrame)]);
+          // 同上：loadImg 也走网络（跨境几秒），先把第一帧画上再恢复录制
+          drawCover(ctx, a, canvas.width, canvas.height);
+          drawAigcBadge(ctx, canvas.width, canvas.height);
+          beginRecording();
           const t0 = performance.now();
           const dur = clipDur(clip) * 1000;
           await new Promise<void>((resolve) => {
@@ -788,7 +838,13 @@ export default function CutPage() {
             draw();
           });
         }
+        // 下一段还要取流/解码/定位（秒级空档），先停表。
+        // ★ **最后一段不暂停**：实测从 paused 调 stop() 会丢掉最后一小截（一个 timeslice 量级），
+        //   而这条路的产物直接进发布页、本页没有撤销 —— 宁可多录半帧也不能少录半秒。
+        if (i < view.length - 1) pauseForPrep();
       }
+      // 收尾时仍在 recording（见上一行 ★）：把最后一段的时长补进去
+      if (rec.state === "recording") recordedMs += performance.now() - recFrom;
       rec.stop();
       await stopped;
       // ★ 取消：录到一半的这段不写库、不跳页。用户要的是"别录了"，不是"录个半截给我"
@@ -809,12 +865,27 @@ export default function CutPage() {
       const orderedPlots = [...new Set(view.map((c) => segs[c.segIndex].plot))];
       const first = segs[view[0].segIndex];
       const last = segs[view[view.length - 1].segIndex];
+      /**
+       * 成片的**真实**长度 = 录制机真正在录的那几段时间之和。
+       * ★★ 为什么不能再写申报值 `total`（2026-09-06 主人真机）：MediaRecorder 出来的 WebM
+       *   **没有 Duration 元素**（本机实测：loadedmetadata 时 `video.duration === Infinity`，
+       *   要 seek 到 1e101 才逼得浏览器扫出真值），所以**没有任何消费者能从文件本身问出时长** ——
+       *   播放器、封面截帧、首页进度条读的全是我们申报的这个数。申报短了，后面那截就永远播不到。
+       * ★ `durationSec` 取整后写的是**真值**：服务端 `segmentBody` 是 z.object，`realDurationSec`
+       *   没在它的声明里 —— 发布时会被**静默 strip 掉**（CLAUDE.md 那格坑）。所以能过河的只有
+       *   durationSec 这一位，它必须自己就是对的；realDurationSec 只是本机的小数精度。
+       * ★ 录太短（<0.5s）说明这一炉根本没录上，退回申报值别写一个荒唐的数。
+       */
+      const recordedSec = recordedMs > 500 ? recordedMs / 1000 : total;
       const merged: VideoSegment = {
         title: "成片",
         plot: orderedPlots.join("\n"),
         firstFrame: first.firstFrame,
         lastFrame: last.lastFrame,
-        durationSec: Math.round(total),
+        // 成片第一帧：白模段没有设定帧，全靠它（发布页封面候选、剪辑页缩略图都读 poster || firstFrame）
+        ...(poster ? { poster } : {}),
+        durationSec: Math.max(1, Math.round(recordedSec)),
+        realDurationSec: recordedSec,
         videoUrl: `idb:${key}`,
         // 合并后就只剩这一段了：画幅必须跟着走，否则首页拿不到画幅提示，
         // 而且回炉重制时新拍的段会退回默认画幅
