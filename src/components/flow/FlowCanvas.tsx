@@ -33,6 +33,8 @@ import SegPlayer from "./SegPlayer";
 import { showToast } from "../../data/toast";
 import RefFrameSheet from "./RefFrameSheet";
 import SkillPanel from "./SkillPanel";
+import ScriptSkillSheet from "./ScriptSkillSheet";
+import { SCRIPT_TO_SHOTS } from "../../studio/structuredSkills";
 import InfoTip from "../InfoTip";
 import PlanBoard from "../../studio/ui/PlanBoard";
 import FuseFrameSheet, { fuseSourcesOf } from "../../studio/ui/FuseFrameSheet";
@@ -1840,6 +1842,8 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
   const cursor = useFlow((s) => s.cursor);
   const seg = cursor + 1;
   const tpls = myTemplates();
+  /** 官方结构化技能「剧本 → 分镜字段」的面板（studio/structuredSkills，§四 7）。★ hook 排在早退之前 */
+  const [scriptSkill, setScriptSkill] = useState(false);
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={onClose}>
       <div
@@ -1860,6 +1864,27 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
             </button>
           ))}
         </div>
+        {/* 官方结构化技能（有步骤 / 形状检查 / 确认点，与下面"一句话"技能不是同一种东西，见 structuredSkills 头部） */}
+        <div className="mb-1.5 mt-3 text-xs font-semibold text-slate-300">官方技能</div>
+        <button
+          onClick={() => setScriptSkill(true)}
+          className="flex w-full items-center gap-2 rounded-xl border border-slate-700/70 bg-panel px-2.5 py-2 text-left"
+        >
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold text-slate-100">📑 {SCRIPT_TO_SHOTS.title}</div>
+            <div className="mt-0.5 text-[10px] leading-relaxed text-slate-500">{SCRIPT_TO_SHOTS.intro}</div>
+          </div>
+          <span className="flex-none rounded-full bg-brand/15 px-2 py-0.5 text-[10px] text-brand">{AI_REAL ? fmtTokens(SCRIPT_TO_SHOTS.cost) : "演示"}</span>
+        </button>
+        {scriptSkill && (
+          <ScriptSkillSheet
+            onClose={() => setScriptSkill(false)}
+            onApplied={() => {
+              setScriptSkill(false);
+              onClose();
+            }}
+          />
+        )}
         <SkillPanel draft={draft} onPick={onPick} />
         {tpls.length > 0 && (
           <>
