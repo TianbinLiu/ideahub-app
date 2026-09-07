@@ -91,6 +91,7 @@ Skill 与模板只是"把这些槽位填对"的流程；它们的稳定来自四
 
 - §四 1 的第一步：`composeSegments` 的入参命名为 `real.GenSpec`，提交前 `describeGenSpec` 把「模式 / 档 / 画幅 / 时长 / 参考图张数」写进步骤日志（`genLog` 认「契约 ·」前缀）。四条路真正收成"卡 → 契约"的翻译层是下一步。
 - §四 4 已落：`types.ShotSpec`（景别 / 运镜 / 情绪节拍）—— 推演按字段写、`segmentGen.shotPrefix` 拼在正文最前、方案台显示、发布折进剧本。
+- §四 2 已落一半：白模段挂卡后可出「合成预览图」（`flowStore.makeCastPreview` → `real.castPreviewImage`，投影窗与画布共用 `CastPreviewCard`，一张图钱，换模板 / 改挂法作废）。真人档的首帧本来就是照片。
 
 ## 五、方舟协议 ↔ 卡片 的槽位表（"固定输入"这件事的证据）
 

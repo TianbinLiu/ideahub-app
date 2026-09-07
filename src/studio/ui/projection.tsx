@@ -46,6 +46,7 @@ import { fileToFrameDataUrl } from "../../utils/image";
 import { computeChain } from "../scene/TableScene";
 import { CHAIN, focusCam } from "../scene/layout";
 import DeleteSegBtn from "../../components/flow/DeleteSegBtn";
+import CastPreviewCard from "../../components/flow/CastPreviewCard";
 import ConfirmDialog from "../../components/ConfirmDialog";
 
 export default function ProjectionWindow() {
@@ -1376,6 +1377,8 @@ function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Prop
             </span>
             <Icon name="chevron" size={12} className="flex-none text-slate-400" />
           </button>
+          {/* 挂卡后的合成预览（可审核的中间物）：一份实现，画布白模面板同款 */}
+          <CastPreviewCard node={node} cast={cast} disabled={generating} />
           {castAsk && (
             <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
               <p className="text-[11px] leading-relaxed text-amber-200">
