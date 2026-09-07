@@ -724,34 +724,54 @@ export default function CutPage() {
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       drawAigcBadge(ctx, canvas.width, canvas.height);
-      rec.start(250);
-      // ★★★ 开录之后**立刻暂停**（2026-09-06 主人真机：22 秒的成片前 12 秒全黑，后 12 秒还看不到）。
+      // ★★★ **这里不开录**（2026-09-06 主人真机：22 秒的成片前 12 秒全黑、后 12 秒还看不到）。
       //   机理：`rec.start()` 之后、第一帧真实画面之前，这条路上还排着 `resolveMediaUrl`
       //   （**把整条成片 fetch 成 blob**，120 秒超时 + 重试一次）、`<video>` 的 load/canplaythrough、
       //   以及 seek —— 手机网上就是**十几秒**。而 `canvas.captureStream(30)` 在这期间照样每秒吐 30 帧
       //   静止画布，于是那十几秒被原样录成了黑头；紧接着申报时长又比真实录制短一大截（见下面 recordedSec 的 ★★），
       //   播放器播到申报值就停 —— 用户看到的就是「前面全黑、后面没了」。全程零报错。
-      //   实测（本机 2026-09-06）：pause 期间的空档确实不进成片（录 2.77s / 墙上 4.92s），
-      //   resume 之后画面连续，第一帧亮度 160（不是黑的）。
-      rec.pause();
-      /** 真正录进成片的毫秒数：只累计 recording 那几段（实测与文件真实时长差 <0.05s） */
+      //   ⚠ 先 start 再立刻 pause **不够**：那之间仍会漏进一两帧黑的（本机复测：文件比内容长 0.07s，
+      //   而封面弹层一打开正停在 00:00 上，截出来就是一张纯黑封面 —— 正是主人截图里那一张）。
+      //   所以开录推迟到 `beginRecording()`：第一帧真内容画上去之后才 `rec.start()`，第 0 帧从此必是真画面。
+      /**
+       * 「跳空档」这件事到底生效没有。
+       * ★★ `MediaRecorder.pause()` 并不是每个 WebView 都真的实现了 —— 万一是空操作，下面两件事都会
+       *   **静默**出错：① 开声如果拿 `rec.state` 当闸，这里就永远走不到 ⇒ 成片**全程无声**；
+       *   ② 音频图被 suspend 而画面还在录 ⇒ 音画朝**反方向**拉开（比原来的黑头更难查）。
+       *   所以不猜：pause 之后当场问一句 `rec.state`（见 pauseForPrep），音频那半只认 `audioCtx`
+       *   自己的状态、不认录制机的。
+       */
+      let gapSkipOk = true;
+      /** 真正录进成片的毫秒数：只累计 recording 那几段。★ 只是兜底 —— 成片长度以文件自己为准（见收尾处 realDurationOf） */
       let recordedMs = 0;
-      /** 本次 resume 的起点（performance.now） */
-      let recFrom = 0;
+      /** 本次 resume 的起点（performance.now）。★ 初值不能是 0：pause 万一没生效，收尾那句会把
+       *  「页面开着多久」当成成片时长算进去 */
+      let recFrom = performance.now();
       /** 成片第一帧：第一次真有画面那一拍从画布上留一张（见 posterFromCanvas 的 ★★） */
       let poster = "";
       /** 这一段准备好了、第一帧真内容已经画在画布上 —— 从这里开始才录 */
-      const beginRecording = () => {
+      const beginRecording = async () => {
+        // 第一帧真内容此刻已经在画布上了（调用点保证）：留一张当成片封面，再开录
         if (!poster) poster = posterFromCanvas(canvas);
-        if (rec.state !== "paused") return;
-        // 音画同拍：第一次开声，之后的空档是把整条音频图解冻（见 audioSrc 的 ★★）
+        // ★ 第一段是 start、之后每段是 resume —— 合成一处，别在循环外给第一段开小灶（那就是两份实现）
+        if (rec.state === "inactive") {
+          // ★★ 开录前先让采集轨**真的吃到**这一帧再走（等两拍 rAF）。
+          //   `canvas.captureStream(30)` 的轨道里此刻还留着准备期那张黑底（画布几十秒没动过），
+          //   立刻 start 会把它当成第 0 帧编进去 —— 本机复测：文件只比内容长 0.07s（也就一两帧），
+          //   可封面弹层一打开正停在 00:00 上，截出来就是**一张纯黑封面**，正是主人截图里那张。
+          //   对照实验：一段从头到尾纯绿的 MediaRecorder WebM 在 t=0 读出来是绿的，所以那一帧是真黑，
+          //   不是解码假象。代价是这一段开头少录约两帧（60ms 级），换掉一张黑封面，值。
+          await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+          rec.start(250);
+        } else if (rec.state === "paused") rec.resume();
+        // ★★ 开声 / 解冻**不看 rec.state**（见 gapSkipOk 的 ★★）：看了的话，pause 一旦是空操作，
+        //   这一整段就永远走不到 —— 成片全程无声，而且一个字都不报。
         if (audioSrc) {
           audioSrc.start();
           audioSrc = null;
-        } else {
-          void audioCtx?.resume();
+        } else if (audioCtx?.state === "suspended") {
+          void audioCtx.resume();
         }
-        rec.resume();
         recFrom = performance.now();
       };
       /** 这一段画完了，下一段还要取流/解码/定位 —— 那段空档不录 */
@@ -759,6 +779,15 @@ export default function CutPage() {
         if (rec.state !== "recording") return;
         recordedMs += performance.now() - recFrom;
         rec.pause();
+        // ★ 显式标注类型再读：上面那句 `!== "recording"` 让 TS 把 rec.state 收窄成了 "recording"，
+        //   而它并不知道 rec.pause() 会改这一位 —— 直接比会被判成"两个类型没有交集"（TS2367）
+        const afterPause: string = rec.state;
+        if (afterPause !== "paused") {
+          // pause 是空操作：空档照录（黑头/定格会回来，结束时如实说）。此时**绝不能**再去冻音频图 ——
+          //   画面还在录、声音停了，那是朝反方向拉开音画（见 gapSkipOk 的 ★★）
+          gapSkipOk = false;
+          return;
+        }
         // 音轨跟着一起冻住，否则这段空档它自己往前跑，恢复时音乐就跳了一截（见 audioSrc 的 ★★）
         void audioCtx?.suspend();
       };
@@ -815,7 +844,7 @@ export default function CutPage() {
           //   再恢复录制。反过来的话，resume 与第一次 drawCover 之间那几十毫秒又是黑帧。
           drawCover(ctx, v, canvas.width, canvas.height);
           drawAigcBadge(ctx, canvas.width, canvas.height);
-          beginRecording();
+          await beginRecording();
           await new Promise<void>((resolve) => {
             const draw = () => {
               // ★ 取消要在**循环里**判：rAF 跑着的时候没有别的地方能打断它
@@ -836,7 +865,7 @@ export default function CutPage() {
           // 同上：loadImg 也走网络（跨境几秒），先把第一帧画上再恢复录制
           drawCover(ctx, a, canvas.width, canvas.height);
           drawAigcBadge(ctx, canvas.width, canvas.height);
-          beginRecording();
+          await beginRecording();
           const t0 = performance.now();
           const dur = clipDur(clip) * 1000;
           await new Promise<void>((resolve) => {
@@ -868,6 +897,9 @@ export default function CutPage() {
       }
       // 收尾时仍在 recording（见上一行 ★）：把最后一段的时长补进去
       if (rec.state === "recording") recordedMs += performance.now() - recFrom;
+      // ★ 一帧都没开录过（第一段的画面还没准备出来就被取消了）：没有 stop 可调，`stopped` 也永远不会 resolve。
+      //   这一支只可能来自取消——下面 catch 认 cancelRef，会说成「已取消合并」。
+      if (rec.state === "inactive") throw new Error("一帧都没录上，没有成片");
       rec.stop();
       await stopped;
       // ★ 取消：录到一半的这段不写库、不跳页。用户要的是"别录了"，不是"录个半截给我"
@@ -880,6 +912,10 @@ export default function CutPage() {
       //   不拦着他继续（片子已经录出来了，也许还能用），但那句话必须说在前面。
       if (wentHiddenRef.current) {
         setErr("合并过程中 App 被切到后台过——那段时间画面不会更新，成片里多半有一截是卡住的。建议回来重新合并一次（不花 token）。");
+      } else if (!gapSkipOk) {
+        // ★ 只在**真的**没跳成空档时才说（铁律八）：这台设备的录制器不支持暂停，取流那几秒被录了进去。
+        //   ★ 用 else if —— 切后台那句更严重，两句都写同一个 err，后写的会把前一句盖掉。
+        setErr("这台设备的录制器不支持「暂停」，段与段之间取素材的那几秒也被录了进去——成片开头或接缝处会有几截停顿的画面。片子能用，介意的话重新合并一次（不花 token）。");
       }
       setBusy("写入本地库…");
       const blob = new Blob(chunks, { type: mime });
