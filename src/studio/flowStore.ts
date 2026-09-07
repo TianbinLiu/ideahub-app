@@ -2650,10 +2650,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
     });
     /** ai 层报上来的平铺短句 → 归一成「步骤 / 细节」，同一件事的读秒折进同一步 */
     const prog = (t: string) => {
-      const { title, detail, terminal } = splitStatus(t);
+      const { title, detail, terminal, keep } = splitStatus(t);
       if (terminal) return log.end();
       const cur = log.steps[log.steps.length - 1];
-      if (!cur || cur.status !== "running" || cur.title !== title) log.begin(title);
+      if (!cur || cur.status !== "running" || cur.title !== title) log.begin(title, { keep });
       if (detail) log.detail(detail);
     };
     const myRun = get().genRun + 1;
@@ -2678,6 +2678,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
         {
           // 返修：正文是作者的改法，帧一张不带（参考视频与首尾帧在方舟互斥），其余走成片自己
           plot: rv ? rv.instruction.trim() : prop.plot,
+          // 报价 ↔ 契约对账（segmentGen.contractLine）：扣的就是这个 cost；演示构建没有报价，明说 null
+          quotedTokens: AI_REAL ? cost : null,
           firstFrame: rv ? "" : prop.firstFrame,
           lastFrame: rv ? "" : prop.lastFrame,
           durationSec: prop.durationSec,

@@ -14,11 +14,11 @@
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
 import { ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateCover, prepareMaterialRefs, refineFrame } from "../ai";
 import { uploadImage } from "../api/uploads";
-import { r2vPriceIssue, tierOf, providerOf, clampDuration, type VideoTier } from "../data/economy";
+import { IMAGE_TOKENS, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, type VideoTier } from "../data/economy";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
-import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_LABELS, idLineOf, viewsOf, type Card, type VideoAspect, type VideoTemplate } from "../types";
+import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_LABELS, idLineOf, viewsOf, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
 
 export interface SegmentAnn {
@@ -29,6 +29,12 @@ export interface SegmentAnn {
 
 export interface SegmentGenInput {
   plot: string;
+  /**
+   * 界面报给用户的这一发的价（flowStore.genNode 扣的就是它）。**必填**：null = 明说"没有报价"（演示构建）。
+   * 出片前拿它与按契约算出来的数对账（contractLine），对不上写进步骤日志 —— 报价与实收不等是本仓头号事故形状，
+   * 此前只能靠人事后对账单发现。可选的话漏传零症状（2026-08-31 onTask 那条教训），所以钉成必填。
+   */
+  quotedTokens: number | null;
   /** 结构化镜头字段（types.ShotSpec）：出片提示词前缀「镜头：景别 · 运镜 · 情绪节拍。」，三条路同一处实现 shotPrefix */
   shot?: ShotSpec;
   /**
@@ -410,6 +416,22 @@ export type SegmentTaskAccepted = (taskId: string) => void;
  *   零报错、零症状，只有多花的那一次钱。
  * ★ 抽成函数是为了"下次再加一条支路也漏不掉"：新支路只要调它，两件事一起有。
  */
+/**
+ * 报价 ↔ 契约对账（2026-09-06 §四 1）：「界面报的价」与「按这一发的契约算出来的价」摆在一起。
+ * 对不上**不拦**（钱在服务端按调用结算，这里拦只会把已经画好的帧作废），但要说出来并进控制台。
+ * 视频那半按 economy.videoTokensOfSpec（与报价同一张价目表），出图那半按"这一发真画了几张"。
+ */
+function contractLine(o: { quoted: number | null; mode: GenMode; durationSec: number; tierId: string; refVideoSec?: number; images: number }): string {
+  if (o.quoted === null) return "";
+  const video = videoTokensOfSpec({ mode: o.mode, durationSec: o.durationSec, tierId: o.tierId, refVideoSec: o.refVideoSec });
+  if (video === null) return "";
+  const implied = video + o.images * IMAGE_TOKENS;
+  if (implied === o.quoted) return "";
+  const line = `⚠ 契约核对：界面报价 ${fmtTokens(o.quoted)}，按契约应为 ${fmtTokens(implied)}（视频 ${fmtTokens(video)} + 出图 ${o.images} 张）——本次仍按报价扣，请把这句话反馈给我们`;
+  console.warn("[segmentGen] " + line);
+  return line;
+}
+
 function settleSegment(res: { error?: string; pendingTaskId?: string } | undefined): void {
   // 「没接到结果」要**原样保持它的类型**往上抛：调用方据此决定凭据留不留
   // （留 = 亮取回入口，销毁 = 只剩「重新生成」= 再花一次钱）。
@@ -563,9 +585,14 @@ export async function generateSegment(
     const fitted = withVoiceLine(`${`${shotPrefix(input.shot)}${input.plot}`.slice(0, room)}${tail}`, voice.voiceLine);
     if (fitted.dropped) notes.push("音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上");
     prog(`按参考视频 + ${refUrls.length} 张关键帧出片（输入 ${input.materialRef.durationSec}s + 输出 ${clampDuration(input.durationSec, input.videoTier)}s 计价）…${cut}${noteTail()}`);
+    {
+      const cl = contractLine({ quoted: input.quotedTokens, mode: "reference", durationSec: input.durationSec, tierId: input.videoTier, refVideoSec: input.materialRef.durationSec, images: 0 });
+      if (cl) prog(cl);
+    }
     const [res] = await composeSegments(
       [
         {
+          mode: "reference",
           plot: fitted.plot,
           firstFrame: "",
           lastFrame: "",
@@ -614,9 +641,14 @@ export async function generateSegment(
       throw new Error("真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧");
     }
     prog(`真人档按发计价（${clampDuration(input.durationSec, input.videoTier)} 秒整档）· 以卡片照片起拍…`);
+    {
+      const cl = contractLine({ quoted: input.quotedTokens, mode: "minimax", durationSec: input.durationSec, tierId: input.videoTier, images: 0 });
+      if (cl) prog(cl);
+    }
     const [res] = await composeSegments(
       [
         {
+          mode: "minimax",
           plot: `${shotPrefix(input.shot)}${input.plot}${materialText(input.materials)}`.slice(0, VIDEO_PROMPT_MAX),
           firstFrame: firstSrc,
           lastFrame: "",
@@ -814,8 +846,11 @@ export async function generateSegment(
   }
   // 补画只属于经典路（!blockout）：白模段 first/last 天然为空（门禁保证），
   // 但空≠要补——它的画面在模板视频里
+  /** 这一发真画了几张设定帧（对账用：报价那边按 hasFirst / hasLast 数的就是这个） */
+  let drawn = 0;
   if (!blockout && !refMode && !first) {
     const dr = await drawRefs();
+    drawn++;
     prog(`绘制起拍画面…${noteTail()}`);
     first = await generateCover(
       `${input.framePrompt || input.plot.slice(0, 200)}${mats}${dr.bind(0)}`,
@@ -826,6 +861,7 @@ export async function generateSegment(
   }
   if (!blockout && !refMode && !last && tier.flf) {
     const dr = await drawRefs();
+    drawn++;
     prog(`绘制结束画面…${noteTail()}`);
     last = await generateCover(
       `${input.plot.slice(0, 180)} 的结束瞬间${mats}${dr.bind(0)}`,
@@ -959,9 +995,31 @@ export async function generateSegment(
   // ★ 这一支以前是 `else if (cut)` —— 没有截断就一个字不说，于是“帧当参考图发”这条路上
   //   的提示（含上传失败退回首尾帧）没有任何出口。改成无条件说一句，把 notes 带上。
   else prog(`${sendFrameRefs ? `按 ${frameRefs.length + cardRefs.length} 张参考图出片（帧与卡片形象同发）` : "出片中"}…${noteTail()}${cut}`);
+  /** 这一发的生成模式（契约的声明；槽位与它是否一致由 real.validateGenSpec 在花钱之前核对） */
+  const mode: GenMode = blockout
+    ? "edit"
+    : refMode || sendFrameRefs
+      ? "ref-images"
+      : first
+        ? last && tier.flf
+          ? "flf"
+          : "i2v"
+        : "t2v";
+  {
+    const cl = contractLine({
+      quoted: input.quotedTokens,
+      mode,
+      durationSec: input.durationSec,
+      tierId: input.videoTier,
+      refVideoSec: input.refVideo?.durationSec,
+      images: drawn + redrawn.length,
+    });
+    if (cl) prog(cl);
+  }
   const [res] = await composeSegments(
     [
       {
+        mode,
         plot: fitted.plot,
         // 帧当参考图发时 first/last 必须空 —— 方舟三场景互斥，混发直接 400
         firstFrame: sendFrameRefs ? "" : first,

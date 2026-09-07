@@ -13,8 +13,13 @@ export interface GenStep {
   id: string;
   /** 这一步在做什么（固定文案，不是 AI 自由输出） */
   title: string;
-  /** 这一步的实时细节，只在 running 时展示（如"极速档 · 排队中 12s"） */
+  /** 这一步的实时细节，只在 running 时展示（如"极速档 · 排队中 12s"）；keep 的步收尾后也留着 */
   detail?: string;
+  /**
+   * 收尾后**保留** detail（2026-09-06）：「生成契约」那一步的正文是这一发到底发了什么（模式 / 档 / 画幅 / 时长 / 参考几张），
+   * 是给人事后对账的记录，不是"此刻在干嘛"的读秒 —— 此前它随下一步开始被 closeCurrent 清掉，用户从来没看见过那行字。
+   */
+  keep?: boolean;
   status: "running" | "done" | "error";
   /** 完成耗时（毫秒），done/error 时才有 */
   ms?: number;
@@ -42,16 +47,16 @@ export function createGenLog(onChange: (steps: GenStep[]) => void, now: () => nu
     if (cur && cur.status === "running") {
       cur.status = status;
       cur.ms = now() - startedAt;
-      cur.detail = undefined; // 细节是"此刻在干嘛"，收尾后留着只是噪音
+      if (!cur.keep) cur.detail = undefined; // 细节是"此刻在干嘛"，收尾后留着只是噪音（keep 的除外，见字段注释）
     }
   };
 
   return {
     /** 开一步（自动收尾上一步） */
-    begin(title: string) {
+    begin(title: string, opts?: { keep?: boolean }) {
       closeCurrent("done");
       startedAt = now();
-      steps = [...steps, { id: uid("gs"), title, status: "running" }];
+      steps = [...steps, { id: uid("gs"), title, status: "running", ...(opts?.keep ? { keep: true } : {}) }];
       flush();
     },
     /** 更新当前步的实时细节 */
@@ -85,7 +90,7 @@ export function createGenLog(onChange: (steps: GenStep[]) => void, now: () => nu
  * ai/real.ts 的 onProgress 是一路平铺的短句（"任务创建中…"、"标准档 · 生成中 12s"），
  * 直接一句一步会刷出几十条一模一样的行；这里把"同一件事的进展"折进同一步的 detail。
  */
-export function splitStatus(status: string): { title: string; detail?: string; terminal?: boolean } {
+export function splitStatus(status: string): { title: string; detail?: string; terminal?: boolean; keep?: boolean } {
   // composeSegments 收尾时会报一句"完成"。它不是新的一步，是"上一步跑完了"——
   // 当成一步会在日志尾巴上挂一条 0.0s 的空条目
   if (/^(完成|全部完成)$/.test(status.trim())) return { title: "", terminal: true };
@@ -96,7 +101,7 @@ export function splitStatus(status: string): { title: string; detail?: string; t
   // "标准档 · 生成中 12s" / "极速档 · 排队中 6s" —— 同一步的读秒
   // 生成契约（real.describeGenSpec）：标题固定、正文是那一串参数，别让整行当标题
   const c = status.match(/^契约\s*·\s*(.+)$/);
-  if (c) return { title: "生成契约", detail: c[1] };
+  if (c) return { title: "生成契约", detail: c[1], keep: true }; // 契约正文是对账记录，收尾后保留（GenStep.keep）
   const m = status.match(/^(.+?档)\s*·\s*(.+)$/);
   if (m) return { title: "渲染视频", detail: `${m[1]} · ${m[2]}` };
   return { title: status.replace(/[…\.]+$/, "") };
