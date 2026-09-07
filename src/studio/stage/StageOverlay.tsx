@@ -8,7 +8,7 @@
 //   （蒙皮网格直接 clone 会共用骨架，两个人偶一起动）；材质整体换成灰白 —— 它就是"白模"。
 // ★ 手势：点地面 = 把选中人偶挪过去（或"加人偶"模式下放一个新的）；在空处拖 = 环绕机位；两指 = 拉远拉近。
 //   移动端一律 touch-action:none，否则竖向拖会被浏览器接管成页面滚动（RoleCastBoard 那条坑）。
-import { Suspense, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import * as THREE from "three";
 import { Canvas, ThreeEvent, useFrame, useLoader, useThree } from "@react-three/fiber";
@@ -114,10 +114,13 @@ function CamRig({ cam }: { cam: StageState["cam"] }) {
   return null;
 }
 
-/** 截图口：截当前帧。★ 先 render 一次再读，别信"上一帧还在" */
-const Capturer = forwardRef<() => string, object>(function Capturer(_p, ref) {
+/** 截图口：把"截当前帧"的函数交到 capRef 上。★ 先 render 一次再读，别信"上一帧还在"。
+ *  ★ 写成普通的 `function` 组件而不是 forwardRef(function …)：构建门禁 check-hook-order 只认行首的
+ *    `function Name(`，包在 forwardRef 里的那份会被算到上一个组件头上、误报成"hook 排在早退之后"。 */
+function Capturer({ capRef }: { capRef: React.MutableRefObject<(() => string) | null> }) {
   const { gl, scene, camera } = useThree();
-  useImperativeHandle(ref, () => () => {
+  useEffect(() => {
+    capRef.current = () => {
     // ★ 屏幕上的画布只有两三百像素宽（dpr=1 省电）；当参考图喂给 Seedream 太糊。截图那一拍临时把像素比拉到
     //   长边 ≥ 1024，画一帧、读出来、再还原（setSize 的第三参 false = 不动 CSS 尺寸，不会闪）。
     const el = gl.domElement;
@@ -144,7 +147,11 @@ const Capturer = forwardRef<() => string, object>(function Capturer(_p, ref) {
       gl.setPixelRatio(prev);
       gl.setSize(w, h, false);
     }
-  });
+    };
+    return () => {
+      capRef.current = null;
+    };
+  }, [gl, scene, camera, capRef]);
   // DEV 调试挂钩（与 __flow / __studio 同款）：量相机与人偶的真实尺寸用，正式包里没有
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -154,7 +161,7 @@ const Capturer = forwardRef<() => string, object>(function Capturer(_p, ref) {
     };
   }, [gl, scene, camera]);
   return null;
-});
+}
 
 export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onClose: () => void }) {
   const node = useFlow((s) => s.nodes.find((n) => n.id === nodeId));
@@ -342,7 +349,7 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
             <directionalLight position={[3, 6, 4]} intensity={1.4} />
             <directionalLight position={[-4, 3, -2]} intensity={0.5} />
             <CamRig cam={stage.cam} />
-            <Capturer ref={capRef} />
+            <Capturer capRef={capRef} />
             {/* 地面：只负责报"命中了哪一点"（按下那一点、以及一路拖过的点），怎么用由外层按点 / 拖分派 */}
             <mesh
               rotation={[-Math.PI / 2, 0, 0]}
