@@ -28,7 +28,6 @@ import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
 import { currentRoute, startJob } from "../data/jobs";
 import { companionBus } from "../companion/bus";
-import type { CompanionAction } from "../companion/protocol";
 import { setPreviewMapping, type CompanionMapping } from "../live2d/mapping";
 import type { BundleCheck, BundlePreview } from "../live2d/bundlePreview";
 import { createBundlePreview, readLive2dBundle } from "../live2d/bundlePreview";
@@ -40,6 +39,7 @@ import {
   type CompanionMappingWire,
   type Live2dInspectResult,
   type Live2dModelItem,
+  type VoiceSettings,
 } from "../api/companion";
 
 /** 向导六步（设计文档 §3.5）+ 成功页 */
@@ -108,6 +108,16 @@ export interface Live2dUploadDraft {
   shared: boolean;
   /** 授权勾选（§2 的三条声明）。★ 不勾就不让点发布 —— 这是它目前唯一的闸 */
   selfMade: boolean;
+  /**
+   * 作者推荐的人格 / 嗓子（设计正本 §3.5 第 6 步「推荐人格/声音（可空）」），都可以空。
+   * ★ 推荐≠强制：合并顺序是 **用户自选 > 人格推荐 > 模型推荐 > 服务端默认**（COMPANION.md），
+   *   装了这个形象的人只要自己选过人格/声音，这两项就用不上 —— 界面上要照这个说，别说成"装上就会变成这样"。
+   * ★ 只能推荐**公开**的：服务端 `resolvePersonaBinding` 对私有人格直接 403，而且就算存下了，
+   *   别人装了模型也读不到那份私有人格（静默退回默认）。
+   */
+  recPersonaId: string;
+  /** 推荐嗓子：直接存声音市场模板那份拼好的快照（`VoiceTemplate.voice`，templateId 就在里面） */
+  recVoice: VoiceSettings | null;
   coverUrl: string;
   /** 封面那一格自己的忙 / 错（与整页的 busy 分开：截图失败不该把发布键也锁住） */
   coverBusy: string;
@@ -148,6 +158,8 @@ export function initialLive2dDraft(): Live2dUploadDraft {
     tags: [],
     shared: true,
     selfMade: false,
+    recPersonaId: "",
+    recVoice: null,
     coverUrl: "",
     coverBusy: "",
     coverErr: "",
@@ -243,24 +255,16 @@ export function publishPreviewMapping(url: string, next: CompanionMappingWire | 
 }
 
 /**
- * 在预览里试播**某一个动作组**（第 ④ 步每行左边那颗 ▶）。
+ * 在预览里试播**某一个动作组**（第 ④ 步「摸这里播哪个动作」那行左边的 ▶）。
  *
- * ★★ 为什么要绕这一圈：运行时只肯播「语义动作槽映射到的那个组」（`CompanionModel.playAction(action)`），
- *   没有"随便播一个组"的公开入口。于是借一个槽：把它临时指到要试的组、播一下、下一个微任务还原。
- *   借 `playful` 是因为它在自动映射里最常是 null（借用期间就算被别的东西读到也只是不演），
- *   而且还原的值是**用户自己表里那个**，借完屏幕上的表一个字都不变。
- * ⚠ 运行时有 2.3 秒的语义动作压制（`TIMING.actionSuppressMs`）：这期间再点 ▶ 是**静默无效**的。
- *   调用方要把那 2.3 秒画出来（按钮上写「播放中…」），否则用户只会以为这个组是坏的。
+ * ★ 2026-09-07 起直接走运行时的公开入口 `companionBus.motionGroup`。此前这里是"借 `playful` 这个语义槽
+ *   临时指过去、播一下、下一个微任务还原" —— 那种写法要原地改**正在生效的**映射对象，还原一旦没跑到
+ *   （异常 / 两次点击撞上），用户表里那一格就被悄悄换成了别的组，然后原样发布出去，零报错。
+ * @returns false = 这个组不在包里（调用方就地红字说出来，别静默）
  */
-export function previewMotionGroup(group: string): void {
-  if (!liveMapping || !group) return;
-  const slot: CompanionAction = "playful";
-  const saved = liveMapping.actions[slot];
-  liveMapping.actions = { ...liveMapping.actions, [slot]: group };
-  companionBus.action(slot);
-  queueMicrotask(() => {
-    if (liveMapping) liveMapping.actions = { ...liveMapping.actions, [slot]: saved };
-  });
+export function previewMotionGroup(group: string): boolean {
+  if (!group) return false;
+  return companionBus.motionGroup(group);
 }
 
 /** 撤掉当前预览：登记表、blob 地址一起清（见文件头那段取舍） */
@@ -327,7 +331,8 @@ export async function buildPreview(entry: string): Promise<void> {
   try {
     dropPreview();
     const preview = await createBundlePreview(s.check, entry);
-    // 服务端还没看过这个包，先没有映射：登记 null = 预览按 protocol.ts 的默认协议演（官方 mascot 那套名字）
+    // 服务端还没看过这个包时 `mapping` 是 null —— 登记的会是一份**空映射**（见 publishPreviewMapping 的第二个 ★★），
+    // 也就是这一步的预览只验"画不画得出来"，动作 / 表情 / 触摸暂时都不响应。这是刻意的取舍，别改成登记 null。
     publishPreviewMapping(preview.modelUrl, get().mapping);
     set({ preview, previewUrl: preview.modelUrl, busy: "", progress: "" });
   } catch (e) {
@@ -405,7 +410,10 @@ export async function startBundleInspect(): Promise<void> {
       step(`这台服务器还没开直传，改走慢的那条（约 ${(file.size / 1024 / 1024).toFixed(1)}MB，超过 15MB 可能会超时）…`);
     }
     set({ bundleRef, directOn, busy: "inspect" });
-    step("服务器正在解包识别…");
+    // ★ 两条路这一步做的事完全不同，别用同一句话糊过去：直传那条只是让服务器去 Cloudinary 取包（秒级），
+    //   multipart 那条是**现在才开始把 25MB 推上去**（分钟级）—— 说成"正在解包识别"的话，
+    //   用户会以为卡住了，然后退出去重来（又是一次几分钟）。
+    step(directOn ? "服务器正在解包识别…" : `正在上传并识别（约 ${(file.size / 1024 / 1024).toFixed(1)}MB，走的是慢的那条）…`);
     const result = await inspectLive2dBundle(bundleRef ? { bundleRef, entry } : { file, entry });
     // ★ 服务端可能按别的入口读（我们传了 entry，正常会一致）；以它回的那个为准，别两边各记一份
     const mapping = result.mapping ?? null;
@@ -503,6 +511,8 @@ export async function submitLive2dModel(): Promise<void> {
       coverImageUrl: s.coverUrl,
       tags: s.tags,
       shared: s.shared,
+      personaId: s.recPersonaId || undefined,
+      voice: s.recVoice ?? undefined,
       mapping: s.mappingTouched ? s.mapping : undefined,
       entry: s.entry,
       selfMade: true,

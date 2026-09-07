@@ -202,7 +202,7 @@ function StepBasics() {
       </Field>
 
       <Field label="一句话简介">
-        <LimitedInput value={intro} onChange={setIntro} max={PERSONA_LIMITS.description} placeholder="一句话说清 TA 是谁" rows={2} />
+        <LimitedInput value={intro} onChange={setIntro} max={PERSONA_LIMITS.intro} placeholder="一句话说清 TA 是谁" rows={2} />
       </Field>
 
       <Field label="TA 怎么称呼你">
@@ -705,7 +705,9 @@ function StepPreview({ onBackToGenerate }: { onBackToGenerate: () => void }) {
         <textarea
           rows={1}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          // ★ 就地截到服务端那条硬限：超了整条请求 400（message 只有一句 "Invalid input"），
+          //   而这是一个可以粘贴的框 —— 粘一篇文章进来是很自然的事
+          onChange={(e) => setText(e.target.value.slice(0, PERSONA_LIMITS.chatMessage))}
           disabled={full || !draft}
           placeholder={full ? `已经聊满 ${PREVIEW_ROUNDS_MAX} 轮了` : "说点什么"}
           className={`flex-1 ${TEXTAREA} disabled:opacity-40`}

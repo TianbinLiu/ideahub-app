@@ -11,9 +11,15 @@
  *   服务端那个 record 照收不误（它收任意键），只是模型少喂了一项，生成出来的人格"差一点点"，
  *   而屏幕上没有任何地方会说这件事。所以键从 api/companion.ts 的 `PersonaQuestionKey` 取，
  *   这里只负责给每个键配一句人话与默认值，并在编译期钉住"12 个键一个都不能少"（见 QUESTION_KEYS_COVERED）。
- * ★ 滑杆的值直接发**数字**（0~100）：12 个键的名字本身就是那一极（extroversion = 外向程度），
- *   所以「70」对模型是自解释的，不必再拼一句话发过去。⚠ 但界面上必须把两端写清楚（左「很内向」右「很外向」）——
- *   数字自解释是给模型看的，不是给人看的。
+ * ★ 滑杆的值直接发**数字**（0~100），语义由**服务端**那份 `QUESTIONNAIRE_LABELS` 定义
+ *   （`personaAi.service.js`，它把「键 → 一句人话」拼进提示词，例如 `extroversion: "外向 ↔ 内向（0 外向 100 内向）"`）。
+ *
+ * ★★ 所以每根滑杆的**方向必须与那份表逐条对齐**，本文件下面 `PERSONA_QUESTIONS` 里 low/high 两端的写法
+ *   就是那个方向的镜像（已登记进 docs/api-contract.md，改任一侧都要同时改另一侧）。
+ *   ⚠ 2026-09-07 收口时抓到过一次：本地按"某一极的程度"命名（extroversion = 外向程度，0 内向 100 外向），
+ *   而服务端那份是 `0 外向 100 内向` —— extroversion / rationality / formality / talkative **四根反了**。
+ *   症状是**零报错**：用户把滑杆拉到"很外向"，生成出来的人格却内向；页面、请求、回包全都正常。
+ *   （humor / politeness / emotional 三根是「某项的程度（0～100）」，两侧一致，没这个问题。）
  */
 import type { PersonaMaterial, PersonaMaterialKind, PersonaQuestionKey, PersonaQuestionnaire } from "../api/companion";
 
@@ -84,11 +90,13 @@ export type PersonaQuestion = SliderQuestion | ChoiceQuestion | TextQuestion | T
  *   联合类型，下面那道"少一个键就编译不过"的闸也就跟着失效了。
  */
 export const PERSONA_QUESTIONS = [
-  { key: "extroversion", kind: "slider", label: "外向程度", low: "很内向", high: "很外向", fallback: 50 },
-  { key: "rationality", kind: "slider", label: "理性程度", low: "很感性", high: "很理性", fallback: 50 },
-  { key: "formality", kind: "slider", label: "正式程度", low: "很随意", high: "很正式", fallback: 50 },
+  // ↓ 前四根是**双极轴**，方向抄自服务端 QUESTIONNAIRE_LABELS（0 在左、100 在右），别按"某某程度"改名
+  { key: "extroversion", kind: "slider", label: "外向 ↔ 内向", low: "很外向", high: "很内向", fallback: 50 },
+  { key: "rationality", kind: "slider", label: "理性 ↔ 感性", low: "很理性", high: "很感性", fallback: 50 },
+  { key: "formality", kind: "slider", label: "正式 ↔ 随意", low: "很正式", high: "很随意", fallback: 50 },
+  { key: "talkative", kind: "slider", label: "话多 ↔ 话少", low: "话很多", high: "惜字如金", fallback: 50 },
+  // ↓ 这三根是「某项的程度（0～100）」，服务端那侧同向
   { key: "humor", kind: "slider", label: "幽默感", low: "一本正经", high: "很爱开玩笑", fallback: 50 },
-  { key: "talkative", kind: "slider", label: "话多程度", low: "惜字如金", high: "话很多", fallback: 50 },
   { key: "politeness", kind: "slider", label: "敬语程度", low: "从不用敬语", high: "句句敬语", fallback: 50 },
   { key: "emotional", kind: "slider", label: "情绪外露度", low: "不动声色", high: "喜怒写在脸上", fallback: 50 },
   { key: "catchphrase", kind: "text", label: "口头禅", placeholder: "比如「确实」「好耶」，可以写好几个", maxLen: 120, fallback: "" },
@@ -297,17 +305,23 @@ export function linesOfSpeaker(text: string, speaker: string): string {
 // ── 第 6 步：字数上限 ────────────────────────────────────────────────────────
 
 /**
- * 微调那一步每个字段的上限。
+ * 微调那一步每个字段的上限，**逐条等于服务端 `persona.schemas.js` 的数**
+ * （2026-09-07 对着那份 schema 核过一遍，已登记进 docs/api-contract.md「客服」一节）。超了会 400，
+ * 所以要**当场**在输入框旁边提示，别等提交回来一句「Invalid input」。
  *
- * ★ summary / catchphrase / tone / addressUser / greeting / example(s) / boundaries 这几项是
- *   **服务端 persona.schemas.js 的数**（docs/api-contract.md「客服」一节登记过），超了会 400 ——
- *   所以要**当场**在输入框旁边提示，别等提交回来一句「Invalid input」。
- * ⚠ name / description / tag / boundary 单条这几项，服务端的确切上限没有在契约里登记，这里取的是
- *   保守值（比服务端只会更严，撞不到 400）；等契约补齐后改这一处即可。
+ * ★★ 这几项**不许再往小里收**（2026-09-07 改回来的：此前 name 取 40、description 取 300，
+ *   按的是"客户端上限有意小于服务端"那条规矩）—— 那条规矩管的是**用户自己敲**的字段（标签、卡片数），
+ *   而这里大半是 **AI 生成后填进来的**：模型写了一段 400 字的简介，屏幕上就红着一句「超了 100 字」，
+ *   而它其实发得出去。假警报比没警报更坏，用户只会去删一段本来没问题的文字。
  */
 export const PERSONA_LIMITS = {
-  name: 40,
-  description: 300,
+  name: 120,
+  description: 1000,
+  /**
+   * 第 1 步那句「一句话简介」。★ 它发的是 `basics.intro`，服务端那侧是 **300**，和落库的
+   * `description`（1000）**不是同一个字段**也不是同一个数 —— 借用 description 那个数会让人填到 400 字才吃 400。
+   */
+  intro: 300,
   summary: 2000,
   catchphrase: 120,
   catchphrases: 12,
@@ -318,11 +332,17 @@ export const PERSONA_LIMITS = {
   examples: 12,
   boundary: 120,
   boundaries: 12,
+  /** 试聊时一句话的上限（服务端 previewChatBody.messages[].content 是 1..2000） */
+  chatMessage: 2000,
   /** 0 = 免费；App 内没有支付，标价只影响别人在官网买 */
   price: 100000,
 } as const;
 
-/** 人格的标签口径（与作品标签 types.VIDEO_TAG_* 刻意各自具名、互不 import —— 两条不同的规则） */
+/**
+ * 人格的标签口径（与作品标签 types.VIDEO_TAG_* 刻意各自具名、互不 import —— 两条不同的规则）。
+ * ★ 这两个**是**产品口径、有意小于服务端（草稿那侧收 12 条 × 30 字）：标签是用户自己敲的，
+ *   六个十字以内的词比十二个长句更像标签。AI 生成的标签超了会被 TagInput 挡在输入那一步，不影响已有的。
+ */
 export const PERSONA_TAG_MAX = 6;
 export const PERSONA_TAG_LEN = 10;
 

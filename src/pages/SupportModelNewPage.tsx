@@ -36,7 +36,16 @@ import {
 } from "../companion/protocol";
 import { STANDARD_PARAMS, type ParamSlot } from "../live2d/mapping";
 import { MAX_LIVE2D_BUNDLE_BYTES } from "../api/uploads";
-import { LIVE2D_BADGE_LABEL, type CompanionMappingWire } from "../api/companion";
+import {
+  LIVE2D_BADGE_LABEL,
+  companionErrorText,
+  listPersonas,
+  listVoiceTemplates,
+  type CompanionMappingWire,
+  type Live2dCompletenessItem,
+  type MarketPersona,
+  type VoiceTemplate,
+} from "../api/companion";
 import { VIDEO_TAG_LEN, parseTags } from "../types";
 import {
   LIVE2D_STEPS,
@@ -111,8 +120,38 @@ const PARAM_LABEL: Record<ParamSlot, string> = {
   cheek: "脸红",
 };
 
+/**
+ * `/inspect` 的完成度清单里那些**英文槽名**翻成中文。
+ * 服务端给的取值只有四种形状（`live2dCapabilities.service.completenessOf`，已登记进 api-contract）：
+ * 参数槽名（`eyeL`…）、`idle`、`action:<槽>` / `face:<槽>` / `touch:<区>`。
+ * ★ 认不出来的原样显示：服务端将来加了新槽，界面上出现一小段英文远好过显示成空白或者"未知"。
+ */
+function slotLabel(slot: string): string {
+  if (slot === "idle") return "待机动作";
+  const colon = slot.indexOf(":");
+  if (colon < 0) return PARAM_LABEL[slot as ParamSlot] ?? slot;
+  const kind = slot.slice(0, colon);
+  const key = slot.slice(colon + 1);
+  if (kind === "action") return `动作 · ${ACTION_LABEL[key as CompanionAction] ?? key}`;
+  if (kind === "face") return `表情 · ${FACE_LABEL[key as CompanionFace] ?? key}`;
+  if (kind === "touch") return `触摸 · ${TOUCH_LABEL[key as TouchArea] ?? key}`;
+  return slot;
+}
+
+/**
+ * 必须项里"确实缺了"的那几条。
+ * ★★ `ok === null` **不算缺**（api/companion.Live2dCompletenessItem 的三态）：那是"包里没有 cdi3.json、
+ *   服务端读不到参数表"，与"读到了、确实没有这个参数"是两回事。把 null 当缺的话，一个只是导出时
+ *   没勾 cdi3 的正常模型会被判成"不能眨眼/不能转头"，并且**永远点不动下一步**（坑表「把 N 种结局压成两档」）。
+ */
+function missingRequired(items: Live2dCompletenessItem[]): Live2dCompletenessItem[] {
+  return items.filter((r) => r.ok === false);
+}
+
 /** 标签上限：产品口径，**有意小于服务端的安全上界**（CLAUDE.md「把客户端上限与服务端对齐」那条坑） */
 const TAG_MAX = 8;
+/** 「作者推荐」两个下拉各列多少条。40 = 服务端 limit 的上限；再多也不适合塞进一个 select */
+const PICKER_LIMIT = 40;
 /** 预览多久还没画出来就当它失败（模型在手机上解包 + 传贴图，实测几秒；45 秒是给最慢的那台留的余量） */
 const PREVIEW_TIMEOUT_MS = 45_000;
 
@@ -141,9 +180,16 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 
 /**
  * 映射表里的一行：左边一颗 ▶（在预览里当场演一下），右边一到两个下拉。
- * ★ ▶ 按下之后 2.3 秒内运行时会压制下一个语义动作（`TIMING.actionSuppressMs`），这期间再点是**静默无效**的 ——
- *   所以按钮自己数着这 2.3 秒并写「播放中…」，否则用户只会以为这个组是坏的。
+ *
+ * ★ 试演走运行时的**试演入口**（`companionBus.motionGroup` / `expression`），直接播下拉框里选中的那个组 / 表情，
+ *   不经语义槽、也不吃演出路径那 2.3 秒的语义动作压制（`TIMING.actionSuppressMs`，防的是一句话里连着三个标签
+ *   变成三次半途打断）—— 试演是人一下一下点的，等 2.3 秒的表现就是"点了没反应"。
+ *   ⚠ 「整条路通不通」不归这颗 ▶ 管，归第 ⑤ 步的试跑（那里走的是 `companionBus.action(a)` 这条真演出路）。
+ * ★ `onPlay` 返回 `false` = 这个组 / 表情**不在包里**，就地红字说出来。演不出来时静默是最坏的一种：
+ *   用户会以为"预览就这样"，然后把一份对不上的映射发布出去（铁律八）。
  */
+const PLAY_FLASH_MS = 700;
+
 function MapRow({
   label,
   hint,
@@ -154,25 +200,23 @@ function MapRow({
   label: string;
   hint?: string;
   disabled?: boolean;
-  onPlay?: () => void;
+  /** 返回 false = 这一项在包里找不到 */
+  onPlay?: () => boolean | void;
   children: React.ReactNode;
 }) {
-  const [playing, setPlaying] = useState(false);
+  const [flash, setFlash] = useState<"" | "playing" | "missing">("");
   useEffect(() => {
-    if (!playing) return;
-    const t = setTimeout(() => setPlaying(false), TIMING.actionSuppressMs);
+    if (flash !== "playing") return;
+    const t = setTimeout(() => setFlash(""), PLAY_FLASH_MS);
     return () => clearTimeout(t);
-  }, [playing]);
+  }, [flash]);
   return (
     <div className="rounded-xl border border-slate-700/70 bg-panel px-3 py-2">
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={() => {
-            setPlaying(true);
-            onPlay?.();
-          }}
-          disabled={disabled || playing || !onPlay}
+          onClick={() => setFlash(onPlay?.() === false ? "missing" : "playing")}
+          disabled={disabled || !onPlay}
           aria-label={`试演 ${label}`}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-brand disabled:opacity-40"
         >
@@ -181,8 +225,10 @@ function MapRow({
         <div className="w-16 shrink-0 truncate text-xs font-semibold text-slate-300">{label}</div>
         {children}
       </div>
-      {(hint || playing) && (
-        <p className="mt-1 pl-10 text-[10px] leading-relaxed text-slate-500">{playing ? "播放中…（2.3 秒内点也不会再演）" : hint}</p>
+      {(hint || flash) && (
+        <p className={`mt-1 pl-10 text-[10px] leading-relaxed ${flash === "missing" ? "text-rose-300" : "text-slate-500"}`}>
+          {flash === "missing" ? "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。" : flash === "playing" ? "演出中…" : hint}
+        </p>
       )}
     </div>
   );
@@ -191,72 +237,157 @@ function MapRow({
 /**
  * 从舞台画布截一张当封面。
  *
- * ★★ 为什么要连着抓好几帧：舞台那台 pixi 的 `Application` **没开** `preserveDrawingBuffer`
- *   （companionModel.ts 建的，本页改不了它），WebGL 的绘制缓冲在合成之后就被清掉 ——
- *   随便挑个时刻 `drawImage(canvas)` 拿到的是**全透明**（导出成 JPEG 就是一整块纯色）。
- *   只有在「pixi 这一帧已经画完、浏览器还没合成」的窗口里读才有像素，而 pixi 的 ticker 是在
- *   rAF 里重新排队的、跟我们的 rAF 谁先谁后不固定。所以：连抓 10 帧，每帧扫一遍不透明像素，
- *   抓到有东西的那一帧就用它；10 帧都空就**如实说截不到**，请用户自己选一张图。
- *   （对照：工坊导演台那块画布是自己建的、开了 `preserveDrawingBuffer`，所以那边一次就截到。）
+ * ★★ 真正难的那一半在运行时里（`CompanionModel.snapshot()`）：舞台那台 pixi Application 故意没开
+ *   `preserveDrawingBuffer`（它是客服页那位看板娘的常驻舞台，开了就是让所有用户天天为这个几乎没人用的
+ *   截图功能付渲染代价），WebGL 的绘制缓冲一被合成就清空 —— 随便挑个时刻 `drawImage(canvas)` 拿回来的
+ *   是全透明，导出成 JPEG 就是一整块纯色。`snapshot()` 的办法是"手动画一帧、同一个同步块里立刻读"，
+ *   那条"中间一个 await 都不能有"的纪律整个关在它里面 —— 它交回来的已经是一块普通 2D 画布，
+ *   本函数后面爱怎么慢怎么慢。
+ *   （2026-09-07 之前这里是"连抓 10 帧碰运气"，每帧还得带 80ms 上限防 rAF 一次都不来；
+ *    运行时开了公开入口之后那一整套没有存在的理由了。）
  * ★ 垫一层底色再导出：JPEG 没有透明通道，不垫的话透明处会变成纯黑。底色用 `ink` 的色值。
- * ★★ **每一帧都带上限**（CLAUDE.md 坑表「等媒体事件不带上限」）：2026-09-07 实测，在一个看不见 / 不合成的
- *   窗口里 `requestAnimationFrame` 可以**一次都不来**（`document.visibilityState` 还写着 "visible"）。
- *   裸 `await rAF` 会让这颗按钮永远停在「正在截图…」，而用户唯一能做的是把整页关掉。
+ * ★ 还是要验一遍"到底有没有画上东西"：模型没加载完 / 上下文丢了都会得到一张空图，
+ *   而一张纯色封面发出去之后没有任何地方会告诉作者（铁律八）。
  */
-const FRAME_WAIT_MS = 80;
-
-function nextFrame(): Promise<void> {
-  return new Promise<void>((resolve) => {
-    let settled = false;
-    const fin = () => {
-      if (settled) return;
-      settled = true;
-      resolve();
-    };
-    requestAnimationFrame(fin);
-    setTimeout(fin, FRAME_WAIT_MS);
-  });
-}
+const COVER_MAX_WIDTH = 720;
+/** 不透明像素占比低于它就当"什么都没画上"。2% —— 模型在舞台上占的面积远大于此，再低会把抗锯齿边缘当成画面 */
+const COVER_MIN_OPAQUE = 0.02;
 
 async function captureStage(): Promise<Blob | null> {
-  const canvas = companionBus.model?.canvas;
-  if (!canvas || !canvas.width || !canvas.height) return null;
-  const w = Math.min(720, canvas.width);
-  const h = Math.max(1, Math.round((canvas.height / canvas.width) * w));
+  const shot = companionBus.model?.snapshot();
+  if (!shot || !shot.width || !shot.height) return null;
+  const w = Math.min(COVER_MAX_WIDTH, shot.width);
+  const h = Math.max(1, Math.round((shot.height / shot.width) * w));
+
   const probe = document.createElement("canvas");
   probe.width = w;
   probe.height = h;
   const ctx = probe.getContext("2d", { willReadFrequently: true });
   if (!ctx) return null;
-  for (let i = 0; i < 10; i++) {
-    await nextFrame();
-    ctx.clearRect(0, 0, w, h);
-    try {
-      ctx.drawImage(canvas, 0, 0, w, h);
-    } catch {
-      return null; // 画布被污染（不该发生：贴图都是同源 blob）
-    }
-    const data = ctx.getImageData(0, 0, w, h).data;
-    let opaque = 0;
-    let sampled = 0;
-    for (let p = 3; p < data.length; p += 4 * 7) {
-      sampled++;
-      if (data[p] > 16) opaque++;
-    }
-    // 2%：模型在舞台上占的面积远大于此；再低会把"几个抗锯齿边缘像素"当成画出来了
-    if (sampled > 0 && opaque / sampled > 0.02) {
-      const shot = document.createElement("canvas");
-      shot.width = w;
-      shot.height = h;
-      const out = shot.getContext("2d");
-      if (!out) return null;
-      out.fillStyle = "#0b1020"; // = tailwind 的 ink
-      out.fillRect(0, 0, w, h);
-      out.drawImage(canvas, 0, 0, w, h);
-      return await new Promise<Blob | null>((res) => shot.toBlob(res, "image/jpeg", 0.86));
-    }
+  ctx.drawImage(shot, 0, 0, w, h);
+  const data = ctx.getImageData(0, 0, w, h).data;
+  let opaque = 0;
+  let sampled = 0;
+  // 每 7 个像素抽一个：720×1280 全扫要几百万次，抽样后误差远小于 2% 这道闸的余量
+  for (let p = 3; p < data.length; p += 4 * 7) {
+    sampled++;
+    if (data[p] > 16) opaque++;
   }
-  return null;
+  if (!sampled || opaque / sampled <= COVER_MIN_OPAQUE) return null;
+
+  const out = document.createElement("canvas");
+  out.width = w;
+  out.height = h;
+  const octx = out.getContext("2d");
+  if (!octx) return null;
+  octx.fillStyle = "#0b1020"; // = tailwind 的 ink
+  octx.fillRect(0, 0, w, h);
+  octx.drawImage(shot, 0, 0, w, h);
+  return await new Promise<Blob | null>((res) => out.toBlob(res, "image/jpeg", 0.86));
+}
+
+/**
+ * 第 ⑥ 步的「作者推荐」两格（设计正本 §3.5 第 6 步「推荐人格/声音（可空）」）。
+ *
+ * ★★ 推荐 ≠ 强制：合并顺序是 **用户自选 > 人格推荐 > 模型推荐 > 服务端默认**（官网仓 COMPANION.md，
+ *   服务端 `/api/companion/settings` 一处实现）。装了这个形象的人只要自己选过人格 / 声音，这两项就用不上 ——
+ *   文案照这个说，写成"装上就会变成这样"是骗人。
+ * ★ 只列**公开**的（`scope: "all"`）：私有人格在服务端 `resolvePersonaBinding` 那里直接 403，
+ *   而私有的声音模板别人也读不到 —— 让人选一个注定用不上的东西，比不给选更糟。
+ * ★★ 还要把**没买的付费人格**滤掉（`bindablePersona`）：服务端对它回的是 403「Buy the persona before binding it」，
+ *   一句英文 —— 而那时用户已经填完整整一屏、点的是最后那颗「发布」。列表里本来就有 `price` / `purchased` / `isOwner`
+ *   三个字段可以当场判，没有任何理由让人走到那一步才知道。
+ * ★ 列表取失败**不挡发布**：这两项本来就可以空。所以失败只在这一格里说一句，不写进 publishErr。
+ */
+/** 这个人格现在绑得上吗：自己的 / 免费的 / 已经买过的 —— 其余的服务端一律 403（见上面的 ★★） */
+function bindablePersona(p: MarketPersona): boolean {
+  return p.isOwner || p.price <= 0 || p.purchased;
+}
+
+function RecommendPickers() {
+  const personaId = useLive2dUpload((st) => st.recPersonaId);
+  const voice = useLive2dUpload((st) => st.recVoice);
+  const [personas, setPersonas] = useState<MarketPersona[]>([]);
+  const [voices, setVoices] = useState<VoiceTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    // 两条各自成败：人格取到了、声音没取到时仍然让人选人格（`allSettled` 而不是 `all`）
+    void Promise.allSettled([
+      listPersonas({ scope: "all", page: 1, limit: PICKER_LIMIT, sort: "hot" }),
+      listVoiceTemplates({ scope: "all", page: 1, limit: PICKER_LIMIT, sort: "hot" }),
+    ]).then(([p, v]) => {
+      if (!alive) return;
+      if (p.status === "fulfilled") setPersonas(p.value.personas.filter(bindablePersona));
+      if (v.status === "fulfilled") setVoices(v.value.templates);
+      const bad = [p, v].find((r) => r.status === "rejected");
+      setErr(bad && bad.status === "rejected" ? companionErrorText(bad.reason, "推荐列表没取到，跳过这两项也能发布。") : "");
+      setLoading(false);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const voiceId = voice?.templateId ?? "";
+  return (
+    <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
+      <FieldLabel>作者推荐（可以都不选）</FieldLabel>
+      <p className="mb-2 text-xs leading-relaxed text-slate-500">
+        装了这个形象、自己又还没挑过人格 / 声音的人，会拿到你推荐的这两样；已经自己挑过的人不受影响。
+      </p>
+      {loading ? (
+        <EmptyState loading text="正在取人格与声音…" compact />
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="w-16 shrink-0 text-xs font-semibold text-slate-300">人格</span>
+            <select
+              value={personaId}
+              aria-label="推荐哪个人格"
+              onChange={(e) => useLive2dUpload.setState({ recPersonaId: e.target.value })}
+              className={selectCls}
+            >
+              <option value="">不推荐</option>
+              {personas.map((p) => (
+                <option key={p._id} value={p._id}>
+                  {p.coverEmoji} {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-16 shrink-0 text-xs font-semibold text-slate-300">声音</span>
+            <select
+              value={voiceId}
+              aria-label="推荐哪个声音"
+              onChange={(e) => {
+                // ★ 存的是模板那份**拼好的快照**（VoiceTemplate.voice，templateId 就在里面）：
+                //   声音按快照走、不按 id 引用（COMPANION.md），模板将来被删了这个嗓子也还在
+                const picked = voices.find((t) => t._id === e.target.value);
+                useLive2dUpload.setState({ recVoice: picked ? picked.voice : null });
+              }}
+              className={selectCls}
+            >
+              <option value="">不推荐</option>
+              {voices.map((t) => (
+                <option key={t._id} value={t._id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {personas.length === 0 && voices.length === 0 && !err && (
+            <p className="text-[11px] leading-relaxed text-slate-500">市场里还没有公开的人格和声音可选，跳过就行。</p>
+          )}
+        </div>
+      )}
+      {!!err && <p className="mt-1.5 text-xs leading-relaxed text-rose-300">{err}</p>}
+    </div>
+  );
 }
 
 export default function SupportModelNewPage() {
@@ -391,7 +522,7 @@ export default function SupportModelNewPage() {
     if (!blob) {
       useLive2dUpload.setState({
         coverBusy: "",
-        coverErr: "这台设备上截不到舞台画面（画布不保留帧缓冲）。用下面的「自己选一张」传一张图当封面吧。",
+        coverErr: "没截到画面（模型可能还没画出来）。等预览里的人动起来再点一次，或者用下面的「自己选一张」。",
       });
       return;
     }
@@ -399,7 +530,8 @@ export default function SupportModelNewPage() {
   }
 
   // 舞台从第 ② 步一直挂到第 ⑥ 步。★ 别在中间摘下来：一是换步骤重挂 = 把模型销毁重建一次（几秒 + 一次贴图上传），
-  //   二是第 ⑥ 步「从预览截一张」需要它**正在渲染** —— detach() 之后 ticker 是停的，截出来必然是空的。
+  //   二是第 ⑥ 步「从预览截一张」要有一个**已经加载好的模型**在台上（`snapshot()` 自己补画一帧，
+  //   所以 ticker 停着也截得到，但模型被销毁了就什么都没有了）。
   const stageOn = !!s.previewUrl && s.step !== "pick" && s.step !== "done";
   const stepIndex = LIVE2D_STEPS.indexOf(s.step as (typeof LIVE2D_STEPS)[number]);
 
@@ -694,8 +826,16 @@ export default function SupportModelNewPage() {
                 <div className="space-y-1">
                   {s.inspect.completeness.required.map((r) => (
                     <div key={`req-${r.slot}`} className="flex items-center gap-2 text-xs">
-                      <Icon name={r.ok ? "check" : "close"} size={13} className={r.ok ? "text-emerald-300" : "text-rose-300"} />
-                      <span className={r.ok ? "text-slate-300" : "text-rose-300"}>必须 · {r.slot}</span>
+                      {/* 三态：对上了 ✓ / 确实缺 ✗ / 说不出来（没有 cdi3）—— 第三种画成灰问号，不是红叉 */}
+                      <Icon
+                        name={r.ok === true ? "check" : r.ok === false ? "close" : "info"}
+                        size={13}
+                        className={r.ok === true ? "text-emerald-300" : r.ok === false ? "text-rose-300" : "text-slate-500"}
+                      />
+                      <span className={r.ok === true ? "text-slate-300" : r.ok === false ? "text-rose-300" : "text-slate-500"}>
+                        必须 · {slotLabel(r.slot)}
+                        {r.ok === null && "（包里没有参数表，看不出来）"}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -708,7 +848,7 @@ export default function SupportModelNewPage() {
                       key={`rec-${r.slot}`}
                       className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${r.ok ? "bg-slate-900 text-slate-300" : "bg-slate-900 text-slate-600"}`}
                     >
-                      {r.ok ? "✓" : "—"} {r.slot}
+                      {r.ok ? "✓" : "—"} {slotLabel(r.slot)}
                     </span>
                   ))}
                 </div>
@@ -730,7 +870,7 @@ export default function SupportModelNewPage() {
               <button
                 type="button"
                 onClick={() => setStep("mapping")}
-                disabled={s.inspect.completeness.required.some((r) => !r.ok)}
+                disabled={missingRequired(s.inspect.completeness.required).length > 0}
                 className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
                 下一步：对映射
@@ -741,8 +881,14 @@ export default function SupportModelNewPage() {
               </button>
             )}
           </div>
-          {s.inspect?.completeness.required.some((r) => !r.ok) && (
+          {!!s.inspect && missingRequired(s.inspect.completeness.required).length > 0 && (
             <p className="text-center text-[11px] text-rose-300">上面标红的必须项缺了，补齐再重新导出一次包。</p>
+          )}
+          {!!s.inspect && !s.inspect.capabilities.paramsKnown && missingRequired(s.inspect.completeness.required).length === 0 && (
+            <p className="text-center text-[11px] leading-relaxed text-slate-500">
+              这个包里没有 cdi3.json，必须项一条都核不了 —— 我们按「标准参数名」放行。装上之后要是不会眨眼 / 不会转头，
+              多半就是参数名不标准，回 Cubism 改成 ParamEyeLOpen 这一套再导一次。
+            </p>
           )}
         </section>
       )}
@@ -768,7 +914,7 @@ export default function SupportModelNewPage() {
                         key={a}
                         label={ACTION_LABEL[a]}
                         disabled={!value}
-                        onPlay={() => companionBus.action(a)}
+                        onPlay={() => (value ? companionBus.motionGroup(value) : false)}
                         hint={!value ? "没对上动作组，这个动作不演" : undefined}
                       >
                         <select
@@ -801,7 +947,7 @@ export default function SupportModelNewPage() {
                     const cur = mapping.faces?.[f] ?? null;
                     const value = cur?.expression ?? "";
                     return (
-                      <MapRow key={f} label={FACE_LABEL[f]} onPlay={() => companionBus.face(f)}>
+                      <MapRow key={f} label={FACE_LABEL[f]} onPlay={() => (value ? companionBus.expression(value) : companionBus.face(f))}>
                         <select
                           value={value}
                           aria-label={`${FACE_LABEL[f]} 用哪个表情`}
@@ -844,7 +990,7 @@ export default function SupportModelNewPage() {
                         key={t}
                         label={TOUCH_LABEL[t]}
                         disabled={!motion}
-                        onPlay={() => motion && previewMotionGroup(motion)}
+                        onPlay={() => (motion ? previewMotionGroup(motion) : false)}
                         hint={!area ? "没对上命中区，摸这里不会有反应" : undefined}
                       >
                         <select
@@ -1034,6 +1180,8 @@ export default function SupportModelNewPage() {
             <FieldLabel>标签</FieldLabel>
             <TagInput tags={s.tags} onChange={setTags} max={TAG_MAX} maxLen={VIDEO_TAG_LEN} split={parseTags} />
           </div>
+
+          <RecommendPickers />
 
           <div>
             <FieldLabel>谁能用</FieldLabel>

@@ -47,6 +47,8 @@ import {
   type SpeakerStat,
 } from "../companion/personaWizard";
 import { currentRoute, startJob } from "../data/jobs";
+// ★ id 生成器全仓只有 types.uid 一份，别在 store 里另写一个自增的（铁律六）
+import { uid } from "../types";
 
 /** 7 步（设计正本 §4.3）。地址栏不写步数：向导是一条线，深链进第 5 步而手里没有草稿只会是白屏 */
 export const PERSONA_STEPS = [
@@ -185,12 +187,6 @@ export const usePersonaWizard = create<PersonaWizardState>()(() => initialWizard
 // ── 素材原文：模块级，不进 store（见文件头 ★★）─────────────────────────────
 const materialTexts = new Map<string, string>();
 
-let seq = 0;
-function nextId(prefix: string): string {
-  seq += 1;
-  return `${prefix}_${Date.now().toString(36)}_${seq}`;
-}
-
 /** 认一遍说话人：全部 chat 类素材拼起来算一次（跨文件的同一个人要能合并计数） */
 function recountSpeakers(metas: MaterialMeta[]): SpeakerStat[] {
   const chat = metas
@@ -204,7 +200,7 @@ function recountSpeakers(metas: MaterialMeta[]): SpeakerStat[] {
 export function addMaterial(kind: PersonaMaterialKind, label: string, text: string): string {
   const body = String(text || "").trim();
   if (!body) return "";
-  const id = nextId("mat");
+  const id = uid("mat");
   materialTexts.set(id, body);
   const metas = [...usePersonaWizard.getState().materials, { id, kind, label, chars: body.length }];
   const speakers = recountSpeakers(metas);
@@ -364,8 +360,8 @@ export async function sendPreviewMessage(text: string): Promise<void> {
     return;
   }
 
-  const userMsg: PreviewMsg = { id: nextId("m"), role: "user", text: body };
-  const botId = nextId("m");
+  const userMsg: PreviewMsg = { id: uid("m"), role: "user", text: body };
+  const botId = uid("m");
   const history = [...s.chat, userMsg];
   usePersonaWizard.setState({
     chat: [...history, { id: botId, role: "assistant", text: "", streaming: true }],

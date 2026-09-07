@@ -252,10 +252,21 @@ export function uninstallLive2dModel(id: string): Promise<InstallResult> {
 //   布尔只认 "true"/"1"/"on"/"yes"（**所以 false 一律不发**，发 "false" 会被 `Boolean("false")` 判成真的年代还在别处存在）、
 //   voice / mapping 要 JSON.stringify、tags 逗号分隔。这几条在下面 `bundleParts` 一处实现，别在调用点各拼一遍。
 
-/** `/inspect` 的完成度清单：required 少一项就不能发布，recommended 只是"有了会更像活人" */
+/**
+ * `/inspect` 的完成度清单：required 少一项就不能发布，recommended 只是"有了会更像活人"。
+ *
+ * ★★ `ok` 是**三态**，别压成两档（2026-09-07 对着服务端 `live2dCapabilities.service.completenessOf` 核出来的）：
+ *   `true` = 对上了；`false` = 确实缺；**`null` = 说不出来** —— 包里没有 cdi3.json，服务端读不到参数表
+ *   （`capabilities.paramsKnown` 为 false 时 required 那五项**全是 null**）。
+ *   把 null 当 false 的后果正是坑表里那一格：一个完全正常、只是导出时没勾 cdi3 的模型，会被整屏红字判成
+ *   "不能眨眼 / 不能转头"，并且**永远点不动下一步** —— 而它其实一切正常。recommended 那半永远是布尔。
+ * ★ `slot` 的取值：required 是参数槽名（`mouthOpen` / `eyeL` / `eyeR` / `angleX` / `angleY`）；
+ *   recommended 是 `idle` 与 `action:<动作槽>` / `face:<表情槽>` / `touch:<触摸区>`（槽名同 companion.json）。
+ *   都是英文标识符，界面上要配中文名（`SupportModelNewPage.slotLabel`）。
+ */
 export interface Live2dCompletenessItem {
   slot: string;
-  ok: boolean;
+  ok: boolean | null;
 }
 export interface Live2dCompleteness {
   required: Live2dCompletenessItem[];

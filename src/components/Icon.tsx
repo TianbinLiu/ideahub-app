@@ -40,7 +40,9 @@ export type IconName =
   // 创作中心（2026-09-07）三枚：上传向导的选文件 / 包里那份 model3.json / 「AI 生成」这一步
   | "upload"
   | "file"
-  | "sparkle";
+  | "sparkle"
+  // 「说不出来」那一档：上传向导的完成度清单里，没有 cdi3 的包既不是 ✓ 也不是 ✗（三态，别压成两档）
+  | "info";
 
 /** 描边版（默认）。值是 <svg> 的内容，静态字面量，无外部输入。 */
 const OUTLINE: Record<IconName, string> = {
@@ -93,6 +95,8 @@ const OUTLINE: Record<IconName, string> = {
   file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h6"/>',
   // 四角星（AI 生成这一步；与 emoji ✨ 同义，但能随 currentColor 变色）
   sparkle: '<path d="M12 3l2.2 5.3a2 2 0 0 0 1.5 1.5L21 12l-5.3 2.2a2 2 0 0 0-1.5 1.5L12 21l-2.2-5.3a2 2 0 0 0-1.5-1.5L3 12l5.3-2.2a2 2 0 0 0 1.5-1.5z"/>',
+  // 圆圈里一个 i
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 16v-5"/><path d="M12 8h.01"/>',
 };
 
 /**
