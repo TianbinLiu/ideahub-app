@@ -1266,6 +1266,15 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
               <Icon name="play" size={12} filled />
               {formatPlays(v.plays)}
             </span>
+            {/* 「回炉过」的角标。★ 判据是 `revisedAt` **有没有值**（同详情页那一行，铁律六）：
+                没回炉过的作品与老数据都没有这一格。三列网格里塞不下整句话，只留版次 ——
+                完整那句「N 月 N 日重新剪辑过 · 第 N 版」在详情页上。
+                ★ 版次口径同样是 revision + 1：回炉一次之后是第 2 版。 */}
+            {!!v.revisedAt && (
+              <span className="absolute bottom-1 right-1.5 rounded bg-black/60 px-1 py-0.5 text-[9px] tabular-nums text-slate-200">
+                第 {Number(v.revision ?? 0) + 1} 版
+              </span>
+            )}
             {/* 私密作品要在墙上一眼认得出来：否则作者只会看到"这条怎么没人看"，
                 而它压根就没出现在任何人的首页里。改回公开在作品编辑页 */}
             {/* ★★ 下架排在私密**前面**：两者可以同时成立，而"被平台下架"是作者更需要知道的

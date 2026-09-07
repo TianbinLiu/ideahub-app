@@ -74,7 +74,9 @@ src/
                `voicePreview.ts`（三页试听共用的合成 + 播放 + 喂口型，同一时刻只响一段）
   data/        本地库（IndexedDB）与账号库，含种子数据与迁移；
                `videoDownload.ts` = 保存到本地（能不能存 / 存哪几个 / 叫什么名字 / 下载队列 /
-               交给系统分享，**唯一实现**；落点是原生 Cache 目录，不进 IndexedDB）
+               交给系统分享，**唯一实现**；落点是原生 Cache 目录，不进 IndexedDB）；
+               `projects.ts` = 已发布作品的「工坊工程」（供编辑页「🛠 回炉重做」取回来接着改）。
+               **服务端为真相**，本机只有 5 条 LRU 缓存；存的是一份只含永久 URL 的瘦身画布
   hooks/
   mock/        无后端时的假数据
   pages/       路由页面（hash 路由）；`SupportPage` = AI 客服，`SupportModelsPage` / `SupportPersonasPage` =
@@ -286,8 +288,19 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   工坊/工作流挤出 20 条上限。
 - **在途工程存 `data/drafts.ts`**：没做完的半成品，可以接着编辑（工坊/工作流两条路都能打开）。
   草稿索引与正文分开存（正文带 1MB 级的帧，个人页列表只读索引）。
-  与之相对，**已发布的作品不可回炉**——成片定稿，编辑页只改壳（标题/简介/分区/封面/可见性）。
-  想换内容就重新发一条。（"源工程 `saveProject`"那套 2026-08 删了：唯一的读方是回炉。）
+- **已发布作品的「回炉重做」存 `data/projects.ts`，不进草稿库**（2026-09-07）：发布（以及每一次
+  回炉）成功后把当时那份工坊画布瘦身成**只含永久 URL** 的 JSON PUT 进服务端，编辑页那颗
+  「🛠 回炉重做」取回来接着改，再走 `PATCH /videos/:id` 带 `segments` + `baseRevision` 换掉内容
+  （同一个链接、同一批互动数据；版次下发 + 收藏者通知 + 确认卡当面报数 + 弹幕会被清空）。
+  ★★ **别把它塞进 `drafts.v1`**：那边 `MAX_DRAFTS=20` 按 updatedAt 降序淘汰、不区分种类、
+  被挤掉的正文直接 idbDel 且零提示，而工程的 updatedAt 冻结在发布那一刻 —— 混进去的话它必然先出局，
+  用户发满 20 条之后早期作品的回炉能力会在**零提示**下消失。
+  ★★ 画布的不变量：里面**没有任何** `data:` / `idb:` / 方舟地址（服务端 zod 与客户端 `assertClean`
+  两道门）。这条不变量买下"跨设备能用"与"`cacheSweep` 不需要认识这个键"两件事 ——
+  放宽它就必须同时给 `collectReferenced` 补一段引用来源，否则清一次缓存会真删用户资产。
+  ★ 回炉态只挂在 `flowStore.reviseOf` 上，**不进草稿**：一份被重新打开的普通草稿不该悄悄拥有
+  替换线上作品的权力。它跟着 `clearTemplate()` 走（那个函数的调用点恰好是全部「整表换流水线」点），
+  `openWorkDraft` 另外显式清一次。
 - **页顶栏只有一份实现 `components/PageHeader`**（2026-09-05 主人真机点名"返回键偏上、各页位置不统一"后收口）：
   safe-top + 48px 一行，返回键 / 标题 / 「?」中心离状态栏底沿 34px，返回键走 `IconTapButton`（44×44 命中区，
   图标 22px、左缘 16px），标题 18px 加粗，右侧插槽从左到右「?」→ 操作键，长页用 `sticky`。
@@ -436,6 +449,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 后加的字段用 `=== "预期值"` 判 | 存量数据那一项是 `undefined`，被整批判成"不是"——首页突然空了，且不报错 | 一律判**否定**（`!== "private"`）。`visibility` 踩过，规则写在 `docs/api-contract.md`「可见性」一节 |
 | 两仓价目表各写各的 | 页面报价 ¥25、实际扣 ¥15，用户觉得被偷钱 | `src/data/economy.ts` 是**报价**，server 的 `payment/order.service.js` + `config/tokens.js` 是**结算**，必须逐条相等。server 的 `payOrder.spec.js` 末尾钉了一份 |
 | 「最多出几张卡」的上限自己抄一份（报价一份、提示词一份、`slice` 一份） | 上一条的**同仓版**：界面按 6 张报价、实际铸了 8 张，多出的两张卡面照扣钱。改上限时改一处漏三处**没有任何症状**——只会变成报价与实收不等，两个方向都不报错 | 上限只有一处：`economy.DECK_MAX_CARDS` / `TEMPLATE_MAX_CARDS`，类型是 `CardMintCap`（带牌子的 number），报价函数与 `mintCards` 都只收它 —— `extractCost(n, 8)` 这种手写数字**编译不过**。提示词里那个数由 `real.ts` 的 `mintSpec(cap, head, tail)` **插值**进去（调用方只给前后两半文字，拿不到写那个数的机会），`mintCards` 切的是同一个 `spec.cap`。2026-08-13 收口，收之前模板那条路已经是错的（提示词 `0~6`、slice 切 8、报价按 6） |
+| 想在「发布之后」读工坊画布 | 每条作品都留下一份**空画布**，而不变量断言对空画布恒过、零报错 | 组稿成功那一拍 `useFlowActions.cut()` 里 `useFlow.getState().reset()` 就把 `nodes` 清成 `[]` 了（`flowStore.reset`），此后剪辑页/发布页读到的恒为空。要抓画布只有一个位置：`persistCutDraft()` **之后**、`reset()` **之前**，并当场落 IndexedDB（`data/projects.captureCanvas`）。退回"发布前读 WorkDraft 正文"也不行 —— `saveWorkDraft` 对 `mode === "simple"` 直接不落草稿，简约模式一份都拿不到 |
+| 往 `Proposal.firstFrame` / `lastFrame` / `poster` 里塞对象当墓碑（`{lost:"frame"}`） | 三条规则同时坏掉且**全是零报错或错报错**：承接判定 `p.firstFrame === prevP.lastFrame` 变成对象引用比较恒 false；`refVideoOn` 与白模 `blockoutIssue` 见它非空整句拒 ⇒ 回炉打开的白模段/参考直出段被自己的墓碑挡住出不了片；所有 `?.startsWith("data:")` 抛 TypeError | 这几格是 `string`。缺失一律用**该字段本来就有的"没有"值**（`""` / `undefined`），"为什么没有"记在旁挂的可选字段 `Proposal.lost` 里（`types.ts`）。`lost` **只管渲染**，一个判据都不参与 |
 | 以为 `design/` 里的模型可以随便打包 | —— | 那是 BOOTH 购入的第三方素材，出厂分发需先取得授权，见下 |
 | 把 `public/models/protected/` 当成"都是不能发的" | 两个方向都出过事：把**自有**的 milltina 裁掉 → 进工坊看不到铸卡师且不报错；把**第三方**的 rin 留下 → 版权素材随包发出去了 | 那个目录装的是"要加密的"，不是"不能发的"，两件事。**自有、必须发**：`milltina-opt.glbx`（委托定制的默认铸卡师）。**第三方、绝不能发**：rin（远坂凛，含卡牌全息那份）、gratia、tsumire。加密拦不住版权 —— 解密密钥就在同一个包里 |
 | 铸卡师不出声 | 嘴在动但没声音 | 系统没装中文语音包。Win11：设置→时间和语言→语音→添加语音→中文(简体，中国)，装完**完全退出浏览器**再开（语音表在进程启动时枚举一次）。⚠「讲述人→添加自然语音」里的晓晓/云希浏览器拿不到 |

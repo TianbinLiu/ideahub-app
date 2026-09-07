@@ -258,6 +258,9 @@ export default function VideoPage() {
    */
   const readMarked = useRef<string | null>(null);
   const fromNotification = (loc.state as { fromNotification?: string } | null)?.fromNotification;
+  /** 从别的页带过来的一句成功话（现在只有"回炉替换成功"用它）。★ 进本页那一拍取一次就够，
+   *  之后归本页自己管 —— 用 lazy 初值而不是每次渲染读 loc.state：那样关不掉（关了又被读回来） */
+  const [navBanner, setNavBanner] = useState<string>(() => (loc.state as { banner?: string } | null)?.banner ?? "");
   useEffect(() => {
     if (!video || !fromNotification || readMarked.current === fromNotification) return;
     readMarked.current = fromNotification;
@@ -388,8 +391,10 @@ export default function VideoPage() {
           </button>
           {/* ★ 这里原来对「合并发布的成片」（video.merged）单独走一条"不可修改"的分支，
               把作者挡在编辑页外面 —— 连改个标题、把作品设成仅自己可见都做不到。
-              现在**所有**作品的成片都不可修改（发布即定稿），编辑页本身就只改壳，
-              这个特例没有存在意义了，一视同仁给编辑入口。 */}
+              一视同仁给编辑入口即可，这个特例没有存在意义。
+              ⚠ 后半句原来写的是「现在**所有**作品的成片都不可修改（发布即定稿）」——
+                2026-09-07 起不再成立：编辑页那颗「🛠 回炉重做」能换掉成片内容（同一个链接、
+                同一批互动数据）。能不能回炉由**编辑页**按六条判据说，这里不预判、不分叉。 */}
           {isMyAuthor(video.author) ? (
             <Link
               to={`/edit/${video.id}`}
@@ -491,6 +496,17 @@ export default function VideoPage() {
           </div>
         )}
 
+        {/* 回炉替换成功之后从发布页带过来的那句话（页内横幅，本 app 没有 toast）。
+            ★ 可关：它是**事件**不是常驻状态，看过就该走 */}
+        {navBanner && (
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
+            <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-emerald-200">{navBanner}</p>
+            <button onClick={() => setNavBanner("")} aria-label="知道了" className="flex-none text-[11px] text-emerald-300/80">
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* 「保存到本地」被就地拒时那句整句话。与下架横幅同一带：那是用户此刻正在看的地方 */}
         {dlBlocked && (
           <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2">
@@ -499,6 +515,14 @@ export default function VideoPage() {
         )}
 
         <h1 className="mt-4 text-xl font-bold text-slate-100">{video.title}</h1>
+        {/* ★★ 「这条片被重新剪辑过」必须让**观众**看得见（2026-08-10 删掉回炉的理由①正是
+            "内容变了而观众没有任何提示"）。判据是 `revisedAt` **有没有值** —— 没回炉过的
+            作品、老服务端、老数据都不该凭空长出一行。日期口径走 types.relativeTime 那一份。 */}
+        {!!video.revisedAt && (
+          <p className="mt-1 text-xs text-slate-500">
+            {relativeTime(video.revisedAt)}重新剪辑过{video.revision ? ` · 第 ${video.revision + 1} 版` : ""}
+          </p>
+        )}
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-400">
           {/* 作者可点：从详情页也要能走到创作者主页，否则「看看 TA 还发过什么」
               只有首页头像一条路 */}

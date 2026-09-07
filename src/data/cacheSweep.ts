@@ -59,6 +59,15 @@ function collectSegment(seg: VideoSegment | undefined, out: Set<string>): void {
 /**
  * 把磁盘上**所有**还指向 blob 的指针收集起来。
  * ★ 漏掉一处 = 删掉一份还在用的东西。所以宁可多收，别偷懒。
+ *
+ * ★★ 「留存的工坊工程」（`data/projects.ts` 的本地 LRU 缓存）**刻意不是**第六段来源，
+ *   而这不是漏掉：那份画布按**不变量**里面一个 `idb:` 指针都没有 —— PUT 的 zod 与
+ *   客户端的 `assertClean` 是同一条正则的两道门（`/"(?:data:[a-z]+\/|idb:)|…volces…/`）。
+ *   不引用任何 blob，也就不可能因为它被 LRU 挤掉而让谁变成孤儿。
+ *   ⚠ 哪天有人**放宽那条断言**（比如为了留住 `idb:merged:` 合并成片或 `idb:model3d:` 的
+ *     GLB），就**必须同时**回到这里补第六段 —— 否则第 6 条以后的工程被 LRU 挤出本地缓存，
+ *     这里就列举不到它们的指针，24 小时后一次「清理缓存」会把 36MB 级的 GLB 与合并成片
+ *     当孤儿真删，而工程还在服务端、指针指向空气，全程零报错。
  */
 async function collectReferenced(): Promise<Set<string>> {
   const refs = new Set<string>();

@@ -14,6 +14,10 @@ import { CommentMention, DraftVideo, VideoComment, VideoDeck, VideoItem, VideoPa
 import { makeFrame } from "../mock/frames";
 import { idbGet, idbSet } from "./db";
 import { materializeDraft, type MaterializeError } from "./publishAssets";
+import * as projects from "./projects";
+// ⚠ 与 data/danmaku 是**互相 import**（那边要本文件的 realId/remoteOn）：两边都只在函数体里
+//   用对方，所以这个环在运行时无害。加新引用之前先确认自己不是在模块顶层用它。
+import { dropLocalDanmaku } from "./danmaku";
 import { currentUser, readyAccount, subscribeAccount } from "./account";
 import { API_ON, ApiError, emitApiError } from "../api/client";
 import * as branch from "../api/branch";
@@ -708,16 +712,21 @@ export async function deleteVideoItem(id: string): Promise<string | null> {
 //   和 shiftProjectsAfterDelete。两个都随「作品发布后不可回炉」删掉了，
 //   而且删掉之前它们的远端分支**从来没生效过**：服务端的 BranchVideo 压根没有
 //   parts 字段，PATCH 上去只会被 strip，改动只活在本地 cache 里，刷新一次就打回原形。
-//   ——静默且全局的坏失败（铁律八）。多 P 的【读】路径（partsOf / VideoPage 选集条）保留，
-//   老作品里已有的分集照常播；只是不能再增删改了。
+//   ——静默且全局的坏失败（铁律八）。
+//   ⚠ 2026-09-07「回炉重做」重新做起来了，但**这两个不复活**，`ApiVideo.parts` 那条死线
+//     也不复活：回炉替换的是**整条作品的 segments**（见下面的 reviseVideo），不是某一 P。
+//     多 P 的【读】路径（partsOf / VideoPage 选集条）照旧保留，老作品里已有的分集照常播。
+//     谁要求"顺手把 parts 做成真的"——那是另一个特性，混进来就是把当年那个「客户端类型
+//     已就位、服务端压根没有字段、只写本地、刷新打回原形」的静默坏失败原样复活。
 
 // ★ 这里原来还有一套「工坊源工程」（PROJ_KEY / saveProject / loadProject）：
-//   发布时把当时的节点树——三方案、没选的走向、挂载关系——按 videoId+partIndex
-//   存进 IndexedDB，供回炉重制时铺回桌面。回炉删掉之后 loadProject 没有任何调用方了，
-//   而 saveProject 仍在每次发布时写一棵**带首尾帧 dataURL 的树**进去，MB 级、只增不减，
-//   跟草稿正文抢的是同一份配额。写了没人读 = 纯占地方，所以一并删。
-//   老设备上遗留的 "ideahub-app.projects.v1" 不主动清理：清它要在启动路径上多一次
-//   IndexedDB 往返，而它下次装新版后就再也不会变大了，不值当。
+//   发布时把当时的节点树按 videoId+partIndex 存进 IndexedDB，供回炉重制时铺回桌面。
+//   它 2026-08 随回炉一起删了，理由是"写了没人读 = 纯占地方"，而且那份正文是**带首尾帧
+//   dataURL 的整棵树**、MB 级、只增不减，跟草稿抢的是同一份配额。
+//   ⚠ 2026-09-07 起工程留存在**服务端**（data/projects.ts + /api/branch/projects），
+//     存的是一份**只含永久 URL** 的瘦身画布（几十 KB），本机那份只是 5 条 LRU 缓存 ——
+//     两条老理由都不再成立。老设备上遗留的 "ideahub-app.projects.v1" 由
+//     projects.readyProjects() 顺手清掉（搭它本来就要做的那次往返，见那边的 ★）。
 
 export function publishVideo(draft: DraftVideo): VideoItem {
   // 幂等键跟着草稿走：pushPublish 超时后进待发队列，flushPending 重发的是同一个 draft，
@@ -757,6 +766,11 @@ export function publishVideo(draft: DraftVideo): VideoItem {
   const list = [item, ...all()];
   cache = list;
   save(list);
+  // ★ 给「组稿那一拍抓下的画布」盖上这次发布的幂等键 —— 必须在这里（拿到 clientId 之后、
+  //   任何一条上行路启动之前）：下面两条分支（现在传 / 进待发队列等 flushPending 补发）
+  //   最终都靠这个键把回包与那份画布对上号。挂进 pushPublish 里就会漏掉离线那一条，
+  //   而那条正是「作品发出去了、工程却永远留不上」最常见的形状。
+  void projects.stampPendingCanvas(draft.clientId);
   if (remoteOn()) {
     void pushPublish(item, draft);
   } else if (API_ON) {
@@ -1347,6 +1361,14 @@ function toVideoItem(v: branch.ApiVideo): VideoItem {
     //   首页那一栏对**没点进去过的作品**永远显示 0（见 VideoItem.commentCount）
     commentCount: typeof v.commentCount === "number" ? v.commentCount : undefined,
     createdAt: toMs(v.createdAt),
+    // ★★ 「服务端给实体加了字段，本机库那几跳必须一起搬」（CLAUDE.md 那条，2026-08-16
+    //   一天同形状咬过三次）。这两位漏一位的后果都不是少显示一行：
+    //     · 漏 revision ⇒ 回炉提交时 baseRevision 恒为 0，第二次回炉必然 409；
+    //     · 漏 revisedAt ⇒ 详情页那行「N 月 N 日重新剪辑过」永远不出现，
+    //       而它正是 2026-08-10 删掉回炉的理由①（观众零知情）的正面回应。
+    // ★ 都判**有值**，不给缺省：老服务端与从没回炉过的作品都不该凭空长出一个 0/日期。
+    ...(typeof v.revision === "number" ? { revision: v.revision } : {}),
+    ...(v.revisedAt ? { revisedAt: toMs(v.revisedAt) } : {}),
     comments: Array.isArray(v.comments) ? v.comments.map(toComment) : [],
   };
 }
@@ -1731,6 +1753,12 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     // ★ 真传上去了才出队（见上面"先入队"的 ★★）
     if (draft.clientId) inflightPublish.delete(draft.clientId);
     await dropPending(draft.clientId);
+    // ★★ 留存工坊工程（供以后「回炉重做」）。**即发即忘**：作品已经发出去了，
+    //   留存成败是另一件事，由 data/jobs 那张票单独说话 —— 混在一起用户会以为作品也没发成。
+    // ★ 传的是 `draft`（materialize **之前**那份，还带着 dataURL），不是 `sending`：
+    //   配对表就是拿"发出去之前"与"回包"逐位置对出来的，传 sending 会得到一张空表，
+    //   于是整份画布被墓碑化 —— 回炉打开是一堆空框，而且零报错。
+    void projects.retainAfterPublish(v._id, draft, v);
     emitVideos();
   } catch (e) {
     uploadStatus = null;
@@ -1745,6 +1773,134 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     //   重试只补没传完的，不把已经上行过的几 MB 再走一遍。
     void queuePending((e as MaterializeError).partial ?? sending, e);
   }
+}
+
+/**
+ * 「回炉重做」的回执。
+ *
+ * ★ 刻意**不是**一个 `string | null`（本仓别处那种整句人话的回执）：这条路上失败有四档，
+ *   而每一档屏幕上要画的东西都不一样 —— 409 是 amber 横幅 + 两颗键（其中一颗要拿
+ *   `currentRevision` 去重新取工程），400 是 rose 横幅 + 「知道了」，
+ *   "老服务端"是 rose + 一句专门的话，网络失败是 rose + 「重试」。
+ *   压成一个字符串的话，页面就得反过来去猜自己该画哪一种（正是本仓一再要消灭的形状）。
+ */
+export type ReviseResult =
+  | { ok: true; videoId: string; revision: number }
+  | { ok: false; kind: "conflict" | "blocked" | "stale-server" | "network"; why: string; currentRevision?: number };
+
+/**
+ * 回炉替换：拿这份合成稿换掉一条**已发布作品**的内容（同一个链接、同一批互动数据）。
+ *
+ * ★ 刻意**不**塞进 `updateVideoMeta`：那个函数的回滚快照 `before` 只记七个壳字段，
+ *   把片段塞进去等于让「改动已撤回」这句话变成谎话（而它是那条路上唯一的安全网）。
+ * ★ 刻意**不**入待发队列：回炉失败时合成稿（cutSession）原样留着，用户从个人页那条
+ *   「剪到一半」横幅回来重试即可 —— 而队列里那份 `baseRevision` 会陈旧，
+ *   自动重试必然 409，且是在用户看不见的地方连着 409。
+ * ★★ 成败判据**不是状态码**：老服务端的 zod 会把 `segments/branchTree/deck/baseRevision`
+ *   全部 strip，然后返回 **200 且内容一个字都没改**。所以这里必须验
+ *   `Number(v.revision ?? 0) === baseRevision + 1` —— 少了这一句，用户会看到「已替换」
+ *   而线上还是老内容，且再也没有人会发现（这正是 2026-08-10 删掉回炉的理由②的形状）。
+ */
+export async function reviseVideo(id: string, draft: DraftVideo, baseRevision: number): Promise<ReviseResult> {
+  const v0 = find(id);
+  if (!v0) return { ok: false, kind: "blocked", why: "这条作品已经不在了。" };
+  if (!remoteOn()) {
+    // ★ 离线/没连上时**整句拒**，不做"仅本地生效"：本地改了、服务端没改，下次冷启动
+    //   `readyRemote` 整份替换 cache，用户的这一版当场蒸发（save() 在远端模式还是 no-op）
+    return { ok: false, kind: "network", why: "这次没连上服务器，内容没有被替换。合成稿还留在「我的」里，联网后再试一次。" };
+  }
+  // ★ 与发布路径逐条同一口径。第一步同样是剥 `poster`（成片第一帧 dataURL，只管显示）：
+  //   服务端的 segmentBody 里没有这个键、zod 会 strip，带着走只是把请求体白撑大 N × 百 KB。
+  //   ⚠ 剥完那份也是下面 `retainAfterRevise` 的 `before` —— 与 publishVideo 那条路一致，
+  //     配对表里本来就不会有 poster 这一项（它永远没有云端孪生）。
+  const posterless = stripPosters(draft);
+  // ★ 再把本机资产（dataURL 帧 / `idb:` 成片）传成永久 URL，然后才发那个 JSON。
+  //   少这一步的话，`idb:merged:xxx` 会被服务端 `kept` 原样落库 —— 200、revision 照涨、
+  //   客户端判通过，而观众端全黑屏（publishAssets 文件头那次事故的同型）。
+  let sending: DraftVideo;
+  try {
+    sending = await materializeDraft(posterless, (done, total, label) => {
+      uploadStatus = { title: draft.title, done, total, label };
+      emitVideos();
+    });
+  } catch (e) {
+    uploadStatus = null;
+    emitApiError("reviseVideo", e);
+    return { ok: false, kind: "network", why: `素材没能全部上传（${errText(e)}）。内容没有被替换，合成稿还留在「我的」里。` };
+  }
+  uploadStatus = null;
+  let v: branch.ApiVideo | null;
+  try {
+    v = await branch.reviseVideo(realId(id), {
+      title: sending.title,
+      category: sending.category,
+      description: sending.description,
+      ...(sending.tags !== undefined ? { tags: sending.tags } : {}),
+      // ★ 封面只在已经是永久 URL 时才发（服务端不收 dataURL，见 VideoMetaPatch 的 ★）
+      ...(/^https?:\/\//.test(sending.cover) ? { cover: sending.cover } : {}),
+      ...(sending.visibility !== undefined ? { visibility: sending.visibility } : {}),
+      ...(sending.linkOnly !== undefined ? { linkOnly: sending.linkOnly } : {}),
+      // ★ 内容三件：`segments` 恒发（服务端要求 ≥1 段 —— 0 段作品 = 黑屏而 200），
+      //   branchTree / deck 有才发（`deck: undefined` 会被 zod 丢掉，不会清空原卡组）
+      segments: sending.segments,
+      ...(sending.branchTree ? { branchTree: sending.branchTree } : {}),
+      ...(sending.deck ? { deck: sending.deck } : {}),
+      baseRevision,
+    });
+  } catch (e) {
+    emitApiError("reviseVideo", e);
+    if (e instanceof ApiError) {
+      if (e.status === 409) {
+        const cur = (e.details as { currentRevision?: number } | undefined)?.currentRevision;
+        // ★ message 是服务端写好的**整句中文**，原样显示（铁律六：话也只该有一份）
+        return { ok: false, kind: "conflict", why: e.message, ...(typeof cur === "number" ? { currentRevision: cur } : {}) };
+      }
+      // 400 那四档（付费 / 已下架 / 复核中 / 缺版本号）同样原样显示
+      if (e.status === 400 || e.status === 403 || e.status === 404) return { ok: false, kind: "blocked", why: e.message };
+    }
+    return { ok: false, kind: "network", why: `没能替换（${errText(e)}）。合成稿还留在「我的」里，网络好了再试一次。` };
+  }
+  if (!v || typeof v._id !== "string") {
+    // 与 pushPublish 同一条：200 + 形状不对 = 失败（多半是服务器地址配错 / 网关兜到静态页）
+    return { ok: false, kind: "network", why: "服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）。" };
+  }
+  const got = Number(v.revision ?? 0);
+  if (got !== baseRevision + 1) {
+    console.warn("[videos] 回炉整发失败：revision 未递增", { id, base: baseRevision, got });
+    return {
+      ok: false,
+      kind: "stale-server",
+      why: "这台服务器还不支持回炉重做——作品内容一个字都没有被改动。等服务器更新后再试。",
+    };
+  }
+  // 回填本机库（与 pushPublish 同一口径：回包里的地址才是转存后的永久地址）
+  const item = find(id);
+  if (item) {
+    item.title = v.title || item.title;
+    item.category = v.category || item.category;
+    item.description = v.description ?? item.description;
+    item.cover = v.cover || item.cover;
+    if (Array.isArray(v.segments) && v.segments.length > 0) item.segments = v.segments;
+    // ★ 判**有没有**：这一版可能把互动分支去掉了（改成线性），那时服务端不回这个键，
+    //   照 `?? item.branchTree` 兜底会把旧那棵留下来 —— 播放器于是还按旧分支播
+    item.branchTree = v.branchTree;
+    const deck = toVideoDeck(v.deck);
+    item.deck = deck;
+    item.revision = got;
+    item.revisedAt = v.revisedAt ? toMs(v.revisedAt) : Date.now();
+    save(all());
+  }
+  // 服务端在回炉成功时会**清空这条作品的全部弹幕**（弹幕的 at 是全片累计秒、没有段落锚点，
+  // 内容一换必然错位且零报错）——本机那份镜像也要跟着清，否则这一刻屏幕上还在飘一批
+  // 服务端已经不存在的旧弹幕。
+  // ⚠ 本文件与 data/danmaku 互相 import（那边要本文件的 realId/remoteOn）。这个环是安全的，
+  //   但**只因为两边都只在函数体里用对方** —— 谁哪天在模块顶层调一句，求值顺序就会咬人。
+  dropLocalDanmaku(realId(id));
+  // 画布也要跟着更新到新版次：不更新的话，第二次回炉打开的是**上一版**的画布，
+  // 就着它再提交一次就把线上内容静默退回（B-hybrid 那条致命项）
+  void projects.retainAfterRevise(v._id, posterless, v, got);
+  emitVideos();
+  return { ok: true, videoId: v._id, revision: got };
 }
 
 /** 从待发队列里删掉一条（clientId 幂等键）。上传真成功时调，见 pushPublish 的 ★★ */
@@ -1851,6 +2007,18 @@ async function writePending(list: PendingPublish[]): Promise<void> {
  */
 const inflightPublish = new Set<string>();
 
+/**
+ * 这条作品**还在上传路上**吗（正在传，或还躺在待发队列里）。
+ *
+ * ★ 唯一实现（编辑页那颗「🛠 回炉重做」的第四种禁用态读它）：这两个集合都是本文件的
+ *   模块私有状态，让页面各判一半必然漏 —— 而漏掉的后果是让用户对一条**服务端上还不存在**
+ *   的作品发起回炉，`realId` 还是本机 `v_xxx`，PATCH 打过去是 400。
+ */
+export function isUploading(v: VideoItem): boolean {
+  if (!v.clientId) return false;
+  return inflightPublish.has(v.clientId) || pendingMirror.some((p) => p.draft.clientId === v.clientId);
+}
+
 /** 页面同步读：还有几条没传上去（在传的那几条不算，见 inflightPublish 的 ★） */
 export function pendingPublishes(): PendingPublish[] {
   // ★ 同样按 owner 过滤：不过滤的话，个人页横幅会把**上一个登录者**没传上去的作品
@@ -1911,6 +2079,11 @@ async function flushPending(): Promise<void> {
         const item = toVideoItem(v);
         cache = [item, ...cache.filter((x) => x.id !== item.id)];
       }
+      // ★★ 这一句**不能只写在 pushPublish 里**：离线发布（remoteOn() 为假那条分支）与
+      //   "传到一半被杀、下次冷启动补发"这两条路 pushPublish 一次都不跑 —— 漏了它，
+      //   那两条路上工程永远不会留存，而那正是 PendingPublish 存在的全部理由。
+      //   ★ 同样传 `p.draft`（队列里存的就是 materialize 之前那份），不是 `sending`。
+      void projects.retainAfterPublish(v._id, p.draft, v);
     } catch (e) {
       uploadStatus = null;
       // ★ 不再是空 catch：原因要留住，用户和排查的人都靠它

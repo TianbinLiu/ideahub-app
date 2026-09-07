@@ -1,21 +1,31 @@
-// 作品编辑页（仅作者可进）：改标题 / 分类 / 简介 / 封面 / 可见性，以及删除整部作品。
+// 作品编辑页（仅作者可进）：改标题 / 分类 / 简介 / 封面 / 可见性、**回炉重做**、删除整部作品。
 //
-// ★ 这里**不能改内容**。原来还有「🛠 工坊重制某一 P」「＋ 新增一 P」「删除某一 P」，
-//   2026-08 一并删掉，两条理由各自都成立：
-//     1. 产品定案：作品一经发布不可回炉。已经有人看过、收藏过这条作品之后再换掉成片，
-//        同一个链接下的内容就变了，而观众那边没有任何提示。
-//     2. 它本来就没生效过。服务端的 BranchVideo **压根没有 parts 字段**，
-//        分集的增删改只写进了本地 cache，刷新一次就打回原形——
-//        典型的"静默且全局"的坏失败（铁律八）。与其留个假按钮不如拿掉。
-//   多 P 的**读**路径保留（VideoPage 的选集条），老作品里已有的分集照常播。
-import { useEffect, useMemo, useState } from "react";
+// ★ 这一页有两件性质完全不同的事，别把它们混成一件：
+//     · **改壳**（标题/分区/简介/标签/封面/可见性）—— PATCH 七个字段，观众看到的内容不变；
+//     · **回炉重做**（下面那颗 🛠）—— 把发布时留存的工坊工程取回工坊接着改，再走同一条
+//       PATCH **换掉成片内容**。同一个链接、同一批播放/点赞/评论，但**内容变了**。
+//   所以回炉那颗键前面有一张确认卡，卡上当面报出真实的播放/收藏/弹幕数，并**提前**说清楚
+//   提交之后会清空多少条弹幕（弹幕的 at 是全片累计秒、没有段落锚点，内容一换必然错位）。
+//
+// ★ 2026-08 曾有「🛠 工坊重制某一 P」「＋ 新增一 P」「删除某一 P」，删掉的两条理由是
+//   ①观众零知情 ②它只写本地（服务端没有 parts 字段，PATCH 上去被 strip）。
+//   2026-09-07 回炉重新做起来的时候两条都被逐条堵上了（版次下发 + 收藏者通知 + 确认卡报数；
+//   每一条写路径都落在服务端 + revision 乐观锁）。但**分集（parts）不复活**：
+//   回炉替换的是整条作品的 segments，多 P 的**读**路径照旧保留，老作品的分集照常播。
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import PageHeader from "../components/PageHeader";
+import EmptyState from "../components/EmptyState";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { Link, useNavigate, useParams } from "react-router";
 import { CoverSection } from "../components/CoverPicker";
 import TagInput from "../components/TagInput";
 import VisibilityPicker from "../components/VisibilityPicker";
-import { deleteVideoItem, getVideo, isMyAuthor, partsOf, updateVideoMeta } from "../data/videos";
+import { deleteVideoItem, getVideo, isMyAuthor, isUploading, partsOf, updateVideoMeta } from "../data/videos";
 import { coverToPermanentUrl } from "../data/publishAssets";
+import * as projects from "../data/projects";
+import { danmakuFetched, danmakuOf, danmakuVersion, subscribeDanmaku } from "../data/danmaku";
+import { useStudio } from "../studio/studioStore";
+import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import { useVideosVersion } from "../hooks/useVideos";
 import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, segsTotal, visibilityOf, visibilityWire } from "../types";
 
@@ -44,6 +54,28 @@ export default function EditPage() {
   /** 确认卡上那条失败原因。★ 带 kind：这张卡上有两个会失败的动作（删除、改成仅自己可见），
    *  不分开的话改可见性失败会让**删除键**变成「再试一次」——按下去删的是作品 */
   const [delErr, setDelErr] = useState<{ why: string; kind: "delete" | "soft" } | null>(null);
+
+  // ── 回炉重做 ────────────────────────────────────────────
+  // 工程列表在这一页挂载时才问（那是唯一要用它的地方，理由见 data/projects.readyProjects 的 ★）
+  useSyncExternalStore(projects.subscribeProjects, projects.projectsVersion);
+  useEffect(() => {
+    void projects.readyProjects();
+  }, []);
+  // 弹幕条数要**当面报真数**：同步读内存那份，第一次问会顺手在后台拉一次，到货 emit
+  useSyncExternalStore(subscribeDanmaku, danmakuVersion);
+  /** 确认卡开着 */
+  const [reforgeAsk, setReforgeAsk] = useState(false);
+  /** 正在取回工程（整页态）/ 取回失败那句原话 */
+  const [fetching, setFetching] = useState(false);
+  const [fetchErr, setFetchErr] = useState("");
+  /** 「重试留存」/「删除留存的工坊工程」那两颗小键各自的状态 */
+  const [retainMsg, setRetainMsg] = useState("");
+  const [dropAsk, setDropAsk] = useState(false);
+  const [dropping, setDropping] = useState(false);
+  // 回炉是**第九条整表覆盖入口**：守卫与套模板/打开草稿同一份实现（先问脏、成了再断草稿）。
+  // ★ claim: false —— 工程不是草稿，套上之后要断开与旧草稿的关联，此后自动存盘会**另存**
+  //   一条普通在途草稿（这正是我们要的：回炉途中新炼的付费段有本地备份）
+  const { guard: reforgeGuard, dialog: reforgeDialog } = useApplyTemplate();
 
   // 深链刚进来时 video 可能还没就绪（远端补详情）；就绪后把表单初值补上。
   // 只在"表单还是空白"时回填，避免覆盖用户已输入的内容。
@@ -174,6 +206,80 @@ export default function EditPage() {
 
   const totalOf = (i: number) => segsTotal(parts[i].segments);
 
+  // ── 回炉：能不能点，点不动的话为什么 ──────────────────────
+  // ★ 四种（这里是六种：多了"还没问出结果"与"这台服务器不支持"）禁用态都**按钮存在但灰**，
+  //   下面一行说清原因 —— 隐藏按钮会被读成"这个功能没上线"，而它其实只是这一条不行。
+  //   ⚠ **不预判「正在被复核」**：那一档只由服务端拒绝。一旦告诉作者"你正在被复核"，
+  //     他的最优解不是回炉（已被挡）而是**直接删掉作品**，管理员打开只剩一条不存在的目标 ——
+  //     那比回炉规避更糟。
+  const supported = projects.projectsSupported();
+  const hasProject = projects.hasProject(video.id);
+  const reforgeWhy: string | null = (() => {
+    if (supported === null) return "正在确认这条作品有没有留存工坊工程…";
+    if (supported === false) return "这台服务器还不支持回炉重做。等服务器更新后再试。";
+    if (isUploading(video)) return "这条作品还在上传，传完再回炉。";
+    if (video.pricing?.mode === "paid") return "这条作品设为按分集收费，不能换内容。";
+    if (video.takedown) return "这条作品已被平台下架，下架期间不能改内容。";
+    if (!hasProject) return "这条作品没有留存工坊工程，改不了内容。想换内容请重新发一条。";
+    return null;
+  })();
+
+  /** 确认卡上那几个数：**取不到就整段不出现**，绝不拼一个骗人的数（本仓那条纪律） */
+  const danmakuCount = danmakuOf(video.id).length;
+  const danmakuKnown = danmakuFetched(video.id);
+  const isPublic = visibilityOf(video) === "public";
+
+  /**
+   * 取回工程 → 铺进工坊。三道闸的顺序是承重的：
+   *   ① `studioBusyReason()` —— 工坊里有一炉在跑（钱正在花）就整句拒，不进；
+   *   ② **先取回、后守卫** —— `useApplyTemplate.guard` 的 apply 必须是"成了才返回真"
+   *      （它据此决定要不要 `newWorkDraft()` 断开旧草稿）。反过来先守卫的话，取回失败时
+   *      流水线一个字没改却已经和它那条草稿脱钩，下次自动存盘会另存一条重复的；
+   *   ③ guard 里那一下才真 `openProject` + 跳页。
+   */
+  async function beginReforge(): Promise<void> {
+    setReforgeAsk(false);
+    setFetchErr("");
+    const busyWhy = useStudio.getState().studioBusyReason();
+    if (busyWhy) {
+      setFetchErr(busyWhy);
+      return;
+    }
+    setFetching(true);
+    let canvas: Awaited<ReturnType<typeof projects.loadProject>>;
+    try {
+      canvas = await projects.loadProject(video!.id);
+    } catch (e) {
+      setFetching(false);
+      setFetchErr(e instanceof Error ? e.message : "原因不明");
+      return;
+    }
+    setFetching(false);
+    reforgeGuard(
+      () => {
+        const v = video!;
+        const ok = useStudio.getState().openProject(canvas.canvas, {
+          videoId: v.id,
+          // ★ 判否定：没有 revision = 从没回炉过 = 0（服务端那边有专门的 $or 分支接这一档）
+          baseRevision: Number(v.revision ?? 0),
+          title: v.title,
+        });
+        if (!ok) {
+          setFetchErr(useStudio.getState().studioBusyReason() ?? "现在铺不进工坊，稍后再试");
+          return false;
+        }
+        // ★ 落在**工作流**而不是 3D 工坊：回炉改的是"每一段的内容"，工作流正是逐段那一面
+        //   （工坊桌面管的是摆卡与推演）。两边是同一条流水线，用户随时能切过去。
+        navigate("/flow");
+        return true;
+      },
+      { label: "回炉重做（丢弃上面那条流水线）", noun: "回炉", claim: false },
+    );
+  }
+
+  // 取回中 / 取回失败：整页态（这一步要走网络，把人扣在编辑页上盯着一颗没反应的键更糟）
+  if (fetching) return <EmptyState full loading text="正在取回工坊工程…" />;
+
   return (
     <div className="min-h-full">
       {/* ★ safe-top 挂在 header 自己身上、不挂页面根：header 是 sticky top-0，
@@ -210,11 +316,71 @@ export default function EditPage() {
               </div>
             ))}
           </div>
+          {/* ★ 这一段原来写的是「🔒 成片内容已定稿，发布后不能再改」—— 2026-09-07 起不再成立
+              （下面那颗 🛠 就是改内容的路）。措辞按**事实**写：能改，但改的是同一个链接下的内容。 */}
           <p className="mt-3 rounded-xl border border-slate-700/60 bg-panel/40 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-400">
-            🔒 成片内容已定稿，发布后不能再改。
-            想调整剧情或画面，请用同一套卡组重新做一部——
+            想换成片内容，用下面的「🛠 回炉重做」把这条片的工坊工程取回工坊接着改 —— 链接、播放量、
+            评论都留着。想做一条全新的，
             <Link to="/studio" className="text-brand">去工坊再创作</Link>。
           </p>
+
+          {/* ── 回炉重做 ─────────────────────────────────────
+              摆在左栏「作品内容」下面而不是右栏表单里：它改的正是上面列出来的那些段，
+              而右栏从上到下全是"改壳"。放一起会让人以为保存修改也会动内容。 */}
+          <div className="mt-4">
+            <button
+              onClick={() => setReforgeAsk(true)}
+              disabled={!!reforgeWhy}
+              className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink active:scale-[0.99] disabled:bg-slate-700 disabled:text-slate-400"
+            >
+              🛠 回炉重做
+            </button>
+            {reforgeWhy && <p className="mt-1.5 text-xs leading-relaxed text-slate-500">{reforgeWhy}</p>}
+            {/* 「重试留存」：本机还留着一份没提交上去的画布待办时才摆（发布那一刻留存失败的那条路）。
+                ★ 判据带 clientId —— 待办是**单键**，不比对的话会拿"最近那一摊"去补另一条作品
+                （见 data/projects.pendingFor 的 ★） */}
+            {!hasProject && supported === true && projects.pendingFor(video.id, video.clientId) && (
+              <button
+                onClick={() => {
+                  setRetainMsg("正在重试…");
+                  void projects
+                    .retryRetain(video!.id, video!.title, Number(video!.revision ?? 0))
+                    .then((why) => setRetainMsg(why ?? "工程已留存，现在可以回炉重做了"));
+                }}
+                disabled={retainMsg === "正在重试…"}
+                className="mt-2 rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
+              >
+                重试留存
+              </button>
+            )}
+            {retainMsg && <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">{retainMsg}</p>}
+            {/* 删掉留存的工程：用户主动放弃。作品本身不受影响，但回炉入口会永久消失 —— 两步确认 */}
+            {hasProject && (
+              <button onClick={() => setDropAsk(true)} className="mt-2 text-[11px] text-slate-500 underline underline-offset-2">
+                删除留存的工坊工程
+              </button>
+            )}
+            {/* 取回失败 / 工坊在途被拒：整句原话，落在按下的那颗键旁边（铁律八） */}
+            {fetchErr && (
+              <div className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2">
+                <p className="text-[11px] leading-relaxed text-rose-200">
+                  没能取回这条作品的工坊工程（{fetchErr}）。换个网络再试一次。
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={() => void beginReforge()}
+                    className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700"
+                  >
+                    重试
+                  </button>
+                  <button onClick={() => setFetchErr("")} className="rounded-full px-3 py-1.5 text-[11px] text-slate-400">
+                    知道了
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          {reforgeDialog}
         </div>
 
         {/* 右：元信息 + 封面 + 可见性 */}
@@ -370,6 +536,65 @@ export default function EditPage() {
           </div>
         </div>
       </main>
+
+      {/* 回炉确认卡。★ 正文按**这条作品的真实数字**拼，取不到的那一段整段不出现 ——
+          "128 次播放"与"0 次播放"是两句不同的话，而"还没数清"绝不能被写成 0。
+          ★★ 弹幕那一段必须**提前**说清会删掉多少条：换内容之后弹幕的 at（全片累计秒）
+             必然对不上画面，服务端会在替换成功那一拍把它们全部清空，且不可恢复。
+             事后再说等于没说 —— 那时东西已经没了。 */}
+      {reforgeAsk && (
+        <ConfirmDialog
+          title="回炉重做这条作品？"
+          confirmLabel="继续回炉"
+          onConfirm={() => void beginReforge()}
+          onClose={() => setReforgeAsk(false)}
+        >
+          {isPublic ? (
+            <p>
+              这条作品已经有 {video.plays} 次播放
+              {typeof video.saves === "number" && video.saves > 0 ? `、${video.saves} 个人收藏` : ""}
+              。重新剪辑之后，同一个链接下的内容会变，收藏过它的人会收到一条「你收藏的作品重新剪辑过了」。
+            </p>
+          ) : (
+            <p>这条作品别人看不到，没有观众会收到通知。</p>
+          )}
+          {danmakuKnown ? (
+            danmakuCount > 0 && (
+              <p className="mt-2">
+                这条作品有 {danmakuCount} 条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，
+                所以会被清空，且无法恢复。
+              </p>
+            )
+          ) : (
+            <p className="mt-2">
+              还没数清这条作品有多少条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，
+              所以提交时会被全部清空，且无法恢复。
+            </p>
+          )}
+        </ConfirmDialog>
+      )}
+
+      {/* 删掉留存的工程：作品本身不受影响，但回炉入口会永久消失 —— 说清楚这两句就够了 */}
+      {dropAsk && (
+        <ConfirmDialog
+          title="删掉这条作品的工坊工程？"
+          confirmLabel={dropping ? "删除中…" : "删掉"}
+          danger
+          busy={dropping}
+          onConfirm={() => {
+            setDropping(true);
+            void projects.dropProject(video!.id).then((why) => {
+              setDropping(false);
+              setDropAsk(false);
+              // 失败要说话：不说的话按钮点了一下、卡关了、工程还在（铁律八）
+              if (why) setRetainMsg(`没能删掉这份工程（${why}）`);
+            });
+          }}
+          onClose={() => setDropAsk(false)}
+        >
+          <p>删掉之后这条作品就不能再回炉了，作品本身不受影响。</p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

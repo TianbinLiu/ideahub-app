@@ -1,9 +1,18 @@
 // 合成完成后的编辑发布页：标题 / 分类 / 简介 / 封面 / 可见性 + 左侧成片预览。
 //
-// ★ 只有「全新发布」这一种模式了。原来还有一种「回炉编辑」（把本次合成塞回既有作品的
-//   某一 P），2026-08 随「作品一经发布不可回炉」一并删除 —— 理由见 studioStore 里
-//   那段注释：已经有人看过的作品不该被换掉内容。想改内容 = 重新发一条。
-import { useEffect, useRef, useState } from "react";
+// ★ 这一页有**两种模式**，判据只有一处：`draft.reviseOf`（见 types.DraftVideo.reviseOf）。
+//     · 缺省 —— 全新发布，行为与从前一字不变；
+//     · 有值 —— **回炉重做**：这条合成稿要去替换一条已发布作品的内容（同一个链接、
+//       同一批播放/点赞/评论）。顶栏、主按钮、主按钮上那句话、以及壳字段的初值四处跟着换。
+//   2026-08 曾有一种老的「回炉编辑」（把本次合成塞回既有作品的某一 P），随「发布即定稿」
+//   一起删掉，两条理由是①观众零知情②它只写本地。2026-09-07 这一版把两条都堵上了：
+//   版次下发 + 收藏者通知 + 确认卡当面报数；内容走 `PATCH` + `baseRevision` 乐观锁
+//   （对不上 409，服务器上一个字都不写）。**分集（parts）不复活**。
+//
+// ★★ 失败路径**绝不调 `finishPublish`**：它会 `set({draft:null})` + `dropCutSession()` +
+//   `retireWorkDraft()` 三件一起做 —— 替换没成功还调它，等于"既没换成、合成稿也没了"，
+//   而那份合成稿里躺着真花过钱的卡组与成片。
+import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -18,9 +27,10 @@ import SegmentPlayer from "../components/SegmentPlayer";
 import TagInput from "../components/TagInput";
 import { isArkAssetUrl } from "../ai/arkClient";
 import { addCards, createDeck, deckSynced } from "../data/account";
-import { publishVideo } from "../data/videos";
+import { getVideo, publishVideo, reviseVideo, type ReviseResult } from "../data/videos";
+import { useVideosVersion } from "../hooks/useVideos";
 import { publishedExit, useStudio } from "../studio/studioStore";
-import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, visibilityWire } from "../types";
+import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, visibilityOf, visibilityWire } from "../types";
 
 export default function PublishPage() {
   const navigate = useNavigate();
@@ -64,6 +74,37 @@ export default function PublishPage() {
   const [aigcOpen, setAigcOpen] = useState(false);
   useAutoGuide("publish", !!draft);
 
+  // ── 回炉态 ──────────────────────────────────────────────
+  const reviseOf = draft?.reviseOf ?? null;
+  const version = useVideosVersion();
+  /** 要被替换的那条作品（壳字段的初值从它来）。取不到（本机库里没有）时**照样能提交** ——
+   *  真正的判据在服务端（作者 + baseRevision），这里拿不到只是初值退回合成稿自己的值 */
+  const origin = useMemo(() => (reviseOf ? getVideo(reviseOf.videoId) : null), [reviseOf?.videoId, version]);
+  /**
+   * 替换失败那条页内横幅。★ 三样一起存：档（决定 amber/rose）、整句原话、以及这一档给哪几颗键。
+   *   ⚠ **不与 `err` 合并**：err 是"没发成，改完再发"（表单校验），这一格是"服务器拒了/撞车了"，
+   *     出路完全不同（重试 / 取回最新工程重来 / 只能知道了）。
+   */
+  const [reviseFail, setReviseFail] = useState<Extract<ReviseResult, { ok: false }> | null>(null);
+
+  // 壳字段初值：回炉态一律**预填原作品的值**（不是新草稿的自动标题）——用户回炉是来换内容的，
+  // 让他把标题简介再敲一遍是把"改内容"伪装成"发新片"。
+  // ★ 只在"表单还是空白"时回填，避免覆盖用户已经输入的内容（同 EditPage 那条）。
+  // ★ 可见性与标签**按 id 变化重置**，不用"空了才填"：它们的合法值里就有一个是默认值，
+  //   "是不是空"分辨不出"还没改"与"用户选了这个"（EditPage 那条教训逐字同源）。
+  useEffect(() => {
+    if (!origin) return;
+    setTitle((t) => (t ? t : origin.title));
+    setCategory((c) => (c !== "剧情" ? c : origin.category));
+    setDescription((d) => (d ? d : origin.description));
+    setCover((c) => (c ? c : origin.cover));
+  }, [origin]);
+  useEffect(() => {
+    if (!origin) return;
+    setVisibility(visibilityOf(origin));
+    setTags(origin.tags ?? []);
+  }, [origin?.id]);
+
   /**
    * 本页刚刚发布过（publish() 已经把去处发出去了）。
    * 两件事都靠它，缺一件都出过问题：
@@ -87,6 +128,61 @@ export default function PublishPage() {
 
   if (!draft) return null;
   const total = draft.segments.reduce((s, x) => s + x.durationSec, 0);
+
+  /**
+   * 回炉提交：拿这份合成稿**替换**原作品的内容。
+   *
+   * ★★ 失败**绝不调 `finishPublish`**（见文件头那条 ★★）：合成稿原样留着，用户从个人页
+   *   那条「剪到一半」横幅回来重试。也**不入待发队列** —— 队列里那份 `baseRevision` 会
+   *   陈旧，自动重试必然 409，而且是在用户看不见的地方连着 409。
+   * ★ `publishedRef` 只在**真成了**之后才置位：置早了失败时那颗键就永久禁着，
+   *   而用户此刻最需要的就是再点一次。
+   */
+  async function submitRevise() {
+    if (!draft || !reviseOf || publishedRef.current || busy) return;
+    if (!title.trim()) {
+      setErr("先给视频起个标题");
+      return;
+    }
+    setErr("");
+    setReviseFail(null);
+    setBusy("正在替换…");
+    const res = await reviseVideo(
+      reviseOf.videoId,
+      {
+        ...draft,
+        title: title.trim(),
+        category,
+        description: description.trim(),
+        ...(tags.length > 0 ? { tags } : { tags: [] }),
+        cover,
+        // 本片卡组：随片带上那颗开关在回炉时同样有效（作者随时可以改主意不带卡组）
+        ...(shareDeck && draft.deck?.cards.length
+          ? { deck: { name: `《${title.trim()}》卡组`, cards: draft.deck.cards } }
+          : { deck: undefined }),
+        ...visibilityWire(visibility),
+      },
+      reviseOf.baseRevision,
+    );
+    setBusy("");
+    if (!res.ok) {
+      setReviseFail(res);
+      return;
+    }
+    publishedRef.current = true;
+    // ★ 回炉**不做**「同名卡组落进作者工坊」那一步（全新发布那条路才做）：`createDeck`
+    //   按名字再建一条，回炉多半用的还是同一套卡 —— 用户的工坊里会多出一条同名卡组，
+    //   而卡本身随作品的 deck 一起上行了（详情页「收入卡组」拿得到）。
+    useStudio.getState().finishPublish(res.videoId);
+    navigate(`/video/${res.videoId}`, {
+      replace: true,
+      // 成功要说一句"发生了什么"，而且要说在**结果所在的那一页**上（本 app 没有 toast）。
+      // ★ 只说已知事实：版次是回包里的；"会收到通知的人"数拿不到就不提（不许拼一个数）
+      // ★ 版次的说法与详情页那一行**同一把尺**：revision 是"回炉过几次"，第一次回炉之后
+      //   是第 2 版。两处印不同的数比不印更糟。
+      state: { banner: `已替换。这条作品现在是第 ${res.revision + 1} 版，收藏过它的人会收到通知。` },
+    });
+  }
 
   /** @param over 立刻要生效、还来不及经过 state 的字段（放弃确认卡里那条"先私密发出去"用） */
   async function publish(over?: { visibility?: Visibility }) {
@@ -164,7 +260,7 @@ export default function PublishPage() {
         sticky
         onBack={() => navigate("/studio")}
         backLabel="返回工坊"
-        title="发布视频"
+        title={reviseOf ? "回炉重做" : "发布视频"}
         subtitle={`${draft.segments.length} 段 · 共 ${formatDuration(total)}`}
         right={<HelpButton tour="publish" />}
       />
@@ -352,13 +448,69 @@ export default function PublishPage() {
             </div>
           )}
 
+          {/* 回炉失败的页内横幅（非 toast）。★ 服务端那句话**原样显示**：付费/已下架/复核中
+              那几档都是写给用户看的整句中文，这里再翻译一遍必然与服务端分叉（铁律六）。 */}
+          {reviseFail && (
+            <div
+              className={`rounded-xl border px-3 py-2.5 text-xs leading-relaxed ${
+                reviseFail.kind === "conflict"
+                  ? "border-amber-500/40 bg-amber-400/10 text-amber-100"
+                  : "border-rose-500/40 bg-rose-500/10 text-rose-200"
+              }`}
+            >
+              {reviseFail.why}
+              {reviseFail.kind === "conflict" && (
+                <span className="block text-amber-200/80">合成稿还留在「我的」里，没有丢。</span>
+              )}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {reviseFail.kind === "conflict" && (
+                  <button
+                    onClick={() => {
+                      // ★ 出路是「回编辑页取回最新工程重来」，**不是**「把我这一版另发成新作品」：
+                      //   那颗键会拿一份全是永久 Cloudinary 地址的画布走发布路径，于是新旧两条
+                      //   作品**逐字共享**同一批资产 —— 删掉任一条，另一条当场黑屏且零报错。
+                      navigate(`/edit/${reviseOf?.videoId ?? ""}`);
+                    }}
+                    className="rounded-full bg-amber-400/90 px-3 py-1.5 text-[11px] font-bold text-ink"
+                  >
+                    取回最新工程重来
+                  </button>
+                )}
+                {reviseFail.kind === "network" && (
+                  <button
+                    onClick={() => void submitRevise()}
+                    disabled={!!busy}
+                    className="rounded-full bg-rose-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
+                  >
+                    重试
+                  </button>
+                )}
+                <button
+                  onClick={() => setReviseFail(null)}
+                  className="rounded-full border border-slate-600 px-3 py-1.5 text-[11px] text-slate-300"
+                >
+                  知道了
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 主按钮上方那一行：回炉态说清"这一下会动谁"；全新发布态说清"发完还能回炉" */}
+          {reviseOf ? (
+            <p className="text-xs leading-relaxed text-amber-300">
+              会替换《{origin?.title || "原作品"}》的内容，链接不变。
+            </p>
+          ) : (
+            <p className="text-xs leading-relaxed text-slate-500">发布后会留存这条片的工坊工程，之后可回炉重做。</p>
+          )}
+
           <div data-guide="publish-actions" className="flex items-center gap-3 pt-2">
             <button
-              onClick={() => void publish()}
+              onClick={() => (reviseOf ? void submitRevise() : void publish())}
               disabled={!!busy || !!deckIssue}
               className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-40"
             >
-              {busy || "发布"}
+              {busy || (reviseOf ? "替换原作品" : "发布")}
             </button>
             <button
               onClick={() => setDiscardOpen(true)}
@@ -415,12 +567,20 @@ export default function PublishPage() {
         >
           {/* 只说已知事实：丢的是这条合成稿和填好的发布信息。各段素材/草稿丢没丢
               取决于上游存盘情况，这里不知道，就不许诺（DiscardFlowDialog 那条教训） */}
-          <p>这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。</p>
+          <p>
+            这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。
+            {reviseOf && `《${origin?.title || "原作品"}》不受影响，还是现在这一版。`}
+          </p>
           {/* ★★ 第三条路（2026-08-30）：这一页原来只有"现在就定死"和"全丢掉"两个选项，
               而用户手上是一条**真金白银炼出来的成片** —— 它是一次性的（发布即定稿，
               合成稿丢了就没了），而**可见性发布后随时能改**。两者的代价完全不对等。
               所以给一条中间路：先按「仅自己可见」发出去，人还在、片还在，什么时候想好了
               再去作品编辑页改成公开。⚠ 这不是"偷偷替他发布"：按钮上写清楚了这一下会做什么。 */}
+          {/* ★★ 这条中间路**只在全新发布时成立**：回炉态下"先私密发出去"会走 publishVideo
+              ——那是**另发一条新作品**，而用户此刻要的是替换原作品。两条作品会逐字共享
+              同一批 Cloudinary 资产（服务端对非方舟 http 地址一律 kept 原样落库），
+              删掉任一条另一条当场黑屏、零报错。所以回炉态整颗键不画。 */}
+          {!reviseOf && (
           <button
             onClick={() => {
               setVisibility("private");
@@ -438,6 +598,7 @@ export default function PublishPage() {
               ? "片子留住、不出现在任何人的首页；想好了再去作品编辑页改成公开。"
               : "得先给它起个标题，才发得出去（关掉这张卡去填一个）。"}
           </button>
+          )}
         </ConfirmDialog>
       )}
     </div>

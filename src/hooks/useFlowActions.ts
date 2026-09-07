@@ -16,6 +16,7 @@ import { fmtTokens } from "../data/economy";
 import { nodeDone, useFlow } from "../studio/flowStore";
 import { deckQuoteOf, useStudio } from "../studio/studioStore";
 import { cutSession } from "../data/cutSession";
+import { captureCanvas } from "../data/projects";
 
 export interface FlowActions {
   /** 存草稿按钮的四态（idle/saving/saved/failed） */
@@ -149,6 +150,36 @@ export function useFlowActions(opts?: {
         // ★ 回执是**整句人话**（null = 存住了）。⚠ 别写成 `if (!(await …))` —— 那在
         //   回执从 boolean 换成 string|null 之后会**整个反过来**：成功时报错、失败时沉默。
         const why = await useStudio.getState().persistCutDraft();
+        // ★★ **工坊工程的快照就抓在这一拍**（发布之后要靠它「回炉重做」）。位置是承重的：
+        //   必须在 persistCutDraft 之后、下面那句 `reset()` **之前** —— reset() 一跑
+        //   `nodes` 就被清成 `[]`（flowStore.reset），此后剪辑页与发布页读到的画布恒为空，
+        //   每条作品都会"成功"留存一份**空工程**，而不变量断言对空画布恒过、零报错。
+        //   （退回"发布前读 WorkDraft 正文"同样不行：saveWorkDraft 对 mode==="simple"
+        //     直接不落草稿，简约模式一份都拿不到。）
+        // ★ 抓完当场落 IndexedDB（captureCanvas 里做）：只放内存会随进程死，而离线发布与
+        //   "传到一半被杀、下次冷启动由 flushPending 补发"这两条路上它本来就要跨进程活着。
+        // ★ 捕获失败**不挡人进剪辑页**（那只会更糟），但要把话随导航带到 /cut 去说 ——
+        //   与 `why` 走同一条通道、拼进同一个 state.warn（err 的消费者一个都不在 /cut 上）。
+        const st2 = useFlow.getState();
+        const head2 = st2.nodes[0];
+        const capWhy = await captureCanvas({
+          title: (head2?.proposals.find((p) => p.id === head2.chosenId)?.title ?? "").replace(/^第\s*\d+\s*段\s*·\s*/, "").slice(0, 40),
+          canvas: {
+            v: 1,
+            flow: {
+              nodes: st2.nodes,
+              alts: st2.alts,
+              cursor: st2.cursor,
+              mode: st2.mode,
+              origin: st2.origin,
+              template: st2.template,
+              subject: st2.subject,
+              deckOff: st2.deckOff,
+            },
+            deck: useStudio.getState().deck,
+          },
+          reviseOf: st2.reviseOf,
+        });
         // ★★ 这句话**不能写进 flowStore.err**（2026-08-30 复核抓到）：下面两行同一个
         //   同步续体里就 `reset()`（它 `set({ …, err: "" })`）并 `navigate` 换路由，
         //   而 err 的消费者一个都不在 /cut 上 —— 于是这句提示在任何路径上都显示不出来，
@@ -160,9 +191,16 @@ export function useFlowActions(opts?: {
         useStudio.getState().closeProjection();
         // ★ replace 而不是 push：组稿成功那一下 reset() 已经把流水线清空了，历史里这一格
         //   就是个死页 —— 从剪辑页按返回退到它，它当场又把人 replace 走，白闪一下
+        // 两句话拼成一条横幅：它们说的是同一件事的两半（"这摊活的备份到底有没有存住"）
+        const warn = [
+          why ? `卡组已经铸好了，但${why}——现在切后台会丢掉它，请先把片子剪完发出去。` : "",
+          capWhy ? `${capWhy}。` : "",
+        ]
+          .filter(Boolean)
+          .join("");
         navigate("/cut", {
           replace: true,
-          ...(why ? { state: { warn: `卡组已经铸好了，但${why}——现在切后台会丢掉它，请先把片子剪完发出去。` } } : {}),
+          ...(warn ? { state: { warn } } : {}),
         });
       }
     } catch (e) {

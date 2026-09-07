@@ -35,6 +35,10 @@ function actionText(n: NotificationItem): string {
       // ★ 与「评论了你的作品」分开写：被 @ 的人**未必是作品作者**，多半是路过的第三个人。
       //   共用一句文案会让他以为是自己的作品被评论了，点进去发现是别人的片子。
       return "在评论里 @ 了你";
+    case "BRANCH_REVISED":
+      // ★ 主语是**作品**不是人：收件人是收藏者，他关心的是"我收藏的那条变了"，
+      //   而不是"某某做了件事"。NoticeRow 那一档同理。
+      return "重新剪辑了你收藏的作品";
     case "ADMIN_NOTICE":
       // 平台口吻的那一行不走这个句式（见 NoticeRow），这里只是类型上兜全
       return "平台通知";

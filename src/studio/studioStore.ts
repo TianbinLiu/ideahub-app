@@ -13,6 +13,7 @@ import { forgetCanvasAgent } from "./canvasAgent";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, saveDraft } from "../data/drafts";
 import { showToast } from "../data/toast";
 import { dropCutSession, saveCutSession } from "../data/cutSession";
+import type { CanvasSnapshot as ProjectCanvas } from "../data/projects";
 import { GenStep } from "./genLog";
 import { SPEAK_MOOD, speak, stopSpeaking } from "./speech";
 import { CRISIS_LINE, HELP_LINE, NPC_SYSTEM, chatFailLine, chatWindow, deskBlock } from "./npcPersona";
@@ -392,13 +393,82 @@ function flowFromRoot(root: NodeSlot): { nodes: FlowNode[]; alts: Record<string,
   return { nodes: chainFrom(root), alts };
 }
 
-// ★ 这里原来有 EditTarget / startEditPart / startNewPart —— 「回炉编辑已发布作品」的一整套。
-//   2026-08 产品定案删掉：**作品一经发布就不能回炉**。
-//   删掉的理由不是嫌它复杂，是它在"已经有人看过/收藏过这条作品"之后仍然允许换掉成片，
-//   于是同一个链接下的内容会变，而观众那边没有任何提示。要改内容 = 重新发一条。
-//   服务端同步收窄：PATCH /api/branch/videos/:id 只收 title/category/description/visibility，
-//   片段与卡组一律 strip（docs/api-contract.md）。草稿不受影响 —— 那是**还没发布**的半成品，
-//   继续编辑天经地义，走的是 openWorkDraft 那条路。
+// ★ 这里原来有 EditTarget / startEditPart / startNewPart —— 「回炉编辑已发布作品」的**旧**版本。
+//   2026-08 产品定案删掉，两条理由都成立：① 观众那边没有任何提示；② 它只写本地（服务端的
+//   BranchVideo 压根没有 parts 字段，PATCH 上去被 strip，刷新一次打回原形）。
+//
+//   2026-09-07 回炉重新做起来了，但**不是把当年那套接回来**，而是把两条理由逐条堵上：
+//     · 观众知情 —— `BranchVideo.revision` / `revisedAt` 下发，详情页与个人页标出版次，
+//       收藏者收到一条 `BRANCH_REVISED`，回炉确认卡当面报出真实的播放/收藏/弹幕数；
+//     · 每一条写路径都落在服务端 —— 画布 PUT `/api/branch/projects`，内容换成
+//       `PATCH /api/branch/videos/:id` 带 `segments/branchTree/deck` + `baseRevision`
+//       乐观锁（对不上 409，一个字都不写）。`ApiVideo.parts` 那条死线**不复活**：
+//       回炉替换的是整条作品的 segments，不是某一 P。
+//   入口是**编辑页**那颗「🛠 回炉重做」（不是这里），铺画布走 `openProject`。
+//   草稿仍然不受影响 —— 那是**还没发布**的半成品，走的是 openWorkDraft 那条路。
+
+/**
+ * 打开一份**存量画布**（草稿正文 / 留存的工坊工程）时的「在途状态归一」。
+ *
+ * ★★ **唯一实现**（`openWorkDraft` 与 `openProject` 共用，铁律六）：抄一份必然分叉，
+ *   而分叉的症状是"从草稿打开好好的、从回炉打开每套方案都永久禁着"这种只有用户
+ *   才发现得了的差异。原文（连同下面那三段 ★★）就是从 openWorkDraft 里搬出来的。
+ *
+ * ★★ **status 必须归一**（2026-08-21 第八轮扫描）：节点的 status 会原样落盘
+ *   （saveWorkDraft 把 f.nodes 整份交出去，drafts 那层不做净化），而顶栏那颗「存草稿」
+ *   不判 busy —— 用户在几分钟的出片过程里点一下存草稿是完全正常的动作。于是存下来的
+ *   正文里就躺着一段 `status: "generating"`，重开后 busy 是 false 而它恒"在跑"：
+ *   canReplaceNodes / removeNode / 丢弃键 / 主按钮 / agent 四处全拒，措辞是「等它跑完
+ *   再来」，而它**永远不会跑完** —— 一条出口都不剩。存量画布里不可能有真在跑的一炉。
+ *   ⚠ 「在途」不止 status 一格（第九轮扫描）：`regenning` 与 steps 里那条 running 的
+ *   步骤同样会落盘。regenning 漏了的话，重开后那一套方案的换首帧/换尾帧/清帧四颗键
+ *   **永久禁着**（PlanBoard 的 canEdit 判的就是它），按钮恒印「重画中…」而什么都没在跑。
+ *
+ * ★ 老画布补字段（一处补齐，别靠读取处到处 ?? 兜底）：aspect / plan / requirement / tpl，
+ *   理由逐条见下面的行内注释。
+ *
+ * @param draftTpl 这份画布自己存下的那份 store 级模板（`flow.template`）——
+ *   三态里的 `undefined` 语义是"退回 store 级"，而 store 级会随光标漂，所以在这里固化。
+ * @param staleCard 这张素材卡该不该整批下场（V3 截线，只有草稿那条路会真的判真）。
+ */
+function normalizeFlowNode(n: FlowNode, draftTpl: FlowTemplate, staleCard: (c: Card) => boolean): FlowNode {
+  return {
+    ...n,
+    // 「画幅可选」之前的画布没有它，而 FlowNode.aspect 是必填；不补会一路传到方舟的
+    // ratio 参数上。缺省按**横屏**（那时所有出片都写死 16:9，见 aspectOf）
+    aspect: n.aspect ?? "landscape",
+    // 「方案台」这一版才有。按"多方案即已选定"补：那时的节点确实是选好的，
+    // 缺省成 picking 会让用户打开旧画布发现每段都要重挑一遍
+    plan: n.plan ?? (n.proposals.length > 1 ? ("picked" as const) : undefined),
+    // 退回当前方案的剧情，正是旧版推演时当作 requirement 用的东西
+    requirement: n.requirement ?? chosenOf(n).plot,
+    tpl: n.tpl !== undefined ? n.tpl : draftTpl,
+    status: n.status === "generating" ? "idle" : n.status,
+    progress: n.status === "generating" ? "" : n.progress,
+    regenning: n.status === "generating" ? undefined : n.regenning,
+    steps: n.steps?.map((st) => (st.status === "running" ? { ...st, status: "error" as const } : st)),
+    ...(n.materials?.some(staleCard) ? { materials: n.materials.filter((c) => !staleCard(c)) } : {}),
+  };
+}
+
+/** 主链与归档链**一起**过一遍归一（只洗一半的话，换走向时那条链又是脏的） */
+function normalizeFlow(
+  rawNodes: FlowNode[],
+  rawAlts: Record<string, Record<string, FlowNode[]>>,
+  draftTpl: FlowTemplate,
+  staleCard: (c: Card) => boolean,
+): { nodes: FlowNode[]; alts: Record<string, Record<string, FlowNode[]>> } {
+  const one = (n: FlowNode) => normalizeFlowNode(n, draftTpl, staleCard);
+  return {
+    nodes: rawNodes.map(one),
+    alts: Object.fromEntries(
+      Object.entries(rawAlts).map(([nid, byPid]) => [
+        nid,
+        Object.fromEntries(Object.entries(byPid).map(([pid, chain]) => [pid, chain.map(one)])),
+      ]),
+    ),
+  };
+}
 
 interface StudioState {
   deck: Card[];
@@ -710,6 +780,20 @@ interface StudioState {
   studioBusyReason: () => string | null;
   /** 返回 false = 被 studioBusyReason 拒了（原因由调用方念出来） */
   openWorkDraft: (d: WorkDraft, mode: DraftMode) => boolean;
+  /**
+   * 把一份**留存的工坊工程**铺回工坊 = 「🛠 回炉重做」（data/projects 取回来的那份画布）。
+   *
+   * ★ 与 `openWorkDraft` 的三点不同，每一点都有理由：
+   *   ① `workDraftId: null` + `savedDoneCount: 0` —— 工程**不是草稿**，此后自动存盘会
+   *      **另存一条普通在途草稿**（这正是我们要的：回炉途中新炼的付费段有本地备份）；
+   *   ② 把 `reviseOf` 写进 flowStore —— 发布页据它走「替换原作品」而不是发一条新的；
+   *   ③ 归一走同一处 `normalizeFlow`（铁律六）。
+   * ★ 返回 false = 被 `studioBusyReason` 整句拒（原因由调用方念出来），与打开草稿同一道闸。
+   */
+  openProject: (
+    canvas: ProjectCanvas,
+    target: { videoId: string; baseRevision: number; title: string },
+  ) => boolean;
   /** 开始一摊全新的活：断开与上一条草稿的关联，之后保存会新建而不是覆盖 */
   newWorkDraft: () => void;
   /** 这摊活已经发布成作品了：删掉对应草稿并断开关联 */
@@ -2143,6 +2227,19 @@ export const useStudio = create<StudioState>()((set, get) => ({
         //   "长度为 0 也算没有"的判断，而个人页「卡组」页签靠 `v.deck && cards.length`
         //   过滤 —— 多一个空对象只会多一个每个人都要绕过去的坑。
         ...(withDeck ? { deck: { name: "", cards: deckCards } } : {}),
+        // ★ 回炉态原样带过去（同样是"有才写这个键"）：发布页据它把「发布」换成
+        //   「替换原作品」。这一格只在本机流转，发布/回炉的请求体都是逐字段拼的
+        //   （见 types.DraftVideo.reviseOf 的 ★★）。
+        //   ⚠ 现读 `useFlow.getState()` 而不是闭包里那份：这个函数一路 await 过来，
+        //   中间用户完全可能点了「退出回炉」。
+        ...(useFlow.getState().reviseOf
+          ? {
+              reviseOf: {
+                videoId: useFlow.getState().reviseOf!.videoId,
+                baseRevision: useFlow.getState().reviseOf!.baseRevision,
+              },
+            }
+          : {}),
       },
     });
     return true;
@@ -2288,41 +2385,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // ★ V3（2026-09-06）：截线之前存的草稿里挂着的非人物卡（老语义的氛围 / 画风 / 场景卡）整批下场，
     //   与 account.ts 的 V3 清库同一条截线——留着的话它们还会随 materials 进出片提示词与参考图
     const staleCard = (c: Card) => c.type !== "character" && (d.updatedAt ?? 0) < V3_CARD_WIPE_MS;
-    /** 在途状态归一（见下面那段 ★★）—— 主链与归档链都要过一遍，别只洗一半 */
-    const normalize = (n: FlowNode): FlowNode => ({
-        ...n,
-        aspect: n.aspect ?? "landscape",
-        plan: n.plan ?? (n.proposals.length > 1 ? ("picked" as const) : undefined),
-        requirement: n.requirement ?? chosenOf(n).plot,
-        tpl: n.tpl !== undefined ? n.tpl : draftTpl,
-        // ★★ **status 必须归一**（2026-08-21 第八轮扫描）：节点的 status 会原样落进草稿
-        //   （saveWorkDraft 把 f.nodes 整份交出去，drafts 那层不做净化），而顶栏那颗
-        //   「存草稿」不判 busy —— 用户在几分钟的出片过程里点一下存草稿是完全正常的动作。
-        //   于是草稿里就躺着一段 `status: "generating"`，重开后 busy 是 false 而它恒"在跑"：
-        //   canReplaceNodes / removeNode / 丢弃键 / 主按钮 / agent 四处全拒，措辞是
-        //   「等它跑完再来」，而它**永远不会跑完** —— 一条出口都不剩，且状态已落盘，
-        //   重启 App 也一样。草稿里不可能有真在跑的一炉，读出来一律当没跑。
-        //   ⚠ 「在途」不止 status 一格（第九轮扫描）：`regenning` 与 steps 里那条 running
-        //   的步骤同样会落盘。regenning 漏了的话，重开后那一套方案的换首帧/换尾帧/清帧
-        //   四颗键**永久禁着**（PlanBoard 的 canEdit 判的就是它），按钮恒印「重画中…」而
-        //   什么都没在跑，唯一解锁方式是再真跑一次重画（再花一笔 redrawCost）。
-        //   所以这里把"在途"那几格**一起**归一，别只做一格。
-        status: n.status === "generating" ? "idle" : n.status,
-        progress: n.status === "generating" ? "" : n.progress,
-        regenning: n.status === "generating" ? undefined : n.regenning,
-        steps: n.steps?.map((st) => (st.status === "running" ? { ...st, status: "error" as const } : st)),
-        ...(n.materials?.some(staleCard) ? { materials: n.materials.filter((c) => !staleCard(c)) } : {}),
-      });
-    const flowNodes = rawNodes.map(normalize);
+    // 在途状态归一（status/regenning/steps）+ 老画布补字段 —— 实现在模块级
+    // `normalizeFlow` 一处，与 `openProject` 共用（铁律六，理由见那边的 ★★）
     const rawAlts = legacy
       ? legacy.alts
       : ((d.flow as { alts?: Record<string, Record<string, FlowNode[]>> } | null)?.alts ?? {});
-    const flowAlts = Object.fromEntries(
-      Object.entries(rawAlts).map(([nid, byPid]) => [
-        nid,
-        Object.fromEntries(Object.entries(byPid).map(([pid, chain]) => [pid, chain.map(normalize)])),
-      ]),
-    );
+    const { nodes: flowNodes, alts: flowAlts } = normalizeFlow(rawNodes, rawAlts, draftTpl, staleCard);
     set({
       deck: (d.deck ?? []).filter((c) => !staleCard(c)),
       workDraftId: d.id,
@@ -2358,6 +2426,10 @@ export const useStudio = create<StudioState>()((set, get) => ({
         // ★ 判否定（drafts.FlowSnapshot.deckOff 的 ★）：老草稿缺省 = 随片出卡组
         // ★ 2026-09-06 起缺省不出卡组：没记过这一位的老草稿也按不出算（判否定：只有明确 false 才出）
         deckOff: d.flow?.deckOff !== false,
+        // ★ 打开一条草稿 **≠** 回炉：这一格必须显式清掉。上一摊活可能正是某条作品的回炉，
+        //   留着它的话，这条不相干的草稿在发布页会变成「替换原作品」—— 用一份别的内容
+        //   把线上那条已发布作品换掉，而全程没有一个字提示（见 flowStore.FlowState.reviseOf 的 ★★）
+        reviseOf: null,
         busy: false,
         err: "",
       });
@@ -2371,6 +2443,72 @@ export const useStudio = create<StudioState>()((set, get) => ({
     } else {
       useFlow.getState().reset();
     }
+    return true;
+  },
+
+  openProject: (canvas, target) => {
+    // ★ 与打开草稿同一道闸（studioBusyReason）：桌面/流水线一旦被整表换掉，那一炉的回包
+    //   会写进一棵已经不存在的树 —— 钱花了、东西没了、还零报错。
+    //   ⚠ 调用方（编辑页）在**取回工程之前**也问了一次；这里是第二道，两道都要有：
+    //   取回要走网络，那几秒里用户完全可能在工坊点下一炉。
+    const busyWhy = get().studioBusyReason();
+    if (busyWhy) {
+      get().npcSay(busyWhy);
+      set({ notice: { text: busyWhy, at: Date.now() } });
+      return false;
+    }
+    const flow = canvas?.flow;
+    if (!flow || !Array.isArray(flow.nodes) || flow.nodes.length === 0) {
+      const why = "这份工坊工程是空的，铺不进工坊";
+      set({ notice: { text: why, at: Date.now() } });
+      return false;
+    }
+    forgetCanvasAgent(); // 打开的是另一摊活，理由同 newWorkDraft
+    const draftTpl = (flow.template as FlowTemplate) ?? null;
+    // ★ 素材卡不按 V3 截线清：留存工程是这次特性上线之后才产生的，截线（2026-09-06）
+    //   在它之前 —— 拿一个恒假的判据来假装"也过了一遍"只会让人以为这里有规则。
+    const { nodes: flowNodes, alts: flowAlts } = normalizeFlow(
+      flow.nodes as FlowNode[],
+      (flow.alts as Record<string, Record<string, FlowNode[]>>) ?? {},
+      draftTpl,
+      () => false,
+    );
+    set({
+      deck: (canvas.deck as Card[]) ?? [],
+      // ★★ **不认领任何草稿**：工程不是草稿。此后自动存盘会**另存一条普通在途草稿**，
+      //   那正是我们要的 —— 回炉途中新炼的付费段在本地有备份（与「本地只是缓存」不冲突：
+      //   服务端那份工程描述的是**线上那一版**，不该被在途内容覆盖）。
+      workDraftId: null,
+      // ★ 归零而不是照数：这些段确实还没进任何一条草稿，确认卡按它说"丢了要重花钱"是**对的**
+      savedDoneCount: 0,
+      draft: null,
+      segEdit: null,
+      focus: null,
+      projection: null,
+      editor: null,
+      spreadOpen: false,
+      deckView: false,
+      flights: [],
+      camera: { kind: "default" },
+    });
+    useFlow.setState({
+      nodes: flowNodes,
+      alts: flowAlts,
+      cursor: Math.min(typeof flow.cursor === "number" ? flow.cursor : 0, flowNodes.length - 1),
+      cast: flowNodes[Math.min(typeof flow.cursor === "number" ? flow.cursor : 0, flowNodes.length - 1)]?.cast ?? {},
+      mode: flow.mode === "simple" ? "simple" : "workflow",
+      origin: flow.origin === "studio" ? "studio" : "solo",
+      template: draftTpl,
+      subject: typeof flow.subject === "string" ? flow.subject : "",
+      // ★ 判否定（同 openWorkDraft）：只有明确 false 才随片出卡组
+      deckOff: flow.deckOff !== false,
+      // ★ 这一格就是「这条流水线要替换掉哪条已发布作品」——发布页据它换成「替换原作品」
+      reviseOf: target,
+      busy: false,
+      err: "",
+    });
+    // 转存没赶上 / 预览帧没截到的段顺手收尾（后台，不挡打开）——与打开草稿同一句
+    useFlow.getState().settleAllMedia();
     return true;
   },
 

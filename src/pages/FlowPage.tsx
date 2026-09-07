@@ -15,6 +15,7 @@
 //   简约模式 → seedSolo("simple")，单节点单走向、不推演方案、**不存草稿**，UI 收到最简
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../components/PageHeader";
+import ReviseBar from "../components/ReviseBar";
 import { Link, useNavigate } from "react-router";
 import AnnStrip from "../components/flow/AnnStrip";
 import InfoTip from "../components/InfoTip";
@@ -1235,6 +1236,10 @@ export default function FlowPage() {
             }
           />
     
+          {/* 「你正在回炉重做某条已发布作品」+ 缺失横幅（实现在 ReviseBar 一处，画布顶栏同款）。
+              非回炉态整条不渲染，所以不需要在这里再判一次 */}
+          {!planFocus && <ReviseBar className="mb-1.5" />}
+
           {/* 简约模式的模板栏：套上模板 = 配方负责画风与分镜，用户只写一句话 */}
           {simple && (
             <div className="mx-4 mb-1.5 flex flex-none items-center gap-2 rounded-xl border border-slate-700/70 bg-panel px-3 py-2">
