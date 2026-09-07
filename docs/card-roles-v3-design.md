@@ -143,4 +143,5 @@
 |---|---|---|---|
 | 1 | 提示词改口 + 禁用词复核 + 背景卡不再自动出 + 背景卡不发图 + `idLine` 进提示词（纯文字改动，先止血） | 0 | ✅ 2026-09-06 合入 main（PR #169） |
 | 2 | 路 A 看帧（剥骨架）+ 场景卡去人留景 + 道具裁剪 + 风格卡整帧样张 + 结算逐笔记、报价上限改口 | 每条片多 1~3 张图 | ✅ 2026-09-06（`real.deckFrameUrls` / `sceneCoverFromFrame` / `cropFromFrame`；`mintCards` 返回 `tokens`，三条提卡路的实收都由它逐笔记） |
-| 3 | 白模成片的做同款剧本、单条白模模板的原片指针 | 0 | 待做 |
+| 3 | 白模模板登记时从**原片**抽帧铸素材卡（`real.extractTemplateCards`，报价 `blockoutCardsCost`）；V3 截线之前的非人物卡全部清掉（服务端脚本 + `account.ts` / `templates.ts` / `openWorkDraft` 的截线过滤，`types.V3_CARD_WIPE_MS`） | 每个白模模板多一遍视觉 + 最多 6 张卡 | ✅ 2026-09-06 |
+| 4 | 白模成片的做同款携带模板（作品记模板 id → 做同款 = 套同一个模板 + 自己的卡；跨仓：server zod / model / payload） | 0 | 待做 |

@@ -69,6 +69,10 @@ export const extractCardsFromVideo: typeof real.extractCardsFromVideo = AI_REAL
         cover: f,
       })),
     });
+/** 白模模板登记时从原片抽帧铸 V3 素材卡（场景 / 道具 / 风格）；mock 构建不出卡 */
+export const extractTemplateCards: typeof real.extractTemplateCards = AI_REAL
+  ? real.extractTemplateCards
+  : async () => ({ cards: [], tokens: 0 });
 /** 上传参考视频提炼**模板**（画风配方 + 分镜骨架 + 可复用素材卡）；
  *  mock 构建给一份能跑通流程的假配方 */
 export const extractTemplateFromVideo: typeof real.extractTemplateFromVideo = AI_REAL

@@ -6,7 +6,7 @@
 //
 // 页面读的全是同步函数（myCards() / currentUser() / isFollowing()…），签名一个没动；
 // 变更仍通过 subscribeAccount + 版本号广播，远端回包回填时也走同一条广播。
-import { Card, SHARE_NOTE_MAX, uid, viewTag, type CardView } from "../types";
+import { V3_CARD_WIPE_MS, Card, SHARE_NOTE_MAX, uid, viewTag, type CardView } from "../types";
 // data → mock 是既有方向（data/videos.ts 也从 mock/frames 取种子帧），不成环
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
 import { reconcileTermsWithServer } from "./agreements";
@@ -160,7 +160,10 @@ async function readyLocal(): Promise<void> {
  *   那批的 createdAt 晚于截线，光看时间会漏。
  */
 const V2_CARD_WIPE_MS = Date.parse("2026-08-24T00:00:00+08:00");
-const isLegacyCard = (c: Card & { createdAt: number }) => c.createdAt < V2_CARD_WIPE_MS || /^mkt_/.test(c.id);
+// ★ V3（2026-09-06）：截线之前的非人物卡也算老卡（types.V3_CARD_WIPE_MS 的 ★）。按时间判而不是按卡种判：
+//   截线之后组稿派生 / 提取的 V3 场景 / 道具 / 风格卡会经 addCards 入库，按卡种判会在下次冷启动把它们一起清掉
+const isLegacyCard = (c: Card & { createdAt: number }) =>
+  c.createdAt < V2_CARD_WIPE_MS || /^mkt_/.test(c.id) || (c.type !== "character" && c.createdAt < V3_CARD_WIPE_MS);
 const isLegacyDeck = (d: Deck) => d.createdAt < V2_CARD_WIPE_MS || /^deck_seed_/.test(d.id);
 
 /** 本地库的清法：直接过滤（离线模式的卡只活在 IndexedDB，这一刀就是全部） */
@@ -189,7 +192,8 @@ function wipeLegacyAssetsLocal(): void {
 async function wipeLegacyAssetsRemote(): Promise<void> {
   const u = currentUser();
   if (!u || !db) return;
-  const flag = `ideahub-app.cardWipeV2.${u.id}`;
+  // ★ 标记键随清库版本走：V3 那批老卡在 V2 标记落下之后才成为"老卡"，不换键这台设备永远不会再清它们
+  const flag = `ideahub-app.cardWipeV3.${u.id}`;
   if (localStorage.getItem(flag)) return;
   const cards = db.cards.filter((c) => c.ownerId === u.id && isLegacyCard(c));
   const decks = db.decks.filter((d) => d.ownerId === u.id && isLegacyDeck(d));

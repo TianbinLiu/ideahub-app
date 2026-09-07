@@ -38,7 +38,7 @@ import { DetectRolesEntry } from "./blockout/DetectRolesEntry";
 import HelpButton from "./guide/HelpButton";
 import { currentRoute, startJob } from "../data/jobs";
 import { useAutoGuide } from "./guide/useAutoGuide";
-import { AI_REAL, extractTemplateFromVideo } from "../ai";
+import { AI_REAL, extractTemplateCards, extractTemplateFromVideo } from "../ai";
 import {
   MAX_TEMPLATE_VIDEO_BYTES,
   TEMPLATE_UPLOAD_RULES,
@@ -48,8 +48,9 @@ import {
   type TemplateVideoReceipt,
 } from "../api/uploads";
 import { balanceNote, canAfford, spendTokens } from "../data/account";
-import { TEMPLATE_MAX_CARDS, fmtTokens, ownRefTemplateCost, templateCost } from "../data/economy";
+import { TEMPLATE_MAX_CARDS, blockoutCardsCost, fmtTokens, ownRefTemplateCost, templateCost } from "../data/economy";
 import {
+  updateTemplate,
   BLOCKOUT_INPUT_RULES,
   SPLIT_MAX_PARTS,
   blockoutizeBlockReason,
@@ -1024,7 +1025,32 @@ export default function VideoTemplateExtractor({
         },
       });
       setGot(tpl);
-      job.done({ msg: "白模模板做好了，去「我的模板」看看", silent: mountedRef.current });
+      // ★ V3 第三期：白模模板的素材卡（场景 / 道具 / 风格）从**原片**抽帧铸——白模帧里认不出这些。
+      //   报价（blockoutCardsCost）在上一屏与白模化那两笔并排说过；余额不够就只做模板、把话说清（铁律八）
+      let cardsNote = "";
+      if (frames.length > 0) {
+        const quote = blockoutCardsCost(frames.length);
+        if (AI_REAL && !canAfford(quote)) {
+          cardsNote = `；素材卡没铸（最多需 ${fmtTokens(quote)} token，余额不够）`;
+        } else {
+          try {
+            const r = await extractTemplateCards(frames, note, (st) => {
+              setBusy(st);
+              job.update(st);
+            });
+            if (AI_REAL && r.tokens > 0) spendTokens(r.tokens);
+            if (r.cards.length > 0) {
+              updateTemplate(tpl.id, { cards: r.cards });
+              setGot({ ...tpl, cards: r.cards });
+              cardsNote = `，附 ${r.cards.length} 张素材卡`;
+            }
+          } catch (e) {
+            const why = e instanceof Error ? e.message : String(e);
+            cardsNote = `；素材卡没铸成（${why.slice(0, 60)}）`;
+          }
+        }
+      }
+      job.done({ msg: `白模模板做好了${cardsNote}，去「我的模板」看看`, silent: mountedRef.current });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       job.fail(`白模化没成：${msg.slice(0, 60)}`, "/templates?shelf=mine");
@@ -1497,6 +1523,14 @@ export default function VideoTemplateExtractor({
                 trimWindow={ownRefWindow}
                 extra={
                   <div className="space-y-2">
+                    {/* ★ V3 第三期：白模化之外的第三笔——从原片抽帧铸素材卡。报在这里、实收按 real.extractTemplateCards
+                        逐笔记，只会比这个数少（余额不够时只做模板并说明）。ownRef 路不铸（那条路的原片就是白模） */}
+                    {route !== "ownRef" && frames.length > 0 && (
+                      <p className="text-[11px] leading-relaxed text-slate-400">
+                        另外会从原片提炼素材卡（场景 / 道具 / 风格，最多 {TEMPLATE_MAX_CARDS} 张，按实际出的收，最多{" "}
+                        {fmtTokens(blockoutCardsCost(frames.length))}）。
+                      </p>
+                    )}
                     {/* 标题：aiBlockout 路只有这一屏，在这里填；ownRef 路挪到第 2 步（提交那一屏）填 */}
                     {route === "aiBlockout" && titleField}
                     {/* ★ 补充说明只对**要 AI 白模化**那条路有用（它进的是"看帧认人"那一发的

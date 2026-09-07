@@ -984,6 +984,15 @@ export function blockoutTemplateCost(frameCount: number): number {
 }
 
 /**
+ * 白模模板登记时从原片铸素材卡（V3 第三期）的**上限**：一遍视觉看 frameCount 帧 + 最多 TEMPLATE_MAX_CARDS 张
+ * （每张 文案 + 卡面 + 一次去人复核）。实收由 real.extractTemplateCards 逐笔记（道具裁剪 / 风格整帧不出图 = 0 图钱），
+ * 只会比这个数少。与 blockoutizeCost 是**两笔**：那笔是白模化本身（服务端按任务扣），这笔是客户端直连方舟的调用。
+ */
+export function blockoutCardsCost(frameCount: number): number {
+  return frameCount * VISION_FRAME_TOKENS + TEMPLATE_MAX_CARDS * (CARD_META_TOKENS + IMAGE_TOKENS + VISION_FRAME_TOKENS);
+}
+
+/**
  * 「作者自己传一段参考视频登记成模板」这一次的报价（V1 登记路，`POST /api/branch/templates`）。
  *
  * ★★ 这条路**不出片**（视频已经在手上了），所以没有 r2v 那一笔 —— 它花的全部是 chat：

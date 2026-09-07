@@ -117,6 +117,9 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   Cloudinary 抽帧（`deckFrameUrls`，与报价的 `DECK_VISION_FRAMES` 同一个数），场景卡面 = 原帧去人留景 + 视觉复核、不干净退回
   原帧（`sceneCoverFromFrame`），道具卡面 = 原帧按位置框裁剪（0 token），风格样张 = 原帧本身；三条提卡路的**实收由
   `mintCards` 逐笔记的 `tokens` 结算**（`deckCardsCost` / `extractCost` / `templateCost` 只是上限），`*Settle` 那几个函数已删。
+  **V3 截线之前的非人物卡一律清掉**（`types.V3_CARD_WIPE_MS`；服务端 2026-09-06 已清，本机由 `account.ts` 的 V3 清库、
+  `templates.readyTemplates`、`studioStore.openWorkDraft` 按截线过滤——按时间判不按卡种判，截线之后铸的 V3 卡要留）。
+  白模模板的素材卡从**原片**抽帧铸（`real.extractTemplateCards`，登记那一屏报 `blockoutCardsCost`）。
   全文见 docs/card-roles-v3-design.md。
   **提交出片即收窗**（2026-09-06 主人点名）：画布的编辑窗在这一段状态翻到 generating 的那一拍自动收起（`FlowCanvas` 判跳变，
   点开一张正在炼的卡看进度不算），工坊投影窗在 `studioStore` 委托 `genNode` 受理的那一拍收起（`closeProjection`），

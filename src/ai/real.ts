@@ -1930,6 +1930,34 @@ export async function extractTemplateFromVideo(
 }
 
 /**
+ * 白模模板登记时从**原片**抽帧铸 V3 素材卡（场景 / 道具 / 风格；不出人物卡）——第三期（2026-09-06）。
+ * ★ 白模化那条路此前 cards 恒空：白模帧里全是灰白简模，认不出素材；而原片帧在登记那一刻就在客户端手上
+ *   （提取器抽帧那一步），风格 / 场景 / 道具正该从它出（docs/card-roles-v3-design.md §2 的 ⚠）。
+ * ★ 服务端不存模板卡（BranchTemplate 没有 cards 字段，经典模板的卡也只在本机），这里同样只落本机模板。
+ * ★ 报价上限 economy.blockoutCardsCost 与这里的真实调用序列（一遍视觉 + 每张 文案 / 出图 / 复核）逐项对应。
+ */
+export async function extractTemplateCards(
+  frames: string[],
+  note: string,
+  onProgress?: (status: string) => void,
+): Promise<{ cards: Card[]; tokens: number }> {
+  if (frames.length === 0) return { cards: [], tokens: 0 };
+  onProgress?.(`从原片提炼素材卡（${frames.length} 帧）…`);
+  const raw = await chatVision(
+    TEMPLATE_MINT.prompt,
+    `用户补充说明：${note || "无"}
+以下是原片按时间顺序的抽帧（frameIndex 从 1 起）：`,
+    frames,
+  );
+  const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim()) as CardDef[];
+  if (!Array.isArray(parsed)) throw new Error("模板提卡 JSON 结构不符");
+  const defs = sanitizeCardDefs(parsed).filter((d) => d.type !== "character");
+  const styleHint = defs.find((d) => d.type === "style")?.name ?? "";
+  const r = await mintCards(defs, TEMPLATE_MINT, styleHint, [], onProgress, frames[Math.floor(frames.length / 2)] ?? frames[0], frames);
+  return { cards: r.cards, tokens: frames.length * VISION_FRAME_TOKENS + r.tokens };
+}
+
+/**
  * Seed3D 产物是 zip 包（实测 2026-08-07：包内单个自包含 pbr/mesh_textured_pbr.glb，36MB 级）。
  * 浏览器侧按中央目录定位 .glb 条目并 DecompressionStream 解出 GLB blob——
  * 不引 JSZip，standard deflate 足够。

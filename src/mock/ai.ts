@@ -19,19 +19,6 @@ const MARKET_DEFS: Array<{ type: CardType; name: string; summary: string; hot: n
   { type: "character", name: "废土信使小满", summary: "背着比自己还高的邮包穿越辐射区的少女，坚信每封信都值得抵达。", hot: 9530, tags: ["废土", "治愈"] },
   { type: "character", name: "AI 管家 T-7", summary: "一丝不苟的老式管家机器人，关节会漏气，说话像上世纪的电台播音员。", hot: 8114, tags: ["科幻", "幽默"] },
   { type: "character", name: "食堂阿姨·铁勺王", summary: "手抖界的反叛者——打菜从不手抖，江湖人称铁勺王。", hot: 7642, tags: ["搞笑", "日常"] },
-  { type: "scene", name: "雨夜霓虹街", summary: "永远在下雨的九龙城寨式街道，招牌层层叠叠，积水倒映着整座城市。", hot: 13511, tags: ["赛博朋克", "夜景"] },
-  { type: "scene", name: "云海剑冢", summary: "万剑插土、云海翻涌的古战场，每一柄锈剑都埋着一个名字。", hot: 10099, tags: ["古风", "史诗"] },
-  { type: "scene", name: "废土集市", summary: "由报废飞船残骸搭成的黑市，什么都卖，包括昨天的天气预报。", hot: 8867, tags: ["废土", "市集"] },
-  { type: "scene", name: "深海观测站", summary: "一万米深处的孤独观测站，舷窗外偶尔游过发光的未知生物。", hot: 7208, tags: ["科幻", "悬疑"] },
-  { type: "scene", name: "老式绿皮车厢", summary: "摇晃的绿皮火车穿过九十年代的麦田，车窗上有一层薄薄的灰。", hot: 6931, tags: ["怀旧", "旅途"] },
-  { type: "style", name: "黄昏金", summary: "整体笼罩在落日熔金的暖色氛围里，逆光轮廓带柔和光晕。", hot: 9312, tags: ["风格", "暖色"] },
-  { type: "style", name: "雨幕青", summary: "冷青色调的连绵雨幕，高光锐利，阴影里泛着蓝。", hot: 8455, tags: ["风格", "冷色"] },
-  { type: "style", name: "星野紫", summary: "银河横贯天幕的深紫夜空，地景压暗，星光作主光源。", hot: 7770, tags: ["风格", "夜空"] },
-  { type: "prop", name: "会说谎的罗盘", summary: "永远指向持有者最不想去的方向，但从未错过真正的宝藏。", hot: 6520, tags: ["奇幻", "道具"] },
-  { type: "prop", name: "老式拍立得", summary: "拍出的照片会比现实晚三秒——有时能拍到即将发生的事。", hot: 6118, tags: ["悬疑", "道具"] },
-  { type: "style", name: "水墨留白", summary: "大写意水墨风，浓淡干湿之间大量留白，运镜如卷轴展开。", hot: 10240, tags: ["国风", "艺术"] },
-  { type: "style", name: "胶片颗粒", summary: "35mm 胶片质感，轻微漏光与颗粒噪点，色彩微微偏绿。", hot: 8090, tags: ["复古", "质感"] },
-  { type: "style", name: "像素梦境", summary: "16-bit 像素风渲染，霓虹调色板，运动帧率刻意降到 12fps。", hot: 7333, tags: ["像素", "游戏"] },
 ];
 
 /**
