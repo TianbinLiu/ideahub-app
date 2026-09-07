@@ -1809,6 +1809,13 @@ export async function reviseVideo(id: string, draft: DraftVideo, baseRevision: n
     //   `readyRemote` 整份替换 cache，用户的这一版当场蒸发（save() 在远端模式还是 no-op）
     return { ok: false, kind: "network", why: "这次没连上服务器，内容没有被替换。合成稿还留在「我的」里，联网后再试一次。" };
   }
+  // ★★ 0 段作品 = **黑屏**。服务端的 `segments` 上有 `.min(1)`，所以这一发会被 400 挡下 ——
+  //   但那句 message 是 zod 的英文校验话，摆到用户面前读不出因果。就地判掉，说人话。
+  //   ⛔ 更要紧的是**别把这一档当成"可以发"**：一条 0 段的作品会带着 200 + 递增的 revision
+  //     回来，观众端零报错地打不开，而客户端那道 `revision === base + 1` 的门恰好判它成功。
+  if (!draft.segments?.length) {
+    return { ok: false, kind: "blocked", why: "这条合成稿一段内容都没有，替换不了。回工坊补一段再来。" };
+  }
   // ★ 与发布路径逐条同一口径。第一步同样是剥 `poster`（成片第一帧 dataURL，只管显示）：
   //   服务端的 segmentBody 里没有这个键、zod 会 strip，带着走只是把请求体白撑大 N × 百 KB。
   //   ⚠ 剥完那份也是下面 `retainAfterRevise` 的 `before` —— 与 publishVideo 那条路一致，
@@ -2082,7 +2089,17 @@ async function flushPending(): Promise<void> {
       // ★★ 这一句**不能只写在 pushPublish 里**：离线发布（remoteOn() 为假那条分支）与
       //   "传到一半被杀、下次冷启动补发"这两条路 pushPublish 一次都不跑 —— 漏了它，
       //   那两条路上工程永远不会留存，而那正是 PendingPublish 存在的全部理由。
-      //   ★ 同样传 `p.draft`（队列里存的就是 materialize 之前那份），不是 `sending`。
+      //   ★ 同样传 `p.draft` 而不是 `sending`：配对表要拿"发出去之前那份"来对。
+      //   ⚠ **但队列里那份未必是原始的**，这一点必须如实记着：离线那条分支入队的是
+      //     materialize 之前的原稿（dataURL 齐全，配对表配得满）；而"传到一半失败"那条
+      //     入队的是 `MaterializeError.partial`（已经传上去的那几格换成了永久 URL，
+      //     刻意如此，重试才不会把几 MB 再走一遍）。后者拿来配对得到的表是**残缺的**：
+      //     那几格的 dataURL 在 `before` 里已经不存在，映射配不出来，画布里对应的图位
+      //     会被墓碑化。
+      //   ⇒ 后果是**如实报出来**的（`lostCount` 会大、回炉打开时那条 amber 横幅照数说），
+      //     不是静默坏失败，所以这一版接受它。真要修只有一条路：入队时另存一份原稿 ——
+      //     而待发队列在 localStorage（几 MB 上限），那份原稿是 MB 级的 dataURL 整棵树，
+      //     等于拿"作品唯一备份写不进去"换"工程留得全一点"，不划算。
       void projects.retainAfterPublish(v._id, p.draft, v);
     } catch (e) {
       uploadStatus = null;

@@ -407,10 +407,18 @@ async function retain(
   revision: number,
 ): Promise<void> {
   const pend = await readPending();
-  if (!pend) {
+  // ★★ 待办是**单键**，而它与 `cutSession` 是同一拍写的、两边都只有一格 —— 正常路径上
+  //   它必然就是这条作品那一摊活。但"必然"是靠两个不变量撑起来的，而这里认错的后果不是
+  //   "少留一份工程"，是**把另一条片的画布当成这条的工程存上去**：回炉打开是别人的内容，
+  //   用户就着它点一下「替换原作品」，线上这条作品就被换成了那个（全程零报错）。
+  //   ⇒ 就地比一次归属，对不上就当"待办缺失"处理（那句话说的正是实话：这条作品那份画布
+  //     确实已经不在本机了）。判据走 `pendingFor()` **同一处实现**（铁律六）——
+  //     编辑页那颗「重试留存」摆不摆得出来，问的是同一个问题。
+  const mine = pendingFor(videoId, before.clientId);
+  if (!pend || !mine) {
     // 待办不在了（换过设备 / 清过库 / 上一条待办被这条顶掉）。作品本身**已经发出去了**，
     // 所以这不是发布失败——话必须把两件事分开说（铁律八）
-    console.warn("[projects] 待办缺失", { videoId });
+    console.warn("[projects] 待办缺失", { videoId, has: !!pend, mine });
     startJob({ kind: "project-retain", title: "留存工坊工程" }).fail(
       "没能留存工坊工程（本机那份画布已经不在了）——作品已经发出去了，只是这条暂时不能回炉。",
       `/edit/${videoId}`,
