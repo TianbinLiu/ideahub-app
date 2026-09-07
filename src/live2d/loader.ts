@@ -70,7 +70,14 @@ export type Live2DModelInstance = {
 
 export type PixiApplication = {
   stage: { addChild(child: unknown): void; removeChild(child: unknown): void };
-  renderer: { resize(width: number, height: number): void };
+  renderer: {
+    resize(width: number, height: number): void;
+    /**
+     * 手动画一帧（平时由 ticker 调）。★ 只有 `CompanionModel.snapshot()` 用它：舞台那台 Application
+     * **没开** `preserveDrawingBuffer`，绘制缓冲一合成就被清掉，所以截图只能"自己画一帧、同一拍里立刻读"。
+     */
+    render(displayObject: unknown): void;
+  };
   ticker: {
     add(fn: (delta: number) => void, context?: unknown, priority?: number): void;
     remove(fn: (delta: number) => void, context?: unknown): void;

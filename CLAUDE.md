@@ -80,7 +80,10 @@ src/
   hooks/
   mock/        无后端时的假数据
   pages/       路由页面（hash 路由）；`SupportPage` = AI 客服，`SupportModelsPage` / `SupportPersonasPage` =
-               数字人形象 / 人格市场（/support/models、/support/personas，入口在客服页顶栏那一列小键与设置页）
+               数字人形象 / 人格市场（/support/models、/support/personas，入口在客服页顶栏那一列小键与设置页）；
+               `SupportCreatePage` = 创作中心三扇门（/support/create，那一列小键的第四颗 ✨），
+               `SupportModelNewPage` / `SupportPersonaNewPage` = Live2D 上传向导 / 人格制作向导
+               （/support/models/new、/support/personas/new，设计正本 docs/digital-human-creator-center.md §3.5 与 §4.3）
   studio/      创作/工坊相关
   utils/
 public/

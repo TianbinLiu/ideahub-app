@@ -40,6 +40,9 @@ import SimpleModePage from "./pages/SimpleModePage";
 import SupportPage from "./pages/SupportPage";
 import SupportModelsPage from "./pages/SupportModelsPage";
 import SupportPersonasPage from "./pages/SupportPersonasPage";
+import SupportCreatePage from "./pages/SupportCreatePage";
+import SupportModelNewPage from "./pages/SupportModelNewPage";
+import SupportPersonaNewPage from "./pages/SupportPersonaNewPage";
 import StudioPage from "./studio/StudioPage";
 import TabBar from "./components/TabBar";
 import { readyVideos } from "./data/videos";
@@ -423,6 +426,33 @@ export default function App() {
         element={
           <RequireAuth>
             <SupportPersonasPage />
+          </RequireAuth>
+        }
+      />
+      {/* 创作中心（2026-09-07）：三扇门 + 两个向导。入口在客服页顶栏那一列小键的第四颗与设置页。
+          三条都要登录 —— 建模型 / 建人格 / 列「我的作品」在服务端全是 requireAuth，
+          不套 RequireAuth 的话未登录的人会走到向导最后一步才吃 401，前面填的全白填。 */}
+      <Route
+        path="/support/create"
+        element={
+          <RequireAuth>
+            <SupportCreatePage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/support/models/new"
+        element={
+          <RequireAuth>
+            <SupportModelNewPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/support/personas/new"
+        element={
+          <RequireAuth>
+            <SupportPersonaNewPage />
           </RequireAuth>
         }
       />

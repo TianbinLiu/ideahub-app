@@ -8,6 +8,10 @@
  * ★ 「使用中」只在读到了设置时才标（同形象市场）；「恢复默认人格」= PUT { personaId: null }。
  *   人格是形象作者推荐来的（personaSource = "model"）时 personaId 本来就是空，恢复键灰着、状态行说明来源。
  * ★ 搜索是 300ms 防抖后打服务端的 q（服务端按 名字/描述/标签 子串匹配）。
+ * ★ **制作入口自 2026-09-07 起就在 App 里**（创作中心 P3）：顶部那张卡去 `/support/personas/new` 向导
+ *   （基本设定 → 素材 → 问卷 → AI 生成 → 试聊 → 微调 → 发布）。此前页脚写着"创建请到官网"，已删；
+ *   **「付费人格要去官网买」这条仍然成立**（App 里没有支付），留在页脚与卡片上。
+ * ★ 三个页签走 `useQueryTab`（写进地址栏）：全部 = `scope=all`、已收藏 = `installed`、我的 = `mine`（含自己没公开的）。
  * ★ 与形象市场同一套页面骨架（tab / 列表 / 就地报错在那张卡上）。
  */
 import { useEffect, useRef, useState } from "react";
@@ -15,6 +19,8 @@ import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
+import { useBackOr } from "../hooks/useBackOr";
+import { useQueryTab } from "../hooks/useQueryTab";
 import { ApiError } from "../api/client";
 import {
   authorName,
@@ -28,7 +34,9 @@ import {
   type MarketPersona,
 } from "../api/companion";
 
-type Scope = "all" | "installed";
+const TABS = ["all", "installed", "mine"] as const;
+type Tab = (typeof TABS)[number];
+const TAB_LABEL: Record<Tab, string> = { all: "全部", installed: "已收藏", mine: "我的" };
 const PAGE_SIZE = 40;
 /** 切换成功后停这么久再返回：让「已换成」那句话被看到 */
 const BACK_DELAY_MS = 900;
@@ -50,7 +58,8 @@ function applyErrorText(e: unknown): string {
 
 export default function SupportPersonasPage() {
   const navigate = useNavigate();
-  const [scope, setScope] = useState<Scope>("all");
+  const back = useBackOr("/support");
+  const [scope, setScope] = useQueryTab<Tab>("tab", TABS, "all");
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<MarketPersona[]>([]);
@@ -148,7 +157,7 @@ export default function SupportPersonasPage() {
       // 不解开就是一屏永远点不动的键（CLAUDE.md 坑表）
       backTimer.current = window.setTimeout(() => {
         setBusy("");
-        navigate(-1);
+        back(); // 深链冷启动时没有上一页，裸 navigate(-1) 会退成白屏（hooks/useBackOr）
       }, BACK_DELAY_MS);
     } catch (e) {
       setCardErr({ id: p._id, text: applyErrorText(e) });
@@ -191,12 +200,29 @@ export default function SupportPersonasPage() {
     ? "没有找到匹配的人格，换个词试试。"
     : scope === "installed"
       ? "还没有收藏过人格，去「全部」里挑一个。"
-      : "市场里还没有公开的人格。";
+      : scope === "mine"
+        ? "你还没有做过人格，点上面那张卡做一个。"
+        : "市场里还没有公开的人格。";
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => navigate(-1)} title="数字人人格" />
+      <PageHeader sticky inset onBack={back} title="数字人人格" />
       <p className="mb-3 text-[11px] leading-relaxed text-slate-500">换一种说话风格，客服页与官网首页共用同一份设置；人格自带嗓子的话声音也会跟着换。</p>
+
+      {/* 制作入口（创作中心 P3）：整块可点的一行 tile —— 不是 CTA 按钮，按列表行那档形状写 */}
+      <button
+        onClick={() => navigate("/support/personas/new")}
+        className="mb-3 flex w-full items-center gap-3 rounded-xl border border-slate-700/70 bg-panel p-3 text-left active:opacity-60"
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/15 text-brand">
+          <Icon name="sparkle" size={20} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-slate-100">＋ 制作我的人格</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-slate-400">喂一段聊天记录或者答几道题，AI 帮你写出说话风格，试聊满意了再发布。</span>
+        </span>
+        <Icon name="chevron" size={16} className="shrink-0 text-slate-600" />
+      </button>
 
       {/* 当前人格 + 恢复默认：读不到设置就只报错，不摆一个不知道恢复成什么的按钮 */}
       {settings && (
@@ -225,14 +251,14 @@ export default function SupportPersonasPage() {
         </p>
       )}
 
-      <div className="mb-3 flex gap-2">
-        {(["all", "installed"] as const).map((t) => (
+      <div className="mb-3 flex gap-2 no-scrollbar overflow-x-auto">
+        {TABS.map((t) => (
           <button
             key={t}
             onClick={() => setScope(t)}
-            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold ${scope === t ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold ${scope === t ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
           >
-            {t === "all" ? "全部" : "已安装"}
+            {TAB_LABEL[t]}
           </button>
         ))}
       </div>
@@ -327,7 +353,8 @@ export default function SupportPersonasPage() {
         </button>
       )}
 
-      <p className="mt-5 text-center text-[11px] leading-5 text-slate-500">创建或购买人格请到官网 ideahubs.org 的人格市场。</p>
+      {/* 「买」这条仍然成立：App 内没有支付（POST /:id/purchase 只有官网做），别把它跟"创建"一起删掉 */}
+      <p className="mt-5 text-center text-[11px] leading-5 text-slate-500">付费人格要在官网 ideahubs.org 购买，买过之后这里就能用。</p>
     </div>
   );
 }

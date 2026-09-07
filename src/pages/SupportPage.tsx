@@ -25,6 +25,9 @@
  *   念台词的 /api/tts 参数来自 config.voiceSettings（服务端算好的合并结果），老服务端没有它就按旧写法只传 voice。
  *   舞台的模型地址来自 settings.model.modelJsonUrl；设置还没回来之前舞台先等（最多 1.5s），免得先起官方再销毁重建。
  *   从市场页回来这一页会重新挂载（不同路由），config 与 settings 都在挂载时重拉，所以换完立即生效。
+ * ★ 创作中心（2026-09-07，P3）：那一列小键多第四颗「✨ 创作」→ /support/create（三扇门：模型 / 音频 / 人格）。
+ *   其中「人物音频」那扇门跳回**本页**并带 `?sheet=voice` —— 混音器只有 VoiceSheet 这一处实现，
+ *   为它另开一页就是第二份。本页读到这个 query 就把面板掀开，然后**当场把 query 抹掉**（见下面那个 effect 的 ★）。
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -180,6 +183,24 @@ export default function SupportPage() {
   const name = config?.name || "小梦";
   const enabled = config ? config.enabled : true;
   const asrOn = Boolean(config?.asr);
+
+  /**
+   * 创作中心的「人物音频 → 去制作」跳回本页时带 `?sheet=voice`：把「声音」面板掀开。
+   * ★ 掀开之后**当场把这个参数抹掉**（replace，不在历史里堆一层）：留着的话用户关掉面板、
+   *   或者从别的页返回到这一页时，它会自己又弹出来一次 —— 而用户并没有再点过任何东西。
+   */
+  useEffect(() => {
+    if (params.get("sheet") !== "voice") return;
+    setVoiceSheetOpen(true);
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("sheet");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [params, setParams]);
 
   useEffect(() => {
     let alive = true;
@@ -526,12 +547,25 @@ export default function SupportPage() {
         </div>
       </div>
 
-      {/* 形象 / 人格 / 声音：挂在顶栏右下的一列小键（见文件头 ★ 换装） */}
+      {/* 形象 / 人格 / 声音 / 创作：挂在顶栏右下的一列小键（见文件头 ★ 换装、★ 创作中心）
+          ★★ 加第四颗之前先量过（CLAUDE.md「数值不要拍脑袋」）。量法 = 把这一列与底部输入区各自的**固定尺寸**加起来
+            （两边的高度全是写死的 Tailwind 刻度，没有一处依赖内容以外的东西），机型取 360×640 的小屏、
+            安卓状态栏 safe-area-inset-top 按 28px 算：
+              · 这一列：top = safe-top + 58(顶栏) + 14 = 28+72 = 100px；每颗 h-12 = 48、gap-2 = 8
+                ⇒ 三颗底缘 = 100+48*3+8*2 = 260px；**四颗底缘 = 100+48*4+8*3 = 316px**（一颗 +56px）。
+              · 底部输入区（静息态：字幕气泡 + 快捷问题行 + 输入条 + 那行小字）自下而上：
+                pb 12 + 小字(6+16) + 输入条(1.5*2 内边距 + h-10 = 52) + 快捷问题行(8+4+28) + 气泡(8+20+16+2+3 行 leading-6 = 118)
+                = 244px ⇒ **真正有内容的上缘在 640-244 = 396px**（它上面那 80px 是 pt-20 的渐变，透明且 pointer-events-none）。
+              · 结论：四颗键的底缘 316 距内容上缘 396 还有 **80px**，放得下，不用改布局。
+          ⚠ 已知的边界：吵起来之后（转人工卡 + 两三行提示 + 长回答）底部那一坨能长到 370px 上下，那时最下面这颗
+            会被盖住 —— 两边同为 z-10、它在 DOM 里排在后面。所以**新加的这颗排在最后**：形象/人格/声音是天天用的三颗，
+            而「创作」在设置页里另有一条找得到的路（CLAUDE.md：别让唯一入口有被盖住的可能）。 */}
       <div className="absolute right-2 z-10 flex flex-col gap-2" style={{ top: `calc(env(safe-area-inset-top, 0px) + ${TOP_BAR_PX + 14}px)` }}>
         <RailButton emoji="👗" label="形象" onClick={() => navigate("/support/models")} />
         <RailButton emoji="🎭" label="人格" onClick={() => navigate("/support/personas")} />
         {/* 在用混音（自己调的或声音市场的模板）时写「混音」：让人知道这颗键后面的东西变了 */}
         <RailButton emoji="🎙️" label={config?.voiceSettings?.mix?.length ? "混音" : "声音"} onClick={() => setVoiceSheetOpen(true)} />
+        <RailButton emoji="✨" label="创作" onClick={() => navigate("/support/create")} />
       </div>
 
       {/* 底部浮层：最近一问一答 + 转人工卡 + 快捷问题 + 输入区 */}

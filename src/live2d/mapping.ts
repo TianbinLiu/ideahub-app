@@ -92,10 +92,33 @@ export function mapHitAreas(mapping: CompanionMapping | null, raw: string[]): st
 }
 
 /**
- * 读模型旁边的 companion.json。只对绝对 URL 发请求（市场包在 API 域名上）；相对路径 = 打包在客户端里的官方模型，没有这个文件。
+ * 「这个地址的映射用这一份，别去网上取」——**预览专用**的模块级登记表。
+ *
+ * ★★ 为什么必须有它（2026-09-07，Live2D 上传向导）：向导第 2 步是从 `blob:` URL 加载还没上传的包，
+ *   第 4 步让用户手调映射。而 `loadCompanionMapping` 对非 http 地址直接回 null（包里本来也没有 companion.json），
+ *   于是**用户在向导里调什么都看不到效果** —— 点▶播不出动作、换表情没反应，全程零报错，
+ *   人只会以为"这个包不支持"，然后把一份其实好好的映射发布出去。
+ * ★ 只登记不去重、不做 LRU：一次向导只有一个 blob 地址，退出时调用方传 null 撤掉（`setPreviewMapping(url, null)`）。
+ *   ⚠ 撤掉是调用方的责任 —— blob 地址在 revoke 之后不会再被加载，留着也不会演到别人身上，但留一份内存垃圾不好看。
+ * ★ **官网那份 `live2d/mapping.ts` 是同源拷贝**（两仓同步，见文件头）：官网的上传向导补上时要把这一段一起搬过去，
+ *   否则两边"预览看到的"与"发布出去的"不是同一件事。
+ */
+const previewMappings = new Map<string, CompanionMapping>();
+
+export function setPreviewMapping(modelUrl: string, mapping: CompanionMapping | null): void {
+  if (!modelUrl) return;
+  if (mapping) previewMappings.set(modelUrl, mapping);
+  else previewMappings.delete(modelUrl);
+}
+
+/**
+ * 读模型旁边的 companion.json。**先查预览登记表**（向导里手调的那份），再按地址去网上取。
+ * 只对绝对 URL 发请求（市场包在 API 域名上）；相对路径 = 打包在客户端里的官方模型，没有这个文件。
  * 任何失败都当没有：404、非 JSON、版本不对、Capacitor 的本地静态服务器对不存在的路径回 200 + index.html……
  */
 export async function loadCompanionMapping(modelUrl: string): Promise<CompanionMapping | null> {
+  const preview = previewMappings.get(modelUrl);
+  if (preview) return preview;
   if (!/^https?:\/\//i.test(modelUrl)) return null;
   try {
     const res = await fetch(new URL("companion.json", modelUrl).toString(), { cache: "no-cache" });

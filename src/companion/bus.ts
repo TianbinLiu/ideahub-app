@@ -36,6 +36,14 @@ export const companionBus = {
   action(action: CompanionAction) {
     current?.playAction(action);
   },
+  /** 试演：直接播包里的某个动作组。返回 false = 这个组不在包里（调用方要说出来，别静默） */
+  motionGroup(group: string): boolean {
+    return current?.playMotionGroup(group) ?? false;
+  },
+  /** 试演：直接挂包里的某个 exp3 表情（null = 摘掉）。返回 false = 这个表情不在包里 */
+  expression(name: string | null): boolean {
+    return current?.setExpressionByName(name) ?? false;
+  },
   mouth(level: number) {
     current?.setMouth(level);
   },
