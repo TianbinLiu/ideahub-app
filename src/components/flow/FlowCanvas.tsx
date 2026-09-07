@@ -26,6 +26,7 @@ import CameraChips from "./CameraChips";
 import DeleteSegBtn from "./DeleteSegBtn";
 import CastPreviewCard from "./CastPreviewCard";
 import ReviseBox from "./ReviseBox";
+import StageOverlay from "../../studio/stage/StageOverlay";
 import { SegmentRecoverList } from "./SegmentRecoverCards";
 import SegSettings from "./SegSettings";
 import SegPlayer from "./SegPlayer";
@@ -756,6 +757,8 @@ function NodePanel({
    *    会因为引用永远不等而无限重渲染。 */
   const allNodes = useFlow((s) => s.nodes);
   const castErr = useFlow((s) => s.castErr);
+  /** 导演台浮层（投影窗同款，一份实现在 studio/stage/StageOverlay） */
+  const [stageOpen, setStageOpen] = useState(false);
   const castFallback = useFlow((s) => s.castFallback);
   const castBusy = useFlow((s) => s.castBusy);
   const fillCastFallback = useFlow((s) => s.fillCastFallback);
@@ -1401,6 +1404,16 @@ function NodePanel({
                 📋 看/改这一套方案（换首尾帧、改剧情）
               </button>
             )}
+            {/* 导演台：摆站位、定机位，截图融成开头帧（投影窗同款）。已出片的段不摆 —— 换了开头帧就得重炼 */}
+            {!done && (
+              <button
+                onClick={() => setStageOpen(true)}
+                disabled={busy || generating}
+                className="w-full rounded-full border border-slate-600 py-2 text-[11px] text-slate-300 disabled:opacity-40"
+              >
+                🎬 导演台 · 摆站位、定机位，截图融成开头帧{node.stage?.shot ? "（已融过，可再截）" : ""}
+              </button>
+            )}
             {/* 返修：已出片才有（ReviseBox 自己判有没有能播的成片）；投影窗同款，一份实现 */}
             {done && (
               <ReviseBox
@@ -1458,6 +1471,7 @@ function NodePanel({
         />
       )}
       {planSheet && <PlanSheet nodeId={planSheet} onClose={() => setPlanSheet(null)} />}
+      {stageOpen && <StageOverlay nodeId={node.id} onClose={() => setStageOpen(false)} />}
       {/* 自定义车道的融图（方案台里那份由 PlanBoard 自己带，这份服务直出车道）。
           组件自己 portal 到 body（画布 transform 会给 fixed 造包含块，CLAUDE.md 那条坑） */}
       {fuse && (

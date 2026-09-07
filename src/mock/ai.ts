@@ -127,6 +127,9 @@ export async function fuseFrame(o: {
   return makeFrame(`fuse:${o.instruction}`, o.aspect);
 }
 
+/** 导演台截图 → 开头帧（演示：与 fuseFrame 同一张占位帧） */
+export const fuseStageFrame = fuseFrame;
+
 export async function searchMarket(query: string): Promise<Card[]> {
   // 市场卡目前是本地静态种子，不再假装有网络延迟——
   // 500ms 的 delay 会让「搜索中…」在纯本地数据上闪一下，是白白制造的等待感。

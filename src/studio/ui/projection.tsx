@@ -48,6 +48,7 @@ import { CHAIN, focusCam } from "../scene/layout";
 import DeleteSegBtn from "../../components/flow/DeleteSegBtn";
 import CastPreviewCard from "../../components/flow/CastPreviewCard";
 import ReviseBox from "../../components/flow/ReviseBox";
+import StageOverlay from "../stage/StageOverlay";
 import ConfirmDialog from "../../components/ConfirmDialog";
 
 export default function ProjectionWindow() {
@@ -929,6 +930,8 @@ function ProposalsPanel() {
   const [tierOpen, setTierOpen] = useState(false);
   /** 「回铸段窗重选模式」要先确认的那一下（推演过的段：三套方案花过 token） */
   const [recastAsk, setRecastAsk] = useState(false);
+  /** 导演台浮层（摆站位 / 定机位 → 截图融成开头帧）。★ hook 排在早退之前 */
+  const [stageOpen, setStageOpen] = useState(false);
   /** 选素材卡弹层（与画布共用同一份 CardPicker）。★ hook 必须排在下面那句早退之前 */
   const [cardPick, setCardPick] = useState(false);
   /** store 的整句拒绝（与画布壳那条错误条同源，见下面渲染处的 ★★）。
@@ -1235,6 +1238,20 @@ function ProposalsPanel() {
         />
       </div>
       )}
+      {/* 导演台（2026-09-06 对标 LibTV）：摆人偶定站位与机位，截图融成开头帧。白模段用不上（画面来自模板视频）；
+          已出片的段不摆（换了开头帧就得重炼）；画布那一面同款 */}
+      {!blockout && chosen && !done && !locked && (
+        <div className="flex-none px-3 pt-1.5">
+          <button
+            onClick={() => setStageOpen(true)}
+            disabled={genHere || busy}
+            className="w-full rounded-full border border-cyan-400/40 py-1.5 text-[11px] text-cyan-200 disabled:opacity-40"
+          >
+            🎬 导演台 · 摆站位、定机位，截图融成开头帧{node.stage?.shot ? "（已融过，可再截）" : ""}
+          </button>
+        </div>
+      )}
+      {stageOpen && <StageOverlay nodeId={node.id} onClose={() => setStageOpen(false)} />}
       {/* 圈选标注条（与画布同一份 AnnStrip）：重炼时逐处改画面，改图费已并进重炼报价（nodeCost） */}
       {node.anns.length > 0 && (
         <div className="flex-none px-3 pb-1">

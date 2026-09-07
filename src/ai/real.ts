@@ -192,6 +192,37 @@ export async function fuseFrame(o: {
   return await genImageAsDataUrl(prompt, { imageRefs: refs, size: spec.frameSize });
 }
 
+/**
+ * 导演台截图 → 开头帧（与 fuseFrame 同一条 Seedream 多图 i2i 路，提示词另写）。
+ * ★★ 不能借 fuseFrame 的外壳（2026-09-06 实测一发 ¥0.2）：它那句「保持各参考图中人物的相貌、发型、服装与画风完全一致」
+ *   把导演台里的人偶当成了"人物"——雨夜霓虹街画得很好，站着的却是一黄一白两个塑料人偶；画幅提示里的「手机全屏画面」
+ *   也被当真，整张图被画进了一只手机的屏幕里。所以这里：① 开头就点破图片1 是 3D 人偶摆的草图、只取构图；② 人偶必须换成
+ *   真人 / 角色，列出不许出现的东西（人偶 / 3D 质感 / 灰白金黄塑料人形 / 网格地面）；③ 画幅只说"竖版 / 横版构图"，不提手机。
+ * ★ 截图那侧配合：截图时所有人偶一律灰白（选中的金色只在屏幕上有，StageOverlay 的 Capturer 会换回去）。
+ */
+export async function fuseStageFrame(o: {
+  sources: string[];
+  instruction: string;
+  aspect: VideoAspect;
+  onProgress?: (s: string) => void;
+}): Promise<string> {
+  const refs = o.sources.filter(Boolean).slice(0, 3);
+  if (refs.length === 0) throw new Error("没有可融的参考图");
+  const spec = aspectOf(o.aspect);
+  o.onProgress?.(`按导演台构图出图（${refs.length} 张参考）…`);
+  // ★ 第二发实测：人偶换成了真人，但整张仍被画进手机外壳、人物卡被原样拼成上半格 —— 所以"不是截图 / 不是手机画面"要在
+  //   图片1 的定性里就说、"铺满整幅 / 不拼参考图 / 不分格"单独成句。截图那侧同步改成浅灰影棚（StageOverlay 的配色 ★）。
+  const prompt =
+    `图片1 是用灰色 3D 人偶在浅灰色空舞台上摆出来的构图草图（它不是照片、不是截图、不是手机画面），只取它的人数、站位、朝向、景别与机位：` +
+    `把每一个人偶都换成真实的角色来画，画面里不能出现人偶、玩偶、3D 模型质感或灰色塑料人形，不要网格地面、不要空舞台；` +
+    `${o.instruction}；` +
+    `输出是一整张单一场景的画面，铺满整个画幅：不要把任何参考图原样拼进来，不要把角色的肖像放大叠在天空或背景上，` +
+    `不要重影、不要双重曝光，不要分格、不要上下或左右拼接，` +
+    `不要手机或平板外壳、不要屏幕边框、不要相框；` +
+    `${spec.ratio === "9:16" ? "竖版 9:16 构图，主体居中偏上" : "横版 16:9 电影构图"}；无字幕、无水印、无边框`;
+  return await genImageAsDataUrl(prompt, { imageRefs: refs, size: spec.frameSize });
+}
+
 /** 报给用户的失败原因：截一句。原样贴进进度条会把真正有用的那半句挤出可视区。 */
 function reasonOf(e: unknown): string {
   return (e instanceof Error ? e.message : String(e)).slice(0, 80);

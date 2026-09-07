@@ -24,6 +24,7 @@ export const composeVideo = mock.composeVideo; // 合成动画节奏（真实生
 /** 封面工坊：mock 构建出本地占位帧（带演示水标语义），真实构建走 Seedream */
 /** 融图：把 2~3 张参考图融成一张边界帧（段间无缝用），落地走 PlanBoard.onFrame */
 export const fuseFrame: typeof real.fuseFrame = AI_REAL ? real.fuseFrame : mock.fuseFrame;
+export const fuseStageFrame: typeof real.fuseStageFrame = AI_REAL ? real.fuseStageFrame : mock.fuseStageFrame;
 /** 圈选提取的「按提示词方案炼形象图」（图位由方案决定，风格跟随原图） */
 /** 参考图协议上限的兜底值（档位表没写 refImagesMax 时用它）——与 real.ts 同一个常量 */
 export { ARK_REF_IMAGES_MAX } from "./real";
