@@ -368,6 +368,67 @@ export class CompanionModel {
   }
 
   /**
+   * **试演专用**：直接播包里的某一个动作组，不经语义槽、不受压制。上传向导第 ④ 步「摸这里播哪个动作」那行的 ▶。
+   *
+   * ★★ 为什么必须是公开入口而不是"借一个语义槽临时指过去"（2026-09-07 收口）：借槽那种写法要**原地改**
+   *   正在生效的映射对象，一旦还原那一步没跑到（异常、组件卸载、两次点击撞上），用户表里那一格就被
+   *   悄悄改成了别的组，然后**原样发布出去** —— 零报错，而且发布之后才看得出来。
+   * ★ 它**不吃**那 2.3 秒的语义动作压制（`playAction` 里那道闸）：压制防的是"一句话里连着三个动作标签
+   *   变成三次半途打断"，而试演是人一下一下点的 —— 等 2.3 秒的表现就是"点了没反应"。
+   * @returns false = 这个组不在包里（调用方据此说"这个组没了"，别静默）
+   */
+  playMotionGroup(group: string): boolean {
+    if (this.disposed || !group) return false;
+    if (!this.model.internalModel.settings.motions?.[group]) return false;
+    this.lastTouch = null; // 试演不是触摸，别让它蹭上一次点击的触摸动作
+    void this.model.motion(group, 0, this.pixi.live2d.MotionPriority.FORCE).catch(() => undefined);
+    return true;
+  }
+
+  /**
+   * **试演专用**：直接挂包里的某一个 exp3 表情（`null` = 摘掉）。与 `setFace` 的区别是它不走语义槽、
+   * 不改 `pose`，所以摘掉之后脸自己回到当前语义表情。
+   * @returns false = 这个表情不在包里
+   */
+  setExpressionByName(name: string | null): boolean {
+    if (this.disposed) return false;
+    if (name && !this.model.internalModel.settings.expressions?.some((e) => e.Name === name)) return false;
+    this.applyExpression(name);
+    return true;
+  }
+
+  /**
+   * 截当前这一帧，画进一块新的 2D 离屏画布（尺寸 = 舞台画布的像素尺寸）；`null` = 截不到。
+   *
+   * ★★ 为什么是"先手动画一帧，再在**同一个同步块**里读"（2026-09-07，上传向导第 ⑥ 步要拿它当封面）：
+   *   这台 Application 故意**没开** `preserveDrawingBuffer` —— 它是客服页那位看板娘的常驻舞台，
+   *   开了就是让每一个用户为一个几乎没人用的截图功能天天付渲染代价（工坊导演台那块画布是用完就扔的，
+   *   所以那边开着）。而 WebGL 的绘制缓冲一旦被合成就清空，随便挑个时刻 `drawImage(canvas)` 拿到的是全透明。
+   *   按规范，绘制缓冲在**被合成之前**一直有效，所以 `renderer.render()` 之后不让出线程、立刻 drawImage
+   *   就一定读得到像素 —— 这也正是"toDataURL 要紧跟在 render 后面"那条老经验的由来。
+   *   ⚠ 这中间**一个 await 都不能有**：让出去一拍就可能被合成掉，那时读回来的又是全透明。
+   * ★ 底色不在这里垫：要不要垫、垫什么色是调用方（要 JPEG 就得垫，要 PNG 就不用）的事。
+   */
+  snapshot(): HTMLCanvasElement | null {
+    if (this.disposed) return null;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    if (!w || !h) return null;
+    const out = document.createElement("canvas");
+    out.width = w;
+    out.height = h;
+    const ctx = out.getContext("2d");
+    if (!ctx) return null;
+    try {
+      this.app.renderer.render(this.app.stage);
+      ctx.drawImage(this.canvas, 0, 0);
+    } catch {
+      return null; // 上下文丢了 / 画布被污染（贴图都是同源 blob，不该发生）
+    }
+    return out;
+  }
+
+  /**
    * 舞台里的点击落在哪些触摸区（protocol.ts TOUCH_AREAS 的名字，按优先级排序）；空数组 = 没点到人。
    * 官方 mascot 的 HitAreas 名字就是区名；第三方模型按 companion.json 把它自己的命中区名翻译过来。
    */

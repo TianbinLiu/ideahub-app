@@ -71,6 +71,9 @@ export default function SettingsPage() {
         {/* 数字人的形象 / 人格：主入口在客服页顶栏那一列小键，这里再给一条找得到的路（设置存服务端，官网同步） */}
         <NavRow to="/support/models" emoji="👗" title="数字人形象" sub="给小梦换一套 Live2D 形象" />
         <NavRow to="/support/personas" emoji="🎭" title="数字人人格" sub="换一种说话风格，官网同步" />
+        {/* 创作中心（2026-09-07）：客服页那一列小键的第四颗是主入口，这里是第二条路 ——
+            那一列在对话很热闹时可能被底部输入区盖住（SupportPage 那段量法），唯一入口不能只有一条 */}
+        <NavRow to="/support/create" emoji="✨" title="创作中心" sub="自己做模型 · 音频 · 人格，可发布到市场" />
       </Group>
 
       {/* ── 协议与须知 ────────────────────────────────────────────

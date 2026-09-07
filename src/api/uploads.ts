@@ -25,9 +25,48 @@ export const MAX_MEDIA_BYTES = 20 * 1024 * 1024;
  *   浏览器只看到 `Failed to fetch`（发布体那条老坑的同款形状，见本文件头）。
  */
 export const MAX_TEMPLATE_VIDEO_BYTES = 100 * 1024 * 1024;
+/**
+ * Live2D 模型包（zip）的上限，与服务端 `live2dModel.routes.js` 的 zip 上限、`/bundle/sign` 签出来的
+ * `maxSizeBytes` 镜像（docs/digital-human-creator-center.md §3.2）。
+ * ★ 这只是**提前量**：直传那条路作数的是票上的 `maxSizeBytes`（uploadWithTicket 会再判一次），
+ *   multipart 退路作数的是服务端。客户端这份存在的意义只是"别让人白传 25MB"。
+ */
+export const MAX_LIVE2D_BUNDLE_BYTES = 25 * 1024 * 1024;
 
-/** multipart POST 的唯一实现：拿回**整份**回包（模板视频要读服务端登记的元数据，
- *  不止一个 URL）。错误处理与 post 同一份——两条上传路各写一份超时/解析必然分叉。 */
+/**
+ * multipart 的一段：文本字段 `[name, value]`，或文件字段 `[name, blob, filename]`。
+ * ★ 文本值一律**已经是字符串**：布尔与 JSON 该怎么写由各自的调用方决定（服务端对 multipart 的
+ *   `"false"` / 未 JSON.stringify 的对象都有自己的读法），这一层不猜。
+ */
+export type MultipartPart = [string, string] | [string, Blob, string];
+
+/**
+ * multipart POST 的唯一实现：拿回**整份**回包（模板视频要读服务端登记的元数据、Live2D 上传要读
+ * warnings/entries，都不止一个 URL）。错误处理与超时只有这一份 —— 各写一份必然分叉。
+ * ★ 超时那句话里要报"这份多大"，所以字节数按**所有 Blob 段之和**算（文本字段可以忽略不计）。
+ */
+export async function postMultipart(
+  path: string,
+  parts: MultipartPart[],
+  timeoutMs: number,
+  /** 调用方要能中途停下时传进来（Live2D 向导那颗「取消上传」）；不传就只有超时会掐 */
+  signal?: AbortSignal,
+): Promise<Record<string, unknown>> {
+  const token = getToken();
+  const fd = new FormData();
+  let bytes = 0;
+  for (const p of parts) {
+    if (p.length === 3) {
+      fd.append(p[0], p[1], p[2]);
+      bytes += p[1].size;
+    } else {
+      fd.append(p[0], p[1]);
+    }
+  }
+  return postFormData(path, fd, bytes, timeoutMs, token, signal);
+}
+
+/** 单文件的老写法（模板视频 / 图片 / 成片三条老路），转调上面那份 */
 async function postForm(
   path: string,
   field: string,
@@ -35,9 +74,18 @@ async function postForm(
   filename: string,
   timeoutMs: number,
 ): Promise<Record<string, unknown>> {
-  const token = getToken();
-  const fd = new FormData();
-  fd.append(field, blob, filename);
+  return postMultipart(path, [[field, blob, filename]], timeoutMs);
+}
+
+async function postFormData(
+  path: string,
+  fd: FormData,
+  /** 这一发要推上去的字节数，只用于超时那句话（见下面的 ★★） */
+  totalBytes: number,
+  timeoutMs: number,
+  token: string | null,
+  external?: AbortSignal,
+): Promise<Record<string, unknown>> {
   const ctrl = new AbortController();
   // ★★ 「是不是我们自己掐的」用**一面自己举的旗子**，不嗅探错误形状（2026-08-22 真机撞到）：
   //   原来判的是 `e instanceof DOMException && e.name === "AbortError"`，而 Android WebView
@@ -53,6 +101,13 @@ async function postForm(
     selfAborted = true;
     ctrl.abort();
   }, timeoutMs);
+  // ★ 外部取消（用户点「取消上传」）与我们自己的超时是**两件事，两句话**：超时要说"这条网推不完"，
+  //   取消要原样抛 AbortError 让调用方认出来（说成失败的话，人会以为传坏了再传一次 —— 又是几分钟）。
+  const onExternalAbort = () => ctrl.abort();
+  if (external) {
+    if (external.aborted) ctrl.abort();
+    else external.addEventListener("abort", onExternalAbort);
+  }
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
@@ -64,6 +119,9 @@ async function postForm(
       signal: ctrl.signal,
     });
   } catch (e) {
+    // 用户点了取消：原样抛 AbortError（旗子优先于错误形状——Android WebView 在上传中途 abort 时
+    // 给的往往是 TypeError，见上面那段 ★★）
+    if (external?.aborted && !selfAborted) throw new DOMException("Aborted", "AbortError");
     // 旗子优先；`AbortError` 只作补充（别处调 ctrl.abort() 时仍认得出来）
     const aborted = selfAborted || (e instanceof DOMException && e.name === "AbortError");
     // ★★ 把**这份文件多大**写进话里（2026-08-21 真机撞到）：47MB 那一发跑到 100 秒
@@ -82,7 +140,7 @@ async function postForm(
     //   fetch 对这两种情况给的都是一个 TypeError（`res.ok` 那条路根本走不到，状态码
     //   无从谈起），所以客户端**判不出来**。⇒ 不断言原因、不写死阈值，只把用户唯一
     //   能拿来判断的那个数给他，并给一条出路（铁律八：说清楚 + 给活路）。
-    const mb = `${(blob.size / 1024 / 1024).toFixed(1)}MB`;
+    const mb = `${(totalBytes / 1024 / 1024).toFixed(1)}MB`;
     throw new ApiError(
       aborted
         ? `上传超时：这份 ${mb} 在 ${Math.round(timeoutMs / 1000)} 秒内没传完。不是断网——` +
@@ -95,6 +153,7 @@ async function postForm(
     );
   } finally {
     clearTimeout(timer);
+    external?.removeEventListener("abort", onExternalAbort);
   }
   const text = await res.text();
   let data: Record<string, unknown> = {};
@@ -132,21 +191,10 @@ export function uploadImage(blob: Blob, filename = "frame.jpg"): Promise<string>
  * @param onProgress 0~1，直传才有真进度
  */
 export async function uploadMedia(blob: Blob, filename = "video.webm", onProgress?: (frac: number) => void): Promise<string> {
-  const ticket = await directTicket("/api/uploads/media/sign");
-  if (ticket) {
-    // 提前量：服务端 confirm 还会按 Cloudinary 回执的真实字节再判一次
-    if (ticket.maxSizeBytes > 0 && blob.size > ticket.maxSizeBytes) {
-      throw new ApiError(
-        `成片最大 ${Math.round(ticket.maxSizeBytes / 1024 / 1024)}MB（这份约 ${(blob.size / 1024 / 1024).toFixed(1)}MB），请先压小再传。`,
-        400,
-      );
-    }
-    // putDirect 收 File：IndexedDB 里存的是裸 Blob，包一层（名字只影响 Cloudinary 回执里的 original_filename）
-    const file = blob instanceof File ? blob : new File([blob], filename, { type: blob.type || "video/webm" });
-    onProgress?.(0);
-    await putDirect(ticket, file, onProgress);
-    return await confirmMedia(ticket.publicId);
-  }
+  // putDirect 收 File：IndexedDB 里存的是裸 Blob，包一层（名字只影响 Cloudinary 回执里的 original_filename）
+  const file = blob instanceof File ? blob : new File([blob], filename, { type: blob.type || "video/webm" });
+  const direct = await uploadWithTicket("/api/uploads/media/sign", file, { noun: "成片", onProgress });
+  if (direct) return await confirmMedia(direct.publicId);
   if (blob.size > MAX_MEDIA_BYTES) {
     throw new ApiError(`成片太大（${Math.round(blob.size / 1024 / 1024)}MB，这台服务器的上限是 20MB）——先在剪辑页压一档画质再发。`, 400);
   }
@@ -367,7 +415,7 @@ interface DirectTicket {
  *   （HTML/老服务端）都当"不支持"，而**别的**错（401、限流 429）必须原样抛出去 ——
  *   把"你被限流了"吞成"退回老路"，用户会在老路上再撞一次 125 秒的墙。
  */
-async function directTicket(signPath = "/api/uploads/template-video/sign"): Promise<DirectTicket | null> {
+async function directTicket(signPath: string): Promise<DirectTicket | null> {
   let data: Record<string, unknown>;
   try {
     data = await apiPost<Record<string, unknown>>(signPath, {});
@@ -578,6 +626,81 @@ async function putDirect(
   }
 }
 
+/** 直传成功后交给调用方的两件事：这份资产在 Cloudinary 上的 public_id，与推上去的真实字节数 */
+export interface DirectUploadResult {
+  publicId: string;
+  bytes: number;
+}
+
+/**
+ * **「签名直传」的唯一实现**：问服务端要票 → 分块推上去。三条路共用同一份
+ * （模板视频 `/uploads/template-video/sign`、成片 `/uploads/media/sign`、Live2D 模型包 `/live2d-models/bundle/sign`）。
+ *
+ * ★★ 2026-09-07 收口（创作中心 P3）：此前 directTicket / putDirect 虽然已经是一处实现，
+ *   但"拿票 → 提前量判大小 → 起进度 → 推"这四拍在模板视频与成片里各抄了一遍。Live2D 模型包是第三条，
+ *   再抄一遍就会出现"某条路忘了提前量判大小 / 忘了 onProgress(0)"这种**零报错**的分叉：用户盯着一个
+ *   从不动的进度条把 25MB 传完，最后被服务端整句拒。
+ * ★ `noun` 必填（模板视频「视频」/ 成片「成片」/ 模型包「模型包」）：超限那句话是给人看的，
+ *   写成可选就会有人漏传、于是三条路里有一条说着别的东西的名字。
+ * ★ 每条路的**验收**（confirm）不在这里：它们的端点、回执形状、失败后要不要回收资产都不一样。
+ *
+ * @returns null = **这台服务器还没有这条 sign 路由**（老服务端）→ 调用方退回自己的老路。
+ *   其它错（401 / 429 / 400）原样抛出去，见 directTicket 的 ★。
+ */
+async function uploadWithTicket(
+  signPath: string,
+  file: File,
+  opts: { noun: string; onProgress?: (frac: number) => void; signal?: AbortSignal },
+): Promise<DirectUploadResult | null> {
+  const ticket = await directTicket(signPath);
+  if (!ticket) return null;
+  // ★ 提前量：服务端 confirm / 拉回那一步还会按真实字节再判一次（客户端这份只是省用户几分钟）
+  if (ticket.maxSizeBytes > 0 && file.size > ticket.maxSizeBytes) {
+    throw new ApiError(
+      `${opts.noun}最大 ${Math.round(ticket.maxSizeBytes / 1024 / 1024)}MB（这份约 ${(file.size / 1024 / 1024).toFixed(1)}MB），请先压小再传。`,
+      400,
+    );
+  }
+  opts.onProgress?.(0);
+  await putDirect(ticket, file, opts.onProgress, opts.signal);
+  return { publicId: ticket.publicId, bytes: file.size };
+}
+
+/**
+ * Live2D 模型包（zip）直传：拿票 → 分块推上去 → 把 public_id 交给调用方当 `bundleRef`
+ * （`POST /api/live2d-models` 与 `/inspect` 都收 `{ bundleRef }` 代替 multipart 的 `bundle`，
+ * 服务端自己从 Cloudinary 拉回来解包，然后删掉那份 raw 资源）。
+ *
+ * ★★ **`/bundle/sign` 回 404 时返回 null，不是抛错**（ideahub-server#60 还没合并，线上可能就是 404）：
+ *   调用方要能退回 `POST /api/live2d-models` 的 multipart 直传 —— 小包过得去，>15MB 会撞上 Cloudflare
+ *   那道 125 秒读超时（本文件头 ★★★）。退路存在不代表可以不说：向导要在进度文案里讲明白现在走的是哪条。
+ * ★ 与模板视频 / 成片同一张票、同一套分块 XHR（`X-Unique-Upload-Id` + `Content-Range`），
+ *   只是服务端签出来的 uploadUrl 落在 `/raw/upload` 而不是 `/video/upload`。
+ */
+export async function uploadLive2dBundle(
+  file: File,
+  onProgress?: (frac: number) => void,
+  /** 关窗 / 离开向导时传进来，真的把在途那一块停下（见 putChunk 的 ★★） */
+  signal?: AbortSignal,
+): Promise<{ bundleRef: string; bytes: number } | null> {
+  let direct: Awaited<ReturnType<typeof uploadWithTicket>>;
+  try {
+    direct = await uploadWithTicket("/api/live2d-models/bundle/sign", file, { noun: "模型包", onProgress, signal });
+  } catch (e) {
+    // ★★ 503 对**这一条**是「没有直传」，不是「传不了」：服务端 Cloudinary 没配好时
+    //   `signBundleUpload` 回的是 503「服务器还没配好文件存储，暂时不能上传。」，而 Live2D 的
+    //   multipart 退路（`POST /api/live2d-models` 的 `bundle` 字段）**根本不经 Cloudinary** ——
+    //   `installBundle` 是往本机 UPLOADS_ROOT 落盘的。原样抛出去的话，一台只差一个 Cloudinary key
+    //   的服务器上整条上传链路哑掉，而它其实只该慢一点。
+    //   ⚠ 这一条只在这里翻，不动 `directTicket`：那一层是成片 / 模板视频 / 模型包三条路共用的，
+    //   前两条没了 Cloudinary 确实没有退路，在那儿吞掉 503 就是把"传不了"说成"慢一点"。
+    if (e instanceof ApiError && e.status === 503) return null;
+    throw e;
+  }
+  if (!direct) return null;
+  return { bundleRef: direct.publicId, bytes: direct.bytes };
+}
+
 /**
  * 直传完成后的服务端验收。★ 回执**只认服务端这一份** —— 客户端能直接和 Cloudinary
  * 对话，它手上那份回执完全可以伪造，而时长正是 r2v 的计价输入。
@@ -688,19 +811,8 @@ export async function uploadTemplateVideo(
   /** 关窗/卸载时传进来，真的把在途的那一块停下（见 putChunk 的 ★★） */
   signal?: AbortSignal,
 ): Promise<TemplateVideoReceipt> {
-  const ticket = await directTicket();
-  if (ticket) {
-    // ★ 提前量：服务端 confirm 那一步还会按真实字节再判一次（客户端这份只是省用户时间）
-    if (ticket.maxSizeBytes > 0 && file.size > ticket.maxSizeBytes) {
-      throw new ApiError(
-        `视频最大 ${Math.round(ticket.maxSizeBytes / 1024 / 1024)}MB（这份约 ${(file.size / 1024 / 1024).toFixed(1)}MB），请先压小再传。`,
-        400,
-      );
-    }
-    onProgress?.(0);
-    await putDirect(ticket, file, onProgress, signal);
-    return await confirmDirect(ticket.publicId);
-  }
+  const direct = await uploadWithTicket("/api/uploads/template-video/sign", file, { noun: "视频", onProgress, signal });
+  if (direct) return await confirmDirect(direct.publicId);
   // ── 退路：老服务端只有这条 ────────────────────────────────────────────
   // ★ 600s 不是 /media 那个 180s：上限从 20MB 提到 100MB 之后，慢网上光是把字节推上去
   //   就可能要几分钟。⚠ 但在 Cloudflare 后面它其实到不了 600 秒 —— 125 秒就被掐了
