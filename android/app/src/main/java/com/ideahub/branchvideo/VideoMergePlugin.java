@@ -196,9 +196,14 @@ public class VideoMergePlugin extends Plugin {
             String mode = badge.getString("mode", "none");
             String text = badge.getString("text", "");
             if (!"none".equals(mode) && !text.isEmpty()) {
-                double headSec = badge.optDouble("headSec", 3);
+                double headSec = badge.optDouble("headSec", 2.5);
+                double ratio = badge.optDouble("minSideRatio", 0.055);
                 long untilUs = "head".equals(mode) ? Math.round(headSec * 1_000_000d) : -1;
-                videoEffects.add(new OverlayEffect(ImmutableList.of(new BadgeOverlay(text, untilUs, h))));
+                // ★ 字高按**画面最短边**算，不是高：GB 45438-2025 要求 ≥ 最短边 5%（见 data/aigcLabel 的 ②）。
+                //   按高算的话竖屏会偏大、横屏会偏小 —— 横屏那头就直接不合规了。
+                int minSide = Math.min(w, h);
+                videoEffects.add(new OverlayEffect(
+                        ImmutableList.of(new BadgeOverlay(text, untilUs, minSide, ratio))));
             }
         }
 
@@ -334,18 +339,18 @@ public class VideoMergePlugin extends Plugin {
         private final long untilUs; // <0 = 全程
         private final StaticOverlaySettings settings;
 
-        BadgeOverlay(String text, long untilUs, int frameHeight) {
+        BadgeOverlay(String text, long untilUs, int minSide, double ratio) {
             this.untilUs = untilUs;
             SpannableString s = new SpannableString(text);
             int end = s.length();
             s.setSpan(new ForegroundColorSpan(Color.WHITE), 0, end, Spanned.SPAN_INCLUSIVE_INCLUSIVE);
             s.setSpan(new BackgroundColorSpan(Color.argb(110, 0, 0, 0)), 0, end, Spanned.SPAN_INCLUSIVE_INCLUSIVE);
             s.setSpan(new StyleSpan(Typeface.BOLD), 0, end, Spanned.SPAN_INCLUSIVE_INCLUSIVE);
-            // 字号跟着画幅走：写死像素的话竖屏 1080 与横屏 720 上一个太小一个太大
-            s.setSpan(new AbsoluteSizeSpan(Math.max(18, Math.round(frameHeight * 0.030f))), 0, end,
+            // 字号按**最短边**的比例给（国标下限 5%）。写死像素的话竖屏与横屏必然一头不合规。
+            s.setSpan(new AbsoluteSizeSpan(Math.max(18, (int) Math.round(minSide * ratio))), 0, end,
                     Spanned.SPAN_INCLUSIVE_INCLUSIVE);
             this.shown = s;
-            // 贴右下角：overlay 的右下角对齐画面的右下角，再往内缩一点
+            // 贴右下角：国标要求位于起始画面的**边或角**（见 data/aigcLabel 的 ②），右下角合规且最不挡主体
             this.settings = new StaticOverlaySettings.Builder()
                     .setOverlayFrameAnchor(1f, -1f)
                     .setBackgroundFrameAnchor(0.94f, -0.90f)

@@ -3,6 +3,7 @@
 // ★ 只有「全新发布」这一种模式了。原来还有一种「回炉编辑」（把本次合成塞回既有作品的
 //   某一 P），2026-08 随「作品一经发布不可回炉」一并删除 —— 理由见 studioStore 里
 //   那段注释：已经有人看过的作品不该被换掉内容。想改内容 = 重新发一条。
+import { badgeNote } from "../data/aigcLabel";
 import { useEffect, useRef, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
@@ -381,8 +382,9 @@ export default function PublishPage() {
               内容声明：本作品由 AI 生成
             </div>
             <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-              发布后会做三件事：成片每一帧的右下角带「AI 生成」角标；首页与详情页在作品旁显示
-              「AI 生成」标识；并按
+              {/* ★ 这句话必须与实际盖法同源（data/aigcLabel.badgeNote）：写死「每一帧」的那一版
+                  在 2026-09-07 把盖法改成"起始画面 ≥2 秒"之后就成了假话（铁律八） */}
+              发布后会做三件事：{badgeNote()}并按
               <button onClick={() => setAigcOpen(true)} className="text-brand">
                 《AIGC 内容须知》
               </button>
