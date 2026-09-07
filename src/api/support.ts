@@ -8,9 +8,9 @@
  *   路径做 SPA 回退（200 + index.html），`res.ok` 永远为真、`res.json()` 卡在 "<!doctype"（CLAUDE.md 坑表）。
  *   所以能力判断看 Content-Type，不看状态码。
  */
-import { API_BASE, ApiError, apiGet, apiPatch, apiPost, getToken } from "./client";
+import { API_BASE, ApiError, apiGet, apiPatch, apiPost } from "./client";
 import type { Live2dModelItem, PersonaSource, PersonaSummary, VoiceMixEntry, VoiceSettings } from "./companion";
-import { createSseParser } from "../companion/sse";
+import { authHeaders, streamSseRequest, throwHttp } from "./stream";
 import type { CompanionSentence } from "../companion/protocol";
 
 export type SupportCategory = "billing" | "account" | "content" | "bug" | "other";
@@ -100,80 +100,49 @@ export interface SupportChatHandlers {
   onDone?: (result: { text: string; handoff: boolean; category: SupportCategory | "" }) => void;
 }
 
-function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  const token = getToken();
-  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;
-}
-
-async function throwHttp(res: Response): Promise<never> {
-  let message = `HTTP ${res.status}`;
-  let code = "";
-  try {
-    const j = (await res.json()) as { message?: string; code?: string };
-    if (j.message) message = j.message;
-    if (j.code) code = j.code;
-  } catch {
-    /* 非 JSON 就用状态码 */
-  }
-  throw new ApiError(message, res.status, code || undefined);
-}
-
 /**
  * 流式问答。resolve = 流正常结束；服务端 `error` 事件或非 2xx 都 reject。
- * ★ Content-Type 不是 text/event-stream 就当"服务端没有这个功能"抛出：SPA 回退给的是 200 + HTML。
+ * ★ 传输那一半（鉴权头 / Content-Type 判能力 / 分块解析 / error 事件转 throw）在 `api/stream.ts` 一处实现，
+ *   人格向导的试聊（streamPersonaPreviewChat）走的是同一份 —— 两条路的事件形状本来就一样，
+ *   各写一份的话「Content-Type 不是事件流就当没有这个功能」这类判定漏抄了零报错（CLAUDE.md 坑表）。
+ *   这里只留「事件名 → handler」这一层语义（handoff 是客服独有的）。
  */
 export async function streamSupportChat(
   body: { messages: Array<{ role: "user" | "assistant"; content: string }>; lang?: "zh" | "en" },
   handlers: SupportChatHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/support/chat`, {
-    method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json", Accept: "text/event-stream" }),
-    body: JSON.stringify(body),
-    signal,
-  });
-  if (!res.ok) await throwHttp(res);
-  const ctype = res.headers.get("content-type") || "";
-  if (!ctype.includes("text/event-stream")) {
-    throw new ApiError("服务端还没有 AI 客服（返回的不是事件流）", 501, "UNSUPPORTED");
-  }
-
-  const state = { failure: "" };
-  const parser = createSseParser(({ event, data }) => {
-    let payload: Record<string, unknown>;
-    try {
-      payload = JSON.parse(data) as Record<string, unknown>;
-    } catch {
-      return;
-    }
-    if (event === "sentence") handlers.onSentence?.(payload as unknown as CompanionSentence);
-    else if (event === "token") handlers.onToken?.(String(payload.t ?? ""));
-    else if (event === "handoff")
-      handlers.onHandoff?.({ category: (payload.category as SupportCategory) || "other", reason: String(payload.reason ?? "") });
-    else if (event === "done")
-      handlers.onDone?.({
-        text: String(payload.text ?? ""),
-        handoff: Boolean(payload.handoff),
-        category: (payload.category as SupportCategory) || "",
-      });
-    else if (event === "error") state.failure = String(payload.message || "support upstream failed");
-  });
-
-  if (!res.body) {
-    parser.push(await res.text());
-  } else {
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      parser.push(decoder.decode(value, { stream: true }));
-    }
-    parser.push(decoder.decode());
-  }
-  parser.flush();
-  if (state.failure) throw new ApiError(state.failure, 502, "SUPPORT_UPSTREAM");
+  await streamSseRequest(
+    "/api/support/chat",
+    body,
+    ({ event, data }) => {
+      let payload: Record<string, unknown>;
+      try {
+        payload = JSON.parse(data) as Record<string, unknown>;
+      } catch {
+        return;
+      }
+      if (event === "sentence") handlers.onSentence?.(payload as unknown as CompanionSentence);
+      else if (event === "token") handlers.onToken?.(String(payload.t ?? ""));
+      else if (event === "handoff")
+        handlers.onHandoff?.({ category: (payload.category as SupportCategory) || "other", reason: String(payload.reason ?? "") });
+      else if (event === "done")
+        handlers.onDone?.({
+          text: String(payload.text ?? ""),
+          handoff: Boolean(payload.handoff),
+          category: (payload.category as SupportCategory) || "",
+        });
+    },
+    { signal, unsupported: "服务端还没有 AI 客服（返回的不是事件流）" },
+    ({ event, data }) => {
+      if (event !== "error") return "";
+      try {
+        return String((JSON.parse(data) as { message?: string }).message || "support upstream failed");
+      } catch {
+        return "support upstream failed";
+      }
+    },
+  );
 }
 
 /**
