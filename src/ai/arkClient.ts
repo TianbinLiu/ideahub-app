@@ -413,6 +413,11 @@ export interface ArkTaskState {
   status: string;
   content?: { video_url?: string; file_url?: string; url?: string };
   error?: { message?: string };
+  /**
+   * 服务端顺手转存的进度（只有带 `transfer:true` 问的时候才有，见 fetchArkTask 的 ★★）。
+   * `state:"done"` 时 `url` 就是能全球播的永久地址 —— 拿到它，出片那一拍就不必再单独跑一趟转存。
+   */
+  transfer?: { state: "done" | "pending" | "failed"; url?: string; message?: string };
 }
 
 /**
@@ -425,8 +430,13 @@ export interface ArkTaskState {
  * ★ 超时 20s：查询是个小 GET，慢过 20s 基本就是网络断了；单次失败由调用方的循环容忍
  *   （任务还在云端跑，为一次抖动放弃整发太亏）。
  */
-export async function fetchArkTask(id: string): Promise<ArkTaskState> {
-  return arkFetch<ArkTaskState>(`/contents/generations/tasks/${encodeURIComponent(id)}`, undefined, 20_000);
+export async function fetchArkTask(id: string, opts?: { transfer?: boolean }): Promise<ArkTaskState> {
+  // ★★ `transfer:true` = 顺便请服务端把成片搬去图床（`?transfer=1`，服务端 2026-08-21 就备好了）。
+  //   **必须显式传，绝不能硬编进这个函数**：它是全 app 唯一的轮询处，白模化试炼
+  //   （data/templates.blockoutizeTemplate）与 Seed3D 共用它 —— 服务端注释里明写「要显式 opt-in，
+  //   否则每单白搬 20MB 去一个没人读的角落」。所以只有**出片**与**取回成片**两条路传它。
+  const q = opts?.transfer ? "?transfer=1" : "";
+  return arkFetch<ArkTaskState>(`/contents/generations/tasks/${encodeURIComponent(id)}${q}`, undefined, 20_000);
 }
 
 /**
@@ -654,7 +664,7 @@ export async function generateVideo(
     await new Promise((r) => setTimeout(r, Date.now() - t0 > 120_000 ? 10_000 : 5000));
     let st: ArkTaskState;
     try {
-      st = await fetchArkTask(id);
+      st = await fetchArkTask(id, { transfer: true });
       pollFails = 0;
     } catch (e) {
       // 单次查询抖动不放弃整个任务（视频已在云端排队生成，白扔太亏）
@@ -679,12 +689,20 @@ export async function generateVideo(
       //   composeSegments / regenSegment / 未来任何调用方都自动拿到能全球播的地址。
       //   失败不挡出片 —— 退回方舟直链（24h 内有效，发布时服务端还会再转存一次），但要说出来。
       if (isArkAssetUrl(url)) {
+        // ★★ 先看轮询**顺手带回来的**那一份（`?transfer=1`）：服务端从看到 succeeded 的第一眼就在后台搬，
+        //   等我们轮到下一拍时往往已经好了 —— 这条路一秒都不用等，也不会被 CF 的 125s 读超时掐。
+        //   ⚠⚠ 这一位是 2026-09-07 补的，补之前**整条 Cloudinary 快路是走不到的**：
+        //   出片那一拍只会去跑下面那趟阻塞式转存，跨境 + 几十兆经常拿不回来，于是 return 方舟直链；
+        //   而 `real.cloudinaryFrameUrl` 的正则只认 res.cloudinary.com ⇒ 抽帧快路整段跳过 ⇒
+        //   只剩「把整条成片代理拉到手机上解码」那条 120s 兜底 ⇒ 超时 ⇒ 卡面「成片预览没截到」。
+        //   主人 2026-09-06 与 09-07 两次真机撞的都是它（服务端日志：那两天出片当天一条 ark-transfer 都没有）。
+        if (st.transfer?.state === "done" && st.transfer.url) return st.transfer.url;
         opts?.onProgress?.("成片转存中（换成永久地址）…");
         try {
           return await transferArkVideo(url);
         } catch (e) {
           opts?.onProgress?.(
-            `成片转存没成（${e instanceof Error ? e.message : String(e)}）——先用方舟临时链接，跨境网络下预览可能很慢`,
+            `成片转存没成（${e instanceof Error ? e.message : String(e)}）——先用方舟临时链接，预览帧稍后自动补上`,
           );
         }
       }
