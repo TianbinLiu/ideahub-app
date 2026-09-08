@@ -693,6 +693,13 @@ export default function CutPage() {
     //   （本仓那格坑：话要说在用户接下来会看的那一屏上）。所以凡是"合完才知道、
     //   又值得让人知道"的事都攒进这里，随导航带去发布页。
     const warns: string[] = [];
+    /**
+     * 转存之后**仍然**是方舟临时链接的那几段（第几段，1 起）。
+     * ★ 失败时要靠它把话说准：方舟的链接只活 24 小时，过了就是 403 —— 而那时
+     *   合成器给的原话是三行英文（`Asset loader error ← Source error ← Response code: 403`），
+     *   用户读不出"哪一段""为什么""接下来怎么办"。
+     */
+    const stillArk: number[] = [];
     try {
       // ★ 老草稿自救：还是方舟直链的段先转存成永久地址（服务端拉，全球 CDN）。
       //   出片那一刻的转存 2026-08-20 才上线，在那之前炼的段揣的还是 TOS 直链 ——
@@ -739,6 +746,8 @@ export default function CutPage() {
           } catch {
             /* 见上：失败照旧 */
           }
+          // 转存没换成永久地址 ⇒ 这一段接下来会拿临时链接去拉，过了 24 小时就是 403
+          if (isArkAssetUrl(next[i].videoUrl)) stillArk.push(i + 1);
         }
         if (cancelRef.current) {
           setBusy("");
@@ -939,7 +948,17 @@ export default function CutPage() {
         setErr(raw);
       } else {
         settled = true;
-        const msg = `合并失败：${raw}`;
+        // ★★ 把「取不到源片」翻成人话，并指一条**真实存在**的出口（2026-09-08 真机撞到）：
+        //   合成器给的原话是 `Asset loader error ← Source error ← Response code: 403` ——
+        //   三行英文，说不出"哪一段""为什么""接下来怎么办"。而这一档最常见的原因只有一个：
+        //   那一段揣的还是方舟临时链接（转存没成），而它**只活 24 小时**。
+        //   ⚠ 只在**我们自己知道**有段没转存成（stillArk 非空）时才这么说 —— 否则同样的 403
+        //   可能来自别的地址，硬套一个原因就是换了一种骗人。
+        const http = /Response code:\s*(\d{3})/.exec(raw)?.[1];
+        const msg =
+          (http === "403" || http === "404") && stillArk.length
+            ? `合并失败：第 ${stillArk.join("、")} 段的视频取不到了（HTTP ${http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回工作流把这几段重新出片（会再花一次钱），或者删掉它们再合。`
+            : `合并失败：${raw}`;
         if (aliveRef.current) {
           setErr(msg);
           job.done({ silent: true }); // 这一页自己会画这句话，不用再弹一次
