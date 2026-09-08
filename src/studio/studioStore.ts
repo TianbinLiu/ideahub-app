@@ -5,7 +5,7 @@ import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generate
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
-import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d } from "../data/economy";
+import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeRecastable, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
@@ -2106,6 +2106,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
         durationSec: p.durationSec,
         ...(p.realDurationSec ? { realDurationSec: p.realDurationSec } : {}),
         videoTier: n.videoTier,
+        // 这一段自己出不出声（见 types.VideoSegment.hasAudio 的 ★★）：白模复刻走 r2v、
+        // 服务端钉死 generate_audio:false，恒无声；普通段看档位（videoAudioOn 是唯一实现）
+        hasAudio: !tplOfNode(n)?.refVideo && videoAudioOn(tierOf(n.videoTier).model),
         aspect: n.aspect,
         ...(real ? { videoUrl: real } : {}),
       };
