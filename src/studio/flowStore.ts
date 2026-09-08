@@ -77,6 +77,16 @@ export interface FlowAnn {
 }
 
 export interface FlowNode {
+  /**
+   * 这一段的**原声在哪**（模板原片地址）。**只有取回安放的段用得上**。
+   *
+   * ★ 正常的段靠 `tplOfNode(n)` 就能问出来；而取回安放的段 `tpl` 恒为 null
+   *   （见 placeRescuedSegment 的 ★，那是为了躲开「tpl 三态兜底」那格坑），
+   *   于是它的模板原声无处可问 —— 这一位就是给它留的后门。
+   * ★ 读它的只有 `studioStore.draftAudioHint`（组稿那一拍算音轨预置），
+   *   而且排在 `tplOfNode` **之后**当兜底 —— 有模板就以模板为准。
+   */
+  audioHint?: string;
   id: string;
   /**
    * 这一段自己的模板快照（**分段模板组**才有，2026-08-20）：长视频切成 N 段登记后，
@@ -443,6 +453,9 @@ export function placeRescuedSegment(
     chain: false,
     videoByProposal: { [p.id]: res.url },
     tpl: null,
+    // ★ 模板归属恢复不了（tpl 三态那格坑），但**声音这条线**可以接回来：
+    //   合并的音轨预置从这一位兜底取（见 FlowNode.audioHint）
+    ...(job.tplRefVideo ? { audioHint: job.tplRefVideo } : {}),
   });
   const pinned = pinUnstatedTpl(st.nodes, st.template);
   return {
@@ -2786,6 +2799,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
             aspect: node.aspect,
             videoTier: node.videoTier,
             plot: rv ? rv.instruction : prop.plot,
+            // ★ 原声地址（见 VideoJob.tplRefVideo 的 ★★）：取回安放的段 tpl 恒 null，
+            //   不存这一位它的模板原声就永久没了，而白模成片自己是无声的
+            ...(tplOfNode(node)?.group?.sourceUrl || tplOfNode(node)?.refVideo?.url
+              ? { tplRefVideo: tplOfNode(node)?.group?.sourceUrl || tplOfNode(node)?.refVideo?.url }
+              : {}),
             createdAt: Date.now(),
           });
           // ★ 这一炉正在等它：取回卡先别摆（显示门在 data/videoJobs.setVideoJobWaiting，

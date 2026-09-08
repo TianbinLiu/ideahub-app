@@ -33,7 +33,9 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
    *   （studioStore.draftAudioHint）。
    * ★ 只对白模段叠（有 refVideo 的段）：别的档位成片自带 AI 环境音，叠上去是两层声。
    */
-  const tplAudioUrl = node ? tplOfNode(node)?.refVideo?.url : undefined;
+  // ★ `node.audioHint` 是兜底：取回安放的段 tpl 恒为 null（flowStore.placeRescuedSegment 的 ★），
+  //   它的模板原声只存在凭据带回来的那一位里 —— 不兜的话回看里这一段是彻底哑的
+  const tplAudioUrl = node ? tplOfNode(node)?.refVideo?.url || node.audioHint : undefined;
   const audioSrc = useMediaUrl(tplAudioUrl);
   const aref = useRef<HTMLAudioElement>(null);
   const [audioOn, setAudioOn] = useState(true);
