@@ -184,9 +184,10 @@ export interface VideoTier {
    *   不是这一格。
    * ★ 协议侧（ai/arkClient.generateVideo）按 **model id** 回查这一格（见 videoAudioOn），
    *   支持的传 true、不支持的**一个字段都不传**。「这一档有没有声音」的判据只有这一格。
-   * ⚠ 跨仓：server 的 resolveR2v 现在还钉着「白模出片 generate_audio 必须 false/缺省」
-   *   （ark.routes.js）。放开是那边**与价目同一个提交**的事；服务端没跟上时白模那条路会被
-   *   整句 400 拒（未受理、不扣费、看得见原因），不是静默降级。
+   * ⚠ 跨仓（2026-09-08 复核后改口）：server 的 resolveR2v **早就不钉「必须 false/缺省」了** ——
+   *   它自 2026-08-15（server commit 6c0181f）钉的是「与该模型的能力一致」（`ark.routes.js` 的
+   *   `audioSupported`）。服务端**不需要先发**。今天挡住白模声音的只有 app 自己的
+   *   `arkClient.BLOCKOUT_TASK`（版权拦截换来的），要动先读那个常量头上那段 ★★。
    */
   audio: boolean;
   /**

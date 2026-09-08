@@ -18,6 +18,16 @@ import { API_BASE, ApiError, apiPost, getToken } from "./client";
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const MAX_MEDIA_BYTES = 20 * 1024 * 1024;
 /**
+ * 成片**直传**这条路的上限（server `uploads.routes.js` 的 `MAX_DIRECT_MEDIA_BYTES`）。
+ *
+ * ★ 这份只当**提前量**：真正作数的是 `/media/sign` 签出来的票上那个 `maxSizeBytes`
+ *   （`uploadWithTicket` 会再判一次），老服务端退回 multipart 时作数的是上面那个 20MB。
+ *   所以**只准拿它提醒，不准拿它当闸** —— 拿它放行等于替一台我们没问过的服务器做主。
+ * ★ 存在的意义是**把止损点提前**：合并那一拍就知道成片多大，而那时片段/圈选/配乐都还在，
+ *   用户真能动手（删几段、降一档画质）。等上传失败再说，就只剩一颗必然再失败的「重试」。
+ */
+export const MAX_DIRECT_MEDIA_BYTES = 100 * 1024 * 1024;
+/**
  * 模板**原始素材**的大小上限。2026-08-15 白模 V2 从 20MB 放宽到 100MB —— 因为进方舟的
  * 不再是这个文件本身，而是编辑页框出来的那 5~30 秒（服务端拼 Cloudinary 变换现裁），
  * 原片是"素材库"不是"成品"，按成品的尺子量它等于逼用户先自己剪一遍。

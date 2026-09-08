@@ -18,6 +18,7 @@ import * as projects from "./projects";
 // ⚠ 与 data/danmaku 是**互相 import**（那边要本文件的 realId/remoteOn）：两边都只在函数体里
 //   用对方，所以这个环在运行时无害。加新引用之前先确认自己不是在模块顶层用它。
 import { dropLocalDanmaku } from "./danmaku";
+import { showToast } from "./toast";
 import { currentUser, readyAccount, subscribeAccount } from "./account";
 import { API_ON, ApiError, emitApiError } from "../api/client";
 import * as branch from "../api/branch";
@@ -1823,7 +1824,14 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     //   （2026-08-10 就是这么"消失"了一条作品）。
     // ★ 存的是**已经传到哪儿**的那份（materialize 半途失败时挂在错误上），
     //   重试只补没传完的，不把已经上行过的几 MB 再走一遍。
-    void queuePending((e as MaterializeError).partial ?? sending, e);
+    // ★★ 这一拍**必须判回执**：这条队列项是那条作品**唯一**的备份（PublishPage 发完就
+    //   clearDraft 了），而 `writePending` 是"先改内存镜像、再写盘"——写盘失败时横幅照样
+    //   写着「内容还在这台设备上，没有丢」，重启之后那条付费成片却什么都不剩。
+    // ★ 说给用户听要走 toast：这一刻他可能已经不在发布页上了，写进任何页面的 state 都白写
+    //   （本仓那格坑：话要说在用户接下来会看的那一屏上）。
+    if (!(await queuePending((e as MaterializeError).partial ?? sending, e))) {
+      showToast("这条作品既没传上去、也没能存进待发队列——先别关 App，清点一下存储空间再发一次");
+    }
   }
 }
 
@@ -2006,14 +2014,15 @@ async function dropPending(clientId: string | undefined): Promise<void> {
  *     的旧记录顶掉 —— 那条是用户唯一能重试的备份，而顶掉它的只是一次多半会成功的保险。
  *     保险是尽力而为，真失败不是。
  */
-async function queuePending(draft: DraftVideo, error: unknown, opts?: { insurance?: boolean }): Promise<void> {
+async function queuePending(draft: DraftVideo, error: unknown, opts?: { insurance?: boolean }): Promise<boolean> {
   const list = await readPending();
   // 同一条（clientId 幂等键）只留一份，反复重试不会堆成一摞
   const rest = list.filter((p) => p.draft.clientId !== draft.clientId);
-  if (opts?.insurance && rest.length >= 5) return; // 见上面的 ★★：满了就不上保险，别顶掉真失败的
+  if (opts?.insurance && rest.length >= 5) return false; // 见上面的 ★★：满了就不上保险，别顶掉真失败的
   // ★ owner 必须在**入队**这一刻写死（见 PendingPublish.owner 的 ★★）：flush 那会儿
   //   登录的可能已经是另一个人了，那时候再问 currentUser() 正好问到错的那个。
-  await writePending([...rest, { draft, error: errText(error), at: Date.now(), owner: ownerKey() }].slice(-5)); // 只留最近 5 条，别把配额吃光
+  // 只留最近 5 条，别把配额吃光
+  return await writePending([...rest, { draft, error: errText(error), at: Date.now(), owner: ownerKey() }].slice(-5));
 }
 
 /**
@@ -2080,10 +2089,19 @@ async function readPending(): Promise<PendingPublish[]> {
   );
 }
 
-async function writePending(list: PendingPublish[]): Promise<void> {
+/**
+ * 落盘待发队列。**回执是 boolean**（`idbSet` 本来就返回它）。
+ *
+ * ★★ 为什么必须回执（2026-09-08 补，补之前是 `Promise<void>`、一个字都没判）：
+ *   内存镜像**先**设好、再 await 一个从不抛错只回 boolean 的 `idbSet` —— 写失败时
+ *   （配额满 / 隐私模式）镜像照样是新的，于是个人页横幅照常写着「内容还在这台设备上，没有丢」，
+ *   而重启之后那条**付费成片的唯一备份**根本不存在。零报错，且专挑最贵的那一刻发作。
+ */
+async function writePending(list: PendingPublish[]): Promise<boolean> {
   pendingMirror = list;
-  await idbSet(PENDING_KEY, list);
+  const ok = await idbSet(PENDING_KEY, list);
   emitVideos();
+  return ok;
 }
 
 /**
