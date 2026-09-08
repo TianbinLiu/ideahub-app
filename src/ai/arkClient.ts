@@ -640,9 +640,12 @@ export async function generateVideo(
         //   ★ 支持的档显式传 true 而不是省略：方舟的默认值实测**本来就是出声**（早期没传
         //     这个参数的产物带 -25.8dB 音轨），但那是方舟的默认、说改就改，"这一发要不要
         //     声音"必须在我们自己的代码里看得见。
-        //   ⚠ 跨仓：server 的 resolveR2v 目前钉着「白模出片 generate_audio 必须 false/缺省」。
-        //     服务端没跟上这一轮时，**白模那条路**会被整句 400 拒（未受理、不扣费、看得见
-        //     原因），不是静默降级 —— 但它意味着**服务端要先发**。
+        //   ⚠ 跨仓（2026-09-08 复核后改口）：server 的 resolveR2v **早就不钉「必须 false/缺省」了** ——
+        //     它自 2026-08-15（server commit 6c0181f）钉的是「**与该模型的能力一致**」
+        //     （`ark.routes.js` 的 `audioSupported(model)`，能力表 `config/tokens.js` 的 `VIDEO_AUDIO`；
+        //     生产 2026-09-08 实测在跑这一版）。所以「服务端要先发」这句话已经作废，别再照它做计划。
+        //     ⇒ 今天挡住白模声音的**只有 app 自己**（`BLOCKOUT_TASK` 的 `generate_audio:false`），
+        //     而那是版权拦截换来的，理由见那个常量头上那段 ★★ —— 要改先读它。
         ...(videoAudioOn(model) ? { generate_audio: true } : {}),
         watermark: false,
         ...(refVideoUrl && opts?.refTask !== "reference"

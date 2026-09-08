@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Spinner from "../components/Spinner";
 import { startJob } from "../data/jobs";
+import { MAX_DIRECT_MEDIA_BYTES } from "../api/uploads";
 import PageHeader from "../components/PageHeader";
 import { useLocation, useNavigate } from "react-router";
 import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
@@ -103,7 +104,9 @@ export default function CutPage() {
   const [anns, setAnns] = useState<Ann[]>([]);
   const [annOpen, setAnnOpen] = useState<{ segIndex: number; atSec: number; frame: string } | null>(null);
   // ★ 分段模板组：默认把**原片音轨**预置进来（用户点名要的：白模复刻的成片保留原视频
-  //   音频）。白模出片本身是无声的（server 钉着 generate_audio 缺省），合并时从原片
+  //   音频）。白模出片本身是无声的（**是 app 自己钉的** —— `arkClient.BLOCKOUT_TASK` 的
+  //   `generate_audio:false`，版权拦截换来的；服务端那边 2026-08-15 起按模型能力放行，
+  //   别再把它当成"服务端不让"），合并时从原片
   //   解音轨混进去 —— decodeAudioData 直接吃 mp4 容器里的 AAC。
   //   线索读 studioStore.draftAudioHint（搭草稿的车）：「完成视频」会清空 flow store，
   //   这里挂载时 nodes 已经空了（2026-08-20 dev 实测，读 flow 那版永远落空）。
@@ -853,6 +856,15 @@ export default function CutPage() {
       //   ★ 判**否定**：老插件不报这一位（undefined = 不知道），只有明确 false 才说。
       // 预置的"原视频音轨"其实是条无声视频（白模模板常见）——原生那边已经跳过，这里如实说
       if (merged.bgmSkipped) warns.push(merged.bgmSkipped);
+      // 成片太大：在**素材还在**的时候就说（见 MAX_DIRECT_MEDIA_BYTES 的 ★）。
+      // ★ 只提醒不拦：真正作数的是上传票上那个数，我们这份只是提前量。
+      if (merged.sizeBytes > MAX_DIRECT_MEDIA_BYTES * 0.95) {
+        warns.push(
+          `这条成片有 ${Math.round(merged.sizeBytes / 1024 / 1024)}MB，接近服务器上限（约 ${Math.round(
+            MAX_DIRECT_MEDIA_BYTES / 1024 / 1024,
+          )}MB），可能传不上去。传失败的话回剪辑页删几段、或把导出分辨率降一档再合一次——片段和配乐都还在。`,
+        );
+      }
       /**
        * 用的是**自动预置**的原片音轨，而画面时间轴被动过 ⇒ 音画必然对不上。
        * ★ 预置那条音轨是按**原片从 0 秒**混进去的（分段组取的更是整条源片），
