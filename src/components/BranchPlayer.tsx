@@ -81,12 +81,29 @@ export default function BranchPlayer({
 
   // 真实视频段：播/停与段内进度同步到 <video>
   const videoRef = useRef<HTMLVideoElement>(null);
+  /**
+   * 出声还是静音。**缺省出声** —— 与 SegmentPlayer 同一条（那边的 ★★ 写了全部理由）：
+   * 这个播放器不自动播放，写死 `muted` 只会让作品详情页的分支互动片永远是哑的、
+   * 且没有任何解除入口。
+   */
+  const [muted, setMuted] = useState(false);
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !seg.videoUrl) return;
-    if (playing) void v.play().catch(() => {});
-    else v.pause();
+    if (playing) {
+      // ★ 带声音的播放被拒就退成静音再试一次（同 SegmentPlayer）：别让"出不了声"连累"看不看得见"
+      void v.play().catch(() => {
+        v.muted = true;
+        setMuted(true);
+        void v.play().catch(() => {});
+      });
+    } else v.pause();
   }, [playing, seg.videoUrl]);
+  // ★ muted 是 property：换段重建 <video> 之后要再钉一次
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v) v.muted = muted;
+  });
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !seg.videoUrl || !v.duration) return;
@@ -205,7 +222,7 @@ export default function BranchPlayer({
               ref={videoRef}
               src={seg.videoUrl}
               className="absolute inset-0 h-full w-full object-cover"
-              muted
+              muted={muted}
               playsInline
               onError={(e) => {
                 (e.currentTarget as HTMLVideoElement).style.display = "none";
@@ -294,6 +311,13 @@ export default function BranchPlayer({
               <span className="text-xs tabular-nums text-slate-300">
                 {formatDuration(time)} / {formatDuration(dur)}
               </span>
+              <button
+                onClick={() => setMuted((m) => !m)}
+                className="ml-auto flex-none rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-slate-100"
+                aria-label={muted ? "取消静音" : "静音"}
+              >
+                {muted ? "🔇 已静音" : "🔊 有声"}
+              </button>
             </div>
           </div>
         </>

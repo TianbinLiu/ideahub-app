@@ -12,6 +12,17 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
   const wrapRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const [ctrl, setCtrl] = useState(true);
+  /**
+   * 出声还是静音。**缺省出声**（2026-09-07 主人真机：合出来的片子"没声音"）。
+   *
+   * ★★ 这一格原来是写死的 `muted`，旁边注释写的理由是「静音自动播放才不被浏览器拦」——
+   *   而这个播放器**根本不自动播放**：它要用户先点那颗播放键（`setStarted(true)`）。
+   *   手势已经有了，自动播放策略早就满足，静音只剩下副作用：发布页的成片预览与作品详情页
+   *   **永远是哑的，且没有任何解除入口** —— 用户刚合完一条片子，第一件事就是在这儿播一下，
+   *   听不见声音只会得出"合并把声音弄丢了"的结论（而片子里可能好好地有音轨）。
+   * ★ 首页 FeedPage 不一样：那一屏是**划到就自动播**，静音是解锁自动播放用的，别一起改。
+   */
+  const [muted, setMuted] = useState(false);
 
   // 播放中 3 秒自动收起控制条；暂停时常显（用户正在找按钮）
   useEffect(() => {
@@ -71,9 +82,23 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !seg?.videoUrl) return;
-    if (playing) void v.play().catch(() => {});
-    else v.pause();
+    if (playing) {
+      // ★ 带声音的播放被浏览器拒了（网页版偶发，原生壳里走不到）：退成静音再试一次。
+      //   别把"能不能播"赌在"能不能出声"上 —— 那样用户连画面都看不到。
+      void v.play().catch(() => {
+        v.muted = true;
+        setMuted(true);
+        void v.play().catch(() => {});
+      });
+    } else v.pause();
   }, [playing, seg?.videoUrl]);
+  // ★ 静音开关直接落到 DOM：`muted` 是 property 不是普通 attribute，
+  //   换段（换 key 重建 <video>）之后也要再钉一次，否则新元素会退回默认值
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v) v.muted = muted;
+  });
+
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !seg?.videoUrl || !v.duration) return;
@@ -141,7 +166,7 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
                 ref={videoRef}
                 src={segSrc}
                 className="absolute inset-0 h-full w-full object-cover"
-                muted
+                muted={muted}
                 playsInline
                 onError={(e) => {
                   (e.currentTarget as HTMLVideoElement).style.display = "none";
@@ -211,6 +236,13 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
               <span className="text-xs tabular-nums text-slate-300">
                 {formatDuration(time)} / {formatDuration(total)}
               </span>
+              <button
+                onClick={() => setMuted((m) => !m)}
+                className="ml-auto flex-none rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-slate-100"
+                aria-label={muted ? "取消静音" : "静音"}
+              >
+                {muted ? "🔇 已静音" : "🔊 有声"}
+              </button>
             </div>
           </div>
         </>
