@@ -341,6 +341,15 @@ public class VideoMergePlugin extends Plugin {
 
         final File out;
         try {
+            // ★★ 先扫一遍旧的（2026-09-08 补）：这个目录此前**只增不减** —— 成功的留一整份
+            //   （几十 MB，而它同一时刻还被整份读进了 IndexedDB，等于同一条片子占两份盘）、
+            //   取消的留半截，而 App 里那两个「清理缓存 / 已用 xx MB」只扫 IndexedDB，
+            //   **够不到这里**：用户只会看到应用体积莫名地涨，而且没有任何把手能清。
+            // ★ 在这一拍扫是安全的：`running != null` 已经挡住并发，所以此刻没有任何一炉在用它们；
+            //   上一炉的产物要么早被 Web 侧读进了 idb、要么就是没人认得的孤儿。
+            //   留 6 小时的余量，别把"刚合完还没读走"那份扫掉。
+            sweepCache("merged", 6 * 60 * 60 * 1000L);
+            sweepCache("staged", 6 * 60 * 60 * 1000L);
             File dir = new File(getContext().getCacheDir(), "merged");
             if (!dir.exists() && !dir.mkdirs()) {
                 call.reject("建不了输出目录", "IO");
@@ -465,6 +474,23 @@ public class VideoMergePlugin extends Plugin {
             return null;
         } finally {
             ex.shutdownNow();
+        }
+    }
+
+    /** 扫掉 cache 子目录里过了 `keepMs` 的文件。失败只记一笔 —— 清理不成不该挡住合并 */
+    private void sweepCache(String name, long keepMs) {
+        try {
+            File dir = new File(getContext().getCacheDir(), name);
+            File[] fs = dir.listFiles();
+            if (fs == null) return;
+            long cut = System.currentTimeMillis() - keepMs;
+            int n = 0;
+            for (File f : fs) {
+                if (f.isFile() && f.lastModified() < cut && f.delete()) n++;
+            }
+            if (n > 0) Log.i(TAG, "清掉 " + name + " 里 " + n + " 个旧文件");
+        } catch (Throwable t) {
+            Log.w(TAG, "清 " + name + " 时出错（不影响合并）：" + brief(t));
         }
     }
 
