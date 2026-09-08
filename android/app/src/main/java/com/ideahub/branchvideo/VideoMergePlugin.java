@@ -18,9 +18,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MimeTypes;
+import androidx.media3.common.C;
 import androidx.media3.common.audio.AudioProcessor;
-import androidx.media3.common.audio.ChannelMixingAudioProcessor;
-import androidx.media3.common.audio.ChannelMixingMatrix;
+import androidx.media3.common.audio.BaseAudioProcessor;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.effect.OverlayEffect;
 import androidx.media3.common.OverlaySettings;
@@ -49,6 +49,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -107,6 +108,13 @@ public class VideoMergePlugin extends Plugin {
     public void stageFile(PluginCall call) {
         String b64 = call.getString("base64", "");
         String ext = call.getString("ext", "bin");
+        // ★★ 分块续写（2026-09-08）：本地挑的 BGM 过 Capacitor 桥只能走 base64，而一条几十兆的
+        //   音频编成一整条 base64 是 **1.33 倍体积的单个 JS 字符串** —— 慢，而且在低端机上
+        //   有实打实的 OOM 面（JS 侧拼串、桥上再复制一遍、Java 侧还要整块 decode）。
+        //   现在 Web 侧按 512KB 切片逐块送，`append` + `path` 让它们续写进同一个文件。
+        //   ⚠ `path` 只接**我们自己上一拍回给它的那个**，而且必须落在 staged 目录里 ——
+        //   直接拿调用方给的路径写文件等于开了一个任意写的口子。
+        String append = call.getString("path", "");
         if (b64 == null || b64.isEmpty()) {
             call.reject("没有内容可落盘", "BAD_INPUT");
             return;
@@ -117,9 +125,21 @@ public class VideoMergePlugin extends Plugin {
                 call.reject("建不了暂存目录", "IO");
                 return;
             }
-            File f = new File(dir, "staged-" + System.currentTimeMillis() + "." + ext.replaceAll("[^A-Za-z0-9]", ""));
+            final boolean appending = append != null && !append.isEmpty();
+            final File f;
+            if (appending) {
+                File cand = new File(append);
+                // 只认自己那个目录下的文件（防越权写）
+                if (!dir.equals(cand.getParentFile()) || !cand.isFile()) {
+                    call.reject("续写的目标不对", "BAD_INPUT");
+                    return;
+                }
+                f = cand;
+            } else {
+                f = new File(dir, "staged-" + System.currentTimeMillis() + "." + ext.replaceAll("[^A-Za-z0-9]", ""));
+            }
             byte[] bytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT);
-            try (java.io.FileOutputStream os = new java.io.FileOutputStream(f)) {
+            try (java.io.FileOutputStream os = new java.io.FileOutputStream(f, appending)) {
                 os.write(bytes);
             }
             JSObject o = new JSObject();
@@ -298,24 +318,17 @@ public class VideoMergePlugin extends Plugin {
             if (aUrl != null && !aUrl.isEmpty()) {
                 bgmSupplied = true;
                 float vol = (float) audio.optDouble("volume", 1.0);
-                // ★★ 音量就是 1 的时候**一个处理器都不挂**（2026-09-08）：这条处理器存在的
-                //   唯一理由是调音量，而它是有代价的 —— `ChannelMixingMatrix.createForConstantGain`
-                //   只实现了少数几种声道组合（字节码里那几句报错原文：「…->1 are not implemented.」
-                //   「…->2 are not implemented.」），我们能安全登记的只有 1→1 与 2→2。
-                //   于是一条 5.1／7.1 的配乐会因为"找不到对应的矩阵"被**整发拒**，
-                //   而用户能做的只有把配乐删掉重来 —— 提示里还不会这么说。
-                //   缺省音量（预置的模板原声就是 1.0）直接透传，多声道源从此不受影响。
-                // ⚠ 调过音量的多声道源仍然会撞上这条 —— media3 这一版就是没实现，
-                //   要绕只能自己写一个与声道数无关的增益处理器，代价与收益不成比例。
-                ImmutableList<AudioProcessor> aps;
-                if (Math.abs(vol - 1f) < 0.001f) {
-                    aps = ImmutableList.of();
-                } else {
-                    ChannelMixingAudioProcessor mixer = new ChannelMixingAudioProcessor();
-                    mixer.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(1, 1).scaleBy(vol));
-                    mixer.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(2, 2).scaleBy(vol));
-                    aps = ImmutableList.of(mixer);
-                }
+                // ★★ 调音量走**自己写的增益处理器**（2026-09-08 换掉 ChannelMixingAudioProcessor）：
+                //   media3 的 `ChannelMixingMatrix.createForConstantGain` 只实现了少数几种声道组合
+                //   （字节码里那几句报错原文：「…->1 are not implemented.」「…->2 are not implemented.」），
+                //   我们能安全登记的只有 1→1 与 2→2 ⇒ 一条 5.1／7.1 的配乐会因为"找不到对应的矩阵"
+                //   被**整发拒**，屏幕上一句英文，而用户能做的只有把配乐删掉重来。
+                //   而我们要的根本不是"混声道"，只是"乘一个系数" —— 那件事与声道数**无关**。
+                // ★ 音量正好是 1 时仍然一个处理器都不挂（`isActive` 也会回 false，这里省一次构造）。
+                ImmutableList<AudioProcessor> aps =
+                        Math.abs(vol - 1f) < 0.001f
+                                ? ImmutableList.of()
+                                : ImmutableList.of(new GainAudioProcessor(vol));
                 EditedMediaItem bgm = new EditedMediaItem.Builder(MediaItem.fromUri(Uri.parse(aUrl)))
                         .setEffects(new Effects(aps, ImmutableList.of()))
                         // ★★ 只要声音，画面丢掉。这不是优化，是**正确性**：这条音轨的来源
@@ -474,6 +487,50 @@ public class VideoMergePlugin extends Plugin {
             return null;
         } finally {
             ex.shutdownNow();
+        }
+    }
+
+    /**
+     * 逐样本乘一个系数的增益处理器 —— **与声道数无关**。
+     *
+     * ★★ 为什么要自己写：media3 现成的 `ChannelMixingAudioProcessor` 是拿来**混声道**的，
+     *   调音量只是它的副作用，而它的矩阵工厂只实现了 1→1 / 1→2 / 2→1 / 2→2 几种；
+     *   一条 5.1／7.1 的配乐在那儿会因为"没有对应矩阵"把整条合并拒掉。
+     *   而"把音量乘 0.6"这件事根本不关心有几个声道 —— 逐个 16-bit 样本乘一下就是了。
+     * ★ 只接 16-bit PCM；别的编码 `onConfigure` 回 NOT_SET ⇒ `isActive()` 为假 ⇒ media3 直接跳过
+     *   这一环（不是报错，是不参与），配乐照样出声，只是音量旋钮对它不起作用。
+     * ★ 字节序跟着缓冲区自己走（media3 给的是 nativeOrder），别手写 `& 0xFF` 拼 —— 拼错了
+     *   听感上是一片噪音，而不会有任何报错。
+     */
+    private static final class GainAudioProcessor extends BaseAudioProcessor {
+        private final float gain;
+
+        GainAudioProcessor(float gain) {
+            this.gain = gain;
+        }
+
+        @Override
+        protected AudioProcessor.AudioFormat onConfigure(AudioProcessor.AudioFormat in) {
+            if (in.encoding != C.ENCODING_PCM_16BIT) return AudioProcessor.AudioFormat.NOT_SET;
+            return in; // 声道数、采样率原样透传：我们只动幅度
+        }
+
+        @Override
+        public boolean isActive() {
+            return super.isActive() && Math.abs(gain - 1f) > 0.001f;
+        }
+
+        @Override
+        public void queueInput(ByteBuffer in) {
+            ByteBuffer out = replaceOutputBuffer(in.remaining());
+            while (in.remaining() >= 2) {
+                int v = Math.round(in.getShort() * gain);
+                if (v > Short.MAX_VALUE) v = Short.MAX_VALUE;
+                if (v < Short.MIN_VALUE) v = Short.MIN_VALUE;
+                out.putShort((short) v);
+            }
+            in.position(in.limit());
+            out.flip();
         }
     }
 

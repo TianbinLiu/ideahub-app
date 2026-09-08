@@ -267,6 +267,26 @@ export default function CutPage() {
   // 更新会同步重渲染本页，抢在 navigate 生效之前，于是 segs[c.segIndex] 为 undefined
   // 直接崩在 .firstFrame 上（实测控制台捕获到）。稳态下 view 与 clips 完全相同。
   const view = useMemo(() => clips.filter((c) => segs[c.segIndex]), [clips, segs]);
+  /**
+   * 时间轴动过没有（裁过 / 删过 / 换过序）。**判据只有这一处**：预置音轨会不会错位、
+   * 提示要不要摆、合完之后那句话要不要说，读的都是它 —— 抄第二份必然与这份分叉。
+   */
+  const timelineTouched = useMemo(
+    () =>
+      view.length !== segs.length ||
+      view.some((c, i) => c.segIndex !== i || c.start > 0.01 || Math.abs(c.end - segLen(segs[c.segIndex])) > 0.01),
+    [view, segs],
+  );
+  /**
+   * 用的是**自动预置**那条原片音轨，而画面时间轴被动过 ⇒ 音画必然对不上。
+   *
+   * ★★ 这句话要摆在**合并之前**（2026-09-08）：那条音轨是按原片从 0 秒混进去的
+   *   （分段组取的更是整条源片），而裁剪 / 删段 / 换序改的全是画面这一侧，两边没有任何
+   *   对齐机制。合完再说也说了（发布页那条），但那时片子已经出来了 —— 而此刻他还能
+   *   换一条自己的音频、或者把片段改回原样，代价是零。
+   * ★ 只对**自动预置**那条报：用户自己挑的 BGM 本来就与画面无关，对它说"会错位"是胡说。
+   */
+  const presetAudioDrift = !!audio && !!audioHint && audio.url === audioHint && timelineTouched;
   const total = view.reduce((s, c) => s + clipDur(c), 0);
   const active = view[Math.min(activeIdx, Math.max(0, view.length - 1))] ?? null;
   const activeSeg: VideoSegment | undefined = active ? segs[active.segIndex] : undefined;
@@ -872,15 +892,10 @@ export default function CutPage() {
        *   真要对齐得给音轨也做一份时间轴映射，那是另一件事；在那之前**至少要说出来**，
        *   否则用户拿到一条音画错位的成片，只会以为是合成质量的问题。
        */
-      if (audioArg && audio && audio.url === audioHint) {
-        const touched =
-          view.length !== segs.length ||
-          view.some((c, i) => c.segIndex !== i || c.start > 0.01 || Math.abs(c.end - segLen(segs[c.segIndex])) > 0.01);
-        if (touched) {
-          warns.push(
-            "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。",
-          );
-        }
+      if (audioArg && presetAudioDrift) {
+        warns.push(
+          "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。",
+        );
       }
       /**
        * 这条成片到底会不会响。**两个来源，谁先答得准算谁**：
@@ -1191,11 +1206,29 @@ export default function CutPage() {
           恰恰是最需要大画面的（要看清要圈的东西）。
           ⚠ 只改高度上限，不动"面板收起时 `<video>` 会不会进不可见状态"那条 ——
             圈选取帧走的正是"等 seeked"那条路，画面真被隐藏就永远等不到。 */}
+      {/* ★★ 合成期间这一整块**禁掉**（2026-09-08）：那层「合成中」的遮罩是 `absolute inset-0`、
+          挂在预览容器里，**盖不到这里** —— 于是合成跑着的时候还能切页签、换配乐、删片段，
+          而这一炉的素材在点「下一步」那一拍就已经定死了（clips / audioArg 都是闭包里的值）。
+          改了不生效、屏幕上也不说，正是本仓最不待见的那种"看起来能点其实没用"。
+          ⚠ 只禁这一块，**顶栏不禁**：离开这一页现在是安全的（合成领了票、跑完不会把人拽走），
+          用户想走就该走得掉。 */}
       <div
         className={`safe-bottom flex flex-none flex-col border-t border-slate-700/60 bg-[#141821] ${
           tab === "mark" ? "max-h-[38%]" : "max-h-[52%]"
-        }`}
+        } ${busy ? "pointer-events-none opacity-40" : ""}`}
+        aria-disabled={!!busy}
       >
+        {busy ? (
+          <div className="flex-none px-4 pt-2 text-center text-[11px] leading-relaxed text-slate-400">
+            合成中——这里的改动不会进这一炉
+          </div>
+        ) : null}
+        {/* 见 presetAudioDrift 的 ★★：合并之前说，此刻改还来得及 */}
+        {!busy && presetAudioDrift ? (
+          <div className="mx-4 mt-2 flex-none rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-100">
+            你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。
+          </div>
+        ) : null}
         <div data-guide="cut-tabs" className="flex flex-none items-center justify-center gap-7 px-4 pt-3">
           {TABS.map((t) => (
             <button

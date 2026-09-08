@@ -551,13 +551,17 @@ async function retain(
   }
   const job = startJob({ kind: "project-retain", title: "留存工坊工程", progress: "提交中" });
   try {
-    const lost = await submit(videoId, before, after, revision, pend);
+    const { lost, videos } = await submit(videoId, before, after, revision, pend);
     job.done({
-      msg: lost
-        // ★ 说「素材」不说「预览图」：这个数里混着成片（见 markLost 的 ★★），
-        //   而成片丢了要重新出片、要再花一次钱 —— 不能拿"预览图"把它盖过去
-        ? `工程已留存（有 ${lost} 处素材没能留下，回炉时会逐格标出来）`
-        : "工程已留存，之后可在编辑页回炉重做",
+      // ★★ 分两句说（见 submit 的 ★★）：把"要再花一次钱"和"重截一下就有"混成一句
+      //   「N 处素材」，往哪个方向说错都不高尚 —— 前者会让人以为不要紧，后者会把人吓住。
+      msg: videos
+        ? `工程已留存，但有 ${videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）${
+            lost > videos ? `；另外 ${lost - videos} 处只是预览图` : ""
+          }。回炉页会逐格标出来`
+        : lost
+          ? `工程已留存（有 ${lost} 处预览图没能留下，回炉时重新截一下就有，不花钱）`
+          : "工程已留存，之后可在编辑页回炉重做",
       route: `/video/${videoId}`,
     });
   } catch (e) {
@@ -605,7 +609,10 @@ export async function retryRetain(videoId: string, title: string): Promise<strin
 /**
  * 瘦身 → 断言 → **写回待办** → PUT → 写缓存 → 清待办。
  * **唯一实现**（自动留存与「重试留存」共用最后那半段，铁律六）。
- * @returns 有几处预览图没能留下；失败原样抛。
+ * @returns `{ lost, videos }` —— 一共丢了几处、其中几处是**成片**。
+ *   ★★ 两者必须分开报（见 markLost 的 ★★）：预览图重截一下就有，而一段付过钱的成片
+ *   没留下只能重新出片、**再花一次钱**。合成一个数说「素材」是在两个方向上都说不准 ——
+ *   要么把要花钱的那档盖过去，要么把不花钱的那档说得吓人。
  */
 async function submit(
   videoId: string,
@@ -613,7 +620,7 @@ async function submit(
   after: PairTarget & { title?: string },
   revision: number,
   pend: PendingCanvas,
-): Promise<number> {
+): Promise<{ lost: number; videos: number }> {
   let canvas = pend.canvas;
   let lost = pend.lostCount ?? 0;
   if (!pend.ready) {
@@ -629,7 +636,33 @@ async function submit(
     await writePending({ ...pend, videoId, canvas, ready: true, lostCount: lost });
   }
   await put(videoId, after.title || pend.title, revision, canvas, lost);
-  return lost;
+  // ★ 从**改写之后**那份画布上数（`markLost` 把 flags 写进去的正是它）——
+  //   这样"重试留存"那条路（pend.ready 已经是改写过的）也数得出来，不用另存一位
+  return { lost, videos: lostVideoCount(canvas) };
+}
+
+/**
+ * 这份画布里有几套方案是**成片**没留下 —— 与 `lostCount` 同源，但分得出
+ * 「重截一下就有」和「要重新出片（再花一次钱）」。判据只有 `Proposal.lost.video` 一处。
+ */
+function lostVideoCount(canvas: unknown): number {
+  let n = 0;
+  const chain = (ns: unknown): void => {
+    if (!Array.isArray(ns)) return;
+    for (const node of ns) {
+      const ps = (node as Record<string, unknown> | undefined)?.proposals;
+      if (!Array.isArray(ps)) continue;
+      for (const p of ps) {
+        const lost = (p as Record<string, unknown> | undefined)?.lost as Record<string, unknown> | undefined;
+        if (lost?.video) n++;
+      }
+    }
+  };
+  const f = (canvas as CanvasSnapshot | undefined)?.flow;
+  if (!f) return 0;
+  chain(f.nodes);
+  for (const alt of Object.values((f.alts ?? {}) as Record<string, unknown>)) chain(alt);
+  return n;
 }
 
 /** PUT + 写本地缓存 + 清待办（成功才清）。★ 这三步的顺序不能换：清早了重试就没料了 */

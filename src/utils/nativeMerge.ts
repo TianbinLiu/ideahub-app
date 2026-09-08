@@ -65,7 +65,7 @@ interface VideoMergeApi {
   available(): Promise<{ available: boolean; engine: string }>;
   merge(opts: MergeOpts): Promise<MergeResult>;
   cancel(): Promise<void>;
-  stageFile(o: { base64: string; ext: string }): Promise<{ uri: string; path: string }>;
+  stageFile(o: { base64: string; ext?: string; path?: string }): Promise<{ uri: string; path: string }>;
   addListener(
     event: "mergeProgress",
     fn: (e: { percent: number }) => void,
@@ -87,10 +87,9 @@ export const MERGE_UNSUPPORTED =
  * blob:/data: 的本地音频 → 原生能打开的 file:// 地址。已经是 http(s)/file 的原样返回。
  * ★ 只给 BGM 用（几 MB 级）。段落视频**绝不**走这条：几十兆过 base64 桥又慢又占内存。
  */
-export async function stageLocalAudio(url: string): Promise<string> {
-  if (/^(https?|file):/i.test(url)) return url;
-  const blob = await (await fetch(url)).blob();
-  const b64 = await new Promise<string>((res, rej) => {
+/** 一片 blob → base64（不含 `data:` 头）。★ 抽出来是因为下面要按片调很多次 */
+function sliceToBase64(part: Blob): Promise<string> {
+  return new Promise<string>((res, rej) => {
     const r = new FileReader();
     r.onload = () => {
       const s = String(r.result || "");
@@ -98,10 +97,36 @@ export async function stageLocalAudio(url: string): Promise<string> {
       res(i >= 0 ? s.slice(i + 1) : s);
     };
     r.onerror = () => rej(new Error("音频读不出来"));
-    r.readAsDataURL(blob);
+    r.readAsDataURL(part);
   });
+}
+
+/**
+ * 每片多大。
+ * ★ 512KB 是**权衡**不是拍脑袋：base64 会把它撑成约 683KB 的 JS 字符串，桥上再复制一份 ——
+ *   这个量级在低端机上是安全的；再小就是白白多跑几十次桥（每一次都有固定开销）。
+ */
+const STAGE_CHUNK = 512 * 1024;
+
+export async function stageLocalAudio(url: string): Promise<string> {
+  if (/^(https?|file):/i.test(url)) return url;
+  const blob = await (await fetch(url)).blob();
   const ext = (blob.type.split("/")[1] || "mp3").split(";")[0];
-  const { uri } = await VideoMerge.stageFile({ base64: b64, ext });
+  // ★★ **按片送**（2026-09-08 换掉"整条编成一串"那版）：过 Capacitor 桥只能走 base64，
+  //   而一条几十兆的音频编成一整条 base64 是 1.33 倍体积的**单个 JS 字符串** —— 慢，
+  //   而且在低端机上有实打实的 OOM 面（JS 侧拼串、桥上复制、Java 侧还要整块 decode，
+  //   同一份数据同时躺三处）。分片之后每一拍的峰值只有 STAGE_CHUNK 那么大。
+  // ★ 第一拍带 `ext` 建文件，之后带**上一拍回来的** `path` 续写 —— 原生那侧只认自己
+  //   staged 目录下的路径（防越权写），见 VideoMergePlugin.stageFile 的 ★★。
+  let path = "";
+  let uri = "";
+  for (let off = 0; off < blob.size; off += STAGE_CHUNK) {
+    const b64 = await sliceToBase64(blob.slice(off, Math.min(off + STAGE_CHUNK, blob.size)));
+    const r = await VideoMerge.stageFile(path ? { base64: b64, path } : { base64: b64, ext });
+    path = r.path;
+    uri = r.uri;
+  }
+  if (!uri) throw new Error("这条音频是空的");
   return uri;
 }
 
