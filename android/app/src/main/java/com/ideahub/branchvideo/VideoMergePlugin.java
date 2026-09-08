@@ -218,14 +218,36 @@ public class VideoMergePlugin extends Plugin {
             withEffects.add(it.buildUpon().setEffects(effects).build());
         }
 
-        EditedMediaItemSequence videoSeq = new EditedMediaItemSequence.Builder(withEffects).build();
+        // ★★★ 异构音轨：**多段时必须开 forceAudioTrack，否则整条合并当场抛**（2026-09-07 反编译
+        //   media3 1.11.0 的 SequenceAssetLoader 定的案，那句报错在字节码里逐字存在）：
+        //     "The preceding MediaItem does not contain any audio track. If the sequence starts with
+        //      an item without audio track (like images), followed by items with audio tracks, then
+        //      EditedMediaItemSequence.Builder.experimentalSetForceAudioTrack() needs to be set to true."
+        //   机理：**轨道集合由第一段定死** —— 后面的段冒出首段没有的轨型时，
+        //   sampleConsumersByTrackType.get(trackType) 拿到 null，checkNotNull 当场炸。
+        //   而本 app 里这条流水线**再正常不过**：白模复刻段天生无音轨
+        //   （ai/arkClient.BLOCKOUT_TASK 钉着 generate_audio:false），hd/ultra 档的普通段真发
+        //   generate_audio:true —— 「第 1 段白模 + 第 2 段普通段」就会整发失败。
+        //   ⚠ 反过来（有声段在前、无声段在后）不会炸：消费者已经建好，media3 自己补静音。
+        //
+        // ★ 为什么**只在多段时**开，而不是一律开：开了之后输出**一定**带一条音轨（没得混就是静音的），
+        //   于是 ExportResult.audioMimeType 恒非 null ⇒ 下面那个 hasAudio 就会对一条哑片报"有声音"，
+        //   而它正是用来当面告诉用户「这条成片没有声音」的（骗人比不说更坏）。
+        //   单段不可能异构 ⇒ 不必开 ⇒ 那一位仍然可信。多段则如实回报"不知道"（见 onCompleted）。
+        final boolean multi = withEffects.size() > 1;
+        EditedMediaItemSequence videoSeq = new EditedMediaItemSequence.Builder(withEffects)
+                .experimentalSetForceAudioTrack(multi)
+                .build();
         List<EditedMediaItemSequence> sequences = new ArrayList<>();
         sequences.add(videoSeq);
 
         JSObject audio = call.getObject("audio");
+        // 我们自己送没送进去一条音轨（BGM / 模板原声）—— onCompleted 判 hasAudio 要用
+        boolean bgmSupplied = false;
         if (audio != null) {
             String aUrl = audio.getString("url", "");
             if (aUrl != null && !aUrl.isEmpty()) {
+                bgmSupplied = true;
                 float vol = (float) audio.optDouble("volume", 1.0);
                 ChannelMixingAudioProcessor mixer = new ChannelMixingAudioProcessor();
                 mixer.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(1, 1).scaleBy(vol));
@@ -262,6 +284,8 @@ public class VideoMergePlugin extends Plugin {
         runningCall = call;
         runningOut = out;
 
+        // lambda 要捕获 ⇒ 定格成 final（bgmSupplied 上面是可变的）
+        final boolean bgmFinal = bgmSupplied;
         // ★ Transformer 要在有 Looper 的线程上起（主线程），回调也回主线程
         main.post(() -> {
             try {
@@ -287,10 +311,16 @@ public class VideoMergePlugin extends Plugin {
                         //   Web 侧一概看不见 —— 而"没有声音"在界面上**不构成任何报错**
                         //   （音轨本来就是可选的），于是一条哑片会一路走到发布页都没人吭声。
                         //   audioMimeType 为 null = 输出里一条音轨都没有。
-                        //   ⚠ 谁要是哪天开了 Composition 的 experimentalSetForceAudioTrack，
-                        //     这一位就会对一条**静音轨**报 true —— 那时它就在骗人了，
-                        //     得改成同时看 channelCount / averageAudioBitrate。
-                        o.put("hasAudio", result.audioMimeType != null);
+                        //   ★★ 三态，**拿不准就不报**（Web 侧 undefined = 不知道，什么都不说）：
+                        //     · 我们自己送了 BGM ⇒ 一定有声，报 true；
+                        //     · 单段（没开 forceAudioTrack）⇒ 合成器的答案可信，照报；
+                        //     · 多段且没送 BGM ⇒ 强行补的那条静音轨会让 audioMimeType 恒非 null，
+                        //       这一位就不可信了 —— **宁可不说**。骗人比不说更坏。
+                        //   ⚠ 剩下的缺口（多段 + 无 BGM + 素材全哑 = 哑片却不吭声）今天没堵：
+                        //     要堵得逐段探一次音轨（MediaMetadataRetriever 的 METADATA_KEY_HAS_AUDIO，
+                        //     每段一次网络读），代价与收益不成比例 —— 预置修好之后这条路很少走到。
+                        if (bgmFinal) o.put("hasAudio", true);
+                        else if (!multi) o.put("hasAudio", result.audioMimeType != null);
                         cc.resolve(o);
                     }
 

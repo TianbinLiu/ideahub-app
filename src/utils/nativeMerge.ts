@@ -44,8 +44,12 @@ export interface MergeResult {
    *   所以一条哑片会一路走到发布页、发出去，全程零提示。白模复刻段的成片文件天生无声
    *   （generate_audio:false 是版权拦截换来的），声音全靠剪辑页那条音轨预置混进去，
    *   而那条预置有过丢失的前科（见 data/cutSession 的 audioHint）。
-   * ★ 老插件（2026-09-07 之前那版）不发这一位 ⇒ `undefined`。调用方**判否定**：
-   *   只有明确为 false 才说"这条没声音"，undefined 当"不知道"、什么都不说。
+   * ★★ **三态**，`undefined` = 合成器也拿不准，此时**什么都别说**。调用方一律**判否定**：
+   *   只有明确 `false` 才说"这条没声音"。会是 undefined 的两种情况：
+   *     ① 老插件（2026-09-07 之前那版）根本不发这一位；
+   *     ② **多段合并且我们没送 BGM** —— 多段必须开 media3 的 forceAudioTrack（不开会整发抛，
+   *        见 VideoMergePlugin 那段 ★★★），而它会给哑片也补一条静音轨，
+   *        于是 `ExportResult.audioMimeType` 恒非 null、这一位不再可信。宁可不说，别骗人。
    */
   hasAudio?: boolean;
 }
