@@ -124,6 +124,35 @@ export async function transferArkVideo(url: string): Promise<string> {
 }
 
 /**
+ * 受理式转存（POST /api/ark/transfer-video，`wait:false`）：**提交完就回**，不等搬完。
+ *
+ * ★★ 为什么要它，而不是复用上面那个 `transferArkVideo`（2026-09-07 真机实拍）：
+ *   阻塞式那条要在一个 HTTP 请求里等服务端把几十兆从方舟拉下来再推去 Cloudinary ——
+ *   跨境网络上经常等不到，而**中间挡着 Cloudflare 的 125 秒读超时**（CLAUDE.md 那格坑）。
+ *   剪辑页合并前的「老草稿自救」就撞在这上面：等满约 145 秒、整发作废、退回方舟直链，
+ *   于是原生合成器只好跨境流式拉 TOS 直链（logcat 里那串 `ark-...tos-cn-beijing` 的 DNS 查询）。
+ *   而**服务端那边其实一直搬得好好的**（后台任务，与请求生死无关）—— 只是没人回来问。
+ *   受理式 + 短轮询把这段等待拆成一串几百毫秒的请求，一个都碰不到 125 秒那堵墙。
+ * ★ 不计费（只是给已经付过钱的产物搬家），与 `transferArkVideo` 在服务端登记表上去重，只搬一次。
+ */
+export async function requestArkTransfer(
+  url: string,
+): Promise<{ state: "done" | "pending" | "failed"; url?: string; message?: string }> {
+  const token = getToken();
+  const res = await fetch(`${BASE}/transfer-video`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ url, wait: false }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const ct = res.headers.get("content-type") ?? "";
+  if (!ct.includes("application/json")) throw new Error("这台服务器还没有 /api/ark/transfer-video（请更新服务端）");
+  const j = (await res.json().catch(() => ({}))) as { state?: "done" | "pending" | "failed"; url?: string; message?: string };
+  if (!res.ok && res.status !== 202) throw new Error(j.message || `转存受理失败（${res.status}）`);
+  return { state: j.state ?? "pending", ...(j.url ? { url: j.url } : {}), ...(j.message ? { message: j.message } : {}) };
+}
+
+/**
  * 问服务端「这几条方舟链接转存到哪一步了」（POST /api/ark/transfer-video/status）。
  * ★ 出片当口转存没赶上服务端 165s 的预算时，客户端拿到的是方舟临时链接，但服务端那个后台搬运还在跑 ——
  *   这里就是事后把永久地址接回来的口子（flowStore.settleNodeMedia / recaptureNode 用）。
