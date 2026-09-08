@@ -102,6 +102,17 @@ export interface VideoJob {
   aspect?: VideoAspect;
   videoTier?: string;
   plot?: string;
+  /**
+   * 这一段的**原声在哪**（模板原片地址；分段组取整条源片，普通白模取 refVideo.url）。
+   *
+   * ★★ 为什么要在凭据里存这一位：白模成片文件天生无声，声音全靠合并时从模板原片混进去。
+   *   而取回安放走的是 `flowStore.placeRescuedSegment`，它写死 `tpl: null`（有意的 ——
+   *   恢复成 store 级那份会踩「tpl 三态兜底」那格坑）⇒ 取回过的白模段**永久丢掉**模板归属，
+   *   于是合并的音轨预置与回看的「🔊 模板原声」一起消失，全程零提示。
+   *   存下这一位就能把**声音**这条线接回来，而不必去碰 tpl 那三态。
+   * ★ 只存地址不存整个模板：模板对象带 refVideo/roles/cards，塞 localStorage 会顶配额。
+   */
+  tplRefVideo?: string;
   createdAt: number;
 }
 

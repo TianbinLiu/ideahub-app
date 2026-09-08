@@ -2211,11 +2211,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // ★ 非分段的白模模板也要回填（2026-09-06 主人真机：拿有声音的模板出的片，合并后照样是哑的）：
       //   refVideo.url 正是与这一段对齐的那段裁剪，从 0 秒起对得上；分段组仍优先用整条源片（跨段连续）。
       //   多段作品里只预置第一条模板的那份，后面的段在音频页自己调。
+      // ★ `n.audioHint` 排在最后当**兜底**：取回安放的段 tpl 恒为 null（flowStore
+      //   placeRescuedSegment 的 ★），模板原声只能从凭据里带回来的那一位问
       draftAudioHint:
         nodes
           .map((n) => {
             const t = tplOfNode(n);
-            return t?.group?.sourceUrl || t?.refVideo?.url || "";
+            return t?.group?.sourceUrl || t?.refVideo?.url || n.audioHint || "";
           })
           .find(Boolean) ?? null,
       draft: {
