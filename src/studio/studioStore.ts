@@ -2255,7 +2255,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
 
   publishedWorkId: null,
   persistCutDraft: async () => {
-    const { draft, segEdit } = get();
+    const { draft, segEdit, draftAudioHint } = get();
     if (!draft) return null; // 没稿子就没什么要存的，不算失败
     // ★★ segEdit 那条路**不落这个键**：那份 draft 是 flowStore 的派生物，真相在 nodes 上，
     //   存它只会在恢复时得到一份没有活节点可写回的孤稿（closeSegmentEdit 按 nodeId 找节点，
@@ -2266,7 +2266,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (segEdit) {
       return "这一段是从工作流里单独打开的，改动还只在内存里——回工作流把它保存进草稿，再切后台。";
     }
-    const ok = await saveCutSession(draft);
+    // ★ 音轨预置跟着稿子一起存（理由见 cutSession.CutSession.audioHint 的 ★★）：
+    //   它只在组稿那一拍算得出来，App 一重启就没了，而「接着剪」正是重启之后才走的那条路。
+    const ok = await saveCutSession(draft, draftAudioHint);
     return ok ? null : "没能存进本地库（存储空间不足或浏览器隐私模式）";
   },
 

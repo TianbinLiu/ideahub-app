@@ -38,6 +38,16 @@ export interface MergeResult {
   durationSec: number;
   width: number;
   height: number;
+  /**
+   * 成片里到底有没有音轨（合成器报的）。
+   * ★ 为什么要把它带回来：「没有声音」在界面上不构成任何报错 —— 音轨本来就是可选的，
+   *   所以一条哑片会一路走到发布页、发出去，全程零提示。白模复刻段的成片文件天生无声
+   *   （generate_audio:false 是版权拦截换来的），声音全靠剪辑页那条音轨预置混进去，
+   *   而那条预置有过丢失的前科（见 data/cutSession 的 audioHint）。
+   * ★ 老插件（2026-09-07 之前那版）不发这一位 ⇒ `undefined`。调用方**判否定**：
+   *   只有明确为 false 才说"这条没声音"，undefined 当"不知道"、什么都不说。
+   */
+  hasAudio?: boolean;
 }
 
 interface VideoMergeApi {

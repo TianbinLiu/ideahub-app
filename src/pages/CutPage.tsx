@@ -621,6 +621,10 @@ export default function CutPage() {
       }
     };
     document.addEventListener("visibilitychange", onHidden);
+    // ★★ 合并成功之后这一页立刻 navigate 走，`setErr` 写的话**一个都显示不出来**
+    //   （本仓那格坑：话要说在用户接下来会看的那一屏上）。所以凡是"合完才知道、
+    //   又值得让人知道"的事都攒进这里，随导航带去发布页。
+    const warns: string[] = [];
     try {
       // ★ 老草稿自救：还是方舟直链的段先转存成永久地址（服务端拉，全球 CDN）。
       //   出片那一刻的转存 2026-08-20 才上线，在那之前炼的段揣的还是 TOS 直链 ——
@@ -713,7 +717,10 @@ export default function CutPage() {
         } catch (e) {
           // ★ 音轨拿不到**不许拖垮整条成片**（2026-08-21 对抗评审确认的老规矩，这次沿用）
           console.warn("[cut] 音轨取不到:", e);
-          setErr(`音轨没能取下来（${audio.name}）——这一条先按无声导出。想要声音就换一条本地音频再重试合并。`);
+          const why = `音轨没能取下来（${audio.name}）——这一条先按无声导出。想要声音就换一条本地音频再重试合并。`;
+          setErr(why);
+          warns.push(why); // 合并成功就要跟着去发布页，否则这句话谁都看不到
+        
         }
       }
 
@@ -784,8 +791,18 @@ export default function CutPage() {
       // ★ 合并那一拍的回执也要判（模块契约就是这么写的）：这时候刚录完几分钟的成片，
       //   指针只在内存里 —— 存不住而不吭声，正是最贵的那种静默失败
       const cutWhy = await useStudio.getState().persistCutDraft();
-      if (cutWhy) setErr(`成片已经合好了，但${cutWhy}`);
-      navigate("/publish");
+      if (cutWhy) warns.push(`成片已经合好了，但${cutWhy}`);
+      // ★★ 成片是哑的就当面说一句（2026-09-07 主人真机：「原本有声音的又没声音了」）。
+      //   「没有声音」在界面上**不构成任何报错** —— 音轨本来就是可选的，于是一条哑片
+      //   会一路走到发布页、发出去，全程没人吭声。而白模复刻段的画面天生无声
+      //   （generate_audio:false 是版权拦截换来的），声音全靠音频页签那条预置混进去。
+      //   ★ 判**否定**：老插件不报这一位（undefined = 不知道），只有明确 false 才说。
+      if (merged.hasAudio === false) {
+        warns.push(
+          "这条成片没有声音：素材本身不带音轨，合成时也没有加配乐。想要声音就回剪辑页的「音频」加一条，再合一次。",
+        );
+      }
+      navigate("/publish", warns.length ? { state: { warn: warns.join("\n") } } : undefined);
     } catch (e) {
       // ★ 取消可能正好按在某一段的 await 中途（取流/加载/播放）——那时抛出来的异常
       //   是"因为取消"，不是失败。报成失败就是对用户说了假话（铁律八）。

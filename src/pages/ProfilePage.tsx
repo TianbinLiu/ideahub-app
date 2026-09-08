@@ -1080,7 +1080,15 @@ function CutSessionBanner() {
             // ★ segEdit 一并清（同 finalizeInner 的 ★★）：这是一份**整条**剪辑稿，
             //   而 segEdit 说的是"当前打开的是流水线里的某一段"——两者同时成立时，
             //   剪辑页顶栏会渲染成「保存本段」，用户就没有合并发布的入口了
-            useStudio.setState({ draft: cut.draft, segEdit: null });
+            // ★★ 音轨预置也要还原（2026-09-07 主人真机：「原本有声音的又没声音了」）：
+            //   白模复刻段的成片文件本身无声，声音全靠这条预置在合并时混进去；而
+            //   `draftAudioHint` 只在组稿那一拍算、只活在内存里 —— 这条路恰恰是
+            //   **App 重启之后**才走的，不还原的话音频页签是空的，合出来整条没声音且零提示。
+            useStudio.setState({
+              draft: cut.draft,
+              segEdit: null,
+              draftAudioHint: cut.audioHint ?? null,
+            });
             navigate("/cut");
           }}
           className="flex-1 rounded-xl bg-cyan-400/90 py-2.5 text-xs font-bold text-ink"
