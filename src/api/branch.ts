@@ -113,6 +113,18 @@ export interface ApiVideo {
   comments?: ApiComment[];
   createdAt: string | number;
   updatedAt?: string | number;
+  /**
+   * 回炉（「回炉重做」换掉成片内容）的次数。新服务端**恒发**（老数据归一成 0），
+   * 老服务端一个字都不发 —— 判否定：缺省 = 从没回炉过。
+   *
+   * ★★ 它同时是「新 App × 老服务端」那一档**唯一**的检出手段：老服务端的 `z.object`
+   *   会把 `segments/branchTree/deck/baseRevision` 全部 strip，然后返回 **200 且内容
+   *   一个字都没改**。所以回炉的成败判据不是状态码，而是
+   *   `Number(video.revision ?? 0) === baseRevision + 1`（见 data/videos.reviseVideo）。
+   */
+  revision?: number;
+  /** 最近一次回炉的时间；**只在有值时出现**（没回炉过的作品不该凭空长出一个日期） */
+  revisedAt?: string | number;
 }
 
 /**
@@ -380,20 +392,65 @@ export async function deleteVideo(id: string): Promise<void> {
 }
 
 /**
- * PATCH /api/branch/videos/:id（requireAuth，仅作者）——作品编辑。
+ * PATCH /api/branch/videos/:id 的**「改壳」**入参 —— 七个字段，一个不多。
  *
- * ★ 服务端只收 title / category / description / tags / visibility / linkOnly / cover 七个字段，其余一律 strip。
- *   cover **必须是 http(s) 永久 URL**：服务端不收 dataURL（MB 级请求体会撞网关 1MB 上限），
+ * ★ cover **必须是 http(s) 永久 URL**：服务端不收 dataURL（MB 级请求体会撞网关上限），
  *   调用方先走 publishAssets.imageToUrl 传成 URL 再 PATCH。
- *   片段与卡组是「发布那一刻的样子」，改了就意味着已经看过、已经收藏过的人看到的东西变了。
- *   所以这里的入参也收窄成那四个 —— 传 segments 过去不会报错、只是**静默不生效**，
- *   类型上挡住比运行时纳闷强（契约见 docs/api-contract.md「端点」表）。
- * 服务端未实现该端点时调用方会收到 ApiError，由 data 层降级为"仅本地生效"并 toast。
+ * ★★ **刻意不与 `ReviseBody` 合并**（2026-09-07 回炉上线时定的）：同一条 PATCH 上如今有
+ *   两件完全不同的事 —— 改壳（改标题/封面/可见性）与换内容（回炉）。两者的权限、限流、
+ *   通知、资产回收、弹幕清空全都不一样，服务端也是靠「带没带 segments/branchTree/deck」
+ *   分流的。类型上合成一个的话，调用点就再也分不出自己在做哪一件，而"以为在改标题、
+ *   实际把内容换了"是不可逆的。
+ * 服务端未实现该端点时调用方会收到 ApiError，由 data 层降级为"仅本地生效"。
  */
 export type VideoMetaPatch = Partial<Pick<ApiVideo, "title" | "category" | "description" | "tags" | "visibility" | "linkOnly" | "cover">>;
 
 export async function updateVideo(id: string, patch: VideoMetaPatch): Promise<ApiVideo | null> {
   const res = await apiPatch<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}`, patch);
+  return pick<ApiVideo>(res, ["video", "item", "data"]);
+}
+
+/**
+ * 同一条 PATCH 的**「换内容」**入参（回炉重做）。
+ *
+ * ★ 判据在服务端：带了 `segments` / `branchTree` / `deck` **任意一个** = 回炉，
+ *   一个都没带 = 改壳（行为与从前一字不变）。所以这三个键**只有真要换内容时才写**。
+ * ★ `baseRevision` **必填**（不填服务端 400 `REVISE_NO_BASE`）：它是乐观并发唯一的支点，
+ *   对不上就 409 且**一个字都不写**（内容没换、弹幕没清、通知没发、资产没回收）。
+ * ★ 片段里**接受 dataURL / 方舟链接**：与发布路径逐字同一口径，服务端 `transferAssetsFor`
+ *   会转存（`/api/branch` 授权后请求体上限 50MB）。但客户端仍然先走 `materializeDraft`
+ *   把 `idb:` 成片传成 URL —— 那种键服务端一律 `kept` 原样落库，落进去就是一条指向
+ *   「发布者手机上某处」的地址，观众全黑屏且零报错（publishAssets 文件头那次事故）。
+ */
+export interface ReviseBody extends VideoMetaPatch {
+  segments?: VideoSegment[];
+  /**
+   * ★★ `null` = **这一版没有分支树**（把互动作品剪成线性），与`undefined`（不带这个键 =
+   *   保留库里那棵旧的）是两件完全不同的事，服务端把 null 翻成 `$unset branchTree`。
+   *   `data/videos.reviseVideo` 因此**恒发**这一格（`sending.branchTree ?? null`）——
+   *   剪辑页的「合并导出」正好产出一份没有 branchTree 的草稿，不发的话观众看到的还是
+   *   旧互动内容，而 revision 涨了、弹幕清了、通知发了，全程零报错。
+   */
+  branchTree?: BranchTree | null;
+  /** ★ 空卡组（`{ name: "", cards: [] }`）= 这一版不带卡组，服务端 `$unset deck`；
+   *  不带这个键 = 保留原作品那套。发布页那颗「随片带上这套卡」关掉时发的就是空卡组。 */
+  deck?: VideoDeck;
+  baseRevision: number;
+}
+
+/**
+ * PATCH /api/branch/videos/:id（requireAuth，仅作者，6/分钟 scope `branch:revise`）——回炉替换。
+ *
+ * ★ 超时给到 3 分钟：与 `createVideo` 同一条理由（服务端要把几段方舟视频跨境转存到
+ *   Cloudinary，慢的时候几十秒）。
+ * ★ 失败**原样抛**：服务端那几档 400（付费/已下架/复核中/缺版本号）与 409 的 `message`
+ *   都是**给用户看的整句中文**，由调用方原样显示，这一层不翻译（铁律六）。
+ *   409 的 `details.currentRevision` 挂在 ApiError.details 上。
+ */
+export async function reviseVideo(id: string, body: ReviseBody): Promise<ApiVideo | null> {
+  const res = await apiPatch<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}`, body, {
+    timeoutMs: 180_000,
+  });
   return pick<ApiVideo>(res, ["video", "item", "data"]);
 }
 

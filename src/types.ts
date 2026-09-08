@@ -670,6 +670,22 @@ export interface Proposal {
    *  工坊节点卡上单独生成的、工作流里逐段生成的，都写在这里；换走向时各走向的成片
    *  互不覆盖（与 flowStore 的 videoByProposal 同义，那边是按 store 形状的镜像）。 */
   videoUrl?: string;
+  /**
+   * 留存工坊工程时**没能留下**的图位／成片（回炉打开时画虚线框、并如实报数）。
+   * 缺省 = 一格都没丢（判否定：老数据、以及从没回炉过的画布都没有这一格）。
+   *
+   * ★★ 为什么是**旁挂一个新字段**、而不是往 `firstFrame` 里塞 `{ lost: "frame" }`：
+   *   `firstFrame` / `lastFrame` 是 `string`，上面那段 ★★ 记的三条规则全挂在它们身上——
+   *     ① 承接判定 `p.firstFrame === prevP.lastFrame` 会变成对象引用比较、恒 false；
+   *     ② `refVideoOn` 与白模 `blockoutIssue` 见它非空整句拒 ⇒ 回炉打开的白模段／
+   *        参考直出段被自己的墓碑挡住，出不了片；
+   *     ③ 全仓那些 `?.startsWith("data:")` 在对象上直接抛 TypeError。
+   *   所以墓碑值仍然是这些字段本来就有的「没有」值（`""` / `undefined`），
+   *   "为什么没有"记在这一格里。
+   * ★ 它**只管渲染**：不参与承接／白模／参考直出任何一条判据。加读点之前先想清楚
+   *   会不会把"少了一张预览图"升级成"这一段不能出片"。
+   */
+  lost?: { first?: true; last?: true; poster?: true; video?: true };
 }
 
 /** 节点：一次生成的三方案 + 已选方案 + 按方案分叉的子树 */
@@ -884,8 +900,21 @@ export interface VideoItem {
   /** 付费设置：mode=paid 时 partPrices[i] 为第 i 个 P 的解锁价（token）。
    *  缺省 = 免费。观众解锁扣 token，平台抽成后其余进创作者 add-on 余额 */
   pricing?: VideoPricing;
-  /** 剪辑页合并导出的整条视频：发布后不可再修改（只能用同款卡组重新生成） */
+  /** 剪辑页合并导出的整条视频：合并那一步不可撤（要换只能重新剪一遍），但整条作品
+   *  可以走「回炉重做」换内容（见 revision） */
   merged?: boolean;
+  /**
+   * 回炉次数。0 / 缺省 = 从没回炉过（判否定：老作品与老服务端都没有这一格）。
+   *
+   * ★★ 它是回炉那条路上**唯一**的乐观并发支点：提交时把「我取回工程时看到的那个数」
+   *   报上去，服务端对不上就 409、一个字都不写。所以它必须一路搬到这里来 ——
+   *   服务端给实体加了字段、本机库那几跳必须一起搬（CLAUDE.md 那条，2026-08-16 一天
+   *   同形状咬过三次）。
+   */
+  revision?: number;
+  /** 最近一次回炉的时间（毫秒）。无值 = 从没回炉过，详情页那行「N 月 N 日重新剪辑过」
+   *  按**有没有值**决定出不出现，不跟哨兵值比。 */
+  revisedAt?: number;
   /**
    * 话题标签（发布页那一行，作者自己打）。缺省 = 老作品没打过标签，**判否定**。
    *
@@ -1223,6 +1252,18 @@ export interface DraftVideo {
   /** 剪辑页已合并成单条视频（segments 长度为 1，videoUrl 为 idb: 指针） */
   merged?: boolean;
   /**
+   * 这份合成稿是**回炉**某条已发布作品的产物：发布页要走「替换原作品」而不是「发一条新的」。
+   *
+   * ★★ **只在本机流转**，永远不会被发上去：发布体（`createVideo`）与回炉体
+   *   （`reviseVideo`）都是**逐字段拼**的，没有任何一处 `...draft`，所以这一格
+   *   不会随请求漏出去；服务端的 zod 也不认它。
+   * ★ `baseRevision` 是「取回工程那一刻线上是第几版」，回炉提交时原样报上去当乐观锁的
+   *   支点（服务端对不上就 409，一个字都不写）。缺省 = 这不是回炉，走全新发布。
+   * ★ 它**不进草稿**：`saveWorkDraft` 的 flow 快照是逐字段拼的、不含它 —— 这是刻意的，
+   *   一份被重新打开的普通草稿不该悄悄拥有替换线上作品的权力。
+   */
+  reviseOf?: { videoId: string; baseRevision: number };
+  /**
    * 幂等键：发布时生成一次，重试沿用同一个值。
    * 服务端转存几段方舟视频要几十秒，客户端超时重发时第一次其实已经落库了——
    * 没有这个键就会出现同一部作品在库里两份（server 侧 {author, clientId} 唯一索引）。
@@ -1290,4 +1331,23 @@ export function relativeTime(at: number): string {
   const now = new Date();
   if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}月${d.getDate()}日`;
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+/**
+ * 「第 N 版」那句话——**全仓唯一一处口径**（详情页那一行、个人页作品角标、回炉成功后
+ * 带去详情页的那句横幅，三处共用；铁律六）。
+ *
+ * `revision` = **回炉过几次**（0 / 缺省 = 从没回炉过），所以第一次回炉之后是「第 2 版」。
+ *
+ * ★★ 返回 `null` = **报不出版次**，调用方各自决定这一档画什么（详情页省掉后半句，
+ *   个人页角标退成「回炉过」）。这一档真实存在：老服务端 / 老数据只回了 `revisedAt`
+ *   而没有 `revision`（两个字段是分两跳搬过来的，见 VideoItem.revision 的 ★★）。
+ *   ⛔ 不许拿 `0` 当「第 1 版」印出去 —— 那是把一条**明明回炉过**的作品标成「没改过」，
+ *     比不标版次更坏，而且它跟同一份数据在详情页上的说法（什么都不印）直接对不上。
+ *     2026-09-07 合并三处实现时，个人页角标那一份原本正是这么写的（`?? 0` 再 +1）。
+ */
+export function revisionLabel(revision: number | undefined): string | null {
+  const n = Number(revision ?? 0);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return `第 ${n + 1} 版`;
 }

@@ -81,6 +81,34 @@ export function badgeIsPersistent(): boolean {
   return (MODE as BadgeMode) === "always";
 }
 
+/**
+ * **法务正文**里那半句：画面内标识到底盖成什么样。
+ *
+ * ★★★ 为什么它必须是个函数而不是抄在 agreements.tsx 里的一句话（2026-09-08 评审抓到）：
+ *   那份协议正文里原来写的是「在应用内播放时画面上**持续**显示角标，其中经剪辑页合并导出的
+ *   成片会把该角标**逐帧**写入画面本身」—— 两半在实读代码上都已经为假：
+ *     ① `drawAigcBadge` 全仓**零调用点**（2026-09-07 撤掉 canvas 录屏时连调用一起删了），
+ *        合并走的是原生合成器 + 本文件的 `aigcBadgeSpec()`，`MODE="head"` ⇒ 只烧开头 HEAD_SEC 秒；
+ *     ② `AigcBadge` 的渲染点是信息流 / 分区页 / 个人页网格 / 详情页作品信息旁 / 发布页声明条，
+ *        **三个播放器里一处都没有** ⇒ "应用内播放时画面上持续显示"这件事根本不存在。
+ *   一句法务文本同时说反两件事，而它下一行就写着「不得删除、遮挡或篡改」。⇒ 收口到这里，
+ *   盖法一改，协议正文、发布页说明、客服口径同一拍跟着变（铁律六 + 铁律八）。
+ * ⚠ 改这里的措辞**不需要**动 `TERMS_UPDATED`（那是"要不要让所有人重新过一次同意门"的另一个决定）。
+ * ⚠⚠ 返回值是**纯文本**，一个 markdown 记号都不许带：两个消费点都是 JSX 表达式
+ *   （agreements.tsx 的《用户协议》五与《AIGC 内容须知》二），渲染链 Sec → `<p>{children}</p>`
+ *   → InfoDialog 全程没有任何 markdown 解析 —— 写 `**x**` 用户看到的就是字面的星号，
+ *   而这是法务正文。要强调请在调用点用 `<b>`。
+ */
+export function badgeLegalClause(): string {
+  if (badgeIsPersistent()) {
+    return `成片画面每一帧都带「${AIGC_BADGE_TEXT}」角标，导出到本地的文件里同样有`;
+  }
+  return (
+    `经剪辑页合并导出的成片，会把「${AIGC_BADGE_TEXT}」标识烧进起始画面约 ${HEAD_SEC} 秒` +
+    `（这一份随文件走，导出到本地也在）；未经合并导出的作品（逐段生成、互动分支）画面内不含该标识`
+  );
+}
+
 /** 给用户看的一句话：成片里的标识长什么样。★ 与 aigcBadgeSpec 同源，别在页面里另写一遍 */
 export function badgeNote(): string {
   if (badgeIsPersistent()) return "成片每一帧右下角都会带「AI 生成」角标。";

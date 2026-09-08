@@ -250,13 +250,15 @@ export type FlowTemplate = {
  */
 function clearTemplate(): Pick<
   FlowState,
-  "template" | "subject" | "cast" | "castErr" | "castFallback" | "castBusy" | "castNodeId" | "deckOff" | "alts"
+  "template" | "subject" | "cast" | "castErr" | "castFallback" | "castBusy" | "castNodeId" | "deckOff" | "alts" | "reviseOf"
 > {
   // deckOff 也在这里回默认：本函数的调用点恰好就是全部「整表换流水线/复位」点，
   // 而「只出片不出卡组」是**每条片各自**的选择，不该跟到下一条片上。
   // alts（换走向的分支归档）同理：换整条流水线后，旧归档指着已不存在的节点 id
   // ★ deckOff 缺省 **true**（2026-09-06 主人点名：「生成对应视频卡组」默认不勾，想要再勾）
-  return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false, castNodeId: null, deckOff: true, alts: {} };
+  // reviseOf 同理，而且它比前两位更要命：这几处全是**整表换掉 nodes**，
+  // 留着它等于让下一条不相干的流水线拿着"替换那条已发布作品"的权力去发布（见 FlowState.reviseOf 的 ★★）
+  return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false, castNodeId: null, deckOff: true, alts: {}, reviseOf: null };
 }
 
 /**
@@ -857,6 +859,20 @@ interface FlowState {
   mode: FlowMode;
   /** 来源：工坊派生（组稿要回写节点树）/ 直接新建 */
   origin: "studio" | "solo";
+  /**
+   * 这条流水线是**回炉**某条已发布作品（编辑页「🛠 回炉重做」把留存的工坊工程铺回来）。
+   * null = 普通新片。
+   *
+   * ★★ **每一处整表换掉 `nodes` 的地方都必须清它** —— 漏一处的症状是「用一份不相干的
+   *   内容替换掉了别人的已发布作品」。所以它跟着 `clearTemplate()` 走：那个函数的调用点
+   *   恰好就是全部「整表换流水线 / 复位」点（reset / seed / seedSolo / applyTemplate /
+   *   applyTemplateGroup），与 `alts`、`deckOff` 同一条理由、同一处实现。
+   *   ⚠ `openWorkDraft` 走的是自己那个 `useFlow.setState({...})`，不经 clearTemplate ——
+   *   那边**显式**写了 `reviseOf: null`（打开一条草稿 ≠ 回炉）。
+   * ★ 它**不进草稿**（`saveWorkDraft` 的 flow 快照逐字段拼、不含它）：一份重开的草稿
+   *   不该悄悄拥有替换线上作品的权力。回炉途中被杀，那摊活由普通草稿兜住，重开是普通编辑。
+   */
+  reviseOf: { videoId: string; baseRevision: number; title: string } | null;
   /** 全局生成闸：同一时刻只炼一段 */
   busy: boolean;
   err: string;
@@ -1083,6 +1099,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
   cursor: 0,
   mode: "workflow",
   origin: "solo",
+  reviseOf: null,
   busy: false,
   err: "",
   genNotice: null,

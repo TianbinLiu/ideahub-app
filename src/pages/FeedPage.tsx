@@ -16,7 +16,7 @@ import {
   commentCountOf,
   hasCountedPlay,
   isLiked,
-  isMyAuthor,
+  isMyVideo,
   listFollowingVideos,
   listVideos,
   refreshFeed,
@@ -308,7 +308,10 @@ function FeedItem({
   const durBefore = segsTotal(video.segments.slice(0, si));
   const pendingSeek = useRef<number | null>(null);
   const isInteractive = !!video.branchTree;
-  const mine = isMyAuthor(video.author);
+  // ★ 按 userId 判（isMyVideo），不是按展示名 —— 这一格喂的是下面那道**付费墙**，
+  //   判错就是整段付费成片在信息流里直接自动播，一分钱不付、零报错。
+  //   2026-09-08 复核补：上一轮只换了详情页那一处 locked，漏了信息流这一处。
+  const mine = isMyVideo(video);
   // 付费未解锁：流里只出封面（不给白嫖流量费），点它去详情页解锁
   const lockPrice = video.pricing?.mode === "paid" ? (video.pricing.partPrices[0] ?? 0) : 0;
   const locked = lockPrice > 0 && !mine && !hasPurchased(video.id, 0);
@@ -772,7 +775,10 @@ function FeedItem({
       </div>
 
       {cmtOpen && <CommentSheet video={video} onClose={() => setCmtOpen(false)} />}
-      {shareOpen && <ShareSheet video={video} onClose={() => setShareOpen(false)} />}
+      {/* ★ saveLocal={null} = 「保存到本地」这个入口**在首页不存在**：这颗键只拿到 video，
+          没有"当前第几集"的上下文（多 P 作品要存哪一集问不出来）；下载又是低频动作，
+          走一次点击进详情页就有全套面板 —— 与举报键放详情页的取舍同类。 */}
+      {shareOpen && <ShareSheet video={video} onClose={() => setShareOpen(false)} saveLocal={null} />}
       {/* 发弹幕时视频**不暂停**：弹幕的意思就是"此刻"，停下来发就名不副实了。
           附在哪一秒由输入条按下发送时现取（getTime），不是打开时定死的 */}
       {dmOpen && (

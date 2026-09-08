@@ -22,6 +22,7 @@ import HelpButton from "../guide/HelpButton";
 import { useAutoGuide } from "../guide/useAutoGuide";
 import AnnStrip from "./AnnStrip";
 import DraftTitle from "../DraftTitle";
+import ReviseBar from "../ReviseBar";
 import CameraChips from "./CameraChips";
 import DeleteSegBtn from "./DeleteSegBtn";
 import CastPreviewCard from "./CastPreviewCard";
@@ -399,6 +400,8 @@ export default function FlowCanvas({
           {wantLand ? "↩ 回竖屏" : "⟳ 转横屏"}
         </button>
       </div>
+      {/* 回炉横条（与工作流页同一份实现）：画布是全屏浮层，顶栏之下就是这一条 */}
+      <ReviseBar className="pb-1.5" />
 
       {/* ★★ 报错条摆在**画布壳这一层**：store.err 原来只在编辑窗里画（isCursor && err），
           而"加一段"被顺序门禁拒、"存草稿"写盘失败这些都可能发生在编辑窗关着的时候 ——

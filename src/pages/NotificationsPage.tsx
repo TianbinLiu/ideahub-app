@@ -35,6 +35,10 @@ function actionText(n: NotificationItem): string {
       // ★ 与「评论了你的作品」分开写：被 @ 的人**未必是作品作者**，多半是路过的第三个人。
       //   共用一句文案会让他以为是自己的作品被评论了，点进去发现是别人的片子。
       return "在评论里 @ 了你";
+    case "BRANCH_REVISED":
+      // ★ 主语是**作品**不是人：收件人是收藏者，他关心的是"我收藏的那条变了"，
+      //   而不是"某某做了件事"。NoticeRow 那一档同理。
+      return "重新剪辑了你收藏的作品";
     case "ADMIN_NOTICE":
       // 平台口吻的那一行不走这个句式（见 NoticeRow），这里只是类型上兜全
       return "平台通知";
@@ -194,11 +198,17 @@ export default function NotificationsPage() {
                         // 服务端没把正文放进 payload.commentText —— 契约问题，说出来（铁律八）
                         <div className="mt-0.5 text-xs text-rose-300">（通知内容缺失）</div>
                       )
-                    ) : (
+                    ) : n.type === "BRANCH_REVISED" ? null : ( // ★ 见下面 ★★
                       n.commentText && (
                         <div className="mt-0.5 truncate text-xs text-slate-300">「{n.commentText}」</div>
                       )
                     )}
+                    {/* ★★ BRANCH_REVISED 这一档**不画正文**（2026-09-08 评审）：这一格是
+                        「评论预览」——带书名号、灰字、截断，读起来就是"某人说了这句话"。
+                        而服务端在这个类型的 payload.commentText 里放的是一句**系统话**
+                        （"这条作品重新剪辑过了"），复用的是同一个通道。画出来的结果是
+                        标题行刚说完「重新剪辑了你收藏的作品」，下一行又用评论的样子把同一句
+                        重说一遍，像是作者亲手写了条评论。⇒ 整行省掉：标题行已经说清了。 */}
                     {n.videoTitle && (
                       <div className="mt-0.5 truncate text-xs text-slate-500">{n.videoTitle}</div>
                     )}

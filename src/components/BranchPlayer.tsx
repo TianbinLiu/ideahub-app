@@ -4,7 +4,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icon";
 import { BranchTree, aspectCss, formatDuration } from "../types";
 
-export default function BranchPlayer({ tree, cover }: { tree: BranchTree; cover: string }) {
+/**
+ * ★ `onPathChange` 是**必填**、不是可选（铁律 5b 名单第一条：可选回调漏传零症状）。
+ *   它把"观众刚看的这条走向"报给详情页，「保存到本地」的「只存刚看的走向」按它取段。
+ *   漏传的话那一档会静默退成"只存第一段"，而作品可能有 9 段 —— 用户点完不会收到
+ *   任何一个字的提示。唯一调用点在 VideoPage。
+ */
+export default function BranchPlayer({
+  tree,
+  cover,
+  onPathChange,
+}: {
+  tree: BranchTree;
+  cover: string;
+  onPathChange: (path: string[]) => void;
+}) {
   const [nodeId, setNodeId] = useState(tree.rootId);
   const [path, setPath] = useState<string[]>([tree.rootId]);
   const [time, setTime] = useState(0);
@@ -20,6 +34,12 @@ export default function BranchPlayer({ tree, cover }: { tree: BranchTree; cover:
     const t = setTimeout(() => setCtrl(false), 3000);
     return () => clearTimeout(t);
   }, [ctrl, playing, time]);
+
+  // 走过的这条走向报给外面（详情页的「保存到本地」按它取段）。播放逻辑一个字不动。
+  useEffect(() => {
+    onPathChange(path);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [path]);
 
   const node = tree.nodes[nodeId] ?? tree.nodes[tree.rootId];
   const seg = node.segment;

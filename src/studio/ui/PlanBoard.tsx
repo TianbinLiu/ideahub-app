@@ -193,6 +193,19 @@ export default function PlanBoard({
                       aspectRatio={frameAspect}
                     />
                     <div className="text-center text-[9px] leading-3 text-slate-500">点开卡片换图</div>
+                    {/* 留存工程时丢掉的东西：如实说一句 + 给一条出路。
+                        不说的话用户只会看到一张空框，以为方案台坏了。
+                        ★★ **成片与预览图分开说**（2026-09-07 评审改）：预览图重新推演就能补回来，
+                        而一段成片没留下只能重新出片、**再花一次钱** —— 把后者说成前者，
+                        等于告诉用户"点一下就好了"，而他点完会被扣一次钱。 */}
+                    {!!p.lost?.video && (
+                      <div className="text-center text-[9px] leading-3 text-amber-300/90">
+                        这一段的成片没有留存，要重新出片（会再花一次钱）
+                      </div>
+                    )}
+                    {!!p.lost && !p.lost.video && (
+                      <div className="text-center text-[9px] leading-3 text-amber-300/90">这一格的预览图没有留存</div>
+                    )}
                     {/* 「融图」：把几张参考图合成一张边界帧。★ 只在宿主给了候选图时出现，
                         融出来的帧仍旧走 onFrame 落地（换帧只有那一个缝） */}
                     {!!fuseSources?.length && (
@@ -278,7 +291,15 @@ export default function PlanBoard({
                   disabled={busy}
                   className="flex w-full items-start gap-2.5 text-left disabled:opacity-40"
                 >
-                  <PreviewCard first={p.firstFrame} last={p.lastFrame} width={cardW} aspect={frameAspect} />
+                  {/* ★ 虚线框只说"预览图"，所以只把**帧**那几档递进去：`lost.video` 单独一档，
+                      它的话在上面那一行（成片丢了跟这张预览图没关系） */}
+                  <PreviewCard
+                    first={p.firstFrame}
+                    last={p.lastFrame}
+                    lost={!!(p.lost?.first || p.lost?.last || p.lost?.poster)}
+                    width={cardW}
+                    aspect={frameAspect}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-100">
@@ -324,11 +345,16 @@ export default function PlanBoard({
 function PreviewCard({
   first,
   last,
+  lost,
   width,
   aspect,
 }: {
   first: string;
   last: string;
+  /** 这一格的预览图是**留存工坊工程时没能留下**的（回炉打开才会为真，见 types.Proposal.lost）。
+   *  ★ 只换这一句话、只换边框：`lost` 一个判据都不参与（不影响承接/白模/参考直出），
+   *    加读点之前先想清楚会不会把"少了一张预览图"升级成"这一段不能出片"。 */
+  lost?: boolean;
   width: number;
   aspect: string;
 }) {
@@ -347,9 +373,13 @@ function PreviewCard({
       ) : (
         <div
           style={{ aspectRatio: aspect }}
-          className="flex w-full items-center justify-center rounded-lg border border-dashed border-slate-600 bg-slate-800/40 text-[9px] text-slate-500"
+          className={`flex w-full items-center justify-center rounded-lg border border-dashed bg-slate-800/40 px-1 text-center text-[9px] leading-tight ${
+            lost ? "border-amber-500/60 text-amber-300/90" : "border-slate-600 text-slate-500"
+          }`}
         >
-          无预览帧
+          {/* "本来就没画过"与"画过但没留存下来"是两件事，说法必须分开：
+              后者重新推演一次就能补回来，前者说这句话只会让人困惑 */}
+          {lost ? "这一格的预览图没有留存" : "无预览帧"}
         </div>
       )}
     </div>

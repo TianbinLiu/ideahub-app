@@ -26,6 +26,15 @@ export const BRANCH_NOTIFICATION_TYPES = [
   "BRANCH_COMMENT_LIKE",
   "BRANCH_MENTION",
   /**
+   * 收藏过的作品**被作者回炉重做了**（内容换了，链接没变）。
+   * ★ 正文走 `payload.commentText`（"这条作品重新剪辑过了"）—— 与 ADMIN_NOTICE 复用
+   *   同一条既有通道，理由见下面那条 ★。深链目标是 `videoId`。
+   * ★★ 老 App（≤v2.45）**收不到这一类**，而且这不是"降级显示"是**零知情**：
+   *   这张表是**请求层白名单**（列表筛选 / 未读数 / 全部已读三处从它派生），
+   *   老包压根不会把这个 type 放进查询。写进 docs/api-contract.md 时也必须这么说。
+   */
+  "BRANCH_REVISED",
+  /**
    * 平台通知：管理员从后台发给单个用户的自由文本（api/admin.notifyUser 那条路）。
    * ★ 正文走 `payload.commentText` —— 刻意复用评论正文那条既有通道，而不是新开一个
    *   `payload.text`：data/notifications.ts 的 toItem 只搬运它认识的字段，新开字段

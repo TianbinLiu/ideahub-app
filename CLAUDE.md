@@ -72,7 +72,11 @@ src/
                `VoiceSheet`（声音面板，三页：单音色 / 混音 / 声音市场；存服务端，官网同步）、
                `VoiceMixer`（混音调配 + 发布成模板）、`VoiceMarket`（声音市场列表：试听 / 设为我的声音 / 点赞 / 删自己的）、
                `voicePreview.ts`（三页试听共用的合成 + 播放 + 喂口型，同一时刻只响一段）
-  data/        本地库（IndexedDB）与账号库，含种子数据与迁移
+  data/        本地库（IndexedDB）与账号库，含种子数据与迁移；
+               `videoDownload.ts` = 保存到本地（能不能存 / 存哪几个 / 叫什么名字 / 下载队列 /
+               交给系统分享，**唯一实现**；落点是原生 Cache 目录，不进 IndexedDB）；
+               `projects.ts` = 已发布作品的「工坊工程」（供编辑页「🛠 回炉重做」取回来接着改）。
+               **服务端为真相**，本机只有 5 条 LRU 缓存；存的是一份只含永久 URL 的瘦身画布
   hooks/
   mock/        无后端时的假数据
   pages/       路由页面（hash 路由）；`SupportPage` = AI 客服，`SupportModelsPage` / `SupportPersonasPage` =
@@ -311,8 +315,19 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   工坊/工作流挤出 20 条上限。
 - **在途工程存 `data/drafts.ts`**：没做完的半成品，可以接着编辑（工坊/工作流两条路都能打开）。
   草稿索引与正文分开存（正文带 1MB 级的帧，个人页列表只读索引）。
-  与之相对，**已发布的作品不可回炉**——成片定稿，编辑页只改壳（标题/简介/分区/封面/可见性）。
-  想换内容就重新发一条。（"源工程 `saveProject`"那套 2026-08 删了：唯一的读方是回炉。）
+- **已发布作品的「回炉重做」存 `data/projects.ts`，不进草稿库**（2026-09-07）：发布（以及每一次
+  回炉）成功后把当时那份工坊画布瘦身成**只含永久 URL** 的 JSON PUT 进服务端，编辑页那颗
+  「🛠 回炉重做」取回来接着改，再走 `PATCH /videos/:id` 带 `segments` + `baseRevision` 换掉内容
+  （同一个链接、同一批互动数据；版次下发 + 收藏者通知 + 确认卡当面报数 + 弹幕会被清空）。
+  ★★ **别把它塞进 `drafts.v1`**：那边 `MAX_DRAFTS=20` 按 updatedAt 降序淘汰、不区分种类、
+  被挤掉的正文直接 idbDel 且零提示，而工程的 updatedAt 冻结在发布那一刻 —— 混进去的话它必然先出局，
+  用户发满 20 条之后早期作品的回炉能力会在**零提示**下消失。
+  ★★ 画布的不变量：里面**没有任何** `data:` / `idb:` / 方舟地址（服务端 zod 与客户端 `assertClean`
+  两道门）。这条不变量买下"跨设备能用"与"`cacheSweep` 不需要认识这个键"两件事 ——
+  放宽它就必须同时给 `collectReferenced` 补一段引用来源，否则清一次缓存会真删用户资产。
+  ★ 回炉态只挂在 `flowStore.reviseOf` 上，**不进草稿**：一份被重新打开的普通草稿不该悄悄拥有
+  替换线上作品的权力。它跟着 `clearTemplate()` 走（那个函数的调用点恰好是全部「整表换流水线」点），
+  `openWorkDraft` 另外显式清一次。
 - **页顶栏只有一份实现 `components/PageHeader`**（2026-09-05 主人真机点名"返回键偏上、各页位置不统一"后收口）：
   safe-top + 48px 一行，返回键 / 标题 / 「?」中心离状态栏底沿 34px，返回键走 `IconTapButton`（44×44 命中区，
   图标 22px、左缘 16px），标题 18px 加粗，右侧插槽从左到右「?」→ 操作键，长页用 `sticky`。
@@ -416,6 +431,14 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   以及**结果写进已卸载的组件**：所以「自己传图做卡片」整页表单搬进了 `studio/customCardStore`
   （`useDraftField` 用法同 useState），退出再进来原样还在；提取窗的 AI 图位在窗关了之后停进模块级
   `parked`，下次打开接回来。新加长活先问两句：结果落在 store/data 层还是组件 state？人不在时谁通知他？
+- **「保存到本地」只有一处实现**：能不能存 / 存哪几个 / 叫什么名字全在 `data/videoDownload` 的
+  `planDownload` + `fileNameOf`，UI 上的 disabled 与灰键只是把它的答案画出来；串行队列、停止标志、
+  在途登记（`inFlight`）都是**模块级单例**，组件只订阅（`hooks/useDownloads`）—— 面板有两个入口
+  （详情页整宽键 + 分享面板第四项），关面板只是组件卸载，原生下载线程不会停。
+  ★★ **下载地址是即用即弃的局部值**：绝不 setState、绝不写进 `segments[].videoUrl` / draft / store。
+  服务端有两处正则只认"不带变换"的地址（`videoCompose.branchVideoName`、
+  `templateVideoAsset.ownedRecyclableAsset`），派生地址一旦回流会同时打死服务端合并与删作品时的
+  资产回收，**两件都零报错** —— 所以地址被包在带牌子的 `DownloadTarget` 里，裸 string 传不进去。
 - **页面级表单字段一个规格**：`rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none
   placeholder:text-slate-500 focus:border-brand`（textarea 加 `resize-none leading-relaxed`）—— 高 40px，与主按钮同高。
   登录 / 设置 / 发布 / 编辑 / 卡片 / 卡组 / 模板详情 / 自建卡 / 简约模式的输入框都是它。画布、工坊面板、
@@ -453,6 +476,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 后加的字段用 `=== "预期值"` 判 | 存量数据那一项是 `undefined`，被整批判成"不是"——首页突然空了，且不报错 | 一律判**否定**（`!== "private"`）。`visibility` 踩过，规则写在 `docs/api-contract.md`「可见性」一节 |
 | 两仓价目表各写各的 | 页面报价 ¥25、实际扣 ¥15，用户觉得被偷钱 | `src/data/economy.ts` 是**报价**，server 的 `payment/order.service.js` + `config/tokens.js` 是**结算**，必须逐条相等。server 的 `payOrder.spec.js` 末尾钉了一份 |
 | 「最多出几张卡」的上限自己抄一份（报价一份、提示词一份、`slice` 一份） | 上一条的**同仓版**：界面按 6 张报价、实际铸了 8 张，多出的两张卡面照扣钱。改上限时改一处漏三处**没有任何症状**——只会变成报价与实收不等，两个方向都不报错 | 上限只有一处：`economy.DECK_MAX_CARDS` / `TEMPLATE_MAX_CARDS`，类型是 `CardMintCap`（带牌子的 number），报价函数与 `mintCards` 都只收它 —— `extractCost(n, 8)` 这种手写数字**编译不过**。提示词里那个数由 `real.ts` 的 `mintSpec(cap, head, tail)` **插值**进去（调用方只给前后两半文字，拿不到写那个数的机会），`mintCards` 切的是同一个 `spec.cap`。2026-08-13 收口，收之前模板那条路已经是错的（提示词 `0~6`、slice 切 8、报价按 6） |
+| 想在「发布之后」读工坊画布 | 每条作品都留下一份**空画布**，而不变量断言对空画布恒过、零报错 | 组稿成功那一拍 `useFlowActions.cut()` 里 `useFlow.getState().reset()` 就把 `nodes` 清成 `[]` 了（`flowStore.reset`），此后剪辑页/发布页读到的恒为空。要抓画布只有一个位置：`persistCutDraft()` **之后**、`reset()` **之前**，并当场落 IndexedDB（`data/projects.captureCanvas`）。退回"发布前读 WorkDraft 正文"也不行 —— `saveWorkDraft` 对 `mode === "simple"` 直接不落草稿，简约模式一份都拿不到 |
+| 往 `Proposal.firstFrame` / `lastFrame` / `poster` 里塞对象当墓碑（`{lost:"frame"}`） | 三条规则同时坏掉且**全是零报错或错报错**：承接判定 `p.firstFrame === prevP.lastFrame` 变成对象引用比较恒 false；`refVideoOn` 与白模 `blockoutIssue` 见它非空整句拒 ⇒ 回炉打开的白模段/参考直出段被自己的墓碑挡住出不了片；所有 `?.startsWith("data:")` 抛 TypeError | 这几格是 `string`。缺失一律用**该字段本来就有的"没有"值**（`""` / `undefined`），"为什么没有"记在旁挂的可选字段 `Proposal.lost` 里（`types.ts`）。`lost` **只管渲染**，一个判据都不参与 |
 | 以为 `design/` 里的模型可以随便打包 | —— | 那是 BOOTH 购入的第三方素材，出厂分发需先取得授权，见下 |
 | 把 `public/models/protected/` 当成"都是不能发的" | 两个方向都出过事：把**自有**的 milltina 裁掉 → 进工坊看不到铸卡师且不报错；把**第三方**的 rin 留下 → 版权素材随包发出去了 | 那个目录装的是"要加密的"，不是"不能发的"，两件事。**自有、必须发**：`milltina-opt.glbx`（委托定制的默认铸卡师）。**第三方、绝不能发**：rin（远坂凛，含卡牌全息那份）、gratia、tsumire。加密拦不住版权 —— 解密密钥就在同一个包里 |
 | 铸卡师不出声 | 嘴在动但没声音 | 系统没装中文语音包。Win11：设置→时间和语言→语音→添加语音→中文(简体，中国)，装完**完全退出浏览器**再开（语音表在进程启动时枚举一次）。⚠「讲述人→添加自然语音」里的晓晓/云希浏览器拿不到 |
@@ -552,6 +577,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 发布时成片走 `POST /uploads/media` 整份 multipart | 一条作品的 6 张图几秒传完，10.3MB 的成片在 180 秒里一个字节都没到 Node（pm2 里没有那一跳的日志），个人页横幅「上传超时」（2026-09-06 主人真机）。老路是整份经 Cloudflare（125 秒读超时）→ nginx 收完整个 body → Node 同步等 Cloudinary（100 秒）三段串行，慢网上任何一段慢一点就整发作废、从头再来 —— 与 2026-08-22 模板视频 47MB 那次同一个根因，当时只改了模板那条 | 成片也走签名直传 + 分块（`uploadMedia` → `/uploads/media/sign` + `putDirect` + `/uploads/media/confirm`，与模板视频同一份 putDirect），每块 6MB、断了只重传那一块、有真进度；每块的超时按「90 秒没传出一个字节」算而不是固定总时长（真机 5G 上行只有 30~40KB/s，一块要 150~200 秒，固定 240 秒只差一口气）；上限 100MB（老路 20MB 是 multer 内存缓冲逼出来的）。老服务端 `/sign` 回 404 退回老路。契约见 `docs/api-contract.md`「发布成片直传」 |
 | 成片预览截帧把整条成片拉到手机上解码 | 21 秒的白模片几十 MB：直连 `<video>` Range 截帧与 fetch→blob 两条路在手机网上都拉不完，「捕获本段真实尾帧」跑满 120s 后 The user aborted a request（2026-09-06 主人真机，第二版直连 Range 也没救回来）；而转存那一步的成败被步骤日志折进了「渲染视频」，看不出截帧到底走的哪条路 | 转存后的成片让 Cloudinary 抽帧（`so_` 变换，两张几十 KB 的 JPEG，`real.grabViaCloudinary`），手机只读一次元数据；直连 Range 与下载后截只做兜底。转存没赶上（还是方舟临时链接）时 `flowStore.settleNodeMedia` 后台盯 `/transfer-video/status`，拿到永久地址就换上并补截；卡片上另给「重截预览」（`recaptureNode`）。步骤日志里「成片转存中 / 没成」单独成一步（`genLog.splitStatus`）。三处捕获失败仍把原因写进步骤日志（`captureIssueLine`） |
 | 合并成片**前一截全黑、后一截怎么也播不到**，封面截不出、「帧1」是碎图 | 22 秒的成片前 12 秒全黑，画面从源片第 0 秒开始，播到 21 秒就停 —— 后 12 秒在**整个 app 里没有任何入口**能看到；发布页「从成片截帧」拖到哪儿都是黑帧，「各段首尾帧」那一行是一张碎图（2026-09-06 主人真机，白模复刻段）。全程零报错 | **三条根因互相放大**，各修各的（本机逐条量过）：① `CutPage.mergeAndGo` 的 `rec.start()` 排在 `resolveMediaUrl`（`forCapture` 会**把整条成片 fetch 成 blob**，120s 超时 + 重试一次）与 `<video>` 的 load / seek **之前**，而 `canvas.captureStream(30)` 在那十几秒里照样每秒吐 30 帧静止画布 ⇒ 黑头，而且**每段之间都有一截**（第二段起是冻住的上一帧）。修法：**开录本身推迟到第一帧真内容画上画布之后**（`beginRecording()`：画第一帧 → 等两拍 rAF 让采集轨真的吃到它 → `rec.start(250)`；第一段是 start、之后每段是 resume，一处实现），段间准备期 `rec.pause()`；**最后一段不暂停** —— 实测从 paused 调 `stop()` 会丢掉最后一个 timeslice。⚠ **先 start 再立刻 pause 不够**：采集轨里还留着准备期那张黑底（画布几十秒没动过），立刻 start 会把它编成第 0 帧 —— 文件只比内容长 0.07s，可封面弹层一打开正停在 00:00 上，截出来就是一张纯黑封面。对照实验排除解码假象：一段从头到尾纯绿的 MediaRecorder WebM 在 t=0 读出来是绿的。实测：墙上 39.9 秒的两段合并只录进 5.00 秒，空档全部没进片子，第 0 帧 rgb(21,207,21)。⚠ **音轨必须跟着录制机一起停走**：`AudioBufferSourceNode` 不受 `rec.pause()` 影响，照 AudioContext 时钟自己跑 —— 准备期开了声，恢复录制时音乐已经跑掉十几秒，成片音画永久错位且零报错（比黑头更难查：黑头看得见）。所以开声推迟到第一次 `beginRecording()`，段间用 `audioCtx.suspend()/resume()` 冻住整条音频图（实测 suspend 期间音频时钟前进 0.000s）。⚠ `MediaRecorder.pause()` 不保证每个 WebView 都真的实现：开声/解冻只准认 `audioCtx` 自己的状态，**不许拿 `rec.state` 当闸**（拿了的话 pause 一旦是空操作，成片全程无声且零报错）；pause 之后当场问一句 `rec.state`，没生效就别去动音频图（动了就是朝反方向拉开音画），并在结束时如实说一句。② MediaRecorder 出来的 WebM **没有 Duration 元素**（实测 `loadedmetadata` 时 `video.duration === Infinity`，要 seek 到 1e101 才逼得浏览器扫出真值）⇒ **没有任何消费者能从文件本身问出时长**，全 app 读的都是我们申报的那个数，而它写的是申报总和 `Math.round(total)`，比真实录制短一大截 ⇒ 播放器播到申报值就 `setPlaying(false)`。修法：**量，不要算** —— 录完直接量文件本身（`utils/videoFrames.realDurationOf`，没有 Duration 元素时 seek 到 1e101 逼浏览器扫出真值，带超时），量不到才退回墙钟。⚠ 别拿「录了多久」的墙钟当真值：机器一忙 `captureStream` 就掉帧、编码时间轴比墙钟短一截（实测同一次合并墙钟 4.87s、文件真身 3.86s，差 26%），多报的那截会让播放器在片尾对着定格帧空转。量出来的值写进 `durationSec`（**只有这一位过得了服务端** —— `realDurationSec` 不在 server `segmentBody` 的 zod 声明里，发布时被静默 strip，见上面「z.object 默认 strip」那格）。③ 读时长的地方有 **7 处**各自 `sum(x.durationSec)`，其中就有**播放器**（SegmentPlayer）与**封面截帧**（CoverPicker）⇒ 收口成 `types.segLen` / `types.segsTotal`（实测优先）。报价**不走这条**，仍按申报值。⚠ 顺带：`<img src="">` 浏览器画出来是**一张碎图**，而白模复刻段天然没有设定帧（firstFrame 恒空）—— 封面候选要滤空、把合并时从画布上留的 `poster` 排在最前，播放器封面位也退到 `poster || firstFrame` ★★ **2026-09-07 这一整套录屏实现已经退役**（连同上面那些 pause/resume/音画同拍的讲究）——合并改走**系统硬件编解码器**（原生 `VideoMergePlugin` + Media3 Transformer，见下面「合并」那条约定）。上面的教训仍然值得读（它们讲的是"实时录屏这条路为什么难走对"），但**代码里已经没有 MediaRecorder 了**，别照着去找。换掉之后 ②③ 那两类问题从根上消失：输出是标准 mp4，时长由合成器直接给。 |
+| Capacitor 8 的 WebView 没有 `DownloadListener` | `<a download>` / blob 下载在真机**零症状无反应**：不跳转、不报错、不落文件（`BridgeWebViewClient` 只重写了 4 个方法，没有下载回调）。浏览器上调得通，真机上一个字都不说 | 下载走原生插件（`@capacitor/filesystem` 的 `downloadFile`，落 `Directory.Cache`），一处实现在 `data/videoDownload`。同族的还有 `Browser.open` 交给 Chrome —— 落点/文件名/成败一个字都拿不到 |
+| 把 `Filesystem.downloadFile` 当成「下完就有一个好文件」 | 实读 `LegacyFilesystemImplementation.kt`：写入是 `FileOutputStream(file, false)`（**恒截断**，第一个字节到达之前就把旧文件毁了）、起一个裸 `thread{}` 没有取消句柄、**从头到尾不看 HTTP 状态码也不校验一个字节**；`DownloadFileOptions.recursive` 声明里写着会建父目录，但**安卓实现里没人读它**（`getFileObject` 只对根目录 `mkdir()`）。于是「重下一次」= 当场毁掉上一份已存好的文件，「两个入口各点一次」= 两条线程写同一个 path 得到字节交错的废文件，而「size 对得上」这个校验**查不出来**（两个写者写的是同一个长度） | 三件一起做：① 一律下到 `<name>.part`，`stat` 校验通过后才 `rename` 成正名；② `data/videoDownload` 里放模块级在途表（key = 目标 path），已在跑就整句拒；③ 自己 `mkdir(recursive)`、自己 `stat` 对账。另：`directory` **必须显式传** —— 不传时 legacy 的默认值是字符串 `"Download"`，`getDirectory` 不认它 → 返回 null → 空指针 |
+| 分享多个文件时相册从系统面板里消失 | `SharePlugin.shareFiles()` 里 `filesList.size() > 1` 会把 MIME 硬改成「任意文件」，相册类目标当场不出现；单文件时 MIME 来自 `MimeTypeMap.getFileExtensionFromUrl(url)`，而 AOSP 那个函数对文件名有硬正则 `[a-zA-Z_0-9.\-()%]+` —— **中文文件名匹配不上就返回空扩展名**，同样退化成「任意文件」 | 落盘文件名一律纯 ASCII（`videoDownload.fileNameOf`；中文标题只进界面与 `Share.share({title})`）；默认**逐个分享**，「一次全给」旁边如实写一句「相册可能不在候选里」 |
+| 判「这条链路通不通」去看 HTTP 状态码 | 与「Capacitor 对未命中路径回 200 + index.html」同族：Cloudinary 地址失效时回的可能是 200 + 一张错误 GIF。只看 `res.ok` 会把它当成视频下下来、落盘、校验通过、分享出去打不开 | 前置 `HEAD` 判的是 **Content-Type**（`video/` 或 `application/octet-stream`），三档：类型对 ⇒ 放行；200 但类型不对 ⇒ 整句拒并把类型写在屏幕上；`fetch` 抛（断网）⇒ **仍然放行**、那一行标「大小未知」——探测失败不是下载失败 |
+| Cloudinary 的派生地址（`fl_attachment` / `f_mp4` / `l_text`）被写回 `segments[].videoUrl` | 服务端有**两处**正则只认不带变换的地址（`videoCompose.branchVideoName`、`templateVideoAsset.ownedRecyclableAsset`）：写回去会同时打死服务端合并与删作品时的资产回收，**两件都零报错**。另外 `fl_attachment:<文件名>` 里的名字只能 ASCII，中文一律 **400**（实测回的是一张 image/gif 错误图） | 派生地址只能**用来取字节**，包在 `data/videoDownload` 的 `DownloadTarget` 里（带牌子的对象，裸 string 传不进下载函数、也赋不给 `videoUrl`）。⚠ 反向约束：谁要是去开 Cloudinary 的 strict transformations，会同时打死「保存到本地」和白模 V2 的 `so_/du_/c_crop` 裁剪链路，两边都是 404 且零日志 |
 
 ## 相关文档
 

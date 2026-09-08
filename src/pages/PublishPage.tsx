@@ -1,10 +1,19 @@
 // 合成完成后的编辑发布页：标题 / 分类 / 简介 / 封面 / 可见性 + 左侧成片预览。
 //
-// ★ 只有「全新发布」这一种模式了。原来还有一种「回炉编辑」（把本次合成塞回既有作品的
-//   某一 P），2026-08 随「作品一经发布不可回炉」一并删除 —— 理由见 studioStore 里
-//   那段注释：已经有人看过的作品不该被换掉内容。想改内容 = 重新发一条。
+// ★ 这一页有**两种模式**，判据只有一处：`draft.reviseOf`（见 types.DraftVideo.reviseOf）。
+//     · 缺省 —— 全新发布，行为与从前一字不变；
+//     · 有值 —— **回炉重做**：这条合成稿要去替换一条已发布作品的内容（同一个链接、
+//       同一批播放/点赞/评论）。顶栏、主按钮、主按钮上那句话、以及壳字段的初值四处跟着换。
+//   2026-08 曾有一种老的「回炉编辑」（把本次合成塞回既有作品的某一 P），随「发布即定稿」
+//   一起删掉，两条理由是①观众零知情②它只写本地。2026-09-07 这一版把两条都堵上了：
+//   版次下发 + 收藏者通知 + 确认卡当面报数；内容走 `PATCH` + `baseRevision` 乐观锁
+//   （对不上 409，服务器上一个字都不写）。**分集（parts）不复活**。
+//
+// ★★ 失败路径**绝不调 `finishPublish`**：它会 `set({draft:null})` + `dropCutSession()` +
+//   `retireWorkDraft()` 三件一起做 —— 替换没成功还调它，等于"既没换成、合成稿也没了"，
+//   而那份合成稿里躺着真花过钱的卡组与成片。
 import { badgeNote } from "../data/aigcLabel";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -19,9 +28,10 @@ import SegmentPlayer from "../components/SegmentPlayer";
 import TagInput from "../components/TagInput";
 import { isArkAssetUrl } from "../ai/arkClient";
 import { addCards, createDeck, deckSynced } from "../data/account";
-import { publishVideo } from "../data/videos";
+import { getVideo, publishVideo, reviseVideo, type ReviseResult } from "../data/videos";
+import { useVideosVersion } from "../hooks/useVideos";
 import { publishedExit, useStudio } from "../studio/studioStore";
-import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, visibilityWire } from "../types";
+import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, revisionLabel, visibilityOf, visibilityWire } from "../types";
 
 export default function PublishPage() {
   const navigate = useNavigate();
@@ -65,6 +75,37 @@ export default function PublishPage() {
   const [aigcOpen, setAigcOpen] = useState(false);
   useAutoGuide("publish", !!draft);
 
+  // ── 回炉态 ──────────────────────────────────────────────
+  const reviseOf = draft?.reviseOf ?? null;
+  const version = useVideosVersion();
+  /** 要被替换的那条作品（壳字段的初值从它来）。取不到（本机库里没有）时**照样能提交** ——
+   *  真正的判据在服务端（作者 + baseRevision），这里拿不到只是初值退回合成稿自己的值 */
+  const origin = useMemo(() => (reviseOf ? getVideo(reviseOf.videoId) : null), [reviseOf?.videoId, version]);
+  /**
+   * 替换失败那条页内横幅。★ 三样一起存：档（决定 amber/rose）、整句原话、以及这一档给哪几颗键。
+   *   ⚠ **不与 `err` 合并**：err 是"没发成，改完再发"（表单校验），这一格是"服务器拒了/撞车了"，
+   *     出路完全不同（重试 / 取回最新工程重来 / 只能知道了）。
+   */
+  const [reviseFail, setReviseFail] = useState<Extract<ReviseResult, { ok: false }> | null>(null);
+
+  // 壳字段初值：回炉态一律**预填原作品的值**（不是新草稿的自动标题）——用户回炉是来换内容的，
+  // 让他把标题简介再敲一遍是把"改内容"伪装成"发新片"。
+  // ★ 只在"表单还是空白"时回填，避免覆盖用户已经输入的内容（同 EditPage 那条）。
+  // ★ 可见性与标签**按 id 变化重置**，不用"空了才填"：它们的合法值里就有一个是默认值，
+  //   "是不是空"分辨不出"还没改"与"用户选了这个"（EditPage 那条教训逐字同源）。
+  useEffect(() => {
+    if (!origin) return;
+    setTitle((t) => (t ? t : origin.title));
+    setCategory((c) => (c !== "剧情" ? c : origin.category));
+    setDescription((d) => (d ? d : origin.description));
+    setCover((c) => (c ? c : origin.cover));
+  }, [origin]);
+  useEffect(() => {
+    if (!origin) return;
+    setVisibility(visibilityOf(origin));
+    setTags(origin.tags ?? []);
+  }, [origin?.id]);
+
   /**
    * 本页刚刚发布过（publish() 已经把去处发出去了）。
    * 两件事都靠它，缺一件都出过问题：
@@ -88,6 +129,73 @@ export default function PublishPage() {
 
   if (!draft) return null;
   const total = draft.segments.reduce((s, x) => s + x.durationSec, 0);
+
+  /**
+   * 回炉提交：拿这份合成稿**替换**原作品的内容。
+   *
+   * ★★ 失败**绝不调 `finishPublish`**（见文件头那条 ★★）：合成稿原样留着，用户从个人页
+   *   那条「剪到一半」横幅回来重试。也**不入待发队列** —— 队列里那份 `baseRevision` 会
+   *   陈旧，自动重试必然 409，而且是在用户看不见的地方连着 409。
+   * ★ `publishedRef` 只在**真成了**之后才置位：置早了失败时那颗键就永久禁着，
+   *   而用户此刻最需要的就是再点一次。
+   */
+  async function submitRevise() {
+    if (!draft || !reviseOf || publishedRef.current || busy) return;
+    if (!title.trim()) {
+      setErr("先给视频起个标题");
+      return;
+    }
+    setErr("");
+    setReviseFail(null);
+    setBusy("正在替换…");
+    const res = await reviseVideo(
+      reviseOf.videoId,
+      {
+        ...draft,
+        title: title.trim(),
+        category,
+        description: description.trim(),
+        ...(tags.length > 0 ? { tags } : { tags: [] }),
+        cover,
+        // 本片卡组：那颗「随片带上这套卡」在回炉时**真的有效**（作者随时可以改主意不带卡组）。
+        // ★★ 关掉时发的是**空卡组**（`{ name: "", cards: [] }`），不是 `deck: undefined`。
+        //   `undefined` 会在序列化时整个键消失、服务端 zod strip 掉、`$set` 碰不到 deck ——
+        //   库里那套旧卡组原样留着，而按钮上写着"别人看不到你用了哪几张卡"。
+        //   一颗看着生效、实际什么都没做的开关，正是本仓点名的那种禁忌。
+        //   服务端把「空卡组」翻成 `$unset deck`（见 branchVideo.controller 的 `clearDeck`）。
+        // ★ 只在**这颗开关真的画出来了**的时候才发这一格（条件与下面那段 UI 逐字同源：
+        //   `draft.deck?.cards.length`）。这一版没有卡组时一个字都不发 —— 那时用户没做过
+        //   "不带卡组"这个决定，替他把原作品上的卡组撤下来是自作主张。
+        ...(draft.deck?.cards.length
+          ? { deck: shareDeck ? { name: `《${title.trim()}》卡组`, cards: draft.deck.cards } : { name: "", cards: [] } }
+          : {}),
+        ...visibilityWire(visibility),
+      },
+      reviseOf.baseRevision,
+    );
+    setBusy("");
+    if (!res.ok) {
+      setReviseFail(res);
+      return;
+    }
+    publishedRef.current = true;
+    // ★ 回炉**不做**「同名卡组落进作者工坊」那一步（全新发布那条路才做）：`createDeck`
+    //   按名字再建一条，回炉多半用的还是同一套卡 —— 用户的工坊里会多出一条同名卡组，
+    //   而卡本身随作品的 deck 一起上行了（详情页「收入卡组」拿得到）。
+    useStudio.getState().finishPublish(res.videoId);
+    navigate(`/video/${res.videoId}`, {
+      replace: true,
+      // 成功要说一句"发生了什么"，而且要说在**结果所在的那一页**上（本 app 没有 toast）。
+      // ★ 只说已知事实：版次是回包里的；"会收到通知的人"数拿不到就不提（不许拼一个数）
+      // ★ 版次的说法与详情页那一行、个人页那颗角标**同一把尺**（types.revisionLabel，
+      //   全仓一处）：revision 是"回炉过几次"，第一次回炉之后是第 2 版。三处印不同的数
+      //   比不印更糟。这条路上 res.revision 一定 ≥ 1（回执自己校过 base+1），所以
+      //   revisionLabel 不会是 null；`?? "新的一版"` 只是不让一句 UI 文案依赖那个推理。
+      state: {
+        banner: `已替换。这条作品现在是${revisionLabel(res.revision) ?? "新的一版"}，收藏过它的人会收到通知。`,
+      },
+    });
+  }
 
   /** @param over 立刻要生效、还来不及经过 state 的字段（放弃确认卡里那条"先私密发出去"用） */
   async function publish(over?: { visibility?: Visibility }) {
@@ -165,7 +273,7 @@ export default function PublishPage() {
         sticky
         onBack={() => navigate("/studio")}
         backLabel="返回工坊"
-        title="发布视频"
+        title={reviseOf ? "回炉重做" : "发布视频"}
         subtitle={`${draft.segments.length} 段 · 共 ${formatDuration(total)}`}
         right={<HelpButton tour="publish" />}
       />
@@ -285,7 +393,11 @@ export default function PublishPage() {
                   <span className="mt-0.5 block text-[11px] text-slate-500">
                     {shareDeck
                       ? "看到这条片子的人能看到卡面与设定，也能「收入卡组」接着创作——这是别人找到你的主要方式。声明过真实人物的卡，形象图不会给出去。"
-                      : "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。"}
+                      : reviseOf
+                        // ★ 回炉态要多说一句：关掉它**会把原作品上那套卡组一起撤下来**
+                        //   （服务端收到空卡组会 $unset deck）。不说的话用户以为只是"这一版不带"
+                        ? "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。原作品上那套卡组也会一并撤下。"
+                        : "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。"}
                   </span>
                 </span>
               </button>
@@ -353,13 +465,77 @@ export default function PublishPage() {
             </div>
           )}
 
+          {/* 回炉失败的页内横幅（非 toast）。★ 服务端那句话**原样显示**：付费/已下架/复核中
+              那几档都是写给用户看的整句中文，这里再翻译一遍必然与服务端分叉（铁律六）。 */}
+          {reviseFail && (
+            <div
+              className={`rounded-xl border px-3 py-2.5 text-xs leading-relaxed ${
+                reviseFail.kind === "conflict"
+                  ? "border-amber-500/40 bg-amber-400/10 text-amber-100"
+                  : "border-rose-500/40 bg-rose-500/10 text-rose-200"
+              }`}
+            >
+              {reviseFail.why}
+              {/* ★★ 这一句**三档都要说**（2026-09-07 评审改）：这份合成稿是真花过钱的
+                  （卡组最多 8 张 + 3D 建模 + 实时录的成片），而 blocked 那一档原来只有一句
+                  原因加一颗「知道了」—— 用户此刻看得见的另一颗键是「不要了」。
+                  不告诉他东西还在，等于把"稿子没丢"这件事藏起来。 */}
+              <span className="block opacity-80">合成稿还留在「我的」里，没有丢。</span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {reviseFail.kind === "conflict" && (
+                  <button
+                    onClick={() => {
+                      // ★ 出路是「回编辑页取回最新工程重来」，**不是**「把我这一版另发成新作品」：
+                      //   那颗键会拿一份全是永久 Cloudinary 地址的画布走发布路径，于是新旧两条
+                      //   作品**逐字共享**同一批资产 —— 删掉任一条，另一条当场黑屏且零报错。
+                      navigate(`/edit/${reviseOf?.videoId ?? ""}`);
+                    }}
+                    className="rounded-full bg-amber-400/90 px-3 py-1.5 text-[11px] font-bold text-ink"
+                  >
+                    取回最新工程重来
+                  </button>
+                )}
+                {/* ★ blocked 也给一颗重试：服务端那三档里有两档**会自行解除**
+                    （`REVISE_LOCKED` 是"有待处理的举报"，管理员处理完就没了；`REVISE_TAKEN_DOWN`
+                    的下架也可能被撤销），而 `REVISE_PAID` 要作者自己去把定价改回免费 ——
+                    三档都是"过一会儿/改个设置再来"，唯独不是"这条路永远走不通"。
+                    ⛔ `stale-server`（这台服务器还不支持回炉）**不给**重试：那一档再点一万次
+                    也是同一句话，摆一颗永远不会成的键比不摆更坏。 */}
+                {(reviseFail.kind === "network" || reviseFail.kind === "blocked") && (
+                  <button
+                    onClick={() => void submitRevise()}
+                    disabled={!!busy}
+                    className="rounded-full bg-rose-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
+                  >
+                    重试
+                  </button>
+                )}
+                <button
+                  onClick={() => setReviseFail(null)}
+                  className="rounded-full border border-slate-600 px-3 py-1.5 text-[11px] text-slate-300"
+                >
+                  知道了
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 主按钮上方那一行：回炉态说清"这一下会动谁"；全新发布态说清"发完还能回炉" */}
+          {reviseOf ? (
+            <p className="text-xs leading-relaxed text-amber-300">
+              会替换《{origin?.title || "原作品"}》的内容，链接不变。
+            </p>
+          ) : (
+            <p className="text-xs leading-relaxed text-slate-500">发布后会留存这条片的工坊工程，之后可回炉重做。</p>
+          )}
+
           <div data-guide="publish-actions" className="flex items-center gap-3 pt-2">
             <button
-              onClick={() => void publish()}
+              onClick={() => (reviseOf ? void submitRevise() : void publish())}
               disabled={!!busy || !!deckIssue}
               className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-40"
             >
-              {busy || "发布"}
+              {busy || (reviseOf ? "替换原作品" : "发布")}
             </button>
             <button
               onClick={() => setDiscardOpen(true)}
@@ -375,7 +551,13 @@ export default function PublishPage() {
               那在法律上是**默示**，而且藏在按钮下面像免责声明，不像声明。
               ⚠ 不给关：本 app 的每一条作品都是 AI 生成的（画面要么是 Seedance 出的片、
                 要么是两张 AI 设定帧之间的渐变），给一个永远不能选"否"的开关只是装样子，
-                还会让人以为可以关掉。所以画成"已声明"的既成事实 + 说清楚都做了什么。 */}
+                还会让人以为可以关掉。所以画成"已声明"的既成事实 + 说清楚都做了什么。
+              ⚠ 2026-09-07 按事实改口：这一段原来写的是「成片**每一帧**的右下角带角标」。
+                现在这一句与《AIGC 内容须知》二、《用户协议》五**同源**：这里取
+                `aigcLabel.badgeNote()`，那两处取 `aigcLabel.badgeLegalClause()`，
+                盖法（`aigcBadgeSpec()`）一改三处同一拍跟着变。⚠ 别再往任何一处抄字面 ——
+                2026-09-08 评审就是在协议正文里抓到一句「逐帧写入」，而 `drawAigcBadge`
+                当时已经全仓零调用点、`AigcBadge` 也从来没进过播放器。 */}
           <div className="rounded-xl border border-slate-700/70 bg-panel/60 px-3 py-2.5">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
               <AigcBadge />
@@ -417,12 +599,24 @@ export default function PublishPage() {
         >
           {/* 只说已知事实：丢的是这条合成稿和填好的发布信息。各段素材/草稿丢没丢
               取决于上游存盘情况，这里不知道，就不许诺（DiscardFlowDialog 那条教训） */}
-          <p>这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。</p>
+          <p>
+            这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。
+            {reviseOf && `《${origin?.title || "原作品"}》不受影响，还是现在这一版。`}
+          </p>
           {/* ★★ 第三条路（2026-08-30）：这一页原来只有"现在就定死"和"全丢掉"两个选项，
-              而用户手上是一条**真金白银炼出来的成片** —— 它是一次性的（发布即定稿，
-              合成稿丢了就没了），而**可见性发布后随时能改**。两者的代价完全不对等。
+              而用户手上是一条**真金白银炼出来的成片** —— 它是一次性的（合成稿丢了就没了，
+              要再有一条只能把每一段重炼一遍、再合并一次），而**可见性发布后随时能改**。
+              两者的代价完全不对等。
+              ⚠ 这一句原来写的是"发布即定稿" —— 2026-09-07 起不再成立（编辑页那颗「🛠 回炉重做」
+                能换掉成片内容）。但**这条中间路的理由一个字没变**：回炉换的是内容，
+                换不回这条已经合成好的成片，丢了还是得重炼。
               所以给一条中间路：先按「仅自己可见」发出去，人还在、片还在，什么时候想好了
               再去作品编辑页改成公开。⚠ 这不是"偷偷替他发布"：按钮上写清楚了这一下会做什么。 */}
+          {/* ★★ 这条中间路**只在全新发布时成立**：回炉态下"先私密发出去"会走 publishVideo
+              ——那是**另发一条新作品**，而用户此刻要的是替换原作品。两条作品会逐字共享
+              同一批 Cloudinary 资产（服务端对非方舟 http 地址一律 kept 原样落库），
+              删掉任一条另一条当场黑屏、零报错。所以回炉态整颗键不画。 */}
+          {!reviseOf && (
           <button
             onClick={() => {
               setVisibility("private");
@@ -440,6 +634,7 @@ export default function PublishPage() {
               ? "片子留住、不出现在任何人的首页；想好了再去作品编辑页改成公开。"
               : "得先给它起个标题，才发得出去（关掉这张卡去填一个）。"}
           </button>
+          )}
         </ConfirmDialog>
       )}
     </div>

@@ -223,3 +223,81 @@ export async function coverToPermanentUrl(cover: string): Promise<string> {
 }
 
 export { isPermanentUrl };
+
+/**
+ * 「发出去之前那份草稿」与「服务端回包」里那些资产的**逐位置配对表**：`本机地址 → 永久 URL`。
+ *
+ * ★★ 它存在的唯一理由：留存工坊工程时要把画布里的 dataURL / `idb:` / 方舟临时链接
+ *   就地换成永久地址，而**这一趟转存已经发生过了**（`materializeDraft` 传的那几张、
+ *   服务端 `transferDraftAssets` 转的那几段）—— 再传一遍就是让手机白跑 2~4 倍的流量，
+ *   而且那是在**发布成功之后**才跑的静默上传，正是 videos.ts 那条 ★★ 记的
+ *   「App 被回收，作品在四个地方都不存在」的形状。所以这里只做**配对**，一个字节都不传。
+ *
+ * ★ 结构化配对，**不猜**：
+ *     `cover ↔ cover`；`segments[i] ↔ segments[i]`（长度不等就整段跳过）；
+ *     `branchTree.nodes[key] ↔ branchTree.nodes[key]`（**按 key，不按位置** ——
+ *       `buildBranchTree` 的 id 是 `b${counter++}` 的 DFS 计数器，位置对不上）；
+ *     `deck.cards[i] ↔ deck.cards[i]`，`views[j] ↔ views[j]`。
+ * ★ `poster` 不参与配对：它在 `publishVideo` 里就被 `stripPosters` 摘掉了，服务端
+ *   压根不存（`types.Proposal.poster` 的 ★）—— 回包里永远没有它的孪生。
+ *
+ * ★★ **按值建表、先写先赢**（这条是显式不变量，配一条用例钉着）：`materializeDraft`
+ *   不做值去重 —— `seg[i].lastFrame` 与 `seg[i+1].firstFrame` 就算是同一个 dataURL
+ *   也会被上传两次、拿到两个不同的地址。按值建表 + 先写先赢让**同一个 dataURL 在重写
+ *   后的画布里只对应一个 URL**，于是 `flowStore` 的 `keepFirstFrame`
+ *   （`p.firstFrame === prev.lastFrame`，直接决定重画报价）与 `studioStore` 的承接判定
+ *   在回炉之后仍然成立。改成「按位置回填更权威」的话，承接会静默丢失、重画报价静默变贵、
+ *   carried 徽标消失，而 tsc / 构建全绿。
+ */
+export function pairAssetUrls(before: DraftVideo, after: PairTarget): Map<string, string> {
+  const map = new Map<string, string>();
+  const add = (from: string | undefined, to: string | undefined): void => {
+    // to 必须是**永久**地址：方舟临时链接与 dataURL 都不配当映射的目标
+    if (!from || !to || from === to || !isPermanentUrl(to)) return;
+    if (map.has(from)) return; // 先写先赢，见上面的 ★★
+    map.set(from, to);
+  };
+  const pairSeg = (a: SegLike | undefined, b: SegLike | undefined): void => {
+    if (!a || !b) return;
+    add(a.firstFrame, b.firstFrame);
+    add(a.lastFrame, b.lastFrame);
+    add(a.videoUrl, b.videoUrl);
+  };
+
+  add(before.cover, after.cover);
+
+  const bs = before.segments ?? [];
+  const as = after.segments ?? [];
+  // ★ 长度不等就整段跳过：那说明这次回包与发出去的那份不是同一件东西（服务端截断/
+  //   老服务端行为不同），按位置硬配会把 A 段的帧映射到 B 段的地址上——比不映射坏得多
+  if (bs.length === as.length) for (let i = 0; i < bs.length; i++) pairSeg(bs[i], as[i]);
+
+  const bn = before.branchTree?.nodes;
+  const an = after.branchTree?.nodes;
+  if (bn && an) for (const key of Object.keys(bn)) pairSeg(bn[key]?.segment, an[key]?.segment);
+
+  const bc = before.deck?.cards ?? [];
+  const ac = after.deck?.cards ?? [];
+  if (bc.length === ac.length)
+    for (let i = 0; i < bc.length; i++) {
+      add(bc[i]?.cover, ac[i]?.cover);
+      const bv = bc[i]?.views ?? [];
+      const av = ac[i]?.views ?? [];
+      if (bv.length === av.length) for (let j = 0; j < bv.length; j++) add(bv[j]?.url, av[j]?.url);
+    }
+  return map;
+}
+
+/** 配对只认这几格，所以入参写成结构类型而不是 `ApiVideo` —— data 层不该为了一个
+ *  配对函数把 api 层的整个 DTO 拖进来（依赖方向：api → data，不反向） */
+interface SegLike {
+  firstFrame?: string;
+  lastFrame?: string;
+  videoUrl?: string;
+}
+export interface PairTarget {
+  cover?: string;
+  segments?: SegLike[];
+  branchTree?: { nodes?: Record<string, { segment?: SegLike } | undefined> };
+  deck?: { cards?: Array<{ cover?: string; views?: Array<{ url?: string } | undefined> } | undefined> };
+}

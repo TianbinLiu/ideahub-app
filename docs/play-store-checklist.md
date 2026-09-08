@@ -2,7 +2,12 @@
 
 > 状态标记：✅ 已就绪 ｜ 🔧 需要动手 ｜ 💰 需要花钱
 > 出包命令：`npm run aab`（**上架用**，play 渠道）/ `npm run apk:release`（直装版，sideload 渠道）
-> 当前产物：直装版 APK **94MB** / 上架 AAB **93MB**（实测；61MB 的模型压缩后约 38MB）
+> 当前产物：直装版 APK **94MB** / 上架 AAB **93MB**（61MB 的模型压缩后约 38MB）
+> ⚠️ **这两个数已经过期，发版前必须当场重出一次再填**。2026-09-07「保存到本地」装进了
+> `@capacitor/filesystem` + `@capacitor/share`，这是本仓**第一次把 Kotlin 工具链拉进纯 Java 构建**
+> （根 `android/build.gradle` 原来只有 AGP + google-services）——**npm 包大小不能当 dex 增量用**。
+> 做法：装插件前后各出一次 `npm run apk:release` 与 `npm run aab`，逐字节记差值；
+> play AAB 增量 > 8MB 就停下来报告（`app-distribution.md` 记着"83MB 的包国内基本下不动"）。
 > （其中 61MB 是「极致」档玩家形象的 4K 贴图模型 —— 2026-08-11 起随包发布，见
 > `scripts/prune-app-assets.mjs`。裁剪仍然剔除零引用的烘焙遗留模型与不可分发的购入素材。）
 >
@@ -10,7 +15,12 @@
 > 而 Google Play **禁止**这种行为。隔离靠 product flavor 做在构建里，不靠人记得删，
 > 细节见 [`app-distribution.md`](app-distribution.md)。上传 Play 前确认 AAB 里
 > 没有 `REQUEST_INSTALL_PACKAGES`：
-> `aapt2 dump permissions <aab 解出来的 base.apk> | grep INSTALL` 应当无输出。
+> `aapt2 dump permissions <aab 解出来的 base.apk>` —— **把整表与上一版逐条比对**，
+> 不要只 `grep INSTALL`。理由：装第三方插件时权限是**插件的 manifest 合并进来的**，
+> 你不会提前知道它想加哪一条（2026-09-07 装 `@capacitor/filesystem` + `@capacitor/share`
+> 时逐个解包核过，两者的 `AndroidManifest.xml` 都是空 `<manifest></manifest>`，
+> 所以这一版整表应当仍然只有 `INTERNET` / `RECORD_AUDIO` / `MODIFY_AUDIO_SETTINGS` 三条）。
+> `grep INSTALL` 只查得出你已经想到的那一条。
 
 ## 一、账号与资质
 
@@ -147,7 +157,11 @@ Play 对 **Social / Dating / 匿名随机聊天** 类应用强制这一项。我
 - **广告声明**：无广告。
 - **应用类别**：社交（Social）。⚠ 别为了躲儿童安全那套而报「娱乐」—— 类别与实际功能不符
   本身就是拒因，而功能摆在那里。
-- **AI 生成内容声明**：是。成片画面有持续显示的「AI 生成」角标（`drawAigcBadge`，第 0 帧起）。
+- **AI 生成内容声明**：是。⚠ **别照旧稿填「持续显示 / 第 0 帧起 / drawAigcBadge」**（2026-09-08
+  复核：那个函数全仓零调用点）。按事实填：经剪辑页合并导出的成片把「AI 生成」烧进**起始画面
+  约 2.5 秒**（原生合成器，`data/aigcLabel.aigcBadgeSpec()`，`MODE="head"`/`HEAD_SEC=2.5`）；
+  所有作品在应用内的信息流、分区页、个人主页、详情页旁有「AI 生成」界面标识；保存到本地的
+  文件名带 `AIGC-` 前缀。措辞以 `aigcLabel.badgeLegalClause()` 的产出为准。
 - **政府应用 / 金融 / 健康**：都不是（所以**不需要**组织账号与 D-U-N-S）。
 
 ### 7b. 应用访问权限（App access）🔧 —— 不给就是直接驳回

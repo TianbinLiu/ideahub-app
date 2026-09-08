@@ -72,6 +72,8 @@ const fetchedAt = new Map<string, number>();
 const REFETCH_MS = 30_000;
 /** 服务端说"这条作品的弹幕被截断了" —— 要让用户知道，别假装就这么多 */
 const truncatedIds = new Set<string>();
+/** 这条作品的弹幕**真的问回来过**（回包到手）。与 fetchedAt 分开的理由见 danmakuFetched 的 ★ */
+const landed = new Set<string>();
 
 function emit(): void {
   version++;
@@ -169,6 +171,43 @@ export function danmakuOf(videoId: string): DanmakuItem[] {
   return store[rid] ?? [];
 }
 
+/**
+ * 把这条作品的弹幕从**本机镜像**里整条清掉（不发任何请求）。
+ *
+ * ★★ 唯一的调用方是「回炉重做」成功那一拍（data/videos.reviseVideo）：服务端在换掉
+ *   内容时会 `deleteMany` 这条作品的全部弹幕 —— 因为 `BranchDanmaku.at` 是**全片累计秒**、
+ *   没有段落锚点，内容一换必然对不上画面，而且零报错。本机这份镜像不跟着清的话，
+ *   替换成功那一刻屏幕上还在飘一批**服务端已经不存在**的旧弹幕，刷新一次又全没了。
+ * ★ 顺手清掉 `fetchedAt`：下次问同一条作品要重新拉一遍（否则 REFETCH_MS 内不再请求，
+ *   而那期间新打的弹幕就一条都看不见）。
+ */
+export function dropLocalDanmaku(videoId: string): void {
+  const rid = realId(videoId);
+  if (!store[rid] && !fetchedAt.has(rid) && !landed.has(rid)) return;
+  const next = { ...store };
+  delete next[rid];
+  store = next;
+  fetchedAt.delete(rid);
+  truncatedIds.delete(rid);
+  // ★★★ `landed` 必须一起清（2026-09-08 评审抓到）。它是 `danmakuFetched()` 的唯一依据，
+  //   而全文件只有 loadRemote 成功那一处 `landed.add`、此前**没有任何地方 delete**。
+  //   于是回炉清空一次之后：store 空了、landed 还在 ⇒ `danmakuFetched()` 恒真而条数恒 0。
+  //   下一次回炉的确认卡分支是「问到了 ? (有几条才画那一段) : (还没数清，提交时会全部清空)」——
+  //   两个条件同时踩空，**关于弹幕的话一个字都不出现**，而服务端在替换成功那一拍就把
+  //   期间新打的那些弹幕不可恢复地删掉了。这张卡存在的全部理由就是"提前把这件事说清"。
+  //   ⚠ 清掉之后回到"还没问过"这一档是**对的**：镜像确实没了，下一次渲染会重新去问，
+  //     问不到时卡上说的是"还没数清"这句实话，而不是一个骗人的 0。
+  landed.delete(rid);
+  emit();
+}
+
+/** 这条作品的弹幕**已经从服务端问回来过**了吗（UI 要能分清「没有弹幕」与「还没问到」）。
+ *  ★ 离线模式恒真：那边本机就是真相，没有"还没问到"这一档。 */
+export function danmakuFetched(videoId: string): boolean {
+  if (!remoteOn()) return true;
+  return landed.has(realId(videoId));
+}
+
 /** 服务端截断过这条作品的弹幕吗（UI 要如实说明） */
 export function isTruncated(videoId: string): boolean {
   return truncatedIds.has(realId(videoId));
@@ -184,6 +223,10 @@ async function loadRemote(rid: string): Promise<void> {
     const page = await branch.listDanmaku(rid);
     store = { ...store, [rid]: merge(store[rid], page.items.map(fromApi)) };
     if (page.truncated) truncatedIds.add(rid);
+    // ★ 「问过了」与「正在问」是两回事：fetchedAt 在**发请求之前**就写了（它是防重入的
+    //   节流位），拿它当"问到了"用会让回炉确认卡在回包到达之前就报出「0 条弹幕」——
+    //   一个骗人的数。所以另记一格，只在真拿到回包时置位。
+    landed.add(rid);
     emit();
   } catch (e) {
     fetchedAt.delete(rid); // 失败允许下次重试（划走再划回来就会再问一次）
