@@ -15,7 +15,7 @@ import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
 import { AI_REAL, refineFrame, regenSegment } from "../ai";
-import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
+import { isArkAssetUrl, requestArkTransfer, transferStatus } from "../ai/arkClient";
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
 import { annRedrawCost, fmtTokens, segTokens } from "../data/economy";
@@ -624,19 +624,51 @@ export default function CutPage() {
     try {
       // ★ 老草稿自救：还是方舟直链的段先转存成永久地址（服务端拉，全球 CDN）。
       //   出片那一刻的转存 2026-08-20 才上线，在那之前炼的段揣的还是 TOS 直链 ——
-      //   跨境网络下 120s 代理抓取拉不完 20MB，合并必超时（真机实拍）。转存失败不挡合并，
-      //   照旧走代理抓取碰运气，resolveMediaUrl 的超时文案会说人话。
+      //   而原生合成器是**流式**拉源片的，跨境直连 TOS 又慢又容易断。转存失败不挡合并，
+      //   照旧拿直链碰运气。
+      //
+      // ★★ 走**受理式 + 短轮询**，不走阻塞式（2026-09-07 真机实拍换掉的）：
+      //   阻塞式 `transferArkVideo` 要在一个请求里等服务端搬完，而 Cloudflare 的读超时是
+      //   125 秒 —— 这一发等满约 145 秒、整发作废、静默退回方舟直链，然后 Media3 只好跨境
+      //   拉 TOS。**服务端那边其实一直搬得好好的**（后台任务，与请求生死无关），只是没人回来问。
+      //   受理式把等待拆成一串几百毫秒的请求，一个都碰不到那堵墙，还能被「取消合并」打断。
       let mergeSegs = segs;
       const arkAt = segs.map((s, i) => (isArkAssetUrl(s.videoUrl) ? i : -1)).filter((i) => i >= 0);
       if (arkAt.length > 0) {
         const next = segs.slice();
         for (const i of arkAt) {
+          const src = next[i].videoUrl!;
+          // ★★ 这一步会真的花上一两分钟（跨境搬 20~80MB），所以**文案必须一直在动**：
+          //   2026-09-07 真机实拍到它一动不动地停了 108 秒 —— 屏幕上分不出"还在搬"与"卡死了"，
+          //   也分不出卡在**提交**那一发还是**等搬完**（这两件事的排查方向完全不同）。
+          const tf0 = Date.now();
+          const waited = () => Math.round((Date.now() - tf0) / 1000);
           setBusy(`第 ${i + 1} 段成片转存中（换成永久地址）…`);
           try {
-            next[i] = { ...next[i], videoUrl: await transferArkVideo(next[i].videoUrl!) };
+            let got = await requestArkTransfer(src);
+            // ★ 上限 120 秒：搬 20~80MB 在服务端那头通常十几秒。到点还没好就先用直链走
+            //   （成不成都不挡合并），后台那份不会白搬 —— 下次再问就是现成的。
+            const until = Date.now() + 120_000;
+            while (got.state === "pending" && Date.now() < until && !cancelRef.current) {
+              setBusy(`第 ${i + 1} 段成片转存中（换成永久地址）· 已等 ${waited()} 秒…`);
+              await new Promise((r) => setTimeout(r, 3_000));
+              const st = await transferStatus([src]).catch(() => null);
+              const hit = st?.[src];
+              // ★ `none` = 服务端没有这条的登记（老服务端 / 受理那一发其实没落地）——
+              //   它不是一种进展，别写回 got（写回去循环就当"搬完了"退出来了）
+              if (hit && hit.state !== "none") {
+                got = { state: hit.state, ...(hit.url ? { url: hit.url } : {}), ...(hit.message ? { message: hit.message } : {}) };
+              }
+            }
+            if (got.state === "done" && got.url) next[i] = { ...next[i], videoUrl: got.url };
           } catch {
             /* 见上：失败照旧 */
           }
+        }
+        if (cancelRef.current) {
+          setBusy("");
+          setErr("已取消合并。片段、圈选和配乐都还在，随时可以重新开始。");
+          return;
         }
         mergeSegs = next;
         // 写回草稿：预览、重试合并、发布都用转存后的地址，别让下一步再拉一次跨境

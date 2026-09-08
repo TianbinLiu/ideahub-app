@@ -11,6 +11,7 @@ import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
@@ -71,6 +72,9 @@ import java.util.List;
 @OptIn(markerClass = UnstableApi.class)
 @CapacitorPlugin(name = "VideoMerge")
 public class VideoMergePlugin extends Plugin {
+
+    /** logcat tag：真机复盘时 `adb logcat -s VideoMerge` 一条命令就能把合成那一段捞出来 */
+    private static final String TAG = "VideoMerge";
 
     /** 同一时刻只允许一炉（与 Web 侧那道防重入闸同义，两边都拦一次） */
     private Transformer running;
@@ -284,7 +288,11 @@ public class VideoMergePlugin extends Plugin {
                         //noinspection ResultOfMethodCallIgnored
                         out.delete();
                         if (cc == null) return;
-                        cc.reject("合并失败：" + brief(e), "EXPORT_FAILED");
+                        // ★ 全栈进 logcat：`brief` 只留得下 220 字，真机复盘要的是栈
+                        Log.e(TAG, "合成失败 errorCode=" + e.errorCode, e);
+                        // ★ 这里**不加**「合并失败：」前缀 —— CutPage 的 catch 已经加了一次，
+                        //   加两次屏幕上就是「合并失败：合并失败：…」（2026-09-07 真机拍到）
+                        cc.reject(brief(e), "EXPORT_FAILED");
                     }
                 }).build();
                 running = t;
@@ -294,7 +302,8 @@ public class VideoMergePlugin extends Plugin {
                 running = null;
                 PluginCall cc = runningCall;
                 runningCall = null;
-                if (cc != null) cc.reject("合并起不来：" + brief(e), "START_FAILED");
+                Log.e(TAG, "合成起不来", e);
+                if (cc != null) cc.reject("起不来（" + brief(e) + "）", "START_FAILED");
             }
         });
     }
@@ -322,20 +331,52 @@ public class VideoMergePlugin extends Plugin {
         return x % 2 == 0 ? x : x + 1;
     }
 
+    /**
+     * 把一条异常压成一句人话。
+     *
+     * ★★ **必须走整条 cause 链**（2026-09-07 补，补之前它只取最外层的 getMessage）：
+     *   media3 的 `ExportException` 最外层永远只是一句分类词 —— 角标那次是
+     *   "Video frame processing error"，真因（IllegalArgumentException: width and height
+     *   must be > 0）藏在第二层。只报最外层等于**把唯一有用的那句话扔了**，屏幕上、
+     *   logcat 里、错误回执里三处同时查不到原因。
+     */
     private static String brief(Throwable e) {
-        String m = e.getMessage();
-        if (m == null || m.isEmpty()) m = e.getClass().getSimpleName();
-        return m.length() > 120 ? m.substring(0, 120) : m;
+        StringBuilder sb = new StringBuilder();
+        Throwable t = e;
+        for (int depth = 0; t != null && depth < 4; depth++) {
+            String m = t.getMessage();
+            if (m == null || m.isEmpty()) m = t.getClass().getSimpleName();
+            else if (depth > 0) m = t.getClass().getSimpleName() + ": " + m;
+            if (sb.length() > 0) sb.append(" ← ");
+            sb.append(m);
+            if (t.getCause() == t) break;
+            t = t.getCause();
+        }
+        String s = sb.toString();
+        return s.length() > 220 ? s.substring(0, 220) : s;
     }
 
     /**
      * 显式标识角标。
-     * ★ 「只在开头露一段」不是靠调透明度，而是**过了时间就返回空文本** —— 空文本什么都不画，
-     *   比动 OverlaySettings 的 alpha 少一层依赖，行为也更好预测。
+     * ★ 「只在开头露一段」不是靠调透明度，而是**过了时间就换成一段画不出任何东西的文本**。
+     *
+     * ⚠⚠ 那段文本**必须是一个空格，不能是空串**（2026-09-07 真机实测的根因，代价是整条合并）：
+     *   media3 的 `TextOverlay.getBitmap()` 拿 `getText()` 的结果去量宽度再建位图 ——
+     *     measureText("") = 0 → StaticLayout 宽 0 → `Bitmap.createBitmap(0, h, ARGB_8888)`
+     *     → IllegalArgumentException("width and height must be > 0")
+     *   GL 线程上抛出来的它被 Transformer 包成 `ExportException`，message 只有一句
+     *   **"Video frame processing error"**，真因全在 cause 里（这也是下面 `brief` 现在要打
+     *   整条 cause 链的理由）。
+     *   ⚠ 更坏的是它**不在第 0 帧发作**：前 headSec 秒文本非空，一切正常；硬件转码跑得飞快，
+     *   20.7 秒的片子约 0.6 秒就越过 2.5 秒那条线，然后当场炸 —— 屏幕上表现为「刚开始就失败」，
+     *   与角标毫无关联，我是靠反编译 media3 的 TextOverlay 字节码才把它对上的。
+     *   空格 measureText > 0，位图非零且全透明（StaticLayout 画一个空格什么都不留），
+     *   合规上也等价于"不显示"。
      */
     private static final class BadgeOverlay extends TextOverlay {
         private final SpannableString shown;
-        private final SpannableString empty = new SpannableString("");
+        /** 见类注释：**一个空格**，不是空串 —— 空串会让 media3 建 0 宽位图并抛 IAE */
+        private final SpannableString empty = new SpannableString(" ");
         private final long untilUs; // <0 = 全程
         private final StaticOverlaySettings settings;
 
