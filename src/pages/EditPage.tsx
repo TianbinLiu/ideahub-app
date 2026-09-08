@@ -20,7 +20,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { CoverSection } from "../components/CoverPicker";
 import TagInput from "../components/TagInput";
 import VisibilityPicker from "../components/VisibilityPicker";
-import { deleteVideoItem, getVideo, isMyAuthor, isUploading, partsOf, updateVideoMeta } from "../data/videos";
+import { deleteVideoItem, getVideo, isMyVideo, isUploading, partsOf, updateVideoMeta } from "../data/videos";
 import { coverToPermanentUrl } from "../data/publishAssets";
 import * as projects from "../data/projects";
 import { danmakuFetched, danmakuOf, danmakuVersion, isTruncated, subscribeDanmaku } from "../data/danmaku";
@@ -114,7 +114,11 @@ export default function EditPage() {
       </div>
     );
   }
-  if (!isMyAuthor(video.author)) {
+  // ★ 按 userId 判（isMyVideo），不是按展示名。VideoPage 那颗「✏️ 编辑」按钮只是入口，
+  //   **这一行才是闸** —— 手敲 /edit/<id> 就绕过按钮了。2026-09-08 复核补：上一轮只换了按钮。
+  //   放行别人的作品会让 updateVideoMeta 先 `Object.assign(v, patch)` 就地改掉本机缓存里
+  //   那条**别人的** VideoItem（首页卡片当场跟着变），要等服务端 403 回来才回滚。
+  if (!isMyVideo(video)) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
         <div>只有作者本人可以编辑这部作品</div>

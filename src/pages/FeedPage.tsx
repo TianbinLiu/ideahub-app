@@ -16,7 +16,7 @@ import {
   commentCountOf,
   hasCountedPlay,
   isLiked,
-  isMyAuthor,
+  isMyVideo,
   listFollowingVideos,
   listVideos,
   refreshFeed,
@@ -308,7 +308,10 @@ function FeedItem({
   const durBefore = segsTotal(video.segments.slice(0, si));
   const pendingSeek = useRef<number | null>(null);
   const isInteractive = !!video.branchTree;
-  const mine = isMyAuthor(video.author);
+  // ★ 按 userId 判（isMyVideo），不是按展示名 —— 这一格喂的是下面那道**付费墙**，
+  //   判错就是整段付费成片在信息流里直接自动播，一分钱不付、零报错。
+  //   2026-09-08 复核补：上一轮只换了详情页那一处 locked，漏了信息流这一处。
+  const mine = isMyVideo(video);
   // 付费未解锁：流里只出封面（不给白嫖流量费），点它去详情页解锁
   const lockPrice = video.pricing?.mode === "paid" ? (video.pricing.partPrices[0] ?? 0) : 0;
   const locked = lockPrice > 0 && !mine && !hasPurchased(video.id, 0);

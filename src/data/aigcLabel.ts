@@ -94,13 +94,17 @@ export function badgeIsPersistent(): boolean {
  *   一句法务文本同时说反两件事，而它下一行就写着「不得删除、遮挡或篡改」。⇒ 收口到这里，
  *   盖法一改，协议正文、发布页说明、客服口径同一拍跟着变（铁律六 + 铁律八）。
  * ⚠ 改这里的措辞**不需要**动 `TERMS_UPDATED`（那是"要不要让所有人重新过一次同意门"的另一个决定）。
+ * ⚠⚠ 返回值是**纯文本**，一个 markdown 记号都不许带：两个消费点都是 JSX 表达式
+ *   （agreements.tsx 的《用户协议》五与《AIGC 内容须知》二），渲染链 Sec → `<p>{children}</p>`
+ *   → InfoDialog 全程没有任何 markdown 解析 —— 写 `**x**` 用户看到的就是字面的星号，
+ *   而这是法务正文。要强调请在调用点用 `<b>`。
  */
 export function badgeLegalClause(): string {
   if (badgeIsPersistent()) {
     return `成片画面每一帧都带「${AIGC_BADGE_TEXT}」角标，导出到本地的文件里同样有`;
   }
   return (
-    `经剪辑页合并导出的成片，会把「${AIGC_BADGE_TEXT}」标识烧进**起始画面约 ${HEAD_SEC} 秒**` +
+    `经剪辑页合并导出的成片，会把「${AIGC_BADGE_TEXT}」标识烧进起始画面约 ${HEAD_SEC} 秒` +
     `（这一份随文件走，导出到本地也在）；未经合并导出的作品（逐段生成、互动分支）画面内不含该标识`
   );
 }

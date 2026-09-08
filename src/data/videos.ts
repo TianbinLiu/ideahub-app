@@ -520,10 +520,27 @@ export function isMyAuthor(author: string): boolean {
  *   离线库、没 populate 过的对象里都是 undefined（2026-08 已经为此栽过一次：
  *   一律认 id 会让离线模式下自己的作品全变成"别人的"）。
  */
-export function isMyVideo(v: { author: string; authorId?: string }): boolean {
+export function isMyVideo(v: { id?: string; author: string; authorId?: string }): boolean {
+  // ① 离线模式：本机就是真相，作者名恒为 ME，没有"别人"这一档
+  if (!remoteOn()) return isMyAuthor(v.author);
   const me = currentUser();
-  if (me && v.authorId) return v.authorId === me.id;
-  return isMyAuthor(v.author);
+  // ② 未登录 / 冷启动水合期一律判否。★ 这一档是 2026-09-08 复核补的：上一版写成
+  //   `if (me && v.authorId)`，`me` 为 null 时**连试都不试 id**就退回 `isMyAuthor`，
+  //   而它第一句是 `if (author === ME) return true` —— 于是昵称为「我」的作者，
+  //   他的全部公开作品对**每一个未登录访客**恒开（/video/:id 不在 RequireAuth 里，
+  //   游客照样进得来）。`authState()` 的注释也写明冷启动水合期 currentUser() 恒为 null，
+  //   那段时间里所有作品都会按展示名判。判否只是本人少一颗键，判是是把别人的东西交出去。
+  if (!me) return false;
+  // ③ 正路：远端模式下 authorId 实际总是有值 —— `branch.authorId` 对 populate 过的对象
+  //   取 `_id`、对裸 id 字符串直接返回它本身，服务端两条读路径也都 populate 了作者。
+  if (v.authorId) return v.authorId === me.id;
+  // ④ 还没落库的乐观条目（本地临时 id `v_*`）没有 authorId —— 它必然是本人刚发的那条
+  if (v.id && v.id.startsWith("v_")) return true;
+  // ⑤ 远端模式下既没 id 又不是乐观条目 ⇒ 判否，**不退回展示名**。
+  //   展示名不是身份：服务端对 displayName 只 `.trim()`，`User.js` 的索引注释明写
+  //   「非唯一：displayName 本来就允许重名（它不是身份，username 才是）」，
+  //   而昵称就印在作品卡上、公开可见 —— 退回它就等于把闸门交给一个谁都能撞的字符串。
+  return false;
 }
 
 /**
