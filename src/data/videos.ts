@@ -515,10 +515,14 @@ export function isMyAuthor(author: string): boolean {
  *   判错的方向还正好是**全放行** —— 判否只是本人少一颗键（看得见理由、能重试），
  *   判是则是把别人的成片交出去。⇒ 凡是拿它挡「能不能拿到别人的东西」的地方都必须换成这一个。
  *
- * ★ 写法照 `canDeleteComment` 那条成方：**有 id 只认 id，拿不到才退回展示名**。
- *   不能一刀切成 `v.authorId === me.id` —— `authorId` 是后加字段，老服务端的回包、
- *   离线库、没 populate 过的对象里都是 undefined（2026-08 已经为此栽过一次：
- *   一律认 id 会让离线模式下自己的作品全变成"别人的"）。
+ * ★ 它与 `canDeleteComment` 那条成方（有 id 只认 id、拿不到退回展示名）**故意不一样**：
+ *   那一处判错只是多/少一颗删除键，这一处判错是把别人的成片交出去、把付费内容白送。
+ *   ⇒ 远端模式下**不退回展示名**，宁可判否。之所以敢这么严，是因为 authorId 在远端
+ *   模式下实际总是有值：`branch.authorId` 对 populate 过的对象取 `_id`、对裸 id 字符串
+ *   直接返回它本身，服务端两条读路径都 populate 了作者，而 VideoItem 的四个构造点里
+ *   三个显式写了 authorId、第四个（乐观发布）写的是 `currentUser()?.id`。
+ *   ⚠ 2026-08 踩过的那个坑（一刀切认 id 会让**离线模式**下自己的作品全变成"别人的"）
+ *   由第 ① 档挡住：离线模式整条走 `isMyAuthor`，一个字都没变。
  */
 export function isMyVideo(v: { id?: string; author: string; authorId?: string }): boolean {
   // ① 离线模式：本机就是真相，作者名恒为 ME，没有"别人"这一档
