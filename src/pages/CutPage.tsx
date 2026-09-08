@@ -262,9 +262,13 @@ export default function CutPage() {
   /** 播放用地址：https 直连（同步拿到）、idb: 换 objectURL（异步）。不是截帧流（见 loadCaptureSrc） */
   const playSrc = useMediaUrl(activeSeg?.videoUrl);
   const res = RESOLUTIONS.find((r) => r.id === resId) ?? RESOLUTIONS[0];
-  // 整条成片的画幅取第一段：时间轴上各段本该是同一个画幅（铸段时就跟着上一段走），
-  // 真混排了也只能挑一个——合并只有一块画布，另一种必然被裁或补边
-  const portrait = aspectOf(segs[0]?.aspect).id === "portrait";
+  // 整条成片的画幅取**时间轴上的第一段**：各段本该是同一个画幅（铸段时就跟着上一段走），
+  // 真混排了也只能挑一个——合并只有一块画布，另一种必然被裁或补边。
+  // ★★ 认 `view[0]` 不认 `segs[0]`：这两个经常不是同一段 —— 用户在剪辑页把第 1 段删掉、
+  //   或拖到后面去，`segs[0]` 就成了一个**根本不在成片里**的段，而整条片子还按它的画幅归一，
+  //   归一走的是 LAYOUT_SCALE_TO_FIT_WITH_CROP ⇒ 剩下那些段被硬裁掉两边，全程零报错。
+  //   （套白模模板会改写那一段的 aspect，所以混排是真会发生的。）
+  const portrait = aspectOf((segs[view[0]?.segIndex] ?? segs[0])?.aspect).id === "portrait";
   const out = outSize(res.long, portrait);
   /**
    * **还在成片里**的那些圈选 —— 计价、按钮上的数、重拍三处都只准用这一份。
@@ -823,7 +827,20 @@ export default function CutPage() {
       //   ★ 判**否定**：老插件不报这一位（undefined = 不知道），只有明确 false 才说。
       // 预置的"原视频音轨"其实是条无声视频（白模模板常见）——原生那边已经跳过，这里如实说
       if (merged.bgmSkipped) warns.push(merged.bgmSkipped);
-      if (merged.hasAudio === false) {
+      /**
+       * 这条成片到底会不会响。**两个来源，谁先答得准算谁**：
+       * ① 合成器（`merged.hasAudio`）—— 单段时可信；多段开了 forceAudioTrack 之后它答不准，
+       *    所以那时它干脆不发这一位（见 nativeMerge.MergeResult.hasAudio 的 ★★）。
+       * ② **输入侧**（`VideoSegment.hasAudio`，组稿那一拍算好的）—— 参与合并的那几段
+       *    **全部**明确无声，那整条就是哑的。这一条正是补上①的盲区：默认 std 档 audio:false、
+       *    白模钉死 generate_audio:false ⇒ **多段全哑是常态，不是边角**。
+       * ★ 判否定：只要有一段是 `undefined`（老草稿没有这一位）就当"不知道"，一个字都不说。
+       * ★ 看的是 `view`（真正进了成片的那几段）不是 `segs` —— 删掉/没排进时间轴的段不算数。
+       */
+      const bgmIn = !!audioArg && !merged.bgmSkipped;
+      const partAudio = view.map((c) => mergeSegs[c.segIndex]?.hasAudio);
+      const allSilent = partAudio.length > 0 && partAudio.every((x) => x === false);
+      if (!bgmIn && (merged.hasAudio === false || allSilent)) {
         warns.push(
           "这条成片没有声音：素材本身不带音轨，合成时也没有加配乐。想要声音就回剪辑页的「音频」加一条，再合一次。",
         );

@@ -720,6 +720,18 @@ export interface VideoSegment {
   /** 该段选用的 Seedance 档位 id（见 data/economy VIDEO_TIERS）；缺省=标准档 */
   videoTier?: string;
   /**
+   * 这一段**自己**带不带声音（组稿那一拍算好的：白模复刻恒 false，普通段看档位能不能出音）。
+   *
+   * ★★ 为什么要在这里存一位、而不是合并完去问合成器：多段合并必须开 media3 的
+   *   forceAudioTrack（不开会整发抛），而它会给哑片也补一条静音轨 ⇒ `ExportResult.audioMimeType`
+   *   恒非 null、合成器答不准。而"这条成片是哑的"恰恰是最该当面说的一句话
+   *   （默认 std 档 `audio:false`、白模钉死 `generate_audio:false` ⇒ **多段全哑是常态不是边角**）。
+   *   ⇒ 判据挪到**输入侧**：组稿时就知道，零网络零 token。
+   * ★ 老草稿没有这一位 ⇒ `undefined` = **不知道**，此时一个字都别说（判否定，别把"不知道"说成"没有"）。
+   * ★ 服务端 zod 会把它 strip 掉 —— 无所谓，它只在发布**之前**用。
+   */
+  hasAudio?: boolean;
+  /**
    * 该段出片时的画幅；缺省=横屏（老数据）。
    * ★ 播放端只把它当**提示**用（首帧还没解码出来时先按它排版），真正的判据是
    *   `<video>` 的 videoWidth/videoHeight——用户上传/换过的段、以及服务端可能
