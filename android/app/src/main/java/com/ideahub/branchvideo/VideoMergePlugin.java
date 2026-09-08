@@ -298,11 +298,26 @@ public class VideoMergePlugin extends Plugin {
             if (aUrl != null && !aUrl.isEmpty()) {
                 bgmSupplied = true;
                 float vol = (float) audio.optDouble("volume", 1.0);
-                ChannelMixingAudioProcessor mixer = new ChannelMixingAudioProcessor();
-                mixer.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(1, 1).scaleBy(vol));
-                mixer.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(2, 2).scaleBy(vol));
+                // ★★ 音量就是 1 的时候**一个处理器都不挂**（2026-09-08）：这条处理器存在的
+                //   唯一理由是调音量，而它是有代价的 —— `ChannelMixingMatrix.createForConstantGain`
+                //   只实现了少数几种声道组合（字节码里那几句报错原文：「…->1 are not implemented.」
+                //   「…->2 are not implemented.」），我们能安全登记的只有 1→1 与 2→2。
+                //   于是一条 5.1／7.1 的配乐会因为"找不到对应的矩阵"被**整发拒**，
+                //   而用户能做的只有把配乐删掉重来 —— 提示里还不会这么说。
+                //   缺省音量（预置的模板原声就是 1.0）直接透传，多声道源从此不受影响。
+                // ⚠ 调过音量的多声道源仍然会撞上这条 —— media3 这一版就是没实现，
+                //   要绕只能自己写一个与声道数无关的增益处理器，代价与收益不成比例。
+                ImmutableList<AudioProcessor> aps;
+                if (Math.abs(vol - 1f) < 0.001f) {
+                    aps = ImmutableList.of();
+                } else {
+                    ChannelMixingAudioProcessor mixer = new ChannelMixingAudioProcessor();
+                    mixer.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(1, 1).scaleBy(vol));
+                    mixer.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(2, 2).scaleBy(vol));
+                    aps = ImmutableList.of(mixer);
+                }
                 EditedMediaItem bgm = new EditedMediaItem.Builder(MediaItem.fromUri(Uri.parse(aUrl)))
-                        .setEffects(new Effects(ImmutableList.<AudioProcessor>of(mixer), ImmutableList.of()))
+                        .setEffects(new Effects(aps, ImmutableList.of()))
                         // ★★ 只要声音，画面丢掉。这不是优化，是**正确性**：这条音轨的来源
                         //   常常是一个 **mp4**（白模模板的原片 refVideo.url —— 白模成片自己
                         //   是无声的，声音全靠它混进来）。多序列合成里画面只该由第一条序列出，
