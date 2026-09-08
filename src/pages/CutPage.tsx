@@ -78,6 +78,13 @@ export default function CutPage() {
   const navigate = useNavigate();
   const draft = useStudio((s) => s.draft);
   const segEdit = useStudio((s) => s.segEdit);
+  /**
+   * 模板原声的地址（组稿那一拍算的，见 studioStore.draftAudioHint）。
+   * ★ 音频页签靠它摆一颗**可点的候选** —— 在这之前那一页只有"挑本地文件"一个入口：
+   *   预置一旦被 ✕ 掉、或者一开始就没预置上（取回段 / 老剪辑稿），用户**没有任何办法**
+   *   把模板原声拿回来，而屏幕上也没有一个字提过它曾经存在。
+   */
+  const audioHint = useStudio((s) => s.draftAudioHint);
   const segs = draft?.segments ?? [];
   /**
    * 这条稿子**已经合好了**（`merged:true` 是合并那一拍写的，`idb:` 兜住老稿子）。
@@ -847,6 +854,23 @@ export default function CutPage() {
       // 预置的"原视频音轨"其实是条无声视频（白模模板常见）——原生那边已经跳过，这里如实说
       if (merged.bgmSkipped) warns.push(merged.bgmSkipped);
       /**
+       * 用的是**自动预置**的原片音轨，而画面时间轴被动过 ⇒ 音画必然对不上。
+       * ★ 预置那条音轨是按**原片从 0 秒**混进去的（分段组取的更是整条源片），
+       *   而剪辑页的裁剪 / 删段 / 换序改的全是画面这一侧 —— 两边没有任何对齐机制。
+       *   真要对齐得给音轨也做一份时间轴映射，那是另一件事；在那之前**至少要说出来**，
+       *   否则用户拿到一条音画错位的成片，只会以为是合成质量的问题。
+       */
+      if (audioArg && audio && audio.url === audioHint) {
+        const touched =
+          view.length !== segs.length ||
+          view.some((c, i) => c.segIndex !== i || c.start > 0.01 || Math.abs(c.end - segLen(segs[c.segIndex])) > 0.01);
+        if (touched) {
+          warns.push(
+            "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。",
+          );
+        }
+      }
+      /**
        * 这条成片到底会不会响。**两个来源，谁先答得准算谁**：
        * ① 合成器（`merged.hasAudio`）—— 单段时可信；多段开了 forceAudioTrack 之后它答不准，
        *    所以那时它干脆不发这一位（见 nativeMerge.MergeResult.hasAudio 的 ★★）。
@@ -1411,6 +1435,14 @@ export default function CutPage() {
               </div>
             ) : (
               <>
+                {audioHint ? (
+                  <button
+                    onClick={() => setAudio({ name: "原视频音轨", url: audioHint, volume: 1 })}
+                    className="mb-2 w-full rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-100"
+                  >
+                    🔊 用模板原声
+                  </button>
+                ) : null}
                 <label className="flex cursor-pointer items-center justify-center rounded-xl border border-dashed border-slate-600 py-3 text-xs text-slate-400 hover:border-brand">
                   ＋ 添加本地音频作为 BGM
                   <input
