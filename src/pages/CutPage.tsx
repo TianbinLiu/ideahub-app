@@ -78,6 +78,17 @@ export default function CutPage() {
   const draft = useStudio((s) => s.draft);
   const segEdit = useStudio((s) => s.segEdit);
   const segs = draft?.segments ?? [];
+  /**
+   * 这条稿子**已经合好了**（`merged:true` 是合并那一拍写的，`idb:` 兜住老稿子）。
+   *
+   * ★★ 为什么必须单列一格（2026-09-07 核查抓到，主人当时正踩在上面）：合并产物的地址是
+   *   `idb:merged:…`，而 mergeAndGo 里那道 `^https?:` 闸会把它判成"还没转存"，抛出
+   *   「第 N 段还不是永久地址，合成用不了——**回到工作流等它转存完再来**」——
+   *   而这条出路**根本不存在**：片子已经合好了，没有什么可等的，工作流也早被 reset 清空了。
+   *   于是从个人页「接着剪」回来的成片**再也发不出去**，屏幕上还指着一个假出口。
+   *   ⇒ 已经合好的稿子这一步不该是"合并"，而是**直接去发布**。
+   */
+  const alreadyMerged = !!draft?.merged || (segs.length === 1 && (segs[0]?.videoUrl || "").startsWith("idb:"));
 
   const [clips, setClips] = useState<Clip[]>([]);
   const [sel, setSel] = useState<string | null>(null);
@@ -605,6 +616,13 @@ export default function CutPage() {
     //   两次写库、两次 navigate —— 后完成的那次会把用户已经在发布页看到的成片换成
     //   它自己那条录得更烂的（2026-08-21 对抗评审确认）。
     if (busy || mergingRef.current) return;
+    // ★ 纵深：已经合好的稿子直接去发布（理由见 alreadyMerged 的 ★★）。
+    //   UI 上那颗键这时本来就写着「去发布」，这里只是不让别的调用路绕过去。
+    if (alreadyMerged) {
+      leftRef.current = true;
+      navigate("/publish");
+      return;
+    }
     mergingRef.current = true;
     cancelRef.current = false;
     wentHiddenRef.current = false;
@@ -701,7 +719,13 @@ export default function CutPage() {
         //   与其悄悄跳过它（成片里少一段，零报错），不如整句说清楚。
         if (!url) throw new Error(`第 ${c.segIndex + 1} 段还没有视频（只有设定帧），合成做不了——先把这一段炼出来`);
         if (!/^https?:/i.test(url)) {
-          throw new Error(`第 ${c.segIndex + 1} 段还不是永久地址，合成用不了——回到工作流等它转存完再来`);
+          // ★ 分两种情况说，别让一句话指向不存在的出口（`idb:` 那种上面 alreadyMerged 已经拦掉了，
+          //   落到这里的只可能是"多段里混着一段本机文件"这种不该出现的形状）
+          throw new Error(
+            url.startsWith("idb:")
+              ? `第 ${c.segIndex + 1} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回工作流重做一条`
+              : `第 ${c.segIndex + 1} 段还不是永久地址，合成用不了——回到工作流等它转存完再来`,
+          );
         }
         // 没裁过的片段跟着**实测**时长走（与 segLen 同一把尺）
         const untrimmed = c.start <= 0.01 && Math.abs(c.end - segLen(seg)) < 0.01;
@@ -891,11 +915,19 @@ export default function CutPage() {
         ) : (
           <button
             data-guide="cut-next"
-            onClick={() => void mergeAndGo()}
+            onClick={() => {
+              // 已经合好的就直接去发布 —— 再合一次既没有意义，也做不到（见 alreadyMerged 的 ★★）
+              if (alreadyMerged) {
+                leftRef.current = true;
+                navigate("/publish");
+                return;
+              }
+              void mergeAndGo();
+            }}
             disabled={!!busy}
             className="rounded-full bg-brand px-4 py-1.5 text-sm font-bold text-ink disabled:opacity-40"
           >
-            下一步
+            {alreadyMerged ? "去发布" : "下一步"}
           </button>
         )}
           </>
