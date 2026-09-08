@@ -552,11 +552,12 @@ export default function PublishPage() {
               ⚠ 不给关：本 app 的每一条作品都是 AI 生成的（画面要么是 Seedance 出的片、
                 要么是两张 AI 设定帧之间的渐变），给一个永远不能选"否"的开关只是装样子，
                 还会让人以为可以关掉。所以画成"已声明"的既成事实 + 说清楚都做了什么。
-              ⚠ 2026-09-07 按事实改口：这一段原来写的是「成片**每一帧**的右下角带角标」，
-                而 `drawAigcBadge` 的调用点全仓只在剪辑页的合并导出上 —— 逐段生成与互动分支
-                作品的角标是 App 内的 DOM 覆盖层（components/AigcBadge），文件一离开 App 就没了。
-                措辞必须与 `data/agreements` 的《AIGC 内容须知》二**逐字同口径**：那一份已经
-                按事实重写过了，这一份不改就是同一件事在两处说两句话（其中一句是假的）。 */}
+              ⚠ 2026-09-07 按事实改口：这一段原来写的是「成片**每一帧**的右下角带角标」。
+                现在这一句与《AIGC 内容须知》二、《用户协议》五**同源**：这里取
+                `aigcLabel.badgeNote()`，那两处取 `aigcLabel.badgeLegalClause()`，
+                盖法（`aigcBadgeSpec()`）一改三处同一拍跟着变。⚠ 别再往任何一处抄字面 ——
+                2026-09-08 评审就是在协议正文里抓到一句「逐帧写入」，而 `drawAigcBadge`
+                当时已经全仓零调用点、`AigcBadge` 也从来没进过播放器。 */}
           <div className="rounded-xl border border-slate-700/70 bg-panel/60 px-3 py-2.5">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
               <AigcBadge />

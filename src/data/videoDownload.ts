@@ -42,7 +42,7 @@
 import type { PluginListenerHandle } from "@capacitor/core";
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
-import { getVideo, isMyAuthor, isShareable, partsOf } from "./videos";
+import { getVideo, isMyVideo, isShareable, partsOf } from "./videos";
 import { startJob } from "./jobs";
 import { isNative } from "../utils/oauth";
 import type { VideoItem, VideoSegment } from "../types";
@@ -169,11 +169,16 @@ export function planDownload(
   const sup = downloadSupport();
   if (!sup.ok) return { ok: false, blocked: sup.reason! };
 
-  // ① 只放行作者本人。判据一处：videos.isMyAuthor。
+  // ① 只放行作者本人。判据一处：videos.isMyVideo。
   //    它同时解决四件事：他人作品的版权与肖像、unlisted 作者心智被文件永久化、
-  //    付费墙（isMyAuthor 为真时 VideoPage 的 locked 恒假 ⇒ 这里不需要复制那条判据）、
+  //    付费墙（本人为真时 VideoPage 的 locked 恒假 ⇒ 这里不需要复制那条判据）、
   //    以及"被举报后把成片转存出去"。
-  if (!isMyAuthor(video.author)) return { ok: false, blocked: "只能保存自己发布的作品。" };
+  //    ★★★ 必须是 `isMyVideo`（按 userId），**不是** `isMyAuthor`（按展示名）。
+  //      展示名可以重名、也可以随便改，而这一道闸的失败方向是"把别人的成片交出去"：
+  //      2026-09-08 评审当场量过——把昵称改成作者的昵称（昵称就印在作品卡上）就能整套下载，
+  //      而且连改都不用改，`ME === "我"` 与兜底名「匿名」让这两个昵称的持有者的公开作品
+  //      对全站恒开。理由全文见 videos.isMyVideo 的 ★★★。
+  if (!isMyVideo(video)) return { ok: false, blocked: "只能保存自己发布的作品。" };
 
   // ② 已下架的谁都不给，**包括作者本人**。理由与 VideoPage 那条下架横幅同源：
   //    不给解释时他最可能的下一步就是"原样重发一遍"——正是下架想避免的结果；
@@ -933,16 +938,35 @@ export async function listDownloads(): Promise<DownloadGroup[]> {
 /**
  * 清空。★ 正在保存时**整句拒**：rmdir 会把 `.part` 与正在写的那份一起删掉，而原生线程
  * 还在往一个已经不存在的 inode 里写 —— 那是一次不会报错、也不会留下文件的"成功"。
+ *
+ * ★★ 2026-09-08 评审补的两件事（原实现两件都错，而且错得看不出来）：
+ *   ① **rmdir 的失败必须顶到屏幕上**。原来是 `.catch(console.warn)` 然后无条件回
+ *      `{files, bytes}` —— 递归删到一半失败、底层 IO 出错、文件被别的句柄占住，
+ *      这些都会 reject，而用户得到的是一句「已删掉 N 个文件」+ 列表当场清空，
+ *      仿佛几百 MB 已经释放，实际磁盘一个字节没动（铁律八）。
+ *      ⚠ 目录本来就不在（DoesNotExist）**不算失败**：那说明文件确实没了，照常报成功。
+ *   ② **内存里的 DownloadState 要跟着清**。它记着「这一批哪几行已存好」，面板据此
+ *      印「✓ 已存」并让「分享 / 另存为」可点。文件都删了它还留着，就是面板对着一批
+ *      已经不存在的文件说"已存"，点分享拿到一句假回执。
  */
-export async function clearDownloads(): Promise<{ files: number; bytes: number; blocked?: string }> {
+export async function clearDownloads(): Promise<{ files: number; bytes: number; blocked?: string; failed?: string }> {
   if (state.running) {
     return { files: 0, bytes: 0, blocked: "有一条作品正在保存，等它跑完（或点停止）再清。" };
   }
   const groups = await listDownloads();
   const files = groups.reduce((s, g) => s + g.files, 0);
   const bytes = groups.reduce((s, g) => s + g.bytes, 0);
-  await Filesystem.rmdir({ path: DOWNLOAD_DIR, directory: Directory.Cache, recursive: true }).catch((e) => {
-    console.warn("[dl] rmdir failed", e);
-  });
+  try {
+    await Filesystem.rmdir({ path: DOWNLOAD_DIR, directory: Directory.Cache, recursive: true });
+  } catch (e) {
+    // 目录不在 = 文件确实没了，不是失败（listDownloads 与 rmdir 之间被系统缓存清理器挪走）
+    const why = e instanceof Error ? e.message : String(e);
+    if (!/does\s*not\s*exist|not\s*found|ENOENT/i.test(why)) {
+      console.warn("[dl] rmdir failed", e);
+      return { files: 0, bytes: 0, failed: `没能删掉：${why}。文件还在，可以再试一次。` };
+    }
+  }
+  // 文件没了，面板里那份「已存」的记忆也不能留（见上面 ★★ ②）
+  setState({ ...EMPTY_STATE });
   return { files, bytes };
 }

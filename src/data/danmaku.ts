@@ -183,12 +183,21 @@ export function danmakuOf(videoId: string): DanmakuItem[] {
  */
 export function dropLocalDanmaku(videoId: string): void {
   const rid = realId(videoId);
-  if (!store[rid] && !fetchedAt.has(rid)) return;
+  if (!store[rid] && !fetchedAt.has(rid) && !landed.has(rid)) return;
   const next = { ...store };
   delete next[rid];
   store = next;
   fetchedAt.delete(rid);
   truncatedIds.delete(rid);
+  // ★★★ `landed` 必须一起清（2026-09-08 评审抓到）。它是 `danmakuFetched()` 的唯一依据，
+  //   而全文件只有 loadRemote 成功那一处 `landed.add`、此前**没有任何地方 delete**。
+  //   于是回炉清空一次之后：store 空了、landed 还在 ⇒ `danmakuFetched()` 恒真而条数恒 0。
+  //   下一次回炉的确认卡分支是「问到了 ? (有几条才画那一段) : (还没数清，提交时会全部清空)」——
+  //   两个条件同时踩空，**关于弹幕的话一个字都不出现**，而服务端在替换成功那一拍就把
+  //   期间新打的那些弹幕不可恢复地删掉了。这张卡存在的全部理由就是"提前把这件事说清"。
+  //   ⚠ 清掉之后回到"还没问过"这一档是**对的**：镜像确实没了，下一次渲染会重新去问，
+  //     问不到时卡上说的是"还没数清"这句实话，而不是一个骗人的 0。
+  landed.delete(rid);
   emit();
 }
 

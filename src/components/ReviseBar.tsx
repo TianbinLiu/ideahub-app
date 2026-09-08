@@ -10,7 +10,6 @@
 //   （见 data/projects 的 markLost），这里如实报数 —— 不报的话用户会以为方案卡坏了。
 import { useState, useSyncExternalStore } from "react";
 import { useFlow } from "../studio/flowStore";
-import { useStudio } from "../studio/studioStore";
 import { projectMetaOf, projectsVersion, subscribeProjects } from "../data/projects";
 
 export default function ReviseBar({ className = "" }: { className?: string }) {
@@ -30,10 +29,21 @@ export default function ReviseBar({ className = "" }: { className?: string }) {
         </span>
         <button
           onClick={() => {
-            // ★ 只断开"替换谁"这一格，**画布一个字不动**：它接着当一条普通在途草稿，
-            //   下一次自动存盘会把它另存下来（newWorkDraft 断开与旧草稿的关联）。
+            // ★ 只断开"替换谁"这一格，**画布一个字不动、草稿关联也一个字不动**：
+            //   它接着当一条普通在途草稿，下一次自动存盘照常存回**同一条**。
+            // ⛔ **不许在这里调 `newWorkDraft()`**（2026-09-08 评审删掉的那一句）。
+            //   旧注释说它是为了"断开与旧草稿的关联"，但那件事 `openProject` 进来时
+            //   就已经做过了（它把 workDraftId 置 null、savedDoneCount 置 0）——
+            //   此刻 workDraftId 指的是**本次回炉自己新建的那条草稿**，断它有两条后果：
+            //     ① `savedDoneCount` 归零，而 `done` 不变 ⇒ DiscardFlowDialog 按
+            //        `unsaved = done - savedDone` 当面告诉用户「这 N 段出片后还没进草稿，
+            //        丢了要重花 token」—— 那 N 段就好好躺在草稿里，一个 token 都不用重花。
+            //        （那个弹层的文件头写着：往吓人的方向说错不比往放心的方向说错高尚。）
+            //     ② 下一次自动存盘走 `saveDraft({ id: null })` **另存一条**，两条各带 MB 级的帧、
+            //        抢同一份 MAX_DRAFTS=20 的额度，而那条孤儿只能靠用户自己去草稿箱认出来删。
+            //   这正是 `useApplyTemplate` 的 `claim` 标记专门挡下来过的那个回归，
+            //   ReviseBar 绕过那个 hook 直接调，把它重新引了回来。
             useFlow.setState({ reviseOf: null });
-            useStudio.getState().newWorkDraft();
           }}
           className="flex-none rounded-full bg-panel px-3 py-1 text-[11px] text-slate-300 ring-1 ring-slate-700"
         >

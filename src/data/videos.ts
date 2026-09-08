@@ -504,6 +504,29 @@ export function isMyAuthor(author: string): boolean {
 }
 
 /**
+ * 这条**作品**是不是我的 —— 手里有整条 VideoItem 时一律用它，别用上面那个 `isMyAuthor`。
+ *
+ * ★★★ 差别不是风格，是**能不能当闸门用**。`isMyAuthor` 比的是**展示名**，而展示名
+ *   在这个产品里不是身份：服务端 `PUT /api/me/profile` 对 displayName 只 `.trim()`，
+ *   `User.js` 的索引注释明写「非唯一：displayName 本来就允许重名（它不是身份，username 才是）」。
+ *   于是把昵称改成作者的昵称（昵称就印在作品卡上，公开可见），`isMyAuthor` 当场判真。
+ *   更糟的是**不需要有人攻击**：`ME === "我"`，任何人把昵称设成「我」，他的全部公开作品
+ *   对全站每一个人都判真；`authorName` 的兜底值「匿名」同理。
+ *   判错的方向还正好是**全放行** —— 判否只是本人少一颗键（看得见理由、能重试），
+ *   判是则是把别人的成片交出去。⇒ 凡是拿它挡「能不能拿到别人的东西」的地方都必须换成这一个。
+ *
+ * ★ 写法照 `canDeleteComment` 那条成方：**有 id 只认 id，拿不到才退回展示名**。
+ *   不能一刀切成 `v.authorId === me.id` —— `authorId` 是后加字段，老服务端的回包、
+ *   离线库、没 populate 过的对象里都是 undefined（2026-08 已经为此栽过一次：
+ *   一律认 id 会让离线模式下自己的作品全变成"别人的"）。
+ */
+export function isMyVideo(v: { author: string; authorId?: string }): boolean {
+  const me = currentUser();
+  if (me && v.authorId) return v.authorId === me.id;
+  return isMyAuthor(v.author);
+}
+
+/**
  * 「点这个人 → 去哪个页面」。**只有这一处实现**（首页 Feed / 详情页 / 关注列表 /
  * 评论里的 @提及 / 分区页搜人共用）。
  *
@@ -1666,6 +1689,14 @@ async function loadDetail(item: VideoItem): Promise<void> {
     item.segments = Array.isArray(v.segments) ? v.segments : item.segments;
     item.branchTree = v.branchTree ?? item.branchTree;
     if (Array.isArray(v.parts) && v.parts.length > 0) item.parts = v.parts;
+    // ★★ 版次跟着内容一起搬（2026-09-08 评审补）。漏了这两位的症状是**只差一行字**：
+    //   这一跳已经把回炉后的新 segments / branchTree 换上去了，观众看到的是新内容，
+    //   而详情页那句「重新剪辑过 · 第 N 版」读的正是 revision / revisedAt ——
+    //   于是内容变了、却没有任何一处告诉观众它变过。作者那边同样受影响：编辑页的
+    //   `projectStale` 拿 `video.revision` 与留存工程的 videoRevision 比，读到一个
+    //   过期的 revision 会把「工程是上一版」误判成「对得上」。
+    if (typeof v.revision === "number") item.revision = v.revision;
+    if (v.revisedAt) item.revisedAt = toMs(v.revisedAt);
     // ★ 走同一处归一（见 toVideoDeck 的 ★★）：这一行原来直接赋 v.deck，
     //   于是详情回填会把 toVideoItem 归一好的那份**又换回没有 id 的原始快照**
     const deck = toVideoDeck(v.deck);
@@ -1886,10 +1917,27 @@ export async function reviseVideo(id: string, draft: DraftVideo, baseRevision: n
   const got = Number(v.revision ?? 0);
   if (got !== baseRevision + 1) {
     console.warn("[videos] 回炉整发失败：revision 未递增", { id, base: baseRevision, got });
+    // ★★★ 这句话 2026-09-08 之前写的是「作品内容一个字都没有被改动」，**那是假的**（评审抓到）。
+    //   这一发 PATCH 里同时带着壳字段（title / category / description / tags / cover /
+    //   visibility / linkOnly）与内容三件（segments / branchTree / deck）。老服务端认识壳字段、
+    //   照常写库，只是它的 zod 里没有内容三件那几个键 ⇒ **被静默 strip**、revision 不涨。
+    //   于是真实结果是"壳换了、内容没换"，而屏幕上说的是"一个字都没动" —— 用户不会去核对标题
+    //   和封面，等他发现时已经不知道是哪一步改的。⇒ 如实说，并把确实落地的那半回填本机库
+    //   （不回填的话本机与服务端从这一刻起就不一致，而这条作品还会照常参与列表与详情的合并）。
+    const shell = find(id);
+    if (shell) {
+      shell.title = v.title || shell.title;
+      shell.category = v.category || shell.category;
+      shell.description = v.description ?? shell.description;
+      shell.cover = v.cover || shell.cover;
+      save(all());
+    }
     return {
       ok: false,
       kind: "stale-server",
-      why: "这台服务器还不支持回炉重做——作品内容一个字都没有被改动。等服务器更新后再试。",
+      why:
+        "这台服务器还不支持回炉重做——成片内容没有被替换（但标题、简介、封面这些改动已经生效了）。" +
+        "合成稿还留在「我的」里，等服务器更新后再试一次。",
     };
   }
   // 回填本机库（与 pushPublish 同一口径：回包里的地址才是转存后的永久地址）

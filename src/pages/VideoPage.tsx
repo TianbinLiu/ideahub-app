@@ -21,6 +21,7 @@ import {
   getVideo,
   isLiked,
   isMyAuthor,
+  isMyVideo,
   partsOf,
   profileHref,
   setLike,
@@ -193,7 +194,10 @@ export default function VideoPage() {
   // 付费墙：本 P 定价 > 0 且 观众≠作者 且 未购 → 用封面顶住播放器，解锁后放行
   useAccountVersion(); // 购买/余额变化即时反映
   const partPrice = video?.pricing?.mode === "paid" ? (video.pricing.partPrices[piSafe] ?? 0) : 0;
-  const locked = !!video && partPrice > 0 && !isMyAuthor(video.author) && !hasPurchased(video.id, piSafe);
+  // ★★ 按 **userId** 判本人（isMyVideo），不是按展示名（isMyAuthor）：展示名允许重名、
+  //   也能随手改成作者的昵称，而这一格是**付费墙** —— 判错的方向是白看付费内容。
+  //   同一条闸还传导给「保存到本地」（videoDownload.planDownload 的 ① 明写靠这里）。
+  const locked = !!video && partPrice > 0 && !isMyVideo(video) && !hasPurchased(video.id, piSafe);
   const [payErr, setPayErr] = useState("");
   /** 分享面板（与首页右侧栏那颗共用 ShareSheet 一份实现） */
   const [shareOpen, setShareOpen] = useState(false);
@@ -395,7 +399,7 @@ export default function VideoPage() {
               ⚠ 后半句原来写的是「现在**所有**作品的成片都不可修改（发布即定稿）」——
                 2026-09-07 起不再成立：编辑页那颗「🛠 回炉重做」能换掉成片内容（同一个链接、
                 同一批互动数据）。能不能回炉由**编辑页**按六条判据说，这里不预判、不分叉。 */}
-          {isMyAuthor(video.author) ? (
+          {isMyVideo(video) ? (
             <Link
               to={`/edit/${video.id}`}
               className="flex-none rounded-full bg-amber-500/15 px-3 py-1.5 text-xs text-amber-300"

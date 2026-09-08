@@ -330,9 +330,16 @@ App 的「保存到本地」直接向 Cloudinary 的**原地址**取字节（与
 ⚠ 反向约束：一旦开启 Cloudinary 的 **strict transformations**，本功能与白模 V2 的
 `so_/du_/c_crop` 裁剪链路（`server-support/src/utils/templateVideoAsset.js`，生产在跑）会**一起 404 且零日志**。
 
-⚠ 客户端下载时可能用 `f_mp4` 派生地址取字节（webm 成片转 H.264）。那个地址**只用于取字节**，
-绝不回流进 `segments[].videoUrl` —— 服务端 `videoCompose.branchVideoName` 与
-`templateVideoAsset.ownedRecyclableAsset` 都只认不带变换的地址，写回去会同时打死合并与资产回收。
+⚠ 本版**不生成任何 Cloudinary 派生地址**：`f_mp4`（webm 转 H.264）那一档 2026-09-07 评审时
+撤下、等拍板，见 `app/docs/backlog.md`；`videoDownload.ts` 用一整段注释禁止再长出来
+（探大小的 HEAD 会触发一次计费转码，派生产物又没有 Content-Length）。
+上一版这里写的是「客户端下载时**可能用** `f_mp4` 派生地址取字节」——与实现相反，
+也与本节上面第 4 行「直接向 Cloudinary 的**原地址**取字节」自相矛盾（2026-09-08 评审改）。
+⇒ 上面那条 strict transformations 的反向约束，当前要保护的**只有**白模 V2 的 `so_/du_/c_crop`；
+下载链路一个变换都不用。
+将来若真启用派生地址：它**只能用于取字节**，绝不回流进 `segments[].videoUrl` ——
+服务端 `videoCompose.branchVideoName` 与 `templateVideoAsset.ownedRecyclableAsset`
+都只认不带变换的地址，写回去会同时打死合并与资产回收。
 
 契约本身没变，另外两仓不需要跟改。
 
@@ -381,6 +388,7 @@ App 的「保存到本地」直接向 Cloudinary 的**原地址**取字节（与
 | 400 | `REVISE_LOCKED` | 这条作品暂时不能改内容，请稍后再试。 | — |
 | 400 | `REVISE_NO_BASE` | 请求缺少版本号，请更新 App 后再试。 | — |
 | 409 | `REVISE_CONFLICT` | 这条作品在别的设备上也改过（服务器上已经是第 N 版）。你这一版没有提交。 | `{ currentRevision }` |
+| 502 | `REVISE_TRANSFER_FAILED` | 有 N 处素材没能存到云端，这一版**没有**提交（原作品一个字没动）。稍后再试一次。 | `{ failedKeys }` |
 | 429 | `RATE_LIMIT_EXCEEDED` | Too many requests, slow down | `{ retryAfter }` |
 
 ★ `REVISE_LOCKED` 是"有待处理举报"那一档，**措辞刻意不提举报 / 复核**：一旦告诉作者

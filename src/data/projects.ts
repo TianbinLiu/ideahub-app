@@ -67,6 +67,20 @@ interface PendingCanvas {
   clientId?: string;
   /** 这一摊是回炉某条作品（回炉提交成功后按它对上号） */
   reviseOf?: { videoId: string; baseRevision: number };
+  /**
+   * 这份画布归哪条**已发布作品**（`retain` 归属校验通过那一拍盖上）。
+   *
+   * ★★★ 为什么不能只靠 `clientId`（2026-09-08 评审抓到的重要项）：编辑页那颗「重试留存」
+   *   的判据是 `pendingFor(video.id, video.clientId)`，而首次发布那份待办身上只有 clientId，
+   *   于是走的是"比 clientId"那一支 —— 可 `VideoItem.clientId` **活不过冷启动**：
+   *   远端模式下 `videos.save()` 是 no-op，重启后 cache 由 `res.items.map(toVideoItem)`
+   *   整份重建，而 `toVideoItem` 里根本没有 clientId 这一格 ⇒ 恒为 undefined ⇒ 判据恒假。
+   *   症状：首次发布时 PUT 失败（断网/配额/5xx），用户当时没处理、关掉 App，再进来时
+   *   那颗能救回来的键**一次都不会画出来**，而留存失败那句话还写着"可在编辑页点「重试留存」"
+   *   —— 明明躺在本机 IndexedDB 里的画布永远点不到，这条作品的回炉能力就此永久消失。
+   *   ⇒ 盖一格作品 id：它跟着待办一起进 IndexedDB，重启后照样对得上号。
+   */
+  videoId?: string;
   title: string;
   canvas: CanvasSnapshot;
   /**
@@ -156,6 +170,22 @@ export function readyProjects(): Promise<void> {
     emit();
   })();
   return readyOnce;
+}
+
+/**
+ * 待办**现在就能补留存**吗（编辑页那颗「重试留存」的判据）。
+ *
+ * ★★ 比 `pendingFor` 多一道 `ready`（2026-09-08 评审补的两条次要项，同一个根）：
+ *   `ready` 是"配对表已经算好、可以直接 PUT"的标志，只在 `submit` 里置位 —— 也就是说
+ *   **只有已经发布/回炉成功、只差最后那一发 PUT 的待办才为真**。不加这一道的话，
+ *   「组稿完了但还没点替换」那一档也会把键摆出来，而那时：
+ *     · 键上写着「重新留存这一版（现存那份还是上一版）」—— 假话，这一版根本还没提交；
+ *     · 点下去 `retryRetain` 走 `!pend.ready` 那支，回一句「这份画布没能整理成可留存的
+ *       样子——这条作品没法再补留存了」—— 与真实原因（还没提交）毫不相干的死路话。
+ *   用户此刻该做的是去把回炉提交完，而屏幕上这两句都在把他往别处推。⇒ 那一档整颗键不画。
+ */
+export function pendingRetainable(videoId: string, clientId?: string): boolean {
+  return pendingFor(videoId, clientId) && !!pending?.ready;
 }
 
 /** 「这台服务器支不支持工坊工程」的四档答案。★ 四档各有各的话要说（见 readyProjects 的 ★★）：
@@ -280,6 +310,9 @@ export async function stampPendingCanvas(clientId: string | undefined): Promise<
 export function pendingFor(videoId: string, clientId?: string): boolean {
   if (!pending) return false;
   if (pending.reviseOf) return pending.reviseOf.videoId === videoId;
+  // ★ 盖过作品 id 就只认它（见 PendingCanvas.videoId 的 ★★★）：这一格跨得过冷启动，
+  //   而下面那个 clientId 跨不过（重启后 VideoItem.clientId 恒为 undefined）。
+  if (pending.videoId) return pending.videoId === videoId;
   return !!clientId && pending.clientId === clientId;
 }
 
@@ -472,7 +505,17 @@ async function retain(
   after: PairTarget & { title?: string },
   revision: number,
 ): Promise<void> {
-  const pend = await readPending();
+  // ★★ 老服务端（没有 /api/branch/projects 这条路由）**不弹失败票**（2026-09-08 评审）：
+  //   那边每一次发布都会走到这里、PUT 撞 404，于是每发一条作品就多一张红票，写着
+  //   「可在编辑页点「重试留存」」—— 而编辑页那颗键的判据是 `supported === true`，
+  //   在这台服务器上永远不会出现。给一张指向不存在按钮的失败票，比不给更糟。
+  //   ⚠ 只挡 `false` 这一档：`null`（还没问出结果）与 `"error"`（问了没问到）都要照常走，
+  //     把它们当成"不支持"就会把真正的留存失败一起吞掉（铁律八）。
+  if (supported === false) {
+    console.warn("[projects] 这台服务器不支持工坊工程，跳过留存", { videoId });
+    return;
+  }
+  let pend = await readPending();
   // ★★ 待办是**单键**，而它与 `cutSession` 是同一拍写的、两边都只有一格 —— 正常路径上
   //   它必然就是这条作品那一摊活。但"必然"是靠两个不变量撑起来的，而这里认错的后果不是
   //   "少留一份工程"，是**把另一条片的画布当成这条的工程存上去**：回炉打开是别人的内容，
@@ -481,6 +524,13 @@ async function retain(
   //     确实已经不在本机了）。判据走 `pendingFor()` **同一处实现**（铁律六）——
   //     编辑页那颗「重试留存」摆不摆得出来，问的是同一个问题。
   const mine = pendingFor(videoId, before.clientId);
+  if (pend && mine && pend.videoId !== videoId) {
+    // ★ 归属刚校验过，趁这一拍把作品 id 盖进待办 —— 之后「重试留存」就不再依赖那个
+    //   活不过冷启动的 clientId（见 PendingCanvas.videoId 的 ★★★）。
+    //   写盘失败不挡下面的留存：那只是让这颗键退回"只在本次会话里有"，比整发失败好。
+    pend = { ...pend, videoId };
+    await writePending(pend);
+  }
   if (!pend || !mine) {
     // 待办不在了（换过设备 / 清过库 / 上一条待办被这条顶掉）。作品本身**已经发出去了**，
     // 所以这不是发布失败——话必须把两件事分开说（铁律八）
@@ -518,13 +568,24 @@ async function retain(
  *   发布那一拍过去了，重试要用的东西全在待办的 `ready` 里（见 PendingCanvas.ready 的 ★★）。
  * @returns null = 成了；字符串 = 整句人话。★ 这一条**要等结果**（用户就站在按钮前面）。
  */
-export async function retryRetain(videoId: string, title: string, revision: number): Promise<string | null> {
+export async function retryRetain(videoId: string, title: string): Promise<string | null> {
   const pend = await readPending();
   if (!pend) return "本机那份画布已经不在了——这条作品没法再补留存了。";
   if (!pend.ready) {
     // 瘦身都没算成（配对那一步就抛了）：重试也算不出来，如实说，别让用户点一辈子
     return "这份画布没能整理成可留存的样子——这条作品没法再补留存了。";
   }
+  // ★★★ 版次**只能从待办自己身上算**，绝不许调用方把「现读的 video.revision」传进来
+  //   （2026-09-08 评审抓到的致命项，原先的签名收第三个参数 `revision`，编辑页传的正是现读值）。
+  //   服务端 putProject 那道 PROJECT_REVISION_MISMATCH 闸比的是「你报的 videoRevision」与
+  //   「作品当下的 revision」，它挡的是**陈旧画布**。拿现读值去报，等于每次都报一个必然相等的数：
+  //   闸恒开，而手里这份 canvas 描述的仍是**旧那一版**。落库就成了「canvas=第 1 版正文 /
+  //   videoRevision=2」这种自相矛盾的行，而此后谁也看不出它陈旧了（客户端拿它和作品 revision
+  //   一比正好对上）⇒ 下一次回炉就着它提交，**线上内容被静默退回上一版**，200、零报错、不可逆。
+  //   正确的值待办里现成就有：回炉那份是 `reviseOf.baseRevision + 1`（回炉成功那一拍版次涨 1），
+  //   新发布那份的作品是刚创建出来的，恒为 0。
+  //   ⇒ 报错了反而是对的：版次对不上时服务端回 400，用户看到一句实话，而不是一次静默的内容回退。
+  const revision = pend.reviseOf ? pend.reviseOf.baseRevision + 1 : 0;
   try {
     await put(videoId, title || pend.title, revision, pend.canvas, pend.lostCount ?? 0);
     return null;
@@ -555,7 +616,9 @@ async function submit(
     // ★★ **先写回待办再 PUT**：配对表只在这一拍配得出来（before 是发出去之前那份草稿，
     //   after 是发布回包，两者只在此刻同时存在）。PUT 失败之后待办里如果还是原始画布，
     //   「重试留存」就再也配不出表 —— 整份画布会被墓碑化成一堆空框然后**成功**存上去。
-    await writePending({ ...pend, canvas, ready: true, lostCount: lost });
+    // ★ `videoId` 一并带上：这一句是拿调用方手里那份 pend 整份覆写，
+    //   不显式带的话会把 retain 刚盖的作品 id 抹掉（见 PendingCanvas.videoId 的 ★★★）
+    await writePending({ ...pend, videoId, canvas, ready: true, lostCount: lost });
   }
   await put(videoId, after.title || pend.title, revision, canvas, lost);
   return lost;

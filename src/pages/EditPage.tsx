@@ -23,7 +23,7 @@ import VisibilityPicker from "../components/VisibilityPicker";
 import { deleteVideoItem, getVideo, isMyAuthor, isUploading, partsOf, updateVideoMeta } from "../data/videos";
 import { coverToPermanentUrl } from "../data/publishAssets";
 import * as projects from "../data/projects";
-import { danmakuFetched, danmakuOf, danmakuVersion, subscribeDanmaku } from "../data/danmaku";
+import { danmakuFetched, danmakuOf, danmakuVersion, isTruncated, subscribeDanmaku } from "../data/danmaku";
 import { useStudio } from "../studio/studioStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import { useVideosVersion } from "../hooks/useVideos";
@@ -240,7 +240,7 @@ export default function EditPage() {
     //     两个都读：meta 可能来自老服务端（没有 stale），也可能来自还没刷新的列表缓存。
     if (projectStale) {
       return `留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。${
-        projects.pendingFor(video.id, video.clientId) ? "先点下面的「重新留存这一版」。" : "想换内容请重新发一条。"
+        projects.pendingRetainable(video.id, video.clientId) ? "先点下面的「重新留存这一版」。" : "想换内容请重新发一条。"
       }`;
     }
     return null;
@@ -249,6 +249,9 @@ export default function EditPage() {
   /** 确认卡上那几个数：**取不到就整段不出现**，绝不拼一个骗人的数（本仓那条纪律） */
   const danmakuCount = danmakuOf(video.id).length;
   const danmakuKnown = danmakuFetched(video.id);
+  /** 本机这份镜像**是不是全部**。服务端一页有上限（超了回 `truncated`），
+   *  而回炉删的是**全部** —— 报一个"数到的数"当成总数就是当面少报（2026-09-08 评审）。 */
+  const danmakuPartial = isTruncated(video.id);
   const isPublic = visibilityOf(video) === "public";
 
   /**
@@ -378,12 +381,14 @@ export default function EditPage() {
                   工程永久停在上一版，下一次回炉会被那道版次闸整句拒（本该能救的却救不了）。
                   而留存失败那句话本身还写着「可在编辑页点「重试留存」」—— 在回炉路径上那是句假话。
                 ★ 已经有一份（陈旧的）工程时把键名说清楚：用户要知道现存那份不是这一版。 */}
-            {supported === true && projects.pendingFor(video.id, video.clientId) && (
+            {supported === true && projects.pendingRetainable(video.id, video.clientId) && (
               <button
                 onClick={() => {
                   setRetainMsg("正在重试…");
+                  // ★ 不传版次：那个数**只能由待办自己算**（见 projects.retryRetain 的 ★★★）。
+                  //   这里传现读的 video.revision 曾经让服务端那道陈旧闸恒开。
                   void projects
-                    .retryRetain(video!.id, video!.title, Number(video!.revision ?? 0))
+                    .retryRetain(video!.id, video!.title)
                     .then((why) => setRetainMsg(why ?? "工程已留存，现在可以回炉重做了"));
                 }}
                 disabled={retainMsg === "正在重试…"}
@@ -616,17 +621,29 @@ export default function EditPage() {
           ) : (
             <p>这条作品别人看不到，没有观众会收到通知。</p>
           )}
-          {danmakuKnown ? (
-            danmakuCount > 0 && (
-              <p className="mt-2">
-                这条作品有 {danmakuCount} 条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，
-                所以会被清空，且无法恢复。
-              </p>
-            )
-          ) : (
+          {/* ★★ 这一段的规矩：**宁可说"数不准"，也不报一个骗人的数**（2026-09-08 评审补齐三档）。
+              本机这份镜像与"服务端到底有多少条"之间隔着两层：① 一页有上限，超了服务端回
+              `truncated`；② 回炉删的是**全部**，包括这份镜像里根本没有的那些。
+              所以数到 0 也不能沉默 —— 那一档最容易发生的原因不是"真没有"。 */}
+          {!danmakuKnown ? (
             <p className="mt-2">
               还没数清这条作品有多少条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，
               所以提交时会被全部清空，且无法恢复。
+            </p>
+          ) : danmakuPartial ? (
+            <p className="mt-2">
+              这条作品<b>至少</b>有 {danmakuCount} 条弹幕（只数到这么多，实际更多）。弹幕是按全片时间轴
+              打的，换内容会让它们对不上画面，所以会被<b>全部</b>清空，且无法恢复。
+            </p>
+          ) : danmakuCount > 0 ? (
+            <p className="mt-2">
+              这条作品有 {danmakuCount} 条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，
+              所以会被清空，且无法恢复。
+            </p>
+          ) : (
+            <p className="mt-2">
+              这条作品目前没有能显示给你的弹幕。如果还有（比如来自你拉黑的人），提交时也会一并清空，
+              且无法恢复。
             </p>
           )}
         </ConfirmDialog>

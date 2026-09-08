@@ -78,6 +78,10 @@ export default function SettingsStoragePage() {
  * ★ 与下面那颗「清理缓存」是**两颗键、两句话**：那颗清的是没人引用的中间文件（可以随便清），
  *   这颗删的是用户**特意存下来的成品**（删了就没了），措辞绝不能混。
  * ★ 一个文件都没有时整块不画：空的一行只会让人以为功能坏了。
+ *   ⚠ **但清空之后那一拍不能不画**（2026-09-08 评审抓到）：原来清空成功就 `setGroups([])`，
+ *     而这一行的守卫恰恰是"空了就 return null" —— 整块当场从页面上消失，把回执一起带走了。
+ *     用户对一次**破坏性**操作看到的是"那一块没了"，而不是一句"删掉了 N 个文件"。
+ *     ⇒ 只要 `note` 还在，就继续画（此时列表为空，画的就是那句回执）。
  * ★ 认不出的 videoId（作品已删/已下架）归到「已删除的作品」一行 —— 由 listDownloads 兜。
  */
 function SavedVideos() {
@@ -90,7 +94,7 @@ function SavedVideos() {
     void listDownloads().then(setGroups);
   }, []);
 
-  if (!groups || groups.length === 0) return null;
+  if (!groups || (groups.length === 0 && !note)) return null;
 
   const files = groups.reduce((s, g) => s + g.files, 0);
   const bytes = groups.reduce((s, g) => s + g.bytes, 0);
@@ -105,7 +109,15 @@ function SavedVideos() {
           setConfirming(false);
           return;
         }
-        setNote(`已删掉 ${r.files} 个文件`);
+        // ★ 删失败与"删了 0 个"在屏幕上必须长得不一样（铁律八）：失败时列表**不清**，
+        //   重新数一遍摆回去 —— 文件还在，用户下一步该看到的是它们，而不是一片空白。
+        if (r.failed) {
+          setNote(r.failed);
+          setConfirming(false);
+          void listDownloads().then(setGroups);
+          return;
+        }
+        setNote(`已删掉 ${r.files} 个文件，${fmtBytes(r.bytes)} 空间已释放`);
         setGroups([]);
         setConfirming(false);
       })
@@ -114,22 +126,28 @@ function SavedVideos() {
 
   return (
     <div className="mt-3 border-t border-slate-700/60 pt-3">
-      <p className="text-xs text-slate-300">
-        已保存的视频 {fmtBytes(bytes)} · {files} 个文件
-      </p>
-      <div className="mt-1 space-y-0.5">
-        {groups.map((g) => (
-          <p key={g.videoId} className="truncate text-[11px] text-slate-500">
-            《{g.title}》 {g.files} 个文件 · {fmtBytes(g.bytes)}
+      {/* ★ 清空成功之后这一段整段不画（groups 已空），只剩下面那句回执 ——
+          否则会摆出「已保存的视频 0 B · 0 个文件」和一颗「清空（0 B）」的空键。 */}
+      {groups.length > 0 && (
+        <>
+          <p className="text-xs text-slate-300">
+            已保存的视频 {fmtBytes(bytes)} · {files} 个文件
           </p>
-        ))}
-      </div>
-      <button
-        onClick={() => setConfirming(true)}
-        className="mt-2 w-full rounded-xl border border-slate-600 py-2.5 text-xs text-slate-200"
-      >
-        清空已保存的视频（{fmtBytes(bytes)}）
-      </button>
+          <div className="mt-1 space-y-0.5">
+            {groups.map((g) => (
+              <p key={g.videoId} className="truncate text-[11px] text-slate-500">
+                《{g.title}》 {g.files} 个文件 · {fmtBytes(g.bytes)}
+              </p>
+            ))}
+          </div>
+          <button
+            onClick={() => setConfirming(true)}
+            className="mt-2 w-full rounded-xl border border-slate-600 py-2.5 text-xs text-slate-200"
+          >
+            清空已保存的视频（{fmtBytes(bytes)}）
+          </button>
+        </>
+      )}
       {note && <p className="mt-1.5 text-[11px] leading-relaxed text-amber-300">{note}</p>}
       {confirming && (
         <ConfirmDialog
