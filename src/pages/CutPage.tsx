@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Spinner from "../components/Spinner";
 import PageHeader from "../components/PageHeader";
 import { useLocation, useNavigate } from "react-router";
-import FrameAnnotator, { drawAigcBadge, drawCover, loadImg } from "../components/FrameAnnotator";
+import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
@@ -22,7 +22,19 @@ import { annRedrawCost, fmtTokens, segTokens } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { VideoSegment, aspectOf, formatDuration, segLen, uid } from "../types";
 import { resolveMediaUrl, useMediaUrl } from "../utils/mediaUrl";
-import { loadVideoAt, realDurationOf } from "../utils/videoFrames";
+import { captureVideoFrame, loadVideoAt } from "../utils/videoFrames";
+import { Capacitor } from "@capacitor/core";
+// 合并走原生硬件编解码器（见 utils/nativeMerge 头部的 ★★）
+import {
+  MERGE_UNSUPPORTED,
+  cancelNativeMerge,
+  mergeSupported,
+  mergedFileToBlob,
+  runNativeMerge,
+  stageLocalAudio,
+  type MergeClip,
+} from "../utils/nativeMerge";
+import { aigcBadgeSpec } from "../data/aigcLabel";
 
 /** 时间轴上的一个片段：引用草稿段 + 裁剪范围（分割产生的子片段各占一段区间） */
 interface Clip {
@@ -60,21 +72,6 @@ function clipDur(c: Clip): number {
   return Math.max(0.1, c.end - c.start);
 }
 
-/**
- * 成片第一帧（发布页拿它当封面候选与缩略图；只在本机显示，发布时 data/videos.stripPosters 会剥掉）。
- * ★★ 白模复刻段**天然没有设定帧**（firstFrame / lastFrame 恒空，见 segmentGen 的 blockoutIssue），
- *   所以合并之后如果不留这一张，发布页那一行「各段画面」只剩一个 `<img src="">` 的碎图（2026-09-06 主人真机）。
- * ★ 缩到长边 720 再转 JPEG：画布是 1080×1920 级的，原样 toDataURL 出来的 base64 能有几百 KB，
- *   而草稿正文本来就带着 1MB 级的帧、库里只放得下 20 条。
- */
-function posterFromCanvas(canvas: HTMLCanvasElement): string {
-  const scale = Math.min(1, 720 / Math.max(canvas.width, canvas.height));
-  const c = document.createElement("canvas");
-  c.width = Math.max(2, Math.round(canvas.width * scale));
-  c.height = Math.max(2, Math.round(canvas.height * scale));
-  c.getContext("2d")!.drawImage(canvas, 0, 0, c.width, c.height);
-  return c.toDataURL("image/jpeg", 0.85);
-}
 
 export default function CutPage() {
   const navigate = useNavigate();
@@ -103,7 +100,7 @@ export default function CutPage() {
   /** 合并的防重入闸。★ 用 ref 不用 busy：setBusy 异步生效，挡不住同一帧内的第二次点击 */
   const mergingRef = useRef(false);
   /**
-   * 合并进度（秒）。★★ 原来只显示「合并中 · 片段 i/N」——而合并是**实时录屏**：
+   * 合并进度（秒）。★★ 原来只显示「合并中 · 片段 i/N」——那会儿合并还是实时录屏：
    *   成片多长就录多长，一条 30 秒的片子要等 30 秒，屏幕上那个 i/N 十几秒才跳一次，
    *   用户完全不知道还要多久、也不知道它是不是卡死了。
    */
@@ -624,17 +621,6 @@ export default function CutPage() {
       }
     };
     document.addEventListener("visibilitychange", onHidden);
-    let audioCtx: AudioContext | null = null;
-    /**
-     * BGM 的音源。**准备好了但先不 start** —— 由第一次 beginRecording() 那一拍开声。
-     * ★★ 为什么（2026-09-06 与"开录即暂停"同一次改动，评审抓出来的连带账）：录制机 pause 期间
-     *   `AudioBufferSourceNode` **不会跟着停**，它照着 AudioContext 的时钟一直往前走。所以如果音轨
-     *   在准备期就开了声，等画面那头恢复录制时，音乐已经自己跑掉了十几秒 —— 成片里音画永久错位，
-     *   而且**零报错**（比黑头更难查：黑头看得见，音画差半句歌只觉得"怪怪的"）。
-     *   办法是让整条音频图跟着录制机一起停走：开声推迟到第一帧真画面那一拍，之后的空档用
-     *   `audioCtx.suspend()/resume()` 把**整个上下文**冻住（冻的是时钟，所以音源的播放位置也跟着停）。
-     */
-    let audioSrc: AudioBufferSourceNode | null = null;
     try {
       // ★ 老草稿自救：还是方舟直链的段先转存成永久地址（服务端拉，全球 CDN）。
       //   出片那一刻的转存 2026-08-20 才上线，在那之前炼的段揣的还是 TOS 直链 ——
@@ -660,296 +646,96 @@ export default function CutPage() {
       }
       // ★ 音轨与画布准备是**同步长活**（预置的原片音轨是整条原视频，几十 MB、跨境要十几秒）：
       //   不先点亮 busy 的话，这段时间按钮亮着、屏幕上一个字都没有 = 用户眼里的"点了没反应"
-      setBusy("准备音轨与画布…");
-      const canvas = document.createElement("canvas");
-      canvas.width = out.w;
-      canvas.height = out.h;
-      const ctx = canvas.getContext("2d")!;
-      const stream = canvas.captureStream(30);
-      let mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm";
-      // 音频轨：解码 → 循环播放进 MediaStreamDestination，与画布流合成一条带声成片
+      // ── 合并：交给系统硬件编解码器（原生 Media3 Transformer）────────────────
+      // ★★ 这里原来是 `canvas.captureStream(30)` + `MediaRecorder` **实时录屏**（2026-09-07 整条撤掉）。
+      //   撤的理由不是慢一点，是四条各自都能毁掉成片的硬伤：① 耗时恒等于片长；② 把已经压过一次的
+      //   素材再编一遍；③ 机器一忙 captureStream 就掉帧（本机实测同一次合并比墙钟短 26%）；
+      //   ④ 产出的 WebM **没有 Duration 元素**，全 app 没有任何消费者能从文件本身问出时长 ——
+      //   2026-09-06 那次「前 12 秒全黑、后 12 秒播不到」有一半就是它。
+      //   手机剪辑软件从来不这么做：它们走 MediaCodec / AVFoundation。我们是 Capacitor，够得到。
+      // ★ 段落直接把**公网地址**交过去：它们在出片那一刻就转存到图床了，让 Media3 自己流式取，
+      //   不必先把几十兆下载到手机再喂进去（那正是老路最慢、也最容易超时的一段）。
+      if (!mergeSupported()) throw new Error(MERGE_UNSUPPORTED);
+      setBusy("准备素材…");
+      const clips: MergeClip[] = [];
+      for (const c of view) {
+        const seg = mergeSegs[c.segIndex];
+        const url = (seg.videoUrl || "").trim();
+        // ★ 渐变段（没出片、只有首尾帧）这条路做不了：原生拼的是视频，不是两张图。
+        //   与其悄悄跳过它（成片里少一段，零报错），不如整句说清楚。
+        if (!url) throw new Error(`第 ${c.segIndex + 1} 段还没有视频（只有设定帧），合成做不了——先把这一段炼出来`);
+        if (!/^https?:/i.test(url)) {
+          throw new Error(`第 ${c.segIndex + 1} 段还不是永久地址，合成用不了——回到工作流等它转存完再来`);
+        }
+        // 没裁过的片段跟着**实测**时长走（与 segLen 同一把尺）
+        const untrimmed = c.start <= 0.01 && Math.abs(c.end - segLen(seg)) < 0.01;
+        clips.push({ url, startSec: c.start, endSec: untrimmed ? undefined : c.end });
+      }
+
+      // BGM：本地挑的那份在 Web 侧是 blob:，原生打不开，先落盘（几 MB 级，段落视频绝不走这条）
+      let audioArg: { url: string; volume: number } | undefined;
       if (audio) {
-        // ★★ 音轨拉不到**不许拖垮整条成片**（2026-08-21 对抗评审确认）：这一句原来
-        //   裸在大 try 里，一抛就整条导不出，而错误话里一个字都不提是音轨的锅 ——
-        //   用户以为片子坏了。而它恰恰是最容易失败的一环：预置的「原视频音轨」是
-        //   Cloudinary 上那条**完整原片**（几十 MB），跨境拉超时/断流是实测会发生的事。
-        //   就地兜住：说清是音轨没拿到、这一条按无声导出，别让人白等一场重录。
-        let buf: AudioBuffer | null = null;
         try {
-          audioCtx = new AudioContext();
-          buf = await audioCtx.decodeAudioData(await (await fetch(audio.url)).arrayBuffer());
+          setBusy("准备配乐…");
+          audioArg = { url: await stageLocalAudio(audio.url), volume: audio.volume };
         } catch (e) {
+          // ★ 音轨拿不到**不许拖垮整条成片**（2026-08-21 对抗评审确认的老规矩，这次沿用）
           console.warn("[cut] 音轨取不到:", e);
-          setErr(`音轨没能取下来（${audio.name}）——这一条先按无声导出。想要声音就换一条本地音频，或等网络好些再重试合并。`);
-          if (audioCtx) {
-            void audioCtx.close().catch(() => {});
-            audioCtx = null;
-          }
-        }
-        if (buf && audioCtx) {
-          const dest = audioCtx.createMediaStreamDestination();
-          const srcN = audioCtx.createBufferSource();
-          srcN.buffer = buf;
-          srcN.loop = true; // BGM 短于成片时循环补齐
-          const g = audioCtx.createGain();
-          g.gain.value = audio.volume;
-          srcN.connect(g);
-          g.connect(dest);
-          for (const tr of dest.stream.getAudioTracks()) stream.addTrack(tr);
-          // ★ 不在这里 start：见上面 audioSrc 的 ★★（准备期开了声，音画就永久错开准备期那么长）
-          audioSrc = srcN;
-          mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus") ? "video/webm;codecs=vp9,opus" : "video/webm";
+          setErr(`音轨没能取下来（${audio.name}）——这一条先按无声导出。想要声音就换一条本地音频再重试合并。`);
         }
       }
-      const rec = new MediaRecorder(stream, {
-        mimeType: mime,
-        videoBitsPerSecond: res.id === "1080" ? 10_000_000 : 6_000_000,
-      });
-      const chunks: Blob[] = [];
-      rec.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
-      const stopped = new Promise<void>((r) => {
-        rec.onstop = () => r();
-      });
-      // ★★ **开录之前先把画布画成"有内容的一帧"**（2026-09-03 核 backlog 那条 AIGC 角标时抓到）。
-      //   时序：`captureStream(30)` 早在上面就挂上了，`rec.start()` 在这一行，而第一次
-      //   `drawCover + drawAigcBadge` 要等到循环里 —— 那之前还有 `resolveMediaUrl`（走网络、
-      //   带重试）与 `<video>` 的 load/seek 等待，**秒级**。这中间录进去的是透明/黑帧，
-      //   **而且没有 AIGC 角标**。
-      //   角标是法规要求的 AI 生成标识：成片开头那几帧没有它，等于那几帧是**没标识的**
-      //   AI 生成内容。而它零报错、也不会在预览里被注意到（开头黑一下像是加载）。
-      //   ⚠ 底色要自己铺：画布初始是透明的，编码器把它压成黑帧，但角标的半透明底衬
-      //   在透明画布上读不出来 —— 铺一层黑再画，第 0 帧就是合规的。
-      ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      drawAigcBadge(ctx, canvas.width, canvas.height);
-      // ★★★ **这里不开录**（2026-09-06 主人真机：22 秒的成片前 12 秒全黑、后 12 秒还看不到）。
-      //   机理：`rec.start()` 之后、第一帧真实画面之前，这条路上还排着 `resolveMediaUrl`
-      //   （**把整条成片 fetch 成 blob**，120 秒超时 + 重试一次）、`<video>` 的 load/canplaythrough、
-      //   以及 seek —— 手机网上就是**十几秒**。而 `canvas.captureStream(30)` 在这期间照样每秒吐 30 帧
-      //   静止画布，于是那十几秒被原样录成了黑头；紧接着申报时长又比真实录制短一大截（见下面 recordedSec 的 ★★），
-      //   播放器播到申报值就停 —— 用户看到的就是「前面全黑、后面没了」。全程零报错。
-      //   ⚠ 先 start 再立刻 pause **不够**：那之间仍会漏进一两帧黑的（本机复测：文件比内容长 0.07s，
-      //   而封面弹层一打开正停在 00:00 上，截出来就是一张纯黑封面 —— 正是主人截图里那一张）。
-      //   所以开录推迟到 `beginRecording()`：第一帧真内容画上去之后才 `rec.start()`，第 0 帧从此必是真画面。
-      /**
-       * 「跳空档」这件事到底生效没有。
-       * ★★ `MediaRecorder.pause()` 并不是每个 WebView 都真的实现了 —— 万一是空操作，下面两件事都会
-       *   **静默**出错：① 开声如果拿 `rec.state` 当闸，这里就永远走不到 ⇒ 成片**全程无声**；
-       *   ② 音频图被 suspend 而画面还在录 ⇒ 音画朝**反方向**拉开（比原来的黑头更难查）。
-       *   所以不猜：pause 之后当场问一句 `rec.state`（见 pauseForPrep），音频那半只认 `audioCtx`
-       *   自己的状态、不认录制机的。
-       */
-      let gapSkipOk = true;
-      /** 真正录进成片的毫秒数：只累计 recording 那几段。★ 只是兜底 —— 成片长度以文件自己为准（见收尾处 realDurationOf） */
-      let recordedMs = 0;
-      /** 本次 resume 的起点（performance.now）。★ 初值不能是 0：pause 万一没生效，收尾那句会把
-       *  「页面开着多久」当成成片时长算进去 */
-      let recFrom = performance.now();
-      /** 成片第一帧：第一次真有画面那一拍从画布上留一张（见 posterFromCanvas 的 ★★） */
-      let poster = "";
-      /** 这一段准备好了、第一帧真内容已经画在画布上 —— 从这里开始才录 */
-      const beginRecording = async () => {
-        // 第一帧真内容此刻已经在画布上了（调用点保证）：留一张当成片封面，再开录
-        if (!poster) poster = posterFromCanvas(canvas);
-        // ★ 第一段是 start、之后每段是 resume —— 合成一处，别在循环外给第一段开小灶（那就是两份实现）
-        if (rec.state === "inactive") {
-          // ★★ 开录前先让采集轨**真的吃到**这一帧再走（等两拍 rAF）。
-          //   `canvas.captureStream(30)` 的轨道里此刻还留着准备期那张黑底（画布几十秒没动过），
-          //   立刻 start 会把它当成第 0 帧编进去 —— 本机复测：文件只比内容长 0.07s（也就一两帧），
-          //   可封面弹层一打开正停在 00:00 上，截出来就是**一张纯黑封面**，正是主人截图里那张。
-          //   对照实验：一段从头到尾纯绿的 MediaRecorder WebM 在 t=0 读出来是绿的，所以那一帧是真黑，
-          //   不是解码假象。代价是这一段开头少录约两帧（60ms 级），换掉一张黑封面，值。
-          await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-          rec.start(250);
-        } else if (rec.state === "paused") rec.resume();
-        // ★★ 开声 / 解冻**不看 rec.state**（见 gapSkipOk 的 ★★）：看了的话，pause 一旦是空操作，
-        //   这一整段就永远走不到 —— 成片全程无声，而且一个字都不报。
-        if (audioSrc) {
-          audioSrc.start();
-          audioSrc = null;
-        } else if (audioCtx?.state === "suspended") {
-          void audioCtx.resume();
-        }
-        recFrom = performance.now();
-      };
-      /** 这一段画完了，下一段还要取流/解码/定位 —— 那段空档不录 */
-      const pauseForPrep = () => {
-        if (rec.state !== "recording") return;
-        recordedMs += performance.now() - recFrom;
-        rec.pause();
-        // ★ 显式标注类型再读：上面那句 `!== "recording"` 让 TS 把 rec.state 收窄成了 "recording"，
-        //   而它并不知道 rec.pause() 会改这一位 —— 直接比会被判成"两个类型没有交集"（TS2367）
-        const afterPause: string = rec.state;
-        if (afterPause !== "paused") {
-          // pause 是空操作：空档照录（黑头/定格会回来，结束时如实说）。此时**绝不能**再去冻音频图 ——
-          //   画面还在录、声音停了，那是朝反方向拉开音画（见 gapSkipOk 的 ★★）
-          gapSkipOk = false;
-          return;
-        }
-        // 音轨跟着一起冻住，否则这段空档它自己往前跑，恢复时音乐就跳了一截（见 audioSrc 的 ★★）
-        void audioCtx?.suspend();
-      };
-      for (let i = 0; i < view.length; i++) {
-        // ★★ 取消要在**每一段开头**也判（2026-08-30 复核抓到）：rAF 里那两处只结束
-        //   「当前这一段」，不 break 的话剩下每段照样 setBusy(`合并中 · 片段 i/N`)
-        //   把按钮写的「正在停止…」顶掉、照样把进度条推到下一格，还要照样去
-        //   resolveMediaUrl（它失败是**抛**不是返回 null，带重试，最坏 2×120s）——
-        //   那些异常落进外层 catch，于是用户点的是「取消」、收到的却是「合并失败：取媒体超时」。
-        //   我上次实测取消"停下来了"，是因为那条稿子只剩最后一段，正好掩住了这个洞。
-        if (cancelRef.current) break;
-        const clip = view[i];
-        const seg = mergeSegs[clip.segIndex];
-        const doneBefore = view.slice(0, i).reduce((sum, x) => sum + clipDur(x), 0);
-        setMergeDone(doneBefore);
-        setBusy(`合并中 · 片段 ${i + 1}/${view.length}`);
-        if (seg.videoUrl) {
-          const src = srcMap[clip.segIndex] ?? (await resolveMediaUrl(seg.videoUrl, { forCapture: true }));
-          if (!src) throw new Error(`片段 ${i + 1} 视频取不到`);
-          const v = document.createElement("video");
-          v.muted = true;
-          v.playsInline = true;
-          v.src = src;
-          // ★★ 这两个等待也要带上限（2026-08-31 补，同 VideoCardAnnotator 那两处）：
-          //   合并是几十秒的实时录制，用户很容易在中途切出去；窗口不可见时解码被挂起，
-          //   `canplaythrough` / `seeked` 永远不到 ⇒ 卡死在「合并中 · 片段 i/N」。
-          //   ⚠ 循环开头那道 `cancelRef` 闸救不了这里 —— 卡在 await 里，取消轮不到判。
-          //   超时按**失败**处理而不是硬往下走：往下走会把一段没解码好的画面录进成片，
-          //   而这条路的产物直接进发布页、本页没有撤销。
-          await new Promise<void>((resolve, reject) => {
-            v.oncanplaythrough = () => resolve();
-            v.onerror = () => reject(new Error(`片段 ${i + 1} 加载失败`));
-            window.setTimeout(() => reject(new Error(`片段 ${i + 1} 载入超时（切到后台时视频会停止解码，回到这一页再试）`)), 60_000);
-            v.load();
-          });
-          // ★ 申报时长与成片对不上时，没裁过的片段按成片**真实**长度录（见 learnRealDur 的 ★★）：
-          //   20 秒的片子按申报的 5 秒录，成片里就只剩 5 秒
-          const real = v.duration;
-          const untrimmed = clip.start <= 0.01 && Math.abs(clip.end - segLen(seg)) < 0.01;
-          const endAt = untrimmed && Number.isFinite(real) && real > clip.end + 0.25 ? real : clip.end;
-          if (Number.isFinite(real)) learnRealDur(clip.segIndex, real);
-          v.currentTime = clip.start;
-          await new Promise<void>((resolve, reject) => {
-            v.onseeked = () => resolve();
-            window.setTimeout(() => reject(new Error(`片段 ${i + 1} 定位超时（切到后台时视频会停止解码，回到这一页再试）`)), 30_000);
-          });
-          // ★ 播不起来也要说人话（铁律八，与 utils/mediaUrl 那条 AbortError 同一个理由）：原样抛的话
-          //   用户在合并页看到的是英文原文「The play() request was interrupted by end of playback.」——
-          //   既看不懂、也不知道下一步。合并本身不花 token，如实请他再来一次就是了。
-          await v.play().catch((e) => {
-            throw new Error(`片段 ${i + 1} 播不起来（${e instanceof Error ? e.name : "未知原因"}）——重新合并一次试试，合并不花 token`);
-          });
-          // ★★ 这三行的**顺序**就是"黑头存不存在"的分界线：先把第一帧真内容画上（连同 AIGC 角标），
-          //   再恢复录制。反过来的话，resume 与第一次 drawCover 之间那几十毫秒又是黑帧。
-          drawCover(ctx, v, canvas.width, canvas.height);
-          drawAigcBadge(ctx, canvas.width, canvas.height);
-          await beginRecording();
-          await new Promise<void>((resolve) => {
-            const draw = () => {
-              // ★ 取消要在**循环里**判：rAF 跑着的时候没有别的地方能打断它
-              if (cancelRef.current || v.ended || v.currentTime >= endAt) {
-                v.pause();
-                resolve();
-                return;
-              }
-              drawCover(ctx, v, canvas.width, canvas.height);
-              drawAigcBadge(ctx, canvas.width, canvas.height);
-              setMergeDone(doneBefore + Math.max(0, v.currentTime - clip.start));
-              requestAnimationFrame(draw);
-            };
-            draw();
-          });
-        } else {
-          const [a, b] = await Promise.all([loadImg(seg.firstFrame), loadImg(seg.lastFrame)]);
-          // 同上：loadImg 也走网络（跨境几秒），先把第一帧画上再恢复录制
-          drawCover(ctx, a, canvas.width, canvas.height);
-          drawAigcBadge(ctx, canvas.width, canvas.height);
-          await beginRecording();
-          const t0 = performance.now();
-          const dur = clipDur(clip) * 1000;
-          await new Promise<void>((resolve) => {
-            const draw = () => {
-              const p = Math.min(1, (performance.now() - t0) / dur);
-              drawCover(ctx, a, canvas.width, canvas.height);
-              ctx.globalAlpha = p * p * (3 - 2 * p);
-              drawCover(ctx, b, canvas.width, canvas.height);
-              ctx.globalAlpha = 1;
-              drawAigcBadge(ctx, canvas.width, canvas.height);
-              setMergeDone(doneBefore + (p * dur) / 1000);
-              if (cancelRef.current) {
-                resolve();
-                return;
-              }
-              if (p >= 1) {
-                resolve();
-                return;
-              }
-              requestAnimationFrame(draw);
-            };
-            draw();
-          });
-        }
-        // 下一段还要取流/解码/定位（秒级空档），先停表。
-        // ★ **最后一段不暂停**：实测从 paused 调 stop() 会丢掉最后一小截（一个 timeslice 量级），
-        //   而这条路的产物直接进发布页、本页没有撤销 —— 宁可多录半帧也不能少录半秒。
-        if (i < view.length - 1) pauseForPrep();
-      }
-      // 收尾时仍在 recording（见上一行 ★）：把最后一段的时长补进去
-      if (rec.state === "recording") recordedMs += performance.now() - recFrom;
-      // ★ 一帧都没开录过（第一段的画面还没准备出来就被取消了）：没有 stop 可调，`stopped` 也永远不会 resolve。
-      //   这一支只可能来自取消——下面 catch 认 cancelRef，会说成「已取消合并」。
-      if (rec.state === "inactive") throw new Error("一帧都没录上，没有成片");
-      rec.stop();
-      await stopped;
-      // ★ 取消：录到一半的这段不写库、不跳页。用户要的是"别录了"，不是"录个半截给我"
+
+      setBusy("合成中…");
+      const merged = await runNativeMerge(
+        {
+          clips,
+          width: out.w,
+          height: out.h,
+          ...(audioArg ? { audio: audioArg } : {}),
+          // ★ 显式标识的**政策**在这里定，不在原生里（合规口径会变，变的时候不该动原生代码）。
+          //   口径与出处见 data/aigcLabel.ts。
+          badge: aigcBadgeSpec(),
+        },
+        (frac) => setMergeDone(total * frac),
+      );
       if (cancelRef.current) {
         setBusy("");
         setErr("已取消合并。片段、圈选和配乐都还在，随时可以重新开始。");
         return;
       }
-      // ★★ 切走过就**如实说**，别把一条卡住的坏片当成品交出去（铁律八）。
-      //   不拦着他继续（片子已经录出来了，也许还能用），但那句话必须说在前面。
-      if (wentHiddenRef.current) {
-        setErr("合并过程中 App 被切到后台过——那段时间画面不会更新，成片里多半有一截是卡住的。建议回来重新合并一次（不花 token）。");
-      } else if (!gapSkipOk) {
-        // ★ 只在**真的**没跳成空档时才说（铁律八）：这台设备的录制器不支持暂停，取流那几秒被录了进去。
-        //   ★ 用 else if —— 切后台那句更严重，两句都写同一个 err，后写的会把前一句盖掉。
-        setErr("这台设备的录制器不支持「暂停」，段与段之间取素材的那几秒也被录了进去——成片开头或接缝处会有几截停顿的画面。片子能用，介意的话重新合并一次（不花 token）。");
-      }
+
       setBusy("写入本地库…");
-      const blob = new Blob(chunks, { type: mime });
+      // 原生产物是本机文件；成片下游整条链认的是 `idb:` 指针，这里搬一次省掉全 app 改造
+      const blob = await mergedFileToBlob(merged.uri);
       const key = `merged:${uid("mv")}`;
       if (!(await idbSet(key, blob))) throw new Error("成片写入本地库失败（存储配额？）");
+      // 成片第一帧（本机文件，解码一帧很便宜）。截不到不挡发布，缩略图退回段的设定帧
+      let poster = "";
+      try {
+        poster = await captureVideoFrame(Capacitor.convertFileSrc(merged.uri), 0.05);
+      } catch (e) {
+        console.warn("[cut] 成片首帧没截到:", e);
+      }
       const orderedPlots = [...new Set(view.map((c) => segs[c.segIndex].plot))];
       const first = segs[view[0].segIndex];
       const last = segs[view[view.length - 1].segIndex];
       /**
-       * 成片的**真实**长度 = 录制机真正在录的那几段时间之和。
-       * ★★ 为什么不能再写申报值 `total`（2026-09-06 主人真机）：MediaRecorder 出来的 WebM
-       *   **没有 Duration 元素**（本机实测：loadedmetadata 时 `video.duration === Infinity`，
-       *   要 seek 到 1e101 才逼得浏览器扫出真值），所以**没有任何消费者能从文件本身问出时长** ——
-       *   播放器、封面截帧、首页进度条读的全是我们申报的这个数。申报短了，后面那截就永远播不到。
-       * ★ `durationSec` 取整后写的是**真值**：服务端 `segmentBody` 是 z.object，`realDurationSec`
-       *   没在它的声明里 —— 发布时会被**静默 strip 掉**（CLAUDE.md 那格坑）。所以能过河的只有
-       *   durationSec 这一位，它必须自己就是对的；realDurationSec 只是本机的小数精度。
-       * ★★ **量，不要算**（2026-09-06 本机复测抓到）：第一版拿"录制机在录的那几段墙钟之和"当真值，
-       *   机器闲时确实准（4.05s vs 文件 4.03s），可机器一忙 `captureStream` 就掉帧、编码出来的时间轴
-       *   比墙钟短一截 —— 同一次合并墙钟 4.87s、文件真身 3.86s，差 26%。多报的那一截会让播放器
-       *   在片尾对着一张定格帧空转。所以以**文件自己**为准，墙钟只当量不到时的兜底。
-       * ★ 录太短（<0.5s）说明这一炉根本没录上，退回申报值别写一个荒唐的数。
+       * 成片的**真实**长度：**由合成器直接给**（ExportResult.durationMs），不再自己解码去量。
+       * ★★ 这一位为什么必须是真值（2026-09-06 主人真机）：以前写的是申报总和，而成片实际更长 ——
+       *   播放器、封面截帧、首页进度条读的都是我们申报的这个数，申报短了后面那截就永远播不到。
+       * ★ 老路（MediaRecorder/WebM）连文件自己都答不出时长（没有 Duration 元素），只能靠 seek 到
+       *   1e101 硬扫；换成原生输出标准 mp4 之后，这个问题从根上没有了 —— 合成器报多少就是多少。
+       * ★ `durationSec` 取整后写的是真值：服务端 `segmentBody` 是 z.object，`realDurationSec`
+       *   不在它的声明里，发布时会被静默 strip（CLAUDE.md 那格坑）。能过河的只有 durationSec 这一位。
        */
-      setBusy("量成片长度…");
-      const probeUrl = URL.createObjectURL(blob);
-      const probed = await realDurationOf(probeUrl);
-      URL.revokeObjectURL(probeUrl);
-      const recordedSec = probed ?? (recordedMs > 500 ? recordedMs / 1000 : total);
-      const merged: VideoSegment = {
+      const recordedSec = merged.durationSec > 0.5 ? merged.durationSec : total;
+      const mergedSeg: VideoSegment = {
         title: "成片",
         plot: orderedPlots.join("\n"),
         firstFrame: first.firstFrame,
         lastFrame: last.lastFrame,
-        // 成片第一帧：白模段没有设定帧，全靠它（发布页封面候选、剪辑页缩略图都读 poster || firstFrame）
+        // 成片第一帧：白模段没有设定帧，全靠它（发布页封面候选、剪辑页缩略图都读 poster || firstFrame）。
+        // ★ 从**合好的成片**里截，不是抄第一段的 —— 成片经过画幅归一与叠标，抄来的那张与它对不上。
         ...(poster ? { poster } : {}),
         durationSec: Math.max(1, Math.round(recordedSec)),
         realDurationSec: recordedSec,
@@ -959,7 +745,7 @@ export default function CutPage() {
         aspect: segs[0]?.aspect,
       };
       leftRef.current = true;
-      useStudio.setState({ draft: { ...draft!, segments: [merged], branchTree: undefined, merged: true } });
+      useStudio.setState({ draft: { ...draft!, segments: [mergedSeg], branchTree: undefined, merged: true } });
       // ★★ 这一拍把 `idb:merged:` 指针钉到盘上 —— 在此之前那条几十 MB 的成片
       //   **只被内存里的 store 引用着**，磁盘上找不到任何指针（cacheSweep 文件头记的
       //   正是这个洞，它靠 24h 时间闸门兜着）。实时录制几分钟的成果，不能只活在内存里。
@@ -977,7 +763,6 @@ export default function CutPage() {
         setErr(`合并失败：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}`);
       }
     } finally {
-      void audioCtx?.close().catch(() => {});
       setBusy("");
       document.removeEventListener("visibilitychange", onHidden);
       mergingRef.current = false;
@@ -1167,9 +952,8 @@ export default function CutPage() {
             <div className="flex w-full max-w-[16rem] flex-col items-center gap-3 px-6">
               <Spinner size="lg" />
               <span className="text-center text-xs text-slate-200">{busy}</span>
-              {/* ★★ 合并是**实时录屏**：成片多长就录多长。原来只有一句「片段 i/N」，
-                  十几秒才跳一次 —— 用户既不知道还要多久，也不知道是不是卡死了。
-                  这里给的是**真百分比**（已录秒数 / 成片总秒数）。 */}
+              {/* ★ 真百分比。2026-09-07 起这个数来自**原生合成器**报的进度（Transformer.getProgress），
+                  不再是"已录秒数 / 总秒数" —— 硬件编码通常快于实时，按秒数推算会一直显示得太慢。 */}
               {mergingRef.current && total > 0 && (
                 <>
                   <div className="h-1 w-full overflow-hidden rounded-full bg-white/25">
@@ -1182,18 +966,23 @@ export default function CutPage() {
                     {Math.min(100, Math.round((mergeDone / total) * 100))}% · 还剩约{" "}
                     {formatDuration(Math.max(0, total - mergeDone))}
                   </span>
-                  {/* ★★ 这句要说在**前面**，不是事后：合并期间切走，画面不会更新
-                      （不可见时 `<video>` 不解码、rAF 被节流到约 1 帧/500ms），
-                      而且不报错 —— 用户会拿到一条有一截卡住的成片。 */}
-                  <p className={`text-center text-[10px] leading-relaxed ${hiddenWarn ? "text-rose-300" : "text-slate-500"}`}>
+                  {/* ★★ 2026-09-07 这句话跟着实现改了：合并已经**不是录屏**了（原生 Media3 Transformer，
+                      走系统硬件编解码器），切到别的应用**不会**再把画面录成卡住的一截。
+                      ⚠ 但也别反过来许"随便切"：系统仍可能把 App 冻住甚至杀掉，那会让合成变慢或中断——
+                      区别在于**中断会明确报错**，不会像录屏那样悄悄给你一条坏片。
+                      ⚠⚠ 主人 2026-09-07 真机反馈"提示还是实时录屏"并据此以为录屏没撤 —— 文案与实现不一致
+                      本身就是一次事故（铁律八）：改实现时**必须同一拍改掉描述它的话**。 */}
+                  <p className={`text-center text-[10px] leading-relaxed ${hiddenWarn ? "text-amber-300" : "text-slate-500"}`}>
                     {hiddenWarn
-                      ? "刚才切到后台了——那段时间的画面没录上，建议取消后重来"
-                      : "别切到别的应用：这一步是实时录屏，切走那几秒会录成卡住的画面"}
+                      ? "刚才切到后台了——合成不会因此录坏画面，但可能被系统拖慢；真断了会明确告诉你"
+                      : "合成走系统硬件编解码，不再录屏——可以切走，只是系统可能把它拖慢"}
                   </p>
                   <button
                     onClick={() => {
                       cancelRef.current = true;
                       setBusy("正在停止…");
+                      // 原生那一炉也要真的停下来（Transformer.cancel），不然它照样把片子编完
+                      void cancelNativeMerge();
                     }}
                     className="rounded-full border border-slate-500 px-4 py-1.5 text-[11px] text-slate-200"
                   >

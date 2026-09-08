@@ -17,6 +17,8 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AppUpdaterPlugin.class);
         registerPlugin(QQLoginPlugin.class);
         registerPlugin(WeChatPlugin.class);
+        // 剪辑页的成片合并：走系统硬件编解码器（Media3 Transformer），见 VideoMergePlugin 头部的 ★★
+        registerPlugin(VideoMergePlugin.class);
         super.onCreate(savedInstanceState);
 
         // ★ 仅 debug 包：真机联调时页面 origin 是 https://localhost，而本机 server 是 http://localhost:4000

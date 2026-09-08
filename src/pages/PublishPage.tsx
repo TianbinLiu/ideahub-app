@@ -12,6 +12,7 @@
 // ★★ 失败路径**绝不调 `finishPublish`**：它会 `set({draft:null})` + `dropCutSession()` +
 //   `retireWorkDraft()` 三件一起做 —— 替换没成功还调它，等于"既没换成、合成稿也没了"，
 //   而那份合成稿里躺着真花过钱的卡组与成片。
+import { badgeNote } from "../data/aigcLabel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
@@ -562,8 +563,9 @@ export default function PublishPage() {
               内容声明：本作品由 AI 生成
             </div>
             <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-              发布后会做三件事：应用内播放时画面上持续显示「AI 生成」角标（经剪辑页合并导出的
-              成片会把角标逐帧写进画面本身）；首页与详情页在作品旁显示「AI 生成」标识；并按
+              {/* ★ 这句话必须与实际盖法同源（data/aigcLabel.badgeNote）：写死「每一帧」的那一版
+                  在 2026-09-07 把盖法改成"起始画面 ≥2 秒"之后就成了假话（铁律八） */}
+              发布后会做三件事：{badgeNote()}并按
               <button onClick={() => setAigcOpen(true)} className="text-brand">
                 《AIGC 内容须知》
               </button>

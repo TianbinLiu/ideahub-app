@@ -201,6 +201,16 @@ dependencies {
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    // ★★ 剪辑页的成片合并（VideoMergePlugin）。用系统硬件编解码器（MediaCodec）转码，
+    //   替掉此前 WebView 里那套 canvas.captureStream + MediaRecorder 实时录屏 ——
+    //   录屏耗时恒等于片长、二次编码掉画质、机器一忙就掉帧、产出的 WebM 还没有时长元数据。
+    //   Media3 Transformer 一家把拼接 / 裁剪 / 画幅归一 / 叠加 / 混音全包了，输出标准 mp4。
+    // ★ 版本钉死别用 +：编解码这层的行为在小版本间会变，而它出错的方式是"成片看着没问题、
+    //   实际少了一截"这种零报错的形状。
+    implementation "androidx.media3:media3-transformer:$media3Version"
+    implementation "androidx.media3:media3-effect:$media3Version"
+    implementation "androidx.media3:media3-common:$media3Version"
+    implementation "androidx.media3:media3-exoplayer:$media3Version"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
