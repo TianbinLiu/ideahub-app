@@ -134,15 +134,26 @@ public class VideoMergePlugin extends Plugin {
     @PluginMethod
     public void cancel(PluginCall call) {
         main.post(() -> {
-            if (running != null) {
-                running.cancel();
+            // ★★ 整段包起来、`resolve` 放 finally：`Transformer.cancel()` 会把释放阶段的
+            //   RuntimeException 重抛出来，而这里是主线程的 Runnable —— 抛出去就是**进程当场死**；
+            //   就算侥幸不死，`call` 悬着 = Web 侧 `cancelNativeMerge()` 的 await 永远不回，
+            //   而那一拍屏幕上正写着「正在停止…」。取消本身失败了也要让上层往下走。
+            try {
+                if (running != null) {
+                    running.cancel();
+                    running = null;
+                }
+                if (runningCall != null) {
+                    runningCall.reject("已取消合并", "CANCELLED");
+                    runningCall = null;
+                }
+            } catch (Throwable t) {
+                Log.e(TAG, "取消时出错（已吞掉，不让它把进程带走）", t);
                 running = null;
-            }
-            if (runningCall != null) {
-                runningCall.reject("已取消合并", "CANCELLED");
                 runningCall = null;
+            } finally {
+                call.resolve();
             }
-            call.resolve();
         });
     }
 
@@ -156,7 +167,8 @@ public class VideoMergePlugin extends Plugin {
     @PluginMethod
     public void merge(PluginCall call) {
         if (running != null) {
-            call.reject("已经有一炉在合并了", "BUSY");
+            // ★ 这不是**失败** —— 那一炉好好地在跑。话要自带出路（上层见 BUSY 也不会加"合并失败"前缀）
+            call.reject("已经有一炉在合并了，等它跑完就会带你去发布页", "BUSY");
             return;
         }
         JSArray clipsArr = call.getArray("clips");
@@ -197,6 +209,17 @@ public class VideoMergePlugin extends Plugin {
             return;
         }
 
+        // ★★ 从这里到 Composition.build() 整段包在 try 里（2026-09-08 补）：media3 一路都是
+        //   checkArgument/checkState，而 Capacitor 的 Bridge 对插件方法抛出的异常是
+        //   `throw new RuntimeException(ex)` 到它自己的线程 —— **进程当场死，JS 那边的 Promise
+        //   永不 settle**（屏幕停在「合成中…」，连错误都没有）。今天没有已知的抛出路径，
+        //   但代价是 3 行，而不包的代价是最坏那一类。
+        // 这几位在 try 里赋值、try 之后还要用（catch 里 return，Java 能证明它们一定被赋过）
+        final Composition composition;
+        final boolean multi;
+        final boolean bgmFinal;
+        final String bgmSkippedFinal;
+        try {
         // 画幅归一：拼接要求各段尺寸一致，横竖混排靠它按短边裁到同一个框
         List<androidx.media3.common.Effect> videoEffects = new ArrayList<>();
         videoEffects.add(Presentation.createForWidthAndHeight(w, h, Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP));
@@ -240,7 +263,7 @@ public class VideoMergePlugin extends Plugin {
         //   于是 ExportResult.audioMimeType 恒非 null ⇒ 下面那个 hasAudio 就会对一条哑片报"有声音"，
         //   而它正是用来当面告诉用户「这条成片没有声音」的（骗人比不说更坏）。
         //   单段不可能异构 ⇒ 不必开 ⇒ 那一位仍然可信。多段则如实回报"不知道"（见 onCompleted）。
-        final boolean multi = withEffects.size() > 1;
+        multi = withEffects.size() > 1;
         EditedMediaItemSequence videoSeq = new EditedMediaItemSequence.Builder(withEffects)
                 .experimentalSetForceAudioTrack(multi)
                 .build();
@@ -291,7 +314,15 @@ public class VideoMergePlugin extends Plugin {
             }
         }
 
-        Composition composition = new Composition.Builder(sequences).build();
+        composition = new Composition.Builder(sequences).build();
+        bgmFinal = bgmSupplied;
+        bgmSkippedFinal = bgmSkipped;
+        } catch (Throwable t) {
+            // 见上面那段 ★★：不接住就是进程死 + JS 那边的 Promise 永不 settle
+            Log.e(TAG, "组装合成任务时出错", t);
+            call.reject("合成起不来（" + brief(t) + "）", "START_FAILED");
+            return;
+        }
 
         final File out;
         try {
@@ -310,9 +341,6 @@ public class VideoMergePlugin extends Plugin {
         runningCall = call;
         runningOut = out;
 
-        // lambda 要捕获 ⇒ 定格成 final（上面那两个是可变的）
-        final boolean bgmFinal = bgmSupplied;
-        final String bgmSkippedFinal = bgmSkipped;
         // ★ Transformer 要在有 Looper 的线程上起（主线程），回调也回主线程
         main.post(() -> {
             try {
