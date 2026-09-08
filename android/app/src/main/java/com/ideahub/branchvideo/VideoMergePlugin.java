@@ -10,6 +10,7 @@ import android.text.style.StyleSpan;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Handler;
+import android.media.MediaMetadataRetriever;
 import android.os.Looper;
 import android.util.Log;
 
@@ -49,7 +50,12 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 成片合并（把 N 段按时间轴拼成一条），用**系统硬件编解码器**。
@@ -244,8 +250,28 @@ public class VideoMergePlugin extends Plugin {
         JSObject audio = call.getObject("audio");
         // 我们自己送没送进去一条音轨（BGM / 模板原声）—— onCompleted 判 hasAudio 要用
         boolean bgmSupplied = false;
+        // 送来的这条"音轨"其实是无声的 —— 要如实告诉用户（它多半是 App 自己预置的，用户没选过）
+        String bgmSkipped = "";
         if (audio != null) {
             String aUrl = audio.getString("url", "");
+            if (aUrl != null && !aUrl.isEmpty()) {
+                // ★★★ 先探一次这条源里到底有没有音轨（2026-09-07 核查抓到的自伤）：
+                //   剪辑页会**自动**把白模模板的 refVideo.url 当「原视频音轨」预置进来，
+                //   而**白模化生成的模板存的是方舟白模产物**（server branchTemplate.routes.js:1099
+                //   的 blockout.transferToCloudinary(verdict.videoUrl) → :1292 refVideo.url），
+                //   那份产物自己就是无声的（BLOCKOUT_TASK 的 generate_audio:false）。
+                //   配上下面那句 setRemoveVideo(true)，这条 EditedMediaItem 就成了**零轨道输入** ——
+                //   往 Composition 里塞一条什么都不出的序列，轻则白解一路、重则整发抛。
+                //   ⚠ 就算不抛也一样是错的：那一栏写着「原视频音轨」，而它根本发不出声 —— 文案在骗人。
+                // ★ 只探**这一条**（不是每个片段）：一次网络读，还带超时；探不出来就当它有，
+                //   宁可按老样子走，也不要因为探测本身失败而把用户的配乐悄悄丢掉。
+                Boolean aud = probeHasAudio(aUrl);
+                if (Boolean.FALSE.equals(aud)) {
+                    bgmSkipped = "选的那条音轨本身没有声音（多半是白模模板的原片，它自己就是无声的）——这一条按无声合成了";
+                    Log.w(TAG, "BGM 源没有音轨，跳过：" + aUrl);
+                    aUrl = "";
+                }
+            }
             if (aUrl != null && !aUrl.isEmpty()) {
                 bgmSupplied = true;
                 float vol = (float) audio.optDouble("volume", 1.0);
@@ -284,8 +310,9 @@ public class VideoMergePlugin extends Plugin {
         runningCall = call;
         runningOut = out;
 
-        // lambda 要捕获 ⇒ 定格成 final（bgmSupplied 上面是可变的）
+        // lambda 要捕获 ⇒ 定格成 final（上面那两个是可变的）
         final boolean bgmFinal = bgmSupplied;
+        final String bgmSkippedFinal = bgmSkipped;
         // ★ Transformer 要在有 Looper 的线程上起（主线程），回调也回主线程
         main.post(() -> {
             try {
@@ -319,6 +346,7 @@ public class VideoMergePlugin extends Plugin {
                         //   ⚠ 剩下的缺口（多段 + 无 BGM + 素材全哑 = 哑片却不吭声）今天没堵：
                         //     要堵得逐段探一次音轨（MediaMetadataRetriever 的 METADATA_KEY_HAS_AUDIO，
                         //     每段一次网络读），代价与收益不成比例 —— 预置修好之后这条路很少走到。
+                        if (!bgmSkippedFinal.isEmpty()) o.put("bgmSkipped", bgmSkippedFinal);
                         if (bgmFinal) o.put("hasAudio", true);
                         else if (!multi) o.put("hasAudio", result.audioMimeType != null);
                         cc.resolve(o);
@@ -368,6 +396,33 @@ public class VideoMergePlugin extends Plugin {
                 main.postDelayed(this, 500);
             }
         }, 500);
+    }
+
+    /**
+     * 这条地址里有没有音轨。`null` = 没探出来（网络/格式问题），调用方**按"有"处理**。
+     *
+     * ★ 为什么带执行器与超时：MediaMetadataRetriever 对网络地址没有超时旋钮，
+     *   卡住就是整条合并卡住 —— 而这只是一次锦上添花的探测，不值得让它挡路。
+     */
+    private static Boolean probeHasAudio(String url) {
+        ExecutorService ex = Executors.newSingleThreadExecutor();
+        try {
+            Future<Boolean> f = ex.submit(() -> {
+                MediaMetadataRetriever r = new MediaMetadataRetriever();
+                try {
+                    r.setDataSource(url, new HashMap<>());
+                    return "yes".equals(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO));
+                } finally {
+                    try { r.release(); } catch (Exception ignored) { }
+                }
+            });
+            return f.get(12, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            Log.w(TAG, "探不出这条有没有音轨（按有处理）：" + brief(e));
+            return null;
+        } finally {
+            ex.shutdownNow();
+        }
     }
 
     private static int even(int v) {
