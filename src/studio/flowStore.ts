@@ -20,7 +20,7 @@
 import { startJob } from "../data/jobs";
 import { create } from "zustand";
 import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskUnknown, generateCover, generateProposals, prepareMaterialRefs, recaptureSegment, takeVideoTask, transferStatus } from "../ai";
-import { isArkAssetUrl } from "../ai/arkClient";
+import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
 import { canAfford, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import {
   r2vTokens,
@@ -2103,6 +2103,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
     settling.add(nodeId);
     void (async () => {
       try {
+        /** 已经替它补过一次转存登记没有（见下面 `none` 那一支的 ★★） */
+        let asked = false;
         // 最多盯 12 分钟：服务端后台搬一条几十 MB 的成片，跨境 1MB/s 也就两三分钟；盯不到就交给发布时的再转存
         for (let i = 0; i < 24; i++) {
           const node = get().nodes.find((n) => n.id === nodeId);
@@ -2121,7 +2123,19 @@ export const useFlow = create<FlowState>()((set, get) => ({
             await get().recaptureNode(nodeId, { quiet: true });
             return;
           }
-          // 服务端不会再动它了（失败 / 根本没登记）：留给发布时的再转存，别在这儿空转
+          // ★★ `none` = 服务端**根本没登记过**这条（2026-09-07 主人真机的正是它：那天服务端一条
+          //   `[ark-transfer]` 都没有）。此前这里当场 return —— 于是"没人请求过转存"被当成了
+          //   "转存不会成功"，这一段从此永远没有预览帧，而屏幕上只有一句「成片预览没截到」。
+          //   没人登记过就**去登记一次**：服务端是先登记再搬（进入那一刻就排上了），所以这一发
+          //   即使被超时掐断，登记也已经落下，下一轮问 status 就能看到 pending。
+          //   ★ 只补一次：补完把 asked 置真，别每 30 秒踢一脚。
+          if (hit?.state === "none" && !asked) {
+            asked = true;
+            void transferArkVideo(url).catch(() => {});
+            await new Promise((r) => setTimeout(r, 5_000));
+            continue;
+          }
+          // 服务端确实搬失败了 / 补登记之后仍然没人认：留给发布时的再转存，别在这儿空转
           if (hit?.state === "failed" || hit?.state === "none") return;
           await new Promise((r) => setTimeout(r, 30_000));
         }

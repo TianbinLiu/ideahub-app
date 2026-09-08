@@ -2357,7 +2357,10 @@ async function captureVideoHeadTail(
       console.warn("[ai] 直连截帧没成，改为下载后截:", e);
     }
   }
-  const res = await fetchArkAsset(videoUrl, 120_000);
+  // ★ 30s 而不是 120s（2026-09-07）：这条是**机会性**兜底 —— 网快时它能同步出一张 poster，
+  //   网慢时把人按在这儿等两分钟毫无意义（转存完之后 settleNodeMedia 会自动补截）。
+  //   120s 那一版的实测终局就是「跑满 120.0s 后 The user aborted a request」。
+  const res = await fetchArkAsset(videoUrl, 30_000);
   if (!res.ok) throw new Error(`取视频失败 ${res.status}`);
   const blobUrl = URL.createObjectURL(await res.blob());
   try {
@@ -2706,7 +2709,7 @@ export async function takeVideoTask(
   onProgress?.("正在向方舟核对这一发的状态…（查询不花钱）");
   let st: ArkTaskState;
   try {
-    st = await fetchArkTask(taskId);
+    st = await fetchArkTask(taskId, { transfer: true });
   } catch (e) {
     // ★ 404 = 方舟那边**查无此任务**，与"网络不通"是相反的两件事（判据是状态码，不是
     //   文案里的关键词 —— 见 ArkHttpError）。把前者说成"联网后再试"，用户会一直点一颗
