@@ -52,6 +52,13 @@ export interface MergeResult {
    *        于是 `ExportResult.audioMimeType` 恒非 null、这一位不再可信。宁可不说，别骗人。
    */
   hasAudio?: boolean;
+  /**
+   * 送进来的那条"音轨"其实是无声的，已经跳过 —— 一句给用户看的人话（空/缺省 = 没这回事）。
+   * ★ 它最常见的来源不是用户选的，而是剪辑页**自动预置**的白模模板原片：白模化生成的模板
+   *   存的是方舟白模产物（服务端 branchTemplate.routes 那一跳），产物本身就是无声的。
+   *   那一栏写着「原视频音轨」却发不出声 —— 不说的话，用户只会以为是合并把声音弄丢了。
+   */
+  bgmSkipped?: string;
 }
 
 interface VideoMergeApi {

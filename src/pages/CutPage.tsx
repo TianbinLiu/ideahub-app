@@ -821,6 +821,8 @@ export default function CutPage() {
       //   会一路走到发布页、发出去，全程没人吭声。而白模复刻段的画面天生无声
       //   （generate_audio:false 是版权拦截换来的），声音全靠音频页签那条预置混进去。
       //   ★ 判**否定**：老插件不报这一位（undefined = 不知道），只有明确 false 才说。
+      // 预置的"原视频音轨"其实是条无声视频（白模模板常见）——原生那边已经跳过，这里如实说
+      if (merged.bgmSkipped) warns.push(merged.bgmSkipped);
       if (merged.hasAudio === false) {
         warns.push(
           "这条成片没有声音：素材本身不带音轨，合成时也没有加配乐。想要声音就回剪辑页的「音频」加一条，再合一次。",
