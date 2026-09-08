@@ -100,7 +100,7 @@ export default function CutPage() {
   /** 合并的防重入闸。★ 用 ref 不用 busy：setBusy 异步生效，挡不住同一帧内的第二次点击 */
   const mergingRef = useRef(false);
   /**
-   * 合并进度（秒）。★★ 原来只显示「合并中 · 片段 i/N」——而合并是**实时录屏**：
+   * 合并进度（秒）。★★ 原来只显示「合并中 · 片段 i/N」——那会儿合并还是实时录屏：
    *   成片多长就录多长，一条 30 秒的片子要等 30 秒，屏幕上那个 i/N 十几秒才跳一次，
    *   用户完全不知道还要多久、也不知道它是不是卡死了。
    */
@@ -952,9 +952,8 @@ export default function CutPage() {
             <div className="flex w-full max-w-[16rem] flex-col items-center gap-3 px-6">
               <Spinner size="lg" />
               <span className="text-center text-xs text-slate-200">{busy}</span>
-              {/* ★★ 合并是**实时录屏**：成片多长就录多长。原来只有一句「片段 i/N」，
-                  十几秒才跳一次 —— 用户既不知道还要多久，也不知道是不是卡死了。
-                  这里给的是**真百分比**（已录秒数 / 成片总秒数）。 */}
+              {/* ★ 真百分比。2026-09-07 起这个数来自**原生合成器**报的进度（Transformer.getProgress），
+                  不再是"已录秒数 / 总秒数" —— 硬件编码通常快于实时，按秒数推算会一直显示得太慢。 */}
               {mergingRef.current && total > 0 && (
                 <>
                   <div className="h-1 w-full overflow-hidden rounded-full bg-white/25">
@@ -967,13 +966,16 @@ export default function CutPage() {
                     {Math.min(100, Math.round((mergeDone / total) * 100))}% · 还剩约{" "}
                     {formatDuration(Math.max(0, total - mergeDone))}
                   </span>
-                  {/* ★★ 这句要说在**前面**，不是事后：合并期间切走，画面不会更新
-                      （不可见时 `<video>` 不解码、rAF 被节流到约 1 帧/500ms），
-                      而且不报错 —— 用户会拿到一条有一截卡住的成片。 */}
-                  <p className={`text-center text-[10px] leading-relaxed ${hiddenWarn ? "text-rose-300" : "text-slate-500"}`}>
+                  {/* ★★ 2026-09-07 这句话跟着实现改了：合并已经**不是录屏**了（原生 Media3 Transformer，
+                      走系统硬件编解码器），切到别的应用**不会**再把画面录成卡住的一截。
+                      ⚠ 但也别反过来许"随便切"：系统仍可能把 App 冻住甚至杀掉，那会让合成变慢或中断——
+                      区别在于**中断会明确报错**，不会像录屏那样悄悄给你一条坏片。
+                      ⚠⚠ 主人 2026-09-07 真机反馈"提示还是实时录屏"并据此以为录屏没撤 —— 文案与实现不一致
+                      本身就是一次事故（铁律八）：改实现时**必须同一拍改掉描述它的话**。 */}
+                  <p className={`text-center text-[10px] leading-relaxed ${hiddenWarn ? "text-amber-300" : "text-slate-500"}`}>
                     {hiddenWarn
-                      ? "刚才切到后台了——那段时间的画面没录上，建议取消后重来"
-                      : "别切到别的应用：这一步是实时录屏，切走那几秒会录成卡住的画面"}
+                      ? "刚才切到后台了——合成不会因此录坏画面，但可能被系统拖慢；真断了会明确告诉你"
+                      : "合成走系统硬件编解码，不再录屏——可以切走，只是系统可能把它拖慢"}
                   </p>
                   <button
                     onClick={() => {
