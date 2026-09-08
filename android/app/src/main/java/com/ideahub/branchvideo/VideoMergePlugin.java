@@ -475,7 +475,17 @@ public class VideoMergePlugin extends Plugin {
             Future<Boolean> f = ex.submit(() -> {
                 MediaMetadataRetriever r = new MediaMetadataRetriever();
                 try {
-                    r.setDataSource(url, new HashMap<>());
+                    // ★★ 本地文件与网络地址要走**不同的重载**（2026-09-08 真机实测才发现）：
+                    //   `setDataSource(String, Map)` 是**网络**那一版，喂 `file://` 会直接
+                    //   `RuntimeException: setDataSource failed: status = 0xFFFFFFEA`。
+                    //   本地挑的 BGM 正是先 stageFile 落盘、再以 file:// 送进来的 ⇒ 探测**永远失败**。
+                    //   兜底是"按有处理"所以没出错，但那条路上的探测等于白跑，还每次刷一条警告 ——
+                    //   将来真正的探测失败会被这堆噪音盖住。
+                    if (url.startsWith("file:") || url.startsWith("/")) {
+                        r.setDataSource(Uri.parse(url).getPath());
+                    } else {
+                        r.setDataSource(url, new HashMap<>());
+                    }
                     return "yes".equals(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO));
                 } finally {
                     try { r.release(); } catch (Exception ignored) { }
