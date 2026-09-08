@@ -28,6 +28,20 @@ const CUT_KEY = "ideahub-app.cut.v1";
 
 export interface CutSession {
   draft: DraftVideo;
+  /**
+   * 剪辑页的**音轨预置**（`studioStore.draftAudioHint` 的那份，模板原片地址）。
+   *
+   * ★★ 为什么它必须跟着稿子落盘（2026-09-07 主人真机：「原本有声音的又没声音了」）：
+   *   `draftAudioHint` 只在**组稿那一拍**（finalizeInner）算一次，而且只活在内存 store 上。
+   *   白模复刻段的成片文件本身是**无声**的（BLOCKOUT_TASK 钉着 generate_audio:false，
+   *   那是版权拦截换来的），声音全靠这条预置在合并时混进去。于是只要 App 重启过一次，
+   *   再从个人页「接着剪」回到剪辑页，音频页签就是空的 —— 合出来的成片**整条没有声音**，
+   *   而屏幕上一个字都不会说（音频是"可选项"，空着不算错）。
+   *   ⇒ 稿子存了、声音没存 = 把一条只在内存里的关键状态漏在了重启的另一边。
+   * ★ 老稿子没有这一位（undefined）**按"没有预置"算**，不是"预置为空" —— 判否定，
+   *   与本仓「后加的字段一律判否定」同一条。
+   */
+  audioHint?: string;
   /** 存下来的时刻（横幅上说"什么时候剪的"用） */
   at: number;
 }
@@ -66,7 +80,11 @@ function validate(raw: unknown): CutSession | null {
   const o = raw as Partial<CutSession>;
   const d = o.draft as DraftVideo | undefined;
   if (!d || typeof d !== "object" || !Array.isArray(d.segments) || d.segments.length === 0) return null;
-  return { draft: d, at: typeof o.at === "number" ? o.at : 0 };
+  return {
+    draft: d,
+    ...(typeof o.audioHint === "string" && o.audioHint ? { audioHint: o.audioHint } : {}),
+    at: typeof o.at === "number" ? o.at : 0,
+  };
 }
 
 /** 同步读镜像。★ 没装载完时返回 null —— 调用方要能分清"没有"和"还没装完"就问 `cutSessionReady()` */
@@ -82,8 +100,10 @@ export function cutSessionReady(): boolean {
  * 存一稿。**回执是 boolean**（`idbSet` 本来就返回它）：存不住必须能被上层说出来 ——
  * 而调用它的每一处都恰好是"钱刚花出去"的那一拍（铁律八）。
  */
-export async function saveCutSession(draft: DraftVideo): Promise<boolean> {
-  const next: CutSession = { draft, at: Date.now() };
+export async function saveCutSession(draft: DraftVideo, audioHint: string | null): Promise<boolean> {
+  // ★ `audioHint` **必填**（哪怕传 null）：漏传它是零症状的 —— 稿子照存、回执照样是 true，
+  //   只有几天后用户抱怨"合出来没声音"时才看得见。本仓「漏了就零症状的参数一律钉成必填」。
+  const next: CutSession = { draft, ...(audioHint ? { audioHint } : {}), at: Date.now() };
   const ok = await idbSet(CUT_KEY, next);
   if (ok) {
     mirror = next;

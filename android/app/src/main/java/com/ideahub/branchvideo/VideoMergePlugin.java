@@ -232,6 +232,11 @@ public class VideoMergePlugin extends Plugin {
                 mixer.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(2, 2).scaleBy(vol));
                 EditedMediaItem bgm = new EditedMediaItem.Builder(MediaItem.fromUri(Uri.parse(aUrl)))
                         .setEffects(new Effects(ImmutableList.<AudioProcessor>of(mixer), ImmutableList.of()))
+                        // ★★ 只要声音，画面丢掉。这不是优化，是**正确性**：这条音轨的来源
+                        //   常常是一个 **mp4**（白模模板的原片 refVideo.url —— 白模成片自己
+                        //   是无声的，声音全靠它混进来）。多序列合成里画面只该由第一条序列出，
+                        //   把第二条的画面也喂进去等于让合成器多解一路视频，还要去猜谁盖谁。
+                        .setRemoveVideo(true)
                         .build();
                 // ★ BGM 短于成片时循环补齐；isLooping 的序列不决定成片长度（由视频那条定）
                 sequences.add(new EditedMediaItemSequence.Builder(bgm).setIsLooping(true).build());
@@ -277,6 +282,15 @@ public class VideoMergePlugin extends Plugin {
                         o.put("durationSec", result.durationMs > 0 ? result.durationMs / 1000d : 0);
                         o.put("width", result.width);
                         o.put("height", result.height);
+                        // ★★ 成片到底有没有声音，只有合成器答得准（2026-09-07 主人真机
+                        //   「原本有声音的又没声音了」）：源片有没有音轨、BGM 有没有真的混进去，
+                        //   Web 侧一概看不见 —— 而"没有声音"在界面上**不构成任何报错**
+                        //   （音轨本来就是可选的），于是一条哑片会一路走到发布页都没人吭声。
+                        //   audioMimeType 为 null = 输出里一条音轨都没有。
+                        //   ⚠ 谁要是哪天开了 Composition 的 experimentalSetForceAudioTrack，
+                        //     这一位就会对一条**静音轨**报 true —— 那时它就在骗人了，
+                        //     得改成同时看 channelCount / averageAudioBitrate。
+                        o.put("hasAudio", result.audioMimeType != null);
                         cc.resolve(o);
                     }
 

@@ -15,7 +15,7 @@
 import { badgeNote } from "../data/aigcLabel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../components/PageHeader";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InfoDialog from "../components/InfoDialog";
 import { AGREEMENTS } from "../data/agreements";
@@ -35,6 +35,13 @@ import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, format
 
 export default function PublishPage() {
   const navigate = useNavigate();
+  // ★ 合并那一拍带过来的话。剪辑页合完立刻换路由，写进它自己的 err 一个字都显示不出来
+  //   （本仓那格坑），所以走 navigate 的 state —— 这一屏是用户接下来唯一会看的。
+  const loc = useLocation();
+  const [mergeWarn, setMergeWarn] = useState(() => {
+    const st = loc.state as { warn?: unknown } | null;
+    return typeof st?.warn === "string" ? st.warn : "";
+  });
   const draft = useStudio((s) => s.draft);
   const clearDraft = useStudio((s) => s.clearDraft);
   const [title, setTitle] = useState("");
@@ -277,6 +284,24 @@ export default function PublishPage() {
         subtitle={`${draft.segments.length} 段 · 共 ${formatDuration(total)}`}
         right={<HelpButton tour="publish" />}
       />
+
+      {/* ★★ 合并那一拍才知道、而剪辑页当场就 navigate 走的话（成片是哑的 / 稿子没存住 /
+          音轨没取下来）—— 随导航带过来，这一屏是用户接下来唯一会看的（本仓那格坑：
+          写进 store 的 err 活不过 reset() 与换路由）。可关掉：它是提醒不是错误。 */}
+      {mergeWarn ? (
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+            <p className="flex-1 whitespace-pre-line text-xs leading-relaxed text-amber-100">{mergeWarn}</p>
+            <button
+              onClick={() => setMergeWarn("")}
+              aria-label="知道了"
+              className="flex-none rounded-full px-2 py-0.5 text-[11px] font-semibold text-amber-200 active:opacity-60"
+            >
+              知道了
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <main className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1.2fr_1fr]">
         {/* 成片预览 */}
