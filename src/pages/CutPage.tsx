@@ -8,6 +8,7 @@
 // 最后「下一步」把时间轴按顺序与裁剪范围重编码成单条视频，进发布页。
 import { useEffect, useMemo, useRef, useState } from "react";
 import Spinner from "../components/Spinner";
+import { startJob } from "../data/jobs";
 import PageHeader from "../components/PageHeader";
 import { useLocation, useNavigate } from "react-router";
 import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
@@ -628,6 +629,21 @@ export default function CutPage() {
       return;
     }
     mergingRef.current = true;
+    /**
+     * ★★ 合成是一件**能活过页面卸载**的长活（屏幕上那句话就写着「可以切走」），
+     *   所以它必须领一张票（本仓约定：长活登记进 data/jobs，胶囊只有一颗）。
+     *   不领票有两个后果，都真发生过：① 人走了之后没有任何地方显示它还在跑；
+     *   ② 跑完那一拍直接 `navigate("/publish")` —— 把正在别的页面上的人**无预警拽走**
+     *   （HashRouter 的 navigate 在组件卸载后照样生效，没有 cleanup 拦得住它）。
+     * ★ 人还在这一页时票走 `silent`：页面自己会画结果，别再弹一次通知。
+     */
+    const job = startJob({ kind: "merge", title: "合成成片", page: "/cut", progress: "准备中…" });
+    let settled = false;
+    /** 屏幕与票说同一句话 —— 两处各写各的必然分叉 */
+    const say = (t: string) => {
+      setBusy(t);
+      job.update(t);
+    };
     cancelRef.current = false;
     wentHiddenRef.current = false;
     setHiddenWarn(false);
@@ -663,20 +679,23 @@ export default function CutPage() {
       if (arkAt.length > 0) {
         const next = segs.slice();
         for (const i of arkAt) {
+          // ★ 每一轮开头先看一眼（本仓那格坑）：只在 await 处判的话，点了取消之后
+          //   剩下每段照样各等一发 120 秒 —— 用户点的是「取消」、收到的是「转存超时」
+          if (cancelRef.current) break;
           const src = next[i].videoUrl!;
           // ★★ 这一步会真的花上一两分钟（跨境搬 20~80MB），所以**文案必须一直在动**：
           //   2026-09-07 真机实拍到它一动不动地停了 108 秒 —— 屏幕上分不出"还在搬"与"卡死了"，
           //   也分不出卡在**提交**那一发还是**等搬完**（这两件事的排查方向完全不同）。
           const tf0 = Date.now();
           const waited = () => Math.round((Date.now() - tf0) / 1000);
-          setBusy(`第 ${i + 1} 段成片转存中（换成永久地址）…`);
+          say(`第 ${i + 1} 段成片转存中（换成永久地址）…`);
           try {
             let got = await requestArkTransfer(src);
             // ★ 上限 120 秒：搬 20~80MB 在服务端那头通常十几秒。到点还没好就先用直链走
             //   （成不成都不挡合并），后台那份不会白搬 —— 下次再问就是现成的。
             const until = Date.now() + 120_000;
             while (got.state === "pending" && Date.now() < until && !cancelRef.current) {
-              setBusy(`第 ${i + 1} 段成片转存中（换成永久地址）· 已等 ${waited()} 秒…`);
+              say(`第 ${i + 1} 段成片转存中（换成永久地址）· 已等 ${waited()} 秒…`);
               await new Promise((r) => setTimeout(r, 3_000));
               const st = await transferStatus([src]).catch(() => null);
               const hit = st?.[src];
@@ -714,7 +733,7 @@ export default function CutPage() {
       // ★ 段落直接把**公网地址**交过去：它们在出片那一刻就转存到图床了，让 Media3 自己流式取，
       //   不必先把几十兆下载到手机再喂进去（那正是老路最慢、也最容易超时的一段）。
       if (!mergeSupported()) throw new Error(MERGE_UNSUPPORTED);
-      setBusy("准备素材…");
+      say("准备素材…");
       const clips: MergeClip[] = [];
       for (const c of view) {
         const seg = mergeSegs[c.segIndex];
@@ -740,7 +759,7 @@ export default function CutPage() {
       let audioArg: { url: string; volume: number } | undefined;
       if (audio) {
         try {
-          setBusy("准备配乐…");
+          say("准备配乐…");
           audioArg = { url: await stageLocalAudio(audio.url), volume: audio.volume };
         } catch (e) {
           // ★ 音轨拿不到**不许拖垮整条成片**（2026-08-21 对抗评审确认的老规矩，这次沿用）
@@ -752,7 +771,7 @@ export default function CutPage() {
         }
       }
 
-      setBusy("合成中…");
+      say("合成中…");
       const merged = await runNativeMerge(
         {
           clips,
@@ -771,7 +790,7 @@ export default function CutPage() {
         return;
       }
 
-      setBusy("写入本地库…");
+      say("写入本地库…");
       // 原生产物是本机文件；成片下游整条链认的是 `idb:` 指针，这里搬一次省掉全 app 改造
       const blob = await mergedFileToBlob(merged.uri);
       const key = `merged:${uid("mv")}`;
@@ -845,16 +864,41 @@ export default function CutPage() {
           "这条成片没有声音：素材本身不带音轨，合成时也没有加配乐。想要声音就回剪辑页的「音频」加一条，再合一次。",
         );
       }
-      navigate("/publish", warns.length ? { state: { warn: warns.join("\n") } } : undefined);
+      settled = true;
+      if (aliveRef.current) {
+        job.done({ silent: true }); // 人就在这一页上，下面这行自己会把他带过去
+        navigate("/publish", warns.length ? { state: { warn: warns.join("\n") } } : undefined);
+      } else {
+        // ★★ 人已经离开这一页了 —— **不许**把他从别的地方拽到发布页（那正是"无预警跳页"）。
+        //   换成一张可点的票：他什么时候想去，点通知就过去。
+        //   ⚠ `warns` 必须跟着走：里面装着「这条成片没有声音」这类只有这一次能说的话，
+        //   不带上就等于悄悄写完什么都不说（本仓那格坑的同款形状）。
+        job.done({ msg: warns.length ? warns.join("\n") : "成片合好了，去发布吧", route: "/publish" });
+      }
     } catch (e) {
       // ★ 取消可能正好按在某一段的 await 中途（取流/加载/播放）——那时抛出来的异常
       //   是"因为取消"，不是失败。报成失败就是对用户说了假话（铁律八）。
+      const code = (e as { code?: string } | null)?.code;
+      const raw = (e instanceof Error ? e.message : String(e)).slice(0, 160);
       if (cancelRef.current) {
         setErr("已取消合并。片段、圈选和配乐都还在，随时可以重新开始。");
+      } else if (code === "BUSY") {
+        // ★ 这**不是失败**：那一炉好好地在跑（原生那句话自带出路）。加"合并失败："
+        //   等于报一次并不存在的失败，还把用户推向最不该走的那条路 —— 再合一次。
+        setErr(raw);
       } else {
-        setErr(`合并失败：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}`);
+        settled = true;
+        const msg = `合并失败：${raw}`;
+        if (aliveRef.current) {
+          setErr(msg);
+          job.done({ silent: true }); // 这一页自己会画这句话，不用再弹一次
+        } else {
+          job.fail(msg, "/cut"); // 人不在，结局只能留在票上
+        }
       }
     } finally {
+      // 取消 / BUSY 这些早退分支：票没结过就撤掉，别在胶囊里挂一张永远转圈的
+      if (!settled) job.done({ silent: true });
       setBusy("");
       document.removeEventListener("visibilitychange", onHidden);
       mergingRef.current = false;
