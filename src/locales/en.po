@@ -41,13 +41,40 @@ msgstr "joined {0}"
 msgid "{0}重新剪辑过"
 msgstr "Re-edited {0}"
 
+#: src/pages/CardDetailPage.tsx
+msgid "✂ 主图只留主体"
+msgstr "✂ Subject only (main image)"
+
+#: src/pages/CardDetailPage.tsx
+#: src/pages/TemplateDetailPage.tsx
+msgid "✂ 只留主体"
+msgstr "✂ Subject only"
+
 #: src/pages/CustomCardPage.tsx
 msgid "卡面仍带背景，出片可能把背景里的东西画进去"
 msgstr "The card image still has its background, so generated videos may pick up things from it"
 
+#. placeholder {0}: e instanceof Error ? e.message : String(e)
+#: src/data/cardViews.ts
+msgid "取不到这张图（{0}）"
+msgstr "Couldn't load this image ({0})"
+
+#. placeholder {0}: blob.type || "?"
+#: src/data/cardViews.ts
+msgid "取回来的不是图片（{0}）"
+msgstr "What came back isn't an image ({0})"
+
 #: src/i18n/activate.ts
 msgid "启梦 · 有想法，就是梦想启程的第一步"
 msgstr "QiMeng · Every dream starts with an idea"
+
+#: src/pages/TemplateDetailPage.tsx
+msgid "已换成只留主体的这张"
+msgstr "Replaced with the subject-only image"
+
+#: src/pages/CardDetailPage.tsx
+msgid "已换成只留主体的这张，出片按它走（卡面封面不跟着换）"
+msgstr "Replaced with the subject-only image. Videos will use it (the card cover stays as it was)."
 
 #: src/pages/CustomCardPage.tsx
 msgid "带背景"
@@ -56,6 +83,10 @@ msgstr "Background kept"
 #: src/pages/SettingsPage.tsx
 msgid "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"
 msgstr "The name under the home-screen icon follows your phone's system language. Switching here doesn't change it, so the two may differ on phones set to several languages."
+
+#: src/pages/TemplateDetailPage.tsx
+msgid "模板里这张卡已经变了，刷新后再试"
+msgstr "This card changed in the template. Refresh and try again."
 
 #: src/pages/SettingsPage.tsx
 msgid "没能切换语言，请重试"
@@ -72,3 +103,7 @@ msgstr "Segment {0} has {1} cards matching “{name}” ({names}). Use the full 
 #: src/pages/SettingsPage.tsx
 msgid "跟随系统（{0}）"
 msgstr "Follow system ({0})"
+
+#: src/data/cardViews.ts
+msgid "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"
+msgstr "This image changed while you were editing it (maybe on another device). Refresh and try again."

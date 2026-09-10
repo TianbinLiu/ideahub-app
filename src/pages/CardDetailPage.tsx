@@ -18,7 +18,10 @@ import SocialPanel, { useCountView, useSocialVersion } from "../components/Socia
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
 import { acquireCard, bindCardAsset, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, removeCard, shareCard, updateCardMeta } from "../data/account";
-import { addCardView, removeCardView } from "../data/cardViews";
+import { addCardView, addPreparedCardView, removeCardView, replaceCardView, viewSourceBlob } from "../data/cardViews";
+import PhotoSubjectPicker from "../components/PhotoSubjectPicker";
+import { freshSubjectPick, type SubjectPick } from "../studio/customCardStore";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
 import { assetPersisted, assetSyncIssue, assetsVersion, subscribeAssets } from "../data/cardAsset";
 import PortraitAuthPanel from "../components/PortraitAuthPanel";
@@ -35,6 +38,7 @@ import {
   CardView,
   MAX_CARD_VIEWS,
   SHARE_NOTE_MAX,
+  primarySlotOf,
   publishableModelUrl,
   slotLabel,
   viewTag,
@@ -280,6 +284,12 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
   const [zoom, setZoom] = useState<number | null>(null);
   /** 「取舍规则」小窗（hintFor + pipelineNoteFor 的全文搬进去了，见下面那段 ★） */
   const [rulesOpen, setRulesOpen] = useState(false);
+  /** 道具卡「只留主体」层（components/PhotoSubjectPicker）开着时：那张图，以及做完之后是「加一格」还是「换掉某一格」 */
+  const [subject, setSubject] = useState<{
+    pick: SubjectPick;
+    target: { add: CardView["kind"] } | { replace: { index: number; url: string } };
+  } | null>(null);
+  const { t } = useLingui();
 
   // ★★ "要不要画成图库"的判据是**卡上有没有真的挂图**（`card.views` 非空），
   //   不是 viewsOf() 的长度。两者只在一种情况下不同，而那种情况恰好会丢东西：
@@ -296,6 +306,11 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
 
   const full = views.length >= MAX_CARD_VIEWS;
   const gallery = hung;
+  // ★ 道具卡两格都只收抠过主体的图（拍板 2-1 a / 2-2 b，§1 第 8 批）：「+ 图位」先进选择器，已挂着的图可以「只留主体」原地换掉。
+  //   前提与加图相同（远端模式：换上去的图要转存成永久地址）。选择器里不给「保留背景」的出口 ——
+  //   那个出口只给自建卡第 1 格（拍板 4 b）；这里是事后补救，保留背景等于什么都没做。
+  const trimmable = owned && isRemoteMode() && card.type === "prop";
+  const primaryIndex = Math.max(0, views.findIndex((v) => v.kind === primarySlotOf(card.type)));
 
   const pick = (kind: CardView["kind"]) => {
     kindRef.current = kind;
@@ -310,6 +325,15 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
     setErr("");
     setNote("");
     try {
+      if (card.type === "prop") {
+        // 立刻读实成内存里的 Blob（同 CustomCardPage：content:// 的懒读切到后台之后可能失效）
+        const src = new Blob([await file.arrayBuffer()], { type: file.type });
+        setSubject({
+          pick: freshSubjectPick({ kind: kindRef.current, src, fileName: file.name, allowKeepBg: false }),
+          target: { add: kindRef.current },
+        });
+        return;
+      }
       const res = await addCardView(card.id, file, kindRef.current);
       if (res.note) setNote(res.note);
     } catch (e) {
@@ -336,6 +360,50 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
     }
   };
 
+  /** 已挂着的第 i 张 → 取回来进「只留主体」层，做完原地换掉（data/cardViews.replaceCardView） */
+  const onTrim = async (i: number) => {
+    const v = views[i];
+    if (!v || busy) return;
+    setBusy(true);
+    setErr("");
+    setNote("");
+    try {
+      const src = await viewSourceBlob(v.url);
+      setZoom(null);
+      setSubject({
+        pick: freshSubjectPick({ kind: v.kind, src, fileName: "view.jpg", allowKeepBg: false }),
+        target: { replace: { index: i, url: v.url } },
+      });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onSubjectDone = async (dataUrl: string, subjectNote: string) => {
+    const target = subject?.target;
+    setSubject(null);
+    if (!target) return;
+    setBusy(true);
+    setErr("");
+    setNote("");
+    try {
+      if ("add" in target) {
+        await addPreparedCardView(card.id, dataUrl, target.add, subjectNote || undefined);
+        if (subjectNote) setNote(subjectNote);
+      } else {
+        await replaceCardView(card.id, target.replace, dataUrl, subjectNote || undefined);
+        setNote(t`已换成只留主体的这张，出片按它走（卡面封面不跟着换）`);
+      }
+    } catch (e) {
+      // 同 onFile：这条路走网络（转存 + 同步），失败必须显示
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -346,20 +414,31 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
             永久地址才能给 AI 用（views 不收 dataURL），而离线模式没有服务器可转存。
             摆一个永远点不动的选项是本仓明令禁止的（CLAUDE.md「极致画质」那条）。 */}
         {owned && !isRemoteMode() && <span className="text-[10px] text-slate-500">离线模式下加不了参考图</span>}
-        {owned && isRemoteMode() && !full && (
+        {owned && isRemoteMode() && (!full || trimmable) && (
           // ★ flex-wrap：图位按卡种给，人物卡有三个（全身立绘/面部特写/标志性细节），
           //   一行排不下时要往下折，不能顶破这张卡片
           <div className="flex flex-wrap justify-end gap-1.5">
-            {CARD_SLOTS[card.type].map((s) => (
+            {/* 主图的「只留主体」常驻在这一行：没真挂过图的老卡不画图库，放大层那颗键它够不着 */}
+            {trimmable && views.length > 0 && (
               <button
-                key={s.kind}
                 disabled={busy}
-                onClick={() => pick(s.kind)}
+                onClick={() => void onTrim(primaryIndex)}
                 className="rounded-full bg-slate-700/70 px-2.5 py-1 text-[11px] text-slate-200 disabled:opacity-40"
               >
-                + {s.label}
+                <Trans>✂ 主图只留主体</Trans>
               </button>
-            ))}
+            )}
+            {!full &&
+              CARD_SLOTS[card.type].map((s) => (
+                <button
+                  key={s.kind}
+                  disabled={busy}
+                  onClick={() => pick(s.kind)}
+                  className="rounded-full bg-slate-700/70 px-2.5 py-1 text-[11px] text-slate-200 disabled:opacity-40"
+                >
+                  + {s.label}
+                </button>
+              ))}
           </div>
         )}
       </div>
@@ -434,6 +513,20 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
         }}
       />
 
+      {subject && (
+        <PhotoSubjectPicker
+          pick={subject.pick}
+          slotLabel={slotLabel(card.type, subject.pick.kind)}
+          onChange={(next) => setSubject((s) => (s ? { ...s, pick: next } : s))}
+          onClose={() => setSubject(null)}
+          onError={(msg) => {
+            setSubject(null);
+            setErr(msg);
+          }}
+          onDone={({ dataUrl, note: subjectNote }) => void onSubjectDone(dataUrl, subjectNote)}
+        />
+      )}
+
       {/* ★ 必须 portal 到 body：这一页的祖先里有 backdrop-blur / transform 的容器，
           它们会给 position:fixed 后代造包含块，`inset-0` 于是只铺满那个盒子。
           评论抽屉与首尾帧放大层都栽过这一条（CLAUDE.md 有记）。 */}
@@ -456,6 +549,18 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
               </span>
             </div>
             {views[zoom].note && <div className="max-w-xs text-center text-[11px] text-amber-400">{views[zoom].note}</div>}
+            {trimmable && (
+              <button
+                disabled={busy}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void onTrim(zoom);
+                }}
+                className="rounded-full bg-panel px-4 py-1.5 text-xs font-bold text-slate-100 ring-1 ring-slate-600 disabled:opacity-40"
+              >
+                <Trans>✂ 只留主体</Trans>
+              </button>
+            )}
             {owned && (
               <button
                 disabled={busy}

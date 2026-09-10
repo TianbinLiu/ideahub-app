@@ -41,13 +41,40 @@ msgstr "{0}注册"
 msgid "{0}重新剪辑过"
 msgstr "{0}重新剪辑过"
 
+#: src/pages/CardDetailPage.tsx
+msgid "✂ 主图只留主体"
+msgstr "✂ 主图只留主体"
+
+#: src/pages/CardDetailPage.tsx
+#: src/pages/TemplateDetailPage.tsx
+msgid "✂ 只留主体"
+msgstr "✂ 只留主体"
+
 #: src/pages/CustomCardPage.tsx
 msgid "卡面仍带背景，出片可能把背景里的东西画进去"
 msgstr "卡面仍带背景，出片可能把背景里的东西画进去"
 
+#. placeholder {0}: e instanceof Error ? e.message : String(e)
+#: src/data/cardViews.ts
+msgid "取不到这张图（{0}）"
+msgstr "取不到这张图（{0}）"
+
+#. placeholder {0}: blob.type || "?"
+#: src/data/cardViews.ts
+msgid "取回来的不是图片（{0}）"
+msgstr "取回来的不是图片（{0}）"
+
 #: src/i18n/activate.ts
 msgid "启梦 · 有想法，就是梦想启程的第一步"
 msgstr "启梦 · 有想法，就是梦想启程的第一步"
+
+#: src/pages/TemplateDetailPage.tsx
+msgid "已换成只留主体的这张"
+msgstr "已换成只留主体的这张"
+
+#: src/pages/CardDetailPage.tsx
+msgid "已换成只留主体的这张，出片按它走（卡面封面不跟着换）"
+msgstr "已换成只留主体的这张，出片按它走（卡面封面不跟着换）"
 
 #: src/pages/CustomCardPage.tsx
 msgid "带背景"
@@ -56,6 +83,10 @@ msgstr "带背景"
 #: src/pages/SettingsPage.tsx
 msgid "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"
 msgstr "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"
+
+#: src/pages/TemplateDetailPage.tsx
+msgid "模板里这张卡已经变了，刷新后再试"
+msgstr "模板里这张卡已经变了，刷新后再试"
 
 #: src/pages/SettingsPage.tsx
 msgid "没能切换语言，请重试"
@@ -72,3 +103,7 @@ msgstr "第 {0} 段挂着 {1} 张对得上「{name}」的卡（{names}），说�
 #: src/pages/SettingsPage.tsx
 msgid "跟随系统（{0}）"
 msgstr "跟随系统（{0}）"
+
+#: src/data/cardViews.ts
+msgid "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"
+msgstr "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"

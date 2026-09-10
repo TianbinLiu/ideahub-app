@@ -20,6 +20,10 @@ import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { RoleConfirmEntry } from "../components/blockout/RoleConfirmSheet";
 import { DetectRolesEntry } from "../components/blockout/DetectRolesEntry";
 import TarotCard from "../components/TarotCard";
+import PhotoSubjectPicker from "../components/PhotoSubjectPicker";
+import { viewSourceBlob } from "../data/cardViews";
+import { freshSubjectPick, type SubjectPick } from "../studio/customCardStore";
+import { Trans, useLingui } from "@lingui/react/macro";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import { useTemplatesVersion } from "./TemplateMarketPage";
 // ★ 「进挂卡编辑页要带什么、回哪儿」只有一处实现（FlowPage 导出的 castEditorState）：
@@ -50,7 +54,88 @@ import { useCurrentUser } from "../hooks/useAccount";
 import { useBackOr } from "../hooks/useBackOr";
 import { useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
-import { CARD_TYPE_LABELS, TPL_CATEGORIES, VideoTemplate } from "../types";
+import { CARD_TYPE_LABELS, Card, TPL_CATEGORIES, VideoTemplate, slotLabel, viewsOf } from "../types";
+
+/**
+ * 模板卡组里道具卡的「只留主体」（§1 第 8 批，0 token）：取这张卡的主图 → PhotoSubjectPicker → 写回模板。
+ *
+ * ★ 自动提卡那条路（real.mintCards 的道具分支）的卡面是原片按框裁剪，**带背景**；自动净底要等 X2 / X2v 定参数
+ *   （第 21 批），在那之前作者只能靠这一颗键补救。选择器里不给「保留背景」的出口：这是事后补救，保留背景等于没做。
+ * ★ 写回 dataURL、不上传：模板卡组只存在本机库（服务端的白模模板不带素材卡，见 templates.apiToTemplate 那句），
+ *   而 mintCards 裁出来的卡面本来就是 dataURL —— 走的是一条已经在跑的路。
+ * ★ 这张图出现在哪儿就换哪儿（cover 与 views 里等于它的那几格）：viewsOf 有 views 读 views、没有读 cover，
+ *   只换一处的话，另一处会让出片或卡面继续拿着原图。
+ * ★ 写之前重读本机那份：抠图要描好一阵，这期间模板可能刷新过 —— 这张卡的主图对不上就整句拒，不把新图写到别的图上。
+ *   比的是**开层那一刻**记下的地址（state 里的 from），不是渲染时的 primary：模板刷新后重渲染，primary 已经是新图，
+ *   拿它比永远相等，拒绝那一支就成了摆设（浏览器里改一次模板卡面实测过）。
+ */
+function TemplatePropTrim({ tplId, card }: { tplId: string; card: Card }) {
+  const { t } = useLingui();
+  const [pick, setPick] = useState<{ pick: SubjectPick; from: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const primary = viewsOf(card)[0];
+  if (!primary) return null;
+
+  const open = async () => {
+    if (busy) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const src = await viewSourceBlob(primary.url);
+      setPick({ pick: freshSubjectPick({ kind: primary.kind, src, fileName: "card.jpg", allowKeepBg: false }), from: primary.url });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const done = (from: string, dataUrl: string, note: string) => {
+    setPick(null);
+    const tpl = myTemplates().find((x) => x.id === tplId);
+    const cur = tpl?.cards.find((c) => c.id === card.id);
+    if (!tpl || !cur || viewsOf(cur)[0]?.url !== from) {
+      setMsg({ ok: false, text: t`模板里这张卡已经变了，刷新后再试` });
+      return;
+    }
+    const swap = (c: Card): Card => ({
+      ...c,
+      cover: c.cover === from ? dataUrl : c.cover,
+      ...(Array.isArray(c.views)
+        ? { views: c.views.map((v) => (v.url === from ? { ...v, url: dataUrl, note: note || undefined } : v)) }
+        : {}),
+    });
+    updateTemplate(tplId, { cards: tpl.cards.map((c) => (c.id === card.id ? swap(c) : c)) });
+    setMsg({ ok: true, text: t`已换成只留主体的这张` });
+  };
+
+  return (
+    <>
+      <button
+        disabled={busy}
+        onClick={() => void open()}
+        className="mt-1 w-full rounded-full bg-panel px-2 py-1 text-[10px] text-slate-300 ring-1 ring-slate-700 disabled:opacity-40"
+      >
+        <Trans>✂ 只留主体</Trans>
+      </button>
+      {msg && <p className={`mt-1 text-[10px] leading-relaxed ${msg.ok ? "text-emerald-300" : "text-rose-300"}`}>{msg.text}</p>}
+      {pick && (
+        <PhotoSubjectPicker
+          pick={pick.pick}
+          slotLabel={slotLabel(card.type, pick.pick.kind)}
+          onChange={(next) => setPick((s) => (s ? { ...s, pick: next } : s))}
+          onClose={() => setPick(null)}
+          onError={(m) => {
+            setPick(null);
+            setMsg({ ok: false, text: m });
+          }}
+          onDone={({ dataUrl, note }) => done(pick.from, dataUrl, note)}
+        />
+      )}
+    </>
+  );
+}
 
 /**
  * 白模出片会走哪一档。refVid 的**唯一出处**是 economy.VIDEO_TIERS（开闸 = 仓库主人翻
@@ -596,9 +681,13 @@ export default function TemplateDetailPage() {
             <div className="mb-1.5 text-xs font-semibold text-slate-300">🎴 模板卡组 · {t.cards.length} 张</div>
             <div className="grid grid-cols-3 gap-2">
               {t.cards.map((c) => (
-                <Link key={c.id} to={`/card/${c.id}`} state={{ card: c }}>
-                  <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} />
-                </Link>
+                <div key={c.id}>
+                  <Link to={`/card/${c.id}`} state={{ card: c }}>
+                    <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} />
+                  </Link>
+                  {/* ★ 只给改得动的作者（isMine && editableHere，两个问题的区别见上面 ★★）：写回的是本机库那份 */}
+                  {isMine && editableHere && c.type === "prop" && <TemplatePropTrim tplId={t.id} card={c} />}
+                </div>
               ))}
             </div>
           </div>
