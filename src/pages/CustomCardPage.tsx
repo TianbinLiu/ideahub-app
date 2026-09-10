@@ -39,6 +39,8 @@ import { fetchPortraitAssetImage } from "../api/portrait";
 import { addCards, bindCardAsset, canAfford, isRemoteMode, spendTokens, walletOf } from "../data/account";
 import { API_ON } from "../api/client";
 import { prepareCardImage } from "../data/cardViews";
+import PhotoSubjectPicker from "../components/PhotoSubjectPicker";
+import { blobToDataUrl } from "../utils/image";
 import { AI_REAL, portraitViews, refineCardImage } from "../ai";
 import { chatVision } from "../ai/arkClient";
 import FrameAnnotator from "../components/FrameAnnotator";
@@ -69,6 +71,7 @@ import {
   Card,
   CardType,
   CardView,
+  ID_LINE_MAX,
   parseTags as parseTagsShared,
   roleToKind,
   slotLabel,
@@ -89,6 +92,15 @@ const SUMMARY_MAX = 60;
 const INFO_MAX = 500;
 const TAG_MAX = 6;
 const TAG_LEN_MAX = 10;
+/** 出片句的示例（占位符）。★ 避开提示词敏感词替换表里的词（ai/real.ts 的 SOFTEN，例如「少女」）：
+ *  用户照抄示例的话，那个词出图时会被改写，出片句就和他看到的对不上了 */
+const ID_LINE_EXAMPLE: Record<CardType, string> = {
+  character: "例：黑色齐肩短发的年轻女性，左眼下一颗泪痣，深蓝水手服",
+  scene: "例：雨夜的旧城小巷，两侧霓虹招牌，积水的地面反光",
+  prop: "例：黄铜外壳的老式怀表，表盖刻着缠枝纹，表链磨得发亮",
+  background: "例：末日后第三年，城市被藤蔓覆盖，人们以物易物",
+  style: "例：水墨淡彩，大面积留白，镜头缓慢横移",
+};
 
 /** 方案小窗的占位图（内置方案都带真实示例图了，这份只兜自定义方案没存示例的情况） */
 const SCHEME_EMOJI: Record<string, string> = { scheme_clean: "🧍", scheme_faceless: "🫥", scheme_specsheet: "📐" };
@@ -101,15 +113,7 @@ function parseTags(raw: string): string[] {
   return parseTagsShared(raw, { max: TAG_MAX, maxLen: TAG_LEN_MAX });
 }
 
-/** Blob → dataURL。纯编码，不是规则（规则都在 prepareCardImage 里） */
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((res, rej) => {
-    const fr = new FileReader();
-    fr.onload = () => res(String(fr.result));
-    fr.onerror = () => rej(new Error("图片读取失败"));
-    fr.readAsDataURL(blob);
-  });
-}
+// Blob → dataURL 的纯编码搬到了 utils/image.blobToDataUrl（「只留主体」层也要用，别抄两份）
 
 export default function CustomCardPage() {
   const nav = useNavigate();
@@ -126,6 +130,10 @@ export default function CustomCardPage() {
   const [summary, setSummary] = useDraftField("summary");
   const [info, setInfo] = useDraftField("info");
   const [tagText, setTagText] = useDraftField("tagText");
+  /** 出片句（Card.idLine）。这一页原来不写它，出片时退回「名字 + 简介前 24 字」（segmentGen.materialText） */
+  const [idLine, setIdLine] = useDraftField("idLine");
+  /** 道具卡「只留主体」层（components/PhotoSubjectPicker）开着时那张图 */
+  const [subjectPick, setSubjectPick] = useDraftField("subjectPick");
 
   // ── 人物卡：方案驱动的图位 ─────────────────────────────
   // 方案库是模块级侧库，自建/删除后要重渲染靠订阅（与 VideoCardAnnotator 同一套）
@@ -298,19 +306,38 @@ export default function CustomCardPage() {
    */
   function changeType(next: CardType) {
     if (next === type) return;
-    // ★ 人物卡（方案库）与其余卡种（kind 库）互不相通，涉及人物卡的切换**什么都不丢**
-    //   （另一库原样留着，切回来图还在）——只有非人物卡之间才有"这一格没了"的问题
-    if (next !== "character" && type !== "character") {
+    // ★ 人物卡（方案库）与其余卡种（kind 库）互不相通：人物卡那一库切来切去**什么都不丢**
+    //   （另一库原样留着，切回来图还在）。「这一格没了」只发生在非人物卡之间。
+    if (next !== "character") {
       const keep = new Set<string>(CARD_SLOTS[next].map((s) => s.kind));
-      const gone = (Object.keys(shots) as CardView["kind"][]).filter((k) => shots[k] && !keep.has(k));
-      if (gone.length > 0) {
+      const kinds = (Object.keys(shots) as CardView["kind"][]).filter((k) => shots[k]);
+      const gone = type !== "character" ? kinds.filter((k) => !keep.has(k)) : [];
+      // ★★ 道具卡的图一律要过「只留主体」层（主人 2026-09-10 拍板 2-1 a / 2-2 b），所以进出道具卡时
+      //   对得上的格子也不能原样留：抠好的道具主体（浅灰底、只剩一件东西）当不了场景的「全景主视图」；
+      //   反过来，没抠过的图挪进道具卡，就绕过了「封面只有主体」这条规则。
+      //   判据看图本身带没带 via 标记，不看上一个卡种 —— 中间隔着一次人物卡也照样判得对。
+      const recut = kinds.filter((k) => keep.has(k) && (shots[k]!.via === "subject") !== (next === "prop"));
+      const drop = new Set<CardView["kind"]>([...gone, ...recut]);
+      if (drop.size > 0) {
         const kept: Partial<Record<CardView["kind"], Shot>> = {};
-        for (const k of Object.keys(shots) as CardView["kind"][]) if (keep.has(k)) kept[k] = shots[k];
+        for (const k of kinds) if (!drop.has(k)) kept[k] = shots[k];
         setShots(kept);
-        setDropped(
-          `${CARD_TYPE_LABELS[next]}没有「${gone.map((k) => slotLabel(type, k)).join("、")}」这一格，` +
-            `你传的那张已经取下来了——需要的话换回${CARD_TYPE_LABELS[type]}再传一次。`,
-        );
+        const said: string[] = [];
+        if (gone.length > 0) {
+          said.push(
+            `${CARD_TYPE_LABELS[next]}没有「${gone.map((k) => slotLabel(type, k)).join("、")}」这一格，` +
+              `你传的那张已经取下来了——需要的话换回${CARD_TYPE_LABELS[type]}再传一次。`,
+          );
+        }
+        if (recut.length > 0) {
+          const names = recut.map((k) => slotLabel(next, k)).join("、");
+          said.push(
+            next === "prop"
+              ? `道具卡的图要先框出主体、描出轮廓，「${names}」那张没抠过，已经取下——点那一格重新选图。`
+              : `「${names}」那张是按道具卡抠好的主体图，当不了${CARD_TYPE_LABELS[next]}的图，已经取下——需要的话换回道具卡重新做。`,
+          );
+        }
+        setDropped(said.join(""));
       } else {
         setDropped("");
       }
@@ -460,6 +487,32 @@ export default function CustomCardPage() {
     setBusySlot(key);
     setErr("");
     setSlotErr(null);
+    // ★★ 道具卡两格都先进「只留主体」层（主人 2026-09-10 拍板 2-1 a / 2-2 b），不在这里走 prepareCardImage：
+    //   它会先把长边压到 1024，再让人在压过的图上框 —— 占画面一小块的道具就只剩一百来像素，
+    //   撞上出片管线的参考图短边门（utils/image.REF_SHORT_MIN）。框和轮廓都打在原图像素上，合成完才过 prepareCardImage。
+    if (type === "prop" && "kind" in target) {
+      try {
+        // 立刻读实成内存里的 Blob：content:// 的懒读在切到后台之后可能失效（需真机验），
+        // 而这张图要在圈选层里停好一阵，人还可能中途切走再回来
+        const src = new Blob([await file.arrayBuffer()], { type: file.type });
+        setSubjectPick({
+          kind: target.kind,
+          src,
+          fileName: file.name,
+          allowKeepBg: target.kind === primary.kind,
+          stage: "box",
+          rect: null,
+          zoom: null,
+          lasso: null,
+          preview: null,
+        });
+      } catch (e) {
+        setSlotErr({ key, msg: `这张图读不出来：${(e instanceof Error ? e.message : String(e)).slice(0, 80)}——换一张再试` });
+      } finally {
+        setBusySlot(null);
+      }
+      return;
+    }
     try {
       // 比例/大小的规则只有这一处（data/cardViews.prepareCardImage），
       // 与详情页「+ 图位」共用；这一页只负责把它编成 dataURL 挂上去
@@ -676,6 +729,9 @@ export default function CustomCardPage() {
         // 用户填的那段就是详情页「<类型>信息」那一块。没填就**不写**这个字段——
         // 详情页会如实说"这张卡没留下铸造时的提示词，下面是按同款格式现补的一份"
         ...(info.trim() ? { genPrompt: info.trim().slice(0, INFO_MAX) } : {}),
+        // 出片句：填了才写。没填不写，出片时照旧退回名字 + 简介（segmentGen.materialText / types.idLineOf）。
+        // ★ 客户端 60（ID_LINE_MAX）< 服务端 zod 200，有意不相等（CLAUDE.md「把客户端上限与服务端对齐」那格）
+        ...(idLine.trim() ? { idLine: idLine.trim().slice(0, ID_LINE_MAX) } : {}),
         // 真人声明只在为 true 时写（缺省 = 非真人，读侧判否定，见 types.Card.realPerson）
         ...(declareReal ? { realPerson: true } : {}),
         // ⚠ imageTier 故意不写：那是**AI 出图档位**，这条路一张图都没让 AI 画。
@@ -1429,6 +1485,12 @@ export default function CustomCardPage() {
                     )}
                   </div>
                   <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">锁住{s.locks}。</p>
+                  {type === "prop" && (
+                    // 拍板 2-1 a / 2-2 b：两格都要抠。话说在选图之前，别让人选完图才发现还有一步
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-sky-300">
+                      选图后先框出这件道具、沿边描一圈——只留主体，背景换成浅灰纯色
+                    </p>
+                  )}
                   {isPrimary && (
                     // ★ "一图两用"必须写明白：与最低档 AI 铸卡是同一条规则，
                     //   不说的话用户会以为卡面是另外一张、还要再传一次。
@@ -1568,6 +1630,27 @@ export default function CustomCardPage() {
             {info.length}/{INFO_MAX}
           </span>
         </div>
+        {/* 出片句（Card.idLine）。★ 与上面那段「<类型>信息」不是一回事：信息只进 genPrompt（详情页展示、复刻时读），
+            出片句是**出片时原样拼进视频提示词**的那一句（segmentGen.materialText）—— 这一页原来不写它，
+            出片时退回「名字 + 简介前 24 字」。画出来让人看得见、改得了：以后「拍摄识别」写进来的那一句
+            如果看不见，就是一段用户改不了的硬约束。 */}
+        <h3 className="mb-1.5 mt-3 text-xs font-semibold text-slate-300">出片句（选填）</h3>
+        <input
+          value={idLine}
+          onChange={(e) => setIdLine(e.target.value)}
+          maxLength={ID_LINE_MAX}
+          placeholder={ID_LINE_EXAMPLE[type]}
+          className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+        />
+        <div className="mt-0.5 flex items-start justify-between gap-2">
+          <p className="text-[10px] leading-relaxed text-slate-500">
+            <span className="text-slate-400">出片时 AI 会原样读这一句</span>
+            {type === "background" ? "，当作这段故事的背景设定" : "，写一眼就能画出来的外形特征"}；不填就用卡名和简介。
+          </p>
+          <span className="flex-none text-[10px] text-slate-600">
+            {idLine.length}/{ID_LINE_MAX}
+          </span>
+        </div>
         {isChar && (
           <button
             onClick={() => setStep("final")}
@@ -1701,6 +1784,26 @@ export default function CustomCardPage() {
       )}
 
         </>
+      )}
+
+      {subjectPick && (
+        <PhotoSubjectPicker
+          pick={subjectPick}
+          slotLabel={slotLabel("prop", subjectPick.kind)}
+          onChange={setSubjectPick}
+          onClose={() => setSubjectPick(null)}
+          onError={(msg) => {
+            setSlotErr({ key: subjectPick.kind, msg });
+            setSubjectPick(null);
+          }}
+          onDone={({ dataUrl, note }) => {
+            setShots((prev) => ({
+              ...prev,
+              [subjectPick.kind]: { dataUrl, note, fileName: subjectPick.fileName, via: "subject" },
+            }));
+            setSubjectPick(null);
+          }}
+        />
       )}
 
       {annot && (
