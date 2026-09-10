@@ -88,6 +88,10 @@ export interface CustomCardDraft {
   subjectPick: SubjectPick | null;
   /** 出片句（Card.idLine）：出片时整句拼进视频提示词，≤ types.ID_LINE_MAX */
   idLine: string;
+  /** 一键识别（场景卡 / 道具卡）正在跑的那一步（空 = 没在跑） */
+  recogBusy: string;
+  /** 识别的结局那句话：钱扣没扣分三档说（见 CustomCardPage.recognize） */
+  recogMsg: { tone: "warn" | "error"; text: string } | null;
   schemePick: boolean;
   importMsg: string;
   realPerson: boolean;
@@ -127,6 +131,8 @@ export function initialDraft(): CustomCardDraft {
     annot: null,
     subjectPick: null,
     idLine: "",
+    recogBusy: "",
+    recogMsg: null,
     schemePick: false,
     importMsg: "",
     realPerson: false,
@@ -168,7 +174,7 @@ export function draftDirty(s: CustomCardDraft): boolean {
 
 /** 有活在跑（AI 出图 / 铸卡 / 选图处理）—— 这时不许清空 */
 export function draftBusy(s: CustomCardDraft): boolean {
-  return !!s.aiBusy || s.minting || s.busySlot !== null || s.aiPick !== null;
+  return !!s.aiBusy || s.minting || s.busySlot !== null || s.aiPick !== null || !!s.recogBusy;
 }
 
 /**

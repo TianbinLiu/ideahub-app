@@ -7,8 +7,9 @@
 //   不耗 token / 去工坊的链接），三条展开讲进了引导（tours 的 customcard，首次进页
 //   强制放一遍、角落 ? 随时重看）——"默认铸卡不用传图"这件事仍然人人看得到。
 //
-// ★★ 这一页**一个模型都不调**，所以既不报价也不扣 token。这是它相对 AI 铸卡的真实
-//   优势（也是唯一的），要写出来；反过来说，它也没有"AI 帮你补全另外两张图"这件事。
+// ★★ 自己传图这条路**默认一个模型都不调**，所以铸卡本身既不报价也不扣 token —— 这是它相对 AI 铸卡的
+//   真实优势，要写出来。花钱的都是**可选**的一颗键，价签印在键上、成功才扣：人物卡的「AI 生成图位」
+//   与「圈选改图」、场景卡与道具卡的「让 AI 填写」（2026-09-10 更正：这句注释原来写的是整页不调模型，早就不对了）。
 //
 // ── 想清楚过的四件事（对应铁律五/七/八）────────────────────────────
 // ① **离线模式给不给走？给。** 卡本身照样成立：`data/account.addCards` 在离线模式
@@ -36,12 +37,12 @@ import PortraitAuthPanel from "../components/PortraitAuthPanel";
 import VoiceRecorder from "../components/VoiceRecorder";
 import VoiceUploadButton from "../components/VoiceUploadButton";
 import { fetchPortraitAssetImage } from "../api/portrait";
-import { addCards, bindCardAsset, canAfford, isRemoteMode, spendTokens, walletOf } from "../data/account";
+import { addCards, bindCardAsset, canAfford, isRemoteMode, refreshRemoteWallet, spendTokens, walletOf } from "../data/account";
 import { API_ON } from "../api/client";
 import { prepareCardImage } from "../data/cardViews";
 import PhotoSubjectPicker from "../components/PhotoSubjectPicker";
 import { blobToDataUrl } from "../utils/image";
-import { AI_REAL, portraitViews, refineCardImage } from "../ai";
+import { AI_REAL, ArkBadReply, ArkNoReply, portraitViews, recognizeCardSubject, refineCardImage } from "../ai";
 import { chatVision } from "../ai/arkClient";
 import FrameAnnotator from "../components/FrameAnnotator";
 import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
@@ -134,6 +135,9 @@ export default function CustomCardPage() {
   const [idLine, setIdLine] = useDraftField("idLine");
   /** 道具卡「只留主体」层（components/PhotoSubjectPicker）开着时那张图 */
   const [subjectPick, setSubjectPick] = useDraftField("subjectPick");
+  /** 一键识别（场景卡 / 道具卡，拍板 5 a）正在跑的那一步，以及结局那句话 */
+  const [recogBusy, setRecogBusy] = useDraftField("recogBusy");
+  const [recogMsg, setRecogMsg] = useDraftField("recogMsg");
 
   // ── 人物卡：方案驱动的图位 ─────────────────────────────
   // 方案库是模块级侧库，自建/删除后要重渲染靠订阅（与 VideoCardAnnotator 同一套）
@@ -346,6 +350,7 @@ export default function CustomCardPage() {
     }
     setType(next);
     setErr("");
+    setRecogMsg(null); // 上一个卡种的识别结局，到新卡种上已经不成立
   }
 
   /**
@@ -649,6 +654,72 @@ export default function CustomCardPage() {
       setSlotErr({ key: tag, msg: `没改成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}（没扣钱）` });
     } finally {
       setBusySlot(null);
+    }
+  }
+
+  /**
+   * 一键识别卡片文字（主人 2026-09-10 拍板 5 a：上传那条路默认不识别，给一颗可选的键；拍摄那条路以后接同一个函数）。
+   * ★ 喂的是**卡面那一张**：道具卡就是抠好主体、铺好底的那张（理由见 ai/real.recognizeCardSubject 的 ★）。
+   * ★ 只填空着的字段，不覆盖用户已经打的字；写回前核一次卡种与卡面没换过（等回包的几秒里用户可能换了）。
+   * ★★ 失败时的钱分三档说，按错误**类型**判（arkClient 的 ArkNoReply / ArkBadReply）：服务端先扣后转发，
+   *   客户端又先于服务端超时 ——「网络失败 = 没扣钱」这句话在远端模式下会说错。
+   */
+  async function recognize() {
+    if (type !== "prop" && type !== "scene") return;
+    const cover = shots[primary.kind];
+    if (!cover || recogBusy) return;
+    if (AI_REAL && !canAfford(CHAT_TURN_TOKENS)) {
+      const w = walletOf();
+      setRecogMsg({
+        tone: "error",
+        text: `识别一次 ${fmtTokens(CHAT_TURN_TOKENS)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不够——去「我的」页充值，或者自己填`,
+      });
+      return;
+    }
+    const startType = type;
+    const startCover = cover.dataUrl;
+    setRecogMsg(null);
+    setRecogBusy("识别中…");
+    const job = startJob({ kind: "card-recognize", title: "识别卡片文字", page: "/custom-card", route: "/custom-card", progress: "识别中…" });
+    try {
+      const r = await recognizeCardSubject({ type: startType, image: startCover });
+      if (AI_REAL) spendTokens(CHAT_TURN_TOKENS); // 离线账本成功才扣；远端模式这一行是空操作（服务端已结算）
+      const s = useCardDraft.getState();
+      if (s.type !== startType || s.shots[CARD_SLOTS[startType][0].kind]?.dataUrl !== startCover) {
+        setRecogMsg({
+          tone: "warn",
+          text: `识别好了，但你已经换了${s.type !== startType ? "卡种" : "卡面图"}，结果没有填进去${AI_REAL ? `（这次识别已计费 ${fmtTokens(CHAT_TURN_TOKENS)}）` : ""}`,
+        });
+        job.done({ msg: "识别好了，但卡面已经换了，结果没填", silent: s.mounted });
+        return;
+      }
+      if (!s.name.trim() && r.name) setName(r.name.slice(0, NAME_MAX));
+      if (!s.summary.trim() && r.summary) setSummary(r.summary.slice(0, SUMMARY_MAX));
+      if (!s.idLine.trim() && r.idLine) setIdLine(r.idLine.slice(0, ID_LINE_MAX));
+      if (!s.tagText.trim() && r.tags.length > 0) setTagText(r.tags.slice(0, TAG_MAX).join(" "));
+      if (startType === "scene" && r.hasPeople) {
+        setRecogMsg({ tone: "warn", text: "照片里有人：默认档出片不受影响；高清 / 超清档可能被方舟拒掉（没受理不扣视频钱）" });
+      }
+      job.done({ msg: "识别好了，回去看看填得对不对", silent: s.mounted });
+    } catch (e) {
+      const remote = isRemoteMode();
+      let text: string;
+      if (e instanceof ArkNoReply) {
+        text = remote
+          ? `没等到识别结果，这次可能已经扣了 ${fmtTokens(CHAT_TURN_TOKENS)}——以「我的」页钱包流水为准。可以先自己填`
+          : "没等到识别结果（网络不通），可以先自己填";
+        if (remote) void refreshRemoteWallet();
+      } else if (e instanceof ArkBadReply) {
+        text = remote
+          ? `识别已计费 ${fmtTokens(CHAT_TURN_TOKENS)}，但没读出结果——可以自己填，或者再识别一次`
+          : "识别结果没读出来——可以自己填，或者再识别一次";
+      } else {
+        text = `识别没成（没扣钱）：${(e instanceof Error ? e.message : String(e)).slice(0, 80)}`;
+      }
+      setRecogMsg({ tone: "error", text });
+      job.fail("识别没成，回去看原因", "/custom-card");
+    } finally {
+      setRecogBusy("");
     }
   }
 
@@ -1312,6 +1383,29 @@ export default function CustomCardPage() {
           <div className="mt-0.5 text-right text-[10px] text-slate-600">
             {summary.length}/{SUMMARY_MAX}
           </div>
+          {(type === "prop" || type === "scene") && (
+            // 拍板 5 a：上传那条路默认不识别，给一颗可选的键。价签印在键上（与本页「圈选改图」同一形状），成功才扣
+            <div className="mt-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void recognize()}
+                  disabled={!shots[primary.kind] || !!recogBusy || busySlot !== null || minting}
+                  className="rounded-full bg-panel px-3 py-1 text-[11px] text-brand ring-1 ring-slate-700 disabled:opacity-40"
+                >
+                  {recogBusy || `✨ 让 AI 按${type === "prop" ? "主体" : "照片"}填写${AI_REAL ? `（${fmtTokens(CHAT_TURN_TOKENS)}）` : ""}`}
+                </button>
+                <span className="text-[10px] text-slate-500">
+                  {shots[primary.kind] ? "只填空着的格子，不改你已经写的字" : `先传${primary.label}`}
+                </span>
+              </div>
+              {recogMsg && (
+                <p className={`mt-1 text-[10px] leading-relaxed ${recogMsg.tone === "error" ? "text-rose-300" : "text-amber-300"}`}>
+                  {recogMsg.text}
+                </p>
+              )}
+            </div>
+          )}
         </div>
         {/* 实时卡面预览：卡框会盖掉四周一圈、题名压在底部，先看见再决定要不要换图 */}
         <div className="w-24 flex-none">
@@ -1778,7 +1872,7 @@ export default function CustomCardPage() {
       ) : !ready ? (
         <p className="mt-1.5 text-center text-[11px] text-slate-400">还缺：{missing.join("、")}</p>
       ) : (
-        <p className="mt-1.5 text-center text-[11px] text-slate-500">不消耗 token · 铸好后直接进你的卡片库</p>
+        <p className="mt-1.5 text-center text-[11px] text-slate-500">铸卡本身不消耗 token · 铸好后直接进你的卡片库</p>
       )}
         </>
       )}

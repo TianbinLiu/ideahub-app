@@ -55,6 +55,7 @@ import { refableViews } from "../data/cardViews";
 // 已授权的可信素材：整张卡改发 asset:// URI（判据与拼法各只有一处，见 data/cardAsset）
 import { assetOf, assetUri } from "../data/cardAsset";
 import {
+  ArkBadReply,
   ArkHttpError,
   ArkTaskUnknown,
   briefArkReason,
@@ -159,6 +160,67 @@ export async function refineCardImage(o: { annotated: string; req: string; size:
       `保持人物的长相、发型、服装与画风完全一致；成品图不要保留任何圈选线条或标注痕迹`,
     { imageRefs: [o.annotated], size: o.size },
   );
+}
+
+/** 拍照 / 传图识别出来的卡片文字（只填字，不碰图） */
+export interface RecognizedCard {
+  name: string;
+  summary: string;
+  idLine: string;
+  tags: string[];
+  /** 照片里有没有人（场景卡用：真人入镜在高清档出片会被方舟拒） */
+  hasPeople: boolean;
+}
+
+/** 识别提示词：**照片口径**，两种卡各一份（字段形状相同，便于一处解析） */
+const RECOGNIZE_SPEC: Record<"prop" | "scene", string> = {
+  prop:
+    "这是一张实物照片，照片里只留下了要做成道具卡的那一件东西（背景已经换成浅灰纯色）。只看这件东西本身，写：" +
+    '{"name":"卡名，不超过8字","summary":"一句有故事感的简介，不超过60字",' +
+    '"idLine":"30~60字：这件物件一眼就能画出来的外形——造型、材质、配色、标志性细节；不写用途和故事",' +
+    '"tags":["不超过6个关键词"],"hasPeople":false}',
+  scene:
+    "这是一张实拍的地点照片。看它，写：" +
+    '{"name":"卡名，不超过8字","summary":"一句有故事感的简介，不超过60字",' +
+    '"idLine":"30~60字：这个地点的空间结构、地貌与建筑轮廓、主要陈设与光线氛围；不写人物",' +
+    '"tags":["不超过6个关键词"],"hasPeople":true 或 false（照片里有没有人，含路人、背影、局部身体）}',
+};
+
+/**
+ * 拍照 / 传图识别卡片文字（主人 2026-09-10 拍板：场景卡、道具卡；上传那条路是一颗可选的键）。
+ *
+ * ★ 照片口径的提示词，别复用提卡那套 CARD_RULES：那是**视频**口径（「scene＝视频里的地点」「读者手上没有
+ *   这段视频」），原样照搬会把模型引去描述一段不存在的视频。
+ * ★ 道具卡喂的必须是**抠好主体、铺好底**的那一张：写出来的 name / summary / idLine 会以「必须严格遵守，
+ *   不得改动其外形与身份」硬拼进出片提示词（studio/segmentGen 的 materialText），喂整张原图的话，
+ *   桌上别的东西会被写进这句硬约束。
+ * ★ 回包过同一道措辞闸 dropRefClauses（三条提卡路共用的那一份，别在页面里另写）。
+ * ★ 计费在服务端：一次 chat 定额 CHAT_TURN_TOKENS（server config/tokens.js 的 priceOf，与带几张图无关），
+ *   先扣后转发。失败分档靠 arkClient 的错误类型：ArkNoReply = 可能已扣、ArkBadReply = 已扣、其余 = 没受理没扣。
+ */
+export async function recognizeCardSubject(o: { type: "prop" | "scene"; image: string }): Promise<RecognizedCard> {
+  const raw = await chatVision("你是卡牌文案师。只输出一个 JSON 对象，不要输出任何其他文字。", RECOGNIZE_SPEC[o.type], [o.image]);
+  let j: { name?: unknown; summary?: unknown; idLine?: unknown; tags?: unknown; hasPeople?: unknown };
+  try {
+    j = JSON.parse(raw.replace(/^[^{]*/, "").replace(/[^}]*$/, ""));
+  } catch {
+    throw new ArkBadReply("识别结果不是 JSON");
+  }
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  // 名字带禁用词就不要（与 sanitizeCardDefs 同一把尺：改名等于替模型编一张卡）
+  const rawName = str(j.name).slice(0, 8);
+  const name = REF_WORD_RE.test(rawName) ? "" : rawName;
+  const summary = dropRefClauses(str(j.summary)).slice(0, 60);
+  const idLine = dropRefClauses(str(j.idLine)).slice(0, ID_LINE_MAX);
+  if (!name && !summary && !idLine) throw new ArkBadReply("识别结果是空的");
+  const tags = Array.isArray(j.tags)
+    ? j.tags
+        .filter((t): t is string => typeof t === "string")
+        .map((t) => t.trim().slice(0, 10))
+        .filter(Boolean)
+        .slice(0, 6)
+    : [];
+  return { name, summary, idLine, tags, hasPeople: j.hasPeople === true };
 }
 
 /**
@@ -741,7 +803,10 @@ const BIND_HINT: Record<CardType, string> = {
   scene: "的定场参考：本段画面的空间结构、地貌与建筑轮廓要与之一致；光线、天气与时间跟着剧情走，不必与参考图相同",
   // ★ V3：背景卡只以文字参与出片、allocateRefs 从不分配它——这一句永远到不了提示词，留着只为 Record 完整
   background: "（背景卡只以文字参与出片，不发图）",
-  prop: "的实物参考，画面中出现它时必须与之一致",
+  // ★ 后半句是主人 2026-09-10 拍板 7 a 补的软约束：道具卡面若带着背景 / 别的物件，模型分不清哪一个才是道具。
+  //   它只是软引导，替代不了「只留主体」层的抠图铺底（components/PhotoSubjectPicker）；
+  //   代价是每张挂上的道具卡让出片提示词长二十来字（受 VIDEO_PROMPT_MAX 预算约束），存量道具卡同样生效。
+  prop: "的实物参考，画面中出现它时必须与之一致；只取图中这件物件本身，忽略它的背景与其他物体",
   style: "的风格参考：只沿用它的画风、材质质感与色调光影，不要把样张里的内容画进画面",
 };
 
@@ -1579,7 +1644,7 @@ export function stripBlockoutSkeleton(plot: string): string {
     .trim();
 }
 /** 剥掉命中禁用词的子句（按标点切）；剥空了返回空串，由调用方决定退回什么 */
-function dropRefClauses(text: string | undefined): string {
+export function dropRefClauses(text: string | undefined): string {
   return (text ?? "")
     .split(/(?<=[，。；;,.])/)
     .filter((c) => !REF_WORD_RE.test(c))

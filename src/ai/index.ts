@@ -31,6 +31,17 @@ export { ARK_REF_IMAGES_MAX } from "./real";
 export const portraitViews: typeof real.portraitViews = AI_REAL ? real.portraitViews : mock.portraitViews;
 /** 圈选改卡图；mock 原图返回（与 refineFrame 的 mock 同款：演示档不装作改了） */
 export const refineCardImage: typeof real.refineCardImage = AI_REAL ? real.refineCardImage : async (o) => o.annotated;
+/** 拍照 / 传图识别卡片文字（场景卡、道具卡）；mock 回一份写明是演示的占位，不装作认出了什么 */
+export const recognizeCardSubject: typeof real.recognizeCardSubject = AI_REAL
+  ? real.recognizeCardSubject
+  : async (o) => ({
+      name: o.type === "prop" ? "演示道具" : "演示场景",
+      summary: "演示模式的占位文案：配好方舟密钥后，这里会照着照片写",
+      idLine: "",
+      tags: [],
+      hasPeople: false,
+    });
+export type { RecognizedCard } from "./real";
 export const generateCover: typeof real.generateCover = AI_REAL
   ? real.generateCover
   : async (req, _ref, aspect) =>
@@ -140,7 +151,7 @@ export const takeVideoTask: typeof real.takeVideoTask = AI_REAL
       throw new Error("演示模式没有真实出片任务，取不回什么（这条凭据不该存在）");
     };
 /** 「没接到结果 ≠ 这一发废了」的那个错误类型 —— 调用方据它决定凭据留不留（见 arkClient） */
-export { ArkTaskUnknown } from "./arkClient";
+export { ArkBadReply, ArkNoReply, ArkTaskUnknown } from "./arkClient";
 /** 视频提示词的字数上限。两种构建下都是同一个数——拼提示词的那一处要按它给尾巴留位 */
 export { VIDEO_PROMPT_MAX } from "./real";
 /** 事后重截成片首尾帧 / 问转存进度 —— 真假两侧同一份（mock 出片是 "mock:" 占位串，调用方按 realVideoOfNode 先筛掉） */
