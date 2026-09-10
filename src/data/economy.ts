@@ -820,13 +820,14 @@ export const IMAGE_TOKENS: number = ((): number => {
 export const DECK_VISION_FRAMES = 6;
 
 /** 每张卡的文案精炼（豆包一次短对话）token 等价 —— 素材炼卡（real.generateCards）**每张卡真发一次 chat**，
- *  服务端按 chat 定额收，所以它必须与 CHAT_TURN_TOKENS 相等。
+ *  服务端按 chat 定额收，所以它必须与 CHAT_TURN_TOKENS 相等（server 那条跨仓钉子两个一起钉）。
  *  ⚠ 看片提卡那几条路（real.mintCards）**没有**逐张文案这一趟：卡名 / 简介 / 出片句都在前面那一次看图里
  *  一起吐出来了。2026-09-10 之前那边每张卡照记 400，记的是一次不存在的调用 —— 别把这一项加回去。 */
 export const CARD_META_TOKENS = 400;
 
 /**
- * 一次 chat 调用的 token 等价 —— **服务端 `config/tokens.js` 同名常量的镜像**（跨仓契约，两仓一起改）。
+ * 一次 chat 调用的 token 等价 —— **服务端 `config/tokens.js` 同名常量的镜像**（跨仓契约，两仓一起改；
+ * 钉在 server 的 `tests/arkProxy.spec.js`「跨仓 chat 定额一致性」）。
  * 服务端对 /chat/completions 一律按调用定额收：闲聊（chatTurns）、一问一答（chat）、看图（chatVision）
  * 都是这一个数，与带多少历史、塞几张图无关。所以看图的报价与记账都按「调用次数 × 它」算。
  *
