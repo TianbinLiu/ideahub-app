@@ -16,7 +16,7 @@ import {
   type ShotPlan,
   type SkillStepKind,
 } from "../../studio/structuredSkills";
-import { DEFAULT_ASPECT, aspectOf, shotLineOf } from "../../types";
+import { DEFAULT_ASPECT, aspectOf, shotLineDisplay } from "../../types";
 import { CloseButton } from "../IconTapButton";
 import { useApplyTemplate } from "./useApplyTemplate";
 
@@ -148,7 +148,7 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
                     </span>
                     <span className="flex-none text-[10px] text-slate-500">{sg.durationSec}s</span>
                   </div>
-                  {sg.shot && <div className="mt-0.5 text-[10px] text-sky-300">{shotLineOf(sg.shot)}</div>}
+                  {sg.shot && <div className="mt-0.5 text-[10px] text-sky-300">{shotLineDisplay(sg.shot)}</div>}
                   <div className="mt-1 text-[11px] leading-relaxed text-slate-300">{sg.plot}</div>
                 </div>
               ))}

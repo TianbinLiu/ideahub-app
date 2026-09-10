@@ -11,7 +11,23 @@ export const CARD_TYPES: CardType[] = ["character", "scene", "background", "prop
  */
 export const V3_CARD_WIPE_MS = Date.parse("2026-09-06T17:00:00+08:00");
 
+/** 卡种的**界面显示名**（多语言时翻译）。★ 别拿它拼提示词 —— 进模型的叫法在 CARD_TYPE_PROMPT */
 export const CARD_TYPE_LABELS: Record<CardType, string> = {
+  character: "人物卡",
+  scene: "场景卡",
+  background: "背景卡",
+  prop: "道具卡",
+  style: "风格卡",
+};
+
+/**
+ * 卡种在**提示词**里的叫法 —— i18n-frozen：属于绑定与点名语法（「<图片1>是人物卡「凛」…」），永不翻译。
+ * ★★ 与 CARD_TYPE_LABELS 今天逐字相同，但**不是同一张表**（2026-09-10 多语言第 1 步拆开）：原来一张表两头读，
+ *   界面一翻成英文，参考图绑定句、出片素材句、铸卡提示词就跟着变成半中半英 —— 模型大多读得懂、全程零报错，
+ *   而形象一致性恰恰是在这几句里定的（规格 §2.5：指令与点名语法冻结中文，只有给人看的自由文本跟内容语言走）。
+ *   读法：进模型 / 存进卡片内容的读这张；画在屏幕上的读 CARD_TYPE_LABELS。
+ */
+export const CARD_TYPE_PROMPT: Record<CardType, string> = {
   character: "人物卡",
   scene: "场景卡",
   background: "背景卡",
@@ -339,9 +355,9 @@ export const CARD_SIZE = "1728x2304";
 
 export interface CardSlot {
   kind: CardView["kind"];
-  /** 界面上的名字。★ 按类型给：对一把剑说"全身"是胡话 */
+  /** 界面上的名字（多语言时翻译）。★ 按类型给：对一把剑说"全身"是胡话 */
   label: string;
-  /** 这张图负责锁住什么——绑定句和铸卡提示词都从这里长出来 */
+  /** 这张图负责锁住什么 —— **界面**那半句（「锁住…」）。绑定句和铸卡提示词读 CARD_SLOT_PROMPT 里那份（冻结中文） */
   locks: string;
 }
 
@@ -427,10 +443,43 @@ export function normalizeSlot(type: CardType, raw: unknown): CardView["kind"] {
   return CARD_SLOTS[type].some((s) => s.kind === raw) ? (raw as CardView["kind"]) : primarySlotOf(type);
 }
 
-/** 这种卡的某个槽叫什么。找不到就退主槽的名字（与 normalizeSlot 同源） */
+/** 这种卡的某个槽**在界面上**叫什么。找不到就退主槽的名字（与 normalizeSlot 同源）。进提示词的叫法用 slotPromptOf */
 export function slotLabel(type: CardType, kind: unknown): string {
   const k = normalizeSlot(type, kind);
   return (CARD_SLOTS[type].find((s) => s.kind === k) ?? CARD_SLOTS[type][0]).label;
+}
+
+/**
+ * 图位在**提示词**里的叫法与锁定项 —— i18n-frozen（2026-09-10 从 CARD_SLOTS 拆出，理由同 CARD_TYPE_PROMPT）。
+ * ★ 与 CARD_SLOTS 的 label / locks 今天逐字相同、kind 一一对应、顺序相同；界面那份会翻译，这份永不翻译。
+ *   铸卡提示词（「画面取景：全身立绘，要锁住…」）与参考图绑定句（「<图片1>的面部特征与发型发色」）读这张。
+ * ⚠ 加图位时两张表一起加：这张少了那个 kind，slotPromptOf 会退到主槽的叫法 —— 不报错，只是提示词说错一格。
+ */
+export const CARD_SLOT_PROMPT: Record<CardType, readonly CardSlot[]> = {
+  character: [
+    { kind: "body", label: "全身立绘", locks: "服装、体型与整体配色" },
+    { kind: "face", label: "面部特写", locks: "面部特征与发型发色" },
+    { kind: "detail", label: "标志性细节", locks: "随身物、纹样或疤痕" },
+  ],
+  scene: [
+    { kind: "body", label: "全景主视图", locks: "空间结构、地貌与建筑轮廓及整体色调" },
+    { kind: "detail", label: "局部特征", locks: "局部材质与陈设特征" },
+  ],
+  background: [{ kind: "body", label: "故事示意图", locks: "故事的时代、地点与氛围" }],
+  prop: [
+    { kind: "body", label: "净底主视图", locks: "造型、比例、材质与配色" },
+    { kind: "detail", label: "局部细节", locks: "局部纹样与磨损" },
+  ],
+  style: [
+    { kind: "body", label: "风格样张", locks: "画风、材质质感、色调与光影" },
+    { kind: "detail", label: "质感特写", locks: "材质、颗粒与光影的近距离质感" },
+  ],
+};
+
+/** 这种卡的某个图位**在提示词里**怎么说（与 slotLabel 同一个归一与兜底） */
+export function slotPromptOf(type: CardType, kind: unknown): { label: string; locks: string } {
+  const k = normalizeSlot(type, kind);
+  return CARD_SLOT_PROMPT[type].find((s) => s.kind === k) ?? CARD_SLOT_PROMPT[type][0];
 }
 
 /**
@@ -607,10 +656,23 @@ export interface ShotSpec {
   beat?: string;
 }
 
-/** 镜头字段 → 提示词里那一句（唯一实现）。没有任何字段时返回空串 */
+/**
+ * 镜头字段 → **提示词 / 发布剧本**里那一句（唯一实现，i18n-frozen：「镜头：」属于点名语法，见规格 §2.5）。
+ * 没有任何字段时返回空串。★ 界面上那一行用 shotLineDisplay，别直接画这一句。
+ */
 export function shotLineOf(shot?: ShotSpec | null): string {
   const parts = [shot?.size, shot?.camera, shot?.beat].map((s) => (s ?? "").trim()).filter(Boolean);
   return parts.length ? `镜头：${parts.join(" · ")}` : "";
+}
+
+/**
+ * 镜头字段 → **界面上**那一行（方案台、剧本分镜面板）。
+ * ★ 今天与 shotLineOf 逐字相同（2026-09-10 多语言第 1 步先把读点分开）；接 Lingui 之后这里翻「镜头：」，
+ *   景别 / 运镜按 structuredSkills 提示词里那个闭集做值映射，闭集外的值（模型自由写的节拍）原样透传。
+ *   **别**拿它拼提示词或折进发布的 plot —— 那是内容，走 shotLineOf。
+ */
+export function shotLineDisplay(shot?: ShotSpec | null): string {
+  return shotLineOf(shot);
 }
 
 /** 模型吐出来的 shot 过一遍形状检查（JSON 里什么都可能出现）；没有可用字段就不带这个键 */

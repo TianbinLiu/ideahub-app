@@ -3,16 +3,15 @@
 // 每个环节失败都回退到 mock 同款产物——AI 网络抖动不阻断工坊流程。
 import {
   cleanShot,
-  CARD_SLOTS,
-  CARD_TYPE_LABELS,
+  CARD_TYPE_PROMPT,
   Card,
   CardType,
   CARD_TYPES,
   Proposal,
   VideoAspect,
   aspectOf,
-  normalizeSlot,
   roleOf,
+  slotPromptOf,
   uid,
   viewTag,
   viewsOf,
@@ -783,8 +782,8 @@ export function refUsedFlags(card: Card, ctx?: Card[]): boolean[] {
  *   漏进提示词（提示词里出现 "undefined" 不会报错，只会让模型胡猜）。
  */
 function slotLocks(type: CardType, kind: unknown): string {
-  const k = normalizeSlot(type, kind);
-  return (CARD_SLOTS[type].find((s) => s.kind === k) ?? CARD_SLOTS[type][0]).locks;
+  // ★ 读提示词那张冻结表（types.CARD_SLOT_PROMPT），不读界面的 CARD_SLOTS：这半句要进绑定句，界面翻译了它也不能变
+  return slotPromptOf(type, kind).locks;
 }
 
 /**
@@ -986,7 +985,7 @@ export async function prepareMaterialRefs(
       if (p.card.type === "character" || otherSaid.has(p.card)) continue;
       otherSaid.add(p.card);
       const mine = good.filter((g) => g.card === p.card);
-      otherParts.push(`${mine.map(at).join("")}是${CARD_TYPE_LABELS[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`);
+      otherParts.push(`${mine.map(at).join("")}是${CARD_TYPE_PROMPT[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`);
     }
     if (charParts.length === 0 && otherParts.length === 0) return "";
     // ★ 收尾那句摆在**最后**，别夹在两组中间：夹在中间时「只锁形象」会读起来像在说
@@ -1026,7 +1025,7 @@ export async function prepareMaterialRefs(
         said.add(p.card);
         const mine = good.filter((g) => g.card === p.card);
         parts.push(
-          `${mine.map(numOf).join("、")}是${CARD_TYPE_LABELS[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`,
+          `${mine.map(numOf).join("、")}是${CARD_TYPE_PROMPT[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`,
         );
       }
       if (parts.length === 0) return "";
@@ -1072,7 +1071,7 @@ async function forgePrimary(
       // ★ 主图也要说清它是**哪个图位**（图位表的第 0 格）：人物卡的第 0 格是「全身立绘」
       //   而不是大头照 —— 不写这一句，模型十有八九给一张半身像，而后面几张都以它为参考，
       //   "这张卡没有全身参考"就一路传下去了（顺序为什么是 body 打头见 types.CARD_SLOTS）
-      `画面取景：${slot.label}，要锁住${slot.locks}。`,
+      `画面取景：${slotPromptOf(type, slot.kind).label}，要锁住${slotPromptOf(type, slot.kind).locks}。`,
       // ★ 用户原话单独成段、不揉进 summary：summary 被豆包压到 30 字，用户写的
       //   硬约束（"左手有旧伤疤""一定要戴红围巾"）会被压没，出图就丢细节
       note ? `用户的额外要求（必须满足）：${note.slice(0, 200)}` : "",
@@ -1103,10 +1102,10 @@ async function forgePrimary(
 function slotPrompt(type: CardType, name: string, summary: string, note: string, slot: CardSlot): string {
   return softenForImage(
     [
-      // ★ 这里用 CARD_TYPE_LABELS（"人物卡"）而不是 TYPE_LABEL（"人物立绘卡面"）：
+      // ★ 这里用 CARD_TYPE_PROMPT（"人物卡"）而不是 TYPE_LABEL（"人物立绘卡面"）：
       //   这几张不是卡面，说成"卡面的面部特写"会让模型去画一张画着卡的图
-      `${CARD_TYPE_LABELS[type]}「${name}」的${slot.label}。${summary}`,
-      `<图片1>是这张卡已经定稿的主图。画的必须是<图片1>里的同一${SUBJECT_WORD[type]}：${slot.locks}要与<图片1>完全一致，只改变取景与景别，不要另画一${SUBJECT_WORD[type]}。`,
+      `${CARD_TYPE_PROMPT[type]}「${name}」的${slotPromptOf(type, slot.kind).label}。${summary}`,
+      `<图片1>是这张卡已经定稿的主图。画的必须是<图片1>里的同一${SUBJECT_WORD[type]}：${slotPromptOf(type, slot.kind).locks}要与<图片1>完全一致，只改变取景与景别，不要另画一${SUBJECT_WORD[type]}。`,
       // 画风也锁在主图上（2026-08-28 厚涂词退役后这句就是唯一的画风指令）：
       // 三张图随后要一起当形象参考，画风分裂与形象分裂一样致命
       "画风与<图片1>完全一致。",
@@ -1584,7 +1583,7 @@ export async function deriveDeckCards(
     existing.length > 0
       ? existing.map((c) => `${TYPE_LABEL[c.type]}「${c.name}」(${(c.summary ?? "").slice(0, 24)})`).join("、")
       : "（无）";
-  const userText = `缺失卡种（只出这些）：${missing.map((t) => `${t}（${CARD_TYPE_LABELS[t]}）`).join("、")}\n用户已挂的卡（这些卡种关门）：${existingDesc}\n剧情（按段）：${segments.map((s) => stripBlockoutSkeleton(s.plot)).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从画面推断）"}`;
+  const userText = `缺失卡种（只出这些）：${missing.map((t) => `${t}（${CARD_TYPE_PROMPT[t]}）`).join("、")}\n用户已挂的卡（这些卡种关门）：${existingDesc}\n剧情（按段）：${segments.map((s) => stripBlockoutSkeleton(s.plot)).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从画面推断）"}`;
   // ★ V3：能抽到成片帧就**看片**提炼（frameIndex / box 才有依据，卡面才能贴合原片）；抽不到退回只读文字
   const raw =
     frames.length > 0
