@@ -15,6 +15,8 @@ import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost } from "../data/economy";
 import { browseTemplates, myTemplates } from "../data/templates";
 import type { Card, VideoTemplate } from "../types";
 import { chosenOf, clampCursor, nodeCost, nodeDone, planOf, tplOfNode, useFlow, type FlowNode } from "./flowStore";
+import { t } from "@lingui/core/macro";
+import { matchByName, normName } from "./nameMatch";
 
 /**
  * 会花钱/有后果的操作走**提案**：模型只许把它摆成一张确认卡（带价钱或后果原文），
@@ -101,7 +103,9 @@ export const AGENT_PHRASES: ReadonlyArray<{ label: string; make: (seg: number) =
   { label: "🧪 摘掉模板", make: (s) => `第${s}段摘掉模板`, hint: "退回普通段" },
   { label: "🃏 挂卡换人", make: (s) => `第${s}段挂卡：角色位=卡名`, hint: "白模段用，改成真实角色位与卡名" },
   { label: "＋ 加一段", make: () => "加一段", hint: "在末尾追加" },
-  { label: "🗑 删掉某段", make: (s) => `删掉第${s}段`, hint: "会先摆确认" },
+  // ★ hint 要说真话（2026-09-10 对着 applyOps 的 remove_segment 核过）：未出片的段直接删、不摆确认卡；
+  //   已出片的整句拒，指路去编辑窗底部那颗要点两下的「删除本段」
+  { label: "🗑 删掉某段", make: (s) => `删掉第${s}段`, hint: "未出片的段直接删，已出片的段不代删" },
   { label: "🎲 重演方案", make: (s) => `重新推演第${s}段的方案`, hint: "花钱操作，会先摆确认卡" },
   { label: "⚡ 生成本段", make: (s) => `生成第${s}段`, hint: "花钱操作，会先摆确认卡" },
 ];
@@ -348,14 +352,13 @@ function localParse(text: string): { say: string; ops: Op[] } {
 }
 
 function findTemplate(title: string): { t?: VideoTemplate; issue?: string } {
-  const norm = (x: string) => x.toLowerCase().replace(/\s+/g, "");
-  const key = norm(title);
-  if (!key) return { issue: "模板名是空的" };
+  // 匹配规则只在 nameMatch 一处：剥引号与开头的「模板」，相等优先，没有相等才退回包含
+  if (!normName(title)) return { issue: "模板名是空的" };
   const seen = new Set<string>();
   const all = [...myTemplates(), ...browseTemplates("")].filter(
-    (t) => t.refVideo && !seen.has(t.id) && (seen.add(t.id), true),
+    (tpl) => tpl.refVideo && !seen.has(tpl.id) && (seen.add(tpl.id), true),
   );
-  const hits = all.filter((t) => norm(t.title).includes(key) || key.includes(norm(t.title)));
+  const hits = matchByName(all, title, (tpl) => tpl.title);
   if (hits.length === 1) return { t: hits[0] };
   if (hits.length === 0) return { issue: `没找到叫「${title}」的白模模板` };
   return {
@@ -364,9 +367,7 @@ function findTemplate(title: string): { t?: VideoTemplate; issue?: string } {
 }
 
 function findCard(name: string): { c?: Card; issue?: string } {
-  const norm = (x: string) => x.toLowerCase().replace(/\s+/g, "");
-  const key = norm(name);
-  const hits = myCards().filter((c) => norm(c.name).includes(key) || key.includes(norm(c.name)));
+  const hits = matchByName(myCards(), name, (c) => c.name);
   if (hits.length === 1) return { c: hits[0] };
   if (hits.length === 0) return { issue: `你的卡库里没有「${name}」` };
   return { issue: `「${name}」对上了 ${hits.length} 张卡（${hits.slice(0, 3).map((c) => c.name).join("、")}），说全名` };
@@ -504,12 +505,19 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
         }
         for (const name of o.remove ?? []) {
           const cur = nodeAt(o.seg)?.materials ?? [];
-          const norm = (x: string) => x.toLowerCase().replace(/\s+/g, "");
-          const hit = cur.find((c) => norm(c.name).includes(norm(name)) || norm(name).includes(norm(c.name)));
-          if (!hit) {
+          // ★ 与 findCard 同一条匹配规则（nameMatch）。原来这里用 find 取**第一个**包含命中：段上同时挂着「凛」和
+          //   「凛·校服」时说「摘掉凛」，摘哪张看挂的先后 —— 零报错地摘错卡。现在相等优先，多个同样好的命中就说出来
+          const matched = matchByName(cur, name, (c) => c.name);
+          if (matched.length === 0) {
             refused.push(`第 ${o.seg} 段没挂着「${name}」`);
             continue;
           }
+          if (matched.length > 1) {
+            const names = matched.slice(0, 3).map((c) => c.name).join("、");
+            refused.push(t`第 ${o.seg} 段挂着 ${matched.length} 张对得上「${name}」的卡（${names}），说全名`);
+            continue;
+          }
+          const hit = matched[0];
           useFlow.getState().removeMaterial(node.id, hit.id);
           applied.push(`第 ${o.seg} 段：摘下「${hit.name}」${doneNote}`);
         }

@@ -61,6 +61,12 @@ msgstr "桌面图标上的名字跟随手机系统语言，这里切换不会改
 msgid "没能切换语言，请重试"
 msgstr "没能切换语言，请重试"
 
+#. placeholder {0}: o.seg
+#. placeholder {1}: matched.length
+#: src/studio/canvasAgent.ts
+msgid "第 {0} 段挂着 {1} 张对得上「{name}」的卡（{names}），说全名"
+msgstr "第 {0} 段挂着 {1} 张对得上「{name}」的卡（{names}），说全名"
+
 #. placeholder {0}: LANG_NAME[active]
 #. placeholder {0}: LANG_NAME[systemLang()]
 #: src/pages/SettingsPage.tsx
