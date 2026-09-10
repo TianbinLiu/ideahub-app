@@ -27,6 +27,37 @@ export interface Shot {
   note?: string;
   /** 原文件名，只为让用户认得出自己传的是哪张 */
   fileName: string;
+  /** 这张是「只留主体」层抠出来的（道具卡专用）。换卡种时据此取下：抠好的道具主体当不了场景的全景 */
+  via?: "subject";
+}
+
+/** 源像素里的一块矩形（与 blockout/arkVideoRules 的 CropRect、utils/image 的 PixelBox 同形；
+ *  store 不认组件层，就地写形状） */
+type SrcBox = { x: number; y: number; w: number; h: number };
+
+/**
+ * 道具卡「只留主体」层（components/PhotoSubjectPicker）正在处理的那张图。
+ * ★ 放在 store 里的理由同文件头：描到一半切走再回来，框、轮廓、预览原样还在。
+ * ★ 坐标一律是**源像素**（utils/image.loadSubjectSource 把长边压到 4096 之后那张图的坐标）：
+ *   同一个 Blob 每次解出同样尺寸，重挂载后照样对得上。
+ */
+export interface SubjectPick {
+  /** 给哪一格选的 */
+  kind: CardView["kind"];
+  /** 选到的文件，立刻读实成内存里的 Blob（content:// 懒读在切到后台之后可能失效） */
+  src: Blob;
+  fileName: string;
+  /** 允许「保留框内背景」：只有第 1 格（主人拍板 4 b）；第 2 格强制抠（拍板 2-2 b） */
+  allowKeepBg: boolean;
+  stage: "box" | "cut" | "preview";
+  /** 框。null = 图还没解出来（解出来那一拍给居中 70%） */
+  rect: SrcBox | null;
+  /** 「放大再框」时舞台显示的区域；null = 整图 */
+  zoom: SrcBox | null;
+  /** 描出来的轮廓 */
+  lasso: [number, number][] | null;
+  /** 进卡的那一张（已过 prepareCardImage）与要写进 note 的话 */
+  preview: { dataUrl: string; note: string; keptBg: boolean } | null;
 }
 
 export type CardStep = "type" | "real" | "source" | "form" | "info" | "final";
@@ -53,6 +84,10 @@ export interface CustomCardDraft {
   /** AI 车道素材口正在读哪张图（解码 + 裁切要一两秒，得让人看见） */
   aiPick: "body" | "face" | null;
   annot: { tag: string; frame: string } | null;
+  /** 道具卡「只留主体」层开着时那张图（见 SubjectPick） */
+  subjectPick: SubjectPick | null;
+  /** 出片句（Card.idLine）：出片时整句拼进视频提示词，≤ types.ID_LINE_MAX */
+  idLine: string;
   schemePick: boolean;
   importMsg: string;
   realPerson: boolean;
@@ -90,6 +125,8 @@ export function initialDraft(): CustomCardDraft {
     aiBusy: "",
     aiPick: null,
     annot: null,
+    subjectPick: null,
+    idLine: "",
     schemePick: false,
     importMsg: "",
     realPerson: false,
@@ -123,7 +160,9 @@ export function draftDirty(s: CustomCardDraft): boolean {
     !!s.summary ||
     Object.keys(s.shots).length > 0 ||
     Object.keys(s.schemeShots).length > 0 ||
-    !!s.aiBody
+    !!s.aiBody ||
+    !!s.subjectPick ||
+    !!s.idLine
   );
 }
 
