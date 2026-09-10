@@ -393,6 +393,26 @@ export function keepFirstFrame(node: FlowNode, p: Proposal, prev: Proposal | nul
   return !!p.pinned?.first || !!(node.chain && prev?.lastFrame && p.firstFrame === prev.lastFrame);
 }
 
+/**
+ * 这一套方案里**能拿去出片**的首尾帧（空串 = 没有、出片前要补画）—— 报价 `nodeCost`、出片 `genNode`、
+ * 工坊「AI 改首/尾帧」三处读的是这一份，别在调用点直接读 `p.firstFrame` 判帧在不在。
+ * ★★ 为什么要有它（2026-09-10）：推演时没画出来的帧，以前填的是一张本地占位图（烧着「第N段 · … · 首帧」
+ *   「AI 预览帧」），而出片与报价都只问「帧在不在」⇒ 占位图被当真帧发给 Seedance，钱照收、拍出来的是渐变图。
+ *   新推演已经改成留空（ai/real 推演那一段的 ★★），但**老草稿 / 回炉工程里的占位图还躺在字段里**。
+ * ★ 老数据怎么认：`degraded` 为真而两张帧**都不空** = 占位图还在（新数据里失败的那张一定是空串）。
+ *   当年没记是哪一张失败，所以只保住**确定是真图**的开头帧：承接来的 / 用户锁定的（keepFirstFrame），
+ *   或与同段其它方案共用的那张（推演时三套共用同一张开头帧 = 上一段尾帧或上传的图，不是本方案画的）；
+ *   尾帧除非锁定一律当占位。多补画一张的钱会如实进报价 —— 比拿占位图出一段片便宜得多。
+ */
+export function usableFrames(node: FlowNode, p: Proposal, prev: Proposal | null): { first: string; last: string } {
+  if (!(p.degraded && p.firstFrame && p.lastFrame)) return { first: p.firstFrame, last: p.lastFrame };
+  const sharedStart = node.proposals.some((q) => q.id !== p.id && q.firstFrame === p.firstFrame);
+  return {
+    first: keepFirstFrame(node, p, prev) || sharedStart ? p.firstFrame : "",
+    last: p.pinned?.last ? p.lastFrame : "",
+  };
+}
+
 /** 「按修改重画这一套」的报价。★ regenProposal 扣钱走的是同一个函数——
  *  按钮上的数字与实际扣款分两处算必然分叉（铁律六） */
 export function redrawCost(node: FlowNode, p: Proposal, prev: Proposal | null): number {
@@ -723,6 +743,8 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
   if (!node) return 0;
   const prop = chosenOf(node);
   const carry = nodeCarry(nodes, idx);
+  // ★ 帧在不在问 usableFrames（genNode 发的也是这一份）：老草稿里的占位图不算帧，出片前要补画、补画要进报价
+  const frames = usableFrames(node, prop, idx > 0 ? chosenOf(nodes[idx - 1]) : null);
   // ── 素材参考（自定义 = 多图 + 参考视频）：(输入 + 输出)×系数，与真扣同一个函数 ──
   // ★ 档位没有 r2v 价（r2vMult null，即 hd/std/fast）时**按纯帧模式报**：materialRefCost
   //   在那种档上是 throw（报价函数开发期就该炸），而这里是渲染路径不能炸 ——
@@ -749,8 +771,8 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
   return annsCost + segmentCost({
     durationSec: prop.durationSec,
     tierId: tierOverride ?? node.videoTier,
-    hasFirstFrame: !!(prop.firstFrame || carry),
-    hasLastFrame: !!prop.lastFrame,
+    hasFirstFrame: !!(frames.first || carry),
+    hasLastFrame: !!frames.last,
     refMode: nodeRefOn(nodes, idx, mode, tierOverride),
     refVideo: refVideo ? { inputSec: refVideo.durationSec } : undefined,
   });
@@ -2711,6 +2733,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   但从这一版起**报价依赖它**了（annsCost 按"真会重画的圈选"数，而那取决于有没有
       //   承接帧）—— 两份一旦漂移就是报价与实扣两把尺，本仓头号事故形状。
       const carry = nodeCarry(get().nodes, idx);
+      // ★ 发出去的帧与报价（上面的 nodeCost，按 s0 算）读同一份：老草稿里的占位图在这里当"没有"，segmentGen 出片前补画
+      const frames = usableFrames(node, prop, idx > 0 ? chosenOf(s0.nodes[idx - 1]) : null);
       // 套了模板就用配方里的起拍提示词：它专门为"这个模板长什么样"写过，
       // 比从剧情正文截前 200 字更贴（剧情前半段常常是动作描述而非画面描述）
       // ★ 一律走 tplOfNode（分段组每节点自带快照）：与 nodeCost 读**同一份** ——
@@ -2724,8 +2748,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
           plot: rv ? rv.instruction.trim() : prop.plot,
           // 报价 ↔ 契约对账（segmentGen.contractLine）：扣的就是这个 cost；演示构建没有报价，明说 null
           quotedTokens: AI_REAL ? cost : null,
-          firstFrame: rv ? "" : prop.firstFrame,
-          lastFrame: rv ? "" : prop.lastFrame,
+          firstFrame: rv ? "" : frames.first,
+          lastFrame: rv ? "" : frames.last,
           durationSec: prop.durationSec,
           videoTier: node.videoTier,
           aspect: node.aspect,

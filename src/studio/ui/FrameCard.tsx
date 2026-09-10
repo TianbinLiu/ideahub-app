@@ -97,6 +97,7 @@ export default function FrameCard({
   aspectRatio = "2 / 3",
   framed,
   framedTitle,
+  emptyNote,
 }: {
   firstFrame: string | null;
   lastFrame: string | null;
@@ -119,6 +120,9 @@ export default function FrameCard({
   framed?: boolean;
   /** 装裱态底部题名条上的字（缺省用状态角标那套词） */
   framedTitle?: string;
+  /** 两帧都没有时那句话。缺省按「还没推演」说；方案台上推演过、只是帧没画出来的那一套传「没画出来」——
+   *  否则一张推演过的方案卡角上写着「待推演」，与旁边那条提示自相矛盾 */
+  emptyNote?: string;
 }) {
   const [zoom, setZoom] = useState(false);
   const complete = !!firstFrame && !!lastFrame;
@@ -151,7 +155,7 @@ export default function FrameCard({
           <CardFace first={firstFrame} last={lastFrame} showLast={showLast} className="absolute inset-0" />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-[10px] text-slate-500">
-            AI 自拟首尾帧
+            {emptyNote ?? "AI 自拟首尾帧"}
           </div>
         )}
         {/* 装裱：塔罗细边框（框图内部纯黑，screen 混合下黑=透明，只有金线发光）——
@@ -167,7 +171,7 @@ export default function FrameCard({
         )}
         {/* 角标：这张卡现在是什么状态 */}
         <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] text-cyan-200">
-          {complete ? "首尾帧" : firstFrame ? "开头帧" : "待推演"}
+          {complete ? "首尾帧" : firstFrame ? "开头帧" : (emptyNote ?? "待推演")}
         </span>
         <span
           className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-1.5 pb-1 leading-tight text-slate-300 ${
@@ -214,11 +218,11 @@ export default function FrameCard({
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-xs text-slate-500">
-                  还没有画面——AI 会在推演时自拟首尾帧
+                  {emptyNote ? `${emptyNote}——出片前会先补画要用到的帧` : "还没有画面——AI 会在推演时自拟首尾帧"}
                 </div>
               )}
               <span className="absolute left-2 top-2 rounded bg-black/65 px-2 py-0.5 text-[11px] text-cyan-200">
-                {complete ? "首尾帧轮播" : firstFrame ? "开头帧" : "待推演"}
+                {complete ? "首尾帧轮播" : firstFrame ? "开头帧" : (emptyNote ?? "待推演")}
               </span>
             </div>
 

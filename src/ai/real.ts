@@ -25,7 +25,8 @@ import {
   type CardView,
   type GenMode,
 } from "../types";
-import { makeCover, makeFrame } from "../mock/frames";
+// ★ 不再 import makeFrame：推演没画出来的帧留空、不拿占位图顶（见推演三套方案那一段末尾的 ★★）
+import { makeCover } from "../mock/frames";
 import type { MaterialFile, ProposalContext } from "../mock/ai";
 import * as mock from "../mock/ai";
 import {
@@ -1364,9 +1365,7 @@ function frameStyle(aspect?: VideoAspect, materials?: Card[], refsOn = true): st
  *  它们由 prepareMaterialRefs 的绑定句负责，两者语义完全不同：
  *  承接帧是"接着这一画面往下拍"，素材卡是"这个角色长这样"。
  *  ★ 承接帧一律排在参考图数组的**第一位**，所以这里可以写死 `<图片1>`。
- *  ★ `materials` 只喂给画风那半（frameArtStyle）：composeSegments 里 degraded 帧的
- *    重画拿不到素材卡（segments 形状里没有），传 undefined 退中性质感词——可接受，
- *    那是失败救援路，不是主产线。
+ *  ★ `materials` 只喂给画风那半（frameArtStyle）。
  *  ★ `refsOn`：这一发是否真带参考图（见 frameArtStyle 的 @param）。 */
 function framePrompts(
   plot: string,
@@ -1495,9 +1494,16 @@ export async function generateProposals(
       id: p.id,
       title,
       plot: p.plot,
-      firstFrame:
-        firstFrame ?? makeFrame(`${p.id}#first`, `${title} · 首帧`, ctx.prevFrameSeed ?? `${p.id}#first`, ctx.aspect),
-      lastFrame: lastFrame ?? makeFrame(`${p.id}#last`, `${title} · 尾帧`, `${p.id}#last`, ctx.aspect),
+      // ★★ 没画出来的帧**留空串**，不拿本地占位图顶（2026-09-10 修）。原来这里是 mock/frames.makeFrame：
+      //   一张烧着「第N段 · 标题 · 首帧」「AI 预览帧」的渐变图 —— 而下游只问「帧在不在」
+      //   （segmentGen 出片前补画、economy.segmentCost 报价都认 `!firstFrame`），于是占位图被当成真帧
+      //   发给 Seedance：整段的钱照收，拍出来的是那张渐变图在动；方案台上还写着「出片前会自动重画」，
+      //   而那条重画分支（composeSegments 的 sg.degraded）从来没有调用方传过 degraded，是死码（已删）。
+      //   留空之后走的是现成那一条路：缺帧 → 出片前按剧情补画 → 补画的图进报价。
+      //   与 Proposal.lost 那格同一条规矩：缺失用字段本来的"没有"值，为什么没有记在旁挂标记里（degraded，只管渲染）。
+      //   老草稿里已经躺着的占位图由 flowStore.usableFrames 认成"没有"。
+      firstFrame: firstFrame ?? "",
+      lastFrame: lastFrame ?? "",
       durationSec: p.durationSec,
       ...(degraded ? { degraded: true } : {}),
     };
@@ -2512,7 +2518,6 @@ export interface GenSpec {
   firstFrame: string;
   lastFrame: string;
   durationSec: number;
-  degraded?: boolean;
   /** 该段选用的 Seedance 档位（data/economy VIDEO_TIERS 的 id）；缺省=标准档 */
   videoTier?: string;
   /** 该段画幅（竖/横）；缺省=横屏 */
@@ -2592,8 +2597,9 @@ export function describeGenSpec(sg: GenSpec, carried: boolean): string {
  * 合成：逐段用 Seedance 首尾帧图生视频。段间串行（免费额度并发有限），
  * 单段失败不阻断整片——该段回退首尾帧渐变播放，但失败原因必须带回给 UI 播报
  * （此前只 console.warn，用户拿到一堆渐变还以为是"生成好的视频"）。
- * degraded 段（当时 Seedream 没出图、帧是本地占位图）先重画真帧再合成——
- * 拿占位渐变图去让 Seedance 动起来，产出的"视频"与剧情毫无关系。
+ * ★ 这里**不再**有「degraded 段先重画」那一支（2026-09-10 删）：它从来没有调用方传过 degraded，是死码，
+ *   而方案台一直按它承诺「出片前会自动重画」。缺帧现在一律留空串，由 segmentGen 在出片前补画
+ *   （报价 economy.segmentCost 按同一个 `!firstFrame` 数图），见本文件推演三套方案那一段末尾的 ★★。
  */
 export async function composeSegments(
   segments: GenSpec[],
@@ -2624,17 +2630,6 @@ export async function composeSegments(
     // ★ 契约行：这一发到底发了什么（模式 / 档 / 画幅 / 时长 / 参考几张），进步骤日志给人看（2026-09-06）
     onProgress?.(i, segments.length, describeGenSpec(sg, !!prevTail));
     try {
-      if (sg.degraded) {
-        onProgress?.(i, segments.length, "首尾帧此前未出图，正在重画…");
-        const prompts = framePrompts(sg.plot, false, sg.aspect);
-        const frameSize = aspectOf(sg.aspect).frameSize;
-        [first, last] = await Promise.all([
-          genImageAsDataUrl(prompts.first, { size: frameSize }),
-          genImageAsDataUrl(prompts.last, { size: frameSize }),
-        ]);
-        res.firstFrame = first;
-        res.lastFrame = last;
-      }
       // 尾帧续作：本段设定首帧 = 上一段设定尾帧（承接关系）时，改用上一段视频的
       // 真实结尾起拍——设定尾帧只是分镜蓝图，视频（尤其极速档）不一定拍到那儿。
       // 用户上传过自定义开头帧（首帧≠上段设定尾帧）则尊重用户，不顶替。

@@ -175,6 +175,7 @@ export default function PlanBoard({
                     <FrameCard
                       firstFrame={p.firstFrame || null}
                       lastFrame={p.lastFrame || null}
+                      emptyNote={p.degraded ? "没画出来" : undefined}
                       originNote={
                         p.pinned?.first
                           ? "已用你上传的图"
@@ -243,7 +244,7 @@ export default function PlanBoard({
                     </div>
                     {p.degraded && (
                       <div className="rounded bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-300">
-                        ⚠ 占位帧：Seedream 当时没出图，出片前会自动重画
+                        ⚠ 这一套有帧当时没画出来：出片前会先补画要用到的帧（按张计费，已算进出片报价）
                       </div>
                     )}
                     <textarea
