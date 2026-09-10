@@ -3,7 +3,10 @@
 // ★★ 为什么有这一层（主人 2026-09-10 拍板）：道具卡的封面就是出片时喂给模型的参考图，
 //   卡片文字还会以「必须严格遵守，不得改动其外形与身份」硬拼进视频提示词（studio/segmentGen 的
 //   materialText）。封面里的桌面、手、别的物件，模型分不清哪一个才是道具。所以道具卡两格都要先抠出
-//   主体（拍板 2-1 a / 2-2 b）；第 1 格描不出来时允许保留框内背景，但要当面写清风险（拍板 4 b）。
+//   主体（拍板 2-1 a / 2-2 b）。两格口径不同，别混：
+//   · 第 1 格（净底主视图）描不出来时**可以**保留框内背景（拍板 4 b），代价在四处当面说 —— 框选阶段、预览阶段、
+//     卡面 note、铸卡键下（后两处靠 SubjectResult.keptBg 带回页面）；
+//   · 第 2 格（局部细节）**强制**抠，没有保留背景的出口（拍板 2-2 b）。
 // ★ 全程在本机 canvas 里做：不调模型、不花钱、离线可用。合成规则只有一份：utils/image 的
 //   composeSubjectImage（过小判据 subjectShortSide 也在那儿），这里只管交互。
 // ★ 交互状态活在 customCardStore.subjectPick（切走再回来原样恢复，理由见那个文件头）；
@@ -21,6 +24,7 @@ import { BackButton, CloseButton } from "./IconTapButton";
 import Spinner from "./Spinner";
 import { prepareCardImage } from "../data/cardViews";
 import type { SubjectPick } from "../studio/customCardStore";
+import { joinViewNote } from "../types";
 import {
   REF_SHORT_MIN,
   REF_SHORT_REJECT,
@@ -33,9 +37,7 @@ import {
   type SubjectSource,
 } from "../utils/image";
 
-/** 图位说明的服务端上限（server schemas/branchAsset.schemas.js 的 cardView.note `.max(200)`）。
- *  ★ 超了不是截断：铸卡之后补图那一发 PATCH 整发 400，服务端那张卡的图全部消失（乙方案 §5 实测链路） */
-const NOTE_MAX = 200;
+// 图位说明的 200 字上限只在 types.joinViewNote 一处截（服务端 cardView.note `.max(200)`，超了补图 PATCH 整发 400）
 /** 描轮廓至少要这么多个点才算「描了一圈」：点太少的多边形抠出来是一个三角形 */
 const LASSO_MIN_POINTS = 8;
 /** 两个轮廓点之间至少隔几个屏幕像素才记（手指停着不动时不往数组里灌重复点） */
@@ -45,6 +47,8 @@ export interface SubjectResult {
   /** 进卡的那一张（已过 prepareCardImage） */
   dataUrl: string;
   note: string;
+  /** 第 1 格选了「保留框内背景」：宿主据此挂「带背景」角标、在铸卡键下摆风险句（拍板 4 b 的后两处） */
+  keptBg: boolean;
 }
 
 /** 第一次打开时的默认框：居中 70%（v1 不让 AI 预填框，乙方案 §4） */
@@ -219,7 +223,7 @@ export default function PhotoSubjectPicker({
       const base = keepBg
         ? `保留了框内背景（${size}${up}）——卡面仍带背景，出片时 AI 可能把背景里的东西也画进去`
         : `按你描的轮廓抠出主体，背景换成浅灰纯色（主体 ${size}${up}）`;
-      const note = [base, prepNote].filter(Boolean).join("；").slice(0, NOTE_MAX);
+      const note = joinViewNote(base, prepNote);
       onChange({ ...pickRef.current, stage: "preview", preview: { dataUrl, note, keptBg: keepBg } });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -426,7 +430,7 @@ export default function PhotoSubjectPicker({
               </button>
               <button
                 type="button"
-                onClick={() => pick.preview && onDone({ dataUrl: pick.preview.dataUrl, note: pick.preview.note })}
+                onClick={() => pick.preview && onDone({ dataUrl: pick.preview.dataUrl, note: pick.preview.note, keptBg: pick.preview.keptBg })}
                 className={primaryBtn}
               >
                 用这张

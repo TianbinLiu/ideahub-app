@@ -227,6 +227,24 @@ export const VIEW_TAG_MAX = 24;
 export const SHARE_NOTE_MAX = 200;
 
 /**
+ * 图位说明（CardView.note）的上限 —— server schemas/branchAsset.schemas.js 的 cardView.note `.max(200)`。
+ * ★ 超了不是截断：铸卡之后补图那一发 PATCH 整发 400，服务端那张卡的图全部消失（乙方案 §5 实测链路）。
+ */
+export const VIEW_NOTE_MAX = 200;
+
+/**
+ * 几句图位说明拼成一条 note —— **唯一实现**（抠图 / 保留背景那句、prepareCardImage 的裁切句、铸卡写回 view 时都走它）。
+ * 空的丢掉，用「；」连起来，硬截到 VIEW_NOTE_MAX。
+ */
+export function joinViewNote(...parts: Array<string | null | undefined>): string {
+  return parts
+    .map((p) => (p ?? "").trim())
+    .filter(Boolean)
+    .join("；")
+    .slice(0, VIEW_NOTE_MAX);
+}
+
+/**
  * 卡名 / 卡简介的长度上限。**跨仓镜像**：server 的 `cardItem` 与 `updateCardBody` 是
  * `name.max(120)` / `summary.max(2000)`。
  *

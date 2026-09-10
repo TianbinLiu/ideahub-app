@@ -29,6 +29,7 @@ import Spinner from "../components/Spinner";
 import PageHeader from "../components/PageHeader";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
+import { Trans } from "@lingui/react/macro";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
@@ -40,6 +41,7 @@ import { fetchPortraitAssetImage } from "../api/portrait";
 import { addCards, bindCardAsset, canAfford, isRemoteMode, refreshRemoteWallet, spendTokens, walletOf } from "../data/account";
 import { API_ON } from "../api/client";
 import { prepareCardImage } from "../data/cardViews";
+import { joinViewNote } from "../types";
 import PhotoSubjectPicker from "../components/PhotoSubjectPicker";
 import { blobToDataUrl } from "../utils/image";
 import { AI_REAL, ArkBadReply, ArkNoReply, portraitViews, recognizeCardSubject, refineCardImage } from "../ai";
@@ -770,7 +772,8 @@ export default function CustomCardPage() {
           role: slot.role,
           tag: slot.tag,
           url: shot.dataUrl,
-          ...(shot.note ? { note: shot.note } : {}),
+          // 图位说明只在 joinViewNote 一处截到服务端上限（超了补图 PATCH 整发 400）
+          ...(joinViewNote(shot.note) ? { note: joinViewNote(shot.note) } : {}),
         }));
       } else {
         const picked = slots.map((s) => ({ slot: s, shot: shots[s.kind] })).filter((x) => !!x.shot);
@@ -778,7 +781,7 @@ export default function CustomCardPage() {
         views = picked.map(({ slot, shot }) => ({
           kind: slot.kind,
           url: shot!.dataUrl,
-          ...(shot!.note ? { note: shot!.note } : {}),
+          ...(joinViewNote(shot!.note) ? { note: joinViewNote(shot!.note) } : {}),
         }));
       }
       const card: Card = {
@@ -1577,6 +1580,12 @@ export default function CustomCardPage() {
                     ) : (
                       <span className="rounded-full px-1.5 py-0.5 bg-slate-700/60 text-[9px] text-slate-400">选填</span>
                     )}
+                    {shot?.keptBg && (
+                      // 拍板 4 b：保留了框内背景的那一格，角上一直挂着 —— 别让人以为抠干净了
+                      <span className="rounded-full px-2 py-0.5 bg-amber-500/15 text-[10px] text-amber-300">
+                        <Trans>带背景</Trans>
+                      </span>
+                    )}
                   </div>
                   <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">锁住{s.locks}。</p>
                   {type === "prop" && (
@@ -1874,6 +1883,12 @@ export default function CustomCardPage() {
       ) : (
         <p className="mt-1.5 text-center text-[11px] text-slate-500">铸卡本身不消耗 token · 铸好后直接进你的卡片库</p>
       )}
+      {!minting && !partial && Object.values(shots).some((s) => s?.keptBg) && (
+        // 拍板 4 b 的第四处：铸卡键下再说一遍 —— 选择器里说过的话，按下铸卡那一刻人多半已经忘了
+        <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
+          <Trans>卡面仍带背景，出片可能把背景里的东西画进去</Trans>
+        </p>
+      )}
         </>
       )}
 
@@ -1890,10 +1905,10 @@ export default function CustomCardPage() {
             setSlotErr({ key: subjectPick.kind, msg });
             setSubjectPick(null);
           }}
-          onDone={({ dataUrl, note }) => {
+          onDone={({ dataUrl, note, keptBg }) => {
             setShots((prev) => ({
               ...prev,
-              [subjectPick.kind]: { dataUrl, note, fileName: subjectPick.fileName, via: "subject" },
+              [subjectPick.kind]: { dataUrl, note, fileName: subjectPick.fileName, via: "subject", ...(keptBg ? { keptBg: true as const } : {}) },
             }));
             setSubjectPick(null);
           }}

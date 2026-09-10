@@ -41,9 +41,17 @@ msgstr "{0}注册"
 msgid "{0}重新剪辑过"
 msgstr "{0}重新剪辑过"
 
+#: src/pages/CustomCardPage.tsx
+msgid "卡面仍带背景，出片可能把背景里的东西画进去"
+msgstr "卡面仍带背景，出片可能把背景里的东西画进去"
+
 #: src/i18n/activate.ts
 msgid "启梦 · 有想法，就是梦想启程的第一步"
 msgstr "启梦 · 有想法，就是梦想启程的第一步"
+
+#: src/pages/CustomCardPage.tsx
+msgid "带背景"
+msgstr "带背景"
 
 #: src/pages/SettingsPage.tsx
 msgid "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"

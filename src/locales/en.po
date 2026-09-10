@@ -41,9 +41,17 @@ msgstr "joined {0}"
 msgid "{0}重新剪辑过"
 msgstr "Re-edited {0}"
 
+#: src/pages/CustomCardPage.tsx
+msgid "卡面仍带背景，出片可能把背景里的东西画进去"
+msgstr "The card image still has its background, so generated videos may pick up things from it"
+
 #: src/i18n/activate.ts
 msgid "启梦 · 有想法，就是梦想启程的第一步"
 msgstr "QiMeng · Every dream starts with an idea"
+
+#: src/pages/CustomCardPage.tsx
+msgid "带背景"
+msgstr "Background kept"
 
 #: src/pages/SettingsPage.tsx
 msgid "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"
