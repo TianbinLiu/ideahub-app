@@ -443,6 +443,13 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   placeholder:text-slate-500 focus:border-brand`（textarea 加 `resize-none leading-relaxed`）—— 高 40px，与主按钮同高。
   登录 / 设置 / 发布 / 编辑 / 卡片 / 卡组 / 模板详情 / 自建卡 / 简约模式的输入框都是它。画布、工坊面板、
   弹层里的**紧凑**字段（`rounded-lg px-2.5 py-1.5 text-xs`）与深色弹层上的 `bg-black/30` 不在此列。
+- **界面文案走 Lingui**（2026-09-10 接线，多语言方案 D6）：源语言中文，`src/locales/{zh,en}.po` 入仓（行号关着，挪行不改目录）。
+  组件里 `Trans` / `useLingui`（`@lingui/react/macro`），`.ts` 里 `t` / `msg`（`@lingui/core/macro`）；**模块顶层只准放 `msg` 描述符**，
+  渲染时再翻 —— 开机是先激活语言、再动态 import App（`main.tsx`），顶层翻译调用会冻结在开机语言。**新文案同一个 PR 带英文**
+  （D8 a：把 en.po 的 msgstr 填上）。进模型的指令与点名语法**冻结中文、不进目录**：卡种名读 `CARD_TYPE_PROMPT`、图位读
+  `slotPromptOf`、镜头行读 `shotLineOf`（界面分别用 `CARD_TYPE_LABELS` / `slotLabel` / `shotLineDisplay`）。构建里跑
+  `lingui extract`，改了目录没提交的话 land 与 CI 都会拦。界面语言的唯一判定在 `src/i18n/locale.ts`（跟随系统 = 遍历
+  `navigator.languages` 按语言匹配，繁体归简体，兜底英文；侧载老用户同样按检测走）。
 - **数值不要拍脑袋**。涉及尺寸/间距/重叠的值先量再定，并在注释里写清量法与结论
   （例：`CharacterPerch` 的 `bottom` 系数调过四轮，注释里记了每一轮为什么不行）。
 - 动画只动 `transform` / `opacity`（合成层）。视频流滚动时本就吃紧，触发重排会掉帧。

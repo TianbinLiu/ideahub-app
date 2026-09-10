@@ -55,6 +55,7 @@ import { readyDrafts } from "./data/drafts";
 import { readyCutSession } from "./data/cutSession";
 import { readyAccount } from "./data/account";
 import { useAuthState, useCurrentUser } from "./hooks/useAccount";
+import { useLingui } from "@lingui/react";
 import useOrientationLock from "./hooks/useOrientationLock";
 import { signInWithOauthToken, signOut } from "./data/account";
 import { initOauthDeepLink, onOauthResult } from "./utils/oauth";
@@ -207,6 +208,10 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  // ★ 多语言：根组件订阅当前语言。切换语言时它重渲、并在渲染里重建整棵子树的元素 —— 整棵树自顶向下重渲
+  //   （不重挂：状态与在途 Promise 都保留）。不订阅的话，只有自己调了 useLingui / <Trans> 的组件跟着换，
+  //   渲染时调 .ts 助手（errText、relativeTime、显示字典）的组件停在旧语言，界面半中半英且零报错（方案 §5.4）。
+  useLingui();
   // 数据层是 IndexedDB（异步）：装载完成前不渲染路由，避免各页读到空库
   const [ready, setReady] = useState(false);
   useEffect(() => {
