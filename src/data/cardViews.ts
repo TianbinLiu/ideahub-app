@@ -13,6 +13,7 @@
 //
 // ★ 全程 async 且失败一律**抛**，不吞。上传失败、服务端没同步上都要显示成红字
 //   （详情页负责画）——全 app 没有任何地方监听 emitApiError，这里 catch 掉就是静默丢图。
+import { t } from "@lingui/core/macro";
 import { isRemoteMode, myCards, setCardViews } from "./account";
 import { coverToPermanentUrl, toPermanentUrl } from "./publishAssets";
 import { uploadImage, MAX_IMAGE_BYTES } from "../api/uploads";
@@ -53,22 +54,7 @@ async function materializedViews(card: Card): Promise<CardView[]> {
     const out: CardView[] = [];
     for (const v of kept) {
       if (!v?.url) continue;
-      if (!v.url.startsWith("data:")) {
-        out.push(v);
-        continue;
-      }
-      // ★★ 逐张 catch，**不许让老图的失败打断这一次加图**。
-      //   这条路是"account.addCards 转存失败"之后的**自愈入口**，而它补传的正是那批
-      //   失败过的图。其中至少一类是确定性失败（那张 dataURL 本身超过 5MB —— imageToUrl
-      //   直接抛"太大"，重试多少次都一样）。整条 throw 的后果是：用户点「+ 面部特写」，
-      //   新图其实已经传上去了（流量花了、图也存了），页面红字报的却是**另一张**图
-      //   "card-xxx-body 太大"，新图被丢弃，而且重试永远同样结果 —— 自愈入口把自己堵死了。
-      //   失败的那张原样留着（httpViews 会在写出去时滤掉它），下次再试。
-      try {
-        out.push({ ...v, url: await toPermanentUrl(v.url, `card-${card.id}-${v.kind}`) });
-      } catch {
-        out.push(v);
-      }
+      out.push(await materializeOne(card, v));
     }
     return out;
   }
@@ -79,6 +65,27 @@ async function materializedViews(card: Card): Promise<CardView[]> {
   //   （比如给某一类换个打头的 kind），它不会跟着变，兑现出来的那张就会被 normalizeSlot
   //   归到别处，绑定句于是对着一张全景说"这是它的面部特征"。统一走 primarySlotOf。
   return [{ kind: primarySlotOf(card.type), url }];
+}
+
+/**
+ * 一张**存着的** view → 能写进库的那份：dataURL 补传成永久地址，其余原样。
+ * materializedViews 与 replaceCardView（换一格时其余几格照样自愈）共用。
+ *
+ * ★★ 逐张 catch，**不许让老图的失败打断这一次加图**。
+ *   这条路是"account.addCards 转存失败"之后的**自愈入口**，而它补传的正是那批
+ *   失败过的图。其中至少一类是确定性失败（那张 dataURL 本身超过 5MB —— imageToUrl
+ *   直接抛"太大"，重试多少次都一样）。整条 throw 的后果是：用户点「+ 面部特写」，
+ *   新图其实已经传上去了（流量花了、图也存了），页面红字报的却是**另一张**图
+ *   "card-xxx-body 太大"，新图被丢弃，而且重试永远同样结果 —— 自愈入口把自己堵死了。
+ *   失败的那张原样留着（httpViews 会在写出去时滤掉它），下次再试。
+ */
+async function materializeOne(card: Card, v: CardView): Promise<CardView> {
+  if (!v.url.startsWith("data:")) return v;
+  try {
+    return { ...v, url: await toPermanentUrl(v.url, `card-${card.id}-${v.kind}`) };
+  } catch {
+    return v;
+  }
 }
 
 /** 一张**准备好挂到卡上**的本地图。note 非空 = 我们动过用户的原图，必须说出来 */
@@ -116,27 +123,110 @@ function assertUploadable(): void {
   }
 }
 
-/**
- * 给一张卡加一张形象参考图。
- * 返回新的 views（调用方据此重渲染）与可能的提示语。
- */
-export async function addCardView(cardId: string, file: File, kind: CardView["kind"]): Promise<CardViewsResult> {
-  const card = findMine(cardId);
-  assertUploadable();
-  // 先按现状算容量：老卡兑现出来的那张卡面也占一格（它确实会被喂给 Seedream）
-  const current = viewsOf(card);
-  if (current.length >= MAX_CARD_VIEWS) {
+/** 先按现状算容量：老卡兑现出来的那张卡面也占一格（它确实会被喂给 Seedream） */
+function assertRoom(card: Card): void {
+  if (viewsOf(card).length >= MAX_CARD_VIEWS) {
     throw new Error(`最多 ${MAX_CARD_VIEWS} 张：方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征`);
   }
-  // 裁切规则与提示语见 prepareCardImage（与工坊「自己传图做卡片」共用同一份）
-  const { blob, note } = await prepareCardImage(file);
-  const url = await uploadImage(blob, `card-view-${cardId}.jpg`);
+}
+
+/** 已经处理好的图 → Blob（「只留主体」层交回来的是 dataURL；CSP 的 connect-src 放行 data:，segmentGen 也这么取） */
+async function processedBlob(processed: Blob | string): Promise<Blob> {
+  return typeof processed === "string" ? (await fetch(processed)).blob() : processed;
+}
+
+/** 上传一张准备好的图，接在现有 views 后面，整表写一次（addCardView / addPreparedCardView 共用） */
+async function hangView(card: Card, blob: Blob, kind: CardView["kind"], note: string | undefined): Promise<CardViewsResult> {
+  const url = await uploadImage(blob, `card-view-${card.id}.jpg`);
   const views = [...(await materializedViews(card)), { url, kind, ...(note ? { note } : {}) }].slice(
     0,
     MAX_CARD_VIEWS,
   );
+  await setCardViews(card.id, views);
+  return { views, note };
+}
+
+/**
+ * 给一张卡加一张形象参考图。
+ * 返回新的 views（调用方据此重渲染）与可能的提示语。
+ * ★ 道具卡别走这条：两格都要先抠主体（拍板 2-1 a / 2-2 b），走 PhotoSubjectPicker → addPreparedCardView。
+ */
+export async function addCardView(cardId: string, file: File, kind: CardView["kind"]): Promise<CardViewsResult> {
+  const card = findMine(cardId);
+  assertUploadable();
+  assertRoom(card);
+  // 裁切规则与提示语见 prepareCardImage（与工坊「自己传图做卡片」共用同一份）
+  const { blob, note } = await prepareCardImage(file);
+  return hangView(card, blob, kind, note);
+}
+
+/**
+ * 挂一张**已经处理好**的图（道具卡「+ 图位」先过「只留主体」层，交回来的 dataURL 已过 prepareCardImage）。
+ * ★ 不再过一次 prepareCardImage：那会把长边再压一遍。
+ */
+export async function addPreparedCardView(
+  cardId: string,
+  processed: Blob | string,
+  kind: CardView["kind"],
+  note: string | undefined,
+): Promise<CardViewsResult> {
+  const card = findMine(cardId);
+  assertUploadable();
+  assertRoom(card);
+  return hangView(card, await processedBlob(processed), kind, note);
+}
+
+/**
+ * 把第 index 张**原地换成**一张已经处理好的图（卡详情页「只留主体」，§1 第 8 批）。
+ *
+ * ★★ 为什么不是「删一张 + 加一张」：那是两次 PATCH。删成功、加失败时这一格就空了 —— 而换的往往是主图，
+ *   空了之后 viewsOf 退回卡面兜底，卡面恰恰是那张带背景的原图：用户以为抠过了，出片用的其实还是原图，零报错。
+ *   这里先把新图传上去拿到永久地址，再 setCardViews **整表写一次**：传失败什么都没动。
+ * ★ 认图不认下标：`at.url` 是开层那一刻这一格的地址。抠图要描好一阵，这期间别的设备可能改过这张卡 ——
+ *   对不上就整句拒，不把新图写到另一张图的位置上（CLAUDE.md「弹层 / 确认卡按第几段记」同一类坑）。
+ * ★ 图位的 kind / role / tag 原样保留：换的是图，不是这一格是什么；旧 note 不留（那句话说的是旧图）。
+ * ★ 卡面（card.cover）不动：服务端改卡端点不收 cover（server schemas/branchAsset.schemas.js 的 updateCardBody）。
+ *   出片按 views 取图（types.viewsOf），换了这一格出片就按新图走 —— 卡面还是原图这件事，调用方要说出来。
+ */
+export async function replaceCardView(
+  cardId: string,
+  at: { index: number; url: string },
+  processed: Blob | string,
+  note: string | undefined,
+): Promise<CardViewsResult> {
+  const card = findMine(cardId);
+  assertUploadable();
+  const base = viewsOf(card);
+  const cur = base[at.index];
+  if (!cur || cur.url !== at.url) throw new Error(t`这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试`);
+  const url = await uploadImage(await processedBlob(processed), `card-view-${cardId}.jpg`);
+  const next: CardView = { ...cur, url, note: note || undefined };
+  // 没真挂过图的老卡：base 只有卡面兜底出来的那一张，换掉它就是这张卡的第一份 views（卡面不必先传一遍再被换掉）
+  const stored = Array.isArray(card.views) && card.views.length > 0;
+  const views: CardView[] = [];
+  if (stored) {
+    for (const [i, v] of base.entries()) views.push(i === at.index ? next : await materializeOne(card, v));
+  } else {
+    views.push(next);
+  }
   await setCardViews(cardId, views);
   return { views, note };
+}
+
+/**
+ * 一张已经挂在卡上的图 → 可以喂给「只留主体」层的 Blob（卡详情页、模板详情页共用）。
+ * ★ 只认 Content-Type 不信状态码（同 refableViews 那条）：Capacitor 本地服务器对未命中路径回 200 + index.html，
+ *   而 decodeImageFile 见非 image/* 报的是「请选择图片文件」—— 那句话在这里答非所问。
+ */
+export async function viewSourceBlob(url: string): Promise<Blob> {
+  let blob: Blob;
+  try {
+    blob = await (await fetch(url)).blob();
+  } catch (e) {
+    throw new Error(t`取不到这张图（${e instanceof Error ? e.message : String(e)}）`);
+  }
+  if (!blob.type.startsWith("image/")) throw new Error(t`取回来的不是图片（${blob.type || "?"}）`);
+  return blob;
 }
 
 /** 打包在安装包里的根相对路径（/cards/market/…）。data:/http(s)/protocol-relative 都不算 */

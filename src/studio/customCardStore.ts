@@ -65,6 +65,14 @@ export interface SubjectPick {
   preview: { dataUrl: string; note: string; keptBg: boolean } | null;
 }
 
+/**
+ * 刚拿到一张图、要开「只留主体」层时的起手态 —— 唯一实现（自建卡、卡详情页、模板详情页三处开层都走它）。
+ * ★ 起手态是「框选阶段、没框、没放大、没轮廓、没预览」；三处各拼一份的话，哪天多一个字段总有一处漏写。
+ */
+export function freshSubjectPick(o: { kind: CardView["kind"]; src: Blob; fileName: string; allowKeepBg: boolean }): SubjectPick {
+  return { ...o, stage: "box", rect: null, zoom: null, lasso: null, preview: null };
+}
+
 export type CardStep = "type" | "real" | "source" | "form" | "info" | "final";
 
 export interface CustomCardDraft {

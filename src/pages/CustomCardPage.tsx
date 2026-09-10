@@ -52,7 +52,7 @@ import { saveVoice } from "../data/cardVoice";
 import { startJob } from "../data/jobs";
 // ★★ 这一页的表单状态全在 store 里（理由见 customCardStore 文件头）：AI 出图 / 铸卡上传
 //   退出这一页也不断，人回来时原样还在；胶囊（GenerationPill）负责人不在时的通知
-import { type Shot, draftBusy, draftDirty, resetCardDraft, useCardDraft, useDraftField } from "../studio/customCardStore";
+import { type Shot, draftBusy, draftDirty, freshSubjectPick, resetCardDraft, useCardDraft, useDraftField } from "../studio/customCardStore";
 // 人物卡的图位不再写死三格，由**提示词方案**定（与「从视频提取」同一套方案库）。
 // 方案在这里决定**图位结构**（几格、各叫什么、锁什么）；「AI 生成图位」车道
 // 走 ai/portraitViews（与工坊提卡同一条出图路），报价同一把尺 schemeCost。
@@ -502,17 +502,7 @@ export default function CustomCardPage() {
         // 立刻读实成内存里的 Blob：content:// 的懒读在切到后台之后可能失效（需真机验），
         // 而这张图要在圈选层里停好一阵，人还可能中途切走再回来
         const src = new Blob([await file.arrayBuffer()], { type: file.type });
-        setSubjectPick({
-          kind: target.kind,
-          src,
-          fileName: file.name,
-          allowKeepBg: target.kind === primary.kind,
-          stage: "box",
-          rect: null,
-          zoom: null,
-          lasso: null,
-          preview: null,
-        });
+        setSubjectPick(freshSubjectPick({ kind: target.kind, src, fileName: file.name, allowKeepBg: target.kind === primary.kind }));
       } catch (e) {
         setSlotErr({ key, msg: `这张图读不出来：${(e instanceof Error ? e.message : String(e)).slice(0, 80)}——换一张再试` });
       } finally {
