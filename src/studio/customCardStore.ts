@@ -29,6 +29,11 @@ export interface Shot {
   fileName: string;
   /** 这张是「只留主体」层抠出来的（道具卡专用）。换卡种时据此取下：抠好的道具主体当不了场景的全景 */
   via?: "subject";
+  /**
+   * 第 1 格描不出轮廓时选了「保留框内背景」（拍板 4 b）。有它就在格子上挂「带背景」、铸卡键下摆风险句。
+   * ★ 挂在 Shot 上而不是页面 state：图被取下（换卡种、重选）时这一位自然跟着走，不会留下一句说错了的提示。
+   */
+  keptBg?: true;
 }
 
 /** 源像素里的一块矩形（与 blockout/arkVideoRules 的 CropRect、utils/image 的 PixelBox 同形；
