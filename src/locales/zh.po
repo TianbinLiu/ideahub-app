@@ -13,6 +13,27 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+#. placeholder {0}: quote !== o.text ? "…" : ""
+#: src/studio/canvasAgent.ts
+msgid "：「{quote}{0}」"
+msgstr "：「{quote}{0}」"
+
+#: src/studio/canvasAgent.ts
+msgid "（本地档）{notes}现在只认「第N段 拍什么」「第N段换成XX模板」「第N段摘掉模板」「加一段」这类直白句式。"
+msgstr "（本地档）{notes}现在只认「第N段 拍什么」「第N段换成XX模板」「第N段摘掉模板」「加一段」这类直白句式。"
+
+#: src/studio/canvasAgent.ts
+msgid "（本地档）按直白句式帮你办了下面这些。{notes}"
+msgstr "（本地档）按直白句式帮你办了下面这些。{notes}"
+
+#: src/studio/canvasAgent.ts
+msgid "（没有可办的）"
+msgstr "（没有可办的）"
+
+#: src/studio/canvasAgent.ts
+msgid "（这一句我没听懂）"
+msgstr "（这一句我没听懂）"
+
 #. placeholder {0}: d.segCount
 #. placeholder {0}: meta.segCount
 #. placeholder {1}: d.doneCount
@@ -36,10 +57,32 @@ msgstr "{0}播放"
 msgid "{0}注册"
 msgstr "{0}注册"
 
+#. placeholder {0}: segs(r.paid.map((p) => p.seg))
+#: src/studio/canvasAgent.ts
+msgid "{0}的推演、生成、挂卡本地档不代办（要花钱，或会重写点名句）——在那一段的编辑窗里点。"
+msgstr "{0}的推演、生成、挂卡本地档不代办（要花钱，或会重写点名句）——在那一段的编辑窗里点。"
+
+#. placeholder {0}: segs(r.attrSegs)
+#: src/studio/canvasAgent.ts
+msgid "{0}说的是这一段的设置：点开那一段的编辑窗，时长/画幅/画质在标题行右上角的 ⚙ 里，删段在编辑窗最底下。"
+msgstr "{0}说的是这一段的设置：点开那一段的编辑窗，时长/画幅/画质在标题行右上角的 ⚙ 里，删段在编辑窗最底下。"
+
 #. placeholder {0}: relativeTime(video.revisedAt)
 #: src/pages/VideoPage.tsx
 msgid "{0}重新剪辑过"
 msgstr "{0}重新剪辑过"
+
+#: src/studio/canvasAgent.ts
+msgid "「{u}」"
+msgstr "「{u}」"
+
+#: src/studio/canvasAgent.ts
+msgid "＋ 加一段"
+msgstr "＋ 加一段"
+
+#: src/studio/canvasAgent.ts
+msgid "⚡ 生成本段"
+msgstr "⚡ 生成本段"
 
 #: src/pages/CardDetailPage.tsx
 msgid "✂ 主图只留主体"
@@ -49,6 +92,42 @@ msgstr "✂ 主图只留主体"
 #: src/pages/TemplateDetailPage.tsx
 msgid "✂ 只留主体"
 msgstr "✂ 只留主体"
+
+#: src/studio/canvasAgent.ts
+msgid "✎ 拍摄要求"
+msgstr "✎ 拍摄要求"
+
+#: src/studio/canvasAgent.ts
+msgid "🃏 挂卡换人"
+msgstr "🃏 挂卡换人"
+
+#: src/studio/canvasAgent.ts
+msgid "🎲 重演方案"
+msgstr "🎲 重演方案"
+
+#: src/studio/canvasAgent.ts
+msgid "🗑 删掉某段"
+msgstr "🗑 删掉某段"
+
+#: src/studio/canvasAgent.ts
+msgid "🧪 套模板"
+msgstr "🧪 套模板"
+
+#: src/studio/canvasAgent.ts
+msgid "🧪 摘掉模板"
+msgstr "🧪 摘掉模板"
+
+#: src/studio/canvasAgent.ts
+msgid "AI 指挥没连上（{why}），先按本地句式办了能办的。"
+msgstr "AI 指挥没连上（{why}），先按本地句式办了能办的。"
+
+#: src/studio/canvasAgent.ts
+msgid "余额不够 AI 指挥（400/句）。"
+msgstr "余额不够 AI 指挥（400/句）。"
+
+#: src/studio/canvasAgent.ts
+msgid "办好了。"
+msgstr "办好了。"
 
 #: src/pages/CustomCardPage.tsx
 msgid "卡面仍带背景，出片可能把背景里的东西画进去"
@@ -68,6 +147,15 @@ msgstr "取回来的不是图片（{0}）"
 msgid "启梦 · 有想法，就是梦想启程的第一步"
 msgstr "启梦 · 有想法，就是梦想启程的第一步"
 
+#: src/studio/canvasAgent.ts
+msgid "在末尾追加"
+msgstr "在末尾追加"
+
+#. placeholder {0}: AI_REAL ? EXAMPLES[lang].template : EXAMPLES[lang].describe
+#: src/components/flow/FlowCanvas.tsx
+msgid "对画布说话：{0}"
+msgstr "对画布说话：{0}"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "已换成只留主体的这张"
 msgstr "已换成只留主体的这张"
@@ -80,6 +168,18 @@ msgstr "已换成只留主体的这张，出片按它走（卡面封面不跟着
 msgid "带背景"
 msgstr "带背景"
 
+#: src/studio/canvasAgent.ts
+msgid "引号里填模板名（下面可直接点）"
+msgstr "引号里填模板名（下面可直接点）"
+
+#: src/studio/canvasAgent.ts
+msgid "接着写这一段的画面"
+msgstr "接着写这一段的画面"
+
+#: src/studio/canvasAgent.ts
+msgid "未出片的段直接删，已出片的段不代删"
+msgstr "未出片的段直接删，已出片的段不代删"
+
 #: src/pages/SettingsPage.tsx
 msgid "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"
 msgstr "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"
@@ -88,9 +188,29 @@ msgstr "桌面图标上的名字跟随手机系统语言，这里切换不会改
 msgid "模板里这张卡已经变了，刷新后再试"
 msgstr "模板里这张卡已经变了，刷新后再试"
 
+#. placeholder {0}: quoted(r.unclear)
+#: src/studio/canvasAgent.ts
+msgid "没听懂这几句，怕改错就没动：{0}。"
+msgstr "没听懂这几句，怕改错就没动：{0}。"
+
 #: src/pages/SettingsPage.tsx
 msgid "没能切换语言，请重试"
 msgstr "没能切换语言，请重试"
+
+#: src/studio/canvasAgent.ts
+msgid "白模段用，改成真实角色位与卡名"
+msgstr "白模段用，改成真实角色位与卡名"
+
+#. placeholder {0}: o.seg
+#. placeholder {1}: was !== prevReq ? "…" : ""
+#: src/studio/canvasAgent.ts
+msgid "第 {0} 段已经写着「{was}{1}」——离线档不敢直接覆盖它。想换成「{next}…」的话，在这一段的编辑窗里改（那一段还锁着的话，得先把它前面的段炼出来），或者先把原来那段清空"
+msgstr "第 {0} 段已经写着「{was}{1}」——离线档不敢直接覆盖它。想换成「{next}…」的话，在这一段的编辑窗里改（那一段还锁着的话，得先把它前面的段炼出来），或者先把原来那段清空"
+
+#. placeholder {0}: o.seg
+#: src/studio/canvasAgent.ts
+msgid "第 {0} 段挂卡：这个模板人数可能超过 {BLOCKOUT_MAX_ROLES} 人，「{rawLabel}」这种说法对不准，请照抄角色位原字样：{avail}"
+msgstr "第 {0} 段挂卡：这个模板人数可能超过 {BLOCKOUT_MAX_ROLES} 人，「{rawLabel}」这种说法对不准，请照抄角色位原字样：{avail}"
 
 #. placeholder {0}: o.seg
 #. placeholder {1}: matched.length
@@ -98,12 +218,33 @@ msgstr "没能切换语言，请重试"
 msgid "第 {0} 段挂着 {1} 张对得上「{name}」的卡（{names}），说全名"
 msgstr "第 {0} 段挂着 {1} 张对得上「{name}」的卡（{names}），说全名"
 
+#: src/studio/canvasAgent.ts
+msgid "第 {s} 段"
+msgstr "第 {s} 段"
+
+#: src/studio/canvasAgent.ts
+msgid "花钱操作，会先摆确认卡"
+msgstr "花钱操作，会先摆确认卡"
+
 #. placeholder {0}: LANG_NAME[active]
 #. placeholder {0}: LANG_NAME[systemLang()]
 #: src/pages/SettingsPage.tsx
 msgid "跟随系统（{0}）"
 msgstr "跟随系统（{0}）"
 
+#. placeholder {0}: quoted(r.mixed)
+#: src/studio/canvasAgent.ts
+msgid "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
+msgstr "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
+
 #: src/data/cardViews.ts
 msgid "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"
 msgstr "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "这条流水线还没有段——对下面的输入条说「{addExample}」"
+msgstr "这条流水线还没有段——对下面的输入条说「{addExample}」"
+
+#: src/studio/canvasAgent.ts
+msgid "退回普通段"
+msgstr "退回普通段"

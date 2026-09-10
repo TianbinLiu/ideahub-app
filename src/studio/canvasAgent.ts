@@ -8,15 +8,26 @@
 // · **落地只走 flowStore 既有 action**：顺序门禁、已出片拒改、生成中拒改都在 store
 //   里只有一处实现（铁律六），这里被拒就把 store 的整句原样报给用户，不另判一遍。
 // · **降级不封口**：mock 构建 / 余额不足 / 回复解析不出来，都退到本地直白句式解析
-//   （localParse）——能办多少办多少，并说清自己是哪一档（铁律八：不静默）。
+//   （studio/agentGrammar.parseLocal，中英两套句式并联）——能办多少办多少，并说清自己是哪一档（铁律八：不静默）。
 import { AI_REAL, VIDEO_PROMPT_MAX, canvasAgentChat } from "../ai";
 import { canAfford, myCards, spendTokens } from "../data/account";
 import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost } from "../data/economy";
-import { browseTemplates, myTemplates } from "../data/templates";
+import { BLOCKOUT_MAX_ROLES, browseTemplates, markSpecOf, myTemplates } from "../data/templates";
 import type { Card, VideoTemplate } from "../types";
 import { chosenOf, clampCursor, nodeCost, nodeDone, planOf, tplOfNode, useFlow, type FlowNode } from "./flowStore";
-import { t } from "@lingui/core/macro";
+import { i18n, type MessageDescriptor } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
 import { matchByName, normName } from "./nameMatch";
+import {
+  clampAddN,
+  clipForLang,
+  isOrdinalAlias,
+  parseLocal,
+  resolveRoleLabel,
+  type LocalParse,
+  type Op,
+  type PhraseId,
+} from "./agentGrammar";
 
 /**
  * 会花钱/有后果的操作走**提案**：模型只许把它摆成一张确认卡（带价钱或后果原文），
@@ -70,25 +81,13 @@ export interface AgentOutcome {
   paid: boolean;
 }
 
-type Op =
-  /** local = 这条是**本地降级档**的正则分出来的（模型那条路不带）。applyOps 据此决定敢不敢
-   *  覆盖已经写好的要求 —— 见那一支的 ★★ */
-  | { op: "require"; seg: number; text: string; local?: boolean }
-  | { op: "template"; seg: number; title: string }
-  | { op: "untemplate"; seg: number }
-  | { op: "cards"; seg: number; add?: string[]; remove?: string[] }
-  | { op: "add_segment"; n?: number }
-  | { op: "remove_segment"; seg: number }
-  | { op: "focus"; seg: number }
-  | { op: "cast"; seg: number; map: Record<string, string> }
-  | { op: "derive"; seg: number }
-  | { op: "generate"; seg: number };
+// 白名单操作的类型（Op）与本地档句式在 studio/agentGrammar：两者同文件同批改（句式只许覆盖 Op 里真有的动作）
 
 /**
  * 「/」唤起面板的指令句式（AgentBar 用，2026-08-29，backlog 2.8-⑤ 的交互半：
  * updream 在对话里按 "/" 唤技能的形——这里唤起的是**本 agent 真听得懂的句式**）。
  *
- * ★★ 铁律六 + 铁律五的合订本：这张表必须与上面的 Op 白名单**同文件同批改**——
+ * ★★ 铁律六 + 铁律五的合订本：这张表与 agentGrammar 里的 Op 白名单、PHRASES（真正填进输入框的那句，按界面语言取）**同批改**——
  *   句式只许覆盖 Op 里真有的动作。改 Op 时对着这张表过一遍；**绝不**把「改时长/换画幅/
  *   调画质」这类词条加进来：Op 里没有对应操作，两档都只能拒 —— 摆一个点了必拒的
  *   选项，就是 CLAUDE.md「永远点不动的选项」在词表上的变体（那三样的家在编辑窗 ⚙，
@@ -96,18 +95,19 @@ type Op =
  * ★ 填空句是**起手**不是成品：插进输入框后用户接着改（补内容/换段号），所以句式停在
  *   自然的接写点上（「第N段拍」后面就是要写的画面）。
  * ★ seg 传 1 起的段号（调用方拿 cursor+1）。
+ * ★ 这里只放面板上的标签与说明（界面文案，走 Lingui）；填进输入框的句子在 agentGrammar.phraseText。
  */
-export const AGENT_PHRASES: ReadonlyArray<{ label: string; make: (seg: number) => string; hint: string }> = [
-  { label: "✎ 拍摄要求", make: (s) => `第${s}段拍`, hint: "接着写这一段的画面" },
-  { label: "🧪 套模板", make: (s) => `第${s}段套模板「」`, hint: "引号里填模板名（下面可直接点）" },
-  { label: "🧪 摘掉模板", make: (s) => `第${s}段摘掉模板`, hint: "退回普通段" },
-  { label: "🃏 挂卡换人", make: (s) => `第${s}段挂卡：角色位=卡名`, hint: "白模段用，改成真实角色位与卡名" },
-  { label: "＋ 加一段", make: () => "加一段", hint: "在末尾追加" },
+export const AGENT_PHRASES: ReadonlyArray<{ id: PhraseId; label: MessageDescriptor; hint: MessageDescriptor }> = [
+  { id: "require", label: msg`✎ 拍摄要求`, hint: msg`接着写这一段的画面` },
+  { id: "template", label: msg`🧪 套模板`, hint: msg`引号里填模板名（下面可直接点）` },
+  { id: "untemplate", label: msg`🧪 摘掉模板`, hint: msg`退回普通段` },
+  { id: "cast", label: msg`🃏 挂卡换人`, hint: msg`白模段用，改成真实角色位与卡名` },
+  { id: "add", label: msg`＋ 加一段`, hint: msg`在末尾追加` },
   // ★ hint 要说真话（2026-09-10 对着 applyOps 的 remove_segment 核过）：未出片的段直接删、不摆确认卡；
-  //   已出片的整句拒，指路去编辑窗底部那颗要点两下的「删除本段」
-  { label: "🗑 删掉某段", make: (s) => `删掉第${s}段`, hint: "未出片的段直接删，已出片的段不代删" },
-  { label: "🎲 重演方案", make: (s) => `重新推演第${s}段的方案`, hint: "花钱操作，会先摆确认卡" },
-  { label: "⚡ 生成本段", make: (s) => `生成第${s}段`, hint: "花钱操作，会先摆确认卡" },
+  //   已出片的整句拒，指路去编辑窗底部那颗要点两下的「删除本段」。说的是 AI 指挥档 —— 本地档自己在回话里说它办不了
+  { id: "remove", label: msg`🗑 删掉某段`, hint: msg`未出片的段直接删，已出片的段不代删` },
+  { id: "derive", label: msg`🎲 重演方案`, hint: msg`花钱操作，会先摆确认卡` },
+  { id: "generate", label: msg`⚡ 生成本段`, hint: msg`花钱操作，会先摆确认卡` },
 ];
 
 /** 流水线现状 → 紧凑 JSON（进提示词）。截断都在这里做，别把整条 plot 灌给模型 */
@@ -122,7 +122,7 @@ function snapshot(): string {
       已出片: nodeDone(n),
       生成中: n.status === "generating",
       方案: tpl?.refVideo ? undefined : (planOf(n) ?? "还没推演"),
-      要求: (tpl?.refVideo ? p.plot : (n.requirement ?? "")).slice(0, 40) || "（空）",
+      要求: clipForLang(tpl?.refVideo ? p.plot : (n.requirement ?? ""), 40) || "（空）",
       素材卡: (n.materials ?? []).map((c) => c.name).slice(0, 8),
       // 角色位给**名字表**不是个数：cast 提案要按这些字样点名（挂了几个也一并给）
       ...(tpl?.roles?.length
@@ -165,7 +165,7 @@ function parseReply(raw: string): { say: string; ops: Op[] } | null {
   if (a < 0 || b <= a) return null;
   try {
     const j = JSON.parse(raw.slice(a, b + 1)) as { say?: unknown; ops?: unknown };
-    const say = typeof j.say === "string" ? j.say.slice(0, 200) : "";
+    const say = typeof j.say === "string" ? clipForLang(j.say, 200) : "";
     const ops: Op[] = [];
     if (Array.isArray(j.ops)) {
       for (const o of j.ops as Array<Record<string, unknown>>) {
@@ -192,7 +192,7 @@ function parseReply(raw: string): { say: string; ops: Op[] } | null {
             break;
           }
           case "add_segment":
-            ops.push({ op: "add_segment", n: typeof o.n === "number" ? Math.min(5, Math.max(1, Math.floor(o.n))) : 1 });
+            ops.push({ op: "add_segment", n: typeof o.n === "number" ? clampAddN(o.n) : 1 });
             break;
           case "remove_segment":
             if (seg >= 1) ops.push({ op: "remove_segment", seg });
@@ -232,123 +232,31 @@ function parseReply(raw: string): { say: string; ops: Op[] } | null {
  */
 const lockedAt = (seg: number) => clampCursor(useFlow.getState().nodes, seg - 1) !== seg - 1;
 
-/** 中文数字 → int（本地句式档用；只到十几，够指段号） */
-function cnInt(s: string): number {
-  const n = Number(s);
-  if (Number.isFinite(n) && n > 0) return n;
-  const M: Record<string, number> = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
-  if (s === "十") return 10;
-  if (s.length === 2 && s[0] === "十") return 10 + (M[s[1]] ?? 0);
-  if (s.length === 2 && s[1] === "十") return (M[s[0]] ?? 0) * 10;
-  return M[s] ?? 0;
-}
-
 /**
- * 「这句说的是**段的属性**，不是画面」的判据 —— 本地档办不了属性（时长/画幅/画质在编辑窗
- * 右上角的 ⚙ 里，删段在编辑窗底部），所以宁可说没听懂，也别把它当拍摄要求写进去。
- *
- * ★★ 判法是**剥词法**，不是匹配整句、更不是在句中找关键词（前两版各栽一次）：
- *   把"改动动词 + 属性名 + 属性值 + 语气助词"全部剥掉，**剩不下东西**才算属性指令。
- *   - 第一版在句中找关键词 → 「拍一只猫在**高清**屏幕前打滚」这类正常句子被整句打掉；
- *   - 第二版整句锚定但只允许一个属性词、前缀必须在句首 → 「时长改成8秒」「把画质改成电影级」
- *     「换成 1080p」全漏，而漏了就掉进 require **静默覆盖用户写好的一整段要求**。
- *   剥词法两头都稳：属性句剥完必然为空（它本来就只由这些词组成），而描述画面的句子
- *   剥完一定还剩主体（「镜头**横屏**移动」剩「镜头移动」、「**删掉**画面里的路人」剩「画面里路人」）。
- * ★ 判错的代价不对称，所以宁可漏判成"要求"也不能误判成"属性"？**反了** —— 恰恰相反：
- *   误判成属性只是白拒一次（用户一个字没丢，而且下面 attrSay 会告诉他去哪儿改）；
- *   漏判成要求会**静默整段覆盖**他写好的东西，不可撤销。所以剥词表宁可多收几个词。
+ * 本地档那一句话。parseLocal（studio/agentGrammar）只分档、不说话 —— 话在这里用 Lingui 拼，界面是英文就说英文。
+ * ★ 设置类单独说，而且**说清去哪儿办**：只回一句"没听懂"的话，用户只会换个说法再试一次，
+ *   而本地档永远办不了这件事 —— 那就是一个说不出出路的死循环（铁律八的"给出路"那半）。
+ * ★ 指路要指到**真有那颗按钮的地方**（第三轮验证抓到：原来写"卡片上的 ⚙"，而节点卡上
+ *   根本没有 ⚙ —— 全 app 唯一那颗在编辑窗标题行右上角。指错路和功能坏了长得一模一样）
+ * ★ 推演 / 生成 / 挂卡认得出来就单独说（本地档不摆确认卡），别混进"没听懂" —— 那会让人以为句子写错了。
  */
-/**
- * 属性词表。★★ 必须是**正则字面量**，不许写成字符串再 new RegExp（第四轮验证栽过一次）：
- *   字符串里的 `\d` 在 JS 里是转义序列，运行时退化成字母 `d` —— 于是"数字+秒"那一档
- *   整个是死的，而且**没有任何症状**（构建过、类型过，只是永远匹配不上）。
- * ★ 带 `i`：不带的话「4K」「1080P」「10S」一个都不剥。
- */
-const ATTR_TOKENS =
-  /(时长|画幅|画质|清晰度|分辨率|竖屏|横屏|极速|标准|高清|超清|标清|原画|电影级|1080p|720p|2k|4k|删掉|删除|删了|去掉|短一?点|长一?点|\d+\s*(?:秒|s)|[一二两三四五六七八九十]+\s*秒)/gi;
-/** 「这句里到底有没有属性词」。★ 从上面那条**派生**（`.source`），不是另抄一份 —— 带 `g`
- *  的正则 test 会推进 lastIndex，不能直接复用；而抄一份就是同一条规则的第二处实现。 */
-const ATTR_HIT = new RegExp(ATTR_TOKENS.source, "i");
-/** 改动动词与语气词。★ 只收**功能词**：像「画面」「视频」这种内容词一旦收进来，
- *  「删掉画面里的路人」会被剥成「里路人」而误判成属性指令。 */
-const ATTR_VERBS =
-  /(改成|换成|变成|设成|调成|设置成|设置为|设为|改为|换为|调到|加到|减到|弄成|调整成|改|换|设|调|弄|把|成|的|吧|了|呗|啊|嘛|请|麻烦|谢谢|帮我|给我|要|想|需要|稍微|大概|左右|再|一下)/gi;
-/** 剥完还剩什么；只剩空白/标点 = 这句话整个就是一条属性指令 */
-function attrLeftover(rest: string): string {
-  return rest.replace(ATTR_TOKENS, "").replace(ATTR_VERBS, "").replace(/[\s，。、,.!！?？：:；;]/g, "");
-}
-
-/** 离线/降级档：只认直白句式，能办多少办多少。规则窄一点没关系，**说清楚**最重要 */
-function localParse(text: string): { say: string; ops: Op[] } {
-  const ops: Op[] = [];
-  /** 认出是"第 N 段 …"、但那半句不敢当成拍摄要求的句子。宁可说没听懂，也别乱写（见下 ★★） */
-  const unclear: string[] = [];
-  /** 说的是段的属性（时长/画幅/画质/删段）—— 本地档办不了，但**知道去哪儿办**，要指路（铁律八） */
-  const attrs: string[] = [];
-  // 「第N段 摘掉模板 / 换成XX模板 / 拍…」逐句拆（分号/句号/换行分隔）
-  for (const part of text.split(/[;；。\n]/)) {
-    const m = part.match(/第\s*([0-9一二两三四五六七八九十]+)\s*段\s*[:：,，]?\s*(.*)/);
-    if (m) {
-      const seg = cnInt(m[1]);
-      const rest = m[2].trim();
-      if (!seg || !rest) continue;
-      const tplM = rest.match(/(?:换成|套上?|用)\s*(.+?)\s*(?:模板)?$/);
-      if (/(摘掉?|不用|去掉|去除|删掉|取消)模板/.test(rest)) ops.push({ op: "untemplate", seg });
-      else if (/模板/.test(rest) && tplM) ops.push({ op: "template", seg, title: tplM[1] });
-      // ★★ require **不是 catch-all**（2026-08-21 第六轮评审的完备性批评）：
-      //   这一档不只在离线时走，`AI_REAL` 但**余额不足**也落到这里 —— 而那恰恰是用户
-      //   最容易连说好几句的时候。原来凡是没命中模板关键词的一律当成"要求"，于是
-      //   「第2段删掉」「第2段短一点」会把他精心写的那段要求整段替换成「删掉」，
-      //   没有确认、没有撤销，回执还写着绿勾「按直白句式帮你办了下面这些」。
-      //   ⚠ 光看开头那几个字不够（验证轮抓到）：「第2段**改成**10秒」「第2段**换成**高清」
-      //   「第2段**变成**竖屏」说的是**这一段的属性**，不是画面 —— 而本地档办不了属性，
-      //   于是照旧把整段要求替换成「改成10秒」。所以先按属性词判死，再谈是不是描述画面。
-      // ★ 分档只问剥词法（见 ATTR_TOKENS 的 ★★）。原来那两条启发式（首字白名单
-      //   `^(拍|画|讲|演|要)` 与 `length >= 8`）都已删掉：前者与「**画**质换成高清」
-      //   「**要**删掉」正面撞车（首字命中就当要求，照旧静默覆盖），后者纯靠字数蒙
-      //   （「去掉背景音乐」6 字被拒、「换成 1080p」8 字被当要求，两个方向都错）。
-      else if (!ATTR_HIT.test(rest)) {
-        // ★★ 一个属性词都没有 = 这就是在描述画面，**别再剥词**（第四轮验证抓到）：
-        //   剥词表里有「把/画面/调/的」这些极常用的字，「把画面调暗」剥完只剩「暗」，
-        //   会被判成"没听懂"而白拒 —— 而它是一句再正常不过的拍摄要求。
-        if (rest.length >= 2) ops.push({ op: "require", seg, text: rest, local: true });
-        else unclear.push(part.trim());
-      } else {
-        // ★★ 有属性词：看剥完还剩多少。**别指望剥完为空**（上一版注释里那句断言是错的，
-        //   第四轮验证用一串自然说法证伪：「麻烦改成竖屏」剩「麻烦」、「时长加到10秒」剩
-        //   「加到」、「画质设置为高清」剩「置为」）—— 剥词表是黑名单，漏一个字就掉进
-        //   require **静默整段覆盖**用户写好的要求，而这一档正好在离线/余额不足时走。
-        //   所以留一点余量：剩三个字以内仍按属性算。
-        // ★ 两个方向的代价不对称：误判成属性 = 白拒一次 + 指路（可恢复）；
-        //   漏判成要求 = setRequirement 整表覆盖，无历史无撤销。宁可多判几句属性。
-        const left = attrLeftover(rest);
-        if (left.length <= 3) attrs.push(`第 ${seg} 段`);
-        else ops.push({ op: "require", seg, text: rest, local: true });
-      }
-      continue;
-    }
-    if (/加\s*([0-9一二两三]*)\s*段/.test(part)) {
-      const n = cnInt(part.match(/加\s*([0-9一二两三]*)\s*段/)![1] || "1") || 1;
-      ops.push({ op: "add_segment", n });
-    }
-  }
-  const hint = "「第N段 拍什么」「第N段换成XX模板」「第N段摘掉模板」「加一段」";
-  const unclearSay = unclear.length
-    ? `没听懂这几句，怕改错就没动：${unclear.map((u) => `「${u}」`).join("、")}。`
+function localSay(r: LocalParse): string {
+  // 列表分隔符跟着界面语言走（中文「、」，英文逗号）：是标点，不是文案
+  const sep = i18n.locale === "en" ? ", " : "、";
+  const segs = (list: number[]) => [...new Set(list)].map((s) => t`第 ${s} 段`).join(sep);
+  const quoted = (list: string[]) => list.map((u) => t`「${u}」`).join(sep);
+  const attrSay = r.attrSegs.length
+    ? t`${segs(r.attrSegs)}说的是这一段的设置：点开那一段的编辑窗，时长/画幅/画质在标题行右上角的 ⚙ 里，删段在编辑窗最底下。`
     : "";
-  // ★ 属性类单独说，而且**说清去哪儿办**：只回一句"没听懂"的话，用户只会换个说法再试一次，
-  //   而本地档永远办不了这件事 —— 那就是一个说不出出路的死循环（铁律八的"给出路"那半）。
-  // ★ 指路要指到**真有那颗按钮的地方**（第三轮验证抓到：原来写"卡片上的 ⚙"，而节点卡上
-  //   根本没有 ⚙ —— 全 app 唯一那颗在编辑窗标题行右上角。指错路和功能坏了长得一模一样）
-  const attrSay = attrs.length
-    ? `${[...new Set(attrs)].join("、")}说的是这一段的设置：点开那一段的编辑窗，时长/画幅/画质在标题行右上角的 ⚙ 里，删段在编辑窗最底下。`
+  const paidSay = r.paid.length
+    ? t`${segs(r.paid.map((p) => p.seg))}的推演、生成、挂卡本地档不代办（要花钱，或会重写点名句）——在那一段的编辑窗里点。`
     : "";
-  return {
-    say: ops.length
-      ? `（本地档）按直白句式帮你办了下面这些。${attrSay}${unclearSay}`
-      : `（本地档）${attrSay}${unclearSay}现在只认${hint}这类直白句式。`,
-    ops,
-  };
+  const mixedSay = r.mixed.length ? t`这几句里同时写了中文和英文的段号，分不清是哪一段，没动：${quoted(r.mixed)}。` : "";
+  const unclearSay = r.unclear.length ? t`没听懂这几句，怕改错就没动：${quoted(r.unclear)}。` : "";
+  const notes = attrSay + paidSay + mixedSay + unclearSay;
+  return r.ops.length
+    ? t`（本地档）按直白句式帮你办了下面这些。${notes}`
+    : t`（本地档）${notes}现在只认「第N段 拍什么」「第N段换成XX模板」「第N段摘掉模板」「加一段」这类直白句式。`;
 }
 
 function findTemplate(title: string): { t?: VideoTemplate; issue?: string } {
@@ -425,10 +333,10 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
         //   模型那条路不加这道闸：它对意图的理解可靠得多，而且回执芯片会如实报出来。
         const prevReq = (node.requirement ?? "").trim();
         if (o.local && prevReq && prevReq !== o.text.trim()) {
+          const was = clipForLang(prevReq, 24);
+          const next = clipForLang(o.text, 16);
           refused.push(
-            `第 ${o.seg} 段已经写着「${prevReq.slice(0, 24)}${prevReq.length > 24 ? "…" : ""}」——` +
-              `离线档不敢直接覆盖它。想换成「${o.text.slice(0, 16)}…」的话，在这一段的编辑窗里改` +
-              `（那一段还锁着的话，得先把它前面的段炼出来），或者先把原来那段清空`,
+            t`第 ${o.seg} 段已经写着「${was}${was !== prevReq ? "…" : ""}」——离线档不敢直接覆盖它。想换成「${next}…」的话，在这一段的编辑窗里改（那一段还锁着的话，得先把它前面的段炼出来），或者先把原来那段清空`,
           );
           break;
         }
@@ -444,7 +352,8 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
         //   （空的时候覆盖不掉东西，所以 local 那道闸不触发）。于是「第2段 这段没用，删了吧」
         //   会被原样写成要求，回执却只说一句"要求已写" —— 用户下一步点推演就按这句垃圾
         //   真花钱。引出来的话，判错当场就看得见（铁律八：让错误响，而不是让它安静地待着）。
-        const wrote = o.local ? `：「${o.text.slice(0, 20)}${o.text.length > 20 ? "…" : ""}」` : "";
+        const quote = o.local ? clipForLang(o.text, 20) : "";
+        const wrote = o.local ? t`：「${quote}${quote !== o.text ? "…" : ""}」` : "";
         applied.push(
           nodeDone(node)
             ? // ★ 指名道姓说在哪儿（旁边每句拒绝语都指了，就这句没指）：已出片的段编辑窗里
@@ -547,13 +456,24 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
           break;
         }
         const labels = new Set(tpl.roles.map((r) => r.label));
+        const spec = markSpecOf(tpl);
         const resolved: Record<string, string> = {};
         const shown: string[] = [];
         for (const [rawLabel, cardName] of Object.entries(o.map)) {
-          // 模型爱把「1」说成「位置1/编号1」——剥前缀再对；对不上就整句报可用位子
-          const bare = rawLabel.replace(/^(位置|编号)\s*/, "").trim();
-          const hit = labels.has(rawLabel) ? rawLabel : labels.has(bare) ? bare : null;
+          // 认位子只问 agentGrammar.resolveRoleLabel（两档共用）：原字样 → 剥「位置 / 编号 / position…」前缀 →
+          // 序数方案下的英文别名（leftmost / 2nd from left，按服务端 markSlots 的下标取原字样，不自造措辞）
+          const hit = resolveRoleLabel(
+            { markSlots: spec.scheme === "ordinal" ? spec.slots : undefined, roles: tpl.roles },
+            rawLabel,
+            BLOCKOUT_MAX_ROLES,
+          );
           if (!hit) {
+            // ★ 截断闸挡下来的别名单独说：清单满 9 个时可能是截过的，按「最左边」取下标会取到另一个人
+            if (spec.scheme === "ordinal" && spec.slots.length >= BLOCKOUT_MAX_ROLES && isOrdinalAlias(rawLabel)) {
+              const avail = [...labels].slice(0, 9).join(i18n.locale === "en" ? ", " : "、");
+              refused.push(t`第 ${o.seg} 段挂卡：这个模板人数可能超过 ${BLOCKOUT_MAX_ROLES} 人，「${rawLabel}」这种说法对不准，请照抄角色位原字样：${avail}`);
+              continue;
+            }
             refused.push(`第 ${o.seg} 段挂卡：这个模板没有「${rawLabel}」这个位子（有的是：${[...labels].slice(0, 9).join("、")}）`);
             continue;
           }
@@ -670,30 +590,31 @@ function rememberOutcome(userText: string, r: Pick<AgentOutcome, "say" | "applie
 /** 入口。计费与 NPC 聊天同口径：AI_REAL 且付得起才走大模型，**成功才扣**；
  *  否则本地档（免费）。模型回复解析不出 JSON → 当它在闲聊，原文给用户、不执行任何操作。 */
 export async function runCanvasAgent(text: string): Promise<AgentOutcome> {
-  const t = text.trim().slice(0, VIDEO_PROMPT_MAX);
-  if (!t) return { say: "", applied: [], refused: [], proposals: [], paid: false };
+  // ★ 别叫 t / msg：那两个名字是 Lingui 宏，局部变量一挡，这个函数里的宏就不翻译了
+  const input = text.trim().slice(0, VIDEO_PROMPT_MAX);
+  if (!input) return { say: "", applied: [], refused: [], proposals: [], paid: false };
   const paid = AI_REAL && canAfford(CHAT_TURN_TOKENS);
   if (!paid) {
-    const local = localParse(t);
+    const local = parseLocal(input);
     const r = applyOps(local.ops);
-    const why = AI_REAL ? "余额不够 AI 指挥（400/句）。" : "";
-    const out = { say: why + local.say, ...r, paid: false };
-    rememberOutcome(t, out);
+    const why = AI_REAL ? t`余额不够 AI 指挥（400/句）。` : "";
+    const out = { say: why + localSay(local), ...r, paid: false };
+    rememberOutcome(input, out);
     return out;
   }
   let raw: string;
   try {
     raw = await canvasAgentChat(
       SYSTEM + (past.length ? "\n【最近对话与结果】\n" + past.join("\n") : "") + "\n当前流水线状态：" + snapshot(),
-      t,
+      input,
     );
   } catch (e) {
     // 网络/上游挂了：退本地档，但要说清这不是"办不了"而是"这一句没连上"
-    const local = localParse(t);
+    const local = parseLocal(input);
     const r = applyOps(local.ops);
-    const msg = e instanceof Error ? e.message : String(e);
-    const out = { say: `AI 指挥没连上（${msg.slice(0, 60)}），先按本地句式办了能办的。`, ...r, paid: false };
-    rememberOutcome(t, out);
+    const why = clipForLang(e instanceof Error ? e.message : String(e), 60);
+    const out = { say: t`AI 指挥没连上（${why}），先按本地句式办了能办的。`, ...r, paid: false };
+    rememberOutcome(input, out);
     return out;
   }
   spendTokens(CHAT_TURN_TOKENS); // 请求成功才扣（与 chatToNpc 同口径）
@@ -701,18 +622,18 @@ export async function runCanvasAgent(text: string): Promise<AgentOutcome> {
   if (!parsed) {
     // 模型没按协议来：不执行任何操作（宁可少办不乱办），原话给用户
     const out: AgentOutcome = {
-      say: raw.replace(/\s+/g, " ").trim().slice(0, 160) || "（这一句我没听懂）",
+      say: clipForLang(raw.replace(/\s+/g, " ").trim(), 160) || t`（这一句我没听懂）`,
       applied: [],
       refused: [],
       proposals: [],
       paid: true,
     };
-    rememberOutcome(t, out);
+    rememberOutcome(input, out);
     return out;
   }
   const r = applyOps(parsed.ops);
-  const out = { say: parsed.say || (r.applied.length ? "办好了。" : "（没有可办的）"), ...r, paid: true };
-  rememberOutcome(t, out);
+  const out = { say: parsed.say || (r.applied.length ? t`办好了。` : t`（没有可办的）`), ...r, paid: true };
+  rememberOutcome(input, out);
   return out;
 }
 
