@@ -71,6 +71,9 @@ import {
 } from "../../data/templates";
 import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost, tierOf } from "../../data/economy";
 import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
+import { EXAMPLES, phraseText, templatePhrase } from "../../studio/agentGrammar";
+import { useLang } from "../../i18n/useLang";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { captureFirstLast } from "../../utils/videoFrames";
 import { requestLandscape } from "../../hooks/useOrientationLock";
 // ★ VIDEO_PROMPT_MAX 与线性视图取自同一处（ai 层是提示词硬顶的唯一出处）：
@@ -668,9 +671,7 @@ export default function FlowCanvas({
                 )}
               </div>
             )}
-            {nodes.length === 0 && (
-              <div className="absolute left-6 top-24 text-sm text-slate-500">这条流水线还没有段——对下面的输入条说「加一段」</div>
-            )}
+            {nodes.length === 0 && <EmptyPipelineHint />}
           </div>
 
           {/* 对画布说话（updream/LibTV 式 agent 条，语汇是我们的模板与卡）。
@@ -1679,11 +1680,24 @@ function SegSettingsSheet({ nodeId, onClose }: { nodeId: string; onClose: () => 
   );
 }
 
+/** 空流水线那一句。示例跟着界面语言走（agentGrammar.EXAMPLES，每条都在 check-agent-grammar 里实跑过本地档怎么认） */
+function EmptyPipelineHint() {
+  const { active } = useLang();
+  const addExample = EXAMPLES[active].add;
+  return (
+    <div className="absolute left-6 top-24 text-sm text-slate-500">
+      <Trans>这条流水线还没有段——对下面的输入条说「{addExample}」</Trans>
+    </div>
+  );
+}
+
 /** 「对画布说话」输入条 + 最近一次回执。执行与计费全在 studio/canvasAgent
  *  （白名单 op、花钱不代按、降级不封口都收在那一处）；这里只画。
  *  回执分两色：✓ 落地了的、✗ 被拒的（store 的整句原话）——只说 say 不列账，
  *  用户就得自己去数哪段变了哪段没变。 */
 function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
+  const { t } = useLingui();
+  const { active: lang } = useLang();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [palette, setPalette] = useState(false);
@@ -1691,11 +1705,11 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
   /** 正在执行的提案（同一时刻只跑一张：applyCast/genNode 本来就互斥于 busy） */
   const [runningProp, setRunningProp] = useState<AgentProposal | null>(null);
   async function send() {
-    const t = text.trim();
-    if (!t || busy) return;
+    const said = text.trim();
+    if (!said || busy) return;
     setBusy(true);
     try {
-      const r = await runCanvasAgent(t);
+      const r = await runCanvasAgent(said);
       setLog(r);
       setText("");
       if (r.focusSeg !== undefined) onFocus(r.focusSeg);
@@ -1804,7 +1818,7 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
           }}
           onKeyDown={(e) => e.key === "Enter" && void send()}
           // ★ placeholder 只留一句示例（文法⑦）；"/" 的入口是旁边那颗魔杖钮本身
-          placeholder={AI_REAL ? "对画布说话：第2段套宗主模板" : "对画布说话：第1段拍主角雨夜狂奔"}
+          placeholder={t`对画布说话：${AI_REAL ? EXAMPLES[lang].template : EXAMPLES[lang].describe}`}
           className="min-w-0 flex-1 bg-transparent text-xs text-slate-100 outline-none placeholder:text-slate-500"
         />
         {/* 每句的价（真实收费，报价=实扣）：数字芯片常驻（文法②），不再挤进 placeholder ——
@@ -1845,6 +1859,9 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
   const cursor = useFlow((s) => s.cursor);
   const seg = cursor + 1;
   const tpls = myTemplates();
+  const { t } = useLingui();
+  /** 插哪套句式看界面语言（本地档两套都认，见 agentGrammar 头部） */
+  const { active: lang } = useLang();
   /** 官方结构化技能「剧本 → 分镜字段」的面板（studio/structuredSkills，§四 7）。★ hook 排在早退之前 */
   const [scriptSkill, setScriptSkill] = useState(false);
   return createPortal(
@@ -1858,12 +1875,12 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
         <div className="grid grid-cols-2 gap-1.5">
           {AGENT_PHRASES.map((p) => (
             <button
-              key={p.label}
-              onClick={() => onPick(p.make(seg))}
+              key={p.id}
+              onClick={() => onPick(phraseText(lang, p.id, seg))}
               className="rounded-xl border border-slate-700/70 bg-panel px-2.5 py-2 text-left"
             >
-              <div className="text-xs font-semibold text-slate-100">{p.label}</div>
-              <div className="mt-0.5 text-[10px] leading-relaxed text-slate-500">{p.hint}</div>
+              <div className="text-xs font-semibold text-slate-100">{t(p.label)}</div>
+              <div className="mt-0.5 text-[10px] leading-relaxed text-slate-500">{t(p.hint)}</div>
             </button>
           ))}
         </div>
@@ -1893,14 +1910,14 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
           <>
             <div className="mb-1.5 mt-3 text-xs font-semibold text-slate-300">我的模板（点一个 = 第 {seg} 段套它）</div>
             <div className="space-y-1">
-              {tpls.slice(0, 12).map((t) => (
+              {tpls.slice(0, 12).map((tpl) => (
                 <button
-                  key={t.id}
-                  onClick={() => onPick(`第${seg}段套模板「${t.title}」`)}
+                  key={tpl.id}
+                  onClick={() => onPick(templatePhrase[lang](seg, tpl.title))}
                   className="flex w-full items-center gap-2 rounded-xl border border-slate-700/70 bg-panel px-2.5 py-2 text-left"
                 >
-                  <span className="min-w-0 flex-1 truncate text-xs text-slate-100">{t.title}</span>
-                  {t.refVideo && (
+                  <span className="min-w-0 flex-1 truncate text-xs text-slate-100">{tpl.title}</span>
+                  {tpl.refVideo && (
                     <span className="flex-none rounded bg-sky-500/20 px-1.5 py-0.5 text-[9px] text-sky-300">白模</span>
                   )}
                 </button>

@@ -11,10 +11,11 @@
 //   A 中文字面量棘轮：StringLiteral / NoSubstitutionTemplateLiteral / JsxText；TemplateExpression 整段算一条。
 //     只按真汉字判（纯全角标点不算）。基线 { file: { hash(空白与换行归一后的文本): 次数 } }，与行号、缩进、CRLF / LF 都无关。
 //     排除：console.* 的参数、new RegExp() 的参数、类型位置的字面量、Lingui 宏内部、zhPrompt`…` 标签模板、
-//     带 `/* i18n-frozen: 理由 */` 的声明、`// i18n-ignore-next-line: 理由`（理由必填）、src/mock/ai.ts、src/data/agreements.tsx。
+//     带 `/* i18n-frozen: 理由 */` 的声明、`// i18n-ignore-next-line: 理由`（理由必填）、src/mock/ai.ts、src/data/agreements.tsx、
+//     冻结文件（FROZEN_FILES：画布指挥句式 src/studio/agentGrammar.ts —— 被解析的输入，不是界面文案）。
 //   B 宏用法：模块顶层出现会立刻翻译的调用（t`` / t() / plural / select / i18n._( / i18n.t(）→ 失败（只准 msg / defineMessage）；
 //     .tsx 从 @lingui/core/macro 引 t → 失败（组件里用 useLingui 的 t，否则切语言不重渲）；zhPrompt 模板里出现宏 → 失败；
-//     src/ai/prompts/** import @lingui → 失败；useMemo / useCallback 里用了宏而依赖里没有 locale / i18n → 只提醒。
+//     src/ai/prompts/** 与冻结文件 import @lingui → 失败；useMemo / useCallback 里用了宏而依赖里没有 locale / i18n → 只提醒。
 //   C 冻结声明：`/* i18n-frozen: 理由 */` 修饰的声明，初始化式里出现宏 → 失败（协议串被误翻是零报错的）。
 //   E 缺译棘轮：src/locales/en.po 里 msgstr 为空的条数不得超过基线。
 //
@@ -50,6 +51,12 @@ const ACCEPT_NEW = flag("--accept-new");
 
 const HAN = /\p{Script=Han}/u;
 const EXEMPT = new Set(["src/mock/ai.ts", "src/data/agreements.tsx"]);
+/**
+ * 冻结文件：整个文件里的中文都是**被解析的输入 / 协议**，不是界面文案 —— 不计 A，也不许 import @lingui（B）。
+ * ★ 画布指挥句式（D10 第 2 步）：「第2段套宗主模板」是本地档要认的**句子**，翻成英文就认不出了（英文句式在同一个文件里并联）。
+ *   它还得零运行时依赖（scripts/check-agent-grammar.mjs 用 Node 直接 import 跑正反例），引 Lingui 会把整个运行时拖进来。
+ */
+const FROZEN_FILES = new Set(["src/studio/agentGrammar.ts"]);
 /** 宏（出现在这些里面的中文是「已经进目录的」，不算漏） */
 const MACRO_FNS = new Set(["t", "msg", "defineMessage", "plural", "select", "selectOrdinal"]);
 /** 其中**调用那一刻就翻译**的：模块顶层禁用（会冻结在开机语言） */
@@ -86,7 +93,7 @@ for (const file of walk(SRC)) {
   const isTsx = file.endsWith(".tsx");
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, isTsx ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
   const lineOf = (node) => sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
-  const exempt = EXEMPT.has(rel);
+  const exempt = EXEMPT.has(rel) || FROZEN_FILES.has(rel);
 
   // i18n-ignore-next-line：理由必填；被豁免的是**下一行**（1 基行号）
   const ignored = new Set();
@@ -103,6 +110,9 @@ for (const file of walk(SRC)) {
     const mod = st.moduleSpecifier.text;
     if (rel.startsWith("src/ai/prompts/") && mod.startsWith("@lingui")) {
       problems.push(`${rel}:${lineOf(st)}  src/ai/prompts 下不许 import ${mod}：发给模型的指令冻结中文，不进目录`);
+    }
+    if (FROZEN_FILES.has(rel) && mod.startsWith("@lingui")) {
+      problems.push(`${rel}:${lineOf(st)}  冻结文件不许 import ${mod}：里面是被解析的句式，不是界面文案（回给用户的话在调用方用 Lingui 拼）`);
     }
     const nb = st.importClause?.namedBindings;
     if (isTsx && mod === "@lingui/core/macro" && nb && ts.isNamedImports(nb)) {
