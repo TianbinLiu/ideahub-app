@@ -7,7 +7,7 @@
 // ★ **别把 DEFAULT_INSTRUCT 拼进 NPC_SYSTEM**：模型没有嗓子，"低沉磁性""尾音下沉"
 //   只会被翻译成「（她的声音低沉而慵懒）」这种括号旁白，而 speech.ts 会把括号整段
 //   剥掉不念——等于她的"语气"变成了永远不会出声的文字。所以这里一个语气形容词都没有。
-import type { ChatTurn } from "../ai/arkClient";
+import { ArkHttpError, ArkNoReply, type ChatTurn } from "../ai/arkClient";
 import type { DialogMsg } from "./studioStore";
 
 /** 593 字。再长会挤占多轮历史，turbo 也抓不住重点。 */
@@ -101,15 +101,21 @@ export function deskBlock(d: DeskSnapshot): string {
  * ★ **绝不把 e.message 拼进去**——arkFetch 抛的是 `Ark /chat/completions 400: {"error"…`，
  *   而 speech.ts 会把西文按元音折成音节，她会用御姐音一个字母一个字母念英文错误码。
  *   技术细节留给 console.warn。
- * ⚠ 分类靠 e.message 正则，与 arkClient 的拼串格式耦合；格式一变全落兜底句（不会更糟）。
+ * ★ 分类认**类型与状态码**，不认 message（2026-09-10 多语言第 1 步：原来是对 message 跑正则，
+ *   与 arkClient 的拼串格式、以及那几个中文词耦合在一起）。逐档对过原来的正则：
+ *   · 「线断了」= 没收到回包（ArkNoReply：断网、客户端超时）**或**服务端网关自己回的 504 ——
+ *     server arkGateway.callArk 在上游超时 / 连不上时回 `504 {"message":"ark upstream TimeoutError"}`，
+ *     原来的 /timeout/ 就是靠这串英文命中它的；
+ *   · 400 一律是「接不住」：方舟的敏感词拒绝就是 400（InputTextSensitiveContentDetected）；
+ *   · 429 是 arkFetch 退避重试一次之后仍然限流。
  */
 export function chatFailLine(e: unknown): { text: string; blocked: boolean } {
-  const m = e instanceof Error ? e.message : String(e);
-  if (/timeout|abort|网络失败/i.test(m)) return { text: "……线断了一下。再说一遍，我听着。", blocked: false };
+  const status = e instanceof ArkHttpError ? e.status : 0;
+  if (e instanceof ArkNoReply || status === 504) return { text: "……线断了一下。再说一遍，我听着。", blocked: false };
   // ★ 400 与网络失败必须分开：对 400 说"线断了"是谎话，而且在鼓励用户重试同一句
   //   敏感输入——每次重试都是一次真实 API 调用
-  if (/\b400\b|Sensitive|审核/i.test(m)) return { text: "（顿了顿）这个话头我接不住。换个说法。", blocked: true };
-  if (/\b429\b/.test(m)) return { text: "（炉火忽地窜高）这会儿人多，等一口气再说。", blocked: false };
+  if (status === 400) return { text: "（顿了顿）这个话头我接不住。换个说法。", blocked: true };
+  if (status === 429) return { text: "（炉火忽地窜高）这会儿人多，等一口气再说。", blocked: false };
   return { text: "（指尖停在桌沿）走神了。你刚才说什么？", blocked: false };
 }
 

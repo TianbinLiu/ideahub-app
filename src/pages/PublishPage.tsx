@@ -31,7 +31,7 @@ import { addCards, createDeck, deckSynced } from "../data/account";
 import { getVideo, publishVideo, reviseVideo, type ReviseResult } from "../data/videos";
 import { useVideosVersion } from "../hooks/useVideos";
 import { publishedExit, useStudio } from "../studio/studioStore";
-import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, revisionLabel, visibilityOf, visibilityWire } from "../types";
+import { DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, revisionLabel, visibilityOf, visibilityWire } from "../types";
 
 export default function PublishPage() {
   const navigate = useNavigate();
@@ -45,7 +45,7 @@ export default function PublishPage() {
   const draft = useStudio((s) => s.draft);
   const clearDraft = useStudio((s) => s.clearDraft);
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState(draft?.category ?? "剧情");
+  const [category, setCategory] = useState<string>(draft?.category ?? DEFAULT_VIDEO_CATEGORY);
   const [description, setDescription] = useState(draft?.description ?? "");
   const [cover, setCover] = useState(draft?.cover ?? "");
   const [tags, setTags] = useState<string[]>([]);
@@ -103,7 +103,7 @@ export default function PublishPage() {
   useEffect(() => {
     if (!origin) return;
     setTitle((t) => (t ? t : origin.title));
-    setCategory((c) => (c !== "剧情" ? c : origin.category));
+    setCategory((c) => (c !== DEFAULT_VIDEO_CATEGORY ? c : origin.category));
     setDescription((d) => (d ? d : origin.description));
     setCover((c) => (c ? c : origin.cover));
   }, [origin]);
@@ -360,13 +360,13 @@ export default function PublishPage() {
             <div className="flex flex-wrap gap-2">
               {VIDEO_CATEGORIES.map((c) => (
                 <button
-                  key={c}
-                  onClick={() => setCategory(c)}
+                  key={c.id}
+                  onClick={() => setCategory(c.id)}
                   className={`rounded-full px-3.5 py-1.5 text-xs ${
-                    category === c ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300 hover:bg-slate-700"
+                    category === c.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300 hover:bg-slate-700"
                   }`}
                 >
-                  {c}
+                  {c.label}
                 </button>
               ))}
             </div>

@@ -43,7 +43,7 @@ import { useStudio } from "../studio/studioStore";
 import { remakeNodesOf, remakeableOf, useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import TarotCard from "../components/TarotCard";
-import { CARD_TYPE_LABELS, VideoComment, formatPlays, relativeTime, revisionLabel } from "../types";
+import { CARD_TYPE_LABELS, VideoComment, formatPlays, relativeTime, revisionLabel, videoCategoryLabel } from "../types";
 import BlockButton from "../components/BlockButton";
 
 /** 本片卡组：卡片横滑条 + 收入/去创作。收入 = 卡片拷进观众账号；
@@ -542,7 +542,7 @@ export default function VideoPage() {
           </Link>
           <span>{formatPlays(plays)}播放</span>
           <span>{relativeTime(video.createdAt)}</span>
-          <span className="rounded-full bg-panel px-2.5 py-0.5 text-xs">{video.category}</span>
+          <span className="rounded-full bg-panel px-2.5 py-0.5 text-xs">{videoCategoryLabel(video.category)}</span>
           {part?.branchTree && (
             <span className="rounded-full bg-purple-500/15 px-2.5 py-0.5 text-xs text-purple-300">
               互动视频 · {Object.values(part.branchTree.nodes).filter((n) => n.choices.length > 1).length} 个分支点

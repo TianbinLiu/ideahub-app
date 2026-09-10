@@ -228,7 +228,8 @@ export class ArkHttpError extends Error {
  *   的 debit 在转发之前），而客户端 chat 超时 120 秒又短于服务端转发上限 150 秒。所以这一类失败发生时，
  *   钱**可能已经扣了** —— 任何写着「没扣钱」的失败文案在这里都会说错。调用方按类型分档说话，
  *   别去 message 里找「网络失败」四个字。
- * ★ message 一字未改（仍含「网络失败」）：既有按文案判断的地方（briefArkReason）照常。
+ * ★ message 一字未改（仍含「网络失败」），但**没有任何地方再按这四个字判断**：briefArkReason 与
+ *   npcPersona.chatFailLine 都改成认类型了（多语言第 1 步 —— message 迟早不是中文）。
  */
 export class ArkNoReply extends Error {
   constructor(message: string) {
@@ -260,7 +261,9 @@ export class ArkBadReply extends Error {
  */
 export function briefArkReason(e: unknown): string {
   if (e instanceof ArkHttpError) return `服务器返回 ${e.status}`;
-  if (e instanceof Error) return e.message.includes("网络失败") ? "网络不通" : e.message.slice(0, 40);
+  // ★ 认类型，不在 message 里找「网络失败」：arkFetch 只在这一种情况下抛 ArkNoReply（见它的 ★★）
+  if (e instanceof ArkNoReply) return "网络不通";
+  if (e instanceof Error) return e.message.slice(0, 40);
   return "未知原因";
 }
 

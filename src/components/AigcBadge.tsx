@@ -19,6 +19,9 @@
 //   这类路径，改这一处就够了；写死在三个渲染点上，到时必然漏掉其中一两个，
 //   而漏掉的后果是**给一条 AI 内容摘掉了法定标识**。
 import type { VideoItem } from "../types";
+// ★ 角标字样只有一份（data/aigcLabel，合并时烧进起始画面的也是它）。这里原来手抄了一遍，
+//   将来谁只改一处，界面上的标识与成片里的标识就说成两句话。
+import { AIGC_BADGE_TEXT } from "../data/aigcLabel";
 
 /**
  * 这条作品要不要打「AI 生成」标识。
@@ -48,7 +51,7 @@ export default function AigcBadge({
           : "bg-slate-700/70 text-slate-200 ring-1 ring-slate-600"
       } ${className}`}
     >
-      AI 生成
+      {AIGC_BADGE_TEXT}
     </span>
   );
 }
