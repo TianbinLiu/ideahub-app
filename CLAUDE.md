@@ -448,7 +448,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   渲染时再翻 —— 开机是先激活语言、再动态 import App（`main.tsx`），顶层翻译调用会冻结在开机语言。**新文案同一个 PR 带英文**
   （D8 a：把 en.po 的 msgstr 填上）。进模型的指令与点名语法**冻结中文、不进目录**：卡种名读 `CARD_TYPE_PROMPT`、图位读
   `slotPromptOf`、镜头行读 `shotLineOf`（界面分别用 `CARD_TYPE_LABELS` / `slotLabel` / `shotLineDisplay`）。构建里跑
-  `lingui extract`，改了目录没提交的话 land 与 CI 都会拦。界面语言的唯一判定在 `src/i18n/locale.ts`（跟随系统 = 遍历
+  `lingui extract`，改了目录没提交的话 land 与 CI 都会拦。构建里另跑 `scripts/check-i18n.mjs`（棘轮，基线 `scripts/i18n-baseline.json`）：
+  **新增**的中文界面字面量、模块顶层的翻译调用、`.tsx` 从 `@lingui/core/macro` 引 `t`、冻结声明里的宏、en.po 缺译变多，都会让构建失败。
+  迁掉一处就 `node scripts/check-i18n.mjs --update` 把基线收紧（只减不增）；确实不该翻的写 `// i18n-ignore-next-line: 理由`；
+  发给模型的指令用 `zhPrompt` 标签模板或 `/* i18n-frozen: 理由 */` 声明。新加的是界面文案却想接受进基线（`--accept-new`），
+  基线的 diff 会出现在 PR 里 —— 评审时要能说出为什么。界面语言的唯一判定在 `src/i18n/locale.ts`（跟随系统 = 遍历
   `navigator.languages` 按语言匹配，繁体归简体，兜底英文；侧载老用户同样按检测走）。
 - **数值不要拍脑袋**。涉及尺寸/间距/重叠的值先量再定，并在注释里写清量法与结论
   （例：`CharacterPerch` 的 `bottom` 系数调过四轮，注释里记了每一轮为什么不行）。

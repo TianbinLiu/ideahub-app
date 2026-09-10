@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && lingui extract && node scripts/check-guides.mjs && node scripts/check-hook-order.mjs && vite build",
+    "build": "tsc && lingui extract && node scripts/check-guides.mjs && node scripts/check-hook-order.mjs && node scripts/check-i18n.mjs && vite build",
     "i18n:extract": "lingui extract",
+    "i18n": "node scripts/check-i18n.mjs",
     "preview": "vite preview",
     "protect": "node scripts/protect-asset.mjs",
     "build:app": "npm run build && node scripts/prune-app-assets.mjs && npx cap sync android",
