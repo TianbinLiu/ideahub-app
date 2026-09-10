@@ -61,6 +61,12 @@ msgstr "The name under the home-screen icon follows your phone's system language
 msgid "没能切换语言，请重试"
 msgstr "Couldn't switch the language. Please try again."
 
+#. placeholder {0}: o.seg
+#. placeholder {1}: matched.length
+#: src/studio/canvasAgent.ts
+msgid "第 {0} 段挂着 {1} 张对得上「{name}」的卡（{names}），说全名"
+msgstr "Segment {0} has {1} cards matching “{name}” ({names}). Use the full name."
+
 #. placeholder {0}: LANG_NAME[active]
 #. placeholder {0}: LANG_NAME[systemLang()]
 #: src/pages/SettingsPage.tsx
