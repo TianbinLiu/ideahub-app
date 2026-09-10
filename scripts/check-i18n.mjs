@@ -9,7 +9,7 @@
 //
 // 检查项：
 //   A 中文字面量棘轮：StringLiteral / NoSubstitutionTemplateLiteral / JsxText；TemplateExpression 整段算一条。
-//     只按真汉字判（纯全角标点不算）。基线 { file: { hash(去首尾空白的文本): 次数 } }，与行号无关。
+//     只按真汉字判（纯全角标点不算）。基线 { file: { hash(空白与换行归一后的文本): 次数 } }，与行号、缩进、CRLF / LF 都无关。
 //     排除：console.* 的参数、new RegExp() 的参数、类型位置的字面量、Lingui 宏内部、zhPrompt`…` 标签模板、
 //     带 `/* i18n-frozen: 理由 */` 的声明、`// i18n-ignore-next-line: 理由`（理由必填）、src/mock/ai.ts、src/data/agreements.tsx。
 //   B 宏用法：模块顶层出现会立刻翻译的调用（t`` / t() / plural / select / i18n._( / i18n.t(）→ 失败（只准 msg / defineMessage）；
@@ -34,7 +34,14 @@ const flag = (n) => argv.includes(n);
 const opt = (n) => argv.find((a) => a.startsWith(`${n}=`))?.slice(n.length + 1);
 
 const root = path.resolve(opt("--root") ?? path.join(path.dirname(url.fileURLToPath(import.meta.url)), ".."));
-const ts = createRequire(path.join(root, "package.json"))("typescript");
+// typescript 先从被扫的仓库里找；找不到（比如 --root 指向一份 git archive 导出的临时目录）就从本脚本所在的仓库找
+const ts = (() => {
+  try {
+    return createRequire(path.join(root, "package.json"))("typescript");
+  } catch {
+    return createRequire(import.meta.url)("typescript");
+  }
+})();
 const SRC = path.join(root, "src");
 const BASELINE = path.resolve(root, opt("--baseline") ?? "scripts/i18n-baseline.json");
 const EN_PO = path.join(SRC, "locales", "en.po");
@@ -53,7 +60,10 @@ const IGNORE_RE = /\/\/\s*i18n-ignore-next-line\b\s*:?\s*(.*)$/;
 const FROZEN_RE = /i18n-frozen\s*:\s*\S/;
 
 const relOf = (f) => path.relative(root, f).split(path.sep).join("/");
-const hashOf = (s) => crypto.createHash("sha1").update(s.trim()).digest("hex").slice(0, 16);
+// ★★ hash 之前把所有空白（含换行）压成一个空格：Windows 检出是 CRLF、CI 的 Linux 是 LF，跨行的 JsxText /
+//   模板字符串原样 hash 的话两边算出两个值 —— 2026-09-10 第一版就这么在 CI 上报了 200 处「新增」（本机全绿）。
+//   顺带让「只改了缩进 / 换行位置」也不算新增：文案本身没变。
+const hashOf = (s) => crypto.createHash("sha1").update(s.replace(/\s+/g, " ").trim()).digest("hex").slice(0, 16);
 
 function* walk(dir) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
