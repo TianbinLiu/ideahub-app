@@ -44,6 +44,8 @@ jobs:
       #   已实测：把 .env.local 挪开后 `npm run build` 照样退出 0。
       #   所以这里不要为了"让 CI 更真实"去塞任何密钥——它对构建结果没有影响。
       - run: npm run build
+      # 构建里那步 lingui extract 若改了目录 = 代码里的文案与入仓的 .po 对不上（出包会冒中文）：当场红
+      - run: git diff --exit-code src/locales
 
       # 源码里的版本号，到底发出去了没有。
       #

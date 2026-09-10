@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import { lingui } from "@lingui/vite-plugin";
 
 // 火山方舟代理：API Key 只存在于 .env.local 的 ARK_API_KEY（无 VITE_ 前缀=永不进客户端包），
 // 由 dev 服务器在转发时注入 Authorization——浏览器端与仓库都接触不到 Key。
@@ -262,7 +263,33 @@ export default defineConfig(({ mode }) => {
   // 豆包语音（openspeech）：与 ARK_API_KEY 是两套凭据，见 ttsPlugin 的注释
   const ttsKey = env.TTS_API_KEY ?? "";
   return {
-    plugins: [react(), arkFetchPlugin(), ttsPlugin(ttsKey), cspPlugin(mode)],
+    // ★ 多语言（Lingui）：宏靠 react 插件里的 Babel 展开，.po 目录靠 lingui() 在 import 时编译。
+    //   ⚠ 升 Vite 8 / plugin-react 6（去掉了 babel 选项）时这里要换成 @rolldown/plugin-babel + linguiTransformerBabelPreset，
+    //     否则宏不展开，零报错地产出原样的宏调用。
+    //   ⚠ 配上宏插件后，dev 下原来不跑 Babel 的 .ts（store / data 层）也会进 Babel —— 别再往这里塞别的 Babel 插件。
+    //   failOnMissing 是全有或全无：翻译进行期间开着会让每次 build 都失败，只在发版前 I18N_STRICT=1 时开。
+    plugins: [
+      react({ babel: { plugins: ["@lingui/babel-plugin-lingui-macro"] } }),
+      lingui({ failOnMissing: process.env.I18N_STRICT === "1" }),
+      arkFetchPlugin(),
+      ttsPlugin(ttsKey),
+      cspPlugin(mode),
+    ],
+    // ★ 依赖预扫描（esbuild）不认识 .po：i18n/activate.ts 那句模板字面量动态 import 会被它展开成 `../locales/**/*.po`，
+    //   然后报「Could not resolve」、整轮预打包跳过（dev 冷启动退成边用边优化、反复整页刷新）。目录由 lingui() 在
+    //   Vite 的转换阶段编译，预扫描只要把 .po 当外部模块跳过即可 —— 只影响 dev 的依赖扫描，产物不受影响。
+    optimizeDeps: {
+      esbuildOptions: {
+        plugins: [
+          {
+            name: "lingui-po-external",
+            setup(build: import("esbuild").PluginBuild) {
+              build.onResolve({ filter: /\.po$/ }, (a) => ({ path: a.path, external: true }));
+            },
+          },
+        ],
+      },
+    },
     define: {
       // 客户端只知道"有没有钥匙"，不知道钥匙本身
       __AI_REAL__: JSON.stringify(arkKey.length > 0),

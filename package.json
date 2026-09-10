@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && node scripts/check-guides.mjs && node scripts/check-hook-order.mjs && vite build",
+    "build": "tsc && lingui extract && node scripts/check-guides.mjs && node scripts/check-hook-order.mjs && vite build",
+    "i18n:extract": "lingui extract",
     "preview": "vite preview",
     "protect": "node scripts/protect-asset.mjs",
     "build:app": "npm run build && node scripts/prune-app-assets.mjs && npx cap sync android",
@@ -26,6 +27,8 @@
     "@capacitor/filesystem": "^8.1.3",
     "@capacitor/screen-orientation": "^8.0.1",
     "@capacitor/share": "^8.0.1",
+    "@lingui/core": "^6.6.0",
+    "@lingui/react": "^6.6.0",
     "@pixiv/three-vrm": "^3.5.5",
     "@react-three/fiber": "^9.3.0",
     "ammojs-typed": "^1.0.6",
@@ -38,6 +41,10 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@lingui/babel-plugin-lingui-macro": "^6.6.0",
+    "@lingui/cli": "^6.6.0",
+    "@lingui/format-po": "^6.6.0",
+    "@lingui/vite-plugin": "^6.6.0",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@types/three": "^0.180.0",
