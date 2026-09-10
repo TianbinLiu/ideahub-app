@@ -450,9 +450,13 @@ async function directTicket(signPath: string): Promise<DirectTicket | null> {
   };
 }
 
-/** 传输层失败（断线/超时）标成可重试；被存储明确拒绝的不标 —— 见 putChunk 的 ★ */
-function chunkError(message: string, retriable: boolean): Error & { retriable?: boolean } {
-  return Object.assign(new Error(message), { retriable });
+/**
+ * 传输层失败（断线/超时）标成可重试；被存储明确拒绝的不标 —— 见 putChunk 的 ★
+ * ★ `code: "NETWORK"` 只给「连接断了」那一种（与 ApiError 同一个码）：发布失败的原因由
+ *   data/videos.errText 按码分档，不再去 message 里找「网络不可用」四个字。
+ */
+function chunkError(message: string, retriable: boolean, code?: "NETWORK"): Error & { retriable?: boolean; code?: string } {
+  return Object.assign(new Error(message), { retriable }, code ? { code } : {});
 }
 
 /**
@@ -538,7 +542,7 @@ function putChunk(
       //   只会得到同一句话，而每一次都是一整块的流量。
       reject(chunkError(`视频存储拒绝了这一段：${msg}`, false));
     };
-    xhr.onerror = () => reject(chunkError("上传中断了（网络不可用）", true));
+    xhr.onerror = () => reject(chunkError("上传中断了（网络不可用）", true, "NETWORK"));
     // ★★ 关窗要真的把它停下来：不 abort 的话 XHR 会**在组件卸载之后继续跑**，
     //   最后在 Cloudinary 上落一份**没有任何人认得**的资产（本机没有 receipt ⇒
     //   dropReceipt 够不着它），配额只增不减、零症状。中途 abort 留下的是一次

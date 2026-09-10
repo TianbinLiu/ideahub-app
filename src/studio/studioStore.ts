@@ -1,6 +1,6 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
-import { shotLineOf, V3_CARD_WIPE_MS, BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
+import { shotLineOf, V3_CARD_WIPE_MS, BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DEFAULT_VIDEO_CATEGORY, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, npcChat, npcChatOffline, prepareMaterialRefs, refineFrame } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
@@ -1917,7 +1917,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       draftAudioHint: null,
       draft: {
         title: "",
-        category: "剧情",
+        category: DEFAULT_VIDEO_CATEGORY,
         description: p.plot,
         cover: p.poster || p.firstFrame,
         segments: [
@@ -2222,7 +2222,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
           .find(Boolean) ?? null,
       draft: {
         title: "",
-        category: "剧情",
+        category: DEFAULT_VIDEO_CATEGORY,
         description: segments.map((sg) => sg.plot).join("\n"),
         cover: segments[0]?.poster || segments[0]?.firstFrame || "",
         segments,

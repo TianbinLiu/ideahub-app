@@ -2136,10 +2136,17 @@ export function pendingPublishes(): PendingPublish[] {
 
 function errText(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
+  // ★ 按错误码分档，不在 message 里找中文关键词（2026-09-10 多语言第 1 步）。原来的「网络不可用」/「请求超时」
+  //   四处来源都带着码：api/client 的 ApiError（NETWORK / TIMEOUT）、uploads 的整份上传与分块断线
+  //   （chunkError 补了 NETWORK）；MaterializeError 是把 partial 挂在**原错误**上再抛，实例不变。
+  //   `Failed to fetch` / `NetworkError` / `TimeoutError` 是浏览器自己的英文，不是我们的文案，留着兜底。
+  // ⚠ 唯一的出入：老服务端（没有 /uploads/media/sign）那条整份上传的超时，原话「上传超时：这份 N MB…」
+  //   以前没命中「请求超时」、原样截 120 字显示，现在按码归到下面那句短话 —— 两句说的是同一件事。
+  const code = (e as { code?: unknown } | null)?.code;
   // "网络不可用" 在这条路上十有八九是包太大被网关掐了（body 里带着 MB 级的 base64 帧），
   // 直接说"网络不好"会让人一直重试同一件必然失败的事
-  if (/网络不可用|Failed to fetch|NETWORK/i.test(m)) return "上传被拒（作品体积较大，可能是服务器的请求体上限）";
-  if (/请求超时|TIMEOUT/i.test(m)) return "上传超时（网络太慢或作品太大）";
+  if (code === "NETWORK" || /Failed to fetch|NETWORK/i.test(m)) return "上传被拒（作品体积较大，可能是服务器的请求体上限）";
+  if (code === "TIMEOUT" || /TIMEOUT/i.test(m)) return "上传超时（网络太慢或作品太大）";
   return m.slice(0, 120);
 }
 

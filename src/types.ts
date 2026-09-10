@@ -1283,7 +1283,33 @@ export interface DraftVideo {
   clientId?: string;
 }
 
-export const VIDEO_CATEGORIES = ["剧情", "科幻", "古风", "搞笑", "动画", "其他"];
+/**
+ * 作品分区（发现页那排入口、发布页 / 编辑页的分类芯片）。
+ * ★ id 是跨仓契约，而且**就是中文本身**：server `BranchVideo.category` 存的就是它，
+ *   `/videos?category=` 精确匹配（branchVideo.controller.js）。与 TPL_CATEGORIES 的 ASCII id 不同，
+ *   这里**不迁**：老 APK 会继续写中文、按中文查，改成 ASCII 就是两套值混在库里、分区筛不全（零报错）。
+ * ⇒ id **冻结**（i18n-frozen），界面只准画 `label`（经 `videoCategoryLabel`）；多语言时只翻 label。
+ */
+export const VIDEO_CATEGORIES = [
+  { id: "剧情", label: "剧情" },
+  { id: "科幻", label: "科幻" },
+  { id: "古风", label: "古风" },
+  { id: "搞笑", label: "搞笑" },
+  { id: "动画", label: "动画" },
+  { id: "其他", label: "其他" },
+] as const;
+
+/**
+ * 表单缺省分区的 id。★ 三处必须是同一个值：组稿时 studioStore 写进 draft 的缺省、
+ * EditPage / PublishPage 判「分类还没动过」的哨兵（`c !== DEFAULT_VIDEO_CATEGORY` 才不回填）。
+ * 各写一个 `"剧情"` 的话，将来谁把其中一处翻译了，回填就会悄悄盖掉用户选的分类。
+ */
+export const DEFAULT_VIDEO_CATEGORY = "剧情";
+
+/** 分区 id → 显示名。认不出的 id（老数据 / 服务端新加的）原样显示，不吞掉 */
+export function videoCategoryLabel(id: string): string {
+  return VIDEO_CATEGORIES.find((c) => c.id === id)?.label ?? id;
+}
 
 /**
  * 作品话题标签的两个上限（**产品规则**，与服务端那两个数**故意不相等**）。

@@ -115,7 +115,10 @@ export const PERSONA_QUESTIONS = [
   { key: "politeness", kind: "slider", label: "敬语程度", low: "从不用敬语", high: "句句敬语", fallback: 50 },
   { key: "emotional", kind: "slider", label: "情绪外露度", low: "不动声色", high: "喜怒写在脸上", fallback: 50 },
   { key: "catchphrase", kind: "text", label: "口头禅", placeholder: "比如「确实」「好耶」，可以写好几个", maxLen: 120, fallback: "" },
-  { key: "addressUser", kind: "choice", label: "怎么称呼你", options: ["你", "您", "叫我的名字", "起个昵称"], freeform: true, fallback: "你" },
+  // ↓ 这一项的取值今天**就是那几个中文词本身**（服务端原样拼进人设：「称呼用户：您」，personaAccess.service.js）。
+  //   values 与 options 暂时逐字相同，是为了把「屏幕上显示什么」和「发出去什么」拆开：将来翻译 options 时
+  //   发出去的值不跟着变 —— 否则英文界面发「you」、中文界面发「你」，同一道题两种人设，零报错。
+  { key: "addressUser", kind: "choice", label: "怎么称呼你", options: ["你", "您", "叫我的名字", "起个昵称"], values: ["你", "您", "叫我的名字", "起个昵称"], freeform: true, fallback: "你" },
   // ↓ 这两项的**取值词表**由服务端的标签写死（zh/en/mixed、none/light/heavy），所以显示中文、发英文
   { key: "language", kind: "choice", label: "说什么语言", options: ["中文", "英文", "中英混说"], values: ["zh", "en", "mixed"], fallback: "zh" },
   { key: "emoji", kind: "choice", label: "emoji 用量", options: ["不用", "偶尔用", "经常用"], values: ["none", "light", "heavy"], fallback: "light" },

@@ -20,7 +20,7 @@ import UserRow from "../components/UserRow";
 import { Link, useLocation } from "react-router";
 import { listVideos, profileHref, remoteOn, searchVideos } from "../data/videos";
 import { searchUsers, userDisplayName, type ApiUserLite } from "../api/users";
-import { VIDEO_CATEGORIES, VideoItem, formatDuration, formatPlays, segsTotal } from "../types";
+import { VIDEO_CATEGORIES, VideoItem, formatDuration, formatPlays, segsTotal, videoCategoryLabel } from "../types";
 
 /**
  * 每个分区的看板娘贴图与托盘配色。
@@ -252,13 +252,14 @@ export default function DiscoverPage() {
         className="no-scrollbar mb-5 -mx-4 flex justify-between gap-1 overflow-x-auto px-4 pb-1 pt-1"
       >
         {VIDEO_CATEGORIES.map((c) => {
-          const art = CAT_ART[c] ?? CAT_ART.其他;
-          const on = cat === c;
+          // ★ 精灵图与筛选条件都认 id（id 是跨仓契约，见 types.VIDEO_CATEGORIES），屏幕上只画 label
+          const art = CAT_ART[c.id] ?? CAT_ART.其他;
+          const on = cat === c.id;
           return (
             <button
-              key={c}
+              key={c.id}
               // 再点一次取消选中：选中态是筛选条件，必须有一条不用去别处找的退路
-              onClick={() => setCat(on ? null : c)}
+              onClick={() => setCat(on ? null : c.id)}
               aria-pressed={on}
               className={`flex w-[52px] flex-none flex-col items-center gap-1 transition-transform duration-200 active:scale-95 ${
                 on ? "scale-110" : ""
@@ -285,7 +286,7 @@ export default function DiscoverPage() {
                   on ? "font-semibold text-brand" : "text-slate-300"
                 }`}
               >
-                {c}
+                {c.label}
               </span>
             </button>
           );
@@ -299,7 +300,7 @@ export default function DiscoverPage() {
       <div data-guide="discover-scope" className="mb-2.5 flex items-center gap-2">
         <h2 className="flex-none text-sm font-semibold text-slate-300">{sort === "new" ? "最新作品" : "最火作品"}</h2>
         <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">
-          {cat ? `${cat} · ` : ""}
+          {cat ? `${videoCategoryLabel(cat)} · ` : ""}
           {results.length} 个作品
         </span>
         <div className="flex flex-none rounded-full bg-panel p-0.5">
@@ -357,7 +358,7 @@ export default function DiscoverPage() {
       ) : vidErr ? (
         <EmptyState error text={`没搜成：${vidErr}`} hint="上面列的是这台设备上已有的那几条，不是全部结果。" />
       ) : results.length === 0 ? (
-        <EmptyState icon="search" text={key ? `没有找到「${key}」相关的作品` : cat ? `「${cat}」还没有作品` : "还没有作品"} />
+        <EmptyState icon="search" text={key ? `没有找到「${key}」相关的作品` : cat ? `「${videoCategoryLabel(cat)}」还没有作品` : "还没有作品"} />
       ) : null}
     </div>
   );

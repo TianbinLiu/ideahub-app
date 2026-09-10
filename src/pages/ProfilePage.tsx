@@ -81,7 +81,7 @@ import { notificationsState, refreshUnreadCount, subscribeNotifications } from "
 import { useAccountVersion, useAuthState, useCurrentUser } from "../hooks/useAccount";
 import { useBackOr } from "../hooks/useBackOr";
 import { useVideosVersion } from "../hooks/useVideos";
-import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoItem, type Visibility, formatPlays, relativeTime, revisionLabel, visibilityOf } from "../types";
+import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoItem, type Visibility, formatPlays, relativeTime, revisionLabel, videoCategoryLabel, visibilityOf } from "../types";
 import { cutSession, dropCutSession, subscribeCutSession } from "../data/cutSession";
 import { useStudio } from "../studio/studioStore";
 
@@ -710,7 +710,7 @@ export default function ProfilePage() {
         ) : (
           works.length > 0 && (
             <p className="mt-3.5 text-center text-xs text-slate-500">
-              {[...new Set(works.map((w) => w.category))].slice(0, 3).join(" · ")} · 最近更新{" "}
+              {[...new Set(works.map((w) => videoCategoryLabel(w.category)))].slice(0, 3).join(" · ")} · 最近更新{" "}
               {relativeTime(works[0].createdAt)}
             </p>
           )

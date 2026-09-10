@@ -100,13 +100,23 @@ const H = 768;
 
 const SERIF_CANVAS = `'Songti SC','STSong','SimSun','Noto Serif SC',serif`;
 
+/**
+ * 画进像素里的字（卡种名、段标题与时长、「节点卡」）要跟着界面语言走，所以这几张卡面的缓存键带一位语言。
+ * ★ 不带的话：切换语言之后桌上那些卡面还是上一种语言，直到被 LRU 挤掉才换 —— 零报错，只是"没翻全"。
+ * ★ 多语言第 1 步先恒为 "zh"；接上 Lingui 之后换成当前激活的 locale，**只改这一处**。
+ *   `labelTexture` / `composePlateTexture` 不用它：它们的键里本来就含着那段文字。
+ */
+function texLang(): string {
+  return "zh";
+}
+
 /** 素材卡卡面：塔罗细边版式——封面全幅铺满（卡片≈图片本身），纤细生成边框
  *  screen 叠加发光，底部一条渐变里放单行题名，类型是左上角小宝石徽记。
  *  与 2D 的 TarotCard 组件共用同一张框图与 TAROT_LAYOUT 常量。 */
 export function cardFaceTexture(card: Card): THREE.CanvasTexture {
   const color = CARD_TYPE_COLORS[card.type];
   const L = TAROT_LAYOUT;
-  return texFromDraw(`card:${card.id}`, W, H, [card.cover, TAROT_FRAME_URL], (ctx, [cover, frame]) => {
+  return texFromDraw(`card:${card.id}:${texLang()}`, W, H, [card.cover, TAROT_FRAME_URL], (ctx, [cover, frame]) => {
     // 卡底 + 圆角裁剪：封面全幅时不裁剪会把圆角画成方角
     roundedPath(ctx, 0, 0, W, H, 26);
     ctx.fillStyle = "#05070f";
@@ -247,7 +257,7 @@ export function proposalTexture(p: Proposal): THREE.CanvasTexture {
   // ★ 缓存键带上首尾帧指纹：重炼这一段会换掉 firstFrame/lastFrame，只按 p.id 缓存
   //   会让桌面上的卡永远停在旧画面（改之前就有这个问题，逐节点出片之后更容易撞上）
   const fp = `${p.firstFrame.length}x${p.lastFrame.length}`;
-  const key = `prop:${p.id}:${fp}`;
+  const key = `prop:${p.id}:${fp}:${texLang()}`;
   const hit = cacheGet(key);
   if (hit) return hit;
 
@@ -305,7 +315,7 @@ export function proposalTexture(p: Proposal): THREE.CanvasTexture {
 
 /** 虚线空白节点卡位 */
 export function placeholderTexture(): THREE.CanvasTexture {
-  return texFromDraw("placeholder", W, H, [], (ctx) => {
+  return texFromDraw(`placeholder:${texLang()}`, W, H, [], (ctx) => {
     ctx.setLineDash([26, 18]);
     ctx.lineWidth = 8;
     ctx.strokeStyle = "#67e8f9";

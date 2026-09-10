@@ -42,7 +42,7 @@ import Icon, { type IconName } from "../components/Icon";
 import CharacterPerch, { usePerchBurst, type PerchPose } from "../components/CharacterPerch";
 import { remakeNodesOf, remakeableOf, useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
-import { VideoAspect, VideoItem, aspectFromSize, aspectOf, formatDuration, segsTotal } from "../types";
+import { VideoAspect, VideoItem, aspectFromSize, aspectOf, formatDuration, segsTotal, videoCategoryLabel } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 
 /**
@@ -834,7 +834,7 @@ function FeedItem({
               把那几个数重算一遍（CLAUDE.md 那格坑）。行内 chip 高度变化为 0。
               合规位置要求的是"播放画面周边的显著位置"，这里正是抖音同款的落点。 */}
           {isAigcWork(video) && <AigcBadge tone="overlay" className="mr-1 align-[1px]" />}
-          {video.description} <span className="text-white/70">#{video.category}</span>
+          {video.description} <span className="text-white/70">#{videoCategoryLabel(video.category)}</span>
         </p>
         {(isInteractive || canRemake) && (
           <div className="mt-2 flex items-center gap-2">

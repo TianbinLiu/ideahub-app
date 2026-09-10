@@ -27,7 +27,7 @@ import { danmakuFetched, danmakuOf, danmakuVersion, isTruncated, subscribeDanmak
 import { useStudio } from "../studio/studioStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import { useVideosVersion } from "../hooks/useVideos";
-import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, segsTotal, visibilityOf, visibilityWire } from "../types";
+import { DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, segsTotal, visibilityOf, visibilityWire } from "../types";
 
 export default function EditPage() {
   const { id } = useParams<{ id: string }>();
@@ -37,7 +37,7 @@ export default function EditPage() {
   const parts = useMemo(() => (video ? partsOf(video) : []), [video, version]);
 
   const [title, setTitle] = useState(video?.title ?? "");
-  const [category, setCategory] = useState(video?.category ?? "剧情");
+  const [category, setCategory] = useState<string>(video?.category ?? DEFAULT_VIDEO_CATEGORY);
   const [description, setDescription] = useState(video?.description ?? "");
   const [cover, setCover] = useState(video?.cover ?? "");
   const [tags, setTags] = useState<string[]>(video?.tags ?? []);
@@ -85,7 +85,7 @@ export default function EditPage() {
   useEffect(() => {
     if (!video) return;
     setTitle((t) => (t ? t : video.title));
-    setCategory((c) => (c !== "剧情" ? c : video.category));
+    setCategory((c) => (c !== DEFAULT_VIDEO_CATEGORY ? c : video.category));
     setDescription((d) => (d ? d : video.description));
     setCover((c) => (c ? c : video.cover));
   }, [video]);
@@ -471,13 +471,13 @@ export default function EditPage() {
             <div className="flex flex-wrap gap-2">
               {VIDEO_CATEGORIES.map((c) => (
                 <button
-                  key={c}
-                  onClick={() => setCategory(c)}
+                  key={c.id}
+                  onClick={() => setCategory(c.id)}
                   className={`rounded-full px-3.5 py-1.5 text-xs ${
-                    category === c ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300 hover:bg-slate-700"
+                    category === c.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300 hover:bg-slate-700"
                   }`}
                 >
-                  {c}
+                  {c.label}
                 </button>
               ))}
             </div>
