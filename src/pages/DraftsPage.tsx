@@ -11,6 +11,7 @@ import { useState } from "react";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
+import { Trans } from "@lingui/react/macro";
 import DraftSheet from "../components/DraftSheet";
 import { MAX_DRAFTS, type WorkDraftMeta } from "../data/drafts";
 import { useDrafts } from "../hooks/useDrafts";
@@ -72,7 +73,7 @@ export default function DraftsPage() {
                   )}
                 </div>
                 <div className="mt-1 text-[10px] text-slate-500">
-                  {d.segCount} 段 · 已出片 {d.doneCount} · {relativeTime(d.updatedAt)}改过
+                  <Trans>{d.segCount} 段 · 已出片 {d.doneCount} · {relativeTime(d.updatedAt)}改过</Trans>
                 </div>
                 <div className="mt-0.5 text-[10px] text-slate-500">
                   上次在{d.lastMode === "studio" ? "🎴 工坊" : "🧩 工作流"}

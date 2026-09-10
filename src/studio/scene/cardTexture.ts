@@ -2,6 +2,7 @@
 // 素材卡走塔罗版式：Seedream 生成的魔法边框 + 画窗铺满封面 + 牌匾衬线题名，
 // 与 2D 的 TarotCard 组件共用同一张框图和同一组画窗/牌匾常量。
 import * as THREE from "three";
+import { i18n } from "@lingui/core";
 import { formatPlays } from "../../types";
 import { TAROT_FRAME_URL, TAROT_LAYOUT, TYPE_GLYPH } from "../../components/TarotCard";
 import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Proposal } from "../../types";
@@ -103,11 +104,11 @@ const SERIF_CANVAS = `'Songti SC','STSong','SimSun','Noto Serif SC',serif`;
 /**
  * 画进像素里的字（卡种名、段标题与时长、「节点卡」）要跟着界面语言走，所以这几张卡面的缓存键带一位语言。
  * ★ 不带的话：切换语言之后桌上那些卡面还是上一种语言，直到被 LRU 挤掉才换 —— 零报错，只是"没翻全"。
- * ★ 多语言第 1 步先恒为 "zh"；接上 Lingui 之后换成当前激活的 locale，**只改这一处**。
+ * ★ 读当前激活的 locale（2026-09-10 接上 Lingui）。卡面副题里的 formatPlays 也跟着语言变，同一个键一起管住。
  *   `labelTexture` / `composePlateTexture` 不用它：它们的键里本来就含着那段文字。
  */
 function texLang(): string {
-  return "zh";
+  return i18n.locale || "zh";
 }
 
 /** 素材卡卡面：塔罗细边版式——封面全幅铺满（卡片≈图片本身），纤细生成边框

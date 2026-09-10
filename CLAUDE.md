@@ -418,7 +418,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   `[scrollbar-width:none]` 一类的任意值写法也别再手拼。查法：`rg 'overflow-x-auto' --glob '*.tsx' | rg -v no-scrollbar` 只该剩注释。
 - **时长写法两档**：句子里「N 秒」（`至少留 2 秒`、`2~15 秒`），角标 / 读数 `Ns`（卡片右下角 `21s`、`20.7s`），
   播放头位置 `mm:ss`。**相对时间只有一份 `types.relativeTime`**（刚刚 / 3分钟前 / 9月6日），别再冒 `toLocaleString()`。
+  它**按界面语言分派**（中文沿用手写版、逐字不变；英文走 Intl）—— 别在调用处把中文接在返回值后面（「{relativeTime(x)}改过」），
+  写成带占位符的整句 `<Trans>`，否则英文界面读出来是「3 minutes ago改过」。
 - **上万折「x.x 万」只有一份 `types.formatPlays`**：热度 / 播放 / 卡片热度 / 3D 卡面小字都用它（此前四处各抄一份）。
+  按界面语言分派：中文手写「x.x万」（Intl 的 zh compact 会写成「1万」「12万」），英文 Intl compact（12.3K）。
 - **空态 / 整页态只有一份实现 `components/EmptyState`**（2026-09-05 收口）：图标 40px slate-600（或 emoji）→ 正文
   text-sm slate-400（出错 rose-300）→ 补充 text-xs slate-600 → 按钮（主 bg-brand / 次 bg-panel+ring，同上一条）。
   列表里的空态 `py-16`，整页态（卡/卡组/模板不存在、未登录墙、取回中）传 `full`（min-h-[70vh] 居中 + safe-top）。

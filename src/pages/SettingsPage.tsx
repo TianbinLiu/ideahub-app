@@ -24,6 +24,12 @@ import { QUALITY_LABELS, getQuality } from "../studio/quality";
 import { currentVoice } from "../studio/voices";
 import { checkUpdate, currentVersion, selfUpdateSupported, type UpdateInfo } from "../data/appUpdate";
 import UpdateSheet from "../components/UpdateSheet";
+import Sheet from "../components/Sheet";
+import { CloseButton } from "../components/IconTapButton";
+import { Trans, useLingui } from "@lingui/react/macro";
+import { systemLang, type Lang } from "../i18n/locale";
+import { setLangPref } from "../i18n/switch";
+import { useLang } from "../i18n/useLang";
 
 export default function SettingsPage() {
   const user = useCurrentUser();
@@ -45,6 +51,7 @@ export default function SettingsPage() {
         {/* 行上报「当前用的是哪把」：这一节的信息价值九成在它（拆页前收起态就这么画） */}
         <NavRow to="/settings/voice" emoji="🎙️" title="铸卡师的声音" sub={currentVoice().name} />
         <NavRow to="/settings/quality" emoji="🎨" title="画面质量" sub={`${QUALITY_LABELS[getQuality()].name} · 只影响 3D 工坊`} />
+        <LangRow />
       </Group>
 
       {/* ── 账号 · 安全 ────────────────────────────────────────
@@ -153,6 +160,80 @@ function Group({ children }: { children: React.ReactNode }) {
     <div className="mb-4 divide-y divide-slate-800 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
       {children}
     </div>
+  );
+}
+
+/* i18n-frozen: 固定双语 —— 切错了语言的人也得认得出这一行 */
+const LANG_TITLE = "语言 · Language";
+/* i18n-frozen: 每种语言用它自己的文字写 */
+const LANG_NAME = { zh: "简体中文", en: "English" } as const;
+
+/**
+ * 界面语言：跟随系统 / 简体中文 / English 三态（多语言方案 §5.3）。
+ * ★ 标题固定双语、选项名各用自己的文字：切错了语言的人也找得到回来的路。
+ * ★ 切换不重挂、不 reload（见 i18n/switch 的 ★）：在途的出片 / 合并照常跑，所以任何时候都能切。
+ * ★ 抽屉底部那句说桌面图标名：它跟 Android 系统语言走（res/values-*），App 里切换改不了它 —— 不说的话
+ *   多语言手机上两者不一致会被当成 bug。
+ */
+function LangRow() {
+  const { t } = useLingui();
+  const { pref, active } = useLang();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const sub = pref === null ? t`跟随系统（${LANG_NAME[active]}）` : LANG_NAME[pref];
+  const options: Array<{ key: string; value: Lang | null; label: string }> = [
+    { key: "system", value: null, label: t`跟随系统（${LANG_NAME[systemLang()]}）` },
+    { key: "zh", value: "zh", label: LANG_NAME.zh },
+    { key: "en", value: "en", label: LANG_NAME.en },
+  ];
+  const pick = (next: Lang | null) => {
+    setBusy(true);
+    setErr("");
+    setLangPref(next)
+      .then(() => setOpen(false))
+      .catch((e) => {
+        console.error("[i18n] 切换语言失败:", e);
+        setErr(t`没能切换语言，请重试`);
+      })
+      .finally(() => setBusy(false));
+  };
+  return (
+    <>
+      <button onClick={() => setOpen(true)} className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40">
+        <span className="text-lg">🌐</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm text-slate-100">{LANG_TITLE}</span>
+          <span className="block truncate text-[11px] text-slate-500">{sub}</span>
+        </span>
+        <Icon name="chevron" size={16} className="flex-none text-slate-600" />
+      </button>
+      {open && (
+        <Sheet onClose={() => setOpen(false)}>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-100">{LANG_TITLE}</h3>
+            <CloseButton chip="sm" size={13} align="end" onClick={() => setOpen(false)} />
+          </div>
+          <div className="divide-y divide-slate-800 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
+            {options.map((o) => (
+              <button
+                key={o.key}
+                disabled={busy}
+                onClick={() => pick(o.value)}
+                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-slate-100 active:bg-slate-800/40 disabled:opacity-40"
+              >
+                <span>{o.label}</span>
+                {pref === o.value && <span className="text-brand">✓</span>}
+              </button>
+            ))}
+          </div>
+          {err && <p className="mt-2 text-xs text-rose-300">{err}</p>}
+          <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+            <Trans>桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。</Trans>
+          </p>
+        </Sheet>
+      )}
+    </>
   );
 }
 

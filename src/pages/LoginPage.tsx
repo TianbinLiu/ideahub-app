@@ -16,6 +16,7 @@
 // 离线（没配 VITE_API_BASE 或服务器不可达）时整页退回本地账号：账号不存在即注册。
 import { useEffect, useState } from "react";
 import { BackButton } from "../components/IconTapButton";
+import LangChip from "../components/LangChip";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InfoDialog from "../components/InfoDialog";
@@ -275,6 +276,10 @@ export default function LoginPage() {
           是相对容器顶边算的，容器的 safe-top 留白被它跳过，真机上箭头压在状态栏里 */}
       <div className="absolute left-4 flex h-12 items-center" style={{ top: "calc(env(safe-area-inset-top, 0px) + 10px)" }}>
         <BackButton size={22} tone="text-slate-400" onClick={() => navigate(-1)} />
+      </div>
+      {/* 右上角：没登录也能换界面语言（设置页在 RequireAuth 后面，进不去）。与返回键同一条线 */}
+      <div className="absolute right-4 flex h-12 items-center" style={{ top: "calc(env(safe-area-inset-top, 0px) + 10px)" }}>
+        <LangChip />
       </div>
 
       <div className="mb-7 text-center">

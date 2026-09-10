@@ -6,6 +6,7 @@ import { takedownReasonText } from "../api/admin";
 import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import Icon from "../components/Icon";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { Trans } from "@lingui/react/macro";
 import BranchPlayer from "../components/BranchPlayer";
 import SegmentPlayer from "../components/SegmentPlayer";
 import Avatar from "../components/Avatar";
@@ -526,7 +527,7 @@ export default function VideoPage() {
             null = 老数据报不出版次，这里就只说"重新剪辑过"，不补一个编出来的数）。 */}
         {!!video.revisedAt && (
           <p className="mt-1 text-xs text-slate-500">
-            {relativeTime(video.revisedAt)}重新剪辑过{revisionLabel(video.revision) ? ` · ${revisionLabel(video.revision)}` : ""}
+            <Trans>{relativeTime(video.revisedAt)}重新剪辑过</Trans>{revisionLabel(video.revision) ? ` · ${revisionLabel(video.revision)}` : ""}
           </p>
         )}
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-400">
@@ -540,7 +541,7 @@ export default function VideoPage() {
             <Avatar name={video.author} src={authorAvatarOf(video)} size={32} />
             <span className="text-slate-200">{video.author}</span>
           </Link>
-          <span>{formatPlays(plays)}播放</span>
+          <span><Trans>{formatPlays(plays)}播放</Trans></span>
           <span>{relativeTime(video.createdAt)}</span>
           <span className="rounded-full bg-panel px-2.5 py-0.5 text-xs">{videoCategoryLabel(video.category)}</span>
           {part?.branchTree && (

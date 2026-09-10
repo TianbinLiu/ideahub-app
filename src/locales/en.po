@@ -13,6 +13,48 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+#. placeholder {0}: d.segCount
+#. placeholder {0}: meta.segCount
+#. placeholder {1}: d.doneCount
+#. placeholder {1}: meta.doneCount
+#. placeholder {2}: relativeTime(d.updatedAt)
+#. placeholder {2}: relativeTime(meta.updatedAt)
+#: src/components/DraftSheet.tsx
+#: src/pages/DraftsPage.tsx
+msgid "{0} 段 · 已出片 {1} · {2}改过"
+msgstr "{0} segments · {1} rendered · edited {2}"
+
+#. placeholder {0}: formatPlays(plays)
+#. placeholder {0}: formatPlays(v.plays)
+#: src/pages/DiscoverPage.tsx
+#: src/pages/VideoPage.tsx
+msgid "{0}播放"
+msgstr "{0} plays"
+
+#. placeholder {0}: relativeTime(reportTimeMs(u.createdAt))
+#: src/pages/AdminPage.tsx
+msgid "{0}注册"
+msgstr "joined {0}"
+
+#. placeholder {0}: relativeTime(video.revisedAt)
+#: src/pages/VideoPage.tsx
+msgid "{0}重新剪辑过"
+msgstr "Re-edited {0}"
+
 #: src/i18n/activate.ts
 msgid "启梦 · 有想法，就是梦想启程的第一步"
 msgstr "QiMeng · Every dream starts with an idea"
+
+#: src/pages/SettingsPage.tsx
+msgid "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"
+msgstr "The name under the home-screen icon follows your phone's system language. Switching here doesn't change it, so the two may differ on phones set to several languages."
+
+#: src/pages/SettingsPage.tsx
+msgid "没能切换语言，请重试"
+msgstr "Couldn't switch the language. Please try again."
+
+#. placeholder {0}: LANG_NAME[active]
+#. placeholder {0}: LANG_NAME[systemLang()]
+#: src/pages/SettingsPage.tsx
+msgid "跟随系统（{0}）"
+msgstr "Follow system ({0})"

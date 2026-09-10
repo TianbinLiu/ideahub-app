@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from "react";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { Link, useNavigate } from "react-router";
+import { Trans } from "@lingui/react/macro";
 import Avatar from "../components/Avatar";
 import Icon from "../components/Icon";
 import {
@@ -535,7 +536,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
             {/* videoCount 服务端没给就画「—」：「0 条作品」和「不知道」是两回事 */}
             <span>作品 {typeof u.videoCount === "number" ? u.videoCount : "—"}</span>
-            {reportTimeMs(u.createdAt) > 0 && <span>· {relativeTime(reportTimeMs(u.createdAt))}注册</span>}
+            {reportTimeMs(u.createdAt) > 0 && <span>· <Trans>{relativeTime(reportTimeMs(u.createdAt))}注册</Trans></span>}
           </div>
         </div>
       </div>

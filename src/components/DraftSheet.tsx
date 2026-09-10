@@ -5,6 +5,7 @@
 // 改剧情是很正常的需求；上次用的那个标成「上次」，省得每次都要想。
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { Trans } from "@lingui/react/macro";
 import Sheet from "./Sheet";
 import { useApplyTemplate } from "./flow/useApplyTemplate";
 import { deleteDraft, loadDraft, renameDraft, type DraftMode, type WorkDraftMeta } from "../data/drafts";
@@ -94,7 +95,7 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
         </div>
       )}
       <p className="mt-1 text-[11px] text-slate-500">
-        {meta.segCount} 段 · 已出片 {meta.doneCount} · {relativeTime(meta.updatedAt)}改过
+        <Trans>{meta.segCount} 段 · 已出片 {meta.doneCount} · {relativeTime(meta.updatedAt)}改过</Trans>
       </p>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
