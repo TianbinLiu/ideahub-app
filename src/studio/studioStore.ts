@@ -7,7 +7,7 @@ import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
-import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeRecastable, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost } from "./flowStore";
+import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeRecastable, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost, usableFrames } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, saveDraft } from "../data/drafts";
@@ -1423,9 +1423,26 @@ export const useStudio = create<StudioState>()((set, get) => ({
         return false;
       }
     }
-    const node = activePath().find((n) => n.id === nodeId);
+    const path = activePath();
+    const idx = path.findIndex((n) => n.id === nodeId);
+    const node = path[idx];
     const prop = node?.proposals.find((p) => p.id === proposalId);
     if (!node || !prop) return false;
+    // ★ 改图是「在这张图上改」：这一帧当时没画出来（或是老草稿里的占位图）就没有可改的图 ——
+    //   放行的话要么对空图发请求被拒，要么在占位图上改出一张照样不能用的帧（出图成功就扣钱）。
+    //   帧在不在问 usableFrames（与出片、报价同一份）。
+    {
+      const frames = usableFrames(node, prop, idx > 0 ? chosenProposal(path[idx - 1]) : null);
+      if (!(which === "first" ? frames.first : frames.last)) {
+        set({
+          notice: {
+            at: Date.now(),
+            text: `这一套的${which === "first" ? "开头帧" : "结束帧"}当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。`,
+          },
+        });
+        return false;
+      }
+    }
     // 改一次图 = 一张 Seedream。以前这里既不看余额也不扣费，用户改十版是白送十张
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
       set({ notice: { at: Date.now(), text: `改图要 ${fmtTokens(ONE_IMAGE)} token，余额不够了——去「我的」页充值。` } });
@@ -1872,7 +1889,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       const degraded = proposals.filter((p) => p.degraded).length;
       get().npcSay(
         degraded > 0
-          ? `三种走向推演完毕，但有 ${degraded} 个方案的首尾帧没画出来（先用占位图顶着，合成前我会重画）。点开看看剧情，选定一个。`
+          ? `三种走向推演完毕，但有 ${degraded} 个方案的首尾帧没画出来（出片前会先补画要用到的帧，补画的钱算在出片报价里）。点开看看剧情，选定一个。`
           : "三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。",
       );
     } catch (e) {
