@@ -11,6 +11,7 @@ import {
   addComment,
   addView,
   readSocial,
+  socialLoadIssue,
   socialVersion,
   statsOf,
   subscribeSocial,
@@ -101,6 +102,15 @@ export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string
           ? "浏览 / 点赞 / 收藏为社区计数；评论只存在这台设备上"
           : "本机计数：只统计了这台设备上的互动"}
       </p>
+      {/* ★ 本机那份互动记录开机时没读出来（data/social 的 loadIssue）：缺的那一块不是"没有"，
+          这次的改动也不落盘 —— 两件事都得在这里说（铁律八） */}
+      {socialLoadIssue() && (
+        <p className="mt-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
+          {r.source === "server"
+            ? "这台设备上存的评论这会儿没读出来，这次写的评论关掉 App 就没了。"
+            : "这台设备上的互动记录这会儿没读出来：计数先从 0 算，这次点的赞、写的评论关掉 App 就没了。"}
+        </p>
+      )}
       {tip && <p className="mt-1.5 text-center text-[11px] text-amber-400">{tip}</p>}
 
       {/* 评论区 */}

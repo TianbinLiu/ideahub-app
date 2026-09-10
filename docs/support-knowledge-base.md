@@ -63,7 +63,8 @@
 - **CardDetailPage / DeckDetailPage / TemplateDetailPage / TemplateMarketPage / CustomCardPage / DraftsPage / NotificationsPage**：见各文件头 1-25 行
 
 ### 1.5 启动行为
-- 冷启动先装 IndexedDB 数据层（视频/账号/社交/模板/草稿/弹幕/剪辑稿），装完前显示「正在打开作品库…」 — `app\src\App.tsx:203-225`
+- 冷启动先装 IndexedDB 数据层（视频/账号/社交/模板/草稿/弹幕/剪辑稿），装完前显示「正在打开作品库…」 — `app\src\App.tsx`、`app\src\data\boot.ts`
+- 装载失败时：作品库 / 账号库 / 草稿箱 / 我的模板 / 剪到一半的成片 **任何一样没打开就整页停住**，写明哪几样没打开、原因（最常见的是「手机上的本地数据库这会儿打不开」）并给「重试」。重试不删任何东西；还不行就腾出手机存储空间、把 App 从最近任务里彻底划掉重开。互动记录、弹幕没读出来**不拦开机**，只在详情页互动区 / 发弹幕输入条上说一句，这次会话里的改动不落盘 — `app\src\data\boot.ts` 文件头
 - 除工坊外全局锁竖屏（native manifest 已钉死，Web 层改不动） — `app\src\App.tsx:88-92`；`app\CLAUDE.md:285`
 - 已登录但本机没有当前版本协议同意记录的用户，开屏弹补签门；「不同意」只退登录态，不拦浏览 — `app\src\App.tsx:115-177`
 

@@ -5,7 +5,7 @@
 // 而模板发布后即使作者本地删掉，市场里那份也该继续可用。所以两边分开存。
 //
 // 互动数据（浏览/点赞/收藏/评论）不在这里，走 data/social.ts 的旁路存储。
-import { idbGet, idbSet } from "./db";
+import { idbRead, idbSet } from "./db";
 import { apiGet, ApiError } from "../api/client";
 import * as branch from "../api/branch";
 import * as uploadsApi from "../api/uploads";
@@ -56,7 +56,9 @@ export function templatesVersion(): number {
 //   要样板就发真的：建一个真模板、发布它，与所有人走同一条路。
 
 export async function readyTemplates(): Promise<void> {
-  const saved = await idbGet<VideoTemplate[]>(KEY);
+  // ★★ 读失败要抛（idbRead），不能当成"还没有模板"（2026-09-10）：`mine` 留空的话，下一次存模板
+  //   会拿只含新那一条的数组把磁盘上那份**整张盖掉** —— 没登记上服务端的那些，云端视频句柄只存在这一份里。
+  const saved = await idbRead<VideoTemplate[]>(KEY);
   if (saved) mine = saved;
   // ★ V3（2026-09-06）：截线之前建的模板身上的非人物卡整批下场（与 account.ts 的 V3 清库同一条截线，
   //   主人拍板"不用顾及老卡"）；截线之后从原片铸的 V3 素材卡原样保留

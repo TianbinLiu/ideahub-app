@@ -13,7 +13,7 @@ import { reconcileTermsWithServer } from "./agreements";
 import { removeVoice } from "./cardVoice";
 import { adoptRemoteAssets, assetOf, removeAsset, saveAsset, setAssetSyncIssue, type CardAsset } from "./cardAsset";
 import { PLANS, PLATFORM_CUT, fmtTokens, type VideoTier } from "./economy";
-import { idbGet, idbSet } from "./db";
+import { idbGet, idbRead, idbSet } from "./db";
 // 转存（dataURL → 永久 URL）的唯一入口，与发布/换封面/详情页加图共用（铁律六）
 import { toPermanentUrl } from "./publishAssets";
 // ★ 刻意不再 import setToken：token 的生命周期只有两个主人 ——
@@ -129,9 +129,17 @@ export async function readyAccount(): Promise<void> {
       armOnlineRetry();
     }
     await readyLocal();
-  })().finally(() => {
-    readyPromise = null;
-  });
+  })()
+    .catch((e) => {
+      // ★★ 装载半截失败要把 db 撤掉（2026-09-10）：上面那句 `if (db) return` 会让开机闸的「重试」
+      //   直接拿到 resolve —— 手里是一个半截的库，看起来就是"这个人没登录 / 铸的卡全没了"。
+      //   撤成 null，重试才会真的再装一遍。
+      db = null;
+      throw e;
+    })
+    .finally(() => {
+      readyPromise = null;
+    });
   readyPromise = p;
   await p;
 }
@@ -139,7 +147,9 @@ export async function readyAccount(): Promise<void> {
 let readyPromise: Promise<void> | null = null;
 
 async function readyLocal(): Promise<void> {
-  db = (await idbGet<AccountDB>(KEY)) ?? { ...EMPTY };
+  // ★★ 读失败要抛（idbRead），不能 `?? EMPTY`（2026-09-10）：离线模式下账号与卡片只活在这一个键里，
+  //   读不出来却当成空库 = 用户被登出、铸的卡全没了，而下一次 persist() 会拿这份空库把磁盘上那份盖掉。
+  db = (await idbRead<AccountDB>(KEY)) ?? { ...EMPTY };
   // 结构兼容（旧版本可能缺字段）
   db.users ??= [];
   db.cards ??= [];
@@ -1827,6 +1837,9 @@ function adoptUser(remote: authApi.ApiUser): User {
   return user;
 }
 
+/** AUTH_EXPIRED 监听挂过没有。★ 开机闸「重试」会让 readyRemote 再跑一遍（装载半截失败时 db 被撤回 null），别挂两份 */
+let authExpiredHooked = false;
+
 async function readyRemote(): Promise<boolean> {
   // 先探活：服务器没起就整体回退本地库，别把空库当成"你还没登录"展示给用户
   if (!(await serverAlive())) return false;
@@ -1837,7 +1850,8 @@ async function readyRemote(): Promise<boolean> {
   db = { ...EMPTY, users: [], cards: [], decks: [] };
   // token 失效（任何请求 401）时把内存里的登录态一起清掉，
   // 否则页面还以为登录着、每次操作都再撞一次 401。
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && !authExpiredHooked) {
+    authExpiredHooked = true;
     window.addEventListener(AUTH_EXPIRED_EVENT, () => {
       if (!db) return;
       db.currentId = null;

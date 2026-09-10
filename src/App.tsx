@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import EmptyState from "./components/EmptyState";
 import Spinner from "./components/Spinner";
 import { createPortal } from "react-dom";
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router";
@@ -45,15 +46,9 @@ import SupportModelNewPage from "./pages/SupportModelNewPage";
 import SupportPersonaNewPage from "./pages/SupportPersonaNewPage";
 import StudioPage from "./studio/StudioPage";
 import TabBar from "./components/TabBar";
-import { readyVideos } from "./data/videos";
-import { readySocial } from "./data/social";
-import { readyDanmaku } from "./data/danmaku";
+import { bootData, type BootFailure } from "./data/boot";
 import { checkUpdateForPrompt, type UpdateInfo } from "./data/appUpdate";
 import UpdateSheet from "./components/UpdateSheet";
-import { readyTemplates } from "./data/templates";
-import { readyDrafts } from "./data/drafts";
-import { readyCutSession } from "./data/cutSession";
-import { readyAccount } from "./data/account";
 import { useAuthState, useCurrentUser } from "./hooks/useAccount";
 import useOrientationLock from "./hooks/useOrientationLock";
 import { signInWithOauthToken, signOut } from "./data/account";
@@ -206,23 +201,52 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-export default function App() {
-  // 数据层是 IndexedDB（异步）：装载完成前不渲染路由，避免各页读到空库
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    void Promise.all([
-      readyVideos(),
-      readyAccount(),
-      readySocial(),
-      readyTemplates(),
-      readyDrafts(),
-      readyDanmaku(),
-      // 剪到一半的那条成片（钱已经花在里面了，见 data/cutSession 的 ★★）
-      readyCutSession(),
-    ]).then(() => setReady(true));
-  }, []);
+/**
+ * 开机装载有**核心库**没打开时的整页态。哪几样算核心、原因怎么说，都在 data/boot；这里只画。
+ *
+ * ★ 「重试」重跑一遍装载，不 reload：reload 会把这次启动里只有一份的东西（深链、第三方登录回程）
+ *   一起丢掉，而装载本身是幂等的 —— 上一轮成功的那几样再调一次直接返回。
+ * ★ 不给「先进去再说」：缺了这几样进去，看到的是空草稿箱 / 被登出 / 作品只剩种子，
+ *   下一次存草稿或点赞还会拿空表把磁盘上那份真的盖掉（data/boot 文件头）。
+ * ★ 不给「清理缓存」：它碰不到让开机失败的东西，这时候去扫反而会误删（同上）。
+ */
+function BootFailed({ failures, onRetry }: { failures: BootFailure[]; onRetry: () => void }) {
+  const storage = failures.some((f) => f.kind === "storage");
+  return (
+    <EmptyState
+      full
+      error
+      emoji="⚠️"
+      title="有东西没能打开"
+      text={failures.map((f) => `${f.labels.join("、")}没打开：${f.reason}`).join("；")}
+      hint={
+        <>
+          里面存着你做出来的东西，缺了它硬进去只会看到一片空白、像是东西丢了，所以先停在这里。点重试只是再读一遍，不会删掉你的东西。
+          <br />
+          {storage
+            ? "还是不行的话：手机存储快满了就先腾出一些空间，再把 App 从最近任务里彻底划掉重新打开。"
+            : "还是不行的话，把 App 从最近任务里彻底划掉重新打开。"}
+          <br />
+          <span className="break-all">{failures.map((f) => f.detail).join(" / ")}</span>
+        </>
+      }
+      cta={{ label: "重试", onClick: onRetry, primary: true }}
+    />
+  );
+}
 
-  if (!ready) {
+export default function App() {
+  // 数据层是 IndexedDB（异步）：装载完成前不渲染路由，避免各页读到空库。
+  // null = 还在装；[] = 装好了；非空 = 有核心库没打开（开机闸只有 data/boot 一处，别在别处再判一遍）
+  const [boot, setBoot] = useState<BootFailure[] | null>(null);
+  const load = useCallback(() => {
+    setBoot(null);
+    // ★ bootData 按构造不会 reject（allSettled + 兜底 catch），这里的 void 吞不掉任何东西
+    void bootData().then(setBoot);
+  }, []);
+  useEffect(load, [load]);
+
+  if (!boot) {
     return (
       <div className="flex min-h-full items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-slate-400">
@@ -232,6 +256,7 @@ export default function App() {
       </div>
     );
   }
+  if (boot.length > 0) return <BootFailed failures={boot} onRetry={load} />;
 
   return (
     <>

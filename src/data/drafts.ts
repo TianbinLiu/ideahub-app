@@ -18,7 +18,7 @@
 //   drafts.v1        → WorkDraftMeta[]（几 KB，个人页列表只读它）
 //   draft.<id>       → WorkDraft（含 1MB 级的首尾帧 base64，只在打开时读）
 // 合在一起的话，个人页每次进都要把所有草稿的全部帧拉进内存。
-import { idbDel, idbGet, idbSet } from "./db";
+import { idbDel, idbGet, idbRead, idbSet } from "./db";
 import { shrinkDataUrl } from "../utils/image";
 import { Card, NodeSlot, uid } from "../types";
 
@@ -103,7 +103,10 @@ export function draftsVersion(): number {
 }
 
 export async function readyDrafts(): Promise<void> {
-  index = (await idbGet<WorkDraftMeta[]>(INDEX_KEY)) ?? [];
+  // ★★ 读失败要抛（idbRead），不能 `?? []` 当成"还没有草稿"（2026-09-10）：空表会让草稿箱说
+  //   「还没有草稿」，而下一次存草稿会拿只含新那一条的索引**盖掉**磁盘上的真索引 —— 旧草稿的正文
+  //   还躺在库里，却再也列不出来。开机闸（data/boot）见它失败会整页停住并给「重试」。
+  index = (await idbRead<WorkDraftMeta[]>(INDEX_KEY)) ?? [];
   emit();
 }
 
