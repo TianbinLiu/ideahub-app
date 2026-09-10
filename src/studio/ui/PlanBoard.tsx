@@ -16,7 +16,7 @@
 //   已选定 —— 那一行放大居中、其余缩小压暗；只有选定的那一行可以改帧、改剧情、重画。
 //             不给未选定的行开编辑口，是因为编辑必然要花钱重画，而用户还没决定用哪套。
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { shotLineOf, DURATIONS, Proposal, type VideoAspect } from "../../types";
+import { shotLineDisplay, DURATIONS, Proposal, type VideoAspect } from "../../types";
 import { fmtTokens } from "../../data/economy";
 import { fileToFrameDataUrl } from "../../utils/image";
 import FrameCard, { CardFace, useFrameCycle } from "./FrameCard";
@@ -256,7 +256,7 @@ export default function PlanBoard({
                       placeholder="这一段的画面与剧情（会直接作为生成提示词）"
                       className="novel-text w-full resize-none rounded-lg border border-slate-700 bg-black/25 px-2 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-gold/70"
                     />
-                    {shotLineOf(p.shot) && <p className="text-[10px] text-slate-500">{shotLineOf(p.shot)}</p>}
+                    {shotLineDisplay(p.shot) && <p className="text-[10px] text-slate-500">{shotLineDisplay(p.shot)}</p>}
                     <div className="flex flex-wrap items-center gap-1">
                       <span className="flex-none text-[10px] text-slate-500">时长</span>
                       {DURATIONS.map((d) => (
@@ -316,7 +316,7 @@ export default function PlanBoard({
                       )}
                     </div>
                     <p className="novel-text mt-1 line-clamp-3 text-[11px] leading-relaxed text-slate-300">{p.plot}</p>
-                    {shotLineOf(p.shot) && <p className="mt-0.5 text-[10px] text-slate-500">{shotLineOf(p.shot)}</p>}
+                    {shotLineDisplay(p.shot) && <p className="mt-0.5 text-[10px] text-slate-500">{shotLineDisplay(p.shot)}</p>}
                     {warn && <p className="mt-1 text-[10px] text-amber-300">{warn}</p>}
                   </div>
                 </button>

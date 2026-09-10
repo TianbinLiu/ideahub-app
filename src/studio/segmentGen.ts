@@ -18,7 +18,7 @@ import { IMAGE_TOKENS, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDurati
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
-import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_LABELS, idLineOf, viewsOf, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
+import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
 
 export interface SegmentAnn {
@@ -312,11 +312,11 @@ function materialText(materials?: Card[]): string {
     .filter((c) => c.type !== "background")
     .map((c) => {
       //   逐段逐字复用——同一措辞本身就是一致性手段；老卡兜底"名字+简介40字"=老行为）。
-      if (c.type === "character") return `${CARD_TYPE_LABELS[c.type]}「${c.name}」＝${idLineOf(c)}`;
+      if (c.type === "character") return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」＝${idLineOf(c)}`;
       // ★ V3：非人物卡有出片句（idLine：场景的空间结构、风格的画风+镜头语言）就整句进；
       //   老卡没有 idLine 的仍是简介前 24 字（存量卡的提示词一个字不变）
       const line = (c.idLine || "").trim().slice(0, ID_LINE_MAX);
-      return `${CARD_TYPE_LABELS[c.type]}「${c.name}」${line ? `＝${line}` : c.summary ? `（${c.summary.slice(0, 24)}）` : ""}`;
+      return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」${line ? `＝${line}` : c.summary ? `（${c.summary.slice(0, 24)}）` : ""}`;
     })
     .join("；");
   // ★ V3：背景卡 = 故事背景，纯文字、不发图（allocateRefs 不分配它），也不套"不得改动其外形"那句——
