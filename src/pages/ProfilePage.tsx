@@ -28,6 +28,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { showToast } from "../data/toast";
 import EmptyState from "../components/EmptyState";
+import LangChip from "../components/LangChip";
 import PageHeader from "../components/PageHeader";
 import { takedownReasonText } from "../api/admin";
 import HelpButton from "../components/guide/HelpButton";
@@ -417,6 +418,8 @@ export default function ProfilePage() {
         full
         icon="user"
         text="登录后可以创作视频、收藏卡片、管理卡组"
+        // 没登录也能换界面语言：设置页在 RequireAuth 后面，这一屏是未登录的人唯一找得到的入口之一
+        hint={<LangChip />}
         cta={{ label: "登录 / 注册", to: "/login?next=/me", primary: true }}
       />
     );
@@ -1069,7 +1072,7 @@ function CutSessionBanner() {
       <div className="text-xs font-semibold text-cyan-100">有一条剪到一半的成片</div>
       <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
         {segCount} 段{deckCount > 0 ? ` · 卡组 ${deckCount} 张已经铸好` : ""} ·{" "}
-        {cut.at ? relativeTime(cut.at) : "刚刚"}
+        {relativeTime(cut.at || Date.now())}
         {/* ★ 这句要说清"为什么值得回去"：里面是**已经花过钱**的东西 */}
         <br />
         <span className="text-slate-400">这些是已经花过 token 生成的内容，丢掉就得重做一遍。</span>

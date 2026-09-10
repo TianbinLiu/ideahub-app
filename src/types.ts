@@ -1,4 +1,5 @@
 // 全局领域类型：卡片 / 节点树 / 视频
+import { i18n } from "@lingui/core";
 export type CardType = "character" | "scene" | "background" | "prop" | "style";
 
 export const CARD_TYPES: CardType[] = ["character", "scene", "background", "prop", "style"];
@@ -1415,20 +1416,49 @@ export function formatDuration(totalSec: number): string {
   return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
+/** 英文 compact 数字（10K / 1.2M）的格式器，按需建一次 */
+let enCompact: Intl.NumberFormat | null = null;
+
+/**
+ * 播放 / 点赞 / 热度的数字 —— 唯一实现，**按界面语言分派**（多语言方案 §5.6）。
+ * ★ 中文分支保留手写「x.x万」：Intl 的 zh-CN compact 会把 10000 写成「1万」、123456 写成「12万」，与现有界面对不上。
+ * ★ 英文用 Intl compact（12.3K / 1.2M）。读的是当前激活的 locale：切语言后下一次渲染就换（App 根订阅了 locale）。
+ */
 export function formatPlays(n: number): string {
+  if (i18n.locale === "en") {
+    enCompact ??= new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
+    return enCompact.format(n);
+  }
   if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
   return String(n);
 }
 
+/**
+ * 相对时间 —— 唯一实现，**按界面语言分派**（多语言方案 §5.6）。
+ * ★ 中文分支一个字不改（原来的手写版）：换成 Intl 在 node 上逐字相同（2026-09-10 实测 11 个时间点），但 WebView 自带的
+ *   ICU 版本不由我们定，中文界面不冒这个险。
+ * ★ 英文：just now / Intl.RelativeTimeFormat（numeric:"always" —— auto 会出 "now" 一类的词，与「刚刚」那一档打架）/
+ *   同年只写月日、跨年加年。
+ */
 export function relativeTime(at: number): string {
   const diff = Date.now() - at;
   const min = Math.floor(diff / 60000);
+  const d = new Date(at);
+  const now = new Date();
+  if (i18n.locale === "en") {
+    if (min < 1) return "just now";
+    const rtf = new Intl.RelativeTimeFormat("en", { numeric: "always" });
+    if (min < 60) return rtf.format(-min, "minute");
+    const hours = Math.floor(min / 60);
+    if (hours < 24) return rtf.format(-hours, "hour");
+    const opts: Intl.DateTimeFormatOptions =
+      d.getFullYear() === now.getFullYear() ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" };
+    return new Intl.DateTimeFormat("en", opts).format(d);
+  }
   if (min < 1) return "刚刚";
   if (min < 60) return `${min}分钟前`;
   const h = Math.floor(min / 60);
   if (h < 24) return `${h}小时前`;
-  const d = new Date(at);
-  const now = new Date();
   if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}月${d.getDate()}日`;
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }

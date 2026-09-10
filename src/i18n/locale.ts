@@ -17,6 +17,16 @@ function read(k: string): string | null {
   }
 }
 
+/** 写入显式选择；null = 跟随系统（删掉这个键 —— 绝不写检测结果）。存不住（隐私模式）也不抛，只是下次开机不记得 */
+export function writeExplicitLang(l: Lang | null): void {
+  try {
+    if (l) localStorage.setItem(KEY, l);
+    else localStorage.removeItem(KEY);
+  } catch {
+    /* 存不住就只在这次会话里生效：activateLang 照样会切 */
+  }
+}
+
 /** 用户显式选过的语言；null = 跟随系统 */
 export function explicitLang(): Lang | null {
   const v = read(KEY);
