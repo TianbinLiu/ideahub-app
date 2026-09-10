@@ -342,7 +342,7 @@ export const TOURS: GuideTour[] = [
         body: (
           <>
             第三条，也是默认那条：AI 从整段视频里<b className="font-bold text-slate-100">均匀抽</b>几帧看（你只定抽几帧），
-            总结画风质感、运镜与分镜骨架，再提炼可复用的场景／道具卡。帧数越多认得越准，也越贵。
+            总结画风质感、运镜与分镜骨架，再提炼可复用的场景／道具卡。帧数越多认得越准，价钱不变。
             它<b className="font-bold text-slate-100">不出片、不把你的视频传上公网，也是三条里唯一不需要付费套餐的</b>。
           </>
         ),
@@ -501,8 +501,10 @@ export const TOURS: GuideTour[] = [
   {
     id: "trim",
     title: "选段与裁剪",
-    // v2（2026-08-28 审计修）：老版漏了整块「AI 看哪几帧」（它直接影响认不认得出人、
-    // 也直接进报价），且 trim-crop 锚点圈的是说明文字不是裁剪框本体。
+    // v2（2026-08-28 审计修）：老版漏了整块「AI 看哪几帧」（它直接影响认不认得出人），
+    // 且 trim-crop 锚点圈的是说明文字不是裁剪框本体。
+    // ★ 2026-09-10：第一步原来写"看的帧越多越贵"—— 不对，看帧是一次 chat 定额（economy.blockoutTemplateCost），
+    //   这一发的钱只随时长变。只改措辞。
     version: 2,
     steps: [
       {
@@ -510,7 +512,7 @@ export const TOURS: GuideTour[] = [
         body: (
           <>
             框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面
-            「AI 看哪几帧」。三样一起决定<b className="font-bold text-slate-100">这一发多少钱</b>（时长越长、看的帧越多越贵），
+            「AI 看哪几帧」，决定它认不认得全画面里的人。<b className="font-bold text-slate-100">这一发多少钱</b>只看时长（越长越贵，多看几帧不额外收费），
             而钱一开始算就退不了。
           </>
         ),

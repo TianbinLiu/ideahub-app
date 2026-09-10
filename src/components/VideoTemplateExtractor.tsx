@@ -605,7 +605,8 @@ export default function VideoTemplateExtractor({
   // ★ 白模路在本组件里**不报价**：它一个 token 都不花（不上传、不抽帧、不调视觉），
   //   真正的两笔钱（看帧列人物 + 白模化出片）由编辑页按 economy.blockoutizeCost 整句报出
   //   —— 在这里先报一个只含视觉那一半的数，就是把最先花掉的那笔藏起来。
-  const estimate = templateCost(frameN, TEMPLATE_MAX_CARDS);
+  // ★ 不吃 frameN：看图按调用次数收（配方 + 认卡两次 chat 定额），选 4 帧还是 8 帧价钱一样（economy.mintQuote 的 ★★）
+  const estimate = templateCost(TEMPLATE_MAX_CARDS);
 
   /**
    * 白模化这条路**这个账号现在能不能走**（null = 能）。判据是
@@ -782,9 +783,9 @@ export default function VideoTemplateExtractor({
    * @param n 抽几帧。★ **必须由调用方显式传**，不能在函数体里读 frameN：
    *   改帧数那颗按钮是 `setFrameN(n)` 紧跟着 `pick(file)`，而 setState 是异步的 ——
    *   函数体读到的还是**上一次**的 frameN，于是"界面高亮 8 帧、实际只抽了 6 帧"。
-   *   这条不是显示瑕疵：报价读 frameN（estimate）、结算读 frames.length（run 里的
-   *   spendTokens），两边就此各算各的 —— 正是 CLAUDE.md「页面报价 ¥25、实际扣 ¥15」
-   *   那条坑的形状，而且两个方向都不报错。（2026-08-15 对抗审查抓到，白模路与经典路同病。）
+   *   （2026-08-15 对抗审查抓到，白模路与经典路同病。当时这还是一笔钱的分叉 —— 报价读 frameN、
+   *   结算读 frames.length；2026-09-10 起看图按调用次数收、帧数不进价钱，剩下的是"说 8 帧、看 6 帧"
+   *   这句假话本身，照样不许读 frameN。）
    */
   async function pick(f: File, n: number = frameN) {
     setErr("");
@@ -1029,7 +1030,7 @@ export default function VideoTemplateExtractor({
       //   报价（blockoutCardsCost）在上一屏与白模化那两笔并排说过；余额不够就只做模板、把话说清（铁律八）
       let cardsNote = "";
       if (frames.length > 0) {
-        const quote = blockoutCardsCost(frames.length);
+        const quote = blockoutCardsCost();
         if (AI_REAL && !canAfford(quote)) {
           cardsNote = `；素材卡没铸（最多需 ${fmtTokens(quote)} token，余额不够）`;
         } else {
@@ -1081,7 +1082,7 @@ export default function VideoTemplateExtractor({
         },
         { blockout: false },
       );
-      // 实际结算：按真实调用逐笔记（看帧两遍 + 文案 + 真出的图 + 去人复核，real.extractTemplateFromVideo 记的），只会比 templateCost 的上限少
+      // 实际结算：按真实调用逐笔记（看图两次 + 真出的图 + 去人复核，real.extractTemplateFromVideo 记的），只会比 templateCost 的上限少
       if (AI_REAL) spendTokens(r.tokens);
       const tpl = saveTemplate({
         title: r.title,
@@ -1528,7 +1529,7 @@ export default function VideoTemplateExtractor({
                     {route !== "ownRef" && frames.length > 0 && (
                       <p className="text-[11px] leading-relaxed text-slate-400">
                         另外会从原片提炼素材卡（场景 / 道具 / 风格，最多 {TEMPLATE_MAX_CARDS} 张，按实际出的收，最多{" "}
-                        {fmtTokens(blockoutCardsCost(frames.length))}）。
+                        {fmtTokens(blockoutCardsCost())}）。
                       </p>
                     )}
                     {/* 标题：aiBlockout 路只有这一屏，在这里填；ownRef 路挪到第 2 步（提交那一屏）填 */}
@@ -1652,7 +1653,7 @@ export default function VideoTemplateExtractor({
                 {!blockout && (
                   <>
                     <div className="mb-3">
-                      <div className="mb-1.5 text-xs text-slate-400">分析帧数（越多认得越准，也越贵）</div>
+                      <div className="mb-1.5 text-xs text-slate-400">分析帧数（越多认得越准，价钱不变）</div>
                       <div className="flex gap-2">
                         {FRAME_CHOICES.map((n) => (
                           <button

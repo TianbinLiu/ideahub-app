@@ -2151,7 +2151,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         const names = new Set(deckCards.map((c) => c.name));
         const fresh = derived.cards.filter((c) => !names.has(c.name));
         deckCards.push(...fresh);
-        // ★ V3：按真实调用结算（看帧 + 文案 + 真出的图 + 去人复核，real.mintCards 逐笔记），只会比 deckCardsCost 的上限少
+        // ★ V3：按真实调用结算（看片一次 chat + 真出的图 + 去人复核，real.deriveDeckCards 逐笔记），只会比 deckCardsCost 的上限少
         if (AI_REAL && derived.tokens > 0) spendTokens(derived.tokens);
         // 3D 画风的作品：给派生的角色卡自动铸 3D 建模（Seed3D，上限 DECK_MAX_3D 个）。
         // ★★ 触发判定走 economy.styleWants3d —— **报价（FlowPage 顶栏 / 「完成视频」

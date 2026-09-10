@@ -123,6 +123,10 @@
 - 服务端结算是按每次方舟调用透传扣费的（`billedForward`），客户端只要报价口径与真实调用序列一致即可，
   不需要改服务端价目。
 
+> **2026-09-10 更正**：上面「帧数 × 900」是错的 —— 服务端 `priceOf` 对 chat **按调用定额**（`CHAT_TURN_TOKENS`），
+> 看图塞几帧都是一次 chat 的价；`mintCards` 里也**没有**逐张文案那一趟（卡名 / 简介在看图那一次里一起出）。
+> 报价与实收都改成「chat 调用次数 × `CHAT_TURN_TOKENS` + 出图张数 × `IMAGE_TOKENS`」，单位只在 `economy.mintQuote`。
+
 ### 6. 要改的地方（实现清单）
 
 - `types.ts`：`CARD_SLOTS` 的 background / style 读法与 `CARD_INFO_LABELS`；`docs/api-contract.md` 的 `views[].kind` 表同步。

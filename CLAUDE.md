@@ -121,9 +121,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   `allocateRefs` 从不分配、三条提卡路一律不自动出；风格卡 = 画风 + 材质 + 色调光影 + 镜头语言，出片句（`idLine`）
   同时进 `frameArtStyle` 与视频提示词。提卡的措辞纪律（禁「参考视频 / 复刻 / 还原 / 一致」）在 `real.sanitizeCardDefs`
   用正则复核，白模段的点名骨架句在提炼前由 `stripBlockoutSkeleton` 剥掉。**卡面贴合原片**（第二期）：成片提炼看
-  Cloudinary 抽帧（`deckFrameUrls`，与报价的 `DECK_VISION_FRAMES` 同一个数），场景卡面 = 原帧去人留景 + 视觉复核、不干净退回
+  Cloudinary 抽帧（`deckFrameUrls`，最多 `DECK_VISION_FRAMES` 帧），场景卡面 = 原帧去人留景 + 视觉复核、不干净退回
   原帧（`sceneCoverFromFrame`），道具卡面 = 原帧按位置框裁剪（0 token），风格样张 = 原帧本身；三条提卡路的**实收由
   `mintCards` 逐笔记的 `tokens` 结算**（`deckCardsCost` / `extractCost` / `templateCost` 只是上限），`*Settle` 那几个函数已删。
+  **看图按调用次数算、不按帧**（2026-09-10）：服务端对 chat 定额收 `CHAT_TURN_TOKENS`，塞几帧都一样；`mintCards` 里没有逐张文案
+  那一趟。报价与记账的单位只在 `economy.mintQuote`（chat 次数 × `CHAT_TURN_TOKENS` + 出图张数 × `IMAGE_TOKENS`）。
   **V3 截线之前的非人物卡一律清掉**（`types.V3_CARD_WIPE_MS`；服务端 2026-09-06 已清，本机由 `account.ts` 的 V3 清库、
   `templates.readyTemplates`、`studioStore.openWorkDraft` 按截线过滤——按时间判不按卡种判，截线之后铸的 V3 卡要留）。
   白模模板的素材卡从**原片**抽帧铸（`real.extractTemplateCards`，登记那一屏报 `blockoutCardsCost`）。
@@ -474,8 +476,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 新增数据字段没写迁移 | 老设备读到 `undefined`，静默显示 0 | 在 `src/data/videos.ts` 的迁移分支里加条件 |
 | 给 `DraftVideo` 加了字段，服务端却存不下 | 客户端发了、服务端 201 了、读回来是空的，全程零报错 | server 的 `schemas/branchVideo.schemas.js` 用 `z.object`，**默认 strip 未声明字段**。加字段必须同步声明一次（`deck` 就这么丢过） |
 | 后加的字段用 `=== "预期值"` 判 | 存量数据那一项是 `undefined`，被整批判成"不是"——首页突然空了，且不报错 | 一律判**否定**（`!== "private"`）。`visibility` 踩过，规则写在 `docs/api-contract.md`「可见性」一节 |
-| 两仓价目表各写各的 | 页面报价 ¥25、实际扣 ¥15，用户觉得被偷钱 | `src/data/economy.ts` 是**报价**，server 的 `payment/order.service.js` + `config/tokens.js` 是**结算**，必须逐条相等。server 的 `payOrder.spec.js` 末尾钉了一份 |
-| 「最多出几张卡」的上限自己抄一份（报价一份、提示词一份、`slice` 一份） | 上一条的**同仓版**：界面按 6 张报价、实际铸了 8 张，多出的两张卡面照扣钱。改上限时改一处漏三处**没有任何症状**——只会变成报价与实收不等，两个方向都不报错 | 上限只有一处：`economy.DECK_MAX_CARDS` / `TEMPLATE_MAX_CARDS`，类型是 `CardMintCap`（带牌子的 number），报价函数与 `mintCards` 都只收它 —— `extractCost(n, 8)` 这种手写数字**编译不过**。提示词里那个数由 `real.ts` 的 `mintSpec(cap, head, tail)` **插值**进去（调用方只给前后两半文字，拿不到写那个数的机会），`mintCards` 切的是同一个 `spec.cap`。2026-08-13 收口，收之前模板那条路已经是错的（提示词 `0~6`、slice 切 8、报价按 6） |
+| 两仓价目表各写各的 | 页面报价 ¥25、实际扣 ¥15，用户觉得被偷钱 | `src/data/economy.ts` 是**报价**，server 的 `payment/order.service.js` + `config/tokens.js` 是**结算**，必须逐条相等。server 的 `payOrder.spec.js` 末尾钉了一份（只钉充值包与套餐；出图单价钉在 `arkProxy.spec.js`，**chat 定额没有钉**）。⚠ 服务端按**调用**计价、不按内容量：看图（`chatVision`）塞几帧都是一次 chat = `CHAT_TURN_TOKENS`，按帧报价在 2026-08-17（白模）与 2026-09-10（四条提卡路 + `mintCards` 记账）各栽过一次 |
+| 「最多出几张卡」的上限自己抄一份（报价一份、提示词一份、`slice` 一份） | 上一条的**同仓版**：界面按 6 张报价、实际铸了 8 张，多出的两张卡面照扣钱。改上限时改一处漏三处**没有任何症状**——只会变成报价与实收不等，两个方向都不报错 | 上限只有一处：`economy.DECK_MAX_CARDS` / `TEMPLATE_MAX_CARDS`，类型是 `CardMintCap`（带牌子的 number），报价函数与 `mintCards` 都只收它 —— `extractCost(8)` 这种手写数字**编译不过**。提示词里那个数由 `real.ts` 的 `mintSpec(cap, head, tail)` **插值**进去（调用方只给前后两半文字，拿不到写那个数的机会），`mintCards` 切的是同一个 `spec.cap`。2026-08-13 收口，收之前模板那条路已经是错的（提示词 `0~6`、slice 切 8、报价按 6） |
 | 想在「发布之后」读工坊画布 | 每条作品都留下一份**空画布**，而不变量断言对空画布恒过、零报错 | 组稿成功那一拍 `useFlowActions.cut()` 里 `useFlow.getState().reset()` 就把 `nodes` 清成 `[]` 了（`flowStore.reset`），此后剪辑页/发布页读到的恒为空。要抓画布只有一个位置：`persistCutDraft()` **之后**、`reset()` **之前**，并当场落 IndexedDB（`data/projects.captureCanvas`）。退回"发布前读 WorkDraft 正文"也不行 —— `saveWorkDraft` 对 `mode === "simple"` 直接不落草稿，简约模式一份都拿不到 |
 | 往 `Proposal.firstFrame` / `lastFrame` / `poster` 里塞对象当墓碑（`{lost:"frame"}`） | 三条规则同时坏掉且**全是零报错或错报错**：承接判定 `p.firstFrame === prevP.lastFrame` 变成对象引用比较恒 false；`refVideoOn` 与白模 `blockoutIssue` 见它非空整句拒 ⇒ 回炉打开的白模段/参考直出段被自己的墓碑挡住出不了片；所有 `?.startsWith("data:")` 抛 TypeError | 这几格是 `string`。缺失一律用**该字段本来就有的"没有"值**（`""` / `undefined`），"为什么没有"记在旁挂的可选字段 `Proposal.lost` 里（`types.ts`）。`lost` **只管渲染**，一个判据都不参与 |
 | 以为 `design/` 里的模型可以随便打包 | —— | 那是 BOOTH 购入的第三方素材，出厂分发需先取得授权，见下 |

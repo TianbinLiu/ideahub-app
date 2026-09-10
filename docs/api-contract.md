@@ -2043,7 +2043,7 @@ V2 这条链路**花两次真钱**，报价页必须**两笔都写明**，不许
 
 | 步骤 | 计价 | 备注 |
 |---|---|---|
-| 看帧列人物（blockoutize 第 6 步） | 一次 chat（按**帧数**计） | App 侧 `blockoutizeCost(frameCount, …)` 的第一项，`frameCount` 由 `visionFrameCount(durSec, frameTimes)` 现算（自动 = 按时长，自己挑 = 标了几帧）。回包的 `frames` 是实收口径 |
+| 看帧列人物（blockoutize 第 6 步） | 一次 chat，定额 `CHAT_TURN_TOKENS`（**与帧数无关**：服务端 `priceOf` 对 chat 按调用收，塞几张图都一样） | App 侧 `blockoutizeCost(frameCount, …)` 的第一项（`blockoutTemplateCost`，恒为一次 chat 的价）。`frameCount` 由 `visionFrameCount(durSec, frameTimes)` 现算（自动 = 按时长，自己挑 = 标了几帧），只决定看得全不全、不决定钱；回包的 `frames` 是服务端真正看了几帧 |
 | **白模化出片**（第 7 步） | `r2vTokens(durSec)` | `durSec` = 编辑页框选的那一段（走上面的分支二） |
 | 套用出片 | `r2vTokens(template.refVideo.durationSec)` | 走分支一，与 V1 一致 |
 

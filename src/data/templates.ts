@@ -1491,13 +1491,14 @@ export function saveTemplate(t: NewTemplate): VideoTemplate {
 //   ⇒ 帧数必须跟着素材走：短片也别只看 3 帧，人数会变的素材还要让用户自己指定看哪几帧。
 //
 // ★★ 这几个数是**服务端 `routes/branchTemplate.routes.js` 的跨仓镜像**，两边必须逐字相等：
-//   它们是**报价的输入**（`economy.blockoutizeCost(frameCount, durSec)` 的前一半），
-//   猜一个数就是本仓头号事故的形状 —— 页面按 6 帧报价、服务端按 3 帧扣钱，两个方向都不报错。
+//   界面上那句「AI 看 N 帧」读的就是它们，猜一个数就是在跟用户说一件没发生的事。
 //   服务端改了公式就必须同步改这里（跨仓无法共码，契约见 docs/api-contract.md「白模模板」）。
+//   ⚠ 它们**不决定钱**（这里原来写的是"报价的输入"）：看帧那一笔是一次 chat，服务端按调用定额收，
+//   与看几帧无关（economy.blockoutTemplateCost 2026-08-17 改的；按帧计价的常量 2026-09-10 删了）。
 // ★ 阶段一回包会带回**服务端真正看了几帧**（`BlockoutStartResult.frames`）：与本机这份
 //   算出来的对不上时以服务端为准，并在进度里如实说一句（见 blockoutizeTemplate 的 ★★）。
 
-/** 自动模式：每多少秒取一帧。★ 一帧几百 token（VISION_FRAME_TOKENS），比"漏掉一个人"便宜得多 */
+/** 自动模式：每多少秒取一帧。★ 多看几帧不多花钱（一次 chat 定额），只是请求更大、更慢 —— 比"漏掉一个人"划算得多 */
 export const BLOCKOUTIZE_FRAME_EVERY_SEC = 1.5;
 /** 自动模式的下限。★ 4 秒的素材按 1.5 秒一帧只有 3 帧 —— 这是**下限兜住的**，不是巧合 */
 export const BLOCKOUTIZE_FRAME_MIN = 3;
@@ -2679,13 +2680,13 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
   }
 
   /**
-   * 服务端**真正看了几帧**与本机报价用的那个数对不上 —— 以服务端为准，并把这件事
+   * 服务端**真正看了几帧**与本机算的那个数对不上 —— 以服务端为准，并把这件事
    * 如实说出来（贴在之后每一句进度话的后面）。
    *
-   * ★★ 为什么不能默默按本机那个数继续显示：帧数就是钱（视觉那一半 = 帧数 ×
-   *   VISION_FRAME_TOKENS）。两边不等时界面上那句"AI 看 N 帧（xx token）"就是错的，
-   *   而这是本仓头号事故的形状（页面报 ¥25、实际扣 ¥15），两个方向都不报错。
-   *   会走到这里的正常原因只有一个：服务端的自动公式改了、本机镜像还没跟上。
+   * ★★ 为什么不能默默按本机那个数继续显示：界面上那句「AI 看 N 帧」是用户认下这一发的依据之一，
+   *   两边不等它就是一句假话，而且零报错。会走到这里的正常原因只有一个：服务端的自动公式改了、
+   *   本机镜像还没跟上。（这里原来写的是"帧数就是钱"—— 不对：看帧那一笔是一次 chat 定额，
+   *   与几帧无关，见 economy.blockoutTemplateCost。）
    * ★ 为什么**贴在每一句后面**而不是单独 prog 一次：5 秒后第一次轮询就会把它盖掉，
    *   而这一整段等待里用户能看到的只有那一行进度话。
    * ★ 服务端没说（frames = 0，老服务端）就什么都不说：编不出来的话不许编。
@@ -2693,7 +2694,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
   const serverFrames = started.job.frames;
   const framesNote =
     serverFrames > 0 && serverFrames !== frames
-      ? `（服务端实际看了 ${serverFrames} 帧，与本机报价用的 ${frames} 帧不同，以服务端为准）`
+      ? `（服务端实际看了 ${serverFrames} 帧，与本机算的 ${frames} 帧不同，以服务端为准；价钱不受影响）`
       : "";
   const say = framesNote ? (s: string) => prog(`${s}${framesNote}`) : prog;
 
