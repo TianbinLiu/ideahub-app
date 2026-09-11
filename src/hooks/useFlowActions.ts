@@ -11,6 +11,7 @@
 //   同一批常量（studioStore.deckQuoteOf）—— 报什么价就收什么钱（CLAUDE.md 那条铁律）。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import { t } from "@lingui/core/macro";
 import { AI_REAL } from "../ai";
 import { fmtTokens } from "../data/economy";
 import { nodeDone, useFlow } from "../studio/flowStore";
@@ -80,7 +81,7 @@ export function useFlowActions(opts?: {
         }
         if (!ok)
           useFlow.setState({
-            err: "这一段炼好了，但自动存草稿失败（存储空间不足或浏览器隐私模式）——先别离开这一页，点上面的「存草稿」再试一次",
+            err: t`这一段炼好了，但自动存草稿失败（存储空间不足或浏览器隐私模式）——先别离开这一页，点上面的「存草稿」再试一次`,
           });
       })();
     }
@@ -94,18 +95,19 @@ export function useFlowActions(opts?: {
    *   火山账单对过）、以及余额不足会自动跳过（那是 finalizeFromFlow 真实的行为，
    *   不写的话用户会以为钱不够就完不成片）。
    */
+  const maxCards = deck.maxCards;
+  const cardsTok = fmtTokens(deck.cards);
+  const max3d = deck.max3d;
+  const model3dTok = fmtTokens(deck.model3d);
+  // ★ 有没有 3D 那半句按两种情况整句各写一份，不拼碎片（换成英文，拼出来的标点与语序都不对）
   const deckNote =
     deck.on && AI_REAL
-      ? [
-          `点「完成视频」还会提炼本片卡组：你挂过的卡直接入组，缺的卡种 AI 补齐（风格卡必有；背景卡是你写的故事背景，不自动出），最多 ${deck.maxCards} 张、约 ${fmtTokens(deck.cards)} token`,
-          deck.wants3d
-            ? `；这条片写了 3D / 建模一类的画风，还会给派生的角色卡铸最多 ${deck.max3d} 个 3D 建模，另约 ${fmtTokens(deck.model3d)} token`
-            : "",
-          "。都按实际出卡结算，余额不够会自动跳过（成片不受影响）。",
-        ].join("")
+      ? deck.wants3d
+        ? t`点「完成视频」还会提炼本片卡组：你挂过的卡直接入组，缺的卡种 AI 补齐（风格卡必有；背景卡是你写的故事背景，不自动出），最多 ${maxCards} 张、约 ${cardsTok} token；这条片写了 3D / 建模一类的画风，还会给派生的角色卡铸最多 ${max3d} 个 3D 建模，另约 ${model3dTok} token。都按实际出卡结算，余额不够会自动跳过（成片不受影响）。`
+        : t`点「完成视频」还会提炼本片卡组：你挂过的卡直接入组，缺的卡种 AI 补齐（风格卡必有；背景卡是你写的故事背景，不自动出），最多 ${maxCards} 张、约 ${cardsTok} token。都按实际出卡结算，余额不够会自动跳过（成片不受影响）。`
       : // 勾了「只出片」：报价行也要如实换话——空着的话用户看不出这个选择生效了没有
         deckOff && mode !== "simple"
-        ? "已选择只出片：这次「完成视频」不提炼卡组，也不收那笔钱。"
+        ? t`已选择只出片：这次「完成视频」不提炼卡组，也不收那笔钱。`
         : "";
 
   /** 存盘。失败要说出来：配额满/隐私模式下 IndexedDB 写不进去，
@@ -114,7 +116,7 @@ export function useFlowActions(opts?: {
     setSaveState("saving");
     const meta = await useStudio.getState().saveWorkDraft({ from: "flow" });
     setSaveState(meta ? "saved" : "failed");
-    if (!meta) useFlow.setState({ err: "草稿保存失败（存储空间不足或浏览器隐私模式）" });
+    if (!meta) useFlow.setState({ err: t`草稿保存失败（存储空间不足或浏览器隐私模式）` });
     setTimeout(() => setSaveState("idle"), 2200);
   }
 
@@ -132,11 +134,11 @@ export function useFlowActions(opts?: {
     //     而拒绝在这里只有一处实现，出路就在他刚看过的那条横幅上。）
     if (cutSession()) {
       useFlow.setState({
-        err: "你还有一条剪到一半的成片（里面的卡组已经铸好、花过 token 了）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。",
+        err: t`你还有一条剪到一半的成片（里面的卡组已经铸好、花过 token 了）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。`,
       });
       return;
     }
-    setFinalizing("组稿中…");
+    setFinalizing(t`组稿中…`);
     try {
       // ★ mode 与 deckOff 同一拍从 store 现读：报价（deckQuoteOf）读的就是这两个 ——
       //   报什么价就收什么钱
@@ -192,12 +194,15 @@ export function useFlowActions(opts?: {
         // ★ replace 而不是 push：组稿成功那一下 reset() 已经把流水线清空了，历史里这一格
         //   就是个死页 —— 从剪辑页按返回退到它，它当场又把人 replace 走，白闪一下
         // 两句话拼成一条横幅：它们说的是同一件事的两半（"这摊活的备份到底有没有存住"）
-        const warn = [
-          why ? `卡组已经铸好了，但${why}——现在切后台会丢掉它，请先把片子剪完发出去。` : "",
-          capWhy ? `${capWhy}。` : "",
-        ]
-          .filter(Boolean)
-          .join("");
+        // ★ 三种组合整句各写一份：碎片拼接在英文里会缺句间空格
+        const warn =
+          why && capWhy
+            ? t`卡组已经铸好了，但${why}——现在切后台会丢掉它，请先把片子剪完发出去。${capWhy}。`
+            : why
+              ? t`卡组已经铸好了，但${why}——现在切后台会丢掉它，请先把片子剪完发出去。`
+              : capWhy
+                ? t`${capWhy}。`
+                : "";
         navigate("/cut", {
           replace: true,
           ...(warn ? { state: { warn } } : {}),
@@ -205,7 +210,8 @@ export function useFlowActions(opts?: {
       }
     } catch (e) {
       console.warn("[flow] 组稿失败:", e);
-      useFlow.setState({ err: `组稿失败：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}` });
+      const reason = (e instanceof Error ? e.message : String(e)).slice(0, 120);
+      useFlow.setState({ err: t`组稿失败：${reason}` });
     } finally {
       setFinalizing("");
     }

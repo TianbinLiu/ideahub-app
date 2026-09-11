@@ -52,54 +52,6 @@
    "eeaa90433e2ee8e7": 1,
    "ef48b50c71682662": 1
   },
-  "src/ai/index.ts": {
-   "1241d84b97a6d802": 1,
-   "1964fb899808f6ee": 1,
-   "2d648421d143216c": 1,
-   "45bcca9c97ee517a": 1,
-   "68444ccda2234ad9": 1,
-   "6905fa234aec2cc8": 1,
-   "6edabfd32226c266": 1,
-   "73187b8291085d70": 1,
-   "a1880f698b418cb9": 1,
-   "a8bab7d52a4f9b36": 1,
-   "ad7def8502a083fd": 1,
-   "b8bb31e17014487c": 1,
-   "ca86dbfe3bbd017f": 1,
-   "e36498fc8e1949c9": 1,
-   "ebb8fbd9d887b0e6": 1,
-   "f50a7a83e500c40a": 1,
-   "f54bdad64cc9d27c": 1,
-   "fa4e33b698532341": 1,
-   "fec1af9c5d1ca3ac": 1
-  },
-  "src/ai/minimaxVideo.ts": {
-   "1c71b595e54e9706": 1,
-   "36183fb49e3b1343": 1,
-   "381ea3ac5eebd7e6": 2,
-   "40dfb4039ef01004": 1,
-   "4d8dbf0309deda0c": 1,
-   "507a2715a0644e1b": 1,
-   "524cad00bcf73efb": 1,
-   "53f41d66eb3e7f43": 1,
-   "63759270b7de7c28": 1,
-   "6cd904c41a167995": 1,
-   "701b68eadd608e4c": 1,
-   "711363c4247457a0": 2,
-   "71ff38ea3d54fff4": 1,
-   "79f0112e56b58fad": 1,
-   "8b31ad52a54f777d": 1,
-   "9a7878e7d10205c1": 1,
-   "a5e3a6d5a4bb5146": 1,
-   "a625cdad56ab217c": 1,
-   "be65724f88c9af3c": 1,
-   "c571527b38ec37d9": 1,
-   "cf0d432d88f5f89e": 1,
-   "cfb281f66b01aefb": 1,
-   "d46431a3abf226a4": 1,
-   "d9c32a4c3dda1c37": 1,
-   "fcbd0932929ec7e6": 1
-  },
   "src/ai/real.ts": {
    "0019f8a4fa0b1b49": 1,
    "01141e305dde9a6c": 1,
@@ -433,9 +385,6 @@
   "src/components/BrandIcon.tsx": {
    "68406df395e4974a": 1
   },
-  "src/components/DanmakuGlyph.tsx": {
-   "8dae9fd3c64f1bae": 1
-  },
   "src/components/DanmakuInput.tsx": {
    "19abbc6d0f1d2e1e": 1,
    "3c06abe116516cfd": 1,
@@ -615,9 +564,6 @@
    "f9335772076c6ef4": 1,
    "fadb1c0b48e494ad": 2,
    "fbd5b75066a6dc39": 2
-  },
-  "src/components/blockout/RoleCastBoard.tsx": {
-   "7823e22c30c1bfce": 1
   },
   "src/components/blockout/arkVideoRules.ts": {
    "059f5dd175ab95c0": 1,
@@ -1521,29 +1467,6 @@
    "f6f4a3b8fe61520c": 1,
    "fe44c872d7433872": 1
   },
-  "src/hooks/useCastReturn.ts": {
-   "2ee50ddc4eb4c64a": 1
-  },
-  "src/hooks/useFlowActions.ts": {
-   "22556770c1f8521e": 1,
-   "3b2e461c87fa3486": 1,
-   "3b33c197775effcf": 1,
-   "5cf100172215f9ed": 1,
-   "71375ac94c1359d7": 1,
-   "ae69aadb77d37bae": 1,
-   "c842e76b924e1294": 1,
-   "dae9900c88ff4da8": 1,
-   "e9cb99bce007657c": 1,
-   "efe0684dd255699c": 1
-  },
-  "src/main.tsx": {
-   "4ad1a0ce6d515a97": 1,
-   "9b13bbf94101da29": 1
-  },
-  "src/mock/frames.ts": {
-   "9302e067d4348a99": 1,
-   "9419fd04b79fda33": 2
-  },
   "src/pages/EditPage.tsx": {
    "48c6ae4560b9cc11": 1,
    "639f2627f0c9093b": 1
@@ -1848,37 +1771,6 @@
    "f02fb4430f6e8c04": 2,
    "f14ea178870c0d4a": 2,
    "ff08ef7487e671da": 1
-  },
-  "src/utils/image.ts": {
-   "0ab5f0ead9e4ad5d": 4,
-   "27aa05ec9bed24d3": 1,
-   "3a55b68007f4e2e4": 1,
-   "4f01c113de05b598": 1,
-   "4f405e2bf9212ce9": 3,
-   "7b96a416ffd22218": 2,
-   "9e9ce0e93292013d": 1,
-   "e7932a49eea18816": 1,
-   "ed35aa73452409d9": 1,
-   "ff8c799a7e1db3b6": 1
-  },
-  "src/utils/mediaUrl.ts": {
-   "4675321ec2a7473f": 1,
-   "7c3a3e7c1e6841a6": 1,
-   "939da340aa285507": 1
-  },
-  "src/utils/nativeMerge.ts": {
-   "34d3df9ab20ec4a7": 1,
-   "59b5361d89a2c69c": 1,
-   "77fe948046c94f85": 1,
-   "b89984ed66a86914": 1
-  },
-  "src/utils/oauth.ts": {
-   "46a24c65204e4440": 1,
-   "8052d8c260e2ee66": 1
-  },
-  "src/utils/wav.ts": {
-   "7d06cdbffaf69672": 1,
-   "f436315058cb045b": 1
   }
  }
 }

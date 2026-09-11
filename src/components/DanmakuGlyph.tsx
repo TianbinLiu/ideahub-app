@@ -27,7 +27,10 @@ export default function DanmakuGlyph({
         // 在 26px 上看就是一个糊住的方块
         style={{ fontSize: Math.round(size * 0.58), lineHeight: 1 }}
       >
-        弹
+        {
+          // i18n-ignore-next-line: B 站同款「弹」字图标，是图形不是文案（英文界面画的也是这个字）
+          "弹"
+        }
       </span>
       {pen && (
         <Icon

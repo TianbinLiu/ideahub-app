@@ -2,6 +2,8 @@
 // 头像不该把用户相册里 4MB 的原图直接塞进库——离线模式会挤爆 IndexedDB，
 // 远端模式白白占 Cloudinary 流量。统一处理成 256px 见方、几十 KB。
 
+import { t } from "@lingui/core/macro";
+
 export interface SquareImage {
   /** 压缩后的 dataURL，可直接当 <img src> 或存库 */
   dataUrl: string;
@@ -24,7 +26,7 @@ export async function shrinkDataUrl(src: string, maxW = 320, quality = 0.72): Pr
     const img = await new Promise<HTMLImageElement>((res, rej) => {
       const im = new Image();
       im.onload = () => res(im);
-      im.onerror = () => rej(new Error("解码失败"));
+      im.onerror = () => rej(new Error(t`解码失败`));
       im.src = src;
     });
     const w = Math.min(maxW, img.naturalWidth || maxW);
@@ -100,7 +102,7 @@ export async function fileToRefImage(file: File, maxLong = 1024, quality = 0.85)
   const bitmap = await decodeImageFile(file);
   try {
     const { width: w, height: h } = bitmap;
-    if (w < REF_MIN_SIDE || h < REF_MIN_SIDE) throw new Error("这张图太小了，AI 认不出里面的东西");
+    if (w < REF_MIN_SIDE || h < REF_MIN_SIDE) throw new Error(t`这张图太小了，AI 认不出里面的东西`);
     const r = w / h;
     // 越界时按"能容下的最大居中矩形"裁：宽的裁宽、长的裁高
     const cw = r > REF_MAX_RATIO ? Math.round(h * REF_MAX_RATIO) : w;
@@ -111,11 +113,11 @@ export async function fileToRefImage(file: File, maxLong = 1024, quality = 0.85)
     canvas.width = Math.max(1, Math.round(cw * k));
     canvas.height = Math.max(1, Math.round(ch * k));
     const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("无法处理图片");
+    if (!ctx) throw new Error(t`无法处理图片`);
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(bitmap, Math.round((w - cw) / 2), Math.round((h - ch) / 2), cw, ch, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise<Blob>((res, rej) =>
-      canvas.toBlob((b) => (b ? res(b) : rej(new Error("图片编码失败"))), "image/jpeg", quality),
+      canvas.toBlob((b) => (b ? res(b) : rej(new Error(t`图片编码失败`))), "image/jpeg", quality),
     );
     return { blob, cropped };
   } finally {
@@ -147,7 +149,7 @@ async function encodeSquare(
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("无法处理图片");
+  if (!ctx) throw new Error(t`无法处理图片`);
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(src, crop.x, crop.y, crop.side, crop.side, 0, 0, size, size);
 
@@ -157,13 +159,13 @@ async function encodeSquare(
     blob && blob.type === "image/webp"
       ? blob
       : await new Promise<Blob>((res, rej) =>
-          canvas.toBlob((b) => (b ? res(b) : rej(new Error("图片编码失败"))), "image/jpeg", quality),
+          canvas.toBlob((b) => (b ? res(b) : rej(new Error(t`图片编码失败`))), "image/jpeg", quality),
         );
 
   const dataUrl = await new Promise<string>((res, rej) => {
     const fr = new FileReader();
     fr.onload = () => res(String(fr.result));
-    fr.onerror = () => rej(new Error("图片读取失败"));
+    fr.onerror = () => rej(new Error(t`图片读取失败`));
     fr.readAsDataURL(finalBlob);
   });
 
@@ -181,8 +183,8 @@ async function encodeSquare(
  *   HEIC、损坏的文件都是这一句，用户既读不懂，也不知道该怎么办。
  */
 export async function decodeImageFile(file: Blob): Promise<ImageBitmap> {
-  if (!file.type.startsWith("image/")) throw new Error("请选择图片文件");
-  if (file.size > MAX_INPUT_BYTES) throw new Error("图片太大了（超过 20MB）");
+  if (!file.type.startsWith("image/")) throw new Error(t`请选择图片文件`);
+  if (file.size > MAX_INPUT_BYTES) throw new Error(t`图片太大了（超过 20MB）`);
   try {
     return await createImageBitmap(file, { imageOrientation: "from-image" });
   } catch {
@@ -190,7 +192,7 @@ export async function decodeImageFile(file: Blob): Promise<ImageBitmap> {
     try {
       return await createImageBitmap(file);
     } catch {
-      throw new Error("这张图解不开（常见于 HEIC 等手机专有格式，或文件已损坏）——换成 JPG / PNG，或截个图再传");
+      throw new Error(t`这张图解不开（常见于 HEIC 等手机专有格式，或文件已损坏）——换成 JPG / PNG，或截个图再传`);
     }
   }
 }
@@ -243,7 +245,7 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((res, rej) => {
     const fr = new FileReader();
     fr.onload = () => res(String(fr.result));
-    fr.onerror = () => rej(new Error("图片读取失败"));
+    fr.onerror = () => rej(new Error(t`图片读取失败`));
     fr.readAsDataURL(blob);
   });
 }
@@ -260,7 +262,7 @@ export async function loadSubjectSource(blob: Blob): Promise<SubjectSource> {
     c.width = Math.max(1, Math.round(width * k));
     c.height = Math.max(1, Math.round(height * k));
     const g = c.getContext("2d");
-    if (!g) throw new Error("无法处理图片");
+    if (!g) throw new Error(t`无法处理图片`);
     g.imageSmoothingQuality = "high";
     g.drawImage(bitmap, 0, 0, c.width, c.height);
     return { image: c, width: c.width, height: c.height };
@@ -346,7 +348,7 @@ export async function composeSubjectImage(
   const s = outline ? lassoBounds(outline, box) : box;
   const short = subjectShortSide(s.w, s.h, outline ? "cutout" : "keep");
   if (short < REF_SHORT_REJECT) {
-    throw new Error(`这块太小了：折算只有 ${short} px，至少 ${REF_SHORT_REJECT} px——框大一点、描大一点再试`);
+    throw new Error(t`这块太小了：折算只有 ${short} px，至少 ${REF_SHORT_REJECT} px——框大一点、描大一点再试`);
   }
   let cw: number;
   let ch: number;
@@ -374,7 +376,7 @@ export async function composeSubjectImage(
   out.width = Math.max(1, Math.round(cw * k));
   out.height = Math.max(1, Math.round(ch * k));
   const g = out.getContext("2d");
-  if (!g) throw new Error("无法处理图片");
+  if (!g) throw new Error(t`无法处理图片`);
   g.imageSmoothingQuality = "high";
   g.fillStyle = SUBJECT_BG;
   g.fillRect(0, 0, out.width, out.height);
@@ -393,7 +395,7 @@ export async function composeSubjectImage(
   g.drawImage(src, s.x, s.y, s.w, s.h, dx * k, dy * k, s.w * k, s.h * k);
   if (outline) g.restore();
   const blob = await new Promise<Blob>((res, rej) =>
-    out.toBlob((b) => (b ? res(b) : rej(new Error("图片编码失败"))), "image/jpeg", quality),
+    out.toBlob((b) => (b ? res(b) : rej(new Error(t`图片编码失败`))), "image/jpeg", quality),
   );
   return {
     blob,
@@ -443,7 +445,7 @@ export async function urlToSquareImage(url: string, size = 256, quality = 0.85):
   //   做 SPA 回退，返回 **200 + index.html**（CLAUDE.md 里记过这条）。只看状态码的话，
   //   一张漏打包的头像会变成"createImageBitmap 解不开 HTML"这种查不出源头的报错。
   const type = res.headers.get("content-type") ?? "";
-  if (!res.ok || !type.startsWith("image/")) throw new Error("头像素材读取失败（这张图可能没打进包里）");
+  if (!res.ok || !type.startsWith("image/")) throw new Error(t`头像素材读取失败（这张图可能没打进包里）`);
   const blob = await res.blob();
   const bitmap = await createImageBitmap(blob);
   try {

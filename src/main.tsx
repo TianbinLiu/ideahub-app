@@ -85,8 +85,10 @@ function bootError(): void {
   box.style.cssText =
     "min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;color:#cbd5e1;font-size:14px;line-height:1.6;";
   const p = document.createElement("p");
+  // i18n-ignore-next-line: 开机失败的整屏不依赖 i18n（这一刻它可能是坏的），文案固定中英双语
   p.textContent = "界面没能加载出来，请重新加载 · The app failed to load. Please reload.";
   const btn = document.createElement("button");
+  // i18n-ignore-next-line: 同上，开机失败的整屏固定中英双语
   btn.textContent = "重新加载 · Reload";
   btn.style.cssText = "border-radius:12px;background:#fbbf24;color:#05070f;font-weight:700;padding:10px 20px;border:0;";
   btn.onclick = () => location.reload();
