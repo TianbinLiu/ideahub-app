@@ -18,6 +18,19 @@ msgstr ""
 msgid " · {0} 个文件"
 msgstr " · {0} 个文件"
 
+#. placeholder {0}: tpl.roles.length
+#: src/components/flow/FlowCanvas.tsx
+msgid " · {0} 个角色位"
+msgstr " · {0} 个角色位"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid " · ✓ 已出片"
+msgstr " · ✓ 已出片"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid " · 🔒 前面的段炼完才解锁"
+msgstr " · 🔒 前面的段炼完才解锁"
+
 #: src/components/DraftSheet.tsx
 msgid " · 上次"
 msgstr " · 上次"
@@ -27,6 +40,10 @@ msgstr " · 上次"
 msgid " · 带着已挂的 {0} 张卡"
 msgstr " · 带着已挂的 {0} 张卡"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid " · 当前"
+msgstr " · 当前"
+
 #: src/components/DownloadSheet.tsx
 msgid " · 正在停止（当前这一段会跑完）"
 msgstr " · 正在停止（当前这一段会跑完）"
@@ -34,6 +51,10 @@ msgstr " · 正在停止（当前这一段会跑完）"
 #: src/components/VideoCardAnnotator.tsx
 msgid " · 演示"
 msgstr " · 演示"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid " · 生成中…"
+msgstr " · 生成中…"
 
 #: src/components/CoverPicker.tsx
 msgid " · 真实影像"
@@ -59,6 +80,11 @@ msgstr " · 认出 {0} 个角色位：{1}"
 #: src/components/TemplateShelf.tsx
 msgid " · 这台设备上只看到 {0} 段"
 msgstr " · 这台设备上只看到 {0} 段"
+
+#. placeholder {0}: row.parts.length
+#: src/components/flow/FlowCanvas.tsx
+msgid " · 这台设备只看到 {0} 段"
+msgstr " · 这台设备只看到 {0} 段"
 
 #: src/components/support/VoiceMarket.tsx
 msgid " · 音高 {pitchSigned}"
@@ -159,6 +185,10 @@ msgstr "· 这个卡组已分享到创意工坊：删掉会<0>同时下架</0>�
 #: src/components/DeleteDeckDialog.tsx
 msgid "· 里面那 {0} 张卡<0>不会被删</0>， 它们还在你的卡片库里，只是不再归到这一组。"
 msgstr "· 里面那 {0} 张卡<0>不会被删</0>， 它们还在你的卡片库里，只是不再归到这一组。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "‹ 上传示例视频当整段参考"
+msgstr "‹ 上传示例视频当整段参考"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "‹ 重新描"
@@ -261,6 +291,11 @@ msgstr "{0} 段 · 已出片 {1} · {2}改过"
 msgid "{0}/{SCRIPT_MAX} 字 · 铺出来按当前设置：{1}档 · {2}"
 msgstr "{0}/{SCRIPT_MAX} 字 · 铺出来按当前设置：{1}档 · {2}"
 
+#. placeholder {0}: fmtTokens(CHAT_TURN_TOKENS)
+#: src/components/flow/FlowCanvas.tsx
+msgid "{0}/句"
+msgstr "{0}/句"
+
 #. placeholder {0}: (vEnd - vStart).toFixed(1)
 #: src/components/VideoCardAnnotator.tsx
 msgid "{0}s · 太短"
@@ -272,6 +307,8 @@ msgid "{0}s · 太长"
 msgstr "{0}s · 太长"
 
 #. placeholder {0}: (refVideoRealSec(tpl.refVideo) ?? tpl.refVideo.durationSec).toFixed(1)
+#. placeholder {0}: tpl.refVideo!.durationSec
+#: src/components/flow/FlowCanvas.tsx
 #: src/components/TemplateShelf.tsx
 msgid "{0}s 复刻"
 msgstr "{0}s 复刻"
@@ -282,6 +319,12 @@ msgstr "{0}s 复刻"
 #: src/pages/VideoPage.tsx
 msgid "{0}播放"
 msgstr "{0}播放"
+
+#. placeholder {0}: tierOf(node.videoTier).label
+#. placeholder {1}: tierOf(node.videoTier).minSec
+#: src/components/flow/FlowCanvas.tsx
+msgid "{0}档最短 {1}s"
+msgstr "{0}档最短 {1}s"
 
 #. placeholder {0}: relativeTime(reportTimeMs(u.createdAt))
 #: src/pages/AdminPage.tsx
@@ -386,6 +429,10 @@ msgstr "「{0}」还挂在广场上——先下架再删"
 msgid "「{u}」"
 msgstr "「{u}」"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "↩ 回竖屏"
+msgstr "↩ 回竖屏"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "↺ 用回原片"
 msgstr "↺ 用回原片"
@@ -399,6 +446,7 @@ msgstr "＋ 再标一张脸部特写（可选，出片时锁面部特征更稳�
 msgid "+ 加一味（{0}/{maxMix}）"
 msgstr "+ 加一味（{0}/{maxMix}）"
 
+#: src/components/flow/FlowCanvas.tsx
 #: src/studio/canvasAgent.ts
 msgid "＋ 加一段"
 msgstr "＋ 加一段"
@@ -420,6 +468,10 @@ msgstr "＋ 已在控制台授权过？直接填 asset ID"
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "+ 把这 {durSec} 秒整段换成白模人偶（{0} · {1}）"
 msgstr "+ 把这 {durSec} 秒整段换成白模人偶（{0} · {1}）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "＋ 插一张中间帧（把这一段拆成两段，从这一帧断开）"
+msgstr "＋ 插一张中间帧（把这一段拆成两段，从这一帧断开）"
 
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VisionFramePicker.tsx
@@ -484,6 +536,14 @@ msgstr "○ 演示模式：本地模拟，不消耗 token"
 msgid "★ 当前"
 msgstr "★ 当前"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "♻ 都不满意，重新推演三套（{propCostLabel}）"
+msgstr "♻ 都不满意，重新推演三套（{propCostLabel}）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "♻ 重新生成（{costLabel}）"
+msgstr "♻ 重新生成（{costLabel}）"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "⚠ 如果你删它是因为<0>画面上根本没有这个人偶</0>，那么它右边 所有位子从左数都要<1>往左挪一位</1>，请顺手把它们也改一下； 如果画面上那个人偶还在（只是你不想让人挂卡），右边的一个都不用动。"
 msgstr "⚠ 如果你删它是因为<0>画面上根本没有这个人偶</0>，那么它右边 所有位子从左数都要<1>往左挪一位</1>，请顺手把它们也改一下； 如果画面上那个人偶还在（只是你不想让人挂卡），右边的一个都不用动。"
@@ -501,9 +561,22 @@ msgstr "⚠ 已挂 {0} 张，超过一次出片能带的 {maxRefImages} 张参�
 msgid "⚠ 视频里有<0>真人面孔</0>时，AI 可能在<1>受理之后</1>才拒绝这一发 —— 那时算力已经开始消耗，<2>这笔费用不退</2>（实测：创建时不拒，只能中途失败）。真人素材请自己掂量；动画、游戏画面、 自己拍的白模预演不受影响。"
 msgstr "⚠ 视频里有<0>真人面孔</0>时，AI 可能在<1>受理之后</1>才拒绝这一发 —— 那时算力已经开始消耗，<2>这笔费用不退</2>（实测：创建时不拒，只能中途失败）。真人素材请自己掂量；动画、游戏画面、 自己拍的白模预演不受影响。"
 
+#. placeholder {0}: tierOf(node.videoTier).label
+#: src/components/flow/FlowCanvas.tsx
+msgid "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「电影级」，否则生成会被整句拒。"
+msgstr "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「电影级」，否则生成会被整句拒。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "⚡ 炼这一段视频（{costLabel}）"
+msgstr "⚡ 炼这一段视频（{costLabel}）"
+
 #: src/studio/canvasAgent.ts
 msgid "⚡ 生成本段"
 msgstr "⚡ 生成本段"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "⚡ 生成本段（{costLabel}）"
+msgstr "⚡ 生成本段（{costLabel}）"
 
 #: src/pages/CardDetailPage.tsx
 msgid "✂ 主图只留主体"
@@ -517,6 +590,10 @@ msgstr "✂ 只留主体"
 #: src/components/VideoCardAnnotator.tsx
 msgid "✂ 就取这一块"
 msgstr "✂ 就取这一块"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "✍ 自定义"
+msgstr "✍ 自定义"
 
 #: src/studio/canvasAgent.ts
 msgid "✎ 拍摄要求"
@@ -571,6 +648,10 @@ msgstr "✨ 按这套方案炼形象图（{portraitCount} 张 · 演示）"
 msgid "✨ 按这套方案炼形象图（{portraitCount} 张 · 约 {0}）"
 msgstr "✨ 按这套方案炼形象图（{portraitCount} 张 · 约 {0}）"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "⟳ 转横屏"
+msgstr "⟳ 转横屏"
+
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "⤢ 铺满整幅"
 msgstr "⤢ 铺满整幅"
@@ -591,6 +672,10 @@ msgstr "⭕ 圈选要修改的物体"
 msgid "🃏 挂卡换人"
 msgstr "🃏 挂卡换人"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "🃏 自选卡片"
+msgstr "🃏 自选卡片"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "🎙 录这一段"
 msgstr "🎙 录这一段"
@@ -603,6 +688,10 @@ msgstr "🎙 按住跟读（长按录音）"
 msgid "🎞 从成片截帧"
 msgstr "🎞 从成片截帧"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "🎞 调节首尾帧 / 加中间帧"
+msgstr "🎞 调节首尾帧 / 加中间帧"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "🎤 取一段他的声音（可选，{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒 · 出片时台词可用这个音色）"
 msgstr "🎤 取一段他的声音（可选，{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒 · 出片时台词可用这个音色）"
@@ -610,6 +699,38 @@ msgstr "🎤 取一段他的声音（可选，{VOICE_MIN_SEC}~{VOICE_MAX_SEC} �
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "🎨 融图合成这一帧"
 msgstr "🎨 融图合成这一帧"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "🎬 上传一段示例视频当整段参考"
+msgstr "🎬 上传一段示例视频当整段参考"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "🎬 传一段示例视频当整段参考（多图+参考视频模式）"
+msgstr "🎬 传一段示例视频当整段参考（多图+参考视频模式）"
+
+#. placeholder {0}: node.customRef.durationSec.toFixed(1)
+#. placeholder {1}: Math.round(node.customRef.durationSec)
+#. placeholder {2}: p.durationSec
+#: src/components/flow/FlowCanvas.tsx
+msgid "🎬 参考视频已挂上（{0}s · 计价按输入 {1}s + 输出 {2}s）"
+msgstr "🎬 参考视频已挂上（{0}s · 计价按输入 {1}s + 输出 {2}s）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "🎬 完成视频 ›"
+msgstr "🎬 完成视频 ›"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "🎬 导演台 · 摆站位、定机位，截图融成开头帧"
+msgstr "🎬 导演台 · 摆站位、定机位，截图融成开头帧"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "🎬 导演台 · 摆站位、定机位，截图融成开头帧（已融过，可再截）"
+msgstr "🎬 导演台 · 摆站位、定机位，截图融成开头帧（已融过，可再截）"
+
+#. placeholder {0}: node.proposals.length
+#: src/components/flow/FlowCanvas.tsx
+msgid "🎬 挑一套方案（{0} 套已推演好）"
+msgstr "🎬 挑一套方案（{0} 套已推演好）"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "🎯 从视频提取卡片"
@@ -619,9 +740,17 @@ msgstr "🎯 从视频提取卡片"
 msgid "🎯 从视频提取卡组"
 msgstr "🎯 从视频提取卡组"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "🎲 推演三套方案（{propCostLabel}）"
+msgstr "🎲 推演三套方案（{propCostLabel}）"
+
 #: src/studio/canvasAgent.ts
 msgid "🎲 重演方案"
 msgstr "🎲 重演方案"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "🎴 工坊"
+msgstr "🎴 工坊"
 
 #: src/components/DraftSheet.tsx
 msgid "🎴 工坊模式"
@@ -630,6 +759,10 @@ msgstr "🎴 工坊模式"
 #: src/components/VoiceUploadButton.tsx
 msgid "🎵 上传本地音频（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）"
 msgstr "🎵 上传本地音频（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "📋 看/改这一套方案（换首尾帧、改剧情）"
+msgstr "📋 看/改这一套方案（换首尾帧、改剧情）"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "📥 取回到这条流水线（新开一段 · 不再花钱）"
@@ -652,6 +785,10 @@ msgstr "🔇 已静音"
 #: src/components/blockout/VideoStage.tsx
 msgid "🔇 静音中"
 msgstr "🔇 静音中"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "🔊 只看带声音的卡"
+msgstr "🔊 只看带声音的卡"
 
 #. placeholder {0}: pendingVoice.durationSec
 #. placeholder {1}: pendingVoice.note
@@ -705,6 +842,7 @@ msgstr "🗑 删除本段"
 msgid "🧩 工作流模式"
 msgstr "🧩 工作流模式"
 
+#: src/components/flow/FlowCanvas.tsx
 #: src/studio/canvasAgent.ts
 msgid "🧪 套模板"
 msgstr "🧪 套模板"
@@ -822,6 +960,19 @@ msgstr "上一张还没拍完"
 msgid "上一步"
 msgstr "上一步"
 
+#. placeholder {0}: Math.round(frac * 100)
+#: src/components/flow/FlowCanvas.tsx
+msgid "上传参考视频 {0}%…"
+msgstr "上传参考视频 {0}%…"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "上传参考视频 0%…"
+msgstr "上传参考视频 0%…"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "上传后自动用它的首尾帧当本段首尾帧，之后还能细调、加中间帧"
+msgstr "上传后自动用它的首尾帧当本段首尾帧，之后还能细调、加中间帧"
+
 #: src/pages/CustomCardPage.tsx
 msgid "上传本地图片"
 msgstr "上传本地图片"
@@ -900,6 +1051,14 @@ msgstr "下面这条时间轴就是你框出的那 {0} 秒（原片第 {1}~{2} �
 msgid "下面这条时间轴是<0>整条原片</0>，而真正做成模板的只有你在上面框出的<1>第 {0}~{1} 秒</1>"
 msgstr "下面这条时间轴是<0>整条原片</0>，而真正做成模板的只有你在上面框出的<1>第 {0}~{1} 秒</1>"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "不上传，直接给首尾帧 ›"
+msgstr "不上传，直接给首尾帧 ›"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "不了"
+msgstr "不了"
+
 #: src/components/DraftSheet.tsx
 msgid "不删"
 msgstr "不删"
@@ -912,6 +1071,14 @@ msgstr "不取了"
 msgid "不在选段内"
 msgstr "不在选段内"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "不承接（用自己的首帧起拍）"
+msgstr "不承接（用自己的首帧起拍）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "不用模板（退回普通段）"
+msgstr "不用模板（退回普通段）"
+
 #: src/components/VisibilityPicker.tsx
 msgid "不进首页和搜索；但拿到链接的人都能看，能被转发"
 msgstr "不进首页和搜索；但拿到链接的人都能看，能被转发"
@@ -919,6 +1086,10 @@ msgstr "不进首页和搜索；但拿到链接的人都能看，能被转发"
 #: src/components/flow/RefFrameSheet.tsx
 msgid "中间帧最多 {midMax} 张"
 msgstr "中间帧最多 {midMax} 张"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "中间帧参考图"
+msgstr "中间帧参考图"
 
 #: src/components/BranchPlayer.tsx
 msgid "互动视频"
@@ -1069,6 +1240,10 @@ msgstr "先下架，再改位置"
 msgid "先下架，再改编号"
 msgstr "先下架，再改编号"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "先不"
+msgstr "先不"
+
 #: src/components/DeleteConfirmShell.tsx
 msgid "先不删"
 msgstr "先不删"
@@ -1077,9 +1252,17 @@ msgstr "先不删"
 msgid "先不换"
 msgstr "先不换"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "先不改"
+msgstr "先不改"
+
 #: src/components/support/VoiceSheet.tsx
 msgid "先加一味音色再保存。"
 msgstr "先加一味音色再保存。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "先去挂卡，点名句会填进这里（可改）"
+msgstr "先去挂卡，点名句会填进这里（可改）"
 
 #: src/components/ForgeOverlay.tsx
 msgid "先去逛逛，好了叫我"
@@ -1124,6 +1307,10 @@ msgstr "公开中：会出现在创意工坊的「从市场添加」里，别人
 #: src/components/support/VoiceMixer.tsx
 msgid "公开到声音市场（不勾 = 只在「我的」里）"
 msgstr "公开到声音市场（不勾 = 只在「我的」里）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "共 {count} 段 · 点开选一段"
+msgstr "共 {count} 段 · 点开选一段"
 
 #: src/components/DeleteConfirmShell.tsx
 msgid "关掉"
@@ -1185,6 +1372,10 @@ msgstr "最多消耗 {amount} token"
 msgid "最常见的一种：<0>有个人根本没被换成人偶</0>（还是原来的样子）， 尤其是画面正中央、看起来最像主角的那一个。这时清单里就多出一个画面上不存在的位子 ——<1>把它删掉就行，不用重炼</1>。 ⚠ 但删完要顺手检查一遍：画面上少了一个人偶，<2>它右边那些人从左数 就都要往左挪一位</2>（这一条是按位置指认独有的，编号版没有）。"
 msgstr "最常见的一种：<0>有个人根本没被换成人偶</0>（还是原来的样子）， 尤其是画面正中央、看起来最像主角的那一个。这时清单里就多出一个画面上不存在的位子 ——<1>把它删掉就行，不用重炼</1>。 ⚠ 但删完要顺手检查一遍：画面上少了一个人偶，<2>它右边那些人从左数 就都要往左挪一位</2>（这一条是按位置指认独有的，编号版没有）。"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "写一句换成谁，例：换成一只戴墨镜的柴犬"
+msgstr "写一句换成谁，例：换成一只戴墨镜的柴犬"
+
 #: src/components/ForgeOverlay.tsx
 #: src/components/VideoCardAnnotator.tsx
 msgid "准备中…"
@@ -1205,6 +1396,10 @@ msgstr "出片前先看一眼：把你挂的角色放进白模画面，站位不
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "出片前必须把它们取下。"
 msgstr "出片前必须把它们取下。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "出片的同时提炼一副本片卡组：你挂过的卡直接入组，缺的卡种由 AI 按成片补齐（含一张画风卡）。不勾就只出片、不出卡组。组稿前随时能改。"
+msgstr "出片的同时提炼一副本片卡组：你挂过的卡直接入组，缺的卡种由 AI 按成片补齐（含一张画风卡）。不勾就只出片、不出卡组。组稿前随时能改。"
 
 #: src/components/VisibilityPicker.tsx
 msgid "出现在首页、分区和搜索里，谁都能看"
@@ -1237,6 +1432,10 @@ msgstr "分享需要先连接服务器并登录 —— 离线库里没有「别�
 #: src/components/TabBar.tsx
 msgid "分区"
 msgstr "分区"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "切到自选会<0>摘掉模板</0>：挂的卡与合成好的点名句一起清掉，这一段退回普通段（想回来再套就行）。"
+msgstr "切到自选会<0>摘掉模板</0>：挂的卡与合成好的点名句一起清掉，这一段退回普通段（想回来再套就行）。"
 
 #: src/components/TabBar.tsx
 msgid "创作"
@@ -1456,6 +1655,10 @@ msgstr "去掉这一味"
 msgid "去登录"
 msgstr "去登录"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "参考视频没挂上：{why}"
+msgstr "参考视频没挂上：{why}"
+
 #: src/components/flow/SkillPanel.tsx
 msgid "发布"
 msgstr "发布"
@@ -1486,6 +1689,7 @@ msgid "发起授权没成：{0}——可以改用「填 asset ID」那条路"
 msgstr "发起授权没成：{0}——可以改用「填 asset ID」那条路"
 
 #: src/components/CommentSheet.tsx
+#: src/components/flow/FlowCanvas.tsx
 msgid "发送"
 msgstr "发送"
 
@@ -1599,9 +1803,17 @@ msgstr "取自原视频 {0}–{1}s"
 msgid "取这一帧超时了。应用切到后台时系统会暂停视频解码——回到前台、让画面真的动起来之后再点「标记这一帧」。"
 msgstr "取这一帧超时了。应用切到后台时系统会暂停视频解码——回到前台、让画面真的动起来之后再点「标记这一帧」。"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "取首尾帧…"
+msgstr "取首尾帧…"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "另存为我的"
 msgstr "另存为我的"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "只剩一段且已出片，删不掉"
+msgstr "只剩一段且已出片，删不掉"
 
 #. placeholder {0}: resPath.ok ? resPath.plan.targets.length : 0
 #: src/components/DownloadSheet.tsx
@@ -1639,6 +1851,11 @@ msgstr "台词不再带音色样本（「{0}」档暂无配音）"
 msgid "合成中…"
 msgstr "合成中…"
 
+#. placeholder {0}: nodes.filter((n) => !nodeDone(n)).length
+#: src/components/flow/FlowCanvas.tsx
+msgid "合成整片 · 还差 {0} 段"
+msgstr "合成整片 · 还差 {0} 段"
+
 #: src/components/flow/CastPreviewCard.tsx
 msgid "合成预览：只看站位与形象对不对，不代表成片画质；改了挂法要重新合成"
 msgstr "合成预览：只看站位与形象对不对，不代表成片画质；改了挂法要重新合成"
@@ -1663,6 +1880,10 @@ msgstr "启梦 · 有想法，就是梦想启程的第一步"
 #: src/components/VoiceRecorder.tsx
 msgid "周末打算去一趟菜市场，买点新鲜的菜，晚上做一顿好吃的。"
 msgstr "周末打算去一趟菜市场，买点新鲜的菜，晚上做一顿好吃的。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "唤起指令句式（也可以输入 /）"
+msgstr "唤起指令句式（也可以输入 /）"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "回到整图"
@@ -1714,6 +1935,10 @@ msgstr "在末尾追加"
 msgid "在画面上拖一下；不满意再拖就重画"
 msgstr "在画面上拖一下；不满意再拖就重画"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "填入默认写法（填完还能改）"
+msgstr "填入默认写法（填完还能改）"
+
 #: src/components/support/VoiceSheet.tsx
 msgid "声音市场"
 msgstr "声音市场"
@@ -1721,6 +1946,7 @@ msgstr "声音市场"
 #: src/components/AvatarPicker.tsx
 #: src/components/BlockButton.tsx
 #: src/components/blockout/BlockoutTrimmer.tsx
+#: src/components/flow/FlowCanvas.tsx
 #: src/components/VoiceRecorder.tsx
 #: src/components/VoiceUploadButton.tsx
 #: src/components/WorkshopShareBar.tsx
@@ -1739,6 +1965,10 @@ msgstr "复制链接"
 #: src/components/flow/SegPlayer.tsx
 msgid "多半是刚换过走向或重推了方案。挑回原来那一套（或炼完这一套）就能回看"
 msgstr "多半是刚换过走向或重推了方案。挑回原来那一套（或炼完这一套）就能回看"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "多图+参考视频模式：上面的首/尾帧此时是<0>参考图</0>， 由提示词点名「图片1是第一帧画面…」——是引导不是硬约束。"
+msgstr "多图+参考视频模式：上面的首/尾帧此时是<0>参考图</0>， 由提示词点名「图片1是第一帧画面…」——是引导不是硬约束。"
 
 #: src/components/DownloadSheet.tsx
 msgid "大小未知"
@@ -1764,6 +1994,11 @@ msgstr "头像更换失败，本机仍会显示新头像"
 #: src/components/support/VoiceMixer.tsx
 msgid "女"
 msgstr "女"
+
+#. placeholder {0}: chosen.size
+#: src/components/flow/FlowCanvas.tsx
+msgid "好了（选中 {0} 张）"
+msgstr "好了（选中 {0} 张）"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "如果两个人偶印着同一个号：挂在这个号上的卡<0>可能会把两个人一起换成同一张卡</0>（模型只认数字，分不出哪个是你要的）。不想要这个效果，就把这个号的位子也删掉 —— 那两个人偶会保持白模原样出现在片子里。"
@@ -1815,6 +2050,10 @@ msgstr "存卡没成：{0}"
 msgid "存示例图…"
 msgstr "存示例图…"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "存草稿"
+msgstr "存草稿"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "存这张卡"
 msgstr "存这张卡"
@@ -1840,6 +2079,10 @@ msgstr "完成后会替换它的内容，链接不变"
 msgid "完成挂卡"
 msgstr "完成挂卡"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "官方技能"
+msgstr "官方技能"
+
 #. placeholder {0}: AI_REAL ? EXAMPLES[lang].template : EXAMPLES[lang].describe
 #: src/components/flow/FlowCanvas.tsx
 msgid "对画布说话：{0}"
@@ -1854,6 +2097,10 @@ msgstr "封面"
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "就是他"
 msgstr "就是他"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "就用这一段"
+msgstr "就用这一段"
 
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "尾帧"
@@ -1883,6 +2130,14 @@ msgstr "已下架"
 #: src/components/DownloadSheet.tsx
 msgid "已停止"
 msgstr "已停止"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "已出片：换模板/模式会作废本段（想换先删段重加）"
+msgstr "已出片：换模板/模式会作废本段（想换先删段重加）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "已出片（成片预览没截到，点开可回看）"
+msgstr "已出片（成片预览没截到，点开可回看）"
 
 #: src/components/MaterialSheet.tsx
 msgid "已加入"
@@ -1916,6 +2171,10 @@ msgstr "已在工坊 · 取消分享"
 msgid "已建组「{deckDone}」"
 msgstr "已建组「{deckDone}」"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "已开始生成，可以离开这一页，出片后会提醒你"
+msgstr "已开始生成，可以离开这一页，出片后会提醒你"
+
 #: src/components/BlockButton.tsx
 msgid "已拉黑"
 msgstr "已拉黑"
@@ -1923,6 +2182,11 @@ msgstr "已拉黑"
 #: src/components/BlockButton.tsx
 msgid "已拉黑「{who}」——你们不会再看见彼此的内容。"
 msgstr "已拉黑「{who}」——你们不会再看见彼此的内容。"
+
+#. placeholder {0}: tpl!.roles!.length
+#: src/components/flow/FlowCanvas.tsx
+msgid "已挂 {mounted}/{0} 个角色位 · 点这里改"
+msgstr "已挂 {mounted}/{0} 个角色位 · 点这里改"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "已换成只留主体的这张"
@@ -2166,6 +2430,10 @@ msgstr "我的技能（点一个 = 填进输入框）"
 msgid "我的模板 {0}"
 msgstr "我的模板 {0}"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "我的模板（点一个 = 第 {seg} 段套它）"
+msgstr "我的模板（点一个 = 第 {seg} 段套它）"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担"
 msgstr "我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担"
@@ -2183,6 +2451,10 @@ msgstr "截出来是一片空白"
 msgid "截取中…"
 msgstr "截取中…"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "截帧中…"
+msgstr "截帧中…"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "手工填入（方舟控制台授权）"
 msgstr "手工填入（方舟控制台授权）"
@@ -2196,9 +2468,34 @@ msgstr "打不开系统浏览器（{0}）——用「复制链接」自己粘到
 msgid "打开中…"
 msgstr "打开中…"
 
+#. placeholder {0}: p.costLabel
+#: src/components/flow/FlowCanvas.tsx
+msgid "执行（{0}）"
+msgstr "执行（{0}）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "执行（免费）"
+msgstr "执行（免费）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "执行中…"
+msgstr "执行中…"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "扫不动了？这条邀约码会过期，回来重新「发起授权」生成一张新的即可。"
 msgstr "扫不动了？这条邀约码会过期，回来重新「发起授权」生成一张新的即可。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "承接 = 把上一段的真实尾帧当<0>第一张参考图</0>发出去，并在提示词里点名「从这一帧接着演」——接缝多半连得上，但这一档<1>不是硬保证</1>。上传自己的首帧会改为不承接；想恢复承接：清掉首帧，再到 ⚙ 本段设置里打开。"
+msgstr "承接 = 把上一段的真实尾帧当<0>第一张参考图</0>发出去，并在提示词里点名「从这一帧接着演」——接缝多半连得上，但这一档<1>不是硬保证</1>。上传自己的首帧会改为不承接；想恢复承接：清掉首帧，再到 ⚙ 本段设置里打开。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "承接 = 本段首帧自动用上一段的真实尾帧。这一档是<0>协议级约束</0>，画面一定从那一帧起拍；上传自己的首帧会改为不承接。想恢复承接：清掉首帧，再到 ⚙ 本段设置里打开。"
+msgstr "承接 = 本段首帧自动用上一段的真实尾帧。这一档是<0>协议级约束</0>，画面一定从那一帧起拍；上传自己的首帧会改为不承接。想恢复承接：清掉首帧，再到 ⚙ 本段设置里打开。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "承接尾帧"
+msgstr "承接尾帧"
 
 #: src/components/flow/SkillPanel.tsx
 msgid "技能名（≤{SKILL_TITLE_MAX} 字）"
@@ -2321,6 +2618,10 @@ msgstr "挂在这一段上的示例视频会被摘掉（「{0}」档带不了参
 msgid "挂的 {0} 张素材卡不再直接进出片画面（只能在画设定帧时起作用，人物相似度会下降）"
 msgstr "挂的 {0} 张素材卡不再直接进出片画面（只能在画设定帧时起作用，人物相似度会下降）"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "指令句式（点一个填进输入框，接着改）"
+msgstr "指令句式（点一个填进输入框，接着改）"
+
 #. placeholder {0}: tpl.refVideo.durationSec
 #: src/components/flow/SegSettings.tsx
 msgid "按 {0} 秒计 · 跟随模板视频（白模复刻的输出时长≈模板时长，不可另选）"
@@ -2363,6 +2664,10 @@ msgstr "换头像…"
 msgid "换条路"
 msgstr "换条路"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "换模板"
+msgstr "换模板"
+
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "换错人<0>不会报错</0>，成片出来才看得见 —— 请对着画面上高亮的那个人偶确认。"
 msgstr "换错人<0>不会报错</0>，成片出来才看得见 —— 请对着画面上高亮的那个人偶确认。"
@@ -2391,6 +2696,10 @@ msgstr "接上了。"
 #: src/studio/canvasAgent.ts
 msgid "接着写这一段的画面"
 msgstr "接着写这一段的画面"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "推演中…"
+msgstr "推演中…"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "描不出来？保留框内背景 ›"
@@ -2447,6 +2756,10 @@ msgstr "搜模板：名字、介绍…"
 msgid "搜模板：特摄、治愈、赛博…"
 msgstr "搜模板：特摄、治愈、赛博…"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "摘掉模板，改为自选"
+msgstr "摘掉模板，改为自选"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "撤销"
 msgstr "撤销"
@@ -2490,6 +2803,10 @@ msgstr "改名"
 #: src/components/flow/ReviseBox.tsx
 msgid "改哪里？例：把背景换成雨夜 / 去掉右上角的台标 / 主角衣服换成红色"
 msgstr "改哪里？例：把背景换成雨夜 / 去掉右上角的台标 / 主角衣服换成红色"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "改完挂卡会按新的映射<0>重新合成</0>下面那段要求，你改过的字会被替换掉。"
+msgstr "改完挂卡会按新的映射<0>重新合成</0>下面那段要求，你改过的字会被替换掉。"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "改错了不用重炼"
@@ -2544,6 +2861,7 @@ msgid "无预览"
 msgstr "无预览"
 
 #: src/components/blockout/TrimBar.tsx
+#: src/components/flow/FlowCanvas.tsx
 #: src/components/flow/SegSettings.tsx
 msgid "时长"
 msgstr "时长"
@@ -2678,6 +2996,10 @@ msgstr "本段生成中…"
 msgid "本段素材"
 msgstr "本段素材"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "本段设置"
+msgstr "本段设置"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "松开发送"
 msgstr "松开发送"
@@ -2800,6 +3122,10 @@ msgstr "正在取这一帧…"
 msgid "正在取这一段的视频地址…"
 msgstr "正在取这一段的视频地址…"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "正在把「人偶 → 角色」合成一段话…"
+msgstr "正在把「人偶 → 角色」合成一段话…"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "正在查你之前有没有授权过…"
 msgstr "正在查你之前有没有授权过…"
@@ -2835,6 +3161,10 @@ msgstr "正在连接…"
 #: src/components/DownloadSheet.tsx
 msgid "正在问总大小…"
 msgstr "正在问总大小…"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "段间承接"
+msgstr "段间承接"
 
 #. placeholder {0}: castable.length
 #: src/components/blockout/RoleCastBoard.tsx
@@ -2885,6 +3215,10 @@ msgstr "没有匹配的卡组"
 #: src/components/TemplateShelf.tsx
 msgid "没有匹配的模板，换个词试试"
 msgstr "没有匹配的模板，换个词试试"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "没有带声音样本的卡——在工坊「从视频提取」圈人物时可以顺手取一段声音"
+msgstr "没有带声音样本的卡——在工坊「从视频提取」圈人物时可以顺手取一段声音"
 
 #: src/components/support/VoiceMarket.tsx
 msgid "没有找到匹配的模板，换个词试试。"
@@ -2945,6 +3279,7 @@ msgid "清空搜索"
 msgstr "清空搜索"
 
 #: src/components/flow/CastPreviewCard.tsx
+#: src/components/flow/FlowCanvas.tsx
 #: src/components/flow/ReviseBox.tsx
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "演示"
@@ -2953,6 +3288,10 @@ msgstr "演示"
 #: src/components/CoverPicker.tsx
 msgid "演示模式：产物为本地占位图"
 msgstr "演示模式：产物为本地占位图"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进推演与出片。"
+msgstr "点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进推演与出片。"
 
 #. placeholder {0}: personNameOf(castable[selected]?.label)
 #: src/components/blockout/RoleCastBoard.tsx
@@ -3012,6 +3351,11 @@ msgstr "现在这一帧（原片第 {0} 秒）在选段外面——选段是原�
 msgid "现在铺不了（可能有一段正在生成中），稍后再试"
 msgstr "现在铺不了（可能有一段正在生成中），稍后再试"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "生成中"
+msgstr "生成中"
+
+#: src/components/flow/FlowCanvas.tsx
 #: src/components/PortraitAuthPanel.tsx
 msgid "生成中…"
 msgstr "生成中…"
@@ -3108,6 +3452,11 @@ msgstr "留空 = 跟随人格/模型：{0}"
 msgid "登录之后才能拉黑。"
 msgstr "登录之后才能拉黑。"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "登记素材…"
+msgstr "登记素材…"
+
+#: src/components/flow/FlowCanvas.tsx
 #: src/components/TemplateShelf.tsx
 msgid "白模"
 msgstr "白模"
@@ -3127,6 +3476,10 @@ msgstr "白模化这一次的总消耗"
 #: src/components/flow/SegSettings.tsx
 msgid "白模复刻：只换人不生成声音，音轨在「完成视频」那一步回填原片"
 msgstr "白模复刻：只换人不生成声音，音轨在「完成视频」那一步回填原片"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "白模复刻段（还没出片）"
+msgstr "白模复刻段（还没出片）"
 
 #: src/components/flow/SegSettings.tsx
 msgid "白模复刻的画幅自适应模板视频，不可另选"
@@ -3157,9 +3510,22 @@ msgstr "相机没有交回照片"
 msgid "相机照片存不下来（存储可能已满）"
 msgstr "相机照片存不下来（存储可能已满）"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "看这一段成片"
+msgstr "看这一段成片"
+
+#. placeholder {0}: chosenOf(node).durationSec
+#: src/components/flow/FlowCanvas.tsx
+msgid "看这一段成片（{0}s）"
+msgstr "看这一段成片（{0}s）"
+
 #: src/components/CoverPicker.tsx
 msgid "看首页遮挡"
 msgstr "看首页遮挡"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "真人档本来就是直出，不需要再切自定义"
+msgstr "真人档本来就是直出，不需要再切自定义"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "真人素材出片要过供应商的内容审核，也受深度合成相关法规约束——用这张卡出片可能被拒单或加审。 拿别人的脸生成内容，必须先取得他本人的同意。"
@@ -3185,6 +3551,10 @@ msgstr "知道了"
 #: src/components/TemplateShelf.tsx
 msgid "知道了，不用再提醒我这一发"
 msgstr "知道了，不用再提醒我这一发"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "知道了，去改挂卡"
+msgstr "知道了，去改挂卡"
 
 #. placeholder {0}: ask.label
 #: src/components/flow/TierRow.tsx
@@ -3255,14 +3625,23 @@ msgstr "私有：只在你自己的库里。分享后会出现在创意工坊的
 msgid "私有：只在你自己的库里。分享后会出现在创意工坊的「从市场添加」里，别人可以把这张卡装走。"
 msgstr "私有：只在你自己的库里。分享后会出现在创意工坊的「从市场添加」里，别人可以把这张卡装走。"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "移除"
+msgstr "移除"
+
 #. placeholder {0}: c.name
 #: src/components/MaterialSheet.tsx
 msgid "移除 {0}"
 msgstr "移除 {0}"
 
 #: src/components/flow/CustomFrameSlots.tsx
+#: src/components/flow/FlowCanvas.tsx
 msgid "空 = AI 按提示词补画（计费）"
 msgstr "空 = AI 按提示词补画（计费）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "空 = 承接上一段真实尾帧"
+msgstr "空 = 承接上一段真实尾帧"
 
 #: src/components/WorkshopShareBar.tsx
 msgid "空卡组不能分享：先往里放几张卡。"
@@ -3282,10 +3661,26 @@ msgstr "第 {0} 味权重"
 msgid "第 {0} 味音色"
 msgstr "第 {0} 味音色"
 
+#. placeholder {0}: i + 1
+#. placeholder {0}: index + 1
+#: src/components/flow/FlowCanvas.tsx
+msgid "第 {0} 段"
+msgstr "第 {0} 段"
+
+#. placeholder {0}: index + 1
+#: src/components/flow/FlowCanvas.tsx
+msgid "第 {0} 段 · 已选定的方案"
+msgstr "第 {0} 段 · 已选定的方案"
+
 #. placeholder {0}: idx + 1
 #: src/components/flow/SegPlayer.tsx
 msgid "第 {0} 段 · 成片"
 msgstr "第 {0} 段 · 成片"
+
+#. placeholder {0}: index + 1
+#: src/components/flow/FlowCanvas.tsx
+msgid "第 {0} 段 · 挑一套方案"
+msgstr "第 {0} 段 · 挑一套方案"
 
 #. placeholder {0}: o.seg
 #. placeholder {1}: was !== prevReq ? "…" : ""
@@ -3309,6 +3704,11 @@ msgstr "第 {0} 段挂着 {1} 张对得上「{name}」的卡（{names}），说�
 msgid "第 {0} 段有一发成片还没取回"
 msgstr "第 {0} 段有一发成片还没取回"
 
+#. placeholder {0}: index + 1
+#: src/components/flow/FlowCanvas.tsx
+msgid "第 {0} 段还没轮到（前面的段先炼完才解锁），挂不了卡"
+msgstr "第 {0} 段还没轮到（前面的段先炼完才解锁），挂不了卡"
+
 #. placeholder {0}: job.seg
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "第 {0} 段那一发已经取不回来了"
@@ -3326,6 +3726,11 @@ msgstr "第 {0} 秒"
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "第 {0} 秒（选段外）"
 msgstr "第 {0} 秒（选段外）"
+
+#. placeholder {0}: (part.group?.index ?? 0) + 1
+#: src/components/flow/FlowCanvas.tsx
+msgid "第 {0}/{count} 段"
+msgstr "第 {0}/{count} 段"
 
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "第 {rel} 秒"
@@ -3369,6 +3774,15 @@ msgstr "约 {0}"
 msgid "素材"
 msgstr "素材"
 
+#. placeholder {0}: mats.length
+#: src/components/flow/FlowCanvas.tsx
+msgid "素材卡 {0} 张"
+msgstr "素材卡 {0} 张"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "素材卡（可不选）"
+msgstr "素材卡（可不选）"
+
 #: src/components/MaterialSheet.tsx
 msgid "素材库"
 msgstr "素材库"
@@ -3393,6 +3807,19 @@ msgstr "绑定"
 #: src/components/CoverPicker.tsx
 msgid "绘制中…"
 msgstr "绘制中…"
+
+#. placeholder {0}: tpl!.roles!.length
+#: src/components/flow/FlowCanvas.tsx
+msgid "给 {0} 个人偶挂上你的角色卡"
+msgstr "给 {0} 个人偶挂上你的角色卡"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "给这一段选个白模模板"
+msgstr "给这一段选个白模模板"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "给这一段选素材卡"
+msgstr "给这一段选素材卡"
 
 #: src/components/support/VoiceMixer.tsx
 msgid "给这把嗓子起个名字再发布。"
@@ -3436,6 +3863,10 @@ msgstr "脸部特写"
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "自动（推荐）"
 msgstr "自动（推荐）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "自动取首尾帧没成——点「🎞 调节首尾帧」手动截"
+msgstr "自动取首尾帧没成——点「🎞 调节首尾帧」手动截"
 
 #. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 100)
 #: src/components/PortraitAuthPanel.tsx
@@ -3579,6 +4010,7 @@ msgid "读取中…"
 msgstr "读取中…"
 
 #: src/components/AvatarPicker.tsx
+#: src/components/flow/FlowCanvas.tsx
 msgid "读取图片…"
 msgstr "读取图片…"
 
@@ -3647,6 +4079,10 @@ msgstr "输入条里先打好那句话，再来存成技能"
 msgid "返回"
 msgstr "返回"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "返回挑选"
+msgstr "返回挑选"
+
 #: src/components/flow/ReviseBox.tsx
 msgid "还原上一版"
 msgstr "还原上一版"
@@ -3667,6 +4103,10 @@ msgstr "还存不了草稿（空白工程或写盘失败）"
 msgid "还有 {emptyCount} 个角色位没挂卡 —— <0>可以直接出片</0>，没挂的通常保持白色人偶的样子。 ⚠ 素材里<1>镜头切换多</1>时例外：实测 AI 可能拿已挂的卡把没挂的位子也换掉（同一个角色出现两份）。 要稳就把每个位子都挂上（同一张卡可以挂多个位子），或选一镜到底的素材。"
 msgstr "还有 {emptyCount} 个角色位没挂卡 —— <0>可以直接出片</0>，没挂的通常保持白色人偶的样子。 ⚠ 素材里<1>镜头切换多</1>时例外：实测 AI 可能拿已挂的卡把没挂的位子也换掉（同一个角色出现两份）。 要稳就把每个位子都挂上（同一张卡可以挂多个位子），或选一镜到底的素材。"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "还没写这一段拍什么"
+msgstr "还没写这一段拍什么"
+
 #: src/components/ForgeOverlay.tsx
 msgid "还没接到成片"
 msgstr "还没接到成片"
@@ -3674,6 +4114,10 @@ msgstr "还没接到成片"
 #: src/components/TemplateShelf.tsx
 msgid "还没有你自己的模板——上面那两个入口都能做一个"
 msgstr "还没有你自己的模板——上面那两个入口都能做一个"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "还没有卡片——去创意工坊铸几张或从市场添加"
+msgstr "还没有卡片——去创意工坊铸几张或从市场添加"
 
 #: src/components/MaterialSheet.tsx
 msgid "还没有卡组"
@@ -3686,6 +4130,10 @@ msgstr "还没有已授权的素材——请本人扫码/打开链接、完成�
 #: src/components/flow/SkillPanel.tsx
 msgid "还没有技能——输入条写好常用指令，点「＋ 存为技能」。"
 msgstr "还没有技能——输入条写好常用指令，点「＋ 存为技能」。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "还没有白模模板——去模板市场逛逛"
+msgstr "还没有白模模板——去模板市场逛逛"
 
 #: src/components/MaterialSheet.tsx
 msgid "还没有素材卡"
@@ -3739,6 +4187,18 @@ msgstr "这一段可以开炼：{0}"
 #: src/components/flow/SegSettings.tsx
 msgid "这一段已出片，改画幅要重新生成才生效"
 msgstr "这一段已出片，改画幅要重新生成才生效"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "这一段拍什么？"
+msgstr "这一段拍什么？"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "这一段拍什么？写好直接生成"
+msgstr "这一段拍什么？写好直接生成"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "这一段拍什么？缺的帧按这句补画"
+msgstr "这一段拍什么？缺的帧按这句补画"
 
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段正在生成，炼完再圈"
@@ -4070,6 +4530,10 @@ msgstr "进行中…"
 msgid "退出回炉"
 msgstr "退出回炉"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "退出编辑"
+msgstr "退出编辑"
+
 #: src/studio/canvasAgent.ts
 msgid "退回普通段"
 msgstr "退回普通段"
@@ -4081,6 +4545,10 @@ msgstr "选一段本地视频"
 #: src/components/AvatarPicker.tsx
 msgid "选个头像"
 msgstr "选个头像"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "选卡片"
+msgstr "选卡片"
 
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "选定场景/人物数量变化的特定帧，让 AI 分析每一段视频中的人物。"
@@ -4117,6 +4585,10 @@ msgstr "重命名"
 #: src/components/VideoCardAnnotator.tsx
 msgid "重圈"
 msgstr "重圈"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "重截预览"
+msgstr "重截预览"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "重描"
@@ -4181,6 +4653,14 @@ msgstr "隐藏遮挡"
 msgid "随时可以解除：「我的 → 设置 → 已拉黑的人」。"
 msgstr "随时可以解除：「我的 → 设置 → 已拉黑的人」。"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "随片提炼卡组"
+msgstr "随片提炼卡组"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "随片提炼本片卡组"
+msgstr "随片提炼本片卡组"
+
 #: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "静音"
@@ -4201,6 +4681,10 @@ msgstr "首尾帧会改成\"参考图 + 提示词点名\"发出去（换来的�
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "首帧"
 msgstr "首帧"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "首帧承接上一段尾帧"
+msgstr "首帧承接上一段尾帧"
 
 #: src/components/TabBar.tsx
 msgid "首页"
