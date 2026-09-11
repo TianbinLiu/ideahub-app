@@ -167,7 +167,10 @@ msgid "、"
 msgstr ", "
 
 #. 列举「每个图位锁什么」时的分隔符
+#. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
+#. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #: src/pages/CardDetailPage.tsx
+#: src/studio/ui/projection.tsx
 msgid "；"
 msgstr "; "
 
@@ -201,6 +204,10 @@ msgstr "· reported by {0}"
 #: src/components/GenTrace.tsx
 msgid "· {doneCount}/{total} 步"
 msgstr "· {doneCount}/{total} steps"
+
+#: src/studio/ui/projection.tsx
+msgid "· 🔒 前面的段炼完才解锁"
+msgstr "· 🔒 unlocks after the earlier segments are done"
 
 #. placeholder {0}: Math.round(MAX_LIVE2D_BUNDLE_BYTES / 1024 / 1024)
 #: src/pages/SupportModelNewPage.tsx
@@ -333,9 +340,25 @@ msgstr "· The {0, plural, one {# card} other {# cards}} in it <0>won't be delet
 msgid "· 问卷：12 项（没动过的用默认值）"
 msgstr "· Questionnaire: 12 items (untouched ones use defaults)"
 
+#: src/studio/ui/projection.tsx
+msgid "‹ 上一步"
+msgstr "‹ Back"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "‹ 上传示例视频当整段参考"
 msgstr "‹ Upload a sample video as the reference for the whole segment"
+
+#: src/studio/ui/projection.tsx
+msgid "‹ 回铸段窗重选模式"
+msgstr "‹ Back to choose another mode"
+
+#: src/studio/ui/projection.tsx
+msgid "‹ 模式"
+msgstr "‹ Mode"
+
+#: src/studio/ui/projection.tsx
+msgid "‹ 示例视频"
+msgstr "‹ Example video"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "‹ 重新描"
@@ -477,6 +500,11 @@ msgstr "{0} · the video and images upload one at a time before others can see t
 msgid "{0} {1}（形象作者推荐）"
 msgstr "{0} {1} (recommended by the look's creator)"
 
+#. placeholder {0}: fmtTokens(est)
+#: src/studio/ui/projection.tsx
+msgid "{0} token"
+msgstr "{0} tokens"
+
 #. placeholder {0}: fmtTokens(p.monthlyTokens)
 #. placeholder {1}: p.desc
 #: src/pages/ProfilePage.tsx
@@ -612,6 +640,11 @@ msgstr "{0} (optional)"
 msgid "{0}/{SCRIPT_MAX} 字 · 铺出来按当前设置：{1}档 · {2}"
 msgstr "{0}/{SCRIPT_MAX} characters · segments will use the current settings: {1} tier · {2}"
 
+#. placeholder {0}: slotCards.length
+#: src/studio/ui/projection.tsx
+msgid "{0}/20 张 · 同类型可多张"
+msgstr "{0}/20 · several of the same type allowed"
+
 #. placeholder {0}: fmtTokens(CHAT_TURN_TOKENS)
 #: src/components/flow/FlowCanvas.tsx
 msgid "{0}/句"
@@ -640,6 +673,17 @@ msgstr "{0}s · too long"
 #: src/pages/SimpleModePage.tsx
 msgid "{0}s 复刻"
 msgstr "{0}s remake"
+
+#. placeholder {0}: tpl.refVideo!.durationSec
+#: src/studio/ui/projection.tsx
+msgid "{0}s 白模复刻"
+msgstr "{0}s blockout remake"
+
+#. placeholder {0}: tpl.refVideo!.durationSec
+#. placeholder {1}: tpl.roles!.length
+#: src/studio/ui/projection.tsx
+msgid "{0}s 白模复刻 · {1} 个角色位"
+msgstr "{0}s blockout remake · {1, plural, one {# role slot} other {# role slots}}"
 
 #. placeholder {0}: formatPlays(plays)
 #. placeholder {0}: formatPlays(v.plays)
@@ -863,6 +907,21 @@ msgstr "“{0}” saved to your card library"
 msgid "「{0}」按发计价，只有 {1} 秒两档"
 msgstr "“{0}” is priced per clip and only offers {1}s"
 
+#. placeholder {0}: tierOf(editor.videoTier).label
+#: src/studio/ui/projection.tsx
+msgid "「{0}」档带不了参考视频"
+msgstr "The “{0}” tier can't take a reference video"
+
+#. placeholder {0}: tierOf(editor.videoTier).label
+#: src/studio/ui/projection.tsx
+msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」，或直接跳过这一步自己给首尾帧"
+msgstr "The “{0}” tier can't take a reference video — switch to “Cinematic” in the Specs step, or skip this step and provide the first and last frames yourself"
+
+#. placeholder {0}: tierOf(editor.videoTier).label
+#: src/studio/ui/projection.tsx
+msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」（付费档，套餐不够会点不动），或直接跳过这一步自己给首尾帧"
+msgstr "The “{0}” tier can't take a reference video — switch to “Cinematic” in the Specs step (a paid tier; it's disabled if your plan doesn't cover it), or skip this step and provide the first and last frames yourself"
+
 #. placeholder {0}: scheme.title
 #. placeholder {1}: fmtTokens(price)
 #: src/components/VideoCardAnnotator.tsx
@@ -902,6 +961,14 @@ msgstr "The “{tierLabel}” tier doesn't support reference images: a setup fra
 #: src/studio/canvasAgent.ts
 msgid "「{u}」"
 msgstr "“{u}”"
+
+#: src/studio/ui/projection.tsx
+msgid "← 左右滑动浏览 · 单击查看详情 · 窗外拖拽可转视角"
+msgstr "← Swipe to browse · tap for details · drag outside the window to turn the view"
+
+#: src/studio/ui/projection.tsx
+msgid "← 左右滑动选一套 → 它同时会成为铸段的素材池 · 窗外拖拽可转视角"
+msgstr "← Swipe to pick a deck → it also becomes the material pool for new segments · drag outside the window to turn the view"
 
 #: src/pages/SimpleModePage.tsx
 msgid "← 换成自己写一句"
@@ -988,6 +1055,10 @@ msgstr "+ Add local audio as background music"
 msgid "＋ 自建一套"
 msgstr "+ Create your own"
 
+#: src/studio/ui/projection.tsx
+msgid "＋ 选卡片"
+msgstr "＋ Pick cards"
+
 #: src/components/flow/RefFrameSheet.tsx
 msgid "＋中间帧（{midCount}/{midMax}）"
 msgstr "+ Middle frame ({midCount}/{midMax})"
@@ -1054,6 +1125,14 @@ msgstr "▭ Box"
 msgid "▶ 再跑一遍"
 msgstr "▶ Run again"
 
+#: src/studio/ui/projection.tsx
+msgid "▶ 回看"
+msgstr "▶ Replay"
+
+#: src/studio/ui/projection.tsx
+msgid "▶ 圈选"
+msgstr "▶ Circle"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "▶ 开始试跑"
 msgstr "▶ Start test run"
@@ -1107,6 +1186,17 @@ msgstr "♻ Regenerate (costs {0} again)"
 msgid "♻ 重新生成方案（{0}）"
 msgstr "♻ Regenerate plans ({0})"
 
+#. placeholder {0}: fmtTokens(cost)
+#: src/studio/ui/projection.tsx
+msgid "♻ 重炼本段（{0}）"
+msgstr "♻ Regenerate this segment ({0})"
+
+#. placeholder {0}: annPlan.redrawn
+#. placeholder {1}: fmtTokens(cost)
+#: src/studio/ui/projection.tsx
+msgid "♻ 重炼本段（含 {0} 处圈选改图 · {1}）"
+msgstr "♻ Regenerate this segment (incl. {0, plural, one {# circled edit} other {# circled edits}} · {1})"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "⚠ 如果你删它是因为<0>画面上根本没有这个人偶</0>，那么它右边 所有位子从左数都要<1>往左挪一位</1>，请顺手把它们也改一下； 如果画面上那个人偶还在（只是你不想让人挂卡），右边的一个都不用动。"
 msgstr "⚠ If you're deleting it because <0>that mannequin isn't in the picture at all</0>, every slot to its right <1>moves one place to the left</1> when counting from the left, so update those too. If the mannequin is still there (you just don't want cards attached to it), leave the slots to its right as they are."
@@ -1120,6 +1210,10 @@ msgstr "⚠ If you deleted it because that mannequin isn't in the picture at all
 msgid "⚠ 已挂 {0} 张，超过一次出片能带的 {maxRefImages} 张参考图上限。 多出来的会在出片时按出片管线既有的规则被挤掉 —— 建议你自己减到 {maxRefImages} 张， 免得被挤掉的正好是最要紧的那张。"
 msgstr "⚠ {0, plural, one {# card is} other {# cards are}} attached, more than the {maxRefImages} reference images one render can take. The extras will be dropped by the render pipeline's existing rules — trim down to {maxRefImages} yourself so the one that gets dropped isn't the one that matters most."
 
+#: src/studio/ui/projection.tsx
+msgid "⚠ 换成这一套，现在这套走向后面的段会整段收起（切回可恢复）"
+msgstr "⚠ Switching to this plan folds away the segments after the current direction (switch back to restore them)"
+
 #: src/pages/PublishPage.tsx
 msgid "⚠ 渐变回退"
 msgstr "⚠ Fade fallback"
@@ -1132,6 +1226,11 @@ msgstr "⚠ If the video contains <0>real human faces</0>, the AI may reject the
 #: src/components/flow/FlowCanvas.tsx
 msgid "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「电影级」，否则生成会被整句拒。"
 msgstr "⚠ The “{0}” tier can't take a reference video — switch to “Cinematic” in ⚙ Segment settings, or generation will be rejected."
+
+#. placeholder {0}: tierOf(editor.videoTier).label
+#: src/studio/ui/projection.tsx
+msgid "⚠「{0}」档带不了参考视频——选「电影级」，否则出片会被整句拒"
+msgstr "⚠ The “{0}” tier can't take a reference video — choose “Cinematic”, or generation will be rejected"
 
 #. placeholder {0}: fmtTokens(lockPrice)
 #: src/pages/FeedPage.tsx
@@ -1177,6 +1276,11 @@ msgstr "⚡ Generate this segment ({0})"
 msgid "⚡ 生成本段（{costLabel}）"
 msgstr "⚡ Generate this segment ({costLabel})"
 
+#. placeholder {0}: fmtTokens(cost)
+#: src/studio/ui/projection.tsx
+msgid "⚡ 生成本段视频（{0}）"
+msgstr "⚡ Generate this segment's video ({0})"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "⚡ 用这个模板出片（只需一句话）"
 msgstr "⚡ Make a video with this template (just one sentence)"
@@ -1206,6 +1310,10 @@ msgstr "✂ Use this area"
 msgid "✂️ 播放头处分割"
 msgstr "✂️ Split at playhead"
 
+#: src/studio/ui/projection.tsx
+msgid "✂ 编辑"
+msgstr "✂ Edit"
+
 #. placeholder {0}: slot0.tag
 #: src/pages/CustomCardPage.tsx
 msgid "✅ 已把授权照片接进来了（既是卡面的「{0}」，也能直接交给 AI 按方案生成图位）"
@@ -1227,6 +1335,10 @@ msgstr "✍ Custom first/last frames"
 #: src/pages/SimpleModePage.tsx
 msgid "✍️ 自己写一句"
 msgstr "✍️ Write my own sentence"
+
+#: src/studio/ui/projection.tsx
+msgid "✍ 铺成方案（免费）"
+msgstr "✍ Lay out the plan (free)"
 
 #: src/studio/canvasAgent.ts
 msgid "✎ 拍摄要求"
@@ -1308,6 +1420,14 @@ msgstr "✦ Holographic 3D model"
 #: src/components/CoverPicker.tsx
 msgid "✨ AI 封面（改图/生成）"
 msgstr "✨ AI cover (edit / generate)"
+
+#: src/studio/ui/projection.tsx
+msgid "✨ AI 改尾帧"
+msgstr "✨ AI edit last frame"
+
+#: src/studio/ui/projection.tsx
+msgid "✨ AI 改首帧"
+msgstr "✨ AI edit first frame"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "✨ 已按「{pickedTitle}」炼好形象图"
@@ -1420,6 +1540,7 @@ msgid "🎞 从成片截帧"
 msgstr "🎞 Grab a frame from the video"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "🎞 调节首尾帧 / 加中间帧"
 msgstr "🎞 Adjust first/last frames / add middle frames"
 
@@ -1436,6 +1557,7 @@ msgid "🎨 融图合成这一帧"
 msgstr "🎨 Compose this frame by blending images"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "🎬 上传一段示例视频当整段参考"
 msgstr "🎬 Upload a sample video as the reference for the whole segment"
 
@@ -1454,15 +1576,22 @@ msgstr "🎬 Create with this card in the 3D Studio"
 msgid "🎬 参考视频已挂上（{0}s · 计价按输入 {1}s + 输出 {2}s）"
 msgstr "🎬 Reference video attached ({0}s · billed as {1}s input + {2}s output)"
 
+#. placeholder {0}: editor.refVideo.durationSec.toFixed(1)
+#: src/studio/ui/projection.tsx
+msgid "🎬 参考视频已挂上（{0}s）"
+msgstr "🎬 Reference video attached ({0}s)"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "🎬 完成视频 ›"
 msgstr "🎬 Finish video ›"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "🎬 导演台 · 摆站位、定机位，截图融成开头帧"
 msgstr "🎬 Director's stage · place actors, set the camera, and blend a screenshot into the opening frame"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "🎬 导演台 · 摆站位、定机位，截图融成开头帧（已融过，可再截）"
 msgstr "🎬 Director's stage · place actors, set the camera, and blend a screenshot into the opening frame (already blended; you can capture again)"
 
@@ -1470,6 +1599,17 @@ msgstr "🎬 Director's stage · place actors, set the camera, and blend a scree
 #: src/components/flow/FlowCanvas.tsx
 msgid "🎬 挑一套方案（{0} 套已推演好）"
 msgstr "🎬 Pick a plan ({0, plural, one {# plan ready} other {# plans ready}})"
+
+#. placeholder {0}: editor.refVideo.durationSec.toFixed(1)
+#: src/studio/ui/projection.tsx
+msgid "🎬 示例视频 {0}s"
+msgstr "🎬 Example video {0}s"
+
+#. placeholder {0}: editor.refVideo.durationSec.toFixed(1)
+#. placeholder {1}: editor.refVideo.mids.length
+#: src/studio/ui/projection.tsx
+msgid "🎬 示例视频 {0}s · 中间帧 {1}/{CUSTOM_MID_MAX}"
+msgstr "🎬 Example video {0}s · middle frames {1}/{CUSTOM_MID_MAX}"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "🎯 从视频提取卡片"
@@ -1483,9 +1623,18 @@ msgstr "🎯 Extract a deck from a video"
 msgid "🎯 出片身份句"
 msgstr "🎯 Identity line for videos"
 
+#: src/studio/ui/projection.tsx
+msgid "🎲 推演三套方案"
+msgstr "🎲 Draft three plans"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "🎲 推演三套方案（{propCostLabel}）"
 msgstr "🎲 Plan three options ({propCostLabel})"
+
+#. placeholder {0}: fmtTokens(deriveCost ?? 0)
+#: src/studio/ui/projection.tsx
+msgid "🎲 生成三套方案（{0}）"
+msgstr "🎲 Generate three plans ({0})"
 
 #: src/studio/canvasAgent.ts
 msgid "🎲 重演方案"
@@ -1755,6 +1904,10 @@ msgstr "④ Tags (optional)"
 msgid "add-on token · 直充/创作收益"
 msgstr "Add-on tokens · top-ups / creator earnings"
 
+#: src/studio/ui/projection.tsx
+msgid "AI 决定"
+msgstr "AI decides"
+
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "AI 分析哪几帧"
 msgstr "Frames for the AI to analyze"
@@ -1783,9 +1936,21 @@ msgstr "AI chat isn't enabled; you can go straight to a human"
 msgid "AI 封面工坊"
 msgstr "AI cover studio"
 
+#: src/studio/ui/projection.tsx
+msgid "AI 将自拟开头帧"
+msgstr "The AI will draw the opening frame"
+
 #: src/studio/canvasAgent.ts
 msgid "AI 指挥没连上（{why}），先按本地句式办了能办的。"
 msgstr "Couldn't reach the AI director ({why}), so I did what plain phrasing allows. "
+
+#: src/studio/ui/projection.tsx
+msgid "AI 推演三套"
+msgstr "AI drafts three"
+
+#: src/studio/ui/projection.tsx
+msgid "AI 正在推演三种走向…"
+msgstr "The AI is drafting three directions…"
 
 #: src/pages/CustomCardPage.tsx
 msgid "AI 生成"
@@ -1965,10 +2130,12 @@ msgstr "The previous photo isn't finished yet"
 #: src/components/PhotoSubjectPicker.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
+#: src/studio/ui/projection.tsx
 msgid "上一步"
 msgstr "Back"
 
 #: src/pages/FlowPage.tsx
+#: src/studio/ui/projection.tsx
 msgid "上一段"
 msgstr "Previous segment"
 
@@ -1981,11 +2148,16 @@ msgstr "Upload a Live2D model"
 msgid "上传参考视频 {0}%…"
 msgstr "Uploading reference video {0}%…"
 
+#: src/studio/ui/projection.tsx
+msgid "上传参考视频 {pct}%…"
+msgstr "Uploading reference video {pct}%…"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "上传参考视频 0%…"
 msgstr "Uploading reference video 0%…"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "上传后自动用它的首尾帧当本段首尾帧，之后还能细调、加中间帧"
 msgstr "After upload, its first and last frames become this segment's first and last frames; you can fine-tune them and add middle frames later"
 
@@ -2056,9 +2228,17 @@ msgstr "Next"
 msgid "下一步：人物信息 ›"
 msgstr "Next: character info ›"
 
+#: src/studio/ui/projection.tsx
+msgid "下一步：写内容 ›"
+msgstr "Next: write content ›"
+
 #: src/pages/CustomCardPage.tsx
 msgid "下一步：定名与铸卡 ›"
 msgstr "Next: name and mint ›"
+
+#: src/studio/ui/projection.tsx
+msgid "下一步：定规格 ›"
+msgstr "Next: specs ›"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "下一步：对映射"
@@ -2093,6 +2273,7 @@ msgid "下一步：预览 ›"
 msgstr "Next: preview ›"
 
 #: src/pages/FlowPage.tsx
+#: src/studio/ui/projection.tsx
 msgid "下一段"
 msgstr "Next segment"
 
@@ -2171,6 +2352,7 @@ msgid "下面这条时间轴是<0>整条原片</0>，而真正做成模板的只
 msgstr "The timeline below is <0>the whole original video</0>, but only <1>{0}–{1}s</1>, the part you boxed above, becomes the template"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "不上传，直接给首尾帧 ›"
 msgstr "Skip upload, provide first/last frames ›"
 
@@ -2424,6 +2606,10 @@ msgstr "Later"
 msgid "以当前封面为参考图，按要求修改"
 msgstr "Uses the current cover as the reference and edits it as requested"
 
+#: src/studio/ui/projection.tsx
+msgid "会丢掉这一段推演出的方案（已花的 token 不退）"
+msgstr "The plans drafted for this segment will be discarded (tokens already spent aren't refunded)"
+
 #: src/pages/SupportPage.tsx
 msgid "会把你的描述一起交给人工客服，回复会出现在「通知」和「我的工单」里。"
 msgstr "Your description will go to a human agent; replies will show up in Notifications and My tickets."
@@ -2602,9 +2788,17 @@ msgstr "The rules for using this app"
 msgid "使用说明"
 msgstr "How to use"
 
+#: src/studio/ui/projection.tsx
+msgid "例：主角在雨里发现了那封信的真正收件人……"
+msgstr "e.g. In the rain, the lead discovers who the letter was really meant for…"
+
 #: src/components/FrameAnnotator.tsx
 msgid "例：删除圈中的路人 / 把圈中的伞换成红色油纸伞 / 圈中的招牌改成中文"
 msgstr "e.g. remove the passer-by in the circle / make the umbrella in the circle a red oil-paper umbrella / change the sign in the circle to English"
+
+#: src/studio/ui/projection.tsx
+msgid "例：把伞换成红色 / 去掉背景里的路人 / 光线改成黄昏"
+msgstr "e.g. make the umbrella red / remove passers-by in the background / change the light to dusk"
 
 #: src/components/CoverPicker.tsx
 msgid "例：改成黄昏色调，天空加晚霞；或：少女侧脸特写，手里贝壳发着微光"
@@ -2761,6 +2955,7 @@ msgid "先不换"
 msgstr "Keep current"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "先不改"
 msgstr "Not now"
 
@@ -2777,6 +2972,10 @@ msgstr "Upload {0} first"
 msgid "先传主素材图"
 msgstr "Upload a main reference first"
 
+#: src/studio/ui/projection.tsx
+msgid "先写一句视频要求（缺的帧按它补画）"
+msgstr "Write a video request first (missing frames are drawn from it)"
+
 #: src/pages/FlowPage.tsx
 msgid "先写那句话"
 msgstr "Write the sentence first"
@@ -2791,6 +2990,7 @@ msgstr "Confirm the three points above before publishing."
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/FlowPage.tsx
+#: src/studio/ui/projection.tsx
 msgid "先去挂卡，点名句会填进这里（可改）"
 msgstr "Attach cards first; the casting line will be filled in here (editable)"
 
@@ -2850,6 +3050,10 @@ msgstr "Free"
 msgid "全屏"
 msgstr "Full screen"
 
+#: src/studio/ui/projection.tsx
+msgid "全按你的来"
+msgstr "Your way"
+
 #: src/components/CoverPicker.tsx
 msgid "全新生成"
 msgstr "Generate new"
@@ -2868,6 +3072,10 @@ msgstr "All {0}"
 #: src/pages/ProfilePage.tsx
 msgid "全部上传成功"
 msgstr "All uploaded"
+
+#: src/studio/ui/projection.tsx
+msgid "全部卡片"
+msgstr "All cards"
 
 #: src/pages/NotificationsPage.tsx
 msgid "全部已读"
@@ -2979,6 +3187,10 @@ msgstr "<0>All of their videos</0> (including private and taken-down ones) are r
 #: src/pages/AdminPage.tsx
 msgid "其发出的<0>评论、弹幕</0>全部删除；别人作品下的也一样；⚠ <1>其他用户</1>回复在这些评论下的楼中楼会被连带删除"
 msgstr "All <0>comments and bullet comments</0> they posted are deleted, including those under other people's videos; ⚠ replies from <1>other users</1> under those comments are deleted along with them"
+
+#: src/studio/ui/projection.tsx
+msgid "内容"
+msgstr "Content"
 
 #: src/pages/VideoPage.tsx
 msgid "内容可能还在，只是这次没取到（网络或服务器的问题）"
@@ -3094,6 +3306,7 @@ msgid "写一个称呼"
 msgstr "Write a form of address"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "写一句换成谁，例：换成一只戴墨镜的柴犬"
 msgstr "Write who to swap in, e.g. a Shiba Inu wearing sunglasses"
 
@@ -3488,6 +3701,10 @@ msgstr "Refresh"
 msgid "刷新中…"
 msgstr "Refreshing…"
 
+#: src/studio/ui/projection.tsx
+msgid "前面还有没炼完的段——段与段靠上一段的真实结尾接着拍，得按顺序来"
+msgstr "Earlier segments aren't finished yet — each segment continues from the previous one's actual ending, so they go in order"
+
 #: src/components/BranchPlayer.tsx
 msgid "剧情走向，由你决定——"
 msgstr "You decide where the story goes—"
@@ -3648,6 +3865,7 @@ msgstr "The card was created, but some images couldn't be saved to the server"
 #: src/pages/AdminPage.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/WorkshopPage.tsx
+#: src/studio/ui/projection.tsx
 msgid "卡片"
 msgstr "Cards"
 
@@ -3667,6 +3885,7 @@ msgstr "Card details"
 #: src/pages/AdminPage.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/WorkshopPage.tsx
+#: src/studio/ui/projection.tsx
 msgid "卡组"
 msgstr "Decks"
 
@@ -3682,6 +3901,10 @@ msgstr "This deck doesn't exist or isn't yours"
 #: src/components/VideoCardAnnotator.tsx
 msgid "卡组名"
 msgstr "Deck name"
+
+#: src/studio/ui/projection.tsx
+msgid "卡组暂无此类型——找铸卡师炼一张或去市场收"
+msgstr "No cards of this type in the deck — have the card smith forge one, or get one from the market"
 
 #: src/components/DeleteDeckDialog.tsx
 msgid "卡组本身删了就找不回来。"
@@ -3884,6 +4107,11 @@ msgstr "How the AI uses reference images"
 #: src/pages/TemplateDetailPage.tsx
 msgid "参考画面特征"
 msgstr "Reference visual traits"
+
+#. placeholder {0}: err instanceof Error ? err.message : String(err)
+#: src/studio/ui/projection.tsx
+msgid "参考视频没挂上：{0}"
+msgstr "Couldn't attach the reference video: {0}"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "参考视频没挂上：{why}"
@@ -4144,6 +4372,7 @@ msgid "取这一帧超时了。应用切到后台时系统会暂停视频解码�
 msgstr "Grabbing this frame timed out. The system pauses video decoding while the app is in the background. Come back, let the picture actually play, then tap “Mark this frame”."
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "取首尾帧…"
 msgstr "Grabbing first/last frames…"
 
@@ -4177,6 +4406,7 @@ msgid "只删生成过程中留下的、已经没人用的中间文件。未发�
 msgstr "Only intermediate files left over from generation that nothing uses anymore are deleted. Unpublished drafts and works that haven't uploaded yet are left alone."
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "只剩一段且已出片，删不掉"
 msgstr "It's the only segment and already rendered, so it can't be deleted"
 
@@ -4339,6 +4569,10 @@ msgstr "Merge video"
 msgid "合成整片 · 还差 {0} 段"
 msgstr "Full video · {0, plural, one {# segment} other {# segments}} to go"
 
+#: src/studio/ui/projection.tsx
+msgid "合成本段预计消耗"
+msgstr "Estimated cost for this segment"
+
 #: src/pages/PublishPage.tsx
 msgid "合成稿还留在「我的」里，没有丢。"
 msgstr "The merged draft is still on the Me page; nothing was lost."
@@ -4427,6 +4661,10 @@ msgstr "Feed in a chat log or answer a few questions, and AI writes a speaking s
 msgid "嘴形"
 msgstr "Mouth shape"
 
+#: src/studio/ui/projection.tsx
+msgid "回上一步写一句视频要求，这颗键才亮"
+msgstr "Go back and write a video request to enable this button"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "回上一步让服务器先识别一次。"
 msgstr "Go back a step and let the server run detection first."
@@ -4492,6 +4730,18 @@ msgstr "Remake this video?"
 #: src/pages/OauthCallbackPage.tsx
 msgid "回登录页"
 msgstr "Back to login"
+
+#: src/studio/ui/projection.tsx
+msgid "回看成片"
+msgstr "Replay video"
+
+#: src/studio/ui/projection.tsx
+msgid "回看成片 · 在画面上圈出要改的地方"
+msgstr "Replay video · circle what to change on screen"
+
+#: src/studio/ui/projection.tsx
+msgid "回铸段窗重选模式"
+msgstr "Back to the segment window to choose another mode"
 
 #: src/pages/VideoEditorPage.tsx
 msgid "回首页"
@@ -4590,6 +4840,7 @@ msgstr "Smirk"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/FlowPage.tsx
+#: src/studio/ui/projection.tsx
 msgid "填入默认写法（填完还能改）"
 msgstr "Fill in the default wording (editable afterwards)"
 
@@ -4701,6 +4952,10 @@ msgstr "Hair"
 msgid "头左右"
 msgstr "Head left/right"
 
+#: src/studio/ui/projection.tsx
+msgid "套一个模板，给人偶挂卡换人"
+msgstr "Use a template and put your cards on its mannequins"
+
 #: src/pages/TemplateMarketPage.tsx
 msgid "套上模板，一句话出片"
 msgstr "Apply a template and make a video from one sentence"
@@ -4708,6 +4963,10 @@ msgstr "Apply a template and make a video from one sentence"
 #: src/pages/FlowPage.tsx
 msgid "套个模板？一句话就能出同类视频"
 msgstr "Use a template? One sentence makes a similar video"
+
+#: src/studio/ui/projection.tsx
+msgid "套模板"
+msgstr "Use a template"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "套用＝复刻这段的场景与运镜，人偶换成你挂的角色卡。时长与画幅跟这段视频走。"
@@ -4845,6 +5104,7 @@ msgstr "Install and use"
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/DeckDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
+#: src/studio/ui/projection.tsx
 msgid "完成"
 msgstr "Done"
 
@@ -4984,6 +5244,7 @@ msgstr "Last frame"
 
 #: src/pages/FlowPage.tsx
 #: src/pages/SimpleModePage.tsx
+#: src/studio/ui/projection.tsx
 msgid "展开"
 msgstr "Expand"
 
@@ -5085,6 +5346,10 @@ msgstr "Rendered {0}/{1}"
 #: src/components/flow/FlowCanvas.tsx
 msgid "已出片：换模板/模式会作废本段（想换先删段重加）"
 msgstr "Rendered: changing the template or mode would discard this segment (to change it, delete the segment and add it again)"
+
+#: src/studio/ui/projection.tsx
+msgid "已出片：换模板会作废本段（想换先删段重加）"
+msgstr "Video ready: changing the template discards this segment (to change it, delete the segment and add it again)"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "已出片（成片预览没截到，点开可回看）"
@@ -5228,7 +5493,9 @@ msgid "已拥有"
 msgstr "Owned"
 
 #. placeholder {0}: tpl!.roles!.length
+#. placeholder {0}: tpl.roles!.length
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "已挂 {mounted}/{0} 个角色位 · 点这里改"
 msgstr "{mounted}/{0} role slots cast · tap to change"
 
@@ -5305,6 +5572,10 @@ msgstr "Cleaned up {n, plural, one {# file} other {# files}}"
 msgid "已用 {0} MB"
 msgstr "{0} MB used"
 
+#: src/studio/ui/projection.tsx
+msgid "已用你上传的图"
+msgstr "Using your uploaded image"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "已经公开到形象市场，别人能搜到它了。"
 msgstr "It's now public in the look market, and others can find it."
@@ -5372,6 +5643,10 @@ msgstr "You've left the real-person path: the authorization binding and the phot
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "已经聊满 {PREVIEW_ROUNDS_MAX} 轮了"
 msgstr "All {PREVIEW_ROUNDS_MAX} rounds used"
+
+#: src/studio/ui/projection.tsx
+msgid "已自动取它的首尾帧当本段首尾帧；可细调、加中间帧（最多 {CUSTOM_MID_MAX} 张）"
+msgstr "Its first and last frames are now this segment's first and last frames; you can fine-tune them and add middle frames (up to {CUSTOM_MID_MAX})"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "已被平台下架"
@@ -5932,6 +6207,14 @@ msgstr "Continue = send the previous segment's actual last frame as <0>the first
 msgid "承接 = 本段首帧自动用上一段的真实尾帧。这一档是<0>协议级约束</0>，画面一定从那一帧起拍；上传自己的首帧会改为不承接。想恢复承接：清掉首帧，再到 ⚙ 本段设置里打开。"
 msgstr "Continue = this segment's first frame automatically uses the previous segment's actual last frame. On this tier it's <0>a protocol-level constraint</0>, so the video always starts from that frame; uploading your own first frame turns continuation off. To turn it back on, clear the first frame, then enable it in ⚙ Segment settings."
 
+#: src/studio/ui/projection.tsx
+msgid "承接上一段尾帧"
+msgstr "Continues from the previous segment's last frame"
+
+#: src/studio/ui/projection.tsx
+msgid "承接上段尾帧，三个方案共用开头帧，只画尾帧"
+msgstr "Continues from the previous segment's last frame: all three plans share the opening frame, so only last frames are drawn"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "承接尾帧"
 msgstr "Continues last frame"
@@ -6152,6 +6435,14 @@ msgstr "Writing character info from the reference…"
 msgid "按要求改当前封面"
 msgstr "Edit current cover"
 
+#: src/studio/ui/projection.tsx
+msgid "按要求重画尾帧"
+msgstr "Redraw the last frame as requested"
+
+#: src/studio/ui/projection.tsx
+msgid "按要求重画首帧"
+msgstr "Redraw the first frame as requested"
+
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "按这一段的时长自动取帧：现在是 <0>{autoFrames} 帧</0>（每 {BLOCKOUTIZE_FRAME_EVERY_SEC} 秒一帧，最少 {BLOCKOUTIZE_FRAME_MIN} 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧）。<1>拖时间轴改选段长度，帧数和下面的报价都会跟着变。</1>"
 msgstr "Frames are picked automatically from this selection's length: currently <0>{autoFrames, plural, one {# frame} other {# frames}}</0> (one every {BLOCKOUTIZE_FRAME_EVERY_SEC}s, at least {BLOCKOUTIZE_FRAME_MIN} and at most {BLOCKOUTIZE_FRAME_MAX}). <1>Drag the timeline to change the selection's length; the frame count and the price below change with it.</1>"
@@ -6164,9 +6455,17 @@ msgstr "Plays everything in order: lip sync while speaking, blinking, and each m
 msgid "挑一个模板"
 msgstr "Pick a template"
 
+#: src/studio/ui/projection.tsx
+msgid "挑一套 → 可换首尾帧/改剧情 → 炼出本段视频，桌面上才会亮出下一段的卡位"
+msgstr "Pick a plan → swap frames or edit the story → generate this segment's video, and the next segment's slot lights up on the table"
+
 #: src/pages/SimpleModePage.tsx
 msgid "挑一条现成的片子，复刻它的画面与运镜"
 msgstr "Pick an existing video and remake its visuals and camera moves"
+
+#: src/studio/ui/projection.tsx
+msgid "挑素材卡＋写要求，三套方案挑一套"
+msgstr "Pick material cards and write a request, then choose one of three plans"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "挥手"
@@ -6219,6 +6518,7 @@ msgid "换条路"
 msgstr "Try another path"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "换模板"
 msgstr "Change template"
 
@@ -6291,6 +6591,7 @@ msgid "接着剪"
 msgstr "Keep editing"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "推演中…"
 msgstr "Planning…"
 
@@ -6393,9 +6694,17 @@ msgstr "Searching people needs a server connection · you're offline (videos and
 msgid "搜卡名 / 简介 / 类型"
 msgstr "Search name / summary / type"
 
+#: src/studio/ui/projection.tsx
+msgid "搜卡名 / 类型…"
+msgstr "Search card name / type…"
+
 #: src/components/MaterialSheet.tsx
 msgid "搜卡组名，或组里的卡名"
 msgstr "Search deck names, or card names inside decks"
+
+#: src/studio/ui/projection.tsx
+msgid "搜卡组名…"
+msgstr "Search deck names…"
 
 #: src/pages/AdminPage.tsx
 msgid "搜弹幕正文 / 作者"
@@ -6441,6 +6750,10 @@ msgstr "Search comment text / author"
 msgid "摇头 · 否定"
 msgstr "Shake head · disagree"
 
+#: src/studio/ui/projection.tsx
+msgid "摘掉"
+msgstr "Detach"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "摘掉模板，改为自选"
 msgstr "Remove template, pick cards"
@@ -6456,6 +6769,11 @@ msgstr "Touch “{areaName}” → {target}"
 #: src/pages/SupportModelNewPage.tsx
 msgid "撒娇"
 msgstr "Affectionate"
+
+#. placeholder {0}: c.name
+#: src/studio/ui/projection.tsx
+msgid "撤掉 {0}"
+msgstr "Remove {0}"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "撤销"
@@ -6524,6 +6842,7 @@ msgstr "Pricing"
 #: src/pages/CustomCardPage.tsx
 #: src/pages/FlowPage.tsx
 #: src/pages/SimpleModePage.tsx
+#: src/studio/ui/projection.tsx
 msgid "收起"
 msgstr "Collapse"
 
@@ -6573,6 +6892,7 @@ msgid "改完挂卡会按新的映射<0>重新合成</0>下面那段要求，你
 msgstr "After you change the cards, the request below is <0>re-composed</0> with the new mapping and your edits are replaced — the old text still describes the old cards, and keeping it would make the AI swap people the old way."
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "改完挂卡会按新的映射<0>重新合成</0>下面那段要求，你改过的字会被替换掉。"
 msgstr "After you change the casting, the request below is <0>regenerated</0> from the new mapping, replacing any edits you made."
 
@@ -6962,6 +7282,14 @@ msgstr "Saved this session: {0, plural, one {# card} other {# cards}} (already i
 msgid "本段"
 msgstr "This segment"
 
+#: src/studio/ui/projection.tsx
+msgid "本段已出片 · 桌面上下一段的虚线卡位已亮起"
+msgstr "This segment's video is ready · the next segment's dashed slot on the table is lit"
+
+#: src/studio/ui/projection.tsx
+msgid "本段已出片 · 白模复刻段只有一段——点亮法阵去组稿成片"
+msgstr "This segment's video is ready · a blockout remake has only one segment — light up the circle to assemble the final video"
+
 #. placeholder {0}: modelLabel(tierOf(node.videoTier).model)
 #: src/components/flow/SegSettings.tsx
 msgid "本段模型：{0}"
@@ -7126,6 +7454,11 @@ msgstr "Checking structure…"
 msgid "检查更新"
 msgstr "Check for updates"
 
+#. placeholder {0}: modelLabel(tierOf(editor.videoTier).model)
+#: src/studio/ui/projection.tsx
+msgid "模型：{0}"
+msgstr "Model: {0}"
+
 #: src/pages/SupportModelsPage.tsx
 msgid "模型文件读不到（{why}），没有切换。"
 msgstr "Couldn't read the model files ({why}); nothing was switched."
@@ -7286,6 +7619,7 @@ msgid "正在把「{noun} → 角色」合成一段话…"
 msgstr "Composing “{noun} → character” into a paragraph…"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "正在把「人偶 → 角色」合成一段话…"
 msgstr "Turning “mannequin → character” into a prompt…"
 
@@ -7558,6 +7892,10 @@ msgstr "No matching users"
 #: src/pages/AdminPage.tsx
 msgid "没有匹配的评论"
 msgstr "No matching comments"
+
+#: src/studio/ui/projection.tsx
+msgid "没有叫「{q}」的卡组"
+msgstr "No deck called “{q}”"
 
 #: src/pages/SettingsStoragePage.tsx
 msgid "没有可清理的中间文件"
@@ -7880,11 +8218,21 @@ msgstr "Like failed. Try again later."
 msgid "点过的赞"
 msgstr "Likes given"
 
+#. placeholder {0}: CARD_TYPE_LABELS[pickerType]
+#: src/studio/ui/projection.tsx
+msgid "点选加入{0}，再点撤下——可连选多张"
+msgstr "Tap to add a {0}, tap again to remove — you can pick several"
+
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "点错了"
 msgstr "Wrong one"
 
+#: src/studio/ui/projection.tsx
+msgid "炼出本段视频才能开下一段（段与段靠上一段的真实尾帧承接起拍）"
+msgstr "Generate this segment's video before starting the next one (each segment starts from the previous one's actual last frame)"
+
 #: src/components/ForgeOverlay.tsx
+#: src/studio/ui/projection.tsx
 msgid "炼制中…"
 msgstr "Rendering…"
 
@@ -8079,6 +8427,7 @@ msgid "画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。"
 msgstr "It renders. Try touching her, or drag to see whether her gaze follows."
 
 #: src/components/flow/SegSettings.tsx
+#: src/studio/ui/projection.tsx
 msgid "画幅"
 msgstr "Aspect"
 
@@ -8093,6 +8442,10 @@ msgstr "The picture <0>may show two mannequins with the same number</0>, or <1>a
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "画面上还有一个白色人偶没列出来？把它加回来"
 msgstr "Another white mannequin in the picture isn't listed? Add it back"
+
+#: src/studio/ui/projection.tsx
+msgid "画面与运镜整个来自模板视频——写好那句话（或挂完卡）就能开炼"
+msgstr "The visuals and camera work come entirely from the template video — write the sentence (or finish placing cards) and you can start"
 
 #. placeholder {0}: Math.round(geo.width)
 #. placeholder {1}: Math.round(geo.height)
@@ -8142,6 +8495,10 @@ msgstr "The kept Studio project is from the previous version; this version wasn'
 msgid "留空 = 跟随人格/模型：{0}"
 msgstr "Leave empty to follow persona/model: {0}"
 
+#: src/studio/ui/projection.tsx
+msgid "留空由 AI 决定；可填 2-15"
+msgstr "Leave empty to let the AI decide; 2–15 allowed"
+
 #: src/pages/ProfilePage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "登录 / 注册"
@@ -8176,6 +8533,7 @@ msgid "登录服务器后可以浏览别人分享的卡组"
 msgstr "Connect to the server to browse decks others have shared"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "登记素材…"
 msgstr "Registering asset…"
 
@@ -8199,6 +8557,10 @@ msgstr "Blockout can't be priced right now, so it can't start yet (pricing or th
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "白模化这一次的总消耗"
 msgstr "Total cost of this blockout"
+
+#: src/studio/ui/projection.tsx
+msgid "白模复刻"
+msgstr "Blockout remake"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "白模复刻 · 模板视频 {tplSecs}s"
@@ -8369,6 +8731,7 @@ msgid "知道了，不用再提醒我这一发"
 msgstr "Got it, don't remind me about this one"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "知道了，去改挂卡"
 msgstr "Got it, change casting"
 
@@ -8413,6 +8776,10 @@ msgstr "To confirm deactivation, type your username <0>{username}</0> exactly (c
 msgid "确认移除"
 msgstr "Confirm removal"
 
+#: src/studio/ui/projection.tsx
+msgid "示例"
+msgstr "Example"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "示例图没存上：{why}"
 msgstr "Example images weren't saved: {why}"
@@ -8420,6 +8787,10 @@ msgstr "Example images weren't saved: {why}"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "示例对话"
 msgstr "Example dialogue"
+
+#: src/studio/ui/projection.tsx
+msgid "示例视频 / 自己给帧，免费铺方案直出"
+msgstr "Example video or your own frames; lay out the plan for free and generate directly"
 
 #: src/pages/WorkshopPage.tsx
 msgid "社区分享的卡"
@@ -8453,13 +8824,29 @@ msgstr "Grabbing frames from the video timed out"
 msgid "视频提取卡组"
 msgstr "Deck from video"
 
+#: src/studio/ui/projection.tsx
+msgid "视频时长"
+msgstr "Video length"
+
 #: src/components/CoverPicker.tsx
 msgid "视频未就绪"
 msgstr "Video not ready"
 
+#: src/studio/ui/projection.tsx
+msgid "视频档位"
+msgstr "Video tier"
+
 #: src/pages/TemplateMarketPage.tsx
 msgid "视频模板"
 msgstr "Video templates"
+
+#: src/studio/ui/projection.tsx
+msgid "视频要求（剧情补充）"
+msgstr "Video request (story details)"
+
+#: src/studio/ui/projection.tsx
+msgid "视频要求（缺的帧按这句补画，也是出片提示词）"
+msgstr "Video request (missing frames are drawn from it; it's also the video prompt)"
 
 #: src/components/flow/SegPlayer.tsx
 #: src/utils/videoFrames.ts
@@ -8491,6 +8878,10 @@ msgstr "Private: only in your own library. Once shared, it shows up under “Add
 msgid "私有：只在你自己的库里。分享后会出现在创意工坊的「从市场添加」里，别人可以把这张卡装走。"
 msgstr "Private: only in your own library. Once shared, it shows up under “Add from market” in the Workshop, and others can install this card."
 
+#: src/studio/ui/projection.tsx
+msgid "秒"
+msgstr "sec"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "称呼"
 msgstr "How they address you"
@@ -8499,6 +8890,7 @@ msgstr "How they address you"
 #: src/pages/CardDetailPage.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/WorkshopPage.tsx
+#: src/studio/ui/projection.tsx
 msgid "移除"
 msgstr "Remove"
 
@@ -8514,10 +8906,12 @@ msgstr "Empty = AI draws it from the sentence above (charged)"
 #: src/components/flow/CustomFrameSlots.tsx
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/FlowPage.tsx
+#: src/studio/ui/projection.tsx
 msgid "空 = AI 按提示词补画（计费）"
 msgstr "Empty = AI draws it from the prompt (charged)"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "空 = 承接上一段真实尾帧"
 msgstr "Empty = continue from the previous segment's actual last frame"
 
@@ -8560,9 +8954,11 @@ msgstr "Voice {0}"
 
 #. placeholder {0}: i + 1
 #. placeholder {0}: index + 1
+#. placeholder {0}: segIndex + 1
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/FlowPage.tsx
 #: src/pages/PublishPage.tsx
+#: src/studio/ui/projection.tsx
 msgid "第 {0} 段"
 msgstr "Segment {0}"
 
@@ -8613,8 +9009,10 @@ msgstr "Segment {0} has a video waiting to be recovered"
 msgid "第 {0} 段设置"
 msgstr "Segment {0} settings"
 
+#. placeholder {0}: i + 1
 #. placeholder {0}: index + 1
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "第 {0} 段还没轮到（前面的段先炼完才解锁），挂不了卡"
 msgstr "Segment {0} isn't unlocked yet (earlier segments must be rendered first), so cards can't be attached"
 
@@ -8650,6 +9048,24 @@ msgstr "Group {0} · incomplete"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "第 {0} 组还没填完 —— 试聊和发布时这几组会被丢掉（一问一答缺一边的示例喂不了模型）。"
 msgstr "Group {0} isn't complete — incomplete groups are dropped when chatting and publishing (an exchange missing one side can't be given to the model)."
+
+#. placeholder {0}: idx + 1
+#. placeholder {1}: path.length
+#: src/studio/ui/projection.tsx
+msgid "第 {0}/{1} 段 · 已出片"
+msgstr "Segment {0}/{1} · video ready"
+
+#. placeholder {0}: idx + 1
+#. placeholder {1}: path.length
+#: src/studio/ui/projection.tsx
+msgid "第 {0}/{1} 段 · 已选定走向"
+msgstr "Segment {0}/{1} · direction chosen"
+
+#. placeholder {0}: idx + 1
+#. placeholder {1}: path.length
+#: src/studio/ui/projection.tsx
+msgid "第 {0}/{1} 段 · 选择走向"
+msgstr "Segment {0}/{1} · choose a direction"
 
 #. placeholder {0}: (p.group?.index ?? 0) + 1
 #. placeholder {0}: (part.group?.index ?? 0) + 1
@@ -8792,9 +9208,19 @@ msgstr "Pasted text"
 msgid "约 {0}"
 msgstr "About {0}"
 
+#. placeholder {0}: fmtTokens(est)
+#: src/studio/ui/projection.tsx
+msgid "约 {0} token"
+msgstr "about {0} tokens"
+
 #: src/components/flow/SegSettings.tsx
+#: src/studio/ui/projection.tsx
 msgid "素材"
 msgstr "Assets"
+
+#: src/studio/ui/projection.tsx
+msgid "素材卡"
+msgstr "Material cards"
 
 #. placeholder {0}: mats.length
 #: src/components/flow/FlowCanvas.tsx
@@ -8804,6 +9230,15 @@ msgstr "{0, plural, one {# reference card} other {# reference cards}}"
 #: src/components/flow/FlowCanvas.tsx
 msgid "素材卡（可不选）"
 msgstr "Reference cards (optional)"
+
+#: src/studio/ui/projection.tsx
+msgid "素材卡（选） —— 缺帧补画时当参考"
+msgstr "Material cards (optional) — used as references when missing frames are drawn"
+
+#. placeholder {0}: slotCards.length
+#: src/studio/ui/projection.tsx
+msgid "素材卡（选） · 已选 {0} 张 —— 缺帧补画时当参考"
+msgstr "Material cards (optional) · {0} selected — used as references when missing frames are drawn"
 
 #: src/pages/FlowPage.tsx
 msgid "素材卡上还没有形象参考图（去卡片详情页加几张），这次只能先按描述画一张设定帧再出片"
@@ -8847,7 +9282,9 @@ msgid "绘制中…"
 msgstr "Drawing…"
 
 #. placeholder {0}: tpl!.roles!.length
+#. placeholder {0}: tpl.roles!.length
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "给 {0} 个人偶挂上你的角色卡"
 msgstr "Attach your character cards to {0, plural, one {# mannequin} other {# mannequins}}"
 
@@ -8993,12 +9430,17 @@ msgstr "Auto (recommended)"
 msgid "自动取首尾帧没成——点「🎞 调节首尾帧」手动截"
 msgstr "Couldn't grab first/last frames automatically — tap “🎞 Adjust first/last frames” to capture them manually"
 
+#: src/studio/ui/projection.tsx
+msgid "自动取首尾帧没成——点「🎞 调节首尾帧」手动截。"
+msgstr "Couldn't capture the first and last frames automatically — tap “🎞 Adjust first/last frames” to capture them by hand."
+
 #. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 100)
 #: src/components/PortraitAuthPanel.tsx
 msgid "自动查授权没成：{0}"
 msgstr "Automatic authorization check failed: {0}"
 
 #: src/components/AvatarPicker.tsx
+#: src/studio/ui/projection.tsx
 msgid "自定义"
 msgstr "Custom"
 
@@ -9044,6 +9486,10 @@ msgstr "Has its own voice"
 #: src/pages/CustomCardPage.tsx
 msgid "自建方案 / 从市场装新方案在工坊「从视频提取卡片」里做，装好这里就能选。"
 msgstr "Create your own scheme or install one from the market under “Extract cards from video” in the Studio; once installed, you can pick it here."
+
+#: src/studio/ui/projection.tsx
+msgid "自选卡片"
+msgstr "Pick cards"
 
 #: src/pages/CustomCardPage.tsx
 msgid "至少一张图（第一张有图的格子就是卡面）"
@@ -9150,6 +9596,10 @@ msgstr "What to film"
 #: src/components/PortraitAuthPanel.tsx
 msgid "要授权的是<0>别人</0>？让他用自己的手机扫这个码 —— 活体认证必须在<1>他本人</1>的手机上、用他自己的火山账号做， 这正是这份授权有效的原因。"
 msgstr "Authorizing <0>someone else</0>? Have them scan this code with their own phone — the liveness check has to happen on <1>their own</1> phone with their own Volcano Engine account, which is exactly what makes the authorization valid."
+
+#: src/studio/ui/projection.tsx
+msgid "规格"
+msgstr "Specs"
 
 #: src/pages/AdminPage.tsx
 msgid "解封"
@@ -9512,6 +9962,7 @@ msgstr "Loading…"
 
 #: src/components/AvatarPicker.tsx
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
 msgid "读取图片…"
 msgstr "Reading image…"
 
@@ -9539,6 +9990,10 @@ msgstr "Who can see this"
 #: src/pages/SettingsVoicePage.tsx
 msgid "调和"
 msgstr "Blend"
+
+#: src/studio/ui/projection.tsx
+msgid "调帧"
+msgstr "Adjust frames"
 
 #: src/components/AvatarPicker.tsx
 msgid "调整头像"
@@ -9827,6 +10282,10 @@ msgstr "No tickets yet"
 msgid "还没有已授权的素材——请本人扫码/打开链接、完成活体认证与授权后再查。"
 msgstr "No authorized assets yet — have the person scan the code or open the link, complete the liveness check and authorization, then check again."
 
+#: src/studio/ui/projection.tsx
+msgid "还没有建过卡组——发布作品会自动生成《作品》卡组，<0/>也可以在「创意工坊」页手动组一套（编辑时可指定封面卡）。"
+msgstr "You haven't made any decks yet — publishing a video creates a deck for it automatically,<0/>or you can build one by hand on the Workshop page (you can pick a cover card while editing)."
+
 #: src/components/flow/SkillPanel.tsx
 msgid "还没有技能——输入条写好常用指令，点「＋ 存为技能」。"
 msgstr "No skills yet. Type a common instruction in the input bar and tap “+ Save as skill”."
@@ -9966,12 +10425,21 @@ msgstr "Ready to start: {0}"
 msgid "这一段已出片，改画幅要重新生成才生效"
 msgstr "This segment is already rendered. A new aspect ratio only takes effect after regenerating"
 
+#: src/studio/ui/projection.tsx
+msgid "这一段已经出片，退不回去了"
+msgstr "This segment already has a video, so you can't go back"
+
 #: src/pages/CutPage.tsx
 msgid "这一段已经改好、钱也扣过了，但{why}"
 msgstr "This segment is done and has been charged, but {why}"
 
+#: src/studio/ui/projection.tsx
+msgid "这一段怎么拍？挑一张"
+msgstr "How should this segment be shot? Pick one"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/FlowPage.tsx
+#: src/studio/ui/projection.tsx
 msgid "这一段拍什么？"
 msgstr "What happens in this segment?"
 
@@ -9982,6 +10450,15 @@ msgstr "What happens in this segment? Write it and generate"
 #: src/components/flow/FlowCanvas.tsx
 msgid "这一段拍什么？缺的帧按这句补画"
 msgstr "What happens in this segment? Missing frames are drawn from this"
+
+#: src/studio/ui/projection.tsx
+msgid "这一段拍什么（重新推演就按这句话）"
+msgstr "What this segment shows (redrafting uses this sentence)"
+
+#. placeholder {0}: node.proposals.length
+#: src/studio/ui/projection.tsx
+msgid "这一段推演出的 {0} 套方案会一起丢掉，推演已经花掉的 token 不退；这一段还没出片，没有别的损失。"
+msgstr "The {0, plural, one {# plan} other {# plans}} drafted for this segment will be discarded, and tokens already spent on drafting aren't refunded. This segment has no video yet, so nothing else is lost."
 
 #: src/pages/CutPage.tsx
 msgid "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
@@ -9999,6 +10476,10 @@ msgstr "The direction selected for this segment has no video yet"
 msgid "这一段的截帧流还在取（成片有 20MB 级，稍等几秒再点圈选）"
 msgstr "This segment's frame stream is still loading (videos run around 20MB — wait a few seconds, then try circling again)"
 
+#: src/studio/ui/projection.tsx
+msgid "这一段的画质档"
+msgstr "This segment's quality tier"
+
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段的视频拉不下来"
 msgstr "Couldn't load this segment's video"
@@ -10011,6 +10492,14 @@ msgstr "This segment's ending frame can no longer be locked (“{0}” only take
 #: src/pages/FlowPage.tsx
 msgid "这一段的要求由挂卡合成：AI 把「{noun} → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。{noun}与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。"
 msgstr "This segment's request is composed from the attached cards: the AI writes “{noun} → your character” into a paragraph in the input box, which you can review and edit word by word before rendering. The {noun} and character names are generated from the picture, so getting them wrong swaps the wrong people; edit the rest freely. Changing the cards re-composes the text with the new mapping and overwrites what's here."
+
+#: src/studio/ui/projection.tsx
+msgid "这一段还没出片，模板与挂卡都能重选，不花钱"
+msgstr "This segment has no video yet, so you can choose the template and cards again for free"
+
+#: src/studio/ui/projection.tsx
+msgid "这一段还没出片，退回去不花钱"
+msgstr "This segment has no video yet, so going back is free"
 
 #: src/components/ForgeOverlay.tsx
 msgid "这一炉没成"
@@ -10340,6 +10829,14 @@ msgstr "This area is too small: only {cutBest}px after scaling, needs at least {
 msgid "这套卡组"
 msgstr "This deck"
 
+#: src/studio/ui/projection.tsx
+msgid "这套卡组还没有卡"
+msgstr "This deck has no cards yet"
+
+#: src/studio/ui/projection.tsx
+msgid "这套卡组里没有匹配「{q}」的卡"
+msgstr "No cards in this deck match “{q}”"
+
 #: src/pages/VideoPage.tsx
 msgid "这套卡里有声明过「真实人物」的卡，它的形象参考图只留给作者本人 —— 照片里的人授权的是作者用，不是所有人用。你仍然收得下这张卡的设定（名字、简介、身份句），但出片时得自己给形象。"
 msgstr "Some cards in this set are marked as “real people”, so their reference images stay with the creator — the person in the photo authorized the creator's use, not everyone's. You can still add the card's details (name, bio, identity line), but you'll need to provide the look yourself when making videos."
@@ -10395,6 +10892,11 @@ msgstr "Can't open this image"
 #: src/components/CoverPicker.tsx
 msgid "这张图读不出来，换一张试试（仅支持图片文件）"
 msgstr "Couldn't read this image — try another one (image files only)"
+
+#. placeholder {0}: err instanceof Error ? err.message : String(err)
+#: src/studio/ui/projection.tsx
+msgid "这张图读不出来：{0}"
+msgstr "Couldn't read this image: {0}"
 
 #. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 80)
 #: src/pages/CustomCardPage.tsx
@@ -10670,9 +11172,21 @@ msgstr "Log out?"
 msgid "退出编辑"
 msgstr "Exit editing"
 
+#: src/studio/ui/projection.tsx
+msgid "退回去"
+msgstr "Go back"
+
 #: src/studio/canvasAgent.ts
 msgid "退回普通段"
 msgstr "Back to a normal segment"
+
+#: src/studio/ui/projection.tsx
+msgid "退回铸段窗重选模式"
+msgstr "Return to the segment window to choose another mode"
+
+#: src/studio/ui/projection.tsx
+msgid "退回铸段窗重选模式？"
+msgstr "Go back and choose another mode?"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "选「用通用参数演」= 不挂你的 exp3，改用我们那套参数（眉毛、嘴角、脸红）去凑 —— 模型没有对应表情文件时这条更稳。"
@@ -10717,6 +11231,14 @@ msgstr "Optional"
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "选定场景/人物数量变化的特定帧，让 AI 分析每一段视频中的人物。"
 msgstr "Pick the frames where the scene or the number of people changes, and AI will analyze the people in each part of the video."
+
+#: src/studio/ui/projection.tsx
+msgid "选式"
+msgstr "Mode"
+
+#: src/studio/ui/projection.tsx
+msgid "选择卡组"
+msgstr "Choose a deck"
 
 #: src/components/BranchPlayer.tsx
 msgid "选择故事的开场"
@@ -10884,6 +11406,7 @@ msgid "重生成 {segCount} 段约需 {need} token，余额 {have} 不足——�
 msgstr "Regenerating {segCount, plural, one {# segment} other {# segments}} needs about {need} tokens, but your balance is only {have} — top up on the Me page"
 
 #: src/pages/CustomCardPage.tsx
+#: src/studio/ui/projection.tsx
 msgid "重画中…"
 msgstr "Redrawing…"
 
@@ -10954,10 +11477,19 @@ msgstr "Minting failed: {0}"
 msgid "铸造中…"
 msgstr "Minting…"
 
+#. placeholder {0}: segIndex + 1
+#: src/studio/ui/projection.tsx
+msgid "铸造节点卡 · 第 {0} 段"
+msgstr "Forge node card · Segment {0}"
+
 #. placeholder {0}: plan.segments.length
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "铺成 {0} 段"
 msgstr "Lay out {0, plural, one {# segment} other {# segments}}"
+
+#: src/studio/ui/projection.tsx
+msgid "铺方案免费 · 出片时在方案台按原价结算"
+msgstr "Laying out the plan is free · the video is charged at the regular price on the plan board"
 
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "铺进去的每一段都是已挑定的一套方案（镜头字段会进方案台与出片提示词），从第 1 段开始逐段炼；想换走向就在那一段上重新推演。"
