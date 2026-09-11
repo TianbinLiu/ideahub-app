@@ -3163,6 +3163,10 @@ msgstr "人格的那一处重写好了"
 msgid "人格草稿写好了"
 msgstr "人格草稿写好了"
 
+#: src/types.ts
+msgid "人物"
+msgstr "人物"
+
 #. placeholder {0}: at + 1
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "人物{0}"
@@ -3171,6 +3175,14 @@ msgstr "人物{0}"
 #: src/pages/SupportCreatePage.tsx
 msgid "人物人格"
 msgstr "人物人格"
+
+#: src/types.ts
+msgid "人物信息"
+msgstr "人物信息"
+
+#: src/types.ts
+msgid "人物卡"
+msgstr "人物卡"
 
 #: src/pages/SupportCreatePage.tsx
 msgid "人物模型"
@@ -3886,6 +3898,14 @@ msgstr "全新生成"
 msgid "全景"
 msgstr "全景"
 
+#: src/types.ts
+msgid "全景主视图"
+msgstr "全景主视图"
+
+#: src/types.ts
+msgid "全身立绘"
+msgstr "全身立绘"
+
 #: src/components/support/AdminTicketsView.tsx
 #: src/components/TemplateShelf.tsx
 #: src/pages/AdminPage.tsx
@@ -4024,6 +4044,7 @@ msgstr "其<0>全部作品</0>（含私密与已下架的）从平台删除；�
 
 #: src/api/admin.ts
 #: src/api/support.ts
+#: src/types.ts
 msgid "其他"
 msgstr "其他"
 
@@ -4202,6 +4223,10 @@ msgstr "写入本地库…"
 #: src/studio/ui/AvatarPicker.tsx
 msgid "决定牌桌上属于你的那双手"
 msgstr "决定牌桌上属于你的那双手"
+
+#: src/types.ts
+msgid "净底主视图"
+msgstr "净底主视图"
 
 #: src/studio/live2dUploadStore.ts
 msgid "准备上传…"
@@ -4628,6 +4653,10 @@ msgstr "前面还有没炼完的段——段与段靠上一段的真实结尾接
 msgid "前面还有没炼完的段——段与段靠上一段的真实结尾画面接着拍，得按顺序来。先把前面那段炼出来。"
 msgstr "前面还有没炼完的段——段与段靠上一段的真实结尾画面接着拍，得按顺序来。先把前面那段炼出来。"
 
+#: src/types.ts
+msgid "剧情"
+msgstr "剧情"
+
 #: src/components/BranchPlayer.tsx
 msgid "剧情走向，由你决定——"
 msgstr "剧情走向，由你决定——"
@@ -4749,6 +4778,10 @@ msgstr "动作组「{group}」"
 #: src/live2d/bundlePreview.ts
 msgid "动作组「{group}」的音频"
 msgstr "动作组「{group}」的音频"
+
+#: src/types.ts
+msgid "动画"
+msgstr "动画"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "勾上上面那三条才能发布。"
@@ -5119,6 +5152,10 @@ msgstr "参考卡片形象直接出片（省掉设定帧）…"
 msgid "参考图怎么被 AI 取用"
 msgstr "参考图怎么被 AI 取用"
 
+#: src/types.ts
+msgid "参考图预算还有余时才轮到它"
+msgstr "参考图预算还有余时才轮到它"
+
 #. placeholder {0}: i + 1
 #: src/ai/index.ts
 msgid "参考场景{0}"
@@ -5459,6 +5496,10 @@ msgstr "取这一帧超时了。应用切到后台时系统会暂停视频解码
 msgid "取首尾帧…"
 msgstr "取首尾帧…"
 
+#: src/types.ts
+msgid "变身"
+msgstr "变身"
+
 #: src/live2d/bundlePreview.ts
 msgid "口型同步"
 msgstr "口型同步"
@@ -5466,6 +5507,10 @@ msgstr "口型同步"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "口头禅"
 msgstr "口头禅"
+
+#: src/types.ts
+msgid "古风"
+msgstr "古风"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "另存为我的"
@@ -5518,6 +5563,10 @@ msgstr "只填空着的格子，不改你已经写的字"
 #: src/components/DownloadSheet.tsx
 msgid "只存刚看的走向（{0} 段）"
 msgstr "只存刚看的走向（{0} 段）"
+
+#: src/types.ts
+msgid "只展示"
+msgstr "只展示"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "只把 TA 说的话送去分析，不然会把你自己的说话方式也学进去。"
@@ -6057,10 +6106,22 @@ msgstr "在线"
 msgid "在评论里 @ 了你"
 msgstr "在评论里 @ 了你"
 
+#: src/types.ts
+msgid "场景"
+msgstr "场景"
+
 #. placeholder {0}: i + 1
 #: src/ai/index.ts
 msgid "场景{0}"
 msgstr "场景{0}"
+
+#: src/types.ts
+msgid "场景信息"
+msgstr "场景信息"
+
+#: src/types.ts
+msgid "场景卡"
+msgstr "场景卡"
 
 #: src/studio/quality.ts
 msgid "均衡"
@@ -6608,6 +6669,22 @@ msgstr "尾帧"
 #: src/studio/ui/FrameCard.tsx
 msgid "尾帧由所选方案决定；视频从开头帧往下拍"
 msgstr "尾帧由所选方案决定；视频从开头帧往下拍"
+
+#: src/types.ts
+msgid "局部材质与陈设特征"
+msgstr "局部材质与陈设特征"
+
+#: src/types.ts
+msgid "局部特征"
+msgstr "局部特征"
+
+#: src/types.ts
+msgid "局部纹样与磨损"
+msgstr "局部纹样与磨损"
+
+#: src/types.ts
+msgid "局部细节"
+msgstr "局部细节"
 
 #: src/pages/FlowPage.tsx
 #: src/pages/SimpleModePage.tsx
@@ -7228,6 +7305,10 @@ msgstr "带声音样本"
 msgid "带背景"
 msgstr "带背景"
 
+#: src/types.ts
+msgid "带货"
+msgstr "带货"
+
 #. placeholder {0}: i + 1
 #: src/components/CoverPicker.tsx
 msgid "帧{0}"
@@ -7452,6 +7533,10 @@ msgstr "形象图没画成（没扣钱），回去看原因"
 msgid "形象图生成好了，回去接着做卡"
 msgstr "形象图生成好了，回去接着做卡"
 
+#: src/types.ts
+msgid "影视横构图，首页上下留黑边，可点全屏转屏看"
+msgstr "影视横构图，首页上下留黑边，可点全屏转屏看"
+
 #: src/components/MaterialSheet.tsx
 msgid "往下拖出窗口，交给她"
 msgstr "往下拖出窗口，交给她"
@@ -7570,6 +7655,10 @@ msgstr "恢复默认"
 #: src/pages/SupportPersonasPage.tsx
 msgid "恢复默认人格"
 msgstr "恢复默认人格"
+
+#: src/types.ts
+msgid "情感互动"
+msgstr "情感互动"
 
 #: src/pages/SimpleModePage.tsx
 msgid "想怎么开始？"
@@ -8571,6 +8660,10 @@ msgstr "搜索视频 / 分区 / 用户"
 msgid "搜评论正文 / 作者"
 msgstr "搜评论正文 / 作者"
 
+#: src/types.ts
+msgid "搞笑"
+msgstr "搞笑"
+
 #: src/studio/stage/StageOverlay.tsx
 msgid "摆站位、拧机位，截图融成这一段的开头帧"
 msgstr "摆站位、拧机位，截图融成这一段的开头帧"
@@ -8786,6 +8879,18 @@ msgstr "放弃本次合成？"
 msgid "故事发生在哪——地点与空间"
 msgstr "故事发生在哪——地点与空间"
 
+#: src/types.ts
+msgid "故事的时代、地点与氛围"
+msgstr "故事的时代、地点与氛围"
+
+#: src/types.ts
+msgid "故事示意图"
+msgstr "故事示意图"
+
+#: src/types.ts
+msgid "故事背景"
+msgstr "故事背景"
+
 #: src/pages/SettingsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
 msgid "数字人人格"
@@ -8803,6 +8908,10 @@ msgstr "整体再来一版"
 #: src/components/ForgeOverlay.tsx
 msgid "整段一炉出，别退出 App"
 msgstr "整段一炉出，别退出 App"
+
+#: src/types.ts
+msgid "整活"
+msgstr "整活"
 
 #: src/data/videoDownload.ts
 msgid "整片"
@@ -9265,6 +9374,14 @@ msgstr "服务端还没有这个功能，等后端更新后再来。"
 msgid "服务端默认"
 msgstr "服务端默认"
 
+#: src/types.ts
+msgid "服装、体型与整体造型；也是这张卡的卡面"
+msgstr "服装、体型与整体造型；也是这张卡的卡面"
+
+#: src/types.ts
+msgid "服装、体型与整体配色"
+msgstr "服装、体型与整体配色"
+
 #: src/studio/stage/StageOverlay.tsx
 msgid "朝向"
 msgstr "朝向"
@@ -9455,6 +9572,10 @@ msgstr "本片卡组"
 msgid "机位 · 空处拖动环绕，两指拉远拉近"
 msgstr "机位 · 空处拖动环绕，两指拉远拉近"
 
+#: src/types.ts
+msgid "材质、颗粒与光影的近距离质感"
+msgstr "材质、颗粒与光影的近距离质感"
+
 #: src/studio/quality.ts
 msgid "极致"
 msgstr "极致"
@@ -9534,6 +9655,10 @@ msgstr "标为待处理"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "标价"
 msgstr "标价"
+
+#: src/types.ts
+msgid "标志性细节"
+msgstr "标志性细节"
 
 #: src/components/flow/SegPlayer.tsx
 #: src/pages/FlowPage.tsx
@@ -9716,6 +9841,10 @@ msgstr "模板详情"
 #: src/pages/TemplateDetailPage.tsx
 msgid "模板里这张卡已经变了，刷新后再试"
 msgstr "模板里这张卡已经变了，刷新后再试"
+
+#: src/types.ts
+msgid "横屏"
+msgstr "横屏"
 
 #. placeholder {0}: up.title
 #. placeholder {1}: up.done
@@ -10090,6 +10219,10 @@ msgstr "比如「树洞」「陪练」「编剧搭子」"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "比如「认识很久的朋友」"
 msgstr "比如「认识很久的朋友」"
+
+#: src/types.ts
+msgid "永不进模型（三视图/规格稿这类多视图会让 AI 认错人）"
+msgstr "永不进模型（三视图/规格稿这类多视图会让 AI 认错人）"
 
 #: src/pages/AdminPage.tsx
 msgid "永久删除该账号"
@@ -11056,6 +11189,10 @@ msgstr "画面里是真实人物（真人）"
 msgid "画面里还有人没列出来，加一个"
 msgstr "画面里还有人没列出来，加一个"
 
+#: src/types.ts
+msgid "画风、材质质感、色调与光影"
+msgstr "画风、材质质感、色调与光影"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "画风、材质质感、色调光影与镜头语言"
 msgstr "画风、材质质感、色调光影与镜头语言"
@@ -11664,6 +11801,10 @@ msgstr "私有：只在你自己的库里。分享后会出现在创意工坊的
 msgid "私有：只在你自己的库里。分享后会出现在创意工坊的「从市场添加」里，别人可以把这张卡装走。"
 msgstr "私有：只在你自己的库里。分享后会出现在创意工坊的「从市场添加」里，别人可以把这张卡装走。"
 
+#: src/types.ts
+msgid "科幻"
+msgstr "科幻"
+
 #: src/studio/ui/projection.tsx
 msgid "秒"
 msgstr "秒"
@@ -11713,6 +11854,10 @@ msgstr "空卡组"
 msgid "空卡组不能分享：先往里放几张卡。"
 msgstr "空卡组不能分享：先往里放几张卡。"
 
+#: src/types.ts
+msgid "空间结构、地貌与建筑轮廓及整体色调"
+msgstr "空间结构、地貌与建筑轮廓及整体色调"
+
 #: src/components/UpdateSheet.tsx
 msgid "立即更新"
 msgstr "立即更新"
@@ -11724,6 +11869,10 @@ msgstr "立即重试"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "立场倾向"
 msgstr "立场倾向"
+
+#: src/types.ts
+msgid "竖屏"
+msgstr "竖屏"
 
 #. placeholder {0}: idx + 1
 #. placeholder {1}: PERSONA_STEPS.length
@@ -12193,6 +12342,10 @@ msgstr "第 {segNo} 段还没有视频（只有设定帧），合成做不了—
 msgid "第 {stepNo} / 3 步"
 msgstr "第 {stepNo} / 3 步"
 
+#: src/types.ts
+msgid "第 {v} 版"
+msgstr "第 {v} 版"
+
 #. placeholder {0}: i + 1
 #: src/data/publishAssets.ts
 msgid "第{0}段成片"
@@ -12602,6 +12755,14 @@ msgstr "联网后重新打开这一页就能看到"
 msgid "肖像同意的确认（勾了「真人」就必须勾它）"
 msgstr "肖像同意的确认（勾了「真人」就必须勾它）"
 
+#: src/types.ts
+msgid "背景"
+msgstr "背景"
+
+#: src/types.ts
+msgid "背景卡"
+msgstr "背景卡"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "脸红"
 msgstr "脸红"
@@ -12728,6 +12889,10 @@ msgstr "至少要有一个图位不是「只展示」——全都只展示的话
 msgid "色情低俗"
 msgstr "色情低俗"
 
+#: src/types.ts
+msgid "节日"
+msgstr "节日"
+
 #: src/studio/scene/cardTexture.ts
 msgid "节点卡"
 msgstr "节点卡"
@@ -12789,6 +12954,10 @@ msgstr "融图中…"
 #: src/api/admin.ts
 msgid "血腥暴力"
 msgstr "血腥暴力"
+
+#: src/types.ts
+msgid "补充参考"
+msgstr "补充参考"
 
 #: src/pages/SupportPage.tsx
 msgid "补充给客服…"
@@ -13435,6 +13604,10 @@ msgstr "账号"
 #: src/pages/AdminPage.tsx
 msgid "账号本身永久删除，无法恢复，也无法用同名重建找回任何数据"
 msgstr "账号本身永久删除，无法恢复，也无法用同名重建找回任何数据"
+
+#: src/types.ts
+msgid "质感特写"
+msgstr "质感特写"
 
 #: src/studio/structuredSkills.ts
 msgid "贴剧本"
@@ -15242,6 +15415,22 @@ msgstr "通知需要连上服务器 · 当前是离线模式"
 msgid "逛技能市场"
 msgstr "逛技能市场"
 
+#: src/types.ts
+msgid "造型、比例、材质与配色"
+msgstr "造型、比例、材质与配色"
+
+#: src/types.ts
+msgid "道具"
+msgstr "道具"
+
+#: src/types.ts
+msgid "道具信息"
+msgstr "道具信息"
+
+#: src/types.ts
+msgid "道具卡"
+msgstr "道具卡"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "道具卡 · {slotLabel}"
 msgstr "道具卡 · {slotLabel}"
@@ -15519,10 +15708,22 @@ msgstr "铺进画布"
 msgid "链接已复制，可以发给本人"
 msgstr "链接已复制，可以发给本人"
 
+#: src/types.ts
+msgid "锁主体"
+msgstr "锁主体"
+
 #. placeholder {0}: s.locks
 #: src/pages/CustomCardPage.tsx
 msgid "锁住{0}。"
 msgstr "锁住{0}。"
+
+#: src/types.ts
+msgid "锁脸"
+msgstr "锁脸"
+
+#: src/types.ts
+msgid "镜头：{joined}"
+msgstr "镜头：{joined}"
 
 #: src/pages/SupportPage.tsx
 msgid "问{name}：哪里不对？"
@@ -15565,6 +15766,10 @@ msgstr "随片提炼卡组"
 msgid "随片提炼本片卡组"
 msgstr "随片提炼本片卡组"
 
+#: src/types.ts
+msgid "随身物、纹样或疤痕"
+msgstr "随身物、纹样或疤痕"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "难过"
 msgstr "难过"
@@ -15583,6 +15788,18 @@ msgstr "青年牌手 · 他"
 #: src/components/SegmentPlayer.tsx
 msgid "静音"
 msgstr "静音"
+
+#: src/types.ts
+msgid "面部特写"
+msgstr "面部特写"
+
+#: src/types.ts
+msgid "面部特征与发型发色"
+msgstr "面部特征与发型发色"
+
+#: src/types.ts
+msgid "面部特征与发型发色，出片时优先喂给 AI"
+msgstr "面部特征与发型发色，出片时优先喂给 AI"
 
 #: src/pages/CustomCardPage.tsx
 msgid "面部近照（选）"
@@ -15638,6 +15855,22 @@ msgstr "预计消耗 {amount} token"
 msgid "领取"
 msgstr "领取"
 
+#: src/types.ts
+msgid "风格"
+msgstr "风格"
+
+#: src/types.ts
+msgid "风格信息"
+msgstr "风格信息"
+
+#: src/types.ts
+msgid "风格卡"
+msgstr "风格卡"
+
+#: src/types.ts
+msgid "风格样张"
+msgstr "风格样张"
+
 #: src/studio/ui/FrameCard.tsx
 msgid "首尾帧"
 msgstr "首尾帧"
@@ -15669,6 +15902,10 @@ msgstr "首帧承接上一段尾帧"
 #: src/components/TabBar.tsx
 msgid "首页"
 msgstr "首页"
+
+#: src/types.ts
+msgid "首页全屏铺满（短视频默认）"
+msgstr "首页全屏铺满（短视频默认）"
 
 #: src/pages/AdminPage.tsx
 msgid "驳回"

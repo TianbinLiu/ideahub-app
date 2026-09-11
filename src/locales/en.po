@@ -3163,6 +3163,10 @@ msgstr "That persona field has been rewritten"
 msgid "人格草稿写好了"
 msgstr "The persona draft is ready"
 
+#: src/types.ts
+msgid "人物"
+msgstr "Character"
+
 #. placeholder {0}: at + 1
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "人物{0}"
@@ -3171,6 +3175,14 @@ msgstr "Person {0}"
 #: src/pages/SupportCreatePage.tsx
 msgid "人物人格"
 msgstr "Persona"
+
+#: src/types.ts
+msgid "人物信息"
+msgstr "Character info"
+
+#: src/types.ts
+msgid "人物卡"
+msgstr "Character card"
 
 #: src/pages/SupportCreatePage.tsx
 msgid "人物模型"
@@ -3886,6 +3898,14 @@ msgstr "Generate new"
 msgid "全景"
 msgstr "Wide shot"
 
+#: src/types.ts
+msgid "全景主视图"
+msgstr "Wide main view"
+
+#: src/types.ts
+msgid "全身立绘"
+msgstr "Full body"
+
 #: src/components/support/AdminTicketsView.tsx
 #: src/components/TemplateShelf.tsx
 #: src/pages/AdminPage.tsx
@@ -4024,6 +4044,7 @@ msgstr "<0>All of their videos</0> (including private and taken-down ones) are r
 
 #: src/api/admin.ts
 #: src/api/support.ts
+#: src/types.ts
 msgid "其他"
 msgstr "Other"
 
@@ -4202,6 +4223,10 @@ msgstr "Saving to local storage…"
 #: src/studio/ui/AvatarPicker.tsx
 msgid "决定牌桌上属于你的那双手"
 msgstr "Decides which pair of hands at the card table is yours"
+
+#: src/types.ts
+msgid "净底主视图"
+msgstr "Clean-background main view"
 
 #: src/studio/live2dUploadStore.ts
 msgid "准备上传…"
@@ -4628,6 +4653,10 @@ msgstr "Earlier segments aren't finished yet — each segment continues from the
 msgid "前面还有没炼完的段——段与段靠上一段的真实结尾画面接着拍，得按顺序来。先把前面那段炼出来。"
 msgstr "Earlier segments aren't finished yet — each segment continues from the previous one's actual ending, so they go in order. Generate the earlier one first."
 
+#: src/types.ts
+msgid "剧情"
+msgstr "Story"
+
 #: src/components/BranchPlayer.tsx
 msgid "剧情走向，由你决定——"
 msgstr "You decide where the story goes—"
@@ -4749,6 +4778,10 @@ msgstr "motion group “{group}”"
 #: src/live2d/bundlePreview.ts
 msgid "动作组「{group}」的音频"
 msgstr "audio for motion group “{group}”"
+
+#: src/types.ts
+msgid "动画"
+msgstr "Animation"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "勾上上面那三条才能发布。"
@@ -5119,6 +5152,10 @@ msgstr "Rendering directly from the card images (no setup frames)…"
 msgid "参考图怎么被 AI 取用"
 msgstr "How the AI uses reference images"
 
+#: src/types.ts
+msgid "参考图预算还有余时才轮到它"
+msgstr "Only used when there's room left in the reference-image budget"
+
 #. placeholder {0}: i + 1
 #: src/ai/index.ts
 msgid "参考场景{0}"
@@ -5459,6 +5496,10 @@ msgstr "Grabbing this frame timed out. The system pauses video decoding while th
 msgid "取首尾帧…"
 msgstr "Grabbing first/last frames…"
 
+#: src/types.ts
+msgid "变身"
+msgstr "Transformation"
+
 #: src/live2d/bundlePreview.ts
 msgid "口型同步"
 msgstr "motion sync"
@@ -5466,6 +5507,10 @@ msgstr "motion sync"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "口头禅"
 msgstr "Catchphrases"
+
+#: src/types.ts
+msgid "古风"
+msgstr "Ancient style"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "另存为我的"
@@ -5518,6 +5563,10 @@ msgstr "Only fills empty fields; what you've written stays as is"
 #: src/components/DownloadSheet.tsx
 msgid "只存刚看的走向（{0} 段）"
 msgstr "Only the path you just watched ({0, plural, one {# segment} other {# segments}})"
+
+#: src/types.ts
+msgid "只展示"
+msgstr "Display only"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "只把 TA 说的话送去分析，不然会把你自己的说话方式也学进去。"
@@ -6057,10 +6106,22 @@ msgstr "Online"
 msgid "在评论里 @ 了你"
 msgstr "mentioned you in a comment"
 
+#: src/types.ts
+msgid "场景"
+msgstr "Scene"
+
 #. placeholder {0}: i + 1
 #: src/ai/index.ts
 msgid "场景{0}"
 msgstr "Scene {0}"
+
+#: src/types.ts
+msgid "场景信息"
+msgstr "Scene info"
+
+#: src/types.ts
+msgid "场景卡"
+msgstr "Scene card"
 
 #: src/studio/quality.ts
 msgid "均衡"
@@ -6608,6 +6669,22 @@ msgstr "Last frame"
 #: src/studio/ui/FrameCard.tsx
 msgid "尾帧由所选方案决定；视频从开头帧往下拍"
 msgstr "The last frame comes from the chosen plan; the video starts from the opening frame"
+
+#: src/types.ts
+msgid "局部材质与陈设特征"
+msgstr "local materials and furnishings"
+
+#: src/types.ts
+msgid "局部特征"
+msgstr "Local features"
+
+#: src/types.ts
+msgid "局部纹样与磨损"
+msgstr "local patterns and wear"
+
+#: src/types.ts
+msgid "局部细节"
+msgstr "Close-up detail"
 
 #: src/pages/FlowPage.tsx
 #: src/pages/SimpleModePage.tsx
@@ -7228,6 +7305,10 @@ msgstr "Has a voice sample"
 msgid "带背景"
 msgstr "Background kept"
 
+#: src/types.ts
+msgid "带货"
+msgstr "Product promo"
+
 #. placeholder {0}: i + 1
 #: src/components/CoverPicker.tsx
 msgid "帧{0}"
@@ -7452,6 +7533,10 @@ msgstr "Look images weren't generated (not charged). Go back to see why"
 msgid "形象图生成好了，回去接着做卡"
 msgstr "Look images are ready. Go back and keep making the card"
 
+#: src/types.ts
+msgid "影视横构图，首页上下留黑边，可点全屏转屏看"
+msgstr "Cinematic widescreen: letterboxed in the home feed; tap full screen to rotate"
+
 #: src/components/MaterialSheet.tsx
 msgid "往下拖出窗口，交给她"
 msgstr "Drag down out of the panel to hand it to her"
@@ -7570,6 +7655,10 @@ msgstr "Restore default"
 #: src/pages/SupportPersonasPage.tsx
 msgid "恢复默认人格"
 msgstr "Restore default persona"
+
+#: src/types.ts
+msgid "情感互动"
+msgstr "Emotional"
 
 #: src/pages/SimpleModePage.tsx
 msgid "想怎么开始？"
@@ -8571,6 +8660,10 @@ msgstr "Search videos / categories / users"
 msgid "搜评论正文 / 作者"
 msgstr "Search comment text / author"
 
+#: src/types.ts
+msgid "搞笑"
+msgstr "Comedy"
+
 #: src/studio/stage/StageOverlay.tsx
 msgid "摆站位、拧机位，截图融成这一段的开头帧"
 msgstr "Set positions and camera, then capture and fuse into this segment's opening frame"
@@ -8786,6 +8879,18 @@ msgstr "Discard this merge?"
 msgid "故事发生在哪——地点与空间"
 msgstr "Where the story happens — place and space"
 
+#: src/types.ts
+msgid "故事的时代、地点与氛围"
+msgstr "the story's era, setting and mood"
+
+#: src/types.ts
+msgid "故事示意图"
+msgstr "Story illustration"
+
+#: src/types.ts
+msgid "故事背景"
+msgstr "Story background"
+
 #: src/pages/SettingsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
 msgid "数字人人格"
@@ -8803,6 +8908,10 @@ msgstr "Write a whole new version"
 #: src/components/ForgeOverlay.tsx
 msgid "整段一炉出，别退出 App"
 msgstr "The whole segment renders in one go. Don't quit the app"
+
+#: src/types.ts
+msgid "整活"
+msgstr "Just for fun"
 
 #: src/data/videoDownload.ts
 msgid "整片"
@@ -9265,6 +9374,14 @@ msgstr "The server doesn't have this feature yet. Check back after it's updated.
 msgid "服务端默认"
 msgstr "Server default"
 
+#: src/types.ts
+msgid "服装、体型与整体造型；也是这张卡的卡面"
+msgstr "Outfit, build and overall look; also this card's cover"
+
+#: src/types.ts
+msgid "服装、体型与整体配色"
+msgstr "outfit, build and overall colors"
+
 #: src/studio/stage/StageOverlay.tsx
 msgid "朝向"
 msgstr "Facing"
@@ -9455,6 +9572,10 @@ msgstr "Cards from this video"
 msgid "机位 · 空处拖动环绕，两指拉远拉近"
 msgstr "Camera · drag empty space to orbit, pinch to zoom"
 
+#: src/types.ts
+msgid "材质、颗粒与光影的近距离质感"
+msgstr "close-up texture of materials, grain and light"
+
 #: src/studio/quality.ts
 msgid "极致"
 msgstr "Ultra"
@@ -9534,6 +9655,10 @@ msgstr "Mark as pending"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "标价"
 msgstr "Price"
+
+#: src/types.ts
+msgid "标志性细节"
+msgstr "Signature detail"
 
 #: src/components/flow/SegPlayer.tsx
 #: src/pages/FlowPage.tsx
@@ -9716,6 +9841,10 @@ msgstr "Template details"
 #: src/pages/TemplateDetailPage.tsx
 msgid "模板里这张卡已经变了，刷新后再试"
 msgstr "This card changed in the template. Refresh and try again."
+
+#: src/types.ts
+msgid "横屏"
+msgstr "Landscape"
 
 #. placeholder {0}: up.title
 #. placeholder {1}: up.done
@@ -10090,6 +10219,10 @@ msgstr "e.g. “a listening ear”, “practice partner”, “writing buddy”"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "比如「认识很久的朋友」"
 msgstr "e.g. “a friend of many years”"
+
+#: src/types.ts
+msgid "永不进模型（三视图/规格稿这类多视图会让 AI 认错人）"
+msgstr "Never sent to the model (multi-view sheets like turnarounds or spec sheets make the AI mix people up)"
 
 #: src/pages/AdminPage.tsx
 msgid "永久删除该账号"
@@ -11056,6 +11189,10 @@ msgstr "A real person is in the picture"
 msgid "画面里还有人没列出来，加一个"
 msgstr "Someone in the picture isn't listed — add one"
 
+#: src/types.ts
+msgid "画风、材质质感、色调与光影"
+msgstr "art style, material texture, tone and lighting"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "画风、材质质感、色调光影与镜头语言"
 msgstr "Art style, material texture, color and lighting, and camera language"
@@ -11664,6 +11801,10 @@ msgstr "Private: only in your own library. Once shared, it shows up under “Add
 msgid "私有：只在你自己的库里。分享后会出现在创意工坊的「从市场添加」里，别人可以把这张卡装走。"
 msgstr "Private: only in your own library. Once shared, it shows up under “Add from market” in the Workshop, and others can install this card."
 
+#: src/types.ts
+msgid "科幻"
+msgstr "Sci-fi"
+
 #: src/studio/ui/projection.tsx
 msgid "秒"
 msgstr "sec"
@@ -11713,6 +11854,10 @@ msgstr "Empty deck"
 msgid "空卡组不能分享：先往里放几张卡。"
 msgstr "An empty deck can't be shared. Add some cards first."
 
+#: src/types.ts
+msgid "空间结构、地貌与建筑轮廓及整体色调"
+msgstr "spatial layout, terrain, building outlines and overall tone"
+
 #: src/components/UpdateSheet.tsx
 msgid "立即更新"
 msgstr "Update now"
@@ -11724,6 +11869,10 @@ msgstr "Retry now"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "立场倾向"
 msgstr "Leanings"
+
+#: src/types.ts
+msgid "竖屏"
+msgstr "Portrait"
 
 #. placeholder {0}: idx + 1
 #. placeholder {1}: PERSONA_STEPS.length
@@ -12193,6 +12342,10 @@ msgstr "Segment {segNo} has no video yet (only setup frames), so it can't be mer
 msgid "第 {stepNo} / 3 步"
 msgstr "Step {stepNo} of 3"
 
+#: src/types.ts
+msgid "第 {v} 版"
+msgstr "Version {v}"
+
 #. placeholder {0}: i + 1
 #: src/data/publishAssets.ts
 msgid "第{0}段成片"
@@ -12602,6 +12755,14 @@ msgstr "Reopen this page once you're online to see them"
 msgid "肖像同意的确认（勾了「真人」就必须勾它）"
 msgstr "likeness consent confirmation (required when “real person” is checked)"
 
+#: src/types.ts
+msgid "背景"
+msgstr "Background"
+
+#: src/types.ts
+msgid "背景卡"
+msgstr "Background card"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "脸红"
 msgstr "Blush"
@@ -12728,6 +12889,10 @@ msgstr "At least one slot must not be “display only” — if every slot is di
 msgid "色情低俗"
 msgstr "Sexual or vulgar content"
 
+#: src/types.ts
+msgid "节日"
+msgstr "Holidays"
+
 #: src/studio/scene/cardTexture.ts
 msgid "节点卡"
 msgstr "Node card"
@@ -12789,6 +12954,10 @@ msgstr "Fusing…"
 #: src/api/admin.ts
 msgid "血腥暴力"
 msgstr "Gore or violence"
+
+#: src/types.ts
+msgid "补充参考"
+msgstr "Extra reference"
 
 #: src/pages/SupportPage.tsx
 msgid "补充给客服…"
@@ -13435,6 +13604,10 @@ msgstr "Account"
 #: src/pages/AdminPage.tsx
 msgid "账号本身永久删除，无法恢复，也无法用同名重建找回任何数据"
 msgstr "The account itself is permanently deleted. It can't be restored, and re-creating it under the same name won't bring back any data"
+
+#: src/types.ts
+msgid "质感特写"
+msgstr "Texture close-up"
 
 #: src/studio/structuredSkills.ts
 msgid "贴剧本"
@@ -15242,6 +15415,22 @@ msgstr "Notifications need a server connection · you're offline"
 msgid "逛技能市场"
 msgstr "Browse the skill market"
 
+#: src/types.ts
+msgid "造型、比例、材质与配色"
+msgstr "shape, proportions, materials and colors"
+
+#: src/types.ts
+msgid "道具"
+msgstr "Prop"
+
+#: src/types.ts
+msgid "道具信息"
+msgstr "Prop info"
+
+#: src/types.ts
+msgid "道具卡"
+msgstr "Prop card"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "道具卡 · {slotLabel}"
 msgstr "Prop card · {slotLabel}"
@@ -15519,10 +15708,22 @@ msgstr "Lay out on the canvas"
 msgid "链接已复制，可以发给本人"
 msgstr "Link copied — you can send it to the person"
 
+#: src/types.ts
+msgid "锁主体"
+msgstr "Lock subject"
+
 #. placeholder {0}: s.locks
 #: src/pages/CustomCardPage.tsx
 msgid "锁住{0}。"
 msgstr "Locks {0}."
+
+#: src/types.ts
+msgid "锁脸"
+msgstr "Lock face"
+
+#: src/types.ts
+msgid "镜头：{joined}"
+msgstr "Camera: {joined}"
 
 #: src/pages/SupportPage.tsx
 msgid "问{name}：哪里不对？"
@@ -15565,6 +15766,10 @@ msgstr "Extract a deck with the video"
 msgid "随片提炼本片卡组"
 msgstr "Extract a deck from this video"
 
+#: src/types.ts
+msgid "随身物、纹样或疤痕"
+msgstr "carried items, patterns or scars"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "难过"
 msgstr "Sad"
@@ -15583,6 +15788,18 @@ msgstr "Young card player · he"
 #: src/components/SegmentPlayer.tsx
 msgid "静音"
 msgstr "Mute"
+
+#: src/types.ts
+msgid "面部特写"
+msgstr "Face close-up"
+
+#: src/types.ts
+msgid "面部特征与发型发色"
+msgstr "facial features, hairstyle and hair color"
+
+#: src/types.ts
+msgid "面部特征与发型发色，出片时优先喂给 AI"
+msgstr "Facial features, hairstyle and hair color; sent to the AI first when rendering"
 
 #: src/pages/CustomCardPage.tsx
 msgid "面部近照（选）"
@@ -15638,6 +15855,22 @@ msgstr "About {amount} tokens"
 msgid "领取"
 msgstr "Claim"
 
+#: src/types.ts
+msgid "风格"
+msgstr "Style"
+
+#: src/types.ts
+msgid "风格信息"
+msgstr "Style info"
+
+#: src/types.ts
+msgid "风格卡"
+msgstr "Style card"
+
+#: src/types.ts
+msgid "风格样张"
+msgstr "Style sample"
+
 #: src/studio/ui/FrameCard.tsx
 msgid "首尾帧"
 msgstr "First & last frames"
@@ -15669,6 +15902,10 @@ msgstr "First frame continues from the previous segment's last frame"
 #: src/components/TabBar.tsx
 msgid "首页"
 msgstr "Home"
+
+#: src/types.ts
+msgid "首页全屏铺满（短视频默认）"
+msgstr "Fills the home feed full-screen (the short-video default)"
 
 #: src/pages/AdminPage.tsx
 msgid "驳回"
