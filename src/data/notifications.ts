@@ -12,6 +12,7 @@
 import * as api from "../api/notifications";
 import { remoteOn } from "./videos";
 import { currentUser } from "./account";
+import { t } from "@lingui/core/macro";
 
 export type { BranchNotificationType } from "../api/notifications";
 
@@ -127,7 +128,7 @@ function toItem(n: api.ApiNotification): NotificationItem | null {
   return {
     id: n._id,
     type: isBranchType(n.type) ? n.type : (n.type as NotificationItem["type"]),
-    actorName: actorObj ? actorObj.displayName || actorObj.username || "有人" : "有人",
+    actorName: actorObj ? actorObj.displayName || actorObj.username || t`有人` : t`有人`,
     actorAvatar: actorObj?.avatarUrl || undefined,
     // populate 过就是对象，没 populate 时是裸 id 字符串，两种都能拿来跳转
     videoId: videoObj ? videoObj._id : typeof video === "string" ? video : payload.videoId ?? null,
