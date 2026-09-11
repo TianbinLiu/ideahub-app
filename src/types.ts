@@ -1,4 +1,6 @@
 // 全局领域类型：卡片 / 节点树 / 视频
+import { i18n, type MessageDescriptor } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
 export type CardType = "character" | "scene" | "background" | "prop" | "style";
 
 export const CARD_TYPES: CardType[] = ["character", "scene", "background", "prop", "style"];
@@ -11,7 +13,72 @@ export const CARD_TYPES: CardType[] = ["character", "scene", "background", "prop
  */
 export const V3_CARD_WIPE_MS = Date.parse("2026-09-06T17:00:00+08:00");
 
-export const CARD_TYPE_LABELS: Record<CardType, string> = {
+/**
+ * 读的那一刻才翻的标签表 —— 界面显示名专用（下面几张表都用它）。
+ * ★ 表的形状（`Record<K, string>`）不变，全仓几十个调用点一个都不用改：每个键是 getter，读到时按当前界面语言翻。
+ * ★ 为什么不在模块顶层直接翻：开机是先激活语言、再 import App（main.tsx），顶层翻出来的字符串会冻结在开机那一刻的语言上。
+ * ⚠ 只给界面用。进模型 / 存进卡片内容的叫法各有冻结的 *_PROMPT 表，别拿这几张拼提示词。
+ */
+function liveLabels<K extends string>(src: Record<K, MessageDescriptor>): Record<K, string> {
+  const out = {} as Record<K, string>;
+  for (const k of Object.keys(src) as K[]) {
+    Object.defineProperty(out, k, { enumerable: true, get: () => i18n._(src[k]) });
+  }
+  return out;
+}
+
+/** 「名字 + 一句说明」一对，同样读到时现翻（理由见 liveLabels） */
+function liveText(label: MessageDescriptor, hint: MessageDescriptor): { label: string; hint: string } {
+  return {
+    get label() {
+      return i18n._(label);
+    },
+    get hint() {
+      return i18n._(hint);
+    },
+  };
+}
+
+/** 分类 / 分区的「id + 界面名」一对：id 原样（跨仓契约），名字读到时现翻（理由见 liveLabels） */
+function liveCategory<I extends string>(id: I, label: MessageDescriptor): { readonly id: I; readonly label: string } {
+  return {
+    id,
+    get label() {
+      return i18n._(label);
+    },
+  };
+}
+
+/** 卡种的**界面显示名**。★ 别拿它拼提示词 —— 进模型的叫法在 CARD_TYPE_PROMPT */
+export const CARD_TYPE_LABELS: Record<CardType, string> = liveLabels<CardType>({
+  character: msg`人物卡`,
+  scene: msg`场景卡`,
+  background: msg`背景卡`,
+  prop: msg`道具卡`,
+  style: msg`风格卡`,
+});
+
+/**
+ * 卡种的**短名**（挤在小键上的那种：工坊投影窗的「＋人物」）。
+ * ★ 别拿 CARD_TYPE_LABELS 切字符串：中文切两个字是「人物」，英文切两个字母是「Ch」。
+ */
+export const CARD_TYPE_SHORT: Record<CardType, string> = liveLabels<CardType>({
+  character: msg`人物`,
+  scene: msg`场景`,
+  background: msg`背景`,
+  prop: msg`道具`,
+  style: msg`风格`,
+});
+
+/**
+ * 卡种在**提示词**里的叫法 —— i18n-frozen：属于绑定与点名语法（「<图片1>是人物卡「凛」…」），永不翻译。
+ * ★★ 与 CARD_TYPE_LABELS 今天逐字相同，但**不是同一张表**（2026-09-10 多语言第 1 步拆开）：原来一张表两头读，
+ *   界面一翻成英文，参考图绑定句、出片素材句、铸卡提示词就跟着变成半中半英 —— 模型大多读得懂、全程零报错，
+ *   而形象一致性恰恰是在这几句里定的（规格 §2.5：指令与点名语法冻结中文，只有给人看的自由文本跟内容语言走）。
+ *   读法：进模型 / 存进卡片内容的读这张；画在屏幕上的读 CARD_TYPE_LABELS。
+ */
+/* i18n-frozen: 卡种在提示词里的叫法，属于绑定与点名语法，永不翻译 */
+export const CARD_TYPE_PROMPT: Record<CardType, string> = {
   character: "人物卡",
   scene: "场景卡",
   background: "背景卡",
@@ -76,26 +143,37 @@ export interface AspectSpec {
  *  ⚠ 各档位还有自己的下限（VideoTier.minSec），能不能选那一档由那边判，别在这里筛。 */
 export const DURATIONS = [3, 5, 6, 8, 10];
 
+// ★ label / desc 是界面文案，用 getter 读到时现翻（理由见 liveLabels）；promptHint 进 Seedream 提示词，冻结中文
 export const VIDEO_ASPECTS: AspectSpec[] = [
   {
     id: "portrait",
-    label: "竖屏",
+    get label() {
+      return i18n._(msg`竖屏`);
+    },
     ratio: "9:16",
     frameSize: "1440x2560",
     w: 720,
     h: 1280,
+    // i18n-ignore-next-line: 进 Seedream 提示词的构图暗示，冻结中文（规格 §2.5）
     promptHint: "竖版 9:16 手机全屏画面，主体居中偏上，上下留出呼吸空间",
-    desc: "首页全屏铺满（短视频默认）",
+    get desc() {
+      return i18n._(msg`首页全屏铺满（短视频默认）`);
+    },
   },
   {
     id: "landscape",
-    label: "横屏",
+    get label() {
+      return i18n._(msg`横屏`);
+    },
     ratio: "16:9",
     frameSize: "2560x1440",
     w: 1280,
     h: 720,
+    // i18n-ignore-next-line: 同上，进提示词的构图暗示
     promptHint: "横版 16:9 画面",
-    desc: "影视横构图，首页上下留黑边，可点全屏转屏看",
+    get desc() {
+      return i18n._(msg`影视横构图，首页上下留黑边，可点全屏转屏看`);
+    },
   },
 ];
 
@@ -210,6 +288,24 @@ export const VIEW_TAG_MAX = 24;
 export const SHARE_NOTE_MAX = 200;
 
 /**
+ * 图位说明（CardView.note）的上限 —— server schemas/branchAsset.schemas.js 的 cardView.note `.max(200)`。
+ * ★ 超了不是截断：铸卡之后补图那一发 PATCH 整发 400，服务端那张卡的图全部消失（乙方案 §5 实测链路）。
+ */
+export const VIEW_NOTE_MAX = 200;
+
+/**
+ * 几句图位说明拼成一条 note —— **唯一实现**（抠图 / 保留背景那句、prepareCardImage 的裁切句、铸卡写回 view 时都走它）。
+ * 空的丢掉，用「；」连起来，硬截到 VIEW_NOTE_MAX。
+ */
+export function joinViewNote(...parts: Array<string | null | undefined>): string {
+  return parts
+    .map((p) => (p ?? "").trim())
+    .filter(Boolean)
+    .join("；")
+    .slice(0, VIEW_NOTE_MAX);
+}
+
+/**
  * 卡名 / 卡简介的长度上限。**跨仓镜像**：server 的 `cardItem` 与 `updateCardBody` 是
  * `name.max(120)` / `summary.max(2000)`。
  *
@@ -258,10 +354,10 @@ export const CARD_SUMMARY_MAX = 2000;
  *   就是"这张图会不会真的喂给 AI、会不会因此花钱"。
  */
 export const ROLE_LABELS: Record<CardRole, { label: string; hint: string }> = {
-  face: { label: "锁脸", hint: "面部特征与发型发色，出片时优先喂给 AI" },
-  primary: { label: "锁主体", hint: "服装、体型与整体造型；也是这张卡的卡面" },
-  aux: { label: "补充参考", hint: "参考图预算还有余时才轮到它" },
-  display: { label: "只展示", hint: "永不进模型（三视图/规格稿这类多视图会让 AI 认错人）" },
+  face: liveText(msg`锁脸`, msg`面部特征与发型发色，出片时优先喂给 AI`),
+  primary: liveText(msg`锁主体`, msg`服装、体型与整体造型；也是这张卡的卡面`),
+  aux: liveText(msg`补充参考`, msg`参考图预算还有余时才轮到它`),
+  display: liveText(msg`只展示`, msg`永不进模型（三视图/规格稿这类多视图会让 AI 认错人）`),
 };
 
 /**
@@ -339,9 +435,9 @@ export const CARD_SIZE = "1728x2304";
 
 export interface CardSlot {
   kind: CardView["kind"];
-  /** 界面上的名字。★ 按类型给：对一把剑说"全身"是胡话 */
+  /** 界面上的名字（多语言时翻译）。★ 按类型给：对一把剑说"全身"是胡话 */
   label: string;
-  /** 这张图负责锁住什么——绑定句和铸卡提示词都从这里长出来 */
+  /** 这张图负责锁住什么 —— **界面**那半句（「锁住…」）。绑定句和铸卡提示词读 CARD_SLOT_PROMPT 里那份（冻结中文） */
   locks: string;
 }
 
@@ -353,27 +449,40 @@ export interface CardSlot {
 //   · 风格卡 = 画风 + 材质质感 + 色调光影 + 镜头语言（吸收了老背景卡"色光氛围"那一半），
 //     出片句进设定帧开头与视频提示词，像一条可套用的风格预设。
 //   完整调研与分期见 docs/card-roles-v3-design.md。`card.type` 与 `views[].kind` 的枚举一个字没改。
+/** 一格图位的界面名字与锁定项，读到时现翻（理由见 liveLabels）。提示词里的叫法在 CARD_SLOT_PROMPT（冻结） */
+function liveSlot(kind: CardView["kind"], label: MessageDescriptor, locks: MessageDescriptor): CardSlot {
+  return {
+    kind,
+    get label() {
+      return i18n._(label);
+    },
+    get locks() {
+      return i18n._(locks);
+    },
+  };
+}
+
 export const CARD_SLOTS: Record<CardType, readonly CardSlot[]> = {
   character: [
-    { kind: "body", label: "全身立绘", locks: "服装、体型与整体配色" },
-    { kind: "face", label: "面部特写", locks: "面部特征与发型发色" },
-    { kind: "detail", label: "标志性细节", locks: "随身物、纹样或疤痕" },
+    liveSlot("body", msg`全身立绘`, msg`服装、体型与整体配色`),
+    liveSlot("face", msg`面部特写`, msg`面部特征与发型发色`),
+    liveSlot("detail", msg`标志性细节`, msg`随身物、纹样或疤痕`),
   ],
   scene: [
-    { kind: "body", label: "全景主视图", locks: "空间结构、地貌与建筑轮廓及整体色调" },
-    { kind: "detail", label: "局部特征", locks: "局部材质与陈设特征" },
+    liveSlot("body", msg`全景主视图`, msg`空间结构、地貌与建筑轮廓及整体色调`),
+    liveSlot("detail", msg`局部特征`, msg`局部材质与陈设特征`),
   ],
   background: [
     // ★ V3：背景卡只以文字参与出片，这一格是展示用的示意图（永不进模型），所以只有一格
-    { kind: "body", label: "故事示意图", locks: "故事的时代、地点与氛围" },
+    liveSlot("body", msg`故事示意图`, msg`故事的时代、地点与氛围`),
   ],
   prop: [
-    { kind: "body", label: "净底主视图", locks: "造型、比例、材质与配色" },
-    { kind: "detail", label: "局部细节", locks: "局部纹样与磨损" },
+    liveSlot("body", msg`净底主视图`, msg`造型、比例、材质与配色`),
+    liveSlot("detail", msg`局部细节`, msg`局部纹样与磨损`),
   ],
   style: [
-    { kind: "body", label: "风格样张", locks: "画风、材质质感、色调与光影" },
-    { kind: "detail", label: "质感特写", locks: "材质、颗粒与光影的近距离质感" },
+    liveSlot("body", msg`风格样张`, msg`画风、材质质感、色调与光影`),
+    liveSlot("detail", msg`质感特写`, msg`材质、颗粒与光影的近距离质感`),
   ],
 };
 
@@ -427,10 +536,44 @@ export function normalizeSlot(type: CardType, raw: unknown): CardView["kind"] {
   return CARD_SLOTS[type].some((s) => s.kind === raw) ? (raw as CardView["kind"]) : primarySlotOf(type);
 }
 
-/** 这种卡的某个槽叫什么。找不到就退主槽的名字（与 normalizeSlot 同源） */
+/** 这种卡的某个槽**在界面上**叫什么。找不到就退主槽的名字（与 normalizeSlot 同源）。进提示词的叫法用 slotPromptOf */
 export function slotLabel(type: CardType, kind: unknown): string {
   const k = normalizeSlot(type, kind);
   return (CARD_SLOTS[type].find((s) => s.kind === k) ?? CARD_SLOTS[type][0]).label;
+}
+
+/**
+ * 图位在**提示词**里的叫法与锁定项 —— i18n-frozen（2026-09-10 从 CARD_SLOTS 拆出，理由同 CARD_TYPE_PROMPT）。
+ * ★ 与 CARD_SLOTS 的 label / locks 今天逐字相同、kind 一一对应、顺序相同；界面那份会翻译，这份永不翻译。
+ *   铸卡提示词（「画面取景：全身立绘，要锁住…」）与参考图绑定句（「<图片1>的面部特征与发型发色」）读这张。
+ * ⚠ 加图位时两张表一起加：这张少了那个 kind，slotPromptOf 会退到主槽的叫法 —— 不报错，只是提示词说错一格。
+ */
+/* i18n-frozen: 图位在提示词里的叫法与锁定项，进铸卡提示词与参考图绑定句，永不翻译 */
+export const CARD_SLOT_PROMPT: Record<CardType, readonly CardSlot[]> = {
+  character: [
+    { kind: "body", label: "全身立绘", locks: "服装、体型与整体配色" },
+    { kind: "face", label: "面部特写", locks: "面部特征与发型发色" },
+    { kind: "detail", label: "标志性细节", locks: "随身物、纹样或疤痕" },
+  ],
+  scene: [
+    { kind: "body", label: "全景主视图", locks: "空间结构、地貌与建筑轮廓及整体色调" },
+    { kind: "detail", label: "局部特征", locks: "局部材质与陈设特征" },
+  ],
+  background: [{ kind: "body", label: "故事示意图", locks: "故事的时代、地点与氛围" }],
+  prop: [
+    { kind: "body", label: "净底主视图", locks: "造型、比例、材质与配色" },
+    { kind: "detail", label: "局部细节", locks: "局部纹样与磨损" },
+  ],
+  style: [
+    { kind: "body", label: "风格样张", locks: "画风、材质质感、色调与光影" },
+    { kind: "detail", label: "质感特写", locks: "材质、颗粒与光影的近距离质感" },
+  ],
+};
+
+/** 这种卡的某个图位**在提示词里**怎么说（与 slotLabel 同一个归一与兜底） */
+export function slotPromptOf(type: CardType, kind: unknown): { label: string; locks: string } {
+  const k = normalizeSlot(type, kind);
+  return CARD_SLOT_PROMPT[type].find((s) => s.kind === k) ?? CARD_SLOT_PROMPT[type][0];
 }
 
 /**
@@ -439,13 +582,13 @@ export function slotLabel(type: CardType, kind: unknown): string {
  *   哪天有人把某一类改名（比如背景卡→氛围卡），切出来的就是"氛围信息"还是"氛围卡信息"
  *   全看那一刀切在哪 —— 而且不报错。
  */
-export const CARD_INFO_LABELS: Record<CardType, string> = {
-  character: "人物信息",
-  scene: "场景信息",
-  background: "故事背景",
-  prop: "道具信息",
-  style: "风格信息",
-};
+export const CARD_INFO_LABELS: Record<CardType, string> = liveLabels<CardType>({
+  character: msg`人物信息`,
+  scene: msg`场景信息`,
+  background: msg`故事背景`,
+  prop: msg`道具信息`,
+  style: msg`风格信息`,
+});
 
 /**
  * 读一张卡的形象参考图。**全仓唯一的归一处**（铁律六）。
@@ -607,10 +750,27 @@ export interface ShotSpec {
   beat?: string;
 }
 
-/** 镜头字段 → 提示词里那一句（唯一实现）。没有任何字段时返回空串 */
+/**
+ * 镜头字段 → **提示词 / 发布剧本**里那一句（唯一实现，i18n-frozen：「镜头：」属于点名语法，见规格 §2.5）。
+ * 没有任何字段时返回空串。★ 界面上那一行用 shotLineDisplay，别直接画这一句。
+ */
 export function shotLineOf(shot?: ShotSpec | null): string {
   const parts = [shot?.size, shot?.camera, shot?.beat].map((s) => (s ?? "").trim()).filter(Boolean);
+  // i18n-ignore-next-line: 进提示词 / 发布剧本的点名语法，冻结中文（规格 §2.5）
   return parts.length ? `镜头：${parts.join(" · ")}` : "";
+}
+
+/**
+ * 镜头字段 → **界面上**那一行（方案台、剧本分镜面板）。
+ * ★ 「镜头：」随界面语言翻（2026-09-11 接 Lingui）；三个字段的值原样透传。景别 / 运镜按 structuredSkills
+ *   提示词里那个闭集做值映射还没做；闭集外的值（模型自由写的节拍）本来就只能透传。
+ *   **别**拿它拼提示词或折进发布的 plot —— 那是内容，走 shotLineOf。
+ */
+export function shotLineDisplay(shot?: ShotSpec | null): string {
+  const parts = [shot?.size, shot?.camera, shot?.beat].map((s) => (s ?? "").trim()).filter(Boolean);
+  if (!parts.length) return "";
+  const joined = parts.join(" · ");
+  return t`镜头：${joined}`;
 }
 
 /** 模型吐出来的 shot 过一遍形状检查（JSON 里什么都可能出现）；没有可用字段就不带这个键 */
@@ -1055,12 +1215,12 @@ export interface MarkBox {
  * ★ 老模板没有分类（判否定：缺省/认不出的 id 一律当未分类，只在「全部」下出现）。
  */
 export const TPL_CATEGORIES = [
-  { id: "story", label: "剧情" },
-  { id: "emotion", label: "情感互动" },
-  { id: "fun", label: "整活" },
-  { id: "morph", label: "变身" },
-  { id: "festival", label: "节日" },
-  { id: "commerce", label: "带货" },
+  liveCategory("story", msg`剧情`),
+  liveCategory("emotion", msg`情感互动`),
+  liveCategory("fun", msg`整活`),
+  liveCategory("morph", msg`变身`),
+  liveCategory("festival", msg`节日`),
+  liveCategory("commerce", msg`带货`),
 ] as const;
 
 /** 分类 id → 人话标签。null = 未分类/认不出（读侧判否定的唯一实现，别在页面各写一遍 find） */
@@ -1283,7 +1443,40 @@ export interface DraftVideo {
   clientId?: string;
 }
 
-export const VIDEO_CATEGORIES = ["剧情", "科幻", "古风", "搞笑", "动画", "其他"];
+/**
+ * 作品分区（发现页那排入口、发布页 / 编辑页的分类芯片）。
+ * ★ id 是跨仓契约，而且**就是中文本身**：server `BranchVideo.category` 存的就是它，
+ *   `/videos?category=` 精确匹配（branchVideo.controller.js）。与 TPL_CATEGORIES 的 ASCII id 不同，
+ *   这里**不迁**：老 APK 会继续写中文、按中文查，改成 ASCII 就是两套值混在库里、分区筛不全（零报错）。
+ * ⇒ id **冻结**（i18n-frozen），界面只准画 `label`（经 `videoCategoryLabel`）；多语言时只翻 label。
+ */
+export const VIDEO_CATEGORIES = [
+  // i18n-ignore-next-line: id 冻结（服务端存的就是这个中文值，见上面的 ★），名字走 msg 读到时现翻
+  liveCategory("剧情", msg`剧情`),
+  // i18n-ignore-next-line: 同上，分区 id 冻结
+  liveCategory("科幻", msg`科幻`),
+  // i18n-ignore-next-line: 同上，分区 id 冻结
+  liveCategory("古风", msg`古风`),
+  // i18n-ignore-next-line: 同上，分区 id 冻结
+  liveCategory("搞笑", msg`搞笑`),
+  // i18n-ignore-next-line: 同上，分区 id 冻结
+  liveCategory("动画", msg`动画`),
+  // i18n-ignore-next-line: 同上，分区 id 冻结
+  liveCategory("其他", msg`其他`),
+] as const;
+
+/**
+ * 表单缺省分区的 id。★ 三处必须是同一个值：组稿时 studioStore 写进 draft 的缺省、
+ * EditPage / PublishPage 判「分类还没动过」的哨兵（`c !== DEFAULT_VIDEO_CATEGORY` 才不回填）。
+ * 各写一个 `"剧情"` 的话，将来谁把其中一处翻译了，回填就会悄悄盖掉用户选的分类。
+ */
+// i18n-ignore-next-line: 分区 id（冻结的中文值，与 VIDEO_CATEGORIES 的 id 同一个），不是界面文案
+export const DEFAULT_VIDEO_CATEGORY = "剧情";
+
+/** 分区 id → 显示名。认不出的 id（老数据 / 服务端新加的）原样显示，不吞掉 */
+export function videoCategoryLabel(id: string): string {
+  return VIDEO_CATEGORIES.find((c) => c.id === id)?.label ?? id;
+}
 
 /**
  * 作品话题标签的两个上限（**产品规则**，与服务端那两个数**故意不相等**）。
@@ -1327,21 +1520,57 @@ export function formatDuration(totalSec: number): string {
   return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
+/** 英文 compact 数字（10K / 1.2M）的格式器，按需建一次 */
+let enCompact: Intl.NumberFormat | null = null;
+
+/**
+ * 播放 / 点赞 / 热度的数字 —— 唯一实现，**按界面语言分派**（多语言方案 §5.6）。
+ * ★ 中文分支保留手写「x.x万」：Intl 的 zh-CN compact 会把 10000 写成「1万」、123456 写成「12万」，与现有界面对不上。
+ * ★ 英文用 Intl compact（12.3K / 1.2M）。读的是当前激活的 locale：切语言后下一次渲染就换（App 根订阅了 locale）。
+ */
 export function formatPlays(n: number): string {
+  if (i18n.locale === "en") {
+    enCompact ??= new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
+    return enCompact.format(n);
+  }
+  // i18n-ignore-next-line: 中文分支（英文在上面走 Intl compact），「万」只给中文界面
   if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
   return String(n);
 }
 
+/**
+ * 相对时间 —— 唯一实现，**按界面语言分派**（多语言方案 §5.6）。
+ * ★ 中文分支一个字不改（原来的手写版）：换成 Intl 在 node 上逐字相同（2026-09-10 实测 11 个时间点），但 WebView 自带的
+ *   ICU 版本不由我们定，中文界面不冒这个险。
+ * ★ 英文：just now / Intl.RelativeTimeFormat（numeric:"always" —— auto 会出 "now" 一类的词，与「刚刚」那一档打架）/
+ *   同年只写月日、跨年加年。
+ */
 export function relativeTime(at: number): string {
   const diff = Date.now() - at;
   const min = Math.floor(diff / 60000);
-  if (min < 1) return "刚刚";
-  if (min < 60) return `${min}分钟前`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}小时前`;
   const d = new Date(at);
   const now = new Date();
+  if (i18n.locale === "en") {
+    if (min < 1) return "just now";
+    const rtf = new Intl.RelativeTimeFormat("en", { numeric: "always" });
+    if (min < 60) return rtf.format(-min, "minute");
+    const hours = Math.floor(min / 60);
+    if (hours < 24) return rtf.format(-hours, "hour");
+    const opts: Intl.DateTimeFormatOptions =
+      d.getFullYear() === now.getFullYear() ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" };
+    return new Intl.DateTimeFormat("en", opts).format(d);
+  }
+  // ★ 以下是中文分支（手写版逐字不变，理由见函数头）：英文在上面已经 return 了
+  // i18n-ignore-next-line: 中文分支，只给中文界面
+  if (min < 1) return "刚刚";
+  // i18n-ignore-next-line: 中文分支
+  if (min < 60) return `${min}分钟前`;
+  const h = Math.floor(min / 60);
+  // i18n-ignore-next-line: 中文分支
+  if (h < 24) return `${h}小时前`;
+  // i18n-ignore-next-line: 中文分支
   if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}月${d.getDate()}日`;
+  // i18n-ignore-next-line: 中文分支
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
@@ -1361,5 +1590,6 @@ export function relativeTime(at: number): string {
 export function revisionLabel(revision: number | undefined): string | null {
   const n = Number(revision ?? 0);
   if (!Number.isFinite(n) || n < 1) return null;
-  return `第 ${n + 1} 版`;
+  const v = n + 1;
+  return t`第 ${v} 版`;
 }

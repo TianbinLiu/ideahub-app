@@ -5,6 +5,7 @@
 //   ② 下载失败 / 校验不过 —— 原因原样显示，并且留着重试；
 //   ③ 签名对不上 —— 系统安装器自己会报，这里提前把话说在前面（从早期的 debug 包
 //      换到正式包时必然发生，只能先卸载）。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -18,6 +19,7 @@ import {
 import Icon from "./Icon";
 
 export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClose: () => void }) {
+  const { t } = useLingui();
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [pct, setPct] = useState(0);
@@ -48,7 +50,7 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
       // 安装器已经拉起来了。这里**不关弹层**：装不装是用户在系统弹窗里决定的，
       // 他可能点取消回来 —— 那时候还留着"立即更新"才有得再点
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "更新失败，请稍后再试");
+      setErr(e instanceof Error ? e.message : t`更新失败，请稍后再试`);
     } finally {
       setBusy(false);
     }
@@ -64,7 +66,7 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
         <div className="mb-1 flex items-center gap-2">
           <span className="text-lg">🎉</span>
           <h3 className="text-sm font-bold text-slate-100">
-            有新版本 {info.versionName}
+            <Trans>有新版本 {info.versionName}</Trans>
           </h3>
           {info.sizeBytes > 0 && <span className="text-[11px] text-slate-500">{fmtSize(info.sizeBytes)}</span>}
         </div>
@@ -78,13 +80,13 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
         {allowed === false && (
           <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
             <p className="text-[11px] leading-relaxed text-amber-100">
-              这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。
+              <Trans>这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。</Trans>
             </p>
             <button
               onClick={() => void openInstallPermission()}
               className="mt-2 w-full rounded-xl bg-amber-400/90 py-2.5 text-xs font-bold text-ink"
             >
-              去开启「允许安装未知应用」
+              <Trans>去开启「允许安装未知应用」</Trans>
             </button>
           </div>
         )}
@@ -99,7 +101,7 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
               />
             </div>
             <p className="mt-1.5 text-center text-[11px] tabular-nums text-slate-400">
-              {pct > 0 ? `下载中 ${pct}%` : "正在连接…"}
+              {pct > 0 ? t`下载中 ${pct}%` : t`正在连接…`}
             </p>
           </div>
         )}
@@ -119,14 +121,14 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
             disabled={busy}
             className="flex-1 rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200 disabled:opacity-40"
           >
-            以后再说
+            <Trans>以后再说</Trans>
           </button>
           <button
             onClick={() => void start()}
             disabled={busy || allowed === false}
             className="flex-[1.6] rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
           >
-            {busy ? "下载中…" : err ? "重试" : "立即更新"}
+            {busy ? <Trans>下载中…</Trans> : err ? <Trans>重试</Trans> : <Trans>立即更新</Trans>}
           </button>
         </div>
 
@@ -134,9 +136,9 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
             换成正式签名的包时系统会直接拒绝安装，而它给的提示（"应用未安装"）
             完全看不出原因 */}
         <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-600">
-          若安装时提示「应用未安装」，多半是早期测试包的签名不同，先卸载旧版再装即可
+          <Trans>若安装时提示「应用未安装」，多半是早期测试包的签名不同，先卸载旧版再装即可</Trans>
           <button onClick={onClose} className="ml-1 inline-flex items-center text-slate-500 underline underline-offset-2">
-            关闭
+            <Trans>关闭</Trans>
             <Icon name="close" size={10} className="ml-0.5" />
           </button>
         </p>

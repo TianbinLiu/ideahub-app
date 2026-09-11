@@ -41,6 +41,7 @@
  *   参数表只有 cdi3 里才有，本地判会把「这个包没带 cdi3」误报成「这个模型不能眨眼」，
  *   那正是坑表里「把 N 种结局压成两档」的形状。
  */
+import { t } from "@lingui/core/macro";
 import type JSZip from "jszip";
 import { loadLive2DRuntime, type PixiRuntime } from "./loader";
 
@@ -217,17 +218,20 @@ function refsOf(entry: string, json: Model3Json): { path: string | null; ref: st
     out.push({ path: resolveInZip(entry, ref), ref, what });
   };
   push(fr.Moc, "moc3");
-  for (const t of fr.Textures || []) push(t, "贴图");
-  push(fr.Physics, "物理");
-  push(fr.Pose, "透明度组");
-  push(fr.DisplayInfo, "参数名表");
-  push(fr.UserData, "用户数据");
-  push(fr.MotionSync, "口型同步");
-  for (const e of fr.Expressions || []) push(e.File, `表情「${e.Name || "?"}」`);
+  for (const tex of fr.Textures || []) push(tex, t`贴图`);
+  push(fr.Physics, t`物理`);
+  push(fr.Pose, t`透明度组`);
+  push(fr.DisplayInfo, t`参数名表`);
+  push(fr.UserData, t`用户数据`);
+  push(fr.MotionSync, t`口型同步`);
+  for (const e of fr.Expressions || []) {
+    const name = e.Name || "?";
+    push(e.File, t`表情「${name}」`);
+  }
   for (const [group, list] of Object.entries(fr.Motions || {})) {
     for (const m of list || []) {
-      push(m.File, `动作组「${group}」`);
-      push(m.Sound, `动作组「${group}」的音频`);
+      push(m.File, t`动作组「${group}」`);
+      push(m.Sound, t`动作组「${group}」的音频`);
     }
   }
   return out;
@@ -250,7 +254,7 @@ function readFileBytes(file: File): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as ArrayBuffer);
-    reader.onerror = () => reject(reader.error || new Error("读取失败"));
+    reader.onerror = () => reject(reader.error || new Error(t`读取失败`));
     reader.readAsArrayBuffer(file);
   });
 }
@@ -268,15 +272,17 @@ export async function readLive2dBundle(file: File, maxBytes: number): Promise<Bu
   try {
     bytes = await readFileBytes(file);
   } catch (e) {
+    const why = e instanceof Error ? e.message : t`读取失败`;
     throw new Error(
-      `这个文件读不出来（${e instanceof Error ? e.message : "读取失败"}）。多半是它还在网盘/云端没下到本机，或者已经被移动、删除了 —— 先把它存进手机里再选一次。`,
+      t`这个文件读不出来（${why}）。多半是它还在网盘/云端没下到本机，或者已经被移动、删除了 —— 先把它存进手机里再选一次。`,
     );
   }
   let zip: JSZip;
   try {
     zip = await JSZipCtor.loadAsync(bytes);
   } catch (e) {
-    throw new Error(`这个文件打不开，看起来不是 zip 压缩包（${e instanceof Error ? e.message : "解压失败"}）。`);
+    const why = e instanceof Error ? e.message : t`解压失败`;
+    throw new Error(t`这个文件打不开，看起来不是 zip 压缩包（${why}）。`);
   }
 
   const paths: string[] = [];
@@ -312,35 +318,33 @@ export async function readLive2dBundle(file: File, maxBytes: number): Promise<Bu
     totalBytes += size;
   });
 
-  if (unsafe > 0) issues.push(`包里有 ${unsafe} 个文件的路径带 “..”（会跳出目录），这种包我们不收。请重新压缩一次再传。`);
-  if (paths.length === 0) issues.push("包里没有一个我们认识的文件。Live2D 包至少要有 *.model3.json、*.moc3 和贴图。");
+  if (unsafe > 0) issues.push(t`包里有 ${unsafe} 个文件的路径带 “..”（会跳出目录），这种包我们不收。请重新压缩一次再传。`);
+  if (paths.length === 0) issues.push(t`包里没有一个我们认识的文件。Live2D 包至少要有 *.model3.json、*.moc3 和贴图。`);
   // ★★ 这道闸量的是 **zip 文件本身**，不是解压后的总大小（2026-09-07 改）：`MAX_LIVE2D_BUNDLE_BYTES`
   //   镜像的是服务端 `live2dModel.routes.js` 的 zip 上限与 `/bundle/sign` 票上的 `maxSizeBytes`，
   //   而 `uploads.ts` 判票也是拿 `file.size` 比。此前这里拿解压后的 `totalBytes` 比同一个数 ——
   //   一份 12MB 的 zip 解出来 30MB（moc3 / json / wav 的压缩率都不低）会在本地被整句拒掉，
   //   连传都传不了，**而服务端会收**。两处用同一个数量了两样东西。
   if (maxBytes > 0 && file.size > maxBytes) {
-    issues.push(
-      `这个 zip 约 ${(file.size / 1024 / 1024).toFixed(1)}MB，超过了 ${Math.round(maxBytes / 1024 / 1024)}MB 的上限。` +
-        "贴图通常是大头，导出时压到 2048² 一般就够了。",
-    );
+    const zipMb = (file.size / 1024 / 1024).toFixed(1);
+    const maxMb = Math.round(maxBytes / 1024 / 1024);
+    issues.push(t`这个 zip 约 ${zipMb}MB，超过了 ${maxMb}MB 的上限。贴图通常是大头，导出时压到 2048² 一般就够了。`);
   }
   // 解压后的总大小仍然要说一句，但它是**提醒不是拒绝**：手机上加载慢是体验问题，不是不合格。
   else if (maxBytes > 0 && totalBytes > maxBytes) {
-    warnings.push(
-      `解压后一共约 ${(totalBytes / 1024 / 1024).toFixed(1)}MB（zip 本身 ${(file.size / 1024 / 1024).toFixed(1)}MB，没超上限）。` +
-        "手机上加载会慢一些，介意的话把贴图压到 2048² 再导出一次。",
-    );
+    const totalMb = (totalBytes / 1024 / 1024).toFixed(1);
+    const zipMb = (file.size / 1024 / 1024).toFixed(1);
+    warnings.push(t`解压后一共约 ${totalMb}MB（zip 本身 ${zipMb}MB，没超上限）。手机上加载会慢一些，介意的话把贴图压到 2048² 再导出一次。`);
   }
   // 路径带空格 / 中文时，运行时的路径比对会绕一圈编解码。多数能对上，对不上时症状是「贴图空白」——
   // 与其让人猜，不如先说一句。这是提醒不是拒绝：真对不上的话第 2 步会明确失败
   if (paths.some((p) => /[^\w./-]/.test(p))) {
-    warnings.push("包里有文件名带空格或中文。多数情况没问题；万一预览画不出来，把文件名改成纯英文再压一次通常就好了。");
+    warnings.push(t`包里有文件名带空格或中文。多数情况没问题；万一预览画不出来，把文件名改成纯英文再压一次通常就好了。`);
   }
 
   const entries = paths.filter((p) => p.toLowerCase().endsWith(".model3.json")).sort();
   if (paths.length > 0 && entries.length === 0) {
-    issues.push("包里没有找到 *.model3.json。它是 Cubism 4（Version 3）导出的入口文件，缺了它我们不知道该加载什么。");
+    issues.push(t`包里没有找到 *.model3.json。它是 Cubism 4（Version 3）导出的入口文件，缺了它我们不知道该加载什么。`);
   }
 
   const detail = new Map<string, EntryDetail>();
@@ -368,31 +372,36 @@ async function inspectEntry(zip: JSZip, raw: Map<string, string>, entry: string,
   try {
     json = JSON.parse((await entryAt(zip, raw, entry)?.async("text")) || "{}") as Model3Json;
   } catch {
-    issues.push(`${entry} 不是合法的 JSON，读不下去。`);
+    issues.push(t`${entry} 不是合法的 JSON，读不下去。`);
     return out;
   }
 
   if (json.Version !== 3) {
+    const version = json.Version ?? t`（没写）`;
     issues.push(
-      `${entry} 的 Version 是 ${json.Version ?? "（没写）"}，我们只认 Version 3（Cubism 4 导出的 model3.json）。` +
-        "Cubism 2 的老模型（*.model.json）要先在 Cubism Editor 里升级。",
+      t`${entry} 的 Version 是 ${version}，我们只认 Version 3（Cubism 4 导出的 model3.json）。Cubism 2 的老模型（*.model.json）要先在 Cubism Editor 里升级。`,
     );
   }
 
   const fr = json.FileReferences || {};
-  if (!fr.Moc) issues.push(`${entry} 的 FileReferences 里没有 Moc，这个包缺 *.moc3 主体文件。`);
+  if (!fr.Moc) issues.push(t`${entry} 的 FileReferences 里没有 Moc，这个包缺 *.moc3 主体文件。`);
   const mocPath = fr.Moc ? resolveInZip(entry, fr.Moc) : null;
 
   // 引用了包里没有的文件 —— 逐条说清是哪一条，别只说「文件有问题」
   const missing: string[] = [];
   for (const r of refsOf(entry, json)) {
     if (r.path && known.has(r.path)) continue;
-    missing.push(`${r.what}：${r.ref}`);
+    const { what, ref } = r;
+    missing.push(t`${what}：${ref}`);
   }
   if (missing.length) {
+    const n = missing.length;
+    const list = missing.slice(0, 6).join(t({ message: "；", comment: "列举包里缺的几个文件时的分隔符" }));
+    // ★ 「等」那半句按有没有截断整句各写一份，不往句子里拼碎片
     issues.push(
-      `${entry} 引用了 ${missing.length} 个包里没有的文件（${missing.slice(0, 6).join("；")}${missing.length > 6 ? " 等" : ""}）。` +
-        "多半是压缩时漏了子目录，或者压的是文件夹的父目录。",
+      n > 6
+        ? t`${entry} 引用了 ${n} 个包里没有的文件（${list} 等）。多半是压缩时漏了子目录，或者压的是文件夹的父目录。`
+        : t`${entry} 引用了 ${n} 个包里没有的文件（${list}）。多半是压缩时漏了子目录，或者压的是文件夹的父目录。`,
     );
   }
 
@@ -402,18 +411,20 @@ async function inspectEntry(zip: JSZip, raw: Map<string, string>, entry: string,
       const head = await entryAt(zip, raw, mocPath)!.async("uint8array");
       const magic = String.fromCharCode(head[0], head[1], head[2], head[3]);
       if (magic !== "MOC3") {
-        issues.push(`${mocPath} 的文件头不是 MOC3（读到 “${magic.replace(/[^ -~]/g, "·")}”），这不是一份有效的 moc3。`);
+        const shown = magic.replace(/[^ -~]/g, "·");
+        issues.push(t`${mocPath} 的文件头不是 MOC3（读到 “${shown}”），这不是一份有效的 moc3。`);
       }
     } catch {
-      issues.push(`${mocPath} 读不出来，压缩包可能损坏了。`);
+      issues.push(t`${mocPath} 读不出来，压缩包可能损坏了。`);
     }
   }
 
   // 贴图：张数与像素尺寸
-  const texPaths = (fr.Textures || []).map((t) => resolveInZip(entry, t)).filter((p): p is string => !!p && known.has(p));
-  if (texPaths.length === 0) issues.push(`${entry} 一张贴图都没引用，画出来会是全透明的。`);
+  const texPaths = (fr.Textures || []).map((tex) => resolveInZip(entry, tex)).filter((p): p is string => !!p && known.has(p));
+  if (texPaths.length === 0) issues.push(t`${entry} 一张贴图都没引用，画出来会是全透明的。`);
   if (texPaths.length > MAX_TEXTURE_COUNT) {
-    issues.push(`贴图有 ${texPaths.length} 张，超过 ${MAX_TEXTURE_COUNT} 张的上限。请在 Cubism 里把纹理图集合并一下再导出。`);
+    const count = texPaths.length;
+    issues.push(t`贴图有 ${count} 张，超过 ${MAX_TEXTURE_COUNT} 张的上限。请在 Cubism 里把纹理图集合并一下再导出。`);
   }
   for (const path of texPaths) {
     let width = 0;
@@ -429,9 +440,8 @@ async function inspectEntry(zip: JSZip, raw: Map<string, string>, entry: string,
     }
     out.textures.push({ path, width, height });
     if (width > MAX_TEXTURE_SIDE || height > MAX_TEXTURE_SIDE) {
-      issues.push(
-        `贴图 ${baseName(path)} 是 ${width}×${height}，单边超过 ${MAX_TEXTURE_SIDE}px。手机上既传不动也画不动，请导出成 2048² 或 4096²。`,
-      );
+      const name = baseName(path);
+      issues.push(t`贴图 ${name} 是 ${width}×${height}，单边超过 ${MAX_TEXTURE_SIDE}px。手机上既传不动也画不动，请导出成 2048² 或 4096²。`);
     }
   }
 
@@ -491,7 +501,7 @@ type ZipLoaderStatic = {
  */
 function installZipHooks(pixi: PixiRuntime): ZipLoaderStatic {
   const ZipLoader = (pixi.live2d as unknown as { ZipLoader?: ZipLoaderStatic }).ZipLoader;
-  if (!ZipLoader) throw new Error("这个版本的 Live2D 运行时不支持从本地 zip 预览（缺 ZipLoader）。");
+  if (!ZipLoader) throw new Error(t`这个版本的 Live2D 运行时不支持从本地 zip 预览（缺 ZipLoader）。`);
   if (ZipLoader.__ideahubZipHooks) return ZipLoader;
 
   ZipLoader.zipReader = async (blob: Blob, url: string) => {

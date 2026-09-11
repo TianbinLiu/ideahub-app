@@ -19,6 +19,8 @@
  * ★ 与 support.ts 同一条铁律：所有请求走 API_BASE（client.ts）。市场模型的 modelJsonUrl 服务端给的是绝对地址；
  *   万一是相对路径也拼到 API_BASE 上，绝不让它落到 WebView 的同源（SPA 回退 200 + HTML，CLAUDE.md 坑表）。
  */
+import { i18n, type MessageDescriptor } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
 import { API_BASE, ApiError, apiDelete, apiGet, apiPost, apiPut } from "./client";
 import { postMultipart, type MultipartPart } from "./uploads";
 import { streamSseRequest } from "./stream";
@@ -85,15 +87,21 @@ export type CompanionMappingWire = CompanionMapping;
 export type Live2dBadge = "motions" | "expressions" | "touch" | "physics";
 
 /**
- * 角标 → 中文（一处实现）：形象市场的卡片、上传向导的"这个包会什么"两处都读它。
+ * 角标 → 界面语言的名字（一处实现）：形象市场的卡片、上传向导的"这个包会什么"两处都读它。
  * ★ 各写一份的话，向导里说"会表情"、市场里说"有表情"，同一个包在两屏上是两种说法。
+ * ★ 认不出的角标（服务端先加了一枚）原样显示。
  */
-export const LIVE2D_BADGE_LABEL: Record<Live2dBadge, string> = {
-  motions: "会动",
-  expressions: "会表情",
-  touch: "可触摸",
-  physics: "有物理",
+const LIVE2D_BADGE_LABEL: Record<Live2dBadge, MessageDescriptor> = {
+  motions: msg`会动`,
+  expressions: msg`会表情`,
+  touch: msg`可触摸`,
+  physics: msg`有物理`,
 };
+
+export function live2dBadgeLabel(b: Live2dBadge): string {
+  const d = LIVE2D_BADGE_LABEL[b];
+  return d ? i18n._(d) : b;
+}
 
 /** 一个模型包"会什么"（服务端提取，存库 + 进列表 payload）。设计见 docs/digital-human-creator-center.md §3.3 */
 export interface Live2dCapabilities {
@@ -306,7 +314,7 @@ export async function inspectLive2dBundle(
     // 180s：25MB 的包在慢网上要传一会儿，服务端还要解压 + 逐个文件核对。老服务端没这条路 → 404，调用方翻译
     data = await postMultipart("/api/live2d-models/inspect", parts, 180_000, signal);
   } else {
-    if (!input.bundleRef) throw new ApiError("要检查的模型包既没有文件也没有直传编号（这是调用方的 bug）", 400);
+    if (!input.bundleRef) throw new ApiError(t`要检查的模型包既没有文件也没有直传编号（这是调用方的 bug）`, 400);
     // ★★ 与上面那条 multipart 兄弟路**同一个数**，这不是可省的：两条路在服务端做的事一样多
     //   （解压 25MB、逐张探贴图尺寸、算能力档案），直传这条还多一步"服务器去 Cloudinary 把包拉回来"
     //   （server `live2dBundle.downloadDirectBundle` 自己的 axios 超时就是 60 秒）。
@@ -321,7 +329,7 @@ export async function inspectLive2dBundle(
   // ★ 按**回包形状**验收，不看状态码（Capacitor 那条坑：未命中路径回 200 + index.html，uploads.ts 的 receiptOf 同款）。
   //   不验的话老服务端上 `capabilities` 是 undefined，症状要拖到向导第 4 步渲染映射表时才炸，而那时人已经填了三屏。
   if (!data || typeof data.capabilities !== "object" || !data.capabilities) {
-    throw new ApiError("这台服务器还不会解析 Live2D 模型包（需要更新服务端），暂时传不了。", 501, "UNSUPPORTED");
+    throw new ApiError(t`这台服务器还不会解析 Live2D 模型包（需要更新服务端），暂时传不了。`, 501, "UNSUPPORTED");
   }
   return data as unknown as Live2dInspectResult;
 }
@@ -387,7 +395,7 @@ export async function createLive2dModel(form: Live2dModelForm): Promise<Live2dCr
     // 600s：25MB 走 multipart 时字节要经过我们的服务器（那条路本来就慢），别比 Cloudflare 那道 125 秒墙更早响
     data = await postMultipart("/api/live2d-models", parts, 600_000);
   } else {
-    if (!form.bundleRef) throw new ApiError("建模型时既没有文件也没有直传编号（这是调用方的 bug）", 400);
+    if (!form.bundleRef) throw new ApiError(t`建模型时既没有文件也没有直传编号（这是调用方的 bug）`, 400);
     // ★★ 与 multipart 兄弟路**逐字相等的 600s**（那个数已经量过）：两条路在服务端做的事有一大半是同一件
     //   （解压、逐张探贴图、写 companion.json、落库），直传这条还多一步"去 Cloudinary 把 25MB 拉回来"。
     //   吃 20 秒默认值的后果比 inspect 那条重得多：客户端掐断时**服务端多半已经把模型建出来了**，
@@ -417,7 +425,7 @@ export async function createLive2dModel(form: Live2dModelForm): Promise<Live2dCr
   //   顶栏的「重新开始」也因为 step === "done" 不摆，一个可点的东西都没有）。
   //   2026-09-07 收口：此前这句只长在 multipart 那一支上，而直传是 #60 之后的默认路径。
   if (!data || typeof data.model !== "object" || !data.model) {
-    throw new ApiError("服务器没有返回建好的模型（可能是旧版服务端），没有创建成功。", 502);
+    throw new ApiError(t`服务器没有返回建好的模型（可能是旧版服务端），没有创建成功。`, 502);
   }
   return data as unknown as Live2dCreateResult;
 }
@@ -688,13 +696,13 @@ export async function streamPersonaPreviewChat(
       else if (event === "token") handlers.onToken?.(String(payload.t ?? ""));
       else if (event === "done") handlers.onDone?.({ text: String(payload.text ?? "") });
     },
-    { signal, unsupported: "服务端还没有人格试聊（返回的不是事件流）" },
+    { signal, unsupported: t`服务端还没有人格试聊（返回的不是事件流）` },
     ({ event, data }) => {
       if (event !== "error") return "";
       try {
-        return String((JSON.parse(data) as { message?: string }).message || "试聊失败了，稍后再试。");
+        return String((JSON.parse(data) as { message?: string }).message || t`试聊失败了，稍后再试。`);
       } catch {
-        return "试聊失败了，稍后再试。";
+        return t`试聊失败了，稍后再试。`;
       }
     },
   );
@@ -867,12 +875,12 @@ export function authorName(author: PersonaAuthor): string {
 export function companionErrorText(e: unknown, fallback: string): string {
   if (e instanceof ApiError) {
     if (e.status === 0) {
-      if (e.code === "OFFLINE") return "当前是离线模式（没配服务器地址），这个功能需要联网。";
-      if (e.code === "TIMEOUT") return "请求超时了，检查网络后再试一次。";
-      return "网络不可用，检查网络后再试一次。";
+      if (e.code === "OFFLINE") return t`当前是离线模式（没配服务器地址），这个功能需要联网。`;
+      if (e.code === "TIMEOUT") return t`请求超时了，检查网络后再试一次。`;
+      return t`网络不可用，检查网络后再试一次。`;
     }
-    if (e.status === 404) return "服务端还没有这个功能，等后端更新后再来。";
-    if (e.status === 429) return "操作太频繁了，稍等几秒再试。";
+    if (e.status === 404) return t`服务端还没有这个功能，等后端更新后再来。`;
+    if (e.status === 429) return t`操作太频繁了，稍等几秒再试。`;
     return e.message || fallback;
   }
   if (e instanceof Error && e.message) return e.message;

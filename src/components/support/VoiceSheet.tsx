@@ -23,6 +23,9 @@
  * ★ 所有失败就地整句说明；保存 / 设为我的声音成功才关面板并让页面重拉 config（voiceSettings 是服务端算的合并结果）。
  *   发布模板例外：成功后不关，切到市场页「我的」让人看见自己那条（带「使用中」）——发布这件事需要一个看得见的结果。
  */
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useState } from "react";
 import { CloseButton } from "../IconTapButton";
 import {
@@ -46,10 +49,10 @@ const SINGLE_VOICES = VOICES.filter((v) => !v.mix);
 const INSTRUCT_MAX = 200;
 
 type Tab = "single" | "mix" | "market";
-const TABS: Array<{ key: Tab; label: string }> = [
-  { key: "single", label: "单音色" },
-  { key: "mix", label: "混音" },
-  { key: "market", label: "声音市场" },
+const TABS: Array<{ key: Tab; label: MessageDescriptor }> = [
+  { key: "single", label: msg`单音色` },
+  { key: "mix", label: msg`混音` },
+  { key: "market", label: msg`声音市场` },
 ];
 
 type Props = {
@@ -69,6 +72,7 @@ function sameRecipe(a: VoiceMixEntry[], b: VoiceMixEntry[] | null | undefined): 
 }
 
 export default function VoiceSheet({ name, settings, merged, onClose, onSaved }: Props) {
+  const { t } = useLingui();
   const override = settings?.settings.voice ?? null;
   // 在用混音（自己调的或市场模板）就直接落在混音页：打开面板最常见的目的是"再调调"
   const [tab, setTab] = useState<Tab>(() => (override?.mix?.length ? "mix" : "single"));
@@ -93,7 +97,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
     let alive = true;
     getTtsVoices()
       .then((r) => alive && setCatalog(r))
-      .catch((e) => alive && setCatalogErr(companionErrorText(e, "读不到音色目录")));
+      .catch((e) => alive && setCatalogErr(companionErrorText(e, t`读不到音色目录`)));
     return () => {
       alive = false;
     };
@@ -123,12 +127,12 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
   // 标题那一行：现在真正在用的嗓子（合并结果；老服务端没有合并结果就看覆盖层）
   const effective = merged ?? override;
   const effectiveText = !effective
-    ? "服务端默认"
+    ? t`服务端默认`
     : effective.mix?.length
-      ? `混音 ${mixRecipeText(effective.mix, nameOf)}`
+      ? t`混音 ${mixRecipeText(effective.mix, nameOf)}`
       : effective.voiceId
         ? nameOf(effective.voiceId)
-        : "服务端默认";
+        : t`服务端默认`;
   const currentTemplateId = settings?.voice?.templateId ?? null;
 
   function switchTab(next: Tab) {
@@ -166,7 +170,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
     setErr("");
     try {
       if (tab === "mix") {
-        if (!rows.length) throw new Error("先加一味音色再保存。");
+        if (!rows.length) throw new Error(t`先加一味音色再保存。`);
         const templateId = sameRecipe(rows, override?.mix) ? (override?.templateId ?? null) : null;
         await updateCompanionSettings({ voice: { mix: rows, templateId, rate, pitch, expressive: true } });
       } else {
@@ -177,7 +181,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
       onSaved();
       onClose();
     } catch (e) {
-      setErr(companionErrorText(e, "保存失败，稍后再试。"));
+      setErr(companionErrorText(e, t`保存失败，稍后再试。`));
       setBusy("");
     }
   }
@@ -191,7 +195,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
       onSaved();
       onClose();
     } catch (e) {
-      setErr(companionErrorText(e, "恢复失败，稍后再试。"));
+      setErr(companionErrorText(e, t`恢复失败，稍后再试。`));
       setBusy("");
     }
   }
@@ -205,8 +209,8 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
   const rateSlider = (
     <div className="mt-4">
       <div className="mb-1 flex items-center justify-between">
-        <span className="text-xs font-semibold text-slate-400">语速</span>
-        <span className="text-[11px] text-slate-500">{rate === null ? `跟随（${rateLabel(followRate)}）` : rateLabel(rate)}</span>
+        <span className="text-xs font-semibold text-slate-400"><Trans>语速</Trans></span>
+        <span className="text-[11px] text-slate-500">{rate === null ? t`跟随（${rateLabel(followRate)}）` : rateLabel(rate)}</span>
       </div>
       <input
         type="range"
@@ -219,13 +223,13 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
         className="w-full accent-brand"
       />
       <div className="mt-0.5 flex justify-between text-[10px] text-slate-600">
-        <span>0.70× 慢</span>
+        <span><Trans>0.70× 慢</Trans></span>
         <span>1.00×</span>
-        <span>1.20× 快</span>
+        <span><Trans>1.20× 快</Trans></span>
       </div>
       {rate !== null && (
         <button onClick={() => setRate(null)} className="mt-1 text-[11px] text-slate-500 underline underline-offset-2">
-          跟随人格/模型
+          <Trans>跟随人格/模型</Trans>
         </button>
       )}
     </div>
@@ -238,23 +242,23 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex h-12 shrink-0 items-center gap-2 px-4">
-          <span className="shrink-0 text-sm font-bold text-slate-100">{name}的声音</span>
+          <span className="shrink-0 text-sm font-bold text-slate-100"><Trans>{name}的声音</Trans></span>
           <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">
-            {following ? "跟随人格/模型" : "你的设置（官网同步）"} · {effectiveText}
+            {following ? <Trans>跟随人格/模型</Trans> : <Trans>你的设置（官网同步）</Trans>} · {effectiveText}
           </span>
           <CloseButton chip="sm" size={13} align="end" disabled={saving} onClick={onClose} />
         </div>
 
         <div className="flex shrink-0 gap-1.5 px-4 pb-2">
-          {TABS.map((t) => (
+          {TABS.map((tb) => (
             <button
-              key={t.key}
-              onClick={() => switchTab(t.key)}
+              key={tb.key}
+              onClick={() => switchTab(tb.key)}
               disabled={saving}
-              aria-pressed={tab === t.key}
-              className={`flex-1 rounded-full py-1.5 text-xs font-semibold ${tab === t.key ? "bg-brand text-ink" : "bg-panel text-slate-300"} disabled:opacity-40`}
+              aria-pressed={tab === tb.key}
+              className={`flex-1 rounded-full py-1.5 text-xs font-semibold ${tab === tb.key ? "bg-brand text-ink" : "bg-panel text-slate-300"} disabled:opacity-40`}
             >
-              {t.label}
+              {t(tb.label)}
             </button>
           ))}
         </div>
@@ -287,7 +291,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
 
               <div className="mt-3">
                 <div className="mb-1 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-400">语调指令</span>
+                  <span className="text-xs font-semibold text-slate-400"><Trans>语调指令</Trans></span>
                   <span className="text-[11px] text-slate-600">
                     {instruct.length}/{INSTRUCT_MAX}
                   </span>
@@ -299,8 +303,8 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
                   maxLength={INSTRUCT_MAX}
                   placeholder={
                     merged?.instruct
-                      ? `留空 = 跟随人格/模型：${merged.instruct}`
-                      : "用一句话描述想要的语气，例如：温柔一点，语速放慢。留空 = 跟随人格/模型"
+                      ? t`留空 = 跟随人格/模型：${merged.instruct}`
+                      : t`用一句话描述想要的语气，例如：温柔一点，语速放慢。留空 = 跟随人格/模型`
                   }
                   className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                 />
@@ -333,7 +337,11 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
             <>
               {published && (
                 <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-emerald-200">
-                  已发布「{published.name}」{published.shared ? "到声音市场" : "（未公开，只在「我的」里）"}，并设为你的声音。
+                  {published.shared ? (
+                    <Trans>已发布「{published.name}」到声音市场，并设为你的声音。</Trans>
+                  ) : (
+                    <Trans>已发布「{published.name}」（未公开，只在「我的」里），并设为你的声音。</Trans>
+                  )}
                 </p>
               )}
               <VoiceMarket
@@ -357,7 +365,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
         <div className="flex shrink-0 gap-2 border-t border-slate-700/60 px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-3">
           {tab !== "market" && (
             <button onClick={() => void save()} disabled={!!busy} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-semibold text-ink disabled:opacity-40">
-              {busy === "save" ? "保存中…" : tab === "mix" ? "保存这把混音" : "保存"}
+              {busy === "save" ? <Trans>保存中…</Trans> : tab === "mix" ? <Trans>保存这把混音</Trans> : <Trans>保存</Trans>}
             </button>
           )}
           <button
@@ -365,7 +373,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
             disabled={!!busy || following}
             className={`rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 disabled:opacity-40 ${tab === "market" ? "flex-1" : ""}`}
           >
-            {busy === "reset" ? "恢复中…" : "恢复跟随人格/模型"}
+            {busy === "reset" ? <Trans>恢复中…</Trans> : <Trans>恢复跟随人格/模型</Trans>}
           </button>
         </div>
       </div>

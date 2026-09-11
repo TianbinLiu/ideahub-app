@@ -23,6 +23,7 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
+import { msg, t } from "@lingui/core/macro";
 import {
   analyzePersonaMaterials,
   companionErrorText,
@@ -52,14 +53,15 @@ import { currentRoute, startJob } from "../data/jobs";
 import { uid } from "../types";
 
 /** 7 步（设计正本 §4.3）。地址栏不写步数：向导是一条线，深链进第 5 步而手里没有草稿只会是白屏 */
+// ★ label 是描述符（模块顶层不翻），页面画步骤条与副标题时再 t()
 export const PERSONA_STEPS = [
-  { key: "basics", label: "基本设定" },
-  { key: "materials", label: "素材" },
-  { key: "quiz", label: "问卷" },
-  { key: "generate", label: "生成" },
-  { key: "preview", label: "试聊" },
-  { key: "tune", label: "微调" },
-  { key: "publish", label: "发布" },
+  { key: "basics", label: msg`基本设定` },
+  { key: "materials", label: msg({ message: "素材", context: "人格向导的步骤名：导入聊天记录、发过的文案等素材" }) },
+  { key: "quiz", label: msg`问卷` },
+  { key: "generate", label: msg`生成` },
+  { key: "preview", label: msg`试聊` },
+  { key: "tune", label: msg`微调` },
+  { key: "publish", label: msg`发布` },
 ] as const;
 export type PersonaStep = (typeof PERSONA_STEPS)[number]["key"];
 
@@ -321,7 +323,7 @@ function basicsOf(s: PersonaWizardState): PersonaBasics | undefined {
  */
 export function generateBlockedReason(s: PersonaWizardState): string {
   if (basicsOf(s) || s.analysis || s.materials.length > 0) return "";
-  return "至少填一样：名字、定位、简介，或者导入一点素材。";
+  return t`至少填一样：名字、定位、简介，或者导入一点素材。`;
 }
 
 /**
@@ -343,11 +345,11 @@ export async function runGeneratePersona(opts: { only?: PersonaDraftField[] } = 
 
   const job = startJob({
     kind: "persona-generate",
-    title: only ? "重写人格的一个字段" : "AI 生成人格",
+    title: only ? t`重写人格的一个字段` : t`AI 生成人格`,
     page: currentRoute(),
-    progress: "准备中…",
+    progress: t`准备中…`,
   });
-  usePersonaWizard.setState({ genBusy: "准备中…", genOnly: only?.[0] ?? null, genErr: "", banner: null });
+  usePersonaWizard.setState({ genBusy: t`准备中…`, genOnly: only?.[0] ?? null, genErr: "", banner: null });
   const step = (text: string) => {
     usePersonaWizard.setState({ genBusy: text });
     job.update(text);
@@ -361,7 +363,7 @@ export async function runGeneratePersona(opts: { only?: PersonaDraftField[] } = 
     if (!only && s0.analyzedKey !== wantKey && s0.materials.length > 0) {
       const { materials, droppedChars, droppedItems } = materialsForAnalyze();
       if (materials.length > 0) {
-        step("正在读你给的素材…");
+        step(t`正在读你给的素材…`);
         const r = await analyzePersonaMaterials({ materials, speaker: s0.speaker || undefined });
         analysis = r.analysis;
         usePersonaWizard.setState({ analysis, analyzedKey: wantKey });
@@ -370,7 +372,10 @@ export async function runGeneratePersona(opts: { only?: PersonaDraftField[] } = 
           usePersonaWizard.setState({
             banner: {
               kind: "warn",
-              text: `素材超了上限，最前面的 ${droppedChars} 字${droppedItems > 0 ? `和最早的 ${droppedItems} 条` : ""}没有送去分析。`,
+              text:
+                droppedItems > 0
+                  ? t`素材超了上限，最前面的 ${droppedChars} 字和最早的 ${droppedItems} 条没有送去分析。`
+                  : t`素材超了上限，最前面的 ${droppedChars} 字没有送去分析。`,
             },
           });
         }
@@ -378,7 +383,7 @@ export async function runGeneratePersona(opts: { only?: PersonaDraftField[] } = 
     }
 
     // ② 生成草稿
-    step(only ? "正在重写这一处…" : "正在写说话风格…");
+    step(only ? t`正在重写这一处…` : t`正在写说话风格…`);
     const s = usePersonaWizard.getState();
     // ★ 指纹对不上的那一份**不发**：素材被删光时 `materials.length === 0`，上面那一步整个跳过，
     //   而 `analysis` 还留在 store 里 —— 照发的话就是"用一批已经不存在的素材写出来的人格"。
@@ -401,17 +406,17 @@ export async function runGeneratePersona(opts: { only?: PersonaDraftField[] } = 
     if (back.mounted) {
       // 人就在这一页上：页面自己会把草稿画出来，胶囊再弹一条是重复
       job.done({ silent: true });
-      usePersonaWizard.setState({ banner: { kind: "ok", text: only ? "换好了。" : "草稿写好了，往下可以试聊。" } });
+      usePersonaWizard.setState({ banner: { kind: "ok", text: only ? t`换好了。` : t`草稿写好了，往下可以试聊。` } });
     } else {
-      job.done({ msg: only ? "人格的那一处重写好了" : "人格草稿写好了", route: "/support/personas/new" });
+      job.done({ msg: only ? t`人格的那一处重写好了` : t`人格草稿写好了`, route: "/support/personas/new" });
     }
   } catch (e) {
-    const msg = companionErrorText(e, "生成失败了，稍后再试。");
-    usePersonaWizard.setState({ genBusy: "", genOnly: null, genErr: msg });
+    const reason = companionErrorText(e, t`生成失败了，稍后再试。`);
+    usePersonaWizard.setState({ genBusy: "", genOnly: null, genErr: reason });
     // ★ 与成功那一支同一个口径（也与 live2dUploadStore 的两处失败同形）：人就在这一页上时，
     //   `genErr` 那行红字已经把话说完了，胶囊再报一条 = 同一件事说两遍（CLAUDE.md「长活登记」那条）。
     if (usePersonaWizard.getState().mounted) job.done({ silent: true });
-    else job.fail(msg, "/support/personas/new");
+    else job.fail(reason, "/support/personas/new");
   }
 }
 
@@ -426,7 +431,7 @@ export async function sendPreviewMessage(text: string): Promise<void> {
   const s = usePersonaWizard.getState();
   if (!body || s.chatBusy || !s.draft) return;
   if (!s.draft.name.trim()) {
-    usePersonaWizard.setState({ chatErr: "草稿还没有名字，回上一步补一个再试聊。" });
+    usePersonaWizard.setState({ chatErr: t`草稿还没有名字，回上一步补一个再试聊。` });
     return;
   }
 
@@ -480,7 +485,7 @@ export async function sendPreviewMessage(text: string): Promise<void> {
     usePersonaWizard.setState((st) => ({
       chat: st.chat.filter((m) => m.id !== botId || m.text).map((m) => (m.id === botId ? { ...m, streaming: false } : m)),
       chatBusy: false,
-      chatErr: companionErrorText(e, "试聊失败了，稍后再试。"),
+      chatErr: companionErrorText(e, t`试聊失败了，稍后再试。`),
     }));
   } finally {
     if (previewAbort === ctrl) previewAbort = null;
@@ -523,12 +528,12 @@ export async function publishPersona(): Promise<MarketPersona | null> {
   const s = usePersonaWizard.getState();
   if (s.pubBusy || !s.draft) return null;
   if (!s.agreed) {
-    usePersonaWizard.setState({ pubErr: "先勾上那三条，才能发布。" });
+    usePersonaWizard.setState({ pubErr: t`先勾上那三条，才能发布。` });
     return null;
   }
   const name = s.draft.name.trim();
   if (!name) {
-    usePersonaWizard.setState({ pubErr: "人格得有个名字，回上一步补一个。" });
+    usePersonaWizard.setState({ pubErr: t`人格得有个名字，回上一步补一个。` });
     return null;
   }
   const price = Math.min(PERSONA_LIMITS.price, Math.max(0, Math.round(Number(s.priceText) || 0)));
@@ -536,7 +541,7 @@ export async function publishPersona(): Promise<MarketPersona | null> {
   const wire = draftForServer(s.draft);
 
   usePersonaWizard.setState({ pubBusy: true, pubErr: "", banner: null });
-  const job = startJob({ kind: "persona-publish", title: "发布人格", page: currentRoute(), progress: "提交中…" });
+  const job = startJob({ kind: "persona-publish", title: t`发布人格`, page: currentRoute(), progress: t`提交中…` });
   try {
     const r = await createPersona({
       name,
@@ -549,14 +554,14 @@ export async function publishPersona(): Promise<MarketPersona | null> {
     });
     usePersonaWizard.setState({ pubBusy: false, published: r.persona });
     if (usePersonaWizard.getState().mounted) job.done({ silent: true });
-    else job.done({ msg: `人格「${name}」发布好了`, route: "/support/personas" });
+    else job.done({ msg: t`人格「${name}」发布好了`, route: "/support/personas" });
     return r.persona;
   } catch (e) {
-    const msg = companionErrorText(e, "发布失败了，稍后再试。");
-    usePersonaWizard.setState({ pubBusy: false, pubErr: msg });
+    const reason = companionErrorText(e, t`发布失败了，稍后再试。`);
+    usePersonaWizard.setState({ pubBusy: false, pubErr: reason });
     // 同上：页在就 silent，页不在才走胶囊
     if (usePersonaWizard.getState().mounted) job.done({ silent: true });
-    else job.fail(msg, "/support/personas/new");
+    else job.fail(reason, "/support/personas/new");
     return null;
   }
 }
@@ -571,9 +576,9 @@ export async function equipPublishedPersona(): Promise<void> {
   usePersonaWizard.setState({ equipBusy: true, equipMsg: null });
   try {
     await updateCompanionSettings({ personaId: s.published._id });
-    usePersonaWizard.setState({ equipBusy: false, equipMsg: { kind: "ok", text: "装上了，回客服页就是这个人格在说话。" } });
+    usePersonaWizard.setState({ equipBusy: false, equipMsg: { kind: "ok", text: t`装上了，回客服页就是这个人格在说话。` } });
   } catch (e) {
-    usePersonaWizard.setState({ equipBusy: false, equipMsg: { kind: "bad", text: companionErrorText(e, "装不上，稍后再试。") } });
+    usePersonaWizard.setState({ equipBusy: false, equipMsg: { kind: "bad", text: companionErrorText(e, t`装不上，稍后再试。`) } });
   }
 }
 

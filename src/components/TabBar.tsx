@@ -7,6 +7,9 @@
 // 创作岔路口：工坊 / 工作流 / 简约三种方式差别足够大
 // ——工坊要摆卡推演剧情，简约是一句话出片——直接把人扔进其中一种都是错的默认。
 // （main 上曾是「➕ 直达卡片工坊、不做选择面板」，三模式落地后那个前提不再成立）
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import { NavLink, useLocation, useNavigate } from "react-router";
 import Icon, { type IconName } from "./Icon";
 import CharacterPerch, { usePerchBurst, type PerchPose } from "./CharacterPerch";
@@ -15,12 +18,12 @@ import CreatePerch from "./CreatePerch";
 // pose 决定激活时角色的姿势【和】动效（见 CharacterPerch）。
 // 每个 Tab 各不相同：挥手 / 张望 / 欢呼 / 托下巴 ——
 // 四个 Tab 共用一套的话，切 Tab 的反馈就完全分不出切到了哪。
-const TABS: ReadonlyArray<{ to: string; icon: IconName; label: string; pose: PerchPose } | null> = [
-  { to: "/", icon: "home", label: "首页", pose: "home" },
-  { to: "/discover", icon: "compass", label: "分区", pose: "explore" },
+const TABS: ReadonlyArray<{ to: string; icon: IconName; label: MessageDescriptor; pose: PerchPose } | null> = [
+  { to: "/", icon: "home", label: msg`首页`, pose: "home" },
+  { to: "/discover", icon: "compass", label: msg`分区`, pose: "explore" },
   null, // 中间 ➕ 占位
-  { to: "/workshop", icon: "cards", label: "工坊", pose: "studio" },
-  { to: "/me", icon: "user", label: "我的", pose: "mine" },
+  { to: "/workshop", icon: "cards", label: msg`工坊`, pose: "studio" },
+  { to: "/me", icon: "user", label: msg`我的`, pose: "mine" },
 ];
 
 type Tab = NonNullable<(typeof TABS)[number]>;
@@ -32,6 +35,7 @@ function TabInner({ tab, isActive }: { tab: Tab; isActive: boolean }) {
   // 切【到】这个 Tab 的那一下演一次；停在这个 Tab 上不会一直杵着（见 usePerchBurst）。
   // ref 初值取当前值，所以应用启动时停在首页也不会平白演一遍。
   const perchOn = usePerchBurst(isActive);
+  const { t } = useLingui();
   return (
     <>
       {/* relative 只包图标：角色相对【图标】定位，包住文字会偏高。
@@ -41,12 +45,13 @@ function TabInner({ tab, isActive }: { tab: Tab; isActive: boolean }) {
         {perchOn > 0 && <CharacterPerch key={perchOn} pose={tab.pose} size={23} />}
         <Icon name={tab.icon} size={23} filled={isActive} />
       </span>
-      <span>{tab.label}</span>
+      <span>{t(tab.label)}</span>
     </>
   );
 }
 
 export default function TabBar() {
+  const { t } = useLingui();
   const navigate = useNavigate();
   const path = useLocation().pathname;
   // 首页是全出血视频，底栏浮在渐变上而不是压一条实心板（对标抖音/TikTok/Reels）
@@ -71,12 +76,12 @@ export default function TabBar() {
       {/* 固定 h-14：内容区的 padding-bottom 用同一个 --tabbar-h 计算，
           否则底栏（带安全区）比内容让出的高度更高，每页最后一行会被系统手势条盖住 */}
       <div className="mx-auto flex h-14 max-w-lg items-stretch justify-around px-2">
-        {TABS.map((t) =>
-          t ? (
+        {TABS.map((tab) =>
+          tab ? (
             <NavLink
-              key={t.to}
-              to={t.to}
-              end={t.to === "/"}
+              key={tab.to}
+              to={tab.to}
+              end={tab.to === "/"}
               className={({ isActive }) =>
                 // 激活态用「描边→实心」而不是换色：品牌色留给 ➕ 和主 CTA，
                 // 否则青蓝同时出现在激活 Tab、关注按钮、互动角标三处，➕ 的视觉权重被稀释
@@ -85,14 +90,14 @@ export default function TabBar() {
                 }`
               }
             >
-              {({ isActive }) => <TabInner tab={t} isActive={isActive} />}
+              {({ isActive }) => <TabInner tab={tab} isActive={isActive} />}
             </NavLink>
           ) : (
             <button
               key="create"
               onClick={() => navigate("/create")}
               className="flex min-h-[44px] flex-1 items-center justify-center"
-              aria-label="创作"
+              aria-label={t`创作`}
             >
               {/* ★★ 她和按钮是**并排**，不再是"她站在按钮背后、手搭在按钮上沿"。
                   改的原因是实测出来的一个硬伤：叠着放时她要从按钮上沿再往上探出一截，

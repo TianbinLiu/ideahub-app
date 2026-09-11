@@ -6,6 +6,8 @@
 // ★ 为什么是 WAV 不是 MediaRecorder 的 webm/opus：方舟参考音频只收 mp3/wav
 //   （素材硬门），且 decodeAudioData 对 webm 的支持面没人保证。PCM 进来就是裸数据。
 
+import { t } from "@lingui/core/macro";
+
 /** Seedance 参考音频用的采样率。16k 就够电话级，24k 留了余量（体积 15s ≈ 720KB） */
 export const VOICE_SAMPLE_RATE = 24000;
 
@@ -74,12 +76,13 @@ export async function audioFileToVoice(
   try {
     decoded = await ctx.decodeAudioData(buf);
   } catch {
-    throw new Error("这个文件解不出音频——换一个 mp3 / wav / m4a 试试");
+    throw new Error(t`这个文件解不出音频——换一个 mp3 / wav / m4a 试试`);
   } finally {
     void ctx.close();
   }
   if (decoded.duration < minSec) {
-    throw new Error(`这段音频只有 ${decoded.duration.toFixed(1)}s，短于 ${minSec}s 下限——换一段长一点的`);
+    const got = decoded.duration.toFixed(1);
+    throw new Error(t`这段音频只有 ${got}s，短于 ${minSec}s 下限——换一段长一点的`);
   }
   const rate = decoded.sampleRate;
   const keep = Math.min(decoded.length, Math.round(maxSec * rate));

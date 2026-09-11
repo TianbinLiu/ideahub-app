@@ -7,6 +7,7 @@
 //
 // 形态对齐 Claude Code 的执行日志：一条竖线串起若干步，每步带状态点与耗时，
 // 正在跑的那步高亮，跑完的置灰留在原地——过程可回溯，而不是只剩最后一行。
+import { t } from "@lingui/core/macro";
 import { uid } from "../types";
 
 export interface GenStep {
@@ -96,13 +97,13 @@ export function splitStatus(status: string): { title: string; detail?: string; t
   if (/^(完成|全部完成)$/.test(status.trim())) return { title: "", terminal: true };
   // ★ 转存单独成一步（2026-09-06）：它带着 "xx档 · " 前缀报上来，折进「渲染视频」就看不见「转存没成」这句了 ——
   //   而它决定了后面截帧走哪条路（Cloudinary 抽帧 / 代理整条下载），真机排查时正是这一步不见了
-  const t = status.match(/^(?:.+?档\s*·\s*)?(成片转存.*)$/);
-  if (t) return { title: t[1].replace(/[…\.]+$/, "") };
+  const xfer = status.match(/^(?:.+?档\s*·\s*)?(成片转存.*)$/);
+  if (xfer) return { title: xfer[1].replace(/[…\.]+$/, "") };
   // "标准档 · 生成中 12s" / "极速档 · 排队中 6s" —— 同一步的读秒
   // 生成契约（real.describeGenSpec）：标题固定、正文是那一串参数，别让整行当标题
   const c = status.match(/^契约\s*·\s*(.+)$/);
-  if (c) return { title: "生成契约", detail: c[1], keep: true }; // 契约正文是对账记录，收尾后保留（GenStep.keep）
+  if (c) return { title: t`生成契约`, detail: c[1], keep: true }; // 契约正文是对账记录，收尾后保留（GenStep.keep）
   const m = status.match(/^(.+?档)\s*·\s*(.+)$/);
-  if (m) return { title: "渲染视频", detail: `${m[1]} · ${m[2]}` };
+  if (m) return { title: t`渲染视频`, detail: `${m[1]} · ${m[2]}` };
   return { title: status.replace(/[…\.]+$/, "") };
 }

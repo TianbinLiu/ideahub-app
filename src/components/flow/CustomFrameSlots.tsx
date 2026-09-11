@@ -4,6 +4,7 @@
 //   帧写入的唯一实现是 flowStore.setFrame（pinned/承接语义都在那边），这里只负责画。
 //   两个宿主各抄一份 60 行的格子，哪天空态文案或清帧按钮改了就会各长各的样。
 // ★ 上传的解码/压制走 utils/image.fileToFrameDataUrl（工坊上传开头帧同一条路）。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useRef, useState } from "react";
 import Spinner from "../Spinner";
 import { fileToFrameDataUrl } from "../../utils/image";
@@ -32,6 +33,7 @@ export default function CustomFrameSlots({
   /** 文件解码失败要出声（铁律八），宿主决定写到哪条错误位上 */
   onError: (msg: string) => void;
 }) {
+  const { t } = useLingui();
   const fileRef = useRef<HTMLInputElement>(null);
   const pickRef = useRef<"first" | "last">("first");
   /** 哪一格正在读图（解码 + 压制那一两秒要让人看见） */
@@ -41,14 +43,14 @@ export default function CustomFrameSlots({
       <div className="flex gap-2">
         {(["first", "last"] as const).map((which) => {
           const url = which === "first" ? first : last;
-          const emptyNote = which === "first" ? firstEmptyNote : "空 = AI 按提示词补画（计费）";
+          const emptyNote = which === "first" ? firstEmptyNote : t`空 = AI 按提示词补画（计费）`;
           return (
             <div key={which} className="flex-1 rounded-lg border border-slate-700/70 bg-panel p-2">
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-[10px] font-semibold text-slate-300">{which === "first" ? "首帧" : "尾帧"}</span>
+                <span className="text-[10px] font-semibold text-slate-300">{which === "first" ? <Trans>首帧</Trans> : <Trans>尾帧</Trans>}</span>
                 {url && canEdit && (
                   <button onClick={() => onFrame(which, "")} className="text-[10px] text-slate-500">
-                    清掉
+                    <Trans>清掉</Trans>
                   </button>
                 )}
               </div>
@@ -64,7 +66,7 @@ export default function CustomFrameSlots({
                 {reading === which ? (
                   <span className="flex h-full w-full flex-col items-center justify-center gap-1 text-slate-300">
                     <Spinner size="sm" />
-                    <span className="text-[9px]">读取中…</span>
+                    <span className="text-[9px]"><Trans>读取中…</Trans></span>
                   </span>
                 ) : url ? (
                   <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
@@ -80,7 +82,7 @@ export default function CustomFrameSlots({
                 disabled={!canEdit}
                 className="mt-1 w-full rounded-full border border-slate-600 py-1 text-[10px] text-slate-300 disabled:opacity-40"
               >
-                🎨 融图合成这一帧
+                <Trans>🎨 融图合成这一帧</Trans>
               </button>
             </div>
           );

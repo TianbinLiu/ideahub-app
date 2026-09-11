@@ -13,12 +13,14 @@
 //   （顺序见 commit 的 ★★：先断后套的话，套用被拒时流水线没变却已经和草稿脱钩。）
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { useLingui } from "@lingui/react/macro";
 import DiscardFlowDialog from "./DiscardFlowDialog";
 import { flowDirty } from "../../studio/flowStore";
 import { useStudio } from "../../studio/studioStore";
 
 export function useApplyTemplate() {
   const nav = useNavigate();
+  const { t } = useLingui();
   /** 等用户点头的那次套用（连同**这一下在这里叫什么**）。用对象包一层是因为
    *  useState 会把裸函数当成惰性初始化。
    *  ★ 措辞按次传（第七轮扫描）：同一个 hook 实例会服务好几个动作 —— 工作流页那颗
@@ -58,8 +60,8 @@ export function useApplyTemplate() {
     if (flowDirty()) {
       setPending({
         run: apply,
-        label: words?.label ?? "套用这个模板（丢弃上面那条）",
-        noun: words?.noun ?? "套模板",
+        label: words?.label ?? t`套用这个模板（丢弃上面那条）`,
+        noun: words?.noun ?? t({ message: "套模板", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" }),
         claim,
       });
       return;

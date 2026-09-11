@@ -8,6 +8,7 @@
 //   先整条下载到手机再喂进去等于把几十兆搬两趟，那正是老路最慢的一段。
 // ★ 只有**本地挑的 BGM** 要落盘（它在 Web 侧是 blob:，原生打不开），走 stageFile。
 // ★ 浏览器里没有这个插件：`mergeSupported()` 为假时剪辑页要把话说明白，别摆一颗点不动的键。
+import { t } from "@lingui/core/macro";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 
 export interface MergeClip {
@@ -79,9 +80,11 @@ export function mergeSupported(): boolean {
   return Capacitor.isNativePlatform();
 }
 
-/** 合并做不了时给用户的那句话。★ 一处实现：剪辑页的禁用提示与真跑时的整句拒读同一句 */
-export const MERGE_UNSUPPORTED =
-  "这台设备上合成用不了——合成走的是系统硬件编解码器，只有安装包里有。请在手机 App 里完成合成。";
+/** 合并做不了时给用户的那句话。★ 一处实现：剪辑页的禁用提示与真跑时的整句拒读同一句。
+ *  是函数不是常量：模块顶层的字符串会冻结在开机那一刻的语言上 */
+export function mergeUnsupportedText(): string {
+  return t`这台设备上合成用不了——合成走的是系统硬件编解码器，只有安装包里有。请在手机 App 里完成合成。`;
+}
 
 /**
  * blob:/data: 的本地音频 → 原生能打开的 file:// 地址。已经是 http(s)/file 的原样返回。
@@ -96,7 +99,7 @@ function sliceToBase64(part: Blob): Promise<string> {
       const i = s.indexOf(",");
       res(i >= 0 ? s.slice(i + 1) : s);
     };
-    r.onerror = () => rej(new Error("音频读不出来"));
+    r.onerror = () => rej(new Error(t`音频读不出来`));
     r.readAsDataURL(part);
   });
 }
@@ -126,7 +129,7 @@ export async function stageLocalAudio(url: string): Promise<string> {
     path = r.path;
     uri = r.uri;
   }
-  if (!uri) throw new Error("这条音频是空的");
+  if (!uri) throw new Error(t`这条音频是空的`);
   return uri;
 }
 
@@ -138,7 +141,7 @@ export async function runNativeMerge(
   opts: MergeOpts,
   onProgress?: (frac: number) => void,
 ): Promise<MergeResult> {
-  if (!mergeSupported()) throw new Error(MERGE_UNSUPPORTED);
+  if (!mergeSupported()) throw new Error(mergeUnsupportedText());
   const sub = onProgress
     ? await VideoMerge.addListener("mergeProgress", (e) => onProgress(Math.max(0, Math.min(1, (e.percent ?? 0) / 100))))
     : null;
@@ -166,6 +169,6 @@ export async function cancelNativeMerge(): Promise<void> {
 export async function mergedFileToBlob(uriOrPath: string): Promise<Blob> {
   const src = Capacitor.convertFileSrc(uriOrPath);
   const res = await fetch(src);
-  if (!res.ok) throw new Error(`成片读不出来（${res.status}）`);
+  if (!res.ok) throw new Error(t`成片读不出来（${res.status}）`);
   return await res.blob();
 }

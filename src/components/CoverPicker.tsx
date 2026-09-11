@@ -7,6 +7,9 @@
 //   同源代取——直接跨域 drawImage 会把 canvas 污染，toDataURL 静默拿不到图。
 // · 渐变回退段没有视频文件，"帧"= firstFrame/lastFrame 按 SegmentPlayer 同款
 //   smoothstep 透明度在 canvas 上合成，保证截出来的就是播放器里看到的画面。
+import { i18n } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AI_REAL, generateCover } from "../ai";
 import { canAfford, spendTokens } from "../data/account";
@@ -43,7 +46,7 @@ function loadImg(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("图片加载失败"));
+    img.onerror = () => reject(new Error(i18n._(msg`图片加载失败`)));
     img.src = src;
   });
 }
@@ -102,6 +105,7 @@ export function FrameCaptureDialog({
   // ★★ 走 segsTotal（实测优先）：按申报值算的话，滑杆最大值会**短于成片本身** ——
   //   主人真机上 21 秒的滑杆配一条真实 33 秒的成片，后 12 秒根本拖不到（见 types.segLen 的 ★★）
   const total = Math.max(0.001, segsTotal(segments));
+  const { t } = useLingui();
   const [at, setAt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -156,17 +160,17 @@ export function FrameCaptureDialog({
       canvas.width = out.w;
       canvas.height = out.h;
       const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("canvas 不可用");
+      if (!ctx) throw new Error(t`canvas 不可用`);
       if (hasVideo) {
-        if (!mediaUrl) throw new Error("成片还在载入，稍等一下再截");
+        if (!mediaUrl) throw new Error(t`成片还在载入，稍等一下再截`);
         const v = videoRef.current;
-        if (!v) throw new Error("视频未就绪");
+        if (!v) throw new Error(t`视频未就绪`);
         // seek 未完成就 drawImage 会画出旧帧/空帧：等 seeked（已对齐则立即通过）
         if (v.readyState < 2 || Math.abs(v.currentTime - local) > 0.3) {
           await new Promise<void>((resolve, reject) => {
-            const t = setTimeout(() => reject(new Error("视频加载超时，稍后再试")), 5000);
+            const id = setTimeout(() => reject(new Error(t`视频加载超时，稍后再试`)), 5000);
             const done = () => {
-              clearTimeout(t);
+              clearTimeout(id);
               v.removeEventListener("seeked", done);
               resolve();
             };
@@ -196,7 +200,7 @@ export function FrameCaptureDialog({
   }
 
   return (
-    <Dialog title="从成片截取封面帧" onClose={onCancel}>
+    <Dialog title={t`从成片截取封面帧`} onClose={onCancel}>
       <div className="overflow-hidden rounded-xl border border-slate-700 bg-black">
         {mediaUrl ? (
           <video
@@ -213,12 +217,12 @@ export function FrameCaptureDialog({
                 /* 忽略 */
               }
             }}
-            onError={() => setErr("成片解码失败——换「本地上传」或下面各段的首尾帧")}
+            onError={() => setErr(t`成片解码失败——换「本地上传」或下面各段的首尾帧`)}
             style={box}
             className="w-full object-cover"
           />
         ) : resolving ? (
-          <div style={box} className="flex w-full items-center justify-center text-xs text-slate-500">载入成片…</div>
+          <div style={box} className="flex w-full items-center justify-center text-xs text-slate-500"><Trans>载入成片…</Trans></div>
         ) : (
           seg && (
             <div style={box} className="relative w-full">
@@ -235,7 +239,7 @@ export function FrameCaptureDialog({
           max={total}
           step={0.05}
           value={at}
-          aria-label="选择时刻"
+          aria-label={t`选择时刻`}
           onChange={(e) => setAt(Number(e.target.value))}
           className="min-w-0 flex-1 accent-cyan-400"
         />
@@ -245,19 +249,19 @@ export function FrameCaptureDialog({
       </div>
       <div className="mt-1 truncate text-[11px] text-slate-500">
         {seg?.title}
-        {seg?.videoUrl ? " · 真实影像" : " · 首尾帧渐变（无视频文件，按播放画面合成）"}
+        {seg?.videoUrl ? t` · 真实影像` : t` · 首尾帧渐变（无视频文件，按播放画面合成）`}
       </div>
       {err && <div className="mt-2 text-xs text-red-400">{err}</div>}
       <div className="mt-3 flex gap-2">
         <button onClick={onCancel} className="rounded-xl bg-slate-700/70 px-4 py-2.5 text-sm text-slate-200">
-          取消
+          <Trans>取消</Trans>
         </button>
         <button
           onClick={() => void capture()}
           disabled={busy || resolving}
           className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
-          {busy ? "截取中…" : "用这一帧作封面"}
+          {busy ? <Trans>截取中…</Trans> : <Trans>用这一帧作封面</Trans>}
         </button>
       </div>
     </Dialog>
@@ -275,6 +279,7 @@ export function CoverSection({
   /** 截帧时间轴与首尾帧候选的来源（多 P 时传全部 P 的段拼接） */
   segments: VideoSegment[];
 }) {
+  const { t } = useLingui();
   const [frameDlg, setFrameDlg] = useState(false);
   const [aiDlg, setAiDlg] = useState(false);
   const [coverErr, setCoverErr] = useState("");
@@ -307,11 +312,11 @@ export function CoverSection({
 
   return (
     <div>
-      <div className="mb-1.5 text-sm font-semibold text-slate-300">封面</div>
+      <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>封面</Trans></div>
       {/* 当前封面预览：截帧/上传/AI 的产物不在下方候选条里，必须有个地方能看到选中的是什么 */}
       {cover ? (
         <div style={box} className="relative mb-2 w-full overflow-hidden rounded-xl border border-slate-700">
-          <img src={cover} alt="当前封面" className="h-full w-full object-cover" />
+          <img src={cover} alt={t`当前封面`} className="h-full w-full object-cover" />
           {/* ★★ 首页会挡住哪儿 —— 这个遮罩不是装饰（2026-08-30 加）。封面在首页是**整屏铺满**的，
               而底缘那一片压着作者名/标题/简介、右侧压着一整栏按钮：竖版封面把主体放正中
               偏下的话，在流里正好被文字盖住，而用户在这一页**完全看不出来**（这一页的
@@ -323,7 +328,7 @@ export function CoverSection({
               <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[20%] bg-black/55 backdrop-blur-[1px]" />
               <div className="pointer-events-none absolute bottom-[20%] right-0 top-[18%] w-[16%] bg-black/45" />
               <div className="pointer-events-none absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] text-white/90">
-                暗处在首页会被文字和按钮盖住（大致）
+                <Trans>暗处在首页会被文字和按钮盖住（大致）</Trans>
               </div>
             </>
           )}
@@ -331,7 +336,7 @@ export function CoverSection({
             onClick={() => setSafeArea((v) => !v)}
             className="absolute right-1 top-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white/90"
           >
-            {safeArea ? "隐藏遮挡" : "看首页遮挡"}
+            {safeArea ? <Trans>隐藏遮挡</Trans> : <Trans>看首页遮挡</Trans>}
           </button>
         </div>
       ) : (
@@ -339,7 +344,7 @@ export function CoverSection({
           style={box}
           className="mb-2 flex w-full items-center justify-center rounded-xl border border-dashed border-slate-700 text-xs text-slate-500"
         >
-          还没选封面——截一帧、传一张，或让 AI 画一张
+          <Trans>还没选封面——截一帧、传一张，或让 AI 画一张</Trans>
         </div>
       )}
       <div className="mb-2 flex flex-wrap gap-2">
@@ -347,20 +352,20 @@ export function CoverSection({
           onClick={() => setFrameDlg(true)}
           className="rounded-full bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700"
         >
-          🎞 从成片截帧
+          <Trans>🎞 从成片截帧</Trans>
         </button>
         <button
           onClick={() => fileRef.current?.click()}
           disabled={reading}
           className="rounded-full bg-panel px-3.5 py-2 text-xs text-slate-200 ring-1 ring-slate-700 hover:bg-slate-700 disabled:opacity-40"
         >
-          {reading ? "读取中…" : "🖼 本地上传"}
+          {reading ? <Trans>读取中…</Trans> : <Trans>🖼 本地上传</Trans>}
         </button>
         <button
           onClick={() => setAiDlg(true)}
           className="rounded-full bg-panel px-3.5 py-2 text-xs text-cyan-200 ring-1 ring-cyan-400/40 hover:bg-slate-700"
         >
-          ✨ AI 封面（改图/生成）
+          <Trans>✨ AI 封面（改图/生成）</Trans>
         </button>
         <input
           ref={fileRef}
@@ -376,7 +381,7 @@ export function CoverSection({
             void fileToCoverDataUrl(f, aspect)
               .then((url) => {
                 if (url) onCover(url);
-                else setCoverErr("这张图读不出来，换一张试试（仅支持图片文件）");
+                else setCoverErr(t`这张图读不出来，换一张试试（仅支持图片文件）`);
               })
               .finally(() => setReading(false));
           }}
@@ -387,7 +392,7 @@ export function CoverSection({
           摆一行空框比不摆更像坏了 */}
       {frameChoices.length > 0 && (
         <>
-      <div className="mb-1 text-xs text-slate-500">或从各段画面中选择：</div>
+      <div className="mb-1 text-xs text-slate-500"><Trans>或从各段画面中选择：</Trans></div>
       <div className="flex gap-2 no-scrollbar overflow-x-auto pb-1">
         {frameChoices.map((f, i) => (
           <button
@@ -397,7 +402,7 @@ export function CoverSection({
               cover === f ? "border-brand" : "border-transparent opacity-70 hover:opacity-100"
             }`}
           >
-            <img src={f} alt={`帧${i + 1}`} style={box} className="w-full object-cover" />
+            <img src={f} alt={t`帧${i + 1}`} style={box} className="w-full object-cover" />
           </button>
         ))}
       </div>
@@ -444,6 +449,7 @@ export function AiCoverDialog({
   onConfirm: (dataUrl: string) => void;
 }) {
   const box = { aspectRatio: aspectCss(aspect) };
+  const { t } = useLingui();
   const [req, setReq] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -456,7 +462,7 @@ export function AiCoverDialog({
     // 这里以前既没有余额门槛也不扣费——一次 Seedream 白送。真实 AI 下改一版
     // 封面就是一张图的钱，改十版就是十张
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
-      setErr(`余额不够（需要 ${fmtTokens(ONE_IMAGE)} token），去「我的」页充值`);
+      setErr(t`余额不够（需要 ${fmtTokens(ONE_IMAGE)} token），去「我的」页充值`);
       return;
     }
     setBusy(true);
@@ -473,29 +479,29 @@ export function AiCoverDialog({
   }
 
   return (
-    <Dialog title="AI 封面工坊" onClose={onCancel}>
+    <Dialog title={t`AI 封面工坊`} onClose={onCancel}>
       <div className="flex gap-2.5">
         <div className="w-32 flex-none">
-          <div className="mb-1 text-[10px] text-slate-500">当前封面（参考图）</div>
+          <div className="mb-1 text-[10px] text-slate-500"><Trans>当前封面（参考图）</Trans></div>
           {currentCover ? (
-            <img src={currentCover} alt="当前封面" style={box} className="w-full rounded-lg object-cover" />
+            <img src={currentCover} alt={t`当前封面`} style={box} className="w-full rounded-lg object-cover" />
           ) : (
             <div style={box} className="flex w-full items-center justify-center rounded-lg bg-slate-800 text-[10px] text-slate-500">
-              未选封面
+              <Trans>未选封面</Trans>
             </div>
           )}
         </div>
         <div className="min-w-0 flex-1">
           <div className="mb-1 text-[10px] text-slate-500">
-            {AI_REAL ? "Seedream 真实生成，约 20-30 秒" : "演示模式：产物为本地占位图"}
+            {AI_REAL ? <Trans>Seedream 真实生成，约 20-30 秒</Trans> : <Trans>演示模式：产物为本地占位图</Trans>}
           </div>
-          <TokenCost tokens={ONE_IMAGE} note="每生成一版都会扣一次" className="mb-1.5" />
+          <TokenCost tokens={ONE_IMAGE} note={t`每生成一版都会扣一次`} className="mb-1.5" />
           <textarea
             value={req}
             onChange={(e) => setReq(e.target.value)}
             maxLength={200}
             rows={4}
-            placeholder="例：改成黄昏色调，天空加晚霞；或：少女侧脸特写，手里贝壳发着微光"
+            placeholder={t`例：改成黄昏色调，天空加晚霞；或：少女侧脸特写，手里贝壳发着微光`}
             className="w-full resize-none rounded-lg border border-slate-600 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
           />
         </div>
@@ -503,37 +509,37 @@ export function AiCoverDialog({
 
       {result && (
         <div className="mt-3">
-          <div className="mb-1 text-[10px] text-slate-500">生成结果</div>
-          <img src={result} alt="AI 生成封面" style={box} className="w-full rounded-xl object-cover" />
+          <div className="mb-1 text-[10px] text-slate-500"><Trans>生成结果</Trans></div>
+          <img src={result} alt={t`AI 生成封面`} style={box} className="w-full rounded-xl object-cover" />
         </div>
       )}
-      {err && <div className="mt-2 text-xs text-red-400">生成失败：{err.slice(0, 140)}</div>}
+      {err && <div className="mt-2 text-xs text-red-400"><Trans>生成失败：{err.slice(0, 140)}</Trans></div>}
 
       <div className="mt-3 flex flex-wrap gap-2">
         <button onClick={onCancel} className="rounded-xl bg-slate-700/70 px-4 py-2.5 text-sm text-slate-200">
-          取消
+          <Trans>取消</Trans>
         </button>
         <button
           onClick={() => void run(true)}
           disabled={busy || !req.trim() || !canRef}
-          title={canRef ? "以当前封面为参考图，按要求修改" : "当前封面不可作参考图"}
+          title={canRef ? t`以当前封面为参考图，按要求修改` : t`当前封面不可作参考图`}
           className="flex-1 rounded-xl bg-slate-600/80 py-2.5 text-sm font-semibold text-slate-100 disabled:opacity-40"
         >
-          {busy ? "绘制中…" : "按要求改当前封面"}
+          {busy ? <Trans>绘制中…</Trans> : <Trans>按要求改当前封面</Trans>}
         </button>
         <button
           onClick={() => void run(false)}
           disabled={busy || !req.trim()}
           className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
-          {busy ? "绘制中…" : "全新生成"}
+          {busy ? <Trans>绘制中…</Trans> : <Trans>全新生成</Trans>}
         </button>
         {result && !busy && (
           <button
             onClick={() => onConfirm(result)}
             className="w-full rounded-xl bg-gold/90 py-2 text-sm font-bold text-ink"
           >
-            ✓ 用作封面
+            <Trans>✓ 用作封面</Trans>
           </button>
         )}
       </div>

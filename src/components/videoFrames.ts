@@ -4,6 +4,8 @@
 // 既慢又贵，还得有后端转码。这份逻辑原本长在 VideoCardExtractor 里，做「提取模板」
 // 时第二次需要它，于是提出来共用（两处各抄一份必然会分叉）。
 
+import { t } from "@lingui/core/macro";
+
 /** 喂给视觉模型的帧宽：640px 足够认清主体，再大只是白白撑请求体 */
 export const FRAME_W = 640;
 
@@ -19,27 +21,27 @@ export async function sampleFrames(file: File, n: number, onProgress: (i: number
     // 超时是必需的：页面切到后台时浏览器挂起媒体加载，loadedmetadata 永远不来。
     // 没有它这里就是个无超时的 await——调用方（提取卡片/提取模板）会永久转圈。
     await new Promise<void>((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error("视频加载超时（应用切到后台会暂停解码，回到前台再试）")), 15_000);
+      const timer = setTimeout(() => reject(new Error(t`视频加载超时（应用切到后台会暂停解码，回到前台再试）`)), 15_000);
       const ok = () => {
-        clearTimeout(t);
+        clearTimeout(timer);
         resolve();
       };
       v.onloadedmetadata = ok;
       v.onerror = () => {
-        clearTimeout(t);
-        reject(new Error("这个视频浏览器解不开（换 mp4/webm 试试）"));
+        clearTimeout(timer);
+        reject(new Error(t`这个视频浏览器解不开（换 mp4/webm 试试）`));
       };
     });
     const dur = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 1;
     const c = document.createElement("canvas");
     const out: string[] = [];
     for (let i = 0; i < n; i++) {
-      const t = dur * (0.05 + (0.9 * i) / Math.max(1, n - 1));
-      v.currentTime = Math.min(dur - 0.01, t);
+      const at = dur * (0.05 + (0.9 * i) / Math.max(1, n - 1));
+      v.currentTime = Math.min(dur - 0.01, at);
       await new Promise<void>((resolve, reject) => {
         v.onseeked = () => resolve();
-        v.onerror = () => reject(new Error("视频抽帧失败"));
-        setTimeout(() => reject(new Error("视频抽帧超时")), 15_000);
+        v.onerror = () => reject(new Error(t`视频抽帧失败`));
+        setTimeout(() => reject(new Error(t`视频抽帧超时`)), 15_000);
       });
       if (!c.width) {
         c.width = FRAME_W;

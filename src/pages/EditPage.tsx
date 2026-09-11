@@ -17,6 +17,7 @@ import PageHeader from "../components/PageHeader";
 import EmptyState from "../components/EmptyState";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { Link, useNavigate, useParams } from "react-router";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { CoverSection } from "../components/CoverPicker";
 import TagInput from "../components/TagInput";
 import VisibilityPicker from "../components/VisibilityPicker";
@@ -27,17 +28,18 @@ import { danmakuFetched, danmakuOf, danmakuVersion, isTruncated, subscribeDanmak
 import { useStudio } from "../studio/studioStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import { useVideosVersion } from "../hooks/useVideos";
-import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, segsTotal, visibilityOf, visibilityWire } from "../types";
+import { DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, segsTotal, visibilityOf, visibilityWire } from "../types";
 
 export default function EditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useLingui();
   const version = useVideosVersion();
   const video = useMemo(() => (id ? getVideo(id) : null), [id, version]);
   const parts = useMemo(() => (video ? partsOf(video) : []), [video, version]);
 
   const [title, setTitle] = useState(video?.title ?? "");
-  const [category, setCategory] = useState(video?.category ?? "剧情");
+  const [category, setCategory] = useState<string>(video?.category ?? DEFAULT_VIDEO_CATEGORY);
   const [description, setDescription] = useState(video?.description ?? "");
   const [cover, setCover] = useState(video?.cover ?? "");
   const [tags, setTags] = useState<string[]>(video?.tags ?? []);
@@ -84,8 +86,8 @@ export default function EditPage() {
   // 只在"表单还是空白"时回填，避免覆盖用户已输入的内容。
   useEffect(() => {
     if (!video) return;
-    setTitle((t) => (t ? t : video.title));
-    setCategory((c) => (c !== "剧情" ? c : video.category));
+    setTitle((cur) => (cur ? cur : video.title));
+    setCategory((c) => (c !== DEFAULT_VIDEO_CATEGORY ? c : video.category));
     setDescription((d) => (d ? d : video.description));
     setCover((c) => (c ? c : video.cover));
   }, [video]);
@@ -109,8 +111,8 @@ export default function EditPage() {
   if (!video) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
-        <div>作品不存在或已删除</div>
-        <Link to="/" className="text-brand">返回首页</Link>
+        <div><Trans>作品不存在或已删除</Trans></div>
+        <Link to="/" className="text-brand"><Trans>返回首页</Trans></Link>
       </div>
     );
   }
@@ -121,8 +123,8 @@ export default function EditPage() {
   if (!isMyVideo(video)) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
-        <div>只有作者本人可以编辑这部作品</div>
-        <Link to={`/video/${video.id}`} className="text-brand">回到作品</Link>
+        <div><Trans>只有作者本人可以编辑这部作品</Trans></div>
+        <Link to={`/video/${video.id}`} className="text-brand"><Trans>回到作品</Trans></Link>
       </div>
     );
   }
@@ -147,17 +149,17 @@ export default function EditPage() {
    * @returns null = 真存上了；字符串 = 没存上的原因（同时也写进了 `err`）
    */
   async function save(over?: { visibility?: Visibility }): Promise<string | null> {
-    if (!video) return "作品不存在";
+    if (!video) return t`作品不存在`;
     if (!title.trim()) {
-      setErr("标题不能为空");
-      return "标题不能为空";
+      setErr(t`标题不能为空`);
+      return t`标题不能为空`;
     }
     setSaving(true);
     setErr("");
     try {
       let coverUrl = cover;
       if (cover && cover.startsWith("data:")) {
-        setBusy("正在上传封面…");
+        setBusy(t`正在上传封面…`);
         coverUrl = await coverToPermanentUrl(cover);
         setCover(coverUrl); // 回填，避免用户再点一次又传一遍
       }
@@ -184,7 +186,7 @@ export default function EditPage() {
       setTimeout(() => setSaved(false), 1800);
       return null;
     } catch (e) {
-      const why = e instanceof Error ? `封面上传失败：${e.message}` : "保存失败，请重试";
+      const why = e instanceof Error ? t`封面上传失败：${e.message}` : t`保存失败，请重试`;
       setErr(why);
       return why;
     } finally {
@@ -226,16 +228,16 @@ export default function EditPage() {
   const projectStale =
     !!projectMeta && (projectMeta.stale || projectMeta.videoRevision !== Number(video.revision ?? 0));
   const reforgeWhy: string | null = (() => {
-    if (supported === null) return "正在确认这条作品有没有留存工坊工程…";
+    if (supported === null) return t`正在确认这条作品有没有留存工坊工程…`;
     // ★★ 「问了但没问到」与「这台服务器确实没有这个端点」是两句不同的话，摊在四档上
     //   （见 data/projects.readyProjects 的 ★★）。把一次网络抖动说成"服务器不支持"，
     //   用户会去等一个根本不会到来的服务器更新 —— 说一句错的原因比不给原因更坏。
-    if (supported === "error") return "暂时问不到服务器，没能确认这条作品有没有留存工坊工程。";
-    if (supported === false) return "这台服务器还不支持回炉重做。等服务器更新后再试。";
-    if (isUploading(video)) return "这条作品还在上传，传完再回炉。";
-    if (video.pricing?.mode === "paid") return "这条作品设为按分集收费，不能换内容。";
-    if (video.takedown) return "这条作品已被平台下架，下架期间不能改内容。";
-    if (!hasProject) return "这条作品没有留存工坊工程，改不了内容。想换内容请重新发一条。";
+    if (supported === "error") return t`暂时问不到服务器，没能确认这条作品有没有留存工坊工程。`;
+    if (supported === false) return t`这台服务器还不支持回炉重做。等服务器更新后再试。`;
+    if (isUploading(video)) return t`这条作品还在上传，传完再回炉。`;
+    if (video.pricing?.mode === "paid") return t`这条作品设为按分集收费，不能换内容。`;
+    if (video.takedown) return t`这条作品已被平台下架，下架期间不能改内容。`;
+    if (!hasProject) return t`这条作品没有留存工坊工程，改不了内容。想换内容请重新发一条。`;
     // ★★ 「留存的那份是上一版」这一档**在按下之前就说**（2026-09-07 补）：判据与
     //   data/projects.loadProject 那道硬闸同源（都是比 videoRevision 与作品当下的 revision），
     //   但这里是**预告**、那里是**拦截** —— 让用户点下去再被整页拒，等于把一次必然失败的
@@ -243,9 +245,9 @@ export default function EditPage() {
     //   ★ 服务端给的 `stale` 是同一件事的提示位（回炉成功、客户端还没 PUT 新画布），
     //     两个都读：meta 可能来自老服务端（没有 stale），也可能来自还没刷新的列表缓存。
     if (projectStale) {
-      return `留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。${
-        projects.pendingRetainable(video.id, video.clientId) ? "先点下面的「重新留存这一版」。" : "想换内容请重新发一条。"
-      }`;
+      return projects.pendingRetainable(video.id, video.clientId)
+        ? t`留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。先点下面的「重新留存这一版」。`
+        : t`留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。想换内容请重新发一条。`;
     }
     return null;
   })();
@@ -257,6 +259,8 @@ export default function EditPage() {
    *  而回炉删的是**全部** —— 报一个"数到的数"当成总数就是当面少报（2026-09-08 评审）。 */
   const danmakuPartial = isTruncated(video.id);
   const isPublic = visibilityOf(video) === "public";
+  const plays = video.plays;
+  const saves = typeof video.saves === "number" ? video.saves : 0;
 
   /**
    * 取回工程 → 铺进工坊。三道闸的顺序是承重的：
@@ -284,7 +288,7 @@ export default function EditPage() {
       canvas = await projects.loadProject(video!.id, Number(video!.revision ?? 0));
     } catch (e) {
       setFetching(false);
-      setFetchErr(e instanceof Error ? e.message : "原因不明");
+      setFetchErr(e instanceof Error ? e.message : t`原因不明`);
       setFetchStale(e instanceof projects.StaleProjectError);
       return;
     }
@@ -304,7 +308,7 @@ export default function EditPage() {
           title: v.title,
         });
         if (!ok) {
-          setFetchErr(useStudio.getState().studioBusyReason() ?? "现在铺不进工坊，稍后再试");
+          setFetchErr(useStudio.getState().studioBusyReason() ?? t`现在铺不进工坊，稍后再试`);
           return false;
         }
         // ★ 落在**工作流**而不是 3D 工坊：回炉改的是"每一段的内容"，工作流正是逐段那一面
@@ -312,24 +316,28 @@ export default function EditPage() {
         navigate("/flow");
         return true;
       },
-      { label: "回炉重做（丢弃上面那条流水线）", noun: "回炉", claim: false },
+      {
+        label: t`回炉重做（丢弃上面那条流水线）`,
+        noun: t({ message: "回炉", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" }),
+        claim: false,
+      },
     );
   }
 
   // 取回中 / 取回失败：整页态（这一步要走网络，把人扣在编辑页上盯着一颗没反应的键更糟）
-  if (fetching) return <EmptyState full loading text="正在取回工坊工程…" />;
+  if (fetching) return <EmptyState full loading text={t`正在取回工坊工程…`} />;
 
   return (
     <div className="min-h-full">
       {/* ★ safe-top 挂在 header 自己身上、不挂页面根：header 是 sticky top-0，
           安全区留白必须【在它内部】，否则它会滑到状态栏底下（ProfilePage 那条注释同理）。
           原来这三页压根没挂，顶栏文案直接压在状态栏上。 */}
-      <PageHeader sticky onBack={() => navigate(`/video/${video.id}`)} backLabel="回到作品" title="编辑作品" subtitle={video.title} />
+      <PageHeader sticky onBack={() => navigate(`/video/${video.id}`)} backLabel={t`回到作品`} title={t`编辑作品`} subtitle={video.title} />
 
       <main className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1.2fr_1fr]">
         {/* 左：内容一览（只读） */}
         <div>
-          <h2 className="mb-2 text-sm font-semibold text-slate-300">作品内容</h2>
+          <h2 className="mb-2 text-sm font-semibold text-slate-300"><Trans>作品内容</Trans></h2>
           <div className="space-y-2.5">
             {parts.map((p, i) => (
               <div key={i} className="rounded-xl bg-panel/60 p-3">
@@ -338,8 +346,8 @@ export default function EditPage() {
                     {p.name}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
-                    {p.segments.length} 段 · {formatDuration(totalOf(i))}
-                    {p.branchTree ? " · 互动分支" : ""}
+                    <Trans>{p.segments.length} 段 · {formatDuration(totalOf(i))}</Trans>
+                    {p.branchTree ? t` · 互动分支` : ""}
                   </span>
                 </div>
                 <div className="mt-2 flex gap-1.5 no-scrollbar overflow-x-auto">
@@ -358,9 +366,7 @@ export default function EditPage() {
           {/* ★ 这一段原来写的是「🔒 成片内容已定稿，发布后不能再改」—— 2026-09-07 起不再成立
               （下面那颗 🛠 就是改内容的路）。措辞按**事实**写：能改，但改的是同一个链接下的内容。 */}
           <p className="mt-3 rounded-xl border border-slate-700/60 bg-panel/40 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-400">
-            想换成片内容，用下面的「🛠 回炉重做」把这条片的工坊工程取回工坊接着改 —— 链接、播放量、
-            评论都留着。想做一条全新的，
-            <Link to="/studio" className="text-brand">去工坊再创作</Link>。
+            <Trans>想换成片内容，用下面的「🛠 回炉重做」把这条片的工坊工程取回工坊接着改 —— 链接、播放量、评论都留着。想做一条全新的，<Link to="/studio" className="text-brand">去工坊再创作</Link>。</Trans>
           </p>
 
           {/* ── 回炉重做 ─────────────────────────────────────
@@ -372,7 +378,7 @@ export default function EditPage() {
               disabled={!!reforgeWhy}
               className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink active:scale-[0.99] disabled:bg-slate-700 disabled:text-slate-400"
             >
-              🛠 回炉重做
+              <Trans>🛠 回炉重做</Trans>
             </button>
             {reforgeWhy && <p className="mt-1.5 text-xs leading-relaxed text-slate-500">{reforgeWhy}</p>}
             {/* 「重试留存」：本机还留着一份没提交上去的画布待办时才摆。
@@ -388,17 +394,17 @@ export default function EditPage() {
             {supported === true && projects.pendingRetainable(video.id, video.clientId) && (
               <button
                 onClick={() => {
-                  setRetainMsg("正在重试…");
+                  setRetainMsg(t`正在重试…`);
                   // ★ 不传版次：那个数**只能由待办自己算**（见 projects.retryRetain 的 ★★★）。
                   //   这里传现读的 video.revision 曾经让服务端那道陈旧闸恒开。
                   void projects
                     .retryRetain(video!.id, video!.title)
-                    .then((why) => setRetainMsg(why ?? "工程已留存，现在可以回炉重做了"));
+                    .then((why) => setRetainMsg(why ?? t`工程已留存，现在可以回炉重做了`));
                 }}
-                disabled={retainMsg === "正在重试…"}
+                disabled={retainMsg === t`正在重试…`}
                 className="mt-2 rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
               >
-                {hasProject ? "重新留存这一版（现存那份还是上一版）" : "重试留存"}
+                {hasProject ? t`重新留存这一版（现存那份还是上一版）` : t`重试留存`}
               </button>
             )}
             {/* 「问不到服务器」那一档给一颗真的能重问的键：`retryReadyProjects` 会把那个失败的
@@ -408,14 +414,14 @@ export default function EditPage() {
                 onClick={() => void projects.retryReadyProjects()}
                 className="mt-2 rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700"
               >
-                重新问一次服务器
+                <Trans>重新问一次服务器</Trans>
               </button>
             )}
             {retainMsg && <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">{retainMsg}</p>}
             {/* 删掉留存的工程：用户主动放弃。作品本身不受影响，但回炉入口会永久消失 —— 两步确认 */}
             {hasProject && (
               <button onClick={() => setDropAsk(true)} className="mt-2 text-[11px] text-slate-500 underline underline-offset-2">
-                删除留存的工坊工程
+                <Trans>删除留存的工坊工程</Trans>
               </button>
             )}
             {/* 取回失败 / 工坊在途被拒：整句原话，落在按下的那颗键旁边（铁律八） */}
@@ -426,10 +432,11 @@ export default function EditPage() {
                       版次对不上那一档再试一万次也是同一句话，摆一颗永远不会成的重试键
                       比不摆更坏（本仓那条：说一句错的原因比不给原因更坏）。 */}
                 <p className="text-[11px] leading-relaxed text-rose-200">
-                  没能取回这条作品的工坊工程（{fetchErr}）。
-                  {fetchStale
-                    ? "本机还留着那一版的画布的话，先点上面的「重新留存这一版」；否则只能重新发一条。"
-                    : "换个网络再试一次。"}
+                  {fetchStale ? (
+                    <Trans>没能取回这条作品的工坊工程（{fetchErr}）。本机还留着那一版的画布的话，先点上面的「重新留存这一版」；否则只能重新发一条。</Trans>
+                  ) : (
+                    <Trans>没能取回这条作品的工坊工程（{fetchErr}）。换个网络再试一次。</Trans>
+                  )}
                 </p>
                 <div className="mt-2 flex gap-2">
                   {!fetchStale && (
@@ -437,11 +444,11 @@ export default function EditPage() {
                       onClick={() => void beginReforge()}
                       className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700"
                     >
-                      重试
+                      <Trans>重试</Trans>
                     </button>
                   )}
                   <button onClick={() => setFetchErr("")} className="rounded-full px-3 py-1.5 text-[11px] text-slate-400">
-                    知道了
+                    <Trans>知道了</Trans>
                   </button>
                 </div>
               </div>
@@ -453,7 +460,7 @@ export default function EditPage() {
         {/* 右：元信息 + 封面 + 可见性 */}
         <div className="space-y-5">
           <div>
-            <div className="mb-1.5 text-sm font-semibold text-slate-300">标题 *</div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>标题 *</Trans></div>
             <input
               value={title}
               onChange={(e) => {
@@ -467,17 +474,17 @@ export default function EditPage() {
           </div>
 
           <div>
-            <div className="mb-1.5 text-sm font-semibold text-slate-300">分类</div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>分类</Trans></div>
             <div className="flex flex-wrap gap-2">
               {VIDEO_CATEGORIES.map((c) => (
                 <button
-                  key={c}
-                  onClick={() => setCategory(c)}
+                  key={c.id}
+                  onClick={() => setCategory(c.id)}
                   className={`rounded-full px-3.5 py-1.5 text-xs ${
-                    category === c ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300 hover:bg-slate-700"
+                    category === c.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300 hover:bg-slate-700"
                   }`}
                 >
-                  {c}
+                  {c.label}
                 </button>
               ))}
             </div>
@@ -487,12 +494,12 @@ export default function EditPage() {
               ★ 这里必须也有：服务端 PATCH 支持改 tags，不给入口的话打错一个字就永久错着
                 —— 而发布页那边"发布后改不了"的东西已经够多了（定价那条就是） */}
           <div>
-            <div className="mb-1.5 text-sm font-semibold text-slate-300">话题标签</div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>话题标签</Trans></div>
             <TagInput tags={tags} onChange={setTags} max={VIDEO_TAG_MAX} maxLen={VIDEO_TAG_LEN} split={parseTags} />
           </div>
 
           <div>
-            <div className="mb-1.5 text-sm font-semibold text-slate-300">简介</div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>简介</Trans></div>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -512,10 +519,10 @@ export default function EditPage() {
               disabled={saving}
               className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-40"
             >
-              {saving ? "保存中…" : "保存修改"}
+              {saving ? t`保存中…` : t`保存修改`}
             </button>
             {busy && <span className="text-sm text-slate-400">{busy}</span>}
-            {saved && <span className="text-sm text-emerald-300">✓ 已保存</span>}
+            {saved && <span className="text-sm text-emerald-300"><Trans>✓ 已保存</Trans></span>}
           </div>
 
           {/* 删除放最后、要二次确认：这是本页唯一不可撤销的动作。
@@ -524,13 +531,13 @@ export default function EditPage() {
           <div className="mt-2 border-t border-slate-700/60 pt-4">
             {confirmDel ? (
               <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3.5">
-                <div className="text-sm font-bold text-rose-200">删除《{video.title}》？</div>
+                <div className="text-sm font-bold text-rose-200"><Trans>删除《{video.title}》？</Trans></div>
                 {/* ★ 这句以前只说"成片、评论和点赞会一起消失" —— 而当时服务端一次
                     `uploader.destroy` 都没有：作品从库里没了，成片与封面那几个地址
                     仍然人人可访问。2026-08-30 服务端补上了回收，这句话才配得上"删除"两个字，
                     所以把它写全（铁律五：文案只按已实现的事实写）。 */}
                 <p className="mt-1 text-[11px] leading-relaxed text-rose-300">
-                  成片、评论和点赞会一起消失，云端存的视频与封面也会一并删除。不能撤销。
+                  <Trans>成片、评论和点赞会一起消失，云端存的视频与封面也会一并删除。不能撤销。</Trans>
                 </p>
                 {/* ★★ 软替代：**这条只对还公开着的作品有意义**（2026-08-30 修）。
                     原来判的是 `visibility === "private"` —— 恰好反了：已经藏起来的人
@@ -556,15 +563,15 @@ export default function EditPage() {
                           return;
                         }
                         setVisibility(video ? visibilityOf(video) : "public"); // 开关翻回去，别让它说谎
-                        setDelErr({ why: `没能改成「仅自己可见」：${why}`, kind: "soft" });
+                        setDelErr({ why: t`没能改成「仅自己可见」：${why}`, kind: "soft" });
                       });
                     }}
                     disabled={saving}
                     className="mt-2.5 w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-40"
                   >
-                    <span className="font-bold">改成「仅自己可见」就好</span>
+                    <span className="font-bold"><Trans>改成「仅自己可见」就好</Trans></span>
                     <br />
-                    别人的首页和你的主页上都不再出现，成片和评论都留着，随时能改回来。
+                    <Trans>别人的首页和你的主页上都不再出现，成片和评论都留着，随时能改回来。</Trans>
                   </button>
                 )}
                 {delErr && (
@@ -581,14 +588,14 @@ export default function EditPage() {
                     disabled={deleting}
                     className="flex-1 rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200 disabled:opacity-40"
                   >
-                    取消
+                    <Trans>取消</Trans>
                   </button>
                   <button
                     onClick={() => void remove()}
                     disabled={deleting}
                     className="rounded-xl bg-rose-500 px-4 py-2.5 text-sm font-bold text-white hover:brightness-110 disabled:opacity-40"
                   >
-                    {deleting ? "删除中…" : delErr?.kind === "delete" ? "再试一次" : "确认删除"}
+                    {deleting ? t`删除中…` : delErr?.kind === "delete" ? t`再试一次` : t`确认删除`}
                   </button>
                 </div>
               </div>
@@ -597,7 +604,7 @@ export default function EditPage() {
                 onClick={() => setConfirmDel(true)}
                 className="text-sm text-rose-400 hover:text-rose-300"
               >
-                删除这部作品
+                <Trans>删除这部作品</Trans>
               </button>
             )}
           </div>
@@ -611,19 +618,21 @@ export default function EditPage() {
              事后再说等于没说 —— 那时东西已经没了。 */}
       {reforgeAsk && (
         <ConfirmDialog
-          title="回炉重做这条作品？"
-          confirmLabel="继续回炉"
+          title={t`回炉重做这条作品？`}
+          confirmLabel={t`继续回炉`}
           onConfirm={() => void beginReforge()}
           onClose={() => setReforgeAsk(false)}
         >
           {isPublic ? (
             <p>
-              这条作品已经有 {video.plays} 次播放
-              {typeof video.saves === "number" && video.saves > 0 ? `、${video.saves} 个人收藏` : ""}
-              。重新剪辑之后，同一个链接下的内容会变，收藏过它的人会收到一条「你收藏的作品重新剪辑过了」。
+              {saves > 0 ? (
+                <Trans>这条作品已经有 {plays} 次播放、{saves} 个人收藏。重新剪辑之后，同一个链接下的内容会变，收藏过它的人会收到一条「你收藏的作品重新剪辑过了」。</Trans>
+              ) : (
+                <Trans>这条作品已经有 {plays} 次播放。重新剪辑之后，同一个链接下的内容会变，收藏过它的人会收到一条「你收藏的作品重新剪辑过了」。</Trans>
+              )}
             </p>
           ) : (
-            <p>这条作品别人看不到，没有观众会收到通知。</p>
+            <p><Trans>这条作品别人看不到，没有观众会收到通知。</Trans></p>
           )}
           {/* ★★ 这一段的规矩：**宁可说"数不准"，也不报一个骗人的数**（2026-09-08 评审补齐三档）。
               本机这份镜像与"服务端到底有多少条"之间隔着两层：① 一页有上限，超了服务端回
@@ -631,23 +640,19 @@ export default function EditPage() {
               所以数到 0 也不能沉默 —— 那一档最容易发生的原因不是"真没有"。 */}
           {!danmakuKnown ? (
             <p className="mt-2">
-              还没数清这条作品有多少条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，
-              所以提交时会被全部清空，且无法恢复。
+              <Trans>还没数清这条作品有多少条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以提交时会被全部清空，且无法恢复。</Trans>
             </p>
           ) : danmakuPartial ? (
             <p className="mt-2">
-              这条作品<b>至少</b>有 {danmakuCount} 条弹幕（只数到这么多，实际更多）。弹幕是按全片时间轴
-              打的，换内容会让它们对不上画面，所以会被<b>全部</b>清空，且无法恢复。
+              <Trans>这条作品<b>至少</b>有 {danmakuCount} 条弹幕（只数到这么多，实际更多）。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以会被<b>全部</b>清空，且无法恢复。</Trans>
             </p>
           ) : danmakuCount > 0 ? (
             <p className="mt-2">
-              这条作品有 {danmakuCount} 条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，
-              所以会被清空，且无法恢复。
+              <Trans>这条作品有 {danmakuCount} 条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以会被清空，且无法恢复。</Trans>
             </p>
           ) : (
             <p className="mt-2">
-              这条作品目前没有能显示给你的弹幕。如果还有（比如来自你拉黑的人），提交时也会一并清空，
-              且无法恢复。
+              <Trans>这条作品目前没有能显示给你的弹幕。如果还有（比如来自你拉黑的人），提交时也会一并清空，且无法恢复。</Trans>
             </p>
           )}
         </ConfirmDialog>
@@ -656,8 +661,8 @@ export default function EditPage() {
       {/* 删掉留存的工程：作品本身不受影响，但回炉入口会永久消失 —— 说清楚这两句就够了 */}
       {dropAsk && (
         <ConfirmDialog
-          title="删掉这条作品的工坊工程？"
-          confirmLabel={dropping ? "删除中…" : "删掉"}
+          title={t`删掉这条作品的工坊工程？`}
+          confirmLabel={dropping ? t`删除中…` : t`删掉`}
           danger
           busy={dropping}
           onConfirm={() => {
@@ -666,12 +671,12 @@ export default function EditPage() {
               setDropping(false);
               setDropAsk(false);
               // 失败要说话：不说的话按钮点了一下、卡关了、工程还在（铁律八）
-              if (why) setRetainMsg(`没能删掉这份工程（${why}）`);
+              if (why) setRetainMsg(t`没能删掉这份工程（${why}）`);
             });
           }}
           onClose={() => setDropAsk(false)}
         >
-          <p>删掉之后这条作品就不能再回炉了，作品本身不受影响。</p>
+          <p><Trans>删掉之后这条作品就不能再回炉了，作品本身不受影响。</Trans></p>
         </ConfirmDialog>
       )}
     </div>

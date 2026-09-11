@@ -12,6 +12,9 @@ import { startJob } from "../data/jobs";
 import { MAX_DIRECT_MEDIA_BYTES } from "../api/uploads";
 import PageHeader from "../components/PageHeader";
 import { useLocation, useNavigate } from "react-router";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -28,9 +31,9 @@ import { captureVideoFrame, loadVideoAt } from "../utils/videoFrames";
 import { Capacitor } from "@capacitor/core";
 // 合并走原生硬件编解码器（见 utils/nativeMerge 头部的 ★★）
 import {
-  MERGE_UNSUPPORTED,
   cancelNativeMerge,
   mergeSupported,
+  mergeUnsupportedText,
   mergedFileToBlob,
   runNativeMerge,
   stageLocalAudio,
@@ -57,9 +60,9 @@ interface Ann {
 
 /** 导出档位。存的是【长边】像素而不是写死的 w×h：竖屏 720P 是 720×1280，
  *  横屏是 1280×720——写死 1280×720 的话，竖屏成片会被 drawCover 拦腰裁成横的。 */
-const RESOLUTIONS = [
-  { id: "720", label: "720P", long: 1280, note: "与素材同分辨率，最快" },
-  { id: "1080", label: "1080P", long: 1920, note: "由 720P 素材放大，文件更大但不会更清晰" },
+const RESOLUTIONS: Array<{ id: string; label: string; long: number; note: MessageDescriptor }> = [
+  { id: "720", label: "720P", long: 1280, note: msg`与素材同分辨率，最快` },
+  { id: "1080", label: "1080P", long: 1920, note: msg`由 720P 素材放大，文件更大但不会更清晰` },
 ];
 
 /** 档位 + 画幅 → 输出画布尺寸 */
@@ -77,6 +80,7 @@ function clipDur(c: Clip): number {
 
 export default function CutPage() {
   const navigate = useNavigate();
+  const { t } = useLingui();
   const draft = useStudio((s) => s.draft);
   const segEdit = useStudio((s) => s.segEdit);
   /**
@@ -113,7 +117,7 @@ export default function CutPage() {
   //   用户在音频 tab 随时能换掉/去掉，所以是"预置"不是"锁定"。
   const [audio, setAudio] = useState<{ name: string; url: string; volume: number } | null>(() => {
     const src = useStudio.getState().draftAudioHint;
-    return src ? { name: "原视频音轨", url: src, volume: 1 } : null;
+    return src ? { name: t`原视频音轨`, url: src, volume: 1 } : null;
   });
   const [tab, setTab] = useState<Tab>("cut");
   const [resId, setResId] = useState("720");
@@ -238,15 +242,15 @@ export default function CutPage() {
       const v = document.createElement("video");
       v.muted = true;
       v.preload = "metadata";
-      const t = window.setTimeout(() => {
+      const timer = window.setTimeout(() => {
         v.src = "";
       }, 15_000);
       v.onloadedmetadata = () => {
-        window.clearTimeout(t);
+        window.clearTimeout(timer);
         if (aliveRef.current) learnRealDur(i, v.duration);
         v.src = "";
       };
-      v.onerror = () => window.clearTimeout(t);
+      v.onerror = () => window.clearTimeout(timer);
       v.src = src;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -453,7 +457,7 @@ export default function CutPage() {
     // ★ 播放头不在选中的那段里就整句拒：`sel`（选中的）与 `active`（正在播的）会分开
     //   —— 播到出点会自动换 active 却不动 sel（2026-08-30 修过的那个错位）。
     if (!active || active.id !== target.id) {
-      setErr("播放头不在选中的片段里——先点一下这个片段（它会从头开始播），再操作。");
+      setErr(t`播放头不在选中的片段里——先点一下这个片段（它会从头开始播），再操作。`);
       return null;
     }
     return { clip: target, at: vref.current.currentTime };
@@ -464,7 +468,7 @@ export default function CutPage() {
     if (!pt) return;
     const { clip: target, at: cur } = pt;
     if (cur - target.start < MIN_CLIP_SEC || target.end - cur < MIN_CLIP_SEC) {
-      setErr(`分割点离片段边缘太近（至少留 ${MIN_CLIP_SEC} 秒）`);
+      setErr(t`分割点离片段边缘太近（至少留 ${MIN_CLIP_SEC} 秒）`);
       return;
     }
     setErr("");
@@ -494,7 +498,7 @@ export default function CutPage() {
     const { clip: target, at: cur } = pt;
     const next = edge === "start" ? { ...target, start: cur } : { ...target, end: cur };
     if (next.end - next.start < MIN_CLIP_SEC) {
-      setErr(`这样裁完只剩不到 ${MIN_CLIP_SEC} 秒，片段太短了`);
+      setErr(t`这样裁完只剩不到 ${MIN_CLIP_SEC} 秒，片段太短了`);
       return;
     }
     setErr("");
@@ -512,7 +516,7 @@ export default function CutPage() {
     //   而屏幕上两半共用同一张缩略图、没有任何重叠提示，合并又是几十秒的实时录制、
     //   录完直接进发布页 —— 用户很可能就这么发出去了，且本页没有撤销。
     if (view.some((c) => c.id !== target.id && c.segIndex === target.segIndex)) {
-      setErr("这个片段是分割出来的，同一段还有另一半在时间轴上——回到整段会和它重叠，成片里同一截会播两遍。想撤销分割，先删掉另一半。");
+      setErr(t`这个片段是分割出来的，同一段还有另一半在时间轴上——回到整段会和它重叠，成片里同一截会播两遍。想撤销分割，先删掉另一半。`);
       return;
     }
     setErr("");
@@ -552,8 +556,8 @@ export default function CutPage() {
       const why = srcErr[active.segIndex];
       setErr(
         why
-          ? `圈选要先取到这一段的截帧流，刚才没取到：${why} —— 点预览下方的「重试」`
-          : "这一段的截帧流还在取（成片有 20MB 级，稍等几秒再点圈选）",
+          ? t`圈选要先取到这一段的截帧流，刚才没取到：${why} —— 点预览下方的「重试」`
+          : t`这一段的截帧流还在取（成片有 20MB 级，稍等几秒再点圈选）`,
       );
       return;
     }
@@ -571,7 +575,8 @@ export default function CutPage() {
       setAnnOpen({ segIndex: active.segIndex, atSec: at, frame: c.toDataURL("image/jpeg", 0.9) });
       setErr(""); // 上一次「截帧流还在取」那句到这里已经不成立，别挂着
     } catch (e) {
-      setErr(`截取当前画面失败：${e instanceof Error ? e.message : String(e)}`);
+      const why = e instanceof Error ? e.message : String(e);
+      setErr(t`截取当前画面失败：${why}`);
     }
   }
 
@@ -583,9 +588,10 @@ export default function CutPage() {
     for (const a of liveAnns) bySeg.set(a.segIndex, [...(bySeg.get(a.segIndex) ?? []), a]);
     if (AI_REAL && !canAfford(annCost)) {
       const w = walletOf();
-      setErr(
-        `重生成 ${bySeg.size} 段约需 ${fmtTokens(annCost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
-      );
+      const segCount = bySeg.size;
+      const need = fmtTokens(annCost);
+      const have = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
+      setErr(t`重生成 ${segCount} 段约需 ${need} token，余额 ${have} 不足——去「我的」页充值`);
       return;
     }
     setErr("");
@@ -594,14 +600,19 @@ export default function CutPage() {
       let n = 0;
       for (const [segIndex, list] of bySeg) {
         n++;
+        const segNo = segIndex + 1;
+        const segTotal = bySeg.size;
         const seg = { ...nextSegs[segIndex] };
         const half = lenOf(segIndex) / 2;
         // 逐个标注改帧：前半段的圈选改首帧、后半段的改尾帧（Seedance 只收首尾帧），
         // 同一帧多个标注串行叠加（上一次的修改结果作为下一次的底图）
         for (let k = 0; k < list.length; k++) {
           const a = list[k];
-          setBusy(`第 ${segIndex + 1} 段 · 按圈选改画面 ${k + 1}/${list.length}…`);
+          const step = k + 1;
+          const steps = list.length;
+          setBusy(t`第 ${segNo} 段 · 按圈选改画面 ${step}/${steps}…`);
           const edited = await refineFrame(
+            // i18n-ignore-next-line: 发给 Seedream 图生图的改图指令，提示词冻结中文（界面语言不改变模型听什么）
             `${a.req}。参考图中红色圈线标注了目标物体：只对该物体做上述处理，并彻底去掉红色圈线本身`,
             a.frame,
             seg.aspect,
@@ -609,9 +620,9 @@ export default function CutPage() {
           if (a.atSec < half) seg.firstFrame = edited;
           else seg.lastFrame = edited;
         }
-        setBusy(`第 ${segIndex + 1} 段 · 重拍视频（${n}/${bySeg.size} 段）…`);
+        setBusy(t`第 ${segNo} 段 · 重拍视频（${n}/${segTotal} 段）…`);
         const reqAll = list.map((a) => a.req).join("；");
-        const { url, lastFrame, poster } = await regenSegment(seg, reqAll, (s) => setBusy(`第 ${segIndex + 1} 段 · ${s}`));
+        const { url, lastFrame, poster } = await regenSegment(seg, reqAll, (s) => setBusy(t`第 ${segNo} 段 · ${s}`));
         seg.videoUrl = url;
         if (lastFrame) seg.lastFrame = lastFrame;
         seg.poster = poster; // 没截到就清掉：别让缩略图挂着上一发的画面
@@ -629,7 +640,7 @@ export default function CutPage() {
         //   与 useFlowActions 那条「又炼出一段就自动存盘」是同一条规则、同一个理由。
         // ★ null = 存住了；有句子就原样说出去（segEdit 那条路说的是另一件事，见 store）
         const why = await useStudio.getState().persistCutDraft();
-        if (why) setErr(`这一段已经改好、钱也扣过了，但${why}`);
+        if (why) setErr(t`这一段已经改好、钱也扣过了，但${why}`);
         setAnns((prev) => prev.filter((a) => a.segIndex !== segIndex));
         loadCaptureSrc(segIndex, url);
       }
@@ -637,10 +648,8 @@ export default function CutPage() {
     } catch (e) {
       setBusy("");
       // ★ 说清"前面几段已经保住了"：不说的话用户以为整轮白花，会再点一次（再收一遍）
-      setErr(
-        `重新生成中断：${(e instanceof Error ? e.message : String(e)).slice(0, 110)}` +
-          `。已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段`,
-      );
+      const why = (e instanceof Error ? e.message : String(e)).slice(0, 110);
+      setErr(t`重新生成中断：${why}。已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段`);
     }
   }
 
@@ -667,12 +676,12 @@ export default function CutPage() {
      *   （HashRouter 的 navigate 在组件卸载后照样生效，没有 cleanup 拦得住它）。
      * ★ 人还在这一页时票走 `silent`：页面自己会画结果，别再弹一次通知。
      */
-    const job = startJob({ kind: "merge", title: "合成成片", page: "/cut", progress: "准备中…" });
+    const job = startJob({ kind: "merge", title: t`合成成片`, page: "/cut", progress: t`准备中…` });
     let settled = false;
     /** 屏幕与票说同一句话 —— 两处各写各的必然分叉 */
-    const say = (t: string) => {
-      setBusy(t);
-      job.update(t);
+    const say = (line: string) => {
+      setBusy(line);
+      job.update(line);
     };
     cancelRef.current = false;
     wentHiddenRef.current = false;
@@ -725,14 +734,16 @@ export default function CutPage() {
           //   也分不出卡在**提交**那一发还是**等搬完**（这两件事的排查方向完全不同）。
           const tf0 = Date.now();
           const waited = () => Math.round((Date.now() - tf0) / 1000);
-          say(`第 ${i + 1} 段成片转存中（换成永久地址）…`);
+          const segNo = i + 1;
+          say(t`第 ${segNo} 段成片转存中（换成永久地址）…`);
           try {
             let got = await requestArkTransfer(src);
             // ★ 上限 120 秒：搬 20~80MB 在服务端那头通常十几秒。到点还没好就先用直链走
             //   （成不成都不挡合并），后台那份不会白搬 —— 下次再问就是现成的。
             const until = Date.now() + 120_000;
             while (got.state === "pending" && Date.now() < until && !cancelRef.current) {
-              say(`第 ${i + 1} 段成片转存中（换成永久地址）· 已等 ${waited()} 秒…`);
+              const secs = waited();
+              say(t`第 ${segNo} 段成片转存中（换成永久地址）· 已等 ${secs} 秒…`);
               await new Promise((r) => setTimeout(r, 3_000));
               const st = await transferStatus([src]).catch(() => null);
               const hit = st?.[src];
@@ -751,7 +762,7 @@ export default function CutPage() {
         }
         if (cancelRef.current) {
           setBusy("");
-          setErr("已取消合并。片段、圈选和配乐都还在，随时可以重新开始。");
+          setErr(t`已取消合并。片段、圈选和配乐都还在，随时可以重新开始。`);
           return;
         }
         mergeSegs = next;
@@ -771,22 +782,23 @@ export default function CutPage() {
       //   手机剪辑软件从来不这么做：它们走 MediaCodec / AVFoundation。我们是 Capacitor，够得到。
       // ★ 段落直接把**公网地址**交过去：它们在出片那一刻就转存到图床了，让 Media3 自己流式取，
       //   不必先把几十兆下载到手机再喂进去（那正是老路最慢、也最容易超时的一段）。
-      if (!mergeSupported()) throw new Error(MERGE_UNSUPPORTED);
-      say("准备素材…");
+      if (!mergeSupported()) throw new Error(mergeUnsupportedText());
+      say(t`准备素材…`);
       const clips: MergeClip[] = [];
       for (const c of view) {
         const seg = mergeSegs[c.segIndex];
+        const segNo = c.segIndex + 1;
         const url = (seg.videoUrl || "").trim();
         // ★ 渐变段（没出片、只有首尾帧）这条路做不了：原生拼的是视频，不是两张图。
         //   与其悄悄跳过它（成片里少一段，零报错），不如整句说清楚。
-        if (!url) throw new Error(`第 ${c.segIndex + 1} 段还没有视频（只有设定帧），合成做不了——先把这一段炼出来`);
+        if (!url) throw new Error(t`第 ${segNo} 段还没有视频（只有设定帧），合成做不了——先把这一段炼出来`);
         if (!/^https?:/i.test(url)) {
           // ★ 分两种情况说，别让一句话指向不存在的出口（`idb:` 那种上面 alreadyMerged 已经拦掉了，
           //   落到这里的只可能是"多段里混着一段本机文件"这种不该出现的形状）
           throw new Error(
             url.startsWith("idb:")
-              ? `第 ${c.segIndex + 1} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回工作流重做一条`
-              : `第 ${c.segIndex + 1} 段还不是永久地址，合成用不了——回到工作流等它转存完再来`,
+              ? t`第 ${segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回工作流重做一条`
+              : t`第 ${segNo} 段还不是永久地址，合成用不了——回到工作流等它转存完再来`,
           );
         }
         // 没裁过的片段跟着**实测**时长走（与 segLen 同一把尺）
@@ -798,19 +810,20 @@ export default function CutPage() {
       let audioArg: { url: string; volume: number } | undefined;
       if (audio) {
         try {
-          say("准备配乐…");
+          say(t`准备配乐…`);
           audioArg = { url: await stageLocalAudio(audio.url), volume: audio.volume };
         } catch (e) {
           // ★ 音轨拿不到**不许拖垮整条成片**（2026-08-21 对抗评审确认的老规矩，这次沿用）
           console.warn("[cut] 音轨取不到:", e);
-          const why = `音轨没能取下来（${audio.name}）——这一条先按无声导出。想要声音就换一条本地音频再重试合并。`;
+          const audioName = audio.name;
+          const why = t`音轨没能取下来（${audioName}）——这一条先按无声导出。想要声音就换一条本地音频再重试合并。`;
           setErr(why);
           warns.push(why); // 合并成功就要跟着去发布页，否则这句话谁都看不到
         
         }
       }
 
-      say("合成中…");
+      say(t`合成中…`);
       const merged = await runNativeMerge(
         {
           clips,
@@ -825,15 +838,15 @@ export default function CutPage() {
       );
       if (cancelRef.current) {
         setBusy("");
-        setErr("已取消合并。片段、圈选和配乐都还在，随时可以重新开始。");
+        setErr(t`已取消合并。片段、圈选和配乐都还在，随时可以重新开始。`);
         return;
       }
 
-      say("写入本地库…");
+      say(t`写入本地库…`);
       // 原生产物是本机文件；成片下游整条链认的是 `idb:` 指针，这里搬一次省掉全 app 改造
       const blob = await mergedFileToBlob(merged.uri);
       const key = `merged:${uid("mv")}`;
-      if (!(await idbSet(key, blob))) throw new Error("成片写入本地库失败（存储配额？）");
+      if (!(await idbSet(key, blob))) throw new Error(t`成片写入本地库失败（存储配额？）`);
       // 成片第一帧（本机文件，解码一帧很便宜）。截不到不挡发布，缩略图退回段的设定帧
       let poster = "";
       try {
@@ -855,7 +868,7 @@ export default function CutPage() {
        */
       const recordedSec = merged.durationSec > 0.5 ? merged.durationSec : total;
       const mergedSeg: VideoSegment = {
-        title: "成片",
+        title: t`成片`,
         plot: orderedPlots.join("\n"),
         firstFrame: first.firstFrame,
         lastFrame: last.lastFrame,
@@ -877,7 +890,7 @@ export default function CutPage() {
       // ★ 合并那一拍的回执也要判（模块契约就是这么写的）：这时候刚录完几分钟的成片，
       //   指针只在内存里 —— 存不住而不吭声，正是最贵的那种静默失败
       const cutWhy = await useStudio.getState().persistCutDraft();
-      if (cutWhy) warns.push(`成片已经合好了，但${cutWhy}`);
+      if (cutWhy) warns.push(t`成片已经合好了，但${cutWhy}`);
       // ★★ 成片是哑的就当面说一句（2026-09-07 主人真机：「原本有声音的又没声音了」）。
       //   「没有声音」在界面上**不构成任何报错** —— 音轨本来就是可选的，于是一条哑片
       //   会一路走到发布页、发出去，全程没人吭声。而白模复刻段的画面天生无声
@@ -888,10 +901,10 @@ export default function CutPage() {
       // 成片太大：在**素材还在**的时候就说（见 MAX_DIRECT_MEDIA_BYTES 的 ★）。
       // ★ 只提醒不拦：真正作数的是上传票上那个数，我们这份只是提前量。
       if (merged.sizeBytes > MAX_DIRECT_MEDIA_BYTES * 0.95) {
+        const sizeMb = Math.round(merged.sizeBytes / 1024 / 1024);
+        const capMb = Math.round(MAX_DIRECT_MEDIA_BYTES / 1024 / 1024);
         warns.push(
-          `这条成片有 ${Math.round(merged.sizeBytes / 1024 / 1024)}MB，接近服务器上限（约 ${Math.round(
-            MAX_DIRECT_MEDIA_BYTES / 1024 / 1024,
-          )}MB），可能传不上去。传失败的话回剪辑页删几段、或把导出分辨率降一档再合一次——片段和配乐都还在。`,
+          t`这条成片有 ${sizeMb}MB，接近服务器上限（约 ${capMb}MB），可能传不上去。传失败的话回剪辑页删几段、或把导出分辨率降一档再合一次——片段和配乐都还在。`,
         );
       }
       /**
@@ -903,7 +916,7 @@ export default function CutPage() {
        */
       if (audioArg && presetAudioDrift) {
         warns.push(
-          "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。",
+          t`配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。`,
         );
       }
       /**
@@ -921,7 +934,7 @@ export default function CutPage() {
       const allSilent = partAudio.length > 0 && partAudio.every((x) => x === false);
       if (!bgmIn && (merged.hasAudio === false || allSilent)) {
         warns.push(
-          "这条成片没有声音：素材本身不带音轨，合成时也没有加配乐。想要声音就回剪辑页的「音频」加一条，再合一次。",
+          t`这条成片没有声音：素材本身不带音轨，合成时也没有加配乐。想要声音就回剪辑页的「音频」加一条，再合一次。`,
         );
       }
       settled = true;
@@ -933,7 +946,7 @@ export default function CutPage() {
         //   换成一张可点的票：他什么时候想去，点通知就过去。
         //   ⚠ `warns` 必须跟着走：里面装着「这条成片没有声音」这类只有这一次能说的话，
         //   不带上就等于悄悄写完什么都不说（本仓那格坑的同款形状）。
-        job.done({ msg: warns.length ? warns.join("\n") : "成片合好了，去发布吧", route: "/publish" });
+        job.done({ msg: warns.length ? warns.join("\n") : t`成片合好了，去发布吧`, route: "/publish" });
       }
     } catch (e) {
       // ★ 取消可能正好按在某一段的 await 中途（取流/加载/播放）——那时抛出来的异常
@@ -941,7 +954,7 @@ export default function CutPage() {
       const code = (e as { code?: string } | null)?.code;
       const raw = (e instanceof Error ? e.message : String(e)).slice(0, 160);
       if (cancelRef.current) {
-        setErr("已取消合并。片段、圈选和配乐都还在，随时可以重新开始。");
+        setErr(t`已取消合并。片段、圈选和配乐都还在，随时可以重新开始。`);
       } else if (code === "BUSY") {
         // ★ 这**不是失败**：那一炉好好地在跑（原生那句话自带出路）。加"合并失败："
         //   等于报一次并不存在的失败，还把用户推向最不该走的那条路 —— 再合一次。
@@ -955,15 +968,16 @@ export default function CutPage() {
         //   ⚠ 只在**我们自己知道**有段没转存成（stillArk 非空）时才这么说 —— 否则同样的 403
         //   可能来自别的地址，硬套一个原因就是换了一种骗人。
         const http = /Response code:\s*(\d{3})/.exec(raw)?.[1];
-        const msg =
+        const segList = stillArk.join(t({ message: "、", comment: "列举几个段号时的分隔符（第 1、3 段）" }));
+        const failMsg =
           (http === "403" || http === "404") && stillArk.length
-            ? `合并失败：第 ${stillArk.join("、")} 段的视频取不到了（HTTP ${http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回工作流把这几段重新出片（会再花一次钱），或者删掉它们再合。`
-            : `合并失败：${raw}`;
+            ? t`合并失败：第 ${segList} 段的视频取不到了（HTTP ${http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回工作流把这几段重新出片（会再花一次钱），或者删掉它们再合。`
+            : t`合并失败：${raw}`;
         if (aliveRef.current) {
-          setErr(msg);
+          setErr(failMsg);
           job.done({ silent: true }); // 这一页自己会画这句话，不用再弹一次
         } else {
-          job.fail(msg, "/cut"); // 人不在，结局只能留在票上
+          job.fail(failMsg, "/cut"); // 人不在，结局只能留在票上
         }
       }
     } finally {
@@ -976,9 +990,9 @@ export default function CutPage() {
   }
 
   const TABS: Array<{ id: Tab; label: string; badge?: number }> = [
-    { id: "cut", label: "剪辑" },
-    { id: "mark", label: "圈选", badge: anns.length || undefined },
-    { id: "audio", label: "音频", badge: audio ? 1 : undefined },
+    { id: "cut", label: t`剪辑` },
+    { id: "mark", label: t`圈选`, badge: anns.length || undefined },
+    { id: "audio", label: t`音频`, badge: audio ? 1 : undefined },
   ];
 
   return (
@@ -986,7 +1000,7 @@ export default function CutPage() {
       {/* ── 顶栏 ── */}
       <PageHeader
         className="flex-none px-4"
-        title="剪辑"
+        title={t`剪辑`}
         onBack={() => {
             // 单段编辑的返回 = 放弃这次改动（不写回方案），得先把单段草稿清掉，
             // 否则那份一段的 draft 会被后面的组稿流程当成真草稿
@@ -1024,7 +1038,7 @@ export default function CutPage() {
                       {outSize(r.long, portrait).w}×{outSize(r.long, portrait).h}
                     </span>
                   </div>
-                  <div className="text-[10px] text-slate-400">{r.note}</div>
+                  <div className="text-[10px] text-slate-400">{t(r.note)}</div>
                 </button>
               ))}
             </div>
@@ -1043,7 +1057,7 @@ export default function CutPage() {
             disabled={!!busy}
             className="rounded-full bg-brand px-4 py-1.5 text-sm font-bold text-ink disabled:opacity-40"
           >
-            保存本段
+            <Trans>保存本段</Trans>
           </button>
         ) : (
           <button
@@ -1060,7 +1074,7 @@ export default function CutPage() {
             disabled={!!busy}
             className="rounded-full bg-brand px-4 py-1.5 text-sm font-bold text-ink disabled:opacity-40"
           >
-            {alreadyMerged ? "去发布" : "下一步"}
+            {alreadyMerged ? t`去发布` : t`下一步`}
           </button>
         )}
           </>
@@ -1082,7 +1096,8 @@ export default function CutPage() {
                 // ★ 播放器自己的失败也要上屏（地址过期 / 解码失败），否则又是一块沉默的黑
                 onError={(e) => {
                   const code = e.currentTarget.error?.code;
-                  setPlayErr(`这一段播不出来（错误码 ${code ?? "?"}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍`);
+                  const codeText = code ?? "?";
+                  setPlayErr(t`这一段播不出来（错误码 ${codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍`);
                 }}
                 onLoadedMetadata={(e) => {
                   const v = e.currentTarget;
@@ -1110,7 +1125,7 @@ export default function CutPage() {
                 onClick={togglePlay}
               />
             ) : (
-              <span className="text-xs text-slate-500">视频载入中…</span>
+              <span className="text-xs text-slate-500"><Trans>视频载入中…</Trans></span>
             )
           ) : activeSeg ? (
             <img src={activeSeg.poster || activeSeg.firstFrame} alt="" className="max-h-full max-w-full" />
@@ -1122,12 +1137,12 @@ export default function CutPage() {
             {playErr && <p>{playErr}</p>}
             {srcErr[active!.segIndex] && (
               <p>
-                圈选与合并要用的截帧流没取到：{srcErr[active!.segIndex]}
+                <Trans>圈选与合并要用的截帧流没取到：{srcErr[active!.segIndex]}</Trans>
                 <button
                   onClick={() => loadCaptureSrc(active!.segIndex, activeSeg.videoUrl!)}
                   className="ml-2 rounded bg-rose-500/30 px-2 py-0.5 font-semibold text-rose-100"
                 >
-                  重试
+                  <Trans>重试</Trans>
                 </button>
               </p>
             )}
@@ -1143,7 +1158,7 @@ export default function CutPage() {
           <button
             onClick={togglePlay}
             className="absolute left-1/2 -translate-x-1/2 text-white"
-            aria-label={playing ? "暂停" : "播放"}
+            aria-label={playing ? t`暂停` : t`播放`}
           >
             <Icon name={playing ? "pause" : "play"} size={26} filled />
           </button>
@@ -1177,8 +1192,7 @@ export default function CutPage() {
                     />
                   </div>
                   <span className="text-[10px] tabular-nums text-slate-400">
-                    {Math.min(100, Math.round((mergeDone / total) * 100))}% · 还剩约{" "}
-                    {formatDuration(Math.max(0, total - mergeDone))}
+                    <Trans>{Math.min(100, Math.round((mergeDone / total) * 100))}% · 还剩约 {formatDuration(Math.max(0, total - mergeDone))}</Trans>
                   </span>
                   {/* ★★ 2026-09-07 这句话跟着实现改了：合并已经**不是录屏**了（原生 Media3 Transformer，
                       走系统硬件编解码器），切到别的应用**不会**再把画面录成卡住的一截。
@@ -1188,19 +1202,19 @@ export default function CutPage() {
                       本身就是一次事故（铁律八）：改实现时**必须同一拍改掉描述它的话**。 */}
                   <p className={`text-center text-[10px] leading-relaxed ${hiddenWarn ? "text-amber-300" : "text-slate-500"}`}>
                     {hiddenWarn
-                      ? "刚才切到后台了——合成不会因此录坏画面，但可能被系统拖慢；真断了会明确告诉你"
-                      : "合成走系统硬件编解码，不再录屏——可以切走，只是系统可能把它拖慢"}
+                      ? t`刚才切到后台了——合成不会因此录坏画面，但可能被系统拖慢；真断了会明确告诉你`
+                      : t`合成走系统硬件编解码，不再录屏——可以切走，只是系统可能把它拖慢`}
                   </p>
                   <button
                     onClick={() => {
                       cancelRef.current = true;
-                      setBusy("正在停止…");
+                      setBusy(t`正在停止…`);
                       // 原生那一炉也要真的停下来（Transformer.cancel），不然它照样把片子编完
                       void cancelNativeMerge();
                     }}
                     className="rounded-full border border-slate-500 px-4 py-1.5 text-[11px] text-slate-200"
                   >
-                    取消合并
+                    <Trans>取消合并</Trans>
                   </button>
                 </>
               )}
@@ -1216,7 +1230,7 @@ export default function CutPage() {
           等于让用户为一个更大的文件多等一倍时间还以为画质更好了。 */}
       {res.id !== "720" && (
         <div className="flex-none bg-amber-500/10 px-4 py-1 text-center text-[10px] leading-relaxed text-amber-200/90">
-          {res.label} 是由 720P 素材放大的 —— 文件更大、合并更久，但<b className="text-amber-100">不会</b>更清晰
+          <Trans>{res.label} 是由 720P 素材放大的 —— 文件更大、合并更久，但<b className="text-amber-100">不会</b>更清晰</Trans>
         </div>
       )}
 
@@ -1239,28 +1253,28 @@ export default function CutPage() {
       >
         {busy ? (
           <div className="flex-none px-4 pt-2 text-center text-[11px] leading-relaxed text-slate-400">
-            合成中——这里的改动不会进这一炉
+            <Trans>合成中——这里的改动不会进这一炉</Trans>
           </div>
         ) : null}
         {/* 见 presetAudioDrift 的 ★★：合并之前说，此刻改还来得及 */}
         {!busy && presetAudioDrift ? (
           <div className="mx-4 mt-2 flex-none rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-100">
-            你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。
+            <Trans>你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。</Trans>
           </div>
         ) : null}
         <div data-guide="cut-tabs" className="flex flex-none items-center justify-center gap-7 px-4 pt-3">
-          {TABS.map((t) => (
+          {TABS.map((tb) => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              key={tb.id}
+              onClick={() => setTab(tb.id)}
               className={`relative pb-1.5 text-sm ${
-                tab === t.id ? "border-b-2 border-brand font-bold text-white" : "text-slate-400"
+                tab === tb.id ? "border-b-2 border-brand font-bold text-white" : "text-slate-400"
               }`}
             >
-              {t.label}
-              {t.badge != null && (
+              {tb.label}
+              {tb.badge != null && (
                 <span className="absolute -right-3.5 -top-0.5 rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
-                  {t.badge}
+                  {tb.badge}
                 </span>
               )}
             </button>
@@ -1280,8 +1294,8 @@ export default function CutPage() {
           {tab === "cut" && (
             <>
               <div className="mb-1.5 flex items-center justify-between text-[10px] text-slate-500">
-                <span>{view.length} 个片段 · 共 {formatDuration(total)}</span>
-                <span>拖拽换序 · 点击选中</span>
+                <span><Trans>{view.length} 个片段 · 共 {formatDuration(total)}</Trans></span>
+                <span><Trans>拖拽换序 · 点击选中</Trans></span>
               </div>
               <div data-guide="cut-timeline" className="flex gap-1 no-scrollbar overflow-x-auto rounded-xl bg-black/40 p-1.5">
                 {view.map((c, i) => {
@@ -1330,7 +1344,7 @@ export default function CutPage() {
                         <div className="h-14 w-full bg-ink/60" />
                       )}
                       <span className="absolute left-1 top-0.5 rounded bg-black/65 px-1 text-[9px] text-slate-200">
-                        段{c.segIndex + 1} · {clipDur(c).toFixed(1)}s
+                        <Trans>段{c.segIndex + 1} · {clipDur(c).toFixed(1)}s</Trans>
                         {/* ★ 裁过要看得出来：否则"这段怎么短了"只能靠回忆，而裁剪是可还原的 */}
                         {(c.start > 0.01 || c.end < lenOf(c.segIndex) - 0.01) && <span className="ml-0.5">✂</span>}
                       </span>
@@ -1349,28 +1363,28 @@ export default function CutPage() {
                   disabled={!sel}
                   className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
                 >
-                  ✂️ 播放头处分割
+                  <Trans>✂️ 播放头处分割</Trans>
                 </button>
                 <button
                   onClick={() => sel && moveClip(sel, -1)}
                   disabled={!sel}
                   className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
                 >
-                  ◀ 前移
+                  <Trans>◀ 前移</Trans>
                 </button>
                 <button
                   onClick={() => sel && moveClip(sel, 1)}
                   disabled={!sel}
                   className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
                 >
-                  后移 ▶
+                  <Trans>后移 ▶</Trans>
                 </button>
                 <button
                   onClick={() => sel && removeClip(sel)}
                   disabled={!sel || view.length <= 1}
                   className="rounded-full bg-rose-500/15 px-2.5 py-1.5 text-[11px] text-rose-300 disabled:opacity-40"
                 >
-                  🗑 删除片段
+                  <Trans>🗑 删除片段</Trans>
                 </button>
               </div>
               {/* 裁头裁尾。★★ 补它是因为 `Clip.start/end` 一直支持裁剪、UI 上却只有分割，
@@ -1383,35 +1397,35 @@ export default function CutPage() {
                   disabled={!sel}
                   className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
                 >
-                  ⇤ 从这里开始
+                  <Trans>⇤ 从这里开始</Trans>
                 </button>
                 <button
                   onClick={() => trimTo("end")}
                   disabled={!sel}
                   className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
                 >
-                  到这里结束 ⇥
+                  <Trans>到这里结束 ⇥</Trans>
                 </button>
                 {/* 只在**真裁过**时才出现：没裁过的时候它是一颗永远没反应的键 */}
                 {(() => {
-                  const t = view.find((c) => c.id === sel);
-                  const seg = t && segs[t.segIndex];
+                  const tc = view.find((c) => c.id === sel);
+                  const seg = tc && segs[tc.segIndex];
                   // ★ 「分割出来的」不算"裁过"：两半的 start/end 天然不等于整段，
                   //   照这个表达式判会把分割也标成裁剪、并摆出一颗按下去必被拒的「还原整段」。
-                  const hasSibling = !!t && view.some((c) => c.id !== t.id && c.segIndex === t.segIndex);
+                  const hasSibling = !!tc && view.some((c) => c.id !== tc.id && c.segIndex === tc.segIndex);
                   const trimmed =
-                    !!t && !!seg && !hasSibling && (t.start > 0.01 || t.end < lenOf(t.segIndex) - 0.01);
+                    !!tc && !!seg && !hasSibling && (tc.start > 0.01 || tc.end < lenOf(tc.segIndex) - 0.01);
                   return trimmed ? (
                     <button
                       onClick={resetTrim}
                       className="rounded-full border border-slate-600 px-2.5 py-1.5 text-[11px] text-slate-300"
                     >
-                      还原整段
+                      <Trans>还原整段</Trans>
                     </button>
                   ) : null;
                 })()}
               </div>
-              {!sel && <p className="mt-1.5 text-[10px] text-slate-500">先点上面的片段选中，再用这排按钮</p>}
+              {!sel && <p className="mt-1.5 text-[10px] text-slate-500"><Trans>先点上面的片段选中，再用这排按钮</Trans></p>}
             </>
           )}
 
@@ -1422,11 +1436,11 @@ export default function CutPage() {
                 disabled={!!busy}
                 className="w-full rounded-xl bg-slate-700/70 py-2.5 text-sm font-semibold text-slate-100 disabled:opacity-40"
               >
-                ⭕ 圈选当前这一帧
+                <Trans>⭕ 圈选当前这一帧</Trans>
               </button>
               {/* 一句精华，展开讲在引导（tours 的 cut）里 */}
               <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-                可跨帧跨段圈多处，最后一次性重新生成——那一步才计费。
+                <Trans>可跨帧跨段圈多处，最后一次性重新生成——那一步才计费。</Trans>
               </p>
               {anns.length > 0 && (
                 <>
@@ -1441,7 +1455,7 @@ export default function CutPage() {
                       >
                         <img src={a.frame} alt="" className="h-16 w-full object-cover" />
                         <div className="truncate px-1.5 py-1 text-[10px] text-slate-300" title={a.req}>
-                          {live ? `段${a.segIndex + 1}` : "段已删"} · {a.req}
+                          {live ? t`段${a.segIndex + 1}` : t`段已删`} · {a.req}
                         </div>
                         <button
                           onClick={() => setAnns((l) => l.filter((x) => x.id !== a.id))}
@@ -1461,11 +1475,11 @@ export default function CutPage() {
                     disabled={!!busy || liveAnns.length === 0}
                     className="mt-2 w-full rounded-xl bg-cyan-500/85 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                   >
-                    ✨ 按 {liveAnns.length} 处圈选重新生成（{annBySeg.size} 段 · {fmtTokens(annCost)}）
+                    <Trans>✨ 按 {liveAnns.length} 处圈选重新生成（{annBySeg.size} 段 · {fmtTokens(annCost)}）</Trans>
                   </button>
                   {liveAnns.length < anns.length && (
                     <p className="mt-1 text-center text-[10px] text-slate-500">
-                      另有 {anns.length - liveAnns.length} 处落在已删掉的段上，不计费也不会重拍
+                      <Trans>另有 {anns.length - liveAnns.length} 处落在已删掉的段上，不计费也不会重拍</Trans>
                     </p>
                   )}
                 </>
@@ -1477,7 +1491,7 @@ export default function CutPage() {
             (audio ? (
               <div className="flex items-center gap-2.5 rounded-xl bg-black/40 px-3 py-2.5">
                 <span className="min-w-0 flex-1 truncate text-xs text-slate-200">🎵 {audio.name}</span>
-                <span className="flex-none text-[10px] text-slate-500">音量</span>
+                <span className="flex-none text-[10px] text-slate-500"><Trans>音量</Trans></span>
                 <input
                   type="range"
                   min={0}
@@ -1501,14 +1515,14 @@ export default function CutPage() {
               <>
                 {audioHint ? (
                   <button
-                    onClick={() => setAudio({ name: "原视频音轨", url: audioHint, volume: 1 })}
+                    onClick={() => setAudio({ name: t`原视频音轨`, url: audioHint, volume: 1 })}
                     className="mb-2 w-full rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-100"
                   >
-                    🔊 用模板原声
+                    <Trans>🔊 用模板原声</Trans>
                   </button>
                 ) : null}
                 <label className="flex cursor-pointer items-center justify-center rounded-xl border border-dashed border-slate-600 py-3 text-xs text-slate-400 hover:border-brand">
-                  ＋ 添加本地音频作为 BGM
+                  <Trans>＋ 添加本地音频作为 BGM</Trans>
                   <input
                     type="file"
                     accept="audio/*"
@@ -1522,7 +1536,7 @@ export default function CutPage() {
                 </label>
                 {/* 「AI 画面本身没声音」挪进了引导第一步——这里留操作性的那一句就够 */}
                 <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-                  合并时混进成片，短于成片会自动循环。
+                  <Trans>合并时混进成片，短于成片会自动循环。</Trans>
                 </p>
               </>
             ))}
@@ -1532,7 +1546,7 @@ export default function CutPage() {
       {annOpen && (
         <FrameAnnotator
           frame={annOpen.frame}
-          hint="先存起来，圈完所有要改的地方再一次性重新生成"
+          hint={t`先存起来，圈完所有要改的地方再一次性重新生成`}
           onClose={() => setAnnOpen(null)}
           onSave={(frame, req) => {
             setAnns((l) => [...l, { id: uid("ann"), segIndex: annOpen.segIndex, atSec: annOpen.atSec, frame, req }]);

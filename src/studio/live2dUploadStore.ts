@@ -36,6 +36,8 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
 import { currentRoute, startJob } from "../data/jobs";
 import { companionBus } from "../companion/bus";
 import { setPreviewMapping, type CompanionMapping } from "../live2d/mapping";
@@ -56,14 +58,15 @@ import {
 /** 向导六步（设计文档 §3.5）+ 成功页 */
 export type Live2dStep = "pick" | "preview" | "inspect" | "mapping" | "verify" | "publish" | "done";
 export const LIVE2D_STEPS: Live2dStep[] = ["pick", "preview", "inspect", "mapping", "verify", "publish"];
-export const LIVE2D_STEP_LABEL: Record<Live2dStep, string> = {
-  pick: "选文件",
-  preview: "本地预览",
-  inspect: "自动识别",
-  mapping: "对映射",
-  verify: "试跑",
-  publish: "发布",
-  done: "完成",
+/** 步骤名是描述符（模块顶层不翻），页面画步骤条时再 t() */
+export const LIVE2D_STEP_LABEL: Record<Live2dStep, MessageDescriptor> = {
+  pick: msg({ message: "选文件", context: "Live2D 上传向导的步骤名：选一个 zip 模型包" }),
+  preview: msg`本地预览`,
+  inspect: msg`自动识别`,
+  mapping: msg`对映射`,
+  verify: msg`试跑`,
+  publish: msg`发布`,
+  done: msg`完成`,
 };
 
 /** 预览到底画出来没有。★ 四档分开（坑表「把 N 种结局压成两档」）：没开始 / 在加载 / 画出来了 / 画不出来 */
@@ -324,14 +327,14 @@ export async function pickBundle(file: File): Promise<void> {
     mounted: get().mounted,
     file,
     busy: "read",
-    progress: "正在解开压缩包…",
+    progress: t`正在解开压缩包…`,
     step: "pick",
   });
   let check: BundleCheck;
   try {
     check = await readLive2dBundle(file, MAX_LIVE2D_BUNDLE_BYTES);
   } catch (e) {
-    set({ busy: "", progress: "", readErr: e instanceof Error ? e.message : "这个文件读不了。" });
+    set({ busy: "", progress: "", readErr: e instanceof Error ? e.message : t`这个文件读不了。` });
     return;
   }
   const entry = check.entries[0] || "";
@@ -359,7 +362,7 @@ export async function buildPreview(entry: string): Promise<void> {
     set({ ...wipe, entry, preview: null, previewUrl: "", previewHealed: false, previewState: "failed", previewErr: detail.issues[0], step: "preview" });
     return;
   }
-  set({ ...wipe, busy: "preview", progress: "正在准备预览…", entry, previewState: "loading", previewErr: "", previewHealed: false, step: "preview" });
+  set({ ...wipe, busy: "preview", progress: t`正在准备预览…`, entry, previewState: "loading", previewErr: "", previewHealed: false, step: "preview" });
   try {
     dropPreview();
     const preview = await createBundlePreview(s.check, entry);
@@ -379,7 +382,7 @@ export async function buildPreview(entry: string): Promise<void> {
       busy: "",
       progress: "",
       previewState: "failed",
-      previewErr: e instanceof Error ? e.message : "预览准备失败。",
+      previewErr: e instanceof Error ? e.message : t`预览准备失败。`,
     });
   }
 }
@@ -416,7 +419,7 @@ export function markPreviewLoaded(ok: boolean, reason = ""): void {
     rebuildPreviewUrl(true);
     return;
   }
-  set({ previewState: "failed", previewErr: reason || "这个包在手机上画不出来。" });
+  set({ previewState: "failed", previewErr: reason || t`这个包在手机上画不出来。` });
 }
 
 // ── ③ 自动识别（上传 + inspect） ──────────────────────────────────────
@@ -443,9 +446,11 @@ export async function startBundleInspect(): Promise<void> {
   if (!s.file || !s.entry || live2dDraftBusy(s)) return;
   const file = s.file;
   const entry = s.entry;
+  const mb = (file.size / 1024 / 1024).toFixed(1);
+  const uploadPct = (n: number) => t`正在上传模型包 ${n}%`;
   const controller = new AbortController();
   inspectAbort = controller;
-  const job = startJob({ kind: "live2d-inspect", title: "识别模型包", page: currentRoute(), progress: "准备上传…" });
+  const job = startJob({ kind: "live2d-inspect", title: t`识别模型包`, page: currentRoute(), progress: t`准备上传…` });
   const step = (text: string) => {
     set({ progress: text });
     job.update(text);
@@ -461,12 +466,12 @@ export async function startBundleInspect(): Promise<void> {
     let bundleRef = s.bundleRef;
     let directOn = s.directOn;
     if (bundleRef) {
-      step("这份包上次已经传上去了，直接让服务器再看一遍…");
+      step(t`这份包上次已经传上去了，直接让服务器再看一遍…`);
     } else {
-      step("正在上传模型包 0%");
+      step(uploadPct(0));
       const direct = await uploadLive2dBundle(
         file,
-        (frac) => step(`正在上传模型包 ${Math.round(frac * 100)}%`),
+        (frac) => step(uploadPct(Math.round(frac * 100))),
         controller.signal,
       );
       if (direct) {
@@ -475,14 +480,14 @@ export async function startBundleInspect(): Promise<void> {
       } else {
         // ★ null = 这台服务器还没有 `/bundle/sign`（ideahub-server#60 未合并），或者它没配 Cloudinary（503）。
         //   退回 multipart 直传，并把"现在走的是慢的那条"说出来 —— 不说的话大包超时的人只会以为是自己网不好
-        step(`这台服务器还没开直传，改走慢的那条（约 ${(file.size / 1024 / 1024).toFixed(1)}MB，超过 15MB 可能会超时）…`);
+        step(t`这台服务器还没开直传，改走慢的那条（约 ${mb}MB，超过 15MB 可能会超时）…`);
       }
     }
     set({ bundleRef, directOn, busy: "inspect" });
     // ★ 两条路这一步做的事完全不同，别用同一句话糊过去：直传那条只是让服务器去 Cloudinary 取包（秒级），
     //   multipart 那条是**现在才开始把 25MB 推上去**（分钟级）—— 说成"正在解包识别"的话，
     //   用户会以为卡住了，然后退出去重来（又是一次几分钟）。
-    step(directOn ? "服务器正在解包识别…" : `正在上传并识别（约 ${(file.size / 1024 / 1024).toFixed(1)}MB，走的是慢的那条）…`);
+    step(directOn ? t`服务器正在解包识别…` : t`正在上传并识别（约 ${mb}MB，走的是慢的那条）…`);
     // ★ signal 也要给这一步：multipart 那条路**整个 25MB 是在这里才推上去的**（上面那段只是发现没直传票），
     //   不给的话「取消上传」在最需要它的那条路上按了没反应（fetch 照跑到 180 秒超时）。
     const result = await inspectLive2dBundle(bundleRef ? { bundleRef, entry } : { file, entry }, controller.signal);
@@ -504,14 +509,14 @@ export async function startBundleInspect(): Promise<void> {
     //   （动作 / 表情 / 触摸的改动不用重载，那三样是现读的，见 publishPreviewMapping 的 ★★。）
     reloadPreview();
     if (get().mounted) job.done({ silent: true });
-    else job.done({ msg: "模型包识别好了，回去接着填。", route: "/support/models/new" });
+    else job.done({ msg: t`模型包识别好了，回去接着填。`, route: "/support/models/new" });
   } catch (e) {
     // ★ 「用户自己点了取消」不是失败：说成失败会让人以为传坏了、再传一次（又是几分钟）
     const aborted = e instanceof DOMException && e.name === "AbortError";
-    const text = aborted ? "已取消上传。要发布的话重新点一次「开始识别」。" : companionErrorText(e, "识别失败了，再试一次。");
+    const text = aborted ? t`已取消上传。要发布的话重新点一次「开始识别」。` : companionErrorText(e, t`识别失败了，再试一次。`);
     set({ busy: "", progress: "", inspectErr: text });
     if (get().mounted || aborted) job.done({ silent: true });
-    else job.fail(`模型包识别失败：${text}`, "/support/models/new");
+    else job.fail(t`模型包识别失败：${text}`, "/support/models/new");
   } finally {
     if (inspectAbort === controller) inspectAbort = null;
   }
@@ -547,15 +552,17 @@ export async function uploadCover(blob: Blob, filename: string): Promise<void> {
   // ★ 本地先判一次（同仓 cardViews / publishAssets 两处调用方早就这么写了）：一张 10MB 的手机原图
   //   白传 60 秒才被服务端拒，而这个数（`MAX_IMAGE_BYTES`）与服务端 middleware/upload.js 是镜像的。
   if (blob.size > MAX_IMAGE_BYTES) {
-    set({ coverBusy: "", coverErr: `这张图太大了（${(blob.size / 1024 / 1024).toFixed(1)}MB，上限 ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)}MB），换一张小一点的。` });
+    const mb = (blob.size / 1024 / 1024).toFixed(1);
+    const cap = Math.round(MAX_IMAGE_BYTES / 1024 / 1024);
+    set({ coverBusy: "", coverErr: t`这张图太大了（${mb}MB，上限 ${cap}MB），换一张小一点的。` });
     return;
   }
-  set({ coverBusy: "正在上传封面…", coverErr: "" });
+  set({ coverBusy: t`正在上传封面…`, coverErr: "" });
   try {
     const url = await uploadImage(blob, filename);
     set({ coverUrl: url, coverBusy: "" });
   } catch (e) {
-    set({ coverBusy: "", coverErr: companionErrorText(e, "封面没传上去，换一张再试。") });
+    set({ coverBusy: "", coverErr: companionErrorText(e, t`封面没传上去，换一张再试。`) });
   }
 }
 
@@ -568,19 +575,19 @@ export async function submitLive2dModel(): Promise<void> {
   const s = get();
   if (live2dDraftBusy(s)) return;
   if (!s.file) {
-    set({ publishErr: "文件不在了，请重新选一次模型包。" });
+    set({ publishErr: t`文件不在了，请重新选一次模型包。` });
     return;
   }
   if (!s.name.trim()) {
-    set({ publishErr: "先给它起个名字。" });
+    set({ publishErr: t`先给它起个名字。` });
     return;
   }
   if (!s.selfMade) {
-    set({ publishErr: "请先勾上授权声明再发布。" });
+    set({ publishErr: t`请先勾上授权声明再发布。` });
     return;
   }
-  const job = startJob({ kind: "live2d-publish", title: "发布模型", page: currentRoute(), progress: "正在发布…" });
-  set({ busy: "publish", publishErr: "", progress: s.bundleRef ? "正在发布…" : "正在上传并发布（这条路要把包传过我们的服务器，大包会慢）…" });
+  const job = startJob({ kind: "live2d-publish", title: t`发布模型`, page: currentRoute(), progress: t`正在发布…` });
+  set({ busy: "publish", publishErr: "", progress: s.bundleRef ? t`正在发布…` : t`正在上传并发布（这条路要把包传过我们的服务器，大包会慢）…` });
   try {
     const result = await createLive2dModel({
       name: s.name.trim(),
@@ -597,15 +604,15 @@ export async function submitLive2dModel(): Promise<void> {
     });
     set({ created: result.model, step: "done", busy: "", progress: "" });
     if (get().mounted) job.done({ silent: true });
-    else job.done({ msg: `「${result.model.name}」已经发布好了。`, route: "/support/models" });
+    else job.done({ msg: t`「${result.model.name}」已经发布好了。`, route: "/support/models" });
   } catch (e) {
     const status = e instanceof ApiError ? e.status : 0;
     const timedOut = e instanceof ApiError && e.code === "TIMEOUT";
     // ★ 这条路上「超时」不等于「失败」：字节和落库都在服务端那边，我们只是不等了 —— 模型很可能已经建好了。
     //   沿用通用的那句「请求超时了，检查网络后再试一次」会让人再发一遍，市场里就是两条同名模型。
     let text = timedOut
-      ? "等太久没等到服务器回话。这一发可能已经建好了 —— 先去「我的」里看一眼，没有再回来重发。"
-      : companionErrorText(e, "发布失败了，再试一次。");
+      ? t`等太久没等到服务器回话。这一发可能已经建好了 —— 先去「我的」里看一眼，没有再回来重发。`
+      : companionErrorText(e, t`发布失败了，再试一次。`);
     // ★★ 失败之后那份**直传资产多半已经不在了**（2026-09-07 补）：服务端 `createModel` 的 finally
     //   无论成败都 `destroyDirectBundle(bundleRef)`。留着这个 ref 会让草稿变成死局 —— 再点一次发布
     //   还是走 bundleRef 那一支，服务端 `downloadDirectBundle` 拿到 404、回一句
@@ -616,10 +623,10 @@ export async function submitLive2dModel(): Promise<void> {
     //   等几秒重试就是秒过；这时候清掉等于白白逼人重传一次 25MB。
     const refGone = !!s.bundleRef && status !== 429 && status !== 401;
     if (refGone) {
-      text += " 传上去的那份包服务器已经回收了，再点一次发布会把包重新传一遍（这条路慢一些）。";
+      text += t` 传上去的那份包服务器已经回收了，再点一次发布会把包重新传一遍（这条路慢一些）。`;
     }
     set({ busy: "", progress: "", publishErr: text, ...(refGone ? { bundleRef: "", directOn: false } : {}) });
     if (get().mounted) job.done({ silent: true });
-    else job.fail(`模型发布失败：${text}`, "/support/models/new");
+    else job.fail(t`模型发布失败：${text}`, "/support/models/new");
   }
 }

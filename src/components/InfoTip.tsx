@@ -6,10 +6,12 @@
 //   （DiscardFlowDialog 那类弹层）——那三类收进 ⓘ 就是把承重墙改成暗门。
 // ★ portal 到 body（CLAUDE.md「fixed inset-0 却只铺满一小块」那条：画布世界层带
 //   transform，会给 fixed 后代造包含块）；点任意处关闭；stopPropagation 隔开画布手势。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 export default function InfoTip({ title, children }: { title?: string; children: ReactNode }) {
+  const { t } = useLingui();
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -20,7 +22,7 @@ export default function InfoTip({ title, children }: { title?: string; children:
           setOpen(true);
         }}
         className="inline-flex h-4 w-4 flex-none items-center justify-center rounded-full border border-slate-600 text-[9px] leading-none text-slate-500 align-middle"
-        aria-label="说明"
+        aria-label={t`说明`}
       >
         ⓘ
       </button>
@@ -45,7 +47,7 @@ export default function InfoTip({ title, children }: { title?: string; children:
                 onClick={() => setOpen(false)}
                 className="mt-3 w-full rounded-full border border-slate-600 py-1.5 text-[11px] text-slate-300"
               >
-                知道了
+                <Trans>知道了</Trans>
               </button>
             </div>
           </div>,

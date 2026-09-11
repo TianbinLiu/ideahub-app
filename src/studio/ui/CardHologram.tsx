@@ -79,7 +79,7 @@ export function useHologramModel(raw: string | undefined | null): HologramModel 
  *   当初这条被写成"加密管线的端到端示例"，示例价值不值得拿版权去换；
  *   要留示例，用一个自有模型走同一条 .glbx 路径即可。
  */
-export const CARD_MODELS: Record<string, string> = {
+/* i18n-frozen: 键是市场种子卡的卡名，拿来查 3D 模型，不上屏 */ export const CARD_MODELS: Record<string, string> = {
   "剑修·白无衣": "/models/cards/baiwuyi-opt.glb",
   "废土信使小满": "/models/cards/xiaoman-opt.glb",
   "AI 管家 T-7": "/models/cards/t7-opt.glb",

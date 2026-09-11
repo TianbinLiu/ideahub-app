@@ -7,6 +7,7 @@
 //
 // 尺寸不写死：TarotCard 自身是 `aspect-[2/3] w-full`，高度由它撑出来，
 // 卡背用 absolute inset-0 贴合父盒即可。调用方只管给宽度（栅格列宽/固定宽/百分比高）。
+import { useLingui } from "@lingui/react/macro";
 import TarotCard from "./TarotCard";
 
 export default function DeckCard({
@@ -25,15 +26,16 @@ export default function DeckCard({
   /** 右上角角标文案（缺省时 active 显示「★ 当前」） */
   badge?: string;
 }) {
+  const { t } = useLingui();
   return (
     <div className="relative">
       {/* 叠牌暗示：身后两张错位的"卡背"边 */}
       <div className="absolute inset-0 translate-x-1.5 translate-y-1 rotate-[2.5deg] rounded-xl border border-amber-700/40 bg-[#101a33]" />
       <div className="absolute inset-0 translate-x-0.5 translate-y-0.5 rotate-[1deg] rounded-xl border border-amber-700/50 bg-[#0e1730]" />
-      <TarotCard cover={cover} title={name} sub={`${count} 张`} active={active} />
+      <TarotCard cover={cover} title={name} sub={t`${count} 张`} active={active} />
       {(badge || active) && (
         <span className="absolute right-1 top-1 rounded-full bg-gold/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
-          {badge ?? "★ 当前"}
+          {badge ?? t`★ 当前`}
         </span>
       )}
     </div>

@@ -16,6 +16,7 @@
 // AI 画"的出口，否则用户上传错一张就再也回不到 AI 自拟。
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { TAROT_FRAME_URL } from "../../components/TarotCard";
 
 /** 一轮 = 停留 + 渐变。停留 2.6s 是量出来的：再短像闪烁，再长会让人以为是张静态图 */
@@ -32,8 +33,8 @@ export function useFrameCycle(enabled: boolean): boolean {
       setShowLast(false);
       return;
     }
-    const t = setInterval(() => setShowLast((v) => !v), HOLD_MS + FADE_MS);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setShowLast((v) => !v), HOLD_MS + FADE_MS);
+    return () => clearInterval(timer);
   }, [enabled]);
   return showLast;
 }
@@ -53,13 +54,14 @@ export function CardFace({
   /** 给调用方定框形用（画幅不同，卡的比例也不同——见 PlanBoard.frameAspect） */
   style?: CSSProperties;
 }) {
+  const { t } = useLingui();
   const both = !!first && !!last;
   return (
     <div className={`relative overflow-hidden ${className}`} style={style}>
       {first && (
         <img
           src={first}
-          alt="开头帧"
+          alt={t`开头帧`}
           className="absolute inset-0 h-full w-full object-cover transition-opacity ease-in-out"
           style={{ opacity: both && showLast ? 0 : 1, transitionDuration: `${FADE_MS}ms` }}
         />
@@ -67,7 +69,7 @@ export function CardFace({
       {last && (
         <img
           src={last}
-          alt="尾帧"
+          alt={t`尾帧`}
           className="absolute inset-0 h-full w-full object-cover transition-opacity ease-in-out"
           style={{ opacity: both ? (showLast ? 1 : 0) : 1, transitionDuration: `${FADE_MS}ms` }}
         />
@@ -97,6 +99,7 @@ export default function FrameCard({
   aspectRatio = "2 / 3",
   framed,
   framedTitle,
+  emptyNote,
 }: {
   firstFrame: string | null;
   lastFrame: string | null;
@@ -119,8 +122,12 @@ export default function FrameCard({
   framed?: boolean;
   /** 装裱态底部题名条上的字（缺省用状态角标那套词） */
   framedTitle?: string;
+  /** 两帧都没有时那句话。缺省按「还没推演」说；方案台上推演过、只是帧没画出来的那一套传「没画出来」——
+   *  否则一张推演过的方案卡角上写着「待推演」，与旁边那条提示自相矛盾 */
+  emptyNote?: string;
 }) {
   const [zoom, setZoom] = useState(false);
+  const { t } = useLingui();
   const complete = !!firstFrame && !!lastFrame;
   const showLast = useFrameCycle(complete);
   // 放大态里独立跑一轮，别和小卡共用——放大是为了看清，节奏该一样但互不打断
@@ -145,13 +152,13 @@ export default function FrameCard({
         onClick={() => setZoom(true)}
         className={`group relative w-full overflow-hidden border-2 ${framed ? "rounded-[6%]" : "rounded-xl"} ${border} bg-slate-800/40 transition active:scale-[.98]`}
         style={{ aspectRatio }}
-        title={onPickLastFile ? "点开看大图 / 换首尾帧" : "点开看大图 / 换开头帧"}
+        title={onPickLastFile ? t`点开看大图 / 换首尾帧` : t`点开看大图 / 换开头帧`}
       >
         {firstFrame || lastFrame ? (
           <CardFace first={firstFrame} last={lastFrame} showLast={showLast} className="absolute inset-0" />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-[10px] text-slate-500">
-            AI 自拟首尾帧
+            {emptyNote ?? t`AI 自拟首尾帧`}
           </div>
         )}
         {/* 装裱：塔罗细边框（框图内部纯黑，screen 混合下黑=透明，只有金线发光）——
@@ -167,14 +174,14 @@ export default function FrameCard({
         )}
         {/* 角标：这张卡现在是什么状态 */}
         <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] text-cyan-200">
-          {complete ? "首尾帧" : firstFrame ? "开头帧" : "待推演"}
+          {complete ? t`首尾帧` : firstFrame ? t`开头帧` : (emptyNote ?? t`待推演`)}
         </span>
         <span
           className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-1.5 pb-1 leading-tight text-slate-300 ${
             framed ? "pt-4 text-center text-[10px] font-semibold text-slate-100" : "pt-3 text-[9px]"
           }`}
         >
-          {framed ? (framedTitle ?? (complete ? "首尾帧" : "本段画面")) : complete ? "首尾帧轮播 · 点开换图" : originNote}
+          {framed ? (framedTitle ?? (complete ? t`首尾帧` : t`本段画面`)) : complete ? t`首尾帧轮播 · 点开换图` : originNote}
         </span>
       </button>
       {caption !== null && (
@@ -182,7 +189,7 @@ export default function FrameCard({
           {/* ★ 默认句必须在**两种档位下都成立**：承接的硬度随档位变（segmentGen.carryIsHard），
               而本组件是纯 props 件、不认 store —— 所以这里不说"无缝"，把带档位的说法留给
               宿主用 caption 传（backlog §2.11.3⑤）。 */}
-          {caption ?? (complete ? "视频将在这两帧之间生成" : "尾帧由所选方案决定；视频从开头帧往下拍")}
+          {caption ?? (complete ? t`视频将在这两帧之间生成` : t`尾帧由所选方案决定；视频从开头帧往下拍`)}
         </div>
       )}
 
@@ -214,17 +221,17 @@ export default function FrameCard({
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-xs text-slate-500">
-                  还没有画面——AI 会在推演时自拟首尾帧
+                  {emptyNote ? t`${emptyNote}——出片前会先补画要用到的帧` : t`还没有画面——AI 会在推演时自拟首尾帧`}
                 </div>
               )}
               <span className="absolute left-2 top-2 rounded bg-black/65 px-2 py-0.5 text-[11px] text-cyan-200">
-                {complete ? "首尾帧轮播" : firstFrame ? "开头帧" : "待推演"}
+                {complete ? t`首尾帧轮播` : firstFrame ? t`开头帧` : (emptyNote ?? t`待推演`)}
               </span>
             </div>
 
               <div className="w-full space-y-2" style={{ maxWidth: "86vw" }}>
                 <div className="text-center text-[11px] text-slate-400">
-                  {complete ? "视频将在这两帧之间生成" : originNote}
+                  {complete ? t`视频将在这两帧之间生成` : originNote}
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -232,7 +239,7 @@ export default function FrameCard({
                     disabled={!canEdit}
                     className="flex-1 rounded-xl border border-slate-600 py-2.5 text-xs text-slate-200 hover:border-cyan-400 disabled:opacity-40"
                   >
-                    上传本地图作开头帧
+                    <Trans>上传本地图作开头帧</Trans>
                   </button>
                   {uploaded && (
                     <button
@@ -240,7 +247,7 @@ export default function FrameCard({
                       disabled={!canEdit}
                       className="rounded-xl border border-slate-600 px-3 py-2.5 text-xs text-slate-400 disabled:opacity-40"
                     >
-                      恢复
+                      <Trans>恢复</Trans>
                     </button>
                   )}
                 </div>
@@ -250,7 +257,7 @@ export default function FrameCard({
                     disabled={!canEdit}
                     className="w-full rounded-xl border border-slate-600 py-2.5 text-xs text-slate-200 hover:border-cyan-400 disabled:opacity-40"
                   >
-                    上传本地图作结束帧
+                    <Trans>上传本地图作结束帧</Trans>
                   </button>
                 )}
                 {/* 换过的帧被锁住（AI 重画方案时不动它）。要让 AI 重新画就得先把它清掉——
@@ -266,7 +273,7 @@ export default function FrameCard({
                           disabled={!canEdit}
                           className="flex-1 rounded-xl border border-slate-700 py-2 text-[11px] text-slate-400 hover:border-slate-500 disabled:opacity-40"
                         >
-                          清掉{w === "first" ? "开头" : "结束"}帧 · 交回 AI 画
+                          {w === "first" ? <Trans>清掉开头帧 · 交回 AI 画</Trans> : <Trans>清掉结束帧 · 交回 AI 画</Trans>}
                         </button>
                       ))}
                   </div>
@@ -275,7 +282,7 @@ export default function FrameCard({
                   onClick={() => setZoom(false)}
                   className="w-full rounded-xl bg-slate-700/70 py-2.5 text-xs text-slate-200"
                 >
-                  收起
+                  <Trans>收起</Trans>
                 </button>
               </div>
               <input

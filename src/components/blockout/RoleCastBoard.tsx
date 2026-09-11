@@ -44,6 +44,7 @@
 // ★ 只收 props、不认识任何 store（PlanBoard 同款约束）：可挂的卡由宿主给。
 import { useMemo, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { Trans, useLingui } from "@lingui/react/macro";
 import HelpButton from "../guide/HelpButton";
 import { useAutoGuide } from "../guide/useAutoGuide";
 // ★ 原样显示一个标记（`label`）只有 MarkBadge 一处实现：两种方案的排版不同（编号要
@@ -156,7 +157,7 @@ export default function RoleCastBoard({
   maxRefImages,
   busy,
   onDone,
-  doneLabel = "完成挂卡",
+  doneLabel,
   onCancel,
   extra,
 }: RoleCastBoardProps) {
@@ -165,6 +166,10 @@ export default function RoleCastBoard({
   //   也挂**有没有可挂的人物卡**（2026-08-28）：卡库空着时"上面那排卡"根本不渲染，
   //   引导反复指着它说话就是指空气——先去造卡，回来第一次真能挂时再弹。
   useAutoGuide("cast", roles.length > 0 && cards.length > 0);
+  const { t } = useLingui();
+  /** 底部主按钮的缺省文案。★ 从解构默认值挪到这里：默认参数里拿不到 useLingui 的 t */
+  const doneText = doneLabel ?? t`完成挂卡`;
+  const sep = t({ message: "、", comment: "列举几个名字时的分隔符" });
   /** 这个模板是不是序数方案（判据的唯一实现在 data/templates.markSpecOf，这里只取结论） */
   const ordinal = spec.scheme === "ordinal";
 
@@ -499,8 +504,10 @@ export default function RoleCastBoard({
       <div className="space-y-3">
         <VideoStage src={videoUrl} disabled={busy} />
         <p className="rounded-lg border border-slate-700 bg-panel/60 px-3 py-2 text-[11px] leading-relaxed text-slate-300">
-          这个白模模板没有登记角色位（它是更早版本做出来的）。它照样能用 —— 出片时会按
-          「把白模人偶换成你挂的角色」这条通用说法来，只是不能逐个指定谁是谁。
+          <Trans>
+            这个白模模板没有登记角色位（它是更早版本做出来的）。它照样能用 —— 出片时会按
+            「把白模人偶换成你挂的角色」这条通用说法来，只是不能逐个指定谁是谁。
+          </Trans>
         </p>
         {extra}
         {onDone && (
@@ -509,7 +516,7 @@ export default function RoleCastBoard({
             disabled={busy}
             className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
           >
-            {doneLabel}
+            {doneText}
           </button>
         )}
       </div>
@@ -540,7 +547,7 @@ export default function RoleCastBoard({
    */
   const personNameOf = (label: string | undefined) => {
     const at = label ? roles.findIndex((r) => r.label === label) : -1;
-    return at >= 0 ? `人物${at + 1}` : "这个位子";
+    return at >= 0 ? t`人物${at + 1}` : t`这个位子`;
   };
   /** 高亮哪个框：拖拽中压着的那个 / 正在二次确认的那个 / 选中格子对应的那个。
    *  ★ 拖拽期间**只听 drag**（哪怕它现在没压住任何位子）：写成 `drag?.over ?? ask?.slot`
@@ -580,10 +587,10 @@ export default function RoleCastBoard({
           <p className="flex items-center gap-2 px-1 text-[10px] text-slate-500">
             <span className="min-w-0 flex-1">
               {cards.length === 0
-                ? "素材库里还没有可挂的人物卡"
+                ? t`素材库里还没有可挂的人物卡`
                 : selected !== null
-                  ? `点一张卡，挂给「${personNameOf(castable[selected]?.label)}」`
-                  : "先点下面一个格子，再点一张卡；也可以直接把卡拖到格子上"}
+                  ? t`点一张卡，挂给「${personNameOf(castable[selected]?.label)}」`
+                  : t`先点下面一个格子，再点一张卡；也可以直接把卡拖到格子上`}
             </span>
             {/* ★★ 「取下」只在**选中的那一格已经挂着卡**时出现。没有它的话，挂错了
                 就再也拿不下来 —— 选卡浮层删掉之后这里是唯一的出口。 */}
@@ -595,7 +602,7 @@ export default function RoleCastBoard({
                 }}
                 className="flex-none rounded-full border border-slate-600 px-2 py-0.5 text-[10px] text-slate-300"
               >
-                取下
+                <Trans>取下</Trans>
               </button>
             )}
             {/* ★ 这一屏没有标题栏（它嵌在编辑页里），所以 ? 贴在这一行的右端 */}
@@ -651,8 +658,10 @@ export default function RoleCastBoard({
       {ask && (
         <div className="space-y-2 rounded-xl border border-gold/60 bg-gold/10 px-3 py-2.5">
           <p className="text-xs leading-relaxed text-slate-100">
-            把「<b className="font-bold">{ask.card.name}</b>」挂到{" "}
-            <b className="font-bold">{personNameOf(dropSlots[ask.slot])}</b> 身上？
+            <Trans>
+              把「<b className="font-bold">{ask.card.name}</b>」挂到{" "}
+              <b className="font-bold">{personNameOf(dropSlots[ask.slot])}</b> 身上？
+            </Trans>
           </p>
           <div className="flex items-start gap-2">
             <div className="h-16 w-[43px] flex-none overflow-hidden rounded-md border border-gold/70 bg-slate-800">
@@ -663,22 +672,22 @@ export default function RoleCastBoard({
               )}
             </div>
             <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-300">
-              这个位子原来是：
-              {castable.find((r) => r.label === dropSlots[ask.slot])?.desc || "（这个位子没有描述）"}
+              <Trans>这个位子原来是：</Trans>
+              {castable.find((r) => r.label === dropSlots[ask.slot])?.desc || t`（这个位子没有描述）`}
             </p>
           </div>
           <p className="text-[11px] leading-relaxed text-amber-200/90">
-            换错人<b className="font-bold">不会报错</b>，成片出来才看得见 —— 请对着画面上高亮的那个人偶确认。
+            <Trans>换错人<b className="font-bold">不会报错</b>，成片出来才看得见 —— 请对着画面上高亮的那个人偶确认。</Trans>
           </p>
           <div className="flex gap-2">
             <button
               onClick={() => confirmAsk(ask.card, ask.slot)}
               className="rounded-full bg-brand px-3 py-1 text-[11px] font-bold text-ink"
             >
-              就是他
+              <Trans>就是他</Trans>
             </button>
             <button onClick={() => setAsk(null)} className="rounded-full px-3 py-1 text-[11px] text-slate-300">
-              点错了
+              <Trans>点错了</Trans>
             </button>
           </div>
         </div>
@@ -689,8 +698,10 @@ export default function RoleCastBoard({
       {ambiguous && (
         <div className="space-y-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
           <p className="text-[11px] leading-relaxed text-amber-200">
-            这一下同时落在 {ambiguous.slots.length} 个人偶上（他们在画面上叠着）——
-            「{ambiguous.card.name}」要挂给哪一个？
+            <Trans>
+              这一下同时落在 {ambiguous.slots.length} 个人偶上（他们在画面上叠着）——
+              「{ambiguous.card.name}」要挂给哪一个？
+            </Trans>
           </p>
           <div className="flex flex-wrap gap-1.5">
             {ambiguous.slots.map((i) => (
@@ -709,7 +720,7 @@ export default function RoleCastBoard({
               onClick={() => setAmbiguous(null)}
               className="rounded-full px-2.5 py-1 text-[11px] text-slate-300"
             >
-              算了
+              <Trans>算了</Trans>
             </button>
           </div>
         </div>
@@ -780,14 +791,18 @@ export default function RoleCastBoard({
             "去人偶身上找记号"，只说标记本身长什么样 —— 一句过时的指路和一个坏功能没有区别。 */}
       {!dragOn && (
         <p className="rounded-lg border border-slate-700 bg-panel/60 px-3 py-2 text-[11px] leading-relaxed text-slate-300">
-          这个模板<b className="text-slate-200">没有画面位置数据</b>，所以画面
-          <b className="text-slate-200">点不了、也拖不上</b>：我们没有逐帧的人物位置，
-          点画面必然点错人，而换错人<b className="text-slate-200">不会报错</b>，
-          要等成片出来才看得见。
+          <Trans>
+            这个模板<b className="text-slate-200">没有画面位置数据</b>，所以画面
+            <b className="text-slate-200">点不了、也拖不上</b>：我们没有逐帧的人物位置，
+            点画面必然点错人，而换错人<b className="text-slate-200">不会报错</b>，
+            要等成片出来才看得见。
+          </Trans>
           <br />
-          用下面的格子行挂就行：先点一个格子，再点上面卡轨里的一张卡（也可以把卡直接拖到格子上）。
-          格子上那行小字是这个模板<b className="text-slate-200">原本的标记</b>（原样照抄、一个字没改）——
-          画面上不会有框亮起来，「人物几」只是排序，认人得靠它和下面「每个位子原来是谁」。
+          <Trans>
+            用下面的格子行挂就行：先点一个格子，再点上面卡轨里的一张卡（也可以把卡直接拖到格子上）。
+            格子上那行小字是这个模板<b className="text-slate-200">原本的标记</b>（原样照抄、一个字没改）——
+            画面上不会有框亮起来，「人物几」只是排序，认人得靠它和下面「每个位子原来是谁」。
+          </Trans>
         </p>
       )}
 
@@ -812,6 +827,7 @@ export default function RoleCastBoard({
               const card = value[r.label] ? byId.get(value[r.label]) : undefined;
               const missing = !!value[r.label] && !card;
               const lit = drag?.overCell === i;
+              const who = personNameOf(r.label);
               return (
                 <button
                   key={r.label}
@@ -834,9 +850,15 @@ export default function RoleCastBoard({
                             ? "border-gold/50 bg-black/20"
                             : "border-dashed border-slate-600 bg-black/20"
                   }`}
-                  aria-label={`${personNameOf(r.label)}${
-                    dragOn ? "" : `（标记：${r.label}）`
-                  }${card ? `（现在挂着 ${card.name}）` : "，还没挂卡"}`}
+                  aria-label={
+                    dragOn
+                      ? card
+                        ? t`${who}（现在挂着 ${card.name}）`
+                        : t`${who}，还没挂卡`
+                      : card
+                        ? t`${who}（标记：${r.label}）（现在挂着 ${card.name}）`
+                        : t`${who}（标记：${r.label}），还没挂卡`
+                  }
                 >
                   {/* ★★ 有位置数据时这里**不写序数措辞**（「从左数第3个」那种）：它只有在画面里
                       的人真是整齐一排时才成立，而实测真实素材会重叠、会切镜头、人数会变 ——
@@ -862,12 +884,12 @@ export default function RoleCastBoard({
                     {card?.cover ? (
                       <img src={card.cover} alt="" className="h-full w-full object-cover" draggable={false} />
                     ) : (
-                      <span className="text-[10px] leading-tight text-slate-400">{missing ? "？" : "挂卡"}</span>
+                      <span className="text-[10px] leading-tight text-slate-400">{missing ? "？" : t`挂卡`}</span>
                     )}
                   </span>
                   {/* 挂了谁 / 还空着。★ 空着也占同样高度：不占的话整行会随挂卡进度忽高忽低 */}
                   <span className={`block w-full truncate text-center text-[9px] ${card ? "text-slate-200" : "text-slate-500"}`}>
-                    {missing ? "卡已丢失" : (card?.name ?? "未挂")}
+                    {missing ? t`卡已丢失` : (card?.name ?? t`未挂`)}
                   </span>
                 </button>
               );
@@ -883,13 +905,13 @@ export default function RoleCastBoard({
       {dragOn && !onFrame && (
         <div className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
           <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-amber-200">
-            离开标记帧了，这里的落点会不准（画面上的人已经走动过）—— 回到第 {(boxAtSec ?? 0).toFixed(1)} 秒再拖。
+            <Trans>离开标记帧了，这里的落点会不准（画面上的人已经走动过）—— 回到第 {(boxAtSec ?? 0).toFixed(1)} 秒再拖。</Trans>
           </p>
           <button
             onClick={backToFrame}
             className="flex-none rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
           >
-            回到标记帧
+            <Trans>回到标记帧</Trans>
           </button>
         </div>
       )}
@@ -903,7 +925,7 @@ export default function RoleCastBoard({
       {castable.length > 0 && (
         <details className="rounded-lg border border-slate-700 bg-panel/40">
           <summary className="cursor-pointer list-none px-3 py-2 text-[11px] text-slate-400">
-            每个位子原来是谁（{castable.length} 个）
+            <Trans>每个位子原来是谁（{castable.length} 个）</Trans>
           </summary>
           <div className="px-2 pb-2">
       <div className="space-y-2">
@@ -915,11 +937,11 @@ export default function RoleCastBoard({
           return (
             <div
               key={r.label}
-              className={`flex items-start gap-2.5 rounded-xl border bg-panel/50 p-2.5 ${
+              className={
                 // ★ 刚从画面上挂完的那一行同步高亮：画面与列表两个视图必须当场对上，
                 //   否则用户不知道自己刚才动了哪一行
-                flash === r.label ? "border-gold" : "border-slate-700"
-              }`}
+                `flex items-start gap-2.5 rounded-xl border bg-panel/50 p-2.5 ${flash === r.label ? "border-gold" : "border-slate-700"}`
+              }
             >
               {/* ★ 与格子行同一个名字（同一个 personNameOf）。这一列是**只读的参考**：
                   挂卡只有格子行一条路，两个入口会让"我到底在哪儿挂的"变成一个问题 */}
@@ -930,8 +952,10 @@ export default function RoleCastBoard({
                 <p className="line-clamp-3 text-[11px] leading-relaxed text-slate-300">{r.desc}</p>
                 {missing && (
                   <p className="mt-1 text-[10px] leading-relaxed text-rose-300">
-                    这个位子挂着一张本机找不到的卡（可能已被删除或属于另一个账号）——请重新挂一张，
-                    或取下它。
+                    <Trans>
+                      这个位子挂着一张本机找不到的卡（可能已被删除或属于另一个账号）——请重新挂一张，
+                      或取下它。
+                    </Trans>
                   </p>
                 )}
                 {card && (
@@ -950,7 +974,7 @@ export default function RoleCastBoard({
                 {card?.cover ? (
                   <img src={card.cover} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  <span className="text-[10px] leading-tight text-slate-400">{missing ? "？" : "未挂"}</span>
+                  <span className="text-[10px] leading-tight text-slate-400">{missing ? "？" : t`未挂`}</span>
                 )}
               </div>
             </div>
@@ -968,10 +992,19 @@ export default function RoleCastBoard({
       {overflowRoles.length > 0 && (
         <div className="space-y-1.5 rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2">
           <p className="text-[11px] leading-relaxed text-slate-300">
-            这个模板认出了 {roles.length} 个人物，超过了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限。
-            下面这 {overflowRoles.length} 个<b className="text-slate-200">会保持人偶原样、挂不了卡</b>
-            （上限是 {BLOCKOUT_MAX_ROLES}，因为
-            {ordinal ? "再多的人挤在一起，从左数到第几个也数不准了" : "再多的编号在画面上也认不出来了"}）。
+            {ordinal ? (
+              <Trans>
+                这个模板认出了 {roles.length} 个人物，超过了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限。
+                下面这 {overflowRoles.length} 个<b className="text-slate-200">会保持人偶原样、挂不了卡</b>
+                （上限是 {BLOCKOUT_MAX_ROLES}，因为再多的人挤在一起，从左数到第几个也数不准了）。
+              </Trans>
+            ) : (
+              <Trans>
+                这个模板认出了 {roles.length} 个人物，超过了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限。
+                下面这 {overflowRoles.length} 个<b className="text-slate-200">会保持人偶原样、挂不了卡</b>
+                （上限是 {BLOCKOUT_MAX_ROLES}，因为再多的编号在画面上也认不出来了）。
+              </Trans>
+            )}
           </p>
           {overflowRoles.map((r) => (
             <div key={r.label} className="flex items-start gap-2 opacity-60">
@@ -993,22 +1026,33 @@ export default function RoleCastBoard({
           {/* 分类说准，别并列猜（见 strayOverCap/strayRemoved 的 ★★） */}
           {strayRemoved.length > 0 && (
             <p className="text-[11px] leading-relaxed text-amber-200">
-              {ordinal ? "「" : "编号 "}
-              {strayRemoved.join(ordinal ? "」「" : "、")}
-              {ordinal ? "」" : " "}上挂着的卡<b>不会生效</b>：模板作者在核对
-              {ordinal ? "位置" : "编号"}时<b>删掉了这个位子</b>（多半是因为
-              {ordinal ? "画面上那个人根本没被换成人偶" : "画面上根本找不到这个号"}）。那个人偶会保持原样出现。
+              {ordinal ? (
+                <Trans>
+                  「{strayRemoved.join("」「")}」上挂着的卡<b>不会生效</b>：模板作者在核对位置时<b>删掉了这个位子</b>
+                  （多半是因为画面上那个人根本没被换成人偶）。那个人偶会保持原样出现。
+                </Trans>
+              ) : (
+                <Trans>
+                  编号 {strayRemoved.join(sep)} 上挂着的卡<b>不会生效</b>：模板作者在核对编号时<b>删掉了这个位子</b>
+                  （多半是因为画面上根本找不到这个号）。那个人偶会保持原样出现。
+                </Trans>
+              )}
             </p>
           )}
           {strayOverCap.length > 0 && (
             <p className="text-[11px] leading-relaxed text-amber-200">
-              {ordinal ? "「" : "编号 "}
-              {strayOverCap.join(ordinal ? "」「" : "、")}
-              {ordinal ? "」" : " "}上挂着的卡<b>不会生效</b>：这些位子超出了一次能挂卡的{" "}
-              {BLOCKOUT_MAX_ROLES} 个上限。
+              {ordinal ? (
+                <Trans>
+                  「{strayOverCap.join("」「")}」上挂着的卡<b>不会生效</b>：这些位子超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限。
+                </Trans>
+              ) : (
+                <Trans>
+                  编号 {strayOverCap.join(sep)} 上挂着的卡<b>不会生效</b>：这些位子超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限。
+                </Trans>
+              )}
             </p>
           )}
-          <p className="text-[11px] leading-relaxed text-amber-200">出片前必须把它们取下。</p>
+          <p className="text-[11px] leading-relaxed text-amber-200"><Trans>出片前必须把它们取下。</Trans></p>
           <button
             onClick={() => {
               const next = { ...value };
@@ -1018,7 +1062,7 @@ export default function RoleCastBoard({
             disabled={busy}
             className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink disabled:opacity-40"
           >
-            取下这 {strayLabels.length} 张
+            <Trans>取下这 {strayLabels.length} 张</Trans>
           </button>
         </div>
       )}
@@ -1027,10 +1071,15 @@ export default function RoleCastBoard({
           ★ 只在到顶时说 —— 两三个角色位的模板上摆这句话是纯噪音 */}
       {overflowRoles.length === 0 && roles.length >= BLOCKOUT_MAX_ROLES && (
         <p className="rounded-lg border border-slate-700 bg-panel/60 px-3 py-2 text-[11px] leading-relaxed text-slate-300">
-          这个模板已经排到一次能挂卡的上限（{BLOCKOUT_MAX_ROLES} 个）。画面里如果还有别人，
-          {ordinal
-            ? "他们同样是白色人偶，但清单里没有他们的位置，挂不了卡 —— 人再多，从左数到第几个也数不准了。"
-            : "他们身上不会有编号，会保持白模人偶原样、也挂不了卡 —— 编号再多，画面上也认不出来。"}
+          {ordinal ? (
+            <Trans>
+              这个模板已经排到一次能挂卡的上限（{BLOCKOUT_MAX_ROLES} 个）。画面里如果还有别人，他们同样是白色人偶，但清单里没有他们的位置，挂不了卡 —— 人再多，从左数到第几个也数不准了。
+            </Trans>
+          ) : (
+            <Trans>
+              这个模板已经排到一次能挂卡的上限（{BLOCKOUT_MAX_ROLES} 个）。画面里如果还有别人，他们身上不会有编号，会保持白模人偶原样、也挂不了卡 —— 编号再多，画面上也认不出来。
+            </Trans>
+          )}
         </p>
       )}
 
@@ -1042,17 +1091,21 @@ export default function RoleCastBoard({
             说一半的谎比不说话更坏 —— 用户是照着这句话决定"挂不挂满"的。 */}
       {emptyCount > 0 && (
         <p className="rounded-lg border border-slate-700 bg-panel/60 px-3 py-2 text-[11px] leading-relaxed text-slate-300">
-          还有 {emptyCount} 个角色位没挂卡 —— <b>可以直接出片</b>，没挂的通常保持白色人偶的样子。
-          ⚠ 素材里<b>镜头切换多</b>时例外：实测 AI 可能拿已挂的卡把没挂的位子也换掉（同一个角色出现两份）。
-          要稳就把每个位子都挂上（同一张卡可以挂多个位子），或选一镜到底的素材。
+          <Trans>
+            还有 {emptyCount} 个角色位没挂卡 —— <b>可以直接出片</b>，没挂的通常保持白色人偶的样子。
+            ⚠ 素材里<b>镜头切换多</b>时例外：实测 AI 可能拿已挂的卡把没挂的位子也换掉（同一个角色出现两份）。
+            要稳就把每个位子都挂上（同一张卡可以挂多个位子），或选一镜到底的素材。
+          </Trans>
         </p>
       )}
 
       {maxRefImages != null && mountedLabels.length > maxRefImages && (
         <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
-          ⚠ 已挂 {mountedLabels.length} 张，超过一次出片能带的 {maxRefImages} 张参考图上限。
-          多出来的会在出片时按出片管线既有的规则被挤掉 —— 建议你自己减到 {maxRefImages} 张，
-          免得被挤掉的正好是最要紧的那张。
+          <Trans>
+            ⚠ 已挂 {mountedLabels.length} 张，超过一次出片能带的 {maxRefImages} 张参考图上限。
+            多出来的会在出片时按出片管线既有的规则被挤掉 —— 建议你自己减到 {maxRefImages} 张，
+            免得被挤掉的正好是最要紧的那张。
+          </Trans>
         </p>
       )}
 
@@ -1065,7 +1118,7 @@ export default function RoleCastBoard({
             disabled={busy}
             className="flex-none rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 disabled:opacity-40"
           >
-            取消
+            <Trans>取消</Trans>
           </button>
         )}
         {onDone && (
@@ -1074,7 +1127,7 @@ export default function RoleCastBoard({
             disabled={busy}
             className="min-w-0 flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
           >
-            {doneLabel}
+            {doneText}
           </button>
         )}
       </div>

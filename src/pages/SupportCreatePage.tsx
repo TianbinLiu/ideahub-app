@@ -10,6 +10,7 @@
  * ★ 登录墙由路由的 RequireAuth 管（三条 scope=mine 都要登录）。
  */
 import { useEffect, useState } from "react";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "react-router";
 import Icon, { type IconName } from "../components/Icon";
 import PageHeader from "../components/PageHeader";
@@ -46,7 +47,7 @@ function CreateCard({
         </div>
         <Icon name={icon} size={18} className="shrink-0 text-slate-600" />
       </div>
-      {count !== null && <div className="mt-2 text-[11px] text-slate-500">我的作品 {count}</div>}
+      {count !== null && <div className="mt-2 text-[11px] text-slate-500"><Trans>我的作品 {count}</Trans></div>}
       <button onClick={onGo} className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40">
         {cta}
       </button>
@@ -57,6 +58,7 @@ function CreateCard({
 export default function SupportCreatePage() {
   const navigate = useNavigate();
   const back = useBackOr("/support");
+  const { t } = useLingui();
   const [models, setModels] = useState<Count>(null);
   const [voices, setVoices] = useState<Count>(null);
   const [personas, setPersonas] = useState<Count>(null);
@@ -81,43 +83,43 @@ export default function SupportCreatePage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={back} title="创作中心" />
+      <PageHeader sticky inset onBack={back} title={t`创作中心`} />
       <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
-        自己做数字人的三样东西：长什么样、什么嗓子、怎么说话。做好的可以自己用，也可以公开到市场给别人用。
+        <Trans>自己做数字人的三样东西：长什么样、什么嗓子、怎么说话。做好的可以自己用，也可以公开到市场给别人用。</Trans>
       </p>
 
       <div className="space-y-3">
         <CreateCard
           icon="upload"
           emoji="🧍"
-          title="人物模型"
-          desc="上传自己的 Live2D 包（zip），对好动作、表情和触摸区，就能给数字人换上。"
+          title={t`人物模型`}
+          desc={t`上传自己的 Live2D 包（zip），对好动作、表情和触摸区，就能给数字人换上。`}
           count={models}
-          cta="去制作"
+          cta={t`去制作`}
           onGo={() => navigate("/support/models/new")}
         />
         <CreateCard
           icon="settings"
           emoji="🎙️"
-          title="人物音频"
-          desc="把 1～3 味豆包音色按比例调成自己的嗓子，可以发布成声音模板。"
+          title={t`人物音频`}
+          desc={t`把 1～3 味豆包音色按比例调成自己的嗓子，可以发布成声音模板。`}
           count={voices}
-          cta="去制作"
+          cta={t`去制作`}
           // 混音器长在客服页的「声音」面板里（一处实现），带上 ?sheet=voice 让那一页直接掀开它
           onGo={() => navigate("/support?sheet=voice")}
         />
         <CreateCard
           icon="sparkle"
           emoji="🎭"
-          title="人物人格"
-          desc="喂一段聊天记录或者答几道题，AI 帮你写出说话风格，试聊满意了再发布。"
+          title={t`人物人格`}
+          desc={t`喂一段聊天记录或者答几道题，AI 帮你写出说话风格，试聊满意了再发布。`}
           count={personas}
-          cta="去制作"
+          cta={t`去制作`}
           onGo={() => navigate("/support/personas/new")}
         />
       </div>
 
-      <p className="mt-5 text-center text-[11px] leading-5 text-slate-500">发布出去的东西署你的名，别人下载后你能看到下载数。</p>
+      <p className="mt-5 text-center text-[11px] leading-5 text-slate-500"><Trans>发布出去的东西署你的名，别人下载后你能看到下载数。</Trans></p>
     </div>
   );
 }

@@ -12,6 +12,7 @@
 //
 // ★ 服务端这两个端点早就在线、Cloudinary 也早就配好了（2026-08-10 实测：
 //   传一张 1x1 png 回的是 res.cloudinary.com 的永久 URL）。缺的一直只是 App 去用它。
+import { t } from "@lingui/core/macro";
 import { API_BASE, ApiError, apiPost, getToken } from "./client";
 
 /** 与服务端 middleware/upload.js 的上限一致。超了就别发出去，省一次必然失败的往返 */
@@ -151,13 +152,11 @@ async function postFormData(
     //   无从谈起），所以客户端**判不出来**。⇒ 不断言原因、不写死阈值，只把用户唯一
     //   能拿来判断的那个数给他，并给一条出路（铁律八：说清楚 + 给活路）。
     const mb = `${(totalBytes / 1024 / 1024).toFixed(1)}MB`;
+    const secs = Math.round(timeoutMs / 1000);
     throw new ApiError(
       aborted
-        ? `上传超时：这份 ${mb} 在 ${Math.round(timeoutMs / 1000)} 秒内没传完。不是断网——` +
-          `是这条网推不完这么大的文件（手机上行常见只有 1Mbps 上下，47MB 就要六分钟）。` +
-          `换个更快的网络，或者先把视频压小再传。`
-        : `上传失败（网络不可用）：这份 ${mb} 没能推上去。断网、慢网、或者传太久被中途掐断，都会是这一句；` +
-          `传得越久越容易被掐 —— 先把视频压小一点再传，多半就过了。`,
+        ? t`上传超时：这份 ${mb} 在 ${secs} 秒内没传完。不是断网——是这条网推不完这么大的文件（手机上行常见只有 1Mbps 上下，47MB 就要六分钟）。换个更快的网络，或者先把视频压小再传。`
+        : t`上传失败（网络不可用）：这份 ${mb} 没能推上去。断网、慢网、或者传太久被中途掐断，都会是这一句；传得越久越容易被掐 —— 先把视频压小一点再传，多半就过了。`,
       0,
       aborted ? "TIMEOUT" : "NETWORK",
     );
@@ -173,14 +172,14 @@ async function postFormData(
     /* 非 JSON：下面按状态码报错 */
   }
   // ok:false 与非 2xx 都算失败（server 约定两者成对出现，双判是照 client.ts request 的口径）
-  if (!res.ok || data.ok === false) throw new ApiError(String(data.message ?? `上传失败 HTTP ${res.status}`), res.status);
+  if (!res.ok || data.ok === false) throw new ApiError(String(data.message ?? t`上传失败 HTTP ${res.status}`), res.status);
   return data;
 }
 
 async function post(path: string, field: string, blob: Blob, filename: string, timeoutMs: number): Promise<string> {
   const data = await postForm(path, field, blob, filename, timeoutMs);
   const url = data.imageUrl ?? data.mediaUrl ?? data.url;
-  if (typeof url !== "string" || !url) throw new ApiError("上传成功但没拿到地址", 502);
+  if (typeof url !== "string" || !url) throw new ApiError(t`上传成功但没拿到地址`, 502);
   return url;
 }
 
@@ -203,10 +202,11 @@ export function uploadImage(blob: Blob, filename = "frame.jpg"): Promise<string>
 export async function uploadMedia(blob: Blob, filename = "video.webm", onProgress?: (frac: number) => void): Promise<string> {
   // putDirect 收 File：IndexedDB 里存的是裸 Blob，包一层（名字只影响 Cloudinary 回执里的 original_filename）
   const file = blob instanceof File ? blob : new File([blob], filename, { type: blob.type || "video/webm" });
-  const direct = await uploadWithTicket("/api/uploads/media/sign", file, { noun: "成片", onProgress });
+  const direct = await uploadWithTicket("/api/uploads/media/sign", file, { kind: "media", onProgress });
   if (direct) return await confirmMedia(direct.publicId);
   if (blob.size > MAX_MEDIA_BYTES) {
-    throw new ApiError(`成片太大（${Math.round(blob.size / 1024 / 1024)}MB，这台服务器的上限是 20MB）——先在剪辑页压一档画质再发。`, 400);
+    const mb = Math.round(blob.size / 1024 / 1024);
+    throw new ApiError(t`成片太大（${mb}MB，这台服务器的上限是 20MB）——先在剪辑页压一档画质再发。`, 400);
   }
   onProgress?.(0);
   const url = await post("/api/uploads/media", "media", blob, filename, 180_000);
@@ -228,7 +228,7 @@ async function confirmMedia(publicId: string): Promise<string> {
     try {
       const data = await apiPost<Record<string, unknown>>("/api/uploads/media/confirm", { publicId });
       const url = data?.mediaUrl;
-      if (typeof url !== "string" || !url) throw new ApiError("上传成功但没拿到地址", 502);
+      if (typeof url !== "string" || !url) throw new ApiError(t`上传成功但没拿到地址`, 502);
       return url;
     } catch (e) {
       last = e;
@@ -325,10 +325,13 @@ export interface TemplateVideoProbe {
 export function templateVideoPrecheckIssue(m: TemplateVideoProbe): string | null {
   const R = TEMPLATE_UPLOAD_RULES;
   if (!TEMPLATE_VIDEO_MIMES.includes(m.mimeType)) {
-    return `模板视频只收 mp4 / mov 格式（AI 出片引擎只认这两种），当前是 ${m.mimeType || "未知格式"}，请转码后重试。`;
+    const mime = m.mimeType || t`未知格式`;
+    return t`模板视频只收 mp4 / mov 格式（AI 出片引擎只认这两种），当前是 ${mime}，请转码后重试。`;
   }
   if (m.bytes > MAX_TEMPLATE_VIDEO_BYTES) {
-    return `视频文件最大 ${Math.round(MAX_TEMPLATE_VIDEO_BYTES / 1024 / 1024)}MB（当前约 ${(m.bytes / 1024 / 1024).toFixed(1)}MB），请压缩或剪短后重试。`;
+    const maxMb = Math.round(MAX_TEMPLATE_VIDEO_BYTES / 1024 / 1024);
+    const curMb = (m.bytes / 1024 / 1024).toFixed(1);
+    return t`视频文件最大 ${maxMb}MB（当前约 ${curMb}MB），请压缩或剪短后重试。`;
   }
   // ★★ **时长不取整**（2026-08-16 改）。以前这里跟着服务端做 `Math.round`，而服务端那个
   //   `Math.round` 正是白模事故的单点根因：`Math.round(3.712) === 4` 让"产出短于方舟下限"
@@ -339,16 +342,19 @@ export function templateVideoPrecheckIssue(m: TemplateVideoProbe): string | null
   const width = Math.round(m.width);
   const height = Math.round(m.height);
   if (!Number.isFinite(durationSec) || durationSec <= 0 || width <= 0 || height <= 0) {
-    return "读不出这个视频的时长或尺寸（文件可能损坏），请换一个 mp4/mov 文件重试。";
+    return t`读不出这个视频的时长或尺寸（文件可能损坏），请换一个 mp4/mov 文件重试。`;
   }
   if (durationSec > R.maxSec) {
-    return `视频最长 ${Math.round(R.maxSec / 60)} 分钟（当前约 ${Math.round(durationSec)} 秒），请先剪短再上传。`;
+    const maxMin = Math.round(R.maxSec / 60);
+    const curSec = Math.round(durationSec);
+    return t`视频最长 ${maxMin} 分钟（当前约 ${curSec} 秒），请先剪短再上传。`;
   }
   // ★ 边长只有下限、比例不校：真正要满足方舟硬门的是**裁剪框框出来的那一块**
   //   （窗口 ②：components/blockout/arkVideoRules 的 selectionIssue）。这里拦的只是
   //   "裁剪框再怎么拉也不可能合规"的原片 —— 裁剪面积 ≤ 原片面积，所以下面两条是必要条件。
   if (width < R.minEdge || height < R.minEdge) {
-    return `视频边长至少 ${R.minEdge} 像素（当前 ${width}×${height}）：比这更小的画面，裁剪框怎么拉都达不到 AI 引擎的下限。`;
+    const minEdge = R.minEdge;
+    return t`视频边长至少 ${minEdge} 像素（当前 ${width}×${height}）：比这更小的画面，裁剪框怎么拉都达不到 AI 引擎的下限。`;
   }
   return null;
 }
@@ -398,7 +404,7 @@ export async function deriveTemplateVideo(
   const height = Number(data?.height);
   // ★ 按**回包形状**验收，不看状态码（Capacitor 那条坑：未命中路径回 200 + index.html）
   if (!url || !newId || !Number.isFinite(durationSec) || !Number.isFinite(width) || !Number.isFinite(height)) {
-    throw new Error("裁剪没成功：服务器没有返回可用的视频信息（可能是旧版服务端）");
+    throw new Error(t`裁剪没成功：服务器没有返回可用的视频信息（可能是旧版服务端）`);
   }
   return { url, publicId: newId, durationSec, width, height, bytes: Number(data?.bytes) || 0 };
 }
@@ -450,9 +456,13 @@ async function directTicket(signPath: string): Promise<DirectTicket | null> {
   };
 }
 
-/** 传输层失败（断线/超时）标成可重试；被存储明确拒绝的不标 —— 见 putChunk 的 ★ */
-function chunkError(message: string, retriable: boolean): Error & { retriable?: boolean } {
-  return Object.assign(new Error(message), { retriable });
+/**
+ * 传输层失败（断线/超时）标成可重试；被存储明确拒绝的不标 —— 见 putChunk 的 ★
+ * ★ `code: "NETWORK"` 只给「连接断了」那一种（与 ApiError 同一个码）：发布失败的原因由
+ *   data/videos.errText 按码分档，不再去 message 里找「网络不可用」四个字。
+ */
+function chunkError(message: string, retriable: boolean, code?: "NETWORK"): Error & { retriable?: boolean; code?: string } {
+  return Object.assign(new Error(message), { retriable }, code ? { code } : {});
 }
 
 /**
@@ -472,7 +482,7 @@ const CHUNK_HARD_MS = 30 * 60_000;
  * @returns 末块回完整资产（含 secure_url），中间块回 `{done:false}`
  */
 function putChunk(
-  t: DirectTicket,
+  ticket: DirectTicket,
   blob: Blob,
   /** null = **整份一次发完**（不分块）。★ 官方 SDK 也是这么分的（upload vs upload_large）：
    *  一块就装得下时走普通上传，不去依赖"单块 Content-Range"那条我们没实测过的语义。 */
@@ -485,9 +495,9 @@ function putChunk(
     const fd = new FormData();
     fd.append("file", blob);
     // ★ 原样转发服务端给的每一项，一个不多一个不少（见 DirectTicket 的 ★）
-    for (const [k, v] of Object.entries(t.params)) fd.append(k, String(v));
+    for (const [k, v] of Object.entries(ticket.params)) fd.append(k, String(v));
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", t.uploadUrl);
+    xhr.open("POST", ticket.uploadUrl);
     // ★★ 同一次上传的每一块必须带**同一个** X-Unique-Upload-Id，Cloudinary 靠它把
     //   多块归成一次上传；而 Content-Range 的 end 是**闭区间**的最后一个字节下标
     //   （写成 start+len 会得到 "Chunk size doesn't match upload size"）。
@@ -506,11 +516,13 @@ function putChunk(
       clearInterval(watchdog);
       xhr.onabort = null; // 这一下 abort 是我们自己掐的，别报成「已取消」
       xhr.abort();
+      const stallSec = Math.round(CHUNK_STALL_MS / 1000);
+      const hardMin = Math.round(CHUNK_HARD_MS / 60_000);
       reject(
         chunkError(
           stalled
-            ? `这一小段有 ${Math.round(CHUNK_STALL_MS / 1000)} 秒没传出去一个字节——网络断了或太不稳，换个网络再试`
-            : `这一小段传了 ${Math.round(CHUNK_HARD_MS / 60_000)} 分钟还没完成——网络太慢，换个网络再试`,
+            ? t`这一小段有 ${stallSec} 秒没传出去一个字节——网络断了或太不稳，换个网络再试`
+            : t`这一小段传了 ${hardMin} 分钟还没完成——网络太慢，换个网络再试`,
           true,
         ),
       );
@@ -536,17 +548,17 @@ function putChunk(
       const msg = String((body?.error as { message?: string } | undefined)?.message || `HTTP ${xhr.status}`);
       // ★ 被存储明确拒绝（签名不对、格式不许、范围对不上）**不重试** —— 再发一遍
       //   只会得到同一句话，而每一次都是一整块的流量。
-      reject(chunkError(`视频存储拒绝了这一段：${msg}`, false));
+      reject(chunkError(t`视频存储拒绝了这一段：${msg}`, false));
     };
-    xhr.onerror = () => reject(chunkError("上传中断了（网络不可用）", true));
+    xhr.onerror = () => reject(chunkError(t`上传中断了（网络不可用）`, true, "NETWORK"));
     // ★★ 关窗要真的把它停下来：不 abort 的话 XHR 会**在组件卸载之后继续跑**，
     //   最后在 Cloudinary 上落一份**没有任何人认得**的资产（本机没有 receipt ⇒
     //   dropReceipt 够不着它），配额只增不减、零症状。中途 abort 留下的是一次
     //   未完成的分块上传，Cloudinary 自己会清掉，比落一份完整孤儿好得多。
     if (signal) {
-      if (signal.aborted) return reject(new DOMException("已取消", "AbortError"));
+      if (signal.aborted) return reject(new DOMException(t`已取消`, "AbortError"));
       signal.addEventListener("abort", () => xhr.abort(), { once: true });
-      xhr.onabort = () => reject(new DOMException("已取消", "AbortError"));
+      xhr.onabort = () => reject(new DOMException(t`已取消`, "AbortError"));
     }
     xhr.send(fd);
   });
@@ -560,7 +572,7 @@ function putChunk(
  */
 function assertDone(res: Record<string, unknown>): void {
   if (typeof res?.secure_url !== "string" || !res.secure_url) {
-    throw new Error("最后一段传完了，但视频存储没有把这段视频组装出来——请重新选一次文件再传。");
+    throw new Error(t`最后一段传完了，但视频存储没有把这段视频组装出来——请重新选一次文件再传。`);
   }
 }
 
@@ -587,7 +599,7 @@ async function withChunkRetry<T>(signal: AbortSignal | undefined, run: () => Pro
 
 /** 直传：串行推完每一块。★ 串行不并发 —— 官方 SDK 也是串行，乱序/并发官方没有承诺过。 */
 async function putDirect(
-  t: DirectTicket,
+  ticket: DirectTicket,
   file: File,
   onProgress?: (frac: number) => void,
   signal?: AbortSignal,
@@ -600,17 +612,17 @@ async function putDirect(
       : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
   const total = file.size;
   // ★ 公共 API 自己也拦一下 0 字节：目前调用方那边有预检挡着，但这条不该依赖别人
-  if (!Number.isFinite(total) || total <= 0) throw new Error("这个文件是空的，选一段真正的视频再传。");
+  if (!Number.isFinite(total) || total <= 0) throw new Error(t`这个文件是空的，选一段真正的视频再传。`);
   // 一块就装得下 → 普通上传（见 putChunk 的 range 参数注释）
-  if (total <= t.chunkBytes) {
-    assertDone(await putChunk(t, file, null, uploadId, (sent) => onProgress?.(Math.min(1, sent / total)), signal));
+  if (total <= ticket.chunkBytes) {
+    assertDone(await putChunk(ticket, file, null, uploadId, (sent) => onProgress?.(Math.min(1, sent / total)), signal));
     onProgress?.(1);
     return;
   }
   let start = 0;
   let doneBytes = 0;
   while (start < total) {
-    const end = Math.min(start + t.chunkBytes, total); // 右开
+    const end = Math.min(start + ticket.chunkBytes, total); // 右开
     const blob = file.slice(start, end);
     // ★★ **同一块原地重试**（2026-08-22 实测确认是幂等的：把第 1 块原样重发一次，
     //   回的还是 `{done:false, bytes:6000000}`，字节数没有重复累加，后续块与末块组装
@@ -621,7 +633,7 @@ async function putDirect(
     // eslint-disable-next-line no-await-in-loop -- 串行是刻意的，见上面的 ★
     const out = await withChunkRetry(signal, () =>
       putChunk(
-        t,
+        ticket,
         blob,
         { start, end: end - 1, total },
         uploadId,
@@ -642,6 +654,16 @@ export interface DirectUploadResult {
   bytes: number;
 }
 
+/** 直传的三条路：模板视频 / 成片 / Live2D 模型包（`uploadWithTicket` 的 `kind`） */
+type DirectUploadKind = "video" | "media" | "bundle";
+
+/** 直传超限那句话，按种类整句各写一份（见 uploadWithTicket 的 ★） */
+function tooBigText(kind: DirectUploadKind, maxMb: number, curMb: string): string {
+  if (kind === "media") return t`成片最大 ${maxMb}MB（这份约 ${curMb}MB），请先压小再传。`;
+  if (kind === "bundle") return t`模型包最大 ${maxMb}MB（这份约 ${curMb}MB），请先压小再传。`;
+  return t`视频最大 ${maxMb}MB（这份约 ${curMb}MB），请先压小再传。`;
+}
+
 /**
  * **「签名直传」的唯一实现**：问服务端要票 → 分块推上去。三条路共用同一份
  * （模板视频 `/uploads/template-video/sign`、成片 `/uploads/media/sign`、Live2D 模型包 `/live2d-models/bundle/sign`）。
@@ -650,8 +672,9 @@ export interface DirectUploadResult {
  *   但"拿票 → 提前量判大小 → 起进度 → 推"这四拍在模板视频与成片里各抄了一遍。Live2D 模型包是第三条，
  *   再抄一遍就会出现"某条路忘了提前量判大小 / 忘了 onProgress(0)"这种**零报错**的分叉：用户盯着一个
  *   从不动的进度条把 25MB 传完，最后被服务端整句拒。
- * ★ `noun` 必填（模板视频「视频」/ 成片「成片」/ 模型包「模型包」）：超限那句话是给人看的，
- *   写成可选就会有人漏传、于是三条路里有一条说着别的东西的名字。
+ * ★ `kind` 必填（模板视频 video / 成片 media / 模型包 bundle）：超限那句话是给人看的，
+ *   写成可选就会有人漏传、于是三条路里有一条说着别的东西的名字。话按种类整句各写一份（`tooBigText`），
+ *   不拿名词往句子里拼 —— 换成英文，名词进同一个句式就不通了。
  * ★ 每条路的**验收**（confirm）不在这里：它们的端点、回执形状、失败后要不要回收资产都不一样。
  *
  * @returns null = **这台服务器还没有这条 sign 路由**（老服务端）→ 调用方退回自己的老路。
@@ -660,16 +683,15 @@ export interface DirectUploadResult {
 async function uploadWithTicket(
   signPath: string,
   file: File,
-  opts: { noun: string; onProgress?: (frac: number) => void; signal?: AbortSignal },
+  opts: { kind: DirectUploadKind; onProgress?: (frac: number) => void; signal?: AbortSignal },
 ): Promise<DirectUploadResult | null> {
   const ticket = await directTicket(signPath);
   if (!ticket) return null;
   // ★ 提前量：服务端 confirm / 拉回那一步还会按真实字节再判一次（客户端这份只是省用户几分钟）
   if (ticket.maxSizeBytes > 0 && file.size > ticket.maxSizeBytes) {
-    throw new ApiError(
-      `${opts.noun}最大 ${Math.round(ticket.maxSizeBytes / 1024 / 1024)}MB（这份约 ${(file.size / 1024 / 1024).toFixed(1)}MB），请先压小再传。`,
-      400,
-    );
+    const maxMb = Math.round(ticket.maxSizeBytes / 1024 / 1024);
+    const curMb = (file.size / 1024 / 1024).toFixed(1);
+    throw new ApiError(tooBigText(opts.kind, maxMb, curMb), 400);
   }
   opts.onProgress?.(0);
   await putDirect(ticket, file, opts.onProgress, opts.signal);
@@ -695,7 +717,7 @@ export async function uploadLive2dBundle(
 ): Promise<{ bundleRef: string; bytes: number } | null> {
   let direct: Awaited<ReturnType<typeof uploadWithTicket>>;
   try {
-    direct = await uploadWithTicket("/api/live2d-models/bundle/sign", file, { noun: "模型包", onProgress, signal });
+    direct = await uploadWithTicket("/api/live2d-models/bundle/sign", file, { kind: "bundle", onProgress, signal });
   } catch (e) {
     // ★★ 503 对**这一条**是「没有直传」，不是「传不了」：服务端 Cloudinary 没配好时
     //   `signBundleUpload` 回的是 503「服务器还没配好文件存储，暂时不能上传。」，而 Live2D 的
@@ -752,14 +774,10 @@ async function confirmDirect(publicId: string): Promise<TemplateVideoReceipt> {
     );
   }
   if (last instanceof ApiError && finalStatus === 400) throw last; // 服务端的定论，原样转达
-  throw new ApiError(
-    `视频已经传上去了，但服务器没能确认（${last instanceof Error ? last.message : "网络不可用"}）。` +
-      // ★ 不说"已经作废、不会留在服务器上"：兜底回收是 fire-and-forget，而走到这里的
-      //   前提往往正是那台服务器连不上 —— 在最可能为假的那一刻把话说满，是另一种骗人。
-      `我们会尽量把它回收掉。网络恢复后请重新选一次文件再传。`,
-    0,
-    "NETWORK",
-  );
+  const why = last instanceof Error ? last.message : t`网络不可用`;
+  // ★ 不说"已经作废、不会留在服务器上"：兜底回收是 fire-and-forget，而走到这里的
+  //   前提往往正是那台服务器连不上 —— 在最可能为假的那一刻把话说满，是另一种骗人。
+  throw new ApiError(t`视频已经传上去了，但服务器没能确认（${why}）。我们会尽量把它回收掉。网络恢复后请重新选一次文件再传。`, 0, "NETWORK");
 }
 
 /**
@@ -789,7 +807,7 @@ function receiptOf(data: Record<string, unknown>): TemplateVideoReceipt {
     !Number.isFinite(height) ||
     height <= 0
   ) {
-    throw new ApiError("服务器没有返回这段视频的登记信息（可能是旧版服务端），白模模板没有创建。", 502);
+    throw new ApiError(t`服务器没有返回这段视频的登记信息（可能是旧版服务端），白模模板没有创建。`, 502);
   }
   return { url, publicId, durationSec, width, height, bytes: Number.isFinite(bytes) ? bytes : 0 };
 }
@@ -821,7 +839,7 @@ export async function uploadTemplateVideo(
   /** 关窗/卸载时传进来，真的把在途的那一块停下（见 putChunk 的 ★★） */
   signal?: AbortSignal,
 ): Promise<TemplateVideoReceipt> {
-  const direct = await uploadWithTicket("/api/uploads/template-video/sign", file, { noun: "视频", onProgress, signal });
+  const direct = await uploadWithTicket("/api/uploads/template-video/sign", file, { kind: "video", onProgress, signal });
   if (direct) return await confirmDirect(direct.publicId);
   // ── 退路：老服务端只有这条 ────────────────────────────────────────────
   // ★ 600s 不是 /media 那个 180s：上限从 20MB 提到 100MB 之后，慢网上光是把字节推上去
@@ -865,7 +883,7 @@ export async function deleteTemplateVideo(publicId: string): Promise<void> {
     });
   } catch (e) {
     const aborted = selfAborted || (e instanceof DOMException && e.name === "AbortError");
-    throw new ApiError(aborted ? "回收超时" : "回收失败（网络不可用）", 0, aborted ? "TIMEOUT" : "NETWORK");
+    throw new ApiError(aborted ? t`回收超时` : t`回收失败（网络不可用）`, 0, aborted ? "TIMEOUT" : "NETWORK");
   } finally {
     clearTimeout(timer);
   }
@@ -877,7 +895,7 @@ export async function deleteTemplateVideo(publicId: string): Promise<void> {
     /* 非 JSON（SPA 回退/老服务端）：按形状判失败 */
   }
   if (data.ok !== true) {
-    throw new ApiError(String(data.message ?? "这台服务器不支持回收模板视频（可能需要升级服务端）"), res.status);
+    throw new ApiError(String(data.message ?? t`这台服务器不支持回收模板视频（可能需要升级服务端）`), res.status);
   }
 }
 
@@ -896,11 +914,11 @@ export async function registerMaterialVideo(publicId: string): Promise<{ url: st
   });
   const ct = res.headers.get("content-type") ?? "";
   if (!ct.includes("application/json")) {
-    throw new ApiError("这台服务器还没有素材视频登记端点（请更新服务端）", res.status);
+    throw new ApiError(t`这台服务器还没有素材视频登记端点（请更新服务端）`, res.status);
   }
   const j = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; durationSec?: number; message?: string };
   if (!res.ok || !j.url || !Number.isFinite(j.durationSec)) {
-    throw new ApiError(j.message || `登记失败（${res.status}）`, res.status);
+    throw new ApiError(j.message || t`登记失败（${res.status}）`, res.status);
   }
   return { url: j.url, durationSec: Number(j.durationSec) };
 }

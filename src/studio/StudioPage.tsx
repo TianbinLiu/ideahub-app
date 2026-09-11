@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { useNavigate } from "react-router";
+import { Trans, useLingui } from "@lingui/react/macro";
 import TableScene from "./scene/TableScene";
 import { AI_REAL } from "../ai";
 import { myCards } from "../data/account";
@@ -21,7 +22,7 @@ import { useFlowActions } from "../hooks/useFlowActions";
 // 工作流画布现在是工坊里的一层全屏浮层（2026-08-30 合并：创作入口不再有「工作流模式」）
 import FlowCanvas from "../components/flow/FlowCanvas";
 import { castEditorState } from "../pages/FlowPage";
-import { autoQualityOnFirstVisit, QUALITY_LABELS, type Quality } from "./quality";
+import { autoQualityOnFirstVisit, qualityLabel, type Quality } from "./quality";
 import DraftTitle from "../components/DraftTitle";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
@@ -77,7 +78,7 @@ function StudioLoader() {
         <div className="absolute inset-2 animate-spin rounded-full border border-transparent border-b-amber-300/70" style={{ animationDuration: "2.4s", animationDirection: "reverse" }} />
         <div className="absolute inset-0 flex items-center justify-center text-2xl">🎴</div>
       </div>
-      <div className="mb-3 text-sm font-semibold tracking-widest text-slate-200">正在点亮魔法书房…</div>
+      <div className="mb-3 text-sm font-semibold tracking-widest text-slate-200"><Trans>正在点亮魔法书房…</Trans></div>
       <div className="h-1 w-40 overflow-hidden rounded-full bg-slate-700/60">
         <div className="h-full rounded-full bg-cyan-300/80 transition-all duration-300" style={{ width: `${Math.max(8, progress)}%` }} />
       </div>
@@ -86,6 +87,7 @@ function StudioLoader() {
 }
 
 function useHint(): string {
+  const { t } = useLingui();
   const deckLen = useStudio((s) => s.deck.length);
   const nodes = useFlow((s) => s.nodes);
   const projection = useStudio((s) => s.projection);
@@ -93,10 +95,10 @@ function useHint(): string {
   const marketOpen = useStudio((s) => s.market.open);
   const marketEmpty = useStudio((s) => s.market.open && !s.market.loading && s.market.items.length === 0);
   const spreadOpen = useStudio((s) => s.spreadOpen);
-  if (projection === "editor") return "填入素材与要求，AI 将推演三套走向";
-  if (projection === "proposals") return "挑一套方案 → 可换首尾帧/改剧情 → 炼出本段视频";
-  if (projection === "decks") return "小窗右上角可在「卡组 / 卡片」间切换，单击卡片看详情";
-  if (focus) return "点击卡片之外的桌面区域可拉远视角";
+  if (projection === "editor") return t`填入素材与要求，AI 将推演三套走向`;
+  if (projection === "proposals") return t`挑一套方案 → 可换首尾帧/改剧情 → 炼出本段视频`;
+  if (projection === "decks") return t`小窗右上角可在「卡组 / 卡片」间切换，单击卡片看详情`;
+  if (focus) return t`点击卡片之外的桌面区域可拉远视角`;
   // ★ 空市场不许照念"点桌上的市场卡"——桌上一张都没有（卡片系统 V2 清掉了离线种子），
   //   指着空桌说"点卡"是在骗人。空态说清哪里能来卡。
   // ★★ 这句原来是「市场还空着——用「从视频提取」圈几张卡，**分享后这里就会有**」。
@@ -104,27 +106,28 @@ function useHint(): string {
   //   起就硬写成 `async () => []`；分享出去的卡落在**服务端广场**（browseSharedCards），
   //   这张桌子根本不去取它 —— 照着做的人会分享一张、回来发现还是空的，然后怀疑分享没成功。
   //   把桌面市场接到广场是另一条工单；在那之前，这句话只说**真的能拿到卡**的那条路。
-  if (marketEmpty) return "这张桌子上还没有卡——去「创意工坊」的卡片广场装几张，或用「从视频提取」现炼";
-  if (marketOpen) return "点桌上的市场卡放大查看，喜欢就收进卡组";
-  if (spreadOpen) return "拖卡片到虚线卡位铸段 · 单点看详情";
-  if (nodes.length === 0 && deckLen === 0) return "先把素材交给铸卡师炼卡，或让 TA 摊开市场";
-  if (nodes.length === 0) return "点击虚线卡位，铸造第一段视频节点";
+  if (marketEmpty) return t`这张桌子上还没有卡——去「创意工坊」的卡片广场装几张，或用「从视频提取」现炼`;
+  if (marketOpen) return t`点桌上的市场卡放大查看，喜欢就收进卡组`;
+  if (spreadOpen) return t`拖卡片到虚线卡位铸段 · 单点看详情`;
+  if (nodes.length === 0 && deckLen === 0) return t`先把素材交给铸卡师炼卡，或让 TA 摊开市场`;
+  if (nodes.length === 0) return t`点击虚线卡位，铸造第一段视频节点`;
   // 「金色圆台」这个说法在圆台改成法阵后就对不上了（它现在暗着的时候是冷灰的）；
   // 统一叫「法阵」，与台前铭牌上的「点亮法阵」同一套词
-  if (placeholderVisible(nodes) && composable(nodes)) return "点虚线卡位延展下一段 · 点亮法阵去剪辑成片";
+  if (placeholderVisible(nodes) && composable(nodes)) return t`点虚线卡位延展下一段 · 点亮法阵去剪辑成片`;
   // 虚线卡位没亮 = 当前段还没挑方案或还没出片：把"下一段为什么开不了"说清楚，
   // 不然用户只会觉得桌面少了个卡位
-  return "点击节点卡：挑定方案并炼出本段视频，才能延展下一段";
+  return t`点击节点卡：挑定方案并炼出本段视频，才能延展下一段`;
 }
 
 // ── 市场翻页箭头：屏幕两侧竖直居中，56px 热区（比卡组那对 36px 的大一圈，
 //    因为它在 3D 画布上、周围没有别的可点物，够大才不会误触到桌面）──
 function MarketArrow({ dir, disabled, side }: { dir: 1 | -1; disabled: boolean; side: "left" | "right" }) {
+  const { t } = useLingui();
   return (
     <button
       onClick={() => useStudio.getState().shiftMarket(dir)}
       disabled={disabled}
-      aria-label={dir < 0 ? "上一页" : "下一页"}
+      aria-label={dir < 0 ? t`上一页` : t`下一页`}
       className={`absolute top-[46%] z-10 flex h-14 w-14 items-center justify-center rounded-full bg-panel/75 text-2xl text-slate-200 backdrop-blur transition-opacity disabled:opacity-40 ${
         side === "left" ? "left-2" : "right-2"
       }`}
@@ -165,7 +168,7 @@ function AutoQualityHint({ q }: { q: Quality }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-24 z-30 flex justify-center px-6">
       <div className="rounded-full px-2.5 py-1 bg-black/70 text-center text-[11px] text-slate-300 backdrop-blur">
-        已自动选「{QUALITY_LABELS[q].name}」画质 · 设置里可改
+        <Trans>已自动选「{qualityLabel(q).name}」画质 · 设置里可改</Trans>
       </div>
     </div>
   );
@@ -173,6 +176,7 @@ function AutoQualityHint({ q }: { q: Quality }) {
 
 export default function StudioPage() {
   const navigate = useNavigate();
+  const { t } = useLingui();
   // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；顶栏那颗 ? 随时能重看）
   useAutoGuide("studio");
   // 工坊的模板段面板也能发起挂卡（returnTo:"/studio"）——回程的收口与 /flow 同一份实现
@@ -281,7 +285,7 @@ export default function StudioPage() {
             <DraftTitle from="studio" collapsed className="bg-panel/85 backdrop-blur" />
           ) : (
             <span
-              title="铸出第一段之后就能给这条工程起名"
+              title={t`铸出第一段之后就能给这条工程起名`}
               className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-panel/50 opacity-45 backdrop-blur"
             >
               <Icon name="pen" size={15} className="text-slate-400" />
@@ -294,8 +298,8 @@ export default function StudioPage() {
           <button
             onClick={() => setCanvasOpen(true)}
             disabled={!hasWork}
-            title={hasWork ? "工作流画布：同一条流水线的另一面" : "桌面还空着——先点虚线卡位铸一段"}
-            aria-label="工作流画布"
+            title={hasWork ? t`工作流画布：同一条流水线的另一面` : t`桌面还空着——先点虚线卡位铸一段`}
+            aria-label={t`工作流画布`}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-base backdrop-blur disabled:opacity-40"
           >
             🧩
@@ -313,16 +317,16 @@ export default function StudioPage() {
               disabled={!hasWork || flowActions.saveState === "saving"}
               title={
                 !hasWork
-                  ? "桌面还空着，没什么可存"
+                  ? t`桌面还空着，没什么可存`
                   : flowActions.saveState === "saving"
-                    ? "保存中…"
+                    ? t`保存中…`
                     : flowActions.saveState === "saved"
-                      ? "已保存"
+                      ? t`已保存`
                       : flowActions.saveState === "failed"
-                        ? "保存失败"
-                        : "存草稿"
+                        ? t`保存失败`
+                        : t`存草稿`
               }
-              aria-label="存草稿"
+              aria-label={t`存草稿`}
               className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-sm backdrop-blur disabled:opacity-40 ${
                 flowActions.saveState === "failed"
                   ? "text-rose-300"
@@ -346,9 +350,9 @@ export default function StudioPage() {
           {!AI_REAL && (
             <div
               className="rounded-full bg-panel/80 px-3 py-1.5 text-xs text-amber-300 backdrop-blur"
-              title="未配置 ARK_API_KEY：产物为本地模拟，仅演示流程"
+              title={t`未配置 ARK_API_KEY：产物为本地模拟，仅演示流程`}
             >
-              ○ 演示模式
+              <Trans>○ 演示模式</Trans>
             </div>
           )}
         </div>

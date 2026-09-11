@@ -6,6 +6,7 @@
 // ★ 直接从可见的 <video> 上截当前帧：本地 objectURL 无跨域问题；远端（Cloudinary）
 //   靠 crossOrigin="anonymous"（对端发 CORS 头）。截失败（污染/未就绪）整句说，别静默。
 // ★ portal 到 body + z-[60]：宿主各有自己的变换层/滚动容器（CLAUDE.md fixed 那条坑）。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useRef, useState } from "react";
 import { CloseButton } from "../IconTapButton";
 import { createPortal } from "react-dom";
@@ -30,6 +31,7 @@ export default function RefFrameSheet({
   onAddMid: (dataUrl: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useLingui();
   const vref = useRef<HTMLVideoElement>(null);
   const [note, setNote] = useState("");
   const [err, setErr] = useState("");
@@ -37,7 +39,7 @@ export default function RefFrameSheet({
   function grab(): string | null {
     const v = vref.current;
     if (!v || v.videoWidth === 0 || v.readyState < 2) {
-      setErr("画面还没就绪——等视频出画面再点");
+      setErr(t`画面还没就绪——等视频出画面再点`);
       return null;
     }
     try {
@@ -49,7 +51,7 @@ export default function RefFrameSheet({
       setErr("");
       return c.toDataURL("image/jpeg", 0.88);
     } catch {
-      setErr("这段视频的地址不允许截帧（跨域没放行）——重新上传一次再调");
+      setErr(t`这段视频的地址不允许截帧（跨域没放行）——重新上传一次再调`);
       return null;
     }
   }
@@ -58,20 +60,20 @@ export default function RefFrameSheet({
     if (!d) return;
     if (kind === "first") {
       onFirst(d);
-      setNote("✓ 已设为首帧");
+      setNote(t`✓ 已设为首帧`);
     } else if (kind === "last") {
       onLast(d);
-      setNote("✓ 已设为尾帧");
+      setNote(t`✓ 已设为尾帧`);
     } else {
       onAddMid(d);
-      setNote("✓ 已加为中间帧");
+      setNote(t`✓ 已加为中间帧`);
     }
   };
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex flex-col bg-black/90" onClick={onClose}>
       <div className="safe-top flex h-[58px] flex-none items-center gap-2 px-4" onClick={(e) => e.stopPropagation()}>
-        <span className="min-w-0 flex-1 text-sm font-bold text-slate-100">调节首尾帧</span>
+        <span className="min-w-0 flex-1 text-sm font-bold text-slate-100"><Trans>调节首尾帧</Trans></span>
         {note && <span className="flex-none text-[11px] text-emerald-300">{note}</span>}
         <CloseButton chip="md" size={16} tone="text-slate-200" align="end" onClick={onClose} />
       </div>
@@ -93,21 +95,21 @@ export default function RefFrameSheet({
         />
       </div>
       <div className="flex-none px-3 pb-4 pt-2" onClick={(e) => e.stopPropagation()}>
-        <p className="mb-1.5 text-center text-[10px] text-slate-500">拖进度条到想要的画面，再点下面的键</p>
+        <p className="mb-1.5 text-center text-[10px] text-slate-500"><Trans>拖进度条到想要的画面，再点下面的键</Trans></p>
         <div className="flex gap-2">
           <button onClick={() => take("first")} className="flex-1 rounded-xl bg-brand/90 py-2.5 text-xs font-bold text-ink">
-            设为首帧
+            <Trans>设为首帧</Trans>
           </button>
           <button onClick={() => take("last")} className="flex-1 rounded-xl bg-brand/90 py-2.5 text-xs font-bold text-ink">
-            设为尾帧
+            <Trans>设为尾帧</Trans>
           </button>
           <button
             onClick={() => take("mid")}
             disabled={midCount >= midMax}
-            title={midCount >= midMax ? `中间帧最多 ${midMax} 张` : undefined}
+            title={midCount >= midMax ? t`中间帧最多 ${midMax} 张` : undefined}
             className="flex-1 rounded-xl border border-slate-500 py-2.5 text-xs font-semibold text-slate-200 disabled:opacity-40"
           >
-            ＋中间帧（{midCount}/{midMax}）
+            <Trans>＋中间帧（{midCount}/{midMax}）</Trans>
           </button>
         </div>
       </div>

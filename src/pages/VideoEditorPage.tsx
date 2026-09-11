@@ -26,6 +26,7 @@
 // ★ 入参一律**按形状验收**、不按"应该有"假设：深链、老包缓存、冷启动都可能给到空 state。
 //   验不过就整句说明 + 一个回得去的按钮，不是白屏（白屏时用户连"我在哪"都不知道）。
 import { useEffect, useMemo, useState } from "react";
+import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useLocation, useNavigate } from "react-router";
@@ -196,6 +197,7 @@ function parseState(raw: unknown): VideoEditorState | null {
 export default function VideoEditorPage() {
   const nav = useNavigate();
   const loc = useLocation();
+  const { t } = useLingui();
   const state = useMemo(() => parseState(loc.state), [loc.state]);
   // ★ 只在「选段与裁剪」那一档自动弹，且要等 state 解析出来 —— 从别处误入这一页时
   //   （state 为 null）页面渲染的是"这一页需要从上传或模板页进来"，那时弹引导是答非所问。
@@ -239,12 +241,14 @@ export default function VideoEditorPage() {
       <PageHeader
         sticky
         onBack={() => nav(-1)}
-        title={state?.title || (state?.mode === "cast" ? "挂上你的角色" : "选段与裁剪")}
+        title={state?.title || (state?.mode === "cast" ? t`挂上你的角色` : t`选段与裁剪`)}
         subtitle={
           <>
             {state?.mode === "cast"
-              ? `白模模板 · 给${state.spec.scheme === "ordinal" ? "白色" : "编号的"}人偶挂人物卡`
-              : "白模化 · 框出一段并裁掉水印"}
+              ? state.spec.scheme === "ordinal"
+                ? t`白模模板 · 给白色人偶挂人物卡`
+                : t`白模模板 · 给编号的人偶挂人物卡`
+              : t`白模化 · 框出一段并裁掉水印`}
           </>
         }
         // ★ 「?」只给「选段与裁剪」这一档：cast 那一档的引导挂在 RoleCastBoard 自己身上
@@ -256,9 +260,9 @@ export default function VideoEditorPage() {
         {!state ? (
           // 入参验不过：说清是什么情况、给一条出路（白屏是最坏的一种失败）
           <EmptyState
-            text="这一页需要从上传或模板页进来"
-            hint="它拿不到“要编辑哪段视频”这个信息（直接输入地址、或从后台回来时页面已被系统回收，都会这样）。请回到上一步重新进入。"
-            cta={{ label: "回首页", onClick: () => nav("/", { replace: true }) }}
+            text={t`这一页需要从上传或模板页进来`}
+            hint={t`它拿不到“要编辑哪段视频”这个信息（直接输入地址、或从后台回来时页面已被系统回收，都会这样）。请回到上一步重新进入。`}
+            cta={{ label: t`回首页`, onClick: () => nav("/", { replace: true }) }}
           />
         ) : state.mode === "blockoutize" ? (
           playable ? (
@@ -269,7 +273,7 @@ export default function VideoEditorPage() {
               onCancel={() => nav(-1)}
             />
           ) : (
-            <p className="py-10 text-center text-[11px] text-slate-400">正在打开这段视频…</p>
+            <p className="py-10 text-center text-[11px] text-slate-400"><Trans>正在打开这段视频…</Trans></p>
           )
         ) : (
           <RoleCastBoard
@@ -283,7 +287,7 @@ export default function VideoEditorPage() {
             onChange={setCast}
             maxRefImages={ARK_REF_IMAGES_MAX}
             onDone={() => finish({ mode: "cast", templateId: state.templateId, cast })}
-            doneLabel="完成挂卡"
+            doneLabel={t`完成挂卡`}
             onCancel={() => nav(-1)}
           />
         )}

@@ -51,6 +51,9 @@ if (!dry) {
   if (!existsSync("node_modules")) die("先 npm install。");
   console.log("▶ 构建门禁 tsc && vite build …");
   run("npm run build");
+  // ★ 构建里那步 `lingui extract` 会改写 src/locales 的 .po：上面那道「工作区干净」的检查在构建**之前**，
+  //   构建改出来的目录留在工作区、不会合进 main —— main 上的目录会悄悄落后于代码，出包时英文界面冒中文。
+  if (sh("git status --porcelain src/locales")) die("构建里的 lingui extract 改了 src/locales 的目录，先提交它们再落。");
 }
 
 // ② 先把 main 拉到最新，再把自己的分支合进去（冲突就停下交给人）

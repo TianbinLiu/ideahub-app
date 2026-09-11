@@ -6,6 +6,9 @@
 // ★ 截图**不直接**当出片输入：灰白人偶喂给视频模型会长出灰白人偶。它经 ai/real.fuseFrame（融图）与
 //   人物卡 / 场景卡合成一张真正的开头帧，再走 setFrame 那条写回路（pinned.first，与手工换帧同一条）。
 
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+
 export interface StageFigure {
   id: string;
   /** 地面坐标（米）。x 向右、z 向镜头（三维里 +z 朝观众） */
@@ -56,18 +59,18 @@ export const clampCam = (c: StageCam): StageCam => ({
   dist: Math.min(STAGE_LIMITS.distMax, Math.max(STAGE_LIMITS.distMin, c.dist)),
 });
 
-/** 俯仰预设（导演口径） */
-export const PITCH_PRESETS: Array<{ label: string; pitch: number }> = [
-  { label: "俯拍", pitch: 0.85 },
-  { label: "平视", pitch: 0.1 },
-  { label: "仰拍", pitch: -0.15 },
+/** 俯仰预设（导演口径）。label 是描述符：模块顶层不翻，画按钮时再 t() */
+export const PITCH_PRESETS: Array<{ label: MessageDescriptor; pitch: number }> = [
+  { label: msg`俯拍`, pitch: 0.85 },
+  { label: msg`平视`, pitch: 0.1 },
+  { label: msg`仰拍`, pitch: -0.15 },
 ];
 /** 景别预设 = 到注视点的距离 */
-export const SHOT_PRESETS: Array<{ label: string; dist: number }> = [
-  { label: "特写", dist: 2.2 },
-  { label: "近景", dist: 3.2 },
-  { label: "中景", dist: 5.5 },
-  { label: "全景", dist: 9 },
+export const SHOT_PRESETS: Array<{ label: MessageDescriptor; dist: number }> = [
+  { label: msg`特写`, dist: 2.2 },
+  { label: msg`近景`, dist: 3.2 },
+  { label: msg`中景`, dist: 5.5 },
+  { label: msg`全景`, dist: 9 },
 ];
 
 /**
@@ -76,12 +79,19 @@ export const SHOT_PRESETS: Array<{ label: string; dist: number }> = [
  * 画幅提示怎么说才不会被当真），两处别互相抄。
  */
 export function stageFuseInstruction(o: { plot: string; figures: number; heroName?: string; hasScene: boolean; style?: string }): string {
+  // ★ 这个函数里的每一句都拼进发给出图模型的融图指令（冻结中文），不是界面文案
+  // i18n-ignore-next-line: 融图指令，发给模型
   const people = o.figures === 1 ? "一个人" : `${o.figures} 个人`;
   const who = o.heroName
+    // i18n-ignore-next-line: 融图指令，发给模型
     ? `人物的相貌、发型、服装严格按图片2 里的角色「${o.heroName}」来画（只取这个角色的长相与穿着，不要照搬图片2 的构图、姿势与背景）${o.figures > 1 ? "，其余人按剧情设定" : ""}`
+    // i18n-ignore-next-line: 融图指令，发给模型
     : "人物按剧情设定来画";
+  // i18n-ignore-next-line: 融图指令，发给模型
   const where = o.hasScene ? `场景按${o.heroName ? "图片3" : "图片2"}的场景卡` : `场景：${o.plot.replace(/\s+/g, " ").slice(0, 60)}`;
   // ★ 画风要另说一句：图片1 是一张灰白 3D 渲染，不点名的话模型会把那股塑料感当画风照抄。有风格卡按风格卡，没有就跟人物卡走。
+  // i18n-ignore-next-line: 融图指令，发给模型
   const look = o.style ? `画风：${o.style}` : `画风与质感跟随${o.heroName ? "图片2 的人物卡" : "剧情设定"}`;
+  // i18n-ignore-next-line: 融图指令，发给模型
   return `画面里有 ${people}，人数、站位、朝向、景别与机位全部照图片1；${who}；${where}；${look}；这是这一段的开头画面`;
 }

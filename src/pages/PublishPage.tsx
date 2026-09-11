@@ -16,6 +16,7 @@ import { badgeNote } from "../data/aigcLabel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { useLocation, useNavigate } from "react-router";
+import { Trans, useLingui } from "@lingui/react/macro";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InfoDialog from "../components/InfoDialog";
 import { AGREEMENTS } from "../data/agreements";
@@ -31,10 +32,11 @@ import { addCards, createDeck, deckSynced } from "../data/account";
 import { getVideo, publishVideo, reviseVideo, type ReviseResult } from "../data/videos";
 import { useVideosVersion } from "../hooks/useVideos";
 import { publishedExit, useStudio } from "../studio/studioStore";
-import { VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, revisionLabel, visibilityOf, visibilityWire } from "../types";
+import { DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, revisionLabel, visibilityOf, visibilityWire } from "../types";
 
 export default function PublishPage() {
   const navigate = useNavigate();
+  const { t } = useLingui();
   // ★ 合并那一拍带过来的话。剪辑页合完立刻换路由，写进它自己的 err 一个字都显示不出来
   //   （本仓那格坑），所以走 navigate 的 state —— 这一屏是用户接下来唯一会看的。
   const loc = useLocation();
@@ -45,7 +47,7 @@ export default function PublishPage() {
   const draft = useStudio((s) => s.draft);
   const clearDraft = useStudio((s) => s.clearDraft);
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState(draft?.category ?? "剧情");
+  const [category, setCategory] = useState<string>(draft?.category ?? DEFAULT_VIDEO_CATEGORY);
   const [description, setDescription] = useState(draft?.description ?? "");
   const [cover, setCover] = useState(draft?.cover ?? "");
   const [tags, setTags] = useState<string[]>([]);
@@ -102,8 +104,8 @@ export default function PublishPage() {
   //   "是不是空"分辨不出"还没改"与"用户选了这个"（EditPage 那条教训逐字同源）。
   useEffect(() => {
     if (!origin) return;
-    setTitle((t) => (t ? t : origin.title));
-    setCategory((c) => (c !== "剧情" ? c : origin.category));
+    setTitle((cur) => (cur ? cur : origin.title));
+    setCategory((c) => (c !== DEFAULT_VIDEO_CATEGORY ? c : origin.category));
     setDescription((d) => (d ? d : origin.description));
     setCover((c) => (c ? c : origin.cover));
   }, [origin]);
@@ -136,6 +138,10 @@ export default function PublishPage() {
 
   if (!draft) return null;
   const total = draft.segments.reduce((s, x) => s + x.durationSec, 0);
+  const segCount = draft.segments.length;
+  const totalText = formatDuration(total);
+  const originTitle = origin?.title || t`原作品`;
+  const note = badgeNote();
 
   /**
    * 回炉提交：拿这份合成稿**替换**原作品的内容。
@@ -149,12 +155,12 @@ export default function PublishPage() {
   async function submitRevise() {
     if (!draft || !reviseOf || publishedRef.current || busy) return;
     if (!title.trim()) {
-      setErr("先给视频起个标题");
+      setErr(t`先给视频起个标题`);
       return;
     }
     setErr("");
     setReviseFail(null);
-    setBusy("正在替换…");
+    setBusy(t`正在替换…`);
     const res = await reviseVideo(
       reviseOf.videoId,
       {
@@ -174,7 +180,7 @@ export default function PublishPage() {
         //   `draft.deck?.cards.length`）。这一版没有卡组时一个字都不发 —— 那时用户没做过
         //   "不带卡组"这个决定，替他把原作品上的卡组撤下来是自作主张。
         ...(draft.deck?.cards.length
-          ? { deck: shareDeck ? { name: `《${title.trim()}》卡组`, cards: draft.deck.cards } : { name: "", cards: [] } }
+          ? { deck: shareDeck ? { name: t`《${title.trim()}》卡组`, cards: draft.deck.cards } : { name: "", cards: [] } }
           : {}),
         ...visibilityWire(visibility),
       },
@@ -190,6 +196,7 @@ export default function PublishPage() {
     //   按名字再建一条，回炉多半用的还是同一套卡 —— 用户的工坊里会多出一条同名卡组，
     //   而卡本身随作品的 deck 一起上行了（详情页「收入卡组」拿得到）。
     useStudio.getState().finishPublish(res.videoId);
+    const rev = revisionLabel(res.revision) ?? t`新的一版`;
     navigate(`/video/${res.videoId}`, {
       replace: true,
       // 成功要说一句"发生了什么"，而且要说在**结果所在的那一页**上（本 app 没有 toast）。
@@ -199,7 +206,7 @@ export default function PublishPage() {
       //   比不印更糟。这条路上 res.revision 一定 ≥ 1（回执自己校过 base+1），所以
       //   revisionLabel 不会是 null；`?? "新的一版"` 只是不让一句 UI 文案依赖那个推理。
       state: {
-        banner: `已替换。这条作品现在是${revisionLabel(res.revision) ?? "新的一版"}，收藏过它的人会收到通知。`,
+        banner: t`已替换。这条作品现在是${rev}，收藏过它的人会收到通知。`,
       },
     });
   }
@@ -208,13 +215,13 @@ export default function PublishPage() {
   async function publish(over?: { visibility?: Visibility }) {
     if (!draft || publishedRef.current) return;
     if (!title.trim()) {
-      setErr("先给视频起个标题");
+      setErr(t`先给视频起个标题`);
       return;
     }
     // 本片卡组定名（合成时聚合了素材/派生卡，名字要等最终标题定下来）
     const deck =
       shareDeck && draft.deck?.cards.length
-        ? { name: `《${title.trim()}》卡组`, cards: draft.deck.cards }
+        ? { name: t`《${title.trim()}》卡组`, cards: draft.deck.cards }
         : undefined;
     const item = publishVideo({
       title: title.trim(),
@@ -242,7 +249,7 @@ export default function PublishPage() {
     // ★ 失败也**不回滚、不拦着人走**：作品本身已经发出去了，把用户扣在这一页上更糟。
     //   这里只做两件事：如实说没存上、给一条"再试一次"的出路。
     if (deck) {
-      setBusy("正在把本片卡组存进你的工坊…");
+      setBusy(t`正在把本片卡组存进你的工坊…`);
       const r = await addCards(deck.cards);
       const d = createDeck(deck.name, deck.cards.map((c) => c.id));
       const deckOk = !!d && (await deckSynced(d.id));
@@ -250,12 +257,12 @@ export default function PublishPage() {
       if (!r.synced || !deckOk) {
         setDeckIssue({
           videoId: item.id,
-          why: r.reason || "这组卡没能同步到服务器",
+          why: r.reason || t`这组卡没能同步到服务器`,
           retry: async () => {
             const again = await addCards(deck.cards);
-            if (!again.synced) return again.reason || "还是没能同步到服务器";
+            if (!again.synced) return again.reason || t`还是没能同步到服务器`;
             const d2 = createDeck(deck.name, deck.cards.map((c) => c.id));
-            return !d2 || !(await deckSynced(d2.id)) ? "卡片存上了，卡组本身没建成" : null;
+            return !d2 || !(await deckSynced(d2.id)) ? t`卡片存上了，卡组本身没建成` : null;
           },
         });
         return;
@@ -279,9 +286,9 @@ export default function PublishPage() {
       <PageHeader
         sticky
         onBack={() => navigate("/studio")}
-        backLabel="返回工坊"
-        title={reviseOf ? "回炉重做" : "发布视频"}
-        subtitle={`${draft.segments.length} 段 · 共 ${formatDuration(total)}`}
+        backLabel={t`返回工坊`}
+        title={reviseOf ? t`回炉重做` : t`发布视频`}
+        subtitle={t`${segCount} 段 · 共 ${totalText}`}
         right={<HelpButton tour="publish" />}
       />
 
@@ -294,10 +301,10 @@ export default function PublishPage() {
             <p className="flex-1 whitespace-pre-line text-xs leading-relaxed text-amber-100">{mergeWarn}</p>
             <button
               onClick={() => setMergeWarn("")}
-              aria-label="知道了"
+              aria-label={t`知道了`}
               className="flex-none rounded-full px-2 py-0.5 text-[11px] font-semibold text-amber-200 active:opacity-60"
             >
-              知道了
+              <Trans>知道了</Trans>
             </button>
           </div>
         </div>
@@ -307,24 +314,24 @@ export default function PublishPage() {
         {/* 成片预览 */}
         <div>
           <SegmentPlayer segments={draft.segments} cover={cover || draft.cover} />
-          <div className="mt-2 text-center text-xs text-slate-500">成片预览（各段按时间线依次播放）</div>
+          <div className="mt-2 text-center text-xs text-slate-500"><Trans>成片预览（各段按时间线依次播放）</Trans></div>
           {/* 每段的来历必须可见：真实 Seedance 影像还是首尾帧渐变回退。
               此前两者在预览里长得都"会动"，用户分不清哪些是真生成的 */}
           <div data-guide="publish-segments" className="mt-3 space-y-1.5">
             {draft.segments.map((sg, i) => (
               <div key={i} className="flex items-center gap-2 rounded-lg bg-panel/60 px-3 py-1.5 text-xs">
-                <span className="flex-none text-slate-500">第 {i + 1} 段</span>
+                <span className="flex-none text-slate-500"><Trans>第 {i + 1} 段</Trans></span>
                 <span className="min-w-0 flex-1 truncate text-slate-300">{sg.title}</span>
                 {sg.videoUrl ? (
                   <span className="flex-none rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300">
-                    ✓ 真实影像
+                    <Trans>✓ 真实影像</Trans>
                   </span>
                 ) : (
                   <span
                     className="flex-none rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300"
-                    title="该段视频生成失败或处于演示模式，播放时用首尾帧渐变代替"
+                    title={t`该段视频生成失败或处于演示模式，播放时用首尾帧渐变代替`}
                   >
-                    ⚠ 渐变回退
+                    <Trans>⚠ 渐变回退</Trans>
                   </span>
                 )}
               </div>
@@ -334,7 +341,7 @@ export default function PublishPage() {
               无条件挂着就是对多数用户撒谎（他们的链接根本不会过期） */}
           {draft.segments.some((sg) => isArkAssetUrl(sg.videoUrl)) && (
             <div className="mt-2 text-center text-[11px] leading-relaxed text-slate-500">
-              有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址
+              <Trans>有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址</Trans>
             </div>
           )}
         </div>
@@ -342,7 +349,7 @@ export default function PublishPage() {
         {/* 发布表单 */}
         <div className="space-y-5">
           <div>
-            <div className="mb-1.5 text-sm font-semibold text-slate-300">标题 *</div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>标题 *</Trans></div>
             <input
               value={title}
               onChange={(e) => {
@@ -350,23 +357,23 @@ export default function PublishPage() {
                 setErr("");
               }}
               maxLength={40}
-              placeholder="给这支视频起个好名字"
+              placeholder={t`给这支视频起个好名字`}
               className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
           </div>
 
           <div>
-            <div className="mb-1.5 text-sm font-semibold text-slate-300">分类</div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>分类</Trans></div>
             <div className="flex flex-wrap gap-2">
               {VIDEO_CATEGORIES.map((c) => (
                 <button
-                  key={c}
-                  onClick={() => setCategory(c)}
+                  key={c.id}
+                  onClick={() => setCategory(c.id)}
                   className={`rounded-full px-3.5 py-1.5 text-xs ${
-                    category === c ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300 hover:bg-slate-700"
+                    category === c.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300 hover:bg-slate-700"
                   }`}
                 >
-                  {c}
+                  {c.label}
                 </button>
               ))}
             </div>
@@ -375,7 +382,7 @@ export default function PublishPage() {
           {/* 话题标签：分区只有 6 个固定值，长尾内容没有落点，标签就是给它们准备的。
               上限与规范化都在 types 一处，与服务端 zod 逐字相等（那边有用例钉着） */}
           <div>
-            <div className="mb-1.5 text-sm font-semibold text-slate-300">话题标签</div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>话题标签</Trans></div>
             <TagInput
               tags={tags}
               onChange={setTags}
@@ -386,7 +393,7 @@ export default function PublishPage() {
           </div>
 
           <div>
-            <div className="mb-1.5 text-sm font-semibold text-slate-300">简介</div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>简介</Trans></div>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -403,7 +410,7 @@ export default function PublishPage() {
           {/* 随片带卡组：只在这条片子真的有卡组时才摆（没有卡组时摆一颗恒灰的开关是噪声） */}
           {!!draft.deck?.cards.length && (
             <div>
-              <div className="mb-1.5 text-sm font-semibold text-slate-300">这套卡组</div>
+              <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>这套卡组</Trans></div>
               <button
                 onClick={() => setShareDeck((v) => !v)}
                 className={`flex w-full items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-left ${
@@ -414,15 +421,15 @@ export default function PublishPage() {
                   {shareDeck ? "☑" : "☐"}
                 </span>
                 <span className="text-xs leading-relaxed text-slate-300">
-                  随片带上这 {draft.deck.cards.length} 张卡
+                  <Trans>随片带上这 {draft.deck.cards.length} 张卡</Trans>
                   <span className="mt-0.5 block text-[11px] text-slate-500">
                     {shareDeck
-                      ? "看到这条片子的人能看到卡面与设定，也能「收入卡组」接着创作——这是别人找到你的主要方式。声明过真实人物的卡，形象图不会给出去。"
+                      ? t`看到这条片子的人能看到卡面与设定，也能「收入卡组」接着创作——这是别人找到你的主要方式。声明过真实人物的卡，形象图不会给出去。`
                       : reviseOf
                         // ★ 回炉态要多说一句：关掉它**会把原作品上那套卡组一起撤下来**
                         //   （服务端收到空卡组会 $unset deck）。不说的话用户以为只是"这一版不带"
-                        ? "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。原作品上那套卡组也会一并撤下。"
-                        : "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。"}
+                        ? t`别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。原作品上那套卡组也会一并撤下。`
+                        : t`别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。`}
                   </span>
                 </span>
               </button>
@@ -444,10 +451,9 @@ export default function PublishPage() {
                 按购买态决定发不发 `segments[].videoUrl`、客户端购买态从服务端读。
               ★ 这个 `data-guide` 锚点留着：引导里那一步（tours 的「谁能看」）指着它。 */}
           <div data-guide="publish-pricing">
-            <div className="mb-1.5 text-sm font-semibold text-slate-300">收费方式</div>
+            <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>收费方式</Trans></div>
             <div className="rounded-xl border border-slate-700/70 bg-panel px-3.5 py-2.5 text-xs leading-relaxed text-slate-400">
-              目前所有作品都是<b className="font-semibold text-slate-200">免费观看</b>。付费解锁还没开放——
-              等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。
+              <Trans>目前所有作品都是<b className="font-semibold text-slate-200">免费观看</b>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。</Trans>
             </div>
           </div>
 
@@ -463,12 +469,11 @@ export default function PublishPage() {
           {/* 作品发出去了、卡组没存上：如实说 + 再试一次 + 一条离开的路（铁律八） */}
           {deckIssue && (
             <div className="rounded-xl border border-amber-500/40 bg-amber-400/10 px-3 py-2.5 text-xs leading-relaxed text-amber-100">
-              <span className="font-bold">作品已经发布成功了</span>，但本片卡组没能存进你的工坊：{deckIssue.why}。
-              <span className="text-amber-200/80">卡还在这台设备上，重试一次多半就好。</span>
+              <Trans><span className="font-bold">作品已经发布成功了</span>，但本片卡组没能存进你的工坊：{deckIssue.why}。<span className="text-amber-200/80">卡还在这台设备上，重试一次多半就好。</span></Trans>
               <div className="mt-2 flex gap-2">
                 <button
                   onClick={() => {
-                    setBusy("正在重试…");
+                    setBusy(t`正在重试…`);
                     void deckIssue.retry().then((why) => {
                       setBusy("");
                       if (why) setDeckIssue({ ...deckIssue, why });
@@ -478,13 +483,13 @@ export default function PublishPage() {
                   disabled={!!busy}
                   className="rounded-full bg-amber-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
                 >
-                  {busy ? "重试中…" : "再试一次"}
+                  {busy ? t`重试中…` : t`再试一次`}
                 </button>
                 <button
                   onClick={() => finishAndGo(deckIssue.videoId)}
                   className="rounded-full border border-amber-500/40 px-3 py-1.5 text-[11px] text-amber-100"
                 >
-                  先去看作品
+                  <Trans>先去看作品</Trans>
                 </button>
               </div>
             </div>
@@ -505,7 +510,7 @@ export default function PublishPage() {
                   （卡组最多 8 张 + 3D 建模 + 实时录的成片），而 blocked 那一档原来只有一句
                   原因加一颗「知道了」—— 用户此刻看得见的另一颗键是「不要了」。
                   不告诉他东西还在，等于把"稿子没丢"这件事藏起来。 */}
-              <span className="block opacity-80">合成稿还留在「我的」里，没有丢。</span>
+              <span className="block opacity-80"><Trans>合成稿还留在「我的」里，没有丢。</Trans></span>
               <div className="mt-2 flex flex-wrap gap-2">
                 {reviseFail.kind === "conflict" && (
                   <button
@@ -517,7 +522,7 @@ export default function PublishPage() {
                     }}
                     className="rounded-full bg-amber-400/90 px-3 py-1.5 text-[11px] font-bold text-ink"
                   >
-                    取回最新工程重来
+                    <Trans>取回最新工程重来</Trans>
                   </button>
                 )}
                 {/* ★ blocked 也给一颗重试：服务端那三档里有两档**会自行解除**
@@ -532,14 +537,14 @@ export default function PublishPage() {
                     disabled={!!busy}
                     className="rounded-full bg-rose-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
                   >
-                    重试
+                    <Trans>重试</Trans>
                   </button>
                 )}
                 <button
                   onClick={() => setReviseFail(null)}
                   className="rounded-full border border-slate-600 px-3 py-1.5 text-[11px] text-slate-300"
                 >
-                  知道了
+                  <Trans>知道了</Trans>
                 </button>
               </div>
             </div>
@@ -548,10 +553,10 @@ export default function PublishPage() {
           {/* 主按钮上方那一行：回炉态说清"这一下会动谁"；全新发布态说清"发完还能回炉" */}
           {reviseOf ? (
             <p className="text-xs leading-relaxed text-amber-300">
-              会替换《{origin?.title || "原作品"}》的内容，链接不变。
+              <Trans>会替换《{originTitle}》的内容，链接不变。</Trans>
             </p>
           ) : (
-            <p className="text-xs leading-relaxed text-slate-500">发布后会留存这条片的工坊工程，之后可回炉重做。</p>
+            <p className="text-xs leading-relaxed text-slate-500"><Trans>发布后会留存这条片的工坊工程，之后可回炉重做。</Trans></p>
           )}
 
           <div data-guide="publish-actions" className="flex items-center gap-3 pt-2">
@@ -560,14 +565,14 @@ export default function PublishPage() {
               disabled={!!busy || !!deckIssue}
               className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-40"
             >
-              {busy || (reviseOf ? "替换原作品" : "发布")}
+              {busy || (reviseOf ? t`替换原作品` : t`发布`)}
             </button>
             <button
               onClick={() => setDiscardOpen(true)}
               disabled={!!busy || !!deckIssue}
               className="rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-400 hover:text-slate-200 disabled:opacity-40"
             >
-              放弃本次合成
+              <Trans>放弃本次合成</Trans>
             </button>
           </div>
           {/* ★★ 内容声明。**恒开、不可关**，而且是**主动声明**不是默示同意（2026-08-30 改）。
@@ -586,17 +591,12 @@ export default function PublishPage() {
           <div className="rounded-xl border border-slate-700/70 bg-panel/60 px-3 py-2.5">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
               <AigcBadge />
-              内容声明：本作品由 AI 生成
+              <Trans>内容声明：本作品由 AI 生成</Trans>
             </div>
             <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
               {/* ★ 这句话必须与实际盖法同源（data/aigcLabel.badgeNote）：写死「每一帧」的那一版
                   在 2026-09-07 把盖法改成"起始画面 ≥2 秒"之后就成了假话（铁律八） */}
-              发布后会做三件事：{badgeNote()}并按
-              <button onClick={() => setAigcOpen(true)} className="text-brand">
-                《AIGC 内容须知》
-              </button>
-              承担发布者责任。
-              <span className="text-slate-500">这项声明不可关闭。</span>
+              <Trans>发布后会做三件事：{note}并按<button onClick={() => setAigcOpen(true)} className="text-brand">《AIGC 内容须知》</button>承担发布者责任。<span className="text-slate-500">这项声明不可关闭。</span></Trans>
             </p>
           </div>
         </div>
@@ -610,8 +610,8 @@ export default function PublishPage() {
 
       {discardOpen && (
         <ConfirmDialog
-          title="放弃本次合成？"
-          confirmLabel="放弃"
+          title={t`放弃本次合成？`}
+          confirmLabel={t`放弃`}
           danger
           onConfirm={() => {
             clearDraft();
@@ -625,8 +625,11 @@ export default function PublishPage() {
           {/* 只说已知事实：丢的是这条合成稿和填好的发布信息。各段素材/草稿丢没丢
               取决于上游存盘情况，这里不知道，就不许诺（DiscardFlowDialog 那条教训） */}
           <p>
-            这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。
-            {reviseOf && `《${origin?.title || "原作品"}》不受影响，还是现在这一版。`}
+            {reviseOf ? (
+              <Trans>这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。《{originTitle}》不受影响，还是现在这一版。</Trans>
+            ) : (
+              <Trans>这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。</Trans>
+            )}
           </p>
           {/* ★★ 第三条路（2026-08-30）：这一页原来只有"现在就定死"和"全丢掉"两个选项，
               而用户手上是一条**真金白银炼出来的成片** —— 它是一次性的（合成稿丢了就没了，
@@ -653,11 +656,11 @@ export default function PublishPage() {
             disabled={!!busy || !title.trim()}
             className="mt-3 w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-40"
           >
-            <span className="font-bold">还是先按「仅自己可见」发出去吧</span>
+            <span className="font-bold"><Trans>还是先按「仅自己可见」发出去吧</Trans></span>
             <br />
             {title.trim()
-              ? "片子留住、不出现在任何人的首页；想好了再去作品编辑页改成公开。"
-              : "得先给它起个标题，才发得出去（关掉这张卡去填一个）。"}
+              ? t`片子留住、不出现在任何人的首页；想好了再去作品编辑页改成公开。`
+              : t`得先给它起个标题，才发得出去（关掉这张卡去填一个）。`}
           </button>
           )}
         </ConfirmDialog>

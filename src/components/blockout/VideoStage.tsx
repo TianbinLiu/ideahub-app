@@ -22,6 +22,8 @@ import {
   useState,
   type ForwardedRef,
 } from "react";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import Icon from "../Icon";
 import { formatDuration } from "../../types";
 import type { VideoNatural } from "./arkVideoRules";
@@ -40,8 +42,7 @@ const CAPTURE_TIMEOUT_MS = 6_000;
  *  却要按 dataURL 塞进 React state（一条 1440×2560 的 JPEG 就是 MB 级）。 */
 const THUMB_MAX_EDGE = 200;
 
-const TIMEOUT_MSG =
-  "视频加载超时。应用切到后台时系统会暂停视频解码（这时页面看着像卡住了）——回到前台后点「重试」。";
+const TIMEOUT_MSG = msg`视频加载超时。应用切到后台时系统会暂停视频解码（这时页面看着像卡住了）——回到前台后点「重试」。`;
 
 /** 抓下来的一帧。`thumb` 为空串 = 画面读不出来（跨域视频的 canvas 被污染），
  *  但**时刻仍然作数** —— 见 VideoStageHandle.capture 的 ★ */
@@ -125,13 +126,14 @@ function VideoStageImpl(
   }: VideoStageProps,
   ref: ForwardedRef<VideoStageHandle>,
 ) {
+  const { t } = useLingui();
   const vref = useRef<HTMLVideoElement>(null);
   const spaceRef = useRef<HTMLDivElement>(null);
   const [meta, setMeta] = useState<VideoNatural | null>(null);
   const [space, setSpace] = useState({ w: 0, h: 0 });
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
-  const [t, setT] = useState(0);
+  const [cur, setCur] = useState(0);
   const [err, setErr] = useState("");
   /** 重试计数：变了就换一个 <video> 元素（改 src 属性不保证重新走一遍加载） */
   const [reload, setReload] = useState(0);
@@ -145,7 +147,7 @@ function VideoStageImpl(
     setErr("");
     setPlaying(false);
     const timer = setTimeout(() => {
-      if (!settled.current) setErr(TIMEOUT_MSG);
+      if (!settled.current) setErr(t(TIMEOUT_MSG));
     }, LOAD_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [src, reload]);
@@ -184,9 +186,9 @@ function VideoStageImpl(
     (): VideoStageHandle => ({
       async capture(atSec: number): Promise<CapturedFrame> {
         const v = vref.current;
-        if (!v) throw new Error("播放器还没就绪，稍等一下再标这一帧。");
+        if (!v) throw new Error(t`播放器还没就绪，稍等一下再标这一帧。`);
         if (!(v.videoWidth > 0 && v.videoHeight > 0)) {
-          throw new Error("这段视频的画面还没解出来（应用切到后台时系统会暂停解码）——回到前台等画面出来再标。");
+          throw new Error(t`这段视频的画面还没解出来（应用切到后台时系统会暂停解码）——回到前台等画面出来再标。`);
         }
         // 播着的时候抓，抓到的会是"下一帧"。先停下：用户点的是"标记这一帧"
         v.pause();
@@ -205,13 +207,13 @@ function VideoStageImpl(
               fn();
             };
             const ok = () => finish(resolve);
-            const bad = () => finish(() => reject(new Error("这段视频在这个位置解不开，换一帧试试。")));
+            const bad = () => finish(() => reject(new Error(t`这段视频在这个位置解不开，换一帧试试。`)));
             const timer = setTimeout(
               () =>
                 finish(() =>
                   reject(
                     new Error(
-                      "取这一帧超时了。应用切到后台时系统会暂停视频解码——回到前台、让画面真的动起来之后再点「标记这一帧」。",
+                      t`取这一帧超时了。应用切到后台时系统会暂停视频解码——回到前台、让画面真的动起来之后再点「标记这一帧」。`,
                     ),
                   ),
                 ),
@@ -255,7 +257,7 @@ function VideoStageImpl(
         }
       },
     }),
-    [],
+    [t],
   );
 
   function toggle() {
@@ -268,7 +270,7 @@ function VideoStageImpl(
         v.currentTime = clip.startSec;
       }
       // play() 会 reject（自动播放策略、解码失败）。吞掉就成了"点了没反应"（铁律八）
-      void v.play().catch((e) => setErr(`没能开始播放：${e instanceof Error ? e.message : String(e)}`));
+      void v.play().catch((e) => setErr(t`没能开始播放：${e instanceof Error ? e.message : String(e)}`));
     } else {
       v.pause();
     }
@@ -329,7 +331,7 @@ function VideoStageImpl(
             }}
             onError={() => {
               settled.current = true;
-              setErr("这段视频浏览器解不开（白模模板只收 mp4 / mov；换个文件或转码后重试）。");
+              setErr(t`这段视频浏览器解不开（白模模板只收 mp4 / mov；换个文件或转码后重试）。`);
             }}
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
@@ -340,7 +342,7 @@ function VideoStageImpl(
                 v.pause();
                 v.currentTime = clip.startSec;
               }
-              setT(v.currentTime);
+              setCur(v.currentTime);
               onTime?.(v.currentTime);
             }}
           />
@@ -356,13 +358,13 @@ function VideoStageImpl(
               onClick={() => setReload((k) => k + 1)}
               className="rounded-full border border-slate-500 px-3 py-1 text-[11px] text-slate-200"
             >
-              重试
+              <Trans>重试</Trans>
             </button>
           </div>
         )}
         {!err && !meta && (
           <div className="absolute inset-0 flex items-center justify-center text-[11px] text-slate-400">
-            正在读取视频…
+            <Trans>正在读取视频…</Trans>
           </div>
         )}
       </div>
@@ -372,19 +374,19 @@ function VideoStageImpl(
           onClick={toggle}
           disabled={disabled || !!err || !meta}
           className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-slate-700/80 text-slate-100 disabled:opacity-40"
-          aria-label={playing ? "暂停" : "播放"}
+          aria-label={playing ? t`暂停` : t`播放`}
         >
           <Icon name={playing ? "pause" : "play"} size={16} filled />
         </button>
         <span className="flex-none text-[11px] tabular-nums text-slate-400">
-          {formatDuration(t)} / {formatDuration(meta?.durationSec ?? 0)}
+          {formatDuration(cur)} / {formatDuration(meta?.durationSec ?? 0)}
         </span>
         <button
           onClick={() => setMuted((m) => !m)}
           disabled={disabled || !meta}
           className="flex-none rounded-full border border-slate-600 px-2 py-0.5 text-[10px] text-slate-300 disabled:opacity-40"
         >
-          {muted ? "🔇 静音中" : "🔊 有声"}
+          {muted ? <Trans>🔇 静音中</Trans> : <Trans>🔊 有声</Trans>}
         </button>
         <div className="min-w-0 flex-1" />
         {controlsExtra}

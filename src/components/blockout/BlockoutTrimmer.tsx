@@ -17,6 +17,7 @@
 //     没有他的位置 —— 谁的卡都挂不上去，而且他还会把别人的「从左数第几个」挤歪一位
 //     （老编号方案下的形态是"他身上没有编号"）。默认按时长自动取帧；人数会变的素材由作者自己标 ——
 //     交互在 `VisionFramePicker`，帧数同时是报价的一半，所以两者必须读同一个来源。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import CropOverlay from "./CropOverlay";
 import TrimBar from "./TrimBar";
@@ -159,7 +160,7 @@ export default function BlockoutTrimmer({
   busy,
   busyNote,
   error,
-  submitLabel = "开始白模化",
+  submitLabel,
   extra,
   hideVisionFrames = false,
   judge,
@@ -171,6 +172,7 @@ export default function BlockoutTrimmer({
   onCancel,
 }: BlockoutTrimmerProps) {
   /** 本机 `<video>` 解出来的元数据。有登记值时只用来**比对**，没有时它就是唯一的依据 */
+  const { t } = useLingui();
   const [probe, setProbe] = useState<VideoNatural | null>(null);
   /** 选段与裁剪框。★ 「看哪几帧」**不存在这里**：它按绝对秒存在 marks 里（见下） */
   const [sel, setSel] = useState<BlockoutSelection | null>(null);
@@ -245,18 +247,18 @@ export default function BlockoutTrimmer({
     const w = Math.round(natural.width);
     const h = Math.round(natural.height);
     if (probe.width !== w || probe.height !== h) {
-      return `这台设备解出来的画面是 ${probe.width}×${probe.height}，服务器登记的却是 ${w}×${h}。两边对不上时，你在这里框住的位置很可能不是服务器真正裁到的那一块（常见于手机竖拍、带旋转标记的视频），而白模化这一步的钱在开始计算后是退不了的——为免白花，请换一个已经转正的 mp4 再来。`;
+      return t`这台设备解出来的画面是 ${probe.width}×${probe.height}，服务器登记的却是 ${w}×${h}。两边对不上时，你在这里框住的位置很可能不是服务器真正裁到的那一块（常见于手机竖拍、带旋转标记的视频），而白模化这一步的钱在开始计算后是退不了的——为免白花，请换一个已经转正的 mp4 再来。`;
     }
     return null;
-  }, [natural, probe]);
+  }, [natural, probe, t]);
 
   /** 时长对不上：只黄字提醒不拦人（时间轴按登记值画、服务端也按它判，最坏是选到片尾之后
    *  的黑场；而"这条视频到底多长"两边都还说得通） */
   const durMismatch = useMemo(() => {
     if (!natural || !probe || probe.durationSec <= 0) return null;
     if (Math.abs(probe.durationSec - natural.durationSec) <= DUR_TOLERANCE_SEC) return null;
-    return `这台设备解出来的时长是 ${probe.durationSec.toFixed(1)} 秒，服务器登记的是 ${natural.durationSec} 秒。时间轴按登记值画（服务端也按它判）——如果拖到后面播不出画面，就是这个差异，把选段往前挪。`;
-  }, [natural, probe]);
+    return t`这台设备解出来的时长是 ${probe.durationSec.toFixed(1)} 秒，服务器登记的是 ${natural.durationSec} 秒。时间轴按登记值画（服务端也按它判）——如果拖到后面播不出画面，就是这个差异，把选段往前挪。`;
+  }, [natural, probe, t]);
 
   /** 元数据还没到（或视频解不开）。★ 与"选得不对"分开：它不是用户的错，不能画成红字 ——
    *  开屏那一两秒里满屏红叉，用户第一反应是"这文件坏了"然后就退出去了 */
@@ -267,7 +269,7 @@ export default function BlockoutTrimmer({
     outSel && geo
       ? judge
         ? judge(outSel, geo)
-        : { issue: selectionIssue(outSel, geo), ok: `这一段可以开炼：${selectionSummary(outSel, geo)}` }
+        : { issue: selectionIssue(outSel, geo), ok: t`这一段可以开炼：${selectionSummary(outSel, geo)}` }
       : null;
   const issue = verdict?.issue ?? null;
 
@@ -289,7 +291,7 @@ export default function BlockoutTrimmer({
 
   const blocked =
     sizeMismatch ??
-    (loading ? "还在读这段视频" : null) ??
+    (loading ? t`还在读这段视频` : null) ??
     issue ??
     // ★ 后两道是**白模化价目**的就绪检查：报价被宿主接管（pricing）时跳过 ——
     //   那条路的钱不从 blockoutizeCost 出，拿这两道拦它就是"别条路的价目拦了这条路"
@@ -297,7 +299,7 @@ export default function BlockoutTrimmer({
       ? null
       : priceIssue ??
         (cost === null
-          ? "白模化现在报不出价，先不能开炼（价目或开关没就绪）——这种情况请把这句话反馈给我们。"
+          ? t`白模化现在报不出价，先不能开炼（价目或开关没就绪）——这种情况请把这句话反馈给我们。`
           : null));
 
   return (
@@ -334,7 +336,7 @@ export default function BlockoutTrimmer({
               disabled={busy}
               className="flex-none rounded-full border border-slate-600 px-2.5 py-0.5 text-[10px] text-slate-300 disabled:opacity-40"
             >
-              ⤢ 铺满整幅
+              <Trans>⤢ 铺满整幅</Trans>
             </button>
           ) : undefined
         }
@@ -344,9 +346,11 @@ export default function BlockoutTrimmer({
       {/* 裁剪框是干什么用的，必须在框旁边说 —— 不说的话大多数人根本不会去动它，
           而它是水印唯一的解（F7 实测：提示词去不掉，edit 是逐帧复刻） */}
       <p className="text-[11px] leading-relaxed text-slate-400">
-        拖四个角调整<b className="text-slate-200">裁剪框</b>，拖框身整体挪位。
-        <b className="text-amber-300">台标 / 水印必须框到框外</b> —— AI 出片是逐帧复刻画面，
-        提示词去不掉它（实测），裁掉是唯一的办法；而模板会被反复套用，留一个水印就是永久的。
+        <Trans>
+          拖四个角调整<b className="text-slate-200">裁剪框</b>，拖框身整体挪位。
+          <b className="text-amber-300">台标 / 水印必须框到框外</b> —— AI 出片是逐帧复刻画面，
+          提示词去不掉它（实测），裁掉是唯一的办法；而模板会被反复套用，留一个水印就是永久的。
+        </Trans>
       </p>
 
       {sizeMismatch && (
@@ -403,7 +407,7 @@ export default function BlockoutTrimmer({
           onCapture={async (atSec) => {
             const api = stage.current;
             // 舞台还没挂上（理论上到不了：这一块在 geo 到手之后才渲染）。整句拒，不静默
-            if (!api) throw new Error("播放器还没就绪，稍等一下再标这一帧。");
+            if (!api) throw new Error(t`播放器还没就绪，稍等一下再标这一帧。`);
             return api.capture(atSec);
           }}
           disabled={busy}
@@ -413,7 +417,7 @@ export default function BlockoutTrimmer({
       {/* 校验：行就说清选中的是什么，不行就说清差在哪、往哪拖。两条都是整句 */}
       {loading ? (
         <p className="text-[11px] leading-relaxed text-slate-400">
-          正在读取这段视频的画面尺寸与时长…（应用切到后台时系统会暂停解码，这一步会一直等着）
+          <Trans>正在读取这段视频的画面尺寸与时长…（应用切到后台时系统会暂停解码，这一步会一直等着）</Trans>
         </p>
       ) : issue && !sizeMismatch ? (
         <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
@@ -432,8 +436,10 @@ export default function BlockoutTrimmer({
           两者万一不同（旋转标记等），会在受理前被整句拒 —— 不扣费，但白传一次 */}
       {!natural && geo && (
         <p className="text-[10px] leading-relaxed text-slate-500">
-          画面尺寸（{Math.round(geo.width)}×{Math.round(geo.height)}）与时长是这台设备解出来的；
-          上传后服务器会按它自己读到的值再核一次，对不上会在开始计算<b>之前</b>拒掉（不扣费）。
+          <Trans>
+            画面尺寸（{Math.round(geo.width)}×{Math.round(geo.height)}）与时长是这台设备解出来的；
+            上传后服务器会按它自己读到的值再核一次，对不上会在开始计算<b>之前</b>拒掉（不扣费）。
+          </Trans>
         </p>
       )}
 
@@ -452,20 +458,22 @@ export default function BlockoutTrimmer({
               {/* ★ 帧数与钱在这里是**两件事**：帧数决定认得准不准（多看几帧才不漏人），
                   而这一笔按"一次对话"收，与几帧无关（服务端 priceOf 对 chat 是定额）。
                   写成"看 N 帧 · N×单价"会得到一个 18 倍于实收的数 —— 那是句假话。 */}
-              这一步花两笔：AI 看 {frameCount} 帧认出画面里有哪些人（
-              {visionMode === "manual" ? "你自己挑的" : `按这 ${durSec} 秒自动取`}，多看几帧不额外收费 ·{" "}
-              {fmtTokens(visionTokens)}）
+              {visionMode === "manual" ? (
+                <Trans>这一步花两笔：AI 看 {frameCount} 帧认出画面里有哪些人（你自己挑的，多看几帧不额外收费 · {fmtTokens(visionTokens)}）</Trans>
+              ) : (
+                <Trans>这一步花两笔：AI 看 {frameCount} 帧认出画面里有哪些人（按这 {durSec} 秒自动取，多看几帧不额外收费 · {fmtTokens(visionTokens)}）</Trans>
+              )}
               {videoTokens !== null && tier && (
                 <>
                   {" "}
-                  + 把这 {durSec} 秒整段换成白模人偶（{modelLabel(tier.model)} · {fmtTokens(videoTokens)}）
+                  <Trans>+ 把这 {durSec} 秒整段换成白模人偶（{modelLabel(tier.model)} · {fmtTokens(videoTokens)}）</Trans>
                 </>
               )}
-              。
+              {t({ message: "。", comment: "句末句号，收住上面那一两句报价说明" })}
             </p>
-            {cost !== null && <TokenCost tokens={cost} note="白模化这一次的总消耗" className="mt-1" />}
+            {cost !== null && <TokenCost tokens={cost} note={t`白模化这一次的总消耗`} className="mt-1" />}
             <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-              这是<b>做模板</b>这一次的花费；以后每次有人套用这个模板出片，会按模板视频的时长另计一笔。
+              <Trans>这是<b>做模板</b>这一次的花费；以后每次有人套用这个模板出片，会按模板视频的时长另计一笔。</Trans>
             </p>
           </>
         )}
@@ -476,9 +484,11 @@ export default function BlockoutTrimmer({
           这句说的是 r2v 那条路的风险档，不出片的路挂着它是在吓错人 */}
       {!pricing && (
       <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
-        ⚠ 视频里有<b>真人面孔</b>时，AI 可能在<b>受理之后</b>才拒绝这一发 —— 那时算力已经开始消耗，
-        <b>这笔费用不退</b>（实测：创建时不拒，只能中途失败）。真人素材请自己掂量；动画、游戏画面、
-        自己拍的白模预演不受影响。
+        <Trans>
+          ⚠ 视频里有<b>真人面孔</b>时，AI 可能在<b>受理之后</b>才拒绝这一发 —— 那时算力已经开始消耗，
+          <b>这笔费用不退</b>（实测：创建时不拒，只能中途失败）。真人素材请自己掂量；动画、游戏画面、
+          自己拍的白模预演不受影响。
+        </Trans>
       </p>
       )}
 
@@ -504,7 +514,7 @@ export default function BlockoutTrimmer({
             disabled={busy}
             className="flex-none rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 disabled:opacity-40"
           >
-            取消
+            <Trans>取消</Trans>
           </button>
         )}
         <button
@@ -512,7 +522,7 @@ export default function BlockoutTrimmer({
           disabled={!!blocked || !!busy}
           className="min-w-0 flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
-          {busy ? busyNote || "处理中…" : submitLabel}
+          {busy ? busyNote || t`处理中…` : (submitLabel ?? t`开始白模化`)}
         </button>
       </div>
       {busy && busyNote && <p className="text-center text-[11px] text-slate-400">{busyNote}</p>}

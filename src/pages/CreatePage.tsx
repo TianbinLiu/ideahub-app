@@ -7,6 +7,9 @@
 //   工坊模式  —— 3D 铸卡桌面推演三套方案、挑一套炼一段，逐段落地 → 剪辑 → 发布
 //   简约模式  —— 单节点，一句话出一条几秒短片 → 剪辑 → 发布（**不进草稿库**，见下）
 import { useRef, useState } from "react";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
@@ -20,17 +23,18 @@ import { useStudio } from "../studio/studioStore";
 interface Mode {
   key: string;
   emoji: string;
-  title: string;
-  tag: string;
-  desc: string;
-  bullets: string[];
+  /** ★ 模块顶层的表只放描述符，渲染时再翻（开机语言冻结的坑，见 CLAUDE.md「界面文案走 Lingui」） */
+  title: MessageDescriptor;
+  tag: MessageDescriptor;
+  desc: MessageDescriptor;
+  bullets: MessageDescriptor[];
   /** 卡面封面（Seedream 生成，public/create/）：各自贴合该模式的气质 */
   cover: string;
   /** 边框点缀色 */
   skin: string;
   /** 封面本身偏亮：压字层改用白色 + 深色文字，否则"可爱"会被暗层压成"沉闷" */
   light?: boolean;
-  cta: string;
+  cta: MessageDescriptor;
   go: (nav: ReturnType<typeof useNavigate>) => void;
   /** true = 这条路会调 seedSolo 整表覆盖工作流，进去前得先问在途进度怎么办 */
   resets?: boolean;
@@ -40,26 +44,26 @@ const MODES: Mode[] = [
   {
     key: "studio",
     emoji: "🎴",
-    title: "工坊模式",
-    tag: "完整作品",
-    desc: "在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑一套炼一段，逐段往下铺；顶栏「🧩 工作流画布」把同一条流水线换成画布那一面。",
-    bullets: ["用素材卡定人物场景，全片一致", "每段三选一，可回头改", "3D 桌面与工作流画布是同一条流水线的两个面"],
+    title: msg`工坊模式`,
+    tag: msg`完整作品`,
+    desc: msg`在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑一套炼一段，逐段往下铺；顶栏「🧩 工作流画布」把同一条流水线换成画布那一面。`,
+    bullets: [msg`用素材卡定人物场景，全片一致`, msg`每段三选一，可回头改`, msg`3D 桌面与工作流画布是同一条流水线的两个面`],
     cover: "/create/studio.jpg",
     skin: "border-amber-400/45",
-    cta: "进铸卡桌面",
+    cta: msg`进铸卡桌面`,
     go: (nav) => nav("/studio"),
   },
   {
     key: "simple",
     emoji: "⚡",
-    title: "简约模式",
-    tag: "几秒出片",
-    desc: "只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。不推方案、不存草稿。",
-    bullets: ["不用素材卡，直接写", "开头画面 AI 补", "直接发布，不进草稿"],
+    title: msg`简约模式`,
+    tag: msg`几秒出片`,
+    desc: msg`只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。不推方案、不存草稿。`,
+    bullets: [msg`不用素材卡，直接写`, msg`开头画面 AI 补`, msg`直接发布，不进草稿`],
     cover: "/create/simple.jpg",
     skin: "border-fuchsia-400/45",
     light: true,
-    cta: "写一句话出片",
+    cta: msg`写一句话出片`,
     resets: true,
     go: (nav) => {
       if (!useFlow.getState().seedSolo("simple")) return; // 理由同上
@@ -73,6 +77,7 @@ const MODES: Mode[] = [
 
 export default function CreatePage() {
   const navigate = useNavigate();
+  const { t } = useLingui();
   // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；那颗 ? 随时能重看）
   useAutoGuide("create");
   /**
@@ -85,6 +90,8 @@ export default function CreatePage() {
    */
   const [turns, setTurns] = useState(0);
   const flipped = ((turns % 2) + 2) % 2 === 1;
+  /** 背面那张卡的名字（翻面钮上要写出来）。先翻成值，别在模板串里嵌宏 */
+  const otherTitle = t(MODES[flipped ? 0 : 1].title);
   /** 拖动中的位移与卡宽（px，向左为负）。x≠0 = 正在跟手，此时关掉过渡。
    *  ★ 宽度一起放进 state：角度按「拖了卡宽的百分之几」算，写死一个近似值会让
    *    宽屏上转得太快、窄屏上转不动 */
@@ -101,12 +108,13 @@ export default function CreatePage() {
   const flowNodes = useFlow((s) => s.nodes);
   // 主 CTA 被整句拒时的原因（这一页此前不读它，见下面渲染处的 ★★）
   const flowErr = useFlow((s) => s.err);
+  const pendingTitle = pending ? t(pending.title) : "";
 
   return (
     <div className="fixed inset-0 flex flex-col bg-ink">
       {/* 直接回首页而不是 navigate(-1)：这一页常从登录重定向落地（历史里上一条
             是登录页），也可能本身就是首个历史记录，后退会退出应用而不是回首页 */}
-      <PageHeader className="flex-none px-4" onBack={() => navigate("/")} title="开始创作" right={<HelpButton tour="create" />} />
+      <PageHeader className="flex-none px-4" onBack={() => navigate("/")} title={t`开始创作`} right={<HelpButton tour="create" />} />
 
       {/* ★★ 待取回的那几发也摆在创作入口（2026-09-05）：App 被重启后流水线是空的，而取回卡此前
           只长在"有节点的地方"（简约页 / 画布 / 工坊投影窗）—— 空流水线上没有任何一个节点可点，
@@ -204,24 +212,24 @@ export default function CreatePage() {
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">{m.emoji}</span>
                     <span className={`text-2xl font-bold ${m.light ? "text-slate-900" : "text-slate-50"}`}>
-                      {m.title}
+                      {t(m.title)}
                     </span>
                     <span
                       className={`rounded-full px-2 py-0.5 text-[10px] ${
                         m.light ? "bg-black/10 text-slate-700" : "bg-white/15 text-slate-200"
                       }`}
                     >
-                      {m.tag}
+                      {t(m.tag)}
                     </span>
                   </div>
                   <ul className="mt-3 space-y-1.5">
                     {m.bullets.map((b) => (
                       <li
-                        key={b}
+                        key={b.id}
                         className={`flex gap-2 text-xs leading-relaxed ${m.light ? "text-slate-600" : "text-slate-400"}`}
                       >
                         <span className="flex-none">·</span>
-                        <span>{b}</span>
+                        <span>{t(b)}</span>
                       </li>
                     ))}
                   </ul>
@@ -241,7 +249,7 @@ export default function CreatePage() {
                       m.light ? "bg-ink text-white" : "bg-white/90 text-ink"
                     }`}
                   >
-                    {m.cta} ›
+                    {t(m.cta)} ›
                   </button>
                 </div>
               </div>
@@ -253,12 +261,12 @@ export default function CreatePage() {
           <button
             data-guide="create-dots"
             onClick={() => setTurns((n) => n + 1)}
-            aria-label={`翻到${MODES[flipped ? 0 : 1].title}`}
-            title={`翻到${MODES[flipped ? 0 : 1].title}`}
+            aria-label={t`翻到${otherTitle}`}
+            title={t`翻到${otherTitle}`}
             className="absolute -top-2 right-1 z-10 flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-2 text-white backdrop-blur transition active:scale-95"
           >
             <Icon name="replay" size={16} />
-            <span className="text-[11px] font-semibold">{MODES[flipped ? 0 : 1].title}</span>
+            <span className="text-[11px] font-semibold">{otherTitle}</span>
           </button>
         </div>
       </div>
@@ -280,7 +288,7 @@ export default function CreatePage() {
           正是两份，且两份都在撒谎（见那个组件顶上的 ★★） */}
       {pending && (
         <DiscardFlowDialog
-          discardLabel={`开一条新的${pending.title}（丢弃上面那条）`}
+          discardLabel={t`开一条新的${pendingTitle}（丢弃上面那条）`}
           onResume={() => navigate("/flow")}
           onDiscard={() => {
             const m = pending;

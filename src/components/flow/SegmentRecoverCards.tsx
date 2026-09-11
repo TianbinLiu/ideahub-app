@@ -11,6 +11,7 @@
 // ★ 组件不认宿主：只读 flowStore 与 data/videoJobs，谁都能挂一份。
 //   判「这一发是不是这条流水线的」由 `mine` 传进来（真闸在 `flowStore.takeJob`，
 //   这里只是把"为什么按钮是灰的"画出来，别在这儿另写一遍判断）。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
 import { useSyncExternalStore } from "react";
 import {
@@ -50,6 +51,7 @@ export function useVideoJobs(): number {
  *   长得一模一样。原样显示 data/ai 层给的整句人话。
  */
 export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean }) {
+  const { t } = useLingui();
   const takeJob = useFlow((s) => s.takeJob);
   const busy = useFlow((s) => s.busy);
   const [working, setWorking] = useState("");
@@ -57,22 +59,22 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
   // videoJobNote 是纯函数，重渲即刷新剩余时间
   const [, tick] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 60_000);
-    return () => clearInterval(t);
+    const id = setInterval(() => tick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
   }, []);
   const expired = videoJobExpired(job);
 
   async function take() {
     setIssue("");
-    setWorking("正在取回…");
+    setWorking(t`正在取回…`);
     try {
       await takeJob(job, (st) => setWorking(st));
       // ★★ 取回成功**当场存草稿**（2026-09-06 主人真机）：取回那一拍凭据已销毁、成片只落在内存里的流水线上，
       //   这时 App 再被重启一次（系统回收 / 出包装机）这一发就谁都找不回来了。创作入口这个宿主没挂
       //   useFlowActions（那条"又炼出一段就自动存盘"只长在工作流 / 工坊页上），所以这里自己存。
-      setWorking("成片已落回流水线，正在存草稿…");
+      setWorking(t`成片已落回流水线，正在存草稿…`);
       const meta = await useStudio.getState().saveWorkDraft({ from: "flow" }).catch(() => null);
-      if (!meta) setIssue("成片已经落回流水线，但自动存草稿没成（存储空间不足或隐私模式）——先别关 App，去工坊点一次「存草稿」");
+      if (!meta) setIssue(t`成片已经落回流水线，但自动存草稿没成（存储空间不足或隐私模式）——先别关 App，去工坊点一次「存草稿」`);
     } catch (e) {
       setIssue(e instanceof Error ? e.message : String(e));
     } finally {
@@ -90,11 +92,11 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
         {/* seg=0 = 服务端登记表补来的（本机没认领过它属于哪一段） */}
         {expired
           ? job.seg > 0
-            ? `第 ${job.seg} 段那一发已经取不回来了`
-            : "有一发成片已经取不回来了"
+            ? t`第 ${job.seg} 段那一发已经取不回来了`
+            : t`有一发成片已经取不回来了`
           : job.seg > 0
-            ? `第 ${job.seg} 段有一发成片还没取回`
-            : "服务器上有一发你付过钱的成片还没取回"}
+            ? t`第 ${job.seg} 段有一发成片还没取回`
+            : t`服务器上有一发你付过钱的成片还没取回`}
       </div>
       <div className="mt-0.5 truncate text-[10px] text-slate-400">{job.label}</div>
       <p className={`mt-1 text-[10px] leading-relaxed ${expired ? "text-slate-400" : "text-amber-200/90"}`}>
@@ -108,7 +110,7 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
           而最常见的情形正是根本没有那条草稿（2026-09-05 主人真机） */}
       {!expired && !mine && (
         <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-          当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。
+          <Trans>当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。</Trans>
         </p>
       )}
       {issue && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{issue}</p>}
@@ -117,7 +119,7 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
           onClick={() => dismissVideoJob(job)}
           className="mt-1.5 w-full rounded-full border border-slate-600 py-1.5 text-[11px] text-slate-300"
         >
-          知道了，不用再提醒我这一发
+          <Trans>知道了，不用再提醒我这一发</Trans>
         </button>
       ) : (
         <button
@@ -125,7 +127,13 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
           disabled={!!working || busy}
           className="mt-1.5 w-full rounded-full bg-amber-500/90 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
         >
-          {working ? "取回中…" : mine ? "📥 取回这一段的成片（不重新下单，不再花钱）" : "📥 取回到这条流水线（新开一段 · 不再花钱）"}
+          {working ? (
+            <Trans>取回中…</Trans>
+          ) : mine ? (
+            <Trans>📥 取回这一段的成片（不重新下单，不再花钱）</Trans>
+          ) : (
+            <Trans>📥 取回到这条流水线（新开一段 · 不再花钱）</Trans>
+          )}
         </button>
       )}
       {/* 进度摆在按钮下面而不是塞进按钮里：它是整句（"正在向方舟核对…"），塞进去会折行 */}

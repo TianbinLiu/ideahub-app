@@ -5,6 +5,7 @@
 // 改剧情是很正常的需求；上次用的那个标成「上次」，省得每次都要想。
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { Trans, useLingui } from "@lingui/react/macro";
 import Sheet from "./Sheet";
 import { useApplyTemplate } from "./flow/useApplyTemplate";
 import { deleteDraft, loadDraft, renameDraft, type DraftMode, type WorkDraftMeta } from "../data/drafts";
@@ -12,6 +13,7 @@ import { useStudio } from "../studio/studioStore";
 import { relativeTime } from "../types";
 
 export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onClose: () => void }) {
+  const { t } = useLingui();
   const navigate = useNavigate();
   const [busy, setBusy] = useState("");
   const [renaming, setRenaming] = useState(false);
@@ -34,11 +36,11 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
   const { guard, dialog } = useApplyTemplate();
 
   async function open(mode: DraftMode) {
-    setBusy("打开中…");
+    setBusy(t`打开中…`);
     const full = await loadDraft(meta.id);
     if (!full) {
       // 索引里有、正文没了（配额清理/手动清过库）：把这条索引也清掉，别让用户对着点不开的卡片反复点
-      setBusy("这条草稿的内容已丢失，已从列表移除");
+      setBusy(t`这条草稿的内容已丢失，已从列表移除`);
       await deleteDraft(meta.id);
       setTimeout(onClose, 1600);
       return;
@@ -49,11 +51,11 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
     setBusy("");
     guard(
       () => {
-        setBusy("打开中…");
+        setBusy(t`打开中…`);
         // ★ 工坊里有一炉在跑时会被整句拒（studioBusyReason）：不看返回值的话，
         //   照旧跳页，而桌面还是上一摊活 —— 用户以为草稿打不开（第十一轮抓到）
         if (!useStudio.getState().openWorkDraft(full, mode)) {
-          setBusy(useStudio.getState().studioBusyReason() ?? "现在打不开这条草稿");
+          setBusy(useStudio.getState().studioBusyReason() ?? t`现在打不开这条草稿`);
           setTimeout(() => setBusy(""), 3200);
           return false;
         }
@@ -62,7 +64,11 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
       },
       // ★ claim：这一下是**认领**这条草稿（openWorkDraft 自己会把 workDraftId 指过去），
       //   不是覆盖式套用 —— 断开的话下次自动存盘会另存一条重复的，见 commit 的 ★★
-      { claim: true, label: "打开这条草稿（丢弃上面那条流水线）", noun: "打开草稿" },
+      {
+        claim: true,
+        label: t`打开这条草稿（丢弃上面那条流水线）`,
+        noun: t({ message: "打开草稿", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" }),
+      },
     );
   }
 
@@ -82,19 +88,19 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
             onClick={() => void renameDraft(meta.id, name).then(() => setRenaming(false))}
             className="rounded-full bg-brand px-4 text-sm font-bold text-ink"
           >
-            改名
+            <Trans>改名</Trans>
           </button>
         </div>
       ) : (
         <div className="flex items-center gap-2">
           <h3 className="min-w-0 flex-1 truncate text-base font-bold text-slate-100">{meta.title}</h3>
           <button onClick={() => setRenaming(true)} className="flex-none text-xs text-slate-400">
-            重命名
+            <Trans>重命名</Trans>
           </button>
         </div>
       )}
       <p className="mt-1 text-[11px] text-slate-500">
-        {meta.segCount} 段 · 已出片 {meta.doneCount} · {relativeTime(meta.updatedAt)}改过
+        <Trans>{meta.segCount} 段 · 已出片 {meta.doneCount} · {relativeTime(meta.updatedAt)}改过</Trans>
       </p>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
@@ -103,9 +109,10 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
           disabled={!!busy}
           className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-left disabled:opacity-40"
         >
-          <div className="text-sm font-bold text-amber-200">🎴 工坊模式</div>
+          <div className="text-sm font-bold text-amber-200"><Trans>🎴 工坊模式</Trans></div>
           <div className="mt-0.5 text-[10px] leading-relaxed text-slate-400">
-            3D 桌面摆卡、推演走向{meta.lastMode === "studio" && " · 上次"}
+            <Trans>3D 桌面摆卡、推演走向</Trans>
+            {meta.lastMode === "studio" && t` · 上次`}
           </div>
         </button>
         <button
@@ -113,9 +120,10 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
           disabled={!!busy}
           className="rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3 text-left disabled:opacity-40"
         >
-          <div className="text-sm font-bold text-cyan-200">🧩 工作流模式</div>
+          <div className="text-sm font-bold text-cyan-200"><Trans>🧩 工作流模式</Trans></div>
           <div className="mt-0.5 text-[10px] leading-relaxed text-slate-400">
-            一屏一段、逐段生成{meta.lastMode === "flow" && " · 上次"}
+            <Trans>一屏一段、逐段生成</Trans>
+            {meta.lastMode === "flow" && t` · 上次`}
           </div>
         </button>
       </div>
@@ -127,12 +135,12 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
               草稿里确实已经出片的段数，0 就老实说没有花掉的钱，不要吓唬人。 */}
           <p className="text-[11px] leading-relaxed text-rose-300">
             {meta.doneCount > 0 ? (
-              <>
+              <Trans>
                 删掉「{meta.title}」？里面有 <b className="font-bold">{meta.doneCount} 段已经花钱炼出来的成片</b>，
                 这条草稿是它们唯一的备份 —— 删了要重新花一次钱才有。
-              </>
+              </Trans>
             ) : (
-              <>删掉「{meta.title}」？这条还没有出片的段，不会有钱白花，但写好的分镜找不回来。</>
+              <Trans>删掉「{meta.title}」？这条还没有出片的段，不会有钱白花，但写好的分镜找不回来。</Trans>
             )}
           </p>
           <div className="mt-2 flex gap-2">
@@ -140,26 +148,26 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
               onClick={() => setConfirmDel(false)}
               className="flex-1 rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200"
             >
-              不删
+              <Trans>不删</Trans>
             </button>
             <button
               onClick={() => void deleteDraft(meta.id).then(onClose)}
               className="rounded-xl bg-rose-500/90 px-4 py-2.5 text-sm font-bold text-ink"
             >
-              确认删除
+              <Trans>确认删除</Trans>
             </button>
           </div>
         </div>
       ) : (
         <div className="mt-3 flex gap-2">
           <button onClick={onClose} className="flex-1 rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200">
-            取消
+            <Trans>取消</Trans>
           </button>
           <button
             onClick={() => setConfirmDel(true)}
             className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-300"
           >
-            删除
+            <Trans>删除</Trans>
           </button>
         </div>
       )}

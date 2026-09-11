@@ -11,10 +11,12 @@
 import { clampDuration, modelLabel, r2vPriceIssue, realFaceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { chosenOf, nodeDone, tplOfNode, useFlow } from "../../studio/flowStore";
 import { DURATIONS, VIDEO_ASPECTS } from "../../types";
+import { Trans, useLingui } from "@lingui/react/macro";
 import TierRow from "./TierRow";
 import { carryIsHard } from "../../studio/segmentGen";
 
 export default function SegSettings({ nodeId }: { nodeId: string }) {
+  const { t } = useLingui();
   const nodes = useFlow((s) => s.nodes);
   const { updateProposal, updateNode } = useFlow();
   const index = nodes.findIndex((n) => n.id === nodeId);
@@ -36,14 +38,14 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
   const r2vBlocks = blockout
     ? (() => {
         const byReason = new Map<string, string[]>();
-        for (const t of VIDEO_TIERS) {
-          const why = r2vPriceIssue(t.id);
+        for (const tier of VIDEO_TIERS) {
+          const why = r2vPriceIssue(tier.id);
           if (!why) continue;
           // 「「极速」这一档暂未开放…」→ 去掉开头那个带引号的档位名，剩下的就是"原因本身"
           const bare = why.replace(/^「[^」]*」/, "").trim();
           const hit = byReason.get(bare);
-          if (hit) hit.push(t.label);
-          else byReason.set(bare, [t.label]);
+          if (hit) hit.push(tier.label);
+          else byReason.set(bare, [tier.label]);
         }
         return [...byReason].map(([bare, names]) => `「${names.join("」「")}」${bare}`);
       })()
@@ -66,17 +68,17 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
           档位的产品约束）。摆一排点了不生效的时长按钮就是骗人 —— 换成一句明说 */}
       {blockout && tpl?.refVideo ? (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="w-10 flex-none text-[11px] text-slate-400">时长</span>
+          <span className="w-10 flex-none text-[11px] text-slate-400"><Trans>时长</Trans></span>
           <span className="text-[11px] text-slate-300">
             {/* ★ 这里说的是**计价与预期时长**（锚点），不是文件真实秒数 —— 真实秒数在
                 模板详情页如实显示。两处措辞刻意不同，别把这一处改成真实值：
                 账单按锚点走，用户对账时看的是这个数 */}
-            按 {tpl.refVideo.durationSec} 秒计 · 跟随模板视频（白模复刻的输出时长≈模板时长，不可另选）
+            <Trans>按 {tpl.refVideo.durationSec} 秒计 · 跟随模板视频（白模复刻的输出时长≈模板时长，不可另选）</Trans>
           </span>
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="w-10 flex-none text-[11px] text-slate-400">时长</span>
+          <span className="w-10 flex-none text-[11px] text-slate-400"><Trans>时长</Trans></span>
           {DURATIONS.map((d) => {
             // ★ 短于本档下限的时长直接禁掉并说明：Seedance 2.5 的合法区间是 [4,30]，
             //   3 秒发过去是同步 400，用户只会觉得"这一档坏了"（见 VideoTier.minSec）
@@ -92,9 +94,9 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
                 disabled={tooShort || offStep}
                 title={
                   offStep
-                    ? `「${tierOf(node.videoTier).label}」按发计价，只有 ${Object.keys(flat!).join("/")} 秒两档`
+                    ? t`「${tierOf(node.videoTier).label}」按发计价，只有 ${Object.keys(flat!).join("/")} 秒两档`
                     : tooShort
-                      ? `「${tierOf(node.videoTier).label}」最短 ${tierOf(node.videoTier).minSec} 秒`
+                      ? t`「${tierOf(node.videoTier).label}」最短 ${tierOf(node.videoTier).minSec} 秒`
                       : undefined
                 }
                 // ★ 高亮跟 clampDuration 的**结算值**走，不跟存量原始值（2026-08-24 真机抓到）：
@@ -112,7 +114,7 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
       {/* 画幅：已出片的段不给改——改了这一段的成片还是老画幅，
           用户以为改完就变了，直到剪辑页合并才发现这一段被裁/补了边 */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="w-10 flex-none text-[11px] text-slate-400">画幅</span>
+        <span className="w-10 flex-none text-[11px] text-slate-400"><Trans>画幅</Trans></span>
         {VIDEO_ASPECTS.map((a) => (
           <button
             key={a.id}
@@ -123,9 +125,9 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
             disabled={done || blockout}
             title={
               blockout
-                ? "白模复刻的画幅自适应模板视频，不可另选"
+                ? t`白模复刻的画幅自适应模板视频，不可另选`
                 : done
-                  ? "这一段已出片，改画幅要重新生成才生效"
+                  ? t`这一段已出片，改画幅要重新生成才生效`
                   : a.desc
             }
             className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${
@@ -167,9 +169,9 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
           见 arkClient 那段 ★）。用户在最贵一档上照那句话付了钱，拿回的每段都是哑的。
           改印白模自己的实话：声音在合并那一步回填原片音轨。 */}
       <div className="text-[10px] text-slate-500" title={tierOf(node.videoTier).model}>
-        本段模型：{modelLabel(tierOf(node.videoTier).model)}
+        <Trans>本段模型：{modelLabel(tierOf(node.videoTier).model)}</Trans>
         <span className="ml-1 opacity-70">
-          · {blockout ? "白模复刻：只换人不生成声音，音轨在「完成视频」那一步回填原片" : tierOf(node.videoTier).desc}
+          · {blockout ? t`白模复刻：只换人不生成声音，音轨在「完成视频」那一步回填原片` : tierOf(node.videoTier).desc}
         </span>
       </div>
 
@@ -182,16 +184,16 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
             className="accent-brand"
           />
           {/* ★ 同 FlowCanvas 那条 ⓘ：硬度随档位变，判据同一处（segmentGen.carryIsHard） */}
-          从上一段的真实结尾画面接着拍
+          <Trans>从上一段的真实结尾画面接着拍</Trans>
           {!carryIsHard(node.videoTier) && (
-            <span className="text-slate-500">（这一档是参考+点名，不是硬保证）</span>
+            <span className="text-slate-500"><Trans>（这一档是参考+点名，不是硬保证）</Trans></span>
           )}
         </label>
       )}
 
       {!!node.materials?.length && (
         <div className="flex flex-wrap gap-1">
-          <span className="w-10 flex-none text-[11px] text-slate-400">素材</span>
+          <span className="w-10 flex-none text-[11px] text-slate-400"><Trans>素材</Trans></span>
           {node.materials.map((c) => (
             <span key={c.id} className="rounded-full px-2 py-0.5 bg-panel text-[10px] text-slate-300">
               {c.name}

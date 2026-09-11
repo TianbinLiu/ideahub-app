@@ -296,6 +296,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   （`nodeCost` / `proposalsCost`）与**顺序门禁**（`clampCursor`）—— 后者漏了的话，用户回前面
   换一套没炼过的走向就会让本段重新上锁，而这张卡成了绕过门禁的唯一入口（屏幕上写着 🔒，
   钱照扣）。
+  **句式与本地档解析只在 `studio/agentGrammar.ts`**（2026-09-10，D10 第 2 步）：中英两套句式并联，按段号锚点逐子句分派、
+  不看界面语言；零运行时依赖，`scripts/check-agent-grammar.mjs` 在构建里直接 import 它跑正反例 —— 改一条正则就去那儿
+  补一句正例、一句反例（判错的方向要安全：误判成设置 = 白拒一次，漏判成要求 = 静默覆盖）。本地档**认得出**推演 / 生成 /
+  挂卡但不代办、只指路；中文本地档新认这三类要主人点头（§1 第 27 批）。英文角色位别名（leftmost / 2nd from left）按服务端
+  `markSlots` 的下标取原字样，清单满 9 个时一律不认（可能截过，按下标会取到另一个人）。
 - **互动计数一律要能防刷**。首页是上下甩着刷的，"进入视口就 +1""重挂载就重来"这类写法
   等于给用户做了个刷量按钮。已经收口的两条：**播放**要真看够 `PLAY_MIN_SEC`（3 秒，
   按 `currentTime` 增量累计，不是墙上时钟）且一次会话只记一次（`videos.addPlay` 里去重，
@@ -420,7 +425,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   `[scrollbar-width:none]` 一类的任意值写法也别再手拼。查法：`rg 'overflow-x-auto' --glob '*.tsx' | rg -v no-scrollbar` 只该剩注释。
 - **时长写法两档**：句子里「N 秒」（`至少留 2 秒`、`2~15 秒`），角标 / 读数 `Ns`（卡片右下角 `21s`、`20.7s`），
   播放头位置 `mm:ss`。**相对时间只有一份 `types.relativeTime`**（刚刚 / 3分钟前 / 9月6日），别再冒 `toLocaleString()`。
+  它**按界面语言分派**（中文沿用手写版、逐字不变；英文走 Intl）—— 别在调用处把中文接在返回值后面（「{relativeTime(x)}改过」），
+  写成带占位符的整句 `<Trans>`，否则英文界面读出来是「3 minutes ago改过」。
 - **上万折「x.x 万」只有一份 `types.formatPlays`**：热度 / 播放 / 卡片热度 / 3D 卡面小字都用它（此前四处各抄一份）。
+  按界面语言分派：中文手写「x.x万」（Intl 的 zh compact 会写成「1万」「12万」），英文 Intl compact（12.3K）。
 - **空态 / 整页态只有一份实现 `components/EmptyState`**（2026-09-05 收口）：图标 40px slate-600（或 emoji）→ 正文
   text-sm slate-400（出错 rose-300）→ 补充 text-xs slate-600 → 按钮（主 bg-brand / 次 bg-panel+ring，同上一条）。
   列表里的空态 `py-16`，整页态（卡/卡组/模板不存在、未登录墙、取回中）传 `full`（min-h-[70vh] 居中 + safe-top）。
@@ -445,6 +453,17 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   placeholder:text-slate-500 focus:border-brand`（textarea 加 `resize-none leading-relaxed`）—— 高 40px，与主按钮同高。
   登录 / 设置 / 发布 / 编辑 / 卡片 / 卡组 / 模板详情 / 自建卡 / 简约模式的输入框都是它。画布、工坊面板、
   弹层里的**紧凑**字段（`rounded-lg px-2.5 py-1.5 text-xs`）与深色弹层上的 `bg-black/30` 不在此列。
+- **界面文案走 Lingui**（2026-09-10 接线，多语言方案 D6）：源语言中文，`src/locales/{zh,en}.po` 入仓（行号关着，挪行不改目录）。
+  组件里 `Trans` / `useLingui`（`@lingui/react/macro`），`.ts` 里 `t` / `msg`（`@lingui/core/macro`）；**模块顶层只准放 `msg` 描述符**，
+  渲染时再翻 —— 开机是先激活语言、再动态 import App（`main.tsx`），顶层翻译调用会冻结在开机语言。**新文案同一个 PR 带英文**
+  （D8 a：把 en.po 的 msgstr 填上）。进模型的指令与点名语法**冻结中文、不进目录**：卡种名读 `CARD_TYPE_PROMPT`、图位读
+  `slotPromptOf`、镜头行读 `shotLineOf`（界面分别用 `CARD_TYPE_LABELS` / `slotLabel` / `shotLineDisplay`）。构建里跑
+  `lingui extract`，改了目录没提交的话 land 与 CI 都会拦。构建里另跑 `scripts/check-i18n.mjs`（棘轮，基线 `scripts/i18n-baseline.json`）：
+  **新增**的中文界面字面量、模块顶层的翻译调用、`.tsx` 从 `@lingui/core/macro` 引 `t`、冻结声明里的宏、en.po 缺译变多，都会让构建失败。
+  迁掉一处就 `node scripts/check-i18n.mjs --update` 把基线收紧（只减不增）；确实不该翻的写 `// i18n-ignore-next-line: 理由`；
+  发给模型的指令用 `zhPrompt` 标签模板或 `/* i18n-frozen: 理由 */` 声明（整个文件冻结的只有 `studio/agentGrammar.ts`：句式是被解析的输入）。新加的是界面文案却想接受进基线（`--accept-new`），
+  基线的 diff 会出现在 PR 里 —— 评审时要能说出为什么。界面语言的唯一判定在 `src/i18n/locale.ts`（跟随系统 = 遍历
+  `navigator.languages` 按语言匹配，繁体归简体，兜底英文；侧载老用户同样按检测走）。
 - **数值不要拍脑袋**。涉及尺寸/间距/重叠的值先量再定，并在注释里写清量法与结论
   （例：`CharacterPerch` 的 `bottom` 系数调过四轮，注释里记了每一轮为什么不行）。
 - 动画只动 `transform` / `opacity`（合成层）。视频流滚动时本就吃紧，触发重排会掉帧。
@@ -602,6 +621,9 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 自动预置的原片音轨 + 用户动过时间轴 | 那条音轨是按**原片从 0 秒**混进去的（分段组取的更是整条源片），而裁剪 / 删段 / 换序改的全是画面这一侧，两边**没有任何对齐机制** ⇒ 音画永久错位，而屏幕上一个字不说，用户只会以为是合成质量的问题 | 真对齐要给音轨也做一份时间轴映射（另一件事）；在那之前**至少要说出来** —— 合并那一拍比一下 `view` 与 `segs` 的原始形状，动过就把这句话带去发布页 |
 | 取回安放的段写死 `tpl: null`，而白模的**声音全在模板上** | `flowStore.placeRescuedSegment` 的 `tpl: null` 本身是对的（恢复成 store 级那份会踩「tpl 三态兜底」那格坑），但它顺带把这一段的**模板原声**也一起丢了 —— 白模成片文件天生无声，声音全靠合并时从模板原片混进去。于是「App 重启后取回一发白模成片」这条路会让那一段在**回看里彻底哑**、合并时也拿不到音轨预置，全程零提示 | 别去动 `tpl`。单开一位 `FlowNode.audioHint`（只有取回段用得上），凭据里跟着存 `VideoJob.tplRefVideo`（**只存地址**——模板对象带 refVideo/roles/cards，塞 localStorage 会顶配额）。读的两处都把它排在 `tplOfNode` **之后**当兜底：`studioStore.draftAudioHint`（合并预置）与 `SegPlayer` 的 `tplAudioUrl`（回看叠音） |
 | 老草稿里那一段揣的还是**方舟临时链接**，而它只活 24 小时 | 合并时 media3 去拉它，拿回 **403** ⇒ 整发失败，而合成器给的原话是三行英文：`Asset loader error ← Source error ← Response code: 403`。用户读不出「哪一段」「为什么」「接下来怎么办」——2026-09-08 真机撞到：一条两天前的草稿，转存当初没成，方舟那份早就过期了。⚠ 这一档**救不回来**：源头没了，转存也拉不到，只能重新出片（再花一次钱）| 合并前那趟受理式转存之后，把**仍然是方舟链接**的段号记下来（`stillArk`）；失败时若错误里带 403/404 **且** `stillArk` 非空，就说准：哪几段、为什么（临时链接 24 小时）、怎么办（重新出片或删掉这几段）。⚠ 只在我们自己知道有段没转存成时才这么说 —— 同样的 403 也可能来自别的地址，硬套一个原因就是换了一种骗人 |
+| 按错误 message 里的**中文关键词**判「是哪一种失败」（`/网络失败/`、`/网络不可用/`、`/审核/`） | 两头都零报错：措辞一改、或多语言之后 message 变成英文，分流就悄悄全落兜底句；更要命的是被分错的那一档往往关系到钱 —— 「没收到回包」恰恰是**可能已经扣了**的那一档（服务端先扣钱再转发，而客户端 chat 超时 120 秒短于服务端转发上限 150 秒），在这里说「没扣钱」是往放心的方向说错 | 认**类型 / 状态码 / code**，不认 message：`arkClient` 的 `ArkNoReply`（没收到回包，只能说「可能已扣」）/ `ArkBadReply`（2xx 读不出来，已扣）/ `ArkHttpError.status`（服务端网关连不上方舟回的是 **504** + `ark upstream TimeoutError`）；`api/client` 的 `ApiError.code`（NETWORK / TIMEOUT），上传分块断线的 `chunkError` 也带同一个码。浏览器自己的英文（`Failed to fetch`）不是我们的文案，留作兜底可以。2026-09-10 多语言第 1 步把 `briefArkReason` / `chatFailLine` / `videos.errText` 三处收了 |
+| 拿一张**看起来像真图**的占位图顶住没画出来的帧（`mock/frames.makeFrame`） | 下游只问「帧在不在」：出片（segmentGen 出片前补画）与报价（`segmentCost` 数图）都认 `!firstFrame` ⇒ 占位图被当真帧发给 Seedance，整段的钱照收，拍出来的是一张烧着「第N段 · … · 首帧」「AI 预览帧」的渐变图在动；方案台还写着「出片前会自动重画」，而那条重画分支（`composeSegments` 的 `sg.degraded`）从来没有调用方传过 —— 死码，全程零报错（2026-09-10 做多语言清点时抓到） | 缺失一律用字段本来的"没有"值（空串），为什么没有记在旁挂标记里（`Proposal.degraded` 只管渲染）—— 与上面「塞对象当墓碑」同一条规矩。帧能不能拿去出片只问 `flowStore.usableFrames`（报价 / 出片 / 工坊改帧三处共用），它顺带把老草稿里「degraded 为真且两帧都不空」的占位图认成没有 |
+| 拍照绕开 `utils/nativeCamera`（页面自己 import 相机插件）/ 给清单加 `CAMERA` / 改 QQ 的回调转发 | 三种都**零报错**：① 声明了 `CAMERA` ⇒ 插件先弹运行时授权、拒绝即 reject，表现为「点了没反应」（没声明时 `checkPermissions()` 恒报已授予，不能拿它当门禁）；② `file_paths.xml` 少了 `external-files-path Pictures/` ⇒ 插件 `getUriForFile` 抛、拍照整条失败；③ `MainActivity.onActivityResult` 只在 `QQLoginPlugin.handleActivityResult` 回 false 时才调 super —— 让非 QQ 的 requestCode 也回 true，相机结果就被吞了。另外 release 包 logcat 里一行都不打 | 入口只有 `utils/nativeCamera`，**只调 `getPhoto(Camera)`**：它自 8.1.0 标了 deprecated，但只有它走 `startActivityForResult`、进程被杀后能经 `appRestoredResult` 回放；`takePhoto` 走 ioncamera，结果静默丢。清单一行 CAMERA 都别加；`ioncamera_paths.xml` 同名覆盖成只剩 cache-path（库原文暴露整个共享存储，与 09-07 删掉的那条同一个口子）。**带 EXIF 的原始字节不出 nativeCamera**（`stripExif` 按方向摆正、重编码，GPS 不留）。验收看「真的拉起了系统相机」，不看「拿到了一张图」 |
 
 ## 相关文档
 

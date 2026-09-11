@@ -17,6 +17,7 @@
  * ★ 市场模型加载失败（文件缺了 / 作者删了 / 没网）就退回官方看板娘，并通过 onFallback 告诉页面一次：
  *   客服对话不依赖模型能不能画出来，但"人突然换回默认了"得有句话交代。官方那份也失败才把舞台留空（只 console.warn）。
  */
+import { Trans } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 import { CompanionModel } from "../../live2d/companionModel";
 import { companionBus } from "../../companion/bus";
@@ -150,7 +151,7 @@ export default function SupportStage({ className = "", topPx = 56, heightFractio
   return (
     <div ref={wrapRef} className={`overflow-hidden ${className}`} aria-hidden="true">
       {status === "loading" && (
-        <div className="absolute inset-x-0 top-[40%] flex items-center justify-center text-xs text-slate-400/80">正在请小梦出场…</div>
+        <div className="absolute inset-x-0 top-[40%] flex items-center justify-center text-xs text-slate-400/80"><Trans>正在请小梦出场…</Trans></div>
       )}
     </div>
   );

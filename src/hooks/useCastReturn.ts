@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { t } from "@lingui/core/macro";
 import { useLocation, useNavigate } from "react-router";
 import { tplOfNode, useFlow } from "../studio/flowStore";
 import { VIDEO_EDITOR_RESULT_KEY, type VideoEditorResult } from "../pages/VideoEditorPage";
@@ -36,7 +37,7 @@ export function useCastReturn(): void {
     const curTpl = tplOfNode(st.nodes[st.cursor] ?? st.nodes[0]);
     if (r.templateId && curTpl && r.templateId !== curTpl.id) {
       useFlow.setState({
-        err: "刚才挂卡的是另一个模板（这条流水线上套的模板中途换过了）——回模板详情页重新套用一次再挂卡",
+        err: t`刚才挂卡的是另一个模板（这条流水线上套的模板中途换过了）——回模板详情页重新套用一次再挂卡`,
       });
       return;
     }

@@ -17,6 +17,7 @@
 //
 // ★ 离线模式不出补全面板：那时这台机器上只有你一个人，面板永远是空的，
 //   摆一个永远查不到人的搜索框比不摆更糟（CLAUDE.md「界面上摆一个永远点不动的选项」）。
+import { useLingui } from "@lingui/react/macro";
 import { useCallback, useEffect, useRef, useState } from "react";
 import UserRow from "./UserRow";
 import { searchUsers, type ApiUserLite } from "../api/users";
@@ -109,6 +110,7 @@ export default function MentionInput({
   wrapperClassName = "relative min-w-0 flex-1",
   inputRef,
 }: MentionInputProps) {
+  const { t } = useLingui();
   const innerRef = useRef<HTMLInputElement>(null);
   const el = inputRef ?? innerRef;
   const [caret, setCaret] = useState(0);
@@ -147,14 +149,14 @@ export default function MentionInput({
           setHi(0);
           // 老服务端 / SPA 回退：说清楚是"这台服务器没有这个能力"，
           // 不要伪装成"查无此人"——后者会让用户以为对方注销了
-          setNote(r.supported ? "" : "这台服务器还不支持搜人，@ 可能收不到");
+          setNote(r.supported ? "" : t`这台服务器还不支持搜人，@ 可能收不到`);
         })
         .catch((e) => {
           if (seq.current !== mine) return;
           // 全 app 没有任何地方监听 emitApiError：这里吞掉 = 面板永远空着，
           // 用户分不出"没这个人"和"网炸了"（铁律八）
           setUsers([]);
-          setNote(e instanceof Error ? `搜人失败：${e.message}` : "搜人失败");
+          setNote(e instanceof Error ? t`搜人失败：${e.message}` : t`搜人失败`);
         });
     }, DEBOUNCE_MS);
     return () => window.clearTimeout(timer);

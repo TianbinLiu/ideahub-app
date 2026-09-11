@@ -7,8 +7,9 @@
 //   不耗 token / 去工坊的链接），三条展开讲进了引导（tours 的 customcard，首次进页
 //   强制放一遍、角落 ? 随时重看）——"默认铸卡不用传图"这件事仍然人人看得到。
 //
-// ★★ 这一页**一个模型都不调**，所以既不报价也不扣 token。这是它相对 AI 铸卡的真实
-//   优势（也是唯一的），要写出来；反过来说，它也没有"AI 帮你补全另外两张图"这件事。
+// ★★ 自己传图这条路**默认一个模型都不调**，所以铸卡本身既不报价也不扣 token —— 这是它相对 AI 铸卡的
+//   真实优势，要写出来。花钱的都是**可选**的一颗键，价签印在键上、成功才扣：人物卡的「AI 生成图位」
+//   与「圈选改图」、场景卡与道具卡的「让 AI 填写」（2026-09-10 更正：这句注释原来写的是整页不调模型，早就不对了）。
 //
 // ── 想清楚过的四件事（对应铁律五/七/八）────────────────────────────
 // ① **离线模式给不给走？给。** 卡本身照样成立：`data/account.addCards` 在离线模式
@@ -28,6 +29,9 @@ import Spinner from "../components/Spinner";
 import PageHeader from "../components/PageHeader";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
+import { Trans, useLingui } from "@lingui/react/macro";
+import { msg } from "@lingui/core/macro";
+import type { MessageDescriptor } from "@lingui/core";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
@@ -36,10 +40,14 @@ import PortraitAuthPanel from "../components/PortraitAuthPanel";
 import VoiceRecorder from "../components/VoiceRecorder";
 import VoiceUploadButton from "../components/VoiceUploadButton";
 import { fetchPortraitAssetImage } from "../api/portrait";
-import { addCards, bindCardAsset, canAfford, isRemoteMode, spendTokens, walletOf } from "../data/account";
+import { addCards, bindCardAsset, canAfford, isRemoteMode, refreshRemoteWallet, spendTokens, walletOf } from "../data/account";
 import { API_ON } from "../api/client";
 import { prepareCardImage } from "../data/cardViews";
-import { AI_REAL, portraitViews, refineCardImage } from "../ai";
+import { joinViewNote } from "../types";
+import PhotoSubjectPicker from "../components/PhotoSubjectPicker";
+import { blobToDataUrl } from "../utils/image";
+import { capturePhoto, nativeCameraSupported, stripExif, sweepCameraLeftovers, type CaptureResult } from "../utils/nativeCamera";
+import { AI_REAL, ArkBadReply, ArkNoReply, portraitViews, recognizeCardSubject, refineCardImage } from "../ai";
 import { chatVision } from "../ai/arkClient";
 import FrameAnnotator from "../components/FrameAnnotator";
 import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
@@ -47,7 +55,7 @@ import { saveVoice } from "../data/cardVoice";
 import { startJob } from "../data/jobs";
 // ★★ 这一页的表单状态全在 store 里（理由见 customCardStore 文件头）：AI 出图 / 铸卡上传
 //   退出这一页也不断，人回来时原样还在；胶囊（GenerationPill）负责人不在时的通知
-import { type Shot, draftBusy, draftDirty, resetCardDraft, useCardDraft, useDraftField } from "../studio/customCardStore";
+import { type Shot, draftBusy, draftDirty, freshSubjectPick, resetCardDraft, useCardDraft, useDraftField } from "../studio/customCardStore";
 // 人物卡的图位不再写死三格，由**提示词方案**定（与「从视频提取」同一套方案库）。
 // 方案在这里决定**图位结构**（几格、各叫什么、锁什么）；「AI 生成图位」车道
 // 走 ai/portraitViews（与工坊提卡同一条出图路），报价同一把尺 schemeCost。
@@ -69,6 +77,7 @@ import {
   Card,
   CardType,
   CardView,
+  ID_LINE_MAX,
   parseTags as parseTagsShared,
   roleToKind,
   slotLabel,
@@ -89,6 +98,15 @@ const SUMMARY_MAX = 60;
 const INFO_MAX = 500;
 const TAG_MAX = 6;
 const TAG_LEN_MAX = 10;
+/** 出片句的示例（占位符）。★ 避开提示词敏感词替换表里的词（ai/real.ts 的 SOFTEN，例如「少女」）：
+ *  用户照抄示例的话，那个词出图时会被改写，出片句就和他看到的对不上了 */
+const ID_LINE_EXAMPLE: Record<CardType, MessageDescriptor> = {
+  character: msg`例：黑色齐肩短发的年轻女性，左眼下一颗泪痣，深蓝水手服`,
+  scene: msg`例：雨夜的旧城小巷，两侧霓虹招牌，积水的地面反光`,
+  prop: msg`例：黄铜外壳的老式怀表，表盖刻着缠枝纹，表链磨得发亮`,
+  background: msg`例：末日后第三年，城市被藤蔓覆盖，人们以物易物`,
+  style: msg`例：水墨淡彩，大面积留白，镜头缓慢横移`,
+};
 
 /** 方案小窗的占位图（内置方案都带真实示例图了，这份只兜自定义方案没存示例的情况） */
 const SCHEME_EMOJI: Record<string, string> = { scheme_clean: "🧍", scheme_faceless: "🫥", scheme_specsheet: "📐" };
@@ -101,15 +119,7 @@ function parseTags(raw: string): string[] {
   return parseTagsShared(raw, { max: TAG_MAX, maxLen: TAG_LEN_MAX });
 }
 
-/** Blob → dataURL。纯编码，不是规则（规则都在 prepareCardImage 里） */
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((res, rej) => {
-    const fr = new FileReader();
-    fr.onload = () => res(String(fr.result));
-    fr.onerror = () => rej(new Error("图片读取失败"));
-    fr.readAsDataURL(blob);
-  });
-}
+// Blob → dataURL 的纯编码搬到了 utils/image.blobToDataUrl（「只留主体」层也要用，别抄两份）
 
 export default function CustomCardPage() {
   const nav = useNavigate();
@@ -126,6 +136,22 @@ export default function CustomCardPage() {
   const [summary, setSummary] = useDraftField("summary");
   const [info, setInfo] = useDraftField("info");
   const [tagText, setTagText] = useDraftField("tagText");
+  /** 出片句（Card.idLine）。这一页原来不写它，出片时退回「名字 + 简介前 24 字」（segmentGen.materialText） */
+  const [idLine, setIdLine] = useDraftField("idLine");
+  /** 道具卡「只留主体」层（components/PhotoSubjectPicker）开着时那张图 */
+  const [subjectPick, setSubjectPick] = useDraftField("subjectPick");
+  /** 一键识别（场景卡 / 道具卡，拍板 5 a）正在跑的那一步，以及结局那句话 */
+  const [recogBusy, setRecogBusy] = useDraftField("recogBusy");
+  const [recogMsg, setRecogMsg] = useDraftField("recogMsg");
+  /** 场景 / 道具卡的「📷 拍摄识别 / 🖼 上传本地图片」两选一（拍板 1 a）；相机在前台那一句；弹窗里要说的话 */
+  const [sourcePick, setSourcePick] = useDraftField("sourcePick");
+  const [captureBusy, setCaptureBusy] = useDraftField("captureBusy");
+  const [captureMsg, setCaptureMsg] = useDraftField("captureMsg");
+  /** 拍摄路落格之后自动识别一次（拍板 5 a）：记着拍之前第 1 格是哪张图，换成新图了才识别 */
+  const [recogAfterShot, setRecogAfterShot] = useDraftField("recogAfterShot");
+  const { t } = useLingui();
+  /** 列举几个图位名 / 还缺的几项时的分隔符 */
+  const listSep = t({ message: "、", comment: "列举几个图位名 / 还缺的几项时的分隔符" });
 
   // ── 人物卡：方案驱动的图位 ─────────────────────────────
   // 方案库是模块级侧库，自建/删除后要重渲染靠订阅（与 VideoCardAnnotator 同一套）
@@ -231,6 +257,8 @@ export default function CustomCardPage() {
   const offlineButConfigured = API_ON && !remote;
 
   const fileRef = useRef<HTMLInputElement>(null);
+  /** 浏览器里「拍摄识别」的降级口：带 capture 的 input（原生壳里走 utils/nativeCamera，不走它） */
+  const cameraFallbackRef = useRef<HTMLInputElement>(null);
   /** 正在为哪一格选图：非人物卡认 kind，人物卡认方案 tag */
   const pickingRef = useRef<{ kind: CardView["kind"] } | { tag: string }>({ kind: "body" });
 
@@ -298,19 +326,46 @@ export default function CustomCardPage() {
    */
   function changeType(next: CardType) {
     if (next === type) return;
-    // ★ 人物卡（方案库）与其余卡种（kind 库）互不相通，涉及人物卡的切换**什么都不丢**
-    //   （另一库原样留着，切回来图还在）——只有非人物卡之间才有"这一格没了"的问题
-    if (next !== "character" && type !== "character") {
+    // ★ 人物卡（方案库）与其余卡种（kind 库）互不相通：人物卡那一库切来切去**什么都不丢**
+    //   （另一库原样留着，切回来图还在）。「这一格没了」只发生在非人物卡之间。
+    if (next !== "character") {
       const keep = new Set<string>(CARD_SLOTS[next].map((s) => s.kind));
-      const gone = (Object.keys(shots) as CardView["kind"][]).filter((k) => shots[k] && !keep.has(k));
-      if (gone.length > 0) {
+      const kinds = (Object.keys(shots) as CardView["kind"][]).filter((k) => shots[k]);
+      const gone = type !== "character" ? kinds.filter((k) => !keep.has(k)) : [];
+      // ★★ 道具卡的图一律要过「只留主体」层（主人 2026-09-10 拍板 2-1 a / 2-2 b），所以进出道具卡时
+      //   对得上的格子也不能原样留：抠好的道具主体（浅灰底、只剩一件东西）当不了场景的「全景主视图」；
+      //   反过来，没抠过的图挪进道具卡，就绕过了「封面只有主体」这条规则。
+      //   判据看图本身带没带 via 标记，不看上一个卡种 —— 中间隔着一次人物卡也照样判得对。
+      const recut = kinds.filter((k) => keep.has(k) && (shots[k]!.via === "subject") !== (next === "prop"));
+      const drop = new Set<CardView["kind"]>([...gone, ...recut]);
+      if (drop.size > 0) {
         const kept: Partial<Record<CardView["kind"], Shot>> = {};
-        for (const k of Object.keys(shots) as CardView["kind"][]) if (keep.has(k)) kept[k] = shots[k];
+        for (const k of kinds) if (!drop.has(k)) kept[k] = shots[k];
         setShots(kept);
-        setDropped(
-          `${CARD_TYPE_LABELS[next]}没有「${gone.map((k) => slotLabel(type, k)).join("、")}」这一格，` +
-            `你传的那张已经取下来了——需要的话换回${CARD_TYPE_LABELS[type]}再传一次。`,
-        );
+        const said: string[] = [];
+        if (gone.length > 0) {
+          const nextLabel = CARD_TYPE_LABELS[next];
+          const curLabel = CARD_TYPE_LABELS[type];
+          const goneNames = gone.map((k) => slotLabel(type, k)).join(listSep);
+          said.push(t`${nextLabel}没有「${goneNames}」这一格，你传的那张已经取下来了——需要的话换回${curLabel}再传一次。`);
+        }
+        if (recut.length > 0) {
+          const names = recut.map((k) => slotLabel(next, k)).join(listSep);
+          const nextLabel = CARD_TYPE_LABELS[next];
+          // 这两句可能接在上一句后面（said.join("")）：英文译文开头留一个空格，落在段首时浏览器会把它吞掉
+          said.push(
+            next === "prop"
+              ? t({
+                  message: `道具卡的图要先框出主体、描出轮廓，「${names}」那张没抠过，已经取下——点那一格重新选图。`,
+                  comment: "可能紧跟在上一句后面拼接，英文译文开头要留一个空格",
+                })
+              : t({
+                  message: `「${names}」那张是按道具卡抠好的主体图，当不了${nextLabel}的图，已经取下——需要的话换回道具卡重新做。`,
+                  comment: "可能紧跟在上一句后面拼接，英文译文开头要留一个空格",
+                }),
+          );
+        }
+        setDropped(said.join(""));
       } else {
         setDropped("");
       }
@@ -319,6 +374,7 @@ export default function CustomCardPage() {
     }
     setType(next);
     setErr("");
+    setRecogMsg(null); // 上一个卡种的识别结局，到新卡种上已经不成立
   }
 
   /**
@@ -343,7 +399,7 @@ export default function CustomCardPage() {
     setAuthShot(null);
     setSchemeShots((prev) => {
       const next: Record<string, Shot> = {};
-      for (const [t, sh] of Object.entries(prev)) if (sh !== authShot) next[t] = sh;
+      for (const [tag, sh] of Object.entries(prev)) if (sh !== authShot) next[tag] = sh;
       return next;
     });
     setAiBody((prev) => (prev === authShot ? null : prev));
@@ -374,7 +430,7 @@ export default function CustomCardPage() {
       //   里删了，而同一句话写着"换回原方案还能找回"—— 换回去那一格是空的，那句话是假的。
       //   现在一张都不删。留着的键谁也看不见：本页每一处读法都按**当前方案**的 pageSlots
       //   取 tag（charCover / mint 的 picked / 图位渲染三处都是），mint 也只带走那几格。
-      setDropped(`「${next.title}」里没有「${gone.join("、")}」这一格，你传的那张先收起来了——换回原方案还在。`);
+      setDropped(t`「${next.title}」里没有「${gone.join(listSep)}」这一格，你传的那张先收起来了——换回原方案还在。`);
       // ★ 那句「✅ 已把授权照片接进来了（既是卡面的「X」…）」到这一刻可能已经不成立了。
       //   它是**当时**的一句确认，不是状态显示——状态由上面那条绿条与这条 `dropped` 说。
       //   留着它，屏幕上就同时挂着两句互相矛盾的话。
@@ -394,7 +450,7 @@ export default function CustomCardPage() {
    * ★ 失败不静默：整句原因 + "从相册自己选也一样"的退路（授权时传的照片本来就在相册里）。
    */
   async function importAssetPhoto(assetId: string) {
-    setImportMsg("正在把授权照片取来填进卡面…");
+    setImportMsg(t`正在把授权照片取来填进卡面…`);
     setUnbindNote(""); // 又接上一份新的了，上一句「已经撤掉」就此翻篇
     try {
       const blob = await fetchPortraitAssetImage(assetId);
@@ -406,6 +462,7 @@ export default function CustomCardPage() {
       //   ⚠ 服务端那一侧同日也改成只透传 `image/*`（两头都修：这一头保护任何上游，
       //     那一头让端点本身诚实）。这一行**不能因为那边修了就退回 `||`** ——
       //     老版本 App 打的是同一个端点，而它们只有这一头。
+      // i18n-ignore-next-line: 只是交给 prepareCardImage 的内部文件名，不上屏（上屏的是下面 shot.fileName）
       const file = new File([blob], "授权素材.jpg", {
         type: blob.type.startsWith("image/") ? blob.type : "image/jpeg",
       });
@@ -418,7 +475,7 @@ export default function CustomCardPage() {
       //   fromCrop，所以今天撞不上；但真人路一旦能选任意方案（含市场装来的、第一格可以是
       //   fromCrop 的自建方案），授权照片就会被写进一个**这一页根本不画、mint 也不带走**
       //   的 tag，而屏幕上还打着「✅ 已填进 X」。零报错。
-      const shot: Shot = { dataUrl, fileName: "授权素材（自动填入）", ...(note ? { note } : {}) };
+      const shot: Shot = { dataUrl, fileName: t`授权素材（自动填入）`, ...(note ? { note } : {}) };
       // ★★ **先认下"照片到手了"**——这与"它能不能放进某一格"是两件事（2026-09-01 拆开）。
       //   拆之前：找不到可用图位就当场 return，照片连 aiBody 都没进，而屏幕说「换一套再试」——
       //   可换方案**不会**重新取图（全 app 没有第二个触发 importAssetPhoto 的入口），
@@ -435,13 +492,13 @@ export default function CustomCardPage() {
       const slot0 = sc.faceless ? undefined : sc.slots.find((x) => !x.fromCrop);
       if (slot0) {
         setSchemeShots((prev) => ({ ...prev, [slot0.tag]: shot }));
-        setImportMsg(`✅ 已把授权照片接进来了（既是卡面的「${slot0.tag}」，也能直接交给 AI 按方案生成图位）`);
+        setImportMsg(t`✅ 已把授权照片接进来了（既是卡面的「${slot0.tag}」，也能直接交给 AI 按方案生成图位）`);
       } else {
-        setImportMsg(`✅ 授权照片已取回。「${sc.title}」这套的图位要白模/设定稿，照片不进格子——交给 AI 出图时它就是主素材。`);
+        setImportMsg(t`✅ 授权照片已取回。「${sc.title}」这套的图位要白模/设定稿，照片不进格子——交给 AI 出图时它就是主素材。`);
       }
     } catch (e) {
       setImportMsg(
-        `没取到授权照片（${(e instanceof Error ? e.message : String(e)).slice(0, 80)}）——授权时传的照片就在你相册里，下一步从相册选一样`,
+        t`没取到授权照片（${(e instanceof Error ? e.message : String(e)).slice(0, 80)}）——授权时传的照片就在你相册里，下一步从相册选一样`,
       );
     }
   }
@@ -460,6 +517,22 @@ export default function CustomCardPage() {
     setBusySlot(key);
     setErr("");
     setSlotErr(null);
+    // ★★ 道具卡两格都先进「只留主体」层（主人 2026-09-10 拍板 2-1 a / 2-2 b），不在这里走 prepareCardImage：
+    //   它会先把长边压到 1024，再让人在压过的图上框 —— 占画面一小块的道具就只剩一百来像素，
+    //   撞上出片管线的参考图短边门（utils/image.REF_SHORT_MIN）。框和轮廓都打在原图像素上，合成完才过 prepareCardImage。
+    if (type === "prop" && "kind" in target) {
+      try {
+        // 立刻读实成内存里的 Blob：content:// 的懒读在切到后台之后可能失效（需真机验），
+        // 而这张图要在圈选层里停好一阵，人还可能中途切走再回来
+        const src = new Blob([await file.arrayBuffer()], { type: file.type });
+        setSubjectPick(freshSubjectPick({ kind: target.kind, src, fileName: file.name, allowKeepBg: target.kind === primary.kind }));
+      } catch (e) {
+        setSlotErr({ key, msg: t`这张图读不出来：${(e instanceof Error ? e.message : String(e)).slice(0, 80)}——换一张再试` });
+      } finally {
+        setBusySlot(null);
+      }
+      return;
+    }
     try {
       // 比例/大小的规则只有这一处（data/cardViews.prepareCardImage），
       // 与详情页「+ 图位」共用；这一页只负责把它编成 dataURL 挂上去
@@ -501,19 +574,23 @@ export default function CustomCardPage() {
   /** AI 车道整套价：逐格出图（schemeCost，只数生成型格）+ 一次看图写文案的对话。
    *  报价印在按钮上、实扣分两笔在各自成功后各扣一半——同一对常量，不另拼数（铁律六） */
   const aiPrice = schemeCost(pageSlots) + CHAT_TURN_TOKENS;
+  const aiPriceText = fmtTokens(aiPrice);
+  /** 圈选改一格的价签（与 refineSlot 真扣的是同一个常量） */
+  const refinePrice = fmtTokens(ONE_IMAGE);
 
   /** AI 车道：素材 → 按方案逐格出图 → 看图写人物信息。失败整句说、成功才扣（铁律八） */
   async function runAiForge() {
     if (!aiBody || aiBusy) return;
     if (AI_REAL && !canAfford(aiPrice)) {
       const w = walletOf();
-      setErr(`AI 生成整套约 ${fmtTokens(aiPrice)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）`);
+      const balance = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
+      setErr(t`AI 生成整套约 ${aiPriceText} token，余额 ${balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）`);
       return;
     }
     setErr("");
-    setAiBusy("准备中…");
+    setAiBusy(t`准备中…`);
     // ★ 登记成后台任务：退出这一页它照跑，胶囊接手进度；结果写进 store，人回来原样在
-    const job = startJob({ kind: "card-ai", title: "AI 生成图位", page: "/custom-card", route: "/custom-card", progress: "准备中…" });
+    const job = startJob({ kind: "card-ai", title: t`AI 生成图位`, page: "/custom-card", route: "/custom-card", progress: t`准备中…` });
     try {
       const out = await portraitViews({
         scheme: { ...scheme, slots: pageSlots },
@@ -531,7 +608,7 @@ export default function CustomCardPage() {
       });
       if (AI_REAL) spendTokens(schemeCost(pageSlots)); // 图那一半：出齐才扣
       const shots: Record<string, Shot> = {};
-      for (const v of out) shots[v.tag] = { dataUrl: v.dataUrl, fileName: "AI 生成" };
+      for (const v of out) shots[v.tag] = { dataUrl: v.dataUrl, fileName: t`AI 生成` };
       // ★★ **合并**不是整表替换（2026-09-01 复核抓到）：整表替换会把"换方案时收起来、
       //   换回去还能找回"的那几张一起删掉 —— 而那句承诺是 v2.42 刚修好的。
       //   当前方案的每一格 AI 都会出，所以合并不会留下半新半旧。
@@ -540,18 +617,22 @@ export default function CustomCardPage() {
       //   （"AI 已按素材写好，可随意改"），而 aiOpen 让"面板开着"不再等于"lane 是 ai"。
       setLane("ai");
       // ── 文案那一半：看图写人物信息（AI 车道连人物信息一起生成，主人点名）──
-      setAiBusy("按素材撰写人物信息…");
-      job.update("按素材撰写人物信息…");
+      setAiBusy(t`按素材撰写人物信息…`);
+      job.update(t`按素材撰写人物信息…`);
       try {
         const raw = AI_REAL
           ? await chatVision(
+              // i18n-ignore-next-line: 发给模型的指令，冻结中文
               "你是卡牌文案师。只输出一个 JSON 对象，不要输出任何其他文字。",
+              // i18n-ignore-next-line: 发给模型的指令，冻结中文（用户那句描述原样带进去）
               `看这张角色素材图${aiSubject.trim() ? `（用户描述：${aiSubject.trim().slice(0, 60)}）` : ""}，写：` +
+                // i18n-ignore-next-line: 发给模型的输出形状说明，冻结中文
                 `{"name":"卡名≤${NAME_MAX}字","summary":"一句话简介≤${SUMMARY_MAX}字",` +
+                // i18n-ignore-next-line: 同上
                 `"info":"复刻这个角色的要点（发型发色/眼睛/服装/气质），≤200字","tags":["≤${TAG_MAX}个标签"]}`,
               [aiBody.dataUrl],
             )
-          : JSON.stringify({ name: "演示角色", summary: "演示档生成的占位文案（配好 Key 后按素材图撰写）", info: aiSubject.trim(), tags: [] });
+          : JSON.stringify({ name: t`演示角色`, summary: t`演示档生成的占位文案（配好 Key 后按素材图撰写）`, info: aiSubject.trim(), tags: [] });
         const j = JSON.parse(raw.replace(/^[^{]*/, "").replace(/[^}]*$/, "")) as {
           name?: string; summary?: string; info?: string; tags?: string[];
         };
@@ -562,13 +643,13 @@ export default function CustomCardPage() {
         if (Array.isArray(j.tags) && j.tags.length) setTagText(j.tags.slice(0, TAG_MAX).join(" "));
       } catch {
         // 文案没写成不拦路（图已经在手），这一半也不扣钱——到人物信息那一步自己写
-        setErr("图生成好了，但人物信息没写成（这一半没扣钱）——下一步自己填就行");
+        setErr(t`图生成好了，但人物信息没写成（这一半没扣钱）——下一步自己填就行`);
       }
       setStep("form");
-      job.done({ msg: "形象图生成好了，回去接着做卡", silent: useCardDraft.getState().mounted });
+      job.done({ msg: t`形象图生成好了，回去接着做卡`, silent: useCardDraft.getState().mounted });
     } catch (e) {
-      job.fail("形象图没画成（没扣钱），回去看原因", "/custom-card");
-      setErr(`形象图没画成：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}——一分钱没扣，可以再试或改选自己传图`);
+      job.fail(t`形象图没画成（没扣钱），回去看原因`, "/custom-card");
+      setErr(t`形象图没画成：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}——一分钱没扣，可以再试或改选自己传图`);
     } finally {
       setAiBusy("");
     }
@@ -580,36 +661,182 @@ export default function CustomCardPage() {
     const shot = schemeShots[tag];
     if (!slot || !shot || busySlot) return;
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
-      setSlotErr({ key: tag, msg: `改一次图要 ${fmtTokens(ONE_IMAGE)} token，余额不够——去「我的」页充值` });
+      setSlotErr({ key: tag, msg: t`改一次图要 ${refinePrice} token，余额不够——去「我的」页充值` });
       return;
     }
     setBusySlot(tag);
     setSlotErr(null);
-    const job = startJob({ kind: "card-refine", title: "圈选改图", page: "/custom-card", route: "/custom-card", progress: "重画中…" });
+    const job = startJob({ kind: "card-refine", title: t`圈选改图`, page: "/custom-card", route: "/custom-card", progress: t`重画中…` });
     try {
       const next = await refineCardImage({ annotated, req, size: slotSize(slot) });
       if (AI_REAL) spendTokens(ONE_IMAGE);
-      setSchemeShots((prev) => ({ ...prev, [tag]: { dataUrl: next, fileName: shot.fileName, note: "已按圈选修改" } }));
-      job.done({ msg: "圈选改图完成，回去看看", silent: useCardDraft.getState().mounted });
+      setSchemeShots((prev) => ({ ...prev, [tag]: { dataUrl: next, fileName: shot.fileName, note: t`已按圈选修改` } }));
+      job.done({ msg: t`圈选改图完成，回去看看`, silent: useCardDraft.getState().mounted });
     } catch (e) {
-      job.fail("圈选改图没成（没扣钱）", "/custom-card");
-      setSlotErr({ key: tag, msg: `没改成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}（没扣钱）` });
+      job.fail(t`圈选改图没成（没扣钱）`, "/custom-card");
+      setSlotErr({ key: tag, msg: t`没改成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}（没扣钱）` });
     } finally {
       setBusySlot(null);
+    }
+  }
+
+  /** 两选一弹窗牌下那句里的识别价签（与 recognize 真扣的是同一个常量） */
+  const recogPrice = fmtTokens(CHAT_TURN_TOKENS);
+
+  /**
+   * 「📷 拍摄识别」：拉起系统相机拍第 1 格，落格之后自动识别一次（拍板 5 a：拍摄那条路接同一个 recognize）。
+   * ★ 余额门在拍**之前**：识别一次 CHAT_TURN_TOKENS，付不起就别让人先拍完再告诉他（话照 recognize 那句的形状，
+   *   多一条「上传本地图片不花钱」的出路 —— 那张牌就在旁边）。
+   * ★ 照片走和上传完全同一个落点（onFile）：道具卡照样先进「只留主体」层，场景卡照样过 prepareCardImage。
+   * ★ 两选一弹窗在拍完之前一直开着：取消拍照回到这里（还能再拍或改上传），拍成了才关、才进表单。
+   * ★ 浏览器里没有原生相机：退到带 capture 的 input（桌面 Chrome 忽略 capture、开文件选择框），只为开发时走得通。
+   */
+  async function startCapture() {
+    if (captureBusy || (type !== "prop" && type !== "scene")) return;
+    setCaptureMsg("");
+    if (AI_REAL && !canAfford(CHAT_TURN_TOKENS)) {
+      const w = walletOf();
+      const balance = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
+      setCaptureMsg(t`识别一次 ${recogPrice} token，余额 ${balance} 不够——去「我的」页充值，或选「上传本地图片」（不花钱）`);
+      return;
+    }
+    const startType = type;
+    if (!nativeCameraSupported()) {
+      cameraFallbackRef.current?.click();
+      return;
+    }
+    setCaptureBusy(t`拍照中…`);
+    const r = await capturePhoto((late) => void placeCaptured(late, startType));
+    setCaptureBusy("");
+    await placeCaptured(r, startType);
+  }
+
+  /** 拍照的结局 → 落格 / 说原因。迟到的照片（看门狗已经回了「没接到」）只在卡种没换时才落 */
+  async function placeCaptured(r: CaptureResult, startType: CardType) {
+    if (r.kind === "cancelled" || r.kind === "unsupported") return; // 回到两选一，没有任何残留
+    if (r.kind === "lost") {
+      setCaptureMsg(t`没接到照片：相机那边可能没存下来——再拍一次，或选「上传本地图片」`);
+      return;
+    }
+    if (r.kind === "failed") {
+      setCaptureMsg(r.reason);
+      return;
+    }
+    const s = useCardDraft.getState();
+    if (s.type !== startType) return; // 等相机的这段时间换了卡种：这张不往别的卡上落
+    const slot = CARD_SLOTS[startType][0].kind;
+    setSourcePick(false);
+    setCaptureMsg("");
+    setStep("form");
+    setRecogAfterShot({ before: s.shots[slot]?.dataUrl ?? "" });
+    pickingRef.current = { kind: slot };
+    await onFile(r.file);
+  }
+
+  // 拍摄路落格之后自动识别一次。等卡面**真的换成新图**：道具卡要等「只留主体」层交回来，场景卡等 prepareCardImage 写进格子。
+  // ★ 抠图层被取消 / 选图报错（第 1 格还是拍之前那张）就作废 —— 不作废的话，下一次手动传图会莫名其妙自己扣一次识别的钱
+  useEffect(() => {
+    if (!recogAfterShot || recogBusy) return;
+    if (type !== "prop" && type !== "scene") {
+      setRecogAfterShot(null);
+      return;
+    }
+    if (subjectPick || busySlot !== null) return; // 还在处理这张图
+    const now = shots[CARD_SLOTS[type][0].kind]?.dataUrl ?? "";
+    setRecogAfterShot(null);
+    if (now && now !== recogAfterShot.before) void recognize();
+  }, [recogAfterShot, recogBusy, type, subjectPick, busySlot, shots]);
+
+  // 拍照残留：插件在拉起相机之前就建了临时文件，取消拍照也会留下 0 字节的 JPEG_*。进页时清 24 小时以前的
+  useEffect(() => {
+    void sweepCameraLeftovers(24 * 3600_000);
+  }, []);
+
+  /**
+   * 一键识别卡片文字（主人 2026-09-10 拍板 5 a：上传那条路默认不识别，给一颗可选的键；拍摄那条路以后接同一个函数）。
+   * ★ 喂的是**卡面那一张**：道具卡就是抠好主体、铺好底的那张（理由见 ai/real.recognizeCardSubject 的 ★）。
+   * ★ 只填空着的字段，不覆盖用户已经打的字；写回前核一次卡种与卡面没换过（等回包的几秒里用户可能换了）。
+   * ★★ 失败时的钱分三档说，按错误**类型**判（arkClient 的 ArkNoReply / ArkBadReply）：服务端先扣后转发，
+   *   客户端又先于服务端超时 ——「网络失败 = 没扣钱」这句话在远端模式下会说错。
+   */
+  async function recognize() {
+    if (type !== "prop" && type !== "scene") return;
+    const cover = shots[primary.kind];
+    if (!cover || recogBusy) return;
+    if (AI_REAL && !canAfford(CHAT_TURN_TOKENS)) {
+      const w = walletOf();
+      const balance = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
+      setRecogMsg({
+        tone: "error",
+        text: t`识别一次 ${recogPrice} token，余额 ${balance} 不够——去「我的」页充值，或者自己填`,
+      });
+      return;
+    }
+    const startType = type;
+    const startCover = cover.dataUrl;
+    setRecogMsg(null);
+    setRecogBusy(t`识别中…`);
+    const job = startJob({ kind: "card-recognize", title: t`识别卡片文字`, page: "/custom-card", route: "/custom-card", progress: t`识别中…` });
+    try {
+      const r = await recognizeCardSubject({ type: startType, image: startCover });
+      if (AI_REAL) spendTokens(CHAT_TURN_TOKENS); // 离线账本成功才扣；远端模式这一行是空操作（服务端已结算）
+      const s = useCardDraft.getState();
+      if (s.type !== startType || s.shots[CARD_SLOTS[startType][0].kind]?.dataUrl !== startCover) {
+        const typeChanged = s.type !== startType;
+        setRecogMsg({
+          tone: "warn",
+          text: typeChanged
+            ? AI_REAL
+              ? t`识别好了，但你已经换了卡种，结果没有填进去（这次识别已计费 ${recogPrice}）`
+              : t`识别好了，但你已经换了卡种，结果没有填进去`
+            : AI_REAL
+              ? t`识别好了，但你已经换了卡面图，结果没有填进去（这次识别已计费 ${recogPrice}）`
+              : t`识别好了，但你已经换了卡面图，结果没有填进去`,
+        });
+        job.done({ msg: t`识别好了，但卡面已经换了，结果没填`, silent: s.mounted });
+        return;
+      }
+      if (!s.name.trim() && r.name) setName(r.name.slice(0, NAME_MAX));
+      if (!s.summary.trim() && r.summary) setSummary(r.summary.slice(0, SUMMARY_MAX));
+      if (!s.idLine.trim() && r.idLine) setIdLine(r.idLine.slice(0, ID_LINE_MAX));
+      if (!s.tagText.trim() && r.tags.length > 0) setTagText(r.tags.slice(0, TAG_MAX).join(" "));
+      if (startType === "scene" && r.hasPeople) {
+        setRecogMsg({ tone: "warn", text: t`照片里有人：默认档出片不受影响；高清 / 超清档可能被方舟拒掉（没受理不扣视频钱）` });
+      }
+      job.done({ msg: t`识别好了，回去看看填得对不对`, silent: s.mounted });
+    } catch (e) {
+      const remote = isRemoteMode();
+      let text: string;
+      if (e instanceof ArkNoReply) {
+        text = remote
+          ? t`没等到识别结果，这次可能已经扣了 ${recogPrice}——以「我的」页钱包流水为准。可以先自己填`
+          : t`没等到识别结果（网络不通），可以先自己填`;
+        if (remote) void refreshRemoteWallet();
+      } else if (e instanceof ArkBadReply) {
+        text = remote
+          ? t`识别已计费 ${recogPrice}，但没读出结果——可以自己填，或者再识别一次`
+          : t`识别结果没读出来——可以自己填，或者再识别一次`;
+      } else {
+        text = t`识别没成（没扣钱）：${(e instanceof Error ? e.message : String(e)).slice(0, 80)}`;
+      }
+      setRecogMsg({ tone: "error", text });
+      job.fail(t`识别没成，回去看原因`, "/custom-card");
+    } finally {
+      setRecogBusy("");
     }
   }
 
   // 还缺什么。★ 灰按钮 + 一句"还缺：…"是一体的：只灰不说等于告诉用户功能坏了
   const missing: string[] = [];
   if (isChar) {
-    if (!charCover) missing.push("至少一张图（第一张有图的格子就是卡面）");
+    if (!charCover) missing.push(t`至少一张图（第一张有图的格子就是卡面）`);
   } else if (!shots[primary.kind]) {
-    missing.push(`${primary.label}（就是卡面）`);
+    missing.push(t`${primary.label}（就是卡面）`);
   }
-  if (!name.trim()) missing.push("卡名");
-  if (!summary.trim()) missing.push("一句话简介");
+  if (!name.trim()) missing.push(t`卡名`);
+  if (!summary.trim()) missing.push(t`一句话简介`);
   // 真人声明连着协议勾选（与提取那条路同一条规则，这里进 missing 让灰按钮把话说全）
-  if (declareReal && !consentOk) missing.push("肖像同意的确认（勾了「真人」就必须勾它）");
+  if (declareReal && !consentOk) missing.push(t`肖像同意的确认（勾了「真人」就必须勾它）`);
   // ★ 连不上服务器时**不让铸**：建出来必然丢（见 offlineButConfigured）。
   //   拦在这里而不是拦在 mint() 里，是为了让灰按钮下面那行能把原因说出来。
   const ready = missing.length === 0 && !offlineButConfigured;
@@ -623,9 +850,9 @@ export default function CustomCardPage() {
     //   页不在时结局走通知（铸成 → 点通知直达卡片；没全成 → 回来看这一页上的说明）
     const job = startJob({
       kind: "card-mint",
-      title: "铸卡上传",
+      title: t`铸卡上传`,
       page: "/custom-card",
-      progress: remote ? "存卡并把图传到服务器…" : "存进本机卡片库…",
+      progress: remote ? t`存卡并把图传到服务器…` : t`存进本机卡片库…`,
     });
     const here = () => useCardDraft.getState().mounted;
     try {
@@ -646,7 +873,8 @@ export default function CustomCardPage() {
           role: slot.role,
           tag: slot.tag,
           url: shot.dataUrl,
-          ...(shot.note ? { note: shot.note } : {}),
+          // 图位说明只在 joinViewNote 一处截到服务端上限（超了补图 PATCH 整发 400）
+          ...(joinViewNote(shot.note) ? { note: joinViewNote(shot.note) } : {}),
         }));
       } else {
         const picked = slots.map((s) => ({ slot: s, shot: shots[s.kind] })).filter((x) => !!x.shot);
@@ -654,7 +882,7 @@ export default function CustomCardPage() {
         views = picked.map(({ slot, shot }) => ({
           kind: slot.kind,
           url: shot!.dataUrl,
-          ...(shot!.note ? { note: shot!.note } : {}),
+          ...(joinViewNote(shot!.note) ? { note: joinViewNote(shot!.note) } : {}),
         }));
       }
       const card: Card = {
@@ -676,6 +904,9 @@ export default function CustomCardPage() {
         // 用户填的那段就是详情页「<类型>信息」那一块。没填就**不写**这个字段——
         // 详情页会如实说"这张卡没留下铸造时的提示词，下面是按同款格式现补的一份"
         ...(info.trim() ? { genPrompt: info.trim().slice(0, INFO_MAX) } : {}),
+        // 出片句：填了才写。没填不写，出片时照旧退回名字 + 简介（segmentGen.materialText / types.idLineOf）。
+        // ★ 客户端 60（ID_LINE_MAX）< 服务端 zod 200，有意不相等（CLAUDE.md「把客户端上限与服务端对齐」那格）
+        ...(idLine.trim() ? { idLine: idLine.trim().slice(0, ID_LINE_MAX) } : {}),
         // 真人声明只在为 true 时写（缺省 = 非真人，读侧判否定，见 types.Card.realPerson）
         ...(declareReal ? { realPerson: true } : {}),
         // ⚠ imageTier 故意不写：那是**AI 出图档位**，这条路一张图都没让 AI 画。
@@ -688,15 +919,15 @@ export default function CustomCardPage() {
       const r = await addCards([card]);
       if (r.added.length === 0) {
         // addCards 永不 reject：没入库只有一种可能——账号库里没有当前用户（登录态失效）
-        setErr("没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（这一页填的内容还在）。");
-        job.fail("没能存进卡片库：登录态可能已失效", "/custom-card");
+        setErr(t`没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（这一页填的内容还在）。`);
+        job.fail(t`没能存进卡片库：登录态可能已失效`, "/custom-card");
         return;
       }
       // ★ 判据是 addCards 显式给的 `synced`，**不是**"哪个字段有值"。
       //   靠字段猜的话，POST 挂了（卡根本没上去）会被说成"只是有图没传上"。
       if (!r.synced) {
         setPartial({ id, kind: "unsynced", lost: [], reason: r.reason });
-        job.done({ msg: "卡存在本机了，但没同步到服务端——回去看看", route: "/custom-card", silent: here() });
+        job.done({ msg: t`卡存在本机了，但没同步到服务端——回去看看`, route: "/custom-card", silent: here() });
         return;
       }
       // 造卡时攒下的授权素材与声音样本 —— addCards 成了才写（卡没入库，挂上去就是孤儿）。
@@ -723,13 +954,13 @@ export default function CustomCardPage() {
       if (assetLost) {
         // ★ 把 lostViews 一并带上：两件事可能同时发生，而 partial 一次只画一块 ——
         //   不带的话"还有 N 张图没同步"就被这一档静默吞了（复核抓到）
-        setPartial({ id, kind: "asset", lost: r.lostViews, reason: "本机存储写入失败（配额满或隐私模式）" });
-        job.done({ msg: "卡铸好了，但授权绑定没存住——回去看看", route: "/custom-card", silent: here() });
+        setPartial({ id, kind: "asset", lost: r.lostViews, reason: t`本机存储写入失败（配额满或隐私模式）` });
+        job.done({ msg: t`卡铸好了，但授权绑定没存住——回去看看`, route: "/custom-card", silent: here() });
         return;
       }
       if (r.lostViews.length > 0) {
         setPartial({ id, kind: "views", lost: r.lostViews, reason: r.reason });
-        job.done({ msg: "卡铸好了，但有图没传上——回去看看", route: "/custom-card", silent: here() });
+        job.done({ msg: t`卡铸好了，但有图没传上——回去看看`, route: "/custom-card", silent: here() });
         return;
       }
       // 发布/加图/删图详情页都已经有了，这一页不再实现一遍（铁律六）
@@ -740,16 +971,28 @@ export default function CustomCardPage() {
       } else {
         // 人不在这一页（正在别处做别的事）：不替他跳转，发一条通知，点了直达这张卡
         resetCardDraft();
-        job.done({ msg: `「${card.name}」铸好了`, route: `/card/${id}` });
+        job.done({ msg: t`「${card.name}」铸好了`, route: `/card/${id}` });
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setErr(`铸卡没成：${msg.slice(0, 120)}`);
-      job.fail("铸卡没成，回去看原因", "/custom-card");
+      const detail = e instanceof Error ? e.message : String(e);
+      setErr(t`铸卡没成：${detail.slice(0, 120)}`);
+      job.fail(t`铸卡没成，回去看原因`, "/custom-card");
     } finally {
       setMinting(false);
     }
   }
+
+  /** 第④步那行事实摘要：真人 / 授权 / 录音各自成句，再用「 · 」连起来 */
+  const factLine = [
+    realPerson ? t`已声明真人` : "",
+    pendingAsset ? t`授权素材已接上（铸卡时绑定）` : "",
+    pendingVoice ? t`已录音 ${pendingVoice.durationSec.toFixed(1)}s` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  /** 没全成、服务端又没给原因时的兜底说法 */
+  const reasonNet = t`网络异常`;
+  const reasonUpload = t`上传失败`;
 
   return (
     <div className="min-h-full px-4 pb-10">
@@ -757,22 +1000,22 @@ export default function CustomCardPage() {
             正是主人两次引用的那句话（"为什么说没取到授权照片还需要再上传"）。 */}
       <PageHeader sticky inset
         onBack={() => nav(-1)}
-        title={realPerson || pendingAsset ? "用真人素材做卡片" : "自己传图做卡片"}
+        title={realPerson || pendingAsset ? t`用真人素材做卡片` : t`自己传图做卡片`}
         right={
           <>
             <HelpButton tour="customcard" />
             <span className="flex-none text-[10px] text-slate-500">
               {step === "type"
-                ? "选卡种"
+                ? t`选卡种`
                 : step === "real"
-                  ? "真人素材"
+                  ? t`真人素材`
                   : step === "source"
-                    ? "① 选来源"
+                    ? t`① 选来源`
                     : step === "form"
-                      ? isChar ? "② 图位预览" : "传图与信息"
+                      ? isChar ? t`② 图位预览` : t`传图与信息`
                       : step === "info"
-                        ? "③ 人物信息"
-                        : "④ 定名完成"}
+                        ? t`③ 人物信息`
+                        : t`④ 定名完成`}
                 </span>
             {/* 表单活在 store 里（退出再进来原样还在），所以要给一条"清空重来"的路；有活在跑时不给 */}
             {dirty && !working && (
@@ -780,14 +1023,14 @@ export default function CustomCardPage() {
                 onClick={() => setResetAsk(true)}
                 className="flex-none text-[10px] text-slate-500 underline underline-offset-2"
               >
-                重新开始
+                <Trans>重新开始</Trans>
               </button>
             )}
             {/* 确认卡走全 app 同一份（原来是 window.confirm：系统弹窗，样子与别处都不一样） */}
             {resetAsk && (
               <ConfirmDialog
-                title="清空这一页重新开始？"
-                confirmLabel="清空"
+                title={t`清空这一页重新开始？`}
+                confirmLabel={t`清空`}
                 danger
                 onConfirm={() => {
                   resetCardDraft();
@@ -795,7 +1038,7 @@ export default function CustomCardPage() {
                 }}
                 onClose={() => setResetAsk(false)}
               >
-                已选的图和填的内容都会丢掉。
+                <Trans>已选的图和填的内容都会丢掉。</Trans>
               </ConfirmDialog>
             )}
           </>
@@ -814,18 +1057,21 @@ export default function CustomCardPage() {
                 max-w 兜住极窄屏（320px 宽时按宽收缩，TarotCard 自身的 aspect 保比例） */}
             {[CARD_TYPES.slice(0, 2), CARD_TYPES.slice(2, 4), CARD_TYPES.slice(4)].map((row, ri) => (
               <div key={ri} className="flex min-h-0 flex-1 items-center justify-center gap-3">
-                {row.map((t) => (
+                {row.map((cardType) => (
                   <button
-                    key={t}
+                    key={cardType}
                     onClick={() => {
-                      changeType(t);
-                      // 人物卡：先弹方案小窗（看图挑）；其余卡种没有方案，直进表单
-                      if (t === "character") setSchemePick(true);
-                      else setStep("form");
+                      changeType(cardType);
+                      // 人物卡：先弹方案小窗（看图挑）；场景 / 道具先问拍照还是上传（拍板 1 a）；背景 / 风格直进表单
+                      if (cardType === "character") setSchemePick(true);
+                      else if (cardType === "scene" || cardType === "prop") {
+                        setCaptureMsg("");
+                        setSourcePick(true);
+                      } else setStep("form");
                     }}
                     className="flex aspect-[2/3] h-full max-w-[46%] items-center transition-transform active:scale-[0.97]"
                   >
-                    <TarotCard cover={CARD_TYPE_COVERS[t]} title={CARD_TYPE_LABELS[t]} type={t} size="md" />
+                    <TarotCard cover={CARD_TYPE_COVERS[cardType]} title={CARD_TYPE_LABELS[cardType]} type={cardType} size="md" />
                   </button>
                 ))}
               </div>
@@ -853,7 +1099,7 @@ export default function CustomCardPage() {
                         // ★★ 离开真人这条路 = 绑定作废。只清 realPerson 会留下一个
                         //   「有 pendingAsset 但 declareReal 为假」的状态：屏幕说"铸卡时绑定"、
                         //   mint 一行都不写，而那张真人照片照样进卡（见 clearAuthBinding 的 ★★）。
-                        clearAuthBinding("已经离开真人素材这条路：授权绑定和随它取来的那张照片都撤掉了。");
+                        clearAuthBinding(t`已经离开真人素材这条路：授权绑定和随它取来的那张照片都撤掉了。`);
                         setSchemePick(false);
                         setStep("source");
                       }}
@@ -888,11 +1134,63 @@ export default function CustomCardPage() {
                   >
                     {/* 示意图也是自己生成的（gen-scheme-examples.mjs 第四张）：**虚构**人像 +
                         识别框。刻意不搬火山控制台那张官方人像——那是火山的版权素材 */}
-                    <img src="/schemes/realface.webp" alt="真人素材扫脸认证" className="aspect-[3/4] w-full object-cover" />
+                    <img src="/schemes/realface.webp" alt={t`真人素材扫脸认证`} className="aspect-[3/4] w-full object-cover" />
                     <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-2 pb-2 pt-6 text-center text-xs font-semibold text-sky-200">
-                      真人素材扫脸认证
+                      <Trans>真人素材扫脸认证</Trans>
                     </span>
                   </button>
+                </div>
+              </div>,
+              document.body,
+            )}
+          {/* 场景 / 道具：「📷 拍摄识别」还是「🖼 上传本地图片」（拍板 1 a；背景卡的图不进模型、风格卡实拍价值有限，都不弹）。
+              ★ 两张牌写死在这里，不走 listSchemes：它把空 cardTypes 当成"适用所有卡种"，会把人物方案原样摆出来。
+              ★ 拍照那张在拍完之前一直开着（见 startCapture 的 ★），相机在前台时点遮罩不关 */}
+          {sourcePick &&
+            createPortal(
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
+                onClick={() => !captureBusy && setSourcePick(false)}
+              >
+                <div className="w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => void startCapture()}
+                      disabled={!!captureBusy}
+                      className="relative overflow-hidden rounded-2xl border border-sky-500/60 bg-panel transition-transform active:scale-[0.97] disabled:opacity-40"
+                    >
+                      <span className="flex aspect-[3/4] w-full items-center justify-center bg-ink/60 text-5xl">📷</span>
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-2 pb-2 pt-6 text-center text-xs font-semibold text-sky-200">
+                        {captureBusy || <Trans>拍摄识别</Trans>}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSourcePick(false);
+                        setCaptureMsg("");
+                        setStep("form");
+                      }}
+                      disabled={!!captureBusy}
+                      className="relative overflow-hidden rounded-2xl border border-slate-600 bg-panel transition-transform active:scale-[0.97] disabled:opacity-40"
+                    >
+                      <span className="flex aspect-[3/4] w-full items-center justify-center bg-ink/60 text-5xl">🖼</span>
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-2 pb-2 pt-6 text-center text-xs font-semibold text-slate-100">
+                        <Trans>上传本地图片</Trans>
+                      </span>
+                    </button>
+                  </div>
+                  <p className="mt-2 text-center text-[11px] leading-relaxed text-slate-300">
+                    {AI_REAL ? (
+                      <Trans>拍一张，AI 按照片填卡名和简介（识别 {recogPrice} token）；上传本地图片不花钱，进表单后也能再点识别</Trans>
+                    ) : (
+                      <Trans>拍一张，AI 按照片填卡名和简介（演示档不花钱）；上传本地图片进表单后也能再点识别</Trans>
+                    )}
+                  </p>
+                  {captureMsg && (
+                    <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300">
+                      {captureMsg}
+                    </p>
+                  )}
                 </div>
               </div>,
               document.body,
@@ -912,7 +1210,7 @@ export default function CustomCardPage() {
             className="mb-3 flex items-center gap-1 text-[11px] text-slate-400"
           >
             <Icon name="back" size={12} />
-            重选方案
+            <Trans>重选方案</Trans>
           </button>
           <label className="flex items-start gap-2 text-[11px] leading-relaxed text-slate-300">
             <input
@@ -924,22 +1222,22 @@ export default function CustomCardPage() {
               }}
               className="mt-0.5 h-4 w-4 flex-none accent-brand"
             />
-            我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担
+            <Trans>我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担</Trans>
           </label>
           <div className="mt-3 rounded-xl border border-slate-700/70 bg-panel p-2.5">
             {pendingAsset ? (
               <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
                 <span className="min-w-0">
-                  <span className="block text-[10px] text-emerald-300">已接上授权素材，铸卡时一并绑定</span>
+                  <span className="block text-[10px] text-emerald-300"><Trans>已接上授权素材，铸卡时一并绑定</Trans></span>
                   <span className="block truncate font-mono text-[9px] text-emerald-300">{pendingAsset.assetId}</span>
                 </span>
                 <button
                   onClick={() =>
-                    clearAuthBinding("已解除授权绑定——随授权取来的那张照片也一并取下了（卡面与 AI 主素材都不再留着它）。")
+                    clearAuthBinding(t`已解除授权绑定——随授权取来的那张照片也一并取下了（卡面与 AI 主素材都不再留着它）。`)
                   }
                   className="flex-none text-[10px] text-slate-500"
                 >
-                  取消
+                  <Trans>取消</Trans>
                 </button>
               </div>
             ) : (
@@ -972,7 +1270,7 @@ export default function CustomCardPage() {
                 在 hd/ultra 上照样被整句拒。 */}
           {pendingAsset && (
             <div className="mt-3 rounded-xl border border-slate-700/70 bg-panel p-2.5">
-              <div className="mb-1.5 text-xs font-semibold text-slate-300">用哪一套方案生成这张卡</div>
+              <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>用哪一套方案生成这张卡</Trans></div>
               <div className="space-y-1">
                 {listSchemes("character").map((sc) => (
                   <button
@@ -984,10 +1282,10 @@ export default function CustomCardPage() {
                   >
                     <span className="flex items-center gap-1.5">
                       <span className="truncate text-[11px] font-semibold text-slate-200">{sc.title}</span>
-                      {sc.id === schemeId && <span className="flex-none text-[10px] text-brand">当前</span>}
+                      {sc.id === schemeId && <span className="flex-none text-[10px] text-brand"><Trans>当前</Trans></span>}
                       {sc.faceless && (
                         <span className="flex-none rounded-full px-1.5 py-0.5 bg-emerald-500/15 text-[9px] text-emerald-300">
-                          无脸
+                          <Trans>无脸</Trans>
                         </span>
                       )}
                     </span>
@@ -998,9 +1296,9 @@ export default function CustomCardPage() {
               {scheme.faceless && (
                 <p className="mt-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
                   {/* ⚠ 这是**给用户看的文案**，不是注释：JSX 里的 ** 和反引号会原样显示出来 */}
-                  无脸方案画出来的图里没有脸，但出片时
-                  <span className="font-semibold text-amber-100">仍然要靠这份授权素材</span>
-                  （合规看的是有没有绑定授权，不看图里有没有脸）——所以上面那份授权别取消。
+                  <Trans>
+                    无脸方案画出来的图里没有脸，但出片时<span className="font-semibold text-amber-100">仍然要靠这份授权素材</span>（合规看的是有没有绑定授权，不看图里有没有脸）——所以上面那份授权别取消。
+                  </Trans>
                 </p>
               )}
               {dropped && <p className="mt-1.5 text-[10px] leading-relaxed text-amber-200/90">{dropped}</p>}
@@ -1011,12 +1309,12 @@ export default function CustomCardPage() {
               <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
                 <span className="min-w-0 flex-1">
                   <span className="block text-[10px] text-emerald-300">
-                    🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）
+                    <Trans>🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）</Trans>
                   </span>
                   <audio src={pendingVoice.dataUrl} controls className="mt-1 h-8 w-full" />
                 </span>
                 <button onClick={() => setPendingVoice(null)} className="flex-none text-[10px] text-slate-500">
-                  重来
+                  <Trans>重来</Trans>
                 </button>
               </div>
             ) : (
@@ -1029,7 +1327,7 @@ export default function CustomCardPage() {
           {/* ★ 这颗键去的是「① 选来源」，不是「传图与信息」——旧文案指错了屏，
               而照片已经到手时更不该出现"传图"两个字（主人 2026-09-01 点名）。 */}
           <button onClick={() => setStep("source")} className="mt-4 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
-            {haveAuthShot ? "下一步：这几张图怎么来 ›" : "下一步：选图片来源 ›"}
+            {haveAuthShot ? t`下一步：这几张图怎么来 ›` : t`下一步：选图片来源 ›`}
           </button>
         </>
       )}
@@ -1043,10 +1341,10 @@ export default function CustomCardPage() {
             className="mb-3 flex items-center gap-1 text-[11px] text-slate-400"
           >
             <Icon name="back" size={12} />
-            返回：{realPerson ? "真人素材" : "选卡种"}
+            {realPerson ? <Trans>返回：真人素材</Trans> : <Trans>返回：选卡种</Trans>}
           </button>
           <p className="mb-2 text-[11px] text-slate-400">
-            方案「{scheme.title}」· {pageSlots.length} 个图位——这些图从哪来？
+            <Trans>方案「{scheme.title}」· {pageSlots.length} 个图位——这些图从哪来？</Trans>
           </p>
           {/* ★ 撤授权那句话**两屏都要画**：撤绑定的两个入口一个留在本屏、一个当场跳到
               「① 选来源」，只画一屏就等于有一条路上永远看不到（见 unbindNote 的 ★★）。 */}
@@ -1069,18 +1367,23 @@ export default function CustomCardPage() {
                     与 importAssetPhoto 决定放不放格子时同一把尺（铁律六）。 */}
                 {authSlotTag ? (
                   <>
-                    授权照片已经取回来了，还填进了卡面的「{authSlotTag}」这一格——
-                    <span className="font-semibold">下面两条路都不用你再传图</span>。
+                    <Trans>
+                      授权照片已经取回来了，还填进了卡面的「{authSlotTag}」这一格——<span className="font-semibold">下面两条路都不用你再传图</span>。
+                    </Trans>
                   </>
                 ) : scheme.faceless ? (
                   <>
-                    授权照片已经取回来了。「{scheme.title}」这套的图位要的是白模/设定稿，
-                    照片放不进去，但<span className="font-semibold">交给 AI 出图那条路会拿它当主素材</span>。
+                    <Trans>
+                      授权照片已经取回来了。「{scheme.title}」这套的图位要的是白模/设定稿，照片放不进去，但<span className="font-semibold">交给 AI 出图那条路会拿它当主素材</span>。
+                    </Trans>
                   </>
                 ) : (
                   <>
-                    授权照片还在手上（绑定也还在），但「{scheme.title}」的图位里已经不是它了——那一格的图被换过。
-                    {authIsMaterial ? "交给 AI 出图那条路用的仍然是它。" : "AI 那条路的主素材也已经换成了别的图。"}
+                    {authIsMaterial ? (
+                      <Trans>授权照片还在手上（绑定也还在），但「{scheme.title}」的图位里已经不是它了——那一格的图被换过。交给 AI 出图那条路用的仍然是它。</Trans>
+                    ) : (
+                      <Trans>授权照片还在手上（绑定也还在），但「{scheme.title}」的图位里已经不是它了——那一格的图被换过。AI 那条路的主素材也已经换成了别的图。</Trans>
+                    )}
                   </>
                 )}
               </p>
@@ -1097,12 +1400,10 @@ export default function CustomCardPage() {
               <span className="flex-none text-xl">🖼</span>
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-slate-100">
-                  {authSlotTag ? "就用这张照片，自己补其余格子" : "自己上传图片"}
+                  {authSlotTag ? t`就用这张照片，自己补其余格子` : t`自己上传图片`}
                 </span>
                 <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">
-                  {authSlotTag
-                    ? `授权照片已经在「${authSlotTag}」那一格了 · 不花钱`
-                    : "逐格传自己的图 · 不花钱"}
+                  {authSlotTag ? t`授权照片已经在「${authSlotTag}」那一格了 · 不花钱` : t`逐格传自己的图 · 不花钱`}
                 </span>
               </span>
               <span className="ml-auto flex-none text-slate-500">›</span>
@@ -1115,11 +1416,16 @@ export default function CustomCardPage() {
               <span className="flex-none text-xl">✨</span>
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-slate-100">
-                  {authIsMaterial ? `用这张照片，AI 按方案出 ${pageSlots.length} 张图位` : "传素材，AI 生成图位"}
+                  {authIsMaterial ? t`用这张照片，AI 按方案出 ${pageSlots.length} 张图位` : t`传素材，AI 生成图位`}
                 </span>
                 <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">
-                  {authIsMaterial ? "主素材已就位（就是那张授权照片），不用再传 · " : "按方案逐格出图 + 撰写人物信息 · "}
-                  {AI_REAL ? `约 ${fmtTokens(aiPrice)} token` : "演示档"}
+                  {authIsMaterial
+                    ? AI_REAL
+                      ? t`主素材已就位（就是那张授权照片），不用再传 · 约 ${aiPriceText} token`
+                      : t`主素材已就位（就是那张授权照片），不用再传 · 演示档`
+                    : AI_REAL
+                      ? t`按方案逐格出图 + 撰写人物信息 · 约 ${aiPriceText} token`
+                      : t`按方案逐格出图 + 撰写人物信息 · 演示档`}
                 </span>
               </span>
               <span className="ml-auto flex-none text-slate-500">›</span>
@@ -1139,14 +1445,14 @@ export default function CustomCardPage() {
                       {aiPick === w ? (
                         <span className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-slate-300">
                           <Spinner size="sm" />
-                          <span className="text-[9px]">处理中…</span>
+                          <span className="text-[9px]"><Trans>处理中…</Trans></span>
                         </span>
                       ) : shot ? (
                         <img src={shot.dataUrl} alt="" className="h-full w-full object-cover" />
                       ) : (
                         <span className="flex h-full w-full flex-col items-center justify-center gap-1 text-slate-500">
                           <Icon name="plus" size={16} />
-                          <span className="px-1 text-center text-[9px] leading-tight">{w === "body" ? "主素材图（必）" : "面部近照（选）"}</span>
+                          <span className="px-1 text-center text-[9px] leading-tight">{w === "body" ? t`主素材图（必）` : t`面部近照（选）`}</span>
                         </span>
                       )}
                     </button>
@@ -1154,24 +1460,27 @@ export default function CustomCardPage() {
                 })}
                 <p className="min-w-0 flex-1 text-[10px] leading-relaxed text-slate-500">
                   {authIsMaterial
-                    ? "主素材图就是你刚授权的那张照片（点它可以换一张）。再补一张面部近照，脸会锁得更准。画风跟随素材，照片出写实。"
-                    : "主素材图 = 这个角色最完整的一张（照片/截图/画都行）；有面部近照的话脸会锁得更准。画风严格跟随素材（照片出写实、插画出同风格）。"}
+                    ? t`主素材图就是你刚授权的那张照片（点它可以换一张）。再补一张面部近照，脸会锁得更准。画风跟随素材，照片出写实。`
+                    : t`主素材图 = 这个角色最完整的一张（照片/截图/画都行）；有面部近照的话脸会锁得更准。画风严格跟随素材（照片出写实、插画出同风格）。`}
                 </p>
               </div>
               <input
                 value={aiSubject}
                 onChange={(e) => setAiSubject(e.target.value)}
                 maxLength={60}
-                placeholder="一句主体描述（选）：例「银白长发的星星发夹少女」"
+                placeholder={t`一句主体描述（选）：例「银白长发的星星发夹少女」`}
                 className="mt-2 w-full rounded-lg border border-slate-700 bg-ink/50 px-2.5 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
               />
               <button
                 onClick={() => void runAiForge()}
                 disabled={!aiBody || !!aiBusy}
-                title={!aiBody ? "先传主素材图" : undefined}
+                title={!aiBody ? t`先传主素材图` : undefined}
                 className="mt-2.5 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
-                {aiBusy || `✨ 生成 ${pageSlots.length} 张图位与人物信息${AI_REAL ? `（${fmtTokens(aiPrice)}）` : ""}`}
+                {aiBusy ||
+                  (AI_REAL
+                    ? t`✨ 生成 ${pageSlots.length} 张图位与人物信息（${aiPriceText}）`
+                    : t`✨ 生成 ${pageSlots.length} 张图位与人物信息`)}
               </button>
             </div>
             )}
@@ -1228,7 +1537,17 @@ export default function CustomCardPage() {
         className="mb-3 flex items-center gap-1 text-[11px] text-slate-400"
       >
         <Icon name="back" size={12} />
-        返回：{isChar ? (step === "final" ? "人物信息" : step === "info" ? "图位预览" : "选来源") : "选卡种"}
+        {isChar ? (
+          step === "final" ? (
+            <Trans>返回：人物信息</Trans>
+          ) : step === "info" ? (
+            <Trans>返回：图位预览</Trans>
+          ) : (
+            <Trans>返回：选来源</Trans>
+          )
+        ) : (
+          <Trans>返回：选卡种</Trans>
+        )}
       </button>
 
       {dropped && <p className="mb-3 text-[11px] leading-relaxed text-amber-400">{dropped}</p>}
@@ -1237,12 +1556,12 @@ export default function CustomCardPage() {
       {(!isChar || step === "final") && (
       <section className="mb-4 flex gap-3">
         <div className="min-w-0 flex-1">
-          <h2 className="mb-1.5 text-xs font-semibold text-slate-300">{isChar ? "卡名与简介" : "① 卡名与简介"}</h2>
+          <h2 className="mb-1.5 text-xs font-semibold text-slate-300">{isChar ? t`卡名与简介` : t`① 卡名与简介`}</h2>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={NAME_MAX}
-            placeholder={`卡名（最多 ${NAME_MAX} 字）`}
+            placeholder={t`卡名（最多 ${NAME_MAX} 字）`}
             className="mb-2 w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
           />
           <textarea
@@ -1250,22 +1569,52 @@ export default function CustomCardPage() {
             onChange={(e) => setSummary(e.target.value)}
             rows={3}
             maxLength={SUMMARY_MAX}
-            placeholder="一句话简介：这张卡是谁 / 是什么地方 / 是什么东西"
+            placeholder={t`一句话简介：这张卡是谁 / 是什么地方 / 是什么东西`}
             className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
           />
           <div className="mt-0.5 text-right text-[10px] text-slate-600">
             {summary.length}/{SUMMARY_MAX}
           </div>
+          {(type === "prop" || type === "scene") && (
+            // 拍板 5 a：上传那条路默认不识别，给一颗可选的键。价签印在键上（与本页「圈选改图」同一形状），成功才扣
+            <div className="mt-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void recognize()}
+                  disabled={!shots[primary.kind] || !!recogBusy || busySlot !== null || minting}
+                  className="rounded-full bg-panel px-3 py-1 text-[11px] text-brand ring-1 ring-slate-700 disabled:opacity-40"
+                >
+                  {recogBusy ||
+                    (type === "prop"
+                      ? AI_REAL
+                        ? t`✨ 让 AI 按主体填写（${recogPrice}）`
+                        : t`✨ 让 AI 按主体填写`
+                      : AI_REAL
+                        ? t`✨ 让 AI 按照片填写（${recogPrice}）`
+                        : t`✨ 让 AI 按照片填写`)}
+                </button>
+                <span className="text-[10px] text-slate-500">
+                  {shots[primary.kind] ? t`只填空着的格子，不改你已经写的字` : t`先传${primary.label}`}
+                </span>
+              </div>
+              {recogMsg && (
+                <p className={`mt-1 text-[10px] leading-relaxed ${recogMsg.tone === "error" ? "text-rose-300" : "text-amber-300"}`}>
+                  {recogMsg.text}
+                </p>
+              )}
+            </div>
+          )}
         </div>
         {/* 实时卡面预览：卡框会盖掉四周一圈、题名压在底部，先看见再决定要不要换图 */}
         <div className="w-24 flex-none">
           <TarotCard
             cover={isChar ? charCover : (shots[primary.kind]?.dataUrl ?? null)}
-            title={name.trim() || "未命名"}
+            title={name.trim() || t`未命名`}
             sub={CARD_TYPE_LABELS[type]}
             type={type}
           />
-          <p className="mt-1 text-center text-[9px] leading-tight text-slate-500">卡面预览</p>
+          <p className="mt-1 text-center text-[9px] leading-tight text-slate-500"><Trans>卡面预览</Trans></p>
         </div>
       </section>
       )}
@@ -1274,7 +1623,11 @@ export default function CustomCardPage() {
       {(!isChar || step === "form") && (
       <section data-guide="cc-slots" className="mb-4">
         <h2 className="mb-1.5 text-xs font-semibold text-slate-300">
-          {!isChar && "② "}图位（{isChar ? `按方案「${scheme.title}」· ${pageSlots.length} 格` : `${CARD_TYPE_LABELS[type]}共 ${slots.length} 格`}）
+          {isChar ? (
+            <Trans>图位（按方案「{scheme.title}」· {pageSlots.length} 格）</Trans>
+          ) : (
+            <Trans>② 图位（{CARD_TYPE_LABELS[type]}共 {slots.length} 格）</Trans>
+          )}
         </h2>
 
         {/* 人物卡：图位结构由**提示词方案**定（与「从视频提取」同一套方案库）。
@@ -1288,12 +1641,12 @@ export default function CustomCardPage() {
             >
               <span className="min-w-0">
                 <span className="block truncate text-[11px] font-semibold text-slate-200">
-                  方案：{scheme.title}
-                  {scheme.faceless && <span className="ml-1 text-emerald-300">· 无脸</span>}
+                  <Trans>方案：{scheme.title}</Trans>
+                  {scheme.faceless && <span className="ml-1 text-emerald-300"><Trans>· 无脸</Trans></span>}
                 </span>
                 <span className="block truncate text-[10px] text-slate-500">{scheme.intro}</span>
               </span>
-              <span className="ml-2 flex-none text-[10px] text-slate-500">{schemeOpen ? "收起" : "换一套"}</span>
+              <span className="ml-2 flex-none text-[10px] text-slate-500">{schemeOpen ? t`收起` : t`换一套`}</span>
             </button>
             {schemeOpen && (
               <div className="space-y-1 rounded-lg border border-slate-700/70 bg-ink/40 p-1.5">
@@ -1308,14 +1661,14 @@ export default function CustomCardPage() {
                     <span className="flex items-center gap-1.5">
                       <span className="truncate text-[11px] font-semibold text-slate-200">{sc.title}</span>
                       {sc.faceless && (
-                        <span className="flex-none rounded-full px-1.5 py-0.5 bg-emerald-500/15 text-[9px] text-emerald-300">无脸</span>
+                        <span className="flex-none rounded-full px-1.5 py-0.5 bg-emerald-500/15 text-[9px] text-emerald-300"><Trans>无脸</Trans></span>
                       )}
                     </span>
                     <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">{sc.intro}</span>
                   </button>
                 ))}
                 <p className="px-2 pb-1 text-[9px] leading-relaxed text-slate-600">
-                  自建方案 / 从市场装新方案在工坊「从视频提取卡片」里做，装好这里就能选。
+                  <Trans>自建方案 / 从市场装新方案在工坊「从视频提取卡片」里做，装好这里就能选。</Trans>
                 </p>
               </div>
             )}
@@ -1343,7 +1696,7 @@ export default function CustomCardPage() {
                     ) : (
                       <span className="flex h-full w-full flex-col items-center justify-center gap-1 text-slate-500">
                         <Icon name="plus" size={18} />
-                        <span className="text-[10px]">{busySlot === s.tag ? "处理中…" : "选图"}</span>
+                        <span className="text-[10px]">{busySlot === s.tag ? t`处理中…` : t`选图`}</span>
                       </span>
                     )}
                   </button>
@@ -1352,7 +1705,7 @@ export default function CustomCardPage() {
                       <span className="mb-1.5 text-xs font-semibold text-slate-300">{s.tag}</span>
                       {isCover && (
                         <span className="rounded-full px-1.5 py-0.5 bg-brand/20 text-[9px] font-semibold text-brand">
-                          {shot ? "卡面" : "第一张 · 同时就是卡面"}
+                          {shot ? t`卡面` : t`第一张 · 同时就是卡面`}
                         </span>
                       )}
                     </div>
@@ -1370,21 +1723,21 @@ export default function CustomCardPage() {
                             disabled={busySlot !== null}
                             className="text-[11px] text-brand disabled:opacity-40"
                           >
-                            换一张
+                            <Trans>换一张</Trans>
                           </button>
                           <button
                             onClick={() => removeShot({ tag: s.tag })}
                             disabled={busySlot !== null}
                             className="text-[11px] text-rose-400 disabled:opacity-40"
                           >
-                            移除
+                            <Trans>移除</Trans>
                           </button>
                           <button
                             onClick={() => setAnnot({ tag: s.tag, frame: shot.dataUrl })}
                             disabled={busySlot !== null}
                             className="text-[11px] text-brand disabled:opacity-40"
                           >
-                            {busySlot === s.tag ? "改图中…" : `⭕ 圈选改图${AI_REAL ? `（${fmtTokens(ONE_IMAGE)}）` : ""}`}
+                            {busySlot === s.tag ? t`改图中…` : AI_REAL ? t`⭕ 圈选改图（${refinePrice}）` : t`⭕ 圈选改图`}
                           </button>
                         </div>
                       </>
@@ -1413,7 +1766,7 @@ export default function CustomCardPage() {
                   ) : (
                     <span className="flex h-full w-full flex-col items-center justify-center gap-1 text-slate-500">
                       <Icon name="plus" size={18} />
-                      <span className="text-[10px]">{busySlot === s.kind ? "处理中…" : "选图"}</span>
+                      <span className="text-[10px]">{busySlot === s.kind ? t`处理中…` : t`选图`}</span>
                     </span>
                   )}
                 </button>
@@ -1422,19 +1775,31 @@ export default function CustomCardPage() {
                     <span className="mb-1.5 text-xs font-semibold text-slate-300">{s.label}</span>
                     {isPrimary ? (
                       <span className="rounded-full px-1.5 py-0.5 bg-brand/20 text-[9px] font-semibold text-brand">
-                        必填 · 同时就是卡面
+                        <Trans>必填 · 同时就是卡面</Trans>
                       </span>
                     ) : (
-                      <span className="rounded-full px-1.5 py-0.5 bg-slate-700/60 text-[9px] text-slate-400">选填</span>
+                      <span className="rounded-full px-1.5 py-0.5 bg-slate-700/60 text-[9px] text-slate-400"><Trans>选填</Trans></span>
+                    )}
+                    {shot?.keptBg && (
+                      // 拍板 4 b：保留了框内背景的那一格，角上一直挂着 —— 别让人以为抠干净了
+                      <span className="rounded-full px-2 py-0.5 bg-amber-500/15 text-[10px] text-amber-300">
+                        <Trans>带背景</Trans>
+                      </span>
                     )}
                   </div>
-                  <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">锁住{s.locks}。</p>
+                  <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500"><Trans>锁住{s.locks}。</Trans></p>
+                  {type === "prop" && (
+                    // 拍板 2-1 a / 2-2 b：两格都要抠。话说在选图之前，别让人选完图才发现还有一步
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-sky-300">
+                      <Trans>选图后先框出这件道具、沿边描一圈——只留主体，背景换成浅灰纯色</Trans>
+                    </p>
+                  )}
                   {isPrimary && (
                     // ★ "一图两用"必须写明白：与最低档 AI 铸卡是同一条规则，
                     //   不说的话用户会以为卡面是另外一张、还要再传一次。
                     //   2:3 卡框怎么摆那半句在引导里（tours 的 customcard 第二步）
                     <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">
-                      这一张既当卡面，也当这张卡的主形象参考。
+                      <Trans>这一张既当卡面，也当这张卡的主形象参考。</Trans>
                     </p>
                   )}
                   {/* ★★ 选图失败的话必须显示在**出事的这一格里**。原来只写进页面底部那个 err，
@@ -1454,14 +1819,14 @@ export default function CustomCardPage() {
                           disabled={busySlot !== null}
                           className="text-[11px] text-brand disabled:opacity-40"
                         >
-                          换一张
+                          <Trans>换一张</Trans>
                         </button>
                         <button
                           onClick={() => removeShot({ kind: s.kind })}
                           disabled={busySlot !== null}
                           className="text-[11px] text-rose-400 disabled:opacity-40"
                         >
-                          移除
+                          <Trans>移除</Trans>
                         </button>
                       </div>
                     </>
@@ -1480,21 +1845,22 @@ export default function CustomCardPage() {
             页面上只留"不是每张都用"这一句最防误解的。真裁了图时那一格的 note 自己会说。
             ★ 引导里那个比例数同样从 utils/image 的 REF_MAX_RATIO 插值，不手打（方舟硬约束） */}
         <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-          出片时<span className="text-slate-400">不是每张都会喂进模型</span>——详情页会逐张标出
-          「出片用 / 仅展示」，那里是唯一的判据。
+          <Trans>
+            出片时<span className="text-slate-400">不是每张都会喂进模型</span>——详情页会逐张标出「出片用 / 仅展示」，那里是唯一的判据。
+          </Trans>
         </p>
         {isChar && (
           <button
             onClick={() => setStep("info")}
             disabled={busySlot !== null || !charCover}
-            title={!charCover ? "至少给一格图（第一张有图的就是卡面）" : undefined}
+            title={!charCover ? t`至少给一格图（第一张有图的就是卡面）` : undefined}
             className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
           >
-            下一步：人物信息 ›
+            <Trans>下一步：人物信息 ›</Trans>
           </button>
         )}
         {isChar && !charCover && (
-          <p className="mt-1 text-center text-[10px] text-slate-500">至少给一格图，这颗键才亮（第一张有图的就是卡面）</p>
+          <p className="mt-1 text-center text-[10px] text-slate-500"><Trans>至少给一格图，这颗键才亮（第一张有图的就是卡面）</Trans></p>
         )}
       </section>
       )}
@@ -1503,17 +1869,17 @@ export default function CustomCardPage() {
           "自己传图做卡片没有可选的人物声音上传或录入"。真人路的那份在第 1 步（连着授权），这里不重复摆 */}
       {isChar && step === "final" && !realPerson && (
         <section className="mb-4">
-          <h2 className="mb-1.5 text-sm font-semibold text-slate-300">声音样本（选填）</h2>
+          <h2 className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>声音样本（选填）</Trans></h2>
           {pendingVoice ? (
             <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
               <span className="min-w-0 flex-1">
                 <span className="block text-[10px] text-emerald-300">
-                  🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）
+                  <Trans>🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）</Trans>
                 </span>
                 <audio src={pendingVoice.dataUrl} controls className="mt-1 h-8 w-full" />
               </span>
               <button onClick={() => setPendingVoice(null)} className="flex-none text-[10px] text-slate-500">
-                重来
+                <Trans>重来</Trans>
               </button>
             </div>
           ) : (
@@ -1523,7 +1889,7 @@ export default function CustomCardPage() {
             </div>
           )}
           <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-            出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。
+            <Trans>出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。</Trans>
           </p>
         </section>
       )}
@@ -1531,20 +1897,24 @@ export default function CustomCardPage() {
       {/* 真人/授权在第 1 步表过态了，这里只留一行事实摘要（想改就返回上一步） */}
       {isChar && step === "final" && (realPerson || pendingAsset) && (
         <p className="mb-4 rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-[10px] leading-relaxed text-slate-400">
-          {realPerson ? "已声明真人" : ""}
-          {pendingAsset ? `${realPerson ? " · " : ""}授权素材已接上（铸卡时绑定）` : ""}
-          {pendingVoice ? `${realPerson || pendingAsset ? " · " : ""}已录音 ${pendingVoice.durationSec.toFixed(1)}s` : ""}
-          {" —— 要改就"}
-          <button onClick={() => setStep(isChar && realPerson ? "real" : "type")} className="text-brand">
-            返回上一步
-          </button>
+          <Trans>
+            {factLine} —— 要改就<button onClick={() => setStep(isChar && realPerson ? "real" : "type")} className="text-brand">返回上一步</button>
+          </Trans>
         </p>
       )}
 
       {/* ── 「<类型>信息」（人物卡 = 第③步）── */}
       {(!isChar || step === "info") && (
       <section data-guide="cc-info" className="mb-4">
-        <h2 className="mb-1.5 text-xs font-semibold text-slate-300">{!isChar && "③ "}{CARD_INFO_LABELS[type]}（{isChar && lane === "ai" ? "AI 已按素材写好，可随意改" : "选填"}）</h2>
+        <h2 className="mb-1.5 text-xs font-semibold text-slate-300">
+          {!isChar ? (
+            <Trans>③ {CARD_INFO_LABELS[type]}（选填）</Trans>
+          ) : lane === "ai" ? (
+            <Trans>{CARD_INFO_LABELS[type]}（AI 已按素材写好，可随意改）</Trans>
+          ) : (
+            <Trans>{CARD_INFO_LABELS[type]}（选填）</Trans>
+          )}
+        </h2>
         <textarea
           value={info}
           onChange={(e) => setInfo(e.target.value)}
@@ -1552,20 +1922,44 @@ export default function CustomCardPage() {
           maxLength={INFO_MAX}
           placeholder={
             type === "character"
-              ? "例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂"
+              ? t`例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂`
               : type === "style"
-                ? "例：水墨留白，淡墨皴擦，大面积留白，边缘晕染"
-                : "把这张卡的样子写具体：造型、材质、配色、光线……"
+                ? t`例：水墨留白，淡墨皴擦，大面积留白，边缘晕染`
+                : t`把这张卡的样子写具体：造型、材质、配色、光线……`
           }
           className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
         />
         <div className="mt-0.5 flex items-start justify-between gap-2">
           {/* "不填会怎样"那句在引导第四步——选填两个字本身已经说了可跳过 */}
           <p className="text-[10px] leading-relaxed text-slate-500">
-            <span className="text-slate-400">AI 复刻这张卡的画面 / 建模时会读这段</span>，写得越具体越像。
+            <Trans><span className="text-slate-400">AI 复刻这张卡的画面 / 建模时会读这段</span>，写得越具体越像。</Trans>
           </p>
           <span className="flex-none text-[10px] text-slate-600">
             {info.length}/{INFO_MAX}
+          </span>
+        </div>
+        {/* 出片句（Card.idLine）。★ 与上面那段「<类型>信息」不是一回事：信息只进 genPrompt（详情页展示、复刻时读），
+            出片句是**出片时原样拼进视频提示词**的那一句（segmentGen.materialText）—— 这一页原来不写它，
+            出片时退回「名字 + 简介前 24 字」。画出来让人看得见、改得了：以后「拍摄识别」写进来的那一句
+            如果看不见，就是一段用户改不了的硬约束。 */}
+        <h3 className="mb-1.5 mt-3 text-xs font-semibold text-slate-300"><Trans>出片句（选填）</Trans></h3>
+        <input
+          value={idLine}
+          onChange={(e) => setIdLine(e.target.value)}
+          maxLength={ID_LINE_MAX}
+          placeholder={t(ID_LINE_EXAMPLE[type])}
+          className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+        />
+        <div className="mt-0.5 flex items-start justify-between gap-2">
+          <p className="text-[10px] leading-relaxed text-slate-500">
+            {type === "background" ? (
+              <Trans><span className="text-slate-400">出片时 AI 会原样读这一句</span>，当作这段故事的背景设定；不填就用卡名和简介。</Trans>
+            ) : (
+              <Trans><span className="text-slate-400">出片时 AI 会原样读这一句</span>，写一眼就能画出来的外形特征；不填就用卡名和简介。</Trans>
+            )}
+          </p>
+          <span className="flex-none text-[10px] text-slate-600">
+            {idLine.length}/{ID_LINE_MAX}
           </span>
         </div>
         {isChar && (
@@ -1573,7 +1967,7 @@ export default function CustomCardPage() {
             onClick={() => setStep("final")}
             className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
           >
-            下一步：定名与铸卡 ›
+            <Trans>下一步：定名与铸卡 ›</Trans>
           </button>
         )}
       </section>
@@ -1582,18 +1976,18 @@ export default function CustomCardPage() {
       {/* ── 标签（人物卡并入第④步）── */}
       {(!isChar || step === "final") && (
       <section className="mb-4">
-        <h2 className="mb-1.5 text-xs font-semibold text-slate-300">{!isChar && "④ "}标签（选填）</h2>
+        <h2 className="mb-1.5 text-xs font-semibold text-slate-300">{isChar ? <Trans>标签（选填）</Trans> : <Trans>④ 标签（选填）</Trans>}</h2>
         <input
           value={tagText}
           onChange={(e) => setTagText(e.target.value)}
-          placeholder={`用空格或逗号分隔，最多 ${TAG_MAX} 个`}
+          placeholder={t`用空格或逗号分隔，最多 ${TAG_MAX} 个`}
           className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
         />
         {tags.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1">
-            {tags.map((t) => (
-              <span key={t} className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
-                #{t}
+            {tags.map((tag) => (
+              <span key={tag} className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
+                #{tag}
               </span>
             ))}
           </div>
@@ -1608,12 +2002,11 @@ export default function CustomCardPage() {
         <>
       {partial?.kind === "unsynced" && (
         <div className="mb-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
-          <p className="text-xs font-semibold text-rose-300">这张卡没能存到服务器</p>
+          <p className="text-xs font-semibold text-rose-300"><Trans>这张卡没能存到服务器</Trans></p>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
-            原因：{partial.reason ?? "网络异常"}。
-            <span className="text-rose-200">它现在只在这次会话里活着</span> —— 你现在能在卡片库里看到它，
-            但下次重开 App 就会没有（登录后 App 会用服务器上那份覆盖本机）。
-            <span className="text-slate-100">别退出这一页</span>，等网络好一点再点一次「重试」。
+            <Trans>
+              原因：{partial.reason ?? reasonNet}。<span className="text-rose-200">它现在只在这次会话里活着</span> —— 你现在能在卡片库里看到它，但下次重开 App 就会没有（登录后 App 会用服务器上那份覆盖本机）。<span className="text-slate-100">别退出这一页</span>，等网络好一点再点一次「重试」。
+            </Trans>
           </p>
           <div className="mt-2 flex gap-2">
             <button
@@ -1623,7 +2016,7 @@ export default function CustomCardPage() {
               }}
               className="rounded-full bg-brand px-4 py-1.5 text-xs font-bold text-ink"
             >
-              重试
+              <Trans>重试</Trans>
             </button>
           </div>
         </div>
@@ -1631,46 +2024,52 @@ export default function CustomCardPage() {
       {partial?.kind === "asset" && (
         <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
           <p className="text-[11px] leading-relaxed text-amber-200">
-            卡铸好了，但<span className="font-semibold">肖像授权的绑定没能存在这台设备上</span>
-            （{partial.reason}）。这张卡挂着真人声明，没有绑定的话出片那一刻会被整发拒——
-            去卡详情页把授权再做一次就好，卡本身不用重铸。
-            {partial.lost.length > 0 && (
-              <>
-                {" "}另外还有 <span className="font-semibold">{partial.lost.length} 张图没能同步到服务器</span>，
-                它们只留在这台设备上。
-              </>
+            {partial.lost.length > 0 ? (
+              <Trans>
+                卡铸好了，但<span className="font-semibold">肖像授权的绑定没能存在这台设备上</span>（{partial.reason}）。这张卡挂着真人声明，没有绑定的话出片那一刻会被整发拒——去卡详情页把授权再做一次就好，卡本身不用重铸。另外还有 <span className="font-semibold">{partial.lost.length} 张图没能同步到服务器</span>，它们只留在这台设备上。
+              </Trans>
+            ) : (
+              <Trans>
+                卡铸好了，但<span className="font-semibold">肖像授权的绑定没能存在这台设备上</span>（{partial.reason}）。这张卡挂着真人声明，没有绑定的话出片那一刻会被整发拒——去卡详情页把授权再做一次就好，卡本身不用重铸。
+              </Trans>
             )}
           </p>
           <button
             onClick={() => nav(`/card/${partial.id}`, { replace: true })}
             className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
           >
-            去这张卡，重做一次授权
+            <Trans>去这张卡，重做一次授权</Trans>
           </button>
         </div>
       )}
       {partial?.kind === "views" && (
         <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-400/5 p-3">
-          <p className="text-xs font-semibold text-amber-300">卡建好了，但有图没能存到服务器</p>
+          <p className="text-xs font-semibold text-amber-300"><Trans>卡建好了，但有图没能存到服务器</Trans></p>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
-            {partial.lost.slice(0, 3).join("、")}
-            {partial.lost.length > 3 ? ` 等 ${partial.lost.length} 张` : ""}
-            没能同步（{partial.reason ?? "上传失败"}）。卡本身在服务器上，只有这几张图还只留在这台设备，
-            换设备或重新登录后它们会消失。
+            {partial.lost.length > 3 ? (
+              <Trans>
+                {partial.lost.slice(0, 3).join(listSep)} 等 {partial.lost.length} 张没能同步（{partial.reason ?? reasonUpload}）。卡本身在服务器上，只有这几张图还只留在这台设备，换设备或重新登录后它们会消失。
+              </Trans>
+            ) : (
+              <Trans>
+                {partial.lost.slice(0, 3).join(listSep)}没能同步（{partial.reason ?? reasonUpload}）。卡本身在服务器上，只有这几张图还只留在这台设备，换设备或重新登录后它们会消失。
+              </Trans>
+            )}
             {/* ★ 补救办法必须**真的走得通**：详情页的「+ 图位」在满格（MAX_CARD_VIEWS=3）时
                 整组不渲染，而人物卡三格传满恰恰是这一页最主推的用法 —— 那时候唯一能触发
                 自愈补传的动作是**先删一张再加回来**。原来这里只写"重新挂一次"，
                 用户进去会发现连个「+」都没有。 */}
             <br />
-            补救：进卡片详情页，把没同步的那张<span className="text-slate-100">先删掉、再重新加一次</span>
-            （图位已经满了的话必须先删 —— 满格时没有「+」按钮）。
+            <Trans>
+              补救：进卡片详情页，把没同步的那张<span className="text-slate-100">先删掉、再重新加一次</span>（图位已经满了的话必须先删 —— 满格时没有「+」按钮）。
+            </Trans>
           </p>
           <div className="mt-2 flex gap-2">
             <button
               onClick={() => nav(`/card/${partial.id}`, { replace: true })}
               className="rounded-full bg-brand px-4 py-1.5 text-xs font-bold text-ink"
             >
-              去看这张卡
+              <Trans>去看这张卡</Trans>
             </button>
           </div>
         </div>
@@ -1681,32 +2080,58 @@ export default function CustomCardPage() {
         disabled={!ready || minting || busySlot !== null || !!partial}
         className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
       >
-        {minting ? "铸造中…" : partial ? "已铸成" : "🎴 铸成卡片"}
+        {minting ? t`铸造中…` : partial ? t`已铸成` : t`🎴 铸成卡片`}
       </button>
       {/* ★ 灰按钮必须**说出为什么**（CLAUDE.md「界面上摆一个永远点不动的选项」那条） */}
       {minting ? (
         // 远端模式这一步要串行上传几张图，弱网下几十秒是常事。不说的话用户会以为卡住了
         <p className="mt-1.5 text-center text-[11px] text-slate-500">
-          {remote ? "正在存卡，并把图上传到服务器（手机上行慢时要几十秒）…" : "正在存进本机卡片库…"}
+          {remote ? t`正在存卡，并把图上传到服务器（手机上行慢时要几十秒）…` : t`正在存进本机卡片库…`}
         </p>
       ) : partial ? null : offlineButConfigured ? (
         // ★ 这一条排在 missing 之前：填不填得完整都不该让他填 —— 先说真正的拦路原因
-        <p className="mt-1.5 text-center text-[11px] text-rose-300">连不上服务器，现在铸出来的卡会丢（见上）</p>
+        <p className="mt-1.5 text-center text-[11px] text-rose-300"><Trans>连不上服务器，现在铸出来的卡会丢（见上）</Trans></p>
       ) : !ready ? (
-        <p className="mt-1.5 text-center text-[11px] text-slate-400">还缺：{missing.join("、")}</p>
+        <p className="mt-1.5 text-center text-[11px] text-slate-400"><Trans>还缺：{missing.join(listSep)}</Trans></p>
       ) : (
-        <p className="mt-1.5 text-center text-[11px] text-slate-500">不消耗 token · 铸好后直接进你的卡片库</p>
+        <p className="mt-1.5 text-center text-[11px] text-slate-500"><Trans>铸卡本身不消耗 token · 铸好后直接进你的卡片库</Trans></p>
+      )}
+      {!minting && !partial && Object.values(shots).some((s) => s?.keptBg) && (
+        // 拍板 4 b 的第四处：铸卡键下再说一遍 —— 选择器里说过的话，按下铸卡那一刻人多半已经忘了
+        <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
+          <Trans>卡面仍带背景，出片可能把背景里的东西画进去</Trans>
+        </p>
       )}
         </>
       )}
 
         </>
+      )}
+
+      {subjectPick && (
+        <PhotoSubjectPicker
+          pick={subjectPick}
+          slotLabel={slotLabel("prop", subjectPick.kind)}
+          onChange={setSubjectPick}
+          onClose={() => setSubjectPick(null)}
+          onError={(reason) => {
+            setSlotErr({ key: subjectPick.kind, msg: reason });
+            setSubjectPick(null);
+          }}
+          onDone={({ dataUrl, note, keptBg }) => {
+            setShots((prev) => ({
+              ...prev,
+              [subjectPick.kind]: { dataUrl, note, fileName: subjectPick.fileName, via: "subject", ...(keptBg ? { keptBg: true as const } : {}) },
+            }));
+            setSubjectPick(null);
+          }}
+        />
       )}
 
       {annot && (
         <FrameAnnotator
           frame={annot.frame}
-          hint="圈出要改的地方，写一句要求——AI 会重画这一格"
+          hint={t`圈出要改的地方，写一句要求——AI 会重画这一格`}
           onClose={() => setAnnot(null)}
           onSave={(frame, req) => {
             const tag = annot.tag;
@@ -1725,6 +2150,28 @@ export default function CustomCardPage() {
           const f = e.target.files?.[0];
           e.target.value = ""; // 同一张图连选两次也要能触发
           void onFile(f);
+        }}
+      />
+      {/* 浏览器里「拍摄识别」的降级口（原生壳里走 utils/nativeCamera，见 startCapture）。
+          ★ accept 必须**包含** image/*：只写具体 MIME 会静默退回相册；SupportModelNewPage 那个为了躲 HEIC 不写 image/* 的口子，这里不能照抄。
+          ★ 不能把 capture 加到上面那个共用的 fileRef 上，否则「上传本地图片」也会开相机。
+          ★ 这条路也先去 EXIF（stripExif），与原生那条同一口径 */}
+      <input
+        ref={cameraFallbackRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (!f) return;
+          const startType = useCardDraft.getState().type;
+          void stripExif(f)
+            .then((clean) =>
+              placeCaptured({ kind: "photo", file: new File([clean], `camera-${Date.now()}.jpg`, { type: "image/jpeg" }) }, startType),
+            )
+            .catch((err) => setCaptureMsg(err instanceof Error ? err.message : String(err)));
         }}
       />
     </div>

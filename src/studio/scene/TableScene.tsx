@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 import { ThreeEvent, advance, useFrame, useLoader, useThree } from "@react-three/fiber";
+import { useLingui } from "@lingui/react/macro";
 import { FlowNode, useFlow } from "../flowStore";
 import { chosenProposal, composable, placeholderVisible, useStudio, Flight } from "../studioStore";
 import {
@@ -680,6 +681,7 @@ function CenterLine() {
 // 状态表达也重做了。旧版无论能不能点都写死"生成视频"，圆台暗着也不解释为什么，
 // 用户只能瞎试；现在铭牌副题随状态换文案，把前置条件说出来。
 function ComposePad() {
+  const { t } = useLingui();
   const nodes = useFlow((s) => s.nodes);
   const enabled = composable(nodes);
   // 亮不起来时要说清缺什么：末段还没挑方案，还是挑了没炼。以前一律写"先为当前段选定一个
@@ -709,26 +711,27 @@ function ComposePad() {
     () =>
       new THREE.MeshBasicMaterial({
         map: composePlateTexture(
-          enabled ? "整片就绪" : "尚未就绪",
-          enabled ? "点亮法阵 · 去剪辑成片" : picked ? "先炼出当前段的视频" : "先为当前段挑定一套方案",
+          enabled ? t`整片就绪` : t`尚未就绪`,
+          enabled ? t`点亮法阵 · 去剪辑成片` : picked ? t`先炼出当前段的视频` : t`先为当前段挑定一套方案`,
           enabled,
         ),
         transparent: true,
         depthWrite: false,
       }),
-    [enabled, picked],
+    // t 进依赖：切界面语言要重画铭牌（纹理按文字缓存，换一句就是另一张）
+    [enabled, picked, t],
   );
   useEffect(() => () => sigilMat.dispose(), [sigilMat]);
   useEffect(() => () => runeMat.dispose(), [runeMat]);
   useEffect(() => () => plateMat.dispose(), [plateMat]);
 
   useFrame((_, dt) => {
-    const t = performance.now();
+    const now = performance.now();
     // 台座呼吸：可合成时金光起伏，否则近乎熄灭
     // 只给极轻的呼吸。**发光的必须是刻纹不是台面**：这屋子从桌毡到卡框到烛台，
     // 全是"暗底 + 细金线"，台面一亮就成了一枚金币，把旁边桌毡那圈细刻线整个压住
     // （第一版给到 0.45 就是这个下场）。
-    if (base.current) base.current.emissiveIntensity = enabled ? 0.10 + 0.05 * Math.sin(t / 380) : 0.02;
+    if (base.current) base.current.emissiveIntensity = enabled ? 0.10 + 0.05 * Math.sin(now / 380) : 0.02;
     // 符文环缓转——**只在可合成时转**。转动是这里唯一的动效，克制到底：
     // 暗房里一个持续闪烁的东西会一直抢注意力，而"缓慢旋转"读作蓄势，不吵
     if (ring.current) {
@@ -738,7 +741,7 @@ function ComposePad() {
     if (beam.current) {
       beam.current.visible = enabled;
       const m = beam.current.material as THREE.MeshBasicMaterial;
-      if (enabled) m.opacity = 0.1 + 0.06 * Math.sin(t / 520);
+      if (enabled) m.opacity = 0.1 + 0.06 * Math.sin(now / 520);
     }
   });
 
@@ -997,6 +1000,7 @@ function UserHands() {
 
 // ── 卡组（堆叠；空组只剩虚位标记） ────────────────────────────
 function DeckStack() {
+  const { t } = useLingui();
   const deck = useStudio((s) => s.deck);
   const activeDeck = useStudio((s) => s.activeDeck);
   const backMat = useMemo(
@@ -1013,7 +1017,7 @@ function DeckStack() {
   const countMat = useMemo(() => new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }), []);
   // 选过卡组后标签亮出组名（截断防溢出）；卡组/卡片的切换都在小窗右上角
   countMat.map = labelTexture(
-    activeDeck ? `${activeDeck.name.slice(0, 6)} ${deck.length}` : `卡组 ${deck.length}`,
+    activeDeck ? `${activeDeck.name.slice(0, 6)} ${deck.length}` : t`卡组 ${deck.length}`,
     "#e2e8f0",
   );
   useEffect(() => {

@@ -3,16 +3,15 @@
 // 每个环节失败都回退到 mock 同款产物——AI 网络抖动不阻断工坊流程。
 import {
   cleanShot,
-  CARD_SLOTS,
-  CARD_TYPE_LABELS,
+  CARD_TYPE_PROMPT,
   Card,
   CardType,
   CARD_TYPES,
   Proposal,
   VideoAspect,
   aspectOf,
-  normalizeSlot,
   roleOf,
+  slotPromptOf,
   uid,
   viewTag,
   viewsOf,
@@ -25,7 +24,8 @@ import {
   type CardView,
   type GenMode,
 } from "../types";
-import { makeCover, makeFrame } from "../mock/frames";
+// ★ 不再 import makeFrame：推演没画出来的帧留空、不拿占位图顶（见推演三套方案那一段末尾的 ★★）
+import { makeCover } from "../mock/frames";
 import type { MaterialFile, ProposalContext } from "../mock/ai";
 import * as mock from "../mock/ai";
 import {
@@ -54,6 +54,7 @@ import { refableViews } from "../data/cardViews";
 // 已授权的可信素材：整张卡改发 asset:// URI（判据与拼法各只有一处，见 data/cardAsset）
 import { assetOf, assetUri } from "../data/cardAsset";
 import {
+  ArkBadReply,
   ArkHttpError,
   ArkTaskUnknown,
   briefArkReason,
@@ -158,6 +159,67 @@ export async function refineCardImage(o: { annotated: string; req: string; size:
       `保持人物的长相、发型、服装与画风完全一致；成品图不要保留任何圈选线条或标注痕迹`,
     { imageRefs: [o.annotated], size: o.size },
   );
+}
+
+/** 拍照 / 传图识别出来的卡片文字（只填字，不碰图） */
+export interface RecognizedCard {
+  name: string;
+  summary: string;
+  idLine: string;
+  tags: string[];
+  /** 照片里有没有人（场景卡用：真人入镜在高清档出片会被方舟拒） */
+  hasPeople: boolean;
+}
+
+/** 识别提示词：**照片口径**，两种卡各一份（字段形状相同，便于一处解析） */
+const RECOGNIZE_SPEC: Record<"prop" | "scene", string> = {
+  prop:
+    "这是一张实物照片，照片里只留下了要做成道具卡的那一件东西（背景已经换成浅灰纯色）。只看这件东西本身，写：" +
+    '{"name":"卡名，不超过8字","summary":"一句有故事感的简介，不超过60字",' +
+    '"idLine":"30~60字：这件物件一眼就能画出来的外形——造型、材质、配色、标志性细节；不写用途和故事",' +
+    '"tags":["不超过6个关键词"],"hasPeople":false}',
+  scene:
+    "这是一张实拍的地点照片。看它，写：" +
+    '{"name":"卡名，不超过8字","summary":"一句有故事感的简介，不超过60字",' +
+    '"idLine":"30~60字：这个地点的空间结构、地貌与建筑轮廓、主要陈设与光线氛围；不写人物",' +
+    '"tags":["不超过6个关键词"],"hasPeople":true 或 false（照片里有没有人，含路人、背影、局部身体）}',
+};
+
+/**
+ * 拍照 / 传图识别卡片文字（主人 2026-09-10 拍板：场景卡、道具卡；上传那条路是一颗可选的键）。
+ *
+ * ★ 照片口径的提示词，别复用提卡那套 CARD_RULES：那是**视频**口径（「scene＝视频里的地点」「读者手上没有
+ *   这段视频」），原样照搬会把模型引去描述一段不存在的视频。
+ * ★ 道具卡喂的必须是**抠好主体、铺好底**的那一张：写出来的 name / summary / idLine 会以「必须严格遵守，
+ *   不得改动其外形与身份」硬拼进出片提示词（studio/segmentGen 的 materialText），喂整张原图的话，
+ *   桌上别的东西会被写进这句硬约束。
+ * ★ 回包过同一道措辞闸 dropRefClauses（三条提卡路共用的那一份，别在页面里另写）。
+ * ★ 计费在服务端：一次 chat 定额 CHAT_TURN_TOKENS（server config/tokens.js 的 priceOf，与带几张图无关），
+ *   先扣后转发。失败分档靠 arkClient 的错误类型：ArkNoReply = 可能已扣、ArkBadReply = 已扣、其余 = 没受理没扣。
+ */
+export async function recognizeCardSubject(o: { type: "prop" | "scene"; image: string }): Promise<RecognizedCard> {
+  const raw = await chatVision("你是卡牌文案师。只输出一个 JSON 对象，不要输出任何其他文字。", RECOGNIZE_SPEC[o.type], [o.image]);
+  let j: { name?: unknown; summary?: unknown; idLine?: unknown; tags?: unknown; hasPeople?: unknown };
+  try {
+    j = JSON.parse(raw.replace(/^[^{]*/, "").replace(/[^}]*$/, ""));
+  } catch {
+    throw new ArkBadReply("识别结果不是 JSON");
+  }
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  // 名字带禁用词就不要（与 sanitizeCardDefs 同一把尺：改名等于替模型编一张卡）
+  const rawName = str(j.name).slice(0, 8);
+  const name = REF_WORD_RE.test(rawName) ? "" : rawName;
+  const summary = dropRefClauses(str(j.summary)).slice(0, 60);
+  const idLine = dropRefClauses(str(j.idLine)).slice(0, ID_LINE_MAX);
+  if (!name && !summary && !idLine) throw new ArkBadReply("识别结果是空的");
+  const tags = Array.isArray(j.tags)
+    ? j.tags
+        .filter((t): t is string => typeof t === "string")
+        .map((t) => t.trim().slice(0, 10))
+        .filter(Boolean)
+        .slice(0, 6)
+    : [];
+  return { name, summary, idLine, tags, hasPeople: j.hasPeople === true };
 }
 
 /**
@@ -719,8 +781,8 @@ export function refUsedFlags(card: Card, ctx?: Card[]): boolean[] {
  *   漏进提示词（提示词里出现 "undefined" 不会报错，只会让模型胡猜）。
  */
 function slotLocks(type: CardType, kind: unknown): string {
-  const k = normalizeSlot(type, kind);
-  return (CARD_SLOTS[type].find((s) => s.kind === k) ?? CARD_SLOTS[type][0]).locks;
+  // ★ 读提示词那张冻结表（types.CARD_SLOT_PROMPT），不读界面的 CARD_SLOTS：这半句要进绑定句，界面翻译了它也不能变
+  return slotPromptOf(type, kind).locks;
 }
 
 /**
@@ -740,7 +802,10 @@ const BIND_HINT: Record<CardType, string> = {
   scene: "的定场参考：本段画面的空间结构、地貌与建筑轮廓要与之一致；光线、天气与时间跟着剧情走，不必与参考图相同",
   // ★ V3：背景卡只以文字参与出片、allocateRefs 从不分配它——这一句永远到不了提示词，留着只为 Record 完整
   background: "（背景卡只以文字参与出片，不发图）",
-  prop: "的实物参考，画面中出现它时必须与之一致",
+  // ★ 后半句是主人 2026-09-10 拍板 7 a 补的软约束：道具卡面若带着背景 / 别的物件，模型分不清哪一个才是道具。
+  //   它只是软引导，替代不了「只留主体」层的抠图铺底（components/PhotoSubjectPicker）；
+  //   代价是每张挂上的道具卡让出片提示词长二十来字（受 VIDEO_PROMPT_MAX 预算约束），存量道具卡同样生效。
+  prop: "的实物参考，画面中出现它时必须与之一致；只取图中这件物件本身，忽略它的背景与其他物体",
   style: "的风格参考：只沿用它的画风、材质质感与色调光影，不要把样张里的内容画进画面",
 };
 
@@ -919,7 +984,7 @@ export async function prepareMaterialRefs(
       if (p.card.type === "character" || otherSaid.has(p.card)) continue;
       otherSaid.add(p.card);
       const mine = good.filter((g) => g.card === p.card);
-      otherParts.push(`${mine.map(at).join("")}是${CARD_TYPE_LABELS[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`);
+      otherParts.push(`${mine.map(at).join("")}是${CARD_TYPE_PROMPT[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`);
     }
     if (charParts.length === 0 && otherParts.length === 0) return "";
     // ★ 收尾那句摆在**最后**，别夹在两组中间：夹在中间时「只锁形象」会读起来像在说
@@ -959,7 +1024,7 @@ export async function prepareMaterialRefs(
         said.add(p.card);
         const mine = good.filter((g) => g.card === p.card);
         parts.push(
-          `${mine.map(numOf).join("、")}是${CARD_TYPE_LABELS[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`,
+          `${mine.map(numOf).join("、")}是${CARD_TYPE_PROMPT[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`,
         );
       }
       if (parts.length === 0) return "";
@@ -1005,7 +1070,7 @@ async function forgePrimary(
       // ★ 主图也要说清它是**哪个图位**（图位表的第 0 格）：人物卡的第 0 格是「全身立绘」
       //   而不是大头照 —— 不写这一句，模型十有八九给一张半身像，而后面几张都以它为参考，
       //   "这张卡没有全身参考"就一路传下去了（顺序为什么是 body 打头见 types.CARD_SLOTS）
-      `画面取景：${slot.label}，要锁住${slot.locks}。`,
+      `画面取景：${slotPromptOf(type, slot.kind).label}，要锁住${slotPromptOf(type, slot.kind).locks}。`,
       // ★ 用户原话单独成段、不揉进 summary：summary 被豆包压到 30 字，用户写的
       //   硬约束（"左手有旧伤疤""一定要戴红围巾"）会被压没，出图就丢细节
       note ? `用户的额外要求（必须满足）：${note.slice(0, 200)}` : "",
@@ -1036,10 +1101,10 @@ async function forgePrimary(
 function slotPrompt(type: CardType, name: string, summary: string, note: string, slot: CardSlot): string {
   return softenForImage(
     [
-      // ★ 这里用 CARD_TYPE_LABELS（"人物卡"）而不是 TYPE_LABEL（"人物立绘卡面"）：
+      // ★ 这里用 CARD_TYPE_PROMPT（"人物卡"）而不是 TYPE_LABEL（"人物立绘卡面"）：
       //   这几张不是卡面，说成"卡面的面部特写"会让模型去画一张画着卡的图
-      `${CARD_TYPE_LABELS[type]}「${name}」的${slot.label}。${summary}`,
-      `<图片1>是这张卡已经定稿的主图。画的必须是<图片1>里的同一${SUBJECT_WORD[type]}：${slot.locks}要与<图片1>完全一致，只改变取景与景别，不要另画一${SUBJECT_WORD[type]}。`,
+      `${CARD_TYPE_PROMPT[type]}「${name}」的${slotPromptOf(type, slot.kind).label}。${summary}`,
+      `<图片1>是这张卡已经定稿的主图。画的必须是<图片1>里的同一${SUBJECT_WORD[type]}：${slotPromptOf(type, slot.kind).locks}要与<图片1>完全一致，只改变取景与景别，不要另画一${SUBJECT_WORD[type]}。`,
       // 画风也锁在主图上（2026-08-28 厚涂词退役后这句就是唯一的画风指令）：
       // 三张图随后要一起当形象参考，画风分裂与形象分裂一样致命
       "画风与<图片1>完全一致。",
@@ -1298,9 +1363,7 @@ function frameStyle(aspect?: VideoAspect, materials?: Card[], refsOn = true): st
  *  它们由 prepareMaterialRefs 的绑定句负责，两者语义完全不同：
  *  承接帧是"接着这一画面往下拍"，素材卡是"这个角色长这样"。
  *  ★ 承接帧一律排在参考图数组的**第一位**，所以这里可以写死 `<图片1>`。
- *  ★ `materials` 只喂给画风那半（frameArtStyle）：composeSegments 里 degraded 帧的
- *    重画拿不到素材卡（segments 形状里没有），传 undefined 退中性质感词——可接受，
- *    那是失败救援路，不是主产线。
+ *  ★ `materials` 只喂给画风那半（frameArtStyle）。
  *  ★ `refsOn`：这一发是否真带参考图（见 frameArtStyle 的 @param）。 */
 function framePrompts(
   plot: string,
@@ -1429,9 +1492,16 @@ export async function generateProposals(
       id: p.id,
       title,
       plot: p.plot,
-      firstFrame:
-        firstFrame ?? makeFrame(`${p.id}#first`, `${title} · 首帧`, ctx.prevFrameSeed ?? `${p.id}#first`, ctx.aspect),
-      lastFrame: lastFrame ?? makeFrame(`${p.id}#last`, `${title} · 尾帧`, `${p.id}#last`, ctx.aspect),
+      // ★★ 没画出来的帧**留空串**，不拿本地占位图顶（2026-09-10 修）。原来这里是 mock/frames.makeFrame：
+      //   一张烧着「第N段 · 标题 · 首帧」「AI 预览帧」的渐变图 —— 而下游只问「帧在不在」
+      //   （segmentGen 出片前补画、economy.segmentCost 报价都认 `!firstFrame`），于是占位图被当成真帧
+      //   发给 Seedance：整段的钱照收，拍出来的是那张渐变图在动；方案台上还写着「出片前会自动重画」，
+      //   而那条重画分支（composeSegments 的 sg.degraded）从来没有调用方传过 degraded，是死码（已删）。
+      //   留空之后走的是现成那一条路：缺帧 → 出片前按剧情补画 → 补画的图进报价。
+      //   与 Proposal.lost 那格同一条规矩：缺失用字段本来的"没有"值，为什么没有记在旁挂标记里（degraded，只管渲染）。
+      //   老草稿里已经躺着的占位图由 flowStore.usableFrames 认成"没有"。
+      firstFrame: firstFrame ?? "",
+      lastFrame: lastFrame ?? "",
       durationSec: p.durationSec,
       ...(degraded ? { degraded: true } : {}),
     };
@@ -1512,7 +1582,7 @@ export async function deriveDeckCards(
     existing.length > 0
       ? existing.map((c) => `${TYPE_LABEL[c.type]}「${c.name}」(${(c.summary ?? "").slice(0, 24)})`).join("、")
       : "（无）";
-  const userText = `缺失卡种（只出这些）：${missing.map((t) => `${t}（${CARD_TYPE_LABELS[t]}）`).join("、")}\n用户已挂的卡（这些卡种关门）：${existingDesc}\n剧情（按段）：${segments.map((s) => stripBlockoutSkeleton(s.plot)).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从画面推断）"}`;
+  const userText = `缺失卡种（只出这些）：${missing.map((t) => `${t}（${CARD_TYPE_PROMPT[t]}）`).join("、")}\n用户已挂的卡（这些卡种关门）：${existingDesc}\n剧情（按段）：${segments.map((s) => stripBlockoutSkeleton(s.plot)).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从画面推断）"}`;
   // ★ V3：能抽到成片帧就**看片**提炼（frameIndex / box 才有依据，卡面才能贴合原片）；抽不到退回只读文字
   const raw =
     frames.length > 0
@@ -1579,7 +1649,7 @@ export function stripBlockoutSkeleton(plot: string): string {
     .trim();
 }
 /** 剥掉命中禁用词的子句（按标点切）；剥空了返回空串，由调用方决定退回什么 */
-function dropRefClauses(text: string | undefined): string {
+export function dropRefClauses(text: string | undefined): string {
   return (text ?? "")
     .split(/(?<=[，。；;,.])/)
     .filter((c) => !REF_WORD_RE.test(c))
@@ -2447,7 +2517,6 @@ export interface GenSpec {
   firstFrame: string;
   lastFrame: string;
   durationSec: number;
-  degraded?: boolean;
   /** 该段选用的 Seedance 档位（data/economy VIDEO_TIERS 的 id）；缺省=标准档 */
   videoTier?: string;
   /** 该段画幅（竖/横）；缺省=横屏 */
@@ -2527,8 +2596,9 @@ export function describeGenSpec(sg: GenSpec, carried: boolean): string {
  * 合成：逐段用 Seedance 首尾帧图生视频。段间串行（免费额度并发有限），
  * 单段失败不阻断整片——该段回退首尾帧渐变播放，但失败原因必须带回给 UI 播报
  * （此前只 console.warn，用户拿到一堆渐变还以为是"生成好的视频"）。
- * degraded 段（当时 Seedream 没出图、帧是本地占位图）先重画真帧再合成——
- * 拿占位渐变图去让 Seedance 动起来，产出的"视频"与剧情毫无关系。
+ * ★ 这里**不再**有「degraded 段先重画」那一支（2026-09-10 删）：它从来没有调用方传过 degraded，是死码，
+ *   而方案台一直按它承诺「出片前会自动重画」。缺帧现在一律留空串，由 segmentGen 在出片前补画
+ *   （报价 economy.segmentCost 按同一个 `!firstFrame` 数图），见本文件推演三套方案那一段末尾的 ★★。
  */
 export async function composeSegments(
   segments: GenSpec[],
@@ -2559,17 +2629,6 @@ export async function composeSegments(
     // ★ 契约行：这一发到底发了什么（模式 / 档 / 画幅 / 时长 / 参考几张），进步骤日志给人看（2026-09-06）
     onProgress?.(i, segments.length, describeGenSpec(sg, !!prevTail));
     try {
-      if (sg.degraded) {
-        onProgress?.(i, segments.length, "首尾帧此前未出图，正在重画…");
-        const prompts = framePrompts(sg.plot, false, sg.aspect);
-        const frameSize = aspectOf(sg.aspect).frameSize;
-        [first, last] = await Promise.all([
-          genImageAsDataUrl(prompts.first, { size: frameSize }),
-          genImageAsDataUrl(prompts.last, { size: frameSize }),
-        ]);
-        res.firstFrame = first;
-        res.lastFrame = last;
-      }
       // 尾帧续作：本段设定首帧 = 上一段设定尾帧（承接关系）时，改用上一段视频的
       // 真实结尾起拍——设定尾帧只是分镜蓝图，视频（尤其极速档）不一定拍到那儿。
       // 用户上传过自定义开头帧（首帧≠上段设定尾帧）则尊重用户，不顶替。

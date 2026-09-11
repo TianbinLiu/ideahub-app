@@ -9,13 +9,15 @@
 // ★ 所以这里不猜，只报**已知的事实**：studioStore.savedDoneCount 记的是"确实落进草稿的
 //   已出片段数"，只有 saveWorkDraft 真的写成功才会动。它与当前 doneCount 的差额，
 //   就是丢弃真正会烧掉的钱。
+// ★ 多语言：每一种情况都是**一整句** <Trans>，着色的那几段作为句内元素，不拆成几截文字拼。
 import { createPortal } from "react-dom";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useFlow } from "../../studio/flowStore";
 import { useStudio } from "../../studio/studioStore";
 
 export default function DiscardFlowDialog({
   discardLabel,
-  actionNoun = "开新的这条",
+  actionNoun,
   onResume,
   onDiscard,
   onCancel,
@@ -27,12 +29,15 @@ export default function DiscardFlowDialog({
    * ★ 必须是 prop，不许在组件里写死（第六轮收尾扫描抓到）：这个组件的存在理由就是
    *   「这段话不许撒谎」，而四个宿主里只有模板那两条在套模板 —— 创作入口是换模式、
    *   工坊法阵是按走向重铺，对他们说「再回来套模板」就是又一句与事实不符的话。
+   * ★ 调用方传**已翻好的**动词短语：各处统一用同一个 context 取（英文是小写的动词短语，填进
+   *   「…then come back and {noun}」）。不传 = 「开新的这条」。
    */
   actionNoun?: string;
   onResume: () => void;
   onDiscard: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useLingui();
   const nodes = useFlow((s) => s.nodes);
   const savedDone = useStudio((s) => s.savedDoneCount);
   /**
@@ -56,6 +61,9 @@ export default function DiscardFlowDialog({
   const anns = nodes.reduce((s, n) => s + n.anns.length, 0);
   /** 出了片、却没能落进草稿的段数 —— 只有这些是丢弃时真会烧掉的钱 */
   const unsaved = Math.max(0, done - savedDone);
+  const total = nodes.length;
+  const seg = gening + 1;
+  const noun = actionNoun ?? t({ message: "开新的这条", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" });
 
   // ★ portal 到 body + fixed：宿主已经有四个页面（创作入口/工坊法阵/模板货架/模板详情），
   //   靠"祖先恰好是定位容器"太脆；而祖先上任何一个 backdrop-blur / transform 都会给
@@ -66,61 +74,69 @@ export default function DiscardFlowDialog({
         className="w-full max-w-md rounded-2xl border border-slate-700 bg-ink p-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-sm font-bold text-slate-100">已经有一条工作流在跑</h3>
+        <h3 className="text-sm font-bold text-slate-100">
+          <Trans>已经有一条工作流在跑</Trans>
+        </h3>
         <p className="mt-2 text-xs leading-relaxed text-slate-300">
-          {nodes.length} 段
-          {done > 0 && <span className="text-emerald-300">，其中 {done} 段已出片</span>}
-          {anns > 0 && <span className="text-amber-300">，{anns} 条圈选要求</span>}。
+          {done > 0 && anns > 0 ? (
+            <Trans>
+              {total} 段<span className="text-emerald-300">，其中 {done} 段已出片</span><span className="text-amber-300">，{anns} 条圈选要求</span>。
+            </Trans>
+          ) : done > 0 ? (
+            <Trans>
+              {total} 段<span className="text-emerald-300">，其中 {done} 段已出片</span>。
+            </Trans>
+          ) : anns > 0 ? (
+            <Trans>
+              {total} 段<span className="text-amber-300">，{anns} 条圈选要求</span>。
+            </Trans>
+          ) : (
+            <Trans>{total} 段。</Trans>
+          )}
         </p>
         {/* ★ 第二段单独摆：上面是"有什么"，这里是"丢了会怎样"。三种情况说三句不同的话，
             含糊成一句的话，最该看清的那一种（有段没存上）就被稀释掉了 */}
         <p className="mt-1.5 text-xs leading-relaxed text-slate-300">
           {gening >= 0 ? (
-            <>
-              ⚠ <span className="text-rose-300">第 {gening + 1} 段正在生成中，钱已经在花了</span>
-              ——丢掉这条流水线并<b>不会</b>把它停下：回包时那笔钱照扣，成片却落在一条已经不存在的
-              流水线上。等它跑完（出片有胶囊通知）再回来。
-            </>
+            <Trans>
+              ⚠ <span className="text-rose-300">第 {seg} 段正在生成中，钱已经在花了</span>——丢掉这条流水线并<b>不会</b>把它停下：回包时那笔钱照扣，成片却落在一条已经不存在的流水线上。等它跑完（出片有胶囊通知）再回来。
+            </Trans>
           ) : done === 0 ? (
-            <>开新的一条会把它丢掉——都还没出片，丢的是写好的要求与设定，没有花掉的钱。</>
+            <Trans>开新的一条会把它丢掉——都还没出片，丢的是写好的要求与设定，没有花掉的钱。</Trans>
           ) : simple ? (
-            <>
-              ⚠ 这条是<span className="text-amber-300">简约模式</span>：它按设计不进草稿库（一次性直通发布），
-              所以已经出片的 <span className="text-rose-300">{done} 段丢了就要重花 token 再炼一次</span>。
-              想留住就先「回去接着炼」，把它<span className="text-emerald-300">完成并发布</span>，再回来{actionNoun}。
-            </>
+            <Trans>
+              ⚠ 这条是<span className="text-amber-300">简约模式</span>：它按设计不进草稿库（一次性直通发布），所以已经出片的 <span className="text-rose-300">{done} 段丢了就要重花 token 再炼一次</span>。想留住就先「回去接着炼」，把它<span className="text-emerald-300">完成并发布</span>，再回来{noun}。
+            </Trans>
           ) : unsaved === 0 ? (
-            <>
-              已出片的 <span className="text-emerald-300">{done} 段在炼成那一刻就自动存进了草稿</span>
-              （「我的 → 草稿」里能接着做），<span className="text-emerald-300">不用重花 token</span>。
-              这里丢掉的是那之后手改的东西：文字、圈选要求、还没炼的段。
-            </>
+            <Trans>
+              已出片的 <span className="text-emerald-300">{done} 段在炼成那一刻就自动存进了草稿</span>（「我的 → 草稿」里能接着做），<span className="text-emerald-300">不用重花 token</span>。这里丢掉的是那之后手改的东西：文字、圈选要求、还没炼的段。
+            </Trans>
           ) : (
             <>
               {/* ★ 不写死原因（第七轮扫描）：这一支不只在"存盘失败"时出现 —— 法阵重铺
                   之后 savedDoneCount 会归零，那时说"存储空间不足或隐私模式"就是句假话。
                   只说**事实**（还没进草稿），出路两种情况都成立。 */}
-              ⚠ 其中 <span className="text-rose-300">{unsaved} 段出片后还没进草稿</span>，
-              丢弃就要<span className="text-rose-300">重花 token 再炼一次</span>。
-              建议先「回去接着炼」，在那一页点「存草稿」把它们留住。
+              <Trans>
+                ⚠ 其中 <span className="text-rose-300">{unsaved} 段出片后还没进草稿</span>，丢弃就要<span className="text-rose-300">重花 token 再炼一次</span>。建议先「回去接着炼」，在那一页点「存草稿」把它们留住。
+              </Trans>
             </>
           )}
         </p>
         <div className="mt-3.5 flex flex-col gap-2">
           <button onClick={onResume} className="rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
-            回去接着炼
+            <Trans>回去接着炼</Trans>
           </button>
           {/* ★ 生成中就把它禁掉并说清为什么（真正的闸在 store 的 canReplaceNodes） */}
           <button
             onClick={onDiscard}
             disabled={gening >= 0}
-            title={gening >= 0 ? "有一段正在生成，等它跑完再说" : undefined}
+            title={gening >= 0 ? t`有一段正在生成，等它跑完再说` : undefined}
             className="rounded-xl border border-rose-500/40 bg-rose-500/10 py-2.5 text-sm font-semibold text-rose-300 disabled:opacity-40"
           >
-            {gening >= 0 ? "等这一段炼完才能丢" : discardLabel}
+            {gening >= 0 ? t`等这一段炼完才能丢` : discardLabel}
           </button>
           <button onClick={onCancel} className="rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200">
-            取消
+            <Trans>取消</Trans>
           </button>
         </div>
       </div>

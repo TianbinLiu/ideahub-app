@@ -6,6 +6,7 @@
 //   那种文案塞不进静态的引导步骤。
 // ★ createPortal 到 body：这类页面的祖先里常有 backdrop-blur / transform 容器，
 //   会给 fixed 后代造包含块（CLAUDE.md「fixed inset-0 却只铺满一小块」，栽过两次）。
+import { Trans } from "@lingui/react/macro";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 
@@ -27,7 +28,7 @@ export default function InfoDialog({
         <h3 className="text-sm font-bold text-slate-100">{title}</h3>
         <div className="mt-2 space-y-2 text-xs leading-relaxed text-slate-300">{children}</div>
         <button onClick={onClose} className="mt-4 w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink">
-          知道了
+          <Trans>知道了</Trans>
         </button>
       </div>
     </div>,

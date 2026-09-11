@@ -20,6 +20,7 @@
 //
 // ★ Capacitor 插件用**动态 import**取：web 构建里这两个包只有 web 垫片，
 //   用不到时不该把它们拖进主包。
+import { t } from "@lingui/core/macro";
 import { oauthStartUrl } from "../api/auth";
 
 /** App 深链的 scheme。改这里要同步改 android 的 intent-filter 与服务端的 APP_OAUTH_SCHEME */
@@ -70,7 +71,7 @@ function parseDeepLink(url: string): OauthResult | null {
   const p = new URLSearchParams(qs);
   const token = p.get("token");
   if (token) return { token };
-  return { error: p.get("message") || p.get("error") || "第三方登录未完成" };
+  return { error: p.get("message") || p.get("error") || t`第三方登录未完成` };
 }
 
 let inited = false;
@@ -123,6 +124,7 @@ export async function startOauth(provider: string, onError: (msg: string) => voi
     await Browser.open({ url: oauthStartUrl(provider, `${APP_SCHEME}://oauth`), presentationStyle: "popover" });
   } catch (e) {
     // 插件没装（或被裁掉）时不要静默失败：用户点了按钮必须得到回音
-    onError(`这台设备上还没接第三方登录（${e instanceof Error ? e.message : String(e)}）——先用邮箱或手机号登录`);
+    const why = e instanceof Error ? e.message : String(e);
+    onError(t`这台设备上还没接第三方登录（${why}）——先用邮箱或手机号登录`);
   }
 }

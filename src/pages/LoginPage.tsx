@@ -15,7 +15,11 @@
 //
 // 离线（没配 VITE_API_BASE 或服务器不可达）时整页退回本地账号：账号不存在即注册。
 import { useEffect, useState } from "react";
+import { i18n } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { BackButton } from "../components/IconTapButton";
+import LangChip from "../components/LangChip";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InfoDialog from "../components/InfoDialog";
@@ -41,7 +45,7 @@ import {
 import { startOauth } from "../utils/oauth";
 import { qqLoginSupported, signInWithQQ } from "../utils/qqLogin";
 import { wechatSupported, signInWithWeChat } from "../utils/wechat";
-import BrandIcon, { BRAND_CHIP, type BrandName } from "../components/BrandIcon";
+import BrandIcon, { BRAND_CHIP, brandLabel, type BrandName } from "../components/BrandIcon";
 
 const INPUT =
   "w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand";
@@ -54,13 +58,14 @@ type Method = "password" | "email" | "phone";
 
 /** 点了个点不动的第三方按钮时说实话——两家不能用的原因完全不同，别混成一句 */
 function deadReason(k: BrandName): string {
-  if (k === "qq") return "QQ 登录要在 App 里用（浏览器中没有 QQ 客户端可以拉起），先用邮箱或手机号登录";
-  return "微信登录要在 App 里用（浏览器中没有微信客户端可以拉起），先用邮箱或手机号登录";
+  if (k === "qq") return i18n._(msg`QQ 登录要在 App 里用（浏览器中没有 QQ 客户端可以拉起），先用邮箱或手机号登录`);
+  return i18n._(msg`微信登录要在 App 里用（浏览器中没有微信客户端可以拉起），先用邮箱或手机号登录`);
 }
 
 export default function LoginPage() {
   const remote = isRemoteMode();
   const navigate = useNavigate();
+  const { t } = useLingui();
   const [params] = useSearchParams();
   const next = params.get("next") || "/";
 
@@ -127,8 +132,8 @@ export default function LoginPage() {
   // 冷却读秒
   useEffect(() => {
     if (cooldown <= 0) return;
-    const t = setTimeout(() => setCooldown((n) => n - 1), 1000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setCooldown((n) => n - 1), 1000);
+    return () => clearTimeout(timer);
   }, [cooldown]);
 
   function fail(e: unknown) {
@@ -154,19 +159,19 @@ export default function LoginPage() {
     setBusy(true);
     try {
       if (method === "phone") {
-        if (!/^1[3-9]\d{9}$/.test(phone.trim())) throw new Error("请输入有效的中国大陆手机号");
+        if (!/^1[3-9]\d{9}$/.test(phone.trim())) throw new Error(t`请输入有效的中国大陆手机号`);
         await phoneLoginStart(phone.trim());
       } else if (emailFlow === "register") {
-        if (!email.trim() || !username.trim()) throw new Error("请填邮箱和用户名");
-        if (password.length < 6) throw new Error("密码至少 6 位");
+        if (!email.trim() || !username.trim()) throw new Error(t`请填邮箱和用户名`);
+        if (password.length < 6) throw new Error(t`密码至少 6 位`);
         await emailRegisterStart({ username: username.trim(), email: email.trim(), password });
       } else {
-        if (!email.trim()) throw new Error("请填邮箱");
+        if (!email.trim()) throw new Error(t`请填邮箱`);
         await emailResetStart(email.trim());
       }
       setSent(true);
       setCooldown(RESEND_SEC);
-      setNote("验证码已发出，10 分钟内有效");
+      setNote(t`验证码已发出，10 分钟内有效`);
     } catch (e) {
       fail(e);
     } finally {
@@ -182,13 +187,13 @@ export default function LoginPage() {
       if (!remote) {
         signIn(account, nick);
       } else if (method === "password") {
-        if (!account.trim() || !password) throw new Error("请输入账号和密码");
+        if (!account.trim() || !password) throw new Error(t`请输入账号和密码`);
         await signInWithPassword(account, password);
       } else if (method === "phone") {
-        if (!code.trim()) throw new Error("请输入验证码");
+        if (!code.trim()) throw new Error(t`请输入验证码`);
         await signInWithPhoneOtp(phone.trim(), code.trim());
       } else if (emailFlow === "register") {
-        if (!code.trim()) throw new Error("请输入验证码");
+        if (!code.trim()) throw new Error(t`请输入验证码`);
         await registerWithEmailOtp({
           username: username.trim(),
           email: email.trim(),
@@ -197,7 +202,7 @@ export default function LoginPage() {
           displayName: nick.trim() || undefined,
         });
       } else {
-        if (password.length < 6) throw new Error("新密码至少 6 位");
+        if (password.length < 6) throw new Error(t`新密码至少 6 位`);
         await emailResetVerify(email.trim(), code.trim(), password);
         // 改密后服务端直接给登录态，但 account 库还没装人——退回密码登录那条路收尾
         await signInWithPassword(email.trim(), password);
@@ -255,9 +260,9 @@ export default function LoginPage() {
 
   // 服务端没报 phoneEnabled 就不给这一栏——摆一个发不出码的按钮比没有更糟
   const methods: Array<{ k: Method; label: string }> = [
-    { k: "password", label: "密码登录" },
-    { k: "email", label: "邮箱验证码" },
-    ...(caps?.phoneEnabled ? ([{ k: "phone" as Method, label: "手机号" }]) : []),
+    { k: "password", label: t`密码登录` },
+    { k: "email", label: t`邮箱验证码` },
+    ...(caps?.phoneEnabled ? ([{ k: "phone" as Method, label: t`手机号` }]) : []),
   ];
   const showGoogle = !!caps?.oauthEnabled && caps.providers.includes("google");
   const showGithub = !!caps?.oauthEnabled && caps.providers.includes("github");
@@ -266,6 +271,7 @@ export default function LoginPage() {
   //   拿 providers 去判它的话，浏览器里也会亮，点了必然报 not implemented。
   const showQQ = qqLoginSupported();
   const showWeChat = wechatSupported();
+  const regionName = caps?.region === "CN" ? t`中国大陆` : caps?.region || t`未知`;
 
   return (
     <div className="safe-top relative flex min-h-full flex-col items-center justify-center px-6 py-10">
@@ -275,6 +281,10 @@ export default function LoginPage() {
           是相对容器顶边算的，容器的 safe-top 留白被它跳过，真机上箭头压在状态栏里 */}
       <div className="absolute left-4 flex h-12 items-center" style={{ top: "calc(env(safe-area-inset-top, 0px) + 10px)" }}>
         <BackButton size={22} tone="text-slate-400" onClick={() => navigate(-1)} />
+      </div>
+      {/* 右上角：没登录也能换界面语言（设置页在 RequireAuth 后面，进不去）。与返回键同一条线 */}
+      <div className="absolute right-4 flex h-12 items-center" style={{ top: "calc(env(safe-area-inset-top, 0px) + 10px)" }}>
+        <LangChip />
       </div>
 
       <div className="mb-7 text-center">
@@ -286,14 +296,14 @@ export default function LoginPage() {
           <span className="absolute inset-0 rounded-full bg-brand/20 blur-xl" aria-hidden />
           <img
             src="/icon.png"
-            alt="启梦"
+            alt={t`启梦`}
             width={96}
             height={96}
             className="relative h-24 w-24 rounded-full ring-1 ring-white/10"
           />
         </span>
-        <h1 className="mt-3 text-2xl font-bold tracking-wide text-slate-100">启梦</h1>
-        <p className="mt-1.5 text-sm text-slate-400">有想法，就是梦想启程的第一步</p>
+        <h1 className="mt-3 text-2xl font-bold tracking-wide text-slate-100"><Trans>启梦</Trans></h1>
+        <p className="mt-1.5 text-sm text-slate-400"><Trans>有想法，就是梦想启程的第一步</Trans></p>
       </div>
 
       <div className="w-full max-w-sm space-y-3">
@@ -303,19 +313,19 @@ export default function LoginPage() {
               value={account}
               onChange={(e) => setAccount(e.target.value)}
               onKeyDown={onEnter}
-              placeholder="手机号 / 用户名"
+              placeholder={t`手机号 / 用户名`}
               className={INPUT}
             />
             <input
               value={nick}
               onChange={(e) => setNick(e.target.value)}
               onKeyDown={onEnter}
-              placeholder="昵称（首次登录时使用，可留空）"
+              placeholder={t`昵称（首次登录时使用，可留空）`}
               className={INPUT}
             />
           </>
         ) : capsLoading ? (
-          <div className="py-8 text-center text-xs text-slate-500">正在确认可用的登录方式…</div>
+          <div className="py-8 text-center text-xs text-slate-500"><Trans>正在确认可用的登录方式…</Trans></div>
         ) : (
           <>
             <div className="mb-1 flex rounded-xl bg-panel p-1">
@@ -338,7 +348,7 @@ export default function LoginPage() {
                   value={account}
                   onChange={(e) => setAccount(e.target.value)}
                   onKeyDown={onEnter}
-                  placeholder="用户名 / 邮箱"
+                  placeholder={t`用户名 / 邮箱`}
                   autoComplete="username"
                   className={INPUT}
                 />
@@ -346,7 +356,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={onEnter}
-                  placeholder="密码"
+                  placeholder={t`密码`}
                   type="password"
                   autoComplete="current-password"
                   className={INPUT}
@@ -358,7 +368,7 @@ export default function LoginPage() {
                   }}
                   className="block w-full text-right text-[11px] text-slate-500"
                 >
-                  忘记密码？
+                  <Trans>忘记密码？</Trans>
                 </button>
               </>
             )}
@@ -379,14 +389,14 @@ export default function LoginPage() {
                         emailFlow === f ? "bg-slate-700 text-slate-100" : "text-slate-500"
                       }`}
                     >
-                      {f === "register" ? "注册新账号" : "重置密码"}
+                      {f === "register" ? t`注册新账号` : t`重置密码`}
                     </button>
                   ))}
                 </div>
                 <input
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="邮箱"
+                  placeholder={t`邮箱`}
                   type="email"
                   autoComplete="email"
                   className={INPUT}
@@ -395,7 +405,7 @@ export default function LoginPage() {
                   <input
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="用户名（登录用，字母数字下划线）"
+                    placeholder={t`用户名（登录用，字母数字下划线）`}
                     autoComplete="username"
                     className={INPUT}
                   />
@@ -403,13 +413,13 @@ export default function LoginPage() {
                 <input
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={emailFlow === "register" ? "密码（至少 6 位）" : "新密码（至少 6 位）"}
+                  placeholder={emailFlow === "register" ? t`密码（至少 6 位）` : t`新密码（至少 6 位）`}
                   type="password"
                   autoComplete="new-password"
                   className={INPUT}
                 />
                 {emailFlow === "register" && (
-                  <input value={nick} onChange={(e) => setNick(e.target.value)} placeholder="昵称（可留空）" className={INPUT} />
+                  <input value={nick} onChange={(e) => setNick(e.target.value)} placeholder={t`昵称（可留空）`} className={INPUT} />
                 )}
               </>
             )}
@@ -418,7 +428,7 @@ export default function LoginPage() {
               <input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="手机号（中国大陆）"
+                placeholder={t`手机号（中国大陆）`}
                 type="tel"
                 inputMode="numeric"
                 autoComplete="tel"
@@ -433,7 +443,7 @@ export default function LoginPage() {
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   onKeyDown={onEnter}
-                  placeholder="6 位验证码"
+                  placeholder={t`6 位验证码`}
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   className={`${INPUT} flex-1`}
@@ -443,7 +453,7 @@ export default function LoginPage() {
                   disabled={busy || cooldown > 0}
                   className="flex-none rounded-xl bg-panel px-3.5 text-xs text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
                 >
-                  {cooldown > 0 ? `${cooldown}s` : sent ? "重发" : "发送验证码"}
+                  {cooldown > 0 ? `${cooldown}s` : sent ? t`重发` : t`发送验证码`}
                 </button>
               </div>
             )}
@@ -462,7 +472,7 @@ export default function LoginPage() {
               setAgreed(v);
               if (v) recordTermsAccepted();
             }}
-            aria-label={agreed ? "取消同意协议" : "同意协议"}
+            aria-label={agreed ? t`取消同意协议` : t`同意协议`}
             role="checkbox"
             aria-checked={agreed}
             className={`mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full border transition ${
@@ -472,14 +482,16 @@ export default function LoginPage() {
             {agreed && <Icon name="check" size={11} strokeWidth={3} />}
           </button>
           <span className="text-[11px] leading-relaxed text-slate-500">
-            已阅读并同意
-            <button onClick={() => setViewDoc("terms")} className="text-brand">
-              《用户协议》
-            </button>
-            与
-            <button onClick={() => setViewDoc("privacy")} className="text-brand">
-              《隐私政策》
-            </button>
+            <Trans>
+              已阅读并同意
+              <button onClick={() => setViewDoc("terms")} className="text-brand">
+                《用户协议》
+              </button>
+              与
+              <button onClick={() => setViewDoc("privacy")} className="text-brand">
+                《隐私政策》
+              </button>
+            </Trans>
           </span>
         </div>
 
@@ -489,16 +501,16 @@ export default function LoginPage() {
           className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink transition hover:brightness-110 disabled:opacity-40"
         >
           {busy
-            ? "处理中…"
+            ? t`处理中…`
             : !remote
-              ? "登录 / 注册"
+              ? t`登录 / 注册`
               : method === "password"
-                ? "登录"
+                ? t`登录`
                 : method === "phone"
-                  ? "登录 / 注册"
+                  ? t`登录 / 注册`
                   : emailFlow === "register"
-                    ? "验证并注册"
-                    : "重置密码并登录"}
+                    ? t`验证并注册`
+                    : t`重置密码并登录`}
         </button>
 
         {/* 第三方。★ 微信仍是明确的占位（要企业主体 + 应用审核才拿得到 AppID），
@@ -508,7 +520,7 @@ export default function LoginPage() {
           <>
             <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-600">
               <span className="h-px flex-1 bg-slate-800" />
-              其他方式
+              <Trans>其他方式</Trans>
               <span className="h-px flex-1 bg-slate-800" />
             </div>
             {/* ★ Google/GitHub 显示哪几个由服务端的 capabilities 决定，前端不自己判地区：
@@ -526,6 +538,7 @@ export default function LoginPage() {
                 ] as Array<{ k: BrandName; live: boolean }>
               ).map((p) => {
                 const chip = BRAND_CHIP[p.k];
+                const name = brandLabel(p.k);
                 return (
                   <button
                     key={p.k}
@@ -538,8 +551,8 @@ export default function LoginPage() {
                     className={`flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition active:scale-95 ${
                       p.live ? "" : "opacity-45"
                     }`}
-                    aria-label={p.live ? `用${chip.label}登录` : `${chip.label}登录（暂未接入）`}
-                    title={p.live ? `用${chip.label}登录` : `${chip.label}登录（暂未接入）`}
+                    aria-label={p.live ? t`用${name}登录` : t`${name}登录（暂未接入）`}
+                    title={p.live ? t`用${name}登录` : t`${name}登录（暂未接入）`}
                   >
                     {/* ★ 按**视觉重量**给尺寸，不是按包围盒：Google 的 G 撑满画布所以给小一号；
                         QQ 那张官方 PNG 自带留白、又是 0.83:1 的竖长比例，给 23 时并排明显瘦一圈，
@@ -552,26 +565,25 @@ export default function LoginPage() {
             {!caps?.oauthEnabled && (
               // 说清楚少的是哪两个，别让用户以为整栏都坏了（微信/QQ 明明还在）
               <p className="text-center text-[11px] leading-relaxed text-slate-600">
-                当前网络环境（{caps?.region === "CN" ? "中国大陆" : caps?.region || "未知"}）下
-                Google / GitHub 不可用，已自动隐藏
+                <Trans>当前网络环境（{regionName}）下 Google / GitHub 不可用，已自动隐藏</Trans>
               </p>
             )}
           </>
         )}
 
         <Link to="/" className="block py-2 text-center text-sm text-slate-400">
-          先随便逛逛
+          <Trans>先随便逛逛</Trans>
         </Link>
 
         <p className="pt-1 text-center text-[11px] leading-relaxed text-slate-500">
           {remote ? (
-            "已连接服务器：账号与作品跨设备同步。"
+            t`已连接服务器：账号与作品跨设备同步。`
           ) : (
-            <>
+            <Trans>
               当前为本地账号：数据存在这台设备上，换设备不同步。
               <br />
               接入服务器后将支持跨设备与账号互通。
-            </>
+            </Trans>
           )}
         </p>
       </div>
@@ -581,8 +593,8 @@ export default function LoginPage() {
           于是从这张卡里点《用户协议》能在其上层展开全文。 */}
       {pendingAuth && (
         <ConfirmDialog
-          title="服务协议与隐私政策"
-          confirmLabel="同意并继续"
+          title={t`服务协议与隐私政策`}
+          confirmLabel={t`同意并继续`}
           onConfirm={() => {
             setAgreed(true);
             recordTermsAccepted();
@@ -592,15 +604,17 @@ export default function LoginPage() {
           }}
           onClose={() => setPendingAuth(null)}
         >
-          登录前请先阅读并同意
-          <button onClick={() => setViewDoc("terms")} className="text-brand">
-            《用户协议》
-          </button>
-          与
-          <button onClick={() => setViewDoc("privacy")} className="text-brand">
-            《隐私政策》
-          </button>
-          。
+          <Trans>
+            登录前请先阅读并同意
+            <button onClick={() => setViewDoc("terms")} className="text-brand">
+              《用户协议》
+            </button>
+            与
+            <button onClick={() => setViewDoc("privacy")} className="text-brand">
+              《隐私政策》
+            </button>
+            。
+          </Trans>
         </ConfirmDialog>
       )}
       {viewDoc && (

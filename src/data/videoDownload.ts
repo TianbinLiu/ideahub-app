@@ -45,6 +45,7 @@ import { Share } from "@capacitor/share";
 import { getVideo, isMyVideo, isShareable, partsOf } from "./videos";
 import { startJob } from "./jobs";
 import { isNative } from "../utils/oauth";
+import { t } from "@lingui/core/macro";
 import type { VideoItem, VideoSegment } from "../types";
 
 /** 落点：`<Directory.Cache>/ideahub-downloads/<videoId>/<纯 ASCII 文件名>` */
@@ -139,7 +140,7 @@ export type PlanResult = { ok: true; plan: DownloadPlan } | { ok: false; blocked
  *   看起来成功、其实什么都没落地的按钮（所以调用点是**整颗键不画**，不是画成灰的）。
  */
 export function downloadSupport(): { ok: boolean; reason?: string } {
-  if (!isNative()) return { ok: false, reason: "保存到本地只能在 App 里用（浏览器里没有可写的相册目录）。" };
+  if (!isNative()) return { ok: false, reason: t`保存到本地只能在 App 里用（浏览器里没有可写的相册目录）。` };
   return { ok: true };
 }
 
@@ -178,23 +179,23 @@ export function planDownload(
   //      2026-09-08 评审当场量过——把昵称改成作者的昵称（昵称就印在作品卡上）就能整套下载，
   //      而且连改都不用改，`ME === "我"` 与兜底名「匿名」让这两个昵称的持有者的公开作品
   //      对全站恒开。理由全文见 videos.isMyVideo 的 ★★★。
-  if (!isMyVideo(video)) return { ok: false, blocked: "只能保存自己发布的作品。" };
+  if (!isMyVideo(video)) return { ok: false, blocked: t`只能保存自己发布的作品。` };
 
   // ② 已下架的谁都不给，**包括作者本人**。理由与 VideoPage 那条下架横幅同源：
   //    不给解释时他最可能的下一步就是"原样重发一遍"——正是下架想避免的结果；
   //    一颗下载键会把"原样重发"从需要动手变成一次点击，也让"这是平台的开关，
   //    不是你的那一个"变成空话。
-  if (video.takedown) return { ok: false, blocked: "这条已被平台下架，不能保存到本地。" };
+  if (video.takedown) return { ok: false, blocked: t`这条已被平台下架，不能保存到本地。` };
 
   // ③ 还没传上服务器 = 没有可下载的文件。判据**复用 videos.isShareable**，
   //    不在这里另写一遍 `startsWith("v_")`（那里的 ★ 明写"别在调用点各写一遍"）。
   if (!isShareable(video)) {
-    return { ok: false, blocked: "这条还在上传中（或没连上服务器），还没有可下载的文件。等它传完再来。" };
+    return { ok: false, blocked: t`这条还在上传中（或没连上服务器），还没有可下载的文件。等它传完再来。` };
   }
 
   const parts = partsOf(video);
   const part = parts[Math.min(Math.max(0, partIndex), parts.length - 1)];
-  if (!part) return { ok: false, blocked: "这一集不存在（可能刚被编辑删掉了），回上一页刷新一下。" };
+  if (!part) return { ok: false, blocked: t`这一集不存在（可能刚被编辑删掉了），回上一页刷新一下。` };
   const partCount = parts.length;
 
   // 摊平成「这一集要存哪几段」
@@ -216,12 +217,12 @@ export function planDownload(
     // ★ 「刚看的走向」为空要说得出是为什么。压进下面那句"只有首尾帧"是**错的原因**，
     //   而错的原因比没有原因更坏：用户会去找一条根本不存在的毛病。
     if (opt.scope === "path" && nodes.length === 0) {
-      return { ok: false, blocked: "你还没开始播，没有「刚看的走向」。选「存全部分支」，或者先播一段再来。" };
+      return { ok: false, blocked: t`你还没开始播，没有「刚看的走向」。选「存全部分支」，或者先播一段再来。` };
     }
     for (const n of nodes) {
       if (seen.has(n.id)) continue; // DAG 会汇合，按 node.id 去重
       seen.add(n.id);
-      picked.push({ key: n.id, seg: n.segment, label: n.segment.title || `分支 ${n.id.slice(-4)}`, seqNo: null });
+      picked.push({ key: n.id, seg: n.segment, label: n.segment.title || t`分支 ${n.id.slice(-4)}`, seqNo: null });
     }
   } else {
     const segs = part.segments ?? [];
@@ -230,14 +231,14 @@ export function planDownload(
       picked.push({
         key: `seg${i}`,
         seg,
-        label: segs.length <= 1 ? "整片" : `第 ${i + 1} 段${seg.title ? ` · ${seg.title}` : ""}`,
+        label: segs.length <= 1 ? t`整片` : seg.title ? t`第 ${i + 1} 段 · ${seg.title}` : t`第 ${i + 1} 段`,
         seqNo: i + 1,
       });
     });
   }
 
   const withUrl = picked.filter((p) => downloadableUrl(p.seg));
-  if (withUrl.length === 0) return { ok: false, blocked: "这一集只有首尾帧，没有可下载的成片。" };
+  if (withUrl.length === 0) return { ok: false, blocked: t`这一集只有首尾帧，没有可下载的成片。` };
 
   const urls = withUrl.map((p) => downloadableUrl(p.seg)!);
 
@@ -245,7 +246,7 @@ export function planDownload(
   if (AIGC_MARK_POLICY === "burned-only" && !allBurned(urls)) {
     return {
       ok: false,
-      blocked: "这条作品的画面里没有「AI 生成」角标，按合规要求暂时不能导出成文件。",
+      blocked: t`这条作品的画面里没有「AI 生成」角标，按合规要求暂时不能导出成文件。`,
     };
   }
 
@@ -419,12 +420,12 @@ export function startDownload(
   meta: { videoId: string; title: string },
 ): { ok: true } | { ok: false; blocked: string } {
   if (state.running) {
-    return { ok: false, blocked: "已经在保存另一条作品了，等它完成或点停止。" };
+    return { ok: false, blocked: t`已经在保存另一条作品了，等它完成或点停止。` };
   }
-  if (targets.length === 0) return { ok: false, blocked: "这一批里没有可保存的文件。" };
+  if (targets.length === 0) return { ok: false, blocked: t`这一批里没有可保存的文件。` };
   const clash = targets.find((t) => inFlight.has(pathKeyOf(t)));
   if (clash) {
-    return { ok: false, blocked: `「${clash.label}」正在保存中，等它跑完再点一次。` };
+    return { ok: false, blocked: t`「${clash.label}」正在保存中，等它跑完再点一次。` };
   }
   state = {
     videoId: meta.videoId,
@@ -448,7 +449,7 @@ export function startDownload(
   //   所以这里也接一手。真走到这句说明 finally 本身出了事，只能记一笔。
   void runQueue(targets, meta).catch((e) => {
     console.warn("[dl] runQueue 收尾也失败了", e);
-    state = { ...state, running: false, stopping: false, outcome: "保存意外中断了，再点一次。", outcomeOk: false };
+    state = { ...state, running: false, stopping: false, outcome: t`保存意外中断了，再点一次。`, outcomeOk: false };
     emit();
   });
   return { ok: true };
@@ -489,7 +490,7 @@ async function attachProgress(): Promise<void> {
     // 这时显示「已下 4.1 MB」而不是一条恒 0% 的进度条
     const total = p.contentLength > 0 ? p.contentLength : null;
     patchRow(progressKey, { bytes: p.bytes, total });
-    progressPill?.(total ? `${Math.floor((p.bytes / total) * 100)}%` : `已下 ${mb(p.bytes)}`);
+    progressPill?.(total ? `${Math.floor((p.bytes / total) * 100)}%` : t`已下 ${mb(p.bytes)}`);
   });
 }
 
@@ -526,14 +527,20 @@ async function headProbe(url: string): Promise<HeadResult> {
   if (!res.ok) {
     console.warn(`[dl] head ${res.status} ${url}`);
     if (res.status === 403 || res.status === 404) {
-      return { kind: "reject", msg: `这一段的地址已经失效（HTTP ${res.status}），回详情页刷新一下再试。` };
+      return { kind: "reject", msg: t`这一段的地址已经失效（HTTP ${res.status}），回详情页刷新一下再试。` };
     }
-    return { kind: "reject", msg: `这个地址取不到（HTTP ${res.status}）。回详情页刷新一下再试。` };
+    return { kind: "reject", msg: t`这个地址取不到（HTTP ${res.status}）。回详情页刷新一下再试。` };
   }
   const type = (res.headers.get("content-type") ?? "").toLowerCase();
   if (!type.startsWith("video/") && !type.startsWith("application/octet-stream")) {
     console.warn(`[dl] bad content-type ${type}`);
-    return { kind: "reject", msg: `取回来的不是视频（服务器回了 ${type || "空类型"}）。这一段暂时存不了。`, raw: type };
+    return {
+      kind: "reject",
+      msg: type
+        ? t`取回来的不是视频（服务器回了 ${type}）。这一段暂时存不了。`
+        : t`取回来的不是视频（服务器回的类型是空的）。这一段暂时存不了。`,
+      raw: type,
+    };
   }
   const len = Number(res.headers.get("content-length"));
   return { kind: "ok", total: Number.isFinite(len) && len > 0 ? len : null };
@@ -582,9 +589,9 @@ async function runQueue(targets: DownloadTarget[], meta: { videoId: string; titl
   try {
     job = startJob({
       kind: "video-download",
-      title: "保存视频",
+      title: t`保存视频`,
       route: `/video/${meta.videoId}`,
-      progress: `0/${targets.length} 段`,
+      progress: t`0/${targets.length} 段`,
     });
     // ★ 不传 `page`：GenerationPill 是 `if (j.page && j.page === here) continue`，按**当前路由**比。
     //   设成 /video/:id 之后，用户把面板关掉而人还站在这一页时，屏幕上一个字都没有。
@@ -598,23 +605,23 @@ async function runQueue(targets: DownloadTarget[], meta: { videoId: string; titl
     });
 
     for (let i = 0; i < targets.length; i++) {
-      const t = targets[i];
+      const target = targets[i];
       // ★ 取消只在每一段**开头**判（await 之间）。单段作品测不出来，要拿多段的稿子测。
       if (state.stopping) {
         stopped = true;
         for (const rest of targets.slice(i)) patchRow(rest.key, { status: "stopped" });
         break;
       }
-      job?.update(`第 ${i + 1}/${targets.length} 段`);
-      const pk = pathKeyOf(t);
+      job?.update(t`第 ${i + 1}/${targets.length} 段`);
+      const pk = pathKeyOf(target);
       if (inFlight.has(pk)) {
-        patchRow(t.key, { status: "failed", err: "这一份正在被另一次保存写入，等它跑完再点一次。" });
+        patchRow(target.key, { status: "failed", err: t`这一份正在被另一次保存写入，等它跑完再点一次。` });
         failed++;
         continue;
       }
       inFlight.add(pk);
       try {
-        const r = await downloadOne(t, (pct) => job?.update(`第 ${i + 1}/${targets.length} 段 · ${pct}`));
+        const r = await downloadOne(target, (pct) => job?.update(t`第 ${i + 1}/${targets.length} 段 · ${pct}`));
         if (r.ok) done++;
         else {
           failed++;
@@ -630,7 +637,8 @@ async function runQueue(targets: DownloadTarget[], meta: { videoId: string; titl
     const raw = e instanceof Error ? e.message : String(e);
     console.warn("[dl] runQueue 崩了", raw);
     failed = failed || targets.length;
-    lastErr = `保存没能开始（${raw.slice(0, 80)}）`;
+    const head = raw.slice(0, 80);
+    lastErr = t`保存没能开始（${head}）`;
   } finally {
     await detachProgress();
     // ★★ 停止那句话说的是**真的发生了什么**，不是"取消"：`downloadFile` 没有取消 API
@@ -639,50 +647,53 @@ async function runQueue(targets: DownloadTarget[], meta: { videoId: string; titl
     //     用户的流量已经花掉了，把它删掉是拿"点了停止"当理由去销毁一件已经成了的东西。
     //     所以这里如实写"已经下完的都留着"，而不是承诺一个我们不做的销毁。
     const outcome = stopped
-      ? `已停止。后面那些没有开始；已经下完的 ${done} 段都留着，点每一行的「分享 / 另存为」就能交出去。`
+      ? t`已停止。后面那些没有开始；已经下完的 ${done} 段都留着，点每一行的「分享 / 另存为」就能交出去。`
       : failed > 0
-        ? `${done} 段存好了，${failed} 段没成${lastErr ? `：${lastErr}` : ""}`
-        : `${done} 段都存好了。点每一行的「分享 / 另存为」，在系统面板里选相册或文件管理器。`;
+        ? lastErr
+          ? t`${done} 段存好了，${failed} 段没成：${lastErr}`
+          : t`${done} 段存好了，${failed} 段没成`
+        : t`${done} 段都存好了。点每一行的「分享 / 另存为」，在系统面板里选相册或文件管理器。`;
     state = { ...state, running: false, stopping: false, outcome, outcomeOk: !stopped && failed === 0 };
     emit();
-    if (stopped) job?.fail(`已停止，存好 ${done} 段`, `/video/${meta.videoId}`);
-    else if (failed > 0) job?.fail(`${failed} 段没存下来${lastErr ? `：${lastErr}` : ""}`, `/video/${meta.videoId}`);
-    else job?.done({ msg: `${done} 段都存好了，回详情页选去处`, route: `/video/${meta.videoId}` });
+    if (stopped) job?.fail(t`已停止，存好 ${done} 段`, `/video/${meta.videoId}`);
+    else if (failed > 0)
+      job?.fail(lastErr ? t`${failed} 段没存下来：${lastErr}` : t`${failed} 段没存下来`, `/video/${meta.videoId}`);
+    else job?.done({ msg: t`${done} 段都存好了，回详情页选去处`, route: `/video/${meta.videoId}` });
   }
 }
 
 async function downloadOne(
-  t: DownloadTarget,
+  target: DownloadTarget,
   onPct: (pct: string) => void,
 ): Promise<{ ok: true } | { ok: false; msg: string }> {
-  const finalPath = `${dirOf(t.videoId)}/${t.fileName}`;
+  const finalPath = `${dirOf(target.videoId)}/${target.fileName}`;
   const partPath = `${finalPath}.part`;
-  patchRow(t.key, { status: "checking", bytes: 0, total: null, err: undefined, raw: undefined, share: undefined });
+  patchRow(target.key, { status: "checking", bytes: 0, total: null, err: undefined, raw: undefined, share: undefined });
 
   // 上一次没下完留下的 .part：无条件丢掉（它不可能是完整文件）
   await Filesystem.deleteFile({ path: partPath, directory: Directory.Cache }).catch(() => {});
 
-  const head = await headProbe(t.url);
+  const head = await headProbe(target.url);
   if (head.kind === "reject") {
-    patchRow(t.key, { status: "failed", err: head.msg, ...(head.raw ? { raw: head.raw } : {}) });
+    patchRow(target.key, { status: "failed", err: head.msg, ...(head.raw ? { raw: head.raw } : {}) });
     return { ok: false, msg: head.msg };
   }
   const expected = head.total;
-  patchRow(t.key, { total: expected });
+  patchRow(target.key, { total: expected });
 
   // 已经存过一份完整的就不重下（省流量，也省掉一次"重下把好文件毁掉"的机会）
   if (expected !== null) {
     const st = await Filesystem.stat({ path: finalPath, directory: Directory.Cache }).catch(() => null);
     if (st && st.size === expected) {
       const uri = await fileUriOf(finalPath, null);
-      patchRow(t.key, { status: "exists", bytes: expected, fileUri: uri });
+      patchRow(target.key, { status: "exists", bytes: expected, fileUri: uri });
       return { ok: true };
     }
   }
 
-  patchRow(t.key, { status: "downloading" });
-  progressKey = t.key;
-  progressUrl = t.url;
+  patchRow(target.key, { status: "downloading" });
+  progressKey = target.key;
+  progressUrl = target.url;
   progressPill = onPct;
   onPct("0%");
   let absPath: string | null = null;
@@ -690,7 +701,7 @@ async function downloadOne(
     // ★★ 下到 `<name>.part`：FileOutputStream(file,false) 是**恒截断**的，直接下到正名
     //   会在第一个字节到达前就把上一份已经存好的文件毁掉。
     const res = await Filesystem.downloadFile({
-      url: t.url,
+      url: target.url,
       path: partPath,
       // ★ directory **必须显式传**：不传时 legacy 的默认值是字符串 "Download"，
       //   getDirectory 不认它 → 返回 null → getFileObject 返回 null → 空指针
@@ -705,7 +716,7 @@ async function downloadOne(
     console.warn("[dl] download error", raw);
     const msg = explainDownloadError(raw);
     await Filesystem.deleteFile({ path: partPath, directory: Directory.Cache }).catch(() => {});
-    patchRow(t.key, { status: "failed", err: msg, raw });
+    patchRow(target.key, { status: "failed", err: msg, raw });
     return { ok: false, msg };
   } finally {
     progressKey = "";
@@ -716,15 +727,17 @@ async function downloadOne(
   // ★★ 判成败**不许只看有没有抛**：doDownloadInBackground 从头到尾不看状态码、不校验一个字节。
   const st = await Filesystem.stat({ path: partPath, directory: Directory.Cache }).catch(() => null);
   if (!st) {
-    const msg = "下下来的文件不见了，这一次没算数。再点一次。";
-    patchRow(t.key, { status: "failed", err: msg });
+    const msg = t`下下来的文件不见了，这一次没算数。再点一次。`;
+    patchRow(target.key, { status: "failed", err: msg });
     return { ok: false, msg };
   }
   if (expected !== null && st.size !== expected) {
     console.warn(`[dl] size mismatch got=${st.size} want=${expected}`);
-    const msg = `下下来的大小对不上（${mb(st.size)} / 应为 ${mb(expected)}），这一份已经删掉。再点一次。`;
+    const gotSize = mb(st.size);
+    const wantSize = mb(expected);
+    const msg = t`下下来的大小对不上（${gotSize} / 应为 ${wantSize}），这一份已经删掉。再点一次。`;
     await Filesystem.deleteFile({ path: partPath, directory: Directory.Cache }).catch(() => {});
-    patchRow(t.key, { status: "failed", err: msg });
+    patchRow(target.key, { status: "failed", err: msg });
     return { ok: false, msg };
   }
 
@@ -745,7 +758,7 @@ async function downloadOne(
   } catch (e) {
     const raw = e instanceof Error ? e.message : String(e);
     console.warn("[dl] rename failed", raw);
-    let msg = "文件下好了，但改名失败，这一份没能留下。再点一次。";
+    let msg = t`文件下好了，但改名失败，这一份没能留下。再点一次。`;
     if (hadOld) {
       // 把旧的换回去。换得回来就如实说"原来那份还在"，换不回来也要说 —— 不许瞒
       const back = await Filesystem.rename({ from: bakPath, to: finalPath, directory: Directory.Cache }).then(
@@ -753,17 +766,17 @@ async function downloadOne(
         () => false,
       );
       msg = back
-        ? "文件下好了，但改名失败，这一份没能留下（上次存的那一份还在）。再点一次。"
-        : "文件下好了，但改名失败，而且上次存的那一份也没能放回原处。再点一次。";
+        ? t`文件下好了，但改名失败，这一份没能留下（上次存的那一份还在）。再点一次。`
+        : t`文件下好了，但改名失败，而且上次存的那一份也没能放回原处。再点一次。`;
     }
-    patchRow(t.key, { status: "failed", err: msg, raw });
+    patchRow(target.key, { status: "failed", err: msg, raw });
     return { ok: false, msg };
   }
   // 新的已经完整就位，这才轮到删旧的
   if (hadOld) await Filesystem.deleteFile({ path: bakPath, directory: Directory.Cache }).catch(() => {});
 
   const uri = await fileUriOf(finalPath, absPath);
-  patchRow(t.key, {
+  patchRow(target.key, {
     status: "done",
     bytes: st.size,
     total: expected,
@@ -795,15 +808,15 @@ async function fileUriOf(path: string, absPathOfPart: string | null): Promise<st
 export function explainDownloadError(raw: string): string {
   const s = raw.toLowerCase();
   if (s.includes("timeout") || s.includes("timed out")) {
-    return "等了 60 秒一个字节都没来，当断了处理。再点一次接着试。";
+    return t`等了 60 秒一个字节都没来，当断了处理。再点一次接着试。`;
   }
   if (s.includes("enospc") || s.includes("no space") || s.includes("space left")) {
-    return "手机空间不够，这一段没写完。腾点空间再点一次。";
+    return t`手机空间不够，这一段没写完。腾点空间再点一次。`;
   }
   if (s.includes("unable to resolve host") || s.includes("failed to connect") || s.includes("network")) {
-    return "没连上网，这一段没下完。再点一次会从头重下这一段。";
+    return t`没连上网，这一段没下完。再点一次会从头重下这一段。`;
   }
-  return "这一段没下完（原因见下面那行原文）。再点一次会从头重下。";
+  return t`这一段没下完（原因见下面那行原文）。再点一次会从头重下。`;
 }
 
 /** 字节数说人话。★ 只有一处实现，面板与设置页共用 */
@@ -822,12 +835,12 @@ export function mb(bytes: number): string {
  */
 export async function shareOne(row: DownloadRow, title: string): Promise<void> {
   if (!row.fileUri) {
-    patchRow(row.key, { share: { ok: false, msg: "这一份还没有本机地址，重新保存一次再试。" } });
+    patchRow(row.key, { share: { ok: false, msg: t`这一份还没有本机地址，重新保存一次再试。` } });
     return;
   }
   try {
-    await Share.share({ title, files: [row.fileUri], dialogTitle: "选择保存位置" });
-    patchRow(row.key, { share: { ok: true, msg: "✓ 已交给系统" } });
+    await Share.share({ title, files: [row.fileUri], dialogTitle: t`选择保存位置` });
+    patchRow(row.key, { share: { ok: true, msg: t`✓ 已交给系统` } });
   } catch (e) {
     const raw = e instanceof Error ? e.message : String(e);
     patchRow(row.key, { share: { ok: false, msg: explainShareError(raw), raw } });
@@ -841,10 +854,10 @@ export async function shareOne(row: DownloadRow, title: string): Promise<void> {
  */
 export async function shareAll(rows: DownloadRow[], title: string): Promise<{ ok: boolean; msg: string }> {
   const files = rows.map((r) => r.fileUri).filter((u): u is string => !!u);
-  if (files.length === 0) return { ok: false, msg: "还没有存好的文件可以交出去。" };
+  if (files.length === 0) return { ok: false, msg: t`还没有存好的文件可以交出去。` };
   try {
-    await Share.share({ title, files, dialogTitle: "选择保存位置" });
-    return { ok: true, msg: "✓ 已交给系统" };
+    await Share.share({ title, files, dialogTitle: t`选择保存位置` });
+    return { ok: true, msg: t`✓ 已交给系统` };
   } catch (e) {
     const raw = e instanceof Error ? e.message : String(e);
     return { ok: false, msg: explainShareError(raw) };
@@ -854,11 +867,11 @@ export async function shareAll(rows: DownloadRow[], title: string): Promise<{ ok
 function explainShareError(raw: string): string {
   const s = raw.toLowerCase();
   if (s.includes("canceled") || s.includes("cancelled")) {
-    return "没有选择去处。文件还在 App 里，随时可以再点「分享 / 另存为」。";
+    return t`没有选择去处。文件还在 App 里，随时可以再点「分享 / 另存为」。`;
   }
-  if (s.includes("in progress")) return "系统面板已经开着了，先在那边选一个。";
-  if (s.includes("only file urls")) return "文件地址不对，这一份没能交出去。";
-  return "这台手机上没有能接收视频的应用。文件已经在 App 内，装一个文件管理器再试。";
+  if (s.includes("in progress")) return t`系统面板已经开着了，先在那边选一个。`;
+  if (s.includes("only file urls")) return t`文件地址不对，这一份没能交出去。`;
+  return t`这台手机上没有能接收视频的应用。文件已经在 App 内，装一个文件管理器再试。`;
 }
 
 // ── 已下载清单（设置 → 存储那一行）────────────────────────────
@@ -930,7 +943,7 @@ export async function listDownloads(): Promise<DownloadGroup[]> {
       bytes += f.size;
     }
     if (files === 0) continue;
-    out.push({ videoId: d.name, title: getVideo(d.name)?.title ?? "已删除的作品", files, bytes });
+    out.push({ videoId: d.name, title: getVideo(d.name)?.title ?? t`已删除的作品`, files, bytes });
   }
   return out;
 }
@@ -951,7 +964,7 @@ export async function listDownloads(): Promise<DownloadGroup[]> {
  */
 export async function clearDownloads(): Promise<{ files: number; bytes: number; blocked?: string; failed?: string }> {
   if (state.running) {
-    return { files: 0, bytes: 0, blocked: "有一条作品正在保存，等它跑完（或点停止）再清。" };
+    return { files: 0, bytes: 0, blocked: t`有一条作品正在保存，等它跑完（或点停止）再清。` };
   }
   const groups = await listDownloads();
   const files = groups.reduce((s, g) => s + g.files, 0);
@@ -963,7 +976,7 @@ export async function clearDownloads(): Promise<{ files: number; bytes: number; 
     const why = e instanceof Error ? e.message : String(e);
     if (!/does\s*not\s*exist|not\s*found|ENOENT/i.test(why)) {
       console.warn("[dl] rmdir failed", e);
-      return { files: 0, bytes: 0, failed: `没能删掉：${why}。文件还在，可以再试一次。` };
+      return { files: 0, bytes: 0, failed: t`没能删掉：${why}。文件还在，可以再试一次。` };
     }
   }
   // 文件没了，面板里那份「已存」的记忆也不能留（见上面 ★★ ②）

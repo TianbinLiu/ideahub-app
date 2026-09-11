@@ -223,6 +223,34 @@ export class ArkHttpError extends Error {
 }
 
 /**
+ * 请求发出去了、但**一个回包都没收到**（断网、超时）—— 与「服务端明说失败」是两件事。
+ * ★★ 为什么要单独一个类（2026-09-10）：服务端是**先扣钱、再转发**（server services/arkGateway.service.js
+ *   的 debit 在转发之前），而客户端 chat 超时 120 秒又短于服务端转发上限 150 秒。所以这一类失败发生时，
+ *   钱**可能已经扣了** —— 任何写着「没扣钱」的失败文案在这里都会说错。调用方按类型分档说话，
+ *   别去 message 里找「网络失败」四个字。
+ * ★ message 一字未改（仍含「网络失败」），但**没有任何地方再按这四个字判断**：briefArkReason 与
+ *   npcPersona.chatFailLine 都改成认类型了（多语言第 1 步 —— message 迟早不是中文）。
+ */
+export class ArkNoReply extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ArkNoReply";
+  }
+}
+
+/**
+ * 回包是 2xx 却读不出来（JSON 坏了，或模型没按要求的形状写）—— 服务端已经转发并结算过，
+ * **钱已经扣了**，只是结果用不上。
+ * ★ 与 ArkNoReply 分开：这一档能确定地说「已计费」，那一档只能说「可能」。
+ */
+export class ArkBadReply extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ArkBadReply";
+  }
+}
+
+/**
  * 一句**能给用户看**的失败原因 —— 唯一实现（出片轮询与取回都用它）。
  *
  * ★ 存在的理由是那一坨方舟原文：`Ark /contents/generations/tasks/cgt-… 404: {"error":
@@ -233,7 +261,9 @@ export class ArkHttpError extends Error {
  */
 export function briefArkReason(e: unknown): string {
   if (e instanceof ArkHttpError) return `服务器返回 ${e.status}`;
-  if (e instanceof Error) return e.message.includes("网络失败") ? "网络不通" : e.message.slice(0, 40);
+  // ★ 认类型，不在 message 里找「网络失败」：arkFetch 只在这一种情况下抛 ArkNoReply（见它的 ★★）
+  if (e instanceof ArkNoReply) return "网络不通";
+  if (e instanceof Error) return e.message.slice(0, 40);
   return "未知原因";
 }
 
@@ -253,7 +283,8 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
         ...(init?.headers ?? {}),
       },
     }).catch((e) => {
-      throw new Error(`Ark ${path} 网络失败: ${e instanceof Error ? e.message : e}`);
+      // 类型见 ArkNoReply 的 ★★：没收到回包 ≠ 没扣钱
+      throw new ArkNoReply(`Ark ${path} 网络失败: ${e instanceof Error ? e.message : e}`);
     });
     // ★ 每个响应都带着服务端的权威余额（扣费/退款都发生在那边）。趁这一趟同步回来，
     //   省掉一次 GET /api/me/wallet，也避免在两次请求之间显示旧余额。
@@ -307,7 +338,12 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
       }
       throw new ArkHttpError(`Ark ${path} ${res.status}: ${body.slice(0, 300)}`, res.status);
     }
-    return (await res.json()) as T;
+    try {
+      return (await res.json()) as T;
+    } catch (e) {
+      // 2xx 的回包读到一半断了 / JSON 坏了：服务端已经结算（见 ArkBadReply）
+      throw new ArkBadReply(`Ark ${path} 回包读不出来: ${e instanceof Error ? e.message : e}`);
+    }
   }
 }
 

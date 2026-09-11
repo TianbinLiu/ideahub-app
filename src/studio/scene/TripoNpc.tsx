@@ -148,6 +148,7 @@ function injectAnimeShading(s: { fragmentShader: string; uniforms: Record<string
     // （直接重写 three 的 chunk 会在升级 three 时静默失配，包一层则只依赖签名。）
     s.fragmentShader = s.fragmentShader.replace(
       "#include <lights_toon_pars_fragment>",
+      // i18n-ignore-next-line: GLSL 着色器源码（中文是着色器里的注释），不上屏
       `#include <lights_toon_pars_fragment>
 void RE_Direct_ToonAnime( const in IncidentLight directLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in ToonMaterial material, inout ReflectedLight reflectedLight ) {
 	RE_Direct_Toon( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );

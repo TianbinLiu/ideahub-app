@@ -13,6 +13,7 @@
 // ★ 「这台服务器有没有这个功能」判**响应形状**不判状态码：真机上 Capacitor 的本地静态
 //   服务器对未命中路径做 SPA 回退，返回 **200 + index.html**，`res.ok` 恒真。
 //   与 api/admin.ts、api/notifications.ts 同一招（CLAUDE.md 里有整段说明）。
+import { t } from "@lingui/core/macro";
 import { apiDelete, apiGet, apiPost } from "./client";
 
 const PATHS = {
@@ -43,7 +44,7 @@ function toBlocked(raw: unknown): BlockedUser | null {
   if (!id) return null;
   return {
     id,
-    name: typeof o.name === "string" && o.name ? o.name : "这个用户",
+    name: typeof o.name === "string" && o.name ? o.name : t({ message: "这个用户", context: "拉黑名单里拿不到昵称时顶上的名字（单独成一行）" }),
     avatar: typeof o.avatar === "string" && o.avatar ? o.avatar : undefined,
     blockedAt: typeof o.blockedAt === "string" ? o.blockedAt : undefined,
   };
@@ -72,13 +73,16 @@ export async function listBlocked(): Promise<BlockedUser[] | null> {
  *   这几种失败是永久性的（自己拉黑自己、id 非法、人不存在），再点一百次也一样。
  *   「往让人放心的方向说错」不比往吓人的方向说错高尚：它会让用户一直点一颗永远不会成的键。
  */
-function blockErrorText(e: unknown, verb: "拉黑" | "解除"): string {
+function blockErrorText(e: unknown, kind: "block" | "unblock"): string {
   const raw = (e instanceof Error ? e.message : String(e)).toLowerCase();
-  if (raw.includes("yourself")) return "不能拉黑自己。";
-  if (raw.includes("not found") || raw.includes("invalid user")) return "找不到这个人（账号可能已经注销了）。";
-  if (raw.includes("401") || raw.includes("unauthor")) return "登录状态过期了，重新登录之后再试。";
+  if (raw.includes("yourself")) return t`不能拉黑自己。`;
+  if (raw.includes("not found") || raw.includes("invalid user")) return t`找不到这个人（账号可能已经注销了）。`;
+  if (raw.includes("401") || raw.includes("unauthor")) return t`登录状态过期了，重新登录之后再试。`;
   // 剩下的才是"可能是一时的"：网络、5xx。只有这一支才配说「再试一次」
-  return `暂时没能${verb}（网络或服务器忙）——过一会儿再试一次。`;
+  // ★ 两个动作整句各写一份，不拿动词往句子里拼（换成英文就不通了）
+  return kind === "block"
+    ? t`暂时没能拉黑（网络或服务器忙）——过一会儿再试一次。`
+    : t`暂时没能解除（网络或服务器忙）——过一会儿再试一次。`;
 }
 
 /**
@@ -90,7 +94,7 @@ export async function blockUser(userId: string): Promise<string | null> {
     await apiPost(PATHS.block(userId), {});
     return null;
   } catch (e) {
-    return blockErrorText(e, "拉黑");
+    return blockErrorText(e, "block");
   }
 }
 
@@ -104,9 +108,9 @@ export async function unblockUser(userId: string): Promise<string | null> {
   try {
     const r = await apiDelete<unknown>(PATHS.unblock(userId));
     const removed = !!r && typeof r === "object" ? (r as { removed?: unknown }).removed : undefined;
-    if (removed === false) return "没找到这条拉黑记录（可能已经解除过了）——刷新一下看看。";
+    if (removed === false) return t`没找到这条拉黑记录（可能已经解除过了）——刷新一下看看。`;
     return null;
   } catch (e) {
-    return blockErrorText(e, "解除");
+    return blockErrorText(e, "unblock");
   }
 }

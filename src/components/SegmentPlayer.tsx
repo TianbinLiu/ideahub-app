@@ -1,11 +1,13 @@
 // 分段视频播放器（mock）：每段用首帧→尾帧渐变 + 轻推镜头模拟画面，段落分界处有刻度。
 // 接入真实视频生成后，本组件替换为 <video> 播放合成片即可，外层接口不变。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
 import { VideoSegment, aspectCss, formatDuration, segLen, segsTotal } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 
 export default function SegmentPlayer({ segments, cover }: { segments: VideoSegment[]; cover: string }) {
+  const { t } = useLingui();
   const [playing, setPlaying] = useState(false);
   const [started, setStarted] = useState(false);
   const [time, setTime] = useState(0);
@@ -27,8 +29,8 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
   // 播放中 3 秒自动收起控制条；暂停时常显（用户正在找按钮）
   useEffect(() => {
     if (!ctrl || !playing) return;
-    const t = setTimeout(() => setCtrl(false), 3000);
-    return () => clearTimeout(t);
+    const id = setTimeout(() => setCtrl(false), 3000);
+    return () => clearTimeout(id);
   }, [ctrl, playing, time]);
   // ★★ 走 segsTotal（实测优先）：这个数就是"播到哪儿算完"（下面 tick 里 nt >= total 就 setPlaying(false)）。
   //   按申报值算的话，比申报值长的成片会被**当场掐掉尾巴** —— 主人真机上 33 秒的合并成片播到 21 秒就停，
@@ -140,7 +142,7 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
               用户读到的是「成片坏了」，其实只是还没挑封面（2026-09-06 主人真机那张截图里就有一张）。
               白模复刻段没有设定帧，全靠合并时留下的 poster（见 CutPage.posterFromCanvas）。 */}
           {coverSrc ? (
-            <img src={coverSrc} alt="封面" className="h-full w-full object-cover" />
+            <img src={coverSrc} alt={t`封面`} className="h-full w-full object-cover" />
           ) : (
             <div className="h-full w-full bg-slate-900" />
           )}
@@ -197,7 +199,7 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
               className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 text-slate-100"
             >
               <Icon name="replay" size={34} />
-              <span className="text-sm">重新播放</span>
+              <span className="text-sm"><Trans>重新播放</Trans></span>
             </button>
           )}
           {/* 控制条：点画面唤起/收起，播放中 3 秒自动淡出。
@@ -229,7 +231,7 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
                   }
                 }}
                 className="-m-2 p-2"
-                aria-label={playing ? "暂停" : "播放"}
+                aria-label={playing ? t`暂停` : t`播放`}
               >
                 <Icon name={time >= total ? "replay" : playing ? "pause" : "play"} size={20} filled={time < total} />
               </button>
@@ -239,9 +241,9 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
               <button
                 onClick={() => setMuted((m) => !m)}
                 className="ml-auto flex-none rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-slate-100"
-                aria-label={muted ? "取消静音" : "静音"}
+                aria-label={muted ? t`取消静音` : t`静音`}
               >
-                {muted ? "🔇 已静音" : "🔊 有声"}
+                {muted ? <Trans>🔇 已静音</Trans> : <Trans>🔊 有声</Trans>}
               </button>
             </div>
           </div>

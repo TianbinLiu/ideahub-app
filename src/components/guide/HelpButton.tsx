@@ -8,6 +8,7 @@
 //   只有 6 条 tab 页共用 TabLayout），这里硬定位一个 fixed 角落必然会在某些页压住别的东西
 //   —— 首页底缘那 100px 里叠着四样东西、右侧栏在 640 高的屏上只剩 24px 余量，
 //   CLAUDE.md 记过两次"动了首页底缘就悄悄盖住别的元素"的事故，都零报错。
+import { useLingui } from "@lingui/react/macro";
 import { openGuide } from "../../data/guide";
 import { tourById } from "./tours";
 
@@ -28,13 +29,14 @@ export default function HelpButton({
 }) {
   // ★ 还没写内容的引导不摆按钮：点了什么都不会发生，正是本仓明令禁止的
   //   「界面上摆一个永远点不动的选项」
-  const t = tourById(tour);
-  if (!t || t.steps.length === 0) return null;
+  const def = tourById(tour);
+  const { t } = useLingui();
+  if (!def || def.steps.length === 0) return null;
   return (
     <button
       type="button"
       onClick={() => openGuide(tour)}
-      aria-label="使用说明"
+      aria-label={t`使用说明`}
       className={`-m-2 flex h-11 w-11 flex-none items-center justify-center ${className}`}
     >
       <span

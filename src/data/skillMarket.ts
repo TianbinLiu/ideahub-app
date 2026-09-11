@@ -8,6 +8,7 @@
 //   emitApiError，所以指望它报错等于没报。
 // ★ 订阅源仍然只有 agentSkills 那一个（这里改完调 emitSkills）——界面不必订阅两处。
 import { remoteOn } from "./videos";
+import { t } from "@lingui/core/macro";
 import { fetchSharedSkills, installSkill, publishSkill, pushSkill } from "../api/skills";
 import { emitSkills, mineSkills, patchMine, upsertMine, type AgentSkill } from "./agentSkills";
 
@@ -36,7 +37,7 @@ export function skillMarketOn(): boolean {
 /** 拉一次广场。返回是否成功；失败原因在 skillMarketErr() */
 export async function refreshSharedSkills(): Promise<boolean> {
   if (!remoteOn()) {
-    marketErr = "还没连上服务器，技能市场用不了（本机自建的技能照常能用）";
+    marketErr = t`还没连上服务器，技能市场用不了（本机自建的技能照常能用）`;
     emitSkills();
     return false;
   }
@@ -47,7 +48,8 @@ export async function refreshSharedSkills(): Promise<boolean> {
     shared = await fetchSharedSkills();
     return true;
   } catch (e) {
-    marketErr = `技能市场没打开：${e instanceof Error ? e.message : String(e)}`;
+    const why = e instanceof Error ? e.message : String(e);
+    marketErr = t`技能市场没打开：${why}`;
     return false;
   } finally {
     marketBusy = false;
@@ -62,12 +64,12 @@ export async function refreshSharedSkills(): Promise<boolean> {
 export async function shareSkill(id: string, on: boolean): Promise<boolean> {
   const s = mineSkills().find((x) => x.id === id);
   if (!s) {
-    marketErr = "只能发布自己库里的技能";
+    marketErr = t`只能发布自己库里的技能`;
     emitSkills();
     return false;
   }
   if (!remoteOn()) {
-    marketErr = "还没连上服务器，发布不了";
+    marketErr = t`还没连上服务器，发布不了`;
     emitSkills();
     return false;
   }
@@ -81,7 +83,8 @@ export async function shareSkill(id: string, on: boolean): Promise<boolean> {
     patchMine(id, { published: back.published });
     return true;
   } catch (e) {
-    marketErr = `${on ? "发布" : "下架"}没成：${e instanceof Error ? e.message : String(e)}`;
+    const why = e instanceof Error ? e.message : String(e);
+    marketErr = on ? t`发布没成：${why}` : t`下架没成：${why}`;
     return false;
   } finally {
     marketBusy = false;
@@ -96,7 +99,7 @@ export async function shareSkill(id: string, on: boolean): Promise<boolean> {
  */
 export async function installSharedSkill(id: string): Promise<AgentSkill | null> {
   if (!remoteOn()) {
-    marketErr = "还没连上服务器，装不了";
+    marketErr = t`还没连上服务器，装不了`;
     emitSkills();
     return null;
   }
@@ -108,7 +111,8 @@ export async function installSharedSkill(id: string): Promise<AgentSkill | null>
     upsertMine(skill);
     return skill;
   } catch (e) {
-    marketErr = `装这条技能没成：${e instanceof Error ? e.message : String(e)}`;
+    const why = e instanceof Error ? e.message : String(e);
+    marketErr = t`装这条技能没成：${why}`;
     return null;
   } finally {
     marketBusy = false;

@@ -18,6 +18,7 @@
 //   于是工作流退化成"写一句话直接出片"——最贵的那一步（出片）反而没有选择余地。
 //   现在它是主路径：便宜的一步（推演 ~80k token）摆在前面挑，贵的一步（出片）挑完再走。
 import { startJob } from "../data/jobs";
+import { t } from "@lingui/core/macro";
 import { create } from "zustand";
 import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskUnknown, generateCover, generateProposals, prepareMaterialRefs, recaptureSegment, takeVideoTask, transferStatus } from "../ai";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
@@ -280,19 +281,19 @@ function clearTemplate(): Pick<
  *   编号模板（连升序排序一起丢）—— 见 FlowTemplate.markSlots 的 ★★。
  * ★ 人偶描述与框**各自独立**（框没量出来 ≠ 描述没验过），各自单独判存在性。
  */
-function snapTpl(t: VideoTemplate): FlowTemplate {
+function snapTpl(src: VideoTemplate): FlowTemplate {
   return {
-    id: t.id,
-    title: t.title,
-    recipe: t.recipe,
-    cards: t.cards,
-    refVideo: t.refVideo,
-    ...(t.roles?.length ? { roles: t.roles } : {}),
-    ...(t.markSlots?.length ? { markSlots: t.markSlots } : {}),
-    ...(t.markBoxes?.length ? { markBoxes: t.markBoxes } : {}),
-    ...(t.markBoxAtSec !== undefined ? { markBoxAtSec: t.markBoxAtSec } : {}),
-    ...(t.markDescs?.length ? { markDescs: t.markDescs } : {}),
-    ...(t.group ? { group: t.group } : {}),
+    id: src.id,
+    title: src.title,
+    recipe: src.recipe,
+    cards: src.cards,
+    refVideo: src.refVideo,
+    ...(src.roles?.length ? { roles: src.roles } : {}),
+    ...(src.markSlots?.length ? { markSlots: src.markSlots } : {}),
+    ...(src.markBoxes?.length ? { markBoxes: src.markBoxes } : {}),
+    ...(src.markBoxAtSec !== undefined ? { markBoxAtSec: src.markBoxAtSec } : {}),
+    ...(src.markDescs?.length ? { markDescs: src.markDescs } : {}),
+    ...(src.group ? { group: src.group } : {}),
   };
 }
 
@@ -393,6 +394,26 @@ export function keepFirstFrame(node: FlowNode, p: Proposal, prev: Proposal | nul
   return !!p.pinned?.first || !!(node.chain && prev?.lastFrame && p.firstFrame === prev.lastFrame);
 }
 
+/**
+ * 这一套方案里**能拿去出片**的首尾帧（空串 = 没有、出片前要补画）—— 报价 `nodeCost`、出片 `genNode`、
+ * 工坊「AI 改首/尾帧」三处读的是这一份，别在调用点直接读 `p.firstFrame` 判帧在不在。
+ * ★★ 为什么要有它（2026-09-10）：推演时没画出来的帧，以前填的是一张本地占位图（烧着「第N段 · … · 首帧」
+ *   「AI 预览帧」），而出片与报价都只问「帧在不在」⇒ 占位图被当真帧发给 Seedance，钱照收、拍出来的是渐变图。
+ *   新推演已经改成留空（ai/real 推演那一段的 ★★），但**老草稿 / 回炉工程里的占位图还躺在字段里**。
+ * ★ 老数据怎么认：`degraded` 为真而两张帧**都不空** = 占位图还在（新数据里失败的那张一定是空串）。
+ *   当年没记是哪一张失败，所以只保住**确定是真图**的开头帧：承接来的 / 用户锁定的（keepFirstFrame），
+ *   或与同段其它方案共用的那张（推演时三套共用同一张开头帧 = 上一段尾帧或上传的图，不是本方案画的）；
+ *   尾帧除非锁定一律当占位。多补画一张的钱会如实进报价 —— 比拿占位图出一段片便宜得多。
+ */
+export function usableFrames(node: FlowNode, p: Proposal, prev: Proposal | null): { first: string; last: string } {
+  if (!(p.degraded && p.firstFrame && p.lastFrame)) return { first: p.firstFrame, last: p.lastFrame };
+  const sharedStart = node.proposals.some((q) => q.id !== p.id && q.firstFrame === p.firstFrame);
+  return {
+    first: keepFirstFrame(node, p, prev) || sharedStart ? p.firstFrame : "",
+    last: p.pinned?.last ? p.lastFrame : "",
+  };
+}
+
 /** 「按修改重画这一套」的报价。★ regenProposal 扣钱走的是同一个函数——
  *  按钮上的数字与实际扣款分两处算必然分叉（铁律六） */
 export function redrawCost(node: FlowNode, p: Proposal, prev: Proposal | null): number {
@@ -402,11 +423,12 @@ export function redrawCost(node: FlowNode, p: Proposal, prev: Proposal | null): 
 /** 把配方里的 {{主题}} 换成用户那句话（与 data/templates 的 fillBeat 同义，
  *  这里再写一份是为了不让 flowStore 依赖模板库——它只认配方里的字符串） */
 function fillSubject(text: string, subject: string): string {
+  // i18n-ignore-next-line: 替进配方骨架的主语，随每段剧情发给模型（进模型的文字冻结中文）
   return text.replace(/\{\{\s*主题\s*\}\}/g, subject.trim() || "主角");
 }
 
 export function blankProposal(i: number): Proposal {
-  return { id: uid("prop"), title: `第 ${i + 1} 段`, plot: "", firstFrame: "", lastFrame: "", durationSec: 5 };
+  return { id: uid("prop"), title: t`第 ${i + 1} 段`, plot: "", firstFrame: "", lastFrame: "", durationSec: 5 };
 }
 
 /**
@@ -434,7 +456,7 @@ export function placeRescuedSegment(
   const measured = res.durationSec && Number.isFinite(res.durationSec) ? Math.max(1, Math.round(res.durationSec)) : null;
   const p: Proposal = {
     id: job.proposalId,
-    title: job.label || `第 ${job.seg} 段`,
+    title: job.label || t`第 ${job.seg} 段`,
     plot: job.plot ?? job.label ?? "",
     firstFrame: "",
     lastFrame: res.lastFrame ?? "",
@@ -503,7 +525,7 @@ export function remakeNodesOf(segs: VideoSegment[], cards: Card[]): FlowNode[] {
     const tier = seg.videoTier || DEFAULT_TIER;
     const p: Proposal = {
       id: uid("prop"),
-      title: seg.title || `第 ${i + 1} 段`,
+      title: seg.title || t`第 ${i + 1} 段`,
       plot: seg.plot,
       firstFrame: "",
       lastFrame: "",
@@ -639,7 +661,7 @@ export function tplOfNode(node: FlowNode | undefined | null): FlowTemplate | nul
 export function appendBlocked(nodes: FlowNode[], template: FlowTemplate | null): string | null {
   const prev = nodes[nodes.length - 1];
   if (prev ? !!tplOfNode(prev)?.refVideo : !!template?.refVideo) {
-    return "白模复刻段只有一段：画面与运镜整个来自模板视频，没有可续的下一段";
+    return t`白模复刻段只有一段：画面与运镜整个来自模板视频，没有可续的下一段`;
   }
   return null;
 }
@@ -706,13 +728,13 @@ export function annSkipNote(
   if (plan.why === "unsupported") {
     return {
       tone: "warn",
-      text: `这一段带着参考视频，出片时不接受圈选改画面——这 ${plan.skipped} 处得先清掉才能开炼（它们也不计费）。`,
+      text: t`这一段带着参考视频，出片时不接受圈选改画面——这 ${plan.skipped} 处得先清掉才能开炼（它们也不计费）。`,
     };
   }
   if (plan.why === "carry") {
     return {
       tone: "info",
-      text: `另有 ${plan.skipped} 处落在承接段的前半段（开头画面用的是上一段的真实结尾，不重画）——不计费，但你写的要求仍会随出片提示词发出去。`,
+      text: t`另有 ${plan.skipped} 处落在承接段的前半段（开头画面用的是上一段的真实结尾，不重画）——不计费，但你写的要求仍会随出片提示词发出去。`,
     };
   }
   return null;
@@ -723,6 +745,8 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
   if (!node) return 0;
   const prop = chosenOf(node);
   const carry = nodeCarry(nodes, idx);
+  // ★ 帧在不在问 usableFrames（genNode 发的也是这一份）：老草稿里的占位图不算帧，出片前要补画、补画要进报价
+  const frames = usableFrames(node, prop, idx > 0 ? chosenOf(nodes[idx - 1]) : null);
   // ── 素材参考（自定义 = 多图 + 参考视频）：(输入 + 输出)×系数，与真扣同一个函数 ──
   // ★ 档位没有 r2v 价（r2vMult null，即 hd/std/fast）时**按纯帧模式报**：materialRefCost
   //   在那种档上是 throw（报价函数开发期就该炸），而这里是渲染路径不能炸 ——
@@ -749,8 +773,8 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
   return annsCost + segmentCost({
     durationSec: prop.durationSec,
     tierId: tierOverride ?? node.videoTier,
-    hasFirstFrame: !!(prop.firstFrame || carry),
-    hasLastFrame: !!prop.lastFrame,
+    hasFirstFrame: !!(frames.first || carry),
+    hasLastFrame: !!frames.last,
     refMode: nodeRefOn(nodes, idx, mode, tierOverride),
     refVideo: refVideo ? { inputSec: refVideo.durationSec } : undefined,
   });
@@ -830,7 +854,7 @@ function repickInner(s: FlowState, nodeId: string, proposalId: string): Partial<
   if (!node || !node.proposals.some((p) => p.id === proposalId)) return {};
   const same = node.chosenId === proposalId;
   if (!same && (s.busy || s.nodes.some((x) => x.status === "generating"))) {
-    return { err: "有一段正在生成中，等它跑完再换走向（换走向会挪动后面的段）" };
+    return { err: t`有一段正在生成中，等它跑完再换走向（换走向会挪动后面的段）` };
   }
   const picked = s.nodes.map((x) =>
     x.id === nodeId ? { ...x, chosenId: proposalId, plan: "picked" as const, anns: [] } : x,
@@ -1139,7 +1163,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const i = s.nodes.findIndex((n) => n.status === "generating");
     if (!s.busy && i < 0) return true;
     set({
-      err: `第 ${i >= 0 ? i + 1 : s.cursor + 1} 段正在生成中（钱已经在花了）——换掉流水线不会把它停下，回包时那笔钱照扣、成片却落在一条已经不存在的流水线上。等它跑完再来`,
+      err: t`第 ${i >= 0 ? i + 1 : s.cursor + 1} 段正在生成中（钱已经在花了）——换掉流水线不会把它停下，回包时那笔钱照扣、成片却落在一条已经不存在的流水线上。等它跑完再来`,
     });
     return false;
   },
@@ -1162,21 +1186,21 @@ export const useFlow = create<FlowState>()((set, get) => ({
     return true;
   },
 
-  applyTemplate: (t) => {
+  applyTemplate: (tmpl) => {
     // ★ 与 seed/seedSolo 同一道闸（第八轮扫描：上一版只给那两处加了，而这两处同样是整表覆盖）
     if (!get().canReplaceNodes()) return false;
     // ── 白模模板（存在性判定，types.ts 的 ★）：只铺 1 个节点、chain=false ──
     // 多段在物理上不成立：段间承接的整个机制是「上一段**真实**尾帧顶替本段首帧」
     // （segmentGen 第②步），而首尾帧与参考媒体是方舟三大互斥场景——第 2 段要么发不出
     // r2v 任务、要么砍掉承接（那衔接就断了）。不发明新的承接规则，直接砍成单段。
-    if (t.refVideo) {
+    if (tmpl.refVideo) {
       // 档位钳到 refVid=true 的档（首发只有 ultra；免费用户吃 paidOnly 的既有拦截）。
       // ★ 四档全 false 的今天，这里就是**闸门本身**：整句拒绝、什么都不铺。
       //   开闸 = 仓库主人翻 economy 里 ultra.refVid 那一个布尔的 commit，这里自动放行
       //   ——refVid 的唯一出处是 VIDEO_TIERS，别在这里另记一份"开没开"。
       const gate = VIDEO_TIERS.find((x) => x.refVid);
       if (!gate) {
-        set({ err: "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来" });
+        set({ err: t`白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来` });
         return false;
       }
       // ★★ 模板视频本身过不了方舟窗口时**当场整句拒、什么都不铺**（判据唯一实现在
@@ -1184,7 +1208,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   3.7 秒的坏模板照样铺出一个节点，用户挂完卡、点了生成，才在方舟那儿撞英文 400
       //   —— 那句 400 全 app 没人接（没有全局 error toast），等于静默失败。
       //   ⚠ 拒绝要走 `err`：调用方（详情页 apply / 市场页）靠返回 false + err 把原因印出来。
-      const refIssue = refVideoIssue(t.refVideo);
+      const refIssue = refVideoIssue(tmpl.refVideo);
       if (refIssue) {
         set({ err: refIssue });
         return false;
@@ -1195,17 +1219,17 @@ export const useFlow = create<FlowState>()((set, get) => ({
         // 往节点上挂自己的角色卡；万一带了就原样挂上。
         // ★ V2（有角色位）上这一格只是**开场值**：挂完卡之后 materials 由 applyCast
         //   整表重写（角色位是"谁换成谁"的唯一出处，见那里的对齐规则）
-        materials: t.cards.length ? t.cards : undefined,
+        materials: tmpl.cards.length ? tmpl.cards : undefined,
         videoTier: gate.id,
         // 预览容器的横竖跟着模板登记的宽高走。真正的出片画幅是 adaptive 跟随源片
         // （arkClient 的 BLOCKOUT_TASK），这里只决定界面框怎么摆；方形归横屏——
         // 只有竖/横两档时，横容器上下留黑边比竖容器左右裁切诚实
-        aspect: t.refVideo.height > t.refVideo.width ? "portrait" : "landscape",
+        aspect: tmpl.refVideo.height > tmpl.refVideo.width ? "portrait" : "landscape",
       });
       // 时长 = 模板的（白模节点没有时长选择器）：显示跟登记值走，报价侧本来就不看
       // durationSec（economy.segmentCost 的 refVideo 位）。不过 clampDuration 的 10s
       // 上限——那是纯 t2v 档位的产品约束，edit 输出≈输入是协议行为（见 r2vTokens）
-      node.proposals[0].durationSec = t.refVideo.durationSec;
+      node.proposals[0].durationSec = tmpl.refVideo.durationSec;
       set({
         nodes: [node],
         cursor: 0,
@@ -1216,19 +1240,19 @@ export const useFlow = create<FlowState>()((set, get) => ({
         ...clearTemplate(),
         // ★ roles 跟着快照走（**只在真有的时候才带这个键**，存在性语义同 data/templates
         //   的 rolesOf）：出片时 genNode 从这里读它决定走点名路还是泛指老路
-        template: snapTpl(t),
+        template: snapTpl(tmpl),
       });
       return true;
     }
     set({
       // 一个 beat 一段。段与段之间沿用尾帧续作（chain），模板才有连贯性
-      nodes: t.recipe.beats.map((_, i) =>
+      nodes: tmpl.recipe.beats.map((_, i) =>
         newFlowNode(i, {
           chain: i > 0,
-          materials: t.cards.length ? t.cards : undefined,
-          videoTier: t.recipe.videoTier,
+          materials: tmpl.cards.length ? tmpl.cards : undefined,
+          videoTier: tmpl.recipe.videoTier,
           // 配方没写画幅 = 画幅可选之前存的老模板，那时一律 16:9
-          aspect: t.recipe.aspect ?? "landscape",
+          aspect: tmpl.recipe.aspect ?? "landscape",
         }),
       ),
       cursor: 0,
@@ -1238,7 +1262,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       err: "",
       ...clearTemplate(),
       // 经典模板没有角色位（roles 只在白模 V2 上存在），这里连键都不带
-      template: { id: t.id, title: t.title, recipe: t.recipe, cards: t.cards },
+      template: { id: tmpl.id, title: tmpl.title, recipe: tmpl.recipe, cards: tmpl.cards },
     });
     return true;
   },
@@ -1249,7 +1273,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     if (parts.length === 1) return get().applyTemplate(parts[0]);
     const gate = VIDEO_TIERS.find((x) => x.refVid);
     if (!gate) {
-      set({ err: "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来" });
+      set({ err: t`白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来` });
       return false;
     }
     // 整组先验完再铺（与 applyTemplate 同一道 refVideoIssue 闸）：第 3 段是坏的却铺出
@@ -1257,12 +1281,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
     for (let i = 0; i < parts.length; i += 1) {
       const p = parts[i];
       if (!p.refVideo) {
-        set({ err: `第 ${i + 1} 段不是白模模板，这一组没法整组套用` });
+        set({ err: t`第 ${i + 1} 段不是白模模板，这一组没法整组套用` });
         return false;
       }
       const issue = refVideoIssue(p.refVideo);
       if (issue) {
-        set({ err: `第 ${i + 1} 段：${issue}` });
+        set({ err: t`第 ${i + 1} 段：${issue}` });
         return false;
       }
     }
@@ -1295,10 +1319,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
     return true;
   },
 
-  setNodeTemplate: (nodeId, t) => {
+  setNodeTemplate: (nodeId, picked) => {
     const s0 = get();
     if (s0.busy) {
-      set({ err: "正在生成中，等它跑完再换模板" });
+      set({ err: t`正在生成中，等它跑完再换模板` });
       return false;
     }
     const idx = s0.nodes.findIndex((n) => n.id === nodeId);
@@ -1307,10 +1331,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // ★ 已出片整句拒：换模板 = 这段成片作废重炼，那笔钱不能被一次点击静默作废。
     //   想换的路仍然开着：先「重新生成」（用户自己按下的重炼）或删除本段重加。
     if (nodeDone(node)) {
-      set({ err: "这一段已经出片：换模板会作废这段成片。想换就删除本段重加，或先接受重炼这一段的花费" });
+      set({ err: t`这一段已经出片：换模板会作废这段成片。想换就删除本段重加，或先接受重炼这一段的花费` });
       return false;
     }
-    if (!t) {
+    if (!picked) {
       // ★★ 本来就没套模板 → 整句拒（2026-08-21 第六轮对抗评审确认的 high）。
       //   这一支不是"什么都不做"，它会清掉 materials/cast 并把 plot 清空、时长退回 5s。
       //   对一个普通段来说那是**纯破坏**：推演出来的剧情（真花过钱）、挂上的素材卡、
@@ -1318,7 +1342,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   对普通段读起来就是"取消"，用户点它是想关掉弹层。
       //   agent 那条路早就判了这一下（canvasAgent 的 untemplate 分支），弹层这条漏了。
       if (!tplOfNode(node)) {
-        set({ err: `第 ${idx + 1} 段本来就没套模板，不用摘（想关掉这个弹层点右上角的 ✕）` });
+        set({ err: t`第 ${idx + 1} 段本来就没套模板，不用摘（想关掉这个弹层点右上角的 ✕）` });
         return false;
       }
       // 摘模板：退回普通段。挂卡/素材/合成句一起清（旧映射对"没有模板"毫无意义）
@@ -1339,19 +1363,19 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // 换/套模板：与 applyTemplateGroup 铺节点走同一批规则（refVid 闸、窗口闸、快照、清挂卡）
     const gate = VIDEO_TIERS.find((x) => x.refVid);
     if (!gate) {
-      set({ err: "白模模板出片暂未开放：还没有档位支持白模（r2v）出片" });
+      set({ err: t`白模模板出片暂未开放：还没有档位支持白模（r2v）出片` });
       return false;
     }
-    if (!t.refVideo) {
-      set({ err: "这不是白模模板（只有白模模板能按段套用）" });
+    if (!picked.refVideo) {
+      set({ err: t`这不是白模模板（只有白模模板能按段套用）` });
       return false;
     }
-    const issue = refVideoIssue(t.refVideo);
+    const issue = refVideoIssue(picked.refVideo);
     if (issue) {
       set({ err: issue });
       return false;
     }
-    const tplSnap = snapTpl(t);
+    const tplSnap = snapTpl(picked);
     set((s) => ({
       err: "",
       // ★ 其余"还没表过态"的段在这一刻钉住（唯一实现见 pinUnstatedTpl 的 ★★）
@@ -1361,12 +1385,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
               ...n,
               tpl: tplSnap,
               // 模板自带卡照 applyTemplate 的口径；挂卡结果清零（旧映射对新模板全错）
-              materials: t.cards.length ? t.cards : undefined,
+              materials: picked.cards.length ? picked.cards : undefined,
               cast: undefined,
               castPreview: undefined,
               chain: false, // 白模段复刻自己的素材，不走尾帧承接（applyTemplateGroup 同款 ★）
               videoTier: gate.id,
-              aspect: t.refVideo!.height > t.refVideo!.width ? "portrait" : "landscape",
+              aspect: picked.refVideo!.height > picked.refVideo!.width ? "portrait" : "landscape",
             }
           : n,
       ),
@@ -1378,7 +1402,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       ...(s.castNodeId === nodeId ? { castErr: "", castFallback: "", castNodeId: null } : {}),
       ...(s.cursor === idx ? { template: tplSnap, cast: {} } : {}),
     }));
-    get().updateProposal(nodeId, { plot: "", durationSec: t.refVideo.durationSec, firstFrame: "", lastFrame: "" });
+    get().updateProposal(nodeId, { plot: "", durationSec: picked.refVideo.durationSec, firstFrame: "", lastFrame: "" });
     return true;
   },
 
@@ -1411,11 +1435,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
         subject,
         nodes: s.nodes.map((n, i) => {
           const beat = fillSubject(rec.beats[i] ?? rec.beats[rec.beats.length - 1] ?? "", subject);
+          // i18n-ignore-next-line: 每段剧情 = 骨架填空 + 画风要求，整句发给模型（进模型的文字冻结中文）
           const plot = subject.trim() ? `${beat}\n画面要求：${rec.styleHint}` : "";
           return {
             ...n,
             proposals: n.proposals.map((p) =>
-              p.id === n.chosenId ? { ...p, plot, title: `${s.template!.title} · 第 ${i + 1} 段`, durationSec: dur } : p,
+              p.id === n.chosenId ? { ...p, plot, title: t`${s.template!.title} · 第 ${i + 1} 段`, durationSec: dur } : p,
             ),
           };
         }),
@@ -1427,7 +1452,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // ★ 与别的动作一样让位给在途生成，但**要说一句**：这一步是用户刚从编辑页点了
     //   「完成挂卡」回来的，静默 return 的表现就是"挂了半天，回来什么都没变"（铁律八）
     if (s0.busy) {
-      set({ err: "这一段正在生成中，等它跑完再改挂卡（改了也得重炼一次，别白花一次钱）" });
+      set({ err: t`这一段正在生成中，等它跑完再改挂卡（改了也得重炼一次，别白花一次钱）` });
       return false;
     }
     // ★ 2026-08-20 起"本段"= 光标段：分段模板组一次铺 N 个白模节点，各挂各的卡。
@@ -1449,9 +1474,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   ③ **出路是破坏性的** —— 照它去模板市场重套走的是 applyTemplate，那是整表覆盖
       //      `nodes`，会把这条流水线连同已经花钱炼出来的段一起抹掉。指一条会毁片的路，
       //      比不指路更糟。正确的出路是本段编辑窗里的「🧪 套模板」（setNodeTemplate，只动这一段）。
-      const at = node ? `第 ${s0.nodes.indexOf(node) + 1} 段` : "这一段";
       set({
-        err: `${at}没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）`,
+        err: node
+          ? t`第 ${s0.nodes.indexOf(node) + 1} 段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）`
+          : t`这一段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）`,
       });
       return false;
     }
@@ -1462,6 +1488,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   所以这里传下去的必须是整个 spec，不是一个光秃秃的方案枚举
     const spec = markSpecOf(tpl);
     const noun = markNoun(spec);
+    /** 列举几个角色位时的分隔符 */
+    const sep = t({ message: "、", comment: "列举几个角色位时的分隔符" });
 
     // ★★ 下面几道拒绝**一律不写 cast**：`cast`（映射）/ `materials`（真发出去的形象图）/
     //   `plot`（点名句）是一个整体，只在三样都成立时一起换。半推半就地只更新映射，
@@ -1494,22 +1522,23 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const known = new Set(roles.map((r) => r.label));
       const overCap = stray.filter((l) => known.has(l));
       const removed = stray.filter((l) => !known.has(l));
+      const ordinal = spec.scheme === "ordinal";
       const why = [
         overCap.length > 0
-          ? `${noun} ${overCap.join("、")} 超出了一次能挂卡的 ${BLOCKOUT_MAX_ROLES} 个上限（${
-              spec.scheme === "ordinal" ? "人再多，从左数到第几个也数不准了" : "再多的编号在画面上也认不出来"
-            }）`
+          ? ordinal
+            ? t`${noun} ${overCap.join(sep)} 超出了一次能挂卡的 ${BLOCKOUT_MAX_ROLES} 个上限（人再多，从左数到第几个也数不准了）`
+            : t`${noun} ${overCap.join(sep)} 超出了一次能挂卡的 ${BLOCKOUT_MAX_ROLES} 个上限（再多的编号在画面上也认不出来）`
           : "",
         removed.length > 0
-          ? `${noun} ${removed.join("、")} 这个位子已经被模板作者在核对${noun}时删掉了（多半是因为${
-              spec.scheme === "ordinal" ? "画面上那个人根本没被换成人偶" : "画面上根本找不到这个号"
-            }）`
+          ? ordinal
+            ? t`${noun} ${removed.join(sep)} 这个位子已经被模板作者在核对${noun}时删掉了（多半是因为画面上那个人根本没被换成人偶）`
+            : t`${noun} ${removed.join(sep)} 这个位子已经被模板作者在核对${noun}时删掉了（多半是因为画面上根本找不到这个号）`
           : "",
       ]
         .filter(Boolean)
-        .join("；");
+        .join(t({ message: "；", comment: "把两条拒绝原因连成一句时的分隔符" }));
       set({
-        err: `${why}——这些位子挂的卡不能生效，它们会保持人偶原样。回挂卡那一屏点「取下这几张」再完成挂卡`,
+        err: t`${why}——这些位子挂的卡不能生效，它们会保持人偶原样。回挂卡那一屏点「取下这几张」再完成挂卡`,
       });
       return false;
     }
@@ -1527,7 +1556,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
     if (missing.length > 0) {
       set({
-        err: `${noun} ${missing.join("、")} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下`,
+        err: t`${noun} ${missing.join(sep)} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下`,
       });
       return false;
     }
@@ -1543,7 +1572,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
         castErr: "",
         castFallback: "",
         castNodeId: null,
-        err: "一个角色位都没挂卡：白模出片全靠卡上的形象图说明「换成谁」，一张都不挂的话出不了片——回去至少挂一张",
+        err: t`一个角色位都没挂卡：白模出片全靠卡上的形象图说明「换成谁」，一张都不挂的话出不了片——回去至少挂一张`,
       });
       // ★ node.cast 一并清（第三轮验证抓到）：不清的话按钮还印着「已挂 4/4」而 materials
       //   已经没了；而且切段一来一回，setCursor 会把这份旧映射灌回缓冲，goCast 再拿它当初值
@@ -1562,7 +1591,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const seen = byName.get(s.card.name);
       if (seen && seen !== s.card.id) {
         set({
-          err: `有两张不同的卡都叫「${s.card.name}」（${noun} ${s.label} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡`,
+          err: t`有两张不同的卡都叫「${s.card.name}」（${noun} ${s.label} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡`,
         });
         return false;
       }
@@ -1573,7 +1602,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   blockoutPrompt.castNameIssue，别在界面上再判一遍）。
       const nameIssue = castNameIssue(s.card.name);
       if (nameIssue) {
-        set({ err: `${noun} ${s.label} 挂的这张卡不能这么用：${nameIssue}` });
+        set({ err: t`${noun} ${s.label} 挂的这张卡不能这么用：${nameIssue}` });
         return false;
       }
     }
@@ -1644,7 +1673,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
         //   真点生成时才拒 —— 两句话自相矛盾比不说更糟
         refVideo: tpl.refVideo,
       });
-      if (issue) set({ err: `挂卡已记下，但现在还出不了片：${issue}` });
+      if (issue) set({ err: t`挂卡已记下，但现在还出不了片：${issue}` });
       return true;
     } catch (e) {
       // 整句失败 + 一份可用的骨架（用户点了才填）。**绝不 catch 成空串**：
@@ -1735,7 +1764,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   一个 token 都没花、什么都没排队（对抗评审确认的静默失败）。
     //   同款写法见 setNodeTemplate / applyCast 的 busy 分支。
     if (s0.busy) {
-      set({ err: "有一段正在生成，等它跑完再推演下一段" });
+      set({ err: t`有一段正在生成，等它跑完再推演下一段` });
       return false;
     }
     const idx = s0.nodes.findIndex((n) => n.id === nodeId);
@@ -1744,7 +1773,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // ★★ 顺序门禁：推演同样**真花钱**（一次 40~80k），所以这道闸不能只立在 genNode 上
     //   （2026-09-03 复核抓到：工坊在同一块面板上画着 🔒，旁边却摆着一颗能点的付费按钮）。
     if (clampCursor(s0.nodes, idx) !== idx) {
-      set({ err: "前面还有没炼完的段——先把前面那段炼出来，再推演这一段。" });
+      set({ err: t`前面还有没炼完的段——先把前面那段炼出来，再推演这一段。` });
       return false;
     }
     // ★ 这一段的产线经不经过方案台 —— 一处判据（derivesProposals），两面共用。
@@ -1754,10 +1783,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   写一句半截的「这一档直接出片」等于把出路吞掉（2026-09-03 复核抓到）。
       set({
         err: tplOfNode(node)?.refVideo
-          ? "白模复刻段的画面来自模板视频，没有走向可推演——改的话去换模板或改点名句。"
+          ? t`白模复刻段的画面来自模板视频，没有走向可推演——改的话去换模板或改点名句。`
           : node.custom
-            ? "自定义段的首尾帧与参考视频是你自己给的，没有走向可推演——直接改帧或改这一段的要求。"
-            : (deriveIssue(node.videoTier) ?? "这一档不经过方案台。"),
+            ? t`自定义段的首尾帧与参考视频是你自己给的，没有走向可推演——直接改帧或改这一段的要求。`
+            : (deriveIssue(node.videoTier) ?? t`这一档不经过方案台。`),
       });
       return false;
     }
@@ -1767,7 +1796,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // 推演的依据是**用户那句话**，不是某一套方案的剧情（见 FlowNode.requirement）
     const req = requirementOf(node);
     if (!req.trim() && !node.materials?.length) {
-      set({ err: "先写一句要拍什么（或从工坊带素材卡过来），我才好推演走向" });
+      set({ err: t`先写一句要拍什么（或从工坊带素材卡过来），我才好推演走向` });
       return false;
     }
     // ★ 真人卡门禁（判断在 economy.realFaceIssue 一处，铁律六）：推演画首尾帧同样把
@@ -1789,14 +1818,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
     if (AI_REAL && !canAfford(propCost)) {
       const w = walletOf();
       set({
-        err: `推演一次约 ${fmtTokens(propCost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
+        err: t`推演一次约 ${fmtTokens(propCost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
       });
       return false;
     }
     const myRun = get().genRun + 1;
     set({ busy: true, err: "", genRun: myRun });
     if (AI_REAL) spendTokens(propCost);
-    get().updateNode(nodeId, { status: "generating", progress: "推演三种走向…" });
+    get().updateNode(nodeId, { status: "generating", progress: t`推演三种走向…` });
     try {
       const prevNode = get().nodes[idx - 1];
       const prev = prevNode ? chosenOf(prevNode) : null;
@@ -1828,7 +1857,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   在另一面挑定/出片过。段没了就整句认账（钱已经花了，别静默吞掉）。
       const liveNode = get().nodes.find((n) => n.id === nodeId);
       if (!liveNode) {
-        set({ err: "推演好了，但那一段已经不在流水线上了——没处摆（这一次的推演费已经花掉了）" });
+        set({ err: t`推演好了，但那一段已经不在流水线上了——没处摆（这一次的推演费已经花掉了）` });
         return false;
       }
       const altsOf = get().alts[nodeId] ?? {};
@@ -1854,14 +1883,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   而它一分钟级——用户正是在这段时间退出去逛（胶囊上就印着「点击返回」）。
       //   不写的话胶囊只是无声消失：钱花了、成没成没人告诉他（铁律八）。
       // ★ 只有"还是我这一炉"才有资格清 busy（见 genRun 的 ★★）
-      set(get().genRun === myRun ? { busy: false, genNotice: { ok: true, msg: `第 ${idx + 1} 段推演好了三套方案` } } : {});
+      set(get().genRun === myRun ? { busy: false, genNotice: { ok: true, msg: t`第 ${idx + 1} 段推演好了三套方案` } } : {});
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       get().updateNode(nodeId, { status: "idle", progress: "" });
       set(
         get().genRun === myRun
-          ? { busy: false, err: `推演失败：${msg.slice(0, 120)}`, genNotice: { ok: false, msg: `第 ${idx + 1} 段推演失败` } }
+          ? { busy: false, err: t`推演失败：${msg.slice(0, 120)}`, genNotice: { ok: false, msg: t`第 ${idx + 1} 段推演失败` } }
           : {},
       );
       return false;
@@ -1897,7 +1926,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
   regenProposal: async (nodeId) => {
     const s0 = get();
     if (s0.busy) {
-      set({ err: "有一段正在生成，等它跑完再重画这一套" }); // 理由同 deriveProposals 的 ★
+      set({ err: t`有一段正在生成，等它跑完再重画这一套` }); // 理由同 deriveProposals 的 ★
       return false;
     }
     const idx = s0.nodes.findIndex((n) => n.id === nodeId);
@@ -1905,7 +1934,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     if (!node) return false;
     const prop = chosenOf(node);
     if (!prop.plot.trim()) {
-      set({ err: "这一套方案还没有剧情——先写点什么，我才知道要画成什么样" });
+      set({ err: t`这一套方案还没有剧情——先写点什么，我才知道要画成什么样` });
       return false;
     }
     // 承接上一段真实结尾的那张开头帧、以及用户自己上传的帧，一律不动（见 Proposal.pinned）
@@ -1915,19 +1944,19 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const keepLast = !!prop.pinned?.last;
     const cost = redrawCost(node, prop, prev);
     if (cost === 0) {
-      set({ err: "首尾帧都是你自己换的图，没有可让 AI 重画的部分（想重画就先在卡里清掉那一帧）" });
+      set({ err: t`首尾帧都是你自己换的图，没有可让 AI 重画的部分（想重画就先在卡里清掉那一帧）` });
       return false;
     }
     if (AI_REAL && !canAfford(cost)) {
       const w = walletOf();
       set({
-        err: `重画这一套约 ${fmtTokens(cost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
+        err: t`重画这一套约 ${fmtTokens(cost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
       });
       return false;
     }
     const myRun = get().genRun + 1;
     set({ busy: true, err: "", genRun: myRun });
-    get().updateNode(nodeId, { status: "generating", progress: "按修改重画画面…", regenning: true });
+    get().updateNode(nodeId, { status: "generating", progress: t`按修改重画画面…`, regenning: true });
     try {
       // ★ 必须把本段画幅递下去：Seedream 的画布比例得与视频画幅一致，缺了它重画出来的
       //   帧是横的，喂给竖屏 Seedance 任务会被静默裁一刀（人物常被裁掉半个头）。
@@ -1943,15 +1972,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
       let first = prop.firstFrame;
       // 首帧没有底图 → 素材卡的图就是 <图片1>，offset = 0
       if (!keepFirst) {
-        get().updateNode(nodeId, { progress: `重画起始画面…${noteTail}` });
+        get().updateNode(nodeId, { progress: t`重画起始画面…${noteTail}` });
         first = await generateCover(`${prop.plot.slice(0, 200)}${mat.bind(0)}`, undefined, node.aspect, refUrls);
       }
       let last = prop.lastFrame;
       if (!keepLast) {
-        get().updateNode(nodeId, { progress: `重画结束画面…${noteTail}` });
+        get().updateNode(nodeId, { progress: t`重画结束画面…${noteTail}` });
         // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味。
         // 有底图时它占 <图片1>，素材卡从 <图片2> 起 → offset = 1
         last = await generateCover(
+          // i18n-ignore-next-line: 出图提示词，发给模型（进模型的文字冻结中文）
           `${prop.plot.slice(0, 180)} 的结束瞬间${mat.bind(first ? 1 : 0)}`,
           first || undefined,
           node.aspect,
@@ -1962,14 +1992,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
       get().updateProposal(nodeId, { firstFrame: first, lastFrame: last, degraded: undefined });
       get().updateNode(nodeId, { status: "idle", progress: "", regenning: false, error: undefined });  // ★ 重画成功也算这一段翻篇了，别让上一次的红条挂着
       // 理由同 deriveProposals 末尾的 ★★：胶囊只认 genNotice，重画同样是先扣钱后开跑
-      set(get().genRun === myRun ? { busy: false, genNotice: { ok: true, msg: `第 ${idx + 1} 段重画好了` } } : {});
+      set(get().genRun === myRun ? { busy: false, genNotice: { ok: true, msg: t`第 ${idx + 1} 段重画好了` } } : {});
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       get().updateNode(nodeId, { status: "idle", progress: "", regenning: false });
       set(
         get().genRun === myRun
-          ? { busy: false, err: `重画失败：${msg.slice(0, 120)}`, genNotice: { ok: false, msg: `第 ${idx + 1} 段重画失败` } }
+          ? { busy: false, err: t`重画失败：${msg.slice(0, 120)}`, genNotice: { ok: false, msg: t`第 ${idx + 1} 段重画失败` } }
           : {},
       );
       return false;
@@ -1987,13 +2017,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
         if (blocked) return { err: blocked };
       }
       // 顺序门禁：只能在末尾追加，且上一段必须已出片
-      if (prev && !nodeDone(prev)) return { err: "先把这一段炼出来，再加下一段" };
+      if (prev && !nodeDone(prev)) return { err: t`先把这一段炼出来，再加下一段` };
       // ★ 生成中也拒（2026-08-21 自查：两个面的 ＋ 本来就 `disabled={busy}`，但 **agent 的
       //   add_segment 绕过 UI 这道闸** —— 闸该在 store，UI 只是把"为什么点不动"画出来。
       //   追加本身不会让 genNode 的写回错位（末尾追加不改前面的下标，而且写回认 id），
       //   但它会把光标从正在炼的那一段拽走，用户眼睁睁看着进度条消失。
       if (s.busy || s.nodes.some((n) => n.status === "generating")) {
-        return { err: "有一段正在生成中，等它跑完再加下一段（它炼完你才知道下一段从哪一帧接）" };
+        return { err: t`有一段正在生成中，等它跑完再加下一段（它炼完你才知道下一段从哪一帧接）` };
       }
       const i = s.nodes.length;
       // 画幅跟着上一段：一部片里前三段竖、第四段横，剪辑页合并只有一块画布，
@@ -2032,11 +2062,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
         const blocked = appendBlocked(s.nodes, s.template);
         if (blocked) return { err: blocked };
       }
-      if (prev && !nodeDone(prev)) return { err: "先把这一段炼出来，再铸下一段" };
+      if (prev && !nodeDone(prev)) return { err: t`先把这一段炼出来，再铸下一段` };
       if (s.busy || s.nodes.some((n) => n.status === "generating")) {
-        return { err: "有一段正在生成中，等它跑完再铸下一段" };
+        return { err: t`有一段正在生成中，等它跑完再铸下一段` };
       }
-      if (spec.proposals.length === 0) return { err: "这一炉一个方案都没有，铸不成段" };
+      if (spec.proposals.length === 0) return { err: t`这一炉一个方案都没有，铸不成段` };
       const i = s.nodes.length;
       const node: FlowNode = {
         id: uid("fn"),
@@ -2094,7 +2124,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     if (!node) return false;
     let url = realVideoOfNode(node);
     if (!url) {
-      if (!opts?.quiet) set({ err: "这一段还没有能播的成片，没什么可截的" });
+      if (!opts?.quiet) set({ err: t`这一段还没有能播的成片，没什么可截的` });
       return false;
     }
     // 方舟临时链接：先问一遍服务端转存到哪一步了 —— 拿到永久地址就换上（截帧改走 Cloudinary 抽帧，几秒的事）
@@ -2123,7 +2153,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return true;
     } catch (e) {
       if (!opts?.quiet) {
-        set({ err: `预览帧还是没截到（${e instanceof Error ? e.message.slice(0, 80) : String(e)}）——成片本身没事，点开卡片可回看` });
+        set({ err: t`预览帧还是没截到（${e instanceof Error ? e.message.slice(0, 80) : String(e)}）——成片本身没事，点开卡片可回看` });
       }
       return false;
     }
@@ -2185,7 +2215,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // 生成中/全局忙一律拒：直出车道的帧就写在 chosenOf 那条方案上，生成回包也写它，
     // 这几分钟里切换车道等于和回包抢同一条方案（与 removeNode 的闸同一理由）
     if (s.busy || s.nodes.some((n) => n.status === "generating")) {
-      set({ err: "有一段正在生成中，等它跑完再切换这一段的模式" });
+      set({ err: t`有一段正在生成中，等它跑完再切换这一段的模式` });
       return false;
     }
     if (on) {
@@ -2193,13 +2223,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 改帧不会改成片，还会把下一段的承接帧换成假的 —— nodeCarry 读的是
       // chosenOf(prev).lastFrame，而出片时它已被真实尾帧顶替
       if (nodeDone(node)) {
-        set({ err: "这一段已经出片：想改画面就先删掉本段再加一段，别在成片底下换帧" });
+        set({ err: t`这一段已经出片：想改画面就先删掉本段再加一段，别在成片底下换帧` });
         return false;
       }
       // 套着模板（白模或经典）不许直接切：模板的参考视频/配方与自定义帧是两套世界。
       // 摘模板的确认（挂的卡与点名句一起清）只在 setNodeTemplate 一处，别在这里静默替人摘
       if (tplOfNode(node)) {
-        set({ err: "这一段套着模板——先「摘掉模板」（改为自选）再自定义首尾帧" });
+        set({ err: t`这一段套着模板——先「摘掉模板」（改为自选）再自定义首尾帧` });
         return false;
       }
       set((st) => ({
@@ -2239,19 +2269,19 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const node = s.nodes[idx];
     if (!node || !dataUrl) return false;
     if (s.mode === "simple") {
-      set({ err: "简约模式只有一段，插不了中间帧——要多段接力去「工作流」里做" });
+      set({ err: t`简约模式只有一段，插不了中间帧——要多段接力去「工作流」里做` });
       return false;
     }
     if (s.busy || s.nodes.some((n) => n.status === "generating")) {
-      set({ err: "有一段正在生成中，等它跑完再拆段（现在拆会让写回打在另一段上）" });
+      set({ err: t`有一段正在生成中，等它跑完再拆段（现在拆会让写回打在另一段上）` });
       return false;
     }
     if (nodeDone(node)) {
-      set({ err: "这一段已经出片，拆不了——想改分段就先删掉本段再重新铺" });
+      set({ err: t`这一段已经出片，拆不了——想改分段就先删掉本段再重新铺` });
       return false;
     }
     if (!node.custom) {
-      set({ err: "先把这一段切到「✍ 自定义」再插中间帧（普通段的尾帧由所选方案决定）" });
+      set({ err: t`先把这一段切到「✍ 自定义」再插中间帧（普通段的尾帧由所选方案决定）` });
       return false;
     }
     const p = chosenOf(node);
@@ -2289,15 +2319,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const node = s.nodes.find((n) => n.id === id);
     if (!node) return false;
     if (s.busy || s.nodes.some((n) => n.status === "generating")) {
-      set({ err: "有一段正在生成中，等它跑完再挂/摘参考视频" });
+      set({ err: t`有一段正在生成中，等它跑完再挂/摘参考视频` });
       return false;
     }
     if (nodeDone(node)) {
-      set({ err: "这一段已经出片，挂参考视频不会改成片——想重来就先删掉本段" });
+      set({ err: t`这一段已经出片，挂参考视频不会改成片——想重来就先删掉本段` });
       return false;
     }
     if (ref && !node.custom) {
-      set({ err: "先把这一段切到「✍ 自定义」再挂参考视频" });
+      set({ err: t`先把这一段切到「✍ 自定义」再挂参考视频` });
       return false;
     }
     set((st) => ({
@@ -2318,15 +2348,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const node = s.nodes.find((n) => n.id === id);
     if (!node || !dataUrl) return false;
     if (!node.customRef) {
-      set({ err: "先挂上参考视频——中间帧参考图是「多图+参考视频」模式的一部分" });
+      set({ err: t`先挂上参考视频——中间帧参考图是「多图+参考视频」模式的一部分` });
       return false;
     }
     if (node.customRef.mids.length >= CUSTOM_MID_MAX) {
-      set({ err: `中间帧参考图最多 ${CUSTOM_MID_MAX} 张（首帧、尾帧另算）——先删一张再加` });
+      set({ err: t`中间帧参考图最多 ${CUSTOM_MID_MAX} 张（首帧、尾帧另算）——先删一张再加` });
       return false;
     }
     if (s.busy || s.nodes.some((n) => n.status === "generating")) {
-      set({ err: "有一段正在生成中，等它跑完再改参考图" });
+      set({ err: t`有一段正在生成中，等它跑完再改参考图` });
       return false;
     }
     set((st) => ({
@@ -2352,11 +2382,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const node = s.nodes.find((n) => n.id === nodeId);
     const prop = node ? chosenOf(node) : null;
     if (!node || !prop?.prevVideoUrl) {
-      set({ err: "没有可还原的上一版" });
+      set({ err: t`没有可还原的上一版` });
       return false;
     }
     if (s.busy || node.status === "generating") {
-      set({ err: "有一段正在生成，等它跑完再还原" });
+      set({ err: t`有一段正在生成，等它跑完再还原` });
       return false;
     }
     const cur = node.videoByProposal[node.chosenId];
@@ -2372,7 +2402,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const node = get().nodes.find((n) => n.id === nodeId);
     const tpl = node ? tplOfNode(node) : null;
     if (!node || !tpl?.refVideo || !tpl.roles?.length) {
-      set({ err: "这一段不是带角色位的白模段，没有可预览的挂法" });
+      set({ err: t`这一段不是带角色位的白模段，没有可预览的挂法` });
       return false;
     }
     // 挂法读**当前段的实时缓冲**（与投影窗 / 画布那两面显示的同一份）：光标在本段时是 store.cast，否则是节点上回写的那份
@@ -2382,19 +2412,19 @@ export const useFlow = create<FlowState>()((set, get) => ({
       .map((r) => ({ role: r, card: node.materials?.find((c) => c.id === cast[r.label]) }))
       .filter((x): x is { role: (typeof tpl.roles)[number]; card: Card } => !!x.card);
     if (picks.length === 0) {
-      set({ err: "还没给任何人偶挂卡，先去挂卡再合成预览" });
+      set({ err: t`还没给任何人偶挂卡，先去挂卡再合成预览` });
       return false;
     }
     const frame = frameUrlAt(tpl.refVideo.url, tpl.markBoxAtSec ?? 1);
     if (!frame) {
-      set({ err: "模板视频还没转存到图床，做不了合成预览（稍后再试）" });
+      set({ err: t`模板视频还没转存到图床，做不了合成预览（稍后再试）` });
       return false;
     }
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
-      set({ err: `合成预览要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });
+      set({ err: t`合成预览要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });
       return false;
     }
-    const job = startJob({ kind: "cast-preview", title: "合成预览", page: "/studio", route: "/studio", progress: "把角色放进白模画面…" });
+    const job = startJob({ kind: "cast-preview", title: t`合成预览`, page: "/studio", route: "/studio", progress: t`把角色放进白模画面…` });
     try {
       const cover = await castPreviewImage({
         frameUrl: frame,
@@ -2406,16 +2436,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 期间用户可能换了模板 / 改了挂法（那两处会把 castPreview 清掉）：以**当下**的节点为准，别把一张过时的图写回去
       const live = get().nodes.find((n) => n.id === nodeId);
       if (!live || !tplOfNode(live)?.refVideo) {
-        job.fail("这一段已经不是白模段了，预览没处放（图钱已经花掉）", "/studio");
+        job.fail(t`这一段已经不是白模段了，预览没处放（图钱已经花掉）`, "/studio");
         return false;
       }
       get().updateNode(nodeId, { castPreview: cover });
-      job.done({ msg: picks.length > 2 ? `合成预览好了（只画了前 2 个角色位，其余人偶保持白模）` : "合成预览好了", silent: true });
+      job.done({ msg: picks.length > 2 ? t`合成预览好了（只画了前 2 个角色位，其余人偶保持白模）` : t`合成预览好了`, silent: true });
       return true;
     } catch (e) {
       const why = e instanceof Error ? e.message : String(e);
-      job.fail(`合成预览没画成：${why.slice(0, 60)}`, "/studio");
-      set({ err: `合成预览没画成（${why.slice(0, 80)}）——不影响出片，可以直接生成` });
+      job.fail(t`合成预览没画成：${why.slice(0, 60)}`, "/studio");
+      set({ err: t`合成预览没画成（${why.slice(0, 80)}）——不影响出片，可以直接生成` });
       return false;
     }
   },
@@ -2426,19 +2456,19 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const node = get().nodes.find((n) => n.id === nodeId);
     const prop = node?.proposals.find((p) => p.id === node.chosenId);
     if (!node || !prop) {
-      set({ err: "这一段还没有选定的方案，导演台的截图没处放" });
+      set({ err: t`这一段还没有选定的方案，导演台的截图没处放` });
       return false;
     }
     if (tplOfNode(node)?.refVideo) {
-      set({ err: "白模段的画面整个来自模板视频，导演台的构图用不上" });
+      set({ err: t`白模段的画面整个来自模板视频，导演台的构图用不上` });
       return false;
     }
     if (node.status === "generating" || get().busy) {
-      set({ err: "这一段正在出片，等它结束再换开头帧" });
+      set({ err: t`这一段正在出片，等它结束再换开头帧` });
       return false;
     }
     if (!shot.startsWith("data:image/")) {
-      set({ err: "导演台截图不是一张图（截图失败了，再试一次）" });
+      set({ err: t`导演台截图不是一张图（截图失败了，再试一次）` });
       return false;
     }
     // 参考图最多 3 张（fuseFrame 同一条经验）：截图 + 主角人物卡形象 + 场景卡定场图。背景卡是文字，不当参考（V3 规则）
@@ -2460,13 +2490,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
       figures: node.stage?.figures.length ?? 1,
       heroName: heroUrl ? hero?.name : undefined,
       hasScene: !!sceneUrl,
+      // i18n-ignore-next-line: 导演台融图的风格句，拼进发给模型的指令（进模型的文字冻结中文）
       style: styleLine ? `跟随风格卡「${styleCard?.name}」（${styleLine}）` : hero?.realPerson ? "照片级写实" : undefined,
     });
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
-      set({ err: `导演台融图要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });
+      set({ err: t`导演台融图要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });
       return false;
     }
-    const job = startJob({ kind: "stage-fuse", title: "导演台融图", page: "/studio", route: "/studio", progress: "把构图示意融成开头帧…" });
+    const job = startJob({ kind: "stage-fuse", title: t`导演台融图`, page: "/studio", route: "/studio", progress: t`把构图示意融成开头帧…` });
     try {
       const url = await fuseStageFrame({
         sources,
@@ -2481,18 +2512,18 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 期间方案可能换了（换走向 / 重推）：以**当下**为准，别把帧写到另一套方案上
       const live = get().nodes.find((n) => n.id === nodeId);
       if (!live || live.chosenId !== prop.id) {
-        job.fail("这一段的方案已经换了，融好的开头帧没处放（图钱已经花掉）", "/studio");
-        set({ err: "这一段的方案已经换了，融好的开头帧没处放（图钱已经花掉）" });
+        job.fail(t`这一段的方案已经换了，融好的开头帧没处放（图钱已经花掉）`, "/studio");
+        set({ err: t`这一段的方案已经换了，融好的开头帧没处放（图钱已经花掉）` });
         return false;
       }
       get().setFrame(nodeId, "first", url);
       set((s) => ({ nodes: s.nodes.map((n) => (n.id === nodeId && n.stage ? { ...n, stage: { ...n.stage, shot } } : n)) }));
-      job.done({ msg: "导演台的开头帧融好了", silent: true });
+      job.done({ msg: t`导演台的开头帧融好了`, silent: true });
       return true;
     } catch (e) {
       const why = e instanceof Error ? e.message : String(e);
-      job.fail(`导演台融图没成：${why.slice(0, 60)}`, "/studio");
-      set({ err: `导演台融图没成（${why.slice(0, 80)}）——没扣钱，可以再截一次` });
+      job.fail(t`导演台融图没成：${why.slice(0, 60)}`, "/studio");
+      set({ err: t`导演台融图没成（${why.slice(0, 80)}）——没扣钱，可以再截一次` });
       return false;
     }
   },
@@ -2506,7 +2537,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   虚线卡位重新亮起 —— 这是"选完模式退出再进来走不回铸段窗"的出路（2026-09-05）
     // ★ 只剩一段时，**已出片**的才删不掉（那是真金白银）；还没出片的删了就是回铸段窗重来（nodeRecastable 一处判据）
     if (s.nodes.length <= 1 && s.nodes[0] && !nodeRecastable(s.nodes[0])) {
-      set({ err: "只剩这一段而且已经出片了，删不掉（想重来就用「删除本段」旁边的重新生成，或退出去开一条新的）" });
+      set({ err: t`只剩这一段而且已经出片了，删不掉（想重来就用「删除本段」旁边的重新生成，或退出去开一条新的）` });
       return;
     }
     // ★★ 生成中一律拒（第七轮扫描）：两个面的删段按钮都 `disabled={busy||generating}`，
@@ -2515,7 +2546,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   越界抛错 —— 钱已经扣了、成片丢了，用户看到的是一句 JS 异常。
     //   ⚠ 删**别的**段同样拒：genNode 闭包里捏着 idx，删前面的段会让它整体前移，写回就打在另一段上。
     if (s.busy || s.nodes.some((n) => n.status === "generating")) {
-      set({ err: "有一段正在生成中，等它跑完再删（现在删的话，那一炉的钱照扣、成片会落空）" });
+      set({ err: t`有一段正在生成中，等它跑完再删（现在删的话，那一炉的钱照扣、成片会落空）` });
       return;
     }
     const i = s.nodes.findIndex((n) => n.id === id);
@@ -2602,7 +2633,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const s0 = get();
     const rv = opts?.revise;
     if (s0.busy) {
-      set({ err: "有一段正在生成，等它跑完再炼下一段" }); // 理由同 deriveProposals 的 ★（不许静默）
+      set({ err: t`有一段正在生成，等它跑完再炼下一段` }); // 理由同 deriveProposals 的 ★（不许静默）
       return false;
     }
     const idx = s0.nodes.findIndex((n) => n.id === id);
@@ -2621,15 +2652,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   ⇒ 闸放进 store：**任何宿主都绕不过去**（agent 那条路也走这儿），
     //   UI 上的 🔒 只是把"为什么点不动"画出来，不是判据本身（铁律六）。
     if (clampCursor(s0.nodes, idx) !== idx) {
-      set({ err: "前面还有没炼完的段——段与段靠上一段的真实结尾画面接着拍，得按顺序来。先把前面那段炼出来。" });
+      set({ err: t`前面还有没炼完的段——段与段靠上一段的真实结尾画面接着拍，得按顺序来。先把前面那段炼出来。` });
       return false;
     }
     if (nodePicking(node)) {
-      set({ err: "先从三套方案里挑一套（点方案卡），再生成本段" });
+      set({ err: t`先从三套方案里挑一套（点方案卡），再生成本段` });
       return false;
     }
     if (!rv && !prop.plot.trim()) {
-      set({ err: "先写清楚这一段要拍什么" });
+      set({ err: t`先写清楚这一段要拍什么` });
       return false;
     }
     /** 返修：本段自己的成片当参考视频。校验与白模模板视频同一把尺（refVideoIssue：4~30 秒、有真实地址） */
@@ -2643,16 +2674,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
       : null;
     if (rv) {
       if (!rv.instruction.trim()) {
-        set({ err: "先写一句要改什么（例：把背景换成雨夜 / 去掉右上角的台标）" });
+        set({ err: t`先写一句要改什么（例：把背景换成雨夜 / 去掉右上角的台标）` });
         return false;
       }
       if (!reviseRef?.url) {
-        set({ err: "这一段还没有能返修的成片——先生成，或者等转存完成" });
+        set({ err: t`这一段还没有能返修的成片——先生成，或者等转存完成` });
         return false;
       }
       const issue = refVideoIssue(reviseRef);
       if (issue) {
-        set({ err: `这一段返修不了：${issue}` });
+        set({ err: t`这一段返修不了：${issue}` });
         return false;
       }
     }
@@ -2681,7 +2712,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     if (AI_REAL && !canAfford(cost)) {
       const w = walletOf();
       set({
-        err: `本段约需 ${fmtTokens(cost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
+        err: t`本段约需 ${fmtTokens(cost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
       });
       return false;
     }
@@ -2693,8 +2724,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
       patchNode({ steps, progress: cur && cur.status === "running" ? (cur.detail ?? cur.title) : "" });
     });
     /** ai 层报上来的平铺短句 → 归一成「步骤 / 细节」，同一件事的读秒折进同一步 */
-    const prog = (t: string) => {
-      const { title, detail, terminal, keep } = splitStatus(t);
+    const prog = (status: string) => {
+      const { title, detail, terminal, keep } = splitStatus(status);
       if (terminal) return log.end();
       const cur = log.steps[log.steps.length - 1];
       if (!cur || cur.status !== "running" || cur.title !== title) log.begin(title, { keep });
@@ -2702,7 +2733,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     };
     const myRun = get().genRun + 1;
     set({ busy: true, err: "", genRun: myRun });
-    patchNode({ status: "generating", progress: "准备中…", error: undefined, steps: [] });
+    patchNode({ status: "generating", progress: t`准备中…`, error: undefined, steps: [] });
     /** 这一发的方舟任务号（受理之后才有）。空 = 还没被受理，也就一分钱都没花 */
     let taskId = "";
     try {
@@ -2711,6 +2742,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   但从这一版起**报价依赖它**了（annsCost 按"真会重画的圈选"数，而那取决于有没有
       //   承接帧）—— 两份一旦漂移就是报价与实扣两把尺，本仓头号事故形状。
       const carry = nodeCarry(get().nodes, idx);
+      // ★ 发出去的帧与报价（上面的 nodeCost，按 s0 算）读同一份：老草稿里的占位图在这里当"没有"，segmentGen 出片前补画
+      const frames = usableFrames(node, prop, idx > 0 ? chosenOf(s0.nodes[idx - 1]) : null);
       // 套了模板就用配方里的起拍提示词：它专门为"这个模板长什么样"写过，
       // 比从剧情正文截前 200 字更贴（剧情前半段常常是动作描述而非画面描述）
       // ★ 一律走 tplOfNode（分段组每节点自带快照）：与 nodeCost 读**同一份** ——
@@ -2724,8 +2757,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
           plot: rv ? rv.instruction.trim() : prop.plot,
           // 报价 ↔ 契约对账（segmentGen.contractLine）：扣的就是这个 cost；演示构建没有报价，明说 null
           quotedTokens: AI_REAL ? cost : null,
-          firstFrame: rv ? "" : prop.firstFrame,
-          lastFrame: rv ? "" : prop.lastFrame,
+          firstFrame: rv ? "" : frames.first,
+          lastFrame: rv ? "" : frames.last,
           durationSec: prop.durationSec,
           videoTier: node.videoTier,
           aspect: node.aspect,
@@ -2792,7 +2825,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
             //   重复一遍只会挤掉真正有辨识度的那半句（套的哪个模板 / 这一段讲什么）
             //   ★ 用 `||` 不是 `??`：空标题/空剧情是空**串**不是 undefined，`??` 接不住，
             //   结果是卡片上一行空白（而这张卡的用处就是让人认出是哪一发）
-            label: rv ? `返修：${rv.instruction.trim().slice(0, 20)}` : get().template?.title || prop.plot.trim().slice(0, 24) || prop.title || `第 ${idx + 1} 段`,
+            label: rv ? t`返修：${rv.instruction.trim().slice(0, 20)}` : get().template?.title || prop.plot.trim().slice(0, 24) || prop.title || t`第 ${idx + 1} 段`,
             cost,
             // ★ 原节点不在了也能安放（重启 + 那一段从没存过草稿）：新开的那一段按这几样长（见 placeRescuedSegment）
             durationSec: prop.durationSec,
@@ -2843,8 +2876,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
           get().genRun === myRun
             ? {
                 busy: false,
-                err: "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线",
-                genNotice: { ok: false, msg: "有一段生成完了，但它已经不在了" },
+                err: t`这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线`,
+                genNotice: { ok: false, msg: t`有一段生成完了，但它已经不在了` },
               }
             : {},
         );
@@ -2861,7 +2894,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 下次进来也会清 —— 在这里判"人在不在"反而是第二处路由判断
       // ★ 只有"还是我这一炉"才有资格清 busy（见 genRun 的 ★★）：作废的回包清掉的话，
       //   新那一炉跑着而闸开着，可以并发出第三炉
-      set(get().genRun === myRun ? { busy: false, genNotice: { ok: true, msg: `第 ${idx + 1} 段出片完成` } } : {});
+      set(get().genRun === myRun ? { busy: false, genNotice: { ok: true, msg: t`第 ${idx + 1} 段出片完成` } } : {});
       // ★ 转存没赶上（还是方舟临时链接）或预览帧没截到：后台盯着转存收尾，拿到永久地址就换上并补截
       //   （2026-09-06 主人真机：截帧在 120s 超时上死掉，卡片上永远是「成片预览没截到」）
       {
@@ -2880,14 +2913,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
         const flat = providerOf(node.videoTier ?? DEFAULT_TIER) === "minimax";
         // 凭据**留着**（这一支绝不 dropVideoJob）：它是取回入口能不能出现的唯一依据。
         // 日志那一行也不许写"失败"——步骤日志是用户回看这一段怎么回事的地方。
-        log.fail(`没接到结果：${msg.slice(0, 80)}`);
+        log.fail(t`没接到结果：${msg.slice(0, 80)}`);
         patchNode({
           status: "pending",
           progress: "",
           // 短句给段导航条上那颗角标；那笔钱的完整说明在取回卡上（videoJobNote 一处实现）
           // ★ 说"哪家"要按 provider 说：真人档那一发在海螺（MiniMax）那边，
           //   写死"方舟"会让用户拿着错的词去问客服
-          error: `没接到出片结果，任务可能还在${flat ? "上游" : "方舟"}那边跑——用下面的「取回」领回来，别重新生成`,
+          error: flat
+            ? t`没接到出片结果，任务可能还在上游那边跑——用下面的「取回」领回来，别重新生成`
+            : t`没接到出片结果，任务可能还在方舟那边跑——用下面的「取回」领回来，别重新生成`,
         });
         // ★ 可行动的那半句在**这里**接上，不在 arkClient 里：那一层不知道调用它的路上
         //   有没有取回入口。而走到这一支就一定落过凭据 —— ArkTaskUnknown 只在任务被
@@ -2898,13 +2933,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
         //   以后再加新的出片宿主，先把那个组件挂上再说这句话。
         set({
           busy: false,
-          err:
-            `第 ${idx + 1} 段${msg.slice(0, 150)}` +
-            // ★ 24 小时是**方舟产物**的物理事实；真人档那边我们没量过留存，不许编一个数
-            //   （同 videoJobNote 里那条 ★★）
-            (flat
-              ? "点下面那颗「取回」把它领回来，不再花一分钱；「重新生成」是重新下一单、会再花一次。"
-              : "成片 24 小时内都能取回：点下面那颗「取回」，不再花一分钱；「重新生成」是重新下一单、会再花一次。"),
+          // ★ 24 小时是**方舟产物**的物理事实；真人档那边我们没量过留存，不许编一个数
+          //   （同 videoJobNote 里那条 ★★）
+          err: flat
+            ? t`第 ${idx + 1} 段${msg.slice(0, 150)}点下面那颗「取回」把它领回来，不再花一分钱；「重新生成」是重新下一单、会再花一次。`
+            : t`第 ${idx + 1} 段${msg.slice(0, 150)}成片 24 小时内都能取回：点下面那颗「取回」，不再花一分钱；「重新生成」是重新下一单、会再花一次。`,
         });
         return false;
       }
@@ -2913,14 +2946,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   "过期的不给按钮"）。没受理过的那些 taskId 为空，这一行本来就是空转。
       if (taskId) dropVideoJob(taskId);
       // 失败也留在日志里：卡在哪一步、跑了多久，比一句"生成失败"有用得多
-      log.fail(`失败：${msg.slice(0, 80)}`);
+      log.fail(t`失败：${msg.slice(0, 80)}`);
       patchNode({ status: "failed", progress: "", error: msg.slice(0, 160) });
       set(
         get().genRun === myRun
           ? {
               busy: false,
-              err: `第 ${idx + 1} 段生成失败：${msg.slice(0, 120)}`,
-              genNotice: { ok: false, msg: `第 ${idx + 1} 段生成失败` },
+              err: t`第 ${idx + 1} 段生成失败：${msg.slice(0, 120)}`,
+              genNotice: { ok: false, msg: t`第 ${idx + 1} 段生成失败` },
             }
           : {},
       );
@@ -2934,7 +2967,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
 
   takeJob: async (job, prog) => {
     const s0 = get();
-    if (s0.busy) throw new Error("正在忙别的，等这一步完了再取");
+    if (s0.busy) throw new Error(t`正在忙别的，等这一步完了再取`);
     const node = s0.nodes.find((n) => n.id === job.nodeId) ?? null;
     /**
      * 原来那一段那一套走向还在不在这条流水线里。

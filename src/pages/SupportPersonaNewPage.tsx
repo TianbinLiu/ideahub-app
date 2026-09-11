@@ -13,6 +13,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import ConfirmDialog from "../components/ConfirmDialog";
 import EmptyState from "../components/EmptyState";
 import Icon from "../components/Icon";
@@ -85,18 +88,18 @@ const BANNER_CLS: Record<WizardBanner["kind"], string> = {
   bad: "border-rose-500/40 bg-rose-500/10 text-rose-300",
 };
 
-const DRAFT_FIELD_LABEL: Record<PersonaDraftField, string> = {
-  name: "名字",
-  description: "简介",
-  tags: "标签",
-  summary: "说话风格",
-  catchphrases: "口头禅",
-  stanceHint: "立场倾向",
-  tone: "语气",
-  addressUser: "称呼",
-  greeting: "开场白",
-  examples: "示例对话",
-  boundaries: "边界",
+const DRAFT_FIELD_LABEL: Record<PersonaDraftField, MessageDescriptor> = {
+  name: msg`名字`,
+  description: msg`简介`,
+  tags: msg`标签`,
+  summary: msg`说话风格`,
+  catchphrases: msg`口头禅`,
+  stanceHint: msg`立场倾向`,
+  tone: msg`语气`,
+  addressUser: msg`称呼`,
+  greeting: msg`开场白`,
+  examples: msg`示例对话`,
+  boundaries: msg`边界`,
 };
 
 function Banner({ banner }: { banner: WizardBanner | null }) {
@@ -158,14 +161,15 @@ function StepBasics() {
   const [intro, setIntro] = useWizardField("intro");
   const [addressUser, setAddressUser] = useWizardField("addressUser");
   const [coverEmoji, setCoverEmoji] = useWizardField("coverEmoji");
+  const { t } = useLingui();
 
   return (
     <div className="space-y-4">
-      <Field label="叫什么名字">
-        <LimitedInput value={name} onChange={setName} max={PERSONA_LIMITS.name} placeholder="给这个人格起个名字" />
+      <Field label={t`叫什么名字`}>
+        <LimitedInput value={name} onChange={setName} max={PERSONA_LIMITS.name} placeholder={t`给这个人格起个名字`} />
       </Field>
 
-      <Field label="TA 是做什么的" hint="选一个大方向就行，后面 AI 会照着写。">
+      <Field label={t`TA 是做什么的`} hint={t`选一个大方向就行，后面 AI 会照着写。`}>
         <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
           {PERSONA_ROLES.map((r) => {
             const on = r.key === "custom" ? roleCustom : !roleCustom && role === r.label;
@@ -193,29 +197,29 @@ function StepBasics() {
           <input
             value={role}
             onChange={(e) => setRole(e.target.value.slice(0, 20))}
-            placeholder="比如「树洞」「陪练」「编剧搭子」"
+            placeholder={t`比如「树洞」「陪练」「编剧搭子」`}
             className={`mt-2 ${INPUT}`}
           />
         ) : (
           <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
-            {PERSONA_ROLES.find((r) => r.label === role)?.hint ?? "还没选。"}
+            {PERSONA_ROLES.find((r) => r.label === role)?.hint ?? t`还没选。`}
           </p>
         )}
       </Field>
 
-      <Field label="和你是什么关系" hint="朋友 / 学姐 / 助理 / 搭子…… 这一句会明显影响说话的分寸。">
-        <input value={relation} onChange={(e) => setRelation(e.target.value.slice(0, 40))} placeholder="比如「认识很久的朋友」" className={INPUT} />
+      <Field label={t`和你是什么关系`} hint={t`朋友 / 学姐 / 助理 / 搭子…… 这一句会明显影响说话的分寸。`}>
+        <input value={relation} onChange={(e) => setRelation(e.target.value.slice(0, 40))} placeholder={t`比如「认识很久的朋友」`} className={INPUT} />
       </Field>
 
-      <Field label="一句话简介">
-        <LimitedInput value={intro} onChange={setIntro} max={PERSONA_LIMITS.intro} placeholder="一句话说清 TA 是谁" rows={2} />
+      <Field label={t`一句话简介`}>
+        <LimitedInput value={intro} onChange={setIntro} max={PERSONA_LIMITS.intro} placeholder={t`一句话说清 TA 是谁`} rows={2} />
       </Field>
 
-      <Field label="TA 怎么称呼你">
-        <LimitedInput value={addressUser} onChange={setAddressUser} max={PERSONA_LIMITS.addressUser} placeholder="你 / 您 / 我的名字" />
+      <Field label={t`TA 怎么称呼你`}>
+        <LimitedInput value={addressUser} onChange={setAddressUser} max={PERSONA_LIMITS.addressUser} placeholder={t`你 / 您 / 我的名字`} />
       </Field>
 
-      <Field label="封面 emoji">
+      <Field label={t`封面 emoji`}>
         <div className="flex flex-wrap items-center gap-2">
           {PERSONA_COVER_EMOJIS.map((e) => (
             <button
@@ -230,7 +234,7 @@ function StepBasics() {
           <input
             value={coverEmoji}
             onChange={(e) => setCoverEmoji(e.target.value.slice(0, 4))}
-            aria-label="自己敲一个 emoji"
+            aria-label={t`自己敲一个 emoji`}
             className="h-10 w-16 rounded-xl border border-slate-700 bg-panel text-center text-xl text-slate-100 outline-none focus:border-brand"
           />
         </div>
@@ -251,22 +255,24 @@ function StepMaterials() {
   const fileRef = useRef<HTMLInputElement>(null);
   const total = materials.reduce((n, m) => n + m.chars, 0);
   const over = total - MATERIAL_TOTAL_MAX;
+  const { t } = useLingui();
 
   async function pickFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     setMaterialErr("");
     for (const file of Array.from(files)) {
-      setReading(`正在读 ${file.name}…`);
+      const fileName = file.name;
+      setReading(t`正在读 ${fileName}…`);
       try {
         const text = await file.text();
         if (!text.trim()) {
-          setMaterialErr(`${file.name} 里没有文字。`);
+          setMaterialErr(t`${fileName} 里没有文字。`);
           continue;
         }
         addMaterial(kind, file.name, text);
       } catch {
         // 读不出来要说是哪一个（一句「导入失败」在多选时等于没说）
-        setMaterialErr(`${file.name} 读不出来，换个纯文本文件试试。`);
+        setMaterialErr(t`${fileName} 读不出来，换个纯文本文件试试。`);
       }
     }
     setReading("");
@@ -276,10 +282,10 @@ function StepMaterials() {
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-emerald-200">
-        素材只用来生成这一次的人格，不入库、不公开，也不会出现在发布出去的人格卡里。
+        <Trans>素材只用来生成这一次的人格，不入库、不公开，也不会出现在发布出去的人格卡里。</Trans>
       </div>
 
-      <Field label="这是什么素材">
+      <Field label={t`这是什么素材`}>
         <div className="flex flex-wrap gap-2">
           {(Object.keys(MATERIAL_KIND_LABEL) as PersonaMaterialKind[]).map((k) => (
             <button key={k} type="button" onClick={() => setKind(k)} className={`${CHIP} ${k === kind ? CHIP_ON : CHIP_OFF}`}>
@@ -289,12 +295,12 @@ function StepMaterials() {
         </div>
       </Field>
 
-      <Field label="粘一段进来">
+      <Field label={t`粘一段进来`}>
         <textarea
           rows={5}
           value={paste}
           onChange={(e) => setPaste(e.target.value)}
-          placeholder="聊天记录、发过的文案、随手写的笔记都行"
+          placeholder={t`聊天记录、发过的文案、随手写的笔记都行`}
           className={TEXTAREA}
         />
         <div className="mt-2 flex items-center gap-2">
@@ -302,15 +308,15 @@ function StepMaterials() {
             type="button"
             disabled={!paste.trim()}
             onClick={() => {
-              addMaterial(kind, "粘贴的文本", paste);
+              addMaterial(kind, t`粘贴的文本`, paste);
               setPaste("");
             }}
             className={`flex-1 ${PRIMARY}`}
           >
-            加进来
+            <Trans>加进来</Trans>
           </button>
           <button type="button" onClick={() => fileRef.current?.click()} className={`flex-1 ${SECONDARY}`}>
-            选文件
+            <Trans>选文件</Trans>
           </button>
         </div>
         <input
@@ -321,7 +327,7 @@ function StepMaterials() {
           hidden
           onChange={(e) => void pickFiles(e.target.files)}
         />
-        <p className="mt-1 text-[11px] leading-relaxed text-slate-500">支持 {MATERIAL_FILE_ACCEPT} 这几种纯文本，可以一次选多个。</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-slate-500"><Trans>支持 {MATERIAL_FILE_ACCEPT} 这几种纯文本，可以一次选多个。</Trans></p>
       </Field>
 
       {reading && (
@@ -334,7 +340,7 @@ function StepMaterials() {
 
       {materials.length > 0 && (
         <div>
-          <div className={CARD_LABEL}>已经导入 {materials.length} 条，一共 {total} 字</div>
+          <div className={CARD_LABEL}><Trans>已经导入 {materials.length} 条，一共 {total} 字</Trans></div>
           <div className="space-y-2">
             {materials.map((m) => (
               <div key={m.id} className={`flex items-center gap-2 ${CARD}`}>
@@ -342,28 +348,28 @@ function StepMaterials() {
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm text-slate-100">{m.label}</div>
                   <div className="text-[11px] text-slate-500">
-                    {MATERIAL_KIND_LABEL[m.kind]} · {m.chars} 字
+                    <Trans>{MATERIAL_KIND_LABEL[m.kind]} · {m.chars} 字</Trans>
                   </div>
                 </div>
                 <button type="button" onClick={() => removeMaterial(m.id)} className={MINI}>
-                  删掉
+                  <Trans>删掉</Trans>
                 </button>
               </div>
             ))}
           </div>
           {over > 0 && (
             <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-300">
-              超出上限 {over} 字。送去分析时会从最前面截掉这一段，保留最近的 {MATERIAL_TOTAL_MAX} 字（越靠后越像现在的 TA）。
+              <Trans>超出上限 {over} 字。送去分析时会从最前面截掉这一段，保留最近的 {MATERIAL_TOTAL_MAX} 字（越靠后越像现在的 TA）。</Trans>
             </div>
           )}
         </div>
       )}
 
       {speakers.length > 0 && (
-        <Field label="哪个是 TA" hint="只把 TA 说的话送去分析，不然会把你自己的说话方式也学进去。">
+        <Field label={t`哪个是 TA`} hint={t`只把 TA 说的话送去分析，不然会把你自己的说话方式也学进去。`}>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => setSpeaker("")} className={`${CHIP} ${speaker === "" ? CHIP_ON : CHIP_OFF}`}>
-              不筛，全都要
+              <Trans>不筛，全都要</Trans>
             </button>
             {speakers.map((sp) => (
               <button
@@ -372,7 +378,7 @@ function StepMaterials() {
                 onClick={() => setSpeaker(sp.name)}
                 className={`${CHIP} ${speaker === sp.name ? CHIP_ON : CHIP_OFF}`}
               >
-                {sp.name} · {sp.lines} 条
+                <Trans>{sp.name} · {sp.lines} 条</Trans>
               </button>
             ))}
           </div>
@@ -380,7 +386,7 @@ function StepMaterials() {
       )}
 
       {materials.some((m) => m.kind === "chat") && speakers.length === 0 && (
-        <p className="text-[11px] leading-relaxed text-slate-500">没认出「谁在说话」，会把整段一起分析。</p>
+        <p className="text-[11px] leading-relaxed text-slate-500"><Trans>没认出「谁在说话」，会把整段一起分析。</Trans></p>
       )}
     </div>
   );
@@ -392,11 +398,12 @@ function StepQuiz() {
   const [customAddress, setCustomAddress] = useState("");
   const [customTaboo, setCustomTaboo] = useState("");
   const touched = questionnaireTouched(q);
+  const { t } = useLingui();
 
   return (
     <div className="space-y-4">
       <p className="text-xs leading-relaxed text-slate-400">
-        12 道题都有默认值，一道不动也能直接生成 —— 想调哪一项就调哪一项。已调整 {touched} 项。
+        <Trans>12 道题都有默认值，一道不动也能直接生成 —— 想调哪一项就调哪一项。已调整 {touched} 项。</Trans>
       </p>
 
       {PERSONA_QUESTIONS.map((def) => {
@@ -450,7 +457,7 @@ function StepQuiz() {
                     onClick={() => setQ({ ...q, [def.key]: customAddress || "" })}
                     className={`${CHIP} ${!known ? CHIP_ON : CHIP_OFF}`}
                   >
-                    自己写
+                    <Trans>自己写</Trans>
                   </button>
                 )}
               </div>
@@ -463,7 +470,7 @@ function StepQuiz() {
                     setCustomAddress(next);
                     setQ({ ...q, [def.key]: next });
                   }}
-                  placeholder="写一个称呼"
+                  placeholder={t`写一个称呼`}
                   className={`mt-2 ${INPUT}`}
                 />
               )}
@@ -508,7 +515,7 @@ function StepQuiz() {
               <input
                 value={customTaboo}
                 onChange={(e) => setCustomTaboo(e.target.value.slice(0, 30))}
-                placeholder="再加一条不聊的"
+                placeholder={t`再加一条不聊的`}
                 className={`flex-1 ${INPUT}`}
               />
               <button
@@ -520,7 +527,7 @@ function StepQuiz() {
                 }}
                 className={`${SECONDARY} px-4`}
               >
-                加
+                <Trans>加</Trans>
               </button>
             </div>
           </div>
@@ -540,17 +547,18 @@ function DraftRow({
   children: ReactNode;
   busyField: PersonaDraftField | null;
 }) {
+  const { t } = useLingui();
   return (
     <div className="border-t border-slate-700/60 py-2.5 first:border-t-0 first:pt-0">
       <div className="mb-1 flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-slate-300">{DRAFT_FIELD_LABEL[field]}</span>
+        <span className="text-xs font-semibold text-slate-300">{t(DRAFT_FIELD_LABEL[field])}</span>
         <button
           type="button"
           disabled={busyField !== null}
           onClick={() => void runGeneratePersona({ only: [field] })}
           className={`${MINI} shrink-0`}
         >
-          {busyField === field ? "换着…" : "只换这个"}
+          {busyField === field ? t`换着…` : t`只换这个`}
         </button>
       </div>
       <div className="text-sm leading-relaxed text-slate-100">{children}</div>
@@ -568,30 +576,31 @@ function StepGenerate() {
   const analysis = usePersonaWizard(analysisUsed);
   const blocked = usePersonaWizard(generateBlockedReason);
   const mats = usePersonaWizard((s) => s.materials.length);
+  const { t } = useLingui();
 
   // ★ 整份生成时才铺满屏的载入态；「只换这个」只让那一行转圈，不该把已经读到一半的草稿抽走
   if (genBusy && !genOnly) {
-    return <EmptyState loading text={genBusy} hint="可以退出这一页，跑完会有通知。" />;
+    return <EmptyState loading text={genBusy} hint={t`可以退出这一页，跑完会有通知。`} />;
   }
 
   if (!draft) {
     return (
       <div className="space-y-3">
         <div className={CARD}>
-          <div className={CARD_LABEL}>这一次会拿什么去写</div>
+          <div className={CARD_LABEL}><Trans>这一次会拿什么去写</Trans></div>
           <ul className="space-y-1 text-xs leading-relaxed text-slate-400">
-            <li>· 基本设定：{blocked ? "还没填" : "已填"}</li>
-            <li>· 素材：{mats > 0 ? `${mats} 条，${materialChars()} 字` : "没有（跳过了）"}</li>
-            <li>· 问卷：12 项（没动过的用默认值）</li>
+            <li>{blocked ? t`· 基本设定：还没填` : t`· 基本设定：已填`}</li>
+            <li>{mats > 0 ? t`· 素材：${mats} 条，${materialChars()} 字` : t`· 素材：没有（跳过了）`}</li>
+            <li><Trans>· 问卷：12 项（没动过的用默认值）</Trans></li>
           </ul>
         </div>
         <ErrLine text={blocked || genErr} />
         <button type="button" disabled={!!blocked} onClick={() => void runGeneratePersona()} className={`flex w-full items-center justify-center gap-1.5 ${PRIMARY}`}>
           <Icon name="sparkle" size={16} />
-          让 AI 写一版
+          <Trans>让 AI 写一版</Trans>
         </button>
         <p className="text-[11px] leading-relaxed text-slate-500">
-          有素材的话会先分析一遍再写，慢一点；分析结果留着，后面重写不用再读一次素材。
+          <Trans>有素材的话会先分析一遍再写，慢一点；分析结果留着，后面重写不用再读一次素材。</Trans>
         </p>
       </div>
     );
@@ -605,8 +614,8 @@ function StepGenerate() {
         <div className="mb-2 flex items-center gap-2">
           <span className="text-2xl leading-none">{draft.coverEmoji || "🎭"}</span>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-bold text-slate-100">{draft.name || "（还没有名字）"}</div>
-            <div className="truncate text-[11px] text-slate-500">{analysis ? "读过你的素材" : "只按设定和问卷写的"}</div>
+            <div className="truncate text-sm font-bold text-slate-100">{draft.name || t`（还没有名字）`}</div>
+            <div className="truncate text-[11px] text-slate-500">{analysis ? t`读过你的素材` : t`只按设定和问卷写的`}</div>
           </div>
         </div>
         <DraftRow field="name" busyField={genOnly}>
@@ -618,9 +627,9 @@ function StepGenerate() {
         <DraftRow field="tags" busyField={genOnly}>
           {draft.tags.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
-              {draft.tags.map((t) => (
-                <span key={t} className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
-                  #{t}
+              {draft.tags.map((tag) => (
+                <span key={tag} className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
+                  #{tag}
                 </span>
               ))}
             </div>
@@ -648,7 +657,7 @@ function StepGenerate() {
             <div className="space-y-1.5">
               {st.examples.map((ex, i) => (
                 <div key={i} className="rounded-xl bg-slate-900 p-2">
-                  <div className="text-[11px] text-slate-500">你：{ex.user}</div>
+                  <div className="text-[11px] text-slate-500"><Trans>你：{ex.user}</Trans></div>
                   <div className="mt-0.5 text-sm text-slate-200">{ex.reply}</div>
                 </div>
               ))}
@@ -663,7 +672,7 @@ function StepGenerate() {
       </section>
 
       <button type="button" disabled={genOnly !== null} onClick={() => void runGeneratePersona()} className={`w-full ${SECONDARY}`}>
-        整体再来一版
+        <Trans>整体再来一版</Trans>
       </button>
     </div>
   );
@@ -678,6 +687,7 @@ function StepPreview({ onBackToGenerate }: { onBackToGenerate: () => void }) {
   const rounds = usePersonaWizard(previewRounds);
   const [text, setText] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
+  const { t } = useLingui();
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
@@ -689,11 +699,11 @@ function StepPreview({ onBackToGenerate }: { onBackToGenerate: () => void }) {
   return (
     <div className="space-y-3">
       <p className="text-xs leading-relaxed text-slate-400">
-        拿这份草稿聊几句看看像不像。聊 {PREVIEW_ROUNDS_MAX} 轮，已经聊了 {rounds} 轮。
+        <Trans>拿这份草稿聊几句看看像不像。聊 {PREVIEW_ROUNDS_MAX} 轮，已经聊了 {rounds} 轮。</Trans>
       </p>
 
       <div ref={listRef} className="max-h-[46vh] space-y-2 overflow-y-auto">
-        {chat.length === 0 && <p className="py-6 text-center text-xs text-slate-500">发一句试试，比如「你好呀」。</p>}
+        {chat.length === 0 && <p className="py-6 text-center text-xs text-slate-500"><Trans>发一句试试，比如「你好呀」。</Trans></p>}
         {chat.map((m) => (
           <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
@@ -722,7 +732,7 @@ function StepPreview({ onBackToGenerate }: { onBackToGenerate: () => void }) {
           //   而这是一个可以粘贴的框 —— 粘一篇文章进来是很自然的事
           onChange={(e) => setText(e.target.value.slice(0, PERSONA_LIMITS.chatMessage))}
           disabled={full || !draft}
-          placeholder={full ? `已经聊满 ${PREVIEW_ROUNDS_MAX} 轮了` : "说点什么"}
+          placeholder={full ? t`已经聊满 ${PREVIEW_ROUNDS_MAX} 轮了` : t`说点什么`}
           className={`flex-1 ${TEXTAREA} disabled:opacity-40`}
         />
         {/* ★ 在途时这颗键换成「停下」（调已经写好、此前全仓没人调过的 abortPreview）：SSE 那条现在虽然
@@ -734,7 +744,7 @@ function StepPreview({ onBackToGenerate }: { onBackToGenerate: () => void }) {
             className="flex items-center gap-1.5 rounded-full border border-slate-600 px-4 py-2.5 text-xs font-bold text-slate-300"
           >
             <Spinner size="xs" />
-            停下
+            <Trans>停下</Trans>
           </button>
         ) : (
           <button
@@ -747,7 +757,7 @@ function StepPreview({ onBackToGenerate }: { onBackToGenerate: () => void }) {
             className={`flex items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-xs font-bold text-ink disabled:opacity-40`}
           >
             <Icon name="send" size={14} />
-            发
+            <Trans>发</Trans>
           </button>
         )}
       </div>
@@ -756,10 +766,10 @@ function StepPreview({ onBackToGenerate }: { onBackToGenerate: () => void }) {
         {/* ★ 聊满 5 轮之后此前没有任何出路：输入框永久禁用，而「回去重生成」不清 chat（重生成整份草稿
             现在会顺手清掉，但用户也该能就地重来一次） */}
         <button type="button" disabled={chat.length === 0} onClick={() => clearPreview()} className={`flex-1 ${SECONDARY} disabled:opacity-40`}>
-          清空重聊
+          <Trans>清空重聊</Trans>
         </button>
         <button type="button" onClick={onBackToGenerate} className={`flex-1 ${SECONDARY}`}>
-          不太像，回去重生成
+          <Trans>不太像，回去重生成</Trans>
         </button>
       </div>
     </div>
@@ -782,6 +792,7 @@ function StringList({
   onChange: (next: string[]) => void;
 }) {
   const [draft, setDraft] = useState("");
+  const { t } = useLingui();
   const full = items.length >= max;
   return (
     <div>
@@ -794,18 +805,18 @@ function StringList({
               className={`flex-1 ${INPUT}`}
             />
             <button type="button" onClick={() => onChange(items.filter((_, k) => k !== i))} className={MINI}>
-              删
+              <Trans>删</Trans>
             </button>
           </div>
         ))}
       </div>
-      {items.some((v) => v.length > maxLen) && <ErrLine text={`有一条超过 ${maxLen} 字了，发布会被服务端拒掉。`} />}
+      {items.some((v) => v.length > maxLen) && <ErrLine text={t`有一条超过 ${maxLen} 字了，发布会被服务端拒掉。`} />}
       <div className="mt-2 flex gap-2">
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           disabled={full}
-          placeholder={full ? `最多 ${max} 条，已经满了` : placeholder}
+          placeholder={full ? t`最多 ${max} 条，已经满了` : placeholder}
           className={`flex-1 ${INPUT} disabled:opacity-40`}
         />
         <button
@@ -817,7 +828,7 @@ function StringList({
           }}
           className={`${SECONDARY} px-4`}
         >
-          加
+          <Trans>加</Trans>
         </button>
       </div>
     </div>
@@ -827,16 +838,17 @@ function StringList({
 function StepTune() {
   const draft = usePersonaWizard((s) => s.draft);
   const [coverEmoji, setCoverEmoji] = useWizardField("coverEmoji");
-  if (!draft) return <EmptyState emoji="🎭" text="还没有草稿。" hint="回到「生成」那一步先让 AI 写一版。" />;
+  const { t } = useLingui();
+  if (!draft) return <EmptyState emoji="🎭" text={t`还没有草稿。`} hint={t`回到「生成」那一步先让 AI 写一版。`} />;
   const st = draft.style;
 
   return (
     <div className="space-y-4">
-      <Field label={DRAFT_FIELD_LABEL.name}>
+      <Field label={t(DRAFT_FIELD_LABEL.name)}>
         <LimitedInput value={draft.name} onChange={(v) => patchDraft({ name: v })} max={PERSONA_LIMITS.name} />
       </Field>
 
-      <Field label="封面 emoji">
+      <Field label={t`封面 emoji`}>
         <div className="flex flex-wrap items-center gap-2">
           {PERSONA_COVER_EMOJIS.map((e) => (
             <button
@@ -854,11 +866,11 @@ function StepTune() {
         </div>
       </Field>
 
-      <Field label={DRAFT_FIELD_LABEL.description}>
+      <Field label={t(DRAFT_FIELD_LABEL.description)}>
         <LimitedInput value={draft.description} onChange={(v) => patchDraft({ description: v })} max={PERSONA_LIMITS.description} rows={2} />
       </Field>
 
-      <Field label={DRAFT_FIELD_LABEL.tags} hint="让别人在人格市场里搜得到。">
+      <Field label={t(DRAFT_FIELD_LABEL.tags)} hint={t`让别人在人格市场里搜得到。`}>
         <TagInput
           tags={draft.tags}
           onChange={(next) => patchDraft({ tags: next })}
@@ -868,50 +880,50 @@ function StepTune() {
         />
       </Field>
 
-      <Field label={DRAFT_FIELD_LABEL.summary}>
+      <Field label={t(DRAFT_FIELD_LABEL.summary)}>
         <LimitedInput value={st.summary} onChange={(v) => patchStyle({ summary: v })} max={PERSONA_LIMITS.summary} rows={4} />
       </Field>
 
-      <Field label={DRAFT_FIELD_LABEL.catchphrases} hint={`每条 ${PERSONA_LIMITS.catchphrase} 字以内，最多 ${PERSONA_LIMITS.catchphrases} 条。`}>
+      <Field label={t(DRAFT_FIELD_LABEL.catchphrases)} hint={t`每条 ${PERSONA_LIMITS.catchphrase} 字以内，最多 ${PERSONA_LIMITS.catchphrases} 条。`}>
         <StringList
           items={st.catchphrases}
           max={PERSONA_LIMITS.catchphrases}
           maxLen={PERSONA_LIMITS.catchphrase}
-          placeholder="再加一句口头禅"
+          placeholder={t`再加一句口头禅`}
           onChange={(next) => patchStyle({ catchphrases: next })}
         />
       </Field>
 
-      <Field label={DRAFT_FIELD_LABEL.tone}>
-        <LimitedInput value={st.tone ?? ""} onChange={(v) => patchStyle({ tone: v })} max={PERSONA_LIMITS.tone} rows={2} placeholder="慢热、爱用省略号、生气也不飙脏话" />
+      <Field label={t(DRAFT_FIELD_LABEL.tone)}>
+        <LimitedInput value={st.tone ?? ""} onChange={(v) => patchStyle({ tone: v })} max={PERSONA_LIMITS.tone} rows={2} placeholder={t`慢热、爱用省略号、生气也不飙脏话`} />
       </Field>
 
-      <Field label={DRAFT_FIELD_LABEL.addressUser}>
+      <Field label={t(DRAFT_FIELD_LABEL.addressUser)}>
         <LimitedInput value={st.addressUser ?? ""} onChange={(v) => patchStyle({ addressUser: v })} max={PERSONA_LIMITS.addressUser} />
       </Field>
 
-      <Field label={DRAFT_FIELD_LABEL.greeting}>
+      <Field label={t(DRAFT_FIELD_LABEL.greeting)}>
         <LimitedInput value={st.greeting ?? ""} onChange={(v) => patchStyle({ greeting: v })} max={PERSONA_LIMITS.greeting} rows={2} />
       </Field>
 
-      <Field label={DRAFT_FIELD_LABEL.stanceHint}>
+      <Field label={t(DRAFT_FIELD_LABEL.stanceHint)}>
         {/* ★ stanceHint 的服务端上限是 500，不是 summary 那个 2000（见 PERSONA_LIMITS.stanceHint 的 ★） */}
         <LimitedInput value={st.stanceHint} onChange={(v) => patchStyle({ stanceHint: v })} max={PERSONA_LIMITS.stanceHint} rows={2} />
       </Field>
 
-      <Field label={DRAFT_FIELD_LABEL.examples} hint={`一组一问一答，最多 ${PERSONA_LIMITS.examples} 组、每句 ${PERSONA_LIMITS.example} 字以内。`}>
+      <Field label={t(DRAFT_FIELD_LABEL.examples)} hint={t`一组一问一答，最多 ${PERSONA_LIMITS.examples} 组、每句 ${PERSONA_LIMITS.example} 字以内。`}>
         <ExampleList
           items={st.examples ?? []}
           onChange={(next) => patchStyle({ examples: next })}
         />
       </Field>
 
-      <Field label={DRAFT_FIELD_LABEL.boundaries} hint={`TA 自己不聊的东西。平台的安全底线是另外固定注入的，不用写在这里。`}>
+      <Field label={t(DRAFT_FIELD_LABEL.boundaries)} hint={t`TA 自己不聊的东西。平台的安全底线是另外固定注入的，不用写在这里。`}>
         <StringList
           items={st.boundaries ?? []}
           max={PERSONA_LIMITS.boundaries}
           maxLen={PERSONA_LIMITS.boundary}
-          placeholder="比如「不聊前任」"
+          placeholder={t`比如「不聊前任」`}
           onChange={(next) => patchStyle({ boundaries: next })}
         />
       </Field>
@@ -928,6 +940,7 @@ function ExampleList({
   onChange: (next: Array<{ user: string; reply: string }>) => void;
 }) {
   const full = items.length >= PERSONA_LIMITS.examples;
+  const { t } = useLingui();
   const over = items.some((e) => e.user.length > PERSONA_LIMITS.example || e.reply.length > PERSONA_LIMITS.example);
   // ★ 只判"太长"不判"没填完"是不够的：服务端 exampleSchema 对 user / reply 都是 min(1)。
   //   送出去那一拍由 `draftForServer` 统一滤掉，这里只把"你有一组没填完"说出来 ——
@@ -939,31 +952,31 @@ function ExampleList({
         <div key={i} className={CARD}>
           <div className="mb-1.5 flex items-center justify-between">
             <span className="text-[11px] text-slate-500">
-              第 {i + 1} 组{exampleFilled(ex) ? "" : " · 还没填完"}
+              {exampleFilled(ex) ? <Trans>第 {i + 1} 组</Trans> : <Trans>第 {i + 1} 组 · 还没填完</Trans>}
             </span>
             <button type="button" onClick={() => onChange(items.filter((_, k) => k !== i))} className={MINI}>
-              删
+              <Trans>删</Trans>
             </button>
           </div>
           <input
             value={ex.user}
             onChange={(e) => onChange(items.map((x, k) => (k === i ? { ...x, user: e.target.value } : x)))}
-            placeholder="用户说"
+            placeholder={t`用户说`}
             className={`${INPUT} mb-2`}
           />
           <textarea
             rows={2}
             value={ex.reply}
             onChange={(e) => onChange(items.map((x, k) => (k === i ? { ...x, reply: e.target.value } : x)))}
-            placeholder="TA 回"
+            placeholder={t`TA 回`}
             className={TEXTAREA}
           />
         </div>
       ))}
-      {over && <ErrLine text={`有一句超过 ${PERSONA_LIMITS.example} 字了，发布会被服务端拒掉。`} />}
+      {over && <ErrLine text={t`有一句超过 ${PERSONA_LIMITS.example} 字了，发布会被服务端拒掉。`} />}
       {blanks.length > 0 && (
         <p className="text-xs leading-relaxed text-amber-300">
-          第 {blanks.join(" / ")} 组还没填完 —— 试聊和发布时这几组会被丢掉（一问一答缺一边的示例喂不了模型）。
+          <Trans>第 {blanks.join(" / ")} 组还没填完 —— 试聊和发布时这几组会被丢掉（一问一答缺一边的示例喂不了模型）。</Trans>
         </p>
       )}
       <button
@@ -972,7 +985,7 @@ function ExampleList({
         onClick={() => onChange([...items, { user: "", reply: "" }])}
         className={`w-full ${SECONDARY}`}
       >
-        {full ? `最多 ${PERSONA_LIMITS.examples} 组，已经满了` : "加一组"}
+        {full ? t`最多 ${PERSONA_LIMITS.examples} 组，已经满了` : t`加一组`}
       </button>
     </div>
   );
@@ -991,12 +1004,17 @@ function StepPublish() {
   // ★ 装备的在途 / 回执活在 store 里（见 personaWizardStore 的 `equipBusy` ★）：点完就退出去也不会静默丢掉
   const equipBusy = usePersonaWizard((s) => s.equipBusy);
   const equipMsg = usePersonaWizard((s) => s.equipMsg);
+  const { t } = useLingui();
 
   if (published) {
     return (
       <div className="space-y-3">
         <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-emerald-200">
-          「{published.name}」做好了。{shared ? "已经公开到人格市场。" : "只有你自己能看到（没公开）。"}
+          {shared ? (
+            <Trans>「{published.name}」做好了。已经公开到人格市场。</Trans>
+          ) : (
+            <Trans>「{published.name}」做好了。只有你自己能看到（没公开）。</Trans>
+          )}
         </div>
         {equipMsg && <div className={`rounded-lg border px-3 py-2 text-xs leading-relaxed ${BANNER_CLS[equipMsg.kind]}`}>{equipMsg.text}</div>}
         <button
@@ -1005,7 +1023,7 @@ function StepPublish() {
           onClick={() => void equipPublishedPersona()}
           className={`w-full ${PRIMARY}`}
         >
-          {equipBusy ? "装上中…" : "装备为当前人格"}
+          {equipBusy ? t`装上中…` : t`装备为当前人格`}
         </button>
         <div className="flex gap-2">
           <button
@@ -1015,46 +1033,46 @@ function StepPublish() {
             }}
             className={`flex-1 ${SECONDARY}`}
           >
-            再做一个
+            <Trans>再做一个</Trans>
           </button>
           <button type="button" onClick={() => navigate("/support/personas", { replace: true })} className={`flex-1 ${SECONDARY}`}>
-            去人格市场
+            <Trans>去人格市场</Trans>
           </button>
         </div>
       </div>
     );
   }
 
-  if (!draft) return <EmptyState emoji="🎭" text="还没有草稿。" hint="回到「生成」那一步先让 AI 写一版。" />;
+  if (!draft) return <EmptyState emoji="🎭" text={t`还没有草稿。`} hint={t`回到「生成」那一步先让 AI 写一版。`} />;
 
   const price = Math.min(PERSONA_LIMITS.price, Math.max(0, Math.round(Number(priceText) || 0)));
   const priceBad = priceText.trim() !== "" && !Number.isFinite(Number(priceText));
 
   return (
     <div className="space-y-4">
-      <Field label="谁能看到">
+      <Field label={t`谁能看到`}>
         <div className="flex rounded-xl bg-panel p-1">
           <button
             type="button"
             onClick={() => setShared(false)}
             className={`flex-1 rounded-lg py-2 text-sm ${!shared ? "bg-brand font-semibold text-ink" : "text-slate-300"}`}
           >
-            只有我
+            <Trans>只有我</Trans>
           </button>
           <button
             type="button"
             onClick={() => setShared(true)}
             className={`flex-1 rounded-lg py-2 text-sm ${shared ? "bg-brand font-semibold text-ink" : "text-slate-300"}`}
           >
-            公开到市场
+            <Trans>公开到市场</Trans>
           </button>
         </div>
         <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
-          {shared ? "别人能在人格市场里搜到、装上用；署你的名。" : "只有你自己能装上用，市场里搜不到。"}
+          {shared ? t`别人能在人格市场里搜到、装上用；署你的名。` : t`只有你自己能装上用，市场里搜不到。`}
         </p>
       </Field>
 
-      <Field label="标价" hint="0 = 免费。App 里没有支付，付费人格的购买目前只在官网。">
+      <Field label={t`标价`} hint={t`0 = 免费。App 里没有支付，付费人格的购买目前只在官网。`}>
         <input
           value={priceText}
           onChange={(e) => setPriceText(e.target.value)}
@@ -1063,21 +1081,16 @@ function StepPublish() {
           className={INPUT}
         />
         {priceBad ? (
-          <ErrLine text="这里只能填数字。" />
+          <ErrLine text={t`这里只能填数字。`} />
         ) : (
-          <p className="mt-1 text-[11px] text-slate-500">会按 {price} 积分发布（0~{PERSONA_LIMITS.price} 的整数）。</p>
+          <p className="mt-1 text-[11px] text-slate-500"><Trans>会按 {price} 积分发布（0~{PERSONA_LIMITS.price} 的整数）。</Trans></p>
         )}
       </Field>
 
       <label className={`flex items-start gap-2.5 ${CARD}`}>
         <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 accent-brand" />
         <span className="text-xs leading-relaxed text-slate-300">
-          我确认：
-          <br />· 这份人格的内容是我自己写的，或者我已经获得授权；
-          <br />· 不冒充真实存在的人（公众人物、认识的人都算）；
-          <br />· 没有把别人的隐私（聊天记录里的手机号、住址、病情之类）放进去。
-          <br />
-          <span className="text-slate-500">违规的内容会被下架，情节严重的可能封号。</span>
+          <Trans>我确认：<br />· 这份人格的内容是我自己写的，或者我已经获得授权；<br />· 不冒充真实存在的人（公众人物、认识的人都算）；<br />· 没有把别人的隐私（聊天记录里的手机号、住址、病情之类）放进去。<br /><span className="text-slate-500">违规的内容会被下架，情节严重的可能封号。</span></Trans>
         </span>
       </label>
 
@@ -1089,9 +1102,9 @@ function StepPublish() {
         onClick={() => void publishPersona()}
         className={`w-full ${PRIMARY}`}
       >
-        {pubBusy ? "发布中…" : shared ? "发布到市场" : "保存为我的人格"}
+        {pubBusy ? t`发布中…` : shared ? t`发布到市场` : t`保存为我的人格`}
       </button>
-      {!agreed && <p className="text-[11px] leading-relaxed text-slate-500">先勾上上面那三条才能发布。</p>}
+      {!agreed && <p className="text-[11px] leading-relaxed text-slate-500"><Trans>先勾上上面那三条才能发布。</Trans></p>}
     </div>
   );
 }
@@ -1106,6 +1119,7 @@ export default function SupportPersonaNewPage() {
   const busy = usePersonaWizard(wizardBusy);
   const published = usePersonaWizard((s) => s.published);
   const [askReset, setAskReset] = useState(false);
+  const { t } = useLingui();
 
   // ★ 结局分叉靠它：页在 → 就地画；页不在 → data/jobs 的胶囊通知（store 文件头 ★★）
   useEffect(() => {
@@ -1130,6 +1144,7 @@ export default function SupportPersonaNewPage() {
 
   const prev = idx > 0 ? PERSONA_STEPS[idx - 1].key : null;
   const next = idx < PERSONA_STEPS.length - 1 ? PERSONA_STEPS[idx + 1].key : null;
+  const stepLabel = t(PERSONA_STEPS[idx].label);
 
   return (
     <div className="min-h-full px-4 pb-10">
@@ -1137,12 +1152,12 @@ export default function SupportPersonaNewPage() {
         sticky
         inset
         onBack={back}
-        title="制作人格"
-        subtitle={`第 ${idx + 1} / ${PERSONA_STEPS.length} 步 · ${PERSONA_STEPS[idx].label}`}
+        title={t`制作人格`}
+        subtitle={t`第 ${idx + 1} / ${PERSONA_STEPS.length} 步 · ${stepLabel}`}
         right={
           dirty && !published ? (
             <button type="button" disabled={busy} onClick={() => setAskReset(true)} className={`${MINI} shrink-0`}>
-              重新开始
+              <Trans>重新开始</Trans>
             </button>
           ) : undefined
         }
@@ -1161,13 +1176,13 @@ export default function SupportPersonaNewPage() {
               onClick={() => go(s.key)}
               className={`${CHIP} shrink-0 disabled:opacity-40 ${on ? CHIP_ON : CHIP_OFF}`}
             >
-              {i + 1}. {s.label}
+              {i + 1}. {t(s.label)}
             </button>
           );
         })}
       </div>
       {!hasDraft && (step === "basics" || step === "materials" || step === "quiz") && (
-        <p className="mb-3 text-[11px] leading-relaxed text-slate-500">试聊、微调、发布三步要先生成出草稿才能进。</p>
+        <p className="mb-3 text-[11px] leading-relaxed text-slate-500"><Trans>试聊、微调、发布三步要先生成出草稿才能进。</Trans></p>
       )}
 
       <Banner banner={banner} />
@@ -1184,12 +1199,12 @@ export default function SupportPersonaNewPage() {
         <div className="mt-6 flex gap-2">
           {prev && (
             <button type="button" onClick={() => go(prev)} className={`flex-1 ${SECONDARY}`}>
-              上一步
+              <Trans>上一步</Trans>
             </button>
           )}
           {next && (
             <button type="button" disabled={!reachable(next)} onClick={() => go(next)} className={`flex-1 ${PRIMARY}`}>
-              {step === "materials" ? "跳过 / 下一步" : "下一步"}
+              {step === "materials" ? t`跳过 / 下一步` : t`下一步`}
             </button>
           )}
         </div>
@@ -1197,8 +1212,8 @@ export default function SupportPersonaNewPage() {
 
       {askReset && (
         <ConfirmDialog
-          title="重新开始？"
-          confirmLabel="清空"
+          title={t`重新开始？`}
+          confirmLabel={t`清空`}
           danger
           onClose={() => setAskReset(false)}
           onConfirm={() => {
@@ -1206,7 +1221,7 @@ export default function SupportPersonaNewPage() {
             setAskReset(false);
           }}
         >
-          填过的设定、导入的素材、生成出来的草稿和试聊记录都会清掉，回到第一步。已经发布出去的人格不受影响。
+          <Trans>填过的设定、导入的素材、生成出来的草稿和试聊记录都会清掉，回到第一步。已经发布出去的人格不受影响。</Trans>
         </ConfirmDialog>
       )}
     </div>

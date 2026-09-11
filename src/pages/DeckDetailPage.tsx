@@ -1,6 +1,7 @@
 // 卡组详情页：标题/简介/封面卡 + 卡片网格（点卡进卡片详情）。
 // 内置编辑模式：改标题、写简介、设封面卡、增删卡——工坊列表里的"编辑"也跳这里。
 import { useState } from "react";
+import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { Link, useNavigate, useParams } from "react-router";
@@ -19,13 +20,14 @@ export default function DeckDetailPage() {
   const nav = useNavigate();
   const [editing, setEditing] = useState(false);
   useCountView("deck", id);
+  const { t } = useLingui();
   const deck = myDecks().find((d) => d.id === id) ?? null;
   const cards = myCards();
   const heat = heatOf("deck", deck?.id ?? "");
 
   if (!deck) {
     return (
-      <EmptyState full icon="cards" text="卡组不存在或不属于你" cta={{ label: "去创意工坊", to: "/workshop", primary: true }} />
+      <EmptyState full icon="cards" text={t`卡组不存在或不属于你`} cta={{ label: t`去创意工坊`, to: "/workshop", primary: true }} />
     );
   }
 
@@ -36,13 +38,13 @@ export default function DeckDetailPage() {
     <div className="min-h-full px-4 pb-10">
       <PageHeader sticky inset
         onBack={() => nav(-1)}
-        title="卡组详情"
+        title={t`卡组详情`}
         right={
           <button
             onClick={() => setEditing((v) => !v)}
             className={`flex-none rounded-full px-3.5 py-1.5 text-xs font-semibold ${editing ? "bg-brand text-ink" : "bg-panel text-slate-200"}`}
           >
-            {editing ? "完成" : "✏️ 编辑"}
+            {editing ? t`完成` : t`✏️ 编辑`}
           </button>
         }
       />
@@ -51,7 +53,7 @@ export default function DeckDetailPage() {
       <div className="mb-4 flex gap-3">
         <div className="w-24 flex-none">
           {cover ? (
-            <TarotCard cover={cover.cover} title={cover.name} sub="封面卡" type={cover.type} />
+            <TarotCard cover={cover.cover} title={cover.name} sub={t`封面卡`} type={cover.type} />
           ) : (
             <div className="flex aspect-[2/3] items-center justify-center rounded-xl bg-panel text-2xl">🎴</div>
           )}
@@ -63,11 +65,11 @@ export default function DeckDetailPage() {
                 value={deck.name}
                 onChange={(e) => updateDeck(deck.id, { name: e.target.value })}
                 onBlur={(e) => {
-                  if (!e.target.value.trim()) updateDeck(deck.id, { name: "未命名卡组" });
+                  if (!e.target.value.trim()) updateDeck(deck.id, { name: t`未命名卡组` });
                 }}
                 maxLength={24}
                 className="mb-2 w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-base font-bold text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
-                placeholder="卡组标题"
+                placeholder={t`卡组标题`}
               />
               <textarea
                 value={deck.intro ?? ""}
@@ -75,20 +77,20 @@ export default function DeckDetailPage() {
                 maxLength={SHARE_NOTE_MAX}
                 rows={3}
                 className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
-                placeholder="写一段卡组简介：这套卡适合生成什么样的视频？"
+                placeholder={t`写一段卡组简介：这套卡适合生成什么样的视频？`}
               />
             </>
           ) : (
             <>
               <h2 className="mb-1 text-lg font-bold text-slate-100">{deck.name}</h2>
               <p className="text-xs leading-relaxed text-slate-400">
-                {deck.intro?.trim() || "还没有简介——点右上角「编辑」写一段。"}
+                {deck.intro?.trim() || t`还没有简介——点右上角「编辑」写一段。`}
               </p>
               <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-500">
-                <span>{deck.cardIds.length} 张卡</span>
+                <span><Trans>{deck.cardIds.length} 张卡</Trans></span>
                 {/* 热度：远端模式是服务端算的全局值，离线/老服务端退回本机计数并说明 */}
                 <span className="text-gold">🔥 {formatHeat(heat.heat)}</span>
-                {heat.source === "local" && <span className="text-slate-600">本机计数</span>}
+                {heat.source === "local" && <span className="text-slate-600"><Trans>本机计数</Trans></span>}
               </div>
             </>
           )}
@@ -109,7 +111,7 @@ export default function DeckDetailPage() {
       {/* 卡片网格：查看态点卡进详情；编辑态点卡加入/移出、可设封面 */}
       {editing ? (
         <>
-          <div className="mb-1.5 text-[11px] text-slate-400">点击卡片加入/移出 · 组内卡片左上角可设为封面</div>
+          <div className="mb-1.5 text-[11px] text-slate-400"><Trans>点击卡片加入/移出 · 组内卡片左上角可设为封面</Trans></div>
           <div className="grid grid-cols-3 gap-2.5">
             {cards.map((c) => {
               const on = deck.cardIds.includes(c.id);
@@ -133,7 +135,7 @@ export default function DeckDetailPage() {
                         isCover ? "bg-gold text-ink" : "bg-black/65 text-slate-200"
                       }`}
                     >
-                      {isCover ? "★ 封面" : "设封面"}
+                      {isCover ? t`★ 封面` : t`设封面`}
                     </button>
                   )}
                 </div>
@@ -150,7 +152,7 @@ export default function DeckDetailPage() {
           ))}
         </div>
       ) : (
-        <EmptyState emoji="🃏" text="空卡组" hint="点右上角「编辑」挑几张卡进来" />
+        <EmptyState emoji="🃏" text={t`空卡组`} hint={t`点右上角「编辑」挑几张卡进来`} />
       )}
 
       <SocialPanel kind="deck" id={deck.id} />

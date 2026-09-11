@@ -27,6 +27,50 @@ export interface Shot {
   note?: string;
   /** 原文件名，只为让用户认得出自己传的是哪张 */
   fileName: string;
+  /** 这张是「只留主体」层抠出来的（道具卡专用）。换卡种时据此取下：抠好的道具主体当不了场景的全景 */
+  via?: "subject";
+  /**
+   * 第 1 格描不出轮廓时选了「保留框内背景」（拍板 4 b）。有它就在格子上挂「带背景」、铸卡键下摆风险句。
+   * ★ 挂在 Shot 上而不是页面 state：图被取下（换卡种、重选）时这一位自然跟着走，不会留下一句说错了的提示。
+   */
+  keptBg?: true;
+}
+
+/** 源像素里的一块矩形（与 blockout/arkVideoRules 的 CropRect、utils/image 的 PixelBox 同形；
+ *  store 不认组件层，就地写形状） */
+type SrcBox = { x: number; y: number; w: number; h: number };
+
+/**
+ * 道具卡「只留主体」层（components/PhotoSubjectPicker）正在处理的那张图。
+ * ★ 放在 store 里的理由同文件头：描到一半切走再回来，框、轮廓、预览原样还在。
+ * ★ 坐标一律是**源像素**（utils/image.loadSubjectSource 把长边压到 4096 之后那张图的坐标）：
+ *   同一个 Blob 每次解出同样尺寸，重挂载后照样对得上。
+ */
+export interface SubjectPick {
+  /** 给哪一格选的 */
+  kind: CardView["kind"];
+  /** 选到的文件，立刻读实成内存里的 Blob（content:// 懒读在切到后台之后可能失效） */
+  src: Blob;
+  fileName: string;
+  /** 允许「保留框内背景」：只有第 1 格（主人拍板 4 b）；第 2 格强制抠（拍板 2-2 b） */
+  allowKeepBg: boolean;
+  stage: "box" | "cut" | "preview";
+  /** 框。null = 图还没解出来（解出来那一拍给居中 70%） */
+  rect: SrcBox | null;
+  /** 「放大再框」时舞台显示的区域；null = 整图 */
+  zoom: SrcBox | null;
+  /** 描出来的轮廓 */
+  lasso: [number, number][] | null;
+  /** 进卡的那一张（已过 prepareCardImage）与要写进 note 的话 */
+  preview: { dataUrl: string; note: string; keptBg: boolean } | null;
+}
+
+/**
+ * 刚拿到一张图、要开「只留主体」层时的起手态 —— 唯一实现（自建卡、卡详情页、模板详情页三处开层都走它）。
+ * ★ 起手态是「框选阶段、没框、没放大、没轮廓、没预览」；三处各拼一份的话，哪天多一个字段总有一处漏写。
+ */
+export function freshSubjectPick(o: { kind: CardView["kind"]; src: Blob; fileName: string; allowKeepBg: boolean }): SubjectPick {
+  return { ...o, stage: "box", rect: null, zoom: null, lasso: null, preview: null };
 }
 
 export type CardStep = "type" | "real" | "source" | "form" | "info" | "final";
@@ -53,7 +97,23 @@ export interface CustomCardDraft {
   /** AI 车道素材口正在读哪张图（解码 + 裁切要一两秒，得让人看见） */
   aiPick: "body" | "face" | null;
   annot: { tag: string; frame: string } | null;
+  /** 道具卡「只留主体」层开着时那张图（见 SubjectPick） */
+  subjectPick: SubjectPick | null;
+  /** 出片句（Card.idLine）：出片时整句拼进视频提示词，≤ types.ID_LINE_MAX */
+  idLine: string;
+  /** 一键识别（场景卡 / 道具卡）正在跑的那一步（空 = 没在跑） */
+  recogBusy: string;
+  /** 识别的结局那句话：钱扣没扣分三档说（见 CustomCardPage.recognize） */
+  recogMsg: { tone: "warn" | "error"; text: string } | null;
   schemePick: boolean;
+  /** 场景 / 道具卡「📷 拍摄识别 / 🖼 上传本地图片」两选一弹窗开着没有（拍板 1 a） */
+  sourcePick: boolean;
+  /** 相机在前台时那一句（空 = 没在拍） */
+  captureBusy: string;
+  /** 两选一弹窗里要说的话：余额不够 / 相机没起来 / 没接到照片 */
+  captureMsg: string;
+  /** 拍摄路落格之后要自动识别一次：记着拍之前第 1 格那张图（换成新图才识别；抠图层被取消就作废） */
+  recogAfterShot: { before: string } | null;
   importMsg: string;
   realPerson: boolean;
   consentOk: boolean;
@@ -90,7 +150,15 @@ export function initialDraft(): CustomCardDraft {
     aiBusy: "",
     aiPick: null,
     annot: null,
+    subjectPick: null,
+    idLine: "",
+    recogBusy: "",
+    recogMsg: null,
     schemePick: false,
+    sourcePick: false,
+    captureBusy: "",
+    captureMsg: "",
+    recogAfterShot: null,
     importMsg: "",
     realPerson: false,
     consentOk: false,
@@ -123,13 +191,15 @@ export function draftDirty(s: CustomCardDraft): boolean {
     !!s.summary ||
     Object.keys(s.shots).length > 0 ||
     Object.keys(s.schemeShots).length > 0 ||
-    !!s.aiBody
+    !!s.aiBody ||
+    !!s.subjectPick ||
+    !!s.idLine
   );
 }
 
 /** 有活在跑（AI 出图 / 铸卡 / 选图处理）—— 这时不许清空 */
 export function draftBusy(s: CustomCardDraft): boolean {
-  return !!s.aiBusy || s.minting || s.busySlot !== null || s.aiPick !== null;
+  return !!s.aiBusy || s.minting || s.busySlot !== null || s.aiPick !== null || !!s.recogBusy || !!s.captureBusy;
 }
 
 /**

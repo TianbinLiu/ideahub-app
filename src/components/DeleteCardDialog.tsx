@@ -18,6 +18,7 @@
 //   （不这么做的话删失败的卡下次冷启动会长回来，见 account.removeCard 的 ★★）。
 //   所以这张卡自己扛两件事：等的时候说「删除中…」，没删成就把**整句原因**留在
 //   卡上、卡不关 —— 关掉卡再去别处报错，用户只会看见"点了没反应"（铁律八）。
+import { Trans, useLingui } from "@lingui/react/macro";
 import DeleteConfirmShell from "./DeleteConfirmShell";
 import { myDecks } from "../data/account";
 import { useFlow } from "../studio/flowStore";
@@ -33,6 +34,7 @@ export default function DeleteCardDialog({
   onConfirm: () => Promise<string | null>;
   onCancel: () => void;
 }) {
+  const { t } = useLingui();
   const decks = myDecks().filter((d) => d.cardIds.includes(card.id));
   // 流水线上挂着它的段：认**名字**不认 id —— materials 是快照，副本的 id 与卡库那张相同
   // （addMaterials 传的就是 Card 对象），所以按 id 比对是准的；这里只用来数段数
@@ -40,32 +42,55 @@ export default function DeleteCardDialog({
     .getState()
     .nodes.map((n, i) => ((n.materials ?? []).some((m) => m.id === card.id) ? i + 1 : 0))
     .filter(Boolean);
+  // 列举名字用的分隔符跟着界面语言走（中文「、」，英文逗号）
+  const sep = t({ message: "、", comment: "列举几个名字时的分隔符" });
+  const deckCount = decks.length;
+  const deckNames = decks.map((d) => d.name).slice(0, 2).join(sep);
+  const segList = usedSegs.join(sep);
 
   return (
     <DeleteConfirmShell
-      title={`删掉「${card.name}」？`}
-      danger="删掉这张卡"
+      title={t`删掉「${card.name}」？`}
+      danger={t`删掉这张卡`}
       onConfirm={onConfirm}
       onCancel={onCancel}
     >
           <p>
-            <span className="text-rose-300">删了就找不回来</span>：卡面、形象参考图、
-            {card.genPrompt ? "铸造提示词、" : ""}声音样本与肖像授权都会一起清掉。
+            {card.genPrompt ? (
+              <Trans>
+                <span className="text-rose-300">删了就找不回来</span>：卡面、形象参考图、铸造提示词、声音样本与肖像授权都会一起清掉。
+              </Trans>
+            ) : (
+              <Trans>
+                <span className="text-rose-300">删了就找不回来</span>：卡面、形象参考图、声音样本与肖像授权都会一起清掉。
+              </Trans>
+            )}
           </p>
           {decks.length > 0 && (
-            <p>· 它会从 {decks.length} 个卡组里移出（{decks.map((d) => d.name).slice(0, 2).join("、")}
-            {decks.length > 2 ? " 等" : ""}），卡组本身还在。</p>
+            <p>
+              {deckCount > 2 ? (
+                <Trans>· 它会从 {deckCount} 个卡组里移出（{deckNames} 等），卡组本身还在。</Trans>
+              ) : (
+                <Trans>· 它会从 {deckCount} 个卡组里移出（{deckNames}），卡组本身还在。</Trans>
+              )}
+            </p>
           )}
           {usedSegs.length > 0 && (
             // ★ 这一句是"别吓着用户"的那一半：段里存的是副本，删卡不会让已经花过钱的段变样
             <p>
-              · 第 {usedSegs.join("、")} 段挂着它 —— <span className="text-slate-200">那几段不受影响</span>
-              （摆上桌那一刻存的是副本），已经炼好的画面也不会变。
+              <Trans>
+                · 第 {segList} 段挂着它 —— <span className="text-slate-200">那几段不受影响</span>
+                （摆上桌那一刻存的是副本），已经炼好的画面也不会变。
+              </Trans>
             </p>
           )}
           {card.published && (
-            <p>· 它已经分享到创意工坊：删卡会<span className="text-slate-200">同时下架</span>；
-            别人已经装走的那份在他们自己的库里，不受影响。</p>
+            <p>
+              <Trans>
+                · 它已经分享到创意工坊：删卡会<span className="text-slate-200">同时下架</span>；
+                别人已经装走的那份在他们自己的库里，不受影响。
+              </Trans>
+            </p>
           )}
     </DeleteConfirmShell>
   );

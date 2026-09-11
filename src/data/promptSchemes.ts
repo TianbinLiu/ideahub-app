@@ -22,6 +22,7 @@
 //   将来接服务端共享时是同一套搬法。本轮只做**本机方案库 + 内置方案**，
 //   远端共享见 docs/backlog.md。
 import { CARD_SIZE, CardRole, CardType, MAX_CARD_VIEWS, VIEW_TAG_MAX, uid } from "../types";
+import { t } from "@lingui/core/macro";
 
 /** 这一格的参考图从哪张裁剪来 */
 export type SchemeRef = "body" | "face";
@@ -91,6 +92,7 @@ export interface PromptScheme {
  *   头肩照当参考、各写法两发）：把画风句挪到正文**前面**，「全身立绘」的"全身"就丢了 ——
  *   四张里一张头肩、三张半身；留在后面全身 2/2。构图句在前、画风句在后。
  */
+/* i18n-frozen: 出图提示词的画风句，发给模型 */
 const STYLE_CLAUSE =
   "严格保持参考图的画风（照片则照片级写实，插画则同风格插画）与人物相貌、发型、服装、神态完全一致";
 
@@ -108,6 +110,7 @@ const STYLE_CLAUSE =
  * ⚠ 只在 `realPhoto` 为真时用：动漫截图拼上它就是老 bug 的反向版（动漫被真人化）。
  * ⚠ 仍然接在正文**后面**（理由见 STYLE_CLAUSE 那条 ★）。
  */
+/* i18n-frozen: 出图提示词的真人照片锁定句，发给模型 */
 const PHOTO_LOCK_CLAUSE =
   "参考图是真人照片：成品必须是真实摄影照片（真人写实质感、真实皮肤纹理与布料质感），" +
   "绝不能画成插画、动漫、厚涂或任何绘画风格；人物相貌、发型、服装、神态与参考图完全一致";
@@ -156,11 +159,36 @@ export function isGenerated(slot: SchemeSlot): boolean {
  * ⚠ 也试过把头肩照垫在白底画布顶部当参考（想喂"头在上、下面空"的版式）：0/4，模型不认。
  * ⚠ 改了这句要同步 design/gen-scheme-examples.mjs 的 CLEAN_BODY（它对本文件做子串断言）。
  */
+/* i18n-frozen: 出图提示词正文，发给模型 */
 const FULL_BODY_PROMPT =
   "参考图中人物的全身立绘：远景，从头顶到鞋底完整入镜，双脚和鞋子清晰可见，头顶上方与脚下各留出空白，" +
   "身体任何部位都不裁切；纯白色背景，无任何背景元素与文字；站姿自然，正面朝向镜头";
 /** 「面部特写」那一格的正文，同样两套共用 */
+/* i18n-frozen: 出图提示词正文，发给模型 */
 const FACE_PROMPT = "参考图中人物的面部特写肖像：纯白色背景，无任何背景元素与文字；头肩构图，五官清晰";
+
+// ★ 下面四格的正文原来直接写在 BUILTIN_SCHEMES 里。提出来是为了整句冻结（发给模型的提示词，不是界面文案）：
+//   方案的名字、简介、图位名是界面文案，它们还留在 BUILTIN_SCHEMES 里，不能跟着一起冻结。
+//   ⚠ 措辞与「"…" +」换行拼接的排版一个字没动 —— design/gen-scheme-examples.mjs 按源码文本做子串断言，
+//   它先抹掉「" +」换行再比对，在拼接的字符串中间插注释会让断言失败。
+/* i18n-frozen: 出图提示词正文，发给模型 */
+const MANNEQUIN_BODY_PROMPT =
+  "参考图中人物的全身，头部替换为无面部特征的纯白色人台模型（mannequin head, blank face），" +
+  "身体比例写实，服装完整穿着在人台上、面料质感写实；纯白色背景，无任何背景元素与文字";
+/* i18n-frozen: 出图提示词正文，发给模型 */
+const OUTFIT_DETAIL_PROMPT =
+  "参考图中人物服装的局部细节特写：领口结构、面料与版型、下装轮廓；" +
+  "纯白色背景，无任何背景元素与文字，不出现人脸";
+/* i18n-frozen: 出图提示词正文，发给模型 */
+const TURNAROUND_PROMPT =
+  "同一角色的标准站姿三视图横向并排：正面全身、侧面全身、背面全身；" +
+  "头部均为无面部特征的纯白色人台模型，服装完整穿着，浅灰白底加等距网格辅助线，专业服装设计稿风格";
+/* i18n-frozen: 出图提示词正文，发给模型 */
+const SPEC_SHEET_PROMPT =
+  "专业角色设计规格说明图（Character Design Spec Sheet），浅灰白色背景与网格辅助线：" +
+  "左栏为角色头部铅笔素描线稿（正面 + 侧面 45°两图并排，精细面部结构线条，无上色）；" +
+  "中栏为色彩参考色板横排（发色、眼色、肤色、服装主色与配色）；" +
+  "右栏为服装局部细节特写三图。整体冷色调专业设计感排版";
 
 export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
   {
@@ -201,24 +229,18 @@ export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
         //   既是这套方案的卖点，也正好避开"多视图当人物参考"那条（它本来就不锁身份）。
         tag: "白模全身",
         role: "primary",
-        prompt:
-          "参考图中人物的全身，头部替换为无面部特征的纯白色人台模型（mannequin head, blank face），" +
-          "身体比例写实，服装完整穿着在人台上、面料质感写实；纯白色背景，无任何背景元素与文字",
+        prompt: MANNEQUIN_BODY_PROMPT,
       },
       {
         tag: "服装细节",
         role: "aux",
-        prompt:
-          "参考图中人物服装的局部细节特写：领口结构、面料与版型、下装轮廓；" +
-          "纯白色背景，无任何背景元素与文字，不出现人脸",
+        prompt: OUTFIT_DETAIL_PROMPT,
       },
       {
         // 三视图是给人看的规格图 —— 必须 display（文件头 ★★★②）
         tag: "白模三视图",
         role: "display",
-        prompt:
-          "同一角色的标准站姿三视图横向并排：正面全身、侧面全身、背面全身；" +
-          "头部均为无面部特征的纯白色人台模型，服装完整穿着，浅灰白底加等距网格辅助线，专业服装设计稿风格",
+        prompt: TURNAROUND_PROMPT,
       },
     ],
   },
@@ -243,11 +265,7 @@ export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
       {
         tag: "设定规格稿",
         role: "display",
-        prompt:
-          "专业角色设计规格说明图（Character Design Spec Sheet），浅灰白色背景与网格辅助线：" +
-          "左栏为角色头部铅笔素描线稿（正面 + 侧面 45°两图并排，精细面部结构线条，无上色）；" +
-          "中栏为色彩参考色板横排（发色、眼色、肤色、服装主色与配色）；" +
-          "右栏为服装局部细节特写三图。整体冷色调专业设计感排版",
+        prompt: SPEC_SHEET_PROMPT,
       },
     ],
   },
@@ -367,23 +385,23 @@ export function defaultSchemeFor(o: { realPerson?: boolean; authorized?: boolean
  * ★ 抄第二份的下场：编辑屏放行、`saveScheme` 拒（或反过来），用户点了保存什么都没发生。
  */
 export function schemeIssue(d: { title?: string; slots?: SchemeSlot[] }): string | null {
-  if (!d.title?.trim()) return "先给这套方案起个名字";
+  if (!d.title?.trim()) return t`先给这套方案起个名字`;
   const slots = d.slots ?? [];
-  if (slots.length === 0) return "至少要有一个图位——方案就是「从一张裁剪能炼出哪几张图」";
+  if (slots.length === 0) return t`至少要有一个图位——方案就是「从一张裁剪能炼出哪几张图」`;
   if (slots.length > MAX_CARD_VIEWS)
-    return `一张卡最多存 ${MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 ${MAX_CARD_VIEWS} 个以内`;
+    return t`一张卡最多存 ${MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 ${MAX_CARD_VIEWS} 个以内`;
   for (let i = 0; i < slots.length; i++) {
     const x = slots[i];
     const tag = (x.tag || "").trim();
-    if (!tag) return `第 ${i + 1} 个图位还没起名字（这个名字会显示在卡片详情页上）`;
+    if (!tag) return t`第 ${i + 1} 个图位还没起名字（这个名字会显示在卡片详情页上）`;
     // ★★ 超长不是"截短"，是服务端 zod 整发 400 ⇒ 这张卡发不上去且零报错（见 types.VIEW_TAG_MAX）
-    if (tag.length > VIEW_TAG_MAX) return `图位名「${tag}」超过 ${VIEW_TAG_MAX} 个字——太长的话这张卡会存不到服务器上`;
-    if (isGenerated(x) && !(x.prompt || "").trim()) return `图位「${tag}」要 AI 出图，但还没写提示词`;
+    if (tag.length > VIEW_TAG_MAX) return t`图位名「${tag}」超过 ${VIEW_TAG_MAX} 个字——太长的话这张卡会存不到服务器上`;
+    if (isGenerated(x) && !(x.prompt || "").trim()) return t`图位「${tag}」要 AI 出图，但还没写提示词`;
   }
   // ★ 全是 display 的方案炼出来的卡，出片时一张形象图都进不了模型 —— AI 完全不认识
   //   这个角色，钱照花、画面里的人是编的。这不是"高级用法"，是必然的失望，所以硬拦。
   if (slots.every((x) => x.role === "display"))
-    return "至少要有一个图位不是「只展示」——全都只展示的话，出片时 AI 一张形象图都拿不到，画面里的人只能靠它自己编";
+    return t`至少要有一个图位不是「只展示」——全都只展示的话，出片时 AI 一张形象图都拿不到，画面里的人只能靠它自己编`;
   return null;
 }
 
@@ -431,8 +449,8 @@ export const SCHEME_EXAMPLE_MAX = 2;
  *   刷新就没 —— 那是比"不给存"更糟的假承诺）。
  */
 export function exampleIssue(o: { scheme: PromptScheme; realPerson?: boolean }): string | null {
-  if (o.scheme.builtin) return "内置方案不能改示例图——先「另存为我的」，再给自己那份存示例";
-  if (o.realPerson) return "这张卡声明过是真实人物，不能拿它的产出当方案示例图（示例是给所有人看的）";
+  if (o.scheme.builtin) return t`内置方案不能改示例图——先「另存为我的」，再给自己那份存示例`;
+  if (o.realPerson) return t`这张卡声明过是真实人物，不能拿它的产出当方案示例图（示例是给所有人看的）`;
   return null;
 }
 

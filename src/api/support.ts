@@ -8,6 +8,8 @@
  *   路径做 SPA 回退（200 + index.html），`res.ok` 永远为真、`res.json()` 卡在 "<!doctype"（CLAUDE.md 坑表）。
  *   所以能力判断看 Content-Type，不看状态码。
  */
+import { i18n, type MessageDescriptor } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
 import { API_BASE, ApiError, apiGet, apiPatch, apiPost } from "./client";
 import type { Live2dModelItem, PersonaSource, PersonaSummary, VoiceMixEntry, VoiceSettings } from "./companion";
 import { authHeaders, streamSseRequest, throwHttp } from "./stream";
@@ -68,20 +70,34 @@ export interface SupportTicket {
   user?: { id: string; username: string; displayName: string; avatarUrl: string; email: string };
 }
 
-export const TICKET_STATUS_LABEL: Record<TicketStatus, string> = {
-  open: "待处理",
-  in_progress: "处理中",
-  resolved: "已解决",
-  closed: "已关闭",
+const TICKET_STATUS_LABEL: Record<TicketStatus, MessageDescriptor> = {
+  open: msg`待处理`,
+  in_progress: msg`处理中`,
+  resolved: msg`已解决`,
+  closed: msg`已关闭`,
 };
 
-export const CATEGORY_LABEL: Record<SupportCategory, string> = {
-  billing: "费用与退款",
-  account: "账号",
-  content: "内容处置",
-  bug: "程序问题",
-  other: "其他",
+const CATEGORY_LABEL: Record<SupportCategory, MessageDescriptor> = {
+  billing: msg`费用与退款`,
+  account: msg`账号`,
+  content: msg`内容处置`,
+  bug: msg`程序问题`,
+  other: msg`其他`,
 };
+
+/**
+ * 工单状态 / 分类 → 界面语言的名字（客服页「我的工单」、转人工提示、管理后台工单队列共用）。
+ * ★ 认不出的值（服务端先加了一档）原样显示，不退成空白。
+ */
+export function ticketStatusLabel(s: TicketStatus): string {
+  const d = TICKET_STATUS_LABEL[s];
+  return d ? i18n._(d) : s;
+}
+
+export function categoryLabel(c: SupportCategory): string {
+  const d = CATEGORY_LABEL[c];
+  return d ? i18n._(d) : c;
+}
 
 /**
  * 有 token 就带上：服务端按登录用户解析人格 / 形象 / 声音（voiceSettings 等四个字段），游客只有服务端默认。
@@ -133,7 +149,7 @@ export async function streamSupportChat(
           category: (payload.category as SupportCategory) || "",
         });
     },
-    { signal, unsupported: "服务端还没有 AI 客服（返回的不是事件流）" },
+    { signal, unsupported: t`服务端还没有 AI 客服（返回的不是事件流）` },
     ({ event, data }) => {
       if (event !== "error") return "";
       try {
@@ -174,7 +190,7 @@ export async function synthesizeSpeech(body: TtsRequest, signal?: AbortSignal): 
   });
   if (!res.ok) await throwHttp(res);
   const ctype = res.headers.get("content-type") || "";
-  if (!ctype.startsWith("audio/")) throw new ApiError("服务端没有返回音频", 501, "UNSUPPORTED");
+  if (!ctype.startsWith("audio/")) throw new ApiError(t`服务端没有返回音频`, 501, "UNSUPPORTED");
   return res.blob();
 }
 
@@ -197,7 +213,7 @@ export async function transcribeAudio(blob: Blob, format: "wav" | "mp3" | "ogg" 
     signal,
   });
   const ctype = res.headers.get("content-type") || "";
-  if (!ctype.includes("application/json")) throw new ApiError("服务端还没有语音识别（返回的不是 JSON）", 501, "UNSUPPORTED");
+  if (!ctype.includes("application/json")) throw new ApiError(t`服务端还没有语音识别（返回的不是 JSON）`, 501, "UNSUPPORTED");
   if (!res.ok) await throwHttp(res);
   const j = (await res.json()) as { ok?: boolean; text?: string; durationMs?: number };
   return { text: String(j.text || "").trim(), durationMs: Number(j.durationMs || 0) };
