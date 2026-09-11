@@ -48,7 +48,7 @@ import { idbSet } from "../data/db";
 // 风格那句由 slotPrompt 统一拼，方案作者改不掉；isGenerated 与 economy.schemeCost 同源。
 // ★ 别名 schemeSlotPrompt：本文件下面已经有一个**铸卡**用的 slotPrompt(type,name,...)，
 //   两者管的是完全不同的两件事（那个拼铸卡提示词，这个拼方案图位提示词）。
-import { isGenerated, slotPrompt as schemeSlotPrompt, slotSize, type PromptScheme } from "../data/promptSchemes";
+import { isGenerated, slotCardTag, slotPrompt as schemeSlotPrompt, slotSize, type PromptScheme } from "../data/promptSchemes";
 import { minimaxVideo, takeMinimaxTask } from "./minimaxVideo";
 import { refableViews } from "../data/cardViews";
 // 已授权的可信素材：整张卡改发 asset:// URI（判据与拼法各只有一处，见 data/cardAsset）
@@ -107,7 +107,8 @@ async function genImageAsDataUrl(
  *
  * ★★ 图位是方案说了算的（`data/promptSchemes`），不是写死的两张 —— 不同流派产出的
  *   图位数量与种类都不同（无脸白模三视图 / 分栏设定规格图 / 干净立绘）。返回的每一格
- *   都带着 `role`（进不进模型）与 `tag`（界面花名），落卡时原样写进 CardView。
+ *   都带着 `slotId`（这一格的身份）、`role`（进不进模型）与 `tag`（**存进 CardView.tag 的值**，由
+ *   promptSchemes.slotCardTag 定，不是界面显示名），落卡时 role / tag 原样写进 CardView。
  * ★ 风格那句**不在这里拼**，唯一实现是 `promptSchemes.slotPrompt` —— 它保证
  *   "风格跟随参考图"这条方案作者改不掉（真人截图出写实、动漫截图出同风格插画；
  *   2026-08-24 华强截图实测，Seedream i2i 对真人照片放行，拦真人的是 Seedance 视频侧）。
@@ -128,14 +129,21 @@ export async function portraitViews(o: {
   /** 调用方已知参考图是真人照片（用户走了真人路 / 勾了「这是真人」）。传 `realPerson` 状态 */
   realPhoto: boolean;
   onProgress?: (s: string) => void;
-}): Promise<{ role: CardRole; tag: string; dataUrl: string }[]> {
-  const out: { role: CardRole; tag: string; dataUrl: string }[] = [];
+}): Promise<{ slotId: string; role: CardRole; tag: string; dataUrl: string }[]> {
+  // ★ `slotId` = 这一格的身份（调用方按它把图放回对应的格子）；`tag` = **存进 CardView.tag 的值**（slotCardTag），
+  //   不是界面显示名 —— 两者分开的理由见 data/schemeSlotIds 文件头
+  const out: { slotId: string; role: CardRole; tag: string; dataUrl: string }[] = [];
   const slots = o.scheme.slots;
   for (let i = 0; i < slots.length; i++) {
     const slot = slots[i];
     if (!isGenerated(slot)) {
       // 原片裁剪那一格：直接放，不调模型、不计费
-      out.push({ role: slot.role, tag: slot.tag, dataUrl: slot.ref === "face" && o.faceCrop ? o.faceCrop : o.bodyCrop });
+      out.push({
+        slotId: slot.id,
+        role: slot.role,
+        tag: slotCardTag(o.scheme, slot),
+        dataUrl: slot.ref === "face" && o.faceCrop ? o.faceCrop : o.bodyCrop,
+      });
       continue;
     }
     o.onProgress?.(`绘制${slot.tag}…（${i + 1}/${slots.length}）`);
@@ -144,7 +152,7 @@ export async function portraitViews(o: {
       imageRefs: [ref],
       size: slotSize(slot),
     });
-    out.push({ role: slot.role, tag: slot.tag, dataUrl });
+    out.push({ slotId: slot.id, role: slot.role, tag: slotCardTag(o.scheme, slot), dataUrl });
   }
   return out;
 }

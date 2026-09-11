@@ -65,6 +65,7 @@ import {
   listSchemes,
   schemeOf,
   schemesVersion,
+  slotCardTag,
   slotSize,
   subscribeSchemes,
 } from "../data/promptSchemes";
@@ -113,6 +114,16 @@ const SCHEME_EMOJI: Record<string, string> = { scheme_clean: "🧍", scheme_face
 
 // 「一个图位上已经准备好的那张图」（Shot）的定义搬到了 studio/customCardStore（表单状态的家）
 
+/**
+ * 本页画得出来的图位 = 方案图位去掉 fromCrop 那些（理由见组件里 pageSlots 的注释）—— 本页**唯一实现**。
+ * ★★ 换方案判「哪几格收起来」也必须用它，别拿 `next.slots` 全量（复核第 3 轮）：fromCrop 不是身份的一部分，
+ *   同一个 id 可以在副本里是一格普通图位、在内置方案里是 fromCrop（另存 clean 的副本把「原片截图」改名、取消勾选），
+ *   拿全量去比的话，那张照片在目标方案里根本不画，却被当成「对得上、留着」，那句「先收起来了」一个字都不说。
+ */
+function drawnSlots<S extends { fromCrop?: boolean }>(slots: readonly S[]): S[] {
+  return slots.filter((s) => !s.fromCrop);
+}
+
 /** 标签输入 → tags。分隔符规则**只有一处**（types.parseTags），这里只把卡片的上限传进去
  *  —— 卡片与作品的上限是两条独立规则，但"怎么切"必须是同一条（见 types 那处的 ★） */
 function parseTags(raw: string): string[] {
@@ -129,8 +140,8 @@ export default function CustomCardPage() {
   const [type, setType] = useDraftField("type");
   // 按 **kind** 存，不按下标存：换卡种时图位的**数量和含义**都会变，按下标存会让
   // "人物卡的面部特写"在切成场景卡之后变成"局部特征"——一声不响地指鹿为马。
-  // ★ 这份 kind 库只服务**非人物卡**了：人物卡的图位由方案定，另存 schemeShots（按 tag 键，
-  //   同一条"不按下标"的理由）。两库互不相通，换卡种时各自原样留着 —— 切回来图还在。
+  // ★ 这份 kind 库只服务**非人物卡**了：人物卡的图位由方案定，另存 schemeShots（按方案图位 id 键，
+  //   同一条"不按下标"的理由；也不按名字，见 data/schemeSlotIds 文件头）。两库互不相通，换卡种时各自原样留着 —— 切回来图还在。
   const [shots, setShots] = useDraftField("shots");
   const [name, setName] = useDraftField("name");
   const [summary, setSummary] = useDraftField("summary");
@@ -166,11 +177,11 @@ export default function CustomCardPage() {
    * ★★ 为什么需要（2026-09-01 复核抓到）：`importAssetPhoto` 要跨三次 await（服务端从
    *   TOS 代取约 2MB + decode + 重编码，好几秒），而**方案选择块就摆在它正下方**
    *   （本版新加的）—— 用户完全可能在这几秒里换一套。闭包里的 `schemeId` 是发起那一拍
-   *   的旧值，照片会被写进新方案里根本不存在的 tag：本页按当前 `pageSlots` 取图，
+   *   的旧值，照片会被写进新方案里根本不存在的图位 id：本页按当前 `pageSlots` 取图，
    *   于是**不画、不当卡面、mint 也不带走**，而屏幕上还打着「✅ 已填进「X」」。零报错。
    */
   const schemeIdRef = useRef(useCardDraft.getState().schemeId);
-  /** 人物卡各图位（按方案的 tag 键）。换方案时 tag 对得上的留着，对不上的取下并说明 */
+  /** 人物卡各图位（按方案图位 id 键，不按名字）。换方案时 id 对得上的留着，对不上的取下并说明 */
   const [schemeShots, setSchemeShots] = useDraftField("schemeShots");
   /**
    * 两步向导（主人 2026-08-28 二次点名的形状）：**先**选方案 + 做真人授权/跟读，
@@ -191,7 +202,7 @@ export default function CustomCardPage() {
   /** AI 素材选图口（body/face 复用一个 input） */
   const aiPickRef = useRef<{ which: "body" | "face" }>({ which: "body" });
   const aiFileRef = useRef<HTMLInputElement>(null);
-  /** 圈选改图：开在哪一格上（人物卡 tag 键） */
+  /** 圈选改图：开在哪一格上（人物卡图位 id） */
   const [annot, setAnnot] = useDraftField("annot");
   /** 人物卡的方案小窗开没开（第 1 屏点「人物卡」弹出） */
   const [schemePick, setSchemePick] = useDraftField("schemePick");
@@ -226,7 +237,8 @@ export default function CustomCardPage() {
 
   const [busySlot, setBusySlot] = useDraftField("busySlot");
   /** 选图失败：**贴在出事的那一格上**，不是页面底部那条通用红字（见 onFile 的 catch）。
-   *  key = 非人物卡的 kind 或人物卡的 tag（两个库的键都是字符串，一份提示态够用） */
+   *  key = 非人物卡的 kind 或人物卡的图位 id（两个库的键都是字符串，一份提示态够用；
+   *  图位 id 永远不等于 kind 词，见 schemeSlotIds.isValidSlotId —— changeType 不清它，撞上就画到别的格子上） */
   const [slotErr, setSlotErr] = useDraftField("slotErr");
   const [err, setErr] = useDraftField("err");
   /** 换卡种时被丢掉的图位（必须说，见 changeType） */
@@ -259,8 +271,8 @@ export default function CustomCardPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   /** 浏览器里「拍摄识别」的降级口：带 capture 的 input（原生壳里走 utils/nativeCamera，不走它） */
   const cameraFallbackRef = useRef<HTMLInputElement>(null);
-  /** 正在为哪一格选图：非人物卡认 kind，人物卡认方案 tag */
-  const pickingRef = useRef<{ kind: CardView["kind"] } | { tag: string }>({ kind: "body" });
+  /** 正在为哪一格选图：非人物卡认 kind，人物卡认方案图位 id（不认名字，见 data/schemeSlotIds 文件头） */
+  const pickingRef = useRef<{ kind: CardView["kind"] } | { slotId: string }>({ kind: "body" });
 
   const slots = CARD_SLOTS[type];
   const primary = slots[0];
@@ -276,9 +288,9 @@ export default function CustomCardPage() {
    * 服装细节锁衣着、三视图是展示卖点）；角色设定规格图 **3 格**（face+body 进管线、
    * 规格稿展示）。数量随方案走，不写死。
    */
-  const pageSlots = useMemo(() => scheme.slots.filter((s) => !s.fromCrop), [scheme]);
+  const pageSlots = useMemo(() => drawnSlots(scheme.slots), [scheme]);
   /** 人物卡：按方案顺序取第一张已传的图 —— 它就是卡面（与非人物卡"第一格即卡面"同规则） */
-  const charCover = isChar ? (pageSlots.map((s) => schemeShots[s.tag]).find(Boolean)?.dataUrl ?? null) : null;
+  const charCover = isChar ? (pageSlots.map((s) => schemeShots[s.id]).find(Boolean)?.dataUrl ?? null) : null;
   const declareReal = isChar && realPerson;
   /**
    * 授权照片到手了没有 —— 「选来源」那一屏据此**整屏改口**。
@@ -299,7 +311,9 @@ export default function CustomCardPage() {
    *   引用相等在这里是**精确**的：importAssetPhoto 把同一个 shot 对象同时放进 schemeShots
    *   与 authShot，用户一旦替换那一格，引用就变了，这里自动不再认它。
    */
-  const authSlotTag = authShot ? (pageSlots.find((s2) => schemeShots[s2.tag] === authShot)?.tag ?? null) : null;
+  const authSlot = authShot ? pageSlots.find((s2) => schemeShots[s2.id] === authShot) : undefined;
+  /** 那一格的**显示名**（只拿来说话，不当键；也是消息里的占位符名，别改名） */
+  const authSlotTag = authSlot?.tag ?? null;
   /** AI 面板默认展开：照片已经在手上时，"交给 AI 按方案出图"就是主人要的那条路。
    *  ★ 只在用户还没表过态时（lane === null）才替他展开，点过"自己传图"就不再自作主张。
    *  ★ 展开 ≠ 花钱：真扣钱在面板里那颗生成键上，用户还得自己按。 */
@@ -399,7 +413,7 @@ export default function CustomCardPage() {
     setAuthShot(null);
     setSchemeShots((prev) => {
       const next: Record<string, Shot> = {};
-      for (const [tag, sh] of Object.entries(prev)) if (sh !== authShot) next[tag] = sh;
+      for (const [slotId, sh] of Object.entries(prev)) if (sh !== authShot) next[slotId] = sh;
       return next;
     });
     setAiBody((prev) => (prev === authShot ? null : prev));
@@ -410,7 +424,8 @@ export default function CustomCardPage() {
     setUnbindNote(hadBinding ? why : "");
   }
 
-  /** 换方案：tag 对得上的图留着，对不上的取下**并说明**（与 changeType 同一条纪律） */
+  /** 换方案：图位 id 对得上的图留着，对不上的取下**并说明**（与 changeType 同一条纪律）。
+   *  ★ 认的是 id 不是名字：内置方案之间同一格共用同一个 id（fullBody / faceCloseup），名字换了语言也不影响 */
   /**
    * @param opts.dropAuth 调用方紧接着要 `clearAuthBinding()`（授权照片会被**真删**）——
    *   那一格就别再报成"先收起来了、换回原方案还在"了，那是假话。
@@ -418,18 +433,23 @@ export default function CustomCardPage() {
   function changeScheme(nextId: string, opts?: { dropAuth?: boolean }) {
     schemeTouched.current = true;
     const next = schemeOf(nextId) ?? defaultScheme();
-    const keep = new Set(next.slots.map((s) => s.tag));
+    // ★★ 「新方案里有」也只算新方案**画得出来**的那几格（drawnSlots，复核第 3 轮）：落在 fromCrop 格上的照片本页不画、mint 不带走，
+    //   当成「留着」就一个字都不说。与改动前比多说了一种（名字没改、落在 fromCrop 格上的那种，改动前也不说），这是有意多说的
+    const keep = new Set(drawnSlots(next.slots).map((s) => s.id));
     // ★ 只数**这一页现在画得出来、且新方案里没有**的那几格：`schemeShots` 现在会攒下
     //   历史方案的键（见下面那段 ★★），拿 Object.keys 去数会把用户从没见过的格子也报出来
     const gone = pageSlots
-      .filter((sl) => schemeShots[sl.tag] && !keep.has(sl.tag))
-      .filter((sl) => !(opts?.dropAuth && schemeShots[sl.tag] === authShot))
-      .map((sl) => sl.tag);
+      .filter((sl) => schemeShots[sl.id] && !keep.has(sl.id))
+      .filter((sl) => !(opts?.dropAuth && schemeShots[sl.id] === authShot))
+      .map((sl) => sl.tag); // 说给人听的是名字
     if (gone.length > 0) {
       // ★★ **收起来 ≠ 删掉**（2026-09-01 发版前复核抓到）：这里原本真的把它从 schemeShots
       //   里删了，而同一句话写着"换回原方案还能找回"—— 换回去那一格是空的，那句话是假的。
       //   现在一张都不删。留着的键谁也看不见：本页每一处读法都按**当前方案**的 pageSlots
-      //   取 tag（charCover / mint 的 picked / 图位渲染三处都是），mint 也只带走那几格。
+      //   取图位 id（charCover / mint 的 picked / 图位渲染三处都是），mint 也只带走那几格。
+      // ⚠ 按 id 认比按名字认窄：两套不相干的自建方案里同名的格子（或同名不同 role）id 不同，存过的格子后来改名成内置原名的
+      //   也不再与内置方案同 id —— 这句会点名一格目标方案里看得见的同名空格子（换回内置方案时点名的正是它标题里那一格）。
+      //   这一批目录冻结、不动文案，措辞留给接 Lingui 改内置图位名的那一批（清单见 data/schemeSlotIds 文件头 ①~④）。
       setDropped(t`「${next.title}」里没有「${gone.join(listSep)}」这一格，你传的那张先收起来了——换回原方案还在。`);
       // ★ 那句「✅ 已把授权照片接进来了（既是卡面的「X」…）」到这一刻可能已经不成立了。
       //   它是**当时**的一句确认，不是状态显示——状态由上面那条绿条与这条 `dropped` 说。
@@ -474,7 +494,7 @@ export default function CustomCardPage() {
       //   `slots.filter(s => !s.fromCrop)`（见 pageSlots）。三套内置方案的第一格恰好都不是
       //   fromCrop，所以今天撞不上；但真人路一旦能选任意方案（含市场装来的、第一格可以是
       //   fromCrop 的自建方案），授权照片就会被写进一个**这一页根本不画、mint 也不带走**
-      //   的 tag，而屏幕上还打着「✅ 已填进 X」。零报错。
+      //   的图位 id，而屏幕上还打着「✅ 已填进 X」。零报错。
       const shot: Shot = { dataUrl, fileName: t`授权素材（自动填入）`, ...(note ? { note } : {}) };
       // ★★ **先认下"照片到手了"**——这与"它能不能放进某一格"是两件事（2026-09-01 拆开）。
       //   拆之前：找不到可用图位就当场 return，照片连 aiBody 都没进，而屏幕说「换一套再试」——
@@ -491,7 +511,7 @@ export default function CustomCardPage() {
       //   照片不进格子，但仍然在手上：AI 那条路拿它当主素材，那正是无脸方案用得上它的唯一方式。
       const slot0 = sc.faceless ? undefined : sc.slots.find((x) => !x.fromCrop);
       if (slot0) {
-        setSchemeShots((prev) => ({ ...prev, [slot0.tag]: shot }));
+        setSchemeShots((prev) => ({ ...prev, [slot0.id]: shot }));
         setImportMsg(t`✅ 已把授权照片接进来了（既是卡面的「${slot0.tag}」，也能直接交给 AI 按方案生成图位）`);
       } else {
         setImportMsg(t`✅ 授权照片已取回。「${sc.title}」这套的图位要白模/设定稿，照片不进格子——交给 AI 出图时它就是主素材。`);
@@ -503,7 +523,7 @@ export default function CustomCardPage() {
     }
   }
 
-  function pick(target: { kind: CardView["kind"] } | { tag: string }) {
+  function pick(target: { kind: CardView["kind"] } | { slotId: string }) {
     pickingRef.current = target;
     setErr("");
     setSlotErr(null); // 上一次的失败提示不该跨到这一次
@@ -512,7 +532,7 @@ export default function CustomCardPage() {
 
   async function onFile(file: File | undefined) {
     const target = pickingRef.current;
-    const key = "kind" in target ? target.kind : target.tag;
+    const key = "kind" in target ? target.kind : target.slotId;
     if (!file || busySlot) return;
     setBusySlot(key);
     setErr("");
@@ -542,7 +562,7 @@ export default function CustomCardPage() {
       if ("kind" in target) {
         setShots((prev) => ({ ...prev, [target.kind]: shot }));
       } else {
-        setSchemeShots((prev) => ({ ...prev, [target.tag]: shot }));
+        setSchemeShots((prev) => ({ ...prev, [target.slotId]: shot }));
       }
     } catch (e) {
       // ★ 必须显示，而且要显示在**这一格里**（页面底部那条红字隔着两整节，手机上看不见）。
@@ -554,7 +574,7 @@ export default function CustomCardPage() {
     }
   }
 
-  function removeShot(key: { kind: CardView["kind"] } | { tag: string }) {
+  function removeShot(key: { kind: CardView["kind"] } | { slotId: string }) {
     if ("kind" in key) {
       setShots((prev) => {
         const next = { ...prev };
@@ -564,7 +584,7 @@ export default function CustomCardPage() {
     } else {
       setSchemeShots((prev) => {
         const next = { ...prev };
-        delete next[key.tag];
+        delete next[key.slotId];
         return next;
       });
     }
@@ -608,7 +628,8 @@ export default function CustomCardPage() {
       });
       if (AI_REAL) spendTokens(schemeCost(pageSlots)); // 图那一半：出齐才扣
       const shots: Record<string, Shot> = {};
-      for (const v of out) shots[v.tag] = { dataUrl: v.dataUrl, fileName: t`AI 生成` };
+      // ★ 按 slotId 放回格子（回包里的 tag 字段是存进卡里的名字，不是键）
+      for (const v of out) shots[v.slotId] = { dataUrl: v.dataUrl, fileName: t`AI 生成` };
       // ★★ **合并**不是整表替换（2026-09-01 复核抓到）：整表替换会把"换方案时收起来、
       //   换回去还能找回"的那几张一起删掉 —— 而那句承诺是 v2.42 刚修好的。
       //   当前方案的每一格 AI 都会出，所以合并不会留下半新半旧。
@@ -656,25 +677,25 @@ export default function CustomCardPage() {
   }
 
   /** 圈选改一格：标注图 + 一句要求 → i2i 重画（ONE_IMAGE，成功才扣） */
-  async function refineSlot(tag: string, annotated: string, req: string) {
-    const slot = pageSlots.find((s) => s.tag === tag);
-    const shot = schemeShots[tag];
+  async function refineSlot(slotId: string, annotated: string, req: string) {
+    const slot = pageSlots.find((s) => s.id === slotId);
+    const shot = schemeShots[slotId];
     if (!slot || !shot || busySlot) return;
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
-      setSlotErr({ key: tag, msg: t`改一次图要 ${refinePrice} token，余额不够——去「我的」页充值` });
+      setSlotErr({ key: slotId, msg: t`改一次图要 ${refinePrice} token，余额不够——去「我的」页充值` });
       return;
     }
-    setBusySlot(tag);
+    setBusySlot(slotId);
     setSlotErr(null);
     const job = startJob({ kind: "card-refine", title: t`圈选改图`, page: "/custom-card", route: "/custom-card", progress: t`重画中…` });
     try {
       const next = await refineCardImage({ annotated, req, size: slotSize(slot) });
       if (AI_REAL) spendTokens(ONE_IMAGE);
-      setSchemeShots((prev) => ({ ...prev, [tag]: { dataUrl: next, fileName: shot.fileName, note: t`已按圈选修改` } }));
+      setSchemeShots((prev) => ({ ...prev, [slotId]: { dataUrl: next, fileName: shot.fileName, note: t`已按圈选修改` } }));
       job.done({ msg: t`圈选改图完成，回去看看`, silent: useCardDraft.getState().mounted });
     } catch (e) {
       job.fail(t`圈选改图没成（没扣钱）`, "/custom-card");
-      setSlotErr({ key: tag, msg: t`没改成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}（没扣钱）` });
+      setSlotErr({ key: slotId, msg: t`没改成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}（没扣钱）` });
     } finally {
       setBusySlot(null);
     }
@@ -864,14 +885,15 @@ export default function CustomCardPage() {
       let cover: string;
       let views: CardView[];
       if (isChar) {
-        const picked = pageSlots.map((s) => ({ slot: s, shot: schemeShots[s.tag] })).filter((x) => !!x.shot);
+        const picked = pageSlots.map((s) => ({ slot: s, shot: schemeShots[s.id] })).filter((x) => !!x.shot);
         cover = picked[0].shot.dataUrl;
         // ★★ kind 由 role 反推**并且必须照写**（types.roleToKind）：跨仓冻结三值，
         //   老服务端/老客户端只认它。role/tag 是新增位（与提取那条路 saveCard 逐字同规则）
+        // ★ tag 存什么只由 slotCardTag 定（内置图位存冻结的中文原名，不存界面显示名；理由见那里）
         views = picked.map(({ slot, shot }) => ({
           kind: roleToKind(slot.role),
           role: slot.role,
-          tag: slot.tag,
+          tag: slotCardTag(scheme, slot),
           url: shot.dataUrl,
           // 图位说明只在 joinViewNote 一处截到服务端上限（超了补图 PATCH 整发 400）
           ...(joinViewNote(shot.note) ? { note: joinViewNote(shot.note) } : {}),
@@ -1678,14 +1700,15 @@ export default function CustomCardPage() {
         {isChar ? (
           <div className="space-y-2">
             {pageSlots.map((s, i) => {
-              const shot = schemeShots[s.tag];
+              // ★ 键、处理中、报错、圈选一律认图位 id；上屏的名字（alt / 标题）才读图位的 tag
+              const shot = schemeShots[s.id];
               // "第一张有图的就是卡面"：没图时按方案顺序把第一格标成卡面位
-              const coverIdx = pageSlots.findIndex((x) => schemeShots[x.tag]);
+              const coverIdx = pageSlots.findIndex((x) => schemeShots[x.id]);
               const isCover = coverIdx === -1 ? i === 0 : i === coverIdx;
               return (
-                <div key={s.tag} className="flex gap-3 rounded-xl border border-slate-700/70 bg-panel p-2.5">
+                <div key={s.id} className="flex gap-3 rounded-xl border border-slate-700/70 bg-panel p-2.5">
                   <button
-                    onClick={() => pick({ tag: s.tag })}
+                    onClick={() => pick({ slotId: s.id })}
                     disabled={busySlot !== null}
                     className={`relative h-24 w-[4.5rem] flex-none overflow-hidden rounded-lg border bg-ink/60 disabled:opacity-40 ${
                       shot ? "border-slate-600" : isCover ? "border-dashed border-brand/60" : "border-dashed border-slate-600"
@@ -1696,7 +1719,7 @@ export default function CustomCardPage() {
                     ) : (
                       <span className="flex h-full w-full flex-col items-center justify-center gap-1 text-slate-500">
                         <Icon name="plus" size={18} />
-                        <span className="text-[10px]">{busySlot === s.tag ? t`处理中…` : t`选图`}</span>
+                        <span className="text-[10px]">{busySlot === s.id ? t`处理中…` : t`选图`}</span>
                       </span>
                     )}
                   </button>
@@ -1712,32 +1735,32 @@ export default function CustomCardPage() {
                     {/* 方案里这一格的出图提示词当"参照"给用户看：告诉他该传一张什么样的图。
                         这一页不出图，所以它只是说明文字，不进任何请求 */}
                     <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-slate-500">{s.prompt}</p>
-                    {slotErr?.key === s.tag && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{slotErr.msg}</p>}
+                    {slotErr?.key === s.id && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{slotErr.msg}</p>}
                     {shot && (
                       <>
                         <p className="mt-1 truncate text-[10px] text-slate-500">{shot.fileName}</p>
                         {shot.note && <p className="mt-0.5 text-[10px] leading-relaxed text-amber-400">{shot.note}</p>}
                         <div className="mt-1 flex gap-3">
                           <button
-                            onClick={() => pick({ tag: s.tag })}
+                            onClick={() => pick({ slotId: s.id })}
                             disabled={busySlot !== null}
                             className="text-[11px] text-brand disabled:opacity-40"
                           >
                             <Trans>换一张</Trans>
                           </button>
                           <button
-                            onClick={() => removeShot({ tag: s.tag })}
+                            onClick={() => removeShot({ slotId: s.id })}
                             disabled={busySlot !== null}
                             className="text-[11px] text-rose-400 disabled:opacity-40"
                           >
                             <Trans>移除</Trans>
                           </button>
                           <button
-                            onClick={() => setAnnot({ tag: s.tag, frame: shot.dataUrl })}
+                            onClick={() => setAnnot({ slotId: s.id, frame: shot.dataUrl })}
                             disabled={busySlot !== null}
                             className="text-[11px] text-brand disabled:opacity-40"
                           >
-                            {busySlot === s.tag ? t`改图中…` : AI_REAL ? t`⭕ 圈选改图（${refinePrice}）` : t`⭕ 圈选改图`}
+                            {busySlot === s.id ? t`改图中…` : AI_REAL ? t`⭕ 圈选改图（${refinePrice}）` : t`⭕ 圈选改图`}
                           </button>
                         </div>
                       </>
@@ -2134,9 +2157,9 @@ export default function CustomCardPage() {
           hint={t`圈出要改的地方，写一句要求——AI 会重画这一格`}
           onClose={() => setAnnot(null)}
           onSave={(frame, req) => {
-            const tag = annot.tag;
+            const slotId = annot.slotId;
             setAnnot(null);
-            void refineSlot(tag, frame, req);
+            void refineSlot(slotId, frame, req);
           }}
         />
       )}

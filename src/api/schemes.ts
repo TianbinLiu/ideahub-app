@@ -5,8 +5,15 @@
 //   `toSchemePayload`，以及**本文件**。漏任何一处的表现都是「客户端发了、服务端 201 了、
 //   读回来是空的」——而对方案来说后果更刁钻：漏 `ref` 会让装回来的方案参考图从脸变成
 //   主裁剪、漏 `fromCrop` 会让原本不花钱的那一格开始花钱，**全程零报错**。
+// ★ 图位的 `id` **刻意不在**「四处一起加」的字段里（2026-09-11 多语言 PR2）：它是只活在客户端的身份
+//   （草稿照片按它存，见 data/schemeSlotIds 文件头）。服务端 z.object 会 strip 掉它、toSchemePayload 也不回它，
+//   所以每一次读都在 apiToScheme 里经 withSlotIds 重新算，upsertMine 再拿它与本机那份对齐。
+//   发出去的请求照样带着 id（toBody 原样发），服务端丢掉而不是 400。给服务端加这一位要主人点头，而且用不着。
 import { apiDelete, apiGet, apiPost } from "./client";
-import type { PromptScheme, SchemeSlot } from "../data/promptSchemes";
+import { withSlotIds, type PromptScheme, type SchemeSlot } from "../data/promptSchemes";
+
+/** 服务端回包里的一个图位：没有 id（服务端 strip 掉了，读进来由 withSlotIds 现算） */
+export type ApiSchemeSlot = Omit<SchemeSlot, "id"> & { id?: unknown };
 
 /** 服务端回包里的一套方案。★ 与本地 PromptScheme 差一个 id 命名（schemeId ↔ id） */
 export interface ApiScheme {
@@ -15,7 +22,7 @@ export interface ApiScheme {
   intro: string;
   faceless: boolean;
   author: string;
-  slots: SchemeSlot[];
+  slots: ApiSchemeSlot[];
   examples: string[];
   published: boolean;
   updatedAt?: string;
@@ -29,7 +36,9 @@ export function apiToScheme(a: ApiScheme): PromptScheme {
     intro: a.intro || "",
     author: a.author || "",
     faceless: !!a.faceless,
-    slots: Array.isArray(a.slots) ? a.slots : [],
+    // ★ 回包里的图位没有 id（服务端 strip 了）：在这里现算，三个读点因此都拿到带 id 的形状
+    //   （"read"：这是读，不是存编辑屏的改动；与本机那份对齐由 upsertMine 的 prev 做）
+    slots: withSlotIds(Array.isArray(a.slots) ? a.slots : [], "read"),
     examples: Array.isArray(a.examples) ? a.examples : [],
     published: !!a.published,
     // ★ builtin 恒 false：远端来的永远是"用户方案"，绝不能冒充内置那几套

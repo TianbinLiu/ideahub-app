@@ -577,6 +577,43 @@ export function slotPromptOf(type: CardType, kind: unknown): { label: string; lo
 }
 
 /**
+ * 内置提示词方案（data/promptSchemes 的 BUILTIN_SCHEMES）各图位的**中文原名**，按图位 id 查。
+ *
+ * ★★ 这张表是**数据**，不是界面文案（2026-09-11 多语言 PR2）：
+ *   ① 铸卡时存进 `CardView.tag` 的就是它（promptSchemes.slotCardTag）。卡片与卡组快照在服务端一躺很久、
+ *      给各种界面语言的人看；存某一种界面语言的名字，换个语言的人读到的就是外文。而且英文名很容易超过服务端
+ *      24 字（VIEW_TAG_MAX）—— 超了是整发 400，这张卡发不上去，冷启动之后就没了。
+ *   ② 老方案（图位还没有 id 的：本机 localStorage 里存着的、服务端 strip 掉 id 再回来的）要按「名字 + role」
+ *      认回内置 id，认的就是这些原名（data/schemeSlotIds 的 C(ii) 那一步）。2026-09-04 改过 FULL_BODY_PROMPT
+ *      的措辞，那之前另存的副本正文对不上，只能靠名字认。
+ *   ⇒ 永不翻译，一个字都别改。界面上显示的名字另走显示那一层（下一批接 Lingui）。
+ * ★ 键就是图位 id：ASCII、永不等于 CardView 的 kind 词、也永不改名 —— 本机存着的自建方案副本里躺着这些 id，
+ *   改了名，副本与内置方案之间的草稿照片就接不上了。scripts/check-slot-ids.mjs 钉着这七对。
+ * ★ 放在 types.ts：promptSchemes 要保持叶子模块、只依赖 types 与零依赖的 data/schemeSlotIds（理由见它「给市场模块用的内部口子」那段），
+ *   而 schemeSlotIds 连 types 都不能在运行时 import（门禁用 Node 直接跑它），所以原名表只能放这里、由 promptSchemes 现算血统表时传进去。
+ */
+/* i18n-frozen: 内置提示词方案图位的中文原名：存进 CardView.tag 的值，也是老方案（图位还没有 id）按名字认回内置 id 的依据；永不翻译 */
+export const BUILTIN_SLOT_ZH = {
+  fullBody: "全身立绘",
+  faceCloseup: "面部特写",
+  sourceCrop: "原片截图",
+  mannequinBody: "白模全身",
+  outfitDetail: "服装细节",
+  mannequinTurnaround: "白模三视图",
+  specSheet: "设定规格稿",
+} as const;
+
+export type BuiltinSlotId = keyof typeof BUILTIN_SLOT_ZH;
+
+/**
+ * 按图位 id 取内置原名；不是内置图位回 undefined。
+ * ★ 只认**自有属性**：id 来自存储与服务端，`"toString"` 这种键不许顺着原型链查出一个函数来。
+ */
+export function builtinSlotZh(id: string): string | undefined {
+  return Object.prototype.hasOwnProperty.call(BUILTIN_SLOT_ZH, id) ? BUILTIN_SLOT_ZH[id as BuiltinSlotId] : undefined;
+}
+
+/**
  * 卡片详情页那段"铸卡时的完整提示词"的标题。
  * ★ 显式表，**不要**拿 CARD_TYPE_LABELS 切字符串拼出来："人物卡"→"人物"看着能用，
  *   哪天有人把某一类改名（比如背景卡→氛围卡），切出来的就是"氛围信息"还是"氛围卡信息"

@@ -8,7 +8,7 @@ import { makeRng, pick } from "./rng";
 import { slotsFor } from "../data/economy";
 // 图位要不要调模型只有 promptSchemes.isGenerated 一处判据 —— 演示模式也走它，
 // 否则"哪几格算生成型"会有第二份答案，而它正是报价的输入。
-import { isGenerated, type PromptScheme } from "../data/promptSchemes";
+import { isGenerated, slotCardTag, type PromptScheme } from "../data/promptSchemes";
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms + Math.random() * 400));
 
@@ -89,7 +89,7 @@ export function marketCardsByName(names: string[]): Card[] {
 /** 市场检索：空词 → 最热；有词 → 名称/简介/标签模糊匹配 */
 /**
  * 演示模式的「按方案炼形象图」：不出网，按方案的图位数回同样多张假图。
- * ★ 形状必须与 real 那份**逐字段一致**（含 role/tag）：形状不一致的话，演示模式下
+ * ★ 形状必须与 real 那份**逐字段一致**（含 slotId/role/tag）：形状不一致的话，演示模式下
  *   走通的流程在真实模式里会在落卡那一步才炸，而那时钱已经花了。
  */
 export async function portraitViews(o: {
@@ -100,17 +100,28 @@ export async function portraitViews(o: {
   /** 与 real 同形：演示档不拼提示词，但类型上必填，调用点漏传在 tsc 就拦下 */
   realPhoto: boolean;
   onProgress?: (s: string) => void;
-}): Promise<{ role: CardRole; tag: string; dataUrl: string }[]> {
-  const out: { role: CardRole; tag: string; dataUrl: string }[] = [];
+}): Promise<{ slotId: string; role: CardRole; tag: string; dataUrl: string }[]> {
+  // ★ 与 real 同形：slotId 是身份，tag 是存进 CardView.tag 的值（slotCardTag）；占位卡面上印的仍是显示名 slot.tag
+  const out: { slotId: string; role: CardRole; tag: string; dataUrl: string }[] = [];
   for (let i = 0; i < o.scheme.slots.length; i++) {
     const slot = o.scheme.slots[i];
     if (!isGenerated(slot)) {
-      out.push({ role: slot.role, tag: slot.tag, dataUrl: slot.ref === "face" && o.faceCrop ? o.faceCrop : o.bodyCrop });
+      out.push({
+        slotId: slot.id,
+        role: slot.role,
+        tag: slotCardTag(o.scheme, slot),
+        dataUrl: slot.ref === "face" && o.faceCrop ? o.faceCrop : o.bodyCrop,
+      });
       continue;
     }
     o.onProgress?.(`绘制${slot.tag}…（${i + 1}/${o.scheme.slots.length}·演示）`);
     await new Promise((r) => setTimeout(r, 300));
-    out.push({ role: slot.role, tag: slot.tag, dataUrl: makeCover(`portrait:${slot.role}:${i}`, slot.tag) });
+    out.push({
+      slotId: slot.id,
+      role: slot.role,
+      tag: slotCardTag(o.scheme, slot),
+      dataUrl: makeCover(`portrait:${slot.role}:${i}`, slot.tag),
+    });
   }
   return out;
 }

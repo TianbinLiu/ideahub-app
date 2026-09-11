@@ -58,7 +58,7 @@
 
 ### A3. `PromptScheme` 实体 + 市场
 
-一套方案 = **N 个图位模板**，每个图位 `{ tag, role, size/aspect, promptTemplate }` + 方案级 `{ id, title, author, cardTypes[], coverExamples[], remoteId? }`。
+一套方案 = **N 个图位模板**，每个图位 `{ id, tag, role, size/aspect, promptTemplate }` + 方案级 `{ id, title, author, cardTypes[], coverExamples[], remoteId? }`。（2026-09-11 补：图位 `id` 只活在客户端 —— 草稿照片、在处理 / 出错的是哪一格都认它，`tag` 只是显示名；服务端 strip 掉它，读回来由 `withSlotIds` 现算，规则见 `data/schemeSlotIds` 文件头。role 是身份的一部分：一格的 role 变了就换成 role 变体（`<原 id>~<原 role>~<现 role>`），那格的草稿照片收起来，不以另一种 role 铸进卡里；改回原 role 就回到原 id —— 编辑屏新建的、派生的、内置的三类 id 都一样，与中间名字 / 正文改没改无关（见 `SchemeEditorSheet.patchSlot` 的注释，2026-09-11 复核第 5 轮）。存下来的 id 就定了：删掉 / 改掉别的格子、重装自己的方案，都不会让某一格换成另一格的 id（否则那一格的照片会出现在别的格子上）。「已装 · 用它」与删掉之后从市场装回来时，服务端那份（没有 id）先认本机记下的「服务端那一版」（`promptSchemes.noteServerSlots`：推上去成功、装回来之后写进 localStorage，删掉方案时不删，App 重启也在），逐格内容相同就按位置接回原 id，对不上再对齐本机当前那份：否则发布后本机换了 role / 名字加正文一起改过、隔一次重启再在改过的格子上传照片再装，那几格的照片从此够不着（复核第 4 轮只在内存里记旧版，第 5 轮抓到重启之后不够）。记下的那一格本机已经删了、而本机之后新加的一格对得上这个位置时，位置让给新格子；记录对不上时，本机换过 role 的格子按原 role 认回原 id；删掉之后装回来时对齐的是同一次会话里删掉那一刻的本机那份（只在内存里，与草稿照片活得一样久；复核第 6 轮）。与按名字认相比有收有放，没有照片被删。收窄了几种：不相干的自建方案之间重名、同名不同 role、就地改 role（改回才回来）、存过的格子后来改名成内置原名就不再与内置方案共用；删了再加同名格的那一种，旧照片在这一套里够不着；记录与服务端那一行对不上时名字和正文都改过的格子、App 更新之前就改过 role 或名字加正文的格子，照片在这一套里也够不着。放宽了几种：就地改名照片跟着格子走、另存副本改了名仍与内置方案共用、正文与内置图位相同的老格子认回内置 id、名字只比内置原名多首尾空白的认回内置 id、发布后本机改过名再装回来照片跟到服务端那一版的格子上。清单与换方案那句提示语在这几种情况下的不准，见 `data/schemeSlotIds` 文件头。）
 
 - **`promptTemplate`**：带占位符的提示词（如实操案例的 `{{角色类型}}`）。占位符=用户自定义 tag 的注入点。**必须硬编码那条"风格跟随参考图、不点名画风"**（`portraitViews` 现有那条实测结论）——方案作者可改构图/图位，但画风跟随源图这条不开放，否则又回到"动漫化真人"那个老坑。（2026-09-04 补：这条句子是**条件句**，由模型判参考图是不是照片；参考图低清/重压缩时它会判错。所以调用方已知是真人时走 `slotPrompt` 的 `realPhoto` 档 —— 无条件锁成真实摄影，见 `promptSchemes.PHOTO_LOCK_CLAUSE`。）
 - **市场基建直接复用模板市场那套**（`data/templates.ts` 的 mine/shared、`registerTemplate`、`refreshRemoteTemplate`）。⚠ CLAUDE.md 头号坑照搬：**服务端给 `PromptScheme` 加字段 = 本机那几跳（解析/类型/落库/mine+shared 刷新）四处一起改**，漏一处零报错走上一代逻辑。
@@ -162,7 +162,7 @@
 
 ### 架构上一条要守住的线
 
-`data/promptSchemes.ts` **必须保持叶子**（只依赖 `types`）。市场那半边（要问
+`data/promptSchemes.ts` **必须保持叶子**（只依赖 `types` 与零依赖的 `data/schemeSlotIds`——后者一个 import 都没有，成不了环）。市场那半边（要问
 `videos.remoteOn()`）单独在 `data/schemeMarket.ts` —— promptSchemes 一旦 import videos
 就成环：`videos → account → mock/ai → promptSchemes`，Vite 下会拿到**半初始化的模块**
 （实测报 `Cannot access 'listeners' before initialization`）。这次是踩到之后拆的。
@@ -177,8 +177,6 @@
 
 ### 还没做的（有意留下）
 
-- **内置三套没有预览示例图**：`examples` 是用户存的，内置的是模块常量存不进去。
-  要给它们配图得先各花一次出图的钱，然后当静态资源随包发。
 - **方案没有互动数据**（热度/收藏）：卡片那套 `BranchAssetStat` 可以复用，但要先想清楚
   "方案的热度按什么算"——照搬点赞数会让先发的永远在前面。
 

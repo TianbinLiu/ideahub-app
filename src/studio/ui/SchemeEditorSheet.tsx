@@ -17,14 +17,22 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { CloseButton } from "../../components/IconTapButton";
 import { MAX_CARD_VIEWS, ROLE_LABELS, VIEW_TAG_MAX, type CardRole } from "../../types";
 import { isGenerated, saveScheme, schemeIssue, type PromptScheme, type SchemeSlot } from "../../data/promptSchemes";
+import { freshSlotId } from "../../data/schemeSlotIds";
 import { fmtTokens, schemeCost } from "../../data/economy";
 import { AI_REAL } from "../../ai";
 
 const ROLES: CardRole[] = ["primary", "face", "aux", "display"];
 
-/** 新建时的起手图位：一格能出片的主图。★ 不给空数组——空列表让人不知道从哪下手 */
-function blankSlot(): SchemeSlot {
-  return { tag: "", role: "primary", prompt: "" };
+/**
+ * 新建时的起手图位：一格能出片的主图。★ 不给空数组——空列表让人不知道从哪下手
+ * ★ 一出生就带 id（freshSlotId，避开这一屏已有的那几个）：图位的身份是 id 不是名字（data/schemeSlotIds 文件头），
+ *   名字这时还是空的，改名也不该换身份。
+ * ★ 这个 `slot_` id 是**暂定**的，只在它头一回被保存的那一下先让内置血统：作者给它起名「全身立绘」、role 选全身，
+ *   存下去就是 fullBody —— 与存量老方案、别人从市场装到手的同一套一致，换方案时内置那格的草稿照片照样接得上。
+ *   存下去之后就定了（再改名、删掉别的格子都不换）；本机存着的那一版里有格子占着的内置 id 它也不拿（规则只在 normalizeSlotIds）。
+ */
+function blankSlot(taken: string[]): SchemeSlot {
+  return { id: freshSlotId(taken), tag: "", role: "primary", prompt: "" };
 }
 
 export default function SchemeEditorSheet({
@@ -43,9 +51,20 @@ export default function SchemeEditorSheet({
   const [title, setTitle] = useState(source ? (source.builtin ? t`${source.title} 副本` : source.title) : "");
   const [intro, setIntro] = useState(source?.intro ?? "");
   const [faceless, setFaceless] = useState(!!source?.faceless);
-  const [slots, setSlots] = useState<SchemeSlot[]>(source ? source.slots.map((s) => ({ ...s })) : [blankSlot()]);
+  // ★ 复制来源时 id 跟着一起复制（另存内置方案的副本保住 fullBody 这类血统 id，草稿照片在两套之间还接得上）。
+  //   改（patchSlot）与删都按整格对象走，id 不动；将来加「上移 / 下移」也必须整格对象挪，别只挪字段
+  const [slots, setSlots] = useState<SchemeSlot[]>(source ? source.slots.map((s) => ({ ...s })) : [blankSlot([])]);
   const [err, setErr] = useState("");
 
+  /**
+   * ★★ 改 role **不在这里换 id**，也别在这里加：保存时 normalizeSlotIds 拿内置表（内置 id）与本机存着的那一版
+   *   （saveScheme 传的 before，自建格子）核 role，role 变了的格子换 id、草稿照片收起来 —— 比的是**存下来的那一版**，
+   *   所以作者在这一屏里点错 role 又点回来，id 不变、照片不丢。在这里换的话，点回来就回不去了。
+   * ★ 分几次保存「改过去、再改回来」都认得回原 id（门禁钉着）：存过的格子换了 role，保存时换成 role 变体（`<原 id>~<原 role>~<现 role>`），
+   *   改回原 role 就回到原 id —— 编辑屏新建的（`slot_`）、老方案 / 市场装来的派生 id（`lg:`）、内置 id（fullBody…）一样，
+   *   与这中间名字、正文改没改、先改回哪一样都无关（复核第 5 轮：原先只有 `slot_` 有变体，派生 id 改过名再改回 role 会按当时的名字重算，
+   *   名字改回来也认不回去；改动前按名字认，名字改回来照片就回来）。
+   */
   function patchSlot(i: number, patch: Partial<SchemeSlot>) {
     setErr("");
     setSlots((cur) => cur.map((s, k) => (k === i ? { ...s, ...patch } : s)));
@@ -59,14 +78,21 @@ export default function SchemeEditorSheet({
       return;
     }
     try {
-      const saved = saveScheme({
-        // 内置的另存为要**换新 id**（不传 id 就是新建），否则会盖掉内置那套的位置
-        id: copying ? undefined : source?.id,
-        title: title.trim(),
-        intro: intro.trim(),
-        faceless,
-        slots,
-      });
+      const saved = saveScheme(
+        {
+          // 内置的另存为要**换新 id**（不传 id 就是新建），否则会盖掉内置那套的位置
+          id: copying ? undefined : source?.id,
+          title: title.trim(),
+          intro: intro.trim(),
+          faceless,
+          slots,
+        },
+        // ★★ 改自己那套时交出**打开这一屏时**拷贝的那一版图位（saveScheme 的 base）：这一屏开着的时候本机那份可能被换掉
+        //   （「已装 · 用它」没等回包就关了市场、点「改」，回包到了 upsertMine 换掉图位），这一屏手里的 id 来自打开时那一版，
+        //   role 要拿它核 —— 否则名字、role 一起改了的格子留着原 id，那格的全身照以脸部 role 铸进卡里（复核第 3 轮）。
+        //   新建 / 另存为传 null：没有「同一套的上一版」，内置 id 靠内置表核。
+        copying ? null : (source?.slots ?? null),
+      );
       onSaved(saved);
       onClose();
     } catch (e) {
@@ -137,7 +163,8 @@ export default function SchemeEditorSheet({
 
         <div className="space-y-2">
           {slots.map((s, i) => (
-            <div key={i} className="rounded-lg border border-slate-700/70 bg-panel p-2.5">
+            // ★ 按 id 当 key，不按下标：删掉中间一格时，下标 key 会让后一格复用被删那格的 DOM（输入框焦点、输入法状态串格）
+            <div key={s.id} className="rounded-lg border border-slate-700/70 bg-panel p-2.5">
               <div className="mb-1.5 flex items-center gap-1.5">
                 <input
                   value={s.tag}
@@ -221,7 +248,7 @@ export default function SchemeEditorSheet({
           <button
             onClick={() => {
               setErr("");
-              setSlots((cur) => [...cur, blankSlot()]);
+              setSlots((cur) => [...cur, blankSlot(cur.map((s) => s.id))]);
             }}
             className="mt-2 w-full rounded-lg border border-dashed border-slate-600 py-1.5 text-[11px] text-slate-400"
           >

@@ -12,7 +12,7 @@
 import { remoteOn } from "./videos";
 import { t } from "@lingui/core/macro";
 import { fetchSharedSchemes, installScheme, publishScheme, pushScheme } from "../api/schemes";
-import { emitSchemes, mineSchemes, patchMine, upsertMine, type PromptScheme } from "./promptSchemes";
+import { emitSchemes, mineSchemes, noteServerSlots, patchMine, upsertMine, type PromptScheme } from "./promptSchemes";
 
 // ── 广场（远端共享）────────────────────────────────────────────────
 //
@@ -85,7 +85,13 @@ export async function shareScheme(id: string, on: boolean): Promise<boolean> {
   marketErr = "";
   emitSchemes();
   try {
-    if (on) await pushScheme(s);
+    if (on) {
+      await pushScheme(s);
+      // ★★ 服务端那一行现在就是推上去的这一版：记下它（带 id）—— 之后本机再改、App 重启、再「已装 · 用它」/ 删掉再装回来，
+      //   upsertMine 靠它认回这几格的 id，草稿照片跟着回来（复核第 5 轮，见 promptSchemes.noteServerSlots）。
+      //   ★ 记在推成功之后：没推上去就记，会盖掉上一份对的记录（服务端还是上一版）
+      noteServerSlots(s.id, s.slots);
+    }
     const back = await publishScheme(id, on);
     // 回写 published：界面那颗按钮认它（别拿"点过了"当状态，刷新就丢）
     patchMine(id, { published: back.published });
@@ -116,8 +122,10 @@ export async function installSharedScheme(id: string): Promise<PromptScheme | nu
   emitSchemes();
   try {
     const { scheme } = await installScheme(id);
-    upsertMine(scheme);
-    return scheme;
+    // ★ 回**落库那一份**，不回服务端的原包：upsertMine 会拿记下的服务端那一版与本机那份（删掉之后装回来时是同一次会话里删掉那一刻的那一版）
+    //   把图位 id 对齐（重装自己的方案时草稿照片还挂在原来那几格上），并把回包记成新的「服务端那一版」；
+    //   回包里的 id 是 apiToScheme 现算的，调用方拿去用就对不上了
+    return upsertMine(scheme);
   } catch (e) {
     const why = e instanceof Error ? e.message : String(e);
     marketErr = t`装这套方案没成：${why}`;

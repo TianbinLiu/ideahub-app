@@ -13,6 +13,9 @@
 // ★ `mounted` 给结局分叉用：页在 → 直接画在页上（跳转/就地显示）；页不在 → 走胶囊通知。
 //   `resetCardDraft` 不动它（铸成跳走前要 reset，而那一刻页还在）。
 // ★ 依赖方向：data → store → 组件。这里只认 types 与 data/promptSchemes。
+// ★ 这份 store **只活在内存里**（普通 create，没挂 persist）：退出页面还在，App 重启就没了。
+//   哪天要把草稿落盘，人物卡图位一律按**图位 id** 存（不是名字，见 data/schemeSlotIds 文件头），
+//   并且放在带版本号的存储键下 —— 老方案的派生 id 会随内置提示词改措辞而变，版本号让那一天能整份作废而不是悄悄对错格。
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
@@ -85,7 +88,11 @@ export interface CustomCardDraft {
   tagText: string;
   schemeId: string;
   schemeOpen: boolean;
-  /** 人物卡各图位（按方案的 tag 键） */
+  /**
+   * 人物卡各图位，按**方案图位 id** 键（不是名字，见 data/schemeSlotIds 文件头）。
+   * ★ 刻意不按方案分开存：换方案只是把对不上的先收起来（CustomCardPage.changeScheme），而内置方案之间
+   *   同一格共用同一个 id（fullBody / faceCloseup），换过去照片还在原来那格上。
+   */
   schemeShots: Record<string, Shot>;
   step: CardStep;
   lane: "upload" | "ai" | null;
@@ -96,7 +103,8 @@ export interface CustomCardDraft {
   aiBusy: string;
   /** AI 车道素材口正在读哪张图（解码 + 裁切要一两秒，得让人看见） */
   aiPick: "body" | "face" | null;
-  annot: { tag: string; frame: string } | null;
+  /** 圈选改图开在人物卡哪一格上（图位 id）与那一格当时的图 */
+  annot: { slotId: string; frame: string } | null;
   /** 道具卡「只留主体」层开着时那张图（见 SubjectPick） */
   subjectPick: SubjectPick | null;
   /** 出片句（Card.idLine）：出片时整句拼进视频提示词，≤ types.ID_LINE_MAX */
@@ -121,6 +129,10 @@ export interface CustomCardDraft {
   authShot: Shot | null;
   unbindNote: string;
   pendingVoice: { dataUrl: string; durationSec: number; note: string } | null;
+  /**
+   * 正在处理哪一格 / 哪一格出了错。★ 键是两种东西共用一个空间：非人物卡是 CardView 的 kind，人物卡是方案图位 id。
+   *   两者永远撞不上，靠的是 schemeSlotIds.isValidSlotId 不许 id 等于 kind 词（changeType 不清 slotErr，撞上就画错格）。
+   */
   busySlot: string | null;
   slotErr: { key: string; msg: string } | null;
   err: string;
