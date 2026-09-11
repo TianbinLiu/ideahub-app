@@ -11,6 +11,7 @@
 //
 // ★ 光靠拖是不够的：600 秒的片子在 340px 的轨道上，1 像素 ≈ 1.8 秒，靠手指根本对不准
 //   "第 12 秒起 8 秒"。所以下面那排 ±1 秒的微调键不是装饰，是这条轨道唯一精确的入口。
+import { Trans } from "@lingui/react/macro";
 import { useRef, type PointerEvent as RPointerEvent } from "react";
 import { formatDuration } from "../../types";
 
@@ -157,15 +158,15 @@ export default function TrimBar({
             durSec >= minSec && durSec <= maxSec ? "bg-sky-500/20 text-sky-200" : "bg-rose-500/20 text-rose-200"
           }`}
         >
-          {durSec} 秒
+          <Trans>{durSec} 秒</Trans>
         </span>
         <span className="text-[10px] text-slate-500">
-          允许 {minSec}~{maxSec} 秒 · 全片 {formatDuration(total)}
+          <Trans>允许 {minSec}~{maxSec} 秒 · 全片 {formatDuration(total)}</Trans>
         </span>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] text-slate-500">起点</span>
+        <span className="text-[10px] text-slate-500"><Trans>起点</Trans></span>
         <button className={btn} disabled={disabled || startSec <= 0} onClick={() => nudge("start", -1)}>
           −1s
         </button>
@@ -176,7 +177,7 @@ export default function TrimBar({
         >
           +1s
         </button>
-        <span className="ml-2 text-[10px] text-slate-500">时长</span>
+        <span className="ml-2 text-[10px] text-slate-500"><Trans>时长</Trans></span>
         <button className={btn} disabled={disabled || durSec <= 1} onClick={() => nudge("dur", -1)}>
           −1s
         </button>

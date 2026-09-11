@@ -11,6 +11,7 @@
 //   —— 全 app 没有任何地方监听 emitApiError（铁律八）。所以两件事都发生在这张卡上。
 // ★ 删除在途时背景点击与「先不删」一并禁掉：这时候关掉弹层，那句还没到的失败原因
 //   就没有落点了。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -30,6 +31,7 @@ export default function DeleteConfirmShell({
   /** 这次删除的**事实**：由各自的弹层写，别塞进这里 */
   children: React.ReactNode;
 }) {
+  const { t } = useLingui();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -52,7 +54,7 @@ export default function DeleteConfirmShell({
             disabled={busy}
             className="flex-1 rounded-xl border border-slate-600 py-2.5 text-xs text-slate-300 disabled:opacity-40"
           >
-            {err ? "关掉" : "先不删"}
+            {err ? <Trans>关掉</Trans> : <Trans>先不删</Trans>}
           </button>
           <button
             onClick={() => {
@@ -60,14 +62,14 @@ export default function DeleteConfirmShell({
               setErr(null);
               void onConfirm()
                 // 抛出来的异常也要落到同一行上：漏掉它就又回到"点了没反应"
-                .catch((e) => (e instanceof Error ? e.message : "删除失败了，原因不明。"))
+                .catch((e) => (e instanceof Error ? e.message : t`删除失败了，原因不明。`))
                 .then((why) => setErr(why))
                 .finally(() => setBusy(false));
             }}
             disabled={busy}
             className="flex-1 rounded-xl bg-rose-500/90 py-2.5 text-xs font-bold text-white disabled:opacity-40"
           >
-            {busy ? "删除中…" : err ? "再试一次" : danger}
+            {busy ? <Trans>删除中…</Trans> : err ? <Trans>再试一次</Trans> : danger}
           </button>
         </div>
       </div>

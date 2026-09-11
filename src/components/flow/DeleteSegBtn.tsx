@@ -6,6 +6,7 @@
 //   默认视图**。更糟的是这条规则那时只长在画布一侧 —— 下次调整"什么时候要确认"必然只改一边
 //   （CLAUDE.md「同一条规则各写一份」的同族）。
 // ★ 组件只管"要不要点两下"与那句话；能不能删仍然只问 store。
+import { Trans } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 
 export default function DeleteSegBtn({
@@ -42,7 +43,7 @@ export default function DeleteSegBtn({
       disabled={disabled}
       className={`${className} ${armed ? "bg-rose-500 font-bold text-white" : ""}`}
     >
-      {armed ? "真的删？这段成片会没" : "🗑 删除本段"}
+      {armed ? <Trans>真的删？这段成片会没</Trans> : <Trans>🗑 删除本段</Trans>}
     </button>
   );
 }

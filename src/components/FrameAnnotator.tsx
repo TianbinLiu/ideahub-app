@@ -1,7 +1,9 @@
 // 画面圈选：在某一帧上拖出红圈框住物体 + 写修改要求。
 // 工作流页（逐段确认时改这一段）与剪辑页（成片前跨段批改）共用同一个弹窗——
 // 产物都是"带红圈的标注图 + 要求文本"，交给 Seedream 图生图改设定帧。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
+import { AIGC_BADGE_TEXT } from "../data/aigcLabel";
 import { CloseButton } from "./IconTapButton";
 
 /** object-cover 语义地把图/视频画满画布（保持比例、居中裁切） */
@@ -25,7 +27,7 @@ export function drawCover(ctx: CanvasRenderingContext2D, src: HTMLVideoElement |
  * ★ 尺寸按画布短边比例算（竖屏横屏同一套代码），描边保证深浅背景上都读得出。
  */
 export function drawAigcBadge(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-  const text = "AI 生成";
+  const text = AIGC_BADGE_TEXT;
   const fs = Math.max(14, Math.round(Math.min(w, h) * 0.028));
   const pad = Math.round(fs * 0.5);
   ctx.save();
@@ -67,6 +69,7 @@ export default function FrameAnnotator({
   onSave: (annotatedDataUrl: string, req: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useLingui();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [ellipse, setEllipse] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
@@ -116,7 +119,7 @@ export default function FrameAnnotator({
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-6" onClick={onClose}>
       <div className="w-full max-w-2xl rounded-2xl border border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-sm font-bold text-slate-100">⭕ 圈选要修改的物体</span>
+          <span className="text-sm font-bold text-slate-100"><Trans>⭕ 圈选要修改的物体</Trans></span>
           <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
         <canvas
@@ -148,7 +151,7 @@ export default function FrameAnnotator({
           onChange={(e) => setReq(e.target.value)}
           rows={2}
           maxLength={160}
-          placeholder="例：删除圈中的路人 / 把圈中的伞换成红色油纸伞 / 圈中的招牌改成中文"
+          placeholder={t`例：删除圈中的路人 / 把圈中的伞换成红色油纸伞 / 圈中的招牌改成中文`}
           className="mt-2 w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
         />
         <button
@@ -159,7 +162,7 @@ export default function FrameAnnotator({
           disabled={!ellipse || !req.trim()}
           className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
-          存入标注
+          <Trans>存入标注</Trans>
         </button>
         {hint && <p className="mt-1.5 text-center text-[11px] text-slate-500">{hint}</p>}
       </div>

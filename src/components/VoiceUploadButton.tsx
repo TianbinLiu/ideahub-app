@@ -1,5 +1,6 @@
 // 「上传本地音频」当声音样本 —— 与跟读录音同一种产物（cardVoice 的 WAV dataURL），
 // 只是声源换成文件。解码/窗口/封装的唯一实现在 utils/wav.audioFileToVoice。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useRef, useState } from "react";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC } from "../data/cardVoice";
 import { audioFileToVoice } from "../utils/wav";
@@ -9,6 +10,7 @@ export default function VoiceUploadButton({
 }: {
   onDone: (v: { dataUrl: string; durationSec: number; note: string }) => void;
 }) {
+  const { t } = useLingui();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -19,7 +21,7 @@ export default function VoiceUploadButton({
         disabled={busy}
         className="w-full rounded-full border border-slate-600 py-2 text-[11px] text-slate-300 disabled:opacity-40"
       >
-        {busy ? "处理中…" : `🎵 上传本地音频（${VOICE_MIN_SEC}~${VOICE_MAX_SEC} 秒）`}
+        {busy ? <Trans>处理中…</Trans> : <Trans>🎵 上传本地音频（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）</Trans>}
       </button>
       {err && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{err}</p>}
       <input
@@ -39,7 +41,7 @@ export default function VoiceUploadButton({
                 dataUrl: v.dataUrl,
                 durationSec: v.durationSec,
                 // 掐过头要如实说（durationSec 与 dataUrl 永远一致，见 audioFileToVoice 的 ★）
-                note: v.trimmed ? `上传音频（原片较长，取前 ${VOICE_MAX_SEC}s）` : "上传音频",
+                note: v.trimmed ? t`上传音频（原片较长，取前 ${VOICE_MAX_SEC}s）` : t`上传音频`,
               }),
             )
             .catch((er) => setErr(er instanceof Error ? er.message : String(er)))

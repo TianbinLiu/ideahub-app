@@ -14,6 +14,7 @@
 // ★ 页顶栏 px-4 = 16px：裸图标那档往左吃 12px 之后命中区左缘落在 4px 处，仍在屏内；
 //   不能再吃了 —— 再往左就压进安卓的边缘手势区，一半的点击会被系统当成"返回手势"起手。
 // ★ `label` 必填：图标键没有文字，读屏与自动化都只能靠 aria-label 认它。
+import { useLingui } from "@lingui/react/macro";
 import Icon, { type IconName } from "./Icon";
 
 export interface IconTapButtonProps {
@@ -79,9 +80,11 @@ export function IconTapButton({
 }
 
 export function BackButton(props: Omit<IconTapButtonProps, "icon" | "label"> & { label?: string }) {
-  return <IconTapButton icon="back" label="返回" {...props} />;
+  const { t } = useLingui();
+  return <IconTapButton icon="back" label={t`返回`} {...props} />;
 }
 
 export function CloseButton(props: Omit<IconTapButtonProps, "icon" | "label"> & { label?: string }) {
-  return <IconTapButton icon="close" label="关闭" {...props} />;
+  const { t } = useLingui();
+  return <IconTapButton icon="close" label={t`关闭`} {...props} />;
 }

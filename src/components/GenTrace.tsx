@@ -3,6 +3,7 @@
 // 为什么不是一个百分比进度条：方舟不返回真实完成度，硬编一个百分比只会骗人
 // （见 ai/real.ts 的轮询——只有"排队中/生成中 + 已用秒数"）。把**做到哪一步**如实
 // 列出来，用户就能自己判断是在正常推进还是真卡住了，也知道钱花在了哪几步上。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 import type { GenStep } from "../studio/genLog";
 
@@ -24,6 +25,7 @@ export default function GenTrace({
    *  出片浮层用它——那一屏本来就只有这份日志，再摆一个折叠开关是多余的一次点击 */
   expanded?: boolean;
 }) {
+  const { t } = useLingui();
   const [open, setOpen] = useState(true);
   const wasRunning = useRef(running);
   useEffect(() => {
@@ -36,12 +38,13 @@ export default function GenTrace({
   const [, tick] = useState(0);
   useEffect(() => {
     if (!running) return;
-    const t = setInterval(() => tick((n) => n + 1), 1000);
-    return () => clearInterval(t);
+    const id = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(id);
   }, [running]);
 
   if (steps.length === 0) return null;
   const doneCount = steps.filter((s) => s.status === "done").length;
+  const total = steps.length;
   const controlled = expanded !== undefined;
   const show = controlled ? expanded : open;
 
@@ -53,9 +56,9 @@ export default function GenTrace({
           className="flex items-center gap-1.5 text-[11px] text-slate-500"
         >
           <span className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
-          生成过程
+          <Trans>生成过程</Trans>
           <span className="text-slate-600">
-            {running ? `· ${doneCount}/${steps.length} 步` : `· 共 ${steps.length} 步`}
+            {running ? t`· ${doneCount}/${total} 步` : t`· 共 ${total} 步`}
           </span>
         </button>
       )}

@@ -8,12 +8,14 @@
  * ★ 试听的参数与保存后真正念台词的一致（SupportPage.ttsBodyFor 那套字段）：试听听到的必须就是之后听到的，
  *   否则「保存」这个动作在用户眼里就是坏的。
  */
+import { t } from "@lingui/core/macro";
 import { ApiError } from "../../api/client";
 import { companionErrorText } from "../../api/companion";
 import { synthesizeSpeech, type TtsRequest } from "../../api/support";
 import { companionBus } from "../../companion/bus";
 import { SpeechPlayer } from "../../companion/speech";
 
+/* i18n-frozen: 这是发给云端 TTS 念的台词（音色都是中文嗓子），与官网同一句 —— 三页念同一句，换嗓子时才有可比性 */
 export const previewLine = (name: string) => `你好，我是${name}，这是我的新声音。`;
 
 export function isAbortError(e: unknown): boolean {
@@ -23,10 +25,10 @@ export function isAbortError(e: unknown): boolean {
 /** 试听失败的整句说明（501/404 = 这台服务器没配云端语音，保存设置仍然有效） */
 export function previewErrorText(e: unknown): string {
   if (e instanceof ApiError) {
-    if (e.status === 501 || e.status === 404) return "这台服务器没配云端语音，试听不了；保存设置仍然有效。";
-    if (e.status === 429) return "试听太频繁了，稍等几秒再点。";
+    if (e.status === 501 || e.status === 404) return t`这台服务器没配云端语音，试听不了；保存设置仍然有效。`;
+    if (e.status === 429) return t`试听太频繁了，稍等几秒再点。`;
   }
-  return companionErrorText(e, "试听没出声，稍后再试。");
+  return companionErrorText(e, t`试听没出声，稍后再试。`);
 }
 
 export class VoicePreviewer {

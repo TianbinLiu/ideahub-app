@@ -6,6 +6,8 @@
 //   教训：loadeddata 先到、videoWidth 仍可能是 0，画出来是全黑）。
 // ★ 跨域地址必须 crossOrigin="anonymous" 且对端真发 CORS 头（Cloudinary 发），否则画布
 //   被污染、toDataURL 抛 SecurityError —— 本地 objectURL 没有这个问题，调用方按来源传。
+import { t } from "@lingui/core/macro";
+
 /**
  * 离屏解码一段视频并定位到某一秒，返回**已就绪、可 drawImage** 的 <video>。
  * ★ 「等就绪 + 带超时 + 钳位 seek」只有这一份：captureVideoFrame 与剪辑页的圈选截图
@@ -25,8 +27,8 @@ export async function loadVideoAt(url: string, atSec: number, opts?: { crossOrig
     v.onloadedmetadata = ok;
     v.onloadeddata = ok;
     v.oncanplay = ok;
-    v.onerror = () => rej(new Error("视频读不出来"));
-    window.setTimeout(() => rej(new Error("取帧超时（窗口在后台时浏览器不解码视频）")), 20_000);
+    v.onerror = () => rej(new Error(t`视频读不出来`));
+    window.setTimeout(() => rej(new Error(t`取帧超时（窗口在后台时浏览器不解码视频）`)), 20_000);
   });
   // 钳位到 [0, duration-0.05]：duration 恰好等于 atSec（取尾帧）时 seek 会落空截到首帧
   const target = Math.max(0, Math.min(atSec, (v.duration || atSec) - 0.05));
@@ -59,8 +61,8 @@ export async function realDurationOf(url: string): Promise<number | null> {
   try {
     await new Promise<void>((res, rej) => {
       v.onloadedmetadata = () => res();
-      v.onerror = () => rej(new Error("读不出来"));
-      window.setTimeout(() => rej(new Error("超时")), 15_000);
+      v.onerror = () => rej(new Error("metadata unreadable"));
+      window.setTimeout(() => rej(new Error("metadata timeout")), 15_000);
     });
     if (Number.isFinite(v.duration) && v.duration > 0) return v.duration;
     // 没有 Duration 元素：seek 到一个到不了的时刻，浏览器扫完整条流之后会把真值填回 duration
@@ -113,7 +115,7 @@ export async function captureVideoFrame(
     if (band[i] < lo) lo = band[i];
     if (band[i] > hi) hi = band[i];
   }
-  if (hi === 0 && lo === 255) throw new Error("截出来是一片空白");
+  if (hi === 0 && lo === 255) throw new Error(t`截出来是一片空白`);
   return c.toDataURL("image/jpeg", 0.88);
 }
 

@@ -7,6 +7,7 @@
 //
 // ★ 分区只有 6 个固定值，长尾内容（"雨夜""赛博朋克""国风水墨"）没有落点 —— 标签就是
 //   给它们准备的。所以这里的措辞是"让别人搜得到"，不是"给内容分类"。
+import { useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
 export default function TagInput({
@@ -23,15 +24,17 @@ export default function TagInput({
   /** 「一串字 → 若干标签」。**只准传 types.parseTags**：分隔符规则全 app 一处 */
   split: (raw: string, opts: { max: number; maxLen: number }) => string[];
 }) {
+  const { t } = useLingui();
   const [draft, setDraft] = useState("");
   const full = tags.length >= max;
+  const added = tags.length;
 
   function add(raw: string) {
     setDraft("");
     if (full) return;
     // ★ 走共用的切分：用户经常一口气粘 "#雨夜 #赛博朋克 #国风"，
     //   一次只收一条的话后面那些会被当成一个超长标签截掉一半（零报错）
-    const fresh = split(raw, { max, maxLen }).filter((t) => !tags.includes(t));
+    const fresh = split(raw, { max, maxLen }).filter((tag) => !tags.includes(tag));
     if (fresh.length === 0) return; // 重复/空的静默忽略：用户的意图已经达成了
     onChange([...tags, ...fresh].slice(0, max));
   }
@@ -39,16 +42,16 @@ export default function TagInput({
   return (
     <div>
       <div className="flex flex-wrap items-center gap-1.5">
-        {tags.map((t) => (
+        {tags.map((tag) => (
           <span
-            key={t}
+            key={tag}
             className="inline-flex items-center gap-1 rounded-full bg-brand/15 px-2.5 py-1 text-xs text-brand"
           >
-            #{t}
+            #{tag}
             <button
-              onClick={() => onChange(tags.filter((x) => x !== t))}
+              onClick={() => onChange(tags.filter((x) => x !== tag))}
               className="text-brand/70 hover:text-brand"
-              aria-label={`删掉标签 ${t}`}
+              aria-label={t`删掉标签 ${tag}`}
             >
               ✕
             </button>
@@ -77,13 +80,13 @@ export default function TagInput({
             //   由 split()（types.parseTags）逐条切，不是草稿框的上限。
             //   这里给一个只防"粘进一整篇文章"的宽上限。
             maxLength={maxLen * max * 2}
-            placeholder={tags.length === 0 ? "加个话题，让人搜得到（回车分隔）" : "再加一个"}
+            placeholder={tags.length === 0 ? t`加个话题，让人搜得到（回车分隔）` : t`再加一个`}
             className="min-w-[9rem] flex-1 rounded-xl border border-slate-700 bg-panel px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
           />
         )}
       </div>
       <p className="mt-1 text-[11px] text-slate-500">
-        {full ? `最多 ${max} 个，已经满了` : `最多 ${max} 个，每个 ${maxLen} 字以内 · 已加 ${tags.length} 个`}
+        {full ? t`最多 ${max} 个，已经满了` : t`最多 ${max} 个，每个 ${maxLen} 字以内 · 已加 ${added} 个`}
       </p>
     </div>
   );
