@@ -19,6 +19,7 @@ import { isRemoteMode } from "../data/account";
 import { storageEstimate } from "../data/db";
 import { planSweep, runSweep, type SweepPlan } from "../data/cacheSweep";
 import { clearDownloads, listDownloads, mb as fmtBytes, type DownloadGroup } from "../data/videoDownload";
+import { sweepCameraLeftovers } from "../utils/nativeCamera";
 
 export default function SettingsStoragePage() {
   // 远端模式下作品的权威副本在服务器，本地这份只是缓存——文案不能再说「存在本机」
@@ -187,6 +188,8 @@ function CacheSweeper({ onDone }: { onDone: () => void }) {
   function run() {
     setBusy(true);
     void runSweep(plan!)
+      // ★ 顺手清拍照残留（原生 Pictures/ 下的 JPEG_*：取消拍照也会留下 0 字节的临时文件，IndexedDB 那份清单数不到它们）
+      .then(async (swept) => swept + (await sweepCameraLeftovers(0)))
       .then((n) => {
         setNote(`已清理 ${n} 个文件`);
         setPlan({ keys: [], bytes: 0 });

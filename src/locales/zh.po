@@ -121,6 +121,14 @@ msgstr "🧪 摘掉模板"
 msgid "AI 指挥没连上（{why}），先按本地句式办了能办的。"
 msgstr "AI 指挥没连上（{why}），先按本地句式办了能办的。"
 
+#: src/utils/nativeCamera.ts
+msgid "上一张还没拍完"
+msgstr "上一张还没拍完"
+
+#: src/pages/CustomCardPage.tsx
+msgid "上传本地图片"
+msgstr "上传本地图片"
+
 #: src/studio/canvasAgent.ts
 msgid "余额不够 AI 指挥（400/句）。"
 msgstr "余额不够 AI 指挥（400/句）。"
@@ -172,6 +180,22 @@ msgstr "带背景"
 msgid "引号里填模板名（下面可直接点）"
 msgstr "引号里填模板名（下面可直接点）"
 
+#: src/pages/CustomCardPage.tsx
+msgid "拍一张，AI 按照片填卡名和简介（演示档不花钱）；上传本地图片进表单后也能再点识别"
+msgstr "拍一张，AI 按照片填卡名和简介（演示档不花钱）；上传本地图片进表单后也能再点识别"
+
+#: src/pages/CustomCardPage.tsx
+msgid "拍一张，AI 按照片填卡名和简介（识别 {recogPrice} token）；上传本地图片不花钱，进表单后也能再点识别"
+msgstr "拍一张，AI 按照片填卡名和简介（识别 {recogPrice} token）；上传本地图片不花钱，进表单后也能再点识别"
+
+#: src/pages/CustomCardPage.tsx
+msgid "拍摄识别"
+msgstr "拍摄识别"
+
+#: src/pages/CustomCardPage.tsx
+msgid "拍照中…"
+msgstr "拍照中…"
+
 #: src/studio/canvasAgent.ts
 msgid "接着写这一段的画面"
 msgstr "接着写这一段的画面"
@@ -179,6 +203,10 @@ msgstr "接着写这一段的画面"
 #: src/studio/canvasAgent.ts
 msgid "未出片的段直接删，已出片的段不代删"
 msgstr "未出片的段直接删，已出片的段不代删"
+
+#: src/utils/nativeCamera.ts
+msgid "本机没有系统相机（Android 11 起只认预装相机）——改用「上传本地图片」"
+msgstr "本机没有系统相机（Android 11 起只认预装相机）——改用「上传本地图片」"
 
 #: src/pages/SettingsPage.tsx
 msgid "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"
@@ -193,13 +221,34 @@ msgstr "模板里这张卡已经变了，刷新后再试"
 msgid "没听懂这几句，怕改错就没动：{0}。"
 msgstr "没听懂这几句，怕改错就没动：{0}。"
 
+#: src/pages/CustomCardPage.tsx
+msgid "没接到照片：相机那边可能没存下来——再拍一次，或选「上传本地图片」"
+msgstr "没接到照片：相机那边可能没存下来——再拍一次，或选「上传本地图片」"
+
 #: src/pages/SettingsPage.tsx
 msgid "没能切换语言，请重试"
 msgstr "没能切换语言，请重试"
 
+#: src/utils/nativeCamera.ts
+msgid "照片重新编码失败"
+msgstr "照片重新编码失败"
+
 #: src/studio/canvasAgent.ts
 msgid "白模段用，改成真实角色位与卡名"
 msgstr "白模段用，改成真实角色位与卡名"
+
+#. placeholder {0}: msg.slice(0, 80)
+#: src/utils/nativeCamera.ts
+msgid "相机没拍成：{0}"
+msgstr "相机没拍成：{0}"
+
+#: src/utils/nativeCamera.ts
+msgid "相机没有交回照片"
+msgstr "相机没有交回照片"
+
+#: src/utils/nativeCamera.ts
+msgid "相机照片存不下来（存储可能已满）"
+msgstr "相机照片存不下来（存储可能已满）"
 
 #. placeholder {0}: o.seg
 #. placeholder {1}: was !== prevReq ? "…" : ""
@@ -226,6 +275,10 @@ msgstr "第 {s} 段"
 msgid "花钱操作，会先摆确认卡"
 msgstr "花钱操作，会先摆确认卡"
 
+#: src/pages/CustomCardPage.tsx
+msgid "识别一次 {recogPrice} token，余额 {balance} 不够——去「我的」页充值，或选「上传本地图片」（不花钱）"
+msgstr "识别一次 {recogPrice} token，余额 {balance} 不够——去「我的」页充值，或选「上传本地图片」（不花钱）"
+
 #. placeholder {0}: LANG_NAME[active]
 #. placeholder {0}: LANG_NAME[systemLang()]
 #: src/pages/SettingsPage.tsx
@@ -237,9 +290,21 @@ msgstr "跟随系统（{0}）"
 msgid "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
 msgstr "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
 
+#: src/utils/nativeCamera.ts
+msgid "这台设备处理不了照片（画布不可用）"
+msgstr "这台设备处理不了照片（画布不可用）"
+
+#: src/utils/nativeCamera.ts
+msgid "这台设备没有可用的相机"
+msgstr "这台设备没有可用的相机"
+
 #: src/data/cardViews.ts
 msgid "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"
 msgstr "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"
+
+#: src/utils/nativeCamera.ts
+msgid "这张照片解不开（常见于 HEIC 等手机专有格式）——换成 JPG，或截个图再传"
+msgstr "这张照片解不开（常见于 HEIC 等手机专有格式）——换成 JPG，或截个图再传"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "这条流水线还没有段——对下面的输入条说「{addExample}」"

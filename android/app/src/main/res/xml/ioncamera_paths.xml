@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ★★ 同名覆盖 @capacitor/camera 传递依赖 ioncamera-android 自带的 res/xml/ioncamera_paths.xml（2026-09-10 §1 第 7 批）。
+     它原文暴露了 files / cache / external-files / external-cache / media，还有 <external-path name="external" path="." />
+     —— 整个共享外部存储，与 file_paths.xml 文件头 09-07 删掉的那条是同一个口子（签发任意共享文件的 content:// URI）。
+     本 App 只调 getPhoto（LegacyCameraFlow 走的是自己的 ${applicationId}.fileprovider，见 file_paths.xml），
+     ioncamera 那个 IONCAMRFileProvider 用不到这些路径，只留一条 cache-path 让它的清单项还能正常初始化。
+     ⚠ app 模块的同名资源会盖掉库里的：合并后的包里用 aapt2 dump xmltree 核过只剩这一条再发版。 -->
+<paths>
+    <cache-path name="cache" path="." />
+</paths>

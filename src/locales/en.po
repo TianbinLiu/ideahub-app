@@ -121,6 +121,14 @@ msgstr "🧪 Remove template"
 msgid "AI 指挥没连上（{why}），先按本地句式办了能办的。"
 msgstr "Couldn't reach the AI director ({why}), so I did what plain phrasing allows. "
 
+#: src/utils/nativeCamera.ts
+msgid "上一张还没拍完"
+msgstr "The previous photo isn't finished yet"
+
+#: src/pages/CustomCardPage.tsx
+msgid "上传本地图片"
+msgstr "Upload from device"
+
 #: src/studio/canvasAgent.ts
 msgid "余额不够 AI 指挥（400/句）。"
 msgstr "Not enough balance for the AI director (400 per message). "
@@ -172,6 +180,22 @@ msgstr "Background kept"
 msgid "引号里填模板名（下面可直接点）"
 msgstr "Put the template name in the quotes (or tap one below)"
 
+#: src/pages/CustomCardPage.tsx
+msgid "拍一张，AI 按照片填卡名和简介（演示档不花钱）；上传本地图片进表单后也能再点识别"
+msgstr "Take a photo and AI fills in the name and summary (free in demo mode). If you upload from your device, you can still tap Identify in the form."
+
+#: src/pages/CustomCardPage.tsx
+msgid "拍一张，AI 按照片填卡名和简介（识别 {recogPrice} token）；上传本地图片不花钱，进表单后也能再点识别"
+msgstr "Take a photo and AI fills in the name and summary (identify: {recogPrice} tokens). Uploading from your device is free, and you can still tap Identify in the form."
+
+#: src/pages/CustomCardPage.tsx
+msgid "拍摄识别"
+msgstr "Snap & identify"
+
+#: src/pages/CustomCardPage.tsx
+msgid "拍照中…"
+msgstr "Taking photo…"
+
 #: src/studio/canvasAgent.ts
 msgid "接着写这一段的画面"
 msgstr "Then describe the shot"
@@ -179,6 +203,10 @@ msgstr "Then describe the shot"
 #: src/studio/canvasAgent.ts
 msgid "未出片的段直接删，已出片的段不代删"
 msgstr "Deletes segments without video; won't delete ones that have video"
+
+#: src/utils/nativeCamera.ts
+msgid "本机没有系统相机（Android 11 起只认预装相机）——改用「上传本地图片」"
+msgstr "No system camera on this device (Android 11+ only allows the preinstalled camera). Use “Upload from device” instead."
 
 #: src/pages/SettingsPage.tsx
 msgid "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"
@@ -193,13 +221,34 @@ msgstr "This card changed in the template. Refresh and try again."
 msgid "没听懂这几句，怕改错就没动：{0}。"
 msgstr "Didn't understand these, so I left them alone: {0}. "
 
+#: src/pages/CustomCardPage.tsx
+msgid "没接到照片：相机那边可能没存下来——再拍一次，或选「上传本地图片」"
+msgstr "No photo came back — the camera may not have saved it. Try again, or choose “Upload from device”."
+
 #: src/pages/SettingsPage.tsx
 msgid "没能切换语言，请重试"
 msgstr "Couldn't switch the language. Please try again."
 
+#: src/utils/nativeCamera.ts
+msgid "照片重新编码失败"
+msgstr "Couldn't re-encode the photo"
+
 #: src/studio/canvasAgent.ts
 msgid "白模段用，改成真实角色位与卡名"
 msgstr "For blockout segments — swap in real slot and card names"
+
+#. placeholder {0}: msg.slice(0, 80)
+#: src/utils/nativeCamera.ts
+msgid "相机没拍成：{0}"
+msgstr "The camera didn't take a photo: {0}"
+
+#: src/utils/nativeCamera.ts
+msgid "相机没有交回照片"
+msgstr "The camera didn't return a photo"
+
+#: src/utils/nativeCamera.ts
+msgid "相机照片存不下来（存储可能已满）"
+msgstr "Couldn't save the camera photo (storage may be full)"
 
 #. placeholder {0}: o.seg
 #. placeholder {1}: was !== prevReq ? "…" : ""
@@ -226,6 +275,10 @@ msgstr "Segment {s}"
 msgid "花钱操作，会先摆确认卡"
 msgstr "Costs tokens — you'll confirm first"
 
+#: src/pages/CustomCardPage.tsx
+msgid "识别一次 {recogPrice} token，余额 {balance} 不够——去「我的」页充值，或选「上传本地图片」（不花钱）"
+msgstr "Identifying costs {recogPrice} tokens and your balance is {balance} — top up on the Me page, or choose “Upload from device” (free)."
+
 #. placeholder {0}: LANG_NAME[active]
 #. placeholder {0}: LANG_NAME[systemLang()]
 #: src/pages/SettingsPage.tsx
@@ -237,9 +290,21 @@ msgstr "Follow system ({0})"
 msgid "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
 msgstr "These mix Chinese and English segment numbers, so I couldn't tell which segment you meant: {0}. "
 
+#: src/utils/nativeCamera.ts
+msgid "这台设备处理不了照片（画布不可用）"
+msgstr "This device can't process the photo (canvas unavailable)"
+
+#: src/utils/nativeCamera.ts
+msgid "这台设备没有可用的相机"
+msgstr "This device has no camera available"
+
 #: src/data/cardViews.ts
 msgid "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"
 msgstr "This image changed while you were editing it (maybe on another device). Refresh and try again."
+
+#: src/utils/nativeCamera.ts
+msgid "这张照片解不开（常见于 HEIC 等手机专有格式）——换成 JPG，或截个图再传"
+msgstr "This photo can't be decoded (common with HEIC and other phone-specific formats). Convert it to JPG, or take a screenshot and upload that."
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "这条流水线还没有段——对下面的输入条说「{addExample}」"
