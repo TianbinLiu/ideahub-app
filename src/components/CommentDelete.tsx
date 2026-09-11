@@ -9,6 +9,7 @@
 // ★★ 失败必须**看得见**：删除是个后果不可撤销的动作，而它失败是常态（无权、
 //   老服务端没有这个端点、限流、断网）。全 app 没有任何地方监听 emitApiError，
 //   在这里 catch 之后不响 = 用户点了没反应，只会一直点（铁律八）。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 import { canDeleteComment, removeComment } from "../data/videos";
 import type { VideoComment } from "../types";
@@ -23,6 +24,7 @@ export default function CommentDelete({
   /** 删成功后通知父组件把自己那份列表快照换掉（data 层已经改了 video.comments） */
   onDeleted?: () => void;
 }) {
+  const { t } = useLingui();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -41,7 +43,7 @@ export default function CommentDelete({
       // 成功之后这个组件多半已经随那条评论一起卸载了，不必复位状态
     } catch (e) {
       // 失败**保留确认态**：用户看得到原因，也还站在"想删"这一步上，改完网络能直接重试
-      setErr(e instanceof Error ? e.message : "没能删掉，请重试");
+      setErr(e instanceof Error ? e.message : t`没能删掉，请重试`);
       setBusy(false);
     }
   }
@@ -55,7 +57,7 @@ export default function CommentDelete({
         }}
         className="mt-1 text-[11px] text-slate-500 active:opacity-60"
       >
-        删除
+        <Trans>删除</Trans>
       </button>
     );
   }
@@ -67,7 +69,7 @@ export default function CommentDelete({
         disabled={busy}
         className="text-[11px] font-semibold text-rose-400 active:opacity-60 disabled:opacity-40"
       >
-        {busy ? "删除中…" : "确认删除"}
+        {busy ? <Trans>删除中…</Trans> : <Trans>确认删除</Trans>}
       </button>
       <button
         onClick={() => {
@@ -76,10 +78,10 @@ export default function CommentDelete({
         }}
         className="text-[11px] text-slate-500 active:opacity-60"
       >
-        取消
+        <Trans>取消</Trans>
       </button>
       {/* 连回复一起删：说在前面，别让用户删完才发现楼里少了几层 */}
-      <span className="text-[10px] text-slate-600">（它下面的回复会一起删掉）</span>
+      <span className="text-[10px] text-slate-600"><Trans>（它下面的回复会一起删掉）</Trans></span>
       {err && <span className="w-full text-[11px] leading-relaxed text-rose-300">{err}</span>}
     </span>
   );

@@ -8,6 +8,7 @@
 // ★ 抽成组件的直接原因（2026-08-30 复核抓到）：它原来是内联在工坊页某个页签分支里的
 //   一段 JSX，而触发它的按钮在**另一个页签分支** —— 两分支互斥，卡组因此根本删不掉。
 //   删除类浮层与触发它的按钮不该分属不同的条件分支；做成组件后挂在顶层，这类错就不会再犯。
+import { Trans, useLingui } from "@lingui/react/macro";
 import DeleteConfirmShell from "./DeleteConfirmShell";
 import type { Deck } from "../data/account";
 
@@ -21,24 +22,29 @@ export default function DeleteDeckDialog({
   onConfirm: () => Promise<string | null>;
   onCancel: () => void;
 }) {
+  const { t } = useLingui();
   return (
     <DeleteConfirmShell
-      title={`删掉卡组「${deck.name}」？`}
-      danger="删掉这个卡组"
+      title={t`删掉卡组「${deck.name}」？`}
+      danger={t`删掉这个卡组`}
       onConfirm={onConfirm}
       onCancel={onCancel}
     >
           <p>
-            · 里面那 {deck.cardIds.length} 张卡<span className="text-slate-200">不会被删</span>，
-            它们还在你的卡片库里，只是不再归到这一组。
+            <Trans>
+              · 里面那 {deck.cardIds.length} 张卡<span className="text-slate-200">不会被删</span>，
+              它们还在你的卡片库里，只是不再归到这一组。
+            </Trans>
           </p>
           {deck.published && (
             <p>
-              · 这个卡组已分享到创意工坊：删掉会<span className="text-slate-200">同时下架</span>；
-              别人已经装走的那份是发布时的快照，留在他们库里不受影响。
+              <Trans>
+                · 这个卡组已分享到创意工坊：删掉会<span className="text-slate-200">同时下架</span>；
+                别人已经装走的那份是发布时的快照，留在他们库里不受影响。
+              </Trans>
             </p>
           )}
-          <p className="text-rose-300">卡组本身删了就找不回来。</p>
+          <p className="text-rose-300"><Trans>卡组本身删了就找不回来。</Trans></p>
     </DeleteConfirmShell>
   );
 }

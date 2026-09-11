@@ -12,6 +12,7 @@
 //   点掉即走，不常驻。
 // ★ 只动 transform/opacity 做进出场（合成层，首页视频流滚动时不触发重排）。
 // ★ 同时只画一条：进行中优先（最新发起的那条），其次是最早的一条结局；关掉一条下一条顶上来。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useLocation, useNavigate } from "react-router";
 import Spinner from "./Spinner";
 import { dismissJob } from "../data/jobs";
@@ -24,6 +25,7 @@ type Item =
   | { kind: "done"; ok: boolean; msg: string; route: string | null; dismiss: () => void };
 
 export default function GenerationPill() {
+  const { t } = useLingui();
   const busy = useFlow((s) => s.busy);
   const nodes = useFlow((s) => s.nodes);
   const notice = useFlow((s) => s.genNotice);
@@ -38,14 +40,15 @@ export default function GenerationPill() {
   if (here !== "/flow") {
     // 生成中：从正在生成的节点上取当前步骤（与页内进度同源 —— node.progress）
     const gen = busy ? nodes.find((n) => n.status === "generating") : undefined;
-    if (gen) items.push({ kind: "busy", text: gen.progress || "本段生成中…", route: "/flow" });
+    if (gen) items.push({ kind: "busy", text: gen.progress || t`本段生成中…`, route: "/flow" });
     else if (notice) items.push({ kind: "done", ok: notice.ok, msg: notice.msg, route: "/flow", dismiss: clearNotice });
   }
   for (const j of jobs) {
     if (j.status === "running") {
       // 人就在发起它的那一页上：页面自己画进度
       if (j.page && j.page === here) continue;
-      items.push({ kind: "busy", text: `${j.title} · ${j.progress || "进行中…"}`, route: j.route ?? j.page ?? null });
+      const progress = j.progress || t`进行中…`;
+      items.push({ kind: "busy", text: `${j.title} · ${progress}`, route: j.route ?? j.page ?? null });
     } else {
       items.push({ kind: "done", ok: j.status === "done", msg: j.msg || j.title, route: j.route ?? null, dismiss: () => dismissJob(j.id) });
     }
@@ -73,7 +76,7 @@ export default function GenerationPill() {
         >
           <Spinner size="xs" />
           <span className="min-w-0 truncate">{show.text}</span>
-          {show.route && <span className="flex-none text-slate-400">点击返回</span>}
+          {show.route && <span className="flex-none text-slate-400"><Trans>点击返回</Trans></span>}
         </button>
       ) : (
         <div
@@ -92,12 +95,12 @@ export default function GenerationPill() {
             <span className="min-w-0 truncate">{show.msg}</span>
             {show.route && (
               <span className={`flex-none font-bold ${show.ok ? "text-emerald-300" : "text-rose-300"}`}>
-                {show.ok ? "回去看看 ›" : "回去看原因 ›"}
+                {show.ok ? <Trans>回去看看 ›</Trans> : <Trans>回去看原因 ›</Trans>}
               </span>
             )}
           </button>
           {/* 不想回去也得能把它关掉：一条关不掉的通知横在每一页顶上，比没有更坏 */}
-          <button onClick={show.dismiss} className="flex-none rounded-full p-1.5 text-slate-400" aria-label="关闭">
+          <button onClick={show.dismiss} className="flex-none rounded-full p-1.5 text-slate-400" aria-label={t`关闭`}>
             <Icon name="close" size={12} />
           </button>
         </div>

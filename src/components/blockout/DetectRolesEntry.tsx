@@ -4,6 +4,7 @@
 // ★★ 为什么单独成模块：模板详情页（TemplateDetailPage）也要用这个入口，而它**不能**
 //   import TemplateShelf —— RoleConfirmSheet 记过那条 页面↔组件↔useTemplatesVersion 的
 //   循环 import 坑。放在中立的 blockout/ 下，货架与详情页两边都只依赖它、互不依赖。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 import BoxFramePicker, { boxMarksInSelection, type BoxFrameMode } from "./BoxFramePicker";
 import { fmtTokens, ownRefTemplateCost } from "../../data/economy";
@@ -34,7 +35,8 @@ import { VideoTemplate } from "../../types";
  *   ② 绝不做成自动重试。
  * ★ 结果三档都照实说（服务端回的 note 原样显示）：全成 / 有角色位没框 / 一个没认出来。
  */
-export function DetectRolesEntry({ t }: { t: VideoTemplate }) {
+export function DetectRolesEntry({ t: tpl }: { t: VideoTemplate }) {
+  const { t } = useLingui();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   /** 折叠态（2026-08-20 塞进卡片格子后默认收起）：挑帧那块有高度，常驻会把列表撑成长文 */
@@ -43,15 +45,16 @@ export function DetectRolesEntry({ t }: { t: VideoTemplate }) {
   const [mode, setMode] = useState<BoxFrameMode>("auto");
   const [marks, setMarks] = useState<number[]>([]);
   // 只对**白模模板**（有参考视频）、**已登记**的自己那条出
-  if (!t.refVideo || !t.remoteId) return null;
-  const rs = remoteStateOf(t);
+  if (!tpl.refVideo || !tpl.remoteId) return null;
+  const rs = remoteStateOf(tpl);
   if (rs?.isOwner === false) return null;
-  const has = (t.roles?.length ?? 0) > 0;
+  const has = (tpl.roles?.length ?? 0) > 0;
   // ★ 已经核对过的不出：重认会把作者一条条改过的措辞整份冲掉，服务端也会 400。
   //   ★★ `rs` 为 null = 远端状态还没到货。已经有角色位时**往不出那一侧退**：
   //     摆一颗可能被服务端拒的付费按钮，比少一个入口坏。
   if (has && !rs?.rolesRedetectable) return null;
   const cost = ownRefTemplateCost();
+  const price = fmtTokens(cost);
   // 展开面板是 w-full：外层是 flex-wrap 的按钮行，按钮内联、面板独占一行
   return (
     <>
@@ -61,18 +64,18 @@ export function DetectRolesEntry({ t }: { t: VideoTemplate }) {
           openPanel ? "bg-sky-400 text-ink" : "border border-sky-500/50 bg-sky-500/15 text-sky-200"
         }`}
       >
-        {has ? "重新识别角色位" : "识别角色位"}
+        {has ? <Trans>重新识别角色位</Trans> : <Trans>识别角色位</Trans>}
       </button>
       {openPanel && (
         <div className="w-full space-y-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2">
           {/* ★ 一句话说清这个面板是干嘛的。"每一段视频"不是笔误：挑的帧同时就是
               长视频的分段点（场景/人数一变就该标一帧），见分段出片那条产品线 */}
           <div className="text-[11px] leading-relaxed text-sky-100">
-            选定场景/人物数量变化的特定帧，让 AI 分析每一段视频中的人物。
+            <Trans>选定场景/人物数量变化的特定帧，让 AI 分析每一段视频中的人物。</Trans>
             {has && (
               <>
                 {" "}
-                重认会<b className="font-bold">覆盖现有描述</b>（你自己改过的也会没），按一次收一次费；核对过之后不能再重认。
+                <Trans>重认会<b className="font-bold">覆盖现有描述</b>（你自己改过的也会没），按一次收一次费；核对过之后不能再重认。</Trans>
               </>
             )}
           </div>
@@ -88,15 +91,15 @@ export function DetectRolesEntry({ t }: { t: VideoTemplate }) {
             //     `boxMarksInSelection` —— 它是"标记 → 提交值"的唯一实现。今天两者结果
             //     相同（marks 插入时已量化+排序+判重），但那个函数再加一条规则时，
             //     这里手写的一份会**静默分叉**，正是它自己的注释要防的形状。
-            void detectTemplateRoles(t.id, mode === "manual" ? boxMarksInSelection(marks).atSecs : undefined)
-              .then((note) => setMsg(note || "认好了 ✓"))
+            void detectTemplateRoles(tpl.id, mode === "manual" ? boxMarksInSelection(marks).atSecs : undefined)
+              .then((note) => setMsg(note || t`认好了 ✓`))
               .catch((e) => setMsg(e instanceof Error ? e.message : String(e)))
               .finally(() => setBusy(false));
           }}
           disabled={busy}
           className="flex-none rounded-full bg-sky-400 px-3 py-1 text-[11px] font-bold text-ink disabled:opacity-40"
         >
-          {busy ? "识别中…（要一到几分钟）" : `开始识别（${fmtTokens(cost)}）`}
+          {busy ? t`识别中…（要一到几分钟）` : t`开始识别（${price}）`}
             </button>
             {msg && <span className="min-w-0 flex-1 text-[10px] leading-relaxed text-sky-200">{msg}</span>}
           </div>
@@ -107,7 +110,7 @@ export function DetectRolesEntry({ t }: { t: VideoTemplate }) {
           <BoxFramePicker
             mode={mode}
             onModeChange={setMode}
-            src={t.refVideo.url}
+            src={tpl.refVideo.url}
             marks={marks}
             onMarksChange={setMarks}
             disabled={busy}

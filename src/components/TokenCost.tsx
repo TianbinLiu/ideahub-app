@@ -6,6 +6,7 @@
 // 用户以为白花了），有的余额不足时没有出路（"去充值"要么没有、要么链到
 // 不存在的 /profile），有的干脆一个字没有（3D 建模 2.4 元一次，全 app 最贵的
 // 单次操作，以前静默触发、静默免费）。收成一个组件，这三件就只会漏一次。
+import { Trans } from "@lingui/react/macro";
 import { Link } from "react-router";
 import { AI_REAL } from "../ai";
 import { billingExempt, canAfford, walletOf } from "../data/account";
@@ -23,11 +24,12 @@ export default function TokenCost({
   upper?: boolean;
   className?: string;
 }) {
+  const amount = fmtTokens(tokens);
   // 演示模式下不消耗任何额度，报数字只会误导。但也不能什么都不说——
   // 用户以为自己在测真实生成，得让他知道这一炉是假的
   if (!AI_REAL) {
     return (
-      <p className={`text-[11px] text-amber-300/80 ${className}`}>○ 演示模式：本地模拟，不消耗 token</p>
+      <p className={`text-[11px] text-amber-300/80 ${className}`}><Trans>○ 演示模式：本地模拟，不消耗 token</Trans></p>
     );
   }
   // ★★ 管理员免扣费**必须说出来**。服务端对 admin 放行（wallet.debit 不扣），
@@ -38,7 +40,11 @@ export default function TokenCost({
   if (billingExempt()) {
     return (
       <p className={`text-[11px] text-brand ${className}`}>
-        管理员免扣费：这一步{upper ? "最多" : "约"}值 {fmtTokens(tokens)} token，不从你的钱包里扣
+        {upper ? (
+          <Trans>管理员免扣费：这一步最多值 {amount} token，不从你的钱包里扣</Trans>
+        ) : (
+          <Trans>管理员免扣费：这一步约值 {amount} token，不从你的钱包里扣</Trans>
+        )}
         {note ? ` · ${note}` : ""}
       </p>
     );
@@ -48,16 +54,19 @@ export default function TokenCost({
   const ok = canAfford(tokens);
   return (
     <p className={`text-[11px] ${ok ? "text-slate-500" : "text-rose-300"} ${className}`}>
-      {upper ? "最多消耗" : "预计消耗"} {fmtTokens(tokens)} token
+      {upper ? <Trans>最多消耗 {amount} token</Trans> : <Trans>预计消耗 {amount} token</Trans>}
       {note ? ` · ${note}` : ""}
       {!ok && (
         <>
-          {" "}· 余额 {fmtTokens(bal)} 不够，
+          {" "}·{" "}
           {/* 路由是 /me，不是 /profile——写错了编译器不拦，运行时点了没反应，
               而这在余额不足时是用户唯一的出路 */}
-          <Link to="/me" className="underline underline-offset-2">
-            去充值
-          </Link>
+          <Trans>
+            余额 {fmtTokens(bal)} 不够，
+            <Link to="/me" className="underline underline-offset-2">
+              去充值
+            </Link>
+          </Trans>
         </>
       )}
     </p>
