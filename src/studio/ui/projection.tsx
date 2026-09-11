@@ -7,7 +7,7 @@ import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { deckCoverOf, myCards, myDecks, tierBlockReason } from "../../data/account";
-import { VIDEO_TIERS, deriveIssue, fmtTokens, modelLabel, r2vPriceIssue, realFaceIssue, segTokens, tierOf } from "../../data/economy";
+import { VIDEO_TIERS, deriveIssue, fmtTokens, modelLabel, r2vBlockLines, realFaceIssue, segTokens, tierOf } from "../../data/economy";
 import TarotCard from "../../components/TarotCard";
 import DeckCard from "../../components/DeckCard";
 import GenTrace from "../../components/GenTrace";
@@ -551,12 +551,14 @@ function EditorPanel() {
                 // 工坊铸段整个建立在推演上，按发直出档（真人档）走不了——判定与话术
                 // 都在 economy.deriveIssue 一处（flowStore/studioStore 的闸用的同一句）
                 const block = tierBlockReason(tier) ?? deriveIssue(tier.id);
+                const desc = tier.desc;
+                const model = tier.model;
                 return (
                   <button
                     key={tier.id}
                     onClick={() => useStudio.getState().setVideoTier(tier.id)}
                     disabled={editor.generating || !!block}
-                    title={block ?? `${tier.desc}（${tier.model}）`}
+                    title={block ?? t`${desc}（${model}）`}
                     className={`flex-1 rounded-lg border px-1 py-1 text-center transition disabled:opacity-40 ${
                       on
                         ? "border-cyan-400 bg-cyan-400/10 text-cyan-100"
@@ -1322,9 +1324,9 @@ function ProposalsPanel() {
 function TierBlockNote({ node }: { node: FlowNode }) {
   const { t } = useLingui();
   const blockout = !!tplOfNode(node)?.refVideo;
-  const r2vBlocks = blockout
-    ? VIDEO_TIERS.map((t) => r2vPriceIssue(t.id)).filter((r): r is string => !!r)
-    : [];
+  // ★ 同一个原因只说一句、档位名并到一起（economy.r2vBlockLines，与本段设置抽屉共用）：
+  //   此前这里逐档各印一句，白模段上四档都是「暂未开放」时同一件事印四遍
+  const r2vBlocks = blockout ? r2vBlockLines() : [];
   const realFaceBlock = realFaceIssue(node.materials, node.videoTier, { blockout });
   const all = [...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])];
   if (all.length === 0) return null;

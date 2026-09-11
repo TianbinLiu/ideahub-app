@@ -16,6 +16,8 @@
 //   r2v ≈ 纯任务的 2×2.8/4.7 ≈ 1.2 倍 —— 报价行必须写明含输入费。
 // ★ 跨仓契约：server 的 config/tokens.js **VIDEO_MULT_R2V** 必须与本表 r2vMult 逐条
 //   相等（同 VIDEO_MULT ↔ mult 的对账关系，server 侧 spec 有钉子）。
+import { i18n } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
 import type { GenMode } from "../types";
 import {
   CARD_SIZE,
@@ -56,10 +58,43 @@ export interface TokenPlan {
   desc: string;
 }
 
+// ★ name / desc 是界面文案，用 getter 读到时现翻（同 types.ts 的 VIDEO_ASPECTS）：开机是先激活语言、再 import App，
+//   模块顶层翻出来的字会冻结在开机那一刻的语言上。id / 价钱 / 额度一格不动（id 存进钱包，价钱与服务端 config/tokens.js 对账）。
+//   ⚠ 别展开（{...plan}）或 JSON 化了再拿去显示：getter 会在那一刻被取成死值。
 export const PLANS: TokenPlan[] = [
-  { id: "free", name: "免费版", price: 0, monthlyTokens: 300_000, desc: "注册即得，每月刷新" },
-  { id: "std", name: "标准套餐", price: 30, monthlyTokens: 2_000_000, desc: "约可生成 15 段标准档视频" },
-  { id: "pro", name: "专业套餐", price: 98, monthlyTokens: 8_000_000, desc: "重度创作，约 60 段标准档" },
+  {
+    id: "free",
+    get name() {
+      return i18n._(msg`免费版`);
+    },
+    price: 0,
+    monthlyTokens: 300_000,
+    get desc() {
+      return i18n._(msg`注册即得，每月刷新`);
+    },
+  },
+  {
+    id: "std",
+    get name() {
+      return i18n._(msg`标准套餐`);
+    },
+    price: 30,
+    monthlyTokens: 2_000_000,
+    get desc() {
+      return i18n._(msg`约可生成 15 段标准档视频`);
+    },
+  },
+  {
+    id: "pro",
+    get name() {
+      return i18n._(msg`专业套餐`);
+    },
+    price: 98,
+    monthlyTokens: 8_000_000,
+    get desc() {
+      return i18n._(msg`重度创作，约 60 段标准档`);
+    },
+  },
 ];
 
 /** 直充包：到账进 add-on（永不过期，套餐扣完才动它） */
@@ -99,6 +134,7 @@ const ULTRA_R2V_MULT = 2.8;
 /** Seedance 档位：id 持久化在 VideoSegment.videoTier / EditorState.videoTier */
 export interface VideoTier {
   id: string;
+  /** 界面名。★ VIDEO_TIERS 里是 getter，读到时按界面语言现翻 —— 判据一律认 id，别拿它比较（desc 同理） */
   label: string;
   model: string;
   /**
@@ -230,6 +266,9 @@ export interface VideoTier {
   desc: string;
 }
 
+// ★ label / desc 是界面文案，用 getter 读到时现翻（同 PLANS 那条 ★）；id（存进 VideoSegment.videoTier / EditorState）、
+//   model、价钱与能力位一格不动。一行一档的写法保留：对账时逐行看 mult / model 的习惯不该被翻译打乱。
+//   英文档名与画布指挥认的档位词对齐（studio/agentGrammar：fast / standard / hd / cinematic + tier）。
 export const VIDEO_TIERS: VideoTier[] = [
   // ✅ 2026-08-16 拿 8 月账单明细逐行核过 mult（server/src/config/tokens.js 的 VIDEO_MULT
   //   是同一张表，那边写了完整出处）。写成 `4.2 / 15`、`23 / 15` 这种**分数形态**是有意的：
@@ -238,8 +277,8 @@ export const VIDEO_TIERS: VideoTier[] = [
   //   ⚠ fast 与 hd 此前是拍出来的 0.3 / 1.6，比真实成本高 7% / 4.3%（**多收用户**的方向）。
   // fast/std 是 1.0-pro：`generate_audio` 收下就扔（实测），所以 audio 显式 false ——
   // 不是"我们不给"，是这一代模型出不了（见 VideoTier.audio 的 ★★）
-  { id: "fast", label: "极速", model: "doubao-seedance-1-0-pro-fast-251015", mult: 4.2 / 15, flf: false, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, assetRef: false, minSec: 3, desc: "省 token · 首帧起拍，不锁尾帧" },
-  { id: "std", label: "标准", model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, assetRef: false, minSec: 3, desc: "首尾帧可控（默认）" },
+  { id: "fast", get label() { return i18n._(msg`极速`); }, model: "doubao-seedance-1-0-pro-fast-251015", mult: 4.2 / 15, flf: false, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, assetRef: false, minSec: 3, get desc() { return i18n._(msg`省 token · 首帧起拍，不锁尾帧`); } },
+  { id: "std", get label() { return i18n._(msg`标准`); }, model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, assetRef: false, minSec: 3, get desc() { return i18n._(msg`首尾帧可控（默认）`); } },
   // ★ desc 是给**用户**看的，不是给运维看的。原来这里写的是「需在方舟控制台开通 2.0 系列」——
   //   那是部署方的事，终端用户既看不懂也做不了（CLAUDE.md 那条「界面上摆一个用户看不懂
   //   也做不了事的东西」）。开通与否的后果由服务端 ALLOWED_MODELS 与方舟的 ModelNotOpen 负责。
@@ -248,10 +287,12 @@ export const VIDEO_TIERS: VideoTier[] = [
   // ★ hd 的 audio: true 是**免费套餐也听得到声音**的那条路（paidOnly 只挡 ultra）——
   //   实测 2.0-mini 真出声（-30.2dB），且开音频零额外成本，所以 desc 里如实写出来：
   //   不写的话用户只能靠"换个档试试"发现，而多数人只会以为 App 的片本来就是哑的。
-  { id: "hd", label: "高清", model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, audio: true, realFace: false, assetRef: true, minSec: 3, desc: "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音" },
+  { id: "hd", get label() { return i18n._(msg`高清`); }, model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, audio: true, realFace: false, assetRef: true, minSec: 3, get desc() { return i18n._(msg`新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音`); } },
   {
     id: "ultra",
-    label: "电影级",
+    get label() {
+      return i18n._(msg`电影级`);
+    },
     model: "doubao-seedance-2-5-260628",
     mult: ULTRA_MULT,
     flf: true,
@@ -273,11 +314,16 @@ export const VIDEO_TIERS: VideoTier[] = [
     paidOnly: true,
     // 2.5 的时长区间是 [4,30]，3 秒会被同步 400（见 VideoTier.minSec）
     minSec: 4,
-    desc: "最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，单段消耗约标准档 4.7 倍（仅付费套餐）",
+    get desc() {
+      return i18n._(msg`最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，单段消耗约标准档 4.7 倍（仅付费套餐）`);
+    },
   },
   {
     id: "real",
-    label: "真人",
+    // ★ 带 context：「真人」在别处是真人卡 / 真人照片里的形容词，这里是一档的名字，英文不是同一个词
+    get label() {
+      return i18n._(msg({ message: "真人", context: "画质档位名：唯一收真人照片的那一档（不是「真人卡」「真人照片」里的形容词）" }));
+    },
     // 供应商换成 MiniMax（海螺 2.3，768P）：方舟对真人参考图两套探测器全拦（名人版权、
     // 普通人隐私，2026-08-24 全形态实测），而海螺同一批图**输入输出两端都放行且成片落地**
     // （华强首帧/普通真人首帧/华强 S2V 三发全 Success）——真人档主力就是它。
@@ -301,7 +347,9 @@ export const VIDEO_TIERS: VideoTier[] = [
     // asset:// 是 Seedance 2.0/2.5 的能力（官方 docs/82379/2608626）；跟模型代次走
     assetRef: false,
     minSec: 6,
-    desc: "唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它",
+    get desc() {
+      return i18n._(msg`唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它`);
+    },
   },
 ];
 
@@ -319,9 +367,12 @@ export function providerOf(tierId: string | undefined): "ark" | "minimax" {
  * 推演产出的三套首尾帧一张都用不上 —— 收了推演的钱再全扔掉，就是白扣一笔。
  */
 export function deriveIssue(tierId: string | undefined): string | null {
-  const t = tierOf(tierId);
-  if (!t.flatCost) return null;
-  return `「${t.label}」档按发直出（起拍画面就是真人卡的照片），没有推演三套方案这一步——写好一句话直接生成，或换回其它档再推演`;
+  const tier = tierOf(tierId);
+  if (!tier.flatCost) return null;
+  const label = tier.label;
+  // ★ 整句、自带句号（2026-09-11 多语言）：调用方不许再往后补「。」接下一句 ——
+  //   工坊 NPC 那句（studioStore.generateNode）是「这一整句 + 另一整句」，英文得自己断句
+  return t`「${label}」档按发直出（起拍画面就是真人卡的照片），没有推演三套方案这一步——写好一句话直接生成，或换回其它档再推演。`;
 }
 
 export function tierOf(id: string | undefined): VideoTier {
@@ -443,6 +494,7 @@ function r2vRawTokens(inputSec: number, mult: number): number {
 export function materialRefCost(inputSec: number, outputSec: number, tierId?: string): number {
   const t = tierOf(tierId);
   if (t.r2vMult === null) {
+    // i18n-ignore-next-line: 开发期断言（调用方 flowStore.nodeCost 已按 r2vMult 判过，引用字段名）
     throw new Error(`档位 ${t.id} 没有 r2v 价目（r2vMult=null），不能带参考视频出片——调用方该先判 refVid`);
   }
   const i = Math.max(4, Math.min(30, Math.round(inputSec)));
@@ -499,11 +551,71 @@ export function r2vTokens(inputSec: number, tierId?: string): number | null {
  *   两个下场 —— 静默退回首尾帧（背景/运镜全丢、钱照收，偷换商品），或按错的系数收。
  */
 export function r2vPriceIssue(tierId?: string): string | null {
-  const t = tierOf(tierId);
-  if (!t.refVid) return `「${t.label}」这一档暂未开放白模模板出片，等开放后再来`;
-  if (t.r2vMult === null)
-    return `「${t.label}」这一档的白模出片暂时报不出价（${modelLabel(t.model)} 的 r2v 单价未核账），先用别的档位`;
+  const tier = tierOf(tierId);
+  const block = r2vBlockOfTier(tier);
+  return block ? r2vBlockText(block, [tier.label]) : null;
+}
+
+/** 走不了白模（r2v）的两种原因：闸门没开（closed），或闸开了但价签没钉（unpriced，model 是括号里点名的模型显示名） */
+export type R2vBlock = { kind: "closed" } | { kind: "unpriced"; model: string };
+
+/**
+ * 「这一档为什么走不了白模（r2v）」的**原因本身**，不带档位名（null = 走得了）。
+ * r2vPriceIssue 就是它再加上档位名，先闸门后价签的顺序见 r2vPriceIssue 的 ★。
+ *
+ * ★ 为什么要有不带档位名的这一层（2026-09-11 多语言）：本段设置抽屉原来用正则 `^「[^」]*」` 剥掉整句开头的
+ *   档位名，再按剩下的句子去重 —— 英文句子不以「…」开头，剥不掉 ⇒ 去重静默失效（同一件事糊四遍），
+ *   重拼时还把中文引号塞进英文里。按原因去重，就不用去猜句子长什么样。
+ */
+export function r2vBlockOf(tierId?: string): R2vBlock | null {
+  return r2vBlockOfTier(tierOf(tierId));
+}
+
+/** 判据本体，只有这一处。★ 收档位**对象**而不是 id：r2vBlockLines 要让「原因」与「档位名」出自同一个对象 ——
+ *  按 id 再查一次表的话，传进来的对象与表里那份一旦不是同一个（或 id 不在表里、tierOf 静默退回标准档），两者就对不上 */
+function r2vBlockOfTier(tier: VideoTier): R2vBlock | null {
+  if (!tier.refVid) return { kind: "closed" };
+  if (tier.r2vMult === null) return { kind: "unpriced", model: modelLabel(tier.model) };
   return null;
+}
+
+/** 几个档位名接成一串：整串外面那对引号由整句自己带（中文「极速」「标准」，英文 “Fast”, “Standard”） */
+function joinTierNames(labels: string[]): string {
+  return labels.join(
+    t({
+      message: "」「",
+      comment: "几个档位名接成一串时的分隔符。整串外面那对引号写在句子里，所以中文是前一个名字的右引号接上后一个的左引号（「极速」「标准」）；英文写成 ”, “ 就是 “Fast”, “Standard”",
+    }),
+  );
+}
+
+/** 同一个原因、一档或几档合成一整句（labels 是档位的界面名）。单档（r2vPriceIssue）与合并（r2vBlockLines）读同一份措辞 */
+function r2vBlockText(block: R2vBlock, labels: string[]): string {
+  const names = joinTierNames(labels);
+  if (block.kind === "closed") return t`「${names}」这一档暂未开放白模模板出片，等开放后再来`;
+  const model = block.model;
+  return t`「${names}」这一档的白模出片暂时报不出价（${model} 的 r2v 单价未核账），先用别的档位`;
+}
+
+/**
+ * 白模段上「哪几档点不动、为什么」—— 同一个原因只说一句，档位名并到一起。本段设置抽屉与工坊 TierBlockNote 两面共用。
+ * ★ 2026-08-23 抽屉修过"每句带着自己的档位名、字面各不相同 ⇒ 去重恒失效、同一件事糊四遍"，
+ *   工坊那一面一直是逐档各印一句 —— 收成这一处，两面说的是同一串话。
+ * ★ 不收档位表参数，只走 VIDEO_TIERS，原因与档位名从同一个档位对象上取（r2vBlockOfTier）：
+ *   收一份外来的表、原因却按 id 回全局表里查的话，两者可以悄悄对不上。
+ */
+export function r2vBlockLines(): string[] {
+  const groups = new Map<string, { block: R2vBlock; labels: string[] }>();
+  for (const tier of VIDEO_TIERS) {
+    const block = r2vBlockOfTier(tier);
+    if (!block) continue;
+    // 报不出价的按模型分开说（括号里点名的是各自的模型），暂未开放的并成一句
+    const key = block.kind === "unpriced" ? `unpriced:${block.model}` : block.kind;
+    const hit = groups.get(key);
+    if (hit) hit.labels.push(tier.label);
+    else groups.set(key, { block, labels: [tier.label] });
+  }
+  return [...groups.values()].map((g) => r2vBlockText(g.block, g.labels));
 }
 
 /**
@@ -554,9 +666,9 @@ export function realFaceIssue(
 ): string | null {
   const real = (materials ?? []).filter((c) => c.realPerson === true);
   if (real.length === 0) return null;
-  const t = tierOf(tierId);
+  const tier = tierOf(tierId);
   // 这一档本身就收真人照片（MiniMax 真人档）——不用绕方舟那套
-  if (t.realFace === true) return null;
+  if (tier.realFace === true) return null;
 
   // ★★ 方舟合规通道：真人卡**做过肖像授权、拿到了可信素材 ID** 时，出片走的是
   //   `asset://<id>` 而不是那张照片，方舟的人脸审核因此不适用（官方三条路之一，
@@ -565,19 +677,33 @@ export function realFaceIssue(
   //     ② 这一档的模型收 asset://（Seedance 2.0/2.5 收，1.0 不收，见 VideoTier.assetRef）。
   //   ⚠ 判据只有这一处：别在界面或 segmentGen 里另翻一遍 hasAsset。
   const noAsset = real.filter((c) => !hasAsset(c.id));
-  if (t.assetRef === true && noAsset.length === 0) return null;
+  if (tier.assetRef === true && noAsset.length === 0) return null;
 
-  const names = real.map((c) => `「${c.name}」`).join("、");
+  // ★ 三种出路各是一整句（2026-09-11 多语言）：原来是「开头半句 + ；而… / ——换成…」两段拼，英文没法照着拼。
+  //   卡名按界面语言的列举方式连（quotedNames）；句中点名的档位名从档位表现读（tierOf().label），不写死中文档名。
+  //   「本人授权过」原来两边带着 ** —— 没有任何地方渲染 markdown，用户看到的就是两对星号，这次一并去掉。
+  const label = tier.label;
   // 这一档收 asset://，只是有卡还没做授权 —— 出路是"去做授权"，与"换档位"完全不同，
   // 说错的话用户会去换一个同样出不了的档（铁律五：指路必须指对）
-  if (t.assetRef === true) {
-    const lack = noAsset.map((c) => `「${c.name}」`).join("、");
-    return `${lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「${t.label}」档不收直接上传的真人照片，只收**本人授权过**的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下`;
+  if (tier.assetRef === true) {
+    const lack = quotedNames(noAsset.map((c) => c.name));
+    return t`${lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「${label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下`;
   }
-  const head = `${names}是声明过的真人素材，「${t.label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）`;
-  return opts?.blockout
-    ? `${head}；而「真人」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「真人」档以卡上照片起拍直出`
-    : `${head}——换成「高清」「电影级」档并给这张卡做肖像授权，或换「真人」档，或先把真人卡取下`;
+  const names = quotedNames(real.map((c) => c.name));
+  const realTier = tierOf("real").label;
+  if (opts?.blockout) {
+    return t`${names}是声明过的真人素材，「${label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「${realTier}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「${realTier}」档以卡上照片起拍直出`;
+  }
+  // 收授权素材的就是这两档，各占一个占位符逐个点名（不是一张会变长的清单，别拿 joinTierNames 拼：英文要说成「A 或 B」）
+  const hdTier = tierOf("hd").label;
+  const ultraTier = tierOf("ultra").label;
+  return t`${names}是声明过的真人素材，「${label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——换成「${hdTier}」「${ultraTier}」档并给这张卡做肖像授权，或换「${realTier}」档，或先把真人卡取下`;
+}
+
+/** 几张卡的名字各加一对引号、按界面语言的列举分隔符连起来（中文「凛」、「樱」，英文 “Rin”, “Sakura”） */
+function quotedNames(names: string[]): string {
+  const sep = t({ message: "、", comment: "列举几个名字时的分隔符" });
+  return names.map((name) => t({ message: `「${name}」`, comment: "给一个名字（卡名）加引号：中文「」，英文用弯引号" })).join(sep);
 }
 
 // ── 出图模型与铸卡档位 ─────────────────────────────────────────
@@ -693,6 +819,7 @@ function imagePriceOf(model: string): number | null {
 /** 铸卡出图档位：id 持久化在 Card.imageTier */
 export interface ImageTier {
   id: string;
+  /** 界面名。★ IMAGE_TIERS 里是 getter，读到时按界面语言现翻 —— 判据一律认 id（Card.imageTier 存的也是 id） */
   label: string;
   model: string;
   /**
@@ -724,30 +851,43 @@ export interface ImageTier {
 export const IMAGE_TIERS: ImageTier[] = [
   {
     id: "sketch",
-    label: "速写",
+    // ★ label / desc 用 getter 读到时现翻（同 VIDEO_TIERS 那条 ★）；「定妆」这个词另在 ai/index.ts 的提示词里出现，那边冻结中文、别共用
+    get label() {
+      return i18n._(msg`速写`);
+    },
     model: "doubao-seedream-4-0-250828",
     views: 1,
     size: CARD_SIZE,
-    desc: "只画 1 张主图 · 它同时就是卡面",
+    get desc() {
+      return i18n._(msg`只画 1 张主图 · 它同时就是卡面`);
+    },
   },
   {
     id: "studio",
-    label: "定妆",
+    get label() {
+      return i18n._(msg`定妆`);
+    },
     model: "doubao-seedream-4-5-251128",
     views: 2,
     size: CARD_SIZE,
-    desc: "画 2 张：主图 + 一张参考图，照着主图画同一个对象",
+    get desc() {
+      return i18n._(msg`画 2 张：主图 + 一张参考图，照着主图画同一个对象`);
+    },
   },
   {
     id: "master",
-    label: "精绘",
+    get label() {
+      return i18n._(msg`精绘`);
+    },
     model: "doubao-seedream-5-0-pro-260628",
     // ★ 2（不是 3）：出片管线一张卡最多喂 2 张，第 3 张是画了也用不上的（见 slotsFor）
     views: 2,
     size: CARD_SIZE,
     // 实测 2026-08-11：pro 出一张 1296×1728 用了 73.6 秒，是 5.0（21-25s）的三倍多。
     // 客户端出图超时因此必须 > 服务端 T_CREATE，见 ai/arkClient 的说明。
-    desc: "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢",
+    get desc() {
+      return i18n._(msg`同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢`);
+    },
   },
 ];
 
@@ -772,9 +912,11 @@ export function imageTierOf(id: string | undefined): ImageTier {
  *   （白屏，用户一个字都看不到）。两个都是本仓最怕的形状。
  */
 export function imageTierPriceIssue(tierId?: string): string | null {
-  const t = imageTierOf(tierId);
-  if (imagePriceOf(t.model) !== null) return null;
-  return `「${t.label}」这一档暂时报不出价（${modelLabel(t.model)} 不在价目表里），先用别的档位`;
+  const tier = imageTierOf(tierId);
+  if (imagePriceOf(tier.model) !== null) return null;
+  const label = tier.label;
+  const model = modelLabel(tier.model);
+  return t`「${label}」这一档暂时报不出价（${model} 不在价目表里），先用别的档位`;
 }
 
 /**
@@ -1140,7 +1282,7 @@ export function blockoutizeCost(frameCount: number, durSec: number): number | nu
  */
 export function blockoutizeIssue(): string | null {
   const tier = blockoutTier();
-  if (tier === null) return "白模化暂未开放（当前没有任何档位开着白模出片），等开放后再来";
+  if (tier === null) return t`白模化暂未开放（当前没有任何档位开着白模出片），等开放后再来`;
   return r2vPriceIssue(tier.id);
 }
 

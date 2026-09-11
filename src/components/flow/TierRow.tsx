@@ -91,7 +91,7 @@ export default function TierRow({
   if (!node) return null;
   const prop = chosenOf(node);
   const blockout = !!tplOfNode(node)?.refVideo;
-  const tierBlocks = VIDEO_TIERS.map((t) => tierBlockReason(t)).filter((r): r is string => !!r);
+  const tierBlocks = VIDEO_TIERS.map((tier) => tierBlockReason(tier)).filter((r): r is string => !!r);
 
   /** 真正落地：换档 + 时长吸附写回 + 清掉带不动的东西。
    *  ★ 从确认卡来的那一路会先核对 nodeId（见 ask 的注释）——对不上就整句拒，不静默照做 */
@@ -119,32 +119,35 @@ export default function TierRow({
     <div className="space-y-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="w-10 flex-none text-[11px] text-slate-400"><Trans>画质</Trans></span>
-        {VIDEO_TIERS.map((t) => {
+        {/* ★ 回调参数叫 tier 不叫 t：t 是 useLingui 给的翻译函数，同名会把它遮住 */}
+        {VIDEO_TIERS.map((tier) => {
           // ★ 白模节点上，不支持 r2v 的档位也要禁掉（判断在 economy.r2vPriceIssue 一处）：
           //   切过去出片必被门禁整句拒，让人选一个必失败的档不如当场说不能选
-          const r2vBlock = blockout ? r2vPriceIssue(t.id) : null;
+          const r2vBlock = blockout ? r2vPriceIssue(tier.id) : null;
           // ★ 按发计价档（真人）走不了推演（判定在 economy.deriveIssue 一处）——工坊这一面
           //   的主路正是推演，切过去之后「重新推演三套」必被拒。宿主是画布时那条路还在
           //   （画布可以直出），所以这一条只在**需要推演**的宿主上拦：由 prop 决定。
-          const block = tierBlockReason(t) ?? r2vBlock ?? (needsDerive ? deriveIssue(t.id) : null);
+          const block = tierBlockReason(tier) ?? r2vBlock ?? (needsDerive ? deriveIssue(tier.id) : null);
+          const desc = tier.desc;
+          const model = tier.model;
           return (
             <button
-              key={t.id}
+              key={tier.id}
               onClick={() => {
-                if (t.id === node.videoTier) return;
-                const loss = tierSwitchLoss(node.id, t.id);
-                if (loss.length) setAsk({ nodeId: node.id, id: t.id, label: t.label, loss });
-                else apply(t.id);
+                if (tier.id === node.videoTier) return;
+                const loss = tierSwitchLoss(node.id, tier.id);
+                if (loss.length) setAsk({ nodeId: node.id, id: tier.id, label: tier.label, loss });
+                else apply(tier.id);
               }}
               disabled={!!block}
-              title={block ?? `${t.desc}（${t.model}）`}
+              title={block ?? t`${desc}（${model}）`}
               className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${
-                node.videoTier === t.id ? "bg-brand text-ink" : "bg-panel text-slate-300"
+                node.videoTier === tier.id ? "bg-brand text-ink" : "bg-panel text-slate-300"
               }`}
             >
               {/* ★ 与主按钮同一把尺（nodeCost，只把档位换成这一档）：光报 segTokens 会漏掉
                   "这一档还得补画几张设定帧"，而用户正是在**比价**的这一步被少报 */}
-              {r2vBlock ? t.label : <>{t.label} · {fmtTokens(nodeCost(nodes, index, mode, t.id))}</>}
+              {r2vBlock ? tier.label : <>{tier.label} · {fmtTokens(nodeCost(nodes, index, mode, tier.id))}</>}
             </button>
           );
         })}
@@ -155,7 +158,7 @@ export default function TierRow({
           「去升级」只治得了套餐门槛那一类原因，所以跟着 tierBlocks 一起出现。 */}
       {tierBlocks.length > 0 && (
         <p className="text-[10px] leading-relaxed text-amber-300/80">
-          {tierBlocks.join("；")}
+          {tierBlocks.join(t({ message: "；", comment: "把几条「这一档为什么点不动」的原因连成一行时的分隔符" }))}
           {/* 间隔用全角空格字面量——JSX 会把行间换行整个吃掉，靠折行留空隙留不住 */}
           {"　"}
           <Link to="/me" className="underline underline-offset-2">

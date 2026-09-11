@@ -156,6 +156,7 @@ msgstr "，已放大到短边 {REF_SHORT_MIN}px"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -166,6 +167,7 @@ msgstr "，已放大到短边 {REF_SHORT_MIN}px"
 #: src/components/DeleteCardDialog.tsx
 #: src/components/TemplateShelf.tsx
 #: src/components/VideoCardAnnotator.tsx
+#: src/data/economy.ts
 #: src/pages/AdminPage.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/CutPage.tsx
@@ -180,9 +182,13 @@ msgstr "、"
 #. 把两条拒绝原因连成一句时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
+#. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
+#. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 改图 / 重画完成那句后面几条参考图提示之间的分隔符
+#: src/components/flow/SegSettings.tsx
+#: src/components/flow/TierRow.tsx
 #: src/live2d/bundlePreview.ts
 #: src/pages/CardDetailPage.tsx
 #: src/studio/flowStore.ts
@@ -835,6 +841,11 @@ msgstr "{cardN} 张卡 × 最多 {0} 张图 · 按真正调用了几次出图算
 msgid "{count} 张"
 msgstr "{count} 张"
 
+#: src/components/flow/TierRow.tsx
+#: src/studio/ui/projection.tsx
+msgid "{desc}（{model}）"
+msgstr "{desc}（{model}）"
+
 #: src/pages/FeedPage.tsx
 #: src/pages/ProfilePage.tsx
 msgid "{display} 的主页"
@@ -912,6 +923,11 @@ msgstr "{fileName} 读不出来，换个纯文本文件试试。"
 msgid "{fileName} 里没有文字。"
 msgstr "{fileName} 里没有文字。"
 
+#. flatIssue 是 economy.deriveIssue 回的一整句（自带句号），后面另起一整句；realTier 是真人那一档的档位名
+#: src/studio/studioStore.ts
+msgid "{flatIssue}{realTier}档去「工作流」或「简约模式」直出。"
+msgstr "{flatIssue}{realTier}档去「工作流」或「简约模式」直出。"
+
 #: src/ai/index.ts
 msgid "{head} · 演示"
 msgstr "{head} · 演示"
@@ -932,6 +948,10 @@ msgstr "{installs} 人装过"
 #: src/data/publishAssets.ts
 msgid "{label} 太大（{sizeMb}MB，上限 5MB）"
 msgstr "{label} 太大（{sizeMb}MB，上限 5MB）"
+
+#: src/data/economy.ts
+msgid "{lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「{label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下"
+msgstr "{lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「{label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下"
 
 #: src/live2d/bundlePreview.ts
 msgid "{mocPath} 的文件头不是 MOC3（读到 “{shown}”），这不是一份有效的 moc3。"
@@ -960,6 +980,14 @@ msgstr "{name}的声音"
 #: src/pages/SupportPage.tsx
 msgid "{name}走神了，再发一次试试。"
 msgstr "{name}走神了，再发一次试试。"
+
+#: src/data/economy.ts
+msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——换成「{hdTier}」「{ultraTier}」档并给这张卡做肖像授权，或换「{realTier}」档，或先把真人卡取下"
+msgstr "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——换成「{hdTier}」「{ultraTier}」档并给这张卡做肖像授权，或换「{realTier}」档，或先把真人卡取下"
+
+#: src/data/economy.ts
+msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「{realTier}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「{realTier}」档以卡上照片起拍直出"
+msgstr "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「{realTier}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「{realTier}」档以卡上照片起拍直出"
 
 #: src/pages/CustomCardPage.tsx
 msgid "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
@@ -1221,6 +1249,19 @@ msgstr "「{ch}」"
 msgid "「{label}」单段消耗超过免费版整月额度（{quota}），升级套餐后可用"
 msgstr "「{label}」单段消耗超过免费版整月额度（{quota}），升级套餐后可用"
 
+#: src/data/economy.ts
+msgid "「{label}」档按发直出（起拍画面就是真人卡的照片），没有推演三套方案这一步——写好一句话直接生成，或换回其它档再推演。"
+msgstr "「{label}」档按发直出（起拍画面就是真人卡的照片），没有推演三套方案这一步——写好一句话直接生成，或换回其它档再推演。"
+
+#: src/data/economy.ts
+msgid "「{label}」这一档暂时报不出价（{model} 不在价目表里），先用别的档位"
+msgstr "「{label}」这一档暂时报不出价（{model} 不在价目表里），先用别的档位"
+
+#. 给一个名字（卡名）加引号：中文「」，英文用弯引号
+#: src/data/economy.ts
+msgid "「{name}」"
+msgstr "「{name}」"
+
 #. placeholder {0}: hits.length
 #: src/studio/canvasAgent.ts
 msgid "「{name}」对上了 {0} 张卡（{names}），说全名"
@@ -1235,6 +1276,14 @@ msgstr "「{name}」的{tag}"
 #: src/data/account.ts
 msgid "「{name}」的形象参考图"
 msgstr "「{name}」的形象参考图"
+
+#: src/data/economy.ts
+msgid "「{names}」这一档暂未开放白模模板出片，等开放后再来"
+msgstr "「{names}」这一档暂未开放白模模板出片，等开放后再来"
+
+#: src/data/economy.ts
+msgid "「{names}」这一档的白模出片暂时报不出价（{model} 的 r2v 单价未核账），先用别的档位"
+msgstr "「{names}」这一档的白模出片暂时报不出价（{model} 的 r2v 单价未核账），先用别的档位"
 
 #. 可能紧跟在上一句后面拼接，英文译文开头要留一个空格
 #: src/pages/CustomCardPage.tsx
@@ -1267,6 +1316,15 @@ msgstr "「{u}」"
 #: src/components/guide/tours.tsx
 msgid "「关注」那格点开是你关注过的人的名单，就地能取关。 旁边两个是你<0>所有作品加起来</0>的总数，不是某一支的。"
 msgstr "「关注」那格点开是你关注过的人的名单，就地能取关。 旁边两个是你<0>所有作品加起来</0>的总数，不是某一支的。"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "「自己挑」现在一帧有效的标记都没有（还没标，或者标的那几帧都落到选段外面去了）。AI 得看着画面才认得出里面有哪些人——把播放头拖到有人的地方点「标记这一帧」（至少 1 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧），或者切回「自动」。"
+msgstr "「自己挑」现在一帧有效的标记都没有（还没标，或者标的那几帧都落到选段外面去了）。AI 得看着画面才认得出里面有哪些人——把播放头拖到有人的地方点「标记这一帧」（至少 1 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧），或者切回「自动」。"
+
+#. 几个档位名接成一串时的分隔符。整串外面那对引号写在句子里，所以中文是前一个名字的右引号接上后一个的左引号（「极速」「标准」）；英文写成 ”, “ 就是 “Fast”, “Standard”
+#: src/data/economy.ts
+msgid "」「"
+msgstr "」「"
 
 #: src/studio/ui/projection.tsx
 msgid "← 左右滑动浏览 · 单击查看详情 · 窗外拖拽可转视角"
@@ -3104,6 +3162,10 @@ msgstr "不进首页和搜索；但拿到链接的人都能看，能被转发"
 msgid "与素材同分辨率，最快"
 msgstr "与素材同分辨率，最快"
 
+#: src/data/economy.ts
+msgid "专业套餐"
+msgstr "专业套餐"
+
 #: src/pages/LoginPage.tsx
 msgid "中国大陆"
 msgstr "中国大陆"
@@ -4021,6 +4083,7 @@ msgstr "先随便逛逛"
 msgid "免费 · 会重新合成点名句（覆盖你改过的字）"
 msgstr "免费 · 会重新合成点名句（覆盖你改过的字）"
 
+#: src/data/economy.ts
 #: src/pages/ProfilePage.tsx
 msgid "免费版"
 msgstr "免费版"
@@ -4341,6 +4404,10 @@ msgstr "最常见的一种：<0>有个人根本没被换成人偶</0>（还是�
 msgid "最新"
 msgstr "最新"
 
+#: src/data/economy.ts
+msgid "最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，单段消耗约标准档 4.7 倍（仅付费套餐）"
+msgstr "最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，单段消耗约标准档 4.7 倍（仅付费套餐）"
+
 #: src/pages/DiscoverPage.tsx
 msgid "最新作品"
 msgstr "最新作品"
@@ -4573,6 +4640,10 @@ msgstr "分支 {0}"
 #: src/components/VideoTemplateExtractor.tsx
 msgid "分析帧数（越多认得越准，价钱不变）"
 msgstr "分析帧数（越多认得越准，价钱不变）"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "分段登记暂不支持裁剪画面（服务端切段吃的是原始上传）：点视频下方播放条最右端的「⤢ 铺满整幅」把裁剪框还原。要裁水印或改画幅，就把选段收回 {segMaxSec} 秒以内、一段一段做。"
+msgstr "分段登记暂不支持裁剪画面（服务端切段吃的是原始上传）：点视频下方播放条最右端的「⤢ 铺满整幅」把裁剪框还原。要裁水印或改画幅，就把选段收回 {segMaxSec} 秒以内、一段一段做。"
 
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
@@ -5857,6 +5928,10 @@ msgstr "只有我"
 msgid "只有我自己"
 msgstr "只有我自己"
 
+#: src/data/economy.ts
+msgid "只画 1 张主图 · 它同时就是卡面"
+msgstr "只画 1 张主图 · 它同时就是卡面"
+
 #: src/data/videoDownload.ts
 msgid "只能保存自己发布的作品。"
 msgstr "只能保存自己发布的作品。"
@@ -6044,6 +6119,10 @@ msgstr "合成预览要一张图的钱（{0} token），余额不够——去「
 msgid "同一条视频拆成 {count} 段的分段模板（共约 {0}s）· 套用即整组铺开"
 msgstr "同一条视频拆成 {count} 段的分段模板（共约 {0}s）· 套用即整组铺开"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "同一秒被标了不止一次。删掉重复的那几帧再来（重复的帧认不出更多人）。"
+msgstr "同一秒被标了不止一次。删掉重复的那几帧再来（重复的帧认不出更多人）。"
+
 #: src/pages/LoginPage.tsx
 msgid "同意协议"
 msgstr "同意协议"
@@ -6052,6 +6131,10 @@ msgstr "同意协议"
 #: src/pages/LoginPage.tsx
 msgid "同意并继续"
 msgstr "同意并继续"
+
+#: src/data/economy.ts
+msgid "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
+msgstr "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
 
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
@@ -6118,6 +6201,10 @@ msgstr "哭"
 #: src/components/flow/FlowCanvas.tsx
 msgid "唤起指令句式（也可以输入 /）"
 msgstr "唤起指令句式（也可以输入 /）"
+
+#: src/data/economy.ts
+msgid "唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它"
+msgstr "唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它"
 
 #: src/pages/SupportCreatePage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -6778,6 +6865,10 @@ msgstr "官方形象读不到（这台服务器可能还没有）。"
 #: src/components/flow/FlowCanvas.tsx
 msgid "官方技能"
 msgstr "官方技能"
+
+#: src/data/economy.ts
+msgid "定妆"
+msgstr "定妆"
 
 #: src/components/support/AdminTicketsView.tsx
 #: src/pages/SupportPage.tsx
@@ -9366,6 +9457,22 @@ msgstr "整体再来一版"
 msgid "整屏一支，上下滑换下一支——划到哪支哪支就自动播，<0>划走就停下、划回来从头播</0>。<1>单击暂停</1>，再点一下接着放；<2>双击点赞</2>，连点两下只会点亮、不会取消。顶上的「关注 / 推荐」切换看谁的作品。"
 msgstr "整屏一支，上下滑换下一支——划到哪支哪支就自动播，<0>划走就停下、划回来从头播</0>。<1>单击暂停</1>，再点一下接着放；<2>双击点赞</2>，连点两下只会点亮、不会取消。顶上的「关注 / 推荐」切换看谁的作品。"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "整条 {realSec} 秒将切成 {parts} 段（{segs}）登记成一组——每段是独立模板，从任何一段套用都会整组铺进工作流。"
+msgstr "整条 {realSec} 秒将切成 {parts} 段（{segs}）登记成一组——每段是独立模板，从任何一段套用都会整组铺进工作流。"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "整条 {realSec} 秒将切成 {parts} 段（{segs}）登记成一组——每段是独立模板，从任何一段套用都会整组铺进工作流（画面 {picW}×{picH} 低于 AI 引擎的像素下限，登记时服务端会自动放大到刚过线，时长与画幅比例不变）。"
+msgstr "整条 {realSec} 秒将切成 {parts} 段（{segs}）登记成一组——每段是独立模板，从任何一段套用都会整组铺进工作流（画面 {picW}×{picH} 低于 AI 引擎的像素下限，登记时服务端会自动放大到刚过线，时长与画幅比例不变）。"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "整条登记不裁画面，而这条原片有一边到了 {longEdge} 像素，超过 AI 引擎的 {maxEdge} 上限。把选段收回 {segMaxSec} 秒以内、用裁剪框把画面框到 {maxEdge} 以内，一段一段做。"
+msgstr "整条登记不裁画面，而这条原片有一边到了 {longEdge} 像素，超过 AI 引擎的 {maxEdge} 上限。把选段收回 {segMaxSec} 秒以内、用裁剪框把画面框到 {maxEdge} 以内，一段一段做。"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "整条登记不裁画面，而这条原片的宽高比约 {ratioText}，超出 AI 引擎的 {minRatio}~{maxRatio} 窗口——放大救不了形状。把选段收回 {segMaxSec} 秒以内、用裁剪框把比例修进窗口，一段一段做。"
+msgstr "整条登记不裁画面，而这条原片的宽高比约 {ratioText}，超出 AI 引擎的 {minRatio}~{maxRatio} 窗口——放大救不了形状。把选段收回 {segMaxSec} 秒以内、用裁剪框把比例修进窗口，一段一段做。"
+
 #: src/components/ForgeOverlay.tsx
 msgid "整段一炉出，别退出 App"
 msgstr "整段一炉出，别退出 App"
@@ -9418,6 +9525,10 @@ msgstr "文字描述"
 #: src/components/TemplateShelf.tsx
 msgid "新"
 msgstr "新"
+
+#: src/data/economy.ts
+msgid "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音"
+msgstr "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音"
 
 #: src/pages/LoginPage.tsx
 msgid "新密码（至少 6 位）"
@@ -9714,6 +9825,10 @@ msgstr "有两张不同的卡都叫「{0}」（{noun} {1} 挂的是其中一张�
 #: src/data/notifications.ts
 msgid "有人"
 msgstr "有人"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "有帧标在了选中这一段的外面（允许的范围是第 0~{lastSec} 秒）。把它们删掉重标，或者切回「自动」。"
+msgstr "有帧标在了选中这一段的外面（允许的范围是第 0~{lastSec} 秒）。把它们删掉重标，或者切回「自动」。"
 
 #: src/pages/SupportPage.tsx
 msgid "有帮助"
@@ -10104,6 +10219,10 @@ msgstr "材质、颗粒与光影的近距离质感"
 msgid "极致"
 msgstr "极致"
 
+#: src/data/economy.ts
+msgid "极速"
+msgstr "极速"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "松开发送"
 msgstr "松开发送"
@@ -10176,9 +10295,21 @@ msgstr "标为已解决"
 msgid "标为待处理"
 msgstr "标为待处理"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "标了 {marked} 帧，最多只能 {BLOCKOUTIZE_FRAME_MAX} 帧（再多也只是重复的画面）。删掉几帧再来。"
+msgstr "标了 {marked} 帧，最多只能 {BLOCKOUTIZE_FRAME_MAX} 帧（再多也只是重复的画面）。删掉几帧再来。"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "标价"
 msgstr "标价"
+
+#: src/data/economy.ts
+msgid "标准"
+msgstr "标准"
+
+#: src/data/economy.ts
+msgid "标准套餐"
+msgstr "标准套餐"
 
 #: src/types.ts
 msgid "标志性细节"
@@ -11144,6 +11275,10 @@ msgstr "没问题，继续"
 msgid "沿边描出轮廓"
 msgstr "沿边描出轮廓"
 
+#: src/data/economy.ts
+msgid "注册即得，每月刷新"
+msgstr "注册即得，每月刷新"
+
 #: src/pages/LoginPage.tsx
 msgid "注册新账号"
 msgstr "注册新账号"
@@ -11595,6 +11730,14 @@ msgstr "现在筛的是什么"
 msgid "现在这一帧（原片第 {0} 秒）在选段外面——选段是原片的第 {1}~{2} 秒，只有那一段会被做成模板。把播放头挪进选段再标，或者先把上面的选段拖到这儿来。"
 msgstr "现在这一帧（原片第 {0} 秒）在选段外面——选段是原片的第 {1}~{2} 秒，只有那一段会被做成模板。把播放头挪进选段再标，或者先把上面的选段拖到这儿来。"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "现在这样要切 {parts} 段，而一次分段登记最多 {SPLIT_MAX_PARTS} 段。这条素材有 {total} 秒，超过 {autoMaxSec} 秒之后自动切会一步跨到 16 段（补刀是对半切，段数只能是 8、16…），所以必须自己标刀：把 {cutsMax} 刀尽量均匀地摆开（每段接近 {segMaxSec} 秒）。实在摆不匀就先把素材剪短再传。"
+msgstr "现在这样要切 {parts} 段，而一次分段登记最多 {SPLIT_MAX_PARTS} 段。这条素材有 {total} 秒，超过 {autoMaxSec} 秒之后自动切会一步跨到 16 段（补刀是对半切，段数只能是 8、16…），所以必须自己标刀：把 {cutsMax} 刀尽量均匀地摆开（每段接近 {segMaxSec} 秒）。实在摆不匀就先把素材剪短再传。"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "现在这样要切 {parts} 段，而一次分段登记最多 {SPLIT_MAX_PARTS} 段（超过 {segMaxSec} 秒的段会自动对半，越切越碎）。多标几刀、让每段更接近 {segMaxSec} 秒，或者先把素材剪短。"
+msgstr "现在这样要切 {parts} 段，而一次分段登记最多 {SPLIT_MAX_PARTS} 段（超过 {segMaxSec} 秒的段会自动对半，越切越碎）。多标几刀、让每段更接近 {segMaxSec} 秒，或者先把素材剪短。"
+
 #: src/components/BootFailed.tsx
 msgid "现在连不上服务器，只能读这台手机上的数据，而它没读出来 —— 硬进去只会看到空首页、被登出，所以先停在这里。点重试只是再读一遍，不会删掉你的东西。"
 msgstr "现在连不上服务器，只能读这台手机上的数据，而它没读出来 —— 硬进去只会看到空首页、被登出，所以先停在这里。点重试只是再读一遍，不会删掉你的东西。"
@@ -11770,9 +11913,17 @@ msgstr "由 AI 自己挑：先看正中间那一帧，认不全再往两头铺�
 msgid "由应用商店负责更新"
 msgstr "由应用商店负责更新"
 
+#: src/data/economy.ts
+msgid "电影级"
+msgstr "电影级"
+
 #: src/components/support/VoiceMixer.tsx
 msgid "男"
 msgstr "男"
+
+#: src/data/economy.ts
+msgid "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
+msgstr "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "画不出来的包发不了。"
@@ -11968,6 +12119,10 @@ msgstr "白模化 · 框出一段并裁掉水印"
 msgid "白模化前，AI 先看几帧、列出<0>画面里有哪些人</0>，再按这份清单 逐个点名替换成<1>一模一样的纯白人偶</1>。<2>看漏了人，他照样会被换成白人偶</2>——但清单里没有他的位置，所以挂不了卡，而且<3>他还会把别人的 「从左数第几个」挤歪一位</3>。"
 msgstr "白模化前，AI 先看几帧、列出<0>画面里有哪些人</0>，再按这份清单 逐个点名替换成<1>一模一样的纯白人偶</1>。<2>看漏了人，他照样会被换成白人偶</2>——但清单里没有他的位置，所以挂不了卡，而且<3>他还会把别人的 「从左数第几个」挤歪一位</3>。"
 
+#: src/data/economy.ts
+msgid "白模化暂未开放（当前没有任何档位开着白模出片），等开放后再来"
+msgstr "白模化暂未开放（当前没有任何档位开着白模出片），等开放后再来"
+
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "白模化现在报不出价，先不能开炼（价目或开关没就绪）——这种情况请把这句话反馈给我们。"
 msgstr "白模化现在报不出价，先不能开炼（价目或开关没就绪）——这种情况请把这句话反馈给我们。"
@@ -12104,6 +12259,10 @@ msgstr "相机没有交回照片"
 msgid "相机照片存不下来（存储可能已满）"
 msgstr "相机照片存不下来（存储可能已满）"
 
+#: src/data/economy.ts
+msgid "省 token · 首帧起拍，不锁尾帧"
+msgstr "省 token · 首帧起拍，不锁尾帧"
+
 #: src/studio/structuredSkills.ts
 msgid "看一遍再铺；铺是整表覆盖，现有流水线会先问你"
 msgstr "看一遍再铺；铺是整表覆盖，现有流水线会先问你"
@@ -12140,6 +12299,11 @@ msgstr "看这一段成片（{0}s）"
 #: src/components/CoverPicker.tsx
 msgid "看首页遮挡"
 msgstr "看首页遮挡"
+
+#: src/data/economy.ts
+msgctxt "画质档位名：唯一收真人照片的那一档（不是「真人卡」「真人照片」里的形容词）"
+msgid "真人"
+msgstr "真人"
 
 #: src/ai/minimaxVideo.ts
 msgid "真人档任务创建中…"
@@ -13006,6 +13170,22 @@ msgstr "第 {segNo} 段还不是永久地址，合成用不了——回到工作
 msgid "第 {segNo} 段还没有视频（只有设定帧），合成做不了——先把这一段炼出来"
 msgstr "第 {segNo} 段还没有视频（只有设定帧），合成做不了——先把这一段炼出来"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}）"
+msgstr "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}）"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}） · AI 看 {frames} 帧"
+msgstr "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}） · AI 看 {frames} 帧"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}） · 未裁剪（整幅）"
+msgstr "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}） · 未裁剪（整幅）"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}） · 未裁剪（整幅） · AI 看 {frames} 帧"
+msgstr "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}） · 未裁剪（整幅） · AI 看 {frames} 帧"
+
 #: src/pages/SimpleModePage.tsx
 msgid "第 {stepNo} / 3 步"
 msgstr "第 {stepNo} / 3 步"
@@ -13157,6 +13337,10 @@ msgstr "粘贴的文本"
 msgid "精度"
 msgstr "精度"
 
+#: src/data/economy.ts
+msgid "精绘"
+msgstr "精绘"
+
 #: src/components/DataLossNotice.tsx
 msgid "系统在打开本机数据库时发现文件已经损坏，把它清空后重建了一个新的。只存在这台设备上的东西 —— 草稿、剪到一半的成片、还没传上去的作品、本机模板 —— 没有了，救不回来。"
 msgstr "系统在打开本机数据库时发现文件已经损坏，把它清空后重建了一个新的。只存在这台设备上的东西 —— 草稿、剪到一半的成片、还没传上去的作品、本机模板 —— 没有了，救不回来。"
@@ -13178,6 +13362,10 @@ msgstr "约 {0}"
 #: src/studio/ui/projection.tsx
 msgid "约 {0} token"
 msgstr "约 {0} token"
+
+#: src/data/economy.ts
+msgid "约可生成 15 段标准档视频"
+msgstr "约可生成 15 段标准档视频"
 
 #: src/components/flow/SegSettings.tsx
 #: src/studio/ui/projection.tsx
@@ -13722,9 +13910,33 @@ msgstr "被平台下架的作品只有作者与管理员看得到。「重新上
 msgid "被拒绝了（原因没说清——这是个 bug，请反馈）"
 msgstr "被拒绝了（原因没说清——这是个 bug，请反馈）"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "裁剪框太大：裁完的宽和高都要 ≤ {maxEdge} 像素（现在 {cropW}×{cropH}）。这条素材本身就超了，需要先压小分辨率再来。"
+msgstr "裁剪框太大：裁完的宽和高都要 ≤ {maxEdge} 像素（现在 {cropW}×{cropH}）。这条素材本身就超了，需要先压小分辨率再来。"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "裁剪框太小：裁完的宽和高都要 ≥ {minEdge} 像素（现在 {cropW}×{cropH}），AI 出片引擎不接受更小的画面。把框拖大一点。"
+msgstr "裁剪框太小：裁完的宽和高都要 ≥ {minEdge} 像素（现在 {cropW}×{cropH}），AI 出片引擎不接受更小的画面。把框拖大一点。"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "裁剪框超出了画面（画面 {frameW}×{frameH}，框到了 {boxRight}×{boxBottom}）。把框拖回画面里。"
+msgstr "裁剪框超出了画面（画面 {frameW}×{frameH}，框到了 {boxRight}×{boxBottom}）。把框拖回画面里。"
+
 #: src/api/uploads.ts
 msgid "裁剪没成功：服务器没有返回可用的视频信息（可能是旧版服务端）"
 msgstr "裁剪没成功：服务器没有返回可用的视频信息（可能是旧版服务端）"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "裁完的画幅太扁了：宽高比要在 {minRatio}~{maxRatio} 之间（现在约 {ratioText}）。AI 出片引擎不接受这个形状。"
+msgstr "裁完的画幅太扁了：宽高比要在 {minRatio}~{maxRatio} 之间（现在约 {ratioText}）。AI 出片引擎不接受这个形状。"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "裁完的画幅太窄了：宽高比要在 {minRatio}~{maxRatio} 之间（现在约 {ratioText}）。AI 出片引擎不接受这个形状。"
+msgstr "裁完的画幅太窄了：宽高比要在 {minRatio}~{maxRatio} 之间（现在约 {ratioText}）。AI 出片引擎不接受这个形状。"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "裁完的画面太小：宽×高至少要 {minPixels} 像素（现在 {cropW}×{cropH} = {pixels}，还差 {shortBy}）。AI 出片引擎会拒绝这样的输入——把裁剪框拖大一点。"
+msgstr "裁完的画面太小：宽×高至少要 {minPixels} 像素（现在 {cropW}×{cropH} = {pixels}，还差 {shortBy}）。AI 出片引擎会拒绝这样的输入——把裁剪框拖大一点。"
 
 #: src/components/flow/SkillPanel.tsx
 msgid "装"
@@ -14240,6 +14452,10 @@ msgstr "读不出这个视频的时长或尺寸（文件可能损坏），请换
 #: src/data/cardViews.ts
 msgid "读不出这张打包素材"
 msgstr "读不出这张打包素材"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "读不出这段视频的时长或画面尺寸，没法计算裁剪范围。请换一个 mp4 / mov 文件重试。"
+msgstr "读不出这段视频的时长或画面尺寸，没法计算裁剪范围。请换一个 mp4 / mov 文件重试。"
 
 #: src/pages/SupportPersonasPage.tsx
 msgid "读不到人格列表"
@@ -14977,6 +15193,14 @@ msgstr "这一段不是带角色位的白模段，没有可预览的挂法"
 #: src/studio/ui/PlanBoard.tsx
 msgid "这一段叫什么"
 msgstr "这一段叫什么"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "这一段可以做成模板（不出片）：{summary}"
+msgstr "这一段可以做成模板（不出片）：{summary}"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "这一段可以做成模板（不出片）：{summary}（画面 {picW}×{picH} 低于 AI 引擎的像素下限，登记时服务端会自动放大到刚过线，时长与画幅比例不变）"
+msgstr "这一段可以做成模板（不出片）：{summary}（画面 {picW}×{picH} 低于 AI 引擎的像素下限，登记时服务端会自动放大到刚过线，时长与画幅比例不变）"
 
 #. placeholder {0}: selectionSummary(outSel, geo)
 #: src/components/blockout/BlockoutTrimmer.tsx
@@ -16063,6 +16287,14 @@ msgstr "这条流水线还没有段——对下面的输入条说「{addExample}
 msgid "这条片的故事背景 / 简介（只以文字参与出片）"
 msgstr "这条片的故事背景 / 简介（只以文字参与出片）"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "这条视频只有约 {total} 秒，而白模模板要求输入片段至少 {inMin} 秒（AI 换白模时会把成片截短零点几秒，{total} 秒进去只剩约 {shrunk} 秒，那样的模板短于 AI 出片引擎的 {outMin} 秒下限，谁都套用不了）。这一条素材做不了白模模板，换一条长一点的。"
+msgstr "这条视频只有约 {total} 秒，而白模模板要求输入片段至少 {inMin} 秒（AI 换白模时会把成片截短零点几秒，{total} 秒进去只剩约 {shrunk} 秒，那样的模板短于 AI 出片引擎的 {outMin} 秒下限，谁都套用不了）。这一条素材做不了白模模板，换一条长一点的。"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "这条视频约 {total} 秒，而分段登记一次最多 {SPLIT_MAX_PARTS} 段 × {segMaxSec} 秒 = {maxSec} 秒——整条装不下。把选段收回 {segMaxSec} 秒以内只做一段，或先把素材剪短再传。"
+msgstr "这条视频约 {total} 秒，而分段登记一次最多 {SPLIT_MAX_PARTS} 段 × {segMaxSec} 秒 = {maxSec} 秒——整条装不下。把选段收回 {segMaxSec} 秒以内只做一段，或先把素材剪短再传。"
+
 #: src/components/DraftSheet.tsx
 msgid "这条草稿的内容已丢失，已从列表移除"
 msgstr "这条草稿的内容已丢失，已从列表移除"
@@ -16146,6 +16378,10 @@ msgstr "这次没连上服务器。现在删只会删掉这台设备上的那份
 #: src/data/account.ts
 msgid "这次没连上服务器。现在删只会删掉这台设备上的那份，下次登录它还会回来——等联网了再删。"
 msgstr "这次没连上服务器。现在删只会删掉这台设备上的那份，下次登录它还会回来——等联网了再删。"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "这段视频只有约 {sec} 秒。白模模板要求素材至少 {min} 秒：AI 把画面里的人换成白模时会把成片截短零点几秒，{min} 秒进去才能保证做出来的模板还够 {outMin} 秒——短于 {outMin} 秒的模板谁都套用不了。换一条长一点的素材吧。"
+msgstr "这段视频只有约 {sec} 秒。白模模板要求素材至少 {min} 秒：AI 把画面里的人换成白模时会把成片截短零点几秒，{min} 秒进去才能保证做出来的模板还够 {outMin} 秒——短于 {outMin} 秒的模板谁都套用不了。换一条长一点的素材吧。"
 
 #: src/components/blockout/VideoStage.tsx
 msgid "这段视频在这个位置解不开，换一帧试试。"
@@ -16289,6 +16525,14 @@ msgstr "选一段本地视频"
 msgid "选个头像"
 msgstr "选个头像"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "选中的这一段只有 {durSec} 秒，至少要 {inMin} 秒。AI 把人换成白模时会把成片截短零点几秒（{durSec} 秒进去只剩约 {shrunk} 秒），而模板本身短于 {outMin} 秒就没人套用得了——把右边的把手往右拖，选够 {inMin} 秒。"
+msgstr "选中的这一段只有 {durSec} 秒，至少要 {inMin} 秒。AI 把人换成白模时会把成片截短零点几秒（{durSec} 秒进去只剩约 {shrunk} 秒），而模板本身短于 {outMin} 秒就没人套用得了——把右边的把手往右拖，选够 {inMin} 秒。"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "选中的这一段有 {durSec} 秒，最长只能 {outMax} 秒（AI 出片引擎的硬要求）。而且越长，白模化这一次和以后每次套用都越贵——把把手往里收一点。"
+msgstr "选中的这一段有 {durSec} 秒，最长只能 {outMax} 秒（AI 出片引擎的硬要求）。而且越长，白模化这一次和以后每次套用都越贵——把把手往里收一点。"
+
 #: src/studio/canvasAgent.ts
 msgid "选中第 {seg} 段：流水线只有 {total} 段"
 msgstr "选中第 {seg} 段：流水线只有 {total} 段"
@@ -16358,6 +16602,18 @@ msgstr "选段"
 msgid "选段与裁剪"
 msgstr "选段与裁剪"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "选段与裁剪框的数值不对（必须是非负整数、且裁剪框有宽有高）——请重新拖一次，或退出重进这一页。"
+msgstr "选段与裁剪框的数值不对（必须是非负整数、且裁剪框有宽有高）——请重新拖一次，或退出重进这一页。"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "选段超出了片尾（第 {startSec} 秒起 {durSec} 秒 = 到第 {endSec} 秒，这条视频约 {total} 秒）。把这一段整体往左挪，或缩短它。"
+msgstr "选段超出了片尾（第 {startSec} 秒起 {durSec} 秒 = 到第 {endSec} 秒，这条视频约 {total} 秒）。把这一段整体往左挪，或缩短它。"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "选段超过 {segMaxSec} 秒时只能整条登记（分段组吃的是整条原片——合并成片时要拿它回填完整音轨）：把选段拉满 0~{total} 秒（起点 0、时长 {total}），或者收回 {segMaxSec} 秒以内只做一段。"
+msgstr "选段超过 {segMaxSec} 秒时只能整条登记（分段组吃的是整条原片——合并成片时要拿它回填完整音轨）：把选段拉满 0~{total} 秒（起点 0、时长 {total}），或者收回 {segMaxSec} 秒以内只做一段。"
+
 #: src/live2d/bundlePreview.ts
 msgid "透明度组"
 msgstr "透明度组"
@@ -16402,6 +16658,10 @@ msgstr "通知需要连上服务器 · 当前是离线模式"
 #: src/components/flow/SkillPanel.tsx
 msgid "逛技能市场"
 msgstr "逛技能市场"
+
+#: src/data/economy.ts
+msgid "速写"
+msgstr "速写"
 
 #: src/components/guide/tours.tsx
 msgid "造卡四条路，一条花钱"
@@ -16475,6 +16735,10 @@ msgstr "重命名"
 #: src/components/VideoCardAnnotator.tsx
 msgid "重圈"
 msgstr "重圈"
+
+#: src/data/economy.ts
+msgid "重度创作，约 60 段标准档"
+msgstr "重度创作，约 60 段标准档"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "重截预览"
@@ -16897,6 +17161,10 @@ msgstr "首尾帧"
 msgid "首尾帧会改成\"参考图 + 提示词点名\"发出去（换来的是素材卡形象能一起发；代价是起止画面不再是硬约束）"
 msgstr "首尾帧会改成\"参考图 + 提示词点名\"发出去（换来的是素材卡形象能一起发；代价是起止画面不再是硬约束）"
 
+#: src/data/economy.ts
+msgid "首尾帧可控（默认）"
+msgstr "首尾帧可控（默认）"
+
 #: src/studio/ui/FrameCard.tsx
 msgid "首尾帧轮播"
 msgstr "首尾帧轮播"
@@ -16949,6 +17217,10 @@ msgstr "验证并注册"
 #: src/pages/LoginPage.tsx
 msgid "验证码已发出，10 分钟内有效"
 msgstr "验证码已发出，10 分钟内有效"
+
+#: src/data/economy.ts
+msgid "高清"
+msgstr "高清"
 
 #: src/components/support/HoldToTalk.tsx
 #: src/components/VoiceRecorder.tsx

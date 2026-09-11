@@ -1834,7 +1834,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
     {
       const flatIssue = deriveIssue(editor.videoTier);
       if (flatIssue) {
-        get().npcSay(`${flatIssue}。真人档去「工作流」或「简约模式」直出。`);
+        // ★ deriveIssue 是自带句号的整句（2026-09-11 起），这里接的是另一整句，不再往中间补「。」。
+        //   档位名从档位表现读（与 deriveIssue 句中点名的是同一个词），不写死「真人」
+        const realTier = tierOf("real").label;
+        get().npcSay(
+          t({
+            message: `${flatIssue}${realTier}档去「工作流」或「简约模式」直出。`,
+            comment: "flatIssue 是 economy.deriveIssue 回的一整句（自带句号），后面另起一整句；realTier 是真人那一档的档位名",
+          }),
+        );
         return;
       }
     }
