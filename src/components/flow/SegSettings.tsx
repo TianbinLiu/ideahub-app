@@ -8,7 +8,7 @@
 //   抄第二份的话，这些规则会一条一条地在另一面走样，而走样了不报错。
 // ★ 组件自己认 node.id 从 store 读（与 PlanSheet / CardPicker 同款）：宿主只给一个 id，
 //   不必把 index/nodes/mode 一路传下来，也就不会出现"传的是上一段"那类错。
-import { clampDuration, modelLabel, r2vPriceIssue, realFaceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { clampDuration, modelLabel, r2vBlockLines, realFaceIssue, tierOf } from "../../data/economy";
 import { chosenOf, nodeDone, tplOfNode, useFlow } from "../../studio/flowStore";
 import { DURATIONS, VIDEO_ASPECTS } from "../../types";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -33,23 +33,10 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
    * ★★ 2026-08-23 修：原来只对**整句**做 Set 去重，而每句都带着自己的档位名
    *   （「极速」这一档暂未开放…／「标准」这一档暂未开放…），四句字面不同 ⇒ 去重恒失效，
    *   于是同一件事在屏幕上糊了三四遍，把这一块撑成一大段红字。
-   *   现在按**去掉档位名之后**的句子去重：同因只留一条，并把档位名合并到一起说。
+   * ★ 2026-09-11 起按**原因**去重（economy.r2vBlockLines，与工坊 TierBlockNote 共用）：此前这里用正则剥掉句首带引号的
+   *   档位名、再按剩下的句子去重 —— 英文句子不以「…」开头，剥不掉，去重在英文界面静默失效，重拼时还塞进一对中文引号。
    */
-  const r2vBlocks = blockout
-    ? (() => {
-        const byReason = new Map<string, string[]>();
-        for (const tier of VIDEO_TIERS) {
-          const why = r2vPriceIssue(tier.id);
-          if (!why) continue;
-          // 「「极速」这一档暂未开放…」→ 去掉开头那个带引号的档位名，剩下的就是"原因本身"
-          const bare = why.replace(/^「[^」]*」/, "").trim();
-          const hit = byReason.get(bare);
-          if (hit) hit.push(tier.label);
-          else byReason.set(bare, [tier.label]);
-        }
-        return [...byReason].map(([bare, names]) => `「${names.join("」「")}」${bare}`);
-      })()
-    : [];
+  const r2vBlocks = blockout ? r2vBlockLines() : [];
   /**
    * 真人卡 × 档位的门禁原因（判断在 economy.realFaceIssue 一处，铁律六）——生成闸
    * （flowStore.genNode / deriveProposals）拒的就是这一句，这里提前印出来，
@@ -155,7 +142,7 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
           结果是同一句话在抽屉里出现两遍 */}
       {(r2vBlocks.length > 0 || realFaceBlock) && (
         <p className="text-[10px] leading-relaxed text-amber-300/80">
-          {[...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])].join("；")}
+          {[...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])].join(t({ message: "；", comment: "把几条「这一档为什么点不动」的原因连成一行时的分隔符" }))}
         </p>
       )}
       {/* ★ 把**真正会被调用的那个模型**写出来。「极速/标准/高清」只说了画质档次，

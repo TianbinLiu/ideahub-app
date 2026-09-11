@@ -156,6 +156,7 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -166,6 +167,7 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 #: src/components/DeleteCardDialog.tsx
 #: src/components/TemplateShelf.tsx
 #: src/components/VideoCardAnnotator.tsx
+#: src/data/economy.ts
 #: src/pages/AdminPage.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/CutPage.tsx
@@ -180,9 +182,13 @@ msgstr ", "
 #. 把两条拒绝原因连成一句时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
+#. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
+#. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 改图 / 重画完成那句后面几条参考图提示之间的分隔符
+#: src/components/flow/SegSettings.tsx
+#: src/components/flow/TierRow.tsx
 #: src/live2d/bundlePreview.ts
 #: src/pages/CardDetailPage.tsx
 #: src/studio/flowStore.ts
@@ -835,6 +841,11 @@ msgstr "{cardN, plural, one {# card} other {# cards}} × up to {0, plural, one {
 msgid "{count} 张"
 msgstr "{count, plural, one {# card} other {# cards}}"
 
+#: src/components/flow/TierRow.tsx
+#: src/studio/ui/projection.tsx
+msgid "{desc}（{model}）"
+msgstr "{desc} ({model})"
+
 #: src/pages/FeedPage.tsx
 #: src/pages/ProfilePage.tsx
 msgid "{display} 的主页"
@@ -912,6 +923,11 @@ msgstr "Couldn't read {fileName}; try a plain-text file."
 msgid "{fileName} 里没有文字。"
 msgstr "{fileName} has no text."
 
+#. flatIssue 是 economy.deriveIssue 回的一整句（自带句号），后面另起一整句；realTier 是真人那一档的档位名
+#: src/studio/studioStore.ts
+msgid "{flatIssue}{realTier}档去「工作流」或「简约模式」直出。"
+msgstr "{flatIssue} For the “{realTier}” tier, render directly from “Workflow” or “Simple mode”."
+
 #: src/ai/index.ts
 msgid "{head} · 演示"
 msgstr "{head} · demo"
@@ -932,6 +948,10 @@ msgstr "{installs, plural, one {Installed by # person} other {Installed by # peo
 #: src/data/publishAssets.ts
 msgid "{label} 太大（{sizeMb}MB，上限 5MB）"
 msgstr "{label} is too large ({sizeMb}MB; the limit is 5MB)"
+
+#: src/data/economy.ts
+msgid "{lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「{label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下"
+msgstr "{lack}: declared as real-person material, but there's no Ark trusted asset ID yet — the “{label}” tier doesn't accept directly uploaded photos of real people, only assets the person has authorized. Go to the card details page, follow the prompts to complete portrait authorization and fill in the asset ID, or remove the card for now"
 
 #: src/live2d/bundlePreview.ts
 msgid "{mocPath} 的文件头不是 MOC3（读到 “{shown}”），这不是一份有效的 moc3。"
@@ -960,6 +980,14 @@ msgstr "{name}'s voice"
 #: src/pages/SupportPage.tsx
 msgid "{name}走神了，再发一次试试。"
 msgstr "{name} got distracted. Try sending again."
+
+#: src/data/economy.ts
+msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——换成「{hdTier}」「{ultraTier}」档并给这张卡做肖像授权，或换「{realTier}」档，或先把真人卡取下"
+msgstr "{names}: declared as real-person material, and the “{label}” tier's provider rejects photos of real people (in testing, celebrities are blocked for copyright and everyone else for privacy, and the whole request is rejected) — switch to “{hdTier}” or “{ultraTier}” and set up portrait authorization for this card, or switch to “{realTier}”, or remove the real-person card for now"
+
+#: src/data/economy.ts
+msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「{realTier}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「{realTier}」档以卡上照片起拍直出"
+msgstr "{names}: declared as real-person material, and the “{label}” tier's provider rejects photos of real people (in testing, celebrities are blocked for copyright and everyone else for privacy, and the whole request is rejected); meanwhile the “{realTier}” tier can't do blockout remakes — real-person cards and blockout templates can't be used together: swap the real-person card for a non-real-person card, or drop the template and switch to “{realTier}” to start from the card's photo and render directly"
 
 #: src/pages/CustomCardPage.tsx
 msgid "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
@@ -1221,6 +1249,19 @@ msgstr "“{ch}”"
 msgid "「{label}」单段消耗超过免费版整月额度（{quota}），升级套餐后可用"
 msgstr "One segment on the “{label}” tier costs more than the Free plan's entire monthly token allowance ({quota}) — upgrade your plan to use it"
 
+#: src/data/economy.ts
+msgid "「{label}」档按发直出（起拍画面就是真人卡的照片），没有推演三套方案这一步——写好一句话直接生成，或换回其它档再推演。"
+msgstr "The “{label}” tier renders each clip directly (the opening shot is the real-person card's photo), so there's no step that drafts three plans — write one sentence and generate right away, or switch back to another tier to draft plans."
+
+#: src/data/economy.ts
+msgid "「{label}」这一档暂时报不出价（{model} 不在价目表里），先用别的档位"
+msgstr "The “{label}” tier can't be priced right now ({model} isn't in the price list) — use another tier for now"
+
+#. 给一个名字（卡名）加引号：中文「」，英文用弯引号
+#: src/data/economy.ts
+msgid "「{name}」"
+msgstr "“{name}”"
+
 #. placeholder {0}: hits.length
 #: src/studio/canvasAgent.ts
 msgid "「{name}」对上了 {0} 张卡（{names}），说全名"
@@ -1235,6 +1276,14 @@ msgstr "{tag} for “{name}”"
 #: src/data/account.ts
 msgid "「{name}」的形象参考图"
 msgstr "Reference images for “{name}”"
+
+#: src/data/economy.ts
+msgid "「{names}」这一档暂未开放白模模板出片，等开放后再来"
+msgstr "Blockout template videos aren't available on “{names}” yet — check back later"
+
+#: src/data/economy.ts
+msgid "「{names}」这一档的白模出片暂时报不出价（{model} 的 r2v 单价未核账），先用别的档位"
+msgstr "Blockout videos on “{names}” can't be priced yet (the r2v rate for {model} hasn't been reconciled) — use another tier for now"
 
 #. 可能紧跟在上一句后面拼接，英文译文开头要留一个空格
 #: src/pages/CustomCardPage.tsx
@@ -1267,6 +1316,15 @@ msgstr "“{u}”"
 #: src/components/guide/tours.tsx
 msgid "「关注」那格点开是你关注过的人的名单，就地能取关。 旁边两个是你<0>所有作品加起来</0>的总数，不是某一支的。"
 msgstr "Tap “Following” to open the list of people you follow, where you can unfollow them on the spot. The two next to it are totals for <0>all your videos combined</0>, not for any single one."
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "「自己挑」现在一帧有效的标记都没有（还没标，或者标的那几帧都落到选段外面去了）。AI 得看着画面才认得出里面有哪些人——把播放头拖到有人的地方点「标记这一帧」（至少 1 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧），或者切回「自动」。"
+msgstr "“Pick myself” has no valid marks right now (none marked yet, or every marked frame has ended up outside the selection). The AI has to see the picture to recognize who's in it — drag the playhead to where people are and tap “Mark this frame” (at least 1 frame, at most {BLOCKOUTIZE_FRAME_MAX, plural, one {# frame} other {# frames}}), or switch back to “Auto”."
+
+#. 几个档位名接成一串时的分隔符。整串外面那对引号写在句子里，所以中文是前一个名字的右引号接上后一个的左引号（「极速」「标准」）；英文写成 ”, “ 就是 “Fast”, “Standard”
+#: src/data/economy.ts
+msgid "」「"
+msgstr "”, “"
 
 #: src/studio/ui/projection.tsx
 msgid "← 左右滑动浏览 · 单击查看详情 · 窗外拖拽可转视角"
@@ -3104,6 +3162,10 @@ msgstr "Not in Home or search, but anyone with the link can watch it and pass it
 msgid "与素材同分辨率，最快"
 msgstr "Same resolution as the footage; fastest"
 
+#: src/data/economy.ts
+msgid "专业套餐"
+msgstr "Pro plan"
+
 #: src/pages/LoginPage.tsx
 msgid "中国大陆"
 msgstr "mainland China"
@@ -4021,6 +4083,7 @@ msgstr "Just browse for now"
 msgid "免费 · 会重新合成点名句（覆盖你改过的字）"
 msgstr "Free · re-composes the casting line (overwrites your edits)"
 
+#: src/data/economy.ts
 #: src/pages/ProfilePage.tsx
 msgid "免费版"
 msgstr "Free"
@@ -4341,6 +4404,10 @@ msgstr "The most common case: <0>someone was never turned into a mannequin</0> (
 msgid "最新"
 msgstr "Newest"
 
+#: src/data/economy.ts
+msgid "最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，单段消耗约标准档 4.7 倍（仅付费套餐）"
+msgstr "Latest generation · best picture and camera movement, videos come with AI-generated ambient sound, each segment costs about 4.7× the Standard tier (paid plans only)"
+
 #: src/pages/DiscoverPage.tsx
 msgid "最新作品"
 msgstr "Newest videos"
@@ -4573,6 +4640,10 @@ msgstr "Branch {0}"
 #: src/components/VideoTemplateExtractor.tsx
 msgid "分析帧数（越多认得越准，价钱不变）"
 msgstr "Frames to analyze (more frames recognize better; the price stays the same)"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "分段登记暂不支持裁剪画面（服务端切段吃的是原始上传）：点视频下方播放条最右端的「⤢ 铺满整幅」把裁剪框还原。要裁水印或改画幅，就把选段收回 {segMaxSec} 秒以内、一段一段做。"
+msgstr "Split registration can't crop the picture yet (the server cuts the segments from the original upload): tap “⤢ Fill the frame” at the far right of the play bar below the video to reset the crop box. To crop out a watermark or change the aspect ratio, pull the selection back to within {segMaxSec} seconds and do it one segment at a time."
 
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
@@ -5857,6 +5928,10 @@ msgstr "Only me"
 msgid "只有我自己"
 msgstr "Only me"
 
+#: src/data/economy.ts
+msgid "只画 1 张主图 · 它同时就是卡面"
+msgstr "Draws just 1 main image · it doubles as the card face"
+
 #: src/data/videoDownload.ts
 msgid "只能保存自己发布的作品。"
 msgstr "You can only save videos you published."
@@ -6044,6 +6119,10 @@ msgstr "A composed preview costs one image ({0} tokens) and your balance isn't e
 msgid "同一条视频拆成 {count} 段的分段模板（共约 {0}s）· 套用即整组铺开"
 msgstr "Split template: one video in {count, plural, one {# segment} other {# segments}} (about {0}s total) · using it lays out the whole group"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "同一秒被标了不止一次。删掉重复的那几帧再来（重复的帧认不出更多人）。"
+msgstr "The same second is marked more than once. Remove the duplicate frames and try again (duplicate frames won't find any more people)."
+
 #: src/pages/LoginPage.tsx
 msgid "同意协议"
 msgstr "Agree to the terms"
@@ -6052,6 +6131,10 @@ msgstr "Agree to the terms"
 #: src/pages/LoginPage.tsx
 msgid "同意并继续"
 msgstr "Agree and continue"
+
+#: src/data/economy.ts
+msgid "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
+msgstr "The same 2 images, drawn by the latest flagship model · more accurate look, more solid detail, slower to draw"
 
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
@@ -6118,6 +6201,10 @@ msgstr "Crying"
 #: src/components/flow/FlowCanvas.tsx
 msgid "唤起指令句式（也可以输入 /）"
 msgstr "Open command phrases (or type /)"
+
+#: src/data/economy.ts
+msgid "唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它"
+msgstr "The only tier that accepts photos of real people · the provider prices per clip (6s or 10s only) · choose it to render with real-person cards"
 
 #: src/pages/SupportCreatePage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -6778,6 +6865,10 @@ msgstr "Couldn't load the official looks (this server may not have them yet)."
 #: src/components/flow/FlowCanvas.tsx
 msgid "官方技能"
 msgstr "Official skills"
+
+#: src/data/economy.ts
+msgid "定妆"
+msgstr "Refined"
 
 #: src/components/support/AdminTicketsView.tsx
 #: src/pages/SupportPage.tsx
@@ -9366,6 +9457,22 @@ msgstr "Write a whole new version"
 msgid "整屏一支，上下滑换下一支——划到哪支哪支就自动播，<0>划走就停下、划回来从头播</0>。<1>单击暂停</1>，再点一下接着放；<2>双击点赞</2>，连点两下只会点亮、不会取消。顶上的「关注 / 推荐」切换看谁的作品。"
 msgstr "One video fills the screen; swipe up or down for the next one. Whatever you land on plays automatically, and <0>it stops when you swipe away and restarts from the beginning when you swipe back</0>. <1>Tap once to pause</1>, tap again to resume; <2>double-tap to like</2> — double-tapping only turns the like on, never off. “Following / For you” at the top switches whose videos you see."
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "整条 {realSec} 秒将切成 {parts} 段（{segs}）登记成一组——每段是独立模板，从任何一段套用都会整组铺进工作流。"
+msgstr "The whole {realSec}-second video will be cut into {parts, plural, one {# segment} other {# segments}} ({segs}) and registered as one group — each segment is its own template, and using any one of them lays out the whole group in the workflow."
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "整条 {realSec} 秒将切成 {parts} 段（{segs}）登记成一组——每段是独立模板，从任何一段套用都会整组铺进工作流（画面 {picW}×{picH} 低于 AI 引擎的像素下限，登记时服务端会自动放大到刚过线，时长与画幅比例不变）。"
+msgstr "The whole {realSec}-second video will be cut into {parts, plural, one {# segment} other {# segments}} ({segs}) and registered as one group — each segment is its own template, and using any one of them lays out the whole group in the workflow. The picture ({picW}×{picH}) is below the AI engine's pixel minimum, so the server will automatically upscale it to just above the minimum when registering; the duration and aspect ratio stay the same."
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "整条登记不裁画面，而这条原片有一边到了 {longEdge} 像素，超过 AI 引擎的 {maxEdge} 上限。把选段收回 {segMaxSec} 秒以内、用裁剪框把画面框到 {maxEdge} 以内，一段一段做。"
+msgstr "Whole-video registration doesn't crop the picture, and one side of this original is {longEdge} pixels, over the AI engine's {maxEdge} limit. Pull the selection back to within {segMaxSec} seconds, use the crop box to keep the picture within {maxEdge}, and do it one segment at a time."
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "整条登记不裁画面，而这条原片的宽高比约 {ratioText}，超出 AI 引擎的 {minRatio}~{maxRatio} 窗口——放大救不了形状。把选段收回 {segMaxSec} 秒以内、用裁剪框把比例修进窗口，一段一段做。"
+msgstr "Whole-video registration doesn't crop the picture, and this original's aspect ratio is about {ratioText}, outside the AI engine's {minRatio}–{maxRatio} window — upscaling can't fix the shape. Pull the selection back to within {segMaxSec} seconds, use the crop box to bring the ratio into the window, and do it one segment at a time."
+
 #: src/components/ForgeOverlay.tsx
 msgid "整段一炉出，别退出 App"
 msgstr "The whole segment renders in one go. Don't quit the app"
@@ -9418,6 +9525,10 @@ msgstr "Text description"
 #: src/components/TemplateShelf.tsx
 msgid "新"
 msgstr "New"
+
+#: src/data/economy.ts
+msgid "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音"
+msgstr "Newer-generation model · steadier picture, more detail; can render straight from the cards' reference images · videos come with AI-generated ambient sound"
 
 #: src/pages/LoginPage.tsx
 msgid "新密码（至少 6 位）"
@@ -9714,6 +9825,10 @@ msgstr "Two different cards are both named “{0}” ({noun} {1} uses one of the
 #: src/data/notifications.ts
 msgid "有人"
 msgstr "Someone"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "有帧标在了选中这一段的外面（允许的范围是第 0~{lastSec} 秒）。把它们删掉重标，或者切回「自动」。"
+msgstr "Some frames are marked outside the selected part (the allowed range is 0–{lastSec}s). Remove them and mark again, or switch back to “Auto”."
 
 #: src/pages/SupportPage.tsx
 msgid "有帮助"
@@ -10104,6 +10219,10 @@ msgstr "close-up texture of materials, grain and light"
 msgid "极致"
 msgstr "Ultra"
 
+#: src/data/economy.ts
+msgid "极速"
+msgstr "Fast"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "松开发送"
 msgstr "Release to send"
@@ -10176,9 +10295,21 @@ msgstr "Mark as resolved"
 msgid "标为待处理"
 msgstr "Mark as pending"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "标了 {marked} 帧，最多只能 {BLOCKOUTIZE_FRAME_MAX} 帧（再多也只是重复的画面）。删掉几帧再来。"
+msgstr "You've marked {marked, plural, one {# frame} other {# frames}}, but at most {BLOCKOUTIZE_FRAME_MAX, plural, one {# frame} other {# frames}} are allowed (any more would just be repeated shots). Remove a few and try again."
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "标价"
 msgstr "Price"
+
+#: src/data/economy.ts
+msgid "标准"
+msgstr "Standard"
+
+#: src/data/economy.ts
+msgid "标准套餐"
+msgstr "Standard plan"
 
 #: src/types.ts
 msgid "标志性细节"
@@ -11144,6 +11275,10 @@ msgstr "Looks good, continue"
 msgid "沿边描出轮廓"
 msgstr "Trace the outline"
 
+#: src/data/economy.ts
+msgid "注册即得，每月刷新"
+msgstr "Included when you sign up, refreshed monthly"
+
 #: src/pages/LoginPage.tsx
 msgid "注册新账号"
 msgstr "Create an account"
@@ -11595,6 +11730,14 @@ msgstr "What you're filtering by"
 msgid "现在这一帧（原片第 {0} 秒）在选段外面——选段是原片的第 {1}~{2} 秒，只有那一段会被做成模板。把播放头挪进选段再标，或者先把上面的选段拖到这儿来。"
 msgstr "This frame ({0}s in the original) is outside the selection — the selection is {1}–{2}s of the original, and only that part becomes the template. Move the playhead into the selection before marking, or drag the selection above over here first."
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "现在这样要切 {parts} 段，而一次分段登记最多 {SPLIT_MAX_PARTS} 段。这条素材有 {total} 秒，超过 {autoMaxSec} 秒之后自动切会一步跨到 16 段（补刀是对半切，段数只能是 8、16…），所以必须自己标刀：把 {cutsMax} 刀尽量均匀地摆开（每段接近 {segMaxSec} 秒）。实在摆不匀就先把素材剪短再传。"
+msgstr "As it stands this would be cut into {parts} segments, but one split registration allows at most {SPLIT_MAX_PARTS}. This footage is {total} seconds long, and past {autoMaxSec} seconds automatic cutting jumps straight to 16 segments (extra cuts halve a segment, so the count can only be 8, 16…), so you have to place the cuts yourself: spread {cutsMax} cuts as evenly as you can (each segment close to {segMaxSec} seconds). If you can't get them even, trim the footage first and upload it again."
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "现在这样要切 {parts} 段，而一次分段登记最多 {SPLIT_MAX_PARTS} 段（超过 {segMaxSec} 秒的段会自动对半，越切越碎）。多标几刀、让每段更接近 {segMaxSec} 秒，或者先把素材剪短。"
+msgstr "As it stands this would be cut into {parts} segments, but one split registration allows at most {SPLIT_MAX_PARTS} (segments over {segMaxSec} seconds are halved automatically, so they keep getting more fragmented). Place a few more cuts so each segment is closer to {segMaxSec} seconds, or trim the footage first."
+
 #: src/components/BootFailed.tsx
 msgid "现在连不上服务器，只能读这台手机上的数据，而它没读出来 —— 硬进去只会看到空首页、被登出，所以先停在这里。点重试只是再读一遍，不会删掉你的东西。"
 msgstr "The server can't be reached right now, so only the data on this phone can be used — and it couldn't be read. Going in anyway would show an empty home feed and sign you out, so we're stopping here. Retry just reads it again; it won't delete anything of yours."
@@ -11770,9 +11913,17 @@ msgstr "Let the AI pick: it looks at the middle frame first and spreads out towa
 msgid "由应用商店负责更新"
 msgstr "Updates come through the app store"
 
+#: src/data/economy.ts
+msgid "电影级"
+msgstr "Cinematic"
+
 #: src/components/support/VoiceMixer.tsx
 msgid "男"
 msgstr "Male"
+
+#: src/data/economy.ts
+msgid "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
+msgstr "Draws 2 images: the main image + a reference image of the same subject, drawn from the main image"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "画不出来的包发不了。"
@@ -11968,6 +12119,10 @@ msgstr "Blockout · select a clip and crop out watermarks"
 msgid "白模化前，AI 先看几帧、列出<0>画面里有哪些人</0>，再按这份清单 逐个点名替换成<1>一模一样的纯白人偶</1>。<2>看漏了人，他照样会被换成白人偶</2>——但清单里没有他的位置，所以挂不了卡，而且<3>他还会把别人的 「从左数第几个」挤歪一位</3>。"
 msgstr "Before blockout, the AI looks at a few frames, lists <0>who's in the picture</0>, then goes down that list replacing each person with <1>an identical plain white mannequin</1>. <2>Anyone it misses still becomes a white mannequin</2> — but they have no slot on the list, so no card can be attached to them, and <3>they push everyone else's “Nth from the left” off by one</3>."
 
+#: src/data/economy.ts
+msgid "白模化暂未开放（当前没有任何档位开着白模出片），等开放后再来"
+msgstr "Blockout isn't available yet (no tier currently has blockout rendering turned on) — check back once it opens"
+
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "白模化现在报不出价，先不能开炼（价目或开关没就绪）——这种情况请把这句话反馈给我们。"
 msgstr "Blockout can't be priced right now, so it can't start yet (pricing or the feature switch isn't ready) — if you see this, please send us this message."
@@ -12104,6 +12259,10 @@ msgstr "The camera didn't return a photo"
 msgid "相机照片存不下来（存储可能已满）"
 msgstr "Couldn't save the camera photo (storage may be full)"
 
+#: src/data/economy.ts
+msgid "省 token · 首帧起拍，不锁尾帧"
+msgstr "Saves tokens · starts from the first frame, doesn't lock the last frame"
+
 #: src/studio/structuredSkills.ts
 msgid "看一遍再铺；铺是整表覆盖，现有流水线会先问你"
 msgstr "Review before laying it out; laying out replaces the whole pipeline, so you'll be asked about the current one first"
@@ -12140,6 +12299,11 @@ msgstr "Watch this segment ({0}s)"
 #: src/components/CoverPicker.tsx
 msgid "看首页遮挡"
 msgstr "Show feed overlay"
+
+#: src/data/economy.ts
+msgctxt "画质档位名：唯一收真人照片的那一档（不是「真人卡」「真人照片」里的形容词）"
+msgid "真人"
+msgstr "Real-person"
 
 #: src/ai/minimaxVideo.ts
 msgid "真人档任务创建中…"
@@ -13006,6 +13170,22 @@ msgstr "Segment {segNo} isn't at a permanent address yet, so it can't be merged 
 msgid "第 {segNo} 段还没有视频（只有设定帧），合成做不了——先把这一段炼出来"
 msgstr "Segment {segNo} has no video yet (only setup frames), so it can't be merged — render that segment first"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}）"
+msgstr "{durSec, plural, one {# second} other {# seconds}} from {startSec}s · cropped to {cropW}×{cropH} ({pixels} pixels, ratio {ratio})"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}） · AI 看 {frames} 帧"
+msgstr "{durSec, plural, one {# second} other {# seconds}} from {startSec}s · cropped to {cropW}×{cropH} ({pixels} pixels, ratio {ratio}) · AI looks at {frames, plural, one {# frame} other {# frames}}"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}） · 未裁剪（整幅）"
+msgstr "{durSec, plural, one {# second} other {# seconds}} from {startSec}s · {cropW}×{cropH} ({pixels} pixels, ratio {ratio}) · not cropped (full frame)"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}） · 未裁剪（整幅） · AI 看 {frames} 帧"
+msgstr "{durSec, plural, one {# second} other {# seconds}} from {startSec}s · {cropW}×{cropH} ({pixels} pixels, ratio {ratio}) · not cropped (full frame) · AI looks at {frames, plural, one {# frame} other {# frames}}"
+
 #: src/pages/SimpleModePage.tsx
 msgid "第 {stepNo} / 3 步"
 msgstr "Step {stepNo} of 3"
@@ -13157,6 +13337,10 @@ msgstr "Pasted text"
 msgid "精度"
 msgstr "Quality"
 
+#: src/data/economy.ts
+msgid "精绘"
+msgstr "Master"
+
 #: src/components/DataLossNotice.tsx
 msgid "系统在打开本机数据库时发现文件已经损坏，把它清空后重建了一个新的。只存在这台设备上的东西 —— 草稿、剪到一半的成片、还没传上去的作品、本机模板 —— 没有了，救不回来。"
 msgstr "When opening this device's database, the system found its files damaged, cleared them and created a new one. Things that existed only on this device — drafts, half-edited videos, videos not yet uploaded and local templates — are gone and can't be recovered."
@@ -13178,6 +13362,10 @@ msgstr "About {0}"
 #: src/studio/ui/projection.tsx
 msgid "约 {0} token"
 msgstr "about {0} tokens"
+
+#: src/data/economy.ts
+msgid "约可生成 15 段标准档视频"
+msgstr "Enough for about 15 Standard-tier video segments"
 
 #: src/components/flow/SegSettings.tsx
 #: src/studio/ui/projection.tsx
@@ -13722,9 +13910,33 @@ msgstr "Videos taken down by the platform are visible only to their author and a
 msgid "被拒绝了（原因没说清——这是个 bug，请反馈）"
 msgstr "Refused (no reason was given — this is a bug, please report it)"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "裁剪框太大：裁完的宽和高都要 ≤ {maxEdge} 像素（现在 {cropW}×{cropH}）。这条素材本身就超了，需要先压小分辨率再来。"
+msgstr "The crop box is too large: the cropped width and height must both be ≤ {maxEdge} pixels (currently {cropW}×{cropH}). This footage itself is over the limit, so lower its resolution first and try again."
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "裁剪框太小：裁完的宽和高都要 ≥ {minEdge} 像素（现在 {cropW}×{cropH}），AI 出片引擎不接受更小的画面。把框拖大一点。"
+msgstr "The crop box is too small: the cropped width and height must both be ≥ {minEdge} pixels (currently {cropW}×{cropH}); the AI video engine doesn't accept a smaller picture. Drag the box larger."
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "裁剪框超出了画面（画面 {frameW}×{frameH}，框到了 {boxRight}×{boxBottom}）。把框拖回画面里。"
+msgstr "The crop box goes outside the picture (the picture is {frameW}×{frameH}, and the box reaches {boxRight}×{boxBottom}). Drag the box back inside the picture."
+
 #: src/api/uploads.ts
 msgid "裁剪没成功：服务器没有返回可用的视频信息（可能是旧版服务端）"
 msgstr "The crop didn't work: the server didn't return usable video info (it may be an older server version)"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "裁完的画幅太扁了：宽高比要在 {minRatio}~{maxRatio} 之间（现在约 {ratioText}）。AI 出片引擎不接受这个形状。"
+msgstr "The cropped frame is too wide: the aspect ratio must be between {minRatio} and {maxRatio} (currently about {ratioText}). The AI video engine doesn't accept this shape."
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "裁完的画幅太窄了：宽高比要在 {minRatio}~{maxRatio} 之间（现在约 {ratioText}）。AI 出片引擎不接受这个形状。"
+msgstr "The cropped frame is too narrow: the aspect ratio must be between {minRatio} and {maxRatio} (currently about {ratioText}). The AI video engine doesn't accept this shape."
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "裁完的画面太小：宽×高至少要 {minPixels} 像素（现在 {cropW}×{cropH} = {pixels}，还差 {shortBy}）。AI 出片引擎会拒绝这样的输入——把裁剪框拖大一点。"
+msgstr "The cropped picture is too small: width × height must be at least {minPixels} pixels (currently {cropW}×{cropH} = {pixels}, {shortBy} short). The AI video engine will reject input like this — drag the crop box larger."
 
 #: src/components/flow/SkillPanel.tsx
 msgid "装"
@@ -14240,6 +14452,10 @@ msgstr "Couldn't read this video's duration or dimensions (the file may be damag
 #: src/data/cardViews.ts
 msgid "读不出这张打包素材"
 msgstr "This bundled asset can't be read"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "读不出这段视频的时长或画面尺寸，没法计算裁剪范围。请换一个 mp4 / mov 文件重试。"
+msgstr "Couldn't read this video's duration or frame size, so the crop range can't be calculated. Try again with a different mp4 / mov file."
 
 #: src/pages/SupportPersonasPage.tsx
 msgid "读不到人格列表"
@@ -14977,6 +15193,14 @@ msgstr "This segment isn't a blockout segment with role slots, so there's no cas
 #: src/studio/ui/PlanBoard.tsx
 msgid "这一段叫什么"
 msgstr "Name this segment"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "这一段可以做成模板（不出片）：{summary}"
+msgstr "This part can become a template (no video is rendered): {summary}"
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "这一段可以做成模板（不出片）：{summary}（画面 {picW}×{picH} 低于 AI 引擎的像素下限，登记时服务端会自动放大到刚过线，时长与画幅比例不变）"
+msgstr "This part can become a template (no video is rendered): {summary}. The picture ({picW}×{picH}) is below the AI engine's pixel minimum, so the server will automatically upscale it to just above the minimum when registering; the duration and aspect ratio stay the same."
 
 #. placeholder {0}: selectionSummary(outSel, geo)
 #: src/components/blockout/BlockoutTrimmer.tsx
@@ -16063,6 +16287,14 @@ msgstr "This pipeline has no segments yet — tell the bar below “{addExample}
 msgid "这条片的故事背景 / 简介（只以文字参与出片）"
 msgstr "The story background / synopsis (used only as text when generating)"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "这条视频只有约 {total} 秒，而白模模板要求输入片段至少 {inMin} 秒（AI 换白模时会把成片截短零点几秒，{total} 秒进去只剩约 {shrunk} 秒，那样的模板短于 AI 出片引擎的 {outMin} 秒下限，谁都套用不了）。这一条素材做不了白模模板，换一条长一点的。"
+msgstr "This video is only about {total, plural, one {# second} other {# seconds}} long, but blockout templates need an input clip of at least {inMin, plural, one {# second} other {# seconds}} (swapping in blockout mannequins trims a fraction of a second off the result, so {total, plural, one {# second} other {# seconds}} of input leaves only about {shrunk} seconds, and a template that short is under the AI video engine's {outMin}-second minimum, so nobody could use it). This footage can't become a blockout template; try a longer one."
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "这条视频约 {total} 秒，而分段登记一次最多 {SPLIT_MAX_PARTS} 段 × {segMaxSec} 秒 = {maxSec} 秒——整条装不下。把选段收回 {segMaxSec} 秒以内只做一段，或先把素材剪短再传。"
+msgstr "This video is about {total} seconds long, but one split registration holds at most {SPLIT_MAX_PARTS} segments × {segMaxSec} seconds = {maxSec} seconds — the whole video won't fit. Pull the selection back to within {segMaxSec} seconds to make a single segment, or trim the footage first and upload it again."
+
 #: src/components/DraftSheet.tsx
 msgid "这条草稿的内容已丢失，已从列表移除"
 msgstr "This draft's content is gone, so it was removed from the list"
@@ -16146,6 +16378,10 @@ msgstr "Couldn't reach the server this time. Deleting now would only remove the 
 #: src/data/account.ts
 msgid "这次没连上服务器。现在删只会删掉这台设备上的那份，下次登录它还会回来——等联网了再删。"
 msgstr "Couldn't reach the server this time. Deleting now would only remove the copy on this device, and it would come back the next time you sign in — delete it once you're online."
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "这段视频只有约 {sec} 秒。白模模板要求素材至少 {min} 秒：AI 把画面里的人换成白模时会把成片截短零点几秒，{min} 秒进去才能保证做出来的模板还够 {outMin} 秒——短于 {outMin} 秒的模板谁都套用不了。换一条长一点的素材吧。"
+msgstr "This video is only about {sec, plural, one {# second} other {# seconds}} long. Blockout templates need footage of at least {min, plural, one {# second} other {# seconds}}: when the AI swaps the people in the picture for blockout mannequins, it trims a fraction of a second off the result, so {min, plural, one {# second} other {# seconds}} of input is what guarantees the template still has {outMin, plural, one {# second} other {# seconds}} — a template shorter than {outMin, plural, one {# second} other {# seconds}} can't be used by anyone. Try a longer clip."
 
 #: src/components/blockout/VideoStage.tsx
 msgid "这段视频在这个位置解不开，换一帧试试。"
@@ -16289,6 +16525,14 @@ msgstr "Choose a video on this device"
 msgid "选个头像"
 msgstr "Choose an avatar"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "选中的这一段只有 {durSec} 秒，至少要 {inMin} 秒。AI 把人换成白模时会把成片截短零点几秒（{durSec} 秒进去只剩约 {shrunk} 秒），而模板本身短于 {outMin} 秒就没人套用得了——把右边的把手往右拖，选够 {inMin} 秒。"
+msgstr "The selected part is only {durSec, plural, one {# second} other {# seconds}} long; it needs at least {inMin, plural, one {# second} other {# seconds}}. Swapping in blockout mannequins trims a fraction of a second off the result ({durSec, plural, one {# second} other {# seconds}} of input leaves only about {shrunk} seconds), and a template shorter than {outMin, plural, one {# second} other {# seconds}} can't be used by anyone — drag the right handle to the right until you've selected {inMin, plural, one {# second} other {# seconds}}."
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "选中的这一段有 {durSec} 秒，最长只能 {outMax} 秒（AI 出片引擎的硬要求）。而且越长，白模化这一次和以后每次套用都越贵——把把手往里收一点。"
+msgstr "The selected part is {durSec, plural, one {# second} other {# seconds}} long, but it can be {outMax, plural, one {# second} other {# seconds}} at most (a hard requirement of the AI video engine). And the longer it is, the more this blockout and every later use of the template cost — pull the handles in a little."
+
 #: src/studio/canvasAgent.ts
 msgid "选中第 {seg} 段：流水线只有 {total} 段"
 msgstr "Selecting segment {seg}: the pipeline only has {total, plural, one {# segment} other {# segments}}"
@@ -16358,6 +16602,18 @@ msgstr "Selection"
 msgid "选段与裁剪"
 msgstr "Select and crop"
 
+#: src/components/blockout/arkVideoRules.ts
+msgid "选段与裁剪框的数值不对（必须是非负整数、且裁剪框有宽有高）——请重新拖一次，或退出重进这一页。"
+msgstr "The selection and crop box values are invalid (they must be non-negative integers, and the crop box must have a width and a height) — drag again, or leave this page and come back."
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "选段超出了片尾（第 {startSec} 秒起 {durSec} 秒 = 到第 {endSec} 秒，这条视频约 {total} 秒）。把这一段整体往左挪，或缩短它。"
+msgstr "The selection runs past the end of the video ({durSec, plural, one {# second} other {# seconds}} from {startSec}s = up to {endSec}s, but this video is about {total, plural, one {# second} other {# seconds}} long). Move the whole selection left, or shorten it."
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "选段超过 {segMaxSec} 秒时只能整条登记（分段组吃的是整条原片——合并成片时要拿它回填完整音轨）：把选段拉满 0~{total} 秒（起点 0、时长 {total}），或者收回 {segMaxSec} 秒以内只做一段。"
+msgstr "A selection longer than {segMaxSec} seconds can only be registered as the whole video (a split group uses the entire original — it's needed to add back the full audio track when merging the final video): stretch the selection to cover 0–{total}s (start 0, length {total}s), or pull it back to within {segMaxSec} seconds to make a single segment."
+
 #: src/live2d/bundlePreview.ts
 msgid "透明度组"
 msgstr "pose"
@@ -16402,6 +16658,10 @@ msgstr "Notifications need a server connection · you're offline"
 #: src/components/flow/SkillPanel.tsx
 msgid "逛技能市场"
 msgstr "Browse the skill market"
+
+#: src/data/economy.ts
+msgid "速写"
+msgstr "Sketch"
 
 #: src/components/guide/tours.tsx
 msgid "造卡四条路，一条花钱"
@@ -16475,6 +16735,10 @@ msgstr "Rename"
 #: src/components/VideoCardAnnotator.tsx
 msgid "重圈"
 msgstr "Reselect"
+
+#: src/data/economy.ts
+msgid "重度创作，约 60 段标准档"
+msgstr "For heavy use, about 60 Standard-tier segments"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "重截预览"
@@ -16897,6 +17161,10 @@ msgstr "First & last frames"
 msgid "首尾帧会改成\"参考图 + 提示词点名\"发出去（换来的是素材卡形象能一起发；代价是起止画面不再是硬约束）"
 msgstr "First and last frames will be sent as “reference image + prompt mention” (asset card looks can go along; the trade-off is that start and end frames are no longer hard constraints)"
 
+#: src/data/economy.ts
+msgid "首尾帧可控（默认）"
+msgstr "First and last frames controllable (default)"
+
 #: src/studio/ui/FrameCard.tsx
 msgid "首尾帧轮播"
 msgstr "First & last frames"
@@ -16949,6 +17217,10 @@ msgstr "Verify and sign up"
 #: src/pages/LoginPage.tsx
 msgid "验证码已发出，10 分钟内有效"
 msgstr "Code sent — it's valid for 10 minutes"
+
+#: src/data/economy.ts
+msgid "高清"
+msgstr "HD"
 
 #: src/components/support/HoldToTalk.tsx
 #: src/components/VoiceRecorder.tsx

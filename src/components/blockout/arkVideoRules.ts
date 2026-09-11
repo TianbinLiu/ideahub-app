@@ -32,6 +32,7 @@
 //   不是安全边界，只是"别让用户点下去、传完 100MB 才知道不行" —— 但它必须与服务端判出
 //   同一个结论，否则就是界面放行、服务端整句拒，用户读到两句互相矛盾的话。
 
+import { t } from "@lingui/core/macro";
 import {
   ARK_EDIT_RULES,
   BLOCKOUTIZE_FRAME_MAX,
@@ -131,7 +132,9 @@ export function blockoutSourceDurationIssue(durationSec: number): string | null 
   const min = BLOCKOUT_INPUT_RULES.minSec;
   if (!Number.isFinite(durationSec) || durationSec <= 0) return null; // 读不出时长由窗口①那句话说
   if (durationSec >= min) return null;
-  return `这段视频只有约 ${secFloor(durationSec)} 秒。白模模板要求素材至少 ${min} 秒：AI 把画面里的人换成白模时会把成片截短零点几秒，${min} 秒进去才能保证做出来的模板还够 ${ARK_EDIT_RULES.minSec} 秒——短于 ${ARK_EDIT_RULES.minSec} 秒的模板谁都套用不了。换一条长一点的素材吧。`;
+  const sec = secFloor(durationSec);
+  const outMin = ARK_EDIT_RULES.minSec;
+  return t`这段视频只有约 ${sec} 秒。白模模板要求素材至少 ${min} 秒：AI 把画面里的人换成白模时会把成片截短零点几秒，${min} 秒进去才能保证做出来的模板还够 ${outMin} 秒——短于 ${outMin} 秒的模板谁都套用不了。换一条长一点的素材吧。`;
 }
 
 /**
@@ -184,8 +187,8 @@ export function initialSelection(natural: VideoNatural): BlockoutSelection {
 export function frameTimesOf(marksAbsSec: number[], sel: Pick<BlockoutSelection, "startSec" | "durSec">): number[] {
   const last = Math.max(0, Math.round(sel.durSec) - 1);
   const rel = marksAbsSec
-    .map((t) => Math.round(t) - Math.round(sel.startSec))
-    .filter((t) => Number.isFinite(t) && t >= 0 && t <= last);
+    .map((sec) => Math.round(sec) - Math.round(sel.startSec))
+    .filter((sec) => Number.isFinite(sec) && sec >= 0 && sec <= last);
   return [...new Set(rel)].sort((a, b) => a - b);
 }
 
@@ -248,10 +251,10 @@ export function selectionIssue(
   //    这句话会当场把它顶出来）
   const ints = [startSec, durSec, crop.x, crop.y, crop.w, crop.h];
   if (ints.some((v) => !Number.isInteger(v) || v < 0) || crop.w <= 0 || crop.h <= 0) {
-    return "选段与裁剪框的数值不对（必须是非负整数、且裁剪框有宽有高）——请重新拖一次，或退出重进这一页。";
+    return t`选段与裁剪框的数值不对（必须是非负整数、且裁剪框有宽有高）——请重新拖一次，或退出重进这一页。`;
   }
   if (total <= 0 || natural.width <= 0 || natural.height <= 0) {
-    return "读不出这段视频的时长或画面尺寸，没法计算裁剪范围。请换一个 mp4 / mov 文件重试。";
+    return t`读不出这段视频的时长或画面尺寸，没法计算裁剪范围。请换一个 mp4 / mov 文件重试。`;
   }
 
   // ② 时间轴
@@ -259,56 +262,88 @@ export function selectionIssue(
   //   而 edit 的产出比它短，产出（= 模板视频）还要自己满足方舟那 4 秒下限。上限与后面
   //   六条继续读 `R` —— 两个对象在那七项上逐字相同（见 data/templates 的 ★★）。
   if (durSec < IN.minSec) {
+    const inMin = IN.minSec;
+    const outMin = R.minSec;
     // 整条片子就不够长时**换一句话说**：这时"把把手往右拖"是一句做不到的建议
-    return total < IN.minSec
-      ? `这条视频只有约 ${total} 秒，而白模模板要求输入片段至少 ${IN.minSec} 秒（AI 换白模时会把成片截短零点几秒，${total} 秒进去只剩约 ${shrunkSecText(total)} 秒，那样的模板短于 AI 出片引擎的 ${R.minSec} 秒下限，谁都套用不了）。这一条素材做不了白模模板，换一条长一点的。`
-      : `选中的这一段只有 ${durSec} 秒，至少要 ${IN.minSec} 秒。AI 把人换成白模时会把成片截短零点几秒（${durSec} 秒进去只剩约 ${shrunkSecText(durSec)} 秒），而模板本身短于 ${R.minSec} 秒就没人套用得了——把右边的把手往右拖，选够 ${IN.minSec} 秒。`;
+    if (total < IN.minSec) {
+      const shrunk = shrunkSecText(total);
+      return t`这条视频只有约 ${total} 秒，而白模模板要求输入片段至少 ${inMin} 秒（AI 换白模时会把成片截短零点几秒，${total} 秒进去只剩约 ${shrunk} 秒，那样的模板短于 AI 出片引擎的 ${outMin} 秒下限，谁都套用不了）。这一条素材做不了白模模板，换一条长一点的。`;
+    }
+    const shrunk = shrunkSecText(durSec);
+    return t`选中的这一段只有 ${durSec} 秒，至少要 ${inMin} 秒。AI 把人换成白模时会把成片截短零点几秒（${durSec} 秒进去只剩约 ${shrunk} 秒），而模板本身短于 ${outMin} 秒就没人套用得了——把右边的把手往右拖，选够 ${inMin} 秒。`;
   }
   if (durSec > R.maxSec) {
-    return `选中的这一段有 ${durSec} 秒，最长只能 ${R.maxSec} 秒（AI 出片引擎的硬要求）。而且越长，白模化这一次和以后每次套用都越贵——把把手往里收一点。`;
+    const outMax = R.maxSec;
+    return t`选中的这一段有 ${durSec} 秒，最长只能 ${outMax} 秒（AI 出片引擎的硬要求）。而且越长，白模化这一次和以后每次套用都越贵——把把手往里收一点。`;
   }
   if (startSec + durSec > total) {
-    return `选段超出了片尾（第 ${startSec} 秒起 ${durSec} 秒 = 到第 ${startSec + durSec} 秒，这条视频约 ${total} 秒）。把这一段整体往左挪，或缩短它。`;
+    const endSec = startSec + durSec;
+    return t`选段超出了片尾（第 ${startSec} 秒起 ${durSec} 秒 = 到第 ${endSec} 秒，这条视频约 ${total} 秒）。把这一段整体往左挪，或缩短它。`;
   }
 
   // ③ 裁剪框
+  const cropW = n(crop.w);
+  const cropH = n(crop.h);
   if (crop.x + crop.w > Math.round(natural.width) || crop.y + crop.h > Math.round(natural.height)) {
-    return `裁剪框超出了画面（画面 ${n(natural.width)}×${n(natural.height)}，框到了 ${n(crop.x + crop.w)}×${n(crop.y + crop.h)}）。把框拖回画面里。`;
+    const frameW = n(natural.width);
+    const frameH = n(natural.height);
+    const boxRight = n(crop.x + crop.w);
+    const boxBottom = n(crop.y + crop.h);
+    return t`裁剪框超出了画面（画面 ${frameW}×${frameH}，框到了 ${boxRight}×${boxBottom}）。把框拖回画面里。`;
   }
   if (crop.w < R.minEdge || crop.h < R.minEdge) {
-    return `裁剪框太小：裁完的宽和高都要 ≥ ${R.minEdge} 像素（现在 ${n(crop.w)}×${n(crop.h)}），AI 出片引擎不接受更小的画面。把框拖大一点。`;
+    const minEdge = R.minEdge;
+    return t`裁剪框太小：裁完的宽和高都要 ≥ ${minEdge} 像素（现在 ${cropW}×${cropH}），AI 出片引擎不接受更小的画面。把框拖大一点。`;
   }
   if (crop.w > R.maxEdge || crop.h > R.maxEdge) {
-    return `裁剪框太大：裁完的宽和高都要 ≤ ${R.maxEdge} 像素（现在 ${n(crop.w)}×${n(crop.h)}）。这条素材本身就超了，需要先压小分辨率再来。`;
+    const maxEdge = R.maxEdge;
+    return t`裁剪框太大：裁完的宽和高都要 ≤ ${maxEdge} 像素（现在 ${cropW}×${cropH}）。这条素材本身就超了，需要先压小分辨率再来。`;
   }
   const px = crop.w * crop.h;
   if (px < R.minPixels && !opts?.pixelUpscalable) {
-    return `裁完的画面太小：宽×高至少要 ${n(R.minPixels)} 像素（现在 ${n(crop.w)}×${n(crop.h)} = ${n(px)}，还差 ${n(R.minPixels - px)}）。AI 出片引擎会拒绝这样的输入——把裁剪框拖大一点。`;
+    const minPixels = n(R.minPixels);
+    const pixels = n(px);
+    const shortBy = n(R.minPixels - px);
+    return t`裁完的画面太小：宽×高至少要 ${minPixels} 像素（现在 ${cropW}×${cropH} = ${pixels}，还差 ${shortBy}）。AI 出片引擎会拒绝这样的输入——把裁剪框拖大一点。`;
   }
   const ratio = crop.w / crop.h;
   if (ratio < R.minRatio || ratio > R.maxRatio) {
-    return `裁完的画幅太${ratio < R.minRatio ? "窄" : "扁"}了：宽高比要在 ${R.minRatio}~${R.maxRatio} 之间（现在约 ${ratio.toFixed(2)}）。AI 出片引擎不接受这个形状。`;
+    const minRatio = R.minRatio;
+    const maxRatio = R.maxRatio;
+    const ratioText = ratio.toFixed(2);
+    // ★ 太窄 / 太扁各一整句（原来是「太${窄|扁}了」半句拼，英文没法照着拼）
+    return ratio < R.minRatio
+      ? t`裁完的画幅太窄了：宽高比要在 ${minRatio}~${maxRatio} 之间（现在约 ${ratioText}）。AI 出片引擎不接受这个形状。`
+      : t`裁完的画幅太扁了：宽高比要在 ${minRatio}~${maxRatio} 之间（现在约 ${ratioText}）。AI 出片引擎不接受这个形状。`;
   }
 
   // ④ 「AI 看哪几帧」。★ 只在**自己挑**那条路上判（frameTimes 有值）：自动那条路的帧数
   //    由服务端按时长算，客户端没有可判的东西，也不该假装有。
   if (sel.frameTimes) {
-    const n = sel.frameTimes.length;
-    if (n === 0) {
+    // ★ 叫 marked 不叫 n：n 是本文件顶上的千分位格式化函数，同名遮住它读起来像在格式化
+    const marked = sel.frameTimes.length;
+    if (marked === 0) {
       // ★ 两种情况一句话说完：一帧没标，和"标了但全落在选段外面"（拖过选段之后会这样）。
       //   分成两句的话，第二种要在这里再判一次"外面有几帧"——那份判断在 frameTimesOf 里已经有了
-      return `「自己挑」现在一帧有效的标记都没有（还没标，或者标的那几帧都落到选段外面去了）。AI 得看着画面才认得出里面有哪些人——把播放头拖到有人的地方点「标记这一帧」（至少 1 帧、最多 ${BLOCKOUTIZE_FRAME_MAX} 帧），或者切回「自动」。`;
+      // ★ 引号里的按钮名与编辑页上真按钮的字一致（这句摆在 BlockoutTrimmer 里，旁边是 VisionFramePicker：
+      //   「自己挑」「＋ 标记这一帧」「自动（推荐）」取头；BoxFramePicker 用的是同一批字）
+      return t`「自己挑」现在一帧有效的标记都没有（还没标，或者标的那几帧都落到选段外面去了）。AI 得看着画面才认得出里面有哪些人——把播放头拖到有人的地方点「标记这一帧」（至少 1 帧、最多 ${BLOCKOUTIZE_FRAME_MAX} 帧），或者切回「自动」。`;
     }
-    if (n > BLOCKOUTIZE_FRAME_MAX) {
-      return `标了 ${n} 帧，最多只能 ${BLOCKOUTIZE_FRAME_MAX} 帧（每一帧都要花钱看，再多也只是买重复的画面）。删掉几帧再来。`;
+    if (marked > BLOCKOUTIZE_FRAME_MAX) {
+      // ★ 2026-09-11 改口（随多语言一起，单独一个 commit 审）：原话是「每一帧都要花钱看，再多也只是买重复的画面」——
+      //   那是按帧计价时代的说法。看帧是一次 chat 定额、多看几帧不多收钱（economy.blockoutTemplateCost；编辑页的
+      //   报价行就写着「多看几帧不额外收费」），两句并排自相矛盾。钱的那半句删掉，其余不动。
+      return t`标了 ${marked} 帧，最多只能 ${BLOCKOUTIZE_FRAME_MAX} 帧（再多也只是重复的画面）。删掉几帧再来。`;
     }
     // 下面两条按契约不该发生（标记都经 frameTimesOf 规范过）。留着是**断言**：真发生了
-    // 说明有人绕过了那一处，而它的后果是"报价按 N 帧、服务端按 M 帧扣"——两个方向都不报错
-    if (sel.frameTimes.some((t) => !Number.isInteger(t) || t < 0 || t > durSec - 1)) {
-      return `有帧标在了选中这一段的外面（允许的范围是第 0~${Math.max(0, durSec - 1)} 秒）。把它们删掉重标，或者切回「自动」。`;
+    // 说明有人绕过了那一处，而它的后果是"界面说 AI 看 N 帧、服务端按 M 帧看"——两个方向都不报错
+    if (sel.frameTimes.some((sec) => !Number.isInteger(sec) || sec < 0 || sec > durSec - 1)) {
+      const lastSec = Math.max(0, durSec - 1);
+      return t`有帧标在了选中这一段的外面（允许的范围是第 0~${lastSec} 秒）。把它们删掉重标，或者切回「自动」。`;
     }
-    if (new Set(sel.frameTimes).size !== n) {
-      return "同一秒被标了不止一次。删掉重复的那几帧再来（重复的帧只会让你多花看帧的钱，认不出更多人）。";
+    if (new Set(sel.frameTimes).size !== marked) {
+      // ★ 同上改口：原话「重复的帧只会让你多花看帧的钱」按帧计价时代才成立，钱的那半句删掉
+      return t`同一秒被标了不止一次。删掉重复的那几帧再来（重复的帧认不出更多人）。`;
     }
   }
   return null;
@@ -326,12 +361,24 @@ export function selectionSummary(
 ): string {
   const { crop, durSec, startSec } = sel;
   const full = crop.w === Math.round(natural.width) && crop.h === Math.round(natural.height);
-  const base = `第 ${startSec} 秒起 ${durSec} 秒 · 裁后 ${n(crop.w)}×${n(crop.h)}（${n(crop.w * crop.h)} 像素，比例 ${(crop.w / crop.h).toFixed(2)}）${full ? " · 未裁剪（整幅）" : ""}`;
-  if (opts?.frames === false) return base;
-  // 帧数也写进来：它是这一发**报价的一半**，而它现在会随时长与用户的标记变 ——
-  // 只报"选了几秒"会让人以为看帧那笔是固定的
+  const cropW = n(crop.w);
+  const cropH = n(crop.h);
+  const pixels = n(crop.w * crop.h);
+  const ratio = (crop.w / crop.h).toFixed(2);
+  // ★ 四种形态各是一整句（裁没裁 × 带不带帧数，2026-09-11 多语言）：原来是「读数 + 可选的 · 未裁剪 + 可选的 · AI 看 N 帧」
+  //   三段拼，英文的复数（秒 / 帧）与语序没法照着拼。它还会被整个嵌进别的句子（编辑页「这一段可以开炼：…」、
+  //   ownRefSingleVerdict），所以仍然回一串读数，不是完整的一句话。
+  if (opts?.frames === false) {
+    return full
+      ? t`第 ${startSec} 秒起 ${durSec} 秒 · 裁后 ${cropW}×${cropH}（${pixels} 像素，比例 ${ratio}） · 未裁剪（整幅）`
+      : t`第 ${startSec} 秒起 ${durSec} 秒 · 裁后 ${cropW}×${cropH}（${pixels} 像素，比例 ${ratio}）`;
+  }
+  // 帧数也写进来：它会随时长与用户的标记变 —— 只报"选了几秒"会让人以为 AI 看几帧是固定的
+  // （看帧那一笔按一次 chat 定额收，与帧数无关，见 economy.blockoutTemplateCost）
   const frames = visionFrameCount(durSec, sel.frameTimes);
-  return `${base} · AI 看 ${frames} 帧`;
+  return full
+    ? t`第 ${startSec} 秒起 ${durSec} 秒 · 裁后 ${cropW}×${cropH}（${pixels} 像素，比例 ${ratio}） · 未裁剪（整幅） · AI 看 ${frames} 帧`
+    : t`第 ${startSec} 秒起 ${durSec} 秒 · 裁后 ${cropW}×${cropH}（${pixels} 像素，比例 ${ratio}） · AI 看 ${frames} 帧`;
 }
 
 // ── 「自带参考视频」那条路（ownRef）的选段判词 ─────────────────────────
@@ -352,21 +399,26 @@ export interface SelectionVerdict {
   ok: string;
 }
 
-/** 源画面低于像素门时的那半句提示（两种形态共用；"" = 不用提）。
- *  说出来是义务：放大是服务端静默做的，不说的话作者会以为登记出来的就是原始分辨率 */
-function upscaleNote(w: number, h: number): string {
-  return w * h < ARK_EDIT_RULES.minPixels
-    ? `（画面 ${n(w)}×${n(h)} 低于 AI 引擎的像素下限，登记时服务端会自动放大到刚过线，时长与画幅比例不变）`
-    : "";
+/** 源画面低于像素门吗（两种形态共用）。低于时绿字必须**说出来**：放大是服务端静默做的，
+ *  不说的话作者会以为登记出来的就是原始分辨率。
+ *  ★ 那句提示不再是一段拼进别的句子中间的括号（2026-09-11 多语言）：带不带它各是一整句 ——
+ *    中文照旧是句中的括号，英文里它是句末另起的一句。 */
+function belowPixelFloor(w: number, h: number): boolean {
+  return w * h < ARK_EDIT_RULES.minPixels;
 }
 
 /**
  * ownRef · 单段（≤30 秒）：窗口判据与白模化同一份（`selectionIssue`），只豁免像素门。
  */
 export function ownRefSingleVerdict(sel: BlockoutSelection, natural: VideoNatural): SelectionVerdict {
+  const summary = selectionSummary(sel, natural, { frames: false });
+  const picW = n(sel.crop.w);
+  const picH = n(sel.crop.h);
   return {
     issue: selectionIssue(sel, natural, { pixelUpscalable: true }),
-    ok: `这一段可以做成模板（不出片）：${selectionSummary(sel, natural, { frames: false })}${upscaleNote(sel.crop.w, sel.crop.h)}`,
+    ok: belowPixelFloor(sel.crop.w, sel.crop.h)
+      ? t`这一段可以做成模板（不出片）：${summary}（画面 ${picW}×${picH} 低于 AI 引擎的像素下限，登记时服务端会自动放大到刚过线，时长与画幅比例不变）`
+      : t`这一段可以做成模板（不出片）：${summary}`,
   };
 }
 
@@ -407,25 +459,33 @@ export function ownRefSplitVerdict(
   const w = Math.round(natural.width);
   const h = Math.round(natural.height);
   const ratio = w / (h || 1);
+  const segMaxSec = ARK_EDIT_RULES.maxSec;
+  const maxEdge = n(ARK_EDIT_RULES.maxEdge);
+  const longEdge = n(Math.max(w, h));
+  const minRatio = ARK_EDIT_RULES.minRatio;
+  const maxRatio = ARK_EDIT_RULES.maxRatio;
+  const ratioText = ratio.toFixed(2);
+  const cutsMax = SPLIT_MAX_PARTS - 1;
   // 顺序按"用户能怎么改"：先说这条素材根本装不下（换素材/收选段），再说时间轴（拖把手）、
   // 裁剪框（点铺满）、素材形状（收选段用裁剪框修）、最后才是刀标得太碎（删几刀/补几刀）
+  // ★ 「⤢ 铺满整幅」与编辑页播放条上那颗真按钮同字（BlockoutTrimmer）
   const issue =
     total > maxSec
-      ? `这条视频约 ${total} 秒，而分段登记一次最多 ${SPLIT_MAX_PARTS} 段 × ${ARK_EDIT_RULES.maxSec} 秒 = ${maxSec} 秒——整条装不下。把选段收回 ${ARK_EDIT_RULES.maxSec} 秒以内只做一段，或先把素材剪短再传。`
+      ? t`这条视频约 ${total} 秒，而分段登记一次最多 ${SPLIT_MAX_PARTS} 段 × ${segMaxSec} 秒 = ${maxSec} 秒——整条装不下。把选段收回 ${segMaxSec} 秒以内只做一段，或先把素材剪短再传。`
       : sel.startSec !== 0 || sel.durSec !== total
-        ? `选段超过 ${ARK_EDIT_RULES.maxSec} 秒时只能整条登记（分段组吃的是整条原片——合并成片时要拿它回填完整音轨）：把选段拉满 0~${total} 秒（起点 0、时长 ${total}），或者收回 ${ARK_EDIT_RULES.maxSec} 秒以内只做一段。`
+        ? t`选段超过 ${segMaxSec} 秒时只能整条登记（分段组吃的是整条原片——合并成片时要拿它回填完整音轨）：把选段拉满 0~${total} 秒（起点 0、时长 ${total}），或者收回 ${segMaxSec} 秒以内只做一段。`
         : sel.crop.w !== w || sel.crop.h !== h
-          ? `分段登记暂不支持裁剪画面（服务端切段吃的是原始上传）：点视频下方播放条最右端的「⤢ 铺满整幅」把裁剪框还原。要裁水印或改画幅，就把选段收回 ${ARK_EDIT_RULES.maxSec} 秒以内、一段一段做。`
+          ? t`分段登记暂不支持裁剪画面（服务端切段吃的是原始上传）：点视频下方播放条最右端的「⤢ 铺满整幅」把裁剪框还原。要裁水印或改画幅，就把选段收回 ${segMaxSec} 秒以内、一段一段做。`
           : w > ARK_EDIT_RULES.maxEdge || h > ARK_EDIT_RULES.maxEdge
-            ? `整条登记不裁画面，而这条原片有一边到了 ${n(Math.max(w, h))} 像素，超过 AI 引擎的 ${n(ARK_EDIT_RULES.maxEdge)} 上限。把选段收回 ${ARK_EDIT_RULES.maxSec} 秒以内、用裁剪框把画面框到 ${n(ARK_EDIT_RULES.maxEdge)} 以内，一段一段做。`
+            ? t`整条登记不裁画面，而这条原片有一边到了 ${longEdge} 像素，超过 AI 引擎的 ${maxEdge} 上限。把选段收回 ${segMaxSec} 秒以内、用裁剪框把画面框到 ${maxEdge} 以内，一段一段做。`
             : ratio < ARK_EDIT_RULES.minRatio || ratio > ARK_EDIT_RULES.maxRatio
-              ? `整条登记不裁画面，而这条原片的宽高比约 ${ratio.toFixed(2)}，超出 AI 引擎的 ${ARK_EDIT_RULES.minRatio}~${ARK_EDIT_RULES.maxRatio} 窗口——放大救不了形状。把选段收回 ${ARK_EDIT_RULES.maxSec} 秒以内、用裁剪框把比例修进窗口，一段一段做。`
+              ? t`整条登记不裁画面，而这条原片的宽高比约 ${ratioText}，超出 AI 引擎的 ${minRatio}~${maxRatio} 窗口——放大救不了形状。把选段收回 ${segMaxSec} 秒以内、用裁剪框把比例修进窗口，一段一段做。`
               : parts > SPLIT_MAX_PARTS
                 ? // ★ 出路要分两种说（评审抓到：只说"多标几刀"时，241~360 秒的素材标满 11 刀
                   //   也未必够，而 picker 到 11 刀就顶回来 —— 一处叫他多标、一处不让他标）
                   total > autoMaxSec
-                  ? `现在这样要切 ${parts} 段，而一次分段登记最多 ${SPLIT_MAX_PARTS} 段。这条素材有 ${total} 秒，超过 ${autoMaxSec} 秒之后自动切会一步跨到 16 段（补刀是对半切，段数只能是 8、16…），所以必须自己标刀：把 ${SPLIT_MAX_PARTS - 1} 刀尽量均匀地摆开（每段接近 ${ARK_EDIT_RULES.maxSec} 秒）。实在摆不匀就先把素材剪短再传。`
-                  : `现在这样要切 ${parts} 段，而一次分段登记最多 ${SPLIT_MAX_PARTS} 段（超过 ${ARK_EDIT_RULES.maxSec} 秒的段会自动对半，越切越碎）。多标几刀、让每段更接近 ${ARK_EDIT_RULES.maxSec} 秒，或者先把素材剪短。`
+                  ? t`现在这样要切 ${parts} 段，而一次分段登记最多 ${SPLIT_MAX_PARTS} 段。这条素材有 ${total} 秒，超过 ${autoMaxSec} 秒之后自动切会一步跨到 16 段（补刀是对半切，段数只能是 8、16…），所以必须自己标刀：把 ${cutsMax} 刀尽量均匀地摆开（每段接近 ${segMaxSec} 秒）。实在摆不匀就先把素材剪短再传。`
+                  : t`现在这样要切 ${parts} 段，而一次分段登记最多 ${SPLIT_MAX_PARTS} 段（超过 ${segMaxSec} 秒的段会自动对半，越切越碎）。多标几刀、让每段更接近 ${segMaxSec} 秒，或者先把素材剪短。`
                 : null;
   // 段清单：作者点「登记」之前要看得见每一段多长（每段就是将来一个独立模板的时长，
   // 也是套用者那一侧按时长计价的锚点）
@@ -434,8 +494,13 @@ export function ownRefSplitVerdict(
     .slice(1)
     .map((b, i) => `${(b - bounds[i]).toFixed(1)}s`)
     .join(" + ");
+  const realSec = realDurationSec.toFixed(1);
+  const picW = n(w);
+  const picH = n(h);
   return {
     issue,
-    ok: `整条 ${realDurationSec.toFixed(1)} 秒将切成 ${parts} 段（${segs}）登记成一组——每段是独立模板，从任何一段套用都会整组铺进工作流${upscaleNote(w, h)}。`,
+    ok: belowPixelFloor(w, h)
+      ? t`整条 ${realSec} 秒将切成 ${parts} 段（${segs}）登记成一组——每段是独立模板，从任何一段套用都会整组铺进工作流（画面 ${picW}×${picH} 低于 AI 引擎的像素下限，登记时服务端会自动放大到刚过线，时长与画幅比例不变）。`
+      : t`整条 ${realSec} 秒将切成 ${parts} 段（${segs}）登记成一组——每段是独立模板，从任何一段套用都会整组铺进工作流。`,
   };
 }
