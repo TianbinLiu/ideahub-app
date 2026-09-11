@@ -839,11 +839,18 @@ export const CARD_META_TOKENS = 400;
  */
 export const CHAT_TURN_TOKENS = 400;
 
-/**
- * 结构化技能「剧本 → 分镜字段」一次运行的价签（studio/structuredSkills）：一篇 ≤2000 字剧本进、最多 8 段带镜头字段的 JSON 出，
- * 输入输出都是闲聊那一趟的几倍，按两趟计。与 CHAT_TURN_TOKENS 同一条 ⚠：常驻价签，真实结算走接口返回的用量。
- */
-export const SCRIPT_SPLIT_TOKENS = 2 * CHAT_TURN_TOKENS;
+// ★★ 这里原来有个 `SCRIPT_SPLIT_TOKENS = 2 * CHAT_TURN_TOKENS`（结构化技能「剧本 → 分镜字段」的价签，理由是
+//   "输入输出都是闲聊那一趟的几倍，按两趟计"），2026-09-10 删了：那一发只是**一次** chat
+//   （structuredSkills.runScriptToShots → canvasAgentChat → chat()），服务端按调用收 CHAT_TURN_TOKENS ——
+//   按钮上写 800、余额门槛按 800、离线记账扣 800，实收 400，与 VISION_FRAME_TOKENS 同一个错。价签现在就是 CHAT_TURN_TOKENS。
+// ★ 调研过同类平台才定的（2026-09-10）：LibTV 的 Agent 对话不扣积分（09-08 主人账号实测走过一轮对话、积分没动；
+//   非会员按每天 3 轮限次），积分只在提交出图 / 出片时扣，价格写在生成那一行；FLORA、Figma Weave 连文本模型也扣，
+//   但**跑之前节点 / 运行按钮上显示的就是这一次要扣的数**。没有一家是"价签按内容量估、结算按调用算"两套口径。
+// ⚠ 真实成本确实比 400 高：turbo 输入 3 元/M、输出 15 元/M（2026-08-06 官方价目），折成本仓 15 元/M 的尺子是
+//   「0.2 × 输入 token + 1 × 输出 token」。一篇 2000 字剧本（按 1 字 ≈ 1 token 取上限）加提示词、输出顶满 chat() 的
+//   max_tokens 800，约 1,260 —— 每次最多少收约 860（≈1.3 分钱），这笔差价我们吃掉。
+//   真要按成本收，得在**服务端**按方舟回包的 usage 计量（先按上限预扣、多退少补），不能在客户端单给某个技能标一个
+//   更高的价：服务端认不出"这一发是拆分镜"，客户端说什么都不作数。
 
 /** 会炼出几张卡：**一份素材 = 一张卡**，一份素材都没有但写了描述也出一张。 */
 export function forgeCardCount(fileCount: number, hasNote: boolean): number {

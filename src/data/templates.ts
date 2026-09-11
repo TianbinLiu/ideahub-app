@@ -17,6 +17,7 @@ import { canAfford, currentUser, refreshRemoteWallet, tierBlockReason } from "./
 import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens } from "./economy";
 import { toPermanentUrl } from "./publishAssets";
 import { remoteOn } from "./videos";
+import { t } from "@lingui/core/macro";
 import { V3_CARD_WIPE_MS, Card, MarkBox, MarkScheme, VideoAspect, VideoTemplate, uid } from "../types";
 
 const KEY = "templates.v1";
@@ -2694,7 +2695,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
   const serverFrames = started.job.frames;
   const framesNote =
     serverFrames > 0 && serverFrames !== frames
-      ? `（服务端实际看了 ${serverFrames} 帧，与本机算的 ${frames} 帧不同，以服务端为准；价钱不受影响）`
+      ? t`（服务端实际看了 ${serverFrames} 帧，与本机算的 ${frames} 帧不同，以服务端为准；价钱不受影响）`
       : "";
   const say = framesNote ? (s: string) => prog(`${s}${framesNote}`) : prog;
 

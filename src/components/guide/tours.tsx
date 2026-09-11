@@ -35,6 +35,7 @@
 // 把发弹幕键说成"下面有计数"（它有意显示的是字不是数）、工坊那份漏了一种卡且改了卡种名。
 // ⇒ 改这里的任何一句之前，先去对应组件里对一遍实现。这些话是**会被用户当真**的。
 import type { ReactNode } from "react";
+import { Trans } from "@lingui/react/macro";
 import { BLOCKOUT_INPUT_RULES } from "../../data/templates";
 import { CARD_TYPES, CARD_TYPE_LABELS } from "../../types";
 // 自制卡那份要报比例上限：方舟的硬约束，数只能从这里取（数字一律插值，见 ★★）
@@ -340,11 +341,11 @@ export const TOURS: GuideTour[] = [
         title: "经典配方",
         anchor: "extractor-routes",
         body: (
-          <>
+          <Trans>
             第三条，也是默认那条：AI 从整段视频里<b className="font-bold text-slate-100">均匀抽</b>几帧看（你只定抽几帧），
             总结画风质感、运镜与分镜骨架，再提炼可复用的场景／道具卡。帧数越多认得越准，价钱不变。
             它<b className="font-bold text-slate-100">不出片、不把你的视频传上公网，也是三条里唯一不需要付费套餐的</b>。
-          </>
+          </Trans>
         ),
       },
       {
@@ -510,11 +511,11 @@ export const TOURS: GuideTour[] = [
       {
         title: "这一屏在决定三件事",
         body: (
-          <>
+          <Trans>
             框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面
             「AI 看哪几帧」，决定它认不认得全画面里的人。<b className="font-bold text-slate-100">这一发多少钱</b>只看时长（越长越贵，多看几帧不额外收费），
             而钱一开始算就退不了。
-          </>
+          </Trans>
         ),
       },
       {

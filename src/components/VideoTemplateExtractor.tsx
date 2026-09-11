@@ -33,6 +33,7 @@
 // ★ 入口按能力门控渲染：服务端不认这套端点时开关根本不出现（remoteTemplatesCapable，
 //   唯一实现）—— 不摆永远点不动的东西。
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Trans } from "@lingui/react/macro";
 import BoxFramePicker, { boxMarksInSelection, type BoxFrameMode } from "./blockout/BoxFramePicker";
 import { DetectRolesEntry } from "./blockout/DetectRolesEntry";
 import HelpButton from "./guide/HelpButton";
@@ -1653,7 +1654,7 @@ export default function VideoTemplateExtractor({
                 {!blockout && (
                   <>
                     <div className="mb-3">
-                      <div className="mb-1.5 text-xs text-slate-400">分析帧数（越多认得越准，价钱不变）</div>
+                      <div className="mb-1.5 text-xs text-slate-400"><Trans>分析帧数（越多认得越准，价钱不变）</Trans></div>
                       <div className="flex gap-2">
                         {FRAME_CHOICES.map((n) => (
                           <button

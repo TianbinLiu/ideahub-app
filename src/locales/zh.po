@@ -435,6 +435,10 @@ msgstr "（无标题）"
 msgid "（无用户名）"
 msgstr "（无用户名）"
 
+#: src/data/templates.ts
+msgid "（服务端实际看了 {serverFrames} 帧，与本机算的 {frames} 帧不同，以服务端为准；价钱不受影响）"
+msgstr "（服务端实际看了 {serverFrames} 帧，与本机算的 {frames} 帧不同，以服务端为准；价钱不受影响）"
+
 #: src/studio/canvasAgent.ts
 msgid "（本地档）{notes}现在只认「第N段 拍什么」「第N段换成XX模板」「第N段摘掉模板」「加一段」这类直白句式。"
 msgstr "（本地档）{notes}现在只认「第N段 拍什么」「第N段换成XX模板」「第N段摘掉模板」「加一段」这类直白句式。"
@@ -4385,6 +4389,10 @@ msgstr "分区"
 #: src/data/videoDownload.ts
 msgid "分支 {0}"
 msgstr "分支 {0}"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "分析帧数（越多认得越准，价钱不变）"
+msgstr "分析帧数（越多认得越准，价钱不变）"
 
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
@@ -9719,6 +9727,10 @@ msgstr "核对角色位位置"
 msgid "核对角色位编号"
 msgstr "核对角色位编号"
 
+#: src/components/guide/tours.tsx
+msgid "框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面 「AI 看哪几帧」，决定它认不认得全画面里的人。<0>这一发多少钱</0>只看时长（越长越贵，多看几帧不额外收费）， 而钱一开始算就退不了。"
+msgstr "框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面 「AI 看哪几帧」，决定它认不认得全画面里的人。<0>这一发多少钱</0>只看时长（越长越贵，多看几帧不额外收费）， 而钱一开始算就退不了。"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "框出这件道具"
 msgstr "框出这件道具"
@@ -12380,6 +12392,10 @@ msgstr "第一张 · 同时就是卡面"
 #: src/utils/oauth.ts
 msgid "第三方登录未完成"
 msgstr "第三方登录未完成"
+
+#: src/components/guide/tours.tsx
+msgid "第三条，也是默认那条：AI 从整段视频里<0>均匀抽</0>几帧看（你只定抽几帧）， 总结画风质感、运镜与分镜骨架，再提炼可复用的场景／道具卡。帧数越多认得越准，价钱不变。 它<1>不出片、不把你的视频传上公网，也是三条里唯一不需要付费套餐的</1>。"
+msgstr "第三条，也是默认那条：AI 从整段视频里<0>均匀抽</0>几帧看（你只定抽几帧）， 总结画风质感、运镜与分镜骨架，再提炼可复用的场景／道具卡。帧数越多认得越准，价钱不变。 它<1>不出片、不把你的视频传上公网，也是三条里唯一不需要付费套餐的</1>。"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "第二种：<0>相邻两行的位置排反了</0>（清单说他是从左数第 2 个， 画面上他其实是第 3 个）。把这两行的位置互换过来就行，同样不用重炼。"
