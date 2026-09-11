@@ -43,7 +43,18 @@ export default function SchemeEditorSheet({
   const [title, setTitle] = useState(source ? (source.builtin ? t`${source.title} 副本` : source.title) : "");
   const [intro, setIntro] = useState(source?.intro ?? "");
   const [faceless, setFaceless] = useState(!!source?.faceless);
-  const [slots, setSlots] = useState<SchemeSlot[]>(source ? source.slots.map((s) => ({ ...s })) : [blankSlot()]);
+  // ★ 复制时去掉图位 id（其余一位不动）：id 只属于内置方案，身份键与 CardView.tag 按它取冻结的中文原名
+  //   （promptSchemes.slotKey / slotCardTag）。另存出来的是**用户方案**，按它自己的 slot.tag 认 —— 这一格的名字
+  //   用户随时会改，带着内置 id 存进本机方案库、发到市场，「带 id = 内置图位」这条就在存储里失真了。
+  const [slots, setSlots] = useState<SchemeSlot[]>(
+    source
+      ? source.slots.map((s) => {
+          const copy = { ...s };
+          delete copy.id;
+          return copy;
+        })
+      : [blankSlot()],
+  );
   const [err, setErr] = useState("");
 
   function patchSlot(i: number, patch: Partial<SchemeSlot>) {

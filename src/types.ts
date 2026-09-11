@@ -577,6 +577,51 @@ export function slotPromptOf(type: CardType, kind: unknown): { label: string; lo
 }
 
 /**
+ * 内置提示词方案（data/promptSchemes 的 BUILTIN_SCHEMES）各图位的**中文原名**，按图位 id 查。
+ *
+ * ★★ 这张表是**数据**，不是界面文案（2026-09-11 多语言 PR2，主人拍板「内置方案先给图位加 id」）。
+ *   **这一段是这条规矩的唯一出处**：promptSchemes.slotKey / slotCardTag、自建卡页、portraitViews、scripts/check-slot-ids.mjs
+ *   那几处只写一句「理由见这里」，别再各抄一份。
+ *   ① 身份键：自建卡页按图位存草稿照片（customCardStore.schemeShots），选图 / 圈选改图 / 报错的在途状态也按它认格子
+ *      （promptSchemes.slotKey）。内置图位的名字下一步要翻译，键要是跟着界面语言变，切一次语言草稿里的照片就对不上格子
+ *      —— 不画、不当卡面、铸卡也不带走，零报错。
+ *   ② **内置方案图位**铸出来那张卡里存的 `CardView.tag`（promptSchemes.slotCardTag）：卡片与卡组快照在服务端一躺很久、
+ *      给各种界面语言的人看，存某一种界面语言的名字，换个语言的人读到的就是外文；英文名还容易超过服务端 24 字
+ *      （VIEW_TAG_MAX）—— 超了整发 400。⚠ 反过来别读成「CardView.tag 一律是这七个原名」：圈选提卡那条路
+ *      （components/VideoCardAnnotator）写进去的本来就是**界面语言**的名字（「脸部特写」/ 英文），不在这张表里 ——
+ *      将来做显示层翻译映射时它是个例外，见 docs/backlog.md「Phase A」那条 ⚠。
+ *   ⇒ 永不翻译，一个字都别改：这七个原名与此前内置图位写死的 tag 逐字相同，存量草稿的键与已铸卡片的 tag 靠它接得上。
+ * ★ 表的**键**是图位 id（ASCII 字母数字），**值**才是运行时那个键 —— slotKey 回的是值，`slot.id` 全仓只有
+ *   promptSchemes.builtinNameOf 读得着，它自己一个存储都不落。两列都不许写成 CardView 的 kind 词（face / body / detail），
+ *   但**理由不同**（别写反了）：**原名**写成「body」是真会撞 —— 非人物卡那份 slotErr / busySlot 记的就是卡种的 kind，
+ *   而 changeType 换卡种时不清它，那条人物卡的报错就贴到另一张卡的那一格上了；**id** 撞不上任何键空间（它不是键），
+ *   那一条纯粹是别让读代码的人把「图位 id」与「卡种的 kind 词」混成一回事。
+ *   **只有内置方案的图位带 id**；用户方案（含内置方案的另存为副本：SchemeEditorSheet 复制时去掉 id）照旧按 slot.tag 认。
+ *   scripts/check-slot-ids.mjs 钉着这七对、内置方案里的写法，以及自建卡页那几种拿 tag / slot.id 当键的写法（只扫固定的几条）。
+ * ★ 放在 types.ts：promptSchemes 要保持叶子模块、只依赖 types（理由见它「给市场模块用的内部口子」那段）。
+ */
+/* i18n-frozen: 内置提示词方案图位的中文原名：身份键与存进 CardView.tag 的值；永不翻译 */
+export const BUILTIN_SLOT_ZH = {
+  fullBody: "全身立绘",
+  faceCloseup: "面部特写",
+  sourceCrop: "原片截图",
+  mannequinBody: "白模全身",
+  outfitDetail: "服装细节",
+  mannequinTurnaround: "白模三视图",
+  specSheet: "设定规格稿",
+} as const;
+
+export type BuiltinSlotId = keyof typeof BUILTIN_SLOT_ZH;
+
+/**
+ * 按图位 id 取内置原名；不是内置图位回 undefined。
+ * ★ 只认**自有属性**：方案形状也会从 localStorage / 市场回包读回来（不可信输入），`"toString"` 这种键不许顺着原型链查出一个函数来。
+ */
+export function builtinSlotZh(id: string): string | undefined {
+  return Object.prototype.hasOwnProperty.call(BUILTIN_SLOT_ZH, id) ? BUILTIN_SLOT_ZH[id as BuiltinSlotId] : undefined;
+}
+
+/**
  * 卡片详情页那段"铸卡时的完整提示词"的标题。
  * ★ 显式表，**不要**拿 CARD_TYPE_LABELS 切字符串拼出来："人物卡"→"人物"看着能用，
  *   哪天有人把某一类改名（比如背景卡→氛围卡），切出来的就是"氛围信息"还是"氛围卡信息"

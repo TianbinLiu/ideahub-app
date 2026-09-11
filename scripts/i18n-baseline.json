@@ -1190,18 +1190,11 @@
   },
   "src/data/promptSchemes.ts": {
    "0423ae51e840a74a": 1,
-   "3fa332d1e52284f0": 2,
-   "4cd298f64f21aec9": 1,
-   "52e9bf7001aff95b": 1,
-   "5945cd4f306015a1": 1,
    "6b4d702be6ef5f5a": 1,
-   "825863bed5173b50": 2,
    "8ebe95a4183da013": 1,
    "9c38f1945a6ad852": 1,
    "a2ddb38b75b2679a": 1,
-   "afe5cc0a8aa6803c": 1,
-   "d2d4751657802651": 1,
-   "f271b411732ad6f4": 1
+   "d2d4751657802651": 1
   },
   "src/data/templates.ts": {
    "01205b54a2f1cf16": 1,
