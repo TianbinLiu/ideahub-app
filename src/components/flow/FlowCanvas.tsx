@@ -1907,8 +1907,8 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
           className="flex w-full items-center gap-2 rounded-xl border border-slate-700/70 bg-panel px-2.5 py-2 text-left"
         >
           <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-slate-100">📑 {SCRIPT_TO_SHOTS.title}</div>
-            <div className="mt-0.5 text-[10px] leading-relaxed text-slate-500">{SCRIPT_TO_SHOTS.intro}</div>
+            <div className="text-xs font-semibold text-slate-100">📑 {t(SCRIPT_TO_SHOTS.title)}</div>
+            <div className="mt-0.5 text-[10px] leading-relaxed text-slate-500">{t(SCRIPT_TO_SHOTS.intro)}</div>
           </div>
           <span className="flex-none rounded-full bg-brand/15 px-2 py-0.5 text-[10px] text-brand">{AI_REAL ? fmtTokens(SCRIPT_TO_SHOTS.cost) : t`演示`}</span>
         </button>

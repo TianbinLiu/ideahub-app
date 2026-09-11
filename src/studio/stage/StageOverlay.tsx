@@ -459,21 +459,21 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
           <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
             {PITCH_PRESETS.map((p) => (
               <button
-                key={p.label}
+                key={p.pitch}
                 onClick={() => setStage({ ...stage, cam: clampCam({ ...stage.cam, pitch: p.pitch }) })}
                 className={`flex-none rounded-full px-3 py-1 text-[11px] ${Math.abs(stage.cam.pitch - p.pitch) < 0.05 ? "bg-brand font-semibold text-ink" : "bg-slate-700 text-slate-100"}`}
               >
-                {p.label}
+                {t(p.label)}
               </button>
             ))}
             <span className="w-px flex-none bg-slate-700" />
             {SHOT_PRESETS.map((p) => (
               <button
-                key={p.label}
+                key={p.dist}
                 onClick={() => setStage({ ...stage, cam: clampCam({ ...stage.cam, dist: p.dist }) })}
                 className={`flex-none rounded-full px-3 py-1 text-[11px] ${Math.abs(stage.cam.dist - p.dist) < 0.3 ? "bg-brand font-semibold text-ink" : "bg-slate-700 text-slate-100"}`}
               >
-                {p.label}
+                {t(p.label)}
               </button>
             ))}
           </div>

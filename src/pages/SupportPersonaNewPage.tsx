@@ -1144,6 +1144,7 @@ export default function SupportPersonaNewPage() {
 
   const prev = idx > 0 ? PERSONA_STEPS[idx - 1].key : null;
   const next = idx < PERSONA_STEPS.length - 1 ? PERSONA_STEPS[idx + 1].key : null;
+  const stepLabel = t(PERSONA_STEPS[idx].label);
 
   return (
     <div className="min-h-full px-4 pb-10">
@@ -1152,7 +1153,7 @@ export default function SupportPersonaNewPage() {
         inset
         onBack={back}
         title={t`制作人格`}
-        subtitle={t`第 ${idx + 1} / ${PERSONA_STEPS.length} 步 · ${PERSONA_STEPS[idx].label}`}
+        subtitle={t`第 ${idx + 1} / ${PERSONA_STEPS.length} 步 · ${stepLabel}`}
         right={
           dirty && !published ? (
             <button type="button" disabled={busy} onClick={() => setAskReset(true)} className={`${MINI} shrink-0`}>
@@ -1175,7 +1176,7 @@ export default function SupportPersonaNewPage() {
               onClick={() => go(s.key)}
               className={`${CHIP} shrink-0 disabled:opacity-40 ${on ? CHIP_ON : CHIP_OFF}`}
             >
-              {i + 1}. {s.label}
+              {i + 1}. {t(s.label)}
             </button>
           );
         })}
