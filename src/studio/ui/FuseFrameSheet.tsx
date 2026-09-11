@@ -10,6 +10,9 @@
 // ★ 整屏浮层一律 portal 到 body：方案台祖先上有 backdrop-blur / transform，
 //   它们会给 position:fixed 后代造包含块，inset-0 会缩到那个盒子里（CLAUDE.md 那条坑）。
 import { useState } from "react";
+import { i18n } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../../components/EmptyState";
 import { createPortal } from "react-dom";
 import { CloseButton } from "../../components/IconTapButton";
@@ -48,12 +51,14 @@ export function fuseSourcesOf(o: {
     if (!u || u.startsWith("mock:") || out.some((x) => x.url === u)) return;
     out.push({ url: u, label });
   };
-  push(o.carryFrame, "上段结尾");
-  push(o.firstFrame, "本段开头");
-  push(o.lastFrame, "本段结尾");
+  // 模块级函数拿不到 useLingui：候选图的名字用 i18n._ 在调用那一刻（宿主渲染时）翻
+  push(o.carryFrame, i18n._(msg`上段结尾`));
+  push(o.firstFrame, i18n._(msg`本段开头`));
+  push(o.lastFrame, i18n._(msg`本段结尾`));
   for (const c of o.materials ?? []) {
     const views = Array.isArray(c.views) ? c.views : [];
-    if (views.length > 0) for (const v of views) push(v.url, `${c.name}·${v.tag || "形象"}`);
+    if (views.length > 0)
+      for (const v of views) push(v.url, v.tag ? `${c.name}·${v.tag}` : i18n._(msg`${c.name}·形象`));
     else push(c.cover, c.name);
   }
   return out;
@@ -78,7 +83,12 @@ export default function FuseFrameSheet({
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const price = ONE_IMAGE;
-  const label = which === "first" ? "开头帧" : "结尾帧";
+  const { t } = useLingui();
+  /** 嵌进句子里的帧名（「这张开头帧」「融成结尾帧」）。带 context：卡角上单独出现的「开头帧」在英文里要大写开头 */
+  const label =
+    which === "first"
+      ? t({ message: "开头帧", context: "嵌在句子里的名词：这张开头帧 / 融成开头帧" })
+      : t({ message: "结尾帧", context: "嵌在句子里的名词：这张结尾帧 / 融成结尾帧" });
 
   function toggle(url: string) {
     setErr("");
@@ -90,15 +100,15 @@ export default function FuseFrameSheet({
   async function run() {
     if (busy) return;
     if (picked.length === 0) {
-      setErr("先挑至少一张参考图——融图是把几张图合成一张，没有素材就没得融");
+      setErr(t`先挑至少一张参考图——融图是把几张图合成一张，没有素材就没得融`);
       return;
     }
     if (!instruction.trim()) {
-      setErr(`写一句这张${label}要什么画面（例如"他站在门口回头，半身，暖光"）——不写的话模型只能自己编`);
+      setErr(t`写一句这张${label}要什么画面（例如"他站在门口回头，半身，暖光"）——不写的话模型只能自己编`);
       return;
     }
     if (AI_REAL && !canAfford(price)) {
-      setErr(`融一张约需 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
+      setErr(t`融一张约需 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
       return;
     }
     setErr("");
@@ -115,7 +125,7 @@ export default function FuseFrameSheet({
       onClose();
     } catch (e) {
       // 失败**不动**原来那张帧（onDone 没被调用），并整句说清（铁律八）
-      setErr(`没融成：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}——原来的${label}没变，可以再试一次`);
+      setErr(t`没融成：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}——原来的${label}没变，可以再试一次`);
     } finally {
       setBusy("");
     }
@@ -128,20 +138,21 @@ export default function FuseFrameSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-100">🧬 融图 · 做这一段的{label}</h3>
+          <h3 className="text-sm font-bold text-slate-100"><Trans>🧬 融图 · 做这一段的{label}</Trans></h3>
           <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
         {/* ★ 这句话是这个功能存在的全部理由，值得占一行：用户不知道"为什么要融" */}
         <p className="mb-2.5 text-[10px] leading-relaxed text-slate-500">
-          把几张图合成一张画面。把上一段的<b className="text-slate-400">结尾帧</b>融成下一段的
-          <b className="text-slate-400">开头帧</b>，两段接起来就没有跳变——这是做长片"看不出接缝"的常用手法。
+          <Trans>
+            把几张图合成一张画面。把上一段的<b className="text-slate-400">结尾帧</b>融成下一段的<b className="text-slate-400">开头帧</b>，两段接起来就没有跳变——这是做长片"看不出接缝"的常用手法。
+          </Trans>
         </p>
 
         <div className="mb-1.5 text-xs font-semibold text-slate-300">
-          挑参考图（{picked.length}/{FUSE_MAX}）
+          <Trans>挑参考图（{picked.length}/{FUSE_MAX}）</Trans>
         </div>
         {sources.length === 0 ? (
-          <EmptyState compact emoji="🧬" text="这一段还没有可融的图" hint="先挂一张素材卡，或让 AI 先推演出首尾帧" className="mb-2.5" />
+          <EmptyState compact emoji="🧬" text={t`这一段还没有可融的图`} hint={t`先挂一张素材卡，或让 AI 先推演出首尾帧`} className="mb-2.5" />
         ) : (
           <div className="mb-2.5 flex gap-2 no-scrollbar overflow-x-auto pb-1">
             {sources.map((s) => {
@@ -178,7 +189,7 @@ export default function FuseFrameSheet({
           onChange={(e) => setInstruction(e.target.value)}
           maxLength={200}
           disabled={!!busy}
-          placeholder={`这张${label}要什么画面？例："他站在门口回头，半身，暖光"`}
+          placeholder={t`这张${label}要什么画面？例："他站在门口回头，半身，暖光"`}
           className="mb-2 h-16 w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-xs text-slate-100 placeholder:text-slate-500 disabled:opacity-40"
         />
         {err && <p className="mb-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
@@ -187,7 +198,7 @@ export default function FuseFrameSheet({
           disabled={!!busy}
           className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
-          {busy || `🧬 融成${label}${AI_REAL ? `（约 ${fmtTokens(price)}）` : "（演示）"}`}
+          {busy || (AI_REAL ? t`🧬 融成${label}（约 ${fmtTokens(price)}）` : t`🧬 融成${label}（演示）`)}
         </button>
       </div>
     </div>,

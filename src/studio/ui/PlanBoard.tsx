@@ -16,6 +16,7 @@
 //   已选定 —— 那一行放大居中、其余缩小压暗；只有选定的那一行可以改帧、改剧情、重画。
 //             不给未选定的行开编辑口，是因为编辑必然要花钱重画，而用户还没决定用哪套。
 import { ReactNode, useEffect, useRef, useState } from "react";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { shotLineDisplay, DURATIONS, Proposal, type VideoAspect } from "../../types";
 import { fmtTokens } from "../../data/economy";
 import { fileToFrameDataUrl } from "../../utils/image";
@@ -101,6 +102,7 @@ export default function PlanBoard({
   const [reading, setReading] = useState(false);
   /** 融图浮层开在哪一套的哪一端。null = 没开 */
   const [fusing, setFusing] = useState<{ id: string; which: "first" | "last" } | null>(null);
+  const { t } = useLingui();
 
   // 选定后把那一行滚到视野中间（"放大居中"的后半句）。
   // ★ 用 behavior:"auto" 而不是 smooth：窗口不可见时（切到后台/被挡住）平滑滚动完全
@@ -117,7 +119,7 @@ export default function PlanBoard({
       onFrame(id, which, await fileToFrameDataUrl(f));
     } catch {
       // 吞掉就成了"点了没反应"（铁律八）：坏图/超大图必须说出来
-      setErr("这张图读不出来——换一张试试（支持 jpg/png/webp）");
+      setErr(t`这张图读不出来——换一张试试（支持 jpg/png/webp）`);
     } finally {
       setReading(false);
     }
@@ -131,8 +133,8 @@ export default function PlanBoard({
       <div className="flex flex-none items-center gap-2 px-3 py-1.5">
         <span className="min-w-0 flex-1 truncate text-[11px] text-slate-400">
           {pickedId
-            ? "已选定 · 可换首尾帧、改剧情，改完点这一套的「重新生成」"
-            : `${proposals.length} 套方案 · 点一套选定它`}
+            ? t`已选定 · 可换首尾帧、改剧情，改完点这一套的「重新生成」`
+            : t`${proposals.length} 套方案 · 点一套选定它`}
         </span>
         {pickedId && onRederive && (
           <button
@@ -140,13 +142,13 @@ export default function PlanBoard({
             disabled={busy}
             className="flex-none rounded-full border border-slate-600 px-2.5 py-1 text-[10px] text-slate-300 disabled:opacity-40"
           >
-            ♻ 重新推演三套{!!rederiveCost && `（${fmtTokens(rederiveCost)}）`}
+            {rederiveCost ? <Trans>♻ 重新推演三套（{fmtTokens(rederiveCost)}）</Trans> : <Trans>♻ 重新推演三套</Trans>}
           </button>
         )}
       </div>
 
       {err && <div className="flex-none px-3 pb-1 text-[10px] text-rose-300">{err}</div>}
-      {reading && <div className="flex-none px-3 pb-1 text-[10px] text-slate-400">读取图片…</div>}
+      {reading && <div className="flex-none px-3 pb-1 text-[10px] text-slate-400"><Trans>读取图片…</Trans></div>}
 
       <div ref={scroller} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
         {proposals.map((p, i) => {
@@ -175,13 +177,13 @@ export default function PlanBoard({
                     <FrameCard
                       firstFrame={p.firstFrame || null}
                       lastFrame={p.lastFrame || null}
-                      emptyNote={p.degraded ? "没画出来" : undefined}
+                      emptyNote={p.degraded ? t`没画出来` : undefined}
                       originNote={
                         p.pinned?.first
-                          ? "已用你上传的图"
+                          ? t`已用你上传的图`
                           : carriedFrom
-                            ? "承接上一段真实结尾"
-                            : "AI 自拟开头帧"
+                            ? t`承接上一段真实结尾`
+                            : t`AI 自拟开头帧`
                       }
                       canEdit={!busy && regenId !== p.id}
                       uploaded={false}
@@ -193,7 +195,7 @@ export default function PlanBoard({
                       caption={null}
                       aspectRatio={frameAspect}
                     />
-                    <div className="text-center text-[9px] leading-3 text-slate-500">点开卡片换图</div>
+                    <div className="text-center text-[9px] leading-3 text-slate-500"><Trans>点开卡片换图</Trans></div>
                     {/* 留存工程时丢掉的东西：如实说一句 + 给一条出路。
                         不说的话用户只会看到一张空框，以为方案台坏了。
                         ★★ **成片与预览图分开说**（2026-09-07 评审改）：预览图重新推演就能补回来，
@@ -201,11 +203,11 @@ export default function PlanBoard({
                         等于告诉用户"点一下就好了"，而他点完会被扣一次钱。 */}
                     {!!p.lost?.video && (
                       <div className="text-center text-[9px] leading-3 text-amber-300/90">
-                        这一段的成片没有留存，要重新出片（会再花一次钱）
+                        <Trans>这一段的成片没有留存，要重新出片（会再花一次钱）</Trans>
                       </div>
                     )}
                     {!!p.lost && !p.lost.video && (
-                      <div className="text-center text-[9px] leading-3 text-amber-300/90">这一格的预览图没有留存</div>
+                      <div className="text-center text-[9px] leading-3 text-amber-300/90"><Trans>这一格的预览图没有留存</Trans></div>
                     )}
                     {/* 「融图」：把几张参考图合成一张边界帧。★ 只在宿主给了候选图时出现，
                         融出来的帧仍旧走 onFrame 落地（换帧只有那一个缝） */}
@@ -218,7 +220,7 @@ export default function PlanBoard({
                             disabled={busy || regenId === p.id}
                             className="flex-1 rounded-full border border-slate-700 py-1 text-[9px] text-slate-300 disabled:opacity-40"
                           >
-                            🧬 融{w === "first" ? "首" : "尾"}帧
+                            {w === "first" ? <Trans>🧬 融首帧</Trans> : <Trans>🧬 融尾帧</Trans>}
                           </button>
                         ))}
                       </div>
@@ -232,19 +234,19 @@ export default function PlanBoard({
                         onChange={(e) => onPatch(p.id, { title: e.target.value })}
                         maxLength={24}
                         disabled={busy}
-                        placeholder="这一段叫什么"
+                        placeholder={t`这一段叫什么`}
                         className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-100 outline-none placeholder:text-slate-500"
                       />
-                      <span className="flex-none rounded-full px-2 py-0.5 bg-gold/20 text-[10px] text-gold">✓ 已选定</span>
+                      <span className="flex-none rounded-full px-2 py-0.5 bg-gold/20 text-[10px] text-gold"><Trans>✓ 已选定</Trans></span>
                       {done && (
                         <span className="flex-none rounded-full px-2 py-0.5 bg-emerald-500/20 text-[10px] text-emerald-300">
-                          已出片
+                          <Trans>已出片</Trans>
                         </span>
                       )}
                     </div>
                     {p.degraded && (
                       <div className="rounded bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-300">
-                        ⚠ 这一套有帧当时没画出来：出片前会先补画要用到的帧（按张计费，已算进出片报价）
+                        <Trans>⚠ 这一套有帧当时没画出来：出片前会先补画要用到的帧（按张计费，已算进出片报价）</Trans>
                       </div>
                     )}
                     <textarea
@@ -253,12 +255,12 @@ export default function PlanBoard({
                       rows={dense ? 4 : 5}
                       maxLength={400}
                       disabled={busy}
-                      placeholder="这一段的画面与剧情（会直接作为生成提示词）"
+                      placeholder={t`这一段的画面与剧情（会直接作为生成提示词）`}
                       className="novel-text w-full resize-none rounded-lg border border-slate-700 bg-black/25 px-2 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-gold/70"
                     />
                     {shotLineDisplay(p.shot) && <p className="text-[10px] text-slate-500">{shotLineDisplay(p.shot)}</p>}
                     <div className="flex flex-wrap items-center gap-1">
-                      <span className="flex-none text-[10px] text-slate-500">时长</span>
+                      <span className="flex-none text-[10px] text-slate-500"><Trans>时长</Trans></span>
                       {DURATIONS.map((d) => (
                         <button
                           key={d}
@@ -279,8 +281,10 @@ export default function PlanBoard({
                       className="w-full rounded-full border border-cyan-400/50 bg-cyan-500/10 py-1.5 text-[11px] font-semibold text-cyan-100 disabled:opacity-40"
                     >
                       {regenId === p.id
-                        ? "重画中…"
-                        : `✨ 重新生成这一套的画面${cost ? `（${fmtTokens(cost)}）` : ""}`}
+                        ? t`重画中…`
+                        : cost
+                          ? t`✨ 重新生成这一套的画面（${fmtTokens(cost)}）`
+                          : t`✨ 重新生成这一套的画面`}
                     </button>
                     {actions?.(p)}
                   </div>
@@ -304,14 +308,14 @@ export default function PlanBoard({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-100">
-                        {p.title || `方案 ${i + 1}`}
+                        {p.title || t`方案 ${i + 1}`}
                       </span>
                       <span className="flex-none rounded-full px-2 py-0.5 bg-slate-700/70 text-[10px] text-slate-300">
                         {p.durationSec}s
                       </span>
                       {done && (
                         <span className="flex-none rounded-full px-2 py-0.5 bg-emerald-500/20 text-[10px] text-emerald-300">
-                          已出片
+                          <Trans>已出片</Trans>
                         </span>
                       )}
                     </div>
@@ -380,7 +384,7 @@ function PreviewCard({
         >
           {/* "本来就没画过"与"画过但没留存下来"是两件事，说法必须分开：
               后者重新推演一次就能补回来，前者说这句话只会让人困惑 */}
-          {lost ? "这一格的预览图没有留存" : "无预览帧"}
+          {lost ? <Trans>这一格的预览图没有留存</Trans> : <Trans>无预览帧</Trans>}
         </div>
       )}
     </div>
