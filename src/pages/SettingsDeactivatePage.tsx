@@ -9,6 +9,7 @@
 //   文案只按已知事实写：软删除、可联系邮箱恢复/彻底删除（server me.controller 的注释
 //   与 docs/api-contract.md 是出处），不说"数据将在 X 天后删除"这类没有实现的话。
 import { useState } from "react";
+import { Trans, useLingui } from "@lingui/react/macro";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import { deactivateAccount, isRemoteMode } from "../data/account";
@@ -21,6 +22,7 @@ export default function SettingsDeactivatePage() {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const { t } = useLingui();
 
   // 路由已套 RequireAuth；这里只为 TS 收窄（render 里 navigate 会被 React 丢弃，别改回来）
   if (!user) return null;
@@ -31,8 +33,10 @@ export default function SettingsDeactivatePage() {
       <div className="min-h-full px-4 pb-10">
         <Header onBack={() => navigate(-1)} />
         <p className="rounded-xl border border-slate-700 bg-panel p-4 text-sm leading-relaxed text-slate-300">
-          当前是本地账号：没有服务器，也就没有可注销的云端账号。
-          你的数据都在这台设备上——清掉 App 数据（或卸载）即等同于注销。
+          <Trans>
+            当前是本地账号：没有服务器，也就没有可注销的云端账号。
+            你的数据都在这台设备上——清掉 App 数据（或卸载）即等同于注销。
+          </Trans>
         </p>
       </div>
     );
@@ -61,21 +65,25 @@ export default function SettingsDeactivatePage() {
       <Header onBack={() => navigate(-1)} />
 
       <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4">
-        <p className="text-sm font-bold text-rose-200">注销后会发生什么</p>
+        <p className="text-sm font-bold text-rose-200"><Trans>注销后会发生什么</Trans></p>
         <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-300">
-          <li>· 立即生效：所有设备退出登录，这个账号无法再使用。</li>
-          <li>· 账号里的 token 余额、已购内容与已发布作品都将一并无法使用。</li>
+          <li><Trans>· 立即生效：所有设备退出登录，这个账号无法再使用。</Trans></li>
+          <li><Trans>· 账号里的 token 余额、已购内容与已发布作品都将一并无法使用。</Trans></li>
           <li>
-            · 数据不会立刻从服务器抹除（防误操作）。想恢复账号、或要求彻底删除数据，发邮件到{" "}
-            <span className="text-slate-100">{SUPPORT_EMAIL}</span>。
+            <Trans>
+              · 数据不会立刻从服务器抹除（防误操作）。想恢复账号、或要求彻底删除数据，发邮件到{" "}
+              <span className="text-slate-100">{SUPPORT_EMAIL}</span>。
+            </Trans>
           </li>
         </ul>
       </div>
 
       <div className="mt-5">
         <p className="mb-1.5 text-xs text-slate-400">
-          确认注销，请原样输入你的用户名 <span className="font-semibold text-slate-100">{username}</span>
-          （区分大小写，不含多余空格）：
+          <Trans>
+            确认注销，请原样输入你的用户名 <span className="font-semibold text-slate-100">{username}</span>
+            （区分大小写，不含多余空格）：
+          </Trans>
         </p>
         <input
           value={confirm}
@@ -95,11 +103,11 @@ export default function SettingsDeactivatePage() {
           disabled={!matched || busy}
           className="mt-3 w-full rounded-xl bg-rose-500 py-2.5 text-sm font-bold text-white disabled:bg-slate-700 disabled:text-slate-400"
         >
-          {busy ? "注销中…" : "注销这个账号"}
+          {busy ? t`注销中…` : t`注销这个账号`}
         </button>
         {/* 灰按钮要说出为什么点不动（CLAUDE.md 那条） */}
         {!matched && confirm.length > 0 && (
-          <p className="mt-1.5 text-center text-[11px] text-slate-500">输入的用户名还对不上</p>
+          <p className="mt-1.5 text-center text-[11px] text-slate-500"><Trans>输入的用户名还对不上</Trans></p>
         )}
       </div>
     </div>
@@ -107,7 +115,8 @@ export default function SettingsDeactivatePage() {
 }
 
 function Header({ onBack }: { onBack: () => void }) {
+  const { t } = useLingui();
   return (
-    <PageHeader sticky inset onBack={onBack} title="注销账号" />
+    <PageHeader sticky inset onBack={onBack} title={t`注销账号`} />
   );
 }

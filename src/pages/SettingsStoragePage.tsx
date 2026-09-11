@@ -9,6 +9,7 @@
 // ★ "存的东西在本机还是服务器"那两句是**模式条件**下的事实，留在页面上
 //   （藏进看一遍就不弹的引导 = 静默失败，tours.tsx 文件头 ❌ 那条）。
 import { useEffect, useState } from "react";
+import { Trans, useLingui } from "@lingui/react/macro";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -28,6 +29,7 @@ export default function SettingsStoragePage() {
   const navigate = useNavigate();
   const [storage, setStorage] = useState<{ usedMB: number; quotaMB: number } | null>(null);
   useAutoGuide("setstorage", !!user);
+  const { t } = useLingui();
 
   useEffect(() => {
     void storageEstimate().then(setStorage);
@@ -38,14 +40,14 @@ export default function SettingsStoragePage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => navigate(-1)} title={remote ? "本机缓存" : "存储"} right={<HelpButton tour="setstorage" />} />
+      <PageHeader sticky inset onBack={() => navigate(-1)} title={remote ? t`本机缓存` : t`存储`} right={<HelpButton tour="setstorage" />} />
 
       <div data-guide="setstorage-usage" className="rounded-xl border border-slate-700/70 bg-panel p-3">
         {storage ? (
           <>
             <div className="mb-2 flex justify-between text-xs text-slate-300">
-              <span>已用 {storage.usedMB} MB</span>
-              <span className="text-slate-500">可用约 {storage.quotaMB} MB</span>
+              <span><Trans>已用 {storage.usedMB} MB</Trans></span>
+              <span className="text-slate-500"><Trans>可用约 {storage.quotaMB} MB</Trans></span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-slate-700">
               <div
@@ -55,14 +57,14 @@ export default function SettingsStoragePage() {
             </div>
             <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
               {remote
-                ? "作品与卡片已同步到服务器，换设备登录同一账号即可看到；这里是它们在本机的副本，加上生成过程中的中间文件。"
-                : "作品与卡片存在本机数据库里。AI 生成的画面体积较大，空间不足时请删除旧作品。"}
+                ? t`作品与卡片已同步到服务器，换设备登录同一账号即可看到；这里是它们在本机的副本，加上生成过程中的中间文件。`
+                : t`作品与卡片存在本机数据库里。AI 生成的画面体积较大，空间不足时请删除旧作品。`}
             </p>
             <SavedVideos />
             <CacheSweeper onDone={() => void storageEstimate().then(setStorage)} />
           </>
         ) : (
-          <span className="text-xs text-slate-500">读取中…</span>
+          <span className="text-xs text-slate-500"><Trans>读取中…</Trans></span>
         )}
       </div>
     </div>
@@ -86,6 +88,7 @@ export default function SettingsStoragePage() {
  * ★ 认不出的 videoId（作品已删/已下架）归到「已删除的作品」一行 —— 由 listDownloads 兜。
  */
 function SavedVideos() {
+  const { t } = useLingui();
   const [groups, setGroups] = useState<DownloadGroup[] | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -118,7 +121,7 @@ function SavedVideos() {
           void listDownloads().then(setGroups);
           return;
         }
-        setNote(`已删掉 ${r.files} 个文件，${fmtBytes(r.bytes)} 空间已释放`);
+        setNote(t`已删掉 ${r.files} 个文件，${fmtBytes(r.bytes)} 空间已释放`);
         setGroups([]);
         setConfirming(false);
       })
@@ -132,12 +135,12 @@ function SavedVideos() {
       {groups.length > 0 && (
         <>
           <p className="text-xs text-slate-300">
-            已保存的视频 {fmtBytes(bytes)} · {files} 个文件
+            <Trans>已保存的视频 {fmtBytes(bytes)} · {files} 个文件</Trans>
           </p>
           <div className="mt-1 space-y-0.5">
             {groups.map((g) => (
               <p key={g.videoId} className="truncate text-[11px] text-slate-500">
-                《{g.title}》 {g.files} 个文件 · {fmtBytes(g.bytes)}
+                <Trans>《{g.title}》 {g.files} 个文件 · {fmtBytes(g.bytes)}</Trans>
               </p>
             ))}
           </div>
@@ -145,22 +148,24 @@ function SavedVideos() {
             onClick={() => setConfirming(true)}
             className="mt-2 w-full rounded-xl border border-slate-600 py-2.5 text-xs text-slate-200"
           >
-            清空已保存的视频（{fmtBytes(bytes)}）
+            <Trans>清空已保存的视频（{fmtBytes(bytes)}）</Trans>
           </button>
         </>
       )}
       {note && <p className="mt-1.5 text-[11px] leading-relaxed text-amber-300">{note}</p>}
       {confirming && (
         <ConfirmDialog
-          title={`清空已保存的视频（${fmtBytes(bytes)}）`}
-          confirmLabel="清空"
+          title={t`清空已保存的视频（${fmtBytes(bytes)}）`}
+          confirmLabel={t`清空`}
           danger
           busy={busy}
           onConfirm={run}
           onClose={() => setConfirming(false)}
         >
-          删的是你点「保存到本地」存进 App 的那 {files} 个视频文件。已经用「分享 / 另存为」交给相册或
-          文件管理器的副本不受影响；还留在这里没交出去的，删了就没有了。
+          <Trans>
+            删的是你点「保存到本地」存进 App 的那 {files} 个视频文件。已经用「分享 / 另存为」交给相册或
+            文件管理器的副本不受影响；还留在这里没交出去的，删了就没有了。
+          </Trans>
         </ConfirmDialog>
       )}
     </div>
@@ -168,6 +173,7 @@ function SavedVideos() {
 }
 
 function CacheSweeper({ onDone }: { onDone: () => void }) {
+  const { t } = useLingui();
   const [plan, setPlan] = useState<SweepPlan | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -177,12 +183,12 @@ function CacheSweeper({ onDone }: { onDone: () => void }) {
     void planSweep().then(setPlan);
   }, []);
 
-  if (!plan) return <p className="mt-2 text-[11px] text-slate-600">正在算可清理的空间…</p>;
+  if (!plan) return <p className="mt-2 text-[11px] text-slate-600"><Trans>正在算可清理的空间…</Trans></p>;
 
   const mb = plan.bytes / 1048576;
   const mbLabel = mb < 1 ? "<1" : mb.toFixed(0);
   if (plan.keys.length === 0) {
-    return <p className="mt-2 text-[11px] text-slate-600">{note || "没有可清理的中间文件"}</p>;
+    return <p className="mt-2 text-[11px] text-slate-600">{note || t`没有可清理的中间文件`}</p>;
   }
 
   function run() {
@@ -191,7 +197,7 @@ function CacheSweeper({ onDone }: { onDone: () => void }) {
       // ★ 顺手清拍照残留（原生 Pictures/ 下的 JPEG_*：取消拍照也会留下 0 字节的临时文件，IndexedDB 那份清单数不到它们）
       .then(async (swept) => swept + (await sweepCameraLeftovers(0)))
       .then((n) => {
-        setNote(`已清理 ${n} 个文件`);
+        setNote(t`已清理 ${n} 个文件`);
         setPlan({ keys: [], bytes: 0 });
         setConfirming(false);
         onDone();
@@ -205,17 +211,17 @@ function CacheSweeper({ onDone }: { onDone: () => void }) {
         onClick={() => setConfirming(true)}
         className="w-full rounded-xl border border-slate-600 py-2.5 text-xs text-slate-200"
       >
-        清理缓存（可释放 {mbLabel} MB）
+        <Trans>清理缓存（可释放 {mbLabel} MB）</Trans>
       </button>
       {confirming && (
         <ConfirmDialog
-          title={`清理缓存（约 ${mbLabel} MB）`}
-          confirmLabel="清理"
+          title={t`清理缓存（约 ${mbLabel} MB）`}
+          confirmLabel={t`清理`}
           busy={busy}
           onConfirm={run}
           onClose={() => setConfirming(false)}
         >
-          只删生成过程中留下的、已经没人用的中间文件。未发布的草稿和还没传上去的作品不会动。
+          <Trans>只删生成过程中留下的、已经没人用的中间文件。未发布的草稿和还没传上去的作品不会动。</Trans>
         </ConfirmDialog>
       )}
     </div>

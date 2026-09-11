@@ -16,6 +16,7 @@
 //   不成立，代码把一段 HTML 当音频塞进 <audio> 去播——静悄悄地失败。
 //   dev 时 API_BASE 是空串，同源就落回 vite 的 dev 中间件。
 import { useRef, useState } from "react";
+import { Trans, useLingui } from "@lingui/react/macro";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import HelpButton from "../components/guide/HelpButton";
@@ -36,6 +37,7 @@ import {
 import { speak } from "../studio/speech";
 import { API_BASE, getToken } from "../api/client";
 
+/* i18n-frozen: 试听句发给火山的中文音色（没配云端时退回系统中文语音包），与铸卡师在工坊里说的台词同一种语言 */
 const PREVIEW_LINE = "欢迎来到卡片工坊，把你的素材交给我，我为你炼成卡片。";
 
 export default function SettingsVoicePage() {
@@ -49,6 +51,7 @@ export default function SettingsVoicePage() {
   const [rate, setRateState] = useState<number | null>(currentRate);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   useAutoGuide("setvoice", !!user);
+  const { t } = useLingui();
 
   // 路由已套 RequireAuth；这里只为 TS 收窄（render 里 navigate 会被 React 丢弃，别改回来）
   if (!user) return null;
@@ -77,11 +80,11 @@ export default function SettingsVoicePage() {
       //   **真的退回系统合成器**，而不是只弹一句错误。上面那行小字向用户承诺过
       //   "没配云端语音时退回系统内置合成器"，不实现的话点一下静悄悄，跟坏了一模一样。
       if (res.status === 404 || res.status === 501 || res.status === 401 || res.status === 403) {
-        if (!speak(PREVIEW_LINE)) setErr("这台设备既没有云端语音，系统也没装中文语音包，试听不了");
+        if (!speak(PREVIEW_LINE)) setErr(t`这台设备既没有云端语音，系统也没装中文语音包，试听不了`);
         return;
       }
       if (!res.ok) {
-        setErr(`云端语音没出声（${res.status}）：稍后再试，或到火山控制台看额度`);
+        setErr(t`云端语音没出声（${res.status}）：稍后再试，或到火山控制台看额度`);
         return;
       }
       audioRef.current?.pause();
@@ -100,10 +103,10 @@ export default function SettingsVoicePage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => navigate(-1)} title="铸卡师的声音" right={<HelpButton tour="setvoice" />} />
+      <PageHeader sticky inset onBack={() => navigate(-1)} title={t`铸卡师的声音`} right={<HelpButton tour="setvoice" />} />
 
       {/* 条件触发的降级说明，留在页面上（没配云端语音的设备靠它解释"怎么换了把嗓子"） */}
-      <p className="mb-3 text-[11px] leading-relaxed text-slate-500">没配云端语音时退回系统内置合成器（需装中文语音包）。</p>
+      <p className="mb-3 text-[11px] leading-relaxed text-slate-500"><Trans>没配云端语音时退回系统内置合成器（需装中文语音包）。</Trans></p>
 
       <div data-guide="setvoice-list" className="space-y-2">
         {VOICES.map((v) => (
@@ -119,7 +122,7 @@ export default function SettingsVoicePage() {
               <div className="flex items-center gap-1.5 text-sm text-slate-100">
                 {v.name}
                 {/* 混音项与单音色不同：语调指令对它无效（那是 2.0 专属） */}
-                {v.mix && <span className="rounded bg-slate-700 px-1 text-[10px] text-slate-400">调和</span>}
+                {v.mix && <span className="rounded bg-slate-700 px-1 text-[10px] text-slate-400"><Trans>调和</Trans></span>}
               </div>
               <div className="truncate text-[11px] text-slate-500">{v.why}</div>
             </div>
@@ -133,9 +136,9 @@ export default function SettingsVoicePage() {
       <div data-guide="setvoice-tune">
         <div className="mt-4">
           <div className="mb-1 flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400">语速</span>
+            <span className="text-xs font-semibold text-slate-400"><Trans>语速</Trans></span>
             <span className="text-[11px] text-slate-500">
-              {rate === null ? `跟随音色（${rateLabel(currentVoice().rate ?? 0)}）` : rateLabel(rate)}
+              {rate === null ? t`跟随音色（${rateLabel(currentVoice().rate ?? 0)}）` : rateLabel(rate)}
             </span>
           </div>
           <input
@@ -152,9 +155,9 @@ export default function SettingsVoicePage() {
             className="w-full accent-brand"
           />
           <div className="mt-0.5 flex justify-between text-[10px] text-slate-600">
-            <span>0.70× 慢</span>
+            <span><Trans>0.70× 慢</Trans></span>
             <span>1.00×</span>
-            <span>1.20× 快</span>
+            <span><Trans>1.20× 快</Trans></span>
           </div>
           {rate !== null && (
             <button
@@ -164,7 +167,7 @@ export default function SettingsVoicePage() {
               }}
               className="mt-1 text-[11px] text-slate-500 underline underline-offset-2"
             >
-              恢复跟随音色
+              <Trans>恢复跟随音色</Trans>
             </button>
           )}
         </div>
@@ -173,7 +176,7 @@ export default function SettingsVoicePage() {
             语气"，出来的音频与原味逐字节不同。 */}
         <div className="mt-3">
           <div className="mb-1 flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400">语调指令</span>
+            <span className="text-xs font-semibold text-slate-400"><Trans>语调指令</Trans></span>
             {instruct !== DEFAULT_INSTRUCT && (
               <button
                 onClick={() => {
@@ -182,7 +185,7 @@ export default function SettingsVoicePage() {
                 }}
                 className="text-[11px] text-slate-500 underline underline-offset-2"
               >
-                恢复默认
+                <Trans>恢复默认</Trans>
               </button>
             )}
           </div>
@@ -194,7 +197,7 @@ export default function SettingsVoicePage() {
             }}
             rows={3}
             maxLength={120}
-            placeholder="用一句话描述你想要的语气，例如：请用成熟冷静的语气，语速放慢"
+            placeholder={t`用一句话描述你想要的语气，例如：请用成熟冷静的语气，语速放慢`}
             className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
           />
         </div>

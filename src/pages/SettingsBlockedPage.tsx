@@ -10,6 +10,7 @@
 //   ③ 有名单 → 列出来。
 //   把 ① 和 ② 合并的话，弱网下会显示"你还没拉黑过谁"，而名单其实好好地在服务器上。
 import { useCallback, useEffect, useState } from "react";
+import { Trans, useLingui } from "@lingui/react/macro";
 import Avatar from "../components/Avatar";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
@@ -20,6 +21,7 @@ import { listBlocked, unblockUser, type BlockedUser } from "../api/blocking";
 import { refreshFeed, refreshFollowingFeed } from "../data/videos";
 
 export default function SettingsBlockedPage() {
+  const { t } = useLingui();
   const navigate = useNavigate();
   const user = useCurrentUser();
   const remote = isRemoteMode();
@@ -66,32 +68,32 @@ export default function SettingsBlockedPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader onBack={() => navigate(-1)} title="已拉黑的人" />
+      <PageHeader onBack={() => navigate(-1)} title={t`已拉黑的人`} />
 
       <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
-        拉黑是双向的：你们不会再看见彼此的作品、评论和弹幕，也不会收到对方的任何通知。解除之后立刻恢复。
+        <Trans>拉黑是双向的：你们不会再看见彼此的作品、评论和弹幕，也不会收到对方的任何通知。解除之后立刻恢复。</Trans>
       </p>
 
       {!user ? (
-        <p className="text-xs text-slate-400">登录之后才能管理黑名单。</p>
+        <p className="text-xs text-slate-400"><Trans>登录之后才能管理黑名单。</Trans></p>
       ) : !remote ? (
         // ★ 离线模式下没有"别人"，说清楚而不是显示一个永远空的名单
         <p className="text-xs leading-relaxed text-slate-400">
-          当前是本地模式（没有连服务器），黑名单是账号级的功能——接上服务器之后才会有。
+          <Trans>当前是本地模式（没有连服务器），黑名单是账号级的功能——接上服务器之后才会有。</Trans>
         </p>
       ) : loading ? (
-        <EmptyState loading text="正在取名单…" />
+        <EmptyState loading text={t`正在取名单…`} />
       ) : list === null ? (
         // ① 没问到 —— 与"一个都没有"分开说，并给一条真能走的路
         <EmptyState
           error
-          text="没能取到黑名单（网络不通，或这台服务器还没有这个功能）"
-          hint="这不代表名单是空的"
-          cta={{ label: "重试", onClick: () => setNonce((n) => n + 1) }}
+          text={t`没能取到黑名单（网络不通，或这台服务器还没有这个功能）`}
+          hint={t`这不代表名单是空的`}
+          cta={{ label: t`重试`, onClick: () => setNonce((n) => n + 1) }}
         />
       ) : list.length === 0 ? (
         // ② 问过了，确实一个都没有
-        <EmptyState text="你还没拉黑过谁" />
+        <EmptyState text={t`你还没拉黑过谁`} />
       ) : (
         <div className="space-y-2">
           {err && <p className="text-[11px] leading-relaxed text-rose-300">{err}</p>}
@@ -104,7 +106,7 @@ export default function SettingsBlockedPage() {
                 disabled={!!busyId}
                 className="flex-none rounded-full border border-slate-600 px-3 py-1 text-[11px] text-slate-300 disabled:opacity-40"
               >
-                {busyId === u.id ? "解除中…" : "解除"}
+                {busyId === u.id ? t`解除中…` : t`解除`}
               </button>
             </div>
           ))}

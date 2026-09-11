@@ -161,6 +161,10 @@ msgstr "· 它会从 {deckCount} 个卡组里移出（{deckNames}），卡组本
 msgid "· 它已经分享到创意工坊：删卡会<0>同时下架</0>； 别人已经装走的那份在他们自己的库里，不受影响。"
 msgstr "· 它已经分享到创意工坊：删卡会<0>同时下架</0>； 别人已经装走的那份在他们自己的库里，不受影响。"
 
+#: src/pages/SettingsDeactivatePage.tsx
+msgid "· 数据不会立刻从服务器抹除（防误操作）。想恢复账号、或要求彻底删除数据，发邮件到 <0>{SUPPORT_EMAIL}</0>。"
+msgstr "· 数据不会立刻从服务器抹除（防误操作）。想恢复账号、或要求彻底删除数据，发邮件到 <0>{SUPPORT_EMAIL}</0>。"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "· 无脸"
 msgstr "· 无脸"
@@ -169,9 +173,17 @@ msgstr "· 无脸"
 msgid "· 点 ✕ 移出本段"
 msgstr "· 点 ✕ 移出本段"
 
+#: src/pages/SettingsDeactivatePage.tsx
+msgid "· 立即生效：所有设备退出登录，这个账号无法再使用。"
+msgstr "· 立即生效：所有设备退出登录，这个账号无法再使用。"
+
 #: src/components/DeleteCardDialog.tsx
 msgid "· 第 {segList} 段挂着它 —— <0>那几段不受影响</0>（摆上桌那一刻存的是副本），已经炼好的画面也不会变。"
 msgstr "· 第 {segList} 段挂着它 —— <0>那几段不受影响</0>（摆上桌那一刻存的是副本），已经炼好的画面也不会变。"
+
+#: src/pages/SettingsDeactivatePage.tsx
+msgid "· 账号里的 token 余额、已购内容与已发布作品都将一并无法使用。"
+msgstr "· 账号里的 token 余额、已购内容与已发布作品都将一并无法使用。"
 
 #: src/components/BlockButton.tsx
 msgid "· 这不是举报：想让平台处理他，请另外点「举报」。"
@@ -242,6 +254,11 @@ msgstr "（这一档是参考+点名，不是硬保证）"
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "（这个位子没有描述）"
 msgstr "（这个位子没有描述）"
+
+#. placeholder {0}: QUALITY_LABELS[getQuality()].name
+#: src/pages/SettingsPage.tsx
+msgid "{0} · 只影响 3D 工坊"
+msgstr "{0} · 只影响 3D 工坊"
 
 #. placeholder {0}: tpl.roles.length
 #: src/components/TemplateShelf.tsx
@@ -381,6 +398,13 @@ msgstr "{who}（标记：{0}）（现在挂着 {1}）"
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "{who}（现在挂着 {0}）"
 msgstr "{who}（现在挂着 {0}）"
+
+#. placeholder {0}: g.title
+#. placeholder {1}: g.files
+#. placeholder {2}: fmtBytes(g.bytes)
+#: src/pages/SettingsStoragePage.tsx
+msgid "《{0}》 {1} 个文件 · {2}"
+msgstr "《{0}》 {1} 个文件 · {2}"
 
 #. placeholder {0}: strayRemoved.join("」「")
 #: src/components/blockout/RoleCastBoard.tsx
@@ -860,10 +884,12 @@ msgid "🛒 逛方案市场"
 msgstr "🛒 逛方案市场"
 
 #: src/components/support/VoiceSheet.tsx
+#: src/pages/SettingsVoicePage.tsx
 msgid "0.70× 慢"
 msgstr "0.70× 慢"
 
 #: src/components/support/VoiceSheet.tsx
+#: src/pages/SettingsVoicePage.tsx
 msgid "1.20× 快"
 msgstr "1.20× 快"
 
@@ -878,6 +904,10 @@ msgstr "AI 分析哪几帧"
 #: src/components/VideoCardAnnotator.tsx
 msgid "AI 图位生成好了——回工坊点「从视频提取」接着存卡"
 msgstr "AI 图位生成好了——回工坊点「从视频提取」接着存卡"
+
+#: src/pages/SettingsPage.tsx
+msgid "AI 客服 · 帮助与反馈"
+msgstr "AI 客服 · 帮助与反馈"
 
 #: src/components/CoverPicker.tsx
 msgid "AI 封面工坊"
@@ -931,6 +961,10 @@ msgstr "一句话介绍（选填）"
 msgid "一句话推荐（选填）：这张卡适合画什么？"
 msgstr "一句话推荐（选填）：这张卡适合画什么？"
 
+#: src/pages/SettingsProfilePage.tsx
+msgid "一句话简介"
+msgstr "一句话简介"
+
 #: src/components/flow/SkillPanel.tsx
 msgid "一句话简介（可空）"
 msgstr "一句话简介（可空）"
@@ -977,6 +1011,10 @@ msgstr "上传后自动用它的首尾帧当本段首尾帧，之后还能细调
 msgid "上传本地图片"
 msgstr "上传本地图片"
 
+#: src/pages/SupportCreatePage.tsx
+msgid "上传自己的 Live2D 包（zip），对好动作、表情和触摸区，就能给数字人换上。"
+msgstr "上传自己的 Live2D 包（zip），对好动作、表情和触摸区，就能给数字人换上。"
+
 #: src/components/VoiceUploadButton.tsx
 msgid "上传音频"
 msgstr "上传音频"
@@ -984,6 +1022,14 @@ msgstr "上传音频"
 #: src/components/VoiceUploadButton.tsx
 msgid "上传音频（原片较长，取前 {VOICE_MAX_SEC}s）"
 msgstr "上传音频（原片较长，取前 {VOICE_MAX_SEC}s）"
+
+#: src/pages/DraftsPage.tsx
+msgid "上次在🎴 工坊"
+msgstr "上次在🎴 工坊"
+
+#: src/pages/DraftsPage.tsx
+msgid "上次在🧩 工作流"
+msgstr "上次在🧩 工作流"
 
 #: src/components/DownloadSheet.tsx
 msgid "上次有 {n} 段没下完，那些半截文件已经清掉了，这次会重下。"
@@ -1091,6 +1137,11 @@ msgstr "中间帧最多 {midMax} 张"
 msgid "中间帧参考图"
 msgstr "中间帧参考图"
 
+#. placeholder {0}: res.status
+#: src/pages/SettingsVoicePage.tsx
+msgid "云端语音没出声（{0}）：稍后再试，或到火山控制台看额度"
+msgstr "云端语音没出声（{0}）：稍后再试，或到火山控制台看额度"
+
 #: src/components/BranchPlayer.tsx
 msgid "互动视频"
 msgstr "互动视频"
@@ -1107,6 +1158,18 @@ msgstr "人偶编号"
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "人物{0}"
 msgstr "人物{0}"
+
+#: src/pages/SupportCreatePage.tsx
+msgid "人物人格"
+msgstr "人物人格"
+
+#: src/pages/SupportCreatePage.tsx
+msgid "人物模型"
+msgstr "人物模型"
+
+#: src/pages/SupportCreatePage.tsx
+msgid "人物音频"
+msgstr "人物音频"
 
 #: src/components/VisibilityPicker.tsx
 msgid "仅自己可见"
@@ -1162,17 +1225,41 @@ msgstr "余额不够 AI 指挥（400/句）。"
 msgid "余额不够（需要 {0} token），去「我的」页充值"
 msgstr "余额不够（需要 {0} token），去「我的」页充值"
 
+#: src/pages/SettingsPage.tsx
+msgid "作品、卡片和钱包都记在服务器上，重新登录同一账号就回来。"
+msgstr "作品、卡片和钱包都记在服务器上，重新登录同一账号就回来。"
+
+#: src/pages/SettingsStoragePage.tsx
+msgid "作品与卡片存在本机数据库里。AI 生成的画面体积较大，空间不足时请删除旧作品。"
+msgstr "作品与卡片存在本机数据库里。AI 生成的画面体积较大，空间不足时请删除旧作品。"
+
+#: src/pages/SettingsStoragePage.tsx
+msgid "作品与卡片已同步到服务器，换设备登录同一账号即可看到；这里是它们在本机的副本，加上生成过程中的中间文件。"
+msgstr "作品与卡片已同步到服务器，换设备登录同一账号即可看到；这里是它们在本机的副本，加上生成过程中的中间文件。"
+
 #: src/components/support/VoiceSheet.tsx
 msgid "你的设置（官网同步）"
 msgstr "你的设置（官网同步）"
+
+#: src/pages/SettingsPage.tsx
+msgid "你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。"
+msgstr "你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。"
 
 #: src/components/support/VoiceMarket.tsx
 msgid "你还没发布过声音模板，去「混音」调一把再发布。"
 msgstr "你还没发布过声音模板，去「混音」调一把再发布。"
 
+#: src/pages/SettingsBlockedPage.tsx
+msgid "你还没拉黑过谁"
+msgstr "你还没拉黑过谁"
+
 #: src/components/support/VoiceMarket.tsx
 msgid "使用中"
 msgstr "使用中"
+
+#: src/pages/SettingsPage.tsx
+msgid "使用本应用的约定"
+msgstr "使用本应用的约定"
 
 #: src/components/guide/HelpButton.tsx
 msgid "使用说明"
@@ -1199,6 +1286,7 @@ msgid "保存"
 msgstr "保存"
 
 #: src/components/support/VoiceSheet.tsx
+#: src/pages/SettingsProfilePage.tsx
 msgid "保存中…"
 msgstr "保存中…"
 
@@ -1215,6 +1303,10 @@ msgstr "保存到本地是怎么走的"
 msgid "保存失败，稍后再试。"
 msgstr "保存失败，稍后再试。"
 
+#: src/pages/SettingsProfilePage.tsx
+msgid "保存资料"
+msgstr "保存资料"
+
 #: src/components/support/VoiceSheet.tsx
 msgid "保存这把混音"
 msgstr "保存这把混音"
@@ -1226,6 +1318,10 @@ msgstr "保留了框内背景（{size}{up}）——卡面仍带背景，出片�
 #: src/components/DownloadSheet.tsx
 msgid "停止"
 msgstr "停止"
+
+#: src/pages/SettingsPage.tsx
+msgid "儿童安全标准"
+msgstr "儿童安全标准"
 
 #. placeholder {0}: formatDuration(total)
 #: src/components/blockout/TrimBar.tsx
@@ -1441,6 +1537,11 @@ msgstr "切到自选会<0>摘掉模板</0>：挂的卡与合成好的点名句�
 msgid "创作"
 msgstr "创作"
 
+#: src/pages/SettingsPage.tsx
+#: src/pages/SupportCreatePage.tsx
+msgid "创作中心"
+msgstr "创作中心"
+
 #: src/components/flow/SkillPanel.tsx
 #: src/components/VideoCardAnnotator.tsx
 msgid "删"
@@ -1504,6 +1605,10 @@ msgstr "删掉这个角色位"
 #: src/components/DeleteCardDialog.tsx
 msgid "删掉这张卡"
 msgstr "删掉这张卡"
+
+#: src/pages/SettingsStoragePage.tsx
+msgid "删的是你点「保存到本地」存进 App 的那 {files} 个视频文件。已经用「分享 / 另存为」交给相册或 文件管理器的副本不受影响；还留在这里没交出去的，删了就没有了。"
+msgstr "删的是你点「保存到本地」存进 App 的那 {files} 个视频文件。已经用「分享 / 另存为」交给相册或 文件管理器的副本不受影响；还留在这里没交出去的，删了就没有了。"
 
 #: src/components/CommentDelete.tsx
 #: src/components/DraftSheet.tsx
@@ -1623,6 +1728,10 @@ msgstr "原因：{0}"
 msgid "原片第 {0} 秒（选段外）"
 msgstr "原片第 {0} 秒（选段外）"
 
+#: src/pages/DraftsPage.tsx
+msgid "去创作"
+msgstr "去创作"
+
 #: src/components/MaterialSheet.tsx
 msgid "去创意工坊建一组"
 msgstr "去创意工坊建一组"
@@ -1630,6 +1739,10 @@ msgstr "去创意工坊建一组"
 #: src/components/MaterialSheet.tsx
 msgid "去创意工坊铸几张"
 msgstr "去创意工坊铸几张"
+
+#: src/pages/SupportCreatePage.tsx
+msgid "去制作"
+msgstr "去制作"
 
 #: src/components/flow/TierRow.tsx
 msgid "去升级"
@@ -1666,6 +1779,10 @@ msgstr "发布"
 #: src/components/support/VoiceMixer.tsx
 msgid "发布中…"
 msgstr "发布中…"
+
+#: src/pages/SupportCreatePage.tsx
+msgid "发布出去的东西署你的名，别人下载后你能看到下载数。"
+msgstr "发布出去的东西署你的名，别人下载后你能看到下载数。"
 
 #: src/components/support/VoiceMixer.tsx
 msgid "发布到声音市场"
@@ -1811,6 +1928,10 @@ msgstr "取首尾帧…"
 msgid "另存为我的"
 msgstr "另存为我的"
 
+#: src/pages/SettingsStoragePage.tsx
+msgid "只删生成过程中留下的、已经没人用的中间文件。未发布的草稿和还没传上去的作品不会动。"
+msgstr "只删生成过程中留下的、已经没人用的中间文件。未发布的草稿和还没传上去的作品不会动。"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "只剩一段且已出片，删不掉"
 msgstr "只剩一段且已出片，删不掉"
@@ -1835,6 +1956,15 @@ msgstr "可以先去逛逛——生成不会中断，好了顶部会弹提示带
 #: src/components/ForgeOverlay.tsx
 msgid "可以先去逛逛——生成不会中断。就算退出 App 也不要紧：任务已被方舟受理，回这一段点「取回」就能把成片领回来（24 小时内有效，取回不花钱）"
 msgstr "可以先去逛逛——生成不会中断。就算退出 App 也不要紧：任务已被方舟受理，回这一段点「取回」就能把成片领回来（24 小时内有效，取回不花钱）"
+
+#: src/pages/SettingsPage.tsx
+msgid "可以检查有没有新版本"
+msgstr "可以检查有没有新版本"
+
+#. placeholder {0}: storage.quotaMB
+#: src/pages/SettingsStoragePage.tsx
+msgid "可用约 {0} MB"
+msgstr "可用约 {0} MB"
 
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
@@ -1885,6 +2015,10 @@ msgstr "周末打算去一趟菜市场，买点新鲜的菜，晚上做一顿好
 msgid "唤起指令句式（也可以输入 /）"
 msgstr "唤起指令句式（也可以输入 /）"
 
+#: src/pages/SupportCreatePage.tsx
+msgid "喂一段聊天记录或者答几道题，AI 帮你写出说话风格，试聊满意了再发布。"
+msgstr "喂一段聊天记录或者答几道题，AI 帮你写出说话风格，试聊满意了再发布。"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "回到整图"
 msgstr "回到整图"
@@ -1914,6 +2048,10 @@ msgstr "回复 @{0}"
 #: src/components/ReviseBar.tsx
 msgid "回炉：《{0}》"
 msgstr "回炉：《{0}》"
+
+#: src/pages/OauthCallbackPage.tsx
+msgid "回登录页"
+msgstr "回登录页"
 
 #: src/components/CoverPicker.tsx
 msgid "图片加载失败"
@@ -1953,6 +2091,10 @@ msgstr "声音市场"
 msgid "处理中…"
 msgstr "处理中…"
 
+#: src/pages/SettingsPage.tsx
+msgid "处理举报（下架 / 驳回 / 删除）· 平台数据"
+msgstr "处理举报（下架 / 驳回 / 删除）· 平台数据"
+
 #: src/components/ShareSheet.tsx
 msgid "复制失败，手动复制：{url}"
 msgstr "复制失败，手动复制：{url}"
@@ -1987,9 +2129,17 @@ msgstr "太短了，按住多说一会儿再松手。"
 msgid "太短了（{0}s）——按住别松，照着示例词念够 {VOICE_MIN_SEC} 秒再放手。"
 msgstr "太短了（{0}s）——按住别松，照着示例词念够 {VOICE_MIN_SEC} 秒再放手。"
 
+#: src/pages/SettingsPage.tsx
+msgid "头像 · 昵称 · 简介"
+msgstr "头像 · 昵称 · 简介"
+
 #: src/components/AvatarPicker.tsx
 msgid "头像更换失败，本机仍会显示新头像"
 msgstr "头像更换失败，本机仍会显示新头像"
+
+#: src/pages/TemplateMarketPage.tsx
+msgid "套上模板，一句话出片"
+msgstr "套上模板，一句话出片"
 
 #: src/components/support/VoiceMixer.tsx
 msgid "女"
@@ -2019,6 +2169,11 @@ msgstr "存"
 #: src/components/VideoCardAnnotator.tsx
 msgid "存为卡组"
 msgstr "存为卡组"
+
+#: src/pages/SettingsPage.tsx
+#: src/pages/SettingsStoragePage.tsx
+msgid "存储"
+msgstr "存储"
 
 #: src/components/FrameAnnotator.tsx
 msgid "存入标注"
@@ -2127,6 +2282,15 @@ msgstr "已下 {0}"
 msgid "已下架"
 msgstr "已下架"
 
+#: src/pages/SettingsProfilePage.tsx
+msgid "已保存 ✓"
+msgstr "已保存 ✓"
+
+#. placeholder {0}: fmtBytes(bytes)
+#: src/pages/SettingsStoragePage.tsx
+msgid "已保存的视频 {0} · {files} 个文件"
+msgstr "已保存的视频 {0} · {files} 个文件"
+
 #: src/components/DownloadSheet.tsx
 msgid "已停止"
 msgstr "已停止"
@@ -2138,6 +2302,12 @@ msgstr "已出片：换模板/模式会作废本段（想换先删段重加）"
 #: src/components/flow/FlowCanvas.tsx
 msgid "已出片（成片预览没截到，点开可回看）"
 msgstr "已出片（成片预览没截到，点开可回看）"
+
+#. placeholder {0}: r.files
+#. placeholder {1}: fmtBytes(r.bytes)
+#: src/pages/SettingsStoragePage.tsx
+msgid "已删掉 {0} 个文件，{1} 空间已释放"
+msgstr "已删掉 {0} 个文件，{1} 空间已释放"
 
 #: src/components/MaterialSheet.tsx
 msgid "已加入"
@@ -2175,6 +2345,10 @@ msgstr "已建组「{deckDone}」"
 msgid "已开始生成，可以离开这一页，出片后会提醒你"
 msgstr "已开始生成，可以离开这一页，出片后会提醒你"
 
+#: src/pages/SettingsPage.tsx
+msgid "已恢复——下次进各个界面会重新弹一遍"
+msgstr "已恢复——下次进各个界面会重新弹一遍"
+
 #: src/components/BlockButton.tsx
 msgid "已拉黑"
 msgstr "已拉黑"
@@ -2182,6 +2356,11 @@ msgstr "已拉黑"
 #: src/components/BlockButton.tsx
 msgid "已拉黑「{who}」——你们不会再看见彼此的内容。"
 msgstr "已拉黑「{who}」——你们不会再看见彼此的内容。"
+
+#: src/pages/SettingsBlockedPage.tsx
+#: src/pages/SettingsPage.tsx
+msgid "已拉黑的人"
+msgstr "已拉黑的人"
 
 #. placeholder {0}: tpl!.roles!.length
 #: src/components/flow/FlowCanvas.tsx
@@ -2215,6 +2394,15 @@ msgstr "已标 {0}/{cap}"
 msgid "已标 {0}/{cap} 刀"
 msgstr "已标 {0}/{cap} 刀"
 
+#: src/pages/SettingsStoragePage.tsx
+msgid "已清理 {n} 个文件"
+msgstr "已清理 {n} 个文件"
+
+#. placeholder {0}: storage.usedMB
+#: src/pages/SettingsStoragePage.tsx
+msgid "已用 {0} MB"
+msgstr "已用 {0} MB"
+
 #. placeholder {0}: sel.durSec
 #. placeholder {1}: sel.durSec
 #: src/components/blockout/BoxFramePicker.tsx
@@ -2236,6 +2424,10 @@ msgstr "已经排到一次能挂卡的上限（{BLOCKOUT_MAX_ROLES} 个）。画
 #: src/components/PortraitAuthPanel.tsx
 msgid "已经接上这份已授权素材了。"
 msgstr "已经接上这份已授权素材了。"
+
+#: src/pages/SettingsPage.tsx
+msgid "已经是最新版本"
+msgstr "已经是最新版本"
 
 #. placeholder {0}: g.totalCount
 #: src/components/PortraitAuthPanel.tsx
@@ -2316,6 +2508,10 @@ msgstr "引号里填模板名（下面可直接点）"
 msgid "当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。"
 msgstr "当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。"
 
+#: src/pages/DraftsPage.tsx
+msgid "当前"
+msgstr "当前"
+
 #: src/components/AvatarPicker.tsx
 msgid "当前头像。换成官方看板娘或自己的照片都行"
 msgstr "当前头像。换成官方看板娘或自己的照片都行"
@@ -2331,6 +2527,14 @@ msgstr "当前封面（参考图）"
 #: src/components/CoverPicker.tsx
 msgid "当前封面不可作参考图"
 msgstr "当前封面不可作参考图"
+
+#: src/pages/SettingsBlockedPage.tsx
+msgid "当前是本地模式（没有连服务器），黑名单是账号级的功能——接上服务器之后才会有。"
+msgstr "当前是本地模式（没有连服务器），黑名单是账号级的功能——接上服务器之后才会有。"
+
+#: src/pages/SettingsDeactivatePage.tsx
+msgid "当前是本地账号：没有服务器，也就没有可注销的云端账号。 你的数据都在这台设备上——清掉 App 数据（或卸载）即等同于注销。"
+msgstr "当前是本地账号：没有服务器，也就没有可注销的云端账号。 你的数据都在这台设备上——清掉 App 数据（或卸载）即等同于注销。"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "录制中…（实际播这一段）"
@@ -2368,6 +2572,10 @@ msgstr "微信"
 msgid "微信分享要在 App 里用，浏览器里请复制链接"
 msgstr "微信分享要在 App 里用，浏览器里请复制链接"
 
+#: src/pages/SettingsPage.tsx
+msgid "恢复"
+msgstr "恢复"
+
 #: src/components/support/VoiceSheet.tsx
 msgid "恢复中…"
 msgstr "恢复中…"
@@ -2383,6 +2591,14 @@ msgstr "恢复正常速度"
 #: src/components/support/VoiceSheet.tsx
 msgid "恢复跟随人格/模型"
 msgstr "恢复跟随人格/模型"
+
+#: src/pages/SettingsVoicePage.tsx
+msgid "恢复跟随音色"
+msgstr "恢复跟随音色"
+
+#: src/pages/SettingsVoicePage.tsx
+msgid "恢复默认"
+msgstr "恢复默认"
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "慢放 0.25 倍"
@@ -2404,6 +2620,10 @@ msgstr "成片解码失败——换「本地上传」或下面各段的首尾帧
 msgid "成片还在载入，稍等一下再截"
 msgstr "成片还在载入，稍等一下再截"
 
+#: src/pages/SettingsPage.tsx
+msgid "我们对涉及未成年人内容的立场与处理方式（在官网打开）"
+msgstr "我们对涉及未成年人内容的立场与处理方式（在官网打开）"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "我已逐个核对，位置无误"
 msgstr "我已逐个核对，位置无误"
@@ -2420,6 +2640,10 @@ msgstr "我的"
 #: src/components/support/VoiceMarket.tsx
 msgid "我的 · 未公开"
 msgstr "我的 · 未公开"
+
+#: src/pages/SupportCreatePage.tsx
+msgid "我的作品 {count}"
+msgstr "我的作品 {count}"
 
 #: src/components/flow/SkillPanel.tsx
 msgid "我的技能（点一个 = 填进输入框）"
@@ -2441,6 +2665,10 @@ msgstr "我确认已依法取得画面中人物对使用其肖像生成内容的
 #: src/components/CoverPicker.tsx
 msgid "或从各段画面中选择："
 msgstr "或从各段画面中选择："
+
+#: src/pages/SettingsProfilePage.tsx
+msgid "或选一个 emoji"
+msgstr "或选一个 emoji"
 
 #: src/components/flow/SegPlayer.tsx
 #: src/utils/videoFrames.ts
@@ -2501,6 +2729,10 @@ msgstr "承接尾帧"
 msgid "技能名（≤{SKILL_TITLE_MAX} 字）"
 msgstr "技能名（≤{SKILL_TITLE_MAX} 字）"
 
+#: src/pages/SupportCreatePage.tsx
+msgid "把 1～3 味豆包音色按比例调成自己的嗓子，可以发布成声音模板。"
+msgstr "把 1～3 味豆包音色按比例调成自己的嗓子，可以发布成声音模板。"
+
 #. placeholder {0}: ask.card.name
 #. placeholder {1}: personNameOf(dropSlots[ask.slot])
 #: src/components/blockout/RoleCastBoard.tsx
@@ -2551,6 +2783,10 @@ msgstr "拉黑"
 #: src/components/BlockButton.tsx
 msgid "拉黑「{who}」？"
 msgstr "拉黑「{who}」？"
+
+#: src/pages/SettingsBlockedPage.tsx
+msgid "拉黑是双向的：你们不会再看见彼此的作品、评论和弹幕，也不会收到对方的任何通知。解除之后立刻恢复。"
+msgstr "拉黑是双向的：你们不会再看见彼此的作品、评论和弹幕，也不会收到对方的任何通知。解除之后立刻恢复。"
 
 #: src/pages/CustomCardPage.tsx
 msgid "拍一张，AI 按照片填卡名和简介（演示档不花钱）；上传本地图片进表单后也能再点识别"
@@ -2650,6 +2886,10 @@ msgstr "换一句"
 #: src/components/VideoCardAnnotator.tsx
 msgid "换一套"
 msgstr "换一套"
+
+#: src/pages/SettingsPage.tsx
+msgid "换一种说话风格，官网同步"
+msgstr "换一种说话风格，官网同步"
 
 #. placeholder {0}: ask.label
 #: src/components/flow/TierRow.tsx
@@ -2788,6 +3028,10 @@ msgstr "收起"
 msgid "收起 ▴"
 msgstr "收起 ▴"
 
+#: src/pages/SettingsPage.tsx
+msgid "收集什么、怎么用、找谁行使权利"
+msgstr "收集什么、怎么用、找谁行使权利"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "改"
 msgstr "改"
@@ -2816,6 +3060,14 @@ msgstr "改错了不用重炼"
 msgid "放大再框"
 msgstr "放大再框"
 
+#: src/pages/SettingsPage.tsx
+msgid "数字人人格"
+msgstr "数字人人格"
+
+#: src/pages/SettingsPage.tsx
+msgid "数字人形象"
+msgstr "数字人形象"
+
 #: src/components/ForgeOverlay.tsx
 msgid "整段一炉出，别退出 App"
 msgstr "整段一炉出，别退出 App"
@@ -2828,6 +3080,10 @@ msgstr "文件格式：{0}"
 #: src/components/TemplateShelf.tsx
 msgid "新"
 msgstr "新"
+
+#: src/pages/SettingsPage.tsx
+msgid "新手引导"
+msgstr "新手引导"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "方案"
@@ -2866,6 +3122,10 @@ msgstr "无预览"
 msgid "时长"
 msgstr "时长"
 
+#: src/pages/SettingsProfilePage.tsx
+msgid "昵称"
+msgstr "昵称"
+
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VideoStage.tsx
 #: src/components/BranchPlayer.tsx
@@ -2880,6 +3140,10 @@ msgstr "暂时不可用"
 #: src/components/CoverPicker.tsx
 msgid "暗处在首页会被文字和按钮盖住（大致）"
 msgstr "暗处在首页会被文字和按钮盖住（大致）"
+
+#: src/pages/SettingsProfilePage.tsx
+msgid "更换头像"
+msgstr "更换头像"
 
 #: src/components/UpdateSheet.tsx
 msgid "更新失败，请稍后再试"
@@ -2969,6 +3233,15 @@ msgstr "本人跟读录制"
 msgid "本机没有系统相机（Android 11 起只认预装相机）——改用「上传本地图片」"
 msgstr "本机没有系统相机（Android 11 起只认预装相机）——改用「上传本地图片」"
 
+#: src/pages/SettingsPage.tsx
+msgid "本机的作品与数据不会被删除，重新登录即可继续。"
+msgstr "本机的作品与数据不会被删除，重新登录即可继续。"
+
+#: src/pages/SettingsPage.tsx
+#: src/pages/SettingsStoragePage.tsx
+msgid "本机缓存"
+msgstr "本机缓存"
+
 #. placeholder {0}: saved.length
 #: src/components/VideoCardAnnotator.tsx
 msgid "本次已存 {0} 张（最后一步打包成卡组）"
@@ -3035,9 +3308,17 @@ msgstr "查授权状态"
 msgid "查状态没成：{0}"
 msgstr "查状态没成：{0}"
 
+#: src/pages/SettingsPage.tsx
+msgid "查看用量 · 清理中间文件"
+msgstr "查看用量 · 清理中间文件"
+
 #: src/components/flow/SegPlayer.tsx
 msgid "标注会先改这一段的设定画面，再重新生成本段视频"
 msgstr "标注会先改这一段的设定画面，再重新生成本段视频"
+
+#: src/pages/SettingsPage.tsx
+msgid "标识、素材授权与违规处理"
+msgstr "标识、素材授权与违规处理"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "核对之前不能发布（位置对不上会让别人的角色卡换到别人身上）"
@@ -3075,9 +3356,21 @@ msgstr "桌面图标上的名字跟随手机系统语言，这里切换不会改
 msgid "检查中"
 msgstr "检查中"
 
+#: src/pages/SettingsPage.tsx
+msgid "检查中…"
+msgstr "检查中…"
+
+#: src/pages/SettingsPage.tsx
+msgid "检查失败"
+msgstr "检查失败"
+
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "检查形状…"
 msgstr "检查形状…"
+
+#: src/pages/SettingsPage.tsx
+msgid "检查更新"
+msgstr "检查更新"
 
 #: src/components/support/VoiceMixer.tsx
 msgid "模板名字（必填，例：清冷知性）"
@@ -3105,6 +3398,10 @@ msgstr "正在保存另一条作品，等它完成或点停止再来。"
 msgid "正在取最新的角色位…"
 msgstr "正在取最新的角色位…"
 
+#: src/pages/SettingsBlockedPage.tsx
+msgid "正在取名单…"
+msgstr "正在取名单…"
+
 #: src/components/flow/SegmentRecoverCards.tsx
 #: src/components/TemplateShelf.tsx
 msgid "正在取回…"
@@ -3122,6 +3419,10 @@ msgstr "正在取这一帧…"
 msgid "正在取这一段的视频地址…"
 msgstr "正在取这一段的视频地址…"
 
+#: src/pages/OauthCallbackPage.tsx
+msgid "正在完成登录…"
+msgstr "正在完成登录…"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "正在把「人偶 → 角色」合成一段话…"
 msgstr "正在把「人偶 → 角色」合成一段话…"
@@ -3137,6 +3438,10 @@ msgstr "正在标「脸部特写」：拖到看得清脸的一帧，圈住面部
 #: src/components/AuthPending.tsx
 msgid "正在确认登录状态…"
 msgstr "正在确认登录状态…"
+
+#: src/pages/SettingsStoragePage.tsx
+msgid "正在算可清理的空间…"
+msgstr "正在算可清理的空间…"
 
 #: src/components/support/SupportStage.tsx
 msgid "正在请小梦出场…"
@@ -3170,6 +3475,10 @@ msgstr "段间承接"
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "每个位子原来是谁（{0} 个）"
 msgstr "每个位子原来是谁（{0} 个）"
+
+#: src/pages/SettingsPage.tsx
+msgid "每个界面第一次打开时会自动放一遍使用引导，之后不再自动弹；想单独重看某一屏，点那一屏角落的<0> ? </0>就行。这里是把<1>所有</1>引导恢复成「没看过」——之后每个界面第一次打开时会重新弹一遍。"
+msgstr "每个界面第一次打开时会自动放一遍使用引导，之后不再自动弹；想单独重看某一屏，点那一屏角落的<0> ? </0>就行。这里是把<1>所有</1>引导恢复成「没看过」——之后每个界面第一次打开时会重新弹一遍。"
 
 #: src/components/CoverPicker.tsx
 msgid "每生成一版都会扣一次"
@@ -3216,6 +3525,10 @@ msgstr "没有匹配的卡组"
 msgid "没有匹配的模板，换个词试试"
 msgstr "没有匹配的模板，换个词试试"
 
+#: src/pages/SettingsStoragePage.tsx
+msgid "没有可清理的中间文件"
+msgstr "没有可清理的中间文件"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "没有带声音样本的卡——在工坊「从视频提取」圈人物时可以顺手取一段声音"
 msgstr "没有带声音样本的卡——在工坊「从视频提取」圈人物时可以顺手取一段声音"
@@ -3232,6 +3545,10 @@ msgstr "没能切换语言，请重试"
 msgid "没能删掉，请重试"
 msgstr "没能删掉，请重试"
 
+#: src/pages/SettingsBlockedPage.tsx
+msgid "没能取到黑名单（网络不通，或这台服务器还没有这个功能）"
+msgstr "没能取到黑名单（网络不通，或这台服务器还没有这个功能）"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（圈好的图还在）。"
 msgstr "没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（圈好的图还在）。"
@@ -3245,13 +3562,38 @@ msgstr "没能存进卡片库：登录态可能已失效"
 msgid "没能开始播放：{0}"
 msgstr "没能开始播放：{0}"
 
+#: src/pages/SettingsPage.tsx
+msgid "没能打开浏览器（可能被拦截了）。你可以直接访问 {url}"
+msgstr "没能打开浏览器（可能被拦截了）。你可以直接访问 {url}"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "没过审核："
 msgstr "没过审核："
 
+#: src/pages/SettingsVoicePage.tsx
+msgid "没配云端语音时退回系统内置合成器（需装中文语音包）。"
+msgstr "没配云端语音时退回系统内置合成器（需装中文语音包）。"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "沿边描出轮廓"
 msgstr "沿边描出轮廓"
+
+#: src/pages/SettingsDeactivatePage.tsx
+msgid "注销中…"
+msgstr "注销中…"
+
+#: src/pages/SettingsDeactivatePage.tsx
+msgid "注销后会发生什么"
+msgstr "注销后会发生什么"
+
+#: src/pages/SettingsDeactivatePage.tsx
+#: src/pages/SettingsPage.tsx
+msgid "注销账号"
+msgstr "注销账号"
+
+#: src/pages/SettingsDeactivatePage.tsx
+msgid "注销这个账号"
+msgstr "注销这个账号"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "混音"
@@ -3270,9 +3612,27 @@ msgstr "混音只支持 1.0 音色，语调指令对混音无效。最多 {maxMi
 msgid "清掉"
 msgstr "清掉"
 
+#: src/pages/SettingsStoragePage.tsx
+msgid "清理"
+msgstr "清理"
+
+#: src/pages/SettingsStoragePage.tsx
+msgid "清理缓存（可释放 {mbLabel} MB）"
+msgstr "清理缓存（可释放 {mbLabel} MB）"
+
+#: src/pages/SettingsStoragePage.tsx
+msgid "清理缓存（约 {mbLabel} MB）"
+msgstr "清理缓存（约 {mbLabel} MB）"
+
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/SettingsStoragePage.tsx
 msgid "清空"
 msgstr "清空"
+
+#. placeholder {0}: fmtBytes(bytes)
+#: src/pages/SettingsStoragePage.tsx
+msgid "清空已保存的视频（{0}）"
+msgstr "清空已保存的视频（{0}）"
 
 #: src/components/MaterialSheet.tsx
 msgid "清空搜索"
@@ -3336,6 +3696,12 @@ msgstr "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出�
 msgid "片段第 {0} 秒"
 msgstr "片段第 {0} 秒"
 
+#. placeholder {0}: ver.versionName
+#. placeholder {1}: ver.versionCode
+#: src/pages/SettingsPage.tsx
+msgid "版本 {0} <0>（{1}）</0>"
+msgstr "版本 {0} <0>（{1}）</0>"
+
 #: src/components/DraftSheet.tsx
 msgid "现在打不开这条草稿"
 msgstr "现在打不开这条草稿"
@@ -3373,6 +3739,10 @@ msgstr "生成结果"
 msgid "生成过程"
 msgstr "生成过程"
 
+#: src/pages/SettingsVoicePage.tsx
+msgid "用一句话描述你想要的语气，例如：请用成熟冷静的语气，语速放慢"
+msgstr "用一句话描述你想要的语气，例如：请用成熟冷静的语气，语速放慢"
+
 #: src/components/support/VoiceSheet.tsx
 msgid "用一句话描述想要的语气，例如：温柔一点，语速放慢。留空 = 跟随人格/模型"
 msgstr "用一句话描述想要的语气，例如：温柔一点，语速放慢。留空 = 跟随人格/模型"
@@ -3401,6 +3771,10 @@ msgstr "用这张"
 msgid "由 AI 自己挑：先看正中间那一帧，认不全再往两头铺，最多试 {BLOCKOUT_BOX_TRIES} 帧。<0>一镜到底、人站着不动的素材用这个就够。</0>"
 msgstr "由 AI 自己挑：先看正中间那一帧，认不全再往两头铺，最多试 {BLOCKOUT_BOX_TRIES} 帧。<0>一镜到底、人站着不动的素材用这个就够。</0>"
 
+#: src/pages/SettingsPage.tsx
+msgid "由应用商店负责更新"
+msgstr "由应用商店负责更新"
+
 #: src/components/support/VoiceMixer.tsx
 msgid "男"
 msgstr "男"
@@ -3427,6 +3801,11 @@ msgstr "画面上还有一个白色人偶没列出来？把它加回来"
 msgid "画面尺寸（{0}×{1}）与时长是这台设备解出来的； 上传后服务器会按它自己读到的值再核一次，对不上会在开始计算<0>之前</0>拒掉（不扣费）。"
 msgstr "画面尺寸（{0}×{1}）与时长是这台设备解出来的； 上传后服务器会按它自己读到的值再核一次，对不上会在开始计算<0>之前</0>拒掉（不扣费）。"
 
+#: src/pages/SettingsPage.tsx
+#: src/pages/SettingsQualityPage.tsx
+msgid "画面质量"
+msgstr "画面质量"
+
 #: src/components/flow/RefFrameSheet.tsx
 msgid "画面还没就绪——等视频出画面再点"
 msgstr "画面还没就绪——等视频出画面再点"
@@ -3451,6 +3830,10 @@ msgstr "留空 = 跟随人格/模型：{0}"
 #: src/components/BlockButton.tsx
 msgid "登录之后才能拉黑。"
 msgstr "登录之后才能拉黑。"
+
+#: src/pages/SettingsBlockedPage.tsx
+msgid "登录之后才能管理黑名单。"
+msgstr "登录之后才能管理黑名单。"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "登记素材…"
@@ -3509,6 +3892,10 @@ msgstr "相机没有交回照片"
 #: src/utils/nativeCamera.ts
 msgid "相机照片存不下来（存储可能已满）"
 msgstr "相机照片存不下来（存储可能已满）"
+
+#: src/pages/SettingsPage.tsx
+msgid "看名单 · 随时解除"
+msgstr "看名单 · 随时解除"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "看这一段成片"
@@ -3571,6 +3958,10 @@ msgstr "确认删除"
 msgid "确认卡面"
 msgstr "确认卡面"
 
+#: src/pages/SettingsDeactivatePage.tsx
+msgid "确认注销，请原样输入你的用户名 <0>{username}</0>（区分大小写，不含多余空格）："
+msgstr "确认注销，请原样输入你的用户名 <0>{username}</0>（区分大小写，不含多余空格）："
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "示例图没存上：{why}"
 msgstr "示例图没存上：{why}"
@@ -3606,6 +3997,10 @@ msgstr "视频提取卡组"
 #: src/components/CoverPicker.tsx
 msgid "视频未就绪"
 msgstr "视频未就绪"
+
+#: src/pages/TemplateMarketPage.tsx
+msgid "视频模板"
+msgstr "视频模板"
 
 #: src/components/flow/SegPlayer.tsx
 #: src/utils/videoFrames.ts
@@ -3740,6 +4135,10 @@ msgstr "第 {rel} 秒"
 msgid "第 {s} 段"
 msgstr "第 {s} 段"
 
+#: src/pages/OauthCallbackPage.tsx
+msgid "第三方登录未完成"
+msgstr "第三方登录未完成"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "第二种：<0>相邻两行的位置排反了</0>（清单说他是从左数第 2 个， 画面上他其实是第 3 个）。把这两行的位置互换过来就行，同样不用重炼。"
 msgstr "第二种：<0>相邻两行的位置排反了</0>（清单说他是从左数第 2 个， 画面上他其实是第 3 个）。把这两行的位置互换过来就行，同样不用重炼。"
@@ -3752,6 +4151,10 @@ msgstr "等待中"
 #: src/components/flow/SkillPanel.tsx
 msgid "算了"
 msgstr "算了"
+
+#: src/pages/SettingsPage.tsx
+msgid "管理后台"
+msgstr "管理后台"
 
 #: src/components/TokenCost.tsx
 msgid "管理员免扣费：这一步最多值 {amount} token，不从你的钱包里扣"
@@ -3813,6 +4216,10 @@ msgstr "绘制中…"
 msgid "给 {0} 个人偶挂上你的角色卡"
 msgstr "给 {0} 个人偶挂上你的角色卡"
 
+#: src/pages/SettingsPage.tsx
+msgid "给小梦换一套 Live2D 形象"
+msgstr "给小梦换一套 Live2D 形象"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "给这一段选个白模模板"
 msgstr "给这一段选个白模模板"
@@ -3842,6 +4249,11 @@ msgstr "编号 {0} 上挂着的卡<0>不会生效</0>：这些位子超出了一
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "编号还没核对：AI 编的号可能与画面上人偶头上的数字对不上，<0>核对之前不能发布</0>（对不上会让别人的角色卡换到别人身上）。点这里去核对。"
 msgstr "编号还没核对：AI 编的号可能与画面上人偶头上的数字对不上，<0>核对之前不能发布</0>（对不上会让别人的角色卡换到别人身上）。点这里去核对。"
+
+#: src/pages/SettingsPage.tsx
+#: src/pages/SettingsProfilePage.tsx
+msgid "编辑资料"
+msgstr "编辑资料"
 
 #: src/components/AvatarPicker.tsx
 msgid "缩放"
@@ -3877,6 +4289,14 @@ msgstr "自动查授权没成：{0}"
 msgid "自定义"
 msgstr "自定义"
 
+#: src/pages/SupportCreatePage.tsx
+msgid "自己做数字人的三样东西：长什么样、什么嗓子、怎么说话。做好的可以自己用，也可以公开到市场给别人用。"
+msgstr "自己做数字人的三样东西：长什么样、什么嗓子、怎么说话。做好的可以自己用，也可以公开到市场给别人用。"
+
+#: src/pages/SettingsPage.tsx
+msgid "自己做模型 · 音频 · 人格，可发布到市场"
+msgstr "自己做模型 · 音频 · 人格，可发布到市场"
+
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "自己挑"
@@ -3894,6 +4314,14 @@ msgstr "若安装时提示「应用未安装」，多半是早期测试包的签
 msgid "草稿"
 msgstr "草稿"
 
+#: src/pages/DraftsPage.tsx
+msgid "草稿只存在这台设备上；超过 {MAX_DRAFTS} 条会从最旧的清起。每炼成一段都会自动存进当前草稿。"
+msgstr "草稿只存在这台设备上；超过 {MAX_DRAFTS} 条会从最旧的清起。每炼成一段都会自动存进当前草稿。"
+
+#: src/pages/DraftsPage.tsx
+msgid "草稿箱"
+msgstr "草稿箱"
+
 #: src/components/flow/SkillPanel.tsx
 msgid "装"
 msgstr "装"
@@ -3901,6 +4329,14 @@ msgstr "装"
 #: src/components/PortraitAuthPanel.tsx
 msgid "要授权的是<0>别人</0>？让他用自己的手机扫这个码 —— 活体认证必须在<1>他本人</1>的手机上、用他自己的火山账号做， 这正是这份授权有效的原因。"
 msgstr "要授权的是<0>别人</0>？让他用自己的手机扫这个码 —— 活体认证必须在<1>他本人</1>的手机上、用他自己的火山账号做， 这正是这份授权有效的原因。"
+
+#: src/pages/SettingsBlockedPage.tsx
+msgid "解除"
+msgstr "解除"
+
+#: src/pages/SettingsBlockedPage.tsx
+msgid "解除中…"
+msgstr "解除中…"
 
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "认好了 ✓"
@@ -3917,6 +4353,10 @@ msgstr "设为我的声音"
 #: src/components/flow/RefFrameSheet.tsx
 msgid "设为首帧"
 msgstr "设为首帧"
+
+#: src/pages/SettingsPage.tsx
+msgid "设置"
+msgstr "设置"
 
 #: src/components/support/VoiceMarket.tsx
 msgid "设置中…"
@@ -3955,10 +4395,12 @@ msgid "试听没出声，稍后再试。"
 msgstr "试听没出声，稍后再试。"
 
 #: src/components/support/VoiceSheet.tsx
+#: src/pages/SettingsVoicePage.tsx
 msgid "语调指令"
 msgstr "语调指令"
 
 #: src/components/support/VoiceSheet.tsx
+#: src/pages/SettingsVoicePage.tsx
 msgid "语速"
 msgstr "语速"
 
@@ -4006,6 +4448,7 @@ msgstr "读不到音色目录"
 #: src/components/CoverPicker.tsx
 #: src/components/flow/CustomFrameSlots.tsx
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/SettingsStoragePage.tsx
 msgid "读取中…"
 msgstr "读取中…"
 
@@ -4021,6 +4464,10 @@ msgstr "读取音色目录…"
 #: src/components/VisibilityPicker.tsx
 msgid "谁能看到"
 msgstr "谁能看到"
+
+#: src/pages/SettingsVoicePage.tsx
+msgid "调和"
+msgstr "调和"
 
 #: src/components/AvatarPicker.tsx
 msgid "调整头像"
@@ -4062,6 +4509,11 @@ msgstr "跟随人格/模型"
 msgid "跟随系统（{0}）"
 msgstr "跟随系统（{0}）"
 
+#. placeholder {0}: rateLabel(currentVoice().rate ?? 0)
+#: src/pages/SettingsVoicePage.tsx
+msgid "跟随音色（{0}）"
+msgstr "跟随音色（{0}）"
+
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "跳到第 {at} 秒"
 msgstr "跳到第 {at} 秒"
@@ -4073,6 +4525,10 @@ msgstr "载入成片…"
 #: src/components/flow/SkillPanel.tsx
 msgid "输入条里先打好那句话，再来存成技能"
 msgstr "输入条里先打好那句话，再来存成技能"
+
+#: src/pages/SettingsDeactivatePage.tsx
+msgid "输入的用户名还对不上"
+msgstr "输入的用户名还对不上"
 
 #: src/components/AvatarPicker.tsx
 #: src/components/IconTapButton.tsx
@@ -4138,6 +4594,10 @@ msgstr "还没有白模模板——去模板市场逛逛"
 #: src/components/MaterialSheet.tsx
 msgid "还没有素材卡"
 msgstr "还没有素材卡"
+
+#: src/pages/DraftsPage.tsx
+msgid "还没有草稿——工坊和工作流里做到一半的工程都会存到这里"
+msgstr "还没有草稿——工坊和工作流里做到一半的工程都会存到这里"
 
 #: src/components/CommentSheet.tsx
 msgid "还没有评论，抢个沙发"
@@ -4236,6 +4696,10 @@ msgstr "这一秒已经标过了（播放头刚好落回同一帧）。"
 #: src/components/TemplateShelf.tsx
 msgid "这一组模板暂时套不了"
 msgstr "这一组模板暂时套不了"
+
+#: src/pages/SettingsBlockedPage.tsx
+msgid "这不代表名单是空的"
+msgstr "这不代表名单是空的"
 
 #: src/components/PortraitAuthPanel.tsx
 msgid "这不像方舟的资产 ID —— 应该长成 asset-20260401123823-6d4x2 这样（在方舟控制台点「复制 asset ID」拿到）"
@@ -4358,6 +4822,10 @@ msgstr "这台服务器还没有可混音的 1.0 音色目录（服务端需要�
 #: src/utils/nativeCamera.ts
 msgid "这台设备处理不了照片（画布不可用）"
 msgstr "这台设备处理不了照片（画布不可用）"
+
+#: src/pages/SettingsVoicePage.tsx
+msgid "这台设备既没有云端语音，系统也没装中文语音包，试听不了"
+msgstr "这台设备既没有云端语音，系统也没装中文语音包，试听不了"
 
 #: src/utils/nativeCamera.ts
 msgid "这台设备没有可用的相机"
@@ -4526,9 +4994,21 @@ msgstr "进卡的那一张"
 msgid "进行中…"
 msgstr "进行中…"
 
+#: src/pages/SettingsPage.tsx
+msgid "退出"
+msgstr "退出"
+
 #: src/components/ReviseBar.tsx
 msgid "退出回炉"
 msgstr "退出回炉"
+
+#: src/pages/SettingsPage.tsx
+msgid "退出登录"
+msgstr "退出登录"
+
+#: src/pages/SettingsPage.tsx
+msgid "退出登录？"
+msgstr "退出登录？"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "退出编辑"
@@ -4622,6 +5102,14 @@ msgstr "重新核对编号 —— 画面上有两个一样的号？有个号找�
 msgid "重新识别角色位"
 msgstr "重新识别角色位"
 
+#: src/pages/SettingsPage.tsx
+msgid "重看各个界面的使用说明"
+msgstr "重看各个界面的使用说明"
+
+#: src/pages/SettingsPage.tsx
+msgid "重看所有新手引导"
+msgstr "重看所有新手引导"
+
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "重认会<0>覆盖现有描述</0>（你自己改过的也会没），按一次收一次费；核对过之后不能再重认。"
 msgstr "重认会<0>覆盖现有描述</0>（你自己改过的也会没），按一次收一次费；核对过之后不能再重认。"
@@ -4629,8 +5117,14 @@ msgstr "重认会<0>覆盖现有描述</0>（你自己改过的也会没），�
 #: src/components/blockout/VideoStage.tsx
 #: src/components/flow/SegPlayer.tsx
 #: src/components/UpdateSheet.tsx
+#: src/pages/SettingsBlockedPage.tsx
 msgid "重试"
 msgstr "重试"
+
+#: src/pages/SettingsPage.tsx
+#: src/pages/SettingsVoicePage.tsx
+msgid "铸卡师的声音"
+msgstr "铸卡师的声音"
 
 #. placeholder {0}: plan.segments.length
 #: src/components/flow/ScriptSkillSheet.tsx
@@ -4644,6 +5138,10 @@ msgstr "铺进去的每一段都是已挑定的一套方案（镜头字段会进
 #: src/components/PortraitAuthPanel.tsx
 msgid "链接已复制，可以发给本人"
 msgstr "链接已复制，可以发给本人"
+
+#: src/pages/SettingsPage.tsx
+msgid "问小梦，解决不了转人工"
+msgstr "问小梦，解决不了转人工"
 
 #: src/components/CoverPicker.tsx
 msgid "隐藏遮挡"
