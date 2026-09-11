@@ -665,11 +665,6 @@ msgstr "{0} 段 · 已出片 {1}"
 msgid "{0} 段 · 已出片 {1} · {2}改过"
 msgstr "{0} 段 · 已出片 {1} · {2}改过"
 
-#. placeholder {0}: video.author
-#: src/pages/FeedPage.tsx
-msgid "{0} 的主页"
-msgstr "{0} 的主页"
-
 #. placeholder {0}: partial.lost.slice(0, 3).join(listSep)
 #. placeholder {1}: partial.lost.length
 #. placeholder {2}: partial.reason ?? reasonUpload
@@ -838,6 +833,7 @@ msgstr "{cardN} 张卡 × 最多 {0} 张图 · 按真正调用了几次出图算
 msgid "{count} 张"
 msgstr "{count} 张"
 
+#: src/pages/FeedPage.tsx
 #: src/pages/ProfilePage.tsx
 msgid "{display} 的主页"
 msgstr "{display} 的主页"
@@ -1085,12 +1081,6 @@ msgstr "《{0}》 {1} 个文件 · {2}"
 msgid "《{0}》卡组"
 msgstr "《{0}》卡组"
 
-#. placeholder {0}: first.draft.title
-#. placeholder {1}: first.error
-#: src/pages/ProfilePage.tsx
-msgid "「{0}」{1}"
-msgstr "「{0}」{1}"
-
 #. placeholder {0}: strayRemoved.join("」「")
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "「{0}」上挂着的卡<0>不会生效</0>：模板作者在核对位置时<1>删掉了这个位子</1>（多半是因为画面上那个人根本没被换成人偶）。那个人偶会保持原样出现。"
@@ -1247,6 +1237,16 @@ msgstr "「{names}」那张是按道具卡抠好的主体图，当不了{nextLab
 #: src/pages/FlowPage.tsx
 msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」"
 msgstr "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」"
+
+#. 个人页「还没传到服务器」横幅：只有作品标题（这一条没记下没传上去的原因）
+#: src/pages/ProfilePage.tsx
+msgid "「{title}」"
+msgstr "「{title}」"
+
+#. 个人页「还没传到服务器」横幅：作品标题，后面紧跟上一次没传上去的原因（why 是一整句，可能是服务器原话）
+#: src/pages/ProfilePage.tsx
+msgid "「{title}」{why}"
+msgstr "「{title}」{why}"
 
 #. placeholder {0}: hits.length
 #: src/studio/canvasAgent.ts
@@ -2680,6 +2680,11 @@ msgstr "上下滑着看"
 msgid "上传 Live2D 模型"
 msgstr "上传 Live2D 模型"
 
+#. 个人页「还没传到服务器」横幅：接在作品标题后面的原因。一整句，句末不加句号
+#: src/data/videos.ts
+msgid "上传中（App 被关掉的话，下次启动会自动重试）"
+msgstr "上传中（App 被关掉的话，下次启动会自动重试）"
+
 #: src/api/uploads.ts
 msgid "上传中断了（网络不可用）"
 msgstr "上传中断了（网络不可用）"
@@ -2747,9 +2752,19 @@ msgstr "上传本段设定帧 {0}/{1}…"
 msgid "上传自己的 Live2D 包（zip），对好动作、表情和触摸区，就能给数字人换上。"
 msgstr "上传自己的 Live2D 包（zip），对好动作、表情和触摸区，就能给数字人换上。"
 
+#. 上传失败的原因，两处用：① 个人页「还没传到服务器」横幅上接在作品标题后面；② 回炉失败的回执里嵌进另一句（中文放在括号里）。一整句，句末不加句号
+#: src/data/videos.ts
+msgid "上传被拒（作品体积较大，可能是服务器的请求体上限）"
+msgstr "上传被拒（作品体积较大，可能是服务器的请求体上限）"
+
 #: src/api/uploads.ts
 msgid "上传超时：这份 {mb} 在 {secs} 秒内没传完。不是断网——是这条网推不完这么大的文件（手机上行常见只有 1Mbps 上下，47MB 就要六分钟）。换个更快的网络，或者先把视频压小再传。"
 msgstr "上传超时：这份 {mb} 在 {secs} 秒内没传完。不是断网——是这条网推不完这么大的文件（手机上行常见只有 1Mbps 上下，47MB 就要六分钟）。换个更快的网络，或者先把视频压小再传。"
+
+#. 上传失败的原因，两处用：① 个人页「还没传到服务器」横幅上接在作品标题后面；② 回炉失败的回执里嵌进另一句（中文放在括号里）。一整句，句末不加句号
+#: src/data/videos.ts
+msgid "上传超时（网络太慢或作品太大）"
+msgstr "上传超时（网络太慢或作品太大）"
 
 #: src/components/VoiceUploadButton.tsx
 msgid "上传音频"
@@ -2782,6 +2797,11 @@ msgstr "上次查到的已授权素材（正在向方舟刷新…）："
 #: src/components/PortraitAuthPanel.tsx
 msgid "上次查到的已授权素材（这次没能向方舟刷新，原因见下；仍可点一份接上）："
 msgstr "上次查到的已授权素材（这次没能向方舟刷新，原因见下；仍可点一份接上）："
+
+#. 个人页「还没传到服务器」横幅：接在作品标题后面的原因（老版本存下的条目，没记具体原因）。句末不加句号
+#: src/data/videos.ts
+msgid "上次没传上去"
+msgstr "上次没传上去"
 
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "上段结尾"
@@ -3036,6 +3056,10 @@ msgstr "不用模板（退回普通段）"
 #: src/pages/CreatePage.tsx
 msgid "不用素材卡，直接写"
 msgstr "不用素材卡，直接写"
+
+#: src/data/videos.ts
+msgid "不知道这是谁（链接里没有用户 id）"
+msgstr "不知道这是谁（链接里没有用户 id）"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "不筛，全都要"
@@ -3455,6 +3479,7 @@ msgstr "作品、卡片和钱包都记在服务器上，重新登录同一账号
 msgid "作品不存在"
 msgstr "作品不存在"
 
+#: src/data/videos.ts
 #: src/pages/EditPage.tsx
 msgid "作品不存在或已删除"
 msgstr "作品不存在或已删除"
@@ -4983,6 +5008,7 @@ msgid "包里没有找到 *.model3.json。它是 Cubism 4（Version 3）导出�
 msgstr "包里没有找到 *.model3.json。它是 Cubism 4（Version 3）导出的入口文件，缺了它我们不知道该加载什么。"
 
 #: src/components/support/VoiceMarket.tsx
+#: src/data/videos.ts
 #: src/pages/SupportModelsPage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "匿名"
@@ -5177,6 +5203,7 @@ msgstr "原因：{0}。<0>它现在只在这次会话里活着</0> —— 你现
 
 #: src/data/account.ts
 #: src/data/projects.ts
+#: src/data/videos.ts
 #: src/pages/EditPage.tsx
 msgid "原因不明"
 msgstr "原因不明"
@@ -6122,10 +6149,14 @@ msgstr "回去看看 ›"
 msgid "回复"
 msgstr "回复"
 
-#. placeholder {0}: replyTo.author
 #: src/components/CommentSheet.tsx
-msgid "回复 @{0}"
-msgstr "回复 @{0}"
+msgid "回复 @{replyName}"
+msgstr "回复 @{replyName}"
+
+#: src/components/CommentSheet.tsx
+msgctxt "评论输入区「正在回复谁」：回复的是正在看的人自己发的那条评论"
+msgid "回复 @我"
+msgstr "回复 @我"
 
 #: src/pages/NotificationsPage.tsx
 msgid "回复了你的评论"
@@ -8015,10 +8046,20 @@ msgstr "成片还在载入，稍等一下再截"
 msgid "成片预览（各段按时间线依次播放）"
 msgstr "成片预览（各段按时间线依次播放）"
 
+#: src/data/videos.ts
+msgctxt "作者名：这条作品 / 评论就是正在看的人自己发的（离线时自动署的名，或账号没有昵称时的兜底名）"
+msgid "我"
+msgstr "我"
+
 #: src/pages/SupportPage.tsx
 msgctxt "工单回复前的署名：这条是我自己补充的"
 msgid "我"
 msgstr "我"
+
+#: src/pages/FeedPage.tsx
+msgctxt "首页头像键的读屏名：这条作品是正在看的人自己发的，点进去是自己的主页"
+msgid "我 的主页"
+msgstr "我 的主页"
 
 #: src/pages/SettingsPage.tsx
 msgid "我们对涉及未成年人内容的立场与处理方式（在官网打开）"
@@ -9638,6 +9679,23 @@ msgstr "服务器会解开包、数出它会哪些动作和表情，并给一份
 msgid "服务器正在解包识别…"
 msgstr "服务器正在解包识别…"
 
+#: src/data/videos.ts
+msgid "服务器没有正常返回这条作品"
+msgstr "服务器没有正常返回这条作品"
+
+#. 个人页「还没传到服务器」横幅：接在作品标题后面的原因。一整句，句末不加句号
+#: src/data/videos.ts
+msgid "服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）"
+msgstr "服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）"
+
+#: src/data/videos.ts
+msgid "服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）。"
+msgstr "服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）。"
+
+#: src/data/videos.ts
+msgid "服务器没有正常返回这条评论，请稍后重试"
+msgstr "服务器没有正常返回这条评论，请稍后重试"
+
 #: src/api/companion.ts
 msgid "服务器没有返回建好的模型（可能是旧版服务端），没有创建成功。"
 msgstr "服务器没有返回建好的模型（可能是旧版服务端），没有创建成功。"
@@ -9657,6 +9715,11 @@ msgstr "服务器没能删掉这个卡组（{why}）。本地这份先留着—�
 #: src/data/account.ts
 msgid "服务器没能删掉这张卡（{why}）。本地这份先留着——删了它下次登录也会回来。"
 msgstr "服务器没能删掉这张卡（{why}）。本地这份先留着——删了它下次登录也会回来。"
+
+#. 删除作品失败的回执。why：服务器的原话（截 40 字），拿不到时是「原因不明」
+#: src/data/videos.ts
+msgid "服务器没能删掉这条作品（{why}）。本地这份先留着——删了它下次启动也会回来。"
+msgstr "服务器没能删掉这条作品（{why}）。本地这份先留着——删了它下次启动也会回来。"
 
 #: src/components/support/VoiceMixer.tsx
 #: src/pages/SupportPage.tsx
@@ -10889,6 +10952,11 @@ msgstr "没能同步到服务器（{why}）——改动已撤回，联网后再�
 msgid "没能同步到服务器（{why}）——改动已撤回，联网后再试一次。"
 msgstr "没能同步到服务器（{why}）——改动已撤回，联网后再试一次。"
 
+#. 编辑作品（标题 / 简介 / 封面等）没同步上去的回执。why：服务器的原话（截 40 字），拿不到时是「原因不明」
+#: src/data/videos.ts
+msgid "没能同步到服务器（{why}）——改动已撤回。"
+msgstr "没能同步到服务器（{why}）——改动已撤回。"
+
 #: src/pages/AdminPage.tsx
 msgid "没能处理，请重试"
 msgstr "没能处理，请重试"
@@ -10931,9 +10999,18 @@ msgstr "没能打开这条作品：{failErr}"
 msgid "没能改成「仅自己可见」：{why}"
 msgstr "没能改成「仅自己可见」：{why}"
 
+#. 回炉失败的回执（发布页横幅）。reason：失败的原因 ——「上传被拒（…）」「上传超时（…）」这类整句，或接口的原话。原因本身常带括号，英文别再给它套一层，可以挪到句末
+#: src/data/videos.ts
+msgid "没能替换（{reason}）。合成稿还留在「我的」里，网络好了再试一次。"
+msgstr "没能替换（{reason}）。合成稿还留在「我的」里，网络好了再试一次。"
+
 #: src/data/projects.ts
 msgid "没能留存工坊工程（本机那份画布已经不在了）——作品已经发出去了，只是这条暂时不能回炉。"
 msgstr "没能留存工坊工程（本机那份画布已经不在了）——作品已经发出去了，只是这条暂时不能回炉。"
+
+#: src/data/videos.ts
+msgid "没能连上服务器搜索"
+msgstr "没能连上服务器搜索"
 
 #: src/studio/stage/StageOverlay.tsx
 msgid "没融成"
@@ -13054,6 +13131,11 @@ msgstr "素材库"
 msgid "素材库里还没有可挂的人物卡"
 msgstr "素材库里还没有可挂的人物卡"
 
+#. 回炉失败的回执（发布页横幅）。reason：上传失败的原因 ——「上传被拒（…）」「上传超时（…）」这类整句，或上传接口 / 本机抛的原话。原因本身常带括号，英文别再给它套一层，可以挪到句末
+#: src/data/videos.ts
+msgid "素材没能全部上传（{reason}）。内容没有被替换，合成稿还留在「我的」里。"
+msgstr "素材没能全部上传（{reason}）。内容没有被替换，合成稿还留在「我的」里。"
+
 #: src/pages/AdminPage.tsx
 msgid "素材点赞"
 msgstr "素材点赞"
@@ -13421,7 +13503,11 @@ msgid "若安装时提示「应用未安装」，多半是早期测试包的签�
 msgstr "若安装时提示「应用未安装」，多半是早期测试包的签名不同，先卸载旧版再装即可"
 
 #: src/components/TemplateShelf.tsx
+msgid "草稿"
+msgstr "草稿"
+
 #: src/pages/ProfilePage.tsx
+msgctxt "主页页签：我存下的那些草稿（名词，整个页签的名字；不是某一条的「草稿」状态角标）"
 msgid "草稿"
 msgstr "草稿"
 
@@ -15307,6 +15393,10 @@ msgstr "这台服务器还不支持删除（需要升级服务端）"
 msgid "这台服务器还不支持删除弹幕（需要升级服务端）"
 msgstr "这台服务器还不支持删除弹幕（需要升级服务端）"
 
+#: src/data/videos.ts
+msgid "这台服务器还不支持删除评论（需要升级服务端）"
+msgstr "这台服务器还不支持删除评论（需要升级服务端）"
+
 #: src/api/admin.ts
 msgid "这台服务器还不支持删除账号（需要升级服务端）"
 msgstr "这台服务器还不支持删除账号（需要升级服务端）"
@@ -15314,6 +15404,10 @@ msgstr "这台服务器还不支持删除账号（需要升级服务端）"
 #: src/api/admin.ts
 msgid "这台服务器还不支持发平台通知（需要升级服务端）"
 msgstr "这台服务器还不支持发平台通知（需要升级服务端）"
+
+#: src/data/videos.ts
+msgid "这台服务器还不支持回炉重做——成片内容没有被替换（但标题、简介、封面这些改动已经生效了）。合成稿还留在「我的」里，等服务器更新后再试一次。"
+msgstr "这台服务器还不支持回炉重做——成片内容没有被替换（但标题、简介、封面这些改动已经生效了）。合成稿还留在「我的」里，等服务器更新后再试一次。"
 
 #: src/pages/EditPage.tsx
 msgid "这台服务器还不支持回炉重做。等服务器更新后再试。"
@@ -15675,6 +15769,10 @@ msgstr "这是铸造这张卡时使用的完整生成提示词。"
 msgid "这条作品<0>至少</0>有 {danmakuCount} 条弹幕（只数到这么多，实际更多）。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以会被<1>全部</1>清空，且无法恢复。"
 msgstr "这条作品<0>至少</0>有 {danmakuCount} 条弹幕（只数到这么多，实际更多）。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以会被<1>全部</1>清空，且无法恢复。"
 
+#: src/data/videos.ts
+msgid "这条作品不在这台设备上，刷新一下再试"
+msgstr "这条作品不在这台设备上，刷新一下再试"
+
 #: src/pages/VideoPage.tsx
 msgid "这条作品不存在，或已被作者删除"
 msgstr "这条作品不存在，或已被作者删除"
@@ -15682,6 +15780,10 @@ msgstr "这条作品不存在，或已被作者删除"
 #: src/pages/EditPage.tsx
 msgid "这条作品别人看不到，没有观众会收到通知。"
 msgstr "这条作品别人看不到，没有观众会收到通知。"
+
+#: src/data/videos.ts
+msgid "这条作品已经不在了。"
+msgstr "这条作品已经不在了。"
 
 #: src/pages/EditPage.tsx
 msgid "这条作品已经有 {plays} 次播放、{saves} 个人收藏。重新剪辑之后，同一个链接下的内容会变，收藏过它的人会收到一条「你收藏的作品重新剪辑过了」。"
@@ -15698,6 +15800,10 @@ msgstr "这条作品已被平台下架"
 #: src/pages/EditPage.tsx
 msgid "这条作品已被平台下架，下架期间不能改内容。"
 msgstr "这条作品已被平台下架，下架期间不能改内容。"
+
+#: src/data/videos.ts
+msgid "这条作品既没传上去、也没能存进待发队列——先别关 App，清点一下存储空间再发一次"
+msgstr "这条作品既没传上去、也没能存进待发队列——先别关 App，清点一下存储空间再发一次"
 
 #: src/pages/EditPage.tsx
 msgid "这条作品有 {danmakuCount} 条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以会被清空，且无法恢复。"
@@ -15723,7 +15829,12 @@ msgstr "这条作品设为按分集收费，不能换内容。"
 msgid "这条作品还在上传，传完再回炉。"
 msgstr "这条作品还在上传，传完再回炉。"
 
+#: src/data/videos.ts
+msgid "这条作品还没同步到服务器，稍后再来评论"
+msgstr "这条作品还没同步到服务器，稍后再来评论"
+
 #: src/data/danmaku.ts
+#: src/data/videos.ts
 msgid "这条作品还没同步到服务器，稍后再试"
 msgstr "这条作品还没同步到服务器，稍后再试"
 
@@ -15734,6 +15845,10 @@ msgstr "这条合成好的成片和填好的标题、简介会被丢掉，回到
 #: src/pages/PublishPage.tsx
 msgid "这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。《{originTitle}》不受影响，还是现在这一版。"
 msgstr "这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。《{originTitle}》不受影响，还是现在这一版。"
+
+#: src/data/videos.ts
+msgid "这条合成稿一段内容都没有，替换不了。回工坊补一段再来。"
+msgstr "这条合成稿一段内容都没有，替换不了。回工坊补一段再来。"
 
 #: src/data/videoDownload.ts
 msgid "这条已被平台下架，不能保存到本地。"
@@ -15785,6 +15900,14 @@ msgstr "这条片的故事背景 / 简介（只以文字参与出片）"
 msgid "这条草稿的内容已丢失，已从列表移除"
 msgstr "这条草稿的内容已丢失，已从列表移除"
 
+#: src/data/videos.ts
+msgid "这条评论还在发送中，等它发出去之后再删"
+msgstr "这条评论还在发送中，等它发出去之后再删"
+
+#: src/data/videos.ts
+msgid "这条评论还在发送中，等它发出去之后再回复"
+msgstr "这条评论还在发送中，等它发出去之后再回复"
+
 #: src/components/CommentSheet.tsx
 msgid "这条评论还在发送中，等它发出去之后才能回复"
 msgstr "这条评论还在发送中，等它发出去之后才能回复"
@@ -15809,6 +15932,11 @@ msgstr "这条音频是空的"
 msgid "这样裁完只剩不到 {MIN_CLIP_SEC} 秒，片段太短了"
 msgstr "这样裁完只剩不到 {MIN_CLIP_SEC} 秒，片段太短了"
 
+#. 个人页「还没传到服务器」横幅：接在作品标题后面的原因。一整句，句末不加句号
+#: src/data/videos.ts
+msgid "这次启动没连上服务器，作品先存在这台设备上——联网后会自动上传"
+msgstr "这次启动没连上服务器，作品先存在这台设备上——联网后会自动上传"
+
 #. placeholder {0}: doomed.length
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "这次提交会删掉位置 <0>{doomedList}</0> 共 {0} 个角色位，<1>其余位子一个都不动</1>。"
@@ -15832,6 +15960,10 @@ msgstr "这次提交会删掉编号 <0>{doomedList}</0> 这一个角色位，<1>
 msgid "这次没取到这张卡：{0}"
 msgstr "这次没取到这张卡：{0}"
 
+#: src/data/videos.ts
+msgid "这次没连上服务器，内容没有被替换。合成稿还留在「我的」里，联网后再试一次。"
+msgstr "这次没连上服务器，内容没有被替换。合成稿还留在「我的」里，联网后再试一次。"
+
 #: src/pages/WorkshopPage.tsx
 msgid "这次没连上服务器，看不到别人分享的卡"
 msgstr "这次没连上服务器，看不到别人分享的卡"
@@ -15839,6 +15971,10 @@ msgstr "这次没连上服务器，看不到别人分享的卡"
 #: src/data/account.ts
 msgid "这次没连上服务器，装不了广场上的卡——联网后再试。"
 msgstr "这次没连上服务器，装不了广场上的卡——联网后再试。"
+
+#: src/data/videos.ts
+msgid "这次没连上服务器。现在删只会删掉这台设备上的那份，下次启动它还会回来——等联网了再删。"
+msgstr "这次没连上服务器。现在删只会删掉这台设备上的那份，下次启动它还会回来——等联网了再删。"
 
 #: src/data/account.ts
 msgid "这次没连上服务器。现在删只会删掉这台设备上的那份，下次登录它还会回来——等联网了再删。"
