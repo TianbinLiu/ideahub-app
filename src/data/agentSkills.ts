@@ -14,6 +14,7 @@
 //   `schemas/agentSkill.schemas.js`、`models/AgentSkill.js`、controller 的
 //   `toSkillPayload`，以及 api/skills.ts。漏任何一处 = 发了、201 了、读回来是空的，零报错。
 import { VIDEO_PROMPT_MAX, uid } from "../types";
+import { t } from "@lingui/core/macro";
 
 export interface AgentSkill {
   id: string;
@@ -93,12 +94,12 @@ export function mineSkills(): AgentSkill[] {
  *   server 的 SKILL_TEXT_MAX 也钉着同一个 400，超了整发 400 不是截断。
  */
 export function skillIssue(d: { title?: string; text?: string; intro?: string }): string | null {
-  if (!d.title?.trim()) return "先给这条技能起个名字";
-  if (d.title.trim().length > SKILL_TITLE_MAX) return `技能名最多 ${SKILL_TITLE_MAX} 个字——太长会存不到服务器上`;
-  if (!d.text?.trim()) return "技能的本体就是那句要发给画布的话，先把它写出来";
+  if (!d.title?.trim()) return t`先给这条技能起个名字`;
+  if (d.title.trim().length > SKILL_TITLE_MAX) return t`技能名最多 ${SKILL_TITLE_MAX} 个字——太长会存不到服务器上`;
+  if (!d.text?.trim()) return t`技能的本体就是那句要发给画布的话，先把它写出来`;
   if (d.text.trim().length > VIDEO_PROMPT_MAX)
-    return `这句话超过 ${VIDEO_PROMPT_MAX} 字——输入条本来也发不出这么长，精简一下`;
-  if ((d.intro || "").trim().length > SKILL_INTRO_MAX) return `简介最多 ${SKILL_INTRO_MAX} 个字`;
+    return t`这句话超过 ${VIDEO_PROMPT_MAX} 字——输入条本来也发不出这么长，精简一下`;
+  if ((d.intro || "").trim().length > SKILL_INTRO_MAX) return t`简介最多 ${SKILL_INTRO_MAX} 个字`;
   return null;
 }
 

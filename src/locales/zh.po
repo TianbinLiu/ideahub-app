@@ -2465,6 +2465,10 @@ msgstr "一句话说清它产出什么（选方案时会显示）"
 msgid "一屏一段、逐段生成"
 msgstr "一屏一段、逐段生成"
 
+#: src/data/promptSchemes.ts
+msgid "一张卡最多存 {MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 {MAX_CARD_VIEWS} 个以内"
+msgstr "一张卡最多存 {MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 {MAX_CARD_VIEWS} 个以内"
+
 #: src/studio/structuredSkills.ts
 msgid "一整篇（{SCRIPT_MIN}~{SCRIPT_MAX} 字），故事梗概或分场脚本都行"
 msgstr "一整篇（{SCRIPT_MIN}~{SCRIPT_MAX} 字），故事梗概或分场脚本都行"
@@ -2730,6 +2734,11 @@ msgstr "下架原因：{0}"
 #: src/pages/AdminPage.tsx
 msgid "下架原因（必填，作者会看到这句话）"
 msgstr "下架原因（必填，作者会看到这句话）"
+
+#: src/data/schemeMarket.ts
+#: src/data/skillMarket.ts
+msgid "下架没成：{why}"
+msgstr "下架没成：{why}"
 
 #: src/components/UpdateSheet.tsx
 msgid "下载中 {pct}%"
@@ -3609,9 +3618,17 @@ msgstr "先给它起个名字。"
 msgid "先给视频起个标题"
 msgstr "先给视频起个标题"
 
+#: src/data/promptSchemes.ts
+msgid "先给这套方案起个名字"
+msgstr "先给这套方案起个名字"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "先给这张卡起个名字"
 msgstr "先给这张卡起个名字"
+
+#: src/data/agentSkills.ts
+msgid "先给这条技能起个名字"
+msgstr "先给这条技能起个名字"
 
 #: src/pages/SupportPage.tsx
 msgid "先说一句你遇到了什么，客服才知道从哪儿开始。"
@@ -3804,6 +3821,10 @@ msgstr "内容还在，但所有人都看不到；作者自己也改不回来"
 msgid "内容还在这台设备上，没有丢。修好网络或服务器后点重试即可。"
 msgstr "内容还在这台设备上，没有丢。修好网络或服务器后点重试即可。"
 
+#: src/data/promptSchemes.ts
+msgid "内置方案不能改示例图——先「另存为我的」，再给自己那份存示例"
+msgstr "内置方案不能改示例图——先「另存为我的」，再给自己那份存示例"
+
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "内置方案不能直接改——保存后会另存成<0>你自己的一套</0>，内置那套保持原样。"
 msgstr "内置方案不能直接改——保存后会另存成<0>你自己的一套</0>，内置那套保持原样。"
@@ -3860,6 +3881,10 @@ msgstr "再试一次"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "最多 {0} 组，已经满了"
 msgstr "最多 {0} 组，已经满了"
+
+#: src/data/cardViews.ts
+msgid "最多 {MAX_CARD_VIEWS} 张：方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征"
+msgstr "最多 {MAX_CARD_VIEWS} 张：方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征"
 
 #: src/components/TagInput.tsx
 msgid "最多 {max} 个，已经满了"
@@ -4664,6 +4689,10 @@ msgstr "原因：{0}。<0>它现在只在这次会话里活着</0> —— 你现
 msgid "原因不明"
 msgstr "原因不明"
 
+#: src/data/cardViews.ts
+msgid "原图长宽比超过 3:1，已居中裁切——Seedream 不收超出这个比例的参考图"
+msgstr "原图长宽比超过 3:1，已居中裁切——Seedream 不收超出这个比例的参考图"
+
 #. placeholder {0}: m.toFixed(1)
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "原片第 {0} 秒（选段外）"
@@ -4905,6 +4934,11 @@ msgstr "发布模型"
 #: src/pages/FlowPage.tsx
 msgid "发布模板"
 msgstr "发布模板"
+
+#: src/data/schemeMarket.ts
+#: src/data/skillMarket.ts
+msgid "发布没成：{why}"
+msgstr "发布没成：{why}"
 
 #: src/pages/PublishPage.tsx
 msgid "发布视频"
@@ -5209,6 +5243,14 @@ msgstr "只能保存自己发布的作品。"
 #: src/components/WorkshopShareBar.tsx
 msgid "只能分享自己库里的卡：先把它添加到我的卡片。"
 msgstr "只能分享自己库里的卡：先把它添加到我的卡片。"
+
+#: src/data/skillMarket.ts
+msgid "只能发布自己库里的技能"
+msgstr "只能发布自己库里的技能"
+
+#: src/data/schemeMarket.ts
+msgid "只能发布自己自建的方案（内置那几套本来就人人都有）"
+msgstr "只能发布自己自建的方案（内置那几套本来就人人都有）"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "只说话"
@@ -5544,6 +5586,14 @@ msgstr "图位（{0}/{MAX_CARD_VIEWS}）"
 #: src/pages/CustomCardPage.tsx
 msgid "图位（按方案「{0}」· {1} 格）"
 msgstr "图位（按方案「{0}」· {1} 格）"
+
+#: src/data/promptSchemes.ts
+msgid "图位「{tag}」要 AI 出图，但还没写提示词"
+msgstr "图位「{tag}」要 AI 出图，但还没写提示词"
+
+#: src/data/promptSchemes.ts
+msgid "图位名「{tag}」超过 {VIEW_TAG_MAX} 个字——太长的话这张卡会存不到服务器上"
+msgstr "图位名「{tag}」超过 {VIEW_TAG_MAX} 个字——太长的话这张卡会存不到服务器上"
 
 #: src/components/CoverPicker.tsx
 msgid "图片加载失败"
@@ -5922,6 +5972,11 @@ msgstr "安卓不让 App 直接写进相册。文件先落在 App 的缓存目�
 #: src/pages/SupportModelNewPage.tsx
 msgid "安慰"
 msgstr "安慰"
+
+#. placeholder {0}: v.url
+#: src/data/cardViews.ts
+msgid "安装包里没有这张素材（{0}）"
+msgstr "安装包里没有这张素材（{0}）"
 
 #: src/pages/SupportPersonasPage.tsx
 msgid "安装并使用"
@@ -7247,6 +7302,18 @@ msgstr "承接尾帧"
 msgid "技能名（≤{SKILL_TITLE_MAX} 字）"
 msgstr "技能名（≤{SKILL_TITLE_MAX} 字）"
 
+#: src/data/agentSkills.ts
+msgid "技能名最多 {SKILL_TITLE_MAX} 个字——太长会存不到服务器上"
+msgstr "技能名最多 {SKILL_TITLE_MAX} 个字——太长会存不到服务器上"
+
+#: src/data/skillMarket.ts
+msgid "技能市场没打开：{why}"
+msgstr "技能市场没打开：{why}"
+
+#: src/data/agentSkills.ts
+msgid "技能的本体就是那句要发给画布的话，先把它写出来"
+msgstr "技能的本体就是那句要发给画布的话，先把它写出来"
+
 #: src/pages/SupportCreatePage.tsx
 msgid "把 1～3 味豆包音色按比例调成自己的嗓子，可以发布成声音模板。"
 msgstr "把 1～3 味豆包音色按比例调成自己的嗓子，可以发布成声音模板。"
@@ -8241,6 +8308,10 @@ msgstr "方案「{0}」· {1} 个图位——这些图从哪来？"
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "方案名字（例如「白模三视图·我的版」）"
 msgstr "方案名字（例如「白模三视图·我的版」）"
+
+#: src/data/schemeMarket.ts
+msgid "方案市场没打开：{why}"
+msgstr "方案市场没打开：{why}"
 
 #. placeholder {0}: usable[0].id
 #: src/components/PortraitAuthPanel.tsx
@@ -10627,6 +10698,14 @@ msgstr "离开标记帧了，这里的落点会不准（画面上的人已经走
 msgid "离线模式下加不了参考图"
 msgstr "离线模式下加不了参考图"
 
+#: src/data/cardViews.ts
+msgid "离线模式下加不了参考图：这些图要转存成永久地址才能给 AI 用，需要先连上服务器"
+msgstr "离线模式下加不了参考图：这些图要转存成永久地址才能给 AI 用，需要先连上服务器"
+
+#: src/data/cardViews.ts
+msgid "离线模式转不出永久地址"
+msgstr "离线模式转不出永久地址"
+
 #: src/pages/AdminPage.tsx
 msgid "私密"
 msgstr "私密"
@@ -10701,6 +10780,11 @@ msgstr "立场倾向"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "第 {0} / {1} 步 · {stepLabel}"
 msgstr "第 {0} / {1} 步 · {stepLabel}"
+
+#. placeholder {0}: i + 1
+#: src/data/promptSchemes.ts
+msgid "第 {0} 个图位还没起名字（这个名字会显示在卡片详情页上）"
+msgstr "第 {0} 个图位还没起名字（这个名字会显示在卡片详情页上）"
 
 #. placeholder {0}: i + 1
 #: src/components/support/VoiceMixer.tsx
@@ -11224,6 +11308,10 @@ msgstr "等待中"
 msgid "简介"
 msgstr "简介"
 
+#: src/data/agentSkills.ts
+msgid "简介最多 {SKILL_INTRO_MAX} 个字"
+msgstr "简介最多 {SKILL_INTRO_MAX} 个字"
+
 #: src/pages/CreatePage.tsx
 #: src/pages/FlowPage.tsx
 msgid "简约模式"
@@ -11643,6 +11731,14 @@ msgstr "至少给一格图，这颗键才亮（第一张有图的就是卡面）
 msgid "至少给一格图（第一张有图的就是卡面）"
 msgstr "至少给一格图（第一张有图的就是卡面）"
 
+#: src/data/promptSchemes.ts
+msgid "至少要有一个图位——方案就是「从一张裁剪能炼出哪几张图」"
+msgstr "至少要有一个图位——方案就是「从一张裁剪能炼出哪几张图」"
+
+#: src/data/promptSchemes.ts
+msgid "至少要有一个图位不是「只展示」——全都只展示的话，出片时 AI 一张形象图都拿不到，画面里的人只能靠它自己编"
+msgstr "至少要有一个图位不是「只展示」——全都只展示的话，出片时 AI 一张形象图都拿不到，画面里的人只能靠它自己编"
+
 #: src/studio/scene/cardTexture.ts
 msgid "节点卡"
 msgstr "节点卡"
@@ -11761,6 +11857,14 @@ msgstr "装了这个形象、自己又还没挑过人格 / 声音的人，会拿
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "装备为当前人格"
 msgstr "装备为当前人格"
+
+#: src/data/schemeMarket.ts
+msgid "装这套方案没成：{why}"
+msgstr "装这套方案没成：{why}"
+
+#: src/data/skillMarket.ts
+msgid "装这条技能没成：{why}"
+msgstr "装这条技能没成：{why}"
 
 #: src/studio/ui/SchemeMarketSheet.tsx
 msgid "装进来"
@@ -12139,6 +12243,10 @@ msgstr "请先勾上授权声明再发布。"
 #: src/pages/AdminPage.tsx
 msgid "请先登录。"
 msgstr "请先登录。"
+
+#: src/data/cardViews.ts
+msgid "读不出这张打包素材"
+msgstr "读不出这张打包素材"
 
 #: src/pages/SupportPersonasPage.tsx
 msgid "读不到人格列表"
@@ -12654,6 +12762,24 @@ msgstr "还没进你的卡组，点「收下这批卡」才落账。"
 #: src/studio/ui/NpcDialog.tsx
 msgid "还没进你的卡组，点「收下这批卡」才落账。（这一档现在报不出价，重炼前先换个档位）"
 msgstr "还没进你的卡组，点「收下这批卡」才落账。（这一档现在报不出价，重炼前先换个档位）"
+
+#: src/data/schemeMarket.ts
+#: src/data/skillMarket.ts
+msgid "还没连上服务器，发布不了"
+msgstr "还没连上服务器，发布不了"
+
+#: src/data/skillMarket.ts
+msgid "还没连上服务器，技能市场用不了（本机自建的技能照常能用）"
+msgstr "还没连上服务器，技能市场用不了（本机自建的技能照常能用）"
+
+#: src/data/schemeMarket.ts
+msgid "还没连上服务器，方案市场用不了（本机自建的方案照常能用）"
+msgstr "还没连上服务器，方案市场用不了（本机自建的方案照常能用）"
+
+#: src/data/schemeMarket.ts
+#: src/data/skillMarket.ts
+msgid "还没连上服务器，装不了"
+msgstr "还没连上服务器，装不了"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "还没选。"
@@ -13212,6 +13338,10 @@ msgstr "这会儿没能取到你的卡片（{0}）"
 msgid "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
 msgstr "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
 
+#: src/data/agentSkills.ts
+msgid "这句话超过 {VIDEO_PROMPT_MAX} 字——输入条本来也发不出这么长，精简一下"
+msgstr "这句话超过 {VIDEO_PROMPT_MAX} 字——输入条本来也发不出这么长，精简一下"
+
 #: src/data/videoDownload.ts
 msgid "这台手机上没有能接收视频的应用。文件已经在 App 内，装一个文件管理器再试。"
 msgstr "这台手机上没有能接收视频的应用。文件已经在 App 内，装一个文件管理器再试。"
@@ -13360,9 +13490,17 @@ msgstr "这张卡不在你的收藏里"
 msgid "这张卡不在你的收藏里，创意工坊的广场上也没有"
 msgstr "这张卡不在你的收藏里，创意工坊的广场上也没有"
 
+#: src/data/cardViews.ts
+msgid "这张卡不在你的收藏里，改不了它的参考图"
+msgstr "这张卡不在你的收藏里，改不了它的参考图"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "这张卡声明过是真实人物，不能分享到创意工坊：肖像授权只覆盖你自己使用。"
 msgstr "这张卡声明过是真实人物，不能分享到创意工坊：肖像授权只覆盖你自己使用。"
+
+#: src/data/promptSchemes.ts
+msgid "这张卡声明过是真实人物，不能拿它的产出当方案示例图（示例是给所有人看的）"
+msgstr "这张卡声明过是真实人物，不能拿它的产出当方案示例图（示例是给所有人看的）"
 
 #: src/components/WorkshopShareBar.tsx
 msgid "这张卡挂的是第三方版权模型，未获授权前不能分享出去。"
@@ -13396,6 +13534,14 @@ msgstr "这张图在你处理的时候变了（可能在别的设备上改过）
 msgid "这张图太大了（{mb}MB，上限 {cap}MB），换一张小一点的。"
 msgstr "这张图太大了（{mb}MB，上限 {cap}MB），换一张小一点的。"
 
+#: src/data/cardViews.ts
+msgid "这张图太大了（上限 5MB）"
+msgstr "这张图太大了（上限 5MB）"
+
+#: src/data/cardViews.ts
+msgid "这张图已经不在了"
+msgstr "这张图已经不在了"
+
 #: src/components/AvatarPicker.tsx
 msgid "这张图片打不开"
 msgstr "这张图片打不开"
@@ -13417,6 +13563,14 @@ msgstr "这张图读不出来：{0}"
 #: src/pages/CustomCardPage.tsx
 msgid "这张图读不出来：{0}——换一张再试"
 msgstr "这张图读不出来：{0}——换一张再试"
+
+#: src/data/cardViews.ts
+msgid "这张打包素材尺寸读不出来"
+msgstr "这张打包素材尺寸读不出来"
+
+#: src/data/cardViews.ts
+msgid "这张打包素材解码失败"
+msgstr "这张打包素材解码失败"
 
 #: src/studio/StudioPage.tsx
 msgid "这张桌子上还没有卡——去「创意工坊」的卡片广场装几张，或用「从视频提取」现炼"
