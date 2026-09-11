@@ -6,6 +6,7 @@
 //
 // ★ 代理地址不在这里拼，走 ai/arkClient 的 fetchArkAsset：dev 是 vite 中间件、
 //   打包后是服务端，两条路径不同，而这条规则以前有四份拷贝、真机上一起坏（见那边的注释）。
+import { t } from "@lingui/core/macro";
 import { useEffect, useState } from "react";
 import { fetchArkAsset } from "../ai/arkClient";
 import { idbGet } from "../data/db";
@@ -35,7 +36,7 @@ export async function resolveMediaUrl(url: string | undefined, opts?: { forCaptu
       //   「The user aborted a request.」——既看不懂又不知道下一步（铁律八）。
       //   2026-08-20 真机实拍：跨境拉方舟 TOS 的 20MB 成片，120s 两次都拉不完，正是这句。
       if (e instanceof DOMException && e.name === "AbortError") {
-        throw new Error("取媒体超时 —— 文件较大或网络太慢，稍后重试");
+        throw new Error(t`取媒体超时 —— 文件较大或网络太慢，稍后重试`);
       }
       throw e;
     });
@@ -44,7 +45,8 @@ export async function resolveMediaUrl(url: string | undefined, opts?: { forCaptu
         await new Promise((r) => setTimeout(r, 1200));
         continue; // 代理对大文件偶发 502/网络抖动：歇口气重试一次
       }
-      throw new Error(`取媒体失败 ${res?.status ?? "网络错误"}`);
+      const code = res?.status ?? t`网络错误`;
+      throw new Error(t`取媒体失败 ${code}`);
     }
     const blob = await res.blob();
     const obj = URL.createObjectURL(blob);

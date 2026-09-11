@@ -937,11 +937,11 @@ export default function RoleCastBoard({
           return (
             <div
               key={r.label}
-              className={`flex items-start gap-2.5 rounded-xl border bg-panel/50 p-2.5 ${
+              className={
                 // ★ 刚从画面上挂完的那一行同步高亮：画面与列表两个视图必须当场对上，
                 //   否则用户不知道自己刚才动了哪一行
-                flash === r.label ? "border-gold" : "border-slate-700"
-              }`}
+                `flex items-start gap-2.5 rounded-xl border bg-panel/50 p-2.5 ${flash === r.label ? "border-gold" : "border-slate-700"}`
+              }
             >
               {/* ★ 与格子行同一个名字（同一个 personNameOf）。这一列是**只读的参考**：
                   挂卡只有格子行一条路，两个入口会让"我到底在哪儿挂的"变成一个问题 */}

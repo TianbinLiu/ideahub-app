@@ -1,5 +1,6 @@
 // 占位画面生成器：canvas 绘制“伪 AI 生成”的首尾帧 / 卡片封面。
 // 同一 seed 永远得到同一画面；hueSeed 用于让相邻片段共享色调（首尾帧续接感）。
+import { t } from "@lingui/core/macro";
 import { VideoAspect, aspectOf } from "../types";
 import { makeRng, pick } from "./rng";
 
@@ -109,7 +110,7 @@ export function makeFrame(seed: string, label: string, hueSeed?: string, aspect?
   ctx.font = "500 14px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.fillStyle = "#ffffff88";
   ctx.textAlign = "right";
-  ctx.fillText("AI 预览帧", w - 16, 28);
+  ctx.fillText(t`AI 预览帧`, w - 16, 28);
   ctx.textAlign = "left";
   return canvas.toDataURL("image/jpeg", 0.82);
 }
@@ -136,7 +137,8 @@ export function makeCover(seed: string, name: string): string {
     ctx.lineWidth = i === 0 ? 3 : 1.5;
     ctx.stroke();
   }
-  const ch = (name || "卡").trim().charAt(0) || "卡";
+  const fallback = t({ message: "卡", comment: "卡片占位封面中央那一个字（卡名为空时）" });
+  const ch = (name || fallback).trim().charAt(0) || fallback;
   ctx.font = "700 96px 'PingFang SC','Microsoft YaHei',sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";

@@ -763,6 +763,11 @@ msgstr "{0}播放"
 msgid "{0}档最短 {1}s"
 msgstr "{0}档最短 {1}s"
 
+#. placeholder {0}: note.slice(0, 6)
+#: src/ai/index.ts
+msgid "{0}模板"
+msgstr "{0}模板"
+
 #. placeholder {0}: partial.lost.slice(0, 3).join(listSep)
 #. placeholder {1}: partial.reason ?? reasonUpload
 #: src/pages/CustomCardPage.tsx
@@ -773,6 +778,12 @@ msgstr "{0}没能同步（{1}）。卡本身在服务器上，只有这几张图
 #: src/pages/AdminPage.tsx
 msgid "{0}注册"
 msgstr "{0}注册"
+
+#. placeholder {0}: note.slice(0, 4)
+#. placeholder {1}: i + 1
+#: src/ai/index.ts
+msgid "{0}片段{1}"
+msgstr "{0}片段{1}"
 
 #. placeholder {0}: segs(r.paid.map((p) => p.seg))
 #: src/studio/canvasAgent.ts
@@ -810,6 +821,10 @@ msgstr "{areaName} 对应哪个命中区"
 #: src/pages/TemplateDetailPage.tsx
 msgid "{beatCount} 段 · 每段 {beatSec}s"
 msgstr "{beatCount} 段 · 每段 {beatSec}s"
+
+#: src/hooks/useFlowActions.ts
+msgid "{capWhy}。"
+msgstr "{capWhy}。"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "{cardN} 张卡 · 每张最多 {maxSlots} 张图 · 按真正调用了几次出图算 · 每次重炼都会再扣"
@@ -899,6 +914,10 @@ msgstr "{fileName} 读不出来，换个纯文本文件试试。"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "{fileName} 里没有文字。"
 msgstr "{fileName} 里没有文字。"
+
+#: src/ai/index.ts
+msgid "{head} · 演示"
+msgstr "{head} · 演示"
 
 #: src/data/videoJobs.ts
 msgid "{hh}:{mm} 提交的那一发（服务器登记）"
@@ -2393,6 +2412,10 @@ msgstr "AI 自拟首尾帧"
 msgid "AI 逐段生成的短片 · 来自启梦"
 msgstr "AI 逐段生成的短片 · 来自启梦"
 
+#: src/mock/frames.ts
+msgid "AI 预览帧"
+msgstr "AI 预览帧"
+
 #: src/components/CoverPicker.tsx
 msgid "canvas 不可用"
 msgstr "canvas 不可用"
@@ -2678,6 +2701,14 @@ msgstr "上次查到的已授权素材（这次没能向方舟刷新，原因见
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "上段结尾"
 msgstr "上段结尾"
+
+#: src/ai/minimaxVideo.ts
+msgid "上游未说明原因"
+msgstr "上游未说明原因"
+
+#: src/ai/minimaxVideo.ts
+msgid "上游说这一发失败了：{why}。按约定，受理之后的失败不退款；重新生成会再花一次钱。"
+msgstr "上游说这一发失败了：{why}。按约定，受理之后的失败不退款；重新生成会再花一次钱。"
 
 #: src/pages/DiscoverPage.tsx
 msgid "上面列的是这台设备上已有的那几条，不是全部结果。"
@@ -3363,6 +3394,10 @@ msgstr "你的账号不是管理员。权限由服务端保管，改不了本地
 #: src/pages/SettingsPage.tsx
 msgid "你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。"
 msgstr "你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。"
+
+#: src/hooks/useFlowActions.ts
+msgid "你还有一条剪到一半的成片（里面的卡组已经铸好、花过 token 了）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。"
+msgstr "你还有一条剪到一半的成片（里面的卡组已经铸好、花过 token 了）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。"
 
 #: src/components/support/VoiceMarket.tsx
 msgid "你还没发布过声音模板，去「混音」调一把再发布。"
@@ -4290,6 +4325,10 @@ msgstr "列表没拉到"
 msgid "刚才切到后台了——合成不会因此录坏画面，但可能被系统拖慢；真断了会明确告诉你"
 msgstr "刚才切到后台了——合成不会因此录坏画面，但可能被系统拖慢；真断了会明确告诉你"
 
+#: src/hooks/useCastReturn.ts
+msgid "刚才挂卡的是另一个模板（这条流水线上套的模板中途换过了）——回模板详情页重新套用一次再挂卡"
+msgstr "刚才挂卡的是另一个模板（这条流水线上套的模板中途换过了）——回模板详情页重新套用一次再挂卡"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "刚点到：{hitText}"
 msgstr "刚点到：{hitText}"
@@ -4695,6 +4734,11 @@ msgstr "匿名"
 msgid "单音色"
 msgstr "单音色"
 
+#. 卡片占位封面中央那一个字（卡名为空时）
+#: src/mock/frames.ts
+msgid "卡"
+msgstr "卡"
+
 #: src/pages/CardDetailPage.tsx
 #: src/pages/CustomCardPage.tsx
 msgid "卡名"
@@ -4774,6 +4818,14 @@ msgstr "卡组不存在或不属于你"
 #: src/components/VideoCardAnnotator.tsx
 msgid "卡组名"
 msgstr "卡组名"
+
+#: src/hooks/useFlowActions.ts
+msgid "卡组已经铸好了，但{why}——现在切后台会丢掉它，请先把片子剪完发出去。"
+msgstr "卡组已经铸好了，但{why}——现在切后台会丢掉它，请先把片子剪完发出去。"
+
+#: src/hooks/useFlowActions.ts
+msgid "卡组已经铸好了，但{why}——现在切后台会丢掉它，请先把片子剪完发出去。{capWhy}。"
+msgstr "卡组已经铸好了，但{why}——现在切后台会丢掉它，请先把片子剪完发出去。{capWhy}。"
 
 #: src/studio/ui/projection.tsx
 msgid "卡组暂无此类型——找铸卡师炼一张或去市场收"
@@ -5000,6 +5052,15 @@ msgstr "参考卡片形象直接出片（省掉设定帧）…"
 msgid "参考图怎么被 AI 取用"
 msgstr "参考图怎么被 AI 取用"
 
+#. placeholder {0}: i + 1
+#: src/ai/index.ts
+msgid "参考场景{0}"
+msgstr "参考场景{0}"
+
+#: src/ai/index.ts
+msgid "参考模板"
+msgstr "参考模板"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "参考画面特征"
 msgstr "参考画面特征"
@@ -5203,6 +5264,14 @@ msgstr "取回的工程是空的，铺不进工坊"
 #: src/components/TemplateShelf.tsx
 msgid "取回这一发的结果（不额外花钱）"
 msgstr "取回这一发的结果（不额外花钱）"
+
+#: src/utils/mediaUrl.ts
+msgid "取媒体失败 {code}"
+msgstr "取媒体失败 {code}"
+
+#: src/utils/mediaUrl.ts
+msgid "取媒体超时 —— 文件较大或网络太慢，稍后重试"
+msgstr "取媒体超时 —— 文件较大或网络太慢，稍后重试"
 
 #: src/components/flow/SegPlayer.tsx
 msgid "取帧中…"
@@ -5798,6 +5867,18 @@ msgstr "图位名「{tag}」超过 {VIEW_TAG_MAX} 个字——太长的话这张
 msgid "图片加载失败"
 msgstr "图片加载失败"
 
+#: src/utils/image.ts
+msgid "图片太大了（超过 20MB）"
+msgstr "图片太大了（超过 20MB）"
+
+#: src/utils/image.ts
+msgid "图片编码失败"
+msgstr "图片编码失败"
+
+#: src/utils/image.ts
+msgid "图片读取失败"
+msgstr "图片读取失败"
+
 #: src/pages/CustomCardPage.tsx
 msgid "图生成好了，但人物信息没写成（这一半没扣钱）——下一步自己填就行"
 msgstr "图生成好了，但人物信息没写成（这一半没扣钱）——下一步自己填就行"
@@ -5874,6 +5955,11 @@ msgstr "在线"
 #: src/pages/NotificationsPage.tsx
 msgid "在评论里 @ 了你"
 msgstr "在评论里 @ 了你"
+
+#. placeholder {0}: i + 1
+#: src/ai/index.ts
+msgid "场景{0}"
+msgstr "场景{0}"
 
 #: src/studio/quality.ts
 msgid "均衡"
@@ -6014,6 +6100,10 @@ msgstr "头像上传失败（HTTP {0}）"
 #: src/components/AvatarPicker.tsx
 msgid "头像更换失败，本机仍会显示新头像"
 msgstr "头像更换失败，本机仍会显示新头像"
+
+#: src/utils/image.ts
+msgid "头像素材读取失败（这张图可能没打进包里）"
+msgstr "头像素材读取失败（这张图可能没打进包里）"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "头发"
@@ -6329,6 +6419,7 @@ msgstr "封禁必须写明原因"
 msgid "封禁挡的是<0>登录与一切带登录态的请求</0>，对方会看到下面这句原因。封禁<1>不会</1>自动隐藏其已发内容 —— 内容处置请到作品/评论/弹幕里逐条下架或删除（两权分开）。"
 msgstr "封禁挡的是<0>登录与一切带登录态的请求</0>，对方会看到下面这句原因。封禁<1>不会</1>自动隐藏其已发内容 —— 内容处置请到作品/评论/弹幕里逐条下架或删除（两权分开）。"
 
+#: src/ai/index.ts
 #: src/components/BranchPlayer.tsx
 #: src/components/CoverPicker.tsx
 #: src/components/SegmentPlayer.tsx
@@ -6921,6 +7012,10 @@ msgstr "已过 {forkCount} 个分支点"
 msgid "已选定 · 可换首尾帧、改剧情，改完点这一套的「重新生成」"
 msgstr "已选定 · 可换首尾帧、改剧情，改完点这一套的「重新生成」"
 
+#: src/hooks/useFlowActions.ts
+msgid "已选择只出片：这次「完成视频」不提炼卡组，也不收那笔钱。"
+msgstr "已选择只出片：这次「完成视频」不提炼卡组，也不收那笔钱。"
+
 #: src/pages/CustomCardPage.tsx
 msgid "已选的图和填的内容都会丢掉。"
 msgstr "已选的图和填的内容都会丢掉。"
@@ -7370,6 +7465,11 @@ msgstr "成片已落回流水线，正在存草稿…"
 #: src/components/CoverPicker.tsx
 msgid "成片解码失败——换「本地上传」或下面各段的首尾帧"
 msgstr "成片解码失败——换「本地上传」或下面各段的首尾帧"
+
+#. placeholder {0}: res.status
+#: src/utils/nativeMerge.ts
+msgid "成片读不出来（{0}）"
+msgstr "成片读不出来（{0}）"
 
 #: src/components/CoverPicker.tsx
 msgid "成片还在载入，稍等一下再截"
@@ -8032,6 +8132,10 @@ msgstr "授权素材（自动填入）"
 msgid "授权素材已接上（铸卡时绑定）"
 msgstr "授权素材已接上（铸卡时绑定）"
 
+#: src/ai/minimaxVideo.ts
+msgid "排队"
+msgstr "排队"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "接上了。"
 msgstr "接上了。"
@@ -8607,6 +8711,14 @@ msgstr "方舟没给原因"
 msgid "方舟里有 {0} 份已授权素材，点一份接上："
 msgstr "方舟里有 {0} 份已授权素材，点一份接上："
 
+#: src/utils/image.ts
+msgid "无法处理图片"
+msgstr "无法处理图片"
+
+#: src/ai/minimaxVideo.ts
+msgid "无类型"
+msgstr "无类型"
+
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/studio/ui/SchemeMarketSheet.tsx
@@ -8647,6 +8759,10 @@ msgstr "暂停"
 #: src/components/TemplateShelf.tsx
 msgid "暂时不可用"
 msgstr "暂时不可用"
+
+#: src/ai/minimaxVideo.ts
+msgid "暂时查不到这一发（{why}）——凭据还在，过一会儿再点一次，查询不花钱。"
+msgstr "暂时查不到这一发（{why}）——凭据还在，过一会儿再点一次，查询不花钱。"
 
 #: src/api/blocking.ts
 msgid "暂时没能拉黑（网络或服务器忙）——过一会儿再试一次。"
@@ -8962,6 +9078,10 @@ msgstr "未命名工程"
 msgid "未挂"
 msgstr "未挂"
 
+#: src/ai/minimaxVideo.ts
+msgid "未知"
+msgstr "未知"
+
 #: src/api/uploads.ts
 msgid "未知格式"
 msgstr "未知格式"
@@ -8969,6 +9089,10 @@ msgstr "未知格式"
 #: src/pages/ProfilePage.tsx
 msgid "未知用户"
 msgstr "未知用户"
+
+#: src/ai/minimaxVideo.ts
+msgid "未说明原因"
+msgstr "未说明原因"
 
 #: src/components/CoverPicker.tsx
 msgid "未选封面"
@@ -9167,6 +9291,10 @@ msgstr "查看用量 · 清理中间文件"
 #: src/components/support/AdminTicketsView.tsx
 msgid "查看转人工前的对话（{0} 条）"
 msgstr "查看转人工前的对话（{0} 条）"
+
+#: src/ai/minimaxVideo.ts
+msgid "查询失败"
+msgstr "查询失败"
 
 #: src/components/support/AdminTicketsView.tsx
 msgid "标为处理中"
@@ -9485,6 +9613,10 @@ msgstr "正在取这一帧…"
 #: src/components/flow/SegPlayer.tsx
 msgid "正在取这一段的视频地址…"
 msgstr "正在取这一段的视频地址…"
+
+#: src/ai/minimaxVideo.ts
+msgid "正在向上游核对这一发的状态…（查询不花钱）"
+msgstr "正在向上游核对这一发的状态…（查询不花钱）"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "正在处理…"
@@ -10182,6 +10314,10 @@ msgstr "演出中…"
 msgid "演示"
 msgstr "演示"
 
+#: src/ai/index.ts
+msgid "演示场景"
+msgstr "演示场景"
+
 #: src/pages/CustomCardPage.tsx
 msgid "演示档生成的占位文案（配好 Key 后按素材图撰写）"
 msgstr "演示档生成的占位文案（配好 Key 后按素材图撰写）"
@@ -10190,13 +10326,45 @@ msgstr "演示档生成的占位文案（配好 Key 后按素材图撰写）"
 msgid "演示模式：产物为本地占位图"
 msgstr "演示模式：产物为本地占位图"
 
+#: src/ai/index.ts
+msgid "演示模式：未经 AI 分析的占位模板"
+msgstr "演示模式：未经 AI 分析的占位模板"
+
+#: src/ai/index.ts
+msgid "演示模式：直接用抽帧当卡面"
+msgstr "演示模式：直接用抽帧当卡面"
+
+#: src/ai/index.ts
+msgid "演示模式：直接用抽帧当卡面，未经 AI 识别"
+msgstr "演示模式：直接用抽帧当卡面，未经 AI 识别"
+
+#: src/ai/index.ts
+msgid "演示模式：这里本应是 AI 总结出的画面质感与运镜要求。"
+msgstr "演示模式：这里本应是 AI 总结出的画面质感与运镜要求。"
+
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "演示模式不计费"
 msgstr "演示模式不计费"
 
+#: src/ai/index.ts
+msgid "演示模式占位"
+msgstr "演示模式占位"
+
+#: src/ai/index.ts
+msgid "演示模式没有真实出片任务，取不回什么（这条凭据不该存在）"
+msgstr "演示模式没有真实出片任务，取不回什么（这条凭据不该存在）"
+
+#: src/ai/index.ts
+msgid "演示模式的占位文案：配好方舟密钥后，这里会照着照片写"
+msgstr "演示模式的占位文案：配好方舟密钥后，这里会照着照片写"
+
 #: src/pages/CustomCardPage.tsx
 msgid "演示角色"
 msgstr "演示角色"
+
+#: src/ai/index.ts
+msgid "演示道具"
+msgstr "演示道具"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "炉火正旺，卡片成形中…"
@@ -10205,6 +10373,14 @@ msgstr "炉火正旺，卡片成形中…"
 #: src/studio/ui/NpcDialog.tsx
 msgid "炉边"
 msgstr "炉边"
+
+#: src/hooks/useFlowActions.ts
+msgid "点「完成视频」还会提炼本片卡组：你挂过的卡直接入组，缺的卡种 AI 补齐（风格卡必有；背景卡是你写的故事背景，不自动出），最多 {maxCards} 张、约 {cardsTok} token；这条片写了 3D / 建模一类的画风，还会给派生的角色卡铸最多 {max3d} 个 3D 建模，另约 {model3dTok} token。都按实际出卡结算，余额不够会自动跳过（成片不受影响）。"
+msgstr "点「完成视频」还会提炼本片卡组：你挂过的卡直接入组，缺的卡种 AI 补齐（风格卡必有；背景卡是你写的故事背景，不自动出），最多 {maxCards} 张、约 {cardsTok} token；这条片写了 3D / 建模一类的画风，还会给派生的角色卡铸最多 {max3d} 个 3D 建模，另约 {model3dTok} token。都按实际出卡结算，余额不够会自动跳过（成片不受影响）。"
+
+#: src/hooks/useFlowActions.ts
+msgid "点「完成视频」还会提炼本片卡组：你挂过的卡直接入组，缺的卡种 AI 补齐（风格卡必有；背景卡是你写的故事背景，不自动出），最多 {maxCards} 张、约 {cardsTok} token。都按实际出卡结算，余额不够会自动跳过（成片不受影响）。"
+msgstr "点「完成视频」还会提炼本片卡组：你挂过的卡直接入组，缺的卡种 AI 补齐（风格卡必有；背景卡是你写的故事背景，不自动出），最多 {maxCards} 张、约 {cardsTok} token。都按实际出卡结算，余额不够会自动跳过（成片不受影响）。"
 
 #: src/pages/FlowPage.tsx
 msgid "点「生成本段」先出三套方案（各带首尾帧预览），挑定后再炼视频"
@@ -10845,6 +11021,10 @@ msgstr "白模段的画面整个来自模板视频，导演台的构图用不上
 msgid "目前所有作品都是<0>免费观看</0>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。"
 msgstr "目前所有作品都是<0>免费观看</0>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。"
 
+#: src/ai/minimaxVideo.ts
+msgid "盯不住这一发的进度了（{why}）——任务还在上游跑，不是失败。"
+msgstr "盯不住这一发的进度了（{why}）——任务还在上游跑，不是失败。"
+
 #: src/pages/ProfilePage.tsx
 msgid "直充 add-on（永不过期，套餐扣完才用它）"
 msgstr "直充 add-on（永不过期，套餐扣完才用它）"
@@ -10915,6 +11095,58 @@ msgstr "看这一段成片（{0}s）"
 msgid "看首页遮挡"
 msgstr "看首页遮挡"
 
+#: src/ai/minimaxVideo.ts
+msgid "真人档任务创建中…"
+msgstr "真人档任务创建中…"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档任务受理了却没给任务号——上游协议变了，把这句话反馈给我们"
+msgstr "真人档任务受理了却没给任务号——上游协议变了，把这句话反馈给我们"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档任务被上游拒绝：{detail}"
+msgstr "真人档任务被上游拒绝：{detail}"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败：钱在提交那一刻就已经花掉了。"
+msgstr "真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败：钱在提交那一刻就已经花掉了。"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档出片创建失败：服务器没有应答这个接口（HTTP {status}，{type}）"
+msgstr "真人档出片创建失败：服务器没有应答这个接口（HTTP {status}，{type}）"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档出片创建失败（HTTP {status}）：{body}"
+msgstr "真人档出片创建失败（HTTP {status}）：{body}"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档出片取件失败：服务器没有应答这个接口（HTTP {status}，{type}）"
+msgstr "真人档出片取件失败：服务器没有应答这个接口（HTTP {status}，{type}）"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档出片取件失败（HTTP {status}）：{body}"
+msgstr "真人档出片取件失败（HTTP {status}）：{body}"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档出片失败：{why}"
+msgstr "真人档出片失败：{why}"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档出片成功却没有文件号——上游协议变了，把这句话反馈给我们"
+msgstr "真人档出片成功却没有文件号——上游协议变了，把这句话反馈给我们"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档出片查询失败：服务器没有应答这个接口（HTTP {status}，{type}）"
+msgstr "真人档出片查询失败：服务器没有应答这个接口（HTTP {status}，{type}）"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档出片查询失败（HTTP {status}）：{body}"
+msgstr "真人档出片查询失败（HTTP {status}）：{body}"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档取件失败：上游没有返回下载地址"
+msgstr "真人档取件失败：上游没有返回下载地址"
+
 #: src/studio/segmentGen.ts
 msgid "真人档按发计价（{flatSec} 秒整档）· 以卡片照片起拍…"
 msgstr "真人档按发计价（{flatSec} 秒整档）· 以卡片照片起拍…"
@@ -10926,6 +11158,14 @@ msgstr "真人档暂不支持圈选改画面（改图引擎会拒收真人脸）
 #: src/components/flow/FlowCanvas.tsx
 msgid "真人档本来就是直出，不需要再切自定义"
 msgstr "真人档本来就是直出，不需要再切自定义"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档生成中…（{shown}）"
+msgstr "真人档生成中…（{shown}）"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档生成中…（查询失败 {pollFails}/5，重试中）"
+msgstr "真人档生成中…（查询失败 {pollFails}/5，重试中）"
 
 #: src/studio/segmentGen.ts
 msgid "真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧"
@@ -11116,6 +11356,11 @@ msgstr "视频档位"
 #: src/pages/TemplateMarketPage.tsx
 msgid "视频模板"
 msgstr "视频模板"
+
+#. placeholder {0}: i + 1
+#: src/ai/index.ts
+msgid "视频片段{0}"
+msgstr "视频片段{0}"
 
 #: src/studio/ui/projection.tsx
 msgid "视频要求（剧情补充）"
@@ -11731,6 +11976,7 @@ msgid "第一张 · 同时就是卡面"
 msgstr "第一张 · 同时就是卡面"
 
 #: src/pages/OauthCallbackPage.tsx
+#: src/utils/oauth.ts
 msgid "第三方登录未完成"
 msgstr "第三方登录未完成"
 
@@ -11916,6 +12162,14 @@ msgstr "素材超了上限，最前面的 {droppedChars} 字和最早的 {droppe
 msgid "素材超了上限，最前面的 {droppedChars} 字没有送去分析。"
 msgstr "素材超了上限，最前面的 {droppedChars} 字没有送去分析。"
 
+#: src/hooks/useFlowActions.ts
+msgid "组稿中…"
+msgstr "组稿中…"
+
+#: src/hooks/useFlowActions.ts
+msgid "组稿失败：{reason}"
+msgstr "组稿失败：{reason}"
+
 #. placeholder {0}: vEnd.toFixed(1)
 #: src/components/VideoCardAnnotator.tsx
 msgid "终点 {0}s"
@@ -12061,6 +12315,10 @@ msgstr "网络不好，或者这条链接已经过期（隔天打开的草稿常
 #: src/pages/CustomCardPage.tsx
 msgid "网络异常"
 msgstr "网络异常"
+
+#: src/utils/mediaUrl.ts
+msgid "网络错误"
+msgstr "网络错误"
 
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/SupportPage.tsx
@@ -12234,6 +12492,10 @@ msgstr "若安装时提示「应用未安装」，多半是早期测试包的签
 #: src/pages/ProfilePage.tsx
 msgid "草稿"
 msgstr "草稿"
+
+#: src/hooks/useFlowActions.ts
+msgid "草稿保存失败（存储空间不足或浏览器隐私模式）"
+msgstr "草稿保存失败（存储空间不足或浏览器隐私模式）"
 
 #: src/studio/personaWizardStore.ts
 msgid "草稿写好了，往下可以试聊。"
@@ -12412,6 +12674,10 @@ msgstr "解压失败"
 #: src/pages/AdminPage.tsx
 msgid "解封"
 msgstr "解封"
+
+#: src/utils/image.ts
+msgid "解码失败"
+msgstr "解码失败"
 
 #: src/pages/VideoPage.tsx
 msgid "解锁后永久可看"
@@ -12764,6 +13030,10 @@ msgstr "请求超时"
 #: src/api/companion.ts
 msgid "请求超时了，检查网络后再试一次。"
 msgstr "请求超时了，检查网络后再试一次。"
+
+#: src/utils/image.ts
+msgid "请选择图片文件"
+msgstr "请选择图片文件"
 
 #: src/api/uploads.ts
 msgid "读不出这个视频的时长或尺寸（文件可能损坏），请换一个 mp4/mov 文件重试。"
@@ -13372,6 +13642,10 @@ msgstr "这一发白模化已经取不回来了"
 msgid "这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
 msgstr "这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
 
+#: src/ai/minimaxVideo.ts
+msgid "这一发还在上游排队或生成中（当前状态：{shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。"
+msgstr "这一发还在上游排队或生成中（当前状态：{shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。"
+
 #: src/studio/flowStore.ts
 msgid "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
 msgstr "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
@@ -13546,6 +13820,10 @@ msgstr "这一段没下完（原因见下面那行原文）。再点一次会从
 #: src/studio/flowStore.ts
 msgid "这一段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）"
 msgstr "这一段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）"
+
+#: src/hooks/useFlowActions.ts
+msgid "这一段炼好了，但自动存草稿失败（存储空间不足或浏览器隐私模式）——先别离开这一页，点上面的「存草稿」再试一次"
+msgstr "这一段炼好了，但自动存草稿失败（存储空间不足或浏览器隐私模式）——先别离开这一页，点上面的「存草稿」再试一次"
 
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段现在选中的走向还没有成片"
@@ -13771,6 +14049,10 @@ msgstr "这个文件打不开，看起来不是 zip 压缩包（{why}）。"
 #: src/api/uploads.ts
 msgid "这个文件是空的，选一段真正的视频再传。"
 msgstr "这个文件是空的，选一段真正的视频再传。"
+
+#: src/utils/wav.ts
+msgid "这个文件解不出音频——换一个 mp3 / wav / m4a 试试"
+msgstr "这个文件解不出音频——换一个 mp3 / wav / m4a 试试"
 
 #: src/studio/live2dUploadStore.ts
 msgid "这个文件读不了。"
@@ -14055,6 +14337,10 @@ msgstr "这台服务器还没有素材视频登记端点（请更新服务端）
 msgid "这台服务器还没有通知功能"
 msgstr "这台服务器还没有通知功能"
 
+#: src/utils/nativeMerge.ts
+msgid "这台设备上合成用不了——合成走的是系统硬件编解码器，只有安装包里有。请在手机 App 里完成合成。"
+msgstr "这台设备上合成用不了——合成走的是系统硬件编解码器，只有安装包里有。请在手机 App 里完成合成。"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "这台设备上没有它的本机记录（换了设备？）。可以在这里下架或删除；改名/改简介需回到当初提取它的设备。"
 msgstr "这台设备上没有它的本机记录（换了设备？）。可以在这里下架或删除；改名/改简介需回到当初提取它的设备。"
@@ -14062,6 +14348,10 @@ msgstr "这台设备上没有它的本机记录（换了设备？）。可以在
 #: src/pages/VideoPage.tsx
 msgid "这台设备上没有这条作品 · 当前是离线模式"
 msgstr "这台设备上没有这条作品 · 当前是离线模式"
+
+#: src/utils/oauth.ts
+msgid "这台设备上还没接第三方登录（{why}）——先用邮箱或手机号登录"
+msgstr "这台设备上还没接第三方登录（{why}）——先用邮箱或手机号登录"
 
 #: src/utils/nativeCamera.ts
 msgid "这台设备处理不了照片（画布不可用）"
@@ -14094,6 +14384,10 @@ msgstr "这台设备解出来的画面是 {0}×{1}，服务器登记的却是 {w
 #: src/components/PhotoSubjectPicker.tsx
 msgid "这块太小了：折算只有 {cutBest} px，至少 {REF_SHORT_REJECT} px——框大一点再继续"
 msgstr "这块太小了：折算只有 {cutBest} px，至少 {REF_SHORT_REJECT} px——框大一点再继续"
+
+#: src/utils/image.ts
+msgid "这块太小了：折算只有 {short} px，至少 {REF_SHORT_REJECT} px——框大一点、描大一点再试"
+msgstr "这块太小了：折算只有 {short} px，至少 {REF_SHORT_REJECT} px——框大一点、描大一点再试"
 
 #: src/pages/PublishPage.tsx
 msgid "这套卡组"
@@ -14179,6 +14473,10 @@ msgstr "这张图太大了（{mb}MB，上限 {cap}MB），换一张小一点的�
 msgid "这张图太大了（上限 5MB）"
 msgstr "这张图太大了（上限 5MB）"
 
+#: src/utils/image.ts
+msgid "这张图太小了，AI 认不出里面的东西"
+msgstr "这张图太小了，AI 认不出里面的东西"
+
 #: src/data/cardViews.ts
 msgid "这张图已经不在了"
 msgstr "这张图已经不在了"
@@ -14186,6 +14484,10 @@ msgstr "这张图已经不在了"
 #: src/components/AvatarPicker.tsx
 msgid "这张图片打不开"
 msgstr "这张图片打不开"
+
+#: src/utils/image.ts
+msgid "这张图解不开（常见于 HEIC 等手机专有格式，或文件已损坏）——换成 JPG / PNG，或截个图再传"
+msgstr "这张图解不开（常见于 HEIC 等手机专有格式，或文件已损坏）——换成 JPG / PNG，或截个图再传"
 
 #: src/studio/ui/PlanBoard.tsx
 msgid "这张图读不出来——换一张试试（支持 jpg/png/webp）"
@@ -14389,6 +14691,10 @@ msgstr "这条还在上传中（或没连上服务器）——现在分享出去
 msgid "这条还在上传中（或没连上服务器），还没有可下载的文件。等它传完再来。"
 msgstr "这条还在上传中（或没连上服务器），还没有可下载的文件。等它传完再来。"
 
+#: src/utils/nativeMerge.ts
+msgid "这条音频是空的"
+msgstr "这条音频是空的"
+
 #: src/pages/CutPage.tsx
 msgid "这样裁完只剩不到 {MIN_CLIP_SEC} 秒，片段太短了"
 msgstr "这样裁完只剩不到 {MIN_CLIP_SEC} 秒，片段太短了"
@@ -14444,6 +14750,10 @@ msgstr "这段视频里只认出了这 {0} 个位置，都已经在列表里了�
 #: src/pages/FlowPage.tsx
 msgid "这段话直接发给 AI：{noun}与角色名改错会换错人，其余随便改"
 msgstr "这段话直接发给 AI：{noun}与角色名改错会换错人，其余随便改"
+
+#: src/utils/wav.ts
+msgid "这段音频只有 {got}s，短于 {minSec}s 下限——换一段长一点的"
+msgstr "这段音频只有 {got}s，短于 {minSec}s 下限——换一段长一点的"
 
 #: src/pages/PublishPage.tsx
 #: src/pages/VideoPage.tsx
@@ -14986,6 +15296,10 @@ msgstr "音量"
 #: src/pages/CutPage.tsx
 msgid "音频"
 msgstr "音频"
+
+#: src/utils/nativeMerge.ts
+msgid "音频读不出来"
+msgstr "音频读不出来"
 
 #: src/studio/live2dUploadStore.ts
 msgid "预览准备失败。"

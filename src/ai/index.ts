@@ -1,5 +1,6 @@
 // AI 管线统一出口：.env.local 配了 ARK_API_KEY（真实 AI）走火山方舟，
 // 否则走 mock——store/UI 只 import 这里，实现可整体切换。
+import { t } from "@lingui/core/macro";
 import { AI_REAL } from "./arkClient";
 import { DECK_MAX_CARDS } from "../data/economy";
 import * as mock from "../mock/ai";
@@ -35,8 +36,8 @@ export const refineCardImage: typeof real.refineCardImage = AI_REAL ? real.refin
 export const recognizeCardSubject: typeof real.recognizeCardSubject = AI_REAL
   ? real.recognizeCardSubject
   : async (o) => ({
-      name: o.type === "prop" ? "演示道具" : "演示场景",
-      summary: "演示模式的占位文案：配好方舟密钥后，这里会照着照片写",
+      name: o.type === "prop" ? t`演示道具` : t`演示场景`,
+      summary: t`演示模式的占位文案：配好方舟密钥后，这里会照着照片写`,
       idLine: "",
       tags: [],
       hasPeople: false,
@@ -44,8 +45,10 @@ export const recognizeCardSubject: typeof real.recognizeCardSubject = AI_REAL
 export type { RecognizedCard } from "./real";
 export const generateCover: typeof real.generateCover = AI_REAL
   ? real.generateCover
-  : async (req, _ref, aspect) =>
-      makeFrame(`cover:${req}:${Math.random()}`, `${req.slice(0, 10) || "封面"} · 演示`, undefined, aspect);
+  : async (req, _ref, aspect) => {
+      const head = req.slice(0, 10) || t`封面`;
+      return makeFrame(`cover:${req}:${Math.random()}`, t`${head} · 演示`, undefined, aspect);
+    };
 
 /** 本片卡组提炼：真实构建 AI 对照已有素材卡，只补剧情里缺卡的实体（每类可多张）；
  *  mock 构建退化为按段派生场景卡（首帧当卡面），同名已有卡跳过 */
@@ -60,7 +63,7 @@ export const deriveDeckCards: typeof real.deriveDeckCards = AI_REAL
         .map((sg, i) => ({
           id: `card_drv_${Date.now().toString(36)}_${i}`,
           type: "scene" as const,
-          name: sg.title.replace(/^第\d+段 · /, "").slice(0, 8) || `场景${i + 1}`,
+          name: sg.title.replace(/^第\d+段 · /, "").slice(0, 8) || t`场景${i + 1}`,
           summary: sg.plot.slice(0, 60),
           cover: sg.firstFrame,
         }))
@@ -76,8 +79,8 @@ export const extractCardsFromVideo: typeof real.extractCardsFromVideo = AI_REAL
       cards: frames.slice(0, 3).map((f, i) => ({
         id: `card_vid_${Date.now().toString(36)}_${i}`,
         type: "scene" as const,
-        name: `${(note || "视频").slice(0, 4)}片段${i + 1}`,
-        summary: "演示模式：直接用抽帧当卡面，未经 AI 识别",
+        name: note ? t`${note.slice(0, 4)}片段${i + 1}` : t`视频片段${i + 1}`,
+        summary: t`演示模式：直接用抽帧当卡面，未经 AI 识别`,
         cover: f,
       })),
     });
@@ -93,13 +96,15 @@ export const extractTemplateCards: typeof real.extractTemplateCards = AI_REAL
 export const extractTemplateFromVideo: typeof real.extractTemplateFromVideo = AI_REAL
   ? real.extractTemplateFromVideo
   : async (frames, note, _onProgress, opts) => ({
-      title: `${(note || "参考").slice(0, 6)}模板`,
-      intro: "演示模式：未经 AI 分析的占位模板",
+      title: note ? t`${note.slice(0, 6)}模板` : t`参考模板`,
+      intro: t`演示模式：未经 AI 分析的占位模板`,
       tokens: 0,
-      source: "演示模式占位",
+      source: t`演示模式占位`,
       recipe: {
-        styleHint: "演示模式：这里本应是 AI 总结出的画面质感与运镜要求。",
+        styleHint: t`演示模式：这里本应是 AI 总结出的画面质感与运镜要求。`,
+        // i18n-ignore-next-line: 配方骨架里的 {{主题}} 是占位符，data/templates 与 flowStore 按字面替换，不能翻
         beats: ["{{主题}}登场，镜头缓缓推近。"],
+        // i18n-ignore-next-line: 同上，{{主题}} 按字面替换
         framePrompt: "{{主题}}的定妆画面，无文字无水印。",
         durationSec: 5,
       },
@@ -110,8 +115,8 @@ export const extractTemplateFromVideo: typeof real.extractTemplateFromVideo = AI
         : frames.slice(0, 2).map((f, i) => ({
             id: `card_tpl_${Date.now().toString(36)}_${i}`,
             type: "scene" as const,
-            name: `参考场景${i + 1}`,
-            summary: "演示模式：直接用抽帧当卡面",
+            name: t`参考场景${i + 1}`,
+            summary: t`演示模式：直接用抽帧当卡面`,
             cover: f,
           })),
     });
@@ -148,7 +153,7 @@ export const composeSegments: typeof real.composeSegments = AI_REAL
 export const takeVideoTask: typeof real.takeVideoTask = AI_REAL
   ? real.takeVideoTask
   : async () => {
-      throw new Error("演示模式没有真实出片任务，取不回什么（这条凭据不该存在）");
+      throw new Error(t`演示模式没有真实出片任务，取不回什么（这条凭据不该存在）`);
     };
 /** 「没接到结果 ≠ 这一发废了」的那个错误类型 —— 调用方据它决定凭据留不留（见 arkClient） */
 export { ArkBadReply, ArkNoReply, ArkTaskUnknown } from "./arkClient";

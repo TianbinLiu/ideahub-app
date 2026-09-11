@@ -9,6 +9,7 @@
 //   密钥永远不在前端：dev 是 vite 注头，生产是 server 注头（同 /api/ark 的纪律）。
 // ★ 判断"这台服务器有没有这个能力"看响应形状与 Content-Type，不信状态码
 //   （Capacitor 的 SPA 回退对未命中路径回 200 + index.html，CLAUDE.md 有专条）。
+import { t } from "@lingui/core/macro";
 import { API_BASE } from "../api/client";
 import { getToken } from "../api/client";
 import { ArkTaskUnknown, syncWalletFromHeaders } from "./arkClient";
@@ -27,17 +28,37 @@ function authHeaders(): Record<string, string> {
   return { "Content-Type": "application/json", ...(tk ? { Authorization: `Bearer ${tk}` } : {}) };
 }
 
-async function jsonOf(res: Response, what: string): Promise<Record<string, unknown>> {
+/** 真人档一发的三步：建任务 / 查进度 / 取下载地址。报错按步整句各写一份，不拿动词往句子里拼 */
+type MinimaxStep = "create" | "poll" | "file";
+
+async function jsonOf(res: Response, step: MinimaxStep): Promise<Record<string, unknown>> {
   // 计费代理在每个响应上带权威余额头（生产 server 写；dev 的 vite 代理没有，helper 自会跳过）。
   // 扣费/退款都发生在服务端，这里不同步的话镜像要等下一次方舟调用才自愈
   syncWalletFromHeaders(res.headers);
   const ct = res.headers.get("Content-Type") ?? "";
+  const status = res.status;
   if (!ct.includes("application/json")) {
     // SPA 回退 / 网关错误页都会走到这里 —— 说清是哪一步、拿到了什么
-    throw new Error(`真人档出片${what}失败：服务器没有应答这个接口（HTTP ${res.status}，${ct || "无类型"}）`);
+    const type = ct || t`无类型`;
+    throw new Error(
+      step === "create"
+        ? t`真人档出片创建失败：服务器没有应答这个接口（HTTP ${status}，${type}）`
+        : step === "poll"
+          ? t`真人档出片查询失败：服务器没有应答这个接口（HTTP ${status}，${type}）`
+          : t`真人档出片取件失败：服务器没有应答这个接口（HTTP ${status}，${type}）`,
+    );
   }
   const j = (await res.json()) as Record<string, unknown>;
-  if (!res.ok) throw new Error(`真人档出片${what}失败（HTTP ${res.status}）：${JSON.stringify(j).slice(0, 160)}`);
+  if (!res.ok) {
+    const body = JSON.stringify(j).slice(0, 160);
+    throw new Error(
+      step === "create"
+        ? t`真人档出片创建失败（HTTP ${status}）：${body}`
+        : step === "poll"
+          ? t`真人档出片查询失败（HTTP ${status}）：${body}`
+          : t`真人档出片取件失败（HTTP ${status}）：${body}`,
+    );
+  }
   return j;
 }
 
@@ -49,11 +70,11 @@ function baseRespOf(j: Record<string, unknown>): BaseResp | null {
 /** 一条 Success 的任务状态 → 下载地址。**唯一实现**：出片主路径与「取回」共用 */
 async function minimaxFileUrl(st: Record<string, unknown>): Promise<string> {
   const fileId = String(st.file_id ?? "");
-  if (!fileId) throw new Error("真人档出片成功却没有文件号——上游协议变了，把这句话反馈给我们");
-  const f = await jsonOf(await fetch(`${BASE}/file/${encodeURIComponent(fileId)}`, { headers: authHeaders() }), "取件");
+  if (!fileId) throw new Error(t`真人档出片成功却没有文件号——上游协议变了，把这句话反馈给我们`);
+  const f = await jsonOf(await fetch(`${BASE}/file/${encodeURIComponent(fileId)}`, { headers: authHeaders() }), "file");
   const file = f.file as { download_url?: string; backup_download_url?: string } | undefined;
   const url = file?.download_url || file?.backup_download_url;
-  if (!url) throw new Error("真人档取件失败：上游没有返回下载地址");
+  if (!url) throw new Error(t`真人档取件失败：上游没有返回下载地址`);
   return url;
 }
 
@@ -71,29 +92,25 @@ export async function takeMinimaxTask(
   taskId: string,
   onProgress?: (s: string) => void,
 ): Promise<{ url: string }> {
-  onProgress?.("正在向上游核对这一发的状态…（查询不花钱）");
+  onProgress?.(t`正在向上游核对这一发的状态…（查询不花钱）`);
   let st: Record<string, unknown>;
   try {
-    st = await jsonOf(await fetch(`${BASE}/video/${encodeURIComponent(taskId)}`, { headers: authHeaders() }), "查询");
+    st = await jsonOf(await fetch(`${BASE}/video/${encodeURIComponent(taskId)}`, { headers: authHeaders() }), "poll");
   } catch (e) {
     // 查不动 ≠ 取不回。凭据必须留着，话也不能说死。
-    throw new Error(
-      `暂时查不到这一发（${e instanceof Error ? e.message.slice(0, 60) : "查询失败"}）——凭据还在，过一会儿再点一次，查询不花钱。`,
-    );
+    const why = e instanceof Error ? e.message.slice(0, 60) : t`查询失败`;
+    throw new Error(t`暂时查不到这一发（${why}）——凭据还在，过一会儿再点一次，查询不花钱。`);
   }
   const status = String(st.status ?? "");
   if (status === "Success") return { url: await minimaxFileUrl(st) };
   if (status === "Fail") {
     // 上游明说失败：这时候"受理之后失败不退"是真的，必须照说 —— 藏起来会让用户
     // 以为重试免费，而重试是重新下一单
-    const b = baseRespOf(st);
-    throw new Error(
-      `上游说这一发失败了：${b?.status_msg || "未说明原因"}。按约定，受理之后的失败不退款；重新生成会再花一次钱。`,
-    );
+    const why = baseRespOf(st)?.status_msg || t`未说明原因`;
+    throw new Error(t`上游说这一发失败了：${why}。按约定，受理之后的失败不退款；重新生成会再花一次钱。`);
   }
-  throw new Error(
-    `这一发还在上游排队或生成中（当前状态：${status || "未知"}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。`,
-  );
+  const shown = status || t`未知`;
+  throw new Error(t`这一发还在上游排队或生成中（当前状态：${shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。`);
 }
 
 /**
@@ -116,7 +133,7 @@ export async function minimaxVideo(o: {
   onTask?: (taskId: string) => void;
 }): Promise<string> {
   const prog = (s: string) => o.onProgress?.(s);
-  prog("真人档任务创建中…");
+  prog(t`真人档任务创建中…`);
   const created = await jsonOf(
     await fetch(`${BASE}/video`, {
       method: "POST",
@@ -131,14 +148,15 @@ export async function minimaxVideo(o: {
         resolution: "768P",
       }),
     }),
-    "创建",
+    "create",
   );
   const br = baseRespOf(created);
   if (!br || br.status_code !== 0) {
-    throw new Error(`真人档任务被上游拒绝：${br ? `${br.status_code} ${br.status_msg}` : JSON.stringify(created).slice(0, 160)}`);
+    const detail = br ? `${br.status_code} ${br.status_msg}` : JSON.stringify(created).slice(0, 160);
+    throw new Error(t`真人档任务被上游拒绝：${detail}`);
   }
   const taskId = String(created.task_id ?? "");
-  if (!taskId) throw new Error("真人档任务受理了却没给任务号——上游协议变了，把这句话反馈给我们");
+  if (!taskId) throw new Error(t`真人档任务受理了却没给任务号——上游协议变了，把这句话反馈给我们`);
   o.onTask?.(taskId); // ★ 在开始等之前落凭据（理由见 onTask 的 ★）
 
   // 实测 768P/6s 约 40~90 秒出片；10 分钟死线（与方舟侧的轮询纪律同精神：不无限等）
@@ -159,33 +177,32 @@ export async function minimaxVideo(o: {
       //   只改一个的话，另一个仍抛普通 Error → flowStore 的真失败分支
       //   `if (taskId) dropVideoJob(taskId)` 会把刚落的凭据当场删掉，比不改更坏。
       throw new ArkTaskUnknown(
-        "真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败：钱在提交那一刻就已经花掉了。",
+        t`真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败：钱在提交那一刻就已经花掉了。`,
         taskId,
       );
     }
     await new Promise((r) => setTimeout(r, 8000));
     let st: Record<string, unknown>;
     try {
-      st = await jsonOf(await fetch(`${BASE}/video/${encodeURIComponent(taskId)}`, { headers: authHeaders() }), "查询");
+      st = await jsonOf(await fetch(`${BASE}/video/${encodeURIComponent(taskId)}`, { headers: authHeaders() }), "poll");
       pollFails = 0;
     } catch (e) {
       if (++pollFails >= 5) {
         // 与上面那个死线分支同一个类型（理由见那里的 ★★）：连查五次查不动 =
         // **我们瞎了，不是这一发废了**。我们自己代理回的 429/504 也落在这儿，
         // 它们更是"可重试"，绝不能进任何一个下定论的分支。
-        throw new ArkTaskUnknown(
-          `盯不住这一发的进度了（${e instanceof Error ? e.message.slice(0, 60) : "查询失败"}）——任务还在上游跑，不是失败。`,
-          taskId,
-        );
+        const why = e instanceof Error ? e.message.slice(0, 60) : t`查询失败`;
+        throw new ArkTaskUnknown(t`盯不住这一发的进度了（${why}）——任务还在上游跑，不是失败。`, taskId);
       }
-      prog(`真人档生成中…（查询失败 ${pollFails}/5，重试中）`);
+      prog(t`真人档生成中…（查询失败 ${pollFails}/5，重试中）`);
       continue;
     }
     const status = String(st.status ?? "");
-    prog(`真人档生成中…（${status || "排队"}）`);
+    const shown = status || t`排队`;
+    prog(t`真人档生成中…（${shown}）`);
     if (status === "Fail") {
-      const b = baseRespOf(st);
-      throw new Error(`真人档出片失败：${b?.status_msg || "上游未说明原因"}`);
+      const why = baseRespOf(st)?.status_msg || t`上游未说明原因`;
+      throw new Error(t`真人档出片失败：${why}`);
     }
     if (status === "Success") {
       const url = await minimaxFileUrl(st);

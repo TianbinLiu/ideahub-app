@@ -31,9 +31,9 @@ import { captureVideoFrame, loadVideoAt } from "../utils/videoFrames";
 import { Capacitor } from "@capacitor/core";
 // 合并走原生硬件编解码器（见 utils/nativeMerge 头部的 ★★）
 import {
-  MERGE_UNSUPPORTED,
   cancelNativeMerge,
   mergeSupported,
+  mergeUnsupportedText,
   mergedFileToBlob,
   runNativeMerge,
   stageLocalAudio,
@@ -782,7 +782,7 @@ export default function CutPage() {
       //   手机剪辑软件从来不这么做：它们走 MediaCodec / AVFoundation。我们是 Capacitor，够得到。
       // ★ 段落直接把**公网地址**交过去：它们在出片那一刻就转存到图床了，让 Media3 自己流式取，
       //   不必先把几十兆下载到手机再喂进去（那正是老路最慢、也最容易超时的一段）。
-      if (!mergeSupported()) throw new Error(MERGE_UNSUPPORTED);
+      if (!mergeSupported()) throw new Error(mergeUnsupportedText());
       say(t`准备素材…`);
       const clips: MergeClip[] = [];
       for (const c of view) {
