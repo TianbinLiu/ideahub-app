@@ -23,6 +23,16 @@ msgstr " · {0, plural, one {# file} other {# files}}"
 msgid " · {0} 个角色位"
 msgstr " · {0, plural, one {# role slot} other {# role slots}}"
 
+#. placeholder {0}: d.installs
+#: src/pages/WorkshopPage.tsx
+msgid " · {0} 人装过"
+msgstr " · {0, plural, one {# install} other {# installs}}"
+
+#. placeholder {0}: d.cardCount
+#: src/pages/WorkshopPage.tsx
+msgid " · {0} 张"
+msgstr " · {0, plural, one {# card} other {# cards}}"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid " · ✓ 已出片"
 msgstr " · ✓ Rendered"
@@ -59,6 +69,11 @@ msgstr " · with {0, plural, one {# attached card} other {# attached cards}}"
 #: src/components/flow/FlowCanvas.tsx
 msgid " · 当前"
 msgstr " · current"
+
+#. placeholder {0}: d.remixOf.displayName || d.remixOf.username
+#: src/pages/WorkshopPage.tsx
+msgid " · 改自 @{0}"
+msgstr " · remixed from @{0}"
 
 #: src/components/DownloadSheet.tsx
 msgid " · 正在停止（当前这一段会跑完）"
@@ -135,6 +150,11 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 msgid "、"
 msgstr ", "
 
+#. 列举「每个图位锁什么」时的分隔符
+#: src/pages/CardDetailPage.tsx
+msgid "；"
+msgstr "; "
+
 #. placeholder {0}: quote !== o.text ? "…" : ""
 #: src/studio/canvasAgent.ts
 msgid "：「{quote}{0}」"
@@ -164,6 +184,14 @@ msgstr "· Their videos, comments and bullet comments won't show up for you anym
 #: src/components/GenTrace.tsx
 msgid "· 共 {total} 步"
 msgstr "· {total, plural, one {# step} other {# steps}}"
+
+#: src/pages/CardDetailPage.tsx
+msgid "· 出片时会喂给 AI（同一段挂的卡多时可能让位）"
+msgstr "· Fed to the AI when making videos (may give way when a segment has many cards)"
+
+#: src/pages/CardDetailPage.tsx
+msgid "· 只在这一页展示，出片用不到"
+msgstr "· Only shown on this page; not used when making videos"
 
 #: src/components/DeleteCardDialog.tsx
 msgid "· 它会从 {deckCount} 个卡组里移出（{deckNames} 等），卡组本身还在。"
@@ -305,6 +333,11 @@ msgstr "{0} {1} (recommended by the look's creator)"
 msgid "{0} 个作品"
 msgstr "{0, plural, one {# video} other {# videos}}"
 
+#. placeholder {0}: decks.length
+#: src/pages/WorkshopPage.tsx
+msgid "{0} 个卡组"
+msgstr "{0, plural, one {# deck} other {# decks}}"
+
 #. placeholder {0}: tpl.roles.length
 #: src/components/TemplateShelf.tsx
 msgid "{0} 个角色位可换人"
@@ -315,10 +348,12 @@ msgstr "{0, plural, one {# recastable slot} other {# recastable slots}}"
 msgid "{0} 使用引导"
 msgstr "{0} guide"
 
+#. placeholder {0}: d.cardIds.length
 #. placeholder {0}: deck.cards.length
 #. placeholder {0}: materials.length
 #: src/components/MaterialSheet.tsx
 #: src/pages/VideoPage.tsx
+#: src/pages/WorkshopPage.tsx
 msgid "{0} 张"
 msgstr "{0, plural, one {# card} other {# cards}}"
 
@@ -426,6 +461,12 @@ msgstr "{0}: that's a segment setting. Open that segment's editor — duration, 
 #: src/pages/VideoPage.tsx
 msgid "{0}重新剪辑过"
 msgstr "Re-edited {0}"
+
+#. placeholder {0}: s.label
+#. placeholder {1}: s.locks
+#: src/pages/CardDetailPage.tsx
+msgid "{0}锁{1}"
+msgstr "{0} locks {1}"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "{beatCount} 段 · 每段 {beatSec}s"
@@ -595,10 +636,22 @@ msgstr "+ turning all {durSec}s into white mannequins ({0} · {1})"
 msgid "＋ 插一张中间帧（把这一段拆成两段，从这一帧断开）"
 msgstr "+ Insert a middle frame (splits this segment in two at that frame)"
 
+#: src/pages/WorkshopPage.tsx
+msgid "＋ 新建卡组"
+msgstr "+ New deck"
+
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "＋ 标记这一帧"
 msgstr "+ Mark this frame"
+
+#: src/pages/WorkshopPage.tsx
+msgid "＋ 添加"
+msgstr "+ Add"
+
+#: src/pages/CardDetailPage.tsx
+msgid "＋ 添加到我的卡片"
+msgstr "+ Add to my cards"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "＋ 自建一套"
@@ -660,6 +713,7 @@ msgid "○ 演示模式：本地模拟，不消耗 token"
 msgstr "○ Demo mode: simulated locally, no tokens used"
 
 #: src/pages/DeckDetailPage.tsx
+#: src/pages/WorkshopPage.tsx
 msgid "★ 封面"
 msgstr "★ Cover"
 
@@ -833,6 +887,10 @@ msgstr "✓ Real footage"
 msgid "✓ 试炼通过——你已经用这个模板真实出过片，可以发布了。"
 msgstr "✓ Trial run passed — you've made a real video with this template, so you can publish it."
 
+#: src/pages/CardDetailPage.tsx
+msgid "✦ 全息实体 3D 建模"
+msgstr "✦ Holographic 3D model"
+
 #: src/components/CoverPicker.tsx
 msgid "✨ AI 封面（改图/生成）"
 msgstr "✨ AI cover (edit / generate)"
@@ -918,6 +976,10 @@ msgstr "🎬 Upload a sample video as the reference for the whole segment"
 msgid "🎬 传一段示例视频当整段参考（多图+参考视频模式）"
 msgstr "🎬 Upload a sample video as the whole-segment reference (multi-image + reference video mode)"
 
+#: src/pages/CardDetailPage.tsx
+msgid "🎬 去 3D 工坊用这张卡创作"
+msgstr "🎬 Create with this card in the 3D Studio"
+
 #. placeholder {0}: node.customRef.durationSec.toFixed(1)
 #. placeholder {1}: Math.round(node.customRef.durationSec)
 #. placeholder {2}: p.durationSec
@@ -950,6 +1012,10 @@ msgstr "🎯 Extract cards from a video"
 msgid "🎯 从视频提取卡组"
 msgstr "🎯 Extract a deck from a video"
 
+#: src/pages/CardDetailPage.tsx
+msgid "🎯 出片身份句"
+msgstr "🎯 Identity line for videos"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "🎲 推演三套方案（{propCostLabel}）"
 msgstr "🎲 Plan three options ({propCostLabel})"
@@ -977,6 +1043,10 @@ msgstr "🎴 Template deck · {cardCount, plural, one {# card} other {# cards}}"
 #: src/pages/VideoPage.tsx
 msgid "🎴 用这套卡去创作"
 msgstr "🎴 Create with these cards"
+
+#: src/pages/WorkshopPage.tsx
+msgid "🎴 进入 3D 工坊"
+msgstr "🎴 Enter the 3D Studio"
 
 #: src/components/VoiceUploadButton.tsx
 msgid "🎵 上传本地音频（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）"
@@ -1008,6 +1078,15 @@ msgstr "🔇 Muted"
 msgid "🔇 静音中"
 msgstr "🔇 Muted"
 
+#: src/pages/CardDetailPage.tsx
+msgid "🔊 人物声音"
+msgstr "🔊 Character voice"
+
+#. placeholder {0}: v.durationSec
+#: src/pages/CardDetailPage.tsx
+msgid "🔊 人物声音 · {0}s"
+msgstr "🔊 Character voice · {0}s"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "🔊 只看带声音的卡"
 msgstr "🔊 Only cards with a voice"
@@ -1035,6 +1114,15 @@ msgstr "🔗 Start portrait authorization (scan the code / open on this device)"
 #: src/components/VideoCardAnnotator.tsx
 msgid "🖌 笔"
 msgstr "🖌 Brush"
+
+#: src/pages/CardDetailPage.tsx
+msgid "🖼 形象参考"
+msgstr "🖼 Reference images"
+
+#. placeholder {0}: views.length
+#: src/pages/CardDetailPage.tsx
+msgid "🖼 形象参考（{0}/{MAX_CARD_VIEWS}）"
+msgstr "🖼 Reference images ({0}/{MAX_CARD_VIEWS})"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "🖼 把这次的产出存成方案示例图"
@@ -1092,6 +1180,14 @@ msgstr "🧪 Generation recipe"
 #: src/components/VideoCardAnnotator.tsx
 msgid "🪪 <0>方舟可信素材</0>（真人出片的合规通道）：「高清」「电影级」档<1>不收直接上传的真人照片</1>，只收本人授权过的素材。现在就能做："
 msgstr "🪪 <0>Ark trusted assets</0> (the compliant route for real-person videos): the HD and Cinematic tiers <1>don't accept directly uploaded photos of real people</1>, only assets the person has authorized. You can set it up right now:"
+
+#: src/pages/CardDetailPage.tsx
+msgid "🪪 肖像授权已在本机接上，但还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。"
+msgstr "🪪 Portrait authorization is connected on this device but hasn't synced to the server yet ({issue}) — other devices won't see it for now, and it'll upload automatically next time you log in."
+
+#: src/pages/CardDetailPage.tsx
+msgid "🪪 这张真人卡还<0>没接上已授权的肖像素材</0>——「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。"
+msgstr "🪪 This real-person card <0>isn't connected to an authorized portrait asset yet</0> — the HD and Cinematic tiers don't accept directly uploaded photos of real people, so videos using it will be rejected until it's connected."
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "🛒 逛方案市场"
@@ -1187,6 +1283,7 @@ msgstr "One-line intro (optional)"
 msgid "一句话推荐（选填）：这张卡适合画什么？"
 msgstr "One-line pitch (optional): what is this card good for?"
 
+#: src/pages/CardDetailPage.tsx
 #: src/pages/SettingsProfilePage.tsx
 msgid "一句话简介"
 msgstr "One-line bio"
@@ -1342,6 +1439,7 @@ msgid "不上传，直接给首尾帧 ›"
 msgstr "Skip upload, provide first/last frames ›"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/pages/CardDetailPage.tsx
 msgid "不了"
 msgstr "No thanks"
 
@@ -1427,6 +1525,10 @@ msgstr "Character model"
 msgid "人物音频"
 msgstr "Character voice"
 
+#: src/pages/CardDetailPage.tsx
+msgid "仅展示"
+msgstr "Display only"
+
 #: src/components/VisibilityPicker.tsx
 msgid "仅自己可见"
 msgstr "Only me"
@@ -1447,9 +1549,21 @@ msgstr "Drag a card from the library above to the middle of the screen"
 msgid "从头再看"
 msgstr "Watch again"
 
+#: src/pages/WorkshopPage.tsx
+msgid "从市场添加"
+msgstr "Add from the market"
+
 #: src/components/CoverPicker.tsx
 msgid "从成片截取封面帧"
 msgstr "Grab a cover frame from the video"
+
+#: src/pages/WorkshopPage.tsx
+msgid "从视频提取卡片"
+msgstr "Extract a card from a video"
+
+#: src/pages/WorkshopPage.tsx
+msgid "从视频提取卡组"
+msgstr "Extract a deck from a video"
 
 #: src/pages/SupportPersonasPage.tsx
 msgid "付费人格：先在官网购买，买过之后这里就能用。"
@@ -1521,6 +1635,14 @@ msgstr "Works and cards are synced to the server, so you'll see them when you lo
 msgid "作品内容"
 msgstr "Video content"
 
+#: src/pages/WorkshopPage.tsx
+msgid "你可以在自己的卡片详情页按「分享到创意工坊」，成为第一个"
+msgstr "Tap “Share to the Workshop” on one of your card pages to be the first"
+
+#: src/pages/WorkshopPage.tsx
+msgid "你可以第一个"
+msgstr "You could be the first"
+
 #: src/components/support/VoiceSheet.tsx
 msgid "你的设置（官网同步）"
 msgstr "Your settings (synced with the website)"
@@ -1584,11 +1706,13 @@ msgid "例：雨夜霓虹的街头，穿风衣的侦探快步穿过人群"
 msgstr "e.g. A neon-lit street on a rainy night, a detective in a trench coat hurrying through the crowd"
 
 #: src/components/support/VoiceSheet.tsx
+#: src/pages/CardDetailPage.tsx
 #: src/pages/TemplateDetailPage.tsx
 msgid "保存"
 msgstr "Save"
 
 #: src/components/support/VoiceSheet.tsx
+#: src/pages/CardDetailPage.tsx
 #: src/pages/EditPage.tsx
 #: src/pages/SettingsProfilePage.tsx
 msgid "保存中…"
@@ -1738,6 +1862,11 @@ msgstr "Public: shows up under “Add from market” in the Workshop, and others
 msgid "公开到声音市场（不勾 = 只在「我的」里）"
 msgstr "Publish to the voice market (unchecked = only in “Mine”)"
 
+#. placeholder {0}: cards.length
+#: src/pages/WorkshopPage.tsx
+msgid "共 {0} 张卡"
+msgstr "{0, plural, one {# card} other {# cards}} total"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/SimpleModePage.tsx
 msgid "共 {count} 段 · 点开选一段"
@@ -1793,6 +1922,10 @@ msgstr "Content declaration: this video is AI-generated"
 msgid "再加一个"
 msgstr "Add another"
 
+#: src/pages/CardDetailPage.tsx
+msgid "再同步一次"
+msgstr "Sync again"
+
 #: src/components/BlockButton.tsx
 msgid "再想想"
 msgstr "Not now"
@@ -1810,6 +1943,7 @@ msgid "再补一句要求（可留空）"
 msgstr "Add a request (optional)"
 
 #: src/components/DeleteConfirmShell.tsx
+#: src/pages/CardDetailPage.tsx
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
 #: src/pages/VideoPage.tsx
@@ -1894,9 +2028,34 @@ msgstr "Check before rendering: your cast is placed into the blockout frame, and
 msgid "出片前必须把它们取下。"
 msgstr "You must remove them before rendering."
 
+#: src/pages/CardDetailPage.tsx
+msgid "出片时<0>不是每张都会喂进模型</0>——「出片用」按单卡乐观口径标，同一段挂的卡多时可能让位。"
+msgstr "When making videos, <0>not every image is fed to the model</0> — “Used in video” is marked optimistically, as if this were the only card, and may give way when a segment has many cards."
+
+#: src/pages/CardDetailPage.tsx
+msgid "出片时一段里只有「第一张人物卡」能带形象参考图：它最多取 {MAX_CHAR_REFS} 张（优先{face} + {body}）；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）{detail}这一格铸卡不会自动出图（只能自己传），三张挂满时它也排在最后，出片轮不到它。"
+msgstr "When making videos, only the “first character card” in a segment can bring reference images: it takes at most {MAX_CHAR_REFS, plural, one {# image} other {# images}} ({face} + {body} first). Other character cards in the same segment bring none and only take part through their text details — one image with several characters gets rejected outright by Ark. So “Used in video” above assumes this card is that first character card: if it comes after other character cards, the images marked Used in video won't reach the model either (the generation steps will say so). (The two paths that don't draw setup frames are exceptions — attaching cards to a blockout template, and direct reference-image output in Simple mode: every character card brings its own images.) The {detail} slot isn't generated automatically when minting (you can only upload it yourself), and when all three are filled it comes last, so it never gets used in videos."
+
+#. placeholder {0}: CARD_INFO_LABELS[card.type]
+#: src/pages/CardDetailPage.tsx
+msgid "出片时提示词里代表这张卡的固定一句（逐段复用同一措辞，形象更稳）。长设定进画面靠上面的参考图与{0}，不直接塞进视频提示词。"
+msgstr "The fixed line that stands for this card in video prompts (the same wording is reused in every segment, which keeps the look steadier). Longer details reach the picture through the reference images above and the {0}; they aren't stuffed into the video prompt."
+
+#: src/pages/CardDetailPage.tsx
+msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡的第 2 张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
+msgstr "When making videos, this kind of card always gets its first image ({first}) fed to the AI. A segment takes at most {MAX_REF_IMAGES, plural, one {# reference image} other {# reference images}} in total, and the second image only gets in if there's budget left — so the fewer cards in the segment, the more likely it actually reaches the model. When the budget runs short, “each card's second image is dropped first”, and with even more cards whole cards get left out (the generation steps name each one in both cases). (Attaching cards to a blockout template and direct reference-image output in Simple mode are more generous: reference images go straight into the video model, up to the limit of the chosen tier.)"
+
+#: src/pages/CardDetailPage.tsx
+msgid "出片用"
+msgstr "Used in video"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "出片的同时提炼一副本片卡组：你挂过的卡直接入组，缺的卡种由 AI 按成片补齐（含一张画风卡）。不勾就只出片、不出卡组。组稿前随时能改。"
 msgstr "Also extract a deck from this video while rendering: cards you attached go straight in, and the AI fills in missing card types from the finished video (including an art style card). Unchecked means video only, no deck. You can change this any time before assembling."
+
+#: src/pages/CardDetailPage.tsx
+msgid "出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
+msgstr "When a video renders on the HD or Cinematic tier with dialogue in quotes, the AI uses this clip as a voice reference (best effort, not a clone). The sample stays on this device and isn't included when you share the card."
 
 #: src/components/VisibilityPicker.tsx
 msgid "出现在首页、分区和搜索里，谁都能看"
@@ -1971,6 +2130,10 @@ msgstr "Create"
 msgid "创作中心"
 msgstr "Creator center"
 
+#: src/pages/WorkshopPage.tsx
+msgid "创意工坊"
+msgstr "Workshop"
+
 #: src/components/flow/SkillPanel.tsx
 #: src/components/VideoCardAnnotator.tsx
 msgid "删"
@@ -2036,6 +2199,10 @@ msgstr "Delete this deck"
 msgid "删掉这个角色位"
 msgstr "Delete this role slot"
 
+#: src/pages/CardDetailPage.tsx
+msgid "删掉这张"
+msgstr "Delete this image"
+
 #: src/components/DeleteCardDialog.tsx
 msgid "删掉这张卡"
 msgstr "Delete this card"
@@ -2052,6 +2219,7 @@ msgstr "This deletes the {files, plural, one {# video file} other {# video files
 #: src/components/DraftSheet.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/TemplateDetailPage.tsx
+#: src/pages/WorkshopPage.tsx
 msgid "删除"
 msgstr "Delete"
 
@@ -2078,6 +2246,10 @@ msgstr "Delete failed for an unknown reason."
 #: src/pages/EditPage.tsx
 msgid "删除留存的工坊工程"
 msgstr "Delete the kept Studio project"
+
+#: src/pages/CardDetailPage.tsx
+msgid "删除这张卡"
+msgstr "Delete this card"
 
 #: src/pages/EditPage.tsx
 msgid "删除这部作品"
@@ -2143,12 +2315,21 @@ msgstr "If you check “A real person is in the picture”, you also have to che
 
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/SupportModelsPage.tsx
+#: src/pages/WorkshopPage.tsx
 msgid "匿名"
 msgstr "Anonymous"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "单音色"
 msgstr "Single voice"
+
+#: src/pages/CardDetailPage.tsx
+msgid "卡名"
+msgstr "Card name"
+
+#: src/pages/CardDetailPage.tsx
+msgid "卡名不能空着 —— 卡组里全靠它认人。"
+msgstr "The card name can't be empty — decks rely on it to tell cards apart."
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "卡存在本机了，但还没同步到服务端（{reason}）——网络恢复前别退出登录，否则会丢"
@@ -2163,6 +2344,7 @@ msgid "卡已丢失"
 msgstr "Card missing"
 
 #: src/components/MaterialSheet.tsx
+#: src/pages/WorkshopPage.tsx
 msgid "卡片"
 msgstr "Cards"
 
@@ -2170,9 +2352,23 @@ msgstr "Cards"
 msgid "卡片存上了，卡组本身没建成"
 msgstr "The cards were saved, but the deck itself wasn't created"
 
+#: src/pages/WorkshopPage.tsx
+msgid "卡片广场在服务器上，离线库里没有「别人」"
+msgstr "Shared cards live on the server; the offline library has no “others”"
+
+#: src/pages/CardDetailPage.tsx
+msgid "卡片详情"
+msgstr "Card details"
+
 #: src/components/MaterialSheet.tsx
+#: src/pages/WorkshopPage.tsx
 msgid "卡组"
 msgstr "Decks"
+
+#. placeholder {0}: decks.length + 1
+#: src/pages/WorkshopPage.tsx
+msgid "卡组 {0}"
+msgstr "Deck {0}"
 
 #: src/pages/DeckDetailPage.tsx
 msgid "卡组不存在或不属于你"
@@ -2236,6 +2432,7 @@ msgstr "Go make a segment"
 msgid "去创作"
 msgstr "Start creating"
 
+#: src/pages/CardDetailPage.tsx
 #: src/pages/DeckDetailPage.tsx
 msgid "去创意工坊"
 msgstr "Go to the Workshop"
@@ -2287,6 +2484,10 @@ msgstr "Go to the template market"
 #: src/components/BlockButton.tsx
 msgid "去登录"
 msgstr "Sign in"
+
+#: src/pages/CardDetailPage.tsx
+msgid "参考图怎么被 AI 取用"
+msgstr "How the AI uses reference images"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "参考画面特征"
@@ -2448,6 +2649,7 @@ msgstr "Loading the stream timed out (the browser doesn't decode video while the
 #: src/components/support/VoiceMarket.tsx
 #: src/components/support/VoiceMixer.tsx
 #: src/components/VideoCardAnnotator.tsx
+#: src/pages/CardDetailPage.tsx
 #: src/pages/EditPage.tsx
 msgid "取消"
 msgstr "Cancel"
@@ -2501,6 +2703,10 @@ msgstr "Unmute"
 #: src/components/VideoCardAnnotator.tsx
 msgid "取自原视频 {0}–{1}s"
 msgstr "From the original video, {0}–{1}s"
+
+#: src/pages/CardDetailPage.tsx
+msgid "取舍规则 ›"
+msgstr "Selection rules ›"
 
 #: src/components/blockout/VideoStage.tsx
 msgid "取这一帧超时了。应用切到后台时系统会暂停视频解码——回到前台、让画面真的动起来之后再点「标记这一帧」。"
@@ -2684,6 +2890,10 @@ msgstr "Back to home"
 msgid "图片加载失败"
 msgstr "Image failed to load"
 
+#: src/pages/WorkshopPage.tsx
+msgid "圈一张就走"
+msgstr "Circle one and go"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "圈出来的范围太小（参考图至少要 300px 宽）——再拖大一点"
 msgstr "The selected area is too small (reference images need to be at least 300px wide) — drag a bigger one"
@@ -2727,12 +2937,17 @@ msgstr "Voice market"
 #: src/components/VoiceRecorder.tsx
 #: src/components/VoiceUploadButton.tsx
 #: src/components/WorkshopShareBar.tsx
+#: src/pages/CardDetailPage.tsx
 msgid "处理中…"
 msgstr "Processing…"
 
 #: src/pages/SettingsPage.tsx
 msgid "处理举报（下架 / 驳回 / 删除）· 平台数据"
 msgstr "Handle reports (take down / dismiss / delete) · platform data"
+
+#: src/pages/CardDetailPage.tsx
+msgid "复制"
+msgstr "Copy"
 
 #: src/components/ShareSheet.tsx
 msgid "复制失败，手动复制：{url}"
@@ -2869,6 +3084,10 @@ msgstr "Save draft"
 msgid "存这张卡"
 msgstr "Save this card"
 
+#: src/pages/WorkshopPage.tsx
+msgid "它们还在，联网后重开一次"
+msgstr "They're still there — reopen this page once you're online"
+
 #: src/pages/VideoEditorPage.tsx
 msgid "它拿不到“要编辑哪段视频”这个信息（直接输入地址、或从后台回来时页面已被系统回收，都会这样）。请回到上一步重新进入。"
 msgstr "It doesn't know which video to edit (this happens if you typed the address directly, or the system reclaimed the page while the app was in the background). Go back a step and open it again."
@@ -2884,6 +3103,7 @@ msgstr "Install and use"
 #: src/components/AvatarPicker.tsx
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/DeckDetailPage.tsx
+#: src/pages/WorkshopPage.tsx
 msgid "完成"
 msgstr "Done"
 
@@ -3020,6 +3240,10 @@ msgstr "Switched. It takes effect when you go back to the support page."
 msgid "已删掉 {0} 个文件，{1} 空间已释放"
 msgstr "Deleted {0, plural, one {# file} other {# files}}, freeing {1}"
 
+#: src/pages/CardDetailPage.tsx
+msgid "已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。"
+msgstr "You've reached the limit of {MAX_CARD_VIEWS, plural, one {# image} other {# images}} — Ark recommends not filling every slot, since with too many references the model can't tell which features to prioritize."
+
 #: src/components/MaterialSheet.tsx
 msgid "已加入"
 msgstr "Added"
@@ -3052,6 +3276,10 @@ msgstr "In Workshop · Unshare"
 msgid "已在模板市场公开，别人可以直接套用出片。"
 msgstr "Public in the template market; others can use it to make videos right away."
 
+#: src/pages/CardDetailPage.tsx
+msgid "已复制"
+msgstr "Copied"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "已建组「{deckDone}」"
 msgstr "Deck “{deckDone}” created"
@@ -3080,6 +3308,10 @@ msgstr "Blocked “{who}”. You won't see each other's content anymore."
 #: src/pages/SettingsPage.tsx
 msgid "已拉黑的人"
 msgstr "Blocked people"
+
+#: src/pages/WorkshopPage.tsx
+msgid "已拥有"
+msgstr "Owned"
 
 #. placeholder {0}: tpl!.roles!.length
 #: src/components/flow/FlowCanvas.tsx
@@ -3129,6 +3361,10 @@ msgstr "Marked {0}/{cap}"
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "已标 {0}/{cap} 刀"
 msgstr "Cuts {0}/{cap}"
+
+#: src/pages/WorkshopPage.tsx
+msgid "已添加"
+msgstr "Added"
 
 #: src/pages/SettingsStoragePage.tsx
 msgid "已清理 {n} 个文件"
@@ -3231,6 +3467,10 @@ msgstr "No public voice templates yet. Publish the first one from “Mix”."
 msgid "市场里还没有别人公开的形象。"
 msgstr "No one else has published a look to the market yet."
 
+#: src/pages/WorkshopPage.tsx
+msgid "带声音样本"
+msgstr "Has a voice sample"
+
 #: src/pages/CustomCardPage.tsx
 msgid "带背景"
 msgstr "Background kept"
@@ -3247,6 +3487,10 @@ msgstr "Platform notice"
 #: src/components/flow/SkillPanel.tsx
 msgid "广场上还没有人发布技能——发布你的第一条？"
 msgstr "No one has published a skill yet. Publish the first one?"
+
+#: src/pages/WorkshopPage.tsx
+msgid "建一个把常用素材归到一起"
+msgstr "Create one to group the cards you use often"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "建组失败：登录态可能已经失效（卡都已各自存进卡片库，不会丢）"
@@ -3307,6 +3551,10 @@ msgstr "Current cover (reference)"
 #: src/components/CoverPicker.tsx
 msgid "当前封面不可作参考图"
 msgstr "The current cover can't be used as a reference"
+
+#: src/pages/WorkshopPage.tsx
+msgid "当前封面卡"
+msgstr "Current cover card"
 
 #: src/pages/SettingsBlockedPage.tsx
 msgid "当前是本地模式（没有连服务器），黑名单是账号级的功能——接上服务器之后才会有。"
@@ -3434,6 +3682,10 @@ msgstr "Video preview (segments play in timeline order)"
 msgid "我们对涉及未成年人内容的立场与处理方式（在官网打开）"
 msgstr "Our position on and handling of content involving minors (opens on our website)"
 
+#: src/pages/WorkshopPage.tsx
+msgid "我发的"
+msgstr "Posted by me"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "我已逐个核对，位置无误"
 msgstr "I've checked each one — positions are correct"
@@ -3461,9 +3713,21 @@ msgstr "Mine · not public"
 msgid "我的作品 {count}"
 msgstr "My creations {count}"
 
+#: src/pages/WorkshopPage.tsx
+msgid "我的卡片"
+msgstr "My cards"
+
+#: src/pages/WorkshopPage.tsx
+msgid "我的卡组"
+msgstr "My decks"
+
 #: src/components/flow/SkillPanel.tsx
 msgid "我的技能（点一个 = 填进输入框）"
 msgstr "My skills (tap one to fill the input)"
+
+#: src/pages/WorkshopPage.tsx
+msgid "我的模板"
+msgstr "My templates"
 
 #. placeholder {0}: mineRows || ""
 #: src/components/TemplateShelf.tsx
@@ -3498,6 +3762,10 @@ msgstr "Grabbing…"
 #: src/components/flow/FlowCanvas.tsx
 msgid "截帧中…"
 msgstr "Capturing…"
+
+#: src/pages/CardDetailPage.tsx
+msgid "所属卡组"
+msgstr "In decks"
 
 #: src/components/PortraitAuthPanel.tsx
 msgid "手工填入（方舟控制台授权）"
@@ -3554,6 +3822,16 @@ msgstr "Blend 1–3 Doubao voices in your own proportions to make your voice; yo
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "把「<0>{0}</0>」挂到 <1>{1}</1> 身上？"
 msgstr "Attach “<0>{0}</0>” to <1>{1}</1>?"
+
+#. 紧跟在上一句（这段提示词从哪来）后面显示：英文译文开头要留一个空格
+#: src/pages/CardDetailPage.tsx
+msgid "把它交给 AI（或在工坊中使用本卡），即可生成与卡面一致的画面。"
+msgstr " Give it to the AI (or use this card in the Studio) to generate images that match the card."
+
+#. 紧跟在上一句（这段提示词从哪来）后面显示：英文译文开头要留一个空格
+#: src/pages/CardDetailPage.tsx
+msgid "把它交给 AI（或在工坊中使用本卡），即可生成与卡面一致的角色画面 / 3D 建模。"
+msgstr " Give it to the AI (or use this card in the Studio) to generate character images / 3D models that match the card."
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "把播放头挪到第几秒"
@@ -3723,6 +4001,10 @@ msgstr "Switch speaking styles; synced with the website"
 msgid "换一种说话风格，客服页与官网首页共用同一份设置；人格自带嗓子的话声音也会跟着换。"
 msgstr "Switch speaking styles. The support page and the website's home page share one setting; if a persona has its own voice, the voice changes too."
 
+#: src/pages/WorkshopPage.tsx
+msgid "换个词试试，或者清空搜索框看看大家都分享了什么"
+msgstr "Try another word, or clear the search to see what everyone has shared"
+
 #. placeholder {0}: ask.label
 #: src/components/flow/TierRow.tsx
 msgid "换到「{0}」档会有这些变化："
@@ -3853,6 +4135,14 @@ msgstr "Search templates: name, intro…"
 msgid "搜模板：特摄、治愈、赛博…"
 msgstr "Search templates: tokusatsu, healing, cyber…"
 
+#: src/pages/WorkshopPage.tsx
+msgid "搜索别人分享的卡组"
+msgstr "Search decks others have shared"
+
+#: src/pages/WorkshopPage.tsx
+msgid "搜索卡片名 / 标签"
+msgstr "Search card names / tags"
+
 #: src/pages/DiscoverPage.tsx
 msgid "搜索视频 / 分区 / 用户"
 msgstr "Search videos / categories / users"
@@ -3919,6 +4209,7 @@ msgid "改剧本重拆"
 msgstr "Edit script and split again"
 
 #: src/components/DraftSheet.tsx
+#: src/pages/CardDetailPage.tsx
 msgid "改名"
 msgstr "Save"
 
@@ -3933,6 +4224,14 @@ msgstr "After you change the casting, the request below is <0>regenerated</0> fr
 #: src/pages/EditPage.tsx
 msgid "改成「仅自己可见」就好"
 msgstr "Just set it to “Only me”"
+
+#: src/pages/CardDetailPage.tsx
+msgid "改的是你库里这一份。已经随作品发布、或被别人装走的那些是当时的副本，不会跟着变。"
+msgstr "This changes the copy in your library. Copies already published with videos or installed by others are snapshots from that time and won't change."
+
+#: src/pages/CardDetailPage.tsx
+msgid "改这张卡的名字与简介"
+msgstr "Edit this card's name and description"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "改错了不用重炼"
@@ -4134,6 +4433,7 @@ msgid "未命名"
 msgstr "Untitled"
 
 #: src/pages/DeckDetailPage.tsx
+#: src/pages/WorkshopPage.tsx
 msgid "未命名卡组"
 msgstr "Untitled deck"
 
@@ -4175,6 +4475,7 @@ msgstr "Works and data on this device won't be deleted; log back in to continue.
 msgid "本机缓存"
 msgstr "Local cache"
 
+#: src/pages/CardDetailPage.tsx
 #: src/pages/DeckDetailPage.tsx
 msgid "本机计数"
 msgstr "Local count"
@@ -4358,6 +4659,10 @@ msgstr "This card changed in the template. Refresh and try again."
 msgid "正在上传封面…"
 msgstr "Uploading cover…"
 
+#: src/pages/CardDetailPage.tsx
+msgid "正在从创意工坊取这张卡…"
+msgstr "Getting this card from the Workshop…"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "正在从服务器取这个模板…"
 msgstr "Loading this template from the server…"
@@ -4375,6 +4680,14 @@ msgstr "Another video is being saved. Wait for it to finish, or stop it first."
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "正在取最新的角色位…"
 msgstr "Fetching the latest role slots…"
+
+#: src/pages/WorkshopPage.tsx
+msgid "正在取卡片广场…"
+msgstr "Loading shared cards…"
+
+#: src/pages/WorkshopPage.tsx
+msgid "正在取卡组广场…"
+msgstr "Loading shared decks…"
 
 #: src/pages/SettingsBlockedPage.tsx
 msgid "正在取名单…"
@@ -4467,6 +4780,10 @@ msgstr "Checking whether this video has a kept Studio project…"
 msgid "正在算可清理的空间…"
 msgstr "Calculating reclaimable space…"
 
+#: src/pages/CardDetailPage.tsx
+msgid "正在装载你的卡片库…"
+msgstr "Loading your card library…"
+
 #: src/components/support/SupportStage.tsx
 msgid "正在请小梦出场…"
 msgstr "Bringing Xiaomeng on stage…"
@@ -4505,6 +4822,10 @@ msgstr "Continuity between segments"
 msgid "每个位子原来是谁（{0} 个）"
 msgstr "Who each slot originally was ({0})"
 
+#: src/pages/CardDetailPage.tsx
+msgid "每个图位各锁住一件事：{parts}。"
+msgstr "Each image slot locks one thing: {parts}."
+
 #: src/pages/SettingsPage.tsx
 msgid "每个界面第一次打开时会自动放一遍使用引导，之后不再自动弹；想单独重看某一屏，点那一屏角落的<0> ? </0>就行。这里是把<1>所有</1>引导恢复成「没看过」——之后每个界面第一次打开时会重新弹一遍。"
 msgstr "Each screen plays its guide automatically the first time you open it and not again after that; to rewatch one screen, tap the<0> ? </0>in its corner. This resets <1>all</1> guides to “not seen” — each screen will show its guide again the next time you open it."
@@ -4516,6 +4837,10 @@ msgstr "Pick one of three for each segment; change it later if you like"
 #: src/components/CoverPicker.tsx
 msgid "每生成一版都会扣一次"
 msgstr "Each version you generate is charged"
+
+#: src/pages/WorkshopPage.tsx
+msgid "没取到：{error}"
+msgstr "Couldn't load: {error}"
 
 #: src/components/support/HoldToTalk.tsx
 msgid "没听到声音：按住的时候靠近一点说，说完再松手。"
@@ -4555,6 +4880,7 @@ msgid "没有匹配的卡片"
 msgstr "No matching cards"
 
 #: src/components/MaterialSheet.tsx
+#: src/pages/WorkshopPage.tsx
 msgid "没有匹配的卡组"
 msgstr "No matching decks"
 
@@ -4585,6 +4911,10 @@ msgstr "No matching personas. Try another word."
 #: src/components/support/VoiceMarket.tsx
 msgid "没有找到匹配的模板，换个词试试。"
 msgstr "No matching templates. Try another word."
+
+#: src/pages/WorkshopPage.tsx
+msgid "没有搜到「{kw}」相关的卡"
+msgstr "No cards found for “{kw}”"
 
 #: src/pages/SettingsPage.tsx
 msgid "没能切换语言，请重试"
@@ -4647,6 +4977,10 @@ msgstr "Without cloud voice, the system's built-in speech synthesizer is used in
 msgid "沿边描出轮廓"
 msgstr "Trace the outline"
 
+#: src/pages/CardDetailPage.tsx
+msgid "注意：这张卡的 3D 建模只存在这台设备上，分享出去的那份不会带建模。"
+msgstr "Note: this card's 3D model only exists on this device, so the shared copy won't include it."
+
 #: src/pages/SettingsDeactivatePage.tsx
 msgid "注销中…"
 msgstr "Deactivating…"
@@ -4684,6 +5018,11 @@ msgstr "Mix {0}"
 #: src/components/support/VoiceMixer.tsx
 msgid "混音只支持 1.0 音色，语调指令对混音无效。最多 {maxMix} 味：滑杆是相对权重，右侧是归一后的占比。"
 msgstr "Mixing only supports 1.0 voices, and tone instructions don't apply to mixes. Up to {maxMix} voices: sliders are relative weights, and the right side shows each voice's normalized share."
+
+#: src/pages/CardDetailPage.tsx
+#: src/pages/WorkshopPage.tsx
+msgid "添加中…"
+msgstr "Adding…"
 
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "清掉"
@@ -4737,6 +5076,10 @@ msgstr "Tap to select or deselect. Selected cards serve as character/scene refer
 msgid "点一张卡，挂给「{0}」"
 msgstr "Tap a card to attach it to “{0}”"
 
+#: src/pages/CardDetailPage.tsx
+msgid "点任意处关闭"
+msgstr "Tap anywhere to close"
+
 #: src/pages/DeckDetailPage.tsx
 msgid "点击卡片加入/移出 · 组内卡片左上角可设为封面"
 msgstr "Tap a card to add or remove it · set a card in the deck as the cover from its top-left corner"
@@ -4748,6 +5091,10 @@ msgstr "Tap to go back"
 #: src/components/DraftTitle.tsx
 msgid "点击重命名"
 msgstr "Tap to rename"
+
+#: src/pages/WorkshopPage.tsx
+msgid "点卡片加入 / 移出"
+msgstr "Tap cards to add / remove"
 
 #: src/pages/DeckDetailPage.tsx
 msgid "点右上角「编辑」挑几张卡进来"
@@ -4846,9 +5193,17 @@ msgstr "Describe the tone you want in one sentence, e.g.: speak in a mature, cal
 msgid "用一句话描述想要的语气，例如：温柔一点，语速放慢。留空 = 跟随人格/模型"
 msgstr "Describe the tone in one sentence, e.g. a bit gentler, a little slower. Leave empty to follow persona/model"
 
+#: src/pages/WorkshopPage.tsx
+msgid "用下面几种方式做第一张"
+msgstr "Make your first one with one of the options below"
+
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "用下面的格子行挂就行：先点一个格子，再点上面卡轨里的一张卡（也可以把卡直接拖到格子上）。 格子上那行小字是这个模板<0>原本的标记</0>（原样照抄、一个字没改）—— 画面上不会有框亮起来，「人物几」只是排序，认人得靠它和下面「每个位子原来是谁」。"
 msgstr "Use the slot row below instead: tap a slot, then tap a card in the card rail above (or drag a card straight onto a slot). The small text on each slot is this template's <0>original mark</0> (copied exactly as is) — no box will light up in the picture, and “Person N” is only the order, so identify people by that mark and by “Who each slot originally was” below."
+
+#: src/pages/WorkshopPage.tsx
+msgid "用你自己的图当卡面与形象参考，不经过 AI 出图 · 不消耗 token"
+msgstr "Use your own images for the card face and references, with no AI image generation · no tokens used"
 
 #: src/components/TemplateShelf.tsx
 msgid "用它出片"
@@ -4946,6 +5301,10 @@ msgstr "The kept Studio project is from the previous version; this version wasn'
 msgid "留空 = 跟随人格/模型：{0}"
 msgstr "Leave empty to follow persona/model: {0}"
 
+#: src/pages/WorkshopPage.tsx
+msgid "登录 / 注册"
+msgstr "Log in / Sign up"
+
 #: src/components/BlockButton.tsx
 msgid "登录之后才能拉黑。"
 msgstr "Sign in to block people."
@@ -4958,9 +5317,17 @@ msgstr "Log in to manage your block list."
 msgid "登录后可以关注喜欢的创作者"
 msgstr "Log in to follow creators you like"
 
+#: src/pages/WorkshopPage.tsx
+msgid "登录后可以收藏卡片、组建卡组"
+msgstr "Log in to collect cards and build decks"
+
 #: src/pages/VideoPage.tsx
 msgid "登录后可收入卡组"
 msgstr "Log in to add these cards"
+
+#: src/pages/WorkshopPage.tsx
+msgid "登录服务器后可以浏览别人分享的卡组"
+msgstr "Connect to the server to browse decks others have shared"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "登记素材…"
@@ -5133,9 +5500,17 @@ msgstr "Confirm card image"
 msgid "确认注销，请原样输入你的用户名 <0>{username}</0>（区分大小写，不含多余空格）："
 msgstr "To confirm deactivation, type your username <0>{username}</0> exactly (case-sensitive, no extra spaces):"
 
+#: src/pages/CardDetailPage.tsx
+msgid "确认移除"
+msgstr "Confirm removal"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "示例图没存上：{why}"
 msgstr "Example images weren't saved: {why}"
+
+#: src/pages/WorkshopPage.tsx
+msgid "社区分享的卡"
+msgstr "Cards shared by the community"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "视频不上传、不花 token：拖到某一帧，圈出要的人或物，裁出来的画面就是这张卡的参考图。"
@@ -5183,6 +5558,10 @@ msgstr "Couldn't read the video"
 msgid "离开标记帧了，这里的落点会不准（画面上的人已经走动过）—— 回到第 {0} 秒再拖。"
 msgstr "You've moved off the marked frame, so drop targets here won't be accurate (people have moved) — go back to {0}s before dragging."
 
+#: src/pages/CardDetailPage.tsx
+msgid "离线模式下加不了参考图"
+msgstr "Can't add reference images in offline mode"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "私有：只在你自己的库里。分享后会出现在创意工坊的「从市场添加」里，别人可以把整套卡组装走。"
 msgstr "Private: only in your own library. Once shared, it shows up under “Add from market” in the Workshop, and others can install the whole deck."
@@ -5192,6 +5571,8 @@ msgid "私有：只在你自己的库里。分享后会出现在创意工坊的�
 msgstr "Private: only in your own library. Once shared, it shows up under “Add from market” in the Workshop, and others can install this card."
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/pages/CardDetailPage.tsx
+#: src/pages/WorkshopPage.tsx
 msgid "移除"
 msgstr "Remove"
 
@@ -5402,6 +5783,10 @@ msgstr "End = current frame"
 msgid "绑定"
 msgstr "Link"
 
+#: src/pages/CardDetailPage.tsx
+msgid "绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"
+msgstr "The binding wasn't saved (writing to local storage failed) — tap again; if it keeps failing, restart the app and try again."
+
 #: src/components/CoverPicker.tsx
 msgid "绘制中…"
 msgstr "Drawing…"
@@ -5457,6 +5842,10 @@ msgstr "Cards attached to number {0} <0>won't take effect</0>: these slots are b
 msgid "编号还没核对：AI 编的号可能与画面上人偶头上的数字对不上，<0>核对之前不能发布</0>（对不上会让别人的角色卡换到别人身上）。点这里去核对。"
 msgstr "Numbers not checked yet: the numbers the AI assigned may not match the numbers on the mannequins' heads. <0>You can't publish until you check</0> (a mismatch sends other people's character cards to the wrong person). Tap here to check."
 
+#: src/pages/WorkshopPage.tsx
+msgid "编辑"
+msgstr "Edit"
+
 #: src/pages/EditPage.tsx
 msgid "编辑作品"
 msgstr "Edit video"
@@ -5507,6 +5896,10 @@ msgstr "Automatic authorization check failed: {0}"
 #: src/components/AvatarPicker.tsx
 msgid "自定义"
 msgstr "Custom"
+
+#: src/pages/WorkshopPage.tsx
+msgid "自己传图做卡片"
+msgstr "Make a card from your own images"
 
 #: src/pages/SupportCreatePage.tsx
 msgid "自己做数字人的三样东西：长什么样、什么嗓子、怎么说话。做好的可以自己用，也可以公开到市场给别人用。"
@@ -5574,6 +5967,10 @@ msgstr "Unblocking…"
 msgid "认好了 ✓"
 msgstr "Detected ✓"
 
+#: src/pages/WorkshopPage.tsx
+msgid "设为卡组封面"
+msgstr "Set as deck cover"
+
 #: src/components/flow/RefFrameSheet.tsx
 msgid "设为尾帧"
 msgstr "Set as last frame"
@@ -5587,6 +5984,7 @@ msgid "设为首帧"
 msgstr "Set as first frame"
 
 #: src/pages/DeckDetailPage.tsx
+#: src/pages/WorkshopPage.tsx
 msgid "设封面"
 msgstr "Set as cover"
 
@@ -5889,6 +6287,14 @@ msgstr "This video's bullet comments haven't been counted yet. Bullet comments a
 msgid "还没有下载过形象，去「市场」里挑一套。"
 msgstr "You haven't downloaded a look yet. Pick one in “Market”."
 
+#: src/pages/WorkshopPage.tsx
+msgid "还没有人分享卡片"
+msgstr "No one has shared any cards yet"
+
+#: src/pages/WorkshopPage.tsx
+msgid "还没有人分享卡组"
+msgstr "No one has shared any decks yet"
+
 #: src/pages/DiscoverPage.tsx
 #: src/pages/FeedPage.tsx
 msgid "还没有作品"
@@ -5898,11 +6304,16 @@ msgstr "No videos yet"
 msgid "还没有你自己的模板——上面那两个入口都能做一个"
 msgstr "You don't have any templates yet — either button above can make one"
 
+#: src/pages/WorkshopPage.tsx
+msgid "还没有卡片"
+msgstr "No cards yet"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "还没有卡片——去创意工坊铸几张或从市场添加"
 msgstr "No cards yet — make some in the Workshop or add them from the market"
 
 #: src/components/MaterialSheet.tsx
+#: src/pages/WorkshopPage.tsx
 msgid "还没有卡组"
 msgstr "No decks yet"
 
@@ -6050,6 +6461,10 @@ msgstr "This page needs to be opened from an upload or template page"
 msgid "这不代表名单是空的"
 msgstr "This doesn't mean the list is empty"
 
+#: src/pages/CardDetailPage.tsx
+msgid "这不代表它不存在，只是这次没问到"
+msgstr "That doesn't mean it doesn't exist — it just couldn't be fetched this time"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "这不像方舟的资产 ID —— 应该长成 asset-20260401123823-6d4x2 这样（在方舟控制台点「复制 asset ID」拿到）"
 msgstr "That doesn't look like an Ark asset ID — it should look like asset-20260401123823-6d4x2 (get it with “Copy asset ID” in the Ark console)"
@@ -6163,6 +6578,11 @@ msgstr "{lostCount, plural, one {# asset in this project wasn't kept} other {# a
 msgid "这份的 ID 形状不认识（{0}）——用「填 asset ID」那条路试试。"
 msgstr "This asset's ID format isn't recognized ({0}) — try entering the asset ID manually."
 
+#. placeholder {0}: cardsLoadIssue()
+#: src/pages/WorkshopPage.tsx
+msgid "这会儿没能取到你的卡片（{0}）"
+msgstr "Couldn't load your cards right now ({0})"
+
 #. placeholder {0}: quoted(r.mixed)
 #: src/studio/canvasAgent.ts
 msgid "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
@@ -6244,6 +6664,14 @@ msgstr "Some cards in this set are marked as “real people”, so their referen
 msgid "这张卡不在你的库里，它的分享开关归卡主管。"
 msgstr "This card isn't in your library; sharing it is up to its owner."
 
+#: src/pages/CardDetailPage.tsx
+msgid "这张卡不在你的收藏里"
+msgstr "This card isn't in your collection"
+
+#: src/pages/CardDetailPage.tsx
+msgid "这张卡不在你的收藏里，创意工坊的广场上也没有"
+msgstr "This card isn't in your collection, and it isn't shared in the Workshop either"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "这张卡声明过是真实人物，不能分享到创意工坊：肖像授权只覆盖你自己使用。"
 msgstr "This card is declared as a real person, so it can't be shared to the Workshop: the portrait authorization only covers your own use."
@@ -6255,6 +6683,14 @@ msgstr "This card uses a third-party copyrighted model and can't be shared witho
 #: src/components/WorkshopShareBar.tsx
 msgid "这张卡是装来的，不能再分享一遍——广场上显示的始终是最早分享那份。想让别人看到你改过的版本，用它做一张自己的卡。"
 msgstr "This card was installed from someone else and can't be shared again; the Workshop always shows the first shared copy. To share your edited version, make your own card from it."
+
+#: src/pages/CardDetailPage.tsx
+msgid "这张卡没留下铸造时的提示词（老卡/素材卡），上面是按同款格式现补的一份。"
+msgstr "This card didn't keep the prompt it was minted with (an older or asset card); the one above was rebuilt in the same format."
+
+#: src/pages/CardDetailPage.tsx
+msgid "这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。"
+msgstr "This card has no voice sample yet. You can grab a clip (2–15s) while circling a character with “Extract from video” in the Studio — when a video renders on the HD or Cinematic tier with dialogue in quotes, the AI uses it as a voice reference."
 
 #: src/data/cardViews.ts
 msgid "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"
@@ -6301,6 +6737,10 @@ msgstr "This is a paid persona. Buy it on the website before using it."
 #: src/components/ShareSheet.tsx
 msgid "这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。"
 msgstr "This video is private: only you can open the link. To show others, change it to “Anyone with the link” or “Public” in Edit."
+
+#: src/pages/CardDetailPage.tsx
+msgid "这是铸造这张卡时使用的完整生成提示词。"
+msgstr "This is the full generation prompt used to mint this card."
 
 #: src/pages/EditPage.tsx
 msgid "这条作品<0>至少</0>有 {danmakuCount} 条弹幕（只数到这么多，实际更多）。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以会被<1>全部</1>清空，且无法恢复。"
@@ -6418,6 +6858,15 @@ msgstr "This submission deletes numbers <0>{doomedList}</0> ({0, plural, one {# 
 msgid "这次提交会删掉编号 <0>{doomedList}</0> 这一个角色位，<1>其余位子一个都不动</1>。"
 msgstr "This submission deletes number <0>{doomedList}</0> (just this one role slot); <1>all other slots stay as they are</1>."
 
+#. placeholder {0}: remote.err
+#: src/pages/CardDetailPage.tsx
+msgid "这次没取到这张卡：{0}"
+msgstr "Couldn't get this card this time: {0}"
+
+#: src/pages/WorkshopPage.tsx
+msgid "这次没连上服务器，看不到别人分享的卡"
+msgstr "Couldn't connect to the server this time, so cards shared by others can't be shown"
+
 #: src/components/blockout/VideoStage.tsx
 msgid "这段视频在这个位置解不开，换一帧试试。"
 msgstr "The video can't be decoded at this point. Try another frame."
@@ -6455,6 +6904,10 @@ msgstr "In progress…"
 #: src/pages/CreatePage.tsx
 msgid "进铸卡桌面"
 msgstr "Enter the crafting table"
+
+#: src/pages/WorkshopPage.tsx
+msgid "连圈多张，打包成一组"
+msgstr "Circle several and bundle them into a deck"
 
 #: src/pages/SettingsPage.tsx
 msgid "退出"
@@ -6612,11 +7065,13 @@ msgstr "Re-detecting <0>overwrites the current descriptions</0> (including your 
 #: src/components/blockout/VideoStage.tsx
 #: src/components/flow/SegPlayer.tsx
 #: src/components/UpdateSheet.tsx
+#: src/pages/CardDetailPage.tsx
 #: src/pages/EditPage.tsx
 #: src/pages/NotificationsPage.tsx
 #: src/pages/PublishPage.tsx
 #: src/pages/SettingsBlockedPage.tsx
 #: src/pages/VideoPage.tsx
+#: src/pages/WorkshopPage.tsx
 msgid "重试"
 msgstr "Retry"
 
