@@ -10,6 +10,9 @@
 //   素材卡的形象图发不出去（只能在画设定帧时间接起作用）、参考视频用不了、台词音色带不了、
 //   极速连尾帧都锁不住。这些都要在**换之前**说清楚，并且真正说不通的（挂着参考视频）
 //   得当场清掉，否则出片会被 segmentGen 的门禁整句拒（钱没花，但用户白等一轮）。
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 import { Link } from "react-router";
 import { tierBlockReason } from "../../data/account";
@@ -23,29 +26,33 @@ import { carryIsHard } from "../../studio/segmentGen";
  *
  * ★ 只列**这一段真的有**的东西：泛泛地说"可能会有影响"等于没说，用户无从判断该不该换。
  */
-export function tierSwitchLoss(nodeId: string, nextId: string): string[] {
+export function tierSwitchLoss(nodeId: string, nextId: string): MessageDescriptor[] {
   const s = useFlow.getState();
   const node = s.nodes.find((n) => n.id === nodeId);
   if (!node) return [];
   const next = tierOf(nextId);
   const cur = tierOf(node.videoTier);
   const prop = chosenOf(node);
-  const loss: string[] = [];
+  const loss: MessageDescriptor[] = [];
   // 参考视频：只有支持 r2v/参考视频的档带得动，换过去必须摘掉（不摘的话出片被整句拒）
   if (node.customRef && !next.refVid) {
-    loss.push(`挂在这一段上的示例视频会被摘掉（「${next.label}」档带不了参考视频）`);
+    loss.push(msg`挂在这一段上的示例视频会被摘掉（「${next.label}」档带不了参考视频）`);
   }
   // 形象图：2.0 → 1.0 的核心落差。已经出过片的段不提这条（它已经拍完了）
   if (cur.refImg && !next.refImg && (node.materials?.length ?? 0) > 0) {
-    loss.push(`挂的 ${node.materials!.length} 张素材卡不再直接进出片画面（只能在画设定帧时起作用，人物相似度会下降）`);
+    loss.push(msg`挂的 ${node.materials!.length} 张素材卡不再直接进出片画面（只能在画设定帧时起作用，人物相似度会下降）`);
   }
   // 尾帧：极速档只认首帧
   if (cur.flf && !next.flf && prop.lastFrame) {
-    loss.push(`这一段的结束画面不再锁得住（「${next.label}」档只认起拍帧）`);
+    loss.push(msg`这一段的结束画面不再锁得住（「${next.label}」档只认起拍帧）`);
   }
   // 音色样本。★ 与相邻两条同口径：只在**这一段真的有台词**时才提（引号里的台词才会被配音）
   if (cur.audio && !next.audio && /[「"']/.test(prop.plot)) {
-    loss.push(`台词不再带音色样本（「${next.label}」档${next.flatCost ? "暂无配音" : "出片无声"}）`);
+    loss.push(
+      next.flatCost
+        ? msg`台词不再带音色样本（「${next.label}」档暂无配音）`
+        : msg`台词不再带音色样本（「${next.label}」档出片无声）`,
+    );
   }
   // ★ **升档也有变化**（2026-08-30 补）：收参考图的档上，帧改当参考图发 + 提示词点名
   //   （segmentGen 的 framesAsRefs）—— 卡片形象能同发了，但"必须从这一帧起拍"从协议级
@@ -54,7 +61,7 @@ export function tierSwitchLoss(nodeId: string, nextId: string): string[] {
   //   `!cur.refImg && next.refImg`，与 framesAsRefs 是同一条规则的第二份实现 ——
   //   哪天加一档 flatCost 且收参考图的，两份必然只改到一份，而且零症状。
   if (carryIsHard(cur.id) && !carryIsHard(next.id) && (prop.firstFrame || prop.lastFrame)) {
-    loss.push(`首尾帧会改成"参考图 + 提示词点名"发出去（换来的是素材卡形象能一起发；代价是起止画面不再是硬约束）`);
+    loss.push(msg`首尾帧会改成"参考图 + 提示词点名"发出去（换来的是素材卡形象能一起发；代价是起止画面不再是硬约束）`);
   }
   // 圈选改画面：白模那条不接受圈选，1.0 仍可（它就是首尾帧路），所以这里不提
   return loss;
@@ -71,6 +78,7 @@ export default function TierRow({
    *  否则用户切过去、再点重推，钱花在一次必被拒的操作上 */
   needsDerive?: boolean;
 }) {
+  const { t } = useLingui();
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   const index = nodes.findIndex((n) => n.id === nodeId);
@@ -79,7 +87,7 @@ export default function TierRow({
   /** 待确认的换档。**存 nodeId** —— 卡摆着的时候用户可以用 ‹ › 翻到别的段（本组件不重挂，
    *  只是换了 prop），点「知道了」就会把这张卡的决定落到**另一段**上并静默摘掉它的示例视频。
    *  这是 CLAUDE.md「弹层按第几段记」那条坑的同款，判据一律认 id（2026-08-30 复核抓到）。 */
-  const [ask, setAsk] = useState<{ nodeId: string; id: string; label: string; loss: string[] } | null>(null);
+  const [ask, setAsk] = useState<{ nodeId: string; id: string; label: string; loss: MessageDescriptor[] } | null>(null);
   if (!node) return null;
   const prop = chosenOf(node);
   const blockout = !!tplOfNode(node)?.refVideo;
@@ -110,7 +118,7 @@ export default function TierRow({
   return (
     <div className="space-y-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="w-10 flex-none text-[11px] text-slate-400">画质</span>
+        <span className="w-10 flex-none text-[11px] text-slate-400"><Trans>画质</Trans></span>
         {VIDEO_TIERS.map((t) => {
           // ★ 白模节点上，不支持 r2v 的档位也要禁掉（判断在 economy.r2vPriceIssue 一处）：
           //   切过去出片必被门禁整句拒，让人选一个必失败的档不如当场说不能选
@@ -151,31 +159,31 @@ export default function TierRow({
           {/* 间隔用全角空格字面量——JSX 会把行间换行整个吃掉，靠折行留空隙留不住 */}
           {"　"}
           <Link to="/me" className="underline underline-offset-2">
-            去升级
+            <Trans>去升级</Trans>
           </Link>
         </p>
       )}
       {/* 换档的代价：**换之前**说，说的是这一段真的有的东西（tierSwitchLoss 一处判定） */}
       {ask && (
         <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-          <p className="text-[11px] font-semibold text-amber-200">换到「{ask.label}」档会有这些变化：</p>
+          <p className="text-[11px] font-semibold text-amber-200"><Trans>换到「{ask.label}」档会有这些变化：</Trans></p>
           <ul className="space-y-0.5">
             {ask.loss.map((l) => (
-              <li key={l} className="flex gap-1.5 text-[11px] leading-relaxed text-amber-100/90">
+              <li key={l.id} className="flex gap-1.5 text-[11px] leading-relaxed text-amber-100/90">
                 <span className="flex-none">·</span>
-                <span>{l}</span>
+                <span>{t(l)}</span>
               </li>
             ))}
           </ul>
           <p className="text-[10px] leading-relaxed text-slate-400">
-            已经炼出来的成片不受影响；换回来之后这些能力也会回来（示例视频要重新挂）。
+            <Trans>已经炼出来的成片不受影响；换回来之后这些能力也会回来（示例视频要重新挂）。</Trans>
           </p>
           <div className="flex gap-2">
             <button
               onClick={() => {
                 if (ask.nodeId !== node.id) {
                   // 卡摆着的时候用户翻到了别的段：这张卡说的是**那一段**的事，不能落到这一段上
-                  useFlow.setState({ err: "这张确认卡是上一段的，已经作废——回到那一段再换档" });
+                  useFlow.setState({ err: t`这张确认卡是上一段的，已经作废——回到那一段再换档` });
                   setAsk(null);
                   return;
                 }
@@ -183,10 +191,10 @@ export default function TierRow({
               }}
               className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
             >
-              知道了，换到「{ask.label}」
+              <Trans>知道了，换到「{ask.label}」</Trans>
             </button>
             <button onClick={() => setAsk(null)} className="rounded-full border border-slate-600 px-2.5 py-1 text-[11px] text-slate-300">
-              先不换
+              <Trans>先不换</Trans>
             </button>
           </div>
         </div>

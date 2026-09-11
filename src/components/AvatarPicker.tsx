@@ -8,6 +8,7 @@
 //   再交给 account.setAvatarImage 走同一条上传/落库路径。官方头像不走"存个站内路径"
 //   的捷径 —— 那个字符串 PUT 给服务端之后，别的客户端拿到的就是一张坏图
 //   （理由写在 urlToSquareImage 的注释里）。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 import { CloseButton } from "./IconTapButton";
 import { createPortal } from "react-dom";
@@ -35,6 +36,7 @@ export default function AvatarPicker({
   /** 失败要说出来：头像换不上而界面一声不吭，用户只会反复点同一个格子 */
   onError: (msg: string) => void;
 }) {
+  const { t } = useLingui();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState("");
   /** 选了本地图之后进入裁切态；null = 还在选头像那一屏。
@@ -60,7 +62,7 @@ export default function AvatarPicker({
       console.warn("[avatar] 更换失败:", e);
       // 上传失败时 setAvatarImage 已经把本地那份换上了，所以话要说准：
       // 不是"没换成"，是"这台设备上换了、服务器上还没有"
-      onError(e instanceof Error ? e.message : "头像更换失败，本机仍会显示新头像");
+      onError(e instanceof Error ? e.message : t`头像更换失败，本机仍会显示新头像`);
       onClose();
     } finally {
       setBusy("");
@@ -75,7 +77,7 @@ export default function AvatarPicker({
           previewUrl={cropping.url}
           busy={busy}
           onCancel={() => setCropping(null)}
-          onDone={(crop) => void apply(() => cropSquareImage(cropping.bitmap, crop), "处理中…")}
+          onDone={(crop) => void apply(() => cropSquareImage(cropping.bitmap, crop), t`处理中…`)}
         />
       </Shell>
     );
@@ -84,7 +86,7 @@ export default function AvatarPicker({
   return (
     <Shell onClose={onClose}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-100">选个头像</h3>
+        <h3 className="text-base font-bold text-slate-100"><Trans>选个头像</Trans></h3>
         <CloseButton size={20} align="end" tone="text-slate-400" onClick={onClose} />
       </div>
 
@@ -93,7 +95,7 @@ export default function AvatarPicker({
           <button
             key={a.key}
             disabled={!!busy}
-            onClick={() => void apply(() => urlToSquareImage(a.src), "换头像…")}
+            onClick={() => void apply(() => urlToSquareImage(a.src), t`换头像…`)}
             className="flex flex-col items-center gap-1.5 disabled:opacity-40"
           >
             <img
@@ -121,14 +123,14 @@ export default function AvatarPicker({
           <span className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-dashed border-slate-600 text-slate-500 transition active:scale-95">
             <Icon name="plus" size={22} strokeWidth={2.5} />
           </span>
-          <span className="text-[11px] text-slate-400">自定义</span>
+          <span className="text-[11px] text-slate-400"><Trans>自定义</Trans></span>
         </button>
       </div>
 
       <div className="mt-4 flex items-center gap-3 rounded-xl border border-slate-700/70 bg-panel px-3 py-2.5">
         <Avatar name={name} src={current} size={40} />
         <span className="text-[11px] leading-relaxed text-slate-500">
-          {busy || "当前头像。换成官方看板娘或自己的照片都行"}
+          {busy || t`当前头像。换成官方看板娘或自己的照片都行`}
         </span>
       </div>
 
@@ -142,12 +144,12 @@ export default function AvatarPicker({
           e.target.value = ""; // 清掉，否则选同一张图第二次不触发 change
           if (!f) return;
           // ★ 大照片解码 + 按 EXIF 摆正要一两秒，这期间得让人看见（2026-09-05 主人点名"没有上传中的反馈"）
-          setBusy("读取图片…");
+          setBusy(t`读取图片…`);
           try {
             const bitmap = await decodeImageFile(f);
-            setCropping({ bitmap, url: await makePreview(bitmap) });
+            setCropping({ bitmap, url: await makePreview(bitmap, t`这张图片打不开`) });
           } catch (err) {
-            onError(err instanceof Error ? err.message : "这张图片打不开");
+            onError(err instanceof Error ? err.message : t`这张图片打不开`);
           } finally {
             setBusy("");
           }
@@ -178,6 +180,7 @@ function CropStage({
   onCancel: () => void;
   onDone: (crop: { x: number; y: number; side: number }) => void;
 }) {
+  const { t } = useLingui();
   /** 铺满裁切框所需的最小缩放（源图像素 → CSS px） */
   const min = CROP_BOX / Math.min(bitmap.width, bitmap.height);
   const [zoom, setZoom] = useState(1); // 相对 min 的倍数
@@ -246,15 +249,15 @@ function CropStage({
     <>
       <div className="mb-3 flex items-center justify-between">
         <button onClick={onCancel} className="text-sm text-slate-400">
-          返回
+          <Trans>返回</Trans>
         </button>
-        <h3 className="text-base font-bold text-slate-100">调整头像</h3>
+        <h3 className="text-base font-bold text-slate-100"><Trans>调整头像</Trans></h3>
         <button
           onClick={() => onDone(crop())}
           disabled={!!busy}
           className="text-sm font-bold text-brand disabled:text-slate-600"
         >
-          {busy ? "处理中…" : "完成"}
+          {busy ? <Trans>处理中…</Trans> : <Trans>完成</Trans>}
         </button>
       </div>
 
@@ -298,10 +301,10 @@ function CropStage({
           value={zoom}
           onChange={(e) => setZoomClamped(Number(e.target.value))}
           className="h-1 w-full flex-1 accent-brand"
-          aria-label="缩放"
+          aria-label={t`缩放`}
         />
       </div>
-      <p className="mt-2 text-center text-[11px] text-slate-500">拖动移动位置，双指或滑杆缩放</p>
+      <p className="mt-2 text-center text-[11px] text-slate-500"><Trans>拖动移动位置，双指或滑杆缩放</Trans></p>
     </>
   );
 }
@@ -317,13 +320,13 @@ function CropStage({
  * ★ objectURL 而不是 dataURL：手机相册随手一张就是 4000×3000，
  *   dataURL 是一串十几 MB 的字符串，还要一直挂在内存里。
  */
-async function makePreview(bitmap: ImageBitmap): Promise<string> {
+async function makePreview(bitmap: ImageBitmap, failMsg: string): Promise<string> {
   const c = document.createElement("canvas");
   c.width = bitmap.width;
   c.height = bitmap.height;
   c.getContext("2d")?.drawImage(bitmap, 0, 0);
   const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/jpeg", 0.9));
-  if (!blob) throw new Error("这张图片打不开");
+  if (!blob) throw new Error(failMsg);
   return URL.createObjectURL(blob);
 }
 

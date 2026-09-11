@@ -13,6 +13,15 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+#: src/components/BranchPlayer.tsx
+msgid "—— 结局 ——"
+msgstr "—— 结局 ——"
+
+#. 列举几个名字时的分隔符
+#: src/components/DeleteCardDialog.tsx
+msgid "、"
+msgstr "、"
+
 #. placeholder {0}: quote !== o.text ? "…" : ""
 #: src/studio/canvasAgent.ts
 msgid "：「{quote}{0}」"
@@ -22,9 +31,41 @@ msgstr "：「{quote}{0}」"
 msgid "· {doneCount}/{total} 步"
 msgstr "· {doneCount}/{total} 步"
 
+#: src/components/BlockButton.tsx
+msgid "· 他不知道自己被拉黑了，你们谁都不会收到通知；"
+msgstr "· 他不知道自己被拉黑了，你们谁都不会收到通知；"
+
+#: src/components/BlockButton.tsx
+msgid "· 他也看不见你的——这是双向的；"
+msgstr "· 他也看不见你的——这是双向的；"
+
+#: src/components/BlockButton.tsx
+msgid "· 他的作品、评论、弹幕都不会再出现在你这儿；"
+msgstr "· 他的作品、评论、弹幕都不会再出现在你这儿；"
+
 #: src/components/GenTrace.tsx
 msgid "· 共 {total} 步"
 msgstr "· 共 {total} 步"
+
+#: src/components/DeleteCardDialog.tsx
+msgid "· 它会从 {deckCount} 个卡组里移出（{deckNames} 等），卡组本身还在。"
+msgstr "· 它会从 {deckCount} 个卡组里移出（{deckNames} 等），卡组本身还在。"
+
+#: src/components/DeleteCardDialog.tsx
+msgid "· 它会从 {deckCount} 个卡组里移出（{deckNames}），卡组本身还在。"
+msgstr "· 它会从 {deckCount} 个卡组里移出（{deckNames}），卡组本身还在。"
+
+#: src/components/DeleteCardDialog.tsx
+msgid "· 它已经分享到创意工坊：删卡会<0>同时下架</0>； 别人已经装走的那份在他们自己的库里，不受影响。"
+msgstr "· 它已经分享到创意工坊：删卡会<0>同时下架</0>； 别人已经装走的那份在他们自己的库里，不受影响。"
+
+#: src/components/DeleteCardDialog.tsx
+msgid "· 第 {segList} 段挂着它 —— <0>那几段不受影响</0>（摆上桌那一刻存的是副本），已经炼好的画面也不会变。"
+msgstr "· 第 {segList} 段挂着它 —— <0>那几段不受影响</0>（摆上桌那一刻存的是副本），已经炼好的画面也不会变。"
+
+#: src/components/BlockButton.tsx
+msgid "· 这不是举报：想让平台处理他，请另外点「举报」。"
+msgstr "· 这不是举报：想让平台处理他，请另外点「举报」。"
 
 #: src/components/DeleteDeckDialog.tsx
 msgid "· 这个卡组已分享到创意工坊：删掉会<0>同时下架</0>； 别人已经装走的那份是发布时的快照，留在他们库里不受影响。"
@@ -55,10 +96,19 @@ msgstr "（没有可办的）"
 msgid "（这一句我没听懂）"
 msgstr "（这一句我没听懂）"
 
+#: src/components/flow/SegSettings.tsx
+msgid "（这一档是参考+点名，不是硬保证）"
+msgstr "（这一档是参考+点名，不是硬保证）"
+
 #. placeholder {0}: tour.title
 #: src/components/guide/GuideOverlay.tsx
 msgid "{0} 使用引导"
 msgstr "{0} 使用引导"
+
+#. placeholder {0}: commentCountOf(video)
+#: src/components/CommentSheet.tsx
+msgid "{0} 条评论"
+msgstr "{0} 条评论"
 
 #. placeholder {0}: d.segCount
 #. placeholder {0}: meta.segCount
@@ -106,6 +156,18 @@ msgstr "{count} 张"
 msgid "{durSec} 秒"
 msgstr "{durSec} 秒"
 
+#. placeholder {0}: tierOf(node.videoTier).label
+#. placeholder {1}: tierOf(node.videoTier).minSec
+#: src/components/flow/SegSettings.tsx
+msgid "「{0}」最短 {1} 秒"
+msgstr "「{0}」最短 {1} 秒"
+
+#. placeholder {0}: tierOf(node.videoTier).label
+#. placeholder {1}: Object.keys(flat!).join("/")
+#: src/components/flow/SegSettings.tsx
+msgid "「{0}」按发计价，只有 {1} 秒两档"
+msgstr "「{0}」按发计价，只有 {1} 秒两档"
+
 #: src/studio/canvasAgent.ts
 msgid "「{u}」"
 msgstr "「{u}」"
@@ -117,6 +179,14 @@ msgstr "＋ 加一段"
 #: src/components/flow/RefFrameSheet.tsx
 msgid "＋中间帧（{midCount}/{midMax}）"
 msgstr "＋中间帧（{midCount}/{midMax}）"
+
+#: src/components/DeleteCardDialog.tsx
+msgid "<0>删了就找不回来</0>：卡面、形象参考图、声音样本与肖像授权都会一起清掉。"
+msgstr "<0>删了就找不回来</0>：卡面、形象参考图、声音样本与肖像授权都会一起清掉。"
+
+#: src/components/DeleteCardDialog.tsx
+msgid "<0>删了就找不回来</0>：卡面、形象参考图、铸造提示词、声音样本与肖像授权都会一起清掉。"
+msgstr "<0>删了就找不回来</0>：卡面、形象参考图、铸造提示词、声音样本与肖像授权都会一起清掉。"
 
 #: src/components/TokenCost.tsx
 msgid "○ 演示模式：本地模拟，不消耗 token"
@@ -171,6 +241,10 @@ msgstr "⭕ 圈选要修改的物体"
 msgid "🃏 挂卡换人"
 msgstr "🃏 挂卡换人"
 
+#: src/components/VoiceRecorder.tsx
+msgid "🎙 按住跟读（长按录音）"
+msgstr "🎙 按住跟读（长按录音）"
+
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "🎨 融图合成这一帧"
 msgstr "🎨 融图合成这一帧"
@@ -191,10 +265,17 @@ msgstr "📥 取回到这条流水线（新开一段 · 不再花钱）"
 msgid "📥 取回这一段的成片（不重新下单，不再花钱）"
 msgstr "📥 取回这一段的成片（不重新下单，不再花钱）"
 
+#: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "🔇 已静音"
 msgstr "🔇 已静音"
 
+#: src/components/blockout/VideoStage.tsx
+msgid "🔇 静音中"
+msgstr "🔇 静音中"
+
+#: src/components/blockout/VideoStage.tsx
+#: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "🔊 有声"
 msgstr "🔊 有声"
@@ -255,9 +336,25 @@ msgstr "不进首页和搜索；但拿到链接的人都能看，能被转发"
 msgid "中间帧最多 {midMax} 张"
 msgstr "中间帧最多 {midMax} 张"
 
+#: src/components/BranchPlayer.tsx
+msgid "互动视频"
+msgstr "互动视频"
+
 #: src/components/VisibilityPicker.tsx
 msgid "仅自己可见"
 msgstr "仅自己可见"
+
+#: src/components/VoiceRecorder.tsx
+msgid "今天天气不错，我在院子里晒了会儿太阳，顺手把花也浇了。"
+msgstr "今天天气不错，我在院子里晒了会儿太阳，顺手把花也浇了。"
+
+#: src/components/flow/SegSettings.tsx
+msgid "从上一段的真实结尾画面接着拍"
+msgstr "从上一段的真实结尾画面接着拍"
+
+#: src/components/BranchPlayer.tsx
+msgid "从头再看"
+msgstr "从头再看"
 
 #: src/components/UpdateSheet.tsx
 msgid "以后再说"
@@ -289,6 +386,10 @@ msgstr "允许 {minSec}~{maxSec} 秒 · 全片 {0}"
 msgid "先不删"
 msgstr "先不删"
 
+#: src/components/flow/TierRow.tsx
+msgid "先不换"
+msgstr "先不换"
+
 #: src/components/ForgeOverlay.tsx
 msgid "先去逛逛，好了叫我"
 msgstr "先去逛逛，好了叫我"
@@ -307,9 +408,17 @@ msgstr "关掉"
 msgid "关闭"
 msgstr "关闭"
 
+#: src/components/CommentSheet.tsx
+msgid "关闭评论"
+msgstr "关闭评论"
+
 #: src/components/TagInput.tsx
 msgid "再加一个"
 msgstr "再加一个"
+
+#: src/components/BlockButton.tsx
+msgid "再想想"
+msgstr "再想想"
 
 #: src/components/DeleteConfirmShell.tsx
 msgid "再试一次"
@@ -351,6 +460,11 @@ msgstr "分区"
 msgid "创作"
 msgstr "创作"
 
+#. placeholder {0}: card.name
+#: src/components/DeleteCardDialog.tsx
+msgid "删掉「{0}」？"
+msgstr "删掉「{0}」？"
+
 #. placeholder {0}: deck.name
 #: src/components/DeleteDeckDialog.tsx
 msgid "删掉卡组「{0}」？"
@@ -364,6 +478,10 @@ msgstr "删掉标签 {tag}"
 msgid "删掉这个卡组"
 msgstr "删掉这个卡组"
 
+#: src/components/DeleteCardDialog.tsx
+msgid "删掉这张卡"
+msgstr "删掉这张卡"
+
 #: src/components/CommentDelete.tsx
 msgid "删除"
 msgstr "删除"
@@ -376,6 +494,10 @@ msgstr "删除中…"
 #: src/components/DeleteConfirmShell.tsx
 msgid "删除失败了，原因不明。"
 msgstr "删除失败了，原因不明。"
+
+#: src/components/BranchPlayer.tsx
+msgid "剧情走向，由你决定——"
+msgstr "剧情走向，由你决定——"
 
 #: src/studio/canvasAgent.ts
 msgid "办好了。"
@@ -393,6 +515,10 @@ msgstr "卡组本身删了就找不回来。"
 msgid "卡面仍带背景，出片可能把背景里的东西画进去"
 msgstr "卡面仍带背景，出片可能把背景里的东西画进去"
 
+#: src/components/flow/TierRow.tsx
+msgid "去升级"
+msgstr "去升级"
+
 #: src/components/ForgeOverlay.tsx
 msgid "去取回这一段"
 msgstr "去取回这一段"
@@ -400,6 +526,18 @@ msgstr "去取回这一段"
 #: src/components/UpdateSheet.tsx
 msgid "去开启「允许安装未知应用」"
 msgstr "去开启「允许安装未知应用」"
+
+#: src/components/BlockButton.tsx
+msgid "去登录"
+msgstr "去登录"
+
+#: src/components/CommentSheet.tsx
+msgid "发送"
+msgstr "发送"
+
+#: src/components/CommentSheet.tsx
+msgid "发送中…"
+msgstr "发送中…"
 
 #. placeholder {0}: e instanceof Error ? e.message : String(e)
 #: src/data/cardViews.ts
@@ -424,9 +562,22 @@ msgstr "取帧超时（窗口在后台时浏览器不解码视频）"
 msgid "取消"
 msgstr "取消"
 
+#: src/components/CommentSheet.tsx
+msgid "取消回复"
+msgstr "取消回复"
+
+#: src/components/CommentSheet.tsx
+msgid "取消点赞"
+msgstr "取消点赞"
+
+#: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "取消静音"
 msgstr "取消静音"
+
+#: src/components/blockout/VideoStage.tsx
+msgid "取这一帧超时了。应用切到后台时系统会暂停视频解码——回到前台、让画面真的动起来之后再点「标记这一帧」。"
+msgstr "取这一帧超时了。应用切到后台时系统会暂停视频解码——回到前台、让画面真的动起来之后再点「标记这一帧」。"
 
 #: src/components/VisibilityPicker.tsx
 msgid "只有你能看到；别人拿到链接也打不开"
@@ -439,6 +590,16 @@ msgstr "可以先去逛逛——生成不会中断，好了顶部会弹提示带
 #: src/components/ForgeOverlay.tsx
 msgid "可以先去逛逛——生成不会中断。就算退出 App 也不要紧：任务已被方舟受理，回这一段点「取回」就能把成片领回来（24 小时内有效，取回不花钱）"
 msgstr "可以先去逛逛——生成不会中断。就算退出 App 也不要紧：任务已被方舟受理，回这一段点「取回」就能把成片领回来（24 小时内有效，取回不花钱）"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
+msgid "台词不再带音色样本（「{0}」档出片无声）"
+msgstr "台词不再带音色样本（「{0}」档出片无声）"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
+msgid "台词不再带音色样本（「{0}」档暂无配音）"
+msgstr "台词不再带音色样本（「{0}」档暂无配音）"
 
 #: src/components/flow/CastPreviewCard.tsx
 msgid "合成中…"
@@ -456,6 +617,10 @@ msgstr "合成预览（{price}）"
 msgid "启梦 · 有想法，就是梦想启程的第一步"
 msgstr "启梦 · 有想法，就是梦想启程的第一步"
 
+#: src/components/VoiceRecorder.tsx
+msgid "周末打算去一趟菜市场，买点新鲜的菜，晚上做一顿好吃的。"
+msgstr "周末打算去一趟菜市场，买点新鲜的菜，晚上做一顿好吃的。"
+
 #: src/components/GenerationPill.tsx
 msgid "回去看原因 ›"
 msgstr "回去看原因 ›"
@@ -463,6 +628,15 @@ msgstr "回去看原因 ›"
 #: src/components/GenerationPill.tsx
 msgid "回去看看 ›"
 msgstr "回去看看 ›"
+
+#: src/components/CommentSheet.tsx
+msgid "回复"
+msgstr "回复"
+
+#. placeholder {0}: replyTo.author
+#: src/components/CommentSheet.tsx
+msgid "回复 @{0}"
+msgstr "回复 @{0}"
 
 #. placeholder {0}: reviseOf.title
 #: src/components/ReviseBar.tsx
@@ -473,13 +647,33 @@ msgstr "回炉：《{0}》"
 msgid "在末尾追加"
 msgstr "在末尾追加"
 
+#: src/components/AvatarPicker.tsx
+#: src/components/BlockButton.tsx
+#: src/components/VoiceRecorder.tsx
 #: src/components/VoiceUploadButton.tsx
 msgid "处理中…"
 msgstr "处理中…"
 
+#: src/components/support/HoldToTalk.tsx
+msgid "太短了，按住多说一会儿再松手。"
+msgstr "太短了，按住多说一会儿再松手。"
+
+#. placeholder {0}: secs.toFixed(1)
+#: src/components/VoiceRecorder.tsx
+msgid "太短了（{0}s）——按住别松，照着示例词念够 {VOICE_MIN_SEC} 秒再放手。"
+msgstr "太短了（{0}s）——按住别松，照着示例词念够 {VOICE_MIN_SEC} 秒再放手。"
+
+#: src/components/AvatarPicker.tsx
+msgid "头像更换失败，本机仍会显示新头像"
+msgstr "头像更换失败，本机仍会显示新头像"
+
 #: src/components/FrameAnnotator.tsx
 msgid "存入标注"
 msgstr "存入标注"
+
+#: src/components/AvatarPicker.tsx
+msgid "完成"
+msgstr "完成"
 
 #: src/components/ReviseBar.tsx
 msgid "完成后会替换它的内容，链接不变"
@@ -490,6 +684,7 @@ msgstr "完成后会替换它的内容，链接不变"
 msgid "对画布说话：{0}"
 msgstr "对画布说话：{0}"
 
+#: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "封面"
 msgstr "封面"
@@ -506,6 +701,14 @@ msgstr "工坊"
 msgid "工程名"
 msgstr "工程名"
 
+#: src/components/BlockButton.tsx
+msgid "已拉黑"
+msgstr "已拉黑"
+
+#: src/components/BlockButton.tsx
+msgid "已拉黑「{who}」——你们不会再看见彼此的内容。"
+msgstr "已拉黑「{who}」——你们不会再看见彼此的内容。"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "已换成只留主体的这张"
 msgstr "已换成只留主体的这张"
@@ -513,6 +716,14 @@ msgstr "已换成只留主体的这张"
 #: src/pages/CardDetailPage.tsx
 msgid "已换成只留主体的这张，出片按它走（卡面封面不跟着换）"
 msgstr "已换成只留主体的这张，出片按它走（卡面封面不跟着换）"
+
+#: src/components/flow/TierRow.tsx
+msgid "已经炼出来的成片不受影响；换回来之后这些能力也会回来（示例视频要重新挂）。"
+msgstr "已经炼出来的成片不受影响；换回来之后这些能力也会回来（示例视频要重新挂）。"
+
+#: src/components/BranchPlayer.tsx
+msgid "已过 {forkCount} 个分支点"
+msgstr "已过 {forkCount} 个分支点"
 
 #: src/pages/CustomCardPage.tsx
 msgid "带背景"
@@ -530,6 +741,10 @@ msgstr "引号里填模板名（下面可直接点）"
 msgid "当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。"
 msgstr "当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。"
 
+#: src/components/AvatarPicker.tsx
+msgid "当前头像。换成官方看板娘或自己的照片都行"
+msgstr "当前头像。换成官方看板娘或自己的照片都行"
+
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "成片已经落回流水线，但自动存草稿没成（存储空间不足或隐私模式）——先别关 App，去工坊点一次「存草稿」"
 msgstr "成片已经落回流水线，但自动存草稿没成（存储空间不足或隐私模式）——先别关 App，去工坊点一次「存草稿」"
@@ -545,6 +760,14 @@ msgstr "我的"
 #: src/utils/videoFrames.ts
 msgid "截出来是一片空白"
 msgstr "截出来是一片空白"
+
+#: src/components/BlockButton.tsx
+msgid "拉黑"
+msgstr "拉黑"
+
+#: src/components/BlockButton.tsx
+msgid "拉黑「{who}」？"
+msgstr "拉黑「{who}」？"
 
 #: src/pages/CustomCardPage.tsx
 msgid "拍一张，AI 按照片填卡名和简介（演示档不花钱）；上传本地图片进表单后也能再点识别"
@@ -562,9 +785,21 @@ msgstr "拍摄识别"
 msgid "拍照中…"
 msgstr "拍照中…"
 
+#: src/components/AvatarPicker.tsx
+msgid "拖动移动位置，双指或滑杆缩放"
+msgstr "拖动移动位置，双指或滑杆缩放"
+
 #: src/components/flow/RefFrameSheet.tsx
 msgid "拖进度条到想要的画面，再点下面的键"
 msgstr "拖进度条到想要的画面，再点下面的键"
+
+#: src/components/VoiceRecorder.tsx
+msgid "拿不到麦克风权限。App 版本 ≤2.29 的安装包没带录音权限，升级到新版后在系统弹窗里点允许；拒绝过的话去系统设置 → 应用 → 启梦 → 权限里打开麦克风。"
+msgstr "拿不到麦克风权限。App 版本 ≤2.29 的安装包没带录音权限，升级到新版后在系统弹窗里点允许；拒绝过的话去系统设置 → 应用 → 启梦 → 权限里打开麦克风。"
+
+#: src/components/support/HoldToTalk.tsx
+msgid "拿不到麦克风权限。在系统弹窗里点允许；拒绝过的话去系统设置 → 应用 → 启梦 → 权限里打开麦克风。"
+msgstr "拿不到麦克风权限。在系统弹窗里点允许；拒绝过的话去系统设置 → 应用 → 启梦 → 权限里打开麦克风。"
 
 #: src/components/flow/ReviseBox.tsx
 msgid "拿这一段成片当参考视频重拍，只改你写的地方；时长跟随成片（{sec}s），产物<0>无声</0>（合并时可外挂音轨）；上一版会留一份可还原"
@@ -573,6 +808,42 @@ msgstr "拿这一段成片当参考视频重拍，只改你写的地方；时长
 #: src/components/flow/CastPreviewCard.tsx
 msgid "挂卡合成预览"
 msgstr "挂卡合成预览"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
+msgid "挂在这一段上的示例视频会被摘掉（「{0}」档带不了参考视频）"
+msgstr "挂在这一段上的示例视频会被摘掉（「{0}」档带不了参考视频）"
+
+#. placeholder {0}: node.materials!.length
+#: src/components/flow/TierRow.tsx
+msgid "挂的 {0} 张素材卡不再直接进出片画面（只能在画设定帧时起作用，人物相似度会下降）"
+msgstr "挂的 {0} 张素材卡不再直接进出片画面（只能在画设定帧时起作用，人物相似度会下降）"
+
+#. placeholder {0}: tpl.refVideo.durationSec
+#: src/components/flow/SegSettings.tsx
+msgid "按 {0} 秒计 · 跟随模板视频（白模复刻的输出时长≈模板时长，不可另选）"
+msgstr "按 {0} 秒计 · 跟随模板视频（白模复刻的输出时长≈模板时长，不可另选）"
+
+#: src/components/support/HoldToTalk.tsx
+msgid "按住说话"
+msgstr "按住说话"
+
+#: src/components/VoiceRecorder.tsx
+msgid "换一句"
+msgstr "换一句"
+
+#. placeholder {0}: ask.label
+#: src/components/flow/TierRow.tsx
+msgid "换到「{0}」档会有这些变化："
+msgstr "换到「{0}」档会有这些变化："
+
+#: src/components/AvatarPicker.tsx
+msgid "换头像…"
+msgstr "换头像…"
+
+#: src/components/BranchPlayer.tsx
+msgid "换条路"
+msgstr "换条路"
 
 #: src/components/QrCode.tsx
 msgid "授权二维码"
@@ -591,9 +862,15 @@ msgstr "搜人失败"
 msgid "搜人失败：{0}"
 msgstr "搜人失败：{0}"
 
+#: src/components/blockout/VideoStage.tsx
+#: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "播放"
 msgstr "播放"
+
+#: src/components/blockout/VideoStage.tsx
+msgid "播放器还没就绪，稍等一下再标这一帧。"
+msgstr "播放器还没就绪，稍等一下再标这一帧。"
 
 #: src/components/flow/ReviseBox.tsx
 msgid "改哪里？例：把背景换成雨夜 / 去掉右上角的台标 / 主角衣服换成红色"
@@ -604,9 +881,12 @@ msgid "整段一炉出，别退出 App"
 msgstr "整段一炉出，别退出 App"
 
 #: src/components/blockout/TrimBar.tsx
+#: src/components/flow/SegSettings.tsx
 msgid "时长"
 msgstr "时长"
 
+#: src/components/blockout/VideoStage.tsx
+#: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "暂停"
 msgstr "暂停"
@@ -614,6 +894,11 @@ msgstr "暂停"
 #: src/components/UpdateSheet.tsx
 msgid "更新失败，请稍后再试"
 msgstr "更新失败，请稍后再试"
+
+#. placeholder {0}: posted.droppedMentions
+#: src/components/CommentSheet.tsx
+msgid "有 {0} 个 @ 没能送达（对方不会收到通知）"
+msgstr "有 {0} 个 @ 没能送达（对方不会收到通知）"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "有一发成片已经取不回来了"
@@ -628,6 +913,10 @@ msgstr "有新版本 {0}"
 msgid "服务器上有一发你付过钱的成片还没取回"
 msgstr "服务器上有一发你付过钱的成片还没取回"
 
+#: src/components/support/HoldToTalk.tsx
+msgid "服务端还没开通语音识别，先打字吧。"
+msgstr "服务端还没开通语音识别，先打字吧。"
+
 #: src/studio/canvasAgent.ts
 msgid "未出片的段直接删，已出片的段不代删"
 msgstr "未出片的段直接删，已出片的段不代删"
@@ -636,9 +925,18 @@ msgstr "未出片的段直接删，已出片的段不代删"
 msgid "未命名工程"
 msgstr "未命名工程"
 
+#: src/components/VoiceRecorder.tsx
+msgid "本人跟读录制"
+msgstr "本人跟读录制"
+
 #: src/utils/nativeCamera.ts
 msgid "本机没有系统相机（Android 11 起只认预装相机）——改用「上传本地图片」"
 msgstr "本机没有系统相机（Android 11 起只认预装相机）——改用「上传本地图片」"
+
+#. placeholder {0}: modelLabel(tierOf(node.videoTier).model)
+#: src/components/flow/SegSettings.tsx
+msgid "本段模型：{0}"
+msgstr "本段模型：{0}"
 
 #: src/components/ForgeOverlay.tsx
 msgid "本段炼成"
@@ -647,6 +945,24 @@ msgstr "本段炼成"
 #: src/components/GenerationPill.tsx
 msgid "本段生成中…"
 msgstr "本段生成中…"
+
+#: src/components/support/HoldToTalk.tsx
+msgid "松开发送"
+msgstr "松开发送"
+
+#. placeholder {0}: elapsed.toFixed(1)
+#: src/components/support/HoldToTalk.tsx
+msgid "松开发送 · {0}s"
+msgstr "松开发送 · {0}s"
+
+#: src/components/support/HoldToTalk.tsx
+msgid "松开取消"
+msgstr "松开取消"
+
+#. placeholder {0}: elapsed.toFixed(1)
+#: src/components/VoiceRecorder.tsx
+msgid "松手结束 · {0}s"
+msgstr "松手结束 · {0}s"
 
 #: src/pages/SettingsPage.tsx
 msgid "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"
@@ -668,14 +984,30 @@ msgstr "正在确认登录状态…"
 msgid "正在请小梦出场…"
 msgstr "正在请小梦出场…"
 
+#: src/components/blockout/VideoStage.tsx
+msgid "正在读取视频…"
+msgstr "正在读取视频…"
+
 #: src/components/UpdateSheet.tsx
 msgid "正在连接…"
 msgstr "正在连接…"
+
+#: src/components/support/HoldToTalk.tsx
+msgid "没听到声音：按住的时候靠近一点说，说完再松手。"
+msgstr "没听到声音：按住的时候靠近一点说，说完再松手。"
 
 #. placeholder {0}: quoted(r.unclear)
 #: src/studio/canvasAgent.ts
 msgid "没听懂这几句，怕改错就没动：{0}。"
 msgstr "没听懂这几句，怕改错就没动：{0}。"
+
+#: src/components/support/HoldToTalk.tsx
+msgid "没抓到声音，检查麦克风是不是被别的 App 占着。"
+msgstr "没抓到声音，检查麦克风是不是被别的 App 占着。"
+
+#: src/components/VoiceRecorder.tsx
+msgid "没抓到足够的声音——检查麦克风是不是被别的 App 占着。"
+msgstr "没抓到足够的声音——检查麦克风是不是被别的 App 占着。"
 
 #: src/pages/CustomCardPage.tsx
 msgid "没接到照片：相机那边可能没存下来——再拍一次，或选「上传本地图片」"
@@ -688,6 +1020,11 @@ msgstr "没能切换语言，请重试"
 #: src/components/CommentDelete.tsx
 msgid "没能删掉，请重试"
 msgstr "没能删掉，请重试"
+
+#. placeholder {0}: e instanceof Error ? e.message : String(e)
+#: src/components/blockout/VideoStage.tsx
+msgid "没能开始播放：{0}"
+msgstr "没能开始播放：{0}"
 
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "清掉"
@@ -706,6 +1043,10 @@ msgstr "点击返回"
 msgid "点击重命名"
 msgstr "点击重命名"
 
+#: src/components/CommentSheet.tsx
+msgid "点赞"
+msgstr "点赞"
+
 #: src/components/ForgeOverlay.tsx
 msgid "炼制中…"
 msgstr "炼制中…"
@@ -714,13 +1055,37 @@ msgstr "炼制中…"
 msgid "照片重新编码失败"
 msgstr "照片重新编码失败"
 
+#: src/components/VoiceRecorder.tsx
+msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
+msgstr "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
+
 #: src/components/GenTrace.tsx
 msgid "生成过程"
 msgstr "生成过程"
 
+#: src/components/flow/SegSettings.tsx
+msgid "画幅"
+msgstr "画幅"
+
+#: src/components/flow/TierRow.tsx
+msgid "画质"
+msgstr "画质"
+
 #: src/components/flow/RefFrameSheet.tsx
 msgid "画面还没就绪——等视频出画面再点"
 msgstr "画面还没就绪——等视频出画面再点"
+
+#: src/components/BlockButton.tsx
+msgid "登录之后才能拉黑。"
+msgstr "登录之后才能拉黑。"
+
+#: src/components/flow/SegSettings.tsx
+msgid "白模复刻：只换人不生成声音，音轨在「完成视频」那一步回填原片"
+msgstr "白模复刻：只换人不生成声音，音轨在「完成视频」那一步回填原片"
+
+#: src/components/flow/SegSettings.tsx
+msgid "白模复刻的画幅自适应模板视频，不可另选"
+msgstr "白模复刻的画幅自适应模板视频，不可另选"
 
 #: src/studio/canvasAgent.ts
 msgid "白模段用，改成真实角色位与卡名"
@@ -755,9 +1120,18 @@ msgstr "知道了"
 msgid "知道了，不用再提醒我这一发"
 msgstr "知道了，不用再提醒我这一发"
 
+#. placeholder {0}: ask.label
+#: src/components/flow/TierRow.tsx
+msgid "知道了，换到「{0}」"
+msgstr "知道了，换到「{0}」"
+
 #: src/components/CommentDelete.tsx
 msgid "确认删除"
 msgstr "确认删除"
+
+#: src/components/blockout/VideoStage.tsx
+msgid "视频加载超时。应用切到后台时系统会暂停视频解码（这时页面看着像卡住了）——回到前台后点「重试」。"
+msgstr "视频加载超时。应用切到后台时系统会暂停视频解码（这时页面看着像卡住了）——回到前台后点「重试」。"
 
 #: src/components/videoFrames.ts
 msgid "视频加载超时（应用切到后台会暂停解码，回到前台再试）"
@@ -822,9 +1196,21 @@ msgstr "管理员免扣费：这一步最多值 {amount} token，不从你的钱
 msgid "管理员免扣费：这一步约值 {amount} token，不从你的钱包里扣"
 msgstr "管理员免扣费：这一步约值 {amount} token，不从你的钱包里扣"
 
+#: src/components/flow/SegSettings.tsx
+msgid "素材"
+msgstr "素材"
+
 #: src/components/DraftTitle.tsx
 msgid "给这条工程起个名"
 msgstr "给这条工程起个名"
+
+#: src/components/AvatarPicker.tsx
+msgid "缩放"
+msgstr "缩放"
+
+#: src/components/AvatarPicker.tsx
+msgid "自定义"
+msgstr "自定义"
 
 #: src/studio/canvasAgent.ts
 msgid "花钱操作，会先摆确认卡"
@@ -846,9 +1232,17 @@ msgstr "设为尾帧"
 msgid "设为首帧"
 msgstr "设为首帧"
 
+#: src/components/CommentSheet.tsx
+msgid "评论没发出去，请重试"
+msgstr "评论没发出去，请重试"
+
 #: src/pages/CustomCardPage.tsx
 msgid "识别一次 {recogPrice} token，余额 {balance} 不够——去「我的」页充值，或选「上传本地图片」（不花钱）"
 msgstr "识别一次 {recogPrice} token，余额 {balance} 不够——去「我的」页充值，或选「上传本地图片」（不花钱）"
+
+#: src/components/support/HoldToTalk.tsx
+msgid "识别中…"
+msgstr "识别中…"
 
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "识别中…（要一到几分钟）"
@@ -866,17 +1260,46 @@ msgstr "试听太频繁了，稍等几秒再点。"
 msgid "试听没出声，稍后再试。"
 msgstr "试听没出声，稍后再试。"
 
+#: src/components/support/HoldToTalk.tsx
+msgid "语音识别失败"
+msgstr "语音识别失败"
+
+#. placeholder {0}: e instanceof Error ? e.message : String(e)
+#: src/components/support/HoldToTalk.tsx
+msgid "语音识别失败：{0}"
+msgstr "语音识别失败：{0}"
+
+#: src/components/support/HoldToTalk.tsx
+msgid "语音识别暂时不可用（上游没接住），先打字吧。"
+msgstr "语音识别暂时不可用（上游没接住），先打字吧。"
+
+#: src/components/support/HoldToTalk.tsx
+msgid "说得太频繁了，稍等几秒。"
+msgstr "说得太频繁了，稍等几秒。"
+
 #: src/components/InfoTip.tsx
 msgid "说明"
 msgstr "说明"
+
+#: src/components/CommentSheet.tsx
+msgid "说点什么，@ 可以叫上别人"
+msgstr "说点什么，@ 可以叫上别人"
 
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "读取中…"
 msgstr "读取中…"
 
+#: src/components/AvatarPicker.tsx
+msgid "读取图片…"
+msgstr "读取图片…"
+
 #: src/components/VisibilityPicker.tsx
 msgid "谁能看到"
 msgstr "谁能看到"
+
+#: src/components/AvatarPicker.tsx
+msgid "调整头像"
+msgstr "调整头像"
 
 #: src/components/flow/RefFrameSheet.tsx
 msgid "调节首尾帧"
@@ -892,6 +1315,7 @@ msgstr "起点"
 msgid "跟随系统（{0}）"
 msgstr "跟随系统（{0}）"
 
+#: src/components/AvatarPicker.tsx
 #: src/components/IconTapButton.tsx
 msgid "返回"
 msgstr "返回"
@@ -908,6 +1332,19 @@ msgstr "还存不了草稿（空白工程或写盘失败）"
 msgid "还没接到成片"
 msgstr "还没接到成片"
 
+#: src/components/CommentSheet.tsx
+msgid "还没有评论，抢个沙发"
+msgstr "还没有评论，抢个沙发"
+
+#: src/components/flow/SegSettings.tsx
+msgid "这一段已出片，改画幅要重新生成才生效"
+msgstr "这一段已出片，改画幅要重新生成才生效"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
+msgid "这一段的结束画面不再锁得住（「{0}」档只认起拍帧）"
+msgstr "这一段的结束画面不再锁得住（「{0}」档只认起拍帧）"
+
 #: src/components/ForgeOverlay.tsx
 msgid "这一炉没成"
 msgstr "这一炉没成"
@@ -915,6 +1352,10 @@ msgstr "这一炉没成"
 #: src/components/UpdateSheet.tsx
 msgid "这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。"
 msgstr "这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。"
+
+#: src/components/BlockButton.tsx
+msgid "这个用户"
+msgstr "这个用户"
 
 #: src/components/videoFrames.ts
 msgid "这个视频浏览器解不开（换 mp4/webm 试试）"
@@ -945,21 +1386,53 @@ msgstr "这台设备处理不了照片（画布不可用）"
 msgid "这台设备没有可用的相机"
 msgstr "这台设备没有可用的相机"
 
+#: src/components/support/HoldToTalk.tsx
+msgid "这台设备没有可用的麦克风。"
+msgstr "这台设备没有可用的麦克风。"
+
 #: src/data/cardViews.ts
 msgid "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"
 msgstr "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"
+
+#: src/components/AvatarPicker.tsx
+msgid "这张图片打不开"
+msgstr "这张图片打不开"
 
 #: src/utils/nativeCamera.ts
 msgid "这张照片解不开（常见于 HEIC 等手机专有格式）——换成 JPG，或截个图再传"
 msgstr "这张照片解不开（常见于 HEIC 等手机专有格式）——换成 JPG，或截个图再传"
 
+#: src/components/flow/TierRow.tsx
+msgid "这张确认卡是上一段的，已经作废——回到那一段再换档"
+msgstr "这张确认卡是上一段的，已经作废——回到那一段再换档"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "这条流水线还没有段——对下面的输入条说「{addExample}」"
 msgstr "这条流水线还没有段——对下面的输入条说「{addExample}」"
 
+#: src/components/CommentSheet.tsx
+msgid "这条评论还在发送中，等它发出去之后才能回复"
+msgstr "这条评论还在发送中，等它发出去之后才能回复"
+
+#: src/components/VoiceRecorder.tsx
+msgid "这条路我走了很多年，闭着眼睛都知道哪里有个台阶。"
+msgstr "这条路我走了很多年，闭着眼睛都知道哪里有个台阶。"
+
+#: src/components/blockout/VideoStage.tsx
+msgid "这段视频在这个位置解不开，换一帧试试。"
+msgstr "这段视频在这个位置解不开，换一帧试试。"
+
+#: src/components/blockout/VideoStage.tsx
+msgid "这段视频浏览器解不开（白模模板只收 mp4 / mov；换个文件或转码后重试）。"
+msgstr "这段视频浏览器解不开（白模模板只收 mp4 / mov；换个文件或转码后重试）。"
+
 #: src/components/flow/RefFrameSheet.tsx
 msgid "这段视频的地址不允许截帧（跨域没放行）——重新上传一次再调"
 msgstr "这段视频的地址不允许截帧（跨域没放行）——重新上传一次再调"
+
+#: src/components/blockout/VideoStage.tsx
+msgid "这段视频的画面还没解出来（应用切到后台时系统会暂停解码）——回到前台等画面出来再标。"
+msgstr "这段视频的画面还没解出来（应用切到后台时系统会暂停解码）——回到前台等画面出来再标。"
 
 #: src/components/GenerationPill.tsx
 msgid "进行中…"
@@ -973,9 +1446,17 @@ msgstr "退出回炉"
 msgid "退回普通段"
 msgstr "退回普通段"
 
+#: src/components/AvatarPicker.tsx
+msgid "选个头像"
+msgstr "选个头像"
+
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "选定场景/人物数量变化的特定帧，让 AI 分析每一段视频中的人物。"
 msgstr "选定场景/人物数量变化的特定帧，让 AI 分析每一段视频中的人物。"
+
+#: src/components/BranchPlayer.tsx
+msgid "选择故事的开场"
+msgstr "选择故事的开场"
 
 #: src/components/flow/CastPreviewCard.tsx
 msgid "重新合成预览（{price}）"
@@ -993,10 +1474,16 @@ msgstr "重新识别角色位"
 msgid "重认会<0>覆盖现有描述</0>（你自己改过的也会没），按一次收一次费；核对过之后不能再重认。"
 msgstr "重认会<0>覆盖现有描述</0>（你自己改过的也会没），按一次收一次费；核对过之后不能再重认。"
 
+#: src/components/blockout/VideoStage.tsx
 #: src/components/UpdateSheet.tsx
 msgid "重试"
 msgstr "重试"
 
+#: src/components/BlockButton.tsx
+msgid "随时可以解除：「我的 → 设置 → 已拉黑的人」。"
+msgstr "随时可以解除：「我的 → 设置 → 已拉黑的人」。"
+
+#: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "静音"
 msgstr "静音"
@@ -1005,6 +1492,10 @@ msgstr "静音"
 msgid "预计消耗 {amount} token"
 msgstr "预计消耗 {amount} token"
 
+#: src/components/flow/TierRow.tsx
+msgid "首尾帧会改成\"参考图 + 提示词点名\"发出去（换来的是素材卡形象能一起发；代价是起止画面不再是硬约束）"
+msgstr "首尾帧会改成\"参考图 + 提示词点名\"发出去（换来的是素材卡形象能一起发；代价是起止画面不再是硬约束）"
+
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "首帧"
 msgstr "首帧"
@@ -1012,3 +1503,16 @@ msgstr "首帧"
 #: src/components/TabBar.tsx
 msgid "首页"
 msgstr "首页"
+
+#: src/components/support/HoldToTalk.tsx
+#: src/components/VoiceRecorder.tsx
+msgid "麦克风打不开：{raw}"
+msgstr "麦克风打不开：{raw}"
+
+#: src/components/VoiceRecorder.tsx
+msgid "麦克风授权好了——再按住一次，照着示例词念。"
+msgstr "麦克风授权好了——再按住一次，照着示例词念。"
+
+#: src/components/support/HoldToTalk.tsx
+msgid "麦克风授权好了，再按住说一次。"
+msgstr "麦克风授权好了，再按住说一次。"
