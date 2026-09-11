@@ -7,6 +7,9 @@
 //
 // ★ 措辞按创意工坊的真实语义写，不要写成"公开/私密"这种放之四海皆准的空话：
 //   用户要判断的是"别人会不会拿走我的东西"，不是"这条数据的可见性字段是什么"。
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 import { isThirdPartyModel } from "../types";
 import Icon from "./Icon";
@@ -48,30 +51,30 @@ export function shareBlockReason(input: {
   realPerson?: boolean;
   /** 卡片：这份是从别人那儿装来的（types.Card.fromOthers）。转发件不许再分享，见下 */
   fromOthers?: boolean;
-}): string | null {
+}): MessageDescriptor | null {
   // ↓ 这两条**两个方向都成立**：撤下来同样要打服务端；不是我的东西，撤也轮不到我
   //   （别人的已分享卡片详情页也会渲染这个条，放行的话那颗键会亮着）。
   // ★ 但**话要按方向说**：此刻想撤的人读到"离线库里没有别人"会觉得答非所问 ——
   //   恰恰是外面有别人他才要撤。
   if (!input.remote) {
     return input.published
-      ? "取消分享要先连上服务器：广场上那份在服务器上，离线改不动它。"
-      : "分享需要先连接服务器并登录 —— 离线库里没有「别人」。";
+      ? msg`取消分享要先连上服务器：广场上那份在服务器上，离线改不动它。`
+      : msg`分享需要先连接服务器并登录 —— 离线库里没有「别人」。`;
   }
   if (input.owned === false) {
     return input.published
-      ? "这张卡不在你的库里，它的分享开关归卡主管。"
-      : "只能分享自己库里的卡：先把它添加到我的卡片。";
+      ? msg`这张卡不在你的库里，它的分享开关归卡主管。`
+      : msg`只能分享自己库里的卡：先把它添加到我的卡片。`;
   }
 
   // ↓ 以下都是"这东西不适合出现在广场上"，只拦**发出去**这个方向（见函数头 ★★）
   if (input.published === true) return null;
 
-  if (input.cardCount === 0) return "空卡组不能分享：先往里放几张卡。";
+  if (input.cardCount === 0) return msg`空卡组不能分享：先往里放几张卡。`;
   // ★ 这一条以前是当"额外说明"（note）画出来的：按钮照样是亮的，而服务端一定 400。
   //   一个"按下去必然失败"的按钮比灰着更糟 —— 用户会以为是自己网不好，一直点。
   //   判据在 types.isThirdPartyModel 一处（服务端还有一份权威的同规则）。
-  if (isThirdPartyModel(input.modelUrl)) return "这张卡挂的是第三方版权模型，未获授权前不能分享出去。";
+  if (isThirdPartyModel(input.modelUrl)) return msg`这张卡挂的是第三方版权模型，未获授权前不能分享出去。`;
   // ★★ 真人卡一律不许分享（产品决定，docs/backlog.md §1.4）。理由不是"怕麻烦"：
   //   ① 卡上那张脸是**某个真实的人**，他同意的是"你拿去做视频"，不是"挂到市场上任人取用"
   //      —— 我们没有资格替他做那第二个授权；
@@ -80,7 +83,7 @@ export function shareBlockReason(input: {
   //      却没有任何授权依据 —— 把违规风险转嫁给了不知情的人。
   //   ⚠ 服务端也有一份权威的同规则（发布路径），这里只是不让按钮是亮的
   //      —— 一个"按下去必然失败"的按钮比灰着更糟。
-  if (input.realPerson === true) return "这张卡声明过是真实人物，不能分享到创意工坊：肖像授权只覆盖你自己使用。";
+  if (input.realPerson === true) return msg`这张卡声明过是真实人物，不能分享到创意工坊：肖像授权只覆盖你自己使用。`;
   // ★★ 转发闸门（2026-08-30，服务端 publishCard 那道 400 是权威的，这里只是不让按钮亮着）。
   //   为什么是"不能"而不是"可以但没意义"：卡片身份是全局 cardId，广场那一行永远来自
   //   最早分享的那份 ⇒ 转发**根本没有第二行可放**。此前这颗键是能点的，点完推荐语进了库
@@ -88,7 +91,7 @@ export function shareBlockReason(input: {
   //   一次彻底静默的空操作加一句假承诺。
   //   ⚠ 话要给出路（铁律八）：告诉他能做什么，而不只是不能做什么。
   if (input.fromOthers === true) {
-    return "这张卡是装来的，不能再分享一遍——广场上显示的始终是最早分享那份。想让别人看到你改过的版本，用它做一张自己的卡。";
+    return msg`这张卡是装来的，不能再分享一遍——广场上显示的始终是最早分享那份。想让别人看到你改过的版本，用它做一张自己的卡。`;
   }
   return null;
 }
@@ -105,7 +108,7 @@ export interface WorkshopShareBarProps {
    * 非空 = 现在分享不了，这句话会**显示出来**。
    * 灰着一个按钮却不说为什么，跟坏了没有区别。
    */
-  disabledReason?: string | null;
+  disabledReason?: MessageDescriptor | null;
   /** 额外说明（例：这张卡的 3D 建模只存在本机，分享出去不会带上） */
   note?: string | null;
   /**
@@ -133,12 +136,12 @@ export default function WorkshopShareBar({
   noteMax,
   className = "",
 }: WorkshopShareBarProps) {
+  const { t } = useLingui();
   const [pending, setPending] = useState(false);
   const [err, setErr] = useState("");
   const [shareNote, setShareNote] = useState("");
   const working = pending || busy;
   const blocked = !!disabledReason;
-  const target = kind === "card" ? "这张卡" : "整套卡组";
 
   async function click() {
     if (working || blocked) return;
@@ -166,15 +169,19 @@ export default function WorkshopShareBar({
           }`}
         >
           <Icon name="share" size={13} />
-          {working ? "处理中…" : published ? "已在工坊 · 取消分享" : "分享到创意工坊"}
+          {working ? <Trans>处理中…</Trans> : published ? <Trans>已在工坊 · 取消分享</Trans> : <Trans>分享到创意工坊</Trans>}
         </button>
-        {published && installs > 0 && <span className="text-[11px] text-slate-500">{installs} 人装过</span>}
+        {published && installs > 0 && <span className="text-[11px] text-slate-500"><Trans>{installs} 人装过</Trans></span>}
       </div>
 
       <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
         {published
-          ? `公开中：会出现在创意工坊的「从市场添加」里，别人可以把${target}装走。`
-          : `私有：只在你自己的库里。分享后会出现在创意工坊的「从市场添加」里，别人可以把${target}装走。`}
+          ? kind === "card"
+            ? t`公开中：会出现在创意工坊的「从市场添加」里，别人可以把这张卡装走。`
+            : t`公开中：会出现在创意工坊的「从市场添加」里，别人可以把整套卡组装走。`
+          : kind === "card"
+            ? t`私有：只在你自己的库里。分享后会出现在创意工坊的「从市场添加」里，别人可以把这张卡装走。`
+            : t`私有：只在你自己的库里。分享后会出现在创意工坊的「从市场添加」里，别人可以把整套卡组装走。`}
       </p>
       {/* 推荐语：只在"还没分享出去、且这次能分享"时露出来 —— 已经在广场上的那句要改，
           去卡片详情页改（这里再放一个就是两个写入口互相覆盖）。
@@ -186,18 +193,18 @@ export default function WorkshopShareBar({
           value={shareNote}
           onChange={(e) => setShareNote(e.target.value)}
           maxLength={noteMax}
-          placeholder="一句话推荐（选填）：这张卡适合画什么？"
+          placeholder={t`一句话推荐（选填）：这张卡适合画什么？`}
           className="mt-2 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
         />
       )}
       {note && <p className="mt-1 text-[11px] leading-relaxed text-amber-400/90">{note}</p>}
-      {disabledReason && <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{disabledReason}</p>}
+      {disabledReason && <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{t(disabledReason)}</p>}
       {/* ★ 按方向说（复核抓到）：这颗键两个方向共用，而失败时写死"分享失败"正好落在
           这批改动存在的那个场景上 —— 用户点的是「取消分享」，读到的却是"分享失败"，
           会以为自己点错了、再点一次（而那一次同样会失败）。 */}
       {err && (
         <p className="mt-1 text-[11px] leading-relaxed text-rose-300">
-          {published ? "取消分享失败" : "分享失败"}：{err}
+          {published ? <Trans>取消分享失败：{err}</Trans> : <Trans>分享失败：{err}</Trans>}
         </p>
       )}
     </div>

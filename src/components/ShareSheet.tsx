@@ -15,6 +15,7 @@
 // ★ 三个 stopPropagation 与 CommentSheet 同理：portal 后 DOM 不在播放器里了，
 //   但 React 合成事件仍沿组件树冒泡到 FeedItem 的手势处理。
 // ★ 面板自带 err/note 显示（盖住谁就自带一份——别指望底下的错误条）。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 import { showToast } from "../data/toast";
 import { takedownReasonText } from "../api/admin";
@@ -43,7 +44,7 @@ export async function copyText(text: string): Promise<void> {
   document.body.appendChild(ta);
   ta.select();
   try {
-    if (!document.execCommand("copy")) throw new Error("复制失败");
+    if (!document.execCommand("copy")) throw new Error("execCommand copy failed");
   } finally {
     ta.remove();
   }
@@ -66,6 +67,7 @@ export default function ShareSheet({
   onClose: () => void;
   saveLocal: { blocked: string | null; onTap: () => void } | null;
 }) {
+  const { t } = useLingui();
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -102,14 +104,14 @@ export default function ShareSheet({
     setErr("");
     setNote("");
     if (!isNative()) {
-      setErr("QQ 分享要在 App 里用，浏览器里请复制链接");
+      setErr(t`QQ 分享要在 App 里用，浏览器里请复制链接`);
       return;
     }
     setBusy(true);
     try {
       await shareVideoToQQ({
         title: video.title,
-        summary: video.description || "AI 逐段生成的短片 · 来自启梦",
+        summary: video.description || t`AI 逐段生成的短片 · 来自启梦`,
         targetUrl: url,
         imageUrl: video.cover,
       });
@@ -128,14 +130,14 @@ export default function ShareSheet({
     setErr("");
     setNote("");
     if (!wechatSupported()) {
-      setErr("微信分享要在 App 里用，浏览器里请复制链接");
+      setErr(t`微信分享要在 App 里用，浏览器里请复制链接`);
       return;
     }
     setBusy(true);
     try {
       await shareVideoToWeChat({
         title: video.title,
-        summary: video.description || "AI 逐段生成的短片 · 来自启梦",
+        summary: video.description || t`AI 逐段生成的短片 · 来自启梦`,
         targetUrl: url,
         imageUrl: video.cover,
       });
@@ -151,10 +153,10 @@ export default function ShareSheet({
     setErr("");
     try {
       await copyText(url);
-      showToast("预览链接已复制，去贴给朋友吧");
+      showToast(t`预览链接已复制，去贴给朋友吧`);
     } catch {
       // 复制被拒时把链接直接亮出来，用户还能长按选中——比一句"失败"有用
-      setErr(`复制失败，手动复制：${url}`);
+      setErr(t`复制失败，手动复制：${url}`);
     }
   }
 
@@ -167,7 +169,7 @@ export default function ShareSheet({
   }> = [
     {
       key: "qq",
-      label: "QQ 好友",
+      label: t`QQ 好友`,
       render: (
         <span className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: BRAND_CHIP.qq.bg }}>
           <BrandIcon name="qq" size={26} />
@@ -178,7 +180,7 @@ export default function ShareSheet({
     },
     {
       key: "wechat",
-      label: "微信",
+      label: t`微信`,
       render: (
         <span className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: BRAND_CHIP.wechat.bg }}>
           <BrandIcon name="wechat" size={26} />
@@ -189,7 +191,7 @@ export default function ShareSheet({
     },
     {
       key: "copy",
-      label: "复制链接",
+      label: t`复制链接`,
       render: (
         <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-700 text-slate-100">
           <Icon name="share" size={22} />
@@ -201,7 +203,7 @@ export default function ShareSheet({
     },
     {
       key: "save",
-      label: "保存到本地",
+      label: t`保存到本地`,
       render: (
         <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-700 text-slate-100">
           <Icon name="download" size={22} />
@@ -226,28 +228,28 @@ export default function ShareSheet({
         className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-700 bg-ink px-4 pt-4"
         style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
-        <p className="text-sm font-bold text-slate-100">{saveLocal ? "分享或保存这条作品" : "分享这条作品"}</p>
+        <p className="text-sm font-bold text-slate-100">{saveLocal ? <Trans>分享或保存这条作品</Trans> : <Trans>分享这条作品</Trans>}</p>
         {takenDown && (
           <p className="mt-1 text-xs text-amber-300">
-            这条已被平台下架，链接别人打不开，所以先不能分享。
-            {video.takedown?.reason ? `原因：${takedownReasonText(video.takedown.reason)}` : ""}
+            <Trans>这条已被平台下架，链接别人打不开，所以先不能分享。</Trans>
+            {video.takedown?.reason ? t`原因：${takedownReasonText(video.takedown.reason)}` : ""}
           </p>
         )}
         {notUploaded && (
           <p className="mt-1 text-xs text-amber-300">
-            这条还在上传中（或没连上服务器）——现在分享出去的链接别人打不开。等它传完再分享。
+            <Trans>这条还在上传中（或没连上服务器）——现在分享出去的链接别人打不开。等它传完再分享。</Trans>
           </p>
         )}
         {isPrivate && (
           <p className="mt-1 text-xs text-amber-300">
-            这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。
+            <Trans>这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。</Trans>
           </p>
         )}
         {/* ★ 这一档要说清**代价**：链接是可转发的。用户选它多半是"只想给几个人看"，
             而链接一旦被转出去，我们拦不住 —— 这句话必须在他分享**之前**出现。 */}
         {isUnlisted && (
           <p className="mt-1 text-xs text-slate-400">
-            凭链接可见：不进首页和搜索，但<span className="text-amber-300">拿到链接的人都能看，也能转给别人</span>。
+            <Trans>凭链接可见：不进首页和搜索，但<span className="text-amber-300">拿到链接的人都能看，也能转给别人</span>。</Trans>
           </p>
         )}
 
@@ -278,7 +280,7 @@ export default function ShareSheet({
         )}
 
         <button onClick={onClose} className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-sm text-slate-300">
-          取消
+          <Trans>取消</Trans>
         </button>
       </div>
     </div>,

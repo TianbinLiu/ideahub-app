@@ -2,6 +2,7 @@
 // 从 FlowCanvas 抽出（2026-08-30，工坊也要圈选改片）：单一真相后它只认 flowStore，
 // 谁开都一样。onOpenPanel = 圈选存好后"把该段的工作现场带到用户面前"（画布开编辑窗、
 // 工坊聚焦方案台），由宿主自己定义。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 import { CloseButton } from "../IconTapButton";
 import { createPortal } from "react-dom";
@@ -20,6 +21,7 @@ import { resolveMediaUrl, useMediaUrl } from "../../utils/mediaUrl";
  * ★ portal 到 body：画布的变换层带 transform，fixed 后代会被它当包含块（CLAUDE.md 那条坑）。
  */
 export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: string; onClose: () => void; onOpenPanel: () => void }) {
+  const { t } = useLingui();
   const nodes = useFlow((s) => s.nodes);
   const idx = nodes.findIndex((n) => n.id === nodeId);
   const node = idx >= 0 ? nodes[idx] : undefined;
@@ -81,7 +83,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
     setAnn("loading");
     try {
       const proxied = url ? await resolveMediaUrl(url, { forCapture: true }) : null;
-      if (!proxied) throw new Error("取不到可截帧的地址");
+      if (!proxied) throw new Error(t`取不到可截帧的地址`);
       const v = document.createElement("video");
       v.crossOrigin = "anonymous";
       v.muted = true;
@@ -99,8 +101,8 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
         v.onloadedmetadata = ok;
         v.onloadeddata = ok;
         v.oncanplay = ok;
-        v.onerror = () => rej(new Error("视频读不出来"));
-        window.setTimeout(() => rej(new Error("取流超时（窗口在后台时浏览器不解码视频）")), 20_000);
+        v.onerror = () => rej(new Error(t`视频读不出来`));
+        window.setTimeout(() => rej(new Error(t`取流超时（窗口在后台时浏览器不解码视频）`)), 20_000);
       });
       // 定位到用户正在看的那一秒。
       // ★★ 钳位，别拿 duration 当**门槛**（2026-08-21 对抗评审用真实复现抓到的 high）：
@@ -132,7 +134,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
         if (band[i] < lo) lo = band[i];
         if (band[i] > hi) hi = band[i];
       }
-      if (hi - lo === 0 && hi === 0) throw new Error("截出来是一片空白");
+      if (hi - lo === 0 && hi === 0) throw new Error(t`截出来是一片空白`);
       // ★ atSec 记**真正截到的那一刻**，不是播放器上那个 at：seek 失败/超时退回 0 秒时
       //   位置也跟着是 0，segmentGen 判成首帧标注 —— 图与位置永远一致
       setAnn({ frame: c.toDataURL("image/jpeg", 0.9), atSec: v.currentTime || 0 });
@@ -142,7 +144,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
       if (fb) setAnn({ frame: fb, atSec: 0 });
       else {
         setAnn(null);
-        useFlow.setState({ err: "取不到这一段的画面，圈选打不开——网络不好或链接已过期，稍后再试" });
+        useFlow.setState({ err: t`取不到这一段的画面，圈选打不开——网络不好或链接已过期，稍后再试` });
       }
     }
   }
@@ -153,7 +155,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
   return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col bg-black/90" onClick={onClose}>
       <div className="safe-top flex h-[58px] flex-none items-center gap-2 px-4" onClick={(e) => e.stopPropagation()}>
-        <span className="text-sm font-bold text-slate-100">第 {idx + 1} 段 · 成片</span>
+        <span className="text-sm font-bold text-slate-100"><Trans>第 {idx + 1} 段 · 成片</Trans></span>
         <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">{chosenOf(node).durationSec}s</span>
         {/* ⭕ 圈选改画面：在成片上圈出要改的地方，写一句要求 —— 下次重炼这一段时
             先按它改设定画面（与线性视图同一条路：addAnn → genNode 读 node.anns）。
@@ -165,19 +167,19 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
             /* ★ 与线性视图同一道闸（那边是 disabled={busy}）：生成期间圈的标注会被
                这次出片成功时的 patchNode({anns: []}) 整表抹掉 —— 存了等于没存，且零提示 */
             disabled={ann === "loading" || busy || node.status === "generating"}
-            title={busy || node.status === "generating" ? "这一段正在生成，炼完再圈" : undefined}
+            title={busy || node.status === "generating" ? t`这一段正在生成，炼完再圈` : undefined}
             className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
           >
-            {ann === "loading" ? "取帧中…" : "⭕ 圈选改画面"}
+            {ann === "loading" ? <Trans>取帧中…</Trans> : <Trans>⭕ 圈选改画面</Trans>}
           </button>
         )}
         {audioSrc && src && !failed && (
           <button
             onClick={() => setAudioOn((v) => !v)}
-            title="白模成片本身无声，这里配的是模板原片的音轨；合并成片时也会带上"
+            title={t`白模成片本身无声，这里配的是模板原片的音轨；合并成片时也会带上`}
             className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200"
           >
-            {audioOn ? "🔊 模板原声" : "🔇 已静音"}
+            {audioOn ? <Trans>🔊 模板原声</Trans> : <Trans>🔇 已静音</Trans>}
           </button>
         )}
         <CloseButton chip="md" size={16} tone="text-slate-200" align="end" onClick={onClose} />
@@ -205,7 +207,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
         <div onClick={(e) => e.stopPropagation()}>
         <FrameAnnotator
           frame={ann.frame}
-          hint="标注会先改这一段的设定画面，再重新生成本段视频"
+          hint={t`标注会先改这一段的设定画面，再重新生成本段视频`}
           onClose={() => setAnn(null)}
           onSave={(frame, req) => {
             addAnn(node.id, { frame, req, atSec: ann.atSec });
@@ -226,10 +228,10 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
             ③ 有地址但拉不动 —— 这才是网络，给重试。 */}
         {!url ? (
           <p className="max-w-xs text-center text-xs leading-relaxed text-slate-400">
-            这一段现在选中的走向还没有成片
+            <Trans>这一段现在选中的走向还没有成片</Trans>
             <br />
             <span className="text-[11px] text-slate-500">
-              多半是刚换过走向或重推了方案。挑回原来那一套（或炼完这一套）就能回看
+              <Trans>多半是刚换过走向或重推了方案。挑回原来那一套（或炼完这一套）就能回看</Trans>
             </span>
           </p>
         ) : failed ? (
@@ -239,12 +241,12 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
               <img src={chosenOf(node).poster || chosenOf(node).firstFrame} alt="" className="max-h-[50%] max-w-full rounded-lg opacity-70" />
             )}
             <p className="max-w-xs text-center text-xs leading-relaxed text-rose-300">
-              这一段的视频拉不下来
+              <Trans>这一段的视频拉不下来</Trans>
               <br />
-              <span className="text-[11px] text-rose-300">网络不好，或者这条链接已经过期（隔天打开的草稿常见）</span>
+              <span className="text-[11px] text-rose-300"><Trans>网络不好，或者这条链接已经过期（隔天打开的草稿常见）</Trans></span>
             </p>
             <button onClick={() => setRetry((k) => k + 1)} className="rounded-full bg-panel px-4 py-1.5 text-[11px] text-slate-200">
-              重试
+              <Trans>重试</Trans>
             </button>
           </>
         ) : src ? (
@@ -269,13 +271,13 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
               <>
                 <audio ref={aref} src={audioSrc} preload="auto" muted={!audioOn} />
                 <p className="max-w-xs text-center text-[11px] leading-relaxed text-slate-500">
-                  白模成片本身无声，回看配的是模板原片的音轨，合并成片时也会带上
+                  <Trans>白模成片本身无声，回看配的是模板原片的音轨，合并成片时也会带上</Trans>
                 </p>
               </>
             )}
           </>
         ) : (
-          <p className="text-center text-xs leading-relaxed text-slate-400">正在取这一段的视频地址…</p>
+          <p className="text-center text-xs leading-relaxed text-slate-400"><Trans>正在取这一段的视频地址…</Trans></p>
         )}
       </div>
     </div>,
