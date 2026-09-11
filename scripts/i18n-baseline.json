@@ -400,10 +400,6 @@
    "df64576e4ade4843": 1,
    "ec3c550a65f6e6d6": 1
   },
-  "src/components/DraftSheet.tsx": {
-   "1d4e7d7f1b802e06": 1,
-   "4fe44738db92836f": 1
-  },
   "src/components/SocialPanel.tsx": {
    "1214d633a448542f": 1,
    "174ddb4f0b22c237": 1,
@@ -618,49 +614,6 @@
    "ebee67cfd6cc1dfe": 1,
    "f34fcf6d32a9284e": 1,
    "fbdfb8e0c62888a8": 1
-  },
-  "src/components/flow/DiscardFlowDialog.tsx": {
-   "0806e9c73fa283a6": 1,
-   "2ba0bacb73658bb0": 1,
-   "2da628b24818a1d3": 1,
-   "307c65111b7da1af": 1,
-   "310c4c0618ecec10": 1,
-   "3c090ee740365083": 1,
-   "3d2c34d53600d061": 1,
-   "448740e6061ccabc": 1,
-   "46cbea4eae10b78a": 1,
-   "4d0b4688c787cf6c": 1,
-   "50316af0ae1e12b7": 1,
-   "505c403582acd387": 1,
-   "5864d7305f5c22f5": 1,
-   "631ac72c0fbaff10": 1,
-   "68edc09bf2641096": 1,
-   "802e48ac7632f0e1": 1,
-   "a2447abe5576586c": 1,
-   "a6a21df163cfe800": 1,
-   "ad8061176996598b": 1,
-   "b279fff3240fbd79": 1,
-   "b45916d5a2701b30": 1,
-   "c70ef50a35f1cad0": 1,
-   "c865b5b0bc0060f0": 1,
-   "d40138f71000ebd8": 1,
-   "d75a088cc477f4c3": 1,
-   "dae828fe4fb7f7e7": 1,
-   "dc32fc972f7cd593": 1,
-   "e4448a18cb9bab22": 1,
-   "ed55cb7374b0c715": 1,
-   "f45b0527ed9afdef": 1,
-   "f6e11555f0958224": 1,
-   "fc8cd012416441b2": 1,
-   "fe1ef0d443d3c923": 1
-  },
-  "src/components/flow/ScriptSkillSheet.tsx": {
-   "329e7668fc15c784": 1,
-   "f6c79466977160a8": 1
-  },
-  "src/components/flow/useApplyTemplate.tsx": {
-   "11982ccf815e84db": 1,
-   "adb5179a623a7ed4": 1
   },
   "src/components/guide/tours.tsx": {
    "0085d506ae94356b": 1,
@@ -1463,22 +1416,6 @@
    "f4a8995807c69aca": 1,
    "f6f4a3b8fe61520c": 1,
    "fe44c872d7433872": 1
-  },
-  "src/pages/EditPage.tsx": {
-   "48c6ae4560b9cc11": 1,
-   "639f2627f0c9093b": 1
-  },
-  "src/pages/FeedPage.tsx": {
-   "9aa263887acbeffb": 1,
-   "c34a1567b63f4120": 1
-  },
-  "src/pages/FlowPage.tsx": {
-   "9f810306aa5318a4": 1,
-   "f5fe7693921a8350": 1
-  },
-  "src/pages/VideoPage.tsx": {
-   "9aa263887acbeffb": 1,
-   "c34a1567b63f4120": 1
   },
   "src/studio/npcPersona.ts": {
    "3bf3bbb3b2abc6eb": 1,

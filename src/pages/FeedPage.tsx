@@ -451,7 +451,10 @@ function FeedItem({
         }
         return ok;
       },
-      { label: "做同款（丢弃上面那条流水线）", noun: "做同款" },
+      {
+        label: t`做同款（丢弃上面那条流水线）`,
+        noun: t({ message: "做同款", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" }),
+      },
     );
   }
 

@@ -1018,6 +1018,22 @@ msgstr "{segCount} 段 · 卡组 {deckCount} 张已经铸好 · {when}"
 msgid "{total} 张"
 msgstr "{total} 张"
 
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "{total} 段。"
+msgstr "{total} 段。"
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "{total} 段<0>，{anns} 条圈选要求</0>。"
+msgstr "{total} 段<0>，{anns} 条圈选要求</0>。"
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "{total} 段<0>，其中 {done} 段已出片</0>。"
+msgstr "{total} 段<0>，其中 {done} 段已出片</0>。"
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "{total} 段<0>，其中 {done} 段已出片</0><1>，{anns} 条圈选要求</1>。"
+msgstr "{total} 段<0>，其中 {done} 段已出片</0><1>，{anns} 条圈选要求</1>。"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "{value}（包里没有）"
 msgstr "{value}（包里没有）"
@@ -1489,6 +1505,14 @@ msgstr "♻ 重炼本段（{0}）"
 msgid "♻ 重炼本段（含 {0} 处圈选改图 · {1}）"
 msgstr "♻ 重炼本段（含 {0} 处圈选改图 · {1}）"
 
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "⚠ <0>第 {seg} 段正在生成中，钱已经在花了</0>——丢掉这条流水线并<1>不会</1>把它停下：回包时那笔钱照扣，成片却落在一条已经不存在的流水线上。等它跑完（出片有胶囊通知）再回来。"
+msgstr "⚠ <0>第 {seg} 段正在生成中，钱已经在花了</0>——丢掉这条流水线并<1>不会</1>把它停下：回包时那笔钱照扣，成片却落在一条已经不存在的流水线上。等它跑完（出片有胶囊通知）再回来。"
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "⚠ 其中 <0>{unsaved} 段出片后还没进草稿</0>，丢弃就要<1>重花 token 再炼一次</1>。建议先「回去接着炼」，在那一页点「存草稿」把它们留住。"
+msgstr "⚠ 其中 <0>{unsaved} 段出片后还没进草稿</0>，丢弃就要<1>重花 token 再炼一次</1>。建议先「回去接着炼」，在那一页点「存草稿」把它们留住。"
+
 #. placeholder {0}: o.images
 #: src/studio/segmentGen.ts
 msgid "⚠ 契约核对：界面报价 {quotedLabel}，按契约应为 {impliedLabel}（视频 {videoLabel} + 出图 {0} 张）——本次仍按报价扣，请把这句话反馈给我们"
@@ -1522,6 +1546,10 @@ msgstr "⚠ 视频里有<0>真人面孔</0>时，AI 可能在<1>受理之后</1>
 #: src/studio/ui/PlanBoard.tsx
 msgid "⚠ 这一套有帧当时没画出来：出片前会先补画要用到的帧（按张计费，已算进出片报价）"
 msgstr "⚠ 这一套有帧当时没画出来：出片前会先补画要用到的帧（按张计费，已算进出片报价）"
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "⚠ 这条是<0>简约模式</0>：它按设计不进草稿库（一次性直通发布），所以已经出片的 <1>{done} 段丢了就要重花 token 再炼一次</1>。想留住就先「回去接着炼」，把它<2>完成并发布</2>，再回来{noun}。"
+msgstr "⚠ 这条是<0>简约模式</0>：它按设计不进草稿库（一次性直通发布），所以已经出片的 <1>{done} 段丢了就要重花 token 再炼一次</1>。想留住就先「回去接着炼」，把它<2>完成并发布</2>，再回来{noun}。"
 
 #. placeholder {0}: tierOf(node.videoTier).label
 #: src/components/flow/FlowCanvas.tsx
@@ -2940,6 +2968,10 @@ msgstr "不演"
 msgid "不用"
 msgstr "不用"
 
+#: src/pages/FlowPage.tsx
+msgid "不用模板，开一条空的（丢弃上面那条）"
+msgstr "不用模板，开一条空的（丢弃上面那条）"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "不用模板（退回普通段）"
 msgstr "不用模板（退回普通段）"
@@ -3608,6 +3640,17 @@ msgstr "保留了框内背景（{size}{up}）——卡面仍带背景，出片�
 #: src/studio/stage/stageState.ts
 msgid "俯拍"
 msgstr "俯拍"
+
+#: src/pages/FeedPage.tsx
+#: src/pages/VideoPage.tsx
+msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
+msgid "做同款"
+msgstr "做同款"
+
+#: src/pages/FeedPage.tsx
+#: src/pages/VideoPage.tsx
+msgid "做同款（丢弃上面那条流水线）"
+msgstr "做同款（丢弃上面那条流水线）"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "停下"
@@ -5323,6 +5366,7 @@ msgstr "取流超时（窗口在后台时浏览器不解码视频）"
 #: src/components/ConfirmDialog.tsx
 #: src/components/CoverPicker.tsx
 #: src/components/DraftSheet.tsx
+#: src/components/flow/DiscardFlowDialog.tsx
 #: src/components/PortraitAuthPanel.tsx
 #: src/components/ShareSheet.tsx
 #: src/components/support/VoiceMarket.tsx
@@ -5800,6 +5844,10 @@ msgstr "回到整图"
 msgid "回到标记帧"
 msgstr "回到标记帧"
 
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "回去接着炼"
+msgstr "回去接着炼"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "回去改映射"
 msgstr "回去改映射"
@@ -5842,6 +5890,11 @@ msgstr "回收失败（网络不可用）"
 msgid "回收超时"
 msgstr "回收超时"
 
+#: src/pages/EditPage.tsx
+msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
+msgid "回炉"
+msgstr "回炉"
+
 #. placeholder {0}: reviseOf.title
 #: src/components/ReviseBar.tsx
 msgid "回炉：《{0}》"
@@ -5854,6 +5907,10 @@ msgstr "回炉过"
 #: src/pages/PublishPage.tsx
 msgid "回炉重做"
 msgstr "回炉重做"
+
+#: src/pages/EditPage.tsx
+msgid "回炉重做（丢弃上面那条流水线）"
+msgstr "回炉重做（丢弃上面那条流水线）"
 
 #: src/pages/EditPage.tsx
 msgid "回炉重做这条作品？"
@@ -6174,6 +6231,11 @@ msgstr "套个模板？一句话就能出同类视频"
 msgid "套模板"
 msgstr "套模板"
 
+#: src/components/flow/useApplyTemplate.tsx
+msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
+msgid "套模板"
+msgstr "套模板"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "套用＝复刻这段的场景与运镜，人偶换成你挂的角色卡。时长与画幅跟这段视频走。"
 msgstr "套用＝复刻这段的场景与运镜，人偶换成你挂的角色卡。时长与画幅跟这段视频走。"
@@ -6190,6 +6252,10 @@ msgstr "套用失败"
 #: src/pages/SimpleModePage.tsx
 msgid "套用的模板"
 msgstr "套用的模板"
+
+#: src/components/flow/useApplyTemplate.tsx
+msgid "套用这个模板（丢弃上面那条）"
+msgstr "套用这个模板（丢弃上面那条）"
 
 #. placeholder {0}: fmtTokens(wallet.plan)
 #. placeholder {1}: fmtTokens(wallet.addon)
@@ -6718,6 +6784,10 @@ msgstr "已出片：换模板会作废本段（想换先删段重加）"
 msgid "已出片（成片预览没截到，点开可回看）"
 msgstr "已出片（成片预览没截到，点开可回看）"
 
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "已出片的 <0>{done} 段在炼成那一刻就自动存进了草稿</0>（「我的 → 草稿」里能接着做），<1>不用重花 token</1>。这里丢掉的是那之后手改的东西：文字、圈选要求、还没炼的段。"
+msgstr "已出片的 <0>{done} 段在炼成那一刻就自动存进了草稿</0>（「我的 → 草稿」里能接着做），<1>不用重花 token</1>。这里丢掉的是那之后手改的东西：文字、圈选要求、还没炼的段。"
+
 #: src/pages/SupportModelsPage.tsx
 msgid "已切换，返回客服页生效。"
 msgstr "已切换，返回客服页生效。"
@@ -7008,6 +7078,10 @@ msgstr "已经是最新版本"
 msgid "已经有 {0} 个资产组，但里面一份素材都没有——请本人打开授权链接，走完活体认证后把照片传上去。"
 msgstr "已经有 {0} 个资产组，但里面一份素材都没有——请本人打开授权链接，走完活体认证后把照片传上去。"
 
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "已经有一条工作流在跑"
+msgstr "已经有一条工作流在跑"
+
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "已经标满 {BLOCKOUTIZE_FRAME_MAX} 帧了（再多也只是买重复的画面）——先删掉一帧再标。"
 msgstr "已经标满 {BLOCKOUTIZE_FRAME_MAX} 帧了（再多也只是买重复的画面）——先删掉一帧再标。"
@@ -7239,6 +7313,15 @@ msgstr "开始识别（{price}）"
 #: src/pages/SupportModelNewPage.tsx
 msgid "开心"
 msgstr "开心"
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "开新的一条会把它丢掉——都还没出片，丢的是写好的要求与设定，没有花掉的钱。"
+msgstr "开新的一条会把它丢掉——都还没出片，丢的是写好的要求与设定，没有花掉的钱。"
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
+msgid "开新的这条"
+msgstr "开新的这条"
 
 #: src/studio/canvasAgent.ts
 msgid "引号里填模板名（下面可直接点）"
@@ -7709,6 +7792,15 @@ msgstr "打不开系统浏览器（{0}）——用「复制链接」自己粘到
 #: src/components/DraftSheet.tsx
 msgid "打开中…"
 msgstr "打开中…"
+
+#: src/components/DraftSheet.tsx
+msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
+msgid "打开草稿"
+msgstr "打开草稿"
+
+#: src/components/DraftSheet.tsx
+msgid "打开这条草稿（丢弃上面那条流水线）"
+msgstr "打开这条草稿（丢弃上面那条流水线）"
 
 #. placeholder {0}: p.costLabel
 #: src/components/flow/FlowCanvas.tsx
@@ -8986,6 +9078,10 @@ msgstr "有一段正在生成，等它跑完再推演下一段"
 #: src/studio/flowStore.ts
 msgid "有一段正在生成，等它跑完再炼下一段"
 msgstr "有一段正在生成，等它跑完再炼下一段"
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "有一段正在生成，等它跑完再说"
+msgstr "有一段正在生成，等它跑完再说"
 
 #: src/studio/flowStore.ts
 msgid "有一段正在生成，等它跑完再还原"
@@ -12160,6 +12256,10 @@ msgstr "等她画出来才能继续。"
 msgid "等待中"
 msgstr "等待中"
 
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "等这一段炼完才能丢"
+msgstr "等这一段炼完才能丢"
+
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
 #: src/pages/SupportModelNewPage.tsx
@@ -15211,6 +15311,11 @@ msgstr "重新加载预览"
 msgid "重新合成预览（{price}）"
 msgstr "重新合成预览（{price}）"
 
+#: src/pages/FlowPage.tsx
+msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
+msgid "重新套模板"
+msgstr "重新套模板"
+
 #: src/pages/CustomCardPage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
@@ -15383,10 +15488,20 @@ msgstr "铸造中…"
 msgid "铸造节点卡 · 第 {0} 段"
 msgstr "铸造节点卡 · 第 {0} 段"
 
+#: src/components/flow/ScriptSkillSheet.tsx
+msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
+msgid "铺分镜"
+msgstr "铺分镜"
+
 #. placeholder {0}: plan.segments.length
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "铺成 {0} 段"
 msgstr "铺成 {0} 段"
+
+#. placeholder {0}: nodes.length
+#: src/components/flow/ScriptSkillSheet.tsx
+msgid "铺成 {0} 段（丢弃上面那条流水线）"
+msgstr "铺成 {0} 段（丢弃上面那条流水线）"
 
 #: src/studio/ui/projection.tsx
 msgid "铺方案免费 · 出片时在方案台按原价结算"

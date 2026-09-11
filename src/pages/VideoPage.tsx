@@ -637,7 +637,10 @@ export default function VideoPage() {
                 if (ok) navigate("/flow");
                 else setRemakeErr(useFlow.getState().err || t`现在铺不了（可能有一段正在生成中），稍后再试`);
                 return ok;
-              }, { label: "做同款（丢弃上面那条流水线）", noun: "做同款" })
+              }, {
+                label: t`做同款（丢弃上面那条流水线）`,
+                noun: t({ message: "做同款", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" }),
+              })
             }
             className="mt-6 w-full rounded-xl bg-gold/90 px-4 py-2.5 text-sm font-bold text-ink active:scale-[0.99]"
           >

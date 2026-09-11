@@ -1287,7 +1287,10 @@ export default function FlowPage() {
                         //   被 canReplaceNodes 拒了守卫还会照旧断开旧草稿、关掉确认卡
                         () => useFlow.getState().seedSolo("simple"),
                         // ★ 这一下不是套模板，是**清掉模板铺一条空的**：借人家的对话框也得说自己的话
-                        { label: "不用模板，开一条空的（丢弃上面那条）", noun: "重新套模板" },
+                        {
+                          label: t`不用模板，开一条空的（丢弃上面那条）`,
+                          noun: t({ message: "重新套模板", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" }),
+                        },
                       )
                     }
                     className="flex-none text-[11px] text-slate-500"

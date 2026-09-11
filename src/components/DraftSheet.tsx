@@ -64,7 +64,11 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
       },
       // ★ claim：这一下是**认领**这条草稿（openWorkDraft 自己会把 workDraftId 指过去），
       //   不是覆盖式套用 —— 断开的话下次自动存盘会另存一条重复的，见 commit 的 ★★
-      { claim: true, label: "打开这条草稿（丢弃上面那条流水线）", noun: "打开草稿" },
+      {
+        claim: true,
+        label: t`打开这条草稿（丢弃上面那条流水线）`,
+        noun: t({ message: "打开草稿", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" }),
+      },
     );
   }
 

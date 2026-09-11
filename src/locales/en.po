@@ -1018,6 +1018,22 @@ msgstr "{segCount, plural, one {# segment} other {# segments}} · deck of {deckC
 msgid "{total} 张"
 msgstr "{total} tickets"
 
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "{total} 段。"
+msgstr "{total, plural, one {# segment} other {# segments}}."
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "{total} 段<0>，{anns} 条圈选要求</0>。"
+msgstr "{total, plural, one {# segment} other {# segments}}<0>, {anns, plural, one {# circle-edit request} other {# circle-edit requests}}</0>."
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "{total} 段<0>，其中 {done} 段已出片</0>。"
+msgstr "{total, plural, one {# segment} other {# segments}}<0>, {done} rendered</0>."
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "{total} 段<0>，其中 {done} 段已出片</0><1>，{anns} 条圈选要求</1>。"
+msgstr "{total, plural, one {# segment} other {# segments}}<0>, {done} rendered</0><1>, {anns, plural, one {# circle-edit request} other {# circle-edit requests}}</1>."
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "{value}（包里没有）"
 msgstr "{value} (not in bundle)"
@@ -1489,6 +1505,14 @@ msgstr "♻ Regenerate this segment ({0})"
 msgid "♻ 重炼本段（含 {0} 处圈选改图 · {1}）"
 msgstr "♻ Regenerate this segment (incl. {0, plural, one {# circled edit} other {# circled edits}} · {1})"
 
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "⚠ <0>第 {seg} 段正在生成中，钱已经在花了</0>——丢掉这条流水线并<1>不会</1>把它停下：回包时那笔钱照扣，成片却落在一条已经不存在的流水线上。等它跑完（出片有胶囊通知）再回来。"
+msgstr "⚠ <0>Segment {seg} is rendering and the cost is already being charged</0> — discarding this pipeline will <1>not</1> stop it: the charge still goes through when it returns, but the video lands on a pipeline that no longer exists. Wait for it to finish (a notification pill tells you when) and come back."
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "⚠ 其中 <0>{unsaved} 段出片后还没进草稿</0>，丢弃就要<1>重花 token 再炼一次</1>。建议先「回去接着炼」，在那一页点「存草稿」把它们留住。"
+msgstr "⚠ <0>{unsaved, plural, one {# rendered segment hasn't} other {# rendered segments haven't}} been saved to drafts yet</0>, so discarding means <1>spending tokens to render {unsaved, plural, one {it} other {them}} again</1>. Tap “Back to the pipeline” first, then tap “Save draft” on that page to keep {unsaved, plural, one {it} other {them}}."
+
 #. placeholder {0}: o.images
 #: src/studio/segmentGen.ts
 msgid "⚠ 契约核对：界面报价 {quotedLabel}，按契约应为 {impliedLabel}（视频 {videoLabel} + 出图 {0} 张）——本次仍按报价扣，请把这句话反馈给我们"
@@ -1522,6 +1546,10 @@ msgstr "⚠ If the video contains <0>real human faces</0>, the AI may reject the
 #: src/studio/ui/PlanBoard.tsx
 msgid "⚠ 这一套有帧当时没画出来：出片前会先补画要用到的帧（按张计费，已算进出片报价）"
 msgstr "⚠ Some frames in this plan weren't drawn: the needed frames will be drawn before generating (charged per image, already included in the video quote)"
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "⚠ 这条是<0>简约模式</0>：它按设计不进草稿库（一次性直通发布），所以已经出片的 <1>{done} 段丢了就要重花 token 再炼一次</1>。想留住就先「回去接着炼」，把它<2>完成并发布</2>，再回来{noun}。"
+msgstr "⚠ This one is in <0>Simple mode</0>: by design it isn't saved to drafts (it goes straight to publishing), so discarding means <1>spending tokens to render the {done, plural, one {# finished segment} other {# finished segments}} again</1>. To keep it, tap “Back to the pipeline” first, <2>finish and publish</2> it, then come back and {noun}."
 
 #. placeholder {0}: tierOf(node.videoTier).label
 #: src/components/flow/FlowCanvas.tsx
@@ -2940,6 +2968,10 @@ msgstr "None"
 msgid "不用"
 msgstr "Don't use"
 
+#: src/pages/FlowPage.tsx
+msgid "不用模板，开一条空的（丢弃上面那条）"
+msgstr "No template — start an empty one (discard the one above)"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "不用模板（退回普通段）"
 msgstr "No template (back to a regular segment)"
@@ -3608,6 +3640,17 @@ msgstr "Kept the background inside the box ({size}{up}) — the card still has a
 #: src/studio/stage/stageState.ts
 msgid "俯拍"
 msgstr "High angle"
+
+#: src/pages/FeedPage.tsx
+#: src/pages/VideoPage.tsx
+msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
+msgid "做同款"
+msgstr "remix"
+
+#: src/pages/FeedPage.tsx
+#: src/pages/VideoPage.tsx
+msgid "做同款（丢弃上面那条流水线）"
+msgstr "Remix (discard the pipeline above)"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "停下"
@@ -5323,6 +5366,7 @@ msgstr "Loading the stream timed out (the browser doesn't decode video while the
 #: src/components/ConfirmDialog.tsx
 #: src/components/CoverPicker.tsx
 #: src/components/DraftSheet.tsx
+#: src/components/flow/DiscardFlowDialog.tsx
 #: src/components/PortraitAuthPanel.tsx
 #: src/components/ShareSheet.tsx
 #: src/components/support/VoiceMarket.tsx
@@ -5800,6 +5844,10 @@ msgstr "Back to full image"
 msgid "回到标记帧"
 msgstr "Back to marked frame"
 
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "回去接着炼"
+msgstr "Back to the pipeline"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "回去改映射"
 msgstr "Back to the mapping"
@@ -5842,6 +5890,11 @@ msgstr "Cleanup failed (network unavailable)"
 msgid "回收超时"
 msgstr "Cleanup timed out"
 
+#: src/pages/EditPage.tsx
+msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
+msgid "回炉"
+msgstr "remake"
+
 #. placeholder {0}: reviseOf.title
 #: src/components/ReviseBar.tsx
 msgid "回炉：《{0}》"
@@ -5854,6 +5907,10 @@ msgstr "Remade"
 #: src/pages/PublishPage.tsx
 msgid "回炉重做"
 msgstr "Remake"
+
+#: src/pages/EditPage.tsx
+msgid "回炉重做（丢弃上面那条流水线）"
+msgstr "Remake (discard the pipeline above)"
 
 #: src/pages/EditPage.tsx
 msgid "回炉重做这条作品？"
@@ -6174,6 +6231,11 @@ msgstr "Use a template? One sentence makes a similar video"
 msgid "套模板"
 msgstr "Use a template"
 
+#: src/components/flow/useApplyTemplate.tsx
+msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
+msgid "套模板"
+msgstr "use the template"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "套用＝复刻这段的场景与运镜，人偶换成你挂的角色卡。时长与画幅跟这段视频走。"
 msgstr "Using it = remaking this clip's scenes and camera moves, with the mannequins swapped for the character cards you attach. Length and aspect ratio follow this video."
@@ -6190,6 +6252,10 @@ msgstr "Couldn't apply the template"
 #: src/pages/SimpleModePage.tsx
 msgid "套用的模板"
 msgstr "Template in use"
+
+#: src/components/flow/useApplyTemplate.tsx
+msgid "套用这个模板（丢弃上面那条）"
+msgstr "Use this template (discard the one above)"
 
 #. placeholder {0}: fmtTokens(wallet.plan)
 #. placeholder {1}: fmtTokens(wallet.addon)
@@ -6718,6 +6784,10 @@ msgstr "Video ready: changing the template discards this segment (to change it, 
 msgid "已出片（成片预览没截到，点开可回看）"
 msgstr "Rendered (no preview frame captured; tap to watch)"
 
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "已出片的 <0>{done} 段在炼成那一刻就自动存进了草稿</0>（「我的 → 草稿」里能接着做），<1>不用重花 token</1>。这里丢掉的是那之后手改的东西：文字、圈选要求、还没炼的段。"
+msgstr "<0>Rendered segments ({done}) were saved to drafts automatically the moment they finished</0> (continue anytime in Me → Drafts), so <1>no tokens need to be spent again</1>. What you'd lose is what you changed by hand since then: text, circle-edit requests, and segments not rendered yet."
+
 #: src/pages/SupportModelsPage.tsx
 msgid "已切换，返回客服页生效。"
 msgstr "Switched. It takes effect when you go back to the support page."
@@ -7008,6 +7078,10 @@ msgstr "You're on the latest version"
 msgid "已经有 {0} 个资产组，但里面一份素材都没有——请本人打开授权链接，走完活体认证后把照片传上去。"
 msgstr "There {0, plural, one {is # asset group} other {are # asset groups}}, but no assets in {0, plural, one {it} other {them}} — the person being authorized needs to open the authorization link, finish the liveness check, then upload a photo."
 
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "已经有一条工作流在跑"
+msgstr "A workflow is already in progress"
+
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "已经标满 {BLOCKOUTIZE_FRAME_MAX} 帧了（再多也只是买重复的画面）——先删掉一帧再标。"
 msgstr "You've already marked the maximum of {BLOCKOUTIZE_FRAME_MAX} frames (more would only pay for repeated shots) — remove one before marking another."
@@ -7239,6 +7313,15 @@ msgstr "Start detection ({price})"
 #: src/pages/SupportModelNewPage.tsx
 msgid "开心"
 msgstr "Happy"
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "开新的一条会把它丢掉——都还没出片，丢的是写好的要求与设定，没有花掉的钱。"
+msgstr "Starting a new one discards it — nothing has been rendered yet, so you'd lose the requirements and settings you wrote, not any money spent."
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
+msgid "开新的这条"
+msgstr "start the new one"
 
 #: src/studio/canvasAgent.ts
 msgid "引号里填模板名（下面可直接点）"
@@ -7709,6 +7792,15 @@ msgstr "Couldn't open the system browser ({0}) — use “Copy link” and paste
 #: src/components/DraftSheet.tsx
 msgid "打开中…"
 msgstr "Opening…"
+
+#: src/components/DraftSheet.tsx
+msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
+msgid "打开草稿"
+msgstr "open the draft"
+
+#: src/components/DraftSheet.tsx
+msgid "打开这条草稿（丢弃上面那条流水线）"
+msgstr "Open this draft (discard the pipeline above)"
 
 #. placeholder {0}: p.costLabel
 #: src/components/flow/FlowCanvas.tsx
@@ -8986,6 +9078,10 @@ msgstr "A segment is generating. Wait for it to finish before drafting the next 
 #: src/studio/flowStore.ts
 msgid "有一段正在生成，等它跑完再炼下一段"
 msgstr "A segment is generating. Wait for it to finish before generating the next one"
+
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "有一段正在生成，等它跑完再说"
+msgstr "A segment is rendering — wait until it finishes"
 
 #: src/studio/flowStore.ts
 msgid "有一段正在生成，等它跑完再还原"
@@ -12160,6 +12256,10 @@ msgstr "Wait for her to render before continuing."
 msgid "等待中"
 msgstr "Waiting"
 
+#: src/components/flow/DiscardFlowDialog.tsx
+msgid "等这一段炼完才能丢"
+msgstr "Can't discard until this segment finishes"
+
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
 #: src/pages/SupportModelNewPage.tsx
@@ -15211,6 +15311,11 @@ msgstr "Reload preview"
 msgid "重新合成预览（{price}）"
 msgstr "Recompose preview ({price})"
 
+#: src/pages/FlowPage.tsx
+msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
+msgid "重新套模板"
+msgstr "apply a template again"
+
 #: src/pages/CustomCardPage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
@@ -15383,10 +15488,20 @@ msgstr "Minting…"
 msgid "铸造节点卡 · 第 {0} 段"
 msgstr "Forge node card · Segment {0}"
 
+#: src/components/flow/ScriptSkillSheet.tsx
+msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
+msgid "铺分镜"
+msgstr "lay out the storyboard"
+
 #. placeholder {0}: plan.segments.length
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "铺成 {0} 段"
 msgstr "Lay out {0, plural, one {# segment} other {# segments}}"
+
+#. placeholder {0}: nodes.length
+#: src/components/flow/ScriptSkillSheet.tsx
+msgid "铺成 {0} 段（丢弃上面那条流水线）"
+msgstr "Lay out {0, plural, one {# segment} other {# segments}} (discard the pipeline above)"
 
 #: src/studio/ui/projection.tsx
 msgid "铺方案免费 · 出片时在方案台按原价结算"
