@@ -20,7 +20,7 @@ import { useCurrentUser } from "../hooks/useAccount";
 import { resetGuidesSeen } from "../data/guide";
 import { childSafetyUrl } from "../utils/shareLink";
 import { isNative } from "../data/appUpdate";
-import { QUALITY_LABELS, getQuality } from "../studio/quality";
+import { getQuality, qualityLabel } from "../studio/quality";
 import { currentVoice } from "../studio/voices";
 import { checkUpdate, currentVersion, selfUpdateSupported, type UpdateInfo } from "../data/appUpdate";
 import UpdateSheet from "../components/UpdateSheet";
@@ -51,7 +51,7 @@ export default function SettingsPage() {
         <NavRow to="/settings/profile" emoji="🪪" title={t`编辑资料`} sub={t`头像 · 昵称 · 简介`} />
         {/* 行上报「当前用的是哪把」：这一节的信息价值九成在它（拆页前收起态就这么画） */}
         <NavRow to="/settings/voice" emoji="🎙️" title={t`铸卡师的声音`} sub={currentVoice().name} />
-        <NavRow to="/settings/quality" emoji="🎨" title={t`画面质量`} sub={t`${QUALITY_LABELS[getQuality()].name} · 只影响 3D 工坊`} />
+        <NavRow to="/settings/quality" emoji="🎨" title={t`画面质量`} sub={t`${qualityLabel(getQuality()).name} · 只影响 3D 工坊`} />
         <LangRow />
       </Group>
 

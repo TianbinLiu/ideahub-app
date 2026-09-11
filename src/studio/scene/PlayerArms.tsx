@@ -178,13 +178,16 @@ const RIGS: Record<
     springGroups: [
       // 半垂坠：全垂+桌面 clamp 会把长卷发摊成放射状；保一半卷形、发梢下垂最自然
       {
+        // i18n-ignore-next-line: 模型里的日文骨名前缀，拿来找骨头，不上屏
         prefixes: ["馬尾"],
         opts: { stiffness: 2.5, drag: 0.35, gravity: 12 },
         uprightOpts: { stiffness: 5, drag: 0.3, gravity: 1.6 },
       },
       // 劉海（贴脸短刘海）不接物理：任何垂坠残态都会帘住脸，刚性保持原作造型
+      // i18n-ignore-next-line: 同上，骨名前缀
       { prefixes: ["後髪", "髮飾", "吊墜"], opts: { stiffness: 5, drag: 0.3, gravity: 1.6 } },
       // 长裙：弯腰后硬裙会随骨盆水平后戳成"木板"——垂坠弹簧近似布料（180 骨，实测可负担）
+      // i18n-ignore-next-line: 同上，骨名前缀
       { prefixes: ["裙"], opts: { stiffness: 1.5, drag: 0.35, gravity: 20 } },
     ],
     // 球形碰撞体（NPC Milltina 同款配方；Blender 实测本模型，世界量纲=局部×2.5）：

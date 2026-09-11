@@ -11,7 +11,7 @@ import { useNavigate } from "react-router";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { useCurrentUser } from "../hooks/useAccount";
-import { QUALITY_LABELS, getQuality, setQuality, type Quality } from "../studio/quality";
+import { QUALITY_LABELS, getQuality, qualityLabel, setQuality, type Quality } from "../studio/quality";
 
 export default function SettingsQualityPage() {
   const user = useCurrentUser();
@@ -41,8 +41,8 @@ export default function SettingsQualityPage() {
             }`}
           >
             <div>
-              <div className="text-sm text-slate-100">{QUALITY_LABELS[q].name}</div>
-              <div className="text-[11px] text-slate-500">{QUALITY_LABELS[q].desc}</div>
+              <div className="text-sm text-slate-100">{qualityLabel(q).name}</div>
+              <div className="text-[11px] text-slate-500">{qualityLabel(q).desc}</div>
             </div>
             {quality === q && <span className="text-brand">✓</span>}
           </button>
