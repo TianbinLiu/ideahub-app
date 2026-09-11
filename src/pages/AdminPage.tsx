@@ -276,7 +276,7 @@ function useAdminList<T>(loader: (opts?: { q?: string; page?: number }) => Promi
     } finally {
       setLoading(false);
     }
-  }, [loader, dq]);
+  }, [loader, dq, t]);
 
   useEffect(() => {
     void load();
@@ -296,7 +296,7 @@ function useAdminList<T>(loader: (opts?: { q?: string; page?: number }) => Promi
     } finally {
       setLoading(false);
     }
-  }, [loader, dq, page]);
+  }, [loader, dq, page, t]);
 
   const hasMore = total !== null && items.length < total;
   return { items, supported, total, err, loading, load, loadMore, hasMore };
@@ -1175,7 +1175,7 @@ function ReportsSection({ onChanged }: { onChanged: () => void }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load(tab);
