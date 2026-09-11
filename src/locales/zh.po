@@ -174,6 +174,7 @@ msgstr "，已放大到短边 {REF_SHORT_MIN}px"
 msgid "、"
 msgstr "、"
 
+#. 出片进度行里几条提示之间的分隔符
 #. 列举「每个图位锁什么」时的分隔符
 #. 把两条拒绝原因连成一句时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
@@ -182,6 +183,7 @@ msgstr "、"
 #. 把铸卡时的几条说明连成一句时的分隔符
 #: src/pages/CardDetailPage.tsx
 #: src/studio/flowStore.ts
+#: src/studio/segmentGen.ts
 #: src/studio/ui/NpcDialog.tsx
 #: src/studio/ui/projection.tsx
 msgid "；"
@@ -392,9 +394,23 @@ msgstr "‹ 重新框"
 msgid "（{0}）"
 msgstr "（{0}）"
 
+#. 出片进度行尾巴上那一串提示：括起来接在进度句后面（英文前面留一个空格）
+#: src/studio/segmentGen.ts
+msgid "（{joined}）"
+msgstr "（{joined}）"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "（{texList}）"
 msgstr "（{texList}）"
+
+#. placeholder {0}: tail.length
+#: src/studio/segmentGen.ts
+msgid "（⚠ 要求太长，末尾 {plotOver} 字没能发出去——时序点名句要占 {0} 字）"
+msgstr "（⚠ 要求太长，末尾 {plotOver} 字没能发出去——时序点名句要占 {0} 字）"
+
+#: src/studio/segmentGen.ts
+msgid "（⚠ 这一段的要求太长，末尾 {storyOver} 字没能发出去：提示词上限 {VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 {reserved} 字——把要求写短些，或少挂一张卡）"
+msgstr "（⚠ 这一段的要求太长，末尾 {storyOver} 字没能发出去：提示词上限 {VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 {reserved} 字——把要求写短些，或少挂一张卡）"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "（包里没有参数表，看不出来）"
@@ -1001,6 +1017,21 @@ msgstr "「{0}」已经发布好了。"
 msgid "「{0}」按发计价，只有 {1} 秒两档"
 msgstr "「{0}」按发计价，只有 {1} 秒两档"
 
+#. placeholder {0}: tier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「高清」或「电影级」）"
+msgstr "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「高清」或「电影级」）"
+
+#. placeholder {0}: refTier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「电影级」档，或移除参考视频"
+msgstr "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「电影级」档，或移除参考视频"
+
+#. placeholder {0}: o.tier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）"
+msgstr "「{0}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）"
+
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
 msgid "「{0}」档带不了参考视频"
@@ -1015,6 +1046,11 @@ msgstr "「{0}」档带不了参考视频——到「定规格」那一步换成
 #: src/studio/ui/projection.tsx
 msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」（付费档，套餐不够会点不动），或直接跳过这一步自己给首尾帧"
 msgstr "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」（付费档，套餐不够会点不动），或直接跳过这一步自己给首尾帧"
+
+#. placeholder {0}: o.tier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档暂无配音，台词只以画面呈现"
+msgstr "「{0}」档暂无配音，台词只以画面呈现"
 
 #. placeholder {0}: scheme.title
 #. placeholder {1}: fmtTokens(price)
@@ -1042,6 +1078,11 @@ msgstr "「{0}」里没有「{1}」这一格，你传的那张先收起来了—
 #: src/pages/CustomCardPage.tsx
 msgid "「{0}」铸好了"
 msgstr "「{0}」铸好了"
+
+#. 把名字里一个不许用的符号括起来给用户看（中文用「」，英文用弯引号）
+#: src/studio/blockoutPrompt.ts
+msgid "「{ch}」"
+msgstr "「{ch}」"
 
 #. placeholder {0}: hits.length
 #: src/studio/canvasAgent.ts
@@ -1330,6 +1371,11 @@ msgstr "♻ 重炼本段（{0}）"
 #: src/studio/ui/projection.tsx
 msgid "♻ 重炼本段（含 {0} 处圈选改图 · {1}）"
 msgstr "♻ 重炼本段（含 {0} 处圈选改图 · {1}）"
+
+#. placeholder {0}: o.images
+#: src/studio/segmentGen.ts
+msgid "⚠ 契约核对：界面报价 {quotedLabel}，按契约应为 {impliedLabel}（视频 {videoLabel} + 出图 {0} 张）——本次仍按报价扣，请把这句话反馈给我们"
+msgstr "⚠ 契约核对：界面报价 {quotedLabel}，按契约应为 {impliedLabel}（视频 {videoLabel} + 出图 {0} 张）——本次仍按报价扣，请把这句话反馈给我们"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "⚠ 如果你删它是因为<0>画面上根本没有这个人偶</0>，那么它右边 所有位子从左数都要<1>往左挪一位</1>，请顺手把它们也改一下； 如果画面上那个人偶还在（只是你不想让人挂卡），右边的一个都不用动。"
@@ -2423,6 +2469,12 @@ msgstr "上一页"
 msgid "上传 Live2D 模型"
 msgstr "上传 Live2D 模型"
 
+#. placeholder {0}: i + 1
+#. placeholder {1}: ordered.length
+#: src/studio/segmentGen.ts
+msgid "上传参考帧 {0}/{1}…"
+msgstr "上传参考帧 {0}/{1}…"
+
 #. placeholder {0}: Math.round(frac * 100)
 #: src/components/flow/FlowCanvas.tsx
 msgid "上传参考视频 {0}%…"
@@ -2456,6 +2508,12 @@ msgstr "上传本地图作结束帧"
 #: src/pages/CustomCardPage.tsx
 msgid "上传本地图片"
 msgstr "上传本地图片"
+
+#. placeholder {0}: i + 1
+#. placeholder {1}: ordered.length
+#: src/studio/segmentGen.ts
+msgid "上传本段设定帧 {0}/{1}…"
+msgstr "上传本段设定帧 {0}/{1}…"
 
 #: src/pages/SupportCreatePage.tsx
 msgid "上传自己的 Live2D 包（zip），对好动作、表情和触摸区，就能给数字人换上。"
@@ -3841,6 +3899,10 @@ msgstr "凭链接可见"
 msgid "凭链接可见：不进首页和搜索，但<0>拿到链接的人都能看，也能转给别人</0>。"
 msgstr "凭链接可见：不进首页和搜索，但<0>拿到链接的人都能看，也能转给别人</0>。"
 
+#: src/studio/segmentGen.ts
+msgid "出片中…"
+msgstr "出片中…"
+
 #: src/components/flow/CastPreviewCard.tsx
 msgid "出片前先看一眼：把你挂的角色放进白模画面，站位不对这时候改还不花视频钱"
 msgstr "出片前先看一眼：把你挂的角色放进白模画面，站位不对这时候改还不花视频钱"
@@ -4631,6 +4693,10 @@ msgstr "参数这一栏这版还不能在 App 里改。对不上的话去 Cubism
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "参考主裁剪"
 msgstr "参考主裁剪"
+
+#: src/studio/segmentGen.ts
+msgid "参考卡片形象直接出片（省掉设定帧）…"
+msgstr "参考卡片形象直接出片（省掉设定帧）…"
 
 #: src/pages/CardDetailPage.tsx
 msgid "参考图怎么被 AI 取用"
@@ -6466,6 +6532,10 @@ msgstr "市场里还没有公开的声音模板，去「混音」发布第一条
 msgid "市场里还没有别人公开的形象。"
 msgstr "市场里还没有别人公开的形象。"
 
+#: src/studio/segmentGen.ts
+msgid "带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片"
+msgstr "带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片"
+
 #: src/pages/WorkshopPage.tsx
 msgid "带声音样本"
 msgstr "带声音样本"
@@ -7239,6 +7309,10 @@ msgstr "指令句式（点一个填进输入框，接着改）"
 msgid "按 {0} 秒计 · 跟随模板视频（白模复刻的输出时长≈模板时长，不可另选）"
 msgstr "按 {0} 秒计 · 跟随模板视频（白模复刻的输出时长≈模板时长，不可另选）"
 
+#: src/studio/segmentGen.ts
+msgid "按 {refCount} 张参考图出片（帧与卡片形象同发）…"
+msgstr "按 {refCount} 张参考图出片（帧与卡片形象同发）…"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "按住说话"
 msgstr "按住说话"
@@ -7255,9 +7329,28 @@ msgstr "按作品筛（作品标题或 id）"
 msgid "按你描的轮廓抠出主体，背景换成浅灰纯色（主体 {size}{up}）"
 msgstr "按你描的轮廓抠出主体，背景换成浅灰纯色（主体 {size}{up}）"
 
+#: src/studio/segmentGen.ts
+msgid "按你的改法返修这一段（时长跟随成片 {refSec} 秒，产物无声）…"
+msgstr "按你的改法返修这一段（时长跟随成片 {refSec} 秒，产物无声）…"
+
+#: src/studio/segmentGen.ts
+msgid "按你的改法返修这一段（时长跟随成片，产物无声）…"
+msgstr "按你的改法返修这一段（时长跟随成片，产物无声）…"
+
 #: src/studio/flowStore.ts
 msgid "按修改重画画面…"
 msgstr "按修改重画画面…"
+
+#. placeholder {0}: refUrls.length
+#: src/studio/segmentGen.ts
+msgid "按参考视频 + {0} 张关键帧出片（输入 {inSec}s + 输出 {outSec}s 计价）…"
+msgstr "按参考视频 + {0} 张关键帧出片（输入 {inSec}s + 输出 {outSec}s 计价）…"
+
+#. placeholder {0}: k + 1
+#. placeholder {1}: redrawn.length
+#: src/studio/segmentGen.ts
+msgid "按圈选改画面 {0}/{1}…"
+msgstr "按圈选改画面 {0}/{1}…"
 
 #: src/pages/CustomCardPage.tsx
 msgid "按方案逐格出图 + 撰写人物信息 · 演示档"
@@ -7266,6 +7359,14 @@ msgstr "按方案逐格出图 + 撰写人物信息 · 演示档"
 #: src/pages/CustomCardPage.tsx
 msgid "按方案逐格出图 + 撰写人物信息 · 约 {aiPriceText} token"
 msgstr "按方案逐格出图 + 撰写人物信息 · 约 {aiPriceText} token"
+
+#: src/studio/segmentGen.ts
+msgid "按模板视频逐镜头复刻出片（时长跟随模板 {refSec} 秒）…"
+msgstr "按模板视频逐镜头复刻出片（时长跟随模板 {refSec} 秒）…"
+
+#: src/studio/segmentGen.ts
+msgid "按模板视频逐镜头复刻出片（时长跟随模板）…"
+msgstr "按模板视频逐镜头复刻出片（时长跟随模板）…"
 
 #: src/pages/CustomCardPage.tsx
 msgid "按素材撰写人物信息…"
@@ -7386,6 +7487,10 @@ msgstr "换模板"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "换着…"
 msgstr "换着…"
+
+#: src/studio/blockoutPrompt.ts
+msgid "换行"
+msgstr "换行"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "换错人<0>不会报错</0>，成片出来才看得见 —— 请对着画面上高亮的那个人偶确认。"
@@ -7553,6 +7658,42 @@ msgstr "提交给人工客服"
 #: src/pages/FlowPage.tsx
 msgid "提取模板"
 msgstr "提取模板"
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。"
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 改写时动了「{pair}」这条绑定（位置与角色名必须原样成对，配错了就是把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "提示词合成失败：AI 改写时动了「{pair}」这条绑定（位置与角色名必须原样成对，配错了就是把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。"
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 改写时动了「{pair}」这条绑定（编号与角色名必须原样成对，配错了就是把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "提示词合成失败：AI 改写时动了「{pair}」这条绑定（编号与角色名必须原样成对，配错了就是把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。"
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 改写时把「{slotText}」这个角色位弄丢了（位置换个说法就会把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "提示词合成失败：AI 改写时把「{slotText}」这个角色位弄丢了（位置换个说法就会把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。"
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 改写时把「{slotText}」这个角色位弄丢了（编号错一位就会把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "提示词合成失败：AI 改写时把「{slotText}」这个角色位弄丢了（编号错一位就会把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。"
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 改写时把「去掉人偶身上的编号」这句丢了（丢了的话成片里人物头上会顶着编号，钱花完才看得出来）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "提示词合成失败：AI 改写时把「去掉人偶身上的编号」这句丢了（丢了的话成片里人物头上会顶着编号，钱花完才看得出来）——这一段的要求请自己写，或用下面那份默认写法。"
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 改写时把角色位的先后顺序打乱了（这段话必须按画面上从左到右的顺序写，顺序一乱就会换错人——实测同样三张卡，只把顺序写反，5 个位子里就错了 3 个）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "提示词合成失败：AI 改写时把角色位的先后顺序打乱了（这段话必须按画面上从左到右的顺序写，顺序一乱就会换错人——实测同样三张卡，只把顺序写反，5 个位子里就错了 3 个）——这一段的要求请自己写，或用下面那份默认写法。"
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 改动了「{sentence}」这句成组绑定（个数、顺序、名字任何一个变了，这 {count} 个位子就会整片换错人）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "提示词合成失败：AI 改动了「{sentence}」这句成组绑定（个数、顺序、名字任何一个变了，这 {count} 个位子就会整片换错人）——这一段的要求请自己写，或用下面那份默认写法。"
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败（{why}）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "提示词合成失败（{why}）——这一段的要求请自己写，或用下面那份默认写法。"
 
 #: src/components/MentionInput.tsx
 msgid "搜人失败"
@@ -8314,6 +8455,10 @@ msgstr "本段已出片 · 白模复刻段只有一段——点亮法阵去组�
 msgid "本段开头"
 msgstr "本段开头"
 
+#: src/studio/segmentGen.ts
+msgid "本段承接上一段的结尾画面，开头画面不重画——你圈在前半段的 {skippedAnns} 处只作为文字要求写进出片提示词（这几处不计费）"
+msgstr "本段承接上一段的结尾画面，开头画面不重画——你圈在前半段的 {skippedAnns} 处只作为文字要求写进出片提示词（这几处不计费）"
+
 #. placeholder {0}: modelLabel(tierOf(node.videoTier).model)
 #: src/components/flow/SegSettings.tsx
 msgid "本段模型：{0}"
@@ -9026,6 +9171,10 @@ msgstr "没接到照片：相机那边可能没存下来——再拍一次，或
 #: src/studio/flowStore.ts
 msgid "没接到结果：{0}"
 msgstr "没接到结果：{0}"
+
+#: src/studio/segmentGen.ts
+msgid "没接到这一段的出片结果"
+msgstr "没接到这一段的出片结果"
 
 #: src/pages/DiscoverPage.tsx
 msgid "没搜成：{vidErr}"
@@ -9863,6 +10012,18 @@ msgstr "登记素材…"
 msgid "白模"
 msgstr "白模"
 
+#: src/studio/segmentGen.ts
+msgid "白模出片不能带设定首帧（首帧与参考视频在方舟是互斥场景）——清掉这张帧再出片"
+msgstr "白模出片不能带设定首帧（首帧与参考视频在方舟是互斥场景）——清掉这张帧再出片"
+
+#: src/studio/segmentGen.ts
+msgid "白模出片没有设定帧可圈选修改——先删掉圈选标注，想改画面就改那句话"
+msgstr "白模出片没有设定帧可圈选修改——先删掉圈选标注，想改画面就改那句话"
+
+#: src/studio/segmentGen.ts
+msgid "白模出片要先挂一张带形象参考图的角色卡：模板只提供画面与运镜，「换成谁」全靠卡上的形象图"
+msgstr "白模出片要先挂一张带形象参考图的角色卡：模板只提供画面与运镜，「换成谁」全靠卡上的形象图"
+
 #: src/pages/VideoEditorPage.tsx
 msgid "白模化 · 框出一段并裁掉水印"
 msgstr "白模化 · 框出一段并裁掉水印"
@@ -9890,6 +10051,10 @@ msgstr "白模复刻 · 模板视频 {tplSecs}s"
 #: src/components/flow/SegSettings.tsx
 msgid "白模复刻：只换人不生成声音，音轨在「完成视频」那一步回填原片"
 msgstr "白模复刻：只换人不生成声音，音轨在「完成视频」那一步回填原片"
+
+#: src/studio/segmentGen.ts
+msgid "白模复刻不带声音样本：音轨在「完成视频」那一步回填原片，台词音色由模型自定"
+msgstr "白模复刻不带声音样本：音轨在「完成视频」那一步回填原片，台词音色由模型自定"
 
 #. placeholder {0}: tpl.refVideo.durationSec
 #. placeholder {1}: fmtTokens(cost)
@@ -9929,6 +10094,10 @@ msgstr "白模模板 · 给白色人偶挂人物卡"
 msgid "白模模板 · 给编号的人偶挂人物卡"
 msgstr "白模模板 · 给编号的人偶挂人物卡"
 
+#: src/studio/segmentGen.ts
+msgid "白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板"
+msgstr "白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板"
+
 #: src/studio/flowStore.ts
 msgid "白模模板出片暂未开放：还没有档位支持白模（r2v）出片"
 msgstr "白模模板出片暂未开放：还没有档位支持白模（r2v）出片"
@@ -9937,6 +10106,10 @@ msgstr "白模模板出片暂未开放：还没有档位支持白模（r2v）出
 #: src/studio/flowStore.ts
 msgid "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来"
 msgstr "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来"
+
+#: src/studio/segmentGen.ts
+msgid "白模段不承接上一段的尾帧（承接帧与参考视频在方舟是互斥场景）——白模模板只有一段"
+msgstr "白模段不承接上一段的尾帧（承接帧与参考视频在方舟是互斥场景）——白模模板只有一段"
 
 #: src/studio/canvasAgent.ts
 msgid "白模段用，改成真实角色位与卡名"
@@ -10020,9 +10193,21 @@ msgstr "看这一段成片（{0}s）"
 msgid "看首页遮挡"
 msgstr "看首页遮挡"
 
+#: src/studio/segmentGen.ts
+msgid "真人档按发计价（{flatSec} 秒整档）· 以卡片照片起拍…"
+msgstr "真人档按发计价（{flatSec} 秒整档）· 以卡片照片起拍…"
+
+#: src/studio/segmentGen.ts
+msgid "真人档暂不支持圈选改画面（改图引擎会拒收真人脸）——清掉圈选标注再出片"
+msgstr "真人档暂不支持圈选改画面（改图引擎会拒收真人脸）——清掉圈选标注再出片"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "真人档本来就是直出，不需要再切自定义"
 msgstr "真人档本来就是直出，不需要再切自定义"
+
+#: src/studio/segmentGen.ts
+msgid "真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧"
+msgstr "真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧"
 
 #: src/pages/CustomCardPage.tsx
 msgid "真人素材"
@@ -10867,9 +11052,17 @@ msgstr "素材卡（选） —— 缺帧补画时当参考"
 msgid "素材卡（选） · 已选 {0} 张 —— 缺帧补画时当参考"
 msgstr "素材卡（选） · 已选 {0} 张 —— 缺帧补画时当参考"
 
+#: src/studio/segmentGen.ts
+msgid "素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）"
+msgstr "素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）"
+
 #: src/pages/FlowPage.tsx
 msgid "素材卡上还没有形象参考图（去卡片详情页加几张），这次只能先按描述画一张设定帧再出片"
 msgstr "素材卡上还没有形象参考图（去卡片详情页加几张），这次只能先按描述画一张设定帧再出片"
+
+#: src/studio/segmentGen.ts
+msgid "素材卡的形象参考图一张都没能用上，改为先按描述画一张设定帧再出片（多花约一张出图的钱）"
+msgstr "素材卡的形象参考图一张都没能用上，改为先按描述画一张设定帧再出片（多花约一张出图的钱）"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "素材只用来生成这一次的人格，不入库、不公开，也不会出现在发布出去的人格卡里。"
@@ -10920,6 +11113,14 @@ msgstr "结尾帧"
 #: src/components/CoverPicker.tsx
 msgid "绘制中…"
 msgstr "绘制中…"
+
+#: src/studio/segmentGen.ts
+msgid "绘制结束画面…"
+msgstr "绘制结束画面…"
+
+#: src/studio/segmentGen.ts
+msgid "绘制起拍画面…"
+msgstr "绘制起拍画面…"
 
 #. placeholder {0}: tpl!.roles!.length
 #. placeholder {0}: tpl.roles!.length
@@ -11310,6 +11511,14 @@ msgstr "见习冒险家 · 她"
 msgid "规格"
 msgstr "规格"
 
+#: src/studio/segmentGen.ts
+msgid "角色卡上的形象参考图一张都没能读出来（图片可能已损坏），白模出片必须靠形象图说明「换成谁」——给卡换一张形象图再试"
+msgstr "角色卡上的形象参考图一张都没能读出来（图片可能已损坏），白模出片必须靠形象图说明「换成谁」——给卡换一张形象图再试"
+
+#: src/studio/blockoutPrompt.ts
+msgid "角色名「{name}」里有 {shown}——出片时\"哪个人偶换成谁\"是用这几个符号分隔的，名字里带着它们会让 AI 把一条绑定读成两条（换错人不会报错，只有你自己看得出来）。请给这张卡改个名字"
+msgstr "角色名「{name}」里有 {shown}——出片时\"哪个人偶换成谁\"是用这几个符号分隔的，名字里带着它们会让 AI 把一条绑定读成两条（换错人不会报错，只有你自己看得出来）。请给这张卡改个名字"
+
 #: src/pages/AdminPage.tsx
 msgid "解封"
 msgstr "解封"
@@ -11394,6 +11603,14 @@ msgstr "设为我的声音"
 #: src/components/flow/RefFrameSheet.tsx
 msgid "设为首帧"
 msgstr "设为首帧"
+
+#: src/studio/segmentGen.ts
+msgid "设定帧没能转成参考图，这一段退回首尾帧模式出片（卡片形象图这次发不出去，台词音色样本也带不了）"
+msgstr "设定帧没能转成参考图，这一段退回首尾帧模式出片（卡片形象图这次发不出去，台词音色样本也带不了）"
+
+#: src/studio/segmentGen.ts
+msgid "设定帧没能转成参考图，这一段退回首尾帧模式出片（卡片形象图这次发不出去）"
+msgstr "设定帧没能转成参考图，这一段退回首尾帧模式出片（卡片形象图这次发不出去）"
 
 #: src/pages/DeckDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
@@ -12272,6 +12489,10 @@ msgstr "这一段已经出片：换模板会作废这段成片。想换就删除
 #: src/pages/CutPage.tsx
 msgid "这一段已经改好、钱也扣过了，但{why}"
 msgstr "这一段已经改好、钱也扣过了，但{why}"
+
+#: src/studio/segmentGen.ts
+msgid "这一段带不了声音样本（本档的出片方式与参考音频互斥）——台词仍会被配音，但音色随机"
+msgstr "这一段带不了声音样本（本档的出片方式与参考音频互斥）——台词仍会被配音，但音色随机"
 
 #. placeholder {0}: plan.skipped
 #: src/studio/flowStore.ts
@@ -13569,6 +13790,10 @@ msgstr "静音"
 #: src/pages/CustomCardPage.tsx
 msgid "面部近照（选）"
 msgstr "面部近照（选）"
+
+#: src/studio/segmentGen.ts
+msgid "音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上"
+msgstr "音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上"
 
 #: src/pages/CutPage.tsx
 msgid "音轨没能取下来（{audioName}）——这一条先按无声导出。想要声音就换一条本地音频再重试合并。"

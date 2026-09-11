@@ -174,6 +174,7 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 msgid "、"
 msgstr ", "
 
+#. 出片进度行里几条提示之间的分隔符
 #. 列举「每个图位锁什么」时的分隔符
 #. 把两条拒绝原因连成一句时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
@@ -182,6 +183,7 @@ msgstr ", "
 #. 把铸卡时的几条说明连成一句时的分隔符
 #: src/pages/CardDetailPage.tsx
 #: src/studio/flowStore.ts
+#: src/studio/segmentGen.ts
 #: src/studio/ui/NpcDialog.tsx
 #: src/studio/ui/projection.tsx
 msgid "；"
@@ -392,9 +394,23 @@ msgstr "‹ Re-box"
 msgid "（{0}）"
 msgstr " ({0})"
 
+#. 出片进度行尾巴上那一串提示：括起来接在进度句后面（英文前面留一个空格）
+#: src/studio/segmentGen.ts
+msgid "（{joined}）"
+msgstr " ({joined})"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "（{texList}）"
 msgstr " ({texList})"
+
+#. placeholder {0}: tail.length
+#: src/studio/segmentGen.ts
+msgid "（⚠ 要求太长，末尾 {plotOver} 字没能发出去——时序点名句要占 {0} 字）"
+msgstr " (⚠ the request is too long: the last {plotOver, plural, one {# character} other {# characters}} couldn't be sent — the timing lines take up {0} characters)"
+
+#: src/studio/segmentGen.ts
+msgid "（⚠ 这一段的要求太长，末尾 {storyOver} 字没能发出去：提示词上限 {VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 {reserved} 字——把要求写短些，或少挂一张卡）"
+msgstr " (⚠ this segment's request is too long: the last {storyOver, plural, one {# character} other {# characters}} couldn't be sent — the prompt limit is {VIDEO_PROMPT_MAX} characters, and asset details and casting lines take up {reserved} of them; shorten the request or attach one fewer card)"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "（包里没有参数表，看不出来）"
@@ -1001,6 +1017,21 @@ msgstr "“{0}” has been published."
 msgid "「{0}」按发计价，只有 {1} 秒两档"
 msgstr "“{0}” is priced per clip and only offers {1}s"
 
+#. placeholder {0}: tier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「高清」或「电影级」）"
+msgstr "The “{0}” tier doesn't support reference images, so a setup frame will be drawn from the description first (to use the card images directly, choose “HD” or “Cinematic”)"
+
+#. placeholder {0}: refTier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「电影级」档，或移除参考视频"
+msgstr "The “{0}” tier can't render with a reference video — switch to “Cinematic” in ⚙ Segment settings, or remove the reference video"
+
+#. placeholder {0}: o.tier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）"
+msgstr "The “{0}” tier renders without sound, so dialogue won't be voiced (choose “HD” or “Cinematic” for sound)"
+
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
 msgid "「{0}」档带不了参考视频"
@@ -1015,6 +1046,11 @@ msgstr "The “{0}” tier can't take a reference video — switch to “Cinemat
 #: src/studio/ui/projection.tsx
 msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」（付费档，套餐不够会点不动），或直接跳过这一步自己给首尾帧"
 msgstr "The “{0}” tier can't take a reference video — switch to “Cinematic” in the Specs step (a paid tier; it's disabled if your plan doesn't cover it), or skip this step and provide the first and last frames yourself"
+
+#. placeholder {0}: o.tier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档暂无配音，台词只以画面呈现"
+msgstr "The “{0}” tier has no voiceover yet, so dialogue is shown only in the picture"
 
 #. placeholder {0}: scheme.title
 #. placeholder {1}: fmtTokens(price)
@@ -1042,6 +1078,11 @@ msgstr "“{0}” has no “{1}” slot, so the image you uploaded there was set
 #: src/pages/CustomCardPage.tsx
 msgid "「{0}」铸好了"
 msgstr "“{0}” is minted"
+
+#. 把名字里一个不许用的符号括起来给用户看（中文用「」，英文用弯引号）
+#: src/studio/blockoutPrompt.ts
+msgid "「{ch}」"
+msgstr "“{ch}”"
 
 #. placeholder {0}: hits.length
 #: src/studio/canvasAgent.ts
@@ -1330,6 +1371,11 @@ msgstr "♻ Regenerate this segment ({0})"
 #: src/studio/ui/projection.tsx
 msgid "♻ 重炼本段（含 {0} 处圈选改图 · {1}）"
 msgstr "♻ Regenerate this segment (incl. {0, plural, one {# circled edit} other {# circled edits}} · {1})"
+
+#. placeholder {0}: o.images
+#: src/studio/segmentGen.ts
+msgid "⚠ 契约核对：界面报价 {quotedLabel}，按契约应为 {impliedLabel}（视频 {videoLabel} + 出图 {0} 张）——本次仍按报价扣，请把这句话反馈给我们"
+msgstr "⚠ Spec check: the quoted price is {quotedLabel}, but the spec implies {impliedLabel} (video {videoLabel} + {0, plural, one {# image} other {# images}}) — this run is still charged at the quoted price; please send us this line"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "⚠ 如果你删它是因为<0>画面上根本没有这个人偶</0>，那么它右边 所有位子从左数都要<1>往左挪一位</1>，请顺手把它们也改一下； 如果画面上那个人偶还在（只是你不想让人挂卡），右边的一个都不用动。"
@@ -2423,6 +2469,12 @@ msgstr "Previous page"
 msgid "上传 Live2D 模型"
 msgstr "Upload a Live2D model"
 
+#. placeholder {0}: i + 1
+#. placeholder {1}: ordered.length
+#: src/studio/segmentGen.ts
+msgid "上传参考帧 {0}/{1}…"
+msgstr "Uploading reference frame {0}/{1}…"
+
 #. placeholder {0}: Math.round(frac * 100)
 #: src/components/flow/FlowCanvas.tsx
 msgid "上传参考视频 {0}%…"
@@ -2456,6 +2508,12 @@ msgstr "Upload an image as the ending frame"
 #: src/pages/CustomCardPage.tsx
 msgid "上传本地图片"
 msgstr "Upload from device"
+
+#. placeholder {0}: i + 1
+#. placeholder {1}: ordered.length
+#: src/studio/segmentGen.ts
+msgid "上传本段设定帧 {0}/{1}…"
+msgstr "Uploading this segment's setup frame {0}/{1}…"
 
 #: src/pages/SupportCreatePage.tsx
 msgid "上传自己的 Live2D 包（zip），对好动作、表情和触摸区，就能给数字人换上。"
@@ -3841,6 +3899,10 @@ msgstr "Anyone with the link"
 msgid "凭链接可见：不进首页和搜索，但<0>拿到链接的人都能看，也能转给别人</0>。"
 msgstr "Anyone with the link: not in Home or search, but <0>anyone who has the link can watch it and pass it on</0>."
 
+#: src/studio/segmentGen.ts
+msgid "出片中…"
+msgstr "Rendering…"
+
 #: src/components/flow/CastPreviewCard.tsx
 msgid "出片前先看一眼：把你挂的角色放进白模画面，站位不对这时候改还不花视频钱"
 msgstr "Check before rendering: your cast is placed into the blockout frame, and fixing positions now costs no video tokens"
@@ -4631,6 +4693,10 @@ msgstr "Parameters can't be edited in the app yet. If they don't match, rename t
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "参考主裁剪"
 msgstr "Reference: main crop"
+
+#: src/studio/segmentGen.ts
+msgid "参考卡片形象直接出片（省掉设定帧）…"
+msgstr "Rendering directly from the card images (no setup frames)…"
 
 #: src/pages/CardDetailPage.tsx
 msgid "参考图怎么被 AI 取用"
@@ -6466,6 +6532,10 @@ msgstr "No public voice templates yet. Publish the first one from “Mix”."
 msgid "市场里还没有别人公开的形象。"
 msgstr "No one else has published a look to the market yet."
 
+#: src/studio/segmentGen.ts
+msgid "带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片"
+msgstr "Custom segments with a reference video don't support circle edits yet — clear the circle annotations, then generate"
+
 #: src/pages/WorkshopPage.tsx
 msgid "带声音样本"
 msgstr "Has a voice sample"
@@ -7239,6 +7309,10 @@ msgstr "Command phrases (tap one to fill the input, then edit)"
 msgid "按 {0} 秒计 · 跟随模板视频（白模复刻的输出时长≈模板时长，不可另选）"
 msgstr "Billed as {0}s · follows the template video (a blockout remake's length ≈ the template's; can't be changed)"
 
+#: src/studio/segmentGen.ts
+msgid "按 {refCount} 张参考图出片（帧与卡片形象同发）…"
+msgstr "Rendering from {refCount, plural, one {# reference image} other {# reference images}} (frames and card images sent together)…"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "按住说话"
 msgstr "Hold to talk"
@@ -7255,9 +7329,28 @@ msgstr "Filter by video (title or id)"
 msgid "按你描的轮廓抠出主体，背景换成浅灰纯色（主体 {size}{up}）"
 msgstr "Cut out the subject along your outline and replaced the background with plain light gray (subject {size}{up})"
 
+#: src/studio/segmentGen.ts
+msgid "按你的改法返修这一段（时长跟随成片 {refSec} 秒，产物无声）…"
+msgstr "Revising this segment as you described (duration follows the video, {refSec}s; the result has no sound)…"
+
+#: src/studio/segmentGen.ts
+msgid "按你的改法返修这一段（时长跟随成片，产物无声）…"
+msgstr "Revising this segment as you described (duration follows the video; the result has no sound)…"
+
 #: src/studio/flowStore.ts
 msgid "按修改重画画面…"
 msgstr "Redrawing with your changes…"
+
+#. placeholder {0}: refUrls.length
+#: src/studio/segmentGen.ts
+msgid "按参考视频 + {0} 张关键帧出片（输入 {inSec}s + 输出 {outSec}s 计价）…"
+msgstr "Rendering from the reference video + {0, plural, one {# key frame} other {# key frames}} (billed as {inSec}s input + {outSec}s output)…"
+
+#. placeholder {0}: k + 1
+#. placeholder {1}: redrawn.length
+#: src/studio/segmentGen.ts
+msgid "按圈选改画面 {0}/{1}…"
+msgstr "Applying circle edits {0}/{1}…"
 
 #: src/pages/CustomCardPage.tsx
 msgid "按方案逐格出图 + 撰写人物信息 · 演示档"
@@ -7266,6 +7359,14 @@ msgstr "Generates each slot from the scheme + writes character info · demo tier
 #: src/pages/CustomCardPage.tsx
 msgid "按方案逐格出图 + 撰写人物信息 · 约 {aiPriceText} token"
 msgstr "Generates each slot from the scheme + writes character info · about {aiPriceText} tokens"
+
+#: src/studio/segmentGen.ts
+msgid "按模板视频逐镜头复刻出片（时长跟随模板 {refSec} 秒）…"
+msgstr "Remaking the template video shot by shot (duration follows the template, {refSec}s)…"
+
+#: src/studio/segmentGen.ts
+msgid "按模板视频逐镜头复刻出片（时长跟随模板）…"
+msgstr "Remaking the template video shot by shot (duration follows the template)…"
 
 #: src/pages/CustomCardPage.tsx
 msgid "按素材撰写人物信息…"
@@ -7386,6 +7487,10 @@ msgstr "Change template"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "换着…"
 msgstr "Swapping…"
+
+#: src/studio/blockoutPrompt.ts
+msgid "换行"
+msgstr "line break"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "换错人<0>不会报错</0>，成片出来才看得见 —— 请对着画面上高亮的那个人偶确认。"
@@ -7553,6 +7658,42 @@ msgstr "Send to a human agent"
 #: src/pages/FlowPage.tsx
 msgid "提取模板"
 msgstr "Extract template"
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "Couldn't compose the prompt: the AI returned nothing — write this segment's request yourself, or use the default version below."
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 改写时动了「{pair}」这条绑定（位置与角色名必须原样成对，配错了就是把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "Couldn't compose the prompt: the AI altered the binding “{pair}” while rewriting (the position and character name must stay paired exactly; a mismatch puts the card on someone else) — write this segment's request yourself, or use the default version below."
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 改写时动了「{pair}」这条绑定（编号与角色名必须原样成对，配错了就是把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "Couldn't compose the prompt: the AI altered the binding “{pair}” while rewriting (the number and character name must stay paired exactly; a mismatch puts the card on someone else) — write this segment's request yourself, or use the default version below."
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 改写时把「{slotText}」这个角色位弄丢了（位置换个说法就会把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "Couldn't compose the prompt: the AI dropped the role slot “{slotText}” while rewriting (describing the position differently puts the card on someone else) — write this segment's request yourself, or use the default version below."
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 改写时把「{slotText}」这个角色位弄丢了（编号错一位就会把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "Couldn't compose the prompt: the AI dropped the role slot “{slotText}” while rewriting (a number off by one puts the card on someone else) — write this segment's request yourself, or use the default version below."
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 改写时把「去掉人偶身上的编号」这句丢了（丢了的话成片里人物头上会顶着编号，钱花完才看得出来）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "Couldn't compose the prompt: the AI dropped the “remove the numbers from the mannequins” line while rewriting (without it, the people in the video wear numbers on their heads, which you'd only see after paying) — write this segment's request yourself, or use the default version below."
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 改写时把角色位的先后顺序打乱了（这段话必须按画面上从左到右的顺序写，顺序一乱就会换错人——实测同样三张卡，只把顺序写反，5 个位子里就错了 3 个）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "Couldn't compose the prompt: the AI shuffled the order of the role slots while rewriting (this text must follow the left-to-right order on screen, and out of order means the wrong people get swapped — in testing, with the same three cards and only the order reversed, 3 of 5 slots were wrong) — write this segment's request yourself, or use the default version below."
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败：AI 改动了「{sentence}」这句成组绑定（个数、顺序、名字任何一个变了，这 {count} 个位子就会整片换错人）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "Couldn't compose the prompt: the AI changed the group binding “{sentence}” (if the count, the order or any name changes, all {count} slots get the wrong people) — write this segment's request yourself, or use the default version below."
+
+#: src/studio/blockoutPrompt.ts
+msgid "提示词合成失败（{why}）——这一段的要求请自己写，或用下面那份默认写法。"
+msgstr "Couldn't compose the prompt ({why}) — write this segment's request yourself, or use the default version below."
 
 #: src/components/MentionInput.tsx
 msgid "搜人失败"
@@ -8314,6 +8455,10 @@ msgstr "This segment's video is ready · a blockout remake has only one segment 
 msgid "本段开头"
 msgstr "This opening"
 
+#: src/studio/segmentGen.ts
+msgid "本段承接上一段的结尾画面，开头画面不重画——你圈在前半段的 {skippedAnns} 处只作为文字要求写进出片提示词（这几处不计费）"
+msgstr "This segment continues from the previous segment's ending frame, so the opening frame isn't redrawn — {skippedAnns, plural, one {the # circle you drew in the first half goes} other {the # circles you drew in the first half go}} into the video prompt as text only (no charge for {skippedAnns, plural, one {it} other {them}})"
+
 #. placeholder {0}: modelLabel(tierOf(node.videoTier).model)
 #: src/components/flow/SegSettings.tsx
 msgid "本段模型：{0}"
@@ -9026,6 +9171,10 @@ msgstr "No photo came back — the camera may not have saved it. Try again, or c
 #: src/studio/flowStore.ts
 msgid "没接到结果：{0}"
 msgstr "No result received: {0}"
+
+#: src/studio/segmentGen.ts
+msgid "没接到这一段的出片结果"
+msgstr "Didn't receive this segment's video result"
 
 #: src/pages/DiscoverPage.tsx
 msgid "没搜成：{vidErr}"
@@ -9863,6 +10012,18 @@ msgstr "Registering asset…"
 msgid "白模"
 msgstr "Blockout"
 
+#: src/studio/segmentGen.ts
+msgid "白模出片不能带设定首帧（首帧与参考视频在方舟是互斥场景）——清掉这张帧再出片"
+msgstr "Blockout videos can't use a setup first frame (a first frame and a reference video are mutually exclusive on Ark) — clear that frame, then generate"
+
+#: src/studio/segmentGen.ts
+msgid "白模出片没有设定帧可圈选修改——先删掉圈选标注，想改画面就改那句话"
+msgstr "Blockout videos have no setup frame to circle-edit — remove the circle annotations first; to change the picture, edit the text instead"
+
+#: src/studio/segmentGen.ts
+msgid "白模出片要先挂一张带形象参考图的角色卡：模板只提供画面与运镜，「换成谁」全靠卡上的形象图"
+msgstr "Blockout videos need a character card with reference images first: the template only provides the picture and camera moves, and “who to swap in” depends entirely on the card's images"
+
 #: src/pages/VideoEditorPage.tsx
 msgid "白模化 · 框出一段并裁掉水印"
 msgstr "Blockout · select a clip and crop out watermarks"
@@ -9890,6 +10051,10 @@ msgstr "Blockout remake · template video {tplSecs}s"
 #: src/components/flow/SegSettings.tsx
 msgid "白模复刻：只换人不生成声音，音轨在「完成视频」那一步回填原片"
 msgstr "Blockout remake: only swaps the people and generates no sound; the original audio is added back at “Finish video”"
+
+#: src/studio/segmentGen.ts
+msgid "白模复刻不带声音样本：音轨在「完成视频」那一步回填原片，台词音色由模型自定"
+msgstr "Blockout remakes don't take voice samples: the original audio is added back at “Finish video”, and the model picks the dialogue voices"
 
 #. placeholder {0}: tpl.refVideo.durationSec
 #. placeholder {1}: fmtTokens(cost)
@@ -9929,6 +10094,10 @@ msgstr "Blockout template · attach character cards to the white mannequins"
 msgid "白模模板 · 给编号的人偶挂人物卡"
 msgstr "Blockout template · attach character cards to the numbered mannequins"
 
+#: src/studio/segmentGen.ts
+msgid "白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板"
+msgstr "Blockout templates only render on Ark tiers (the real-person tier has no r2v support) — switch this segment back to “Cinematic”, or change the template"
+
 #: src/studio/flowStore.ts
 msgid "白模模板出片暂未开放：还没有档位支持白模（r2v）出片"
 msgstr "Blockout template videos aren't available yet: no tier supports blockout (r2v) generation"
@@ -9937,6 +10106,10 @@ msgstr "Blockout template videos aren't available yet: no tier supports blockout
 #: src/studio/flowStore.ts
 msgid "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来"
 msgstr "Videos from blockout templates aren't available yet: no tier supports blockout (r2v) rendering yet. Check back once it opens."
+
+#: src/studio/segmentGen.ts
+msgid "白模段不承接上一段的尾帧（承接帧与参考视频在方舟是互斥场景）——白模模板只有一段"
+msgstr "Blockout segments don't continue from the previous segment's last frame (a continuation frame and a reference video are mutually exclusive on Ark) — a blockout template is a single segment"
 
 #: src/studio/canvasAgent.ts
 msgid "白模段用，改成真实角色位与卡名"
@@ -10020,9 +10193,21 @@ msgstr "Watch this segment ({0}s)"
 msgid "看首页遮挡"
 msgstr "Show feed overlay"
 
+#: src/studio/segmentGen.ts
+msgid "真人档按发计价（{flatSec} 秒整档）· 以卡片照片起拍…"
+msgstr "Real-person tier, billed per run ({flatSec}s tier) · starting from the card photo…"
+
+#: src/studio/segmentGen.ts
+msgid "真人档暂不支持圈选改画面（改图引擎会拒收真人脸）——清掉圈选标注再出片"
+msgstr "The real-person tier doesn't support circle edits yet (the image-edit engine rejects real faces) — clear the circle annotations, then generate"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "真人档本来就是直出，不需要再切自定义"
 msgstr "The real-person tier already renders directly; no need to switch to Custom"
+
+#: src/studio/segmentGen.ts
+msgid "真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧"
+msgstr "The real-person tier needs a starting image: add a real-person card with a photo, or upload an opening frame yourself"
 
 #: src/pages/CustomCardPage.tsx
 msgid "真人素材"
@@ -10867,9 +11052,17 @@ msgstr "Material cards (optional) — used as references when missing frames are
 msgid "素材卡（选） · 已选 {0} 张 —— 缺帧补画时当参考"
 msgstr "Material cards (optional) · {0} selected — used as references when missing frames are drawn"
 
+#: src/studio/segmentGen.ts
+msgid "素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）"
+msgstr "The asset cards have no usable reference images, so a setup frame will be drawn from the description first (costs about one extra image)"
+
 #: src/pages/FlowPage.tsx
 msgid "素材卡上还没有形象参考图（去卡片详情页加几张），这次只能先按描述画一张设定帧再出片"
 msgstr "The cards have no reference images yet (add some on the card page), so this time a setup frame is drawn from the description before rendering"
+
+#: src/studio/segmentGen.ts
+msgid "素材卡的形象参考图一张都没能用上，改为先按描述画一张设定帧再出片（多花约一张出图的钱）"
+msgstr "None of the asset cards' reference images could be used, so a setup frame will be drawn from the description first (costs about one extra image)"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "素材只用来生成这一次的人格，不入库、不公开，也不会出现在发布出去的人格卡里。"
@@ -10920,6 +11113,14 @@ msgstr "ending frame"
 #: src/components/CoverPicker.tsx
 msgid "绘制中…"
 msgstr "Drawing…"
+
+#: src/studio/segmentGen.ts
+msgid "绘制结束画面…"
+msgstr "Drawing the ending frame…"
+
+#: src/studio/segmentGen.ts
+msgid "绘制起拍画面…"
+msgstr "Drawing the opening frame…"
 
 #. placeholder {0}: tpl!.roles!.length
 #. placeholder {0}: tpl.roles!.length
@@ -11310,6 +11511,14 @@ msgstr "Apprentice adventurer · she"
 msgid "规格"
 msgstr "Specs"
 
+#: src/studio/segmentGen.ts
+msgid "角色卡上的形象参考图一张都没能读出来（图片可能已损坏），白模出片必须靠形象图说明「换成谁」——给卡换一张形象图再试"
+msgstr "None of the character card's reference images could be read (they may be corrupted), and blockout videos rely on them to show “who to swap in” — give the card a new reference image and try again"
+
+#: src/studio/blockoutPrompt.ts
+msgid "角色名「{name}」里有 {shown}——出片时\"哪个人偶换成谁\"是用这几个符号分隔的，名字里带着它们会让 AI 把一条绑定读成两条（换错人不会报错，只有你自己看得出来）。请给这张卡改个名字"
+msgstr "The character name “{name}” contains {shown} — these symbols separate “which mannequin becomes whom” when rendering, so a name containing them makes the AI read one binding as two (a wrong swap raises no error; only you would notice). Please rename this card"
+
 #: src/pages/AdminPage.tsx
 msgid "解封"
 msgstr "Unban"
@@ -11394,6 +11603,14 @@ msgstr "Use as my voice"
 #: src/components/flow/RefFrameSheet.tsx
 msgid "设为首帧"
 msgstr "Set as first frame"
+
+#: src/studio/segmentGen.ts
+msgid "设定帧没能转成参考图，这一段退回首尾帧模式出片（卡片形象图这次发不出去，台词音色样本也带不了）"
+msgstr "The setup frames couldn't be turned into reference images, so this segment falls back to first/last-frame mode (the card images can't be sent this time, and neither can the voice samples)"
+
+#: src/studio/segmentGen.ts
+msgid "设定帧没能转成参考图，这一段退回首尾帧模式出片（卡片形象图这次发不出去）"
+msgstr "The setup frames couldn't be turned into reference images, so this segment falls back to first/last-frame mode (the card images can't be sent this time)"
 
 #: src/pages/DeckDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
@@ -12272,6 +12489,10 @@ msgstr "This segment already has a video: changing the template discards it. To 
 #: src/pages/CutPage.tsx
 msgid "这一段已经改好、钱也扣过了，但{why}"
 msgstr "This segment is done and has been charged, but {why}"
+
+#: src/studio/segmentGen.ts
+msgid "这一段带不了声音样本（本档的出片方式与参考音频互斥）——台词仍会被配音，但音色随机"
+msgstr "This segment can't use voice samples (this tier's rendering mode is incompatible with reference audio) — dialogue is still voiced, but with random voices"
 
 #. placeholder {0}: plan.skipped
 #: src/studio/flowStore.ts
@@ -13569,6 +13790,10 @@ msgstr "Mute"
 #: src/pages/CustomCardPage.tsx
 msgid "面部近照（选）"
 msgstr "Face close-up (optional)"
+
+#: src/studio/segmentGen.ts
+msgid "音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上"
+msgstr "The voice line couldn't be sent (the prompt is full) — dialogue is still voiced, but with random voices; shorten the request to include it"
 
 #: src/pages/CutPage.tsx
 msgid "音轨没能取下来（{audioName}）——这一条先按无声导出。想要声音就换一条本地音频再重试合并。"

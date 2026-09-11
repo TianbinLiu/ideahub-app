@@ -50,6 +50,7 @@ import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
 import { chat } from "../ai/arkClient";
 import { markColorOf, type MarkSpec } from "../data/templates";
 import type { Card, MarkScheme } from "../types";
+import { t } from "@lingui/core/macro";
 
 /** 一个角色位 + 它挂上了谁。编辑页把 `template.roles` 与用户挂的卡合成这张表交过来 */
 export interface BlockoutCastSlot {
@@ -291,7 +292,11 @@ export function castNameIssue(name: string): string | null {
   if (bad.length === 0) return null;
   // ★ 措辞刻意**中性**（"哪个人偶换成谁"而不是"哪个编号换成谁"）：这是纯函数，拿不到
   //   模板、也就判不出方案。两种方案下这句话都成立，比多传一个参数便宜且不会说错
-  return `角色名「${name}」里有 ${bad.map((c) => `「${c === "\n" ? "换行" : c}」`).join("")}——出片时"哪个人偶换成谁"是用这几个符号分隔的，名字里带着它们会让 AI 把一条绑定读成两条（换错人不会报错，只有你自己看得出来）。请给这张卡改个名字`;
+  const shown = bad
+    .map((c) => (c === "\n" ? t`换行` : c))
+    .map((ch) => t({ message: `「${ch}」`, comment: "把名字里一个不许用的符号括起来给用户看（中文用「」，英文用弯引号）" }))
+    .join("");
+  return t`角色名「${name}」里有 ${shown}——出片时"哪个人偶换成谁"是用这几个符号分隔的，名字里带着它们会让 AI 把一条绑定读成两条（换错人不会报错，只有你自己看得出来）。请给这张卡改个名字`;
 }
 
 /**
@@ -382,6 +387,7 @@ function buildSkeleton(
   }
   const keyOf = (s: BlockoutCastSlot): string => {
     const c = colorOf(s);
+    // i18n-ignore-next-line: 按颜色点名的键，写进发给视频模型的提示词（本文件的提示词骨架一律冻结中文）
     return c && colorCount.get(c) === 1 ? `${c}色人偶` : s.label;
   };
   // ★★★ 第三档：**成组分配**（2026-08-18，同样来自第十一发用户实跑的配方）。
@@ -422,6 +428,7 @@ function buildSkeleton(
     //   「括号里是这个人偶在画面里的样子」，是在提示词里说一句当场就不成立的话 ——
     //   而这段话是给模型读的，凭空多一个它找不到的指代只会让它去别处找。顺带省 17 字。
     const anyParen = taken.some((s) => paren(s));
+    // i18n-ignore-next-line: 套用提示词骨架，发给视频模型
     const parts: string[] = ["以参考视频复刻原视频的人物站位、动作、节奏卡点、运动轨迹、队形与运镜。"];
     if (taken.length > 0 || groups.length > 0) {
       // ★★ 序数版这句引导语里的「按画面里从左到右的位置」不是装饰：它把"指令序列 ↔ 画面序列"
@@ -444,15 +451,18 @@ function buildSkeleton(
       //     不影响指令完整性，而一句自相矛盾的话没有任何上行空间。
       parts.push(
         ordinal
-          ? `按画面里从左到右的位置替换人偶${anyParen ? "（括号里是这个人偶在画面里的样子）" : ""}：${[
+          ? // i18n-ignore-next-line: 同上（序数版挂卡句）
+            `按画面里从左到右的位置替换人偶${anyParen ? "（括号里是这个人偶在画面里的样子）" : ""}：${[
               taken.map(bind).join("、"),
               // ★ 成组句排在逐个绑定**之后**、各自成句（用户实跑的顺序：先点名特殊的、再成组）。
               //   组内名字用 、 分隔，与外层同符号 —— 用户那条更乱都能读对，这里保持最简。
+              // i18n-ignore-next-line: 同上（成组绑定句）
               ...groups.map((g) => `${g.labels.length}个${g.color}色人偶依次替换为${g.names.join("、")}`),
             ]
               .filter(Boolean)
               .join("。")}。`
-          : `把带编号的白色人偶替换为对应角色：${taken.map((s) => `编号${s.label}=${s.name}`).join("、")}。`,
+          : // i18n-ignore-next-line: 同上（编号版挂卡句）
+            `把带编号的白色人偶替换为对应角色：${taken.map((s) => `编号${s.label}=${s.name}`).join("、")}。`,
       );
     }
     return buildRest(parts, free, ordinal, line);
@@ -474,11 +484,11 @@ function buildSkeleton(
   const full = build(true);
   const withDescs = full.length <= blockoutPromptBudget(cards);
   const usedDesc = new Map<string, string>();
-  if (withDescs && ordinal) for (const t of taken) if (t.desc) usedDesc.set(t.label, t.desc);
+  if (withDescs && ordinal) for (const slot of taken) if (slot.desc) usedDesc.set(slot.label, slot.desc);
   // ★ 哪些位子改按颜色点名了，也要**告诉**校验侧（与 usedDesc 同一条理由）：
   //   校验若照旧拿 label 去找，会把一段完全正确的提示词判成“角色位弄丢了”。
   const usedKey = new Map<string, string>();
-  for (const t of taken) if (t.key !== t.label) usedKey.set(t.label, t.key);
+  for (const slot of taken) if (slot.key !== slot.label) usedKey.set(slot.label, slot.key);
   return {
     text: withDescs ? full : build(false),
     // ★ 与 text 用**同一个** withDescs（见 textNoUserLine 的 ★）
@@ -509,14 +519,17 @@ function buildRest(parts: string[], free: BlockoutCastSlot[], ordinal: boolean, 
     //     确实通体纯白（还印着号，所以后半句"同样去掉编号"也必须留着）。
     parts.push(
       ordinal
-        ? `${free.map((s) => `${s.label}的人偶`).join("、")}保持人偶原样，不要替换成任何人。`
-        : `${free.map((s) => `编号${s.label}`).join("、")}保持白色人偶的样子，但同样去掉编号。`,
+        ? // i18n-ignore-next-line: 套用提示词骨架（空位句），发给视频模型
+          `${free.map((s) => `${s.label}的人偶`).join("、")}保持人偶原样，不要替换成任何人。`
+        : // i18n-ignore-next-line: 同上（编号版）
+          `${free.map((s) => `编号${s.label}`).join("、")}保持白色人偶的样子，但同样去掉编号。`,
     );
   }
   // ★ 这一句 2026-08-15 从 68 字压到 25 字（原文逐项列了抬手/摆臂/身体倾斜/弹跳/重心变化…）。
   //   压得起的依据：r2v `edit` 子任务**本身**就是逐帧复刻（它的立身之本是"保住主体、复刻其余"，
   //   F4 实测），这句话是加一道保险、不是唯一依靠。省下的 43 字全部进了用户的额度。
   //   ⚠ 万一以后发现复刻精度掉了，**第一个该恢复的就是它**（先恢复这句，再考虑砍别的）。
+  // i18n-ignore-next-line: 套用提示词骨架，发给视频模型
   parts.push("动作、起止时间、落点与强拍定格都要与参考视频一致。");
   const line = userLine.trim();
   // ★★ 「把编号擦掉」必须**单独说一句**（2026-08-15 实拍验出来的毁片级缺陷）——
@@ -538,10 +551,12 @@ function buildRest(parts: string[], free: BlockoutCastSlot[], ordinal: boolean, 
   //   那段实拍复盘）。排到用户句之前，被切的才真的是用户自己的补充。
   //   ⚠ 谁要把它挪回去，先去看 `segmentGen` 的 `room`：那一刀从哪头下，是这条规则
   //   的**唯一依据**，不是读起来顺不顺。
+  // i18n-ignore-next-line: 同上
   if (!ordinal) parts.push("把人偶头上和身上的编号（数字、号码牌）全部去掉，成片里不许出现任何编号或数字。");
   if (line) parts.push(line.endsWith("。") ? line : `${line}。`);
   // ★ 「不要出现字幕」留在最末：它是这段话里**最不要紧**的一句（丢了顶多多一行字幕，
   //   不是毁片），而最末就是最先被切掉的位置 —— 排序即优先级。
+  // i18n-ignore-next-line: 同上
   parts.push("不要出现字幕。");
   return parts.join("");
 }
@@ -638,6 +653,7 @@ function hasPair(text: string, label: string, name: string, spec: MarkSpec, desc
  *  那个是名词（"编号"/"位置"），这个是**带着 label 的那一截**，两处各管各的一件事。
  *  ★ 序数版就是 label 原样：措辞自带指示性，加前缀只会读成"位置最左边"。 */
 function labelText(label: string, spec: MarkSpec): string {
+  // i18n-ignore-next-line: 提示词里的编号措辞；错误句原样引用它，好让用户对照输入框里那一段
   return spec.scheme === "ordinal" ? label : `编号${label}`;
 }
 
@@ -657,6 +673,7 @@ function esc(s: string): string {
  *   （"镜头从左边推进来"），加了会把好句子整段拒掉。已知的残余风险由 hasPair 的逐条核对
  *   与 orderKept 的顺序核对兜，而不是靠一条会误伤的硬校验。
  */
+/* i18n-frozen: 合成提示词那一步给豆包的系统提示词，冻结中文 */
 const COMPOSE_SYSTEM: Record<MarkScheme, string> = {
   number: [
     "你是视频生成提示词的编辑。用户会给你一段已经写好的中文提示词，以及作者补充的一句话。",
@@ -725,6 +742,7 @@ export async function composeBlockoutPrompt(
   const cards = new Set(slots.flatMap((s) => (s.card ? [s.card.id] : [])));
   const budget = Math.max(blockoutPromptBudget(cards.size), skeleton.length);
   const context = slots
+    // i18n-ignore-next-line: 角色位对照，只进发给豆包的上下文
     .flatMap((s) => (s.card ? [`${labelText(s.label, spec)}（原视频里是${s.desc || "某个人物"}）→ ${s.card.name}`] : []))
     .join("\n");
   let out = "";
@@ -732,29 +750,33 @@ export async function composeBlockoutPrompt(
     out = await chat(
       COMPOSE_SYSTEM[spec.scheme],
       [
+        // i18n-ignore-next-line: 发给豆包的对话正文，冻结中文
         "【已写好的提示词】",
         // ★★ 递**不含那句话**的那份：含着的话模型会把它再融一遍，成品里出现两遍
         //   （见 buildSkeleton 返回值里 textNoUserLine 的 ★★）
         textNoUserLine,
         "",
+        // i18n-ignore-next-line: 同上
         "【作者补充的那句话】",
         line,
         "",
+        // i18n-ignore-next-line: 同上
         "【角色位对照（仅供你理解，不要写进成品）】",
+        // i18n-ignore-next-line: 同上
         context || "（无）",
         "",
+        // i18n-ignore-next-line: 同上
         `【长度】全文不超过 ${budget} 个字。`,
       ].join("\n"),
     );
   } catch (e) {
-    throw new Error(
-      `提示词合成失败（${e instanceof Error ? e.message : String(e)}）——这一段的要求请自己写，或用下面那份默认写法。`,
-    );
+    const why = e instanceof Error ? e.message : String(e);
+    throw new Error(t`提示词合成失败（${why}）——这一段的要求请自己写，或用下面那份默认写法。`);
   }
 
   const text = out.replace(/```[a-z]*|```/gi, "").trim();
   if (!text) {
-    throw new Error("提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。");
+    throw new Error(t`提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。`);
   }
   // ★★ 逐条核对**机器生成的那一半还在不在**。这不是洁癖：模型很爱把「1、2、4、5」
   //   顺手规整成「1、2、3、4」，或者把 `编号1=张三` 改写成读起来更顺的句子 ——
@@ -771,26 +793,30 @@ export async function composeBlockoutPrompt(
       `${g.labels.length}\\s*个${esc(g.color)}色人偶\\s*依次替换为\\s*${g.names.map(esc).join("\\s*、\\s*")}${NAME_END}`,
     );
     if (!re.test(text)) {
+      // i18n-ignore-next-line: 引号里引的是发给模型的那句成组绑定原文（冻结中文），好让用户对照输入框
+      const sentence = `${g.labels.length}个${g.color}色人偶依次替换为${g.names.join("、")}`;
+      const count = g.labels.length;
       throw new Error(
-        `提示词合成失败：AI 改动了「${g.labels.length}个${g.color}色人偶依次替换为${g.names.join("、")}」这句成组绑定` +
-          `（个数、顺序、名字任何一个变了，这 ${g.labels.length} 个位子就会整片换错人）——这一段的要求请自己写，或用下面那份默认写法。`,
+        t`提示词合成失败：AI 改动了「${sentence}」这句成组绑定（个数、顺序、名字任何一个变了，这 ${count} 个位子就会整片换错人）——这一段的要求请自己写，或用下面那份默认写法。`,
       );
     }
   }
   const missLabel = slots.find((s) => !groupedLabels.has(s.label) && !hasLabel(text, s.label, spec, usedKey.get(s.label)));
   if (missLabel) {
+    const slotText = labelText(missLabel.label, spec);
     throw new Error(
-      `提示词合成失败：AI 改写时把「${labelText(missLabel.label, spec)}」这个角色位弄丢了（${
-        spec.scheme === "ordinal" ? "位置换个说法" : "编号错一位"
-      }就会把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。`,
+      spec.scheme === "ordinal"
+        ? t`提示词合成失败：AI 改写时把「${slotText}」这个角色位弄丢了（位置换个说法就会把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。`
+        : t`提示词合成失败：AI 改写时把「${slotText}」这个角色位弄丢了（编号错一位就会把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。`,
     );
   }
   const missPair = slots.find((s) => s.card && !groupedLabels.has(s.label) && !hasPair(text, s.label, s.card.name, spec, usedDesc.get(s.label), usedKey.get(s.label)));
   if (missPair?.card) {
+    const pair = `${labelText(missPair.label, spec)}=${missPair.card.name}`;
     throw new Error(
-      `提示词合成失败：AI 改写时动了「${labelText(missPair.label, spec)}=${missPair.card.name}」这条绑定（${
-        spec.scheme === "ordinal" ? "位置" : "编号"
-      }与角色名必须原样成对，配错了就是把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。`,
+      spec.scheme === "ordinal"
+        ? t`提示词合成失败：AI 改写时动了「${pair}」这条绑定（位置与角色名必须原样成对，配错了就是把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。`
+        : t`提示词合成失败：AI 改写时动了「${pair}」这条绑定（编号与角色名必须原样成对，配错了就是把卡换到别人身上）——这一段的要求请自己写，或用下面那份默认写法。`,
     );
   }
   // ★★★ 第四道：**顺序**。上面两道都是逐条的，一条都管不到先后 —— 模型完全可以把
@@ -836,7 +862,7 @@ export async function composeBlockoutPrompt(
     };
     if (!ordered(slots.filter((s) => s.card && !groupedLabels.has(s.label))) || !ordered(slots.filter((s) => !s.card))) {
       throw new Error(
-        "提示词合成失败：AI 改写时把角色位的先后顺序打乱了（这段话必须按画面上从左到右的顺序写，顺序一乱就会换错人——实测同样三张卡，只把顺序写反，5 个位子里就错了 3 个）——这一段的要求请自己写，或用下面那份默认写法。",
+        t`提示词合成失败：AI 改写时把角色位的先后顺序打乱了（这段话必须按画面上从左到右的顺序写，顺序一乱就会换错人——实测同样三张卡，只把顺序写反，5 个位子里就错了 3 个）——这一段的要求请自己写，或用下面那份默认写法。`,
       );
     }
   }
@@ -876,7 +902,7 @@ export async function composeBlockoutPrompt(
     );
   if (spec.scheme === "number" && !clearsMarks) {
     throw new Error(
-      "提示词合成失败：AI 改写时把「去掉人偶身上的编号」这句丢了（丢了的话成片里人物头上会顶着编号，钱花完才看得出来）——这一段的要求请自己写，或用下面那份默认写法。",
+      t`提示词合成失败：AI 改写时把「去掉人偶身上的编号」这句丢了（丢了的话成片里人物头上会顶着编号，钱花完才看得出来）——这一段的要求请自己写，或用下面那份默认写法。`,
     );
   }
   // ★★ 最后一道，专管**作者那句话**（2026-08-21 加）：自从骨架不再含它（见 textNoUserLine
