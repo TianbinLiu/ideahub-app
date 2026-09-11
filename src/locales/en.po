@@ -182,10 +182,12 @@ msgstr ", "
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
+#. 改图 / 重画完成那句后面几条参考图提示之间的分隔符
 #: src/live2d/bundlePreview.ts
 #: src/pages/CardDetailPage.tsx
 #: src/studio/flowStore.ts
 #: src/studio/segmentGen.ts
+#: src/studio/studioStore.ts
 #: src/studio/ui/NpcDialog.tsx
 #: src/studio/ui/projection.tsx
 msgid "；"
@@ -1008,6 +1010,11 @@ msgstr "{segCount, plural, one {# segment} other {# segments}} · {totalText} to
 #: src/pages/ProfilePage.tsx
 msgid "{segCount} 段 · 卡组 {deckCount} 张已经铸好 · {when}"
 msgstr "{segCount, plural, one {# segment} other {# segments}} · deck of {deckCount, plural, one {# card} other {# cards}} already minted · {when}"
+
+#. 改图 / 重画完成的提示：sentence 是一整句（已翻译），notes 是用分隔符连起来的几条参考图提示，括起来接在句子后面
+#: src/studio/studioStore.ts
+msgid "{sentence}（{notes}）"
+msgstr "{sentence} ({notes})"
 
 #: src/components/support/AdminTicketsView.tsx
 msgid "{total} 张"
@@ -2356,6 +2363,10 @@ msgstr "③ {0} (optional)"
 msgid "③ 人物信息"
 msgstr "③ Character info"
 
+#: src/studio/studioStore.ts
+msgid "3D 建模需 {price} token，余额不足，跳过"
+msgstr "3D models need {price} tokens — not enough balance, skipping"
+
 #: src/pages/CreatePage.tsx
 msgid "3D 桌面与工作流画布是同一条流水线的两个面"
 msgstr "The 3D table and the workflow canvas are two views of the same pipeline"
@@ -2667,6 +2678,14 @@ msgstr "Back"
 #: src/studio/ui/projection.tsx
 msgid "上一段"
 msgstr "Previous segment"
+
+#: src/studio/studioStore.ts
+msgid "上一炉还在炼，等它出炉再说"
+msgstr "Still forging the last batch — wait until it's done"
+
+#: src/studio/studioStore.ts
+msgid "上一炉还在跑，等它出炉再说。"
+msgstr "The previous run is still going — wait for it to finish."
 
 #: src/studio/StudioPage.tsx
 msgid "上一页"
@@ -3447,6 +3466,10 @@ msgstr "Not enough balance for the AI director (400 per message). "
 #: src/components/CoverPicker.tsx
 msgid "余额不够（需要 {0} token），去「我的」页充值"
 msgstr "Not enough balance (needs {0} tokens) — top up on the Me page"
+
+#: src/studio/studioStore.ts
+msgid "余额不足，跳过卡组提炼（成片不受影响）"
+msgstr "Not enough balance, skipping deck extraction (the video isn't affected)"
 
 #: src/pages/VideoPage.tsx
 msgid "余额不足（现有 {have}）——去「我的」页充值"
@@ -4856,9 +4879,10 @@ msgstr "The script is too short (at least {SCRIPT_MIN} characters)"
 msgid "剪辑"
 msgstr "Edit"
 
+#. 接在「……，但」后面说的从句（CutPage / useFlowActions 拼进句子里）：英文小写开头
 #: src/studio/studioStore.ts
 msgid "剪辑稿没能存进本地库：上一条剪到一半的成片还没读出来，存下去会把它盖掉。先去「我的」点「重试」。"
-msgstr "The edit couldn't be saved on this device: your previous half-edited video hasn't loaded yet, and saving would overwrite it. Go to “Me” and tap “Retry” first."
+msgstr "the edit couldn't be saved on this device: your previous half-edited video hasn't loaded yet, and saving would overwrite it. Go to “Me” and tap “Retry” first."
 
 #: src/studio/canvasAgent.ts
 msgid "办好了。"
@@ -5689,6 +5713,10 @@ msgstr "Couldn't remove it from your list. Try again later."
 msgid "取消点赞"
 msgstr "Unlike"
 
+#: src/studio/studioStore.ts
+msgid "取消铸段"
+msgstr "Cancel new segment"
+
 #: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "取消静音"
@@ -6356,6 +6384,7 @@ msgstr "Scene"
 
 #. placeholder {0}: i + 1
 #: src/ai/index.ts
+#: src/studio/studioStore.ts
 msgid "场景{0}"
 msgstr "Scene {0}"
 
@@ -6918,6 +6947,10 @@ msgstr "size unknown"
 msgid "尾帧"
 msgstr "Last frame"
 
+#: src/studio/studioStore.ts
+msgid "尾帧已按你的要求重画好了。"
+msgstr "The last frame has been redrawn as you asked."
+
 #: src/studio/ui/FrameCard.tsx
 msgid "尾帧由所选方案决定；视频从开头帧往下拍"
 msgstr "The last frame comes from the chosen plan; the video starts from the opening frame"
@@ -6987,6 +7020,18 @@ msgstr "The Studio project couldn't be kept on this device (not enough storage, 
 #: src/pages/CreatePage.tsx
 msgid "工坊模式"
 msgstr "Studio mode"
+
+#: src/studio/studioStore.ts
+msgid "工坊里有一段正在炼视频（钱已经在花了）——换掉桌面不会把它停下，等它跑完再来"
+msgstr "A segment is rendering in the Studio (the tokens are already being spent) — replacing the table won't stop it, so wait for it to finish and come back"
+
+#: src/studio/studioStore.ts
+msgid "工坊里正在改一张图，等它跑完再换桌面"
+msgstr "The Studio is editing an image — wait for it to finish before replacing the table"
+
+#: src/studio/studioStore.ts
+msgid "工坊里正在重推方案，等它跑完再换桌面"
+msgstr "The Studio is redrafting plans — wait for it to finish before replacing the table"
 
 #: src/components/DraftTitle.tsx
 msgid "工程名"
@@ -7246,6 +7291,7 @@ msgid "已建组「{deckDone}」"
 msgstr "Deck “{deckDone}” created"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/studioStore.ts
 msgid "已开始生成，可以离开这一页，出片后会提醒你"
 msgstr "Generation started — you can leave this page; we'll let you know when the video is ready"
 
@@ -8407,6 +8453,10 @@ msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜�
 msgid "拉远"
 msgstr "Pull out"
 
+#: src/studio/studioStore.ts
+msgid "拉远视角"
+msgstr "Zoom out"
+
 #: src/components/BlockButton.tsx
 msgid "拉黑"
 msgstr "Block"
@@ -8545,6 +8595,10 @@ msgstr "Filter by video (title or id)"
 #: src/components/PhotoSubjectPicker.tsx
 msgid "按你描的轮廓抠出主体，背景换成浅灰纯色（主体 {size}{up}）"
 msgstr "Cut out the subject along your outline and replaced the background with plain light gray (subject {size}{up})"
+
+#: src/studio/studioStore.ts
+msgid "按你的改动重画好了。不满意就再改剧情、或者直接换成你自己的图。"
+msgstr "Redrawn with your changes. If you're not happy with it, edit the story again or swap in your own images."
 
 #: src/studio/segmentGen.ts
 msgid "按你的改法返修这一段（时长跟随成片 {refSec} 秒，产物无声）…"
@@ -8799,6 +8853,10 @@ msgstr "Drafting costs about {0} tokens and your balance of {1} isn't enough —
 msgid "推演三种走向…"
 msgstr "Drafting three directions…"
 
+#: src/studio/studioStore.ts
+msgid "推演中"
+msgstr "Drafting in progress"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
 msgid "推演中…"
@@ -8905,6 +8963,10 @@ msgstr "Send to a human agent"
 #: src/pages/FlowPage.tsx
 msgid "提取模板"
 msgstr "Extract template"
+
+#: src/studio/studioStore.ts
+msgid "提炼本片卡组…"
+msgstr "Extracting this video's deck…"
 
 #: src/studio/blockoutPrompt.ts
 msgid "提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。"
@@ -9156,13 +9218,29 @@ msgstr "Collapse"
 msgid "收起 ▴"
 msgstr "Collapse ▴"
 
+#: src/studio/studioStore.ts
+msgid "收起卡组"
+msgstr "Collapse deck"
+
 #: src/components/support/AdminTicketsView.tsx
 msgid "收起对话"
 msgstr "Hide conversation"
 
+#: src/studio/studioStore.ts
+msgid "收起市场"
+msgstr "Close market"
+
+#: src/studio/studioStore.ts
+msgid "收起方案"
+msgstr "Close plans"
+
 #: src/pages/FlowPage.tsx
 msgid "收起方案台"
 msgstr "Collapse plan board"
+
+#: src/studio/studioStore.ts
+msgid "收起画布"
+msgstr "Close canvas"
 
 #: src/pages/FlowPage.tsx
 msgid "收起补充要求"
@@ -9196,6 +9274,14 @@ msgstr "What to change? e.g. make the background a rainy night / remove the logo
 #: src/pages/CustomCardPage.tsx
 msgid "改图中…"
 msgstr "Editing…"
+
+#: src/studio/studioStore.ts
+msgid "改图没成：{reason}"
+msgstr "Image edit failed: {reason}"
+
+#: src/studio/studioStore.ts
+msgid "改图要 {price} token，余额不够了——去「我的」页充值。"
+msgstr "Editing the image costs {price} tokens and your balance isn't enough — top up on the “Me” page."
 
 #: src/pages/FlowPage.tsx
 msgid "改完挂卡会按新的映射<0>重新合成</0>下面那段要求，你改过的字会被替换掉 —— 因为旧的那段话里写的还是旧的挂卡，留着它 AI 就会照旧的换人。"
@@ -9579,6 +9665,10 @@ msgstr "A segment is generating. Wait for it to finish before restoring"
 msgid "有一段正在生成，等它跑完再重画这一套"
 msgstr "A segment is generating. Wait for it to finish before redrawing this plan"
 
+#: src/studio/studioStore.ts
+msgid "有一段正在生成（画布那一面也算同一条流水线）——等它跑完再动这一段。"
+msgstr "A segment is generating (the canvas counts as the same pipeline) — wait for it to finish before changing this segment."
+
 #: src/studio/flowStore.ts
 msgid "有一段正在生成中，等它跑完再切换这一段的模式"
 msgstr "A segment is generating. Wait for it to finish before switching this segment's mode"
@@ -9826,6 +9916,10 @@ msgstr "Untitled deck"
 #: src/components/DraftTitle.tsx
 msgid "未命名工程"
 msgstr "Untitled project"
+
+#: src/data/drafts.ts
+msgid "未命名草稿"
+msgstr "Untitled draft"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "未挂"
@@ -10978,6 +11072,11 @@ msgstr "Couldn't save to your card library: your sign-in may have expired. Sign 
 msgid "没能存进卡片库：登录态可能已失效"
 msgstr "Couldn't save to the card library: login may have expired"
 
+#. 接在「……，但」后面说的从句（CutPage / useFlowActions 拼进句子里）：英文小写开头
+#: src/studio/studioStore.ts
+msgid "没能存进本地库（存储空间不足或浏览器隐私模式）"
+msgstr "the edit couldn't be saved on this device (out of storage, or the browser is in private mode)"
+
 #: src/pages/AdminPage.tsx
 msgid "没能完成，请重试"
 msgstr "Couldn't complete that. Please try again"
@@ -11476,6 +11575,10 @@ msgstr "Orbit"
 #: src/components/DraftSheet.tsx
 msgid "现在打不开这条草稿"
 msgstr "This draft can't be opened right now"
+
+#: src/studio/studioStore.ts
+msgid "现在换不了这套走向，稍后再试"
+msgstr "Can't switch to this direction right now. Try again later"
 
 #: src/pages/AdminPage.tsx
 msgid "现在没有被下架的作品"
@@ -12459,15 +12562,16 @@ msgstr "Voice {0} weight"
 msgid "第 {0} 味音色"
 msgstr "Voice {0}"
 
+#. placeholder {0}: Number(m[1])
 #. placeholder {0}: i + 1
 #. placeholder {0}: idx + 1
-#. placeholder {0}: index + 1
 #: src/components/flow/FlowCanvas.tsx
 #: src/data/videoDownload.ts
 #: src/pages/FlowPage.tsx
 #: src/pages/PublishPage.tsx
 #: src/studio/flowStore.ts
 #: src/studio/structuredSkills.ts
+#: src/studio/studioStore.ts
 #: src/studio/ui/projection.tsx
 msgid "第 {0} 段"
 msgstr "Segment {0}"
@@ -13387,6 +13491,7 @@ msgid "自动识别"
 msgstr "Auto-detect"
 
 #: src/components/AvatarPicker.tsx
+#: src/studio/studioStore.ts
 #: src/studio/ui/projection.tsx
 msgid "自定义"
 msgstr "Custom"
@@ -13781,6 +13886,10 @@ msgstr "Let the AI write a version"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "让别人在人格市场里搜得到。"
 msgstr "Helps others find it in the persona market."
+
+#: src/studio/studioStore.ts
+msgid "让我把上一句说完"
+msgstr "Let me finish what I was saying"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "让铸卡师<0/>看着办"
@@ -14422,6 +14531,7 @@ msgstr "Revision: {0}"
 #: src/components/AvatarPicker.tsx
 #: src/components/IconTapButton.tsx
 #: src/pages/VideoPage.tsx
+#: src/studio/studioStore.ts
 msgid "返回"
 msgstr "Back"
 
@@ -14786,6 +14896,18 @@ msgstr "This run is still queued or generating upstream (current status: {shown}
 msgid "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
 msgstr "This plan has no story yet — write something first so I know what to draw"
 
+#: src/studio/studioStore.ts
+msgid "这一套的开头帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
+msgstr "This plan's first frame wasn't drawn, so there's no image to edit — tap “Regenerate this plan's frames”, or go ahead and generate the video (any frames the video needs are drawn first, and that cost is included in the video quote)."
+
+#: src/studio/studioStore.ts
+msgid "这一套的结束帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
+msgstr "This plan's last frame wasn't drawn, so there's no image to edit — tap “Regenerate this plan's frames”, or go ahead and generate the video (any frames the video needs are drawn first, and that cost is included in the video quote)."
+
+#: src/studio/studioStore.ts
+msgid "这一套还没有剧情——先写点什么，我才知道要画成什么样"
+msgstr "This plan has no story yet — write something first so I know what to draw"
+
 #: src/api/uploads.ts
 msgid "这一小段传了 {hardMin} 分钟还没完成——网络太慢，换个网络再试"
 msgstr "This chunk has been uploading for {hardMin} minutes and still isn't done — the connection is too slow. Switch networks and try again"
@@ -14829,6 +14951,10 @@ msgstr "This tier can't be priced right now; try another tier"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "这一次会拿什么去写"
 msgstr "What this run will use"
+
+#: src/studio/studioStore.ts
+msgid "这一次没推成"
+msgstr "Drafting didn't work this time"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "这一步是把「我们的演出协议」对到「你这个模型自己的名字」上。不改也行 —— 服务器已经按常见命名猜了一份，下面每一行左边的 ▶ 可以当场在上面的预览里试一下。"
@@ -14897,6 +15023,10 @@ msgstr "This segment already has a video: to change the visuals, delete it and a
 msgid "这一段已经出片：换模板会作废这段成片。想换就删除本段重加，或先接受重炼这一段的花费"
 msgstr "This segment already has a video: changing the template discards it. To change it, delete the segment and add it again, or accept the cost of regenerating this segment first"
 
+#: src/studio/studioStore.ts
+msgid "这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸"
+msgstr "This segment already has a video, so it can't go back to the segment window — to change it, delete this segment and forge it again"
+
 #: src/pages/CutPage.tsx
 msgid "这一段已经改好、钱也扣过了，但{why}"
 msgstr "This segment is done and has been charged, but {why}"
@@ -14941,6 +15071,11 @@ msgstr "The {0, plural, one {# plan} other {# plans}} drafted for this segment w
 msgid "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
 msgstr "This segment won't play (error code {codeText}) — the video link may have expired or the network is down. Reopening the draft from the workflow fetches it again."
 
+#. 只接在 CutPage「这一段已经改好、钱也扣过了，但」后面说的从句：英文小写开头，主语前面已经说过，用 it 指这一段
+#: src/studio/studioStore.ts
+msgid "这一段是从工作流里单独打开的，改动还只在内存里——回工作流把它保存进草稿，再切后台。"
+msgstr "it was opened on its own from the workflow, so its changes are only in memory — go back to the workflow and save it to a draft before switching away."
+
 #: src/studio/flowStore.ts
 msgid "这一段正在出片，等它结束再换开头帧"
 msgstr "This segment is generating. Wait for it to finish before changing the opening frame"
@@ -14948,6 +15083,10 @@ msgstr "This segment is generating. Wait for it to finish before changing the op
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段正在生成，炼完再圈"
 msgstr "This segment is generating. Circle after it's rendered"
+
+#: src/studio/studioStore.ts
+msgid "这一段正在生成，等它跑完再改。"
+msgstr "This segment is generating. Wait for it to finish before editing it."
 
 #: src/studio/flowStore.ts
 msgid "这一段正在生成中，等它跑完再改挂卡（改了也得重炼一次，别白花一次钱）"
@@ -14961,9 +15100,17 @@ msgstr "This segment didn't finish downloading (see the original error below). T
 msgid "这一段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）"
 msgstr "This segment has no blockout template to place cards on (only blockout templates have role slots) — tap “🧪 Use template” in this segment's editor to pick one; don't re-apply it from the template market (that rebuilds the whole pipeline)"
 
+#: src/studio/studioStore.ts
+msgid "这一段没炼成"
+msgstr "Couldn't generate this segment"
+
 #: src/hooks/useFlowActions.ts
 msgid "这一段炼好了，但自动存草稿失败（存储空间不足或浏览器隐私模式）——先别离开这一页，点上面的「存草稿」再试一次"
 msgstr "This segment is done, but auto-saving the draft failed (out of storage or private browsing) — don't leave this page yet; tap “Save draft” above and try again"
+
+#: src/studio/studioStore.ts
+msgid "这一段现在删不掉"
+msgstr "This segment can't be deleted right now"
 
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段现在选中的走向还没有成片"
@@ -15050,6 +15197,14 @@ msgstr "This run should have produced {want, plural, one {# image} other {# imag
 #: src/studio/ui/NpcDialog.tsx
 msgid "这一炉该出 {want} 张图、成了 {got} 张——缺的 {missingN} 张先用你的原图顶上。已经画出来、只是没取回来的那几张仍会计费，实扣以「我的」页余额为准。{noteText}"
 msgstr "This run should have produced {want, plural, one {# image} other {# images}} but got {got}; {missingN, plural, one {the missing image is} other {the # missing images are}} filled with your original images for now. Images that were drawn but not retrieved are still charged — your balance on the “Me” page shows what was actually deducted. {noteText}"
+
+#: src/studio/studioStore.ts
+msgid "这一炉还在推演，等它出炉再退出"
+msgstr "Still drafting — wait for it to finish before leaving"
+
+#: src/studio/studioStore.ts
+msgid "这一片正在组稿中（提炼卡组要花几十秒），等它跑完再点"
+msgstr "This video is being assembled (extracting the deck takes tens of seconds) — wait for it to finish, then tap again"
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "这一秒已经标过了。把播放头挪到别处再标。"
@@ -15317,6 +15472,10 @@ msgstr "This content already cost tokens to generate — discard it and you'll h
 #: src/studio/live2dUploadStore.ts
 msgid "这份包上次已经传上去了，直接让服务器再看一遍…"
 msgstr "This bundle was already uploaded last time — asking the server to look at it again…"
+
+#: src/studio/studioStore.ts
+msgid "这份工坊工程是空的，铺不进工坊"
+msgstr "This Studio project is empty, so it can't be laid out in the Studio"
 
 #: src/components/ReviseBar.tsx
 msgid "这份工程有 {lostCount} 处素材没有留存 · 方案卡上逐格标了出来：预览图重新推演就能补回来， 成片要重新出片（会再花一次钱）"
@@ -15673,6 +15832,10 @@ msgstr "This image is too small for the AI to make anything out"
 msgid "这张图已经不在了"
 msgstr "This image is no longer there"
 
+#: src/studio/studioStore.ts
+msgid "这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。"
+msgstr "The image was edited, but that segment is no longer in the pipeline — there's nowhere to save the change (the tokens have already been spent, sorry)."
+
 #: src/components/AvatarPicker.tsx
 msgid "这张图片打不开"
 msgstr "Can't open this image"
@@ -15726,6 +15889,10 @@ msgstr "These cards couldn't be synced to the server"
 #: src/studio/ui/NpcDialog.tsx
 msgid "这批素材没能炼出卡，补充点描述再试？"
 msgstr "No cards could be forged from these materials. Add more description and try again?"
+
+#: src/studio/studioStore.ts
+msgid "这是 3D 画风，顺便铸 {want} 个建模（{price} token）…"
+msgstr "This video uses a 3D style, so also minting {want, plural, one {one 3D model} other {# 3D models}} ({price} tokens)…"
 
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "这是<0>做模板</0>这一次的花费；以后每次有人套用这个模板出片，会按模板视频的时长另计一笔。"
@@ -16062,9 +16229,17 @@ msgstr "Log out"
 msgid "退出全屏"
 msgstr "Exit full screen"
 
+#: src/studio/studioStore.ts
+msgid "退出卡组"
+msgstr "Exit deck view"
+
 #: src/components/ReviseBar.tsx
 msgid "退出回炉"
 msgstr "Exit remake"
+
+#: src/studio/studioStore.ts
+msgid "退出对话"
+msgstr "Exit conversation"
 
 #: src/pages/SettingsPage.tsx
 msgid "退出登录"
@@ -16400,6 +16575,14 @@ msgstr "Redrawing…"
 msgid "重画失败：{0}"
 msgstr "Redraw failed: {0}"
 
+#: src/studio/studioStore.ts
+msgid "重画好了，但那一段已经不在流水线上了——没处写回（钱已经花了，抱歉）。"
+msgstr "The redraw is done, but that segment is no longer in the pipeline — there's nowhere to save it (the tokens have already been spent, sorry)."
+
+#: src/studio/studioStore.ts
+msgid "重画没成：{reason}"
+msgstr "Redraw failed: {reason}"
+
 #: src/studio/flowStore.ts
 msgid "重画结束画面…{noteTail}"
 msgstr "Redrawing the ending frame…{noteTail}"
@@ -16413,6 +16596,10 @@ msgstr "Redrawing the opening frame…{noteTail}"
 #: src/studio/flowStore.ts
 msgid "重画这一套约 {0} token，余额 {1} 不足——去「我的」页充值"
 msgstr "Redrawing this plan costs about {0} tokens and your balance of {1} isn't enough — top up on the “Me” page"
+
+#: src/studio/studioStore.ts
+msgid "重画这一套要 {price} token，余额不够了——去「我的」页充值。"
+msgstr "Redrawing this plan costs {price} tokens and your balance isn't enough — top up on the “Me” page."
 
 #: src/pages/SettingsPage.tsx
 msgid "重看各个界面的使用说明"
@@ -16722,15 +16909,24 @@ msgstr "First & last frames · open to swap"
 msgid "首尾帧都是你自己换的图，没有可让 AI 重画的部分（想重画就先在卡里清掉那一帧）"
 msgstr "Both frames are images you swapped in, so there's nothing for the AI to redraw (to redraw, clear that frame on the card first)"
 
+#: src/studio/studioStore.ts
+msgid "首尾帧都是你自己换的图，没有可让我重画的地方——想重画就先在卡里清掉那一帧。"
+msgstr "Both the first and last frames are images you swapped in, so there's nothing for me to redraw — to redraw, clear that frame on the card first."
+
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "首帧"
 msgstr "First frame"
+
+#: src/studio/studioStore.ts
+msgid "首帧已按你的要求重画好了。"
+msgstr "The first frame has been redrawn as you asked."
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "首帧承接上一段尾帧"
 msgstr "First frame continues from the previous segment's last frame"
 
 #: src/components/TabBar.tsx
+#: src/studio/studioStore.ts
 msgid "首页"
 msgstr "Home"
 

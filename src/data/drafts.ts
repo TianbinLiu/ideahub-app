@@ -203,7 +203,8 @@ export async function saveDraft(input: {
 
   const body: WorkDraft = {
     id,
-    title: input.title?.trim() || prev?.title || "未命名草稿",
+    // ★ 缺省标题存进草稿、之后原样显示：按存盘那一刻的界面语言定下来（与「未命名卡组」同一条先例）
+    title: input.title?.trim() || prev?.title || t`未命名草稿`,
     createdAt: prev?.createdAt ?? now,
     updatedAt: now,
     lastMode: input.lastMode,

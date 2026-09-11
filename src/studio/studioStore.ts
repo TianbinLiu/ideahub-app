@@ -146,11 +146,26 @@ export function realVideoOf(p: Proposal | null | undefined): string | undefined 
  */
 function otherFaceBusy(nodeId?: string): string | null {
   const f = useFlow.getState();
-  if (f.busy) return "有一段正在生成（画布那一面也算同一条流水线）——等它跑完再动这一段。";
+  if (f.busy) return t`有一段正在生成（画布那一面也算同一条流水线）——等它跑完再动这一段。`;
   if (nodeId && f.nodes.find((n) => n.id === nodeId)?.status === "generating") {
-    return "这一段正在生成，等它跑完再改。";
+    return t`这一段正在生成，等它跑完再改。`;
   }
   return null;
+}
+
+/**
+ * 终局那句 + 攒起来的逐张参考图提示 —— refineProposalFrame / regenProposal 共用。
+ * ★ 整句进 {sentence}、提示进 {notes}，括号与分隔符都在译文里：中文照旧「……。（甲；乙）」逐字不变，
+ *   英文是半角括号、前面留空格。别拼成「句子 + 括号尾巴」两截：那样英文的句间空格没处放。
+ * ★ notes 来自 ai/real.ts 的 prepareMaterialRefs（onNote），那边翻译之前仍是中文。
+ */
+function withRefNotes(sentence: string, list: string[]): string {
+  if (list.length === 0) return sentence;
+  const notes = list.join(t({ message: "；", comment: "改图 / 重画完成那句后面几条参考图提示之间的分隔符" }));
+  return t({
+    message: `${sentence}（${notes}）`,
+    comment: "改图 / 重画完成的提示：sentence 是一整句（已翻译），notes 是用分隔符连起来的几条参考图提示，括起来接在句子后面",
+  });
 }
 
 /** 「重新推演三套」跑起来时占用 nodeGen 的那个 key。
@@ -905,21 +920,40 @@ export function backStepOf(s: StudioState): BackStep {
  *  这是"按返回可以退出对话"最主要的可发现性来源。 */
 export function backLabelOf(s: StudioState): string {
   const step = backStepOf(s);
-  if (step === "canvas") return "收起画布";
-  if (step === "projectionBusy") return "推演中";
+  if (step === "canvas") return t`收起画布`;
+  if (step === "projectionBusy") return t`推演中`;
   if (step === "projection")
-    return s.projection === "decks" ? "退出卡组" : s.projection === "editor" ? "取消铸段" : "收起方案";
+    return s.projection === "decks" ? t`退出卡组` : s.projection === "editor" ? t`取消铸段` : t`收起方案`;
+  // ★ 表在函数体里现翻（StudioPage 用 useStudio(backLabelOf) 每次渲染都重算）：挪到模块顶层会冻结在开机语言
   const map: Record<Exclude<BackStep, "projection" | "projectionBusy" | "canvas">, string> = {
-    avatar: "返回",
-    cardDetail: "返回",
-    market: "收起市场",
-    dialog: "退出对话",
-    deck: "退出卡组",
-    focus: "拉远视角",
-    spread: "收起卡组",
-    home: "首页",
+    avatar: t`返回`,
+    cardDetail: t`返回`,
+    market: t`收起市场`,
+    dialog: t`退出对话`,
+    deck: t`退出卡组`,
+    focus: t`拉远视角`,
+    spread: t`收起卡组`,
+    home: t`首页`,
   };
-  return map[step as Exclude<BackStep, "projection" | "projectionBusy" | "canvas">] ?? "返回";
+  return map[step as Exclude<BackStep, "projection" | "projectionBusy" | "canvas">] ?? t`返回`;
+}
+
+/**
+ * 这是不是 flowStore.blankProposal 写下的占位标题「第 N 段」（= 这一段还没起过名）。
+ * ★★ 两半都要认（2026-09-11 补）：
+ *   ① 中文正则 —— real.ts / mock 的「第N段 · 」前缀剥掉之后剩下的，以及中文界面下存的占位标题；
+ *   ② 按**当前界面语言**把同一条 msgid 渲染一遍再逐字比 —— blankProposal 存的是 t`第 ${i + 1} 段`，
+ *      英文界面下是 "Segment 1"。只认①的话，英文界面的草稿一律被自动命名成 "Segment 1"，
+ *      草稿箱一屏全是它、分不出谁是谁（正是 saveWorkDraft 那段注释要防的事）。
+ * ⚠ 在另一种界面语言下建的段（英文界面建、中文界面存）②认不出，退回老行为（拿占位标题当草稿名）——
+ *   只是名字不好认，不丢东西。
+ */
+function isSegPlaceholderTitle(title: string): boolean {
+  if (/^第\s*\d+\s*段$/.test(title)) return true;
+  const m = /^\D*(\d+)\D*$/.exec(title);
+  if (!m) return false;
+  // 占位参数写成表达式（不是裸标识符），抽出来才与 blankProposal 同一条 msgid「第 {0} 段」
+  return title === t`第 ${Number(m[1])} 段`;
 }
 
 export const useStudio = create<StudioState>()((set, get) => ({
@@ -1195,15 +1229,16 @@ export const useStudio = create<StudioState>()((set, get) => ({
   helpReply: () => get().npcSay(HELP_LINE, "chat"),
 
   chatToNpc: async (text) => {
-    const t = text.trim().slice(0, 500);
-    if (!t) return;
+    // ★ 别叫 t：同一作用域里要用 Lingui 的 t 宏，局部变量会把宏遮住
+    const line = text.trim().slice(0, 500);
+    if (!line) return;
     const s0 = get();
-    if (s0.dialog.thinking) return set({ notice: { text: "让我把上一句说完", at: Date.now() } });
-    if (s0.dialog.busy) return set({ notice: { text: "上一炉还在炼，等它出炉再说", at: Date.now() } });
+    if (s0.dialog.thinking) return set({ notice: { text: t`让我把上一句说完`, at: Date.now() } });
+    if (s0.dialog.busy) return set({ notice: { text: t`上一炉还在炼，等它出炉再说`, at: Date.now() } });
     // ★ 闸门通过之后才掐上一句。放在闸门前，被拒绝的那一次也会把她正念着的话掐掉
     stopSpeaking();
     const seq = ++chatSeq;
-    get().meSay(t, "chat");
+    get().meSay(line, "chat");
     set((st) => ({ dialog: { ...st.dialog, thinking: true } }));
 
     // ★ 余额不足 → **降级不封口**。聊天是这个角色存在感的唯一来源；余额为 0 就变哑巴，
@@ -1219,7 +1254,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     };
     try {
       const { text: reply } = await (paid ? npcChat : npcChatOffline)({
-        text: t,
+        text: line,
         history: chatWindow(s0.dialog.messages),
         system: NPC_SYSTEM,
         deskBlock: deskBlock(desk),
@@ -1292,13 +1327,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // ★ 2026-09-06 从"只有空白段"放宽到"还没出片的段"：选定模板 / 挑定走向之后想换个模式，此前 ‹ 灰着、
     //   删段被"只剩一段"挡住，人被困在窗里。丢的东西由投影窗按情况先确认（推演过的三套花过 token）。
     if (!node || !nodeRecastable(node)) {
-      set({ notice: { text: "这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸", at: Date.now() } });
+      set({ notice: { text: t`这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸`, at: Date.now() } });
       return false;
     }
     flow.removeNode(nodeId);
     // ★ 判真实结果（removeNode 会整句拒：生成中…），拒了就别把窗换掉
     if (useFlow.getState().nodes.some((n) => n.id === nodeId)) {
-      set({ notice: { text: useFlow.getState().err || "这一段现在删不掉", at: Date.now() } });
+      set({ notice: { text: useFlow.getState().err || t`这一段现在删不掉`, at: Date.now() } });
       return false;
     }
     set({
@@ -1438,7 +1473,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
         set({
           notice: {
             at: Date.now(),
-            text: `这一套的${which === "first" ? "开头帧" : "结束帧"}当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。`,
+            // 首 / 尾两句各写整句，别往句子里拼「开头帧 / 结束帧」这种碎片
+            text:
+              which === "first"
+                ? t`这一套的开头帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。`
+                : t`这一套的结束帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。`,
           },
         });
         return false;
@@ -1446,7 +1485,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
     // 改一次图 = 一张 Seedream。以前这里既不看余额也不扣费，用户改十版是白送十张
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
-      set({ notice: { at: Date.now(), text: `改图要 ${fmtTokens(ONE_IMAGE)} token，余额不够了——去「我的」页充值。` } });
+      const price = fmtTokens(ONE_IMAGE);
+      set({ notice: { at: Date.now(), text: t`改图要 ${price} token，余额不够了——去「我的」页充值。` } });
       return false;
     }
     set({ frameRefining: `${proposalId}:${which}` });
@@ -1456,8 +1496,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   （没采用哪张、为什么只锁一个角色，由 npcSay 说出来 —— 这一条路没有步骤日志）
       // ★ 逐张参考图的提示**攒起来**接在终局那句后面：一条条 npcSay 在投影窗开着时看不见，
       //   一条条 notice 又会互相顶掉（Toast 只有一条）—— 攒起来才是真的被看见（铁律八）。
+      // 攒下的提示在终局那句由 withRefNotes 接上（整句 + {notes}，见它的 ★）
       const refNotes: string[] = [];
-      const refTail = () => (refNotes.length ? `（${refNotes.join("；")}）` : "");
       const mat = await prepareMaterialRefs(node.materials, "image", (n) => refNotes.push(n));
       // 画幅跟节点走：改一次图就把竖屏方案的帧重画成横版，出片时又要被裁一刀
       const next = await refineFrame(
@@ -1472,15 +1512,17 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   找不到就如实说，别把改动写进另一摊活里。
       const still = useFlow.getState().nodes.find((n) => n.id === nodeId)?.proposals.some((q) => q.id === proposalId);
       if (!still) {
-        set({ notice: { at: Date.now(), text: "这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。" } });
+        set({ notice: { at: Date.now(), text: t`这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。` } });
         return false;
       }
       // 写路只有 flowStore 一条（单一真相）：指定方案改帧
       useFlow.getState().updateProposal(nodeId, which === "first" ? { firstFrame: next } : { lastFrame: next }, proposalId);
-      set({ notice: { at: Date.now(), text: `${which === "first" ? "首" : "尾"}帧已按你的要求重画好了。${refTail()}` } });
+      const done = which === "first" ? t`首帧已按你的要求重画好了。` : t`尾帧已按你的要求重画好了。`;
+      set({ notice: { at: Date.now(), text: withRefNotes(done, refNotes) } });
       return true;
     } catch (e) {
-      set({ notice: { at: Date.now(), text: `改图没成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}` } });
+      const reason = (e instanceof Error ? e.message : String(e)).slice(0, 90);
+      set({ notice: { at: Date.now(), text: t`改图没成：${reason}` } });
       get().setMood(-0.4, 2200);
       return false;
     } finally {
@@ -1513,7 +1555,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const { proposalRegen, frameRefining, nodeGen } = get();
     // ★ 早退也要说话（铁律八）：原来这里是静默 return false，用户读到的是"点了没反应"
     if (proposalRegen || frameRefining || nodeGen) {
-      set({ notice: { text: "上一炉还在跑，等它出炉再说。", at: Date.now() } });
+      set({ notice: { text: t`上一炉还在跑，等它出炉再说。`, at: Date.now() } });
       return false;
     }
     {
@@ -1529,7 +1571,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const p = node?.proposals.find((q) => q.id === proposalId);
     if (!node || !p) return false;
     if (!p.plot.trim()) {
-      set({ notice: { text: "这一套还没有剧情——先写点什么，我才知道要画成什么样", at: Date.now() } });
+      set({ notice: { text: t`这一套还没有剧情——先写点什么，我才知道要画成什么样`, at: Date.now() } });
       return false;
     }
     // 承接上一段真实结尾的开头帧、以及用户自己上传的帧，一律不动
@@ -1540,11 +1582,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const keepLast = !!p.pinned?.last;
     const cost = redrawCost(node, p, prev);
     if (cost === 0) {
-      set({ notice: { at: Date.now(), text: "首尾帧都是你自己换的图，没有可让我重画的地方——想重画就先在卡里清掉那一帧。" } });
+      set({ notice: { at: Date.now(), text: t`首尾帧都是你自己换的图，没有可让我重画的地方——想重画就先在卡里清掉那一帧。` } });
       return false;
     }
     if (AI_REAL && !canAfford(cost)) {
-      set({ notice: { at: Date.now(), text: `重画这一套要 ${fmtTokens(cost)} token，余额不够了——去「我的」页充值。` } });
+      const price = fmtTokens(cost);
+      set({ notice: { at: Date.now(), text: t`重画这一套要 ${price} token，余额不够了——去「我的」页充值。` } });
       return false;
     }
     set({ proposalRegen: proposalId });
@@ -1555,8 +1598,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // 素材卡的形象参考图一并带上：重画的是这一段的设定帧，人物当然还得是同一个人
       // ★ 逐张参考图的提示**攒起来**接在终局那句后面：一条条 npcSay 在投影窗开着时看不见，
       //   一条条 notice 又会互相顶掉（Toast 只有一条）—— 攒起来才是真的被看见（铁律八）。
+      // 攒下的提示在终局那句由 withRefNotes 接上（整句 + {notes}，见它的 ★）
       const refNotes: string[] = [];
-      const refTail = () => (refNotes.length ? `（${refNotes.join("；")}）` : "");
       const mat = await prepareMaterialRefs(node.materials, "image", (n) => refNotes.push(n));
       const refUrls = mat.refs.length > 0 ? mat.refs : undefined;
       let first = p.firstFrame;
@@ -1567,6 +1610,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       const last = keepLast
         ? p.lastFrame
         : await generateCover(
+            // i18n-ignore-next-line: 画结束画面的出图提示词，发给模型（进模型的文字冻结中文）
             `${p.plot.slice(0, 180)} 的结束瞬间${mat.bind(first ? 1 : 0)}`,
             first || undefined,
             node.aspect,
@@ -1576,14 +1620,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // 段还在才写回（同 refineProposalFrame 那道闸）；写路只有 flowStore 一条
       const still = useFlow.getState().nodes.find((n) => n.id === nodeId)?.proposals.some((q) => q.id === proposalId);
       if (!still) {
-        set({ notice: { at: Date.now(), text: "重画好了，但那一段已经不在流水线上了——没处写回（钱已经花了，抱歉）。" } });
+        set({ notice: { at: Date.now(), text: t`重画好了，但那一段已经不在流水线上了——没处写回（钱已经花了，抱歉）。` } });
         return false;
       }
       useFlow.getState().updateProposal(nodeId, { firstFrame: first, lastFrame: last, degraded: undefined }, proposalId);
-      set({ notice: { at: Date.now(), text: `按你的改动重画好了。不满意就再改剧情、或者直接换成你自己的图。${refTail()}` } });
+      set({ notice: { at: Date.now(), text: withRefNotes(t`按你的改动重画好了。不满意就再改剧情、或者直接换成你自己的图。`, refNotes) } });
       return true;
     } catch (e) {
-      set({ notice: { at: Date.now(), text: `重画没成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}` } });
+      const reason = (e instanceof Error ? e.message : String(e)).slice(0, 90);
+      set({ notice: { at: Date.now(), text: t`重画没成：${reason}` } });
       get().setMood(-0.4, 2200);
       return false;
     } finally {
@@ -1610,7 +1655,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     //   投影窗开着的时候 —— 用 npcSay 等于没说（与 genNodeVideo 同一条纪律）。
     const { nodeGen, proposalRegen } = get();
     if (nodeGenInFlight || nodeGen || proposalRegen) {
-      set({ notice: { text: "上一炉还在跑，等它出炉再说。", at: Date.now() } });
+      set({ notice: { text: t`上一炉还在跑，等它出炉再说。`, at: Date.now() } });
       return false;
     }
     const flow0 = useFlow.getState();
@@ -1623,7 +1668,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     try {
       const ok = await useFlow.getState().deriveProposals(nodeId);
       if (!ok) {
-        set({ notice: { text: useFlow.getState().err || "这一次没推成", at: Date.now() } });
+        set({ notice: { text: useFlow.getState().err || t`这一次没推成`, at: Date.now() } });
         return false;
       }
       get().npcSay("换了一批走向，投影在你面前了——点开挑一套。");
@@ -1680,7 +1725,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const first = editor.startFrame ?? prev?.lastFrame ?? "";
     const p: Proposal = {
       id: uid("prop"),
-      title: "自定义",
+      // ★ 存进方案、随作品发布（VideoSegment.title）：按作者当时的界面语言定下来，与 flowStore.blankProposal 的「第 N 段」同一条先例
+      title: t`自定义`,
       plot: editor.requirement.trim(),
       firstFrame: first,
       lastFrame: editor.endFrame ?? "",
@@ -2018,7 +2064,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     flow.chooseProposal(nodeId, proposalId);
     const live = useFlow.getState().nodes.find((n) => n.id === nodeId);
     if (!live || live.chosenId !== proposalId || live.plan === "picking") {
-      set({ notice: { text: useFlow.getState().err || "现在换不了这套走向，稍后再试", at: Date.now() } });
+      set({ notice: { text: useFlow.getState().err || t`现在换不了这套走向，稍后再试`, at: Date.now() } });
       return false;
     }
     // ★★ 出片走 flowStore.genNode（单一真相 + 单一实现）：报价=实扣（nodeCost）、
@@ -2033,11 +2079,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   出片不需要守着。被门禁整句拒的那一发状态不变、窗留着，原因照常显示在窗里。
       if (useFlow.getState().nodes.find((n) => n.id === nodeId)?.status === "generating") {
         get().closeProjection();
-        showToast("已开始生成，可以离开这一页，出片后会提醒你", 2600);
+        showToast(t`已开始生成，可以离开这一页，出片后会提醒你`, 2600);
       }
       const ok = await run;
       if (!ok) {
-        set({ notice: { text: useFlow.getState().err || "这一段没炼成", at: Date.now() } });
+        set({ notice: { text: useFlow.getState().err || t`这一段没炼成`, at: Date.now() } });
         return false;
       }
       get().npcSay(
@@ -2066,7 +2112,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // ★★ 同一时刻只准跑一发（见 finalizing 字段的 ★★）。原因写进 flowStore.err：
     //   两个面都画它，静默 return 的话上层只能瞎猜（铁律八）
     if (get().finalizing) {
-      useFlow.setState({ err: "这一片正在组稿中（提炼卡组要花几十秒），等它跑完再点" });
+      useFlow.setState({ err: t`这一片正在组稿中（提炼卡组要花几十秒），等它跑完再点` });
       return false;
     }
     set({ finalizing: true });
@@ -2150,9 +2196,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
         // 按实际产出结算——余额不够就跳过派生，成片本身照出，不该被卡住
         // ★ 门槛用的 deckCardsCost() 与 FlowPage 顶栏报的那个数是同一个函数（铁律六）
         const canDerive = !AI_REAL || canAfford(deckCardsCost());
-        if (!canDerive) say("余额不足，跳过卡组提炼（成片不受影响）");
+        if (!canDerive) say(t`余额不足，跳过卡组提炼（成片不受影响）`);
         if (!canDerive) throw new Error("skip-derive");
-        say("提炼本片卡组…");
+        say(t`提炼本片卡组…`);
         const derived = await deriveDeckCards(
           // ★ V3：带上成片地址与实测时长，deriveDeckCards 能抽帧就看片提炼（卡面贴合原片）
           segments.map((sg) => ({
@@ -2179,10 +2225,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
         if (styleWants3d(deckStyleBlob(nodes))) {
           const want = Math.min(DECK_MAX_3D, fresh.filter((c) => c.type === "character").length);
           if (want > 0) {
+            const price = fmtTokens(deckModel3dCost(want));
             if (AI_REAL && !canAfford(deckModel3dCost(want))) {
-              say(`3D 建模需 ${fmtTokens(deckModel3dCost(want))} token，余额不足，跳过`);
+              say(t`3D 建模需 ${price} token，余额不足，跳过`);
             } else {
-              say(`这是 3D 画风，顺便铸 ${want} 个建模（${fmtTokens(deckModel3dCost(want))} token）…`);
+              say(t`这是 3D 画风，顺便铸 ${want} 个建模（${price} token）…`);
               const before = fresh.filter((c) => c.modelUrl).length;
               await deriveCharacterModels(fresh, DECK_MAX_3D, say);
               const minted = fresh.filter((c) => c.modelUrl).length - before;
@@ -2197,7 +2244,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
             ...segments.map((sg, i) => ({
               id: uid("card"),
               type: "scene" as const,
-              name: sg.title.replace(/^第\d+段 · /, "").slice(0, 8) || `场景${i + 1}`,
+              // ★ 兜底卡名存进卡组、随作品发布：按作者当时的界面语言定下来（与 ai/index.ts 的 mock 同一条 msgid）
+              name: sg.title.replace(/^第\d+段 · /, "").slice(0, 8) || t`场景${i + 1}`,
               summary: sg.plot.slice(0, 60),
               cover: sg.poster || sg.firstFrame,
             })),
@@ -2286,8 +2334,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
     //   ⚠ 但**不能因此谎报成功**（原来这里 return true）：这条路上同样会扣钱
     //   （剪辑页的「按圈选重新生成」），而钱扣完之后结果只在内存里 —— 调用方被告知
     //   "存住了"，于是一个字都不提醒。如实说清楚：这一档要靠**回到工作流保存**来兜住。
+    // ★ 下面几句失败原因都会被调用方接在「……，但」后面说（CutPage 两处、useFlowActions 一处）：
+    //   英文译成小写开头的从句，别把它们当独立句子改成大写开头。
+    //   segEdit 这一句实际只到得了 CutPage 重炼那一处（「这一段已经改好、钱也扣过了，但」）：合并键在 segEdit 下不摆，
+    //   useFlowActions 那处在 finalizeInner 清掉 segEdit 之后才问。主语前面已经说过「这一段」，英文用 it 指代
     if (segEdit) {
-      return "这一段是从工作流里单独打开的，改动还只在内存里——回工作流把它保存进草稿，再切后台。";
+      return t({
+        message: "这一段是从工作流里单独打开的，改动还只在内存里——回工作流把它保存进草稿，再切后台。",
+        comment: "只接在 CutPage「这一段已经改好、钱也扣过了，但」后面说的从句：英文小写开头，主语前面已经说过，用 it 指这一段",
+      });
     }
     // ★ 音轨预置跟着稿子一起存（理由见 cutSession.CutSession.audioHint 的 ★★）：
     //   它只在组稿那一拍算得出来，App 一重启就没了，而「接着剪」正是重启之后才走的那条路。
@@ -2295,8 +2350,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (ok) return null;
     // ★ 上一条剪辑稿没读出来时 saveCutSession 会拒（不许盖掉一条读不出来的、花过钱的稿子）：原因与出路都不同，分开说
     return cutSessionLoadIssue()
-      ? t`剪辑稿没能存进本地库：上一条剪到一半的成片还没读出来，存下去会把它盖掉。先去「我的」点「重试」。`
-      : "没能存进本地库（存储空间不足或浏览器隐私模式）";
+      ? t({
+          message: "剪辑稿没能存进本地库：上一条剪到一半的成片还没读出来，存下去会把它盖掉。先去「我的」点「重试」。",
+          comment: "接在「……，但」后面说的从句（CutPage / useFlowActions 拼进句子里）：英文小写开头",
+        })
+      : t({
+          message: "没能存进本地库（存储空间不足或浏览器隐私模式）",
+          comment: "接在「……，但」后面说的从句（CutPage / useFlowActions 拼进句子里）：英文小写开头",
+        });
   },
 
   finishPublish: (videoId) => {
@@ -2345,7 +2406,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // 一屏全是"第 1 段"根本分不出谁是谁——这种情况改用剧情开头
     const doneCount = nodes.filter((n) => Object.keys(n.videoByProposal).length > 0).length;
     const rawTitle = (head?.title ?? "").replace(/^第\s*\d+\s*段\s*·\s*/, "").trim();
-    const autoTitle = /^第\s*\d+\s*段$/.test(rawTitle) || !rawTitle ? (head?.plot ?? "").trim().slice(0, 16) : rawTitle;
+    // ★ 「这是不是占位标题」只问 isSegPlaceholderTitle（中文正则 + 当前界面语言下 blankProposal 存的那一份）；
+    //   剧情开头也是空的话 autoTitle 为空串，saveDraft 退回缺省的「未命名草稿」
+    const autoTitle = isSegPlaceholderTitle(rawTitle) || !rawTitle ? (head?.plot ?? "").trim().slice(0, 16) : rawTitle;
     const meta = await saveDraft({
       id: workDraftId,
       title: opts?.title ?? (workDraftId ? undefined : autoTitle),
@@ -2375,9 +2438,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
 
   studioBusyReason: () => {
     const s = get();
-    if (s.nodeGen) return "工坊里有一段正在炼视频（钱已经在花了）——换掉桌面不会把它停下，等它跑完再来";
-    if (s.proposalRegen) return "工坊里正在重推方案，等它跑完再换桌面";
-    if (s.frameRefining) return "工坊里正在改一张图，等它跑完再换桌面";
+    if (s.nodeGen) return t`工坊里有一段正在炼视频（钱已经在花了）——换掉桌面不会把它停下，等它跑完再来`;
+    if (s.proposalRegen) return t`工坊里正在重推方案，等它跑完再换桌面`;
+    if (s.frameRefining) return t`工坊里正在改一张图，等它跑完再换桌面`;
     return null;
   },
   openWorkDraft: (d) => {
@@ -2488,7 +2551,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
     const flow = canvas?.flow;
     if (!flow || !Array.isArray(flow.nodes) || flow.nodes.length === 0) {
-      const why = "这份工坊工程是空的，铺不进工坊";
+      const why = t`这份工坊工程是空的，铺不进工坊`;
       set({ notice: { text: why, at: Date.now() } });
       return false;
     }
@@ -2561,7 +2624,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       case "projectionBusy":
         // 消费掉但不关：这一炉真烧 token，退出等于把用户丢给一个看不见进度的后台任务。
         // 与投影窗里 ✕/取消 的 disabled={editor.generating} 是同一条规则
-        set({ notice: { text: "这一炉还在推演，等它出炉再退出", at: Date.now() } });
+        set({ notice: { text: t`这一炉还在推演，等它出炉再退出`, at: Date.now() } });
         return true;
       case "canvas":
         set({ canvasOpen: false });
