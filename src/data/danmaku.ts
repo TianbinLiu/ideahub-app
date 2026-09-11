@@ -18,6 +18,7 @@
 // ★★ 读接口是**同步**的（danmakuOf）。渲染层每一拍都要问一次"这一秒有哪些弹幕"，
 //   改成 Promise 就得把整个播放循环异步化。远端那份靠"按作品懒加载 + 到货后 emit"
 //   补进内存 cache，与 videos.ts 的 loadDetail 是同一招。
+import { t } from "@lingui/core/macro";
 import { idbRead, idbSet } from "./db";
 import { authState } from "./account";
 import { readyVideos, realId, remoteOn } from "./videos";
@@ -91,7 +92,10 @@ export function danmakuVersion(): number {
 
 /** 种子弹幕：只给三条演示作品，而且**只在离线模式**铺。
  *  ★ 接上服务端之后一条都不铺：那时候库里是真人发的真弹幕，
- *    掺几条假的进去就是骗人（铁律八）。 */
+ *    掺几条假的进去就是骗人（铁律八）。
+ *  ★ 多语言：不翻。这是演示观众发的弹幕（用户内容），与 videos.ts 的中文种子作品配套；
+ *    而且首启就落进 IndexedDB —— 在 buildSeeds 里翻译会把第一次开机时的语言永久存下来。 */
+/* i18n-frozen: 演示作品的弹幕是用户内容，与 videos.ts 的种子作品配套，首启落 IndexedDB（只在离线模式出现） */
 const SEEDS: Record<string, Array<[number, string, string?]>> = {
   seedv_0: [
     [1.2, "这个雨夜的光太顶了"],
@@ -322,7 +326,7 @@ export async function sendDanmaku(
   let item: DanmakuItem;
   if (remoteOn()) {
     const remote = await branch.addDanmaku(rid, { at: second, text: body, color: tint });
-    if (!remote) throw new Error("发送失败，请重试");
+    if (!remote) throw new Error(t`发送失败，请重试`);
     item = fromApi(remote);
     item.mine = true; // 自己刚发的，服务端也会这么标；这里钉一下免得回包缺字段
   } else {
@@ -361,11 +365,11 @@ export async function removeDanmaku(videoId: string, danmakuId: string): Promise
 
   if (remoteOn()) {
     // 本地临时 id（还没落库的作品/弹幕）打上去只会吃 400
-    if (rid.startsWith("v_") || rid.startsWith("seedv_")) throw new Error("这条作品还没同步到服务器，稍后再试");
-    if (danmakuId.startsWith("dm_")) throw new Error("这条弹幕还在发送中，等它发出去之后再删");
+    if (rid.startsWith("v_") || rid.startsWith("seedv_")) throw new Error(t`这条作品还没同步到服务器，稍后再试`);
+    if (danmakuId.startsWith("dm_")) throw new Error(t`这条弹幕还在发送中，等它发出去之后再删`);
     // ★ 形状判"这台服务器认不认这个端点"，不判状态码（Capacitor 的 SPA 回退恒 200 + index.html）
     const landed = await branch.removeDanmaku(rid, danmakuId);
-    if (!landed) throw new Error("这台服务器还不支持删除弹幕（需要升级服务端）");
+    if (!landed) throw new Error(t`这台服务器还不支持删除弹幕（需要升级服务端）`);
   }
 
   // ★★ 这里**必须重新读 store[rid]**，不能用上面那个 await 之前捞的 `list`：

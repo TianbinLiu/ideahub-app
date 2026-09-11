@@ -2,16 +2,6 @@
  "version": 1,
  "enMissing": 0,
  "files": {
-  "src/App.tsx": {
-   "1c5dfb22c6cdabf3": 1,
-   "4cc881329358ae37": 1,
-   "6aaeee4bcba291e5": 1,
-   "8f31a480bd683384": 1,
-   "9127d55b425e33a5": 1,
-   "a09ce12ef35b10ea": 1,
-   "a0b0759f79f2b714": 1,
-   "e182e21dfd193010": 1
-  },
   "src/ai/arkClient.ts": {
    "025b0990258c4aae": 1,
    "04f26f01a9c5e637": 1,
@@ -381,34 +371,6 @@
   },
   "src/components/AigcBadge.tsx": {
    "ee569181afc2cbdd": 1
-  },
-  "src/components/DanmakuInput.tsx": {
-   "19abbc6d0f1d2e1e": 1,
-   "3c06abe116516cfd": 1,
-   "448265534045b4f8": 1,
-   "4503865eec0f8b7d": 1,
-   "4d0b4688c787cf6c": 1,
-   "5a473ec913809281": 1,
-   "60793243146ecae2": 1,
-   "62a8008cb3061140": 1,
-   "6e2fe60313068e97": 1,
-   "7cad642ae6c09926": 1,
-   "a87c96950bc24b44": 1,
-   "bce2ef61514a87a9": 2,
-   "c752622eb475f884": 1,
-   "d846c9dffc85cccd": 1,
-   "df64576e4ade4843": 1,
-   "ec3c550a65f6e6d6": 1
-  },
-  "src/components/SocialPanel.tsx": {
-   "1214d633a448542f": 1,
-   "174ddb4f0b22c237": 1,
-   "3444454fa9558abe": 1,
-   "3a88aa0328b54e78": 1,
-   "5c223dea3f30a693": 1,
-   "cf5105624389a7f1": 1,
-   "d2220ee923012a3c": 1,
-   "f9b65b72072c1a64": 1
   },
   "src/components/TarotCard.tsx": {
    "2282a44c4e061a5c": 1,
@@ -1115,31 +1077,6 @@
    "9bbae141d5245d0c": 1,
    "a901d917574be42f": 1,
    "fe02e3d1488a1852": 1
-  },
-  "src/data/danmaku.ts": {
-   "0d945469785ecb41": 1,
-   "1ae7dcc8cca7a673": 1,
-   "248d986440fc3d68": 1,
-   "36db3dd2a97e761a": 1,
-   "5991f97dda29e6d7": 1,
-   "5eaed1040c100b56": 1,
-   "5ef11230a681b96e": 1,
-   "726f1038ce90f65c": 1,
-   "75167629bd139c77": 1,
-   "7ab0e3eee4e61e9d": 1,
-   "81c7aa47b4c2f147": 1,
-   "8dee6e51be635676": 1,
-   "a2affa53f517fc4c": 1,
-   "a648ea6efc01975c": 1,
-   "ac10dc2d83eea5d7": 1,
-   "c01bbf36ebe8e779": 1,
-   "c77af4af710b143a": 1,
-   "ceb4eaaf948c915b": 1,
-   "dbedb1e4e831c53f": 1,
-   "df64576e4ade4843": 1,
-   "e54684482a32877b": 1,
-   "f07f2d8370ccd887": 1,
-   "fc18af48b8f26ffc": 1
   },
   "src/data/drafts.ts": {
    "144d770a9e3bc1e1": 1

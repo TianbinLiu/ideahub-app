@@ -2955,6 +2955,10 @@ msgstr "不取了"
 msgid "不合形状的段整段丢掉；一段不剩就算失败，不落地"
 msgstr "不合形状的段整段丢掉；一段不剩就算失败，不落地"
 
+#: src/App.tsx
+msgid "不同意，退出登录"
+msgstr "不同意，退出登录"
+
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "不在选段内"
 msgstr "不在选段内"
@@ -4048,6 +4052,10 @@ msgstr "关闭"
 msgid "关闭导演台"
 msgstr "关闭导演台"
 
+#: src/components/DanmakuInput.tsx
+msgid "关闭弹幕显示"
+msgstr "关闭弹幕显示"
+
 #: src/components/MaterialSheet.tsx
 msgid "关闭素材库"
 msgstr "关闭素材库"
@@ -4590,6 +4598,7 @@ msgid "删除不可撤销。只想让它不再被看到就用「下架」。"
 msgstr "删除不可撤销。只想让它不再被看到就用「下架」。"
 
 #: src/components/CommentDelete.tsx
+#: src/components/DanmakuInput.tsx
 #: src/components/DeleteConfirmShell.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/AdminPage.tsx
@@ -4616,6 +4625,10 @@ msgstr "删除账号…"
 #: src/pages/CardDetailPage.tsx
 msgid "删除这张卡"
 msgstr "删除这张卡"
+
+#: src/components/DanmakuInput.tsx
+msgid "删除这条弹幕"
+msgstr "删除这条弹幕"
 
 #: src/pages/EditPage.tsx
 msgid "删除这部作品"
@@ -5325,6 +5338,10 @@ msgstr "发布视频"
 msgid "发弹幕"
 msgstr "发弹幕"
 
+#: src/components/DanmakuInput.tsx
+msgid "发条友善的弹幕"
+msgstr "发条友善的弹幕"
+
 #. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 100)
 #: src/components/PortraitAuthPanel.tsx
 msgid "发起授权没成：{0}——可以改用「填 asset ID」那条路"
@@ -5332,6 +5349,7 @@ msgstr "发起授权没成：{0}——可以改用「填 asset ID」那条路"
 
 #: src/components/CommentSheet.tsx
 #: src/components/flow/FlowCanvas.tsx
+#: src/components/SocialPanel.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/SupportPage.tsx
 #: src/studio/ui/NpcDialog.tsx
@@ -5346,6 +5364,15 @@ msgstr "发送中…"
 #: src/pages/SupportPage.tsx
 msgid "发送失败"
 msgstr "发送失败"
+
+#: src/components/DanmakuInput.tsx
+#: src/data/danmaku.ts
+msgid "发送失败，请重试"
+msgstr "发送失败，请重试"
+
+#: src/components/DanmakuInput.tsx
+msgid "发送弹幕"
+msgstr "发送弹幕"
 
 #: src/pages/LoginPage.tsx
 msgid "发送验证码"
@@ -5440,6 +5467,7 @@ msgstr "取流超时（窗口在后台时浏览器不解码视频）"
 #: src/components/CommentDelete.tsx
 #: src/components/ConfirmDialog.tsx
 #: src/components/CoverPicker.tsx
+#: src/components/DanmakuInput.tsx
 #: src/components/DraftSheet.tsx
 #: src/components/flow/DiscardFlowDialog.tsx
 #: src/components/PortraitAuthPanel.tsx
@@ -5833,6 +5861,7 @@ msgstr "同一条视频拆成 {count} 段的分段模板（共约 {0}s）· 套�
 msgid "同意协议"
 msgstr "同意协议"
 
+#: src/App.tsx
 #: src/pages/LoginPage.tsx
 msgid "同意并继续"
 msgstr "同意并继续"
@@ -7407,6 +7436,10 @@ msgstr "建组失败：登录态可能已经失效（卡都已各自存进卡片
 msgid "开一条新的{pendingTitle}（丢弃上面那条）"
 msgstr "开一条新的{pendingTitle}（丢弃上面那条）"
 
+#: src/components/DanmakuInput.tsx
+msgid "开启弹幕显示"
+msgstr "开启弹幕显示"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "开启语音"
 msgstr "开启语音"
@@ -7478,9 +7511,17 @@ msgctxt "举报对象的类别（单数）"
 msgid "弹幕"
 msgstr "弹幕"
 
+#: src/components/DanmakuInput.tsx
+msgid "弹幕样式"
+msgstr "弹幕样式"
+
 #: src/pages/AdminPage.tsx
 msgid "弹幕管理列表"
 msgstr "弹幕管理列表"
+
+#: src/components/DanmakuInput.tsx
+msgid "弹幕颜色 {c}"
+msgstr "弹幕颜色 {c}"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。"
@@ -7543,6 +7584,10 @@ msgstr "当前是离线模式（没连服务器），管理功能需要服务端
 #: src/api/companion.ts
 msgid "当前是离线模式（没配服务器地址），这个功能需要联网。"
 msgstr "当前是离线模式（没配服务器地址），这个功能需要联网。"
+
+#: src/components/DanmakuInput.tsx
+msgid "当前离线，这条弹幕只存在这台设备上"
+msgstr "当前离线，这条弹幕只存在这台设备上"
 
 #: src/pages/LoginPage.tsx
 msgid "当前网络环境（{regionName}）下 Google / GitHub 不可用，已自动隐藏"
@@ -7806,6 +7851,10 @@ msgstr "我们对涉及未成年人内容的立场与处理方式（在官网打
 #: src/pages/WorkshopPage.tsx
 msgid "我发的"
 msgstr "我发的"
+
+#: src/components/DanmakuInput.tsx
+msgid "我发过的 {mineCount} 条"
+msgstr "我发过的 {mineCount} 条"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "我已逐个核对，位置无误"
@@ -9561,6 +9610,10 @@ msgstr "本机缓存"
 msgid "本机计数"
 msgstr "本机计数"
 
+#: src/components/SocialPanel.tsx
+msgid "本机计数：只统计了这台设备上的互动"
+msgstr "本机计数：只统计了这台设备上的互动"
+
 #: src/data/projects.ts
 msgid "本机那份画布已经不在了——这条作品没法再补留存了。"
 msgstr "本机那份画布已经不在了——这条作品没法再补留存了。"
@@ -9643,6 +9696,10 @@ msgstr "本段设置"
 #: src/pages/VideoPage.tsx
 msgid "本片卡组"
 msgstr "本片卡组"
+
+#: src/components/DanmakuInput.tsx
+msgid "本片弹幕 {othersCount} 条"
+msgstr "本片弹幕 {othersCount} 条"
 
 #: src/studio/stage/StageOverlay.tsx
 msgid "机位 · 空处拖动环绕，两指拉远拉近"
@@ -10078,6 +10135,10 @@ msgstr "正在截图…"
 msgid "正在打开 TA 的主页…"
 msgstr "正在打开 TA 的主页…"
 
+#: src/App.tsx
+msgid "正在打开作品库…"
+msgstr "正在打开作品库…"
+
 #: src/studio/ui/SchemeMarketSheet.tsx
 msgid "正在打开市场…"
 msgstr "正在打开市场…"
@@ -10148,6 +10209,7 @@ msgid "正在确认登录状态，稍等一下再点。"
 msgstr "正在确认登录状态，稍等一下再点。"
 
 #: src/components/AuthPending.tsx
+#: src/components/SocialPanel.tsx
 #: src/pages/FeedPage.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/VideoPage.tsx
@@ -10526,6 +10588,7 @@ msgid "没能切换语言，请重试"
 msgstr "没能切换语言，请重试"
 
 #: src/components/CommentDelete.tsx
+#: src/components/DanmakuInput.tsx
 msgid "没能删掉，请重试"
 msgstr "没能删掉，请重试"
 
@@ -10661,6 +10724,10 @@ msgstr "注销这个账号"
 #: src/studio/quality.ts
 msgid "流畅"
 msgstr "流畅"
+
+#: src/components/SocialPanel.tsx
+msgid "浏览 / 点赞 / 收藏为社区计数；评论只存在这台设备上"
+msgstr "浏览 / 点赞 / 收藏为社区计数；评论只存在这台设备上"
 
 #: src/pages/DiscoverPage.tsx
 msgid "浏览分区"
@@ -11160,6 +11227,10 @@ msgstr "用户从 AI 客服转人工的问题，在这里回复"
 msgid "用户列表"
 msgstr "用户列表"
 
+#: src/App.tsx
+msgid "用户协议与隐私政策"
+msgstr "用户协议与隐私政策"
+
 #: src/pages/LoginPage.tsx
 msgid "用户名 / 邮箱"
 msgstr "用户名 / 邮箱"
@@ -11372,6 +11443,10 @@ msgstr "登录后可以收藏卡片、组建卡组"
 #: src/pages/VideoPage.tsx
 msgid "登录后可收入卡组"
 msgstr "登录后可收入卡组"
+
+#: src/components/SocialPanel.tsx
+msgid "登录后才能互动"
+msgstr "登录后才能互动"
 
 #: src/api/admin.ts
 msgid "登录已过期，请重新登录后再举报"
@@ -11736,6 +11811,7 @@ msgid "确认丢掉"
 msgstr "确认丢掉"
 
 #: src/components/CommentDelete.tsx
+#: src/components/DanmakuInput.tsx
 #: src/components/DraftSheet.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/AdminPage.tsx
@@ -12777,6 +12853,10 @@ msgstr "给这支视频起个好名字"
 msgid "给这条工程起个名"
 msgstr "给这条工程起个名"
 
+#: src/App.tsx
+msgid "继续使用前，请阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>。"
+msgstr "继续使用前，请阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>。"
+
 #: src/pages/FlowPage.tsx
 msgid "继续去挂卡"
 msgstr "继续去挂卡"
@@ -13340,6 +13420,7 @@ msgstr "设置失败，稍后再试。"
 msgid "设置已保存，但重新读取配置失败（{why}），下次进来会按新设置念。"
 msgstr "设置已保存，但重新读取配置失败（{why}），下次进来会按新设置念。"
 
+#: src/components/SocialPanel.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/FeedPage.tsx
 msgid "评论"
@@ -13349,6 +13430,10 @@ msgstr "评论"
 msgctxt "举报对象的类别（单数）"
 msgid "评论"
 msgstr "评论"
+
+#: src/components/SocialPanel.tsx
+msgid "评论 · {commentCount}"
+msgstr "评论 · {commentCount}"
 
 #. placeholder {0}: comments.length
 #: src/pages/VideoPage.tsx
@@ -13548,6 +13633,7 @@ msgstr "说得太频繁了，稍等几秒。"
 msgid "说明"
 msgstr "说明"
 
+#: src/components/SocialPanel.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "说点什么"
 msgstr "说点什么"
@@ -14149,6 +14235,7 @@ msgid "还没有草稿。"
 msgstr "还没有草稿。"
 
 #: src/components/CommentSheet.tsx
+#: src/components/SocialPanel.tsx
 #: src/pages/VideoPage.tsx
 msgid "还没有评论，抢个沙发"
 msgstr "还没有评论，抢个沙发"
@@ -14841,6 +14928,10 @@ msgstr "这台服务器还不支持举报（需要升级服务端）"
 msgid "这台服务器还不支持删除（需要升级服务端）"
 msgstr "这台服务器还不支持删除（需要升级服务端）"
 
+#: src/data/danmaku.ts
+msgid "这台服务器还不支持删除弹幕（需要升级服务端）"
+msgstr "这台服务器还不支持删除弹幕（需要升级服务端）"
+
 #: src/api/admin.ts
 msgid "这台服务器还不支持删除账号（需要升级服务端）"
 msgstr "这台服务器还不支持删除账号（需要升级服务端）"
@@ -15245,6 +15336,10 @@ msgstr "这条作品设为按分集收费，不能换内容。"
 msgid "这条作品还在上传，传完再回炉。"
 msgstr "这条作品还在上传，传完再回炉。"
 
+#: src/data/danmaku.ts
+msgid "这条作品还没同步到服务器，稍后再试"
+msgstr "这条作品还没同步到服务器，稍后再试"
+
 #: src/pages/PublishPage.tsx
 msgid "这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。"
 msgstr "这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。"
@@ -15260,6 +15355,10 @@ msgstr "这条已被平台下架，不能保存到本地。"
 #: src/components/ShareSheet.tsx
 msgid "这条已被平台下架，链接别人打不开，所以先不能分享。"
 msgstr "这条已被平台下架，链接别人打不开，所以先不能分享。"
+
+#: src/data/danmaku.ts
+msgid "这条弹幕还在发送中，等它发出去之后再删"
+msgstr "这条弹幕还在发送中，等它发出去之后再删"
 
 #: src/pages/CutPage.tsx
 msgid "这条成片有 {sizeMb}MB，接近服务器上限（约 {capMb}MB），可能传不上去。传失败的话回剪辑页删几段、或把导出分辨率降一档再合一次——片段和配乐都还在。"
