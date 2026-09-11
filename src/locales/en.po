@@ -35,6 +35,18 @@ msgstr " · 🔒 Unlocks after earlier segments are rendered"
 msgid " · 上次"
 msgstr " · last used"
 
+#: src/pages/SimpleModePage.tsx
+msgid " · 已给尾帧"
+msgstr " · last frame provided"
+
+#: src/pages/SimpleModePage.tsx
+msgid " · 已给首、尾帧"
+msgstr " · first and last frames provided"
+
+#: src/pages/SimpleModePage.tsx
+msgid " · 已给首帧"
+msgstr " · first frame provided"
+
 #. placeholder {0}: first.materials.length
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid " · 带着已挂的 {0} 张卡"
@@ -255,6 +267,10 @@ msgstr "(on this tier it's a reference plus a prompt mention, not a hard guarant
 msgid "（这个位子没有描述）"
 msgstr "(no description for this slot)"
 
+#: src/pages/SimpleModePage.tsx
+msgid "（选填 · 传自己的图或融图，AI 只补缺的）"
+msgstr " (optional · upload your own image or a blend; AI fills in only what's missing)"
+
 #: src/pages/NotificationsPage.tsx
 msgid "（通知内容缺失）"
 msgstr "(notification content missing)"
@@ -269,6 +285,12 @@ msgstr "{0} · {1, plural, one {# video} other {# videos}}"
 #: src/pages/SettingsPage.tsx
 msgid "{0} · 只影响 3D 工坊"
 msgstr "{0} · affects the 3D Studio only"
+
+#. placeholder {0}: effective.coverEmoji || "🎭"
+#. placeholder {1}: effective.name
+#: src/pages/SupportPersonasPage.tsx
+msgid "{0} {1}（形象作者推荐）"
+msgstr "{0} {1} (recommended by the look's creator)"
 
 #. placeholder {0}: results.length
 #: src/pages/DiscoverPage.tsx
@@ -352,6 +374,7 @@ msgstr "{0}s · too long"
 #. placeholder {0}: tpl.refVideo!.durationSec
 #: src/components/flow/FlowCanvas.tsx
 #: src/components/TemplateShelf.tsx
+#: src/pages/SimpleModePage.tsx
 msgid "{0}s 复刻"
 msgstr "{0}s remake"
 
@@ -483,6 +506,10 @@ msgstr "No videos in “{0}” yet"
 msgid "「{u}」"
 msgstr "“{u}”"
 
+#: src/pages/SimpleModePage.tsx
+msgid "← 换成自己写一句"
+msgstr "← Write my own sentence instead"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "↩ 回竖屏"
 msgstr "↩ Back to portrait"
@@ -491,9 +518,17 @@ msgstr "↩ Back to portrait"
 msgid "↺ 用回原片"
 msgstr "↺ Use the original crop"
 
+#: src/pages/SupportModelsPage.tsx
+msgid "＋ 上传我的 Live2D 模型"
+msgstr "+ Upload my Live2D model"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "＋ 再标一张脸部特写（可选，出片时锁面部特征更稳）"
 msgstr "+ Also mark a face close-up (optional; keeps facial features steadier in videos)"
+
+#: src/pages/SupportPersonasPage.tsx
+msgid "＋ 制作我的人格"
+msgstr "+ Create my persona"
 
 #. placeholder {0}: rows.length
 #: src/components/support/VoiceMixer.tsx
@@ -633,6 +668,11 @@ msgstr "⚡ Unlock for {0} tokens"
 msgid "⚡ 做同款"
 msgstr "⚡ Remix"
 
+#. placeholder {0}: fmtTokens(cost)
+#: src/pages/SimpleModePage.tsx
+msgid "⚡ 出片（{0}）"
+msgstr "⚡ Generate video ({0})"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "⚡ 炼这一段视频（{costLabel}）"
 msgstr "⚡ Render this segment ({costLabel})"
@@ -661,6 +701,14 @@ msgstr "✂ Use this area"
 #: src/components/flow/FlowCanvas.tsx
 msgid "✍ 自定义"
 msgstr "✍ Custom"
+
+#: src/pages/SimpleModePage.tsx
+msgid "✍ 自定义首尾帧"
+msgstr "✍ Custom first/last frames"
+
+#: src/pages/SimpleModePage.tsx
+msgid "✍️ 自己写一句"
+msgstr "✍️ Write my own sentence"
 
 #: src/studio/canvasAgent.ts
 msgid "✎ 拍摄要求"
@@ -913,6 +961,10 @@ msgstr "🗑 Delete segment"
 msgid "🧩 工作流模式"
 msgstr "🧩 Workflow mode"
 
+#: src/pages/SimpleModePage.tsx
+msgid "🧪 套一个模板"
+msgstr "🧪 Use a template"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/canvasAgent.ts
 msgid "🧪 套模板"
@@ -999,6 +1051,10 @@ msgstr "QQ friends"
 #: src/components/CoverPicker.tsx
 msgid "Seedream 真实生成，约 20-30 秒"
 msgstr "Real Seedream generation, about 20–30 seconds"
+
+#: src/pages/SupportModelsPage.tsx
+msgid "zip 包 ≤25MB，向导会认出它的动作、表情和触摸区。"
+msgstr "Zip package up to 25MB; the wizard detects its motions, expressions and touch areas."
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "一句简介（可留空）"
@@ -1099,6 +1155,7 @@ msgid "上面列的是这台设备上已有的那几条，不是全部结果。"
 msgstr "What's listed above is only what's already on this device, not all results."
 
 #: src/components/guide/GuideOverlay.tsx
+#: src/pages/SimpleModePage.tsx
 msgid "下一步"
 msgstr "Next"
 
@@ -1124,8 +1181,13 @@ msgid "下载中 {pct}%"
 msgstr "Downloading {pct}%"
 
 #: src/components/UpdateSheet.tsx
+#: src/pages/SupportModelsPage.tsx
 msgid "下载中…"
 msgstr "Downloading…"
+
+#: src/pages/SupportModelsPage.tsx
+msgid "下载并使用"
+msgstr "Download and use"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "下面就是进卡的那一张：卡面和出片参考图都用它。"
@@ -1262,6 +1324,14 @@ msgstr "Watch again"
 msgid "从成片截取封面帧"
 msgstr "Grab a cover frame from the video"
 
+#: src/pages/SupportPersonasPage.tsx
+msgid "付费人格：先在官网购买，买过之后这里就能用。"
+msgstr "Paid persona: buy it on the website first, then you can use it here."
+
+#: src/pages/SupportPersonasPage.tsx
+msgid "付费人格要在官网 ideahubs.org 购买，买过之后这里就能用。"
+msgstr "Paid personas are bought on the website, ideahubs.org; once purchased you can use them here."
+
 #: src/components/UpdateSheet.tsx
 msgid "以后再说"
 msgstr "Later"
@@ -1320,9 +1390,23 @@ msgstr "You haven't published a voice template yet. Make one in “Mix” and pu
 msgid "你还没拉黑过谁"
 msgstr "You haven't blocked anyone"
 
+#: src/pages/SupportModelsPage.tsx
+msgid "你还没有上传过形象，点上面那张卡传一个。"
+msgstr "You haven't uploaded a look yet. Tap the card above to upload one."
+
+#: src/pages/SupportPersonasPage.tsx
+msgid "你还没有做过人格，点上面那张卡做一个。"
+msgstr "You haven't made a persona yet. Tap the card above to make one."
+
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/SupportModelsPage.tsx
+#: src/pages/SupportPersonasPage.tsx
 msgid "使用中"
 msgstr "In use"
+
+#: src/pages/SupportModelsPage.tsx
+msgid "使用官方形象"
+msgstr "Use the official look"
 
 #: src/pages/SettingsPage.tsx
 msgid "使用本应用的约定"
@@ -1347,6 +1431,10 @@ msgstr "E.g. a boy with white hair in a black robe"
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "例：白色、弯腰前倾、在最左那盏路灯下"
 msgstr "E.g. white, leaning forward, under the leftmost streetlight"
+
+#: src/pages/SimpleModePage.tsx
+msgid "例：雨夜霓虹的街头，穿风衣的侦探快步穿过人群"
+msgstr "e.g. A neon-lit street on a rainy night, a detective in a trench coat hurrying through the crowd"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "保存"
@@ -1456,6 +1544,7 @@ msgid "全新生成"
 msgstr "Generate new"
 
 #: src/components/TemplateShelf.tsx
+#: src/pages/SupportPersonasPage.tsx
 msgid "全部"
 msgstr "All"
 
@@ -1480,6 +1569,7 @@ msgid "公开到声音市场（不勾 = 只在「我的」里）"
 msgstr "Publish to the voice market (unchecked = only in “Mine”)"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/pages/SimpleModePage.tsx
 msgid "共 {count} 段 · 点开选一段"
 msgstr "{count, plural, one {# segment} other {# segments}} · tap to pick one"
 
@@ -1537,6 +1627,10 @@ msgstr "Trace it fully: go all the way around the object's edge"
 msgid "再点一次就删。正在用它的人嗓子不变，只是不再显示「使用中」。"
 msgstr "Tap again to delete. People using it keep the voice; it just won't show “In use” anymore."
 
+#: src/pages/SimpleModePage.tsx
+msgid "再补一句要求（可留空）"
+msgstr "Add a request (optional)"
+
 #: src/components/DeleteConfirmShell.tsx
 msgid "再试一次"
 msgstr "Try again"
@@ -1578,6 +1672,7 @@ msgid "写一句换成谁，例：换成一只戴墨镜的柴犬"
 msgstr "Write who to swap in, e.g. a Shiba Inu wearing sunglasses"
 
 #: src/pages/CreatePage.tsx
+#: src/pages/SimpleModePage.tsx
 msgid "写一句话出片"
 msgstr "Write a sentence, get a video"
 
@@ -1589,6 +1684,14 @@ msgstr "Write a deck description: what kind of videos is this deck good for?"
 #: src/components/VideoCardAnnotator.tsx
 msgid "准备中…"
 msgstr "Preparing…"
+
+#: src/pages/SupportModelsPage.tsx
+msgid "准备文件 {done}/{total}"
+msgstr "Preparing files {done}/{total}"
+
+#: src/pages/SupportModelsPage.tsx
+msgid "准备文件…"
+msgstr "Preparing files…"
 
 #: src/pages/CreatePage.tsx
 msgid "几秒出片"
@@ -1653,6 +1756,16 @@ msgstr "Discover"
 #: src/components/flow/FlowCanvas.tsx
 msgid "切到自选会<0>摘掉模板</0>：挂的卡与合成好的点名句一起清掉，这一段退回普通段（想回来再套就行）。"
 msgstr "Switching to Pick cards <0>removes the template</0>: attached cards and the generated casting line are cleared, and this segment becomes a regular segment (you can apply the template again later)."
+
+#: src/pages/SupportModelsPage.tsx
+#: src/pages/SupportPersonasPage.tsx
+msgid "切换中…"
+msgstr "Switching…"
+
+#: src/pages/SupportModelsPage.tsx
+#: src/pages/SupportPersonasPage.tsx
+msgid "切换失败，稍后再试。"
+msgstr "Couldn't switch. Try again later."
 
 #: src/components/TabBar.tsx
 msgid "创作"
@@ -1776,14 +1889,20 @@ msgid "加个话题，让人搜得到（回车分隔）"
 msgstr "Add a topic so people can find this (press Enter between topics)"
 
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/SupportModelsPage.tsx
+#: src/pages/SupportPersonasPage.tsx
 msgid "加载中…"
 msgstr "Loading…"
 
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/SupportModelsPage.tsx
+#: src/pages/SupportPersonasPage.tsx
 msgid "加载更多"
 msgstr "Load more"
 
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/SupportModelsPage.tsx
+#: src/pages/SupportPersonasPage.tsx
 msgid "加载更多失败"
 msgstr "Couldn't load more"
 
@@ -1792,6 +1911,7 @@ msgid "勾了「画面里是真实人物」，就得同时勾上下面那条肖�
 msgstr "If you check “A real person is in the picture”, you also have to check the portrait-consent confirmation below — real-person material can't be saved without the person's consent. Uncheck the real-person box, or check the confirmation, then save."
 
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/SupportModelsPage.tsx
 msgid "匿名"
 msgstr "Anonymous"
 
@@ -2041,6 +2161,10 @@ msgstr "Cancel"
 msgid "取消，不用这张图"
 msgstr "Cancel, don't use this image"
 
+#: src/pages/SupportModelsPage.tsx
+msgid "取消中…"
+msgstr "Removing…"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "取消分享失败：{err}"
 msgstr "Unsharing failed: {err}"
@@ -2052,6 +2176,16 @@ msgstr "Unsharing needs a server connection: the Workshop copy lives on the serv
 #: src/components/CommentSheet.tsx
 msgid "取消回复"
 msgstr "Cancel reply"
+
+#: src/pages/SupportModelsPage.tsx
+#: src/pages/SupportPersonasPage.tsx
+msgid "取消收藏"
+msgstr "Remove from my list"
+
+#: src/pages/SupportModelsPage.tsx
+#: src/pages/SupportPersonasPage.tsx
+msgid "取消收藏失败，稍后再试。"
+msgstr "Couldn't remove it from your list. Try again later."
 
 #: src/components/CommentSheet.tsx
 #: src/components/support/VoiceMarket.tsx
@@ -2164,6 +2298,10 @@ msgstr "Name (required, up to {NAME_MAX} characters)"
 msgid "启梦 · 有想法，就是梦想启程的第一步"
 msgstr "QiMeng · Every dream starts with an idea"
 
+#: src/pages/SupportModelsPage.tsx
+msgid "启梦官方"
+msgstr "QiMeng Official"
+
 #: src/components/VoiceRecorder.tsx
 msgid "周末打算去一趟菜市场，买点新鲜的菜，晚上做一顿好吃的。"
 msgstr "This weekend I plan to visit the market, pick up some fresh vegetables, and cook something nice for dinner."
@@ -2173,6 +2311,7 @@ msgid "唤起指令句式（也可以输入 /）"
 msgstr "Open command phrases (or type /)"
 
 #: src/pages/SupportCreatePage.tsx
+#: src/pages/SupportPersonasPage.tsx
 msgid "喂一段聊天记录或者答几道题，AI 帮你写出说话风格，试聊满意了再发布。"
 msgstr "Feed in a chat log or answer a few questions, and AI writes a speaking style for you; publish once a test chat feels right."
 
@@ -2237,6 +2376,10 @@ msgstr "Where to split"
 #: src/studio/canvasAgent.ts
 msgid "在末尾追加"
 msgstr "Adds one at the end"
+
+#: src/pages/SupportModelsPage.tsx
+msgid "在电脑上传更方便的话，官网 ideahubs.org 的 Live2D 模型市场也能传，两边同一个账号。"
+msgstr "If it's easier to upload from a computer, you can also use the Live2D model market on ideahubs.org — it's the same account on both."
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "在画面上拖一下；不满意再拖就重画"
@@ -2313,6 +2456,10 @@ msgstr "Avatar update failed; this device will still show the new avatar"
 #: src/pages/TemplateMarketPage.tsx
 msgid "套上模板，一句话出片"
 msgstr "Apply a template and make a video from one sentence"
+
+#: src/pages/SimpleModePage.tsx
+msgid "套用的模板"
+msgstr "Template in use"
 
 #: src/components/support/VoiceMixer.tsx
 msgid "女"
@@ -2394,6 +2541,10 @@ msgstr "It doesn't know which video to edit (this happens if you typed the addre
 msgid "安卓不让 App 直接写进相册。文件先落在 App 的缓存目录里；存好后点每一行的「分享 / 另存为」， 在系统面板里选相册或文件管理器。保存期间请留在 App 里，别把它划掉。 缓存目录在手机空间紧张时可能被系统清掉 —— 存好之后请尽快选个去处。"
 msgstr "Android doesn't let apps write straight into the gallery. Files land in the app's cache first; once saved, tap “Share / Save as” on each row and pick the gallery or a file manager in the system sheet. Stay in the app while saving and don't swipe it away. The system may clear the cache when storage runs low, so pick a destination soon after saving."
 
+#: src/pages/SupportPersonasPage.tsx
+msgid "安装并使用"
+msgstr "Install and use"
+
 #: src/components/AvatarPicker.tsx
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/DeckDetailPage.tsx
@@ -2416,6 +2567,14 @@ msgstr "Done casting"
 #: src/pages/CreatePage.tsx
 msgid "完整作品"
 msgstr "Full videos"
+
+#: src/pages/SupportModelsPage.tsx
+msgid "官方"
+msgstr "Official"
+
+#: src/pages/SupportModelsPage.tsx
+msgid "官方形象读不到（这台服务器可能还没有）。"
+msgstr "Couldn't load the official looks (this server may not have them yet)."
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "官方技能"
@@ -2452,6 +2611,10 @@ msgstr "Use this segment"
 msgid "尾帧"
 msgstr "Last frame"
 
+#: src/pages/SimpleModePage.tsx
+msgid "展开"
+msgstr "Expand"
+
 #: src/components/TemplateShelf.tsx
 msgid "展开各段 ▾"
 msgstr "Show segments ▾"
@@ -2477,6 +2640,10 @@ msgstr "{0} downloaded"
 msgid "已下架"
 msgstr "Taken down"
 
+#: src/pages/SupportModelsPage.tsx
+msgid "已下载"
+msgstr "Downloaded"
+
 #: src/pages/SettingsProfilePage.tsx
 msgid "已保存 ✓"
 msgstr "Saved ✓"
@@ -2497,6 +2664,10 @@ msgstr "Rendered: changing the template or mode would discard this segment (to c
 #: src/components/flow/FlowCanvas.tsx
 msgid "已出片（成片预览没截到，点开可回看）"
 msgstr "Rendered (no preview frame captured; tap to watch)"
+
+#: src/pages/SupportModelsPage.tsx
+msgid "已切换，返回客服页生效。"
+msgstr "Switched. It takes effect when you go back to the support page."
 
 #. placeholder {0}: r.files
 #. placeholder {1}: fmtBytes(r.bytes)
@@ -2544,6 +2715,10 @@ msgstr "Generation started — you can leave this page; we'll let you know when 
 msgid "已恢复——下次进各个界面会重新弹一遍"
 msgstr "Reset — each screen will show its guide again next time"
 
+#: src/pages/SupportPersonasPage.tsx
+msgid "已恢复默认人格，返回客服页生效。"
+msgstr "Default persona restored. It takes effect when you go back to the support page."
+
 #: src/components/BlockButton.tsx
 msgid "已拉黑"
 msgstr "Blocked"
@@ -2562,6 +2737,15 @@ msgstr "Blocked people"
 msgid "已挂 {mounted}/{0} 个角色位 · 点这里改"
 msgstr "{mounted}/{0} role slots cast · tap to change"
 
+#: src/pages/SupportModelsPage.tsx
+msgid "已换回官方形象，返回客服页生效。"
+msgstr "Switched back to the official look. It takes effect when you go back to the support page."
+
+#. placeholder {0}: p.name
+#: src/pages/SupportPersonasPage.tsx
+msgid "已换成「{0}」，返回客服页生效。"
+msgstr "Switched to “{0}”. It takes effect when you go back to the support page."
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "已换成只留主体的这张"
 msgstr "Replaced with the subject-only image"
@@ -2573,6 +2757,10 @@ msgstr "Replaced with the subject-only image. Videos will use it (the card cover
 #: src/components/VideoCardAnnotator.tsx
 msgid "已接上授权素材，存卡时一并绑定"
 msgstr "Authorized asset linked; it will be bound when you save the card"
+
+#: src/pages/SupportPersonasPage.tsx
+msgid "已收藏"
+msgstr "Saved"
 
 #. placeholder {0}: inside.length
 #: src/components/blockout/VisionFramePicker.tsx
@@ -2649,6 +2837,10 @@ msgstr "Videos already rendered aren't affected, and these abilities come back i
 msgid "已装"
 msgstr "Installed"
 
+#: src/pages/SupportPersonasPage.tsx
+msgid "已购"
+msgstr "Purchased"
+
 #: src/components/BranchPlayer.tsx
 msgid "已过 {forkCount} 个分支点"
 msgstr "{forkCount, plural, one {Passed # branch point} other {Passed # branch points}}"
@@ -2658,13 +2850,25 @@ msgstr "{forkCount, plural, one {Passed # branch point} other {Passed # branch p
 msgid "已铺 {0} 段，从第 1 段开始炼"
 msgstr "Laid out {0, plural, one {# segment} other {# segments}} — start rendering from segment 1"
 
+#: src/pages/SupportModelsPage.tsx
+msgid "市场"
+msgstr "Market"
+
 #: src/components/TemplateShelf.tsx
 msgid "市场上还没有公开的模板。做一个自己的、发布出来，这里就有了。"
 msgstr "There are no public templates on the market yet. Make your own and publish it, and it'll show up here."
 
+#: src/pages/SupportPersonasPage.tsx
+msgid "市场里还没有公开的人格。"
+msgstr "No public personas in the market yet."
+
 #: src/components/support/VoiceMarket.tsx
 msgid "市场里还没有公开的声音模板，去「混音」发布第一条。"
 msgstr "No public voice templates yet. Publish the first one from “Mix”."
+
+#: src/pages/SupportModelsPage.tsx
+msgid "市场里还没有别人公开的形象。"
+msgstr "No one else has published a look to the market yet."
 
 #: src/pages/CustomCardPage.tsx
 msgid "带背景"
@@ -2722,6 +2926,10 @@ msgstr "The segment that produced it isn't in this pipeline (the original draft 
 #: src/pages/DraftsPage.tsx
 msgid "当前"
 msgstr "Current"
+
+#: src/pages/SupportPersonasPage.tsx
+msgid "当前人格"
+msgstr "Current persona"
 
 #: src/components/AvatarPicker.tsx
 msgid "当前头像。换成官方看板娘或自己的照片都行"
@@ -2788,10 +2996,12 @@ msgid "恢复"
 msgstr "Reset"
 
 #: src/components/support/VoiceSheet.tsx
+#: src/pages/SupportPersonasPage.tsx
 msgid "恢复中…"
 msgstr "Restoring…"
 
 #: src/components/support/VoiceSheet.tsx
+#: src/pages/SupportPersonasPage.tsx
 msgid "恢复失败，稍后再试。"
 msgstr "Restore failed. Try again later."
 
@@ -2810,6 +3020,18 @@ msgstr "Back to the voice's default"
 #: src/pages/SettingsVoicePage.tsx
 msgid "恢复默认"
 msgstr "Restore default"
+
+#: src/pages/SupportPersonasPage.tsx
+msgid "恢复默认人格"
+msgstr "Restore default persona"
+
+#: src/pages/SimpleModePage.tsx
+msgid "想怎么开始？"
+msgstr "How do you want to start?"
+
+#: src/pages/SimpleModePage.tsx
+msgid "想拍什么？"
+msgstr "What do you want to film?"
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "慢放 0.25 倍"
@@ -2847,6 +3069,12 @@ msgstr "I've checked each one — numbers are correct"
 #: src/components/TabBar.tsx
 msgid "我的"
 msgstr "Me"
+
+#: src/pages/SupportModelsPage.tsx
+#: src/pages/SupportPersonasPage.tsx
+msgctxt "市场页签 / 卡片角标：我自己上传或做的那些（不是底栏的「我的」页）"
+msgid "我的"
+msgstr "Mine"
 
 #: src/components/support/VoiceMarket.tsx
 msgid "我的 · 未公开"
@@ -3094,6 +3322,14 @@ msgstr "Edit current cover"
 msgid "按这一段的时长自动取帧：现在是 <0>{autoFrames} 帧</0>（每 {BLOCKOUTIZE_FRAME_EVERY_SEC} 秒一帧，最少 {BLOCKOUTIZE_FRAME_MIN} 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧）。<1>拖时间轴改选段长度，帧数和下面的报价都会跟着变。</1>"
 msgstr "Frames are picked automatically from this selection's length: currently <0>{autoFrames, plural, one {# frame} other {# frames}}</0> (one every {BLOCKOUTIZE_FRAME_EVERY_SEC}s, at least {BLOCKOUTIZE_FRAME_MIN} and at most {BLOCKOUTIZE_FRAME_MAX}). <1>Drag the timeline to change the selection's length; the frame count and the price below change with it.</1>"
 
+#: src/pages/SimpleModePage.tsx
+msgid "挑一个模板"
+msgstr "Pick a template"
+
+#: src/pages/SimpleModePage.tsx
+msgid "挑一条现成的片子，复刻它的画面与运镜"
+msgstr "Pick an existing video and remake its visuals and camera moves"
+
 #: src/components/VoiceRecorder.tsx
 msgid "换一句"
 msgstr "Another sentence"
@@ -3105,6 +3341,10 @@ msgstr "Change"
 #: src/pages/SettingsPage.tsx
 msgid "换一种说话风格，官网同步"
 msgstr "Switch speaking styles; synced with the website"
+
+#: src/pages/SupportPersonasPage.tsx
+msgid "换一种说话风格，客服页与官网首页共用同一份设置；人格自带嗓子的话声音也会跟着换。"
+msgstr "Switch speaking styles. The support page and the website's home page share one setting; if a persona has its own voice, the voice changes too."
 
 #. placeholder {0}: ask.label
 #: src/components/flow/TierRow.tsx
@@ -3160,6 +3400,11 @@ msgstr "Planning…"
 msgid "推荐"
 msgstr "For you"
 
+#. placeholder {0}: m.persona.name
+#: src/pages/SupportModelsPage.tsx
+msgid "推荐人格：{0}"
+msgstr "Recommended persona: {0}"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "描不出来？保留框内背景 ›"
 msgstr "Can't trace it? Keep the background ›"
@@ -3206,6 +3451,10 @@ msgstr "Couldn't search for people: {0}"
 #: src/pages/DiscoverPage.tsx
 msgid "搜人失败：{userErr}"
 msgstr "People search failed: {userErr}"
+
+#: src/pages/SupportPersonasPage.tsx
+msgid "搜人格：名字、描述、标签…"
+msgstr "Search personas: name, description, tags…"
 
 #: src/pages/DiscoverPage.tsx
 msgid "搜人需要连上服务器 · 当前是离线模式（视频和分区照常能搜）"
@@ -3260,6 +3509,7 @@ msgid "收藏"
 msgstr "Save"
 
 #: src/components/VideoCardAnnotator.tsx
+#: src/pages/SimpleModePage.tsx
 msgid "收起"
 msgstr "Collapse"
 
@@ -3300,10 +3550,12 @@ msgid "放大再框"
 msgstr "Zoom in to box"
 
 #: src/pages/SettingsPage.tsx
+#: src/pages/SupportPersonasPage.tsx
 msgid "数字人人格"
 msgstr "Digital human persona"
 
 #: src/pages/SettingsPage.tsx
+#: src/pages/SupportModelsPage.tsx
 msgid "数字人形象"
 msgstr "Digital human look"
 
@@ -3627,6 +3879,10 @@ msgstr "Checking structure…"
 msgid "检查更新"
 msgstr "Check for updates"
 
+#: src/pages/SupportModelsPage.tsx
+msgid "模型文件读不到（{why}），没有切换。"
+msgstr "Couldn't read the model files ({why}); nothing was switched."
+
 #: src/components/support/VoiceMixer.tsx
 msgid "模板名字（必填，例：清冷知性）"
 msgstr "Template name (required, e.g. Cool and composed)"
@@ -3821,6 +4077,10 @@ msgstr "No videos found for “{key}”"
 msgid "没有找到「{key}」这个用户"
 msgstr "No user named “{key}” found"
 
+#: src/pages/SupportPersonasPage.tsx
+msgid "没有找到匹配的人格，换个词试试。"
+msgstr "No matching personas. Try another word."
+
 #: src/components/support/VoiceMarket.tsx
 msgid "没有找到匹配的模板，换个词试试。"
 msgstr "No matching templates. Try another word."
@@ -3922,6 +4182,7 @@ msgstr "Clear cache (about {mbLabel} MB)"
 
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/SettingsStoragePage.tsx
+#: src/pages/SupportPersonasPage.tsx
 msgid "清空"
 msgstr "Clear"
 
@@ -4030,6 +4291,7 @@ msgstr "Generating"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/components/PortraitAuthPanel.tsx
+#: src/pages/SimpleModePage.tsx
 msgid "生成中…"
 msgstr "Generating…"
 
@@ -4283,6 +4545,10 @@ msgstr "Got it, change casting"
 msgid "知道了，换到「{0}」"
 msgstr "Got it, switch to “{0}”"
 
+#: src/pages/SimpleModePage.tsx
+msgid "确认一下就出片"
+msgstr "Confirm to generate"
+
 #: src/components/CommentDelete.tsx
 #: src/components/DraftSheet.tsx
 #: src/components/support/VoiceMarket.tsx
@@ -4363,6 +4629,10 @@ msgstr "Remove"
 #: src/components/MaterialSheet.tsx
 msgid "移除 {0}"
 msgstr "Remove {0}"
+
+#: src/pages/SimpleModePage.tsx
+msgid "空 = AI 按上面那句话补画（计费）"
+msgstr "Empty = AI draws it from the sentence above (charged)"
 
 #: src/components/flow/CustomFrameSlots.tsx
 #: src/components/flow/FlowCanvas.tsx
@@ -4461,8 +4731,10 @@ msgstr "{0}s"
 msgid "第 {0} 秒（选段外）"
 msgstr "{0}s (outside the selection)"
 
+#. placeholder {0}: (p.group?.index ?? 0) + 1
 #. placeholder {0}: (part.group?.index ?? 0) + 1
 #: src/components/flow/FlowCanvas.tsx
+#: src/pages/SimpleModePage.tsx
 msgid "第 {0}/{count} 段"
 msgstr "Segment {0}/{count}"
 
@@ -4473,6 +4745,10 @@ msgstr "{rel}s"
 #: src/studio/canvasAgent.ts
 msgid "第 {s} 段"
 msgstr "Segment {s}"
+
+#: src/pages/SimpleModePage.tsx
+msgid "第 {stepNo} / 3 步"
+msgstr "Step {stepNo} of 3"
 
 #: src/pages/OauthCallbackPage.tsx
 msgid "第三方登录未完成"
@@ -4558,6 +4834,10 @@ msgstr "Drawing…"
 #: src/components/flow/FlowCanvas.tsx
 msgid "给 {0} 个人偶挂上你的角色卡"
 msgstr "Attach your character cards to {0, plural, one {# mannequin} other {# mannequins}}"
+
+#: src/pages/SupportModelsPage.tsx
+msgid "给客服页和官网首页的看板娘换一套 Live2D 形象，两边共用同一份设置。"
+msgstr "Give the mascot on the support page and the website's home page a new Live2D look. Both share one setting."
 
 #: src/pages/SettingsPage.tsx
 msgid "给小梦换一套 Live2D 形象"
@@ -4653,6 +4933,11 @@ msgstr "Make models · voices · personas and publish them to the market"
 msgid "自己挑"
 msgstr "Pick myself"
 
+#: src/pages/SupportModelsPage.tsx
+#: src/pages/SupportPersonasPage.tsx
+msgid "自带音色"
+msgstr "Has its own voice"
+
 #: src/studio/canvasAgent.ts
 msgid "花钱操作，会先摆确认卡"
 msgstr "Costs tokens — you'll confirm first"
@@ -4676,6 +4961,10 @@ msgstr "Drafts"
 #: src/components/flow/SkillPanel.tsx
 msgid "装"
 msgstr "Install"
+
+#: src/pages/SimpleModePage.tsx
+msgid "要拍什么"
+msgstr "What to film"
 
 #: src/components/PortraitAuthPanel.tsx
 msgid "要授权的是<0>别人</0>？让他用自己的手机扫这个码 —— 活体认证必须在<1>他本人</1>的手机上、用他自己的火山账号做， 这正是这份授权有效的原因。"
@@ -4784,6 +5073,10 @@ msgstr "Speech recognition failed: {0}"
 msgid "语音识别暂时不可用（上游没接住），先打字吧。"
 msgstr "Speech recognition is temporarily unavailable (the upstream service didn't respond). Please type for now."
 
+#: src/pages/SimpleModePage.tsx
+msgid "说一句想拍什么，AI 直接出一条短片"
+msgstr "Say what you want to film and AI makes a short video right away"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "说得太频繁了，稍等几秒。"
 msgstr "Too many voice messages. Wait a few seconds."
@@ -4796,9 +5089,27 @@ msgstr "More info"
 msgid "说点什么，@ 可以叫上别人"
 msgstr "Say something; use @ to mention someone"
 
+#: src/pages/SupportPersonasPage.tsx
+msgid "读不到人格列表"
+msgstr "Couldn't load the persona list"
+
 #: src/components/support/VoiceMarket.tsx
 msgid "读不到声音市场"
 msgstr "Couldn't load the voice market"
+
+#: src/pages/SupportModelsPage.tsx
+#: src/pages/SupportPersonasPage.tsx
+msgid "读不到当前设置：{settingsErr}这里不标「使用中」，选用时以服务端为准。"
+msgstr "Couldn't read the current setting: {settingsErr} Nothing is marked “In use” here; the server's setting applies when you choose one."
+
+#: src/pages/SupportModelsPage.tsx
+msgid "读不到形象列表"
+msgstr "Couldn't load the list of looks"
+
+#: src/pages/SupportModelsPage.tsx
+#: src/pages/SupportPersonasPage.tsx
+msgid "读不到数字人设置"
+msgstr "Couldn't read the digital human settings"
 
 #: src/components/support/VoiceMixer.tsx
 msgid "读不到混音目录：{catalogErr}"
@@ -4812,6 +5123,8 @@ msgstr "Couldn't load the voice catalog"
 #: src/components/flow/CustomFrameSlots.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/SettingsStoragePage.tsx
+#: src/pages/SupportModelsPage.tsx
+#: src/pages/SupportPersonasPage.tsx
 msgid "读取中…"
 msgstr "Loading…"
 
@@ -4942,6 +5255,10 @@ msgstr "Nothing written for this segment yet"
 msgid "还没接到成片"
 msgstr "Video not received yet"
 
+#: src/pages/SupportModelsPage.tsx
+msgid "还没有下载过形象，去「市场」里挑一套。"
+msgstr "You haven't downloaded a look yet. Pick one in “Market”."
+
 #: src/pages/DiscoverPage.tsx
 #: src/pages/FeedPage.tsx
 msgid "还没有作品"
@@ -4959,6 +5276,10 @@ msgstr "No cards yet — make some in the Workshop or add them from the market"
 msgid "还没有卡组"
 msgstr "No decks yet"
 
+#: src/pages/SimpleModePage.tsx
+msgid "还没有可用的模板"
+msgstr "No templates available yet"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "还没有已授权的素材——请本人扫码/打开链接、完成活体认证与授权后再查。"
 msgstr "No authorized assets yet — have the person scan the code or open the link, complete the liveness check and authorization, then check again."
@@ -4966,6 +5287,10 @@ msgstr "No authorized assets yet — have the person scan the code or open the l
 #: src/components/flow/SkillPanel.tsx
 msgid "还没有技能——输入条写好常用指令，点「＋ 存为技能」。"
 msgstr "No skills yet. Type a common instruction in the input bar and tap “+ Save as skill”."
+
+#: src/pages/SupportPersonasPage.tsx
+msgid "还没有收藏过人格，去「全部」里挑一个。"
+msgstr "You haven't saved a persona yet. Pick one in “All”."
 
 #: src/pages/NotificationsPage.tsx
 msgid "还没有新消息"
@@ -5105,6 +5430,10 @@ msgstr "This app wasn't installed from an app store, so the system needs your pe
 msgid "这个人偶在画面上排第几（点一下换）"
 msgstr "This mannequin's position in the picture (tap to change)"
 
+#: src/pages/SupportPersonasPage.tsx
+msgid "这个人格没有公开，只有作者自己能用。"
+msgstr "This persona isn't public; only its creator can use it."
+
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "这个位子"
 msgstr "this slot"
@@ -5124,6 +5453,10 @@ msgstr "this position"
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "这个位置原来是谁（套用的人只看这句话）"
 msgstr "Who was originally in this position (people using the template only see this sentence)"
+
+#: src/pages/SupportModelsPage.tsx
+msgid "这个模型没有可用的文件地址，换一个试试。"
+msgstr "This model has no usable file address. Try another one."
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "这个模板<0>已经发布在市场上</0>，服务端不许直接改它的位置（包括删掉画面上 找不到的那个位子）—— 位置一变，正在用它的人手里那份「哪个人偶挂谁」就全对不上了，而他们那边 不会有任何提示。先下架，改完再发布一次。"
@@ -5300,6 +5633,10 @@ msgstr "This is an older <0>numbered</0> template (made before 2026-08-17). New 
 #: src/components/TemplateShelf.tsx
 msgid "这是一条分成 {0} 段的模板，但这台设备上只拿到了 {1} 段 —— 整组套用会少内容，所以先不套。下拉刷新试试；如果是作者只发布了其中几段（组内每段各自发布），等其余段发布出来再用。"
 msgstr "This template is split into {0, plural, one {# segment} other {# segments}}, but this device only got {1} — using the group would leave content out, so it wasn't applied. Try pulling down to refresh; if the author has only published some of the segments (each segment in a group is published separately), wait until the rest are out."
+
+#: src/pages/SupportPersonasPage.tsx
+msgid "这是付费人格，请先在官网购买后再使用。"
+msgstr "This is a paid persona. Buy it on the website before using it."
 
 #: src/components/ShareSheet.tsx
 msgid "这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。"
@@ -5626,3 +5963,7 @@ msgstr "Microphone access granted. Press and hold again and read the sample."
 #: src/components/support/HoldToTalk.tsx
 msgid "麦克风授权好了，再按住说一次。"
 msgstr "Microphone access granted. Press and hold to speak again."
+
+#: src/pages/SupportPersonasPage.tsx
+msgid "默认人设"
+msgstr "Default persona"

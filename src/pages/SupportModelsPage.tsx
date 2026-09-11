@@ -21,6 +21,9 @@
  * ★ 失败就地整句说明在那张卡上（api:error 没人听）。
  */
 import { useEffect, useRef, useState } from "react";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
 import Icon from "../components/Icon";
 import PageHeader from "../components/PageHeader";
@@ -47,7 +50,7 @@ import { prefetchLive2dModel } from "../live2d/prefetch";
 
 const TABS = ["official", "market", "installed", "mine"] as const;
 type Tab = (typeof TABS)[number];
-const TAB_LABEL: Record<Tab, string> = { official: "官方", market: "市场", installed: "已下载", mine: "我的" };
+const TAB_LABEL: Record<Tab, MessageDescriptor> = { official: msg`官方`, market: msg`市场`, installed: msg`已下载`, mine: msg({ message: "我的", context: "市场页签 / 卡片角标：我自己上传或做的那些（不是底栏的「我的」页）" }) };
 /**
  * 页签 → 打服务端哪个 scope。★ 官方与市场**共用一次请求**（`scope=all` 的第一页最前面就是官方条目，
  * 服务端一处实现），换这两个页签不重新拉一遍；官方/市场之分在下面按 `m.official` 客户端过滤。
@@ -62,6 +65,7 @@ const BACK_DELAY_MS = 900;
 export default function SupportModelsPage() {
   const navigate = useNavigate();
   const back = useBackOr("/support");
+  const { t } = useLingui();
   // ★ 缺省落在「市场」而不是排第一的「官方」：官方那一格只有一条（内置看板娘），进来先看到一张卡的页面
   //   会让人以为没东西。官方仍排在最前 —— 它是"换回原样"那条路，要好找。
   const [tab, setTab] = useQueryTab<Tab>("tab", TABS, "market");
@@ -84,7 +88,7 @@ export default function SupportModelsPage() {
     let alive = true;
     getCompanionSettings()
       .then((s) => alive && setSettings(s))
-      .catch((e) => alive && setSettingsErr(companionErrorText(e, "读不到数字人设置")));
+      .catch((e) => alive && setSettingsErr(companionErrorText(e, t`读不到数字人设置`)));
     return () => {
       alive = false;
       window.clearTimeout(backTimer.current);
@@ -102,7 +106,7 @@ export default function SupportModelsPage() {
         setPage(1);
         setTotalPages(r.totalPages);
       })
-      .catch((e) => alive && setListErr(companionErrorText(e, "读不到形象列表")))
+      .catch((e) => alive && setListErr(companionErrorText(e, t`读不到形象列表`)))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
@@ -122,7 +126,7 @@ export default function SupportModelsPage() {
       setPage(r.page);
       setTotalPages(r.totalPages);
     } catch (e) {
-      setListErr(companionErrorText(e, "加载更多失败"));
+      setListErr(companionErrorText(e, t`加载更多失败`));
     } finally {
       setMoreLoading(false);
     }
@@ -139,7 +143,7 @@ export default function SupportModelsPage() {
     if (busy) return;
     setCardErr(null);
     setNotice("");
-    setBusy({ id: m._id, step: m.official ? "切换中…" : "下载中…" });
+    setBusy({ id: m._id, step: m.official ? t`切换中…` : t`下载中…` });
     try {
       if (!m.official) {
         try {
@@ -150,21 +154,22 @@ export default function SupportModelsPage() {
           if (!(e instanceof ApiError && e.status >= 400 && e.status < 500)) throw e;
         }
         const url = resolveModelJsonUrl(m.modelJsonUrl);
-        if (!url) throw new Error("这个模型没有可用的文件地址，换一个试试。");
-        setBusy({ id: m._id, step: "准备文件…" });
+        if (!url) throw new Error(t`这个模型没有可用的文件地址，换一个试试。`);
+        setBusy({ id: m._id, step: t`准备文件…` });
         try {
           const r = await prefetchLive2dModel(url, {
-            onProgress: (done, total) => setBusy({ id: m._id, step: `准备文件 ${done}/${total}` }),
+            onProgress: (done, total) => setBusy({ id: m._id, step: t`准备文件 ${done}/${total}` }),
           });
           if (r.failed) console.warn(`[support] prefetch: ${r.failed}/${r.total} files failed for ${m._id}`);
         } catch (e) {
-          throw new Error(`模型文件读不到（${e instanceof Error ? e.message : String(e)}），没有切换。`);
+          const why = e instanceof Error ? e.message : String(e);
+          throw new Error(t`模型文件读不到（${why}），没有切换。`);
         }
-        setBusy({ id: m._id, step: "切换中…" });
+        setBusy({ id: m._id, step: t`切换中…` });
       }
       const next = await updateCompanionSettings({ modelId: m.official ? null : m._id });
       setSettings(next);
-      setNotice(m.official ? "已换回官方形象，返回客服页生效。" : "已切换，返回客服页生效。");
+      setNotice(m.official ? t`已换回官方形象，返回客服页生效。` : t`已切换，返回客服页生效。`);
       // busy 先不清：等返回的这一小段别再点别的。到点先解开再返回 —— 直接深链进来的人没有上一页可回，
       // 不解开就是一屏永远点不动的键（CLAUDE.md 坑表）
       backTimer.current = window.setTimeout(() => {
@@ -172,7 +177,7 @@ export default function SupportModelsPage() {
         back(); // 深链冷启动时没有上一页，裸 navigate(-1) 会退成白屏（hooks/useBackOr）
       }, BACK_DELAY_MS);
     } catch (e) {
-      setCardErr({ id: m._id, text: companionErrorText(e, "切换失败，稍后再试。") });
+      setCardErr({ id: m._id, text: companionErrorText(e, t`切换失败，稍后再试。`) });
       setBusy(null);
     }
   }
@@ -180,13 +185,13 @@ export default function SupportModelsPage() {
   async function unfavorite(m: Live2dModelItem) {
     if (busy) return;
     setCardErr(null);
-    setBusy({ id: m._id, step: "取消中…" });
+    setBusy({ id: m._id, step: t`取消中…` });
     try {
       const r = await uninstallLive2dModel(m._id);
       if (scope === "installed") setModels((prev) => prev.filter((x) => x._id !== m._id));
       else patchModel(m._id, { installed: false, stats: { ...m.stats, downloadCount: r.downloadCount } });
     } catch (e) {
-      setCardErr({ id: m._id, text: companionErrorText(e, "取消收藏失败，稍后再试。") });
+      setCardErr({ id: m._id, text: companionErrorText(e, t`取消收藏失败，稍后再试。`) });
     } finally {
       setBusy(null);
     }
@@ -197,17 +202,17 @@ export default function SupportModelsPage() {
 
   const emptyText =
     tab === "installed"
-      ? "还没有下载过形象，去「市场」里挑一套。"
+      ? t`还没有下载过形象，去「市场」里挑一套。`
       : tab === "mine"
-        ? "你还没有上传过形象，点上面那张卡传一个。"
+        ? t`你还没有上传过形象，点上面那张卡传一个。`
         : tab === "official"
-          ? "官方形象读不到（这台服务器可能还没有）。"
-          : "市场里还没有别人公开的形象。";
+          ? t`官方形象读不到（这台服务器可能还没有）。`
+          : t`市场里还没有别人公开的形象。`;
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={back} title="数字人形象" />
-      <p className="mb-3 text-[11px] leading-relaxed text-slate-500">给客服页和官网首页的看板娘换一套 Live2D 形象，两边共用同一份设置。</p>
+      <PageHeader sticky inset onBack={back} title={t`数字人形象`} />
+      <p className="mb-3 text-[11px] leading-relaxed text-slate-500"><Trans>给客服页和官网首页的看板娘换一套 Live2D 形象，两边共用同一份设置。</Trans></p>
 
       {/* 上传入口（创作中心 P3）：整块可点的一行 tile —— 它不是 CTA 按钮，所以按列表行那档形状写 */}
       <button
@@ -218,34 +223,34 @@ export default function SupportModelsPage() {
           <Icon name="upload" size={20} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold text-slate-100">＋ 上传我的 Live2D 模型</span>
-          <span className="mt-0.5 block text-xs leading-relaxed text-slate-400">zip 包 ≤25MB，向导会认出它的动作、表情和触摸区。</span>
+          <span className="block text-sm font-semibold text-slate-100"><Trans>＋ 上传我的 Live2D 模型</Trans></span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-slate-400"><Trans>zip 包 ≤25MB，向导会认出它的动作、表情和触摸区。</Trans></span>
         </span>
         <Icon name="chevron" size={16} className="shrink-0 text-slate-600" />
       </button>
 
       <div className="mb-3 flex gap-2 no-scrollbar overflow-x-auto">
-        {TABS.map((t) => (
+        {TABS.map((tb) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold ${tab === t ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+            key={tb}
+            onClick={() => setTab(tb)}
+            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold ${tab === tb ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
           >
-            {TAB_LABEL[t]}
+            {t(TAB_LABEL[tb])}
           </button>
         ))}
       </div>
 
       {settingsErr && (
         <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
-          读不到当前设置：{settingsErr}这里不标「使用中」，选用时以服务端为准。
+          <Trans>读不到当前设置：{settingsErr}这里不标「使用中」，选用时以服务端为准。</Trans>
         </p>
       )}
       {notice && <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200">{notice}</p>}
       {listErr && <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-rose-300">{listErr}</p>}
 
       {loading ? (
-        <EmptyState loading text="读取中…" />
+        <EmptyState loading text={t`读取中…`} />
       ) : visible.length === 0 && !listErr ? (
         <EmptyState text={emptyText} />
       ) : (
@@ -253,6 +258,7 @@ export default function SupportModelsPage() {
           {visible.map((m) => {
             const current = !!currentId && m._id === currentId;
             const step = busy && busy.id === m._id ? busy.step : "";
+            const author = authorName(m.author) || t`匿名`;
             return (
               <section key={m._id} className={`overflow-hidden rounded-xl border ${current ? "border-brand/60 bg-brand/5" : "border-slate-700/70 bg-panel"}`}>
                 <div className="relative aspect-[3/4] bg-slate-900">
@@ -262,21 +268,21 @@ export default function SupportModelsPage() {
                     <div className="flex h-full items-center justify-center text-4xl">🧍</div>
                   )}
                   <div className="absolute left-1.5 top-1.5 flex gap-1">
-                    {m.official && <span className="rounded-full px-2 py-0.5 bg-gold/90 text-[10px] font-semibold text-ink">官方</span>}
-                    {current && <span className="rounded-full px-2 py-0.5 bg-brand text-[10px] font-semibold text-ink">使用中</span>}
+                    {m.official && <span className="rounded-full px-2 py-0.5 bg-gold/90 text-[10px] font-semibold text-ink"><Trans>官方</Trans></span>}
+                    {current && <span className="rounded-full px-2 py-0.5 bg-brand text-[10px] font-semibold text-ink"><Trans>使用中</Trans></span>}
                   </div>
                 </div>
                 <div className="p-2.5">
                   <div className="truncate text-sm font-semibold text-slate-100">{m.name}</div>
                   <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-500">
-                    <span className="min-w-0 truncate">{m.official ? "启梦官方" : `@${authorName(m.author) || "匿名"}`}</span>
+                    <span className="min-w-0 truncate">{m.official ? t`启梦官方` : `@${author}`}</span>
                     <span className="ml-auto shrink-0">⬇ {m.stats.downloadCount}</span>
                   </div>
                   {m.tags.length > 0 && (
                     <div className="mt-1 flex flex-wrap gap-1">
-                      {m.tags.slice(0, 3).map((t) => (
-                        <span key={t} className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
-                          #{t}
+                      {m.tags.slice(0, 3).map((tag) => (
+                        <span key={tag} className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
+                          #{tag}
                         </span>
                       ))}
                     </div>
@@ -291,14 +297,14 @@ export default function SupportModelsPage() {
                       ))}
                     </div>
                   ) : null}
-                  {m.persona && <div className="mt-1 truncate text-[10px] text-fuchsia-300">推荐人格：{m.persona.name}</div>}
-                  {m.voice && <div className="mt-0.5 text-[10px] text-sky-300">自带音色</div>}
+                  {m.persona && <div className="mt-1 truncate text-[10px] text-fuchsia-300"><Trans>推荐人格：{m.persona.name}</Trans></div>}
+                  {m.voice && <div className="mt-0.5 text-[10px] text-sky-300"><Trans>自带音色</Trans></div>}
                   <button
                     onClick={() => void applyModel(m)}
                     disabled={current || !!busy}
                     className={`mt-2 w-full rounded-xl py-2.5 text-sm font-bold ${current ? "bg-slate-800 text-slate-500" : "bg-brand text-ink"} disabled:opacity-40`}
                   >
-                    {step || (current ? "使用中" : m.official ? "使用官方形象" : "下载并使用")}
+                    {step || (current ? t`使用中` : m.official ? t`使用官方形象` : t`下载并使用`)}
                   </button>
                   {m.installed && !current && !m.official && (
                     <button
@@ -306,7 +312,7 @@ export default function SupportModelsPage() {
                       disabled={!!busy}
                       className="mt-1.5 w-full rounded-xl border border-slate-700 py-2.5 text-sm text-slate-400 disabled:opacity-40"
                     >
-                      取消收藏
+                      <Trans>取消收藏</Trans>
                     </button>
                   )}
                   {cardErr?.id === m._id && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{cardErr.text}</p>}
@@ -324,11 +330,11 @@ export default function SupportModelsPage() {
           disabled={moreLoading}
           className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-xs text-slate-300 disabled:opacity-40"
         >
-          {moreLoading ? "加载中…" : "加载更多"}
+          {moreLoading ? t`加载中…` : t`加载更多`}
         </button>
       )}
 
-      <p className="mt-5 text-center text-[11px] leading-5 text-slate-500">在电脑上传更方便的话，官网 ideahubs.org 的 Live2D 模型市场也能传，两边同一个账号。</p>
+      <p className="mt-5 text-center text-[11px] leading-5 text-slate-500"><Trans>在电脑上传更方便的话，官网 ideahubs.org 的 Live2D 模型市场也能传，两边同一个账号。</Trans></p>
     </div>
   );
 }
