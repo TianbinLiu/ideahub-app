@@ -153,6 +153,7 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
+#. 列举几个角色位时的分隔符
 #. 列举删号时清掉的几类数据时的分隔符
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/blockout/RoleConfirmSheet.tsx
@@ -163,13 +164,16 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 #: src/pages/CustomCardPage.tsx
 #: src/pages/CutPage.tsx
 #: src/pages/SupportModelNewPage.tsx
+#: src/studio/flowStore.ts
 msgid "、"
 msgstr ", "
 
 #. 列举「每个图位锁什么」时的分隔符
+#. 把两条拒绝原因连成一句时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #: src/pages/CardDetailPage.tsx
+#: src/studio/flowStore.ts
 #: src/studio/ui/projection.tsx
 msgid "；"
 msgstr "; "
@@ -494,6 +498,12 @@ msgstr "{0} · affects the 3D Studio only"
 msgid "{0} · 成片和画面要逐个传上去，别人才看得到"
 msgstr "{0} · the video and images upload one at a time before others can see them"
 
+#. placeholder {0}: s.template!.title
+#. placeholder {1}: i + 1
+#: src/studio/flowStore.ts
+msgid "{0} · 第 {1} 段"
+msgstr "{0} · Segment {1}"
+
 #. placeholder {0}: effective.coverEmoji || "🎭"
 #. placeholder {1}: effective.name
 #: src/pages/SupportPersonasPage.tsx
@@ -798,6 +808,36 @@ msgstr "{name} got distracted. Try sending again."
 msgid "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
 msgstr "{nextLabel} has no “{goneNames}” slot, so the image you uploaded there was removed — switch back to {curLabel} and upload it again if you need it."
 
+#. placeholder {0}: missing.join(sep)
+#: src/studio/flowStore.ts
+msgid "{noun} {0} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下"
+msgstr "The card on {noun} {0} can't be found in this device's library (it may have been deleted or belong to another account) — go back and place another card, or remove it"
+
+#. placeholder {0}: s.label
+#: src/studio/flowStore.ts
+msgid "{noun} {0} 挂的这张卡不能这么用：{nameIssue}"
+msgstr "The card on {noun} {0} can't be used this way: {nameIssue}"
+
+#. placeholder {0}: overCap.join(sep)
+#: src/studio/flowStore.ts
+msgid "{noun} {0} 超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限（人再多，从左数到第几个也数不准了）"
+msgstr "{noun} {0} exceeds the limit of {BLOCKOUT_MAX_ROLES} role slots per run (with more people, counting from the left stops being reliable)"
+
+#. placeholder {0}: overCap.join(sep)
+#: src/studio/flowStore.ts
+msgid "{noun} {0} 超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限（再多的编号在画面上也认不出来）"
+msgstr "{noun} {0} exceeds the limit of {BLOCKOUT_MAX_ROLES} role slots per run (more numbers than that can't be recognized on screen)"
+
+#. placeholder {0}: removed.join(sep)
+#: src/studio/flowStore.ts
+msgid "{noun} {0} 这个位子已经被模板作者在核对{noun}时删掉了（多半是因为画面上根本找不到这个号）"
+msgstr "{noun} {0} was removed by the template's author while checking the slots (most likely because that number can't be found on screen)"
+
+#. placeholder {0}: removed.join(sep)
+#: src/studio/flowStore.ts
+msgid "{noun} {0} 这个位子已经被模板作者在核对{noun}时删掉了（多半是因为画面上那个人根本没被换成人偶）"
+msgstr "{noun} {0} was removed by the template's author while checking the slots (most likely because that person was never turned into a mannequin)"
+
 #: src/pages/ProfilePage.tsx
 msgid "{said}。付款完成后额度会自动到账，这里的余额也会跟着更新。"
 msgstr "{said}. Once payment completes, the tokens are credited automatically and the balance here updates too."
@@ -841,6 +881,10 @@ msgstr "{who} (currently attached: {0})"
 #: src/pages/VideoPage.tsx
 msgid "{why}——卡在这台设备上有，但换台设备或重启后可能就没了，联网后再点一次。"
 msgstr "{why} — the cards are on this device, but they may be gone after you switch devices or restart. Tap again once you're online."
+
+#: src/studio/flowStore.ts
+msgid "{why}——这些位子挂的卡不能生效，它们会保持人偶原样。回挂卡那一屏点「取下这几张」再完成挂卡"
+msgstr "{why} — cards on these slots won't take effect, and they'll stay as mannequins. Go back to the casting screen, tap “Remove these”, then finish casting"
 
 #. placeholder {0}: g.title
 #. placeholder {1}: g.files
@@ -2045,6 +2089,10 @@ msgstr "No capability badges at all — once equipped, it's basically a still il
 msgid "一个节点，一条短片"
 msgstr "One node, one short video"
 
+#: src/studio/flowStore.ts
+msgid "一个角色位都没挂卡：白模出片全靠卡上的形象图说明「换成谁」，一张都不挂的话出不了片——回去至少挂一张"
+msgstr "No role slot has a card: blockout generation relies entirely on the cards' look images to know who to swap in, so it can't run without any — go back and place at least one"
+
 #: src/pages/CustomCardPage.tsx
 msgid "一句主体描述（选）：例「银白长发的星星发夹少女」"
 msgstr "One-line description (optional): e.g. “girl with long silver hair and a star hairpin”"
@@ -2429,6 +2477,10 @@ msgstr "Up to {midMax} middle frames"
 #: src/components/flow/FlowCanvas.tsx
 msgid "中间帧参考图"
 msgstr "Middle-frame references"
+
+#: src/studio/flowStore.ts
+msgid "中间帧参考图最多 {CUSTOM_MID_MAX} 张（首帧、尾帧另算）——先删一张再加"
+msgstr "Up to {CUSTOM_MID_MAX} middle-frame references (first and last frames not included) — delete one before adding another"
 
 #: src/pages/CustomCardPage.tsx
 msgid "主素材图 = 这个角色最完整的一张（照片/截图/画都行）；有面部近照的话脸会锁得更准。画风严格跟随素材（照片出写实、插画出同风格）。"
@@ -2963,6 +3015,10 @@ msgstr "Not now"
 msgid "先不用"
 msgstr "Not now"
 
+#: src/studio/flowStore.ts
+msgid "先从三套方案里挑一套（点方案卡），再生成本段"
+msgstr "Pick one of the three plans (tap a plan card) before generating this segment"
+
 #. placeholder {0}: primary.label
 #: src/pages/CustomCardPage.tsx
 msgid "先传{0}"
@@ -2975,6 +3031,18 @@ msgstr "Upload a main reference first"
 #: src/studio/ui/projection.tsx
 msgid "先写一句视频要求（缺的帧按它补画）"
 msgstr "Write a video request first (missing frames are drawn from it)"
+
+#: src/studio/flowStore.ts
+msgid "先写一句要拍什么（或从工坊带素材卡过来），我才好推演走向"
+msgstr "Write what to shoot first (or bring material cards from the Studio) so I can draft directions"
+
+#: src/studio/flowStore.ts
+msgid "先写一句要改什么（例：把背景换成雨夜 / 去掉右上角的台标）"
+msgstr "Write what to change first (e.g. make the background a rainy night / remove the logo in the top right)"
+
+#: src/studio/flowStore.ts
+msgid "先写清楚这一段要拍什么"
+msgstr "Write what this segment should show first"
 
 #: src/pages/FlowPage.tsx
 msgid "先写那句话"
@@ -3018,9 +3086,29 @@ msgstr "Files go into the app first, then you pick where they go."
 msgid "先把当前这段炼出来"
 msgstr "Render the current segment first"
 
+#: src/studio/flowStore.ts
+msgid "先把这一段切到「✍ 自定义」再挂参考视频"
+msgstr "Switch this segment to “✍ Custom” before attaching a reference video"
+
+#: src/studio/flowStore.ts
+msgid "先把这一段切到「✍ 自定义」再插中间帧（普通段的尾帧由所选方案决定）"
+msgstr "Switch this segment to “✍ Custom” before inserting middle frames (a regular segment's last frame comes from the chosen plan)"
+
 #: src/pages/FlowPage.tsx
 msgid "先把这一段炼出来"
 msgstr "Render this segment first"
+
+#: src/studio/flowStore.ts
+msgid "先把这一段炼出来，再加下一段"
+msgstr "Generate this segment first, then add the next one"
+
+#: src/studio/flowStore.ts
+msgid "先把这一段炼出来，再铸下一段"
+msgstr "Generate this segment first, then forge the next one"
+
+#: src/studio/flowStore.ts
+msgid "先挂上参考视频——中间帧参考图是「多图+参考视频」模式的一部分"
+msgstr "Attach a reference video first — middle-frame references are part of the “images + reference video” mode"
 
 #: src/pages/CutPage.tsx
 msgid "先点上面的片段选中，再用这排按钮"
@@ -3327,6 +3415,7 @@ msgstr "Saving to local storage…"
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/CutPage.tsx
+#: src/studio/flowStore.ts
 msgid "准备中…"
 msgstr "Preparing…"
 
@@ -3701,9 +3790,17 @@ msgstr "Refresh"
 msgid "刷新中…"
 msgstr "Refreshing…"
 
+#: src/studio/flowStore.ts
+msgid "前面还有没炼完的段——先把前面那段炼出来，再推演这一段。"
+msgstr "Earlier segments aren't finished yet — generate the earlier one first, then draft this one."
+
 #: src/studio/ui/projection.tsx
 msgid "前面还有没炼完的段——段与段靠上一段的真实结尾接着拍，得按顺序来"
 msgstr "Earlier segments aren't finished yet — each segment continues from the previous one's actual ending, so they go in order"
+
+#: src/studio/flowStore.ts
+msgid "前面还有没炼完的段——段与段靠上一段的真实结尾画面接着拍，得按顺序来。先把前面那段炼出来。"
+msgstr "Earlier segments aren't finished yet — each segment continues from the previous one's actual ending, so they go in order. Generate the earlier one first."
 
 #: src/components/BranchPlayer.tsx
 msgid "剧情走向，由你决定——"
@@ -4389,6 +4486,11 @@ msgstr "Save as my own"
 msgid "另有 {0} 处落在已删掉的段上，不计费也不会重拍"
 msgstr "{0, plural, one {# more circle is} other {# more circles are}} on deleted segments; they won't be charged or re-rendered"
 
+#. placeholder {0}: plan.skipped
+#: src/studio/flowStore.ts
+msgid "另有 {0} 处落在承接段的前半段（开头画面用的是上一段的真实结尾，不重画）——不计费，但你写的要求仍会随出片提示词发出去。"
+msgstr "{0, plural, one {# more edit falls} other {# more edits fall}} in the first half of a continued segment (its opening frame is the previous segment's actual ending and isn't redrawn) — not charged, but your request is still sent with the video prompt."
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "只传你自己做的、或者已经拿到授权的模型。别人的作品、真人肖像、Live2D 官方示例模型（Hiyori / Haru / Mao 这些）都不收。"
 msgstr "Only upload models you made yourself or have permission to use. Other people's work, likenesses of real people and Live2D's official sample models (Hiyori / Haru / Mao and the like) aren't accepted."
@@ -4409,6 +4511,10 @@ msgstr "Only intermediate files left over from generation that nothing uses anym
 #: src/studio/ui/projection.tsx
 msgid "只剩一段且已出片，删不掉"
 msgstr "It's the only segment and already rendered, so it can't be deleted"
+
+#: src/studio/flowStore.ts
+msgid "只剩这一段而且已经出片了，删不掉（想重来就用「删除本段」旁边的重新生成，或退出去开一条新的）"
+msgstr "This is the only segment and it already has a video, so it can't be deleted (to start over, use Regenerate next to “Delete segment”, or leave and start a new pipeline)"
 
 #: src/pages/CustomCardPage.tsx
 msgid "只填空着的格子，不改你已经写的字"
@@ -4581,6 +4687,10 @@ msgstr "The merged draft is still on the Me page; nothing was lost."
 msgid "合成走系统硬件编解码，不再录屏——可以切走，只是系统可能把它拖慢"
 msgstr "Merging uses the system's hardware codecs, not screen recording — you can switch away, though the system may slow it down"
 
+#: src/studio/flowStore.ts
+msgid "合成预览"
+msgstr "Composed preview"
+
 #: src/components/flow/CastPreviewCard.tsx
 msgid "合成预览：只看站位与形象对不对，不代表成片画质；改了挂法要重新合成"
 msgstr "Composite preview: only for checking positions and looks, not final video quality. Recompose if you change the casting"
@@ -4588,6 +4698,29 @@ msgstr "Composite preview: only for checking positions and looks, not final vide
 #: src/components/flow/CastPreviewCard.tsx
 msgid "合成预览（{price}）"
 msgstr "Composite preview ({price})"
+
+#: src/studio/flowStore.ts
+msgid "合成预览好了"
+msgstr "Preview composed"
+
+#: src/studio/flowStore.ts
+msgid "合成预览好了（只画了前 2 个角色位，其余人偶保持白模）"
+msgstr "Preview composed (only the first 2 role slots were drawn; the other mannequins stay as blockouts)"
+
+#. placeholder {0}: why.slice(0, 60)
+#: src/studio/flowStore.ts
+msgid "合成预览没画成：{0}"
+msgstr "Preview couldn't be composed: {0}"
+
+#. placeholder {0}: why.slice(0, 80)
+#: src/studio/flowStore.ts
+msgid "合成预览没画成（{0}）——不影响出片，可以直接生成"
+msgstr "Preview couldn't be composed ({0}) — this doesn't affect the video; you can generate directly"
+
+#. placeholder {0}: fmtTokens(ONE_IMAGE)
+#: src/studio/flowStore.ts
+msgid "合成预览要一张图的钱（{0} token），余额不够——去「我的」页充值"
+msgstr "A composed preview costs one image ({0} tokens) and your balance isn't enough — top up on the “Me” page"
 
 #. placeholder {0}: Math.round(totalSec)
 #: src/components/TemplateShelf.tsx
@@ -4924,6 +5057,11 @@ msgstr "Too short. Keep holding and talk a little longer before releasing."
 msgid "太短了（{0}s）——按住别松，照着示例词念够 {VOICE_MIN_SEC} 秒再放手。"
 msgstr "Too short ({0}s). Keep holding and read the sample for at least {VOICE_MIN_SEC}s before letting go."
 
+#. placeholder {0}: msg.slice(0, 80)
+#: src/studio/flowStore.ts
+msgid "失败：{0}"
+msgstr "Failed: {0}"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "头"
 msgstr "Head"
@@ -5180,6 +5318,33 @@ msgstr "Chat not enabled"
 #: src/pages/SupportPage.tsx
 msgid "对话记录"
 msgstr "Chat history"
+
+#: src/studio/flowStore.ts
+msgid "导演台截图不是一张图（截图失败了，再试一次）"
+msgstr "The stage capture isn't an image (the capture failed; try again)"
+
+#: src/studio/flowStore.ts
+msgid "导演台的开头帧融好了"
+msgstr "The stage opening frame is fused"
+
+#: src/studio/flowStore.ts
+msgid "导演台融图"
+msgstr "Stage fusion"
+
+#. placeholder {0}: why.slice(0, 60)
+#: src/studio/flowStore.ts
+msgid "导演台融图没成：{0}"
+msgstr "Stage fusion failed: {0}"
+
+#. placeholder {0}: why.slice(0, 80)
+#: src/studio/flowStore.ts
+msgid "导演台融图没成（{0}）——没扣钱，可以再截一次"
+msgstr "Stage fusion failed ({0}) — nothing was charged; you can capture again"
+
+#. placeholder {0}: fmtTokens(ONE_IMAGE)
+#: src/studio/flowStore.ts
+msgid "导演台融图要一张图的钱（{0} token），余额不够——去「我的」页充值"
+msgstr "Fusing the stage capture costs one image ({0} tokens) and your balance isn't enough — top up on the “Me” page"
 
 #: src/pages/AdminPage.tsx
 msgid "封禁…"
@@ -6263,6 +6428,14 @@ msgstr "Playhead position within the selection (seconds)"
 msgid "把整篇剧本贴进来：谁在哪儿做什么、接着发生什么……（故事梗概或分场脚本都行）"
 msgstr "Paste the whole script: who does what where, what happens next… (a synopsis or a scene-by-scene script both work)"
 
+#: src/studio/flowStore.ts
+msgid "把构图示意融成开头帧…"
+msgstr "Fusing the composition into the opening frame…"
+
+#: src/studio/flowStore.ts
+msgid "把角色放进白模画面…"
+msgstr "Placing characters into the blockout frame…"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "把这个角色位改成{s}"
 msgstr "Set this role slot to {s}"
@@ -6384,6 +6557,10 @@ msgstr "Casting composite preview"
 msgid "挂卡后自动合成，出片前可逐字改"
 msgstr "Composed automatically once cards are attached; you can edit it word by word before rendering"
 
+#: src/studio/flowStore.ts
+msgid "挂卡已记下，但现在还出不了片：{issue}"
+msgstr "Cards saved, but the video can't be generated yet: {issue}"
+
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
 msgid "挂在这一段上的示例视频会被摘掉（「{0}」档带不了参考视频）"
@@ -6418,6 +6595,10 @@ msgstr "Filter by video (title or id)"
 #: src/components/PhotoSubjectPicker.tsx
 msgid "按你描的轮廓抠出主体，背景换成浅灰纯色（主体 {size}{up}）"
 msgstr "Cut out the subject along your outline and replaced the background with plain light gray (subject {size}{up})"
+
+#: src/studio/flowStore.ts
+msgid "按修改重画画面…"
+msgstr "Redrawing with your changes…"
 
 #: src/pages/CustomCardPage.tsx
 msgid "按方案逐格出图 + 撰写人物信息 · 演示档"
@@ -6590,10 +6771,29 @@ msgstr "Then describe the shot"
 msgid "接着剪"
 msgstr "Keep editing"
 
+#. placeholder {0}: fmtTokens(propCost)
+#. placeholder {1}: fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))
+#: src/studio/flowStore.ts
+msgid "推演一次约 {0} token，余额 {1} 不足——去「我的」页充值"
+msgstr "Drafting costs about {0} tokens and your balance of {1} isn't enough — top up on the “Me” page"
+
+#: src/studio/flowStore.ts
+msgid "推演三种走向…"
+msgstr "Drafting three directions…"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
 msgid "推演中…"
 msgstr "Planning…"
+
+#. placeholder {0}: msg.slice(0, 120)
+#: src/studio/flowStore.ts
+msgid "推演失败：{0}"
+msgstr "Drafting failed: {0}"
+
+#: src/studio/flowStore.ts
+msgid "推演好了，但那一段已经不在流水线上了——没处摆（这一次的推演费已经花掉了）"
+msgstr "The drafts are ready, but that segment is no longer in the pipeline — there's nowhere to put them (this drafting cost has already been spent)"
 
 #: src/pages/FeedPage.tsx
 msgid "推荐"
@@ -7122,6 +7322,64 @@ msgstr "You have a half-edited video"
 msgid "有一条超过 {maxLen} 字了，发布会被服务端拒掉。"
 msgstr "One item is over {maxLen} characters; the server will reject it on publish."
 
+#: src/studio/flowStore.ts
+msgid "有一段正在生成，等它跑完再推演下一段"
+msgstr "A segment is generating. Wait for it to finish before drafting the next one"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成，等它跑完再炼下一段"
+msgstr "A segment is generating. Wait for it to finish before generating the next one"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成，等它跑完再还原"
+msgstr "A segment is generating. Wait for it to finish before restoring"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成，等它跑完再重画这一套"
+msgstr "A segment is generating. Wait for it to finish before redrawing this plan"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再切换这一段的模式"
+msgstr "A segment is generating. Wait for it to finish before switching this segment's mode"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再删（现在删的话，那一炉的钱照扣、成片会落空）"
+msgstr "A segment is generating. Wait for it to finish before deleting (deleting now means you're still charged and the video is lost)"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再加下一段（它炼完你才知道下一段从哪一帧接）"
+msgstr "A segment is generating. Wait for it to finish before adding the next one (only then will you know which frame the next segment continues from)"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再拆段（现在拆会让写回打在另一段上）"
+msgstr "A segment is generating. Wait for it to finish before splitting (splitting now would write the result to the wrong segment)"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再挂/摘参考视频"
+msgstr "A segment is generating. Wait for it to finish before attaching or removing a reference video"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再换走向（换走向会挪动后面的段）"
+msgstr "A segment is generating. Wait for it to finish before switching directions (switching moves the segments after it)"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再改参考图"
+msgstr "A segment is generating. Wait for it to finish before changing reference images"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再铸下一段"
+msgstr "A segment is generating. Wait for it to finish before forging the next one"
+
+#: src/studio/flowStore.ts
+msgid "有一段生成完了，但它已经不在了"
+msgstr "A segment finished generating, but it's no longer there"
+
+#. placeholder {0}: s.card.name
+#. placeholder {1}: s.label
+#: src/studio/flowStore.ts
+msgid "有两张不同的卡都叫「{0}」（{noun} {1} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
+msgstr "Two different cards are both named “{0}” ({noun} {1} uses one of them) — generation links look images to slots by character name, so duplicate names can't be told apart and the wrong person may be swapped in. Rename one of them, or use a different card"
+
 #: src/pages/SupportPage.tsx
 msgid "有帮助"
 msgstr "Helpful"
@@ -7303,6 +7561,12 @@ msgstr "Segment complete"
 msgid "本段生成中…"
 msgstr "Generating this segment…"
 
+#. placeholder {0}: fmtTokens(cost)
+#. placeholder {1}: fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))
+#: src/studio/flowStore.ts
+msgid "本段约需 {0} token，余额 {1} 不足——去「我的」页充值"
+msgstr "This segment needs about {0} tokens and your balance of {1} isn't enough — top up on the “Me” page"
+
 #: src/components/MaterialSheet.tsx
 #: src/pages/FlowPage.tsx
 msgid "本段素材"
@@ -7476,6 +7740,10 @@ msgstr "Template name (required, e.g. Cool and composed)"
 msgid "模板市场"
 msgstr "Template market"
 
+#: src/studio/flowStore.ts
+msgid "模板视频还没转存到图床，做不了合成预览（稍后再试）"
+msgstr "The template video hasn't been transferred to storage yet, so a preview can't be composed (try again later)"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "模板详情"
 msgstr "Template details"
@@ -7594,6 +7862,10 @@ msgstr "Saving to this device's card library…"
 msgid "正在完成登录…"
 msgstr "Finishing login…"
 
+#: src/studio/flowStore.ts
+msgid "正在忙别的，等这一步完了再取"
+msgstr "Busy with something else. Retrieve it once this step finishes"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "正在截图…"
 msgstr "Capturing…"
@@ -7646,6 +7918,10 @@ msgstr "Checking whether you've authorized before…"
 #: src/components/VideoCardAnnotator.tsx
 msgid "正在标「脸部特写」：拖到看得清脸的一帧，圈住面部"
 msgstr "Marking the face close-up: drag to a frame where the face is clear, then circle the face"
+
+#: src/studio/flowStore.ts
+msgid "正在生成中，等它跑完再换模板"
+msgstr "Generating. Wait for it to finish before changing the template"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "正在登记到服务器…"
@@ -7839,9 +8115,22 @@ msgstr "Not enough sound captured. Check whether another app is using the microp
 msgid "没抓到足够的声音——这段视频可能没有音轨，换一段试试"
 msgstr "Not enough sound was captured — this video may have no audio track; try another clip"
 
+#: src/studio/flowStore.ts
+msgid "没接到出片结果，任务可能还在上游那边跑——用下面的「取回」领回来，别重新生成"
+msgstr "No video result received; the task may still be running upstream — use “Retrieve” below to get it instead of regenerating"
+
+#: src/studio/flowStore.ts
+msgid "没接到出片结果，任务可能还在方舟那边跑——用下面的「取回」领回来，别重新生成"
+msgstr "No video result received; the task may still be running on Ark — use “Retrieve” below to get it instead of regenerating"
+
 #: src/pages/CustomCardPage.tsx
 msgid "没接到照片：相机那边可能没存下来——再拍一次，或选「上传本地图片」"
 msgstr "No photo came back — the camera may not have saved it. Try again, or choose “Upload from device”."
+
+#. placeholder {0}: msg.slice(0, 80)
+#: src/studio/flowStore.ts
+msgid "没接到结果：{0}"
+msgstr "No result received: {0}"
 
 #: src/pages/DiscoverPage.tsx
 msgid "没搜成：{vidErr}"
@@ -7900,6 +8189,10 @@ msgstr "No deck called “{q}”"
 #: src/pages/SettingsStoragePage.tsx
 msgid "没有可清理的中间文件"
 msgstr "No intermediate files to clean up"
+
+#: src/studio/flowStore.ts
+msgid "没有可还原的上一版"
+msgstr "There's no previous version to restore"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "没有带声音样本的卡——在工坊「从视频提取」圈人物时可以顺手取一段声音"
@@ -8580,6 +8873,14 @@ msgstr "Blockout remake render (“{tierLabel}” tier): the template video's in
 msgid "白模复刻段（还没出片）"
 msgstr "Blockout remake segment (not rendered yet)"
 
+#: src/studio/flowStore.ts
+msgid "白模复刻段只有一段：画面与运镜整个来自模板视频，没有可续的下一段"
+msgstr "A blockout remake has only one segment: the visuals and camera work come entirely from the template video, so there's no next segment to continue"
+
+#: src/studio/flowStore.ts
+msgid "白模复刻段的画面来自模板视频，没有走向可推演——改的话去换模板或改点名句。"
+msgstr "A blockout remake's visuals come from the template video, so there are no directions to draft — to change it, switch the template or edit the casting line."
+
 #: src/components/flow/SegSettings.tsx
 msgid "白模复刻的画幅自适应模板视频，不可另选"
 msgstr "Blockout remakes follow the template video's aspect ratio; it can't be changed"
@@ -8600,13 +8901,22 @@ msgstr "Blockout template · attach character cards to the white mannequins"
 msgid "白模模板 · 给编号的人偶挂人物卡"
 msgstr "Blockout template · attach character cards to the numbered mannequins"
 
+#: src/studio/flowStore.ts
+msgid "白模模板出片暂未开放：还没有档位支持白模（r2v）出片"
+msgstr "Blockout template videos aren't available yet: no tier supports blockout (r2v) generation"
+
 #: src/pages/TemplateDetailPage.tsx
+#: src/studio/flowStore.ts
 msgid "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来"
 msgstr "Videos from blockout templates aren't available yet: no tier supports blockout (r2v) rendering yet. Check back once it opens."
 
 #: src/studio/canvasAgent.ts
 msgid "白模段用，改成真实角色位与卡名"
 msgstr "For blockout segments — swap in real slot and card names"
+
+#: src/studio/flowStore.ts
+msgid "白模段的画面整个来自模板视频，导演台的构图用不上"
+msgstr "A blockout segment's visuals come entirely from the template video, so the stage composition can't be used"
 
 #: src/pages/PublishPage.tsx
 msgid "目前所有作品都是<0>免费观看</0>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。"
@@ -8953,11 +9263,12 @@ msgid "第 {0} 味音色"
 msgstr "Voice {0}"
 
 #. placeholder {0}: i + 1
+#. placeholder {0}: idx + 1
 #. placeholder {0}: index + 1
-#. placeholder {0}: segIndex + 1
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/FlowPage.tsx
 #: src/pages/PublishPage.tsx
+#: src/studio/flowStore.ts
 #: src/studio/ui/projection.tsx
 msgid "第 {0} 段"
 msgstr "Segment {0}"
@@ -8978,9 +9289,36 @@ msgid "第 {0} 段 · 挑一套方案"
 msgstr "Segment {0} · pick a plan"
 
 #. placeholder {0}: i + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段：{issue}"
+msgstr "Segment {0}: {issue}"
+
+#. placeholder {0}: i + 1
 #: src/pages/FlowPage.tsx
 msgid "第 {0} 段（还没轮到）"
 msgstr "Segment {0} (not yet)"
+
+#. placeholder {0}: idx + 1
+#. placeholder {1}: msg.slice(0, 150)
+#: src/studio/flowStore.ts
+msgid "第 {0} 段{1}成片 24 小时内都能取回：点下面那颗「取回」，不再花一分钱；「重新生成」是重新下一单、会再花一次。"
+msgstr "Segment {0}: {1} The video can be retrieved within 24 hours: tap “Retrieve” below at no extra cost; “Regenerate” places a new order and charges again."
+
+#. placeholder {0}: idx + 1
+#. placeholder {1}: msg.slice(0, 150)
+#: src/studio/flowStore.ts
+msgid "第 {0} 段{1}点下面那颗「取回」把它领回来，不再花一分钱；「重新生成」是重新下一单、会再花一次。"
+msgstr "Segment {0}: {1} Tap “Retrieve” below to get it back at no extra cost; “Regenerate” places a new order and charges again."
+
+#. placeholder {0}: i + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段不是白模模板，这一组没法整组套用"
+msgstr "Segment {0} isn't a blockout template, so this group can't be applied as a whole"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段出片完成"
+msgstr "Segment {0} video ready"
 
 #. placeholder {0}: o.seg
 #. placeholder {1}: was !== prevReq ? "…" : ""
@@ -8999,10 +9337,46 @@ msgstr "Segment {0} casting: this template may have more than {BLOCKOUT_MAX_ROLE
 msgid "第 {0} 段挂着 {1} 张对得上「{name}」的卡（{names}），说全名"
 msgstr "Segment {0} has {1} cards matching “{name}” ({names}). Use the full name."
 
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段推演失败"
+msgstr "Drafting failed for segment {0}"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段推演好了三套方案"
+msgstr "Three plans drafted for segment {0}"
+
 #. placeholder {0}: job.seg
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "第 {0} 段有一发成片还没取回"
 msgstr "Segment {0} has a video waiting to be recovered"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段本来就没套模板，不用摘（想关掉这个弹层点右上角的 ✕）"
+msgstr "Segment {0} doesn't use a template, so there's nothing to remove (to close this panel, tap ✕ in the top right)"
+
+#. placeholder {0}: i >= 0 ? i + 1 : s.cursor + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段正在生成中（钱已经在花了）——换掉流水线不会把它停下，回包时那笔钱照扣、成片却落在一条已经不存在的流水线上。等它跑完再来"
+msgstr "Segment {0} is generating (the tokens are already being spent) — replacing the pipeline won't stop it: when the result comes back you'll still be charged, but the video would land on a pipeline that no longer exists. Wait for it to finish"
+
+#. placeholder {0}: s0.nodes.indexOf(node) + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）"
+msgstr "Segment {0} has no blockout template to place cards on (only blockout templates have role slots) — tap “🧪 Use template” in this segment's editor to pick one; don't re-apply it from the template market (that rebuilds the whole pipeline)"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段生成失败"
+msgstr "Segment {0} failed to generate"
+
+#. placeholder {0}: idx + 1
+#. placeholder {1}: msg.slice(0, 120)
+#: src/studio/flowStore.ts
+msgid "第 {0} 段生成失败：{1}"
+msgstr "Segment {0} failed to generate: {1}"
 
 #. placeholder {0}: index + 1
 #: src/pages/FlowPage.tsx
@@ -9020,6 +9394,16 @@ msgstr "Segment {0} isn't unlocked yet (earlier segments must be rendered first)
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "第 {0} 段那一发已经取不回来了"
 msgstr "Segment {0}'s video can no longer be recovered"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段重画失败"
+msgstr "Redraw failed for segment {0}"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段重画好了"
+msgstr "Segment {0} redrawn"
 
 #. placeholder {0}: (m - winStart).toFixed(1)
 #. placeholder {0}: at - start
@@ -9158,6 +9542,10 @@ msgstr "Description"
 #: src/pages/FlowPage.tsx
 msgid "简约模式"
 msgstr "Simple mode"
+
+#: src/studio/flowStore.ts
+msgid "简约模式只有一段，插不了中间帧——要多段接力去「工作流」里做"
+msgstr "Simple mode has only one segment, so middle frames can't be inserted — use “Workflow” for multi-segment relays"
 
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/flow/SkillPanel.tsx
@@ -9443,6 +9831,10 @@ msgstr "Automatic authorization check failed: {0}"
 #: src/studio/ui/projection.tsx
 msgid "自定义"
 msgstr "Custom"
+
+#: src/studio/flowStore.ts
+msgid "自定义段的首尾帧与参考视频是你自己给的，没有走向可推演——直接改帧或改这一段的要求。"
+msgstr "A custom segment's frames and reference video come from you, so there are no directions to draft — edit the frames or this segment's request directly."
 
 #: src/pages/CustomCardPage.tsx
 msgid "自己上传图片"
@@ -10126,6 +10518,11 @@ msgstr "Type this user's username <0>{0}</0> to confirm:"
 msgid "边界"
 msgstr "Boundaries"
 
+#. placeholder {0}: rv.instruction.trim().slice(0, 20)
+#: src/studio/flowStore.ts
+msgid "返修：{0}"
+msgstr "Revision: {0}"
+
 #: src/components/AvatarPicker.tsx
 #: src/components/IconTapButton.tsx
 #: src/pages/VideoPage.tsx
@@ -10367,6 +10764,10 @@ msgstr "No frames marked yet. Mark at least 1 frame to start — drag the slider
 msgid "还没标刀——不标就自动对半切到每段 ≤30 秒。想自己定切点，把播放头拖到镜头切换那一帧点「在这里切一刀」。"
 msgstr "No cuts yet — without any, it halves automatically until every segment is ≤30s. To choose the cut points yourself, drag the playhead to a shot change and tap “Cut here”."
 
+#: src/studio/flowStore.ts
+msgid "还没给任何人偶挂卡，先去挂卡再合成预览"
+msgstr "No mannequins have cards yet — place cards first, then compose a preview"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "还没试跑过。发之前建议回上一步跑一遍，看看动作和表情是不是真的都能演。"
 msgstr "Not tested yet. Before publishing, consider going back a step and running it to check that the actions and expressions really play."
@@ -10394,9 +10795,17 @@ msgstr "That drop landed on {0} mannequins at once (they overlap in the picture)
 msgid "这一发白模化已经取不回来了"
 msgstr "This blockout job can no longer be recovered"
 
+#: src/studio/flowStore.ts
+msgid "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
+msgstr "This plan has no story yet — write something first so I know what to draw"
+
 #: src/pages/CustomCardPage.tsx
 msgid "这一张既当卡面，也当这张卡的主形象参考。"
 msgstr "This image is both the card face and the card's main look reference."
+
+#: src/studio/flowStore.ts
+msgid "这一档不经过方案台。"
+msgstr "This tier doesn't use the plan board."
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "这一次会拿什么去写"
@@ -10416,22 +10825,59 @@ msgstr "This step has two charges: the AI looks at {frameCount, plural, one {# f
 msgid "这一步花两笔：AI 看 {frameCount} 帧认出画面里有哪些人（按这 {durSec} 秒自动取，多看几帧不额外收费 · {0}）"
 msgstr "This step has two charges: the AI looks at {frameCount, plural, one {# frame} other {# frames}} to find who's in the picture (picked automatically from these {durSec}s; more frames cost nothing extra · {0})"
 
+#: src/studio/flowStore.ts
+msgid "这一段不是带角色位的白模段，没有可预览的挂法"
+msgstr "This segment isn't a blockout segment with role slots, so there's no casting to preview"
+
 #. placeholder {0}: selectionSummary(outSel, geo)
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "这一段可以开炼：{0}"
 msgstr "Ready to start: {0}"
 
+#: src/studio/flowStore.ts
+msgid "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线"
+msgstr "This segment was deleted while generating (or the pipeline was replaced) — the run has already been charged and the video has nowhere to go. Next time, wait for it to finish before changing the pipeline"
+
+#: src/studio/flowStore.ts
+msgid "这一段套着模板——先「摘掉模板」（改为自选）再自定义首尾帧"
+msgstr "This segment uses a template — “Remove template” (switch to your own picks) before setting custom frames"
+
 #: src/components/flow/SegSettings.tsx
 msgid "这一段已出片，改画幅要重新生成才生效"
 msgstr "This segment is already rendered. A new aspect ratio only takes effect after regenerating"
+
+#: src/studio/flowStore.ts
+msgid "这一段已经不是白模段了，预览没处放（图钱已经花掉）"
+msgstr "This segment is no longer a blockout segment, so there's nowhere to put the preview (the image cost has been spent)"
+
+#: src/studio/flowStore.ts
+msgid "这一段已经出片，拆不了——想改分段就先删掉本段再重新铺"
+msgstr "This segment already has a video and can't be split — to change the split, delete it and lay it out again"
+
+#: src/studio/flowStore.ts
+msgid "这一段已经出片，挂参考视频不会改成片——想重来就先删掉本段"
+msgstr "This segment already has a video; attaching a reference video won't change it — to start over, delete the segment first"
 
 #: src/studio/ui/projection.tsx
 msgid "这一段已经出片，退不回去了"
 msgstr "This segment already has a video, so you can't go back"
 
+#: src/studio/flowStore.ts
+msgid "这一段已经出片：想改画面就先删掉本段再加一段，别在成片底下换帧"
+msgstr "This segment already has a video: to change the visuals, delete it and add a new segment rather than swapping frames under the video"
+
+#: src/studio/flowStore.ts
+msgid "这一段已经出片：换模板会作废这段成片。想换就删除本段重加，或先接受重炼这一段的花费"
+msgstr "This segment already has a video: changing the template discards it. To change it, delete the segment and add it again, or accept the cost of regenerating this segment first"
+
 #: src/pages/CutPage.tsx
 msgid "这一段已经改好、钱也扣过了，但{why}"
 msgstr "This segment is done and has been charged, but {why}"
+
+#. placeholder {0}: plan.skipped
+#: src/studio/flowStore.ts
+msgid "这一段带着参考视频，出片时不接受圈选改画面——这 {0} 处得先清掉才能开炼（它们也不计费）。"
+msgstr "This segment has a reference video, so circled edits aren't accepted when generating — {0, plural, one {clear this # edit before you start (it isn't charged).} other {clear these # edits before you start (they aren't charged).}}"
 
 #: src/studio/ui/projection.tsx
 msgid "这一段怎么拍？挑一张"
@@ -10464,9 +10910,21 @@ msgstr "The {0, plural, one {# plan} other {# plans}} drafted for this segment w
 msgid "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
 msgstr "This segment won't play (error code {codeText}) — the video link may have expired or the network is down. Reopening the draft from the workflow fetches it again."
 
+#: src/studio/flowStore.ts
+msgid "这一段正在出片，等它结束再换开头帧"
+msgstr "This segment is generating. Wait for it to finish before changing the opening frame"
+
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段正在生成，炼完再圈"
 msgstr "This segment is generating. Circle after it's rendered"
+
+#: src/studio/flowStore.ts
+msgid "这一段正在生成中，等它跑完再改挂卡（改了也得重炼一次，别白花一次钱）"
+msgstr "This segment is generating. Wait for it to finish before changing the cards (changing them means regenerating anyway, so don't waste a run)"
+
+#: src/studio/flowStore.ts
+msgid "这一段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）"
+msgstr "This segment has no blockout template to place cards on (only blockout templates have role slots) — tap “🧪 Use template” in this segment's editor to pick one; don't re-apply it from the template market (that rebuilds the whole pipeline)"
 
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段现在选中的走向还没有成片"
@@ -10475,6 +10933,10 @@ msgstr "The direction selected for this segment has no video yet"
 #: src/pages/CutPage.tsx
 msgid "这一段的截帧流还在取（成片有 20MB 级，稍等几秒再点圈选）"
 msgstr "This segment's frame stream is still loading (videos run around 20MB — wait a few seconds, then try circling again)"
+
+#: src/studio/flowStore.ts
+msgid "这一段的方案已经换了，融好的开头帧没处放（图钱已经花掉）"
+msgstr "This segment's plan has changed, so there's nowhere to put the fused opening frame (the image cost has been spent)"
 
 #: src/studio/ui/projection.tsx
 msgid "这一段的画质档"
@@ -10493,6 +10955,10 @@ msgstr "This segment's ending frame can no longer be locked (“{0}” only take
 msgid "这一段的要求由挂卡合成：AI 把「{noun} → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。{noun}与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。"
 msgstr "This segment's request is composed from the attached cards: the AI writes “{noun} → your character” into a paragraph in the input box, which you can review and edit word by word before rendering. The {noun} and character names are generated from the picture, so getting them wrong swaps the wrong people; edit the rest freely. Changing the cards re-composes the text with the new mapping and overwrites what's here."
 
+#: src/studio/flowStore.ts
+msgid "这一段返修不了：{issue}"
+msgstr "This segment can't be revised: {issue}"
+
 #: src/studio/ui/projection.tsx
 msgid "这一段还没出片，模板与挂卡都能重选，不花钱"
 msgstr "This segment has no video yet, so you can choose the template and cards again for free"
@@ -10500,6 +10966,22 @@ msgstr "This segment has no video yet, so you can choose the template and cards 
 #: src/studio/ui/projection.tsx
 msgid "这一段还没出片，退回去不花钱"
 msgstr "This segment has no video yet, so going back is free"
+
+#: src/studio/flowStore.ts
+msgid "这一段还没有能播的成片，没什么可截的"
+msgstr "This segment has no playable video yet, so there's nothing to capture"
+
+#: src/studio/flowStore.ts
+msgid "这一段还没有能返修的成片——先生成，或者等转存完成"
+msgstr "This segment has no video to revise yet — generate it first, or wait for the transfer to finish"
+
+#: src/studio/flowStore.ts
+msgid "这一段还没有选定的方案，导演台的截图没处放"
+msgstr "This segment has no chosen plan yet, so there's nowhere to put the stage capture"
+
+#: src/studio/flowStore.ts
+msgid "这一炉一个方案都没有，铸不成段"
+msgstr "This run has no plans, so no segment can be forged"
 
 #: src/components/ForgeOverlay.tsx
 msgid "这一炉没成"
@@ -10553,6 +11035,10 @@ msgstr "That doesn't mean it doesn't exist — it just couldn't be fetched this 
 #: src/components/PortraitAuthPanel.tsx
 msgid "这不像方舟的资产 ID —— 应该长成 asset-20260401123823-6d4x2 这样（在方舟控制台点「复制 asset ID」拿到）"
 msgstr "That doesn't look like an Ark asset ID — it should look like asset-20260401123823-6d4x2 (get it with “Copy asset ID” in the Ark console)"
+
+#: src/studio/flowStore.ts
+msgid "这不是白模模板（只有白模模板能按段套用）"
+msgstr "This isn't a blockout template (only blockout templates can be applied per segment)"
 
 #: src/components/UpdateSheet.tsx
 msgid "这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。"
@@ -11410,6 +11896,25 @@ msgstr "Regenerating {segCount, plural, one {# segment} other {# segments}} need
 msgid "重画中…"
 msgstr "Redrawing…"
 
+#. placeholder {0}: msg.slice(0, 120)
+#: src/studio/flowStore.ts
+msgid "重画失败：{0}"
+msgstr "Redraw failed: {0}"
+
+#: src/studio/flowStore.ts
+msgid "重画结束画面…{noteTail}"
+msgstr "Redrawing the ending frame…{noteTail}"
+
+#: src/studio/flowStore.ts
+msgid "重画起始画面…{noteTail}"
+msgstr "Redrawing the opening frame…{noteTail}"
+
+#. placeholder {0}: fmtTokens(cost)
+#. placeholder {1}: fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))
+#: src/studio/flowStore.ts
+msgid "重画这一套约 {0} token，余额 {1} 不足——去「我的」页充值"
+msgstr "Redrawing this plan costs about {0} tokens and your balance of {1} isn't enough — top up on the “Me” page"
+
 #: src/pages/SettingsPage.tsx
 msgid "重看各个界面的使用说明"
 msgstr "Rewatch each screen's guide"
@@ -11566,6 +12071,11 @@ msgstr "Volume"
 msgid "音频"
 msgstr "Audio"
 
+#. placeholder {0}: e instanceof Error ? e.message.slice(0, 80) : String(e)
+#: src/studio/flowStore.ts
+msgid "预览帧还是没截到（{0}）——成片本身没事，点开卡片可回看"
+msgstr "Still couldn't capture the preview frame ({0}) — the video itself is fine; open the card to replay it"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "预览没画出来，试跑跑不了 —— 跑了也只是在官方看板娘身上演一遍。先点上面的「重新加载预览」。"
 msgstr "The preview didn't render, so the test can't run — it would only play on the official mascot. Tap “Reload preview” above first."
@@ -11590,6 +12100,10 @@ msgstr "Claim"
 #: src/components/flow/TierRow.tsx
 msgid "首尾帧会改成\"参考图 + 提示词点名\"发出去（换来的是素材卡形象能一起发；代价是起止画面不再是硬约束）"
 msgstr "First and last frames will be sent as “reference image + prompt mention” (asset card looks can go along; the trade-off is that start and end frames are no longer hard constraints)"
+
+#: src/studio/flowStore.ts
+msgid "首尾帧都是你自己换的图，没有可让 AI 重画的部分（想重画就先在卡里清掉那一帧）"
+msgstr "Both frames are images you swapped in, so there's nothing for the AI to redraw (to redraw, clear that frame on the card first)"
 
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "首帧"
