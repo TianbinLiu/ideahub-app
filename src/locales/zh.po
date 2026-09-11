@@ -952,6 +952,10 @@ msgstr "{motion}（包里没有）"
 msgid "{msgCount} 条"
 msgstr "{msgCount} 条"
 
+#: src/pages/LoginPage.tsx
+msgid "{name}登录（暂未接入）"
+msgstr "{name}登录（暂未接入）"
+
 #: src/components/support/VoiceSheet.tsx
 msgid "{name}的声音"
 msgstr "{name}的声音"
@@ -2315,6 +2319,10 @@ msgstr "④ 标签（选填）"
 msgid "4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB）"
 msgstr "4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB）"
 
+#: src/pages/LoginPage.tsx
+msgid "6 位验证码"
+msgstr "6 位验证码"
+
 #: src/pages/ProfilePage.tsx
 msgid "add-on token · 直充/创作收益"
 msgstr "add-on token · 直充/创作收益"
@@ -2427,6 +2435,10 @@ msgstr "QQ 分享要在 App 里用，浏览器里请复制链接"
 #: src/components/ShareSheet.tsx
 msgid "QQ 好友"
 msgstr "QQ 好友"
+
+#: src/pages/LoginPage.tsx
+msgid "QQ 登录要在 App 里用（浏览器中没有 QQ 客户端可以拉起），先用邮箱或手机号登录"
+msgstr "QQ 登录要在 App 里用（浏览器中没有 QQ 客户端可以拉起），先用邮箱或手机号登录"
 
 #: src/components/CoverPicker.tsx
 msgid "Seedream 真实生成，约 20-30 秒"
@@ -2959,6 +2971,10 @@ msgstr "不进首页和搜索；但拿到链接的人都能看，能被转发"
 #: src/pages/CutPage.tsx
 msgid "与素材同分辨率，最快"
 msgstr "与素材同分辨率，最快"
+
+#: src/pages/LoginPage.tsx
+msgid "中国大陆"
+msgstr "中国大陆"
 
 #: src/studio/stage/stageState.ts
 msgid "中景"
@@ -3799,6 +3815,10 @@ msgstr "先说一句你遇到了什么，客服才知道从哪儿开始。"
 msgid "先选一个理由"
 msgstr "先选一个理由"
 
+#: src/pages/LoginPage.tsx
+msgid "先随便逛逛"
+msgstr "先随便逛逛"
+
 #: src/studio/canvasAgent.ts
 msgid "免费 · 会重新合成点名句（覆盖你改过的字）"
 msgstr "免费 · 会重新合成点名句（覆盖你改过的字）"
@@ -3963,6 +3983,10 @@ msgstr "其<0>全部作品</0>（含私密与已下架的）从平台删除；�
 #: src/api/support.ts
 msgid "其他"
 msgstr "其他"
+
+#: src/pages/LoginPage.tsx
+msgid "其他方式"
+msgstr "其他方式"
 
 #: src/pages/AdminPage.tsx
 msgid "其发出的<0>评论、弹幕</0>全部删除；别人作品下的也一样；⚠ <1>其他用户</1>回复在这些评论下的楼中楼会被连带删除"
@@ -5205,6 +5229,10 @@ msgstr "发送中…"
 msgid "发送失败"
 msgstr "发送失败"
 
+#: src/pages/LoginPage.tsx
+msgid "发送验证码"
+msgstr "发送验证码"
+
 #: src/pages/AdminPage.tsx
 msgid "发通知…"
 msgstr "发通知…"
@@ -5339,6 +5367,10 @@ msgstr "取消发布"
 #: src/pages/CutPage.tsx
 msgid "取消合并"
 msgstr "取消合并"
+
+#: src/pages/LoginPage.tsx
+msgid "取消同意协议"
+msgstr "取消同意协议"
 
 #: src/components/CommentSheet.tsx
 msgid "取消回复"
@@ -5661,6 +5693,14 @@ msgstr "合成预览要一张图的钱（{0} token），余额不够——去「
 msgid "同一条视频拆成 {count} 段的分段模板（共约 {0}s）· 套用即整组铺开"
 msgstr "同一条视频拆成 {count} 段的分段模板（共约 {0}s）· 套用即整组铺开"
 
+#: src/pages/LoginPage.tsx
+msgid "同意协议"
+msgstr "同意协议"
+
+#: src/pages/LoginPage.tsx
+msgid "同意并继续"
+msgstr "同意并继续"
+
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "名字"
@@ -5673,6 +5713,10 @@ msgstr "名字（必填，≤{NAME_MAX} 字）"
 #: src/pages/CutPage.tsx
 msgid "后移 ▶"
 msgstr "后移 ▶"
+
+#: src/pages/LoginPage.tsx
+msgid "启梦"
+msgstr "启梦"
 
 #: src/i18n/activate.ts
 msgid "启梦 · 有想法，就是梦想启程的第一步"
@@ -6018,6 +6062,7 @@ msgstr "处理中"
 #: src/pages/AdminPage.tsx
 #: src/pages/CardDetailPage.tsx
 #: src/pages/CustomCardPage.tsx
+#: src/pages/LoginPage.tsx
 msgid "处理中…"
 msgstr "处理中…"
 
@@ -6353,6 +6398,22 @@ msgstr "害羞"
 msgctxt "Live2D 表情槽名"
 msgid "害羞"
 msgstr "害羞"
+
+#: src/pages/LoginPage.tsx
+msgid "密码"
+msgstr "密码"
+
+#: src/pages/LoginPage.tsx
+msgid "密码（至少 6 位）"
+msgstr "密码（至少 6 位）"
+
+#: src/pages/LoginPage.tsx
+msgid "密码登录"
+msgstr "密码登录"
+
+#: src/pages/LoginPage.tsx
+msgid "密码至少 6 位"
+msgstr "密码至少 6 位"
 
 #: src/studio/live2dUploadStore.ts
 msgid "对映射"
@@ -7008,6 +7069,10 @@ msgstr "已购"
 msgid "已过 {forkCount} 个分支点"
 msgstr "已过 {forkCount} 个分支点"
 
+#: src/pages/LoginPage.tsx
+msgid "已连接服务器：账号与作品跨设备同步。"
+msgstr "已连接服务器：账号与作品跨设备同步。"
+
 #: src/studio/ui/PlanBoard.tsx
 msgid "已选定 · 可换首尾帧、改剧情，改完点这一套的「重新生成」"
 msgstr "已选定 · 可换首尾帧、改剧情，改完点这一套的「重新生成」"
@@ -7028,6 +7093,10 @@ msgstr "已铸成"
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "已铺 {0} 段，从第 1 段开始炼"
 msgstr "已铺 {0} 段，从第 1 段开始炼"
+
+#: src/pages/LoginPage.tsx
+msgid "已阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>"
+msgstr "已阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>"
 
 #: src/pages/ProfilePage.tsx
 msgid "已领取"
@@ -7202,6 +7271,10 @@ msgstr "当初炼它的那一段不在这条流水线里（重启后没打开原
 msgid "当前"
 msgstr "当前"
 
+#: src/pages/LoginPage.tsx
+msgid "当前为本地账号：数据存在这台设备上，换设备不同步。<0/>接入服务器后将支持跨设备与账号互通。"
+msgstr "当前为本地账号：数据存在这台设备上，换设备不同步。<0/>接入服务器后将支持跨设备与账号互通。"
+
 #: src/pages/SupportPersonasPage.tsx
 msgid "当前人格"
 msgstr "当前人格"
@@ -7249,6 +7322,10 @@ msgstr "当前是离线模式（没连服务器），管理功能需要服务端
 #: src/api/companion.ts
 msgid "当前是离线模式（没配服务器地址），这个功能需要联网。"
 msgstr "当前是离线模式（没配服务器地址），这个功能需要联网。"
+
+#: src/pages/LoginPage.tsx
+msgid "当前网络环境（{regionName}）下 Google / GitHub 不可用，已自动隐藏"
+msgstr "当前网络环境（{regionName}）下 Google / GitHub 不可用，已自动隐藏"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "录制中…（实际播这一段）"
@@ -7329,6 +7406,7 @@ msgstr "待机动作"
 msgid "得先给它起个标题，才发得出去（关掉这张卡去填一个）。"
 msgstr "得先给它起个标题，才发得出去（关掉这张卡去填一个）。"
 
+#: src/components/BrandIcon.tsx
 #: src/components/ShareSheet.tsx
 msgid "微信"
 msgstr "微信"
@@ -7336,6 +7414,10 @@ msgstr "微信"
 #: src/components/ShareSheet.tsx
 msgid "微信分享要在 App 里用，浏览器里请复制链接"
 msgstr "微信分享要在 App 里用，浏览器里请复制链接"
+
+#: src/pages/LoginPage.tsx
+msgid "微信登录要在 App 里用（浏览器中没有微信客户端可以拉起），先用邮箱或手机号登录"
+msgstr "微信登录要在 App 里用（浏览器中没有微信客户端可以拉起），先用邮箱或手机号登录"
 
 #: src/studio/personaWizardStore.ts
 msgid "微调"
@@ -7349,6 +7431,10 @@ msgstr "必填 · 同时就是卡面"
 #: src/pages/SupportModelNewPage.tsx
 msgid "必须 · {0}"
 msgstr "必须 · {0}"
+
+#: src/pages/LoginPage.tsx
+msgid "忘记密码？"
+msgstr "忘记密码？"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "思考"
@@ -7598,6 +7684,18 @@ msgstr "所属卡组"
 #: src/components/PortraitAuthPanel.tsx
 msgid "手工填入（方舟控制台授权）"
 msgstr "手工填入（方舟控制台授权）"
+
+#: src/pages/LoginPage.tsx
+msgid "手机号"
+msgstr "手机号"
+
+#: src/pages/LoginPage.tsx
+msgid "手机号 / 用户名"
+msgstr "手机号 / 用户名"
+
+#: src/pages/LoginPage.tsx
+msgid "手机号（中国大陆）"
+msgstr "手机号（中国大陆）"
 
 #: src/data/videoDownload.ts
 msgid "手机空间不够，这一段没写完。腾点空间再点一次。"
@@ -8659,6 +8757,14 @@ msgstr "文字描述"
 msgid "新"
 msgstr "新"
 
+#: src/pages/LoginPage.tsx
+msgid "新密码（至少 6 位）"
+msgstr "新密码（至少 6 位）"
+
+#: src/pages/LoginPage.tsx
+msgid "新密码至少 6 位"
+msgstr "新密码至少 6 位"
+
 #: src/pages/SettingsPage.tsx
 msgid "新手引导"
 msgstr "新手引导"
@@ -8747,6 +8853,14 @@ msgstr "时长"
 #: src/pages/SettingsProfilePage.tsx
 msgid "昵称"
 msgstr "昵称"
+
+#: src/pages/LoginPage.tsx
+msgid "昵称（可留空）"
+msgstr "昵称（可留空）"
+
+#: src/pages/LoginPage.tsx
+msgid "昵称（首次登录时使用，可留空）"
+msgstr "昵称（首次登录时使用，可留空）"
 
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VideoStage.tsx
@@ -8931,6 +9045,10 @@ msgstr "有人"
 msgid "有帮助"
 msgstr "有帮助"
 
+#: src/pages/LoginPage.tsx
+msgid "有想法，就是梦想启程的第一步"
+msgstr "有想法，就是梦想启程的第一步"
+
 #. placeholder {0}: info.versionName
 #: src/components/UpdateSheet.tsx
 msgid "有新版本 {0}"
@@ -8955,6 +9073,10 @@ msgstr "有问题"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "朋友 / 学姐 / 助理 / 搭子…… 这一句会明显影响说话的分寸。"
 msgstr "朋友 / 学姐 / 助理 / 搭子…… 这一句会明显影响说话的分寸。"
+
+#: src/pages/LoginPage.tsx
+msgid "服务协议与隐私政策"
+msgstr "服务协议与隐私政策"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "服务器上有一发你付过钱的成片还没取回"
@@ -9079,6 +9201,7 @@ msgid "未挂"
 msgstr "未挂"
 
 #: src/ai/minimaxVideo.ts
+#: src/pages/LoginPage.tsx
 msgid "未知"
 msgstr "未知"
 
@@ -9707,6 +9830,10 @@ msgstr "正在生成中，等它跑完再换模板"
 msgid "正在登记到服务器…"
 msgstr "正在登记到服务器…"
 
+#: src/pages/LoginPage.tsx
+msgid "正在确认可用的登录方式…"
+msgstr "正在确认可用的登录方式…"
+
 #: src/pages/VideoPage.tsx
 msgid "正在确认登录状态，稍等一下再点。"
 msgstr "正在确认登录状态，稍等一下再点。"
@@ -10185,6 +10312,10 @@ msgstr "没问题，继续"
 msgid "沿边描出轮廓"
 msgstr "沿边描出轮廓"
 
+#: src/pages/LoginPage.tsx
+msgid "注册新账号"
+msgstr "注册新账号"
+
 #: src/pages/CardDetailPage.tsx
 msgid "注意：这张卡的 3D 建模只存在这台设备上，分享出去的那份不会带建模。"
 msgstr "注意：这张卡的 3D 建模只存在这台设备上，分享出去的那份不会带建模。"
@@ -10645,6 +10776,10 @@ msgstr "生成过程"
 msgid "生气"
 msgstr "生气"
 
+#: src/pages/LoginPage.tsx
+msgid "用{name}登录"
+msgstr "用{name}登录"
+
 #: src/pages/SettingsVoicePage.tsx
 msgid "用一句话描述你想要的语气，例如：请用成熟冷静的语气，语速放慢"
 msgstr "用一句话描述你想要的语气，例如：请用成熟冷静的语气，语速放慢"
@@ -10690,6 +10825,14 @@ msgstr "用户从 AI 客服转人工的问题，在这里回复"
 #: src/pages/AdminPage.tsx
 msgid "用户列表"
 msgstr "用户列表"
+
+#: src/pages/LoginPage.tsx
+msgid "用户名 / 邮箱"
+msgstr "用户名 / 邮箱"
+
+#: src/pages/LoginPage.tsx
+msgid "用户名（登录用，字母数字下划线）"
+msgstr "用户名（登录用，字母数字下划线）"
 
 #: src/live2d/bundlePreview.ts
 msgid "用户数据"
@@ -10850,6 +10993,11 @@ msgstr "留空 = 跟随人格/模型：{0}"
 msgid "留空由 AI 决定；可填 2-15"
 msgstr "留空由 AI 决定；可填 2-15"
 
+#: src/pages/LoginPage.tsx
+msgid "登录"
+msgstr "登录"
+
+#: src/pages/LoginPage.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "登录 / 注册"
@@ -10866,6 +11014,10 @@ msgstr "登录之后才能拉黑。"
 #: src/pages/SettingsBlockedPage.tsx
 msgid "登录之后才能管理黑名单。"
 msgstr "登录之后才能管理黑名单。"
+
+#: src/pages/LoginPage.tsx
+msgid "登录前请先阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>。"
+msgstr "登录前请先阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>。"
 
 #: src/pages/FeedPage.tsx
 msgid "登录后可以关注喜欢的创作者"
@@ -13023,6 +13175,14 @@ msgstr "请先勾上授权声明再发布。"
 msgid "请先登录。"
 msgstr "请先登录。"
 
+#: src/pages/LoginPage.tsx
+msgid "请填邮箱"
+msgstr "请填邮箱"
+
+#: src/pages/LoginPage.tsx
+msgid "请填邮箱和用户名"
+msgstr "请填邮箱和用户名"
+
 #: src/api/client.ts
 msgid "请求超时"
 msgstr "请求超时"
@@ -13030,6 +13190,18 @@ msgstr "请求超时"
 #: src/api/companion.ts
 msgid "请求超时了，检查网络后再试一次。"
 msgstr "请求超时了，检查网络后再试一次。"
+
+#: src/pages/LoginPage.tsx
+msgid "请输入有效的中国大陆手机号"
+msgstr "请输入有效的中国大陆手机号"
+
+#: src/pages/LoginPage.tsx
+msgid "请输入账号和密码"
+msgstr "请输入账号和密码"
+
+#: src/pages/LoginPage.tsx
+msgid "请输入验证码"
+msgstr "请输入验证码"
 
 #: src/utils/image.ts
 msgid "请选择图片文件"
@@ -14983,6 +15155,14 @@ msgstr "道具卡 · {slotLabel} · {title}"
 msgid "道具卡的图要先框出主体、描出轮廓，「{names}」那张没抠过，已经取下——点那一格重新选图。"
 msgstr "道具卡的图要先框出主体、描出轮廓，「{names}」那张没抠过，已经取下——点那一格重新选图。"
 
+#: src/pages/LoginPage.tsx
+msgid "邮箱"
+msgstr "邮箱"
+
+#: src/pages/LoginPage.tsx
+msgid "邮箱验证码"
+msgstr "邮箱验证码"
+
 #: src/pages/CutPage.tsx
 msgid "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。"
 msgstr "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。"
@@ -14994,6 +15174,10 @@ msgstr "酒红斗篷 · 绿金束身裙"
 #: src/studio/personaWizardStore.ts
 msgid "重写人格的一个字段"
 msgstr "重写人格的一个字段"
+
+#: src/pages/LoginPage.tsx
+msgid "重发"
+msgstr "重发"
 
 #: src/components/DraftSheet.tsx
 msgid "重命名"
@@ -15118,6 +15302,14 @@ msgstr "重看各个界面的使用说明"
 #: src/pages/SettingsPage.tsx
 msgid "重看所有新手引导"
 msgstr "重看所有新手引导"
+
+#: src/pages/LoginPage.tsx
+msgid "重置密码"
+msgstr "重置密码"
+
+#: src/pages/LoginPage.tsx
+msgid "重置密码并登录"
+msgstr "重置密码并登录"
 
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "重认会<0>覆盖现有描述</0>（你自己改过的也会没），按一次收一次费；核对过之后不能再重认。"
@@ -15366,6 +15558,14 @@ msgstr "首页"
 #: src/pages/AdminPage.tsx
 msgid "驳回"
 msgstr "驳回"
+
+#: src/pages/LoginPage.tsx
+msgid "验证并注册"
+msgstr "验证并注册"
+
+#: src/pages/LoginPage.tsx
+msgid "验证码已发出，10 分钟内有效"
+msgstr "验证码已发出，10 分钟内有效"
 
 #: src/components/support/HoldToTalk.tsx
 #: src/components/VoiceRecorder.tsx
