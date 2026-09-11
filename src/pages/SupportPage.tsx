@@ -48,15 +48,15 @@ import { setVoiceEnabled, voiceEnabled } from "../studio/speech";
 import { ApiError } from "../api/client";
 import { getCompanionSettings, resolveModelJsonUrl, type CompanionSettings } from "../api/companion";
 import {
-  CATEGORY_LABEL,
-  TICKET_STATUS_LABEL,
   appendTicketMessage,
+  categoryLabel,
   createSupportTicket,
   getSupportConfig,
   listMySupportTickets,
   rateSupportAnswer,
   streamSupportChat,
   synthesizeSpeech,
+  ticketStatusLabel,
   type SupportCategory,
   type SupportConfig,
   type SupportTicket,
@@ -645,7 +645,7 @@ export default function SupportPage() {
 
         {handoffHint && phase === "idle" && (
           <div className="mb-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-50 backdrop-blur-md">
-            <Trans>这个问题需要人工处理（{CATEGORY_LABEL[handoffHint.category]}）。转人工会把这段对话一起交给客服，你不用再讲一遍。</Trans>
+            <Trans>这个问题需要人工处理（{categoryLabel(handoffHint.category)}）。转人工会把这段对话一起交给客服，你不用再讲一遍。</Trans>
             <div className="mt-2 flex gap-2">
               <button onClick={openSheet} className="rounded-full bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-ink active:opacity-60">
                 <Trans>转人工</Trans>
@@ -861,8 +861,8 @@ function TicketsPanel({
       {tickets.map((tk) => (
         <section key={tk.id} className={`rounded-xl border p-3 ${tk.id === highlight ? "border-brand/60 bg-brand/5" : "border-slate-700/70 bg-panel"}`}>
           <div className="flex items-center gap-2 text-[11px] text-slate-400">
-            <span className="rounded-full bg-slate-800 px-2 py-0.5 text-slate-200">{TICKET_STATUS_LABEL[tk.status]}</span>
-            <span>{CATEGORY_LABEL[tk.category]}</span>
+            <span className="rounded-full bg-slate-800 px-2 py-0.5 text-slate-200">{ticketStatusLabel(tk.status)}</span>
+            <span>{categoryLabel(tk.category)}</span>
             <span className="ml-auto">#{tk.id.slice(-6).toUpperCase()} · {relativeTime(Date.parse(tk.createdAt))}</span>
           </div>
           <h3 className="mt-1.5 text-sm font-semibold text-slate-100">{tk.subject || t`客服工单`}</h3>

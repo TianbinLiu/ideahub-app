@@ -40,10 +40,10 @@ import {
 import { STANDARD_PARAMS, type ParamSlot } from "../live2d/mapping";
 import { MAX_LIVE2D_BUNDLE_BYTES } from "../api/uploads";
 import {
-  LIVE2D_BADGE_LABEL,
   companionErrorText,
   listPersonas,
   listVoiceTemplates,
+  live2dBadgeLabel,
   type CompanionMappingWire,
   type Live2dCompletenessItem,
   type MarketPersona,
@@ -886,7 +886,7 @@ export default function SupportModelNewPage() {
                   ) : (
                     s.inspect.capabilities.badges.map((b) => (
                       <span key={b} className="rounded-full bg-gold/90 px-2 py-0.5 text-[10px] font-semibold text-ink">
-                        {LIVE2D_BADGE_LABEL[b]}
+                        {live2dBadgeLabel(b)}
                       </span>
                     ))
                   )}

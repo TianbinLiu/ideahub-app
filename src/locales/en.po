@@ -424,6 +424,7 @@ msgstr "(Replies under it will be deleted too)"
 msgid "（无文件名）"
 msgstr "(no file name)"
 
+#: src/components/support/AdminTicketsView.tsx
 #: src/pages/AdminPage.tsx
 msgid "（无标题）"
 msgstr "(untitled)"
@@ -951,6 +952,10 @@ msgstr "{segCount, plural, one {# segment} other {# segments}} · {totalText} to
 #: src/pages/ProfilePage.tsx
 msgid "{segCount} 段 · 卡组 {deckCount} 张已经铸好 · {when}"
 msgstr "{segCount, plural, one {# segment} other {# segments}} · deck of {deckCount, plural, one {# card} other {# cards}} already minted · {when}"
+
+#: src/components/support/AdminTicketsView.tsx
+msgid "{total} 张"
+msgstr "{total} tickets"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "{value}（包里没有）"
@@ -2529,6 +2534,10 @@ msgstr "Previous page"
 msgid "上传 Live2D 模型"
 msgstr "Upload a Live2D model"
 
+#: src/api/uploads.ts
+msgid "上传中断了（网络不可用）"
+msgstr "The upload was interrupted (network unavailable)"
+
 #. placeholder {0}: i + 1
 #. placeholder {1}: ordered.length
 #: src/studio/segmentGen.ts
@@ -2557,6 +2566,19 @@ msgstr "After upload, its first and last frames become this segment's first and 
 msgid "上传失败"
 msgstr "Upload failed"
 
+#. placeholder {0}: res.status
+#: src/api/uploads.ts
+msgid "上传失败 HTTP {0}"
+msgstr "Upload failed: HTTP {0}"
+
+#: src/api/uploads.ts
+msgid "上传失败（网络不可用）：这份 {mb} 没能推上去。断网、慢网、或者传太久被中途掐断，都会是这一句；传得越久越容易被掐 —— 先把视频压小一点再传，多半就过了。"
+msgstr "Upload failed (network unavailable): this {mb} file couldn't be pushed up. Being offline, a slow connection, or an upload that ran so long it got cut off all end up here; the longer it runs, the likelier it gets cut — make the video a bit smaller and try again, and it will most likely go through."
+
+#: src/api/uploads.ts
+msgid "上传成功但没拿到地址"
+msgstr "The upload finished but no address came back"
+
 #: src/studio/ui/FrameCard.tsx
 msgid "上传本地图作开头帧"
 msgstr "Upload an image as the opening frame"
@@ -2578,6 +2600,10 @@ msgstr "Uploading this segment's setup frame {0}/{1}…"
 #: src/pages/SupportCreatePage.tsx
 msgid "上传自己的 Live2D 包（zip），对好动作、表情和触摸区，就能给数字人换上。"
 msgstr "Upload your own Live2D package (zip), map its motions, expressions and touch areas, and the digital human can wear it."
+
+#: src/api/uploads.ts
+msgid "上传超时：这份 {mb} 在 {secs} 秒内没传完。不是断网——是这条网推不完这么大的文件（手机上行常见只有 1Mbps 上下，47MB 就要六分钟）。换个更快的网络，或者先把视频压小再传。"
+msgstr "Upload timed out: this {mb} file didn't finish within {secs} seconds. You're not offline — this connection just can't push a file this large (phone uploads are often around 1 Mbps, so 47MB takes six minutes). Switch to a faster network, or make the video smaller before uploading."
 
 #: src/components/VoiceUploadButton.tsx
 msgid "上传音频"
@@ -2735,6 +2761,10 @@ msgstr "Takedown reason: {0}"
 msgid "下架原因（必填，作者会看到这句话）"
 msgstr "Takedown reason (required; the author will see it)"
 
+#: src/api/admin.ts
+msgid "下架必须写明原因"
+msgstr "A takedown needs a reason"
+
 #: src/data/schemeMarket.ts
 #: src/data/skillMarket.ts
 msgid "下架没成：{why}"
@@ -2841,6 +2871,10 @@ msgstr "Don't filter, use everything"
 msgid "不给封面也能发，市场里会是一块空的卡面。"
 msgstr "You can publish without a cover; it shows as a blank card in the market."
 
+#: src/api/blocking.ts
+msgid "不能拉黑自己。"
+msgstr "You can't block yourself."
+
 #: src/pages/ProfilePage.tsx
 msgid "不要了"
 msgstr "Discard"
@@ -2893,6 +2927,11 @@ msgstr "Main reference is ready (the authorized photo), no upload needed · abou
 msgid "举报"
 msgstr "Reports"
 
+#: src/components/ReportButton.tsx
+msgctxt "内容旁那颗小键：举报这一条（动作，不是管理后台的举报列表）"
+msgid "举报"
+msgstr "Report"
+
 #: src/pages/AdminPage.tsx
 msgid "举报不成立，内容照旧"
 msgstr "The report doesn't hold up; the content stays as is"
@@ -2906,9 +2945,29 @@ msgstr "Reporter's note: {0}"
 msgid "举报列表没拉到"
 msgstr "Couldn't load reports"
 
+#: src/api/admin.ts
+msgid "举报太频繁了，过一会儿再试"
+msgstr "You're reporting too often. Try again in a bit"
+
+#: src/api/admin.ts
+msgid "举报没提交上去，请重试"
+msgstr "The report didn't go through. Please try again"
+
 #: src/pages/AdminPage.tsx
 msgid "举报记录"
 msgstr "Reports"
+
+#: src/components/ReportButton.tsx
+msgid "举报这条作品"
+msgstr "Report this video"
+
+#: src/components/ReportButton.tsx
+msgid "举报这条弹幕"
+msgstr "Report this bullet comment"
+
+#: src/components/ReportButton.tsx
+msgid "举报这条评论"
+msgstr "Report this comment"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "也可以按左上角的返回"
@@ -3000,6 +3059,10 @@ msgstr "Character model"
 msgid "人物音频"
 msgstr "Character voice"
 
+#: src/api/admin.ts
+msgid "人身攻击 / 辱骂"
+msgstr "Personal attacks / abuse"
+
 #: src/pages/CardDetailPage.tsx
 msgid "仅展示"
 msgstr "Display only"
@@ -3086,6 +3149,10 @@ msgstr "Low angle"
 msgid "会丢掉这一段推演出的方案（已花的 token 不退）"
 msgstr "The plans drafted for this segment will be discarded (tokens already spent aren't refunded)"
 
+#: src/api/companion.ts
+msgid "会动"
+msgstr "Moves"
+
 #: src/pages/SupportPage.tsx
 msgid "会把你的描述一起交给人工客服，回复会出现在「通知」和「我的工单」里。"
 msgstr "Your description will go to a human agent; replies will show up in Notifications and My tickets."
@@ -3103,6 +3170,10 @@ msgstr "Will be published at {price} credits (a whole number from 0 to {0})."
 #: src/pages/PublishPage.tsx
 msgid "会替换《{originTitle}》的内容，链接不变。"
 msgstr "This replaces the content of “{originTitle}”; the link stays the same."
+
+#: src/api/companion.ts
+msgid "会表情"
+msgstr "Expressions"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "会被拿起来用的关键物件"
@@ -3150,6 +3221,11 @@ msgstr "Loading balance…"
 #: src/pages/ProfilePage.tsx
 msgid "作品"
 msgstr "Videos"
+
+#: src/api/admin.ts
+msgctxt "举报对象的类别（单数）"
+msgid "作品"
+msgstr "Video"
 
 #. placeholder {0}: typeof u.videoCount === "number" ? u.videoCount : "—"
 #: src/pages/AdminPage.tsx
@@ -3221,6 +3297,10 @@ msgstr "You could be the first"
 #: src/pages/SupportPage.tsx
 msgid "你好，我是{name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。"
 msgstr "Hi, I'm {name}, QiMeng's AI support. Ask me about your account, charges, recovering videos, or installing and updating the app; if I can't solve it, I'll pass you to a human."
+
+#: src/api/admin.ts
+msgid "你已经举报过这一条了，管理员还在处理"
+msgstr "You've already reported this; an admin is still reviewing it"
 
 #: src/studio/structuredSkills.ts
 msgid "你来点头"
@@ -3339,6 +3419,10 @@ msgstr "e.g. An old brass pocket watch with vine scrollwork on the lid and a cha
 #: src/pages/CustomCardPage.tsx
 msgid "例：黑色齐肩短发的年轻女性，左眼下一颗泪痣，深蓝水手服"
 msgstr "e.g. A young woman with a black shoulder-length bob, a beauty mark under her left eye, a navy sailor uniform"
+
+#: src/api/admin.ts
+msgid "侵权 / 冒用他人作品"
+msgstr "Infringement / passing off others' work"
 
 #: src/components/support/VoiceSheet.tsx
 #: src/pages/CardDetailPage.tsx
@@ -3634,6 +3718,10 @@ msgstr "Give this skill a name first"
 msgid "先说一句你遇到了什么，客服才知道从哪儿开始。"
 msgstr "Tell us what happened first, so support knows where to start."
 
+#: src/components/ReportButton.tsx
+msgid "先选一个理由"
+msgstr "Pick a reason first"
+
 #: src/studio/canvasAgent.ts
 msgid "免费 · 会重新合成点名句（覆盖你改过的字）"
 msgstr "Free · re-composes the casting line (overwrites your edits)"
@@ -3658,6 +3746,7 @@ msgstr "Generate new"
 msgid "全景"
 msgstr "Wide shot"
 
+#: src/components/support/AdminTicketsView.tsx
 #: src/components/TemplateShelf.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -3793,6 +3882,11 @@ msgstr "Excited"
 msgid "其<0>全部作品</0>（含私密与已下架的）从平台删除；⚠ 视频/图片<1>文件</1>暂不随删，已流出的直链仍可访问"
 msgstr "<0>All of their videos</0> (including private and taken-down ones) are removed from the platform; ⚠ the video/image <1>files</1> aren't deleted yet, so direct links already shared still work"
 
+#: src/api/admin.ts
+#: src/api/support.ts
+msgid "其他"
+msgstr "Other"
+
 #: src/pages/AdminPage.tsx
 msgid "其发出的<0>评论、弹幕</0>全部删除；别人作品下的也一样；⚠ <1>其他用户</1>回复在这些评论下的楼中楼会被连带删除"
 msgstr "All <0>comments and bullet comments</0> they posted are deleted, including those under other people's videos; ⚠ replies from <1>other users</1> under those comments are deleted along with them"
@@ -3808,6 +3902,10 @@ msgstr "The content may still be there; it just couldn't be loaded this time (a 
 #: src/pages/PublishPage.tsx
 msgid "内容声明：本作品由 AI 生成"
 msgstr "Content declaration: this video is AI-generated"
+
+#: src/api/support.ts
+msgid "内容处置"
+msgstr "Content moderation"
 
 #: src/pages/AdminPage.tsx
 msgid "内容已经不在了（作者自己删了，或已被删除）—— 这条通常「驳回」就好。"
@@ -3876,6 +3974,10 @@ msgstr "Add a request (optional)"
 #: src/pages/VideoPage.tsx
 msgid "再试一次"
 msgstr "Try again"
+
+#: src/api/uploads.ts
+msgid "最后一段传完了，但视频存储没有把这段视频组装出来——请重新选一次文件再传。"
+msgstr "The last chunk finished, but video storage didn't assemble the video — pick the file again and re-upload."
 
 #. placeholder {0}: PERSONA_LIMITS.examples
 #: src/pages/SupportPersonaNewPage.tsx
@@ -4357,6 +4459,7 @@ msgid "制作人格"
 msgstr "Create persona"
 
 #: src/components/PortraitAuthPanel.tsx
+#: src/components/support/AdminTicketsView.tsx
 #: src/pages/AdminPage.tsx
 msgid "刷新"
 msgstr "Refresh"
@@ -4778,6 +4881,7 @@ msgid "去现场看上下文 →"
 msgstr "See it in context →"
 
 #: src/components/BlockButton.tsx
+#: src/components/ReportButton.tsx
 msgid "去登录"
 msgstr "Sign in"
 
@@ -5289,6 +5393,10 @@ msgstr "You can leave this page and do something else; you'll be notified when t
 msgid "可用约 {0} MB"
 msgstr "About {0} MB available"
 
+#: src/api/companion.ts
+msgid "可触摸"
+msgstr "Touchable"
+
 #: src/pages/CutPage.tsx
 msgid "可跨帧跨段圈多处，最后一次性重新生成——那一步才计费。"
 msgstr "Circle as many spots as you like across frames and segments, then regenerate them all at once — only that step is charged."
@@ -5522,6 +5630,7 @@ msgid "回去看看 ›"
 msgstr "Take a look ›"
 
 #: src/components/CommentSheet.tsx
+#: src/components/support/AdminTicketsView.tsx
 msgid "回复"
 msgstr "Reply"
 
@@ -5533,6 +5642,18 @@ msgstr "Reply to @{0}"
 #: src/pages/NotificationsPage.tsx
 msgid "回复了你的评论"
 msgstr "replied to your comment"
+
+#: src/components/support/AdminTicketsView.tsx
+msgid "回复用户（会发通知 + 邮件）"
+msgstr "Reply to the user (sends a notification + email)"
+
+#: src/api/uploads.ts
+msgid "回收失败（网络不可用）"
+msgstr "Cleanup failed (network unavailable)"
+
+#: src/api/uploads.ts
+msgid "回收超时"
+msgstr "Cleanup timed out"
 
 #. placeholder {0}: reviseOf.title
 #: src/components/ReviseBar.tsx
@@ -5562,6 +5683,10 @@ msgstr "Replay video"
 #: src/studio/ui/projection.tsx
 msgid "回看成片 · 在画面上圈出要改的地方"
 msgstr "Replay video · circle what to change on screen"
+
+#: src/api/stream.ts
+msgid "回话说到一半停住了（{secs} 秒没有新内容），先停下了。"
+msgstr "The reply stalled partway ({secs} seconds with nothing new), so we stopped."
 
 #: src/studio/ui/projection.tsx
 msgid "回铸段窗重选模式"
@@ -5684,6 +5809,10 @@ msgstr "Balanced"
 msgid "坏笑"
 msgstr "Smirk"
 
+#: src/api/admin.ts
+msgid "垃圾营销 / 刷屏"
+msgstr "Spam / flooding"
+
 #: src/studio/personaWizardStore.ts
 msgid "基本设定"
 msgstr "Basics"
@@ -5714,6 +5843,10 @@ msgstr "Voice market"
 #: src/pages/CustomCardPage.tsx
 msgid "声音样本（选填）"
 msgstr "Voice sample (optional)"
+
+#: src/api/support.ts
+msgid "处理中"
+msgstr "In progress"
 
 #: src/components/AvatarPicker.tsx
 #: src/components/BlockButton.tsx
@@ -5798,6 +5931,11 @@ msgstr "Head tilt"
 #: src/pages/SettingsPage.tsx
 msgid "头像 · 昵称 · 简介"
 msgstr "Avatar · nickname · bio"
+
+#. placeholder {0}: res.status
+#: src/api/auth.ts
+msgid "头像上传失败（HTTP {0}）"
+msgstr "Avatar upload failed (HTTP {0})"
 
 #: src/components/AvatarPicker.tsx
 msgid "头像更换失败，本机仍会显示新头像"
@@ -6028,6 +6166,7 @@ msgstr "Couldn't load the official looks (this server may not have them yet)."
 msgid "官方技能"
 msgstr "Official skills"
 
+#: src/components/support/AdminTicketsView.tsx
 #: src/pages/SupportPage.tsx
 msgid "客服"
 msgstr "Support"
@@ -6107,6 +6246,10 @@ msgstr "Ban reason: {0}"
 #: src/pages/AdminPage.tsx
 msgid "封禁原因（必填，会展示给该用户）"
 msgstr "Ban reason (required; shown to the user)"
+
+#: src/api/admin.ts
+msgid "封禁必须写明原因"
+msgstr "A ban needs a reason"
 
 #: src/pages/AdminPage.tsx
 msgid "封禁挡的是<0>登录与一切带登录态的请求</0>，对方会看到下面这句原因。封禁<1>不会</1>自动隐藏其已发内容 —— 内容处置请到作品/评论/弹幕里逐条下架或删除（两权分开）。"
@@ -6289,6 +6432,10 @@ msgstr "taken-down list"
 msgid "已下载"
 msgstr "Downloaded"
 
+#: src/components/ReportButton.tsx
+msgid "已举报"
+msgstr "Reported"
+
 #: src/studio/StudioPage.tsx
 msgid "已保存"
 msgstr "Saved"
@@ -6318,6 +6465,10 @@ msgstr "Stopped. The rest didn't start; {done, plural, one {the # segment alread
 #: src/pages/ProfilePage.tsx
 msgid "已关注"
 msgstr "Following"
+
+#: src/api/support.ts
+msgid "已关闭"
+msgstr "Closed"
 
 #: src/studio/ui/PlanBoard.tsx
 msgid "已出片"
@@ -6406,6 +6557,10 @@ msgstr "Published “{0}” (not public, only in “Mine”) and set it as your 
 #: src/components/support/VoiceSheet.tsx
 msgid "已发布「{0}」到声音市场，并设为你的声音。"
 msgstr "Published “{0}” to the voice market and set it as your voice."
+
+#: src/api/uploads.ts
+msgid "已取消"
+msgstr "Canceled"
 
 #: src/studio/live2dUploadStore.ts
 msgid "已取消上传。要发布的话重新点一次「开始识别」。"
@@ -6533,6 +6688,10 @@ msgstr "Authorized asset linked; it will be bound when you save the card"
 #: src/pages/CustomCardPage.tsx
 msgid "已接上授权素材，铸卡时一并绑定"
 msgstr "Authorized asset attached; it will be bound when minting"
+
+#: src/components/ReportButton.tsx
+msgid "已收到，管理员会尽快处理。"
+msgstr "Received — an admin will look into it soon."
 
 #: src/pages/SupportPersonasPage.tsx
 msgid "已收藏"
@@ -6668,6 +6827,10 @@ msgstr "Installed"
 msgid "已装 · 用它"
 msgstr "Installed · use it"
 
+#: src/api/support.ts
+msgid "已解决"
+msgstr "Resolved"
+
 #: src/pages/CustomCardPage.tsx
 msgid "已解除授权绑定——随授权取来的那张照片也一并取下了（卡面与 AI 主素材都不再留着它）。"
 msgstr "Authorization binding removed — the photo that came with it was removed too (neither the card face nor the AI main reference keeps it)."
@@ -6782,6 +6945,10 @@ msgstr "No one has published a skill yet. Publish the first one?"
 msgid "建一个把常用素材归到一起"
 msgstr "Create one to group the cards you use often"
 
+#: src/api/companion.ts
+msgid "建模型时既没有文件也没有直传编号（这是调用方的 bug）"
+msgstr "Creating the model got neither a file nor a direct-upload ID (this is a bug in the caller)"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "建组失败：登录态可能已经失效（卡都已各自存进卡片库，不会丢）"
 msgstr "Couldn't create the deck: your login may have expired (each card is already saved in your library, so nothing is lost)"
@@ -6847,6 +7014,11 @@ msgstr "Mouth open"
 msgid "弹幕"
 msgstr "Bullet comments"
 
+#: src/api/admin.ts
+msgctxt "举报对象的类别（单数）"
+msgid "弹幕"
+msgstr "Bullet comment"
+
 #: src/pages/AdminPage.tsx
 msgid "弹幕管理列表"
 msgstr "bullet comment management list"
@@ -6905,6 +7077,10 @@ msgstr "You're offline; support needs an internet connection."
 msgid "当前是离线模式（没连服务器），管理功能需要服务端才能用。"
 msgstr "You're in offline mode (not connected to a server). Admin features need the server."
 
+#: src/api/companion.ts
+msgid "当前是离线模式（没配服务器地址），这个功能需要联网。"
+msgstr "You're in offline mode (no server address configured); this feature needs a connection."
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "录制中…（实际播这一段）"
 msgstr "Recording… (playing this clip)"
@@ -6959,6 +7135,7 @@ msgstr "Back {step}s"
 msgid "往后 {step} 秒"
 msgstr "Forward {step}s"
 
+#: src/api/support.ts
 #: src/pages/AdminPage.tsx
 msgid "待处理"
 msgstr "Pending"
@@ -7088,6 +7265,10 @@ msgstr "Finished video"
 msgid "成片、评论和点赞会一起消失，云端存的视频与封面也会一并删除。不能撤销。"
 msgstr "The video, comments and likes all disappear, and the video and cover stored in the cloud are deleted too. This can't be undone."
 
+#: src/api/uploads.ts
+msgid "成片最大 {maxMb}MB（这份约 {curMb}MB），请先压小再传。"
+msgstr "Finished videos can be at most {maxMb}MB (this one is about {curMb}MB). Make it smaller before uploading."
+
 #: src/pages/CutPage.tsx
 msgid "成片写入本地库失败（存储配额？）"
 msgstr "Couldn't save the video to local storage (out of space?)"
@@ -7095,6 +7276,10 @@ msgstr "Couldn't save the video to local storage (out of space?)"
 #: src/pages/CutPage.tsx
 msgid "成片合好了，去发布吧"
 msgstr "Your video is merged — go publish it"
+
+#: src/api/uploads.ts
+msgid "成片太大（{mb}MB，这台服务器的上限是 20MB）——先在剪辑页压一档画质再发。"
+msgstr "The finished video is too big ({mb}MB; this server's limit is 20MB) — lower the quality by one step on the editing page, then publish."
 
 #: src/pages/CutPage.tsx
 msgid "成片已经合好了，但{cutWhy}"
@@ -7269,6 +7454,10 @@ msgstr "Running…"
 #: src/components/PortraitAuthPanel.tsx
 msgid "扫不动了？这条邀约码会过期，回来重新「发起授权」生成一张新的即可。"
 msgstr "Code won't scan? Invitation codes expire — come back and start authorization again to get a new one."
+
+#: src/api/blocking.ts
+msgid "找不到这个人（账号可能已经注销了）。"
+msgstr "Couldn't find this person (the account may have been deleted)."
 
 #: src/pages/ProfilePage.tsx
 msgid "找不到这个用户 —— 可能已经注销了"
@@ -7859,10 +8048,15 @@ msgid "提交中"
 msgstr "Submitting"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
+#: src/components/ReportButton.tsx
 #: src/pages/SupportPage.tsx
 #: src/studio/personaWizardStore.ts
 msgid "提交中…"
 msgstr "Submitting…"
+
+#: src/components/ReportButton.tsx
+msgid "提交举报"
+msgstr "Submit report"
 
 #: src/pages/NotificationsPage.tsx
 msgid "提交了客服工单"
@@ -8068,6 +8262,14 @@ msgstr "The player isn't ready yet. Wait a moment, then mark this frame."
 msgid "播放头不在选中的片段里——先点一下这个片段（它会从头开始播），再操作。"
 msgstr "The playhead isn't in the selected clip — tap the clip first (it plays from the start), then try again."
 
+#: src/api/companion.ts
+msgid "操作太频繁了，稍等几秒再试。"
+msgstr "Too many requests. Wait a few seconds and try again."
+
+#: src/components/support/AdminTicketsView.tsx
+msgid "操作失败"
+msgstr "Action failed"
+
 #: src/pages/ProfilePage.tsx
 msgid "支付未成功，额度未到账"
 msgstr "Payment failed; no tokens were credited"
@@ -8121,6 +8323,10 @@ msgstr "Collapse"
 #: src/components/TemplateShelf.tsx
 msgid "收起 ▴"
 msgstr "Collapse ▴"
+
+#: src/components/support/AdminTicketsView.tsx
+msgid "收起对话"
+msgstr "Hide conversation"
 
 #: src/pages/FlowPage.tsx
 msgid "收起方案台"
@@ -8368,6 +8574,14 @@ msgstr "Pause"
 msgid "暂时不可用"
 msgstr "Unavailable for now"
 
+#: src/api/blocking.ts
+msgid "暂时没能拉黑（网络或服务器忙）——过一会儿再试一次。"
+msgstr "Couldn't block right now (network or server busy) — try again in a moment."
+
+#: src/api/blocking.ts
+msgid "暂时没能解除（网络或服务器忙）——过一会儿再试一次。"
+msgstr "Couldn't unblock right now (network or server busy) — try again in a moment."
+
 #: src/pages/EditPage.tsx
 msgid "暂时问不到服务器，没能确认这条作品有没有留存工坊工程。"
 msgstr "Couldn't reach the server, so we couldn't check whether this video has a kept Studio project."
@@ -8536,6 +8750,10 @@ msgstr "New version {0} available"
 msgid "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址"
 msgstr "Some segments are still on temporary links (valid for about 24 hours) — publish soon and the server will move them to permanent addresses"
 
+#: src/api/companion.ts
+msgid "有物理"
+msgstr "Physics"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "有素材的话会先分析一遍再写，慢一点；分析结果留着，后面重写不用再读一次素材。"
 msgstr "With materials, they're analyzed before writing, which is a bit slower; the analysis is kept, so rewrites don't re-read the materials."
@@ -8561,6 +8779,14 @@ msgstr "The server unpacks the bundle, counts the motions and expressions it has
 msgid "服务器正在解包识别…"
 msgstr "The server is unpacking and detecting…"
 
+#: src/api/companion.ts
+msgid "服务器没有返回建好的模型（可能是旧版服务端），没有创建成功。"
+msgstr "The server didn't return the created model (it may be an older server version), so it wasn't created."
+
+#: src/api/uploads.ts
+msgid "服务器没有返回这段视频的登记信息（可能是旧版服务端），白模模板没有创建。"
+msgstr "The server didn't return this video's registration info (it may be an older server version), so the blockout template wasn't created."
+
 #: src/components/support/VoiceMixer.tsx
 #: src/pages/SupportPage.tsx
 msgid "服务端出错"
@@ -8570,6 +8796,18 @@ msgstr "server error"
 msgid "服务端升级后即可使用，App 不用重装"
 msgstr "Available after a server upgrade; no need to reinstall the app"
 
+#: src/api/auth.ts
+msgid "服务端未返回 token/user"
+msgstr "The server didn't return a token/user"
+
+#: src/api/auth.ts
+msgid "服务端未返回 user"
+msgstr "The server didn't return a user"
+
+#: src/api/auth.ts
+msgid "服务端未返回登录凭证"
+msgstr "The server didn't return login credentials"
+
 #: src/pages/AdminPage.tsx
 msgid "服务端没带所属作品 id，这条删不了（需要升级服务端）"
 msgstr "The server didn't include the video id, so this can't be deleted (the server needs an upgrade)"
@@ -8578,6 +8816,10 @@ msgstr "The server didn't include the video id, so this can't be deleted (the se
 #: src/pages/AdminPage.tsx
 msgid "服务端没有返回内容快照，只能看到 id：{0}"
 msgstr "The server returned no content snapshot; only the id is available: {0}"
+
+#: src/api/support.ts
+msgid "服务端没有返回音频"
+msgstr "The server didn't return audio"
 
 #: src/pages/SupportPage.tsx
 msgid "服务端还没开通 AI 客服，可以直接转人工。"
@@ -8594,6 +8836,22 @@ msgstr "AI chat isn't enabled on the server yet. You can go straight to a human 
 #: src/components/support/HoldToTalk.tsx
 msgid "服务端还没开通语音识别，先打字吧。"
 msgstr "Speech recognition isn't enabled on the server yet. Please type for now."
+
+#: src/api/support.ts
+msgid "服务端还没有 AI 客服（返回的不是事件流）"
+msgstr "The server doesn't have the AI support agent yet (the response isn't an event stream)"
+
+#: src/api/companion.ts
+msgid "服务端还没有人格试聊（返回的不是事件流）"
+msgstr "The server doesn't have persona test chat yet (the response isn't an event stream)"
+
+#: src/api/support.ts
+msgid "服务端还没有语音识别（返回的不是 JSON）"
+msgstr "The server doesn't have speech recognition yet (the response isn't JSON)"
+
+#: src/api/companion.ts
+msgid "服务端还没有这个功能，等后端更新后再来。"
+msgstr "The server doesn't have this feature yet. Check back after it's updated."
 
 #: src/components/support/VoiceSheet.tsx
 msgid "服务端默认"
@@ -8629,6 +8887,10 @@ msgstr "Untitled project"
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "未挂"
 msgstr "Empty"
+
+#: src/api/uploads.ts
+msgid "未知格式"
+msgstr "unknown format"
 
 #: src/pages/ProfilePage.tsx
 msgid "未知用户"
@@ -8827,6 +9089,27 @@ msgstr "View the full chat history"
 msgid "查看用量 · 清理中间文件"
 msgstr "View usage · clean up intermediate files"
 
+#. placeholder {0}: tk.transcript.length
+#: src/components/support/AdminTicketsView.tsx
+msgid "查看转人工前的对话（{0} 条）"
+msgstr "View the conversation before handoff ({0} messages)"
+
+#: src/components/support/AdminTicketsView.tsx
+msgid "标为处理中"
+msgstr "Mark as in progress"
+
+#: src/components/support/AdminTicketsView.tsx
+msgid "标为已关闭"
+msgstr "Mark as closed"
+
+#: src/components/support/AdminTicketsView.tsx
+msgid "标为已解决"
+msgstr "Mark as resolved"
+
+#: src/components/support/AdminTicketsView.tsx
+msgid "标为待处理"
+msgstr "Mark as pending"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "标价"
 msgstr "Price"
@@ -8931,6 +9214,10 @@ msgstr "Check for updates"
 msgid "模型：{0}"
 msgstr "Model: {0}"
 
+#: src/api/uploads.ts
+msgid "模型包最大 {maxMb}MB（这份约 {curMb}MB），请先压小再传。"
+msgstr "Model packages can be at most {maxMb}MB (this one is about {curMb}MB). Make it smaller before uploading."
+
 #: src/studio/live2dUploadStore.ts
 msgid "模型包识别失败：{text}"
 msgstr "Model bundle detection failed: {text}"
@@ -8979,6 +9266,10 @@ msgstr "The template name is empty"
 #: src/pages/FlowPage.tsx
 msgid "模板市场"
 msgstr "Template market"
+
+#: src/api/uploads.ts
+msgid "模板视频只收 mp4 / mov 格式（AI 出片引擎只认这两种），当前是 {mime}，请转码后重试。"
+msgstr "Template videos must be mp4 or mov (the only formats the AI video engine accepts); this one is {mime}. Convert it and try again."
 
 #: src/studio/flowStore.ts
 msgid "模板视频还没转存到图床，做不了合成预览（稍后再试）"
@@ -9412,6 +9703,10 @@ msgstr "Couldn't open their profile: {err}"
 msgid "没找到叫「{title}」的白模模板"
 msgstr "No blockout template named “{title}” was found"
 
+#: src/api/blocking.ts
+msgid "没找到这条拉黑记录（可能已经解除过了）——刷新一下看看。"
+msgstr "Couldn't find this block (it may already have been removed) — refresh and check."
+
 #: src/components/support/HoldToTalk.tsx
 msgid "没抓到声音，检查麦克风是不是被别的 App 占着。"
 msgstr "No sound captured. Check whether another app is using the microphone."
@@ -9538,6 +9833,10 @@ msgstr "No cards found for “{kw}”"
 #: src/pages/SupportModelNewPage.tsx
 msgid "没有解析结果。"
 msgstr "Nothing was parsed."
+
+#: src/components/support/AdminTicketsView.tsx
+msgid "没有进行中的工单"
+msgstr "No active tickets"
 
 #: src/data/videoDownload.ts
 msgid "没有选择去处。文件还在 App 里，随时可以再点「分享 / 另存为」。"
@@ -9704,6 +10003,10 @@ msgstr "Messages"
 #: src/pages/ProfilePage.tsx
 msgid "消息（{unread} 条未读）"
 msgstr "Messages ({unread} unread)"
+
+#: src/api/admin.ts
+msgid "涉及未成年人"
+msgstr "Involves minors"
 
 #: src/components/support/VoiceSheet.tsx
 #: src/pages/SupportPage.tsx
@@ -10108,6 +10411,11 @@ msgstr "Use this template"
 msgid "用户"
 msgstr "Users"
 
+#: src/components/support/AdminTicketsView.tsx
+msgctxt "工单里的发言人 / 提交人（单数：这位用户）"
+msgid "用户"
+msgstr "User"
+
 #: src/pages/AdminPage.tsx
 msgid "用户从 AI 客服转人工的问题，在这里回复"
 msgstr "Questions users escalated from the AI assistant to a person; reply here"
@@ -10115,6 +10423,11 @@ msgstr "Questions users escalated from the AI assistant to a person; reply here"
 #: src/pages/AdminPage.tsx
 msgid "用户列表"
 msgstr "user list"
+
+#. placeholder {0}: tk.note
+#: src/components/support/AdminTicketsView.tsx
+msgid "用户补充：{0}"
+msgstr "User's note: {0}"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "用户说"
@@ -10271,6 +10584,10 @@ msgstr "Leave empty to let the AI decide; 2–15 allowed"
 msgid "登录 / 注册"
 msgstr "Log in / Sign up"
 
+#: src/components/ReportButton.tsx
+msgid "登录之后才能举报。"
+msgstr "Sign in to report."
+
 #: src/components/BlockButton.tsx
 msgid "登录之后才能拉黑。"
 msgstr "Sign in to block people."
@@ -10295,9 +10612,22 @@ msgstr "Log in to collect cards and build decks"
 msgid "登录后可收入卡组"
 msgstr "Log in to add these cards"
 
+#: src/api/admin.ts
+msgid "登录已过期，请重新登录后再举报"
+msgstr "Your sign-in has expired. Sign in again to report"
+
 #: src/pages/WorkshopPage.tsx
 msgid "登录服务器后可以浏览别人分享的卡组"
 msgstr "Connect to the server to browse decks others have shared"
+
+#: src/api/blocking.ts
+msgid "登录状态过期了，重新登录之后再试。"
+msgstr "Your sign-in has expired. Sign in again and retry."
+
+#. placeholder {0}: res.status
+#: src/api/uploads.ts
+msgid "登记失败（{0}）"
+msgstr "Registration failed ({0})"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
@@ -10628,6 +10958,14 @@ msgstr "Cards shared by the community"
 msgid "视频不上传、不花 token：拖到某一帧，圈出要的人或物，裁出来的画面就是这张卡的参考图。"
 msgstr "The video isn't uploaded and costs no tokens: drag to a frame and circle the person or object you want — the cropped image becomes this card's reference image."
 
+#: src/api/uploads.ts
+msgid "视频最大 {maxMb}MB（这份约 {curMb}MB），请先压小再传。"
+msgstr "Videos can be at most {maxMb}MB (this one is about {curMb}MB). Make it smaller before uploading."
+
+#: src/api/uploads.ts
+msgid "视频最长 {maxMin} 分钟（当前约 {curSec} 秒），请先剪短再上传。"
+msgstr "Videos can be at most {maxMin} minutes long (this one is about {curSec} seconds). Trim it before uploading."
+
 #: src/components/CoverPicker.tsx
 msgid "视频加载超时，稍后再试"
 msgstr "The video took too long to load — try again later"
@@ -10640,9 +10978,17 @@ msgstr "The video took too long to load. The system pauses video decoding while 
 msgid "视频加载超时（应用切到后台会暂停解码，回到前台再试）"
 msgstr "The video took too long to load (decoding pauses while the app is in the background; come back to the app and try again)"
 
+#: src/api/uploads.ts
+msgid "视频存储拒绝了这一段：{msg}"
+msgstr "Video storage rejected this chunk: {msg}"
+
 #: src/studio/ui/FrameCard.tsx
 msgid "视频将在这两帧之间生成"
 msgstr "The video will be generated between these two frames"
+
+#: src/api/uploads.ts
+msgid "视频已经传上去了，但服务器没能确认（{why}）。我们会尽量把它回收掉。网络恢复后请重新选一次文件再传。"
+msgstr "The video was uploaded, but the server couldn't confirm it ({why}). We'll try to clean it up. Once your connection is back, pick the file again and re-upload."
 
 #: src/components/videoFrames.ts
 msgid "视频抽帧失败"
@@ -10655,6 +11001,10 @@ msgstr "Grabbing frames from the video timed out"
 #: src/components/VideoCardAnnotator.tsx
 msgid "视频提取卡组"
 msgstr "Deck from video"
+
+#: src/api/uploads.ts
+msgid "视频文件最大 {maxMb}MB（当前约 {curMb}MB），请压缩或剪短后重试。"
+msgstr "Video files can be at most {maxMb}MB (this one is about {curMb}MB). Compress or trim it and try again."
 
 #: src/studio/ui/projection.tsx
 msgid "视频时长"
@@ -10689,10 +11039,18 @@ msgstr "Couldn't read the video"
 msgid "视频载入中…"
 msgstr "Loading video…"
 
+#: src/api/uploads.ts
+msgid "视频边长至少 {minEdge} 像素（当前 {width}×{height}）：比这更小的画面，裁剪框怎么拉都达不到 AI 引擎的下限。"
+msgstr "Each side of the video must be at least {minEdge} pixels (this one is {width}×{height}): with a smaller frame, no crop box can reach the AI engine's minimum."
+
 #. placeholder {0}: (boxAtSec ?? 0).toFixed(1)
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "离开标记帧了，这里的落点会不准（画面上的人已经走动过）—— 回到第 {0} 秒再拖。"
 msgstr "You've moved off the marked frame, so drop targets here won't be accurate (people have moved) — go back to {0}s before dragging."
+
+#: src/api/client.ts
+msgid "离线模式：未配置 VITE_API_BASE"
+msgstr "Offline mode: VITE_API_BASE isn't configured"
 
 #: src/pages/CardDetailPage.tsx
 msgid "离线模式下加不了参考图"
@@ -10738,6 +11096,10 @@ msgstr "Remove"
 #: src/components/MaterialSheet.tsx
 msgid "移除 {0}"
 msgstr "Remove {0}"
+
+#: src/api/support.ts
+msgid "程序问题"
+msgstr "Bug"
 
 #: src/pages/SimpleModePage.tsx
 msgid "空 = AI 按上面那句话补画（计费）"
@@ -11281,6 +11643,10 @@ msgstr "Third-party login wasn't completed"
 msgid "第二种：<0>相邻两行的位置排反了</0>（清单说他是从左数第 2 个， 画面上他其实是第 3 个）。把这两行的位置互换过来就行，同样不用重炼。"
 msgstr "The second case: <0>two neighboring rows have their positions swapped</0> (the list says someone is 2nd from the left, but in the picture they're 3rd). Just swap the positions of those two rows — again, no re-render needed."
 
+#: src/api/stream.ts
+msgid "等了 {secs} 秒还没有回话，先停下了。稍后再试一次。"
+msgstr "No reply after {secs} seconds, so we stopped. Try again in a moment."
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "等了 {secs} 秒还没画出来。包可能太大，或者贴图 / moc3 有问题。"
 msgstr "Still not rendered after {secs} seconds. The bundle may be too large, or something is wrong with the textures or moc3."
@@ -11584,6 +11950,15 @@ msgstr "Edit profile"
 msgid "缩放"
 msgstr "Zoom"
 
+#: src/api/client.ts
+#: src/api/uploads.ts
+msgid "网络不可用"
+msgstr "Network unavailable"
+
+#: src/api/companion.ts
+msgid "网络不可用，检查网络后再试一次。"
+msgstr "Network unavailable. Check your connection and try again."
+
 #: src/components/flow/SegPlayer.tsx
 msgid "网络不好，或者这条链接已经过期（隔天打开的草稿常见）"
 msgstr "Poor network, or the link has expired (common for drafts opened the next day)"
@@ -11604,6 +11979,11 @@ msgstr "Flip to {otherTitle}"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "聊天记录、发过的文案、随手写的笔记都行"
 msgstr "Chat logs, posts you've written or quick notes all work"
+
+#. placeholder {0}: tk.contactEmail
+#: src/components/support/AdminTicketsView.tsx
+msgid "联系邮箱 {0}"
+msgstr "Contact email {0}"
 
 #: src/pages/SupportPage.tsx
 msgid "联系邮箱（选填，用手机号/QQ 登录的建议留一个）"
@@ -11739,6 +12119,10 @@ msgstr "Add at least one slot — a scheme is “which images one crop can produ
 msgid "至少要有一个图位不是「只展示」——全都只展示的话，出片时 AI 一张形象图都拿不到，画面里的人只能靠它自己编"
 msgstr "At least one slot must not be “display only” — if every slot is display only, the AI gets no reference images when rendering and has to make up the people on screen"
 
+#: src/api/admin.ts
+msgid "色情低俗"
+msgstr "Sexual or vulgar content"
+
 #: src/studio/scene/cardTexture.ts
 msgid "节点卡"
 msgstr "Node card"
@@ -11793,6 +12177,10 @@ msgstr "One fusion costs about {0} tokens and your balance isn't enough — top 
 msgid "融图中…"
 msgstr "Fusing…"
 
+#: src/api/admin.ts
+msgid "血腥暴力"
+msgstr "Gore or violence"
+
 #: src/pages/SupportPage.tsx
 msgid "补充给客服…"
 msgstr "Add a note for support…"
@@ -11800,6 +12188,10 @@ msgstr "Add a note for support…"
 #: src/pages/FlowPage.tsx
 msgid "补充要求：{reqText}"
 msgstr "Extra request: {reqText}"
+
+#: src/components/ReportButton.tsx
+msgid "补充说明（选填，管理员会看到）"
+msgstr "Extra details (optional; admins will see this)"
 
 #: src/pages/CustomCardPage.tsx
 msgid "补救：进卡片详情页，把没同步的那张<0>先删掉、再重新加一次</0>（图位已经满了的话必须先删 —— 满格时没有「+」按钮）。"
@@ -11829,6 +12221,10 @@ msgstr "Videos taken down by the platform are visible only to their author and a
 #: src/studio/canvasAgent.ts
 msgid "被拒绝了（原因没说清——这是个 bug，请反馈）"
 msgstr "Refused (no reason was given — this is a bug, please report it)"
+
+#: src/api/uploads.ts
+msgid "裁剪没成功：服务器没有返回可用的视频信息（可能是旧版服务端）"
+msgstr "The crop didn't work: the server didn't return usable video info (it may be an older server version)"
 
 #: src/components/flow/SkillPanel.tsx
 msgid "装"
@@ -11885,6 +12281,10 @@ msgstr "What to film"
 #: src/components/PortraitAuthPanel.tsx
 msgid "要授权的是<0>别人</0>？让他用自己的手机扫这个码 —— 活体认证必须在<1>他本人</1>的手机上、用他自己的火山账号做， 这正是这份授权有效的原因。"
 msgstr "Authorizing <0>someone else</0>? Have them scan this code with their own phone — the liveness check has to happen on <1>their own</1> phone with their own Volcano Engine account, which is exactly what makes the authorization valid."
+
+#: src/api/companion.ts
+msgid "要检查的模型包既没有文件也没有直传编号（这是调用方的 bug）"
+msgstr "The model package to check has neither a file nor a direct-upload ID (this is a bug in the caller)"
 
 #: src/studio/ui/AvatarPicker.tsx
 msgid "见习冒险家 · 她"
@@ -12022,6 +12422,11 @@ msgstr "Settings saved, but reloading the configuration failed ({why}). The new 
 msgid "评论"
 msgstr "Comments"
 
+#: src/api/admin.ts
+msgctxt "举报对象的类别（单数）"
+msgid "评论"
+msgstr "Comment"
+
 #. placeholder {0}: comments.length
 #: src/pages/VideoPage.tsx
 msgid "评论 {0}"
@@ -12138,6 +12543,7 @@ msgstr "Chat"
 msgid "试聊、微调、发布三步要先生成出草稿才能进。"
 msgstr "Chat, Fine-tune and Publish unlock once a draft has been generated."
 
+#: src/api/companion.ts
 #: src/studio/personaWizardStore.ts
 msgid "试聊失败了，稍后再试。"
 msgstr "The chat failed — try again later."
@@ -12244,6 +12650,18 @@ msgstr "Check the license statement before publishing."
 msgid "请先登录。"
 msgstr "Please sign in first."
 
+#: src/api/client.ts
+msgid "请求超时"
+msgstr "Request timed out"
+
+#: src/api/companion.ts
+msgid "请求超时了，检查网络后再试一次。"
+msgstr "The request timed out. Check your connection and try again."
+
+#: src/api/uploads.ts
+msgid "读不出这个视频的时长或尺寸（文件可能损坏），请换一个 mp4/mov 文件重试。"
+msgstr "Couldn't read this video's duration or dimensions (the file may be damaged). Try a different mp4/mov file."
+
 #: src/data/cardViews.ts
 msgid "读不出这张打包素材"
 msgstr "This bundled asset can't be read"
@@ -12292,6 +12710,7 @@ msgstr "Couldn't load the voice catalog"
 
 #: src/components/CoverPicker.tsx
 #: src/components/flow/CustomFrameSlots.tsx
+#: src/components/support/AdminTicketsView.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsStoragePage.tsx
@@ -12358,6 +12777,7 @@ msgstr "Adjust first and last frames"
 msgid "谢谢反馈"
 msgstr "Thanks for the feedback"
 
+#: src/api/support.ts
 #: src/pages/AdminPage.tsx
 msgid "账号"
 msgstr "Account"
@@ -12374,6 +12794,10 @@ msgstr "Paste script"
 #: src/pages/SupportModelNewPage.tsx
 msgid "贴图 {0} 张"
 msgstr "{0, plural, one {# texture} other {# textures}}"
+
+#: src/api/support.ts
+msgid "费用与退款"
+msgstr "Billing & refunds"
 
 #: src/pages/NotificationsPage.tsx
 msgid "赞了你的作品"
@@ -12606,6 +13030,10 @@ msgstr "No one has shared any decks yet"
 msgid "还没有任何举报"
 msgstr "No reports yet"
 
+#: src/components/support/AdminTicketsView.tsx
+msgid "还没有任何工单"
+msgstr "No tickets yet"
+
 #: src/pages/DiscoverPage.tsx
 #: src/pages/FeedPage.tsx
 msgid "还没有作品"
@@ -12827,6 +13255,14 @@ msgstr "This job was paid for the moment it was submitted, and it's most likely 
 #: src/studio/flowStore.ts
 msgid "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
 msgstr "This plan has no story yet — write something first so I know what to draw"
+
+#: src/api/uploads.ts
+msgid "这一小段传了 {hardMin} 分钟还没完成——网络太慢，换个网络再试"
+msgstr "This chunk has been uploading for {hardMin} minutes and still isn't done — the connection is too slow. Switch networks and try again"
+
+#: src/api/uploads.ts
+msgid "这一小段有 {stallSec} 秒没传出去一个字节——网络断了或太不稳，换个网络再试"
+msgstr "This chunk hasn't sent a single byte in {stallSec} seconds — the connection dropped or is too unstable. Switch networks and try again"
 
 #: src/pages/CustomCardPage.tsx
 msgid "这一张既当卡面，也当这张卡的主形象参考。"
@@ -13204,6 +13640,10 @@ msgstr "Was this answer helpful?"
 msgid "这个地址取不到（HTTP {0}）。回详情页刷新一下再试。"
 msgstr "This link can't be fetched (HTTP {0}). Go back to the details page, refresh and try again."
 
+#: src/api/uploads.ts
+msgid "这个文件是空的，选一段真正的视频再传。"
+msgstr "This file is empty — pick an actual video and upload again."
+
 #: src/studio/live2dUploadStore.ts
 msgid "这个文件读不了。"
 msgstr "This file can't be read."
@@ -13270,6 +13710,11 @@ msgstr "This clip was split, and the other half of the same segment is still on 
 msgid "这个用户"
 msgstr "this user"
 
+#: src/api/blocking.ts
+msgctxt "拉黑名单里拿不到昵称时顶上的名字（单独成一行）"
+msgid "这个用户"
+msgstr "Unknown user"
+
 #: src/pages/ProfilePage.tsx
 msgid "这个用户不存在"
 msgstr "This user doesn't exist"
@@ -13286,7 +13731,7 @@ msgstr "This video can't be decoded here (try an MP4 or WebM file)"
 msgid "这个链接里只有名字，没法向服务器确认是谁 · 下面只是本次刷到的那些"
 msgstr "This link only has a name, so the server can't confirm who it is · below are only the ones seen this session"
 
-#. placeholder {0}: CATEGORY_LABEL[handoffHint.category]
+#. placeholder {0}: categoryLabel(handoffHint.category)
 #: src/pages/SupportPage.tsx
 msgid "这个问题需要人工处理（{0}）。转人工会把这段对话一起交给客服，你不用再讲一遍。"
 msgstr "This needs a human agent ({0}). Talking to a human sends this conversation along, so you won't have to explain it again."
@@ -13346,6 +13791,10 @@ msgstr "This sentence is longer than {VIDEO_PROMPT_MAX} characters — the input
 msgid "这台手机上没有能接收视频的应用。文件已经在 App 内，装一个文件管理器再试。"
 msgstr "No app on this phone can receive videos. The file is already in the app — install a file manager and try again."
 
+#: src/api/uploads.ts
+msgid "这台服务器不支持回收模板视频（可能需要升级服务端）"
+msgstr "This server can't clean up template videos (it may need a server upgrade)"
+
 #: src/data/projects.ts
 msgid "这台服务器没有正常应答（工程可能还在）。"
 msgstr "This server didn't respond normally (the project may still be there)."
@@ -13354,9 +13803,29 @@ msgstr "This server didn't respond normally (the project may still be there)."
 msgid "这台服务器没配云端语音，试听不了；保存设置仍然有效。"
 msgstr "This server doesn't have cloud voices set up, so previews can't play. Your saved settings still apply."
 
+#: src/api/companion.ts
+msgid "这台服务器还不会解析 Live2D 模型包（需要更新服务端），暂时传不了。"
+msgstr "This server can't parse Live2D model packages yet (it needs a server update), so uploading isn't possible for now."
+
+#: src/api/admin.ts
+msgid "这台服务器还不支持下架（需要升级服务端）"
+msgstr "This server doesn't support takedowns yet (it needs a server upgrade)"
+
+#: src/api/admin.ts
+msgid "这台服务器还不支持举报（需要升级服务端）"
+msgstr "This server doesn't support reporting yet (it needs a server upgrade)"
+
 #: src/pages/AdminPage.tsx
 msgid "这台服务器还不支持删除（需要升级服务端）"
 msgstr "This server doesn't support deleting yet (the server needs an upgrade)"
+
+#: src/api/admin.ts
+msgid "这台服务器还不支持删除账号（需要升级服务端）"
+msgstr "This server doesn't support deleting accounts yet (it needs a server upgrade)"
+
+#: src/api/admin.ts
+msgid "这台服务器还不支持发平台通知（需要升级服务端）"
+msgstr "This server doesn't support platform notices yet (it needs a server upgrade)"
 
 #: src/pages/EditPage.tsx
 msgid "这台服务器还不支持回炉重做。等服务器更新后再试。"
@@ -13365,6 +13834,14 @@ msgstr "This server doesn't support remakes yet. Try again after the server is u
 #: src/data/projects.ts
 msgid "这台服务器还不支持回炉重做（没有工坊工程这个端点）"
 msgstr "This server doesn't support remaking yet (it has no Studio project endpoint)"
+
+#: src/api/admin.ts
+msgid "这台服务器还不支持处理举报（需要升级服务端）"
+msgstr "This server doesn't support handling reports yet (it needs a server upgrade)"
+
+#: src/api/admin.ts
+msgid "这台服务器还不支持封禁（需要升级服务端）"
+msgstr "This server doesn't support bans yet (it needs a server upgrade)"
 
 #: src/pages/ProfilePage.tsx
 msgid "这台服务器还不支持按作者取作品 · 下面只是本次刷到的那些，不是全部"
@@ -13377,6 +13854,26 @@ msgstr "This server can't search for people yet, so @mentions may not reach them
 #: src/data/projects.ts
 msgid "这台服务器还不支持留存工坊工程"
 msgstr "This server doesn't support keeping Studio projects yet"
+
+#: src/api/admin.ts
+msgid "这台服务器还不支持解封（需要升级服务端）"
+msgstr "This server doesn't support lifting bans yet (it needs a server upgrade)"
+
+#: src/api/admin.ts
+msgid "这台服务器还不支持重新上架（需要升级服务端）"
+msgstr "This server doesn't support restoring videos yet (it needs a server upgrade)"
+
+#: src/api/admin.ts
+msgid "这台服务器还不认识「{label}」这个理由（服务端版本比 App 旧）。你可以改选「其他」，把情况写在补充说明里，也可以直接发信到 {email}。"
+msgstr "This server doesn't recognize the reason “{label}” yet (the server is older than the app). You can pick “Other” instead and describe what happened in the extra details, or email {email} directly."
+
+#: src/api/admin.ts
+msgid "这台服务器还不认识「{label}」这个理由（服务端版本比 App 旧）。你可以改选「其他」，把情况写在补充说明里，也可以直接发信到 {email}（主题写「儿童安全」，我们会优先处理）。"
+msgstr "This server doesn't recognize the reason “{label}” yet (the server is older than the app). You can pick “Other” instead and describe what happened in the extra details, or email {email} directly (use the subject “Child safety” and we'll handle it first)."
+
+#: src/api/admin.ts
+msgid "这台服务器还不认识「{label}」这个理由（服务端版本比 App 旧）。你可以改选「其他」，把情况写在补充说明里。"
+msgstr "This server doesn't recognize the reason “{label}” yet (the server is older than the app). You can pick “Other” instead and describe what happened in the extra details."
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "这台服务器还没开直传，刚才走的是慢的那条 —— 包要经过我们的服务器，大包在手机网络上有可能超时。这条路上识别不会把包留下，所以最后<0>发布时还要再传一次</0>。"
@@ -13398,6 +13895,10 @@ msgstr "This server doesn't have the reports API yet (the server needs an upgrad
 msgid "这台服务器还没有可混音的 1.0 音色目录（服务端需要更新），先用「单音色」。"
 msgstr "This server has no 1.0 voice catalog for mixing yet (the server needs an update). Use “Single voice” for now."
 
+#: src/components/support/AdminTicketsView.tsx
+msgid "这台服务器还没有客服工单接口（需要升级服务端）"
+msgstr "This server doesn't have the support ticket API yet (it needs a server upgrade)"
+
 #: src/pages/AdminPage.tsx
 msgid "这台服务器还没有平台数据接口（需要升级服务端）"
 msgstr "This server doesn't have the platform stats API yet (the server needs an upgrade)"
@@ -13409,6 +13910,10 @@ msgstr "This server doesn't support people search yet · available after a serve
 #: src/pages/ProfilePage.tsx
 msgid "这台服务器还没有用户主页接口 · 服务端升级后即可看到完整资料"
 msgstr "This server doesn't have the user profile API yet · the full profile will show after a server upgrade"
+
+#: src/api/uploads.ts
+msgid "这台服务器还没有素材视频登记端点（请更新服务端）"
+msgstr "This server doesn't have the material video registration endpoint yet (update the server)"
 
 #: src/pages/NotificationsPage.tsx
 msgid "这台服务器还没有通知功能"
@@ -13821,6 +14326,10 @@ msgstr "Every action here is re-authorized by the server based on role.<0/>Don't
 msgid "进卡的那一张"
 msgstr "Image for the card"
 
+#: src/components/support/AdminTicketsView.tsx
+msgid "进行中"
+msgstr "Active"
+
 #: src/components/GenerationPill.tsx
 msgid "进行中…"
 msgstr "In progress…"
@@ -13989,6 +14498,10 @@ msgstr "Notifications"
 #: src/pages/AdminPage.tsx
 msgid "通知内容（以平台名义送达对方的消息页）"
 msgstr "Notice text (delivered to their messages page from the platform)"
+
+#: src/api/admin.ts
+msgid "通知内容不能为空"
+msgstr "The notice can't be empty"
 
 #: src/pages/AdminPage.tsx
 msgid "通知已发送"

@@ -25,7 +25,6 @@ import {
   ADMIN_NOTICE_MAX,
   BAN_REASON_MAX,
   TAKEDOWN_REASON_MAX,
-  TARGET_LABEL,
   banUser,
   deleteUserAccount,
   displayNameOf,
@@ -45,6 +44,7 @@ import {
   takedownReasonText,
   revokeTakedown,
   takedownVideo,
+  targetLabel,
   unbanUser,
   userIsBanned,
   type AdminListPage,
@@ -1331,7 +1331,7 @@ function ReportCard({
   return (
     <article className="rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
-        <span className="rounded bg-slate-700 px-1.5 py-0.5 text-slate-300">{TARGET_LABEL[report.targetType] ?? report.targetType}</span>
+        <span className="rounded bg-slate-700 px-1.5 py-0.5 text-slate-300">{targetLabel(report.targetType)}</span>
         {/* ★ 紧急件（涉及未成年人）画成红底而不是与其它理由同色：这一类的处置不是
             "下架就完了"，而是下架 + 封号 + **举报记录留住**（删号级联也不清）+ 依法报告，
             而且服务端已经把它排在

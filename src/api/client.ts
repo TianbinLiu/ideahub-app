@@ -9,6 +9,8 @@
 // 注意 server 的失败响应 HTTP 状态码也会是非 2xx，但个别老接口用 { error } 或纯文本，
 // 因此下面解析错误消息时对几种形状都做了兜底。
 
+import { t } from "@lingui/core/macro";
+
 /** 服务端基址，末尾斜杠已剥掉；空串 = 离线模式 */
 export const API_BASE: string = String(import.meta.env.VITE_API_BASE ?? "")
   .trim()
@@ -52,8 +54,8 @@ export class ApiError extends Error {
 
 export function getToken(): string | null {
   try {
-    const t = localStorage.getItem(TOKEN_KEY);
-    return t && t.length > 0 ? t : null;
+    const tok = localStorage.getItem(TOKEN_KEY);
+    return tok && tok.length > 0 ? tok : null;
   } catch {
     return null;
   }
@@ -137,7 +139,7 @@ async function request<T>(
 ): Promise<T> {
   if (!API_ON) {
     // 走到这里说明 data 层的分流写漏了：离线模式不该有任何请求。
-    throw new ApiError("离线模式：未配置 VITE_API_BASE", 0, "OFFLINE");
+    throw new ApiError(t`离线模式：未配置 VITE_API_BASE`, 0, "OFFLINE");
   }
 
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -162,7 +164,7 @@ async function request<T>(
     });
   } catch (e) {
     const aborted = e instanceof DOMException && e.name === "AbortError";
-    throw new ApiError(aborted ? "请求超时" : "网络不可用", 0, aborted ? "TIMEOUT" : "NETWORK");
+    throw new ApiError(aborted ? t`请求超时` : t`网络不可用`, 0, aborted ? "TIMEOUT" : "NETWORK");
   } finally {
     clearTimeout(timer);
     opts.signal?.removeEventListener("abort", onExternalAbort);

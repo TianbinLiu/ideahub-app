@@ -8,6 +8,7 @@
 //   3. 注册强制要 username + email + password（password ≥ 6），没有"手机号即账号"的口子；
 //      手机号登录走的是另一套 /api/auth/otp（authOtp.routes），本文件暂不封装。
 //   ——以上若 server 端后续加了别名字段，改这一处即可，data/account.ts 不用动。
+import { t } from "@lingui/core/macro";
 import { API_BASE, apiGet, apiPost, apiPut, getToken, setToken } from "./client";
 
 /** server 的 serializeAuthUser 输出；displayName/bio 只有 /api/me/profile 那条返回带 */
@@ -47,7 +48,7 @@ export interface AuthResult {
 }
 
 function readAuth(res: { token?: string; user?: ApiUser }): AuthResult {
-  if (!res.token || !res.user) throw new Error("服务端未返回 token/user");
+  if (!res.token || !res.user) throw new Error(t`服务端未返回 token/user`);
   return { token: res.token, user: res.user };
 }
 
@@ -104,7 +105,7 @@ export async function uploadAvatar(blob: Blob, filename = "avatar.webp"): Promis
     body: fd,
   });
   const data = (await res.json().catch(() => ({}))) as { avatarUrl?: string; message?: string; error?: string };
-  if (!res.ok) throw new Error(data.message || data.error || `头像上传失败（HTTP ${res.status}）`);
+  if (!res.ok) throw new Error(data.message || data.error || t`头像上传失败（HTTP ${res.status}）`);
   return data.avatarUrl ?? null;
 }
 
@@ -143,7 +144,7 @@ export async function deactivateRemote(confirmUsername: string): Promise<void> {
  */
 export async function fetchMe(): Promise<ApiUser> {
   const res = await apiGet<{ user?: ApiUser }>("/api/auth/me");
-  if (!res.user) throw new Error("服务端未返回 user");
+  if (!res.user) throw new Error(t`服务端未返回 user`);
   return res.user;
 }
 
@@ -202,7 +203,7 @@ type OtpUser = { id?: string; _id?: string; username?: string; email?: string; r
 function readOtpAuth(res: { token?: string; user?: OtpUser }): AuthResult {
   const u = res.user;
   const id = u?._id ?? u?.id;
-  if (!res.token || !id) throw new Error("服务端未返回 token/user");
+  if (!res.token || !id) throw new Error(t`服务端未返回 token/user`);
   setToken(res.token);
   return { token: res.token, user: { _id: id, username: u?.username ?? "", email: u?.email, role: u?.role } };
 }
@@ -265,14 +266,14 @@ export function oauthStartUrl(provider: string, redirect: string): string {
  */
 export async function qqNativeLogin(code: string): Promise<{ token: string }> {
   const r = await apiPost<{ token?: string }>("/api/auth/oauth/qq/native", { code }, { auth: false });
-  if (!r.token) throw new Error("服务端未返回登录凭证");
+  if (!r.token) throw new Error(t`服务端未返回登录凭证`);
   return { token: r.token };
 }
 
 /** 微信版同款：只发 code，身份由服务端拿 AppSecret 换（unionid 优先）。理由见 qqNativeLogin */
 export async function wechatNativeLogin(code: string): Promise<{ token: string }> {
   const r = await apiPost<{ token?: string }>("/api/auth/oauth/wechat/native", { code }, { auth: false });
-  if (!r.token) throw new Error("服务端未返回登录凭证");
+  if (!r.token) throw new Error(t`服务端未返回登录凭证`);
   return { token: r.token };
 }
 

@@ -18,9 +18,9 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
+import { Trans, useLingui } from "@lingui/react/macro";
 import {
   REPORT_REASONS,
-  TARGET_LABEL,
   reportErrorText,
   submitReport,
   type ReportReason,
@@ -62,6 +62,7 @@ export default function ReportButton({
   const user = useCurrentUser();
   const auth = useAuthState();
   const navigate = useNavigate();
+  const { t } = useLingui();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<ReportReason | "">("");
   const [detail, setDetail] = useState("");
@@ -71,6 +72,9 @@ export default function ReportButton({
   const [done, setDone] = useState(false);
 
   if (mine || !isRemoteMode() || !targetId) return null;
+
+  // ★ 三类各写整句，不拿类别名往「举报这条…」里拼
+  const title = targetType === "video" ? t`举报这条作品` : targetType === "comment" ? t`举报这条评论` : t`举报这条弹幕`;
 
   async function submit() {
     if (busy || !reason) return;
@@ -98,7 +102,7 @@ export default function ReportButton({
       disabled={done}
       className={`text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40 ${className}`}
     >
-      {done ? "已举报" : "举报"}
+      {done ? t`已举报` : t({ message: "举报", context: "内容旁那颗小键：举报这一条（动作，不是管理后台的举报列表）" })}
     </button>
   );
 
@@ -122,7 +126,7 @@ export default function ReportButton({
             style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
           >
             <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-bold text-slate-100">举报这条{TARGET_LABEL[targetType]}</span>
+              <span className="text-sm font-bold text-slate-100">{title}</span>
               <CloseButton chip="sm" size={13} align="end" onClick={() => setOpen(false)} />
             </div>
 
@@ -132,16 +136,16 @@ export default function ReportButton({
             ) : !user ? (
               // 未登录也能刷首页，所以这一步很常见。别做成灰按钮——说清楚并给出路
               <div className="pb-3">
-                <p className="mb-3 text-xs text-slate-400">登录之后才能举报。</p>
+                <p className="mb-3 text-xs text-slate-400"><Trans>登录之后才能举报。</Trans></p>
                 <button
                   onClick={() => navigate("/login?next=/")}
                   className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
                 >
-                  去登录
+                  <Trans>去登录</Trans>
                 </button>
               </div>
             ) : done ? (
-              <p className="pb-6 text-sm text-emerald-300">已收到，管理员会尽快处理。</p>
+              <p className="pb-6 text-sm text-emerald-300"><Trans>已收到，管理员会尽快处理。</Trans></p>
             ) : (
               <>
                 <div className="flex flex-wrap gap-2">
@@ -153,7 +157,7 @@ export default function ReportButton({
                         reason === r.id ? "border-brand bg-brand/15 text-brand" : "border-slate-700 bg-black/20 text-slate-300"
                       }`}
                     >
-                      {r.label}
+                      {t(r.label)}
                     </button>
                   ))}
                 </div>
@@ -162,7 +166,7 @@ export default function ReportButton({
                   onChange={(e) => setDetail(e.target.value.slice(0, DETAIL_MAX))}
                   rows={2}
                   maxLength={DETAIL_MAX}
-                  placeholder="补充说明（选填，管理员会看到）"
+                  placeholder={t`补充说明（选填，管理员会看到）`}
                   className="mt-3 w-full resize-none rounded-xl border border-slate-700 bg-black/30 px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                 />
                 {/* 失败就地说清楚（"你已经举报过了"也在这儿），并且不关窗 */}
@@ -172,7 +176,7 @@ export default function ReportButton({
                   disabled={!reason || busy}
                   className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                 >
-                  {busy ? "提交中…" : reason ? "提交举报" : "先选一个理由"}
+                  {busy ? t`提交中…` : reason ? t`提交举报` : t`先选一个理由`}
                 </button>
               </>
             )}

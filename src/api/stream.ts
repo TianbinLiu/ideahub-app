@@ -10,6 +10,7 @@
  * ★ 事件的**语义**仍归各自的调用方：这里只管把 `{event, data}` 原样交出去，不认识 sentence / handoff 这些名字。
  * ★ `error` 事件与非 2xx 都 reject；正常读完 resolve。abort 由调用方给 signal，原样抛 AbortError。
  */
+import { t } from "@lingui/core/macro";
 import { API_BASE, ApiError, getToken } from "./client";
 import { createSseParser, type SseEvent } from "../companion/sse";
 
@@ -102,7 +103,8 @@ export async function streamSseRequest(
         signal: ctrl.signal,
       });
     } catch (e) {
-      if (stalled) throw new ApiError(`等了 ${Math.round(SSE_STALL_MS / 1000)} 秒还没有回话，先停下了。稍后再试一次。`, 0, "TIMEOUT");
+      const secs = Math.round(SSE_STALL_MS / 1000);
+      if (stalled) throw new ApiError(t`等了 ${secs} 秒还没有回话，先停下了。稍后再试一次。`, 0, "TIMEOUT");
       throw e;
     }
     if (!res.ok) await throwHttp(res);
@@ -132,7 +134,8 @@ export async function streamSseRequest(
           // eslint-disable-next-line no-await-in-loop -- 就是要一块一块读
           chunk = await reader.read();
         } catch (e) {
-          if (stalled) throw new ApiError(`回话说到一半停住了（${Math.round(SSE_STALL_MS / 1000)} 秒没有新内容），先停下了。`, 0, "TIMEOUT");
+          const secs = Math.round(SSE_STALL_MS / 1000);
+          if (stalled) throw new ApiError(t`回话说到一半停住了（${secs} 秒没有新内容），先停下了。`, 0, "TIMEOUT");
           throw e;
         }
         if (chunk.done) break;

@@ -15,6 +15,8 @@
 //   **200 + index.html** 而不是 404（CLAUDE.md 里有整段说明）。于是"老服务端根本
 //   没有举报功能"会伪装成"一条举报都没有" —— 管理员打开后台看到空列表，会以为
 //   天下太平（铁律八的典型形态）。与 api/notifications.ts 的 readPage 同一招。
+import { i18n, type MessageDescriptor } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
 import { apiDelete, apiGet, apiPatch, apiPost, ApiError } from "./client";
 import { authorName, type ApiAuthor, type ApiVideo } from "./branch";
 
@@ -54,8 +56,9 @@ const PATHS = {
 // ── 举报理由 ──────────────────────────────────────────────
 //
 // ★ 这是**契约值**：服务端的 zod 用同一张枚举表校验 reason。举报面板画选项、
-//   管理页把 id 翻回中文，两边都从这里取 —— 分两处写的后果是管理员看到一个
+//   管理页把 id 翻回人话，两边都从这里取 —— 分两处写的后果是管理员看到一个
 //   认不出来的 `abuse`，而那正是他判断要不要下架的主要依据。
+//   标签是 msg 描述符，显示时再按界面语言翻（reasonLabel / takedownReasonText）。
 export const REPORT_REASONS = [
   // ★★ csae 排第一、也**必须**排第一：它是 Google Play 上架的硬要求（UGC 儿童安全
   //   标准要求应用内有报告 CSAE 的入口），而排在第七位的选项等于没有。
@@ -63,13 +66,13 @@ export const REPORT_REASONS = [
   //   **举报记录要留住（不随删号级联清掉）**、
   //   还要依法报告主管机关"。合并成一个 key 会让它沉进刷屏举报里 —— 服务端靠这个 key
   //   把它顶到待处理队列最前（Report.URGENT_REASONS + priority）。
-  { id: "csae", label: "涉及未成年人" },
-  { id: "porn", label: "色情低俗" },
-  { id: "violence", label: "血腥暴力" },
-  { id: "abuse", label: "人身攻击 / 辱骂" },
-  { id: "spam", label: "垃圾营销 / 刷屏" },
-  { id: "infringe", label: "侵权 / 冒用他人作品" },
-  { id: "other", label: "其他" },
+  { id: "csae", label: msg`涉及未成年人` },
+  { id: "porn", label: msg`色情低俗` },
+  { id: "violence", label: msg`血腥暴力` },
+  { id: "abuse", label: msg`人身攻击 / 辱骂` },
+  { id: "spam", label: msg`垃圾营销 / 刷屏` },
+  { id: "infringe", label: msg`侵权 / 冒用他人作品` },
+  { id: "other", label: msg`其他` },
 ] as const;
 
 export type ReportReason = (typeof REPORT_REASONS)[number]["id"];
@@ -84,7 +87,7 @@ export type ReportReason = (typeof REPORT_REASONS)[number]["id"];
 export function takedownReasonText(reason: string | null | undefined): string {
   const key = (reason ?? "").trim();
   if (!key) return "";
-  return REPORT_REASONS.find((r) => r.id === key)?.label ?? key;
+  return reasonLabel(key);
 }
 
 /**
@@ -113,20 +116,27 @@ export function isUrgentReport(r: { reason: string; priority?: number }): boolea
   return typeof r.priority === "number" ? r.priority > 0 : isUrgentReason(r.reason);
 }
 
-/** id → 中文。认不出的 id（服务端加了新理由而这个包还没更新）**原样显示**，
+/** id → 界面语言的标签。认不出的 id（服务端加了新理由而这个包还没更新）**原样显示**，
  *  不要退成"其他" —— 那会把一条真实的举报理由悄悄改写成另一个意思（铁律七/八）。 */
 export function reasonLabel(id: string): string {
-  return REPORT_REASONS.find((r) => r.id === id)?.label ?? id;
+  const r = REPORT_REASONS.find((x) => x.id === id);
+  return r ? i18n._(r.label) : id;
 }
 
 /** 被举报的东西是哪一类。三类都要能举报（作品 / 评论 / 弹幕） */
 export type ReportTargetType = "video" | "comment" | "danmaku";
 
-export const TARGET_LABEL: Record<ReportTargetType, string> = {
-  video: "作品",
-  comment: "评论",
-  danmaku: "弹幕",
+const TARGET_LABEL: Record<ReportTargetType, MessageDescriptor> = {
+  video: msg({ message: "作品", context: "举报对象的类别（单数）" }),
+  comment: msg({ message: "评论", context: "举报对象的类别（单数）" }),
+  danmaku: msg({ message: "弹幕", context: "举报对象的类别（单数）" }),
 };
+
+/** 被举报的东西是哪一类 → 界面语言的名字（管理后台举报行的角标）。认不出的类别原样显示，理由同 reasonLabel */
+export function targetLabel(type: string): string {
+  const d = TARGET_LABEL[type as ReportTargetType];
+  return d ? i18n._(d) : type;
+}
 
 /** 管理员对一条举报做的处置。★ 三个动作的语义差别见 AdminPage 的按钮注释 */
 export type ReportAction = "takedown" | "dismiss" | "delete";
@@ -255,7 +265,7 @@ export async function listReports(status: "pending" | "resolved" | "dismissed" |
  */
 export async function resolveReport(id: string, action: ReportAction): Promise<ApiReport | null> {
   const res = await apiPatch<unknown>(PATHS.resolve(id), { action });
-  if (!isRecord(res)) throw new ApiError("这台服务器还不支持处理举报（需要升级服务端）", 0, "UNSUPPORTED");
+  if (!isRecord(res)) throw new ApiError(t`这台服务器还不支持处理举报（需要升级服务端）`, 0, "UNSUPPORTED");
   return (res.report as ApiReport | undefined) ?? null;
 }
 
@@ -444,9 +454,10 @@ export async function listAdminDanmaku(opts?: AdminListQuery): Promise<AdminList
 //   （SPA 回退的 HTML / 老服务端）就抛 UNSUPPORTED —— 假装成功是最坏的做法（铁律八）。
 // ★ 失败一律**抛出去**不吞，页面留在原地写红字。
 
-function assertActed(res: unknown, what: string): Record<string, unknown> {
+// ★ 「还不支持」那句话由调用方按动作整句给，不拿动词往句子里拼（换成英文就不通了）。
+function assertActed(res: unknown, unsupported: string): Record<string, unknown> {
   if (isRecord(res) && res.ok === true) return res;
-  throw new ApiError(`这台服务器还不支持${what}（需要升级服务端）`, 0, "UNSUPPORTED");
+  throw new ApiError(unsupported, 0, "UNSUPPORTED");
 }
 
 /** 封禁原因上限。镜像服务端 schema（与下架原因同一个数）；超了服务端 400 */
@@ -463,14 +474,14 @@ export const TAKEDOWN_REASON_MAX = 500;
  */
 export async function banUser(id: string, reason: string): Promise<ApiAdminUser | null> {
   const r = reason.trim();
-  if (!r) throw new ApiError("封禁必须写明原因", 0, "REASON_REQUIRED");
-  const res = assertActed(await apiPost<unknown>(PATHS.ban(id), { reason: r }), "封禁");
+  if (!r) throw new ApiError(t`封禁必须写明原因`, 0, "REASON_REQUIRED");
+  const res = assertActed(await apiPost<unknown>(PATHS.ban(id), { reason: r }), t`这台服务器还不支持封禁（需要升级服务端）`);
   return (res.user as ApiAdminUser | undefined) ?? null;
 }
 
 /** 解封（幂等：对没封的人调也成功，后台重复点不该报错） */
 export async function unbanUser(id: string): Promise<ApiAdminUser | null> {
-  const res = assertActed(await apiDelete<unknown>(PATHS.ban(id)), "解封");
+  const res = assertActed(await apiDelete<unknown>(PATHS.ban(id)), t`这台服务器还不支持解封（需要升级服务端）`);
   return (res.user as ApiAdminUser | undefined) ?? null;
 }
 
@@ -482,29 +493,29 @@ export async function unbanUser(id: string): Promise<ApiAdminUser | null> {
 export async function deleteUserAccount(id: string): Promise<Record<string, number> | null> {
   // ★ 把服务端回的级联清单（各删了多少条）带出去给 UI 显示（契约明文要求）：
   //   这是全后台威力最大的按钮，按下之后必须看得到后果 ——「删了个寂寞」要有症状（铁律五）
-  const res = assertActed(await apiDelete<unknown>(PATHS.user(id)), "删除账号");
+  const res = assertActed(await apiDelete<unknown>(PATHS.user(id)), t`这台服务器还不支持删除账号（需要升级服务端）`);
   const removed = res.removed;
   return isRecord(removed) ? (removed as Record<string, number>) : null;
 }
 
 /** 给单个用户发一条平台通知（ADMIN_NOTICE，自由文本）。text 必填 */
 export async function notifyUser(id: string, text: string): Promise<void> {
-  const t = text.trim();
-  if (!t) throw new ApiError("通知内容不能为空", 0, "TEXT_REQUIRED");
-  assertActed(await apiPost<unknown>(PATHS.notify(id), { text: t }), "发平台通知");
+  const body = text.trim();
+  if (!body) throw new ApiError(t`通知内容不能为空`, 0, "TEXT_REQUIRED");
+  assertActed(await apiPost<unknown>(PATHS.notify(id), { text: body }), t`这台服务器还不支持发平台通知（需要升级服务端）`);
 }
 
 /** 下架一条作品（可逆）。reason 必填：作品从作者眼前消失还不说为什么，比不下架更糟 */
 export async function takedownVideo(id: string, reason: string): Promise<ApiVideo | null> {
   const r = reason.trim();
-  if (!r) throw new ApiError("下架必须写明原因", 0, "REASON_REQUIRED");
-  const res = assertActed(await apiPost<unknown>(PATHS.takedown(id), { reason: r }), "下架");
+  if (!r) throw new ApiError(t`下架必须写明原因`, 0, "REASON_REQUIRED");
+  const res = assertActed(await apiPost<unknown>(PATHS.takedown(id), { reason: r }), t`这台服务器还不支持下架（需要升级服务端）`);
   return (res.video as ApiVideo | undefined) ?? null;
 }
 
 /** 撤销下架（重新上架）。服务端幂等：对没下架的作品调也 200 */
 export async function revokeTakedown(id: string): Promise<ApiVideo | null> {
-  const res = assertActed(await apiDelete<unknown>(PATHS.takedown(id)), "重新上架");
+  const res = assertActed(await apiDelete<unknown>(PATHS.takedown(id)), t`这台服务器还不支持重新上架（需要升级服务端）`);
   return (res.video as ApiVideo | undefined) ?? null;
 }
 
@@ -537,7 +548,7 @@ export async function submitReport(input: SubmitReportInput): Promise<void> {
     detail: input.detail?.trim() || undefined,
   });
   if (!isRecord(res) || (res.ok !== true && !isRecord(res.report))) {
-    throw new ApiError("这台服务器还不支持举报（需要升级服务端）", 0, "UNSUPPORTED");
+    throw new ApiError(t`这台服务器还不支持举报（需要升级服务端）`, 0, "UNSUPPORTED");
   }
 }
 
@@ -550,26 +561,29 @@ export async function submitReport(input: SubmitReportInput): Promise<void> {
  */
 export function reportErrorText(e: unknown, ctx?: { reason?: string; supportEmail?: string }): string {
   if (e instanceof ApiError) {
-    if (e.status === 409) return "你已经举报过这一条了，管理员还在处理";
-    if (e.status === 401) return "登录已过期，请重新登录后再举报";
-    if (e.status === 429) return "举报太频繁了，过一会儿再试";
-    if (e.status === 404 || e.code === "UNSUPPORTED") return "这台服务器还不支持举报（需要升级服务端）";
+    if (e.status === 409) return t`你已经举报过这一条了，管理员还在处理`;
+    if (e.status === 401) return t`登录已过期，请重新登录后再举报`;
+    if (e.status === 429) return t`举报太频繁了，过一会儿再试`;
+    if (e.status === 404 || e.code === "UNSUPPORTED") return t`这台服务器还不支持举报（需要升级服务端）`;
     // ★★ 400 = 服务端的 zod 拒了。实践中只可能是 `reason` —— 其余入参（targetId 的形状、
     //   detail 长度）客户端都已经挡住了。而服务端**可能比这个包旧**（跨仓上线本该服务端先上，
     //   但用户手里的版本组合我们管不着）：那时原样回 `e.message` 就是一句裸的英文
     //   "Validation error"，而他要报的可能正是最紧急的那一类，屏幕上还没有任何出路。
     //   ⇒ 说人话，并给两条真能走的路：换「其他」+ 写清楚，或直接发信。
     if (e.status === 400 && ctx?.reason) {
-      const mail = ctx.supportEmail ? `，也可以直接发信到 ${ctx.supportEmail}` : "";
-      return (
-        `这台服务器还不认识「${reasonLabel(ctx.reason)}」这个理由（服务端版本比 App 旧）。` +
-        `你可以改选「其他」，把情况写在补充说明里${mail}` +
-        (isUrgentReason(ctx.reason) ? "（主题写「儿童安全」，我们会优先处理）。" : "。")
-      );
+      const label = reasonLabel(ctx.reason);
+      const email = ctx.supportEmail;
+      // ★ 三种说法整句各写一份（有没有信箱 × 是不是紧急件），不拼碎片。
+      //   没有信箱时不提「主题写儿童安全」：那句是教人怎么写信的，没有信箱可写就是一句空话。
+      if (!email) return t`这台服务器还不认识「${label}」这个理由（服务端版本比 App 旧）。你可以改选「其他」，把情况写在补充说明里。`;
+      if (isUrgentReason(ctx.reason)) {
+        return t`这台服务器还不认识「${label}」这个理由（服务端版本比 App 旧）。你可以改选「其他」，把情况写在补充说明里，也可以直接发信到 ${email}（主题写「儿童安全」，我们会优先处理）。`;
+      }
+      return t`这台服务器还不认识「${label}」这个理由（服务端版本比 App 旧）。你可以改选「其他」，把情况写在补充说明里，也可以直接发信到 ${email}。`;
     }
     return e.message;
   }
-  return e instanceof Error ? e.message : "举报没提交上去，请重试";
+  return e instanceof Error ? e.message : t`举报没提交上去，请重试`;
 }
 
 /** 举报人/被举报内容作者的显示名。复用 branch.authorName（同一条规则，铁律六） */
@@ -580,6 +594,6 @@ export function displayNameOf(a: ApiAuthor | string | null | undefined): string 
 /** 服务端时间（ISO 串或毫秒）→ 毫秒。与 data 层各处的 toMs 同一套兜底 */
 export function reportTimeMs(v: string | number | undefined): number {
   if (typeof v === "number") return v;
-  const t = v ? Date.parse(v) : NaN;
-  return Number.isNaN(t) ? 0 : t;
+  const ms = v ? Date.parse(v) : NaN;
+  return Number.isNaN(ms) ? 0 : ms;
 }
