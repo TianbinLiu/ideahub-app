@@ -997,9 +997,9 @@ msgstr "{noun} {0} was removed by the template's author while checking the slots
 msgid "{noun} {0} 这个位子已经被模板作者在核对{noun}时删掉了（多半是因为画面上那个人根本没被换成人偶）"
 msgstr "{noun} {0} was removed by the template's author while checking the slots (most likely because that person was never turned into a mannequin)"
 
-#: src/pages/ProfilePage.tsx
-msgid "{said}。付款完成后额度会自动到账，这里的余额也会跟着更新。"
-msgstr "{said}. Once payment completes, the tokens are credited automatically and the balance here updates too."
+#: src/data/account.ts
+msgid "{reason}——卡在这台设备上有，但换台设备或重启后可能就没了。"
+msgstr "{reason} — the card is on this device, but it may be gone after you switch devices or restart."
 
 #: src/pages/ProfilePage.tsx
 msgid "{segCount} 段 · {when}"
@@ -1220,10 +1220,24 @@ msgstr "“{0}” is minted"
 msgid "「{ch}」"
 msgstr "“{ch}”"
 
+#: src/data/account.ts
+msgid "「{label}」单段消耗超过免费版整月额度（{quota}），升级套餐后可用"
+msgstr "One segment on the “{label}” tier costs more than the Free plan's entire monthly token allowance ({quota}) — upgrade your plan to use it"
+
 #. placeholder {0}: hits.length
 #: src/studio/canvasAgent.ts
 msgid "「{name}」对上了 {0} 张卡（{names}），说全名"
 msgstr "“{name}” matches {0} cards ({names}). Use the full name."
+
+#. 列表里的一项（名词短语，不加句号）：没能转存上去的那一张形象参考图，tag 是图位名（面部特写 / 全身立绘…，老卡可能是方案里存下的中文名）。调用方用分隔符把几项连成一串，再放进自己的句子里
+#: src/data/account.ts
+msgid "「{name}」的{tag}"
+msgstr "{tag} for “{name}”"
+
+#. 列表里的一项（名词短语，不加句号）：这张卡的形象参考图没能挂到服务器那份卡上。调用方用分隔符把几项连成一串，再放进自己的句子里
+#: src/data/account.ts
+msgid "「{name}」的形象参考图"
+msgstr "Reference images for “{name}”"
 
 #. 可能紧跟在上一句后面拼接，英文译文开头要留一个空格
 #: src/pages/CustomCardPage.tsx
@@ -2873,6 +2887,10 @@ msgstr "The downloaded size doesn't match ({gotSize} / expected {wantSize}), so 
 msgid "下下来的文件不见了，这一次没算数。再点一次。"
 msgstr "The downloaded file is gone, so this attempt doesn't count. Tap again."
 
+#: src/pages/ProfilePage.tsx
+msgid "下单失败"
+msgstr "Couldn't place the order"
+
 #: src/components/flow/SkillPanel.tsx
 #: src/components/VideoCardAnnotator.tsx
 msgid "下架"
@@ -3392,6 +3410,10 @@ msgstr "Positions not checked yet: the AI's “Nth from the left” order is onl
 #: src/components/TokenCost.tsx
 msgid "余额 {0} 不够，<0>去充值</0>"
 msgstr "Balance {0} isn't enough. <0>Top up</0>"
+
+#: src/data/account.ts
+msgid "余额 {amount}"
+msgstr "Balance {amount}"
 
 #: src/studio/canvasAgent.ts
 msgid "余额不够 AI 指挥（400/句）。"
@@ -4466,6 +4488,10 @@ msgstr "Share or save this video"
 msgid "分享这条作品"
 msgstr "Share this video"
 
+#: src/data/account.ts
+msgid "分享需要先连接服务器并登录"
+msgstr "Sharing needs a server connection and sign-in"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "分享需要先连接服务器并登录 —— 离线库里没有「别人」。"
 msgstr "Sharing needs a server connection and sign-in; an offline library has no “others”."
@@ -5043,6 +5069,10 @@ msgstr "Decks"
 msgid "卡组 {0}"
 msgstr "Deck {0}"
 
+#: src/data/account.ts
+msgid "卡组不存在"
+msgstr "This deck doesn't exist"
+
 #: src/pages/DeckDetailPage.tsx
 msgid "卡组不存在或不属于你"
 msgstr "This deck doesn't exist or isn't yours"
@@ -5078,6 +5108,10 @@ msgstr "Deck title"
 #: src/pages/DeckDetailPage.tsx
 msgid "卡组详情"
 msgstr "Deck details"
+
+#: src/data/account.ts
+msgid "卡组还没同步到服务器，请稍后再试"
+msgstr "This deck hasn't synced to the server yet. Try again later"
 
 #. placeholder {0}: partial.reason
 #: src/pages/CustomCardPage.tsx
@@ -5141,6 +5175,7 @@ msgstr "Reason: {0}"
 msgid "原因：{0}。<0>它现在只在这次会话里活着</0> —— 你现在能在卡片库里看到它，但下次重开 App 就会没有（登录后 App 会用服务器上那份覆盖本机）。<1>别退出这一页</1>，等网络好一点再点一次「重试」。"
 msgstr "Reason: {0}. <0>It only exists in this session right now</0> — you can see it in your card library, but it will be gone the next time you open the app (after sign-in, the app replaces this device's copy with the server's). <1>Don't leave this page</1>; tap “Retry” again once the network improves."
 
+#: src/data/account.ts
 #: src/data/projects.ts
 #: src/pages/EditPage.tsx
 msgid "原因不明"
@@ -7419,6 +7454,10 @@ msgstr "Purchased"
 msgid "已过 {forkCount} 个分支点"
 msgstr "{forkCount, plural, one {Passed # branch point} other {Passed # branch points}}"
 
+#: src/data/account.ts
+msgid "已连接服务器：请用密码登录"
+msgstr "Connected to the server: sign in with your password"
+
 #: src/pages/LoginPage.tsx
 msgid "已连接服务器：账号与作品跨设备同步。"
 msgstr "Connected to the server: your account and videos sync across devices."
@@ -7713,6 +7752,14 @@ msgstr "You're in offline mode (not connected to a server). Admin features need 
 #: src/api/companion.ts
 msgid "当前是离线模式（没配服务器地址），这个功能需要联网。"
 msgstr "You're in offline mode (no server address configured); this feature needs a connection."
+
+#: src/pages/ProfilePage.tsx
+msgid "当前未连接服务器，暂时无法充值，请联网后重试"
+msgstr "Not connected to the server, so you can't top up right now. Connect to the internet and try again"
+
+#: src/pages/ProfilePage.tsx
+msgid "当前未连接服务器，暂时无法订阅，请联网后重试"
+msgstr "Not connected to the server, so you can't subscribe right now. Connect to the internet and try again"
 
 #: src/components/DanmakuInput.tsx
 msgid "当前离线，这条弹幕只存在这台设备上"
@@ -9438,6 +9485,10 @@ msgstr "{collectGone, plural, one {# saved video can't be opened: the creator ma
 msgid "有 {collectUnknown} 条这会儿没取回来（网络没通）——它们还在，不是被删了。"
 msgstr "{collectUnknown, plural, one {# saved video couldn't be loaded right now (no network) — it's still there, not deleted.} other {# saved videos couldn't be loaded right now (no network) — they're still there, not deleted.}}"
 
+#: src/data/account.ts
+msgid "有 {count} 张卡没有有效的卡片编号，存不进你的卡片库（多半是这条作品是老版本发布的）"
+msgstr "{count, plural, one {# card has no valid card ID and can't be saved to your card library} other {# cards have no valid card ID and can't be saved to your card library}} (most likely this video was published with an older version of the app)"
+
 #: src/pages/VideoPage.tsx
 msgid "有 {dropped} 个 @ 没能送达（对方不会收到通知）"
 msgstr "{dropped, plural, one {# @mention wasn't delivered (they won't be notified)} other {# @mentions weren't delivered (they won't be notified)}}"
@@ -9570,6 +9621,10 @@ msgstr "Friend / senior / assistant / buddy… this noticeably affects how they 
 msgid "服务协议与隐私政策"
 msgstr "User Agreement and Privacy Policy"
 
+#: src/data/account.ts
+msgid "服务器一张都没收下（{count} 张）——这些卡只在这台设备上，重启后会没"
+msgstr "{count, plural, one {The server didn't accept the card (# card) — it's only on this device and will be gone after a restart} other {The server didn't accept any of the cards (# cards) — they're only on this device and will be gone after a restart}}"
+
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "服务器上有一发你付过钱的成片还没取回"
 msgstr "A video you paid for is still waiting on the server to be recovered"
@@ -9587,9 +9642,21 @@ msgstr "The server is unpacking and detecting…"
 msgid "服务器没有返回建好的模型（可能是旧版服务端），没有创建成功。"
 msgstr "The server didn't return the created model (it may be an older server version), so it wasn't created."
 
+#: src/data/account.ts
+msgid "服务器没有返回这张卡（可能作者刚把它撤下了）。"
+msgstr "The server didn't return this card (its creator may have just unshared it)."
+
 #: src/api/uploads.ts
 msgid "服务器没有返回这段视频的登记信息（可能是旧版服务端），白模模板没有创建。"
 msgstr "The server didn't return this video's registration info (it may be an older server version), so the blockout template wasn't created."
+
+#: src/data/account.ts
+msgid "服务器没能删掉这个卡组（{why}）。本地这份先留着——删了它下次登录也会回来。"
+msgstr "The server couldn't delete this deck ({why}). The copy on this device stays for now — if you deleted it, it would come back the next time you sign in."
+
+#: src/data/account.ts
+msgid "服务器没能删掉这张卡（{why}）。本地这份先留着——删了它下次登录也会回来。"
+msgstr "The server couldn't delete this card ({why}). The copy on this device stays for now — if you deleted it, it would come back the next time you sign in."
 
 #: src/components/support/VoiceMixer.tsx
 #: src/pages/SupportPage.tsx
@@ -9687,6 +9754,7 @@ msgstr "Unpublished"
 msgid "未命名"
 msgstr "Untitled"
 
+#: src/data/account.ts
 #: src/pages/DeckDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "未命名卡组"
@@ -9704,6 +9772,10 @@ msgstr "Empty"
 #: src/pages/LoginPage.tsx
 msgid "未知"
 msgstr "unknown"
+
+#: src/pages/ProfilePage.tsx
+msgid "未知套餐"
+msgstr "Unknown plan"
 
 #: src/api/uploads.ts
 msgid "未知格式"
@@ -10375,6 +10447,7 @@ msgstr "Registering with the server…"
 msgid "正在确认可用的登录方式…"
 msgstr "Checking which sign-in methods are available…"
 
+#: src/data/account.ts
 #: src/pages/VideoPage.tsx
 msgid "正在确认登录状态，稍等一下再点。"
 msgstr "Checking your sign-in. Wait a moment, then tap again."
@@ -10784,6 +10857,14 @@ msgstr "Couldn't load their videos"
 msgid "没能取到你的作品：{0}"
 msgstr "Couldn't load your videos: {0}"
 
+#: src/data/account.ts
+msgid "没能取到你的卡片"
+msgstr "Couldn't load your cards"
+
+#: src/data/account.ts
+msgid "没能取到你的卡组"
+msgstr "Couldn't load your decks"
+
 #: src/pages/SettingsBlockedPage.tsx
 msgid "没能取到黑名单（网络不通，或这台服务器还没有这个功能）"
 msgstr "Couldn't load the block list (network down, or this server doesn't support it yet)"
@@ -10796,9 +10877,25 @@ msgstr "Couldn't get this video's Studio project ({fetchErr}). Try again on a di
 msgid "没能取回这条作品的工坊工程（{fetchErr}）。本机还留着那一版的画布的话，先点上面的「重新留存这一版」；否则只能重新发一条。"
 msgstr "Couldn't get this video's Studio project ({fetchErr}). If this device still has that version's canvas, tap “Keep this version again” above first; otherwise you'll have to publish a new video."
 
+#: src/data/account.ts
+msgid "没能同步到服务器"
+msgstr "Couldn't sync to the server"
+
+#: src/data/account.ts
+msgid "没能同步到服务器（{why}）——改动已撤回，联网后再试。"
+msgstr "Couldn't sync to the server ({why}) — your changes were rolled back. Try again once you're online."
+
+#: src/data/account.ts
+msgid "没能同步到服务器（{why}）——改动已撤回，联网后再试一次。"
+msgstr "Couldn't sync to the server ({why}) — your changes were rolled back. Try once more when you're online."
+
 #: src/pages/AdminPage.tsx
 msgid "没能处理，请重试"
 msgstr "Couldn't process it. Please try again"
+
+#: src/data/account.ts
+msgid "没能存进你的卡片库：登录态可能已经失效。"
+msgstr "Couldn't save to your card library: your sign-in may have expired."
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（圈好的图还在）。"
@@ -12236,6 +12333,10 @@ msgstr "Empty = continue from the previous segment's actual last frame"
 msgid "空卡组"
 msgstr "Empty deck"
 
+#: src/data/account.ts
+msgid "空卡组不能分享"
+msgstr "An empty deck can't be shared"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "空卡组不能分享：先往里放几张卡。"
 msgstr "An empty deck can't be shared. Add some cards first."
@@ -12838,6 +12939,10 @@ msgstr "Admin console"
 #: src/pages/ProfilePage.tsx
 msgid "管理员"
 msgstr "Admin"
+
+#: src/data/account.ts
+msgid "管理员免扣费"
+msgstr "Admin, no charge"
 
 #: src/components/TokenCost.tsx
 msgid "管理员免扣费：这一步最多值 {amount} token，不从你的钱包里扣"
@@ -13446,6 +13551,10 @@ msgstr "Equipping…"
 msgid "装上了，回客服页就是这个人格在说话。"
 msgstr "Equipped — this persona is the one talking on the support page now."
 
+#: src/data/account.ts
+msgid "装不上，原因不明。"
+msgstr "Couldn't add it, for an unknown reason."
+
 #: src/studio/personaWizardStore.ts
 msgid "装不上，稍后再试。"
 msgstr "Couldn't equip it — try again later."
@@ -13566,6 +13675,10 @@ msgstr "Order closed"
 #: src/pages/ProfilePage.tsx
 msgid "订单已创建，但本服务还没接入支付渠道，暂时无法完成付款——额度不会到账。"
 msgstr "The order was created, but this service isn't connected to a payment provider yet, so payment can't be completed — no tokens will be credited."
+
+#: src/pages/ProfilePage.tsx
+msgid "订单已创建，请完成支付。付款完成后额度会自动到账，这里的余额也会跟着更新。"
+msgstr "The order was created. Please complete payment. Once payment completes, the tokens are credited automatically and the balance here updates too."
 
 #: src/pages/ProfilePage.tsx
 msgid "订阅套餐"
@@ -13876,6 +13989,11 @@ msgstr "Speaking style"
 msgid "请先勾上授权声明再发布。"
 msgstr "Check the license statement before publishing."
 
+#: src/data/account.ts
+#: src/pages/ProfilePage.tsx
+msgid "请先登录"
+msgstr "Please sign in first"
+
 #: src/pages/AdminPage.tsx
 msgid "请先登录。"
 msgstr "Please sign in first."
@@ -13899,6 +14017,10 @@ msgstr "The request timed out. Check your connection and try again."
 #: src/pages/LoginPage.tsx
 msgid "请输入有效的中国大陆手机号"
 msgstr "Enter a valid mainland China phone number"
+
+#: src/data/account.ts
+msgid "请输入账号"
+msgstr "Enter your account"
 
 #: src/pages/LoginPage.tsx
 msgid "请输入账号和密码"
@@ -14045,6 +14167,10 @@ msgstr "Thanks for the feedback"
 #: src/pages/AdminPage.tsx
 msgid "账号"
 msgstr "Account"
+
+#: src/data/account.ts
+msgid "账号库未装载"
+msgstr "Account data isn't loaded"
 
 #: src/pages/AdminPage.tsx
 msgid "账号本身永久删除，无法恢复，也无法用同名重建找回任何数据"
@@ -14476,6 +14602,18 @@ msgstr "No frames marked yet. Mark at least 1 frame to start — drag the slider
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "还没标刀——不标就自动对半切到每段 ≤30 秒。想自己定切点，把播放头拖到镜头切换那一帧点「在这里切一刀」。"
 msgstr "No cuts yet — without any, it halves automatically until every segment is ≤30s. To choose the cut points yourself, drag the playhead to a shot change and tap “Cut here”."
+
+#: src/data/account.ts
+msgid "还没登录，删不了。"
+msgstr "You're not signed in, so it can't be deleted."
+
+#: src/data/account.ts
+msgid "还没登录，改不了。"
+msgstr "You're not signed in, so this can't be changed."
+
+#: src/data/account.ts
+msgid "还没登录，装不了。"
+msgstr "You're not signed in, so it can't be added."
 
 #: src/studio/flowStore.ts
 msgid "还没给任何人偶挂卡，先去挂卡再合成预览"
@@ -15365,9 +15503,17 @@ msgstr "This look failed to load ({why}), so it's switched back to the official 
 msgid "这张{label}要什么画面？例：\"他站在门口回头，半身，暖光\""
 msgstr "What should this {label} show? e.g. “he looks back at the doorway, half body, warm light”"
 
+#: src/data/account.ts
+msgid "这张卡不在你的库里"
+msgstr "This card isn't in your library"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "这张卡不在你的库里，它的分享开关归卡主管。"
 msgstr "This card isn't in your library; sharing it is up to its owner."
+
+#: src/data/account.ts
+msgid "这张卡不在你的库里。"
+msgstr "This card isn't in your library."
 
 #: src/pages/CardDetailPage.tsx
 msgid "这张卡不在你的收藏里"
@@ -15478,6 +15624,10 @@ msgstr "This photo can't be decoded (common with HEIC and other phone-specific f
 #: src/components/flow/TierRow.tsx
 msgid "这张确认卡是上一段的，已经作废——回到那一段再换档"
 msgstr "This confirmation was for another segment and is no longer valid. Go back to that segment to switch tiers"
+
+#: src/data/account.ts
+msgid "这批卡没能同步到服务器"
+msgstr "These cards couldn't be synced to the server"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "这批素材没能炼出卡，补充点描述再试？"
@@ -15685,6 +15835,14 @@ msgstr "Couldn't get this card this time: {0}"
 #: src/pages/WorkshopPage.tsx
 msgid "这次没连上服务器，看不到别人分享的卡"
 msgstr "Couldn't connect to the server this time, so cards shared by others can't be shown"
+
+#: src/data/account.ts
+msgid "这次没连上服务器，装不了广场上的卡——联网后再试。"
+msgstr "Couldn't reach the server this time, so shared cards from the Workshop can't be added — try again once you're online."
+
+#: src/data/account.ts
+msgid "这次没连上服务器。现在删只会删掉这台设备上的那份，下次登录它还会回来——等联网了再删。"
+msgstr "Couldn't reach the server this time. Deleting now would only remove the copy on this device, and it would come back the next time you sign in — delete it once you're online."
 
 #: src/components/blockout/VideoStage.tsx
 msgid "这段视频在这个位置解不开，换一帧试试。"
@@ -16312,6 +16470,10 @@ msgstr "Sad"
 #: src/studio/ui/NpcDialog.tsx
 msgid "需要 {0} token，余额 {1} 不够——去「我的」页充值"
 msgstr "This needs {0} tokens and your balance of {1} isn't enough — top up on the “Me” page"
+
+#: src/data/account.ts
+msgid "需要先连接服务器并登录"
+msgstr "You need a server connection and sign-in first"
 
 #: src/studio/ui/AvatarPicker.tsx
 msgid "青年牌手 · 他"

@@ -493,7 +493,7 @@
   - 远端：「已连接服务器：账号与作品跨设备同步。」
   - 离线：「当前为本地账号：数据存在这台设备上，换设备不同步。」
 - 离线模式下：通知/举报/注销/充值全部不可用或整块不渲染 — `app\src\data\notifications.ts:7`；`app\src\components\ReportButton.tsx:62`；`app\src\pages\SettingsDeactivatePage.tsx:29-39`
-- 「配了服务端但这次没连上」时充值会拒绝并说「当前未连接服务器，暂时无法充值，请联网后重试」（不会做假余额） — `app\src\data\account.ts:817-820`
+- 「配了服务端但这次没连上」时充值会拒绝并说「当前未连接服务器，暂时无法充值，请联网后重试」（订阅那条是「…暂时无法订阅…」；不会做假余额） — 结局种类由 `app\src\data\account.ts` 的 `rechargeAddon` / `buyPlan` 返回（`{ kind: "offline", op }`），整句在 `app\src\pages\ProfilePage.tsx` 的 `WalletSheet.submit` 里说（2026-09-11 多语言批次挪的：数据层不再拼句子）
 
 ---
 
@@ -655,7 +655,7 @@
 - 订单状态机：`created → paid → settled`，或 `closed` / `failed` — `app\docs\api-contract.md:1996`
 - `GET /api/pay/config` 返回 `payable`；**`payable=false` = 现在收不了钱，UI 必须说出来** — `:1987`
 - **⚠ 现在一个真实支付渠道都没接**（`channels.js` 注册表是空的），下单能下但没人会把订单推进到 settled。这是**故意**的 — `app\docs\api-contract.md:2013-2019`
-- App 侧文案：`payable ? "订单已创建，请完成支付" : "服务端还没接入支付渠道，暂时无法充值"` — `app\src\data\account.ts:799-816`, `:829-848`
+- App 侧文案（`app\src\pages\ProfilePage.tsx` 的 `WalletSheet.submit`，按 `account.ts` 返回的 `{ kind: "created", payable }` 说整句）：`payable` 为真「订单已创建，请完成支付。付款完成后额度会自动到账，这里的余额也会跟着更新。」，为假「订单已创建，但本服务还没接入支付渠道，暂时无法完成付款——额度不会到账。」（2026-09-11 起没有「服务端还没接入支付渠道，暂时无法充值」这一句了）
 - 钱包路由 `/recharge` `/plan` 现在只下单，返回 **202**，余额不变 — `app\docs\api-contract.md:1962-1963`
 
 ### 11.3 点数 / 悬赏 / 人格购买（官网产品线）

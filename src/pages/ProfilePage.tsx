@@ -1513,21 +1513,22 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
     };
   }, [watching]);
 
-  /** 下单并把结果如实显示出来。到账了才刷新余额 */
+  /** 下单并把结果如实显示出来。到账了才刷新余额
+   *  ★ 整句话都在这里说（多语言；D15 b 保留购买界面，中文逐字不变）：account 只回「是哪一种结局」（RechargeResult.kind）。
+   *    以前是把 account 回的半句 `${said}` 拼进这边的句子，英文拼不成一句话。
+   *    「没连上服务器」充值与订阅各是一整句：认 account 回来的 op（是哪个函数没下成单），不另收一个参数去配 ——
+   *    配错了照样编译得过，这里会静默说成另一句。 */
   async function submit(run: () => Promise<RechargeResult>) {
     setBusy(true);
     setOrder(null);
     try {
       const r = await run();
-      if (!r.ok) {
-        setOrder({ text: r.message, tone: "bad" });
-      } else if (r.credited) {
+      if (r.kind === "credited") {
         setOrder({ text: t`已到账`, tone: "ok" });
-      } else {
-        const said = r.message;
+      } else if (r.kind === "created") {
         setOrder({
           text: r.payable
-            ? t`${said}。付款完成后额度会自动到账，这里的余额也会跟着更新。`
+            ? t`订单已创建，请完成支付。付款完成后额度会自动到账，这里的余额也会跟着更新。`
             : t`订单已创建，但本服务还没接入支付渠道，暂时无法完成付款——额度不会到账。`,
           orderNo: r.orderNo,
           tone: r.payable ? "warn" : "bad",
@@ -1535,6 +1536,19 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         if (r.payable === false) setPayable(false);
         // 能付的才值得盯：一个渠道都没接时轮询到天荒地老也不会变
         if (r.payable && r.orderNo) setWatching(r.orderNo);
+      } else if (r.kind === "order-failed") {
+        // 抛出来的原话照原样摆（服务端钱包的中文原话透传，D7 a）；抛的不是 Error 时才用这句兜底
+        setOrder({ text: r.detail ?? t`下单失败`, tone: "bad" });
+      } else if (r.kind === "offline") {
+        setOrder({
+          text:
+            r.op === "plan"
+              ? t`当前未连接服务器，暂时无法订阅，请联网后重试`
+              : t`当前未连接服务器，暂时无法充值，请联网后重试`,
+          tone: "bad",
+        });
+      } else {
+        setOrder({ text: r.kind === "unknown-plan" ? t`未知套餐` : t`请先登录`, tone: "bad" });
       }
       await refreshRemoteWallet();
     } finally {

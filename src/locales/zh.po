@@ -997,9 +997,9 @@ msgstr "{noun} {0} 这个位子已经被模板作者在核对{noun}时删掉了�
 msgid "{noun} {0} 这个位子已经被模板作者在核对{noun}时删掉了（多半是因为画面上那个人根本没被换成人偶）"
 msgstr "{noun} {0} 这个位子已经被模板作者在核对{noun}时删掉了（多半是因为画面上那个人根本没被换成人偶）"
 
-#: src/pages/ProfilePage.tsx
-msgid "{said}。付款完成后额度会自动到账，这里的余额也会跟着更新。"
-msgstr "{said}。付款完成后额度会自动到账，这里的余额也会跟着更新。"
+#: src/data/account.ts
+msgid "{reason}——卡在这台设备上有，但换台设备或重启后可能就没了。"
+msgstr "{reason}——卡在这台设备上有，但换台设备或重启后可能就没了。"
 
 #: src/pages/ProfilePage.tsx
 msgid "{segCount} 段 · {when}"
@@ -1220,10 +1220,24 @@ msgstr "「{0}」铸好了"
 msgid "「{ch}」"
 msgstr "「{ch}」"
 
+#: src/data/account.ts
+msgid "「{label}」单段消耗超过免费版整月额度（{quota}），升级套餐后可用"
+msgstr "「{label}」单段消耗超过免费版整月额度（{quota}），升级套餐后可用"
+
 #. placeholder {0}: hits.length
 #: src/studio/canvasAgent.ts
 msgid "「{name}」对上了 {0} 张卡（{names}），说全名"
 msgstr "「{name}」对上了 {0} 张卡（{names}），说全名"
+
+#. 列表里的一项（名词短语，不加句号）：没能转存上去的那一张形象参考图，tag 是图位名（面部特写 / 全身立绘…，老卡可能是方案里存下的中文名）。调用方用分隔符把几项连成一串，再放进自己的句子里
+#: src/data/account.ts
+msgid "「{name}」的{tag}"
+msgstr "「{name}」的{tag}"
+
+#. 列表里的一项（名词短语，不加句号）：这张卡的形象参考图没能挂到服务器那份卡上。调用方用分隔符把几项连成一串，再放进自己的句子里
+#: src/data/account.ts
+msgid "「{name}」的形象参考图"
+msgstr "「{name}」的形象参考图"
 
 #. 可能紧跟在上一句后面拼接，英文译文开头要留一个空格
 #: src/pages/CustomCardPage.tsx
@@ -2873,6 +2887,10 @@ msgstr "下下来的大小对不上（{gotSize} / 应为 {wantSize}），这一�
 msgid "下下来的文件不见了，这一次没算数。再点一次。"
 msgstr "下下来的文件不见了，这一次没算数。再点一次。"
 
+#: src/pages/ProfilePage.tsx
+msgid "下单失败"
+msgstr "下单失败"
+
 #: src/components/flow/SkillPanel.tsx
 #: src/components/VideoCardAnnotator.tsx
 msgid "下架"
@@ -3392,6 +3410,10 @@ msgstr "位置还没核对：AI 排的「从左往右第几个」只是猜测，
 #: src/components/TokenCost.tsx
 msgid "余额 {0} 不够，<0>去充值</0>"
 msgstr "余额 {0} 不够，<0>去充值</0>"
+
+#: src/data/account.ts
+msgid "余额 {amount}"
+msgstr "余额 {amount}"
 
 #: src/studio/canvasAgent.ts
 msgid "余额不够 AI 指挥（400/句）。"
@@ -4466,6 +4488,10 @@ msgstr "分享或保存这条作品"
 msgid "分享这条作品"
 msgstr "分享这条作品"
 
+#: src/data/account.ts
+msgid "分享需要先连接服务器并登录"
+msgstr "分享需要先连接服务器并登录"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "分享需要先连接服务器并登录 —— 离线库里没有「别人」。"
 msgstr "分享需要先连接服务器并登录 —— 离线库里没有「别人」。"
@@ -5043,6 +5069,10 @@ msgstr "卡组"
 msgid "卡组 {0}"
 msgstr "卡组 {0}"
 
+#: src/data/account.ts
+msgid "卡组不存在"
+msgstr "卡组不存在"
+
 #: src/pages/DeckDetailPage.tsx
 msgid "卡组不存在或不属于你"
 msgstr "卡组不存在或不属于你"
@@ -5078,6 +5108,10 @@ msgstr "卡组标题"
 #: src/pages/DeckDetailPage.tsx
 msgid "卡组详情"
 msgstr "卡组详情"
+
+#: src/data/account.ts
+msgid "卡组还没同步到服务器，请稍后再试"
+msgstr "卡组还没同步到服务器，请稍后再试"
 
 #. placeholder {0}: partial.reason
 #: src/pages/CustomCardPage.tsx
@@ -5141,6 +5175,7 @@ msgstr "原因：{0}"
 msgid "原因：{0}。<0>它现在只在这次会话里活着</0> —— 你现在能在卡片库里看到它，但下次重开 App 就会没有（登录后 App 会用服务器上那份覆盖本机）。<1>别退出这一页</1>，等网络好一点再点一次「重试」。"
 msgstr "原因：{0}。<0>它现在只在这次会话里活着</0> —— 你现在能在卡片库里看到它，但下次重开 App 就会没有（登录后 App 会用服务器上那份覆盖本机）。<1>别退出这一页</1>，等网络好一点再点一次「重试」。"
 
+#: src/data/account.ts
 #: src/data/projects.ts
 #: src/pages/EditPage.tsx
 msgid "原因不明"
@@ -7419,6 +7454,10 @@ msgstr "已购"
 msgid "已过 {forkCount} 个分支点"
 msgstr "已过 {forkCount} 个分支点"
 
+#: src/data/account.ts
+msgid "已连接服务器：请用密码登录"
+msgstr "已连接服务器：请用密码登录"
+
 #: src/pages/LoginPage.tsx
 msgid "已连接服务器：账号与作品跨设备同步。"
 msgstr "已连接服务器：账号与作品跨设备同步。"
@@ -7713,6 +7752,14 @@ msgstr "当前是离线模式（没连服务器），管理功能需要服务端
 #: src/api/companion.ts
 msgid "当前是离线模式（没配服务器地址），这个功能需要联网。"
 msgstr "当前是离线模式（没配服务器地址），这个功能需要联网。"
+
+#: src/pages/ProfilePage.tsx
+msgid "当前未连接服务器，暂时无法充值，请联网后重试"
+msgstr "当前未连接服务器，暂时无法充值，请联网后重试"
+
+#: src/pages/ProfilePage.tsx
+msgid "当前未连接服务器，暂时无法订阅，请联网后重试"
+msgstr "当前未连接服务器，暂时无法订阅，请联网后重试"
 
 #: src/components/DanmakuInput.tsx
 msgid "当前离线，这条弹幕只存在这台设备上"
@@ -9438,6 +9485,10 @@ msgstr "有 {collectGone} 条收藏打不开了：作者可能把它删了，或
 msgid "有 {collectUnknown} 条这会儿没取回来（网络没通）——它们还在，不是被删了。"
 msgstr "有 {collectUnknown} 条这会儿没取回来（网络没通）——它们还在，不是被删了。"
 
+#: src/data/account.ts
+msgid "有 {count} 张卡没有有效的卡片编号，存不进你的卡片库（多半是这条作品是老版本发布的）"
+msgstr "有 {count} 张卡没有有效的卡片编号，存不进你的卡片库（多半是这条作品是老版本发布的）"
+
 #: src/pages/VideoPage.tsx
 msgid "有 {dropped} 个 @ 没能送达（对方不会收到通知）"
 msgstr "有 {dropped} 个 @ 没能送达（对方不会收到通知）"
@@ -9570,6 +9621,10 @@ msgstr "朋友 / 学姐 / 助理 / 搭子…… 这一句会明显影响说话�
 msgid "服务协议与隐私政策"
 msgstr "服务协议与隐私政策"
 
+#: src/data/account.ts
+msgid "服务器一张都没收下（{count} 张）——这些卡只在这台设备上，重启后会没"
+msgstr "服务器一张都没收下（{count} 张）——这些卡只在这台设备上，重启后会没"
+
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "服务器上有一发你付过钱的成片还没取回"
 msgstr "服务器上有一发你付过钱的成片还没取回"
@@ -9587,9 +9642,21 @@ msgstr "服务器正在解包识别…"
 msgid "服务器没有返回建好的模型（可能是旧版服务端），没有创建成功。"
 msgstr "服务器没有返回建好的模型（可能是旧版服务端），没有创建成功。"
 
+#: src/data/account.ts
+msgid "服务器没有返回这张卡（可能作者刚把它撤下了）。"
+msgstr "服务器没有返回这张卡（可能作者刚把它撤下了）。"
+
 #: src/api/uploads.ts
 msgid "服务器没有返回这段视频的登记信息（可能是旧版服务端），白模模板没有创建。"
 msgstr "服务器没有返回这段视频的登记信息（可能是旧版服务端），白模模板没有创建。"
+
+#: src/data/account.ts
+msgid "服务器没能删掉这个卡组（{why}）。本地这份先留着——删了它下次登录也会回来。"
+msgstr "服务器没能删掉这个卡组（{why}）。本地这份先留着——删了它下次登录也会回来。"
+
+#: src/data/account.ts
+msgid "服务器没能删掉这张卡（{why}）。本地这份先留着——删了它下次登录也会回来。"
+msgstr "服务器没能删掉这张卡（{why}）。本地这份先留着——删了它下次登录也会回来。"
 
 #: src/components/support/VoiceMixer.tsx
 #: src/pages/SupportPage.tsx
@@ -9687,6 +9754,7 @@ msgstr "未发布"
 msgid "未命名"
 msgstr "未命名"
 
+#: src/data/account.ts
 #: src/pages/DeckDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "未命名卡组"
@@ -9704,6 +9772,10 @@ msgstr "未挂"
 #: src/pages/LoginPage.tsx
 msgid "未知"
 msgstr "未知"
+
+#: src/pages/ProfilePage.tsx
+msgid "未知套餐"
+msgstr "未知套餐"
 
 #: src/api/uploads.ts
 msgid "未知格式"
@@ -10375,6 +10447,7 @@ msgstr "正在登记到服务器…"
 msgid "正在确认可用的登录方式…"
 msgstr "正在确认可用的登录方式…"
 
+#: src/data/account.ts
 #: src/pages/VideoPage.tsx
 msgid "正在确认登录状态，稍等一下再点。"
 msgstr "正在确认登录状态，稍等一下再点。"
@@ -10784,6 +10857,14 @@ msgstr "没能取到 TA 的作品"
 msgid "没能取到你的作品：{0}"
 msgstr "没能取到你的作品：{0}"
 
+#: src/data/account.ts
+msgid "没能取到你的卡片"
+msgstr "没能取到你的卡片"
+
+#: src/data/account.ts
+msgid "没能取到你的卡组"
+msgstr "没能取到你的卡组"
+
 #: src/pages/SettingsBlockedPage.tsx
 msgid "没能取到黑名单（网络不通，或这台服务器还没有这个功能）"
 msgstr "没能取到黑名单（网络不通，或这台服务器还没有这个功能）"
@@ -10796,9 +10877,25 @@ msgstr "没能取回这条作品的工坊工程（{fetchErr}）。换个网络�
 msgid "没能取回这条作品的工坊工程（{fetchErr}）。本机还留着那一版的画布的话，先点上面的「重新留存这一版」；否则只能重新发一条。"
 msgstr "没能取回这条作品的工坊工程（{fetchErr}）。本机还留着那一版的画布的话，先点上面的「重新留存这一版」；否则只能重新发一条。"
 
+#: src/data/account.ts
+msgid "没能同步到服务器"
+msgstr "没能同步到服务器"
+
+#: src/data/account.ts
+msgid "没能同步到服务器（{why}）——改动已撤回，联网后再试。"
+msgstr "没能同步到服务器（{why}）——改动已撤回，联网后再试。"
+
+#: src/data/account.ts
+msgid "没能同步到服务器（{why}）——改动已撤回，联网后再试一次。"
+msgstr "没能同步到服务器（{why}）——改动已撤回，联网后再试一次。"
+
 #: src/pages/AdminPage.tsx
 msgid "没能处理，请重试"
 msgstr "没能处理，请重试"
+
+#: src/data/account.ts
+msgid "没能存进你的卡片库：登录态可能已经失效。"
+msgstr "没能存进你的卡片库：登录态可能已经失效。"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（圈好的图还在）。"
@@ -12236,6 +12333,10 @@ msgstr "空 = 承接上一段真实尾帧"
 msgid "空卡组"
 msgstr "空卡组"
 
+#: src/data/account.ts
+msgid "空卡组不能分享"
+msgstr "空卡组不能分享"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "空卡组不能分享：先往里放几张卡。"
 msgstr "空卡组不能分享：先往里放几张卡。"
@@ -12838,6 +12939,10 @@ msgstr "管理后台"
 #: src/pages/ProfilePage.tsx
 msgid "管理员"
 msgstr "管理员"
+
+#: src/data/account.ts
+msgid "管理员免扣费"
+msgstr "管理员免扣费"
 
 #: src/components/TokenCost.tsx
 msgid "管理员免扣费：这一步最多值 {amount} token，不从你的钱包里扣"
@@ -13446,6 +13551,10 @@ msgstr "装上中…"
 msgid "装上了，回客服页就是这个人格在说话。"
 msgstr "装上了，回客服页就是这个人格在说话。"
 
+#: src/data/account.ts
+msgid "装不上，原因不明。"
+msgstr "装不上，原因不明。"
+
 #: src/studio/personaWizardStore.ts
 msgid "装不上，稍后再试。"
 msgstr "装不上，稍后再试。"
@@ -13566,6 +13675,10 @@ msgstr "订单已关闭"
 #: src/pages/ProfilePage.tsx
 msgid "订单已创建，但本服务还没接入支付渠道，暂时无法完成付款——额度不会到账。"
 msgstr "订单已创建，但本服务还没接入支付渠道，暂时无法完成付款——额度不会到账。"
+
+#: src/pages/ProfilePage.tsx
+msgid "订单已创建，请完成支付。付款完成后额度会自动到账，这里的余额也会跟着更新。"
+msgstr "订单已创建，请完成支付。付款完成后额度会自动到账，这里的余额也会跟着更新。"
 
 #: src/pages/ProfilePage.tsx
 msgid "订阅套餐"
@@ -13876,6 +13989,11 @@ msgstr "说话风格"
 msgid "请先勾上授权声明再发布。"
 msgstr "请先勾上授权声明再发布。"
 
+#: src/data/account.ts
+#: src/pages/ProfilePage.tsx
+msgid "请先登录"
+msgstr "请先登录"
+
 #: src/pages/AdminPage.tsx
 msgid "请先登录。"
 msgstr "请先登录。"
@@ -13899,6 +14017,10 @@ msgstr "请求超时了，检查网络后再试一次。"
 #: src/pages/LoginPage.tsx
 msgid "请输入有效的中国大陆手机号"
 msgstr "请输入有效的中国大陆手机号"
+
+#: src/data/account.ts
+msgid "请输入账号"
+msgstr "请输入账号"
 
 #: src/pages/LoginPage.tsx
 msgid "请输入账号和密码"
@@ -14045,6 +14167,10 @@ msgstr "谢谢反馈"
 #: src/pages/AdminPage.tsx
 msgid "账号"
 msgstr "账号"
+
+#: src/data/account.ts
+msgid "账号库未装载"
+msgstr "账号库未装载"
 
 #: src/pages/AdminPage.tsx
 msgid "账号本身永久删除，无法恢复，也无法用同名重建找回任何数据"
@@ -14476,6 +14602,18 @@ msgstr "还没标任何一帧。至少要标 1 帧才能开炼——拖上面的
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "还没标刀——不标就自动对半切到每段 ≤30 秒。想自己定切点，把播放头拖到镜头切换那一帧点「在这里切一刀」。"
 msgstr "还没标刀——不标就自动对半切到每段 ≤30 秒。想自己定切点，把播放头拖到镜头切换那一帧点「在这里切一刀」。"
+
+#: src/data/account.ts
+msgid "还没登录，删不了。"
+msgstr "还没登录，删不了。"
+
+#: src/data/account.ts
+msgid "还没登录，改不了。"
+msgstr "还没登录，改不了。"
+
+#: src/data/account.ts
+msgid "还没登录，装不了。"
+msgstr "还没登录，装不了。"
 
 #: src/studio/flowStore.ts
 msgid "还没给任何人偶挂卡，先去挂卡再合成预览"
@@ -15365,9 +15503,17 @@ msgstr "这套形象加载失败（{why}），先换回官方形象；可以去�
 msgid "这张{label}要什么画面？例：\"他站在门口回头，半身，暖光\""
 msgstr "这张{label}要什么画面？例：\"他站在门口回头，半身，暖光\""
 
+#: src/data/account.ts
+msgid "这张卡不在你的库里"
+msgstr "这张卡不在你的库里"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "这张卡不在你的库里，它的分享开关归卡主管。"
 msgstr "这张卡不在你的库里，它的分享开关归卡主管。"
+
+#: src/data/account.ts
+msgid "这张卡不在你的库里。"
+msgstr "这张卡不在你的库里。"
 
 #: src/pages/CardDetailPage.tsx
 msgid "这张卡不在你的收藏里"
@@ -15478,6 +15624,10 @@ msgstr "这张照片解不开（常见于 HEIC 等手机专有格式）——换
 #: src/components/flow/TierRow.tsx
 msgid "这张确认卡是上一段的，已经作废——回到那一段再换档"
 msgstr "这张确认卡是上一段的，已经作废——回到那一段再换档"
+
+#: src/data/account.ts
+msgid "这批卡没能同步到服务器"
+msgstr "这批卡没能同步到服务器"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "这批素材没能炼出卡，补充点描述再试？"
@@ -15685,6 +15835,14 @@ msgstr "这次没取到这张卡：{0}"
 #: src/pages/WorkshopPage.tsx
 msgid "这次没连上服务器，看不到别人分享的卡"
 msgstr "这次没连上服务器，看不到别人分享的卡"
+
+#: src/data/account.ts
+msgid "这次没连上服务器，装不了广场上的卡——联网后再试。"
+msgstr "这次没连上服务器，装不了广场上的卡——联网后再试。"
+
+#: src/data/account.ts
+msgid "这次没连上服务器。现在删只会删掉这台设备上的那份，下次登录它还会回来——等联网了再删。"
+msgstr "这次没连上服务器。现在删只会删掉这台设备上的那份，下次登录它还会回来——等联网了再删。"
 
 #: src/components/blockout/VideoStage.tsx
 msgid "这段视频在这个位置解不开，换一帧试试。"
@@ -16312,6 +16470,10 @@ msgstr "难过"
 #: src/studio/ui/NpcDialog.tsx
 msgid "需要 {0} token，余额 {1} 不够——去「我的」页充值"
 msgstr "需要 {0} token，余额 {1} 不够——去「我的」页充值"
+
+#: src/data/account.ts
+msgid "需要先连接服务器并登录"
+msgstr "需要先连接服务器并登录"
 
 #: src/studio/ui/AvatarPicker.tsx
 msgid "青年牌手 · 他"

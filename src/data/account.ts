@@ -6,6 +6,7 @@
 //
 // 页面读的全是同步函数（myCards() / currentUser() / isFollowing()…），签名一个没动；
 // 变更仍通过 subscribeAccount + 版本号广播，远端回包回填时也走同一条广播。
+import { t } from "@lingui/core/macro";
 import { V3_CARD_WIPE_MS, Card, SHARE_NOTE_MAX, uid, viewTag, type CardView } from "../types";
 // data → mock 是既有方向（data/videos.ts 也从 mock/frames 取种子帧），不成环
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
@@ -344,13 +345,13 @@ const AVATARS = ["🦊", "🐺", "🐱", "🦉", "🐙", "🦋", "🌙", "⭐", 
  *   服务器不可达时 remoteOn() 为 false，会落到下面的本地分支，离线照常能用。
  */
 export function signIn(account: string, name?: string): User {
-  if (!db) throw new Error("账号库未装载");
+  if (!db) throw new Error(t`账号库未装载`);
   const acc = account.trim();
-  if (!acc) throw new Error("请输入账号");
+  if (!acc) throw new Error(t`请输入账号`);
   if (remoteOn()) {
     const cur = currentUser();
     if (cur) return cur;
-    throw new Error("已连接服务器：请用密码登录");
+    throw new Error(t`已连接服务器：请用密码登录`);
   }
   let user = db.users.find((u) => u.account === acc);
   if (!user) {
@@ -415,7 +416,7 @@ export async function updateProfile(
   patch: Partial<Pick<User, "name" | "avatar" | "bio">>,
 ): Promise<string | null> {
   const u = currentUser();
-  if (!u || !db) return "还没登录，改不了。";
+  if (!u || !db) return t`还没登录，改不了。`;
   const before: Partial<User> = { name: u.name, avatar: u.avatar, bio: u.bio };
   Object.assign(u, patch);
   persist();
@@ -427,7 +428,8 @@ export async function updateProfile(
       Object.assign(u, before);
       persist();
       emitApiError("updateProfile", e);
-      return `没能同步到服务器（${e instanceof Error ? e.message.slice(0, 40) : "原因不明"}）——改动已撤回，联网后再试一次。`;
+      const why = e instanceof Error ? e.message.slice(0, 40) : t`原因不明`;
+      return t`没能同步到服务器（${why}）——改动已撤回，联网后再试一次。`;
     }
   }
   return null;
@@ -443,7 +445,7 @@ export async function updateProfile(
  */
 export async function setAvatarImage(img: { dataUrl: string; blob: Blob }): Promise<void> {
   const u = currentUser();
-  if (!u || !db) throw new Error("请先登录");
+  if (!u || !db) throw new Error(t`请先登录`);
   u.avatar = img.dataUrl; // 先乐观显示
   persist();
   if (!remoteOn()) return;
@@ -717,9 +719,11 @@ export function canAfford(n: number): boolean {
  *   演示模式的那句话由调用点自己说，各处措辞本来就不同。
  */
 export function balanceNote(): string {
-  if (billingExempt()) return "管理员免扣费";
+  if (billingExempt()) return t`管理员免扣费`;
   const w = walletOf();
-  return w ? `余额 ${fmtTokens(w.plan + w.addon)}` : "";
+  if (!w) return "";
+  const amount = fmtTokens(w.plan + w.addon);
+  return t`余额 ${amount}`;
 }
 
 /**
@@ -750,7 +754,9 @@ export function tierBlockReason(tier: Pick<VideoTier, "label" | "paidOnly">): st
   if (remoteOn() && !planIdConfirmed) return null;
   if (w.planId !== "free") return null;
   // 说清楚"为什么"，不是只把按钮灰掉：免费版每月 300k，而这一档最短的一段就要 30 万+
-  return `「${tier.label}」单段消耗超过免费版整月额度（${fmtTokens(PLANS[0].monthlyTokens)}），升级套餐后可用`;
+  const label = tier.label;
+  const quota = fmtTokens(PLANS[0].monthlyTokens);
+  return t`「${label}」单段消耗超过免费版整月额度（${quota}），升级套餐后可用`;
 }
 
 /**
@@ -798,79 +804,78 @@ export function spendTokens(n: number): { plan: number; addon: number } | null {
 //
 //   离线模式不受影响：那边没有服务端也没有真钱，直接加数就是它的全部语义。
 
-/** 充值/购套餐的结果。远端模式恒为 pending，直到渠道回调结算 */
-export interface RechargeResult {
-  ok: boolean;
-  /** true = 额度已经到账（只可能是离线模式，或订单已结算） */
-  credited: boolean;
-  /** 远端模式下的订单号，UI 拿它轮询 */
-  orderNo?: string;
-  /** 服务端有没有可用的支付渠道。false = 这单根本付不了 */
-  payable?: boolean;
-  message: string;
-}
+/**
+ * 充值/购套餐的结局。远端模式下成功只到「订单建好了」（created），直到渠道回调结算。
+ *
+ * ★ 只回「是哪一种」，**不回句子**（多语言，2026-09-11）：整句话由钱包抽屉（ProfilePage 的 WalletSheet）按 kind 说。
+ *   以前这里回一句中文 message，抽屉再把它拼进自己的句子（`${said}。付款完成后…`）—— 半句在这边、半句在那边，
+ *   英文拼不成一句话；而 payable=false 与「已到账」那两句从来没显示过（抽屉说的是它自己的话）。
+ *   购买界面按 D15 b 保留，中文文案逐字不变。
+ */
+export type RechargeResult =
+  /** 没登录（直充 tokens<=0 也归这一种：原来说的就是「请先登录」）/ 不认识的套餐 id */
+  | { kind: "login" | "unknown-plan" }
+  /**
+   * 配了服务端但这次没连上。op = 没下成的是哪一种（recharge 直充 / plan 订阅），抽屉按它挑「暂时无法充值 / 订阅」那一整句。
+   * ★ op 由回话的这个函数自己带上，不让调用方另传一个参数去配：配错了照样编译得过，抽屉会静默说成另一句（D15 b 的钱包文案）
+   */
+  | { kind: "offline"; op: "recharge" | "plan" }
+  /** 下单那一发失败。detail = 抛出来的 Error.message 原话（服务端钱包的中文原话照原样透传，D7 a）；抛的不是 Error 时没有 */
+  | { kind: "order-failed"; detail?: string }
+  /** 远端模式：订单建好了 —— 钱一分没付、余额一分没变。orderNo 给 UI 轮询；payable = 服务端有没有可用的支付渠道，false = 这单根本付不了 */
+  | { kind: "created"; orderNo: string; payable: boolean }
+  /** 额度已经到账（只可能是离线模式，或订单已结算） */
+  | { kind: "credited" };
 
 /** 直充：进 add-on */
 export async function rechargeAddon(tokens: number): Promise<RechargeResult> {
   if (remoteOn()) {
-    if (!currentUser() || tokens <= 0) return { ok: false, credited: false, message: "请先登录" };
+    if (!currentUser() || tokens <= 0) return { kind: "login" };
     try {
       const r = await walletApi.createRechargeOrder(tokens);
-      return {
-        ok: true,
-        credited: false,
-        orderNo: r.order.orderNo,
-        payable: r.payable,
-        message: r.payable ? "订单已创建，请完成支付" : "服务端还没接入支付渠道，暂时无法充值",
-      };
+      return { kind: "created", orderNo: r.order.orderNo, payable: r.payable };
     } catch (e) {
       emitApiError("rechargeAddon", e);
-      return { ok: false, credited: false, message: e instanceof Error ? e.message : "下单失败" };
+      return { kind: "order-failed", detail: e instanceof Error ? e.message : undefined };
     }
   }
   // ★ 「配了服务端、但这次启动没连上」**不等于**「这是个没有真钱的离线演示包」。
   //   这台机器的钱包权威值在服务端，这里直接加数只会得到一个联网后必然蒸发的假余额，
   //   而 UI 会照实显示绿色「已到账」——用户以为充上了，重启发现钱没了（铁律八）。
   //   只有真正没配 VITE_API_BASE 的离线包才允许走下面的本地加数。
-  if (API_ON) return { ok: false, credited: false, message: "当前未连接服务器，暂时无法充值，请联网后重试" };
+  if (API_ON) return { kind: "offline", op: "recharge" };
   const u = currentUser();
-  if (!u || !db || tokens <= 0) return { ok: false, credited: false, message: "请先登录" };
+  if (!u || !db || tokens <= 0) return { kind: "login" };
   ensureWallet(u).addon += tokens;
   persist();
-  return { ok: true, credited: true, message: "已到账" };
+  return { kind: "credited" };
 }
 
 /** 订阅/续费套餐：额度叠加在剩余额度上（不没收没花完的），记住档位 */
 export async function buyPlan(planId: string): Promise<RechargeResult> {
   const plan = PLANS.find((p) => p.id === planId);
-  if (!plan) return { ok: false, credited: false, message: "未知套餐" };
+  if (!plan) return { kind: "unknown-plan" };
   if (remoteOn()) {
-    if (!currentUser()) return { ok: false, credited: false, message: "请先登录" };
+    if (!currentUser()) return { kind: "login" };
     try {
       const r = await walletApi.createPlanOrder(planId);
-      return {
-        ok: true,
-        credited: false,
-        orderNo: r.order.orderNo,
-        payable: r.payable,
-        message: r.payable ? "订单已创建，请完成支付" : "服务端还没接入支付渠道，暂时无法订阅",
-      };
+      return { kind: "created", orderNo: r.order.orderNo, payable: r.payable };
     } catch (e) {
       emitApiError("buyPlan", e);
-      return { ok: false, credited: false, message: e instanceof Error ? e.message : "下单失败" };
+      return { kind: "order-failed", detail: e instanceof Error ? e.message : undefined };
     }
   }
   // ★ 「配了服务端、但这次启动没连上」**不等于**「这是个没有真钱的离线演示包」。
   //   这台机器的钱包权威值在服务端，这里直接加数只会得到一个联网后必然蒸发的假余额，
   //   而 UI 会照实显示绿色「已到账」——用户以为充上了，重启发现钱没了（铁律八）。
   //   只有真正没配 VITE_API_BASE 的离线包才允许走下面的本地加数。
-  if (API_ON) return { ok: false, credited: false, message: "当前未连接服务器，暂时无法订阅，请联网后重试" };
+  if (API_ON) return { kind: "offline", op: "plan" };
   const u = currentUser();
-  if (!u || !db) return { ok: false, credited: false, message: "请先登录" };
+  if (!u || !db) return { kind: "login" };
   ensureWallet(u).plan += plan.monthlyTokens;
   u.planId = plan.id;
   persist();
-  return { ok: true, credited: true, message: "已到账" };
+  return { kind: "credited" };
 }
 
 /** 订单结算后刷新镜像。UI 轮询到 settled 时调 */
@@ -992,11 +997,12 @@ export async function addCards(cards: Card[]): Promise<AddCardsResult> {
   // 卡组/个人页里了，不能吊在屏幕上等网络
   persist();
   if (nameless.length) {
+    const count = nameless.length;
     return {
       added,
       synced: false,
       lostViews: [],
-      reason: `有 ${nameless.length} 张卡没有有效的卡片编号，存不进你的卡片库（多半是这条作品是老版本发布的）`,
+      reason: t`有 ${count} 张卡没有有效的卡片编号，存不进你的卡片库（多半是这条作品是老版本发布的）`,
     };
   }
   // 离线模式 synced 记 true：那边 persist() 写的是 IndexedDB，卡是真落地了（见字段注释）
@@ -1022,11 +1028,12 @@ export async function addCards(cards: Card[]): Promise<AddCardsResult> {
       const has = mine ? new Set(mine.map((c) => c.cardId)) : null;
       const missing = has ? added.filter((c) => !has.has(c.id)) : added;
       if (missing.length) {
+        const count = missing.length;
         return {
           added,
           synced: false,
           lostViews: [],
-          reason: `服务器一张都没收下（${missing.length} 张）——这些卡只在这台设备上，重启后会没`,
+          reason: t`服务器一张都没收下（${count} 张）——这些卡只在这台设备上，重启后会没`,
         };
       }
     }
@@ -1034,7 +1041,7 @@ export async function addCards(cards: Card[]): Promise<AddCardsResult> {
     emitApiError("addCards", e);
     // 卡都没存上，转存那几张图没有意义（PATCH 会打在一张不存在的卡上）。
     // 图原样留着 dataURL，在这台设备上照样看得见、也照样能当出图参考。
-    return { added, synced: false, lostViews: [], reason: "这批卡没能同步到服务器" };
+    return { added, synced: false, lostViews: [], reason: t`这批卡没能同步到服务器` };
   }
 
   const { lostViews, reason } = await materializeViews(added, rows);
@@ -1055,7 +1062,13 @@ export async function addCards(cards: Card[]): Promise<AddCardsResult> {
       .map((c) =>
         branch.updateCardViews(c.id, c.views).catch((e) => {
           emitApiError("updateCardViews", e);
-          patchFailed.push(`「${c.name}」的形象参考图`);
+          const name = c.name;
+          patchFailed.push(
+            t({
+              message: `「${name}」的形象参考图`,
+              comment: "列表里的一项（名词短语，不加句号）：这张卡的形象参考图没能挂到服务器那份卡上。调用方用分隔符把几项连成一串，再放进自己的句子里",
+            }),
+          );
           patchReason ??= e instanceof Error ? e.message : String(e);
         }),
       ),
@@ -1103,7 +1116,14 @@ async function materializeViews(added: Card[], rows: Card[]): Promise<{ lostView
         next.push({ ...v, url });
       } catch (e) {
         next.push(v); // 留着原图，理由见上面的 ★
-        lostViews.push(`「${card.name}」的${viewTag(card.type, v)}`);
+        const name = card.name;
+        const tag = viewTag(card.type, v);
+        lostViews.push(
+          t({
+            message: `「${name}」的${tag}`,
+            comment: "列表里的一项（名词短语，不加句号）：没能转存上去的那一张形象参考图，tag 是图位名（面部特写 / 全身立绘…，老卡可能是方案里存下的中文名）。调用方用分隔符把几项连成一串，再放进自己的句子里",
+          }),
+        );
         reason ??= e instanceof Error ? e.message : String(e);
       }
     }
@@ -1153,7 +1173,7 @@ export type DeleteResult = string | null;
 function whyOf(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e ?? "");
   const one = m.replace(/\s+/g, " ").trim();
-  return one.length > 40 ? `${one.slice(0, 40)}…` : one || "原因不明";
+  return one.length > 40 ? `${one.slice(0, 40)}…` : one || t`原因不明`;
 }
 
 /**
@@ -1173,9 +1193,9 @@ export async function updateCardMeta(
   patch: { name?: string; summary?: string; tags?: string[] },
 ): Promise<string | null> {
   const u = currentUser();
-  if (!u || !db) return "还没登录，改不了。";
+  if (!u || !db) return t`还没登录，改不了。`;
   const c = db.cards.find((x) => x.ownerId === u.id && x.id === cardId);
-  if (!c) return "这张卡不在你的库里。";
+  if (!c) return t`这张卡不在你的库里。`;
   if (Object.keys(patch).length === 0) return null; // 什么都没改，不算失败
 
   // 本地先落：远端要一个往返，输入框不该吊在那儿等
@@ -1193,7 +1213,8 @@ export async function updateCardMeta(
     Object.assign(c, before);
     persist();
     emitApiError("updateCardMeta", e);
-    return `没能同步到服务器（${whyOf(e)}）——改动已撤回，联网后再试。`;
+    const why = whyOf(e);
+    return t`没能同步到服务器（${why}）——改动已撤回，联网后再试。`;
   }
 }
 
@@ -1213,16 +1234,17 @@ export async function updateCardMeta(
  */
 export async function removeCard(cardId: string): Promise<DeleteResult> {
   const u = currentUser();
-  if (!u || !db) return "还没登录，删不了。";
+  if (!u || !db) return t`还没登录，删不了。`;
   if (API_ON && !remoteOn()) {
-    return "这次没连上服务器。现在删只会删掉这台设备上的那份，下次登录它还会回来——等联网了再删。";
+    return t`这次没连上服务器。现在删只会删掉这台设备上的那份，下次登录它还会回来——等联网了再删。`;
   }
   if (remoteOn()) {
     try {
       await branch.removeCard(cardId);
     } catch (e) {
       emitApiError("removeCard", e);
-      return `服务器没能删掉这张卡（${whyOf(e)}）。本地这份先留着——删了它下次登录也会回来。`;
+      const why = whyOf(e);
+      return t`服务器没能删掉这张卡（${why}）。本地这份先留着——删了它下次登录也会回来。`;
     }
   }
   // 声音样本是本机侧库（data/cardVoice），卡真没了它才成为永远读不到的孤儿；
@@ -1252,7 +1274,8 @@ export function createDeck(name: string, cardIds: string[] = []): Deck | null {
   const u = currentUser();
   if (!u || !db) return null;
   const localId = uid("deck");
-  const deck: Deck = { id: localId, ownerId: u.id, name: name.trim() || "未命名卡组", cardIds, createdAt: Date.now() };
+  // ★ 默认名按建组那一刻的界面语言存（与卡组详情页 / 工坊页同一个 msgid）：它会发给服务端，广场上别人看到的也是这一份
+  const deck: Deck = { id: localId, ownerId: u.id, name: name.trim() || t`未命名卡组`, cardIds, createdAt: Date.now() };
   db.decks.push(deck);
   persist();
   if (remoteOn()) {
@@ -1300,11 +1323,11 @@ export function deckCoverOf(d: Deck): Card | null {
 
 /** 删卡组（**不删里面的卡**）。远端没删成就不动本地，理由同 `removeCard` 的 ★★ */
 export async function deleteDeck(deckId: string): Promise<DeleteResult> {
-  if (!db) return "还没登录，删不了。";
+  if (!db) return t`还没登录，删不了。`;
   const d = findDeck(deckId);
   if (!d) return null; // 已经不在了：用户要的结果已经成立，不算失败
   if (API_ON && !remoteOn()) {
-    return "这次没连上服务器。现在删只会删掉这台设备上的那份，下次登录它还会回来——等联网了再删。";
+    return t`这次没连上服务器。现在删只会删掉这台设备上的那份，下次登录它还会回来——等联网了再删。`;
   }
   if (remoteOn()) {
     const localId = d.id;
@@ -1316,7 +1339,8 @@ export async function deleteDeck(deckId: string): Promise<DeleteResult> {
       if (id) await branch.deleteDeck(id);
     } catch (e) {
       emitApiError("deleteDeck", e);
-      return `服务器没能删掉这个卡组（${whyOf(e)}）。本地这份先留着——删了它下次登录也会回来。`;
+      const why = whyOf(e);
+      return t`服务器没能删掉这个卡组（${why}）。本地这份先留着——删了它下次登录也会回来。`;
     }
   }
   db.decks = db.decks.filter((x) => x !== d);
@@ -1334,12 +1358,12 @@ export async function deleteDeck(deckId: string): Promise<DeleteResult> {
  */
 export async function shareDeck(deckId: string, on: boolean): Promise<void> {
   const d = findDeck(deckId);
-  if (!d) throw new Error("卡组不存在");
-  if (!remoteOn()) throw new Error("分享需要先连接服务器并登录");
-  if (on && d.cardIds.length === 0) throw new Error("空卡组不能分享");
+  if (!d) throw new Error(t`卡组不存在`);
+  if (!remoteOn()) throw new Error(t`分享需要先连接服务器并登录`);
+  if (on && d.cardIds.length === 0) throw new Error(t`空卡组不能分享`);
 
   const id = await resolveDeckId(d.id);
-  if (!id) throw new Error("卡组还没同步到服务器，请稍后再试");
+  if (!id) throw new Error(t`卡组还没同步到服务器，请稍后再试`);
 
   // ★ 把简介一起带上：广场那行显示的就是它。以前这里是 publishDeck(id)（不带简介），
   //   而 PATCH 那条路又从来没发过 description —— 两条路都不发，于是"写了简介、
@@ -1360,10 +1384,10 @@ export async function shareDeck(deckId: string, on: boolean): Promise<void> {
  */
 export async function shareCard(cardId: string, on: boolean, note?: string): Promise<void> {
   const u = currentUser();
-  if (!u || !db) throw new Error("请先登录");
-  if (!remoteOn()) throw new Error("分享需要先连接服务器并登录");
+  if (!u || !db) throw new Error(t`请先登录`);
+  if (!remoteOn()) throw new Error(t`分享需要先连接服务器并登录`);
   const c = db.cards.find((x) => x.ownerId === u.id && x.id === cardId);
-  if (!c) throw new Error("这张卡不在你的库里");
+  if (!c) throw new Error(t`这张卡不在你的库里`);
 
   // ★ 推荐语随分享一起发（口径与 shareDeck 的 intro 逐字相同）：
   //   `undefined` = 这次不改，服务端保留原值；空串会把原来那句清掉，所以只在
@@ -1488,8 +1512,8 @@ export async function plazaCards(q = ""): Promise<Card[]> {
 /** 把别人分享的一张卡装进我的库（服务端按 { owner, cardId } 幂等） */
 export async function installSharedCard(cardId: string): Promise<Card | null> {
   const u = currentUser();
-  if (!u || !db) throw new Error("请先登录");
-  if (!remoteOn()) throw new Error("需要先连接服务器并登录");
+  if (!u || !db) throw new Error(t`请先登录`);
+  if (!remoteOn()) throw new Error(t`需要先连接服务器并登录`);
 
   const remote = await branch.installCard(cardId);
   if (!remote) return null;
@@ -1523,20 +1547,20 @@ export async function acquireCard(card: Card): Promise<AcquireResult> {
   // ★ 判"没登录"只认 authState()（CLAUDE.md 那条坑）：`!currentUser()` 在冷启动水合期
   //   对**登录着的**用户也是真，那会儿点添加会被告知"还没登录"。
   const st = authState();
-  if (st === "pending") return { ok: false, why: "正在确认登录状态，稍等一下再点。" };
+  if (st === "pending") return { ok: false, why: t`正在确认登录状态，稍等一下再点。` };
   const u = currentUser();
-  if (!u || !db) return { ok: false, why: "还没登录，装不了。" };
+  if (!u || !db) return { ok: false, why: t`还没登录，装不了。` };
   if (db.cards.some((c) => c.ownerId === u.id && c.id === card.id)) return { ok: true };
 
   // ① 广场那份：published 由广场那一跳显式标上（服务端的 shared payload 不发这个字段，
   //    但广场列出来的每一张按定义都是已分享的）
   if (card.published === true) {
-    if (!remoteOn()) return { ok: false, why: "这次没连上服务器，装不了广场上的卡——联网后再试。" };
+    if (!remoteOn()) return { ok: false, why: t`这次没连上服务器，装不了广场上的卡——联网后再试。` };
     try {
       const got = await installSharedCard(card.id);
-      return got ? { ok: true } : { ok: false, why: "服务器没有返回这张卡（可能作者刚把它撤下了）。" };
+      return got ? { ok: true } : { ok: false, why: t`服务器没有返回这张卡（可能作者刚把它撤下了）。` };
     } catch (e) {
-      return { ok: false, why: e instanceof Error ? e.message : "装不上，原因不明。" };
+      return { ok: false, why: e instanceof Error ? e.message : t`装不上，原因不明。` };
     }
   }
 
@@ -1545,8 +1569,11 @@ export async function acquireCard(card: Card): Promise<AcquireResult> {
   //   卡只活在内存，下次冷启动 loadRemoteAssets 拿服务端那份整表覆盖 —— 静默消失。
   //   这里不拦着不让装（本次会话里它确实能用），但那句话必须说出去。
   const r = await addCards([card]);
-  if (r.added.length === 0) return { ok: false, why: "没能存进你的卡片库：登录态可能已经失效。" };
-  if (!r.synced) return { ok: false, why: `${r.reason || "没能同步到服务器"}——卡在这台设备上有，但换台设备或重启后可能就没了。` };
+  if (r.added.length === 0) return { ok: false, why: t`没能存进你的卡片库：登录态可能已经失效。` };
+  if (!r.synced) {
+    const reason = r.reason || t`没能同步到服务器`;
+    return { ok: false, why: t`${reason}——卡在这台设备上有，但换台设备或重启后可能就没了。` };
+  }
   // ⚠ **这里刻意不报 `r.lostViews`**（2026-08-30 复核逐段核过的反向结论，别再"补"上）：
   //   lostViews 只在"POST 那一发发的是空 views、只能靠后续 PATCH 补"时才代表真丢了图，
   //   而那种卡是**本机现铸、views 还是 dataURL** 的（VideoCardAnnotator / CustomCardPage /
@@ -1586,9 +1613,9 @@ export async function installSharedDeck(sharedId: string): Promise<Deck | null> 
   const u0 = currentUser();
   if (!remoteOn()) {
     // 离线：装的是上面那套主题种子卡组，卡片直接进本地卡库（按 sourceDeck 去重）
-    if (!u0 || !db) throw new Error("请先登录");
+    if (!u0 || !db) throw new Error(t`请先登录`);
     const def = MARKET_DECKS.find((d) => d.id === sharedId);
-    if (!def) throw new Error("卡组不存在");
+    if (!def) throw new Error(t`卡组不存在`);
     const exist = db.decks.find((d) => d.ownerId === u0.id && d.sourceDeck === sharedId);
     if (exist) return exist;
     const cards = marketCardsByName(def.cards);
@@ -1611,7 +1638,7 @@ export async function installSharedDeck(sharedId: string): Promise<Deck | null> 
     return deck;
   }
   const u = u0;
-  if (!u || !db) throw new Error("请先登录");
+  if (!u || !db) throw new Error(t`请先登录`);
 
   const { deck, cards } = await branch.installDeck(sharedId);
   if (!deck) return null;
@@ -1706,7 +1733,7 @@ async function flushDeckPatch(localId: string, patch: DeckPatch): Promise<void> 
   const body: { name?: string; cardIds?: string[]; coverCardId?: string; description?: string } = {};
   // 用户清空输入框时本地是空串（编辑中不跳字），但 server 的 deckName 是 min(1)，
   // 直接发空串会 400。这里补上和建组一致的默认名。
-  if (typeof patch.name === "string") body.name = patch.name.trim() || "未命名卡组";
+  if (typeof patch.name === "string") body.name = patch.name.trim() || t`未命名卡组`;
   if (patch.cardIds) body.cardIds = patch.cardIds;
   if (patch.coverCardId) body.coverCardId = patch.coverCardId;
   // ★ 卡组简介本地叫 intro、服务端叫 description，是同一个东西。
@@ -1725,6 +1752,7 @@ function findDeck(id: string): Deck | null {
 
 function toMs(v: string | number | undefined): number {
   if (typeof v === "number") return v;
+  // ⚠ 这个 t 是局部时间戳，遮住了顶上 import 的 Lingui `t` 宏。这个函数里不出文案所以没改名；要在这里加文案先把它改名
   const t = v ? Date.parse(v) : NaN;
   return Number.isNaN(t) ? Date.now() : t;
 }
@@ -1777,6 +1805,7 @@ function toLocalUser(u: authApi.ApiUser): User {
     id: u._id,
     account: u.username || u.email || u._id,
     uid: typeof u.uid === "number" ? u.uid : undefined,
+    // i18n-ignore-next-line: 身份兜底名：进 user.name，发布时当 author 存下来、isMyAuthor 按名字比较（与 videos.ME 同值，翻了就认不出自己的作品）
     name: u.displayName || u.username || "我",
     avatar: u.avatarUrl || AVATARS[0],
     bio: u.bio ?? "",
@@ -2122,12 +2151,12 @@ async function loadRemoteAssets(): Promise<void> {
   const [cards, decks, following] = await Promise.all([
     branch.listCards().catch((e) => {
       emitApiError("listCards", e);
-      cardsIssue = e instanceof Error ? e.message.slice(0, 60) : "没能取到你的卡片";
+      cardsIssue = e instanceof Error ? e.message.slice(0, 60) : t`没能取到你的卡片`;
       return null;
     }),
     branch.listDecks().catch((e) => {
       emitApiError("listDecks", e);
-      cardsIssue = cardsIssue || (e instanceof Error ? e.message.slice(0, 60) : "没能取到你的卡组");
+      cardsIssue = cardsIssue || (e instanceof Error ? e.message.slice(0, 60) : t`没能取到你的卡组`);
       return null;
     }),
     branch.listFollowing(u.id).catch(() => [] as branch.ApiAuthor[]),
