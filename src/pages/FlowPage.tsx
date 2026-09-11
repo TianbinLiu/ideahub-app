@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import ReviseBar from "../components/ReviseBar";
 import { Link, useNavigate } from "react-router";
+import { Trans, useLingui } from "@lingui/react/macro";
 import AnnStrip from "../components/flow/AnnStrip";
 import InfoTip from "../components/InfoTip";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
@@ -116,6 +117,7 @@ export function castEditorState(
 function TemplateSubjectBox() {
   const { template, subject, setSubject, nodes, cursor } = useFlow();
   const [open, setOpen] = useState(false);
+  const { t } = useLingui();
   if (!template) return null;
   const plot = nodes[Math.min(cursor, nodes.length - 1)]?.proposals.find((p) => p.id === nodes[cursor]?.chosenId)?.plot ?? "";
   return (
@@ -124,16 +126,16 @@ function TemplateSubjectBox() {
         value={subject}
         onChange={(e) => setSubject(e.target.value)}
         maxLength={60}
-        placeholder="一句话：换成谁来演？例：一只戴墨镜的柴犬"
+        placeholder={t`一句话：换成谁来演？例：一只戴墨镜的柴犬`}
         className="w-full rounded-lg border border-brand/50 bg-panel px-2.5 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
       />
       <button onClick={() => setOpen(!open)} className="flex w-full items-center gap-1 text-[10px] text-slate-500">
         <Icon name="chevron" size={10} className={open ? "rotate-90" : ""} />
-        {open ? "收起" : "看看这句话变成了什么"}
+        {open ? t`收起` : t`看看这句话变成了什么`}
       </button>
       {open && (
         <p className="max-h-24 overflow-y-auto whitespace-pre-wrap rounded-lg bg-black/30 px-2.5 py-1.5 text-[10px] leading-relaxed text-slate-400">
-          {plot || "先写那句话"}
+          {plot || t`先写那句话`}
         </p>
       )}
     </div>
@@ -154,6 +156,7 @@ function TemplateSubjectBox() {
  */
 function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void }) {
   const { cast, castErr, castFallback, castBusy, busy, updateProposal, setRequirement, fillCastFallback } = useFlow();
+  const { t } = useLingui();
   /**
    * ★★ 挂卡三态属于**哪一段**由 store 的 castNodeId 说了算，与画布同一处判据（铁律六）。
    *   不判的话：合成那十几秒里用户点一下别的段（底部节点条不判 busy），这一段的输入框
@@ -176,6 +179,8 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
   // 这个模板的标记方案（判据只有 data 层一处）。★ 名词也只有一处：markNoun
   const spec = markSpecOf(tpl);
   const noun = markNoun(spec);
+  const roleCount = roles.length;
+  const reqText = node.requirement?.trim() ?? "";
   return (
     <div className="space-y-1.5">
       <button
@@ -186,8 +191,10 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
         <span className="flex-none">🎭</span>
         <span className="min-w-0 flex-1 truncate">
           {mounted > 0
-            ? `已挂 ${mounted}/${roles.length} 个角色位 · 点这里改`
-            : `给 ${roles.length} 个${spec.scheme === "ordinal" ? "白色" : "编号的"}人偶挂上你的角色卡`}
+            ? t`已挂 ${mounted}/${roleCount} 个角色位 · 点这里改`
+            : spec.scheme === "ordinal"
+              ? t`给 ${roleCount} 个白色人偶挂上你的角色卡`
+              : t`给 ${roleCount} 个编号的人偶挂上你的角色卡`}
         </span>
         <Icon name="chevron" size={12} className="flex-none text-slate-400" />
       </button>
@@ -199,10 +206,10 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
         <Icon name="chevron" size={10} className={`flex-none ${openReq ? "rotate-90" : ""}`} />
         <span className="min-w-0 flex-1 truncate text-left">
           {openReq
-            ? "收起补充要求"
-            : node.requirement?.trim()
-              ? `补充要求：${node.requirement.trim()}`
-              : "加一句你自己的要求（可选，下次挂完卡合成时并进去）"}
+            ? t`收起补充要求`
+            : reqText
+              ? t`补充要求：${reqText}`
+              : t`加一句你自己的要求（可选，下次挂完卡合成时并进去）`}
         </span>
       </button>
       {openReq && (
@@ -210,7 +217,7 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
           value={node.requirement ?? ""}
           onChange={(e) => setRequirement(node.id, e.target.value)}
           maxLength={60}
-          placeholder="例：整体调成黄昏的暖色调"
+          placeholder={t`例：整体调成黄昏的暖色调`}
           className="w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
         />
       )}
@@ -227,7 +234,7 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
               onClick={fillCastFallback}
               className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
             >
-              填入默认写法（填完还能改）
+              <Trans>填入默认写法（填完还能改）</Trans>
             </button>
           )}
         </div>
@@ -240,7 +247,7 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
         maxLength={VIDEO_PROMPT_MAX}
         disabled={castBusy && castOfThisNode}
         placeholder={
-          castBusy && castOfThisNode ? `正在把「${noun} → 角色」合成一段话…` : "先去挂卡，点名句会填进这里（可改）"
+          castBusy && castOfThisNode ? t`正在把「${noun} → 角色」合成一段话…` : t`先去挂卡，点名句会填进这里（可改）`
         }
         className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-40"
       />
@@ -248,15 +255,14 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
           ui-copy-grammar 文法④）；「为什么/覆盖规则」那截进 ⓘ */}
       <p className="flex items-center gap-1 text-[10px] leading-relaxed text-slate-500">
         {castBusy && castOfThisNode ? (
-          "合成中…（一次对话，几秒）"
+          t`合成中…（一次对话，几秒）`
         ) : (
           <>
             <span>
-              {prop.plot.trim() ? `这段话直接发给 AI：${noun}与角色名改错会换错人，其余随便改` : "挂卡后自动合成，出片前可逐字改"}
+              {prop.plot.trim() ? t`这段话直接发给 AI：${noun}与角色名改错会换错人，其余随便改` : t`挂卡后自动合成，出片前可逐字改`}
             </span>
-            <InfoTip title="点名句">
-              这一段的要求由挂卡合成：AI 把「{noun} → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。{noun}
-              与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。
+            <InfoTip title={t`点名句`}>
+              <Trans>这一段的要求由挂卡合成：AI 把「{noun} → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。{noun}与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。</Trans>
             </InfoTip>
           </>
         )}
@@ -307,6 +313,7 @@ function NodeScreen({
     shiftCursor,
     addNode,
   } = useFlow();
+  const { t } = useLingui();
   // ★ 「本段模板」只有一处读法：tplOfNode(node)（画布那侧一直是这么读的）。
   //   读 store 级那份会在换段时慢一拍/对不上（见 flowStore.shiftCursor 的 ★★）
   const tpl = tplOfNode(node);
@@ -330,6 +337,7 @@ function NodeScreen({
   // 出片之后大屏幕默认放成片；想回去看/改方案就翻回方案台（改完可以重炼）
   const [showPlan, setShowPlan] = useState(false);
   const matCount = node.materials?.length ?? 0;
+  const tierLabel = tierOf(node.videoTier).label;
 
   // ── 白模 V2 的挂卡入口（结果由 FlowPage 收，见那边的 effect）──
   const nav = useNavigate();
@@ -400,19 +408,19 @@ function NodeScreen({
   const hasInput = !!req.trim() || !!node.materials?.length;
   const mainDisabled = busy || generating || (stage === "film" ? !prop.plot.trim() : !hasInput);
   const mainLabel = generating
-    ? node.progress || "生成中…"
+    ? node.progress || t`生成中…`
     : stage === "rederive"
-      ? `♻ 重新生成方案（${fmtTokens(propCost)}）`
+      ? t`♻ 重新生成方案（${fmtTokens(propCost)}）`
       : stage === "derive"
-        ? `⚡ 生成本段（${fmtTokens(propCost)}）`
+        ? t`⚡ 生成本段（${fmtTokens(propCost)}）`
         : pending
           ? // ★ 「没接到结果」这一拍上主按钮**必须把"再花一次"写在脸上**：它和上面那颗
             // 「取回」长得一样近，而用户默认把没出片理解成"重试一下"。这一下不是重试，
             // 是重新下一单 —— 这正是 2026-08-18 那 ¥27 会被再花一次的入口。
-            `♻ 重新生成（再花 ${fmtTokens(cost)}）`
+            t`♻ 重新生成（再花 ${fmtTokens(cost)}）`
           : done
-            ? `♻ 重新生成（${fmtTokens(cost)}）`
-            : `⚡ 生成本段（${fmtTokens(cost)}）`;
+            ? t`♻ 重新生成（${fmtTokens(cost)}）`
+            : t`⚡ 生成本段（${fmtTokens(cost)}）`;
 
   async function onMain() {
     if (busy) return;
@@ -517,20 +525,20 @@ function NodeScreen({
         <button
           onClick={() => shiftCursor(-1)}
           disabled={index === 0 || busy}
-          aria-label="上一段"
+          aria-label={t`上一段`}
           className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 disabled:opacity-40"
         >
           <Icon name="back" size={15} />
         </button>
         <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5">
           <span className="flex-none text-[11px] text-slate-300">
-            {total > 1 ? `第 ${index + 1}/${total} 段` : "本段"}
+            {total > 1 ? t`第 ${index + 1}/${total} 段` : t`本段`}
           </span>
-          {done && <span className="flex-none rounded-full px-2 py-0.5 bg-emerald-500/85 text-[10px] text-ink">✓ 已出片</span>}
-          {picking && <span className="flex-none rounded-full px-2 py-0.5 bg-gold/20 text-[10px] text-gold">待挑方案</span>}
+          {done && <span className="flex-none rounded-full px-2 py-0.5 bg-emerald-500/85 text-[10px] text-ink"><Trans>✓ 已出片</Trans></span>}
+          {picking && <span className="flex-none rounded-full px-2 py-0.5 bg-gold/20 text-[10px] text-gold"><Trans>待挑方案</Trans></span>}
           {generating && (
             <span className="min-w-0 flex-1 animate-pulse truncate rounded-full bg-brand px-1.5 text-[10px] font-semibold text-ink">
-              {node.progress || "生成中…"}
+              {node.progress || t`生成中…`}
             </span>
           )}
           {/* ★ 「没接到结果」用琥珀色的 ⏳，**不是**红叉：红叉说的是"这一发废了"，
@@ -553,14 +561,14 @@ function NodeScreen({
             onClick={() => setShowPlan((v) => !v)}
             className="flex-none rounded-full bg-panel px-2.5 py-1 text-[10px] text-slate-300"
           >
-            {showPlan ? "看成片" : "看方案"}
+            {showPlan ? t`看成片` : t`看方案`}
           </button>
         )}
         <button
           onClick={() => shiftCursor(1)}
           disabled={index >= total - 1 || !done || busy}
-          title={index >= total - 1 ? "没有下一段了" : done ? "下一段" : "先把这一段炼出来"}
-          aria-label={done ? "下一段" : "下一段（本段还没出片）"}
+          title={index >= total - 1 ? t`没有下一段了` : done ? t`下一段` : t`先把这一段炼出来`}
+          aria-label={done ? t`下一段` : t`下一段（本段还没出片）`}
           className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 disabled:opacity-40"
         >
           <Icon name={done || index >= total - 1 ? "chevron" : "lock"} size={done || index >= total - 1 ? 15 : 13} />
@@ -609,18 +617,18 @@ function NodeScreen({
         ) : (
           <div className="px-8 text-center text-xs leading-relaxed text-slate-500">
             {generating
-              ? node.progress || "生成中…"
+              ? node.progress || t`生成中…`
               : simple || blockout // 白模没有方案台（直出复刻），别许诺"三套方案"
                 ? blockout && named
-                  ? "还没有画面——先给人偶挂上角色卡"
+                  ? t`还没有画面——先给人偶挂上角色卡`
                   : hasInput
-                    ? "还没有画面——点「生成本段」开炼"
-                    : "还没有画面——先写这一段拍什么"
+                    ? t`还没有画面——点「生成本段」开炼`
+                    : t`还没有画面——先写这一段拍什么`
                 : /* ★ 写没写过要分开说（见上面 hasInput 的 ★）：都说"去写"的话，
                      写完的人会以为自己那行字没存上。空态一句话（文法①） */
                   hasInput
-                  ? "还没有画面——点「生成本段」先看三套方案"
-                  : "还没有画面——先写这一段拍什么"}
+                  ? t`还没有画面——点「生成本段」先看三套方案`
+                  : t`还没有画面——先写这一段拍什么`}
           </div>
         )}
       </div>
@@ -648,15 +656,14 @@ function NodeScreen({
             {castAsk && (
               <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
                 <p className="text-[11px] leading-relaxed text-amber-200">
-                  改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉 ——
-                  因为旧的那段话里写的还是旧的挂卡，留着它 AI 就会照旧的换人。
+                  <Trans>改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉 —— 因为旧的那段话里写的还是旧的挂卡，留着它 AI 就会照旧的换人。</Trans>
                 </p>
                 <div className="flex gap-2">
                   <button onClick={openCast} className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink">
-                    继续去挂卡
+                    <Trans>继续去挂卡</Trans>
                   </button>
                   <button onClick={() => setCastAsk(false)} className="rounded-full px-2.5 py-1 text-[11px] text-slate-300">
-                    算了
+                    <Trans>算了</Trans>
                   </button>
                 </div>
               </div>
@@ -669,13 +676,15 @@ function NodeScreen({
                 {/* ★ 措辞是「按 N 秒计」不是「N 秒」：这个数是**计价锚点**（整数、向上取整），
                     模板视频的真实文件更短。写成"模板视频 4s"会与详情页那句"实际约 3.7 秒"
                     看起来互相打架，而它们说的是两件事 —— 一件是账、一件是文件。 */}
-                {`白模复刻出片（「${tierOf(node.videoTier).label}」档）：模板视频按 ${tpl.refVideo.durationSec} 秒计的输入也计费、输出≈模板时长，共约 ${fmtTokens(cost)} token`}
+                {t`白模复刻出片（「${tierLabel}」档）：模板视频按 ${tpl.refVideo.durationSec} 秒计的输入也计费、输出≈模板时长，共约 ${fmtTokens(cost)} token`}
                 {/* 一张卡都没挂时把"去哪儿挂"说清楚。★ 两条路的入口不是同一个：V2 挂在
                     角色位上（上面那颗按钮，右下角那枚圆钮也走同一处），V1 挂在本段素材里 */}
                 {matCount === 0 &&
                   (named
-                    ? `。先给${markSpecOf(tpl).scheme === "ordinal" ? "白色" : "编号的"}人偶挂上带形象图的角色卡，AI 才知道每个人偶换成谁`
-                    : "。挂上带形象图的角色卡（右下角素材按钮），AI 会把红色小人换成它")}
+                    ? markSpecOf(tpl).scheme === "ordinal"
+                      ? t`。先给白色人偶挂上带形象图的角色卡，AI 才知道每个人偶换成谁`
+                      : t`。先给编号的人偶挂上带形象图的角色卡，AI 才知道每个人偶换成谁`
+                    : t`。挂上带形象图的角色卡（右下角素材按钮），AI 会把红色小人换成它`)}
               </p>
             )}
           </>
@@ -687,7 +696,7 @@ function NodeScreen({
               rows={3}
               maxLength={400}
               data-guide="flow-simple-plot"
-              placeholder="想拍什么？例：雨夜的东京街头，霓虹灯牌下一只黑猫慢慢走过积水，倒影闪烁"
+              placeholder={t`想拍什么？例：雨夜的东京街头，霓虹灯牌下一只黑猫慢慢走过积水，倒影闪烁`}
               className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
             {/* ★ 挂了卡就必须说清"这些卡到底怎么参与出片"，因为两种做法的结果差很多：
@@ -697,10 +706,10 @@ function NodeScreen({
             {matCount > 0 && (
               <p className="text-[10px] leading-relaxed text-slate-500">
                 {refOn
-                  ? `直接把素材卡的形象参考图交给「${tierOf(node.videoTier).label}」档出片，不再画设定帧（更快也更省）`
+                  ? t`直接把素材卡的形象参考图交给「${tierLabel}」档出片，不再画设定帧（更快也更省）`
                   : tierOf(node.videoTier).refImg
-                    ? "素材卡上还没有形象参考图（去卡片详情页加几张），这次只能先按描述画一张设定帧再出片"
-                    : `「${tierOf(node.videoTier).label}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」`}
+                    ? t`素材卡上还没有形象参考图（去卡片详情页加几张），这次只能先按描述画一张设定帧再出片`
+                    : t`「${tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」`}
               </p>
             )}
             {/* ── 自定义首尾帧（选填，主人点名的第三车道·简约面）──
@@ -711,12 +720,16 @@ function NodeScreen({
               className="flex w-full items-center justify-between rounded-lg border border-slate-700/70 bg-panel px-2.5 py-1.5 text-[11px] text-slate-300"
             >
               <span className="min-w-0 truncate">
-                🖼 自定义首尾帧
-                {prop.firstFrame || prop.lastFrame
-                  ? ` · 已给${prop.firstFrame ? "首" : ""}${prop.firstFrame && prop.lastFrame ? "、" : ""}${prop.lastFrame ? "尾" : ""}帧`
-                  : "（选填 · 传自己的图或融图）"}
+                <Trans>🖼 自定义首尾帧</Trans>
+                {prop.firstFrame && prop.lastFrame
+                  ? t` · 已给首、尾帧`
+                  : prop.firstFrame
+                    ? t` · 已给首帧`
+                    : prop.lastFrame
+                      ? t` · 已给尾帧`
+                      : t`（选填 · 传自己的图或融图）`}
               </span>
-              <span className="ml-2 flex-none text-[10px] text-slate-500">{customOpen ? "收起" : "展开"}</span>
+              <span className="ml-2 flex-none text-[10px] text-slate-500">{customOpen ? t`收起` : t`展开`}</span>
             </button>
             {customOpen && (
               <>
@@ -725,7 +738,7 @@ function NodeScreen({
                   last={prop.lastFrame}
                   aspectCssValue={aspectCss(node.aspect)}
                   canEdit={!generating && !busy}
-                  firstEmptyNote="空 = AI 按提示词补画（计费）"
+                  firstEmptyNote={t`空 = AI 按提示词补画（计费）`}
                   onFrame={(which, url) => setFrame(node.id, which, url)}
                   onFuse={setCustomFuse}
                   onError={(msg) => useFlow.setState({ err: msg })}
@@ -734,7 +747,7 @@ function NodeScreen({
                     的判定），给了首帧那条省钱的路就自动让位——不说的话用户以为卡片没生效 */}
                 {matCount > 0 && tierOf(node.videoTier).refImg && (prop.firstFrame || prop.lastFrame) && (
                   <p className="text-[10px] leading-relaxed text-slate-500">
-                    给了自己的帧就走首尾帧模式（与「直接用卡片形象出片」互斥）——清掉两帧才会回到那条路。
+                    <Trans>给了自己的帧就走首尾帧模式（与「直接用卡片形象出片」互斥）——清掉两帧才会回到那条路。</Trans>
                   </p>
                 )}
               </>
@@ -749,16 +762,16 @@ function NodeScreen({
               onChange={(e) => setRequirement(node.id, e.target.value)}
               rows={2}
               maxLength={400}
-              placeholder="这一段拍什么？"
+              placeholder={t`这一段拍什么？`}
               data-guide="flow-req-input"
               className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
             <p className="text-[10px] leading-relaxed text-slate-500">
               {picking
-                ? "改完这句话可以「重新生成方案」；挑定一套之后按钮才变回「生成本段」"
+                ? t`改完这句话可以「重新生成方案」；挑定一套之后按钮才变回「生成本段」`
                 : plan === "picked"
-                  ? "已挑定一套 · 在上面的方案台里换首尾帧、改剧情"
-                  : "点「生成本段」先出三套方案（各带首尾帧预览），挑定后再炼视频"}
+                  ? t`已挑定一套 · 在上面的方案台里换首尾帧、改剧情`
+                  : t`点「生成本段」先出三套方案（各带首尾帧预览），挑定后再炼视频`}
             </p>
           </div>
         )}
@@ -789,16 +802,16 @@ function NodeScreen({
               onClick={openAnnotator}
               disabled={busy}
               /* 收成两个字：这一行现在还要放素材按钮，"圈选改画面"会把生成按钮挤到折行 */
-              title="圈选改画面"
+              title={t`圈选改画面`}
               className="flex-none rounded-xl bg-panel px-2.5 py-2.5 text-[11px] text-slate-300 disabled:opacity-40"
             >
-              ⭕ 圈选
+              <Trans>⭕ 圈选</Trans>
             </button>
           )}
           <button
             onClick={() => void onMain()}
             disabled={mainDisabled}
-            title={AI_REAL ? `预计消耗 ${fmtTokens(mainCost)} token` : undefined}
+            title={AI_REAL ? t`预计消耗 ${fmtTokens(mainCost)} token` : undefined}
             data-guide="flow-main-btn"
             className={`min-w-0 flex-1 rounded-xl py-2.5 text-xs font-bold disabled:opacity-40 ${
               stage === "rederive" ? "bg-gold/90 text-ink" : "bg-brand text-ink"
@@ -821,8 +834,8 @@ function NodeScreen({
           <button
             key={matShake}
             onClick={named ? requestCast : onToggleMat}
-            aria-label={named ? `挂卡 ${matCount} 张` : `本段素材 ${matCount} 张`}
-            title={named ? "给人偶挂卡" : "本段素材"}
+            aria-label={named ? t`挂卡 ${matCount} 张` : t`本段素材 ${matCount} 张`}
+            title={named ? t`给人偶挂卡` : t`本段素材`}
             /* 不裁圆角：让她连人带牌探出钮外一点，比塞进一个圆里更有"她在按钮上"的味道 */
             className={`relative flex h-11 w-11 flex-none items-center justify-center rounded-full transition ${
               matOpen ? "bg-brand/20 ring-2 ring-brand" : "bg-panel ring-1 ring-slate-700"
@@ -846,7 +859,7 @@ function NodeScreen({
               disabled={busy}
               className="w-full rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-2.5 text-xs font-bold text-emerald-200 disabled:opacity-40"
             >
-              ✓ 这段满意，去下一段
+              <Trans>✓ 这段满意，去下一段</Trans>
             </button>
           ) : simple ? null : (
             <button
@@ -854,7 +867,7 @@ function NodeScreen({
               disabled={busy}
               className="w-full rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-2.5 text-xs font-bold text-emerald-200 disabled:opacity-40"
             >
-              ✓ 这段满意，再加一段
+              <Trans>✓ 这段满意，再加一段</Trans>
             </button>
           ))}
       </div>
@@ -907,7 +920,7 @@ function NodeScreen({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <span className="text-sm font-bold text-slate-100">第 {index + 1} 段设置</span>
+              <span className="text-sm font-bold text-slate-100"><Trans>第 {index + 1} 段设置</Trans></span>
               <CloseButton chip="sm" size={13} align="end" onClick={() => setSheet(false)} />
             </div>
 
@@ -923,7 +936,7 @@ function NodeScreen({
       {annOpen && (
         <FrameAnnotator
           frame={annOpen.frame}
-          hint="标注会先改这一段的设定画面，再重新生成本段视频"
+          hint={t`标注会先改这一段的设定画面，再重新生成本段视频`}
           onClose={() => setAnnOpen(null)}
           onSave={(frame, req) => {
             addAnn(node.id, { frame, req, atSec: annOpen.atSec });
@@ -937,6 +950,7 @@ function NodeScreen({
 
 export default function FlowPage() {
   const navigate = useNavigate();
+  const { t } = useLingui();
   /**
    * 简约模式左上角那枚返回：**回到来的那一页**（模板列表 / 模板详情 / 首页「做同款」），
    * 历史里没有上一页（冷启动直接落到 /flow）才退回模板列表。
@@ -1128,15 +1142,15 @@ export default function FlowPage() {
             >
               <button
                 onClick={() => setPlanFocus(false)}
-                aria-label="收起方案台"
+                aria-label={t`收起方案台`}
                 className="flex flex-none items-center gap-1 rounded-full bg-black/60 px-2.5 py-1.5 text-xs text-slate-100 ring-1 ring-white/15"
               >
                 <Icon name="back" size={16} />
-                收起
+                <Trans>收起</Trans>
               </button>
               {node.status === "generating" && (
                 <span className="min-w-0 flex-1 animate-pulse truncate rounded-full bg-brand px-2.5 py-1.5 text-[11px] font-semibold text-ink">
-                  {node.progress || "生成中…"}
+                  {node.progress || t`生成中…`}
                 </span>
               )}
               {/* ★ 失败原因也不能一起收：node.error 平时画在段导航条的 ✗ 角标上，而那一条在
@@ -1185,11 +1199,11 @@ export default function FlowPage() {
           <PageHeader
             className={`${planFocus ? "hidden" : ""} flex-none px-4`}
             onBack={() => (origin === "studio" ? navigate("/studio") : backOrTemplates())}
-            title={simple ? "简约模式" : "工作流"}
+            title={simple ? t`简约模式` : t`工作流`}
             subtitle={
               <>
-                {simple ? "一个节点，一条短片" : `${nodes.length} 段 · 已出片 ${nodes.filter(nodeDone).length}`}
-                {AI_REAL && remain > 0 && ` · 剩余约 ${fmtTokens(remain)}`}
+                {simple ? t`一个节点，一条短片` : t`${nodes.length} 段 · 已出片 ${nodes.filter(nodeDone).length}`}
+                {AI_REAL && remain > 0 && t` · 剩余约 ${fmtTokens(remain)}`}
               </>
             }
             right={
@@ -1206,12 +1220,12 @@ export default function FlowPage() {
                 className="flex-none rounded-full bg-slate-700/80 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-40"
               >
                 {fa.saveState === "saving"
-                  ? "保存中…"
+                  ? t`保存中…`
                   : fa.saveState === "saved"
-                    ? "已保存 ✓"
+                    ? t`已保存 ✓`
                     : fa.saveState === "failed"
-                      ? "保存失败"
-                      : "存草稿"}
+                      ? t`保存失败`
+                      : t`存草稿`}
               </button>
             )}
             {/* 收口按钮：全部出片后把各段并成一条片子（去剪辑页合并）。
@@ -1221,7 +1235,7 @@ export default function FlowPage() {
             <button
               onClick={fa.toCut}
               disabled={!fa.allDone || busy || !!fa.finalizing}
-              title={fa.allDone ? "把各段合成一条完整视频" : "每段都出片之后才能合成"}
+              title={fa.allDone ? t`把各段合成一条完整视频` : t`每段都出片之后才能合成`}
               data-guide="flow-finish"
               className="flex-none rounded-full bg-brand px-3.5 py-1.5 text-xs font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
             >
@@ -1229,7 +1243,7 @@ export default function FlowPage() {
                   标题下面那行去了，量法见 header 上那段注释）。这颗按钮量到 84px，是这一行里
                   最宽的一件；带上「还差 N 段」会再宽出一截，把左边那一格连标题带进度一起压瘦。
                   "还差几段"由标题下面那行的「N 段 · 已出片 M」交代，这里只留终点本身 */}
-              {fa.finalizing || "完成视频"}
+              {fa.finalizing || t`完成视频`}
               {fa.allDone && " ›"}
             </button>
               </>
@@ -1249,18 +1263,18 @@ export default function FlowPage() {
                   <Link to={`/template/${tpl.id}`} className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-100">
                     {tpl.title}
                   </Link>
-                  <span className="flex-none text-[10px] text-slate-500">{nodes.length} 段</span>
+                  <span className="flex-none text-[10px] text-slate-500"><Trans>{nodes.length} 段</Trans></span>
                   {/* 出片了、模板是自己提取的、还没发布 → 就地引导发布（详情页的作者区管标题/简介） */}
                   {fa.allDone && myTemplates().some((x) => x.id === tpl.id && !x.published) ? (
                     <Link
                       to={`/template/${tpl.id}`}
                       className="flex-none rounded-full bg-gold/90 px-2.5 py-1 text-[11px] font-bold text-ink"
                     >
-                      发布模板
+                      <Trans>发布模板</Trans>
                     </Link>
                   ) : (
                     <button onClick={() => navigate("/templates")} className="flex-none text-[11px] text-brand">
-                      换
+                      <Trans>换</Trans>
                     </button>
                   )}
                   <button
@@ -1278,25 +1292,25 @@ export default function FlowPage() {
                     }
                     className="flex-none text-[11px] text-slate-500"
                   >
-                    不用
+                    <Trans>不用</Trans>
                   </button>
                 </>
               ) : (
                 <>
                   <span className="min-w-0 flex-1 truncate text-[11px] text-slate-400">
-                    套个模板？一句话就能出同类视频
+                    <Trans>套个模板？一句话就能出同类视频</Trans>
                   </span>
                   <button
                     onClick={() => navigate("/templates")}
                     className="flex-none rounded-full bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-100"
                   >
-                    模板市场
+                    <Trans>模板市场</Trans>
                   </button>
                   <button
                     onClick={() => setTplExtract(true)}
                     className="flex-none rounded-full bg-brand/90 px-2.5 py-1 text-[11px] font-bold text-ink"
                   >
-                    提取模板
+                    <Trans>提取模板</Trans>
                   </button>
                 </>
               )}
@@ -1373,7 +1387,7 @@ export default function FlowPage() {
                           key={n.id}
                           onClick={() => setCursor(i)}
                           disabled={locked}
-                          aria-label={`第 ${i + 1} 段${locked ? "（还没轮到）" : ""}`}
+                          aria-label={locked ? t`第 ${i + 1} 段（还没轮到）` : t`第 ${i + 1} 段`}
                           /* 定高不定宽：缩略图按本段画幅撑出宽度，横竖一眼能分出来
                              （写死 16:9 的话，竖屏段在这条里被裁得只剩腰） */
                           style={{ aspectRatio: aspectCss(n.aspect) }}
@@ -1411,9 +1425,9 @@ export default function FlowPage() {
                     <button
                       onClick={() => addNode()}
                       disabled={busy || !nodeDone(nodes[nodes.length - 1])}
-                      title={nodeDone(nodes[nodes.length - 1]) ? "加一段" : "先把当前这段炼出来"}
+                      title={nodeDone(nodes[nodes.length - 1]) ? t`加一段` : t`先把当前这段炼出来`}
                       className="h-11 w-11 flex-none rounded-lg border border-dashed border-slate-600 text-slate-400 disabled:opacity-40"
-                      aria-label="加一段"
+                      aria-label={t`加一段`}
                     >
                       ＋
                     </button>
@@ -1429,7 +1443,7 @@ export default function FlowPage() {
                       className="rounded bg-rose-500/15 px-2 py-1 text-rose-300 disabled:opacity-40"
                     />
                     <span className="min-w-0 flex-1 truncate text-right text-slate-500">
-                      总时长 {formatDuration(nodes.reduce((s, n) => s + chosenOf(n).durationSec, 0))}
+                      <Trans>总时长 {formatDuration(nodes.reduce((s, n) => s + chosenOf(n).durationSec, 0))}</Trans>
                       {/* ★ 「余额 X」还是「管理员免扣费」由 account.balanceNote 一处决定 ——
                           管理员的镜像余额（5.2k）挂在十万级报价旁边等于撒谎，见那边的 ★★ */}
                       {AI_REAL && balanceNote() && ` · ${balanceNote()}`}
@@ -1463,25 +1477,25 @@ export default function FlowPage() {
           //   ② **整组套用**（分段登记接上之后必须）——templateGroupOf 对非组员回 [自己]，
           //      只 applyTemplate 的话，刚在这里做完的分段组只会铺进第 1 段、其余静默消失。
           //   判据与模板货架 pick、模板详情页 applyNow **逐字同形**（三处一条规则）。
-          onDone={(t) =>
+          onDone={(tp) =>
             applyGuard(() => {
-              const parts = templateGroupOf(t);
+              const parts = templateGroupOf(tp);
               // ★★ 组不齐**整句拒**，绝不静默退成单段（cherry-pick 评审抓到：我上一版
               //   只抄了后半句，而注释却写着"三处逐字同形" —— 注释在撒谎）。
               //   templateGroupOf 凑不齐时回的是 **[t]（长度 1）**，恰好落进下面那个
               //   三元的 false 支 → applyTemplate 铺 1 段、mode 退成简约、其余段全丢，
               //   而且它返回 true，于是守卫照常断开旧草稿 —— 全程 err 一个字都没有。
-              if (t.group && parts.length !== t.group.count) {
+              if (tp.group && parts.length !== tp.group.count) {
+                const count = tp.group.count;
+                const got = parts.length;
                 useFlow.setState({
-                  err:
-                    `这是一条分成 ${t.group.count} 段的模板，但这台设备上只拿到了 ${parts.length} 段 —— ` +
-                    `整组套用会少内容，所以先不套。去「我的模板」下拉刷新试试。`,
+                  err: t`这是一条分成 ${count} 段的模板，但这台设备上只拿到了 ${got} 段 —— 整组套用会少内容，所以先不套。去「我的模板」下拉刷新试试。`,
                 });
                 return false;
               }
               return parts.length > 1
                 ? useFlow.getState().applyTemplateGroup(parts)
-                : useFlow.getState().applyTemplate(t);
+                : useFlow.getState().applyTemplate(tp);
             })
           }
         />
@@ -1502,8 +1516,8 @@ export default function FlowPage() {
           /* 「🎴 工坊」：同一条流水线换到 3D 铸卡桌面那一面（工作流↔工坊互通）。
              ★ 不再是"收起画布看线性"——线性视图已经没有了。 */
           onLinear={() => navigate("/studio")}
-          onCast={(t, value) => {
-            const st = castEditorState(t, value);
+          onCast={(tp, value) => {
+            const st = castEditorState(tp, value);
             if (st) navigate("/video-editor", { state: st });
           }}
           /* ★ 存草稿与组稿的实现在 hooks/useFlowActions（两个宿主共用一份）：组稿要回写真帧、
