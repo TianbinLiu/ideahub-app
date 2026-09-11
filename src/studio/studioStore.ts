@@ -938,6 +938,24 @@ export function backLabelOf(s: StudioState): string {
   return map[step as Exclude<BackStep, "projection" | "projectionBusy" | "canvas">] ?? t`返回`;
 }
 
+/**
+ * 这是不是 flowStore.blankProposal 写下的占位标题「第 N 段」（= 这一段还没起过名）。
+ * ★★ 两半都要认（2026-09-11 补）：
+ *   ① 中文正则 —— real.ts / mock 的「第N段 · 」前缀剥掉之后剩下的，以及中文界面下存的占位标题；
+ *   ② 按**当前界面语言**把同一条 msgid 渲染一遍再逐字比 —— blankProposal 存的是 t`第 ${i + 1} 段`，
+ *      英文界面下是 "Segment 1"。只认①的话，英文界面的草稿一律被自动命名成 "Segment 1"，
+ *      草稿箱一屏全是它、分不出谁是谁（正是 saveWorkDraft 那段注释要防的事）。
+ * ⚠ 在另一种界面语言下建的段（英文界面建、中文界面存）②认不出，退回老行为（拿占位标题当草稿名）——
+ *   只是名字不好认，不丢东西。
+ */
+function isSegPlaceholderTitle(title: string): boolean {
+  if (/^第\s*\d+\s*段$/.test(title)) return true;
+  const m = /^\D*(\d+)\D*$/.exec(title);
+  if (!m) return false;
+  // 占位参数写成表达式（不是裸标识符），抽出来才与 blankProposal 同一条 msgid「第 {0} 段」
+  return title === t`第 ${Number(m[1])} 段`;
+}
+
 export const useStudio = create<StudioState>()((set, get) => ({
   deck: [],
   spreadOpen: false,
@@ -2388,7 +2406,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // 一屏全是"第 1 段"根本分不出谁是谁——这种情况改用剧情开头
     const doneCount = nodes.filter((n) => Object.keys(n.videoByProposal).length > 0).length;
     const rawTitle = (head?.title ?? "").replace(/^第\s*\d+\s*段\s*·\s*/, "").trim();
-    const autoTitle = /^第\s*\d+\s*段$/.test(rawTitle) || !rawTitle ? (head?.plot ?? "").trim().slice(0, 16) : rawTitle;
+    // ★ 「这是不是占位标题」只问 isSegPlaceholderTitle（中文正则 + 当前界面语言下 blankProposal 存的那一份）；
+    //   剧情开头也是空的话 autoTitle 为空串，saveDraft 退回缺省的「未命名草稿」
+    const autoTitle = isSegPlaceholderTitle(rawTitle) || !rawTitle ? (head?.plot ?? "").trim().slice(0, 16) : rawTitle;
     const meta = await saveDraft({
       id: workDraftId,
       title: opts?.title ?? (workDraftId ? undefined : autoTitle),

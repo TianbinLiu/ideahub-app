@@ -12562,15 +12562,16 @@ msgstr "第 {0} 味权重"
 msgid "第 {0} 味音色"
 msgstr "第 {0} 味音色"
 
+#. placeholder {0}: Number(m[1])
 #. placeholder {0}: i + 1
 #. placeholder {0}: idx + 1
-#. placeholder {0}: index + 1
 #: src/components/flow/FlowCanvas.tsx
 #: src/data/videoDownload.ts
 #: src/pages/FlowPage.tsx
 #: src/pages/PublishPage.tsx
 #: src/studio/flowStore.ts
 #: src/studio/structuredSkills.ts
+#: src/studio/studioStore.ts
 #: src/studio/ui/projection.tsx
 msgid "第 {0} 段"
 msgstr "第 {0} 段"
