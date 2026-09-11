@@ -10,7 +10,7 @@
 //   打字要好几秒，按开条的时间点存，弹幕会飘在一段你根本没在看的画面上。
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { Trans } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import {
   DANMAKU_COLORS,
   DANMAKU_MAX_LEN,
@@ -45,6 +45,7 @@ function clock(sec: number): string {
  *   无权、老服务端没这个端点、断网。catch 之后不响 = 用户点了没反应，铁律八）。
  */
 function MyDanmakuRow({ videoId, item }: { videoId: string; item: DanmakuItem }) {
+  const { t } = useLingui();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -58,7 +59,7 @@ function MyDanmakuRow({ videoId, item }: { videoId: string; item: DanmakuItem })
       // 飘着的那一层也同步不再画它（"只删服务端、界面还飘着"是这里最要避免的）
       await removeDanmaku(videoId, item.id);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "没能删掉，请重试");
+      setErr(e instanceof Error ? e.message : t`没能删掉，请重试`);
       setBusy(false);
     }
   }
@@ -81,7 +82,7 @@ function MyDanmakuRow({ videoId, item }: { videoId: string; item: DanmakuItem })
             disabled={busy}
             className="flex-none text-[11px] font-semibold text-rose-400 active:opacity-60 disabled:opacity-40"
           >
-            {busy ? "删除中…" : "确认删除"}
+            {busy ? <Trans>删除中…</Trans> : <Trans>确认删除</Trans>}
           </button>
           <button
             onClick={() => {
@@ -90,7 +91,7 @@ function MyDanmakuRow({ videoId, item }: { videoId: string; item: DanmakuItem })
             }}
             className="flex-none text-[11px] text-slate-500 active:opacity-60"
           >
-            取消
+            <Trans>取消</Trans>
           </button>
         </>
       ) : (
@@ -99,7 +100,7 @@ function MyDanmakuRow({ videoId, item }: { videoId: string; item: DanmakuItem })
             setErr("");
             setConfirming(true);
           }}
-          aria-label="删除这条弹幕"
+          aria-label={t`删除这条弹幕`}
           className="-m-1 flex-none p-1 text-slate-500 active:opacity-60"
         >
           <Icon name="close" size={14} />
@@ -144,6 +145,7 @@ export default function DanmakuInput({
   getTime: () => number;
   onClose: () => void;
 }) {
+  const { t } = useLingui();
   const [text, setText] = useState("");
   const [color, setColor] = useState(DANMAKU_COLORS[0]);
   const [styleOpen, setStyleOpen] = useState(false);
@@ -166,6 +168,9 @@ export default function DanmakuInput({
   /** 别人发的。★ 只在真跑在服务端上时才列出来：离线库里的弹幕没有"别人"，
    *  也没有人收举报，摆一份永远举报不出去的列表比不摆更糟 */
   const others = danmakuIsShared() ? all.filter((d) => !isMyDanmaku(d)) : [];
+  // 条数取成具名常量：目录里读作 {mineCount} / {othersCount}，英文按它做单复数（「条」不单独翻）
+  const mineCount = mine.length;
+  const othersCount = others.length;
 
   // 自动聚焦拉起键盘：少一次点击。autoFocus 属性在 portal 里不一定生效（元素先挂载
   // 后移动），显式调一次稳
@@ -192,7 +197,7 @@ export default function DanmakuInput({
       navigator.vibrate?.(10);
       onClose();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "发送失败，请重试");
+      setErr(e instanceof Error ? e.message : t`发送失败，请重试`);
     } finally {
       setBusy(false);
     }
@@ -226,7 +231,9 @@ export default function DanmakuInput({
               onClick={() => setMineOpen((v) => !v)}
               className="flex w-full items-center gap-1.5 pb-2 text-[11px] text-slate-400 active:opacity-60"
             >
-              <span>我发过的 {mine.length} 条</span>
+              <span>
+                <Trans>我发过的 {mineCount} 条</Trans>
+              </span>
               <span className={`transition ${mineOpen ? "rotate-180" : ""}`}>▾</span>
             </button>
             {mineOpen && (
@@ -248,7 +255,9 @@ export default function DanmakuInput({
               onClick={() => setAllOpen((v) => !v)}
               className="flex w-full items-center gap-1.5 pb-2 text-[11px] text-slate-400 active:opacity-60"
             >
-              <span>本片弹幕 {others.length} 条</span>
+              <span>
+                <Trans>本片弹幕 {othersCount} 条</Trans>
+              </span>
               <span className={`transition ${allOpen ? "rotate-180" : ""}`}>▾</span>
             </button>
             {allOpen && (
@@ -270,7 +279,7 @@ export default function DanmakuInput({
               <button
                 key={c}
                 onClick={() => setColor(c)}
-                aria-label={`弹幕颜色 ${c}`}
+                aria-label={t`弹幕颜色 ${c}`}
                 className={`h-7 w-7 rounded-full transition active:scale-90 ${
                   c === color ? "ring-2 ring-white ring-offset-2 ring-offset-panel" : "ring-1 ring-white/25"
                 }`}
@@ -289,7 +298,7 @@ export default function DanmakuInput({
               setDanmakuOn(next);
               setOn(next);
             }}
-            aria-label={on ? "关闭弹幕显示" : "开启弹幕显示"}
+            aria-label={on ? t`关闭弹幕显示` : t`开启弹幕显示`}
             className={`flex-none transition active:scale-90 ${on ? "text-brand" : "text-slate-500"}`}
           >
             <DanmakuGlyph size={26} pen={false} off={!on} />
@@ -297,7 +306,7 @@ export default function DanmakuInput({
 
           <button
             onClick={() => setStyleOpen((v) => !v)}
-            aria-label="弹幕样式"
+            aria-label={t`弹幕样式`}
             className="relative flex-none text-xl font-bold leading-none text-slate-300 transition active:scale-90"
           >
             <span className="underline decoration-2 underline-offset-4">A</span>
@@ -316,7 +325,7 @@ export default function DanmakuInput({
               // isComposing：中文输入法选词时的回车是"上屏"，不是"发送"
               if (e.key === "Enter" && !e.nativeEvent.isComposing) void submit();
             }}
-            placeholder="发条友善的弹幕"
+            placeholder={t`发条友善的弹幕`}
             maxLength={DANMAKU_MAX_LEN}
             className="min-w-0 flex-1 rounded-full border border-slate-700 bg-black/30 px-4 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
           />
@@ -324,7 +333,7 @@ export default function DanmakuInput({
           <button
             onClick={() => void submit()}
             disabled={!text.trim() || busy}
-            aria-label="发送弹幕"
+            aria-label={t`发送弹幕`}
             className="flex-none p-1 text-brand transition active:scale-90 disabled:text-slate-600"
           >
             <Icon name={busy ? "replay" : "send"} size={22} className={busy ? "animate-spin" : ""} />
@@ -344,7 +353,9 @@ export default function DanmakuInput({
           </p>
         ) : (
           !danmakuIsShared() && (
-            <p className="px-4 pb-1 text-[10px] text-slate-600">当前离线，这条弹幕只存在这台设备上</p>
+            <p className="px-4 pb-1 text-[10px] text-slate-600">
+              <Trans>当前离线，这条弹幕只存在这台设备上</Trans>
+            </p>
           )
         )}
       </div>

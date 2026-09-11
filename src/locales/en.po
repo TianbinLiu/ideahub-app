@@ -2955,6 +2955,10 @@ msgstr "Cancel"
 msgid "不合形状的段整段丢掉；一段不剩就算失败，不落地"
 msgstr "Segments in the wrong shape are dropped whole; if none are left, it counts as a failure and nothing is applied"
 
+#: src/App.tsx
+msgid "不同意，退出登录"
+msgstr "Disagree and log out"
+
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "不在选段内"
 msgstr "Outside the selection"
@@ -4048,6 +4052,10 @@ msgstr "Close"
 msgid "关闭导演台"
 msgstr "Close director's stage"
 
+#: src/components/DanmakuInput.tsx
+msgid "关闭弹幕显示"
+msgstr "Hide bullet comments"
+
 #: src/components/MaterialSheet.tsx
 msgid "关闭素材库"
 msgstr "Close asset library"
@@ -4590,6 +4598,7 @@ msgid "删除不可撤销。只想让它不再被看到就用「下架」。"
 msgstr "Deleting can't be undone. If you only want it hidden, use “Take down”."
 
 #: src/components/CommentDelete.tsx
+#: src/components/DanmakuInput.tsx
 #: src/components/DeleteConfirmShell.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/AdminPage.tsx
@@ -4616,6 +4625,10 @@ msgstr "Delete account…"
 #: src/pages/CardDetailPage.tsx
 msgid "删除这张卡"
 msgstr "Delete this card"
+
+#: src/components/DanmakuInput.tsx
+msgid "删除这条弹幕"
+msgstr "Delete this bullet comment"
 
 #: src/pages/EditPage.tsx
 msgid "删除这部作品"
@@ -5325,6 +5338,10 @@ msgstr "Publish video"
 msgid "发弹幕"
 msgstr "Send a bullet comment"
 
+#: src/components/DanmakuInput.tsx
+msgid "发条友善的弹幕"
+msgstr "Send a friendly bullet comment"
+
 #. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 100)
 #: src/components/PortraitAuthPanel.tsx
 msgid "发起授权没成：{0}——可以改用「填 asset ID」那条路"
@@ -5332,6 +5349,7 @@ msgstr "Couldn't start authorization: {0} — you can enter an asset ID instead"
 
 #: src/components/CommentSheet.tsx
 #: src/components/flow/FlowCanvas.tsx
+#: src/components/SocialPanel.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/SupportPage.tsx
 #: src/studio/ui/NpcDialog.tsx
@@ -5346,6 +5364,15 @@ msgstr "Sending…"
 #: src/pages/SupportPage.tsx
 msgid "发送失败"
 msgstr "Couldn't send"
+
+#: src/components/DanmakuInput.tsx
+#: src/data/danmaku.ts
+msgid "发送失败，请重试"
+msgstr "Couldn't send. Try again"
+
+#: src/components/DanmakuInput.tsx
+msgid "发送弹幕"
+msgstr "Send bullet comment"
 
 #: src/pages/LoginPage.tsx
 msgid "发送验证码"
@@ -5440,6 +5467,7 @@ msgstr "Loading the stream timed out (the browser doesn't decode video while the
 #: src/components/CommentDelete.tsx
 #: src/components/ConfirmDialog.tsx
 #: src/components/CoverPicker.tsx
+#: src/components/DanmakuInput.tsx
 #: src/components/DraftSheet.tsx
 #: src/components/flow/DiscardFlowDialog.tsx
 #: src/components/PortraitAuthPanel.tsx
@@ -5833,6 +5861,7 @@ msgstr "Split template: one video in {count, plural, one {# segment} other {# se
 msgid "同意协议"
 msgstr "Agree to the terms"
 
+#: src/App.tsx
 #: src/pages/LoginPage.tsx
 msgid "同意并继续"
 msgstr "Agree and continue"
@@ -7407,6 +7436,10 @@ msgstr "Couldn't create the deck: your login may have expired (each card is alre
 msgid "开一条新的{pendingTitle}（丢弃上面那条）"
 msgstr "Start a new {pendingTitle} (discard the one above)"
 
+#: src/components/DanmakuInput.tsx
+msgid "开启弹幕显示"
+msgstr "Show bullet comments"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "开启语音"
 msgstr "Turn voice on"
@@ -7478,9 +7511,17 @@ msgctxt "举报对象的类别（单数）"
 msgid "弹幕"
 msgstr "Bullet comment"
 
+#: src/components/DanmakuInput.tsx
+msgid "弹幕样式"
+msgstr "Bullet comment style"
+
 #: src/pages/AdminPage.tsx
 msgid "弹幕管理列表"
 msgstr "bullet comment management list"
+
+#: src/components/DanmakuInput.tsx
+msgid "弹幕颜色 {c}"
+msgstr "Bullet comment color {c}"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。"
@@ -7543,6 +7584,10 @@ msgstr "You're in offline mode (not connected to a server). Admin features need 
 #: src/api/companion.ts
 msgid "当前是离线模式（没配服务器地址），这个功能需要联网。"
 msgstr "You're in offline mode (no server address configured); this feature needs a connection."
+
+#: src/components/DanmakuInput.tsx
+msgid "当前离线，这条弹幕只存在这台设备上"
+msgstr "You're offline. This bullet comment is stored only on this device"
 
 #: src/pages/LoginPage.tsx
 msgid "当前网络环境（{regionName}）下 Google / GitHub 不可用，已自动隐藏"
@@ -7806,6 +7851,10 @@ msgstr "Our position on and handling of content involving minors (opens on our w
 #: src/pages/WorkshopPage.tsx
 msgid "我发的"
 msgstr "Posted by me"
+
+#: src/components/DanmakuInput.tsx
+msgid "我发过的 {mineCount} 条"
+msgstr "{mineCount, plural, one {# bullet comment from me} other {# bullet comments from me}}"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "我已逐个核对，位置无误"
@@ -9561,6 +9610,10 @@ msgstr "Local cache"
 msgid "本机计数"
 msgstr "Local count"
 
+#: src/components/SocialPanel.tsx
+msgid "本机计数：只统计了这台设备上的互动"
+msgstr "Local count: only activity on this device is counted"
+
 #: src/data/projects.ts
 msgid "本机那份画布已经不在了——这条作品没法再补留存了。"
 msgstr "The canvas on this device is gone — this video's project can no longer be kept."
@@ -9643,6 +9696,10 @@ msgstr "Segment settings"
 #: src/pages/VideoPage.tsx
 msgid "本片卡组"
 msgstr "Cards from this video"
+
+#: src/components/DanmakuInput.tsx
+msgid "本片弹幕 {othersCount} 条"
+msgstr "{othersCount, plural, one {# bullet comment on this video} other {# bullet comments on this video}}"
 
 #: src/studio/stage/StageOverlay.tsx
 msgid "机位 · 空处拖动环绕，两指拉远拉近"
@@ -10078,6 +10135,10 @@ msgstr "Capturing…"
 msgid "正在打开 TA 的主页…"
 msgstr "Opening their profile…"
 
+#: src/App.tsx
+msgid "正在打开作品库…"
+msgstr "Opening your library…"
+
 #: src/studio/ui/SchemeMarketSheet.tsx
 msgid "正在打开市场…"
 msgstr "Opening the market…"
@@ -10148,6 +10209,7 @@ msgid "正在确认登录状态，稍等一下再点。"
 msgstr "Checking your sign-in. Wait a moment, then tap again."
 
 #: src/components/AuthPending.tsx
+#: src/components/SocialPanel.tsx
 #: src/pages/FeedPage.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/VideoPage.tsx
@@ -10526,6 +10588,7 @@ msgid "没能切换语言，请重试"
 msgstr "Couldn't switch the language. Please try again."
 
 #: src/components/CommentDelete.tsx
+#: src/components/DanmakuInput.tsx
 msgid "没能删掉，请重试"
 msgstr "Couldn't delete. Try again"
 
@@ -10661,6 +10724,10 @@ msgstr "Deactivate this account"
 #: src/studio/quality.ts
 msgid "流畅"
 msgstr "Smooth"
+
+#: src/components/SocialPanel.tsx
+msgid "浏览 / 点赞 / 收藏为社区计数；评论只存在这台设备上"
+msgstr "Views / likes / saves are community counts; comments are stored only on this device"
 
 #: src/pages/DiscoverPage.tsx
 msgid "浏览分区"
@@ -11160,6 +11227,10 @@ msgstr "Questions users escalated from the AI assistant to a person; reply here"
 msgid "用户列表"
 msgstr "user list"
 
+#: src/App.tsx
+msgid "用户协议与隐私政策"
+msgstr "User Agreement and Privacy Policy"
+
 #: src/pages/LoginPage.tsx
 msgid "用户名 / 邮箱"
 msgstr "Username / email"
@@ -11372,6 +11443,10 @@ msgstr "Log in to collect cards and build decks"
 #: src/pages/VideoPage.tsx
 msgid "登录后可收入卡组"
 msgstr "Log in to add these cards"
+
+#: src/components/SocialPanel.tsx
+msgid "登录后才能互动"
+msgstr "Sign in to interact"
 
 #: src/api/admin.ts
 msgid "登录已过期，请重新登录后再举报"
@@ -11736,6 +11811,7 @@ msgid "确认丢掉"
 msgstr "Discard it"
 
 #: src/components/CommentDelete.tsx
+#: src/components/DanmakuInput.tsx
 #: src/components/DraftSheet.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/AdminPage.tsx
@@ -12777,6 +12853,10 @@ msgstr "Give this video a good name"
 msgid "给这条工程起个名"
 msgstr "Name this project"
 
+#: src/App.tsx
+msgid "继续使用前，请阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>。"
+msgstr "Before continuing, please read and agree to the <0>User Agreement</0> and the <1>Privacy Policy</1>."
+
 #: src/pages/FlowPage.tsx
 msgid "继续去挂卡"
 msgstr "Continue to attach cards"
@@ -13340,6 +13420,7 @@ msgstr "Setting failed. Try again later."
 msgid "设置已保存，但重新读取配置失败（{why}），下次进来会按新设置念。"
 msgstr "Settings saved, but reloading the configuration failed ({why}). The new settings will be used next time you open this page."
 
+#: src/components/SocialPanel.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/FeedPage.tsx
 msgid "评论"
@@ -13349,6 +13430,10 @@ msgstr "Comments"
 msgctxt "举报对象的类别（单数）"
 msgid "评论"
 msgstr "Comment"
+
+#: src/components/SocialPanel.tsx
+msgid "评论 · {commentCount}"
+msgstr "Comments · {commentCount}"
 
 #. placeholder {0}: comments.length
 #: src/pages/VideoPage.tsx
@@ -13548,6 +13633,7 @@ msgstr "Too many voice messages. Wait a few seconds."
 msgid "说明"
 msgstr "More info"
 
+#: src/components/SocialPanel.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "说点什么"
 msgstr "Say something"
@@ -14149,6 +14235,7 @@ msgid "还没有草稿。"
 msgstr "No draft yet."
 
 #: src/components/CommentSheet.tsx
+#: src/components/SocialPanel.tsx
 #: src/pages/VideoPage.tsx
 msgid "还没有评论，抢个沙发"
 msgstr "No comments yet. Be the first"
@@ -14841,6 +14928,10 @@ msgstr "This server doesn't support reporting yet (it needs a server upgrade)"
 msgid "这台服务器还不支持删除（需要升级服务端）"
 msgstr "This server doesn't support deleting yet (the server needs an upgrade)"
 
+#: src/data/danmaku.ts
+msgid "这台服务器还不支持删除弹幕（需要升级服务端）"
+msgstr "This server doesn't support deleting bullet comments yet (it needs a server upgrade)"
+
 #: src/api/admin.ts
 msgid "这台服务器还不支持删除账号（需要升级服务端）"
 msgstr "This server doesn't support deleting accounts yet (it needs a server upgrade)"
@@ -15245,6 +15336,10 @@ msgstr "This video is set to charge per part, so its content can't be changed."
 msgid "这条作品还在上传，传完再回炉。"
 msgstr "This video is still uploading. Remake it once the upload finishes."
 
+#: src/data/danmaku.ts
+msgid "这条作品还没同步到服务器，稍后再试"
+msgstr "This video hasn't synced to the server yet. Try again later"
+
 #: src/pages/PublishPage.tsx
 msgid "这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。"
 msgstr "This merged video and the title and description you filled in will be discarded, and you'll go back to the Studio."
@@ -15260,6 +15355,10 @@ msgstr "This video was taken down by the platform and can't be saved to your dev
 #: src/components/ShareSheet.tsx
 msgid "这条已被平台下架，链接别人打不开，所以先不能分享。"
 msgstr "This video was taken down by the platform. Others can't open the link, so it can't be shared."
+
+#: src/data/danmaku.ts
+msgid "这条弹幕还在发送中，等它发出去之后再删"
+msgstr "This bullet comment is still sending. Delete it once it's sent"
 
 #: src/pages/CutPage.tsx
 msgid "这条成片有 {sizeMb}MB，接近服务器上限（约 {capMb}MB），可能传不上去。传失败的话回剪辑页删几段、或把导出分辨率降一档再合一次——片段和配乐都还在。"

@@ -4,7 +4,7 @@
 // 上半屏继续看视频），详情页是普通滚动页面，评论直接铺在页尾更顺——硬套抽屉反而
 // 多一层遮罩和一次点击。两者共享的是数据语义而不是布局。
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Trans } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { formatPlays } from "../types";
 import Avatar from "./Avatar";
 import {
@@ -49,6 +49,7 @@ export function useCountView(kind: SocialKind, id: string | undefined) {
 const fmt = formatPlays;
 
 export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string }) {
+  const { t } = useLingui();
   useSocialVersion();
   const user = useCurrentUser();
   const auth = useAuthState();
@@ -60,12 +61,13 @@ export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string
   //   理解为什么热度是 300 而点赞是 0。source 由下面那行标签如实写出来。
   const r = readSocial(kind, id);
   const comments = statsOf(kind, id).comments;
+  const commentCount = comments.length;
 
   function need(): boolean {
     if (user) return false;
     // ★ "登录后才能互动"是个结论，会话还没水合完时说它就是错的（见 useAuthState）：
     //   冷启动后立刻点赞的人是登录着的，只是还没认领上。如实说在等什么。
-    setTip(auth === "pending" ? "正在确认登录状态…" : "登录后才能互动");
+    setTip(auth === "pending" ? t`正在确认登录状态…` : t`登录后才能互动`);
     setTimeout(() => setTip(""), 1800);
     return true;
   }
@@ -99,9 +101,11 @@ export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string
       </div>
       {/* 这几个数字是哪来的，必须说清楚。措辞与热度那一行的「本机计数」对齐 */}
       <p className="mt-1 text-center text-[10px] text-slate-600">
-        {r.source === "server"
-          ? "浏览 / 点赞 / 收藏为社区计数；评论只存在这台设备上"
-          : "本机计数：只统计了这台设备上的互动"}
+        {r.source === "server" ? (
+          <Trans>浏览 / 点赞 / 收藏为社区计数；评论只存在这台设备上</Trans>
+        ) : (
+          <Trans>本机计数：只统计了这台设备上的互动</Trans>
+        )}
       </p>
       {/* ★ 本机那份互动记录开机时没读出来（data/social 的 loadIssue）：缺的那一块不是"没有"，
           这次的改动也不落盘 —— 两件事都得在这里说（铁律八） */}
@@ -118,7 +122,10 @@ export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string
 
       {/* 评论区 */}
       <div className="mt-4">
-        <div className="mb-1.5 text-xs font-semibold text-slate-300">评论 {comments.length > 0 && `· ${comments.length}`}</div>
+        {/* 有评论 / 没评论各一整句：别把「· N」留在 Trans 外面拼 */}
+        <div className="mb-1.5 text-xs font-semibold text-slate-300">
+          {commentCount > 0 ? <Trans>评论 · {commentCount}</Trans> : <Trans>评论</Trans>}
+        </div>
         <div className="mb-3 flex gap-2">
           <input
             value={draft}
@@ -128,7 +135,7 @@ export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string
               if (need()) return;
               if (addComment(kind, id, draft)) setDraft("");
             }}
-            placeholder="说点什么"
+            placeholder={t`说点什么`}
             className="min-w-0 flex-1 rounded-full border border-slate-700 bg-black/30 px-4 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
           />
           <button
@@ -139,7 +146,7 @@ export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string
             disabled={!draft.trim()}
             className="flex-none rounded-full bg-brand px-4 py-2 text-sm font-semibold text-ink disabled:opacity-40"
           >
-            发送
+            <Trans>发送</Trans>
           </button>
         </div>
         <div className="space-y-3.5">
@@ -154,7 +161,11 @@ export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string
               </div>
             </div>
           ))}
-          {comments.length === 0 && <div className="py-8 text-center text-sm text-slate-500">还没有评论，抢个沙发</div>}
+          {comments.length === 0 && (
+            <div className="py-8 text-center text-sm text-slate-500">
+              <Trans>还没有评论，抢个沙发</Trans>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -52,6 +52,8 @@ import { checkUpdateForPrompt, type UpdateInfo } from "./data/appUpdate";
 import UpdateSheet from "./components/UpdateSheet";
 import { useAuthState, useCurrentUser } from "./hooks/useAccount";
 import { useLingui } from "@lingui/react";
+// ★ 宏包这里只引 Trans：上一行的 useLingui 来自运行时包，根组件调它只为订阅语言变化（整棵树跟着重渲，见 App() 里那段 ★）；再从宏包引同名的会撞标识符
+import { Trans } from "@lingui/react/macro";
 import useOrientationLock from "./hooks/useOrientationLock";
 import { signInWithOauthToken, signOut } from "./data/account";
 import { initOauthDeepLink, onOauthResult } from "./utils/oauth";
@@ -139,17 +141,22 @@ function TermsGate() {
       {createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
           <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4">
-            <h3 className="text-sm font-bold text-slate-100">用户协议与隐私政策</h3>
+            <h3 className="text-sm font-bold text-slate-100">
+              <Trans>用户协议与隐私政策</Trans>
+            </h3>
+            {/* 整句一条、两颗按钮包在句子里面（英文语序不同），与登录页那张「同意并继续」卡同一个形状 */}
             <div className="mt-2 text-xs leading-relaxed text-slate-400">
-              继续使用前，请阅读并同意
-              <button onClick={() => setViewDoc("terms")} className="text-brand">
-                《用户协议》
-              </button>
-              与
-              <button onClick={() => setViewDoc("privacy")} className="text-brand">
-                《隐私政策》
-              </button>
-              。
+              <Trans>
+                继续使用前，请阅读并同意
+                <button onClick={() => setViewDoc("terms")} className="text-brand">
+                  《用户协议》
+                </button>
+                与
+                <button onClick={() => setViewDoc("privacy")} className="text-brand">
+                  《隐私政策》
+                </button>
+                。
+              </Trans>
             </div>
             <button
               onClick={() => {
@@ -158,7 +165,7 @@ function TermsGate() {
               }}
               className="mt-4 w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink"
             >
-              同意并继续
+              <Trans>同意并继续</Trans>
             </button>
             <button
               onClick={() => {
@@ -167,7 +174,7 @@ function TermsGate() {
               }}
               className="mt-2 w-full py-1.5 text-center text-[11px] text-slate-500"
             >
-              不同意，退出登录
+              <Trans>不同意，退出登录</Trans>
             </button>
           </div>
         </div>,
@@ -224,7 +231,9 @@ export default function App() {
       <div className="flex min-h-full items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-slate-400">
           <Spinner size="lg" />
-          <span className="text-xs">正在打开作品库…</span>
+          <span className="text-xs">
+            <Trans>正在打开作品库…</Trans>
+          </span>
         </div>
       </div>
     );
