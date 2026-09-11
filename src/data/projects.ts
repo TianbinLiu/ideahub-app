@@ -23,6 +23,7 @@
 //   画布快照由宿主（hooks/useFlowActions）从 store 现抓、当参数传进来。
 import { idbDel, idbGet, idbSet } from "./db";
 import { startJob } from "./jobs";
+import { t } from "@lingui/core/macro";
 import { isPermanentUrl, pairAssetUrls, type PairTarget } from "./publishAssets";
 import * as api from "../api/projects";
 import { ApiError } from "../api/client";
@@ -267,11 +268,12 @@ export async function captureCanvas(input: {
       canvas: input.canvas,
       ...(input.reviseOf ? { reviseOf: input.reviseOf } : {}),
     });
+    // i18n-ignore-next-line: 当场被下面的 catch 接住、只进 console.warn，不上屏
     if (!ok) throw new Error("写盘被拒");
     return null;
   } catch (e) {
     console.warn("[projects] 画布捕获失败", e);
-    return "工坊工程没能留在这台设备上（存储空间不足或浏览器隐私模式）——这条片发出去之后不能回炉";
+    return t`工坊工程没能留在这台设备上（存储空间不足或浏览器隐私模式）——这条片发出去之后不能回炉`;
   }
 }
 
@@ -453,7 +455,7 @@ function assertClean(canvas: unknown, videoId: string): void {
   if (!m) return;
   // ★ **不打整份画布**：它有几十到几百 KB，日志里刷一屏没人读得完
   console.warn("[projects] 断言不过", { videoId, sample: text.slice(Math.max(0, m.index - 20), m.index + 60) });
-  throw new Error("画布里还有本机地址，换台设备取回来会是空的");
+  throw new Error(t`画布里还有本机地址，换台设备取回来会是空的`);
 }
 
 /**
@@ -472,7 +474,7 @@ export class StaleProjectError extends Error {
 
 function msg(e: unknown): string {
   if (e instanceof ApiError) return e.message;
-  return e instanceof Error ? e.message.slice(0, 80) : "原因不明";
+  return e instanceof Error ? e.message.slice(0, 80) : t`原因不明`;
 }
 
 // ── 留存 ────────────────────────────────────────────────
@@ -543,33 +545,32 @@ async function retain(
     // 待办不在了（换过设备 / 清过库 / 上一条待办被这条顶掉）。作品本身**已经发出去了**，
     // 所以这不是发布失败——话必须把两件事分开说（铁律八）
     console.warn("[projects] 待办缺失", { videoId, has: !!pend, mine });
-    startJob({ kind: "project-retain", title: "留存工坊工程" }).fail(
-      "没能留存工坊工程（本机那份画布已经不在了）——作品已经发出去了，只是这条暂时不能回炉。",
+    startJob({ kind: "project-retain", title: t`留存工坊工程` }).fail(
+      t`没能留存工坊工程（本机那份画布已经不在了）——作品已经发出去了，只是这条暂时不能回炉。`,
       `/edit/${videoId}`,
     );
     return;
   }
-  const job = startJob({ kind: "project-retain", title: "留存工坊工程", progress: "提交中" });
+  const job = startJob({ kind: "project-retain", title: t`留存工坊工程`, progress: t`提交中` });
   try {
     const { lost, videos } = await submit(videoId, before, after, revision, pend);
+    const previews = lost - videos;
     job.done({
       // ★★ 分两句说（见 submit 的 ★★）：把"要再花一次钱"和"重截一下就有"混成一句
       //   「N 处素材」，往哪个方向说错都不高尚 —— 前者会让人以为不要紧，后者会把人吓住。
       msg: videos
-        ? `工程已留存，但有 ${videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）${
-            lost > videos ? `；另外 ${lost - videos} 处只是预览图` : ""
-          }。回炉页会逐格标出来`
+        ? previews > 0
+          ? t`工程已留存，但有 ${videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）；另外 ${previews} 处只是预览图。回炉页会逐格标出来`
+          : t`工程已留存，但有 ${videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）。回炉页会逐格标出来`
         : lost
-          ? `工程已留存（有 ${lost} 处预览图没能留下，回炉时重新截一下就有，不花钱）`
-          : "工程已留存，之后可在编辑页回炉重做",
+          ? t`工程已留存（有 ${lost} 处预览图没能留下，回炉时重新截一下就有，不花钱）`
+          : t`工程已留存，之后可在编辑页回炉重做`,
       route: `/video/${videoId}`,
     });
   } catch (e) {
-    console.warn("[projects] 留存失败", { videoId, why: msg(e) });
-    job.fail(
-      `工程没能留存（${msg(e)}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」`,
-      `/edit/${videoId}`,
-    );
+    const why = msg(e);
+    console.warn("[projects] 留存失败", { videoId, why });
+    job.fail(t`工程没能留存（${why}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」`, `/edit/${videoId}`);
   }
 }
 
@@ -582,10 +583,10 @@ async function retain(
  */
 export async function retryRetain(videoId: string, title: string): Promise<string | null> {
   const pend = await readPending();
-  if (!pend) return "本机那份画布已经不在了——这条作品没法再补留存了。";
+  if (!pend) return t`本机那份画布已经不在了——这条作品没法再补留存了。`;
   if (!pend.ready) {
     // 瘦身都没算成（配对那一步就抛了）：重试也算不出来，如实说，别让用户点一辈子
-    return "这份画布没能整理成可留存的样子——这条作品没法再补留存了。";
+    return t`这份画布没能整理成可留存的样子——这条作品没法再补留存了。`;
   }
   // ★★★ 版次**只能从待办自己身上算**，绝不许调用方把「现读的 video.revision」传进来
   //   （2026-09-08 评审抓到的致命项，原先的签名收第三个参数 `revision`，编辑页传的正是现读值）。
@@ -674,7 +675,7 @@ async function put(videoId: string, title: string, revision: number, canvas: Can
     lostCount: lost,
   });
   // 回包形状认不出来 = 这台服务器还没有工程端点（**不看状态码**，见 api/projects 的 ★）
-  if (!meta) throw new Error("这台服务器还不支持留存工坊工程");
+  if (!meta) throw new Error(t`这台服务器还不支持留存工坊工程`);
   upsertMeta(meta);
   await writeCache(videoId, canvas, lost, revision);
   // ★ 只有真成了才清待办：失败时那颗「重试留存」还要用它
@@ -735,17 +736,18 @@ export async function loadProject(videoId: string, expectedRevision: number): Pr
     console.warn("[projects] 本地缓存的画布版次对不上，改走网络", { videoId, cached: hit.videoRevision, want });
   }
   const p = await api.getProject(videoId);
-  if (!p) throw new Error("这台服务器还不支持回炉重做（没有工坊工程这个端点）");
+  if (!p) throw new Error(t`这台服务器还不支持回炉重做（没有工坊工程这个端点）`);
   const canvas = p.canvas as CanvasSnapshot;
-  if (!canvas?.flow?.nodes?.length) throw new Error("取回的工程是空的，铺不进工坊");
+  if (!canvas?.flow?.nodes?.length) throw new Error(t`取回的工程是空的，铺不进工坊`);
   if (p.videoRevision !== want) {
     // ★ 整句人话 + 说得出出路（铁律八）。这一档**不是**网络问题，所以"再试一次"没用，
     //   要么这台设备上还有那份没交上去的画布（编辑页那颗「重新留存这一版」），
     //   要么这一版的工程根本没留存成功，只能重新发一条。
     console.warn("[projects] 服务端那份画布也对不上版次", { videoId, got: p.videoRevision, want, stale: p.stale });
+    const keptRev = p.videoRevision + 1;
+    const liveRev = want + 1;
     throw new StaleProjectError(
-      `留存的这份工程描述的是第 ${p.videoRevision + 1} 版，而这条作品已经是第 ${want + 1} 版了` +
-        `——最新那一版的工程没有留存上来，取不到。`,
+      t`留存的这份工程描述的是第 ${keptRev} 版，而这条作品已经是第 ${liveRev} 版了——最新那一版的工程没有留存上来，取不到。`,
     );
   }
   const out: CachedProject = { canvas, lostCount: p.lostCount, videoRevision: p.videoRevision };
@@ -758,7 +760,7 @@ export async function loadProject(videoId: string, expectedRevision: number): Pr
 export async function dropProject(videoId: string): Promise<string | null> {
   try {
     const ok = await api.deleteProject(videoId);
-    if (!ok) return "这台服务器没有正常应答（工程可能还在）。";
+    if (!ok) return t`这台服务器没有正常应答（工程可能还在）。`;
   } catch (e) {
     return msg(e);
   }

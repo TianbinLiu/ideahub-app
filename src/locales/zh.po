@@ -821,6 +821,22 @@ msgstr "{count} 张"
 msgid "{display} 的主页"
 msgstr "{display} 的主页"
 
+#: src/data/videoDownload.ts
+msgid "{done} 段存好了，{failed} 段没成"
+msgstr "{done} 段存好了，{failed} 段没成"
+
+#: src/data/videoDownload.ts
+msgid "{done} 段存好了，{failed} 段没成：{lastErr}"
+msgstr "{done} 段存好了，{failed} 段没成：{lastErr}"
+
+#: src/data/videoDownload.ts
+msgid "{done} 段都存好了，回详情页选去处"
+msgstr "{done} 段都存好了，回详情页选去处"
+
+#: src/data/videoDownload.ts
+msgid "{done} 段都存好了。点每一行的「分享 / 另存为」，在系统面板里选相册或文件管理器。"
+msgstr "{done} 段都存好了。点每一行的「分享 / 另存为」，在系统面板里选相册或文件管理器。"
+
 #: src/components/blockout/TrimBar.tsx
 msgid "{durSec} 秒"
 msgstr "{durSec} 秒"
@@ -837,6 +853,14 @@ msgstr "{faceName} 用哪个表情"
 msgid "{factLine} —— 要改就<0>返回上一步</0>"
 msgstr "{factLine} —— 要改就<0>返回上一步</0>"
 
+#: src/data/videoDownload.ts
+msgid "{failed} 段没存下来"
+msgstr "{failed} 段没存下来"
+
+#: src/data/videoDownload.ts
+msgid "{failed} 段没存下来：{lastErr}"
+msgstr "{failed} 段没存下来：{lastErr}"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "{fileName} 读不出来，换个纯文本文件试试。"
 msgstr "{fileName} 读不出来，换个纯文本文件试试。"
@@ -845,9 +869,22 @@ msgstr "{fileName} 读不出来，换个纯文本文件试试。"
 msgid "{fileName} 里没有文字。"
 msgstr "{fileName} 里没有文字。"
 
+#: src/data/videoJobs.ts
+msgid "{hh}:{mm} 提交的那一发（服务器登记）"
+msgstr "{hh}:{mm} 提交的那一发（服务器登记）"
+
+#. placeholder {0}: task.prompt.slice(0, 24)
+#: src/data/videoJobs.ts
+msgid "{hh}:{mm} 提交的那一发（服务器登记） · {0}"
+msgstr "{hh}:{mm} 提交的那一发（服务器登记） · {0}"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "{installs} 人装过"
 msgstr "{installs} 人装过"
+
+#: src/data/publishAssets.ts
+msgid "{label} 太大（{sizeMb}MB，上限 5MB）"
+msgstr "{label} 太大（{sizeMb}MB，上限 5MB）"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "{motion}（包里没有）"
@@ -1051,6 +1088,16 @@ msgstr "「{0}」档带不了参考视频——到「定规格」那一步换成
 #: src/studio/segmentGen.ts
 msgid "「{0}」档暂无配音，台词只以画面呈现"
 msgstr "「{0}」档暂无配音，台词只以画面呈现"
+
+#. placeholder {0}: clash.label
+#: src/data/videoDownload.ts
+msgid "「{0}」正在保存中，等它跑完再点一次。"
+msgstr "「{0}」正在保存中，等它跑完再点一次。"
+
+#. placeholder {0}: card.name
+#: src/data/publishAssets.ts
+msgid "「{0}」的{slot}"
+msgstr "「{0}」的{slot}"
 
 #. placeholder {0}: scheme.title
 #. placeholder {1}: fmtTokens(price)
@@ -1544,6 +1591,10 @@ msgstr "✎ 返修这一段"
 #: src/pages/VideoPage.tsx
 msgid "✏️ 编辑"
 msgstr "✏️ 编辑"
+
+#: src/data/videoDownload.ts
+msgid "✓ 已交给系统"
+msgstr "✓ 已交给系统"
 
 #: src/pages/EditPage.tsx
 msgid "✓ 已保存"
@@ -2129,6 +2180,11 @@ msgstr "0 = 免费。App 里没有支付，付费人格的购买目前只在官�
 msgid "0.70× 慢"
 msgstr "0.70× 慢"
 
+#. placeholder {0}: targets.length
+#: src/data/videoDownload.ts
+msgid "0/{0} 段"
+msgstr "0/{0} 段"
+
 #: src/pages/CustomCardPage.tsx
 msgid "① 卡名与简介"
 msgstr "① 卡名与简介"
@@ -2634,6 +2690,14 @@ msgstr "下一段（本段还没出片）"
 #: src/studio/StudioPage.tsx
 msgid "下一页"
 msgstr "下一页"
+
+#: src/data/videoDownload.ts
+msgid "下下来的大小对不上（{gotSize} / 应为 {wantSize}），这一份已经删掉。再点一次。"
+msgstr "下下来的大小对不上（{gotSize} / 应为 {wantSize}），这一份已经删掉。再点一次。"
+
+#: src/data/videoDownload.ts
+msgid "下下来的文件不见了，这一次没算数。再点一次。"
+msgstr "下下来的文件不见了，这一次没算数。再点一次。"
 
 #: src/components/flow/SkillPanel.tsx
 #: src/components/VideoCardAnnotator.tsx
@@ -3173,6 +3237,10 @@ msgstr "你的账号是管理员：AI 生成走的是免扣费通道，消耗不
 msgid "你还没发布过声音模板，去「混音」调一把再发布。"
 msgstr "你还没发布过声音模板，去「混音」调一把再发布。"
 
+#: src/data/videoDownload.ts
+msgid "你还没开始播，没有「刚看的走向」。选「存全部分支」，或者先播一段再来。"
+msgstr "你还没开始播，没有「刚看的走向」。选「存全部分支」，或者先播一段再来。"
+
 #: src/pages/SettingsBlockedPage.tsx
 msgid "你还没拉黑过谁"
 msgstr "你还没拉黑过谁"
@@ -3298,6 +3366,10 @@ msgstr "保存修改（用它炼一次约 {0}）"
 msgid "保存到本地"
 msgstr "保存到本地"
 
+#: src/data/videoDownload.ts
+msgid "保存到本地只能在 App 里用（浏览器里没有可写的相册目录）。"
+msgstr "保存到本地只能在 App 里用（浏览器里没有可写的相册目录）。"
+
 #: src/components/DownloadSheet.tsx
 msgid "保存到本地是怎么走的"
 msgstr "保存到本地是怎么走的"
@@ -3315,9 +3387,21 @@ msgstr "保存失败，稍后再试。"
 msgid "保存失败，请重试"
 msgstr "保存失败，请重试"
 
+#: src/data/videoDownload.ts
+msgid "保存意外中断了，再点一次。"
+msgstr "保存意外中断了，再点一次。"
+
 #: src/pages/CutPage.tsx
 msgid "保存本段"
 msgstr "保存本段"
+
+#: src/data/videoDownload.ts
+msgid "保存没能开始（{head}）"
+msgstr "保存没能开始（{head}）"
+
+#: src/data/videoDownload.ts
+msgid "保存视频"
+msgstr "保存视频"
 
 #: src/pages/SettingsProfilePage.tsx
 msgid "保存资料"
@@ -4001,6 +4085,11 @@ msgstr "分割点离片段边缘太近（至少留 {MIN_CLIP_SEC} 秒）"
 msgid "分区"
 msgstr "分区"
 
+#. placeholder {0}: n.id.slice(-4)
+#: src/data/videoDownload.ts
+msgid "分支 {0}"
+msgstr "分支 {0}"
+
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
 msgid "分类"
@@ -4535,6 +4624,11 @@ msgstr "卡铸好了，但肖像授权绑定没存住（本机存储写入失败
 msgid "卡面"
 msgstr "卡面"
 
+#. placeholder {0}: c.name
+#: src/data/publishAssets.ts
+msgid "卡面「{0}」"
+msgstr "卡面「{0}」"
+
 #: src/pages/CustomCardPage.tsx
 msgid "卡面仍带背景，出片可能把背景里的东西画进去"
 msgstr "卡面仍带背景，出片可能把背景里的东西画进去"
@@ -4565,6 +4659,7 @@ msgstr "原因：{0}"
 msgid "原因：{0}。<0>它现在只在这次会话里活着</0> —— 你现在能在卡片库里看到它，但下次重开 App 就会没有（登录后 App 会用服务器上那份覆盖本机）。<1>别退出这一页</1>，等网络好一点再点一次「重试」。"
 msgstr "原因：{0}。<0>它现在只在这次会话里活着</0> —— 你现在能在卡片库里看到它，但下次重开 App 就会没有（登录后 App 会用服务器上那份覆盖本机）。<1>别退出这一页</1>，等网络好一点再点一次「重试」。"
 
+#: src/data/projects.ts
 #: src/pages/EditPage.tsx
 msgid "原因不明"
 msgstr "原因不明"
@@ -4885,6 +4980,18 @@ msgstr "取回最新工程重来"
 msgid "取回来的不是图片（{0}）"
 msgstr "取回来的不是图片（{0}）"
 
+#: src/data/videoDownload.ts
+msgid "取回来的不是视频（服务器回了 {type}）。这一段暂时存不了。"
+msgstr "取回来的不是视频（服务器回了 {type}）。这一段暂时存不了。"
+
+#: src/data/videoDownload.ts
+msgid "取回来的不是视频（服务器回的类型是空的）。这一段暂时存不了。"
+msgstr "取回来的不是视频（服务器回的类型是空的）。这一段暂时存不了。"
+
+#: src/data/projects.ts
+msgid "取回的工程是空的，铺不进工坊"
+msgstr "取回的工程是空的，铺不进工坊"
+
 #: src/components/TemplateShelf.tsx
 msgid "取回这一发的结果（不额外花钱）"
 msgstr "取回这一发的结果（不额外花钱）"
@@ -5094,6 +5201,10 @@ msgstr "只有我"
 #: src/pages/SupportModelNewPage.tsx
 msgid "只有我自己"
 msgstr "只有我自己"
+
+#: src/data/videoDownload.ts
+msgid "只能保存自己发布的作品。"
+msgstr "只能保存自己发布的作品。"
 
 #: src/components/WorkshopShareBar.tsx
 msgid "只能分享自己库里的卡：先把它添加到我的卡片。"
@@ -5949,6 +6060,7 @@ msgstr "封禁挡的是<0>登录与一切带登录态的请求</0>，对方会�
 #: src/components/BranchPlayer.tsx
 #: src/components/CoverPicker.tsx
 #: src/components/SegmentPlayer.tsx
+#: src/data/publishAssets.ts
 #: src/pages/SupportModelNewPage.tsx
 msgid "封面"
 msgstr "封面"
@@ -6045,6 +6157,10 @@ msgstr "工单 #{short} 已提交。人工客服看到后会在「通知」里�
 msgid "工坊"
 msgstr "工坊"
 
+#: src/data/projects.ts
+msgid "工坊工程没能留在这台设备上（存储空间不足或浏览器隐私模式）——这条片发出去之后不能回炉"
+msgstr "工坊工程没能留在这台设备上（存储空间不足或浏览器隐私模式）——这条片发出去之后不能回炉"
+
 #: src/pages/CreatePage.tsx
 msgid "工坊模式"
 msgstr "工坊模式"
@@ -6053,9 +6169,29 @@ msgstr "工坊模式"
 msgid "工程名"
 msgstr "工程名"
 
+#: src/data/projects.ts
+msgid "工程已留存，之后可在编辑页回炉重做"
+msgstr "工程已留存，之后可在编辑页回炉重做"
+
+#: src/data/projects.ts
+msgid "工程已留存，但有 {videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）；另外 {previews} 处只是预览图。回炉页会逐格标出来"
+msgstr "工程已留存，但有 {videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）；另外 {previews} 处只是预览图。回炉页会逐格标出来"
+
+#: src/data/projects.ts
+msgid "工程已留存，但有 {videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）。回炉页会逐格标出来"
+msgstr "工程已留存，但有 {videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）。回炉页会逐格标出来"
+
 #: src/pages/EditPage.tsx
 msgid "工程已留存，现在可以回炉重做了"
 msgstr "工程已留存，现在可以回炉重做了"
+
+#: src/data/projects.ts
+msgid "工程已留存（有 {lost} 处预览图没能留下，回炉时重新截一下就有，不花钱）"
+msgstr "工程已留存（有 {lost} 处预览图没能留下，回炉时重新截一下就有，不花钱）"
+
+#: src/data/projects.ts
+msgid "工程没能留存（{why}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」"
+msgstr "工程没能留存（{why}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "左上角的返回按钮可逐层退出"
@@ -6077,8 +6213,10 @@ msgstr "左臂"
 msgid "左边是模型自己的命中区（HitAreas），右边是摸到这里播哪个动作。想验证对没对上，直接在上面的预览里摸一下 —— 屏幕上会写「刚点到：…」。"
 msgstr "左边是模型自己的命中区（HitAreas），右边是摸到这里播哪个动作。想验证对没对上，直接在上面的预览里摸一下 —— 屏幕上会写「刚点到：…」。"
 
+#. placeholder {0}: mb(p.bytes)
 #. placeholder {0}: mb(row.bytes)
 #: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "已下 {0}"
 msgstr "已下 {0}"
 
@@ -6113,6 +6251,14 @@ msgstr "已保存的视频 {0} · {files} 个文件"
 #: src/components/DownloadSheet.tsx
 msgid "已停止"
 msgstr "已停止"
+
+#: src/data/videoDownload.ts
+msgid "已停止，存好 {done} 段"
+msgstr "已停止，存好 {done} 段"
+
+#: src/data/videoDownload.ts
+msgid "已停止。后面那些没有开始；已经下完的 {done} 段都留着，点每一行的「分享 / 另存为」就能交出去。"
+msgstr "已停止。后面那些没有开始；已经下完的 {done} 段都留着，点每一行的「分享 / 另存为」就能交出去。"
 
 #: src/pages/ProfilePage.tsx
 msgid "已关注"
@@ -6165,6 +6311,10 @@ msgstr "已删除（服务端未返回明细）"
 #: src/pages/AdminPage.tsx
 msgid "已删除（没有关联数据）"
 msgstr "已删除（没有关联数据）"
+
+#: src/data/videoDownload.ts
+msgid "已删除的作品"
+msgstr "已删除的作品"
 
 #: src/pages/CardDetailPage.tsx
 msgid "已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。"
@@ -6379,6 +6529,10 @@ msgstr "已经公开到形象市场，别人能搜到它了。"
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "已经到片段末尾了（片段共 {0} 秒，不含第 {1} 秒这一格）——往前挪一格再标。"
 msgstr "已经到片段末尾了（片段共 {0} 秒，不含第 {1} 秒这一格）——往前挪一格再标。"
+
+#: src/data/videoDownload.ts
+msgid "已经在保存另一条作品了，等它完成或点停止。"
+msgstr "已经在保存另一条作品了，等它完成或点停止。"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "已经存进「我的」，只有你能看到。"
@@ -7031,6 +7185,10 @@ msgstr "所属卡组"
 msgid "手工填入（方舟控制台授权）"
 msgstr "手工填入（方舟控制台授权）"
 
+#: src/data/videoDownload.ts
+msgid "手机空间不够，这一段没写完。腾点空间再点一次。"
+msgstr "手机空间不够，这一段没写完。腾点空间再点一次。"
+
 #. placeholder {0}: e instanceof Error ? e.message : String(e)
 #: src/components/PortraitAuthPanel.tsx
 msgid "打不开系统浏览器（{0}）——用「复制链接」自己粘到浏览器里"
@@ -7629,6 +7787,10 @@ msgstr "提交：改完位置并删掉 {0} 个角色位"
 msgid "提交：改完编号并删掉 {0} 个角色位"
 msgstr "提交：改完编号并删掉 {0} 个角色位"
 
+#: src/data/projects.ts
+msgid "提交中"
+msgstr "提交中"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 #: src/pages/SupportPage.tsx
 #: src/studio/personaWizardStore.ts
@@ -8001,6 +8163,10 @@ msgstr "整体再来一版"
 msgid "整段一炉出，别退出 App"
 msgstr "整段一炉出，别退出 App"
 
+#: src/data/videoDownload.ts
+msgid "整片"
+msgstr "整片"
+
 #: src/studio/scene/TableScene.tsx
 msgid "整片就绪"
 msgstr "整片就绪"
@@ -8009,9 +8175,25 @@ msgstr "整片就绪"
 msgid "整篇剧本拆成几段，每段带景别 / 运镜 / 情绪节拍与时长，看一遍再铺成一条流水线"
 msgstr "整篇剧本拆成几段，每段带景别 / 运镜 / 情绪节拍与时长，看一遍再铺成一条流水线"
 
+#: src/data/videoDownload.ts
+msgid "文件下好了，但改名失败，而且上次存的那一份也没能放回原处。再点一次。"
+msgstr "文件下好了，但改名失败，而且上次存的那一份也没能放回原处。再点一次。"
+
+#: src/data/videoDownload.ts
+msgid "文件下好了，但改名失败，这一份没能留下。再点一次。"
+msgstr "文件下好了，但改名失败，这一份没能留下。再点一次。"
+
+#: src/data/videoDownload.ts
+msgid "文件下好了，但改名失败，这一份没能留下（上次存的那一份还在）。再点一次。"
+msgstr "文件下好了，但改名失败，这一份没能留下（上次存的那一份还在）。再点一次。"
+
 #: src/studio/live2dUploadStore.ts
 msgid "文件不在了，请重新选一次模型包。"
 msgstr "文件不在了，请重新选一次模型包。"
+
+#: src/data/videoDownload.ts
+msgid "文件地址不对，这一份没能交出去。"
+msgstr "文件地址不对，这一份没能交出去。"
 
 #. placeholder {0}: plan.formats.map((f) => f.toUpperCase()).join(" / ")
 #: src/components/DownloadSheet.tsx
@@ -8196,6 +8378,10 @@ msgstr "有一发白模化还没取回结果"
 msgid "有一句超过 {0} 字了，发布会被服务端拒掉。"
 msgstr "有一句超过 {0} 字了，发布会被服务端拒掉。"
 
+#: src/data/videoDownload.ts
+msgid "有一条作品正在保存，等它跑完（或点停止）再清。"
+msgstr "有一条作品正在保存，等它跑完（或点停止）再清。"
+
 #: src/pages/ProfilePage.tsx
 msgid "有一条剪到一半的成片"
 msgstr "有一条剪到一半的成片"
@@ -8261,6 +8447,10 @@ msgstr "有一段生成完了，但它已经不在了"
 #: src/studio/flowStore.ts
 msgid "有两张不同的卡都叫「{0}」（{noun} {1} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
 msgstr "有两张不同的卡都叫「{0}」（{noun} {1} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
+
+#: src/data/notifications.ts
+msgid "有人"
+msgstr "有人"
 
 #: src/pages/SupportPage.tsx
 msgid "有帮助"
@@ -8414,6 +8604,10 @@ msgstr "本机没有系统相机（Android 11 起只认预装相机）——改�
 msgid "本机的作品与数据不会被删除，重新登录即可继续。"
 msgstr "本机的作品与数据不会被删除，重新登录即可继续。"
 
+#: src/data/publishAssets.ts
+msgid "本机的成片文件已丢失，无法上传"
+msgstr "本机的成片文件已丢失，无法上传"
+
 #: src/pages/SettingsPage.tsx
 #: src/pages/SettingsStoragePage.tsx
 msgid "本机缓存"
@@ -8423,6 +8617,10 @@ msgstr "本机缓存"
 #: src/pages/DeckDetailPage.tsx
 msgid "本机计数"
 msgstr "本机计数"
+
+#: src/data/projects.ts
+msgid "本机那份画布已经不在了——这条作品没法再补留存了。"
+msgstr "本机那份画布已经不在了——这条作品没法再补留存了。"
 
 #. placeholder {0}: modelLabel(tier.model)
 #: src/studio/ui/NpcDialog.tsx
@@ -9270,6 +9468,10 @@ msgstr "没有搜到「{kw}」相关的卡"
 msgid "没有解析结果。"
 msgstr "没有解析结果。"
 
+#: src/data/videoDownload.ts
+msgid "没有选择去处。文件还在 App 里，随时可以再点「分享 / 另存为」。"
+msgstr "没有选择去处。文件还在 App 里，随时可以再点「分享 / 另存为」。"
+
 #: src/studio/ui/PlanBoard.tsx
 msgid "没画出来"
 msgstr "没画出来"
@@ -9289,6 +9491,10 @@ msgstr "没能切换语言，请重试"
 #: src/components/CommentDelete.tsx
 msgid "没能删掉，请重试"
 msgstr "没能删掉，请重试"
+
+#: src/data/videoDownload.ts
+msgid "没能删掉：{why}。文件还在，可以再试一次。"
+msgstr "没能删掉：{why}。文件还在，可以再试一次。"
 
 #: src/pages/EditPage.tsx
 msgid "没能删掉这份工程（{why}）"
@@ -9353,6 +9559,10 @@ msgstr "没能打开这条作品：{failErr}"
 msgid "没能改成「仅自己可见」：{why}"
 msgstr "没能改成「仅自己可见」：{why}"
 
+#: src/data/projects.ts
+msgid "没能留存工坊工程（本机那份画布已经不在了）——作品已经发出去了，只是这条暂时不能回炉。"
+msgstr "没能留存工坊工程（本机那份画布已经不在了）——作品已经发出去了，只是这条暂时不能回炉。"
+
 #: src/studio/stage/StageOverlay.tsx
 msgid "没融成"
 msgstr "没融成"
@@ -9369,6 +9579,10 @@ msgstr "没认出「谁在说话」，会把整段一起分析。"
 #: src/components/PortraitAuthPanel.tsx
 msgid "没过审核："
 msgstr "没过审核："
+
+#: src/data/videoDownload.ts
+msgid "没连上网，这一段没下完。再点一次会从头重下这一段。"
+msgstr "没连上网，这一段没下完。再点一次会从头重下这一段。"
 
 #: src/pages/SettingsVoicePage.tsx
 msgid "没配云端语音时退回系统内置合成器（需装中文语音包）。"
@@ -9892,6 +10106,10 @@ msgstr "画不出来的包发不了。"
 msgid "画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。"
 msgstr "画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。"
 
+#: src/data/projects.ts
+msgid "画布里还有本机地址，换台设备取回来会是空的"
+msgstr "画布里还有本机地址，换台设备取回来会是空的"
+
 #: src/components/flow/SegSettings.tsx
 #: src/studio/ui/projection.tsx
 msgid "画幅"
@@ -9952,6 +10170,10 @@ msgstr "画风、材质质感、色调光影与镜头语言"
 msgid "画风、适合配什么人格、有哪些动作可以摸出来…"
 msgstr "画风、适合配什么人格、有哪些动作可以摸出来…"
 
+#: src/data/projects.ts
+msgid "留存工坊工程"
+msgstr "留存工坊工程"
+
 #: src/pages/EditPage.tsx
 msgid "留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。先点下面的「重新留存这一版」。"
 msgstr "留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。先点下面的「重新留存这一版」。"
@@ -9959,6 +10181,10 @@ msgstr "留存的工坊工程还是上一版的，这一版没有留存上来 �
 #: src/pages/EditPage.tsx
 msgid "留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。想换内容请重新发一条。"
 msgstr "留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。想换内容请重新发一条。"
+
+#: src/data/projects.ts
+msgid "留存的这份工程描述的是第 {keptRev} 版，而这条作品已经是第 {liveRev} 版了——最新那一版的工程没有留存上来，取不到。"
+msgstr "留存的这份工程描述的是第 {keptRev} 版，而这条作品已经是第 {liveRev} 版了——最新那一版的工程没有留存上来，取不到。"
 
 #. placeholder {0}: merged.instruct
 #: src/components/support/VoiceSheet.tsx
@@ -10490,6 +10716,7 @@ msgstr "第 {0} 味音色"
 #. placeholder {0}: idx + 1
 #. placeholder {0}: index + 1
 #: src/components/flow/FlowCanvas.tsx
+#: src/data/videoDownload.ts
 #: src/pages/FlowPage.tsx
 #: src/pages/PublishPage.tsx
 #: src/studio/flowStore.ts
@@ -10497,6 +10724,12 @@ msgstr "第 {0} 味音色"
 #: src/studio/ui/projection.tsx
 msgid "第 {0} 段"
 msgstr "第 {0} 段"
+
+#. placeholder {0}: i + 1
+#. placeholder {1}: seg.title
+#: src/data/videoDownload.ts
+msgid "第 {0} 段 · {1}"
+msgstr "第 {0} 段 · {1}"
 
 #. placeholder {0}: index + 1
 #: src/components/flow/FlowCanvas.tsx
@@ -10640,6 +10873,18 @@ msgstr "第 {0} 组 · 还没填完"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "第 {0} 组还没填完 —— 试聊和发布时这几组会被丢掉（一问一答缺一边的示例喂不了模型）。"
 msgstr "第 {0} 组还没填完 —— 试聊和发布时这几组会被丢掉（一问一答缺一边的示例喂不了模型）。"
+
+#. placeholder {0}: i + 1
+#. placeholder {1}: targets.length
+#: src/data/videoDownload.ts
+msgid "第 {0}/{1} 段"
+msgstr "第 {0}/{1} 段"
+
+#. placeholder {0}: i + 1
+#. placeholder {1}: targets.length
+#: src/data/videoDownload.ts
+msgid "第 {0}/{1} 段 · {pct}"
+msgstr "第 {0}/{1} 段 · {pct}"
 
 #. placeholder {0}: idx + 1
 #. placeholder {1}: path.length
@@ -10914,6 +11159,32 @@ msgstr "第 {segNo} 段还没有视频（只有设定帧），合成做不了—
 msgid "第 {stepNo} / 3 步"
 msgstr "第 {stepNo} / 3 步"
 
+#. placeholder {0}: i + 1
+#: src/data/publishAssets.ts
+msgid "第{0}段成片"
+msgstr "第{0}段成片"
+
+#. placeholder {0}: i + 1
+#. placeholder {1}: Math.round(f * 100)
+#: src/data/publishAssets.ts
+msgid "第{0}段成片 {1}%"
+msgstr "第{0}段成片 {1}%"
+
+#. placeholder {0}: i + 1
+#: src/data/publishAssets.ts
+msgid "第{0}段成片（较大，请稍候）"
+msgstr "第{0}段成片（较大，请稍候）"
+
+#. placeholder {0}: i + 1
+#: src/data/publishAssets.ts
+msgid "第{0}段结束帧"
+msgstr "第{0}段结束帧"
+
+#. placeholder {0}: i + 1
+#: src/data/publishAssets.ts
+msgid "第{0}段起始帧"
+msgstr "第{0}段起始帧"
+
 #: src/pages/CustomCardPage.tsx
 msgid "第一张 · 同时就是卡面"
 msgstr "第一张 · 同时就是卡面"
@@ -10929,6 +11200,10 @@ msgstr "第二种：<0>相邻两行的位置排反了</0>（清单说他是从�
 #: src/pages/SupportModelNewPage.tsx
 msgid "等了 {secs} 秒还没画出来。包可能太大，或者贴图 / moc3 有问题。"
 msgstr "等了 {secs} 秒还没画出来。包可能太大，或者贴图 / moc3 有问题。"
+
+#: src/data/videoDownload.ts
+msgid "等了 60 秒一个字节都没来，当断了处理。再点一次接着试。"
+msgstr "等了 60 秒一个字节都没来，当断了处理。再点一次接着试。"
 
 #: src/studio/live2dUploadStore.ts
 msgid "等太久没等到服务器回话。这一发可能已经建好了 —— 先去「我的」里看一眼，没有再回来重发。"
@@ -11009,6 +11284,10 @@ msgstr "精度"
 #: src/studio/ui/NpcDialog.tsx
 msgid "系统没有中文语音包，暂时发不出声（嘴型仍会动）"
 msgstr "系统没有中文语音包，暂时发不出声（嘴型仍会动）"
+
+#: src/data/videoDownload.ts
+msgid "系统面板已经开着了，先在那边选一个。"
+msgstr "系统面板已经开着了，先在那边选一个。"
 
 #. placeholder {0}: mb(known)
 #: src/components/DownloadSheet.tsx
@@ -12143,9 +12422,17 @@ msgstr "返回挑选"
 msgid "返回首页"
 msgstr "返回首页"
 
+#: src/data/videoJobs.ts
+msgid "还剩 {h} 小时 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。"
+msgstr "还剩 {h} 小时 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。"
+
 #: src/pages/ProfilePage.tsx
 msgid "还剩 {left} 条没成功"
 msgstr "还剩 {left} 条没成功"
+
+#: src/data/videoJobs.ts
+msgid "还剩 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。"
+msgstr "还剩 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。"
 
 #: src/components/flow/ReviseBox.tsx
 msgid "还原上一版"
@@ -12246,6 +12533,10 @@ msgstr "还没有发布作品"
 #: src/pages/SimpleModePage.tsx
 msgid "还没有可用的模板"
 msgstr "还没有可用的模板"
+
+#: src/data/videoDownload.ts
+msgid "还没有存好的文件可以交出去。"
+msgstr "还没有存好的文件可以交出去。"
 
 #: src/pages/SupportPage.tsx
 msgid "还没有对话。"
@@ -12383,9 +12674,29 @@ msgstr "还缺：{0}"
 msgid "这一下同时落在 {0} 个人偶上（他们在画面上叠着）—— 「{1}」要挂给哪一个？"
 msgstr "这一下同时落在 {0} 个人偶上（他们在画面上叠着）—— 「{1}」要挂给哪一个？"
 
+#: src/data/videoDownload.ts
+msgid "这一份正在被另一次保存写入，等它跑完再点一次。"
+msgstr "这一份正在被另一次保存写入，等它跑完再点一次。"
+
+#: src/data/videoDownload.ts
+msgid "这一份还没有本机地址，重新保存一次再试。"
+msgstr "这一份还没有本机地址，重新保存一次再试。"
+
+#: src/data/videoJobs.ts
+msgid "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。"
+msgstr "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。"
+
+#: src/data/videoJobs.ts
+msgid "这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。已经花掉的钱我们这边退不了——重新生成是再花一次钱。"
+msgstr "这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。已经花掉的钱我们这边退不了——重新生成是再花一次钱。"
+
 #: src/components/TemplateShelf.tsx
 msgid "这一发白模化已经取不回来了"
 msgstr "这一发白模化已经取不回来了"
+
+#: src/data/videoJobs.ts
+msgid "这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
+msgstr "这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
 
 #: src/studio/flowStore.ts
 msgid "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
@@ -12394,6 +12705,10 @@ msgstr "这一套方案还没有剧情——先写点什么，我才知道要画
 #: src/pages/CustomCardPage.tsx
 msgid "这一张既当卡面，也当这张卡的主形象参考。"
 msgstr "这一张既当卡面，也当这张卡的主形象参考。"
+
+#: src/data/videoDownload.ts
+msgid "这一批里没有可保存的文件。"
+msgstr "这一批里没有可保存的文件。"
 
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "这一格放原片裁剪本身，不调模型、不计费。"
@@ -12542,6 +12857,10 @@ msgstr "这一段正在生成，炼完再圈"
 msgid "这一段正在生成中，等它跑完再改挂卡（改了也得重炼一次，别白花一次钱）"
 msgstr "这一段正在生成中，等它跑完再改挂卡（改了也得重炼一次，别白花一次钱）"
 
+#: src/data/videoDownload.ts
+msgid "这一段没下完（原因见下面那行原文）。再点一次会从头重下。"
+msgstr "这一段没下完（原因见下面那行原文）。再点一次会从头重下。"
+
 #: src/studio/flowStore.ts
 msgid "这一段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）"
 msgstr "这一段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）"
@@ -12549,6 +12868,11 @@ msgstr "这一段没有套可挂卡的白模模板（角色位只有白模模板
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段现在选中的走向还没有成片"
 msgstr "这一段现在选中的走向还没有成片"
+
+#. placeholder {0}: res.status
+#: src/data/videoDownload.ts
+msgid "这一段的地址已经失效（HTTP {0}），回详情页刷新一下再试。"
+msgstr "这一段的地址已经失效（HTTP {0}），回详情页刷新一下再试。"
 
 #: src/studio/ui/PlanBoard.tsx
 msgid "这一段的成片没有留存，要重新出片（会再花一次钱）"
@@ -12643,6 +12967,14 @@ msgstr "这一秒已经标过了（播放头刚好落回同一帧）。"
 #: src/pages/TemplateDetailPage.tsx
 msgid "这一组模板暂时套不了"
 msgstr "这一组模板暂时套不了"
+
+#: src/data/videoDownload.ts
+msgid "这一集不存在（可能刚被编辑删掉了），回上一页刷新一下。"
+msgstr "这一集不存在（可能刚被编辑删掉了），回上一页刷新一下。"
+
+#: src/data/videoDownload.ts
+msgid "这一集只有首尾帧，没有可下载的成片。"
+msgstr "这一集只有首尾帧，没有可下载的成片。"
 
 #: src/pages/AdminPage.tsx
 msgid "这一页只有管理员能进"
@@ -12740,6 +13072,11 @@ msgstr "这个包里没有它 —— 换一个，或者回 Cubism 重新导出�
 #: src/pages/SupportPage.tsx
 msgid "这个回答有帮助吗？"
 msgstr "这个回答有帮助吗？"
+
+#. placeholder {0}: res.status
+#: src/data/videoDownload.ts
+msgid "这个地址取不到（HTTP {0}）。回详情页刷新一下再试。"
+msgstr "这个地址取不到（HTTP {0}）。回详情页刷新一下再试。"
 
 #: src/studio/live2dUploadStore.ts
 msgid "这个文件读不了。"
@@ -12848,6 +13185,10 @@ msgstr "这份包上次已经传上去了，直接让服务器再看一遍…"
 msgid "这份工程有 {lostCount} 处素材没有留存 · 方案卡上逐格标了出来：预览图重新推演就能补回来， 成片要重新出片（会再花一次钱）"
 msgstr "这份工程有 {lostCount} 处素材没有留存 · 方案卡上逐格标了出来：预览图重新推演就能补回来， 成片要重新出片（会再花一次钱）"
 
+#: src/data/projects.ts
+msgid "这份画布没能整理成可留存的样子——这条作品没法再补留存了。"
+msgstr "这份画布没能整理成可留存的样子——这条作品没法再补留存了。"
+
 #. placeholder {0}: it.id
 #: src/components/PortraitAuthPanel.tsx
 msgid "这份的 ID 形状不认识（{0}）——用「填 asset ID」那条路试试。"
@@ -12871,6 +13212,14 @@ msgstr "这会儿没能取到你的卡片（{0}）"
 msgid "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
 msgstr "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
 
+#: src/data/videoDownload.ts
+msgid "这台手机上没有能接收视频的应用。文件已经在 App 内，装一个文件管理器再试。"
+msgstr "这台手机上没有能接收视频的应用。文件已经在 App 内，装一个文件管理器再试。"
+
+#: src/data/projects.ts
+msgid "这台服务器没有正常应答（工程可能还在）。"
+msgstr "这台服务器没有正常应答（工程可能还在）。"
+
 #: src/components/support/voicePreview.ts
 msgid "这台服务器没配云端语音，试听不了；保存设置仍然有效。"
 msgstr "这台服务器没配云端语音，试听不了；保存设置仍然有效。"
@@ -12883,6 +13232,10 @@ msgstr "这台服务器还不支持删除（需要升级服务端）"
 msgid "这台服务器还不支持回炉重做。等服务器更新后再试。"
 msgstr "这台服务器还不支持回炉重做。等服务器更新后再试。"
 
+#: src/data/projects.ts
+msgid "这台服务器还不支持回炉重做（没有工坊工程这个端点）"
+msgstr "这台服务器还不支持回炉重做（没有工坊工程这个端点）"
+
 #: src/pages/ProfilePage.tsx
 msgid "这台服务器还不支持按作者取作品 · 下面只是本次刷到的那些，不是全部"
 msgstr "这台服务器还不支持按作者取作品 · 下面只是本次刷到的那些，不是全部"
@@ -12890,6 +13243,10 @@ msgstr "这台服务器还不支持按作者取作品 · 下面只是本次刷�
 #: src/components/MentionInput.tsx
 msgid "这台服务器还不支持搜人，@ 可能收不到"
 msgstr "这台服务器还不支持搜人，@ 可能收不到"
+
+#: src/data/projects.ts
+msgid "这台服务器还不支持留存工坊工程"
+msgstr "这台服务器还不支持留存工坊工程"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "这台服务器还没开直传，刚才走的是慢的那条 —— 包要经过我们的服务器，大包在手机网络上有可能超时。这条路上识别不会把包留下，所以最后<0>发布时还要再传一次</0>。"
@@ -13151,6 +13508,10 @@ msgstr "这条作品有 {danmakuCount} 条弹幕。弹幕是按全片时间轴�
 msgid "这条作品没有留存工坊工程，改不了内容。想换内容请重新发一条。"
 msgstr "这条作品没有留存工坊工程，改不了内容。想换内容请重新发一条。"
 
+#: src/data/videoDownload.ts
+msgid "这条作品的画面里没有「AI 生成」角标，按合规要求暂时不能导出成文件。"
+msgstr "这条作品的画面里没有「AI 生成」角标，按合规要求暂时不能导出成文件。"
+
 #: src/pages/EditPage.tsx
 msgid "这条作品目前没有能显示给你的弹幕。如果还有（比如来自你拉黑的人），提交时也会一并清空，且无法恢复。"
 msgstr "这条作品目前没有能显示给你的弹幕。如果还有（比如来自你拉黑的人），提交时也会一并清空，且无法恢复。"
@@ -13170,6 +13531,10 @@ msgstr "这条合成好的成片和填好的标题、简介会被丢掉，回到
 #: src/pages/PublishPage.tsx
 msgid "这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。《{originTitle}》不受影响，还是现在这一版。"
 msgstr "这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。《{originTitle}》不受影响，还是现在这一版。"
+
+#: src/data/videoDownload.ts
+msgid "这条已被平台下架，不能保存到本地。"
+msgstr "这条已被平台下架，不能保存到本地。"
 
 #: src/components/ShareSheet.tsx
 msgid "这条已被平台下架，链接别人打不开，所以先不能分享。"
@@ -13224,6 +13589,10 @@ msgstr "这条路我走了很多年，闭着眼睛都知道哪里有个台阶。
 #: src/components/ShareSheet.tsx
 msgid "这条还在上传中（或没连上服务器）——现在分享出去的链接别人打不开。等它传完再分享。"
 msgstr "这条还在上传中（或没连上服务器）——现在分享出去的链接别人打不开。等它传完再分享。"
+
+#: src/data/videoDownload.ts
+msgid "这条还在上传中（或没连上服务器），还没有可下载的文件。等它传完再来。"
+msgstr "这条还在上传中（或没连上服务器），还没有可下载的文件。等它传完再来。"
 
 #: src/pages/CutPage.tsx
 msgid "这样裁完只剩不到 {MIN_CLIP_SEC} 秒，片段太短了"
@@ -13413,6 +13782,10 @@ msgstr "选式"
 #: src/studio/ui/AvatarPicker.tsx
 msgid "选择你的形象"
 msgstr "选择你的形象"
+
+#: src/data/videoDownload.ts
+msgid "选择保存位置"
+msgstr "选择保存位置"
 
 #: src/studio/ui/projection.tsx
 msgid "选择卡组"

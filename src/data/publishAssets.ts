@@ -18,6 +18,7 @@
 import { idbGet } from "./db";
 import { uploadImage, uploadMedia, MAX_IMAGE_BYTES } from "../api/uploads";
 import { slotLabel, type Card, type CardView, type DraftVideo } from "../types";
+import { t } from "@lingui/core/macro";
 
 /** 已经是永久地址、不用动的：http(s) 且不是方舟临时域 */
 function isPermanentUrl(u: string | undefined): boolean {
@@ -44,7 +45,8 @@ async function imageToUrl(value: string | undefined, label: string): Promise<str
   if (!value.startsWith("data:")) return value; // 永久 URL 或方舟链接（服务端转存）
   const blob = dataUrlToBlob(value);
   if (blob.size > MAX_IMAGE_BYTES) {
-    throw new Error(`${label} 太大（${Math.round(blob.size / 1048576)}MB，上限 5MB）`);
+    const sizeMb = Math.round(blob.size / 1048576);
+    throw new Error(t`${label} 太大（${sizeMb}MB，上限 5MB）`);
   }
   return uploadImage(blob, `${label}.${extOf(blob.type)}`);
 }
@@ -57,7 +59,7 @@ async function videoToUrl(value: string | undefined, onFrac?: (frac: number) => 
   const blob = await idbGet<Blob>(value.slice(4));
   if (!blob) {
     // 本地那份没了（配额清理/换设备）：这条作品已经无法完整发布，说清楚而不是发个空壳
-    throw new Error("本机的成片文件已丢失，无法上传");
+    throw new Error(t`本机的成片文件已丢失，无法上传`);
   }
   return uploadMedia(blob, `film.${extOf(blob.type)}`, onFrac);
 }
@@ -98,7 +100,8 @@ async function cardViewsToUrls(
 
 /** 进度条上那一行叫什么。★ 数分母和真正开传两处必须用同一句，否则"第几个/共几个"会对不上 */
 function viewLabel(card: Pick<Card, "name" | "type">, v: CardView): string {
-  return `「${card.name}」的${slotLabel(card.type, v.kind)}`;
+  const slot = slotLabel(card.type, v.kind);
+  return t`「${card.name}」的${slot}`;
 }
 
 export type UploadProgress = (done: number, total: number, label: string) => void;
@@ -112,14 +115,14 @@ export type UploadProgress = (done: number, total: number, label: string) => voi
 export async function materializeDraft(draft: DraftVideo, onProgress?: UploadProgress): Promise<DraftVideo> {
   // 先数一遍要传几个，进度条才有分母
   const jobs: string[] = [];
-  if (draft.cover?.startsWith("data:")) jobs.push("封面");
+  if (draft.cover?.startsWith("data:")) jobs.push(t`封面`);
   draft.segments.forEach((s, i) => {
-    if (s.firstFrame?.startsWith("data:")) jobs.push(`第${i + 1}段起始帧`);
-    if (s.lastFrame?.startsWith("data:")) jobs.push(`第${i + 1}段结束帧`);
-    if (s.videoUrl?.startsWith("idb:")) jobs.push(`第${i + 1}段成片`);
+    if (s.firstFrame?.startsWith("data:")) jobs.push(t`第${i + 1}段起始帧`);
+    if (s.lastFrame?.startsWith("data:")) jobs.push(t`第${i + 1}段结束帧`);
+    if (s.videoUrl?.startsWith("idb:")) jobs.push(t`第${i + 1}段成片`);
   });
   (draft.deck?.cards ?? []).forEach((c) => {
-    if (c.cover?.startsWith("data:")) jobs.push(`卡面「${c.name}」`);
+    if (c.cover?.startsWith("data:")) jobs.push(t`卡面「${c.name}」`);
     // 形象参考图也是本地资产，见 cardViewsToUrls（读原始 views，不走 viewsOf 的卡面兜底）
     for (const v of c.views ?? []) if (v?.url?.startsWith("data:")) jobs.push(viewLabel(c, v));
   });
@@ -138,23 +141,23 @@ export async function materializeDraft(draft: DraftVideo, onProgress?: UploadPro
   //   手机上行本来就窄，一次网络抖动重传 5MB 很容易让人以为又坏了。
   const out: DraftVideo = { ...draft, segments: draft.segments.slice(), deck: draft.deck };
   try {
-    if (draft.cover?.startsWith("data:")) begin("封面");
+    if (draft.cover?.startsWith("data:")) begin(t`封面`);
     out.cover = await imageToUrl(draft.cover, "cover");
     if (draft.cover?.startsWith("data:")) finish();
 
     for (let i = 0; i < draft.segments.length; i++) {
       const s = out.segments[i];
-      if (s.firstFrame?.startsWith("data:")) begin(`第${i + 1}段起始帧`);
+      if (s.firstFrame?.startsWith("data:")) begin(t`第${i + 1}段起始帧`);
       const firstFrame = await imageToUrl(s.firstFrame, `seg${i + 1}-first`);
       if (s.firstFrame?.startsWith("data:")) finish();
       out.segments[i] = { ...s, firstFrame };
-      if (s.lastFrame?.startsWith("data:")) begin(`第${i + 1}段结束帧`);
+      if (s.lastFrame?.startsWith("data:")) begin(t`第${i + 1}段结束帧`);
       const lastFrame = await imageToUrl(s.lastFrame, `seg${i + 1}-last`);
       if (s.lastFrame?.startsWith("data:")) finish();
       out.segments[i] = { ...out.segments[i], lastFrame };
-      if (s.videoUrl?.startsWith("idb:")) begin(`第${i + 1}段成片（较大，请稍候）`);
+      if (s.videoUrl?.startsWith("idb:")) begin(t`第${i + 1}段成片（较大，请稍候）`);
       // 成片是分块直传，有真进度：把百分比写进那一行，别让最长的一步全程只有一句"请稍候"
-      const videoUrl = await videoToUrl(s.videoUrl, (f) => onProgress?.(done, total, `第${i + 1}段成片 ${Math.round(f * 100)}%`));
+      const videoUrl = await videoToUrl(s.videoUrl, (f) => onProgress?.(done, total, t`第${i + 1}段成片 ${Math.round(f * 100)}%`));
       if (s.videoUrl?.startsWith("idb:")) finish();
       out.segments[i] = { ...out.segments[i], videoUrl };
     }
@@ -163,7 +166,7 @@ export async function materializeDraft(draft: DraftVideo, onProgress?: UploadPro
       const cards = out.deck.cards.slice();
       for (let i = 0; i < cards.length; i++) {
         const c = cards[i];
-        if (c.cover?.startsWith("data:")) begin(`卡面「${c.name}」`);
+        if (c.cover?.startsWith("data:")) begin(t`卡面「${c.name}」`);
         const cover = await imageToUrl(c.cover, `card-${c.id}`);
         if (c.cover?.startsWith("data:")) finish();
         cards[i] = { ...c, cover };

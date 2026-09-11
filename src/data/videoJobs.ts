@@ -37,6 +37,7 @@
  *   看起来只该改一处，而实际上要改两处。
  */
 import type { VideoAspect } from "../types";
+import { t } from "@lingui/core/macro";
 import { API_BASE, apiGet, getToken } from "../api/client";
 
 export const VIDEO_JOB_TTL_MS = 24 * 3600_000;
@@ -236,21 +237,17 @@ export function videoJobNote(job: VideoJob): string {
   const left = expiresAt(job) - Date.now();
   if (left <= 0) {
     return flat
-      ? "这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。已经花掉的钱我们这边退不了——重新生成是再花一次钱。"
-      : "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。";
+      ? t`这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。已经花掉的钱我们这边退不了——重新生成是再花一次钱。`
+      : t`这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。`;
   }
   const h = Math.floor(left / 3600_000);
   const m = Math.floor((left % 3600_000) / 60_000);
   if (flat) {
-    return (
-      "这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；" +
-      "点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
-    );
+    return t`这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。`;
   }
-  return (
-    `还剩 ${h > 0 ? `${h} 小时 ` : ""}${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。` +
-    `这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。`
-  );
+  return h > 0
+    ? t`还剩 ${h} 小时 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。`
+    : t`还剩 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。`;
 }
 
 /**
@@ -376,25 +373,27 @@ export async function importServerVideoJobs(): Promise<number> {
     return 0; // 老服务端（404）/ 弱网：下次再问，没有这张表也不影响本机凭据
   }
   let added = 0;
-  for (const t of tasks) {
-    if (!t?.taskId || typeof t.taskId !== "string") continue;
-    if (taken[t.taskId] || jobs.some((j) => j.taskId === t.taskId)) continue;
-    const createdAt = new Date(t.createdAt).getTime();
+  for (const task of tasks) {
+    if (!task?.taskId || typeof task.taskId !== "string") continue;
+    if (taken[task.taskId] || jobs.some((j) => j.taskId === task.taskId)) continue;
+    const createdAt = new Date(task.createdAt).getTime();
     if (!Number.isFinite(createdAt)) continue;
     const when = new Date(createdAt);
     const hh = String(when.getHours()).padStart(2, "0");
     const mm = String(when.getMinutes()).padStart(2, "0");
     const job: VideoJob = {
       provider: "ark",
-      taskId: t.taskId,
+      taskId: task.taskId,
       nodeId: "",
       proposalId: "",
       seg: 0,
-      label: `${hh}:${mm} 提交的那一发（服务器登记）${t.prompt ? " · " + t.prompt.slice(0, 24) : ""}`,
+      label: task.prompt
+        ? t`${hh}:${mm} 提交的那一发（服务器登记） · ${task.prompt.slice(0, 24)}`
+        : t`${hh}:${mm} 提交的那一发（服务器登记）`,
       cost: 0, // 服务端受理那一刻已经扣过，取回不再花钱；本机镜像也不必再扣一次
-      ...(t.durationSec && Number.isFinite(t.durationSec) ? { durationSec: t.durationSec } : {}),
-      ...(aspectOfRatio(t.ratio) ? { aspect: aspectOfRatio(t.ratio) } : {}),
-      ...(t.prompt ? { plot: t.prompt } : {}),
+      ...(task.durationSec && Number.isFinite(task.durationSec) ? { durationSec: task.durationSec } : {}),
+      ...(aspectOfRatio(task.ratio) ? { aspect: aspectOfRatio(task.ratio) } : {}),
+      ...(task.prompt ? { plot: task.prompt } : {}),
       createdAt,
     };
     if (prunable(job)) continue;
