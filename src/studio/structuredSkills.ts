@@ -12,7 +12,7 @@
 // ★ 依赖方向：data → store → 组件。本模块认 flowStore（newFlowNode），组件（ScriptSkillSheet）认它；反过来绝不。
 import { AI_REAL, VIDEO_PROMPT_MAX, canvasAgentChat } from "../ai";
 import { canAfford, spendTokens } from "../data/account";
-import { SCRIPT_SPLIT_TOKENS, clampDuration, fmtTokens } from "../data/economy";
+import { CHAT_TURN_TOKENS, clampDuration, fmtTokens } from "../data/economy";
 import { cleanShot, uid, type Card, type Proposal, type ShotSpec, type VideoAspect } from "../types";
 import { newFlowNode, type FlowNode } from "./flowStore";
 import type { MessageDescriptor } from "@lingui/core";
@@ -59,7 +59,9 @@ export const SCRIPT_TO_SHOTS = {
     { kind: "apply", title: msg`铺进画布`, hint: msg`每段一套已挑定的方案，镜头字段进方案台与出片提示词` },
   ] satisfies readonly SkillStep[],
   confirmAt: ["confirm"] satisfies readonly SkillStepKind[],
-  cost: SCRIPT_SPLIT_TOKENS,
+  // ★ 价签 = 一次 chat 的定额：runScriptToShots 只发一次 canvasAgentChat，服务端按调用收 CHAT_TURN_TOKENS。
+  //   原来按"两趟"标 800，按钮、余额门槛、离线记账都比实收高一倍（见 economy.ts 删 SCRIPT_SPLIT_TOKENS 那段 ★★）。
+  cost: CHAT_TURN_TOKENS,
 } as const;
 
 /* i18n-frozen: 分镜师模型的系统提示词（规定输出的 JSON 形状），冻结中文 */
@@ -142,8 +144,8 @@ function localSplit(script: string, tierId: string): ShotPlan {
 export async function runScriptToShots(script: string, tierId: string, onStep: (kind: SkillStepKind) => void): Promise<ShotPlan> {
   const s = script.trim().slice(0, SCRIPT_MAX);
   if (s.length < SCRIPT_MIN) throw new Error(t`剧本太短（至少 ${SCRIPT_MIN} 字）`);
-  if (AI_REAL && !canAfford(SCRIPT_SPLIT_TOKENS)) {
-    const price = fmtTokens(SCRIPT_SPLIT_TOKENS);
+  if (AI_REAL && !canAfford(CHAT_TURN_TOKENS)) {
+    const price = fmtTokens(CHAT_TURN_TOKENS);
     throw new Error(t`拆分镜要 ${price} token，余额不够——去「我的」页充值`);
   }
   onStep("model");
@@ -152,7 +154,7 @@ export async function runScriptToShots(script: string, tierId: string, onStep: (
     return localSplit(s, tierId);
   }
   const raw = await canvasAgentChat(SYS, s);
-  spendTokens(SCRIPT_SPLIT_TOKENS); // 请求成功才扣（与 canvasAgent 同口径）；形状检查失败不退也不再扣
+  spendTokens(CHAT_TURN_TOKENS); // 请求成功才扣（与 canvasAgent 同口径）；形状检查失败不退也不再扣
   onStep("check");
   return parseShotPlan(raw, tierId);
 }

@@ -29,13 +29,12 @@ import { makeCover } from "../mock/frames";
 import type { MaterialFile, ProposalContext } from "../mock/ai";
 import * as mock from "../mock/ai";
 import {
-  CARD_META_TOKENS,
+  CHAT_TURN_TOKENS,
   DECK_MAX_CARDS,
   DECK_VISION_FRAMES,
   DEFAULT_IMAGE_TIER,
   IMAGE_TOKENS,
   TEMPLATE_MAX_CARDS,
-  VISION_FRAME_TOKENS,
   clampDuration,
   imageTierOf,
   providerOf,
@@ -1589,7 +1588,8 @@ export async function deriveDeckCards(
     frames.length > 0
       ? await chatVision(DECK_MINT.prompt, `${userText}\n以下是成片按时间顺序的抽帧（frameIndex 从 1 起）：`, frames)
       : await chat(DECK_MINT.prompt, userText);
-  let tokens = frames.length * VISION_FRAME_TOKENS;
+  // 看片（抽不到帧时是纯文字）那一次 chat：服务端按调用定额收，与塞了几帧无关（economy.mintQuote 的 ★★）
+  let tokens = CHAT_TURN_TOKENS;
   let defs = JSON.parse(raw.replace(/```json|```/g, "").trim()) as CardDef[];
   if (!Array.isArray(defs)) throw new Error("卡组提炼 JSON 结构不符");
   // 代码闸：已关门的卡种一张不铸（见函数头 ★★）；措辞复核（禁用词 / background）见 sanitizeCardDefs
@@ -1748,7 +1748,7 @@ interface FrameCover {
   cover: string;
   /** 真出了一张图（收一次图钱） */
   drewImage: boolean;
-  /** 复核看了几次图（按 VISION_FRAME_TOKENS 收） */
+  /** 复核发了几次看图（每次一个 CHAT_TURN_TOKENS：服务端按 chat 调用定额收） */
   visionCalls: number;
   note?: string;
 }
@@ -1835,13 +1835,13 @@ async function mintCards(
   if (jobs.length === 0) return { cards: [], tokens: 0 }; // 提出来的全是已有实体的换皮：等于无需补卡
   // 画风参考帧整批只备一次（mapLimit 3 路并发，逐张 prep 是白做三遍同一件事）
   const styleRefUrl = styleRef ? await prepRefImage(styleRef) : null;
-  // ★ V3 结算逐笔记在这里（报价上限在 economy.deckCardsCost / extractCost / templateCost）：
-  //   每张卡一份文案钱；真出图才收图钱；场景卡多一次去人复核。道具裁剪 / 风格整帧 = 0 图钱。
+  // ★ V3 结算逐笔记在这里（报价上限在 economy.mintQuote）：真出图才收图钱；场景卡多一次去人复核。
+  //   道具裁剪 / 风格整帧 = 0 次调用。**没有逐张文案钱**：卡名 / 简介 / 出片句是调用方那一次看图一起吐出来的，
+  //   这个循环里一个 chat 都不发（2026-09-10 之前每张卡照记 CARD_META_TOKENS，记的是一次不存在的调用）。
   let tokens = 0;
   const notes: string[] = [];
   await mapLimit(jobs, 3, async (d) => {
     const type = d.type as CardType;
-    tokens += CARD_META_TOKENS;
     try {
       // ★ V3：有抽帧且模型点了帧，就按卡种走"贴合原片"三档；任一档没成退回文生图（下面那条老路）
       const pointed =
@@ -1864,7 +1864,7 @@ async function mintCards(
           const r = await sceneCoverFromFrame(frame, d.name!);
           cover = r.cover;
           drew = r.drewImage;
-          tokens += r.visionCalls * VISION_FRAME_TOKENS;
+          tokens += r.visionCalls * CHAT_TURN_TOKENS;
           if (r.note) notes.push(r.note);
         } catch (e) {
           console.warn(`[ai] 场景卡「${d.name}」去人留景失败，退回文生图:`, e);
@@ -1944,7 +1944,7 @@ export async function extractCardsFromVideo(
   // 画风参考帧取中间那张：开头常是黑场/片头字，中段才是这段视频真正的样子
   const styleRef = frames[Math.floor(frames.length / 2)] ?? frames[0];
   const r = await mintCards(defs, VIDEO_MINT, styleHint, existing, onProgress, styleRef, frames);
-  return { cards: r.cards, tokens: frames.length * VISION_FRAME_TOKENS + r.tokens };
+  return { cards: r.cards, tokens: CHAT_TURN_TOKENS + r.tokens };
 }
 
 /**
@@ -2000,7 +2000,7 @@ export async function extractTemplateFromVideo(
   source: string;
   recipe: { styleHint: string; beats: string[]; framePrompt: string; durationSec: number };
   cards: Card[];
-  /** V3：这次真实调用的 token（看帧 × 遍数 + 出图 + 复核），逐笔记；报价上限见 economy.templateCost / blockoutTemplateCost */
+  /** V3：这次真实调用的 token（看图调用次数 × CHAT_TURN_TOKENS + 出图 + 复核），逐笔记；报价上限见 economy.templateCost / blockoutTemplateCost */
   tokens: number;
 }> {
   const blockout = !!opts?.blockout;
@@ -2020,7 +2020,7 @@ export async function extractTemplateFromVideo(
     framePrompt?: string;
   };
   const styleHint = (t.styleHint ?? "").trim();
-  let tokens = frames.length * VISION_FRAME_TOKENS; // 配方那一遍视觉
+  let tokens = CHAT_TURN_TOKENS; // 配方那一次看图（一次 chat 定额，与塞几帧无关）
   // 白模只留 1 条（提示词也只要了 1 条，这刀是模型不守规矩时的保险，同 mintCards 那刀的道理）
   const beats = (Array.isArray(t.beats) ? t.beats : [])
     .filter((b) => typeof b === "string" && b.trim())
@@ -2032,7 +2032,7 @@ export async function extractTemplateFromVideo(
   let cards: Card[] = [];
   if (!blockout) {
     onProgress?.("提炼模板素材卡…");
-    tokens += frames.length * VISION_FRAME_TOKENS; // 认卡那一遍视觉
+    tokens += CHAT_TURN_TOKENS; // 认卡那一次看图
     const rawCards = await chatVision(
       TEMPLATE_MINT.prompt,
       `导演对这段视频画面的总结（只作参考；卡上的话必须自己独立成立）：${styleHint}
@@ -2079,7 +2079,7 @@ export async function extractTemplateFromVideo(
  * ★ 白模化那条路此前 cards 恒空：白模帧里全是灰白简模，认不出素材；而原片帧在登记那一刻就在客户端手上
  *   （提取器抽帧那一步），风格 / 场景 / 道具正该从它出（docs/card-roles-v3-design.md §2 的 ⚠）。
  * ★ 服务端不存模板卡（BranchTemplate 没有 cards 字段，经典模板的卡也只在本机），这里同样只落本机模板。
- * ★ 报价上限 economy.blockoutCardsCost 与这里的真实调用序列（一遍视觉 + 每张 文案 / 出图 / 复核）逐项对应。
+ * ★ 报价上限 economy.blockoutCardsCost 与这里的真实调用序列（一次看图 + 每张 出图 / 复核）逐项对应。
  */
 export async function extractTemplateCards(
   frames: string[],
@@ -2099,7 +2099,7 @@ export async function extractTemplateCards(
   const defs = sanitizeCardDefs(parsed).filter((d) => d.type !== "character");
   const styleHint = defs.find((d) => d.type === "style")?.name ?? "";
   const r = await mintCards(defs, TEMPLATE_MINT, styleHint, [], onProgress, frames[Math.floor(frames.length / 2)] ?? frames[0], frames);
-  return { cards: r.cards, tokens: frames.length * VISION_FRAME_TOKENS + r.tokens };
+  return { cards: r.cards, tokens: CHAT_TURN_TOKENS + r.tokens };
 }
 
 /**

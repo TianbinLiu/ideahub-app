@@ -844,7 +844,8 @@ export async function generate3dModel(
 
 /** 豆包看图说话：同一个 chat 模型收 OpenAI 式的多模态 content 数组。
  *  2026-08-07 实测 doubao-seed-2-1-turbo 认 base64 dataURL 图，单图约 3.7s。
- *  images 是抽帧的 dataURL；帧数越多越贵也越慢，调用方自己控制在个位数。 */
+ *  images 是抽帧的 dataURL；帧数越多越慢、请求体越大，调用方自己控制在个位数。
+ *  ★ **不是越多越贵**：走的是 /chat/completions，服务端按一次 chat 定额收（CHAT_TURN_TOKENS），与塞几张图无关。 */
 export async function chatVision(system: string, text: string, images: string[]): Promise<string> {
   const out = await arkFetch<{ choices: Array<{ message: { content: string } }> }>(
     "/chat/completions",

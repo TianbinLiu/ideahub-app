@@ -808,32 +808,49 @@ export const IMAGE_TOKENS: number = ((): number => {
   return Math.max(...Object.values(IMAGE_TOKENS_BY_MODEL));
 })();
 
-/** 视觉模型看图（每帧）的 token 等价：豆包 seed-2.1 图文输入远比出图便宜，取一个保守值 */
-export const VISION_FRAME_TOKENS = 900;
+// ★★ 这里原来有个 `VISION_FRAME_TOKENS = 900`（"看图每帧 900"），2026-09-10 连名字一起删了。
+//   服务端 `config/tokens.js` 的 `priceOf` 对 `kind:"chat"` **恒收 CHAT_TURN_TOKENS**，而看图
+//   （arkClient.chatVision）走的就是 /chat/completions —— **一次调用一个定额，塞几张图都一样**
+//   （2026-09-10 拿服务端 priceOf 实跑：带 0 / 1 / 6 / 8 张图都是 400）。按帧报价从一开始就对不上：
+//   白模那条（blockoutTemplateCost）08-17 先修过，提卡四条路的报价与 real.ts 里记实收的六处一直按帧算。
+//   留着这个常量就是给"按帧计价"留个复活的口子。看图一律 = CHAT_TURN_TOKENS × 调用次数（见 mintQuote）。
 
-/** 成片提炼卡组时最多看几帧（V3：豆包看成片抽帧而不是只读剧情文字）。报价（deckCardsCost）与真实抽帧
- *  （real.deckFrameUrls）同一个数 —— 分叉就是"报 6 帧、看 8 帧"这种零报错的报价漂移。 */
+/** 成片提炼卡组时最多看几帧（V3：豆包看成片抽帧而不是只读剧情文字），real.deckFrameUrls 按它封顶。
+ *  ★ 不进报价：看图按调用次数收（CHAT_TURN_TOKENS），帧数只影响认得准不准、请求有多大。 */
 export const DECK_VISION_FRAMES = 6;
 
-/** 每张卡的文案精炼（豆包一次短对话）token 等价。图文输入按保守值给，
- *  与 VISION_FRAME_TOKENS 同量级——真正贵的是出图，这一项只是别装作免费。 */
+/** 每张卡的文案精炼（豆包一次短对话）token 等价 —— 素材炼卡（real.generateCards）**每张卡真发一次 chat**，
+ *  服务端按 chat 定额收，所以它必须与 CHAT_TURN_TOKENS 相等（server 那条跨仓钉子两个一起钉）。
+ *  ⚠ 看片提卡那几条路（real.mintCards）**没有**逐张文案这一趟：卡名 / 简介 / 出片句都在前面那一次看图里
+ *  一起吐出来了。2026-09-10 之前那边每张卡照记 400，记的是一次不存在的调用 —— 别把这一项加回去。 */
 export const CARD_META_TOKENS = 400;
 
 /**
- * 一次闲聊往返的 token 等价。**不复用 CARD_META_TOKENS**——那是"一次极短的 JSON
- * 抽取"（几十字输入），闲聊要背 ~600 字人设 + ~1000 字历史，输入量是它的十几倍；
- * 共用一个常量，以后谁改了卡片提示词就会把聊天报价一起改掉。
+ * 一次 chat 调用的 token 等价 —— **服务端 `config/tokens.js` 同名常量的镜像**（跨仓契约，两仓一起改；
+ * 钉在 server 的 `tests/arkProxy.spec.js`「跨仓 chat 定额一致性」）。
+ * 服务端对 /chat/completions 一律按调用定额收：闲聊（chatTurns）、一问一答（chat）、看图（chatVision）
+ * 都是这一个数，与带多少历史、塞几张图无关。所以看图的报价与记账都按「调用次数 × 它」算。
  *
- * ⚠ doubao-seed-2-1-turbo 的实际单价**没有实测过**，400 是按同一把尺子估的保守值。
- * 上线前必须照方舟账单校一次。它只是"常驻价签"；真实结算走接口返回的用量。
+ * ★ 闲聊为什么单开一个常量、不复用 CARD_META_TOKENS：那是"一次极短的 JSON 抽取"（几十字输入），
+ *   闲聊要背 ~600 字人设 + ~1000 字历史，**真实成本**是它的十几倍。但服务端**结算**不分这两种，
+ *   所以两个数眼下必须相等；哪天服务端按用量分档，再让它们各走各的。
+ * ⚠ doubao-seed-2-1-turbo 的实际单价**没有实测过**，400 是按同一把尺子估的保守值，
+ *   上线前必须照方舟账单校一次。（这里原来写着"真实结算走接口返回的用量"—— 不对，服务端收的就是这个定额。）
  */
 export const CHAT_TURN_TOKENS = 400;
 
-/**
- * 结构化技能「剧本 → 分镜字段」一次运行的价签（studio/structuredSkills）：一篇 ≤2000 字剧本进、最多 8 段带镜头字段的 JSON 出，
- * 输入输出都是闲聊那一趟的几倍，按两趟计。与 CHAT_TURN_TOKENS 同一条 ⚠：常驻价签，真实结算走接口返回的用量。
- */
-export const SCRIPT_SPLIT_TOKENS = 2 * CHAT_TURN_TOKENS;
+// ★★ 这里原来有个 `SCRIPT_SPLIT_TOKENS = 2 * CHAT_TURN_TOKENS`（结构化技能「剧本 → 分镜字段」的价签，理由是
+//   "输入输出都是闲聊那一趟的几倍，按两趟计"），2026-09-10 删了：那一发只是**一次** chat
+//   （structuredSkills.runScriptToShots → canvasAgentChat → chat()），服务端按调用收 CHAT_TURN_TOKENS ——
+//   按钮上写 800、余额门槛按 800、离线记账扣 800，实收 400，与 VISION_FRAME_TOKENS 同一个错。价签现在就是 CHAT_TURN_TOKENS。
+// ★ 调研过同类平台才定的（2026-09-10）：LibTV 的 Agent 对话不扣积分（09-08 主人账号实测走过一轮对话、积分没动；
+//   非会员按每天 3 轮限次），积分只在提交出图 / 出片时扣，价格写在生成那一行；FLORA、Figma Weave 连文本模型也扣，
+//   但**跑之前节点 / 运行按钮上显示的就是这一次要扣的数**。没有一家是"价签按内容量估、结算按调用算"两套口径。
+// ⚠ 真实成本确实比 400 高：turbo 输入 3 元/M、输出 15 元/M（2026-08-06 官方价目），折成本仓 15 元/M 的尺子是
+//   「0.2 × 输入 token + 1 × 输出 token」。一篇 2000 字剧本（按 1 字 ≈ 1 token 取上限）加提示词、输出顶满 chat() 的
+//   max_tokens 800，约 1,260 —— 每次最多少收约 860（≈1.3 分钱），这笔差价我们吃掉。
+//   真要按成本收，得在**服务端**按方舟回包的 usage 计量（先按上限预扣、多退少补），不能在客户端单给某个技能标一个
+//   更高的价：服务端认不出"这一发是拆分镜"，客户端说什么都不作数。
 
 /** 会炼出几张卡：**一份素材 = 一张卡**，一份素材都没有但写了描述也出一张。 */
 export function forgeCardCount(fileCount: number, hasNote: boolean): number {
@@ -942,7 +959,7 @@ export function forgeSettle(mintedPerCard: number[], tierId?: string): number | 
 //   那两张卡面的钱就是白收的。所以这里不是"以后可能会分叉"，是已经分叉过了。
 //
 // ★ 因此上限是**带牌子的类型**（CardMintCap），不是裸 number：报价函数与 mintCards
-//   都只收它，`extractCost(n, 8)` / `mintSpec(12, …)` 这类手写数字**编译不过**。
+//   都只收它，`extractCost(8)` / `mintSpec(12, …)` 这类手写数字**编译不过**。
 //   要改上限只能改下面这两个常量 —— 提示词由 mintSpec 从同一个值插值出来，
 //   slice 用的也是同一个值，改一处三处一起动，漏不掉。
 declare const CARD_MINT_CAP: unique symbol;
@@ -955,28 +972,47 @@ export const DECK_MAX_CARDS = 8 as CardMintCap;
  *  （主角由套模板的人自己指定），能复用的只剩场景/氛围/道具/画风四类。 */
 export const TEMPLATE_MAX_CARDS = 6 as CardMintCap;
 
-/** 看帧 + 铸卡面 —— 报价与结算共用这一条式子，两边分开写就会各自漂。 */
-function visionCardsTokens(frameCount: number, cards: number, visionPasses = 1): number {
-  return frameCount * VISION_FRAME_TOKENS * visionPasses + cards * IMAGE_TOKENS;
+/**
+ * 看片提卡里**一张卡最多花多少** —— 取 real.mintCards 真实调用序列里最贵的那一格：
+ * 场景卡 = 原帧去人留景出一张图（IMAGE_TOKENS）+ 看一眼复核还有没有人（一次 chat）。
+ * 别的格都更便宜：风格整帧 / 道具裁剪 0 次调用，文生图兜底 1 张图、不复核。
+ * ★ **没有逐张文案那一趟**（见 CARD_META_TOKENS 的 ⚠）。
+ * ★ 出图按默认档：mintCards 出图不传 model，arkClient.generateImage 缺省发的就是默认档（IMAGE_TOKENS 的出处）。
+ */
+const MINT_CARD_MAX_TOKENS = IMAGE_TOKENS + CHAT_TURN_TOKENS;
+
+/**
+ * 看片提卡的**上限**：`chatCalls` 次 chat + 最多 `cap` 张卡 —— 下面四个报价函数（extractCost / templateCost /
+ * blockoutCardsCost / deckCardsCost）只准从这里取。
+ *
+ * ★★ 单位与服务端结算一一对应：一次 chat（看图、纯文字都一样）= CHAT_TURN_TOKENS，一张图 = IMAGE_TOKENS。
+ *   real.ts 记实收时按同一对单位逐笔加（每发一次 chat 加一个、每真出一张图加一个），报价只是把
+ *   "最多发几次、最多出几张"代进来，所以实收只会 ≤ 报价。
+ * ★★ **没有帧数参数是有意的**：服务端 priceOf 对 kind:"chat" 返回定额，与消息里塞几张图无关。
+ *   2026-09-10 之前这里按「帧数 × 900 × 遍数」算：经典模板看 8 帧、6 张场景卡时视觉那一半报 19,800、
+ *   最多只扣 3,200（记账那边每张卡还多记一笔不存在的文案钱）。余额卡在中间时 canAfford 判否，把人挡在门外 ——
+ *   与 blockoutTemplateCost 08-17 修掉的是同一个错，当时没修到这几条路上。
+ *   （blockoutTemplateCost 还留着 frameCount 形参，只因为它嵌在 blockoutizeCost 的签名里，那边同样不计价。）
+ */
+function mintQuote(chatCalls: number, cap: CardMintCap): number {
+  return chatCalls * CHAT_TURN_TOKENS + cap * MINT_CARD_MAX_TOKENS;
 }
 
 /**
- * 上传视频提炼卡组的预估：看 N 帧 + 最多铸 cap 张卡面。
+ * 上传视频提炼卡组的预估：看一次抽帧认卡 + 最多铸 cap 张卡面。
  * 张数是上限而非确数（模型认出几个实体就出几张，重复的还会被剔掉），
- * 所以 UI 必须说"最多"；实收由 real.mintCards 逐笔记（看帧 + 文案 + 真出的图 + 去人复核），只会比这个上限少。
- * ★ 第二个参数只收 CardMintCap：这里能手写数字的话，就又有了一处会和提示词分叉的 8。
+ * 所以 UI 必须说"最多"；实收由 real.extractCardsFromVideo 逐笔记（看图一次 + 真出的图 + 去人复核），只会比这个上限少。
+ * ★ 参数只收 CardMintCap：这里能手写数字的话，就又有了一处会和提示词分叉的 8。
  */
-export function extractCost(frameCount: number, cap: CardMintCap): number {
-  // ★ V3：多一项每张卡的去人复核上限（只有场景卡真复核）；实收由 real.mintCards 逐笔记
-  return visionCardsTokens(frameCount, cap) + cap * VISION_FRAME_TOKENS;
+export function extractCost(cap: CardMintCap): number {
+  return mintQuote(1, cap);
 }
 
-/** 视频提**模板**的预估。看帧要两遍（总结配方 + 认素材卡），所以视觉部分 2×。
+/** 视频提**模板**的预估：看两次抽帧（总结配方 + 认素材卡，real.extractTemplateFromVideo 里两发 chatVision）+ 最多 cap 张卡。
  *  ★ 这式子原来长在 VideoTemplateExtractor 里，那里同时还自带一个 `MAX_CARDS = 6`——
  *    正是上面说的那处分叉。搬到这里是为了让它和 mintCards 读同一个 cap。 */
-export function templateCost(frameCount: number, cap: CardMintCap): number {
-  // ★ V3：多一项每张卡的去人复核上限（只有场景卡真复核）；实收由 real.extractTemplateFromVideo 逐笔记
-  return visionCardsTokens(frameCount, cap, 2) + cap * VISION_FRAME_TOKENS;
+export function templateCost(cap: CardMintCap): number {
+  return mintQuote(2, cap);
 }
 
 /**
@@ -986,7 +1022,7 @@ export function templateCost(frameCount: number, cap: CardMintCap): number {
  * ★ 与 templateCost（两遍视觉 + 最多 TEMPLATE_MAX_CARDS 张卡）**不是一回事，别复用**：
  *   白模里全是大色块和红色小人，「认素材卡」那一遍必然空手而归 —— 跑了是白烧钱，
  *   照 6 张报价则是吓唬人（报价≠实收的另一个方向，两种都不报错）。配方总结一遍就够。
- * ★ 仍走 visionCardsTokens（cards=0 时卡面项自然为 0）：「看一帧多少钱」只有那一处。
+ * ★ 看图一次 = CHAT_TURN_TOKENS，与 mintQuote 同一个单位；这条路没有卡，所以直接就是它。
  */
 export function blockoutTemplateCost(frameCount: number): number {
   // ★★★ 2026-08-17 修：**看几帧不影响这一笔**，所以照实按「一次 chat」报，
@@ -999,20 +1035,19 @@ export function blockoutTemplateCost(frameCount: number): number {
   //   去充了一笔本来不需要的钱。
   //   ⚠ 机理是**服务端按"调用了几次、什么 kind"计价，不按内容量**：N 帧是塞进
   //   同一条 messages 里的一次 chat。所以"按帧报价"这个模型从一开始就对不上。
-  //   ⚠ 同一处分叉在 `templateCost`（V1 提卡组那条路，两遍视觉 + N 张卡面）**还在**：
-  //   那条路不归这一轮改，改它要先核清那两遍视觉到底发了几次调用。见 CLAUDE.md
-  //   「两仓价目表各写各的」——发现新的分叉先钉一条，别顺手改到没验过的路上。
+  //   ⚠ 同一处分叉当时还留在提卡四条路（templateCost / extractCost / deckCardsCost / blockoutCardsCost）
+  //   与 real.ts 的记账上；2026-09-10 逐条核清每条路真发几次 chat 之后一并改成按调用计（见 mintQuote）。
   void frameCount;
   return CHAT_TURN_TOKENS;
 }
 
 /**
- * 白模模板登记时从原片铸素材卡（V3 第三期）的**上限**：一遍视觉看 frameCount 帧 + 最多 TEMPLATE_MAX_CARDS 张
- * （每张 文案 + 卡面 + 一次去人复核）。实收由 real.extractTemplateCards 逐笔记（道具裁剪 / 风格整帧不出图 = 0 图钱），
+ * 白模模板登记时从原片铸素材卡（V3 第三期）的**上限**：看一次原片抽帧 + 最多 TEMPLATE_MAX_CARDS 张
+ * （每张最多 一张卡面 + 一次去人复核）。实收由 real.extractTemplateCards 逐笔记（道具裁剪 / 风格整帧不出图 = 0 图钱），
  * 只会比这个数少。与 blockoutizeCost 是**两笔**：那笔是白模化本身（服务端按任务扣），这笔是客户端直连方舟的调用。
  */
-export function blockoutCardsCost(frameCount: number): number {
-  return frameCount * VISION_FRAME_TOKENS + TEMPLATE_MAX_CARDS * (CARD_META_TOKENS + IMAGE_TOKENS + VISION_FRAME_TOKENS);
+export function blockoutCardsCost(): number {
+  return mintQuote(1, TEMPLATE_MAX_CARDS);
 }
 
 /**
@@ -1249,15 +1284,11 @@ export function styleWants3d(text: string): boolean {
   return STYLE_3D_RE.test(String(text || ""));
 }
 
-/** 一张派生卡的单价：一次豆包文案 + 一次 Seedream 卡面。报价与结算共用。 */
-const DECK_CARD_TOKENS = CARD_META_TOKENS + IMAGE_TOKENS;
-
-/** 成片派生卡组：最多 DECK_MAX_CARDS 张，每张一次文案 + 一次卡面。
- *  与 extractCost 一样给的是**上限**——重复实体会被剔掉，实收按 real.mintCards 逐笔记的 tokens。 */
+/** 成片派生卡组：看一次成片抽帧（抽不到帧就退回纯文字 chat，同价）+ 最多 cap 张卡（mintQuote）。
+ *  与 extractCost 一样给的是**上限**——缺的卡种才补、重复实体会被剔掉，实收按 real.deriveDeckCards 逐笔记的 tokens，只会少不会多。
+ *  ★ 这里原来还有个 `DECK_CARD_TOKENS = CARD_META_TOKENS + IMAGE_TOKENS`（"一次文案 + 一次卡面"）—— 那趟文案并不存在，删了。 */
 export function deckCardsCost(cap: CardMintCap = DECK_MAX_CARDS): number {
-  // ★ V3 上限：每张 文案 + 卡面 + 一次去人复核（只有场景卡真复核，按最贵情形报）+ 看成片抽帧那一遍。
-  //   实收由 real.mintCards 逐笔记（道具裁剪、风格整帧不出图 = 0 图钱），只会少不会多。
-  return cap * (DECK_CARD_TOKENS + VISION_FRAME_TOKENS) + DECK_VISION_FRAMES * VISION_FRAME_TOKENS;
+  return mintQuote(1, cap);
 }
 
 /** 派生角色卡顺带铸 3D 建模的上限报价。★ 与实际结算（按 minted 张数）同一个单价。 */
