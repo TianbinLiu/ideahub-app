@@ -649,8 +649,8 @@ function hasPair(text: string, label: string, name: string, spec: MarkSpec, desc
   ).test(text);
 }
 
-/** 界面/错误句里怎么称呼这一个角色位（`编号4` / `从左数第3个`）。★ 与 data 层的 markNoun 不同：
- *  那个是名词（"编号"/"位置"），这个是**带着 label 的那一截**，两处各管各的一件事。
+/** 界面/错误句里怎么称呼这一个角色位（`编号4` / `从左数第3个`）。★ 这是**带着 label 的那一截**，不是方案名词：
+ *  data 层原来那个名词函数 markNoun（"编号"/"位置"）2026-09-11 做多语言时删了，调用点按 markSpecOf 的方案各写一句整话。
  *  ★ 序数版就是 label 原样：措辞自带指示性，加前缀只会读成"位置最左边"。 */
 function labelText(label: string, spec: MarkSpec): string {
   // i18n-ignore-next-line: 提示词里的编号措辞；错误句原样引用它，好让用户对照输入框里那一段

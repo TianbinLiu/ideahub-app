@@ -38,7 +38,7 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 //   真正发出去的那段话，在这里另抄一个 400 出来，改上限时这里就开始说假话
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
 import { balanceNote } from "../data/account";
-import { markNoun, markSpecOf, myTemplates, splitCastRoles, templateGroupOf } from "../data/templates";
+import { markSpecOf, myTemplates, splitCastRoles, templateGroupOf } from "../data/templates";
 // ★ 取回那一整块 2026-08-31 搬去 components/flow/SegmentRecoverCards（三个宿主共用，
 //   理由见那边的 ★★：它原来只长在这一页的 simple 闸里，画布与工坊一个像素都看不到）
 import { SegmentRecoverList } from "../components/flow/SegmentRecoverCards";
@@ -176,9 +176,10 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
   const isCursorNode = useFlow((s) => s.nodes[s.cursor]?.id === node.id);
   const mounted = roles.filter((r) => (isCursorNode ? cast : (node.cast ?? {}))[r.label]).length;
   const [openReq, setOpenReq] = useState(false);
-  // 这个模板的标记方案（判据只有 data 层一处）。★ 名词也只有一处：markNoun
+  // 这个模板的标记方案（判据只有 data 层一处）。★ 多语言（2026-09-11）：「位置 / 编号」不再当片段拼进句子，
+  //   下面几句按方案各写一句整话（英文里名词的位置与大小写随句子变）
   const spec = markSpecOf(tpl);
-  const noun = markNoun(spec);
+  const ordinal = spec.scheme === "ordinal";
   const roleCount = roles.length;
   const reqText = node.requirement?.trim() ?? "";
   return (
@@ -247,7 +248,11 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
         maxLength={VIDEO_PROMPT_MAX}
         disabled={castBusy && castOfThisNode}
         placeholder={
-          castBusy && castOfThisNode ? t`正在把「${noun} → 角色」合成一段话…` : t`先去挂卡，点名句会填进这里（可改）`
+          castBusy && castOfThisNode
+            ? ordinal
+              ? t`正在把「位置 → 角色」合成一段话…`
+              : t`正在把「编号 → 角色」合成一段话…`
+            : t`先去挂卡，点名句会填进这里（可改）`
         }
         className="w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-40"
       />
@@ -259,10 +264,18 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
         ) : (
           <>
             <span>
-              {prop.plot.trim() ? t`这段话直接发给 AI：${noun}与角色名改错会换错人，其余随便改` : t`挂卡后自动合成，出片前可逐字改`}
+              {prop.plot.trim()
+                ? ordinal
+                  ? t`这段话直接发给 AI：位置与角色名改错会换错人，其余随便改`
+                  : t`这段话直接发给 AI：编号与角色名改错会换错人，其余随便改`
+                : t`挂卡后自动合成，出片前可逐字改`}
             </span>
             <InfoTip title={t`点名句`}>
-              <Trans>这一段的要求由挂卡合成：AI 把「{noun} → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。{noun}与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。</Trans>
+              {ordinal ? (
+                <Trans>这一段的要求由挂卡合成：AI 把「位置 → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。位置与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。</Trans>
+              ) : (
+                <Trans>这一段的要求由挂卡合成：AI 把「编号 → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。编号与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。</Trans>
+              )}
             </InfoTip>
           </>
         )}

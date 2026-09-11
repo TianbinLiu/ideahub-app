@@ -5,6 +5,7 @@
 // 转换统一放在 data/*.ts（因为只有它知道要往哪个 cache 里塞）。
 import type { BranchTree, Card, CardRole, CardType, DraftVideo, TemplateRecipe, VideoDeck, VideoPart, VideoSegment } from "../types";
 import { API_BASE, ApiError, apiDelete, apiGet, apiPatch, apiPost, getToken } from "./client";
+import { t } from "@lingui/core/macro";
 
 // ── DTO ──────────────────────────────────────────────────
 
@@ -1232,7 +1233,8 @@ async function blockoutPost(
     // billed 按 false 报（我们确实不知道服务端跑到哪儿了），但 timeoutMsg 里必须把
     // "可能已经计费"说清楚 —— 报 true 是吓人，只说"失败了重试吧"是让他再花一次钱。
     throw new BlockoutizeError(
-      aborted ? timeoutMsg : `${phase === "start" ? "白模化提交" : "取回白模化结果"}失败（网络不可用）`,
+      // ★ 按阶段各一句整话（原来把阶段名当片段拼进句子，英文拼不成句）
+      aborted ? timeoutMsg : phase === "start" ? t`白模化提交失败（网络不可用）` : t`取回白模化结果失败（网络不可用）`,
       0,
       aborted ? "TIMEOUT" : "NETWORK",
       false,
@@ -1249,10 +1251,13 @@ async function blockoutPost(
     /* 非 JSON（SPA 回退 / 老服务端 / 网关错误页）：下面按形状判失败 */
   }
   if (data.ok !== true) {
+    const status = res.status;
     throw new BlockoutizeError(
       typeof data.message === "string" && data.message
         ? data.message
-        : `这台服务器不支持白模化的${phase === "start" ? "两阶段提交" : "取结果"}（可能需要升级服务端）——HTTP ${res.status}`,
+        : phase === "start"
+          ? t`这台服务器不支持白模化的两阶段提交（可能需要升级服务端）——HTTP ${status}`
+          : t`这台服务器不支持白模化的取结果（可能需要升级服务端）——HTTP ${status}`,
       res.status,
       typeof data.code === "string" ? data.code : "",
       data.billed === true,
@@ -1294,7 +1299,7 @@ export async function startBlockoutize(payload: BlockoutizePayload): Promise<Blo
     payload,
     480_000,
     "start",
-    "白模化提交超时（超过 8 分钟）。服务器那边可能已经受理了这一发（受理即计费）——别直接重试，先去「我的模板」看有没有「还没取回结果」的一发或新模板，有就从那里继续。",
+    t`白模化提交超时（超过 8 分钟）。服务器那边可能已经受理了这一发（受理即计费）——别直接重试，先去「我的模板」看有没有「还没取回结果」的一发或新模板，有就从那里继续。`,
   );
   const job = pick<Record<string, unknown>>(data, ["job", "blockout"]) ?? data;
   const jobId = String(job.jobId ?? job.id ?? job._id ?? "");
@@ -1332,7 +1337,7 @@ export async function startBlockoutize(payload: BlockoutizePayload): Promise<Blo
     return { kind: "legacy", result: { template, blockout: { taskId, durSec } } };
   }
   throw new BlockoutizeError(
-    "服务器受理了这一发白模化，却既没有返回模板、也没有返回可以取回结果的凭据（可能是旧版服务端）。这次已经计费——去「我的模板」看看有没有新模板或「还没取回结果」的一发，没有的话请把这句话反馈给我们。",
+    t`服务器受理了这一发白模化，却既没有返回模板、也没有返回可以取回结果的凭据（可能是旧版服务端）。这次已经计费——去「我的模板」看看有没有新模板或「还没取回结果」的一发，没有的话请把这句话反馈给我们。`,
     502,
     "SHAPE",
     true,
@@ -1358,7 +1363,7 @@ export async function finishBlockoutize(jobId: string): Promise<BlockoutizeResul
     { jobId },
     300_000,
     "finish",
-    "取回白模化结果超时（超过 5 分钟）。这一步不额外花钱，产物在 24 小时内都还能取——回「我的模板」的「还没取回结果」再点一次即可。",
+    t`取回白模化结果超时（超过 5 分钟）。这一步不额外花钱，产物在 24 小时内都还能取——回「我的模板」的「还没取回结果」再点一次即可。`,
   );
   const template = pick<ApiBranchTemplate>(data, ["template"]);
   const blockout = pick<Record<string, unknown>>(data, ["blockout"]);
@@ -1367,7 +1372,7 @@ export async function finishBlockoutize(jobId: string): Promise<BlockoutizeResul
     // 回包说 ok 却没给模板 = 这份回执当不了本机记录的锚点（既没有 remoteId 也没有
     // refVideo），静默放行就是"钱花了、模板不见了"。响亮拒绝，让用户去我的模板里找。
     throw new BlockoutizeError(
-      "服务器说结果取回成功了，却没有返回模板信息（可能是旧版服务端）。这一步本身不花钱，钱在开炼那一步已经付过——去「我的模板」确认一下有没有新模板，没有的话请把这句话反馈给我们。",
+      t`服务器说结果取回成功了，却没有返回模板信息（可能是旧版服务端）。这一步本身不花钱，钱在开炼那一步已经付过——去「我的模板」确认一下有没有新模板，没有的话请把这句话反馈给我们。`,
       502,
       "SHAPE",
       false,

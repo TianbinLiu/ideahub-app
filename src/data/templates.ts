@@ -17,8 +17,9 @@ import { canAfford, currentUser, refreshRemoteWallet, tierBlockReason } from "./
 import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens } from "./economy";
 import { toPermanentUrl } from "./publishAssets";
 import { remoteOn } from "./videos";
-import { t } from "@lingui/core/macro";
-import { V3_CARD_WIPE_MS, Card, MarkBox, MarkScheme, VideoAspect, VideoTemplate, uid } from "../types";
+import { i18n, type MessageDescriptor } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
+import { V3_CARD_WIPE_MS, Card, MarkBox, VideoAspect, VideoTemplate, uid } from "../types";
 
 const KEY = "templates.v1";
 
@@ -438,12 +439,14 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
   return {
     id: rid,
     remoteId: rid,
-    title: api.title || "未命名模板",
+    // ★ 兜底标题 / 作者名只是显示内容（服务端几乎不会给空的）：按拉取那一刻的界面语言翻，与「未命名卡组」同一条先例。
+    //   会随 adoptRemoteTemplate 落进本机库、被市场搜索匹配 —— 与用户自己敲的标题同性质，不回头改写
+    title: api.title || t({ message: "未命名模板", comment: "服务端没给标题时，模板上显示的兜底标题" }),
     intro: api.intro || "",
     // 分类：存在性透出（空串/缺省 = 未分类，读侧 tplCategoryLabel 判否定）
     ...(api.category ? { category: String(api.category) } : {}),
     cover: api.coverUrl || "",
-    author: api.authorName || "创作者",
+    author: api.authorName || t({ message: "创作者", comment: "服务端没给作者名时，模板上显示的兜底作者名（页面上画成 @创作者）" }),
     createdAt: toMs(api.createdAt ?? null) ?? Date.now(),
     cards: [], // 白模不带素材卡（提取时认不出，「换成谁」由套用者自己挂卡）
     recipe: {
@@ -590,7 +593,7 @@ function ensureShared(): void {
         // 瞬时网络失败（探测没缓存结论，capProbe 被清）≠ 老服务端：前者要说出来并稍后
         // 自动重试，否则"远端拉挂了"伪装成"市场里就这么几个模板"（铁律八）
         if (remoteOn() && capProbe === null) {
-          sharedError = "远端模板加载失败：网络不稳，稍后自动重试";
+          sharedError = t`远端模板加载失败：网络不稳，稍后自动重试`;
           sharedRetryAt = Date.now() + 15_000;
           emit();
         }
@@ -602,7 +605,8 @@ function ensureShared(): void {
       sharedError = "";
       emit();
     } catch (e) {
-      sharedError = `远端模板加载失败：${e instanceof Error ? e.message : String(e)}`;
+      const why = e instanceof Error ? e.message : String(e);
+      sharedError = t`远端模板加载失败：${why}`;
       sharedRetryAt = Date.now() + 15_000;
       emit();
     } finally {
@@ -710,7 +714,7 @@ export async function makeOwnRefTemplate(o: {
   onStep?: (note: string) => void;
 }): Promise<{ id: string; note: string }> {
   const say = o.onStep ?? (() => {});
-  if (!remoteOn()) throw new Error("现在连不上服务器——联网后再做模板");
+  if (!remoteOn()) throw new Error(t`现在连不上服务器——联网后再做模板`);
 
   // ★★★ 「自己挑帧」却一帧都没能用上 —— **响亮拒绝，不许悄悄退回自动**。
   //   与 blockoutizeTemplate 那道门同一条理由（那边逐字写着「不许悄悄退回自动」）：
@@ -728,18 +732,20 @@ export async function makeOwnRefTemplate(o: {
   //   只说前一种的话，第二种用户会对着一句不成立的解释找不着北。
   if (o.atSecs && o.atSecs.length === 0) {
     throw new Error(
-      "你选了「自己挑」分析帧，但一帧都没能用上——要么还没标，要么标的那几帧都落在选中的这一段外面（选段后来被拖动过）。回去在选段里标至少 1 帧，或者切回「自动」。",
+      t`你选了「自己挑」分析帧，但一帧都没能用上——要么还没标，要么标的那几帧都落在选中的这一段外面（选段后来被拖动过）。回去在选段里标至少 1 帧，或者切回「自动」。`,
     );
   }
 
-  say("正在裁出你框选的那一段…");
+  say(t`正在裁出你框选的那一段…`);
   const cut = await uploadsApi.deriveTemplateVideo(o.receipt.publicId, o.clip);
 
   // ★ 先落本机再登记：登记失败时本机这条还在（带 publicId），删除那条路认得出它、
   //   能把云端那份回收掉。反过来（登记成功、本机没落）才是真的丢句柄。
-  say("正在登记模板…");
+  say(t`正在登记模板…`);
   const tpl = saveTemplate({
-    title: o.title.trim() || "白模模板",
+    // ★ 默认标题会落库、登记到服务端、上市场：按建模板那一刻的界面语言翻（与「未命名卡组」同一条先例；
+    //   与提取器预填的那个默认同一条 msgid「白模模板」）
+    title: o.title.trim() || t`白模模板`,
     intro: (o.intro ?? "").trim(),
     cover: "",
     // ★ 白模不带素材卡（提取时认不出，「换成谁」由套用者自己挂卡）—— 与 apiToTemplate 同一句
@@ -756,14 +762,15 @@ export async function makeOwnRefTemplate(o: {
   const id = tpl.id;
   await registerTemplate(id);
 
-  say("AI 正在认画面里有哪些人…（要一到几分钟）");
+  say(t`AI 正在认画面里有哪些人…（要一到几分钟）`);
   let note = "";
   try {
     note = await detectTemplateRoles(id, o.atSecs);
   } catch (e) {
     // ★ 认人失败**不算整件事失败**：模板已经建好，列表里那颗「识别角色位」能重来。
     //   把原因原样带回去 —— 编一句"稍后再试"会让作者以为是网络问题。
-    note = `${e instanceof Error ? e.message : String(e)}（模板已经建好了，可以在「我的模板」里点「识别角色位」重试）`;
+    const why = e instanceof Error ? e.message : String(e);
+    note = t`${why}（模板已经建好了，可以在「我的模板」里点「识别角色位」重试）`;
   }
   return { id, note };
 }
@@ -805,12 +812,12 @@ export async function makeOwnRefTemplateGroup(o: {
   onStep?: (note: string) => void;
 }): Promise<{ id: string; count: number; note: string }> {
   const say = o.onStep ?? (() => {});
-  if (!remoteOn()) throw new Error("现在连不上服务器——联网后再做模板");
+  if (!remoteOn()) throw new Error(t`现在连不上服务器——联网后再做模板`);
   // 断言而不是静默兜底：空 splits 意味着调用方没走 planSplits 就进来了（≤30 秒该走单段路）
-  if (!o.splits.length) throw new Error("分段登记需要至少一个分段点——不超过 30 秒的选段请走单段那条路。");
+  if (!o.splits.length) throw new Error(t`分段登记需要至少一个分段点——不超过 30 秒的选段请走单段那条路。`);
 
   const count = o.splits.length + 1;
-  say(`正在把整条视频切成 ${count} 段登记…（每段都要独立转码，请稍候）`);
+  say(t`正在把整条视频切成 ${count} 段登记…（每段都要独立转码，请稍候）`);
   // ★★ 超时要**单独善后**（2026-08-21 复核抓到；与 detectTemplateRoles 那档同一条道理）：
   //   服务端切段是串行逐段转码，客户端等到 360s 就 abort —— 而那一发**多半还在服务器上跑**。
   //   只把 "请求超时" 原样抛出去的话，用户会做两件都很坏的事：
@@ -822,7 +829,7 @@ export async function makeOwnRefTemplateGroup(o: {
   //   ⇒ 这一档把 receipt 标成 spent（不许再回收源），并把话说成"去看看到没到"。
   //   ★ 只包这一发、不搬代码块：下面那份 payload 一个字都不动（搬动它会让 diff 淹掉真正的改动）。
   const { parts } = await branch.createTemplate({
-    title: o.title.trim() || "白模模板",
+    title: o.title.trim() || t`白模模板`,
     intro: (o.intro ?? "").trim(),
     coverUrl: "",
     recipe: {
@@ -842,9 +849,7 @@ export async function makeOwnRefTemplateGroup(o: {
     if (e instanceof ApiError && e.code === "TIMEOUT") {
       o.onRegistered?.(); // 源已经交给服务端了：从这一刻起不许再回收它
       throw new Error(
-        "等太久没等到回复——但这一发多半还在服务器上跑（整条切成 N 段要逐段转码，慢的时候好几分钟）。" +
-          "先别急着再点（再点会把同一条视频切第二遍），也别去删那段素材：等一两分钟，" +
-          "去「我的模板」看看那一组是不是已经到了。",
+        t`等太久没等到回复——但这一发多半还在服务器上跑（整条切成 N 段要逐段转码，慢的时候好几分钟）。先别急着再点（再点会把同一条视频切第二遍），也别去删那段素材：等一两分钟，去「我的模板」看看那一组是不是已经到了。`,
       );
     }
     throw e;
@@ -854,31 +859,34 @@ export async function makeOwnRefTemplateGroup(o: {
   //   那时回的是单个 template 而没有 parts，必须整句拒，否则一段 34 秒的"整段模板"
   //   会带着超窗的时长静默落库，套用的人付费那一步才 400。
   if (!parts?.length) {
-    throw new Error("这台服务器不支持分段登记（回包没有 parts，可能需要升级服务端）——模板没有创建，本次没有花钱。");
+    throw new Error(t`这台服务器不支持分段登记（回包没有 parts，可能需要升级服务端）——模板没有创建，本次没有花钱。`);
   }
   o.onRegistered?.();
 
   // 逐段落本机（五件套此刻多半还是空的 —— needsDetect，由下面逐段认人回写）
   const landed = parts.map((api) =>
-    adoptRemoteTemplate(api, "分段登记成功了，但服务器返回的某一段缺少参考视频地址——请到「我的模板」里确认各段状态。"),
+    adoptRemoteTemplate(api, t`分段登记成功了，但服务器返回的某一段缺少参考视频地址——请到「我的模板」里确认各段状态。`),
   );
 
   const lines: string[] = [];
   let failed = 0;
   for (let i = 0; i < landed.length; i += 1) {
-    say(`第 ${i + 1}/${landed.length} 段：AI 正在认画面里有哪些人…（要一到几分钟）`);
+    const seg = i + 1;
+    const total = landed.length;
+    say(t`第 ${seg}/${total} 段：AI 正在认画面里有哪些人…（要一到几分钟）`);
     try {
       // atSecs 不传 = 服务端按几何位置自动铺：用户标的帧在分段路里是**切段点**（镜头边界），
       // 拿镜头切换那一瞬当认人帧正好是最差的一帧 —— 两种语义别混
-      const n = await detectTemplateRoles(landed[i].id, undefined);
-      if (n) lines.push(`第 ${i + 1} 段：${n}`);
+      const note = await detectTemplateRoles(landed[i].id, undefined);
+      if (note) lines.push(t`第 ${seg} 段：${note}`);
     } catch (e) {
       failed += 1;
-      lines.push(`第 ${i + 1} 段认人失败：${e instanceof Error ? e.message : String(e)}`);
+      const why = e instanceof Error ? e.message : String(e);
+      lines.push(t`第 ${seg} 段认人失败：${why}`);
     }
   }
   if (failed > 0) {
-    lines.push("失败的段不用重做模板：在「我的模板」里找到那一段，单独点「识别角色位」重试就行。");
+    lines.push(t`失败的段不用重做模板：在「我的模板」里找到那一段，单独点「识别角色位」重试就行。`);
   }
   return { id: landed[0].id, count: landed.length, note: lines.join("\n") };
 }
@@ -911,15 +919,16 @@ export async function makeOwnRefTemplateGroup(o: {
  * @throws message 可直接显示（含 409「正在识别中」那一句）
  */
 export async function detectTemplateRoles(id: string, atSecs?: number[]): Promise<string> {
+  // ★ 局部叫 tpl 不叫 t：t 是 Lingui 的翻译宏（本文件下面几个函数同一条）。
   // ★ 三份都要找：本机库、**我在服务端的那份**（换设备后就只有它）、市场缓存。
   //   漏掉 mineRemote 的表现是"列表里明明有这一条，点识别却说不在本机库里"
-  const t = mine.find((x) => x.id === id) ?? mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
-  if (!t) throw new Error("这个模板不在本机库里");
-  if (!t.remoteId) throw new Error("这个模板还没登记到服务器，先登记再识别角色位");
-  if (!remoteOn()) throw new Error("现在连不上服务器——联网后再识别");
+  const tpl = mine.find((x) => x.id === id) ?? mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
+  if (!tpl) throw new Error(t`这个模板不在本机库里`);
+  if (!tpl.remoteId) throw new Error(t`这个模板还没登记到服务器，先登记再识别角色位`);
+  if (!remoteOn()) throw new Error(t`现在连不上服务器——联网后再识别`);
   let out: Awaited<ReturnType<typeof branch.detectTemplateRoles>>;
   try {
-    out = await branch.detectTemplateRoles(t.remoteId, atSecs);
+    out = await branch.detectTemplateRoles(tpl.remoteId, atSecs);
   } catch (e) {
     // ★★★ 超时**不等于失败**（2026-08-18 真机撞到）：服务端那一发可能还在跑、
     //   甚至已经成功并**已经计费**，而它还抱着一把 11 分钟的锁 —— 这时候说
@@ -929,40 +938,39 @@ export async function detectTemplateRoles(id: string, atSecs?: number[]): Promis
     //   本来就说得准，原样抛。
     if (e instanceof ApiError && e.code === "TIMEOUT") {
       throw new Error(
-        "等太久没等到回复——但**这一发多半还在服务器上跑**（认人最坏要几分钟），而且可能已经计费。" +
-          "先别急着再点（这会儿再点只会说「正在识别中」）：等一两分钟，退出这一页再进来看看角色位是不是已经有了。",
+        t`等太久没等到回复——但**这一发多半还在服务器上跑**（认人最坏要几分钟），而且可能已经计费。先别急着再点（这会儿再点只会说「正在识别中」）：等一两分钟，退出这一页再进来看看角色位是不是已经有了。`,
       );
     }
     throw e;
   }
-  if (!out) throw new Error("这台服务器不支持识别角色位（回包形状不对，可能需要升级服务端）");
+  if (!out) throw new Error(t`这台服务器不支持识别角色位（回包形状不对，可能需要升级服务端）`);
   const api = out.template;
   if (api) {
     // ★ 四位同批搬。★★ 服务端**认不出人时一个字都不写**，所以这里也要按存在性搬 ——
     //   拿一份空的去覆盖，会把上一次成功认出来的角色位抹掉（这条路是可重试的，
     //   而"重试一次反而更差"是最难查的一种）
     const back = rolesOf(api);
-    if (back.length) t.roles = back;
+    if (back.length) tpl.roles = back;
     const backSlots = markSlotsOf(api);
-    if (backSlots.length) t.markSlots = backSlots;
-    const backBoxes = markBoxesOf(api, (backSlots.length ? backSlots : t.markSlots ?? []).length);
+    if (backSlots.length) tpl.markSlots = backSlots;
+    const backBoxes = markBoxesOf(api, (backSlots.length ? backSlots : tpl.markSlots ?? []).length);
     if (backBoxes.length) {
-      t.markBoxes = backBoxes;
+      tpl.markBoxes = backBoxes;
       const at = Number(api.markBoxAtSec);
-      if (Number.isFinite(at) && at >= 0) t.markBoxAtSec = at;
+      if (Number.isFinite(at) && at >= 0) tpl.markBoxAtSec = at;
     } else if (back.length) {
       // ★ 这一次认出了人却没量出框：把旧框**清掉**。留着的话新 roles 会配着旧框 ——
       //   人数没变时长度还正好相等，出口那道长度校验也放行，于是整份错位、零报错。
-      delete t.markBoxes;
-      delete t.markBoxAtSec;
+      delete tpl.markBoxes;
+      delete tpl.markBoxAtSec;
     }
     // ★ 人偶描述：与框**各自独立**（框没量出来 ≠ 描述没验过），所以单独一段。
     //   ★★ 这一次认出了人却一条描述都没验过时要**清掉旧的**，理由与上面的框一模一样：
     //   留着的话新 roles 会配着上一次的描述，长度还正好相等（人数没变），
     //   于是套用提示词里那句括号说的是**另一个人偶**的样子 —— 零报错、指错人。
-    const backDescs = markDescsOf(api, (backSlots.length ? backSlots : t.markSlots ?? []).length);
-    if (backDescs.length) t.markDescs = backDescs;
-    else if (back.length) delete t.markDescs;
+    const backDescs = markDescsOf(api, (backSlots.length ? backSlots : tpl.markSlots ?? []).length);
+    if (backDescs.length) tpl.markDescs = backDescs;
+    else if (back.length) delete tpl.markDescs;
     recordState(api);
     persist();
   }
@@ -1002,29 +1010,29 @@ async function findMineByVideo(videoUrl: string): Promise<branch.ApiBranchTempla
 
 async function registerTemplateOnce(id: string): Promise<void> {
   // mineRemote 条目天生带 remoteId，下面会走"已登记 → 刷新"那条路（同 setTemplatePublished 的 ★★）
-  const t = mine.find((x) => x.id === id) ?? mineRemote.find((x) => x.id === id);
-  if (!t) throw new Error("这个模板不在本机库里");
-  if (!t.refVideo) throw new Error("经典配方模板首发只存本机，不需要登记到服务器");
-  if (t.remoteId) {
+  const tpl = mine.find((x) => x.id === id) ?? mineRemote.find((x) => x.id === id);
+  if (!tpl) throw new Error(t`这个模板不在本机库里`);
+  if (!tpl.refVideo) throw new Error(t`经典配方模板首发只存本机，不需要登记到服务器`);
+  if (tpl.remoteId) {
     await refreshRemoteTemplate(id);
     return;
   }
   if (!remoteOn()) {
-    const msg = "现在连不上服务器，模板暂时没登记——联网后在模板详情页点「重新登记」";
-    registerErrors.set(id, msg);
+    const issue = t`现在连不上服务器，模板暂时没登记——联网后在模板详情页点「重新登记」`;
+    registerErrors.set(id, issue);
     emit();
-    throw new Error(msg);
+    throw new Error(issue);
   }
   try {
-    const coverUrl = await toPermanentUrl(t.cover, `tpl-${t.id}-cover`);
+    const coverUrl = await toPermanentUrl(tpl.cover, `tpl-${tpl.id}-cover`);
     let api: branch.ApiBranchTemplate | null;
     try {
       const created = await branch.createTemplate({
-        title: t.title,
-        intro: t.intro,
+        title: tpl.title,
+        intro: tpl.intro,
         coverUrl,
-        recipe: t.recipe,
-        videoUrl: t.refVideo.url,
+        recipe: tpl.recipe,
+        videoUrl: tpl.refVideo.url,
       });
       api = created.template;
     } catch (e) {
@@ -1034,22 +1042,22 @@ async function registerTemplateOnce(id: string): Promise<void> {
       //   报"已经登记过"让用户去删模板重传才是错的。认领不到（真是别人的 / 列表拉挂）
       //   再把原错误原样抛出去。
       if (!(e instanceof ApiError && e.status === 409)) throw e;
-      api = await findMineByVideo(t.refVideo.url);
+      api = await findMineByVideo(tpl.refVideo.url);
       if (!api) throw e;
     }
     const rid = String(api?._id ?? api?.id ?? "");
-    if (!api || !rid) throw new Error("服务器没有返回模板登记信息（可能是旧版服务端），模板还没登记上");
-    t.remoteId = rid;
+    if (!api || !rid) throw new Error(t`服务器没有返回模板登记信息（可能是旧版服务端），模板还没登记上`);
+    tpl.remoteId = rid;
     // ★ 登记值以服务端回的**规范化 secure_url** 为准回写镜像：resolveR2v 的反查是
     //   字符串等值匹配，本机若存着上传回执的原串而服务端存了规范串，出片会 400
     //   "地址与登记完全一致"。publicId 是本机回收句柄，服务端不回传，原样保留。
     if (api.refVideo?.url) {
-      t.refVideo = {
+      tpl.refVideo = {
         url: api.refVideo.url,
-        durationSec: Number(api.refVideo.durationSec) || t.refVideo.durationSec,
-        width: Number(api.refVideo.width) || t.refVideo.width,
-        height: Number(api.refVideo.height) || t.refVideo.height,
-        publicId: t.refVideo.publicId,
+        durationSec: Number(api.refVideo.durationSec) || tpl.refVideo.durationSec,
+        width: Number(api.refVideo.width) || tpl.refVideo.width,
+        height: Number(api.refVideo.height) || tpl.refVideo.height,
+        publicId: tpl.refVideo.publicId,
         // ★ 真实时长只有服务端算得出（Cloudinary 回执）。存在性透出，理由同 apiToTemplate
         ...refRealSecKey(api.refVideo.realDurationSec),
       };
@@ -1066,19 +1074,19 @@ async function registerTemplateOnce(id: string): Promise<void> {
     // ★ 四位**同批搬、按存在性写**：markSlots 缺失 = 判成编号方案（挂卡面板会让用户去找
     //   人偶头上的数字，而画面上什么都没印）；框与清单长度不等 = 拖拽层静默关掉。
     const back = rolesOf(api);
-    if (back.length) t.roles = back;
+    if (back.length) tpl.roles = back;
     const backSlots = markSlotsOf(api);
-    if (backSlots.length) t.markSlots = backSlots;
-    const backBoxes = markBoxesOf(api, (backSlots.length ? backSlots : t.markSlots ?? []).length);
+    if (backSlots.length) tpl.markSlots = backSlots;
+    const backBoxes = markBoxesOf(api, (backSlots.length ? backSlots : tpl.markSlots ?? []).length);
     if (backBoxes.length) {
-      t.markBoxes = backBoxes;
+      tpl.markBoxes = backBoxes;
       const at = Number(api.markBoxAtSec);
-      if (Number.isFinite(at) && at >= 0) t.markBoxAtSec = at;
+      if (Number.isFinite(at) && at >= 0) tpl.markBoxAtSec = at;
     }
     // 人偶描述：第五位，同批搬。★ 漏了它的表现是套用提示词里那句括号**永远不出现**，
     // 而"没有括号"与"这段素材本来就没什么可描述的"在界面上完全一样（零报错）
-    const backDescs = markDescsOf(api, (backSlots.length ? backSlots : t.markSlots ?? []).length);
-    if (backDescs.length) t.markDescs = backDescs;
+    const backDescs = markDescsOf(api, (backSlots.length ? backSlots : tpl.markSlots ?? []).length);
+    if (backDescs.length) tpl.markDescs = backDescs;
     recordState(api);
     registerErrors.delete(id);
     persist();
@@ -1101,17 +1109,17 @@ async function registerTemplateOnce(id: string): Promise<void> {
  * 失败 throw 整句人话（铁律八：这是写路径，必须响）。
  */
 export async function setTemplateCategory(id: string, category: string): Promise<void> {
-  const t = getTemplate(id);
-  if (!t) throw new Error("这个模板不在本机库里");
-  if (!isMyTemplate(t)) throw new Error("只有模板作者能改分类");
-  if (t.remoteId) {
-    if (!remoteOn()) throw new Error("现在连不上服务器，分类暂时改不了——联网后再试");
-    const api = await branch.patchTemplateCategory(t.remoteId, category);
-    if (!api) throw new Error("这台服务器还不支持模板分类（旧版服务端）——升级后再试");
+  const tpl = getTemplate(id);
+  if (!tpl) throw new Error(t`这个模板不在本机库里`);
+  if (!isMyTemplate(tpl)) throw new Error(t`只有模板作者能改分类`);
+  if (tpl.remoteId) {
+    if (!remoteOn()) throw new Error(t`现在连不上服务器，分类暂时改不了——联网后再试`);
+    const api = await branch.patchTemplateCategory(tpl.remoteId, category);
+    if (!api) throw new Error(t`这台服务器还不支持模板分类（旧版服务端）——升级后再试`);
   }
   // shared 也一起写（换设备场景：本机 mine 没有这条，作者看的是 shared 缓存那份）
   for (const list of [mine, mineRemote, shared]) {
-    const local = list.find((x) => x.id === id || (t.remoteId && x.remoteId === t.remoteId));
+    const local = list.find((x) => x.id === id || (tpl.remoteId && x.remoteId === tpl.remoteId));
     if (!local) continue;
     if (category) local.category = category;
     else delete local.category;
@@ -1253,21 +1261,21 @@ export async function setTemplatePublished(id: string, on: boolean): Promise<voi
   // ★★ mineRemote 也必须查（2026-08-20 真机实拍：重装后本机库空了，「我的模板」列表
   //   里的条目全来自 mineRemote，点发布却报"不在本机库里"）—— detectTemplateRoles
   //   647 行的注释早写了这个坑的形状，这里当时还是漏了。三份列表一个都不能少。
-  const t = local ?? mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
-  if (!t) throw new Error("这个模板不在本机库里");
-  if (!t.refVideo) {
+  const tpl = local ?? mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
+  if (!tpl) throw new Error(t`这个模板不在本机库里`);
+  if (!tpl.refVideo) {
     updateTemplate(id, { published: on }); // 经典路：存量行为原样保留
     return;
   }
-  if (!remoteOn()) throw new Error("现在连不上服务器——白模模板的市场在服务端，联网后再试");
-  if (!t.remoteId) {
+  if (!remoteOn()) throw new Error(t`现在连不上服务器——白模模板的市场在服务端，联网后再试`);
+  if (!tpl.remoteId) {
     const reg = registerErrors.get(id);
-    throw new Error(reg ? `模板还没登记到服务器（${reg}）` : "模板还在登记中，稍等几秒再试");
+    throw new Error(reg ? t`模板还没登记到服务器（${reg}）` : t`模板还在登记中，稍等几秒再试`);
   }
-  const api = on ? await branch.publishTemplate(t.remoteId) : await branch.unpublishTemplate(t.remoteId);
-  if (!api) throw new Error("这台服务器不支持模板发布（回包形状不对，可能需要升级服务端）");
+  const api = on ? await branch.publishTemplate(tpl.remoteId) : await branch.unpublishTemplate(tpl.remoteId);
+  if (!api) throw new Error(t`这台服务器不支持模板发布（回包形状不对，可能需要升级服务端）`);
   const st = recordState(api);
-  t.published = st?.status === "published";
+  tpl.published = st?.status === "published";
   if (local) persist(); // shared 条目只活在内存缓存里，没有本机库要写
   // 自己刚上/下架，市场缓存作废重取（别让作者切到市场 tab 还看见旧列表）
   sharedFresh = false;
@@ -1291,7 +1299,7 @@ export async function setTemplatePublished(id: string, on: boolean): Promise<voi
  */
 export function roleFloorIssue(remaining: number): string | null {
   if (remaining >= 1) return null;
-  return "至少要留一个角色位——一个都不留的话，套用你模板的人没有任何地方可以挂卡，这个模板会退回成「整段只有一个白模人偶」的老形态。整个模板不要了的话，用详情页的「删除」。";
+  return t`至少要留一个角色位——一个都不留的话，套用你模板的人没有任何地方可以挂卡，这个模板会退回成「整段只有一个白模人偶」的老形态。整个模板不要了的话，用详情页的「删除」。`;
 }
 
 /**
@@ -1329,13 +1337,19 @@ export async function confirmTemplateRoles(
   const local = mine.find((x) => x.id === id);
   // 本机没有 ≠ 不是我的（换设备/重装后本机库是空的，身份由服务端按 ownerId 把关），
   // 与 setTemplatePublished 同一条理由；mineRemote 同样不能漏（同处的 ★★）
-  const t = local ?? mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
-  if (!t) throw new Error("这个模板不在本机库里");
-  // 名词按方案说（唯一实现是 markNoun）：对着一群一模一样的白人偶找"编号"，用户只会以为坏了
-  const spec = markSpecOf(t);
-  const noun = markNoun(spec);
-  if (!t.remoteId) throw new Error(`模板还没登记到服务器，登记成功后才能核对${noun}`);
-  if (!remoteOn()) throw new Error(`现在连不上服务器——${noun}登记在服务端，联网后再核对`);
+  const tpl = local ?? mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
+  if (!tpl) throw new Error(t`这个模板不在本机库里`);
+  // 名词按方案说：对着一群一模一样的白人偶找"编号"，用户只会以为坏了。
+  // ★ 多语言（2026-09-11）：名词不再当片段拼进句子（英文里它的位置与大小写随句子变），每种方案各写一句整话；
+  //   方案判据仍然只问 markSpecOf
+  const spec = markSpecOf(tpl);
+  const ordinal = spec.scheme === "ordinal";
+  if (!tpl.remoteId) {
+    throw new Error(ordinal ? t`模板还没登记到服务器，登记成功后才能核对位置` : t`模板还没登记到服务器，登记成功后才能核对编号`);
+  }
+  if (!remoteOn()) {
+    throw new Error(ordinal ? t`现在连不上服务器——位置登记在服务端，联网后再核对` : t`现在连不上服务器——编号登记在服务端，联网后再核对`);
+  }
   const clean = roles.map((r) => ({ label: String(r.label ?? "").trim(), desc: String(r.desc ?? "").trim() }));
   // ★★ 空编号**整句拒**，绝不静默丢掉那一条。原来这里是 `.filter((r) => r.label !== "")` ——
   //   而这条端点是**整份替换**，被 filter 掉就等于把那个角色位真的删了：
@@ -1350,25 +1364,26 @@ export async function confirmTemplateRoles(
   //     服务端 200、行数没变，作者以为补上了。）
   const blank = clean.findIndex((r) => r.label === "");
   if (blank >= 0) {
+    const row = blank + 1;
     throw new Error(
-      `第 ${blank + 1} 行的人偶${noun}是空的——${noun}是"把卡挂到这个人偶身上"的唯一凭据，不能留空。${
-        spec.scheme === "ordinal" ? "对着画面从左往右数，选一个位置" : "照画面上印的数字填一个"
-      }；想去掉这个角色位，请点它的「删掉」。`,
+      ordinal
+        ? t`第 ${row} 行的人偶位置是空的——位置是"把卡挂到这个人偶身上"的唯一凭据，不能留空。对着画面从左往右数，选一个位置；想去掉这个角色位，请点它的「删掉」。`
+        : t`第 ${row} 行的人偶编号是空的——编号是"把卡挂到这个人偶身上"的唯一凭据，不能留空。照画面上印的数字填一个；想去掉这个角色位，请点它的「删掉」。`,
     );
   }
   // 下限只有一处实现（面板里"最后一条不给删"说的也是这一句）
   const floor = roleFloorIssue(clean.length);
   if (floor) throw new Error(floor);
-  const api = await branch.patchTemplateRoles(t.remoteId, clean);
+  const api = await branch.patchTemplateRoles(tpl.remoteId, clean);
   if (!api) {
-    throw new Error("这台服务器还不支持核对角色位（回包形状不对，可能需要升级服务端）");
+    throw new Error(t`这台服务器还不支持核对角色位（回包形状不对，可能需要升级服务端）`);
   }
   recordState(api);
   // ★ 以**服务端回的那一份**为准写本机（不是回显我们提交的 clean）：服务端会 trim、
   //   截断超长描述，两边不一致时出片点名用的串就与模板上登记的对不上了
   const back = rolesOf(api);
   if (back.length) {
-    t.roles = back;
+    tpl.roles = back;
     if (local) persist(); // shared 条目只活在内存缓存里，没有本机库要写
   }
   emit();
@@ -1384,8 +1399,8 @@ export async function confirmTemplateRoles(
  * @throws message 可直接显示；抛出时本机记录**原样保留**（可重试）
  */
 export async function deleteTemplateEverywhere(id: string): Promise<void> {
-  const t = mine.find((x) => x.id === id);
-  if (!t) {
+  const tpl = mine.find((x) => x.id === id);
+  if (!tpl) {
     // 本机没有但远端缓存里有 = 换设备的作者在删自己的远端模板（身份由服务端把关，
     // 非 owner 的请求服务端会 403）。删成即从缓存摘掉，别等下一次懒加载才消失。
     // ★ **两份缓存都要找**：`mineRemote`（我的模板那一屏）与 `shared`（市场那一屏）。
@@ -1393,9 +1408,9 @@ export async function deleteTemplateEverywhere(id: string): Promise<void> {
     //   —— 而那正是这条分支存在的唯一场景。
     const remote = mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
     if (!remote?.remoteId) return;
-    if (!remoteOn()) throw new Error("现在连不上服务器——联网后再删");
+    if (!remoteOn()) throw new Error(t`现在连不上服务器——联网后再删`);
     const landed = await branch.deleteRemoteTemplate(remote.remoteId);
-    if (!landed) throw new Error("这台服务器不支持删除模板（回包形状不对，可能需要升级服务端）");
+    if (!landed) throw new Error(t`这台服务器不支持删除模板（回包形状不对，可能需要升级服务端）`);
     remoteStates.delete(remote.remoteId);
     shared = shared.filter((x) => x.id !== id);
     mineRemote = mineRemote.filter((x) => x.id !== id);
@@ -1404,24 +1419,24 @@ export async function deleteTemplateEverywhere(id: string): Promise<void> {
     emit();
     return;
   }
-  if (t.refVideo && t.remoteId) {
+  if (tpl.refVideo && tpl.remoteId) {
     if (!remoteOn()) {
-      throw new Error("现在连不上服务器——这个模板在服务端还有登记（含托管的视频），联网后再删");
+      throw new Error(t`现在连不上服务器——这个模板在服务端还有登记（含托管的视频），联网后再删`);
     }
-    const landed = await branch.deleteRemoteTemplate(t.remoteId);
-    if (!landed) throw new Error("这台服务器不支持删除模板（回包形状不对，可能需要升级服务端）");
-    remoteStates.delete(t.remoteId);
+    const landed = await branch.deleteRemoteTemplate(tpl.remoteId);
+    if (!landed) throw new Error(t`这台服务器不支持删除模板（回包形状不对，可能需要升级服务端）`);
+    remoteStates.delete(tpl.remoteId);
     // ★ 远端缓存里同一条也要摘掉：不摘的话本机那条一删，`myTemplates()` 立刻把远端那份
     //   补进来 —— 用户看到的是"删了它又回来了"（其实服务端已经删掉了，只是缓存没刷）
-    mineRemote = mineRemote.filter((x) => x.remoteId !== t.remoteId);
+    mineRemote = mineRemote.filter((x) => x.remoteId !== tpl.remoteId);
     sharedFresh = false;
     mineRemoteFresh = false;
-  } else if (t.refVideo?.publicId) {
+  } else if (tpl.refVideo?.publicId) {
     // 传上去了、从没登记成：托管视频的唯一句柄就在本机这条记录里，删记录前必须先回收
     if (!remoteOn()) {
-      throw new Error("现在连不上服务器——这个模板的视频还托管在云端，联网后再删（否则它会变成删不掉的孤儿）");
+      throw new Error(t`现在连不上服务器——这个模板的视频还托管在云端，联网后再删（否则它会变成删不掉的孤儿）`);
     }
-    await uploadsApi.deleteTemplateVideo(t.refVideo.publicId);
+    await uploadsApi.deleteTemplateVideo(tpl.refVideo.publicId);
     registerErrors.delete(id);
   }
   deleteTemplate(id);
@@ -1487,10 +1502,11 @@ export interface NewTemplate {
   remoteId?: string;
 }
 
-export function saveTemplate(t: NewTemplate): VideoTemplate {
+export function saveTemplate(input: NewTemplate): VideoTemplate {
   const tpl: VideoTemplate = {
     id: uid("tpl"),
-    ...t,
+    ...input,
+    // i18n-ignore-next-line: 落库的作者名兜底，经典配方模板在详情页按名字比对归属（身份值，不翻）
     author: currentUser()?.name ?? "我",
     createdAt: Date.now(),
     // 白模模板也从未发布起步：发布要走服务端的试炼闸（作者先用它真实出过一次片），
@@ -1694,13 +1710,17 @@ export function refVideoIssue(ref: VideoTemplate["refVideo"]): string | null {
   if (!Number.isFinite(sec) || sec <= 0) {
     // ★ 报价锚点缺失。**不许静默当 0** —— 那会让详情页显示"参考视频 0s""套用一次约
     //   0 token"，用户一路点下去到方舟那儿才失败，全程一个错都不报。
-    return "服务器没有返回这个模板的参考视频时长，算不出套用一次要花多少 token，也没法确认它能不能出片。请下拉刷新重试；一直这样就把这句话反馈给我们。";
+    return t`服务器没有返回这个模板的参考视频时长，算不出套用一次要花多少 token，也没法确认它能不能出片。请下拉刷新重试；一直这样就把这句话反馈给我们。`;
   }
   if (sec < R.minSec) {
-    return `这个白模模板的模板视频只有约 ${Math.floor(sec * 10) / 10} 秒，短于 AI 出片引擎的 ${R.minSec} 秒下限，用它出片一定会失败，所以这里不让你白花钱。请换一个模板。`;
+    const shown = Math.floor(sec * 10) / 10;
+    const min = R.minSec;
+    return t`这个白模模板的模板视频只有约 ${shown} 秒，短于 AI 出片引擎的 ${min} 秒下限，用它出片一定会失败，所以这里不让你白花钱。请换一个模板。`;
   }
   if (sec > R.maxSec) {
-    return `这个白模模板的模板视频约 ${Math.ceil(sec * 10) / 10} 秒，超过 AI 出片引擎的 ${R.maxSec} 秒上限，用它出片一定会失败。请换一个模板。`;
+    const shown = Math.ceil(sec * 10) / 10;
+    const max = R.maxSec;
+    return t`这个白模模板的模板视频约 ${shown} 秒，超过 AI 出片引擎的 ${max} 秒上限，用它出片一定会失败。请换一个模板。`;
   }
   return null;
 }
@@ -1717,8 +1737,15 @@ export function refVideoIssue(ref: VideoTemplate["refVideo"]): string | null {
 export function refVideoOwnerNote(ref: VideoTemplate["refVideo"]): string | null {
   if (!refVideoIssue(ref)) return null;
   const sec = refVideoRealSec(ref) ?? ref?.durationSec;
-  const secText = typeof sec === "number" && Number.isFinite(sec) && sec > 0 ? `只有约 ${Math.floor(sec * 10) / 10} 秒，` : "";
-  return `这个模板的白模视频${secText}不满足 AI 出片引擎要求的 ${ARK_EDIT_RULES.minSec}~${ARK_EDIT_RULES.maxSec} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次试炼失败都没有扣费。请重新做一个模板：框选时至少选 ${BLOCKOUT_MIN_INPUT_SEC} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。`;
+  const min = ARK_EDIT_RULES.minSec;
+  const max = ARK_EDIT_RULES.maxSec;
+  const floor = BLOCKOUT_MIN_INPUT_SEC;
+  // ★ 有没有秒数两句整话分开写（原来把「只有约 N 秒，」当片段拼进去，英文拼不成句）
+  if (typeof sec === "number" && Number.isFinite(sec) && sec > 0) {
+    const shown = Math.floor(sec * 10) / 10;
+    return t`这个模板的白模视频只有约 ${shown} 秒，不满足 AI 出片引擎要求的 ${min}~${max} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次试炼失败都没有扣费。请重新做一个模板：框选时至少选 ${floor} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。`;
+  }
+  return t`这个模板的白模视频不满足 AI 出片引擎要求的 ${min}~${max} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次试炼失败都没有扣费。请重新做一个模板：框选时至少选 ${floor} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。`;
 }
 
 // ── 一个模板最多有几个「能挂卡」的角色位 ────────────────────────────
@@ -1788,7 +1815,38 @@ export const BLOCKOUT_MAX_ROLES = 9;
  * ⚠ 它只能是**尽力而为**的提示，与帧角水印探测同一性质：漏报 = 退回现状（不多说一句话），
  *   误报 = 作者看到一句可以忽略的提醒。所以措辞里必须写明"看错了直接忽略"，绝不能写成断言。
  */
+/* i18n-frozen: 颜色词表用来解析服务端写的中文人偶描述，并拼进发给视频模型的点名键（「红色人偶」）；界面上显示走下面的 COLOR_LABELS */
 const COLOR_WORDS = ["白", "红", "橙", "黄", "绿", "青", "蓝", "紫", "粉", "黑", "灰", "金", "银", "棕"];
+
+/**
+ * COLOR_WORDS 的**界面显示名**，按下标一一对应 —— 只给 prominentRoleWarning 那句话用。
+ * ★ 词表本身冻结（它是解析服务端描述、拼点名键的协议，翻了就静默认不出颜色），显示名单开一张：
+ *   每条的 message 就是对应的那个字，中文界面读出来与原字逐字相同，英文界面读 white / red…
+ * ★★ 顺序必须与 COLOR_WORDS 逐位相同（每条的 message 就是那个字，错位一眼看得出）。
+ * ★ 模块顶层只放 msg 描述符，读的那一刻（colorLabel）才按当前界面语言翻。
+ */
+const COLOR_LABELS: readonly MessageDescriptor[] = [
+  msg({ message: "白", context: "人偶的主色（挂卡提醒那句话里显示）" }),
+  msg({ message: "红", context: "人偶的主色（挂卡提醒那句话里显示）" }),
+  msg({ message: "橙", context: "人偶的主色（挂卡提醒那句话里显示）" }),
+  msg({ message: "黄", context: "人偶的主色（挂卡提醒那句话里显示）" }),
+  msg({ message: "绿", context: "人偶的主色（挂卡提醒那句话里显示）" }),
+  msg({ message: "青", context: "人偶的主色（挂卡提醒那句话里显示）" }),
+  msg({ message: "蓝", context: "人偶的主色（挂卡提醒那句话里显示）" }),
+  msg({ message: "紫", context: "人偶的主色（挂卡提醒那句话里显示）" }),
+  msg({ message: "粉", context: "人偶的主色（挂卡提醒那句话里显示）" }),
+  msg({ message: "黑", context: "人偶的主色（挂卡提醒那句话里显示）" }),
+  msg({ message: "灰", context: "人偶的主色（挂卡提醒那句话里显示）" }),
+  msg({ message: "金", context: "人偶的主色（挂卡提醒那句话里显示）" }),
+  msg({ message: "银", context: "人偶的主色（挂卡提醒那句话里显示）" }),
+  msg({ message: "棕", context: "人偶的主色（挂卡提醒那句话里显示）" }),
+];
+
+/** 色词 → 界面显示名（不在词表里的原样返回） */
+function colorLabel(c: string): string {
+  const i = COLOR_WORDS.indexOf(c);
+  return i >= 0 && COLOR_LABELS[i] ? i18n._(COLOR_LABELS[i]) : c;
+}
 
 /** 一条描述里**第一个**出现的颜色词 —— 它就是这个人的"主色"。没有颜色词返回 "" */
 function primaryColor(desc: string): string {
@@ -1880,13 +1938,13 @@ export function prominentRoleWarning(
   // ★★ 2026-08-18 第二版措辞：第十一发（用户在同一段素材上实跑）之后，「给它也挂上卡」
   //   从猜测升级成了**有实证的出路**（出片时会按「红色人偶」点名它，见 blockoutPrompt 的
   //   keyOf）——所以这句话现在给的是两条真能做的事，而不是只叫人重做。
-  return (
-    `这段素材里有 ${modalN} 个人偶是「${modal}」色的，只有「${odd.label}」是「${colors[oddAt]}」色的，` +
-    `而且它就站在画面正中间。实测：不给它挂卡的话，出片时它也会被换成别人（AI 自己挑一张）。` +
-    `最稳的做法是给它也挂上一张卡——出片时会直接按「${colors[oddAt]}色人偶」点名它，` +
-    `同一张卡可以挂在多个位子上；或者拿原视频重走一遍「AI 白模化」，人偶全变纯白就没有这个显眼的人了。` +
-    `看错了直接忽略。`
-  );
+  // ★ 多语言（2026-09-11）：五段拼接合成一条整句 t，占位都有名字。色词经 colorLabel 显示（中文界面就是原字，
+  //   英文界面 white / red…；COLOR_WORDS 本身冻结）。`who` 是服务端给的序数原文（「从左数第3个」），中文原样引用；
+  //   英文句子里不点它的名 —— 本仓不许有「按下标算措辞」的函数（见下面「序数」那段 ★★★），颜色 + 正中间已经说清是哪一个。
+  const common = colorLabel(modal);
+  const oddColor = colorLabel(colors[oddAt]);
+  const who = odd.label;
+  return t`这段素材里有 ${modalN} 个人偶是「${common}」色的，只有「${who}」是「${oddColor}」色的，而且它就站在画面正中间。实测：不给它挂卡的话，出片时它也会被换成别人（AI 自己挑一张）。最稳的做法是给它也挂上一张卡——出片时会直接按「${oddColor}色人偶」点名它，同一张卡可以挂在多个位子上；或者拿原视频重走一遍「AI 白模化」，人偶全变纯白就没有这个显眼的人了。看错了直接忽略。`;
 }
 
 /** 「就在正中间」的容忍度（千分比，画面中心是 500）。★ 群舞那个异类量出来是 34；
@@ -1916,6 +1974,7 @@ export function dominantRoleWarning(roles: VideoTemplate["roles"]): string | nul
   // ★ 纯文本，**不带 markdown 星号**：这句话是要被直接塞进 JSX 的（删掉的那处调用方就是
   //   `{dominantNote}`），写 `**…**` 会原样显示成星号。将来重新接的话也保持这一条 ——
   //   要加粗由调用方拆句子，不在这里混排版
+  // i18n-ignore-next-line: 零调用的旧判据（只为给上面那段复盘留落点），不上屏
   return `这段素材里有 ${modalN} 个人偶是「${modal}」的，只有「${odd.label}」不是（${odd.desc}）。实测这种情况下，挂卡多半会挂到那个最显眼的人身上——不管你挂给谁。出片后请对着画面核对一遍。看错了直接忽略。`;
 }
 
@@ -2007,16 +2066,11 @@ export function markSpecOf(t: Pick<VideoTemplate, "markSlots"> | null | undefine
   return isOrdinalMark(t) ? { scheme: "ordinal", slots: t!.markSlots! } : { scheme: "number" };
 }
 
-/**
- * 界面上称呼这个标记的那个名词 —— **一处实现**（标题、按钮、错误句、提示语都取它）。
- * ★ 别在组件里写 `isOrdinalMark(t) ? "位置" : "编号"`：那就是同一条规则的第 N 处实现，
- *   哪天多出第三种方案时改不干净（而改漏了只表现为某一屏说错名字，没有任何报错）。
- */
-const MARK_NOUN: Record<MarkScheme, string> = { number: "编号", ordinal: "位置" };
-
-export function markNoun(spec: MarkSpec): string {
-  return MARK_NOUN[spec.scheme];
-}
+// ── 界面上怎么称呼这个标记（位置 / 编号）──────────────────────────────
+// ★ 2026-09-11 多语言：这里原来有一个 markNoun()（number →「编号」、ordinal →「位置」），调用点把名词当片段拼进句子。
+//   英文里名词的位置、单复数与大小写都随句子变，拼不成一句整话 —— 所以名词函数删了，
+//   各调用点（confirmTemplateRoles、flowStore.applyCast、FlowPage 的挂卡框）按 `spec.scheme` 各写一句整话。
+// ⚠ 方案判据仍然只有 markSpecOf 一处；别在组件里再写一个 `ordinal ? "位置" : "编号"` 拼进句子。
 
 /**
  * 这个角色位在画面上的位置框 —— 没有位置数据就回 null（调用方退回点列表）。
@@ -2140,7 +2194,7 @@ function jobOf(api: branch.ApiBlockoutJob): BlockoutJob | null {
     jobId,
     taskId: String(api.taskId ?? "").trim(),
     durSec: Number(api.durSec) || 0,
-    title: String(api.title ?? "").trim() || "未命名白模模板",
+    title: String(api.title ?? "").trim() || t`未命名白模模板`,
     roles: roles
       .map((r) => ({ label: String(r?.label ?? "").trim(), desc: String(r?.desc ?? "").trim() }))
       .filter((r) => r.label !== ""),
@@ -2171,14 +2225,16 @@ export function blockoutJobExpired(job: BlockoutJob): boolean {
  */
 export function blockoutJobNote(job: BlockoutJob): string {
   const at = jobExpiresAt(job);
-  if (at <= 0) return "这一发已经付过费，但服务器没说结果能留到什么时候——建议尽快取回。";
+  if (at <= 0) return t`这一发已经付过费，但服务器没说结果能留到什么时候——建议尽快取回。`;
   const left = at - Date.now();
   if (left <= 0) {
-    return "产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了，这一发已经付过的费用无法挽回（不是超时重来——重开一发是再花一次钱）。";
+    return t`产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了，这一发已经付过的费用无法挽回（不是超时重来——重开一发是再花一次钱）。`;
   }
   const h = Math.floor(left / 3600_000);
   const m = Math.floor((left % 3600_000) / 60_000);
-  return `还剩 ${h > 0 ? `${h} 小时 ` : ""}${m} 分钟可以取回——AI 出片的产物只在服务器上留 24 小时，过期就取不回来了，而这一发的钱已经付过。`;
+  // ★ 有没有「小时」两句整话分开写（原来把「N 小时 」当片段拼进去；英文里小时与分钟各自要变单复数）
+  if (h > 0) return t`还剩 ${h} 小时 ${m} 分钟可以取回——AI 出片的产物只在服务器上留 24 小时，过期就取不回来了，而这一发的钱已经付过。`;
+  return t`还剩 ${m} 分钟可以取回——AI 出片的产物只在服务器上留 24 小时，过期就取不回来了，而这一发的钱已经付过。`;
 }
 
 // 待取回列表的缓存（与 shared 同一套「懒加载 + 到货 emit + 失败冷却」的写法）
@@ -2292,7 +2348,7 @@ function loadPendingJobs(): Promise<void> {
         // 瞬时网络失败（探测没缓存结论）≠ 老服务端：前者要说出来（这一屏关系到钱），
         // 后者安静 —— 老服务端连白模化入口都不渲染，说"待取回列表拉不到"只是噪音
         if (remoteOn() && capProbe === null) {
-          pendingIssue = "还没取回的白模化结果暂时拉不到（网络不稳），稍后自动重试——这不代表你没有待取回的";
+          pendingIssue = t`还没取回的白模化结果暂时拉不到（网络不稳），稍后自动重试——这不代表你没有待取回的`;
           pendingRetryAt = Date.now() + 15_000;
           emit();
         }
@@ -2314,7 +2370,8 @@ function loadPendingJobs(): Promise<void> {
       pendingIssue = "";
       emit();
     } catch (e) {
-      pendingIssue = `还没取回的白模化结果拉取失败：${e instanceof Error ? e.message : String(e)}`;
+      const why = e instanceof Error ? e.message : String(e);
+      pendingIssue = t`还没取回的白模化结果拉取失败：${why}`;
       pendingRetryAt = Date.now() + 15_000;
       emit();
     }
@@ -2397,25 +2454,33 @@ async function waitBlockoutTask(taskId: string, prog: (s: string) => void): Prom
       fails = 0;
     } catch (e) {
       if (++fails >= BLOCKOUT_POLL_TOLERATE) {
+        const why = e instanceof Error ? e.message : String(e);
         return {
           kind: "unknown",
-          note: `盯不住这一发的进度了（${e instanceof Error ? e.message : String(e)}）。`,
+          note: t`盯不住这一发的进度了（${why}）。`,
         };
       }
       continue;
     }
     const sec = Math.round((Date.now() - t0) / 1000);
-    const label = st.status === "queued" ? "排队中" : st.status === "running" ? "生成中" : st.status;
+    // ★ 状态词不再当片段拼进句子（多语言要整句）：排队中 / 生成中 / 其它状态（原样报 API 的状态名，与改之前一样）各一句
     // ★ 这句话里那半句"可以退出"是这次改造的**用户可见部分**：它必须出现在等待的每一拍上，
     //   否则用户仍然会以为自己必须一直盯着（而两阶段的全部意义就是他不必）。
     // ★ 措辞跟着白模化提示词走（服务端那份 2026-08-17 起把所有人换成完全一样的纯白人偶，
     //   不再印数字、也不再上色）：这句话是用户在几分钟等待里唯一看得见的东西，
     //   说的和真正发生的事不一样就是骗人
-    prog(`AI 正在把画面里的人换成一模一样的纯白色人偶：${label} ${sec}s（可以退出，24 小时内都能回「我的模板」取回结果）`);
+    const status = st.status;
+    prog(
+      status === "queued"
+        ? t`AI 正在把画面里的人换成一模一样的纯白色人偶：排队中 ${sec}s（可以退出，24 小时内都能回「我的模板」取回结果）`
+        : status === "running"
+          ? t`AI 正在把画面里的人换成一模一样的纯白色人偶：生成中 ${sec}s（可以退出，24 小时内都能回「我的模板」取回结果）`
+          : t`AI 正在把画面里的人换成一模一样的纯白色人偶：${status} ${sec}s（可以退出，24 小时内都能回「我的模板」取回结果）`,
+    );
     if (st.status === "succeeded") return { kind: "succeeded" };
     if (st.status === "failed" || st.status === "cancelled") return { kind: "failed" };
   }
-  return { kind: "unknown", note: "等了 12 分钟还没出片（任务还在方舟那边跑，不是失败）。" };
+  return { kind: "unknown", note: t`等了 12 分钟还没出片（任务还在方舟那边跑，不是失败）。` };
 }
 
 /**
@@ -2470,7 +2535,7 @@ function adoptRemoteTemplate(api: branch.ApiBranchTemplate, missingRefMsg: strin
 function adoptBlockoutTemplate(api: branch.ApiBranchTemplate): VideoTemplate {
   return adoptRemoteTemplate(
     api,
-    "结果取回来了，但服务器返回的模板缺少参考视频地址——钱在开炼那一步已经付过，请去「我的模板」确认后再决定要不要重来。",
+    t`结果取回来了，但服务器返回的模板缺少参考视频地址——钱在开炼那一步已经付过，请去「我的模板」确认后再决定要不要重来。`,
   );
 }
 
@@ -2485,20 +2550,22 @@ async function takeBlockoutResult(job: BlockoutJob, prog: (s: string) => void): 
     if (out.kind === "unknown") {
       // ★ 不当成失败、也**不摘掉凭据**：结果多半好好的，只是我们没盯到。
       //   这句话唯一要做的事就是把用户领到恢复入口去。
+      const why = out.note;
+      const left = blockoutJobNote(job);
       throw new Error(
-        `${out.note}这一发的钱已经付过了，结果没有丢——${blockoutJobNote(job)}「我的模板」页顶部的「还没取回结果」那一栏随时可以继续取，别重新开炼（那是再花一次钱）。`,
+        t`${why}这一发的钱已经付过了，结果没有丢——${left}「我的模板」页顶部的「还没取回结果」那一栏随时可以继续取，别重新开炼（那是再花一次钱）。`,
       );
     }
     if (out.kind === "failed") {
       // 方舟说失败了，但**扣没扣钱只有服务端说得准**（客户端报的数不作数）——
       // 照样走 finish，让服务端核实、结案，并给出那句权威的整话
-      prog("方舟报这一发没能出片，正在向服务器核实到底怎么回事…");
+      prog(t`方舟报这一发没能出片，正在向服务器核实到底怎么回事…`);
     }
   }
-  prog("正在取回结果：服务端会自己向方舟核实，再把产物转存下来（这一步不额外花钱）…");
+  prog(t`正在取回结果：服务端会自己向方舟核实，再把产物转存下来（这一步不额外花钱）…`);
   const res = await branch.finishBlockoutize(job.jobId);
   dropPendingJob(job.jobId);
-  prog("白模模板已生成");
+  prog(t`白模模板已生成`);
   return adoptBlockoutTemplate(res.template);
 }
 
@@ -2516,12 +2583,12 @@ export async function resumeBlockoutize(
   onProgress?: (status: string) => void,
 ): Promise<VideoTemplate> {
   const prog = (s: string) => onProgress?.(s);
-  if (!remoteOn()) throw new Error("现在连不上服务器——结果在服务端那边，联网后再来取（产物 24 小时内有效）");
+  if (!remoteOn()) throw new Error(t`现在连不上服务器——结果在服务端那边，联网后再来取（产物 24 小时内有效）`);
   const job = pendingJobs.find((j) => j.jobId === jobId);
   if (!job) {
     // 缓存里没有（列表还没到货 / 换了设备）也不该拦着：jobId 在手就能取，
     // 归属由服务端按 ownerId 把关。这时没有 taskId，直接去 finish 让服务端核实。
-    prog("正在取回结果…");
+    prog(t`正在取回结果…`);
     const res = await branch.finishBlockoutize(jobId);
     dropPendingJob(jobId);
     return adoptBlockoutTemplate(res.template);
@@ -2604,9 +2671,9 @@ export interface BlockoutizeInput {
  */
 export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTemplate> {
   const prog = (s: string) => o.onProgress?.(s);
-  if (!remoteOn()) throw new Error("现在连不上服务器——白模化整条都在服务端跑（看帧、出片、转存），联网后再来");
+  if (!remoteOn()) throw new Error(t`现在连不上服务器——白模化整条都在服务端跑（看帧、出片、转存），联网后再来`);
   if (!(await remoteTemplatesCapable())) {
-    throw new Error("这台服务器还不支持白模化（可能需要升级服务端）——你仍然可以直接上传一段白模预演视频来建模板");
+    throw new Error(t`这台服务器还不支持白模化（可能需要升级服务端）——你仍然可以直接上传一段白模预演视频来建模板`);
   }
   const priced = blockoutizeBlockReason();
   if (priced) throw new Error(priced);
@@ -2631,13 +2698,15 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
       ].sort((a, b) => a - b)
     : undefined;
   if (o.frameTimes && (!frameTimes || frameTimes.length === 0)) {
-    throw new Error("你标的那几帧都落在选中的这一段外面了（选段后来被拖动过）——回去把标记删掉重标，或者切回「自动」。");
+    throw new Error(t`你标的那几帧都落在选中的这一段外面了（选段后来被拖动过）——回去把标记删掉重标，或者切回「自动」。`);
   }
   // ★ 上限在这里是**断言**（会说话的那份在 selectionIssue）：条数**只夹不静默截断** ——
   //   截掉几帧的话，报价按 8 帧、实际只看 5 帧，用户多付的那几帧没有任何一处会说出来。
   //   走到这儿说明有调用方绕过了编辑页那道门，响亮拒绝比悄悄改数好。
   if (frameTimes && frameTimes.length > BLOCKOUTIZE_FRAME_MAX) {
-    throw new Error(`最多只能指定 ${BLOCKOUTIZE_FRAME_MAX} 帧给 AI 看（现在是 ${frameTimes.length} 帧）——删掉几帧再开炼。`);
+    const max = BLOCKOUTIZE_FRAME_MAX;
+    const marked = frameTimes.length;
+    throw new Error(t`最多只能指定 ${max} 帧给 AI 看（现在是 ${marked} 帧）——删掉几帧再开炼。`);
   }
   /** 这一发**要看几帧** —— 报价与下面那句进度话读的是同一个数（唯一实现在 visionFrameCount） */
   const frames = visionFrameCount(durSec, frameTimes);
@@ -2649,20 +2718,25 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
   // cost === null ⇒ economy.blockoutizeIssue 必然非空（那对函数一一对应，见 economy 的 ★）
   // ⇒ blockoutizeBlockReason 也非空（它把前者当第一道），上面那道门已经拦过 ——
   // 这句只为让类型闭合；真走到这里说明那几个函数分了叉
-  if (cost === null) throw new Error("白模化暂时报不出价，先不开炼（价目未就绪）");
+  if (cost === null) throw new Error(t`白模化暂时报不出价，先不开炼（价目未就绪）`);
   if (!canAfford(cost)) {
+    const price = fmtTokens(cost);
     throw new Error(
-      `这一发白模化预估要 ${fmtTokens(cost)} token（看帧认人 + 一次真实付费出片），余额不够——去「我的」页充值后再回来，框选不会丢。`,
+      t`这一发白模化预估要 ${price} token（看帧认人 + 一次真实付费出片），余额不够——去「我的」页充值后再回来，框选不会丢。`,
     );
   }
 
+  /** 模板标题：提交给服务端的与本机凭据上记的**必须是同一个串**（下次启动 jobOf 读回来的就是提交的那个）。
+   *  ★ 默认标题落库并随模板上市场：按提交那一刻的界面语言翻（与「未命名卡组」同一条先例） */
+  const title = o.title.trim() || t`未命名白模模板`;
+
   let coverUrl = "";
   if (o.cover) {
-    prog("上传封面…");
+    prog(t`上传封面…`);
     coverUrl = await toPermanentUrl(o.cover, `tpl-blockout-${Date.now()}-cover`);
   }
 
-  prog(`正在提交：AI 先看 ${frames} 帧认出画面里有哪些人，再把这一段发去出片…`);
+  prog(t`正在提交：AI 先看 ${frames} 帧认出画面里有哪些人，再把这一段发去出片…`);
   let started: branch.BlockoutStarted;
   try {
     started = await branch.startBlockoutize({
@@ -2680,7 +2754,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
         w: Math.round(o.crop.w),
         h: Math.round(o.crop.h),
       },
-      title: o.title.trim() || "未命名白模模板",
+      title,
       intro: o.intro ?? "",
       coverUrl,
       // ★ 只是**展示镜像**：走哪一档由服务端钉死，这里报的是 App 侧同一条链路认的那一档
@@ -2712,7 +2786,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
     // 老服务端（这一轮改造之前那份同步实现）：它在那一条请求里把九步全跑完了，
     // 模板就在回包里。没有凭据、也没有"待取回"这回事 —— 直接落本机，降级但**完整**。
     o.onBilled?.(null);
-    prog("白模模板已生成");
+    prog(t`白模模板已生成`);
     return adoptBlockoutTemplate(started.result.template);
   }
 
@@ -2739,7 +2813,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
     jobId: started.job.jobId,
     taskId: started.job.taskId,
     durSec: started.job.durSec,
-    title: o.title.trim() || "未命名白模模板",
+    title,
     roles: started.job.roles,
     markSlots: started.job.markSlots,
     expiresAt: toMs(started.job.expiresAt) ?? 0,
@@ -2771,6 +2845,7 @@ export function deleteTemplate(id: string): void {
 
 /** 把配方里的 {{主题}} 换成用户那句话 */
 export function fillBeat(text: string, subject: string): string {
+  // i18n-ignore-next-line: 替进配方骨架的主语，随剧情发给模型（进模型的文字冻结中文；与 flowStore.fillSubject 同一条）
   return text.replace(/\{\{\s*主题\s*\}\}/g, subject.trim() || "主角");
 }
 

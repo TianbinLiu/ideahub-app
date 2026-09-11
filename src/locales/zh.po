@@ -993,36 +993,6 @@ msgstr "{names}是声明过的真人素材，「{label}」档的供应商拒收�
 msgid "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
 msgstr "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
 
-#. placeholder {0}: missing.join(sep)
-#: src/studio/flowStore.ts
-msgid "{noun} {0} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下"
-msgstr "{noun} {0} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下"
-
-#. placeholder {0}: s.label
-#: src/studio/flowStore.ts
-msgid "{noun} {0} 挂的这张卡不能这么用：{nameIssue}"
-msgstr "{noun} {0} 挂的这张卡不能这么用：{nameIssue}"
-
-#. placeholder {0}: overCap.join(sep)
-#: src/studio/flowStore.ts
-msgid "{noun} {0} 超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限（人再多，从左数到第几个也数不准了）"
-msgstr "{noun} {0} 超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限（人再多，从左数到第几个也数不准了）"
-
-#. placeholder {0}: overCap.join(sep)
-#: src/studio/flowStore.ts
-msgid "{noun} {0} 超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限（再多的编号在画面上也认不出来）"
-msgstr "{noun} {0} 超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限（再多的编号在画面上也认不出来）"
-
-#. placeholder {0}: removed.join(sep)
-#: src/studio/flowStore.ts
-msgid "{noun} {0} 这个位子已经被模板作者在核对{noun}时删掉了（多半是因为画面上根本找不到这个号）"
-msgstr "{noun} {0} 这个位子已经被模板作者在核对{noun}时删掉了（多半是因为画面上根本找不到这个号）"
-
-#. placeholder {0}: removed.join(sep)
-#: src/studio/flowStore.ts
-msgid "{noun} {0} 这个位子已经被模板作者在核对{noun}时删掉了（多半是因为画面上那个人根本没被换成人偶）"
-msgstr "{noun} {0} 这个位子已经被模板作者在核对{noun}时删掉了（多半是因为画面上那个人根本没被换成人偶）"
-
 #: src/data/account.ts
 msgid "{reason}——卡在这台设备上有，但换台设备或重启后可能就没了。"
 msgstr "{reason}——卡在这台设备上有，但换台设备或重启后可能就没了。"
@@ -1103,6 +1073,14 @@ msgstr "{why}——卡在这台设备上有，但换台设备或重启后可能�
 #: src/studio/flowStore.ts
 msgid "{why}——这些位子挂的卡不能生效，它们会保持人偶原样。回挂卡那一屏点「取下这几张」再完成挂卡"
 msgstr "{why}——这些位子挂的卡不能生效，它们会保持人偶原样。回挂卡那一屏点「取下这几张」再完成挂卡"
+
+#: src/data/templates.ts
+msgid "{why}（模板已经建好了，可以在「我的模板」里点「识别角色位」重试）"
+msgstr "{why}（模板已经建好了，可以在「我的模板」里点「识别角色位」重试）"
+
+#: src/data/templates.ts
+msgid "{why}这一发的钱已经付过了，结果没有丢——{left}「我的模板」页顶部的「还没取回结果」那一栏随时可以继续取，别重新开炼（那是再花一次钱）。"
+msgstr "{why}这一发的钱已经付过了，结果没有丢——{left}「我的模板」页顶部的「还没取回结果」那一栏随时可以继续取，别重新开炼（那是再花一次钱）。"
 
 #. placeholder {0}: g.title
 #. placeholder {1}: g.files
@@ -2501,9 +2479,25 @@ msgstr "AI 指挥没连上（{why}），先按本地句式办了能办的。"
 msgid "AI 推演三套"
 msgstr "AI 推演三套"
 
+#: src/data/templates.ts
+msgid "AI 正在把画面里的人换成一模一样的纯白色人偶：{status} {sec}s（可以退出，24 小时内都能回「我的模板」取回结果）"
+msgstr "AI 正在把画面里的人换成一模一样的纯白色人偶：{status} {sec}s（可以退出，24 小时内都能回「我的模板」取回结果）"
+
+#: src/data/templates.ts
+msgid "AI 正在把画面里的人换成一模一样的纯白色人偶：排队中 {sec}s（可以退出，24 小时内都能回「我的模板」取回结果）"
+msgstr "AI 正在把画面里的人换成一模一样的纯白色人偶：排队中 {sec}s（可以退出，24 小时内都能回「我的模板」取回结果）"
+
+#: src/data/templates.ts
+msgid "AI 正在把画面里的人换成一模一样的纯白色人偶：生成中 {sec}s（可以退出，24 小时内都能回「我的模板」取回结果）"
+msgstr "AI 正在把画面里的人换成一模一样的纯白色人偶：生成中 {sec}s（可以退出，24 小时内都能回「我的模板」取回结果）"
+
 #: src/studio/ui/projection.tsx
 msgid "AI 正在推演三种走向…"
 msgstr "AI 正在推演三种走向…"
+
+#: src/data/templates.ts
+msgid "AI 正在认画面里有哪些人…（要一到几分钟）"
+msgstr "AI 正在认画面里有哪些人…（要一到几分钟）"
 
 #: src/pages/CustomCardPage.tsx
 msgid "AI 生成"
@@ -2802,6 +2796,10 @@ msgstr "上传失败 HTTP {0}"
 #: src/api/uploads.ts
 msgid "上传失败（网络不可用）：这份 {mb} 没能推上去。断网、慢网、或者传太久被中途掐断，都会是这一句；传得越久越容易被掐 —— 先把视频压小一点再传，多半就过了。"
 msgstr "上传失败（网络不可用）：这份 {mb} 没能推上去。断网、慢网、或者传太久被中途掐断，都会是这一句；传得越久越容易被掐 —— 先把视频压小一点再传，多半就过了。"
+
+#: src/data/templates.ts
+msgid "上传封面…"
+msgstr "上传封面…"
 
 #: src/api/uploads.ts
 msgid "上传成功但没拿到地址"
@@ -3298,6 +3296,10 @@ msgstr "交给铸卡师炼卡"
 msgid "产出里不含可辨认的人脸（白模台 / 剪影 / 人脸与服装分离）"
 msgstr "产出里不含可辨认的人脸（白模台 / 剪影 / 人脸与服装分离）"
 
+#: src/data/templates.ts
+msgid "产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了，这一发已经付过的费用无法挽回（不是超时重来——重开一发是再花一次钱）。"
+msgstr "产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了，这一发已经付过的费用无法挽回（不是超时重来——重开一发是再花一次钱）。"
+
 #. placeholder {0}: stage.figures.length
 #: src/studio/stage/StageOverlay.tsx
 msgid "人偶 {0}"
@@ -3507,6 +3509,22 @@ msgstr "传图与信息"
 msgid "传素材，AI 生成图位"
 msgstr "传素材，AI 生成图位"
 
+#: src/studio/flowStore.ts
+msgid "位置 {gone} 这个位子已经被模板作者在核对位置时删掉了（多半是因为画面上那个人根本没被换成人偶）"
+msgstr "位置 {gone} 这个位子已经被模板作者在核对位置时删掉了（多半是因为画面上那个人根本没被换成人偶）"
+
+#: src/studio/flowStore.ts
+msgid "位置 {lost} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下"
+msgstr "位置 {lost} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下"
+
+#: src/studio/flowStore.ts
+msgid "位置 {over} 超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限（人再多，从左数到第几个也数不准了）"
+msgstr "位置 {over} 超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限（人再多，从左数到第几个也数不准了）"
+
+#: src/studio/flowStore.ts
+msgid "位置 {slotLabel} 挂的这张卡不能这么用：{nameIssue}"
+msgstr "位置 {slotLabel} 挂的这张卡不能这么用：{nameIssue}"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "位置还没核对：AI 排的「从左往右第几个」只是猜测，可能与画面上对不上，<0>核对之前不能发布</0>（对不上会让别人的角色卡换到别人身上）。点这里去核对。"
 msgstr "位置还没核对：AI 排的「从左往右第几个」只是猜测，可能与画面上对不上，<0>核对之前不能发布</0>（对不上会让别人的角色卡换到别人身上）。点这里去核对。"
@@ -3635,6 +3653,10 @@ msgstr "你已经举报过这一条了，管理员还在处理"
 msgid "你来点头"
 msgstr "你来点头"
 
+#: src/data/templates.ts
+msgid "你标的那几帧都落在选中的这一段外面了（选段后来被拖动过）——回去把标记删掉重标，或者切回「自动」。"
+msgstr "你标的那几帧都落在选中的这一段外面了（选段后来被拖动过）——回去把标记删掉重标，或者切回「自动」。"
+
 #: src/studio/canvasAgent.ts
 msgid "你的卡库里没有「{name}」"
 msgstr "你的卡库里没有「{name}」"
@@ -3674,6 +3696,10 @@ msgstr "你还没有上传过形象，点上面那张卡传一个。"
 #: src/pages/SupportPersonasPage.tsx
 msgid "你还没有做过人格，点上面那张卡做一个。"
 msgstr "你还没有做过人格，点上面那张卡做一个。"
+
+#: src/data/templates.ts
+msgid "你选了「自己挑」分析帧，但一帧都没能用上——要么还没标，要么标的那几帧都落在选中的这一段外面（选段后来被拖动过）。回去在选段里标至少 1 帧，或者切回「自动」。"
+msgstr "你选了「自己挑」分析帧，但一帧都没能用上——要么还没标，要么标的那几帧都落在选中的这一段外面（选段后来被拖动过）。回去在选段里标至少 1 帧，或者切回「自动」。"
 
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/SupportModelsPage.tsx
@@ -4387,6 +4413,10 @@ msgstr "最多 {max} 条，已经满了"
 msgid "最多叠 {CAMERA_MAX_STACK} 个运镜（再多模型顾不过来），先取消一个"
 msgstr "最多叠 {CAMERA_MAX_STACK} 个运镜（再多模型顾不过来），先取消一个"
 
+#: src/data/templates.ts
+msgid "最多只能指定 {max} 帧给 AI 看（现在是 {marked} 帧）——删掉几帧再开炼。"
+msgstr "最多只能指定 {max} 帧给 AI 看（现在是 {marked} 帧）——删掉几帧再开炼。"
+
 #. placeholder {0}: STAGE_LIMITS.figuresMax
 #: src/studio/stage/StageOverlay.tsx
 msgid "最多摆 {0} 个人偶"
@@ -4641,9 +4671,17 @@ msgstr "分支 {0}"
 msgid "分析帧数（越多认得越准，价钱不变）"
 msgstr "分析帧数（越多认得越准，价钱不变）"
 
+#: src/data/templates.ts
+msgid "分段登记成功了，但服务器返回的某一段缺少参考视频地址——请到「我的模板」里确认各段状态。"
+msgstr "分段登记成功了，但服务器返回的某一段缺少参考视频地址——请到「我的模板」里确认各段状态。"
+
 #: src/components/blockout/arkVideoRules.ts
 msgid "分段登记暂不支持裁剪画面（服务端切段吃的是原始上传）：点视频下方播放条最右端的「⤢ 铺满整幅」把裁剪框还原。要裁水印或改画幅，就把选段收回 {segMaxSec} 秒以内、一段一段做。"
 msgstr "分段登记暂不支持裁剪画面（服务端切段吃的是原始上传）：点视频下方播放条最右端的「⤢ 铺满整幅」把裁剪框还原。要裁水印或改画幅，就把选段收回 {segMaxSec} 秒以内、一段一段做。"
+
+#: src/data/templates.ts
+msgid "分段登记需要至少一个分段点——不超过 30 秒的选段请走单段那条路。"
+msgstr "分段登记需要至少一个分段点——不超过 30 秒的选段请走单段那条路。"
 
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
@@ -4697,6 +4735,11 @@ msgstr "创作中心"
 #: src/components/guide/tours.tsx
 msgid "创作入口"
 msgstr "创作入口"
+
+#. 服务端没给作者名时，模板上显示的兜底作者名（页面上画成 @创作者）
+#: src/data/templates.ts
+msgid "创作者"
+msgstr "创作者"
 
 #: src/components/guide/tours.tsx
 #: src/pages/WorkshopPage.tsx
@@ -5676,6 +5719,14 @@ msgstr "取回来的不是视频（服务器回了 {type}）。这一段暂时�
 msgid "取回来的不是视频（服务器回的类型是空的）。这一段暂时存不了。"
 msgstr "取回来的不是视频（服务器回的类型是空的）。这一段暂时存不了。"
 
+#: src/api/branch.ts
+msgid "取回白模化结果失败（网络不可用）"
+msgstr "取回白模化结果失败（网络不可用）"
+
+#: src/api/branch.ts
+msgid "取回白模化结果超时（超过 5 分钟）。这一步不额外花钱，产物在 24 小时内都还能取——回「我的模板」的「还没取回结果」再点一次即可。"
+msgstr "取回白模化结果超时（超过 5 分钟）。这一步不额外花钱，产物在 24 小时内都还能取——回「我的模板」的「还没取回结果」再点一次即可。"
+
 #: src/data/projects.ts
 msgid "取回的工程是空的，铺不进工坊"
 msgstr "取回的工程是空的，铺不进工坊"
@@ -5927,6 +5978,10 @@ msgstr "只有我"
 #: src/pages/SupportModelNewPage.tsx
 msgid "只有我自己"
 msgstr "只有我自己"
+
+#: src/data/templates.ts
+msgid "只有模板作者能改分类"
+msgstr "只有模板作者能改分类"
 
 #: src/data/economy.ts
 msgid "只画 1 张主图 · 它同时就是卡面"
@@ -6598,6 +6653,10 @@ msgstr "太短了（{0}s）——按住别松，照着示例词念够 {VOICE_MIN
 #: src/studio/flowStore.ts
 msgid "失败：{0}"
 msgstr "失败：{0}"
+
+#: src/data/templates.ts
+msgid "失败的段不用重做模板：在「我的模板」里找到那一段，单独点「识别角色位」重试就行。"
+msgstr "失败的段不用重做模板：在「我的模板」里找到那一段，单独点「识别角色位」重试就行。"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "头"
@@ -9581,6 +9640,10 @@ msgstr "方案市场没打开：{why}"
 msgid "方舟回了一份素材，但 ID 形状不认识（{0}）——用「填 asset ID」那条路确认一下。"
 msgstr "方舟回了一份素材，但 ID 形状不认识（{0}）——用「填 asset ID」那条路确认一下。"
 
+#: src/data/templates.ts
+msgid "方舟报这一发没能出片，正在向服务器核实到底怎么回事…"
+msgstr "方舟报这一发没能出片，正在向服务器核实到底怎么回事…"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "方舟没给原因"
 msgstr "方舟没给原因"
@@ -9816,11 +9879,13 @@ msgstr "有一段正在生成中，等它跑完再铸下一段"
 msgid "有一段生成完了，但它已经不在了"
 msgstr "有一段生成完了，但它已经不在了"
 
-#. placeholder {0}: s.card.name
-#. placeholder {1}: s.label
 #: src/studio/flowStore.ts
-msgid "有两张不同的卡都叫「{0}」（{noun} {1} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
-msgstr "有两张不同的卡都叫「{0}」（{noun} {1} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
+msgid "有两张不同的卡都叫「{cardName}」（位置 {slotLabel} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
+msgstr "有两张不同的卡都叫「{cardName}」（位置 {slotLabel} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
+
+#: src/studio/flowStore.ts
+msgid "有两张不同的卡都叫「{cardName}」（编号 {slotLabel} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
+msgstr "有两张不同的卡都叫「{cardName}」（编号 {slotLabel} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
 
 #: src/data/notifications.ts
 msgid "有人"
@@ -9880,6 +9945,10 @@ msgstr "服务器上有一发你付过钱的成片还没取回"
 msgid "服务器会解开包、数出它会哪些动作和表情，并给一份自动映射（下一步你可以改）。这一步会把包传上去（约 {0}MB），传完之后不会立刻公开。"
 msgstr "服务器会解开包、数出它会哪些动作和表情，并给一份自动映射（下一步你可以改）。这一步会把包传上去（约 {0}MB），传完之后不会立刻公开。"
 
+#: src/api/branch.ts
+msgid "服务器受理了这一发白模化，却既没有返回模板、也没有返回可以取回结果的凭据（可能是旧版服务端）。这次已经计费——去「我的模板」看看有没有新模板或「还没取回结果」的一发，没有的话请把这句话反馈给我们。"
+msgstr "服务器受理了这一发白模化，却既没有返回模板、也没有返回可以取回结果的凭据（可能是旧版服务端）。这次已经计费——去「我的模板」看看有没有新模板或「还没取回结果」的一发，没有的话请把这句话反馈给我们。"
+
 #: src/studio/live2dUploadStore.ts
 msgid "服务器正在解包识别…"
 msgstr "服务器正在解包识别…"
@@ -9905,6 +9974,14 @@ msgstr "服务器没有正常返回这条评论，请稍后重试"
 msgid "服务器没有返回建好的模型（可能是旧版服务端），没有创建成功。"
 msgstr "服务器没有返回建好的模型（可能是旧版服务端），没有创建成功。"
 
+#: src/data/templates.ts
+msgid "服务器没有返回模板登记信息（可能是旧版服务端），模板还没登记上"
+msgstr "服务器没有返回模板登记信息（可能是旧版服务端），模板还没登记上"
+
+#: src/data/templates.ts
+msgid "服务器没有返回这个模板的参考视频时长，算不出套用一次要花多少 token，也没法确认它能不能出片。请下拉刷新重试；一直这样就把这句话反馈给我们。"
+msgstr "服务器没有返回这个模板的参考视频时长，算不出套用一次要花多少 token，也没法确认它能不能出片。请下拉刷新重试；一直这样就把这句话反馈给我们。"
+
 #: src/data/account.ts
 msgid "服务器没有返回这张卡（可能作者刚把它撤下了）。"
 msgstr "服务器没有返回这张卡（可能作者刚把它撤下了）。"
@@ -9925,6 +10002,10 @@ msgstr "服务器没能删掉这张卡（{why}）。本地这份先留着——�
 #: src/data/videos.ts
 msgid "服务器没能删掉这条作品（{why}）。本地这份先留着——删了它下次启动也会回来。"
 msgstr "服务器没能删掉这条作品（{why}）。本地这份先留着——删了它下次启动也会回来。"
+
+#: src/api/branch.ts
+msgid "服务器说结果取回成功了，却没有返回模板信息（可能是旧版服务端）。这一步本身不花钱，钱在开炼那一步已经付过——去「我的模板」确认一下有没有新模板，没有的话请把这句话反馈给我们。"
+msgstr "服务器说结果取回成功了，却没有返回模板信息（可能是旧版服务端）。这一步本身不花钱，钱在开炼那一步已经付过——去「我的模板」确认一下有没有新模板，没有的话请把这句话反馈给我们。"
 
 #: src/components/support/VoiceMixer.tsx
 #: src/pages/SupportPage.tsx
@@ -10031,6 +10112,15 @@ msgstr "未命名卡组"
 #: src/components/DraftTitle.tsx
 msgid "未命名工程"
 msgstr "未命名工程"
+
+#. 服务端没给标题时，模板上显示的兜底标题
+#: src/data/templates.ts
+msgid "未命名模板"
+msgstr "未命名模板"
+
+#: src/data/templates.ts
+msgid "未命名白模模板"
+msgstr "未命名白模模板"
 
 #: src/data/drafts.ts
 msgid "未命名草稿"
@@ -10418,6 +10508,11 @@ msgstr "检查形状…"
 msgid "检查更新"
 msgstr "检查更新"
 
+#: src/data/templates.ts
+msgctxt "人偶的主色（挂卡提醒那句话里显示）"
+msgid "棕"
+msgstr "棕"
+
 #. placeholder {0}: modelLabel(tierOf(editor.videoTier).model)
 #: src/studio/ui/projection.tsx
 msgid "模型：{0}"
@@ -10510,6 +10605,22 @@ msgstr "模板视频还没转存到图床，做不了合成预览（稍后再试
 msgid "模板详情"
 msgstr "模板详情"
 
+#: src/data/templates.ts
+msgid "模板还在登记中，稍等几秒再试"
+msgstr "模板还在登记中，稍等几秒再试"
+
+#: src/data/templates.ts
+msgid "模板还没登记到服务器，登记成功后才能核对位置"
+msgstr "模板还没登记到服务器，登记成功后才能核对位置"
+
+#: src/data/templates.ts
+msgid "模板还没登记到服务器，登记成功后才能核对编号"
+msgstr "模板还没登记到服务器，登记成功后才能核对编号"
+
+#: src/data/templates.ts
+msgid "模板还没登记到服务器（{reg}）"
+msgstr "模板还没登记到服务器（{reg}）"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "模板里这张卡已经变了，刷新后再试"
 msgstr "模板里这张卡已经变了，刷新后再试"
@@ -10517,6 +10628,11 @@ msgstr "模板里这张卡已经变了，刷新后再试"
 #: src/types.ts
 msgid "横屏"
 msgstr "横屏"
+
+#: src/data/templates.ts
+msgctxt "人偶的主色（挂卡提醒那句话里显示）"
+msgid "橙"
+msgstr "橙"
 
 #. placeholder {0}: up.title
 #. placeholder {1}: up.done
@@ -10618,6 +10734,14 @@ msgstr "正在取回…"
 msgid "正在取回工坊工程…"
 msgstr "正在取回工坊工程…"
 
+#: src/data/templates.ts
+msgid "正在取回结果：服务端会自己向方舟核实，再把产物转存下来（这一步不额外花钱）…"
+msgstr "正在取回结果：服务端会自己向方舟核实，再把产物转存下来（这一步不额外花钱）…"
+
+#: src/data/templates.ts
+msgid "正在取回结果…"
+msgstr "正在取回结果…"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "正在取声音：找到<0>只有这个人在说话</0>的一段，先定起点再定终点（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）。录制会实际播一遍。"
 msgstr "正在取声音：找到<0>只有这个人在说话</0>的一段，先定起点再定终点（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）。录制会实际播一遍。"
@@ -10686,22 +10810,34 @@ msgstr "正在打开这段视频…"
 msgid "正在找人…"
 msgstr "正在找人…"
 
-#: src/pages/FlowPage.tsx
-msgid "正在把「{noun} → 角色」合成一段话…"
-msgstr "正在把「{noun} → 角色」合成一段话…"
-
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
 msgid "正在把「人偶 → 角色」合成一段话…"
 msgstr "正在把「人偶 → 角色」合成一段话…"
 
+#: src/pages/FlowPage.tsx
+msgid "正在把「位置 → 角色」合成一段话…"
+msgstr "正在把「位置 → 角色」合成一段话…"
+
+#: src/pages/FlowPage.tsx
+msgid "正在把「编号 → 角色」合成一段话…"
+msgstr "正在把「编号 → 角色」合成一段话…"
+
 #: src/pages/CustomCardPage.tsx
 msgid "正在把授权照片取来填进卡面…"
 msgstr "正在把授权照片取来填进卡面…"
 
+#: src/data/templates.ts
+msgid "正在把整条视频切成 {count} 段登记…（每段都要独立转码，请稍候）"
+msgstr "正在把整条视频切成 {count} 段登记…（每段都要独立转码，请稍候）"
+
 #: src/pages/PublishPage.tsx
 msgid "正在把本片卡组存进你的工坊…"
 msgstr "正在把本片卡组存进你的工坊…"
+
+#: src/data/templates.ts
+msgid "正在提交：AI 先看 {frames} 帧认出画面里有哪些人，再把这一段发去出片…"
+msgstr "正在提交：AI 先看 {frames} 帧认出画面里有哪些人，再把这一段发去出片…"
 
 #: src/pages/DiscoverPage.tsx
 msgid "正在搜…"
@@ -10731,6 +10867,10 @@ msgstr "正在生成中，等它跑完再换模板"
 msgid "正在登记到服务器…"
 msgstr "正在登记到服务器…"
 
+#: src/data/templates.ts
+msgid "正在登记模板…"
+msgstr "正在登记模板…"
+
 #: src/pages/LoginPage.tsx
 msgid "正在确认可用的登录方式…"
 msgstr "正在确认可用的登录方式…"
@@ -10755,6 +10895,10 @@ msgstr "正在确认这条作品有没有留存工坊工程…"
 #: src/pages/SettingsStoragePage.tsx
 msgid "正在算可清理的空间…"
 msgstr "正在算可清理的空间…"
+
+#: src/data/templates.ts
+msgid "正在裁出你框选的那一段…"
+msgstr "正在裁出你框选的那一段…"
 
 #: src/pages/CardDetailPage.tsx
 msgid "正在装载你的卡片库…"
@@ -11468,6 +11612,11 @@ msgstr "演示角色"
 msgid "演示道具"
 msgstr "演示道具"
 
+#: src/data/templates.ts
+msgctxt "人偶的主色（挂卡提醒那句话里显示）"
+msgid "灰"
+msgstr "灰"
+
 #: src/components/flow/CameraChips.tsx
 msgid "灰着的运镜插进去会超过 {VIDEO_PROMPT_MAX} 字的上限，想用就先删几个字"
 msgstr "灰着的运镜插进去会超过 {VIDEO_PROMPT_MAX} 字的上限，想用就先删几个字"
@@ -11738,9 +11887,57 @@ msgstr "现在这样要切 {parts} 段，而一次分段登记最多 {SPLIT_MAX_
 msgid "现在这样要切 {parts} 段，而一次分段登记最多 {SPLIT_MAX_PARTS} 段（超过 {segMaxSec} 秒的段会自动对半，越切越碎）。多标几刀、让每段更接近 {segMaxSec} 秒，或者先把素材剪短。"
 msgstr "现在这样要切 {parts} 段，而一次分段登记最多 {SPLIT_MAX_PARTS} 段（超过 {segMaxSec} 秒的段会自动对半，越切越碎）。多标几刀、让每段更接近 {segMaxSec} 秒，或者先把素材剪短。"
 
+#: src/data/templates.ts
+msgid "现在连不上服务器——位置登记在服务端，联网后再核对"
+msgstr "现在连不上服务器——位置登记在服务端，联网后再核对"
+
+#: src/data/templates.ts
+msgid "现在连不上服务器——白模化整条都在服务端跑（看帧、出片、转存），联网后再来"
+msgstr "现在连不上服务器——白模化整条都在服务端跑（看帧、出片、转存），联网后再来"
+
+#: src/data/templates.ts
+msgid "现在连不上服务器——白模模板的市场在服务端，联网后再试"
+msgstr "现在连不上服务器——白模模板的市场在服务端，联网后再试"
+
+#: src/data/templates.ts
+msgid "现在连不上服务器——结果在服务端那边，联网后再来取（产物 24 小时内有效）"
+msgstr "现在连不上服务器——结果在服务端那边，联网后再来取（产物 24 小时内有效）"
+
+#: src/data/templates.ts
+msgid "现在连不上服务器——编号登记在服务端，联网后再核对"
+msgstr "现在连不上服务器——编号登记在服务端，联网后再核对"
+
+#: src/data/templates.ts
+msgid "现在连不上服务器——联网后再做模板"
+msgstr "现在连不上服务器——联网后再做模板"
+
+#: src/data/templates.ts
+msgid "现在连不上服务器——联网后再删"
+msgstr "现在连不上服务器——联网后再删"
+
+#: src/data/templates.ts
+msgid "现在连不上服务器——联网后再识别"
+msgstr "现在连不上服务器——联网后再识别"
+
+#: src/data/templates.ts
+msgid "现在连不上服务器——这个模板在服务端还有登记（含托管的视频），联网后再删"
+msgstr "现在连不上服务器——这个模板在服务端还有登记（含托管的视频），联网后再删"
+
+#: src/data/templates.ts
+msgid "现在连不上服务器——这个模板的视频还托管在云端，联网后再删（否则它会变成删不掉的孤儿）"
+msgstr "现在连不上服务器——这个模板的视频还托管在云端，联网后再删（否则它会变成删不掉的孤儿）"
+
+#: src/data/templates.ts
+msgid "现在连不上服务器，分类暂时改不了——联网后再试"
+msgstr "现在连不上服务器，分类暂时改不了——联网后再试"
+
 #: src/components/BootFailed.tsx
 msgid "现在连不上服务器，只能读这台手机上的数据，而它没读出来 —— 硬进去只会看到空首页、被登出，所以先停在这里。点重试只是再读一遍，不会删掉你的东西。"
 msgstr "现在连不上服务器，只能读这台手机上的数据，而它没读出来 —— 硬进去只会看到空首页、被登出，所以先停在这里。点重试只是再读一遍，不会删掉你的东西。"
+
+#: src/data/templates.ts
+msgid "现在连不上服务器，模板暂时没登记——联网后在模板详情页点「重新登记」"
+msgstr "现在连不上服务器，模板暂时没登记——联网后在模板详情页点「重新登记」"
 
 #: src/components/flow/ScriptSkillSheet.tsx
 #: src/pages/FeedPage.tsx
@@ -12094,6 +12291,11 @@ msgstr "登记失败（{0}）"
 msgid "登记素材…"
 msgstr "登记素材…"
 
+#: src/data/templates.ts
+msgctxt "人偶的主色（挂卡提醒那句话里显示）"
+msgid "白"
+msgstr "白"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/components/TemplateShelf.tsx
 msgid "白模"
@@ -12118,6 +12320,18 @@ msgstr "白模化 · 框出一段并裁掉水印"
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "白模化前，AI 先看几帧、列出<0>画面里有哪些人</0>，再按这份清单 逐个点名替换成<1>一模一样的纯白人偶</1>。<2>看漏了人，他照样会被换成白人偶</2>——但清单里没有他的位置，所以挂不了卡，而且<3>他还会把别人的 「从左数第几个」挤歪一位</3>。"
 msgstr "白模化前，AI 先看几帧、列出<0>画面里有哪些人</0>，再按这份清单 逐个点名替换成<1>一模一样的纯白人偶</1>。<2>看漏了人，他照样会被换成白人偶</2>——但清单里没有他的位置，所以挂不了卡，而且<3>他还会把别人的 「从左数第几个」挤歪一位</3>。"
+
+#: src/api/branch.ts
+msgid "白模化提交失败（网络不可用）"
+msgstr "白模化提交失败（网络不可用）"
+
+#: src/api/branch.ts
+msgid "白模化提交超时（超过 8 分钟）。服务器那边可能已经受理了这一发（受理即计费）——别直接重试，先去「我的模板」看有没有「还没取回结果」的一发或新模板，有就从那里继续。"
+msgstr "白模化提交超时（超过 8 分钟）。服务器那边可能已经受理了这一发（受理即计费）——别直接重试，先去「我的模板」看有没有「还没取回结果」的一发或新模板，有就从那里继续。"
+
+#: src/data/templates.ts
+msgid "白模化暂时报不出价，先不开炼（价目未就绪）"
+msgstr "白模化暂时报不出价，先不开炼（价目未就绪）"
 
 #: src/data/economy.ts
 msgid "白模化暂未开放（当前没有任何档位开着白模出片），等开放后再来"
@@ -12177,6 +12391,10 @@ msgstr "白模成片本身无声，回看配的是模板原片的音轨，合并
 msgid "白模成片本身无声，这里配的是模板原片的音轨；合并成片时也会带上"
 msgstr "白模成片本身无声，这里配的是模板原片的音轨；合并成片时也会带上"
 
+#: src/data/templates.ts
+msgid "白模模板"
+msgstr "白模模板"
+
 #: src/pages/VideoEditorPage.tsx
 msgid "白模模板 · 给白色人偶挂人物卡"
 msgstr "白模模板 · 给白色人偶挂人物卡"
@@ -12197,6 +12415,10 @@ msgstr "白模模板出片暂未开放：还没有档位支持白模（r2v）出
 #: src/studio/flowStore.ts
 msgid "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来"
 msgstr "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来"
+
+#: src/data/templates.ts
+msgid "白模模板已生成"
+msgstr "白模模板已生成"
 
 #: src/studio/segmentGen.ts
 msgid "白模段不承接上一段的尾帧（承接帧与参考视频在方舟是互斥场景）——白模模板只有一段"
@@ -12225,6 +12447,10 @@ msgstr "目前所有作品都是<0>免费观看</0>。付费解锁还没开放�
 #: src/ai/minimaxVideo.ts
 msgid "盯不住这一发的进度了（{why}）——任务还在上游跑，不是失败。"
 msgstr "盯不住这一发的进度了（{why}）——任务还在上游跑，不是失败。"
+
+#: src/data/templates.ts
+msgid "盯不住这一发的进度了（{why}）。"
+msgstr "盯不住这一发的进度了（{why}）。"
 
 #: src/pages/ProfilePage.tsx
 msgid "直充 add-on（永不过期，套餐扣完才用它）"
@@ -12935,9 +13161,21 @@ msgstr "第 {0}/{total} 段"
 msgid "第 {rel} 秒"
 msgstr "第 {rel} 秒"
 
+#: src/data/templates.ts
+msgid "第 {row} 行的人偶位置是空的——位置是\"把卡挂到这个人偶身上\"的唯一凭据，不能留空。对着画面从左往右数，选一个位置；想去掉这个角色位，请点它的「删掉」。"
+msgstr "第 {row} 行的人偶位置是空的——位置是\"把卡挂到这个人偶身上\"的唯一凭据，不能留空。对着画面从左往右数，选一个位置；想去掉这个角色位，请点它的「删掉」。"
+
+#: src/data/templates.ts
+msgid "第 {row} 行的人偶编号是空的——编号是\"把卡挂到这个人偶身上\"的唯一凭据，不能留空。照画面上印的数字填一个；想去掉这个角色位，请点它的「删掉」。"
+msgstr "第 {row} 行的人偶编号是空的——编号是\"把卡挂到这个人偶身上\"的唯一凭据，不能留空。照画面上印的数字填一个；想去掉这个角色位，请点它的「删掉」。"
+
 #: src/studio/canvasAgent.ts
 msgid "第 {s} 段"
 msgstr "第 {s} 段"
+
+#: src/data/templates.ts
+msgid "第 {seg} 段：{note}"
+msgstr "第 {seg} 段：{note}"
 
 #. placeholder {0}: f.c.name
 #: src/studio/canvasAgent.ts
@@ -13114,6 +13352,10 @@ msgstr "第 {seg} 段现在套着模板，不走推演（提案已过期）"
 msgid "第 {seg} 段生成视频"
 msgstr "第 {seg} 段生成视频"
 
+#: src/data/templates.ts
+msgid "第 {seg} 段认人失败：{why}"
+msgstr "第 {seg} 段认人失败：{why}"
+
 #: src/studio/canvasAgent.ts
 msgid "第 {seg} 段还没写拍摄要求——先说「第 {seg} 段 拍什么」"
 msgstr "第 {seg} 段还没写拍摄要求——先说「第 {seg} 段 拍什么」"
@@ -13137,6 +13379,10 @@ msgstr "第 {seg} 段还没轮到（前面的段先炼完才解锁）"
 #: src/studio/canvasAgent.ts
 msgid "第 {seg} 段重新生成视频（旧成片作废）"
 msgstr "第 {seg} 段重新生成视频（旧成片作废）"
+
+#: src/data/templates.ts
+msgid "第 {seg}/{total} 段：AI 正在认画面里有哪些人…（要一到几分钟）"
+msgstr "第 {seg}/{total} 段：AI 正在认画面里有哪些人…（要一到几分钟）"
 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段 · {s}"
@@ -13245,9 +13491,21 @@ msgstr "等了 {secs} 秒还没有回话，先停下了。稍后再试一次。"
 msgid "等了 {secs} 秒还没画出来。包可能太大，或者贴图 / moc3 有问题。"
 msgstr "等了 {secs} 秒还没画出来。包可能太大，或者贴图 / moc3 有问题。"
 
+#: src/data/templates.ts
+msgid "等了 12 分钟还没出片（任务还在方舟那边跑，不是失败）。"
+msgstr "等了 12 分钟还没出片（任务还在方舟那边跑，不是失败）。"
+
 #: src/data/videoDownload.ts
 msgid "等了 60 秒一个字节都没来，当断了处理。再点一次接着试。"
 msgstr "等了 60 秒一个字节都没来，当断了处理。再点一次接着试。"
+
+#: src/data/templates.ts
+msgid "等太久没等到回复——但**这一发多半还在服务器上跑**（认人最坏要几分钟），而且可能已经计费。先别急着再点（这会儿再点只会说「正在识别中」）：等一两分钟，退出这一页再进来看看角色位是不是已经有了。"
+msgstr "等太久没等到回复——但**这一发多半还在服务器上跑**（认人最坏要几分钟），而且可能已经计费。先别急着再点（这会儿再点只会说「正在识别中」）：等一两分钟，退出这一页再进来看看角色位是不是已经有了。"
+
+#: src/data/templates.ts
+msgid "等太久没等到回复——但这一发多半还在服务器上跑（整条切成 N 段要逐段转码，慢的时候好几分钟）。先别急着再点（再点会把同一条视频切第二遍），也别去删那段素材：等一两分钟，去「我的模板」看看那一组是不是已经到了。"
+msgstr "等太久没等到回复——但这一发多半还在服务器上跑（整条切成 N 段要逐段转码，慢的时候好几分钟）。先别急着再点（再点会把同一条视频切第二遍），也别去删那段素材：等一两分钟，去「我的模板」看看那一组是不是已经到了。"
 
 #: src/studio/live2dUploadStore.ts
 msgid "等太久没等到服务器回话。这一发可能已经建好了 —— 先去「我的」里看一眼，没有再回来重发。"
@@ -13317,6 +13575,11 @@ msgstr "管理员免扣费：这一步约值 {amount} token，不从你的钱包
 msgid "管理员账号无需充值：AI 生成走免扣费通道，不从下面的余额里扣。余额与下单入口保留，仅用于测试支付流程。"
 msgstr "管理员账号无需充值：AI 生成走免扣费通道，不从下面的余额里扣。余额与下单入口保留，仅用于测试支付流程。"
 
+#: src/data/templates.ts
+msgctxt "人偶的主色（挂卡提醒那句话里显示）"
+msgid "粉"
+msgstr "粉"
+
 #: src/pages/ProfilePage.tsx
 msgid "粉丝"
 msgstr "粉丝"
@@ -13352,6 +13615,11 @@ msgstr "系统没有中文语音包，暂时发不出声（嘴型仍会动）"
 #: src/data/videoDownload.ts
 msgid "系统面板已经开着了，先在那边选一个。"
 msgstr "系统面板已经开着了，先在那边选一个。"
+
+#: src/data/templates.ts
+msgctxt "人偶的主色（挂卡提醒那句话里显示）"
+msgid "红"
+msgstr "红"
 
 #. placeholder {0}: mb(known)
 #: src/components/DownloadSheet.tsx
@@ -13440,6 +13708,11 @@ msgstr "素材超了上限，最前面的 {droppedChars} 字和最早的 {droppe
 msgid "素材超了上限，最前面的 {droppedChars} 字没有送去分析。"
 msgstr "素材超了上限，最前面的 {droppedChars} 字没有送去分析。"
 
+#: src/data/templates.ts
+msgctxt "人偶的主色（挂卡提醒那句话里显示）"
+msgid "紫"
+msgstr "紫"
+
 #: src/components/guide/tours.tsx
 msgid "组卡组：怎么加、怎么改"
 msgstr "组卡组：怎么加、怎么改"
@@ -13461,6 +13734,10 @@ msgstr "终点 {0}s"
 msgid "终点 ＝当前帧"
 msgstr "终点 ＝当前帧"
 
+#: src/data/templates.ts
+msgid "经典配方模板首发只存本机，不需要登记到服务器"
+msgstr "经典配方模板首发只存本机，不需要登记到服务器"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "绑定"
 msgstr "绑定"
@@ -13473,6 +13750,10 @@ msgstr "绑定没存住（本机存储写入失败）——再点一次；一直
 msgctxt "嵌在句子里的名词：这张结尾帧 / 融成结尾帧"
 msgid "结尾帧"
 msgstr "结尾帧"
+
+#: src/data/templates.ts
+msgid "结果取回来了，但服务器返回的模板缺少参考视频地址——钱在开炼那一步已经付过，请去「我的模板」确认后再决定要不要重来。"
+msgstr "结果取回来了，但服务器返回的模板缺少参考视频地址——钱在开炼那一步已经付过，请去「我的模板」确认后再决定要不要重来。"
 
 #: src/components/CoverPicker.tsx
 msgid "绘制中…"
@@ -13553,6 +13834,11 @@ msgstr "继续去挂卡"
 msgid "继续回炉"
 msgstr "继续回炉"
 
+#: src/data/templates.ts
+msgctxt "人偶的主色（挂卡提醒那句话里显示）"
+msgid "绿"
+msgstr "绿"
+
 #. placeholder {0}: strayRemoved.join(sep)
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "编号 {0} 上挂着的卡<0>不会生效</0>：模板作者在核对编号时<1>删掉了这个位子</1>（多半是因为画面上根本找不到这个号）。那个人偶会保持原样出现。"
@@ -13562,6 +13848,22 @@ msgstr "编号 {0} 上挂着的卡<0>不会生效</0>：模板作者在核对编
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "编号 {0} 上挂着的卡<0>不会生效</0>：这些位子超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限。"
 msgstr "编号 {0} 上挂着的卡<0>不会生效</0>：这些位子超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限。"
+
+#: src/studio/flowStore.ts
+msgid "编号 {gone} 这个位子已经被模板作者在核对编号时删掉了（多半是因为画面上根本找不到这个号）"
+msgstr "编号 {gone} 这个位子已经被模板作者在核对编号时删掉了（多半是因为画面上根本找不到这个号）"
+
+#: src/studio/flowStore.ts
+msgid "编号 {lost} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下"
+msgstr "编号 {lost} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下"
+
+#: src/studio/flowStore.ts
+msgid "编号 {over} 超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限（再多的编号在画面上也认不出来）"
+msgstr "编号 {over} 超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限（再多的编号在画面上也认不出来）"
+
+#: src/studio/flowStore.ts
+msgid "编号 {slotLabel} 挂的这张卡不能这么用：{nameIssue}"
+msgstr "编号 {slotLabel} 挂的这张卡不能这么用：{nameIssue}"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "编号还没核对：AI 编的号可能与画面上人偶头上的数字对不上，<0>核对之前不能发布</0>（对不上会让别人的角色卡换到别人身上）。点这里去核对。"
@@ -13775,6 +14077,10 @@ msgstr "至少要有一个图位——方案就是「从一张裁剪能炼出哪
 msgid "至少要有一个图位不是「只展示」——全都只展示的话，出片时 AI 一张形象图都拿不到，画面里的人只能靠它自己编"
 msgstr "至少要有一个图位不是「只展示」——全都只展示的话，出片时 AI 一张形象图都拿不到，画面里的人只能靠它自己编"
 
+#: src/data/templates.ts
+msgid "至少要留一个角色位——一个都不留的话，套用你模板的人没有任何地方可以挂卡，这个模板会退回成「整段只有一个白模人偶」的老形态。整个模板不要了的话，用详情页的「删除」。"
+msgstr "至少要留一个角色位——一个都不留的话，套用你模板的人没有任何地方可以挂卡，这个模板会退回成「整段只有一个白模人偶」的老形态。整个模板不要了的话，用详情页的「删除」。"
+
 #: src/api/admin.ts
 msgid "色情低俗"
 msgstr "色情低俗"
@@ -13843,6 +14149,11 @@ msgstr "草稿还没有名字，回上一步补一个再试聊。"
 #: src/pages/ProfilePage.tsx
 msgid "获赞"
 msgstr "获赞"
+
+#: src/data/templates.ts
+msgctxt "人偶的主色（挂卡提醒那句话里显示）"
+msgid "蓝"
+msgstr "蓝"
 
 #: src/studio/ui/AvatarPicker.tsx
 msgid "藏蓝长外套 · 金滚边"
@@ -14785,6 +15096,10 @@ msgstr "返回挑选"
 msgid "返回首页"
 msgstr "返回首页"
 
+#: src/data/templates.ts
+msgid "还剩 {h} 小时 {m} 分钟可以取回——AI 出片的产物只在服务器上留 24 小时，过期就取不回来了，而这一发的钱已经付过。"
+msgstr "还剩 {h} 小时 {m} 分钟可以取回——AI 出片的产物只在服务器上留 24 小时，过期就取不回来了，而这一发的钱已经付过。"
+
 #: src/data/videoJobs.ts
 msgid "还剩 {h} 小时 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。"
 msgstr "还剩 {h} 小时 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。"
@@ -14792,6 +15107,10 @@ msgstr "还剩 {h} 小时 {m} 分钟可以取回——方舟的成片只留 24 �
 #: src/pages/ProfilePage.tsx
 msgid "还剩 {left} 条没成功"
 msgstr "还剩 {left} 条没成功"
+
+#: src/data/templates.ts
+msgid "还剩 {m} 分钟可以取回——AI 出片的产物只在服务器上留 24 小时，过期就取不回来了，而这一发的钱已经付过。"
+msgstr "还剩 {m} 分钟可以取回——AI 出片的产物只在服务器上留 24 小时，过期就取不回来了，而这一发的钱已经付过。"
 
 #: src/data/videoJobs.ts
 msgid "还剩 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。"
@@ -14844,6 +15163,14 @@ msgstr "还有 {emptyCount} 个角色位没挂卡 —— <0>可以直接出片</
 #: src/components/flow/FlowCanvas.tsx
 msgid "还没写这一段拍什么"
 msgstr "还没写这一段拍什么"
+
+#: src/data/templates.ts
+msgid "还没取回的白模化结果拉取失败：{why}"
+msgstr "还没取回的白模化结果拉取失败：{why}"
+
+#: src/data/templates.ts
+msgid "还没取回的白模化结果暂时拉不到（网络不稳），稍后自动重试——这不代表你没有待取回的"
+msgstr "还没取回的白模化结果暂时拉不到（网络不稳），稍后自动重试——这不代表你没有待取回的"
 
 #: src/components/ForgeOverlay.tsx
 msgid "还没接到成片"
@@ -15088,6 +15415,10 @@ msgstr "这一份正在被另一次保存写入，等它跑完再点一次。"
 msgid "这一份还没有本机地址，重新保存一次再试。"
 msgstr "这一份还没有本机地址，重新保存一次再试。"
 
+#: src/data/templates.ts
+msgid "这一发已经付过费，但服务器没说结果能留到什么时候——建议尽快取回。"
+msgstr "这一发已经付过费，但服务器没说结果能留到什么时候——建议尽快取回。"
+
 #: src/data/videoJobs.ts
 msgid "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。"
 msgstr "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。"
@@ -15099,6 +15430,10 @@ msgstr "这一发我们不再跟进了：任务号还在下面，如果一直没
 #: src/components/TemplateShelf.tsx
 msgid "这一发白模化已经取不回来了"
 msgstr "这一发白模化已经取不回来了"
+
+#: src/data/templates.ts
+msgid "这一发白模化预估要 {price} token（看帧认人 + 一次真实付费出片），余额不够——去「我的」页充值后再回来，框选不会丢。"
+msgstr "这一发白模化预估要 {price} token（看帧认人 + 一次真实付费出片），余额不够——去「我的」页充值后再回来，框选不会丢。"
 
 #: src/data/videoJobs.ts
 msgid "这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
@@ -15375,8 +15710,12 @@ msgid "这一段的结束画面不再锁得住（「{0}」档只认起拍帧）"
 msgstr "这一段的结束画面不再锁得住（「{0}」档只认起拍帧）"
 
 #: src/pages/FlowPage.tsx
-msgid "这一段的要求由挂卡合成：AI 把「{noun} → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。{noun}与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。"
-msgstr "这一段的要求由挂卡合成：AI 把「{noun} → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。{noun}与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。"
+msgid "这一段的要求由挂卡合成：AI 把「位置 → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。位置与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。"
+msgstr "这一段的要求由挂卡合成：AI 把「位置 → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。位置与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。"
+
+#: src/pages/FlowPage.tsx
+msgid "这一段的要求由挂卡合成：AI 把「编号 → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。编号与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。"
+msgstr "这一段的要求由挂卡合成：AI 把「编号 → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。编号与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。"
 
 #: src/studio/flowStore.ts
 msgid "这一段返修不了：{issue}"
@@ -15611,6 +15950,10 @@ msgstr "这个模板<0>已经发布在市场上</0>，服务端不许直接改�
 msgid "这个模板<0>没有画面位置数据</0>，所以画面<1>点不了、也拖不上</1>：我们没有逐帧的人物位置， 点画面必然点错人，而换错人<2>不会报错</2>， 要等成片出来才看得见。"
 msgstr "这个模板<0>没有画面位置数据</0>，所以画面<1>点不了、也拖不上</1>：我们没有逐帧的人物位置， 点画面必然点错人，而换错人<2>不会报错</2>， 要等成片出来才看得见。"
 
+#: src/data/templates.ts
+msgid "这个模板不在本机库里"
+msgstr "这个模板不在本机库里"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "这个模板不存在或已被作者删除"
 msgstr "这个模板不存在或已被作者删除"
@@ -15631,6 +15974,14 @@ msgstr "这个模板已被平台下架，状态由平台管理 —— 位置改�
 msgid "这个模板已被平台下架，状态由平台管理 —— 编号改不了，你自己也下架不了它。"
 msgstr "这个模板已被平台下架，状态由平台管理 —— 编号改不了，你自己也下架不了它。"
 
+#: src/data/templates.ts
+msgid "这个模板的白模视频不满足 AI 出片引擎要求的 {min}~{max} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次试炼失败都没有扣费。请重新做一个模板：框选时至少选 {floor} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。"
+msgstr "这个模板的白模视频不满足 AI 出片引擎要求的 {min}~{max} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次试炼失败都没有扣费。请重新做一个模板：框选时至少选 {floor} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。"
+
+#: src/data/templates.ts
+msgid "这个模板的白模视频只有约 {shown} 秒，不满足 AI 出片引擎要求的 {min}~{max} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次试炼失败都没有扣费。请重新做一个模板：框选时至少选 {floor} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。"
+msgstr "这个模板的白模视频只有约 {shown} 秒，不满足 AI 出片引擎要求的 {min}~{max} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次试炼失败都没有扣费。请重新做一个模板：框选时至少选 {floor} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。"
+
 #. placeholder {0}: roles.length
 #. placeholder {1}: overflowRoles.length
 #: src/components/blockout/RoleCastBoard.tsx
@@ -15642,6 +15993,10 @@ msgstr "这个模板认出了 {0} 个人物，超过了一次能挂卡的 {BLOCK
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "这个模板认出了 {0} 个人物，超过了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限。 下面这 {1} 个<0>会保持人偶原样、挂不了卡</0>（上限是 {BLOCKOUT_MAX_ROLES}，因为再多的编号在画面上也认不出来了）。"
 msgstr "这个模板认出了 {0} 个人物，超过了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限。 下面这 {1} 个<0>会保持人偶原样、挂不了卡</0>（上限是 {BLOCKOUT_MAX_ROLES}，因为再多的编号在画面上也认不出来了）。"
+
+#: src/data/templates.ts
+msgid "这个模板还没登记到服务器，先登记再识别角色位"
+msgstr "这个模板还没登记到服务器，先登记再识别角色位"
 
 #: src/pages/CutPage.tsx
 msgid "这个片段是分割出来的，同一段还有另一半在时间轴上——回到整段会和它重叠，成片里同一截会播两遍。想撤销分割，先删掉另一半。"
@@ -15667,6 +16022,14 @@ msgstr "这个用户不存在"
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "这个白模模板没有登记角色位（它是更早版本做出来的）。它照样能用 —— 出片时会按 「把白模人偶换成你挂的角色」这条通用说法来，只是不能逐个指定谁是谁。"
 msgstr "这个白模模板没有登记角色位（它是更早版本做出来的）。它照样能用 —— 出片时会按 「把白模人偶换成你挂的角色」这条通用说法来，只是不能逐个指定谁是谁。"
+
+#: src/data/templates.ts
+msgid "这个白模模板的模板视频只有约 {shown} 秒，短于 AI 出片引擎的 {min} 秒下限，用它出片一定会失败，所以这里不让你白花钱。请换一个模板。"
+msgstr "这个白模模板的模板视频只有约 {shown} 秒，短于 AI 出片引擎的 {min} 秒下限，用它出片一定会失败，所以这里不让你白花钱。请换一个模板。"
+
+#: src/data/templates.ts
+msgid "这个白模模板的模板视频约 {shown} 秒，超过 AI 出片引擎的 {max} 秒上限，用它出片一定会失败。请换一个模板。"
+msgstr "这个白模模板的模板视频约 {shown} 秒，超过 AI 出片引擎的 {max} 秒上限，用它出片一定会失败。请换一个模板。"
 
 #: src/components/videoFrames.ts
 msgid "这个视频浏览器解不开（换 mp4/webm 试试）"
@@ -15744,9 +16107,33 @@ msgstr "这台手机上没有能接收视频的应用。文件已经在 App 内�
 msgid "这台手机上的本地数据库这会儿打不开"
 msgstr "这台手机上的本地数据库这会儿打不开"
 
+#: src/data/templates.ts
+msgid "这台服务器不支持分段登记（回包没有 parts，可能需要升级服务端）——模板没有创建，本次没有花钱。"
+msgstr "这台服务器不支持分段登记（回包没有 parts，可能需要升级服务端）——模板没有创建，本次没有花钱。"
+
+#: src/data/templates.ts
+msgid "这台服务器不支持删除模板（回包形状不对，可能需要升级服务端）"
+msgstr "这台服务器不支持删除模板（回包形状不对，可能需要升级服务端）"
+
 #: src/api/uploads.ts
 msgid "这台服务器不支持回收模板视频（可能需要升级服务端）"
 msgstr "这台服务器不支持回收模板视频（可能需要升级服务端）"
+
+#: src/data/templates.ts
+msgid "这台服务器不支持模板发布（回包形状不对，可能需要升级服务端）"
+msgstr "这台服务器不支持模板发布（回包形状不对，可能需要升级服务端）"
+
+#: src/api/branch.ts
+msgid "这台服务器不支持白模化的两阶段提交（可能需要升级服务端）——HTTP {status}"
+msgstr "这台服务器不支持白模化的两阶段提交（可能需要升级服务端）——HTTP {status}"
+
+#: src/api/branch.ts
+msgid "这台服务器不支持白模化的取结果（可能需要升级服务端）——HTTP {status}"
+msgstr "这台服务器不支持白模化的取结果（可能需要升级服务端）——HTTP {status}"
+
+#: src/data/templates.ts
+msgid "这台服务器不支持识别角色位（回包形状不对，可能需要升级服务端）"
+msgstr "这台服务器不支持识别角色位（回包形状不对，可能需要升级服务端）"
 
 #: src/data/projects.ts
 msgid "这台服务器没有正常应答（工程可能还在）。"
@@ -15816,9 +16203,21 @@ msgstr "这台服务器还不支持按作者取作品 · 下面只是本次刷�
 msgid "这台服务器还不支持搜人，@ 可能收不到"
 msgstr "这台服务器还不支持搜人，@ 可能收不到"
 
+#: src/data/templates.ts
+msgid "这台服务器还不支持核对角色位（回包形状不对，可能需要升级服务端）"
+msgstr "这台服务器还不支持核对角色位（回包形状不对，可能需要升级服务端）"
+
+#: src/data/templates.ts
+msgid "这台服务器还不支持模板分类（旧版服务端）——升级后再试"
+msgstr "这台服务器还不支持模板分类（旧版服务端）——升级后再试"
+
 #: src/data/projects.ts
 msgid "这台服务器还不支持留存工坊工程"
 msgstr "这台服务器还不支持留存工坊工程"
+
+#: src/data/templates.ts
+msgid "这台服务器还不支持白模化（可能需要升级服务端）——你仍然可以直接上传一段白模预演视频来建模板"
+msgstr "这台服务器还不支持白模化（可能需要升级服务端）——你仍然可以直接上传一段白模预演视频来建模板"
 
 #: src/api/admin.ts
 msgid "这台服务器还不支持解封（需要升级服务端）"
@@ -16404,9 +16803,17 @@ msgstr "这段视频的画面还没解出来（应用切到后台时系统会暂
 msgid "这段视频里只认出了这 {0} 个位置，都已经在列表里了。 清单之外的人同样是白色人偶，但没有位置能指认他们，<0>挂不了卡</0>。"
 msgstr "这段视频里只认出了这 {0} 个位置，都已经在列表里了。 清单之外的人同样是白色人偶，但没有位置能指认他们，<0>挂不了卡</0>。"
 
+#: src/data/templates.ts
+msgid "这段素材里有 {modalN} 个人偶是「{common}」色的，只有「{who}」是「{oddColor}」色的，而且它就站在画面正中间。实测：不给它挂卡的话，出片时它也会被换成别人（AI 自己挑一张）。最稳的做法是给它也挂上一张卡——出片时会直接按「{oddColor}色人偶」点名它，同一张卡可以挂在多个位子上；或者拿原视频重走一遍「AI 白模化」，人偶全变纯白就没有这个显眼的人了。看错了直接忽略。"
+msgstr "这段素材里有 {modalN} 个人偶是「{common}」色的，只有「{who}」是「{oddColor}」色的，而且它就站在画面正中间。实测：不给它挂卡的话，出片时它也会被换成别人（AI 自己挑一张）。最稳的做法是给它也挂上一张卡——出片时会直接按「{oddColor}色人偶」点名它，同一张卡可以挂在多个位子上；或者拿原视频重走一遍「AI 白模化」，人偶全变纯白就没有这个显眼的人了。看错了直接忽略。"
+
 #: src/pages/FlowPage.tsx
-msgid "这段话直接发给 AI：{noun}与角色名改错会换错人，其余随便改"
-msgstr "这段话直接发给 AI：{noun}与角色名改错会换错人，其余随便改"
+msgid "这段话直接发给 AI：位置与角色名改错会换错人，其余随便改"
+msgstr "这段话直接发给 AI：位置与角色名改错会换错人，其余随便改"
+
+#: src/pages/FlowPage.tsx
+msgid "这段话直接发给 AI：编号与角色名改错会换错人，其余随便改"
+msgstr "这段话直接发给 AI：编号与角色名改错会换错人，其余随便改"
 
 #: src/utils/wav.ts
 msgid "这段音频只有 {got}s，短于 {minSec}s 下限——换一段长一点的"
@@ -16444,6 +16851,14 @@ msgstr "进行中…"
 #: src/pages/CreatePage.tsx
 msgid "进铸卡桌面"
 msgstr "进铸卡桌面"
+
+#: src/data/templates.ts
+msgid "远端模板加载失败：{why}"
+msgstr "远端模板加载失败：{why}"
+
+#: src/data/templates.ts
+msgid "远端模板加载失败：网络不稳，稍后自动重试"
+msgstr "远端模板加载失败：网络不稳，稍后自动重试"
 
 #: src/pages/CustomCardPage.tsx
 msgid "连不上服务器，现在铸出来的卡会丢（见上）"
@@ -16916,6 +17331,16 @@ msgstr "重试留存"
 msgid "重选方案"
 msgstr "重选方案"
 
+#: src/data/templates.ts
+msgctxt "人偶的主色（挂卡提醒那句话里显示）"
+msgid "金"
+msgstr "金"
+
+#: src/data/templates.ts
+msgctxt "人偶的主色（挂卡提醒那句话里显示）"
+msgid "银"
+msgstr "银"
+
 #: src/studio/StudioPage.tsx
 msgid "铸出第一段之后就能给这条工程起名"
 msgstr "铸出第一段之后就能给这条工程起名"
@@ -17061,6 +17486,11 @@ msgstr "需要 {0} token，余额 {1} 不够——去「我的」页充值"
 #: src/data/account.ts
 msgid "需要先连接服务器并登录"
 msgstr "需要先连接服务器并登录"
+
+#: src/data/templates.ts
+msgctxt "人偶的主色（挂卡提醒那句话里显示）"
+msgid "青"
+msgstr "青"
 
 #: src/studio/ui/AvatarPicker.tsx
 msgid "青年牌手 · 他"
@@ -17234,6 +17664,16 @@ msgstr "麦克风授权好了——再按住一次，照着示例词念。"
 #: src/components/support/HoldToTalk.tsx
 msgid "麦克风授权好了，再按住说一次。"
 msgstr "麦克风授权好了，再按住说一次。"
+
+#: src/data/templates.ts
+msgctxt "人偶的主色（挂卡提醒那句话里显示）"
+msgid "黄"
+msgstr "黄"
+
+#: src/data/templates.ts
+msgctxt "人偶的主色（挂卡提醒那句话里显示）"
+msgid "黑"
+msgstr "黑"
 
 #: src/pages/SupportPersonasPage.tsx
 msgid "默认人设"

@@ -166,7 +166,7 @@ export default function RoleCastBoard({
   //   也挂**有没有可挂的人物卡**（2026-08-28）：卡库空着时"上面那排卡"根本不渲染，
   //   引导反复指着它说话就是指空气——先去造卡，回来第一次真能挂时再弹。
   useAutoGuide("cast", roles.length > 0 && cards.length > 0);
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   /** 底部主按钮的缺省文案。★ 从解构默认值挪到这里：默认参数里拿不到 useLingui 的 t */
   const doneText = doneLabel ?? t`完成挂卡`;
   const sep = t({ message: "、", comment: "列举几个名字时的分隔符" });
@@ -212,7 +212,8 @@ export default function RoleCastBoard({
    * ★ 这里只负责显示：别在组件里补一句"顺便也判判谁最大"，那就是第二处判据了
    *   （而"最大的那个"实测指向的是另一个人，加了会当场说错话）。
    */
-  const prominent = useMemo(() => prominentRoleWarning(roles, dropSlots, boxes), [roles, dropSlots, boxes]);
+  // ★ 依赖里带 i18n.locale：这句话是 data 层按当前界面语言翻好的整句，应用内切语言（不重载）时要跟着重算
+  const prominent = useMemo(() => prominentRoleWarning(roles, dropSlots, boxes), [roles, dropSlots, boxes, i18n.locale]);
   const dragOn =
     ordinal &&
     !!boxes &&
