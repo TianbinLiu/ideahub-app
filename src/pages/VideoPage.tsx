@@ -6,7 +6,7 @@ import { takedownReasonText } from "../api/admin";
 import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import Icon from "../components/Icon";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
-import { Trans } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import BranchPlayer from "../components/BranchPlayer";
 import SegmentPlayer from "../components/SegmentPlayer";
 import Avatar from "../components/Avatar";
@@ -59,6 +59,7 @@ function VideoDeckSection({
   auth: AuthState;
   onGo: () => void;
 }) {
+  const { t } = useLingui();
   const loggedIn = auth === "in";
   const deck = video.deck!;
   const [got, setGot] = useState(() => {
@@ -85,7 +86,8 @@ function VideoDeckSection({
     try {
       const r = await addCards(deck.cards);
       if (!r.synced) {
-        setAddErr(`${r.reason || "这组卡没能同步到服务器"}——卡在这台设备上有，但换台设备或重启后可能就没了，联网后再点一次。`);
+        const why = r.reason || t`这组卡没能同步到服务器`;
+        setAddErr(t`${why}——卡在这台设备上有，但换台设备或重启后可能就没了，联网后再点一次。`);
         return false;
       }
       setGot(true);
@@ -98,9 +100,9 @@ function VideoDeckSection({
   return (
     <section className="mt-6">
       <h2 className="mb-2 text-sm font-semibold text-slate-300">
-        本片卡组
+        <Trans>本片卡组</Trans>
         <span className="ml-2 text-xs font-normal text-slate-500">
-          {deck.name || `${deck.cards.length} 张`}
+          {deck.name || t`${deck.cards.length} 张`}
         </span>
       </h2>
       <div className="flex gap-2.5 no-scrollbar overflow-x-auto pb-1">
@@ -115,8 +117,7 @@ function VideoDeckSection({
           这句话面向**观众**，所以说的是"你拿不到"，不是"作者做错了什么"。 */}
       {deck.cards.some((c) => c.portraitWithheld) && (
         <p className="mt-2 rounded-xl border border-slate-600/60 bg-black/25 px-3 py-2 text-[11px] leading-relaxed text-slate-400">
-          这套卡里有声明过「真实人物」的卡，它的形象参考图只留给作者本人 —— 照片里的人授权的是作者用，不是所有人用。
-          你仍然收得下这张卡的设定（名字、简介、身份句），但出片时得自己给形象。
+          <Trans>这套卡里有声明过「真实人物」的卡，它的形象参考图只留给作者本人 —— 照片里的人授权的是作者用，不是所有人用。你仍然收得下这张卡的设定（名字、简介、身份句），但出片时得自己给形象。</Trans>
         </p>
       )}
       {addErr && (
@@ -129,9 +130,9 @@ function VideoDeckSection({
           onClick={() => void collect()}
           disabled={got || adding}
           className="rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
-          title={loggedIn ? "" : auth === "pending" ? "正在确认登录状态…" : "登录后可收入卡组"}
+          title={loggedIn ? "" : auth === "pending" ? t`正在确认登录状态…` : t`登录后可收入卡组`}
         >
-          {got ? "✓ 已在我的卡组" : adding ? "收取中…" : addErr ? "再试一次" : "收入我的卡组"}
+          {got ? t`✓ 已在我的卡组` : adding ? t`收取中…` : addErr ? t`再试一次` : t`收入我的卡组`}
         </button>
         <button
           onClick={() => {
@@ -147,7 +148,7 @@ function VideoDeckSection({
           }}
           className="flex-1 rounded-xl bg-brand/90 px-4 py-2.5 text-sm font-bold text-ink"
         >
-          🎴 用这套卡去创作
+          <Trans>🎴 用这套卡去创作</Trans>
         </button>
       </div>
     </section>
@@ -160,6 +161,7 @@ export default function VideoPage() {
   const loc = useLocation();
   const user = useCurrentUser();
   const auth = useAuthState();
+  const { t } = useLingui();
   // 订阅作品库：远端模式下 getVideo() 会在后台补一次详情接口（列表不带 comments），
   // 回填是原地改同一个对象，不订阅就永远渲染不出来。
   const version = useVideosVersion();
@@ -278,16 +280,17 @@ export default function VideoPage() {
       return (
         <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
           <Spinner size="lg" />
-          <div className="text-xs">正在打开这条作品…</div>
+          <div className="text-xs"><Trans>正在打开这条作品…</Trans></div>
         </div>
       );
     }
+    const failErr = lookup.status === "failed" ? lookup.error : "";
     const text =
       lookup.status === "missing"
-        ? "这条作品不存在，或已被作者删除"
+        ? t`这条作品不存在，或已被作者删除`
         : lookup.status === "offline"
-          ? "这台设备上没有这条作品 · 当前是离线模式"
-          : `没能打开这条作品：${lookup.status === "failed" ? lookup.error : ""}`;
+          ? t`这台设备上没有这条作品 · 当前是离线模式`
+          : t`没能打开这条作品：${failErr}`;
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center text-slate-400">
         <div className={lookup.status === "failed" ? "text-sm text-rose-300" : "text-sm"}>{text}</div>
@@ -298,10 +301,10 @@ export default function VideoPage() {
               onClick={() => setRetry((n) => n + 1)}
               className="rounded-xl bg-panel px-5 py-2.5 text-sm font-semibold text-slate-100 ring-1 ring-slate-700"
             >
-              重试
+              <Trans>重试</Trans>
             </button>
             <p className="text-[11px] leading-relaxed text-slate-600">
-              内容可能还在，只是这次没取到（网络或服务器的问题）
+              <Trans>内容可能还在，只是这次没取到（网络或服务器的问题）</Trans>
             </p>
           </>
         )}
@@ -316,10 +319,10 @@ export default function VideoPage() {
             }}
             className="text-slate-300"
           >
-            返回
+            <Trans>返回</Trans>
           </button>
           <Link to="/" className="text-brand">
-            返回首页
+            <Trans>返回首页</Trans>
           </Link>
         </div>
       </div>
@@ -335,6 +338,7 @@ export default function VideoPage() {
   //   比没有原因更坏。选哪一档是面板里的事。
   const dlCheck = planDownload(video, piSafe, { scope: "all", branchPath });
   const dlBlockedNow = dlCheck.ok ? null : dlCheck.blocked;
+  const branchPoints = part?.branchTree ? Object.values(part.branchTree.nodes).filter((n) => n.choices.length > 1).length : 0;
 
   function toggleLike() {
     if (!video) return;
@@ -361,10 +365,11 @@ export default function VideoPage() {
       // ★★ 与 CommentSheet 同一条口径：@ 没落地必须说出来，否则就是"@ 了、对方永远
       //   收不到"的静默失败（老服务端会把 mentions 整个 strip 掉，且不报错）。
       if (posted && posted.droppedMentions > 0) {
-        setMentionWarn(`有 ${posted.droppedMentions} 个 @ 没能送达（对方不会收到通知）`);
+        const dropped = posted.droppedMentions;
+        setMentionWarn(t`有 ${dropped} 个 @ 没能送达（对方不会收到通知）`);
       }
     } catch (e) {
-      setCommentErr(e instanceof Error ? e.message : "评论没发出去，请重试");
+      setCommentErr(e instanceof Error ? e.message : t`评论没发出去，请重试`);
     } finally {
       setBusyComment(false);
     }
@@ -389,7 +394,7 @@ export default function VideoPage() {
               链接别人打不开）。 */}
           <button
             onClick={() => setShareOpen(true)}
-            aria-label="分享或保存这条作品"
+            aria-label={t`分享或保存这条作品`}
             className="flex-none rounded-full bg-panel px-2.5 py-1.5 text-slate-300 ring-1 ring-slate-700"
           >
             <Icon name="share" size={16} />
@@ -405,11 +410,11 @@ export default function VideoPage() {
               to={`/edit/${video.id}`}
               className="flex-none rounded-full bg-amber-500/15 px-3 py-1.5 text-xs text-amber-300"
             >
-              ✏️ 编辑
+              <Trans>✏️ 编辑</Trans>
             </Link>
           ) : (
             <Link to="/studio" className="flex-none rounded-full bg-brand/15 px-3 py-1.5 text-xs text-brand">
-              🎴 我也要创作
+              <Trans>🎴 我也要创作</Trans>
             </Link>
           )}
           </>
@@ -443,7 +448,7 @@ export default function VideoPage() {
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5">
                 <span className="text-2xl">🔒</span>
                 <div className="text-sm font-semibold text-slate-100">
-                  本 P 为付费内容 · <span className="tabular-nums text-gold">{fmtTokens(partPrice)} token</span>
+                  <Trans>本 P 为付费内容 · <span className="tabular-nums text-gold">{fmtTokens(partPrice)} token</span></Trans>
                 </div>
                 <button
                   onClick={() => {
@@ -451,7 +456,7 @@ export default function VideoPage() {
                     // ★ 会话还没结论时别把人弹去登录页（见 hooks/useAccount 的 useAuthState）：
                     //   这一步是**花钱**的，"我明明登录着却被要求重新登录"最像被骗
                     if (auth === "pending") {
-                      setPayErr("正在确认登录状态，稍等一下再点。");
+                      setPayErr(t`正在确认登录状态，稍等一下再点。`);
                       return;
                     }
                     if (!user) {
@@ -460,21 +465,20 @@ export default function VideoPage() {
                     }
                     if (!purchasePart(video.id, piSafe, partPrice, video.author)) {
                       const w = walletOf();
-                      setPayErr(
-                        `余额不足（现有 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))}）——去「我的」页充值`,
-                      );
+                      const have = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
+                      setPayErr(t`余额不足（现有 ${have}）——去「我的」页充值`);
                     }
                   }}
                   className="rounded-full bg-gold px-5 py-2 text-sm font-bold text-ink active:scale-95"
                 >
-                  ⚡ 解锁观看
+                  <Trans>⚡ 解锁观看</Trans>
                 </button>
                 {payErr && (
                   <Link to="/me" className="text-xs text-rose-300 underline underline-offset-2">
                     {payErr}
                   </Link>
                 )}
-                <span className="text-[10px] text-slate-400">解锁后永久可看</span>
+                <span className="text-[10px] text-slate-400"><Trans>解锁后永久可看</Trans></span>
               </div>
             </div>
           ) : part.branchTree ? (
@@ -491,12 +495,12 @@ export default function VideoPage() {
             原因写在这里而不是只挂 title：手机没有 hover（CLAUDE.md 点名过的坑）。 */}
         {video.takedown && (
           <div className="mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
-            <p className="text-sm font-semibold text-rose-200">这条作品已被平台下架</p>
+            <p className="text-sm font-semibold text-rose-200"><Trans>这条作品已被平台下架</Trans></p>
             <p className="mt-1 text-xs leading-relaxed text-rose-100/80">
-              {takedownReasonText(video.takedown.reason) || "（管理员没有填写原因）"}
+              {takedownReasonText(video.takedown.reason) || t`（管理员没有填写原因）`}
             </p>
             <p className="mt-1.5 text-[11px] text-slate-400">
-              只有你自己看得到它。把可见性改回公开也没用 —— 这是平台的开关，不是你的那一个。
+              <Trans>只有你自己看得到它。把可见性改回公开也没用 —— 这是平台的开关，不是你的那一个。</Trans>
             </p>
           </div>
         )}
@@ -506,7 +510,7 @@ export default function VideoPage() {
         {navBanner && (
           <div className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
             <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-emerald-200">{navBanner}</p>
-            <button onClick={() => setNavBanner("")} aria-label="知道了" className="flex-none text-[11px] text-emerald-300/80">
+            <button onClick={() => setNavBanner("")} aria-label={t`知道了`} className="flex-none text-[11px] text-emerald-300/80">
               ✕
             </button>
           </div>
@@ -546,7 +550,7 @@ export default function VideoPage() {
           <span className="rounded-full bg-panel px-2.5 py-0.5 text-xs">{videoCategoryLabel(video.category)}</span>
           {part?.branchTree && (
             <span className="rounded-full bg-purple-500/15 px-2.5 py-0.5 text-xs text-purple-300">
-              互动视频 · {Object.values(part.branchTree.nodes).filter((n) => n.choices.length > 1).length} 个分支点
+              <Trans>互动视频 · {branchPoints} 个分支点</Trans>
             </span>
           )}
           <button
@@ -572,13 +576,13 @@ export default function VideoPage() {
             与话题标签同一排 —— 它本身也是"关于这条内容是什么"的说明。 */}
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {isAigcWork(video) && <AigcBadge />}
-          {(video.tags ?? []).map((t) => (
+          {(video.tags ?? []).map((tag) => (
             <button
-              key={t}
-              onClick={() => navigate("/discover", { state: { q: t } })}
+              key={tag}
+              onClick={() => navigate("/discover", { state: { q: tag } })}
               className="rounded-full bg-brand/15 px-2.5 py-1 text-xs text-brand hover:bg-brand/25"
             >
-              #{t}
+              #{tag}
             </button>
           ))}
         </div>
@@ -615,7 +619,7 @@ export default function VideoPage() {
             className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700 py-2.5 text-sm text-slate-200 active:scale-[0.99]"
           >
             <Icon name="download" size={16} />
-            {parts.length > 1 ? "保存这一集到本地" : "保存到本地"}
+            {parts.length > 1 ? t`保存这一集到本地` : t`保存到本地`}
           </button>
         )}
 
@@ -631,13 +635,17 @@ export default function VideoPage() {
                   .getState()
                   .seed(remakeNodesOf(segs, video.deck?.cards ?? []), { mode: "workflow", origin: "solo" });
                 if (ok) navigate("/flow");
-                else setRemakeErr(useFlow.getState().err || "现在铺不了（可能有一段正在生成中），稍后再试");
+                else setRemakeErr(useFlow.getState().err || t`现在铺不了（可能有一段正在生成中），稍后再试`);
                 return ok;
               }, { label: "做同款（丢弃上面那条流水线）", noun: "做同款" })
             }
             className="mt-6 w-full rounded-xl bg-gold/90 px-4 py-2.5 text-sm font-bold text-ink active:scale-[0.99]"
           >
-            ⚡ 做同款：同一份分段剧本{video.deck?.cards.length ? "和卡组" : ""}，生成你自己的版本
+            {video.deck?.cards.length ? (
+              <Trans>⚡ 做同款：同一份分段剧本和卡组，生成你自己的版本</Trans>
+            ) : (
+              <Trans>⚡ 做同款：同一份分段剧本，生成你自己的版本</Trans>
+            )}
           </button>
         )}
         {remakeErr && (
@@ -657,7 +665,7 @@ export default function VideoPage() {
 
         {/* 评论区 */}
         <section className="mt-6 pb-16">
-          <h2 className="mb-3 text-base font-bold text-slate-200">评论 {comments.length}</h2>
+          <h2 className="mb-3 text-base font-bold text-slate-200"><Trans>评论 {comments.length}</Trans></h2>
           <div className="flex gap-2">
             {/* @提及补全与首页评论抽屉是**同一份实现**（铁律六）：分叉了就会出现
                 "抽屉里能 @ 出来、这里 @ 不出来"这种只有用户才发现得了的差异 */}
@@ -666,7 +674,7 @@ export default function VideoPage() {
               onChange={setDraft}
               onPick={(p) => setPicks((ps) => [...ps, p])}
               onEnter={() => void submitComment()}
-              placeholder="说点什么，@ 可以叫上别人"
+              placeholder={t`说点什么，@ 可以叫上别人`}
               className="rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
             <button
@@ -674,7 +682,9 @@ export default function VideoPage() {
               disabled={!draft.trim() || busyComment}
               className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-ink disabled:opacity-40"
             >
-              {busyComment ? "发布中…" : "发布"}
+              {busyComment
+                ? t({ message: "发布中…", context: "评论输入框旁那颗键：正在把这条评论发出去（不是发布作品）" })
+                : t({ message: "发布", context: "评论输入框旁那颗键：把这条评论发出去（不是发布作品）" })}
             </button>
           </div>
           {/* 失败就地说清楚，并且**不清空输入框**——用户打的字还在，改一下就能再发 */}
@@ -705,7 +715,7 @@ export default function VideoPage() {
                 </div>
               </div>
             ))}
-            {comments.length === 0 && <div className="py-8 text-center text-sm text-slate-500">还没有评论，抢个沙发</div>}
+            {comments.length === 0 && <div className="py-8 text-center text-sm text-slate-500"><Trans>还没有评论，抢个沙发</Trans></div>}
           </div>
         </section>
       </main>

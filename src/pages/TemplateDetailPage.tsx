@@ -23,6 +23,8 @@ import TarotCard from "../components/TarotCard";
 import PhotoSubjectPicker from "../components/PhotoSubjectPicker";
 import { viewSourceBlob } from "../data/cardViews";
 import { freshSubjectPick, type SubjectPick } from "../studio/customCardStore";
+import { i18n } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import { useTemplatesVersion } from "./TemplateMarketPage";
@@ -55,6 +57,9 @@ import { useBackOr } from "../hooks/useBackOr";
 import { useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import { CARD_TYPE_LABELS, Card, TPL_CATEGORIES, VideoTemplate, slotLabel, viewsOf } from "../types";
+
+/* i18n-frozen: 配方分镜骨架里的占位符原样（data/templates.fillBeat 按这几个字换成用户那句话）—— 下面列的分镜里写的就是它，界面照原样画才对得上 */
+const THEME_TOKEN = "{{主题}}";
 
 /**
  * 模板卡组里道具卡的「只留主体」（§1 第 8 批，0 token）：取这张卡的主图 → PhotoSubjectPicker → 写回模板。
@@ -152,37 +157,41 @@ function blockoutGate() {
  *   3.7 秒的坏模板以前在这一页全程绿灯，点下去才在方舟撞英文 400 —— 而那句 400
  *   全 app 没人接（没有全局 error toast），用户只会以为按钮坏了。
  */
-function blockoutIssue(t: VideoTemplate): string | null {
+function blockoutIssue(tpl: VideoTemplate): string | null {
   const gate = blockoutGate();
-  if (!gate) return "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来";
-  return r2vPriceIssue(gate.id) ?? refVideoIssue(t.refVideo);
+  // 模块级函数拿不到 useLingui：用 i18n._(msg) 在调用那一刻按当前语言翻
+  if (!gate) return i18n._(msg`白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来`);
+  return r2vPriceIssue(gate.id) ?? refVideoIssue(tpl.refVideo);
 }
 
 /** 白模区：参考视频预览 + 套用成本行。`isOwner` 只影响**措辞**（坏模板对作者要说清
  *  "不是你操作错了"以及重做时怎么才对），判据两边都只有 refVideoIssue 一处。 */
-function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
-  if (!t.refVideo) return null;
+function BlockoutInfo({ t: tpl, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
+  const { t } = useLingui();
+  if (!tpl.refVideo) return null;
   const gate = blockoutGate();
-  const issue = blockoutIssue(t);
+  const issue = blockoutIssue(tpl);
   // issue 为 null 时 gate 必然存在且报得出价（r2vPriceIssue 先查 refVid 再查 r2vMult）
-  const tokens = issue === null ? r2vTokens(t.refVideo.durationSec, gate!.id) : null;
-  const realSec = refVideoRealSec(t.refVideo);
-  const ownerNote = isOwner ? refVideoOwnerNote(t.refVideo) : null;
+  const tokens = issue === null ? r2vTokens(tpl.refVideo.durationSec, gate!.id) : null;
+  const realSec = refVideoRealSec(tpl.refVideo);
+  const ownerNote = isOwner ? refVideoOwnerNote(tpl.refVideo) : null;
+  const billSec = tpl.refVideo.durationSec;
+  const realSecText = realSec?.toFixed(1) ?? "";
   return (
     <div className="mb-4 rounded-xl border border-sky-500/40 bg-sky-500/10 p-3">
       {/* ★ 计价锚点（durationSec，整数）与文件真实秒数（realDurationSec，小数）**都说**：
           只说锚点会让"按 4 秒收费、文件其实 3.7 秒"这件事永远看不见；只说真实秒数又对不上
           账单。老模板没有真实秒数（后加字段，缺一律当好），那时就只显示锚点。 */}
       <div className="mb-2 text-xs font-semibold text-sky-300">
-        ⬜ 白模模板 · 参考视频 {realSec !== null ? `约 ${realSec.toFixed(1)}s（按 ${t.refVideo.durationSec} 秒计费）` : `${t.refVideo.durationSec}s`}
+        {realSec !== null ? t`⬜ 白模模板 · 参考视频 约 ${realSecText}s（按 ${billSec} 秒计费）` : t`⬜ 白模模板 · 参考视频 ${billSec}s`}
       </div>
       {/* ★★ `poster` 不是装饰：Android WebView 下 `<video>` 在用户点播放**之前不画首帧**，
           于是这一块在真机上就是一整片纯黑 —— 看起来像视频坏了或者没加载出来。
           `preload="metadata"` 只保证时长可读，画面照样不画。
           封面从视频地址**派生**（refVideoPoster，唯一实现），不另存一张图。 */}
       <video
-        src={t.refVideo.url}
-        poster={refVideoPoster(t.refVideo) || undefined}
+        src={tpl.refVideo.url}
+        poster={refVideoPoster(tpl.refVideo) || undefined}
         controls
         playsInline
         preload="metadata"
@@ -194,7 +203,7 @@ function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
           指着一个不存在的东西说话，与功能坏了长得一模一样。
           ★ 顺手压到一行：剩下那半句（时长与画幅）是每次都该看见的，留着。 */}
       <p data-guide="template-refvideo" className="text-[11px] leading-relaxed text-slate-400">
-        套用＝复刻这段的场景与运镜，人偶换成你挂的角色卡。时长与画幅跟这段视频走。
+        <Trans>套用＝复刻这段的场景与运镜，人偶换成你挂的角色卡。时长与画幅跟这段视频走。</Trans>
       </p>
       {/* ★ 作者本人先看这一句：坏模板对他来说不是"换一个"，而是"这不是你的错、重做时至少
           选 5 秒"。它替代（不是叠加）下面那句给套用者的话 —— 两句一起显示会让作者以为
@@ -209,7 +218,7 @@ function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
       ) : (
         tokens !== null && (
           <p className="mt-2 text-[11px] leading-relaxed text-slate-300">
-            套用一次约 <b>{fmtTokens(tokens)}</b> token（按模板视频时长计）
+            <Trans>套用一次约 <b>{fmtTokens(tokens)}</b> token（按模板视频时长计）</Trans>
           </p>
         )
       )}
@@ -225,18 +234,19 @@ function BlockoutInfo({ t, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
  *  ⚠ 它**不是**「这条是不是我的」：那个问题由调用方的 `ownedHere` 答。两者在换设备后会分开
  *  （只存在于服务端的模板：是我的 ✓、但改不动 ✗）。这个形参此前叫 `inMine` —— 与那个
  *  已经被拆开的旧概念同名，读的人会重新把两件事合起来，所以改了名。 */
-function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolean; onApply: () => void }) {
+function OwnerBar({ t: tpl, editable, onApply }: { t: VideoTemplate; editable: boolean; onApply: () => void }) {
   const nav = useNavigate();
-  const [title, setTitle] = useState(t.title);
-  const [intro, setIntro] = useState(t.intro);
+  const { t } = useLingui();
+  const [title, setTitle] = useState(tpl.title);
+  const [intro, setIntro] = useState(tpl.intro);
   const [busy, setBusy] = useState(false);
   const [opErr, setOpErr] = useState("");
   /** 删除的第一段：按钮已经变成「真的删掉？」，再点一下才真动手（见下面那颗按钮的 ★★） */
   const [armed, setArmed] = useState(false);
-  const dirty = title !== t.title || intro !== t.intro;
-  const blockout = !!t.refVideo;
-  const rs = remoteStateOf(t);
-  const regIssue = registerIssueOf(t.id);
+  const dirty = title !== tpl.title || intro !== tpl.intro;
+  const blockout = !!tpl.refVideo;
+  const rs = remoteStateOf(tpl);
+  const regIssue = registerIssueOf(tpl.id);
 
   /** 异步操作的统一收口：失败把 message 印出来（全 app 没人监听 emitApiError，
    *  这里不接住就是静默失败——铁律八） */
@@ -258,38 +268,38 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
     if (!blockout) {
       return (
         <button
-          onClick={() => void run(() => setTemplatePublished(t.id, !t.published))}
-          className={`rounded-full px-3.5 py-1.5 text-xs font-semibold ${t.published ? "bg-slate-700 text-slate-200" : "bg-brand text-ink"}`}
+          onClick={() => void run(() => setTemplatePublished(tpl.id, !tpl.published))}
+          className={`rounded-full px-3.5 py-1.5 text-xs font-semibold ${tpl.published ? "bg-slate-700 text-slate-200" : "bg-brand text-ink"}`}
         >
-          {t.published ? "取消发布" : "发布到模板市场"}
+          {tpl.published ? t`取消发布` : t`发布到模板市场`}
         </button>
       );
     }
     // 还没登记上（saveTemplate 之后的异步登记失败了 / 还在路上）
-    if (!t.remoteId) {
+    if (!tpl.remoteId) {
       return regIssue ? (
         <button
-          onClick={() => void run(() => registerTemplate(t.id))}
+          onClick={() => void run(() => registerTemplate(tpl.id))}
           disabled={busy}
           className="rounded-full bg-amber-500/90 px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-40"
         >
-          重新登记到服务器
+          <Trans>重新登记到服务器</Trans>
         </button>
       ) : (
-        <span className="rounded-full bg-slate-700/60 px-3.5 py-1.5 text-xs text-slate-300">正在登记到服务器…</span>
+        <span className="rounded-full bg-slate-700/60 px-3.5 py-1.5 text-xs text-slate-300"><Trans>正在登记到服务器…</Trans></span>
       );
     }
     if (rs?.status === "blocked") {
-      return <span className="rounded-full bg-rose-500/15 px-3.5 py-1.5 text-xs text-rose-300">已被平台下架</span>;
+      return <span className="rounded-full bg-rose-500/15 px-3.5 py-1.5 text-xs text-rose-300"><Trans>已被平台下架</Trans></span>;
     }
-    if (t.published) {
+    if (tpl.published) {
       return (
         <button
-          onClick={() => void run(() => setTemplatePublished(t.id, false))}
+          onClick={() => void run(() => setTemplatePublished(tpl.id, false))}
           disabled={busy}
           className="rounded-full bg-slate-700 px-3.5 py-1.5 text-xs font-bold text-slate-200 disabled:opacity-40"
         >
-          取消发布
+          <Trans>取消发布</Trans>
         </button>
       );
     }
@@ -298,24 +308,24 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
     // （比灰按钮多一次确认机会，且文案永远与服务端一致）
     return (
       <button
-        onClick={() => void run(() => setTemplatePublished(t.id, true))}
+        onClick={() => void run(() => setTemplatePublished(tpl.id, true))}
         disabled={busy}
         className="rounded-full bg-brand px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-40"
       >
-        {rs?.provenAt ? "发布到模板市场" : "发布（需先试炼）"}
+        {rs?.provenAt ? t`发布到模板市场` : t`发布（需先试炼）`}
       </button>
     );
   }
 
   return (
     <div className="mt-4 rounded-xl border border-slate-700/70 bg-panel p-3">
-      <div className="mb-1.5 text-xs font-semibold text-slate-300">✎ 模板信息（只有你能改）</div>
+      <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>✎ 模板信息（只有你能改）</Trans></div>
       {/* 改名改简介写的是本机库；换设备后本机没有这条记录，改了也无处可存（V1 服务端
           没有元数据编辑端点）——藏掉输入框，只留下架/删除这些走服务端的操作，
           别摆一个"保存了却什么都没发生"的假按钮 */}
       {!editable && (
         <p className="mb-2 text-[11px] leading-relaxed text-slate-400">
-          这台设备上没有它的本机记录（换了设备？）。可以在这里下架或删除；改名/改简介需回到当初提取它的设备。
+          <Trans>这台设备上没有它的本机记录（换了设备？）。可以在这里下架或删除；改名/改简介需回到当初提取它的设备。</Trans>
         </p>
       )}
       {editable && (
@@ -323,14 +333,14 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="模板名"
+            placeholder={t`模板名`}
             className="mb-2 w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
           />
           <textarea
             value={intro}
             onChange={(e) => setIntro(e.target.value)}
             rows={2}
-            placeholder="一句话说明这个模板能做什么样的片子"
+            placeholder={t`一句话说明这个模板能做什么样的片子`}
             className="mb-2 w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
           />
         </>
@@ -340,15 +350,15 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
           换设备没有本机记录照样能改——与只写本机库的改名/改简介不是一回事。
           点亮着的那颗 = 再点一下清掉。 */}
       <div className="mb-2">
-        <div className="mb-1 text-[10px] text-slate-500">市场分类（发布前挑一个）</div>
+        <div className="mb-1 text-[10px] text-slate-500"><Trans>市场分类（发布前挑一个）</Trans></div>
         <div className="flex flex-wrap gap-1.5">
           {TPL_CATEGORIES.map((c) => (
             <button
               key={c.id}
               disabled={busy}
-              onClick={() => void run(() => setTemplateCategory(t.id, t.category === c.id ? "" : c.id))}
+              onClick={() => void run(() => setTemplateCategory(tpl.id, tpl.category === c.id ? "" : c.id))}
               className={`rounded-full px-2.5 py-1 text-[11px] disabled:opacity-40 ${
-                t.category === c.id ? "bg-brand/25 text-brand ring-1 ring-brand/50" : "bg-slate-700/60 text-slate-300"
+                tpl.category === c.id ? "bg-brand/25 text-brand ring-1 ring-brand/50" : "bg-slate-700/60 text-slate-300"
               }`}
             >
               {c.label}
@@ -359,11 +369,11 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
       <div className="flex flex-wrap items-center gap-2">
         {editable && (
           <button
-            onClick={() => updateTemplate(t.id, { title: title.trim() || t.title, intro: intro.trim() })}
+            onClick={() => updateTemplate(tpl.id, { title: title.trim() || tpl.title, intro: intro.trim() })}
             disabled={!dirty}
             className="rounded-full bg-slate-700 px-3.5 py-1.5 text-xs font-semibold text-slate-100 disabled:opacity-40"
           >
-            保存
+            <Trans>保存</Trans>
           </button>
         )}
         {publishArea()}
@@ -384,7 +394,7 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
               return;
             }
             void run(async () => {
-              await deleteTemplateEverywhere(t.id);
+              await deleteTemplateEverywhere(tpl.id);
               // ★ replace 不是 push：被删的这一页不能留在历史栈里 —— 留着的话在市场页按返回
               //   会回到一个已经不存在的模板（2026-09-05 主人真机：「返回到上一访问的模板页」）
               nav("/templates", { replace: true });
@@ -396,7 +406,7 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
             armed ? "bg-rose-500 font-bold text-white" : "text-rose-400"
           }`}
         >
-          {armed ? "真的删掉？（连云端视频一起）" : "删除"}
+          {armed ? t`真的删掉？（连云端视频一起）` : t`删除`}
         </button>
       </div>
       {/* ★★ 核对角色位的入口（白模 V2，两档常驻）：作者是从**这一页**点的发布，而发布闸的
@@ -413,34 +423,34 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
           入口内部只问 remoteStateOf 那份快照。 */}
       {/* empty:hidden —— 入口对经典配方/没角色位的模板返回 null，那时这个壳不该留下一道空白 */}
       <div className="mt-2 empty:hidden">
-        <RoleConfirmEntry t={t} />
+        <RoleConfirmEntry t={tpl} />
       </div>
       {/* 识别角色位（2026-08-23 从列表格子挪进来，与核对同属「作者工作台」）：核对之前
           先让 AI 认一遍画面里有哪些人。DetectRolesEntry 自己判「只对白模、只对本人、
           没核对过」，不满足就返回 null 自动隐藏（外层 empty:hidden 收掉空壳）。 */}
       <div className="mt-2 flex flex-wrap items-center gap-2 empty:hidden">
-        <DetectRolesEntry t={t} />
+        <DetectRolesEntry t={tpl} />
       </div>
       {/* 白模的试炼闸说明与操作：发布前须用本模板真实出过一次片。
           为什么有这道门也要说给作者听——方舟任务受理后失败不退费，坏模板的钱
           该坏在作者自己那一次，不该让每个套用的人各赔一次 */}
-      {blockout && t.remoteId && rs?.status !== "blocked" && !t.published && (
+      {blockout && tpl.remoteId && rs?.status !== "blocked" && !tpl.published && (
         <div className="mt-2 rounded-lg bg-black/25 px-2.5 py-2 text-[11px] leading-relaxed text-slate-400">
           {rs?.provenAt ? (
-            <span className="text-emerald-300">✓ 试炼通过——你已经用这个模板真实出过片，可以发布了。</span>
+            <span className="text-emerald-300"><Trans>✓ 试炼通过——你已经用这个模板真实出过片，可以发布了。</Trans></span>
           ) : (
             <>
-              发布前须用本模板<b>真实出过一次片</b>（套用它、挂上角色卡、付费出一段）——这一步能确保套用你模板的人不会白花钱。
+              <Trans>发布前须用本模板<b>真实出过一次片</b>（套用它、挂上角色卡、付费出一段）——这一步能确保套用你模板的人不会白花钱。</Trans>
               <span className="mt-1 flex gap-2">
                 <button onClick={onApply} className="rounded-full bg-slate-700 px-2.5 py-1 text-[11px] text-slate-100">
-                  去出一段片
+                  <Trans>去出一段片</Trans>
                 </button>
                 <button
-                  onClick={() => void run(() => refreshRemoteTemplate(t.id))}
+                  onClick={() => void run(() => refreshRemoteTemplate(tpl.id))}
                   disabled={busy}
                   className="rounded-full bg-slate-700/60 px-2.5 py-1 text-[11px] text-slate-300 disabled:opacity-40"
                 >
-                  出过了？刷新状态
+                  <Trans>出过了？刷新状态</Trans>
                 </button>
               </span>
             </>
@@ -449,16 +459,16 @@ function OwnerBar({ t, editable, onApply }: { t: VideoTemplate; editable: boolea
       )}
       {/* 登记失败的原因要印在页面上（重试按钮在上面）。regIssue 来自 data/templates
           的登记旁路——不印的话它只活在 console 里，用户面对的是"发布按钮永远没反应" */}
-      {blockout && !t.remoteId && regIssue && (
+      {blockout && !tpl.remoteId && regIssue && (
         <p className="mt-2 text-[11px] leading-relaxed text-amber-300/90">{regIssue}</p>
       )}
-      {blockout && t.remoteId && (
+      {blockout && tpl.remoteId && (
         <p className="mt-2 text-[10px] text-slate-500">
-          标题/简介的修改只改本机显示；市场里展示的是登记那一刻的版本。
+          <Trans>标题/简介的修改只改本机显示；市场里展示的是登记那一刻的版本。</Trans>
         </p>
       )}
       {opErr && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{opErr}</p>}
-      {t.published && <p className="mt-2 text-[10px] text-slate-500">已在模板市场公开，别人可以直接套用出片。</p>}
+      {tpl.published && <p className="mt-2 text-[10px] text-slate-500"><Trans>已在模板市场公开，别人可以直接套用出片。</Trans></p>}
     </div>
   );
 }
@@ -471,13 +481,14 @@ export default function TemplateDetailPage() {
   useAutoGuide("tpldetail", true);
   useTemplatesVersion();
   useSocialVersion();
+  const { t } = useLingui();
   const { id } = useParams();
   const nav = useNavigate();
   // 有上一页就回退，深链冷启动时退回模板市场（hooks/useBackOr）
   const back = useBackOr("/templates");
   const user = useCurrentUser();
   useCountView("template", id);
-  const t = id ? getTemplate(id) : null;
+  const tpl = id ? getTemplate(id) : null;
   const [applyErr, setApplyErr] = useState("");
   // 套用前的在途流水线守卫（唯一实现，与模板货架共用）
   const { guard, dialog: discardDialog } = useApplyTemplate();
@@ -494,7 +505,7 @@ export default function TemplateDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    if (!id || t || !looksRemote) return;
+    if (!id || tpl || !looksRemote) return;
     let alive = true;
     void fetchRemoteTemplateById(id).then((ok) => {
       if (alive && !ok) setRemoteMiss(true);
@@ -502,13 +513,13 @@ export default function TemplateDetailPage() {
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- t 到货靠 emit 重渲，这里只在 id 变化时回源
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tpl 到货靠 emit 重渲，这里只在 id 变化时回源
   }, [id, looksRemote]);
 
-  if (!t) {
+  if (!tpl) {
     if (looksRemote && !remoteMiss) {
       return (
-        <EmptyState full loading text="正在从服务器取这个模板…" />
+        <EmptyState full loading text={t`正在从服务器取这个模板…`} />
       );
     }
     return (
@@ -516,8 +527,8 @@ export default function TemplateDetailPage() {
       <EmptyState
         full
         icon="cards"
-        text="这个模板不存在或已被作者删除"
-        cta={{ label: "去模板市场", to: "/templates", replace: true, primary: true }}
+        text={t`这个模板不存在或已被作者删除`}
+        cta={{ label: t`去模板市场`, to: "/templates", replace: true, primary: true }}
       />
     );
   }
@@ -537,17 +548,21 @@ export default function TemplateDetailPage() {
   //       `updateTemplate` 能写到的就只有那一份，它在 mine 里找不到就静默 return。
   //   合成一个的后果（真发生过）：换设备后「这台设备上没有它的本机记录」那句永不显示，
   //   输入框与「保存」照常渲染，点保存**什么都不会发生、零报错**。
-  const ownedHere = myTemplates().some((x) => x.id === t.id);
-  const editableHere = hasLocalTemplate(t.id);
-  const rs = remoteStateOf(t);
-  const isMine = t.refVideo ? (rs ? rs.isOwner : ownedHere) : ownedHere && user?.name === t.author;
+  const ownedHere = myTemplates().some((x) => x.id === tpl.id);
+  const editableHere = hasLocalTemplate(tpl.id);
+  const rs = remoteStateOf(tpl);
+  const isMine = tpl.refVideo ? (rs ? rs.isOwner : ownedHere) : ownedHere && user?.name === tpl.author;
 
   // 白模在闸门没开 / 模板视频本身不合方舟窗口时「看得见但点不动 + 说原因」
   // （原因印在 BlockoutInfo 的成本行里，作者本人看到的是另一句措辞）
-  const applyBlocked = t.refVideo ? blockoutIssue(t) : null;
+  const applyBlocked = tpl.refVideo ? blockoutIssue(tpl) : null;
+  const tplSecs = tpl.refVideo ? (refVideoRealSec(tpl.refVideo) ?? tpl.refVideo.durationSec).toFixed(1) : "";
+  const beatCount = tpl.recipe.beats.length;
+  const beatSec = tpl.recipe.durationSec;
+  const cardCount = tpl.cards.length;
 
   function apply() {
-    if (!t) return;
+    if (!tpl) return;
     setApplyErr("");
     // ★ 与货架那条同一个守卫（见 useApplyTemplate 的 ★★）：套用是整表覆盖，
     //   在途流水线里已经花钱炼出来的段会被抹掉，旧草稿还会被后续自动存盘覆盖
@@ -556,23 +571,23 @@ export default function TemplateDetailPage() {
 
   /** 返回真 = 真的套上了（守卫据此决定要不要断开旧草稿，见 useApplyTemplate 的 ★★） */
   function applyNow(): boolean {
-    if (!t) return false;
+    if (!tpl) return false;
     // ★★ **分段组要整组套**（2026-08-21 第八轮扫描）：这一页原来无脑走 applyTemplate（单条），
     //   于是从组里任何一段的详情页点「用它出片」，只铺第 1 段、其余段静默消失，
     //   还把 mode 退成简约 —— 而模板货架那条路（pick）早就是整组套用，两条入口对同一个
     //   模板做两件事。规则与措辞都取自货架那份，不在这里另造一条。
-    const parts = templateGroupOf(t);
-    if (t.group && parts.length !== t.group.count) {
+    const parts = templateGroupOf(tpl);
+    if (tpl.group && parts.length !== tpl.group.count) {
+      const count = tpl.group.count;
+      const got = parts.length;
       setApplyErr(
-        `这是一条分成 ${t.group.count} 段的模板，但这台设备上只拿到了 ${parts.length} 段 —— ` +
-          `整组套用会少内容，所以先不套。下拉刷新试试；如果是作者只发布了其中几段（组内每段各自发布），` +
-          `等其余段发布出来再用。`,
+        t`这是一条分成 ${count} 段的模板，但这台设备上只拿到了 ${got} 段 —— 整组套用会少内容，所以先不套。下拉刷新试试；如果是作者只发布了其中几段（组内每段各自发布），等其余段发布出来再用。`,
       );
       return false;
     }
     if (parts.length > 1) {
       if (!useFlow.getState().applyTemplateGroup(parts)) {
-        setApplyErr(useFlow.getState().err || "这一组模板暂时套不了");
+        setApplyErr(useFlow.getState().err || t`这一组模板暂时套不了`);
         return false;
       }
       nav("/flow"); // 整组是白模段，挂卡入口在工作流页每一段的编辑窗里
@@ -580,8 +595,8 @@ export default function TemplateDetailPage() {
     }
     // applyTemplate 返回 false = 被闸门整句拒绝（err 在 flow store 里）——把原因就地
     // 印出来，不能让按钮看起来"点了没反应"（铁律八）
-    if (!useFlow.getState().applyTemplate(t)) {
-      setApplyErr(useFlow.getState().err || "套用失败");
+    if (!useFlow.getState().applyTemplate(tpl)) {
+      setApplyErr(useFlow.getState().err || t`套用失败`);
       return false;
     }
     // ★★ V2 白模（有角色位）：**先领去挂卡**，再进工作流。
@@ -592,7 +607,7 @@ export default function TemplateDetailPage() {
     //   除了发呆没有别的可做。工作流页仍留着「改挂卡」入口，从模板市场直接套用
     //   （那一页不在本次施工位）进来的人靠它补上这一步。
     //   ⚠ 入参形状与回程约定见 VideoEditorPage 顶部注释；结果由 FlowPage 收。
-    const castState = castEditorState(t);
+    const castState = castEditorState(tpl);
     if (castState) nav("/video-editor", { state: castState });
     else nav("/flow");
     return true;
@@ -602,33 +617,31 @@ export default function TemplateDetailPage() {
     <div className="min-h-full px-4 pb-10">
       <PageHeader sticky inset
         onBack={back}
-        title="模板详情"
+        title={t`模板详情`}
         right={
           <>
             <HelpButton tour="tpldetail" />
-            {!t.published && isMine && (
-              <span className="flex-none rounded-full px-2 py-0.5 bg-amber-500/15 text-[10px] text-amber-400">未发布</span>
+            {!tpl.published && isMine && (
+              <span className="flex-none rounded-full px-2 py-0.5 bg-amber-500/15 text-[10px] text-amber-400"><Trans>未发布</Trans></span>
             )}
           </>
         }
       />
 
       <div className="mb-3 overflow-hidden rounded-2xl bg-black/40">
-        {t.cover && <img src={t.cover} alt="" className="aspect-[16/10] w-full object-cover" />}
+        {tpl.cover && <img src={tpl.cover} alt="" className="aspect-[16/10] w-full object-cover" />}
       </div>
 
-      <h2 className="text-lg font-bold text-slate-100">{t.title}</h2>
+      <h2 className="text-lg font-bold text-slate-100">{tpl.title}</h2>
       <div className="mt-0.5 mb-2 text-xs text-slate-500">
-        @{t.author} ·{" "}
+        @{tpl.author} ·{" "}
         {/* ★ 有真实秒数就报真实的：这一行是"这个模板长什么样"，不是账单。
             计价那个整数锚点在下面 BlockoutInfo 的成本行里说清楚。 */}
-        {t.refVideo
-          ? `白模复刻 · 模板视频 ${(refVideoRealSec(t.refVideo) ?? t.refVideo.durationSec).toFixed(1)}s`
-          : `${t.recipe.beats.length} 段 · 每段 ${t.recipe.durationSec}s`}
+        {tpl.refVideo ? t`白模复刻 · 模板视频 ${tplSecs}s` : t`${beatCount} 段 · 每段 ${beatSec}s`}
       </div>
-      <p className="mb-4 text-sm leading-relaxed text-slate-300">{t.intro}</p>
+      <p className="mb-4 text-sm leading-relaxed text-slate-300">{tpl.intro}</p>
 
-      <BlockoutInfo t={t} isOwner={isMine} />
+      <BlockoutInfo t={tpl} isOwner={isMine} />
 
       <button
         onClick={apply}
@@ -636,7 +649,7 @@ export default function TemplateDetailPage() {
         title={applyBlocked ?? undefined}
         className="mb-1 block w-full rounded-xl bg-brand py-2.5 text-center text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
       >
-        ⚡ 用这个模板出片{t.refVideo ? "（挂上你的角色卡）" : "（只需一句话）"}
+        {tpl.refVideo ? <Trans>⚡ 用这个模板出片（挂上你的角色卡）</Trans> : <Trans>⚡ 用这个模板出片（只需一句话）</Trans>}
       </button>
       {discardDialog}
       {applyErr && <p className="mb-3 text-xs leading-relaxed text-rose-300">{applyErr}</p>}
@@ -647,20 +660,20 @@ export default function TemplateDetailPage() {
           就能做完，把它们常驻展开只会把第一屏推到屏幕外。折叠壳不改内部一个字。 */}
       <details className="mb-4 rounded-xl border border-slate-700/70 bg-panel/60">
         <summary className="cursor-pointer list-none px-3 py-2.5 text-xs font-semibold text-slate-300">
-          🧪 怎么做出来的{t.cards.length > 0 ? ` · 含 ${t.cards.length} 张卡` : ""}
+          {cardCount > 0 ? <Trans>🧪 怎么做出来的 · 含 {cardCount} 张卡</Trans> : <Trans>🧪 怎么做出来的</Trans>}
         </summary>
         <div className="px-3 pb-3">
         {/* 生成配方：明着给，用户才知道它为什么像，也才能照着改 */}
         <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
-          <div className="mb-1.5 text-xs font-semibold text-slate-300">🧪 生成配方</div>
+          <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🧪 生成配方</Trans></div>
           <div className="mb-2">
-            <div className="mb-1 text-[11px] text-slate-500">画面质感与运镜</div>
-            <p className="text-xs leading-relaxed text-slate-400">{t.recipe.styleHint}</p>
+            <div className="mb-1 text-[11px] text-slate-500"><Trans>画面质感与运镜</Trans></div>
+            <p className="text-xs leading-relaxed text-slate-400">{tpl.recipe.styleHint}</p>
           </div>
           <div className="mb-2">
-            <div className="mb-1 text-[11px] text-slate-500">分镜骨架（{"{{主题}}"} 会换成你那句话）</div>
+            <div className="mb-1 text-[11px] text-slate-500"><Trans>分镜骨架（{THEME_TOKEN} 会换成你那句话）</Trans></div>
             <ol className="space-y-1">
-              {t.recipe.beats.map((b, i) => (
+              {tpl.recipe.beats.map((b, i) => (
                 <li key={i} className="rounded-lg bg-black/25 px-2.5 py-1.5 text-xs leading-relaxed text-slate-300">
                   <span className="mr-1.5 text-slate-500">{i + 1}.</span>
                   {b}
@@ -668,25 +681,25 @@ export default function TemplateDetailPage() {
               ))}
             </ol>
           </div>
-          {t.source && (
+          {tpl.source && (
             <div>
-              <div className="mb-1 text-[11px] text-slate-500">参考画面特征</div>
-              <p className="text-xs leading-relaxed text-slate-500">{t.source}</p>
+              <div className="mb-1 text-[11px] text-slate-500"><Trans>参考画面特征</Trans></div>
+              <p className="text-xs leading-relaxed text-slate-500">{tpl.source}</p>
             </div>
           )}
         </div>
 
-        {t.cards.length > 0 && (
+        {tpl.cards.length > 0 && (
           <div className="mb-4">
-            <div className="mb-1.5 text-xs font-semibold text-slate-300">🎴 模板卡组 · {t.cards.length} 张</div>
+            <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🎴 模板卡组 · {cardCount} 张</Trans></div>
             <div className="grid grid-cols-3 gap-2">
-              {t.cards.map((c) => (
+              {tpl.cards.map((c) => (
                 <div key={c.id}>
                   <Link to={`/card/${c.id}`} state={{ card: c }}>
                     <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} />
                   </Link>
                   {/* ★ 只给改得动的作者（isMine && editableHere，两个问题的区别见上面 ★★）：写回的是本机库那份 */}
-                  {isMine && editableHere && c.type === "prop" && <TemplatePropTrim tplId={t.id} card={c} />}
+                  {isMine && editableHere && c.type === "prop" && <TemplatePropTrim tplId={tpl.id} card={c} />}
                 </div>
               ))}
             </div>
@@ -699,9 +712,9 @@ export default function TemplateDetailPage() {
           是空的，但作者对自己已发布的模板必须仍有下架/删除入口，否则作废/侵权模板
           只能干挂在市场上被人付费套用）。经典路 isMine 本身就含 ownedHere，行为不变。
           ★ 传下去的是 editableHere（改得动吗），与 isMine（是不是我的）是两个问题——见上面 ★★ */}
-      {isMine && <OwnerBar t={t} editable={editableHere} onApply={apply} />}
+      {isMine && <OwnerBar t={tpl} editable={editableHere} onApply={apply} />}
 
-      <SocialPanel kind="template" id={t.id} />
+      <SocialPanel kind="template" id={tpl.id} />
     </div>
   );
 }
