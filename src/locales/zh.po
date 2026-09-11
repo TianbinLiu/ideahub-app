@@ -484,9 +484,17 @@ msgstr "{durSec} 秒"
 msgid "{installs} 人装过"
 msgstr "{installs} 人装过"
 
+#: src/pages/SupportPage.tsx
+msgid "{msgCount} 条"
+msgstr "{msgCount} 条"
+
 #: src/components/support/VoiceSheet.tsx
 msgid "{name}的声音"
 msgstr "{name}的声音"
+
+#: src/pages/SupportPage.tsx
+msgid "{name}走神了，再发一次试试。"
+msgstr "{name}走神了，再发一次试试。"
 
 #: src/pages/PublishPage.tsx
 msgid "{segCount} 段 · 共 {totalText}"
@@ -1219,6 +1227,10 @@ msgstr "3D 桌面摆卡、推演走向"
 msgid "AI 分析哪几帧"
 msgstr "AI 分析哪几帧"
 
+#: src/pages/SupportPage.tsx
+msgid "AI 回答仅供参考，涉及退款与账号的事会转人工"
+msgstr "AI 回答仅供参考，涉及退款与账号的事会转人工"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "AI 图位生成好了——回工坊点「从视频提取」接着存卡"
 msgstr "AI 图位生成好了——回工坊点「从视频提取」接着存卡"
@@ -1226,6 +1238,10 @@ msgstr "AI 图位生成好了——回工坊点「从视频提取」接着存卡
 #: src/pages/SettingsPage.tsx
 msgid "AI 客服 · 帮助与反馈"
 msgstr "AI 客服 · 帮助与反馈"
+
+#: src/pages/SupportPage.tsx
+msgid "AI 对话未开通，可直接转人工"
+msgstr "AI 对话未开通，可直接转人工"
 
 #: src/components/CoverPicker.tsx
 msgid "AI 封面工坊"
@@ -1508,6 +1524,15 @@ msgstr "互动视频没有单条成片。"
 msgid "人偶编号"
 msgstr "人偶编号"
 
+#: src/pages/SupportPage.tsx
+msgid "人格"
+msgstr "人格"
+
+#. placeholder {0}: persona.name
+#: src/pages/SupportPage.tsx
+msgid "人格：{0}"
+msgstr "人格：{0}"
+
 #. placeholder {0}: at + 1
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "人物{0}"
@@ -1581,6 +1606,15 @@ msgstr "以后再说"
 msgid "以当前封面为参考图，按要求修改"
 msgstr "以当前封面为参考图，按要求修改"
 
+#: src/pages/SupportPage.tsx
+msgid "会把你的描述一起交给人工客服，回复会出现在「通知」和「我的工单」里。"
+msgstr "会把你的描述一起交给人工客服，回复会出现在「通知」和「我的工单」里。"
+
+#. placeholder {0}: transcript.length
+#: src/pages/SupportPage.tsx
+msgid "会把最近 {0} 条对话一起交给人工客服，回复会出现在「通知」和「我的工单」里。"
+msgstr "会把最近 {0} 条对话一起交给人工客服，回复会出现在「通知」和「我的工单」里。"
+
 #: src/pages/PublishPage.tsx
 msgid "会替换《{originTitle}》的内容，链接不变。"
 msgstr "会替换《{originTitle}》的内容，链接不变。"
@@ -1635,6 +1669,10 @@ msgstr "作品与卡片已同步到服务器，换设备登录同一账号即可
 msgid "作品内容"
 msgstr "作品内容"
 
+#: src/pages/SupportPage.tsx
+msgid "你 10 分钟内已经提交过工单 #{short}，这次的内容已并入同一张，客服会一起看。"
+msgstr "你 10 分钟内已经提交过工单 #{short}，这次的内容已并入同一张，客服会一起看。"
+
 #: src/pages/WorkshopPage.tsx
 msgid "你可以在自己的卡片详情页按「分享到创意工坊」，成为第一个"
 msgstr "你可以在自己的卡片详情页按「分享到创意工坊」，成为第一个"
@@ -1642,6 +1680,10 @@ msgstr "你可以在自己的卡片详情页按「分享到创意工坊」，成
 #: src/pages/WorkshopPage.tsx
 msgid "你可以第一个"
 msgstr "你可以第一个"
+
+#: src/pages/SupportPage.tsx
+msgid "你好，我是{name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。"
+msgstr "你好，我是{name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "你的设置（官网同步）"
@@ -1757,6 +1799,7 @@ msgid "保留了框内背景（{size}{up}）——卡面仍带背景，出片时
 msgstr "保留了框内背景（{size}{up}）——卡面仍带背景，出片时 AI 可能把背景里的东西也画进去"
 
 #: src/components/DownloadSheet.tsx
+#: src/pages/SupportPage.tsx
 msgid "停止"
 msgstr "停止"
 
@@ -1793,6 +1836,10 @@ msgstr "先不换"
 msgid "先不改"
 msgstr "先不改"
 
+#: src/pages/SupportPage.tsx
+msgid "先不用"
+msgstr "先不用"
+
 #: src/components/support/VoiceSheet.tsx
 msgid "先加一味音色再保存。"
 msgstr "先加一味音色再保存。"
@@ -1828,6 +1875,10 @@ msgstr "先给视频起个标题"
 #: src/components/VideoCardAnnotator.tsx
 msgid "先给这张卡起个名字"
 msgstr "先给这张卡起个名字"
+
+#: src/pages/SupportPage.tsx
+msgid "先说一句你遇到了什么，客服才知道从哪儿开始。"
+msgstr "先说一句你遇到了什么，客服才知道从哪儿开始。"
 
 #: src/pages/FeedPage.tsx
 msgid "全屏"
@@ -2122,6 +2173,7 @@ msgid "切换失败，稍后再试。"
 msgstr "切换失败，稍后再试。"
 
 #: src/components/TabBar.tsx
+#: src/pages/SupportPage.tsx
 msgid "创作"
 msgstr "创作"
 
@@ -2571,12 +2623,17 @@ msgstr "发起授权没成：{0}——可以改用「填 asset ID」那条路"
 
 #: src/components/CommentSheet.tsx
 #: src/components/flow/FlowCanvas.tsx
+#: src/pages/SupportPage.tsx
 msgid "发送"
 msgstr "发送"
 
 #: src/components/CommentSheet.tsx
 msgid "发送中…"
 msgstr "发送中…"
+
+#: src/pages/SupportPage.tsx
+msgid "发送失败"
+msgstr "发送失败"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "取下"
@@ -2651,6 +2708,7 @@ msgstr "取流超时（窗口在后台时浏览器不解码视频）"
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/CardDetailPage.tsx
 #: src/pages/EditPage.tsx
+#: src/pages/SupportPage.tsx
 msgid "取消"
 msgstr "取消"
 
@@ -2815,6 +2873,10 @@ msgstr "名字（必填，≤{NAME_MAX} 字）"
 msgid "启梦 · 有想法，就是梦想启程的第一步"
 msgstr "启梦 · 有想法，就是梦想启程的第一步"
 
+#: src/pages/SupportPage.tsx
+msgid "启梦 AI 客服 · 解决不了转人工"
+msgstr "启梦 AI 客服 · 解决不了转人工"
+
 #: src/pages/SupportModelsPage.tsx
 msgid "启梦官方"
 msgstr "启梦官方"
@@ -2822,6 +2884,10 @@ msgstr "启梦官方"
 #: src/components/VoiceRecorder.tsx
 msgid "周末打算去一趟菜市场，买点新鲜的菜，晚上做一顿好吃的。"
 msgstr "周末打算去一趟菜市场，买点新鲜的菜，晚上做一顿好吃的。"
+
+#: src/pages/SupportPage.tsx
+msgid "和 AI 客服聊不明白的问题，点「转人工」就会出现在这里"
+msgstr "和 AI 客服聊不明白的问题，点「转人工」就会出现在这里"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "唤起指令句式（也可以输入 /）"
@@ -2906,6 +2972,10 @@ msgstr "在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑�
 msgid "在哪几帧切开"
 msgstr "在哪几帧切开"
 
+#: src/pages/SupportPage.tsx
+msgid "在想…"
+msgstr "在想…"
+
 #: src/studio/canvasAgent.ts
 msgid "在末尾追加"
 msgstr "在末尾追加"
@@ -2918,6 +2988,10 @@ msgstr "在电脑上传更方便的话，官网 ideahubs.org 的 Live2D 模型�
 msgid "在画面上拖一下；不满意再拖就重画"
 msgstr "在画面上拖一下；不满意再拖就重画"
 
+#: src/pages/SupportPage.tsx
+msgid "在线"
+msgstr "在线"
+
 #: src/pages/NotificationsPage.tsx
 msgid "在评论里 @ 了你"
 msgstr "在评论里 @ 了你"
@@ -2925,6 +2999,10 @@ msgstr "在评论里 @ 了你"
 #: src/components/flow/FlowCanvas.tsx
 msgid "填入默认写法（填完还能改）"
 msgstr "填入默认写法（填完还能改）"
+
+#: src/pages/SupportPage.tsx
+msgid "声音"
+msgstr "声音"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "声音市场"
@@ -3136,14 +3214,30 @@ msgstr "官方形象读不到（这台服务器可能还没有）。"
 msgid "官方技能"
 msgstr "官方技能"
 
+#: src/pages/SupportPage.tsx
+msgid "客服"
+msgstr "客服"
+
 #: src/pages/NotificationsPage.tsx
 msgid "客服回复了你的工单"
 msgstr "客服回复了你的工单"
+
+#: src/pages/SupportPage.tsx
+msgid "客服工单"
+msgstr "客服工单"
 
 #. placeholder {0}: AI_REAL ? EXAMPLES[lang].template : EXAMPLES[lang].describe
 #: src/components/flow/FlowCanvas.tsx
 msgid "对画布说话：{0}"
 msgstr "对画布说话：{0}"
+
+#: src/pages/SupportPage.tsx
+msgid "对话未开通"
+msgstr "对话未开通"
+
+#: src/pages/SupportPage.tsx
+msgid "对话记录"
+msgstr "对话记录"
 
 #: src/components/BranchPlayer.tsx
 #: src/components/CoverPicker.tsx
@@ -3159,6 +3253,10 @@ msgstr "封面上传失败：{0}"
 #: src/pages/DeckDetailPage.tsx
 msgid "封面卡"
 msgstr "封面卡"
+
+#: src/pages/SupportPage.tsx
+msgid "小梦"
+msgstr "小梦"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "就是他"
@@ -3179,6 +3277,18 @@ msgstr "展开"
 #: src/components/TemplateShelf.tsx
 msgid "展开各段 ▾"
 msgstr "展开各段 ▾"
+
+#: src/pages/SupportPage.tsx
+msgid "工单"
+msgstr "工单"
+
+#: src/pages/SupportPage.tsx
+msgid "工单 #{short} 已提交。人工客服看到后会在「通知」里回复你，也会发到你留的邮箱。"
+msgstr "工单 #{short} 已提交。人工客服看到后会在「通知」里回复你，也会发到你留的邮箱。"
+
+#: src/pages/SupportPage.tsx
+msgid "工单 #{short} 已提交。人工客服看到后会在「通知」里回复你。"
+msgstr "工单 #{short} 已提交。人工客服看到后会在「通知」里回复你。"
 
 #: src/components/TabBar.tsx
 msgid "工坊"
@@ -3564,6 +3674,10 @@ msgstr "当前是本地模式（没有连服务器），黑名单是账号级的
 msgid "当前是本地账号：没有服务器，也就没有可注销的云端账号。 你的数据都在这台设备上——清掉 App 数据（或卸载）即等同于注销。"
 msgstr "当前是本地账号：没有服务器，也就没有可注销的云端账号。 你的数据都在这台设备上——清掉 App 数据（或卸载）即等同于注销。"
 
+#: src/pages/SupportPage.tsx
+msgid "当前是离线模式，客服需要联网。"
+msgstr "当前是离线模式，客服需要联网。"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "录制中…（实际播这一段）"
 msgstr "录制中…（实际播这一段）"
@@ -3571,6 +3685,15 @@ msgstr "录制中…（实际播这一段）"
 #: src/components/VideoCardAnnotator.tsx
 msgid "录制中途被系统暂停了（多半是切到了后台）——回到这一页重新点一次「录这一段」"
 msgstr "录制中途被系统暂停了（多半是切到了后台）——回到这一页重新点一次「录这一段」"
+
+#: src/pages/SupportPage.tsx
+msgid "形象"
+msgstr "形象"
+
+#. placeholder {0}: marketModel.name
+#: src/pages/SupportPage.tsx
+msgid "形象：{0}"
+msgstr "形象：{0}"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "形象图没画成：{why}——原片裁剪没受影响，可以直接存或再试一次"
@@ -3603,6 +3726,10 @@ msgstr "微信"
 #: src/components/ShareSheet.tsx
 msgid "微信分享要在 App 里用，浏览器里请复制链接"
 msgstr "微信分享要在 App 里用，浏览器里请复制链接"
+
+#: src/pages/SupportPage.tsx
+msgid "思考中"
+msgstr "思考中"
 
 #: src/pages/SettingsPage.tsx
 msgid "恢复"
@@ -3678,6 +3805,11 @@ msgstr "成片还在载入，稍等一下再截"
 msgid "成片预览（各段按时间线依次播放）"
 msgstr "成片预览（各段按时间线依次播放）"
 
+#: src/pages/SupportPage.tsx
+msgctxt "工单回复前的署名：这条是我自己补充的"
+msgid "我"
+msgstr "我"
+
 #: src/pages/SettingsPage.tsx
 msgid "我们对涉及未成年人内容的立场与处理方式（在官网打开）"
 msgstr "我们对涉及未成年人内容的立场与处理方式（在官网打开）"
@@ -3720,6 +3852,10 @@ msgstr "我的卡片"
 #: src/pages/WorkshopPage.tsx
 msgid "我的卡组"
 msgstr "我的卡组"
+
+#: src/pages/SupportPage.tsx
+msgid "我的工单"
+msgstr "我的工单"
 
 #: src/components/flow/SkillPanel.tsx
 msgid "我的技能（点一个 = 填进输入框）"
@@ -3853,6 +3989,10 @@ msgstr "把这个角色位改成{s}"
 msgid "把这件道具框住，框得越紧越好。东西在画面里太小、框不紧的话，先点「放大再框」。"
 msgstr "把这件道具框住，框得越紧越好。东西在画面里太小、框不紧的话，先点「放大再框」。"
 
+#: src/pages/SupportPage.tsx
+msgid "抱歉没帮上，要不要转人工？"
+msgstr "抱歉没帮上，要不要转人工？"
+
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "拆分镜中…"
 msgstr "拆分镜中…"
@@ -3964,6 +4104,10 @@ msgstr "按 {0} 秒计 · 跟随模板视频（白模复刻的输出时长≈模
 #: src/components/support/HoldToTalk.tsx
 msgid "按住说话"
 msgstr "按住说话"
+
+#: src/pages/SupportPage.tsx
+msgid "按住说话，或问{name}：哪里不对？"
+msgstr "按住说话，或问{name}：哪里不对？"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "按你描的轮廓抠出主体，背景换成浅灰纯色（主体 {size}{up}）"
@@ -4083,6 +4227,7 @@ msgid "提交：改完编号并删掉 {0} 个角色位"
 msgstr "提交：改完编号并删掉 {0} 个角色位"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
+#: src/pages/SupportPage.tsx
 msgid "提交中…"
 msgstr "提交中…"
 
@@ -4097,6 +4242,14 @@ msgstr "提交后这几条的描述文字找不回来（这几个位置随时能
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "提交后这几条的描述文字找不回来（这几个编号随时能再加回来，描述要自己重写）。"
 msgstr "提交后这几条的描述文字找不回来（这几个编号随时能再加回来，描述要自己重写）。"
+
+#: src/pages/SupportPage.tsx
+msgid "提交失败，稍后再试"
+msgstr "提交失败，稍后再试"
+
+#: src/pages/SupportPage.tsx
+msgid "提交给人工客服"
+msgstr "提交给人工客服"
 
 #: src/components/MentionInput.tsx
 msgid "搜人失败"
@@ -4391,6 +4544,10 @@ msgstr "有一发成片已经取不回来了"
 msgid "有一发白模化还没取回结果"
 msgstr "有一发白模化还没取回结果"
 
+#: src/pages/SupportPage.tsx
+msgid "有帮助"
+msgstr "有帮助"
+
 #. placeholder {0}: info.versionName
 #: src/components/UpdateSheet.tsx
 msgid "有新版本 {0}"
@@ -4405,12 +4562,25 @@ msgid "服务器上有一发你付过钱的成片还没取回"
 msgstr "服务器上有一发你付过钱的成片还没取回"
 
 #: src/components/support/VoiceMixer.tsx
+#: src/pages/SupportPage.tsx
 msgid "服务端出错"
 msgstr "服务端出错"
 
 #: src/pages/NotificationsPage.tsx
 msgid "服务端升级后即可使用，App 不用重装"
 msgstr "服务端升级后即可使用，App 不用重装"
+
+#: src/pages/SupportPage.tsx
+msgid "服务端还没开通 AI 客服，可以直接转人工。"
+msgstr "服务端还没开通 AI 客服，可以直接转人工。"
+
+#: src/pages/SupportPage.tsx
+msgid "服务端还没开通 AI 对话，{name}暂时不能回答；可以直接点「转人工」。"
+msgstr "服务端还没开通 AI 对话，{name}暂时不能回答；可以直接点「转人工」。"
+
+#: src/pages/SupportPage.tsx
+msgid "服务端还没开通 AI 对话，你可以直接转人工。"
+msgstr "服务端还没开通 AI 对话，你可以直接转人工。"
 
 #: src/components/support/HoldToTalk.tsx
 msgid "服务端还没开通语音识别，先打字吧。"
@@ -4549,6 +4719,10 @@ msgstr "查授权状态"
 #: src/components/PortraitAuthPanel.tsx
 msgid "查状态没成：{0}"
 msgstr "查状态没成：{0}"
+
+#: src/pages/SupportPage.tsx
+msgid "查看完整对话记录"
+msgstr "查看完整对话记录"
 
 #: src/pages/SettingsPage.tsx
 msgid "查看用量 · 清理中间文件"
@@ -4784,6 +4958,10 @@ msgstr "正在算可清理的空间…"
 msgid "正在装载你的卡片库…"
 msgstr "正在装载你的卡片库…"
 
+#: src/pages/SupportPage.tsx
+msgid "正在说这句 →"
+msgstr "正在说这句 →"
+
 #: src/components/support/SupportStage.tsx
 msgid "正在请小梦出场…"
 msgstr "正在请小梦出场…"
@@ -4854,6 +5032,10 @@ msgstr "没听懂这几句，怕改错就没动：{0}。"
 #: src/components/DownloadSheet.tsx
 msgid "没存下"
 msgstr "没存下"
+
+#: src/pages/SupportPage.tsx
+msgid "没帮上"
+msgstr "没帮上"
 
 #: src/components/support/HoldToTalk.tsx
 msgid "没抓到声音，检查麦克风是不是被别的 App 占着。"
@@ -5007,6 +5189,7 @@ msgid "消息"
 msgstr "消息"
 
 #: src/components/support/VoiceSheet.tsx
+#: src/pages/SupportPage.tsx
 msgid "混音"
 msgstr "混音"
 
@@ -5864,12 +6047,17 @@ msgid "网络不好，或者这条链接已经过期（隔天打开的草稿常�
 msgstr "网络不好，或者这条链接已经过期（隔天打开的草稿常见）"
 
 #: src/components/VideoCardAnnotator.tsx
+#: src/pages/SupportPage.tsx
 msgid "网络问题"
 msgstr "网络问题"
 
 #: src/pages/CreatePage.tsx
 msgid "翻到{otherTitle}"
 msgstr "翻到{otherTitle}"
+
+#: src/pages/SupportPage.tsx
+msgid "联系邮箱（选填，用手机号/QQ 登录的建议留一个）"
+msgstr "联系邮箱（选填，用手机号/QQ 登录的建议留一个）"
 
 #: src/pages/NotificationsPage.tsx
 msgid "联网后重新打开这一页就能看到"
@@ -5939,6 +6127,10 @@ msgstr "草稿只存在这台设备上；超过 {MAX_DRAFTS} 条会从最旧的�
 msgid "草稿箱"
 msgstr "草稿箱"
 
+#: src/pages/SupportPage.tsx
+msgid "补充给客服…"
+msgstr "补充给客服…"
+
 #: src/components/flow/SkillPanel.tsx
 msgid "装"
 msgstr "装"
@@ -5966,6 +6158,10 @@ msgstr "解除中…"
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "认好了 ✓"
 msgstr "认好了 ✓"
+
+#: src/pages/SupportPage.tsx
+msgid "记录"
+msgstr "记录"
 
 #: src/pages/WorkshopPage.tsx
 msgid "设为卡组封面"
@@ -5999,6 +6195,10 @@ msgstr "设置中…"
 #: src/components/support/VoiceMarket.tsx
 msgid "设置失败，稍后再试。"
 msgstr "设置失败，稍后再试。"
+
+#: src/pages/SupportPage.tsx
+msgid "设置已保存，但重新读取配置失败（{why}），下次进来会按新设置念。"
+msgstr "设置已保存，但重新读取配置失败（{why}），下次进来会按新设置念。"
 
 #: src/pages/FeedPage.tsx
 msgid "评论"
@@ -6065,6 +6265,14 @@ msgstr "语速"
 msgid "语速 {rateText}"
 msgstr "语速 {rateText}"
 
+#: src/pages/SupportPage.tsx
+msgid "语音播报：关"
+msgstr "语音播报：关"
+
+#: src/pages/SupportPage.tsx
+msgid "语音播报：开"
+msgstr "语音播报：开"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "语音识别失败"
 msgstr "语音识别失败"
@@ -6095,6 +6303,10 @@ msgstr "说明"
 msgid "说点什么，@ 可以叫上别人"
 msgstr "说点什么，@ 可以叫上别人"
 
+#: src/pages/SupportPage.tsx
+msgid "说话中"
+msgstr "说话中"
+
 #: src/pages/SupportPersonasPage.tsx
 msgid "读不到人格列表"
 msgstr "读不到人格列表"
@@ -6102,6 +6314,14 @@ msgstr "读不到人格列表"
 #: src/components/support/VoiceMarket.tsx
 msgid "读不到声音市场"
 msgstr "读不到声音市场"
+
+#: src/pages/SupportPage.tsx
+msgid "读不到客服配置"
+msgstr "读不到客服配置"
+
+#: src/pages/SupportPage.tsx
+msgid "读不到工单"
+msgstr "读不到工单"
 
 #: src/pages/SupportModelsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -6117,6 +6337,10 @@ msgstr "读不到形象列表"
 msgid "读不到数字人设置"
 msgstr "读不到数字人设置"
 
+#: src/pages/SupportPage.tsx
+msgid "读不到数字人设置（{why}），先按官方形象和默认声音走。"
+msgstr "读不到数字人设置（{why}），先按官方形象和默认声音走。"
+
 #: src/components/support/VoiceMixer.tsx
 msgid "读不到混音目录：{catalogErr}"
 msgstr "读不到混音目录：{catalogErr}"
@@ -6130,6 +6354,7 @@ msgstr "读不到音色目录"
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/SettingsStoragePage.tsx
 #: src/pages/SupportModelsPage.tsx
+#: src/pages/SupportPage.tsx
 #: src/pages/SupportPersonasPage.tsx
 msgid "读取中…"
 msgstr "读取中…"
@@ -6158,6 +6383,10 @@ msgstr "调整头像"
 #: src/components/flow/RefFrameSheet.tsx
 msgid "调节首尾帧"
 msgstr "调节首尾帧"
+
+#: src/pages/SupportPage.tsx
+msgid "谢谢反馈"
+msgstr "谢谢反馈"
 
 #: src/pages/NotificationsPage.tsx
 msgid "赞了你的作品"
@@ -6207,6 +6436,14 @@ msgstr "跟随音色（{0}）"
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "跳到第 {at} 秒"
 msgstr "跳到第 {at} 秒"
+
+#: src/pages/SupportPage.tsx
+msgid "转人工"
+msgstr "转人工"
+
+#: src/pages/SupportPage.tsx
+msgid "转人工客服"
+msgstr "转人工客服"
 
 #: src/pages/FeedPage.tsx
 msgid "转屏"
@@ -6258,6 +6495,10 @@ msgstr "还在读这段视频的时长，读到之前标不了帧。应用切到
 #: src/components/DraftTitle.tsx
 msgid "还存不了草稿（空白工程或写盘失败）"
 msgstr "还存不了草稿（空白工程或写盘失败）"
+
+#: src/pages/SupportPage.tsx
+msgid "还想补充什么？任务号、大概时间、屏幕上的提示…"
+msgstr "还想补充什么？任务号、大概时间、屏幕上的提示…"
 
 #: src/pages/PublishPage.tsx
 msgid "还是先按「仅自己可见」发出去吧"
@@ -6320,6 +6561,14 @@ msgstr "还没有卡组"
 #: src/pages/SimpleModePage.tsx
 msgid "还没有可用的模板"
 msgstr "还没有可用的模板"
+
+#: src/pages/SupportPage.tsx
+msgid "还没有对话。"
+msgstr "还没有对话。"
+
+#: src/pages/SupportPage.tsx
+msgid "还没有工单"
+msgstr "还没有工单"
 
 #: src/components/PortraitAuthPanel.tsx
 msgid "还没有已授权的素材——请本人扫码/打开链接、完成活体认证与授权后再查。"
@@ -6501,6 +6750,10 @@ msgstr "这个位置"
 msgid "这个位置原来是谁（套用的人只看这句话）"
 msgstr "这个位置原来是谁（套用的人只看这句话）"
 
+#: src/pages/SupportPage.tsx
+msgid "这个回答有帮助吗？"
+msgstr "这个回答有帮助吗？"
+
 #: src/pages/SupportModelsPage.tsx
 msgid "这个模型没有可用的文件地址，换一个试试。"
 msgstr "这个模型没有可用的文件地址，换一个试试。"
@@ -6560,6 +6813,11 @@ msgstr "这个白模模板没有登记角色位（它是更早版本做出来的
 #: src/components/videoFrames.ts
 msgid "这个视频浏览器解不开（换 mp4/webm 试试）"
 msgstr "这个视频浏览器解不开（换 mp4/webm 试试）"
+
+#. placeholder {0}: CATEGORY_LABEL[handoffHint.category]
+#: src/pages/SupportPage.tsx
+msgid "这个问题需要人工处理（{0}）。转人工会把这段对话一起交给客服，你不用再讲一遍。"
+msgstr "这个问题需要人工处理（{0}）。转人工会把这段对话一起交给客服，你不用再讲一遍。"
 
 #: src/components/MaterialSheet.tsx
 msgid "这些卡本段已经有了"
@@ -6659,6 +6917,10 @@ msgstr "这套卡组"
 #: src/pages/VideoPage.tsx
 msgid "这套卡里有声明过「真实人物」的卡，它的形象参考图只留给作者本人 —— 照片里的人授权的是作者用，不是所有人用。你仍然收得下这张卡的设定（名字、简介、身份句），但出片时得自己给形象。"
 msgstr "这套卡里有声明过「真实人物」的卡，它的形象参考图只留给作者本人 —— 照片里的人授权的是作者用，不是所有人用。你仍然收得下这张卡的设定（名字、简介、身份句），但出片时得自己给形象。"
+
+#: src/pages/SupportPage.tsx
+msgid "这套形象加载失败（{why}），先换回官方形象；可以去「形象」里重新下载或换一套。"
+msgstr "这套形象加载失败（{why}），先换回官方形象；可以去「形象」里重新下载或换一套。"
 
 #: src/components/WorkshopShareBar.tsx
 msgid "这张卡不在你的库里，它的分享开关归卡主管。"
@@ -7101,9 +7363,21 @@ msgstr "铺进去的每一段都是已挑定的一套方案（镜头字段会进
 msgid "链接已复制，可以发给本人"
 msgstr "链接已复制，可以发给本人"
 
+#: src/pages/SupportPage.tsx
+msgid "问{name}：哪里不对？"
+msgstr "问{name}：哪里不对？"
+
 #: src/pages/SettingsPage.tsx
 msgid "问小梦，解决不了转人工"
 msgstr "问小梦，解决不了转人工"
+
+#: src/pages/SupportPage.tsx
+msgid "问得太快了，稍等几秒再发。"
+msgstr "问得太快了，稍等几秒再发。"
+
+#: src/pages/SupportPage.tsx
+msgid "问题又出现了？补一句会重新打开"
+msgstr "问题又出现了？补一句会重新打开"
 
 #: src/components/CoverPicker.tsx
 msgid "隐藏遮挡"
