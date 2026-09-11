@@ -5,6 +5,9 @@
 // · 💬 打开历史对话记录窗（含继续对话的输入行）
 // · 📎 弹素材表单：文件 + 文字描述一起填好再交给铸卡师，不再直接拉起文件选择器
 import { useEffect, useRef, useState } from "react";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useStudio } from "../studioStore";
 import { fileToCover } from "../../mock/frames";
 import { AI_REAL, MaterialFile } from "../../ai";
@@ -74,6 +77,7 @@ export default function NpcDialog() {
   // React 直接抛 "Rendered more hooks than during the previous render"
   useBackGuard(historyOpen, () => setHistoryOpen(false));
   useBackGuard(forgeOpen, () => setForgeOpen(false));
+  const { t } = useLingui();
 
   // 投影窗打开时隐藏对话层，避免遮挡
   if (projection) return null;
@@ -92,13 +96,13 @@ export default function NpcDialog() {
         <div className="pointer-events-auto rounded-2xl border border-slate-600/70 bg-panel/95 px-3.5 py-2.5 shadow-[0_6px_24px_rgba(0,0,0,0.5)] backdrop-blur">
           <div className="mb-0.5 flex items-center gap-1.5">
             <span className={`h-2 w-2 rounded-full ${busy ? "animate-pulse bg-amber-400" : "bg-emerald-400"}`} />
-            <span className="mb-1.5 text-xs font-semibold text-slate-300">铸卡师</span>
+            <span className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>铸卡师</Trans></span>
             {/* ★ 合规：《AI 生成合成内容标识办法》第 4 条的**显式标识**。
                 火山原生的做法（aigc_watermark）是在每句话末尾加一串"滴滴"提示音，
                 NPC 对话里每说一句响一次，没法听。第 4 条同时允许"在交互场景界面
                 添加显著的提示标识"——所以改由这枚角标承担，音频里只留隐式元数据。
                 别为了清爽把它删了，这是上架硬性义务。 */}
-            <span className="rounded bg-slate-700/80 px-1 text-[9px] leading-4 text-slate-400">AI 合成语音</span>
+            <span className="rounded bg-slate-700/80 px-1 text-[9px] leading-4 text-slate-400"><Trans>AI 合成语音</Trans></span>
             {voiceSupported() && (
               <button
                 onClick={() => {
@@ -110,19 +114,19 @@ export default function NpcDialog() {
                 className="-m-2 ml-auto p-2 text-xs text-slate-500 hover:text-white"
                 title={
                   voiceStatus() === "no-voice"
-                    ? "系统没有中文语音包，暂时发不出声（嘴型仍会动）"
+                    ? t`系统没有中文语音包，暂时发不出声（嘴型仍会动）`
                     : voice
-                      ? "关闭语音"
-                      : "开启语音"
+                      ? t`关闭语音`
+                      : t`开启语音`
                 }
-                aria-label={voice ? "关闭语音" : "开启语音"}
+                aria-label={voice ? t`关闭语音` : t`开启语音`}
               >
                 {voice && voiceStatus() === "ok" ? "🔊" : "🔇"}
               </button>
             )}
           </div>
           <div className="max-h-24 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-slate-100">
-            {busy ? forgeProgress || "炉火正旺，卡片成形中…" : thinking ? "……" : (lastNpc?.text ?? "……")}
+            {busy ? forgeProgress || t`炉火正旺，卡片成形中…` : thinking ? "……" : (lastNpc?.text ?? "……")}
           </div>
         </div>
         {/* 气泡尾巴：指向角色 */}
@@ -134,12 +138,12 @@ export default function NpcDialog() {
               onClick={() => {
                 const st = useStudio.getState();
                 st.closeMarket();
-                st.npcSay("市场先收起来了。还想做点什么？");
+                st.npcSay(t`市场先收起来了。还想做点什么？`);
               }}
-              title="也可以按左上角的返回"
+              title={t`也可以按左上角的返回`}
               className="rounded-full border border-slate-600/70 bg-panel/90 px-3 py-1.5 text-xs text-slate-200 backdrop-blur hover:border-brand hover:text-brand"
             >
-              ‹ 收起市场
+              <Trans>‹ 收起市场</Trans>
             </button>
           ) : (
             <>
@@ -147,22 +151,22 @@ export default function NpcDialog() {
                 onClick={() => void useStudio.getState().openMarket()}
                 className="rounded-full border border-slate-600/70 bg-panel/90 px-3 py-1.5 text-xs text-slate-200 backdrop-blur hover:border-brand hover:text-brand"
               >
-                🛒 逛市场
+                <Trans>🛒 逛市场</Trans>
               </button>
               <button
                 onClick={() => setForgeOpen(true)}
                 className="rounded-full border border-slate-600/70 bg-panel/90 px-3 py-1.5 text-xs text-slate-200 backdrop-blur hover:border-brand hover:text-brand"
               >
-                📎 添加素材
+                <Trans>📎 添加素材</Trans>
               </button>
             </>
           )}
           <button
             onClick={() => setHistoryOpen(true)}
             className="rounded-full border border-slate-600/70 bg-panel/90 px-3 py-1.5 text-xs text-slate-200 backdrop-blur hover:border-brand hover:text-brand"
-            title="查看历史对话"
+            title={t`查看历史对话`}
           >
-            💬 记录
+            <Trans>💬 记录</Trans>
           </button>
         </div>
         {/* 去掉 ✕ 之后要补一条出口指引，否则用户会以为自己被关在对话里了。
@@ -171,7 +175,7 @@ export default function NpcDialog() {
             垫一层半透明底：它正好压在角色身上，纯文字在浅色头发上会看不见 */}
         <div className="mt-1.5 flex justify-center">
           <span className="pointer-events-none rounded-full px-2 py-0.5 bg-black/45 text-[10px] text-slate-400 backdrop-blur">
-            左上角的返回按钮可逐层退出
+            <Trans>左上角的返回按钮可逐层退出</Trans>
           </span>
         </div>
       </div>
@@ -208,20 +212,21 @@ export default function NpcDialog() {
 function MarketTopBar() {
   const loading = useStudio((s) => s.market.loading);
   const [q, setQ] = useState("");
+  const { t } = useLingui();
   function search() {
     void useStudio.getState().marketSearch(q.trim());
   }
   return (
     <div className="safe-top absolute inset-x-0 top-12 z-10 px-3">
       <div className="mx-auto flex max-w-md items-center gap-2 rounded-2xl border border-slate-600/70 bg-panel/95 px-3 py-2 shadow-lg backdrop-blur">
-        <span className="flex-none text-xs font-semibold text-slate-200">🛒 市场</span>
+        <span className="flex-none text-xs font-semibold text-slate-200"><Trans>🛒 市场</Trans></span>
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.nativeEvent.isComposing) search();
           }}
-          placeholder="搜索：古风 / 侦探 / 场景…"
+          placeholder={t`搜索：古风 / 侦探 / 场景…`}
           className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
         />
         <button
@@ -229,10 +234,10 @@ function MarketTopBar() {
           disabled={loading}
           className="flex-none rounded-full bg-brand/85 px-3 py-1 text-xs font-semibold text-ink disabled:opacity-40"
         >
-          {loading ? "…" : "搜索"}
+          {loading ? "…" : t`搜索`}
         </button>
       </div>
-      <div className="mt-1 text-center text-[10px] text-slate-500">点桌上的卡放大查看 · 喜欢就收进卡组</div>
+      <div className="mt-1 text-center text-[10px] text-slate-500"><Trans>点桌上的卡放大查看 · 喜欢就收进卡组</Trans></div>
     </div>
   );
 }
@@ -251,36 +256,37 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
   const thinking = useStudio((s) => s.dialog.thinking);
   const forgeProgress = useStudio((s) => s.forgeProgress);
   const [text, setText] = useState("");
+  const { t } = useLingui();
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages.length, thinking]);
 
   function send() {
-    const t = text.trim();
-    if (!t) return;
+    const said = text.trim();
+    if (!said) return;
     const st = useStudio.getState();
-    switch (routeIntent(t)) {
+    switch (routeIntent(said)) {
       case "crisis":
-        st.meSay(t, "chat");
+        st.meSay(said, "chat");
         st.crisisReply();
         break;
       case "help":
-        st.meSay(t, "chat");
+        st.meSay(said, "chat");
         st.helpReply();
         break;
       case "forge":
         // 只开窗预填，**不扣费**——扣费按钮仍在那个窗里，由用户手指按下
-        onOpenForge(t);
+        onOpenForge(said);
         break;
       case "market":
-        st.meSay(t, "chat");
+        st.meSay(said, "chat");
         void (st.market.open
-          ? st.marketSearch(searchKeyword(t))
-          : st.openMarket().then(() => st.marketSearch(searchKeyword(t))));
+          ? st.marketSearch(searchKeyword(said))
+          : st.openMarket().then(() => st.marketSearch(searchKeyword(said))));
         break;
       default:
-        void st.chatToNpc(t);
+        void st.chatToNpc(said);
     }
     setText("");
   }
@@ -292,10 +298,10 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-slate-700/60 px-3.5 py-2.5">
-          <span className="text-sm font-semibold text-slate-100">炉边</span>
+          <span className="text-sm font-semibold text-slate-100"><Trans>炉边</Trans></span>
           {/* ★ 合规角标必须在这儿也有一份：这个 z-30 的窗盖住了 3D 气泡上那枚，
               而用户在聊天窗里停留时间最长——显式标识不能在最主要的界面上消失 */}
-          <span className="rounded bg-slate-700/80 px-1 text-[9px] leading-4 text-slate-400">AI 合成语音</span>
+          <span className="rounded bg-slate-700/80 px-1 text-[9px] leading-4 text-slate-400"><Trans>AI 合成语音</Trans></span>
           <button onClick={onClose} className="-m-2 ml-auto p-2 text-slate-400 hover:text-white">
             ✕
           </button>
@@ -338,13 +344,13 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
             </div>
           )}
           {busy && (
-            <div className="pl-1 text-xs text-amber-300/90 pulse-soft">{forgeProgress || "炉火正旺，卡片成形中…"}</div>
+            <div className="pl-1 text-xs text-amber-300/90 pulse-soft">{forgeProgress || t`炉火正旺，卡片成形中…`}</div>
           )}
         </div>
 
         {/* 复用 TokenCost 而不是手写：演示模式下它自己会说"不消耗 token"，
             余额不足时自带去充值的出路 */}
-        <TokenCost tokens={CHAT_TURN_TOKENS} note="每说一句扣一次" className="px-3 pt-1.5" />
+        <TokenCost tokens={CHAT_TURN_TOKENS} note={t`每说一句扣一次`} className="px-3 pt-1.5" />
         <div className="flex gap-2 px-2.5 pb-2.5 pt-1.5">
           <input
             value={text}
@@ -355,7 +361,7 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.nativeEvent.isComposing) send();
             }}
-            placeholder="和铸卡师说点什么…"
+            placeholder={t`和铸卡师说点什么…`}
             className="min-w-0 flex-1 rounded-xl border border-slate-600 bg-ink/70 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
           />
           <button
@@ -363,7 +369,7 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
             disabled={busy || thinking || !text.trim()}
             className="rounded-full bg-brand/80 px-4 py-2 text-sm font-semibold text-ink disabled:opacity-40"
           >
-            发送
+            <Trans>发送</Trans>
           </button>
         </div>
 
@@ -378,10 +384,10 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
             }}
             className="flex-1 rounded-full bg-slate-700/60 py-1.5 text-xs text-slate-300"
           >
-            🛒 逛市场
+            <Trans>🛒 逛市场</Trans>
           </button>
           <button onClick={() => onOpenForge("")} className="flex-1 rounded-full bg-slate-700/60 py-1.5 text-xs text-slate-300">
-            📎 递素材
+            <Trans>📎 递素材</Trans>
           </button>
         </div>
       </div>
@@ -399,12 +405,12 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
 // 预览态刻意封掉背景点击和 ✕：这批卡是花了 token 炼出来的，别让手滑抹掉。
 type ForgeStep = "type" | "input" | "preview";
 
-const TYPE_HINT: Record<CardType, string> = {
-  character: "谁在故事里——长相 / 性格 / 口癖",
-  scene: "故事发生在哪——地点与空间",
-  background: "这条片的故事背景 / 简介（只以文字参与出片）",
-  prop: "会被拿起来用的关键物件",
-  style: "画风、材质质感、色调光影与镜头语言",
+const TYPE_HINT: Record<CardType, MessageDescriptor> = {
+  character: msg`谁在故事里——长相 / 性格 / 口癖`,
+  scene: msg`故事发生在哪——地点与空间`,
+  background: msg`这条片的故事背景 / 简介（只以文字参与出片）`,
+  prop: msg`会被拿起来用的关键物件`,
+  style: msg`画风、材质质感、色调光影与镜头语言`,
 };
 
 // 卡种封面表 2026-08-28 收进 types.CARD_TYPE_COVERS（「自己传图做卡片」也要同一套，
@@ -415,6 +421,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
   const busy = useStudio((s) => s.dialog.busy);
   // 炼卡阶段播报：素材窗盖在对话气泡上面，用户这会儿看的是这颗按钮
   const forgeProgress = useStudio((s) => s.forgeProgress);
+  const { t } = useLingui();
   const [step, setStep] = useState<ForgeStep>("type");
   const [type, setType] = useState<CardType | null>(null);
   // 从聊天窗抬过来时带着用户刚打的那句话。**step 仍停在 "type"**——让用户自己挑
@@ -484,12 +491,12 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
     //   真触发时用户看到的是白屏、错误只进 console —— 一句话都没有，反而更静默（铁律八）。
     //   现在数值侧返回 null、人话侧给 priceIssue，在这里翻成用户看得懂的一句并早退。
     if (priceIssue || cost === null) {
-      setErr(priceIssue ?? "这一档暂时报不出价，换个档位再试");
+      setErr(priceIssue ?? t`这一档暂时报不出价，换个档位再试`);
       return;
     }
     if (AI_REAL && !canAfford(cost)) {
       setErr(
-        `需要 ${fmtTokens(cost)} token，余额 ${fmtTokens((wallet?.plan ?? 0) + (wallet?.addon ?? 0))} 不够——去「我的」页充值`,
+        t`需要 ${fmtTokens(cost)} token，余额 ${fmtTokens((wallet?.plan ?? 0) + (wallet?.addon ?? 0))} 不够——去「我的」页充值`,
       );
       return;
     }
@@ -497,7 +504,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
     try {
       const { cards, minted, notes } = await useStudio.getState().forgeCards(pending, desc.trim(), type, tierId);
       if (cards.length === 0) {
-        setErr("这批素材没能炼出卡，补充点描述再试？");
+        setErr(t`这批素材没能炼出卡，补充点描述再试？`);
         return;
       }
       // 按**实际出卡 + 实际出图**结算：预估是"一份素材一张卡、每张都画满这一档"的上限，
@@ -520,25 +527,27 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
         //   客户端却把它算作"没画成"。于是钱包响应头刚同步完 -40,000，界面却红字写着
         //   "没收你的钱"，用户照这句话对账只会认定自己被多扣（铁律五、八）。
         //   真实扣了多少以钱包余额为准 —— 那是服务端的权威值，不是我们这边的推算。
+        // ★★ notes 是**哪一张、为什么**。不拼上去的话这句只剩两个数字，
+        //   而 forgeProgress 那一行早被 forgeCards 的 finally 清掉了 ——
+        //   用户拿着一张缺图的卡和一笔已扣的钱，无从判断该不该重炼（铁律八）。
+        const noteText = notes.join(t({ message: "；", comment: "把铸卡时的几条说明连成一句时的分隔符" }));
+        const missingN = want - got;
         if (got < want)
           setErr(
-            `这一炉该出 ${want} 张图、成了 ${got} 张——缺的 ${want - got} 张先用你的原图顶上。` +
-              `已经画出来、只是没取回来的那几张仍会计费，实扣以「我的」页余额为准` +
-              // ★★ notes 是**哪一张、为什么**。不拼上去的话这句只剩两个数字，
-              //   而 forgeProgress 那一行早被 forgeCards 的 finally 清掉了 ——
-              //   用户拿着一张缺图的卡和一笔已扣的钱，无从判断该不该重炼（铁律八）。
-              (notes.length > 0 ? `。${notes.join("；")}` : ""),
+            notes.length > 0
+              ? t`这一炉该出 ${want} 张图、成了 ${got} 张——缺的 ${missingN} 张先用你的原图顶上。已经画出来、只是没取回来的那几张仍会计费，实扣以「我的」页余额为准。${noteText}`
+              : t`这一炉该出 ${want} 张图、成了 ${got} 张——缺的 ${missingN} 张先用你的原图顶上。已经画出来、只是没取回来的那几张仍会计费，实扣以「我的」页余额为准`,
           );
-        else if (notes.length > 0) setErr(notes.join("；"));
+        else if (notes.length > 0) setErr(noteText);
       } else if (notes.length > 0) {
         // 演示模式（AI_REAL=false）也要说：那条路一张图都没真画，而档位面板照常写着
         // "每张卡出 N 张图"。不说的话界面从头到尾在讲一件没发生的事。
-        setErr(notes.join("；"));
+        setErr(notes.join(t({ message: "；", comment: "把铸卡时的几条说明连成一句时的分隔符" })));
       }
       setPreview(cards);
       setStep("preview");
     } catch (e) {
-      setErr(`炼卡失败：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}`);
+      setErr(t`炼卡失败：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}`);
     }
   }
 
@@ -565,17 +574,19 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
             <button
               onClick={() => setStep(step === "preview" ? "input" : "type")}
               className="-ml-1 rounded-lg px-1.5 py-0.5 text-slate-400 hover:text-white"
-              aria-label="上一步"
+              aria-label={t`上一步`}
             >
               ‹
             </button>
           )}
           <h3 className="text-sm font-bold text-slate-100">
             {step === "type"
-              ? "📎 想炼一张什么卡？"
+              ? t`📎 想炼一张什么卡？`
               : step === "input"
-                ? `📎 ${type ? CARD_TYPE_LABELS[type] : "自动判断"} · 递上素材`
-                : "🔥 出炉了，过个目"}
+                ? type
+                  ? t`📎 ${CARD_TYPE_LABELS[type]} · 递上素材`
+                  : t`📎 自动判断 · 递上素材`
+                : t`🔥 出炉了，过个目`}
           </h3>
           <span className="ml-auto text-[10px] text-slate-500">
             {step === "type" ? "1/3" : step === "input" ? "2/3" : "3/3"}
@@ -594,11 +605,11 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
             // 三列——竖屏 375px 下每格约 97px 宽、145px 高（2:3），看板娘的手势还认得出；
             // 四列会把她压到 70px，姿势就糊成一团了
             <div className="grid grid-cols-3 gap-2.5">
-              {CARD_TYPES.map((t) => (
-                <button key={t} onClick={() => { setType(t); setStep("input"); }} className="group text-left">
-                  <TarotCard cover={CARD_TYPE_COVERS[t]} title={CARD_TYPE_LABELS[t]} type={t} active={type === t} />
+              {CARD_TYPES.map((ct) => (
+                <button key={ct} onClick={() => { setType(ct); setStep("input"); }} className="group text-left">
+                  <TarotCard cover={CARD_TYPE_COVERS[ct]} title={CARD_TYPE_LABELS[ct]} type={ct} active={type === ct} />
                   <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-slate-500 group-hover:text-slate-300">
-                    {TYPE_HINT[t]}
+                    {t(TYPE_HINT[ct])}
                   </p>
                 </button>
               ))}
@@ -606,9 +617,9 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
               <button onClick={() => { setType(null); setStep("input"); }} className="group text-left">
                 <div className="flex aspect-[2/3] w-full flex-col items-center justify-center gap-1 rounded-[5%] border border-dashed border-slate-600 bg-ink/40 px-1 text-center group-hover:border-brand">
                   <span className="text-xl">🎲</span>
-                  <span className="text-[10px] leading-tight text-slate-400 group-hover:text-brand">让铸卡师<br />看着办</span>
+                  <span className="text-[10px] leading-tight text-slate-400 group-hover:text-brand"><Trans>让铸卡师<br />看着办</Trans></span>
                 </div>
-                <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-slate-500">按素材自动判断类型</p>
+                <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-slate-500"><Trans>按素材自动判断类型</Trans></p>
               </button>
             </div>
           )}
@@ -622,7 +633,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                 className="flex w-full flex-col items-center gap-1 rounded-xl border border-dashed border-slate-600 py-4 text-slate-400 hover:border-brand hover:text-brand disabled:opacity-40"
               >
                 <span className="text-2xl">{reading ? "⏳" : "🖼"}</span>
-                <span className="text-xs">{reading ? "读取中…" : "点击选择图片 / 文本文件（最多 6 个，可不选）"}</span>
+                <span className="text-xs">{reading ? t`读取中…` : t`点击选择图片 / 文本文件（最多 6 个，可不选）`}</span>
               </button>
               {pending.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -643,7 +654,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                 </div>
               )}
               <div className="mt-3">
-                <div className="mb-1.5 text-xs font-semibold text-slate-300">文字描述</div>
+                <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>文字描述</Trans></div>
                 <textarea
                   value={desc}
                   onChange={(e) => setDesc(e.target.value)}
@@ -651,10 +662,10 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                   maxLength={300}
                   placeholder={
                     type === "character"
-                      ? "如：白裙短发的海边少女，安静但固执"
+                      ? t`如：白裙短发的海边少女，安静但固执`
                       : type === "scene"
-                        ? "如：黄昏的旧海港，锈铁塔吊与晒网的木架"
-                        : "描述素材，或直接描述你想要的卡"
+                        ? t`如：黄昏的旧海港，锈铁塔吊与晒网的木架`
+                        : t`描述素材，或直接描述你想要的卡`
                   }
                   className="w-full resize-none rounded-xl border border-slate-600 bg-ink/70 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                 />
@@ -667,25 +678,25 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
               {canForge && (
                 <div className="mt-3 space-y-1.5 rounded-xl border border-slate-700/60 bg-ink/40 p-2.5">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="w-8 flex-none text-[11px] text-slate-400">精度</span>
-                    {IMAGE_TIERS.map((t) => {
+                    <span className="w-8 flex-none text-[11px] text-slate-400"><Trans>精度</Trans></span>
+                    {IMAGE_TIERS.map((opt) => {
                       // 这一档报不出价（价目表里没有它的模型）时：不写数字、也不许选。
                       // ★ 写个 0 或者按别的档的价糊上去，就是"页面报一个数、火山扣另一个数"
-                      const c = forgeCost(cardN, type, t.id);
-                      const issue = imageTierPriceIssue(t.id);
+                      const c = forgeCost(cardN, type, opt.id);
+                      const issue = imageTierPriceIssue(opt.id);
                       return (
                         <button
-                          key={t.id}
-                          onClick={() => setTierId(t.id)}
+                          key={opt.id}
+                          onClick={() => setTierId(opt.id)}
                           // 炉子开着就别让人改档：结算用的是开炼那一刻的档位（闭包里的
                           // tierId），此时改它不会算错钱，但按钮会显得"改了却没生效"
                           disabled={busy || c === null}
-                          title={issue ?? `${t.desc}（${t.model}）`}
+                          title={issue ?? `${opt.desc}（${opt.model}）`}
                           className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${
-                            tierId === t.id ? "bg-brand text-ink" : "bg-panel text-slate-300"
+                            tierId === opt.id ? "bg-brand text-ink" : "bg-panel text-slate-300"
                           }`}
                         >
-                          {t.label} · {c === null ? "报不出价" : fmtTokens(c)}
+                          {opt.label} · {c === null ? t`报不出价` : fmtTokens(c)}
                         </button>
                       );
                     })}
@@ -694,15 +705,15 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                       （经 slotsFor），不在这儿另编一套说法 */}
                   <p className="text-[10px] leading-relaxed text-slate-400">
                     {slots
-                      ? `每张卡出 ${slots.length} 张图：${slots.map((s) => s.label).join(" · ")}`
-                      : `每张卡最多 ${maxSlots} 张图 —— 卡种交给铸卡师判，这里先按最贵的${CARD_TYPE_LABELS[dearest]}报价；少画的那张不会去调出图，也就不计费`}
+                      ? t`每张卡出 ${slots.length} 张图：${slots.map((s) => s.label).join(" · ")}`
+                      : t`每张卡最多 ${maxSlots} 张图 —— 卡种交给铸卡师判，这里先按最贵的${CARD_TYPE_LABELS[dearest]}报价；少画的那张不会去调出图，也就不计费`}
                   </p>
                   {/* ★ 把**真正会被调用的那个模型**写出来（与工作流「本段模型」同一做法）：
                       「速写/定妆/精绘」只说了档次，没说这一炉交给谁去画，而不同世代的
                       Seedream 观感与耗时差很多（顶档实测一张 70 秒以上）。
                       名字由 modelLabel 从 id 推导，与真正发出去的 id 同源；title 给完整 id */}
                   <div className="text-[10px] text-slate-500" title={tier.model}>
-                    本次出图：{modelLabel(tier.model)}
+                    <Trans>本次出图：{modelLabel(tier.model)}</Trans>
                     <span className="ml-1 opacity-70">· {tier.desc}</span>
                   </div>
                   {/* ★ note 里原来写的是"按实际画成的结算"。那句只有离线模式成立：
@@ -710,15 +721,15 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                       取图那步超时的照扣（见 economy.forgeSettle 的 ⚠⚠）。所以这里
                       只说"按真正调用了几次出图算"——它两种模式下都是实话（铁律五）。 */}
                   {cost === null ? (
-                    <p className="text-[11px] text-rose-300">{priceIssue ?? "这一档暂时报不出价，换个档位再试"}</p>
+                    <p className="text-[11px] text-rose-300">{priceIssue ?? t`这一档暂时报不出价，换个档位再试`}</p>
                   ) : (
                     <TokenCost
                       tokens={cost}
                       upper
                       note={
                         slots
-                          ? `${cardN} 张卡 × 最多 ${slots.length} 张图 · 按真正调用了几次出图算 · 每次重炼都会再扣`
-                          : `${cardN} 张卡 · 每张最多 ${maxSlots} 张图 · 按真正调用了几次出图算 · 每次重炼都会再扣`
+                          ? t`${cardN} 张卡 × 最多 ${slots.length} 张图 · 按真正调用了几次出图算 · 每次重炼都会再扣`
+                          : t`${cardN} 张卡 · 每张最多 ${maxSlots} 张图 · 按真正调用了几次出图算 · 每次重炼都会再扣`
                       }
                     />
                   )}
@@ -736,8 +747,11 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                   底下那排已改成两行（收下独占一行，回去改/再炼一炉并排），位置腾出来了，
                   价钱就该回到按下之前看得见的地方。 */}
               <p className="mb-2 text-[11px] text-slate-400">
-                还没进你的卡组，点「收下这批卡」才落账。
-                {AI_REAL && cost === null && "（这一档现在报不出价，重炼前先换个档位）"}
+                {AI_REAL && cost === null ? (
+                  <Trans>还没进你的卡组，点「收下这批卡」才落账。（这一档现在报不出价，重炼前先换个档位）</Trans>
+                ) : (
+                  <Trans>还没进你的卡组，点「收下这批卡」才落账。</Trans>
+                )}
               </p>
               <div className="grid grid-cols-3 gap-2.5">
                 {preview.map((c) => (
@@ -760,7 +774,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
               disabled={busy}
               className="rounded-xl bg-slate-700/70 px-4 py-2.5 text-sm text-slate-200 disabled:opacity-40"
             >
-              取消
+              <Trans>取消</Trans>
             </button>
             <button
               onClick={() => void forge()}
@@ -769,7 +783,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
             >
               {/* 顶档一炉要画两张图、每张 70 秒以上。一个不动的"炼卡中…"与卡死无从区分，
                   所以按钮直接显示阶段播报（store.forgeProgress ← generateCards.onProgress） */}
-              {busy ? forgeProgress || "炼卡中…" : "交给铸卡师炼卡"}
+              {busy ? forgeProgress || t`炼卡中…` : t`交给铸卡师炼卡`}
             </button>
           </div>
         )}
@@ -782,7 +796,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
               disabled={busy}
               className="w-full rounded-xl bg-brand/85 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
-              收下这批卡
+              <Trans>收下这批卡</Trans>
             </button>
             <div className="flex gap-2">
               <button
@@ -793,14 +807,14 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                 disabled={busy}
                 className="flex-1 rounded-xl bg-slate-700/70 px-3 py-2.5 text-xs text-slate-200 disabled:opacity-40"
               >
-                回去改素材
+                <Trans>回去改素材</Trans>
               </button>
               <button
                 onClick={() => void forge()}
                 disabled={busy}
                 className="flex-1 rounded-xl bg-slate-700/70 px-3 py-2.5 text-xs text-slate-200 disabled:opacity-40"
               >
-                {busy ? "…" : AI_REAL && cost !== null ? `↻ 再炼一炉（${fmtTokens(cost)}）` : "↻ 再炼一炉"}
+                {busy ? "…" : AI_REAL && cost !== null ? t`↻ 再炼一炉（${fmtTokens(cost)}）` : t`↻ 再炼一炉`}
               </button>
             </div>
           </div>
