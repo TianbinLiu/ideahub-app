@@ -82,8 +82,8 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
       >
         <div className="mb-1 flex items-center gap-2">
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-bold text-slate-100">📑 {SCRIPT_TO_SHOTS.title}</div>
-            <div className="text-[10px] leading-relaxed text-slate-500">{SCRIPT_TO_SHOTS.intro}</div>
+            <div className="text-sm font-bold text-slate-100">📑 {t(SCRIPT_TO_SHOTS.title)}</div>
+            <div className="text-[10px] leading-relaxed text-slate-500">{t(SCRIPT_TO_SHOTS.intro)}</div>
           </div>
           <CloseButton chip="sm" size={13} align="end" label={t`关闭`} onClick={onClose} />
         </div>
@@ -96,17 +96,17 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
             return (
               <div
                 key={s.kind}
-                title={s.hint}
+                title={t(s.hint)}
                 className={`flex-none rounded-full px-2.5 py-1 text-[11px] ${cur ? "bg-brand font-semibold text-ink" : done ? "bg-panel text-slate-300" : "bg-panel text-slate-500"}`}
               >
                 {done ? "✓ " : `${i + 1} `}
-                {s.title}
+                {t(s.title)}
                 {SCRIPT_TO_SHOTS.confirmAt.includes(s.kind as (typeof SCRIPT_TO_SHOTS.confirmAt)[number]) ? " ✋" : ""}
               </div>
             );
           })}
         </div>
-        <div className="mb-2 text-[10px] leading-relaxed text-slate-500">{SCRIPT_TO_SHOTS.steps[Math.max(0, stepIdx)].hint}</div>
+        <div className="mb-2 text-[10px] leading-relaxed text-slate-500">{t(SCRIPT_TO_SHOTS.steps[Math.max(0, stepIdx)].hint)}</div>
 
         {err && <div className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300">{err}</div>}
 

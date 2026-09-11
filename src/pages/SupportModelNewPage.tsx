@@ -636,7 +636,7 @@ export default function SupportModelNewPage() {
                 k === s.step ? "bg-brand font-semibold text-ink" : i < stepIndex ? "bg-panel text-slate-300" : "bg-panel text-slate-500"
               }`}
             >
-              {i + 1}. {LIVE2D_STEP_LABEL[k]}
+              {i + 1}. {t(LIVE2D_STEP_LABEL[k])}
             </span>
           ))}
         </div>

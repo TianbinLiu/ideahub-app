@@ -135,6 +135,10 @@ msgstr " · pitch {pitchSigned}"
 msgid " · 首尾帧渐变（无视频文件，按播放画面合成）"
 msgstr " · first/last-frame fade (no video file; composed from what plays)"
 
+#: src/studio/live2dUploadStore.ts
+msgid " 传上去的那份包服务器已经回收了，再点一次发布会把包重新传一遍（这条路慢一些）。"
+msgstr " The server has already cleaned up the uploaded bundle, so publishing again will upload the bundle again (this route is slower)."
+
 #: src/components/BranchPlayer.tsx
 msgid "—— 结局 ——"
 msgstr "— The End —"
@@ -985,6 +989,11 @@ msgstr "“{0}” is published"
 #: src/components/VideoCardAnnotator.tsx
 msgid "「{0}」已存进卡片库"
 msgstr "“{0}” saved to your card library"
+
+#. placeholder {0}: result.model.name
+#: src/studio/live2dUploadStore.ts
+msgid "「{0}」已经发布好了。"
+msgstr "“{0}” has been published."
 
 #. placeholder {0}: tierOf(node.videoTier).label
 #. placeholder {1}: Object.keys(flat!).join("/")
@@ -2198,6 +2207,10 @@ msgstr "The AI is drafting three directions…"
 msgid "AI 生成"
 msgstr "AI-generated"
 
+#: src/studio/personaWizardStore.ts
+msgid "AI 生成人格"
+msgstr "AI persona generation"
+
 #: src/pages/ProfilePage.tsx
 msgid "AI 生成免扣费，无需充值；用量服务端照记"
 msgstr "AI generation is free for you and needs no top-up; usage is still recorded on the server"
@@ -2349,6 +2362,10 @@ msgstr "One line on what it produces (shown when choosing a scheme)"
 #: src/components/DraftSheet.tsx
 msgid "一屏一段、逐段生成"
 msgstr "One segment per screen, generated one at a time"
+
+#: src/studio/structuredSkills.ts
+msgid "一整篇（{SCRIPT_MIN}~{SCRIPT_MAX} 字），故事梗概或分场脚本都行"
+msgstr "A whole script ({SCRIPT_MIN}–{SCRIPT_MAX} characters); a synopsis or a scene-by-scene script both work"
 
 #: src/pages/AdminPage.tsx
 msgid "一条作品都没有"
@@ -2648,6 +2665,10 @@ msgstr "Keep it"
 msgid "不取了"
 msgstr "Cancel"
 
+#: src/studio/structuredSkills.ts
+msgid "不合形状的段整段丢掉；一段不剩就算失败，不落地"
+msgstr "Segments in the wrong shape are dropped whole; if none are left, it counts as a failure and nothing is applied"
+
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "不在选段内"
 msgstr "Outside the selection"
@@ -2700,6 +2721,10 @@ msgstr "Not in Home or search, but anyone with the link can watch it and pass it
 #: src/pages/CutPage.tsx
 msgid "与素材同分辨率，最快"
 msgstr "Same resolution as the footage; fastest"
+
+#: src/studio/stage/stageState.ts
+msgid "中景"
+msgstr "Medium shot"
 
 #: src/components/flow/RefFrameSheet.tsx
 msgid "中间帧最多 {midMax} 张"
@@ -2811,6 +2836,22 @@ msgstr "Persona"
 msgid "人格：{0}"
 msgstr "Persona: {0}"
 
+#: src/studio/personaWizardStore.ts
+msgid "人格「{name}」发布好了"
+msgstr "Persona “{name}” has been published"
+
+#: src/studio/personaWizardStore.ts
+msgid "人格得有个名字，回上一步补一个。"
+msgstr "The persona needs a name — go back a step and add one."
+
+#: src/studio/personaWizardStore.ts
+msgid "人格的那一处重写好了"
+msgstr "That persona field has been rewritten"
+
+#: src/studio/personaWizardStore.ts
+msgid "人格草稿写好了"
+msgstr "The persona draft is ready"
+
 #. placeholder {0}: at + 1
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "人物{0}"
@@ -2905,6 +2946,10 @@ msgstr "Later"
 #: src/components/CoverPicker.tsx
 msgid "以当前封面为参考图，按要求修改"
 msgstr "Uses the current cover as the reference and edits it as requested"
+
+#: src/studio/stage/stageState.ts
+msgid "仰拍"
+msgstr "Low angle"
 
 #: src/studio/ui/projection.tsx
 msgid "会丢掉这一段推演出的方案（已花的 token 不退）"
@@ -3045,6 +3090,10 @@ msgstr "You could be the first"
 #: src/pages/SupportPage.tsx
 msgid "你好，我是{name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。"
 msgstr "Hi, I'm {name}, QiMeng's AI support. Ask me about your account, charges, recovering videos, or installing and updating the app; if I can't solve it, I'll pass you to a human."
+
+#: src/studio/structuredSkills.ts
+msgid "你来点头"
+msgstr "Your approval"
 
 #: src/studio/canvasAgent.ts
 msgid "你的卡库里没有「{name}」"
@@ -3228,6 +3277,10 @@ msgstr "Save this mix"
 msgid "保留了框内背景（{size}{up}）——卡面仍带背景，出片时 AI 可能把背景里的东西也画进去"
 msgstr "Kept the background inside the box ({size}{up}) — the card still has a background, so the AI may draw things from it into videos"
 
+#: src/studio/stage/stageState.ts
+msgid "俯拍"
+msgstr "High angle"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "停下"
 msgstr "Stop"
@@ -3324,6 +3377,10 @@ msgstr "Add a voice before saving."
 msgid "先勾上上面那三条才能发布。"
 msgstr "Confirm the three points above before publishing."
 
+#: src/studio/personaWizardStore.ts
+msgid "先勾上那三条，才能发布。"
+msgstr "Check all three statements before publishing."
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/FlowPage.tsx
 #: src/studio/ui/projection.tsx
@@ -3402,6 +3459,10 @@ msgstr "Tap a slot below, then tap a card — or drag a card straight onto a slo
 msgid "先炼出当前段的视频"
 msgstr "Generate this segment's video first"
 
+#: src/studio/live2dUploadStore.ts
+msgid "先给它起个名字。"
+msgstr "Give it a name first."
+
 #: src/pages/PublishPage.tsx
 msgid "先给视频起个标题"
 msgstr "Give the video a title first"
@@ -3433,6 +3494,10 @@ msgstr "Your way"
 #: src/components/CoverPicker.tsx
 msgid "全新生成"
 msgstr "Generate new"
+
+#: src/studio/stage/stageState.ts
+msgid "全景"
+msgstr "Wide shot"
 
 #: src/components/TemplateShelf.tsx
 #: src/pages/AdminPage.tsx
@@ -3725,11 +3790,16 @@ msgstr "Saving to local storage…"
 msgid "决定牌桌上属于你的那双手"
 msgstr "Decides which pair of hands at the card table is yours"
 
+#: src/studio/live2dUploadStore.ts
+msgid "准备上传…"
+msgstr "Preparing to upload…"
+
 #: src/components/ForgeOverlay.tsx
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/CutPage.tsx
 #: src/studio/flowStore.ts
+#: src/studio/personaWizardStore.ts
 msgid "准备中…"
 msgstr "Preparing…"
 
@@ -4134,6 +4204,18 @@ msgstr "Earlier segments aren't finished yet — each segment continues from the
 #: src/components/BranchPlayer.tsx
 msgid "剧情走向，由你决定——"
 msgstr "You decide where the story goes—"
+
+#: src/studio/structuredSkills.ts
+msgid "剧本 → 分镜字段"
+msgstr "Script → shot fields"
+
+#: src/studio/structuredSkills.ts
+msgid "剧本太短，切不出段"
+msgstr "The script is too short to split into segments"
+
+#: src/studio/structuredSkills.ts
+msgid "剧本太短（至少 {SCRIPT_MIN} 字）"
+msgstr "The script is too short (at least {SCRIPT_MIN} characters)"
 
 #: src/pages/CutPage.tsx
 msgid "剪辑"
@@ -4582,6 +4664,8 @@ msgstr "Send something to try it, like “hi there”."
 #: src/components/flow/SkillPanel.tsx
 #: src/pages/PublishPage.tsx
 #: src/pages/SupportModelNewPage.tsx
+#: src/studio/live2dUploadStore.ts
+#: src/studio/personaWizardStore.ts
 msgid "发布"
 msgstr "Publish"
 
@@ -4603,6 +4687,10 @@ msgstr "Publishing…"
 msgctxt "评论输入框旁那颗键：正在把这条评论发出去（不是发布作品）"
 msgid "发布中…"
 msgstr "Posting…"
+
+#: src/studio/personaWizardStore.ts
+msgid "发布人格"
+msgstr "Publish persona"
 
 #: src/pages/SupportCreatePage.tsx
 msgid "发布出去的东西署你的名，别人下载后你能看到下载数。"
@@ -4637,9 +4725,21 @@ msgstr "Publishing keeps this video's Studio project, so you can remake it later
 msgid "发布失败，稍后再试。"
 msgstr "Publishing failed. Try again later."
 
+#: src/studio/live2dUploadStore.ts
+msgid "发布失败了，再试一次。"
+msgstr "Publishing failed — try again."
+
+#: src/studio/personaWizardStore.ts
+msgid "发布失败了，稍后再试。"
+msgstr "Publishing failed — try again later."
+
 #: src/components/support/VoiceMixer.tsx
 msgid "发布并设为我的声音"
 msgstr "Publish and use as my voice"
+
+#: src/studio/live2dUploadStore.ts
+msgid "发布模型"
+msgstr "Publish model"
 
 #: src/pages/FlowPage.tsx
 msgid "发布模板"
@@ -5357,6 +5457,10 @@ msgstr "Balanced"
 msgid "坏笑"
 msgstr "Smirk"
 
+#: src/studio/personaWizardStore.ts
+msgid "基本设定"
+msgstr "Basics"
+
 #: src/studio/StudioPage.tsx
 msgid "填入素材与要求，AI 将推演三套走向"
 msgstr "Add materials and a request; the AI will draft three directions"
@@ -5650,6 +5754,7 @@ msgstr "Install and use"
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/DeckDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
+#: src/studio/live2dUploadStore.ts
 #: src/studio/ui/projection.tsx
 msgid "完成"
 msgstr "Done"
@@ -5713,6 +5818,10 @@ msgstr "Shy"
 msgctxt "Live2D 表情槽名"
 msgid "害羞"
 msgstr "Shy"
+
+#: src/studio/live2dUploadStore.ts
+msgid "对映射"
+msgstr "Check mapping"
 
 #. placeholder {0}: AI_REAL ? EXAMPLES[lang].template : EXAMPLES[lang].describe
 #: src/components/flow/FlowCanvas.tsx
@@ -5790,6 +5899,10 @@ msgstr "Couldn't upload the cover: {0}"
 #: src/pages/DeckDetailPage.tsx
 msgid "封面卡"
 msgstr "Cover card"
+
+#: src/studio/live2dUploadStore.ts
+msgid "封面没传上去，换一张再试。"
+msgstr "The cover didn't upload. Try a different image."
 
 #: src/pages/SupportPage.tsx
 msgid "小梦"
@@ -6022,6 +6135,10 @@ msgstr "Published “{0}” (not public, only in “Mine”) and set it as your 
 #: src/components/support/VoiceSheet.tsx
 msgid "已发布「{0}」到声音市场，并设为你的声音。"
 msgstr "Published “{0}” to the voice market and set it as your voice."
+
+#: src/studio/live2dUploadStore.ts
+msgid "已取消上传。要发布的话重新点一次「开始识别」。"
+msgstr "Upload canceled. To publish, tap “Start detection” again."
 
 #: src/pages/CutPage.tsx
 msgid "已取消合并。片段、圈选和配乐都还在，随时可以重新开始。"
@@ -6370,6 +6487,10 @@ msgstr "Platform stats · tap a card to manage"
 msgid "平台通知"
 msgstr "Platform notice"
 
+#: src/studio/stage/stageState.ts
+msgid "平视"
+msgstr "Eye level"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "平静"
 msgstr "Calm"
@@ -6513,6 +6634,10 @@ msgstr "Recording… (playing this clip)"
 msgid "录制中途被系统暂停了（多半是切到了后台）——回到这一页重新点一次「录这一段」"
 msgstr "Recording was paused by the system (most likely the app went to the background) — come back to this page and tap “Record this clip” again"
 
+#: src/studio/structuredSkills.ts
+msgid "形状检查"
+msgstr "Shape check"
+
 #: src/pages/SupportPage.tsx
 msgid "形象"
 msgstr "Look"
@@ -6586,6 +6711,10 @@ msgstr "WeChat"
 #: src/components/ShareSheet.tsx
 msgid "微信分享要在 App 里用，浏览器里请复制链接"
 msgstr "WeChat sharing works in the app. In a browser, copy the link instead"
+
+#: src/studio/personaWizardStore.ts
+msgid "微调"
+msgstr "Fine-tune"
 
 #: src/pages/CustomCardPage.tsx
 msgid "必填 · 同时就是卡面"
@@ -6962,9 +7091,21 @@ msgstr "Can't be priced"
 msgid "抱歉没帮上，要不要转人工？"
 msgstr "Sorry that didn't help. Talk to a human?"
 
+#: src/studio/structuredSkills.ts
+msgid "拆出来的段一段都不合形状（剧情太短或缺字段）——把剧本写具体些再试"
+msgstr "None of the split segments had the right shape (story too short or fields missing) — make the script more specific and try again"
+
+#: src/studio/structuredSkills.ts
+msgid "拆分镜"
+msgstr "Split into shots"
+
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "拆分镜中…"
 msgstr "Splitting into shots…"
+
+#: src/studio/structuredSkills.ts
+msgid "拆分镜要 {price} token，余额不够——去「我的」页充值"
+msgstr "Splitting into shots costs {price} tokens and your balance is too low — top up on the “Me” page"
 
 #. placeholder {0}: plan.segments.length
 #: src/components/flow/ScriptSkillSheet.tsx
@@ -7229,6 +7370,10 @@ msgstr "Switching to “{0}” changes the following:"
 msgid "换头像…"
 msgstr "Changing avatar…"
 
+#: src/studio/personaWizardStore.ts
+msgid "换好了。"
+msgstr "Replaced."
+
 #: src/components/BranchPlayer.tsx
 msgid "换条路"
 msgstr "Try another path"
@@ -7381,6 +7526,7 @@ msgstr "Submit: save numbers and delete {0, plural, one {# role slot} other {# r
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 #: src/pages/SupportPage.tsx
+#: src/studio/personaWizardStore.ts
 msgid "提交中…"
 msgstr "Submitting…"
 
@@ -7718,6 +7864,14 @@ msgstr "The whole segment renders in one go. Don't quit the app"
 msgid "整片就绪"
 msgstr "Ready to edit"
 
+#: src/studio/structuredSkills.ts
+msgid "整篇剧本拆成几段，每段带景别 / 运镜 / 情绪节拍与时长，看一遍再铺成一条流水线"
+msgstr "Splits a whole script into segments, each with shot size / camera move / emotional beat and duration; review them, then lay them out as a pipeline"
+
+#: src/studio/live2dUploadStore.ts
+msgid "文件不在了，请重新选一次模型包。"
+msgstr "The file is gone — choose the model bundle again."
+
 #. placeholder {0}: plan.formats.map((f) => f.toUpperCase()).join(" / ")
 #: src/components/DownloadSheet.tsx
 msgid "文件格式：{0}"
@@ -8001,6 +8155,10 @@ msgstr "A video you paid for is still waiting on the server to be recovered"
 msgid "服务器会解开包、数出它会哪些动作和表情，并给一份自动映射（下一步你可以改）。这一步会把包传上去（约 {0}MB），传完之后不会立刻公开。"
 msgstr "The server unpacks the bundle, counts the motions and expressions it has, and suggests a mapping (you can change it in the next step). This step uploads the bundle (about {0}MB); it isn't made public after the upload."
 
+#: src/studio/live2dUploadStore.ts
+msgid "服务器正在解包识别…"
+msgstr "The server is unpacking and detecting…"
+
 #: src/components/support/VoiceMixer.tsx
 #: src/pages/SupportPage.tsx
 msgid "服务端出错"
@@ -8094,6 +8252,10 @@ msgstr "Self-authorized (Ark trusted asset library)"
 #: src/components/VoiceRecorder.tsx
 msgid "本人跟读录制"
 msgstr "Recorded by me reading along"
+
+#: src/studio/live2dUploadStore.ts
+msgid "本地预览"
+msgstr "Local preview"
 
 #: src/pages/ProfilePage.tsx
 msgid "本服务尚未接入支付渠道，下单后无法完成付款"
@@ -8355,9 +8517,37 @@ msgstr "Check for updates"
 msgid "模型：{0}"
 msgstr "Model: {0}"
 
+#: src/studio/live2dUploadStore.ts
+msgid "模型包识别失败：{text}"
+msgstr "Model bundle detection failed: {text}"
+
+#: src/studio/live2dUploadStore.ts
+msgid "模型包识别好了，回去接着填。"
+msgstr "The model bundle has been detected — go back to continue."
+
+#: src/studio/live2dUploadStore.ts
+msgid "模型发布失败：{text}"
+msgstr "Model publishing failed: {text}"
+
+#: src/studio/structuredSkills.ts
+msgid "模型按段写：标题 / 剧情 / 时长 / 景别 · 运镜 · 情绪节拍"
+msgstr "The model writes each segment: title / story / duration / shot size · camera move · emotional beat"
+
 #: src/pages/SupportModelsPage.tsx
 msgid "模型文件读不到（{why}），没有切换。"
 msgstr "Couldn't read the model files ({why}); nothing was switched."
+
+#: src/studio/structuredSkills.ts
+msgid "模型没有给出 JSON（换个说法或把剧本写具体些再试）"
+msgstr "The model didn't return JSON (rephrase, or make the script more specific, and try again)"
+
+#: src/studio/structuredSkills.ts
+msgid "模型给的 JSON 读不出来（再试一次）"
+msgstr "The model's JSON couldn't be read (try again)"
+
+#: src/studio/structuredSkills.ts
+msgid "模型输出里没有 segments 数组"
+msgstr "The model's output has no segments array"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "模板名"
@@ -8396,8 +8586,21 @@ msgid "正在上传「{0}」 {1}/{2}"
 msgstr "Uploading “{0}” {1}/{2}"
 
 #: src/pages/EditPage.tsx
+#: src/studio/live2dUploadStore.ts
 msgid "正在上传封面…"
 msgstr "Uploading cover…"
+
+#: src/studio/live2dUploadStore.ts
+msgid "正在上传并发布（这条路要把包传过我们的服务器，大包会慢）…"
+msgstr "Uploading and publishing (this route sends the bundle through our server, so large bundles are slow)…"
+
+#: src/studio/live2dUploadStore.ts
+msgid "正在上传并识别（约 {mb}MB，走的是慢的那条）…"
+msgstr "Uploading and detecting (about {mb}MB, on the slower route)…"
+
+#: src/studio/live2dUploadStore.ts
+msgid "正在上传模型包 {n}%"
+msgstr "Uploading the model bundle {n}%"
 
 #: src/pages/CardDetailPage.tsx
 msgid "正在从创意工坊取这张卡…"
@@ -8421,11 +8624,20 @@ msgstr "Another video is being saved. Wait for it to finish, or stop it first."
 msgid "正在停止…"
 msgstr "Stopping…"
 
+#: src/studio/personaWizardStore.ts
+msgid "正在写说话风格…"
+msgstr "Writing the speaking style…"
+
+#: src/studio/live2dUploadStore.ts
+msgid "正在准备预览…"
+msgstr "Preparing the preview…"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "正在加载这个包…"
 msgstr "Loading this bundle…"
 
 #: src/pages/SupportModelNewPage.tsx
+#: src/studio/live2dUploadStore.ts
 msgid "正在发布…"
 msgstr "Publishing…"
 
@@ -8594,6 +8806,10 @@ msgstr "Calculating reclaimable space…"
 msgid "正在装载你的卡片库…"
 msgstr "Loading your card library…"
 
+#: src/studio/live2dUploadStore.ts
+msgid "正在解开压缩包…"
+msgstr "Unzipping the bundle…"
+
 #: src/pages/SupportPage.tsx
 msgid "正在说这句 →"
 msgstr "Saying this now →"
@@ -8605,6 +8821,10 @@ msgstr "Bringing Xiaomeng on stage…"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "正在读 {fileName}…"
 msgstr "Reading {fileName}…"
+
+#: src/studio/personaWizardStore.ts
+msgid "正在读你给的素材…"
+msgstr "Reading your materials…"
 
 #: src/pages/ProfilePage.tsx
 msgid "正在读取余额…"
@@ -8625,6 +8845,10 @@ msgstr "Reading image…"
 #: src/components/UpdateSheet.tsx
 msgid "正在连接…"
 msgstr "Connecting…"
+
+#: src/studio/personaWizardStore.ts
+msgid "正在重写这一处…"
+msgstr "Rewriting this part…"
 
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
@@ -8687,6 +8911,10 @@ msgstr "{0, plural, one {# image} other {# images}} per card: {1}"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "每条 {0} 字以内，最多 {1} 条。"
 msgstr "Up to {0} characters each, at most {1}."
+
+#: src/studio/structuredSkills.ts
+msgid "每段一套已挑定的方案，镜头字段进方案台与出片提示词"
+msgstr "Each segment gets one picked plan; the shot fields go into the plan board and the video prompt"
 
 #: src/pages/CreatePage.tsx
 msgid "每段三选一，可回头改"
@@ -9344,6 +9572,10 @@ msgstr "Physics: yes"
 msgid "物理 没有"
 msgstr "Physics: no"
 
+#: src/studio/stage/stageState.ts
+msgid "特写"
+msgstr "Close-up"
+
 #: src/components/DraftSheet.tsx
 msgid "现在打不开这条草稿"
 msgstr "This draft can't be opened right now"
@@ -9369,6 +9601,10 @@ msgstr "Can't lay it out right now (a segment may be generating) — try again l
 msgid "现在铺不进工坊，稍后再试"
 msgstr "Can't load it into the Studio right now. Try again later"
 
+#: src/studio/personaWizardStore.ts
+msgid "生成"
+msgstr "Generate"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "生成中"
 msgstr "Generating"
@@ -9384,6 +9620,10 @@ msgstr "Generating…"
 #: src/components/CoverPicker.tsx
 msgid "生成失败：{0}"
 msgstr "Generation failed: {0}"
+
+#: src/studio/personaWizardStore.ts
+msgid "生成失败了，稍后再试。"
+msgstr "Generation failed — try again later."
 
 #: src/studio/genLog.ts
 msgid "生成契约"
@@ -9743,6 +9983,10 @@ msgstr "The camera didn't return a photo"
 msgid "相机照片存不下来（存储可能已满）"
 msgstr "Couldn't save the camera photo (storage may be full)"
 
+#: src/studio/structuredSkills.ts
+msgid "看一遍再铺；铺是整表覆盖，现有流水线会先问你"
+msgstr "Review before laying it out; laying out replaces the whole pipeline, so you'll be asked about the current one first"
+
 #: src/pages/PublishPage.tsx
 msgid "看到这条片子的人能看到卡面与设定，也能「收入卡组」接着创作——这是别人找到你的主要方式。声明过真实人物的卡，形象图不会给出去。"
 msgstr "People who see this video can see the cards and their details, and can “Add to my cards” to create with them — this is the main way others find you. Cards marked as real people don't share their images."
@@ -10043,10 +10287,9 @@ msgstr "Leanings"
 
 #. placeholder {0}: idx + 1
 #. placeholder {1}: PERSONA_STEPS.length
-#. placeholder {2}: PERSONA_STEPS[idx].label
 #: src/pages/SupportPersonaNewPage.tsx
-msgid "第 {0} / {1} 步 · {2}"
-msgstr "Step {0} of {1} · {2}"
+msgid "第 {0} / {1} 步 · {stepLabel}"
+msgstr "Step {0} of {1} · {stepLabel}"
 
 #. placeholder {0}: i + 1
 #: src/components/support/VoiceMixer.tsx
@@ -10065,6 +10308,7 @@ msgstr "Voice {0}"
 #: src/pages/FlowPage.tsx
 #: src/pages/PublishPage.tsx
 #: src/studio/flowStore.ts
+#: src/studio/structuredSkills.ts
 #: src/studio/ui/projection.tsx
 msgid "第 {0} 段"
 msgstr "Segment {0}"
@@ -10501,6 +10745,10 @@ msgstr "The second case: <0>two neighboring rows have their positions swapped</0
 msgid "等了 {secs} 秒还没画出来。包可能太大，或者贴图 / moc3 有问题。"
 msgstr "Still not rendered after {secs} seconds. The bundle may be too large, or something is wrong with the textures or moc3."
 
+#: src/studio/live2dUploadStore.ts
+msgid "等太久没等到服务器回话。这一发可能已经建好了 —— 先去「我的」里看一眼，没有再回来重发。"
+msgstr "The server took too long to reply. It may have been created anyway — check the “Me” page first, and come back to publish again only if it isn't there."
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "等她画出来才能继续。"
 msgstr "Wait for her to render before continuing."
@@ -10592,6 +10840,11 @@ msgstr "about {0} tokens"
 msgid "素材"
 msgstr "Assets"
 
+#: src/studio/personaWizardStore.ts
+msgctxt "人格向导的步骤名：导入聊天记录、发过的文案等素材"
+msgid "素材"
+msgstr "Materials"
+
 #: src/studio/ui/projection.tsx
 msgid "素材卡"
 msgstr "Material cards"
@@ -10633,6 +10886,14 @@ msgstr "No character cards in your library to attach yet"
 #: src/pages/AdminPage.tsx
 msgid "素材点赞"
 msgstr "Asset likes"
+
+#: src/studio/personaWizardStore.ts
+msgid "素材超了上限，最前面的 {droppedChars} 字和最早的 {droppedItems} 条没有送去分析。"
+msgstr "The materials went over the limit: the first {droppedChars, plural, one {# character} other {# characters}} and the earliest {droppedItems, plural, one {# item} other {# items}} weren't sent for analysis."
+
+#: src/studio/personaWizardStore.ts
+msgid "素材超了上限，最前面的 {droppedChars} 字没有送去分析。"
+msgstr "The materials went over the limit: {droppedChars, plural, one {the first # character wasn't} other {the first # characters weren't}} sent for analysis."
 
 #. placeholder {0}: vEnd.toFixed(1)
 #: src/components/VideoCardAnnotator.tsx
@@ -10818,6 +11079,10 @@ msgstr "Couldn't capture the first and last frames automatically — tap “🎞
 msgid "自动查授权没成：{0}"
 msgstr "Automatic authorization check failed: {0}"
 
+#: src/studio/live2dUploadStore.ts
+msgid "自动识别"
+msgstr "Auto-detect"
+
 #: src/components/AvatarPicker.tsx
 #: src/studio/ui/projection.tsx
 msgid "自定义"
@@ -10886,6 +11151,10 @@ msgstr "Pick cards"
 msgid "至少一张图（第一张有图的格子就是卡面）"
 msgstr "at least one image (the first filled slot is the card face)"
 
+#: src/studio/personaWizardStore.ts
+msgid "至少填一样：名字、定位、简介，或者导入一点素材。"
+msgstr "Fill in at least one: name, role or intro — or import some materials."
+
 #: src/pages/CustomCardPage.tsx
 msgid "至少给一格图，这颗键才亮（第一张有图的就是卡面）"
 msgstr "Add at least one image to enable this button (the first filled slot is the card face)"
@@ -10911,6 +11180,10 @@ msgstr "If installing says “App not installed”, an early test build probably
 msgid "草稿"
 msgstr "Draft"
 
+#: src/studio/personaWizardStore.ts
+msgid "草稿写好了，往下可以试聊。"
+msgstr "The draft is ready — you can try chatting next."
+
 #: src/pages/DraftsPage.tsx
 msgid "草稿只存在这台设备上；超过 {MAX_DRAFTS} 条会从最旧的清起。每炼成一段都会自动存进当前草稿。"
 msgstr "Drafts are stored only on this device; beyond {MAX_DRAFTS}, the oldest are removed first. Every rendered segment is saved to the current draft automatically."
@@ -10922,6 +11195,10 @@ msgstr "Drafts"
 #: src/pages/ProfilePage.tsx
 msgid "草稿箱整页 ›"
 msgstr "All drafts ›"
+
+#: src/studio/personaWizardStore.ts
+msgid "草稿还没有名字，回上一步补一个再试聊。"
+msgstr "The draft has no name yet — go back a step and add one before chatting."
 
 #: src/pages/ProfilePage.tsx
 msgid "获赞"
@@ -10988,6 +11265,14 @@ msgstr "Installing…"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "装上中…"
 msgstr "Equipping…"
+
+#: src/studio/personaWizardStore.ts
+msgid "装上了，回客服页就是这个人格在说话。"
+msgstr "Equipped — this persona is the one talking on the support page now."
+
+#: src/studio/personaWizardStore.ts
+msgid "装不上，稍后再试。"
+msgstr "Couldn't equip it — try again later."
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "装了这个形象、自己又还没挑过人格 / 声音的人，会拿到你推荐的这两样；已经自己挑过的人不受影响。"
@@ -11180,6 +11465,10 @@ msgstr "Detecting… (takes a minute or more)"
 msgid "识别卡片文字"
 msgstr "Recognize card text"
 
+#: src/studio/live2dUploadStore.ts
+msgid "识别失败了，再试一次。"
+msgstr "Detection failed — try again."
+
 #: src/pages/CustomCardPage.tsx
 msgid "识别好了，但你已经换了卡种，结果没有填进去"
 msgstr "Recognition finished, but you've changed the card type, so the results weren't filled in"
@@ -11207,6 +11496,10 @@ msgstr "Recognition finished. Go back and check that it's filled in correctly"
 #: src/pages/CustomCardPage.tsx
 msgid "识别已计费 {recogPrice}，但没读出结果——可以自己填，或者再识别一次"
 msgstr "Recognition was charged {recogPrice}, but the result couldn't be read — fill it in yourself, or recognize again"
+
+#: src/studio/live2dUploadStore.ts
+msgid "识别模型包"
+msgstr "Detect model bundle"
 
 #: src/pages/CustomCardPage.tsx
 msgid "识别没成，回去看原因"
@@ -11237,9 +11530,21 @@ msgstr "The preview didn't play. Try again later."
 msgid "试演 {label}"
 msgstr "Try {label}"
 
+#: src/studio/personaWizardStore.ts
+msgid "试聊"
+msgstr "Chat"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "试聊、微调、发布三步要先生成出草稿才能进。"
 msgstr "Chat, Fine-tune and Publish unlock once a draft has been generated."
+
+#: src/studio/personaWizardStore.ts
+msgid "试聊失败了，稍后再试。"
+msgstr "The chat failed — try again later."
+
+#: src/studio/live2dUploadStore.ts
+msgid "试跑"
+msgstr "Test run"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "试跑跑到一半，上面那块换成了别的模型 —— 这一轮不作数。点「重新加载预览」再跑一遍。"
@@ -11330,6 +11635,10 @@ msgstr "Speaking"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "说话风格"
 msgstr "Speaking style"
+
+#: src/studio/live2dUploadStore.ts
+msgid "请先勾上授权声明再发布。"
+msgstr "Check the license statement before publishing."
 
 #: src/pages/AdminPage.tsx
 msgid "请先登录。"
@@ -11453,6 +11762,10 @@ msgstr "Account"
 msgid "账号本身永久删除，无法恢复，也无法用同名重建找回任何数据"
 msgstr "The account itself is permanently deleted. It can't be restored, and re-creating it under the same name won't bring back any data"
 
+#: src/studio/structuredSkills.ts
+msgid "贴剧本"
+msgstr "Paste script"
+
 #. placeholder {0}: detail.textures.length
 #: src/pages/SupportModelNewPage.tsx
 msgid "贴图 {0} 张"
@@ -11563,6 +11876,10 @@ msgstr "Type this user's username <0>{0}</0> to confirm:"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "边界"
 msgstr "Boundaries"
+
+#: src/studio/stage/stageState.ts
+msgid "近景"
+msgstr "Medium close-up"
 
 #. placeholder {0}: rv.instruction.trim().slice(0, 20)
 #: src/studio/flowStore.ts
@@ -12179,6 +12496,10 @@ msgstr "Who was originally in this position (people using the template only see 
 msgid "这个包在手机上画不出来：{0} 画不出来的包发布出去别人也用不了，请先修好再传。"
 msgstr "This bundle can't render on a phone: {0} Nobody can use a bundle that doesn't render, so please fix it before uploading."
 
+#: src/studio/live2dUploadStore.ts
+msgid "这个包在手机上画不出来。"
+msgstr "This bundle can't be rendered on a phone."
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "这个包在手机上画不出来。画不出来的包发布出去别人也用不了，请先修好再传。"
 msgstr "This bundle can't render on a phone. Nobody can use a bundle that doesn't render, so please fix it before uploading."
@@ -12198,6 +12519,10 @@ msgstr "This bundle doesn't have it — pick another, or re-export from Cubism."
 #: src/pages/SupportPage.tsx
 msgid "这个回答有帮助吗？"
 msgstr "Was this answer helpful?"
+
+#: src/studio/live2dUploadStore.ts
+msgid "这个文件读不了。"
+msgstr "This file can't be read."
 
 #. placeholder {0}: rest.length
 #. placeholder {1}: rest.join(" / ")
@@ -12294,6 +12619,10 @@ msgstr "These files live in the app's cache, which the system may clear. Setting
 msgid "这些是已经花过 token 生成的内容，丢掉就得重做一遍。"
 msgstr "This content already cost tokens to generate — discard it and you'll have to make it again."
 
+#: src/studio/live2dUploadStore.ts
+msgid "这份包上次已经传上去了，直接让服务器再看一遍…"
+msgstr "This bundle was already uploaded last time — asking the server to look at it again…"
+
 #: src/components/ReviseBar.tsx
 msgid "这份工程有 {lostCount} 处素材没有留存 · 方案卡上逐格标了出来：预览图重新推演就能补回来， 成片要重新出片（会再花一次钱）"
 msgstr "{lostCount, plural, one {# asset in this project wasn't kept} other {# assets in this project weren't kept}} · Each is marked on the plan cards: previews come back when you re-derive, videos must be rendered again (charged again)"
@@ -12344,6 +12673,10 @@ msgstr "This server can't search for people yet, so @mentions may not reach them
 #: src/pages/SupportModelNewPage.tsx
 msgid "这台服务器还没开直传，刚才走的是慢的那条 —— 包要经过我们的服务器，大包在手机网络上有可能超时。这条路上识别不会把包留下，所以最后<0>发布时还要再传一次</0>。"
 msgstr "This server doesn't support direct upload yet, so the slower route was used — the bundle goes through our server, and large bundles may time out on mobile networks. Detection on this route doesn't keep the bundle, so <0>you'll need to upload it again when publishing</0>."
+
+#: src/studio/live2dUploadStore.ts
+msgid "这台服务器还没开直传，改走慢的那条（约 {mb}MB，超过 15MB 可能会超时）…"
+msgstr "This server doesn't support direct upload yet, so taking the slower route (about {mb}MB; over 15MB may time out)…"
 
 #: src/pages/AdminPage.tsx
 msgid "这台服务器还没有{what}接口（需要升级服务端）。这不代表列表是空的 —— 是这一头根本问不到。"
@@ -12480,6 +12813,10 @@ msgstr "This card has no voice sample yet. You can grab a clip (2–15s) while c
 #: src/data/cardViews.ts
 msgid "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"
 msgstr "This image changed while you were editing it (maybe on another device). Refresh and try again."
+
+#: src/studio/live2dUploadStore.ts
+msgid "这张图太大了（{mb}MB，上限 {cap}MB），换一张小一点的。"
+msgstr "This image is too large ({mb}MB; the limit is {cap}MB). Pick a smaller one."
 
 #: src/components/AvatarPicker.tsx
 msgid "这张图片打不开"
@@ -12872,6 +13209,11 @@ msgstr "Pick a moment"
 msgid "选文件"
 msgstr "Choose files"
 
+#: src/studio/live2dUploadStore.ts
+msgctxt "Live2D 上传向导的步骤名：选一个 zip 模型包"
+msgid "选文件"
+msgstr "Choose file"
+
 #: src/components/TemplateShelf.tsx
 msgid "选段"
 msgstr "Selection"
@@ -12937,6 +13279,10 @@ msgstr "The music is the auto-added original audio, but you trimmed, deleted or 
 #: src/studio/ui/AvatarPicker.tsx
 msgid "酒红斗篷 · 绿金束身裙"
 msgstr "Wine-red cloak · green-and-gold bodice dress"
+
+#: src/studio/personaWizardStore.ts
+msgid "重写人格的一个字段"
+msgstr "Rewrite one persona field"
 
 #: src/components/DraftSheet.tsx
 msgid "重命名"
@@ -13147,6 +13493,10 @@ msgstr "Laying out the plan is free · the video is charged at the regular price
 msgid "铺进去的每一段都是已挑定的一套方案（镜头字段会进方案台与出片提示词），从第 1 段开始逐段炼；想换走向就在那一段上重新推演。"
 msgstr "Each segment laid out is an already-chosen plan (its shot fields go into the plan board and the render prompt). Render them one at a time starting from segment 1; to change direction, re-plan that segment."
 
+#: src/studio/structuredSkills.ts
+msgid "铺进画布"
+msgstr "Lay out on the canvas"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "链接已复制，可以发给本人"
 msgstr "Link copied — you can send it to the person"
@@ -13159,6 +13509,10 @@ msgstr "Locks {0}."
 #: src/pages/SupportPage.tsx
 msgid "问{name}：哪里不对？"
 msgstr "Ask {name}: what's wrong?"
+
+#: src/studio/personaWizardStore.ts
+msgid "问卷"
+msgstr "Questionnaire"
 
 #: src/pages/SettingsPage.tsx
 msgid "问小梦，解决不了转人工"
@@ -13227,6 +13581,10 @@ msgstr "Volume"
 #: src/pages/CutPage.tsx
 msgid "音频"
 msgstr "Audio"
+
+#: src/studio/live2dUploadStore.ts
+msgid "预览准备失败。"
+msgstr "Couldn't prepare the preview."
 
 #. placeholder {0}: e instanceof Error ? e.message.slice(0, 80) : String(e)
 #: src/studio/flowStore.ts

@@ -15,12 +15,15 @@ import { canAfford, spendTokens } from "../data/account";
 import { SCRIPT_SPLIT_TOKENS, clampDuration, fmtTokens } from "../data/economy";
 import { cleanShot, uid, type Card, type Proposal, type ShotSpec, type VideoAspect } from "../types";
 import { newFlowNode, type FlowNode } from "./flowStore";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
 
 export type SkillStepKind = "input" | "model" | "check" | "confirm" | "apply";
 export interface SkillStep {
   kind: SkillStepKind;
-  title: string;
-  hint: string;
+  /** 描述符（模块顶层不翻）：面板画步骤栏时再 t() */
+  title: MessageDescriptor;
+  hint: MessageDescriptor;
 }
 
 /** 拆出来的一段（模型输出过了形状检查之后的样子） */
@@ -46,19 +49,20 @@ export const SCRIPT_SEGMENTS_MAX = 8;
  */
 export const SCRIPT_TO_SHOTS = {
   id: "official.script-to-shots",
-  title: "剧本 → 分镜字段",
-  intro: "整篇剧本拆成几段，每段带景别 / 运镜 / 情绪节拍与时长，看一遍再铺成一条流水线",
+  title: msg`剧本 → 分镜字段`,
+  intro: msg`整篇剧本拆成几段，每段带景别 / 运镜 / 情绪节拍与时长，看一遍再铺成一条流水线`,
   steps: [
-    { kind: "input", title: "贴剧本", hint: `一整篇（${SCRIPT_MIN}~${SCRIPT_MAX} 字），故事梗概或分场脚本都行` },
-    { kind: "model", title: "拆分镜", hint: "模型按段写：标题 / 剧情 / 时长 / 景别 · 运镜 · 情绪节拍" },
-    { kind: "check", title: "形状检查", hint: "不合形状的段整段丢掉；一段不剩就算失败，不落地" },
-    { kind: "confirm", title: "你来点头", hint: "看一遍再铺；铺是整表覆盖，现有流水线会先问你" },
-    { kind: "apply", title: "铺进画布", hint: "每段一套已挑定的方案，镜头字段进方案台与出片提示词" },
+    { kind: "input", title: msg`贴剧本`, hint: msg`一整篇（${SCRIPT_MIN}~${SCRIPT_MAX} 字），故事梗概或分场脚本都行` },
+    { kind: "model", title: msg`拆分镜`, hint: msg`模型按段写：标题 / 剧情 / 时长 / 景别 · 运镜 · 情绪节拍` },
+    { kind: "check", title: msg`形状检查`, hint: msg`不合形状的段整段丢掉；一段不剩就算失败，不落地` },
+    { kind: "confirm", title: msg`你来点头`, hint: msg`看一遍再铺；铺是整表覆盖，现有流水线会先问你` },
+    { kind: "apply", title: msg`铺进画布`, hint: msg`每段一套已挑定的方案，镜头字段进方案台与出片提示词` },
   ] satisfies readonly SkillStep[],
   confirmAt: ["confirm"] satisfies readonly SkillStepKind[],
   cost: SCRIPT_SPLIT_TOKENS,
 } as const;
 
+/* i18n-frozen: 分镜师模型的系统提示词（规定输出的 JSON 形状），冻结中文 */
 const SYS =
   `你是分镜师。把用户给的剧本拆成 2~${SCRIPT_SEGMENTS_MAX} 段首尾相接的视频镜头，按时间顺序、不跳时间线。` +
   `输出 JSON：{"segments":[{"title":"12字内标题","plot":"60-120字这一段的画面与动作，小说式，画面感强，写清人物在做什么","durationSec":3到10的整数,` +
@@ -73,29 +77,29 @@ export function parseShotPlan(raw: string, tierId: string): ShotPlan {
     data = JSON.parse(text);
   } catch {
     const m = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-    if (!m) throw new Error("模型没有给出 JSON（换个说法或把剧本写具体些再试）");
+    if (!m) throw new Error(t`模型没有给出 JSON（换个说法或把剧本写具体些再试）`);
     try {
       data = JSON.parse(m[0]);
     } catch {
-      throw new Error("模型给的 JSON 读不出来（再试一次）");
+      throw new Error(t`模型给的 JSON 读不出来（再试一次）`);
     }
   }
   const arr = Array.isArray(data) ? data : (data as { segments?: unknown } | null)?.segments;
-  if (!Array.isArray(arr)) throw new Error("模型输出里没有 segments 数组");
+  if (!Array.isArray(arr)) throw new Error(t`模型输出里没有 segments 数组`);
   const segments: ShotPlanSeg[] = [];
   for (const it of arr.slice(0, SCRIPT_SEGMENTS_MAX)) {
     if (!it || typeof it !== "object") continue;
     const o = it as Record<string, unknown>;
     const plot = typeof o.plot === "string" ? o.plot.trim().slice(0, VIDEO_PROMPT_MAX) : "";
     if (plot.length < 10) continue;
-    const title = (typeof o.title === "string" ? o.title.trim() : "").slice(0, 12) || `第 ${segments.length + 1} 段`;
+    const title = (typeof o.title === "string" ? o.title.trim() : "").slice(0, 12) || t`第 ${segments.length + 1} 段`;
     const durRaw = typeof o.durationSec === "number" ? o.durationSec : Number(o.durationSec);
     // 时长按档位夹（与报价 / 出片同一把尺 clampDuration）；给不出数的按 5 秒
     const durationSec = clampDuration(Number.isFinite(durRaw) && durRaw > 0 ? durRaw : 5, tierId);
     const shot = cleanShot(o.shot);
     segments.push({ title, plot, durationSec, ...(shot ? { shot } : {}) });
   }
-  if (!segments.length) throw new Error("拆出来的段一段都不合形状（剧情太短或缺字段）——把剧本写具体些再试");
+  if (!segments.length) throw new Error(t`拆出来的段一段都不合形状（剧情太短或缺字段）——把剧本写具体些再试`);
   return { segments };
 }
 
@@ -110,19 +114,24 @@ function localSplit(script: string, tierId: string): ShotPlan {
     .filter(Boolean);
   const n = Math.min(4, Math.max(2, Math.ceil(parts.length / 2)));
   const per = Math.ceil(parts.length / n);
+  // 演示档写进 ShotSpec 的是与模型输出同形的中文字段值（界面上的样子归 types.shotLineDisplay），不在这里翻
   const shots: ShotSpec[] = [
+    // i18n-ignore-next-line: ShotSpec 字段值，与模型输出同形
     { size: "全景", camera: "缓推", beat: "铺垫" },
+    // i18n-ignore-next-line: 同上
     { size: "中景", camera: "跟", beat: "推进" },
+    // i18n-ignore-next-line: 同上
     { size: "近景", camera: "固定", beat: "对峙" },
+    // i18n-ignore-next-line: 同上
     { size: "特写", camera: "环绕", beat: "释放" },
   ];
   const segments: ShotPlanSeg[] = [];
   for (let i = 0; i < n; i++) {
     const plot = parts.slice(i * per, (i + 1) * per).join("");
     if (plot.length < 10) continue;
-    segments.push({ title: `第 ${segments.length + 1} 段`, plot: plot.slice(0, VIDEO_PROMPT_MAX), durationSec: clampDuration(5, tierId), shot: shots[i % shots.length] });
+    segments.push({ title: t`第 ${segments.length + 1} 段`, plot: plot.slice(0, VIDEO_PROMPT_MAX), durationSec: clampDuration(5, tierId), shot: shots[i % shots.length] });
   }
-  if (!segments.length) throw new Error("剧本太短，切不出段");
+  if (!segments.length) throw new Error(t`剧本太短，切不出段`);
   return { segments };
 }
 
@@ -132,9 +141,10 @@ function localSplit(script: string, tierId: string): ShotPlan {
  */
 export async function runScriptToShots(script: string, tierId: string, onStep: (kind: SkillStepKind) => void): Promise<ShotPlan> {
   const s = script.trim().slice(0, SCRIPT_MAX);
-  if (s.length < SCRIPT_MIN) throw new Error(`剧本太短（至少 ${SCRIPT_MIN} 字）`);
+  if (s.length < SCRIPT_MIN) throw new Error(t`剧本太短（至少 ${SCRIPT_MIN} 字）`);
   if (AI_REAL && !canAfford(SCRIPT_SPLIT_TOKENS)) {
-    throw new Error(`拆分镜要 ${fmtTokens(SCRIPT_SPLIT_TOKENS)} token，余额不够——去「我的」页充值`);
+    const price = fmtTokens(SCRIPT_SPLIT_TOKENS);
+    throw new Error(t`拆分镜要 ${price} token，余额不够——去「我的」页充值`);
   }
   onStep("model");
   if (!AI_REAL) {
