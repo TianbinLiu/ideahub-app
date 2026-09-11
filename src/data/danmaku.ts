@@ -18,7 +18,7 @@
 // ★★ 读接口是**同步**的（danmakuOf）。渲染层每一拍都要问一次"这一秒有哪些弹幕"，
 //   改成 Promise 就得把整个播放循环异步化。远端那份靠"按作品懒加载 + 到货后 emit"
 //   补进内存 cache，与 videos.ts 的 loadDetail 是同一招。
-import { idbGet, idbSet } from "./db";
+import { idbRead, idbSet } from "./db";
 import { authState } from "./account";
 import { readyVideos, realId, remoteOn } from "./videos";
 import * as branch from "../api/branch";
@@ -136,23 +136,48 @@ function buildSeeds(): Record<string, DanmakuItem[]> {
   return out;
 }
 
+/**
+ * 离线模式下本机那份弹幕没读出来时的原因（空串 = 读好了，或者跑在远端上）。**可降级**：开机不拦，
+ * 发弹幕的输入条上说一句。
+ * ★★ 非空时**不许落盘**（persistLocal）：store 此刻是一张空表，写下去就是拿它把磁盘上存的弹幕整张盖掉。
+ */
+let loadIssue = "";
+
+export function danmakuLoadIssue(): string {
+  return loadIssue;
+}
+
+/** 离线模式把整张表落盘。远端那份不落本地盘：服务端才是权威 */
+function persistLocal(): void {
+  if (remoteOn() || loadIssue) return;
+  void idbSet(KEY, store);
+}
+
 export async function readyDanmaku(): Promise<void> {
   // ★ 先等 videos 装完：跑不跑在远端上由它一处说了算（remoteOn），
   //   不等的话这里会在"还没探活"的时候按离线模式把种子铺进去。
   //   readyVideos 自己是幂等的（内部复用同一个 Promise），重复 await 不多花一次装载。
-  //   依赖方向 danmaku → videos 是单向的（videos 不认识 danmaku），不会打转。
+  // ★ 作品库是核心库：它挂了就原样抛，开机闸整页停住，由作品库那一项负责说（data/boot）。
   await readyVideos();
+  loadIssue = "";
   if (remoteOn()) {
     // 远端模式：按作品懒加载，启动时什么都不用做（也**不铺种子**）
     store = {};
     emit();
     return;
   }
-  const saved = await idbGet<Record<string, DanmakuItem[]>>(KEY);
-  // 种子只在**从来没存过**时铺一次：存过（哪怕用户把种子弹幕的作品删了）就不再补，
-  // 否则每次冷启动都会把演示弹幕重新塞回去
-  store = saved && typeof saved === "object" ? saved : buildSeeds();
-  if (!saved) void idbSet(KEY, store);
+  try {
+    // ★★ 读失败要抛（idbRead）落进 catch —— 不能当成"从来没存过"去铺种子并写盘（2026-09-10）
+    const saved = await idbRead<Record<string, DanmakuItem[]>>(KEY);
+    // 种子只在**从来没存过**时铺一次：存过（哪怕用户把种子弹幕的作品删了）就不再补，
+    // 否则每次冷启动都会把演示弹幕重新塞回去
+    store = saved && typeof saved === "object" ? saved : buildSeeds();
+    if (!saved) void idbSet(KEY, store);
+  } catch (e) {
+    store = {};
+    loadIssue = e instanceof Error ? e.message : String(e);
+    console.warn("[danmaku] 本机弹幕没读出来，这次会话发的弹幕不落盘:", e);
+  }
   emit();
 }
 
@@ -306,7 +331,7 @@ export async function sendDanmaku(
 
   const list = [...(store[rid] ?? []), item].sort((a, b) => a.at - b.at);
   store = { ...store, [rid]: list };
-  if (!remoteOn()) void idbSet(KEY, store); // 远端那份不落本地盘：服务端才是权威
+  persistLocal();
   emit();
   return item;
 }
@@ -350,7 +375,7 @@ export async function removeDanmaku(videoId: string, danmakuId: string): Promise
   //   这正是 merge() 那段注释里"整段替换"的坑，sendDanmaku 也是在 await 之后才读的。
   const fresh = store[rid] ?? [];
   store = { ...store, [rid]: fresh.filter((d) => d.id !== danmakuId) };
-  if (!remoteOn()) void idbSet(KEY, store); // 远端那份不落本地盘：服务端才是权威
+  persistLocal();
   emit();
 }
 

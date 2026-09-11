@@ -36,14 +36,18 @@ import {
   remoteStateOf,
   remoteTemplatesCapable,
   resumeBlockoutize,
+  readyTemplates,
   sharedLoadIssue,
   subscribeTemplates,
+  templatesLoadIssue,
   templatesVersion,
   type BlockoutJob,
 } from "../data/templates";
 import { remoteOn } from "../data/videos";
 import { useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "./flow/useApplyTemplate";
+import { LocalStoreBanner } from "./LocalStoreIssue";
+import { useLocalRetry } from "../hooks/useLocalRetry";
 import { TPL_CATEGORIES, VideoTemplate, tplCategoryLabel } from "../types";
 
 export function useTemplatesVersion(): number {
@@ -421,6 +425,10 @@ export default function TemplateShelf({
     [allRows, cat],
   );
   const mineRows = useMemo(() => groupRows(myTemplates()).length, [ver, remoteLive]);
+  // ★ 本机模板库没读出来（templates.loadIssue）：「我的模板」可能缺几条，要说出来并给重试；
+  //   ver 订阅着 emit，重试读出来那一拍这里自己会重算
+  const tplIssue = templatesLoadIssue();
+  const tplRetry = useLocalRetry(tplIssue, readyTemplates);
 
   // ★★ 冷启动后远端状态快照是空的（本机库只存模板本身，不存 status/provenAt/待核对）。
   //   不补的话，「角色位待核对」那条提示重启后就**不出现了**，而服务端那道发布闸还在 ——
@@ -540,6 +548,10 @@ export default function TemplateShelf({
           一模一样（铁律八——失败要响；本机与种子照常显示，所以是"响且局部"） */}
       {tab === "market" && sharedLoadIssue() && (
         <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-300/90">{sharedLoadIssue()}</p>
+      )}
+      {/* ★ 本机模板库没读出来（templates.loadIssue）：「我的模板」可能缺几条，这段时间的改动也不落本机 —— 说出来，给重试 */}
+      {tab === "mine" && tplIssue && (
+        <LocalStoreBanner store="templates" retrying={tplRetry.retrying} onRetry={tplRetry.retry} />
       )}
 
       {/* ★★ 「还没取回结果」摆在**两个 tab 都看得见**的位置，而不是只在「我的模板」里：

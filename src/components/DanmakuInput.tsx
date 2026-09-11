@@ -10,11 +10,13 @@
 //   打字要好几秒，按开条的时间点存，弹幕会飘在一段你根本没在看的画面上。
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import { Trans } from "@lingui/react/macro";
 import {
   DANMAKU_COLORS,
   DANMAKU_MAX_LEN,
   type DanmakuItem,
   danmakuIsShared,
+  danmakuLoadIssue,
   danmakuOf,
   danmakuOn,
   danmakuVersion,
@@ -333,9 +335,17 @@ export default function DanmakuInput({
         {err && <p className="px-4 pb-1.5 text-[11px] text-rose-300">{err}</p>}
 
         {/* 离线模式（没配服务端或服务端没起）要如实说：这条弹幕别人看不到。
-            接上服务端时这句话就不该出现了，否则又成了另一种骗人（铁律八） */}
-        {!danmakuIsShared() && (
-          <p className="px-4 pb-1 text-[10px] text-slate-600">当前离线，这条弹幕只存在这台设备上</p>
+            接上服务端时这句话就不该出现了，否则又成了另一种骗人（铁律八）。
+            ★ 本机那份弹幕开机时没读出来（data/danmaku 的 loadIssue）时这次发的不落盘，
+              「只存在这台设备上」就成了假话，换成实话 */}
+        {danmakuLoadIssue() ? (
+          <p className="px-4 pb-1 text-[10px] text-amber-300">
+            <Trans>这台设备上存的弹幕这会儿没读出来，这次发的弹幕关掉 App 就没了</Trans>
+          </p>
+        ) : (
+          !danmakuIsShared() && (
+            <p className="px-4 pb-1 text-[10px] text-slate-600">当前离线，这条弹幕只存在这台设备上</p>
+          )
         )}
       </div>
     </div>,

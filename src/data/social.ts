@@ -22,7 +22,7 @@
 // 重复点不会重复计数，换账号也能各自保留状态。
 // ★ 2026-08-11 从「账号名」改成了「账号 id」：名字是可改的，用户改完昵称，
 //   自己点过的赞会全部变成没点过（而且计数还留着，对不上）。迁移见 readySocial。
-import { idbGet, idbSet } from "./db";
+import { idbRead, idbSet } from "./db";
 import { formatPlays } from "../types";
 import { currentUser, readyAccount, userIdOfName } from "./account";
 // ★ "这次会话在不在远端上"只有一处判断（铁律六 + CLAUDE.md 的弹幕那三条）。
@@ -60,7 +60,19 @@ function emit() {
   for (const fn of subs) fn();
 }
 
+/**
+ * 本机那份互动记录没读出来时的原因（空串 = 读好了）。**可降级**：开机不拦，详情页的互动区说一句。
+ * ★★ 非空时**不许落盘**：store 此刻是一张空表，写下去就是拿它把磁盘上完整的互动记录整张盖掉 ——
+ *   这次会话里点的赞、写的评论只留在内存里，SocialPanel 如实这么说。
+ */
+let loadIssue = "";
+
+export function socialLoadIssue(): string {
+  return loadIssue;
+}
+
 function persist() {
+  if (loadIssue) return;
   void idbSet(KEY, store);
 }
 
@@ -99,18 +111,29 @@ export async function readySocial(): Promise<void> {
   //   App 是 Promise.all([readyVideos(), readyAccount(), readySocial(), …]) 并发起的，
   //   谁先完成不确定；不等的话迁移会静默变成 no-op（videos.ts 的 loadLiked 栽过同一个坑）。
   //   readyAccount() 自己是幂等的，重复 await 不多花一次读。
+  // ★ 账号库是核心库：它挂了就原样抛（开机闸整页停住、由账号库那一项负责说），**绝不能**接着往下跑 ——
+  //   没有账号库时迁移会把名字原样写进 v2，下次启动见 v2 已存在就再也不迁，那批赞永远对不上人。
   await readyAccount();
-  const saved = await idbGet<Record<string, SocialStats>>(KEY);
-  if (saved) {
-    store = saved;
-    if (stripSeedLikes(store)) persist();
-  } else {
-    const legacy = await idbGet<Record<string, SocialStats>>(LEGACY_KEY);
-    if (legacy) {
-      store = migrateNamesToIds(legacy);
-      stripSeedLikes(store);
-      persist();
+  loadIssue = "";
+  try {
+    // ★★ 读失败要抛（idbRead）落进 catch —— 不能当成"没有记录"（2026-09-10）
+    const saved = await idbRead<Record<string, SocialStats>>(KEY);
+    if (saved) {
+      store = saved;
+      if (stripSeedLikes(store)) persist();
+    } else {
+      const legacy = await idbRead<Record<string, SocialStats>>(LEGACY_KEY);
+      if (legacy) {
+        store = migrateNamesToIds(legacy);
+        stripSeedLikes(store);
+        persist();
+      }
     }
+  } catch (e) {
+    // 读失败 / 存量数据形状不对：不拦开机（互动记录不是做出来的东西），但**冻结落盘**（见 loadIssue）
+    store = {};
+    loadIssue = e instanceof Error ? e.message : String(e);
+    console.warn("[social] 本机互动记录没读出来，这次会话的互动不落盘:", e);
   }
   emit();
 }

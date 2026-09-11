@@ -14,7 +14,7 @@
 import { useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
 import Icon from "./Icon";
-import { renameDraft } from "../data/drafts";
+import { draftsLoadIssue, draftsUnavailableText, renameDraft } from "../data/drafts";
 import { useDrafts } from "../hooks/useDrafts";
 import { useStudio } from "../studio/studioStore";
 import type { DraftMode } from "../data/drafts";
@@ -56,7 +56,7 @@ export default function DraftTitle({
     // 静默丢掉名字比一开始不给输入框更糟
     const meta = await useStudio.getState().saveWorkDraft({ title: name, from });
     if (!meta) {
-      setMsg(t`还存不了草稿（空白工程或写盘失败）`);
+      setMsg(draftsLoadIssue() ? draftsUnavailableText() : t`还存不了草稿（空白工程或写盘失败）`);
       setTimeout(() => setMsg(""), 2600);
     }
   }

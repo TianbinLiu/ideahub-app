@@ -188,6 +188,15 @@ function CacheSweeper({ onDone }: { onDone: () => void }) {
   const mb = plan.bytes / 1048576;
   const mbLabel = mb < 1 ? "<1" : mb.toFixed(0);
   if (plan.keys.length === 0) {
+    // ★ 「这一轮不清」与「没有可清理的」是两句话（cacheSweep.SweepPlan.blocked）：前者是草稿 / 剪辑稿没读出来、
+    //   引用数不全，这时说"没有"是假话；而且指一条真出路 —— 去那边读出来再回来
+    if (plan.blocked) {
+      return (
+        <p className="mt-2 text-[11px] leading-relaxed text-amber-300">
+          <Trans>草稿箱或剪到一半的成片这会儿没读出来，先不清理 —— 不然会把它们还在用的文件当成没人要的删掉。去草稿箱点「重试」读出来之后再来。</Trans>
+        </p>
+      );
+    }
     return <p className="mt-2 text-[11px] text-slate-600">{note || t`没有可清理的中间文件`}</p>;
   }
 

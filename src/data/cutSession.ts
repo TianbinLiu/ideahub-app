@@ -21,7 +21,7 @@
 // ⚠ webm 与 GLB 的**字节不进这个键**，进来的只是 `idb:<键>` 指针 —— 但正因为如此，
 //   `cacheSweep.collectReferenced` **必须把这条稿子里的指针算进引用**（那边第 5 段），
 //   否则放过一夜的剪辑稿会被「清理缓存」把成片和模型真删掉，稿子还在、指针指向空气。
-import { idbGet, idbSet, idbDel } from "./db";
+import { idbRead, idbSet, idbDel } from "./db";
 import type { DraftVideo } from "../types";
 
 const CUT_KEY = "ideahub-app.cut.v1";
@@ -59,13 +59,38 @@ export function subscribeCutSession(fn: () => void): () => void {
   return () => listeners.delete(fn);
 }
 
-/** 启动时装载一次（与 videos/account 那几个 ready 并排挂在 App 的启动路径上） */
+/**
+ * 剪辑稿没读出来时的原因（空串 = 读好了）。
+ *
+ * ★★ 2026-09-11 改：原来读失败直接当"没有"（注释写着"这是个恢复用的副本，不该让它把启动搞挂"）。
+ *   启动确实不该被它搞挂 —— 现在也不挂；但「没有」在这里是一句**有后果**的话：组稿前那道闸
+ *   （useFlowActions.cut）问的正是 cutSession() 有没有一条剪到一半的，没有才放行，而组稿会覆盖这个
+ *   唯一的落盘键。读失败当成没有 = 一条花过钱的剪辑稿被**不打招呼地顶掉**，个人页那条横幅也凭空消失。
+ * ★ 所以非空时：横幅改说「没读出来 + 重试」；组稿闸、saveCutSession、dropCutSession 都先重读一次，
+ *   还读不出来就拒（组稿 / 存）或只清内存不动磁盘（丢）。
+ * ★ 形状不对（validate 判 null）仍然按"没有"算 —— 那是一份坏稿，不是读不出来。
+ */
+let loadIssue = "";
+
+export function cutSessionLoadIssue(): string {
+  return loadIssue;
+}
+
+/**
+ * 装载。开机调一次，横幅上的「重试」与写之前的自愈也调它。**不会 reject**。
+ * ★ 读好了之后再调直接返回：内存镜像此后由 save / drop 维护，再读一遍只会拿磁盘上的旧值去盖它。
+ */
 export async function readyCutSession(): Promise<void> {
+  if (loaded && !loadIssue) return;
   try {
-    const raw = await idbGet<unknown>(CUT_KEY);
+    // ★★ 读失败要抛（idbRead）落进 catch，不能当成"没有"（见 loadIssue）
+    const raw = await idbRead<unknown>(CUT_KEY);
     mirror = validate(raw);
-  } catch {
-    mirror = null; // 读不出来就当没有：这是个恢复用的副本，不该让它把启动搞挂
+    loadIssue = "";
+  } catch (e) {
+    mirror = null;
+    loadIssue = e instanceof Error ? e.message : String(e);
+    console.warn("[cutSession] 剪辑稿没读出来:", e);
   }
   loaded = true;
   emit();
@@ -103,6 +128,12 @@ export function cutSessionReady(): boolean {
 export async function saveCutSession(draft: DraftVideo, audioHint: string | null): Promise<boolean> {
   // ★ `audioHint` **必填**（哪怕传 null）：漏传它是零症状的 —— 稿子照存、回执照样是 true，
   //   只有几天后用户抱怨"合出来没声音"时才看得见。本仓「漏了就零症状的参数一律钉成必填」。
+  // ★★ 上一条没读出来时先重读一次（见 loadIssue）：读出来了就照常写（组稿闸那边已经问过要不要顶掉）；
+  //   还读不出来就拒 —— 盖下去的可能是一条花过钱、用户此刻看不见的剪辑稿。原因由调用方问 cutSessionLoadIssue() 说
+  if (loadIssue) {
+    await readyCutSession();
+    if (loadIssue) return false;
+  }
   const next: CutSession = { draft, ...(audioHint ? { audioHint } : {}), at: Date.now() };
   const ok = await idbSet(CUT_KEY, next);
   if (ok) {
@@ -115,6 +146,15 @@ export async function saveCutSession(draft: DraftVideo, audioHint: string | null
 /** 这摊活收工了（发布成功 / 用户明确丢掉）。★ blob 不在这里删：交给 cacheSweep 24h 后收
  *  —— 在这儿再写一处删除逻辑就是第二份实现，而且它没有"还有没有别人引用"的全局视野 */
 export async function dropCutSession(): Promise<void> {
+  // ★★ 上一条没读出来时**只清内存、不动磁盘**（2026-09-11）：这时要收工的是这次会话里那份 —— 它根本没存进去
+  //   （saveCutSession 在读不出来时拒），磁盘上那个键装的是读不出来的**上一条**，删掉就是替用户丢了一条他没见过、
+  //   花过钱的剪辑稿。顺手再读一次：读得出来的话它会照常以横幅出现，接着剪还是丢由用户自己决定。
+  if (loadIssue) {
+    mirror = null;
+    emit();
+    void readyCutSession();
+    return;
+  }
   mirror = null;
   emit();
   await idbDel(CUT_KEY);

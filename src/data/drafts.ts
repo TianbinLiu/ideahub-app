@@ -18,7 +18,8 @@
 //   drafts.v1        → WorkDraftMeta[]（几 KB，个人页列表只读它）
 //   draft.<id>       → WorkDraft（含 1MB 级的首尾帧 base64，只在打开时读）
 // 合在一起的话，个人页每次进都要把所有草稿的全部帧拉进内存。
-import { idbDel, idbGet, idbSet } from "./db";
+import { t } from "@lingui/core/macro";
+import { idbDel, idbGet, idbRead, idbSet } from "./db";
 import { shrinkDataUrl } from "../utils/image";
 import { Card, NodeSlot, uid } from "../types";
 
@@ -102,9 +103,54 @@ export function draftsVersion(): number {
   return version;
 }
 
+/**
+ * 草稿索引没读出来时的原因（空串 = 读好了）。
+ *
+ * ★★ 为什么不能当成"还没有草稿"（2026-09-11；开机闸调研后定为「局部可用」，见 data/boot 文件头）：
+ *   草稿只存在这台设备上，里面躺着花钱炼出来的段。读不出来却照常给一张空表的话，草稿箱会说
+ *   「还没有草稿」（用户读到的是"我的东西没了"），而下一次存草稿会拿只含新那一条的索引**整张盖掉**
+ *   磁盘上的真索引 —— 旧草稿的正文还躺在库里，却再也列不出来。
+ * ★ 所以非空时：列表是空的，但**一切改索引的写都拒**（saveDraft 回 null、删除 / 改名什么都不做），
+ *   草稿箱与个人页按它画「没读出来 + 重试」而不是空态，清理缓存按它整轮不删（cacheSweep）。
+ *   开机**不**因为它拦住整个 App：首页、账号、发现这些不靠本机草稿的功能照常能用。
+ */
+let loadIssue = "";
+let loaded = false;
+
+export function draftsLoadIssue(): string {
+  return loadIssue;
+}
+
+/**
+ * 装载。开机调一次，草稿箱上的「重试」、存草稿之前的自愈也调它。**不会 reject**：失败记进 loadIssue。
+ * ★ 读好了之后再调直接返回：那时候再读一遍会拿磁盘上的索引把内存里那份整张换掉，
+ *   而内存里可能正有一次还没落盘的写（persistIndex 是即发即忘的）。
+ */
 export async function readyDrafts(): Promise<void> {
-  index = (await idbGet<WorkDraftMeta[]>(INDEX_KEY)) ?? [];
+  if (loaded && !loadIssue) return;
+  try {
+    // ★★ 读失败要抛（idbRead）落进 catch，不能 `?? []` 当成"还没有草稿"（见 loadIssue）；
+    //   形状不对同样按"没读出来"算 —— 拿一个不是数组的东西当索引，列表页会在展开它的那一拍整页崩掉
+    const saved = await idbRead<WorkDraftMeta[]>(INDEX_KEY);
+    if (saved !== undefined && !Array.isArray(saved)) throw new Error(`${INDEX_KEY} is not an array`);
+    index = saved ?? [];
+    loadIssue = "";
+  } catch (e) {
+    index = [];
+    loadIssue = e instanceof Error ? e.message : String(e);
+    console.warn("[drafts] 草稿索引没读出来，这次会话先不改索引:", e);
+  }
+  loaded = true;
   emit();
+}
+
+/**
+ * 草稿箱没打开时，「存草稿没成」该怎么说。★ 唯一措辞（自动存盘 / 手动存 / 起名建档 / 取回后存 四处共用）：
+ * 那几处原本只会说"存储空间不足或浏览器隐私模式，再点一次存草稿" —— 可索引没读出来是另一个原因、另一条出路，
+ * 照老话再点一次只会原样再失败。调用方先问 draftsLoadIssue()：是它才用这一句，否则用各自原来那句。
+ */
+export function draftsUnavailableText(): string {
+  return t`草稿箱这会儿没打开（本机数据库没读出来），这一版没存进草稿。去草稿箱点「重试」，读出来之后再存。`;
 }
 
 /** 全部草稿，最近改的在前 */
@@ -121,12 +167,14 @@ export async function loadDraft(id: string): Promise<WorkDraft | null> {
 }
 
 function persistIndex() {
+  // ★ 索引没读出来时不写：写下去就是拿内存里这张空表盖掉磁盘上的真索引（见 loadIssue）
+  if (loadIssue) return;
   void idbSet(INDEX_KEY, index);
 }
 
 /**
- * 新建或更新一份草稿。返回落库后的索引项；写失败返回 null（配额满/隐私模式）——
- * 调用方必须把这个 null 报给用户，不能静默当成保存成功（铁律八）。
+ * 新建或更新一份草稿。返回落库后的索引项；写失败返回 null（配额满/隐私模式/索引没读出来）——
+ * 调用方必须把这个 null 报给用户，不能静默当成保存成功（铁律八）；原因用 draftSaveFailReason() 说。
  */
 export async function saveDraft(input: {
   id?: string | null;
@@ -141,6 +189,12 @@ export async function saveDraft(input: {
   segCount: number;
   doneCount: number;
 }): Promise<WorkDraftMeta | null> {
+  // ★★ 索引没读出来时先自愈一次（再读一遍）；还读不出来就整个拒：正文照写会落一条永远列不出来的
+  //   孤儿正文，索引照改会盖掉磁盘上的真索引（见 loadIssue）
+  if (loadIssue) {
+    await readyDrafts();
+    if (loadIssue) return null;
+  }
   const now = Date.now();
   const id = input.id ?? uid("wd");
   const prev = index.find((d) => d.id === id);
@@ -186,6 +240,8 @@ export async function saveDraft(input: {
 }
 
 export async function deleteDraft(id: string): Promise<void> {
+  // 索引没读出来：列表本来是空的，没有可删的；动了反而会盖掉磁盘上的真索引（见 loadIssue）
+  if (loadIssue) return;
   index = index.filter((d) => d.id !== id);
   persistIndex();
   emit();
@@ -193,6 +249,7 @@ export async function deleteDraft(id: string): Promise<void> {
 }
 
 export async function renameDraft(id: string, title: string): Promise<void> {
+  if (loadIssue) return; // 同上
   const t = title.trim().slice(0, 40);
   if (!t) return;
   const meta = index.find((d) => d.id === id);

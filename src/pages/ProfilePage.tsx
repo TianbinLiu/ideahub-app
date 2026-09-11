@@ -62,7 +62,9 @@ import {
 } from "../data/videos";
 import { getUser, userDisplayName, type ApiUserProfile } from "../api/users";
 import { MAX_DRAFTS, type WorkDraftMeta } from "../data/drafts";
-import { useDrafts } from "../hooks/useDrafts";
+import { useDrafts, useDraftsLoad } from "../hooks/useDrafts";
+import { DraftsUnavailable, LocalStoreBanner } from "../components/LocalStoreIssue";
+import { useLocalRetry } from "../hooks/useLocalRetry";
 import { cardsLoadIssue,
   billingExempt,
   buyPlan,
@@ -84,7 +86,7 @@ import { useAccountVersion, useAuthState, useCurrentUser } from "../hooks/useAcc
 import { useBackOr } from "../hooks/useBackOr";
 import { useVideosVersion } from "../hooks/useVideos";
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoItem, type Visibility, formatPlays, relativeTime, revisionLabel, videoCategoryLabel, visibilityOf } from "../types";
-import { cutSession, dropCutSession, subscribeCutSession } from "../data/cutSession";
+import { cutSession, cutSessionLoadIssue, dropCutSession, readyCutSession, subscribeCutSession } from "../data/cutSession";
 import { useStudio } from "../studio/studioStore";
 
 type TabKey = "works" | "drafts" | "cards" | "decks" | "collects";
@@ -165,6 +167,8 @@ export default function ProfilePage() {
   const user = useCurrentUser();
   const auth = useAuthState();
   const drafts = useDrafts();
+  // ★ 草稿索引没读出来时 drafts 恒为空 —— 草稿页签先判它（data/drafts 的 loadIssue ★★）
+  const draftsLoad = useDraftsLoad();
   const { t } = useLingui();
 
   const [tab, setTab] = useState<TabKey>("works");
@@ -880,13 +884,18 @@ export default function ProfilePage() {
             工坊是 3D 桌面上的节点树，工作流是逐段流水线，两个入口都能接着干。
             2026-08-29 加了独立草稿箱页（/drafts，主人点名）：这里保留缩略网格当快捷入口，
             大卡片、容量、重命名等完整管理在那一页 */}
-        {activeTab === "drafts" && drafts.length > 0 && (
+        {/* ★ 草稿索引没读出来（drafts.loadIssue）：先说这件事，别对着一次读失败画「还没有草稿」 */}
+        {activeTab === "drafts" && draftsLoad.issue && (
+          <DraftsUnavailable retrying={draftsLoad.retrying} onRetry={draftsLoad.retry} />
+        )}
+        {activeTab === "drafts" && !draftsLoad.issue && drafts.length > 0 && (
           <Link to="/drafts" className="flex items-center justify-between px-3 py-2 text-xs text-slate-400">
             <span><Trans>共 {drafts.length} 条（上限 {MAX_DRAFTS}，超了会从最旧的清起）</Trans></span>
             <span className="text-brand"><Trans>草稿箱整页 ›</Trans></span>
           </Link>
         )}
         {activeTab === "drafts" &&
+          !draftsLoad.issue &&
           (drafts.length ? (
             <div className="grid grid-cols-3 gap-[2px]">
               {drafts.map((d) => (
@@ -1063,8 +1072,18 @@ function CutSessionBanner() {
   useSyncExternalStore(subscribeCutSession, () => cutSession(), () => null);
   const navigate = useNavigate();
   const [asking, setAsking] = useState(false);
+  // ★ 剪辑稿没读出来（cutSession.loadIssue）：这条横幅是它唯一的恢复入口，读不出来时照旧 return null
+  //   就等于替用户把一条花过钱的稿子藏起来。说出来、给重试（进这一屏先自动试一次）
+  const cutIssue = cutSessionLoadIssue();
+  const cutRetry = useLocalRetry(cutIssue, readyCutSession);
   const cut = cutSession();
-  if (!cut) return null;
+  if (!cut) {
+    return cutIssue ? (
+      <div className="mx-3 mt-3">
+        <LocalStoreBanner store="cut" retrying={cutRetry.retrying} onRetry={cutRetry.retry} />
+      </div>
+    ) : null;
+  }
   const segCount = cut.draft.segments.length;
   const deckCount = cut.draft.deck?.cards.length ?? 0;
   const when = relativeTime(cut.at || Date.now());
