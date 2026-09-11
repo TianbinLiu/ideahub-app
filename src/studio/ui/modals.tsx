@@ -1,5 +1,6 @@
 // 市场卡详情（竖屏底部详情单）
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS } from "../../types";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { formatHeat, heatOf } from "../../data/social";
 import { useSocialVersion } from "../../components/SocialPanel";
 import { useStudio } from "../studioStore";
@@ -19,6 +20,7 @@ export function CardDetailModal() {
   // ★ 拿**解析后**的地址判要不要画全息框：`idb:` 指针可能是别的设备炼的，
   //   这台机器上取不到 blob，画出来就是个空框（详见 useHologramModel）。
   const model = useHologramModel(card?.modelUrl ?? (card ? CARD_MODELS[card.name] : undefined));
+  const { t } = useLingui();
   if (!card) return null;
   const gi = items.findIndex((c) => c.id === card.id);
   // 不在市场摊开区的卡（如 NPC 手中的推荐卡）：飞行起点用 NPC 手边
@@ -38,7 +40,7 @@ export function CardDetailModal() {
           <div className="relative h-44 w-[7.5rem] flex-none overflow-hidden rounded-xl bg-ink/85">
             <CardHologram url={model.url} />
             <span className="pointer-events-none absolute inset-x-0 bottom-1 text-center text-[9px] tracking-wide text-cyan-300/90">
-              ✦ 全息实体 3D
+              <Trans>✦ 全息实体 3D</Trans>
             </span>
           </div>
         ) : (
@@ -58,13 +60,13 @@ export function CardDetailModal() {
               手打的常数，没有任何东西会去加它。真热度走 social.heatOf（远端模式是
               服务端算的全局值），拿不到时退回本机计数并把「本机」二字写出来。 */}
           <div className="mt-0.5 text-xs text-gold">
-            🔥 {heat.source === "server" ? "社区热度" : "本机热度"} {formatHeat(heat.heat)}
+            {heat.source === "server" ? <Trans>🔥 社区热度 {formatHeat(heat.heat)}</Trans> : <Trans>🔥 本机热度 {formatHeat(heat.heat)}</Trans>}
           </div>
           {card.tags && card.tags.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
-              {card.tags.map((t) => (
-                <span key={t} className="rounded-full px-2 py-0.5 bg-slate-700/70 text-[10px] text-slate-300">
-                  #{t}
+              {card.tags.map((tag) => (
+                <span key={tag} className="rounded-full px-2 py-0.5 bg-slate-700/70 text-[10px] text-slate-300">
+                  #{tag}
                 </span>
               ))}
             </div>
@@ -77,14 +79,14 @@ export function CardDetailModal() {
           onClick={() => useStudio.getState().closeMarketDetail()}
           className="rounded-xl bg-slate-700/70 px-4 py-2.5 text-sm text-slate-200"
         >
-          关闭
+          <Trans>关闭</Trans>
         </button>
         <button
           onClick={() => useStudio.getState().addMarketToDeck(from)}
           disabled={inDeck}
           className="flex-1 rounded-xl bg-gold/90 py-2.5 text-sm font-semibold text-ink disabled:opacity-40"
         >
-          {inDeck ? "已在卡组" : "加入我的卡组"}
+          {inDeck ? t`已在卡组` : t`加入我的卡组`}
         </button>
       </div>
     </div>

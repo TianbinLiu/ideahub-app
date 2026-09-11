@@ -88,6 +88,7 @@ msgid " · 正在停止（当前这一段会跑完）"
 msgstr " · Stopping (the current segment will finish)"
 
 #: src/components/VideoCardAnnotator.tsx
+#: src/studio/ui/SchemeMarketSheet.tsx
 msgid " · 演示"
 msgstr " · demo"
 
@@ -101,6 +102,7 @@ msgstr " · real footage"
 
 #. placeholder {0}: fmtTokens(schemeCost(sc.slots))
 #: src/components/VideoCardAnnotator.tsx
+#: src/studio/ui/SchemeMarketSheet.tsx
 msgid " · 约 {0}"
 msgstr " · about {0}"
 
@@ -553,6 +555,11 @@ msgstr "{0, plural, one {# recastable slot} other {# recastable slots}}"
 #: src/components/guide/GuideOverlay.tsx
 msgid "{0} 使用引导"
 msgstr "{0} guide"
+
+#. placeholder {0}: source.title
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "{0} 副本"
+msgstr "{0} copy"
 
 #. placeholder {0}: proposals.length
 #: src/studio/ui/PlanBoard.tsx
@@ -1073,6 +1080,10 @@ msgstr "⇤ Start here"
 msgid "＋ 上传我的 Live2D 模型"
 msgstr "+ Upload my Live2D model"
 
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "＋ 再加一个图位"
+msgstr "＋ Add another slot"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "＋ 再标一张脸部特写（可选，出片时锁面部特征更稳）"
 msgstr "+ Also mark a face close-up (optional; keeps facial features steadier in videos)"
@@ -1090,6 +1101,10 @@ msgstr "+ Add a voice ({0}/{maxMix})"
 #: src/studio/canvasAgent.ts
 msgid "＋ 加一段"
 msgstr "＋ Add a segment"
+
+#: src/studio/stage/StageOverlay.tsx
+msgid "+ 加人偶"
+msgstr "+ Add mannequin"
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "＋ 在这里切一刀"
@@ -1232,6 +1247,10 @@ msgstr "▸ Doesn't match? <0>Usually you just delete that slot — no re-render
 #: src/pages/CutPage.tsx
 msgid "◀ 前移"
 msgstr "◀ Move left"
+
+#: src/studio/StudioPage.tsx
+msgid "○ 演示模式"
+msgstr "○ Demo mode"
 
 #: src/components/TokenCost.tsx
 msgid "○ 演示模式：本地模拟，不消耗 token"
@@ -1513,6 +1532,10 @@ msgstr "✓ Happy with this, add a segment"
 msgid "✓ 这段满意，去下一段"
 msgstr "✓ Happy with this, next segment"
 
+#: src/studio/ui/modals.tsx
+msgid "✦ 全息实体 3D"
+msgstr "✦ Holographic 3D"
+
 #: src/pages/CardDetailPage.tsx
 msgid "✦ 全息实体 3D 建模"
 msgstr "✦ Holographic 3D model"
@@ -1694,6 +1717,10 @@ msgstr "🎬 Reference video attached ({0}s)"
 msgid "🎬 完成视频 ›"
 msgstr "🎬 Finish video ›"
 
+#: src/studio/stage/StageOverlay.tsx
+msgid "🎬 导演台"
+msgstr "🎬 Director's stage"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
 msgid "🎬 导演台 · 摆站位、定机位，截图融成开头帧"
@@ -1822,6 +1849,10 @@ msgstr "📥 Recover this segment's video (no new order, no extra charge)"
 msgid "📱 就是我本人 · 在这台手机上完成授权"
 msgstr "📱 It's me · authorize on this phone"
 
+#: src/studio/stage/StageOverlay.tsx
+msgid "📸 截图 → 融成这一段的开头帧（{price}）"
+msgstr "📸 Capture → fuse into this segment's opening frame ({price})"
+
 #: src/components/BranchPlayer.tsx
 #: src/components/flow/SegPlayer.tsx
 #: src/components/SegmentPlayer.tsx
@@ -1877,6 +1908,16 @@ msgstr "🔗 Start portrait authorization (scan the code / open on this device)"
 #: src/studio/ui/NpcDialog.tsx
 msgid "🔥 出炉了，过个目"
 msgstr "🔥 Fresh from the forge — take a look"
+
+#. placeholder {0}: formatHeat(heat.heat)
+#: src/studio/ui/modals.tsx
+msgid "🔥 本机热度 {0}"
+msgstr "🔥 Local heat {0}"
+
+#. placeholder {0}: formatHeat(heat.heat)
+#: src/studio/ui/modals.tsx
+msgid "🔥 社区热度 {0}"
+msgstr "🔥 Community heat {0}"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "🖌 笔"
@@ -1988,6 +2029,10 @@ msgstr "🪪 This real-person card <0>isn't connected to an authorized portrait 
 #: src/studio/ui/NpcDialog.tsx
 msgid "🛒 市场"
 msgstr "🛒 Market"
+
+#: src/studio/ui/SchemeMarketSheet.tsx
+msgid "🛒 方案市场"
+msgstr "🛒 Scheme market"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "🛒 逛市场"
@@ -2271,6 +2316,10 @@ msgstr "In one sentence, what kind of videos this template makes"
 msgid "一句话说清 TA 是谁"
 msgstr "Who they are, in one sentence"
 
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "一句话说清它产出什么（选方案时会显示）"
+msgstr "One line on what it produces (shown when choosing a scheme)"
+
 #: src/components/DraftSheet.tsx
 msgid "一屏一段、逐段生成"
 msgstr "One segment per screen, generated one at a time"
@@ -2322,6 +2371,10 @@ msgstr "Back"
 #: src/studio/ui/projection.tsx
 msgid "上一段"
 msgstr "Previous segment"
+
+#: src/studio/StudioPage.tsx
+msgid "上一页"
+msgstr "Previous page"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "上传 Live2D 模型"
@@ -2476,6 +2529,10 @@ msgstr "Next segment"
 #: src/pages/FlowPage.tsx
 msgid "下一段（本段还没出片）"
 msgstr "Next segment (this one isn't rendered yet)"
+
+#: src/studio/StudioPage.tsx
+msgid "下一页"
+msgstr "Next page"
 
 #: src/components/flow/SkillPanel.tsx
 #: src/components/VideoCardAnnotator.tsx
@@ -2704,6 +2761,15 @@ msgstr "Interactive videos don't have a single finished video."
 #: src/studio/ui/NpcDialog.tsx
 msgid "交给铸卡师炼卡"
 msgstr "Have the card smith forge"
+
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "产出里不含可辨认的人脸（白模台 / 剪影 / 人脸与服装分离）"
+msgstr "The output contains no recognizable faces (blockout stand / silhouette / face kept separate from outfit)"
+
+#. placeholder {0}: stage.figures.length
+#: src/studio/stage/StageOverlay.tsx
+msgid "人偶 {0}"
+msgstr "Mannequins: {0}"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "人偶编号"
@@ -3071,6 +3137,7 @@ msgstr "Save"
 #: src/pages/EditPage.tsx
 #: src/pages/FlowPage.tsx
 #: src/pages/SettingsProfilePage.tsx
+#: src/studio/StudioPage.tsx
 msgid "保存中…"
 msgstr "Saving…"
 
@@ -3079,8 +3146,14 @@ msgid "保存为我的人格"
 msgstr "Save as my persona"
 
 #: src/pages/EditPage.tsx
+#: src/studio/ui/SchemeEditorSheet.tsx
 msgid "保存修改"
 msgstr "Save changes"
+
+#. placeholder {0}: fmtTokens(cost)
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "保存修改（用它炼一次约 {0}）"
+msgstr "Save changes (about {0} per forge with it)"
 
 #: src/components/DownloadSheet.tsx
 #: src/components/ShareSheet.tsx
@@ -3093,6 +3166,7 @@ msgid "保存到本地是怎么走的"
 msgstr "How saving to your device works"
 
 #: src/pages/FlowPage.tsx
+#: src/studio/StudioPage.tsx
 msgid "保存失败"
 msgstr "Save failed"
 
@@ -3245,6 +3319,10 @@ msgstr "Files go into the app first, then you pick where they go."
 #: src/pages/FlowPage.tsx
 msgid "先把当前这段炼出来"
 msgstr "Render the current segment first"
+
+#: src/studio/StudioPage.tsx
+msgid "先把素材交给铸卡师炼卡，或让 TA 摊开市场"
+msgstr "Hand materials to the card smith to forge cards, or have them open the market"
 
 #: src/studio/flowStore.ts
 msgid "先把这一段切到「✍ 自定义」再挂参考视频"
@@ -3421,8 +3499,13 @@ msgstr "Creators you follow haven't posted anything new"
 #: src/components/IconTapButton.tsx
 #: src/components/UpdateSheet.tsx
 #: src/pages/ProfilePage.tsx
+#: src/studio/ui/modals.tsx
 msgid "关闭"
 msgstr "Close"
+
+#: src/studio/stage/StageOverlay.tsx
+msgid "关闭导演台"
+msgstr "Close director's stage"
 
 #: src/components/MaterialSheet.tsx
 msgid "关闭素材库"
@@ -3471,6 +3554,10 @@ msgstr "The content stays, but nobody can see it; the author can't undo it eithe
 #: src/pages/ProfilePage.tsx
 msgid "内容还在这台设备上，没有丢。修好网络或服务器后点重试即可。"
 msgstr "The content is still on this device; nothing is lost. Once the network or server is working again, tap Retry."
+
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "内置方案不能直接改——保存后会另存成<0>你自己的一套</0>，内置那套保持原样。"
+msgstr "Built-in schemes can't be edited directly — saving creates <0>your own copy</0> and leaves the built-in one unchanged."
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "再传一个"
@@ -3537,6 +3624,11 @@ msgstr "Up to {max}, {maxLen} characters each · {added} added"
 msgid "最多 {max} 条，已经满了"
 msgstr "Up to {max}; already full"
 
+#. placeholder {0}: STAGE_LIMITS.figuresMax
+#: src/studio/stage/StageOverlay.tsx
+msgid "最多摆 {0} 个人偶"
+msgstr "Up to {0, plural, one {# mannequin} other {# mannequins}}"
+
 #: src/components/TokenCost.tsx
 msgid "最多消耗 {amount} token"
 msgstr "Up to {amount} tokens"
@@ -3586,6 +3678,10 @@ msgstr "Write a deck description: what kind of videos is this deck good for?"
 #: src/pages/CutPage.tsx
 msgid "写入本地库…"
 msgstr "Saving to local storage…"
+
+#: src/studio/ui/AvatarPicker.tsx
+msgid "决定牌桌上属于你的那双手"
+msgstr "Decides which pair of hands at the card table is yours"
 
 #: src/components/ForgeOverlay.tsx
 #: src/components/VideoCardAnnotator.tsx
@@ -3783,6 +3879,7 @@ msgstr "Workshop"
 #: src/components/flow/SkillPanel.tsx
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/SupportPersonaNewPage.tsx
+#: src/studio/ui/SchemeEditorSheet.tsx
 msgid "删"
 msgstr "Delete"
 
@@ -3869,6 +3966,7 @@ msgstr "This deletes the {files, plural, one {# video file} other {# video files
 #: src/pages/AdminPage.tsx
 #: src/pages/TemplateDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
+#: src/studio/stage/StageOverlay.tsx
 msgid "删除"
 msgstr "Delete"
 
@@ -3916,6 +4014,10 @@ msgstr "Delete this card"
 #: src/pages/EditPage.tsx
 msgid "删除这部作品"
 msgstr "Delete this video"
+
+#: src/studio/ui/SchemeMarketSheet.tsx
+msgid "别人做的出图配方。装进来之后就是你自己的一套，可以随便改。"
+msgstr "Image recipes made by others. Once installed, it's your own copy to change however you like."
 
 #: src/pages/PublishPage.tsx
 msgid "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。"
@@ -4010,6 +4112,10 @@ msgstr "Add a group"
 msgid "加个话题，让人搜得到（回车分隔）"
 msgstr "Add a topic so people can find this (press Enter between topics)"
 
+#: src/studio/ui/modals.tsx
+msgid "加入我的卡组"
+msgstr "Add to my deck"
+
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/ProfilePage.tsx
@@ -4069,6 +4175,10 @@ msgstr "{0, plural, one {# motion group} other {# motion groups}}"
 #: src/pages/SupportModelNewPage.tsx
 msgid "勾上上面那三条才能发布。"
 msgstr "Check the three points above to publish."
+
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "勾上后会排在方案列表前面——只借动作与穿着、不复刻长相的做法"
+msgstr "Checked schemes are listed first — they borrow poses and outfits without replicating looks"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "勾了「画面里是真实人物」，就得同时勾上下面那条肖像同意的确认——没有本人同意，真人素材不能入库。取消真人勾选，或者勾上确认再存。"
@@ -4373,6 +4483,10 @@ msgstr "parameter-based"
 msgid "参数这一栏这版还不能在 App 里改。对不上的话去 Cubism 里把参数 id 改成标准名（ParamAngleX 这一套）再导出一次。"
 msgstr "Parameters can't be edited in the app yet. If they don't match, rename the parameter ids in Cubism to the standard names (the ParamAngleX set) and export again."
 
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "参考主裁剪"
+msgstr "Reference: main crop"
+
 #: src/pages/CardDetailPage.tsx
 msgid "参考图怎么被 AI 取用"
 msgstr "How the AI uses reference images"
@@ -4389,6 +4503,10 @@ msgstr "Couldn't attach the reference video: {0}"
 #: src/components/flow/FlowCanvas.tsx
 msgid "参考视频没挂上：{why}"
 msgstr "Reference video wasn't attached: {why}"
+
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "参考脸部裁剪"
+msgstr "Reference: face crop"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "发"
@@ -4576,6 +4694,7 @@ msgstr "Loading the stream timed out (the browser doesn't decode video while the
 #: src/pages/ProfilePage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPage.tsx
+#: src/studio/stage/StageOverlay.tsx
 #: src/studio/ui/NpcDialog.tsx
 msgid "取消"
 msgstr "Cancel"
@@ -4658,6 +4777,10 @@ msgstr "Catchphrases"
 #: src/components/VideoCardAnnotator.tsx
 msgid "另存为我的"
 msgstr "Save as my own"
+
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "另存为我的方案"
+msgstr "Save as my scheme"
 
 #. placeholder {0}: anns.length - liveAnns.length
 #: src/pages/CutPage.tsx
@@ -5066,6 +5189,16 @@ msgstr "Back to the segment window to choose another mode"
 msgid "回首页"
 msgstr "Back to home"
 
+#. placeholder {0}: i + 1
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "图位 {0} 的名字，如「白模全身」"
+msgstr "Name for slot {0}, e.g. “Blockout full body”"
+
+#. placeholder {0}: slots.length
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "图位（{0}/{MAX_CARD_VIEWS}）"
+msgstr "Slots ({0}/{MAX_CARD_VIEWS})"
+
 #. placeholder {0}: scheme.title
 #. placeholder {1}: pageSlots.length
 #: src/pages/CustomCardPage.tsx
@@ -5156,6 +5289,10 @@ msgstr "mentioned you in a comment"
 #: src/pages/SupportModelNewPage.tsx
 msgid "坏笑"
 msgstr "Smirk"
+
+#: src/studio/StudioPage.tsx
+msgid "填入素材与要求，AI 将推演三套走向"
+msgstr "Add materials and a request; the AI will draft three directions"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/FlowPage.tsx
@@ -5391,12 +5528,22 @@ msgstr "Couldn't save the card — go back to see why"
 msgid "存卡没成：{0}"
 msgstr "Couldn't save the card: {0}"
 
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "存成我的方案"
+msgstr "Save as my scheme"
+
+#. placeholder {0}: fmtTokens(cost)
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "存成我的方案（用它炼一次约 {0}）"
+msgstr "Save as my scheme (about {0} per forge with it)"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "存示例图…"
 msgstr "Saving example images…"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/FlowPage.tsx
+#: src/studio/StudioPage.tsx
 msgid "存草稿"
 msgstr "Save draft"
 
@@ -5581,6 +5728,10 @@ msgstr "Cover card"
 msgid "小梦"
 msgstr "Xiaomeng"
 
+#: src/studio/StudioPage.tsx
+msgid "小窗右上角可在「卡组 / 卡片」间切换，单击卡片看详情"
+msgstr "Switch between “Decks / Cards” at the top right of the window; tap a card for details"
+
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "就是他"
 msgstr "That's the one"
@@ -5619,6 +5770,14 @@ msgstr "Show segments ▾"
 #: src/pages/FlowPage.tsx
 msgid "工作流"
 msgstr "Workflow"
+
+#: src/studio/StudioPage.tsx
+msgid "工作流画布"
+msgstr "Workflow canvas"
+
+#: src/studio/StudioPage.tsx
+msgid "工作流画布：同一条流水线的另一面"
+msgstr "Workflow canvas: the other side of the same pipeline"
 
 #: src/pages/SupportPage.tsx
 msgid "工单"
@@ -5686,6 +5845,10 @@ msgstr "taken-down list"
 #: src/pages/SupportModelsPage.tsx
 msgid "已下载"
 msgstr "Downloaded"
+
+#: src/studio/StudioPage.tsx
+msgid "已保存"
+msgstr "Saved"
 
 #: src/pages/FlowPage.tsx
 #: src/pages/SettingsProfilePage.tsx
@@ -5792,6 +5955,10 @@ msgstr "Published “{0}” to the voice market and set it as your voice."
 #: src/pages/CutPage.tsx
 msgid "已取消合并。片段、圈选和配乐都还在，随时可以重新开始。"
 msgstr "Merge canceled. Your clips, circles and music are all still here, so you can start again anytime."
+
+#: src/studio/ui/modals.tsx
+msgid "已在卡组"
+msgstr "In your deck"
 
 #: src/components/WorkshopShareBar.tsx
 msgid "已在工坊 · 取消分享"
@@ -6021,6 +6188,11 @@ msgstr "All {PREVIEW_ROUNDS_MAX} rounds used"
 msgid "已自动取它的首尾帧当本段首尾帧；可细调、加中间帧（最多 {CUSTOM_MID_MAX} 张）"
 msgstr "Its first and last frames are now this segment's first and last frames; you can fine-tune them and add middle frames (up to {CUSTOM_MID_MAX})"
 
+#. placeholder {0}: QUALITY_LABELS[q].name
+#: src/studio/StudioPage.tsx
+msgid "已自动选「{0}」画质 · 设置里可改"
+msgstr "“{0}” quality was picked automatically · change it in Settings"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "已被平台下架"
 msgstr "Taken down by the platform"
@@ -6028,6 +6200,10 @@ msgstr "Taken down by the platform"
 #: src/components/flow/SkillPanel.tsx
 msgid "已装"
 msgstr "Installed"
+
+#: src/studio/ui/SchemeMarketSheet.tsx
+msgid "已装 · 用它"
+msgstr "Installed · use it"
 
 #: src/pages/CustomCardPage.tsx
 msgid "已解除授权绑定——随授权取来的那张照片也一并取下了（卡面与 AI 主素材都不再留着它）。"
@@ -6069,6 +6245,10 @@ msgstr "Dismissed"
 #: src/pages/SupportModelsPage.tsx
 msgid "市场"
 msgstr "Market"
+
+#: src/studio/ui/SchemeMarketSheet.tsx
+msgid "市场上还没有人发布方案"
+msgstr "No one has published a scheme to the market yet"
 
 #: src/components/TemplateShelf.tsx
 msgid "市场上还没有公开的模板。做一个自己的、发布出来，这里就有了。"
@@ -6233,6 +6413,10 @@ msgstr "The current cover can't be used as a reference"
 #: src/pages/WorkshopPage.tsx
 msgid "当前封面卡"
 msgstr "Current cover card"
+
+#: src/studio/ui/AvatarPicker.tsx
+msgid "当前形象 ✓"
+msgstr "Current look ✓"
 
 #: src/pages/SettingsBlockedPage.tsx
 msgid "当前是本地模式（没有连服务器），黑名单是账号级的功能——接上服务器之后才会有。"
@@ -6556,6 +6740,15 @@ msgstr "Grabbing…"
 msgid "截取当前画面失败：{why}"
 msgstr "Couldn't capture the current frame: {why}"
 
+#: src/studio/stage/StageOverlay.tsx
+msgid "截图只是构图示意，会和你挂的人物卡 / 场景卡一起融成真正的开头帧（一张图的钱）；融好的帧会钉住，重推方案不会改它，想换就再截一次。人偶站位、机位都随这一段存着，下次打开还在。"
+msgstr "The capture is only a composition guide; it's fused with your character / scene cards into the real opening frame (the cost of one image). The fused frame is pinned, so redrafting plans won't change it — capture again to replace it. Mannequin positions and the camera are saved with this segment and will still be here next time."
+
+#. placeholder {0}: e instanceof Error ? e.message : String(e)
+#: src/studio/stage/StageOverlay.tsx
+msgid "截图失败：{0}"
+msgstr "Capture failed: {0}"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "截帧中…"
 msgstr "Capturing…"
@@ -6755,6 +6948,10 @@ msgstr "Drag here to hand it to her"
 msgid "拖动移动位置，双指或滑杆缩放"
 msgstr "Drag to move; pinch or use the slider to zoom"
 
+#: src/studio/StudioPage.tsx
+msgid "拖卡片到虚线卡位铸段 · 单点看详情"
+msgstr "Drag a card onto the dashed slot to forge a segment · tap for details"
+
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "拖四个角调整<0>裁剪框</0>，拖框身整体挪位。<1>台标 / 水印必须框到框外</1> —— AI 出片是逐帧复刻画面， 提示词去不掉它（实测），裁掉是唯一的办法；而模板会被反复套用，留一个水印就是永久的。"
 msgstr "Drag the four corners to adjust the <0>crop box</0>, or drag the box itself to move it. <1>Channel logos / watermarks must be left outside the box</1> — the AI remakes the picture frame by frame and prompts can't remove them (tested), so cropping is the only way; and since templates get reused over and over, a watermark left in stays forever."
@@ -6890,6 +7087,10 @@ msgstr "Pick a template"
 msgid "挑一套 → 可换首尾帧/改剧情 → 炼出本段视频，桌面上才会亮出下一段的卡位"
 msgstr "Pick a plan → swap frames or edit the story → generate this segment's video, and the next segment's slot lights up on the table"
 
+#: src/studio/StudioPage.tsx
+msgid "挑一套方案 → 可换首尾帧/改剧情 → 炼出本段视频"
+msgstr "Pick a plan → swap frames or edit the story → generate this segment's video"
+
 #: src/pages/SimpleModePage.tsx
 msgid "挑一条现成的片子，复刻它的画面与运镜"
 msgstr "Pick an existing video and remake its visuals and camera moves"
@@ -6935,6 +7136,10 @@ msgstr "Switch speaking styles; synced with the website"
 #: src/pages/SupportPersonasPage.tsx
 msgid "换一种说话风格，客服页与官网首页共用同一份设置；人格自带嗓子的话声音也会跟着换。"
 msgstr "Switch speaking styles. The support page and the website's home page share one setting; if a persona has its own voice, the voice changes too."
+
+#: src/studio/ui/AvatarSwapButton.tsx
+msgid "换个形象"
+msgstr "Change look"
 
 #: src/pages/WorkshopPage.tsx
 msgid "换个词试试，或者清空搜索框看看大家都分享了什么"
@@ -7213,6 +7418,10 @@ msgstr "Search videos / categories / users"
 msgid "搜评论正文 / 作者"
 msgstr "Search comment text / author"
 
+#: src/studio/stage/StageOverlay.tsx
+msgid "摆站位、拧机位，截图融成这一段的开头帧"
+msgstr "Set positions and camera, then capture and fuse into this segment's opening frame"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "摇头 · 否定"
 msgstr "Shake head · disagree"
@@ -7380,6 +7589,10 @@ msgstr "Just set it to “Only me”"
 msgid "改的是你库里这一份。已经随作品发布、或被别人装走的那些是当时的副本，不会跟着变。"
 msgstr "This changes the copy in your library. Copies already published with videos or installed by others are snapshots from that time and won't change."
 
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "改这套方案"
+msgstr "Edit this scheme"
+
 #: src/pages/CardDetailPage.tsx
 msgid "改这张卡的名字与简介"
 msgstr "Edit this card's name and description"
@@ -7469,6 +7682,10 @@ msgstr "Scheme: {0}"
 msgid "方案「{0}」· {1} 个图位——这些图从哪来？"
 msgstr "Scheme “{0}” · {1, plural, one {# slot} other {# slots}} — where will the images come from?"
 
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "方案名字（例如「白模三视图·我的版」）"
+msgstr "Scheme name (e.g. “Blockout three views · my version”)"
+
 #. placeholder {0}: usable[0].id
 #: src/components/PortraitAuthPanel.tsx
 msgid "方舟回了一份素材，但 ID 形状不认识（{0}）——用「填 asset ID」那条路确认一下。"
@@ -7485,6 +7702,7 @@ msgstr "Ark has {0, plural, one {# authorized asset} other {# authorized assets}
 
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/CustomCardPage.tsx
+#: src/studio/ui/SchemeMarketSheet.tsx
 msgid "无脸"
 msgstr "Faceless"
 
@@ -7742,6 +7960,10 @@ msgstr "Speech recognition isn't enabled on the server yet. Please type for now.
 msgid "服务端默认"
 msgstr "Server default"
 
+#: src/studio/stage/StageOverlay.tsx
+msgid "朝向"
+msgstr "Facing"
+
 #: src/studio/canvasAgent.ts
 msgid "未出片的段直接删，已出片的段不代删"
 msgstr "Deletes segments without video; won't delete ones that have video"
@@ -7776,6 +7998,10 @@ msgstr "Unknown user"
 #: src/components/CoverPicker.tsx
 msgid "未选封面"
 msgstr "No cover selected"
+
+#: src/studio/StudioPage.tsx
+msgid "未配置 ARK_API_KEY：产物为本地模拟，仅演示流程"
+msgstr "ARK_API_KEY isn't configured: output is simulated locally, for demoing the flow only"
 
 #. placeholder {0}: fmtTokens(partPrice)
 #: src/pages/VideoPage.tsx
@@ -7890,6 +8116,10 @@ msgstr "Segment settings"
 #: src/pages/VideoPage.tsx
 msgid "本片卡组"
 msgstr "Cards from this video"
+
+#: src/studio/stage/StageOverlay.tsx
+msgid "机位 · 空处拖动环绕，两指拉远拉近"
+msgstr "Camera · drag empty space to orbit, pinch to zoom"
 
 #: src/components/support/HoldToTalk.tsx
 msgid "松开发送"
@@ -8008,6 +8238,14 @@ msgstr "Box the prop"
 #: src/pages/SettingsPage.tsx
 msgid "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"
 msgstr "The name under the home-screen icon follows your phone's system language. Switching here doesn't change it, so the two may differ on phones set to several languages."
+
+#: src/studio/StudioPage.tsx
+msgid "桌面还空着——先点虚线卡位铸一段"
+msgstr "The table is empty — tap the dashed slot to forge a segment first"
+
+#: src/studio/StudioPage.tsx
+msgid "桌面还空着，没什么可存"
+msgstr "The table is empty, so there's nothing to save"
 
 #: src/components/DownloadSheet.tsx
 msgid "检查中"
@@ -8185,6 +8423,10 @@ msgstr "Capturing…"
 msgid "正在打开 TA 的主页…"
 msgstr "Opening their profile…"
 
+#: src/studio/ui/SchemeMarketSheet.tsx
+msgid "正在打开市场…"
+msgstr "Opening the market…"
+
 #: src/pages/VideoPage.tsx
 msgid "正在打开这条作品…"
 msgstr "Opening this video…"
@@ -8229,6 +8471,10 @@ msgstr "Checking whether you've authorized before…"
 #: src/components/VideoCardAnnotator.tsx
 msgid "正在标「脸部特写」：拖到看得清脸的一帧，圈住面部"
 msgstr "Marking the face close-up: drag to a frame where the face is clear, then circle the face"
+
+#: src/studio/StudioPage.tsx
+msgid "正在点亮魔法书房…"
+msgstr "Lighting up the magic study…"
 
 #: src/studio/flowStore.ts
 msgid "正在生成中，等它跑完再换模板"
@@ -8320,6 +8566,10 @@ msgstr "Seg deleted"
 #: src/components/flow/FlowCanvas.tsx
 msgid "段间承接"
 msgstr "Continuity between segments"
+
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "每一格的提示词后面都会自动接上「保持参考图的画风与人物长相一致」——真人截图出写实、动漫截图出同风格插画。这一条不开放修改，免得真人素材被画成另一个画风。"
+msgstr "Every slot's prompt automatically ends with “keep the reference image's art style and the character's looks consistent” — real-life screenshots come out photorealistic, anime screenshots come out as matching illustrations. This can't be edited, so real-person material isn't redrawn in a different style."
 
 #. placeholder {0}: castable.length
 #: src/components/blockout/RoleCastBoard.tsx
@@ -8635,6 +8885,10 @@ msgstr "Couldn't open this video: {failErr}"
 msgid "没能改成「仅自己可见」：{why}"
 msgstr "Couldn't set it to “Only me”: {why}"
 
+#: src/studio/stage/StageOverlay.tsx
+msgid "没融成"
+msgstr "Fusion failed"
+
 #. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 120)
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "没融成：{0}——原来的{label}没变，可以再试一次"
@@ -8772,6 +9026,7 @@ msgstr "Playing…"
 #: src/components/flow/FlowCanvas.tsx
 #: src/components/flow/ReviseBox.tsx
 #: src/components/flow/ScriptSkillSheet.tsx
+#: src/studio/stage/StageOverlay.tsx
 msgid "演示"
 msgstr "demo"
 
@@ -8782,6 +9037,10 @@ msgstr "Demo placeholder; set a key to write from the image"
 #: src/components/CoverPicker.tsx
 msgid "演示模式：产物为本地占位图"
 msgstr "Demo mode: results are local placeholder images"
+
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "演示模式不计费"
+msgstr "Free in demo mode"
 
 #: src/pages/CustomCardPage.tsx
 msgid "演示角色"
@@ -8803,6 +9062,10 @@ msgstr "Tap “Generate this segment” to get three plans first (each with firs
 msgid "点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进推演与出片。"
 msgstr "Tap to select or deselect. Selected cards serve as character/scene references for this segment and go into planning and rendering along with the prompt."
 
+#: src/studio/stage/StageOverlay.tsx
+msgid "点一个人偶选中它"
+msgstr "Tap a mannequin to select it"
+
 #. placeholder {0}: personNameOf(castable[selected]?.label)
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "点一张卡，挂给「{0}」"
@@ -8812,9 +9075,21 @@ msgstr "Tap a card to attach it to “{0}”"
 msgid "点任意处关闭"
 msgstr "Tap anywhere to close"
 
+#: src/studio/StudioPage.tsx
+msgid "点击卡片之外的桌面区域可拉远视角"
+msgstr "Tap the table outside the cards to zoom out"
+
 #: src/pages/DeckDetailPage.tsx
 msgid "点击卡片加入/移出 · 组内卡片左上角可设为封面"
 msgstr "Tap a card to add or remove it · set a card in the deck as the cover from its top-left corner"
+
+#: src/studio/StudioPage.tsx
+msgid "点击节点卡：挑定方案并炼出本段视频，才能延展下一段"
+msgstr "Tap a node card: pick a plan and generate this segment's video before adding the next one"
+
+#: src/studio/StudioPage.tsx
+msgid "点击虚线卡位，铸造第一段视频节点"
+msgstr "Tap the dashed slot to forge the first video segment"
 
 #: src/components/GenerationPill.tsx
 msgid "点击返回"
@@ -8839,6 +9114,14 @@ msgstr "Tap “Edit” in the top right to pick some cards"
 #: src/pages/FlowPage.tsx
 msgid "点名句"
 msgstr "Casting line"
+
+#: src/studio/stage/StageOverlay.tsx
+msgid "点地面把选中的挪过去；点人偶换选中"
+msgstr "Tap the floor to move the selected one there; tap a mannequin to select it"
+
+#: src/studio/stage/StageOverlay.tsx
+msgid "点地面放一个新人偶"
+msgstr "Tap the floor to place a new mannequin"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "点头 · 赞同"
@@ -8868,6 +9151,14 @@ msgstr "Tap to copy"
 msgid "点桌上的卡放大查看 · 喜欢就收进卡组"
 msgstr "Tap a card on the table to enlarge it · add the ones you like to your deck"
 
+#: src/studio/StudioPage.tsx
+msgid "点桌上的市场卡放大查看，喜欢就收进卡组"
+msgstr "Tap a market card on the table to enlarge it; add the ones you like to your deck"
+
+#: src/studio/StudioPage.tsx
+msgid "点虚线卡位延展下一段 · 点亮法阵去剪辑成片"
+msgstr "Tap the dashed slot to add the next segment · light up the circle to edit the final video"
+
 #: src/components/CommentSheet.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/FeedPage.tsx
@@ -8890,6 +9181,11 @@ msgstr "Tap to add a {0}, tap again to remove — you can pick several"
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "点错了"
 msgstr "Wrong one"
+
+#. placeholder {0}: fmtTokens(cost)
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "炼一次约 {0}"
+msgstr "About {0} per forge"
 
 #: src/studio/ui/projection.tsx
 msgid "炼出本段视频才能开下一段（段与段靠上一段的真实尾帧承接起拍）"
@@ -9317,6 +9613,10 @@ msgstr "Publish directly, no draft"
 #: src/pages/FlowPage.tsx
 msgid "直接把素材卡的形象参考图交给「{tierLabel}」档出片，不再画设定帧（更快也更省）"
 msgstr "The cards' reference images go straight to the “{tierLabel}” tier for rendering, with no setup frames drawn (faster and cheaper)"
+
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "直接用原片裁剪，不让 AI 画（这一格不花钱）"
+msgstr "Use the original crop directly instead of having the AI draw it (this slot is free)"
 
 #: src/pages/AdminPage.tsx
 msgid "相关的举报记录、通知、代币流水、卡片/卡组一并清除；<0>⚠ 涉及未成年人（csae）的举报记录会保留</0>，不随删号清除（法定义务例外）。"
@@ -10276,6 +10576,14 @@ msgstr "Choose my own"
 msgid "自带音色"
 msgstr "Has its own voice"
 
+#: src/studio/ui/SchemeMarketSheet.tsx
+msgid "自建一套之后可以发上来"
+msgstr "Create one and you can publish it"
+
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "自建一套方案"
+msgstr "Create a scheme"
+
 #: src/pages/CustomCardPage.tsx
 msgid "自建方案 / 从市场装新方案在工坊「从视频提取卡片」里做，装好这里就能选。"
 msgstr "Create your own scheme or install one from the market under “Extract cards from video” in the Studio; once installed, you can pick it here."
@@ -10325,10 +10633,18 @@ msgstr "All drafts ›"
 msgid "获赞"
 msgstr "Likes"
 
+#: src/studio/ui/AvatarPicker.tsx
+msgid "藏蓝长外套 · 金滚边"
+msgstr "Navy long coat · gold trim"
+
 #. placeholder {0}: fmtTokens(price)
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "融一张约需 {0} token，余额不够——去「我的」页充值"
 msgstr "One fusion costs about {0} tokens and your balance isn't enough — top up on the “Me” page"
+
+#: src/studio/stage/StageOverlay.tsx
+msgid "融图中…"
+msgstr "Fusing…"
 
 #: src/pages/SupportPage.tsx
 msgid "补充给客服…"
@@ -10367,6 +10683,10 @@ msgstr "Videos taken down by the platform are visible only to their author and a
 msgid "装"
 msgstr "Install"
 
+#: src/studio/ui/SchemeMarketSheet.tsx
+msgid "装…"
+msgstr "Installing…"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "装上中…"
 msgstr "Equipping…"
@@ -10378,6 +10698,10 @@ msgstr "People who equip this look and haven't picked a persona or voice yet get
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "装备为当前人格"
 msgstr "Equip as current persona"
+
+#: src/studio/ui/SchemeMarketSheet.tsx
+msgid "装进来"
+msgstr "Install"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "裙子"
@@ -10394,6 +10718,10 @@ msgstr "What to film"
 #: src/components/PortraitAuthPanel.tsx
 msgid "要授权的是<0>别人</0>？让他用自己的手机扫这个码 —— 活体认证必须在<1>他本人</1>的手机上、用他自己的火山账号做， 这正是这份授权有效的原因。"
 msgstr "Authorizing <0>someone else</0>? Have them scan this code with their own phone — the liveness check has to happen on <1>their own</1> phone with their own Volcano Engine account, which is exactly what makes the authorization valid."
+
+#: src/studio/ui/AvatarPicker.tsx
+msgid "见习冒险家 · 她"
+msgstr "Apprentice adventurer · she"
 
 #: src/studio/ui/projection.tsx
 msgid "规格"
@@ -10897,6 +11225,10 @@ msgstr "Body"
 msgid "身体左右"
 msgstr "Body left/right"
 
+#: src/studio/stage/StageOverlay.tsx
+msgid "身高"
+msgstr "Height"
+
 #: src/pages/SupportPage.tsx
 msgid "转人工"
 msgstr "Talk to a human"
@@ -11231,9 +11563,17 @@ msgstr "This plan has no story yet — write something first so I know what to d
 msgid "这一张既当卡面，也当这张卡的主形象参考。"
 msgstr "This image is both the card face and the card's main look reference."
 
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "这一格放原片裁剪本身，不调模型、不计费。"
+msgstr "This slot holds the original crop itself — no model call, no charge."
+
 #: src/studio/ui/PlanBoard.tsx
 msgid "这一格的预览图没有留存"
 msgstr "This preview image wasn't kept"
+
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "这一格要画成什么样？（画风句会自动接上）"
+msgstr "What should this slot look like? (the style line is appended automatically)"
 
 #: src/studio/flowStore.ts
 msgid "这一档不经过方案台。"
@@ -11857,6 +12197,10 @@ msgstr "Couldn't read this image: {0}"
 msgid "这张图读不出来：{0}——换一张再试"
 msgstr "Couldn't read this image: {0} — try another one"
 
+#: src/studio/StudioPage.tsx
+msgid "这张桌子上还没有卡——去「创意工坊」的卡片广场装几张，或用「从视频提取」现炼"
+msgstr "There are no cards on this table yet — install some from the card plaza in the Workshop, or forge some with “Extract from video”"
+
 #: src/utils/nativeCamera.ts
 msgid "这张照片解不开（常见于 HEIC 等手机专有格式）——换成 JPG，或截个图再传"
 msgstr "This photo can't be decoded (common with HEIC and other phone-specific formats). Convert it to JPG, or take a screenshot and upload that."
@@ -12198,6 +12542,10 @@ msgstr "Pick the frames where the scene or the number of people changes, and AI 
 msgid "选式"
 msgstr "Mode"
 
+#: src/studio/ui/AvatarPicker.tsx
+msgid "选择你的形象"
+msgstr "Choose your look"
+
 #: src/studio/ui/projection.tsx
 msgid "选择卡组"
 msgstr "Choose a deck"
@@ -12275,6 +12623,10 @@ msgstr " Prop card images need the subject boxed and outlined first. The “{nam
 #: src/pages/CutPage.tsx
 msgid "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。"
 msgstr "The music is the auto-added original audio, but you trimmed, deleted or reordered clips — the sound is mixed in from the start of the original, so it won't line up with the picture. To match them, use your own audio, or put the clips back and merge again."
+
+#: src/studio/ui/AvatarPicker.tsx
+msgid "酒红斗篷 · 绿金束身裙"
+msgstr "Wine-red cloak · green-and-gold bodice dress"
 
 #: src/components/DraftSheet.tsx
 msgid "重命名"
@@ -12433,6 +12785,10 @@ msgstr "Retry keeping"
 msgid "重选方案"
 msgstr "Choose another scheme"
 
+#: src/studio/StudioPage.tsx
+msgid "铸出第一段之后就能给这条工程起名"
+msgstr "You can name this project after forging the first segment"
+
 #: src/pages/CustomCardPage.tsx
 msgid "铸卡上传"
 msgstr "Card upload"
@@ -12536,6 +12892,10 @@ msgstr "Sad"
 #: src/studio/ui/NpcDialog.tsx
 msgid "需要 {0} token，余额 {1} 不够——去「我的」页充值"
 msgstr "This needs {0} tokens and your balance of {1} isn't enough — top up on the “Me” page"
+
+#: src/studio/ui/AvatarPicker.tsx
+msgid "青年牌手 · 他"
+msgstr "Young card player · he"
 
 #: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx

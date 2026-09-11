@@ -10,6 +10,7 @@
 //   移动端一律 touch-action:none，否则竖向拖会被浏览器接管成页面滚动（RoleCastBoard 那条坑）。
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Trans, useLingui } from "@lingui/react/macro";
 import * as THREE from "three";
 import { Canvas, ThreeEvent, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -165,6 +166,7 @@ function Capturer({ capRef }: { capRef: React.MutableRefObject<(() => string) | 
 
 export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onClose: () => void }) {
   const node = useFlow((s) => s.nodes.find((n) => n.id === nodeId));
+  const { t } = useLingui();
   const [stage, setStageLocal] = useState<StageState>(() => node?.stage ?? defaultStage());
   const [selected, setSelected] = useState<string | null>(stage.figures[0]?.id ?? null);
   const [adding, setAdding] = useState(false);
@@ -227,7 +229,7 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
     const { adding: add, selected: selId } = live.current;
     if (add) {
       if (cur.figures.length >= STAGE_LIMITS.figuresMax) {
-        setErr(`最多摆 ${STAGE_LIMITS.figuresMax} 个人偶`);
+        setErr(t`最多摆 ${STAGE_LIMITS.figuresMax} 个人偶`);
         setAdding(false);
         return;
       }
@@ -305,29 +307,29 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
     try {
       shot = cap();
     } catch (e) {
-      setErr(`截图失败：${e instanceof Error ? e.message : String(e)}`);
+      setErr(t`截图失败：${e instanceof Error ? e.message : String(e)}`);
       return;
     }
     // 只改本地：节点上的 stage.shot 由 applyStageShot 成功那一拍写（入口按钮拿它当"已融过"的记号，先写就是谎）
     setStageLive({ ...stage, shot });
-    setBusy("融图中…");
+    setBusy(t`融图中…`);
     try {
       const ok = await useFlow.getState().applyStageShot(nodeId, shot, (s) => setBusy(s));
       if (ok) onClose();
-      else setErr(useFlow.getState().err || "没融成");
+      else setErr(useFlow.getState().err || t`没融成`);
     } finally {
       setBusy("");
     }
   }
 
-  const price = AI_REAL ? fmtTokens(ONE_IMAGE) : "演示";
+  const price = AI_REAL ? fmtTokens(ONE_IMAGE) : t`演示`;
   return createPortal(
     <div className="fixed inset-0 z-[70] flex flex-col bg-ink">
       <div className="safe-top flex h-[58px] flex-none items-center gap-2 px-4">
-        <CloseButton chip="md" size={16} tone="text-slate-200" label="关闭导演台" onClick={onClose} />
+        <CloseButton chip="md" size={16} tone="text-slate-200" label={t`关闭导演台`} onClick={onClose} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-bold text-slate-100">🎬 导演台</div>
-          <div className="truncate text-[10px] text-slate-500">摆站位、拧机位，截图融成这一段的开头帧</div>
+          <div className="truncate text-sm font-bold text-slate-100"><Trans>🎬 导演台</Trans></div>
+          <div className="truncate text-[10px] text-slate-500"><Trans>摆站位、拧机位，截图融成这一段的开头帧</Trans></div>
         </div>
       </div>
 
@@ -392,16 +394,16 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
         {/* 人偶 */}
         <div className="rounded-lg border border-slate-700/70 bg-panel p-3">
           <div className="mb-1.5 flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-300">人偶 {stage.figures.length}</span>
+            <span className="text-xs font-semibold text-slate-300"><Trans>人偶 {stage.figures.length}</Trans></span>
             <span className="min-w-0 flex-1 truncate text-[10px] text-slate-500">
-              {adding ? "点地面放一个新人偶" : sel ? "点地面把选中的挪过去；点人偶换选中" : "点一个人偶选中它"}
+              {adding ? t`点地面放一个新人偶` : sel ? t`点地面把选中的挪过去；点人偶换选中` : t`点一个人偶选中它`}
             </span>
             <button
               onClick={() => setAdding((v) => !v)}
               disabled={stage.figures.length >= STAGE_LIMITS.figuresMax}
               className={`flex-none rounded-full px-2.5 py-1 text-[11px] ${adding ? "bg-brand font-semibold text-ink" : "bg-slate-700 text-slate-100"} disabled:opacity-40`}
             >
-              {adding ? "取消" : "+ 加人偶"}
+              {adding ? t`取消` : t`+ 加人偶`}
             </button>
             <button
               onClick={() => {
@@ -413,13 +415,13 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
               disabled={!sel || stage.figures.length <= 1}
               className="flex-none rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300 disabled:opacity-40"
             >
-              删除
+              <Trans>删除</Trans>
             </button>
           </div>
           {sel && (
             <div className="space-y-1.5">
               <label className="flex items-center gap-2 text-[11px] text-slate-400">
-                <span className="w-8 flex-none">朝向</span>
+                <span className="w-8 flex-none"><Trans>朝向</Trans></span>
                 <input
                   type="range"
                   min={-180}
@@ -435,7 +437,7 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
                 />
               </label>
               <label className="flex items-center gap-2 text-[11px] text-slate-400">
-                <span className="w-8 flex-none">身高</span>
+                <span className="w-8 flex-none"><Trans>身高</Trans></span>
                 <input
                   type="range"
                   min={60}
@@ -453,7 +455,7 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
 
         {/* 机位 */}
         <div className="rounded-lg border border-slate-700/70 bg-panel p-3">
-          <div className="mb-1.5 text-xs font-semibold text-slate-300">机位 · 空处拖动环绕，两指拉远拉近</div>
+          <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>机位 · 空处拖动环绕，两指拉远拉近</Trans></div>
           <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
             {PITCH_PRESETS.map((p) => (
               <button
@@ -482,11 +484,12 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
           disabled={!!busy || !prop}
           className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
-          {busy || `📸 截图 → 融成这一段的开头帧（${price}）`}
+          {busy || t`📸 截图 → 融成这一段的开头帧（${price}）`}
         </button>
         <p className="text-[10px] leading-relaxed text-slate-500">
-          截图只是构图示意，会和你挂的人物卡 / 场景卡一起融成真正的开头帧（一张图的钱）；融好的帧会钉住，重推方案不会改它，
-          想换就再截一次。人偶站位、机位都随这一段存着，下次打开还在。
+          <Trans>
+            截图只是构图示意，会和你挂的人物卡 / 场景卡一起融成真正的开头帧（一张图的钱）；融好的帧会钉住，重推方案不会改它，想换就再截一次。人偶站位、机位都随这一段存着，下次打开还在。
+          </Trans>
         </p>
       </div>
     </div>,
