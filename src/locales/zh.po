@@ -377,6 +377,10 @@ msgstr "‹ 上传示例视频当整段参考"
 msgid "‹ 回铸段窗重选模式"
 msgstr "‹ 回铸段窗重选模式"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "‹ 换一种做法"
+msgstr "‹ 换一种做法"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "‹ 收起市场"
 msgstr "‹ 收起市场"
@@ -899,6 +903,10 @@ msgstr "{entry} 的 FileReferences 里没有 Moc，这个包缺 *.moc3 主体文
 msgid "{entry} 的 Version 是 {version}，我们只认 Version 3（Cubism 4 导出的 model3.json）。Cubism 2 的老模型（*.model.json）要先在 Cubism Editor 里升级。"
 msgstr "{entry} 的 Version 是 {version}，我们只认 Version 3（Cubism 4 导出的 model3.json）。Cubism 2 的老模型（*.model.json）要先在 Cubism Editor 里升级。"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "{estimateText} token"
+msgstr "{estimateText} token"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "{faceName} 用哪个表情"
 msgstr "{faceName} 用哪个表情"
@@ -968,6 +976,10 @@ msgstr "{motion}（包里没有）"
 #: src/pages/SupportPage.tsx
 msgid "{msgCount} 条"
 msgstr "{msgCount} 条"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "{n} 帧"
+msgstr "{n} 帧"
 
 #: src/pages/LoginPage.tsx
 msgid "{name}登录（暂未接入）"
@@ -1425,6 +1437,14 @@ msgstr "＋中间帧（{midCount}/{midMax}）"
 #: src/pages/CustomCardPage.tsx
 msgid "<0>AI 复刻这张卡的画面 / 建模时会读这段</0>，写得越具体越像。"
 msgstr "<0>AI 复刻这张卡的画面 / 建模时会读这段</0>，写得越具体越像。"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "<0>不提取主角</0>——主角由你之后那句话指定。"
+msgstr "<0>不提取主角</0>——主角由你之后那句话指定。"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "<0>不是每次都全对</0>——会有人根本没被换成人偶，最容易漏<1>画面正中央那一个</1>。出片后<2>从左往右</2>核对， 对不上的位子删掉就行（不花钱）；要全对上只能<3>再花一次钱重炼</3>。人越少越准。"
+msgstr "<0>不是每次都全对</0>——会有人根本没被换成人偶，最容易漏<1>画面正中央那一个</1>。出片后<2>从左往右</2>核对， 对不上的位子删掉就行（不花钱）；要全对上只能<3>再花一次钱重炼</3>。人越少越准。"
 
 #. placeholder {0}: deckIssue.why
 #: src/pages/PublishPage.tsx
@@ -1982,6 +2002,10 @@ msgstr "🎨 融图合成这一帧"
 #: src/studio/ui/projection.tsx
 msgid "🎬 上传一段示例视频当整段参考"
 msgstr "🎬 上传一段示例视频当整段参考"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "🎬 从视频提取模板"
+msgstr "🎬 从视频提取模板"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "🎬 传一段示例视频当整段参考（多图+参考视频模式）"
@@ -2548,6 +2572,10 @@ msgstr "AI 预览帧"
 msgid "canvas 不可用"
 msgstr "canvas 不可用"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "mp4 / mov · {maxMinutes} 分钟以内 · {maxMb}MB 以内 · 会<0>公开托管</0>（套用者出片时引用它）。"
+msgstr "mp4 / mov · {maxMinutes} 分钟以内 · {maxMb}MB 以内 · 会<0>公开托管</0>（套用者出片时引用它）。"
+
 #: src/components/ShareSheet.tsx
 msgid "QQ 分享要在 App 里用，浏览器里请复制链接"
 msgstr "QQ 分享要在 App 里用，浏览器里请复制链接"
@@ -3079,6 +3107,10 @@ msgstr "不上传，直接给首尾帧 ›"
 msgid "不了"
 msgstr "不了"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "不出片、不换人，只认出画面里有谁、量出他们在哪。超过 {maxSec} 秒的素材可以整条切段登记成一组（逐段认人、按段计费）。"
+msgstr "不出片、不换人，只认出画面里有谁、量出他们在哪。超过 {maxSec} 秒的素材可以整条切段登记成一组（逐段认人、按段计费）。"
+
 #: src/components/DraftSheet.tsx
 msgid "不删"
 msgstr "不删"
@@ -3463,6 +3495,10 @@ msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜�
 msgid "仰拍"
 msgstr "仰拍"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "任意视频都行 · 要花钱"
+msgstr "任意视频都行 · 要花钱"
+
 #: src/studio/ui/projection.tsx
 msgid "会丢掉这一段推演出的方案（已花的 token 不退）"
 msgstr "会丢掉这一段推演出的方案（已花的 token 不退）"
@@ -3500,6 +3536,10 @@ msgstr "会被拿起来用的关键物件"
 #: src/components/TemplateShelf.tsx
 msgid "传一段视频做白模模板（自己做好的白模片也行）"
 msgstr "传一段视频做白模模板（自己做好的白模片也行）"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "传上去不花钱 · 下一步框出 {minSec}~{maxSec} 秒 · 报价确认后才开炼"
+msgstr "传上去不花钱 · 下一步框出 {minSec}~{maxSec} 秒 · 报价确认后才开炼"
 
 #: src/pages/CustomCardPage.tsx
 msgid "传图与信息"
@@ -4668,8 +4708,20 @@ msgid "分支 {0}"
 msgstr "分支 {0}"
 
 #: src/components/VideoTemplateExtractor.tsx
+msgid "分析中…"
+msgstr "分析中…"
+
+#: src/components/VideoTemplateExtractor.tsx
 msgid "分析帧数（越多认得越准，价钱不变）"
 msgstr "分析帧数（越多认得越准，价钱不变）"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "分析模板"
+msgstr "分析模板"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "分析没成：{why}"
+msgstr "分析没成：{why}"
 
 #: src/data/templates.ts
 msgid "分段登记成功了，但服务器返回的某一段缺少参考视频地址——请到「我的模板」里确认各段状态。"
@@ -6003,6 +6055,10 @@ msgstr "只能发布自己库里的技能"
 msgid "只能发布自己自建的方案（内置那几套本来就人人都有）"
 msgstr "只能发布自己自建的方案（内置那几套本来就人人都有）"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "只认人、不出片 · 约 {ownRefPrice}"
+msgstr "只认人、不出片 · 约 {ownRefPrice}"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "只说话"
 msgstr "只说话"
@@ -6061,6 +6117,14 @@ msgstr "台词不再带音色样本（「{0}」档出片无声）"
 #: src/components/flow/TierRow.tsx
 msgid "台词不再带音色样本（「{0}」档暂无配音）"
 msgstr "台词不再带音色样本（「{0}」档暂无配音）"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "右上角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议裁掉这块后再上传。（只是提醒，看错了直接忽略——照样可以继续。）"
+msgstr "右上角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议裁掉这块后再上传。（只是提醒，看错了直接忽略——照样可以继续。）"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "右下角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议裁掉这块后再上传。（只是提醒，看错了直接忽略——照样可以继续。）"
+msgstr "右下角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议裁掉这块后再上传。（只是提醒，看错了直接忽略——照样可以继续。）"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "右手"
@@ -6733,6 +6797,10 @@ msgstr "套用失败"
 msgid "套用的模板"
 msgstr "套用的模板"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "套用者出片时整段复刻它的场景与运镜。这是一次真实出片，费用在下一步框选时整句报出来。"
+msgstr "套用者出片时整段复刻它的场景与运镜。这是一次真实出片，费用在下一步框选时整句报出来。"
+
 #: src/components/flow/useApplyTemplate.tsx
 msgid "套用这个模板（丢弃上面那条）"
 msgstr "套用这个模板（丢弃上面那条）"
@@ -6850,6 +6918,10 @@ msgstr "存这张卡"
 msgid "存进本机卡片库…"
 msgstr "存进本机卡片库…"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "学画风运镜 · 不传公网 · 不要套餐"
+msgstr "学画风运镜 · 不传公网 · 不要套餐"
+
 #: src/pages/WorkshopPage.tsx
 msgid "它们还在，联网后重开一次"
 msgstr "它们还在，联网后重开一次"
@@ -6861,6 +6933,10 @@ msgstr "它会什么"
 #: src/pages/VideoEditorPage.tsx
 msgid "它拿不到“要编辑哪段视频”这个信息（直接输入地址、或从后台回来时页面已被系统回收，都会这样）。请回到上一步重新进入。"
 msgstr "它拿不到“要编辑哪段视频”这个信息（直接输入地址、或从后台回来时页面已被系统回收，都会这样）。请回到上一步重新进入。"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "它本来就是白模 / 人偶片，直接用"
+msgstr "它本来就是白模 / 人偶片，直接用"
 
 #: src/components/DownloadSheet.tsx
 msgid "安卓不让 App 直接写进相册。文件先落在 App 的缓存目录里；存好后点每一行的「分享 / 另存为」， 在系统面板里选相册或文件管理器。保存期间请留在 App 里，别把它划掉。 缓存目录在手机空间紧张时可能被系统清掉 —— 存好之后请尽快选个去处。"
@@ -7211,9 +7287,17 @@ msgstr "工程已留存（有 {lost} 处预览图没能留下，回炉时重新�
 msgid "工程没能留存（{why}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」"
 msgstr "工程没能留存（{why}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "左上角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议裁掉这块后再上传。（只是提醒，看错了直接忽略——照样可以继续。）"
+msgstr "左上角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议裁掉这块后再上传。（只是提醒，看错了直接忽略——照样可以继续。）"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "左上角的返回按钮可逐层退出"
 msgstr "左上角的返回按钮可逐层退出"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "左下角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议裁掉这块后再上传。（只是提醒，看错了直接忽略——照样可以继续。）"
+msgstr "左下角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议裁掉这块后再上传。（只是提醒，看错了直接忽略——照样可以继续。）"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "左手"
@@ -7860,6 +7944,10 @@ msgstr "开头画面 AI 补"
 msgid "开始保存{totalLabel}"
 msgstr "开始保存{totalLabel}"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "开始分析并生成模板"
+msgstr "开始分析并生成模板"
+
 #: src/pages/CreatePage.tsx
 msgid "开始创作"
 msgstr "开始创作"
@@ -8121,6 +8209,10 @@ msgstr "思考中"
 #: src/pages/FlowPage.tsx
 msgid "总时长 {0}"
 msgstr "总时长 {0}"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "总结出的画面要求"
+msgstr "总结出的画面要求"
 
 #: src/pages/SettingsPage.tsx
 #: src/studio/ui/FrameCard.tsx
@@ -8568,6 +8660,10 @@ msgstr "报不出价"
 #: src/pages/SupportPage.tsx
 msgid "抱歉没帮上，要不要转人工？"
 msgstr "抱歉没帮上，要不要转人工？"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "抽几帧总结画风、运镜与分镜骨架，再提炼可复用的场景/道具卡。不出片，也不把视频传上公网。"
+msgstr "抽几帧总结画风、运镜与分镜骨架，再提炼可复用的场景/道具卡。不出片，也不把视频传上公网。"
 
 #: src/studio/structuredSkills.ts
 msgid "拆出来的段一段都不合形状（剧情太短或缺字段）——把剧本写具体些再试"
@@ -10571,6 +10667,10 @@ msgstr "模型给的 JSON 读不出来（再试一次）"
 msgid "模型输出里没有 segments 数组"
 msgstr "模型输出里没有 segments 数组"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "模板分析好了，去「我的模板」看看"
+msgstr "模板分析好了，去「我的模板」看看"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "模板名"
 msgstr "模板名"
@@ -12085,6 +12185,10 @@ msgstr "用素材卡定人物场景，全片一致"
 msgid "用这一帧作封面"
 msgstr "用这一帧作封面"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "用这个模板出片"
+msgstr "用这个模板出片"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "用这张"
 msgstr "用这张"
@@ -12181,6 +12285,10 @@ msgstr "画面里怎么认出这个人偶（这句话会进出片提示词）"
 #: src/components/VideoCardAnnotator.tsx
 msgid "画面里是真实人物（真人）"
 msgstr "画面里是真实人物（真人）"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "画面里的水印、台标、字幕会被<0>复刻进每一次出片</0>， 下一步用裁剪框把它框到画面外。"
+msgstr "画面里的水印、台标、字幕会被<0>复刻进每一次出片</0>， 下一步用裁剪框把它框到画面外。"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "画面里还有人没列出来，加一个"
@@ -12431,6 +12539,14 @@ msgstr "白模段用，改成真实角色位与卡名"
 #: src/studio/flowStore.ts
 msgid "白模段的画面整个来自模板视频，导演台的构图用不上"
 msgstr "白模段的画面整个来自模板视频，导演台的构图用不上"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "白模那两条路现在开不了（原因见上）。上面改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。"
+msgstr "白模那两条路现在开不了（原因见上）。上面改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "白模那两条路都只走这一档，所以现在还开不了 —— 改选「经典配方」仍然可以做模板，它不需要付费套餐。"
+msgstr "白模那两条路都只走这一档，所以现在还开不了 —— 改选「经典配方」仍然可以做模板，它不需要付费套餐。"
 
 #: src/components/guide/tours.tsx
 msgid "白模那种模板，出片就是<0>整段复刻这段视频</0>、只把人偶换掉。 下面那行报价把模板视频自己的时长也计了一遍，不是只按出片时长算。"
@@ -12747,6 +12863,7 @@ msgid "视频加载超时。应用切到后台时系统会暂停视频解码（�
 msgstr "视频加载超时。应用切到后台时系统会暂停视频解码（这时页面看着像卡住了）——回到前台后点「重试」。"
 
 #: src/components/videoFrames.ts
+#: src/components/VideoTemplateExtractor.tsx
 msgid "视频加载超时（应用切到后台会暂停解码，回到前台再试）"
 msgstr "视频加载超时（应用切到后台会暂停解码，回到前台再试）"
 
@@ -13734,6 +13851,10 @@ msgstr "终点 {0}s"
 msgid "终点 ＝当前帧"
 msgstr "终点 ＝当前帧"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "经典配方（不做白模）"
+msgstr "经典配方（不做白模）"
+
 #: src/data/templates.ts
 msgid "经典配方模板首发只存本机，不需要登记到服务器"
 msgstr "经典配方模板首发只存本机，不需要登记到服务器"
@@ -14184,6 +14305,10 @@ msgstr "补充给客服…"
 msgid "补充要求：{reqText}"
 msgstr "补充要求：{reqText}"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "补充说明（可选）：比如「重点学它的运镜和胶片质感，别管剧情」"
+msgstr "补充说明（可选）：比如「重点学它的运镜和胶片质感，别管剧情」"
+
 #: src/components/ReportButton.tsx
 msgid "补充说明（选填，管理员会看到）"
 msgstr "补充说明（选填，管理员会看到）"
@@ -14405,6 +14530,10 @@ msgstr "认好了 ✓"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "让 AI 写一版"
 msgstr "让 AI 写一版"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "让 AI 把里面的人换成白模人偶"
+msgstr "让 AI 把里面的人换成白模人偶"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "让别人在人格市场里搜得到。"
@@ -16035,6 +16164,10 @@ msgstr "这个白模模板的模板视频约 {shown} 秒，超过 AI 出片引�
 msgid "这个视频浏览器解不开（换 mp4/webm 试试）"
 msgstr "这个视频浏览器解不开（换 mp4/webm 试试）"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "这个视频浏览器解不开（白模模板只收 mp4 / mov）"
+msgstr "这个视频浏览器解不开（白模模板只收 mp4 / mov）"
+
 #: src/pages/ProfilePage.tsx
 msgid "这个链接里只有名字，没法向服务器确认是谁 · 下面只是本次刷到的那些"
 msgstr "这个链接里只有名字，没法向服务器确认是谁 · 下面只是本次刷到的那些"
@@ -16798,6 +16931,10 @@ msgstr "这段视频的地址不允许截帧（跨域没放行）——重新上
 msgid "这段视频的画面还没解出来（应用切到后台时系统会暂停解码）——回到前台等画面出来再标。"
 msgstr "这段视频的画面还没解出来（应用切到后台时系统会暂停解码）——回到前台等画面出来再标。"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "这段视频要做成什么？"
+msgstr "这段视频要做成什么？"
+
 #. placeholder {0}: slots.length
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "这段视频里只认出了这 {0} 个位置，都已经在列表里了。 清单之外的人同样是白色人偶，但没有位置能指认他们，<0>挂不了卡</0>。"
@@ -16932,9 +17069,17 @@ msgstr "选一个 zip"
 msgid "选一个大方向就行，后面 AI 会照着写。"
 msgstr "选一个大方向就行，后面 AI 会照着写。"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "选一段参考视频"
+msgstr "选一段参考视频"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "选一段本地视频"
 msgstr "选一段本地视频"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "选一段视频（传完再框选）"
+msgstr "选一段视频（传完再框选）"
 
 #: src/components/AvatarPicker.tsx
 msgid "选个头像"
@@ -17536,6 +17681,14 @@ msgstr "音频"
 #: src/utils/nativeMerge.ts
 msgid "音频读不出来"
 msgstr "音频读不出来"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "预估消耗"
+msgstr "预估消耗"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "预估需 {price} token，余额不足——去「我的」页充值"
+msgstr "预估需 {price} token，余额不足——去「我的」页充值"
 
 #: src/studio/live2dUploadStore.ts
 msgid "预览准备失败。"
