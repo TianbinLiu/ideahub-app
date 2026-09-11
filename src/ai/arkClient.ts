@@ -908,8 +908,29 @@ export async function chatTurns(system: string, turns: ChatTurn[]): Promise<stri
   return out.choices?.[0]?.message?.content ?? "";
 }
 
+/** 一问一答的工具调用。输出上限 800 —— 炼卡文案 / 三方案剧情 / 卡组提炼 / 白模提示词合成都远用不满。
+ *  ★ 不报"被截断"：那几个调用点要么解析 JSON（截断了自然解析失败、各自有兜底），要么逐条核对成品
+ *    （blockoutPrompt）。要知道有没有顶到上限的，走 chatBounded。 */
 export async function chat(system: string, user: string): Promise<string> {
-  const out = await arkFetch<{ choices: Array<{ message: { content: string } }> }>(
+  return (await chatBounded(system, user, 800, 60_000)).text;
+}
+
+/**
+ * 单轮 chat，**上限由调用方给**，并如实报"有没有顶到上限被截断"（方舟回 `finish_reason: "length"`）。
+ *
+ * ★★ 为什么要单开（2026-09-11）：「剧本 → 分镜」一次要吐最多 8 段带镜头字段的 JSON，走 chat() 的 800 上限
+ *   会被拦腰截断 —— 截断的 JSON 解析不出来，面板上说"模型给的 JSON 读不出来"，而这一发在服务端已经按 chat 计费。
+ *   上限按调用点的输出形状量出来再给（量法见 structuredSkills 的 SCRIPT_SHOTS_MAX_TOKENS），截断要由调用方说成人话。
+ * ★ `timeoutMs` 必填：输出越长越慢，60 秒对 800 token 够、对几千 token 不一定够；而客户端先超时的后果是
+ *   "服务端照扣、用户收到一句失败"（generateImage 那段 ★ 同一个坑）。
+ */
+export async function chatBounded(
+  system: string,
+  user: string,
+  maxTokens: number,
+  timeoutMs: number,
+): Promise<{ text: string; truncated: boolean }> {
+  const out = await arkFetch<{ choices: Array<{ message: { content: string }; finish_reason?: string }> }>(
     "/chat/completions",
     {
       method: "POST",
@@ -919,11 +940,12 @@ export async function chat(system: string, user: string): Promise<string> {
           { role: "system", content: system },
           { role: "user", content: user },
         ],
-        max_tokens: 800,
+        max_tokens: maxTokens,
         thinking: { type: "disabled" },
       }),
     },
-    60_000,
+    timeoutMs,
   );
-  return out.choices?.[0]?.message?.content ?? "";
+  const choice = out.choices?.[0];
+  return { text: choice?.message?.content ?? "", truncated: choice?.finish_reason === "length" };
 }
