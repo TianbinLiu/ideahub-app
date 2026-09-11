@@ -3290,6 +3290,11 @@ msgstr "以当前封面为参考图，按要求修改"
 msgid "仰拍"
 msgstr "仰拍"
 
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "仰拍"
+msgstr "仰拍"
+
 #: src/studio/ui/projection.tsx
 msgid "会丢掉这一段推演出的方案（已花的 token 不退）"
 msgstr "会丢掉这一段推演出的方案（已花的 token 不退）"
@@ -3666,6 +3671,11 @@ msgid "保留了框内背景（{size}{up}）——卡面仍带背景，出片时
 msgstr "保留了框内背景（{size}{up}）——卡面仍带背景，出片时 AI 可能把背景里的东西也画进去"
 
 #: src/studio/stage/stageState.ts
+msgid "俯拍"
+msgstr "俯拍"
+
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
 msgid "俯拍"
 msgstr "俯拍"
 
@@ -4180,6 +4190,10 @@ msgstr "最多 {max} 个，每个 {maxLen} 字以内 · 已加 {added} 个"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "最多 {max} 条，已经满了"
 msgstr "最多 {max} 条，已经满了"
+
+#: src/components/flow/CameraChips.tsx
+msgid "最多叠 {CAMERA_MAX_STACK} 个运镜（再多模型顾不过来），先取消一个"
+msgstr "最多叠 {CAMERA_MAX_STACK} 个运镜（再多模型顾不过来），先取消一个"
 
 #. placeholder {0}: STAGE_LIMITS.figuresMax
 #: src/studio/stage/StageOverlay.tsx
@@ -5715,6 +5729,11 @@ msgstr "右手"
 msgid "右眼"
 msgstr "右眼"
 
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "右移"
+msgstr "右移"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "右臂"
 msgstr "右臂"
@@ -6012,6 +6031,11 @@ msgstr "回铸段窗重选模式"
 #: src/pages/VideoEditorPage.tsx
 msgid "回首页"
 msgstr "回首页"
+
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "固定"
+msgstr "固定"
 
 #. placeholder {0}: i + 1
 #: src/studio/ui/SchemeEditorSheet.tsx
@@ -6795,6 +6819,11 @@ msgstr "左手"
 #: src/pages/SupportModelNewPage.tsx
 msgid "左眼"
 msgstr "左眼"
+
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "左移"
+msgstr "左移"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "左臂"
@@ -7885,6 +7914,11 @@ msgstr "所属卡组"
 msgid "手工填入（方舟控制台授权）"
 msgstr "手工填入（方舟控制台授权）"
 
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "手持"
+msgstr "手持"
+
 #: src/pages/LoginPage.tsx
 msgid "手机号"
 msgstr "手机号"
@@ -8088,6 +8122,11 @@ msgstr "拆成分镜（{price}）"
 #: src/components/flow/SkillPanel.tsx
 msgid "拉取中…"
 msgstr "拉取中…"
+
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "拉远"
+msgstr "拉远"
 
 #: src/components/BlockButton.tsx
 msgid "拉黑"
@@ -8509,6 +8548,11 @@ msgstr "推荐哪个声音"
 #: src/pages/SupportModelNewPage.tsx
 msgid "推荐项 {0}/{1} 项已具备"
 msgstr "推荐项 {0}/{1} 项已具备"
+
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "推近"
+msgstr "推近"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "描不出来？保留框内背景 ›"
@@ -10774,6 +10818,10 @@ msgstr "演示角色"
 msgid "演示道具"
 msgstr "演示道具"
 
+#: src/components/flow/CameraChips.tsx
+msgid "灰着的运镜插进去会超过 {VIDEO_PROMPT_MAX} 字的上限，想用就先删几个字"
+msgstr "灰着的运镜插进去会超过 {VIDEO_PROMPT_MAX} 字的上限，想用就先删几个字"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "炉火正旺，卡片成形中…"
 msgstr "炉火正旺，卡片成形中…"
@@ -10987,6 +11035,11 @@ msgstr "物理 没有"
 #: src/studio/stage/stageState.ts
 msgid "特写"
 msgstr "特写"
+
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "环绕"
+msgstr "环绕"
 
 #: src/components/DraftSheet.tsx
 msgid "现在打不开这条草稿"
@@ -13744,6 +13797,11 @@ msgstr "起点 ＝当前帧"
 msgid "超出上限 {over} 字。送去分析时会从最前面截掉这一段，保留最近的 {MATERIAL_TOTAL_MAX} 字（越靠后越像现在的 TA）。"
 msgstr "超出上限 {over} 字。送去分析时会从最前面截掉这一段，保留最近的 {MATERIAL_TOTAL_MAX} 字（越靠后越像现在的 TA）。"
 
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "跟拍"
+msgstr "跟拍"
+
 #: src/components/support/VoiceMarket.tsx
 msgid "跟随"
 msgstr "跟随"
@@ -13824,6 +13882,10 @@ msgstr "输入该用户的用户名 <0>{0}</0> 以确认："
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "边界"
 msgstr "边界"
+
+#: src/components/flow/CameraChips.tsx
+msgid "运镜"
+msgstr "运镜"
 
 #: src/studio/stage/stageState.ts
 msgid "近景"
