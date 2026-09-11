@@ -6,10 +6,12 @@
 //   被拍者多半是隔着屏幕扫，容错留一点更稳。
 // ★★ 底色写死**白**、码点写死**黑**：二维码的对比度是功能不是审美 —— 跟着深色主题反色
 //   会让一半扫码器读不出（浅色码点+深背景是最常见的扫不出原因）。所以这块**不吃主题色**。
+import { useLingui } from "@lingui/react/macro";
 import qrcode from "qrcode-generator";
 import { useMemo } from "react";
 
 export default function QrCode({ text, size = 176 }: { text: string; size?: number }) {
+  const { t } = useLingui();
   const { path, count } = useMemo(() => {
     const qr = qrcode(0, "M");
     qr.addData(text);
@@ -35,7 +37,7 @@ export default function QrCode({ text, size = 176 }: { text: string; size?: numb
       viewBox={`0 0 ${vb} ${vb}`}
       shapeRendering="crispEdges"
       role="img"
-      aria-label="授权二维码"
+      aria-label={t`授权二维码`}
       style={{ background: "#fff", borderRadius: 8 }}
     >
       <path d={path} fill="#000" transform={`translate(${quiet} ${quiet})`} />

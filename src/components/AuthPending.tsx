@@ -1,3 +1,4 @@
+import { useLingui } from "@lingui/react/macro";
 import Spinner from "./Spinner";
 // 「还不知道你登没登录」的加载态。
 //
@@ -10,16 +11,17 @@ import Spinner from "./Spinner";
 //   自愈最多五轮退避，跑完 authState() 会如实退回 "out"，这一屏自己就走掉（铁律八）。
 // ★ 放在 components/ 而不是 App.tsx：页面要用它，从 App.tsx 反向 import 就成环了。
 export default function AuthPending({
-  label = "正在确认登录状态…",
+  label,
   className = "min-h-[60vh]",
 }: {
   label?: string;
   className?: string;
 }) {
+  const { t } = useLingui();
   return (
     <div className={`flex flex-col items-center justify-center gap-3 text-slate-400 ${className}`}>
       <Spinner size="lg" />
-      <span className="text-xs">{label}</span>
+      <span className="text-xs">{label ?? t`正在确认登录状态…`}</span>
     </div>
   );
 }

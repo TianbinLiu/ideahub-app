@@ -21,6 +21,7 @@
 // 产品要求就是**强制走完**（"用户这时只能点下一步直到步骤走完"）。代价是：一旦用户
 // 在没看懂时连点几下过去，那一屏就再也不会自动弹了 —— 所以设置页给了一颗
 // 「重看所有新手引导」（data/guide.resetGuidesSeen），每一页角落也常驻那颗 `?`。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { activeGuide, closeGuide, stepGuide } from "../../data/guide";
@@ -86,6 +87,7 @@ function rectOf(anchor: string): Rect | null {
 
 export default function GuideOverlay() {
   useGuide();
+  const { t } = useLingui();
   const act = activeGuide();
   const tour = act ? tourById(act.id) : null;
   const step = tour && act ? tour.steps[act.step] : null;
@@ -199,7 +201,7 @@ export default function GuideOverlay() {
       style={{ zIndex: GUIDE_Z }}
       role="dialog"
       aria-modal="true"
-      aria-label={`${tour.title} 使用引导`}
+      aria-label={t`${tour.title} 使用引导`}
     >
       {/* 变暗：有锚点时用「圈 + 一圈超大 box-shadow」挖洞（不需要 SVG mask，
           也不会像两层 div 那样在圈边留出接缝）；没锚点就整屏均匀压暗 */}
@@ -231,7 +233,7 @@ export default function GuideOverlay() {
           onClick={() => (last ? closeGuide() : stepGuide())}
           className="mt-3.5 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
         >
-          {last ? "知道了" : "下一步"}
+          {last ? <Trans>知道了</Trans> : <Trans>下一步</Trans>}
         </button>
       </div>
     </div>,

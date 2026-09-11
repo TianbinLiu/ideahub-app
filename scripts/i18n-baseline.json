@@ -555,9 +555,6 @@
   "src/components/AigcBadge.tsx": {
    "ee569181afc2cbdd": 1
   },
-  "src/components/AuthPending.tsx": {
-   "f9b65b72072c1a64": 1
-  },
   "src/components/AvatarPicker.tsx": {
    "11d024154013c0ca": 1,
    "12e2ed4d508a98bc": 1,
@@ -635,9 +632,6 @@
    "f68b8599fad02cc0": 1,
    "ffc7850925e7e36c": 1
   },
-  "src/components/ConfirmDialog.tsx": {
-   "4d0b4688c787cf6c": 1
-  },
   "src/components/CoverPicker.tsx": {
    "03d1bd48560aac45": 2,
    "0f83bc07b3816f6d": 1,
@@ -705,10 +699,6 @@
    "df64576e4ade4843": 1,
    "ec3c550a65f6e6d6": 1
   },
-  "src/components/DeckCard.tsx": {
-   "749a3ae1e62030d8": 1,
-   "e032ecfe053e9862": 1
-  },
   "src/components/DeleteCardDialog.tsx": {
    "129dd1861cd39247": 1,
    "12c9471ef7ad45e5": 1,
@@ -727,13 +717,6 @@
    "caf5c10dd4df4a4f": 1,
    "cbbca2291cb8194b": 1,
    "f0e3848a143accc7": 1
-  },
-  "src/components/DeleteConfirmShell.tsx": {
-   "60793243146ecae2": 1,
-   "ab6b7d8c4c379437": 1,
-   "bef8b299ba20e03e": 1,
-   "c9a00b2e2d46aea0": 1,
-   "d4936c1db0e55f05": 1
   },
   "src/components/DeleteDeckDialog.tsx": {
    "2b99c1d6707882f6": 1,
@@ -831,17 +814,6 @@
    "e25f6e877f036e30": 1,
    "fadafcc174cb0d78": 1
   },
-  "src/components/FrameAnnotator.tsx": {
-   "1d31731e588cbd54": 1,
-   "35ef3bc85fd7b736": 1,
-   "8533b17a6773dacf": 1,
-   "a901d917574be42f": 1
-  },
-  "src/components/GenTrace.tsx": {
-   "38a9ed9cf0112021": 1,
-   "6eb1465be2716cb0": 1,
-   "935f75752476c460": 1
-  },
   "src/components/GenerationPill.tsx": {
    "0eb61fcffe483ce7": 1,
    "213706b31a9d2184": 1,
@@ -850,17 +822,6 @@
    "6c14bd7f6f9e54e4": 1,
    "b36d6dd27f5b1794": 1,
    "e38bfe1ee03671e4": 1
-  },
-  "src/components/IconTapButton.tsx": {
-   "11d024154013c0ca": 1,
-   "6c14bd7f6f9e54e4": 1
-  },
-  "src/components/InfoDialog.tsx": {
-   "cb63c62e50f8a74f": 1
-  },
-  "src/components/InfoTip.tsx": {
-   "26670dda421f5c59": 1,
-   "cb63c62e50f8a74f": 1
   },
   "src/components/MaterialSheet.tsx": {
    "1903d13aac1a71dc": 1,
@@ -888,11 +849,6 @@
    "ea9cf66452d1f97f": 1,
    "f40dd883a079936d": 1,
    "f998b6d411452994": 1
-  },
-  "src/components/MentionInput.tsx": {
-   "73bae1e20ea80248": 1,
-   "973e90e8b2f0d5d9": 1,
-   "b838134507093975": 1
   },
   "src/components/PhotoSubjectPicker.tsx": {
    "02882038276d1a2f": 1,
@@ -978,9 +934,6 @@
    "f856545b0ec89e62": 1,
    "fd86816f4466a76f": 1
   },
-  "src/components/QrCode.tsx": {
-   "c9e026c75060175c": 1
-  },
   "src/components/ReportButton.tsx": {
    "16794d62df981394": 1,
    "17e519c5a6bdd80c": 1,
@@ -1041,20 +994,6 @@
    "cf5105624389a7f1": 1,
    "d2220ee923012a3c": 1,
    "f9b65b72072c1a64": 1
-  },
-  "src/components/TabBar.tsx": {
-   "223f9140328da15c": 1,
-   "a82c993d7388d58a": 1,
-   "b6fc3cef0bd01248": 1,
-   "ee4fe0e542cde979": 1,
-   "ff93ad0e4ec6e985": 1
-  },
-  "src/components/TagInput.tsx": {
-   "30e12e8524714616": 1,
-   "471fc7c50e4fd2ff": 1,
-   "53b2cb87a2855dd2": 1,
-   "878c211de3a6133e": 1,
-   "97d773086b09c48e": 1
   },
   "src/components/TarotCard.tsx": {
    "2282a44c4e061a5c": 1,
@@ -1407,12 +1346,6 @@
    "f1de5ebfdc20fd6f": 1,
    "ff52a77538bc7869": 1
   },
-  "src/components/VoiceUploadButton.tsx": {
-   "09c815eabe3f8f19": 1,
-   "1cac8ac7f58f132c": 1,
-   "cf000863be7c27a5": 1,
-   "d0c6a0db09f87358": 1
-  },
   "src/components/WorkshopShareBar.tsx": {
    "02b78ea0b9204f4f": 1,
    "1711c6f788527324": 1,
@@ -1746,13 +1679,6 @@
    "fdd5f2799d461cb4": 2,
    "ff0869d24aed325c": 1
   },
-  "src/components/blockout/TrimBar.tsx": {
-   "29d0552d2e4c7601": 1,
-   "4c0c0aed67f7b9bf": 1,
-   "5b4befee8c9c32a5": 1,
-   "e188ebcab6204138": 1,
-   "eb6aaba1a1caaceb": 1
-  },
   "src/components/blockout/VideoStage.tsx": {
    "130448bce6758f08": 1,
    "17e288372c06d2ff": 1,
@@ -1893,10 +1819,6 @@
    "d88d7cd3de6d2c6f": 1,
    "f19f6b6db325fa8c": 1,
    "f950213ab7585d65": 1
-  },
-  "src/components/flow/DeleteSegBtn.tsx": {
-   "1823ba0105bc927d": 1,
-   "517a3d09ecbad2a0": 1
   },
   "src/components/flow/DiscardFlowDialog.tsx": {
    "0806e9c73fa283a6": 1,
@@ -2215,14 +2137,6 @@
   "src/components/flow/useApplyTemplate.tsx": {
    "11982ccf815e84db": 1,
    "adb5179a623a7ed4": 1
-  },
-  "src/components/guide/GuideOverlay.tsx": {
-   "9e98ab93225498f8": 1,
-   "cb63c62e50f8a74f": 1,
-   "ea0ef2ae72458b15": 1
-  },
-  "src/components/guide/HelpButton.tsx": {
-   "15683f6cd3a12641": 1
   },
   "src/components/guide/tours.tsx": {
    "0085d506ae94356b": 1,
@@ -2740,9 +2654,6 @@
    "f708561e135b24d9": 1,
    "f89b77701eedb266": 1
   },
-  "src/components/support/SupportStage.tsx": {
-   "7e61d79ad30390f8": 1
-  },
   "src/components/support/VoiceMarket.tsx": {
    "050487f0b30fc6a2": 1,
    "06eb93c86a0d2994": 1,
@@ -2833,18 +2744,6 @@
    "ece835fa2ad7c7ce": 1,
    "f592fb55703e24ec": 1,
    "fadf24dbc5a9e0bb": 1
-  },
-  "src/components/support/voicePreview.ts": {
-   "4ce0326df5c228f7": 1,
-   "9f7857fd93f00345": 1,
-   "d6d8181146e9569e": 1,
-   "da2523aeb8004f4c": 1
-  },
-  "src/components/videoFrames.ts": {
-   "3600f3cb3d0d5921": 1,
-   "756f6bf859d213cf": 1,
-   "bc4682f7ea27fc22": 1,
-   "c1a780648f7ec329": 1
   },
   "src/data/account.ts": {
    "02f02dfb4b76a096": 1,
@@ -6595,13 +6494,6 @@
   "src/utils/oauth.ts": {
    "46a24c65204e4440": 1,
    "8052d8c260e2ee66": 1
-  },
-  "src/utils/videoFrames.ts": {
-   "4d05b50df435c32b": 1,
-   "7b16acb9ca9a044a": 1,
-   "a19e23993d23b6a6": 1,
-   "bd0cde7317597568": 1,
-   "ff06c243d727d56e": 1
   },
   "src/utils/wav.ts": {
    "7d06cdbffaf69672": 1,

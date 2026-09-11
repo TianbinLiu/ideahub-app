@@ -6,6 +6,7 @@
 // ★ createPortal 到 body：设置子页现在没有会造包含块的祖先，但这类弹层已经在
 //   backdrop-filter/transform 上栽过两次（CLAUDE.md「fixed inset-0 却只铺满一小块」），
 //   统一走 portal 是唯一不用逐页核对祖先样式的写法。
+import { Trans } from "@lingui/react/macro";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 
@@ -41,7 +42,7 @@ export default function ConfirmDialog({
             onClick={onClose}
             className="flex-1 rounded-xl border border-slate-600 py-2.5 text-xs font-semibold text-slate-300"
           >
-            取消
+            <Trans>取消</Trans>
           </button>
           <button
             onClick={onConfirm}

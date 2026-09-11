@@ -18,6 +18,14 @@ msgstr ""
 msgid "：「{quote}{0}」"
 msgstr ": “{quote}{0}”"
 
+#: src/components/GenTrace.tsx
+msgid "· {doneCount}/{total} 步"
+msgstr "· {doneCount}/{total} steps"
+
+#: src/components/GenTrace.tsx
+msgid "· 共 {total} 步"
+msgstr "· {total, plural, one {# step} other {# steps}}"
+
 #: src/studio/canvasAgent.ts
 msgid "（本地档）{notes}现在只认「第N段 拍什么」「第N段换成XX模板」「第N段摘掉模板」「加一段」这类直白句式。"
 msgstr "(Local mode) {notes}I only understand plain phrasing here, like “Segment N: what to shoot”, “Segment N: use template ‘name’”, “Segment N: remove template” or “Add a segment”."
@@ -33,6 +41,11 @@ msgstr "(Nothing to do)"
 #: src/studio/canvasAgent.ts
 msgid "（这一句我没听懂）"
 msgstr "(I didn't understand that)"
+
+#. placeholder {0}: tour.title
+#: src/components/guide/GuideOverlay.tsx
+msgid "{0} 使用引导"
+msgstr "{0} guide"
 
 #. placeholder {0}: d.segCount
 #. placeholder {0}: meta.segCount
@@ -72,6 +85,14 @@ msgstr "{0}: that's a segment setting. Open that segment's editor — duration, 
 msgid "{0}重新剪辑过"
 msgstr "Re-edited {0}"
 
+#: src/components/DeckCard.tsx
+msgid "{count} 张"
+msgstr "{count, plural, one {# card} other {# cards}}"
+
+#: src/components/blockout/TrimBar.tsx
+msgid "{durSec} 秒"
+msgstr "{durSec}s"
+
 #: src/studio/canvasAgent.ts
 msgid "「{u}」"
 msgstr "“{u}”"
@@ -79,6 +100,10 @@ msgstr "“{u}”"
 #: src/studio/canvasAgent.ts
 msgid "＋ 加一段"
 msgstr "＋ Add a segment"
+
+#: src/components/DeckCard.tsx
+msgid "★ 当前"
+msgstr "★ Current"
 
 #: src/studio/canvasAgent.ts
 msgid "⚡ 生成本段"
@@ -97,6 +122,10 @@ msgstr "✂ Subject only"
 msgid "✎ 拍摄要求"
 msgstr "✎ What to shoot"
 
+#: src/components/FrameAnnotator.tsx
+msgid "⭕ 圈选要修改的物体"
+msgstr "⭕ Circle what you want to change"
+
 #: src/studio/canvasAgent.ts
 msgid "🃏 挂卡换人"
 msgstr "🃏 Cast cards"
@@ -105,9 +134,17 @@ msgstr "🃏 Cast cards"
 msgid "🎲 重演方案"
 msgstr "🎲 Re-plan"
 
+#: src/components/VoiceUploadButton.tsx
+msgid "🎵 上传本地音频（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）"
+msgstr "🎵 Upload audio from device ({VOICE_MIN_SEC}–{VOICE_MAX_SEC}s)"
+
 #: src/studio/canvasAgent.ts
 msgid "🗑 删掉某段"
 msgstr "🗑 Delete a segment"
+
+#: src/components/flow/DeleteSegBtn.tsx
+msgid "🗑 删除本段"
+msgstr "🗑 Delete segment"
 
 #: src/studio/canvasAgent.ts
 msgid "🧪 套模板"
@@ -129,13 +166,90 @@ msgstr "The previous photo isn't finished yet"
 msgid "上传本地图片"
 msgstr "Upload from device"
 
+#: src/components/VoiceUploadButton.tsx
+msgid "上传音频"
+msgstr "Uploaded audio"
+
+#: src/components/VoiceUploadButton.tsx
+msgid "上传音频（原片较长，取前 {VOICE_MAX_SEC}s）"
+msgstr "Uploaded audio (the original was longer; kept the first {VOICE_MAX_SEC}s)"
+
+#: src/components/guide/GuideOverlay.tsx
+msgid "下一步"
+msgstr "Next"
+
 #: src/studio/canvasAgent.ts
 msgid "余额不够 AI 指挥（400/句）。"
 msgstr "Not enough balance for the AI director (400 per message). "
 
+#: src/components/guide/HelpButton.tsx
+msgid "使用说明"
+msgstr "How to use"
+
+#: src/components/FrameAnnotator.tsx
+msgid "例：删除圈中的路人 / 把圈中的伞换成红色油纸伞 / 圈中的招牌改成中文"
+msgstr "e.g. remove the passer-by in the circle / make the umbrella in the circle a red oil-paper umbrella / change the sign in the circle to English"
+
+#. placeholder {0}: formatDuration(total)
+#: src/components/blockout/TrimBar.tsx
+msgid "允许 {minSec}~{maxSec} 秒 · 全片 {0}"
+msgstr "Allowed {minSec}–{maxSec}s · full video {0}"
+
+#: src/components/DeleteConfirmShell.tsx
+msgid "先不删"
+msgstr "Keep it"
+
+#: src/components/DeleteConfirmShell.tsx
+msgid "关掉"
+msgstr "Close"
+
+#: src/components/IconTapButton.tsx
+msgid "关闭"
+msgstr "Close"
+
+#: src/components/TagInput.tsx
+msgid "再加一个"
+msgstr "Add another"
+
+#: src/components/DeleteConfirmShell.tsx
+msgid "再试一次"
+msgstr "Try again"
+
+#: src/components/TagInput.tsx
+msgid "最多 {max} 个，已经满了"
+msgstr "Up to {max}. You've reached the limit"
+
+#: src/components/TagInput.tsx
+msgid "最多 {max} 个，每个 {maxLen} 字以内 · 已加 {added} 个"
+msgstr "Up to {max}, {maxLen} characters each · {added} added"
+
+#: src/components/TabBar.tsx
+msgid "分区"
+msgstr "Discover"
+
+#: src/components/TabBar.tsx
+msgid "创作"
+msgstr "Create"
+
+#: src/components/TagInput.tsx
+msgid "删掉标签 {tag}"
+msgstr "Remove tag {tag}"
+
+#: src/components/DeleteConfirmShell.tsx
+msgid "删除中…"
+msgstr "Deleting…"
+
+#: src/components/DeleteConfirmShell.tsx
+msgid "删除失败了，原因不明。"
+msgstr "Delete failed for an unknown reason."
+
 #: src/studio/canvasAgent.ts
 msgid "办好了。"
 msgstr "Done."
+
+#: src/components/TagInput.tsx
+msgid "加个话题，让人搜得到（回车分隔）"
+msgstr "Add a topic so people can find this (press Enter between topics)"
 
 #: src/pages/CustomCardPage.tsx
 msgid "卡面仍带背景，出片可能把背景里的东西画进去"
@@ -151,6 +265,14 @@ msgstr "Couldn't load this image ({0})"
 msgid "取回来的不是图片（{0}）"
 msgstr "What came back isn't an image ({0})"
 
+#: src/utils/videoFrames.ts
+msgid "取帧超时（窗口在后台时浏览器不解码视频）"
+msgstr "Grabbing the frame timed out (the browser doesn't decode video while the window is in the background)"
+
+#: src/components/ConfirmDialog.tsx
+msgid "取消"
+msgstr "Cancel"
+
 #: src/i18n/activate.ts
 msgid "启梦 · 有想法，就是梦想启程的第一步"
 msgstr "QiMeng · Every dream starts with an idea"
@@ -159,10 +281,22 @@ msgstr "QiMeng · Every dream starts with an idea"
 msgid "在末尾追加"
 msgstr "Adds one at the end"
 
+#: src/components/VoiceUploadButton.tsx
+msgid "处理中…"
+msgstr "Processing…"
+
+#: src/components/FrameAnnotator.tsx
+msgid "存入标注"
+msgstr "Save annotation"
+
 #. placeholder {0}: AI_REAL ? EXAMPLES[lang].template : EXAMPLES[lang].describe
 #: src/components/flow/FlowCanvas.tsx
 msgid "对画布说话：{0}"
 msgstr "Talk to the canvas: {0}"
+
+#: src/components/TabBar.tsx
+msgid "工坊"
+msgstr "Workshop"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "已换成只留主体的这张"
@@ -180,6 +314,14 @@ msgstr "Background kept"
 msgid "引号里填模板名（下面可直接点）"
 msgstr "Put the template name in the quotes (or tap one below)"
 
+#: src/components/TabBar.tsx
+msgid "我的"
+msgstr "Me"
+
+#: src/utils/videoFrames.ts
+msgid "截出来是一片空白"
+msgstr "The captured frame came out blank"
+
 #: src/pages/CustomCardPage.tsx
 msgid "拍一张，AI 按照片填卡名和简介（演示档不花钱）；上传本地图片进表单后也能再点识别"
 msgstr "Take a photo and AI fills in the name and summary (free in demo mode). If you upload from your device, you can still tap Identify in the form."
@@ -196,9 +338,26 @@ msgstr "Snap & identify"
 msgid "拍照中…"
 msgstr "Taking photo…"
 
+#: src/components/QrCode.tsx
+msgid "授权二维码"
+msgstr "Authorization QR code"
+
 #: src/studio/canvasAgent.ts
 msgid "接着写这一段的画面"
 msgstr "Then describe the shot"
+
+#: src/components/MentionInput.tsx
+msgid "搜人失败"
+msgstr "Couldn't search for people"
+
+#. placeholder {0}: e.message
+#: src/components/MentionInput.tsx
+msgid "搜人失败：{0}"
+msgstr "Couldn't search for people: {0}"
+
+#: src/components/blockout/TrimBar.tsx
+msgid "时长"
+msgstr "Length"
 
 #: src/studio/canvasAgent.ts
 msgid "未出片的段直接删，已出片的段不代删"
@@ -215,6 +374,14 @@ msgstr "The name under the home-screen icon follows your phone's system language
 #: src/pages/TemplateDetailPage.tsx
 msgid "模板里这张卡已经变了，刷新后再试"
 msgstr "This card changed in the template. Refresh and try again."
+
+#: src/components/AuthPending.tsx
+msgid "正在确认登录状态…"
+msgstr "Checking your sign-in…"
+
+#: src/components/support/SupportStage.tsx
+msgid "正在请小梦出场…"
+msgstr "Bringing Xiaomeng on stage…"
 
 #. placeholder {0}: quoted(r.unclear)
 #: src/studio/canvasAgent.ts
@@ -233,6 +400,10 @@ msgstr "Couldn't switch the language. Please try again."
 msgid "照片重新编码失败"
 msgstr "Couldn't re-encode the photo"
 
+#: src/components/GenTrace.tsx
+msgid "生成过程"
+msgstr "Generation log"
+
 #: src/studio/canvasAgent.ts
 msgid "白模段用，改成真实角色位与卡名"
 msgstr "For blockout segments — swap in real slot and card names"
@@ -249,6 +420,32 @@ msgstr "The camera didn't return a photo"
 #: src/utils/nativeCamera.ts
 msgid "相机照片存不下来（存储可能已满）"
 msgstr "Couldn't save the camera photo (storage may be full)"
+
+#: src/components/flow/DeleteSegBtn.tsx
+msgid "真的删？这段成片会没"
+msgstr "Really delete? This segment's video will be gone"
+
+#: src/components/guide/GuideOverlay.tsx
+#: src/components/InfoDialog.tsx
+#: src/components/InfoTip.tsx
+msgid "知道了"
+msgstr "Got it"
+
+#: src/components/videoFrames.ts
+msgid "视频加载超时（应用切到后台会暂停解码，回到前台再试）"
+msgstr "The video took too long to load (decoding pauses while the app is in the background; come back to the app and try again)"
+
+#: src/components/videoFrames.ts
+msgid "视频抽帧失败"
+msgstr "Couldn't grab frames from the video"
+
+#: src/components/videoFrames.ts
+msgid "视频抽帧超时"
+msgstr "Grabbing frames from the video timed out"
+
+#: src/utils/videoFrames.ts
+msgid "视频读不出来"
+msgstr "Couldn't read the video"
 
 #. placeholder {0}: o.seg
 #. placeholder {1}: was !== prevReq ? "…" : ""
@@ -279,16 +476,48 @@ msgstr "Costs tokens — you'll confirm first"
 msgid "识别一次 {recogPrice} token，余额 {balance} 不够——去「我的」页充值，或选「上传本地图片」（不花钱）"
 msgstr "Identifying costs {recogPrice} tokens and your balance is {balance} — top up on the Me page, or choose “Upload from device” (free)."
 
+#: src/components/support/voicePreview.ts
+msgid "试听太频繁了，稍等几秒再点。"
+msgstr "Too many previews. Wait a few seconds and try again."
+
+#: src/components/support/voicePreview.ts
+msgid "试听没出声，稍后再试。"
+msgstr "The preview didn't play. Try again later."
+
+#: src/components/InfoTip.tsx
+msgid "说明"
+msgstr "More info"
+
+#: src/components/blockout/TrimBar.tsx
+msgid "起点"
+msgstr "Start"
+
 #. placeholder {0}: LANG_NAME[active]
 #. placeholder {0}: LANG_NAME[systemLang()]
 #: src/pages/SettingsPage.tsx
 msgid "跟随系统（{0}）"
 msgstr "Follow system ({0})"
 
+#: src/components/IconTapButton.tsx
+msgid "返回"
+msgstr "Back"
+
+#: src/components/videoFrames.ts
+msgid "这个视频浏览器解不开（换 mp4/webm 试试）"
+msgstr "This video can't be decoded here (try an MP4 or WebM file)"
+
 #. placeholder {0}: quoted(r.mixed)
 #: src/studio/canvasAgent.ts
 msgid "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
 msgstr "These mix Chinese and English segment numbers, so I couldn't tell which segment you meant: {0}. "
+
+#: src/components/support/voicePreview.ts
+msgid "这台服务器没配云端语音，试听不了；保存设置仍然有效。"
+msgstr "This server doesn't have cloud voices set up, so previews can't play. Your saved settings still apply."
+
+#: src/components/MentionInput.tsx
+msgid "这台服务器还不支持搜人，@ 可能收不到"
+msgstr "This server can't search for people yet, so @mentions may not reach them"
 
 #: src/utils/nativeCamera.ts
 msgid "这台设备处理不了照片（画布不可用）"
@@ -313,3 +542,7 @@ msgstr "This pipeline has no segments yet — tell the bar below “{addExample}
 #: src/studio/canvasAgent.ts
 msgid "退回普通段"
 msgstr "Back to a normal segment"
+
+#: src/components/TabBar.tsx
+msgid "首页"
+msgstr "Home"

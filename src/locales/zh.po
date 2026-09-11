@@ -18,6 +18,14 @@ msgstr ""
 msgid "：「{quote}{0}」"
 msgstr "：「{quote}{0}」"
 
+#: src/components/GenTrace.tsx
+msgid "· {doneCount}/{total} 步"
+msgstr "· {doneCount}/{total} 步"
+
+#: src/components/GenTrace.tsx
+msgid "· 共 {total} 步"
+msgstr "· 共 {total} 步"
+
 #: src/studio/canvasAgent.ts
 msgid "（本地档）{notes}现在只认「第N段 拍什么」「第N段换成XX模板」「第N段摘掉模板」「加一段」这类直白句式。"
 msgstr "（本地档）{notes}现在只认「第N段 拍什么」「第N段换成XX模板」「第N段摘掉模板」「加一段」这类直白句式。"
@@ -33,6 +41,11 @@ msgstr "（没有可办的）"
 #: src/studio/canvasAgent.ts
 msgid "（这一句我没听懂）"
 msgstr "（这一句我没听懂）"
+
+#. placeholder {0}: tour.title
+#: src/components/guide/GuideOverlay.tsx
+msgid "{0} 使用引导"
+msgstr "{0} 使用引导"
 
 #. placeholder {0}: d.segCount
 #. placeholder {0}: meta.segCount
@@ -72,6 +85,14 @@ msgstr "{0}说的是这一段的设置：点开那一段的编辑窗，时长/�
 msgid "{0}重新剪辑过"
 msgstr "{0}重新剪辑过"
 
+#: src/components/DeckCard.tsx
+msgid "{count} 张"
+msgstr "{count} 张"
+
+#: src/components/blockout/TrimBar.tsx
+msgid "{durSec} 秒"
+msgstr "{durSec} 秒"
+
 #: src/studio/canvasAgent.ts
 msgid "「{u}」"
 msgstr "「{u}」"
@@ -79,6 +100,10 @@ msgstr "「{u}」"
 #: src/studio/canvasAgent.ts
 msgid "＋ 加一段"
 msgstr "＋ 加一段"
+
+#: src/components/DeckCard.tsx
+msgid "★ 当前"
+msgstr "★ 当前"
 
 #: src/studio/canvasAgent.ts
 msgid "⚡ 生成本段"
@@ -97,6 +122,10 @@ msgstr "✂ 只留主体"
 msgid "✎ 拍摄要求"
 msgstr "✎ 拍摄要求"
 
+#: src/components/FrameAnnotator.tsx
+msgid "⭕ 圈选要修改的物体"
+msgstr "⭕ 圈选要修改的物体"
+
 #: src/studio/canvasAgent.ts
 msgid "🃏 挂卡换人"
 msgstr "🃏 挂卡换人"
@@ -105,9 +134,17 @@ msgstr "🃏 挂卡换人"
 msgid "🎲 重演方案"
 msgstr "🎲 重演方案"
 
+#: src/components/VoiceUploadButton.tsx
+msgid "🎵 上传本地音频（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）"
+msgstr "🎵 上传本地音频（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）"
+
 #: src/studio/canvasAgent.ts
 msgid "🗑 删掉某段"
 msgstr "🗑 删掉某段"
+
+#: src/components/flow/DeleteSegBtn.tsx
+msgid "🗑 删除本段"
+msgstr "🗑 删除本段"
 
 #: src/studio/canvasAgent.ts
 msgid "🧪 套模板"
@@ -129,13 +166,90 @@ msgstr "上一张还没拍完"
 msgid "上传本地图片"
 msgstr "上传本地图片"
 
+#: src/components/VoiceUploadButton.tsx
+msgid "上传音频"
+msgstr "上传音频"
+
+#: src/components/VoiceUploadButton.tsx
+msgid "上传音频（原片较长，取前 {VOICE_MAX_SEC}s）"
+msgstr "上传音频（原片较长，取前 {VOICE_MAX_SEC}s）"
+
+#: src/components/guide/GuideOverlay.tsx
+msgid "下一步"
+msgstr "下一步"
+
 #: src/studio/canvasAgent.ts
 msgid "余额不够 AI 指挥（400/句）。"
 msgstr "余额不够 AI 指挥（400/句）。"
 
+#: src/components/guide/HelpButton.tsx
+msgid "使用说明"
+msgstr "使用说明"
+
+#: src/components/FrameAnnotator.tsx
+msgid "例：删除圈中的路人 / 把圈中的伞换成红色油纸伞 / 圈中的招牌改成中文"
+msgstr "例：删除圈中的路人 / 把圈中的伞换成红色油纸伞 / 圈中的招牌改成中文"
+
+#. placeholder {0}: formatDuration(total)
+#: src/components/blockout/TrimBar.tsx
+msgid "允许 {minSec}~{maxSec} 秒 · 全片 {0}"
+msgstr "允许 {minSec}~{maxSec} 秒 · 全片 {0}"
+
+#: src/components/DeleteConfirmShell.tsx
+msgid "先不删"
+msgstr "先不删"
+
+#: src/components/DeleteConfirmShell.tsx
+msgid "关掉"
+msgstr "关掉"
+
+#: src/components/IconTapButton.tsx
+msgid "关闭"
+msgstr "关闭"
+
+#: src/components/TagInput.tsx
+msgid "再加一个"
+msgstr "再加一个"
+
+#: src/components/DeleteConfirmShell.tsx
+msgid "再试一次"
+msgstr "再试一次"
+
+#: src/components/TagInput.tsx
+msgid "最多 {max} 个，已经满了"
+msgstr "最多 {max} 个，已经满了"
+
+#: src/components/TagInput.tsx
+msgid "最多 {max} 个，每个 {maxLen} 字以内 · 已加 {added} 个"
+msgstr "最多 {max} 个，每个 {maxLen} 字以内 · 已加 {added} 个"
+
+#: src/components/TabBar.tsx
+msgid "分区"
+msgstr "分区"
+
+#: src/components/TabBar.tsx
+msgid "创作"
+msgstr "创作"
+
+#: src/components/TagInput.tsx
+msgid "删掉标签 {tag}"
+msgstr "删掉标签 {tag}"
+
+#: src/components/DeleteConfirmShell.tsx
+msgid "删除中…"
+msgstr "删除中…"
+
+#: src/components/DeleteConfirmShell.tsx
+msgid "删除失败了，原因不明。"
+msgstr "删除失败了，原因不明。"
+
 #: src/studio/canvasAgent.ts
 msgid "办好了。"
 msgstr "办好了。"
+
+#: src/components/TagInput.tsx
+msgid "加个话题，让人搜得到（回车分隔）"
+msgstr "加个话题，让人搜得到（回车分隔）"
 
 #: src/pages/CustomCardPage.tsx
 msgid "卡面仍带背景，出片可能把背景里的东西画进去"
@@ -151,6 +265,14 @@ msgstr "取不到这张图（{0}）"
 msgid "取回来的不是图片（{0}）"
 msgstr "取回来的不是图片（{0}）"
 
+#: src/utils/videoFrames.ts
+msgid "取帧超时（窗口在后台时浏览器不解码视频）"
+msgstr "取帧超时（窗口在后台时浏览器不解码视频）"
+
+#: src/components/ConfirmDialog.tsx
+msgid "取消"
+msgstr "取消"
+
 #: src/i18n/activate.ts
 msgid "启梦 · 有想法，就是梦想启程的第一步"
 msgstr "启梦 · 有想法，就是梦想启程的第一步"
@@ -159,10 +281,22 @@ msgstr "启梦 · 有想法，就是梦想启程的第一步"
 msgid "在末尾追加"
 msgstr "在末尾追加"
 
+#: src/components/VoiceUploadButton.tsx
+msgid "处理中…"
+msgstr "处理中…"
+
+#: src/components/FrameAnnotator.tsx
+msgid "存入标注"
+msgstr "存入标注"
+
 #. placeholder {0}: AI_REAL ? EXAMPLES[lang].template : EXAMPLES[lang].describe
 #: src/components/flow/FlowCanvas.tsx
 msgid "对画布说话：{0}"
 msgstr "对画布说话：{0}"
+
+#: src/components/TabBar.tsx
+msgid "工坊"
+msgstr "工坊"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "已换成只留主体的这张"
@@ -180,6 +314,14 @@ msgstr "带背景"
 msgid "引号里填模板名（下面可直接点）"
 msgstr "引号里填模板名（下面可直接点）"
 
+#: src/components/TabBar.tsx
+msgid "我的"
+msgstr "我的"
+
+#: src/utils/videoFrames.ts
+msgid "截出来是一片空白"
+msgstr "截出来是一片空白"
+
 #: src/pages/CustomCardPage.tsx
 msgid "拍一张，AI 按照片填卡名和简介（演示档不花钱）；上传本地图片进表单后也能再点识别"
 msgstr "拍一张，AI 按照片填卡名和简介（演示档不花钱）；上传本地图片进表单后也能再点识别"
@@ -196,9 +338,26 @@ msgstr "拍摄识别"
 msgid "拍照中…"
 msgstr "拍照中…"
 
+#: src/components/QrCode.tsx
+msgid "授权二维码"
+msgstr "授权二维码"
+
 #: src/studio/canvasAgent.ts
 msgid "接着写这一段的画面"
 msgstr "接着写这一段的画面"
+
+#: src/components/MentionInput.tsx
+msgid "搜人失败"
+msgstr "搜人失败"
+
+#. placeholder {0}: e.message
+#: src/components/MentionInput.tsx
+msgid "搜人失败：{0}"
+msgstr "搜人失败：{0}"
+
+#: src/components/blockout/TrimBar.tsx
+msgid "时长"
+msgstr "时长"
 
 #: src/studio/canvasAgent.ts
 msgid "未出片的段直接删，已出片的段不代删"
@@ -215,6 +374,14 @@ msgstr "桌面图标上的名字跟随手机系统语言，这里切换不会改
 #: src/pages/TemplateDetailPage.tsx
 msgid "模板里这张卡已经变了，刷新后再试"
 msgstr "模板里这张卡已经变了，刷新后再试"
+
+#: src/components/AuthPending.tsx
+msgid "正在确认登录状态…"
+msgstr "正在确认登录状态…"
+
+#: src/components/support/SupportStage.tsx
+msgid "正在请小梦出场…"
+msgstr "正在请小梦出场…"
 
 #. placeholder {0}: quoted(r.unclear)
 #: src/studio/canvasAgent.ts
@@ -233,6 +400,10 @@ msgstr "没能切换语言，请重试"
 msgid "照片重新编码失败"
 msgstr "照片重新编码失败"
 
+#: src/components/GenTrace.tsx
+msgid "生成过程"
+msgstr "生成过程"
+
 #: src/studio/canvasAgent.ts
 msgid "白模段用，改成真实角色位与卡名"
 msgstr "白模段用，改成真实角色位与卡名"
@@ -249,6 +420,32 @@ msgstr "相机没有交回照片"
 #: src/utils/nativeCamera.ts
 msgid "相机照片存不下来（存储可能已满）"
 msgstr "相机照片存不下来（存储可能已满）"
+
+#: src/components/flow/DeleteSegBtn.tsx
+msgid "真的删？这段成片会没"
+msgstr "真的删？这段成片会没"
+
+#: src/components/guide/GuideOverlay.tsx
+#: src/components/InfoDialog.tsx
+#: src/components/InfoTip.tsx
+msgid "知道了"
+msgstr "知道了"
+
+#: src/components/videoFrames.ts
+msgid "视频加载超时（应用切到后台会暂停解码，回到前台再试）"
+msgstr "视频加载超时（应用切到后台会暂停解码，回到前台再试）"
+
+#: src/components/videoFrames.ts
+msgid "视频抽帧失败"
+msgstr "视频抽帧失败"
+
+#: src/components/videoFrames.ts
+msgid "视频抽帧超时"
+msgstr "视频抽帧超时"
+
+#: src/utils/videoFrames.ts
+msgid "视频读不出来"
+msgstr "视频读不出来"
 
 #. placeholder {0}: o.seg
 #. placeholder {1}: was !== prevReq ? "…" : ""
@@ -279,16 +476,48 @@ msgstr "花钱操作，会先摆确认卡"
 msgid "识别一次 {recogPrice} token，余额 {balance} 不够——去「我的」页充值，或选「上传本地图片」（不花钱）"
 msgstr "识别一次 {recogPrice} token，余额 {balance} 不够——去「我的」页充值，或选「上传本地图片」（不花钱）"
 
+#: src/components/support/voicePreview.ts
+msgid "试听太频繁了，稍等几秒再点。"
+msgstr "试听太频繁了，稍等几秒再点。"
+
+#: src/components/support/voicePreview.ts
+msgid "试听没出声，稍后再试。"
+msgstr "试听没出声，稍后再试。"
+
+#: src/components/InfoTip.tsx
+msgid "说明"
+msgstr "说明"
+
+#: src/components/blockout/TrimBar.tsx
+msgid "起点"
+msgstr "起点"
+
 #. placeholder {0}: LANG_NAME[active]
 #. placeholder {0}: LANG_NAME[systemLang()]
 #: src/pages/SettingsPage.tsx
 msgid "跟随系统（{0}）"
 msgstr "跟随系统（{0}）"
 
+#: src/components/IconTapButton.tsx
+msgid "返回"
+msgstr "返回"
+
+#: src/components/videoFrames.ts
+msgid "这个视频浏览器解不开（换 mp4/webm 试试）"
+msgstr "这个视频浏览器解不开（换 mp4/webm 试试）"
+
 #. placeholder {0}: quoted(r.mixed)
 #: src/studio/canvasAgent.ts
 msgid "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
 msgstr "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
+
+#: src/components/support/voicePreview.ts
+msgid "这台服务器没配云端语音，试听不了；保存设置仍然有效。"
+msgstr "这台服务器没配云端语音，试听不了；保存设置仍然有效。"
+
+#: src/components/MentionInput.tsx
+msgid "这台服务器还不支持搜人，@ 可能收不到"
+msgstr "这台服务器还不支持搜人，@ 可能收不到"
 
 #: src/utils/nativeCamera.ts
 msgid "这台设备处理不了照片（画布不可用）"
@@ -313,3 +542,7 @@ msgstr "这条流水线还没有段——对下面的输入条说「{addExample}
 #: src/studio/canvasAgent.ts
 msgid "退回普通段"
 msgstr "退回普通段"
+
+#: src/components/TabBar.tsx
+msgid "首页"
+msgstr "首页"
