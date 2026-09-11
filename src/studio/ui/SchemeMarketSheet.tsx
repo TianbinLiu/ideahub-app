@@ -11,6 +11,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import EmptyState from "../../components/EmptyState";
 import { createPortal } from "react-dom";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { CloseButton } from "../../components/IconTapButton";
 import { schemeOf, schemesVersion, subscribeSchemes, type PromptScheme } from "../../data/promptSchemes";
 import {
@@ -32,6 +33,7 @@ export default function SchemeMarketSheet({
   onClose: () => void;
 }) {
   useSyncExternalStore(subscribeSchemes, schemesVersion, () => 0);
+  const { t } = useLingui();
   const [installing, setInstalling] = useState<string | null>(null);
   const list = sharedSchemes();
   const err = schemeMarketErr();
@@ -60,17 +62,17 @@ export default function SchemeMarketSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-100">🛒 方案市场</h3>
+          <h3 className="text-sm font-bold text-slate-100"><Trans>🛒 方案市场</Trans></h3>
           <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
         <p className="mb-2.5 text-[10px] leading-relaxed text-slate-500">
-          别人做的出图配方。装进来之后就是你自己的一套，可以随便改。
+          <Trans>别人做的出图配方。装进来之后就是你自己的一套，可以随便改。</Trans>
         </p>
 
         {err && <p className="mb-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
-        {busy && !list.length && <EmptyState compact loading text="正在打开市场…" />}
+        {busy && !list.length && <EmptyState compact loading text={t`正在打开市场…`} />}
         {!busy && !err && !list.length && (
-          <EmptyState compact emoji="🛒" text="市场上还没有人发布方案" hint="自建一套之后可以发上来" />
+          <EmptyState compact emoji="🛒" text={t`市场上还没有人发布方案`} hint={t`自建一套之后可以发上来`} />
         )}
 
         <div className="space-y-1.5">
@@ -99,14 +101,14 @@ export default function SchemeMarketSheet({
                       {/* ★ 只标产出形态，绝不标"过检率"（§B2） */}
                       {sc.faceless && (
                         <span className="flex-none rounded-full px-1.5 py-0.5 bg-emerald-500/15 text-[9px] text-emerald-300">
-                          无脸
+                          <Trans>无脸</Trans>
                         </span>
                       )}
                     </div>
                     <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-slate-500">{sc.intro}</p>
                     <p className="mt-0.5 text-[9px] text-slate-600">
                       {sc.slots.map((x) => x.tag).join(" · ")}
-                      {AI_REAL ? ` · 约 ${fmtTokens(schemeCost(sc.slots))}` : " · 演示"}
+                      {AI_REAL ? t` · 约 ${fmtTokens(schemeCost(sc.slots))}` : t` · 演示`}
                       {sc.author ? ` · by ${sc.author}` : ""}
                     </p>
                   </div>
@@ -117,7 +119,7 @@ export default function SchemeMarketSheet({
                       owned ? "bg-slate-700 text-slate-300" : "bg-brand text-ink"
                     }`}
                   >
-                    {installing === sc.id ? "装…" : owned ? "已装 · 用它" : "装进来"}
+                    {installing === sc.id ? t`装…` : owned ? t`已装 · 用它` : t`装进来`}
                   </button>
                 </div>
               </div>

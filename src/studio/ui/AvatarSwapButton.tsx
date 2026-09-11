@@ -9,10 +9,12 @@
 import { useEffect, useRef } from "react";
 import { PLAYER_SCREEN, deckCamArrived } from "../scene/cameraOrbit";
 import { useStudio } from "../studioStore";
+import { useLingui } from "@lingui/react/macro";
 
 export default function AvatarSwapButton() {
   const deckView = useStudio((s) => s.deckView);
   const ref = useRef<HTMLButtonElement>(null);
+  const { t } = useLingui();
 
   useEffect(() => {
     // 非卡组视角直接不开 rAF：这颗按钮平时零常驻开销
@@ -40,7 +42,7 @@ export default function AvatarSwapButton() {
     <button
       ref={ref}
       onClick={() => useStudio.getState().setAvatarPickerOpen(true)}
-      title="换个形象"
+      title={t`换个形象`}
       // z-30：投影窗(z-20)之上、形象选择面板(z-40)之下。44px 满足移动端热区下限。
       // 不套全屏容器——那会挡住 canvas 的轨道手势
       className="absolute z-30 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-300/40 bg-[#0c142b]/70 shadow-[0_0_18px_rgba(103,232,249,0.25)] backdrop-blur transition-opacity duration-200"

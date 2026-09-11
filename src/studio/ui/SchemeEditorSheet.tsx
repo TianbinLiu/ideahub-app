@@ -13,6 +13,7 @@
 //   包含块，inset-0 会缩到那个盒子里（CLAUDE.md 那条坑）。
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { CloseButton } from "../../components/IconTapButton";
 import { MAX_CARD_VIEWS, ROLE_LABELS, VIEW_TAG_MAX, type CardRole } from "../../types";
 import { isGenerated, saveScheme, schemeIssue, type PromptScheme, type SchemeSlot } from "../../data/promptSchemes";
@@ -37,8 +38,9 @@ export default function SchemeEditorSheet({
   onClose: () => void;
 }) {
   /** 内置只能"另存为"，用户自己那份才是真的改 */
+  const { t } = useLingui();
   const copying = !source || !!source.builtin;
-  const [title, setTitle] = useState(source ? (source.builtin ? `${source.title} 副本` : source.title) : "");
+  const [title, setTitle] = useState(source ? (source.builtin ? t`${source.title} 副本` : source.title) : "");
   const [intro, setIntro] = useState(source?.intro ?? "");
   const [faceless, setFaceless] = useState(!!source?.faceless);
   const [slots, setSlots] = useState<SchemeSlot[]>(source ? source.slots.map((s) => ({ ...s })) : [blankSlot()]);
@@ -82,14 +84,14 @@ export default function SchemeEditorSheet({
       >
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-100">
-            {copying ? (source ? "另存为我的方案" : "自建一套方案") : "改这套方案"}
+            {copying ? (source ? t`另存为我的方案` : t`自建一套方案`) : t`改这套方案`}
           </h3>
           <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
         {/* 内置不可改这件事要说出来，不然用户改半天发现存出来的是另一套 */}
         {source?.builtin && (
           <p className="mb-2 rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-[10px] leading-relaxed text-slate-400">
-            内置方案不能直接改——保存后会另存成<b className="text-slate-300">你自己的一套</b>，内置那套保持原样。
+            <Trans>内置方案不能直接改——保存后会另存成<b className="text-slate-300">你自己的一套</b>，内置那套保持原样。</Trans>
           </p>
         )}
 
@@ -100,14 +102,14 @@ export default function SchemeEditorSheet({
             setErr("");
           }}
           maxLength={20}
-          placeholder="方案名字（例如「白模三视图·我的版」）"
+          placeholder={t`方案名字（例如「白模三视图·我的版」）`}
           className="mb-1.5 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-sm text-slate-100 placeholder:text-slate-500"
         />
         <input
           value={intro}
           onChange={(e) => setIntro(e.target.value)}
           maxLength={60}
-          placeholder="一句话说清它产出什么（选方案时会显示）"
+          placeholder={t`一句话说清它产出什么（选方案时会显示）`}
           className="mb-1.5 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-xs text-slate-100 placeholder:text-slate-500"
         />
         {/* ★ 「无脸」只描述**产出形态**，措辞绝不能暗示"更容易过检测"（design doc §B2） */}
@@ -119,18 +121,18 @@ export default function SchemeEditorSheet({
             className="mt-0.5 h-4 w-4 flex-none accent-brand"
           />
           <span>
-            产出里不含可辨认的人脸（白模台 / 剪影 / 人脸与服装分离）
+            <Trans>产出里不含可辨认的人脸（白模台 / 剪影 / 人脸与服装分离）</Trans>
             <span className="block text-[10px] text-slate-500">
-              勾上后会排在方案列表前面——只借动作与穿着、不复刻长相的做法
+              <Trans>勾上后会排在方案列表前面——只借动作与穿着、不复刻长相的做法</Trans>
             </span>
           </span>
         </label>
 
         <div className="mb-1 flex items-center justify-between">
           <span className="mb-1.5 text-xs font-semibold text-slate-300">
-            图位（{slots.length}/{MAX_CARD_VIEWS}）
+            <Trans>图位（{slots.length}/{MAX_CARD_VIEWS}）</Trans>
           </span>
-          <span className="text-[10px] text-slate-500">{AI_REAL ? `炼一次约 ${fmtTokens(cost)}` : "演示模式不计费"}</span>
+          <span className="text-[10px] text-slate-500">{AI_REAL ? t`炼一次约 ${fmtTokens(cost)}` : t`演示模式不计费`}</span>
         </div>
 
         <div className="space-y-2">
@@ -143,7 +145,7 @@ export default function SchemeEditorSheet({
                   /* ★★ 硬拦在 VIEW_TAG_MAX：服务端那头是 zod .max()，超了是**整发 400**
                      （这张卡发不上去且零报错），不是把标签截短 */
                   maxLength={VIEW_TAG_MAX}
-                  placeholder={`图位 ${i + 1} 的名字，如「白模全身」`}
+                  placeholder={t`图位 ${i + 1} 的名字，如「白模全身」`}
                   className="min-w-0 flex-1 rounded-md border border-slate-700 bg-ink/60 px-2 py-1 text-xs text-slate-100 placeholder:text-slate-500"
                 />
                 {slots.length > 1 && (
@@ -154,7 +156,7 @@ export default function SchemeEditorSheet({
                     }}
                     className="flex-none text-[11px] text-slate-500"
                   >
-                    删
+                    <Trans>删</Trans>
                   </button>
                 )}
               </div>
@@ -182,7 +184,7 @@ export default function SchemeEditorSheet({
                   onChange={(e) => patchSlot(i, { fromCrop: e.target.checked })}
                   className="h-3.5 w-3.5 accent-brand"
                 />
-                直接用原片裁剪，不让 AI 画（这一格不花钱）
+                <Trans>直接用原片裁剪，不让 AI 画（这一格不花钱）</Trans>
               </label>
 
               {isGenerated(s) ? (
@@ -196,7 +198,7 @@ export default function SchemeEditorSheet({
                           (s.ref ?? "body") === rf ? "bg-slate-600 text-slate-100" : "bg-slate-800 text-slate-400"
                         }`}
                       >
-                        参考{rf === "face" ? "脸部裁剪" : "主裁剪"}
+                        {rf === "face" ? <Trans>参考脸部裁剪</Trans> : <Trans>参考主裁剪</Trans>}
                       </button>
                     ))}
                   </div>
@@ -204,12 +206,12 @@ export default function SchemeEditorSheet({
                     value={s.prompt}
                     onChange={(e) => patchSlot(i, { prompt: e.target.value })}
                     maxLength={400}
-                    placeholder="这一格要画成什么样？（画风句会自动接上）"
+                    placeholder={t`这一格要画成什么样？（画风句会自动接上）`}
                     className="h-16 w-full resize-none rounded-md border border-slate-700 bg-ink/60 px-2 py-1.5 text-[11px] leading-relaxed text-slate-100 placeholder:text-slate-500"
                   />
                 </>
               ) : (
-                <p className="text-[10px] text-slate-500">这一格放原片裁剪本身，不调模型、不计费。</p>
+                <p className="text-[10px] text-slate-500"><Trans>这一格放原片裁剪本身，不调模型、不计费。</Trans></p>
               )}
             </div>
           ))}
@@ -223,20 +225,26 @@ export default function SchemeEditorSheet({
             }}
             className="mt-2 w-full rounded-lg border border-dashed border-slate-600 py-1.5 text-[11px] text-slate-400"
           >
-            ＋ 再加一个图位
+            <Trans>＋ 再加一个图位</Trans>
           </button>
         )}
 
         {/* 画风那条硬规则要明说：作者会以为自己能在提示词里指定画风，实际会被自动接上的那句盖住 */}
         <p className="mt-2 text-[9px] leading-relaxed text-slate-600">
-          每一格的提示词后面都会自动接上「保持参考图的画风与人物长相一致」——真人截图出写实、
-          动漫截图出同风格插画。这一条不开放修改，免得真人素材被画成另一个画风。
+          <Trans>
+            每一格的提示词后面都会自动接上「保持参考图的画风与人物长相一致」——真人截图出写实、动漫截图出同风格插画。这一条不开放修改，免得真人素材被画成另一个画风。
+          </Trans>
         </p>
 
         {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
         <button onClick={save} className="mt-2.5 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
-          {copying ? "存成我的方案" : "保存修改"}
-          {AI_REAL && cost > 0 ? `（用它炼一次约 ${fmtTokens(cost)}）` : ""}
+          {AI_REAL && cost > 0
+            ? copying
+              ? t`存成我的方案（用它炼一次约 ${fmtTokens(cost)}）`
+              : t`保存修改（用它炼一次约 ${fmtTokens(cost)}）`
+            : copying
+              ? t`存成我的方案`
+              : t`保存修改`}
         </button>
       </div>
     </div>,
