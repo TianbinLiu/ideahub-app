@@ -29,7 +29,7 @@ import Spinner from "../components/Spinner";
 import PageHeader from "../components/PageHeader";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
-import { Trans } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
@@ -44,6 +44,7 @@ import { prepareCardImage } from "../data/cardViews";
 import { joinViewNote } from "../types";
 import PhotoSubjectPicker from "../components/PhotoSubjectPicker";
 import { blobToDataUrl } from "../utils/image";
+import { capturePhoto, nativeCameraSupported, stripExif, sweepCameraLeftovers, type CaptureResult } from "../utils/nativeCamera";
 import { AI_REAL, ArkBadReply, ArkNoReply, portraitViews, recognizeCardSubject, refineCardImage } from "../ai";
 import { chatVision } from "../ai/arkClient";
 import FrameAnnotator from "../components/FrameAnnotator";
@@ -140,6 +141,13 @@ export default function CustomCardPage() {
   /** 一键识别（场景卡 / 道具卡，拍板 5 a）正在跑的那一步，以及结局那句话 */
   const [recogBusy, setRecogBusy] = useDraftField("recogBusy");
   const [recogMsg, setRecogMsg] = useDraftField("recogMsg");
+  /** 场景 / 道具卡的「📷 拍摄识别 / 🖼 上传本地图片」两选一（拍板 1 a）；相机在前台那一句；弹窗里要说的话 */
+  const [sourcePick, setSourcePick] = useDraftField("sourcePick");
+  const [captureBusy, setCaptureBusy] = useDraftField("captureBusy");
+  const [captureMsg, setCaptureMsg] = useDraftField("captureMsg");
+  /** 拍摄路落格之后自动识别一次（拍板 5 a）：记着拍之前第 1 格是哪张图，换成新图了才识别 */
+  const [recogAfterShot, setRecogAfterShot] = useDraftField("recogAfterShot");
+  const { t } = useLingui();
 
   // ── 人物卡：方案驱动的图位 ─────────────────────────────
   // 方案库是模块级侧库，自建/删除后要重渲染靠订阅（与 VideoCardAnnotator 同一套）
@@ -245,6 +253,8 @@ export default function CustomCardPage() {
   const offlineButConfigured = API_ON && !remote;
 
   const fileRef = useRef<HTMLInputElement>(null);
+  /** 浏览器里「拍摄识别」的降级口：带 capture 的 input（原生壳里走 utils/nativeCamera，不走它） */
+  const cameraFallbackRef = useRef<HTMLInputElement>(null);
   /** 正在为哪一格选图：非人物卡认 kind，人物卡认方案 tag */
   const pickingRef = useRef<{ kind: CardView["kind"] } | { tag: string }>({ kind: "body" });
 
@@ -649,6 +659,78 @@ export default function CustomCardPage() {
     }
   }
 
+  /** 两选一弹窗牌下那句里的识别价签（与 recognize 真扣的是同一个常量） */
+  const recogPrice = fmtTokens(CHAT_TURN_TOKENS);
+
+  /**
+   * 「📷 拍摄识别」：拉起系统相机拍第 1 格，落格之后自动识别一次（拍板 5 a：拍摄那条路接同一个 recognize）。
+   * ★ 余额门在拍**之前**：识别一次 CHAT_TURN_TOKENS，付不起就别让人先拍完再告诉他（话照 recognize 那句的形状，
+   *   多一条「上传本地图片不花钱」的出路 —— 那张牌就在旁边）。
+   * ★ 照片走和上传完全同一个落点（onFile）：道具卡照样先进「只留主体」层，场景卡照样过 prepareCardImage。
+   * ★ 两选一弹窗在拍完之前一直开着：取消拍照回到这里（还能再拍或改上传），拍成了才关、才进表单。
+   * ★ 浏览器里没有原生相机：退到带 capture 的 input（桌面 Chrome 忽略 capture、开文件选择框），只为开发时走得通。
+   */
+  async function startCapture() {
+    if (captureBusy || (type !== "prop" && type !== "scene")) return;
+    setCaptureMsg("");
+    if (AI_REAL && !canAfford(CHAT_TURN_TOKENS)) {
+      const w = walletOf();
+      const balance = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
+      setCaptureMsg(t`识别一次 ${recogPrice} token，余额 ${balance} 不够——去「我的」页充值，或选「上传本地图片」（不花钱）`);
+      return;
+    }
+    const startType = type;
+    if (!nativeCameraSupported()) {
+      cameraFallbackRef.current?.click();
+      return;
+    }
+    setCaptureBusy(t`拍照中…`);
+    const r = await capturePhoto((late) => void placeCaptured(late, startType));
+    setCaptureBusy("");
+    await placeCaptured(r, startType);
+  }
+
+  /** 拍照的结局 → 落格 / 说原因。迟到的照片（看门狗已经回了「没接到」）只在卡种没换时才落 */
+  async function placeCaptured(r: CaptureResult, startType: CardType) {
+    if (r.kind === "cancelled" || r.kind === "unsupported") return; // 回到两选一，没有任何残留
+    if (r.kind === "lost") {
+      setCaptureMsg(t`没接到照片：相机那边可能没存下来——再拍一次，或选「上传本地图片」`);
+      return;
+    }
+    if (r.kind === "failed") {
+      setCaptureMsg(r.reason);
+      return;
+    }
+    const s = useCardDraft.getState();
+    if (s.type !== startType) return; // 等相机的这段时间换了卡种：这张不往别的卡上落
+    const slot = CARD_SLOTS[startType][0].kind;
+    setSourcePick(false);
+    setCaptureMsg("");
+    setStep("form");
+    setRecogAfterShot({ before: s.shots[slot]?.dataUrl ?? "" });
+    pickingRef.current = { kind: slot };
+    await onFile(r.file);
+  }
+
+  // 拍摄路落格之后自动识别一次。等卡面**真的换成新图**：道具卡要等「只留主体」层交回来，场景卡等 prepareCardImage 写进格子。
+  // ★ 抠图层被取消 / 选图报错（第 1 格还是拍之前那张）就作废 —— 不作废的话，下一次手动传图会莫名其妙自己扣一次识别的钱
+  useEffect(() => {
+    if (!recogAfterShot || recogBusy) return;
+    if (type !== "prop" && type !== "scene") {
+      setRecogAfterShot(null);
+      return;
+    }
+    if (subjectPick || busySlot !== null) return; // 还在处理这张图
+    const now = shots[CARD_SLOTS[type][0].kind]?.dataUrl ?? "";
+    setRecogAfterShot(null);
+    if (now && now !== recogAfterShot.before) void recognize();
+  }, [recogAfterShot, recogBusy, type, subjectPick, busySlot, shots]);
+
+  // 拍照残留：插件在拉起相机之前就建了临时文件，取消拍照也会留下 0 字节的 JPEG_*。进页时清 24 小时以前的
+  useEffect(() => {
+    void sweepCameraLeftovers(24 * 3600_000);
+  }, []);
+
   /**
    * 一键识别卡片文字（主人 2026-09-10 拍板 5 a：上传那条路默认不识别，给一颗可选的键；拍摄那条路以后接同一个函数）。
    * ★ 喂的是**卡面那一张**：道具卡就是抠好主体、铺好底的那张（理由见 ai/real.recognizeCardSubject 的 ★）。
@@ -939,9 +1021,12 @@ export default function CustomCardPage() {
                     key={t}
                     onClick={() => {
                       changeType(t);
-                      // 人物卡：先弹方案小窗（看图挑）；其余卡种没有方案，直进表单
+                      // 人物卡：先弹方案小窗（看图挑）；场景 / 道具先问拍照还是上传（拍板 1 a）；背景 / 风格直进表单
                       if (t === "character") setSchemePick(true);
-                      else setStep("form");
+                      else if (t === "scene" || t === "prop") {
+                        setCaptureMsg("");
+                        setSourcePick(true);
+                      } else setStep("form");
                     }}
                     className="flex aspect-[2/3] h-full max-w-[46%] items-center transition-transform active:scale-[0.97]"
                   >
@@ -1013,6 +1098,58 @@ export default function CustomCardPage() {
                       真人素材扫脸认证
                     </span>
                   </button>
+                </div>
+              </div>,
+              document.body,
+            )}
+          {/* 场景 / 道具：「📷 拍摄识别」还是「🖼 上传本地图片」（拍板 1 a；背景卡的图不进模型、风格卡实拍价值有限，都不弹）。
+              ★ 两张牌写死在这里，不走 listSchemes：它把空 cardTypes 当成"适用所有卡种"，会把人物方案原样摆出来。
+              ★ 拍照那张在拍完之前一直开着（见 startCapture 的 ★），相机在前台时点遮罩不关 */}
+          {sourcePick &&
+            createPortal(
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
+                onClick={() => !captureBusy && setSourcePick(false)}
+              >
+                <div className="w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => void startCapture()}
+                      disabled={!!captureBusy}
+                      className="relative overflow-hidden rounded-2xl border border-sky-500/60 bg-panel transition-transform active:scale-[0.97] disabled:opacity-40"
+                    >
+                      <span className="flex aspect-[3/4] w-full items-center justify-center bg-ink/60 text-5xl">📷</span>
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-2 pb-2 pt-6 text-center text-xs font-semibold text-sky-200">
+                        {captureBusy || <Trans>拍摄识别</Trans>}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSourcePick(false);
+                        setCaptureMsg("");
+                        setStep("form");
+                      }}
+                      disabled={!!captureBusy}
+                      className="relative overflow-hidden rounded-2xl border border-slate-600 bg-panel transition-transform active:scale-[0.97] disabled:opacity-40"
+                    >
+                      <span className="flex aspect-[3/4] w-full items-center justify-center bg-ink/60 text-5xl">🖼</span>
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-2 pb-2 pt-6 text-center text-xs font-semibold text-slate-100">
+                        <Trans>上传本地图片</Trans>
+                      </span>
+                    </button>
+                  </div>
+                  <p className="mt-2 text-center text-[11px] leading-relaxed text-slate-300">
+                    {AI_REAL ? (
+                      <Trans>拍一张，AI 按照片填卡名和简介（识别 {recogPrice} token）；上传本地图片不花钱，进表单后也能再点识别</Trans>
+                    ) : (
+                      <Trans>拍一张，AI 按照片填卡名和简介（演示档不花钱）；上传本地图片进表单后也能再点识别</Trans>
+                    )}
+                  </p>
+                  {captureMsg && (
+                    <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300">
+                      {captureMsg}
+                    </p>
+                  )}
                 </div>
               </div>,
               document.body,
@@ -1927,6 +2064,28 @@ export default function CustomCardPage() {
           const f = e.target.files?.[0];
           e.target.value = ""; // 同一张图连选两次也要能触发
           void onFile(f);
+        }}
+      />
+      {/* 浏览器里「拍摄识别」的降级口（原生壳里走 utils/nativeCamera，见 startCapture）。
+          ★ accept 必须**包含** image/*：只写具体 MIME 会静默退回相册；SupportModelNewPage 那个为了躲 HEIC 不写 image/* 的口子，这里不能照抄。
+          ★ 不能把 capture 加到上面那个共用的 fileRef 上，否则「上传本地图片」也会开相机。
+          ★ 这条路也先去 EXIF（stripExif），与原生那条同一口径 */}
+      <input
+        ref={cameraFallbackRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (!f) return;
+          const startType = useCardDraft.getState().type;
+          void stripExif(f)
+            .then((clean) =>
+              placeCaptured({ kind: "photo", file: new File([clean], `camera-${Date.now()}.jpg`, { type: "image/jpeg" }) }, startType),
+            )
+            .catch((err) => setCaptureMsg(err instanceof Error ? err.message : String(err)));
         }}
       />
     </div>

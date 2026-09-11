@@ -106,6 +106,14 @@ export interface CustomCardDraft {
   /** 识别的结局那句话：钱扣没扣分三档说（见 CustomCardPage.recognize） */
   recogMsg: { tone: "warn" | "error"; text: string } | null;
   schemePick: boolean;
+  /** 场景 / 道具卡「📷 拍摄识别 / 🖼 上传本地图片」两选一弹窗开着没有（拍板 1 a） */
+  sourcePick: boolean;
+  /** 相机在前台时那一句（空 = 没在拍） */
+  captureBusy: string;
+  /** 两选一弹窗里要说的话：余额不够 / 相机没起来 / 没接到照片 */
+  captureMsg: string;
+  /** 拍摄路落格之后要自动识别一次：记着拍之前第 1 格那张图（换成新图才识别；抠图层被取消就作废） */
+  recogAfterShot: { before: string } | null;
   importMsg: string;
   realPerson: boolean;
   consentOk: boolean;
@@ -147,6 +155,10 @@ export function initialDraft(): CustomCardDraft {
     recogBusy: "",
     recogMsg: null,
     schemePick: false,
+    sourcePick: false,
+    captureBusy: "",
+    captureMsg: "",
+    recogAfterShot: null,
     importMsg: "",
     realPerson: false,
     consentOk: false,
@@ -187,7 +199,7 @@ export function draftDirty(s: CustomCardDraft): boolean {
 
 /** 有活在跑（AI 出图 / 铸卡 / 选图处理）—— 这时不许清空 */
 export function draftBusy(s: CustomCardDraft): boolean {
-  return !!s.aiBusy || s.minting || s.busySlot !== null || s.aiPick !== null || !!s.recogBusy;
+  return !!s.aiBusy || s.minting || s.busySlot !== null || s.aiPick !== null || !!s.recogBusy || !!s.captureBusy;
 }
 
 /**

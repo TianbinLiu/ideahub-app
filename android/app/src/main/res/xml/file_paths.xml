@@ -16,4 +16,9 @@
          上面那条 path="." 其实已经覆盖了整个 cache 目录，单列一条是为了让
          "系统安装器凭什么读得到我们私有目录里的文件"这件事在文件里看得见。 -->
     <cache-path name="app_updates" path="updates/" />
+    <!-- 拍照（@capacitor/camera 的 getPhoto，2026-09-10 §1 第 7 批）：插件把照片写在
+         getExternalFilesDir(Pictures)，再用 ${applicationId}.fileprovider 签 URI 递给系统相机。
+         上面两条 cache-path 覆盖不到这个目录 ⇒ getUriForFile 抛 ⇒ 拍照整条失败，界面上零报错。
+         ⚠ 只放本 App 外部私有目录下的 Pictures/，**别**把整个共享存储那条 external-path "." 加回来（理由见文件头）。 -->
+    <external-files-path name="captured_images" path="Pictures/" />
 </paths>
