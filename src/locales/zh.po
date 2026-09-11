@@ -176,11 +176,13 @@ msgstr "、"
 
 #. 出片进度行里几条提示之间的分隔符
 #. 列举「每个图位锁什么」时的分隔符
+#. 列举包里缺的几个文件时的分隔符
 #. 把两条拒绝原因连成一句时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
+#: src/live2d/bundlePreview.ts
 #: src/pages/CardDetailPage.tsx
 #: src/studio/flowStore.ts
 #: src/studio/segmentGen.ts
@@ -440,6 +442,10 @@ msgstr "（本地档）{notes}现在只认「第N段 拍什么」「第N段换�
 #: src/studio/canvasAgent.ts
 msgid "（本地档）按直白句式帮你办了下面这些。{notes}"
 msgstr "（本地档）按直白句式帮你办了下面这些。{notes}"
+
+#: src/live2d/bundlePreview.ts
+msgid "（没写）"
+msgstr "（没写）"
 
 #: src/studio/canvasAgent.ts
 msgid "（没有可办的）"
@@ -846,6 +852,30 @@ msgstr "{durSec} 秒"
 msgid "{emptyNote}——出片前会先补画要用到的帧"
 msgstr "{emptyNote}——出片前会先补画要用到的帧"
 
+#: src/live2d/bundlePreview.ts
+msgid "{entry} 一张贴图都没引用，画出来会是全透明的。"
+msgstr "{entry} 一张贴图都没引用，画出来会是全透明的。"
+
+#: src/live2d/bundlePreview.ts
+msgid "{entry} 不是合法的 JSON，读不下去。"
+msgstr "{entry} 不是合法的 JSON，读不下去。"
+
+#: src/live2d/bundlePreview.ts
+msgid "{entry} 引用了 {n} 个包里没有的文件（{list} 等）。多半是压缩时漏了子目录，或者压的是文件夹的父目录。"
+msgstr "{entry} 引用了 {n} 个包里没有的文件（{list} 等）。多半是压缩时漏了子目录，或者压的是文件夹的父目录。"
+
+#: src/live2d/bundlePreview.ts
+msgid "{entry} 引用了 {n} 个包里没有的文件（{list}）。多半是压缩时漏了子目录，或者压的是文件夹的父目录。"
+msgstr "{entry} 引用了 {n} 个包里没有的文件（{list}）。多半是压缩时漏了子目录，或者压的是文件夹的父目录。"
+
+#: src/live2d/bundlePreview.ts
+msgid "{entry} 的 FileReferences 里没有 Moc，这个包缺 *.moc3 主体文件。"
+msgstr "{entry} 的 FileReferences 里没有 Moc，这个包缺 *.moc3 主体文件。"
+
+#: src/live2d/bundlePreview.ts
+msgid "{entry} 的 Version 是 {version}，我们只认 Version 3（Cubism 4 导出的 model3.json）。Cubism 2 的老模型（*.model.json）要先在 Cubism Editor 里升级。"
+msgstr "{entry} 的 Version 是 {version}，我们只认 Version 3（Cubism 4 导出的 model3.json）。Cubism 2 的老模型（*.model.json）要先在 Cubism Editor 里升级。"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "{faceName} 用哪个表情"
 msgstr "{faceName} 用哪个表情"
@@ -886,6 +916,14 @@ msgstr "{installs} 人装过"
 #: src/data/publishAssets.ts
 msgid "{label} 太大（{sizeMb}MB，上限 5MB）"
 msgstr "{label} 太大（{sizeMb}MB，上限 5MB）"
+
+#: src/live2d/bundlePreview.ts
+msgid "{mocPath} 的文件头不是 MOC3（读到 “{shown}”），这不是一份有效的 moc3。"
+msgstr "{mocPath} 的文件头不是 MOC3（读到 “{shown}”），这不是一份有效的 moc3。"
+
+#: src/live2d/bundlePreview.ts
+msgid "{mocPath} 读不出来，压缩包可能损坏了。"
+msgstr "{mocPath} 读不出来，压缩包可能损坏了。"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "{motion}（包里没有）"
@@ -960,6 +998,10 @@ msgstr "{total} 张"
 #: src/pages/SupportModelNewPage.tsx
 msgid "{value}（包里没有）"
 msgstr "{value}（包里没有）"
+
+#: src/live2d/bundlePreview.ts
+msgid "{what}：{ref}"
+msgstr "{what}：{ref}"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "{who}，还没挂卡"
@@ -4594,6 +4636,14 @@ msgstr "动作「{actName}」→ {g}"
 msgid "动作组 {0} 组"
 msgstr "动作组 {0} 组"
 
+#: src/live2d/bundlePreview.ts
+msgid "动作组「{group}」"
+msgstr "动作组「{group}」"
+
+#: src/live2d/bundlePreview.ts
+msgid "动作组「{group}」的音频"
+msgstr "动作组「{group}」的音频"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "勾上上面那三条才能发布。"
 msgstr "勾上上面那三条才能发布。"
@@ -4611,6 +4661,14 @@ msgstr "勾了「画面里是真实人物」，就得同时勾上下面那条肖
 msgid "包里有 {0} 个 model3.json，用哪一个？"
 msgstr "包里有 {0} 个 model3.json，用哪一个？"
 
+#: src/live2d/bundlePreview.ts
+msgid "包里有 {unsafe} 个文件的路径带 “..”（会跳出目录），这种包我们不收。请重新压缩一次再传。"
+msgstr "包里有 {unsafe} 个文件的路径带 “..”（会跳出目录），这种包我们不收。请重新压缩一次再传。"
+
+#: src/live2d/bundlePreview.ts
+msgid "包里有文件名带空格或中文。多数情况没问题；万一预览画不出来，把文件名改成纯英文再压一次通常就好了。"
+msgstr "包里有文件名带空格或中文。多数情况没问题；万一预览画不出来，把文件名改成纯英文再压一次通常就好了。"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "包里没有 cdi3.json，服务器读不到参数表 —— 这不代表模型没有参数，只是这一屏说不出它们叫什么。"
 msgstr "包里没有 cdi3.json，服务器读不到参数表 —— 这不代表模型没有参数，只是这一屏说不出它们叫什么。"
@@ -4618,6 +4676,14 @@ msgstr "包里没有 cdi3.json，服务器读不到参数表 —— 这不代表
 #: src/pages/SupportModelNewPage.tsx
 msgid "包里没有 cdi3.json，读不到参数表 —— 下一步交给服务器再看一次。"
 msgstr "包里没有 cdi3.json，读不到参数表 —— 下一步交给服务器再看一次。"
+
+#: src/live2d/bundlePreview.ts
+msgid "包里没有一个我们认识的文件。Live2D 包至少要有 *.model3.json、*.moc3 和贴图。"
+msgstr "包里没有一个我们认识的文件。Live2D 包至少要有 *.model3.json、*.moc3 和贴图。"
+
+#: src/live2d/bundlePreview.ts
+msgid "包里没有找到 *.model3.json。它是 Cubism 4（Version 3）导出的入口文件，缺了它我们不知道该加载什么。"
+msgstr "包里没有找到 *.model3.json。它是 Cubism 4（Version 3）导出的入口文件，缺了它我们不知道该加载什么。"
 
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/SupportModelsPage.tsx
@@ -4909,6 +4975,10 @@ msgstr "参数 {0} 个"
 #: src/pages/SupportModelNewPage.tsx
 msgid "参数（服务器自动对的）"
 msgstr "参数（服务器自动对的）"
+
+#: src/live2d/bundlePreview.ts
+msgid "参数名表"
+msgstr "参数名表"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "参数版"
@@ -5243,6 +5313,10 @@ msgstr "取这一帧超时了。应用切到后台时系统会暂停视频解码
 #: src/studio/ui/projection.tsx
 msgid "取首尾帧…"
 msgstr "取首尾帧…"
+
+#: src/live2d/bundlePreview.ts
+msgid "口型同步"
+msgstr "口型同步"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "口头禅"
@@ -9230,9 +9304,22 @@ msgstr "模型包识别好了，回去接着填。"
 msgid "模型发布失败：{text}"
 msgstr "模型发布失败：{text}"
 
+#: src/live2d/prefetch.ts
+msgid "模型地址返回的是网页而不是模型文件"
+msgstr "模型地址返回的是网页而不是模型文件"
+
 #: src/studio/structuredSkills.ts
 msgid "模型按段写：标题 / 剧情 / 时长 / 景别 · 运镜 · 情绪节拍"
 msgstr "模型按段写：标题 / 剧情 / 时长 / 景别 · 运镜 · 情绪节拍"
+
+#: src/live2d/prefetch.ts
+msgid "模型描述文件不是合法的 JSON"
+msgstr "模型描述文件不是合法的 JSON"
+
+#. placeholder {0}: res.status
+#: src/live2d/prefetch.ts
+msgid "模型描述文件读不到（HTTP {0}）"
+msgstr "模型描述文件读不到（HTTP {0}）"
 
 #: src/pages/SupportModelsPage.tsx
 msgid "模型文件读不到（{why}），没有切换。"
@@ -10301,6 +10388,10 @@ msgstr "片段第 {0} 秒"
 msgid "版本 {0} <0>（{1}）</0>"
 msgstr "版本 {0} <0>（{1}）</0>"
 
+#: src/live2d/bundlePreview.ts
+msgid "物理"
+msgstr "物理"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "物理 有"
 msgstr "物理 有"
@@ -10423,6 +10514,10 @@ msgstr "用户从 AI 客服转人工的问题，在这里回复"
 #: src/pages/AdminPage.tsx
 msgid "用户列表"
 msgstr "用户列表"
+
+#: src/live2d/bundlePreview.ts
+msgid "用户数据"
+msgstr "用户数据"
 
 #. placeholder {0}: tk.note
 #: src/components/support/AdminTicketsView.tsx
@@ -12214,6 +12309,10 @@ msgstr "表情 {0} 个"
 msgid "表情「{faceName}」→ {expr}"
 msgstr "表情「{faceName}」→ {expr}"
 
+#: src/live2d/bundlePreview.ts
+msgid "表情「{name}」"
+msgstr "表情「{name}」"
+
 #: src/pages/AdminPage.tsx
 msgid "被平台下架的作品只有作者与管理员看得到。「重新上架」幂等，重复点不会出错。"
 msgstr "被平台下架的作品只有作者与管理员看得到。「重新上架」幂等，重复点不会出错。"
@@ -12301,6 +12400,14 @@ msgstr "角色卡上的形象参考图一张都没能读出来（图片可能已
 #: src/studio/blockoutPrompt.ts
 msgid "角色名「{name}」里有 {shown}——出片时\"哪个人偶换成谁\"是用这几个符号分隔的，名字里带着它们会让 AI 把一条绑定读成两条（换错人不会报错，只有你自己看得出来）。请给这张卡改个名字"
 msgstr "角色名「{name}」里有 {shown}——出片时\"哪个人偶换成谁\"是用这几个符号分隔的，名字里带着它们会让 AI 把一条绑定读成两条（换错人不会报错，只有你自己看得出来）。请给这张卡改个名字"
+
+#: src/live2d/bundlePreview.ts
+msgid "解压后一共约 {totalMb}MB（zip 本身 {zipMb}MB，没超上限）。手机上加载会慢一些，介意的话把贴图压到 2048² 再导出一次。"
+msgstr "解压后一共约 {totalMb}MB（zip 本身 {zipMb}MB，没超上限）。手机上加载会慢一些，介意的话把贴图压到 2048² 再导出一次。"
+
+#: src/live2d/bundlePreview.ts
+msgid "解压失败"
+msgstr "解压失败"
 
 #: src/pages/AdminPage.tsx
 msgid "解封"
@@ -12728,6 +12835,7 @@ msgstr "读取中…"
 msgid "读取图片…"
 msgstr "读取图片…"
 
+#: src/live2d/bundlePreview.ts
 #: src/pages/AdminPage.tsx
 msgid "读取失败"
 msgstr "读取失败"
@@ -12790,10 +12898,22 @@ msgstr "账号本身永久删除，无法恢复，也无法用同名重建找回
 msgid "贴剧本"
 msgstr "贴剧本"
 
+#: src/live2d/bundlePreview.ts
+msgid "贴图"
+msgstr "贴图"
+
 #. placeholder {0}: detail.textures.length
 #: src/pages/SupportModelNewPage.tsx
 msgid "贴图 {0} 张"
 msgstr "贴图 {0} 张"
+
+#: src/live2d/bundlePreview.ts
+msgid "贴图 {name} 是 {width}×{height}，单边超过 {MAX_TEXTURE_SIDE}px。手机上既传不动也画不动，请导出成 2048² 或 4096²。"
+msgstr "贴图 {name} 是 {width}×{height}，单边超过 {MAX_TEXTURE_SIDE}px。手机上既传不动也画不动，请导出成 2048² 或 4096²。"
+
+#: src/live2d/bundlePreview.ts
+msgid "贴图有 {count} 张，超过 {MAX_TEXTURE_COUNT} 张的上限。请在 Cubism 里把纹理图集合并一下再导出。"
+msgstr "贴图有 {count} 张，超过 {MAX_TEXTURE_COUNT} 张的上限。请在 Cubism 里把纹理图集合并一下再导出。"
 
 #: src/api/support.ts
 msgid "费用与退款"
@@ -13578,6 +13698,10 @@ msgstr "这不是白模模板（只有白模模板能按段套用）"
 msgid "这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。"
 msgstr "这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。"
 
+#: src/live2d/bundlePreview.ts
+msgid "这个 zip 约 {zipMb}MB，超过了 {maxMb}MB 的上限。贴图通常是大头，导出时压到 2048² 一般就够了。"
+msgstr "这个 zip 约 {zipMb}MB，超过了 {maxMb}MB 的上限。贴图通常是大头，导出时压到 2048² 一般就够了。"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "这个人偶在画面上排第几（点一下换）"
 msgstr "这个人偶在画面上排第几（点一下换）"
@@ -13640,6 +13764,10 @@ msgstr "这个回答有帮助吗？"
 msgid "这个地址取不到（HTTP {0}）。回详情页刷新一下再试。"
 msgstr "这个地址取不到（HTTP {0}）。回详情页刷新一下再试。"
 
+#: src/live2d/bundlePreview.ts
+msgid "这个文件打不开，看起来不是 zip 压缩包（{why}）。"
+msgstr "这个文件打不开，看起来不是 zip 压缩包（{why}）。"
+
 #: src/api/uploads.ts
 msgid "这个文件是空的，选一段真正的视频再传。"
 msgstr "这个文件是空的，选一段真正的视频再传。"
@@ -13647,6 +13775,10 @@ msgstr "这个文件是空的，选一段真正的视频再传。"
 #: src/studio/live2dUploadStore.ts
 msgid "这个文件读不了。"
 msgstr "这个文件读不了。"
+
+#: src/live2d/bundlePreview.ts
+msgid "这个文件读不出来（{why}）。多半是它还在网盘/云端没下到本机，或者已经被移动、删除了 —— 先把它存进手机里再选一次。"
+msgstr "这个文件读不出来（{why}）。多半是它还在网盘/云端没下到本机，或者已经被移动、删除了 —— 先把它存进手机里再选一次。"
 
 #. placeholder {0}: rest.length
 #. placeholder {1}: rest.join(" / ")
@@ -13705,6 +13837,10 @@ msgstr "这个模板认出了 {0} 个人物，超过了一次能挂卡的 {BLOCK
 #: src/pages/CutPage.tsx
 msgid "这个片段是分割出来的，同一段还有另一半在时间轴上——回到整段会和它重叠，成片里同一截会播两遍。想撤销分割，先删掉另一半。"
 msgstr "这个片段是分割出来的，同一段还有另一半在时间轴上——回到整段会和它重叠，成片里同一截会播两遍。想撤销分割，先删掉另一半。"
+
+#: src/live2d/bundlePreview.ts
+msgid "这个版本的 Live2D 运行时不支持从本地 zip 预览（缺 ZipLoader）。"
+msgstr "这个版本的 Live2D 运行时不支持从本地 zip 预览（缺 ZipLoader）。"
 
 #: src/components/BlockButton.tsx
 msgid "这个用户"
@@ -14478,6 +14614,10 @@ msgstr "选段"
 #: src/pages/VideoEditorPage.tsx
 msgid "选段与裁剪"
 msgstr "选段与裁剪"
+
+#: src/live2d/bundlePreview.ts
+msgid "透明度组"
+msgstr "透明度组"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "透明度组 有"
