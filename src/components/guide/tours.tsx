@@ -191,23 +191,29 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        // ★ 2026-09-11 订正（多语言 T2 对着实现核出来的；未升 version —— 要不要让看过的人重看等主人定）：
+        //   ① 简约模式出片前没有设定帧可显示：seedSolo 铺的是空方案，大屏幕只画 poster || firstFrame，
+        //      firstFrame 只有「🖼 自定义首尾帧」里自己给了才有，否则是一句「还没有画面——…」；
+        //   ② 写要求的框在大屏幕**下面**（FlowPage 里 flow-stage 排在「本段内容」之前），原稿写的是「上面」。
         title: msg`结果就在这块屏幕上`,
         anchor: "flow-stage",
         body: (
           <Trans>
-            出片前这里显示<b className="font-bold text-slate-100">起拍画面</b>，出片后就地回放这一段。
-            不满意就改上面那句话（或换圈选）再来一次。
+            出片前这里显示你给的<b className="font-bold text-slate-100">开头帧</b>（没给就先空着），出片后就地回放这一段。
+            不满意就改下面那句话（或换圈选）再来一次。
           </Trans>
         ),
       },
       {
+        // ★ 2026-09-11 订正（未升 version）：创作入口早就只剩「工坊模式 / 简约模式」两张（CreatePage 的 MODES），
+        //   工作流是工坊里画布那一面（工坊顶栏 🧩），没有单独的入口可「换」。
         title: msg`完成直通发布`,
         anchor: "flow-finish",
         body: (
           <Trans>
             满意了点右上角「完成视频」，去剪辑页收尾、发布。
             <b className="font-bold text-slate-100">简约不进草稿库</b>：中途退出这一段就不在了——
-            想细做、想留草稿，回创作入口换工作流或工坊。
+            想细做、想留草稿，回创作入口换工坊（工作流画布是它的另一面）。
           </Trans>
         ),
       },
@@ -235,28 +241,35 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        // ★ 2026-09-11 订正（未升 version）：点虚线卡位开的铸段窗，第①步是三选一（projection 的「这一段怎么拍？挑一张」：
+        //   套模板 / 自选卡片 / 自定义），原稿只讲了「自选卡片」那一条。拖卡进卡位会跳过第①步 —— 这里说的是「点」。
         title: msg`铸一段视频`,
         anchor: "studio-hint",
         body: (
           <Trans>
-            点你这一侧那排上的<b className="font-bold text-slate-100">虚线卡位</b>：挑几张素材卡、写清这一段要发生什么，AI 会推演出几套走向，每套都带首尾帧预览。挑定一套后还能换帧、改剧情、按修改重画，满意了再<b className="font-bold text-slate-100">炼出本段视频</b>。底下这条提示会跟着你当前这一步换措辞。
+            点你这一侧那排上的<b className="font-bold text-slate-100">虚线卡位</b>，先挑这一段怎么拍：「套模板」给白模视频里的人偶挂卡换人；「自选卡片」挑几张素材卡、写清这一段要发生什么，AI 推演出几套走向，每套都带首尾帧预览，挑定一套后还能换帧、改剧情、按修改重画；「自定义」全按你给的示例视频或首尾帧来。满意了再<b className="font-bold text-slate-100">炼出本段视频</b>。底下这条提示会跟着你当前这一步换措辞。
           </Trans>
         ),
       },
       {
+        // ★ 2026-09-11 订正（未升 version）：法阵早就不「铺」了 —— 单一真相之后它只是去画布那一面的门
+        //   （studioStore.requestFlow → StudioPage 就地打开工作流画布），去剪辑要在画布终点格点「🎬 完成视频」。
         title: msg`一段一段来`,
         body: (
           <Trans>
-            <b className="font-bold text-slate-100">炼出本段视频，下一段的卡位才会亮</b>：段与段靠上一段的真实尾帧承接起拍，攒着最后一起炼会接不上，第一段人物不对也要铺完才发现。每段都出片后，桌子右端的<b className="font-bold text-slate-100">法阵</b>会亮起，点它把这条走向铺成工作流，跟着走完就去剪辑成片。
+            <b className="font-bold text-slate-100">炼出本段视频，下一段的卡位才会亮</b>：段与段靠上一段的真实尾帧承接起拍，攒着最后一起炼会接不上，第一段人物不对也要铺完才发现。每段都出片后，桌子右端的<b className="font-bold text-slate-100">法阵</b>会亮起，点它打开这条流水线的工作流画布，在那儿点「🎬 完成视频」去剪辑成片。
           </Trans>
         ),
       },
       {
+        // ★ 2026-09-11 订正（未升 version）：① 返回键 2026-08-30 起只留图标，「退到哪儿」只进了 aria-label / title，
+        //   屏幕上不再「说出来」；② 💾 存草稿一直摆在顶栏（桌上还没有段时灰着），不是「铸出第一段后才出现」；
+        //   ③ 每炼出一段会自动存一次草稿（useFlowActions 的「又炼出一段 → 自动存盘」，工坊页也挂着它）。
         title: msg`退出与存草稿`,
         anchor: "studio-back",
         body: (
           <Trans>
-            左上角这颗按钮是<b className="font-bold text-slate-100">唯一的出口</b>，它会说出自己下一步退什么：先关浮层、再退市场或对话，最后才回首页。<b className="font-bold text-slate-100">卡片收下就入账</b>，刷新还在；但桌上那棵节点树只在内存里——铸出第一段后顶栏右侧会出现<b className="font-bold text-slate-100">存草稿</b>，想过会儿接着做就先点它。
+            左上角这颗按钮是<b className="font-bold text-slate-100">唯一的出口</b>，一层一层往外退：先关浮层、再退市场或对话，最后才回首页。<b className="font-bold text-slate-100">卡片收下就入账</b>，刷新还在；但桌上的流水线只在内存里，要存成草稿才留得住——每炼出一段会自动存一次；改了别的、想过会儿接着做，就先点顶栏右侧那颗<b className="font-bold text-slate-100">💾 存草稿</b>（桌上铸出第一段之前它是灰的）。
           </Trans>
         ),
       },
@@ -824,14 +837,17 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
-        title: msg`一段有两种做法`,
+        // ★ 2026-09-11 订正（未升 version）：编辑窗顶部是三颗（FlowCanvas 的 canvas-modes：🧪 套模板 / 🃏 自选卡片 / ✍ 自定义），
+        //   原稿还写着「这对按钮」「两种」。自定义那条的形状见 NodePanel 的 customStep（示例视频 → 首尾帧）。
+        title: msg`一段有三种做法`,
         anchor: "canvas-modes",
         body: (
           <Trans>
-            编辑窗顶部这对按钮切的是<b className="font-bold text-slate-100">这一段</b>怎么做：
+            编辑窗顶部这三颗按钮切的是<b className="font-bold text-slate-100">这一段</b>怎么做：
             「套模板」是拿一段白模视频复刻运镜与站位，你只需给里面的人偶挂上自己的角色卡；
-            「自选卡片」是自己挑素材卡、写一句要求，AI 推演几套走向让你挑。
-            两种<b className="font-bold text-slate-100">每段各选各的</b>，同一条片里可以混着来。
+            「自选卡片」是自己挑素材卡、写一句要求，AI 推演几套走向让你挑；
+            「自定义」全按你给的来：传一段示例视频当整段参考，或者直接给自己的首尾帧。
+            三种<b className="font-bold text-slate-100">每段各选各的</b>，同一条片里可以混着来。
           </Trans>
         ),
       },
@@ -898,14 +914,17 @@ export const TOURS: GuideTour[] = [
     version: 1,
     steps: [
       {
+        // ★ 2026-09-11 订正（未升 version）：不是所有画面都没声音 —— 高清 / 电影级档（economy.VIDEO_TIERS 的 audio:true）
+        //   出片自带 AI 生成的环境音；极速 / 标准档（默认档）、真人档与白模复刻段（arkClient.BLOCKOUT_TASK 的 generate_audio:false）才是哑的。
+        //   档名不写进这句：档位表会变，引导里抄一份档名就是又一个要维护的镜像（文件头 ★★ 同理）。
         title: msg`三个页签各管一摊`,
         anchor: "cut-tabs",
         body: (
           <Trans>
             <b className="font-bold text-slate-100">剪辑</b>管顺序与取舍，
             <b className="font-bold text-slate-100">圈选</b>管改画面（要花钱的那种改），
-            <b className="font-bold text-slate-100">音频</b>管配乐 —— AI 生成的画面本身没有声音，
-            想要声音就在这儿配。
+            <b className="font-bold text-slate-100">音频</b>管配乐 —— 不是每一档出的画面都带声音（白模复刻段一律没有），
+            想要声音、想加配乐，就在这儿配。
           </Trans>
         ),
       },
@@ -930,13 +949,14 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        // ★ 2026-09-11 订正（未升 version）：① 「发布后作品不可再修改」2026-09-07 起不成立（编辑页「🛠 回炉重做」能换成片内容，
+        //   PublishPage / EditPage 那两处早已改口），这一页不必讲发布之后，删掉；② 已经合好的稿子这颗键写的是「去发布」（CutPage 的 alreadyMerged）。
         title: msg`右上角是终点`,
         anchor: "cut-next",
         body: (
           <Trans>
-            整条模式下「下一步」把时间轴按顺序导出成<b className="font-bold text-slate-100">一整条视频</b>、进发布页
-            —— <b className="font-bold text-slate-100">发布后作品不可再修改</b>。从工坊单段进来时它是「保存本段」，
-            改完写回那一段、不合并不发片。
+            整条模式下「下一步」把时间轴按顺序导出成<b className="font-bold text-slate-100">一整条视频</b>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页）。
+            从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。
           </Trans>
         ),
       },
@@ -949,13 +969,16 @@ export const TOURS: GuideTour[] = [
     version: 1,
     steps: [
       {
+        // ★ 2026-09-11 订正（未升 version）：发布页只收得到**一整条合好的成片**。进 /publish 的路都在剪辑页
+        //   （合并成功，或已经合好的稿子点「去发布」）；合并对没出片的段整句拒（CutPage.mergeAndGo 的「还没有视频（只有设定帧）」），
+        //   合好之后稿子换成 segments: [mergedSeg]。于是这张清单恒为一行 ✓，「⚠ 渐变回退」在这条路上出不来 ——
+        //   原稿「各段连播」「把 ⚠ 的段看一眼」都不成立。发布页自己那句「成片预览（各段按时间线依次播放）」同样过时，不在本 PR 改。
         title: msg`先核对成片`,
         anchor: "publish-segments",
         body: (
           <Trans>
-            预览里各段按时间线连播。这张清单标着每段的<b className="font-bold text-slate-100">来历</b>：
-            ✓ 是真生成的影像，⚠ 是没生成成功、用首尾帧渐变顶替的段 ——
-            <b className="font-bold text-slate-100">发布前把 ⚠ 的段看一眼</b>，别让顶替画面替你见观众。
+            预览里播的就是剪辑页合好的<b className="font-bold text-slate-100">这一整条成片</b>，下面这行的 ✓ 表示它是真生成的影像。
+            <b className="font-bold text-slate-100">发布前从头到尾看一遍</b>，确认就是你要发的这一条。
           </Trans>
         ),
       },
@@ -971,12 +994,15 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
-        title: msg`发布就是定稿`,
+        // ★ 2026-09-11 订正（未升 version）：「发布即定稿」2026-09-07 起不成立 —— 编辑页「🛠 回炉重做」把工坊工程取回来接着改、
+        //   同一个链接（EditPage 那段说明与 PublishPage「发布后会留存这条片的工坊工程」同一个口径）。
+        //   能不能回炉由编辑页当场说（reforgeWhy），这里不抄那几条（文件头 ❌：条件触发的解释留在界面上）。
+        title: msg`发布之后怎么改`,
         anchor: "publish-actions",
         body: (
           <Trans>
-            发布后<b className="font-bold text-slate-100">内容不可再改</b>（编辑页只能改标题、封面这些壳），
-            想换内容就重新发一条。「放弃本次合成」会把这条成片丢掉 —— 点它会先问你一句。
+            发布后编辑页随时能改标题、封面这些壳；想换<b className="font-bold text-slate-100">成片内容</b>，去编辑页点「🛠 回炉重做」，
+            把这条片的工坊工程取回工坊接着改，链接不变。「放弃本次合成」会把这条成片丢掉 —— 点它会先问你一句。
           </Trans>
         ),
       },

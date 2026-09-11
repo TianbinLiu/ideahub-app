@@ -1468,8 +1468,8 @@ msgid "<0>删了就找不回来</0>：卡面、形象参考图、铸造提示词
 msgstr "<0>This can't be undone</0>: the card image, reference images, generation prompt, voice sample and portrait authorization are all removed."
 
 #: src/components/guide/tours.tsx
-msgid "<0>剪辑</0>管顺序与取舍，<1>圈选</1>管改画面（要花钱的那种改），<2>音频</2>管配乐 —— AI 生成的画面本身没有声音， 想要声音就在这儿配。"
-msgstr "<0>Edit</0> handles order and what to keep, <1>Circle</1> handles changes to the picture (the kind that costs money), and <2>Audio</2> handles music — AI-generated footage has no sound of its own, so add sound here if you want it."
+msgid "<0>剪辑</0>管顺序与取舍，<1>圈选</1>管改画面（要花钱的那种改），<2>音频</2>管配乐 —— 不是每一档出的画面都带声音（白模复刻段一律没有）， 想要声音、想加配乐，就在这儿配。"
+msgstr "<0>Edit</0> handles order and what to keep, <1>Circle</1> handles changes to the picture (the kind that costs money), and <2>Audio</2> handles music — not every tier's footage comes with sound (blockout remake segments never do), so if you want sound or background music, add it here."
 
 #: src/components/guide/tours.tsx
 msgid "<0>我的模板</0>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<1>打开后的第一屏</1>挑；要花多少钱到框选那一步当场整句报出来，确认了才开炼。"
@@ -1488,8 +1488,8 @@ msgid "<0>点标题进详情页</0>——本片卡组、多 P 选集、完整简
 msgstr "<0>Tap the title to open the details page</0> — the cards from this video, multi-part episodes, the full description and the “Interactive · you choose” branches are <1>only there</1>. Tapping the author's name or avatar takes you to their profile."
 
 #: src/components/guide/tours.tsx
-msgid "<0>炼出本段视频，下一段的卡位才会亮</0>：段与段靠上一段的真实尾帧承接起拍，攒着最后一起炼会接不上，第一段人物不对也要铺完才发现。每段都出片后，桌子右端的<1>法阵</1>会亮起，点它把这条走向铺成工作流，跟着走完就去剪辑成片。"
-msgstr "<0>The next segment's slot only lights up once this segment's video is generated</0>: each segment starts from the previous segment's actual last frame, so saving them all to generate at the end breaks the transitions, and a wrong character in the first segment wouldn't show until everything was laid out. Once every segment has a video, the <1>circle</1> at the right end of the table lights up; tap it to lay this direction out as a workflow, follow it through, and then go edit the final video."
+msgid "<0>炼出本段视频，下一段的卡位才会亮</0>：段与段靠上一段的真实尾帧承接起拍，攒着最后一起炼会接不上，第一段人物不对也要铺完才发现。每段都出片后，桌子右端的<1>法阵</1>会亮起，点它打开这条流水线的工作流画布，在那儿点「🎬 完成视频」去剪辑成片。"
+msgstr "<0>The next segment's slot only lights up once this segment's video is generated</0>: each segment starts from the previous segment's actual last frame, so saving them all to generate at the end breaks the transitions, and a wrong character in the first segment wouldn't show until everything was laid out. Once every segment has a video, the <1>circle</1> at the right end of the table lights up; tap it to open this pipeline's workflow canvas, and tap “🎬 Finish video” there to go edit the final video."
 
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "<0>画面里人数会变（有人入场 / 离场）时用这个</0>：在变化的<1>前后各标一帧</1>，AI 才认得全。其余情况用「自动」就够了。"
@@ -2749,8 +2749,8 @@ msgid "一段一段来"
 msgstr "One segment at a time"
 
 #: src/components/guide/tours.tsx
-msgid "一段有两种做法"
-msgstr "Two ways to make a segment"
+msgid "一段有三种做法"
+msgstr "Three ways to make a segment"
 
 #: src/components/guide/tours.tsx
 msgid "一直往右拖到<0>末段后面</0>，跟着两格：一格<1>加下一段</1>， 一格<2>把各段合成整片</2>（每段都出片了才亮，还差几段它会说）。 已经出片的格子右上角有个 ▶，随时能回看那一段。"
@@ -4632,8 +4632,8 @@ msgid "出片前必须把它们取下。"
 msgstr "You must remove them before rendering."
 
 #: src/components/guide/tours.tsx
-msgid "出片前这里显示<0>起拍画面</0>，出片后就地回放这一段。 不满意就改上面那句话（或换圈选）再来一次。"
-msgstr "Before rendering, this shows the <0>opening frame</0>; after rendering, this segment plays back right here. Not happy? Change the sentence above (or circle something else) and try again."
+msgid "出片前这里显示你给的<0>开头帧</0>（没给就先空着），出片后就地回放这一段。 不满意就改下面那句话（或换圈选）再来一次。"
+msgstr "Before rendering, this shows the <0>opening frame</0> you provided (it stays empty if you didn't); after rendering, this segment plays back right here. Not happy? Change the sentence below (or circle something else) and try again."
 
 #: src/pages/CustomCardPage.tsx
 msgid "出片句（选填）"
@@ -5679,6 +5679,10 @@ msgctxt "评论输入框旁那颗键：正在把这条评论发出去（不是�
 msgid "发布中…"
 msgstr "Posting…"
 
+#: src/components/guide/tours.tsx
+msgid "发布之后怎么改"
+msgstr "Changing it after publishing"
+
 #: src/studio/personaWizardStore.ts
 msgid "发布人格"
 msgstr "Publish persona"
@@ -5704,10 +5708,6 @@ msgstr "Publish to the template market"
 msgid "发布前须用本模板<0>真实出过一次片</0>（套用它、挂上角色卡、付费出一段）——这一步能确保套用你模板的人不会白花钱。"
 msgstr "Before publishing, you need to have <0>made a real video with this template</0> (apply it, attach character cards and pay for one segment) — this makes sure people who use your template don't waste their money."
 
-#: src/components/guide/tours.tsx
-msgid "发布后<0>内容不可再改</0>（编辑页只能改标题、封面这些壳）， 想换内容就重新发一条。「放弃本次合成」会把这条成片丢掉 —— 点它会先问你一句。"
-msgstr "Once published, <0>the content can't be changed</0> (the video's edit page only changes the shell, like the title and cover); to change the content, publish a new one. “Discard this merge” throws this finished video away — it asks you first."
-
 #: src/pages/PublishPage.tsx
 msgid "发布后会做三件事：{note}并按<0>《AIGC 内容须知》</0>承担发布者责任。<1>这项声明不可关闭。</1>"
 msgstr "After publishing: {note} You also take on the publisher's responsibilities under the <0>AIGC Content Notice</0>. <1>This declaration can't be turned off.</1>"
@@ -5715,6 +5715,10 @@ msgstr "After publishing: {note} You also take on the publisher's responsibiliti
 #: src/pages/PublishPage.tsx
 msgid "发布后会留存这条片的工坊工程，之后可回炉重做。"
 msgstr "Publishing keeps this video's Studio project, so you can remake it later."
+
+#: src/components/guide/tours.tsx
+msgid "发布后编辑页随时能改标题、封面这些壳；想换<0>成片内容</0>，去编辑页点「🛠 回炉重做」， 把这条片的工坊工程取回工坊接着改，链接不变。「放弃本次合成」会把这条成片丢掉 —— 点它会先问你一句。"
+msgstr "After publishing, you can change the shell (title, cover and so on) on the video's edit page any time; to change <0>the video's content</0>, tap “🛠 Remake” there to bring its Studio project back into the Studio and keep editing — the link stays the same. “Discard this merge” throws this finished video away — it asks you first."
 
 #: src/components/support/VoiceMixer.tsx
 msgid "发布失败，稍后再试。"
@@ -5727,10 +5731,6 @@ msgstr "Publishing failed — try again."
 #: src/studio/personaWizardStore.ts
 msgid "发布失败了，稍后再试。"
 msgstr "Publishing failed — try again later."
-
-#: src/components/guide/tours.tsx
-msgid "发布就是定稿"
-msgstr "Publishing is final"
 
 #: src/components/support/VoiceMixer.tsx
 msgid "发布并设为我的声音"
@@ -7402,8 +7402,8 @@ msgid "左上角的返回按钮可逐层退出"
 msgstr "The Back button in the top left steps back one layer at a time"
 
 #: src/components/guide/tours.tsx
-msgid "左上角这颗按钮是<0>唯一的出口</0>，它会说出自己下一步退什么：先关浮层、再退市场或对话，最后才回首页。<1>卡片收下就入账</1>，刷新还在；但桌上那棵节点树只在内存里——铸出第一段后顶栏右侧会出现<2>存草稿</2>，想过会儿接着做就先点它。"
-msgstr "This button at the top left is <0>the only way out</0>, and it tells you what it will back out of next: overlays close first, then the market or conversation, and only after that does it go back to the home page. <1>Cards are yours as soon as you keep them</1> and are still there after a refresh; but the node tree on the table lives only in memory — once you've forged the first segment, <2>Save draft</2> appears on the right of the top bar, so tap it first if you want to pick this up later."
+msgid "左上角这颗按钮是<0>唯一的出口</0>，一层一层往外退：先关浮层、再退市场或对话，最后才回首页。<1>卡片收下就入账</1>，刷新还在；但桌上的流水线只在内存里，要存成草稿才留得住——每炼出一段会自动存一次；改了别的、想过会儿接着做，就先点顶栏右侧那颗<2>💾 存草稿</2>（桌上铸出第一段之前它是灰的）。"
+msgstr "This button at the top left is <0>the only way out</0>, and it backs out one layer at a time: overlays close first, then the market or conversation, and only after that does it go back to the home page. <1>Cards are yours as soon as you keep them</1> and are still there after a refresh; but the pipeline on the table lives only in memory until it's saved as a draft — it saves automatically each time a segment's video is generated; if you've changed anything else and want to pick this up later, tap <2>💾 Save draft</2> on the right of the top bar first (it stays greyed out until you forge the first segment)."
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "左下角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）"
@@ -9735,8 +9735,8 @@ msgid "整条 {realSec} 秒将切成 {parts} 段（{segs}）登记成一组—�
 msgstr "The whole {realSec}-second video will be cut into {parts, plural, one {# segment} other {# segments}} ({segs}) and registered as one group — each segment is its own template, and using any one of them lays out the whole group in the workflow. The picture ({picW}×{picH}) is below the AI engine's pixel minimum, so the server will automatically upscale it to just above the minimum when registering; the duration and aspect ratio stay the same."
 
 #: src/components/guide/tours.tsx
-msgid "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页 —— <1>发布后作品不可再修改</1>。从工坊单段进来时它是「保存本段」， 改完写回那一段、不合并不发片。"
-msgstr "For a whole video, “Next” exports the timeline in order as <0>one continuous video</0> and goes to the publish page — <1>once published, the video can't be changed</1>. When you come in from a single segment in the Studio, it reads “Save segment” instead: your edits are written back to that segment, with no merging and nothing published."
+msgid "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。"
+msgstr "For a whole video, “Next” exports the timeline in order as <0>one continuous video</0> and goes to the publish page (for a draft that's already merged it reads “Go publish” and goes straight there). When you come in from a single segment in the Studio, it reads “Save segment” instead: your edits are written back to that segment, with no merging and nothing published."
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "整条登记不裁画面，而这条原片有一边到了 {longEdge} 像素，超过 AI 引擎的 {maxEdge} 上限。把选段收回 {segMaxSec} 秒以内、用裁剪框把画面框到 {maxEdge} 以内，一段一段做。"
@@ -11782,8 +11782,8 @@ msgid "渲染视频"
 msgstr "Rendering video"
 
 #: src/components/guide/tours.tsx
-msgid "满意了点右上角「完成视频」，去剪辑页收尾、发布。<0>简约不进草稿库</0>：中途退出这一段就不在了—— 想细做、想留草稿，回创作入口换工作流或工坊。"
-msgstr "When you're happy, tap “Finish video” at the top right to wrap up in the video editor and publish. <0>Simple mode isn't saved to drafts</0>: if you leave partway, this segment is gone — to work in more detail or keep a draft, go back to the Create page and switch to Workflow or Studio."
+msgid "满意了点右上角「完成视频」，去剪辑页收尾、发布。<0>简约不进草稿库</0>：中途退出这一段就不在了—— 想细做、想留草稿，回创作入口换工坊（工作流画布是它的另一面）。"
+msgstr "When you're happy, tap “Finish video” at the top right to wrap up in the video editor and publish. <0>Simple mode isn't saved to drafts</0>: if you leave partway, this segment is gone — to work in more detail or keep a draft, go back to the Create page and switch to Studio (the workflow canvas is its other side)."
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "演出中…"
@@ -11917,8 +11917,8 @@ msgid "点任意处关闭"
 msgstr "Tap anywhere to close"
 
 #: src/components/guide/tours.tsx
-msgid "点你这一侧那排上的<0>虚线卡位</0>：挑几张素材卡、写清这一段要发生什么，AI 会推演出几套走向，每套都带首尾帧预览。挑定一套后还能换帧、改剧情、按修改重画，满意了再<1>炼出本段视频</1>。底下这条提示会跟着你当前这一步换措辞。"
-msgstr "Tap the <0>dashed slot</0> in the row on your side: pick a few material cards and describe what happens in this segment, and the AI drafts several directions, each with first- and last-frame previews. After you pick one you can still swap frames, edit the story or redraw with your changes, and when you're happy, <1>generate this segment's video</1>. The hint below changes its wording to match the step you're on."
+msgid "点你这一侧那排上的<0>虚线卡位</0>，先挑这一段怎么拍：「套模板」给白模视频里的人偶挂卡换人；「自选卡片」挑几张素材卡、写清这一段要发生什么，AI 推演出几套走向，每套都带首尾帧预览，挑定一套后还能换帧、改剧情、按修改重画；「自定义」全按你给的示例视频或首尾帧来。满意了再<1>炼出本段视频</1>。底下这条提示会跟着你当前这一步换措辞。"
+msgstr "Tap the <0>dashed slot</0> in the row on your side and first choose how to shoot this segment: “Use a template” casts your cards onto the mannequins in a blockout video; “Pick cards” has you pick a few material cards and describe what happens in this segment, then the AI drafts several directions, each with first- and last-frame previews, and after you pick one you can still swap frames, edit the story or redraw with your changes; “Custom” follows the sample video or first and last frames you give it. When you're happy, <1>generate this segment's video</1>. The hint below changes its wording to match the step you're on."
 
 #: src/studio/StudioPage.tsx
 msgid "点击卡片之外的桌面区域可拉远视角"
@@ -14169,8 +14169,8 @@ msgid "编辑作品"
 msgstr "Edit video"
 
 #: src/components/guide/tours.tsx
-msgid "编辑窗顶部这对按钮切的是<0>这一段</0>怎么做： 「套模板」是拿一段白模视频复刻运镜与站位，你只需给里面的人偶挂上自己的角色卡； 「自选卡片」是自己挑素材卡、写一句要求，AI 推演几套走向让你挑。 两种<1>每段各选各的</1>，同一条片里可以混着来。"
-msgstr "This pair of buttons at the top of the editor switches how <0>this segment</0> is made: “Use a template” takes a blockout video and copies its camera work and blocking, so all you do is cast your own character cards onto its mannequins; “Pick cards” means choosing material cards yourself and writing a request, and the AI drafts a few directions for you to pick from. <1>Each segment chooses its own</1>, so you can mix both in one video."
+msgid "编辑窗顶部这三颗按钮切的是<0>这一段</0>怎么做： 「套模板」是拿一段白模视频复刻运镜与站位，你只需给里面的人偶挂上自己的角色卡； 「自选卡片」是自己挑素材卡、写一句要求，AI 推演几套走向让你挑； 「自定义」全按你给的来：传一段示例视频当整段参考，或者直接给自己的首尾帧。 三种<1>每段各选各的</1>，同一条片里可以混着来。"
+msgstr "These three buttons at the top of the editor switch how <0>this segment</0> is made: “Use a template” takes a blockout video and copies its camera work and blocking, so all you do is cast your own character cards onto its mannequins; “Pick cards” means choosing material cards yourself and writing a request, and the AI drafts a few directions for you to pick from; “Custom” goes entirely by what you give it: upload a sample video as the reference for the whole segment, or provide your own first and last frames. <1>Each segment chooses its own</1>, so you can mix them in one video."
 
 #: src/pages/ProfilePage.tsx
 #: src/pages/SettingsPage.tsx
@@ -17898,8 +17898,8 @@ msgid "预览没画出来，试跑跑不了 —— 跑了也只是在官方看�
 msgstr "The preview didn't render, so the test can't run — it would only play on the official mascot. Tap “Reload preview” above first."
 
 #: src/components/guide/tours.tsx
-msgid "预览里各段按时间线连播。这张清单标着每段的<0>来历</0>： ✓ 是真生成的影像，⚠ 是没生成成功、用首尾帧渐变顶替的段 ——<1>发布前把 ⚠ 的段看一眼</1>，别让顶替画面替你见观众。"
-msgstr "The preview plays the segments back to back along the timeline. This list marks where each segment <0>came from</0>: ✓ is real generated footage, and ⚠ is a segment that failed to generate and was replaced with a fade between its first and last frames — <1>look at the ⚠ segments before you publish</1>, so a stand-in doesn't meet your viewers on your behalf."
+msgid "预览里播的就是剪辑页合好的<0>这一整条成片</0>，下面这行的 ✓ 表示它是真生成的影像。<1>发布前从头到尾看一遍</1>，确认就是你要发的这一条。"
+msgstr "The preview plays <0>the whole video</0> you merged in the video editor, and the ✓ in the row below means it's real generated footage. <1>Watch it from start to finish before you publish</1> to make sure it's the one you want to post."
 
 #: src/components/ShareSheet.tsx
 msgid "预览链接已复制，去贴给朋友吧"
