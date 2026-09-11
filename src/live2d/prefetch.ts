@@ -12,6 +12,7 @@
  *   相对引用绝不能落到 WebView 的同源（Capacitor 对未命中路径回 200 + index.html，CLAUDE.md 坑表）。
  * ★ 并发 4：手机上几十个文件一起发会把首屏那几张大贴图挤慢，串行又太久（一个包通常 10~40 个文件）。
  */
+import { t } from "@lingui/core/macro";
 
 type Model3Json = {
   FileReferences?: {
@@ -56,13 +57,13 @@ export async function prefetchLive2dModel(
   opts: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void } = {},
 ): Promise<{ total: number; failed: number }> {
   const res = await fetch(modelJsonUrl, { signal: opts.signal });
-  if (!res.ok) throw new Error(`模型描述文件读不到（HTTP ${res.status}）`);
-  if ((res.headers.get("content-type") || "").includes("text/html")) throw new Error("模型地址返回的是网页而不是模型文件");
+  if (!res.ok) throw new Error(t`模型描述文件读不到（HTTP ${res.status}）`);
+  if ((res.headers.get("content-type") || "").includes("text/html")) throw new Error(t`模型地址返回的是网页而不是模型文件`);
   let json: Model3Json;
   try {
     json = (await res.json()) as Model3Json;
   } catch {
-    throw new Error("模型描述文件不是合法的 JSON");
+    throw new Error(t`模型描述文件不是合法的 JSON`);
   }
   const urls = referencedFiles(json).map((ref) => new URL(ref, modelJsonUrl).href);
   let done = 0;

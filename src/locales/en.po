@@ -176,11 +176,13 @@ msgstr ", "
 
 #. 出片进度行里几条提示之间的分隔符
 #. 列举「每个图位锁什么」时的分隔符
+#. 列举包里缺的几个文件时的分隔符
 #. 把两条拒绝原因连成一句时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
+#: src/live2d/bundlePreview.ts
 #: src/pages/CardDetailPage.tsx
 #: src/studio/flowStore.ts
 #: src/studio/segmentGen.ts
@@ -440,6 +442,10 @@ msgstr "(Local mode) {notes}I only understand plain phrasing here, like “Segme
 #: src/studio/canvasAgent.ts
 msgid "（本地档）按直白句式帮你办了下面这些。{notes}"
 msgstr "(Local mode) Handled the plain instructions below. {notes}"
+
+#: src/live2d/bundlePreview.ts
+msgid "（没写）"
+msgstr "(not set)"
 
 #: src/studio/canvasAgent.ts
 msgid "（没有可办的）"
@@ -846,6 +852,30 @@ msgstr "{durSec}s"
 msgid "{emptyNote}——出片前会先补画要用到的帧"
 msgstr "{emptyNote} — the needed frames will be drawn before generating"
 
+#: src/live2d/bundlePreview.ts
+msgid "{entry} 一张贴图都没引用，画出来会是全透明的。"
+msgstr "{entry} doesn't reference a single texture, so it would render fully transparent."
+
+#: src/live2d/bundlePreview.ts
+msgid "{entry} 不是合法的 JSON，读不下去。"
+msgstr "{entry} isn't valid JSON, so it can't be read."
+
+#: src/live2d/bundlePreview.ts
+msgid "{entry} 引用了 {n} 个包里没有的文件（{list} 等）。多半是压缩时漏了子目录，或者压的是文件夹的父目录。"
+msgstr "{entry} references files that aren't in the package ({n} in total: {list}, and more). Usually a subfolder was left out when zipping, or the zip was made from the folder's parent."
+
+#: src/live2d/bundlePreview.ts
+msgid "{entry} 引用了 {n} 个包里没有的文件（{list}）。多半是压缩时漏了子目录，或者压的是文件夹的父目录。"
+msgstr "{entry} references files that aren't in the package ({n} in total: {list}). Usually a subfolder was left out when zipping, or the zip was made from the folder's parent."
+
+#: src/live2d/bundlePreview.ts
+msgid "{entry} 的 FileReferences 里没有 Moc，这个包缺 *.moc3 主体文件。"
+msgstr "{entry} has no Moc in its FileReferences — the package is missing its main *.moc3 file."
+
+#: src/live2d/bundlePreview.ts
+msgid "{entry} 的 Version 是 {version}，我们只认 Version 3（Cubism 4 导出的 model3.json）。Cubism 2 的老模型（*.model.json）要先在 Cubism Editor 里升级。"
+msgstr "{entry} has Version {version}; we only accept Version 3 (the model3.json that Cubism 4 exports). Older Cubism 2 models (*.model.json) need to be upgraded in Cubism Editor first."
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "{faceName} 用哪个表情"
 msgstr "Expression for {faceName}"
@@ -886,6 +916,14 @@ msgstr "{installs, plural, one {Installed by # person} other {Installed by # peo
 #: src/data/publishAssets.ts
 msgid "{label} 太大（{sizeMb}MB，上限 5MB）"
 msgstr "{label} is too large ({sizeMb}MB; the limit is 5MB)"
+
+#: src/live2d/bundlePreview.ts
+msgid "{mocPath} 的文件头不是 MOC3（读到 “{shown}”），这不是一份有效的 moc3。"
+msgstr "{mocPath}'s file header isn't MOC3 (read “{shown}”), so it isn't a valid moc3."
+
+#: src/live2d/bundlePreview.ts
+msgid "{mocPath} 读不出来，压缩包可能损坏了。"
+msgstr "{mocPath} can't be read; the archive may be damaged."
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "{motion}（包里没有）"
@@ -960,6 +998,10 @@ msgstr "{total} tickets"
 #: src/pages/SupportModelNewPage.tsx
 msgid "{value}（包里没有）"
 msgstr "{value} (not in bundle)"
+
+#: src/live2d/bundlePreview.ts
+msgid "{what}：{ref}"
+msgstr "{what}: {ref}"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "{who}，还没挂卡"
@@ -4594,6 +4636,14 @@ msgstr "Action “{actName}” → {g}"
 msgid "动作组 {0} 组"
 msgstr "{0, plural, one {# motion group} other {# motion groups}}"
 
+#: src/live2d/bundlePreview.ts
+msgid "动作组「{group}」"
+msgstr "motion group “{group}”"
+
+#: src/live2d/bundlePreview.ts
+msgid "动作组「{group}」的音频"
+msgstr "audio for motion group “{group}”"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "勾上上面那三条才能发布。"
 msgstr "Check the three points above to publish."
@@ -4611,6 +4661,14 @@ msgstr "If you check “A real person is in the picture”, you also have to che
 msgid "包里有 {0} 个 model3.json，用哪一个？"
 msgstr "{0, plural, one {The bundle has # model3.json. Use it?} other {The bundle has # model3.json files. Which one should be used?}}"
 
+#: src/live2d/bundlePreview.ts
+msgid "包里有 {unsafe} 个文件的路径带 “..”（会跳出目录），这种包我们不收。请重新压缩一次再传。"
+msgstr "Some file paths in the package contain “..” ({unsafe} in total), which would escape the folder — we don't accept packages like that. Zip it again and re-upload."
+
+#: src/live2d/bundlePreview.ts
+msgid "包里有文件名带空格或中文。多数情况没问题；万一预览画不出来，把文件名改成纯英文再压一次通常就好了。"
+msgstr "Some file names in the package contain spaces or non-English characters. Usually that's fine; if the preview doesn't render, renaming the files to plain English and zipping again usually fixes it."
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "包里没有 cdi3.json，服务器读不到参数表 —— 这不代表模型没有参数，只是这一屏说不出它们叫什么。"
 msgstr "There's no cdi3.json in the bundle, so the server can't read the parameter list — that doesn't mean the model has no parameters, only that this screen can't tell what they're called."
@@ -4618,6 +4676,14 @@ msgstr "There's no cdi3.json in the bundle, so the server can't read the paramet
 #: src/pages/SupportModelNewPage.tsx
 msgid "包里没有 cdi3.json，读不到参数表 —— 下一步交给服务器再看一次。"
 msgstr "There's no cdi3.json in the bundle, so the parameter list can't be read — the server will take another look in the next step."
+
+#: src/live2d/bundlePreview.ts
+msgid "包里没有一个我们认识的文件。Live2D 包至少要有 *.model3.json、*.moc3 和贴图。"
+msgstr "There isn't a single file we recognize in the package. A Live2D package needs at least a *.model3.json, a *.moc3 and textures."
+
+#: src/live2d/bundlePreview.ts
+msgid "包里没有找到 *.model3.json。它是 Cubism 4（Version 3）导出的入口文件，缺了它我们不知道该加载什么。"
+msgstr "No *.model3.json found in the package. It's the entry file that Cubism 4 (Version 3) exports; without it we don't know what to load."
 
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/SupportModelsPage.tsx
@@ -4909,6 +4975,10 @@ msgstr "{0, plural, one {# parameter} other {# parameters}}"
 #: src/pages/SupportModelNewPage.tsx
 msgid "参数（服务器自动对的）"
 msgstr "Parameters (mapped automatically by the server)"
+
+#: src/live2d/bundlePreview.ts
+msgid "参数名表"
+msgstr "display info"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "参数版"
@@ -5243,6 +5313,10 @@ msgstr "Grabbing this frame timed out. The system pauses video decoding while th
 #: src/studio/ui/projection.tsx
 msgid "取首尾帧…"
 msgstr "Grabbing first/last frames…"
+
+#: src/live2d/bundlePreview.ts
+msgid "口型同步"
+msgstr "motion sync"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "口头禅"
@@ -9230,9 +9304,22 @@ msgstr "The model bundle has been detected — go back to continue."
 msgid "模型发布失败：{text}"
 msgstr "Model publishing failed: {text}"
 
+#: src/live2d/prefetch.ts
+msgid "模型地址返回的是网页而不是模型文件"
+msgstr "The model address returned a web page instead of a model file"
+
 #: src/studio/structuredSkills.ts
 msgid "模型按段写：标题 / 剧情 / 时长 / 景别 · 运镜 · 情绪节拍"
 msgstr "The model writes each segment: title / story / duration / shot size · camera move · emotional beat"
+
+#: src/live2d/prefetch.ts
+msgid "模型描述文件不是合法的 JSON"
+msgstr "The model description file isn't valid JSON"
+
+#. placeholder {0}: res.status
+#: src/live2d/prefetch.ts
+msgid "模型描述文件读不到（HTTP {0}）"
+msgstr "Can't read the model description file (HTTP {0})"
 
 #: src/pages/SupportModelsPage.tsx
 msgid "模型文件读不到（{why}），没有切换。"
@@ -10301,6 +10388,10 @@ msgstr "{0}s into the clip"
 msgid "版本 {0} <0>（{1}）</0>"
 msgstr "Version {0} <0>({1})</0>"
 
+#: src/live2d/bundlePreview.ts
+msgid "物理"
+msgstr "physics"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "物理 有"
 msgstr "Physics: yes"
@@ -10423,6 +10514,10 @@ msgstr "Questions users escalated from the AI assistant to a person; reply here"
 #: src/pages/AdminPage.tsx
 msgid "用户列表"
 msgstr "user list"
+
+#: src/live2d/bundlePreview.ts
+msgid "用户数据"
+msgstr "user data"
 
 #. placeholder {0}: tk.note
 #: src/components/support/AdminTicketsView.tsx
@@ -12214,6 +12309,10 @@ msgstr "{0, plural, one {# expression} other {# expressions}}"
 msgid "表情「{faceName}」→ {expr}"
 msgstr "Expression “{faceName}” → {expr}"
 
+#: src/live2d/bundlePreview.ts
+msgid "表情「{name}」"
+msgstr "expression “{name}”"
+
 #: src/pages/AdminPage.tsx
 msgid "被平台下架的作品只有作者与管理员看得到。「重新上架」幂等，重复点不会出错。"
 msgstr "Videos taken down by the platform are visible only to their author and admins. “Restore” is idempotent, so tapping it again does no harm."
@@ -12301,6 +12400,14 @@ msgstr "None of the character card's reference images could be read (they may be
 #: src/studio/blockoutPrompt.ts
 msgid "角色名「{name}」里有 {shown}——出片时\"哪个人偶换成谁\"是用这几个符号分隔的，名字里带着它们会让 AI 把一条绑定读成两条（换错人不会报错，只有你自己看得出来）。请给这张卡改个名字"
 msgstr "The character name “{name}” contains {shown} — these symbols separate “which mannequin becomes whom” when rendering, so a name containing them makes the AI read one binding as two (a wrong swap raises no error; only you would notice). Please rename this card"
+
+#: src/live2d/bundlePreview.ts
+msgid "解压后一共约 {totalMb}MB（zip 本身 {zipMb}MB，没超上限）。手机上加载会慢一些，介意的话把贴图压到 2048² 再导出一次。"
+msgstr "Unzipped, it comes to about {totalMb}MB (the zip itself is {zipMb}MB, within the limit). It will load a bit slowly on phones — if that bothers you, shrink the textures to 2048² and export again."
+
+#: src/live2d/bundlePreview.ts
+msgid "解压失败"
+msgstr "Unzip failed"
 
 #: src/pages/AdminPage.tsx
 msgid "解封"
@@ -12728,6 +12835,7 @@ msgstr "Loading…"
 msgid "读取图片…"
 msgstr "Reading image…"
 
+#: src/live2d/bundlePreview.ts
 #: src/pages/AdminPage.tsx
 msgid "读取失败"
 msgstr "Couldn't load"
@@ -12790,10 +12898,22 @@ msgstr "The account itself is permanently deleted. It can't be restored, and re-
 msgid "贴剧本"
 msgstr "Paste script"
 
+#: src/live2d/bundlePreview.ts
+msgid "贴图"
+msgstr "texture"
+
 #. placeholder {0}: detail.textures.length
 #: src/pages/SupportModelNewPage.tsx
 msgid "贴图 {0} 张"
 msgstr "{0, plural, one {# texture} other {# textures}}"
+
+#: src/live2d/bundlePreview.ts
+msgid "贴图 {name} 是 {width}×{height}，单边超过 {MAX_TEXTURE_SIDE}px。手机上既传不动也画不动，请导出成 2048² 或 4096²。"
+msgstr "Texture {name} is {width}×{height}, with a side over {MAX_TEXTURE_SIDE}px. Phones can neither upload nor render that — export it at 2048² or 4096²."
+
+#: src/live2d/bundlePreview.ts
+msgid "贴图有 {count} 张，超过 {MAX_TEXTURE_COUNT} 张的上限。请在 Cubism 里把纹理图集合并一下再导出。"
+msgstr "There are {count} textures, over the limit of {MAX_TEXTURE_COUNT}. Merge the texture atlases in Cubism and export again."
 
 #: src/api/support.ts
 msgid "费用与退款"
@@ -13578,6 +13698,10 @@ msgstr "This isn't a blockout template (only blockout templates can be applied p
 msgid "这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。"
 msgstr "This app wasn't installed from an app store, so the system needs your permission for it to install apps before it can update itself."
 
+#: src/live2d/bundlePreview.ts
+msgid "这个 zip 约 {zipMb}MB，超过了 {maxMb}MB 的上限。贴图通常是大头，导出时压到 2048² 一般就够了。"
+msgstr "This zip is about {zipMb}MB, over the {maxMb}MB limit. Textures are usually the bulk — exporting them at 2048² is generally enough."
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "这个人偶在画面上排第几（点一下换）"
 msgstr "This mannequin's position in the picture (tap to change)"
@@ -13640,6 +13764,10 @@ msgstr "Was this answer helpful?"
 msgid "这个地址取不到（HTTP {0}）。回详情页刷新一下再试。"
 msgstr "This link can't be fetched (HTTP {0}). Go back to the details page, refresh and try again."
 
+#: src/live2d/bundlePreview.ts
+msgid "这个文件打不开，看起来不是 zip 压缩包（{why}）。"
+msgstr "This file won't open — it doesn't look like a zip archive ({why})."
+
 #: src/api/uploads.ts
 msgid "这个文件是空的，选一段真正的视频再传。"
 msgstr "This file is empty — pick an actual video and upload again."
@@ -13647,6 +13775,10 @@ msgstr "This file is empty — pick an actual video and upload again."
 #: src/studio/live2dUploadStore.ts
 msgid "这个文件读不了。"
 msgstr "This file can't be read."
+
+#: src/live2d/bundlePreview.ts
+msgid "这个文件读不出来（{why}）。多半是它还在网盘/云端没下到本机，或者已经被移动、删除了 —— 先把它存进手机里再选一次。"
+msgstr "This file can't be read ({why}). Most likely it's still in a cloud drive and hasn't been downloaded to this device, or it has been moved or deleted — save it to your phone first, then pick it again."
 
 #. placeholder {0}: rest.length
 #. placeholder {1}: rest.join(" / ")
@@ -13705,6 +13837,10 @@ msgstr "This template detected {0, plural, one {# person} other {# people}}, mor
 #: src/pages/CutPage.tsx
 msgid "这个片段是分割出来的，同一段还有另一半在时间轴上——回到整段会和它重叠，成片里同一截会播两遍。想撤销分割，先删掉另一半。"
 msgstr "This clip was split, and the other half of the same segment is still on the timeline — restoring the whole segment would overlap it, so the same part would play twice. To undo the split, delete the other half first."
+
+#: src/live2d/bundlePreview.ts
+msgid "这个版本的 Live2D 运行时不支持从本地 zip 预览（缺 ZipLoader）。"
+msgstr "This version of the Live2D runtime can't preview from a local zip (ZipLoader is missing)."
 
 #: src/components/BlockButton.tsx
 msgid "这个用户"
@@ -14478,6 +14614,10 @@ msgstr "Selection"
 #: src/pages/VideoEditorPage.tsx
 msgid "选段与裁剪"
 msgstr "Select and crop"
+
+#: src/live2d/bundlePreview.ts
+msgid "透明度组"
+msgstr "pose"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "透明度组 有"
