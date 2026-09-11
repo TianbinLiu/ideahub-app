@@ -3290,6 +3290,11 @@ msgstr "Uses the current cover as the reference and edits it as requested"
 msgid "仰拍"
 msgstr "Low angle"
 
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "仰拍"
+msgstr "Low angle"
+
 #: src/studio/ui/projection.tsx
 msgid "会丢掉这一段推演出的方案（已花的 token 不退）"
 msgstr "The plans drafted for this segment will be discarded (tokens already spent aren't refunded)"
@@ -3666,6 +3671,11 @@ msgid "保留了框内背景（{size}{up}）——卡面仍带背景，出片时
 msgstr "Kept the background inside the box ({size}{up}) — the card still has a background, so the AI may draw things from it into videos"
 
 #: src/studio/stage/stageState.ts
+msgid "俯拍"
+msgstr "High angle"
+
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
 msgid "俯拍"
 msgstr "High angle"
 
@@ -4180,6 +4190,10 @@ msgstr "Up to {max}, {maxLen} characters each · {added} added"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "最多 {max} 条，已经满了"
 msgstr "Up to {max}; already full"
+
+#: src/components/flow/CameraChips.tsx
+msgid "最多叠 {CAMERA_MAX_STACK} 个运镜（再多模型顾不过来），先取消一个"
+msgstr "Up to {CAMERA_MAX_STACK} camera moves (the model can't follow more). Deselect one first."
 
 #. placeholder {0}: STAGE_LIMITS.figuresMax
 #: src/studio/stage/StageOverlay.tsx
@@ -5715,6 +5729,11 @@ msgstr "Right hand"
 msgid "右眼"
 msgstr "Right eye"
 
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "右移"
+msgstr "Slide right"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "右臂"
 msgstr "Right arm"
@@ -6012,6 +6031,11 @@ msgstr "Back to the segment window to choose another mode"
 #: src/pages/VideoEditorPage.tsx
 msgid "回首页"
 msgstr "Back to home"
+
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "固定"
+msgstr "Static"
 
 #. placeholder {0}: i + 1
 #: src/studio/ui/SchemeEditorSheet.tsx
@@ -6795,6 +6819,11 @@ msgstr "Left hand"
 #: src/pages/SupportModelNewPage.tsx
 msgid "左眼"
 msgstr "Left eye"
+
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "左移"
+msgstr "Slide left"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "左臂"
@@ -7885,6 +7914,11 @@ msgstr "In decks"
 msgid "手工填入（方舟控制台授权）"
 msgstr "Enter manually (authorized in the Ark console)"
 
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "手持"
+msgstr "Handheld"
+
 #: src/pages/LoginPage.tsx
 msgid "手机号"
 msgstr "Phone"
@@ -8088,6 +8122,11 @@ msgstr "Split into shots ({price})"
 #: src/components/flow/SkillPanel.tsx
 msgid "拉取中…"
 msgstr "Loading…"
+
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "拉远"
+msgstr "Pull out"
 
 #: src/components/BlockButton.tsx
 msgid "拉黑"
@@ -8509,6 +8548,11 @@ msgstr "Recommended voice"
 #: src/pages/SupportModelNewPage.tsx
 msgid "推荐项 {0}/{1} 项已具备"
 msgstr "Recommended: {0}/{1} present"
+
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "推近"
+msgstr "Push in"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "描不出来？保留框内背景 ›"
@@ -10770,6 +10814,10 @@ msgstr "Demo"
 msgid "演示道具"
 msgstr "Demo prop"
 
+#: src/components/flow/CameraChips.tsx
+msgid "灰着的运镜插进去会超过 {VIDEO_PROMPT_MAX} 字的上限，想用就先删几个字"
+msgstr "The grayed-out moves would push the text past the {VIDEO_PROMPT_MAX}-character limit. Delete a few words to use them."
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "炉火正旺，卡片成形中…"
 msgstr "The forge is blazing; your cards are taking shape…"
@@ -10983,6 +11031,11 @@ msgstr "Physics: no"
 #: src/studio/stage/stageState.ts
 msgid "特写"
 msgstr "Close-up"
+
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "环绕"
+msgstr "Orbit"
 
 #: src/components/DraftSheet.tsx
 msgid "现在打不开这条草稿"
@@ -13740,6 +13793,11 @@ msgstr "Start = current frame"
 msgid "超出上限 {over} 字。送去分析时会从最前面截掉这一段，保留最近的 {MATERIAL_TOTAL_MAX} 字（越靠后越像现在的 TA）。"
 msgstr "{over, plural, one {# character} other {# characters}} over the limit. Before analysis that much is cut from the beginning, keeping the most recent {MATERIAL_TOTAL_MAX} characters (later text is closer to who they are now)."
 
+#: src/components/flow/CameraChips.tsx
+msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
+msgid "跟拍"
+msgstr "Tracking"
+
 #: src/components/support/VoiceMarket.tsx
 msgid "跟随"
 msgstr "follows persona"
@@ -13820,6 +13878,10 @@ msgstr "Type this user's username <0>{0}</0> to confirm:"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "边界"
 msgstr "Boundaries"
+
+#: src/components/flow/CameraChips.tsx
+msgid "运镜"
+msgstr "Camera"
 
 #: src/studio/stage/stageState.ts
 msgid "近景"
