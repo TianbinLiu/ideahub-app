@@ -22,7 +22,7 @@ import FuseFrameSheet, { fuseSourcesOf } from "./FuseFrameSheet";
 import CustomFrameSlots from "../../components/flow/CustomFrameSlots";
 import { SegmentRecoverList } from "../../components/flow/SegmentRecoverCards";
 import Icon from "../../components/Icon";
-import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Card, CardType, Proposal, VIDEO_ASPECTS, aspectCss, aspectOf } from "../../types";
+import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CARD_TYPE_SHORT, Card, CardType, Proposal, VIDEO_ASPECTS, aspectCss, aspectOf } from "../../types";
 import {
   activePath,
   chosenProposal,
@@ -728,7 +728,7 @@ function EditorPanel() {
                     }`}
                     style={{ borderColor: color + "77", color }}
                   >
-                    ＋{CARD_TYPE_LABELS[type].slice(0, 2)}
+                    ＋{CARD_TYPE_SHORT[type]}
                   </button>
                 );
               })}
