@@ -153,11 +153,13 @@ msgstr "，已放大到短边 {REF_SHORT_MIN}px"
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
+#. 列举删号时清掉的几类数据时的分隔符
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/blockout/RoleConfirmSheet.tsx
 #: src/components/DeleteCardDialog.tsx
 #: src/components/TemplateShelf.tsx
 #: src/components/VideoCardAnnotator.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/CutPage.tsx
 #: src/pages/SupportModelNewPage.tsx
@@ -190,6 +192,11 @@ msgstr "。先给编号的人偶挂上带形象图的角色卡，AI 才知道每
 #: src/pages/FlowPage.tsx
 msgid "。挂上带形象图的角色卡（右下角素材按钮），AI 会把红色小人换成它"
 msgstr "。挂上带形象图的角色卡（右下角素材按钮），AI 会把红色小人换成它"
+
+#. placeholder {0}: displayNameOf(report.reporter)
+#: src/pages/AdminPage.tsx
+msgid "· {0} 举报"
+msgstr "· {0} 举报"
 
 #: src/components/GenTrace.tsx
 msgid "· {doneCount}/{total} 步"
@@ -252,6 +259,11 @@ msgstr "· 它已经分享到创意工坊：删卡会<0>同时下架</0>； 别�
 msgid "· 想要会转头 / 眨眼 / 说话，模型里得有 ParamAngleX、ParamAngleY、ParamEyeLOpen、ParamEyeROpen、ParamMouthOpenY 这几个标准参数"
 msgstr "· 想要会转头 / 眨眼 / 说话，模型里得有 ParamAngleX、ParamAngleY、ParamEyeLOpen、ParamEyeROpen、ParamMouthOpenY 这几个标准参数"
 
+#. placeholder {0}: v.plays ?? 0
+#: src/pages/AdminPage.tsx
+msgid "· 播放 {0}"
+msgstr "· 播放 {0}"
+
 #: src/pages/SettingsDeactivatePage.tsx
 msgid "· 数据不会立刻从服务器抹除（防误操作）。想恢复账号、或要求彻底删除数据，发邮件到 <0>{SUPPORT_EMAIL}</0>。"
 msgstr "· 数据不会立刻从服务器抹除（防误操作）。想恢复账号、或要求彻底删除数据，发邮件到 <0>{SUPPORT_EMAIL}</0>。"
@@ -273,6 +285,11 @@ msgstr "· 点 ✕ 移出本段"
 msgid "· 立即生效：所有设备退出登录，这个账号无法再使用。"
 msgstr "· 立即生效：所有设备退出登录，这个账号无法再使用。"
 
+#. placeholder {0}: Math.round(c.at)
+#: src/pages/AdminPage.tsx
+msgid "· 第 {0} 秒"
+msgstr "· 第 {0} 秒"
+
 #: src/components/DeleteCardDialog.tsx
 msgid "· 第 {segList} 段挂着它 —— <0>那几段不受影响</0>（摆上桌那一刻存的是副本），已经炼好的画面也不会变。"
 msgstr "· 第 {segList} 段挂着它 —— <0>那几段不受影响</0>（摆上桌那一刻存的是副本），已经炼好的画面也不会变。"
@@ -293,6 +310,11 @@ msgstr "· 账号里的 token 余额、已购内容与已发布作品都将一�
 #: src/pages/SupportModelNewPage.tsx
 msgid "· 贴图 png / webp，每张不超过 4096²、最多 4 张"
 msgstr "· 贴图 png / webp，每张不超过 4096²、最多 4 张"
+
+#. placeholder {0}: v.likes ?? 0
+#: src/pages/AdminPage.tsx
+msgid "· 赞 {0}"
+msgstr "· 赞 {0}"
 
 #: src/components/BlockButton.tsx
 msgid "· 这不是举报：想让平台处理他，请另外点「举报」。"
@@ -346,6 +368,14 @@ msgstr "（它下面的回复会一起删掉）"
 msgid "（无文件名）"
 msgstr "（无文件名）"
 
+#: src/pages/AdminPage.tsx
+msgid "（无标题）"
+msgstr "（无标题）"
+
+#: src/pages/AdminPage.tsx
+msgid "（无用户名）"
+msgstr "（无用户名）"
+
 #: src/studio/canvasAgent.ts
 msgid "（本地档）{notes}现在只认「第N段 拍什么」「第N段换成XX模板」「第N段摘掉模板」「加一段」这类直白句式。"
 msgstr "（本地档）{notes}现在只认「第N段 拍什么」「第N段换成XX模板」「第N段摘掉模板」「加一段」这类直白句式。"
@@ -357,6 +387,10 @@ msgstr "（本地档）按直白句式帮你办了下面这些。{notes}"
 #: src/studio/canvasAgent.ts
 msgid "（没有可办的）"
 msgstr "（没有可办的）"
+
+#: src/pages/AdminPage.tsx
+msgid "（空）"
+msgstr "（空）"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "（空位置）"
@@ -1393,6 +1427,10 @@ msgstr "🎞 调节首尾帧 / 加中间帧"
 msgid "🎤 取一段他的声音（可选，{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒 · 出片时台词可用这个音色）"
 msgstr "🎤 取一段他的声音（可选，{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒 · 出片时台词可用这个音色）"
 
+#: src/pages/AdminPage.tsx
+msgid "🎧 客服工单"
+msgstr "🎧 客服工单"
+
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "🎨 融图合成这一帧"
 msgstr "🎨 融图合成这一帧"
@@ -1830,6 +1868,10 @@ msgstr "zip 包 · 最大 25MB"
 msgid "zip 包 ≤25MB，向导会认出它的动作、表情和触摸区。"
 msgstr "zip 包 ≤25MB，向导会认出它的动作、表情和触摸区。"
 
+#: src/pages/AdminPage.tsx
+msgid "一个用户都没有"
+msgstr "一个用户都没有"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "一个能力角标都没有 —— 装上之后基本上是个不会动的立绘。"
 msgstr "一个能力角标都没有 —— 装上之后基本上是个不会动的立绘。"
@@ -1884,6 +1926,18 @@ msgstr "一句话说清 TA 是谁"
 #: src/components/DraftSheet.tsx
 msgid "一屏一段、逐段生成"
 msgstr "一屏一段、逐段生成"
+
+#: src/pages/AdminPage.tsx
+msgid "一条作品都没有"
+msgstr "一条作品都没有"
+
+#: src/pages/AdminPage.tsx
+msgid "一条弹幕都没有"
+msgstr "一条弹幕都没有"
+
+#: src/pages/AdminPage.tsx
+msgid "一条评论都没有"
+msgstr "一条评论都没有"
 
 #. placeholder {0}: doneRows.length
 #: src/components/DownloadSheet.tsx
@@ -2051,14 +2105,32 @@ msgstr "下一段（本段还没出片）"
 msgid "下架"
 msgstr "下架"
 
+#: src/pages/AdminPage.tsx
+msgctxt "管理后台举报处置键：平台强制下架，作者自己翻不回来（不是作者自己取消发布）"
+msgid "下架"
+msgstr "下架"
+
+#: src/pages/AdminPage.tsx
+msgid "下架…"
+msgstr "下架…"
+
+#: src/pages/AdminPage.tsx
+msgid "下架＝内容还在但谁都看不到（作者也翻不回来） · 驳回＝举报不成立 · 删除＝连内容一起删，不可撤销"
+msgstr "下架＝内容还在但谁都看不到（作者也翻不回来） · 驳回＝举报不成立 · 删除＝连内容一起删，不可撤销"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "下架中…"
 msgstr "下架中…"
 
 #. placeholder {0}: takedownReasonText(v.takedown.reason)
+#: src/pages/AdminPage.tsx
 #: src/pages/ProfilePage.tsx
 msgid "下架原因：{0}"
 msgstr "下架原因：{0}"
+
+#: src/pages/AdminPage.tsx
+msgid "下架原因（必填，作者会看到这句话）"
+msgstr "下架原因（必填，作者会看到这句话）"
 
 #: src/components/UpdateSheet.tsx
 msgid "下载中 {pct}%"
@@ -2196,6 +2268,27 @@ msgstr "主素材已就位（就是那张授权照片），不用再传 · 演�
 msgid "主素材已就位（就是那张授权照片），不用再传 · 约 {aiPriceText} token"
 msgstr "主素材已就位（就是那张授权照片），不用再传 · 约 {aiPriceText} token"
 
+#: src/pages/AdminPage.tsx
+msgid "举报"
+msgstr "举报"
+
+#: src/pages/AdminPage.tsx
+msgid "举报不成立，内容照旧"
+msgstr "举报不成立，内容照旧"
+
+#. placeholder {0}: report.detail
+#: src/pages/AdminPage.tsx
+msgid "举报人补充：{0}"
+msgstr "举报人补充：{0}"
+
+#: src/pages/AdminPage.tsx
+msgid "举报列表没拉到"
+msgstr "举报列表没拉到"
+
+#: src/pages/AdminPage.tsx
+msgid "举报记录"
+msgstr "举报记录"
+
 #. placeholder {0}: res.status
 #: src/pages/SettingsVoicePage.tsx
 msgid "云端语音没出声（{0}）：稍后再试，或到火山控制台看额度"
@@ -2319,6 +2412,10 @@ msgstr "付费人格：先在官网购买，买过之后这里就能用。"
 msgid "付费人格要在官网 ideahubs.org 购买，买过之后这里就能用。"
 msgstr "付费人格要在官网 ideahubs.org 购买，买过之后这里就能用。"
 
+#: src/pages/AdminPage.tsx
+msgid "代币流水"
+msgstr "代币流水"
+
 #: src/components/UpdateSheet.tsx
 msgid "以后再说"
 msgstr "以后再说"
@@ -2383,9 +2480,15 @@ msgstr "余额不足（现有 {have}）——去「我的」页充值"
 msgid "余额读取中…"
 msgstr "余额读取中…"
 
+#: src/pages/AdminPage.tsx
 #: src/pages/ProfilePage.tsx
 msgid "作品"
 msgstr "作品"
+
+#. placeholder {0}: typeof u.videoCount === "number" ? u.videoCount : "—"
+#: src/pages/AdminPage.tsx
+msgid "作品 {0}"
+msgstr "作品 {0}"
 
 #: src/pages/SettingsPage.tsx
 msgid "作品、卡片和钱包都记在服务器上，重新登录同一账号就回来。"
@@ -2410,6 +2513,15 @@ msgstr "作品与卡片已同步到服务器，换设备登录同一账号即可
 #: src/pages/EditPage.tsx
 msgid "作品内容"
 msgstr "作品内容"
+
+#: src/pages/AdminPage.tsx
+msgid "作品管理列表"
+msgstr "作品管理列表"
+
+#. placeholder {0}: displayNameOf(tgt.author)
+#: src/pages/AdminPage.tsx
+msgid "作者 {0}"
+msgstr "作者 {0}"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "作者推荐（可以都不选）"
@@ -2447,6 +2559,10 @@ msgstr "你好，我是{name}，启梦的 AI 客服。账号、扣费、出片�
 #: src/components/support/VoiceSheet.tsx
 msgid "你的设置（官网同步）"
 msgstr "你的设置（官网同步）"
+
+#: src/pages/AdminPage.tsx
+msgid "你的账号不是管理员。权限由服务端保管，改不了本地设置就进得来——需要的话请让管理员在服务端给你的账号升权，升完立刻生效，不用重新登录。"
+msgstr "你的账号不是管理员。权限由服务端保管，改不了本地设置就进得来——需要的话请让管理员在服务端给你的账号升权，升完立刻生效，不用重新登录。"
 
 #: src/pages/SettingsPage.tsx
 msgid "你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。"
@@ -2739,6 +2855,7 @@ msgid "全新生成"
 msgstr "全新生成"
 
 #: src/components/TemplateShelf.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/SupportPersonasPage.tsx
 msgid "全部"
 msgstr "全部"
@@ -2826,6 +2943,10 @@ msgstr "关注"
 msgid "关注 {0}"
 msgstr "关注 {0}"
 
+#: src/pages/AdminPage.tsx
+msgid "关注关系"
+msgstr "关注关系"
+
 #: src/pages/FeedPage.tsx
 msgid "关注的创作者还没有新作品"
 msgstr "关注的创作者还没有新作品"
@@ -2851,6 +2972,14 @@ msgstr "关闭评论"
 msgid "兴奋"
 msgstr "兴奋"
 
+#: src/pages/AdminPage.tsx
+msgid "其<0>全部作品</0>（含私密与已下架的）从平台删除；⚠ 视频/图片<1>文件</1>暂不随删，已流出的直链仍可访问"
+msgstr "其<0>全部作品</0>（含私密与已下架的）从平台删除；⚠ 视频/图片<1>文件</1>暂不随删，已流出的直链仍可访问"
+
+#: src/pages/AdminPage.tsx
+msgid "其发出的<0>评论、弹幕</0>全部删除；别人作品下的也一样；⚠ <1>其他用户</1>回复在这些评论下的楼中楼会被连带删除"
+msgstr "其发出的<0>评论、弹幕</0>全部删除；别人作品下的也一样；⚠ <1>其他用户</1>回复在这些评论下的楼中楼会被连带删除"
+
 #: src/pages/VideoPage.tsx
 msgid "内容可能还在，只是这次没取到（网络或服务器的问题）"
 msgstr "内容可能还在，只是这次没取到（网络或服务器的问题）"
@@ -2858,6 +2987,14 @@ msgstr "内容可能还在，只是这次没取到（网络或服务器的问题
 #: src/pages/PublishPage.tsx
 msgid "内容声明：本作品由 AI 生成"
 msgstr "内容声明：本作品由 AI 生成"
+
+#: src/pages/AdminPage.tsx
+msgid "内容已经不在了（作者自己删了，或已被删除）—— 这条通常「驳回」就好。"
+msgstr "内容已经不在了（作者自己删了，或已被删除）—— 这条通常「驳回」就好。"
+
+#: src/pages/AdminPage.tsx
+msgid "内容还在，但所有人都看不到；作者自己也改不回来"
+msgstr "内容还在，但所有人都看不到；作者自己也改不回来"
 
 #: src/pages/ProfilePage.tsx
 msgid "内容还在这台设备上，没有丢。修好网络或服务器后点重试即可。"
@@ -3000,6 +3137,7 @@ msgstr "准备配乐…"
 msgid "几秒出片"
 msgstr "几秒出片"
 
+#: src/pages/AdminPage.tsx
 #: src/pages/ProfilePage.tsx
 msgid "凭链接"
 msgstr "凭链接"
@@ -3138,6 +3276,10 @@ msgstr "切换中…"
 msgid "切换失败，稍后再试。"
 msgstr "切换失败，稍后再试。"
 
+#: src/pages/AdminPage.tsx
+msgid "列表没拉到"
+msgstr "列表没拉到"
+
 #: src/pages/CutPage.tsx
 msgid "刚才切到后台了——合成不会因此录坏画面，但可能被系统拖慢；真断了会明确告诉你"
 msgstr "刚才切到后台了——合成不会因此录坏画面，但可能被系统拖慢；真断了会明确告诉你"
@@ -3246,19 +3388,29 @@ msgstr "删的是你点「保存到本地」存进 App 的那 {files} 个视频�
 #: src/components/CommentDelete.tsx
 #: src/components/DraftSheet.tsx
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/TemplateDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "删除"
 msgstr "删除"
+
+#: src/pages/AdminPage.tsx
+msgid "删除…"
+msgstr "删除…"
 
 #. placeholder {0}: video.title
 #: src/pages/EditPage.tsx
 msgid "删除《{0}》？"
 msgstr "删除《{0}》？"
 
+#: src/pages/AdminPage.tsx
+msgid "删除不可撤销。只想让它不再被看到就用「下架」。"
+msgstr "删除不可撤销。只想让它不再被看到就用「下架」。"
+
 #: src/components/CommentDelete.tsx
 #: src/components/DeleteConfirmShell.tsx
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/EditPage.tsx
 msgid "删除中…"
 msgstr "删除中…"
@@ -3274,6 +3426,10 @@ msgstr "删除失败了，原因不明。"
 #: src/pages/EditPage.tsx
 msgid "删除留存的工坊工程"
 msgstr "删除留存的工坊工程"
+
+#: src/pages/AdminPage.tsx
+msgid "删除账号…"
+msgstr "删除账号…"
 
 #: src/pages/CardDetailPage.tsx
 msgid "删除这张卡"
@@ -3324,6 +3480,7 @@ msgid "制作人格"
 msgstr "制作人格"
 
 #: src/components/PortraitAuthPanel.tsx
+#: src/pages/AdminPage.tsx
 msgid "刷新"
 msgstr "刷新"
 
@@ -3364,6 +3521,7 @@ msgid "加个话题，让人搜得到（回车分隔）"
 msgstr "加个话题，让人搜得到（回车分隔）"
 
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/SupportModelsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -3376,7 +3534,12 @@ msgstr "加载中…"
 msgid "加载更多"
 msgstr "加载更多"
 
+#: src/pages/AdminPage.tsx
+msgid "加载更多（已显示 {shown} / 共 {total} 条）"
+msgstr "加载更多（已显示 {shown} / 共 {total} 条）"
+
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/SupportModelsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
 msgid "加载更多失败"
@@ -3482,6 +3645,7 @@ msgid "卡建好了，但有图没能存到服务器"
 msgstr "卡建好了，但有图没能存到服务器"
 
 #: src/components/MaterialSheet.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "卡片"
@@ -3500,6 +3664,7 @@ msgid "卡片详情"
 msgstr "卡片详情"
 
 #: src/components/MaterialSheet.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "卡组"
@@ -3667,6 +3832,14 @@ msgstr "去推荐流看看"
 msgid "去模板市场"
 msgstr "去模板市场"
 
+#: src/pages/AdminPage.tsx
+msgid "去现场 →"
+msgstr "去现场 →"
+
+#: src/pages/AdminPage.tsx
+msgid "去现场看上下文 →"
+msgstr "去现场看上下文 →"
+
 #: src/components/BlockButton.tsx
 msgid "去登录"
 msgstr "去登录"
@@ -3805,17 +3978,23 @@ msgstr "发起授权没成：{0}——可以改用「填 asset ID」那条路"
 
 #: src/components/CommentSheet.tsx
 #: src/components/flow/FlowCanvas.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/SupportPage.tsx
 msgid "发送"
 msgstr "发送"
 
 #: src/components/CommentSheet.tsx
+#: src/pages/AdminPage.tsx
 msgid "发送中…"
 msgstr "发送中…"
 
 #: src/pages/SupportPage.tsx
 msgid "发送失败"
 msgstr "发送失败"
+
+#: src/pages/AdminPage.tsx
+msgid "发通知…"
+msgstr "发通知…"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "取下"
@@ -3888,6 +4067,7 @@ msgstr "取流超时（窗口在后台时浏览器不解码视频）"
 #: src/components/support/VoiceMarket.tsx
 #: src/components/support/VoiceMixer.tsx
 #: src/components/VideoCardAnnotator.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/CardDetailPage.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/EditPage.tsx
@@ -4437,6 +4617,7 @@ msgstr "声音样本（选填）"
 #: src/components/VoiceRecorder.tsx
 #: src/components/VoiceUploadButton.tsx
 #: src/components/WorkshopShareBar.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/CardDetailPage.tsx
 #: src/pages/CustomCardPage.tsx
 msgid "处理中…"
@@ -4712,6 +4893,7 @@ msgstr "客服"
 msgid "客服回复了你的工单"
 msgstr "客服回复了你的工单"
 
+#: src/pages/AdminPage.tsx
 #: src/pages/SupportPage.tsx
 msgid "客服工单"
 msgstr "客服工单"
@@ -4738,6 +4920,23 @@ msgstr "对话未开通"
 #: src/pages/SupportPage.tsx
 msgid "对话记录"
 msgstr "对话记录"
+
+#: src/pages/AdminPage.tsx
+msgid "封禁…"
+msgstr "封禁…"
+
+#. placeholder {0}: u.banned.reason
+#: src/pages/AdminPage.tsx
+msgid "封禁原因：{0}"
+msgstr "封禁原因：{0}"
+
+#: src/pages/AdminPage.tsx
+msgid "封禁原因（必填，会展示给该用户）"
+msgstr "封禁原因（必填，会展示给该用户）"
+
+#: src/pages/AdminPage.tsx
+msgid "封禁挡的是<0>登录与一切带登录态的请求</0>，对方会看到下面这句原因。封禁<1>不会</1>自动隐藏其已发内容 —— 内容处置请到作品/评论/弹幕里逐条下架或删除（两权分开）。"
+msgstr "封禁挡的是<0>登录与一切带登录态的请求</0>，对方会看到下面这句原因。封禁<1>不会</1>自动隐藏其已发内容 —— 内容处置请到作品/评论/弹幕里逐条下架或删除（两权分开）。"
 
 #: src/components/BranchPlayer.tsx
 #: src/components/CoverPicker.tsx
@@ -4846,9 +5045,14 @@ msgid "已下 {0}"
 msgstr "已下 {0}"
 
 #: src/components/TemplateShelf.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/ProfilePage.tsx
 msgid "已下架"
 msgstr "已下架"
+
+#: src/pages/AdminPage.tsx
+msgid "已下架列表"
+msgstr "已下架列表"
 
 #: src/pages/SupportModelsPage.tsx
 msgid "已下载"
@@ -4895,6 +5099,22 @@ msgstr "已切换，返回客服页生效。"
 #: src/pages/SettingsStoragePage.tsx
 msgid "已删掉 {0} 个文件，{1} 空间已释放"
 msgstr "已删掉 {0} 个文件，{1} 空间已释放"
+
+#: src/pages/AdminPage.tsx
+msgid "已删除"
+msgstr "已删除"
+
+#: src/pages/AdminPage.tsx
+msgid "已删除：{list}"
+msgstr "已删除：{list}"
+
+#: src/pages/AdminPage.tsx
+msgid "已删除（服务端未返回明细）"
+msgstr "已删除（服务端未返回明细）"
+
+#: src/pages/AdminPage.tsx
+msgid "已删除（没有关联数据）"
+msgstr "已删除（没有关联数据）"
 
 #: src/pages/CardDetailPage.tsx
 msgid "已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。"
@@ -4948,6 +5168,15 @@ msgstr "已在模板市场公开，别人可以直接套用出片。"
 msgid "已声明真人"
 msgstr "已声明真人"
 
+#: src/pages/AdminPage.tsx
+msgid "已处于下架状态"
+msgstr "已处于下架状态"
+
+#. placeholder {0}: statusLabel(report.status)
+#: src/pages/AdminPage.tsx
+msgid "已处理：{0}"
+msgstr "已处理：{0}"
+
 #: src/pages/CardDetailPage.tsx
 msgid "已复制"
 msgstr "已复制"
@@ -4955,6 +5184,10 @@ msgstr "已复制"
 #: src/pages/ProfilePage.tsx
 msgid "已复制主页链接"
 msgstr "已复制主页链接"
+
+#: src/pages/AdminPage.tsx
+msgid "已封禁"
+msgstr "已封禁"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "已建组「{deckDone}」"
@@ -5177,6 +5410,10 @@ msgstr "已铺 {0} 段，从第 1 段开始炼"
 msgid "已领取"
 msgstr "已领取"
 
+#: src/pages/AdminPage.tsx
+msgid "已驳回"
+msgstr "已驳回"
+
 #: src/pages/SupportModelsPage.tsx
 msgid "市场"
 msgstr "市场"
@@ -5217,6 +5454,10 @@ msgstr "带背景"
 #: src/components/CoverPicker.tsx
 msgid "帧{0}"
 msgstr "帧{0}"
+
+#: src/pages/AdminPage.tsx
+msgid "平台数据 · 点卡片进入管理"
+msgstr "平台数据 · 点卡片进入管理"
 
 #: src/pages/NotificationsPage.tsx
 msgid "平台通知"
@@ -5282,6 +5523,14 @@ msgstr "引号里填模板名（下面可直接点）"
 msgid "张嘴"
 msgstr "张嘴"
 
+#: src/pages/AdminPage.tsx
+msgid "弹幕"
+msgstr "弹幕"
+
+#: src/pages/AdminPage.tsx
+msgid "弹幕管理列表"
+msgstr "弹幕管理列表"
+
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。"
 msgstr "当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。"
@@ -5327,6 +5576,10 @@ msgstr "当前是本地账号：没有服务器，也就没有可注销的云端
 #: src/pages/SupportPage.tsx
 msgid "当前是离线模式，客服需要联网。"
 msgstr "当前是离线模式，客服需要联网。"
+
+#: src/pages/AdminPage.tsx
+msgid "当前是离线模式（没连服务器），管理功能需要服务端才能用。"
+msgstr "当前是离线模式（没连服务器），管理功能需要服务端才能用。"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "录制中…（实际播这一段）"
@@ -5377,6 +5630,14 @@ msgstr "往前 {step} 秒"
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "往后 {step} 秒"
 msgstr "往后 {step} 秒"
+
+#: src/pages/AdminPage.tsx
+msgid "待处理"
+msgstr "待处理"
+
+#: src/pages/AdminPage.tsx
+msgid "待处理举报"
+msgstr "待处理举报"
 
 #: src/pages/FlowPage.tsx
 msgid "待挑方案"
@@ -5867,6 +6128,10 @@ msgstr "按住说话"
 msgid "按住说话，或问{name}：哪里不对？"
 msgstr "按住说话，或问{name}：哪里不对？"
 
+#: src/pages/AdminPage.tsx
+msgid "按作品筛（作品标题或 id）"
+msgstr "按作品筛（作品标题或 id）"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "按你描的轮廓抠出主体，背景换成浅灰纯色（主体 {size}{up}）"
 msgstr "按你描的轮廓抠出主体，背景换成浅灰纯色（主体 {size}{up}）"
@@ -6132,6 +6397,14 @@ msgstr "搜卡名 / 简介 / 类型"
 msgid "搜卡组名，或组里的卡名"
 msgstr "搜卡组名，或组里的卡名"
 
+#: src/pages/AdminPage.tsx
+msgid "搜弹幕正文 / 作者"
+msgstr "搜弹幕正文 / 作者"
+
+#: src/pages/AdminPage.tsx
+msgid "搜标题 / 简介 / 作者 / id"
+msgstr "搜标题 / 简介 / 作者 / id"
+
 #: src/components/support/VoiceMarket.tsx
 msgid "搜模板：名字、介绍…"
 msgstr "搜模板：名字、介绍…"
@@ -6139,6 +6412,10 @@ msgstr "搜模板：名字、介绍…"
 #: src/components/TemplateShelf.tsx
 msgid "搜模板：特摄、治愈、赛博…"
 msgstr "搜模板：特摄、治愈、赛博…"
+
+#: src/pages/AdminPage.tsx
+msgid "搜用户名 / 昵称"
+msgstr "搜用户名 / 昵称"
 
 #: src/pages/WorkshopPage.tsx
 msgid "搜索别人分享的卡组"
@@ -6148,9 +6425,17 @@ msgstr "搜索别人分享的卡组"
 msgid "搜索卡片名 / 标签"
 msgstr "搜索卡片名 / 标签"
 
+#: src/pages/AdminPage.tsx
+msgid "搜索历史"
+msgstr "搜索历史"
+
 #: src/pages/DiscoverPage.tsx
 msgid "搜索视频 / 分区 / 用户"
 msgstr "搜索视频 / 分区 / 用户"
+
+#: src/pages/AdminPage.tsx
+msgid "搜评论正文 / 作者"
+msgstr "搜评论正文 / 作者"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "摇头 · 否定"
@@ -6559,6 +6844,15 @@ msgstr "服务端出错"
 #: src/pages/NotificationsPage.tsx
 msgid "服务端升级后即可使用，App 不用重装"
 msgstr "服务端升级后即可使用，App 不用重装"
+
+#: src/pages/AdminPage.tsx
+msgid "服务端没带所属作品 id，这条删不了（需要升级服务端）"
+msgstr "服务端没带所属作品 id，这条删不了（需要升级服务端）"
+
+#. placeholder {0}: report.targetId
+#: src/pages/AdminPage.tsx
+msgid "服务端没有返回内容快照，只能看到 id：{0}"
+msgstr "服务端没有返回内容快照，只能看到 id：{0}"
 
 #: src/pages/SupportPage.tsx
 msgid "服务端还没开通 AI 客服，可以直接转人工。"
@@ -7149,6 +7443,14 @@ msgstr "比如「树洞」「陪练」「编剧搭子」"
 msgid "比如「认识很久的朋友」"
 msgstr "比如「认识很久的朋友」"
 
+#: src/pages/AdminPage.tsx
+msgid "永久删除该账号"
+msgstr "永久删除该账号"
+
+#: src/pages/AdminPage.tsx
+msgid "没删掉，请重试"
+msgstr "没删掉，请重试"
+
 #: src/pages/WorkshopPage.tsx
 msgid "没取到：{error}"
 msgstr "没取到：{error}"
@@ -7228,6 +7530,10 @@ msgstr "没有下一段了"
 msgid "没有仅自己可见的作品"
 msgstr "没有仅自己可见的作品"
 
+#: src/pages/AdminPage.tsx
+msgid "没有匹配的作品"
+msgstr "没有匹配的作品"
+
 #: src/components/MaterialSheet.tsx
 msgid "没有匹配的卡片"
 msgstr "没有匹配的卡片"
@@ -7237,9 +7543,21 @@ msgstr "没有匹配的卡片"
 msgid "没有匹配的卡组"
 msgstr "没有匹配的卡组"
 
+#: src/pages/AdminPage.tsx
+msgid "没有匹配的弹幕"
+msgstr "没有匹配的弹幕"
+
 #: src/components/TemplateShelf.tsx
 msgid "没有匹配的模板，换个词试试"
 msgstr "没有匹配的模板，换个词试试"
+
+#: src/pages/AdminPage.tsx
+msgid "没有匹配的用户"
+msgstr "没有匹配的用户"
+
+#: src/pages/AdminPage.tsx
+msgid "没有匹配的评论"
+msgstr "没有匹配的评论"
 
 #: src/pages/SettingsStoragePage.tsx
 msgid "没有可清理的中间文件"
@@ -7248,6 +7566,10 @@ msgstr "没有可清理的中间文件"
 #: src/components/flow/FlowCanvas.tsx
 msgid "没有带声音样本的卡——在工坊「从视频提取」圈人物时可以顺手取一段声音"
 msgstr "没有带声音样本的卡——在工坊「从视频提取」圈人物时可以顺手取一段声音"
+
+#: src/pages/AdminPage.tsx
+msgid "没有待处理的举报"
+msgstr "没有待处理的举报"
 
 #: src/pages/DiscoverPage.tsx
 msgid "没有找到「{key}」相关的作品"
@@ -7314,6 +7636,10 @@ msgstr "没能取回这条作品的工坊工程（{fetchErr}）。换个网络�
 msgid "没能取回这条作品的工坊工程（{fetchErr}）。本机还留着那一版的画布的话，先点上面的「重新留存这一版」；否则只能重新发一条。"
 msgstr "没能取回这条作品的工坊工程（{fetchErr}）。本机还留着那一版的画布的话，先点上面的「重新留存这一版」；否则只能重新发一条。"
 
+#: src/pages/AdminPage.tsx
+msgid "没能处理，请重试"
+msgstr "没能处理，请重试"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（圈好的图还在）。"
 msgstr "没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（圈好的图还在）。"
@@ -7326,6 +7652,10 @@ msgstr "没能存进你的卡片库：登录态可能已经失效。重新登录
 #: src/pages/CustomCardPage.tsx
 msgid "没能存进卡片库：登录态可能已失效"
 msgstr "没能存进卡片库：登录态可能已失效"
+
+#: src/pages/AdminPage.tsx
+msgid "没能完成，请重试"
+msgstr "没能完成，请重试"
 
 #. placeholder {0}: e instanceof Error ? e.message : String(e)
 #: src/components/blockout/VideoStage.tsx
@@ -7434,6 +7764,7 @@ msgid "清理缓存（约 {mbLabel} MB）"
 msgstr "清理缓存（约 {mbLabel} MB）"
 
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/SettingsStoragePage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
@@ -7545,6 +7876,10 @@ msgstr "点赞"
 msgid "点赞失败，稍后再试。"
 msgstr "点赞失败，稍后再试。"
 
+#: src/pages/AdminPage.tsx
+msgid "点过的赞"
+msgstr "点过的赞"
+
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "点错了"
 msgstr "点错了"
@@ -7591,6 +7926,10 @@ msgstr "物理 没有"
 #: src/components/DraftSheet.tsx
 msgid "现在打不开这条草稿"
 msgstr "现在打不开这条草稿"
+
+#: src/pages/AdminPage.tsx
+msgid "现在没有被下架的作品"
+msgstr "现在没有被下架的作品"
 
 #. placeholder {0}: here.toFixed(1)
 #. placeholder {1}: sel.startSec
@@ -7665,9 +8004,18 @@ msgstr "用哪一套方案生成这张卡"
 msgid "用它出片"
 msgstr "用它出片"
 
+#: src/pages/AdminPage.tsx
 #: src/pages/DiscoverPage.tsx
 msgid "用户"
 msgstr "用户"
+
+#: src/pages/AdminPage.tsx
+msgid "用户从 AI 客服转人工的问题，在这里回复"
+msgstr "用户从 AI 客服转人工的问题，在这里回复"
+
+#: src/pages/AdminPage.tsx
+msgid "用户列表"
+msgstr "用户列表"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "用户说"
@@ -7914,6 +8262,10 @@ msgstr "直接发布，不进草稿"
 msgid "直接把素材卡的形象参考图交给「{tierLabel}」档出片，不再画设定帧（更快也更省）"
 msgstr "直接把素材卡的形象参考图交给「{tierLabel}」档出片，不再画设定帧（更快也更省）"
 
+#: src/pages/AdminPage.tsx
+msgid "相关的举报记录、通知、代币流水、卡片/卡组一并清除；<0>⚠ 涉及未成年人（csae）的举报记录会保留</0>，不随删号清除（法定义务例外）。"
+msgstr "相关的举报记录、通知、代币流水、卡片/卡组一并清除；<0>⚠ 涉及未成年人（csae）的举报记录会保留</0>，不随删号清除（法定义务例外）。"
+
 #. placeholder {0}: msg.slice(0, 80)
 #: src/utils/nativeCamera.ts
 msgid "相机没拍成：{0}"
@@ -8029,6 +8381,10 @@ msgstr "知道了，换到「{0}」"
 msgid "确认一下就出片"
 msgstr "确认一下就出片"
 
+#: src/pages/AdminPage.tsx
+msgid "确认下架"
+msgstr "确认下架"
+
 #: src/pages/ProfilePage.tsx
 msgid "确认丢掉"
 msgstr "确认丢掉"
@@ -8036,6 +8392,7 @@ msgstr "确认丢掉"
 #: src/components/CommentDelete.tsx
 #: src/components/DraftSheet.tsx
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/EditPage.tsx
 msgid "确认删除"
 msgstr "确认删除"
@@ -8043,6 +8400,10 @@ msgstr "确认删除"
 #: src/components/PhotoSubjectPicker.tsx
 msgid "确认卡面"
 msgstr "确认卡面"
+
+#: src/pages/AdminPage.tsx
+msgid "确认封禁"
+msgstr "确认封禁"
 
 #: src/pages/SettingsDeactivatePage.tsx
 msgid "确认注销，请原样输入你的用户名 <0>{username}</0>（区分大小写，不含多余空格）："
@@ -8117,6 +8478,10 @@ msgstr "离开标记帧了，这里的落点会不准（画面上的人已经走
 #: src/pages/CardDetailPage.tsx
 msgid "离线模式下加不了参考图"
 msgstr "离线模式下加不了参考图"
+
+#: src/pages/AdminPage.tsx
+msgid "私密"
+msgstr "私密"
 
 #: src/components/WorkshopShareBar.tsx
 msgid "私有：只在你自己的库里。分享后会出现在创意工坊的「从市场添加」里，别人可以把整套卡组装走。"
@@ -8384,10 +8749,12 @@ msgstr "简约模式"
 msgid "算了"
 msgstr "算了"
 
+#: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "管理后台"
 msgstr "管理后台"
 
+#: src/pages/AdminPage.tsx
 #: src/pages/ProfilePage.tsx
 msgid "管理员"
 msgstr "管理员"
@@ -8453,6 +8820,10 @@ msgstr "素材库"
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "素材库里还没有可挂的人物卡"
 msgstr "素材库里还没有可挂的人物卡"
+
+#: src/pages/AdminPage.tsx
+msgid "素材点赞"
+msgstr "素材点赞"
 
 #. placeholder {0}: vEnd.toFixed(1)
 #: src/components/VideoCardAnnotator.tsx
@@ -8744,6 +9115,10 @@ msgstr "表情 {0} 个"
 msgid "表情「{faceName}」→ {expr}"
 msgstr "表情「{faceName}」→ {expr}"
 
+#: src/pages/AdminPage.tsx
+msgid "被平台下架的作品只有作者与管理员看得到。「重新上架」幂等，重复点不会出错。"
+msgstr "被平台下架的作品只有作者与管理员看得到。「重新上架」幂等，重复点不会出错。"
+
 #: src/components/flow/SkillPanel.tsx
 msgid "装"
 msgstr "装"
@@ -8776,6 +9151,10 @@ msgstr "要拍什么"
 msgid "要授权的是<0>别人</0>？让他用自己的手机扫这个码 —— 活体认证必须在<1>他本人</1>的手机上、用他自己的火山账号做， 这正是这份授权有效的原因。"
 msgstr "要授权的是<0>别人</0>？让他用自己的手机扫这个码 —— 活体认证必须在<1>他本人</1>的手机上、用他自己的火山账号做， 这正是这份授权有效的原因。"
 
+#: src/pages/AdminPage.tsx
+msgid "解封"
+msgstr "解封"
+
 #: src/pages/VideoPage.tsx
 msgid "解锁后永久可看"
 msgstr "解锁后永久可看"
@@ -8795,6 +9174,10 @@ msgstr "触摸 · {name}"
 #: src/pages/SupportModelNewPage.tsx
 msgid "触摸区"
 msgstr "触摸区"
+
+#: src/pages/AdminPage.tsx
+msgid "订单"
+msgstr "订单"
 
 #. placeholder {0}: order.orderNo
 #: src/pages/ProfilePage.tsx
@@ -8871,6 +9254,7 @@ msgstr "设置失败，稍后再试。"
 msgid "设置已保存，但重新读取配置失败（{why}），下次进来会按新设置念。"
 msgstr "设置已保存，但重新读取配置失败（{why}），下次进来会按新设置念。"
 
+#: src/pages/AdminPage.tsx
 #: src/pages/FeedPage.tsx
 msgid "评论"
 msgstr "评论"
@@ -8888,6 +9272,14 @@ msgstr "评论了你的作品"
 #: src/pages/VideoPage.tsx
 msgid "评论没发出去，请重试"
 msgstr "评论没发出去，请重试"
+
+#: src/pages/AdminPage.tsx
+msgid "评论点赞"
+msgstr "评论点赞"
+
+#: src/pages/AdminPage.tsx
+msgid "评论管理列表"
+msgstr "评论管理列表"
 
 #: src/pages/CustomCardPage.tsx
 msgid "识别一次 {recogPrice} token，余额 {balance} 不够——去「我的」页充值，或者自己填"
@@ -9061,6 +9453,10 @@ msgstr "说话中"
 msgid "说话风格"
 msgstr "说话风格"
 
+#: src/pages/AdminPage.tsx
+msgid "请先登录。"
+msgstr "请先登录。"
+
 #: src/pages/SupportPersonasPage.tsx
 msgid "读不到人格列表"
 msgstr "读不到人格列表"
@@ -9106,6 +9502,7 @@ msgstr "读不到音色目录"
 #: src/components/CoverPicker.tsx
 #: src/components/flow/CustomFrameSlots.tsx
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/SettingsStoragePage.tsx
 #: src/pages/SupportModelsPage.tsx
 #: src/pages/SupportPage.tsx
@@ -9117,6 +9514,10 @@ msgstr "读取中…"
 #: src/components/flow/FlowCanvas.tsx
 msgid "读取图片…"
 msgstr "读取图片…"
+
+#: src/pages/AdminPage.tsx
+msgid "读取失败"
+msgstr "读取失败"
 
 #: src/components/support/VoiceMixer.tsx
 msgid "读取音色目录…"
@@ -9154,6 +9555,14 @@ msgstr "调节首尾帧"
 #: src/pages/SupportPage.tsx
 msgid "谢谢反馈"
 msgstr "谢谢反馈"
+
+#: src/pages/AdminPage.tsx
+msgid "账号"
+msgstr "账号"
+
+#: src/pages/AdminPage.tsx
+msgid "账号本身永久删除，无法恢复，也无法用同名重建找回任何数据"
+msgstr "账号本身永久删除，无法恢复，也无法用同名重建找回任何数据"
 
 #. placeholder {0}: detail.textures.length
 #: src/pages/SupportModelNewPage.tsx
@@ -9245,9 +9654,18 @@ msgstr "载入成片…"
 msgid "输入条里先打好那句话，再来存成技能"
 msgstr "输入条里先打好那句话，再来存成技能"
 
+#: src/pages/AdminPage.tsx
+msgid "输入用户名确认"
+msgstr "输入用户名确认"
+
 #: src/pages/SettingsDeactivatePage.tsx
 msgid "输入的用户名还对不上"
 msgstr "输入的用户名还对不上"
+
+#. placeholder {0}: u.username ?? noUsername
+#: src/pages/AdminPage.tsx
+msgid "输入该用户的用户名 <0>{0}</0> 以确认："
+msgstr "输入该用户的用户名 <0>{0}</0> 以确认："
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "边界"
@@ -9287,6 +9705,7 @@ msgstr "返回工坊"
 msgid "返回挑选"
 msgstr "返回挑选"
 
+#: src/pages/AdminPage.tsx
 #: src/pages/EditPage.tsx
 #: src/pages/VideoPage.tsx
 msgid "返回首页"
@@ -9355,6 +9774,10 @@ msgstr "还没有人分享卡片"
 #: src/pages/WorkshopPage.tsx
 msgid "还没有人分享卡组"
 msgstr "还没有人分享卡组"
+
+#: src/pages/AdminPage.tsx
+msgid "还没有任何举报"
+msgstr "还没有任何举报"
 
 #: src/pages/DiscoverPage.tsx
 #: src/pages/FeedPage.tsx
@@ -9610,6 +10033,10 @@ msgstr "这一秒已经标过了（播放头刚好落回同一帧）。"
 msgid "这一组模板暂时套不了"
 msgstr "这一组模板暂时套不了"
 
+#: src/pages/AdminPage.tsx
+msgid "这一页只有管理员能进"
+msgstr "这一页只有管理员能进"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "这一页填的东西会清空，已经选的包也要重新选一次。"
 msgstr "这一页填的东西会清空，已经选的包也要重新选一次。"
@@ -9821,6 +10248,10 @@ msgstr "这几句里同时写了中文和英文的段号，分不清是哪一段
 msgid "这台服务器没配云端语音，试听不了；保存设置仍然有效。"
 msgstr "这台服务器没配云端语音，试听不了；保存设置仍然有效。"
 
+#: src/pages/AdminPage.tsx
+msgid "这台服务器还不支持删除（需要升级服务端）"
+msgstr "这台服务器还不支持删除（需要升级服务端）"
+
 #: src/pages/EditPage.tsx
 msgid "这台服务器还不支持回炉重做。等服务器更新后再试。"
 msgstr "这台服务器还不支持回炉重做。等服务器更新后再试。"
@@ -9837,9 +10268,21 @@ msgstr "这台服务器还不支持搜人，@ 可能收不到"
 msgid "这台服务器还没开直传，刚才走的是慢的那条 —— 包要经过我们的服务器，大包在手机网络上有可能超时。这条路上识别不会把包留下，所以最后<0>发布时还要再传一次</0>。"
 msgstr "这台服务器还没开直传，刚才走的是慢的那条 —— 包要经过我们的服务器，大包在手机网络上有可能超时。这条路上识别不会把包留下，所以最后<0>发布时还要再传一次</0>。"
 
+#: src/pages/AdminPage.tsx
+msgid "这台服务器还没有{what}接口（需要升级服务端）。这不代表列表是空的 —— 是这一头根本问不到。"
+msgstr "这台服务器还没有{what}接口（需要升级服务端）。这不代表列表是空的 —— 是这一头根本问不到。"
+
+#: src/pages/AdminPage.tsx
+msgid "这台服务器还没有举报接口（需要升级服务端）。这不代表没有举报 —— 是这一头根本收不到。"
+msgstr "这台服务器还没有举报接口（需要升级服务端）。这不代表没有举报 —— 是这一头根本收不到。"
+
 #: src/components/support/VoiceMixer.tsx
 msgid "这台服务器还没有可混音的 1.0 音色目录（服务端需要更新），先用「单音色」。"
 msgstr "这台服务器还没有可混音的 1.0 音色目录（服务端需要更新），先用「单音色」。"
+
+#: src/pages/AdminPage.tsx
+msgid "这台服务器还没有平台数据接口（需要升级服务端）"
+msgstr "这台服务器还没有平台数据接口（需要升级服务端）"
 
 #: src/pages/DiscoverPage.tsx
 msgid "这台服务器还没有搜人功能 · 服务端升级后即可使用，App 不用重装"
@@ -10175,6 +10618,10 @@ msgstr "这组卡没能同步到服务器"
 msgid "这里只能填数字。"
 msgstr "这里只能填数字。"
 
+#: src/pages/AdminPage.tsx
+msgid "这里的每一个动作都由服务端按 role 重新鉴权一次。<0/>看不到内容就不要下架 —— 举报理由只是线索，不是结论。"
+msgstr "这里的每一个动作都由服务端按 role 重新鉴权一次。<0/>看不到内容就不要下架 —— 举报理由只是线索，不是结论。"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "进卡的那一张"
 msgstr "进卡的那一张"
@@ -10190,6 +10637,10 @@ msgstr "进铸卡桌面"
 #: src/pages/CustomCardPage.tsx
 msgid "连不上服务器，现在铸出来的卡会丢（见上）"
 msgstr "连不上服务器，现在铸出来的卡会丢（见上）"
+
+#: src/pages/AdminPage.tsx
+msgid "连内容一起删掉，不可撤销"
+msgstr "连内容一起删掉，不可撤销"
 
 #: src/pages/WorkshopPage.tsx
 msgid "连圈多张，打包成一组"
@@ -10299,6 +10750,18 @@ msgstr "透明度组 没有"
 msgid "逐格传自己的图 · 不花钱"
 msgstr "逐格传自己的图 · 不花钱"
 
+#: src/pages/AdminPage.tsx
+msgid "通知"
+msgstr "通知"
+
+#: src/pages/AdminPage.tsx
+msgid "通知内容（以平台名义送达对方的消息页）"
+msgstr "通知内容（以平台名义送达对方的消息页）"
+
+#: src/pages/AdminPage.tsx
+msgid "通知已发送"
+msgstr "通知已发送"
+
 #. placeholder {0}: state.error
 #: src/pages/NotificationsPage.tsx
 msgid "通知没拉到：{0}"
@@ -10344,6 +10807,10 @@ msgstr "重截预览"
 #: src/components/PhotoSubjectPicker.tsx
 msgid "重描"
 msgstr "重描"
+
+#: src/pages/AdminPage.tsx
+msgid "重新上架"
+msgstr "重新上架"
 
 #: src/pages/NotificationsPage.tsx
 msgid "重新剪辑了你收藏的作品"
@@ -10603,6 +11070,10 @@ msgstr "首帧承接上一段尾帧"
 #: src/components/TabBar.tsx
 msgid "首页"
 msgstr "首页"
+
+#: src/pages/AdminPage.tsx
+msgid "驳回"
+msgstr "驳回"
 
 #: src/components/support/HoldToTalk.tsx
 #: src/components/VoiceRecorder.tsx
