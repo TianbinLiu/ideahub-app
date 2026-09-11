@@ -10,6 +10,7 @@ import AuthPending from "../components/AuthPending";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { Link } from "react-router";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { cardsLoadIssue,
   type Deck,
   browseSharedCards,
@@ -85,10 +86,12 @@ function usePlaza<T>(enabled: boolean, load: () => Promise<T[]>, deps: unknown[]
 /** 广场取数失败时的那一行：说清楚 + 能重试。两个广场共用 */
 /** 广场拉挂了：列表反正是空的，就按空态那一份画（error 红字 + 重试键），别再另画一条行内报错 */
 function PlazaError({ error, onRetry }: { error: string; onRetry: () => void }) {
-  return <EmptyState error emoji="📡" text={`没取到：${error}`} cta={{ label: "重试", onClick: onRetry }} />;
+  const { t } = useLingui();
+  return <EmptyState error emoji="📡" text={t`没取到：${error}`} cta={{ label: t`重试`, onClick: onRetry }} />;
 }
 
 function CardTile({ card, onRemove, to }: { card: Card; onRemove?: () => void; to?: string }) {
+  const { t } = useLingui();
   const face = (
     <TarotCard cover={card.cover || null} title={card.name} sub={CARD_TYPE_LABELS[card.type]} type={card.type} />
   );
@@ -97,14 +100,14 @@ function CardTile({ card, onRemove, to }: { card: Card; onRemove?: () => void; t
       {to ? <Link to={to}>{face}</Link> : face}
       {/* 🔊 = 带声音样本（本机侧库，data/cardVoice）。用户按"有没有声音"挑卡就靠这一眼 */}
       {voiceOf(card.id) && (
-        <span className="absolute left-1 top-1 rounded bg-black/70 px-1 text-[10px]" title="带声音样本">
+        <span className="absolute left-1 top-1 rounded bg-black/70 px-1 text-[10px]" title={t`带声音样本`}>
           🔊
         </span>
       )}
       {onRemove && (
         <button
           onClick={onRemove}
-          aria-label="移除"
+          aria-label={t`移除`}
           className="absolute right-1.5 top-1.5 hidden h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs text-slate-200 group-hover:flex"
         >
           <Icon name="close" size={16} />
@@ -120,6 +123,7 @@ export default function WorkshopPage() {
   // ★ 这个判断必须放在下面所有 hook 之后再 return，否则登录前后 hook 数量不一致会直接崩。
   const me = useCurrentUser();
   const auth = useAuthState();
+  const { t } = useLingui();
   const cards = myCards();
   const decks = myDecks();
   // ★ 2026-08-21 加第三个页签「我的模板」（用户点名：模板与卡片/卡组同住创意工坊，
@@ -147,6 +151,7 @@ export default function WorkshopPage() {
   const [extractOpen, setExtractOpen] = useState<null | "deck" | "single">(null);
   useSyncExternalStore(subscribeVoices, voicesVersion, () => 0);
   const remote = isRemoteMode();
+  const kw = q.trim();
 
   // ★★ 这里原来还有一份**本地种子市场**（searchMarket）。2026-08-24 卡片系统 V2 清库时
   //   `ai/index.ts` 把它硬写成了 `async () => []`，于是这一整套 —— loading 态、
@@ -185,8 +190,8 @@ export default function WorkshopPage() {
       <EmptyState
         full
         icon="cards"
-        text="登录后可以收藏卡片、组建卡组"
-        cta={{ label: "登录 / 注册", to: "/login?next=/workshop", primary: true }}
+        text={t`登录后可以收藏卡片、组建卡组`}
+        cta={{ label: t`登录 / 注册`, to: "/login?next=/workshop", primary: true }}
       />
     );
   }
@@ -194,12 +199,12 @@ export default function WorkshopPage() {
   return (
     <div className="min-h-full px-4 pb-10">
       <PageHeader
-        title="创意工坊"
+        title={t`创意工坊`}
         right={
           <>
             <HelpButton tour="workshop" className="mr-2" />
             <Link data-guide="workshop-studio-entry" to="/studio" className="flex-none rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink">
-              🎴 进入 3D 工坊
+              <Trans>🎴 进入 3D 工坊</Trans>
             </Link>
           </>
         }
@@ -207,30 +212,30 @@ export default function WorkshopPage() {
 
       {/* 统计条 */}
       <div className="mb-3 flex gap-2 no-scrollbar overflow-x-auto pb-1 text-[11px]">
-        <span className="flex-none rounded-full bg-panel px-2.5 py-1 text-slate-300">共 {cards.length} 张卡</span>
-        {Object.entries(byType).map(([t, n]) => (
+        <span className="flex-none rounded-full bg-panel px-2.5 py-1 text-slate-300"><Trans>共 {cards.length} 张卡</Trans></span>
+        {Object.entries(byType).map(([kind, n]) => (
           <span
-            key={t}
+            key={kind}
             className="flex-none rounded-full px-2.5 py-1"
-            style={{ color: CARD_TYPE_COLORS[t as CardType], background: CARD_TYPE_COLORS[t as CardType] + "1f" }}
+            style={{ color: CARD_TYPE_COLORS[kind as CardType], background: CARD_TYPE_COLORS[kind as CardType] + "1f" }}
           >
-            {CARD_TYPE_LABELS[t as CardType]} {n}
+            {CARD_TYPE_LABELS[kind as CardType]} {n}
           </span>
         ))}
-        <span className="flex-none rounded-full bg-panel px-2.5 py-1 text-slate-300">{decks.length} 个卡组</span>
+        <span className="flex-none rounded-full bg-panel px-2.5 py-1 text-slate-300"><Trans>{decks.length} 个卡组</Trans></span>
       </div>
 
       {/* 页签：卡片 / 卡组 / 模板同一行（模板那格连着模板市场，见 TemplateShelf） */}
       <div data-guide="workshop-tabs" className="mb-3 flex gap-2">
-        {(["cards", "decks", "templates"] as const).map((t) => (
+        {(["cards", "decks", "templates"] as const).map((tb) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={tb}
+            onClick={() => setTab(tb)}
             className={`rounded-full px-3.5 py-1.5 text-xs ${
-              tab === t ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
+              tab === tb ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
             }`}
           >
-            {t === "cards" ? "我的卡片" : t === "decks" ? "我的卡组" : "我的模板"}
+            {tb === "cards" ? t`我的卡片` : tb === "decks" ? t`我的卡组` : t`我的模板`}
           </button>
         ))}
       </div>
@@ -282,9 +287,9 @@ export default function WorkshopPage() {
             /* ★ 「没问到」不许说成「没有」：卡是真花过 token 铸的，说错这一句
                 用户读到的是「我付钱铸的卡全没了」（同 ProfilePage 的 worksKnown） */
             cardsLoadIssue() ? (
-              <EmptyState error emoji="🃏" text={`这会儿没能取到你的卡片（${cardsLoadIssue()}）`} hint="它们还在，联网后重开一次" />
+              <EmptyState error emoji="🃏" text={t`这会儿没能取到你的卡片（${cardsLoadIssue()}）`} hint={t`它们还在，联网后重开一次`} />
             ) : (
-              <EmptyState emoji="🃏" text="还没有卡片" hint="用下面几种方式做第一张" />
+              <EmptyState emoji="🃏" text={t`还没有卡片`} hint={t`用下面几种方式做第一张`} />
             )
           )}
 
@@ -294,8 +299,8 @@ export default function WorkshopPage() {
           <div data-guide="workshop-extract-card" className="mb-5 flex gap-2">
             {(
               [
-                ["deck", "🎴", "从视频提取卡组", "连圈多张，打包成一组"],
-                ["single", "🎯", "从视频提取卡片", "圈一张就走"],
+                ["deck", "🎴", t`从视频提取卡组`, t`连圈多张，打包成一组`],
+                ["single", "🎯", t`从视频提取卡片`, t`圈一张就走`],
               ] as const
             ).map(([mode, icon, title, sub]) => (
               <button
@@ -322,16 +327,16 @@ export default function WorkshopPage() {
           >
             <span className="text-2xl">🖼</span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-100">自己传图做卡片</span>
+              <span className="block text-sm font-semibold text-slate-100"><Trans>自己传图做卡片</Trans></span>
               <span className="block text-[11px] text-slate-400">
-                用你自己的图当卡面与形象参考，不经过 AI 出图 · 不消耗 token
+                <Trans>用你自己的图当卡面与形象参考，不经过 AI 出图 · 不消耗 token</Trans>
               </span>
             </span>
             <Icon name="chevron" size={18} />
           </Link>
 
           <div className="mb-2 flex items-center gap-3">
-            <h2 className="text-sm font-semibold text-slate-300">从市场添加</h2>
+            <h2 className="text-sm font-semibold text-slate-300"><Trans>从市场添加</Trans></h2>
             <div className="ml-auto flex gap-1 rounded-full bg-panel p-0.5">
               {(["cards", "decks"] as const).map((sc) => (
                 <button
@@ -341,7 +346,7 @@ export default function WorkshopPage() {
                     source === sc ? "bg-brand font-semibold text-ink" : "text-slate-400"
                   }`}
                 >
-                  {sc === "cards" ? "卡片" : "卡组"}
+                  {sc === "cards" ? t`卡片` : t`卡组`}
                 </button>
               ))}
             </div>
@@ -351,7 +356,7 @@ export default function WorkshopPage() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder={source === "cards" ? "搜索卡片名 / 标签" : "搜索别人分享的卡组"}
+              placeholder={source === "cards" ? t`搜索卡片名 / 标签` : t`搜索别人分享的卡组`}
               className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
             />
           </div>
@@ -362,20 +367,20 @@ export default function WorkshopPage() {
                —— 用户看到的是"社区分享的卡凭空没了"，既不知道为什么、也不知道该干什么
                （铁律八）。口径照 TemplateShelf 那份。 */
             !remote ? (
-              <EmptyState emoji="📡" text="这次没连上服务器，看不到别人分享的卡" hint="卡片广场在服务器上，离线库里没有「别人」" />
+              <EmptyState emoji="📡" text={t`这次没连上服务器，看不到别人分享的卡`} hint={t`卡片广场在服务器上，离线库里没有「别人」`} />
             ) : cardPlaza.error ? (
               <PlazaError error={cardPlaza.error} onRetry={cardPlaza.reload} />
             ) : cardPlaza.loading && sharedCards.length === 0 ? (
-              <EmptyState loading text="正在取卡片广场…" />
+              <EmptyState loading text={t`正在取卡片广场…`} />
             ) : sharedCards.length === 0 ? (
               <EmptyState
                 emoji="🃏"
-                text={q.trim() ? `没有搜到「${q.trim()}」相关的卡` : "还没有人分享卡片"}
-                hint={q.trim() ? "换个词试试，或者清空搜索框看看大家都分享了什么" : "你可以在自己的卡片详情页按「分享到创意工坊」，成为第一个"}
+                text={kw ? t`没有搜到「${kw}」相关的卡` : t`还没有人分享卡片`}
+                hint={kw ? t`换个词试试，或者清空搜索框看看大家都分享了什么` : t`你可以在自己的卡片详情页按「分享到创意工坊」，成为第一个`}
               />
             ) : (
               <>
-                <div className="mb-1.5 text-[11px] text-slate-400">社区分享的卡</div>
+                <div className="mb-1.5 text-[11px] text-slate-400"><Trans>社区分享的卡</Trans></div>
                 <div className="mb-4 grid grid-cols-3 gap-2.5">
                     {sharedCards.map((c) => {
                       const owned = ownedIds.has(c.cardId) || c.installed || c.isOwner;
@@ -418,7 +423,7 @@ export default function WorkshopPage() {
                             disabled={owned || busyCard === c.cardId}
                             className="mt-1 w-full text-center text-[10px] text-slate-400 disabled:text-slate-600"
                           >
-                            {c.isOwner ? "我发的" : owned ? "已拥有" : busyCard === c.cardId ? "添加中…" : "＋ 添加"}
+                            {c.isOwner ? t`我发的` : owned ? t`已拥有` : busyCard === c.cardId ? t`添加中…` : t`＋ 添加`}
                           </button>
                         </div>
                       );
@@ -428,13 +433,13 @@ export default function WorkshopPage() {
               </>
             )
           ) : !remote ? (
-            <EmptyState emoji="📡" text="登录服务器后可以浏览别人分享的卡组" />
+            <EmptyState emoji="📡" text={t`登录服务器后可以浏览别人分享的卡组`} />
           ) : deckPlaza.error ? (
             <PlazaError error={deckPlaza.error} onRetry={deckPlaza.reload} />
           ) : deckPlaza.loading ? (
-            <EmptyState loading text="正在取卡组广场…" />
+            <EmptyState loading text={t`正在取卡组广场…`} />
           ) : shared.length === 0 ? (
-            <EmptyState emoji="🗂️" text={q ? "没有匹配的卡组" : "还没有人分享卡组"} hint={q ? undefined : "你可以第一个"} />
+            <EmptyState emoji="🗂️" text={q ? t`没有匹配的卡组` : t`还没有人分享卡组`} hint={q ? undefined : t`你可以第一个`} />
           ) : (
             <div className="space-y-2.5 pb-4">
               {shared.map((d) => (
@@ -452,9 +457,10 @@ export default function WorkshopPage() {
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-slate-100">{d.name}</div>
                     <div className="mt-0.5 truncate text-[11px] text-slate-500">
-                      {d.author?.displayName || d.author?.username || "匿名"} · {d.cardCount} 张
-                      {d.installs > 0 ? ` · ${d.installs} 人装过` : ""}
-                      {d.remixOf ? ` · 改自 @${d.remixOf.displayName || d.remixOf.username}` : ""}
+                      {d.author?.displayName || d.author?.username || t`匿名`}
+                      {t` · ${d.cardCount} 张`}
+                      {d.installs > 0 ? t` · ${d.installs} 人装过` : ""}
+                      {d.remixOf ? t` · 改自 @${d.remixOf.displayName || d.remixOf.username}` : ""}
                     </div>
                     {d.description && <div className="mt-0.5 truncate text-[11px] text-slate-400">{d.description}</div>}
                   </div>
@@ -474,7 +480,7 @@ export default function WorkshopPage() {
                     }}
                     className="min-h-[32px] shrink-0 rounded-full bg-brand px-3 text-[11px] font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
                   >
-                    {d.isOwner ? "我发的" : d.installed ? "已添加" : busyDeck === d._id ? "添加中…" : "＋ 添加"}
+                    {d.isOwner ? t`我发的` : d.installed ? t`已添加` : busyDeck === d._id ? t`添加中…` : t`＋ 添加`}
                   </button>
                 </div>
               ))}
@@ -487,10 +493,10 @@ export default function WorkshopPage() {
           {deckErr && <div className="mb-2 text-xs text-rose-300">{deckErr}</div>}
           <button
             data-guide="workshop-deck-new"
-            onClick={() => createDeck(`卡组 ${decks.length + 1}`)}
+            onClick={() => createDeck(t`卡组 ${decks.length + 1}`)}
             className="mb-3 w-full rounded-xl border border-dashed border-slate-600 py-3 text-sm text-slate-300"
           >
-            ＋ 新建卡组
+            <Trans>＋ 新建卡组</Trans>
           </button>
           <div className="space-y-3 pb-4">
             {decks.map((d) => {
@@ -514,16 +520,16 @@ export default function WorkshopPage() {
                       // 编辑中允许空串（否则清空输入框会立刻跳字），失焦时补默认名——
                       // 服务端的 name 是 min(1)，两边都兜一次才不会出现"本地空 / 远端未命名"的分叉
                       onBlur={(e) => {
-                        if (!e.target.value.trim()) updateDeck(d.id, { name: "未命名卡组" });
+                        if (!e.target.value.trim()) updateDeck(d.id, { name: t`未命名卡组` });
                       }}
                       className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-100 outline-none"
                     />
-                    <span className="text-[11px] text-slate-500">{d.cardIds.length} 张</span>
+                    <span className="text-[11px] text-slate-500"><Trans>{d.cardIds.length} 张</Trans></span>
                     <button onClick={() => setEditing(open ? null : d.id)} className="text-xs text-brand">
-                      {open ? "完成" : "编辑"}
+                      {open ? t`完成` : t`编辑`}
                     </button>
                     <button onClick={() => setAskDeck(d)} className="text-xs text-rose-400">
-                      删除
+                      <Trans>删除</Trans>
                     </button>
                   </div>
 
@@ -550,7 +556,7 @@ export default function WorkshopPage() {
                       {/* ★ 只留"点它就是加/减"这半句：卡长得就是卡、没有按钮相，全页只有这一句
                           在**事前**说明；而设封面那颗按钮自己就写着「设封面」，说明放在按钮上比
                           放在这行小字里更近 —— 而这一行每展开一个卡组就重印一遍。 */}
-                      <div className="mb-1.5 text-[11px] text-slate-400">点卡片加入 / 移出</div>
+                      <div className="mb-1.5 text-[11px] text-slate-400"><Trans>点卡片加入 / 移出</Trans></div>
                       <div className="grid grid-cols-4 gap-2">
                         {cards.map((c) => {
                           const on = d.cardIds.includes(c.id);
@@ -573,12 +579,12 @@ export default function WorkshopPage() {
                                     e.stopPropagation();
                                     updateDeck(d.id, { coverCardId: c.id });
                                   }}
-                                  title={isCover ? "当前封面卡" : "设为卡组封面"}
+                                  title={isCover ? t`当前封面卡` : t`设为卡组封面`}
                                   className={`absolute left-1 top-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
                                     isCover ? "bg-gold text-ink" : "bg-black/65 text-slate-200 hover:bg-black/85"
                                   }`}
                                 >
-                                  {isCover ? "★ 封面" : "设封面"}
+                                  {isCover ? t`★ 封面` : t`设封面`}
                                 </button>
                               )}
                             </div>
@@ -591,7 +597,7 @@ export default function WorkshopPage() {
               );
             })}
             {decks.length === 0 && (
-              <EmptyState emoji="🗂️" text="还没有卡组" hint="建一个把常用素材归到一起" />
+              <EmptyState emoji="🗂️" text={t`还没有卡组`} hint={t`建一个把常用素材归到一起`} />
             )}
           </div>
         </>

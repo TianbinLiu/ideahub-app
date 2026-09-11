@@ -21,6 +21,8 @@ import { acquireCard, bindCardAsset, cardsReady, fetchSharedCard, isRemoteMode, 
 import { addCardView, addPreparedCardView, removeCardView, replaceCardView, viewSourceBlob } from "../data/cardViews";
 import PhotoSubjectPicker from "../components/PhotoSubjectPicker";
 import { freshSubjectPick, type SubjectPick } from "../studio/customCardStore";
+import { i18n } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
 import { assetPersisted, assetSyncIssue, assetsVersion, subscribeAssets } from "../data/cardAsset";
@@ -60,7 +62,9 @@ import { useAccountVersion } from "../hooks/useAccount";
  */
 function cardInfoOf(card: Card): string {
   if (card.genPrompt) return card.genPrompt;
+  // i18n-ignore-next-line: 这段是现补的铸卡提示词（与 ai/real.forgePrimary 同款格式），照原样交给模型才复刻得出卡面
   const tags = card.tags?.length ? `关键词：${card.tags.join("、")}。` : "";
+  // i18n-ignore-next-line: 同上，提示词正文冻结中文（类型名与画风尾巴也取自 ai/real 的提示词表）
   return `${TYPE_LABEL[card.type]}：${card.name}。${card.summary}${tags}${cardStyleSuffix(card.type, "卡面")}`;
 }
 
@@ -78,7 +82,7 @@ function shareModelNote(card: Card): string | null {
   const raw = card.modelUrl;
   if (!raw) return null;
   if (publishableModelUrl(raw)) return null;
-  return "注意：这张卡的 3D 建模只存在这台设备上，分享出去的那份不会带建模。";
+  return i18n._(msg`注意：这张卡的 3D 建模只存在这台设备上，分享出去的那份不会带建模。`);
 }
 
 // ── 形象参考图（多图参考）─────────────────────────────────────────
@@ -99,8 +103,10 @@ function shareModelNote(card: Card): string | null {
  *   "哪几格真被喂进去"一律归 pipelineNoteFor 说（铁律六：一条规则只有一处口径）。
  */
 function hintFor(type: CardType): string {
-  const parts = CARD_SLOTS[type].map((s) => `${s.label}锁${s.locks}`).join("；");
-  return `每个图位各锁住一件事：${parts}。`;
+  // 模块级函数拿不到 useLingui：用 i18n._(msg) 在调用那一刻按当前语言翻
+  const sep = i18n._(msg({ message: "；", comment: "列举「每个图位锁什么」时的分隔符" }));
+  const parts = CARD_SLOTS[type].map((s) => i18n._(msg`${s.label}锁${s.locks}`)).join(sep);
+  return i18n._(msg`每个图位各锁住一件事：${parts}。`);
 }
 
 // ── 哪几张真会进出片管线 ────────────────────────────────────────
@@ -134,26 +140,19 @@ function hintFor(type: CardType): string {
 function pipelineNoteFor(type: CardType, views: CardView[]): string {
   if (type !== "character") {
     const first = views[0] ? viewTag(type, views[0]) : CARD_SLOTS[type][0].label;
-    return (
-      `出片时这类卡先保证第 1 张（${first}）喂给 AI；同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，` +
-      `预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。` +
-      `预算不够时「先被丢的就是各卡的第 2 张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。` +
-      // ★ P2-a（2026-08-29）后直通路的预算跟档位协议走（9/30），3 张那句只描述经典路
-      `（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）`
+    // ★ P2-a（2026-08-29）后直通路的预算跟档位协议走（9/30），3 张那句只描述经典路 —— 末尾括号里那句说的就是这件事
+    return i18n._(
+      msg`出片时这类卡先保证第 1 张（${first}）喂给 AI；同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡的第 2 张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）`,
     );
   }
-  return (
-    `出片时一段里只有「第一张人物卡」能带形象参考图：它最多取 ${MAX_CHAR_REFS} 张（优先${slotLabel(
-      "character",
-      "face",
-    )} + ${slotLabel("character", "body")}）；同一段里的其余人物卡一张都不带，只按文字设定参与` +
-    `——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按"这张卡就是那第一张人物卡"标的：` +
-    `它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。` +
-    // ★ 不画设定帧的两条路是**例外**，必须说：白模 r2v 与简约参考图直出（P2-a 放宽后）
-    //   的参考图直接进视频模型，"一张图里画多个角色被拒"根本不适用，每张人物卡各带各的
-    //   形象图。不说这一句，用户会照上面那半句自我设限：以为挂第 2 张人物卡没用。
-    `（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）` +
-    `${slotLabel("character", "detail")}这一格铸卡不会自动出图（只能自己传），三张挂满时它也排在最后，出片轮不到它。`
+  const face = slotLabel("character", "face");
+  const body = slotLabel("character", "body");
+  const detail = slotLabel("character", "detail");
+  // ★ 不画设定帧的两条路是**例外**，必须说（倒数第二个括号那句）：白模 r2v 与简约参考图直出（P2-a 放宽后）
+  //   的参考图直接进视频模型，"一张图里画多个角色被拒"根本不适用，每张人物卡各带各的
+  //   形象图。不说这一句，用户会照上面那半句自我设限：以为挂第 2 张人物卡没用。
+  return i18n._(
+    msg`出片时一段里只有「第一张人物卡」能带形象参考图：它最多取 ${MAX_CHAR_REFS} 张（优先${face} + ${body}）；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按"这张卡就是那第一张人物卡"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）${detail}这一格铸卡不会自动出图（只能自己传），三张挂满时它也排在最后，出片轮不到它。`,
   );
 }
 
@@ -174,6 +173,7 @@ function pipelineNoteFor(type: CardType, views: CardView[]): string {
 function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
   useSyncExternalStore(subscribeAssets, assetsVersion, () => 0);
   const [saveErr, setSaveErr] = useState("");
+  const { t } = useLingui();
   if (card.type !== "character" || card.realPerson !== true || !owned) return null;
   // ★★ 判**落盘了吗**，不是"内存里有吗"（2026-09-01 复核抓到）：saveAsset 写内存那一拍就
   //   emit()，只问 assetOf 的话窄条在点下去那一瞬间就没了 —— 连同它下面那句错误提示，
@@ -184,15 +184,14 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
     const issue = assetSyncIssue(card.id);
     return issue ? (
       <p className="mb-4 rounded-lg border border-amber-500/40 bg-amber-400/5 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
-        🪪 肖像授权已在本机接上，但还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。
+        <Trans>🪪 肖像授权已在本机接上，但还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。</Trans>
       </p>
     ) : null;
   }
   return (
     <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-400/5 p-3">
       <p className="mb-1.5 text-[11px] leading-relaxed text-amber-200/90">
-        🪪 这张真人卡还<b className="text-amber-100">没接上已授权的肖像素材</b>——
-        「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。
+        <Trans>🪪 这张真人卡还<b className="text-amber-100">没接上已授权的肖像素材</b>——「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。</Trans>
       </p>
       <PortraitAuthPanel
         onBound={(assetId, note) => {
@@ -202,8 +201,8 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
           //   原来那条 `.catch` 一次都跑不到（2026-09-01 修 cardAsset 契约时一并改）。
           //   服务端那半（换台设备看得到）由 bindCardAsset 记进侧库，上面 assetPersisted 那支把话说出来
           void bindCardAsset(card.id, { assetId, scope: "private", note }).then(
-            (b) => b.stored || setSaveErr("绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"),
-            () => setSaveErr("绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"),
+            (b) => b.stored || setSaveErr(t`绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。`),
+            () => setSaveErr(t`绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。`),
           );
         }}
       />
@@ -227,10 +226,9 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
     if (!owned) return null;
     return (
       <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
-        <span className="mb-1.5 text-xs font-semibold text-slate-300">🔊 人物声音</span>
+        <span className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🔊 人物声音</Trans></span>
         <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-          这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——
-          出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。
+          <Trans>这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。</Trans>
         </p>
       </div>
     );
@@ -238,7 +236,7 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
   return (
     <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="mb-1.5 text-xs font-semibold text-slate-300">🔊 人物声音 · {v.durationSec}s</span>
+        <span className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🔊 人物声音 · {v.durationSec}s</Trans></span>
         {owned &&
           (confirmRm ? (
             <span className="flex items-center gap-2">
@@ -249,23 +247,23 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
                 }}
                 className="rounded-full bg-rose-500/90 px-2.5 py-1 text-[11px] font-bold text-white"
               >
-                确认移除
+                <Trans>确认移除</Trans>
               </button>
               <button onClick={() => setConfirmRm(false)} className="text-[11px] text-slate-400">
-                不了
+                <Trans>不了</Trans>
               </button>
             </span>
           ) : (
             <button onClick={() => setConfirmRm(true)} className="text-[11px] text-slate-500">
-              移除
+              <Trans>移除</Trans>
             </button>
           ))}
       </div>
       {/* 试听就是这一块存在的意义：样本干不干净只有耳朵能判 */}
       <audio controls src={v.dataUrl} className="h-9 w-full" />
       <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-        {v.note ? `${v.note} · ` : ""}出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段声音的音色
-        （尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。
+        {v.note ? `${v.note} · ` : ""}
+        <Trans>出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。</Trans>
       </p>
     </div>
   );
@@ -408,12 +406,12 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
     <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <span className="shrink-0 text-xs font-semibold text-slate-300">
-          🖼 形象参考{gallery ? `（${views.length}/${MAX_CARD_VIEWS}）` : ""}
+          {gallery ? <Trans>🖼 形象参考（{views.length}/{MAX_CARD_VIEWS}）</Trans> : <Trans>🖼 形象参考</Trans>}
         </span>
         {/* ★ 离线模式**明说做不了**，而不是摆一排点了就报错的按钮：这些图必须先转存成
             永久地址才能给 AI 用（views 不收 dataURL），而离线模式没有服务器可转存。
             摆一个永远点不动的选项是本仓明令禁止的（CLAUDE.md「极致画质」那条）。 */}
-        {owned && !isRemoteMode() && <span className="text-[10px] text-slate-500">离线模式下加不了参考图</span>}
+        {owned && !isRemoteMode() && <span className="text-[10px] text-slate-500"><Trans>离线模式下加不了参考图</Trans></span>}
         {owned && isRemoteMode() && (!full || trimmable) && (
           // ★ flex-wrap：图位按卡种给，人物卡有三个（全身立绘/面部特写/标志性细节），
           //   一行排不下时要往下折，不能顶破这张卡片
@@ -465,7 +463,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                   used[i] ? "bg-brand/85 font-semibold text-ink" : "bg-ink/80 text-slate-400"
                 }`}
               >
-                {used[i] ? "出片用" : "仅展示"}
+                {used[i] ? t`出片用` : t`仅展示`}
               </span>
               <span className="absolute inset-x-0 bottom-0 bg-ink/75 py-0.5 text-center text-[9px] text-slate-300">
                 {viewTag(card.type, v)}
@@ -480,26 +478,25 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
           完整规则（每格锁什么 / 取几张 / 什么情况整张卡带不上）进小窗，点开才读——
           它按卡种动态拼（hintFor / pipelineNoteFor 原样保留），塞不进静态的引导步骤 */}
       <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-        出片时<span className="text-slate-400">不是每张都会喂进模型</span>——「出片用」按单卡乐观口径标，
-        同一段挂的卡多时可能让位。
+        <Trans>出片时<span className="text-slate-400">不是每张都会喂进模型</span>——「出片用」按单卡乐观口径标，同一段挂的卡多时可能让位。</Trans>
         <button onClick={() => setRulesOpen(true)} className="ml-1 text-brand underline underline-offset-2">
-          取舍规则 ›
+          <Trans>取舍规则 ›</Trans>
         </button>
       </p>
       {rulesOpen && (
-        <InfoDialog title="参考图怎么被 AI 取用" onClose={() => setRulesOpen(false)}>
+        <InfoDialog title={t`参考图怎么被 AI 取用`} onClose={() => setRulesOpen(false)}>
           <p>{hintFor(card.type)}</p>
           <p>{pipelineNoteFor(card.type, views)}</p>
         </InfoDialog>
       )}
       {owned && full && (
         <p className="mt-1 text-[10px] text-slate-500">
-          已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。
+          <Trans>已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。</Trans>
         </p>
       )}
       {note && <p className="mt-1 text-[11px] text-amber-400">{note}</p>}
       {err && <p className="mt-1 text-[11px] text-rose-300">{err}</p>}
-      {busy && <p className="mt-1 text-[11px] text-slate-400">处理中…</p>}
+      {busy && <p className="mt-1 text-[11px] text-slate-400"><Trans>处理中…</Trans></p>}
 
       <input
         ref={fileRef}
@@ -545,7 +542,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                   "会喂给 AI"（人物卡排在别人后面、或一段挂满 3 张时都不成立）。
                   这里不重判规则（used 仍来自 ai/real.refUsedFlags），只是把口径说全 */}
               <span className={`ml-2 text-[11px] ${used[zoom] ? "text-brand" : "text-slate-500"}`}>
-                {used[zoom] ? "· 出片时会喂给 AI（同一段挂的卡多时可能让位）" : "· 只在这一页展示，出片用不到"}
+                {used[zoom] ? t`· 出片时会喂给 AI（同一段挂的卡多时可能让位）` : t`· 只在这一页展示，出片用不到`}
               </span>
             </div>
             {views[zoom].note && <div className="max-w-xs text-center text-[11px] text-amber-400">{views[zoom].note}</div>}
@@ -570,10 +567,10 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                 }}
                 className="rounded-full bg-rose-500/90 px-4 py-1.5 text-xs font-bold text-white disabled:opacity-40"
               >
-                删掉这张
+                <Trans>删掉这张</Trans>
               </button>
             )}
-            <div className="text-[10px] text-slate-500">点任意处关闭</div>
+            <div className="text-[10px] text-slate-500"><Trans>点任意处关闭</Trans></div>
           </div>,
           document.body,
         )}
@@ -587,6 +584,7 @@ export default function CardDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const loc = useLocation();
+  const { t } = useLingui();
   useCountView("card", id);
   // 优先账号库；不在库里（比如看别人作品的卡组）用路由 state 里带来的卡
   // ★ 依赖里带上 accountV：账号库是原地改对象的单例，不把版本号写进依赖，
@@ -654,7 +652,7 @@ export default function CardDetailPage() {
     //   ① 账号资产还在装 ② 正在去广场上取 ③ 这次没取成 ④ 真的没有
     if (hydrating || (isRemoteMode() && !remote)) {
       return (
-        <EmptyState full loading text={hydrating ? "正在装载你的卡片库…" : "正在从创意工坊取这张卡…"} />
+        <EmptyState full loading text={hydrating ? t`正在装载你的卡片库…` : t`正在从创意工坊取这张卡…`} />
       );
     }
     if (remote?.err) {
@@ -663,9 +661,9 @@ export default function CardDetailPage() {
           full
           icon="cards"
           error
-          text={`这次没取到这张卡：${remote.err}`}
-          hint="这不代表它不存在，只是这次没问到"
-          cta={{ label: "重试", onClick: () => setRemote(null) }}
+          text={t`这次没取到这张卡：${remote.err}`}
+          hint={t`这不代表它不存在，只是这次没问到`}
+          cta={{ label: t`重试`, onClick: () => setRemote(null) }}
         />
       );
     }
@@ -678,8 +676,8 @@ export default function CardDetailPage() {
       <EmptyState
         full
         icon="cards"
-        text={`这张卡不在你的收藏里${isRemoteMode() ? "，创意工坊的广场上也没有" : ""}`}
-        cta={{ label: "去创意工坊", to: "/workshop", primary: true }}
+        text={isRemoteMode() ? t`这张卡不在你的收藏里，创意工坊的广场上也没有` : t`这张卡不在你的收藏里`}
+        cta={{ label: t`去创意工坊`, to: "/workshop", primary: true }}
       />
     );
   }
@@ -690,7 +688,7 @@ export default function CardDetailPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => nav(-1)} title="卡片详情" />
+      <PageHeader sticky inset onBack={() => nav(-1)} title={t`卡片详情`} />
 
       {/* 大卡面 / 全息建模 双栏 */}
       <div className="mb-4 flex justify-center gap-3">
@@ -705,7 +703,7 @@ export default function CardDetailPage() {
           <div className="relative w-44 overflow-hidden rounded-2xl bg-ink/85">
             <CardHologram url={model.url} />
             <span className="pointer-events-none absolute inset-x-0 bottom-1.5 text-center text-[10px] tracking-wide text-cyan-300/90">
-              ✦ 全息实体 3D 建模
+              <Trans>✦ 全息实体 3D 建模</Trans>
             </span>
           </div>
         )}
@@ -726,7 +724,7 @@ export default function CardDetailPage() {
             }}
             className="rounded-full border border-slate-600 px-2 py-0.5 text-[10px] text-slate-400"
           >
-            改名
+            <Trans>改名</Trans>
           </button>
         )}
         <span className="rounded-full border px-2 py-0.5 text-xs" style={{ color, borderColor: color }}>
@@ -737,13 +735,13 @@ export default function CardDetailPage() {
             现在走 social.heatOf：远端模式是服务端算的全局值，离线/老服务端
             退回本机计数，并在旁边如实标出来。 */}
         <span className="text-xs text-gold">🔥 {formatHeat(heat.heat)}</span>
-        {heat.source === "local" && <span className="text-[10px] text-slate-600">本机计数</span>}
+        {heat.source === "local" && <span className="text-[10px] text-slate-600"><Trans>本机计数</Trans></span>}
       </div>
       {card.tags && card.tags.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1">
-          {card.tags.map((t) => (
-            <span key={t} className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
-              #{t}
+          {card.tags.map((tag) => (
+            <span key={tag} className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
+              #{tag}
             </span>
           ))}
         </div>
@@ -764,11 +762,10 @@ export default function CardDetailPage() {
           摆出来说成是就违反铁律五 */}
       {card.idLine && (
         <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
-          <div className="mb-1.5 text-xs font-semibold text-slate-300">🎯 出片身份句</div>
+          <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🎯 出片身份句</Trans></div>
           <p className="text-xs leading-relaxed text-slate-400">{card.idLine}</p>
           <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-            出片时提示词里代表这张卡的固定一句（逐段复用同一措辞，形象更稳）。长设定进画面靠上面的参考图与
-            {CARD_INFO_LABELS[card.type]}，不直接塞进视频提示词。
+            <Trans>出片时提示词里代表这张卡的固定一句（逐段复用同一措辞，形象更稳）。长设定进画面靠上面的参考图与{CARD_INFO_LABELS[card.type]}，不直接塞进视频提示词。</Trans>
           </p>
         </div>
       )}
@@ -780,11 +777,11 @@ export default function CardDetailPage() {
           <span className="mb-1.5 text-xs font-semibold text-slate-300">🧬 {CARD_INFO_LABELS[card.type]}</span>
           <button
             onClick={() => {
-              void navigator.clipboard?.writeText(cardInfo).then(() => showToast("已复制"));
+              void navigator.clipboard?.writeText(cardInfo).then(() => showToast(t`已复制`));
             }}
             className="rounded-full bg-slate-700/70 px-2.5 py-1 text-[11px] text-slate-200"
           >
-            复制
+            <Trans>复制</Trans>
           </button>
         </div>
         <p className="whitespace-pre-wrap break-all text-xs leading-relaxed text-slate-400">{cardInfo}</p>
@@ -793,16 +790,19 @@ export default function CardDetailPage() {
             但不等于当初那一张 */}
         <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
           {card.genPrompt
-            ? "这是铸造这张卡时使用的完整生成提示词。"
-            : "这张卡没留下铸造时的提示词（老卡/素材卡），上面是按同款格式现补的一份。"}
-          把它交给 AI（或在工坊中使用本卡），即可生成与卡面一致的
-          {card.type === "character" ? "角色画面 / 3D 建模" : "画面"}。
+            ? t`这是铸造这张卡时使用的完整生成提示词。`
+            : t`这张卡没留下铸造时的提示词（老卡/素材卡），上面是按同款格式现补的一份。`}
+          {card.type === "character" ? (
+            <Trans comment="紧跟在上一句（这段提示词从哪来）后面显示：英文译文开头要留一个空格">把它交给 AI（或在工坊中使用本卡），即可生成与卡面一致的角色画面 / 3D 建模。</Trans>
+          ) : (
+            <Trans comment="紧跟在上一句（这段提示词从哪来）后面显示：英文译文开头要留一个空格">把它交给 AI（或在工坊中使用本卡），即可生成与卡面一致的画面。</Trans>
+          )}
         </p>
       </div>
 
       {inDecks.length > 0 && (
         <div className="mb-4">
-          <div className="mb-1.5 text-xs font-semibold text-slate-300">所属卡组</div>
+          <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>所属卡组</Trans></div>
           <div className="flex flex-wrap gap-2">
             {inDecks.map((d) => (
               <Link key={d.id} to={`/deck/${d.id}`} className="rounded-full bg-panel px-3 py-1.5 text-xs text-slate-200">
@@ -859,7 +859,7 @@ export default function CardDetailPage() {
               owned ? "bg-panel text-slate-300 ring-1 ring-slate-700" : "bg-brand/90 text-ink"
             }`}
           >
-            {getting ? "添加中…" : getErr ? "再同步一次" : "＋ 添加到我的卡片"}
+            {getting ? t`添加中…` : getErr ? t`再同步一次` : t`＋ 添加到我的卡片`}
           </button>
           {getErr && <p className="mt-1 text-[11px] leading-relaxed text-rose-300">{getErr}</p>}
         </div>
@@ -871,7 +871,7 @@ export default function CardDetailPage() {
           owned ? "bg-brand/90 text-ink" : "bg-panel text-slate-300 ring-1 ring-slate-700"
         }`}
       >
-        🎬 去 3D 工坊用这张卡创作
+        <Trans>🎬 去 3D 工坊用这张卡创作</Trans>
       </Link>
 
       {/* 删除（2026-08-30 主人点名"详情页没有删除功能"）。★ 只对自己库里的卡出现 ——
@@ -883,18 +883,18 @@ export default function CardDetailPage() {
           onClick={() => setAsk(true)}
           className="mt-4 block w-full py-2 text-center text-[11px] text-slate-500"
         >
-          删除这张卡
+          <Trans>删除这张卡</Trans>
         </button>
       )}
       {editing && card && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-6" onClick={() => !editBusy && setEditing(false)}>
           <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-bold text-slate-100">改这张卡的名字与简介</h3>
+            <h3 className="text-sm font-bold text-slate-100"><Trans>改这张卡的名字与简介</Trans></h3>
             <input
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
               maxLength={CARD_NAME_MAX}
-              placeholder="卡名"
+              placeholder={t`卡名`}
               className="mt-3 w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
             <textarea
@@ -902,13 +902,13 @@ export default function CardDetailPage() {
               onChange={(e) => setEditSummary(e.target.value)}
               maxLength={CARD_SUMMARY_MAX}
               rows={3}
-              placeholder="一句话简介"
+              placeholder={t`一句话简介`}
               className="mt-2 w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
             />
             {/* ★ 如实说清改的是哪一份：随作品/卡组发出去的是**快照**（逐字段复制的），
                 不会跟着改。不说的话用户以为"全网都改了"，回头发现别人那份还是旧名字。 */}
             <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-              改的是你库里这一份。已经随作品发布、或被别人装走的那些是当时的副本，不会跟着变。
+              <Trans>改的是你库里这一份。已经随作品发布、或被别人装走的那些是当时的副本，不会跟着变。</Trans>
             </p>
             {editErr && (
               <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
@@ -921,13 +921,13 @@ export default function CardDetailPage() {
                 disabled={editBusy}
                 className="flex-1 rounded-xl border border-slate-600 py-2.5 text-xs text-slate-300 disabled:opacity-40"
               >
-                取消
+                <Trans>取消</Trans>
               </button>
               <button
                 onClick={() => {
                   const name = editName.trim();
                   if (!name) {
-                    setEditErr("卡名不能空着 —— 卡组里全靠它认人。");
+                    setEditErr(t`卡名不能空着 —— 卡组里全靠它认人。`);
                     return;
                   }
                   setEditBusy(true);
@@ -942,7 +942,7 @@ export default function CardDetailPage() {
                 disabled={editBusy}
                 className="flex-1 rounded-xl bg-brand py-2.5 text-xs font-bold text-ink disabled:opacity-40"
               >
-                {editBusy ? "保存中…" : editErr ? "再试一次" : "保存"}
+                {editBusy ? t`保存中…` : editErr ? t`再试一次` : t`保存`}
               </button>
             </div>
           </div>
