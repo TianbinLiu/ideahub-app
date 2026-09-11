@@ -215,6 +215,14 @@ msgstr "· Fed to the AI when making videos (may give way when a segment has man
 msgid "· 只在这一页展示，出片用不到"
 msgstr "· Only shown on this page; not used when making videos"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "· 基本设定：已填"
+msgstr "· Basics: filled in"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "· 基本设定：还没填"
+msgstr "· Basics: not filled in"
+
 #: src/components/DeleteCardDialog.tsx
 msgid "· 它会从 {deckCount} 个卡组里移出（{deckNames} 等），卡组本身还在。"
 msgstr "· It will be removed from {deckCount, plural, one {# deck} other {# decks}} ({deckNames}, etc.). The decks themselves stay."
@@ -247,6 +255,15 @@ msgstr "· Takes effect immediately: every device is logged out and this account
 msgid "· 第 {segList} 段挂着它 —— <0>那几段不受影响</0>（摆上桌那一刻存的是副本），已经炼好的画面也不会变。"
 msgstr "· Used by segments: {segList} — <0>those segments aren't affected</0> (a copy was saved when it was placed), and rendered frames won't change."
 
+#. placeholder {0}: materialChars()
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "· 素材：{mats} 条，{0} 字"
+msgstr "· Materials: {mats, plural, one {# item} other {# items}}, {0} characters"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "· 素材：没有（跳过了）"
+msgstr "· Materials: none (skipped)"
+
 #: src/pages/SettingsDeactivatePage.tsx
 msgid "· 账号里的 token 余额、已购内容与已发布作品都将一并无法使用。"
 msgstr "· The account's token balance, purchased content and published works all become unusable too."
@@ -263,6 +280,10 @@ msgstr "· This deck is shared to the Workshop. Deleting it <0>also takes it dow
 #: src/components/DeleteDeckDialog.tsx
 msgid "· 里面那 {0} 张卡<0>不会被删</0>， 它们还在你的卡片库里，只是不再归到这一组。"
 msgstr "· The {0, plural, one {# card} other {# cards}} in it <0>won't be deleted</0>. They stay in your card library, just no longer grouped here."
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "· 问卷：12 项（没动过的用默认值）"
+msgstr "· Questionnaire: 12 items (untouched ones use defaults)"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "‹ 上传示例视频当整段参考"
@@ -313,6 +334,10 @@ msgstr "(The admin didn't give a reason)"
 msgid "（约 {0}）"
 msgstr " (about {0})"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "（还没有名字）"
+msgstr "(no name yet)"
+
 #: src/studio/canvasAgent.ts
 msgid "（这一句我没听懂）"
 msgstr "(I didn't understand that)"
@@ -342,6 +367,18 @@ msgstr "(notification content missing)"
 #: src/pages/DiscoverPage.tsx
 msgid "{0} · {1} 个作品"
 msgstr "{0} · {1, plural, one {# video} other {# videos}}"
+
+#. placeholder {0}: MATERIAL_KIND_LABEL[m.kind]
+#. placeholder {1}: m.chars
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "{0} · {1} 字"
+msgstr "{0} · {1, plural, one {# character} other {# characters}}"
+
+#. placeholder {0}: sp.name
+#. placeholder {1}: sp.lines
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "{0} · {1} 条"
+msgstr "{0} · {1, plural, one {# line} other {# lines}}"
 
 #. placeholder {0}: [...new Set(works.map((w) => videoCategoryLabel(w.category)))].slice(0, 3).join(" · ")
 #. placeholder {1}: relativeTime(works[0].createdAt)
@@ -562,6 +599,14 @@ msgstr "{display}'s profile"
 msgid "{durSec} 秒"
 msgstr "{durSec}s"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "{fileName} 读不出来，换个纯文本文件试试。"
+msgstr "Couldn't read {fileName}; try a plain-text file."
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "{fileName} 里没有文字。"
+msgstr "{fileName} has no text."
+
 #: src/components/WorkshopShareBar.tsx
 msgid "{installs} 人装过"
 msgstr "{installs, plural, one {Installed by # person} other {Installed by # people}}"
@@ -645,6 +690,16 @@ msgstr "Cards attached to “{0}” <0>won't take effect</0>: the template autho
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "「{0}」上挂着的卡<0>不会生效</0>：这些位子超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限。"
 msgstr "Cards attached to “{0}” <0>won't take effect</0>: these slots are beyond the limit of {BLOCKOUT_MAX_ROLES} slots that can take cards."
+
+#. placeholder {0}: published.name
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "「{0}」做好了。只有你自己能看到（没公开）。"
+msgstr "“{0}” is ready. Only you can see it (not public)."
+
+#. placeholder {0}: published.name
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "「{0}」做好了。已经公开到人格市场。"
+msgstr "“{0}” is ready and has been published to the persona market."
 
 #. placeholder {0}: tierOf(node.videoTier).label
 #. placeholder {1}: tierOf(node.videoTier).minSec
@@ -1394,6 +1449,10 @@ msgstr "🛠 Remake"
 msgid "¥{0}/月"
 msgstr "¥{0}/mo"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "0 = 免费。App 里没有支付，付费人格的购买目前只在官网。"
+msgstr "0 = free. There's no payment in the app; paid personas can currently only be bought on the website."
+
 #: src/components/support/VoiceSheet.tsx
 #: src/pages/SettingsVoicePage.tsx
 msgid "0.70× 慢"
@@ -1403,6 +1462,10 @@ msgstr "0.70× slow"
 #: src/pages/SettingsVoicePage.tsx
 msgid "1.20× 快"
 msgstr "1.20× fast"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "12 道题都有默认值，一道不动也能直接生成 —— 想调哪一项就调哪一项。已调整 {touched} 项。"
+msgstr "All 12 questions have defaults, so you can generate without touching any — adjust whichever you like. Adjusted: {touched}."
 
 #: src/pages/CreatePage.tsx
 msgid "3D 桌面与工作流画布是同一条流水线的两个面"
@@ -1484,9 +1547,25 @@ msgstr "QQ friends"
 msgid "Seedream 真实生成，约 20-30 秒"
 msgstr "Real Seedream generation, about 20–30 seconds"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "TA 回"
+msgstr "They reply"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "TA 怎么称呼你"
+msgstr "What they call you"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "TA 是做什么的"
+msgstr "What do they do"
+
 #: src/pages/ProfilePage.tsx
 msgid "TA 的作品需要连上服务器 · 当前是离线模式"
 msgstr "Their videos need a server connection · you're offline"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "TA 自己不聊的东西。平台的安全底线是另外固定注入的，不用写在这里。"
+msgstr "Topics they won't discuss. The platform's safety baseline is added separately, so there's no need to write it here."
 
 #: src/pages/ProfilePage.tsx
 msgid "TA 还没有发布作品"
@@ -1522,6 +1601,7 @@ msgstr "One-line pitch (optional): what is this card good for?"
 
 #: src/pages/CardDetailPage.tsx
 #: src/pages/SettingsProfilePage.tsx
+#: src/pages/SupportPersonaNewPage.tsx
 msgid "一句话简介"
 msgstr "One-line bio"
 
@@ -1532,6 +1612,10 @@ msgstr "One-line intro (optional)"
 #: src/pages/TemplateDetailPage.tsx
 msgid "一句话说明这个模板能做什么样的片子"
 msgstr "In one sentence, what kind of videos this template makes"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "一句话说清 TA 是谁"
+msgstr "Who they are, in one sentence"
 
 #: src/components/DraftSheet.tsx
 msgid "一屏一段、逐段生成"
@@ -1546,6 +1630,12 @@ msgstr "Share all at once ({0, plural, one {# file} other {# files}})"
 msgid "一次给多个文件时系统按「任意文件」处理，相册可能不在候选里；想进相册就一个一个来。"
 msgstr "When several files are shared at once, the system treats them as “any file”, so the gallery may not be offered. To put them in the gallery, share them one by one."
 
+#. placeholder {0}: PERSONA_LIMITS.examples
+#. placeholder {1}: PERSONA_LIMITS.example
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "一组一问一答，最多 {0} 组、每句 {1} 字以内。"
+msgstr "One exchange per group; up to {0} groups, {1} characters per line."
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "万一<0>两个人偶站得几乎重叠</0>、从左往右数不出先后：挂在这个位置上 的卡<1>可能会换错人</1>（模型也只能按从左到右去找）。 不想赌，就把这个位子删掉 —— 那两个人偶会保持白色人偶原样出现在片子里。"
 msgstr "If <0>two mannequins stand almost on top of each other</0> and you can't tell their order from left to right, the card attached to this position <1>may go to the wrong person</1> (the model can only search from left to right too). If you don't want to gamble, delete this slot — both mannequins will then appear in the video as plain white mannequins."
@@ -1555,6 +1645,7 @@ msgid "上一张还没拍完"
 msgstr "The previous photo isn't finished yet"
 
 #: src/components/PhotoSubjectPicker.tsx
+#: src/pages/SupportPersonaNewPage.tsx
 msgid "上一步"
 msgstr "Back"
 
@@ -1618,6 +1709,7 @@ msgstr "What's listed above is only what's already on this device, not all resul
 #: src/components/guide/GuideOverlay.tsx
 #: src/pages/CutPage.tsx
 #: src/pages/SimpleModePage.tsx
+#: src/pages/SupportPersonaNewPage.tsx
 msgid "下一步"
 msgstr "Next"
 
@@ -1710,6 +1802,10 @@ msgstr "Cancel"
 msgid "不在选段内"
 msgstr "Outside the selection"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "不太像，回去重生成"
+msgstr "Not quite right, go back and regenerate"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "不承接（用自己的首帧起拍）"
 msgstr "Not continued (starts from its own first frame)"
@@ -1725,6 +1821,10 @@ msgstr "No template (back to a regular segment)"
 #: src/pages/CreatePage.tsx
 msgid "不用素材卡，直接写"
 msgstr "No cards needed — just write"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "不筛，全都要"
+msgstr "Don't filter, use everything"
 
 #: src/pages/ProfilePage.tsx
 msgid "不要了"
@@ -1881,6 +1981,11 @@ msgstr "Your description will go to a human agent; replies will show up in Notif
 msgid "会把最近 {0} 条对话一起交给人工客服，回复会出现在「通知」和「我的工单」里。"
 msgstr "{0, plural, one {The last message will go to a human agent} other {The last # messages will go to a human agent}}; replies will show up in Notifications and My tickets."
 
+#. placeholder {0}: PERSONA_LIMITS.price
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "会按 {price} 积分发布（0~{0} 的整数）。"
+msgstr "Will be published at {price} credits (a whole number from 0 to {0})."
+
 #: src/pages/PublishPage.tsx
 msgid "会替换《{originTitle}》的内容，链接不变。"
 msgstr "This replaces the content of “{originTitle}”; the link stays the same."
@@ -1943,9 +2048,18 @@ msgstr "Works and cards are synced to the server, so you'll see them when you lo
 msgid "作品内容"
 msgstr "Video content"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "你 / 您 / 我的名字"
+msgstr "you / your name"
+
 #: src/pages/SupportPage.tsx
 msgid "你 10 分钟内已经提交过工单 #{short}，这次的内容已并入同一张，客服会一起看。"
 msgstr "You already submitted ticket #{short} in the last 10 minutes. This has been added to the same ticket, and support will look at both together."
+
+#. placeholder {0}: ex.user
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "你：{0}"
+msgstr "You: {0}"
 
 #: src/pages/CutPage.tsx
 msgid "你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。"
@@ -2043,6 +2157,10 @@ msgstr "Save"
 msgid "保存中…"
 msgstr "Saving…"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "保存为我的人格"
+msgstr "Save as my persona"
+
 #: src/pages/EditPage.tsx
 msgid "保存修改"
 msgstr "Save changes"
@@ -2088,6 +2206,10 @@ msgstr "Save this mix"
 #: src/components/PhotoSubjectPicker.tsx
 msgid "保留了框内背景（{size}{up}）——卡面仍带背景，出片时 AI 可能把背景里的东西也画进去"
 msgstr "Kept the background inside the box ({size}{up}) — the card still has a background, so the AI may draw things from it into videos"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "停下"
+msgstr "Stop"
 
 #: src/components/DownloadSheet.tsx
 #: src/pages/SupportPage.tsx
@@ -2142,6 +2264,10 @@ msgstr "Write the sentence first"
 #: src/components/support/VoiceSheet.tsx
 msgid "先加一味音色再保存。"
 msgstr "Add a voice before saving."
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "先勾上上面那三条才能发布。"
+msgstr "Confirm the three points above before publishing."
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/FlowPage.tsx
@@ -2247,6 +2373,10 @@ msgstr "Public: shows up under “Add from market” in the Workshop, and others
 msgid "公开到声音市场（不勾 = 只在「我的」里）"
 msgstr "Publish to the voice market (unchecked = only in “Mine”)"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "公开到市场"
+msgstr "Publish to market"
+
 #. placeholder {0}: cards.length
 #: src/pages/WorkshopPage.tsx
 msgid "共 {0} 张卡"
@@ -2324,9 +2454,21 @@ msgstr "Content declaration: this video is AI-generated"
 msgid "内容还在这台设备上，没有丢。修好网络或服务器后点重试即可。"
 msgstr "The content is still on this device; nothing is lost. Once the network or server is working again, tap Retry."
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "再做一个"
+msgstr "Make another"
+
 #: src/components/TagInput.tsx
 msgid "再加一个"
 msgstr "Add another"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "再加一句口头禅"
+msgstr "Add another catchphrase"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "再加一条不聊的"
+msgstr "Add another off-limits topic"
 
 #: src/pages/CardDetailPage.tsx
 msgid "再同步一次"
@@ -2356,6 +2498,11 @@ msgstr "Add a request (optional)"
 msgid "再试一次"
 msgstr "Try again"
 
+#. placeholder {0}: PERSONA_LIMITS.examples
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "最多 {0} 组，已经满了"
+msgstr "Up to {0} groups; already full"
+
 #: src/components/TagInput.tsx
 msgid "最多 {max} 个，已经满了"
 msgstr "Up to {max}. You've reached the limit"
@@ -2363,6 +2510,10 @@ msgstr "Up to {max}. You've reached the limit"
 #: src/components/TagInput.tsx
 msgid "最多 {max} 个，每个 {maxLen} 字以内 · 已加 {added} 个"
 msgstr "Up to {max}, {maxLen} characters each · {added} added"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "最多 {max} 条，已经满了"
+msgstr "Up to {max}; already full"
 
 #: src/components/TokenCost.tsx
 msgid "最多消耗 {amount} token"
@@ -2387,6 +2538,10 @@ msgstr "Hottest"
 #: src/pages/DiscoverPage.tsx
 msgid "最火作品"
 msgstr "Hottest videos"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "写一个称呼"
+msgstr "Write a form of address"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "写一句换成谁，例：换成一只戴墨镜的柴犬"
@@ -2577,11 +2732,13 @@ msgstr "Workshop"
 
 #: src/components/flow/SkillPanel.tsx
 #: src/components/VideoCardAnnotator.tsx
+#: src/pages/SupportPersonaNewPage.tsx
 msgid "删"
 msgstr "Delete"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 #: src/pages/EditPage.tsx
+#: src/pages/SupportPersonaNewPage.tsx
 msgid "删掉"
 msgstr "Delete"
 
@@ -2708,6 +2865,10 @@ msgstr "Others only see the finished video — not which cards you used — and 
 msgid "别人的首页和你的主页上都不再出现，成片和评论都留着，随时能改回来。"
 msgstr "It won't appear in anyone's home feed or on your profile. The video and comments stay, and you can change it back anytime."
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "别人能在人格市场里搜到、装上用；署你的名。"
+msgstr "Others can find it in the persona market and use it; it's credited to you."
+
 #: src/pages/NotificationsPage.tsx
 msgid "别人赞你、评论你、回复你、在评论里 @ 你，或平台发来通知时会出现在这里"
 msgstr "Likes, comments, replies, @mentions in comments and platform notices will show up here"
@@ -2715,6 +2876,10 @@ msgstr "Likes, comments, replies, @mentions in comments and platform notices wil
 #: src/pages/CutPage.tsx
 msgid "到这里结束 ⇥"
 msgstr "End here ⇥"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "制作人格"
+msgstr "Create persona"
 
 #: src/components/PortraitAuthPanel.tsx
 msgid "刷新"
@@ -2736,6 +2901,10 @@ msgstr "Edit"
 msgid "办好了。"
 msgstr "Done."
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "加"
+msgstr "Add"
+
 #: src/pages/FlowPage.tsx
 msgid "加一句你自己的要求（可选，下次挂完卡合成时并进去）"
 msgstr "Add a request of your own (optional; it's merged in the next time cards are attached)"
@@ -2743,6 +2912,10 @@ msgstr "Add a request of your own (optional; it's merged in the next time cards 
 #: src/pages/FlowPage.tsx
 msgid "加一段"
 msgstr "Add a segment"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "加一组"
+msgstr "Add a group"
 
 #: src/components/TagInput.tsx
 msgid "加个话题，让人搜得到（回车分隔）"
@@ -2766,6 +2939,10 @@ msgstr "Load more"
 #: src/pages/SupportPersonasPage.tsx
 msgid "加载更多失败"
 msgstr "Couldn't load more"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "加进来"
+msgstr "Add"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "勾了「画面里是真实人物」，就得同时勾上下面那条肖像同意的确认——没有本人同意，真人素材不能入库。取消真人勾选，或者勾上确认再存。"
@@ -2888,6 +3065,10 @@ msgstr "{0}s in the original (outside the selection)"
 msgid "原视频音轨"
 msgstr "Original video audio"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "去人格市场"
+msgstr "Go to the persona market"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "去出一段片"
 msgstr "Go make a segment"
@@ -2971,6 +3152,14 @@ msgstr "Reference visual traits"
 msgid "参考视频没挂上：{why}"
 msgstr "Reference video wasn't attached: {why}"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "发"
+msgstr "Send"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "发一句试试，比如「你好呀」。"
+msgstr "Send something to try it, like “hi there”."
+
 #: src/components/flow/SkillPanel.tsx
 #: src/pages/PublishPage.tsx
 msgid "发布"
@@ -2986,6 +3175,7 @@ msgid "发布（需先试炼）"
 msgstr "Publish (needs a trial run first)"
 
 #: src/components/support/VoiceMixer.tsx
+#: src/pages/SupportPersonaNewPage.tsx
 msgid "发布中…"
 msgstr "Publishing…"
 
@@ -3003,6 +3193,7 @@ msgid "发布到声音市场"
 msgstr "Publish to voice market"
 
 #: src/components/VideoCardAnnotator.tsx
+#: src/pages/SupportPersonaNewPage.tsx
 msgid "发布到市场"
 msgstr "Publish to market"
 
@@ -3205,6 +3396,10 @@ msgstr "Grabbing this frame timed out. The system pauses video decoding while th
 msgid "取首尾帧…"
 msgstr "Grabbing first/last frames…"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "口头禅"
+msgstr "Catchphrases"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "另存为我的"
 msgstr "Save as my own"
@@ -3227,6 +3422,18 @@ msgstr "It's the only segment and already rendered, so it can't be deleted"
 msgid "只存刚看的走向（{0} 段）"
 msgstr "Only the path you just watched ({0, plural, one {# segment} other {# segments}})"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "只把 TA 说的话送去分析，不然会把你自己的说话方式也学进去。"
+msgstr "Only their lines are sent for analysis; otherwise your own way of talking gets learned too."
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "只按设定和问卷写的"
+msgstr "Written from the basics and questionnaire only"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "只换这个"
+msgstr "Redo just this"
+
 #: src/pages/CreatePage.tsx
 msgid "只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。不推方案、不存草稿。"
 msgstr "Just one step: write a sentence, pick a length, and get a short video a few seconds long. No plans, no drafts."
@@ -3243,9 +3450,21 @@ msgstr "Only you can see it. Others can't open it even with the link"
 msgid "只有你自己看得到它。把可见性改回公开也没用 —— 这是平台的开关，不是你的那一个。"
 msgstr "Only you can see it. Setting its visibility back to public won't help — this is the platform's switch, not yours."
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "只有你自己能装上用，市场里搜不到。"
+msgstr "Only you can use it; it won't show up in the market."
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "只有我"
+msgstr "Only me"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "只能分享自己库里的卡：先把它添加到我的卡片。"
 msgstr "You can only share cards in your own library. Add it to My cards first."
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "叫什么名字"
+msgstr "What's their name"
 
 #: src/components/ForgeOverlay.tsx
 msgid "可以先去逛逛——生成不会中断，好了顶部会弹提示带你回来。别退出 App 就行"
@@ -3258,6 +3477,10 @@ msgstr "Feel free to look around. Generation keeps going, and it's fine even if 
 #: src/pages/SettingsPage.tsx
 msgid "可以检查有没有新版本"
 msgstr "You can check for a new version"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "可以退出这一页，跑完会有通知。"
+msgstr "You can leave this page; you'll be notified when it's done."
 
 #. placeholder {0}: storage.quotaMB
 #: src/pages/SettingsStoragePage.tsx
@@ -3334,6 +3557,10 @@ msgstr "Composite preview ({price})"
 msgid "同一条视频拆成 {count} 段的分段模板（共约 {0}s）· 套用即整组铺开"
 msgstr "Split template: one video in {count, plural, one {# segment} other {# segments}} (about {0}s total) · using it lays out the whole group"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "名字"
+msgstr "Name"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "名字（必填，≤{NAME_MAX} 字）"
 msgstr "Name (required, up to {NAME_MAX} characters)"
@@ -3362,6 +3589,14 @@ msgstr "This weekend I plan to visit the market, pick up some fresh vegetables, 
 msgid "和 AI 客服聊不明白的问题，点「转人工」就会出现在这里"
 msgstr "Issues the AI can't sort out show up here once you tap “Talk to a human”"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "和你是什么关系"
+msgstr "Relationship to you"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "哪个是 TA"
+msgstr "Which one is them"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "唤起指令句式（也可以输入 /）"
 msgstr "Open command phrases (or type /)"
@@ -3370,6 +3605,10 @@ msgstr "Open command phrases (or type /)"
 #: src/pages/SupportPersonasPage.tsx
 msgid "喂一段聊天记录或者答几道题，AI 帮你写出说话风格，试聊满意了再发布。"
 msgstr "Feed in a chat log or answer a few questions, and AI writes a speaking style for you; publish once a test chat feels right."
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "回到「生成」那一步先让 AI 写一版。"
+msgstr "Go back to “Generate” and let the AI write a version first."
 
 #: src/pages/EditPage.tsx
 msgid "回到作品"
@@ -3494,6 +3733,10 @@ msgstr "mentioned you in a comment"
 #: src/pages/FlowPage.tsx
 msgid "填入默认写法（填完还能改）"
 msgstr "Fill in the default wording (editable afterwards)"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "填过的设定、导入的素材、生成出来的草稿和试聊记录都会清掉，回到第一步。已经发布出去的人格不受影响。"
+msgstr "Your basics, imported materials, generated draft and chat history will be cleared, and you'll go back to step 1. Personas you've already published aren't affected."
 
 #: src/pages/SupportPage.tsx
 msgid "声音"
@@ -3762,6 +4005,10 @@ msgstr "Chat history"
 #: src/components/SegmentPlayer.tsx
 msgid "封面"
 msgstr "Cover"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "封面 emoji"
+msgstr "Cover emoji"
 
 #. placeholder {0}: e.message
 #: src/pages/EditPage.tsx
@@ -4050,6 +4297,11 @@ msgstr "{0} MB used"
 msgid "已经到片段末尾了（片段共 {0} 秒，不含第 {1} 秒这一格）——往前挪一格再标。"
 msgstr "That's the end of the clip (the clip is {0}s long and doesn't include the step at {1}s) — move back one step and mark again."
 
+#. placeholder {0}: materials.length
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "已经导入 {0} 条，一共 {total} 字"
+msgstr "{0, plural, one {# item} other {# items}} imported, {total, plural, one {# character} other {# characters}} in total"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "已经授权过了？再查一次"
 msgstr "Already authorized? Check again"
@@ -4090,6 +4342,10 @@ msgstr "You've already marked the maximum of {cap} frames — more wouldn't be u
 #: src/components/flow/TierRow.tsx
 msgid "已经炼出来的成片不受影响；换回来之后这些能力也会回来（示例视频要重新挂）。"
 msgstr "Videos already rendered aren't affected, and these abilities come back if you switch back (reattach the example video)."
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "已经聊满 {PREVIEW_ROUNDS_MAX} 轮了"
+msgstr "All {PREVIEW_ROUNDS_MAX} rounds used"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "已被平台下架"
@@ -4172,6 +4428,10 @@ msgstr "Couldn't create the deck: your login may have expired (each card is alre
 #: src/pages/CreatePage.tsx
 msgid "开一条新的{pendingTitle}（丢弃上面那条）"
 msgstr "Start a new {pendingTitle} (discard the one above)"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "开场白"
+msgstr "Greeting"
 
 #: src/pages/CreatePage.tsx
 msgid "开头画面 AI 补"
@@ -4358,6 +4618,10 @@ msgstr "To change the video's content, use “🛠 Remake” below to bring its 
 msgid "慢放 0.25 倍"
 msgstr "Slow motion 0.25×"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "慢热、爱用省略号、生气也不飙脏话"
+msgstr "Slow to warm up, loves ellipses, doesn't swear even when angry"
+
 #: src/pages/CutPage.tsx
 msgid "成片"
 msgstr "Finished video"
@@ -4466,6 +4730,10 @@ msgstr "My templates {0}"
 #: src/components/flow/FlowCanvas.tsx
 msgid "我的模板（点一个 = 第 {seg} 段套它）"
 msgstr "My templates (tap one to apply it to segment {seg})"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "我确认：<0/>· 这份人格的内容是我自己写的，或者我已经获得授权；<1/>· 不冒充真实存在的人（公众人物、认识的人都算）；<2/>· 没有把别人的隐私（聊天记录里的手机号、住址、病情之类）放进去。<3/><4>违规的内容会被下架，情节严重的可能封号。</4>"
+msgstr "I confirm:<0/>· I wrote this persona myself, or I have permission to use it;<1/>· it doesn't impersonate a real person (public figures and people I know both count);<2/>· it contains no one else's private information (phone numbers, addresses, health details from chat logs and the like).<3/><4>Violating content will be taken down, and serious cases may lead to account suspension.</4>"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担"
@@ -4679,6 +4947,10 @@ msgstr "No microphone permission. Tap Allow in the system prompt. If you denied 
 msgid "拿这一段成片当参考视频重拍，只改你写的地方；时长跟随成片（{sec}s），产物<0>无声</0>（合并时可外挂音轨）；上一版会留一份可还原"
 msgstr "Reshoots using this segment's video as the reference and changes only what you write. Length follows the video ({sec}s) and the result is <0>silent</0> (you can add an audio track when merging). The previous version is kept so you can restore it"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "拿这份草稿聊几句看看像不像。聊 {PREVIEW_ROUNDS_MAX} 轮，已经聊了 {rounds} 轮。"
+msgstr "Chat with this draft to see if it feels right. {PREVIEW_ROUNDS_MAX} rounds; {rounds} used so far."
+
 #: src/pages/VideoEditorPage.tsx
 msgid "挂上你的角色"
 msgstr "Cast your characters"
@@ -4786,6 +5058,10 @@ msgstr "Try another path"
 #: src/components/flow/FlowCanvas.tsx
 msgid "换模板"
 msgstr "Change template"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "换着…"
+msgstr "Swapping…"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "换错人<0>不会报错</0>，成片出来才看得见 —— 请对着画面上高亮的那个人偶确认。"
@@ -4963,6 +5239,10 @@ msgstr "The playhead isn't in the selected clip — tap the clip first (it plays
 msgid "支付未成功，额度未到账"
 msgstr "Payment failed; no tokens were credited"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "支持 {MATERIAL_FILE_ACCEPT} 这几种纯文本，可以一次选多个。"
+msgstr "Supports {MATERIAL_FILE_ACCEPT} plain-text files; you can choose several at once."
+
 #: src/components/MaterialSheet.tsx
 msgid "收下了 {n} 张"
 msgstr "{n, plural, one {Got # card} other {Got # cards}}"
@@ -5084,6 +5364,10 @@ msgstr "Digital human persona"
 #: src/pages/SupportModelsPage.tsx
 msgid "数字人形象"
 msgstr "Digital human look"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "整体再来一版"
+msgstr "Write a whole new version"
 
 #: src/components/ForgeOverlay.tsx
 msgid "整段一炉出，别退出 App"
@@ -5223,9 +5507,18 @@ msgstr "A video can no longer be recovered"
 msgid "有一发白模化还没取回结果"
 msgstr "A blockout job's result hasn't been recovered yet"
 
+#. placeholder {0}: PERSONA_LIMITS.example
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "有一句超过 {0} 字了，发布会被服务端拒掉。"
+msgstr "One line is over {0} characters; the server will reject it on publish."
+
 #: src/pages/ProfilePage.tsx
 msgid "有一条剪到一半的成片"
 msgstr "You have a half-edited video"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "有一条超过 {maxLen} 字了，发布会被服务端拒掉。"
+msgstr "One item is over {maxLen} characters; the server will reject it on publish."
 
 #: src/pages/SupportPage.tsx
 msgid "有帮助"
@@ -5239,6 +5532,14 @@ msgstr "New version {0} available"
 #: src/pages/PublishPage.tsx
 msgid "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址"
 msgstr "Some segments are still on temporary links (valid for about 24 hours) — publish soon and the server will move them to permanent addresses"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "有素材的话会先分析一遍再写，慢一点；分析结果留着，后面重写不用再读一次素材。"
+msgstr "With materials, they're analyzed before writing, which is a bit slower; the analysis is kept, so rewrites don't re-read the materials."
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "朋友 / 学姐 / 助理 / 搭子…… 这一句会明显影响说话的分寸。"
+msgstr "Friend / senior / assistant / buddy… this noticeably affects how they talk to you."
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "服务器上有一发你付过钱的成片还没取回"
@@ -5429,10 +5730,18 @@ msgstr "View the full chat history"
 msgid "查看用量 · 清理中间文件"
 msgstr "View usage · clean up intermediate files"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "标价"
+msgstr "Price"
+
 #: src/components/flow/SegPlayer.tsx
 #: src/pages/FlowPage.tsx
 msgid "标注会先改这一段的设定画面，再重新生成本段视频"
 msgstr "The annotation first edits this segment's set frame, then regenerates the segment's video"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "标签"
+msgstr "Tags"
 
 #: src/pages/NotificationsPage.tsx
 msgid "标记中…"
@@ -5697,6 +6006,10 @@ msgstr "Saying this now →"
 msgid "正在请小梦出场…"
 msgstr "Bringing Xiaomeng on stage…"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "正在读 {fileName}…"
+msgstr "Reading {fileName}…"
+
 #: src/pages/ProfilePage.tsx
 msgid "正在读取余额…"
 msgstr "Loading balance…"
@@ -5758,6 +6071,12 @@ msgstr "Each image slot locks one thing: {parts}."
 msgid "每个界面第一次打开时会自动放一遍使用引导，之后不再自动弹；想单独重看某一屏，点那一屏角落的<0> ? </0>就行。这里是把<1>所有</1>引导恢复成「没看过」——之后每个界面第一次打开时会重新弹一遍。"
 msgstr "Each screen plays its guide automatically the first time you open it and not again after that; to rewatch one screen, tap the<0> ? </0>in its corner. This resets <1>all</1> guides to “not seen” — each screen will show its guide again the next time you open it."
 
+#. placeholder {0}: PERSONA_LIMITS.catchphrase
+#. placeholder {1}: PERSONA_LIMITS.catchphrases
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "每条 {0} 字以内，最多 {1} 条。"
+msgstr "Up to {0} characters each, at most {1}."
+
 #: src/pages/CreatePage.tsx
 msgid "每段三选一，可回头改"
 msgstr "Pick one of three for each segment; change it later if you like"
@@ -5769,6 +6088,18 @@ msgstr "Every segment must be rendered before merging"
 #: src/components/CoverPicker.tsx
 msgid "每生成一版都会扣一次"
 msgstr "Each version you generate is charged"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "比如「不聊前任」"
+msgstr "e.g. “no talking about exes”"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "比如「树洞」「陪练」「编剧搭子」"
+msgstr "e.g. “a listening ear”, “practice partner”, “writing buddy”"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "比如「认识很久的朋友」"
+msgstr "e.g. “a friend of many years”"
 
 #: src/pages/WorkshopPage.tsx
 msgid "没取到：{error}"
@@ -5922,6 +6253,10 @@ msgstr "Couldn't open this video: {failErr}"
 msgid "没能改成「仅自己可见」：{why}"
 msgstr "Couldn't set it to “Only me”: {why}"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "没认出「谁在说话」，会把整段一起分析。"
+msgstr "Couldn't tell who's speaking, so the whole text will be analyzed."
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "没过审核："
 msgstr "failed review: "
@@ -6005,6 +6340,7 @@ msgstr "Clear cache (about {mbLabel} MB)"
 
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/SettingsStoragePage.tsx
+#: src/pages/SupportPersonaNewPage.tsx
 #: src/pages/SupportPersonasPage.tsx
 msgid "清空"
 msgstr "Clear"
@@ -6018,6 +6354,10 @@ msgstr "Clear saved videos ({0})"
 #: src/pages/DiscoverPage.tsx
 msgid "清空搜索"
 msgstr "Clear search"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "清空重聊"
+msgstr "Clear and restart"
 
 #: src/components/flow/CastPreviewCard.tsx
 #: src/components/flow/FlowCanvas.tsx
@@ -6192,6 +6532,10 @@ msgstr "Use this template"
 #: src/pages/DiscoverPage.tsx
 msgid "用户"
 msgstr "Users"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "用户说"
+msgstr "User says"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "用手指沿着这件东西的边描一整圈，松手自动闭合。圈外的桌面、手和别的东西，都会换成浅灰纯色底。"
@@ -6527,6 +6871,10 @@ msgstr "Confirm removal"
 msgid "示例图没存上：{why}"
 msgstr "Example images weren't saved: {why}"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "示例对话"
+msgstr "Example dialogue"
+
 #: src/pages/WorkshopPage.tsx
 msgid "社区分享的卡"
 msgstr "Cards shared by the community"
@@ -6593,6 +6941,10 @@ msgstr "Private: only in your own library. Once shared, it shows up under “Add
 msgid "私有：只在你自己的库里。分享后会出现在创意工坊的「从市场添加」里，别人可以把这张卡装走。"
 msgstr "Private: only in your own library. Once shared, it shows up under “Add from market” in the Workshop, and others can install this card."
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "称呼"
+msgstr "How they address you"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/CardDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
@@ -6633,6 +6985,17 @@ msgstr "Update now"
 #: src/pages/ProfilePage.tsx
 msgid "立即重试"
 msgstr "Retry now"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "立场倾向"
+msgstr "Leanings"
+
+#. placeholder {0}: idx + 1
+#. placeholder {1}: PERSONA_STEPS.length
+#. placeholder {2}: PERSONA_STEPS[idx].label
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "第 {0} / {1} 步 · {2}"
+msgstr "Step {0} of {1} · {2}"
 
 #. placeholder {0}: i + 1
 #: src/components/support/VoiceMixer.tsx
@@ -6722,6 +7085,21 @@ msgstr "{0}s"
 msgid "第 {0} 秒（选段外）"
 msgstr "{0}s (outside the selection)"
 
+#. placeholder {0}: i + 1
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "第 {0} 组"
+msgstr "Group {0}"
+
+#. placeholder {0}: i + 1
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "第 {0} 组 · 还没填完"
+msgstr "Group {0} · incomplete"
+
+#. placeholder {0}: blanks.join(" / ")
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "第 {0} 组还没填完 —— 试聊和发布时这几组会被丢掉（一问一答缺一边的示例喂不了模型）。"
+msgstr "Group {0} isn't complete — incomplete groups are dropped when chatting and publishing (an exchange missing one side can't be given to the model)."
+
 #. placeholder {0}: (p.group?.index ?? 0) + 1
 #. placeholder {0}: (part.group?.index ?? 0) + 1
 #: src/components/flow/FlowCanvas.tsx
@@ -6792,6 +7170,7 @@ msgstr "Waiting"
 
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
+#: src/pages/SupportPersonaNewPage.tsx
 msgid "简介"
 msgstr "Description"
 
@@ -6830,9 +7209,17 @@ msgstr "Admin accounts don't need to top up: AI generation uses a free channel a
 msgid "粉丝"
 msgstr "Followers"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "粘一段进来"
+msgstr "Paste some text"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "粘贴 asset ID 或 asset://…"
 msgstr "Paste an asset ID or asset://…"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "粘贴的文本"
+msgstr "Pasted text"
 
 #. placeholder {0}: mb(known)
 #: src/components/DownloadSheet.tsx
@@ -6855,6 +7242,10 @@ msgstr "Reference cards (optional)"
 #: src/pages/FlowPage.tsx
 msgid "素材卡上还没有形象参考图（去卡片详情页加几张），这次只能先按描述画一张设定帧再出片"
 msgstr "The cards have no reference images yet (add some on the card page), so this time a setup frame is drawn from the description before rendering"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "素材只用来生成这一次的人格，不入库、不公开，也不会出现在发布出去的人格卡里。"
+msgstr "Materials are only used to generate this persona. They aren't stored or made public, and they won't appear on the published persona card."
 
 #: src/components/MaterialSheet.tsx
 msgid "素材库"
@@ -6922,6 +7313,10 @@ msgstr "Pick a blockout template for this segment"
 msgid "给这一段选素材卡"
 msgstr "Pick reference cards for this segment"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "给这个人格起个名字"
+msgstr "Give this persona a name"
+
 #: src/components/support/VoiceMixer.tsx
 msgid "给这把嗓子起个名字再发布。"
 msgstr "Give this voice a name before publishing."
@@ -6987,6 +7382,10 @@ msgstr "network problem"
 msgid "翻到{otherTitle}"
 msgstr "Flip to {otherTitle}"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "聊天记录、发过的文案、随手写的笔记都行"
+msgstr "Chat logs, posts you've written or quick notes all work"
+
 #: src/pages/SupportPage.tsx
 msgid "联系邮箱（选填，用手机号/QQ 登录的建议留一个）"
 msgstr "Contact email (optional; recommended if you log in with a phone number or QQ)"
@@ -7029,10 +7428,18 @@ msgstr "Make the three parts of your own digital human: how it looks, how it sou
 msgid "自己做模型 · 音频 · 人格，可发布到市场"
 msgstr "Make models · voices · personas and publish them to the market"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "自己写"
+msgstr "Write my own"
+
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "自己挑"
 msgstr "Pick myself"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "自己敲一个 emoji"
+msgstr "Type your own emoji"
 
 #: src/pages/SupportModelsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -7080,6 +7487,14 @@ msgstr "Extra request: {reqText}"
 msgid "装"
 msgstr "Install"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "装上中…"
+msgstr "Equipping…"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "装备为当前人格"
+msgstr "Equip as current persona"
+
 #: src/pages/SimpleModePage.tsx
 msgid "要拍什么"
 msgstr "What to film"
@@ -7120,6 +7535,14 @@ msgstr "Subscription plans"
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "认好了 ✓"
 msgstr "Detected ✓"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "让 AI 写一版"
+msgstr "Let the AI write a version"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "让别人在人格市场里搜得到。"
+msgstr "Helps others find it in the persona market."
 
 #: src/pages/SupportPage.tsx
 msgid "记录"
@@ -7205,6 +7628,10 @@ msgstr "Too many previews. Wait a few seconds and try again."
 msgid "试听没出声，稍后再试。"
 msgstr "The preview didn't play. Try again later."
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "试聊、微调、发布三步要先生成出草稿才能进。"
+msgstr "Chat, Fine-tune and Publish unlock once a draft has been generated."
+
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
 msgid "话题标签"
@@ -7213,6 +7640,10 @@ msgstr "Tags"
 #: src/pages/PublishPage.tsx
 msgid "该段视频生成失败或处于演示模式，播放时用首尾帧渐变代替"
 msgstr "This segment's video failed to generate or is in demo mode; a first/last-frame fade plays instead"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "语气"
+msgstr "Tone"
 
 #: src/components/support/VoiceSheet.tsx
 #: src/pages/SettingsVoicePage.tsx
@@ -7261,6 +7692,10 @@ msgstr "Too many voice messages. Wait a few seconds."
 msgid "说明"
 msgstr "More info"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "说点什么"
+msgstr "Say something"
+
 #: src/components/CommentSheet.tsx
 #: src/pages/VideoPage.tsx
 msgid "说点什么，@ 可以叫上别人"
@@ -7269,6 +7704,10 @@ msgstr "Say something; use @ to mention someone"
 #: src/pages/SupportPage.tsx
 msgid "说话中"
 msgstr "Speaking"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "说话风格"
+msgstr "Speaking style"
 
 #: src/pages/SupportPersonasPage.tsx
 msgid "读不到人格列表"
@@ -7331,7 +7770,12 @@ msgstr "Reading image…"
 msgid "读取音色目录…"
 msgstr "Loading voice catalog…"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "读过你的素材"
+msgstr "Read your materials"
+
 #: src/components/VisibilityPicker.tsx
+#: src/pages/SupportPersonaNewPage.tsx
 msgid "谁能看到"
 msgstr "Who can see this"
 
@@ -7372,6 +7816,10 @@ msgstr "Start {0}s"
 msgid "起点 ＝当前帧"
 msgstr "Start = current frame"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "超出上限 {over} 字。送去分析时会从最前面截掉这一段，保留最近的 {MATERIAL_TOTAL_MAX} 字（越靠后越像现在的 TA）。"
+msgstr "{over, plural, one {# character} other {# characters}} over the limit. Before analysis that much is cut from the beginning, keeping the most recent {MATERIAL_TOTAL_MAX} characters (later text is closer to who they are now)."
+
 #: src/components/support/VoiceMarket.tsx
 msgid "跟随"
 msgstr "follows persona"
@@ -7400,6 +7848,10 @@ msgstr "Follow voice ({0})"
 msgid "跳到第 {at} 秒"
 msgstr "Jump to {at}s"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "跳过 / 下一步"
+msgstr "Skip / Next"
+
 #: src/pages/SupportPage.tsx
 msgid "转人工"
 msgstr "Talk to a human"
@@ -7423,6 +7875,10 @@ msgstr "Type the instruction in the input bar first, then save it as a skill"
 #: src/pages/SettingsDeactivatePage.tsx
 msgid "输入的用户名还对不上"
 msgstr "The username you typed doesn't match yet"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "边界"
+msgstr "Boundaries"
 
 #: src/components/AvatarPicker.tsx
 #: src/components/IconTapButton.tsx
@@ -7611,6 +8067,10 @@ msgstr "No drafts yet — half-finished projects from the Studio and Workflow ar
 msgid "还没有草稿——工坊和工作流里都能存"
 msgstr "No drafts yet — you can save them in the Studio and the workflow"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "还没有草稿。"
+msgstr "No draft yet."
+
 #: src/components/CommentSheet.tsx
 #: src/pages/VideoPage.tsx
 msgid "还没有评论，抢个沙发"
@@ -7628,6 +8088,10 @@ msgstr "No frames marked yet. Mark at least 1 frame to start — drag the slider
 msgid "还没标刀——不标就自动对半切到每段 ≤30 秒。想自己定切点，把播放头拖到镜头切换那一帧点「在这里切一刀」。"
 msgstr "No cuts yet — without any, it halves automatically until every segment is ≤30s. To choose the cut points yourself, drag the playhead to a shot change and tap “Cut here”."
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "还没选。"
+msgstr "Not chosen yet."
+
 #: src/components/CoverPicker.tsx
 msgid "还没选封面——截一帧、传一张，或让 AI 画一张"
 msgstr "No cover yet — grab a frame, upload one, or have the AI draw one"
@@ -7641,6 +8105,10 @@ msgstr "That drop landed on {0} mannequins at once (they overlap in the picture)
 #: src/components/TemplateShelf.tsx
 msgid "这一发白模化已经取不回来了"
 msgstr "This blockout job can no longer be recovered"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "这一次会拿什么去写"
+msgstr "What this run will use"
 
 #. placeholder {0}: fmtTokens(visionTokens)
 #: src/components/blockout/BlockoutTrimmer.tsx
@@ -8058,6 +8526,10 @@ msgstr "This template is split into {count, plural, one {# segment} other {# seg
 msgid "这是一条分成 {count} 段的模板，但这台设备上只拿到了 {got} 段 —— 整组套用会少内容，所以先不套。去「我的模板」下拉刷新试试。"
 msgstr "This template is split into {count, plural, one {# segment} other {# segments}}, but this device only has {got} — applying the group would leave content out, so it wasn't applied. Pull down to refresh in “My templates”."
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "这是什么素材"
+msgstr "What kind of material is this"
+
 #: src/pages/SupportPersonasPage.tsx
 msgid "这是付费人格，请先在官网购买后再使用。"
 msgstr "This is a paid persona. Buy it on the website before using it."
@@ -8237,6 +8709,10 @@ msgstr "This text goes straight to the AI: getting the {noun} or character names
 msgid "这组卡没能同步到服务器"
 msgstr "These cards couldn't be synced to the server"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "这里只能填数字。"
+msgstr "Numbers only."
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "进卡的那一张"
 msgstr "Image for the card"
@@ -8281,6 +8757,10 @@ msgstr "Exit editing"
 msgid "退回普通段"
 msgstr "Back to a normal segment"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "选一个大方向就行，后面 AI 会照着写。"
+msgstr "Just pick a general direction; the AI will write from it."
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "选一段本地视频"
 msgstr "Choose a video on this device"
@@ -8304,6 +8784,10 @@ msgstr "Choose how the story begins"
 #: src/components/CoverPicker.tsx
 msgid "选择时刻"
 msgstr "Pick a moment"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "选文件"
+msgstr "Choose files"
 
 #: src/components/TemplateShelf.tsx
 msgid "选段"
@@ -8361,6 +8845,14 @@ msgstr "re-edited a video you saved"
 #: src/components/flow/CastPreviewCard.tsx
 msgid "重新合成预览（{price}）"
 msgstr "Recompose preview ({price})"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "重新开始"
+msgstr "Start over"
+
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "重新开始？"
+msgstr "Start over?"
 
 #: src/components/SegmentPlayer.tsx
 msgid "重新播放"
