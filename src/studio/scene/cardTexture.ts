@@ -3,6 +3,7 @@
 // 与 2D 的 TarotCard 组件共用同一张框图和同一组画窗/牌匾常量。
 import * as THREE from "three";
 import { i18n } from "@lingui/core";
+import { t } from "@lingui/core/macro";
 import { formatPlays } from "../../types";
 import { TAROT_FRAME_URL, TAROT_LAYOUT, TYPE_GLYPH } from "../../components/TarotCard";
 import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, Proposal } from "../../types";
@@ -328,7 +329,7 @@ export function placeholderTexture(): THREE.CanvasTexture {
     ctx.font = "300 150px 'PingFang SC',sans-serif";
     ctx.fillText("+", W / 2, H / 2 - 20);
     ctx.font = "500 44px 'PingFang SC','Microsoft YaHei',sans-serif";
-    ctx.fillText("节点卡", W / 2, H / 2 + 90);
+    ctx.fillText(t`节点卡`, W / 2, H / 2 + 90);
     ctx.textAlign = "left";
   });
 }

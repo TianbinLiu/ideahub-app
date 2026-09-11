@@ -2,6 +2,9 @@
 // low = 强减面+webp1k（首版压缩产物，弱机/省流量）
 // mid = 减面 0.6~0.75+webp2k（默认）
 // high = 原始烘焙产物不压缩（Tripo v3 直出全精度网格+原贴图，体积大加载慢）
+import { i18n, type MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+
 export type Quality = "low" | "mid" | "high";
 
 const KEY = "ideahub-app.quality";
@@ -93,6 +96,7 @@ export function detectQuality(): { q: Quality; why: string } {
     // Adreno 5xx 及以下、Mali-G5x/T 系列、PowerVR：1K 贴图都嫌吃力
     if (/adreno \(tm\) [1-5]\d\d|adreno [1-5]\d\d|mali-t\d|mali-g5|mali-g3|powervr|swiftshader|llvmpipe/.test(g))
       return { q: "low", why: `GPU=${g}` };
+    // i18n-ignore-next-line: 定档依据只打进 console.info，不上屏
     return { q: "mid", why: `GPU=${g}（未在名单内）` };
   }
   const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
@@ -105,6 +109,7 @@ export function detectQuality(): { q: Quality; why: string } {
   // 只用来抓"极弱"：核心数和 GPU 能力相关性很弱，多核低端机比比皆是，
   // 所以这一层**只往下调**，不敢往上调
   if (typeof cores === "number" && cores <= 4) return { q: "low", why: `hardwareConcurrency=${cores}` };
+  // i18n-ignore-next-line: 同上，只进 console.info
   return { q: "mid", why: "问不出机型，落保守默认" };
 }
 
@@ -193,8 +198,15 @@ export function playerModelUrl(avatar: PlayerAvatar): string {
 //   （npcModelUrl 那三档只服务 `?npc=witch` 调试变体，出包时全裁）。
 // ★ 2026-08-11 起三档在 App 里都能用：素材随包发布，不再是"点不动的灰选项"。
 //   所以这里说的是**加载耗时与显存**，不是下载流量 —— 文件就在本机。
-export const QUALITY_LABELS: Record<Quality, { name: string; desc: string }> = {
-  low: { name: "流畅", desc: "1K 贴图 · 4 万面 · 加载最快（她 0.9MB／他 0.8MB）· 老手机选它" },
-  mid: { name: "均衡", desc: "2K 贴图 · 8 万面（推荐；她 1.9MB／他 1.8MB）" },
-  high: { name: "极致", desc: "4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB）" },
+// ★ 模块顶层只放描述符（开机先激活语言再加载 App，顶层就翻会冻结在开机语言）；要字符串走 qualityLabel
+export const QUALITY_LABELS: Record<Quality, { name: MessageDescriptor; desc: MessageDescriptor }> = {
+  low: { name: msg`流畅`, desc: msg`1K 贴图 · 4 万面 · 加载最快（她 0.9MB／他 0.8MB）· 老手机选它` },
+  mid: { name: msg`均衡`, desc: msg`2K 贴图 · 8 万面（推荐；她 1.9MB／他 1.8MB）` },
+  high: { name: msg`极致`, desc: msg`4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB）` },
 };
+
+/** 档名与说明，调用那一刻按界面语言翻（工坊提示条、设置页、画面质量子页三处共用） */
+export function qualityLabel(q: Quality): { name: string; desc: string } {
+  const l = QUALITY_LABELS[q];
+  return { name: i18n._(l.name), desc: i18n._(l.desc) };
+}

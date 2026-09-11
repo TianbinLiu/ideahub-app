@@ -457,6 +457,10 @@ msgstr "（这一句我没听懂）"
 msgid "（这一档是参考+点名，不是硬保证）"
 msgstr "（这一档是参考+点名，不是硬保证）"
 
+#: src/studio/canvasAgent.ts
+msgid "（这一段已经出片，新素材要点「♻ 重新生成」才会用上）"
+msgstr "（这一段已经出片，新素材要点「♻ 重新生成」才会用上）"
+
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "（这个位子没有描述）"
 msgstr "（这个位子没有描述）"
@@ -497,7 +501,7 @@ msgstr "{0} · {1} 条"
 msgid "{0} · 最近更新 {1}"
 msgstr "{0} · 最近更新 {1}"
 
-#. placeholder {0}: QUALITY_LABELS[getQuality()].name
+#. placeholder {0}: qualityLabel(getQuality()).name
 #: src/pages/SettingsPage.tsx
 msgid "{0} · 只影响 3D 工坊"
 msgstr "{0} · 只影响 3D 工坊"
@@ -1030,6 +1034,11 @@ msgstr "「{0}」里没有「{1}」这一格，你传的那张先收起来了—
 msgid "「{0}」铸好了"
 msgstr "「{0}」铸好了"
 
+#. placeholder {0}: hits.length
+#: src/studio/canvasAgent.ts
+msgid "「{name}」对上了 {0} 张卡（{names}），说全名"
+msgstr "「{name}」对上了 {0} 张卡（{names}），说全名"
+
 #. 可能紧跟在上一句后面拼接，英文译文开头要留一个空格
 #: src/pages/CustomCardPage.tsx
 msgid "「{names}」那张是按道具卡抠好的主体图，当不了{nextLabel}的图，已经取下——需要的话换回道具卡重新做。"
@@ -1038,6 +1047,11 @@ msgstr "「{names}」那张是按道具卡抠好的主体图，当不了{nextLab
 #: src/pages/FlowPage.tsx
 msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」"
 msgstr "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」"
+
+#. placeholder {0}: hits.length
+#: src/studio/canvasAgent.ts
+msgid "「{title}」有 {0} 个候选：{names}{more}。分段组的每段是独立模板，说全名（含第几段）再来"
+msgstr "「{title}」有 {0} 个候选：{names}{more}。分段组的每段是独立模板，说全名（含第几段）再来"
 
 #: src/studio/canvasAgent.ts
 msgid "「{u}」"
@@ -2077,6 +2091,10 @@ msgstr "1.20× 快"
 msgid "12 道题都有默认值，一道不动也能直接生成 —— 想调哪一项就调哪一项。已调整 {touched} 项。"
 msgstr "12 道题都有默认值，一道不动也能直接生成 —— 想调哪一项就调哪一项。已调整 {touched} 项。"
 
+#: src/studio/quality.ts
+msgid "1K 贴图 · 4 万面 · 加载最快（她 0.9MB／他 0.8MB）· 老手机选它"
+msgstr "1K 贴图 · 4 万面 · 加载最快（她 0.9MB／他 0.8MB）· 老手机选它"
+
 #. placeholder {0}: CARD_TYPE_LABELS[type]
 #. placeholder {1}: slots.length
 #: src/pages/CustomCardPage.tsx
@@ -2086,6 +2104,10 @@ msgstr "② 图位（{0}共 {1} 格）"
 #: src/pages/CustomCardPage.tsx
 msgid "② 图位预览"
 msgstr "② 图位预览"
+
+#: src/studio/quality.ts
+msgid "2K 贴图 · 8 万面（推荐；她 1.9MB／他 1.8MB）"
+msgstr "2K 贴图 · 8 万面（推荐；她 1.9MB／他 1.8MB）"
 
 #. placeholder {0}: CARD_INFO_LABELS[type]
 #: src/pages/CustomCardPage.tsx
@@ -2111,6 +2133,10 @@ msgstr "④ 定名完成"
 #: src/pages/CustomCardPage.tsx
 msgid "④ 标签（选填）"
 msgstr "④ 标签（选填）"
+
+#: src/studio/quality.ts
+msgid "4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB）"
+msgstr "4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB）"
 
 #: src/pages/ProfilePage.tsx
 msgid "add-on token · 直充/创作收益"
@@ -3020,6 +3046,10 @@ msgstr "你可以第一个"
 msgid "你好，我是{name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。"
 msgstr "你好，我是{name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。"
 
+#: src/studio/canvasAgent.ts
+msgid "你的卡库里没有「{name}」"
+msgstr "你的卡库里没有「{name}」"
+
 #: src/components/support/VoiceSheet.tsx
 msgid "你的设置（官网同步）"
 msgstr "你的设置（官网同步）"
@@ -3249,6 +3279,10 @@ msgstr "先不改"
 msgid "先不用"
 msgstr "先不用"
 
+#: src/studio/scene/TableScene.tsx
+msgid "先为当前段挑定一套方案"
+msgstr "先为当前段挑定一套方案"
+
 #: src/studio/flowStore.ts
 msgid "先从三套方案里挑一套（点方案卡），再生成本段"
 msgstr "先从三套方案里挑一套（点方案卡），再生成本段"
@@ -3364,6 +3398,10 @@ msgstr "先点上面的片段选中，再用这排按钮"
 msgid "先点下面一个格子，再点一张卡；也可以直接把卡拖到格子上"
 msgstr "先点下面一个格子，再点一张卡；也可以直接把卡拖到格子上"
 
+#: src/studio/scene/TableScene.tsx
+msgid "先炼出当前段的视频"
+msgstr "先炼出当前段的视频"
+
 #: src/pages/PublishPage.tsx
 msgid "先给视频起个标题"
 msgstr "先给视频起个标题"
@@ -3375,6 +3413,10 @@ msgstr "先给这张卡起个名字"
 #: src/pages/SupportPage.tsx
 msgid "先说一句你遇到了什么，客服才知道从哪儿开始。"
 msgstr "先说一句你遇到了什么，客服才知道从哪儿开始。"
+
+#: src/studio/canvasAgent.ts
+msgid "免费 · 会重新合成点名句（覆盖你改过的字）"
+msgstr "免费 · 会重新合成点名句（覆盖你改过的字）"
 
 #: src/pages/ProfilePage.tsx
 msgid "免费版"
@@ -3918,6 +3960,10 @@ msgstr "删掉之后，画面上这个人偶就<0>没有编号了</0> —— 套
 msgid "删掉之后这条作品就不能再回炉了，作品本身不受影响。"
 msgstr "删掉之后这条作品就不能再回炉了，作品本身不受影响。"
 
+#: src/studio/canvasAgent.ts
+msgid "删掉了第 {seg} 段"
+msgstr "删掉了第 {seg} 段"
+
 #. placeholder {0}: deck.name
 #: src/components/DeleteDeckDialog.tsx
 msgid "删掉卡组「{0}」？"
@@ -3959,6 +4005,11 @@ msgstr "删掉这条作品的工坊工程？"
 #: src/pages/SettingsStoragePage.tsx
 msgid "删的是你点「保存到本地」存进 App 的那 {files} 个视频文件。已经用「分享 / 另存为」交给相册或 文件管理器的副本不受影响；还留在这里没交出去的，删了就没有了。"
 msgstr "删的是你点「保存到本地」存进 App 的那 {files} 个视频文件。已经用「分享 / 另存为」交给相册或 文件管理器的副本不受影响；还留在这里没交出去的，删了就没有了。"
+
+#. placeholder {0}: storeErr()
+#: src/studio/canvasAgent.ts
+msgid "删第 {seg} 段：{0}"
+msgstr "删第 {seg} 段：{0}"
 
 #: src/components/CommentDelete.tsx
 #: src/components/DraftSheet.tsx
@@ -4112,9 +4163,19 @@ msgstr "加一组"
 msgid "加个话题，让人搜得到（回车分隔）"
 msgstr "加个话题，让人搜得到（回车分隔）"
 
+#. placeholder {0}: before + 1
+#: src/studio/canvasAgent.ts
+msgid "加了第 {0} 段"
+msgstr "加了第 {0} 段"
+
 #: src/studio/ui/modals.tsx
 msgid "加入我的卡组"
 msgstr "加入我的卡组"
+
+#. placeholder {0}: storeErr()
+#: src/studio/canvasAgent.ts
+msgid "加段：{0}"
+msgstr "加段：{0}"
 
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/AdminPage.tsx
@@ -4272,8 +4333,10 @@ msgstr "卡片详情"
 msgid "卡组"
 msgstr "卡组"
 
+#. placeholder {0}: deck.length
 #. placeholder {0}: decks.length + 1
 #: src/pages/WorkshopPage.tsx
+#: src/studio/scene/TableScene.tsx
 msgid "卡组 {0}"
 msgstr "卡组 {0}"
 
@@ -5286,6 +5349,10 @@ msgstr "在线"
 msgid "在评论里 @ 了你"
 msgstr "在评论里 @ 了你"
 
+#: src/studio/quality.ts
+msgid "均衡"
+msgstr "均衡"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "坏笑"
 msgstr "坏笑"
@@ -5731,6 +5798,10 @@ msgstr "小梦"
 #: src/studio/StudioPage.tsx
 msgid "小窗右上角可在「卡组 / 卡片」间切换，单击卡片看详情"
 msgstr "小窗右上角可在「卡组 / 卡片」间切换，单击卡片看详情"
+
+#: src/studio/scene/TableScene.tsx
+msgid "尚未就绪"
+msgstr "尚未就绪"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "就是他"
@@ -6188,7 +6259,7 @@ msgstr "已经聊满 {PREVIEW_ROUNDS_MAX} 轮了"
 msgid "已自动取它的首尾帧当本段首尾帧；可细调、加中间帧（最多 {CUSTOM_MID_MAX} 张）"
 msgstr "已自动取它的首尾帧当本段首尾帧；可细调、加中间帧（最多 {CUSTOM_MID_MAX} 张）"
 
-#. placeholder {0}: QUALITY_LABELS[q].name
+#. placeholder {0}: qualityLabel(q).name
 #: src/studio/StudioPage.tsx
 msgid "已自动选「{0}」画质 · 设置里可改"
 msgstr "已自动选「{0}」画质 · 设置里可改"
@@ -7004,6 +7075,10 @@ msgstr "挂卡后自动合成，出片前可逐字改"
 msgid "挂卡已记下，但现在还出不了片：{issue}"
 msgstr "挂卡已记下，但现在还出不了片：{issue}"
 
+#: src/studio/canvasAgent.ts
+msgid "挂卡没成功（原因没说清——这是个 bug，请反馈）"
+msgstr "挂卡没成功（原因没说清——这是个 bug，请反馈）"
+
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
 msgid "挂在这一段上的示例视频会被摘掉（「{0}」档带不了参考视频）"
@@ -7639,6 +7714,10 @@ msgstr "整体再来一版"
 msgid "整段一炉出，别退出 App"
 msgstr "整段一炉出，别退出 App"
 
+#: src/studio/scene/TableScene.tsx
+msgid "整片就绪"
+msgstr "整片就绪"
+
 #. placeholder {0}: plan.formats.map((f) => f.toUpperCase()).join(" / ")
 #: src/components/DownloadSheet.tsx
 msgid "文件格式：{0}"
@@ -8121,6 +8200,10 @@ msgstr "本片卡组"
 msgid "机位 · 空处拖动环绕，两指拉远拉近"
 msgstr "机位 · 空处拖动环绕，两指拉远拉近"
 
+#: src/studio/quality.ts
+msgid "极致"
+msgstr "极致"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "松开发送"
 msgstr "松开发送"
@@ -8283,6 +8366,10 @@ msgstr "模板名"
 #: src/components/support/VoiceMixer.tsx
 msgid "模板名字（必填，例：清冷知性）"
 msgstr "模板名字（必填，例：清冷知性）"
+
+#: src/studio/canvasAgent.ts
+msgid "模板名是空的"
+msgstr "模板名是空的"
 
 #: src/components/TemplateShelf.tsx
 #: src/pages/FlowPage.tsx
@@ -8679,6 +8766,10 @@ msgstr "没截到画面（模型可能还没画出来）。等预览里的人动
 msgid "没打开 TA 的主页：{err}"
 msgstr "没打开 TA 的主页：{err}"
 
+#: src/studio/canvasAgent.ts
+msgid "没找到叫「{title}」的白模模板"
+msgstr "没找到叫「{title}」的白模模板"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "没抓到声音，检查麦克风是不是被别的 App 占着。"
 msgstr "没抓到声音，检查麦克风是不是被别的 App 占着。"
@@ -8935,6 +9026,10 @@ msgstr "注销账号"
 msgid "注销这个账号"
 msgstr "注销这个账号"
 
+#: src/studio/quality.ts
+msgid "流畅"
+msgstr "流畅"
+
 #: src/pages/DiscoverPage.tsx
 msgid "浏览分区"
 msgstr "浏览分区"
@@ -9018,6 +9113,10 @@ msgstr "清空这一页重新开始？"
 msgid "清空重聊"
 msgstr "清空重聊"
 
+#: src/studio/genLog.ts
+msgid "渲染视频"
+msgstr "渲染视频"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "演出中…"
 msgstr "演出中…"
@@ -9026,6 +9125,7 @@ msgstr "演出中…"
 #: src/components/flow/FlowCanvas.tsx
 #: src/components/flow/ReviseBox.tsx
 #: src/components/flow/ScriptSkillSheet.tsx
+#: src/studio/canvasAgent.ts
 #: src/studio/stage/StageOverlay.tsx
 msgid "演示"
 msgstr "演示"
@@ -9070,6 +9170,10 @@ msgstr "点一个人偶选中它"
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "点一张卡，挂给「{0}」"
 msgstr "点一张卡，挂给「{0}」"
+
+#: src/studio/scene/TableScene.tsx
+msgid "点亮法阵 · 去剪辑成片"
+msgstr "点亮法阵 · 去剪辑成片"
 
 #: src/pages/CardDetailPage.tsx
 msgid "点任意处关闭"
@@ -9280,6 +9384,10 @@ msgstr "生成中…"
 #: src/components/CoverPicker.tsx
 msgid "生成失败：{0}"
 msgstr "生成失败：{0}"
+
+#: src/studio/genLog.ts
+msgid "生成契约"
+msgstr "生成契约"
 
 #: src/components/CoverPicker.tsx
 msgid "生成结果"
@@ -10008,23 +10116,6 @@ msgstr "第 {0} 段不是白模模板，这一组没法整组套用"
 msgid "第 {0} 段出片完成"
 msgstr "第 {0} 段出片完成"
 
-#. placeholder {0}: o.seg
-#. placeholder {1}: was !== prevReq ? "…" : ""
-#: src/studio/canvasAgent.ts
-msgid "第 {0} 段已经写着「{was}{1}」——离线档不敢直接覆盖它。想换成「{next}…」的话，在这一段的编辑窗里改（那一段还锁着的话，得先把它前面的段炼出来），或者先把原来那段清空"
-msgstr "第 {0} 段已经写着「{was}{1}」——离线档不敢直接覆盖它。想换成「{next}…」的话，在这一段的编辑窗里改（那一段还锁着的话，得先把它前面的段炼出来），或者先把原来那段清空"
-
-#. placeholder {0}: o.seg
-#: src/studio/canvasAgent.ts
-msgid "第 {0} 段挂卡：这个模板人数可能超过 {BLOCKOUT_MAX_ROLES} 人，「{rawLabel}」这种说法对不准，请照抄角色位原字样：{avail}"
-msgstr "第 {0} 段挂卡：这个模板人数可能超过 {BLOCKOUT_MAX_ROLES} 人，「{rawLabel}」这种说法对不准，请照抄角色位原字样：{avail}"
-
-#. placeholder {0}: o.seg
-#. placeholder {1}: matched.length
-#: src/studio/canvasAgent.ts
-msgid "第 {0} 段挂着 {1} 张对得上「{name}」的卡（{names}），说全名"
-msgstr "第 {0} 段挂着 {1} 张对得上「{name}」的卡（{names}），说全名"
-
 #. placeholder {0}: idx + 1
 #: src/studio/flowStore.ts
 msgid "第 {0} 段推演失败"
@@ -10158,6 +10249,205 @@ msgstr "第 {rel} 秒"
 #: src/studio/canvasAgent.ts
 msgid "第 {s} 段"
 msgstr "第 {s} 段"
+
+#. placeholder {0}: f.c.name
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段：「{0}」本来就挂着"
+msgstr "第 {seg} 段：「{0}」本来就挂着"
+
+#. placeholder {0}: f.t.title
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段：套上「{0}」"
+msgstr "第 {seg} 段：套上「{0}」"
+
+#. placeholder {0}: f.c.name
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段：挂上「{0}」{doneNote}"
+msgstr "第 {seg} 段：挂上「{0}」{doneNote}"
+
+#. placeholder {0}: hit.name
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段：摘下「{0}」{doneNote}"
+msgstr "第 {seg} 段：摘下「{0}」{doneNote}"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段：摘掉模板，改为自选"
+msgstr "第 {seg} 段：摘掉模板，改为自选"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段：要求已写{wrote}"
+msgstr "第 {seg} 段：要求已写{wrote}"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段：要求已写{wrote}（这一段已经出片，新要求要等重新推演才作数——编辑窗点「📋 看/改这一套方案」，里面有「♻ 重新推演三套」）"
+msgstr "第 {seg} 段：要求已写{wrote}（这一段已经出片，新要求要等重新推演才作数——编辑窗点「📋 看/改这一套方案」，里面有「♻ 重新推演三套」）"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段不存在（现在共 {total} 段）"
+msgstr "第 {seg} 段不存在（现在共 {total} 段）"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段出片了"
+msgstr "第 {seg} 段出片了"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段又锁上了（前面的段被改回未出片）——先把前面那段炼出来，再说一次"
+msgstr "第 {seg} 段又锁上了（前面的段被改回未出片）——先把前面那段炼出来，再说一次"
+
+#. placeholder {0}: f.issue ?? ""
+#. placeholder {0}: storeErr()
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段套模板：{0}"
+msgstr "第 {seg} 段套模板：{0}"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段套着模板，白模段不走推演——挂完卡直接生成"
+msgstr "第 {seg} 段套着模板，白模段不走推演——挂完卡直接生成"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段套着模板，要求由挂卡合成——想全手写就先说「第 {seg} 段摘掉模板」"
+msgstr "第 {seg} 段套着模板，要求由挂卡合成——想全手写就先说「第 {seg} 段摘掉模板」"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段已经不存在了（流水线被改过）"
+msgstr "第 {seg} 段已经不存在了（流水线被改过）"
+
+#. placeholder {0}: was !== prevReq ? "…" : ""
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段已经写着「{was}{0}」——离线档不敢直接覆盖它。想换成「{next}…」的话，在这一段的编辑窗里改（那一段还锁着的话，得先把它前面的段炼出来），或者先把原来那段清空"
+msgstr "第 {seg} 段已经写着「{was}{0}」——离线档不敢直接覆盖它。想换成「{next}…」的话，在这一段的编辑窗里改（那一段还锁着的话，得先把它前面的段炼出来），或者先把原来那段清空"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段已经出片：删掉它成片就没了，这一步不代劳——要删就自己在本段编辑窗底部按「🗑 删除本段」（已出片的要点两下）"
+msgstr "第 {seg} 段已经出片：删掉它成片就没了，这一步不代劳——要删就自己在本段编辑窗底部按「🗑 删除本段」（已出片的要点两下）"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段已经在生成了"
+msgstr "第 {seg} 段已经在生成了"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段开始推演——好了之后在本段编辑窗点「🎬 挑一套方案」"
+msgstr "第 {seg} 段开始推演——好了之后在本段编辑窗点「🎬 挑一套方案」"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段开始生成（要几分钟，可以先去逛，出片有胶囊通知）"
+msgstr "第 {seg} 段开始生成（要几分钟，可以先去逛，出片有胶囊通知）"
+
+#. placeholder {0}: f.issue ?? ""
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段挂卡：{0}"
+msgstr "第 {seg} 段挂卡：{0}"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段挂卡：这个模板人数可能超过 {BLOCKOUT_MAX_ROLES} 人，「{rawLabel}」这种说法对不准，请照抄角色位原字样：{avail}"
+msgstr "第 {seg} 段挂卡：这个模板人数可能超过 {BLOCKOUT_MAX_ROLES} 人，「{rawLabel}」这种说法对不准，请照抄角色位原字样：{avail}"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段挂卡：这个模板没有「{rawLabel}」这个位子（有的是：{avail}）"
+msgstr "第 {seg} 段挂卡：这个模板没有「{rawLabel}」这个位子（有的是：{avail}）"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段挂好了，点名句已合成：「{excerpt}…」"
+msgstr "第 {seg} 段挂好了，点名句已合成：「{excerpt}…」"
+
+#. placeholder {0}: s1.err
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段挂好了，点名句已合成：「{excerpt}…」。{0}"
+msgstr "第 {seg} 段挂好了，点名句已合成：「{excerpt}…」。{0}"
+
+#. placeholder {0}: matched.length
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段挂着 {0} 张对得上「{name}」的卡（{names}），说全名"
+msgstr "第 {seg} 段挂着 {0} 张对得上「{name}」的卡（{names}），说全名"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段挂角色卡：{pairs}"
+msgstr "第 {seg} 段挂角色卡：{pairs}"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段挂角色卡：{pairs}（该段其余已挂的位子保持不变）"
+msgstr "第 {seg} 段挂角色卡：{pairs}（该段其余已挂的位子保持不变）"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段按要求推演三套方案"
+msgstr "第 {seg} 段按要求推演三套方案"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段按要求推演三套方案（会替换现有那三套）"
+msgstr "第 {seg} 段按要求推演三套方案（会替换现有那三套）"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段推演好了——在本段编辑窗点「🎬 挑一套方案」"
+msgstr "第 {seg} 段推演好了——在本段编辑窗点「🎬 挑一套方案」"
+
+#. placeholder {0}: storeErr()
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段摘模板：{0}"
+msgstr "第 {seg} 段摘模板：{0}"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段是带角色位的白模段，素材由挂卡决定——用编辑窗里的挂卡入口"
+msgstr "第 {seg} 段是带角色位的白模段，素材由挂卡决定——用编辑窗里的挂卡入口"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段本来就没套模板"
+msgstr "第 {seg} 段本来就没套模板"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段正在生成，等它跑完"
+msgstr "第 {seg} 段正在生成，等它跑完"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段正在生成，等它跑完再改素材（现在改也来不及进这一炉）"
+msgstr "第 {seg} 段正在生成，等它跑完再改素材（现在改也来不及进这一炉）"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段正在生成，等它跑完再改要求（现在改也来不及进这一炉）"
+msgstr "第 {seg} 段正在生成，等它跑完再改要求（现在改也来不及进这一炉）"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段没挂着「{name}」"
+msgstr "第 {seg} 段没挂着「{name}」"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段没有角色位（不是可换人的白模段），挂不了角色卡"
+msgstr "第 {seg} 段没有角色位（不是可换人的白模段），挂不了角色卡"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段没能开始（多半是有别的段正在生成）——等它跑完再说一次"
+msgstr "第 {seg} 段没能开始（多半是有别的段正在生成）——等它跑完再说一次"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段现在套着模板，不走推演（提案已过期）"
+msgstr "第 {seg} 段现在套着模板，不走推演（提案已过期）"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段生成视频"
+msgstr "第 {seg} 段生成视频"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段还没写拍摄要求——先说「第 {seg} 段 拍什么」"
+msgstr "第 {seg} 段还没写拍摄要求——先说「第 {seg} 段 拍什么」"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段还没挑定方案——先推演，再在本段编辑窗点「🎬 挑一套方案」挑一套"
+msgstr "第 {seg} 段还没挑定方案——先推演，再在本段编辑窗点「🎬 挑一套方案」挑一套"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段还没有点名句——先挂卡（比如「第 {seg} 段把 {role} 挂成某张卡」）"
+msgstr "第 {seg} 段还没有点名句——先挂卡（比如「第 {seg} 段把 {role} 挂成某张卡」）"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段还没轮到（前面的段先炼完），挂不了"
+msgstr "第 {seg} 段还没轮到（前面的段先炼完），挂不了"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段还没轮到（前面的段先炼完才解锁）"
+msgstr "第 {seg} 段还没轮到（前面的段先炼完才解锁）"
+
+#: src/studio/canvasAgent.ts
+msgid "第 {seg} 段重新生成视频（旧成片作废）"
+msgstr "第 {seg} 段重新生成视频（旧成片作废）"
 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段 · {s}"
@@ -10604,6 +10894,10 @@ msgstr "至少给一格图，这颗键才亮（第一张有图的就是卡面）
 msgid "至少给一格图（第一张有图的就是卡面）"
 msgstr "至少给一格图（第一张有图的就是卡面）"
 
+#: src/studio/scene/cardTexture.ts
+msgid "节点卡"
+msgstr "节点卡"
+
 #: src/studio/canvasAgent.ts
 msgid "花钱操作，会先摆确认卡"
 msgstr "花钱操作，会先摆确认卡"
@@ -10678,6 +10972,10 @@ msgstr "表情「{faceName}」→ {expr}"
 #: src/pages/AdminPage.tsx
 msgid "被平台下架的作品只有作者与管理员看得到。「重新上架」幂等，重复点不会出错。"
 msgstr "被平台下架的作品只有作者与管理员看得到。「重新上架」幂等，重复点不会出错。"
+
+#: src/studio/canvasAgent.ts
+msgid "被拒绝了（原因没说清——这是个 bug，请反馈）"
+msgstr "被拒绝了（原因没说清——这是个 bug，请反馈）"
 
 #: src/components/flow/SkillPanel.tsx
 msgid "装"
@@ -11618,6 +11916,10 @@ msgstr "这一段可以开炼：{0}"
 msgid "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线"
 msgstr "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线"
 
+#: src/studio/canvasAgent.ts
+msgid "这一段在确认之前被改过了（时长/画面/选中的走向变了）：现在要 {nowLabel}，卡上写的是 {cardLabel}——重说一句，我按新价再摆一张卡"
+msgstr "这一段在确认之前被改过了（时长/画面/选中的走向变了）：现在要 {nowLabel}，卡上写的是 {cardLabel}——重说一句，我按新价再摆一张卡"
+
 #: src/studio/flowStore.ts
 msgid "这一段套着模板——先「摘掉模板」（改为自选）再自定义首尾帧"
 msgstr "这一段套着模板——先「摘掉模板」（改为自选）再自定义首尾帧"
@@ -12167,6 +12469,10 @@ msgstr "这张卡没留下铸造时的提示词（老卡/素材卡），上面�
 msgid "这张卡没能存到服务器"
 msgstr "这张卡没能存到服务器"
 
+#: src/studio/canvasAgent.ts
+msgid "这张卡说的那一段已经不在第 {seg} 位了（流水线被改过）——重说一句，我按现在的样子再摆一张"
+msgstr "这张卡说的那一段已经不在第 {seg} 位了（流水线被改过）——重说一句，我按现在的样子再摆一张"
+
 #: src/pages/CardDetailPage.tsx
 msgid "这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。"
 msgstr "这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。"
@@ -12513,6 +12819,10 @@ msgstr "选一段本地视频"
 #: src/components/AvatarPicker.tsx
 msgid "选个头像"
 msgstr "选个头像"
+
+#: src/studio/canvasAgent.ts
+msgid "选中第 {seg} 段：流水线只有 {total} 段"
+msgstr "选中第 {seg} 段：流水线只有 {total} 段"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "选卡片"

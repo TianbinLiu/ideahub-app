@@ -25,6 +25,7 @@ function getKey(): Promise<CryptoKey> {
 async function decryptGlbx(buf: ArrayBuffer): Promise<ArrayBuffer> {
   const bytes = new Uint8Array(buf);
   const magic = new TextDecoder().decode(bytes.slice(0, 5));
+  // i18n-ignore-next-line: 资产文件格式断言，给开发看的报错，界面上不显示
   if (magic !== "GLBX1") throw new Error("不是 GLBX1 加密资产");
   const iv = bytes.slice(5, 17);
   const cipher = bytes.slice(17);

@@ -22,7 +22,7 @@ import { useFlowActions } from "../hooks/useFlowActions";
 // 工作流画布现在是工坊里的一层全屏浮层（2026-08-30 合并：创作入口不再有「工作流模式」）
 import FlowCanvas from "../components/flow/FlowCanvas";
 import { castEditorState } from "../pages/FlowPage";
-import { autoQualityOnFirstVisit, QUALITY_LABELS, type Quality } from "./quality";
+import { autoQualityOnFirstVisit, qualityLabel, type Quality } from "./quality";
 import DraftTitle from "../components/DraftTitle";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
@@ -168,7 +168,7 @@ function AutoQualityHint({ q }: { q: Quality }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-24 z-30 flex justify-center px-6">
       <div className="rounded-full px-2.5 py-1 bg-black/70 text-center text-[11px] text-slate-300 backdrop-blur">
-        <Trans>已自动选「{QUALITY_LABELS[q].name}」画质 · 设置里可改</Trans>
+        <Trans>已自动选「{qualityLabel(q).name}」画质 · 设置里可改</Trans>
       </div>
     </div>
   );
